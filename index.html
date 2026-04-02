@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MOMO Works</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='8' fill='%23000000'/%3E%3Cpolygon points='14,22 10,8 22,16' fill='%23000000' stroke='%23c2410c' stroke-width='2' stroke-linejoin='round'/%3E%3Cpolygon points='50,22 42,16 54,8' fill='%23000000' stroke='%23c2410c' stroke-width='2' stroke-linejoin='round'/%3E%3Cellipse cx='32' cy='37' rx='22' ry='20' fill='%23000000' stroke='%23c2410c' stroke-width='2.5'/%3E%3Cellipse cx='24' cy='34' rx='3' ry='3.5' fill='%23c2410c'/%3E%3Cellipse cx='40' cy='34' rx='3' ry='3.5' fill='%23c2410c'/%3E%3Cellipse cx='32' cy='41' rx='2.2' ry='1.6' fill='%23c2410c'/%3E%3Cpath d='M32,43 Q29,48 26,47' fill='none' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cpath d='M32,43 Q35,48 38,47' fill='none' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='9' y1='39' x2='22' y2='41.5' stroke='%23c2410c' stroke-width='1.2' stroke-linecap='round'/%3E%3Cline x1='9' y1='43' x2='22' y2='43' stroke='%23c2410c' stroke-width='1.2' stroke-linecap='round'/%3E%3Cline x1='9' y1='47' x2='22' y2='44.5' stroke='%23c2410c' stroke-width='1.2' stroke-linecap='round'/%3E%3Cline x1='55' y1='39' x2='42' y2='41.5' stroke='%23c2410c' stroke-width='1.2' stroke-linecap='round'/%3E%3Cline x1='55' y1='43' x2='42' y2='43' stroke='%23c2410c' stroke-width='1.2' stroke-linecap='round'/%3E%3Cline x1='55' y1='47' x2='42' y2='44.5' stroke='%23c2410c' stroke-width='1.2' stroke-linecap='round'/%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --surface2: #1a1a1a;
+    --orange: #c2410c;
+    --orange-light: #ea580c;
+    --text: #e5e5e5;
+    --text-muted: #737373;
+    --border: #2a2a2a;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 48px 48px;
+    opacity: 0.3;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 760px;
+    padding: 0 24px;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    padding: 72px 0 56px;
+    animation: fadeDown 0.7s ease both;
+  }
+
+  .title-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+  }
+
+  .cat-icon {
+    width: 72px;
+    height: 72px;
+    flex-shrink: 0;
+    filter: drop-shadow(0 0 18px rgba(194,65,12,0.5));
+    animation: pulse 3s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { filter: drop-shadow(0 0 18px rgba(194,65,12,0.5)); }
+    50%       { filter: drop-shadow(0 0 32px rgba(234,88,12,0.8)); }
+  }
+
+  h1 {
+    font-family: 'Fredoka One', cursive;
+    font-size: clamp(2.8rem, 8vw, 4.2rem);
+    font-weight: 400;
+    color: #fff;
+    letter-spacing: 0.04em;
+    line-height: 1;
+  }
+
+  h1 span { color: var(--orange-light); }
+
+  .tagline {
+    margin-top: 12px;
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .section-label {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    animation: fadeUp 0.7s ease 0.2s both;
+  }
+
+  .section-label span {
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--orange);
+  }
+
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 80px;
+    animation: fadeUp 0.7s ease 0.3s both;
+  }
+
+  @media (max-width: 520px) {
+    .cards { grid-template-columns: 1fr; }
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px 28px;
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.2s, transform 0.2s, background 0.2s;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at top left, rgba(194,65,12,0.08) 0%, transparent 60%);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .card:hover { border-color: var(--orange); transform: translateY(-3px); background: var(--surface2); }
+  .card:hover::before { opacity: 1; }
+
+  .card.disabled { opacity: 0.4; cursor: default; pointer-events: none; }
+
+  .card-icon { font-size: 2rem; line-height: 1; }
+
+  .card-title {
+    font-family: 'Fredoka One', cursive;
+    font-size: 1.5rem;
+    font-weight: 400;
+    color: #fff;
+    letter-spacing: 0.03em;
+  }
+
+  .card-title span { color: var(--orange-light); }
+
+  .card-desc { font-size: 0.875rem; color: var(--text-muted); line-height: 1.6; }
+
+  .card-arrow {
+    margin-top: auto;
+    padding-top: 16px;
+    font-size: 0.8rem;
+    color: var(--orange);
+    letter-spacing: 0.08em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .card-arrow::after { content: '→'; transition: transform 0.2s; }
+  .card:hover .card-arrow::after { transform: translateX(4px); }
+
+  .badge-soon {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-top: auto;
+    padding-top: 16px;
+    width: fit-content;
+  }
+
+  footer {
+    margin-top: auto;
+    padding: 24px 0;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-align: center;
+    border-top: 1px solid var(--border);
+    width: 100%;
+    position: relative;
+    z-index: 1;
+  }
+
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <div class="title-row">
+      <svg class="cat-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+        <rect width="64" height="64" rx="8" fill="#000000"/>
+        <!-- 耳：小さめ三角 -->
+        <polygon points="14,22 10,8 22,16" fill="#000000" stroke="#c2410c" stroke-width="2" stroke-linejoin="round"/>
+        <polygon points="50,22 42,16 54,8" fill="#000000" stroke="#c2410c" stroke-width="2" stroke-linejoin="round"/>
+        <!-- 頭 -->
+        <ellipse cx="32" cy="37" rx="22" ry="20" fill="#000000" stroke="#c2410c" stroke-width="2.5"/>
+        <!-- 目 -->
+        <ellipse cx="24" cy="34" rx="3" ry="3.5" fill="#c2410c"/>
+        <ellipse cx="40" cy="34" rx="3" ry="3.5" fill="#c2410c"/>
+        <!-- 鼻 -->
+        <ellipse cx="32" cy="41" rx="2.2" ry="1.6" fill="#c2410c"/>
+        <!-- 口：人の字つぶして先を丸く上へ -->
+        <path d="M32,43 Q29,48 26,47" fill="none" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M32,43 Q35,48 38,47" fill="none" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+        <!-- 左ひげ 3本 -->
+        <line x1="9"  y1="39"   x2="22" y2="41.5" stroke="#c2410c" stroke-width="1.2" stroke-linecap="round"/>
+        <line x1="9"  y1="43"   x2="22" y2="43"   stroke="#c2410c" stroke-width="1.2" stroke-linecap="round"/>
+        <line x1="9"  y1="47"   x2="22" y2="44.5" stroke="#c2410c" stroke-width="1.2" stroke-linecap="round"/>
+        <!-- 右ひげ 3本 -->
+        <line x1="55" y1="39"   x2="42" y2="41.5" stroke="#c2410c" stroke-width="1.2" stroke-linecap="round"/>
+        <line x1="55" y1="43"   x2="42" y2="43"   stroke="#c2410c" stroke-width="1.2" stroke-linecap="round"/>
+        <line x1="55" y1="47"   x2="42" y2="44.5" stroke="#c2410c" stroke-width="1.2" stroke-linecap="round"/>
+      </svg>
+
+      <h1>MOMO <span>Works</span></h1>
+    </div>
+    <p class="tagline">Games &amp; Tools by MOMO</p>
+  </header>
+
+  <div class="section-label"><span>Contents</span></div>
+
+  <div class="cards">
+    <a class="card" href="games/">
+      <div class="card-icon">🎮</div>
+      <div class="card-title">MOMO <span>Games</span></div>
+      <div class="card-desc">ブラウザで気軽に遊べるゲーム集。インストール不要。</div>
+      <div class="card-arrow">遊ぶ</div>
+    </a>
+
+    <div class="card disabled">
+      <div class="card-icon">🛠️</div>
+      <div class="card-title">MOMO <span>Tools</span></div>
+      <div class="card-desc">便利なWebツールを公開予定。しばらくお待ちください。</div>
+      <div class="badge-soon">Coming Soon</div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  &copy; MOMO Works
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MOMO Games</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-46 -50 92 80'%3E%3Crect x='-46' y='-50' width='92' height='80' rx='8' fill='%23000000'/%3E%3Cg transform='rotate(-12,-12,8.3)'%3E%3Cpath d='M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cg transform='rotate(12,12,8.3)'%3E%3Cpath d='M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cellipse cx='0' cy='1.3' rx='34' ry='26' fill='%23c2410c'/%3E%3Cline x1='-14' y1='1.00' x2='-33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='6.0' x2='-33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='10.59' x2='-29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.68' y1='-2.28' x2='-38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.44' y1='6.0' x2='-40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-29.58' y1='14.26' x2='-37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='1.00' x2='33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='6.0' x2='33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='10.59' x2='29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.68' y1='-2.28' x2='38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.44' y1='6.0' x2='40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='29.58' y1='14.26' x2='37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cellipse cx='-12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='-12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Cellipse cx='12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Ccircle cx='-10.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Ccircle cx='13.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Cpath d='M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z' fill='%23000'/%3E%3Cline x1='0' y1='11.3' x2='0' y2='13.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q-5,17.3 -8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q5,17.3 8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0a0a0a; --surface:#111111; --surface2:#1a1a1a;
+    --orange:#c2410c; --orange-light:#ea580c; --orange-bright:#fb923c;
+    --orange-pale:#431407;
+    --text:#e5e5e5; --text-muted:#737373; --border:#2a2a2a;
+    --border-strong:#444; --bg-selected:rgba(194,65,12,0.15);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background:var(--bg); color:var(--text);
+    font-family:'Noto Sans JP',sans-serif;
+    min-height:100vh; display:flex; flex-direction:column; align-items:center;
+    overflow-x:hidden;
+  }
+  body::before {
+    content:''; position:fixed; inset:0;
+    background-image:linear-gradient(var(--border) 1px,transparent 1px),
+      linear-gradient(90deg,var(--border) 1px,transparent 1px);
+    background-size:48px 48px; opacity:0.2; pointer-events:none; z-index:0;
+  }
+
+  /* ── LANG SWITCHER ── */
+  #lang-switcher { position:fixed; top:8px; right:12px; display:flex; gap:4px; z-index:200; }
+  .lang-btn { background:transparent; border:0.5px solid var(--border-strong); color:var(--text-muted); font-size:10px; padding:3px 7px; border-radius:4px; cursor:pointer; font-family:'Noto Sans JP',sans-serif; }
+  .lang-btn:hover { color:var(--orange-light); border-color:var(--orange); }
+  .lang-btn.active { color:var(--orange-light); border-color:var(--orange); background:var(--bg-selected); }
+
+  .container {
+    position:relative; z-index:1;
+    width:100%; max-width:860px; padding:0 24px;
+  }
+  header { padding:40px 0 36px; animation:fadeDown 0.6s ease both; }
+  .breadcrumb {
+    display:flex; align-items:center; gap:8px;
+    font-size:0.78rem; color:var(--text-muted); margin-bottom:20px;
+  }
+  .breadcrumb a { color:var(--text-muted); text-decoration:none; transition:color 0.2s; }
+  .breadcrumb a:hover { color:var(--orange-bright); }
+  .breadcrumb span { color:var(--border); }
+  .header-row { display:flex; align-items:center; gap:16px; }
+  .cat-icon {
+    width:52px; height:52px; flex-shrink:0;
+    filter:drop-shadow(0 0 12px rgba(194,65,12,0.5));
+    animation:pulse 3s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100%{filter:drop-shadow(0 0 12px rgba(194,65,12,0.5));}
+    50%{filter:drop-shadow(0 0 22px rgba(234,88,12,0.8));}
+  }
+  h1 { font-family:'Fredoka One',cursive; font-size:clamp(2rem,6vw,3rem); font-weight:400; color:#fff; letter-spacing:0.04em; line-height:1; }
+  h1 span { color:var(--orange-light); }
+  .header-sub { margin-top:8px; font-size:0.82rem; color:var(--text-muted); letter-spacing:0.1em; }
+  .section-label { display:flex; align-items:center; gap:12px; margin-bottom:20px; animation:fadeUp 0.6s ease 0.15s both; }
+  .section-label span { font-size:0.72rem; font-weight:500; letter-spacing:0.14em; text-transform:uppercase; color:var(--orange); }
+  .section-label::after { content:''; flex:1; height:1px; background:var(--border); }
+  .cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:16px; margin-bottom:60px; animation:fadeUp 0.6s ease 0.2s both; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:28px 24px; text-decoration:none; color:inherit; transition:border-color 0.2s, transform 0.2s, background 0.2s; display:flex; flex-direction:column; gap:10px; position:relative; overflow:hidden; }
+  .card::before { content:''; position:absolute; inset:0; background:radial-gradient(ellipse at top left,rgba(194,65,12,0.09) 0%,transparent 60%); opacity:0; transition:opacity 0.3s; }
+  .card:hover { border-color:var(--orange); transform:translateY(-3px); background:var(--surface2); }
+  .card:hover::before { opacity:1; }
+  .card-badge { display:inline-flex; align-items:center; gap:6px; font-size:0.65rem; font-weight:500; letter-spacing:0.1em; text-transform:uppercase; width:fit-content; padding:3px 10px; border-radius:4px; background:var(--orange-pale); color:var(--orange-bright); border:1px solid var(--orange); }
+  .card-title { font-family:'Fredoka One',cursive; font-size:1.4rem; font-weight:400; color:#fff; letter-spacing:0.03em; }
+  .card-title span { color:var(--orange-light); }
+  .card-desc { font-size:0.85rem; color:var(--text-muted); line-height:1.65; flex:1; }
+  .card-meta { display:flex; gap:12px; flex-wrap:wrap; font-size:0.75rem; color:var(--text-muted); border-top:1px solid var(--border); padding-top:12px; margin-top:4px; }
+  .card-meta span { display:flex; align-items:center; gap:4px; }
+  .card-play { margin-top:4px; font-size:0.82rem; color:var(--orange); letter-spacing:0.08em; display:flex; align-items:center; gap:6px; }
+  .card-play::after { content:'→'; transition:transform 0.2s; }
+  .card:hover .card-play::after { transform:translateX(4px); }
+  footer { margin-top:auto; padding:20px 0; font-size:0.75rem; color:var(--text-muted); text-align:center; border-top:1px solid var(--border); width:100%; position:relative; z-index:1; }
+  footer a { color:var(--text-muted); text-decoration:none; }
+  footer a:hover { color:var(--orange-bright); }
+  @keyframes fadeDown { from{opacity:0;transform:translateY(-14px);} to{opacity:1;transform:translateY(0);} }
+  @keyframes fadeUp   { from{opacity:0;transform:translateY(14px);}  to{opacity:1;transform:translateY(0);} }
+</style>
+</head>
+<body>
+
+<div id="lang-switcher">
+  <button class="lang-btn" data-lang="ja">日本語</button>
+  <button class="lang-btn" data-lang="en">EN</button>
+  <button class="lang-btn" data-lang="zh">中文</button>
+</div>
+
+<div class="container">
+  <header>
+    <div class="breadcrumb">
+      <a href="../" id="bc-top">MOMO Works</a>
+      <span>›</span>
+      <span id="bc-current">MOMO Games</span>
+    </div>
+    <div class="header-row">
+      <svg class="cat-icon" xmlns="http://www.w3.org/2000/svg" viewBox="-46 -50 92 80">
+        <g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/></g>
+        <g transform="rotate(12,12,8.3)"><path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/></g>
+        <ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/>
+        <line x1="-14" y1="1.00"  x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="-14" y1="6.0"   x2="-33.44" y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="-33.68" y1="-2.28" x2="-38" y2="-3"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="-33.44" y1="6.0"   x2="-40" y2="6"    stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="-29.58" y1="14.26" x2="-37" y2="16"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="14"  y1="1.00"  x2="33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="14"  y1="6.0"   x2="33.44" y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="14"  y1="10.59" x2="29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="33.68" y1="-2.28" x2="38"  y2="-3"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="33.44" y1="6.0"   x2="40"  y2="6"    stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="29.58" y1="14.26" x2="37"  y2="16"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+        <ellipse cx="-12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+        <ellipse cx="12"  cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+        <ellipse cx="-12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+        <ellipse cx="12"  cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+        <circle cx="-10.5" cy="-5.2" r="1.0" fill="#c2410c"/>
+        <circle cx="13.5"  cy="-5.2" r="1.0" fill="#c2410c"/>
+        <path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/>
+        <line x1="0" y1="11.3" x2="0" y2="13.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M0,13.3 Q5,17.3 8,15.3"  fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+      </svg>
+      <div>
+        <h1>MOMO <span>Games</span></h1>
+        <div class="header-sub" id="header-sub">ブラウザで遊べるゲーム集</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="section-label"><span id="section-label">Game List</span></div>
+
+  <div class="cards">
+    <a class="card" href="hanoi/">
+      <div class="card-badge">🎮 New</div>
+      <div class="card-title">MOMO <span>Hanoi</span></div>
+      <div class="card-desc" id="hanoi-desc">ハノイの塔を解きながらUFOを迎撃するパズル×シューティング。円盤を移動させて砲弾を発射し、地面を守れ！</div>
+      <div class="card-meta" id="hanoi-meta">
+        <span>🧩 パズル</span>
+        <span>🛸 シューティング</span>
+        <span id="hanoi-diff">3難易度</span>
+      </div>
+      <div class="card-play" id="hanoi-play">今すぐプレイ</div>
+    </a>
+  </div>
+</div>
+
+<footer>
+  <a href="../" id="footer-back">← MOMO Works に戻る</a>
+</footer>
+
+<script>
+const I18N = {
+  ja: {
+    headerSub: 'ブラウザで遊べるゲーム集',
+    sectionLabel: 'Game List',
+    hanoiDesc: 'ハノイの塔を解きながらUFOを迎撃するパズル×シューティング。円盤を移動させて砲弾を発射し、地面を守れ！',
+    hanoiMeta1: '🧩 パズル', hanoiMeta2: '🛸 シューティング', hanoiDiff: '3難易度',
+    hanoiPlay: '今すぐプレイ',
+    footerBack: '← MOMO Works に戻る',
+  },
+  en: {
+    headerSub: 'Browser games collection',
+    sectionLabel: 'Game List',
+    hanoiDesc: 'A puzzle × shooting game where you solve the Tower of Hanoi while intercepting UFOs. Move discs to fire shells and protect the ground!',
+    hanoiMeta1: '🧩 Puzzle', hanoiMeta2: '🛸 Shooting', hanoiDiff: '3 difficulties',
+    hanoiPlay: 'Play Now',
+    footerBack: '← Back to MOMO Works',
+  },
+  zh: {
+    headerSub: '可在浏览器中游玩的游戏合集',
+    sectionLabel: 'Game List',
+    hanoiDesc: '一边解汉诺塔谜题，一边拦截UFO的益智×射击游戏。移动圆盘发射炮弹，保卫大地！',
+    hanoiMeta1: '🧩 益智', hanoiMeta2: '🛸 射击', hanoiDiff: '3种难度',
+    hanoiPlay: '立即游玩',
+    footerBack: '← 返回 MOMO Works',
+  },
+};
+
+let currentLang = (() => { try { return localStorage.getItem('momoLang') || 'ja'; } catch(e) { return 'ja'; } })();
+
+function applyLang() {
+  const d = I18N[currentLang] || I18N.ja;
+  document.getElementById('header-sub').textContent = d.headerSub;
+  document.getElementById('section-label').textContent = d.sectionLabel;
+  document.getElementById('hanoi-desc').textContent = d.hanoiDesc;
+  const metaSpans = document.querySelectorAll('#hanoi-meta span');
+  if (metaSpans[0]) metaSpans[0].textContent = d.hanoiMeta1;
+  if (metaSpans[1]) metaSpans[1].textContent = d.hanoiMeta2;
+  document.getElementById('hanoi-diff').textContent = d.hanoiDiff;
+  document.getElementById('hanoi-play').textContent = d.hanoiPlay;
+  document.getElementById('footer-back').textContent = d.footerBack;
+  document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('active', b.dataset.lang === currentLang));
+  document.documentElement.lang = currentLang === 'zh' ? 'zh-Hans' : currentLang;
+}
+
+document.querySelectorAll('.lang-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    currentLang = btn.dataset.lang;
+    try { localStorage.setItem('momoLang', currentLang); } catch(e) {}
+    applyLang();
+  });
+});
+
+applyLang();
+</script>
+</body>
+</html>

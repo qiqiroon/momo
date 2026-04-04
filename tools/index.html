@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MOMO Tools</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-46 -50 92 80'%3E%3Crect x='-46' y='-50' width='92' height='80' rx='8' fill='%23000000'/%3E%3Cg transform='rotate(-12,-12,8.3)'%3E%3Cpath d='M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cg transform='rotate(12,12,8.3)'%3E%3Cpath d='M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cellipse cx='0' cy='1.3' rx='34' ry='26' fill='%23c2410c'/%3E%3Cline x1='-14' y1='1.00' x2='-33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='6.0' x2='-33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='10.59' x2='-29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.68' y1='-2.28' x2='-38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.44' y1='6.0' x2='-40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-29.58' y1='14.26' x2='-37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='1.00' x2='33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='6.0' x2='33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='10.59' x2='29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.68' y1='-2.28' x2='38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.44' y1='6.0' x2='40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='29.58' y1='14.26' x2='37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cellipse cx='-12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='-12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Cellipse cx='12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Ccircle cx='-10.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Ccircle cx='13.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Cpath d='M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z' fill='%23000'/%3E%3Cline x1='0' y1='11.3' x2='0' y2='13.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q-5,17.3 -8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q5,17.3 8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-base:     #0a0a0a;
+      --bg-surface:  #111111;
+      --bg-card:     #1a1a1a;
+      --orange-dark: #c2410c;
+      --orange:      #ea580c;
+      --orange-light:#fb923c;
+      --text-main:   #e5e5e5;
+      --text-muted:  #737373;
+      --border:      #2a2a2a;
+      --border-strong: #444;
+      --bg-selected: rgba(194,65,12,0.15);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg-base);
+      color: var(--text-main);
+      font-family: 'Noto Sans JP', sans-serif;
+      min-height: 100vh;
+      background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 48px 48px;
+      background-attachment: fixed;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: var(--bg-base);
+      opacity: 0.8;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── LANG SWITCHER ── */
+    #lang-switcher {
+      position: fixed;
+      top: 8px;
+      right: 12px;
+      display: flex;
+      gap: 4px;
+      z-index: 200;
+    }
+    .lang-btn {
+      background: transparent;
+      border: 0.5px solid var(--border-strong);
+      color: var(--text-muted);
+      font-size: 10px;
+      padding: 3px 7px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: 'Noto Sans JP', sans-serif;
+    }
+    .lang-btn:hover { color: var(--orange-light); border-color: var(--orange); }
+    .lang-btn.active { color: var(--orange-light); border-color: var(--orange); background: var(--bg-selected); }
+
+    /* ── LAYOUT ── */
+    .page-wrap {
+      position: relative;
+      z-index: 1;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+
+    /* ── BREADCRUMB ── */
+    .breadcrumb {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 32px;
+      opacity: 0;
+      animation: fadeDown 0.5s ease forwards;
+    }
+    .breadcrumb a {
+      color: var(--text-muted);
+      text-decoration: none;
+    }
+    .breadcrumb a:hover { color: var(--orange-light); }
+    .breadcrumb span { margin: 0 6px; }
+
+    /* ── HEADER ── */
+    .site-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 8px;
+      opacity: 0;
+      animation: fadeDown 0.5s 0.1s ease forwards;
+    }
+    .cat-icon {
+      width: 52px;
+      height: 44px;
+      flex-shrink: 0;
+    }
+    .site-title {
+      font-family: 'Fredoka One', cursive;
+      font-size: clamp(2rem, 5vw, 2.8rem);
+      color: var(--text-main);
+      line-height: 1;
+    }
+    .site-title span { color: var(--orange); }
+    .header-sub {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 40px;
+      padding-left: 4px;
+      opacity: 0;
+      animation: fadeDown 0.5s 0.2s ease forwards;
+    }
+
+    /* ── SECTION LABEL ── */
+    .section-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+      margin-bottom: 20px;
+      opacity: 0;
+      animation: fadeDown 0.5s 0.25s ease forwards;
+    }
+
+    /* ── TOOL CARDS ── */
+    .tool-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+    }
+    .tool-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: border-color 0.2s, transform 0.2s;
+      opacity: 0;
+      animation: fadeUp 0.5s 0.3s ease forwards;
+      cursor: pointer;
+      text-decoration: none;
+      color: inherit;
+    }
+    .tool-card:hover {
+      border-color: var(--orange-dark);
+      transform: translateY(-2px);
+    }
+    .card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 20px;
+      background: var(--orange-dark);
+      color: #fff;
+      letter-spacing: 0.04em;
+    }
+    .card-title {
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.3rem;
+      color: var(--text-main);
+      line-height: 1.2;
+    }
+    .card-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.65;
+      flex: 1;
+    }
+    .card-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .meta-tag {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 7px;
+    }
+    .card-btn {
+      display: inline-block;
+      margin-top: 4px;
+      background: var(--orange-dark);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      font-family: 'Noto Sans JP', sans-serif;
+      padding: 8px 16px;
+      border-radius: 6px;
+      text-decoration: none;
+      text-align: center;
+      transition: background 0.15s;
+      border: none;
+      cursor: pointer;
+    }
+    .card-btn:hover { background: var(--orange); }
+
+    /* ── FOOTER ── */
+    .page-footer {
+      margin-top: 60px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--text-muted);
+      opacity: 0;
+      animation: fadeUp 0.5s 0.5s ease forwards;
+    }
+    .page-footer a {
+      color: var(--text-muted);
+      text-decoration: none;
+    }
+    .page-footer a:hover { color: var(--orange-light); }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeDown {
+      from { opacity: 0; transform: translateY(-12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+<div id="lang-switcher">
+  <button class="lang-btn" data-lang="ja">日本語</button>
+  <button class="lang-btn" data-lang="en">EN</button>
+  <button class="lang-btn" data-lang="zh">中文</button>
+</div>
+
+<div class="page-wrap">
+
+  <!-- Breadcrumb -->
+  <nav class="breadcrumb">
+    <a href="../">MOMO Works</a><span>›</span>MOMO Tools
+  </nav>
+
+  <!-- Header -->
+  <header class="site-header">
+    <svg class="cat-icon" xmlns="http://www.w3.org/2000/svg" viewBox="-46 -50 92 80">
+      <g transform="rotate(-12,-12,8.3)">
+        <path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/>
+      </g>
+      <g transform="rotate(12,12,8.3)">
+        <path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/>
+      </g>
+      <ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/>
+      <line x1="-14" y1="1.00"  x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-14" y1="6.0"   x2="-33.44" y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-33.68" y1="-2.28" x2="-38" y2="-3"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-33.44" y1="6.0"   x2="-40" y2="6"    stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-29.58" y1="14.26" x2="-37" y2="16"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="14"  y1="1.00"  x2="33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="14"  y1="6.0"   x2="33.44" y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="14"  y1="10.59" x2="29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="33.68" y1="-2.28" x2="38"  y2="-3"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="33.44" y1="6.0"   x2="40"  y2="6"    stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="29.58" y1="14.26" x2="37"  y2="16"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <ellipse cx="-12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+      <ellipse cx="12"  cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+      <ellipse cx="-12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+      <ellipse cx="12"  cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+      <circle cx="-10.5" cy="-5.2" r="1.0" fill="#c2410c"/>
+      <circle cx="13.5"  cy="-5.2" r="1.0" fill="#c2410c"/>
+      <path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/>
+      <line x1="0" y1="11.3" x2="0" y2="13.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M0,13.3 Q5,17.3 8,15.3"  fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+    </svg>
+    <h1 class="site-title">MOMO <span>Tools</span></h1>
+  </header>
+
+  <p class="header-sub" id="header-sub">便利なWebツール集</p>
+
+  <!-- Section label -->
+  <div class="section-label" id="section-label">Tool List</div>
+
+  <!-- Tool cards -->
+  <div class="tool-grid">
+
+    <!-- MOMO Player card -->
+    <a class="tool-card" href="player/">
+      <div class="card-top">
+        <span class="badge">🎵 New</span>
+      </div>
+      <div class="card-title">MOMO <span style="color:var(--orange);">Player</span></div>
+      <p class="card-desc" id="player-desc">ローカルの音楽ファイルをブラウザで再生できる高機能プレイヤー。NASやフォルダをライブラリ管理でき、アーティスト・アルバム・プレイリストに対応。</p>
+      <div class="card-meta">
+        <span class="meta-tag" id="player-meta1">🎧 音楽プレイヤー</span>
+        <span class="meta-tag" id="player-meta2">📁 ローカルファイル</span>
+      </div>
+      <div class="card-btn" id="player-open">今すぐ使う</div>
+    </a>
+
+    <!-- MOMO Links card -->
+    <a class="tool-card" href="links/" style="animation-delay:0.38s">
+      <div class="card-top">
+        <span class="badge">🔖 New</span>
+      </div>
+      <div class="card-title">MOMO <span style="color:var(--orange);">Links</span></div>
+      <p class="card-desc" id="links-desc">タグで整理するブックマーク管理ツール。データはあなたのブラウザにのみ保存されます。</p>
+      <div class="card-meta">
+        <span class="meta-tag" id="links-meta1">🔖 ブックマーク</span>
+        <span class="meta-tag" id="links-meta2">💾 ローカル保存</span>
+      </div>
+      <div class="card-btn" id="links-open">今すぐ使う</div>
+    </a>
+
+  </div>
+
+  <!-- Footer -->
+  <footer class="page-footer">
+    <a href="../" id="footer-back">← MOMO Works に戻る</a>
+  </footer>
+
+</div>
+
+<script>
+  const I18N = {
+    ja: {
+      headerSub:   '便利なWebツール集',
+      sectionLabel:'Tool List',
+      playerDesc:  'ローカルの音楽ファイルをブラウザで再生できる高機能プレイヤー。NASやフォルダをライブラリ管理でき、アーティスト・アルバム・プレイリストに対応。',
+      playerMeta1: '🎧 音楽プレイヤー',
+      playerMeta2: '📁 ローカルファイル',
+      playerOpen:  '今すぐ使う',
+      linksDesc:   'タグで整理するブックマーク管理ツール。データはあなたのブラウザにのみ保存されます。',
+      linksMeta1:  '🔖 ブックマーク',
+      linksMeta2:  '💾 ローカル保存',
+      linksOpen:   '今すぐ使う',
+      footerBack:  '← MOMO Works に戻る',
+    },
+    en: {
+      headerSub:   'A collection of browser-based tools',
+      sectionLabel:'Tool List',
+      playerDesc:  'A full-featured music player that plays local files in your browser. Supports library management with NAS/folders, artists, albums, and playlists.',
+      playerMeta1: '🎧 Music Player',
+      playerMeta2: '📁 Local Files',
+      playerOpen:  'Open Now',
+      linksDesc:   'A bookmark manager that organizes links with tags. Your data stays local in your browser.',
+      linksMeta1:  '🔖 Bookmarks',
+      linksMeta2:  '💾 Local Storage',
+      linksOpen:   'Open Now',
+      footerBack:  '← Back to MOMO Works',
+    },
+    zh: {
+      headerSub:   '便捷的网页工具合集',
+      sectionLabel:'Tool List',
+      playerDesc:  '可在浏览器中播放本地音乐文件的全功能播放器。支持NAS/文件夹的曲库管理，涵盖艺术家、专辑和播放列表。',
+      playerMeta1: '🎧 音乐播放器',
+      playerMeta2: '📁 本地文件',
+      playerOpen:  '立即使用',
+      linksDesc:   '用标签整理书签的管理工具。数据仅保存在您的浏览器中。',
+      linksMeta1:  '🔖 书签管理',
+      linksMeta2:  '💾 本地保存',
+      linksOpen:   '立即使用',
+      footerBack:  '← 返回 MOMO Works',
+    },
+  };
+
+  let currentLang = (() => {
+    try { return localStorage.getItem('momoLang') || 'ja'; }
+    catch(e) { return 'ja'; }
+  })();
+
+  function applyLang() {
+    const d = I18N[currentLang] || I18N.ja;
+    document.getElementById('header-sub').textContent    = d.headerSub;
+    document.getElementById('section-label').textContent = d.sectionLabel;
+    document.getElementById('player-desc').textContent   = d.playerDesc;
+    document.getElementById('player-meta1').textContent  = d.playerMeta1;
+    document.getElementById('player-meta2').textContent  = d.playerMeta2;
+    document.getElementById('player-open').textContent   = d.playerOpen;
+    document.getElementById('links-desc').textContent    = d.linksDesc;
+    document.getElementById('links-meta1').textContent   = d.linksMeta1;
+    document.getElementById('links-meta2').textContent   = d.linksMeta2;
+    document.getElementById('links-open').textContent    = d.linksOpen;
+    document.getElementById('footer-back').textContent   = d.footerBack;
+    document.querySelectorAll('.lang-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.lang === currentLang)
+    );
+    document.documentElement.lang = currentLang === 'zh' ? 'zh-Hans' : currentLang;
+  }
+
+  document.querySelectorAll('.lang-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentLang = btn.dataset.lang;
+      try { localStorage.setItem('momoLang', currentLang); } catch(e) {}
+      applyLang();
+    });
+  });
+
+  applyLang();
+</script>
+</body>
+</html>

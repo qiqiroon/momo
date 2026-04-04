@@ -1,0 +1,520 @@
+{
+  "version": 2,
+  "exported": "2026-04-04T07:36:50.031Z",
+  "links": [
+    {
+      "id": 1775288140320,
+      "url": "https://caw.jp/",
+      "title": "CAW",
+      "tags": [
+        "_secret"
+      ],
+      "date": "2026-04-04T07:35:40.320Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "trash",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=caw.jp&sz=32"
+    },
+    {
+      "id": 1775288056455,
+      "url": "https://qiqiroon.github.io/momo/",
+      "title": "MOMO works",
+      "tags": [
+        "_secret"
+      ],
+      "date": "2026-04-04T07:34:16.455Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "active",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=qiqiroon.github.io&sz=32"
+    },
+    {
+      "id": 1775287986619,
+      "url": "https://www.baidu.com/",
+      "title": "Baidu",
+      "tags": [
+        "shopping",
+        "country/cn"
+      ],
+      "date": "2026-04-04T07:33:06.619Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "active",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=baidu.com&sz=32"
+    },
+    {
+      "id": 1775287943940,
+      "url": "https://www.google.com/",
+      "title": "Google",
+      "tags": [
+        "search",
+        "country/jp",
+        "country/us",
+        "country/ph"
+      ],
+      "date": "2026-04-04T07:32:23.940Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "active",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=google.com&sz=32"
+    },
+    {
+      "id": 1775287870000,
+      "url": "https://shopee.ph/",
+      "title": "Shopee",
+      "tags": [
+        "shopping",
+        "country/ph"
+      ],
+      "date": "2026-04-04T07:31:10.000Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "active",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=shopee.ph&sz=32"
+    },
+    {
+      "id": 1775287802822,
+      "url": "https://www.amazon.com/",
+      "title": "Amazon",
+      "tags": [
+        "shopping",
+        "country/us",
+        "country/jp"
+      ],
+      "date": "2026-04-04T07:30:02.822Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "active",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=amazon.com&sz=32"
+    },
+    {
+      "id": 1775287739529,
+      "url": "https://www.taobao.com/",
+      "title": "Taobao",
+      "tags": [
+        "country/cn",
+        "shopping"
+      ],
+      "date": "2026-04-04T07:28:59.529Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "active",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=taobao.com&sz=32"
+    },
+    {
+      "id": 1775287667091,
+      "url": "https://www.rakuten.co.jp/",
+      "title": "Rakuten",
+      "tags": [
+        "country/jp",
+        "shopping"
+      ],
+      "date": "2026-04-04T07:27:47.091Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "active",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=rakuten.co.jp&sz=32"
+    },
+    {
+      "id": 1775286399303,
+      "url": "https://www.tiktok.com/",
+      "title": "TikTok",
+      "tags": [
+        "country/jp",
+        "country/ph",
+        "country/us",
+        "video"
+      ],
+      "date": "2026-04-04T07:06:39.303Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "active",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=tiktok.com&sz=32"
+    },
+    {
+      "id": 1775286323215,
+      "url": "https://www.douyin.com/",
+      "title": "Douyin",
+      "tags": [
+        "country/cn",
+        "video"
+      ],
+      "date": "2026-04-04T07:05:23.215Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "active",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=douyin.com&sz=32"
+    },
+    {
+      "id": 1775285833571,
+      "url": "https://www.youtube.com/",
+      "title": "YouTube",
+      "tags": [
+        "video",
+        "country/jp",
+        "country/ph",
+        "country/us"
+      ],
+      "date": "2026-04-04T06:57:13.571Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "active",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=youtube.com&sz=32"
+    },
+    {
+      "id": 1775132842176,
+      "url": "https://www.youtube.com/",
+      "title": "secret youtube",
+      "tags": [
+        "_secret"
+      ],
+      "date": "2026-04-02T12:27:22.176Z",
+      "comment": "ちんぴょろすぽーん",
+      "isGrouped": true,
+      "status": "trash",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=youtube.com&sz=32"
+    },
+    {
+      "id": 1775093731403,
+      "url": "https://qiqiroon.github.io/momo/",
+      "title": "MOMO Works 実行画面",
+      "tags": [],
+      "date": "2026-04-02T01:35:31.403Z",
+      "comment": "",
+      "isGrouped": true,
+      "status": "trash",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=qiqiroon.github.io&sz=32"
+    },
+    {
+      "id": 1775093675903,
+      "url": "https://github.com/qiqiroon/momo",
+      "title": "MOMO Works 管理画面",
+      "tags": [],
+      "date": "2026-04-02T01:34:35.903Z",
+      "comment": "",
+      "isGrouped": true,
+      "status": "trash",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=github.com&sz=32"
+    },
+    {
+      "id": 1775093627308,
+      "url": "https://github.com/qiqiroon/momo",
+      "title": "MOMO Works Control",
+      "tags": [],
+      "date": "2026-04-02T01:33:47.308Z",
+      "comment": "",
+      "isGrouped": true,
+      "status": "trash",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=github.com&sz=32"
+    },
+    {
+      "id": 1775093534903,
+      "url": "https://github.co.jp",
+      "title": "GitHub",
+      "tags": [],
+      "date": "2026-04-02T01:32:14.903Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "trash",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=github.co.jp&sz=32"
+    },
+    {
+      "id": 1775025527687,
+      "url": "https://transfer.navitime.biz/justline/pc/map/Top?window=diagram",
+      "title": "静鉄バス検索",
+      "tags": [],
+      "date": "2026-04-01T06:38:47.687Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "trash",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=transfer.navitime.biz&sz=32"
+    },
+    {
+      "id": 1775024976144,
+      "url": "https://code.claude.com/docs/en/overview",
+      "title": "claude code",
+      "tags": [],
+      "date": "2026-04-01T06:29:36.144Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "trash",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=code.claude.com&sz=32"
+    },
+    {
+      "id": 1774926575428,
+      "url": "https://aistudio.google.com/api-keys?project=gen-lang-client-0394707246",
+      "title": "google AI studio",
+      "tags": [],
+      "date": "2026-03-31T03:09:35.428Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "trash",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=aistudio.google.com&sz=32"
+    },
+    {
+      "id": 1774599493931,
+      "url": "https://www.genspark.ai/",
+      "title": "genspark",
+      "tags": [],
+      "date": "2026-03-27T08:18:13.931Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "trash",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=genspark.ai&sz=32"
+    },
+    {
+      "id": 1774422548463,
+      "url": "https://www.youtube.com/watch?v=_za_2HdLPUU",
+      "title": "Ysa Jison Clairo - Sofia (cover)",
+      "tags": [
+        "_secret"
+      ],
+      "date": "2026-03-25T07:09:08.463Z",
+      "comment": "",
+      "isGrouped": true,
+      "status": "trash",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=youtube.com&sz=32"
+    },
+    {
+      "id": 1774101453352,
+      "url": "https://www.page.twidy.jp/s-store/",
+      "title": "しずてつストア",
+      "tags": [],
+      "date": "2026-03-21T13:57:33.352Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "trash",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=page.twidy.jp&sz=32"
+    },
+    {
+      "id": 1773758745533,
+      "url": "https://www.youtube.com/",
+      "title": "YouTube",
+      "tags": [],
+      "date": "2026-03-17T14:45:45.533Z",
+      "comment": "",
+      "isGrouped": true,
+      "status": "trash",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=youtube.com&sz=32"
+    },
+    {
+      "id": 1773757832627,
+      "url": "https://secure.sakura.ad.jp/rs/cp/",
+      "title": "さくらのコントロールパネル",
+      "tags": [],
+      "date": "2026-03-17T14:30:32.627Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "trash",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=secure.sakura.ad.jp&sz=32"
+    },
+    {
+      "id": 1773757499235,
+      "url": "https://secure.sakura.ad.jp/rscontrol/?webmail=1",
+      "title": "さくらのWebメール",
+      "tags": [],
+      "date": "2026-03-17T14:24:59.235Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "trash",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=secure.sakura.ad.jp&sz=32"
+    },
+    {
+      "id": 1773756930880,
+      "url": "https://copilot.microsoft.com/",
+      "title": "copilot",
+      "tags": [],
+      "date": "2026-03-17T14:15:30.880Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "trash",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=copilot.microsoft.com&sz=32"
+    },
+    {
+      "id": 1773191877383,
+      "url": "https://takeout.google.com/",
+      "title": "google export",
+      "tags": [],
+      "date": "2026-03-11T01:17:57.383Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "trash",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=takeout.google.com&sz=32"
+    },
+    {
+      "id": 1773048350956,
+      "url": "https://chatgpt.com/",
+      "title": "chatgpt",
+      "tags": [],
+      "date": "2026-03-09T09:25:50.956Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "trash",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=chatgpt.com&sz=32"
+    },
+    {
+      "id": 1773048077499,
+      "url": "https://gemini.google.com/",
+      "title": "gemini",
+      "tags": [],
+      "date": "2026-03-09T09:21:17.499Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "trash",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=gemini.google.com&sz=32"
+    },
+    {
+      "id": 1773047949196,
+      "url": "https://claude.ai/new",
+      "title": "claude",
+      "tags": [],
+      "date": "2026-03-09T09:19:09.196Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "trash",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=claude.ai&sz=32"
+    },
+    {
+      "id": 1773645858156,
+      "url": "https://www.itoyokado.co.jp/",
+      "title": "イトーヨーカドー",
+      "tags": [],
+      "date": "2026-03-16T07:24:18.156Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "trash",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=itoyokado.co.jp&sz=32"
+    },
+    {
+      "id": 1773645628094,
+      "url": "https://shop.aeon.com/netsuper/",
+      "title": "イオン",
+      "tags": [],
+      "date": "2026-03-16T07:20:28.094Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "trash",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=shop.aeon.com&sz=32"
+    },
+    {
+      "id": 1773280784121,
+      "url": "https://amazon.co.jp",
+      "title": "Amazon",
+      "tags": [],
+      "date": "2026-03-12T01:59:44.121Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "trash",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=amazon.co.jp&sz=32"
+    },
+    {
+      "id": 1773277442672,
+      "url": "file:///L:/docs/url/links.html",
+      "title": "links",
+      "tags": [],
+      "date": "2026-03-12T01:04:02.672Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "trash",
+      "faviconUrl": ""
+    },
+    {
+      "id": 1773273797521,
+      "url": "file:///L:/docs/url",
+      "title": "URL",
+      "tags": [],
+      "date": "2026-03-12T00:03:17.521Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "trash",
+      "faviconUrl": ""
+    },
+    {
+      "id": 1773273544722,
+      "url": "file:///L:/",
+      "title": "L drive",
+      "tags": [],
+      "date": "2026-03-11T23:59:04.722Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "trash",
+      "faviconUrl": ""
+    },
+    {
+      "id": 1773272193026,
+      "url": "https://chatgpt.com",
+      "title": "chatgpt",
+      "tags": [],
+      "date": "2026-03-11T23:36:33.026Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "trash",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=chatgpt.com&sz=32"
+    },
+    {
+      "id": 1773272115943,
+      "url": "https://gemini.google.com",
+      "title": "gemini",
+      "tags": [],
+      "date": "2026-03-11T23:35:15.943Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "trash",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=gemini.google.com&sz=32"
+    },
+    {
+      "id": 1773272061870,
+      "url": "https://takeout.google.com",
+      "title": "google export",
+      "tags": [],
+      "date": "2026-03-11T23:34:21.870Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "trash",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=takeout.google.com&sz=32"
+    },
+    {
+      "id": 1773222242060,
+      "url": "https://google.com",
+      "title": "google",
+      "tags": [],
+      "date": "2026-03-11T09:44:02.060Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "trash",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=google.com&sz=32"
+    },
+    {
+      "id": 1773221336065,
+      "url": "https://yahoo.co.jp",
+      "title": "やっほ",
+      "tags": [],
+      "date": "2026-03-11T09:28:56.065Z",
+      "comment": "",
+      "isGrouped": true,
+      "status": "trash",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=yahoo.co.jp&sz=32"
+    },
+    {
+      "id": 1773219745465,
+      "url": "https://claude.ai",
+      "title": "claude AI",
+      "tags": [],
+      "date": "2026-03-11T09:02:25.465Z",
+      "comment": "",
+      "isGrouped": false,
+      "status": "trash",
+      "faviconUrl": "https://www.google.com/s2/favicons?domain=claude.ai&sz=32"
+    }
+  ],
+  "tags": [
+    "_secret",
+    "country/cn",
+    "country/jp",
+    "country/ph",
+    "country/us",
+    "search",
+    "shopping",
+    "video"
+  ]
+}

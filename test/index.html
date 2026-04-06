@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MOMO Reversi v1.03</title>
+
+<style>
+body {
+  background:#0a0a0a;
+  color:#fff;
+  text-align:center;
+  font-family:sans-serif;
+}
+
+h1 {
+  margin:10px;
+}
+
+.version {
+  font-size:12px;
+  color:#888;
+}
+
+.status {
+  font-size:20px;
+  margin:10px;
+}
+
+.board {
+  display:grid;
+  grid-template-columns:repeat(8,1fr);
+  width:320px;
+  margin:10px auto;
+}
+
+.cell {
+  width:40px;
+  height:40px;
+  background:#3a3a3a;
+  border:1px solid #222;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+}
+
+.stone {
+  width:70%;
+  height:70%;
+  border-radius:50%;
+}
+
+.black { background:#000; }
+.white { background:#fff; }
+
+.chat {
+  width:320px;
+  margin:auto;
+}
+
+.chat-box {
+  height:120px;
+  overflow:auto;
+  border:1px solid #333;
+  margin-bottom:5px;
+}
+</style>
+</head>
+
+<body>
+
+<h1>MOMO Reversi</h1>
+<div class="version">v1.03</div>
+<div class="status" id="status">接続待機</div>
+
+<button onclick="createRoom()">部屋作成</button>
+<button onclick="shareRoom()">共有</button>
+
+<div class="board" id="board"></div>
+
+<div>
+<button onclick="pass()">パス</button>
+<button onclick="resign()">降参</button>
+</div>
+
+<div class="chat">
+  <div class="chat-box" id="chatBox"></div>
+  <input id="chatInput">
+  <button onclick="sendChat()">送信</button>
+</div>
+
+<script>
+
+// ===== 設定 =====
+const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
+
+// ===== 基本 =====
+const params = new URLSearchParams(location.search);
+const roomId = params.get('room') || Math.random().toString(36).slice(2);
+let isHost = !params.get('room');
+
+let ws, pc, dc, connected=false;
+let myColor = null;
+
+// ===== WebSocket =====
+function connectWS(){
+  ws = new WebSocket(SIGNALING_URL);
+
+  ws.onopen = () => {
+    ws.send(JSON.stringify({type:'join', room:roomId}));
+    status('シグナリング接続');
+
+    if(isHost) initRTC(true);
+  };
+
+  ws.onmessage = handleSignal;
+}
+
+// ===== WebRTC =====
+function initRTC(host){
+  pc = new RTCPeerConnection({
+    iceServers:[{urls:'stun:stun.l.google.com:19302'}]
+  });
+
+  pc.onconnectionstatechange = () => {
+    console.log('connectionState:', pc.connectionState);
+  };
+
+  pc.oniceconnectionstatechange = () => {
+    console.log('iceConnectionState:', pc.iceConnectionState);
+  };
+
+  pc.onicegatheringstatechange = () => {
+    console.log('iceGatheringState:', pc.iceGatheringState);
+  };
+
+  if(host){
+    dc = pc.createDataChannel('game');
+    bindDC();
+  }
+
+  pc.ondatachannel = e=>{
+    dc = e.channel;
+    bindDC();
+  };
+
+  pc.onicecandidate = e=>{
+    if(e.candidate){
+      ws.send(JSON.stringify({
+        type:'ice',
+        candidate:e.candidate,
+        room:roomId
+      }));
+    }
+  };
+
+  if(host) startOffer();
+}
+
+function bindDC(){
+  dc.onopen = ()=>{
+    console.log('DC open'); //追加
+    connected = true;
+    status('接続完了');
+
+    if(isHost){
+      myColor = 'black';
+      send({type:'start', first:'black'});
+    }
+  };
+
+  dc.onmessage = e=>{
+    handleMsg(JSON.parse(e.data));
+  };
+}
+
+async function startOffer(){
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+
+  ws.send(JSON.stringify({
+    type:'offer',
+    offer,
+    room:roomId
+  }));
+}
+
+async function handleSignal(e){
+  const d = JSON.parse(e.data);
+
+  if(d.type==='offer'){
+    isHost=false;
+    initRTC(false);
+
+    await pc.setRemoteDescription(d.offer);
+
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+
+    ws.send(JSON.stringify({
+      type:'answer',
+      answer,
+      room:roomId
+    }));
+  }
+
+  if(d.type==='answer'){
+    await pc.setRemoteDescription(d.answer);
+  }
+
+  if(d.type==='ice'){
+    try{ await pc.addIceCandidate(d.candidate); }catch{}
+  }
+}
+
+// ===== UI =====
+function createRoom(){
+  status('共有してください');
+}
+
+function shareRoom(){
+  const url = location.origin + location.pathname + '?room=' + roomId;
+
+  if(navigator.share){
+    navigator.share({title:'MOMO Reversi', url});
+  }else{
+    prompt('URLコピー', url);
+  }
+}
+
+function status(t){
+  document.getElementById('status').textContent = t;
+}
+
+// ===== ゲーム =====
+let board = [...Array(8)].map(()=>Array(8).fill(null));
+let turn = 'black';
+let gameActive = false;
+
+function init(){
+  board[3][3]='white';
+  board[3][4]='black';
+  board[4][3]='black';
+  board[4][4]='white';
+  render();
+}
+
+function render(){
+  const b = document.getElementById('board');
+  b.innerHTML = '';
+
+  for(let y=0;y<8;y++){
+    for(let x=0;x<8;x++){
+      const c = document.createElement('div');
+      c.className='cell';
+      c.onclick=()=>place(x,y);
+
+      if(board[y][x]){
+        const s = document.createElement('div');
+        s.className='stone '+board[y][x];
+        c.appendChild(s);
+      }
+
+      b.appendChild(c);
+    }
+  }
+
+  status(`ターン:${turn} 自分:${myColor || '-'} ${connected?'（接続済）':''}`);
+}
+
+function place(x,y){
+  if(!connected || !gameActive) return;
+  if(turn !== myColor) return;
+  if(board[y][x]) return;
+
+  if(!flip(x,y,turn)) return;
+
+  board[y][x]=turn;
+  send({type:'move',x,y});
+
+  nextTurn();
+}
+
+function nextTurn(){
+  turn = turn==='black'?'white':'black';
+  render();
+
+  if(isGameEnd()){
+    endGame();
+  }
+}
+
+function flip(x,y,color){
+  let flipped=false;
+  const dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+
+  for(const[dx,dy] of dirs){
+    let nx=x+dx, ny=y+dy;
+    let list=[];
+
+    while(nx>=0&&nx<8&&ny>=0&&ny<8 && board[ny][nx] && board[ny][nx]!==color){
+      list.push([nx,ny]);
+      nx+=dx; ny+=dy;
+    }
+
+    if(nx>=0&&nx<8&&ny>=0&&ny<8 && board[ny][nx]===color && list.length){
+      list.forEach(([fx,fy])=>board[fy][fx]=color);
+      flipped=true;
+    }
+  }
+
+  return flipped;
+}
+
+function hasMove(color){
+  for(let y=0;y<8;y++){
+    for(let x=0;x<8;x++){
+      if(!board[y][x]){
+        const copy = JSON.parse(JSON.stringify(board));
+        if(flipTest(copy,x,y,color)) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function flipTest(b,x,y,color){
+  const dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+  for(const[dx,dy] of dirs){
+    let nx=x+dx, ny=y+dy;
+    let found=false;
+
+    while(nx>=0&&nx<8&&ny>=0&&ny<8 && b[ny][nx] && b[ny][nx]!==color){
+      found=true;
+      nx+=dx; ny+=dy;
+    }
+
+    if(found && nx>=0&&nx<8&&ny>=0&&ny<8 && b[ny][nx]===color){
+      return true;
+    }
+  }
+  return false;
+}
+
+function isGameEnd(){
+  return !hasMove('black') && !hasMove('white');
+}
+
+function endGame(){
+  gameActive=false;
+
+  let black=0, white=0;
+  board.flat().forEach(v=>{
+    if(v==='black') black++;
+    if(v==='white') white++;
+  });
+
+  alert(`終了 黒:${black} 白:${white}`);
+}
+
+// ===== 操作 =====
+function pass(){
+  if(turn !== myColor) return;
+  send({type:'pass'});
+  nextTurn();
+}
+
+function resign(){
+  if(confirm('降参しますか？')){
+    send({type:'resign'});
+    gameActive=false;
+    alert('あなたの負け');
+  }
+}
+
+// ===== 通信 =====
+function send(d){
+  if(dc && dc.readyState==='open'){
+    dc.send(JSON.stringify(d));
+  }
+}
+
+function handleMsg(m){
+  if(m.type==='start'){
+    myColor = (m.first==='black') ? 'white' : 'black';
+    turn = m.first;
+    gameActive = true;
+    render();
+  }
+
+  if(m.type==='move'){
+    if(!flip(m.x,m.y,turn)){
+      send({type:'sync_error'});
+      return;
+    }
+    board[m.y][m.x]=turn;
+    nextTurn();
+  }
+
+  if(m.type==='pass'){
+    nextTurn();
+  }
+
+  if(m.type==='resign'){
+    gameActive=false;
+    alert('相手が降参 勝利');
+  }
+
+  if(m.type==='sync_error'){
+    gameActive=false;
+    alert('同期エラーで終了');
+  }
+
+  if(m.type==='chat'){
+    addChat('相手:'+m.message);
+  }
+}
+
+// ===== チャット =====
+function sendChat(){
+  const i = document.getElementById('chatInput');
+  const msg = i.value.trim();
+  if(!msg) return;
+
+  addChat('自分:'+msg);
+  send({type:'chat',message:msg});
+
+  i.value='';
+}
+
+document.getElementById('chatInput')
+.addEventListener('keydown', e=>{
+  if(e.key==='Enter') sendChat();
+});
+
+function addChat(t){
+  const box = document.getElementById('chatBox');
+  box.innerHTML += t + '<br>';
+  box.scrollTop = box.scrollHeight;
+}
+
+// ===== 起動 =====
+connectWS();
+init();
+
+</script>
+
+</body>
+</html>

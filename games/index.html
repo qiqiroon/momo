@@ -1,5 +1,5 @@
-<!-- //Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
 <!DOCTYPE html>
+<!-- MOMO Games v1.13 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -148,14 +148,15 @@
       </div>
       <div class="card-play" id="hanoi-play">今すぐプレイ</div>
     </a>
-    <a class="card" href="reversi/">
+
+    <a class="card" href="javascript:void(0)" onclick="openReversi()">
       <div class="card-badge">🌐 Online</div>
       <div class="card-title">MOMO <span>Reversi</span></div>
       <div class="card-desc" id="reversi-desc">世界中のプレイヤーとリアルタイムでリバーシ対決。部屋を作って友達を招待することも、公開部屋に飛び込むことも自由。チャットしながら白熱の盤上バトルを楽しもう。</div>
       <div class="card-meta" id="reversi-meta">
-        <span>⚫ リバーシ</span>
+        <span>♟ ボードゲーム</span>
         <span>🌐 オンライン対戦</span>
-        <span id="reversi-chat">チャット付き</span>
+        <span id="reversi-players">2人</span>
       </div>
       <div class="card-play" id="reversi-play">今すぐプレイ</div>
     </a>
@@ -175,7 +176,7 @@ const I18N = {
     hanoiMeta1: '🧩 パズル', hanoiMeta2: '🛸 シューティング', hanoiDiff: '3難易度',
     hanoiPlay: '今すぐプレイ',
     reversiDesc: '世界中のプレイヤーとリアルタイムでリバーシ対決。部屋を作って友達を招待することも、公開部屋に飛び込むことも自由。チャットしながら白熱の盤上バトルを楽しもう。',
-    reversiMeta1: '⚫ リバーシ', reversiMeta2: '🌐 オンライン対戦', reversiChat: 'チャット付き',
+    reversiMeta1: '♟ ボードゲーム', reversiMeta2: '🌐 オンライン対戦', reversiPlayers: '2人',
     reversiPlay: '今すぐプレイ',
     footerBack: '← MOMO Works に戻る',
   },
@@ -186,7 +187,7 @@ const I18N = {
     hanoiMeta1: '🧩 Puzzle', hanoiMeta2: '🛸 Shooting', hanoiDiff: '3 difficulties',
     hanoiPlay: 'Play Now',
     reversiDesc: 'Challenge players around the world to a real-time game of Reversi. Create a private room for friends or jump into a public match — the board is always ready. Chat, play, and flip your way to victory.',
-    reversiMeta1: '⚫ Reversi', reversiMeta2: '🌐 Online Multiplayer', reversiChat: 'Chat included',
+    reversiMeta1: '♟ Board Game', reversiMeta2: '🌐 Online', reversiPlayers: '2 Players',
     reversiPlay: 'Play Now',
     footerBack: '← Back to MOMO Works',
   },
@@ -197,7 +198,7 @@ const I18N = {
     hanoiMeta1: '🧩 益智', hanoiMeta2: '🛸 射击', hanoiDiff: '3种难度',
     hanoiPlay: '立即游玩',
     reversiDesc: '与全球玩家实时对战黑白棋。可以创建房间邀请好友，也可以随时加入公开对局。边聊天边享受激烈的翻棋乐趣。',
-    reversiMeta1: '⚫ 黑白棋', reversiMeta2: '🌐 在线对战', reversiChat: '含聊天功能',
+    reversiMeta1: '♟ 棋盘游戏', reversiMeta2: '🌐 在线对战', reversiPlayers: '2人',
     reversiPlay: '立即游玩',
     footerBack: '← 返回 MOMO Works',
   },
@@ -210,16 +211,16 @@ function applyLang() {
   document.getElementById('header-sub').textContent = d.headerSub;
   document.getElementById('section-label').textContent = d.sectionLabel;
   document.getElementById('hanoi-desc').textContent = d.hanoiDesc;
-  const hanoiMetaSpans = document.querySelectorAll('#hanoi-meta span');
-  if (hanoiMetaSpans[0]) hanoiMetaSpans[0].textContent = d.hanoiMeta1;
-  if (hanoiMetaSpans[1]) hanoiMetaSpans[1].textContent = d.hanoiMeta2;
+  const metaSpans = document.querySelectorAll('#hanoi-meta span');
+  if (metaSpans[0]) metaSpans[0].textContent = d.hanoiMeta1;
+  if (metaSpans[1]) metaSpans[1].textContent = d.hanoiMeta2;
   document.getElementById('hanoi-diff').textContent = d.hanoiDiff;
   document.getElementById('hanoi-play').textContent = d.hanoiPlay;
   document.getElementById('reversi-desc').textContent = d.reversiDesc;
   const reversiMetaSpans = document.querySelectorAll('#reversi-meta span');
   if (reversiMetaSpans[0]) reversiMetaSpans[0].textContent = d.reversiMeta1;
   if (reversiMetaSpans[1]) reversiMetaSpans[1].textContent = d.reversiMeta2;
-  document.getElementById('reversi-chat').textContent = d.reversiChat;
+  document.getElementById('reversi-players').textContent = d.reversiPlayers;
   document.getElementById('reversi-play').textContent = d.reversiPlay;
   document.getElementById('footer-back').textContent = d.footerBack;
   document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('active', b.dataset.lang === currentLang));
@@ -233,6 +234,12 @@ document.querySelectorAll('.lang-btn').forEach(btn => {
     applyLang();
   });
 });
+
+// Reversiサーバーをウォームアップしてから遷移
+function openReversi() {
+  fetch('https://momo-server-reversi.onrender.com/ping').catch(() => {});
+  window.location.href = 'reversi/';
+}
 
 applyLang();
 </script>

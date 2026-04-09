@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MOMO control</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-46 -50 92 80'%3E%3Crect x='-46' y='-50' width='92' height='80' rx='8' fill='%23000000'/%3E%3Cg transform='rotate(-12,-12,8.3)'%3E%3Cpath d='M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cg transform='rotate(12,12,8.3)'%3E%3Cpath d='M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cellipse cx='0' cy='1.3' rx='34' ry='26' fill='%23c2410c'/%3E%3Cline x1='-14' y1='1.00' x2='-33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='6.0' x2='-33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='10.59' x2='-29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.68' y1='-2.28' x2='-38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.44' y1='6.0' x2='-40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-29.58' y1='14.26' x2='-37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='1.00' x2='33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='6.0' x2='33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='10.59' x2='29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.68' y1='-2.28' x2='38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.44' y1='6.0' x2='40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='29.58' y1='14.26' x2='37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cellipse cx='-12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='-12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Cellipse cx='12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Ccircle cx='-10.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Ccircle cx='13.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Cpath d='M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z' fill='%23000'/%3E%3Cline x1='0' y1='11.3' x2='0' y2='13.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q-5,17.3 -8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q5,17.3 8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0a0a;
+  --surface: #161616;
+  --surface2: #1e1e1e;
+  --surface3: #252525;
+  --border: #2a2a2a;
+  --border-strong: #444;
+  --bg-selected: rgba(194,65,12,0.15);
+  --orange: #c2410c;
+  --orange-mid: #ea580c;
+  --orange-light: rgba(234,88,12,0.12);
+  --text: #e5e5e5;
+  --text-muted: #737373;
+  --text-dim: #4a4a4a;
+  --danger: #c0392b;
+  --danger-hover: #e74c3c;
+  --success: #27ae60;
+  --warning: #d97706;
+  --info: #2563eb;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Noto Sans JP', sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-bottom: 60px;
+}
+
+/* ===== ヘッダー ===== */
+.header {
+  width: 100%;
+  max-width: 560px;
+  padding: 20px 16px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+h1 {
+  font-family: 'Fredoka One', cursive;
+  font-size: 26px;
+  color: var(--text);
+  letter-spacing: 2px;
+  padding-bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+h1 span { color: var(--orange-mid); }
+.version { font-size: 11px; color: var(--text-muted); margin-bottom: 16px; }
+
+/* ===== コンテナ ===== */
+.container {
+  width: 100%;
+  max-width: 560px;
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ===== ステータスバー ===== */
+.status-bar {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+}
+.status-bar.ok    { border-color: var(--success); color: var(--success); }
+.status-bar.err   { border-color: var(--danger);  color: var(--danger); }
+.status-bar.connecting { border-color: var(--border-strong); }
+
+.status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  flex-shrink: 0;
+}
+.status-bar.ok  .status-dot { background: var(--success); box-shadow: 0 0 6px var(--success); }
+.status-bar.err .status-dot { background: var(--danger); }
+.status-bar.connecting .status-dot {
+  background: var(--orange-mid);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+.status-right {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+/* ===== パネル ===== */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.panel-title {
+  font-family: 'Fredoka One', cursive;
+  font-size: 15px;
+  color: var(--orange-mid);
+}
+.panel-badge {
+  background: var(--orange-light);
+  border: 1px solid var(--orange);
+  color: var(--orange-mid);
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 20px;
+  font-weight: 700;
+}
+.panel-desc { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
+
+/* ===== ボタン ===== */
+.btn {
+  padding: 9px 16px;
+  border: none;
+  border-radius: 6px;
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+
+.btn-danger  { background: var(--danger);  color: #fff; width: 100%; padding: 11px; font-size: 14px; }
+.btn-danger:hover:not(:disabled) { background: var(--danger-hover); }
+
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text-muted);
+}
+.btn-outline:hover:not(:disabled) { border-color: var(--orange); color: var(--orange-mid); }
+
+.btn-sm {
+  padding: 5px 10px;
+  font-size: 11px;
+  border-radius: 4px;
+}
+
+/* ===== gameType 管理 ===== */
+.gametype-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.gametype-tag {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--surface2);
+  border: 1px solid var(--border-strong);
+  border-radius: 20px;
+  padding: 3px 6px 3px 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  opacity: 0.5;
+  transition: all 0.15s;
+}
+.gametype-tag.enabled {
+  border-color: var(--orange);
+  color: var(--orange-mid);
+  background: var(--orange-light);
+  opacity: 1;
+}
+.gametype-tag .toggle-btn {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  transition: background 0.1s;
+}
+.gametype-tag .toggle-btn:hover { background: rgba(255,255,255,0.08); }
+.gametype-tag .remove-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 2px;
+  transition: color 0.15s;
+}
+.gametype-tag .remove-btn:hover { color: var(--danger); }
+
+.gametype-input-row {
+  display: flex;
+  gap: 6px;
+}
+.gametype-input-row input {
+  flex: 1;
+  background: var(--surface2);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 13px;
+  padding: 7px 10px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.gametype-input-row input:focus { border-color: var(--orange); }
+.gametype-input-row input::placeholder { color: var(--text-dim); }
+
+/* ===== 部屋モニター ===== */
+.monitor-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.monitor-count {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+.next-poll {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.room-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 48px;
+}
+
+.room-empty {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 13px;
+  padding: 18px 0;
+}
+
+.room-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  animation: fadeIn 0.2s ease;
+}
+@keyframes fadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:translateY(0)} }
+
+.room-card-top {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.room-name {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.badge-gametype { background: #1e3a5f; color: #60a5fa; }
+.badge-public   { background: #14532d; color: #4ade80; }
+.badge-private  { background: #3b1515; color: #f87171; }
+.badge-playing  { background: #3b2800; color: #fbbf24; }
+.badge-lobby    { background: #1a1a2e; color: #818cf8; }
+.badge-locked   { background: #2d2500; color: #fde68a; }
+
+.room-card-mid {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.room-host { display: flex; align-items: center; gap: 4px; }
+.room-host svg { opacity: 0.6; }
+
+.room-card-bot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.room-id { font-family: monospace; letter-spacing: 0.5px; }
+
+/* ===== ログ ===== */
+.log-box {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.7;
+  min-height: 60px;
+  max-height: 140px;
+  overflow-y: auto;
+  font-family: monospace;
+}
+.log-ok   { color: var(--success); }
+.log-err  { color: var(--danger); }
+.log-info { color: var(--text-muted); }
+.log-warn { color: var(--warning); }
+
+/* ===== ポーリング進捗 ===== */
+.poll-progress {
+  height: 2px;
+  background: var(--border);
+  border-radius: 1px;
+  overflow: hidden;
+}
+.poll-bar {
+  height: 100%;
+  background: var(--orange);
+  width: 0%;
+  transition: width 0.5s linear;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="-46 -50 92 80" style="height:26px;vertical-align:middle;">
+      <g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/></g>
+      <g transform="rotate(12,12,8.3)"><path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/></g>
+      <ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/>
+      <line x1="-14" y1="1.00" x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-14" y1="6.0" x2="-33.44" y2="6.0" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-33.68" y1="-2.28" x2="-38" y2="-3" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-33.44" y1="6.0" x2="-40" y2="6" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-29.58" y1="14.26" x2="-37" y2="16" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="14" y1="1.00" x2="33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="14" y1="6.0" x2="33.44" y2="6.0" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="14" y1="10.59" x2="29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="33.68" y1="-2.28" x2="38" y2="-3" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="33.44" y1="6.0" x2="40" y2="6" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="29.58" y1="14.26" x2="37" y2="16" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <ellipse cx="-12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+      <ellipse cx="12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+      <ellipse cx="-12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+      <ellipse cx="12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+      <circle cx="-10.5" cy="-5.2" r="1.0" fill="#c2410c"/>
+      <circle cx="13.5" cy="-5.2" r="1.0" fill="#c2410c"/>
+      <path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/>
+      <line x1="0" y1="11.3" x2="0" y2="13.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M0,13.3 Q5,17.3 8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+    </svg>
+    MOMO <span>control</span>
+  </h1>
+  <div class="version">v1.02</div>
+</div>
+
+<div class="container">
+
+  <!-- WS接続状態 -->
+  <div class="status-bar connecting" id="ws-status">
+    <div class="status-dot"></div>
+    <span id="ws-status-text">シグナリングサーバーに接続中...</span>
+    <span class="status-right" id="ws-status-right"></span>
+  </div>
+
+  <!-- gameType 管理パネル -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">監視対象 gameType</div>
+      <div class="panel-badge" id="gametype-count-badge">1</div>
+    </div>
+    <div class="panel-desc">部屋一覧はgameTypeごとにサーバーが絞り込みます。監視したいゲームをすべて登録してください。</div>
+    <div class="gametype-list" id="gametype-list"></div>
+    <div class="gametype-input-row">
+      <input type="text" id="gametype-input" placeholder="例: shogi" maxlength="30">
+      <button class="btn btn-outline btn-sm" onclick="addGameType()">追加</button>
+    </div>
+  </div>
+
+  <!-- 部屋モニター -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">部屋モニター</div>
+      <div class="panel-badge" id="room-count-badge">0</div>
+      <span class="monitor-count" id="last-update-text"></span>
+    </div>
+    <div class="poll-progress"><div class="poll-bar" id="poll-bar"></div></div>
+    <div class="room-list" id="room-list">
+      <div class="room-empty">部屋データを取得中...</div>
+    </div>
+    <button class="btn btn-outline btn-sm" id="btn-refresh" onclick="manualRefresh()" style="width:100%">今すぐ更新</button>
+  </div>
+
+  <!-- 全室削除 -->
+  <div class="panel">
+    <div class="panel-title">緊急操作</div>
+    <div class="panel-desc">
+      試合中の部屋を含む全室を強制削除します。<br>
+      接続中のホスト・ゲストには切断通知が送られます。<br>
+      ※ 個別削除はサーバー未対応のため全室一括のみ対応。
+    </div>
+    <button class="btn btn-danger" id="btn-clear-all" onclick="clearAllRooms()" disabled>全室削除</button>
+    <div class="log-box" id="log-box">待機中...</div>
+  </div>
+
+</div>
+
+<!-- momo-matchmaking.js を読み込む（同階層に置く） -->
+<script src="../matchmaking/momo-matchmaking.js"></script>
+<script>
+
+// ===================================================
+// 設定
+// ===================================================
+const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
+const POLL_INTERVAL_MS = 30000;  // 30秒ポーリング
+const STORAGE_KEY_GAMETYPES = 'momoControl_gameTypes';
+
+// ===================================================
+// gameType 管理
+// ===================================================
+// gameTypes: { name: string, enabled: boolean }[] の配列
+let gameTypes = [];
+
+function loadGameTypes() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_GAMETYPES);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // 旧形式（文字列配列）との互換
+      if (parsed.length && typeof parsed[0] === 'string') {
+        gameTypes = parsed.map(n => ({ name: n, enabled: true }));
+      } else {
+        gameTypes = parsed;
+      }
+    }
+  } catch {}
+  if (!gameTypes.length) {
+    gameTypes = [{ name: 'reversi', enabled: true }];
+  }
+}
+
+function saveGameTypes() {
+  localStorage.setItem(STORAGE_KEY_GAMETYPES, JSON.stringify(gameTypes));
+}
+
+function renderGameTypes() {
+  const list = document.getElementById('gametype-list');
+  list.innerHTML = '';
+  const enabledCount = gameTypes.filter(g => g.enabled).length;
+  document.getElementById('gametype-count-badge').textContent =
+    `${enabledCount}/${gameTypes.length}`;
+
+  gameTypes.forEach((gt, i) => {
+    const tag = document.createElement('div');
+    tag.className = 'gametype-tag' + (gt.enabled ? ' enabled' : '');
+    tag.innerHTML = `
+      <button class="toggle-btn" onclick="toggleGameType(${i})" title="${gt.enabled ? 'OFFにする' : 'ONにする'}">
+        ${gt.enabled ? '✓' : '○'}
+      </button>
+      <span>${escHtml(gt.name)}</span>
+      <button class="remove-btn" onclick="removeGameType(${i})" title="削除">×</button>
+    `;
+    list.appendChild(tag);
+  });
+}
+
+function toggleGameType(i) {
+  gameTypes[i].enabled = !gameTypes[i].enabled;
+  // OFFにした場合はその部屋をリストから除去
+  if (!gameTypes[i].enabled) {
+    allRooms = allRooms.filter(r => r.gameType !== gameTypes[i].name);
+    renderRooms();
+  }
+  saveGameTypes();
+  renderGameTypes();
+  log(`gameType「${gameTypes[i].name}」を${gameTypes[i].enabled ? 'ON' : 'OFF'}にしました`, 'info');
+}
+
+function addGameType() {
+  const input = document.getElementById('gametype-input');
+  const val = input.value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+  if (!val) return;
+  if (gameTypes.some(g => g.name === val)) {
+    input.value = '';
+    return;
+  }
+  gameTypes.push({ name: val, enabled: true });
+  saveGameTypes();
+  renderGameTypes();
+  input.value = '';
+  log(`gameType「${val}」を追加しました`, 'info');
+}
+
+function removeGameType(i) {
+  const removed = gameTypes[i].name;
+  gameTypes.splice(i, 1);
+  allRooms = allRooms.filter(r => r.gameType !== removed);
+  saveGameTypes();
+  renderGameTypes();
+  renderRooms();
+  log(`gameType「${removed}」を削除しました`, 'info');
+}
+
+document.getElementById('gametype-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') addGameType();
+});
+
+// ===================================================
+// 部屋データ管理
+// ===================================================
+
+// gameType -> 部屋Map（id -> roomObj）のキャッシュ
+// allRooms: { id, gameType, name, hostName, hasPassword, isPublic, guestConnected, gameState, firstSeen }[]
+let allRooms = [];
+
+function mergeRooms(gameType, rooms) {
+  // 既存の同gameType部屋を消す前に firstSeen を引き継ぐ
+  const oldMap = {};
+  allRooms.filter(r => r.gameType === gameType).forEach(r => { oldMap[r.id] = r.firstSeen; });
+
+  // 同gameTypeを削除してから再挿入
+  allRooms = allRooms.filter(r => r.gameType !== gameType);
+
+  const now = new Date();
+  rooms.forEach(r => {
+    allRooms.push({
+      ...r,
+      gameType,
+      firstSeen: oldMap[r.id] || now
+    });
+  });
+}
+
+function renderRooms() {
+  const list = document.getElementById('room-list');
+  const badge = document.getElementById('room-count-badge');
+  badge.textContent = allRooms.length;
+
+  if (!allRooms.length) {
+    list.innerHTML = '<div class="room-empty">部屋なし</div>';
+    return;
+  }
+
+  // 新しい順（firstSeen降順）
+  const sorted = [...allRooms].sort((a, b) => b.firstSeen - a.firstSeen);
+
+  list.innerHTML = '';
+  sorted.forEach(r => {
+    const card = document.createElement('div');
+    card.className = 'room-card';
+
+    const stateLabel = r.gameState === 'playing' ? '対戦中'
+                     : r.gameState === 'ended'   ? '終了'
+                     : '待機中';
+    const stateCls   = r.gameState === 'playing' ? 'badge-playing'
+                     : r.gameState === 'ended'   ? 'badge-playing'
+                     : 'badge-lobby';
+
+    const visLabel = r.isPublic ? '公開' : '非公開';
+    const visCls   = r.isPublic ? 'badge-public' : 'badge-private';
+
+    const pwLabel = r.hasPassword ? '🔒' : '';
+
+    const firstSeenStr = r.firstSeen instanceof Date
+      ? r.firstSeen.toLocaleTimeString('ja-JP')
+      : new Date(r.firstSeen).toLocaleTimeString('ja-JP');
+
+    card.innerHTML = `
+      <div class="room-card-top">
+        <span class="room-name">${escHtml(r.name)}</span>
+        <span class="badge badge-gametype">${escHtml(r.gameType)}</span>
+        <span class="badge ${visCls}">${visLabel}</span>
+        <span class="badge ${stateCls}">${stateLabel}</span>
+        ${r.hasPassword ? '<span class="badge badge-locked">🔒PW</span>' : ''}
+      </div>
+      <div class="room-card-mid">
+        <span class="room-host">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+          ${escHtml(r.hostName)}
+        </span>
+        <span>${r.guestConnected ? '👥 ゲスト参加中' : '👤 待機中'}</span>
+      </div>
+      <div class="room-card-bot">
+        <span class="room-id">ID: ${escHtml(r.id)}</span>
+        <span>初認識: ${firstSeenStr}</span>
+      </div>
+    `;
+    list.appendChild(card);
+  });
+}
+
+function escHtml(str) {
+  return String(str || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ===================================================
+// ポーリング制御
+// ===================================================
+let pollTimer = null;
+let pollBarTimer = null;
+let pollBarStart = 0;
+let isConnected = false;
+
+function startPolling() {
+  if (pollTimer) clearTimeout(pollTimer);
+  schedulePoll(0);  // 即時1回
+}
+
+function schedulePoll(delayMs) {
+  if (pollTimer) clearTimeout(pollTimer);
+  pollTimer = setTimeout(() => {
+    pollAllTypes();
+  }, delayMs);
+  startProgressBar(delayMs);
+}
+
+function startProgressBar(durationMs) {
+  if (pollBarTimer) clearInterval(pollBarTimer);
+  const bar = document.getElementById('poll-bar');
+  pollBarStart = Date.now();
+  bar.style.width = '0%';
+  bar.style.transition = 'none';
+  setTimeout(() => {
+    bar.style.transition = `width ${durationMs}ms linear`;
+    bar.style.width = '100%';
+  }, 50);
+}
+
+// 全gameTypeを順次ポーリング（1つずつ300ms間隔）
+async function pollAllTypes() {
+  if (!isConnected) {
+    schedulePoll(POLL_INTERVAL_MS);
+    return;
+  }
+
+  const bar = document.getElementById('poll-bar');
+  bar.style.transition = 'none';
+  bar.style.width = '0%';
+
+  const targets = gameTypes.filter(g => g.enabled);
+  for (let i = 0; i < targets.length; i++) {
+    await pollOneType(targets[i].name);
+    await sleep(300);
+  }
+
+  const now = new Date();
+  document.getElementById('last-update-text').textContent =
+    `最終更新 ${now.toLocaleTimeString('ja-JP')}`;
+
+  renderRooms();
+  schedulePoll(POLL_INTERVAL_MS);
+}
+
+function pollOneType(gameType) {
+  return new Promise(resolve => {
+    // MomoMatchmaking の内部WSを直接使えないため、
+    // 管理ツール専用の軽量WSセッションを開く
+    let done = false;
+    const ws = new WebSocket(SIGNALING_URL);
+
+    const timer = setTimeout(() => {
+      if (!done) {
+        done = true;
+        try { ws.close(); } catch {}
+        log(`${gameType}: タイムアウト`, 'warn');
+        resolve();
+      }
+    }, 8000);
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ type: 'enter_lobby', gameType }));
+    };
+
+    ws.onmessage = e => {
+      let d;
+      try { d = JSON.parse(e.data); } catch { return; }
+      if (d.type === 'room_list') {
+        mergeRooms(gameType, d.rooms || []);
+        clearTimeout(timer);
+        done = true;
+        ws.close();
+        resolve();
+      }
+    };
+
+    ws.onclose = () => {
+      if (!done) {
+        done = true;
+        clearTimeout(timer);
+        resolve();
+      }
+    };
+
+    ws.onerror = () => {};
+  });
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function manualRefresh() {
+  if (pollTimer) clearTimeout(pollTimer);
+  log('手動更新...', 'info');
+  pollAllTypes();
+}
+
+// ===================================================
+// MomoMatchmaking 初期化（管理コマンド用）
+// ===================================================
+function initMatchmaking() {
+  MomoMatchmaking.init({
+    signalingUrl: SIGNALING_URL,
+    gameType: 'reversi',  // admin接続はreversiで代用
+
+    onWsOpen: () => {
+      setWsStatus('接続済み', 'ok', `${SIGNALING_URL}`);
+      document.getElementById('btn-clear-all').disabled = false;
+      log('シグナリングサーバーに接続しました', 'ok');
+      isConnected = true;
+      startPolling();
+    },
+
+    onWsClose: () => {
+      setWsStatus('切断 — 再接続中...', 'err', '');
+      document.getElementById('btn-clear-all').disabled = true;
+      isConnected = false;
+    },
+
+    // room_list はポーリング側の専用WSで処理するので無視
+    onRoomList: () => {},
+    onRoomCreated: () => {},
+    onJoinedRoom: () => {},
+    onGuestJoined: () => {},
+    onGuestLeft: () => {},
+    onConnected: () => {},
+    onDisconnected: () => {},
+    onMessage: () => {},
+  });
+}
+
+// ===================================================
+// 全室削除
+// ===================================================
+function clearAllRooms() {
+  if (!confirm('全室を強制削除しますか？\n試合中の部屋も含めて削除されます。')) return;
+  log('全室削除コマンドを送信中...', 'info');
+
+  // MomoMatchmaking の内部WSにアクセスできないため
+  // 削除専用の一時WSを使う
+  const ws = new WebSocket(SIGNALING_URL);
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ type: 'enter_lobby', gameType: 'reversi' }));
+    ws.send(JSON.stringify({ type: 'admin_clear_all' }));
+  };
+  ws.onmessage = e => {
+    let d;
+    try { d = JSON.parse(e.data); } catch { return; }
+    if (d.type === 'room_list') {
+      const count = (d.rooms || []).length;
+      if (count === 0) {
+        log('全室削除完了', 'ok');
+        allRooms = [];
+        renderRooms();
+      } else {
+        log(`削除後の部屋数: ${count}件（サーバー側未対応の可能性）`, 'err');
+      }
+      ws.close();
+    }
+  };
+  ws.onerror = () => { log('削除コマンド送信エラー', 'err'); };
+  setTimeout(() => { try { ws.close(); } catch {} }, 6000);
+}
+
+// ===================================================
+// UI ユーティリティ
+// ===================================================
+function setWsStatus(text, cls, sub) {
+  const bar  = document.getElementById('ws-status');
+  const span = document.getElementById('ws-status-text');
+  const right = document.getElementById('ws-status-right');
+  span.textContent = text;
+  right.textContent = sub || '';
+  bar.className = 'status-bar ' + cls;
+}
+
+function log(msg, type) {
+  const box = document.getElementById('log-box');
+  const line = document.createElement('div');
+  line.className = 'log-' + (type || 'info');
+  const now = new Date().toLocaleTimeString('ja-JP');
+  line.textContent = `[${now}] ${msg}`;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+  // 最大50行
+  while (box.children.length > 50) box.removeChild(box.firstChild);
+}
+
+// ===================================================
+// 起動
+// ===================================================
+loadGameTypes();
+renderGameTypes();
+initMatchmaking();
+
+</script>
+</body>
+</html>

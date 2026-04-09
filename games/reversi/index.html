@@ -1,0 +1,1760 @@
+<!DOCTYPE html>
+<!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MOMO Reversi v2.22</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-46 -50 92 80'%3E%3Crect x='-46' y='-50' width='92' height='80' rx='8' fill='%23000000'/%3E%3Cg transform='rotate(-12,-12,8.3)'%3E%3Cpath d='M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cg transform='rotate(12,12,8.3)'%3E%3Cpath d='M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cellipse cx='0' cy='1.3' rx='34' ry='26' fill='%23c2410c'/%3E%3Cline x1='-14' y1='1.00' x2='-33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='6.0' x2='-33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='10.59' x2='-29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.68' y1='-2.28' x2='-38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.44' y1='6.0' x2='-40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-29.58' y1='14.26' x2='-37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='1.00' x2='33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='6.0' x2='33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='10.59' x2='29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.68' y1='-2.28' x2='38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.44' y1='6.0' x2='40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='29.58' y1='14.26' x2='37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cellipse cx='-12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='-12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Cellipse cx='12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Ccircle cx='-10.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Ccircle cx='13.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Cpath d='M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z' fill='%23000'/%3E%3Cline x1='0' y1='11.3' x2='0' y2='13.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q-5,17.3 -8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q5,17.3 8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+<script src="../matchmaking/momo-matchmaking.js"></script>
+<style>
+:root {
+  --bg: #0a0a0a;
+  --surface: #161616;
+  --surface2: #1e1e1e;
+  --border: #2a2a2a;
+  --border-strong: #444;
+  --bg-selected: rgba(194,65,12,0.15);
+  --orange: #e8640a;
+  --orange-mid: #ea580c;
+  --orange-dim: #7a3405;
+  --orange-glow: rgba(232,100,10,0.25);
+  --white: #f0f0f0;
+  --gray: #666;
+  --gray2: #444;
+  --text: #e8e8e8;
+  --text-muted: #737373;
+  --danger: #c0392b;
+  --success: #27ae60;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Noto Sans JP', sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+h1 {
+  font-family: 'Fredoka One', cursive;
+  font-size: 28px;
+  color: var(--orange);
+  letter-spacing: 2px;
+  padding: 16px 0 4px;
+  margin-top: 32px;
+}
+
+.version {
+  font-size: 11px;
+  color: var(--gray);
+  margin-bottom: 12px;
+}
+
+/* ===== LANG SWITCHER ===== */
+#lang-switcher {
+  position: fixed;
+  top: 8px;
+  right: 12px;
+  z-index: 200;
+}
+#lang-select {
+  background: var(--surface2);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: 'Noto Sans JP', sans-serif;
+  outline: none;
+}
+#lang-select:focus { border-color: var(--orange); }
+
+/* ===== SCREEN SYSTEM ===== */
+.screen { display: none; width: 100%; max-width: 400px; padding: 0 12px 40px; }
+.screen.active { display: flex; flex-direction: column; gap: 10px; }
+
+/* ===== BUTTONS ===== */
+.btn {
+  padding: 10px 18px;
+  border: none;
+  border-radius: 6px;
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-weight: 700;
+}
+.btn:active { transform: scale(0.97); }
+.btn-primary { background: var(--orange); color: #fff; }
+.btn-primary:hover { background: #ff7a20; }
+.btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:hover { border-color: var(--orange); }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-ghost { background: transparent; color: var(--gray); border: 1px solid var(--border); }
+.btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+
+/* ===== INPUTS ===== */
+.input {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 14px;
+  padding: 9px 12px;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.input:focus { border-color: var(--orange); }
+
+label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block; }
+
+.field { display: flex; flex-direction: column; gap: 3px; }
+
+.row { display: flex; gap: 8px; }
+.row .btn { flex: 1; }
+
+/* ===== PANEL ===== */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+}
+.panel-title {
+  font-family: 'Fredoka One', cursive;
+  font-size: 16px;
+  color: var(--orange);
+  margin-bottom: 10px;
+}
+
+/* ===== STATUS BAR ===== */
+.status-bar {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--gray);
+  text-align: center;
+}
+.status-bar.highlight { border-color: var(--orange); color: var(--orange); }
+
+/* ===== ROOM LIST ===== */
+.room-list { display: flex; flex-direction: column; gap: 6px; }
+.room-item {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.room-item:hover { border-color: var(--orange); }
+.room-item.full { opacity: 0.45; cursor: not-allowed; }
+.room-name { font-weight: 700; font-size: 14px; }
+.room-meta { font-size: 11px; color: var(--gray); margin-top: 2px; }
+.room-badges { display: flex; gap: 4px; flex-shrink: 0; }
+.badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+.badge-lock { background: var(--gray2); color: var(--white); }
+.badge-open { background: var(--success); color: #fff; }
+.badge-full { background: var(--gray2); color: var(--gray); }
+
+/* ===== CHAT ===== */
+.chat-wrap { display: flex; flex-direction: column; gap: 6px; }
+.chat-box {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  height: 110px;
+  overflow-y: auto;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.6;
+  cursor: default;
+  user-select: none;
+}
+.chat-row { display: flex; gap: 6px; }
+.chat-input { flex: 1; border-color: #3a3a3a !important; }
+.chat-input:focus { border-color: var(--orange) !important; }
+.chat-row .btn-secondary { border-color: #3a3a3a; }
+
+/* ===== COLOR SELECT ===== */
+.color-select { display: flex; gap: 10px; }
+.color-btn {
+  flex: 1;
+  padding: 14px;
+  border-radius: 8px;
+  border: 2px solid var(--border);
+  background: var(--surface2);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.15s;
+}
+.color-btn:hover { border-color: var(--orange); }
+.color-btn.selected-black { border-color: #fff; background: #111; }
+.color-btn.selected-white { border-color: var(--orange); background: #2a2a2a; }
+/* .color-btn.taken は廃止 */
+.stone-preview {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+}
+.stone-preview.black { background: #111; border: 2px solid #555; }
+.stone-preview.white { background: #f0f0f0; border: 2px solid #aaa; }
+.color-label { font-size: 13px; font-weight: 700; }
+.color-who { font-size: 11px; color: var(--orange); min-height: 16px; }
+
+/* ===== BOARD ===== */
+.board-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.my-color-badge {
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+}
+
+.board-frame {
+  padding: 4px;
+  border-radius: 8px;
+  border: 3px solid var(--border);
+  transition: border-color 0.3s;
+}
+.board-frame.my-turn { border-color: var(--orange); box-shadow: 0 0 16px var(--orange-glow); }
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  width: 312px;
+  border: 1px solid #2a2a2a;
+}
+
+.cell {
+  width: 39px; height: 39px;
+  background: #1a3a1a;
+  border: 1px solid #0d200d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.1s;
+  outline: none;
+  user-select: none;
+}
+.cell:hover { background: #1f451f; }
+
+.stone {
+  width: 72%;
+  height: 72%;
+  border-radius: 50%;
+  transition: transform 0.15s;
+}
+.stone.black { background: radial-gradient(circle at 35% 35%, #555, #000); }
+.stone.white { background: radial-gradient(circle at 35% 35%, #fff, #ccc); }
+.stone.last-move { box-shadow: 0 0 0 3px var(--orange-dim); }
+
+.score-bar {
+  display: flex;
+  gap: 16px;
+  font-family: 'Fredoka One', cursive;
+  font-size: 20px;
+  align-items: center;
+}
+.score-black { color: #aaa; }
+.score-white { color: var(--white); }
+.score-sep { color: var(--gray); font-size: 14px; }
+
+.turn-indicator {
+  font-size: 13px;
+  text-align: center;
+  min-height: 20px;
+  color: var(--gray);
+}
+.turn-indicator.active { color: var(--orange); font-weight: 700; }
+
+.board-actions { display: flex; gap: 8px; }
+.board-actions .btn { flex: 1; font-size: 13px; padding: 8px; }
+
+/* ===== END PANEL ===== */
+.end-choices { display: flex; flex-direction: column; gap: 8px; }
+
+/* ===== MATCH HISTORY ===== */
+.history-panel { display: flex; flex-direction: column; gap: 6px; }
+.history-list {
+  max-height: 130px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.history-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  background: var(--surface2);
+}
+.history-idx { color: var(--gray); min-width: 20px; font-size: 11px; }
+.history-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 3px;
+  min-width: 34px;
+  text-align: center;
+}
+.history-badge.win  { background: var(--success); color: #fff; }
+.history-badge.lose { background: var(--danger);  color: #fff; }
+.history-badge.draw { background: var(--gray2);   color: var(--white); }
+.history-score { color: var(--text); flex: 1; }
+.end-btn {
+  padding: 12px;
+  border-radius: 8px;
+  border: 2px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.end-btn:hover { border-color: var(--orange); }
+.end-btn.selected { border-color: var(--orange); background: #1a0e04; color: var(--orange); }
+.end-btn.danger-btn { border-color: var(--danger); }
+.end-btn.danger-btn:hover { background: #2a0a0a; }
+.opponent-choice { font-size: 11px; color: var(--orange); }
+
+/* ===== PASSWORD MODAL ===== */
+.overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+}
+.overlay.show { display: flex; }
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.modal-title { font-family: 'Fredoka One', cursive; color: var(--orange); font-size: 18px; }
+
+.divider { border: none; border-top: 1px solid var(--border); }
+
+/* toggle */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+}
+.toggle {
+  appearance: none;
+  width: 36px; height: 20px;
+  background: var(--gray2);
+  border-radius: 10px;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.toggle:checked { background: var(--orange); }
+.toggle::after {
+  content: '';
+  position: absolute;
+  width: 14px; height: 14px;
+  background: #fff;
+  border-radius: 50%;
+  top: 3px; left: 3px;
+  transition: left 0.2s;
+}
+.toggle:checked::after { left: 19px; }
+
+</style>
+</head>
+<body>
+
+<div id="lang-switcher">
+  <select id="lang-select" onchange="onLangChange(this.value)">
+    <option value="ja">日本語</option>
+    <option value="en">EN</option>
+    <option value="zh">中文</option>
+    <option value="cat">CAT</option>
+  </select>
+</div>
+
+<h1><svg xmlns="http://www.w3.org/2000/svg" viewBox="-46 -50 92 80" style="height:36px;vertical-align:middle;margin-right:6px;margin-top:-11px;"><g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/></g><g transform="rotate(12,12,8.3)"><path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/></g><ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/><line x1="-14" y1="1.00" x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/><line x1="-14" y1="6.0" x2="-33.44" y2="6.0" stroke="#000" stroke-width="1.8" stroke-linecap="round"/><line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/><line x1="-33.68" y1="-2.28" x2="-38" y2="-3" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/><line x1="-33.44" y1="6.0" x2="-40" y2="6" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/><line x1="-29.58" y1="14.26" x2="-37" y2="16" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/><line x1="14" y1="1.00" x2="33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/><line x1="14" y1="6.0" x2="33.44" y2="6.0" stroke="#000" stroke-width="1.8" stroke-linecap="round"/><line x1="14" y1="10.59" x2="29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/><line x1="33.68" y1="-2.28" x2="38" y2="-3" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/><line x1="33.44" y1="6.0" x2="40" y2="6" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/><line x1="29.58" y1="14.26" x2="37" y2="16" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/><ellipse cx="-12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/><ellipse cx="12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/><ellipse cx="-12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/><ellipse cx="12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/><circle cx="-10.5" cy="-5.2" r="1.0" fill="#c2410c"/><circle cx="13.5" cy="-5.2" r="1.0" fill="#c2410c"/><path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/><line x1="0" y1="11.3" x2="0" y2="13.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/><path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/><path d="M0,13.3 Q5,17.3 8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/></svg><span style="color:var(--white)">MOMO</span> <span style="color:var(--orange)">Reversi</span></h1>
+<div class="version">v2.22</div>
+
+<!-- ===== SCREEN: LOBBY ===== -->
+<div class="screen active" id="screen-lobby">
+  <div class="status-bar" id="lobby-status">接続中...</div>
+  <div class="panel">
+    <div class="panel-title" id="i18n-create-title">部屋を作る</div>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <div class="field"><label id="i18n-label-name">あなたの名前</label><input class="input" id="my-name" value="" maxlength="12"></div>
+      <div class="field"><label id="i18n-label-room">部屋の名前</label><input class="input" id="room-name-input" value="" maxlength="20"></div>
+      <div class="field"><label id="i18n-label-pw">パスワード（省略可）</label><input class="input" id="room-password" placeholder="なしの場合は空欄" maxlength="20" autocomplete="off"></div>
+      <div class="toggle-row">
+        <span id="i18n-label-public">一覧に公開する</span>
+        <input type="checkbox" class="toggle" id="room-public" checked>
+      </div>
+      <button class="btn btn-primary" onclick="createRoom()" id="i18n-btn-create">部屋を作成</button>
+      <div id="create-error" style="font-size:12px;color:var(--danger);min-height:16px;text-align:center;"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title" style="display:flex;justify-content:space-between;align-items:center;">
+      <span id="i18n-room-list-title">部屋一覧</span>
+      <button class="btn-ghost btn" style="font-size:11px;padding:4px 8px;" onclick="refreshRooms()" id="i18n-btn-refresh">更新</button>
+    </div>
+    <div class="room-list" id="room-list">
+      <div style="color:var(--gray);font-size:13px;text-align:center;padding:10px;">部屋を取得中...</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title" id="i18n-private-title">非公開の部屋を表示</div>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <div class="field">
+        <label id="i18n-private-pw-label">パスワード（なければ空欄）</label>
+        <div style="display:flex;gap:6px;">
+          <input class="input" id="private-room-pw" type="password" maxlength="20" style="flex:1;" autocomplete="off">
+          <button class="btn btn-secondary" onclick="showPrivateRooms()" id="i18n-btn-private-show" style="white-space:nowrap;flex-shrink:0;">表示</button>
+        </div>
+      </div>
+      <div class="room-list" id="private-room-list" style="display:none;"></div>
+      <div id="private-error" style="font-size:12px;color:var(--danger);min-height:16px;text-align:center;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCREEN: WAITING (HOST) ===== -->
+<div class="screen" id="screen-waiting">
+  <div class="status-bar highlight" id="waiting-status">ゲストの参加を待っています...</div>
+  <div class="panel">
+    <div class="panel-title" id="i18n-room-info">部屋情報</div>
+    <div style="font-size:13px;color:var(--gray);"><span id="i18n-room-label">部屋名：</span><span id="waiting-room-name" style="color:var(--text)"></span></div>
+  </div>
+  <div class="chat-wrap">
+    <div class="chat-box" id="chat-waiting"></div>
+    <div class="chat-row">
+      <input class="input chat-input" id="chat-input-waiting" placeholder="メッセージ">
+      <button class="btn btn-secondary" onclick="sendChat('waiting')" id="i18n-btn-send-w">送信</button>
+    </div>
+  </div>
+  <button class="btn btn-ghost" onclick="leaveRoom()" id="i18n-btn-leave-w">退出</button>
+</div>
+
+<!-- ===== SCREEN: ROOM (PRE-GAME LOBBY) ===== -->
+<div class="screen" id="screen-room">
+  <div class="status-bar" id="room-status"></div>
+
+  <div class="panel">
+    <div class="panel-title" id="i18n-color-title">色を選択してください</div>
+    <div class="color-select">
+      <div class="color-btn" id="btn-black" onclick="selectColor('black')">
+        <div class="stone-preview black" id="stone-preview-black"></div>
+        <div class="color-label" id="i18n-black-label"></div>
+        <div class="color-who" id="who-black"></div>
+      </div>
+      <div class="color-btn" id="btn-white" onclick="selectColor('white')">
+        <div class="stone-preview white" id="stone-preview-white"></div>
+        <div class="color-label" id="i18n-white-label"></div>
+        <div class="color-who" id="who-white"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div style="font-size:13px;color:var(--gray);text-align:center;margin-bottom:8px;" id="start-hint">黒と白をそれぞれ選択するとゲーム開始できます</div>
+    <div class="row">
+      <button class="btn btn-primary" id="btn-start" disabled onclick="pressStart()" data-i18n="startGame">ゲーム開始</button>
+      <button class="btn btn-ghost" onclick="leaveRoom()" id="i18n-btn-leave-r">退出</button>
+    </div>
+    <div style="font-size:12px;color:var(--orange);text-align:center;margin-top:6px;min-height:18px;" id="start-waiting-msg"></div>
+  </div>
+
+  <div class="chat-wrap">
+    <div class="chat-box" id="chat-room"></div>
+    <div class="chat-row">
+      <input class="input chat-input" id="chat-input-room" placeholder="メッセージ">
+      <button class="btn btn-secondary" onclick="sendChat('room')" id="i18n-btn-send-r">送信</button>
+    </div>
+  </div>
+
+  <div id="host-controls" style="display:none;">
+    <button class="btn btn-danger" style="width:100%;font-size:13px;" onclick="kickGuest()" id="i18n-btn-kick">ゲストをキック</button>
+  </div>
+</div>
+
+<!-- ===== SCREEN: GAME ===== -->
+<div class="screen" id="screen-game">
+  <div class="board-wrap">
+    <div class="my-color-badge">
+      <span id="my-color-label">あなたは ？</span>
+    </div>
+
+    <div class="score-bar">
+      <span class="score-black" id="score-black-wrap"></span>
+      <span class="score-sep">vs</span>
+      <span class="score-white" id="score-white-wrap"></span>
+    </div>
+
+    <div class="board-frame" id="board-frame">
+      <div class="board" id="board"></div>
+    </div>
+
+    <div class="turn-indicator" id="turn-indicator">-</div>
+
+    <div class="board-actions">
+      <button class="btn btn-secondary" id="btn-pass" onclick="pass()" disabled data-i18n="pass">パス</button>
+      <button class="btn btn-ghost" onclick="resign()" id="i18n-btn-resign">降参</button>
+    </div>
+  </div>
+
+  <div class="chat-wrap">
+    <div class="chat-box" id="chat-game"></div>
+    <div class="chat-row">
+      <input class="input chat-input" id="chat-input-game" placeholder="メッセージ">
+      <button class="btn btn-secondary" onclick="sendChat('game')" id="i18n-btn-send-g">送信</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCREEN: END ===== -->
+<div class="screen" id="screen-end">
+  <div class="panel">
+    <div class="panel-title" id="end-result" style="font-size:22px;text-align:center;"></div>
+    <div style="font-size:14px;text-align:center;color:var(--gray);margin-top:4px;" id="end-score"></div>
+  </div>
+
+  <div class="panel history-panel" id="history-panel" style="display:none;">
+    <div class="panel-title" id="i18n-match-history">対局履歴</div>
+    <div class="history-list" id="history-list"></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title" id="i18n-next-game">次の対局</div>
+    <div class="end-choices">
+      <button class="end-btn" id="end-swap" onclick="chooseEnd('swap')">
+        <span id="i18n-end-swap">先後入れ替えて再戦</span>
+        <span class="opponent-choice" id="opp-swap"></span>
+      </button>
+      <button class="end-btn" id="end-same" onclick="chooseEnd('same')">
+        <span id="i18n-end-same">先後そのままで再戦</span>
+        <span class="opponent-choice" id="opp-same"></span>
+      </button>
+      <button class="end-btn danger-btn" onclick="chooseEnd('quit')" id="i18n-end-quit">終了して退出</button>
+    </div>
+  </div>
+
+  <div class="chat-wrap">
+    <div class="chat-box" id="chat-end"></div>
+    <div class="chat-row">
+      <input class="input chat-input" id="chat-input-end" placeholder="GGなど">
+      <button class="btn btn-secondary" onclick="sendChat('end')" id="i18n-btn-send-e">送信</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PASSWORD MODAL ===== -->
+<div class="overlay" id="pw-overlay">
+  <div class="modal">
+    <div class="modal-title">🔒 パスワード入力</div>
+    <div style="font-size:13px;color:var(--gray);" id="pw-room-name"></div>
+    <input class="input" id="pw-input" placeholder="パスワード" type="password">
+    <div style="font-size:12px;color:var(--danger);min-height:16px;" id="pw-error"></div>
+    <div class="row">
+      <button class="btn btn-primary" onclick="submitPassword()">入室</button>
+      <button class="btn btn-ghost" onclick="closePwModal()">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== PIECE MARKS =====
+// 駒マークの一元定義。将来的にここだけ変えれば全体に反映される。
+// ※ インラインSVGでid重複を避けるため、グラデーションはCSSフィルタで擬似的に表現。
+const BIRD_IMG_SRC = 'data:image/png;base64,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oouI1WTZWbV69Sq6/vpfSH2/vTCdomjo2bMnbrrpJlqxYoXgipZlkGllKJtLUs5IiWQZxzUok0mJ1kNyr7bZs9+nadMuJdlfIP/MfzdENx5uYcXSliUuv+Z+eNwHb9q0S8m7Zi9birUdXdfb8aq3L/H5gReuCwCOPnoyvfbav8UYbVbzOV7PvfE21d66KPG3D7ZE4vOEJSKLXn3tZTr88Akka6lca8L0wU1dQ0Fu89YFceCBByZqajYQb7J4PEaff/4ZnXPOWdIgBWYUKsaOHUvPP/88NTQ0kGVZrckieW82N6fkYZOc8cYEEY/HqLa22td+msGENWjQgKA8pklVvVHRPISDCZ1NE167bHP/61//oFGjDkgXDt0A8gk6be2v9glfdtBwv0FF8t727FmB6dN/RWvXrhFOvvYy8oqEv+OxZaq+Q03NdXTffb+lyso+PlNUFgbywBavuauOLkv4APDggw+KmzJz5kw66qijSA7R8euzzz6bFi9eRJlMStja3sbNp4dyCq/n2c730OdIwdy5/xPtsAE/Qeq6jnvuuYcWLFjgm3MXCGh4443XfBKUtRROgpFDZ3fffSfJveS2F0466SR67733qLGxkRKJBJmm2ZpM4zEnOf25sEegzCA2x+7fWsYhd4Ht+oS78XvU3r1o7z3ZByP3bZR9RixMuJOxZRkUizXReeedS4U5F5t23HVhogc84q6rq6OXX36Z9ttvv88Ls9cA4IILzhO59nKedyqV8KWIikflOGQYBmWzWdEwcsmSL6lfv77inJwbDwB9+vTB3/72N0qlUrRu3TqR8x8MBlFeXoqXX37RR0AcRmMTgrWBG264vk2L6+0BVvfKyspw2223UV1dnW/jynUJuVxGtB/njfhdNYEi4W8+4TPDbe8esgYpz/ordNSeeeaZVFlZCcCjlW4z3mpzMGzYsHFyXFv2A/zmN7f50mILU20zmYzYODwaiYtK+MG9885bdOyxRwt7W07I6devH2bNmkXxeJyam5spFosRl7cCwOjRo0RePE905ZwD7jOfSLTQaadNJUXJD9bYXj4zOboBeKGcc889lz799FOqr/f30U8m475BofLr72oKbK2p8H0hfNns4nwPluZM8FyXwq3UbdukV155icaNG1swLLTQ/9TNib+9JJwDDjigdvbs2UIlSqUSPvU032+efITPI5Adx6Fl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';
+
+const PIECE = {
+  // SVGインライン駒アイコンを返す（sizeはpx指定文字列）
+  // CATモード時: 黒=猫アイコン、白=鳥アイコン
+  svg(color, size = '1em') {
+    if (currentLang === 'cat') {
+      if (color === 'black') {
+        return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-46 -50 92 80" width="${size}" height="${size}" style="vertical-align:middle;display:inline-block;flex-shrink:0;"><g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/></g><g transform="rotate(12,12,8.3)"><path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/></g><ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/><line x1="-14" y1="1.00" x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/><line x1="-14" y1="6.0" x2="-33.44" y2="6.0" stroke="#000" stroke-width="1.8" stroke-linecap="round"/><line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/><line x1="-33.68" y1="-2.28" x2="-38" y2="-3" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/><line x1="-33.44" y1="6.0" x2="-40" y2="6" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/><line x1="-29.58" y1="14.26" x2="-37" y2="16" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/><line x1="14" y1="1.00" x2="33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/><line x1="14" y1="6.0" x2="33.44" y2="6.0" stroke="#000" stroke-width="1.8" stroke-linecap="round"/><line x1="14" y1="10.59" x2="29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/><line x1="33.68" y1="-2.28" x2="38" y2="-3" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/><line x1="33.44" y1="6.0" x2="40" y2="6" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/><line x1="29.58" y1="14.26" x2="37" y2="16" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/><ellipse cx="-12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/><ellipse cx="12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/><ellipse cx="-12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/><ellipse cx="12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/><circle cx="-10.5" cy="-5.2" r="1.0" fill="#c2410c"/><circle cx="13.5" cy="-5.2" r="1.0" fill="#c2410c"/><path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/><line x1="0" y1="11.3" x2="0" y2="13.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/><path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/><path d="M0,13.3 Q5,17.3 8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/></svg>`.replace(/\${size}/g, size);
+      } else {
+        return `<img src="${BIRD_IMG_SRC}" width="${size}" height="${size}" style="vertical-align:middle;display:inline-block;flex-shrink:0;object-fit:contain;">`;
+      }
+    }
+    if (color === 'black') {
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" style="vertical-align:middle;display:inline-block;flex-shrink:0;">
+        <circle cx="12" cy="12" r="10" fill="#1a1a1a" stroke="#555" stroke-width="1.5"/>
+        <circle cx="9" cy="9" r="3.5" fill="#555" opacity="0.5"/>
+      </svg>`;
+    } else {
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" style="vertical-align:middle;display:inline-block;flex-shrink:0;">
+        <circle cx="12" cy="12" r="10" fill="#e8e8e8" stroke="#aaa" stroke-width="1.5"/>
+        <circle cx="9" cy="9" r="3.5" fill="#fff" opacity="0.7"/>
+      </svg>`;
+    }
+  },
+  // span要素HTML文字列（inline-flex配置用）
+  span(color, size = '1em') {
+    return `<span style="display:inline-flex;align-items:center;">${PIECE.svg(color, size)}</span>`;
+  }
+};
+
+// ===== CONFIG =====
+const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
+
+// ===== STATE =====
+// マッチング状態は MomoMatchmaking.getState() で取得する
+let myName = '';
+let myColor = null;       // 'black' | 'white'
+let myChoice = null;      // color selected in lobby
+let oppChoice = null;
+let myStartPressed = false;
+let oppStartPressed = false;
+let currentRoomName = '';
+let pendingJoinRoom = null; // {id, name, hasPassword}
+
+// MomoMatchmaking.getState() のショートカットヘルパー
+function isHost()     { return MomoMatchmaking.getState().isHost; }
+function connected()  { return MomoMatchmaking.getState().connected; }
+function currentRoomId() { return MomoMatchmaking.getState().currentRoomId; }
+
+// ゲーム進行可能フラグ（両者がスタートを押した時点でtrue。DCの確立タイミングに依存しない）
+let gameReady = false;
+
+// ページ読み込み時にlocalStorageから名前・部屋名を復元（DOM確定後）
+function restoreInputs() {
+  try {
+    const pn = localStorage.getItem('momoPlayerName');
+    const rn = localStorage.getItem('momoRoomName');
+    if (pn) { const el = document.getElementById('my-name'); if (el) { el.value = pn; myName = pn; } }
+    if (rn) { const el = document.getElementById('room-name-input'); if (el) el.value = rn; }
+  } catch(e) {}
+}
+
+// game
+let board = [];
+let turn = 'black';
+let gameActive = false;
+let lastMove = null;
+let myEndChoice = null;
+let oppEndChoice = null;
+let matchHistory = []; // {result:'win'|'lose'|'draw'|'resign', black:n, white:n, myColor}
+
+// ===== SCREENS =====
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + id).classList.add('active');
+  // 画面切替時にチャット欄をクリア
+  ['waiting', 'room', 'game', 'end'].forEach(s => {
+    const box = document.getElementById('chat-' + s);
+    if (box) box.innerHTML = '';
+  });
+}
+
+// ===== WS =====
+// WebSocket・WebRTC処理はすべて MomoMatchmaking モジュールに委譲する
+
+function connectWS() {
+  MomoMatchmaking.init({
+    signalingUrl: SIGNALING_URL,
+    gameType: 'reversi',
+
+    onWsOpen: () => {
+      document.getElementById('lobby-status').textContent = t('connected');
+      document.getElementById('lobby-status').classList.add('highlight');
+    },
+
+    onWsClose: () => {
+      const ls = document.getElementById('lobby-status');
+      if (ls) {
+        ls.textContent = t('connecting');
+        ls.classList.remove('highlight');
+      }
+    },
+
+    onRoomList: (rooms) => {
+      renderRoomList(rooms);
+      if (_showingPrivate) {
+        renderPrivateRoomList(rooms, _pendingPrivatePw);
+        _showingPrivate = false;
+      }
+    },
+
+    onRoomCreated: (roomId, roomName) => {
+      currentRoomName = roomName;
+      document.getElementById('waiting-room-name').textContent = roomName;
+      document.getElementById('waiting-status').textContent = t('waitingGuest');
+      showScreen('waiting');
+    },
+
+    onJoinedRoom: (roomId, roomName, hostName) => {
+      currentRoomName = roomName;
+      document.getElementById('room-status').textContent = `${roomName}｜ホスト：${hostName}`;
+      document.getElementById('host-controls').style.display = 'none';
+      showScreen('room');
+    },
+
+    onGuestJoined: (guestName) => {
+      const msg = `${guestName}${t('guestJoined')}`;
+      document.getElementById('waiting-status').textContent = msg;
+      document.getElementById('room-status').textContent = currentRoomName;
+      document.getElementById('host-controls').style.display = 'block';
+      showScreen('room');
+      addChat('room', msg);
+    },
+
+    onGuestLeft: () => {
+      if (gameActive) {
+        showDisconnect(t('disconnected'));
+      } else {
+        addChat('waiting', t('guestLeft'));
+        resetColorSelect();
+        document.getElementById('waiting-status').textContent = t('waitingGuest');
+        document.getElementById('host-controls').style.display = 'none';
+        showScreen('waiting');
+      }
+    },
+
+    onConnected: () => {
+      // DataChannel確立（connected フラグはgetState()経由で参照）
+    },
+
+    onDisconnected: (msg) => {
+      showDisconnect(msg);
+    },
+
+    onMessage: (data) => {
+      handleMsg(data);
+    },
+
+    onError: (message) => {
+      document.getElementById('pw-error').textContent = message;
+      document.getElementById('private-error').textContent = message;
+    },
+
+    onKicked: () => {
+      alert(t('kicked'));
+      resetToLobby();
+    },
+  });
+}
+
+// ===== ROOM MANAGEMENT =====
+function createRoom() {
+  const nameEl = document.getElementById('my-name');
+  const roomEl = document.getElementById('room-name-input');
+  const errEl = document.getElementById('create-error');
+
+  const playerName = nameEl.value.trim();
+  const roomName = roomEl.value.trim();
+
+  if (!playerName || !roomName) {
+    errEl.textContent = t('createErrorEmpty');
+    return;
+  }
+  errEl.textContent = '';
+
+  myName = playerName;
+  try {
+    localStorage.setItem('momoPlayerName', playerName);
+    localStorage.setItem('momoRoomName', roomName);
+  } catch(e) {}
+
+  const password = document.getElementById('room-password').value;
+  const isPublic = document.getElementById('room-public').checked;
+
+  MomoMatchmaking.createRoom({ hostName: myName, name: roomName, password, isPublic });
+}
+
+function showPrivateRooms() {
+  const nameVal = document.getElementById('my-name').value.trim();
+  if (!nameVal) {
+    const nameEl = document.getElementById('my-name');
+    nameEl.focus();
+    nameEl.style.borderColor = 'var(--danger)';
+    setTimeout(() => { nameEl.style.borderColor = ''; }, 2000);
+    return;
+  }
+  myName = nameVal;
+  try { localStorage.setItem('momoPlayerName', myName); } catch(e) {}
+  document.getElementById('private-error').textContent = '';
+
+  const pw = document.getElementById('private-room-pw').value;
+  // サーバーから最新の部屋リストを取得し、onRoomList で描画
+  _pendingPrivatePw = pw;
+  _showingPrivate = true;
+  MomoMatchmaking.refreshRooms();
+}
+
+// 非公開部屋表示用の一時フラグ
+let _pendingPrivatePw = '';
+let _showingPrivate = false;
+
+function refreshRooms() {
+  MomoMatchmaking.refreshRooms();
+}
+
+function renderRoomList(rooms) {
+  const el = document.getElementById('room-list');
+  if (!rooms || rooms.length === 0) {
+    el.innerHTML = `<div style="color:var(--gray);font-size:13px;text-align:center;padding:10px;">${t('noRooms')}</div>`;
+    return;
+  }
+  el.innerHTML = '';
+  const publicRooms = rooms.filter(r => r.isPublic);
+  if (publicRooms.length === 0) {
+    el.innerHTML = `<div style="color:var(--gray);font-size:13px;text-align:center;padding:10px;">${t('noPublicRooms')}</div>`;
+    return;
+  }
+  publicRooms.forEach(r => {
+    const full = r.guestConnected;
+    const item = document.createElement('div');
+    item.className = 'room-item' + (full ? ' full' : '');
+    item.innerHTML = `
+      <div>
+        <div class="room-name">${escHtml(r.name)}</div>
+        <div class="room-meta">Host: ${escHtml(r.hostName)} ／ ${r.gameState === 'playing' ? t('playing') : t('waiting2')}</div>
+      </div>
+      <div class="room-badges">
+        ${r.hasPassword ? '<span class="badge badge-lock">🔒</span>' : ''}
+        ${full ? `<span class="badge badge-full">${t('roomFull')}</span>` : `<span class="badge badge-open">${t('roomOpen')}</span>`}
+      </div>
+    `;
+    if (!full) {
+      item.onclick = () => tryJoinRoom(r);
+    }
+    el.appendChild(item);
+  });
+}
+
+function renderPrivateRoomList(rooms, pw) {
+  const el = document.getElementById('private-room-list');
+  el.style.display = '';
+  el.innerHTML = '';
+
+  // 非公開部屋のうち、パスワードが一致するもの（または空パスワード）
+  const privateRooms = (rooms || []).filter(r => !r.isPublic);
+  // パスワード一致チェックはサーバー側でしか確認できないため、
+  // ここでは「非公開部屋を全て表示」し、入室時に認証する
+  // パスワード入力があれば入力値と一致するものだけ（サーバーが hasPassword を返すため、
+  // パスワードなし部屋は空文字で入れる）
+  const filtered = pw
+    ? privateRooms.filter(r => r.hasPassword) // パスワードあり部屋のみ表示（空文字なら全て）
+    : privateRooms.filter(r => !r.hasPassword); // パスワードなし非公開部屋
+
+  // パスワード未入力の場合は両方表示する（入力内容で絞らない）
+  const toShow = privateRooms; // サーバーが返す非公開部屋をそのまま表示し入室で認証
+
+  if (toShow.length === 0) {
+    el.innerHTML = `<div style="color:var(--gray);font-size:13px;text-align:center;padding:10px;">${t('noRooms')}</div>`;
+    return;
+  }
+
+  toShow.forEach(r => {
+    const full = r.guestConnected;
+    const item = document.createElement('div');
+    item.className = 'room-item' + (full ? ' full' : '');
+    item.innerHTML = `
+      <div>
+        <div class="room-name">${escHtml(r.name)}</div>
+        <div class="room-meta">Host: ${escHtml(r.hostName)} ／ ${r.gameState === 'playing' ? t('playing') : t('waiting2')}</div>
+      </div>
+      <div class="room-badges">
+        ${r.hasPassword ? '<span class="badge badge-lock">🔒</span>' : ''}
+        ${full ? `<span class="badge badge-full">${t('roomFull')}</span>` : `<span class="badge badge-open">${t('roomOpen')}</span>`}
+      </div>
+    `;
+    if (!full) {
+      item.onclick = () => {
+        // 入力されたパスワードでそのまま入室試行
+        myName = document.getElementById('my-name').value.trim() || myName;
+        MomoMatchmaking.joinRoom(r.id, pw, myName);
+      };
+    }
+    el.appendChild(item);
+  });
+}
+
+function tryJoinRoom(room) {
+  const nameVal = document.getElementById('my-name').value.trim();
+  if (!nameVal) {
+    // 名前欄にフォーカスしてエラー表示
+    const nameEl = document.getElementById('my-name');
+    nameEl.focus();
+    nameEl.style.borderColor = 'var(--danger)';
+    setTimeout(() => { nameEl.style.borderColor = ''; }, 2000);
+    return;
+  }
+  myName = nameVal;
+  try { localStorage.setItem('momoPlayerName', myName); } catch(e) {}
+  pendingJoinRoom = room;
+  if (room.hasPassword) {
+    document.getElementById('pw-room-name').textContent = room.name;
+    document.getElementById('pw-input').value = '';
+    document.getElementById('pw-error').textContent = '';
+    document.getElementById('pw-overlay').classList.add('show');
+  } else {
+    joinRoom(room.id, '');
+  }
+}
+
+function submitPassword() {
+  const pw = document.getElementById('pw-input').value;
+  if (pendingJoinRoom) joinRoom(pendingJoinRoom.id, pw);
+  closePwModal();
+}
+
+function closePwModal() {
+  document.getElementById('pw-overlay').classList.remove('show');
+}
+
+function joinRoom(roomId, password) {
+  MomoMatchmaking.joinRoom(roomId, password, myName);
+}
+
+function kickGuest() {
+  if (confirm(t('confirmKick'))) {
+    MomoMatchmaking.kickGuest();
+    resetColorSelect();
+    document.getElementById('host-controls').style.display = 'none';
+    showScreen('waiting');
+  }
+}
+
+function leaveRoom() {
+  if (confirm(t('confirmLeave'))) {
+    resetToLobby();
+  }
+}
+
+function resetToLobby() {
+  MomoMatchmaking.leaveRoom();
+  myColor = null;
+  gameReady = false;
+  gameActive = false;
+  matchHistory = [];
+  _showingPrivate = false;
+  _pendingPrivatePw = '';
+  const prl = document.getElementById('private-room-list');
+  if (prl) { prl.style.display = 'none'; prl.innerHTML = ''; }
+  resetColorSelect();
+  showScreen('lobby');
+  MomoMatchmaking.refreshRooms();
+}
+
+function showDisconnect(msg) {
+  gameActive = false;
+  alert(msg || t('disconnected'));
+  resetToLobby();
+}
+
+// ===== SEND =====
+function send(data) {
+  MomoMatchmaking.send(data);
+}
+
+// ===== COLOR SELECT =====
+function selectColor(color) {
+  myChoice = color;
+  send({ type: 'color_select', color });
+  updateColorUI();
+  checkStartReady();
+}
+
+function updateColorUI() {
+  const btnBlack = document.getElementById('btn-black');
+  const btnWhite = document.getElementById('btn-white');
+  const whoBlack = document.getElementById('who-black');
+  const whoWhite = document.getElementById('who-white');
+
+  btnBlack.className = 'color-btn';
+  btnWhite.className = 'color-btn';
+
+  if (myChoice === 'black') btnBlack.classList.add('selected-black');
+  if (myChoice === 'white') btnWhite.classList.add('selected-white');
+
+  whoBlack.textContent = myChoice === 'black' ? t('whoMe') : oppChoice === 'black' ? t('whoOpp') : '';
+  whoWhite.textContent = myChoice === 'white' ? t('whoMe') : oppChoice === 'white' ? t('whoOpp') : '';
+}
+
+function checkStartReady() {
+  const ready = myChoice && oppChoice && myChoice !== oppChoice;
+  document.getElementById('btn-start').disabled = !ready;
+  document.getElementById('start-hint').textContent = ready ? t('startReady') : t('startHint');
+}
+
+function resetColorSelect() {
+  myChoice = null;
+  oppChoice = null;
+  myStartPressed = false;
+  oppStartPressed = false;
+  document.getElementById('start-waiting-msg').textContent = '';
+  document.getElementById('btn-start').disabled = true;
+  updateColorUI();
+  checkStartReady();
+}
+
+function pressStart() {
+  myStartPressed = true;
+  document.getElementById('btn-start').disabled = true;
+  document.getElementById('start-waiting-msg').textContent = t('waitingStart');
+  send({ type: 'start_press' });
+  checkBothStart();
+}
+
+function checkBothStart() {
+  if (myStartPressed && oppStartPressed) {
+    beginGame();
+  }
+}
+
+function beginGame(swapColors) {
+  if (swapColors) {
+    myColor = myColor === 'black' ? 'white' : 'black';
+  } else if (!swapColors && myColor === null) {
+    myColor = myChoice;
+  }
+
+  gameReady = true;
+  initBoard();
+  turn = 'black';
+  gameActive = true;
+  lastMove = null;
+
+  document.getElementById('my-color-label').innerHTML =
+    `${t('youAre')} ${PIECE.svg(myColor, '20px')}${t(myColor === 'black' ? 'black' : 'white')}`;
+
+  showScreen('game');
+  renderBoard();
+  updateTurnUI();
+}
+
+// ===== GAME =====
+function initBoard() {
+  board = Array.from({ length: 8 }, () => Array(8).fill(null));
+  board[3][3] = 'white';
+  board[3][4] = 'black';
+  board[4][3] = 'black';
+  board[4][4] = 'white';
+}
+
+function renderBoard() {
+  const el = document.getElementById('board');
+  el.innerHTML = '';
+
+  for (let y = 0; y < 8; y++) {
+    for (let x = 0; x < 8; x++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.onclick = () => place(x, y);
+
+      if (board[y][x]) {
+        if (currentLang === 'cat') {
+          // CATモード: 駒をアイコン画像で描画
+          const pieceColor = board[y][x];
+          const wrapper = document.createElement('div');
+          wrapper.style.cssText = 'width:72%;height:72%;display:flex;align-items:center;justify-content:center;position:relative;';
+          if (lastMove && lastMove.x === x && lastMove.y === y) {
+            wrapper.style.outline = '3px solid var(--orange-dim)';
+            wrapper.style.borderRadius = '4px';
+          }
+          wrapper.innerHTML = PIECE.svg(pieceColor, '85%');
+          cell.appendChild(wrapper);
+        } else {
+          const stone = document.createElement('div');
+          stone.className = 'stone ' + board[y][x];
+          if (lastMove && lastMove.x === x && lastMove.y === y) {
+            stone.classList.add('last-move');
+          }
+          cell.appendChild(stone);
+        }
+      }
+
+      el.appendChild(cell);
+    }
+  }
+
+  // scores
+  let black = 0, white = 0;
+  board.flat().forEach(v => { if (v === 'black') black++; if (v === 'white') white++; });
+  document.getElementById('score-black-wrap').innerHTML = `${PIECE.svg('black','20px')} <span id="score-black">${black}</span>`;
+  document.getElementById('score-white-wrap').innerHTML = `${PIECE.svg('white','20px')} <span id="score-white">${white}</span>`;
+}
+
+function updateTurnUI() {
+  const frame = document.getElementById('board-frame');
+  const indicator = document.getElementById('turn-indicator');
+  const myTurn = turn === myColor;
+  const passBtn = document.getElementById('btn-pass');
+
+  if (myTurn) {
+    frame.classList.add('my-turn');
+    indicator.className = 'turn-indicator active';
+    indicator.textContent = t('myTurn');
+  } else {
+    frame.classList.remove('my-turn');
+    indicator.className = 'turn-indicator';
+    indicator.textContent = t('oppTurn');
+  }
+
+  // pass button: show message if no valid move
+  if (myTurn && !hasMove(myColor)) {
+    passBtn.disabled = false;
+    indicator.textContent = t('passHint');
+    indicator.className = 'turn-indicator active';
+  } else {
+    passBtn.disabled = true;
+  }
+}
+
+function place(x, y) {
+  if (!gameReady || !gameActive) return;
+  if (turn !== myColor) return;
+  if (board[y][x]) return;
+  if (!hasMove(myColor)) return;
+
+  const testBoard = JSON.parse(JSON.stringify(board));
+  if (!flipTest(testBoard, x, y, turn)) return;
+
+  flip(board, x, y, turn);
+  board[y][x] = turn;
+  lastMove = { x, y };
+
+  send({ type: 'move', x, y });
+
+  nextTurn();
+}
+
+function nextTurn() {
+  turn = turn === 'black' ? 'white' : 'black';
+  renderBoard();
+  updateTurnUI();
+
+  if (!hasMove('black') && !hasMove('white')) {
+    endGame();
+  }
+}
+
+function flip(b, x, y, color) {
+  const dirs = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+  let flipped = false;
+  for (const [dx, dy] of dirs) {
+    let nx = x + dx, ny = y + dy, list = [];
+    while (nx >= 0 && nx < 8 && ny >= 0 && ny < 8 && b[ny][nx] && b[ny][nx] !== color) {
+      list.push([nx, ny]);
+      nx += dx; ny += dy;
+    }
+    if (nx >= 0 && nx < 8 && ny >= 0 && ny < 8 && b[ny][nx] === color && list.length) {
+      list.forEach(([fx, fy]) => b[fy][fx] = color);
+      flipped = true;
+    }
+  }
+  return flipped;
+}
+
+function flipTest(b, x, y, color) {
+  const dirs = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+  for (const [dx, dy] of dirs) {
+    let nx = x + dx, ny = y + dy, found = false;
+    while (nx >= 0 && nx < 8 && ny >= 0 && ny < 8 && b[ny][nx] && b[ny][nx] !== color) {
+      found = true; nx += dx; ny += dy;
+    }
+    if (found && nx >= 0 && nx < 8 && ny >= 0 && ny < 8 && b[ny][nx] === color) return true;
+  }
+  return false;
+}
+
+function hasMove(color) {
+  for (let y = 0; y < 8; y++) {
+    for (let x = 0; x < 8; x++) {
+      if (!board[y][x]) {
+        const copy = JSON.parse(JSON.stringify(board));
+        if (flipTest(copy, x, y, color)) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function pass() {
+  if (turn !== myColor) return;
+  if (hasMove(myColor)) return; // 置ける手があるならパス無効
+  send({ type: 'pass' });
+  nextTurn();
+}
+
+function resign() {
+  if (!confirm(t('confirmResign'))) return;
+  send({ type: 'resign' });
+  gameActive = false;
+  showEndScreen(t('resignLose'), false);
+}
+
+function endGame() {
+  gameActive = false;
+  let black = 0, white = 0;
+  board.flat().forEach(v => { if (v === 'black') black++; if (v === 'white') white++; });
+
+  let result;
+  if (myColor === 'black') {
+    result = black > white ? t('winMsg') : black < white ? t('loseMsg') : t('drawMsg');
+  } else {
+    result = white > black ? t('winMsg') : white < black ? t('loseMsg') : t('drawMsg');
+  }
+
+  showEndScreen(result, true, black, white);
+}
+
+function showEndScreen(result, showScore, black, white) {
+  document.getElementById('end-result').textContent = result;
+  document.getElementById('end-score').innerHTML = showScore
+    ? `${PIECE.svg('black','18px')} ${black}  -  ${white} ${PIECE.svg('white','18px')}`
+    : '';
+
+  // 履歴に追加
+  if (showScore !== undefined) {
+    let outcome;
+    if (!showScore) {
+      // 降参
+      outcome = (result === t('resignLose')) ? 'lose' : 'win';
+    } else {
+      const myScore = myColor === 'black' ? black : white;
+      const oppScore = myColor === 'black' ? white : black;
+      outcome = myScore > oppScore ? 'win' : myScore < oppScore ? 'lose' : 'draw';
+    }
+    matchHistory.push({ outcome, black: black ?? 0, white: white ?? 0, myColor, showScore });
+    renderHistory();
+  }
+
+  myEndChoice = null;
+  oppEndChoice = null;
+  updateEndUI();
+
+  showScreen('end');
+}
+
+function renderHistory() {
+  const panel = document.getElementById('history-panel');
+  const list = document.getElementById('history-list');
+  if (!matchHistory.length) { panel.style.display = 'none'; return; }
+  panel.style.display = '';
+  list.innerHTML = '';
+
+  let wins = 0, loses = 0, draws = 0;
+
+  matchHistory.forEach((h, i) => {
+    const row = document.createElement('div');
+    row.className = 'history-row';
+
+    let scoreText;
+    if (h.showScore) {
+      // 通常終了: 私<先手マーク>myScore - oppScore<後手マーク>相手
+      const myScore  = h.myColor === 'black' ? h.black : h.white;
+      const oppScore = h.myColor === 'black' ? h.white : h.black;
+      const myStone  = PIECE.span(h.myColor, '14px');
+      const oppStone = PIECE.span(h.myColor === 'black' ? 'white' : 'black', '14px');
+      scoreText = `${t('historyMe')}${myStone}${myScore} - ${oppScore}${oppStone}${t('historyOpp')}`;
+    } else {
+      // 降参
+      if (h.outcome === 'win') {
+        const myStone  = PIECE.span(h.myColor, '14px');
+        const oppStone = PIECE.span(h.myColor === 'black' ? 'white' : 'black', '14px');
+        scoreText = `${t('historyMe')}${myStone}${t('historyWinWord')} - ${oppStone}${t('historyOpp')}${t('historyResignWord')}`;
+      } else {
+        const myStone  = PIECE.span(h.myColor, '14px');
+        const oppStone = PIECE.span(h.myColor === 'black' ? 'white' : 'black', '14px');
+        scoreText = `${t('historyMe')}${myStone}${t('historyResignWord')} - ${oppStone}${t('historyOpp')}${t('historyWinWord')}`;
+      }
+    }
+
+    if (h.outcome === 'win') wins++;
+    else if (h.outcome === 'lose') loses++;
+    else draws++;
+
+    const badgeText = h.outcome === 'win' ? t('historyWin') : h.outcome === 'lose' ? t('historyLose') : t('historyDraw');
+    row.innerHTML = `<span class="history-idx">${i + 1}</span><span class="history-badge ${h.outcome}">${badgeText}</span><span class="history-score" style="display:flex;align-items:center;gap:2px;">${scoreText}</span>`;
+    list.appendChild(row);
+  });
+
+  // 集計行
+  const summary = document.createElement('div');
+  summary.className = 'history-row';
+  summary.style.cssText = 'background:transparent;border-top:1px solid var(--border);margin-top:2px;padding-top:6px;font-size:11px;color:var(--gray);justify-content:center;gap:12px;';
+  summary.innerHTML = `<span style="color:var(--success)">${wins}${t('historyWin')}</span><span style="color:var(--danger)">${loses}${t('historyLose')}</span><span style="color:var(--gray)">${draws}${t('historyDraw')}</span>`;
+  list.appendChild(summary);
+  list.scrollTop = list.scrollHeight;
+}
+
+// ===== END CHOICES =====
+function chooseEnd(choice) {
+  if (choice === 'quit') {
+    send({ type: 'end_choice', choice: 'quit' });
+    resetToLobby();
+    return;
+  }
+
+  myEndChoice = choice;
+  send({ type: 'end_choice', choice });
+  updateEndUI();
+  checkEndMatch();
+}
+
+function updateEndUI() {
+  // 自分の選択は常にオレンジ枠（myEndChoiceは変更しない）
+  const swapBtn = document.getElementById('end-swap');
+  const sameBtn = document.getElementById('end-same');
+  swapBtn.className = 'end-btn' + (myEndChoice === 'swap' ? ' selected' : '');
+  sameBtn.className = 'end-btn' + (myEndChoice === 'same' ? ' selected' : '');
+  // 相手の選択表示
+  document.getElementById('opp-swap').textContent = oppEndChoice === 'swap' ? t('oppChoosing') : '';
+  document.getElementById('opp-same').textContent = oppEndChoice === 'same' ? t('oppChoosing') : '';
+}
+
+function checkEndMatch() {
+  if (!myEndChoice || !oppEndChoice) return;
+  if (myEndChoice !== oppEndChoice) {
+    // 不一致 → 選択はそのまま維持、相手にも通知しない（お互い表示を残す）
+    return;
+  }
+
+  // 一致
+  const swap = myEndChoice === 'swap';
+  myColor = swap ? (myColor === 'black' ? 'white' : 'black') : myColor;
+  gameActive = false;
+  beginGame();
+}
+
+// ===== MESSAGES =====
+function handleMsg(m) {
+  // chat
+  if (m.type === 'chat') {
+    const screens = ['waiting', 'room', 'game', 'end'];
+    screens.forEach(s => addChat(s, `相手：${m.message}`));
+    return;
+  }
+
+  if (m.type === 'color_select') {
+    oppChoice = m.color;
+    updateColorUI();
+    checkStartReady();
+    return;
+  }
+
+  if (m.type === 'start_press') {
+    oppStartPressed = true;
+    checkBothStart();
+    return;
+  }
+
+  if (m.type === 'move') {
+    if (!flip(board, m.x, m.y, turn)) return;
+    board[m.y][m.x] = turn;
+    lastMove = { x: m.x, y: m.y };
+    nextTurn();
+    return;
+  }
+
+  if (m.type === 'pass') {
+    nextTurn();
+    return;
+  }
+
+  if (m.type === 'resign') {
+    gameActive = false;
+    showEndScreen(t('resignWin'), false);
+    return;
+  }
+
+  if (m.type === 'end_choice') {
+    oppEndChoice = m.choice;
+    if (m.choice === 'quit') {
+      alert(t('oppQuit'));
+      resetToLobby();
+      return;
+    }
+    updateEndUI();
+    checkEndMatch();
+    return;
+  }
+}
+
+// ===== CHAT =====
+function sendChat(screen) {
+  const input = document.getElementById('chat-input-' + screen);
+  const msg = input.value.trim();
+  if (!msg) return;
+  addChat(screen, `自分：${msg}`);
+
+  // mirror to all chat boxes
+  ['waiting', 'room', 'game', 'end'].filter(s => s !== screen).forEach(s => addChat(s, `自分：${msg}`));
+
+  send({ type: 'chat', message: msg });
+  input.value = '';
+}
+
+function addChat(screen, text) {
+  const box = document.getElementById('chat-' + screen);
+  if (!box) return;
+  const line = document.createElement('div');
+  line.textContent = text;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+}
+
+// Enter key for all chat inputs
+document.querySelectorAll('.chat-input').forEach(input => {
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      // find which screen
+      const id = input.id.replace('chat-input-', '');
+      sendChat(id);
+    }
+  });
+});
+
+// ===== UTILS =====
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ===== I18N =====
+const I18N = {
+  ja: {
+    connecting: '接続中...', connected: '接続済み', reconnecting: '接続中...',
+    createTitle: '部屋を作る', labelName: 'あなたの名前', labelRoom: '部屋の名前',
+    labelPw: 'パスワード（省略可）', pwPlaceholder: 'なしの場合は空欄',
+    labelPublic: '一覧に公開する', btnCreate: '部屋を作成',
+    createErrorEmpty: '名前と部屋名を入力してください',
+    roomListTitle: '部屋一覧', btnRefresh: '更新',
+    roomInfo: '部屋情報', roomLabel: '部屋名：',
+    btnSend: '送信', btnLeave: '退出',
+    colorTitle: '色を選択してください', blackLabel: '（先手）', whiteLabel: '（後手）',
+    whoMe: '← あなた', whoOpp: '← 相手',
+    startGame: 'ゲーム開始', startHint: '黒と白をそれぞれ選択するとゲーム開始できます',
+    startReady: '準備完了！ゲーム開始を押してください',
+    waitingStart: '相手のゲーム開始を待っています...',
+    btnKick: 'ゲストをキック',
+    btnPass: 'パス', btnResign: '降参',
+    myTurn: 'あなたの手番です', oppTurn: '相手の手番です...', passHint: 'パスしてください（置ける場所がありません）',
+    nextGame: '次の対局',
+    endSwap: '先後入れ替えて再戦', endSame: '先後そのままで再戦', endQuit: '終了して退出',
+    oppChoosing: '← 相手が選択中',
+    waitingGuest: 'ゲストの参加を待っています...',
+    guestJoined: 'が入室しました', guestLeft: 'ゲストが退出しました',
+    youAre: 'あなたは', black: '（先手）', white: '（後手）',
+    winMsg: '勝利！', loseMsg: '敗北', drawMsg: '引き分け',
+    resignWin: '相手が降参 - 勝利！', resignLose: 'あなたの負け（降参）',
+    oppQuit: '相手が退出しました',
+    confirmLeave: '退出しますか？', confirmResign: '降参しますか？', confirmKick: 'ゲストをキックしますか？',
+    noRooms: '現在部屋はありません', noPublicRooms: '公開中の部屋はありません',
+    roomFull: '満員', roomOpen: '参加可', playing: '対局中', waiting2: '待機中',
+    chatPlaceholder: 'メッセージ', chatPlaceholderEnd: 'メッセージ',
+    roomMaxError: '部屋が満室です（最大10部屋）',
+    noRoomError: '部屋が見つかりません', fullRoomError: '部屋は満員です', pwError: 'パスワードが違います',
+    kicked: 'ホストにキックされました',
+    disconnected: '通信が切断されました。対局を中断します。',
+    signalingDisconnected: '接続が切断されました。再接続中...',
+    matchHistory: '対局履歴', historyWin: '勝', historyLose: '敗', historyDraw: '分',
+    privateTitle: '非公開の部屋を表示', privatePwLabel: 'パスワード（なければ空欄）',
+    privateBtnShow: '表示',
+    historyMe: '私', historyOpp: '相手', historyWinWord: '勝利', historyResignWord: '降参',
+  },
+  en: {
+    connecting: 'Connecting...', connected: 'Connected', reconnecting: 'Connecting...',
+    createTitle: 'Create Room', labelName: 'Your Name', labelRoom: 'Room Name',
+    labelPw: 'Password (optional)', pwPlaceholder: 'Leave blank for none',
+    labelPublic: 'Show in room list', btnCreate: 'Create Room',
+    createErrorEmpty: 'Please enter your name and room name',
+    roomListTitle: 'Room List', btnRefresh: 'Refresh',
+    roomInfo: 'Room Info', roomLabel: 'Room: ',
+    btnSend: 'Send', btnLeave: 'Leave',
+    colorTitle: 'Choose your color', blackLabel: '(1st)', whiteLabel: '(2nd)',
+    whoMe: '← You', whoOpp: '← Opponent',
+    startGame: 'Start Game', startHint: 'Each player must choose a different color to start',
+    startReady: 'Ready! Press Start Game',
+    waitingStart: 'Waiting for opponent to start...',
+    btnKick: 'Kick Guest',
+    btnPass: 'Pass', btnResign: 'Resign',
+    myTurn: 'Your turn', oppTurn: "Opponent's turn...", passHint: 'Pass (no valid moves)',
+    nextGame: 'Next Game',
+    endSwap: 'Rematch (swap colors)', endSame: 'Rematch (same colors)', endQuit: 'Quit & Leave',
+    oppChoosing: '← Opponent chose',
+    waitingGuest: 'Waiting for a guest...',
+    guestJoined: ' joined', guestLeft: 'Guest left',
+    youAre: 'You are', black: '(1st)', white: '(2nd)',
+    winMsg: 'Victory!', loseMsg: 'Defeat', drawMsg: 'Draw',
+    resignWin: 'Opponent resigned - You win!', resignLose: 'You lost (resigned)',
+    oppQuit: 'Opponent left',
+    confirmLeave: 'Leave room?', confirmResign: 'Resign?', confirmKick: 'Kick guest?',
+    noRooms: 'No rooms available', noPublicRooms: 'No public rooms',
+    roomFull: 'Full', roomOpen: 'Join', playing: 'Playing', waiting2: 'Waiting',
+    chatPlaceholder: 'Message', chatPlaceholderEnd: 'Message',
+    roomMaxError: 'Room limit reached (max 10)',
+    noRoomError: 'Room not found', fullRoomError: 'Room is full', pwError: 'Wrong password',
+    kicked: 'You were kicked by the host',
+    disconnected: 'Connection lost. Game interrupted.',
+    signalingDisconnected: 'Connection lost. Reconnecting...',
+    matchHistory: 'Match History', historyWin: 'W', historyLose: 'L', historyDraw: 'D',
+    privateTitle: 'Show Private Rooms', privatePwLabel: 'Password (leave blank if none)',
+    privateBtnShow: 'Show',
+    historyMe: 'Me', historyOpp: 'Opp', historyWinWord: 'Win', historyResignWord: 'Resigned',
+  },
+  zh: {
+    connecting: '连接中...', connected: '已连接', reconnecting: '连接中...',
+    createTitle: '创建房间', labelName: '你的名字', labelRoom: '房间名称',
+    labelPw: '密码（可选）', pwPlaceholder: '不设密码请留空',
+    labelPublic: '在列表中公开', btnCreate: '创建房间',
+    createErrorEmpty: '请输入名字和房间名',
+    roomListTitle: '房间列表', btnRefresh: '刷新',
+    roomInfo: '房间信息', roomLabel: '房间名：',
+    btnSend: '发送', btnLeave: '退出',
+    colorTitle: '请选择颜色', blackLabel: '（先手）', whiteLabel: '（后手）',
+    whoMe: '← 你', whoOpp: '← 对手',
+    startGame: '开始游戏', startHint: '双方各选一色后即可开始',
+    startReady: '准备完毕！请按开始游戏',
+    waitingStart: '等待对手开始...',
+    btnKick: '踢出访客',
+    btnPass: '跳过', btnResign: '认输',
+    myTurn: '你的回合', oppTurn: '对手回合...', passHint: '跳过（无处落子）',
+    nextGame: '下一局',
+    endSwap: '交换先后手再战', endSame: '保持先后手再战', endQuit: '退出',
+    oppChoosing: '← 对手已选择',
+    waitingGuest: '等待访客加入...',
+    guestJoined: ' 加入了', guestLeft: '访客离开了',
+    youAre: '你是', black: '（先手）', white: '（后手）',
+    winMsg: '胜利！', loseMsg: '败北', drawMsg: '平局',
+    resignWin: '对手认输 - 你赢了！', resignLose: '你输了（认输）',
+    oppQuit: '对手离开了',
+    confirmLeave: '要退出吗？', confirmResign: '要认输吗？', confirmKick: '要踢出访客吗？',
+    noRooms: '当前没有房间', noPublicRooms: '没有公开的房间',
+    roomFull: '已满', roomOpen: '加入', playing: '对局中', waiting2: '等待中',
+    chatPlaceholder: '消息', chatPlaceholderEnd: '消息',
+    roomMaxError: '房间已满（最多10间）',
+    noRoomError: '房间不存在', fullRoomError: '房间已满', pwError: '密码错误',
+    kicked: '你被房主踢出了',
+    disconnected: '通信断开。对局中断。',
+    signalingDisconnected: '连接断开。重连中...',
+    matchHistory: '对局记录', historyWin: '胜', historyLose: '负', historyDraw: '平',
+    privateTitle: '显示非公开房间', privatePwLabel: '密码（无则留空）',
+    privateBtnShow: '显示',
+    historyMe: '我', historyOpp: '对手', historyWinWord: '胜利', historyResignWord: '认输',
+  }
+};
+
+let currentLang = (() => {
+  try {
+    const v = localStorage.getItem('momoLang');
+    return ['ja','en','zh','cat'].includes(v) ? v : 'ja';
+  } catch(e) { return 'ja'; }
+})();
+
+let catBase = 'ja';
+
+function catSpeak(key) {
+  const errorKeys = ['pwError','noRoomError','fullRoomError','kicked','createErrorEmpty','privateIdRequired'];
+  const meOppKeys   = ['historyMe','historyOpp','historyWinWord','historyResignWord'];
+  const calmKeys  = ['connecting','reconnecting','waitingGuest','waitingStart'];
+  let vocab;
+  if (catBase === 'en') {
+    if (errorKeys.includes(key))   vocab = ['HISS!','SPIT!','FSSST!'];
+    else if (calmKeys.includes(key))  vocab = ['purrrr...','mrrr...','prrr...'];
+    else if (meOppKeys.includes(key)) vocab = ['~nya~'];
+    else                              vocab = ['MEOW','meow','mrrrow','mew','NYA!'];
+  } else if (catBase === 'zh') {
+    if (errorKeys.includes(key))   vocab = ['嘶！','哈！','嘶嘶！'];
+    else if (calmKeys.includes(key))  vocab = ['咕噜…','喵…','噜噜…'];
+    else if (meOppKeys.includes(key)) vocab = ['~喵~'];
+    else                              vocab = ['喵','喵呜','咪','喵！'];
+  } else {
+    if (errorKeys.includes(key))   vocab = ['シャー！','フーッ！','シャシャシャ！'];
+    else if (calmKeys.includes(key))  vocab = ['ごろごろ…','にゃ…','ぐるぐる…'];
+    else if (meOppKeys.includes(key)) vocab = ['~にゃ~'];
+    else                              vocab = ['にゃあ','にゃ','にゃーん','みゃお','ニャ！'];
+  }
+  return vocab[Math.floor(Math.random() * vocab.length)];
+}
+
+function t(key) {
+  if (currentLang === 'cat') return catSpeak(key);
+  return (I18N[currentLang] || I18N.ja)[key] || (I18N.ja)[key] || key;
+}
+
+function applyLang() {
+  const d = I18N[currentLang] || I18N.ja;
+  document.documentElement.lang = currentLang === 'zh' ? 'zh-Hans' : currentLang;
+
+  // Static UI elements
+  const setText = (id, key) => { const el = document.getElementById(id); if (el) el.textContent = t(key); };
+  setText('i18n-create-title', 'createTitle');
+  setText('i18n-label-name', 'labelName');
+  setText('i18n-label-room', 'labelRoom');
+  setText('i18n-label-pw', 'labelPw');
+  setText('i18n-label-public', 'labelPublic');
+  setText('i18n-btn-create', 'btnCreate');
+  setText('i18n-room-list-title', 'roomListTitle');
+  setText('i18n-btn-refresh', 'btnRefresh');
+  setText('i18n-room-info', 'roomInfo');
+  setText('i18n-room-label', 'roomLabel');
+  setText('i18n-btn-send-w', 'btnSend');
+  setText('i18n-btn-leave-w', 'btnLeave');
+  setText('i18n-color-title', 'colorTitle');
+  // 駒アイコン付きラベル（innerHTML）
+  const blEl = document.getElementById('i18n-black-label');
+  if (blEl) blEl.innerHTML = `${PIECE.svg('black','18px')} ${t('blackLabel')}`;
+  const whEl = document.getElementById('i18n-white-label');
+  if (whEl) whEl.innerHTML = `${PIECE.svg('white','18px')} ${t('whiteLabel')}`;
+  setText('btn-start', 'startGame');
+  setText('i18n-btn-leave-r', 'btnLeave');
+  setText('i18n-btn-send-r', 'btnSend');
+  setText('i18n-btn-kick', 'btnKick');
+  setText('btn-pass', 'btnPass');
+  setText('i18n-btn-resign', 'btnResign');
+  setText('i18n-btn-send-g', 'btnSend');
+  setText('i18n-next-game', 'nextGame');
+  setText('i18n-end-swap', 'endSwap');
+  setText('i18n-end-same', 'endSame');
+  setText('i18n-end-quit', 'endQuit');
+  setText('i18n-btn-send-e', 'btnSend');
+  setText('i18n-match-history', 'matchHistory');
+  setText('i18n-private-title', 'privateTitle');
+  setText('i18n-private-pw-label', 'privatePwLabel');
+  setText('i18n-btn-private-show', 'privateBtnShow');
+
+  // start-hint: only update if not overridden by game state
+  const startHintEl = document.getElementById('start-hint');
+  if (startHintEl) startHintEl.textContent = t('startHint');
+
+  // Placeholders
+  ['waiting','room','game'].forEach(s => {
+    const el = document.getElementById('chat-input-' + s);
+    if (el) el.placeholder = t('chatPlaceholder');
+  });
+  const endInput = document.getElementById('chat-input-end');
+  if (endInput) endInput.placeholder = t('chatPlaceholderEnd');
+  const pwInput = document.getElementById('room-password');
+  if (pwInput) pwInput.placeholder = t('pwPlaceholder');
+
+  // lobby-status: only update if it matches a known state string
+  const ls = document.getElementById('lobby-status');
+  if (ls) {
+    const knownStates = Object.values(I18N).map(lng => lng.connecting);
+    if (knownStates.includes(ls.textContent)) ls.textContent = t('connecting');
+    const knownConnected = Object.values(I18N).map(lng => lng.connected);
+    if (knownConnected.includes(ls.textContent)) ls.textContent = t('connected');
+  }
+
+  // waiting-status
+  const ws2 = document.getElementById('waiting-status');
+  if (ws2) {
+    const knownWaiting = Object.values(I18N).map(lng => lng.waitingGuest);
+    if (knownWaiting.some(v => ws2.textContent === v)) ws2.textContent = t('waitingGuest');
+  }
+
+  // opp-swap / opp-same
+  const os = document.getElementById('opp-swap');
+  const om = document.getElementById('opp-same');
+  if (os && os.textContent) {
+    const knownOpp = Object.values(I18N).map(lng => lng.oppChoosing);
+    if (knownOpp.includes(os.textContent)) os.textContent = t('oppChoosing');
+  }
+  if (om && om.textContent) {
+    const knownOpp = Object.values(I18N).map(lng => lng.oppChoosing);
+    if (knownOpp.includes(om.textContent)) om.textContent = t('oppChoosing');
+  }
+
+  // Lang select sync
+  const sel = document.getElementById('lang-select');
+  if (sel) sel.value = currentLang;
+
+  // stone-preview: CATモード時は猫/鳥アイコンに切り替え
+  const spb = document.getElementById('stone-preview-black');
+  const spw = document.getElementById('stone-preview-white');
+  if (spb && spw) {
+    if (currentLang === 'cat') {
+      spb.style.cssText = 'width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:50%;';
+      spb.innerHTML = PIECE.svg('black', '34px');
+      spw.style.cssText = 'width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:#666;border:2px solid #888;';
+      spw.innerHTML = PIECE.svg('white', '34px');
+    } else {
+      spb.style.cssText = '';
+      spb.className = 'stone-preview black';
+      spb.innerHTML = '';
+      spw.style.cssText = '';
+      spw.className = 'stone-preview white';
+      spw.innerHTML = '';
+    }
+  }
+
+  // ゲーム中ならmy-color-labelも更新
+  if (myColor) {
+    const mcl = document.getElementById('my-color-label');
+    if (mcl) mcl.innerHTML = `${t('youAre')} ${PIECE.svg(myColor, '20px')}${myColor === 'black' ? t('black') : t('white')}`;
+  }
+}
+
+function onLangChange(lang) {
+  if (lang === 'cat') catBase = currentLang;
+  currentLang = lang;
+  try { localStorage.setItem('momoLang', lang); } catch(e) {}
+  applyLang();
+}
+
+// ===== BOOT =====
+connectWS();
+applyLang();
+restoreInputs();
+</script>
+</body>
+</html>

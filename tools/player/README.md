@@ -1,6 +1,5 @@
 [README.md](https://github.com/user-attachments/files/26644183/README.md)
-# MOMO works - Personal Project Space
-
+# MOMO Player - Standalone HDD-Bound Music player
 
 ## 日本語
 

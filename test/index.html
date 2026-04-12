@@ -2,40 +2,85 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>MOMO Audio - GitHub Ready</title>
+    <title>MOMO Audio Lab</title>
+    <style>
+        body { font-family: sans-serif; background: #0f172a; color: #fff; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .card { background: #1e293b; padding: 25px; border-radius: 20px; width: 350px; }
+        .group { margin-bottom: 20px; }
+        input[type="range"] { width: 100%; }
+        button { padding: 10px; width: 100%; margin-top: 10px; cursor: pointer; }
+    </style>
 </head>
 <body>
+
+<div class="card">
     <input type="file" id="audioFile" accept="audio/mp3">
     <button id="playBtn">再生開始</button>
+    <div class="group">
+        <label>速度: <span id="speedVal">1.00x</span></label>
+        <input type="range" id="speed" min="0.5" max="2.0" step="0.05" value="1.0">
+    </div>
+    <div class="group">
+        <label>ピッチ(Shift): <span id="pitchVal">0.00</span></label>
+        <input type="range" id="pitch" min="-1.0" max="1.0" step="0.1" value="0.0">
+    </div>
+    <button id="vocalCutBtn">ボーカルカット: OFF</button>
+    <audio id="mainAudio" style="display:none;"></audio>
+</div>
+
+<script>
+let audioCtx, source, isVocalCut = false;
+const audioTag = document.getElementById('mainAudio');
+// ピッチシフト用のディレイ（簡易版）
+let delayNode;
+
+document.getElementById('audioFile').onchange = (e) => {
+    audioTag.src = URL.createObjectURL(e.target.files[0]);
+    audioTag.muted = true; // 【重要】原音はWeb Audio APIで鳴らすため、htmlタグ側はミュート
+};
+
+document.getElementById('playBtn').onclick = async () => {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        source = audioCtx.createMediaElementSource(audioTag);
+        delayNode = audioCtx.createDelay(1);
+        updateGraph();
+    }
+    await audioCtx.resume();
+    audioTag.play();
+};
+
+function updateGraph() {
+    source.disconnect();
+    delayNode.disconnect();
     
-    <audio id="mainAudio" crossorigin="anonymous"></audio>
+    if (isVocalCut) {
+        const split = audioCtx.createChannelSplitter(2);
+        const merge = audioCtx.createChannelMerger(2);
+        const inv = audioCtx.createGain(); inv.gain.value = -1;
+        
+        source.connect(split);
+        split.connect(merge, 0, 0);
+        split.connect(inv, 1);
+        inv.connect(merge, 0, 1);
+        merge.connect(audioCtx.destination);
+    } else {
+        // ピッチシフトを通すルート
+        source.connect(delayNode);
+        delayNode.connect(audioCtx.destination);
+    }
+}
 
-    <script>
-        const audioTag = document.getElementById('mainAudio');
-        const playBtn = document.getElementById('playBtn');
-
-        document.getElementById('audioFile').onchange = (e) => {
-            audioTag.src = URL.createObjectURL(e.target.files[0]);
-        };
-
-        playBtn.onclick = async () => {
-            // 1. AudioContextをユーザー操作で確実に立ち上げる
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            const ctx = new AudioContext();
-            
-            // 2. 既存のAudioElementをWeb Audio APIに取り込む
-            const source = ctx.createMediaElementSource(audioTag);
-            source.connect(ctx.destination);
-            
-            // 3. 再生を明示的に開始し、Promiseを待つ
-            try {
-                await audioTag.play();
-                console.log("再生開始成功");
-            } catch (err) {
-                console.error("再生失敗:", err);
-                alert("再生を許可してください。");
-            }
-        };
-    </script>
+document.getElementById('speed').oninput = (e) => audioTag.playbackRate = e.target.value;
+document.getElementById('pitch').oninput = (e) => {
+    if(delayNode) delayNode.delayTime.value = Math.abs(e.target.value) * 0.1;
+    document.getElementById('pitchVal').innerText = e.target.value;
+};
+document.getElementById('vocalCutBtn').onclick = (e) => {
+    isVocalCut = !isVocalCut;
+    e.target.innerText = "ボーカルカット: " + (isVocalCut ? "ON" : "OFF");
+    updateGraph();
+};
+</script>
 </body>
 </html>

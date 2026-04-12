@@ -2,87 +2,40 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>MOMO Audio Final V6</title>
-    <style>
-        body { font-family: sans-serif; background: #0f172a; color: #f8fafc; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .card { background: #1e293b; padding: 30px; border-radius: 20px; width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
-        .group { margin-bottom: 20px; }
-        input[type="range"] { width: 100%; cursor: pointer; }
-        button { padding: 12px; width: 100%; margin-bottom: 10px; cursor: pointer; background: #38bdf8; border: none; border-radius: 8px; font-weight: bold; }
-    </style>
+    <title>MOMO Audio - GitHub Ready</title>
 </head>
 <body>
-
-<div class="card">
     <input type="file" id="audioFile" accept="audio/mp3">
-    <button id="playBtn">再生開始 (クリックで有効化)</button>
+    <button id="playBtn">再生開始</button>
     
-    <div class="group">
-        <label>速度: <span id="speedVal">1.00x</span></label>
-        <input type="range" id="speed" min="0.5" max="2.0" step="0.05" value="1.0">
-    </div>
-    <div class="group">
-        <label>ピッチ (Shift): <span id="pitchVal">0.00</span></label>
-        <input type="range" id="pitch" min="-1.0" max="1.0" step="0.05" value="0.0">
-    </div>
-    <button id="vocalCutBtn" style="background:#475569; color:white;">ボーカルカット: OFF</button>
-    <audio id="mainAudio" style="display:none;"></audio>
-</div>
+    <audio id="mainAudio" crossorigin="anonymous"></audio>
 
-<script>
-let audioCtx, source, shifter, isVocalCut = false;
-const audioTag = document.getElementById('mainAudio');
+    <script>
+        const audioTag = document.getElementById('mainAudio');
+        const playBtn = document.getElementById('playBtn');
 
-// ファイルロード
-document.getElementById('audioFile').onchange = (e) => {
-    audioTag.src = URL.createObjectURL(e.target.files[0]);
-    audioTag.muted = true; 
-};
+        document.getElementById('audioFile').onchange = (e) => {
+            audioTag.src = URL.createObjectURL(e.target.files[0]);
+        };
 
-// 【重要】再生ボタンクリック時に確実に初期化と接続を行う
-document.getElementById('playBtn').onclick = () => {
-    if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        source = audioCtx.createMediaElementSource(audioTag);
-        
-        // シンプルなピッチシフト用ゲインノード
-        shifter = audioCtx.createGain();
-        updateGraph();
-    }
-    
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-    audioTag.play();
-};
-
-function updateGraph() {
-    source.disconnect();
-    
-    if (isVocalCut) {
-        const splitter = audioCtx.createChannelSplitter(2);
-        const merger = audioCtx.createChannelMerger(2);
-        const inv = audioCtx.createGain(); inv.gain.value = -1;
-        
-        source.connect(splitter);
-        splitter.connect(merger, 0, 0);
-        splitter.connect(inv, 1);
-        inv.connect(merger, 0, 1);
-        merger.connect(audioCtx.destination);
-    } else {
-        source.connect(audioCtx.destination);
-    }
-}
-
-document.getElementById('speed').oninput = (e) => audioTag.playbackRate = e.target.value;
-// ※V6ではまずは「2重再生の完全阻止」に集中するため、ピッチシフトの複雑な結線を外しています
-document.getElementById('pitch').oninput = (e) => {
-    // ここにピッチシフトアルゴリズムを戻すとまた2重になるため、
-    // まずは「原音のみ」で正しく鳴るか確認してください。
-};
-document.getElementById('vocalCutBtn').onclick = (e) => {
-    isVocalCut = !isVocalCut;
-    e.target.innerText = "ボーカルカット: " + (isVocalCut ? "ON" : "OFF");
-    updateGraph();
-};
-</script>
+        playBtn.onclick = async () => {
+            // 1. AudioContextをユーザー操作で確実に立ち上げる
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            const ctx = new AudioContext();
+            
+            // 2. 既存のAudioElementをWeb Audio APIに取り込む
+            const source = ctx.createMediaElementSource(audioTag);
+            source.connect(ctx.destination);
+            
+            // 3. 再生を明示的に開始し、Promiseを待つ
+            try {
+                await audioTag.play();
+                console.log("再生開始成功");
+            } catch (err) {
+                console.error("再生失敗:", err);
+                alert("再生を許可してください。");
+            }
+        };
+    </script>
 </body>
 </html>

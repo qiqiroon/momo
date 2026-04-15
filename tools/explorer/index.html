@@ -1,0 +1,2689 @@
+<!DOCTYPE html>
+<!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
+<!-- MOMO Explorer v1.05 -->
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>MOMO Explorer</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-46 -50 92 80'%3E%3Crect x='-46' y='-50' width='92' height='80' rx='8' fill='%23000000'/%3E%3Cg transform='rotate(-12,-12,8.3)'%3E%3Cpath d='M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cg transform='rotate(12,12,8.3)'%3E%3Cpath d='M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cellipse cx='0' cy='1.3' rx='34' ry='26' fill='%23c2410c'/%3E%3Cline x1='-14' y1='1.00' x2='-33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='6.0' x2='-33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='10.59' x2='-29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.68' y1='-2.28' x2='-38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.44' y1='6.0' x2='-40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-29.58' y1='14.26' x2='-37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='1.00' x2='33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='6.0' x2='33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='10.59' x2='29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.68' y1='-2.28' x2='38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.44' y1='6.0' x2='40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='29.58' y1='14.26' x2='37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cellipse cx='-12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='-12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Cellipse cx='12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Ccircle cx='-10.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Ccircle cx='13.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Cpath d='M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z' fill='%23000'/%3E%3Cline x1='0' y1='11.3' x2='0' y2='13.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q-5,17.3 -8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q5,17.3 8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+/* =====================================================
+   MOMO Explorer v1.01 — スタイルシート
+   テーマ: レトロOS風ユーティリティ × モダンクリーン
+   ===================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* design-spec-v1_0 標準カラーパレット */
+  --bg:          #0a0a0a;
+  --surface:     #111111;
+  --surface2:    #1a1a1a;
+
+  --orange:      #c2410c;
+  --orange-mid:  #ea580c;
+  --orange-light:#fb923c;
+
+  --text:        #e5e5e5;
+  --text-muted:  #737373;
+
+  --border:      #2a2a2a;
+  --border-strong: #444;
+
+  --bg-selected: rgba(194,65,12,0.15);
+
+  /* Explorer固有エイリアス（既存コードとの互換） */
+  --bg2:         #0f0f0f;
+  --bg3:         #111111;
+  --panel:       #111111;
+  --panel2:      #1a1a1a;
+  --border2:     #444;
+
+  --fg:          var(--text);
+  --fg2:         #a3a3a3;
+  --fg3:         var(--text-muted);
+
+  --accent:      var(--orange-mid);
+  --accent2:     var(--orange-light);
+  --accent3:     var(--orange);
+
+  --github-col:  #9ece6a;
+  --disk-col:    #c8c8c8;
+  --gdrive-col:  #60a5fa;
+
+  --sel:         var(--bg-selected);
+  --sel-border:  var(--orange);
+  --hover:       var(--surface2);
+
+  --btn-bg:      var(--surface);
+  --btn-hover:   var(--surface2);
+  --btn-active:  #222;
+  --btn-dis:     #0a0a0a;
+
+  --err:         #f87171;
+  --warn:        var(--orange-light);
+  --ok:          #86efac;
+
+  --radius:      4px;
+  --radius2:     6px;
+  --mono:        'JetBrains Mono', 'Courier New', monospace;
+  --sans:        'Noto Sans JP', sans-serif;
+
+  --header-h:    36px;
+  --addr-h:      34px;
+  --toolbar-h:   38px;
+  --tree-w:      240px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--sans);
+  font-size: 13px;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── レイアウトシェル ── */
+#shell {
+  display: grid;
+  grid-template-rows: var(--header-h) var(--addr-h) max-content var(--toolbar-h) 1fr;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* ── ヘッダー ── */
+#header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 8px;
+  user-select: none;
+}
+#header .logo {
+  font-family: 'Fredoka One', var(--sans);
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--text);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+#header .logo .logo-cat {
+  width: 28px;
+  height: 24px;
+  flex-shrink: 0;
+}
+#header .logo .logo-name { color: var(--text); }
+#header .logo .logo-name span { color: var(--orange-mid); }
+#header .logo .ver {
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-weight: 400;
+  font-size: 10px;
+  margin-left: 4px;
+}
+#header .spacer { flex: 1; }
+#pyodide-status {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--fg3);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+#pyodide-status .dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--fg3);
+  transition: background 0.4s;
+}
+#pyodide-status .dot.loading { background: var(--warn); animation: pulse 1s infinite; }
+#pyodide-status .dot.ready   { background: var(--ok); }
+#pyodide-status .dot.error   { background: var(--err); }
+
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+/* ── アドレスバー ── */
+#addr-row {
+  background: var(--bg3);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  gap: 6px;
+  position: relative;
+}
+#addr-icon { font-size: 14px; flex-shrink: 0; }
+#addr-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: 12px;
+  height: 100%;
+  caret-color: var(--accent);
+}
+#addr-input:focus { color: var(--accent); }
+#addr-error {
+  position: absolute;
+  top: 100%;
+  left: 0; right: 0;
+  background: var(--err);
+  color: #fff;
+  font-size: 11px;
+  font-family: var(--mono);
+  padding: 3px 12px;
+  z-index: 100;
+  display: none;
+  animation: fadeIn 0.15s;
+}
+@keyframes fadeIn { from{opacity:0;transform:translateY(-3px)} to{opacity:1;transform:none} }
+
+/* ── ツールバー ── */
+#toolbar {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  gap: 4px;
+}
+.tb-btn {
+  background: var(--btn-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--fg2);
+  font-family: var(--sans);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 3px 10px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  white-space: nowrap;
+  user-select: none;
+}
+.tb-btn:hover:not(:disabled) {
+  background: var(--btn-hover);
+  color: var(--fg);
+  border-color: var(--border2);
+}
+.tb-btn:active:not(:disabled) { background: var(--btn-active); }
+.tb-btn:disabled {
+  background: var(--btn-dis);
+  color: var(--fg3);
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.tb-btn .icon { font-size: 13px; }
+.tb-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+  margin: 0 2px;
+}
+
+/* ── メインエリア ── */
+#main {
+  display: flex;
+  overflow: hidden;
+  border-top: 1px solid var(--border);
+}
+
+/* ── 左ペイン ── */
+#left-pane {
+  width: var(--tree-w);
+  min-width: 140px;
+  max-width: 400px;
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex-shrink: 0;
+  position: relative;
+}
+#left-pane::-webkit-scrollbar { width: 4px; }
+#left-pane::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* リサイザー */
+#resizer {
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+#resizer:hover, #resizer.dragging { background: var(--accent); }
+
+/* ── ツリー ── */
+.tree-root { padding: 6px 0; }
+
+.tree-node { user-select: none; }
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  cursor: pointer;
+  border-radius: 0;
+  transition: background 0.1s;
+  min-height: 24px;
+  position: relative;
+}
+.tree-row:hover { background: var(--hover); }
+.tree-row.selected {
+  background: var(--sel);
+  border-left: 2px solid var(--sel-border);
+  padding-left: 6px;
+}
+.tree-row.backend-root {
+  font-weight: 600;
+  font-size: 12px;
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
+.tree-toggle {
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  color: var(--fg3);
+  flex-shrink: 0;
+  transition: transform 0.15s;
+}
+.tree-toggle.open { transform: rotate(90deg); }
+
+.tree-icon { font-size: 14px; flex-shrink: 0; }
+
+.tree-label {
+  font-size: 12px;
+  font-family: var(--mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+/* バックエンドカラー */
+.backend-github .tree-label { color: var(--github-col); }
+.backend-disk   .tree-label { color: var(--disk-col); }
+.backend-gdrive .tree-label { color: var(--gdrive-col); }
+.backend-github.selected { border-color: var(--github-col); }
+.backend-disk.selected   { border-color: var(--disk-col); }
+.backend-gdrive.selected { border-color: var(--gdrive-col); }
+
+.tree-children {
+  padding-left: 16px;
+  overflow: hidden;
+}
+.tree-children.collapsed { display: none; }
+
+.conn-badge {
+  font-size: 9px;
+  font-family: var(--mono);
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.conn-badge.ok     { background: #1a3a20; color: var(--ok); }
+.conn-badge.no     { background: #2a1a1f; color: var(--fg3); }
+.conn-badge.busy   { background: #2a2010; color: var(--warn); }
+
+.tree-spinner {
+  width: 12px; height: 12px;
+  border: 2px solid var(--border2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── 右ペイン ── */
+#right-pane {
+  flex: 1;
+  background: var(--bg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ファイルリストヘッダ */
+#list-header {
+  display: grid;
+  grid-template-columns: 28px 1fr 70px 70px 130px;
+  padding: 4px 8px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  color: var(--fg3);
+  font-size: 11px;
+  font-family: var(--mono);
+  user-select: none;
+  flex-shrink: 0;
+}
+.list-col { padding: 0 4px; }
+
+/* ファイルリスト */
+#file-list {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+#file-list::-webkit-scrollbar { width: 6px; }
+#file-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+.file-row {
+  display: grid;
+  grid-template-columns: 28px 1fr 70px 70px 130px;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-bottom: 1px solid transparent;
+  transition: background 0.1s;
+  align-items: center;
+  min-height: 28px;
+}
+.file-row:hover { background: var(--hover); }
+.file-row.selected {
+  background: var(--sel);
+  border-bottom-color: transparent;
+}
+.file-row .f-icon { font-size: 15px; }
+.file-row .f-name {
+  font-size: 12px;
+  font-family: var(--mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 4px;
+  color: var(--fg);
+}
+/* ファイルは全部白（fg） */
+/* フォルダはバックエンドの色に合わせる */
+.file-row.folder.backend-github .f-name { color: var(--github-col); }
+.file-row.folder.backend-disk   .f-name { color: var(--disk-col); }
+.file-row.folder.backend-gdrive .f-name { color: var(--gdrive-col); }
+/* 選択時はオレンジ */
+.file-row.selected .f-name { color: var(--orange-light) !important; }.file-row .f-type {
+  font-size: 11px;
+  color: var(--fg3);
+  font-family: var(--mono);
+  padding: 0 4px;
+}
+.file-row .f-size {
+  font-size: 11px;
+  color: var(--fg2);
+  font-family: var(--mono);
+  text-align: right;
+  padding: 0 4px;
+}
+.file-row .f-date {
+  font-size: 11px;
+  color: var(--fg3);
+  font-family: var(--mono);
+  padding: 0 4px;
+}
+/* フォルダの色はCSSクラスで制御 */
+
+/* ローディング・空状態 */
+#list-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--fg3);
+  font-family: var(--mono);
+  font-size: 12px;
+  pointer-events: none;
+}
+#list-overlay.hidden { display: none; }
+.overlay-spinner {
+  width: 28px; height: 28px;
+  border: 3px solid var(--border2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* ── モーダル・ダイアログ ── */
+#modal-bg {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+  display: none;
+}
+#modal-bg.show { display: flex; }
+
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius2);
+  padding: 20px 24px;
+  min-width: 300px;
+  max-width: 420px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  animation: modalIn 0.15s ease-out;
+}
+@keyframes modalIn { from{opacity:0;transform:scale(.95)} to{opacity:1;transform:none} }
+
+.modal-title {
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--accent);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.modal-title.warn { color: var(--warn); }
+.modal-title.err  { color: var(--err);  }
+
+.modal-body {
+  font-size: 12px;
+  color: var(--fg2);
+  line-height: 1.6;
+  margin-bottom: 16px;
+  word-break: break-all;
+}
+
+.modal-input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 6px 10px;
+  outline: none;
+  margin-bottom: 14px;
+}
+.modal-input:focus { border-color: var(--accent); }
+
+.modal-btns {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.modal-btn {
+  background: var(--btn-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--fg2);
+  font-family: var(--sans);
+  font-size: 12px;
+  padding: 5px 14px;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+.modal-btn:hover { background: var(--btn-hover); color: var(--fg); }
+.modal-btn.primary {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+.modal-btn.primary:hover { filter: brightness(1.1); }
+.modal-btn.danger {
+  background: var(--err);
+  color: #fff;
+  border-color: var(--err);
+}
+.modal-btn.danger:hover { filter: brightness(1.1); }
+
+/* ── ステータスバー ── */
+#statusbar {
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  height: 22px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  gap: 16px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--fg3);
+  flex-shrink: 0;
+}
+#statusbar .sb-item { display: flex; align-items: center; gap: 4px; }
+#statusbar .sb-clip {
+  color: var(--warn);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── github 読み取り専用バナー ── */
+#readonly-banner {
+  background: rgba(194,65,12,0.08);
+  border-bottom: 1px solid var(--orange);
+  padding: 3px 12px;
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--orange-light);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-bottom-width: 0;
+  transition: max-height 0.15s, padding 0.15s;
+}
+#readonly-banner.show {
+  max-height: 28px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+  border-bottom-width: 1px;
+}
+
+/* ── レート制限警告 ── */
+.rate-warn {
+  background: rgba(194,65,12,0.08);
+  border-top: 1px solid var(--orange);
+  padding: 3px 12px;
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--orange-light);
+  display: none;
+}
+.rate-warn.show { display: block; }
+
+/* ── Pyodide ロード中オーバーレイ ── */
+#boot-overlay {
+  position: fixed; inset: 0;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  z-index: 9999;
+  transition: opacity 0.4s;
+}
+#boot-overlay.hide { opacity: 0; pointer-events: none; }
+.boot-logo {
+  font-family: 'Fredoka One', var(--sans);
+  font-size: 24px;
+  font-weight: 400;
+  color: var(--text);
+  letter-spacing: 0.02em;
+}
+.boot-sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg3);
+}
+.boot-bar {
+  width: 220px;
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.boot-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  width: 0%;
+  transition: width 0.3s;
+  border-radius: 2px;
+}
+
+/* ── ユーティリティ ── */
+.hidden { display: none !important; }
+#right-wrap { flex: 1; position: relative; display: flex; flex-direction: column; overflow: hidden; }
+
+/* ── 言語切り替えセレクト ── */
+#lang-switcher {
+  position: relative;
+  z-index: 200;
+}
+#lang-select {
+  background: var(--surface2);
+  border: 1px solid var(--border-strong);
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 3px 6px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-family: var(--sans);
+  outline: none;
+}
+#lang-select:focus,
+#lang-select:hover { border-color: var(--orange); color: var(--orange-light); }
+
+/* ── MOMO Worksリンク ── */
+#momo-works-link {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--fg3);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 0.15s;
+}
+#momo-works-link:hover { color: var(--fg2); }
+
+/* ── モバイル対応 ── */
+@media (max-width: 600px) {
+  :root { --tree-w: 150px; }
+  #toolbar {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    gap: 2px;
+    padding: 0 4px;
+  }
+  .tb-btn { padding: 3px 6px; font-size: 11px; flex-shrink: 0; }
+  .tb-btn-label { display: none; }
+  #list-header { grid-template-columns: 24px 1fr 50px 60px; }
+  .file-row { grid-template-columns: 24px 1fr 50px 60px; }
+  .f-date, #list-header .list-col:last-child { display: none; }
+  #left-pane { min-width: 110px; }
+  .logo-cat { width: 22px !important; height: 18px !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- ブート画面 -->
+<div id="boot-overlay">
+  <div class="boot-logo">MOMO <span style="color:var(--orange-mid)">Explorer</span></div>
+  <div class="boot-sub" id="boot-msg">Pyodide を初期化中...</div>
+  <div class="boot-bar"><div class="boot-bar-fill" id="boot-bar"></div></div>
+</div>
+
+<!-- メインシェル -->
+<div id="shell">
+
+  <!-- ヘッダー -->
+  <div id="header">
+    <span class="logo">
+      <svg class="logo-cat" xmlns="http://www.w3.org/2000/svg" viewBox="-46 -50 92 80">
+        <g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/></g>
+        <g transform="rotate(12,12,8.3)"><path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/></g>
+        <ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/>
+        <line x1="-14" y1="1.00" x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="-14" y1="6.0" x2="-33.44" y2="6.0" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="-33.68" y1="-2.28" x2="-38" y2="-3" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="-33.44" y1="6.0" x2="-40" y2="6" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="-29.58" y1="14.26" x2="-37" y2="16" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="14" y1="1.00" x2="33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="14" y1="6.0" x2="33.44" y2="6.0" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="14" y1="10.59" x2="29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="33.68" y1="-2.28" x2="38" y2="-3" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="33.44" y1="6.0" x2="40" y2="6" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="29.58" y1="14.26" x2="37" y2="16" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+        <ellipse cx="-12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+        <ellipse cx="12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+        <ellipse cx="-12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+        <ellipse cx="12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+        <circle cx="-10.5" cy="-5.2" r="1.0" fill="#c2410c"/>
+        <circle cx="13.5" cy="-5.2" r="1.0" fill="#c2410c"/>
+        <path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/>
+        <line x1="0" y1="11.3" x2="0" y2="13.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M0,13.3 Q5,17.3 8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+      </svg>
+      <span class="logo-name">MOMO <span>Explorer</span></span><span class="ver" id="ver-label">v1.05</span>
+    </span>
+    <span class="spacer"></span>
+    <a id="momo-works-link" href="https://qiqiroon.github.io/momo/" target="_blank">← MOMO Works</a>
+    <div id="pyodide-status">
+      <div class="dot loading" id="py-dot"></div>
+      <span id="py-label">Pyodide 初期化中</span>
+    </div>
+    <div id="lang-switcher">
+      <select id="lang-select" onchange="onLangChange(this.value)">
+        <option value="ja">日本語</option>
+        <option value="en">EN</option>
+        <option value="zh">中文</option>
+        <option value="cat">CAT</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- アドレスバー -->
+  <div id="addr-row">
+    <span id="addr-icon">📁</span>
+    <input id="addr-input" type="text" placeholder="バックエンド/パス を入力して Enter" spellcheck="false">
+    <div id="addr-error"></div>
+  </div>
+
+  <!-- 読み取り専用バナー -->
+  <div id="readonly-banner">⚠ GitHub フォルダは読み取り専用です。閲覧のみ可能です。</div>
+
+  <!-- ツールバー -->
+  <div id="toolbar">
+    <button class="tb-btn" id="btn-copy"   disabled><span class="icon">📋</span><span class="tb-btn-label" id="lbl-copy">コピー</span></button>
+    <button class="tb-btn" id="btn-cut"    disabled><span class="icon">✂️</span><span class="tb-btn-label" id="lbl-cut">切り取り</span></button>
+    <button class="tb-btn" id="btn-paste"  disabled><span class="icon">📌</span><span class="tb-btn-label" id="lbl-paste">貼り付け</span></button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" id="btn-delete" disabled><span class="icon">🗑</span><span class="tb-btn-label" id="lbl-delete">削除</span></button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" id="btn-mkdir"  disabled><span class="icon">📂</span><span class="tb-btn-label" id="lbl-mkdir">新規フォルダ</span></button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" id="btn-refresh"><span class="icon">🔄</span><span class="tb-btn-label" id="lbl-refresh">更新</span></button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" id="btn-diskroot" style="display:none"><span class="icon">💾</span><span class="tb-btn-label" id="lbl-diskroot">diskのルート変更</span></button>
+    <button class="tb-btn" id="btn-gdrive-disconnect" style="display:none"><span class="icon">🔌</span><span class="tb-btn-label" id="lbl-gdrive-disconnect">gdriveアカウント変更</span></button>
+  </div>
+
+  <!-- メインエリア -->
+  <div id="main">
+
+    <!-- 左ペイン -->
+    <div id="left-pane">
+      <div class="tree-root" id="tree-root"></div>
+    </div>
+
+    <!-- リサイザー -->
+    <div id="resizer"></div>
+
+    <!-- 右ペイン -->
+    <div id="right-wrap">
+      <div id="list-header">
+        <div class="list-col"></div>
+        <div class="list-col" id="col-name">名前</div>
+        <div class="list-col" id="col-type">種類</div>
+        <div class="list-col" id="col-size" style="text-align:right">サイズ</div>
+        <div class="list-col" id="col-date">更新日時</div>
+      </div>
+      <div id="right-pane">
+        <div id="file-list"></div>
+        <div id="list-overlay">
+          <div class="overlay-spinner" id="list-spinner" style="display:none"></div>
+          <span id="overlay-msg">フォルダを選択してください</span>
+        </div>
+      </div>
+      <div class="rate-warn" id="rate-warn"></div>
+      <div id="statusbar">
+        <span class="sb-item" id="sb-items">0 項目</span>
+        <span class="sb-item" id="sb-disk" style="display:none">💾 <span id="sb-disk-name"></span></span>
+        <span class="sb-item sb-clip" id="sb-clip" style="display:none"></span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- モーダル -->
+<div id="modal-bg">
+  <div class="modal" id="modal-box">
+    <div class="modal-title" id="modal-title">タイトル</div>
+    <div class="modal-body"  id="modal-body">本文</div>
+    <input class="modal-input hidden" id="modal-input" type="text">
+    <div class="modal-btns"  id="modal-btns"></div>
+  </div>
+</div>
+
+<script>
+/* =====================================================
+   MOMO Explorer v1.01 — メインスクリプト
+   ===================================================== */
+
+const VERSION = "1.05";
+
+// ── 定数 ──────────────────────────────────────────────
+const GITHUB_OWNER  = "qiqiroon";
+const GITHUB_REPO   = "momo";
+const GITHUB_BRANCH = "main";
+const GITHUB_TOP    = "tools/explorer/data";  // エクスプローラに表示するトップフォルダ
+
+// ── 状態 ──────────────────────────────────────────────
+const state = {
+  currentBackend: null,   // 'github' | 'disk' | 'gdrive'
+  currentPath: "",        // バックエンド内の現在パス
+  selectedItem: null,     // { name, type, path, backend }
+  clipboard: null,        // { item, op: 'copy'|'cut' }
+  backends: {
+    github: { status: "disconnected", instance: null },
+    disk:   { status: "disconnected", instance: null },
+    gdrive: { status: "disconnected", instance: null },
+  },
+  loading: false,
+  treeExpanded: { github: false, disk: false, gdrive: false },
+  treeNodes: {},   // path -> element
+};
+
+// ── PyodideラッパーとPython連携 ──────────────────────
+let pyodide = null;
+let pyReady = false;
+
+async function bootPyodide() {
+  setBootMsg(t('bootCdn'), 10);
+  try {
+    pyodide = await loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.25.1/full/" });
+    setBootMsg(t('bootMicropip'), 40);
+    await pyodide.loadPackage("micropip");
+    setBootMsg(t('bootGithub'), 65);
+
+    // momo_github をインラインで読み込む（GitHub Pages 上では fetch で取得）
+    await loadMomoGithub();
+
+    setBootMsg(t('bootDisk'), 80);
+    try {
+      await loadMomoDiskBridge();
+    } catch(e) {
+      console.warn("momo_disk_bridge.js の読み込みに失敗しました:", e);
+    }
+
+    setBootMsg(t('bootReady'), 100);
+    pyReady = true;
+
+    document.getElementById("py-dot").className   = "dot ready";
+    document.getElementById("py-label").textContent = t('pyodideReady');
+
+    setTimeout(() => {
+      const ov = document.getElementById("boot-overlay");
+      ov.classList.add("hide");
+      setTimeout(() => ov.remove(), 400);
+    }, 300);
+
+    // GitHub バックエンドを自動初期化
+    await initGithubBackend();
+    renderTree();
+    // renderTree()でDOMが再生成されるため、バッジを再更新
+    updateTreeBadge("github");
+    updateTreeBadge("disk");
+    updateTreeBadge("gdrive");
+
+  } catch(e) {
+    setBootMsg(t('overlayError') + e.message, 100);
+    document.getElementById("py-dot").className   = "dot error";
+    document.getElementById("py-label").textContent = t('pyodideErr');
+    console.error(e);
+  }
+}
+
+function setBootMsg(msg, pct) {
+  document.getElementById("boot-msg").textContent = msg;
+  document.getElementById("boot-bar").style.width = pct + "%";
+}
+
+async function loadMomoDiskBridge() {
+  const urls = [
+    "../../lib/momo_disk/momo_disk_bridge.js",
+    "https://qiqiroon.github.io/momo/lib/momo_disk/momo_disk_bridge.js",
+  ];
+  for (const url of urls) {
+    try {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = url;
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+      return;
+    } catch {
+      console.warn(`momo_disk_bridge.js: ${url} の読み込み失敗、次を試みます`);
+    }
+  }
+  throw new Error("momo_disk_bridge.js をどのURLからも読み込めませんでした");
+}
+
+async function loadMomoGithub() {
+  const urls = [
+    "../../lib/momo_github/momo_github.py",
+    "https://qiqiroon.github.io/momo/lib/momo_github/momo_github.py",
+  ];
+  for (const url of urls) {
+    try {
+      const r = await fetch(url);
+      if (r.ok) {
+        await pyodide.runPythonAsync(await r.text());
+        return;
+      }
+    } catch {
+      console.warn(`momo_github.py: ${url} の読み込み失敗、次を試みます`);
+    }
+  }
+  console.warn("momo_github.py をどのURLからも取得できませんでした。スタブを使用します");
+  await pyodide.runPythonAsync(getMomoGithubStub());
+}
+
+// ライブラリが取得できない環境向けスタブ（最小実装）
+function getMomoGithubStub() {
+  return `
+import json, time
+from datetime import datetime, timezone
+
+class MomoGitHub:
+    VERSION = "1.00-stub"
+    def __init__(self, owner, repo, branch="main", base_path="", cache_ttl=600):
+        self.owner = owner; self.repo = repo; self.branch = branch
+        self.base_path = base_path.strip("/"); self.cache_ttl = cache_ttl
+        self.current_path = ""; self.cache = {}
+        self._raw_base = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}"
+        self._api_base = f"https://api.github.com/repos/{owner}/{repo}/contents"
+    @property
+    def breadcrumb(self):
+        parts = [p for p in [self.base_path, self.current_path] if p]
+        return " > ".join(parts)
+    @property
+    def full_current_path(self):
+        segs = [s for s in [self.base_path, self.current_path] if s]
+        return "/".join(segs)
+    async def list_dir(self, path=None, use_cache=True):
+        if path is None: path = self.current_path
+        segs = [s for s in [self.base_path, self.current_path, path] if s]
+        # deduplicate
+        if path == self.current_path:
+            segs = [s for s in [self.base_path, self.current_path] if s]
+        full = "/".join(segs)
+        url = f"{self._api_base}/{full}?ref={self.branch}" if full else f"{self._api_base}?ref={self.branch}"
+        if use_cache and url in self.cache:
+            ts, items, cat = self.cache[url]
+            if time.monotonic()-ts < self.cache_ttl:
+                return list(items)+[{"_cached":True,"_cached_at":cat,"_rate_limit":{}}]
+        from pyodide.http import pyfetch
+        r = await pyfetch(url)
+        data = await r.json()
+        if not isinstance(data, list): raise FileNotFoundError(full)
+        items = sorted([{"name":i["name"],"type":"dir" if i["type"]=="dir" else "file","size":i.get("size",0),"download_url":i.get("download_url")} for i in data], key=lambda x:(0 if x["type"]=="dir" else 1,x["name"].lower()))
+        self.cache[url]=(time.monotonic(),items,datetime.now(tz=timezone.utc).isoformat())
+        return list(items)+[{"_cached":False,"_cached_at":None,"_rate_limit":{}}]
+    async def navigate(self, path):
+        if path=="..":
+            parts=[p for p in self.current_path.split("/") if p]
+            if not parts: raise ValueError("Cannot navigate above base_path")
+            self.current_path="/".join(parts[:-1])
+        elif path.startswith("/"):
+            self.current_path=path.lstrip("/")
+        else:
+            self.current_path=("/".join([p for p in [self.current_path,path] if p])).strip("/")
+    async def read_text(self, path, encoding="utf-8"):
+        segs=[s for s in [self.base_path,self.current_path,path] if s]
+        url=f"{self._raw_base}/{'/'.join(segs)}"
+        from pyodide.http import pyfetch
+        r=await pyfetch(url)
+        if r.status==404: raise FileNotFoundError(path)
+        return await r.string()
+    async def read_bytes(self, path):
+        return (await self.read_text(path)).encode()
+    async def read_json(self, path):
+        return json.loads(await self.read_text(path))
+    async def exists(self, path):
+        try: await self.read_text(path); return True
+        except: return False
+    async def refresh(self, path=None):
+        if path is None: self.cache.clear()
+    def write_text(self,*a,**k): raise NotImplementedError("GitHub access is read-only")
+    def write_bytes(self,*a,**k): raise NotImplementedError("GitHub access is read-only")
+    def delete(self,*a,**k): raise NotImplementedError("GitHub access is read-only")
+    def mkdir(self,*a,**k): raise NotImplementedError("GitHub access is read-only")
+`;
+}
+
+// ── バックエンド初期化 ─────────────────────────────────
+async function fetchLibSource(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`fetch failed: ${url} (${r.status})`);
+  return await r.text();
+}
+
+async function initDiskBackend() {
+  // iOSのSafariはFile System Access API（showDirectoryPicker）未対応
+  if (!window.showDirectoryPicker && !window.MomoDiskBridge?.isSupported?.()) {
+    state.backends.disk.status = "error";
+    state.backends.disk.iosUnsupported = true;
+    updateTreeBadge("disk");
+    return;
+  }
+  state.backends.disk.status = "connecting";
+  updateTreeBadge("disk");
+  try {
+    const urls = [
+      "../../lib/momo_disk/momo_disk.py",
+      "https://qiqiroon.github.io/momo/lib/momo_disk/momo_disk.py",
+    ];
+    let diskSrc = null;
+    for (const url of urls) {
+      try { diskSrc = await fetchLibSource(url); break; }
+      catch { console.warn(`momo_disk.py: ${url} の読み込み失敗、次を試みます`); }
+    }
+    if (!diskSrc) throw new Error("momo_disk.py をどのURLからも読み込めませんでした");
+    await pyodide.runPythonAsync(diskSrc);
+    await pyodide.runPythonAsync(`_disk = MomoDisk()`);
+    state.backends.disk.status = "ready";
+    state.backends.disk.instance = true;
+  } catch(e) {
+    state.backends.disk.status = "error";
+    console.error("Disk init error:", e);
+  }
+  updateTreeBadge("disk");
+}
+
+async function expandDiskTree() {
+  if (!state.backends.disk.instance) {
+    await initDiskBackend();
+  }
+  if (state.backends.disk.status === "error") {
+    const msg = state.backends.disk.iosUnsupported
+      ? t('diskIosUnsupported')
+      : t('modalDiskInitErr');
+    await showModal({ title: t('modalDiskErrTitle'), titleClass:"err",
+      body: msg,
+      buttons:[{label: t('modalOk'), cls:"primary", resolve:true}] });
+    return;
+  }
+
+  // 既に接続済みならツリー展開と右ペイン表示のみ（open_root は呼ばない）
+  if (state.backends.disk.status === "connected") {
+    state.treeExpanded.disk = true;
+    document.getElementById("toggle-disk").classList.add("open");
+    document.getElementById("tree-children-disk").classList.remove("collapsed");
+    await navigateTo("disk", "");
+    return;
+  }
+
+  state.backends.disk.status = "connecting";
+  updateTreeBadge("disk");
+  try {
+    const restored = await pyodide.runPythonAsync(`
+import json as _j
+_result = await _disk.open_root()
+_j.dumps({"restored": bool(_result), "root_name": _disk.root_name})
+`);
+    const info = JSON.parse(restored);
+    state.backends.disk.status = "connected";
+    state.backends.disk.rootName = info.root_name;
+    updateTreeBadge("disk");
+    updateDiskStatusBar();
+
+    state.treeExpanded.disk = true;
+    document.getElementById("toggle-disk").classList.add("open");
+    const container = document.getElementById("tree-children-disk");
+    container.classList.remove("collapsed");
+
+    showToast(info.restored
+      ? `💾 「${info.root_name}」${t('toastDiskRestored')}`
+      : `💾 「${info.root_name}」${t('toastDiskSelected')}`
+    );
+
+    await navigateTo("disk", "");
+    await loadDiskTreeChildren(container, "", 1);
+
+  } catch(e) {
+    state.backends.disk.status = "error";
+    updateTreeBadge("disk");
+    await showModal({ title: t('modalDiskErrTitle'), titleClass:"err",
+      body: t('modalDiskConnErr') + e.message,
+      buttons:[{label: t('modalOk'), cls:"primary", resolve:true}] });
+  }
+}
+
+async function loadDiskTreeChildren(container, path, depth) {
+  container.innerHTML = `<div class="tree-row"><div class="tree-spinner"></div></div>`;
+  try {
+    const items = await listDir("disk", path);
+    container.innerHTML = "";
+    const folders = items.filter(i => i.type === "dir");
+    if (folders.length === 0) {
+      container.innerHTML = `<div class="tree-row" style="color:var(--fg3);font-size:11px;font-family:var(--mono);padding-left:${8+depth*14}px">${t('treeEmpty')}</div>`;
+      return;
+    }
+    for (const f of folders) {
+      const childPath = path ? `${path}/${f.name}` : f.name;
+      const node = buildTreeFolderNode("disk", f.name, childPath, depth);
+      container.appendChild(node);
+    }
+  } catch(e) {
+    container.innerHTML = `<div class="tree-row" style="color:var(--err);font-size:11px;padding-left:${8+depth*14}px">${t('overlayError')}${escHtml(e.message)}</div>`;
+  }
+}
+
+async function initGithubBackend() {
+  state.backends.github.status = "connecting";
+  updateTreeBadge("github");
+  try {
+    await pyodide.runPythonAsync(`
+_gh = MomoGitHub(
+    owner="${GITHUB_OWNER}",
+    repo="${GITHUB_REPO}",
+    branch="${GITHUB_BRANCH}",
+    base_path="${GITHUB_TOP}"
+)
+`);
+    state.backends.github.status = "connected";
+    state.backends.github.instance = true;
+  } catch(e) {
+    state.backends.github.status = "error";
+    console.error("GitHub init error:", e);
+  }
+  updateTreeBadge("github");
+}
+
+// ── ツリー描画 ────────────────────────────────────────
+function renderTree() {
+  const root = document.getElementById("tree-root");
+  root.innerHTML = "";
+
+  const backends = [
+    { id: "github", icon: "🐙", label: "github",  col: "var(--github-col)" },
+    { id: "disk",   icon: "💾", label: "disk",     col: "var(--disk-col)"   },
+    { id: "gdrive", icon: "📱", label: "gdrive",   col: "var(--gdrive-col)" },
+  ];
+
+  for (const b of backends) {
+    const node = buildBackendNode(b);
+    root.appendChild(node);
+  }
+}
+
+function buildBackendNode(b) {
+  const wrap = document.createElement("div");
+  wrap.className = `tree-node backend-node`;
+  wrap.dataset.backend = b.id;
+
+  const row = document.createElement("div");
+  row.className = `tree-row backend-root backend-${b.id}`;
+  row.id = `tree-root-${b.id}`;
+  row.innerHTML = `
+    <span class="tree-toggle" id="toggle-${b.id}">▶</span>
+    <span class="tree-icon">${b.icon}</span>
+    <span class="tree-label">${b.label}</span>
+    <span class="conn-badge no" id="badge-${b.id}">${t('badgeNo')}</span>
+  `;
+  row.addEventListener("click", () => onBackendRootClick(b.id));
+
+  const children = document.createElement("div");
+  children.className = "tree-children collapsed";
+  children.id = `tree-children-${b.id}`;
+
+  wrap.appendChild(row);
+  wrap.appendChild(children);
+  return wrap;
+}
+
+function updateTreeBadge(backendId) {
+  const badge = document.getElementById(`badge-${backendId}`);
+  if (!badge) return;
+  const status = state.backends[backendId].status;
+  badge.className = "conn-badge";
+  if (status === "connected") { badge.className += " ok"; badge.textContent = t('badgeOk'); }
+  else if (status === "connecting") { badge.className += " busy"; badge.textContent = t('badgeConnecting'); }
+  else if (status === "error")      { badge.className += " no"; badge.textContent = t('badgeError'); }
+  else                              { badge.className += " no"; badge.textContent = t('badgeNo'); }
+}
+
+async function onBackendRootClick(backendId) {
+  const expanded = state.treeExpanded[backendId];
+  const connected = state.backends[backendId].status === "connected";
+
+  if (expanded) {
+    if (state.currentBackend !== backendId && connected) {
+      // 別バックエンドから来た → 右ペインをこのバックエンドに切り替え（折りたたまない）
+      await navigateTo(backendId, "");
+    } else {
+      // 同じバックエンドを再クリック → 折りたたむ
+      state.treeExpanded[backendId] = false;
+      document.getElementById(`toggle-${backendId}`).classList.remove("open");
+      document.getElementById(`tree-children-${backendId}`).classList.add("collapsed");
+    }
+    return;
+  }
+
+  // 未展開 → 展開処理（内部で navigateTo も呼ぶ）
+  if (backendId === "github") {
+    await expandGithubTree();
+  } else if (backendId === "disk") {
+    await expandDiskTree();
+  } else if (backendId === "gdrive") {
+    await expandGdriveTree();
+  }
+}
+
+async function initGdriveBackend() {
+  state.backends.gdrive.status = "connecting";
+  updateTreeBadge("gdrive");
+  try {
+    const urls = [
+      "../../lib/momo_gdrive/momo_gdrive.py",
+      "https://qiqiroon.github.io/momo/lib/momo_gdrive/momo_gdrive.py",
+    ];
+    let gdriveSrc = null;
+    for (const url of urls) {
+      try { gdriveSrc = await fetchLibSource(url); break; }
+      catch { console.warn(`momo_gdrive.py: ${url} の読み込み失敗、次を試みます`); }
+    }
+    if (!gdriveSrc) throw new Error("momo_gdrive.py をどのURLからも読み込めませんでした");
+    await pyodide.runPythonAsync(gdriveSrc);
+    await pyodide.runPythonAsync(`_gdrive = MomoGDrive()`);
+    state.backends.gdrive.status = "ready";
+    state.backends.gdrive.instance = true;
+  } catch(e) {
+    state.backends.gdrive.status = "error";
+    console.error("GDrive init error:", e);
+  }
+  updateTreeBadge("gdrive");
+}
+
+async function expandGdriveTree() {
+  if (!state.backends.gdrive.instance) await initGdriveBackend();
+  if (state.backends.gdrive.status === "error") {
+    await showModal({ title: t('modalDiskErrTitle'), titleClass:"err",
+      body: t('modalGdriveInitErr'),
+      buttons:[{label: t('modalOk'), cls:"primary", resolve:true}] });
+    return;
+  }
+
+  // 既に接続済みならツリー展開のみ
+  if (state.backends.gdrive.status === "connected") {
+    state.treeExpanded.gdrive = true;
+    document.getElementById("toggle-gdrive").classList.add("open");
+    document.getElementById("tree-children-gdrive").classList.remove("collapsed");
+    await navigateTo("gdrive", "");
+    return;
+  }
+
+  state.backends.gdrive.status = "connecting";
+  updateTreeBadge("gdrive");
+  try {
+    // Google Identity Services の読み込みを待つ
+    let retries = 20;
+    while (typeof google === "undefined" && retries-- > 0) {
+      await new Promise(r => setTimeout(r, 200));
+    }
+    if (typeof google === "undefined") {
+      throw new Error(t('modalGdriveGISErr'));
+    }
+
+    // 保存済みトークンを確認して自動接続を試みる
+    let connected = false;
+    try {
+      const savedToken = localStorage.getItem('momoGdriveToken');
+      if (savedToken) {
+        await pyodide.runPythonAsync(`
+import json as _j
+_tok = _j.loads('${savedToken.replace(/'/g,"\\'")}')
+await _gdrive.connect(token=_tok)
+`);
+        connected = true;
+      }
+    } catch(e) {
+      // 保存トークンが無効 → 通常フローへ
+      console.warn("GDrive saved token invalid, re-authenticating:", e);
+      localStorage.removeItem('momoGdriveToken');
+    }
+
+    if (!connected) {
+      // OAuth2 認証フローを実行
+      await pyodide.runPythonAsync(`await _gdrive.connect()`);
+      // トークンをlocalStorageに保存
+      try {
+        const tokenJson = await pyodide.runPythonAsync(`
+import json as _j
+_j.dumps(getattr(_gdrive, 'token', None) or getattr(_gdrive, '_token', None) or {})
+`);
+        if (tokenJson && tokenJson !== 'null' && tokenJson !== '{}') {
+          localStorage.setItem('momoGdriveToken', tokenJson);
+        }
+      } catch(e) { /* トークン保存失敗は無視 */ }
+    }
+
+    state.backends.gdrive.status = "connected";
+    updateTreeBadge("gdrive");
+    state.treeExpanded.gdrive = true;
+    document.getElementById("toggle-gdrive").classList.add("open");
+    const container = document.getElementById("tree-children-gdrive");
+    container.classList.remove("collapsed");
+    showToast(t('toastGdrive'));
+    // ルートを右ペインに表示
+    await navigateTo("gdrive", "");
+    await loadGdriveTreeChildren(container, "", 1);
+  } catch(e) {
+    state.backends.gdrive.status = "error";
+    updateTreeBadge("gdrive");
+    await showModal({ title: t('modalDiskErrTitle'), titleClass:"err",
+      body: t('modalGdriveConnErr') + e.message,
+      buttons:[{label: t('modalOk'), cls:"primary", resolve:true}] });
+  }
+}
+
+async function loadGdriveTreeChildren(container, path, depth) {
+  container.innerHTML = `<div class="tree-row"><div class="tree-spinner"></div></div>`;
+  try {
+    const items = await listDir("gdrive", path);
+    container.innerHTML = "";
+    const folders = items.filter(i => i.type === "dir");
+    if (folders.length === 0) {
+      container.innerHTML = `<div class="tree-row" style="color:var(--fg3);font-size:11px;font-family:var(--mono);padding-left:${8+depth*14}px">${t('treeEmpty')}</div>`;
+      return;
+    }
+    for (const f of folders) {
+      container.appendChild(buildTreeFolderNode("gdrive", f.name, path ? `${path}/${f.name}` : f.name, depth));
+    }
+  } catch(e) {
+    container.innerHTML = `<div class="tree-row" style="color:var(--err);font-size:11px;padding-left:${8+depth*14}px">${t('overlayError')}${escHtml(e.message)}</div>`;
+  }
+}
+
+async function showNotImplemented(backendId) {
+  await showModal({
+    title: "⚙ 未実装",
+    titleClass: "warn",
+    body: `<b>${backendId}</b> バックエンドは現在未実装です。<br>momo_disk / momo_gdrive ライブラリ実装後に有効になります。`,
+    buttons: [{ label: "OK", cls: "primary", resolve: true }],
+  });
+}
+
+async function expandGithubTree() {
+  if (state.backends.github.status !== "connected") {
+    await initGithubBackend();
+  }
+  if (state.backends.github.status !== "connected") {
+    await showModal({
+      title: t('modalGithubConnTitle'),
+      titleClass: "err",
+      body: t('modalGithubConnErr'),
+      buttons: [{ label: t('modalOk'), cls: "primary", resolve: true }],
+    });
+    return;
+  }
+
+  state.treeExpanded.github = true;
+  document.getElementById("toggle-github").classList.add("open");
+  const container = document.getElementById("tree-children-github");
+  container.classList.remove("collapsed");
+  container.innerHTML = `<div class="tree-row"><div class="tree-spinner"></div><span style="color:var(--fg3);font-size:11px;font-family:var(--mono)">${t('treeLoading')}</span></div>`;
+
+  try {
+    const items = await listDir("github", "");
+    container.innerHTML = "";
+    const folders = items.filter(i => i.type === "dir");
+
+    // サブフォルダの有無にかかわらず、ルート自体を右ペインに表示
+    await navigateTo("github", "");
+
+    if (folders.length === 0) {
+      container.innerHTML = `<div class="tree-row" style="color:var(--fg3);font-size:11px;font-family:var(--mono);padding-left:22px">${t('treeSubNone')}</div>`;
+    }
+    for (const f of folders) {
+      const node = buildTreeFolderNode("github", f.name, f.name, 1);
+      container.appendChild(node);
+    }
+  } catch(e) {
+    container.innerHTML = `<div class="tree-row" style="color:var(--err);font-size:11px;font-family:var(--mono)">${t('overlayError')}${escHtml(e.message)}</div>`;
+  }
+}
+
+function buildTreeFolderNode(backend, name, path, depth) {
+  const wrap = document.createElement("div");
+  wrap.className = "tree-node";
+
+  const row = document.createElement("div");
+  row.className = `tree-row backend-${backend}`;
+  row.style.paddingLeft = (8 + depth * 14) + "px";
+  row.innerHTML = `
+    <span class="tree-toggle" data-expanded="false">▶</span>
+    <span class="tree-icon">📁</span>
+    <span class="tree-label">${escHtml(name)}</span>
+  `;
+
+  row.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    // フォルダ選択 → 右ペイン更新
+    selectTreeRow(row);
+    await navigateTo(backend, path);
+
+    // 子展開トグル
+    const toggle = row.querySelector(".tree-toggle");
+    const isExp = toggle.dataset.expanded === "true";
+    if (isExp) {
+      toggle.dataset.expanded = "false";
+      toggle.classList.remove("open");
+      if (wrap.childrenContainer) wrap.childrenContainer.classList.add("collapsed");
+    } else {
+      toggle.dataset.expanded = "true";
+      toggle.classList.add("open");
+      await expandTreeNode(wrap, backend, path, depth);
+    }
+  });
+
+  wrap.appendChild(row);
+  wrap._row = row;
+  return wrap;
+}
+
+async function expandTreeNode(wrap, backend, path, depth) {
+  if (wrap.childrenContainer) {
+    wrap.childrenContainer.classList.remove("collapsed");
+    return;
+  }
+  const container = document.createElement("div");
+  container.className = "tree-children";
+  container.innerHTML = `<div class="tree-row" style="padding-left:${8+(depth+1)*14}px"><div class="tree-spinner"></div></div>`;
+  wrap.appendChild(container);
+  wrap.childrenContainer = container;
+
+  try {
+    const items = await listDir(backend, path);
+    container.innerHTML = "";
+    const folders = items.filter(i => i.type === "dir");
+    if (folders.length === 0) {
+      container.innerHTML = `<div class="tree-row" style="padding-left:${8+(depth+1)*14}px;color:var(--fg3);font-size:11px;font-family:var(--mono)">${t('treeEmpty')}</div>`;
+    }
+    for (const f of folders) {
+      const childPath = path ? `${path}/${f.name}` : f.name;
+      const node = buildTreeFolderNode(backend, f.name, childPath, depth + 1);
+      container.appendChild(node);
+    }
+  } catch(e) {
+    container.innerHTML = `<div class="tree-row" style="padding-left:${8+(depth+1)*14}px;color:var(--err);font-size:11px;font-family:var(--mono)">${t('overlayError')}</div>`;
+  }
+}
+
+let selectedTreeRow = null;
+function selectTreeRow(row) {
+  if (selectedTreeRow) selectedTreeRow.classList.remove("selected");
+  selectedTreeRow = row;
+  row.classList.add("selected");
+}
+
+// ── ナビゲーション ────────────────────────────────────
+async function navigateTo(backend, path) {
+  setLoading(true);
+  state.currentBackend = backend;
+  state.currentPath    = path;
+  state.selectedItem   = null;
+  updateAddrBar();
+  updateToolbar();
+  updateReadonlyBanner();
+
+  const addrErr = document.getElementById("addr-error");
+  addrErr.style.display = "none";
+
+  try {
+    const items = await listDir(backend, path);
+    renderFileList(items, backend, path);
+  } catch(e) {
+    renderError(e.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
+// ── バックエンド別 listDir ───────────────────────────
+async function listDir(backend, path) {
+  if (backend === "github") return await listDirGithub(path);
+  if (backend === "disk")   return await listDirDisk(path);
+  if (backend === "gdrive") return await listDirGdrive(path);
+  return [];
+}
+
+async function listDirGdrive(path) {
+  if (!pyReady) throw new Error("Pyodide が初期化されていません");
+  const safePath = (path || "").replace(/'/g, "\'");
+  const result = await pyodide.runPythonAsync(`
+import json as _json
+_path_arg = '${safePath}' if '${safePath}' else None
+_raw = await _gdrive.list_dir(path=_path_arg, use_cache=True)
+def _fmt(item):
+    d = dict(item)
+    d['type'] = 'dir' if d.get('isFolder') else 'file'
+    d['name'] = d.get('name', '')
+    d['size'] = d.get('size', 0) or 0
+    mt = d.get('modifiedTime')
+    d['modified'] = str(mt) if mt else None
+    return d
+_json.dumps([_fmt(i) for i in _raw])
+`);
+  return JSON.parse(result);
+}
+
+
+async function listDirDisk(path) {
+  if (!pyReady) throw new Error("Pyodide が初期化されていません");
+  const safePath = (path || "/").replace(/'/g, "\\'");
+  const result = await pyodide.runPythonAsync(`
+import json as _json
+_items = await _disk.list_dir(path='${safePath}', use_cache=True)
+_json.dumps([dict(i) for i in _items])
+`);
+  return JSON.parse(result);
+}
+
+async function listDirGithub(path) {
+  if (!pyReady) throw new Error("Pyodide が初期化されていません");
+
+  const safePath = (path || "").replace(/'/g, "\\'");
+  const result = await pyodide.runPythonAsync(`
+import json as _json
+_items = await _gh.list_dir(path='${safePath}', use_cache=True)
+_meta = None
+_plain = []
+for _it in _items:
+    if '_cached' in _it:
+        _meta = dict(_it)
+    else:
+        _plain.append(_it)
+_json.dumps({"items": _plain, "meta": _meta})
+`);
+  const data = JSON.parse(result);
+
+  // レート制限警告
+  if (data.meta && data.meta._rate_limit && data.meta._rate_limit.low_rate) {
+    const rw = document.getElementById("rate-warn");
+    const rem = data.meta._rate_limit.remaining;
+    const resetAt = data.meta._rate_limit.reset_at || t('rateWarnUnknown');
+    rw.textContent = t('rateWarnMsg').replace('{rem}', rem).replace('{reset}', resetAt);
+    rw.classList.add("show");
+  } else {
+    document.getElementById("rate-warn").classList.remove("show");
+  }
+
+  return data.items;
+}
+
+// ── 右ペイン描画 ──────────────────────────────────────
+function renderFileList(items, backend, basePath) {
+  const list = document.getElementById("file-list");
+  const overlay = document.getElementById("list-overlay");
+
+  list.innerHTML = "";
+
+  if (items.length === 0) {
+    overlay.classList.remove("hidden");
+    document.getElementById("list-spinner").style.display = "none";
+    document.getElementById("overlay-msg").textContent = t('overlayEmpty');
+    document.getElementById("sb-items").textContent = "0" + t('sbItems');
+    return;
+  }
+
+  overlay.classList.add("hidden");
+
+  // フォルダ先・ファイル後で既にソート済みと想定
+  for (const item of items) {
+    const row = document.createElement("div");
+    const isDir = item.type === "dir";
+    row.className = "file-row" + (isDir ? " folder backend-" + backend : "");
+    row.dataset.name = item.name;
+    row.dataset.type = item.type;
+
+    const icon = isDir ? "📁" : getFileIcon(item.name);
+    const sizeStr = isDir ? "—" : formatSize(item.size || 0);
+    const dateStr = item.modified ? formatDate(item.modified) : "—";
+    const typeStr = isDir ? t('typeFolder') : getExt(item.name);
+
+    row.innerHTML = `
+      <div class="f-icon">${icon}</div>
+      <div class="f-name" title="${escHtml(item.name)}">${escHtml(item.name)}</div>
+      <div class="f-type">${typeStr}</div>
+      <div class="f-size">${sizeStr}</div>
+      <div class="f-date">${dateStr}</div>
+    `;
+
+    row.addEventListener("click", () => onFileRowClick(row, item, backend, basePath));
+    list.appendChild(row);
+  }
+
+  document.getElementById("sb-items").textContent = `${items.length}${t('sbItems')}`;
+}
+
+function onFileRowClick(row, item, backend, basePath) {
+  const allRows = document.querySelectorAll(".file-row");
+  const already = row.classList.contains("selected");
+
+  allRows.forEach(r => r.classList.remove("selected"));
+
+  if (already) {
+    // 再クリック → 選択解除
+    state.selectedItem = null;
+  } else {
+    row.classList.add("selected");
+    const itemPath = basePath ? `${basePath}/${item.name}` : item.name;
+    state.selectedItem = { name: item.name, type: item.type, path: itemPath, backend };
+  }
+  updateToolbar();
+}
+
+function renderError(msg) {
+  const overlay = document.getElementById("list-overlay");
+  overlay.classList.remove("hidden");
+  document.getElementById("list-spinner").style.display = "none";
+  document.getElementById("overlay-msg").textContent = t('overlayError') + msg;
+  document.getElementById("file-list").innerHTML = "";
+}
+
+// ── ツールバー状態管理 ───────────────────────────────
+function updateToolbar() {
+  const sel = state.selectedItem;
+  const clip = state.clipboard;
+  const isGithub = state.currentBackend === "github";
+  const busy = state.loading;
+
+  const hasSelection = !!sel;
+  const selIsGithub  = sel && sel.backend === "github";
+
+  document.getElementById("btn-copy").disabled   = !hasSelection || busy;
+  document.getElementById("btn-cut").disabled    = !hasSelection || selIsGithub || isGithub || busy;
+  document.getElementById("btn-paste").disabled  = !clip || isGithub || busy;
+  document.getElementById("btn-delete").disabled = !hasSelection || selIsGithub || busy;
+  document.getElementById("btn-mkdir").disabled  = !state.currentBackend || isGithub || busy;
+  document.getElementById("btn-refresh").disabled = !state.currentBackend || busy;
+
+  // diskのルート変更ボタン
+  const diskRootBtn = document.getElementById("btn-diskroot");
+  if (state.backends.disk.status === "connected") {
+    diskRootBtn.style.display = "";
+  } else {
+    diskRootBtn.style.display = "none";
+  }
+
+  // gdriveアカウント変更ボタン
+  const gdriveDisconnBtn = document.getElementById("btn-gdrive-disconnect");
+  if (state.backends.gdrive.status === "connected") {
+    gdriveDisconnBtn.style.display = "";
+  } else {
+    gdriveDisconnBtn.style.display = "none";
+  }
+
+  // クリップボード表示
+  const sbClip = document.getElementById("sb-clip");
+  if (clip) {
+    const op = clip.op === "copy" ? "📋" : "✂️";
+    sbClip.textContent = `${op} ${clip.item.name}`;
+    sbClip.style.display = "flex";
+  } else {
+    sbClip.style.display = "none";
+  }
+}
+
+function updateReadonlyBanner() {
+  const banner = document.getElementById("readonly-banner");
+  if (state.currentBackend === "github") {
+    banner.classList.add("show");
+  } else {
+    banner.classList.remove("show");
+  }
+}
+
+function updateAddrBar() {
+  const input   = document.getElementById("addr-input");
+  const icon    = document.getElementById("addr-icon");
+  const backend = state.currentBackend;
+  const path    = state.currentPath;
+
+  const icons  = { github:"🐙", disk:"💾", gdrive:"📱" };
+  const colors = { github:"var(--github-col)", disk:"var(--disk-col)", gdrive:"var(--gdrive-col)" };
+
+  if (!backend) {
+    input.value = "";
+    input.style.color = "";
+    icon.textContent = "📁";
+    return;
+  }
+  icon.textContent  = icons[backend] || "📁";
+  input.value       = path ? `${backend}/${path}` : backend;
+  input.style.color = colors[backend] || "";
+}
+
+function updateDiskStatusBar() {
+  const el   = document.getElementById("sb-disk");
+  const name = document.getElementById("sb-disk-name");
+  if (state.backends.disk.status === "connected" && state.backends.disk.rootName) {
+    name.textContent = state.backends.disk.rootName;
+    el.style.display = "flex";
+  } else {
+    el.style.display = "none";
+  }
+}
+
+function setLoading(flag) {
+  state.loading = flag;
+  const spinner = document.getElementById("list-spinner");
+  const overlay = document.getElementById("list-overlay");
+  const msg     = document.getElementById("overlay-msg");
+
+  if (flag) {
+    overlay.classList.remove("hidden");
+    spinner.style.display = "block";
+    msg.textContent = t('overlayLoading');
+    document.getElementById("file-list").innerHTML = "";
+  } else {
+    spinner.style.display = "none";
+  }
+  updateToolbar();
+}
+
+// ── アドレスバー直接入力 ──────────────────────────────
+document.getElementById("addr-input").addEventListener("keydown", async (e) => {
+  if (e.key !== "Enter") return;
+  const val = e.target.value.trim();
+  const err = document.getElementById("addr-error");
+  err.style.display = "none";
+
+  if (!val) return;
+
+  const parts = val.split("/");
+  const backend = parts[0].toLowerCase();
+  const path = parts.slice(1).join("/");
+
+  if (!["github", "disk", "gdrive"].includes(backend)) {
+    showAddrError(t('addrErrInvalid'));
+    return;
+  }
+
+  if (backend === "gdrive") {
+    showAddrError(t('addrErrGdrive'));
+    return;
+  }
+  if (backend === "disk") {
+    if (state.backends.disk.status !== "connected") {
+      showAddrError(t('addrErrDiskNC'));
+      return;
+    }
+    try {
+      setLoading(true);
+      await navigateTo("disk", path);
+      syncTreeHighlight("disk", path);
+    } catch(ex) {
+      showAddrError(t('addrErrNotFound') + ex.message);
+      setLoading(false);
+    }
+    return;
+  }
+
+  // github の場合、存在確認してから移動
+  try {
+    setLoading(true);
+    await navigateTo(backend, path);
+    // ツリー側のハイライトも同期
+    syncTreeHighlight(backend, path);
+  } catch(ex) {
+    showAddrError(t('addrErrNotFound') + ex.message);
+    setLoading(false);
+  }
+});
+
+function showAddrError(msg) {
+  const err = document.getElementById("addr-error");
+  err.textContent = msg;
+  err.style.display = "block";
+  setTimeout(() => { err.style.display = "none"; }, 4000);
+}
+
+function syncTreeHighlight(backend, path) {
+  // ルートノードをハイライト
+  const rootRow = document.getElementById(`tree-root-${backend}`);
+  if (rootRow) selectTreeRow(rootRow);
+}
+
+// ── ツールバー操作 ────────────────────────────────────
+document.getElementById("btn-copy").addEventListener("click", () => {
+  if (!state.selectedItem) return;
+  state.clipboard = { item: { ...state.selectedItem }, op: "copy" };
+  updateToolbar();
+  showToast(`📋 「${state.selectedItem.name}」${t('toastCopied')}`);
+});
+
+document.getElementById("btn-cut").addEventListener("click", () => {
+  if (!state.selectedItem) return;
+  if (state.selectedItem.backend === "github" || state.currentBackend === "github") {
+    showGithubWriteError(); return;
+  }
+  state.clipboard = { item: { ...state.selectedItem }, op: "cut" };
+  updateToolbar();
+  showToast(`✂️ 「${state.selectedItem.name}」${t('toastCut')}`);
+});
+
+document.getElementById("btn-paste").addEventListener("click", async () => {
+  if (!state.clipboard) return;
+  if (state.currentBackend === "github") { showGithubWriteError(); return; }
+
+  const { item, op } = state.clipboard;
+  const dstPath = state.currentPath
+    ? `${state.currentPath}/${item.name}`
+    : item.name;
+
+  // 同名確認
+  let alreadyExists = false;
+  if (state.currentBackend === "disk") {
+    const r = await pyodide.runPythonAsync(
+      `str(await _disk.exists('${dstPath.replace(/'/g,"\\'")}'))`
+    );
+    alreadyExists = r.trim() === "True";
+  }
+
+  if (alreadyExists) {
+    const overwrite = await showModal({
+      title: t('modalOverwriteTitle'),
+      titleClass: "warn",
+      body: `「${escHtml(item.name)}」${t('modalOverwriteBody')}`,
+      buttons: [
+        { label: t('modalCancel'), cls: "", resolve: false },
+        { label: t('modalOverwriteBtn'), cls: "danger", resolve: true },
+      ],
+    });
+    if (!overwrite) return;
+  } else {
+    const confirmed = await showModal({
+      title: t('modalPasteTitle'),
+      body: `「${escHtml(item.name)}」を現在のフォルダに${op === "copy" ? t('modalPasteBodyCopy') : t('modalPasteBodyMove')}しますか？<br><small style="color:var(--fg3)">${t('modalPasteDst')}${state.currentBackend}/${state.currentPath || ""}</small>`,
+      buttons: [
+        { label: t('modalCancel'), cls: "", resolve: false },
+        { label: op === "copy" ? t('btnCopy') : t('btnCut'), cls: "primary", resolve: true },
+      ],
+    });
+    if (!confirmed) return;
+  }
+
+  try {
+    setLoading(true);
+    const src     = item.path.replace(/'/g, "\\'");
+    const dst     = dstPath.replace(/'/g, "\\'");
+    const srcBack = item.backend;
+    const dstBack = state.currentBackend;
+    const isDir   = item.type === "dir";
+
+    if (srcBack === "disk" && dstBack === "disk") {
+      // disk → disk（フォルダも再帰コピー対応）
+      await pyodide.runPythonAsync(`await _disk.copy('${src}', '${dst}')`);
+      if (op === "cut") {
+        const verified = await pyodide.runPythonAsync(`str(await _disk.exists('${dst}'))`);
+        if (verified.trim() !== "True") throw new Error(t('copyVerifyErr'));
+        await pyodide.runPythonAsync(`await _disk.delete('${src}', force=True)`);
+      }
+
+    } else if (isDir) {
+      // cross-backendのフォルダコピーは未対応
+      throw new Error(t('folderCrossBackendErr'));
+
+    } else if (srcBack === "github" && dstBack === "disk") {
+      // github → disk（ファイルのみ）
+      await pyodide.runPythonAsync(`
+_data = await _gh.read_bytes('${src}')
+await _disk.write_bytes('${dst}', _data)
+`);
+
+    } else if (srcBack === "disk" && dstBack === "gdrive") {
+      // disk → gdrive（ファイルのみ）
+      await pyodide.runPythonAsync(`
+_data = await _disk.read_bytes('${src}')
+await _gdrive.write_bytes('${dst}', _data)
+`);
+      if (op === "cut") {
+        await pyodide.runPythonAsync(`await _disk.delete('${src}', force=True)`);
+      }
+
+    } else if (srcBack === "github" && dstBack === "gdrive") {
+      // github → gdrive（ファイルのみ）
+      await pyodide.runPythonAsync(`
+_data = await _gh.read_bytes('${src}')
+await _gdrive.write_bytes('${dst}', _data)
+`);
+
+    } else if (srcBack === "gdrive" && dstBack === "disk") {
+      // gdrive → disk（ファイルのみ）
+      await pyodide.runPythonAsync(`
+_data = await _gdrive.read_bytes('${src}')
+await _disk.write_bytes('${dst}', _data)
+`);
+      if (op === "cut") {
+        await pyodide.runPythonAsync(`await _gdrive.delete('${src}')`);
+      }
+
+    } else if (srcBack === "gdrive" && dstBack === "gdrive") {
+      // gdrive → gdrive（ファイルのみ）
+      await pyodide.runPythonAsync(`
+_data = await _gdrive.read_bytes('${src}')
+await _gdrive.write_bytes('${dst}', _data)
+`);
+      if (op === "cut") {
+        await pyodide.runPythonAsync(`await _gdrive.delete('${src}')`);
+      }
+
+    } else {
+      throw new Error(`${srcBack} → ${dstBack} のコピーには対応していません`);
+    }
+
+    if (op === "cut") state.clipboard = null;
+    await navigateTo(state.currentBackend, state.currentPath);
+  } catch(e) {
+    await showModal({ title: t('modalErrTitle'), titleClass:"err",
+      body: escHtml(e.message),
+      buttons:[{label: t('modalOk'), cls:"primary", resolve:true}] });
+    setLoading(false);
+  }
+});
+
+
+document.getElementById("btn-delete").addEventListener("click", async () => {
+  if (!state.selectedItem) return;
+  if (state.selectedItem.backend === "github") { showGithubWriteError(); return; }
+
+  const name = state.selectedItem.name;
+  const confirmed = await showModal({
+    title: t('modalDeleteTitle'), titleClass: "warn",
+    body: `「${escHtml(name)}」${t('modalDeleteBody')}<br><small style="color:var(--fg3)">${t('modalDeleteNote')}</small>`,
+    buttons: [
+      { label: t('modalCancel'), cls: "", resolve: false },
+      { label: t('modalDeleteBtn'), cls: "danger", resolve: true },
+    ],
+  });
+  if (!confirmed) return;
+
+  const backend = state.selectedItem.backend;
+  const path    = state.selectedItem.path;
+
+  try {
+    setLoading(true);
+    if (backend === "disk") {
+      const safePath = path.replace(/'/g, "\\'");
+      await pyodide.runPythonAsync(`await _disk.delete('${safePath}', force=False)`);
+    } else if (backend === "gdrive") {
+      const safePath = path.replace(/'/g, "\\'");
+      await pyodide.runPythonAsync(`await _gdrive.delete('${safePath}')`);
+    }
+    state.selectedItem = null;
+    await navigateTo(backend, state.currentPath);
+    // ツリーも更新（フォルダが消えたままにならないよう）
+    if (backend === "disk") {
+      await loadDiskTreeChildren(document.getElementById("tree-children-disk"), "", 1);
+    } else if (backend === "gdrive") {
+      await loadGdriveTreeChildren(document.getElementById("tree-children-gdrive"), "", 1);
+    }
+  } catch(e) {
+    await showModal({ title: t('modalDelErrTitle'), titleClass:"err",
+      body: escHtml(e.message),
+      buttons:[{label: t('modalOk'), cls:"primary", resolve:true}] });
+    setLoading(false);
+  }
+});
+
+document.getElementById("btn-mkdir").addEventListener("click", async () => {
+  if (state.currentBackend === "github") { showGithubWriteError(); return; }
+
+  const name = await showModal({
+    title: t('modalMkdirTitle'),
+    body: t('modalMkdirBody'),
+    input: true,
+    buttons: [
+      { label: t('modalCancel'), cls: "", resolve: null },
+      { label: t('modalMkdirCreate'), cls: "primary", resolve: "input" },
+    ],
+  });
+  if (!name) return;
+
+  const newPath = state.currentPath
+    ? `${state.currentPath}/${name}`
+    : name;
+
+  try {
+    setLoading(true);
+    if (state.currentBackend === "disk") {
+      const safePath = newPath.replace(/'/g, "\\'");
+      await pyodide.runPythonAsync(`await _disk.mkdir('${safePath}')`);
+      await navigateTo("disk", state.currentPath);
+      await loadDiskTreeChildren(document.getElementById("tree-children-disk"), "", 1);
+    } else if (state.currentBackend === "gdrive") {
+      const safePath = newPath.replace(/'/g, "\\'");
+      await pyodide.runPythonAsync(`await _gdrive.mkdir('${safePath}')`);
+      await navigateTo("gdrive", state.currentPath);
+      await loadGdriveTreeChildren(document.getElementById("tree-children-gdrive"), "", 1);
+    }
+  } catch(e) {
+    await showModal({ title: t('modalMkdirErrTitle'), titleClass:"err",
+      body: escHtml(e.message),
+      buttons:[{label: t('modalOk'), cls:"primary", resolve:true}] });
+    setLoading(false);
+  }
+});
+
+document.getElementById("btn-diskroot").addEventListener("click", async () => {
+  // disk のルートフォルダを強制的に新規選択
+  try {
+    setLoading(true);
+    const info = JSON.parse(await pyodide.runPythonAsync(`
+import json as _j
+import js
+# MomoDiskBridge.openRoot() で新規ダイアログを強制表示
+_handle = await _await_js(js.window.MomoDiskBridge.openRoot())
+_disk.root_handle    = _handle
+_disk.root_name      = _handle.name
+_disk.current_path   = "/"
+_disk.current_handle = _handle
+_disk.cache.clear()
+_j.dumps({"root_name": _disk.root_name})
+`));
+    state.backends.disk.rootName = info.root_name;
+    updateDiskStatusBar();
+    showToast(`💾 「${info.root_name}」${t('toastDiskRootChange')}`);
+    const container = document.getElementById("tree-children-disk");
+    await loadDiskTreeChildren(container, "", 1);
+    await navigateTo("disk", "");
+  } catch(e) {
+    // キャンセル（AbortError / PermissionError でキャンセル文言）は無視して元のフォルダを維持
+    const msg = e.message || "";
+    if (msg.includes("AbortError") || msg.includes("abort") ||
+        msg.includes("cancel") || msg.includes("キャンセル") ||
+        msg.includes("The user aborted")) {
+      // 何もしない（元のルートを維持）
+    } else {
+      await showModal({ title: t('modalDiskErrTitle'), titleClass:"err",
+        body: t('modalDiskRootErr') + e.message,
+        buttons:[{label: t('modalOk'), cls:"primary", resolve:true}] });
+    }
+  } finally {
+    setLoading(false);
+  }
+});
+
+document.getElementById("btn-gdrive-disconnect").addEventListener("click", async () => {
+  // gdrive接続を切断し、保存済みトークンを削除して再認証できるようにする
+  try {
+    localStorage.removeItem('momoGdriveToken');
+  } catch(e) {}
+  // 状態リセット
+  state.backends.gdrive.status = "disconnected";
+  state.backends.gdrive.instance = null;
+  state.treeExpanded.gdrive = false;
+  document.getElementById("toggle-gdrive").classList.remove("open");
+  document.getElementById("tree-children-gdrive").classList.add("collapsed");
+  document.getElementById("tree-children-gdrive").innerHTML = "";
+  updateTreeBadge("gdrive");
+  updateToolbar();
+  if (state.currentBackend === "gdrive") {
+    state.currentBackend = null;
+    state.currentPath = "";
+    updateAddrBar();
+    document.getElementById("file-list").innerHTML = "";
+    const overlay = document.getElementById("list-overlay");
+    overlay.classList.remove("hidden");
+    document.getElementById("list-spinner").style.display = "none";
+    document.getElementById("overlay-msg").textContent = t('overlaySelect');
+  }
+  showToast("🔌 Google Drive から切断しました");
+});
+
+document.getElementById("btn-refresh").addEventListener("click", async () => {
+  if (!state.currentBackend || state.loading) return;
+  if (state.currentBackend === "github") {
+    // キャッシュをクリアして再取得
+    await pyodide.runPythonAsync(`await _gh.refresh()`);
+  }
+  await navigateTo(state.currentBackend, state.currentPath);
+});
+
+function showGithubWriteError() {
+  showModal({
+    title: t('modalGithubROTitle'),
+    titleClass: "err",
+    body: t('modalGithubRO'),
+    buttons: [{ label: t('modalOk'), cls: "primary", resolve: true }],
+  });
+}
+
+// ── モーダルヘルパー ──────────────────────────────────
+function showModal({ title, titleClass = "", body, input = false, buttons = [] }) {
+  return new Promise((resolve) => {
+    const bg   = document.getElementById("modal-bg");
+    const t    = document.getElementById("modal-title");
+    const b    = document.getElementById("modal-body");
+    const inp  = document.getElementById("modal-input");
+    const btns = document.getElementById("modal-btns");
+
+    t.textContent = title;
+    t.className   = "modal-title" + (titleClass ? ` ${titleClass}` : "");
+    b.innerHTML   = body;
+
+    if (input) {
+      inp.classList.remove("hidden");
+      inp.value = "";
+      setTimeout(() => inp.focus(), 80);
+    } else {
+      inp.classList.add("hidden");
+    }
+
+    btns.innerHTML = "";
+    for (const btn of buttons) {
+      const el = document.createElement("button");
+      el.className = "modal-btn " + (btn.cls || "");
+      el.textContent = btn.label;
+      el.addEventListener("click", () => {
+        bg.classList.remove("show");
+        if (btn.resolve === "input") {
+          resolve(inp.value.trim());
+        } else {
+          resolve(btn.resolve);
+        }
+      });
+      btns.appendChild(el);
+    }
+
+    bg.classList.add("show");
+  });
+}
+
+// ── トースト ──────────────────────────────────────────
+let toastTimer = null;
+function showToast(msg) {
+  // ステータスバーを一時的に使う
+  const sb = document.getElementById("sb-items");
+  const prev = sb.textContent;
+  sb.textContent = msg;
+  sb.style.color = "var(--accent2)";
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    sb.textContent = prev;
+    sb.style.color = "";
+  }, 3000);
+}
+
+// ── リサイザー ────────────────────────────────────────
+(function() {
+  const resizer = document.getElementById("resizer");
+  const left    = document.getElementById("left-pane");
+  let dragging = false, startX = 0, startW = 0;
+
+  resizer.addEventListener("mousedown", (e) => {
+    dragging = true;
+    startX = e.clientX;
+    startW = left.offsetWidth;
+    resizer.classList.add("dragging");
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  });
+  document.addEventListener("mousemove", (e) => {
+    if (!dragging) return;
+    const w = Math.max(140, Math.min(400, startW + e.clientX - startX));
+    left.style.width = w + "px";
+  });
+  document.addEventListener("mouseup", () => {
+    if (!dragging) return;
+    dragging = false;
+    resizer.classList.remove("dragging");
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+  });
+})();
+
+// ── ユーティリティ ────────────────────────────────────
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+function formatSize(bytes) {
+  if (bytes === 0) return "0 B";
+  const u = ["B","KB","MB","GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return (bytes / Math.pow(1024, i)).toFixed(i ? 1 : 0) + " " + u[i];
+}
+
+function formatDate(d) {
+  if (!d) return "—";
+  try {
+    const dt = new Date(d);
+    if (isNaN(dt)) return String(d);
+    return dt.toLocaleDateString("ja-JP") + " " + dt.toLocaleTimeString("ja-JP", { hour:"2-digit", minute:"2-digit" });
+  } catch { return String(d); }
+}
+
+function getExt(name) {
+  const i = name.lastIndexOf(".");
+  return i > 0 ? name.slice(i + 1).toUpperCase() : "FILE";
+}
+
+function getFileIcon(name) {
+  const ext = getExt(name).toLowerCase();
+  const map = {
+    py:"🐍", js:"📜", ts:"📜", json:"📋", md:"📝", txt:"📄",
+    html:"🌐", css:"🎨", png:"🖼", jpg:"🖼", jpeg:"🖼", gif:"🖼",
+    svg:"🖼", mp3:"🎵", wav:"🎵", ogg:"🎵", mp4:"🎬", webm:"🎬",
+    zip:"📦", gz:"📦", tar:"📦", pdf:"📑", csv:"📊", xlsx:"📊",
+  };
+  return map[ext] || "📄";
+}
+
+// ── 国際化 (i18n) ────────────────────────────────────
+const I18N = {
+  ja: {
+    // ヘッダー・ステータス
+    pyodideInit:    "Pyodide 初期化中",
+    pyodideReady:   "Pyodide 準備完了",
+    pyodideErr:     "読み込みエラー",
+    momoWorksLink:  "← MOMO Works",
+    // ブート
+    bootLoading:    "Pyodide を初期化中...",
+    bootCdn:        "Pyodide CDN から読み込み中...",
+    bootMicropip:   "micropip をセットアップ中...",
+    bootGithub:     "momo_github ライブラリを読み込み中...",
+    bootDisk:       "momo_disk_bridge を読み込み中...",
+    bootReady:      "準備完了",
+    bootNetErr:     "Pyodide の読み込みに失敗しました。ネットワークを確認してください。",
+    // アドレスバー
+    addrPlaceholder:"バックエンド/パス を入力して Enter",
+    // ツールバー
+    btnCopy:        "コピー",
+    btnCut:         "切り取り",
+    btnPaste:       "貼り付け",
+    btnDelete:      "削除",
+    btnMkdir:       "新規フォルダ",
+    btnRefresh:     "更新",
+    btnDiskroot:    "diskのルート変更",
+    // 右ペイン列ヘッダ
+    colName:        "名前",
+    colType:        "種類",
+    colSize:        "サイズ",
+    colDate:        "更新日時",
+    typeFolder:     "フォルダ",
+    // 状態
+    overlaySelect:  "フォルダを選択してください",
+    overlayEmpty:   "（このフォルダは空です）",
+    overlayLoading: "読み込み中...",
+    overlayError:   "エラー: ",
+    sbItems:        " 項目",
+    // バッジ
+    badgeOk:        "接続済",
+    badgeConnecting:"接続中",
+    badgeError:     "エラー",
+    badgeNo:        "未接続",
+    // バナー
+    readonlyBanner: "⚠ GitHub フォルダは読み取り専用です。閲覧のみ可能です。",
+    // ツリー
+    treeEmpty:      "（空）",
+    treeSubNone:    "（サブフォルダなし）",
+    treeLoading:    "読み込み中...",
+    // トースト
+    toastDiskRestored: "を復元しました",
+    toastDiskSelected: "を選択しました",
+    toastDiskRootChange: "を選択しました",
+    toastGdrive:    "📱 Google Drive に接続しました",
+    toastCopied:    "をコピー対象に設定しました",
+    toastCut:       "を切り取り対象に設定しました",
+    // モーダル
+    modalGithubRO:  "GitHub フォルダは読み取り専用です。書き込みはできません。",
+    modalGithubROTitle: "⚠ 書き込み不可",
+    modalMkdirTitle:"📂 新規フォルダ",
+    modalMkdirBody: "作成するフォルダ名を入力してください:",
+    modalMkdirCreate:"作成",
+    modalCancel:    "キャンセル",
+    modalOk:        "OK",
+    modalDeleteTitle:"🗑 削除の確認",
+    modalDeleteBody: "を削除しますか？",
+    modalDeleteNote: "この操作は元に戻せません。",
+    modalDeleteBtn:  "削除",
+    modalPasteTitle: "📌 貼り付け確認",
+    modalPasteBodyCopy:"にコピー",
+    modalPasteBodyMove:"に移動",
+    modalPasteDst:   "貼り付け先: ",
+    modalOverwriteTitle:"⚠ 同名ファイルが存在します",
+    modalOverwriteBody: "はすでに存在します。上書きしますか？",
+    modalOverwriteBtn:  "上書き",
+    modalPasteBtn:   "貼り付け",
+    modalErrTitle:   "⚠ 操作エラー",
+    modalDelErrTitle:"⚠ 削除エラー",
+    modalMkdirErrTitle:"⚠ 作成エラー",
+    modalDiskErrTitle:"⚠ エラー",
+    modalDiskInitErr:"disk バックエンドの初期化に失敗しました。",
+    modalDiskConnErr:"disk 接続エラー: ",
+    modalDiskRootErr:"フォルダ選択エラー: ",
+    modalGdriveInitErr:"Google Drive バックエンドの初期化に失敗しました。",
+    modalGdriveGISErr:"Google Identity Services の読み込みに失敗しました。ネットワークを確認してください。",
+    modalGdriveConnErr:"Google Drive 接続エラー: ",
+    modalGithubConnErr:"GitHub バックエンドへの接続に失敗しました。ネットワークを確認してください。",
+    modalGithubConnTitle:"⚠ 接続エラー",
+    // アドレスバーエラー
+    addrErrInvalid: "バックエンド名が無効です。github / disk / gdrive のいずれかで始めてください。",
+    addrErrGdrive:  "gdrive はツリーパネルから接続してください。",
+    addrErrDiskNC:  "disk は未接続です。左ペインの disk をクリックして接続してください。",
+    addrErrNotFound:"指定したパスが見つかりません: ",
+    // GDrive再認証
+    gdrivePersistPrompt: "Google アカウントを記憶しますか？（次回から自動接続）",
+    gdrivePersistYes:    "記憶する",
+    gdrivePersistNo:     "毎回確認",
+    // iPhone警告
+    iosWarning:     "⚠ iOSではdisk機能はご利用できません（File System Access API 未対応）",
+    diskIosUnsupported: "iOSのSafariはFile System Access APIに対応していません。diskはiOSでは使用できません。PCのChrome / Edgeをご利用ください。",
+    btnGdriveDisconnect: "gdriveアカウント変更",
+    toastGdriveDisconnect: "Google Drive から切断しました",
+    rateWarnUnknown:"不明",
+    rateWarnMsg:    "⚠ GitHub API レート制限残り {rem} 回。リセット: {reset}",
+    copyVerifyErr:  "コピー先の確認に失敗しました。元ファイルは保持されています。",
+    folderCrossBackendErr: "フォルダの異なるバックエンド間コピーには対応していません。同じバックエンド内（disk→disk）でのみフォルダをコピーできます。",
+  },
+  en: {
+    pyodideInit:    "Pyodide initializing",
+    pyodideReady:   "Pyodide ready",
+    pyodideErr:     "Load error",
+    momoWorksLink:  "← MOMO Works",
+    bootLoading:    "Initializing Pyodide...",
+    bootCdn:        "Loading from Pyodide CDN...",
+    bootMicropip:   "Setting up micropip...",
+    bootGithub:     "Loading momo_github library...",
+    bootDisk:       "Loading momo_disk_bridge...",
+    bootReady:      "Ready",
+    bootNetErr:     "Failed to load Pyodide. Check your network connection.",
+    addrPlaceholder:"backend/path — press Enter",
+    btnCopy:        "Copy",
+    btnCut:         "Cut",
+    btnPaste:       "Paste",
+    btnDelete:      "Delete",
+    btnMkdir:       "New Folder",
+    btnRefresh:     "Refresh",
+    btnDiskroot:    "Change disk root",
+    colName:        "Name",
+    colType:        "Type",
+    colSize:        "Size",
+    colDate:        "Modified",
+    typeFolder:     "Folder",
+    overlaySelect:  "Select a folder",
+    overlayEmpty:   "(This folder is empty)",
+    overlayLoading: "Loading...",
+    overlayError:   "Error: ",
+    sbItems:        " items",
+    badgeOk:        "Connected",
+    badgeConnecting:"Connecting",
+    badgeError:     "Error",
+    badgeNo:        "Disconnected",
+    readonlyBanner: "⚠ GitHub folder is read-only. Viewing only.",
+    treeEmpty:      "(empty)",
+    treeSubNone:    "(no subfolders)",
+    treeLoading:    "Loading...",
+    toastDiskRestored: " restored",
+    toastDiskSelected: " selected",
+    toastDiskRootChange: " selected",
+    toastGdrive:    "📱 Connected to Google Drive",
+    toastCopied:    " set as copy target",
+    toastCut:       " set as cut target",
+    modalGithubRO:  "GitHub folder is read-only. Writing is not allowed.",
+    modalGithubROTitle: "⚠ Read Only",
+    modalMkdirTitle:"📂 New Folder",
+    modalMkdirBody: "Enter folder name:",
+    modalMkdirCreate:"Create",
+    modalCancel:    "Cancel",
+    modalOk:        "OK",
+    modalDeleteTitle:"🗑 Confirm Delete",
+    modalDeleteBody: " — delete this?",
+    modalDeleteNote: "This cannot be undone.",
+    modalDeleteBtn:  "Delete",
+    modalPasteTitle: "📌 Confirm Paste",
+    modalPasteBodyCopy:"Copy to current folder?",
+    modalPasteBodyMove:"Move to current folder?",
+    modalPasteDst:   "Destination: ",
+    modalOverwriteTitle:"⚠ File already exists",
+    modalOverwriteBody: " already exists. Overwrite?",
+    modalOverwriteBtn:  "Overwrite",
+    modalPasteBtn:   "Paste",
+    modalErrTitle:   "⚠ Operation Error",
+    modalDelErrTitle:"⚠ Delete Error",
+    modalMkdirErrTitle:"⚠ Create Error",
+    modalDiskErrTitle:"⚠ Error",
+    modalDiskInitErr:"Failed to initialize disk backend.",
+    modalDiskConnErr:"Disk connection error: ",
+    modalDiskRootErr:"Folder selection error: ",
+    modalGdriveInitErr:"Failed to initialize Google Drive backend.",
+    modalGdriveGISErr:"Failed to load Google Identity Services. Check your network.",
+    modalGdriveConnErr:"Google Drive connection error: ",
+    modalGithubConnErr:"Failed to connect to GitHub. Check your network.",
+    modalGithubConnTitle:"⚠ Connection Error",
+    addrErrInvalid: "Invalid backend. Use github / disk / gdrive.",
+    addrErrGdrive:  "Connect to gdrive from the tree panel.",
+    addrErrDiskNC:  "Disk not connected. Click disk in the left panel.",
+    addrErrNotFound:"Path not found: ",
+    gdrivePersistPrompt: "Remember Google account? (auto-connect next time)",
+    gdrivePersistYes:    "Remember",
+    gdrivePersistNo:     "Ask each time",
+    iosWarning:     "⚠ Disk feature is not available on iOS (File System Access API not supported)",
+    diskIosUnsupported: "iOS Safari does not support the File System Access API. Disk cannot be used on iOS. Please use Chrome or Edge on a PC.",
+    btnGdriveDisconnect: "Change gdrive account",
+    toastGdriveDisconnect: "Disconnected from Google Drive",
+    rateWarnUnknown:"unknown",
+    rateWarnMsg:    "⚠ GitHub API rate limit: {rem} remaining. Reset: {reset}",
+    copyVerifyErr:  "Failed to verify copy destination. Source file has been kept.",
+    folderCrossBackendErr: "Copying folders between different backends is not supported. Folder copy is only available within the same backend (disk→disk).",
+  },
+  zh: {
+    pyodideInit:    "Pyodide 初始化中",
+    pyodideReady:   "Pyodide 就绪",
+    pyodideErr:     "加载错误",
+    momoWorksLink:  "← MOMO Works",
+    bootLoading:    "正在初始化 Pyodide...",
+    bootCdn:        "正在从 Pyodide CDN 加载...",
+    bootMicropip:   "正在设置 micropip...",
+    bootGithub:     "正在加载 momo_github 库...",
+    bootDisk:       "正在加载 momo_disk_bridge...",
+    bootReady:      "准备就绪",
+    bootNetErr:     "Pyodide 加载失败，请检查网络连接。",
+    addrPlaceholder:"后端/路径 — 按 Enter",
+    btnCopy:        "复制",
+    btnCut:         "剪切",
+    btnPaste:       "粘贴",
+    btnDelete:      "删除",
+    btnMkdir:       "新建文件夹",
+    btnRefresh:     "刷新",
+    btnDiskroot:    "更改磁盘根目录",
+    colName:        "名称",
+    colType:        "类型",
+    colSize:        "大小",
+    colDate:        "修改时间",
+    typeFolder:     "文件夹",
+    overlaySelect:  "请选择一个文件夹",
+    overlayEmpty:   "（此文件夹为空）",
+    overlayLoading: "加载中...",
+    overlayError:   "错误：",
+    sbItems:        " 项",
+    badgeOk:        "已连接",
+    badgeConnecting:"连接中",
+    badgeError:     "错误",
+    badgeNo:        "未连接",
+    readonlyBanner: "⚠ GitHub 文件夹为只读，仅供浏览。",
+    treeEmpty:      "（空）",
+    treeSubNone:    "（无子文件夹）",
+    treeLoading:    "加载中...",
+    toastDiskRestored: " 已恢复",
+    toastDiskSelected: " 已选择",
+    toastDiskRootChange: " 已选择",
+    toastGdrive:    "📱 已连接到 Google Drive",
+    toastCopied:    " 已设为复制目标",
+    toastCut:       " 已设为剪切目标",
+    modalGithubRO:  "GitHub 文件夹为只读，不支持写入。",
+    modalGithubROTitle: "⚠ 只读",
+    modalMkdirTitle:"📂 新建文件夹",
+    modalMkdirBody: "请输入文件夹名称：",
+    modalMkdirCreate:"创建",
+    modalCancel:    "取消",
+    modalOk:        "确定",
+    modalDeleteTitle:"🗑 确认删除",
+    modalDeleteBody: " — 确定删除吗？",
+    modalDeleteNote: "此操作无法撤销。",
+    modalDeleteBtn:  "删除",
+    modalPasteTitle: "📌 确认粘贴",
+    modalPasteBodyCopy:"复制到当前文件夹？",
+    modalPasteBodyMove:"移动到当前文件夹？",
+    modalPasteDst:   "目标位置：",
+    modalOverwriteTitle:"⚠ 同名文件已存在",
+    modalOverwriteBody: " 已存在，是否覆盖？",
+    modalOverwriteBtn:  "覆盖",
+    modalPasteBtn:   "粘贴",
+    modalErrTitle:   "⚠ 操作错误",
+    modalDelErrTitle:"⚠ 删除错误",
+    modalMkdirErrTitle:"⚠ 创建错误",
+    modalDiskErrTitle:"⚠ 错误",
+    modalDiskInitErr:"磁盘后端初始化失败。",
+    modalDiskConnErr:"磁盘连接错误：",
+    modalDiskRootErr:"文件夹选择错误：",
+    modalGdriveInitErr:"Google Drive 后端初始化失败。",
+    modalGdriveGISErr:"Google Identity Services 加载失败，请检查网络。",
+    modalGdriveConnErr:"Google Drive 连接错误：",
+    modalGithubConnErr:"GitHub 连接失败，请检查网络。",
+    modalGithubConnTitle:"⚠ 连接错误",
+    addrErrInvalid: "后端名称无效，请使用 github / disk / gdrive。",
+    addrErrGdrive:  "请从树形面板连接 gdrive。",
+    addrErrDiskNC:  "磁盘未连接，请点击左侧面板中的 disk。",
+    addrErrNotFound:"未找到指定路径：",
+    gdrivePersistPrompt: "是否记住 Google 账户？（下次自动连接）",
+    gdrivePersistYes:    "记住",
+    gdrivePersistNo:     "每次询问",
+    iosWarning:     "⚠ iOS 不支持磁盘功能（File System Access API 不可用）",
+    diskIosUnsupported: "iOS Safari 不支持 File System Access API，无法在 iOS 上使用磁盘功能。请使用 PC 上的 Chrome 或 Edge。",
+    btnGdriveDisconnect: "更改 gdrive 账户",
+    toastGdriveDisconnect: "已断开 Google Drive 连接",
+    rateWarnUnknown:"未知",
+    rateWarnMsg:    "⚠ GitHub API 速率限制剩余 {rem} 次。重置时间：{reset}",
+    copyVerifyErr:  "无法验证复制目标，源文件已保留。",
+    folderCrossBackendErr: "不支持在不同后端之间复制文件夹。文件夹复制仅在同一后端内可用（disk→disk）。",
+  },
+};
+
+// ── 猫語ステート ────────────────────────────────────
+let catBase = 'ja';
+
+// ── 現在の言語 ──────────────────────────────────────
+let currentLang = (() => {
+  try {
+    const v = localStorage.getItem('momoLang');
+    return ['ja','en','zh','cat'].includes(v) ? v : 'ja';
+  } catch(e) { return 'ja'; }
+})();
+
+// ── 猫語生成 ────────────────────────────────────────
+function catSpeak(key) {
+  const errorKeys = ['modalGithubRO','modalDiskInitErr','modalDiskConnErr',
+                     'modalGdriveInitErr','modalGdriveConnErr','modalGithubConnErr',
+                     'overlayError','addrErrInvalid','addrErrNotFound','iosWarning'];
+  const calmKeys  = ['overlayLoading','bootLoading','bootCdn','bootMicropip',
+                     'bootGithub','bootDisk','badgeConnecting','pyodideInit'];
+  let vocab;
+  if (catBase === 'en') {
+    if (errorKeys.includes(key))  vocab = ['HISS!','SPIT!','FSSST!'];
+    else if (calmKeys.includes(key)) vocab = ['purrrr...','mrrr...','prrr...'];
+    else vocab = ['MEOW','meow','mrrrow','mew','NYA!'];
+  } else if (catBase === 'zh') {
+    if (errorKeys.includes(key))  vocab = ['嘶！','哈！','嘶嘶！'];
+    else if (calmKeys.includes(key)) vocab = ['咕噜…','喵…','噜噜…'];
+    else vocab = ['喵','喵呜','咪','喵！'];
+  } else {
+    if (errorKeys.includes(key))  vocab = ['シャー！','フーッ！','シャシャシャ！'];
+    else if (calmKeys.includes(key)) vocab = ['ごろごろ…','にゃ…','ぐるぐる…'];
+    else vocab = ['にゃあ','にゃ','にゃーん','みゃお','ニャ！'];
+  }
+  return vocab[Math.floor(Math.random() * vocab.length)];
+}
+
+// ── 翻訳取得 ─────────────────────────────────────────
+function t(key) {
+  if (currentLang === 'cat') return catSpeak(key);
+  return (I18N[currentLang] || I18N.ja)[key] || I18N.ja[key] || key;
+}
+
+// ── 言語適用 ─────────────────────────────────────────
+function applyLang() {
+  const d = I18N[currentLang] || I18N.ja;
+  // html lang属性
+  document.documentElement.lang = currentLang === 'zh' ? 'zh-Hans' : (currentLang === 'cat' ? 'ja' : currentLang);
+  // select同期
+  const sel = document.getElementById('lang-select');
+  if (sel) sel.value = currentLang;
+  // ヘッダー
+  const pyLabel = document.getElementById('py-label');
+  if (pyLabel && !pyReady) pyLabel.textContent = t('pyodideInit');
+  const momoLink = document.getElementById('momo-works-link');
+  if (momoLink) momoLink.textContent = t('momoWorksLink');
+  // アドレスバー
+  const addrInput = document.getElementById('addr-input');
+  if (addrInput) addrInput.placeholder = t('addrPlaceholder');
+  // ツールバーラベル
+  const btnMap = {
+    'lbl-copy': 'btnCopy', 'lbl-cut': 'btnCut', 'lbl-paste': 'btnPaste',
+    'lbl-delete': 'btnDelete', 'lbl-mkdir': 'btnMkdir',
+    'lbl-refresh': 'btnRefresh', 'lbl-diskroot': 'btnDiskroot',
+  };
+  for (const [id, key] of Object.entries(btnMap)) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = t(key);
+  }
+  // 右ペイン列ヘッダ
+  const colName = document.getElementById('col-name');
+  const colType = document.getElementById('col-type');
+  const colSize = document.getElementById('col-size');
+  const colDate = document.getElementById('col-date');
+  if (colName) colName.textContent = t('colName');
+  if (colType) colType.textContent = t('colType');
+  if (colSize) colSize.textContent = t('colSize');
+  if (colDate) colDate.textContent = t('colDate');
+  // バッジを全部更新（言語切り替え時に「接続済」「未接続」等が変わる）
+  ['github', 'disk', 'gdrive'].forEach(id => updateTreeBadge(id));
+  // pyodideラベルを更新（初期化済みの場合）
+  const pyLabel = document.getElementById('py-label');
+  if (pyLabel) {
+    if (pyReady) pyLabel.textContent = t('pyodideReady');
+    else pyLabel.textContent = t('pyodideInit');
+  }
+  // ツールバーの gdrive disconnect ボタンラベル
+  const lblGd = document.getElementById('lbl-gdrive-disconnect');
+  if (lblGd) lblGd.textContent = t('btnGdriveDisconnect');
+  // readonly-banner
+  const banner = document.getElementById('readonly-banner');
+  if (banner) banner.textContent = t('readonlyBanner');
+  // overlay-msg（ローディング中でなければ初期メッセージを更新）
+  const overlayMsg = document.getElementById('overlay-msg');
+  if (overlayMsg && !state.loading) {
+    const cur = overlayMsg.textContent;
+    // すべての言語の「選択してください」メッセージと一致する場合に更新
+    const allSelect = Object.values(I18N).map(d => d.overlaySelect).concat(['catSpeak']);
+    if (allSelect.some(s => cur === s) || cur === t('overlaySelect') || !state.currentBackend) {
+      overlayMsg.textContent = t('overlaySelect');
+    }
+  }
+  // ステータスバー項目数（末尾「項目」だけ更新は難しいため初期化時のみ対応済み）
+}
+
+// ── 言語切り替えハンドラ ─────────────────────────────
+function onLangChange(lang) {
+  if (lang === 'cat') catBase = currentLang === 'cat' ? catBase : currentLang;
+  currentLang = lang;
+  try { localStorage.setItem('momoLang', lang); } catch(e) {}
+  applyLang();
+}
+
+// ── エントリポイント ──────────────────────────────────
+(async function main() {
+  // 言語を即時適用
+  applyLang();
+  // Pyodide CDN スクリプトを動的ロード
+  const script = document.createElement("script");
+  script.src = "https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js";
+  script.onload  = () => bootPyodide();
+  script.onerror = () => {
+    document.getElementById("boot-msg").textContent = t('bootNetErr');
+    document.getElementById("py-dot").className = "dot error";
+    document.getElementById("py-label").textContent = t('pyodideErr');
+  };
+  document.head.appendChild(script);
+})();
+</script>
+</body>
+</html>

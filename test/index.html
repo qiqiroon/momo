@@ -1,50 +1,62 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <title>MOMO Sign</title>
-    <style>
-        body { margin: 0; background: #000; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; }
-        #canvas { display: none; position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; }
-        #ui { text-align: center; }
-        input { font-size: 20px; padding: 10px; width: 80%; }
-        button { font-size: 20px; padding: 10px 20px; margin-top: 10px; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>MOMO Sign</title>
+<style>
+    body { background: #000; color: #fff; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+    #ui { display: flex; flex-direction: column; align-items: center; gap: 20px; z-index: 10; }
+    #canvas { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; display: none; cursor: pointer; }
+</style>
 </head>
 <body>
     <div id="ui">
-        <input type="text" id="textInput" placeholder="表示する文字を入力">
-        <br><button onclick="start()">スタート</button>
+        <input type="text" id="textInput" placeholder="文字を入力">
+        <button id="startBtn">スタート</button>
     </div>
     <canvas id="canvas"></canvas>
     <script>
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
+        const startBtn = document.getElementById('startBtn');
         let text = "";
+        let isRunning = false;
 
-        function start() {
-            text = document.getElementById('textInput').value;
-            if(!text) return;
-            document.getElementById('ui').style.display = 'none';
-            canvas.style.display = 'block';
-            
-            // 音声指示の開始
-            const synth = window.speechSynthesis;
-            setInterval(() => {
-                synth.speak(new SpeechSynthesisUtterance("Right"));
-                setTimeout(() => synth.speak(new SpeechSynthesisUtterance("Left")), 1000);
-            }, 2000);
-            
-            draw();
+        async function requestPermission() {
+            if (typeof DeviceMotionEvent.requestPermission === 'function') {
+                const response = await DeviceMotionEvent.requestPermission();
+                return response === 'granted';
+            }
+            return true;
         }
 
-        function draw() {
+        startBtn.onclick = async () => {
+            if (await requestPermission()) {
+                text = document.getElementById('textInput').value;
+                document.getElementById('ui').style.display = 'none';
+                canvas.style.display = 'block';
+                isRunning = true;
+                window.addEventListener('devicemotion', handleMotion);
+            } else {
+                alert("センサー権限が必要です");
+            }
+        };
+
+        function handleMotion(event) {
+            if (!isRunning) return;
+            const x = event.accelerationIncludingGravity.x;
+            // 振った時の加速度を判定して描画位置を動的に計算
+            render(x);
+        }
+
+        function render(offset) {
             ctx.fillStyle = "black";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = "white";
-            ctx.font = "100px Arial";
-            ctx.fillText(text, canvas.width/4, canvas.height/2);
-            requestAnimationFrame(draw);
+            ctx.font = "bold 150px Arial";
+            // 加速度に合わせて文字を左右にオフセットして描画
+            ctx.fillText(text, (canvas.width / 2) + (offset * 10), canvas.height / 2);
         }
 
         canvas.onclick = () => { location.reload(); };

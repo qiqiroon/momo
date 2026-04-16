@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
+<!-- MOMO Tools 内部バージョン: v1.13
+     変更履歴:
+       v1.11 - MOMO Lyrics カードを追加
+       v1.12 - MOMO Explorer カードを追加、猫語(CAT)対応、言語切替をプルダウンに変更
+       v1.13 - MOMO Noise カードを追加、カードをカテゴリ別に分類、NEWバッジを削除、対象機種を追加 -->
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MOMO Tools</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-46 -50 92 80'%3E%3Crect x='-46' y='-50' width='92' height='80' rx='8' fill='%23000000'/%3E%3Cg transform='rotate(-12,-12,8.3)'%3E%3Cpath d='M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cg transform='rotate(12,12,8.3)'%3E%3Cpath d='M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cellipse cx='0' cy='1.3' rx='34' ry='26' fill='%23c2410c'/%3E%3Cline x1='-14' y1='1.00' x2='-33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='6.0' x2='-33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='10.59' x2='-29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.68' y1='-2.28' x2='-38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.44' y1='6.0' x2='-40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-29.58' y1='14.26' x2='-37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='1.00' x2='33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='6.0' x2='33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='10.59' x2='29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.68' y1='-2.28' x2='38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.44' y1='6.0' x2='40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='29.58' y1='14.26' x2='37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cellipse cx='-12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='-12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Cellipse cx='12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Ccircle cx='-10.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Ccircle cx='13.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Cpath d='M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z' fill='%23000'/%3E%3Cline x1='0' y1='11.3' x2='0' y2='13.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q-5,17.3 -8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q5,17.3 8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-base:     #0a0a0a;
+      --bg-surface:  #111111;
+      --bg-card:     #1a1a1a;
+      --orange-dark: #c2410c;
+      --orange:      #ea580c;
+      --orange-light:#fb923c;
+      --text-main:   #e5e5e5;
+      --text-muted:  #737373;
+      --border:      #2a2a2a;
+      --border-strong: #444;
+      --bg-selected: rgba(194,65,12,0.15);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg-base);
+      color: var(--text-main);
+      font-family: 'Noto Sans JP', sans-serif;
+      min-height: 100vh;
+      background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 48px 48px;
+      background-attachment: fixed;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: var(--bg-base);
+      opacity: 0.8;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── LANG SWITCHER ── */
+    #lang-switcher {
+      position: fixed;
+      top: 8px;
+      right: 12px;
+      z-index: 200;
+    }
+    #lang-select {
+      background: var(--bg-card);
+      border: 1px solid var(--border-strong);
+      color: var(--text-main);
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: 'Noto Sans JP', sans-serif;
+      outline: none;
+    }
+    #lang-select:focus { border-color: var(--orange); }
+
+    /* ── LAYOUT ── */
+    .page-wrap {
+      position: relative;
+      z-index: 1;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+
+    /* ── BREADCRUMB ── */
+    .breadcrumb {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 32px;
+      opacity: 0;
+      animation: fadeDown 0.5s ease forwards;
+    }
+    .breadcrumb a {
+      color: var(--text-muted);
+      text-decoration: none;
+    }
+    .breadcrumb a:hover { color: var(--orange-light); }
+    .breadcrumb span { margin: 0 6px; }
+
+    /* ── HEADER ── */
+    .site-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 8px;
+      opacity: 0;
+      animation: fadeDown 0.5s 0.1s ease forwards;
+    }
+    .cat-icon {
+      width: 52px;
+      height: 44px;
+      flex-shrink: 0;
+    }
+    .site-title {
+      font-family: 'Fredoka One', cursive;
+      font-size: clamp(2rem, 5vw, 2.8rem);
+      color: var(--text-main);
+      line-height: 1;
+    }
+    .site-title span { color: var(--orange); }
+    .header-sub {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 40px;
+      padding-left: 4px;
+      opacity: 0;
+      animation: fadeDown 0.5s 0.2s ease forwards;
+    }
+
+    /* ── SECTION LABEL ── */
+    .section-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+      margin-bottom: 20px;
+      opacity: 0;
+      animation: fadeDown 0.5s 0.25s ease forwards;
+    }
+
+    /* ── TOOL CARDS ── */
+    .tool-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+    }
+    .tool-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: border-color 0.2s, transform 0.2s;
+      opacity: 0;
+      animation: fadeUp 0.5s 0.3s ease forwards;
+      cursor: pointer;
+      text-decoration: none;
+      color: inherit;
+    }
+    .tool-card:hover {
+      border-color: var(--orange-dark);
+      transform: translateY(-2px);
+    }
+    .card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 20px;
+      background: var(--orange-dark);
+      color: #fff;
+      letter-spacing: 0.04em;
+    }
+    .card-title {
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.3rem;
+      color: var(--text-main);
+      line-height: 1.2;
+    }
+    .card-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.65;
+      flex: 1;
+    }
+    .card-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .meta-tag {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 7px;
+    }
+    .card-btn {
+      display: inline-block;
+      margin-top: 4px;
+      background: var(--orange-dark);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      font-family: 'Noto Sans JP', sans-serif;
+      padding: 8px 16px;
+      border-radius: 6px;
+      text-decoration: none;
+      text-align: center;
+      transition: background 0.15s;
+      border: none;
+      cursor: pointer;
+    }
+    .card-btn:hover { background: var(--orange); }
+
+    /* ── CATEGORY SECTION ── */
+    .category-section {
+      margin-bottom: 40px;
+    }
+    .category-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+      margin-bottom: 20px;
+      opacity: 0;
+      animation: fadeDown 0.5s 0.25s ease forwards;
+    }
+
+    /* ── PLATFORM BADGES ── */
+    .platform-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .platform-tag {
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: rgba(194,65,12,0.12);
+      border: 1px solid rgba(194,65,12,0.3);
+      color: var(--orange-light);
+    }
+
+
+    .page-footer {
+      margin-top: 60px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--text-muted);
+      opacity: 0;
+      animation: fadeUp 0.5s 0.5s ease forwards;
+    }
+    .page-footer a {
+      color: var(--text-muted);
+      text-decoration: none;
+    }
+    .page-footer a:hover { color: var(--orange-light); }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeDown {
+      from { opacity: 0; transform: translateY(-12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+<div id="lang-switcher">
+  <select id="lang-select" onchange="onLangChange(this.value)">
+    <option value="ja">日本語</option>
+    <option value="en">EN</option>
+    <option value="zh">中文</option>
+    <option value="cat">CAT 🐱</option>
+  </select>
+</div>
+
+<div class="page-wrap">
+
+  <!-- Breadcrumb -->
+  <nav class="breadcrumb">
+    <a href="https://qiqiroon.github.io/momo/">MOMO Works</a><span>›</span>MOMO Tools
+  </nav>
+
+  <!-- Header -->
+  <header class="site-header">
+    <svg class="cat-icon" xmlns="http://www.w3.org/2000/svg" viewBox="-46 -50 92 80">
+      <g transform="rotate(-12,-12,8.3)">
+        <path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/>
+      </g>
+      <g transform="rotate(12,12,8.3)">
+        <path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/>
+      </g>
+      <ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/>
+      <line x1="-14" y1="1.00"  x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-14" y1="6.0"   x2="-33.44" y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-33.68" y1="-2.28" x2="-38" y2="-3"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-33.44" y1="6.0"   x2="-40" y2="6"    stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-29.58" y1="14.26" x2="-37" y2="16"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="14"  y1="1.00"  x2="33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="14"  y1="6.0"   x2="33.44" y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="14"  y1="10.59" x2="29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="33.68" y1="-2.28" x2="38"  y2="-3"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="33.44" y1="6.0"   x2="40"  y2="6"    stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="29.58" y1="14.26" x2="37"  y2="16"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <ellipse cx="-12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+      <ellipse cx="12"  cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+      <ellipse cx="-12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+      <ellipse cx="12"  cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+      <circle cx="-10.5" cy="-5.2" r="1.0" fill="#c2410c"/>
+      <circle cx="13.5"  cy="-5.2" r="1.0" fill="#c2410c"/>
+      <path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/>
+      <line x1="0" y1="11.3" x2="0" y2="13.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M0,13.3 Q5,17.3 8,15.3"  fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+    </svg>
+    <h1 class="site-title">MOMO <span>Tools</span></h1>
+  </header>
+
+  <p class="header-sub" id="header-sub">便利なWebツール集</p>
+
+  <!-- ── Management Tools ── -->
+  <div class="category-section">
+    <div class="category-label" id="cat-management">Management Tools</div>
+    <div class="tool-grid">
+
+      <!-- MOMO Links card -->
+      <a class="tool-card" href="links/" style="animation-delay:0.30s">
+        <div class="card-top">
+          <span class="badge">🔖</span>
+        </div>
+        <div class="card-title">MOMO <span style="color:var(--orange);">Links</span></div>
+        <p class="card-desc" id="links-desc">タグで整理するブックマーク管理ツール。データはあなたのブラウザにのみ保存されます。</p>
+        <div class="card-meta">
+          <span class="meta-tag" id="links-meta1">🔖 ブックマーク</span>
+          <span class="meta-tag" id="links-meta2">💾 ローカル保存</span>
+        </div>
+        <div class="platform-row">
+          <span class="platform-tag" id="links-pc">💻 PC</span>
+          <span class="platform-tag" id="links-iphone">🍎 iPhone</span>
+          <span class="platform-tag" id="links-android">🤖 Android</span>
+        </div>
+        <div class="card-btn" id="links-open">今すぐ使う</div>
+      </a>
+
+      <!-- MOMO Explorer card -->
+      <a class="tool-card" href="explorer/" style="animation-delay:0.38s">
+        <div class="card-top">
+          <span class="badge">📁</span>
+        </div>
+        <div class="card-title">MOMO <span style="color:var(--orange);">Explorer</span></div>
+        <p class="card-desc" id="explorer-desc">GitHub・ローカルストレージ・Google Drive 間でファイルの移動・コピー・削除・サブフォルダ作成ができるファイルエクスプローラーです。</p>
+        <div class="card-meta">
+          <span class="meta-tag" id="explorer-meta1">📁 ファイル管理</span>
+          <span class="meta-tag" id="explorer-meta2">☁️ クラウド連携</span>
+        </div>
+        <div class="platform-row">
+          <span class="platform-tag" id="explorer-pc">💻 PC</span>
+          <span class="platform-tag" id="explorer-iphone">🍎 iPhone</span>
+          <span class="platform-tag" id="explorer-android">🤖 Android</span>
+        </div>
+        <div class="card-btn" id="explorer-open">今すぐ使う</div>
+      </a>
+
+    </div>
+  </div>
+
+  <!-- ── Music Tools ── -->
+  <div class="category-section">
+    <div class="category-label" id="cat-music">Music Tools</div>
+    <div class="tool-grid">
+
+      <!-- MOMO Player card -->
+      <a class="tool-card" href="player/" style="animation-delay:0.46s">
+        <div class="card-top">
+          <span class="badge">🎧</span>
+        </div>
+        <div class="card-title">MOMO <span style="color:var(--orange);">Player</span></div>
+        <p class="card-desc" id="player-desc">ローカルの音楽ファイルをブラウザで再生できる高機能プレイヤー。NASやフォルダをライブラリ管理でき、アーティスト・アルバム・プレイリストに対応。</p>
+        <div class="card-meta">
+          <span class="meta-tag" id="player-meta1">🎧 音楽プレイヤー</span>
+          <span class="meta-tag" id="player-meta2">📁 ローカルファイル</span>
+        </div>
+        <div class="platform-row">
+          <span class="platform-tag" id="player-pc">💻 PC</span>
+        </div>
+        <div class="card-btn" id="player-open">今すぐ使う</div>
+      </a>
+
+      <!-- MOMO Lyrics card -->
+      <a class="tool-card" href="lyrics/" style="animation-delay:0.54s">
+        <div class="card-top">
+          <span class="badge">🎵</span>
+        </div>
+        <div class="card-title">MOMO <span style="color:var(--orange);">Lyrics</span></div>
+        <p class="card-desc" id="lyrics-desc">音楽ファイルに合う歌詞を自動で保存するツールです。フォルダ内の曲をまとめて処理したり、好きな曲を検索して保存したりできます。</p>
+        <div class="card-meta">
+          <span class="meta-tag" id="lyrics-meta1">🎵 歌詞を見つける</span>
+          <span class="meta-tag" id="lyrics-meta2">📄 同期歌詞 (.lrc)</span>
+        </div>
+        <div class="platform-row">
+          <span class="platform-tag" id="lyrics-pc">💻 PC</span>
+        </div>
+        <div class="card-btn" id="lyrics-open">今すぐ使う</div>
+      </a>
+
+    </div>
+  </div>
+
+  <!-- ── Gadget Tools ── -->
+  <div class="category-section">
+    <div class="category-label" id="cat-gadget">Gadget Tools</div>
+    <div class="tool-grid">
+
+      <!-- MOMO Noise card -->
+      <a class="tool-card" href="./noise/" style="animation-delay:0.62s">
+        <div class="card-top">
+          <span class="badge">🔊</span>
+        </div>
+        <div class="card-title">MOMO <span style="color:var(--orange);">Noise</span></div>
+        <p class="card-desc" id="noise-desc">ボタンに音声をアサインして即座に再生できるサウンドパッド。複数音の同時再生、録音、リズムシンク機能付き。</p>
+        <div class="card-meta">
+          <span class="meta-tag" id="noise-meta1">🔊 サウンドパッド</span>
+          <span class="meta-tag" id="noise-meta2">🎙️ 録音機能</span>
+        </div>
+        <div class="platform-row">
+          <span class="platform-tag" id="noise-iphone">🍎 iPhone</span>
+          <span class="platform-tag" id="noise-android">🤖 Android</span>
+        </div>
+        <div class="card-btn" id="noise-open">今すぐ使う</div>
+      </a>
+
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="page-footer">
+    <a href="https://qiqiroon.github.io/momo/" id="footer-back">← MOMO Works に戻る</a>
+  </footer>
+
+</div>
+
+<script>
+  const I18N = {
+    ja: {
+      headerSub:       '便利なWebツール集',
+      catManagement:   'Management Tools',
+      catMusic:        'Music Tools',
+      catGadget:       'Gadget Tools',
+      playerDesc:      'ローカルの音楽ファイルをブラウザで再生できる高機能プレイヤー。NASやフォルダをライブラリ管理でき、アーティスト・アルバム・プレイリストに対応。',
+      playerMeta1:     '🎧 音楽プレイヤー',
+      playerMeta2:     '📁 ローカルファイル',
+      playerOpen:      '今すぐ使う',
+      playerPc:        '💻 PC',
+      lyricsDesc:      '音楽ファイルに合う歌詞を自動で保存するツールです。フォルダ内の曲をまとめて処理したり、好きな曲を検索して保存したりできます。',
+      lyricsMeta1:     '🎵 歌詞を見つける',
+      lyricsMeta2:     '📄 同期歌詞 (.lrc)',
+      lyricsOpen:      '今すぐ使う',
+      lyricsPc:        '💻 PC',
+      linksDesc:       'タグで整理するブックマーク管理ツール。データはあなたのブラウザにのみ保存されます。',
+      linksMeta1:      '🔖 ブックマーク',
+      linksMeta2:      '💾 ローカル保存',
+      linksOpen:       '今すぐ使う',
+      linksPc:         '💻 PC',
+      linksIphone:     '🍎 iPhone',
+      linksAndroid:    '🤖 Android',
+      explorerDesc:    'GitHub・ローカルストレージ・Google Drive 間でファイルの移動・コピー・削除・サブフォルダ作成ができるファイルエクスプローラーです。',
+      explorerMeta1:   '📁 ファイル管理',
+      explorerMeta2:   '☁️ クラウド連携',
+      explorerOpen:    '今すぐ使う',
+      explorerPc:      '💻 PC',
+      explorerIphone:  '🍎 iPhone',
+      explorerAndroid: '🤖 Android',
+      noiseDesc:       'ボタンに音声をアサインして即座に再生できるサウンドパッド。複数音の同時再生、録音、リズムシンク機能付き。',
+      noiseMeta1:      '🔊 サウンドパッド',
+      noiseMeta2:      '🎙️ 録音機能',
+      noiseOpen:       '今すぐ使う',
+      noiseIphone:     '🍎 iPhone',
+      noiseAndroid:    '🤖 Android',
+      footerBack:      '← MOMO Works に戻る',
+    },
+    en: {
+      headerSub:       'A collection of browser-based tools',
+      catManagement:   'Management Tools',
+      catMusic:        'Music Tools',
+      catGadget:       'Gadget Tools',
+      playerDesc:      'A full-featured music player that plays local files in your browser. Supports library management with NAS/folders, artists, albums, and playlists.',
+      playerMeta1:     '🎧 Music Player',
+      playerMeta2:     '📁 Local Files',
+      playerOpen:      'Open Now',
+      playerPc:        '💻 PC',
+      lyricsDesc:      'Automatically finds and saves lyrics for your music. You can batch-process folders or search and download specific songs.',
+      lyricsMeta1:     '🎵 Find Lyrics',
+      lyricsMeta2:     '📄 Synced Lyrics (.lrc)',
+      lyricsOpen:      'Open Now',
+      lyricsPc:        '💻 PC',
+      linksDesc:       'A bookmark manager that organizes links with tags. Your data stays local in your browser.',
+      linksMeta1:      '🔖 Bookmarks',
+      linksMeta2:      '💾 Local Storage',
+      linksOpen:       'Open Now',
+      linksPc:         '💻 PC',
+      linksIphone:     '🍎 iPhone',
+      linksAndroid:    '🤖 Android',
+      explorerDesc:    'A file explorer that lets you move, copy, delete, and create subfolders across GitHub, local storage, and Google Drive.',
+      explorerMeta1:   '📁 File Manager',
+      explorerMeta2:   '☁️ Cloud Integration',
+      explorerOpen:    'Open Now',
+      explorerPc:      '💻 PC',
+      explorerIphone:  '🍎 iPhone',
+      explorerAndroid: '🤖 Android',
+      noiseDesc:       'A sound pad that assigns audio to buttons for instant playback. Supports polyphonic playback, recording, and rhythm sync.',
+      noiseMeta1:      '🔊 Sound Pad',
+      noiseMeta2:      '🎙️ Recording',
+      noiseOpen:       'Open Now',
+      noiseIphone:     '🍎 iPhone',
+      noiseAndroid:    '🤖 Android',
+      footerBack:      '← Back to MOMO Works',
+    },
+    zh: {
+      headerSub:       '便捷的网页工具合集',
+      catManagement:   'Management Tools',
+      catMusic:        'Music Tools',
+      catGadget:       'Gadget Tools',
+      playerDesc:      '可在浏览器中播放本地音乐文件的全功能播放器。支持NAS/文件夹的曲库管理，涵盖艺术家、专辑和播放列表。',
+      playerMeta1:     '🎧 音乐播放器',
+      playerMeta2:     '📁 本地文件',
+      playerOpen:      '立即使用',
+      playerPc:        '💻 PC',
+      lyricsDesc:      '自动为音乐文件查找并保存歌词。支持文件夹批量处理，也可以搜索并下载特定歌曲。',
+      lyricsMeta1:     '🎵 获取歌词',
+      lyricsMeta2:     '📄 同步歌词 (.lrc)',
+      lyricsOpen:      '立即使用',
+      lyricsPc:        '💻 PC',
+      linksDesc:       '用标签整理书签的管理工具。数据仅保存在您的浏览器中。',
+      linksMeta1:      '🔖 书签管理',
+      linksMeta2:      '💾 本地保存',
+      linksOpen:       '立即使用',
+      linksPc:         '💻 PC',
+      linksIphone:     '🍎 iPhone',
+      linksAndroid:    '🤖 Android',
+      explorerDesc:    '可在 GitHub、本地存储和 Google Drive 之间移动、复制、删除文件以及创建子文件夹的文件管理器。',
+      explorerMeta1:   '📁 文件管理',
+      explorerMeta2:   '☁️ 云端协作',
+      explorerOpen:    '立即使用',
+      explorerPc:      '💻 PC',
+      explorerIphone:  '🍎 iPhone',
+      explorerAndroid: '🤖 Android',
+      noiseDesc:       '可将音频分配到按钮并即时播放的音效板。支持多音同时播放、录音及节奏同步功能。',
+      noiseMeta1:      '🔊 音效板',
+      noiseMeta2:      '🎙️ 录音功能',
+      noiseOpen:       '立即使用',
+      noiseIphone:     '🍎 iPhone',
+      noiseAndroid:    '🤖 Android',
+      footerBack:      '← 返回 MOMO Works',
+    },
+  };
+
+  let catBase = 'ja';
+
+  let currentLang = (() => {
+    try {
+      const v = localStorage.getItem('momoLang');
+      return ['ja','en','zh','cat'].includes(v) ? v : 'ja';
+    } catch(e) { return 'ja'; }
+  })();
+
+  function catSpeak(key) {
+    const errorKeys = ['pwError','noRoomError','fullRoomError','kicked','createErrorEmpty','privateIdRequired'];
+    const calmKeys  = ['connecting','reconnecting','waitingGuest','waitingStart'];
+    let vocab;
+    if (catBase === 'en') {
+      if (errorKeys.includes(key))      vocab = ['HISS!','SPIT!','FSSST!'];
+      else if (calmKeys.includes(key))  vocab = ['purrrr...','mrrr...','prrr...'];
+      else                              vocab = ['MEOW','meow','mrrrow','mew','NYA!'];
+    } else if (catBase === 'zh') {
+      if (errorKeys.includes(key))      vocab = ['嘶！','哈！','嘶嘶！'];
+      else if (calmKeys.includes(key))  vocab = ['咕噜…','喵…','噜噜…'];
+      else                              vocab = ['喵','喵呜','咪','喵！'];
+    } else {
+      if (errorKeys.includes(key))      vocab = ['シャー！','フーッ！','シャシャシャ！'];
+      else if (calmKeys.includes(key))  vocab = ['ごろごろ…','にゃ…','ぐるぐる…'];
+      else                              vocab = ['にゃあ','にゃ','にゃーん','みゃお','ニャ！'];
+    }
+    return vocab[Math.floor(Math.random() * vocab.length)];
+  }
+
+  function t(key) {
+    if (currentLang === 'cat') return catSpeak(key);
+    return (I18N[currentLang] || I18N.ja)[key] || I18N.ja[key] || key;
+  }
+
+  function applyLang() {
+    document.getElementById('header-sub').textContent       = t('headerSub');
+    document.getElementById('cat-management').textContent   = t('catManagement');
+    document.getElementById('cat-music').textContent        = t('catMusic');
+    document.getElementById('cat-gadget').textContent       = t('catGadget');
+    document.getElementById('player-desc').textContent      = t('playerDesc');
+    document.getElementById('player-meta1').textContent     = t('playerMeta1');
+    document.getElementById('player-meta2').textContent     = t('playerMeta2');
+    document.getElementById('player-open').textContent      = t('playerOpen');
+    document.getElementById('player-pc').textContent        = t('playerPc');
+    document.getElementById('lyrics-desc').textContent      = t('lyricsDesc');
+    document.getElementById('lyrics-meta1').textContent     = t('lyricsMeta1');
+    document.getElementById('lyrics-meta2').textContent     = t('lyricsMeta2');
+    document.getElementById('lyrics-open').textContent      = t('lyricsOpen');
+    document.getElementById('lyrics-pc').textContent        = t('lyricsPc');
+    document.getElementById('links-desc').textContent       = t('linksDesc');
+    document.getElementById('links-meta1').textContent      = t('linksMeta1');
+    document.getElementById('links-meta2').textContent      = t('linksMeta2');
+    document.getElementById('links-open').textContent       = t('linksOpen');
+    document.getElementById('links-pc').textContent         = t('linksPc');
+    document.getElementById('links-iphone').textContent     = t('linksIphone');
+    document.getElementById('links-android').textContent    = t('linksAndroid');
+    document.getElementById('explorer-desc').textContent    = t('explorerDesc');
+    document.getElementById('explorer-meta1').textContent   = t('explorerMeta1');
+    document.getElementById('explorer-meta2').textContent   = t('explorerMeta2');
+    document.getElementById('explorer-open').textContent    = t('explorerOpen');
+    document.getElementById('explorer-pc').textContent      = t('explorerPc');
+    document.getElementById('explorer-iphone').textContent  = t('explorerIphone');
+    document.getElementById('explorer-android').textContent = t('explorerAndroid');
+    document.getElementById('noise-desc').textContent       = t('noiseDesc');
+    document.getElementById('noise-meta1').textContent      = t('noiseMeta1');
+    document.getElementById('noise-meta2').textContent      = t('noiseMeta2');
+    document.getElementById('noise-open').textContent       = t('noiseOpen');
+    document.getElementById('noise-iphone').textContent     = t('noiseIphone');
+    document.getElementById('noise-android').textContent    = t('noiseAndroid');
+    document.getElementById('footer-back').textContent      = t('footerBack');
+    const sel = document.getElementById('lang-select');
+    if (sel) sel.value = currentLang;
+    document.documentElement.lang = currentLang === 'zh' ? 'zh-Hans' : (currentLang === 'cat' ? catBase : currentLang);
+  }
+
+  function onLangChange(lang) {
+    if (lang === 'cat') catBase = currentLang === 'cat' ? catBase : currentLang;
+    currentLang = lang;
+    try { localStorage.setItem('momoLang', lang); } catch(e) {}
+    applyLang();
+  }
+
+  applyLang();
+</script>
+</body>
+</html>

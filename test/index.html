@@ -1,31 +1,53 @@
 <!DOCTYPE html>
 <html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>MOMO Sign</title>
+    <style>
+        body { margin: 0; background: #000; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; }
+        #canvas { display: none; position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; }
+        #ui { text-align: center; }
+        input { font-size: 20px; padding: 10px; width: 80%; }
+        button { font-size: 20px; padding: 10px 20px; margin-top: 10px; }
+    </style>
+</head>
 <body>
-    <input type="file" id="file" accept="audio/mp3">
-    <button id="btn">再生（ここをクリック）</button>
-    <audio id="audio" style="display:none;"></audio>
-
+    <div id="ui">
+        <input type="text" id="textInput" placeholder="表示する文字を入力">
+        <br><button onclick="start()">スタート</button>
+    </div>
+    <canvas id="canvas"></canvas>
     <script>
-        const audio = document.getElementById('audio');
-        const btn = document.getElementById('btn');
-        let ctx;
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let text = "";
 
-        document.getElementById('file').onchange = (e) => {
-            audio.src = URL.createObjectURL(e.target.files[0]);
-        };
+        function start() {
+            text = document.getElementById('textInput').value;
+            if(!text) return;
+            document.getElementById('ui').style.display = 'none';
+            canvas.style.display = 'block';
+            
+            // 音声指示の開始
+            const synth = window.speechSynthesis;
+            setInterval(() => {
+                synth.speak(new SpeechSynthesisUtterance("Right"));
+                setTimeout(() => synth.speak(new SpeechSynthesisUtterance("Left")), 1000);
+            }, 2000);
+            
+            draw();
+        }
 
-        btn.onclick = async () => {
-            if (!ctx) {
-                ctx = new (window.AudioContext || window.webkitAudioContext)();
-            }
-            if (ctx.state === 'suspended') await ctx.resume();
+        function draw() {
+            ctx.fillStyle = "black";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "white";
+            ctx.font = "100px Arial";
+            ctx.fillText(text, canvas.width/4, canvas.height/2);
+            requestAnimationFrame(draw);
+        }
 
-            // source -> destination に直結（ピッチ等の処理を一旦全て排除）
-            const source = ctx.createMediaElementSource(audio);
-            source.connect(ctx.destination);
-
-            audio.play().then(() => console.log("再生中")).catch(e => alert("エラー: " + e));
-        };
+        canvas.onclick = () => { location.reload(); };
     </script>
 </body>
 </html>

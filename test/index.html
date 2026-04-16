@@ -5,61 +5,65 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>MOMO Sign</title>
 <style>
-    body { background: #000; color: #fff; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
-    #ui { display: flex; flex-direction: column; align-items: center; gap: 20px; z-index: 10; }
-    #canvas { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; display: none; cursor: pointer; }
+    body { background: #000; color: #fff; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; font-family: sans-serif; }
+    #ui { display: flex; flex-direction: column; align-items: center; gap: 15px; }
+    #canvas { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; display: none; }
 </style>
 </head>
 <body>
     <div id="ui">
         <input type="text" id="textInput" placeholder="文字を入力">
+        <select id="modeSelect">
+            <option value="gyro">ジャイロモード（感度調整）</option>
+            <option value="manual">手動モード（左右交互）</option>
+        </select>
         <button id="startBtn">スタート</button>
     </div>
     <canvas id="canvas"></canvas>
     <script>
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
-        const startBtn = document.getElementById('startBtn');
-        let text = "";
-        let isRunning = false;
+        let mode = 'gyro', text = "", isRunning = false;
+        let lastX = 0, currentPos = 0;
 
-        async function requestPermission() {
-            if (typeof DeviceMotionEvent.requestPermission === 'function') {
-                const response = await DeviceMotionEvent.requestPermission();
-                return response === 'granted';
-            }
-            return true;
-        }
-
-        startBtn.onclick = async () => {
-            if (await requestPermission()) {
-                text = document.getElementById('textInput').value;
-                document.getElementById('ui').style.display = 'none';
-                canvas.style.display = 'block';
-                isRunning = true;
-                window.addEventListener('devicemotion', handleMotion);
-            } else {
-                alert("センサー権限が必要です");
-            }
+        document.getElementById('startBtn').onclick = async () => {
+            text = document.getElementById('textInput').value;
+            mode = document.getElementById('modeSelect').value;
+            document.getElementById('ui').style.display = 'none';
+            canvas.style.display = 'block';
+            isRunning = true;
+            if(mode === 'gyro') window.addEventListener('devicemotion', handleGyro);
+            else startManualMode();
         };
 
-        function handleMotion(event) {
-            if (!isRunning) return;
-            const x = event.accelerationIncludingGravity.x;
-            // 振った時の加速度を判定して描画位置を動的に計算
-            render(x);
+        // ジャイロ：ローパスフィルタで手ブレを軽減
+        function handleGyro(event) {
+            let x = event.accelerationIncludingGravity.x;
+            // 【感度調整】移動平均フィルタでプルプルを抑制
+            currentPos = (currentPos * 0.8) + (x * 0.2); 
+            render(currentPos * 15);
+        }
+
+        // 手動：声に合わせて左右に動かす
+        async function startManualMode() {
+            const synth = window.speechSynthesis;
+            while(isRunning) {
+                render(-200); // 左
+                synth.speak(new SpeechSynthesisUtterance("Left"));
+                await new Promise(r => setTimeout(r, 1000));
+                render(200); // 右
+                synth.speak(new SpeechSynthesisUtterance("Right"));
+                await new Promise(r => setTimeout(r, 1000));
+            }
         }
 
         function render(offset) {
-            ctx.fillStyle = "black";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = "white";
-            ctx.font = "bold 150px Arial";
-            // 加速度に合わせて文字を左右にオフセットして描画
-            ctx.fillText(text, (canvas.width / 2) + (offset * 10), canvas.height / 2);
+            ctx.fillStyle = "black"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "white"; ctx.font = "bold 150px Arial";
+            ctx.fillText(text, (canvas.width/2 - 100) + offset, canvas.height/2);
         }
 
-        canvas.onclick = () => { location.reload(); };
+        canvas.onclick = () => location.reload();
     </script>
 </body>
 </html>

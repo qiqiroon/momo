@@ -1,0 +1,23 @@
+// versions.js - MOMO Noise Version Registry
+'use strict';
+
+const VERSIONS = {
+  app: '1.06',
+  modules: {
+    app:   '0.07',
+    audio: '0.03',
+    drive: '0.03',
+    metro: '0.02',
+    style: '0.02',
+    html:  '0.03',
+  },
+  history: [
+    { app: '1.00', modules: { app:'0.01', audio:'0.01', drive:'0.01', metro:'0.01', style:'0.01', html:'0.01' }, note: '初版' },
+    { app: '1.01', modules: { app:'0.02', audio:'0.02', drive:'0.02', metro:'0.01', style:'0.01', html:'0.01' }, note: 'Drive保存修正、iOS録音対応' },
+    { app: '1.02', modules: { app:'0.03', audio:'0.02', drive:'0.02', metro:'0.01', style:'0.01', html:'0.01' }, note: 'iOS再生・モード切替修正' },
+    { app: '1.03', modules: { app:'0.04', audio:'0.03', drive:'0.03', metro:'0.02', style:'0.02', html:'0.03' }, note: '全面刷新：ピッチステップ化・同期修正・番号固定WAV' },
+    { app: '1.04', modules: { app:'0.05', audio:'0.03', drive:'0.03', metro:'0.02', style:'0.02', html:'0.03' }, note: 'バージョン表示をTAP前スプラッシュに移動' },
+    { app: '1.05', modules: { app:'0.06', audio:'0.03', drive:'0.03', metro:'0.02', style:'0.02', html:'0.03' }, note: 'versions.js導入・バージョン管理一元化' },
+    { app: '1.06', modules: { app:'0.07', audio:'0.03', drive:'0.03', metro:'0.02', style:'0.02', html:'0.03' }, note: 'I18NのverキーをVERSIONS.appに統一・矛盾解消' },
+  ]
+};

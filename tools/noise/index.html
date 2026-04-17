@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>MOMO Noise</title>
+  <!-- index.html v0.03 -->
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-46 -50 92 80'%3E%3Crect x='-46' y='-50' width='92' height='80' rx='8' fill='%23000000'/%3E%3Cg transform='rotate(-12,-12,8.3)'%3E%3Cpath d='M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cg transform='rotate(12,12,8.3)'%3E%3Cpath d='M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cellipse cx='0' cy='1.3' rx='34' ry='26' fill='%23c2410c'/%3E%3Cline x1='-14' y1='1.00' x2='-33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='6.0' x2='-33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='10.59' x2='-29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.68' y1='-2.28' x2='-38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.44' y1='6.0' x2='-40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-29.58' y1='14.26' x2='-37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='1.00' x2='33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='6.0' x2='33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='10.59' x2='29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.68' y1='-2.28' x2='38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.44' y1='6.0' x2='40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='29.58' y1='14.26' x2='37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cellipse cx='-12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='-12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Cellipse cx='12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Ccircle cx='-10.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Ccircle cx='13.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Cpath d='M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z' fill='%23000'/%3E%3Cline x1='0' y1='11.3' x2='0' y2='13.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q-5,17.3 -8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q5,17.3 8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+
+<!-- Splash -->
+<div id="splash">
+  <svg class="splash-cat" xmlns="http://www.w3.org/2000/svg" viewBox="-46 -50 92 80">
+    <g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/></g>
+    <g transform="rotate(12,12,8.3)"><path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/></g>
+    <ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/>
+    <line x1="-14" y1="1" x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="-14" y1="6" x2="-33.44" y2="6" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="-33.68" y1="-2.28" x2="-38" y2="-3" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="-33.44" y1="6" x2="-40" y2="6" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="-29.58" y1="14.26" x2="-37" y2="16" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="14" y1="1" x2="33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="14" y1="6" x2="33.44" y2="6" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="14" y1="10.59" x2="29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="33.68" y1="-2.28" x2="38" y2="-3" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="33.44" y1="6" x2="40" y2="6" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="29.58" y1="14.26" x2="37" y2="16" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+    <ellipse cx="-12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+    <ellipse cx="12"  cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+    <ellipse cx="-12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+    <ellipse cx="12"  cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+    <circle cx="-10.5" cy="-5.2" r="1.0" fill="#c2410c"/>
+    <circle cx="13.5"  cy="-5.2" r="1.0" fill="#c2410c"/>
+    <path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/>
+    <line x1="0" y1="11.3" x2="0" y2="13.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M0,13.3 Q5,17.3 8,15.3"  fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+  </svg>
+  <h1>MOMO <span>Noise</span></h1>
+  <div id="version-panel" class="splash-ver"></div>
+  <div class="tap-hint">TAP TO START</div>
+</div>
+
+<!-- Main -->
+<div id="main" style="display:none">
+
+  <header>
+    <div class="header-top">
+      <svg class="header-cat" xmlns="http://www.w3.org/2000/svg" viewBox="-46 -50 92 80">
+        <g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/></g>
+        <g transform="rotate(12,12,8.3)"><path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/></g>
+        <ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/>
+        <line x1="-14" y1="1" x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="-14" y1="6" x2="-33.44" y2="6" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="14" y1="1" x2="33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="14" y1="6" x2="33.44" y2="6" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="14" y1="10.59" x2="29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+        <ellipse cx="-12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+        <ellipse cx="12"  cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+        <ellipse cx="-12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+        <ellipse cx="12"  cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+        <circle cx="-10.5" cy="-5.2" r="1.0" fill="#c2410c"/>
+        <circle cx="13.5"  cy="-5.2" r="1.0" fill="#c2410c"/>
+        <path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/>
+        <line x1="0" y1="11.3" x2="0" y2="13.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M0,13.3 Q5,17.3 8,15.3"  fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+      </svg>
+      <div>
+        <div class="header-title">MOMO <span>Noise</span></div>
+        <div class="header-sub" id="ver-display"></div>
+      </div>
+      <div id="lang-switcher">
+        <select id="lang-select" onchange="onLangChange(this.value)">
+          <option value="ja">日本語</option>
+          <option value="en">EN</option>
+          <option value="zh">中文</option>
+          <option value="cat">CAT</option>
+        </select>
+      </div>
+    </div>
+  </header>
+
+  <!-- Controls bar -->
+  <div class="controls-bar">
+    <!-- Volume -->
+    <div class="ctrl-group">
+      <label id="lbl-vol">音量</label>
+      <input type="range" id="ctrl-vol" min="0" max="1" step="0.05" value="1">
+    </div>
+    <!-- Pitch (step buttons) -->
+    <div class="ctrl-group">
+      <label id="lbl-pitch">ピッチ</label>
+      <button class="noise-btn btn-step" id="btn-pitch-down">−</button>
+      <span id="pitch-val" class="ctrl-val" style="min-width:32px;text-align:center">+0</span>
+      <button class="noise-btn btn-step" id="btn-pitch-up">＋</button>
+      <button class="noise-btn btn-step" id="btn-pitch-reset">R</button>
+    </div>
+    <!-- Metronome -->
+    <div class="ctrl-group">
+      <button class="noise-btn" id="btn-metro">メトロノーム</button>
+      <div id="beat-flash"></div>
+      <label id="lbl-bpm">BPM</label>
+      <input type="range" id="ctrl-bpm" min="20" max="300" step="1" value="120" style="width:64px">
+      <span class="ctrl-val" id="bpm-val">120</span>
+    </div>
+    <button class="noise-btn" id="btn-sync">シンクOFF</button>
+    <!-- Trim -->
+    <div class="ctrl-group">
+      <label id="lbl-trim">無音カット</label>
+      <input type="range" id="ctrl-trim" min="-60" max="-10" step="1" value="-40" style="width:56px">
+      <span class="ctrl-val" id="trim-val">-40dB</span>
+    </div>
+    <!-- Mode -->
+    <div class="mode-btns">
+      <button class="noise-btn active" id="btn-mode-edit">編集</button>
+      <button class="noise-btn" id="btn-mode-play">再生</button>
+    </div>
+  </div>
+
+  <!-- Edit panel -->
+  <div id="edit-panel"><div id="edit-list"></div></div>
+
+  <!-- Play panel -->
+  <div id="play-panel" style="display:none"><div id="play-pad"></div></div>
+
+  <!-- Save bar -->
+  <div class="save-bar">
+    <button class="noise-btn" id="btn-drive">Drive接続</button>
+    <button class="noise-btn" id="btn-drive-save">Driveに保存</button>
+    <button class="noise-btn" id="btn-drive-load">Driveから読み込み</button>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script src="audio.js"></script>
+<script src="metro.js"></script>
+<script src="drive.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

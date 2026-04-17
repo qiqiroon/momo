@@ -1,0 +1,908 @@
+// app.js - MOMO Noise Main Controller v0.15
+'use strict';
+
+// ── I18N ──────────────────────────────────────────────────────────────────
+const I18N = {
+  ja: {
+    editMode:      '編集',
+    playMode:      '再生',
+    masterVol:     '音量',
+    masterPitch:   'ピッチ',
+    pitchReset:    'リセット',
+    metro:         'メトロノーム',
+    bpm:           'BPM',
+    btnName:       'ボタン名',
+    record:        '● 録音',
+    recStatus:     '録音中...',
+    recording:     '■ 停止',
+    preview:       '試聴',
+    fileLoad:      'ファイル',
+    save:          '保存',
+    erase:         '消去',
+    moveUp:        '↑',
+    moveDown:      '↓',
+    noSound:       '音声なし',
+    driveConnect:  'Drive接続',
+    driveDiscon:   '切断',
+    driveSave:     'Driveに保存',
+    driveLoad:     'Driveから読み込み',
+    driveNotConn:  'Drive未接続です。接続しますか？',
+    confirmErase:  'この音声を消去しますか？',
+    syncOn:        'シンクON',
+    syncOff:       'シンクOFF',
+    trimLabel:     '無音カット',
+    noAudio:       '音声が設定されたボタンがありません',
+    saved:         '保存完了',
+    saveErr:       '保存失敗',
+    driveOk:       'Drive接続完了',
+    driveErr:      'Drive接続失敗',
+    driveLoaded:   'Driveから読み込み完了',
+    saving:        '保存中',
+    loading:       '読み込み中',
+    micDenied:     'マイクへのアクセスが拒否されています。\n設定 → Safari → マイク → 許可 に変更してください。',
+    micError:      'マイクエラー: ',
+    muteWarn:      '音が出ない場合はiPhoneのサイドスイッチ（無音スイッチ）を確認してください',
+  },
+  en: {
+    editMode:      'Edit',
+    playMode:      'Play',
+    masterVol:     'Volume',
+    masterPitch:   'Pitch',
+    pitchReset:    'Reset',
+    metro:         'Metronome',
+    bpm:           'BPM',
+    btnName:       'Name',
+    record:        '● Rec',
+    recStatus:     'Recording...',
+    recording:     '■ Stop',
+    preview:       'Preview',
+    fileLoad:      'File',
+    save:          'Save',
+    erase:         'Erase',
+    moveUp:        '↑',
+    moveDown:      '↓',
+    noSound:       'No sound',
+    driveConnect:  'Connect Drive',
+    driveDiscon:   'Disconnect',
+    driveSave:     'Save to Drive',
+    driveLoad:     'Load from Drive',
+    driveNotConn:  'Drive not connected. Connect now?',
+    confirmErase:  'Erase this sound?',
+    syncOn:        'Sync ON',
+    syncOff:       'Sync OFF',
+    trimLabel:     'Trim silence',
+    noAudio:       'No buttons have audio assigned',
+    saved:         'Saved',
+    saveErr:       'Save failed',
+    driveOk:       'Drive connected',
+    driveErr:      'Drive connection failed',
+    driveLoaded:   'Loaded from Drive',
+    saving:        'Saving',
+    loading:       'Loading',
+    micDenied:     'Microphone access denied.\nSettings → Safari → Microphone → Allow.',
+    micError:      'Mic error: ',
+    muteWarn:      'No sound? Check the silent switch on the side of your iPhone.',
+  },
+  zh: {
+    editMode:      '编辑',
+    playMode:      '播放',
+    masterVol:     '音量',
+    masterPitch:   '音调',
+    pitchReset:    '重置',
+    metro:         '节拍器',
+    bpm:           'BPM',
+    btnName:       '名称',
+    record:        '● 录音',
+    recStatus:     '录音中...',
+    recording:     '■ 停止',
+    preview:       '试听',
+    fileLoad:      '文件',
+    save:          '保存',
+    erase:         '清除',
+    moveUp:        '↑',
+    moveDown:      '↓',
+    noSound:       '无音频',
+    driveConnect:  '连接Drive',
+    driveDiscon:   '断开',
+    driveSave:     '保存到Drive',
+    driveLoad:     '从Drive加载',
+    driveNotConn:  'Drive未连接。是否立即连接？',
+    confirmErase:  '确认清除此音频？',
+    syncOn:        '同步开',
+    syncOff:       '同步关',
+    trimLabel:     '静音裁切',
+    noAudio:       '没有已分配音频的按钮',
+    saved:         '已保存',
+    saveErr:       '保存失败',
+    driveOk:       'Drive已连接',
+    driveErr:      'Drive连接失败',
+    driveLoaded:   '已从Drive加载',
+    saving:        '保存中',
+    loading:       '加载中',
+    micDenied:     '麦克风访问被拒绝。\n请前往设置 → Safari → 麦克风 → 允许。',
+    micError:      '麦克风错误: ',
+    muteWarn:      '没有声音？请检查iPhone侧面的静音开关。',
+  }
+};
+
+// ── CAT language ──────────────────────────────────────────────────────────
+let catBase = 'ja';
+const CATVOC = {
+  err:  { ja:['シャー！','フーッ！'], en:['HISS!','SPIT!'], zh:['嘶！','哈！'] },
+  calm: { ja:['ごろごろ…','にゃ…'],  en:['purrrr...','mrrr...'], zh:['咕噜…','喵…'] },
+  norm: { ja:['にゃあ','にゃーん','ニャ！'], en:['MEOW','meow','NYA!'], zh:['喵','喵呜','咪'] },
+};
+const CAT_ERR  = ['saveErr','driveErr','micDenied','micError'];
+const CAT_CALM = ['driveConnect','recording','saving','loading'];
+function catSpeak(key) {
+  const b = ['en','zh'].includes(catBase) ? catBase : 'ja';
+  const v = CAT_ERR.includes(key) ? CATVOC.err[b] : CAT_CALM.includes(key) ? CATVOC.calm[b] : CATVOC.norm[b];
+  return v[Math.floor(Math.random() * v.length)];
+}
+
+let currentLang = (() => {
+  try { const v = localStorage.getItem('momoLang'); return ['ja','en','zh','cat'].includes(v) ? v : 'ja'; }
+  catch(e) { return 'ja'; }
+})();
+
+function t(key) {
+  if (currentLang === 'cat') return catSpeak(key);
+  return (I18N[currentLang] || I18N.ja)[key] || I18N.ja[key] || key;
+}
+function onLangChange(val) {
+  if (val === 'cat') catBase = currentLang === 'cat' ? catBase : currentLang;
+  currentLang = val;
+  try { localStorage.setItem('momoLang', val); } catch(e) {}
+  applyLang();
+}
+function applyLang() {
+  const sel = document.getElementById('lang-select');
+  if (sel) sel.value = currentLang;
+  document.documentElement.lang = currentLang === 'zh' ? 'zh-Hans' : currentLang === 'cat' ? catBase : currentLang;
+  renderEditList();
+  renderControls();
+}
+
+// ── State ─────────────────────────────────────────────────────────────────
+const MAX_BTN = 30;
+let buttons = Array.from({ length: MAX_BTN }, (_, i) => ({
+  id: i, name: '', buffer: null, fileName: null, volume: 1.0, pitch: 1.0
+}));
+let mode        = 'edit';
+let masterVol   = 1.0;
+let masterPitch = 1.0;
+let pitchSemitones = 0;   // -12 to +12 semitones display value
+let metroOn     = false;
+let syncOn      = false;
+let bpm         = 120;
+let trimDb      = -40;
+
+const activeSources = new Map();
+
+// ── IndexedDB ─────────────────────────────────────────────────────────────
+let db = null;
+function openDb() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open('momonoise', 1);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains('buttons'))  d.createObjectStore('buttons',  { keyPath: 'id' });
+      if (!d.objectStoreNames.contains('settings')) d.createObjectStore('settings', { keyPath: 'key' });
+    };
+    req.onsuccess = e => { db = e.target.result; res(); };
+    req.onerror   = e => rej(e.target.error);
+  });
+}
+
+async function saveToDb() {
+  if (!db) return;
+  const tx = db.transaction(['buttons','settings'], 'readwrite');
+  const bs = tx.objectStore('buttons');
+  for (const btn of buttons) {
+    let bufData = null;
+    if (btn.buffer) {
+      bufData = [];
+      for (let c = 0; c < btn.buffer.numberOfChannels; c++)
+        bufData.push(Array.from(btn.buffer.getChannelData(c)));
+    }
+    bs.put({ id: btn.id, name: btn.name, volume: btn.volume, pitch: btn.pitch,
+             fileName: btn.fileName, bufData, sampleRate: btn.buffer?.sampleRate });
+  }
+  tx.objectStore('settings').put({
+    key: 'global', masterVol, masterPitch, pitchSemitones, bpm, trimDb, syncOn
+  });
+}
+
+async function loadFromDb() {
+  if (!db) return;
+  return new Promise(res => {
+    const tx  = db.transaction(['buttons','settings'], 'readonly');
+    const req = tx.objectStore('buttons').getAll();
+    req.onsuccess = e => {
+      for (const row of e.target.result) {
+        const btn = buttons[row.id];
+        if (!btn) continue;
+        btn.name     = row.name     || '';
+        btn.volume   = row.volume   ?? 1.0;
+        btn.pitch    = row.pitch    ?? 1.0;
+        btn.fileName = row.fileName || null;
+        if (row.bufData && row.sampleRate) {
+          try {
+            AudioEngine.init();
+            const actx = AudioEngine.getCtx();
+            const buf  = actx.createBuffer(row.bufData.length, row.bufData[0].length, row.sampleRate);
+            for (let c = 0; c < row.bufData.length; c++)
+              buf.getChannelData(c).set(new Float32Array(row.bufData[c]));
+            btn.buffer = buf;
+          } catch(e) { console.warn('restore buf', row.id, e); }
+        }
+      }
+      const sr = tx.objectStore('settings').get('global');
+      sr.onsuccess = f => {
+        const s = f.target.result;
+        if (s) {
+          masterVol      = s.masterVol      ?? 1.0;
+          masterPitch    = s.masterPitch    ?? 1.0;
+          pitchSemitones = s.pitchSemitones ?? 0;
+          bpm            = s.bpm            ?? 120;
+          trimDb         = s.trimDb         ?? -40;
+          syncOn         = s.syncOn         ?? false;
+        }
+        res();
+      };
+      sr.onerror = () => res();
+    };
+    req.onerror = () => res();
+  });
+}
+
+// ── Drive save / load (manual only) ───────────────────────────────────────
+async function ensureDriveConnected() {
+  if (Drive.isSignedIn()) return true;
+  const ok = confirm(t('driveNotConn'));
+  if (!ok) return false;
+  try {
+    showToast(t('driveConnect') + '…', 30000);
+    await Drive.signIn();
+    renderControls();
+    return true;
+  } catch(e) {
+    showToast(t('driveErr') + ': ' + e.message, 5000);
+    return false;
+  }
+}
+
+async function saveToDrive() {
+  if (!await ensureDriveConnected()) return;
+  const targets = buttons.filter(b => b.buffer);
+  if (targets.length === 0) { showToast(t('saved')); return; }
+
+  showToast('0 / ' + targets.length + ' ' + t('saving') + '…', 120000);
+  try {
+    // 設定JSON
+    const meta = buttons.map(b => ({
+      id: b.id, name: b.name, volume: b.volume, pitch: b.pitch,
+      fileName: b.fileName, hasBuffer: !!b.buffer
+    }));
+    await Drive.saveJson({ meta, masterVol, masterPitch, pitchSemitones, bpm, trimDb, syncOn });
+    // 全WAV (ボタン番号固定)
+    let n = 0;
+    for (const btn of targets) {
+      const wav = AudioEngine.bufferToWav(btn.buffer);
+      await Drive.uploadWav(btn.id, wav);
+      n++;
+      showToast(n + ' / ' + targets.length + ' ' + t('saving') + '…', 120000);
+    }
+    showToast(t('saved'));
+  } catch(e) {
+    console.error(e);
+    showToast(t('saveErr') + ': ' + e.message, 6000);
+  }
+}
+
+async function loadFromDrive() {
+  if (!await ensureDriveConnected()) return;
+  showToast(t('loading') + '…', 120000);
+  try {
+    const data = await Drive.loadJson();
+    if (!data) { showToast('No data in Drive'); return; }
+
+    // 設定
+    if (data.meta) {
+      for (const m of data.meta) {
+        const btn = buttons[m.id];
+        if (!btn) continue;
+        btn.name     = m.name     || '';
+        btn.volume   = m.volume   ?? 1.0;
+        btn.pitch    = m.pitch    ?? 1.0;
+        btn.fileName = m.fileName || null;
+        btn.buffer   = null; // clear before reload
+      }
+    }
+    masterVol      = data.masterVol      ?? masterVol;
+    masterPitch    = data.masterPitch    ?? masterPitch;
+    pitchSemitones = data.pitchSemitones ?? pitchSemitones;
+    bpm            = data.bpm            ?? bpm;
+    trimDb         = data.trimDb         ?? trimDb;
+    syncOn         = data.syncOn         ?? syncOn;
+
+    // WAV復元 (ボタン番号固定)
+    if (data.meta) {
+      let n = 0, total = data.meta.filter(m => m.hasBuffer).length;
+      for (const m of data.meta) {
+        if (!m.hasBuffer) continue;
+        try {
+          const ab = await Drive.downloadWav(m.id);
+          if (ab) {
+            AudioEngine.init();
+            const actx = AudioEngine.getCtx();
+            const buf  = await new Promise((res, rej) => actx.decodeAudioData(ab.slice(0), res, rej));
+            buttons[m.id].buffer = buf;
+          }
+        } catch(e) { console.warn('WAV restore', m.id, e); }
+        n++;
+        showToast(n + ' / ' + total + ' ' + t('loading') + '…', 120000);
+      }
+    }
+    await saveToDb();
+    AudioEngine.setMasterVolume(masterVol);
+    AudioEngine.setMasterPitch(masterPitch);
+    Metro.setBpm(bpm);
+    renderEditList();
+    renderControls();
+    showToast(t('driveLoaded'));
+  } catch(e) {
+    console.error(e);
+    showToast(t('saveErr') + ': ' + e.message, 6000);
+  }
+}
+
+// ── Toast ──────────────────────────────────────────────────────────────────
+let toastTimer = null;
+function showToast(msg, ms = 2500) {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), ms);
+}
+
+// ── iOS mute warning ───────────────────────────────────────────────────────
+let muteShown = false;
+function showMuteWarning() {
+  if (muteShown || !/iPad|iPhone|iPod/.test(navigator.userAgent)) return;
+  muteShown = true;
+  showToast(t('muteWarn'), 8000);
+}
+
+// ── Debug panel ────────────────────────────────────────────────────────────
+const DBG_MAX = 30; // max log lines
+let dbgLines = [];
+let dbgEl = null;
+
+function dbgInit() {
+  // Create floating debug panel
+  dbgEl = document.createElement('div');
+  dbgEl.id = 'dbg-panel';
+  dbgEl.style.cssText = [
+    'position:fixed', 'bottom:60px', 'left:0', 'right:0', 'max-height:40vh',
+    'overflow-y:auto', 'background:rgba(0,0,0,0.92)', 'color:#0f0',
+    'font-family:monospace', 'font-size:10px', 'padding:6px 8px',
+    'z-index:9998', 'border-top:1px solid #0f0', 'display:none'
+  ].join(';');
+  document.body.appendChild(dbgEl);
+
+  // Toggle button
+  const btn = document.createElement('button');
+  btn.textContent = 'DBG';
+  btn.style.cssText = [
+    'position:fixed', 'bottom:8px', 'right:8px', 'z-index:9999',
+    'background:#001100', 'color:#0f0', 'border:1px solid #0f0',
+    'font-size:10px', 'padding:3px 7px', 'border-radius:4px', 'cursor:pointer'
+  ].join(';');
+  btn.addEventListener('click', () => {
+    dbgEl.style.display = dbgEl.style.display === 'none' ? '' : 'none';
+  });
+  document.body.appendChild(btn);
+
+  // Clear button
+  const clr = document.createElement('button');
+  clr.textContent = 'CLR';
+  clr.style.cssText = [
+    'position:fixed', 'bottom:8px', 'right:52px', 'z-index:9999',
+    'background:#001100', 'color:#0f0', 'border:1px solid #0f0',
+    'font-size:10px', 'padding:3px 7px', 'border-radius:4px', 'cursor:pointer'
+  ].join(';');
+  clr.addEventListener('click', () => { dbgLines = []; dbgRender(); });
+  document.body.appendChild(clr);
+}
+
+function dbg(label, data) {
+  const now = new Date();
+  const ts  = now.toTimeString().slice(0,8) + '.' + String(now.getMilliseconds()).padStart(3,'0');
+  const ctx = AudioEngine.getCtx();
+  const actxState = ctx ? ctx.state : 'none';
+  const line = `${ts} [${actxState}] ${label}${data !== undefined ? ': ' + JSON.stringify(data) : ''}`;
+  dbgLines.push(line);
+  if (dbgLines.length > DBG_MAX) dbgLines.shift();
+  dbgRender();
+  console.log('[DBG]', line);
+}
+
+function dbgRender() {
+  if (!dbgEl) return;
+  dbgEl.innerHTML = dbgLines.map(l => `<div>${l}</div>`).join('');
+  dbgEl.scrollTop = dbgEl.scrollHeight;
+}
+
+function dbgClassList(el, label) {
+  dbg(label, Array.from(el.classList).join(' ') || '(empty)');
+}
+
+// ── Microphone permission ─────────────────────────────────────────────────
+async function checkMicPermission() {
+  if (navigator.permissions) {
+    try {
+      const r = await navigator.permissions.query({ name: 'microphone' });
+      if (r.state === 'denied') { alert(t('micDenied')); return false; }
+    } catch(e) {}
+  }
+  return true;
+}
+
+// ── Metronome ──────────────────────────────────────────────────────────────
+function toggleMetro() {
+  metroOn = !metroOn;
+  if (metroOn) { Metro.setBpm(bpm); Metro.start(onBeat); }
+  else { Metro.stop(); document.getElementById('beat-flash')?.classList.remove('active'); }
+  renderControls();
+}
+function onBeat() {
+  const el = document.getElementById('beat-flash');
+  if (!el) return;
+  el.classList.add('active');
+  setTimeout(() => el.classList.remove('active'), 80);
+}
+
+// ── Play ──────────────────────────────────────────────────────────────────
+// Track last scheduled startAt per button to prevent double-play at same beat
+const lastScheduledAt = new Map();
+
+async function triggerPlay(btnId) {
+  const btn = buttons[btnId];
+  if (!btn?.buffer) return;
+
+  await AudioEngine.resume();
+  showMuteWarning();
+
+  const now    = AudioEngine.getCurrentTime();
+  let startAt  = now;
+  let beatIdx  = -1;
+
+  if (metroOn && syncOn) {
+    const snap = Metro.snapToBeat(now);
+    startAt  = snap.time;
+    beatIdx  = snap.beatIndex;
+    // Block if same beat index already scheduled for this button
+    const lastIdx = lastScheduledAt.get(btnId) ?? -999;
+    if (beatIdx !== -1 && beatIdx === lastIdx) {
+      dbg('double-play blocked', { btnId, beatIdx });
+      return;
+    }
+    lastScheduledAt.set(btnId, beatIdx);
+    dbg('play scheduled', { btnId, beatIdx, startAt: startAt.toFixed(3), delay: (startAt-now).toFixed(3) });
+  }
+
+  const stopFn = AudioEngine.play(btn.buffer, {
+    volume: btn.volume, pitch: btn.pitch, startAt,
+    onEnded: () => {
+      const srcs = activeSources.get(btnId);
+      if (!srcs) return;
+      const i = srcs.indexOf(stopFn);
+      if (i !== -1) srcs.splice(i, 1);
+      if (srcs.length === 0) { activeSources.delete(btnId); updatePadBtn(btnId, false); }
+    }
+  });
+
+  if (!activeSources.has(btnId)) activeSources.set(btnId, []);
+  activeSources.get(btnId).push(stopFn);
+  updatePadBtn(btnId, true);
+}
+
+function updatePadBtn(btnId, active) {
+  document.querySelector(`[data-play-id="${btnId}"]`)?.classList.toggle('active', active);
+}
+
+// ── Edit: record ──────────────────────────────────────────────────────────
+let recBtnId = null;
+
+async function startRecord(btnId) {
+  if (recBtnId !== null) return;
+  dbg('startRecord click', btnId);
+  if (!await checkMicPermission()) return;
+  try {
+    await AudioEngine.startRecording();
+    recBtnId = btnId;
+    dbg('recording started, recBtnId', recBtnId);
+    renderEditRow(btnId);
+    // Log button classes after render
+    const row = document.querySelector(`[data-edit-row="${btnId}"]`);
+    if (row) {
+      dbgClassList(row.querySelector('.rec-btn'), 'rec-btn after start');
+      dbg('rec-btn text', row.querySelector('.rec-btn').textContent);
+    }
+  } catch(e) {
+    dbg('startRecord ERROR', e.name + ': ' + e.message);
+    if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') alert(t('micDenied'));
+    else showToast(t('micError') + e.message, 5000);
+    recBtnId = null;
+    renderEditRow(btnId);
+  }
+}
+
+async function stopRecord(btnId) {
+  dbg('stopRecord click', btnId);
+  if (recBtnId !== btnId) { dbg('stopRecord ignored, recBtnId', recBtnId); return; }
+  try {
+    const buf = await AudioEngine.stopRecording();
+    recBtnId = null;
+    if (buf) { buttons[btnId].buffer = buf; buttons[btnId].fileName = null; }
+    dbg('recording stopped, buf', buf ? buf.duration.toFixed(2) + 's' : 'null');
+  } catch(e) {
+    dbg('stopRecord ERROR', e.name + ': ' + e.message);
+    recBtnId = null;
+    showToast(t('micError') + e.message, 5000);
+  }
+  renderEditRow(btnId);
+  const row2 = document.querySelector(`[data-edit-row="${btnId}"]`);
+  if (row2) {
+    dbgClassList(row2.querySelector('.rec-btn'), 'rec-btn after stop');
+    dbg('rec-btn text', row2.querySelector('.rec-btn').textContent);
+  }
+  saveToDb();
+}
+
+async function loadFile(btnId) {
+  return new Promise(res => {
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = '.mp3,.wav,.m4a,.aac,.ogg,.flac,.aiff';
+    inp.onchange = async () => {
+      const f = inp.files[0];
+      if (!f) { res(); return; }
+      try {
+        AudioEngine.init();
+        const buf = await AudioEngine.decodeFile(await f.arrayBuffer());
+        buttons[btnId].buffer   = buf;
+        buttons[btnId].fileName = f.name;
+        renderEditRow(btnId);
+        saveToDb();
+      } catch(e) { showToast('⚠ ' + e.message, 5000); }
+      res();
+    };
+    inp.click();
+  });
+}
+
+async function previewButton(btnId) {
+  const btn = buttons[btnId];
+  if (!btn?.buffer) return;
+  AudioEngine.init();
+  await AudioEngine.resume();
+  showMuteWarning();
+  AudioEngine.play(btn.buffer, { volume: btn.volume, pitch: btn.pitch });
+}
+
+function eraseButton(btnId) {
+  if (!confirm(t('confirmErase'))) return;
+  buttons[btnId].buffer = null; buttons[btnId].fileName = null; buttons[btnId].name = '';
+  renderEditRow(btnId); saveToDb();
+}
+
+function saveWavLocal(btn) {
+  if (!btn.buffer) return;
+  const url = URL.createObjectURL(AudioEngine.bufferToWav(btn.buffer));
+  const a   = Object.assign(document.createElement('a'), {
+    href: url, download: (btn.name || 'noise_' + btn.id) + '.wav'
+  });
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function moveButton(id, dir) {
+  const t = id + dir;
+  if (t < 0 || t >= MAX_BTN) return;
+  [buttons[id], buttons[t]] = [buttons[t], buttons[id]];
+  buttons[id].id = id; buttons[t].id = t;
+  renderEditList(); saveToDb();
+}
+
+// ── Pitch control ─────────────────────────────────────────────────────────
+function changePitch(delta) {
+  pitchSemitones = Math.max(-12, Math.min(12, pitchSemitones + delta));
+  masterPitch = Math.pow(2, pitchSemitones / 12);
+  AudioEngine.setMasterPitch(masterPitch);
+  updatePitchDisplay();
+  saveToDb();
+}
+function resetPitch() {
+  pitchSemitones = 0; masterPitch = 1.0;
+  AudioEngine.setMasterPitch(1.0);
+  updatePitchDisplay();
+  saveToDb();
+}
+function updatePitchDisplay() {
+  const el = document.getElementById('pitch-val');
+  if (el) el.textContent = (pitchSemitones >= 0 ? '+' : '') + pitchSemitones;
+}
+
+// ── Render ────────────────────────────────────────────────────────────────
+function renderControls() {
+  const set = (id, val) => { const e = document.getElementById(id); if (e) e[typeof val === 'boolean' ? 'classList' : 'value'] = val; };
+  const setTxt = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
+  const toggleActive = (id, on) => { document.getElementById(id)?.classList.toggle('active', on); };
+
+  const volEl = document.getElementById('ctrl-vol');
+  if (volEl) volEl.value = masterVol;
+  setTxt('bpm-val', bpm);
+  const bpmEl = document.getElementById('ctrl-bpm');
+  if (bpmEl) bpmEl.value = bpm;
+  updatePitchDisplay();
+
+  toggleActive('btn-metro', metroOn);
+  setTxt('btn-metro', t('metro'));
+  toggleActive('btn-sync', syncOn);
+  setTxt('btn-sync', syncOn ? t('syncOn') : t('syncOff'));
+  toggleActive('btn-mode-edit', mode === 'edit');
+  toggleActive('btn-mode-play', mode === 'play');
+  setTxt('btn-mode-edit', t('editMode'));
+  setTxt('btn-mode-play', t('playMode'));
+  setTxt('btn-drive-save', t('driveSave'));
+  setTxt('btn-drive-load', t('driveLoad'));
+  setTxt('lbl-vol', t('masterVol'));
+  setTxt('lbl-bpm', t('bpm'));
+  setTxt('lbl-trim', t('trimLabel'));
+  setTxt('lbl-pitch', t('masterPitch'));
+  setTxt('btn-pitch-reset', t('pitchReset'));
+
+  const trimEl = document.getElementById('ctrl-trim');
+  if (trimEl) trimEl.value = trimDb;
+  setTxt('trim-val', trimDb + 'dB');
+
+  // version display
+  setTxt('ver-display', 'ver ' + VERSIONS.app);
+}
+
+function renderEditRow(btnId) {
+  const row = document.querySelector(`[data-edit-row="${btnId}"]`);
+  if (!row) return;
+  const btn   = buttons[btnId];
+  const isRec = recBtnId === btnId;
+  const has   = !!btn.buffer;
+
+  row.querySelector('.btn-name-input').value = btn.name;
+
+  // Audio status label: グレー→オレンジ→白
+  const al = row.querySelector('.btn-has-audio');
+  if (isRec) {
+    al.textContent = t('recStatus');
+    al.className = 'btn-has-audio rec-active';
+  } else if (has) {
+    al.textContent = btn.fileName ? '📄 ' + btn.fileName : '🎙 recorded';
+    al.className = 'btn-has-audio has-audio';
+  } else {
+    al.textContent = t('noSound');
+    al.className = 'btn-has-audio';
+  }
+
+  // Single toggle button: text changes, never persistent color
+  const rb = row.querySelector('.rec-btn');
+  rb.textContent = isRec ? t('recording') : t('record');
+  rb.className = 'rec-btn noise-btn'; // always reset to base — no color classes
+
+  row.querySelector('.prev-btn').textContent  = t('preview');
+  row.querySelector('.file-btn').textContent  = t('fileLoad');
+  row.querySelector('.save-btn').textContent  = t('save');
+  row.querySelector('.erase-btn').textContent = t('erase');
+  row.querySelector('.up-btn').textContent    = t('moveUp');
+  row.querySelector('.dn-btn').textContent    = t('moveDown');
+
+  row.querySelector('.prev-btn').disabled  = !has;
+  row.querySelector('.save-btn').disabled  = !has;
+  row.querySelector('.erase-btn').disabled = !has;
+}
+
+function renderEditList() {
+  const list = document.getElementById('edit-list');
+  if (!list) return;
+  list.innerHTML = '';
+  buttons.forEach((btn, idx) => {
+    const row = document.createElement('div');
+    row.className = 'edit-row';
+    row.setAttribute('data-edit-row', idx);
+    row.innerHTML = `
+      <span class="btn-number">${idx + 1}</span>
+      <input class="btn-name-input" type="text" maxlength="20" placeholder="${t('btnName')}">
+      <span class="btn-has-audio"></span>
+      <div class="btn-actions">
+        <button class="rec-btn noise-btn"></button>
+        <button class="prev-btn noise-btn"></button>
+        <button class="file-btn noise-btn"></button>
+        <button class="save-btn noise-btn"></button>
+        <button class="erase-btn noise-btn btn-danger"></button>
+        <button class="up-btn noise-btn btn-move"></button>
+        <button class="dn-btn noise-btn btn-move"></button>
+      </div>`;
+    row.querySelector('.btn-name-input').addEventListener('input', e => { buttons[idx].name = e.target.value; saveToDb(); });
+    // Single toggle button: click toggles record/stop
+    row.querySelector('.rec-btn').addEventListener('click', () => {
+      if (recBtnId === idx) stopRecord(idx);
+      else startRecord(idx);
+    });
+    // Momentary orange: pointerdown → add active, pointerup/leave → remove
+    const rb = row.querySelector('.rec-btn');
+    rb.addEventListener('pointerdown', () => rb.classList.add('active'));
+    rb.addEventListener('pointerup',   () => rb.classList.remove('active'));
+    rb.addEventListener('pointerleave',() => rb.classList.remove('active'));
+    row.querySelector('.prev-btn').addEventListener('click', () => previewButton(idx));
+    row.querySelector('.file-btn').addEventListener('click', () => loadFile(idx));
+    row.querySelector('.save-btn').addEventListener('click', () => saveWavLocal(btn));
+    row.querySelector('.erase-btn').addEventListener('click',() => eraseButton(idx));
+    // Move buttons: momentary via pointerdown/up
+    const upBtn = row.querySelector('.up-btn');
+    const dnBtn = row.querySelector('.dn-btn');
+    upBtn.addEventListener('pointerdown', () => upBtn.classList.add('active'));
+    upBtn.addEventListener('pointerup',   () => { upBtn.classList.remove('active'); moveButton(idx, -1); });
+    upBtn.addEventListener('pointerleave',() => upBtn.classList.remove('active'));
+    dnBtn.addEventListener('pointerdown', () => dnBtn.classList.add('active'));
+    dnBtn.addEventListener('pointerup',   () => { dnBtn.classList.remove('active'); moveButton(idx, +1); });
+    dnBtn.addEventListener('pointerleave',() => dnBtn.classList.remove('active'));
+    list.appendChild(row);
+    renderEditRow(idx);
+  });
+}
+
+function renderPlayPad() {
+  const pad = document.getElementById('play-pad');
+  if (!pad) return;
+  pad.innerHTML = '';
+  activeSources.clear();
+  const active = buttons.filter(b => b.buffer);
+  if (!active.length) { pad.innerHTML = `<p class="pad-empty">${t('noAudio')}</p>`; return; }
+  active.forEach(btn => {
+    const el = document.createElement('button');
+    el.className = 'pad-btn';
+    el.setAttribute('data-play-id', btn.id);
+    el.textContent = btn.name || ('#' + (btn.id + 1));
+    el.addEventListener('pointerdown', e => { e.preventDefault(); triggerPlay(btn.id); });
+    pad.appendChild(el);
+  });
+}
+
+// ── Mode switch ────────────────────────────────────────────────────────────
+function setMode(m) {
+  mode = m;
+  // Sync button state immediately (no async — stable)
+  document.getElementById('btn-mode-edit')?.classList.toggle('active', m === 'edit');
+  document.getElementById('btn-mode-play')?.classList.toggle('active', m === 'play');
+  document.getElementById('edit-panel').style.display = m === 'edit' ? '' : 'none';
+  document.getElementById('play-panel').style.display = m === 'play' ? '' : 'none';
+  if (m === 'play') renderPlayPad();
+  // Resume audio in background (non-blocking)
+  AudioEngine.resume().catch(() => {});
+}
+
+// ── Version display ────────────────────────────────────────────────────────
+function showVersions() {
+  const el = document.getElementById('version-panel');
+  if (!el) return;
+  const m = VERSIONS.modules;
+  el.innerHTML =
+    `ver ${VERSIONS.app}<br>` +
+    `app:${m.app} &nbsp;audio:${m.audio} &nbsp;drive:${m.drive}<br>` +
+    `metro:${m.metro} &nbsp;style:${m.style} &nbsp;html:${m.html}`;
+  // Also update header sub
+  const hs = document.getElementById('ver-display');
+  if (hs) hs.textContent = 'ver ' + VERSIONS.app;
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+async function init() {
+  dbgInit();
+  dbg('init start');
+  await openDb();
+  AudioEngine.init();
+  await loadFromDb();
+
+  AudioEngine.setMasterVolume(masterVol);
+  AudioEngine.setMasterPitch(masterPitch);
+  Metro.setBpm(bpm);
+
+  renderEditList();
+  renderControls();
+  setMode('edit');
+  // Controls wiring
+  document.getElementById('ctrl-vol').addEventListener('input', e => {
+    masterVol = parseFloat(e.target.value);
+    AudioEngine.setMasterVolume(masterVol);
+    saveToDb();
+  });
+  document.getElementById('ctrl-bpm').addEventListener('input', e => {
+    bpm = parseInt(e.target.value);
+    Metro.setBpm(bpm);
+    document.getElementById('bpm-val').textContent = bpm;
+    saveToDb();
+  });
+  document.getElementById('ctrl-trim').addEventListener('input', e => {
+    trimDb = parseInt(e.target.value);
+    document.getElementById('trim-val').textContent = trimDb + 'dB';
+    saveToDb();
+  });
+  document.getElementById('btn-pitch-up').addEventListener('click',    () => changePitch(+1));
+  document.getElementById('btn-pitch-down').addEventListener('click',  () => changePitch(-1));
+  document.getElementById('btn-pitch-reset').addEventListener('click', resetPitch);
+  document.getElementById('btn-metro').addEventListener('click', toggleMetro);
+  document.getElementById('btn-sync').addEventListener('click', () => {
+    syncOn = !syncOn; renderControls(); saveToDb();
+  });
+  document.getElementById('btn-mode-edit').addEventListener('click', () => setMode('edit'));
+  document.getElementById('btn-mode-play').addEventListener('click', () => setMode('play'));
+
+  // iOS: resume AudioContext when screen wakes up
+  document.addEventListener('visibilitychange', () => {
+    dbg('visibilitychange', document.visibilityState);
+    if (document.visibilityState === 'visible') {
+      const tryResume = (n) => {
+        const state = AudioEngine.getState();
+        dbg('tryResume', { n, state });
+        AudioEngine.resume().then(() => {
+          dbg('resume result', AudioEngine.getState());
+        }).catch(e => dbg('resume error', e.message));
+        if (n > 0) setTimeout(() => {
+          if (AudioEngine.getState() !== 'running') tryResume(n - 1);
+        }, 300);
+      };
+      tryResume(3);
+    } else {
+      dbg('screen dark, clearing sources', activeSources.size);
+      activeSources.forEach((_, btnId) => updatePadBtn(btnId, false));
+      activeSources.clear();
+      lastScheduledAt.clear(); // allow fresh play after wake
+    }
+  });
+  // Also resume on any touch after wake
+  document.addEventListener('touchstart', () => {
+    const state = AudioEngine.getState();
+    if (state !== 'running') {
+      dbg('touchstart resume', state);
+      AudioEngine.resume().catch(() => {});
+    }
+  }, { passive: true });
+  document.getElementById('btn-drive-save').addEventListener('click', saveToDrive);
+  document.getElementById('btn-drive-load').addEventListener('click', loadFromDrive);
+
+  applyLang();
+}
+
+// ── Splash ────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  // バージョンをTAP前のスプラッシュ画面に表示
+  showVersions();
+
+  const splash = document.getElementById('splash');
+  const main   = document.getElementById('main');
+  let started  = false;
+
+  function startApp(e) {
+    if (e) e.preventDefault();
+    if (started) return;
+    started = true;
+    AudioEngine.init(); // init inside user gesture
+    splash.style.display = 'none';
+    main.style.display   = '';
+    init();
+  }
+
+  splash.addEventListener('touchend', startApp, { passive: false });
+  splash.addEventListener('click',    startApp);
+});

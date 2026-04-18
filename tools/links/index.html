@@ -320,6 +320,14 @@ main{padding:20px 24px;}
   line-height:1.5;border-left:2px solid var(--border-strong);
   padding-left:8px;
 }
+.card-url-display{
+  width:100%;margin-top:4px;
+  background:var(--surface);border:1px solid var(--surface);border-radius:3px;
+  color:var(--text-muted);font-size:10px;padding:2px 5px;
+  overflow:hidden;white-space:nowrap;cursor:text;
+  font-family:monospace;
+}
+.card-url-display:focus{outline:none;border-color:var(--border);overflow-x:auto;}
 .card-actions{display:flex;gap:3px;opacity:0;transition:opacity .15s;flex-shrink:0;}
 .card:hover .card-actions,.card.editing .card-actions{opacity:1;}
 .icon-btn{
@@ -357,6 +365,16 @@ main{padding:20px 24px;}
 
 /* ── LIST VIEW ── */
 .list-view{display:flex;flex-direction:column;gap:1px;}
+.list-group-header{
+  display:flex;align-items:center;gap:8px;
+  padding:6px 12px;cursor:pointer;
+  border:3px solid var(--border-strong);border-radius:8px;
+  background:var(--surface);transition:background .12s;
+  margin-bottom:2px;
+}
+.list-group-header:hover{background:var(--surface2);}
+.list-group-body{display:flex;flex-direction:column;gap:1px;padding-left:1em;margin-bottom:4px;}
+.list-group-body.hidden{display:none;}
 .list-item{
   background:var(--surface);border:1px solid var(--border);
   border-radius:6px;padding:7px 12px;
@@ -392,13 +410,13 @@ main{padding:20px 24px;}
 
 /* ── GROUP ── */
 .group-block{
-  border:1px solid var(--border);border-radius:8px;overflow:hidden;
   margin-bottom:5px;
 }
 .group-header{
   background:var(--surface);padding:8px 13px;
   display:flex;align-items:center;gap:9px;cursor:pointer;
   transition:background .12s;
+  border:3px solid var(--border-strong);border-radius:8px;
 }
 .group-header:hover{background:var(--surface2);}
 .group-favicon{width:14px;height:14px;flex-shrink:0;}
@@ -406,7 +424,7 @@ main{padding:20px 24px;}
 .group-cnt{font-size:11px;color:var(--orange-light);background:var(--bg-selected);padding:1px 7px;border-radius:20px;}
 .group-arrow{font-size:10px;color:var(--text-muted);transition:transform .15s;}
 .group-arrow.open{transform:rotate(90deg);}
-.group-body{display:none;border-top:1px solid var(--border);}
+.group-body{display:none;padding-left:1em;}
 .group-body.open{display:block;}
 .group-card{
   padding:9px 13px;border-bottom:1px solid var(--border);
@@ -506,9 +524,8 @@ main{animation:fadeUp .25s .05s ease both;}
 
 /* ── LANG SWITCHER (PC) ── */
 #lang-switcher{position:fixed;top:8px;right:12px;display:flex;gap:4px;z-index:200;}
-.lang-btn{background:transparent;border:0.5px solid var(--border-strong);color:var(--text-muted);font-size:10px;padding:3px 7px;border-radius:4px;cursor:pointer;font-family:'Noto Sans JP',sans-serif;}
-.lang-btn:hover{color:var(--orange-light);border-color:var(--orange);}
-.lang-btn.active{color:var(--orange-light);border-color:var(--orange);background:var(--bg-selected);}
+.lang-select{background:var(--surface2);border:1px solid var(--border-strong);color:var(--text-muted);font-size:11px;padding:3px 6px;border-radius:4px;cursor:pointer;font-family:'Noto Sans JP',sans-serif;}
+.lang-select:hover,.lang-select:focus{border-color:var(--orange);color:var(--orange-light);outline:none;}
 
 /* ── NAV TOGGLE BUTTON (hidden on PC) ── */
 .nav-toggle-btn{
@@ -644,6 +661,9 @@ main{animation:fadeUp .25s .05s ease both;}
 ::-webkit-scrollbar{width:4px;}
 ::-webkit-scrollbar-track{background:transparent;}
 ::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:2px;}
+
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+#syncIndicator{display:none;margin-left:8px;color:orange;font-size:12px;font-weight:bold;animation:blink 1s infinite;}
 </style>
 </head>
 <body>
@@ -677,12 +697,12 @@ main{animation:fadeUp .25s .05s ease both;}
       <path d="M0,13.3 Q5,17.3 8,15.3"  fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
     </svg>
     MOMO <span>Links</span>
-    <span id="versionBadge" style="font-family:'Noto Sans JP',sans-serif;font-size:9px;font-weight:400;color:var(--text-muted);letter-spacing:.06em;align-self:flex-end;margin-bottom:3px;margin-left:2px">v3.29</span>
+    <span id="versionBadge" style="font-family:'Noto Sans JP',sans-serif;font-size:9px;font-weight:400;color:var(--text-muted);letter-spacing:.06em;align-self:flex-end;margin-bottom:3px;margin-left:2px">v3.30</span>
     <span id="secretBadge" style="display:none;font-family:'Noto Sans JP',sans-serif;font-size:10px;font-weight:700;color:#888;background:#222;border:1px solid #444;padding:1px 7px;border-radius:20px;letter-spacing:.06em;margin-left:4px">🔒 SECRET</span>
   </div>
   <div class="search-wrap">
     <span class="search-icon">🔍</span>
-    <input class="search-input" id="searchInput" placeholder="タイトル・URL・タグで検索..." oninput="renderCards()">
+    <input class="search-input" id="searchInput" placeholder="タイトル・URL・タグで検索..." oninput="renderCards()" autocomplete="off">
   </div>
   <span class="hdr-count" id="hdrCount"></span>
   <div class="view-toggle-wrap">
@@ -692,6 +712,7 @@ main{animation:fadeUp .25s .05s ease both;}
   <button class="nav-toggle-btn" id="navToggleBtn" onclick="toggleNav(event)" title="タグエリア">TAG</button>
   <button class="btn" id="btnAdd" onclick="toggleAdd()">＋ 追加</button>
   <button class="btn" id="btnData" onclick="openDataModal()">データ管理</button>
+  <button class="btn" id="btnHelp" onclick="openHelp()" title="ヘルプ">？</button>
 </header>
 
 <!-- Nav overlay for mobile -->
@@ -699,18 +720,24 @@ main{animation:fadeUp .25s .05s ease both;}
 
 <!-- Lang Switcher (PC) -->
 <div id="lang-switcher">
-  <button class="lang-btn" data-lang="ja">日本語</button>
-  <button class="lang-btn" data-lang="en">EN</button>
-  <button class="lang-btn" data-lang="zh">中文</button>
+  <select class="lang-select" onchange="onLangChange(this.value)">
+    <option value="ja">日本語</option>
+    <option value="en">EN</option>
+    <option value="zh">中文</option>
+    <option value="cat">CAT</option>
+  </select>
 </div>
 
 <!-- Mobile sub-bar: nav toggle + lang switcher -->
 <div id="mobileSubBar">
   <button id="mobileNavToggle" onclick="toggleNav(event)">TAG</button>
   <div id="mobileLangSwitcher">
-    <button class="lang-btn" data-lang="ja">日本語</button>
-    <button class="lang-btn" data-lang="en">EN</button>
-    <button class="lang-btn" data-lang="zh">中文</button>
+    <select class="lang-select" onchange="onLangChange(this.value)">
+      <option value="ja">日本語</option>
+      <option value="en">EN</option>
+      <option value="zh">中文</option>
+      <option value="cat">CAT</option>
+    </select>
   </div>
 </div>
 
@@ -748,7 +775,7 @@ main{animation:fadeUp .25s .05s ease both;}
   <div id="tagTree"></div>
   <div class="new-tag-wrap">
     <div class="new-tag-outer">
-      <input class="new-tag-input" id="newTagInput" placeholder="＋ タグ追加 (a/b/c で多段)..."
+      <input class="new-tag-input" id="newTagInput" placeholder="＋ タグ追加 (a/b/c で多段)..." autocomplete="off"
         onkeydown="if(event.key==='Enter')addTagManual()">
       <div class="new-tag-dd" id="newTagDD"></div>
     </div>
@@ -767,8 +794,8 @@ main{animation:fadeUp .25s .05s ease both;}
   <div class="add-panel" id="addPanel">
     <div class="add-panel-title"><span id="addPanelTitle">新しいリンクを追加</span> <span id="addPanelHint" style="font-size:11px;color:var(--text-muted);font-weight:400">— 左のタグをクリックして選択できます</span></div>
     <div class="form-row">
-      <div class="form-field url-field"><label id="labelUrl">URL *</label><input id="inUrl" placeholder="https://..."></div>
-      <div class="form-field title-field"><label id="labelTitle">タイトル</label><input id="inTitle" placeholder="（省略するとURLを使用）"></div>
+      <div class="form-field url-field"><label id="labelUrl">URL *</label><input id="inUrl" placeholder="https://..." autocomplete="off"></div>
+      <div class="form-field title-field"><label id="labelTitle">タイトル</label><input id="inTitle" placeholder="（省略するとURLを使用）" autocomplete="off"></div>
       <div class="form-field tag-field">
         <label id="labelTag">タグ（左のリストをクリック or ここに入力してEnter）</label>
         <div class="tag-input-wrap" id="addTagWrap">
@@ -779,7 +806,7 @@ main{animation:fadeUp .25s .05s ease both;}
     <div class="form-row">
       <div class="form-field" style="flex:1;min-width:200px">
         <label id="labelComment">コメント（任意）</label>
-        <textarea id="inComment" placeholder="メモを入力..." style="min-height:50px;resize:vertical"></textarea>
+        <textarea id="inComment" placeholder="メモを入力..." style="min-height:50px;resize:vertical" autocomplete="off"></textarea>
       </div>
       <div style="display:flex;gap:8px;align-items:flex-end;padding-bottom:1px">
         <button class="btn primary" id="btnAddLink" onclick="addLink()">追加</button>
@@ -858,10 +885,11 @@ main{animation:fadeUp .25s .05s ease both;}
       <div class="tab" id="tab-import" onclick="switchTab('import')"><span id="tabImportLabel">📥 インポート</span></div>
       <div class="tab" id="tab-chrome" onclick="switchTab('chrome')"><span id="tabChromeLabel">🌐 Chrome用HTML</span></div>
       <div class="tab" id="tab-secret" onclick="switchTab('secret')" style="display:none"><span id="tabSecretLabel">🔒 シークレット設定</span></div>
+      <div class="tab" id="tab-gdrive" onclick="switchTab('gdrive')" style="display:none"><span id="tabGdriveLabel">☁ GDrive同期</span></div>
     </div>
     <div class="tab-panel active" id="panel-export">
       <div class="modal-body">
-        <div class="modal-desc" id="exportDesc"><strong>bookmark.json</strong> としてダウンロードします。<br>links.html を新バージョンに差し替えたあと「インポート」でデータを復元できます。</div>
+        <div class="modal-desc" id="exportDesc"><strong>bookmark.json</strong> としてダウンロードします。<br>link_data.html を新バージョンに差し替えたあと「インポート」でデータを復元できます。</div>
         <textarea class="export-area" id="jsonExportArea" readonly></textarea>
       </div>
       <div class="modal-footer">
@@ -924,6 +952,33 @@ main{animation:fadeUp .25s .05s ease both;}
       </div>
       <div class="modal-footer"><button class="btn" id="closeSecretBtn" onclick="closeDataModal()">閉じる</button></div>
     </div>
+    <div class="tab-panel" id="panel-gdrive">
+      <div class="modal-body">
+        <div class="modal-desc">Googleドライブとリンクデータを同期します。<br>同期はHTTPS環境（GitHub Pages等）でのみ利用できます。</div>
+        <div style="display:flex;flex-direction:column;gap:12px;margin-top:8px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <label style="font-size:13px;font-weight:bold" for="gdriveToggle">自動同期（24時間ごと）</label>
+            <input type="checkbox" id="gdriveToggle" onchange="setSyncEnabled(this.checked)" style="width:18px;height:18px;cursor:pointer">
+          </div>
+          <div style="font-size:11px;color:var(--text-muted)" id="gdriveSyncStatus"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn primary" onclick="closeDataModal();runSync()">今すぐ同期</button>
+        <button class="btn" onclick="closeDataModal()">閉じる</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- help modal -->
+<div class="overlay" id="helpModal">
+  <div class="modal" style="max-width:520px;max-height:80vh;overflow-y:auto">
+    <div class="modal-header">
+      <span class="modal-title" id="helpModalTitle">ヘルプ</span>
+      <button class="modal-close" onclick="closeHelp()">✕</button>
+    </div>
+    <div class="modal-body" id="helpModalBody" style="line-height:1.8;font-size:13px"></div>
   </div>
 </div>
 
@@ -931,12 +986,12 @@ main{animation:fadeUp .25s .05s ease both;}
 // ══════════════════════════════════════
 // STATE
 // ══════════════════════════════════════
-let links   = JSON.parse(localStorage.getItem('links_v2')||'[]');
-let allTags = JSON.parse(localStorage.getItem('tags_v2') ||'[]');
+let link_data   = JSON.parse(localStorage.getItem('links_v2')||'[]');
+let link_allTags = JSON.parse(localStorage.getItem('tags_v2') ||'[]');
 
-let selectedTags=[], filterMode='AND', specialFilter='';
-let cardSort='date', sideSort='alpha';
-let viewMode='card';
+let link_selectedTags=[], link_filterMode='AND', specialFilter='';
+let link_cardSort='date', link_sideSort='alpha';
+let link_viewMode='card';
 
 // ── SECRET MODE ──
 let secretMode=false;           // 現在シークレットモード中か
@@ -947,9 +1002,9 @@ const SECRET_TAG='_secret';
 function getSecretPin(){return localStorage.getItem('secret_pin')||'';}
 function getSecretKey(){return(localStorage.getItem('secret_key')||'S').toUpperCase();}
 const openNodes=new Set();
-let addFormTags=[];
-let editingId=null;
-let editingTags=[];
+let link_addFormTags=[];
+let link_editingId=null;
+let link_editingTags=[];
 let pendingFolderAdd=null;
 
 // グループ化ダイアログ用
@@ -963,12 +1018,17 @@ let displayedCount=0;
 // ══════════════════════════════════════
 // MIGRATION (v1.0 → v2.0)
 // ══════════════════════════════════════
-links.forEach(l=>{
+link_data.forEach(l=>{
   if(!l.tags){l.tags=l.tag?[l.tag]:[];delete l.tag;}
   if(l.comment===undefined)    l.comment='';
   if(l.isGrouped===undefined)  l.isGrouped=false;
-  if(l.status===undefined)     l.status='active';
   if(l.faviconUrl===undefined) l.faviconUrl='';
+  // 不正キャッシュをリセット（空ホストのDuckDuckGo/直接URLが混入した場合）
+  if(l.faviconUrl&&(/\/ip3\/\.ico$|\/\/\.\/|https?:\/\/\//).test(l.faviconUrl)) l.faviconUrl='';
+  // v3.30: status -> deleted_at/updated_at
+  if(l.updated_at===undefined) l.updated_at=l.date?Math.floor(new Date(l.date).getTime()/1000):Math.floor(Date.now()/1000);
+  if(l.deleted_at===undefined) l.deleted_at=(l.status==='trash')?(l.updated_at):null;
+  if('status' in l) delete l.status;
 });
 
 // PIN未設定時は0000を自動登録
@@ -983,30 +1043,54 @@ try{
 // ══════════════════════════════════════
 function save(){
   const used=new Set();
-  links.filter(l=>l.status==='active').forEach(l=>(l.tags||[]).forEach(t=>used.add(t)));
-  allTags.forEach(t=>used.add(t));
-  allTags=[...used].sort((a,b)=>a.localeCompare(b,'ja'));
-  localStorage.setItem('links_v2',JSON.stringify(links));
-  localStorage.setItem('tags_v2', JSON.stringify(allTags));
+  link_data.filter(l=>!l.deleted_at).forEach(l=>(l.tags||[]).forEach(t=>used.add(t)));
+  link_allTags.forEach(t=>used.add(t));
+  link_allTags=[...used].sort((a,b)=>a.localeCompare(b,'ja'));
+  localStorage.setItem('links_v2',JSON.stringify(link_data));
+  localStorage.setItem('tags_v2', JSON.stringify(link_allTags));
 }
 
 // ══════════════════════════════════════
 // FAVICON
 // ══════════════════════════════════════
-function getFaviconUrl(link){
-  if(link.faviconUrl) return link.faviconUrl;
-  const host=getHost(link.url);
-  const url=`https://www.google.com/s2/favicons?domain=${host}&sz=32`;
-  // キャッシュ（保存はonload後にしたいがここでは楽観的に設定）
-  link.faviconUrl=url;
-  return url;
+function faviconFallback(img, host){
+  if(!host){img.style.visibility='hidden';img.onerror=null;return;}
+  const step=(parseInt(img.dataset.fbStep||'0'))+1;
+  img.dataset.fbStep=step;
+  if(step===1)      img.src=`https://icons.duckduckgo.com/ip3/${host}.ico`;
+  else if(step===2) img.src=`https://${host}/favicon.ico`;
+  else if(step===3) fetchFaviconFromHtml(img,host);
+  else{img.style.visibility='hidden';img.onerror=null;}
 }
-function onFaviconLoad(imgEl, link){
-  // 成功 → URL確定（既に同じURLのはず）
-}
-function onFaviconError(imgEl, link){
-  link.faviconUrl=''; // エラーリセット
-  imgEl.style.visibility='hidden';
+async function fetchFaviconFromHtml(img, host){
+  if(location.protocol==='file:'){img.style.visibility='hidden';img.onerror=null;return;}
+  try{
+    const pageUrl=`https://${host}/`;
+    const res=await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(pageUrl)}`);
+    if(!res.ok) throw new Error();
+    const {contents:html}=await res.json();
+    // <link rel="icon"> or <link rel="shortcut icon"> を探す（属性順不問・data URI対応）
+    const patterns=[
+      /<link[^>]+rel=["'](?:shortcut icon|icon)["'][^>]*href="([^"]+)"/i,
+      /<link[^>]+href="([^"]+)"[^>]*rel=["'](?:shortcut icon|icon)["']/i,
+      /<link[^>]+rel=["'](?:shortcut icon|icon)["'][^>]*href='([^']+)'/i,
+      /<link[^>]+href='([^']+)'[^>]*rel=["'](?:shortcut icon|icon)["']/i,
+      /<link[^>]+rel=["']apple-touch-icon["'][^>]*href="([^"]+)"/i,
+      /<link[^>]+href="([^"]+)"[^>]*rel=["']apple-touch-icon["']/i,
+    ];
+    let faviconUrl=null;
+    for(const p of patterns){const m=html.match(p);if(m){faviconUrl=m[1];break;}}
+    if(!faviconUrl) throw new Error();
+    // 相対URLを絶対URLに変換
+    if(faviconUrl.startsWith('//'))       faviconUrl='https:'+faviconUrl;
+    else if(faviconUrl.startsWith('/'))   faviconUrl=`https://${host}${faviconUrl}`;
+    else if(!faviconUrl.startsWith('http')&&!faviconUrl.startsWith('data:'))
+                                          faviconUrl=`https://${host}/${faviconUrl}`;
+    img.onerror=()=>{img.style.visibility='hidden';img.onerror=null;};
+    img.src=faviconUrl;
+  }catch{
+    img.style.visibility='hidden';img.onerror=null;
+  }
 }
 
 // ══════════════════════════════════════
@@ -1014,7 +1098,7 @@ function onFaviconError(imgEl, link){
 // ══════════════════════════════════════
 function leafMap(){
   const m={};
-  allTags.forEach(t=>{const leaf=t.split('/').pop();(m[leaf]=m[leaf]||[]).push(t);});
+  link_allTags.forEach(t=>{const leaf=t.split('/').pop();(m[leaf]=m[leaf]||[]).push(t);});
   return m;
 }
 function displayName(tag){
@@ -1042,8 +1126,8 @@ function buildTree(tags){
   return root;
 }
 function countTag(fp){
-  return links.filter(l=>
-    l.status==='active' &&
+  return link_data.filter(l=>
+    !l.deleted_at &&
     (secretMode || !(l.tags||[]).includes(SECRET_TAG)) &&
     (l.tags||[]).some(t=>t===fp||t.startsWith(fp+'/'))
   ).length;
@@ -1053,7 +1137,7 @@ function nodeSortKeys(obj){
   const keys=Object.keys(obj);
   const folders=keys.filter(k=>!isLeafNode(obj[k]));
   const leaves =keys.filter(k=> isLeafNode(obj[k]));
-  const sortFn=sideSort==='count'
+  const sortFn=link_sideSort==='count'
     ?(a,b)=>countTag(obj[b]._fp)-countTag(obj[a]._fp)||a.localeCompare(b,'ja')
     :(a,b)=>a.localeCompare(b,'ja');
   return[...folders.sort(sortFn),...leaves.sort(sortFn)];
@@ -1064,7 +1148,7 @@ function nodeSortKeys(obj){
 // ══════════════════════════════════════
 function validateNewTag(v){
   if(!v)return t('alertTagEmpty');
-  if(allTags.includes(v))return t('alertTagExists',v);
+  if(link_allTags.includes(v))return t('alertTagExists',v);
   if(!secretMode&&v===SECRET_TAG)return t('secretTagErr');
   return null;
 }
@@ -1078,7 +1162,7 @@ function warnLeafConflict(tag){
 // VIEW MODE
 // ══════════════════════════════════════
 function setViewMode(m){
-  viewMode=m;
+  link_viewMode=m;
   document.getElementById('vbtn-card').classList.toggle('active',m==='card');
   document.getElementById('vbtn-list').classList.toggle('active',m==='list');
   displayedCount=0;
@@ -1089,31 +1173,31 @@ function setViewMode(m){
 // FILTER
 // ══════════════════════════════════════
 function toggleTagFilter(fp){
-  if(editingId!==null){toggleEditTag(fp);return;}
+  if(link_editingId!==null){toggleEditTag(fp);return;}
   if(document.getElementById('addPanel').classList.contains('open')){toggleAddFormTag(fp);return;}
   specialFilter='';
-  const i=selectedTags.indexOf(fp);
-  if(i>=0)selectedTags.splice(i,1);else selectedTags.push(fp);
+  const i=link_selectedTags.indexOf(fp);
+  if(i>=0)link_selectedTags.splice(i,1);else link_selectedTags.push(fp);
   displayedCount=0;
   renderAll();
 }
 function setSpecial(s){
-  if(editingId!==null)return;
-  selectedTags=[];specialFilter=s;displayedCount=0;renderAll();
+  if(link_editingId!==null)return;
+  link_selectedTags=[];specialFilter=s;displayedCount=0;renderAll();
 }
 function clearFilters(){
-  if(editingId!==null)return;
-  selectedTags=[];specialFilter='';displayedCount=0;renderAll();
+  if(link_editingId!==null)return;
+  link_selectedTags=[];specialFilter='';displayedCount=0;renderAll();
 }
 function setMode(m){
-  filterMode=m;
+  link_filterMode=m;
   document.getElementById('badge-and').classList.toggle('active',m==='AND');
   document.getElementById('badge-or').classList.toggle('active', m==='OR');
   displayedCount=0;renderCards();
 }
-function navAllClick(){if(editingId!==null)return;clearFilters();}
-function navNoneClick(){if(editingId!==null)return;setSpecial('__none__');}
-function navTrashClick(){if(editingId!==null)return;setSpecial('__trash__');}
+function navAllClick(){if(link_editingId!==null)return;clearFilters();}
+function navNoneClick(){if(link_editingId!==null)return;setSpecial('__none__');}
+function navTrashClick(){if(link_editingId!==null)return;setSpecial('__trash__');}
 
 function getFiltered(){
   const raw=document.getElementById('searchInput').value.trim();
@@ -1121,17 +1205,17 @@ function getFiltered(){
   let r;
 
   if(specialFilter==='__trash__'){
-    r=links.filter(l=>l.status==='trash');
+    r=link_data.filter(l=>!!l.deleted_at);
   } else {
-    r=links.filter(l=>l.status==='active');
+    r=link_data.filter(l=>!l.deleted_at);
     // 通常モードではシークレットリンクを除外
     if(!secretMode) r=r.filter(l=>!(l.tags||[]).includes(SECRET_TAG));
     if(specialFilter==='__none__') r=r.filter(l=>!(l.tags&&l.tags.length));
-    else if(selectedTags.length){
+    else if(link_selectedTags.length){
       r=r.filter(l=>{
         const lt=l.tags||[];
         const match=t=>lt.some(lt2=>lt2===t||lt2.startsWith(t+'/'));
-        return filterMode==='AND'?selectedTags.every(match):selectedTags.some(match);
+        return link_filterMode==='AND'?link_selectedTags.every(match):link_selectedTags.some(match);
       });
     }
   }
@@ -1184,8 +1268,8 @@ function exitSecretMode(){
   secretMode=false;
   applySecretVisual();
   // シークレット絞り込み中だったら解除
-  if(selectedTags.includes(SECRET_TAG)){
-    selectedTags=selectedTags.filter(t=>t!==SECRET_TAG);
+  if(link_selectedTags.includes(SECRET_TAG)){
+    link_selectedTags=link_selectedTags.filter(t=>t!==SECRET_TAG);
   }
   displayedCount=0;renderAll();
 }
@@ -1284,19 +1368,19 @@ setInterval(()=>{
 function getHost(u){try{return new URL(u).hostname.replace(/^www\./,'');}catch{return u;}}
 function getSorted(a){
   return[...a].sort((x,y)=>{
-    if(cardSort==='title')return(x.title||'').localeCompare(y.title||'','ja');
-    if(cardSort==='host') return getHost(x.url).localeCompare(getHost(y.url));
+    if(link_cardSort==='title')return(x.title||'').localeCompare(y.title||'','ja');
+    if(link_cardSort==='host') return getHost(x.url).localeCompare(getHost(y.url));
     return new Date(y.date)-new Date(x.date);
   });
 }
 function setCardSort(m){
-  cardSort=m;
+  link_cardSort=m;
   document.querySelectorAll('.sort-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('sort-'+m).classList.add('active');
   displayedCount=0;renderCards();
 }
 function setSideSort(m){
-  sideSort=m;
+  link_sideSort=m;
   document.getElementById('sortAlpha').classList.toggle('on',m==='alpha');
   document.getElementById('sortCount').classList.toggle('on',m==='count');
   renderSidebar();
@@ -1306,18 +1390,18 @@ function setSideSort(m){
 // EDIT MODE TAG SYNC
 // ══════════════════════════════════════
 function toggleEditTag(fp){
-  const i=editingTags.indexOf(fp);
-  if(i>=0)editingTags.splice(i,1);else editingTags.push(fp);
+  const i=link_editingTags.indexOf(fp);
+  if(i>=0)link_editingTags.splice(i,1);else link_editingTags.push(fp);
   renderSidebar();renderEditTagPills();
 }
 function renderEditTagPills(){
-  const wrap=document.getElementById('editTagWrap-'+editingId);if(!wrap)return;
+  const wrap=document.getElementById('editTagWrap-'+link_editingId);if(!wrap)return;
   wrap.querySelectorAll('.t-pill').forEach(e=>e.remove());
   const inp=wrap.querySelector('.t-pill-in');
-  editingTags.forEach(t=>{
+  link_editingTags.forEach(t=>{
     const p=document.createElement('span');p.className='t-pill edit-pill';
     p.innerHTML=`${esc(displayName(t))}<span class="t-pill-del">×</span>`;
-    p.querySelector('.t-pill-del').onclick=()=>{editingTags=editingTags.filter(x=>x!==t);renderSidebar();renderEditTagPills();};
+    p.querySelector('.t-pill-del').onclick=()=>{link_editingTags=link_editingTags.filter(x=>x!==t);renderSidebar();renderEditTagPills();};
     wrap.insertBefore(p,inp);
   });
 }
@@ -1326,29 +1410,29 @@ function renderEditTagPills(){
 // ADD FORM TAG SYNC
 // ══════════════════════════════════════
 function toggleAddFormTag(fp){
-  const i=addFormTags.indexOf(fp);
-  if(i>=0)addFormTags.splice(i,1);else addFormTags.push(fp);
+  const i=link_addFormTags.indexOf(fp);
+  if(i>=0)link_addFormTags.splice(i,1);else link_addFormTags.push(fp);
   renderSidebar();renderAddPills();
 }
 function renderAddPills(){
   const wrap=document.getElementById('addTagWrap'),inp=document.getElementById('addTagIn');
   wrap.querySelectorAll('.t-pill').forEach(e=>e.remove());
-  addFormTags.forEach(t=>{
+  link_addFormTags.forEach(t=>{
     const p=document.createElement('span');p.className='t-pill';
     p.innerHTML=`${esc(displayName(t))}<span class="t-pill-del">×</span>`;
-    p.querySelector('.t-pill-del').onclick=()=>{addFormTags=addFormTags.filter(x=>x!==t);renderSidebar();renderAddPills();};
+    p.querySelector('.t-pill-del').onclick=()=>{link_addFormTags=link_addFormTags.filter(x=>x!==t);renderSidebar();renderAddPills();};
     wrap.insertBefore(p,inp);
   });
 }
 function pushAddTag(v){
   v=(v||document.getElementById('addTagIn').value).trim();
-  if(!v||addFormTags.includes(v)){document.getElementById('addTagIn').value='';return;}
+  if(!v||link_addFormTags.includes(v)){document.getElementById('addTagIn').value='';return;}
   if(!secretMode&&v===SECRET_TAG){
     showTagErr(t('secretTagErr'));
     document.getElementById('addTagIn').value='';return;
   }
-  if(!allTags.includes(v)){if(!warnLeafConflict(v))return;allTags.push(v);}
-  addFormTags.push(v);
+  if(!link_allTags.includes(v)){if(!warnLeafConflict(v))return;link_allTags.push(v);}
+  link_addFormTags.push(v);
   document.getElementById('addTagIn').value='';
   renderSidebar();renderAddPills();
 }
@@ -1379,7 +1463,7 @@ async function addLink(){
   const normUrl=normalizeUrl(url);
 
   // 重複検知
-  if(links.some(l=>l.status==='active'&&l.url===normUrl)){
+  if(link_data.some(l=>!l.deleted_at&&l.url===normUrl)){
     alert(t('alertDuplicate',normUrl));
     document.getElementById('inUrl').select();
     return;
@@ -1388,21 +1472,21 @@ async function addLink(){
   const title=document.getElementById('inTitle').value.trim()||normUrl;
   const comment=document.getElementById('inComment').value.trim();
   pushAddTag();
-  const lt=[...addFormTags];
+  const lt=[...link_addFormTags];
 
   // グループ化判定
   let isGrouped=false;
   const host=getHost(normUrl);
-  const sameHostCount=links.filter(l=>l.status==='active'&&getHost(l.url)===host).length;
+  const sameHostCount=link_data.filter(l=>!l.deleted_at&&getHost(l.url)===host).length;
   if(sameHostCount>=1){
     const yes=await showGroupDialog(host);
     isGrouped=yes;
   }
 
-  links.unshift({
+  link_data.unshift({
     id:Date.now(),url:normUrl,title,tags:lt,
     date:new Date().toISOString(),
-    comment,isGrouped,status:'active',faviconUrl:''
+    comment,isGrouped,deleted_at:null,updated_at:Math.floor(Date.now()/1000),faviconUrl:''
   });
 
   // ユーザーがリンクを追加した＝初期化済みとしてフラグを立てる
@@ -1411,7 +1495,7 @@ async function addLink(){
   document.getElementById('inUrl').value='';
   document.getElementById('inTitle').value='';
   document.getElementById('inComment').value='';
-  addFormTags=[];
+  link_addFormTags=[];
   renderAddPills();
   displayedCount=0;
   save();renderAll();
@@ -1421,14 +1505,14 @@ async function addLink(){
 function toggleAdd(){
   const p=document.getElementById('addPanel');
   if(p.classList.contains('open')){closeAddPanel();return;}
-  if(selectedTags.length)addFormTags=[...selectedTags];else addFormTags=[];
+  if(link_selectedTags.length)link_addFormTags=[...link_selectedTags];else link_addFormTags=[];
   renderAddPills();
   p.classList.add('open');
   renderSidebar();
   document.getElementById('inUrl').focus();
 }
 function closeAddPanel(){
-  addFormTags=[];renderAddPills();
+  link_addFormTags=[];renderAddPills();
   document.getElementById('addPanel').classList.remove('open');
   renderSidebar();
 }
@@ -1437,19 +1521,19 @@ function closeAddPanel(){
 // TRASH
 // ══════════════════════════════════════
 function trashLink(id){
-  const l=links.find(l=>l.id===id);if(!l)return;
-  l.status='trash';
-  if(editingId===id){editingId=null;editingTags=[];}
+  const l=link_data.find(l=>l.id===id);if(!l)return;
+  const _now=Math.floor(Date.now()/1000);l.deleted_at=_now;l.updated_at=_now;
+  if(link_editingId===id){link_editingId=null;link_editingTags=[];}
   displayedCount=0;save();renderAll();
 }
 function restoreLink(id){
-  const l=links.find(l=>l.id===id);if(!l)return;
-  l.status='active';
+  const l=link_data.find(l=>l.id===id);if(!l)return;
+  l.deleted_at=null;l.updated_at=Math.floor(Date.now()/1000);
   displayedCount=0;save();renderAll();
 }
 function permDeleteLink(id){
   if(!confirm(t('confirmPermDelete')))return;
-  links=links.filter(l=>l.id!==id);
+  link_data=link_data.filter(l=>l.id!==id);
   displayedCount=0;save();renderAll();
 }
 
@@ -1462,7 +1546,7 @@ function addTagManual(){
   const err=validateNewTag(tagVal);
   if(err){showTagErr(err);return;}
   if(!warnLeafConflict(tagVal))return;
-  allTags.push(tagVal);inp.value='';hideTagErr();
+  link_allTags.push(tagVal);inp.value='';hideTagErr();
   save();renderSidebar();
 }
 function showTagErr(m){const e=document.getElementById('tagErr');e.textContent=m;e.style.display='';}
@@ -1511,7 +1595,7 @@ function commitFolderAdd(parentFp){
   const err=validateNewTag(newTag);
   if(err){alert(err);inp.focus();return;}
   if(!warnLeafConflict(newTag))return;
-  allTags.push(newTag);openNodes.add(parentFp);
+  link_allTags.push(newTag);openNodes.add(parentFp);
   row.classList.remove('show');save();renderSidebar();
 }
 function cancelFolderAdd(parentFp){
@@ -1519,16 +1603,16 @@ function cancelFolderAdd(parentFp){
   if(row)row.classList.remove('show');
 }
 function deleteTagFull(fp){
-  const children=allTags.filter(t=>t===fp||t.startsWith(fp+'/'));
+  const children=link_allTags.filter(t=>t===fp||t.startsWith(fp+'/'));
   const msg=children.length>1
     ?t('confirmDeleteTagWithChildren',fp,children.length-1)
     :t('confirmDeleteTag',fp);
   if(!confirm(msg))return;
-  allTags=allTags.filter(t=>t!==fp&&!t.startsWith(fp+'/'));
-  links.forEach(l=>{l.tags=(l.tags||[]).filter(t=>t!==fp&&!t.startsWith(fp+'/'));});
-  selectedTags=selectedTags.filter(t=>t!==fp&&!t.startsWith(fp+'/'));
-  editingTags=editingTags.filter(t=>t!==fp&&!t.startsWith(fp+'/'));
-  addFormTags=addFormTags.filter(t=>t!==fp&&!t.startsWith(fp+'/'));
+  link_allTags=link_allTags.filter(t=>t!==fp&&!t.startsWith(fp+'/'));
+  link_data.forEach(l=>{l.tags=(l.tags||[]).filter(t=>t!==fp&&!t.startsWith(fp+'/'));});
+  link_selectedTags=link_selectedTags.filter(t=>t!==fp&&!t.startsWith(fp+'/'));
+  link_editingTags=link_editingTags.filter(t=>t!==fp&&!t.startsWith(fp+'/'));
+  link_addFormTags=link_addFormTags.filter(t=>t!==fp&&!t.startsWith(fp+'/'));
   save();renderAll();
 }
 function toggleNode(fp){if(openNodes.has(fp))openNodes.delete(fp);else openNodes.add(fp);renderSidebar();}
@@ -1541,7 +1625,7 @@ function updateNewTagDD(){
   const dd=document.getElementById('newTagDD');
   if(!q){dd.classList.remove('open');return;}
   const folders=new Set();
-  allTags.forEach(t=>{
+  link_allTags.forEach(t=>{
     const parts=t.split('/');
     for(let i=1;i<parts.length;i++){
       const fp=parts.slice(0,i).join('/');
@@ -1558,23 +1642,23 @@ function updateNewTagDD(){
 // EDIT MODE
 // ══════════════════════════════════════
 function startEdit(id){
-  if(editingId===id){cancelEdit();return;}
-  if(editingId!==null)cancelEdit(true);
+  if(link_editingId===id){cancelEdit();return;}
+  if(link_editingId!==null)cancelEdit(true);
   closeAddPanel();
-  const l=links.find(l=>l.id===id);if(!l)return;
-  editingId=id;editingTags=[...(l.tags||[])];
+  const l=link_data.find(l=>l.id===id);if(!l)return;
+  link_editingId=id;link_editingTags=[...(l.tags||[])];
   renderAll();
   const card=document.getElementById('card-'+id);
   if(card)card.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 function cancelEdit(silent=false){
-  if(editingId===null)return;
-  editingId=null;editingTags=[];
+  if(link_editingId===null)return;
+  link_editingId=null;link_editingTags=[];
   if(!silent)renderAll();
 }
 function saveEdit(){
-  const id=editingId;if(id===null)return;
-  const l=links.find(l=>l.id===id);if(!l)return;
+  const id=link_editingId;if(id===null)return;
+  const l=link_data.find(l=>l.id===id);if(!l)return;
   const rawUrl=document.getElementById('eu-'+id).value.trim()||l.url;
   l.url=normalizeUrl(rawUrl);
   l.title=document.getElementById('et-'+id).value.trim()||l.url;
@@ -1582,11 +1666,11 @@ function saveEdit(){
   const inp=document.getElementById('editTagIn-'+id);
   if(inp&&inp.value.trim()){
     const v=inp.value.trim();
-    if(!allTags.includes(v))allTags.push(v);
-    if(!editingTags.includes(v))editingTags.push(v);
+    if(!link_allTags.includes(v))link_allTags.push(v);
+    if(!link_editingTags.includes(v))link_editingTags.push(v);
   }
-  l.tags=[...editingTags];
-  editingId=null;editingTags=[];
+  l.tags=[...link_editingTags];
+  link_editingId=null;link_editingTags=[];
   save();renderAll();
 }
 
@@ -1607,15 +1691,15 @@ function toggleListExpand(id){
 // RENDER SIDEBAR
 // ══════════════════════════════════════
 function renderSidebar(){
-  const isEditing=editingId!==null;
+  const isEditing=link_editingId!==null;
   const isAdding=document.getElementById('addPanel').classList.contains('open');
-  const activeLinks=links.filter(l=>l.status==='active');
-  const trashLinks=links.filter(l=>l.status==='trash');
+  const activeLinks=link_data.filter(l=>!l.deleted_at);
+  const trashLinks=link_data.filter(l=>!!l.deleted_at);
 
   document.getElementById('cnt-all').textContent=activeLinks.length;
   document.getElementById('cnt-none').textContent=activeLinks.filter(l=>!(l.tags&&l.tags.length)).length;
   document.getElementById('cnt-trash').textContent=trashLinks.length;
-  document.getElementById('nav-all').classList.toggle('active',!selectedTags.length&&!specialFilter&&!isEditing&&!isAdding);
+  document.getElementById('nav-all').classList.toggle('active',!link_selectedTags.length&&!specialFilter&&!isEditing&&!isAdding);
   document.getElementById('nav-none').classList.toggle('active',specialFilter==='__none__'&&!isEditing&&!isAdding);
   document.getElementById('nav-trash').classList.toggle('active',specialFilter==='__trash__'&&!isEditing&&!isAdding);
   document.getElementById('editBanner').classList.toggle('show',isEditing||isAdding);
@@ -1623,24 +1707,24 @@ function renderSidebar(){
   if(isAdding) document.getElementById('editBanner').textContent=t('editBannerAdd');
 
   const fs=document.getElementById('filterState');
-  fs.classList.toggle('show',selectedTags.length>0&&!isEditing&&!isAdding);
-  if(selectedTags.length&&!isEditing&&!isAdding){
-    document.getElementById('selPills').innerHTML=selectedTags.map(t=>
+  fs.classList.toggle('show',link_selectedTags.length>0&&!isEditing&&!isAdding);
+  if(link_selectedTags.length&&!isEditing&&!isAdding){
+    document.getElementById('selPills').innerHTML=link_selectedTags.map(t=>
       `<span class="sel-pill">#${esc(displayName(t))}<span class="sel-pill-del" onclick="toggleTagFilter('${esc(t)}')">×</span></span>`
     ).join('');
-    document.getElementById('badge-and').classList.toggle('active',filterMode==='AND');
-    document.getElementById('badge-or').classList.toggle('active', filterMode==='OR');
+    document.getElementById('badge-and').classList.toggle('active',link_filterMode==='AND');
+    document.getElementById('badge-or').classList.toggle('active', link_filterMode==='OR');
   }
-  document.getElementById('sortAlpha').classList.toggle('on',sideSort==='alpha');
-  document.getElementById('sortCount').classList.toggle('on',sideSort==='count');
+  document.getElementById('sortAlpha').classList.toggle('on',link_sideSort==='alpha');
+  document.getElementById('sortCount').classList.toggle('on',link_sideSort==='count');
 
-  const sorted=sideSort==='count'
-    ?[...allTags].sort((a,b)=>countTag(b)-countTag(a))
-    :[...allTags].sort((a,b)=>a.localeCompare(b,'ja'));
+  const sorted=link_sideSort==='count'
+    ?[...link_allTags].sort((a,b)=>countTag(b)-countTag(a))
+    :[...link_allTags].sort((a,b)=>a.localeCompare(b,'ja'));
   // 通常モードでは _secret タグをサイドバーから非表示
   const visibleTags=secretMode?sorted:sorted.filter(t=>t!==SECRET_TAG);
   const tree=buildTree(visibleTags);
-  const activeTags=isEditing?editingTags:(isAdding?addFormTags:selectedTags);
+  const activeTags=isEditing?link_editingTags:(isAdding?link_addFormTags:link_selectedTags);
 
   function renderNode(children,depth){
     let html='';
@@ -1686,12 +1770,12 @@ function renderSidebar(){
   _applyPendingFolderAdd();
 
   let title=t('viewTitleAll');
-  if(isEditing){const l=links.find(l=>l.id===editingId);title=l?'✏️ '+l.title:t('viewTitleEdit');}
+  if(isEditing){const l=link_data.find(l=>l.id===link_editingId);title=l?'✏️ '+l.title:t('viewTitleEdit');}
   else if(isAdding)title=t('viewTitleAdd');
   else if(specialFilter==='__trash__')title=t('viewTitleTrash');
   else if(specialFilter==='__none__')title=t('viewTitleNone');
-  else if(selectedTags.length===1)title='# '+displayName(selectedTags[0]);
-  else if(selectedTags.length>1)title=selectedTags.map(t2=>'#'+displayName(t2)).join(filterMode==='AND'?' AND ':' OR ');
+  else if(link_selectedTags.length===1)title='# '+displayName(link_selectedTags[0]);
+  else if(link_selectedTags.length>1)title=link_selectedTags.map(t2=>'#'+displayName(t2)).join(link_filterMode==='AND'?' AND ':' OR ');
   document.getElementById('viewTitle').textContent=title;
 }
 
@@ -1701,13 +1785,13 @@ function renderSidebar(){
 function renderCards(){
   const filtered=getFiltered();
   const isTrash=specialFilter==='__trash__';
-  document.getElementById('hdrCount').textContent=filtered.length+' / '+links.filter(l=>l.status==='active').length;
+  document.getElementById('hdrCount').textContent=filtered.length+' / '+link_data.filter(l=>!l.deleted_at).length;
   const area=document.getElementById('cardsArea');
 
   if(!filtered.length){
     area.innerHTML=`<div class="empty"><div class="empty-icon">${isTrash?'🗑':'🔖'}</div>${
       isTrash?t('emptyTrash')
-      :links.filter(l=>l.status==='active').length===0?t('emptyNoLinks')
+      :link_data.filter(l=>!l.deleted_at).length===0?t('emptyNoLinks')
       :t('emptyNoMatch')
     }</div>`;
     return;
@@ -1717,7 +1801,7 @@ function renderCards(){
     renderTrashView(filtered,area);return;
   }
 
-  if(viewMode==='list'){
+  if(link_viewMode==='list'){
     renderListView(filtered,area);return;
   }
 
@@ -1755,10 +1839,10 @@ function renderCardView(filtered,area){
       const isOpen=openNodes.has('grp:'+h);
       html+=`<div class="group-block">
         <div class="group-header" onclick="toggleGroupNode('${esc(h)}')">
-          <img class="group-favicon" src="https://www.google.com/s2/favicons?domain=${esc(h)}&sz=32" onerror="this.style.visibility='hidden'">
+          <span class="group-arrow${isOpen?' open':''}">▶</span>
+          <img class="group-favicon" src="https://www.google.com/s2/favicons?domain=${esc(h)}&sz=32" onerror="faviconFallback(this,'${esc(h)}')">
           <span class="group-domain">${esc(h)}</span>
           <span class="group-cnt">${grp.length}${t('groupCnt')}</span>
-          <span class="group-arrow${isOpen?' open':''}">▶</span>
         </div>
         <div class="group-body${isOpen?' open':''}">
           ${grp.map(gl=>renderCardItem(gl)).join('')}
@@ -1777,13 +1861,13 @@ function renderCardView(filtered,area){
     </div>`;
   }
   area.innerHTML=html;
-  if(editingId!==null)renderEditTagPills();
+  if(link_editingId!==null)renderEditTagPills();
 }
 
 function toggleGroupNode(h){
   const key='grp:'+h;
   if(openNodes.has(key))openNodes.delete(key);else openNodes.add(key);
-  renderCards();
+  renderAll();
 }
 
 function loadMore(){
@@ -1795,17 +1879,17 @@ function renderCardItem(l){
   const host=getHost(l.url);
   const favSrc=l.faviconUrl||`https://www.google.com/s2/favicons?domain=${host}&sz=32`;
   const dateStr=new Date(l.date).toLocaleDateString('ja-JP',{month:'numeric',day:'numeric'});
-  const isEdit=(editingId===l.id);
-  const showTags=isEdit?editingTags:(l.tags||[]);
+  const isEdit=(link_editingId===l.id);
+  const showTags=isEdit?link_editingTags:(l.tags||[]);
   const tagPills=showTags.map(t=>{
-    const hi=selectedTags.some(s=>t===s||t.startsWith(s+'/'));
+    const hi=link_selectedTags.some(s=>t===s||t.startsWith(s+'/'));
     return`<span class="card-tag${hi?' hi':''}" title="${esc(t)}">#${esc(displayName(t))}</span>`;
   }).join('');
 
   return`<div class="card${isEdit?' editing':''}" id="card-${l.id}">
     <img class="card-favicon" src="${esc(favSrc)}"
       onload="cacheFavicon(${l.id},this.src)"
-      onerror="this.style.visibility='hidden'">
+      onerror="faviconFallback(this,'${esc(host)}')">
     <div class="card-body">
       ${isEdit
         ?`<div class="edit-row" style="margin-bottom:6px">
@@ -1826,8 +1910,8 @@ function renderCardItem(l){
           <div class="tag-input-wrap editing" id="editTagWrap-${l.id}" style="margin-top:6px">
             <input class="t-pill-in" id="editTagIn-${l.id}" placeholder="${t('editTagPlaceholder')}"
               onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();
-                var v=this.value.trim();if(v&&!editingTags.includes(v)){if(!allTags.includes(v))allTags.push(v);editingTags.push(v);renderSidebar();renderEditTagPills();}this.value='';}
-              if(event.key==='Backspace'&&!this.value&&editingTags.length){editingTags.pop();renderSidebar();renderEditTagPills();}">
+                var v=this.value.trim();if(v&&!link_editingTags.includes(v)){if(!link_allTags.includes(v))link_allTags.push(v);link_editingTags.push(v);renderSidebar();renderEditTagPills();}this.value='';}
+              if(event.key==='Backspace'&&!this.value&&link_editingTags.length){link_editingTags.pop();renderSidebar();renderEditTagPills();}">
           </div>
           <div style="display:flex;gap:6px;align-items:center;margin-top:8px">
             <label style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:5px;cursor:pointer">
@@ -1840,8 +1924,9 @@ function renderCardItem(l){
             <button class="sm-btn" onclick="cancelEdit()">${t('btnCancel')}</button>
           </div>`
         :`<a class="card-title" href="${esc(normalizeUrl(l.url))}" target="_blank" rel="noopener">${esc(l.title)}</a>
+         <input class="card-url-display" type="text" readonly value="${esc(l.url)}" tabindex="-1">
          <div class="card-meta">
-           <span class="card-host">${esc(host)}</span>${tagPills}
+           ${tagPills}
            <span class="card-date">${dateStr}</span>
          </div>
          ${l.comment?`<div class="card-comment">${esc(l.comment)}</div>`:''}`
@@ -1854,16 +1939,40 @@ function renderCardItem(l){
   </div>`;
 }
 
+function renderListItem(l){
+  const host=getHost(l.url);
+  const favSrc=l.faviconUrl||`https://www.google.com/s2/favicons?domain=${host}&sz=32`;
+  const dateStr=new Date(l.date).toLocaleDateString('ja-JP',{month:'numeric',day:'numeric'});
+  const tags=(l.tags||[]).slice(0,3);
+  const isExpanded=expandedListItems.has(l.id);
+  return`<div class="list-item${isExpanded?' expanded':''}" id="lrow-${l.id}" onclick="toggleListExpand(${l.id})">
+    <img class="list-favicon" src="${esc(favSrc)}" onerror="faviconFallback(this,'${esc(host)}')">
+    <span class="list-title">${esc(l.title)}</span>
+    <div class="list-tags">${tags.map(t=>`<span class="list-tag">#${esc(displayName(t))}</span>`).join('')}</div>
+    <span class="list-host">${esc(host)}</span>
+    <span class="list-date">${dateStr}</span>
+    <span class="list-expand-btn">▶</span>
+  </div>
+  <div class="list-detail${isExpanded?' open':''}" id="ldetail-${l.id}">
+    ${l.comment?`<div class="list-detail-comment">${esc(l.comment)}</div>`:''}
+    <div class="list-detail-actions">
+      <a class="list-open-link" href="${esc(normalizeUrl(l.url))}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${t('listOpen')}</a>
+      <button class="sm-btn" onclick="event.stopPropagation();startEdit(${l.id})">${t('listEdit')}</button>
+      <button class="sm-btn" style="color:var(--orange-light);border-color:var(--orange)" onclick="event.stopPropagation();trashLink(${l.id})">${t('listTrash')}</button>
+    </div>
+  </div>`;
+}
+
 function cacheFavicon(id,src){
-  const l=links.find(l=>l.id===id);
+  const l=link_data.find(l=>l.id===id);
   if(l&&l.faviconUrl!==src){l.faviconUrl=src;save();}
 }
 
 // saveEdit に isGrouped チェックボックス反映
 const _origSaveEdit=saveEdit;
 saveEdit=function(){
-  const id=editingId;if(id===null)return;
-  const l=links.find(l=>l.id===id);if(!l)return;
+  const id=link_editingId;if(id===null)return;
+  const l=link_data.find(l=>l.id===id);if(!l)return;
   const cb=document.getElementById('eg-'+id);
   if(cb)l.isGrouped=cb.checked;
   _origSaveEdit();
@@ -1873,70 +1982,36 @@ saveEdit=function(){
 function renderListView(filtered,area){
   if(displayedCount===0)displayedCount=PAGE_SIZE;
   const toShow=filtered.slice(0,displayedCount);
+
+  // グループ化処理
+  const groups={};
+  filtered.forEach(l=>{
+    if(l.isGrouped){const h=getHost(l.url);(groups[h]=groups[h]||[]).push(l);}
+  });
+
   let html='<div class="list-view">';
+  const rendered=new Set();
   toShow.forEach(l=>{
-    const isEdit=(editingId===l.id);
-    // 編集中はカードモードと同じフルフォームをリスト内に展開
-    if(isEdit){
-      html+=`<div class="card editing" id="card-${l.id}" style="margin-bottom:1px">
-        <div class="card-body" style="width:100%">
-          <div class="edit-row" style="margin-bottom:6px">
-            <div class="form-field" style="flex:2;min-width:140px">
-              <label style="font-size:10px;text-transform:uppercase;color:var(--text-muted)">${t('labelEditUrl')}</label>
-              <input class="edit-input" id="eu-${l.id}" value="${esc(l.url)}">
-            </div>
-            <div class="form-field" style="flex:2;min-width:140px">
-              <label style="font-size:10px;text-transform:uppercase;color:var(--text-muted)">${t('labelEditTitle')}</label>
-              <input class="edit-input" id="et-${l.id}" value="${esc(l.title)}">
-            </div>
-          </div>
-          <div class="form-field" style="margin-bottom:6px">
-            <label style="font-size:10px;text-transform:uppercase;color:var(--text-muted)">${t('labelEditComment')}</label>
-            <textarea class="edit-textarea" id="ec-${l.id}">${esc(l.comment||'')}</textarea>
-          </div>
-          <div class="edit-tag-hint">${t('editTagHint')}</div>
-          <div class="tag-input-wrap editing" id="editTagWrap-${l.id}" style="margin-top:6px">
-            <input class="t-pill-in" id="editTagIn-${l.id}" placeholder="${t('editTagPlaceholder')}"
-              onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();
-                var v=this.value.trim();if(v&&!editingTags.includes(v)){if(!allTags.includes(v))allTags.push(v);editingTags.push(v);renderSidebar();renderEditTagPills();}this.value='';}
-              if(event.key==='Backspace'&&!this.value&&editingTags.length){editingTags.pop();renderSidebar();renderEditTagPills();}">
-          </div>
-          <div style="display:flex;gap:6px;align-items:center;margin-top:8px">
-            <label style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:5px;cursor:pointer">
-              <input type="checkbox" ${l.isGrouped?'checked':''} id="eg-${l.id}" style="accent-color:var(--orange)">
-              <span>${t('checkboxGroup')}</span>
-            </label>
-          </div>
-          <div class="edit-row" style="margin-top:8px">
-            <button class="sm-btn ok" onclick="saveEdit()">${t('btnSave')}</button>
-            <button class="sm-btn" onclick="cancelEdit()">${t('btnCancel')}</button>
-          </div>
-        </div>
+    if(rendered.has(l.id))return;
+    if(l.isGrouped){
+      const h=getHost(l.url);
+      const grp=groups[h];if(!grp)return;
+      grp.forEach(x=>rendered.add(x.id));
+      const isOpen=openNodes.has('grp:'+h);
+      html+=`<div class="list-group-header" onclick="toggleGroupNode('${esc(h)}')">
+        <span class="group-arrow${isOpen?' open':''}">▶</span>
+        <img class="list-favicon" src="https://www.google.com/s2/favicons?domain=${esc(h)}&sz=32" onerror="faviconFallback(this,'${esc(h)}')">
+        <span style="font-size:12px;color:var(--text-muted);flex:1">${esc(h)}</span>
+        <span class="group-cnt">${grp.length}${t('groupCnt')}</span>
+      </div>
+      <div class="list-group-body${isOpen?'':' hidden'}">
+        ${grp.map(gl=>renderListItem(gl)).join('')}
       </div>`;
       return;
     }
-
-    const host=getHost(l.url);
-    const favSrc=l.faviconUrl||`https://www.google.com/s2/favicons?domain=${host}&sz=32`;
-    const dateStr=new Date(l.date).toLocaleDateString('ja-JP',{month:'numeric',day:'numeric'});
-    const tags=(l.tags||[]).slice(0,3);
-    const isExpanded=expandedListItems.has(l.id);
-    html+=`<div class="list-item${isExpanded?' expanded':''}" id="lrow-${l.id}" onclick="toggleListExpand(${l.id})">
-      <img class="list-favicon" src="${esc(favSrc)}" onerror="this.style.visibility='hidden'">
-      <span class="list-title">${esc(l.title)}</span>
-      <div class="list-tags">${tags.map(t=>`<span class="list-tag">#${esc(displayName(t))}</span>`).join('')}</div>
-      <span class="list-host">${esc(host)}</span>
-      <span class="list-date">${dateStr}</span>
-      <span class="list-expand-btn">▶</span>
-    </div>
-    <div class="list-detail${isExpanded?' open':''}" id="ldetail-${l.id}">
-      ${l.comment?`<div class="list-detail-comment">${esc(l.comment)}</div>`:''}
-      <div class="list-detail-actions">
-        <a class="list-open-link" href="${esc(normalizeUrl(l.url))}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${t('listOpen')}</a>
-        <button class="sm-btn" onclick="event.stopPropagation();startEdit(${l.id})">${t('listEdit')}</button>
-        <button class="sm-btn" style="color:var(--orange-light);border-color:var(--orange)" onclick="event.stopPropagation();trashLink(${l.id})">${t('listTrash')}</button>
-      </div>
-    </div>`;
+    rendered.add(l.id);
+    if(link_editingId===l.id){html+=renderCardItem(l);return;}
+    html+=renderListItem(l);
   });
   html+='</div>';
   if(displayedCount<filtered.length){
@@ -1945,7 +2020,7 @@ function renderListView(filtered,area){
     </div>`;
   }
   area.innerHTML=html;
-  if(editingId!==null)renderEditTagPills();
+  if(link_editingId!==null)renderEditTagPills();
 }
 
 // ── TRASH VIEW ──
@@ -1979,7 +2054,7 @@ function renderAll(){renderSidebar();displayedCount=0;renderCards();}
 // DATA MODAL
 // ══════════════════════════════════════
 function openDataModal(){
-  const data={version:2,exported:new Date().toISOString(),links,tags:allTags};
+  const data={version:2,exported:new Date().toISOString(),link_data,tags:link_allTags};
   document.getElementById('jsonExportArea').value=JSON.stringify(data,null,2);
   document.getElementById('chromeExportArea').value=genChromeHtml();
   document.getElementById('importInfo').classList.remove('show');
@@ -1987,6 +2062,13 @@ function openDataModal(){
   document.getElementById('tab-secret').style.display=secretMode?'':'none';
   // シークレット設定パネルに現在のキーを表示
   document.getElementById('secretKeyInput').value=getSecretKey();
+  // GDrive同期タブはHTTPS環境のみ表示
+  if(location.protocol!=='file:'){
+    document.getElementById('tab-gdrive').style.display='';
+    document.getElementById('gdriveToggle').checked=syncEnabled();
+    const ts=lastSyncTs();
+    document.getElementById('gdriveSyncStatus').textContent=ts?'前回同期: '+new Date(ts*1000).toLocaleString():'未同期';
+  }
   document.getElementById('dataModal').classList.add('open');
 }
 function closeDataModal(){document.getElementById('dataModal').classList.remove('open');}
@@ -2010,7 +2092,7 @@ function downloadChromeHtml(){
 function genChromeHtml(){
   let out='<!DOCTYPE NETSCAPE-Bookmark-file-1>\n<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">\n<TITLE>Bookmarks</TITLE>\n<H1>Bookmarks</H1>\n<DL><p>\n';
   const byTag={};
-  links.filter(l=>l.status==='active').forEach(l=>{const lt=l.tags&&l.tags.length?l.tags:['(タグなし)'];lt.forEach(t=>{(byTag[t]=byTag[t]||[]).push(l);});});
+  link_data.filter(l=>!l.deleted_at).forEach(l=>{const lt=l.tags&&l.tags.length?l.tags:['(タグなし)'];lt.forEach(t=>{(byTag[t]=byTag[t]||[]).push(l);});});
   Object.entries(byTag).forEach(([tag,ls])=>{
     out+=`    <DT><H3>${tag}</H3>\n    <DL><p>\n`;
     ls.forEach(l=>{out+=`        <DT><A HREF="${l.url}">${l.title}</A>\n`;});
@@ -2025,16 +2107,18 @@ function handleImportFile(input){
     try{
       const data=JSON.parse(e.target.result);
       let addedLinks=0,addedTags=0;
-      (data.tags||[]).forEach(t=>{if(!allTags.includes(t)){allTags.push(t);addedTags++;}});
-      const existUrls=new Set(links.map(l=>l.url));
-      (data.links||[]).forEach(l=>{
+      (data.tags||[]).forEach(t=>{if(!link_allTags.includes(t)){link_allTags.push(t);addedTags++;}});
+      const existUrls=new Set(link_data.map(l=>l.url));
+      (data.link_data||[]).forEach(l=>{
         if(!existUrls.has(l.url)){
           // マイグレーション
           if(l.comment===undefined)l.comment='';
           if(l.isGrouped===undefined)l.isGrouped=false;
-          if(l.status===undefined)l.status='active';
           if(l.faviconUrl===undefined)l.faviconUrl='';
-          links.push(l);addedLinks++;existUrls.add(l.url);
+          if(l.updated_at===undefined) l.updated_at=l.date?Math.floor(new Date(l.date).getTime()/1000):Math.floor(Date.now()/1000);
+          if(l.deleted_at===undefined) l.deleted_at=(l.status==='trash')?(l.updated_at):null;
+          if('status' in l) delete l.status;
+          link_data.push(l);addedLinks++;existUrls.add(l.url);
         }
       });
       save();renderAll();
@@ -2059,7 +2143,7 @@ drop.addEventListener('drop',e=>{
 function clearAllData(){
   if(!confirm(t('confirmClearAll')))return;
   if(!confirm(t('confirmClearAll2')))return;
-  links=[];allTags=[];selectedTags=[];specialFilter='';editingId=null;editingTags=[];addFormTags=[];
+  link_data=[];link_allTags=[];link_selectedTags=[];specialFilter='';link_editingId=null;link_editingTags=[];link_addFormTags=[];
   // 全削除はユーザーの意思なのでフラグを立てて自動DLを抑止
   try{localStorage.setItem('links_initialized','1');}catch(e){}
   save();renderAll();document.getElementById('importInfo').classList.remove('show');
@@ -2082,9 +2166,45 @@ function normalizeUrl(u){
 // ══════════════════════════════════════
 // EVENT LISTENERS
 // ══════════════════════════════════════
+// ── ロゴ3回タップでシークレットモード（モバイル向け） ──
+(()=>{
+  let _tapCount=0,_tapTimer=null;
+  document.querySelector('.logo').addEventListener('click',()=>{
+    _tapCount++;
+    if(_tapTimer)clearTimeout(_tapTimer);
+    if(_tapCount>=3){_tapCount=0;tryEnterSecretMode();return;}
+    _tapTimer=setTimeout(()=>{_tapCount=0;},1500);
+  });
+})();
+
+// ── タイトル自動取得 ──
+let _titleFetchCtrl=null;
+let _titleTouched=false;
+document.getElementById('inTitle').addEventListener('mousedown',()=>{_titleTouched=true;if(_titleFetchCtrl){_titleFetchCtrl.abort();_titleFetchCtrl=null;}});
+document.getElementById('inTitle').addEventListener('keydown',()=>{_titleTouched=true;if(_titleFetchCtrl){_titleFetchCtrl.abort();_titleFetchCtrl=null;}});
+document.getElementById('inUrl').addEventListener('blur',async()=>{
+  const url=document.getElementById('inUrl').value.trim();
+  if(!url||location.protocol==='file:') return;
+  _titleTouched=false;
+  if(_titleFetchCtrl) _titleFetchCtrl.abort();
+  _titleFetchCtrl=new AbortController();
+  try{
+    const res=await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,{signal:_titleFetchCtrl.signal});
+    if(!res.ok) return;
+    const {contents:html}=await res.json();
+    const m=html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    if(!m) return;
+    const title=m[1].trim();
+    if(title&&!_titleTouched&&!document.getElementById('inTitle').value.trim()){
+      document.getElementById('inTitle').value=title;
+    }
+  }catch{}finally{_titleFetchCtrl=null;}
+});
+document.getElementById('addPanel').addEventListener('transitionend',()=>{_titleTouched=false;});
+
 document.getElementById('addTagIn').addEventListener('keydown',e=>{
   if(e.key==='Enter'||e.key===' '){e.preventDefault();pushAddTag();}
-  if(e.key==='Backspace'&&!e.target.value&&addFormTags.length){addFormTags.pop();renderSidebar();renderAddPills();}
+  if(e.key==='Backspace'&&!e.target.value&&link_addFormTags.length){link_addFormTags.pop();renderSidebar();renderAddPills();}
 });
 document.getElementById('newTagInput').addEventListener('input',()=>{hideTagErr();updateNewTagDD();});
 document.getElementById('newTagInput').addEventListener('focus',updateNewTagDD);
@@ -2118,7 +2238,7 @@ document.addEventListener('keydown',e=>{
     if(document.getElementById('pinDialog').classList.contains('open')){pinDialogCancel();return;}
     if(document.getElementById('pinSetupDialog').classList.contains('open')){return;}
     if(document.getElementById('groupDialog').classList.contains('open')){groupDialogAnswer(false);return;}
-    if(editingId!==null){cancelEdit();return;}
+    if(link_editingId!==null){cancelEdit();return;}
     closeAddPanel();
     document.getElementById('dataModal').classList.remove('open');
     document.querySelectorAll('.folder-add-row.show').forEach(el=>el.classList.remove('show'));
@@ -2171,7 +2291,8 @@ function _navOutsideClick(e){
 
 // オーバーレイはポインターイベントを受け取らない（navのz-indexで後ろに隠れるべきだが
 // モバイル模擬で前面に来てしまうため、pointer-eventsをnoneにしてクリックを無効化）
-const SUPPORTED_LANGS=['ja','en','zh'];
+const SUPPORTED_LANGS=['ja','en','zh','cat'];
+let catBase='ja';
 let currentLang=(()=>{
   try{
     const s=localStorage.getItem('momoLang')||'ja';
@@ -2223,7 +2344,7 @@ const I18N={
     dataModalTitle:'データ管理',
     tabExport:'📤 エクスポート', tabImport:'📥 インポート',
     tabChrome:'🌐 Chrome用HTML', tabSecret:'🔒 シークレット設定',
-    exportDesc:'<strong>bookmark.json</strong> としてダウンロードします。<br>links.html を新バージョンに差し替えたあと「インポート」でデータを復元できます。',
+    exportDesc:'<strong>bookmark.json</strong> としてダウンロードします。<br>link_data.html を新バージョンに差し替えたあと「インポート」でデータを復元できます。',
     copyJsonBtn:'コピー', dlJsonBtn:'bookmark.json ダウンロード',
     importDesc:'<strong>bookmark.json</strong> を選択またはドロップして読み込みます。',
     importModeLabel:'追記モード', importDropLabel:'📂 クリックして bookmark.json を選択',
@@ -2268,8 +2389,8 @@ const I18N={
     editBannerEdit:'✏️ Editing: click tags to add/remove',
     editBannerAdd:'＋ Adding: click tags to select/deselect',
     viewTitleAll:'All', viewTitleNone:'Untagged', viewTitleTrash:'🗑 Trash', viewTitleEdit:'Editing', viewTitleAdd:'＋ New link',
-    emptyNoLinks:'No links yet.<br>Click "＋ Add" to get started.',
-    emptyNoMatch:'No links match your filter.',
+    emptyNoLinks:'No link_data yet.<br>Click "＋ Add" to get started.',
+    emptyNoMatch:'No link_data match your filter.',
     emptyTrash:'Trash is empty.',
     sectionTrash:'Trash', trashIndicator:'🗑 Trash',
     restoreTitle:'Restore', permDeleteTitle:'Delete permanently',
@@ -2286,14 +2407,14 @@ const I18N={
     pinSetupSub:'Any characters, any length',
     pinSetupPlaceholder1:'New PIN', pinSetupPlaceholder2:'Confirm PIN', pinSetupOkBtn:'Set PIN',
     pinSetupErrEmpty:'Please enter a PIN.', pinSetupErrMismatch:'PINs do not match.',
-    groupDialogTitle:'Group links?',
+    groupDialogTitle:'Group link_data?',
     groupDialogMsg:'Group this link with <strong>%s</strong>?',
     groupDialogSub:'Choose "No" to keep it as a standalone link.',
     groupNoBtn:'No (standalone)', groupYesBtn:'Yes (group)',
     dataModalTitle:'Manage Data',
     tabExport:'📤 Export', tabImport:'📥 Import',
     tabChrome:'🌐 Chrome HTML', tabSecret:'🔒 Secret Settings',
-    exportDesc:'Download as <strong>bookmark.json</strong>.<br>Import it after updating to a new version of links.html.',
+    exportDesc:'Download as <strong>bookmark.json</strong>.<br>Import it after updating to a new version of link_data.html.',
     copyJsonBtn:'Copy', dlJsonBtn:'Download bookmark.json',
     importDesc:'Select or drop a <strong>bookmark.json</strong> file.',
     importModeLabel:'Append mode', importDropLabel:'📂 Click to select bookmark.json',
@@ -2311,12 +2432,12 @@ const I18N={
     confirmDeleteTag:'Delete tag "%s"?',
     confirmDeleteTagWithChildren:'Delete "%s" and its %d child tags?',
     confirmPermDelete:'Permanently delete? This cannot be undone.',
-    confirmClearAll:'Delete all links and tags? This cannot be undone.\nAre you sure?',
+    confirmClearAll:'Delete all link_data and tags? This cannot be undone.\nAre you sure?',
     confirmClearAll2:'Final confirmation: really delete everything?',
     alertDuplicate:'This URL is already registered.\n%s',
     alertTagExists:'"%s" is already registered',
     alertTagEmpty:'Please enter a tag name',
-    importDone:'Import complete: %d links added, %d tags added',
+    importDone:'Import complete: %d link_data added, %d tags added',
     importError:'Failed to load JSON: %s',
     folderAddLabelFolder:'Folder name...', folderAddLabelTag:'Tag name...',
     folderFirstTagHint:'Enter the first tag name for folder "%s"',
@@ -2363,7 +2484,7 @@ const I18N={
     dataModalTitle:'数据管理',
     tabExport:'📤 导出', tabImport:'📥 导入',
     tabChrome:'🌐 Chrome书签', tabSecret:'🔒 隐私设置',
-    exportDesc:'下载为 <strong>bookmark.json</strong>。<br>更新 links.html 后可通过「导入」恢复数据。',
+    exportDesc:'下载为 <strong>bookmark.json</strong>。<br>更新 link_data.html 后可通过「导入」恢复数据。',
     copyJsonBtn:'复制', dlJsonBtn:'下载 bookmark.json',
     importDesc:'选择或拖入 <strong>bookmark.json</strong> 文件。',
     importModeLabel:'追加模式', importDropLabel:'📂 点击选择 bookmark.json',
@@ -2395,7 +2516,21 @@ const I18N={
 };
 
 // t(key, ...args) : I18Nテキスト取得・%s/%d を引数で置換
+function catSpeak(key){
+  const isError=/[Ee]rror|[Cc]onfirm|[Aa]lert|[Pp]in|[Ii]nvalid|[Dd]uplicate|[Pp]erm/.test(key);
+  if(catBase==='en'){
+    if(isError)return['HISS!','SPIT!','FSSST!','HISSS!'][Math.floor(Math.random()*4)];
+    return['MEOW','meow','mrrrow','mew','NYA!'][Math.floor(Math.random()*5)];
+  }else if(catBase==='zh'){
+    if(isError)return['唾！','喵喵！','！！'][Math.floor(Math.random()*3)];
+    return['喵','喵喵','咪','喵～'][Math.floor(Math.random()*4)];
+  }else{
+    if(isError)return['シャー！','フーッ！','シャシャシャ！','シャッ！'][Math.floor(Math.random()*4)];
+    return['にゃあ','にゃ','にゃーん','みゃぁ','にゃ！'][Math.floor(Math.random()*5)];
+  }
+}
 function t(key,...args){
+  if(currentLang==='cat') return catSpeak(key);
   const d=I18N[currentLang]||I18N.ja;
   let s=d[key]!==undefined?d[key]:(I18N.ja[key]||key);
   args.forEach(a=>{s=s.replace(/%[sd]/,String(a));});
@@ -2450,26 +2585,110 @@ function applyLang(){
   ph('secretPinNew1',t('pinSetupPlaceholder1')); ph('secretPinNew2',t('pinSetupPlaceholder2'));
   const sb=g('secretBadge');if(sb)sb.textContent=t('secretBadge');
 
-  document.querySelectorAll('.lang-btn').forEach(b=>b.classList.toggle('active',b.dataset.lang===currentLang));  renderAll();
+  document.querySelectorAll('.lang-select').forEach(s=>s.value=currentLang);
+  const _hl=currentLang==='cat'
+    ?{ja:'にゃ？',en:'NYA?',zh:'喵～'}[catBase]||'にゃ？'
+    :{ja:'ヘルプ',en:'Help',zh:'帮助'}[currentLang]||'ヘルプ';
+  tx('helpModalTitle',_hl);
+  renderAll();
 }
 
-// Lang Switcher
-document.querySelectorAll('.lang-btn').forEach(btn=>{
-  btn.addEventListener('click',()=>{
-    currentLang=btn.dataset.lang;
-    try{localStorage.setItem('momoLang',currentLang);}catch(e){}
-    applyLang();
-  });
+// ── HELP ──
+function openHelp(){
+  document.getElementById('helpModalBody').innerHTML=renderHelpContent();
+  document.getElementById('helpModal').classList.add('open');
+}
+function closeHelp(){
+  document.getElementById('helpModal').classList.remove('open');
+}
+function renderHelpContent(){
+  const L=currentLang==='cat'?catBase:currentLang;
+  const c={
+    ja:{
+      basic:'## 基本操作',
+      add:'**＋ 追加** ボタンでリンクを追加。URLを入力してタイトル・タグを設定。',
+      edit:'カード右上の ✏️ で編集、🗑 でゴミ箱へ移動。',
+      tag:'左のタグリストでフィルタリング。AND / OR 切替可能。',
+      secret:'## シークレットモード',
+      secretDesc:'**Ctrl+Shift+[キー]** または **ロゴを3回素早くタップ**（モバイル）でPIN入力画面を表示。シークレットタグ付きのリンクが表示されます。',
+      shortcut:'## キーボードショートカット',
+      shortcuts:[
+        'Ctrl+Shift+[キー]：シークレットモード切替',
+        '検索欄で :secret と入力：シークレットモード切替',
+      ],
+      ver:'## バージョン情報',
+      verDesc:'MOMO Links v3.30',
+    },
+    en:{
+      basic:'## Basic Operations',
+      add:'Click **＋ Add** to add a link. Enter URL, title, and tags.',
+      edit:'Click ✏️ to edit, 🗑 to move to trash.',
+      tag:'Filter by tags in the left panel. AND / OR toggle available.',
+      secret:'## Secret Mode',
+      secretDesc:'Press **Ctrl+Shift+[key]** or **tap logo 3 times quickly** (mobile) to enter PIN. Links with the secret tag will appear.',
+      shortcut:'## Keyboard Shortcuts',
+      shortcuts:[
+        'Ctrl+Shift+[key]: Toggle secret mode',
+        'Type :secret in search box: Toggle secret mode',
+      ],
+      ver:'## Version',
+      verDesc:'MOMO Links v3.30',
+    },
+    zh:{
+      basic:'## 基本操作',
+      add:'点击 **＋ 添加** 按钮添加链接。输入URL、标题和标签。',
+      edit:'点击 ✏️ 编辑，🗑 移至回收站。',
+      tag:'通过左侧标签列表过滤。支持 AND / OR 切换。',
+      secret:'## 隐私模式',
+      secretDesc:'按 **Ctrl+Shift+[键]** 或**快速点击Logo三次**（移动端）输入PIN码。显示带有隐私标签的链接。',
+      shortcut:'## 键盘快捷键',
+      shortcuts:[
+        'Ctrl+Shift+[键]：切换隐私模式',
+        '在搜索栏输入 :secret：切换隐私模式',
+      ],
+      ver:'## 版本信息',
+      verDesc:'MOMO Links v3.30',
+    },
+  };
+  const s=c[L]||c.ja;
+  const md=text=>text.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+  const h=text=>`<h3 style="color:var(--orange-light);margin:14px 0 6px;font-size:13px">${text.replace(/^## /,'')}</h3>`;
+  return`
+    ${h(s.basic)}
+    <p>${md(s.add)}</p>
+    <p>${md(s.edit)}</p>
+    <p>${md(s.tag)}</p>
+    ${h(s.secret)}
+    <p>${md(s.secretDesc)}</p>
+    ${h(s.shortcut)}
+    <ul style="padding-left:1.2em">${s.shortcuts.map(x=>`<li>${md(x)}</li>`).join('')}</ul>
+    ${h(s.ver)}
+    <p>${s.verDesc}</p>
+  `;
+}
+document.getElementById('helpModal').addEventListener('click',e=>{
+  if(e.target===e.currentTarget)closeHelp();
 });
 
+function onLangChange(lang){
+  if(lang==='cat'&&currentLang!=='cat') catBase=currentLang;
+  currentLang=lang;
+  try{localStorage.setItem('momoLang',currentLang);}catch(e){}
+  document.querySelectorAll('.lang-select').forEach(s=>s.value=currentLang);
+  applyLang();
+}
+
 save();applyLang();
+document.getElementById('inUrl').value='';
+document.getElementById('inTitle').value='';
+document.getElementById('inComment').value='';
 
 // ══════════════════════════════════════
 // 初回自動ブックマークロード
 // ══════════════════════════════════════
 (async function initLoad(){
   const initialized = localStorage.getItem('links_initialized');
-  const hasData = links.length > 0 || allTags.length > 0;
+  const hasData = link_data.length > 0 || link_allTags.length > 0;
   // フラグあり or データあり → スキップ
   if(initialized || hasData) return;
 
@@ -2478,15 +2697,17 @@ save();applyLang();
     if(!res.ok) return; // ファイルなし等はスキップ（フラグは立てない）
     const data = await res.json();
     let addedLinks=0, addedTags=0;
-    (data.tags||[]).forEach(tag=>{if(!allTags.includes(tag)){allTags.push(tag);addedTags++;}});
-    const existUrls=new Set(links.map(l=>l.url));
-    (data.links||[]).forEach(l=>{
+    (data.tags||[]).forEach(tag=>{if(!link_allTags.includes(tag)){link_allTags.push(tag);addedTags++;}});
+    const existUrls=new Set(link_data.map(l=>l.url));
+    (data.link_data||[]).forEach(l=>{
       if(!existUrls.has(l.url)){
         if(l.comment===undefined) l.comment='';
         if(l.isGrouped===undefined) l.isGrouped=false;
-        if(l.status===undefined) l.status='active';
         if(l.faviconUrl===undefined) l.faviconUrl='';
-        links.push(l); addedLinks++; existUrls.add(l.url);
+        if(l.updated_at===undefined) l.updated_at=l.date?Math.floor(new Date(l.date).getTime()/1000):Math.floor(Date.now()/1000);
+        if(l.deleted_at===undefined) l.deleted_at=(l.status==='trash')?(l.updated_at):null;
+        if('status' in l) delete l.status;
+        link_data.push(l); addedLinks++; existUrls.add(l.url);
       }
     });
     // DL成功 → フラグを立てる
@@ -2499,5 +2720,6 @@ save();applyLang();
   }
 })();
 </script>
+<script src="momo_sync.js"></script>
 </body>
 </html>

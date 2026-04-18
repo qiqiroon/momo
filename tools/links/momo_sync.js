@@ -62,7 +62,13 @@ async function _gExists(path){
 
 async function _gReadJson(path){
   window._sp=path;
-  const s=await _pyodide.runPythonAsync('import json; json.dumps(await gdrive.read_json(js.window._sp))');
+  const s=await _pyodide.runPythonAsync(
+    'import json\n'+
+    '_fid=await gdrive.resolve_path(js.window._sp)\n'+
+    '_url=f"https://www.googleapis.com/drive/v3/files/{_fid}?alt=media"\n'+
+    '_r=await gdrive._fetch(_url)\n'+
+    'json.dumps(_r if isinstance(_r,(dict,list)) else json.loads(_r.decode("utf-8")),ensure_ascii=False)'
+  );
   return JSON.parse(s);
 }
 

@@ -2,7 +2,7 @@
 'use strict';
 
 const SYNC_FILE   = '/momo-works/links/links_data.json';
-const GDRIVE_PY   = 'https://qiqiroon.github.io/momo/lib/momo-gdrive/momo_gdrive.py';
+const GDRIVE_PY   = 'https://qiqiroon.github.io/momo/lib/momo_gdrive/momo_gdrive.py';
 const PYODIDE_URL = 'https://cdn.jsdelivr.net/pyodide/v0.27.4/full/pyodide.js';
 const GSI_URL     = 'https://accounts.google.com/gsi/client';
 const YEAR_SEC    = 365 * 24 * 3600;

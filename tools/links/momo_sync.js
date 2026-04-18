@@ -43,6 +43,7 @@ async function loadDeps(){
     const resp = await fetch(GDRIVE_PY);
     if(!resp.ok) throw new Error('momo_gdrive.py の取得に失敗しました');
     _pyodide.runPython(await resp.text());
+    _pyodide.runPython('import js');
   }finally{
     _loading=false;
   }

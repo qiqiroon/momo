@@ -655,6 +655,7 @@ main{animation:fadeUp .25s .05s ease both;}
 
 @media (max-width:400px){
   #btnData{display:none;}
+  #mobileDataBtn{display:block !important;}
   .hdr-count{display:none;}
 }
 
@@ -731,7 +732,8 @@ main{animation:fadeUp .25s .05s ease both;}
 <!-- Mobile sub-bar: nav toggle + lang switcher -->
 <div id="mobileSubBar">
   <button id="mobileNavToggle" onclick="toggleNav(event)">TAG</button>
-  <div id="mobileLangSwitcher">
+  <button id="mobileDataBtn" class="btn" onclick="openDataModal()" style="padding:4px 10px;font-size:11px;display:none">データ管理</button>
+  <div id="mobileLangSwitcher" style="margin-left:auto">
     <select class="lang-select" onchange="onLangChange(this.value)">
       <option value="ja">日本語</option>
       <option value="en">EN</option>
@@ -2606,6 +2608,7 @@ function applyLang(){
   tx('changePinBtn',t('changePinBtn')); tx('changeKeyBtn',t('changeKeyBtn'));
   tx('labelShortcut',t('labelShortcut'));
   tx('closeSecretBtn',t('closeBtn'));
+  tx('mobileDataBtn',t('btnData'));
   tx('tabGdriveLabel',t('tabGdrive'));
   ih('gdriveDesc',t('gdriveDesc'));
   tx('gdriveAutoLabel',t('gdriveAutoLabel'));

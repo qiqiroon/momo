@@ -954,18 +954,18 @@ main{animation:fadeUp .25s .05s ease both;}
     </div>
     <div class="tab-panel" id="panel-gdrive">
       <div class="modal-body">
-        <div class="modal-desc">Googleドライブとリンクデータを同期します。<br>同期はHTTPS環境（GitHub Pages等）でのみ利用できます。</div>
+        <div class="modal-desc" id="gdriveDesc">Googleドライブとリンクデータを同期します。<br>同期はHTTPS環境（GitHub Pages等）でのみ利用できます。</div>
         <div style="display:flex;flex-direction:column;gap:12px;margin-top:8px">
           <div style="display:flex;align-items:center;gap:12px">
-            <label style="font-size:13px;font-weight:bold" for="gdriveToggle">自動同期（24時間ごと）</label>
+            <label style="font-size:13px;font-weight:bold" id="gdriveAutoLabel" for="gdriveToggle">自動同期（24時間ごと）</label>
             <input type="checkbox" id="gdriveToggle" onchange="setSyncEnabled(this.checked)" style="width:18px;height:18px;cursor:pointer">
           </div>
           <div style="font-size:11px;color:var(--text-muted)" id="gdriveSyncStatus"></div>
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn primary" onclick="closeDataModal();runSync()">今すぐ同期</button>
-        <button class="btn" onclick="closeDataModal()">閉じる</button>
+        <button class="btn primary" id="gdriveSyncNowBtn" onclick="closeDataModal();runSync()">今すぐ同期</button>
+        <button class="btn" id="gdriveCloseBtn" onclick="closeDataModal()">閉じる</button>
       </div>
     </div>
   </div>
@@ -2073,7 +2073,7 @@ function openDataModal(){
     document.getElementById('tab-gdrive').style.display='';
     document.getElementById('gdriveToggle').checked=syncEnabled();
     const ts=lastSyncTs();
-    document.getElementById('gdriveSyncStatus').textContent=ts?'前回同期: '+new Date(ts*1000).toLocaleString():'未同期';
+    document.getElementById('gdriveSyncStatus').textContent=ts?t('gdriveLastSync',new Date(ts*1000).toLocaleString()):t('gdriveNoSync');
   }
   document.getElementById('dataModal').classList.add('open');
 }
@@ -2378,6 +2378,12 @@ const I18N={
     folderAddLabelFolder:'フォルダ名...', folderAddLabelTag:'タグ名...',
     folderFirstTagHint:'「%s」フォルダの最初のタグ名を続けて入力してください',
     secretBadge:'🔒 SECRET',
+    tabGdrive:'☁ GDrive同期',
+    gdriveDesc:'Googleドライブとリンクデータを同期します。<br>同期はHTTPS環境（GitHub Pages等）でのみ利用できます。',
+    gdriveAutoLabel:'自動同期（24時間ごと）',
+    gdriveSyncNowBtn:'今すぐ同期',
+    gdriveLastSync:'前回同期: %s',
+    gdriveNoSync:'未同期',
   },
   en:{
     searchPlaceholder:'Search title, URL, tags...',
@@ -2448,6 +2454,12 @@ const I18N={
     folderAddLabelFolder:'Folder name...', folderAddLabelTag:'Tag name...',
     folderFirstTagHint:'Enter the first tag name for folder "%s"',
     secretBadge:'🔒 SECRET',
+    tabGdrive:'☁ GDrive Sync',
+    gdriveDesc:'Sync link data with Google Drive.<br>Available in HTTPS environments (GitHub Pages, etc.) only.',
+    gdriveAutoLabel:'Auto sync (every 24h)',
+    gdriveSyncNowBtn:'Sync now',
+    gdriveLastSync:'Last sync: %s',
+    gdriveNoSync:'Not synced yet',
   },
   zh:{
     searchPlaceholder:'搜索标题、URL、标签...',
@@ -2518,6 +2530,12 @@ const I18N={
     folderAddLabelFolder:'文件夹名...', folderAddLabelTag:'标签名...',
     folderFirstTagHint:'请输入「%s」文件夹的第一个标签名',
     secretBadge:'🔒 隐私',
+    tabGdrive:'☁ GDrive同步',
+    gdriveDesc:'将链接数据与Google云端硬盘同步。<br>仅在HTTPS环境（GitHub Pages等）下可用。',
+    gdriveAutoLabel:'自动同步（每24小时）',
+    gdriveSyncNowBtn:'立即同步',
+    gdriveLastSync:'上次同步: %s',
+    gdriveNoSync:'尚未同步',
   },
 };
 
@@ -2588,6 +2606,11 @@ function applyLang(){
   tx('changePinBtn',t('changePinBtn')); tx('changeKeyBtn',t('changeKeyBtn'));
   tx('labelShortcut',t('labelShortcut'));
   tx('closeSecretBtn',t('closeBtn'));
+  tx('tabGdriveLabel',t('tabGdrive'));
+  ih('gdriveDesc',t('gdriveDesc'));
+  tx('gdriveAutoLabel',t('gdriveAutoLabel'));
+  tx('gdriveSyncNowBtn',t('gdriveSyncNowBtn'));
+  tx('gdriveCloseBtn',t('closeBtn'));
   ph('secretPinNew1',t('pinSetupPlaceholder1')); ph('secretPinNew2',t('pinSetupPlaceholder2'));
   const sb=g('secretBadge');if(sb)sb.textContent=t('secretBadge');
 

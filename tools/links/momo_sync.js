@@ -71,8 +71,32 @@ async function _gReadJson(path){
 }
 
 async function _gWriteText(path,content){
-  window._sp=path; window._sc=content;
-  await _pyodide.runPythonAsync('await gdrive.write_text(js.window._sp, js.window._sc)');
+  const token=_pyodide.runPython('gdrive._token');
+  const name=path.split('/').pop();
+  const boundary='momo_boundary_xXx';
+
+  window._sp=path;
+  let fileId=null;
+  try{ fileId=await _pyodide.runPythonAsync('await gdrive.resolve_path(js.window._sp)'); }catch(e){}
+
+  let url,method,meta;
+  if(fileId){
+    url=`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart&fields=id`;
+    method='PATCH';
+    meta=JSON.stringify({name});
+  }else{
+    const parentPath='/'+path.replace(/^\//,'').split('/').slice(0,-1).join('/');
+    window._pp=parentPath;
+    const parentId=await _pyodide.runPythonAsync('await gdrive.mkdir(js.window._pp)');
+    url='https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id';
+    method='POST';
+    meta=JSON.stringify({name,parents:[parentId]});
+  }
+
+  const body=`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: application/octet-stream\r\n\r\n${content}\r\n--${boundary}--`;
+  const resp=await fetch(url,{method,headers:{'Authorization':`Bearer ${token}`,'Content-Type':`multipart/related; boundary=${boundary}`},body});
+  if(!resp.ok) throw new Error(`Drive API エラー ${resp.status}: ${await resp.text()}`);
+  await _pyodide.runPythonAsync('gdrive.cache.clear()');
 }
 
 // ── 同期中インジケーター ──

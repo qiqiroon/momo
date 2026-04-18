@@ -117,14 +117,16 @@ function _mergeData(loc,rem){
 
 // ── ローカルへの適用 ──
 function _applyMerged(data){
-  window.link_data=[...(data.links||[])];
-  window.link_allTags=[...(data.tags||[])];
+  /* global link_data, link_allTags, save, renderAll */
+  link_data    = [...(data.links||[])];
+  link_allTags = [...(data.tags||[])];
   if(typeof save==='function') save();
   if(typeof renderAll==='function') renderAll();
 }
 
 function _localSnapshot(){
-  return{links:window.link_data||[],tags:window.link_allTags||[]};
+  /* global link_data, link_allTags */
+  return{links:[...link_data],tags:[...link_allTags]};
 }
 
 // ── メイン同期処理 ──

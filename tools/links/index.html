@@ -1041,6 +1041,12 @@ try{
 // ══════════════════════════════════════
 // SAVE
 // ══════════════════════════════════════
+function applyExternalData(links,tags){
+  link_data=[...links];
+  link_allTags=[...tags];
+  save();
+  renderAll();
+}
 function save(){
   const used=new Set();
   link_data.filter(l=>!l.deleted_at).forEach(l=>(l.tags||[]).forEach(t=>used.add(t)));

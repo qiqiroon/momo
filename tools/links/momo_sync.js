@@ -145,16 +145,19 @@ function _mergeData(loc,rem){
 
 // ── ローカルへの適用 ──
 function _applyMerged(data){
-  /* global link_data, link_allTags, save, renderAll */
-  link_data    = [...(data.links||[])];
-  link_allTags = [...(data.tags||[])];
-  if(typeof save==='function') save();
-  if(typeof renderAll==='function') renderAll();
+  if(typeof applyExternalData==='function'){
+    applyExternalData(data.links||[],data.tags||[]);
+  }else{
+    localStorage.setItem('links_v2',JSON.stringify(data.links||[]));
+    localStorage.setItem('tags_v2',JSON.stringify(data.tags||[]));
+  }
 }
 
 function _localSnapshot(){
-  /* global link_data, link_allTags */
-  return{links:[...link_data],tags:[...link_allTags]};
+  return{
+    links:JSON.parse(localStorage.getItem('links_v2')||'[]'),
+    tags:JSON.parse(localStorage.getItem('tags_v2')||'[]')
+  };
 }
 
 // ── メイン同期処理 ──
@@ -205,7 +208,7 @@ async function runSync(){
         if(ch==='1'){
           const merged=_mergeData(loc,rem);
           _applyMerged(merged);
-          await _gWriteText(SYNC_FILE, JSON.stringify({links:link_data,tags:link_allTags}));
+          await _gWriteText(SYNC_FILE, JSON.stringify({links:merged.links,tags:merged.tags}));
         }else if(ch==='2'){
           _applyMerged(rem);
         }else if(ch==='3'){
@@ -219,7 +222,7 @@ async function runSync(){
         // 通常マージ
         const merged=_mergeData(loc,rem);
         _applyMerged(merged);
-        await _gWriteText(SYNC_FILE, JSON.stringify({links:link_data,tags:link_allTags}));
+        await _gWriteText(SYNC_FILE, JSON.stringify({links:merged.links,tags:merged.tags}));
       }
     }
 

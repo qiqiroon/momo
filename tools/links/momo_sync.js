@@ -205,7 +205,7 @@ async function runSync(){
         if(ch==='1'){
           const merged=_mergeData(loc,rem);
           _applyMerged(merged);
-          await _gWriteText(SYNC_FILE, JSON.stringify({links:window.link_data,tags:window.link_allTags}));
+          await _gWriteText(SYNC_FILE, JSON.stringify({links:link_data,tags:link_allTags}));
         }else if(ch==='2'){
           _applyMerged(rem);
         }else if(ch==='3'){
@@ -219,7 +219,7 @@ async function runSync(){
         // 通常マージ
         const merged=_mergeData(loc,rem);
         _applyMerged(merged);
-        await _gWriteText(SYNC_FILE, JSON.stringify({links:window.link_data,tags:window.link_allTags}));
+        await _gWriteText(SYNC_FILE, JSON.stringify({links:link_data,tags:link_allTags}));
       }
     }
 

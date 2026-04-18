@@ -5,6 +5,8 @@ const SYNC_FILE   = '/momo-works/links/links_data.json';
 const GDRIVE_PY   = 'https://qiqiroon.github.io/momo/lib/momo_gdrive/momo_gdrive.py';
 const PYODIDE_URL = 'https://cdn.jsdelivr.net/pyodide/v0.27.4/full/pyodide.js';
 const GSI_URL     = 'https://accounts.google.com/gsi/client';
+const CLIENT_ID   = '1053350886212-q87r5msugnqbb3saoq1fh3uj3t648hcg.apps.googleusercontent.com';
+const GDRIVE_SCOPE= 'https://www.googleapis.com/auth/drive.file';
 const YEAR_SEC    = 365 * 24 * 3600;
 const DAY_SEC     = 24 * 3600;
 
@@ -15,6 +17,8 @@ const LS_LAST_SYNC = 'gdrive_last_sync';
 let _pyodide  = null;
 let _loading  = false;
 let _syncing  = false;
+let _gToken   = null;   // 手動トリガー時にキャッシュするGSIアクセストークン
+let _gTokenExp= 0;      // トークン有効期限（Unix秒）
 
 // ── localStorage ヘルパー ──
 function syncEnabled(){ try{return localStorage.getItem(LS_ENABLED)==='true';}catch{return false;} }
@@ -52,7 +56,14 @@ async function loadDeps(){
 // ── Pyodide 経由の GDrive 操作 ──
 async function _gConnect(){
   await _pyodide.runPythonAsync('gdrive = MomoGDrive()');
-  await _pyodide.runPythonAsync('await gdrive.connect()');
+  const now=Math.floor(Date.now()/1000);
+  if(_gToken && now<_gTokenExp){
+    // 手動トリガーで取得済みのトークンを注入（モバイル対応）
+    window._gtok=_gToken;
+    _pyodide.runPython('gdrive._token = js.window._gtok');
+  }else{
+    await _pyodide.runPythonAsync('await gdrive.connect()');
+  }
 }
 
 async function _gExists(path){
@@ -160,6 +171,40 @@ function _localSnapshot(){
   };
 }
 
+// ── 手動同期トリガー（モバイル対応：ユーザー操作直後にGSIトークン取得）──
+// ボタンのonclickから直接呼ぶこと。awaitを挟む前にrequestAccessTokenを実行する。
+function runSyncManual(){
+  if(_syncing) return;
+  if(location.protocol==='file:') return;
+  if(typeof closeDataModal==='function') closeDataModal();
+
+  const _doSync=()=>{
+    const now=Math.floor(Date.now()/1000);
+    if(_gToken&&now<_gTokenExp){
+      runSync(); return;
+    }
+    const doRequest=()=>{
+      const client=google.accounts.oauth2.initTokenClient({
+        client_id:CLIENT_ID,
+        scope:GDRIVE_SCOPE,
+        callback:(resp)=>{
+          if(resp.error){ alert('Google認証エラー:\n'+resp.error); return; }
+          _gToken=resp.access_token;
+          _gTokenExp=Math.floor(Date.now()/1000)+(resp.expires_in||3600)-60;
+          runSync();
+        }
+      });
+      client.requestAccessToken();
+    };
+    if(typeof google!=='undefined'&&google.accounts){
+      doRequest();
+    }else{
+      _loadScript(GSI_URL).then(doRequest).catch(e=>alert('GSI読み込みエラー:\n'+e));
+    }
+  };
+  _doSync();
+}
+
 // ── メイン同期処理 ──
 async function runSync(){
   if(_syncing) return;
@@ -244,8 +289,9 @@ function shouldAutoSync(){
   return syncEnabled()&&location.protocol!=='file:'&&(Math.floor(Date.now()/1000)-lastSyncTs()>=DAY_SEC);
 }
 
-// ── 起動時自動同期 ──
+// ── 起動時：GSI先読み＋自動同期 ──
 window.addEventListener('load',()=>{
+  if(syncEnabled()&&location.protocol!=='file:') _loadScript(GSI_URL);
   if(shouldAutoSync()) runSync();
 });
 

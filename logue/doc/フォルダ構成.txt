@@ -1,0 +1,10 @@
+フォルダ構成
+index.html              ← MOMO Works TOP（v1.03）
+logue/
+  index.html            ← MOMO Logue 一覧
+  entries/
+    001/
+      index.html        ← 第1エントリー
+      ja.txt            ← 日本語原文（管理用）
+    002/                ← 次回追加時に作成
+      ...

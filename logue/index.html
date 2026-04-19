@@ -3,18 +3,28 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MOMO Works</title>
-<!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
+<title>MOMO Logue</title>
 
 <!-- ============================================================
-  MOMO Works TOP  内部バージョン: v1.03
+  MOMO Logue  内部バージョン: v1.00
   変更履歴:
-    v1.01 - 利用規約ページ（terms.html）へのリンクをCONTENTS上に追加
-            リンク文言は3言語対応（I18N.tosNotice キー参照）
-    v1.02 - (previous changes)
-    v1.03 - MOMO Logue へのリンクをページ下部に追加（左寄せ・目立たない文字リンク）
-            言語切り替えをボタン列からプルダウンに変更（cat-lang-spec v1.0 準拠）
-            CAT（猫語）モード追加
+    v1.00 - 初版
+  フォルダ構成:
+    logue/
+      index.html          ← このファイル（エントリー一覧）
+      entries/
+        001/
+          index.html      ← 第1エントリー
+          ja.txt          ← 日本語原文（管理用）
+        002/
+          index.html
+          ja.txt
+        ...
+  新規エントリー追加手順:
+    1. entries/NNN/ フォルダを作成
+    2. ja.txt に日本語原文を保存
+    3. entries/NNN/index.html を作成（entry-template を参照）
+    4. このファイル（logue/index.html）の ENTRIES 配列に追記
   ============================================================ -->
 
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-46 -50 92 80'%3E%3Crect x='-46' y='-50' width='92' height='80' rx='8' fill='%23000000'/%3E%3Cg transform='rotate(-12,-12,8.3)'%3E%3Cpath d='M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cg transform='rotate(12,12,8.3)'%3E%3Cpath d='M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cellipse cx='0' cy='1.3' rx='34' ry='26' fill='%23c2410c'/%3E%3Cline x1='-14' y1='1.00' x2='-33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='6.0' x2='-33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='10.59' x2='-29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.68' y1='-2.28' x2='-38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.44' y1='6.0' x2='-40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-29.58' y1='14.26' x2='-37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='1.00' x2='33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='6.0' x2='33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='10.59' x2='29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.68' y1='-2.28' x2='38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.44' y1='6.0' x2='40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='29.58' y1='14.26' x2='37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cellipse cx='-12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='-12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Cellipse cx='12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Ccircle cx='-10.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Ccircle cx='13.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Cpath d='M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z' fill='%23000'/%3E%3Cline x1='0' y1='11.3' x2='0' y2='13.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q-5,17.3 -8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q5,17.3 8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
@@ -58,7 +68,7 @@
     z-index: 0;
   }
 
-  /* ── LANG SWITCHER（プルダウン） ── */
+  /* ── LANG SWITCHER ── */
   #lang-switcher { position: fixed; top: 8px; right: 12px; z-index: 200; }
   #lang-select {
     background: var(--surface2);
@@ -129,44 +139,11 @@
     text-transform: uppercase;
   }
 
-  .tos-notice {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    margin-bottom: 18px;
-    padding: 10px 16px;
-    background: rgba(255,255,255,0.03);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    animation: fadeUp 0.7s ease 0.15s both;
-  }
-
-  .tos-notice-text {
-    font-size: 0.78rem;
-    color: #ffffff;
-    letter-spacing: 0.05em;
-    line-height: 1.5;
-    text-align: center;
-  }
-
-  .tos-notice-text a {
-    color: #ffffff;
-    text-underline-offset: 3px;
-    text-decoration-color: rgba(255,255,255,0.45);
-    transition: color 0.2s, text-decoration-color 0.2s;
-  }
-
-  .tos-notice-text a:hover {
-    color: var(--orange-light);
-    text-decoration-color: var(--orange-light);
-  }
-
   .section-label {
     display: flex;
     align-items: center;
     gap: 12px;
-    margin-bottom: 20px;
+    margin-bottom: 28px;
     animation: fadeUp 0.7s ease 0.2s both;
   }
 
@@ -185,87 +162,67 @@
     background: var(--border);
   }
 
-  .cards {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-    margin-bottom: 48px;
+  /* ── エントリーリスト ── */
+  .entry-list {
+    list-style: none;
+    margin-bottom: 64px;
     animation: fadeUp 0.7s ease 0.3s both;
   }
 
-  @media (max-width: 520px) {
-    .cards { grid-template-columns: 1fr; }
+  .entry-item {
+    border-bottom: 1px solid var(--border);
   }
 
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 32px 28px;
+  .entry-item:first-child {
+    border-top: 1px solid var(--border);
+  }
+
+  .entry-link {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    padding: 18px 4px;
     text-decoration: none;
-    color: inherit;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    transition: border-color 0.2s, transform 0.2s;
+    color: var(--text);
+    transition: color 0.2s;
   }
 
-  .card:hover {
-    border-color: var(--orange);
-    transform: translateY(-2px);
+  .entry-link:hover {
+    color: var(--orange-light);
   }
 
-  .card-icon { font-size: 2rem; }
-
-  .card-title {
-    font-family: 'Fredoka One', cursive;
-    font-size: 1.5rem;
-    font-weight: 400;
-    color: #fff;
-    letter-spacing: 0.04em;
-  }
-
-  .card-title span { color: var(--orange-light); }
-
-  .card-desc { font-size: 0.875rem; color: var(--text-muted); line-height: 1.6; }
-
-  .card-arrow {
-    margin-top: auto;
-    padding-top: 16px;
-    font-size: 0.8rem;
-    color: var(--orange);
-    letter-spacing: 0.08em;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .card-arrow::after { content: '→'; transition: transform 0.2s; }
-  .card:hover .card-arrow::after { transform: translateX(4px); }
-
-  .badge-soon {
-    display: inline-block;
-    font-size: 0.65rem;
-    font-weight: 500;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    background: var(--surface2);
-    border: 1px solid var(--border);
+  .entry-num {
+    font-size: 0.7rem;
     color: var(--text-muted);
-    padding: 2px 8px;
-    border-radius: 4px;
-    margin-top: auto;
-    padding-top: 16px;
-    width: fit-content;
+    letter-spacing: 0.08em;
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+    width: 2.4em;
+    text-align: right;
   }
 
-  /* ── MOMO Logue リンク ── */
-  .logue-link-wrap {
+  .entry-title {
+    font-size: 1rem;
+    line-height: 1.5;
+    letter-spacing: 0.02em;
+  }
+
+  .entry-date {
+    margin-left: auto;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+    padding-left: 16px;
+  }
+
+  /* ── 戻るリンク ── */
+  .back-link-wrap {
     padding: 0 0 32px;
     animation: fadeUp 0.7s ease 0.4s both;
   }
 
-  .logue-link {
+  .back-link {
     font-size: 0.8rem;
     color: var(--text-muted);
     text-decoration: none;
@@ -273,9 +230,7 @@
     transition: color 0.2s;
   }
 
-  .logue-link:hover {
-    color: var(--text);
-  }
+  .back-link:hover { color: var(--text); }
 
   footer {
     margin-top: auto;
@@ -340,43 +295,24 @@
         <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
         <path d="M0,13.3 Q5,17.3 8,15.3"  fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
       </svg>
-      <h1>MOMO <span>Works</span></h1>
+      <h1>MOMO <span>Logue</span></h1>
     </div>
-    <p class="tagline" id="tagline">Games &amp; Tools by MOMO</p>
+    <p class="tagline" id="tagline">独り言 by MOMO</p>
   </header>
 
-  <div class="tos-notice">
-    <p class="tos-notice-text" id="tos-notice"></p>
-  </div>
+  <div class="section-label"><span id="section-label-text">Entries</span></div>
 
-  <div class="section-label"><span>Contents</span></div>
-
-  <div class="cards">
-    <a class="card" href="games/">
-      <div class="card-icon">🎮</div>
-      <div class="card-title">MOMO <span>Games</span></div>
-      <div class="card-desc" id="games-desc">ブラウザで気軽に遊べるゲーム集。インストール不要。</div>
-      <div class="card-arrow" id="games-arrow">遊ぶ</div>
-    </a>
-
-    <a class="card" href="tools/">
-      <div class="card-icon">🛠️</div>
-      <div class="card-title">MOMO <span>Tools</span></div>
-      <div class="card-desc" id="tools-desc">ブラウザで使える便利なWebツール集。MOMO Player など。</div>
-      <div class="card-arrow" id="tools-arrow">使う</div>
-    </a>
-  </div>
-
-  <!-- ── MOMO Logue リンク ────────────────────────────────────
-       目立たないが明確な左寄せ文字リンク。装飾なし。
+  <!-- ── エントリーリスト ──────────────────────────────────────
+       新規エントリーを追加するときはここに <li> を1行追加する。
+       ENTRIES 配列（下部JS）にも同じデータを追記すること。
   ─────────────────────────────────────────────────────────── -->
-  <div class="logue-link-wrap">
-    <a class="logue-link" href="./logue/" id="logue-link">MOMO Logue</a>
-  </div>
-</div>
+  <ul class="entry-list" id="entry-list">
+    <!-- JSで動的生成 -->
+  </ul>
 
-<div style="text-align:center;margin-bottom:8px;position:relative;z-index:1;">
-  <a href="test/" style="font-size:0.65rem;color:#333;text-decoration:none;letter-spacing:0.06em;">テスト</a>
+  <div class="back-link-wrap">
+    <a class="back-link" href="../" id="back-link">← MOMO Works</a>
+  </div>
 </div>
 
 <footer id="footer-text">
@@ -384,48 +320,49 @@
 </footer>
 
 <script>
-/* ── 内部バージョン（表示なし・管理用） ── */
-const SITE_VERSION = 'v1.03';
+/* ══════════════════════════════════════════════════════════════
+   ENTRIES — 新規エントリーはここに追記する
+   形式: { id: '番号3桁', date: 'YYYY-MM-DD', ja: 'タイトル', en: '英語タイトル', zh: '中国語タイトル' }
+   catモードでは catSpeak() が動的生成するためタイトルフィールド不要。
+══════════════════════════════════════════════════════════════ */
+const ENTRIES = [
+  {
+    id:   '001',
+    date: '2026-04-19',
+    ja:   'こんにちは、世界',
+    en:   'Hello, World',
+    zh:   '你好，世界',
+  },
+];
 
+/* ── I18N ── */
 const I18N = {
   ja: {
-    tagline:    'Games &amp; Tools by MOMO',
-    gamesDesc:  'ブラウザで気軽に遊べるゲーム集。インストール不要。',
-    gamesArrow: '遊ぶ',
-    toolsDesc:  'ブラウザで使える便利なWebツール集。MOMO Player など。',
-    toolsArrow: '使う',
-    footer:     '© MOMO Works',
-    tosNotice:  'お約束：<a href="terms.html">利用規約</a>に同意したものとみなします。｜<a href="privacy.html">プライバシーポリシー</a>',
-    logueLink:  'MOMO Logue',
+    tagline:      '独り言 by MOMO',
+    sectionLabel: 'Entries',
+    backLink:     '← MOMO Works',
+    footer:       '© MOMO Works',
   },
   en: {
-    tagline:    'Games &amp; Tools by MOMO',
-    gamesDesc:  'A collection of browser games. No installation required.',
-    gamesArrow: 'Play',
-    toolsDesc:  'A collection of browser-based web tools. Includes MOMO Player and more.',
-    toolsArrow: 'Open',
-    footer:     '© MOMO Works',
-    tosNotice:  'Ground Rules: <a href="terms.html">Terms</a> required for use. | <a href="privacy.html">Privacy Policy</a>',
-    logueLink:  'MOMO Logue',
+    tagline:      'Soliloquy by MOMO',
+    sectionLabel: 'Entries',
+    backLink:     '← MOMO Works',
+    footer:       '© MOMO Works',
   },
   zh: {
-    tagline:    'Games &amp; Tools by MOMO',
-    gamesDesc:  '可在浏览器中轻松游玩的游戏合集，无需安装。',
-    gamesArrow: '游玩',
-    toolsDesc:  '可在浏览器中使用的实用网页工具合集，包含 MOMO Player 等。',
-    toolsArrow: '使用',
-    footer:     '© MOMO Works',
-    tosNotice:  '约定：使用即表示同意<a href="terms.html">使用条款</a>。｜<a href="privacy.html">隐私政策</a>',
-    logueLink:  'MOMO Logue',
+    tagline:      'MOMO 的独白',
+    sectionLabel: 'Entries',
+    backLink:     '← MOMO Works',
+    footer:       '© MOMO Works',
   },
 };
 
-/* ── CAT モード ── */
+/* ── CAT ── */
 let catBase = 'ja';
 
 function catSpeak(key) {
-  const errorKeys = ['pwError','noRoomError','fullRoomError','kicked','createErrorEmpty','privateIdRequired'];
   const calmKeys  = ['connecting','reconnecting','waitingGuest','waitingStart'];
+  const errorKeys = ['pwError','noRoomError','fullRoomError','kicked','createErrorEmpty'];
   let vocab;
   if (catBase === 'en') {
     if (errorKeys.includes(key))      vocab = ['HISS!','SPIT!','FSSST!'];
@@ -443,11 +380,6 @@ function catSpeak(key) {
   return vocab[Math.floor(Math.random() * vocab.length)];
 }
 
-function t(key) {
-  if (currentLang === 'cat') return catSpeak(key);
-  return (I18N[currentLang] || I18N.ja)[key] || I18N.ja[key] || key;
-}
-
 let currentLang = (() => {
   try {
     const v = localStorage.getItem('momoLang');
@@ -455,27 +387,46 @@ let currentLang = (() => {
   } catch(e) { return 'ja'; }
 })();
 
+function getTitle(entry) {
+  if (currentLang === 'cat') return catSpeak('title');
+  return entry[currentLang] || entry.ja;
+}
+
+function renderEntries() {
+  const ul = document.getElementById('entry-list');
+  ul.innerHTML = '';
+  ENTRIES.slice().reverse().forEach(entry => {
+    const li = document.createElement('li');
+    li.className = 'entry-item';
+    const a = document.createElement('a');
+    a.className = 'entry-link';
+    a.href = `./entries/${entry.id}/`;
+    // 言語パラメータを引き継ぐ
+    if (currentLang !== 'ja') a.href += `?lang=${currentLang}`;
+    a.innerHTML = `
+      <span class="entry-num">${entry.id}</span>
+      <span class="entry-title">${getTitle(entry)}</span>
+      <span class="entry-date">${entry.date}</span>
+    `;
+    li.appendChild(a);
+    ul.appendChild(li);
+  });
+}
+
 function applyLang() {
   const d = I18N[currentLang] || I18N.ja;
   if (currentLang === 'cat') {
-    document.getElementById('tagline').innerHTML      = catSpeak('tagline');
-    document.getElementById('games-desc').textContent  = catSpeak('gamesDesc');
-    document.getElementById('games-arrow').textContent = catSpeak('gamesArrow');
-    document.getElementById('tools-desc').textContent  = catSpeak('toolsDesc');
-    document.getElementById('tools-arrow').textContent = catSpeak('toolsArrow');
-    document.getElementById('footer-text').textContent = catSpeak('footer');
-    document.getElementById('tos-notice').textContent  = catSpeak('tosNotice');
-    document.getElementById('logue-link').textContent  = catSpeak('logueLink');
+    document.getElementById('tagline').textContent          = catSpeak('tagline');
+    document.getElementById('section-label-text').textContent = catSpeak('sectionLabel');
+    document.getElementById('back-link').textContent        = catSpeak('backLink');
+    document.getElementById('footer-text').textContent      = catSpeak('footer');
   } else {
-    document.getElementById('tagline').innerHTML       = d.tagline;
-    document.getElementById('games-desc').textContent  = d.gamesDesc;
-    document.getElementById('games-arrow').textContent = d.gamesArrow;
-    document.getElementById('tools-desc').textContent  = d.toolsDesc;
-    document.getElementById('tools-arrow').textContent = d.toolsArrow;
-    document.getElementById('footer-text').textContent = d.footer;
-    document.getElementById('tos-notice').innerHTML    = d.tosNotice;
-    document.getElementById('logue-link').textContent  = d.logueLink;
+    document.getElementById('tagline').textContent          = d.tagline;
+    document.getElementById('section-label-text').textContent = d.sectionLabel;
+    document.getElementById('back-link').textContent        = d.backLink;
+    document.getElementById('footer-text').textContent      = d.footer;
   }
+  renderEntries();
   const sel = document.getElementById('lang-select');
   if (sel) sel.value = currentLang;
   document.documentElement.lang = currentLang === 'zh' ? 'zh-Hans' : (currentLang === 'cat' ? catBase : currentLang);

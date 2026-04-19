@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>こんにちは、世界 — MOMO Logue</title>
+
+<!-- ============================================================
+  MOMO Logue — Entry 001
+  タイトル: こんにちは、世界 / Hello, World / 你好，世界
+  日付: 2026-04-19
+  バージョン: v1.01
+  変更履歴:
+    v1.01 - 本文を ja.txt v1.01 に合わせて更新
+  ============================================================ -->
+
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-46 -50 92 80'%3E%3Crect x='-46' y='-50' width='92' height='80' rx='8' fill='%23000000'/%3E%3Cg transform='rotate(-12,-12,8.3)'%3E%3Cpath d='M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cg transform='rotate(12,12,8.3)'%3E%3Cpath d='M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cellipse cx='0' cy='1.3' rx='34' ry='26' fill='%23c2410c'/%3E%3Cline x1='-14' y1='1.00' x2='-33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='6.0' x2='-33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='10.59' x2='-29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.68' y1='-2.28' x2='-38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.44' y1='6.0' x2='-40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-29.58' y1='14.26' x2='-37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='1.00' x2='33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='6.0' x2='33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='10.59' x2='29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.68' y1='-2.28' x2='38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.44' y1='6.0' x2='40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='29.58' y1='14.26' x2='37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cellipse cx='-12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='-12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Cellipse cx='12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Ccircle cx='-10.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Ccircle cx='13.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Cpath d='M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z' fill='%23000'/%3E%3Cline x1='0' y1='11.3' x2='0' y2='13.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q-5,17.3 -8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q5,17.3 8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --surface2: #1a1a1a;
+    --orange: #c2410c;
+    --orange-light: #ea580c;
+    --text: #e5e5e5;
+    --text-muted: #737373;
+    --border: #2a2a2a;
+    --border-strong: #444;
+    --bg-selected: rgba(194,65,12,0.15);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 48px 48px;
+    opacity: 0.3;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  #lang-switcher { position: fixed; top: 8px; right: 12px; z-index: 200; }
+  #lang-select {
+    background: var(--surface2);
+    border: 1px solid var(--border-strong);
+    color: var(--text);
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: 'Noto Sans JP', sans-serif;
+    outline: none;
+  }
+  #lang-select:focus { border-color: var(--orange); }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 680px;
+    padding: 0 24px;
+  }
+
+  .site-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 52px 0 40px;
+    animation: fadeDown 0.7s ease both;
+  }
+
+  .site-logo {
+    font-family: 'Fredoka One', cursive;
+    font-size: 1.1rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    letter-spacing: 0.04em;
+    transition: color 0.2s;
+  }
+
+  .site-logo:hover { color: var(--text); }
+  .site-logo span { color: var(--orange-light); }
+  .site-logo-sep { color: var(--border-strong); font-size: 0.9rem; }
+
+  article {
+    animation: fadeUp 0.7s ease 0.15s both;
+    margin-bottom: 56px;
+  }
+
+  .entry-meta {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 28px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .entry-num { font-size: 0.7rem; color: var(--orange); letter-spacing: 0.1em; }
+  .entry-date { font-size: 0.75rem; color: var(--text-muted); letter-spacing: 0.05em; }
+
+  .entry-title {
+    font-size: clamp(1.4rem, 4vw, 1.9rem);
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    line-height: 1.4;
+    margin-bottom: 32px;
+    color: #fff;
+  }
+
+  .entry-body { font-size: 1rem; line-height: 2; color: var(--text); letter-spacing: 0.04em; }
+  .entry-body p { margin-bottom: 1.6em; }
+  .entry-body p:last-child { margin-bottom: 0; }
+
+  .entry-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 24px 0 40px;
+    border-top: 1px solid var(--border);
+    animation: fadeUp 0.7s ease 0.3s both;
+  }
+
+  .nav-link {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    letter-spacing: 0.06em;
+    transition: color 0.2s;
+  }
+  .nav-link:hover { color: var(--text); }
+
+  footer {
+    margin-top: auto;
+    padding: 24px 0;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-align: center;
+    border-top: 1px solid var(--border);
+    width: 100%;
+    position: relative;
+    z-index: 1;
+  }
+
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+
+<div id="lang-switcher">
+  <select id="lang-select" onchange="onLangChange(this.value)">
+    <option value="ja">日本語</option>
+    <option value="en">EN</option>
+    <option value="zh">中文</option>
+    <option value="cat">CAT</option>
+  </select>
+</div>
+
+<div class="container">
+  <div class="site-header">
+    <a class="site-logo" href="../../">MOMO <span>Works</span></a>
+    <span class="site-logo-sep">/</span>
+    <a class="site-logo" href="../">MOMO <span>Logue</span></a>
+  </div>
+
+  <article>
+    <div class="entry-meta">
+      <span class="entry-num">001</span>
+      <span class="entry-date">2026-04-19</span>
+    </div>
+    <h1 class="entry-title" id="entry-title">こんにちは、世界</h1>
+    <div class="entry-body" id="entry-body"></div>
+  </article>
+
+  <nav class="entry-nav">
+    <a class="nav-link" href="../" id="nav-back">← Logue</a>
+    <span></span>
+  </nav>
+</div>
+
+<footer id="footer-text">&copy; MOMO Works</footer>
+
+<script>
+const CONTENT = {
+  ja: {
+    title: 'こんにちは、世界',
+    body: `
+      <p>こんにちは、世界。</p>
+      <p>このページは私がAIとともに作ったプログラムを公開する場所です。コードは1行も書いていません。公開の方法もAIが提案しました。私はAIには直接できない作業を手伝っただけです。</p>
+      <p>公開しているプログラムの内容は、自分が欲しいと思ったもの、または作ったら面白そうだと思ったものです。「こういうものを作ってほしい」と伝えると、AIが作ってくれました。</p>
+      <p>なぜこんなことをしているのか。それは、AIを全力で楽しむことにしたからです。</p>
+      <p>私にはひとつの仮説があります。「世界は私を楽しませるために進化した」というものです。独りよがりですね。</p>
+      <p>私が生まれた日本は、まだ後進国と呼ばれていた時代でした。世界はすべてアナログでした。物心がつく頃には、周囲がアニメで満たされていました。ゴールデンタイムの6時から8時まで、途切れることなく複数のアニメが放映されていた時代です。</p>
+      <p>やがてインベーダーゲームや家庭用ゲーム機が現れ、私はゲームにのめり込みました。続いてパソコンが登場し、コンピュータを自分一人で使えるという世界が生まれました。電話回線で通信するパソコン通信を通じて、フリーソフトや通信対戦ゲームを楽しみました。携帯電話とインターネットが普及すると、世界はネットで一つにつながり、当然のように私もその世界に入り浸りました。</p>
+      <p>音楽の面では、アメリカの80年代という黄金時代を最も感受性の高い年齢で過ごせたことは幸運だったと思います。アナログからデジタルへの移行と、ウォークマンの登場で音楽を持ち歩けるようになり、レンタルCDを借りまくって多くの音楽に触れました。</p>
+      <p>VOCALOIDが登場すると、ネット上の素人作曲家がライセンスフリーの曲を投稿し始めました。それを歌うアマチュア歌手、絵をつけるアマチュア絵師、踊る人——さまざまなサブカルチャーが花開いたニコニコ時代です。その延長線上にVTuberが現れました。日本のアマチュア歌い手がマスクで顔を隠して歌う文化の、自然な発展形だと私は思っています。</p>
+      <p>そしてAIが現れました。ちょうど退職を考え始めた頃、かねてからプログラミングを学びたいとは思っていたものの、年齢的にゼロから学ぶのは難しく、持て余す時間もある——そんなタイミングで、これ以上ないほど都合よくAIが登場しました。そうか、次はそうくるのか。乗るしかない。←ここが現在地です。</p>
+      <p>どうせ作るなら、その労力に見合うだけのことをしたい。複数の人に使ってもらうしかない。それが今やっていることです。</p>
+      <p>ところで、このサイトの名前「MOMO」は友人の猫の名前です。友人の許可を得て、使わせてもらっています。</p>
+    `,
+  },
+  en: {
+    title: 'Hello, World',
+    body: `
+      <p>Hello, world.</p>
+      <p>This page is where I publish programs made together with AI. Not a single line of code was written by me. The way to publish them was also proposed by AI. I only helped with the tasks AI couldn't do directly.</p>
+      <p>The programs I publish are things I wanted for myself, or things I thought would be interesting to build. I'd tell AI "make something like this," and it would.</p>
+      <p>Why am I doing this? Because I decided to enjoy AI to the fullest.</p>
+      <p>I have one hypothesis: "The world evolved to entertain me." Self-centered, I know.</p>
+      <p>When I was born, Japan was still called a developing nation. The world was entirely analog. By the time I was old enough to be aware of my surroundings, they were saturated with anime. Multiple shows aired back-to-back from six to eight o'clock every evening without pause.</p>
+      <p>Then came Space Invaders and home game consoles, and I fell deep into gaming. Next came personal computers, and with them a world where you could use a computer all by yourself. Through dial-up bulletin board systems — an absurdly inefficient way to communicate by today's standards — I enjoyed free software and online multiplayer games. When mobile phones and the internet arrived, the world connected into one, and naturally I dove straight in.</p>
+      <p>On the music side, I was lucky enough to experience the golden age of American 1980s music at the most impressionable age of my life. As music shifted from analog to digital, and the Walkman made it possible to carry music anywhere, I rented stacks of CDs and soaked up as much as I could.</p>
+      <p>When VOCALOID appeared, amateur composers on the internet began posting royalty-free music in droves. Amateur singers performed it, amateur illustrators added visuals, dancers choreographed to it — a whole ecosystem of subcultures bloomed in what I think of as the Niconico era. VTubers emerged from that same lineage. Japanese amateur singers had long performed behind masks to hide their faces; I see VTubers as a natural evolution of that tradition.</p>
+      <p>And then AI arrived. Right around when I was starting to think about retirement, I had always wanted to learn programming — but learning from scratch at my age felt daunting, and I had time on my hands I didn't know what to do with. Then, at the most convenient possible moment, AI showed up. So that's how it's going to go next? Well then, I'm getting on board. ← That's where I am now.</p>
+      <p>If I'm going to make things anyway, I want them to be worth the effort. The only way to justify it is to have more than one person use them. That's what I'm doing.</p>
+      <p>By the way, "MOMO" — the name of this site — is the name of a friend's cat. I have their permission to use it.</p>
+    `,
+  },
+  zh: {
+    title: '你好，世界',
+    body: `
+      <p>你好，世界。</p>
+      <p>这个页面是我与AI共同创作程序并对外公开的地方。我一行代码都没有写，连发布的方式也是AI提议的。我只是协助完成了AI无法直接处理的那部分工作。</p>
+      <p>这里公开的程序，都是我自己想要的东西，或者觉得做出来会很有趣的东西。我告诉AI"我想要这样的东西"，它就帮我做出来了。</p>
+      <p>为什么要做这些？因为我决定全力享受AI带来的乐趣。</p>
+      <p>我有一个假设："世界是为了让我快乐而进化的。"有点自我中心，对吧。</p>
+      <p>我出生的那个年代，日本还被称为后进国。整个世界都是模拟的。等我懂事的时候，身边的世界已经被动画填满了。每天黄金时段的六点到八点，多部动画连续不断地播出。</p>
+      <p>后来太空侵略者和家用游戏机相继出现，我一头扎进了游戏的世界。再后来个人电脑问世，一个人独自使用电脑成为可能。通过电话线拨号通信的电脑通信——以今天的标准来看效率低得难以想象——我享受着免费软件和联机对战游戏的乐趣。手机和互联网普及后，世界通过网络连为一体，我自然也一头扎进了网络的世界。</p>
+      <p>在音乐方面，我很庆幸自己能在感受力最强的年纪，经历美国80年代那个黄金时代。随着音乐从模拟转向数字，随身听的出现让音乐可以随身携带，我借了一摞又一摞的租借CD，接触了大量的音乐。</p>
+      <p>VOCALOID登场后，网络上的业余作曲家开始大量发布免版权音乐。演唱这些歌曲的业余歌手、为其配画的业余画师、随之起舞的舞者——各种亚文化在我所称之为"Niconico时代"蓬勃盛开。VTuber就在这条延长线上出现了。日本的业余歌手长期以来习惯戴着面具遮住脸演唱，我认为VTuber正是这种文化的自然发展形态。</p>
+      <p>然后AI出现了。就在我开始考虑退休的时候，我一直想学编程，但年纪大了从零开始太难，手头又有大把闲暇时间——就在这个时机，AI以最恰到好处的方式登场了。原来，下一步是这样来的吗？那就只能上车了。←这就是我现在所在的位置。</p>
+      <p>既然要做，就要做得值得这份付出。唯一的办法就是让更多人来使用。这就是我现在正在做的事。</p>
+      <p>顺便一提，这个网站的名字"MOMO"，是一位朋友家猫咪的名字。已获得朋友的许可，在此借用。</p>
+    `,
+  },
+};
+
+let catBase = 'ja';
+
+function catSpeak() {
+  const vocabMap = {
+    en: ['MEOW','meow','mrrrow','mew','NYA!'],
+    zh: ['喵','喵呜','咪','喵！'],
+    ja: ['にゃあ','にゃ','にゃーん','みゃお','ニャ！'],
+  };
+  const vocab = vocabMap[catBase] || vocabMap.ja;
+  return vocab[Math.floor(Math.random() * vocab.length)];
+}
+
+function catBody() {
+  // 日本語本文の段落数（10段落）に合わせてにゃあにゃあする
+  return Array.from({length: 11}, () => `<p>${catSpeak()}</p>`).join('\n');
+}
+
+let currentLang = (() => {
+  try {
+    const p = new URLSearchParams(location.search).get('lang');
+    if (p && ['ja','en','zh','cat'].includes(p)) return p;
+    const v = localStorage.getItem('momoLang');
+    return ['ja','en','zh','cat'].includes(v) ? v : 'ja';
+  } catch(e) { return 'ja'; }
+})();
+
+function applyLang() {
+  if (currentLang === 'cat') {
+    const t = catSpeak();
+    document.getElementById('entry-title').textContent  = t;
+    document.title = t + ' — MOMO Logue';
+    document.getElementById('entry-body').innerHTML     = catBody();
+    document.getElementById('nav-back').textContent     = catSpeak();
+    document.getElementById('footer-text').textContent  = catSpeak();
+  } else {
+    const c = CONTENT[currentLang] || CONTENT.ja;
+    document.getElementById('entry-title').textContent  = c.title;
+    document.title = c.title + ' — MOMO Logue';
+    document.getElementById('entry-body').innerHTML     = c.body;
+    document.getElementById('nav-back').textContent     = '← Logue';
+    document.getElementById('footer-text').textContent  = '© MOMO Works';
+  }
+  const sel = document.getElementById('lang-select');
+  if (sel) sel.value = currentLang;
+  document.documentElement.lang = currentLang === 'zh' ? 'zh-Hans' : (currentLang === 'cat' ? catBase : currentLang);
+}
+
+function onLangChange(lang) {
+  if (lang === 'cat') catBase = currentLang;
+  currentLang = lang;
+  try { localStorage.setItem('momoLang', lang); } catch(e) {}
+  try {
+    const url = new URL(location.href);
+    if (lang === 'ja') url.searchParams.delete('lang');
+    else url.searchParams.set('lang', lang);
+    history.replaceState(null, '', url.toString());
+  } catch(e) {}
+  applyLang();
+}
+
+applyLang();
+</script>
+</body>
+</html>

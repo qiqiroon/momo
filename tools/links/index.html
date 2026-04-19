@@ -2197,9 +2197,9 @@ document.getElementById('inUrl').addEventListener('blur',async()=>{
   if(_titleFetchCtrl) _titleFetchCtrl.abort();
   _titleFetchCtrl=new AbortController();
   try{
-    const res=await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(normalizeUrl(url))}`,{signal:_titleFetchCtrl.signal});
+    const res=await fetch(`https://corsproxy.io/?url=${encodeURIComponent(normalizeUrl(url))}`,{signal:_titleFetchCtrl.signal});
     if(!res.ok) return;
-    const {contents:html}=await res.json();
+    const html=await res.text();
     const m=html.match(/<title[^>]*>([^<]+)<\/title>/i);
     if(!m) return;
     const title=m[1].trim();

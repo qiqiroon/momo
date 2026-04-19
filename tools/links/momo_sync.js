@@ -111,18 +111,22 @@ async function _gWriteText(path,content){
 }
 
 // ── 同期中インジケーター ──
-function _showIndicator(){
+function _getOrCreateIndicator(){
   let el=document.getElementById('syncIndicator');
   if(!el){
     el=document.createElement('span');
     el.id='syncIndicator';
-    const hdr=document.querySelector('header');
-    if(hdr) hdr.appendChild(el);
+    const hdr=document.querySelector('header')||document.body;
+    hdr.appendChild(el);
   }
+  return el;
+}
+function _showIndicator(){
+  const el=_getOrCreateIndicator();
   el.textContent='☁ 同期中';
   el.onclick=null;
   el.style.cursor='default';
-  el.style.display='';
+  el.style.display='inline';
 }
 function _hideIndicator(){
   const el=document.getElementById('syncIndicator');
@@ -131,18 +135,12 @@ function _hideIndicator(){
 
 // ── 「同期が必要」バッジ（トークンなし自動同期スキップ時）──
 function _showSyncNeeded(){
-  let el=document.getElementById('syncIndicator');
-  if(!el){
-    el=document.createElement('span');
-    el.id='syncIndicator';
-    const hdr=document.querySelector('header');
-    if(hdr) hdr.appendChild(el);
-  }
+  const el=_getOrCreateIndicator();
   el.textContent='● 同期が必要です';
   el.title='クリックして今すぐ同期';
   el.style.cursor='pointer';
   el.onclick=()=>runSyncManual();
-  el.style.display='';
+  el.style.display='inline';
 }
 function _hideSyncNeeded(){
   const el=document.getElementById('syncIndicator');

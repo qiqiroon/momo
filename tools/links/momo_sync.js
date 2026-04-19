@@ -116,13 +116,35 @@ function _showIndicator(){
   if(!el){
     el=document.createElement('span');
     el.id='syncIndicator';
-    el.textContent='☁ 同期中';
     const hdr=document.querySelector('header');
     if(hdr) hdr.appendChild(el);
   }
+  el.textContent='☁ 同期中';
+  el.onclick=null;
+  el.style.cursor='default';
   el.style.display='';
 }
 function _hideIndicator(){
+  const el=document.getElementById('syncIndicator');
+  if(el) el.style.display='none';
+}
+
+// ── 「同期が必要」バッジ（トークンなし自動同期スキップ時）──
+function _showSyncNeeded(){
+  let el=document.getElementById('syncIndicator');
+  if(!el){
+    el=document.createElement('span');
+    el.id='syncIndicator';
+    const hdr=document.querySelector('header');
+    if(hdr) hdr.appendChild(el);
+  }
+  el.textContent='● 同期が必要です';
+  el.title='クリックして今すぐ同期';
+  el.style.cursor='pointer';
+  el.onclick=()=>runSyncManual();
+  el.style.display='';
+}
+function _hideSyncNeeded(){
   const el=document.getElementById('syncIndicator');
   if(el) el.style.display='none';
 }
@@ -272,6 +294,7 @@ async function runSync(){
     }
 
     saveLastSync();
+    _hideSyncNeeded();
 
   }catch(e){
     console.error('[MomoSync]',e);
@@ -289,11 +312,22 @@ function shouldAutoSync(){
   return syncEnabled()&&location.protocol!=='file:'&&(Math.floor(Date.now()/1000)-lastSyncTs()>=DAY_SEC);
 }
 
-// ── 起動時：GSI先読み＋自動同期 ──
+// ── 自動同期：トークンが有効な場合のみ実行、なければバッジ表示 ──
+function _autoSyncOrBadge(){
+  if(!shouldAutoSync()) return;
+  const now=Math.floor(Date.now()/1000);
+  if(_gToken&&now<_gTokenExp){
+    runSync();
+  }else{
+    _showSyncNeeded();
+  }
+}
+
+// ── 起動時：GSI先読み＋自動同期チェック ──
 window.addEventListener('load',()=>{
   if(syncEnabled()&&location.protocol!=='file:') _loadScript(GSI_URL);
-  if(shouldAutoSync()) runSync();
+  _autoSyncOrBadge();
 });
 
 // ── 継続使用中の定期チェック（1時間ごと）──
-setInterval(()=>{ if(shouldAutoSync()) runSync(); }, 3600*1000);
+setInterval(()=>{ _autoSyncOrBadge(); }, 3600*1000);

@@ -2197,7 +2197,7 @@ document.getElementById('inUrl').addEventListener('blur',async()=>{
   if(_titleFetchCtrl) _titleFetchCtrl.abort();
   _titleFetchCtrl=new AbortController();
   try{
-    const res=await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,{signal:_titleFetchCtrl.signal});
+    const res=await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(normalizeUrl(url))}`,{signal:_titleFetchCtrl.signal});
     if(!res.ok) return;
     const {contents:html}=await res.json();
     const m=html.match(/<title[^>]*>([^<]+)<\/title>/i);
@@ -2206,7 +2206,7 @@ document.getElementById('inUrl').addEventListener('blur',async()=>{
     if(title&&!_titleTouched&&!document.getElementById('inTitle').value.trim()){
       document.getElementById('inTitle').value=title;
     }
-  }catch{}finally{_titleFetchCtrl=null;}
+  }catch(e){if(e.name!=='AbortError')console.warn('[MomoLinks] タイトル取得失敗:',e);}finally{_titleFetchCtrl=null;}
 });
 document.getElementById('addPanel').addEventListener('transitionend',()=>{_titleTouched=false;});
 

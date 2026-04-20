@@ -3,10 +3,13 @@
 
 class InputHandler {
     constructor() {
-        this.tiltX = 0;
-        this.tiltY = 0;
-        this.beta  = 0;
-        this.gamma = 0;
+        this.beta  = 0;   // raw device beta
+        this.gamma = 0;   // raw device gamma
+        this.baseBeta  = 0;   // calibration reference
+        this.baseGamma = 0;
+        // Settings (loaded from localStorage)
+        this.sensitivity = parseFloat(localStorage.getItem('tilt_sens') || '1.0');
+        this.maxSpeed    = parseFloat(localStorage.getItem('tilt_maxspd') || '10');
         this._keys = {};
         this._gyroActive = false;
         this._wakeLock   = null;
@@ -50,10 +53,27 @@ class InputHandler {
         window.addEventListener('deviceorientation', e => {
             this.gamma = e.gamma || 0;
             this.beta  = e.beta  || 0;
-            this.tiltX = this.gamma;
-            this.tiltY = this.beta;
         });
         this._gyroActive = true;
+    }
+
+    // Set current orientation as the "level" reference
+    calibrate() {
+        this.baseBeta  = this.beta;
+        this.baseGamma = this.gamma;
+    }
+
+    // Tilt relative to calibrated base
+    getRelative() {
+        return {
+            beta:  this.beta  - this.baseBeta,
+            gamma: this.gamma - this.baseGamma
+        };
+    }
+
+    saveSettings() {
+        localStorage.setItem('tilt_sens',   this.sensitivity);
+        localStorage.setItem('tilt_maxspd', this.maxSpeed);
     }
 
     async _requestWakeLock() {
@@ -67,14 +87,17 @@ class InputHandler {
         });
     }
 
-    // Returns true when phone is near-level (flat, face-up)
+    // Returns true when relative tilt is within threshold
     isLevel(threshold = 20) {
-        return Math.abs(this.beta) < threshold && Math.abs(this.gamma) < threshold;
+        const rel = this.getRelative();
+        return Math.abs(rel.beta) < threshold && Math.abs(rel.gamma) < threshold;
     }
 
+    // Returns tilt for physics (relative to calibration, scaled by sensitivity)
     getTilt() {
-        let x = this.tiltX;
-        let y = this.tiltY;
+        const rel = this.getRelative();
+        let x = rel.gamma * this.sensitivity;
+        let y = rel.beta  * this.sensitivity;
         const spd = 25;
         if (this._keys['ArrowLeft']  || this._keys['KeyA']) x -= spd;
         if (this._keys['ArrowRight'] || this._keys['KeyD']) x += spd;

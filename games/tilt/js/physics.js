@@ -164,8 +164,45 @@ class PhysicsEngine {
         }
     }
 
-    step(delta) {
-        Matter.Engine.update(this.engine, delta);
+    // 3 substeps per frame to reduce tunneling; cap velocity
+    step(delta, maxSpeed = 10) {
+        const SUB = 3;
+        const subDt = delta / SUB;
+        for (let i = 0; i < SUB; i++) {
+            Matter.Engine.update(this.engine, subDt);
+        }
+        // Velocity cap
+        for (const body of this.ballBodies) {
+            const v = body.velocity;
+            const speed = Math.sqrt(v.x * v.x + v.y * v.y);
+            if (speed > maxSpeed) {
+                Matter.Body.setVelocity(body, {
+                    x: v.x / speed * maxSpeed,
+                    y: v.y / speed * maxSpeed
+                });
+            }
+        }
+    }
+
+    // If a ball escapes the maze, return it to the nearest boundary point
+    checkBounds(balls, maze) {
+        const {offsetX, offsetY, mazeW, mazeH, wallThickness: wt} = maze;
+        const r = this.BALL_RADIUS;
+        const minX = offsetX + wt + r;
+        const maxX = offsetX + mazeW - wt - r;
+        const minY = offsetY + wt + r;
+        const maxY = offsetY + mazeH - wt - r;
+
+        for (const ball of balls) {
+            const x = ball.x, y = ball.y;
+            if (x < minX || x > maxX || y < minY || y > maxY) {
+                Matter.Body.setPosition(ball.body, {
+                    x: Math.max(minX, Math.min(maxX, x)),
+                    y: Math.max(minY, Math.min(maxY, y))
+                });
+                Matter.Body.setVelocity(ball.body, {x: 0, y: 0});
+            }
+        }
     }
 
     respawnBall(ball, c, r, maze) {

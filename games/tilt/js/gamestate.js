@@ -23,11 +23,12 @@ class GameState {
         this.enemies = [];
 
         const s = this.stage;
-        const ballCount    = Math.min(2 + Math.floor((s - 1) / 2), 5);
-        const lockedGoals  = s >= 2 ? Math.min(Math.floor(s / 2), ballCount - 1) : 0;
+        // Stage 1 = 1 ball, each clear adds 1 ball (max 5)
+        const ballCount    = Math.min(s, 5);
+        const lockedGoals  = ballCount >= 2 && s >= 2 ? Math.min(Math.floor(s / 3), ballCount - 1) : 0;
         const keyCount     = lockedGoals;
         const itemCount    = Math.min(1 + Math.floor(s / 2), 4);
-        const enemyCount   = s >= 2 ? Math.min(Math.floor(s / 2), 4) : 0;
+        const enemyCount   = s >= 3 ? Math.min(Math.floor((s - 2) / 2), 4) : 0;
 
         this.rng = this._makeRng(this.stage * 137 + 31);
 

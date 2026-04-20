@@ -50,6 +50,15 @@ class Game {
             this._enterCalibrate();
         });
 
+        // キャリブレーション：現在の向きを基準にセット
+        document.getElementById('calibrateBtn').addEventListener('click', () => {
+            this.input.calibrate();
+            // フィードバック
+            const btn = document.getElementById('calibrateBtn');
+            btn.textContent = '✓ 水平を更新しました';
+            setTimeout(() => { btn.textContent = 'この向きを水平とする'; }, 1500);
+        });
+
         document.getElementById('startBtn').addEventListener('click', () => {
             this._startPlaying();
         });
@@ -57,8 +66,42 @@ class Game {
             this._startPlaying();
         });
 
+        // 設定パネル
+        document.getElementById('gearBtn').addEventListener('click', () => {
+            this._openSettings();
+        });
+        document.getElementById('settingsCloseBtn').addEventListener('click', () => {
+            this._closeSettings();
+        });
+        const sensSlider = document.getElementById('sensSlider');
+        const spdSlider  = document.getElementById('spdSlider');
+        sensSlider.value = this.input.sensitivity;
+        spdSlider.value  = this.input.maxSpeed;
+        document.getElementById('sensVal').textContent = this.input.sensitivity.toFixed(1);
+        document.getElementById('spdVal').textContent  = Math.round(this.input.maxSpeed);
+        sensSlider.addEventListener('input', () => {
+            this.input.sensitivity = parseFloat(sensSlider.value);
+            document.getElementById('sensVal').textContent = this.input.sensitivity.toFixed(1);
+        });
+        spdSlider.addEventListener('input', () => {
+            this.input.maxSpeed = parseFloat(spdSlider.value);
+            document.getElementById('spdVal').textContent = Math.round(this.input.maxSpeed);
+        });
+
         this.canvas.addEventListener('click',    () => { if (this.state === STATE.OVER) this._restartGame(); });
         this.canvas.addEventListener('touchend', () => { if (this.state === STATE.OVER) this._restartGame(); });
+    }
+
+    _openSettings() {
+        document.getElementById('settingsOverlay').classList.remove('hidden');
+        this._prevState = this.state;
+        if (this.state === STATE.PLAYING) this.state = STATE.CALIBRATE; // pause physics
+    }
+
+    _closeSettings() {
+        document.getElementById('settingsOverlay').classList.add('hidden');
+        this.input.saveSettings();
+        if (this._prevState) { this.state = this._prevState; this._prevState = null; }
     }
 
     _buildMaze() {
@@ -96,15 +139,17 @@ class Game {
         const W = ring.offsetWidth || 140, H = ring.offsetHeight || 140;
         const MAX = W / 2 - 12;
 
-        const gx = Math.max(-MAX, Math.min(MAX, this.input.gamma / 45 * MAX));
-        const gy = Math.max(-MAX, Math.min(MAX, this.input.beta  / 45 * MAX));
+        // Show relative tilt from calibrated base
+        const rel = this.input.getRelative();
+        const gx = Math.max(-MAX, Math.min(MAX, rel.gamma / 30 * MAX));
+        const gy = Math.max(-MAX, Math.min(MAX, rel.beta  / 30 * MAX));
         dot.style.left = (W / 2 + gx) + 'px';
         dot.style.top  = (H / 2 + gy) + 'px';
 
         const isPC    = !this.input._gyroActive;
-        const isLevel = isPC || this.input.isLevel(20);
+        const isLevel = isPC || this.input.isLevel(15);
 
-        stat.textContent = isPC ? 'キーボードモード (矢印/WASD)' : (isLevel ? '水平です ✓' : '傾いています…');
+        stat.textContent = isPC ? 'キーボードモード (矢印/WASD)' : (isLevel ? '水平を保てています ✓' : '傾いています…もしくは「この向きを水平とする」を押してください');
         stat.className   = isLevel ? 'ok' : 'ng';
         btn.disabled     = !isLevel;
 
@@ -117,6 +162,7 @@ class Game {
         this.gs.setupStage(this.maze, this.physics);
         this.clearCountdown = 0;
         this.state = STATE.PLAYING;
+        document.getElementById('gearBtn').classList.remove('hidden');
     }
 
     _startLoop() {
@@ -142,7 +188,8 @@ class Game {
         this.physics.applyTilt(tilt.x, tilt.y, frozenIds);
         this.physics.applyGoalForces(gs.balls, gs.goals);
         this.physics.applyWarps(gs.balls, maze);
-        this.physics.step(dt);
+        this.physics.step(dt, this.input.maxSpeed);
+        this.physics.checkBounds(gs.balls, maze);
 
         for (const b of gs.balls)
             b.sizeScale += ((b.inGoal ? 0.7 : 1.0) - b.sizeScale) * 0.12;

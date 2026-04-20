@@ -37,6 +37,18 @@
     #calibStatus{font-size:13px;margin-top:-4px;}
     #calibStatus.ok{color:#22c55e;}
     #calibStatus.ng{color:#f87171;}
+    /* Settings panel */
+    #settingsOverlay .panel{gap:14px;}
+    .setting-row{width:100%;display:flex;flex-direction:column;gap:6px;text-align:left;}
+    .setting-row label{font-size:13px;color:#9ca3af;display:flex;justify-content:space-between;}
+    .setting-row label span{color:#fb923c;font-weight:bold;}
+    .setting-row input[type=range]{width:100%;accent-color:#fb923c;}
+    /* Gear button during play */
+    #gearBtn{position:fixed;top:12px;right:10px;z-index:60;background:transparent;border:none;font-size:22px;cursor:pointer;opacity:.7;padding:4px;}
+    #gearBtn.hidden{display:none;}
+    /* Calibrate reference button */
+    .btn-calib{padding:10px 20px;font-size:13px;background:#1e3a5f;color:#93c5fd;border:1px solid #2e5a8f;border-radius:30px;cursor:pointer;width:100%;max-width:260px;}
+    .btn-calib:active{opacity:.7;}
   </style>
 </head>
 <body>
@@ -65,17 +77,38 @@
 <!-- 3: 水平キャリブレーション -->
 <div class="overlay hidden" id="calibOverlay">
   <div class="panel">
-    <h2>📱 水平を確認</h2>
-    <p>スマホを<strong style="color:#fb923c;">水平</strong>に保ってください<br>丸がまん中に来たらスタートできます</p>
+    <h2>📱 水平キャリブレーション</h2>
+    <p>スマホを操作しやすい角度に構えて<br>
+       <strong style="color:#fb923c;">「この向きを水平とする」</strong>を押してください</p>
     <div class="level-ring" id="levelRing">
       <div class="level-target"></div>
       <div class="level-dot" id="levelDot" style="left:50%;top:50%;"></div>
     </div>
     <div id="calibStatus" class="ng">傾いています…</div>
+    <button class="btn-calib" id="calibrateBtn">この向きを水平とする</button>
     <button class="btn" id="startBtn" disabled>ゲームスタート</button>
     <button class="btn-sub" id="skipCalibBtn">そのままスタート</button>
   </div>
 </div>
+
+<!-- 4: 設定パネル -->
+<div class="overlay hidden" id="settingsOverlay">
+  <div class="panel">
+    <h2>⚙️ 感度設定</h2>
+    <div class="setting-row">
+      <label>傾き感度 <span id="sensVal">1.0</span>x</label>
+      <input type="range" id="sensSlider" min="0.3" max="3.0" step="0.1" value="1.0">
+    </div>
+    <div class="setting-row">
+      <label>最大速度（壁抜け防止） <span id="spdVal">10</span></label>
+      <input type="range" id="spdSlider" min="4" max="20" step="1" value="10">
+    </div>
+    <button class="btn" id="settingsCloseBtn">OK</button>
+  </div>
+</div>
+
+<!-- ゲーム中の設定ボタン -->
+<button id="gearBtn" class="hidden">⚙️</button>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
 <script src="js/maze.js"></script>

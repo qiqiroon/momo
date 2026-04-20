@@ -77,6 +77,17 @@
   .card-play { margin-top:4px; font-size:0.82rem; color:var(--orange); letter-spacing:0.08em; display:flex; align-items:center; gap:6px; }
   .card-play::after { content:'→'; transition:transform 0.2s; }
   .card:hover .card-play::after { transform:translateX(4px); }
+  /* Under Construction overlay */
+  .card-wip { pointer-events:none; }
+  .card-wip::after {
+    content:'🚧 UNDER CONSTRUCTION 工事中 🚧';
+    position:absolute; inset:0; border-radius:16px;
+    background:rgba(0,0,0,0.72);
+    color:#fb923c; font-size:14px; font-weight:700; letter-spacing:.05em;
+    display:flex; align-items:center; justify-content:center;
+    text-align:center; padding:12px; line-height:1.6;
+    border:2px dashed #c2410c;
+  }
   footer { margin-top:auto; padding:20px 0; font-size:0.75rem; color:var(--text-muted); text-align:center; border-top:1px solid var(--border); width:100%; position:relative; z-index:1; }
   footer a { color:var(--text-muted); text-decoration:none; }
   footer a:hover { color:var(--orange-bright); }
@@ -137,7 +148,7 @@
   <div class="section-label"><span id="section-label">Game List</span></div>
 
   <div class="cards">
-    <a class="card" href="tilt/">
+    <a class="card card-wip" href="tilt/">
       <div class="card-badge">📱 New</div>
       <div class="card-title">MOMO <span>Tilt</span></div>
       <div class="card-desc" id="tilt-desc">スマホを傾けてボールを転がし、同じ色のゴールへ同時に入れるパズル＆アクション。鍵を集めてゴールを解錠、敵をかわしながらクリアを目指せ！</div>

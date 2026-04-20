@@ -5,128 +5,79 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>MOMO Tilt</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-
-    body {
-      background: #0d1117;
-      overflow: hidden;
-      touch-action: none;
-      user-select: none;
-      -webkit-user-select: none;
-    }
-
-    #gameCanvas {
-      display: block;
-      position: fixed;
-      top: 0; left: 0;
-    }
-
-    /* ── Title Screen ── */
-    #titleOverlay {
-      position: fixed;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      background: #0d1117;
-      z-index: 100;
-    }
-
-    #startScreen {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 16px;
-    }
-
-    .title-cat {
-      font-size: 72px;
-      line-height: 1;
-      filter: drop-shadow(0 0 20px rgba(255,140,0,0.7));
-      animation: float 3s ease-in-out infinite;
-    }
-
-    @keyframes float {
-      0%, 100% { transform: translateY(0);   }
-      50%       { transform: translateY(-10px); }
-    }
-
-    .title-text {
-      font-size: 46px;
-      font-weight: 900;
-      font-family: 'Arial Rounded MT Bold', 'Hiragino Maru Gothic Pro', Arial, sans-serif;
-      color: #fff;
-      letter-spacing: 2px;
-      text-shadow:
-        0 0 20px rgba(255,140,0,0.8),
-        0 0 40px rgba(255,80,0,0.4);
-    }
-
-    .title-version {
-      font-size: 13px;
-      color: #555;
-      letter-spacing: 1px;
-    }
-
-    .title-desc {
-      font-size: 14px;
-      color: #888;
-      text-align: center;
-      line-height: 1.7;
-      margin-top: 8px;
-    }
-
-    #startBtn {
-      margin-top: 24px;
-      padding: 16px 52px;
-      font-size: 20px;
-      font-weight: bold;
-      font-family: inherit;
-      background: linear-gradient(135deg, #ff8c00, #ff4400);
-      color: #fff;
-      border: none;
-      border-radius: 50px;
-      cursor: pointer;
-      box-shadow: 0 4px 20px rgba(255,100,0,0.5);
-      transition: transform 0.1s, box-shadow 0.1s;
-    }
-    #startBtn:active {
-      transform: scale(0.96);
-      box-shadow: 0 2px 10px rgba(255,100,0,0.4);
-    }
-
-    .kbd-hint {
-      font-size: 12px;
-      color: #444;
-      margin-top: 12px;
-    }
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{background:#0d1117;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;}
+    #gameCanvas{display:block;position:fixed;top:0;left:0;}
+    .overlay{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,0.85);}
+    .overlay.hidden{display:none;}
+    .panel{background:#111827;border:1px solid #1e3a5f;border-radius:20px;padding:32px 28px;max-width:340px;width:90%;text-align:center;display:flex;flex-direction:column;align-items:center;gap:16px;}
+    .panel h2{font-size:22px;font-weight:700;color:#fff;}
+    .panel p{font-size:14px;color:#9ca3af;line-height:1.7;}
+    .btn{padding:14px 44px;font-size:18px;font-weight:bold;background:linear-gradient(135deg,#ff8c00,#ff4400);color:#fff;border:none;border-radius:50px;cursor:pointer;box-shadow:0 4px 18px rgba(255,100,0,.45);width:100%;max-width:260px;transition:transform .1s,opacity .1s;}
+    .btn:active{transform:scale(.96);}
+    .btn:disabled{opacity:.4;cursor:default;transform:none;}
+    .btn-sub{padding:10px 28px;font-size:13px;background:transparent;color:#6b7280;border:1px solid #374151;border-radius:30px;cursor:pointer;margin-top:-4px;}
+    #titleOverlay{background:#0d1117;}
+    .title-cat{font-size:72px;line-height:1;animation:float 3s ease-in-out infinite;}
+    @keyframes float{0%,100%{transform:translateY(0);}50%{transform:translateY(-10px);}}
+    .title-text{font-size:44px;font-weight:900;color:#fff;letter-spacing:2px;text-shadow:0 0 20px rgba(255,140,0,.8);}
+    .title-text span{color:#fb923c;}
+    .title-ver{font-size:12px;color:#4b5563;}
+    .title-desc{font-size:13px;color:#6b7280;line-height:1.8;}
+    .kbd-hint{font-size:11px;color:#374151;}
+    #previewBar{position:fixed;bottom:0;left:0;right:0;z-index:50;background:linear-gradient(to top,rgba(0,0,0,.92) 80%,transparent);padding:20px 24px 32px;display:flex;flex-direction:column;align-items:center;gap:12px;}
+    #previewBar.hidden{display:none;}
+    #previewBar p{font-size:13px;color:#9ca3af;text-align:center;line-height:1.6;}
+    #previewBar .btn{max-width:280px;}
+    .level-ring{width:140px;height:140px;border-radius:50%;border:2px solid #1e3a5f;background:#0d1117;position:relative;margin:8px auto;overflow:hidden;}
+    .level-target{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:38px;height:38px;border-radius:50%;border:2px dashed #22c55e;opacity:.7;}
+    .level-dot{position:absolute;width:20px;height:20px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff,#fb923c);transform:translate(-50%,-50%);transition:left .08s,top .08s;}
+    #calibStatus{font-size:13px;margin-top:-4px;}
+    #calibStatus.ok{color:#22c55e;}
+    #calibStatus.ng{color:#f87171;}
   </style>
 </head>
 <body>
-
 <canvas id="gameCanvas"></canvas>
 
-<div id="titleOverlay">
-  <div id="startScreen">
+<!-- 1: タイトル -->
+<div class="overlay" id="titleOverlay">
+  <div style="display:flex;flex-direction:column;align-items:center;gap:14px;">
     <div class="title-cat">🐱</div>
-    <div class="title-text">MOMO Tilt</div>
-    <div class="title-version">v0.1.0</div>
-    <div class="title-desc">
-      スマホを傾けてボールを転がし<br>
-      同じ色のゴールへ同時に入れよう！
-    </div>
-    <button id="startBtn">はじめる</button>
-    <div class="kbd-hint">PCは矢印キーまたはWASDで操作</div>
+    <div class="title-text">MOMO <span>Tilt</span></div>
+    <div class="title-ver">v0.1.0</div>
+    <div class="title-desc">スマホを傾けてボールを転がし<br>同じ色のゴールへ同時に入れよう！</div>
+    <button class="btn" id="titleBtn" style="margin-top:12px;">はじめる</button>
+    <div class="kbd-hint">PCは矢印キー / WASD で操作</div>
   </div>
 </div>
 
-<!-- Matter.js physics engine -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+<!-- 2: 迷路プレビュー後のバー -->
+<div id="previewBar" class="hidden">
+  <p>ステージ <span id="previewStage">1</span> の迷路が生成されました<br>
+     スマホを<strong style="color:#fb923c;">水平（画面を上向き）</strong>に持って操作します</p>
+  <button class="btn" id="sensorBtn">センサーを許可してスタート</button>
+  <button class="btn-sub" id="skipSensorBtn">（PCで遊ぶ / センサーなし）</button>
+</div>
 
+<!-- 3: 水平キャリブレーション -->
+<div class="overlay hidden" id="calibOverlay">
+  <div class="panel">
+    <h2>📱 水平を確認</h2>
+    <p>スマホを<strong style="color:#fb923c;">水平</strong>に保ってください<br>丸がまん中に来たらスタートできます</p>
+    <div class="level-ring" id="levelRing">
+      <div class="level-target"></div>
+      <div class="level-dot" id="levelDot" style="left:50%;top:50%;"></div>
+    </div>
+    <div id="calibStatus" class="ng">傾いています…</div>
+    <button class="btn" id="startBtn" disabled>ゲームスタート</button>
+    <button class="btn-sub" id="skipCalibBtn">そのままスタート</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
 <script src="js/maze.js"></script>
 <script src="js/entities.js"></script>
 <script src="js/input.js"></script>
@@ -134,7 +85,5 @@
 <script src="js/renderer.js"></script>
 <script src="js/gamestate.js"></script>
 <script src="js/main.js"></script>
-
-
 </body>
 </html>

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>MOMO Tilt</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0d1117;
+      overflow: hidden;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    #gameCanvas {
+      display: block;
+      position: fixed;
+      top: 0; left: 0;
+    }
+
+    /* ── Title Screen ── */
+    #titleOverlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #0d1117;
+      z-index: 100;
+    }
+
+    #startScreen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .title-cat {
+      font-size: 72px;
+      line-height: 1;
+      filter: drop-shadow(0 0 20px rgba(255,140,0,0.7));
+      animation: float 3s ease-in-out infinite;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0);   }
+      50%       { transform: translateY(-10px); }
+    }
+
+    .title-text {
+      font-size: 46px;
+      font-weight: 900;
+      font-family: 'Arial Rounded MT Bold', 'Hiragino Maru Gothic Pro', Arial, sans-serif;
+      color: #fff;
+      letter-spacing: 2px;
+      text-shadow:
+        0 0 20px rgba(255,140,0,0.8),
+        0 0 40px rgba(255,80,0,0.4);
+    }
+
+    .title-version {
+      font-size: 13px;
+      color: #555;
+      letter-spacing: 1px;
+    }
+
+    .title-desc {
+      font-size: 14px;
+      color: #888;
+      text-align: center;
+      line-height: 1.7;
+      margin-top: 8px;
+    }
+
+    #startBtn {
+      margin-top: 24px;
+      padding: 16px 52px;
+      font-size: 20px;
+      font-weight: bold;
+      font-family: inherit;
+      background: linear-gradient(135deg, #ff8c00, #ff4400);
+      color: #fff;
+      border: none;
+      border-radius: 50px;
+      cursor: pointer;
+      box-shadow: 0 4px 20px rgba(255,100,0,0.5);
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+    #startBtn:active {
+      transform: scale(0.96);
+      box-shadow: 0 2px 10px rgba(255,100,0,0.4);
+    }
+
+    .kbd-hint {
+      font-size: 12px;
+      color: #444;
+      margin-top: 12px;
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="gameCanvas"></canvas>
+
+<div id="titleOverlay">
+  <div id="startScreen">
+    <div class="title-cat">🐱</div>
+    <div class="title-text">MOMO Tilt</div>
+    <div class="title-version">v0.1.0</div>
+    <div class="title-desc">
+      スマホを傾けてボールを転がし<br>
+      同じ色のゴールへ同時に入れよう！
+    </div>
+    <button id="startBtn">はじめる</button>
+    <div class="kbd-hint">PCは矢印キーまたはWASDで操作</div>
+  </div>
+</div>
+
+<!-- Matter.js physics engine -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+
+<script src="js/maze.js"></script>
+<script src="js/entities.js"></script>
+<script src="js/input.js"></script>
+<script src="js/physics.js"></script>
+<script src="js/renderer.js"></script>
+<script src="js/gamestate.js"></script>
+<script src="js/main.js"></script>
+
+
+</body>
+</html>

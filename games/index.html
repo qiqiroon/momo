@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MOMO Games v1.13 -->
+<!-- MOMO Games v1.14 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -137,6 +137,18 @@
   <div class="section-label"><span id="section-label">Game List</span></div>
 
   <div class="cards">
+    <a class="card" href="tilt/">
+      <div class="card-badge">📱 New</div>
+      <div class="card-title">MOMO <span>Tilt</span></div>
+      <div class="card-desc" id="tilt-desc">スマホを傾けてボールを転がし、同じ色のゴールへ同時に入れるパズル＆アクション。鍵を集めてゴールを解錠、敵をかわしながらクリアを目指せ！</div>
+      <div class="card-meta" id="tilt-meta">
+        <span>📐 迷路</span>
+        <span>🔵 マルチボール</span>
+        <span id="tilt-device">スマホ対応</span>
+      </div>
+      <div class="card-play" id="tilt-play">今すぐプレイ</div>
+    </a>
+
     <a class="card" href="hanoi/">
       <div class="card-badge">🎮 New</div>
       <div class="card-title">MOMO <span>Hanoi</span></div>
@@ -172,6 +184,9 @@ const I18N = {
   ja: {
     headerSub: 'ブラウザで遊べるゲーム集',
     sectionLabel: 'Game List',
+    tiltDesc: 'スマホを傾けてボールを転がし、同じ色のゴールへ同時に入れるパズル＆アクション。鍵を集めてゴールを解錠、敵をかわしながらクリアを目指せ！',
+    tiltMeta1: '📐 迷路', tiltMeta2: '🔵 マルチボール', tiltDevice: 'スマホ対応',
+    tiltPlay: '今すぐプレイ',
     hanoiDesc: 'ハノイの塔を解きながらUFOを迎撃するパズル×シューティング。円盤を移動させて砲弾を発射し、地面を守れ！',
     hanoiMeta1: '🧩 パズル', hanoiMeta2: '🛸 シューティング', hanoiDiff: '3難易度',
     hanoiPlay: '今すぐプレイ',
@@ -183,6 +198,9 @@ const I18N = {
   en: {
     headerSub: 'Browser games collection',
     sectionLabel: 'Game List',
+    tiltDesc: 'Tilt your phone to roll balls through a maze and drop them into matching color goals simultaneously. Collect keys, dodge enemies, and clear each stage!',
+    tiltMeta1: '📐 Maze', tiltMeta2: '🔵 Multi-ball', tiltDevice: 'Mobile-ready',
+    tiltPlay: 'Play Now',
     hanoiDesc: 'A puzzle × shooting game where you solve the Tower of Hanoi while intercepting UFOs. Move discs to fire shells and protect the ground!',
     hanoiMeta1: '🧩 Puzzle', hanoiMeta2: '🛸 Shooting', hanoiDiff: '3 difficulties',
     hanoiPlay: 'Play Now',
@@ -194,6 +212,9 @@ const I18N = {
   zh: {
     headerSub: '可在浏览器中游玩的游戏合集',
     sectionLabel: 'Game List',
+    tiltDesc: '倾斜手机滚动小球穿越迷宫，同时将所有小球送入对应颜色的目标洞。收集钥匙解锁目标，躲避敌人，挑战每一关！',
+    tiltMeta1: '📐 迷宫', tiltMeta2: '🔵 多球', tiltDevice: '支持手机',
+    tiltPlay: '立即游玩',
     hanoiDesc: '一边解汉诺塔谜题，一边拦截UFO的益智×射击游戏。移动圆盘发射炮弹，保卫大地！',
     hanoiMeta1: '🧩 益智', hanoiMeta2: '🛸 射击', hanoiDiff: '3种难度',
     hanoiPlay: '立即游玩',
@@ -210,6 +231,12 @@ function applyLang() {
   const d = I18N[currentLang] || I18N.ja;
   document.getElementById('header-sub').textContent = d.headerSub;
   document.getElementById('section-label').textContent = d.sectionLabel;
+  document.getElementById('tilt-desc').textContent = d.tiltDesc;
+  const tiltMetaSpans = document.querySelectorAll('#tilt-meta span');
+  if (tiltMetaSpans[0]) tiltMetaSpans[0].textContent = d.tiltMeta1;
+  if (tiltMetaSpans[1]) tiltMetaSpans[1].textContent = d.tiltMeta2;
+  document.getElementById('tilt-device').textContent = d.tiltDevice;
+  document.getElementById('tilt-play').textContent = d.tiltPlay;
   document.getElementById('hanoi-desc').textContent = d.hanoiDesc;
   const metaSpans = document.querySelectorAll('#hanoi-meta span');
   if (metaSpans[0]) metaSpans[0].textContent = d.hanoiMeta1;

@@ -32,8 +32,9 @@ class GameState {
 
         this.rng = this._makeRng(this.stage * 137 + 31);
 
-        // Place balls (top quarter)
-        const ballCells = MazeGenerator.pickCells(maze, ballCount, this.rng, [], 'top');
+        // Place balls (top zone): spread them as far apart as possible
+        const allBallCands = MazeGenerator.pickCells(maze, maze.rows * maze.cols, this.rng, [], 'top');
+        const ballCells = this._pickFarthest(allBallCands, ballCount);
         for (let i = 0; i < ballCount; i++) {
             const cell = ballCells[i] || {c: 1 + i, r: 1};
             const body = physics.addBall(cell.c, cell.r, maze);
@@ -43,11 +44,20 @@ class GameState {
             this.balls.push(ball);
         }
 
-        // Place goals (bottom quarter)
+        // Place goals (bottom zone): each goal near the point-symmetric position of its ball
         const exclude = [...ballCells];
-        const goalCells = MazeGenerator.pickCells(maze, ballCount, this.rng, exclude, 'bottom');
+        const allGoalCands = MazeGenerator.pickCells(maze, maze.rows * maze.cols, this.rng, exclude, 'bottom');
         for (let i = 0; i < ballCount; i++) {
-            const cell = goalCells[i] || {c: maze.cols - 2 - i, r: maze.rows - 2};
+            const ball = ballCells[i] || {c: 1 + i, r: 1};
+            const symC = maze.cols - 1 - ball.c;
+            const symR = maze.rows - 1 - ball.r;
+            let best = null, bestD = Infinity;
+            for (const cand of allGoalCands) {
+                if (exclude.some(e => e.c === cand.c && e.r === cand.r)) continue;
+                const d = (cand.c - symC) ** 2 + (cand.r - symR) ** 2;
+                if (d < bestD) { bestD = d; best = cand; }
+            }
+            const cell = best || {c: maze.cols - 2 - i, r: maze.rows - 2};
             exclude.push(cell);
             const goal = new Goal(i, i, cell.c, cell.r, maze);
             goal.locked = i < lockedGoals;
@@ -262,6 +272,22 @@ class GameState {
     nextStage() {
         this.stage++;
         this.clearTimer = 0;
+    }
+
+    _pickFarthest(cands, n) {
+        if (n <= 1 || cands.length <= n) return cands.slice(0, n);
+        const selected = [cands[0]];
+        while (selected.length < n) {
+            let best = null, bestD = -1;
+            for (const c of cands) {
+                if (selected.some(s => s.c === c.c && s.r === c.r)) continue;
+                const minD = Math.min(...selected.map(s => (c.c - s.c) ** 2 + (c.r - s.r) ** 2));
+                if (minD > bestD) { bestD = minD; best = c; }
+            }
+            if (best) selected.push(best);
+            else break;
+        }
+        return selected;
     }
 
     _makeRng(seed) {

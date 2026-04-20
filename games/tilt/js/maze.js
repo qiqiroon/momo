@@ -44,6 +44,9 @@ class MazeGenerator {
         const maxEx = (cols-1)*halfRows + cols*(halfRows-1) - this._countPass(passages, cols, halfRows);
         this._addExtra(passages, cols, halfRows, Math.floor((1 - wallBlockDensity) * maxEx * 0.3));
 
+        // Phase 4.5: wall islands (placed after dead-end fix so they don't get undone)
+        this._addIslands(passages, cols, halfRows, Math.max(2, Math.floor(cols * halfRows / 30)));
+
         // Phase 5: mirror top -> bottom
         for (let r = 0; r < halfRows; r++) {
             for (let c = 0; c < cols; c++) {
@@ -54,12 +57,28 @@ class MazeGenerator {
             }
         }
 
+        // Force several evenly-spaced center-seam passages so top/bottom halves connect
+        const seamStep = Math.max(2, Math.floor(cols / 4));
+        for (let c = 1; c < cols - 1; c += seamStep) passages[halfRows - 1][c].down = true;
+
         // Phase 6: fix seam dead ends
         this._fixDeadEnds(passages, cols, rows);
 
         const warps = this._placeWarps(rows, warpCount);
         return { cols, rows, cellSize: this.cs, corridorWidth: this.cw, wallThickness: this.wt,
                  passages, warps, offsetX, offsetY, mazeW, mazeH };
+    }
+
+    _addIslands(passages, cols, rows, count) {
+        for (let i = 0; i < count; i++) {
+            const c = 1 + Math.floor(this.rng() * (cols - 2));
+            const r = 1 + Math.floor(this.rng() * (rows - 2));
+            // Seal cell (c,r) on all 4 sides
+            passages[r][c].right = false;
+            if (c > 0) passages[r][c-1].right = false;
+            passages[r][c].down = false;
+            if (r > 0) passages[r-1][c].down = false;
+        }
     }
 
     _pickMainStreets(halfRows, density) {

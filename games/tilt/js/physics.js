@@ -12,8 +12,8 @@ class PhysicsEngine {
         this.wallBodies = [];
         this.ballBodies = [];
         this.BALL_RADIUS = 7;
-        this.FRICTION    = 0.002;
-        this.RESTITUTION = 0.35;
+        this.FRICTION    = 0;
+        this.RESTITUTION = 0.55;
     }
 
     // Build static wall bodies from maze data
@@ -25,7 +25,7 @@ class PhysicsEngine {
         this.wallBodies = [];
         this.ballBodies = [];
 
-        const opts = {isStatic: true, restitution: 0.3, friction: 0.1, label: 'wall'};
+        const opts = {isStatic: true, restitution: 0.5, friction: 0, frictionStatic: 0, label: 'wall'};
         const bodies = [];
 
         // Outer walls
@@ -73,9 +73,10 @@ class PhysicsEngine {
     addBall(c, r, maze) {
         const pos = MazeGenerator.cellCenter(c, r, maze);
         const body = this.Bodies.circle(pos.x, pos.y, this.BALL_RADIUS, {
-            restitution: this.RESTITUTION,
-            friction:    this.FRICTION,
-            frictionAir: 0.015,
+            restitution:    this.RESTITUTION,
+            friction:       0,
+            frictionStatic: 0,
+            frictionAir:    0.015,
             label: 'ball',
             density: 0.002
         });

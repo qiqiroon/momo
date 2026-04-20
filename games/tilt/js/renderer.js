@@ -26,55 +26,65 @@ class Renderer {
 
     drawMaze(maze) {
         const ctx = this.ctx;
-        const {cols, rows, cellSize: cs, corridorWidth: cw, wallThickness: wt, offsetX, offsetY, passages} = maze;
+        const {cols, rows, cellSize: cs, corridorWidth: cw, wallThickness: wt,
+               offsetX, offsetY, passages} = maze;
 
-        const wallColor   = '#1e3a5f';
-        const wallEdge    = '#2e5a8f';
-        const floorColor  = '#161b22';
-
-        // Draw all walls (fill entire maze with wall color, then paint passage cells)
-        ctx.fillStyle = wallColor;
+        // Dark maze background; corridor cells slightly lighter to show open paths
+        ctx.fillStyle = '#0b0f16';
         ctx.fillRect(offsetX, offsetY, maze.mazeW, maze.mazeH);
-
-        // Paint corridor cells
-        ctx.fillStyle = floorColor;
+        ctx.fillStyle = '#111825';
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
-                const x = offsetX + wt + c * cs;
-                const y = offsetY + wt + r * cs;
-                ctx.fillRect(x, y, cw, cw);
-
-                // Right passage
-                if (c < cols - 1 && passages[r][c].right) {
-                    ctx.fillRect(x + cw, y, wt, cw);
-                }
-                // Down passage
-                if (r < rows - 1 && passages[r][c].down) {
-                    ctx.fillRect(x, y + cw, cw, wt);
-                }
+                const x0 = offsetX + wt + c * cs;
+                const y0 = offsetY + wt + r * cs;
+                ctx.fillRect(x0, y0, cw, cw);
+                if (c < cols-1 && passages[r][c].right) ctx.fillRect(x0 + cw, y0, wt, cw);
+                if (r < rows-1 && passages[r][c].down)  ctx.fillRect(x0, y0 + cw, cw, wt);
             }
         }
 
-        // Wall edge highlights
-        ctx.strokeStyle = wallEdge;
-        ctx.lineWidth   = 0.8;
+        // Pac-Man style double wall lines:
+        // Each cell draws a glowing line on each closed edge (inner face of the wall).
+        // The adjacent cell draws the same line on its own edge (outer face of the same wall).
+        // Result: two parallel lines wt pixels apart — a double line — for every wall.
+        ctx.save();
+        ctx.lineCap = 'round';
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = '#2a5da8';
+        ctx.shadowColor = '#5599ff';
+        ctx.shadowBlur = 7;
+        ctx.beginPath();
+
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
-                const x = offsetX + wt + c * cs;
-                const y = offsetY + wt + r * cs;
+                const x0 = offsetX + wt + c * cs;
+                const y0 = offsetY + wt + r * cs;
 
-                if (c < cols - 1 && !passages[r][c].right) {
-                    ctx.beginPath();
-                    ctx.rect(x + cw, y, wt, cw);
-                    ctx.stroke();
+                if (r === 0 || !passages[r-1][c].down) {   // top edge
+                    ctx.moveTo(x0, y0); ctx.lineTo(x0 + cw, y0);
                 }
-                if (r < rows - 1 && !passages[r][c].down) {
-                    ctx.beginPath();
-                    ctx.rect(x, y + cw, cw, wt);
-                    ctx.stroke();
+                if (c === 0 || !passages[r][c-1].right) {  // left edge
+                    ctx.moveTo(x0, y0); ctx.lineTo(x0, y0 + cw);
+                }
+                if (r === rows-1 || !passages[r][c].down) { // bottom edge
+                    ctx.moveTo(x0, y0 + cw); ctx.lineTo(x0 + cw, y0 + cw);
+                }
+                if (c === cols-1 || !passages[r][c].right) { // right edge
+                    ctx.moveTo(x0 + cw, y0); ctx.lineTo(x0 + cw, y0 + cw);
                 }
             }
         }
+        ctx.stroke();
+
+        // Outer boundary outer faces (inner faces already drawn by border cells above)
+        ctx.beginPath();
+        ctx.moveTo(offsetX, offsetY);                    ctx.lineTo(offsetX + maze.mazeW, offsetY);
+        ctx.moveTo(offsetX, offsetY + maze.mazeH);       ctx.lineTo(offsetX + maze.mazeW, offsetY + maze.mazeH);
+        ctx.moveTo(offsetX, offsetY);                    ctx.lineTo(offsetX, offsetY + maze.mazeH);
+        ctx.moveTo(offsetX + maze.mazeW, offsetY);       ctx.lineTo(offsetX + maze.mazeW, offsetY + maze.mazeH);
+        ctx.stroke();
+
+        ctx.restore();
 
         // Warp portals
         if (maze.warps) {

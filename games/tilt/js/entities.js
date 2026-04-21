@@ -10,7 +10,8 @@ class Ball {
         this.c = c;
         this.r = r;
         this.color = BALL_COLORS[id % BALL_COLORS.length];
-        this.inGoal = false;       // currently inside its goal
+        this.inGoal = false;       // currently inside a goal
+        this.currentGoalId = -1;   // which goal the ball is currently in
         this.sizeScale = 1.0;      // shrinks when in goal
         this.invincible = 0;       // frames of invincibility after respawn
         this.frozen = 0;           // frames remaining of freeze effect

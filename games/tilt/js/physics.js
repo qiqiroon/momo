@@ -103,36 +103,42 @@ class PhysicsEngine {
         }
     }
 
-    // Apply goal attraction/damping each frame
+    // Apply goal attraction/damping each frame — any ball can fall into any unlocked goal
     applyGoalForces(balls, goals) {
-        const K_SPRING  = 0.0018;   // spring constant toward center
-        const K_DAMPING = 0.06;     // velocity damping inside goal
-        const ESCAPE_TILT = 30;     // tilt threshold to escape (degrees equivalent)
+        const K_SPRING  = 0.0018;
+        const K_DAMPING = 0.06;
 
         for (const ball of balls) {
-            const goal = goals.find(g => g.ballId === ball.id && !g.locked);
-            if (!goal) continue;
+            // Find nearest unlocked goal within attract radius
+            let nearest = null, nearestDist = Infinity;
+            for (const goal of goals) {
+                if (goal.locked) continue;
+                const dx = goal.x - ball.x;
+                const dy = goal.y - ball.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < goal.radius * 1.5 && dist < nearestDist) {
+                    nearestDist = dist;
+                    nearest = goal;
+                }
+            }
 
-            const dx = goal.x - ball.x;
-            const dy = goal.y - ball.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            const attractRadius = goal.radius * 1.5;
-
-            if (dist < attractRadius) {
-                // Spring force toward goal center
+            if (nearest) {
+                const dx = nearest.x - ball.x;
+                const dy = nearest.y - ball.y;
                 Matter.Body.applyForce(ball.body, ball.body.position, {
                     x: dx * K_SPRING * ball.body.mass,
                     y: dy * K_SPRING * ball.body.mass
                 });
-                // Damping
                 const vel = ball.body.velocity;
                 Matter.Body.setVelocity(ball.body, {
                     x: vel.x * (1 - K_DAMPING),
                     y: vel.y * (1 - K_DAMPING)
                 });
-                ball.inGoal = dist < goal.radius * 0.9;
+                ball.inGoal = nearestDist < nearest.radius * 0.9;
+                ball.currentGoalId = nearest.id;
             } else {
                 ball.inGoal = false;
+                ball.currentGoalId = -1;
             }
         }
     }
@@ -206,10 +212,29 @@ class PhysicsEngine {
         }
     }
 
+    // Push any ball that is inside a wall back to free space
+    unstuckBalls(balls, maze, isWall) {
+        for (const ball of balls) {
+            if (!isWall(ball.x, ball.y)) continue;
+            let freed = false;
+            for (let d = 2; d <= 28 && !freed; d += 2) {
+                for (const [dx, dy] of [[d,0],[-d,0],[0,d],[0,-d],[d,d],[-d,-d],[d,-d],[-d,d]]) {
+                    if (!isWall(ball.x + dx, ball.y + dy)) {
+                        Matter.Body.setPosition(ball.body, {x: ball.x + dx, y: ball.y + dy});
+                        Matter.Body.setVelocity(ball.body, {x: 0, y: 0});
+                        freed = true;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
     respawnBall(ball, c, r, maze) {
         const pos = MazeGenerator.cellCenter(c, r, maze);
         Matter.Body.setPosition(ball.body, pos);
         Matter.Body.setVelocity(ball.body, {x: 0, y: 0});
         ball.inGoal = false;
+        ball.currentGoalId = -1;
     }
 }

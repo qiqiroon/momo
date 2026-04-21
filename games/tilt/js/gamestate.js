@@ -214,7 +214,7 @@ class GameState {
                     const dx = ball.x - item.x, dy = ball.y - item.y;
                     if (dx * dx + dy * dy < (ball.radius + item.radius) ** 2) {
                         item.collected = true;
-                        this._applyItem(item.type);
+                        this._applyItem(item.type, ball);
                         collected.push({type: 'item', id: item.id});
                     }
                 }
@@ -250,12 +250,15 @@ class GameState {
         return collected;
     }
 
-    _applyItem(type) {
+    _applyItem(type, pickerBall) {
         switch (type) {
             case 'LIFE':   this.lives = Math.min(this.lives + 1, 9); break;
             case 'SCORE':  this.score += 200; break;
             case 'FREEZE':
-                for (const b of this.balls) b.frozen = Math.max(b.frozen, 3000);
+                // Freeze other balls (not the picker); picker can move freely
+                for (const b of this.balls) {
+                    if (b !== pickerBall) b.frozen = Math.max(b.frozen, 10000);
+                }
                 break;
             case 'SHIELD':
                 for (const b of this.balls) b.invincible = Math.max(b.invincible, 5000);

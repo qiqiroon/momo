@@ -43,45 +43,94 @@ class Renderer {
             }
         }
 
-        // Pac-Man style double wall lines:
-        // Each cell draws a glowing line on each closed edge (inner face of the wall).
-        // The adjacent cell draws the same line on its own edge (outer face of the same wall).
-        // Result: two parallel lines wt pixels apart — a double line — for every wall.
+        // Pac-Man style wall glow.
+        // Each wall's two inner faces (one per adjacent corridor) are drawn as merged
+        // continuous segments. Each segment is shortened at its ends by `cr` pixels
+        // where a perpendicular face exists, and quarter-circle arcs fill the corners —
+        // creating smooth rounded joints with no overlapping / dark crossing.
         ctx.save();
         ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
         ctx.lineWidth = 1.5;
         ctx.strokeStyle = '#2a5da8';
         ctx.shadowColor = '#5599ff';
         ctx.shadowBlur = 7;
+
+        const cr = Math.max(2, wt / 2); // corner arc radius
+
+        // Vertical face segment at x covering rows rS..rE for corridor column col.
+        // Shortened at ends where a perpendicular (horizontal) face also exists.
+        const vSeg = (x, rS, rE, col) => {
+            const yS = offsetY + wt + rS * cs;
+            const yE = offsetY + wt + rE * cs + cw;
+            const a0 = (rS === 0      || !passages[rS-1][col].down)  ? cr : 0;
+            const a1 = (rE === rows-1 || !passages[rE][col].down)    ? cr : 0;
+            ctx.moveTo(x, yS + a0); ctx.lineTo(x, yE - a1);
+        };
+
+        // Horizontal face segment at y covering cols cS..cE for corridor row row.
+        const hSeg = (y, cS, cE, row) => {
+            const xS = offsetX + wt + cS * cs;
+            const xE = offsetX + wt + cE * cs + cw;
+            const a0 = (cS === 0      || !passages[row][cS-1].right) ? cr : 0;
+            const a1 = (cE === cols-1 || !passages[row][cE].right)   ? cr : 0;
+            ctx.moveTo(xS + a0, y); ctx.lineTo(xE - a1, y);
+        };
+
         ctx.beginPath();
 
-        // Each cell draws lines on its closed edges, extended by wt/2 into the adjacent
-        // pillar area so that consecutive wall segments of the same wall connect smoothly.
-        const ext = wt / 2;
+        // Merged vertical segments (right face and left face of each corridor column)
+        for (let c = 0; c < cols; c++) {
+            let s = -1;
+            for (let ri = 0; ri <= rows; ri++) {
+                const has = ri < rows && (c === cols-1 || !passages[ri][c].right);
+                if (has) { if (s < 0) s = ri; }
+                else if (s >= 0) { vSeg(offsetX + wt + c * cs + cw, s, ri-1, c); s = -1; }
+            }
+            s = -1;
+            for (let ri = 0; ri <= rows; ri++) {
+                const has = ri < rows && (c === 0 || !passages[ri][c-1].right);
+                if (has) { if (s < 0) s = ri; }
+                else if (s >= 0) { vSeg(offsetX + wt + c * cs, s, ri-1, c); s = -1; }
+            }
+        }
+
+        // Merged horizontal segments (bottom face and top face of each corridor row)
+        for (let r = 0; r < rows; r++) {
+            let s = -1;
+            for (let ci = 0; ci <= cols; ci++) {
+                const has = ci < cols && (r === rows-1 || !passages[r][ci].down);
+                if (has) { if (s < 0) s = ci; }
+                else if (s >= 0) { hSeg(offsetY + wt + r * cs + cw, s, ci-1, r); s = -1; }
+            }
+            s = -1;
+            for (let ci = 0; ci <= cols; ci++) {
+                const has = ci < cols && (r === 0 || !passages[r-1][ci].down);
+                if (has) { if (s < 0) s = ci; }
+                else if (s >= 0) { hSeg(offsetY + wt + r * cs, s, ci-1, r); s = -1; }
+            }
+        }
+
+        // Quarter-circle arcs at every corridor corner where two wall faces meet.
+        // Each arc smoothly connects the shortened ends of the two perpendicular segments.
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
                 const x0 = offsetX + wt + c * cs;
                 const y0 = offsetY + wt + r * cs;
-
-                // Top edge (wall above)
-                if (r === 0 || !passages[r-1][c].down) {
-                    ctx.moveTo(x0 - ext, y0); ctx.lineTo(x0 + cw + ext, y0);
-                }
-                // Left edge (wall to left)
-                if (c === 0 || !passages[r][c-1].right) {
-                    ctx.moveTo(x0, y0 - ext); ctx.lineTo(x0, y0 + cw + ext);
-                }
-                // Bottom edge (wall below)
-                if (r === rows-1 || !passages[r][c].down) {
-                    ctx.moveTo(x0 - ext, y0 + cw); ctx.lineTo(x0 + cw + ext, y0 + cw);
-                }
-                // Right edge (wall to right)
-                if (c === cols-1 || !passages[r][c].right) {
-                    ctx.moveTo(x0 + cw, y0 - ext); ctx.lineTo(x0 + cw, y0 + cw + ext);
-                }
+                const T = r === 0      || !passages[r-1][c].down;
+                const B = r === rows-1 || !passages[r][c].down;
+                const L = c === 0      || !passages[r][c-1].right;
+                const R = c === cols-1 || !passages[r][c].right;
+                // Top-left: arc from left face (x0, y0+cr) around to top face (x0+cr, y0)
+                if (T && L) { ctx.moveTo(x0, y0+cr); ctx.arc(x0+cr, y0+cr, cr, Math.PI, 3*Math.PI/2, false); }
+                // Top-right: arc from top face (x0+cw-cr, y0) around to right face (x0+cw, y0+cr)
+                if (T && R) { ctx.moveTo(x0+cw, y0+cr); ctx.arc(x0+cw-cr, y0+cr, cr, 0, 3*Math.PI/2, true); }
+                // Bottom-left: arc from left face (x0, y0+cw-cr) around to bottom face (x0+cr, y0+cw)
+                if (B && L) { ctx.moveTo(x0, y0+cw-cr); ctx.arc(x0+cr, y0+cw-cr, cr, Math.PI, Math.PI/2, true); }
+                // Bottom-right: arc from bottom face (x0+cw-cr, y0+cw) around to right face (x0+cw, y0+cw-cr)
+                if (B && R) { ctx.moveTo(x0+cw-cr, y0+cw); ctx.arc(x0+cw-cr, y0+cw-cr, cr, Math.PI/2, 0, true); }
             }
         }
+
         ctx.stroke();
 
         // Outer boundary outer faces
@@ -327,6 +376,18 @@ class Renderer {
         ctx.textBaseline = 'middle';
         ctx.fillText(ball.id + 1, x, y + 1);
 
+        // Frozen overlay
+        if (ball.frozen > 0) {
+            ctx.fillStyle = 'rgba(136,221,255,0.4)';
+            ctx.beginPath();
+            ctx.arc(x, y, r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.font = `${Math.max(8, r * 1.0)}px sans-serif`;
+            ctx.shadowColor = '#88ddff';
+            ctx.shadowBlur = 6;
+            ctx.fillText('❄', x, y + 1);
+        }
+
         ctx.shadowBlur = 0;
         ctx.restore();
     }
@@ -340,17 +401,17 @@ class Renderer {
         // Deep dark hole
         const grad = ctx.createRadialGradient(x, y, 0, x, y, radius);
         grad.addColorStop(0, '#000000');
-        grad.addColorStop(0.55, '#0d0005');
-        grad.addColorStop(1, '#2a0010');
+        grad.addColorStop(0.55, '#050505');
+        grad.addColorStop(1, '#1a1a1a');
         ctx.fillStyle = grad;
         ctx.beginPath();
         ctx.arc(x, y, radius, 0, Math.PI * 2);
         ctx.fill();
 
         // Swirling danger ring
-        ctx.strokeStyle = '#660022';
+        ctx.strokeStyle = '#333';
         ctx.lineWidth = 1;
-        ctx.shadowColor = '#ff0044';
+        ctx.shadowColor = '#666';
         ctx.shadowBlur = 5;
         for (let i = 0; i < 3; i++) {
             const r2 = radius * (0.3 + i * 0.22);
@@ -360,9 +421,9 @@ class Renderer {
             ctx.stroke();
         }
 
-        // Outer red rim
-        ctx.shadowBlur = 8;
-        ctx.strokeStyle = '#cc0033';
+        // Outer dark rim
+        ctx.shadowBlur = 6;
+        ctx.strokeStyle = '#444';
         ctx.lineWidth = 1.2;
         ctx.beginPath();
         ctx.arc(x, y, radius, 0, Math.PI * 2);
@@ -386,12 +447,14 @@ class Renderer {
         ctx.lineTo(w, this.HUD_H);
         ctx.stroke();
 
-        // MOMO Tilt title (small)
-        ctx.fillStyle = '#ff8844';
+        // MOMO Tilt title: MOMO=orange, Tilt=white
         ctx.font = 'bold 13px sans-serif';
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
-        ctx.fillText('🐱 MOMO Tilt', 10, 6);
+        ctx.fillStyle = '#ea580c';
+        ctx.fillText('🐱 MOMO', 10, 6);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(' Tilt', 10 + ctx.measureText('🐱 MOMO').width, 6);
 
         // Stage
         ctx.fillStyle = '#aaa';

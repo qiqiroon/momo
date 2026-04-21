@@ -260,16 +260,22 @@ class Game {
         this.physics.applyWarps(gs.balls, maze);
         this.physics.step(dt, this.input.maxSpeed);
         this.physics.checkBounds(gs.balls, maze);
+        this.physics.unstuckBalls(gs.balls, maze, (x, y) => gs._isWall(x, y, maze, this.physics.BALL_RADIUS * 0.9));
 
         for (const b of gs.balls)
             b.sizeScale += ((b.inGoal ? 0.7 : 1.0) - b.sizeScale) * 0.12;
 
         for (const goal of gs.goals) {
-            const ball = gs.balls.find(b => b.id === goal.ballId);
+            // Only the matching ball in this specific goal counts as cleared
+            const ball = gs.balls.find(b => b.id === goal.ballId && b.currentGoalId === goal.id);
             const has  = !goal.locked && !!ball && ball.inGoal;
             if (has && ball && !ball._wasInGoal) gs.addScore(100);
             goal.hasBall = has;
             if (ball) ball._wasInGoal = has;
+            else {
+                const anyBall = gs.balls.find(b => b.id === goal.ballId);
+                if (anyBall) anyBall._wasInGoal = false;
+            }
         }
 
         for (const ev of gs.update(maze, dt)) {

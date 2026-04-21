@@ -167,7 +167,7 @@ class Game {
         this.clearCountdown = 0;
         document.getElementById('gearBtn').classList.remove('hidden');
 
-        const hasIntro = this.gs.enemies.length > 0 || this.gs.pits.length > 0;
+        const hasIntro = this.gs.enemies.length > 0 || this.gs.pits.length > 0 || this.gs.items.length > 0;
         if (hasIntro) {
             this._showStageIntro();
         } else {
@@ -228,6 +228,13 @@ class Game {
         if (gs.pits.length > 0) {
             makeSection(t('stageIntroPits'), [{
                 icon: '⚫', name: t('pitName'), desc: t('pitDesc')
+            }]);
+        }
+
+        // Locked goals
+        if (gs.goals.some(g => g.locked)) {
+            makeSection(t('stageIntroLocks'), [{
+                icon: '🔒', name: t('lockName'), desc: t('lockDesc')
             }]);
         }
 

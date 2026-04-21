@@ -41,6 +41,9 @@ const I18N = {
     itemShieldDesc: '5秒間無敵',
     pitName: 'ホール',
     pitDesc: '落ちるとスタートへ戻る',
+    stageIntroLocks: '鍵付きゴール',
+    lockName: '錠前',
+    lockDesc: '同じ番号の鍵を取るとゴールが解錠される',
   },
   en: {
     titleBtn: 'Start',
@@ -82,6 +85,9 @@ const I18N = {
     itemShieldDesc: 'Invincible 5s',
     pitName: 'Hole',
     pitDesc: 'Fall sends ball back to start',
+    stageIntroLocks: 'Locked Goals',
+    lockName: 'Lock',
+    lockDesc: 'Collect the matching key to unlock the goal',
   },
   zh: {
     titleBtn: '开始',
@@ -123,6 +129,9 @@ const I18N = {
     itemShieldDesc: '无敌5秒',
     pitName: '陷坑',
     pitDesc: '落入返回起点',
+    stageIntroLocks: '锁定目标',
+    lockName: '锁',
+    lockDesc: '拾取对应钥匙解锁目标',
   },
 };
 

@@ -215,7 +215,20 @@ class PhysicsEngine {
     // Push any ball that is inside a wall back to free space
     unstuckBalls(balls, maze, isWall) {
         for (const ball of balls) {
-            if (!isWall(ball.x, ball.y)) continue;
+            if (!isWall(ball.x, ball.y)) {
+                // Apply outward force if very close to a wall (not stuck, but near)
+                const pushDist = this.BALL_RADIUS + 1;
+                for (const [dx, dy] of [[pushDist,0],[-pushDist,0],[0,pushDist],[0,-pushDist]]) {
+                    if (isWall(ball.x + dx, ball.y + dy)) {
+                        // Apply small force away from wall direction
+                        Matter.Body.applyForce(ball.body, ball.body.position, {
+                            x: -dx * 0.00002 * ball.body.mass,
+                            y: -dy * 0.00002 * ball.body.mass
+                        });
+                    }
+                }
+                continue;
+            }
             let freed = false;
             for (let d = 2; d <= 28 && !freed; d += 2) {
                 for (const [dx, dy] of [[d,0],[-d,0],[0,d],[0,-d],[d,d],[-d,-d],[d,-d],[-d,d]]) {

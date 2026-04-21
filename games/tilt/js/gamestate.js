@@ -74,8 +74,8 @@ class GameState {
             this.keys.push(new Key(i, i, cell.c, cell.r, maze));
         }
 
-        // Place items
-        const itemTypes = Object.keys(ITEM_TYPES);
+        // Place items (SHIELD only if enemies are present)
+        const itemTypes = Object.keys(ITEM_TYPES).filter(k => k !== 'SHIELD' || enemyCount > 0);
         const itemCells = MazeGenerator.pickCells(maze, itemCount, this.rng, exclude);
         for (let i = 0; i < itemCells.length; i++) {
             const cell = itemCells[i];

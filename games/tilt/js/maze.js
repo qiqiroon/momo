@@ -189,9 +189,15 @@ class MazeGenerator {
         const m=1;
         const rMin=zone==='bottom'?Math.ceil(maze.rows*0.6):m;
         const rMax=zone==='top'?Math.floor(maze.rows*0.4):maze.rows-m;
+        const {cols,rows,passages}=maze;
         const cands=[];
-        for(let r=rMin;r<rMax;r++) for(let c=m;c<maze.cols-m;c++)
-            if(!exclude.some(e=>e.c===c&&e.r===r)) cands.push({c,r});
+        for(let r=rMin;r<rMax;r++) for(let c=m;c<cols-m;c++){
+            if(exclude.some(e=>e.c===c&&e.r===r)) continue;
+            // Require at least 1 passage (not a sealed island)
+            const conn=(c<cols-1&&passages[r][c].right?1:0)+(c>0&&passages[r][c-1].right?1:0)
+                      +(r<rows-1&&passages[r][c].down?1:0)+(r>0&&passages[r-1][c].down?1:0);
+            if(conn>0) cands.push({c,r});
+        }
         const out=[];
         for(let i=0;i<n&&i<cands.length;i++){
             const j=i+Math.floor(rng()*(cands.length-i));

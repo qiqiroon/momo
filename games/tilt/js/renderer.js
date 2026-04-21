@@ -4,7 +4,39 @@ class Renderer {
     constructor(canvas) {
         this.canvas = canvas;
         this.ctx    = canvas.getContext('2d');
-        this.HUD_H  = 60;
+        this.HUD_H  = 90;
+        // Pre-render the cat SVG for HUD use
+        this._catImg = null;
+        this._loadCatIcon();
+    }
+
+    _loadCatIcon() {
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-46 -50 92 80">
+<g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/></g>
+<g transform="rotate(12,12,8.3)"><path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/></g>
+<ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/>
+<line x1="-14" y1="1.00" x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+<line x1="-14" y1="6.0" x2="-33.44" y2="6.0" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+<line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+<line x1="14" y1="1.00" x2="33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+<line x1="14" y1="6.0" x2="33.44" y2="6.0" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+<line x1="14" y1="10.59" x2="29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+<ellipse cx="-12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+<ellipse cx="12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+<ellipse cx="-12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+<ellipse cx="12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+<circle cx="-10.5" cy="-5.2" r="1.0" fill="#c2410c"/>
+<circle cx="13.5" cy="-5.2" r="1.0" fill="#c2410c"/>
+<path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/>
+<line x1="0" y1="11.3" x2="0" y2="13.3" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+<path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+<path d="M0,13.3 Q5,17.3 8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+</svg>`;
+        const blob = new Blob([svg], {type: 'image/svg+xml'});
+        const url  = URL.createObjectURL(blob);
+        const img  = new Image();
+        img.onload = () => { this._catImg = img; URL.revokeObjectURL(url); };
+        img.src = url;
     }
 
     resize(w, h) {
@@ -32,7 +64,8 @@ class Renderer {
         // Dark maze background; corridor cells slightly lighter to show open paths
         ctx.fillStyle = '#0b0f16';
         ctx.fillRect(offsetX, offsetY, maze.mazeW, maze.mazeH);
-        ctx.fillStyle = '#111825';
+        const floorColor = '#111825';
+        ctx.fillStyle = floorColor;
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
                 const x0 = offsetX + wt + c * cs;
@@ -43,94 +76,186 @@ class Renderer {
             }
         }
 
-        // Pac-Man style wall glow.
-        // Each wall's two inner faces (one per adjacent corridor) are drawn as merged
-        // continuous segments. Each segment is shortened at its ends by `cr` pixels
-        // where a perpendicular face exists, and quarter-circle arcs fill the corners —
-        // creating smooth rounded joints with no overlapping / dark crossing.
+        // Fill pillar corners with floor color (removes black squares at corners)
+        ctx.fillStyle = floorColor;
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                const passR = c < cols-1 && passages[r][c].right;
+                const passD = r < rows-1 && passages[r][c].down;
+                const passRD = c < cols-1 && r < rows-1 && passages[r+1][c].right;
+                const passDR = c < cols-1 && r < rows-1 && passages[r][c+1].down;
+                // Pillar at bottom-right corner of cell (c,r), only if all 4 adjacent corridors are open
+                if (c < cols-1 && r < rows-1 && passR && passD && passRD && passDR) {
+                    const px = offsetX + wt + c * cs + cw;
+                    const py = offsetY + wt + r * cs + cw;
+                    ctx.fillRect(px, py, wt, wt);
+                }
+            }
+        }
+
+        // Wall rendering: per-cell Pac-Man style with inner + outer concentric arcs,
+        // end caps at wall terminations, and T-junction handling.
         ctx.save();
-        ctx.lineCap = 'round';
+        ctx.lineCap = 'butt';
         ctx.lineWidth = 1.5;
         ctx.strokeStyle = '#2a5da8';
         ctx.shadowColor = '#5599ff';
         ctx.shadowBlur = 7;
 
-        const cr = Math.max(2, wt / 2); // corner arc radius
+        const cr = Math.max(2, wt / 2); // inner arc radius (= 4)
+        const or = cr + wt;             // outer arc radius (= 12), concentric
 
-        // Vertical face segment at x covering rows rS..rE for corridor column col.
-        // Shortened at ends where a perpendicular (horizontal) face also exists.
-        const vSeg = (x, rS, rE, col) => {
-            const yS = offsetY + wt + rS * cs;
-            const yE = offsetY + wt + rE * cs + cw;
-            const a0 = (rS === 0      || !passages[rS-1][col].down)  ? cr : 0;
-            const a1 = (rE === rows-1 || !passages[rE][col].down)    ? cr : 0;
-            ctx.moveTo(x, yS + a0); ctx.lineTo(x, yE - a1);
-        };
-
-        // Horizontal face segment at y covering cols cS..cE for corridor row row.
-        const hSeg = (y, cS, cE, row) => {
-            const xS = offsetX + wt + cS * cs;
-            const xE = offsetX + wt + cE * cs + cw;
-            const a0 = (cS === 0      || !passages[row][cS-1].right) ? cr : 0;
-            const a1 = (cE === cols-1 || !passages[row][cE].right)   ? cr : 0;
-            ctx.moveTo(xS + a0, y); ctx.lineTo(xE - a1, y);
+        // Helper: is there a wall on the given side of cell (c,r)?
+        const hasWall = (c, r, side) => {
+            if (side === 'T') return r === 0      || !passages[r-1][c].down;
+            if (side === 'B') return r === rows-1 || !passages[r][c].down;
+            if (side === 'L') return c === 0      || !passages[r][c-1].right;
+            if (side === 'R') return c === cols-1 || !passages[r][c].right;
         };
 
         ctx.beginPath();
 
-        // Merged vertical segments (right face and left face of each corridor column)
-        for (let c = 0; c < cols; c++) {
-            let s = -1;
-            for (let ri = 0; ri <= rows; ri++) {
-                const has = ri < rows && (c === cols-1 || !passages[ri][c].right);
-                if (has) { if (s < 0) s = ri; }
-                else if (s >= 0) { vSeg(offsetX + wt + c * cs + cw, s, ri-1, c); s = -1; }
-            }
-            s = -1;
-            for (let ri = 0; ri <= rows; ri++) {
-                const has = ri < rows && (c === 0 || !passages[ri][c-1].right);
-                if (has) { if (s < 0) s = ri; }
-                else if (s >= 0) { vSeg(offsetX + wt + c * cs, s, ri-1, c); s = -1; }
-            }
-        }
-
-        // Merged horizontal segments (bottom face and top face of each corridor row)
-        for (let r = 0; r < rows; r++) {
-            let s = -1;
-            for (let ci = 0; ci <= cols; ci++) {
-                const has = ci < cols && (r === rows-1 || !passages[r][ci].down);
-                if (has) { if (s < 0) s = ci; }
-                else if (s >= 0) { hSeg(offsetY + wt + r * cs + cw, s, ci-1, r); s = -1; }
-            }
-            s = -1;
-            for (let ci = 0; ci <= cols; ci++) {
-                const has = ci < cols && (r === 0 || !passages[r-1][ci].down);
-                if (has) { if (s < 0) s = ci; }
-                else if (s >= 0) { hSeg(offsetY + wt + r * cs, s, ci-1, r); s = -1; }
-            }
-        }
-
-        // Quarter-circle arcs at every corridor corner where two wall faces meet.
-        // Each arc smoothly connects the shortened ends of the two perpendicular segments.
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
-                const x0 = offsetX + wt + c * cs;
-                const y0 = offsetY + wt + r * cs;
-                const T = r === 0      || !passages[r-1][c].down;
-                const B = r === rows-1 || !passages[r][c].down;
-                const L = c === 0      || !passages[r][c-1].right;
-                const R = c === cols-1 || !passages[r][c].right;
-                // Top-left: arc from left face (x0, y0+cr) around to top face (x0+cr, y0)
+                const x0 = offsetX + wt + c * cs; // corridor left
+                const y0 = offsetY + wt + r * cs; // corridor top
+                const T = hasWall(c, r, 'T');
+                const B = hasWall(c, r, 'B');
+                const L = hasWall(c, r, 'L');
+                const R = hasWall(c, r, 'R');
+
+                // Inner face lines (inside corridor): shortened by cr at each end where corner arc exists
+                // Top face (y = y0), runs left→right
+                if (T) {
+                    const x1 = x0 + (L ? cr : 0);
+                    const x2 = x0 + cw - (R ? cr : 0);
+                    if (x2 > x1) { ctx.moveTo(x1, y0); ctx.lineTo(x2, y0); }
+                }
+                // Bottom face (y = y0+cw)
+                if (B) {
+                    const x1 = x0 + (L ? cr : 0);
+                    const x2 = x0 + cw - (R ? cr : 0);
+                    if (x2 > x1) { ctx.moveTo(x1, y0 + cw); ctx.lineTo(x2, y0 + cw); }
+                }
+                // Left face (x = x0)
+                if (L) {
+                    const y1 = y0 + (T ? cr : 0);
+                    const y2 = y0 + cw - (B ? cr : 0);
+                    if (y2 > y1) { ctx.moveTo(x0, y1); ctx.lineTo(x0, y2); }
+                }
+                // Right face (x = x0+cw)
+                if (R) {
+                    const y1 = y0 + (T ? cr : 0);
+                    const y2 = y0 + cw - (B ? cr : 0);
+                    if (y2 > y1) { ctx.moveTo(x0 + cw, y1); ctx.lineTo(x0 + cw, y2); }
+                }
+
+                // Inner corner arcs (radius cr, inside corridor corners)
                 if (T && L) { ctx.moveTo(x0, y0+cr); ctx.arc(x0+cr, y0+cr, cr, Math.PI, 3*Math.PI/2, false); }
-                // Top-right: arc from top face (x0+cw-cr, y0) around to right face (x0+cw, y0+cr)
-                if (T && R) { ctx.moveTo(x0+cw, y0+cr); ctx.arc(x0+cw-cr, y0+cr, cr, 0, 3*Math.PI/2, true); }
-                // Bottom-left: arc from left face (x0, y0+cw-cr) around to bottom face (x0+cr, y0+cw)
+                if (T && R) { ctx.moveTo(x0+cw-cr, y0); ctx.arc(x0+cw-cr, y0+cr, cr, 3*Math.PI/2, 0, false); }
                 if (B && L) { ctx.moveTo(x0, y0+cw-cr); ctx.arc(x0+cr, y0+cw-cr, cr, Math.PI, Math.PI/2, true); }
-                // Bottom-right: arc from bottom face (x0+cw-cr, y0+cw) around to right face (x0+cw, y0+cw-cr)
                 if (B && R) { ctx.moveTo(x0+cw-cr, y0+cw); ctx.arc(x0+cw-cr, y0+cw-cr, cr, Math.PI/2, 0, true); }
             }
         }
 
+        ctx.stroke();
+
+        // Outer concentric arcs (radius or, same centers as inner arcs — drawn in wall space)
+        ctx.beginPath();
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                const x0 = offsetX + wt + c * cs;
+                const y0 = offsetY + wt + r * cs;
+                const T = hasWall(c, r, 'T');
+                const B = hasWall(c, r, 'B');
+                const L = hasWall(c, r, 'L');
+                const R = hasWall(c, r, 'R');
+                // Outer arcs: same centers, radius or, in the wall region outside corridor
+                if (T && L) { ctx.moveTo(x0-wt, y0+cr); ctx.arc(x0+cr, y0+cr, or, Math.PI, 3*Math.PI/2, false); }
+                if (T && R) { ctx.moveTo(x0+cw-cr, y0-wt); ctx.arc(x0+cw-cr, y0+cr, or, 3*Math.PI/2, 0, false); }
+                if (B && L) { ctx.moveTo(x0-wt, y0+cw-cr); ctx.arc(x0+cr, y0+cw-cr, or, Math.PI, Math.PI/2, true); }
+                if (B && R) { ctx.moveTo(x0+cw-cr, y0+cw+wt); ctx.arc(x0+cw-cr, y0+cw-cr, or, Math.PI/2, 0, true); }
+            }
+        }
+        ctx.stroke();
+
+        // End caps: semicircle connecting two parallel line ends at wall termination
+        // A wall segment "terminates" where it ends without a perpendicular wall.
+        // For each cell face that has a wall but no corner arc at an end, draw semicap.
+        ctx.beginPath();
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                const x0 = offsetX + wt + c * cs;
+                const y0 = offsetY + wt + r * cs;
+                const T = hasWall(c, r, 'T');
+                const B = hasWall(c, r, 'B');
+                const L = hasWall(c, r, 'L');
+                const R = hasWall(c, r, 'R');
+
+                // Top face end caps: left end (if no L wall), right end (if no R wall)
+                if (T && !L) {
+                    // Check no cell to the left also has T wall (i.e., this is the start of a segment)
+                    const prevHasT = c > 0 && hasWall(c-1, r, 'T');
+                    if (!prevHasT) {
+                        // Left cap at x0: semicircle from (x0, y0) curving left into wall
+                        ctx.moveTo(x0, y0 - wt/2);
+                        ctx.arc(x0, y0, wt/2, 3*Math.PI/2, Math.PI/2, true);
+                    }
+                }
+                if (T && !R) {
+                    const nextHasT = c < cols-1 && hasWall(c+1, r, 'T');
+                    if (!nextHasT) {
+                        ctx.moveTo(x0 + cw, y0 - wt/2);
+                        ctx.arc(x0 + cw, y0, wt/2, 3*Math.PI/2, Math.PI/2, false);
+                    }
+                }
+                // Bottom face
+                if (B && !L) {
+                    const prevHasB = c > 0 && hasWall(c-1, r, 'B');
+                    if (!prevHasB) {
+                        ctx.moveTo(x0, y0+cw - wt/2);
+                        ctx.arc(x0, y0+cw, wt/2, 3*Math.PI/2, Math.PI/2, true);
+                    }
+                }
+                if (B && !R) {
+                    const nextHasB = c < cols-1 && hasWall(c+1, r, 'B');
+                    if (!nextHasB) {
+                        ctx.moveTo(x0+cw, y0+cw + wt/2);
+                        ctx.arc(x0+cw, y0+cw, wt/2, Math.PI/2, 3*Math.PI/2, false);
+                    }
+                }
+                // Left face
+                if (L && !T) {
+                    const prevHasL = r > 0 && hasWall(c, r-1, 'L');
+                    if (!prevHasL) {
+                        ctx.moveTo(x0 - wt/2, y0);
+                        ctx.arc(x0, y0, wt/2, Math.PI, 0, false);
+                    }
+                }
+                if (L && !B) {
+                    const nextHasL = r < rows-1 && hasWall(c, r+1, 'L');
+                    if (!nextHasL) {
+                        ctx.moveTo(x0 + wt/2, y0+cw);
+                        ctx.arc(x0, y0+cw, wt/2, 0, Math.PI, false);
+                    }
+                }
+                // Right face
+                if (R && !T) {
+                    const prevHasR = r > 0 && hasWall(c, r-1, 'R');
+                    if (!prevHasR) {
+                        ctx.moveTo(x0+cw + wt/2, y0);
+                        ctx.arc(x0+cw, y0, wt/2, 0, Math.PI, true);
+                    }
+                }
+                if (R && !B) {
+                    const nextHasR = r < rows-1 && hasWall(c, r+1, 'R');
+                    if (!nextHasR) {
+                        ctx.moveTo(x0+cw - wt/2, y0+cw);
+                        ctx.arc(x0+cw, y0+cw, wt/2, Math.PI, 0, true);
+                    }
+                }
+            }
+        }
         ctx.stroke();
 
         // Outer boundary outer faces
@@ -219,30 +344,26 @@ class Renderer {
     drawKey(key) {
         if (key.collected) return;
         const ctx = this.ctx;
-        const {x, y, radius, color} = key;
+        const {x, y, radius, color, goalId} = key;
 
         ctx.save();
-        // Glow
         ctx.shadowColor = color;
-        ctx.shadowBlur  = 8;
-        // Key body (gold circle + stem)
-        ctx.fillStyle = '#ffd700';
-        ctx.beginPath();
-        ctx.arc(x, y - radius * 0.3, radius * 0.55, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = '#aa8800';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-        // Stem
-        ctx.fillStyle = '#ffd700';
-        ctx.fillRect(x - radius * 0.15, y - radius * 0.3, radius * 0.3, radius * 0.8);
-        ctx.fillRect(x + radius * 0.15 - radius * 0.25, y + radius * 0.3, radius * 0.25, radius * 0.18);
-        // Color dot on head
+        ctx.shadowBlur  = 10;
+        // Ball-colored circle
         ctx.fillStyle = color;
         ctx.beginPath();
-        ctx.arc(x, y - radius * 0.3, radius * 0.25, 0, Math.PI * 2);
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
         ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        // Number label
         ctx.shadowBlur = 0;
+        ctx.fillStyle = '#fff';
+        ctx.font = `bold ${Math.max(7, radius * 0.9)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(goalId + 1, x, y + 1);
         ctx.restore();
     }
 
@@ -438,7 +559,7 @@ class Renderer {
         const w = this.canvas.width;
 
         // HUD bar
-        ctx.fillStyle = 'rgba(0,0,0,0.75)';
+        ctx.fillStyle = 'rgba(0,0,0,0.85)';
         ctx.fillRect(0, 0, w, this.HUD_H);
         ctx.strokeStyle = '#1e3a5f';
         ctx.lineWidth = 1;
@@ -447,49 +568,55 @@ class Renderer {
         ctx.lineTo(w, this.HUD_H);
         ctx.stroke();
 
-        // MOMO Tilt title: MOMO=orange, Tilt=white
-        ctx.font = 'bold 13px sans-serif';
+        // Row 1 (y≈8): cat icon + "MOMO Tilt" on left; gear & lang buttons handled by HTML overlay
+        const iconH = 28, iconW = 32;
+        if (this._catImg) {
+            ctx.drawImage(this._catImg, 6, 4, iconW, iconH);
+        }
+        const titleX = 6 + iconW + 4;
+        ctx.font = 'bold 16px sans-serif';
         ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
-        ctx.fillStyle = '#ea580c';
-        ctx.fillText('🐱 MOMO', 10, 6);
+        ctx.textBaseline = 'middle';
         ctx.fillStyle = '#ffffff';
-        ctx.fillText(' Tilt', 10 + ctx.measureText('🐱 MOMO').width, 6);
+        ctx.fillText('MOMO', titleX, 18);
+        ctx.fillStyle = '#ea580c';
+        ctx.fillText(' Tilt', titleX + ctx.measureText('MOMO').width, 18);
 
-        // Stage
-        ctx.fillStyle = '#aaa';
-        ctx.font = '12px sans-serif';
-        ctx.fillText(`St.${gs.stage}`, 10, 26);
+        // Row 2 (y≈42): Stage | ⭐ score | ❤ lives
+        ctx.textBaseline = 'middle';
+        ctx.font = 'bold 15px sans-serif';
+        ctx.fillStyle = '#ccddff';
+        ctx.textAlign = 'left';
+        ctx.fillText(`St.${gs.stage}`, 10, 50);
 
-        // Score
         ctx.fillStyle = '#ffcc22';
-        ctx.font = 'bold 20px sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(`⭐ ${gs.score}`, w / 2, 8);
+        ctx.fillText(`⭐ ${gs.score}`, w / 2, 50);
 
-        // Lives
         ctx.fillStyle = '#ff4455';
-        ctx.font = '18px sans-serif';
         ctx.textAlign = 'right';
         let livesStr = '';
         for (let i = 0; i < Math.min(gs.lives, 5); i++) livesStr += '❤';
         if (gs.lives > 5) livesStr += `×${gs.lives}`;
-        ctx.fillText(livesStr, w - 8, 8);
+        ctx.fillText(livesStr, w - 10, 50);
 
-        // Ball status (small colored circles)
+        // Row 3 (y≈74): ball color dots
         const balls = gs.balls || [];
-        const bx = w / 2 - balls.length * 14 / 2;
+        const dotR = 6;
+        const totalW = balls.length * (dotR * 2 + 4) - 4;
+        let bx = w / 2 - totalW / 2 + dotR;
         for (let i = 0; i < balls.length; i++) {
             const b = balls[i];
             ctx.fillStyle = b.inGoal ? b.color : b.color + '55';
             ctx.beginPath();
-            ctx.arc(bx + i * 16 + 8, 46, 6, 0, Math.PI * 2);
+            ctx.arc(bx, 75, dotR, 0, Math.PI * 2);
             ctx.fill();
             if (b.inGoal) {
                 ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 1;
+                ctx.lineWidth = 1.5;
                 ctx.stroke();
             }
+            bx += dotR * 2 + 4;
         }
     }
 

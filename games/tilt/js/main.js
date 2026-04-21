@@ -1,7 +1,7 @@
-// Main: TITLE -> PREVIEW -> CALIBRATE -> PLAYING -> CLEAR/OVER
+// Main: TITLE -> PREVIEW -> CALIBRATE -> INTRO -> PLAYING -> CLEAR/OVER
 
 const STATE = {TITLE:'title', PREVIEW:'preview', CALIBRATE:'calibrate',
-               PLAYING:'playing', CLEAR:'clear', OVER:'over'};
+               INTRO:'intro', PLAYING:'playing', CLEAR:'clear', OVER:'over'};
 
 class Game {
     constructor() {
@@ -50,13 +50,11 @@ class Game {
             this._enterCalibrate();
         });
 
-        // キャリブレーション：現在の向きを基準にセット
         document.getElementById('calibrateBtn').addEventListener('click', () => {
             this.input.calibrate();
-            // フィードバック
             const btn = document.getElementById('calibrateBtn');
-            btn.textContent = '✓ 水平を更新しました';
-            setTimeout(() => { btn.textContent = 'この向きを水平とする'; }, 1500);
+            btn.textContent = t('calibrateUpdated');
+            setTimeout(() => { btn.textContent = t('calibrateBtnText'); }, 1500);
         });
 
         document.getElementById('startBtn').addEventListener('click', () => {
@@ -66,7 +64,12 @@ class Game {
             this._startPlaying();
         });
 
-        // 設定パネル
+        document.getElementById('stageIntroBtn').addEventListener('click', () => {
+            document.getElementById('stageIntroOverlay').classList.add('hidden');
+            this.state = STATE.PLAYING;
+        });
+
+        // Settings panel
         document.getElementById('gearBtn').addEventListener('click', () => {
             this._openSettings();
         });
@@ -95,7 +98,7 @@ class Game {
     _openSettings() {
         document.getElementById('settingsOverlay').classList.remove('hidden');
         this._prevState = this.state;
-        if (this.state === STATE.PLAYING) this.state = STATE.CALIBRATE; // pause physics
+        if (this.state === STATE.PLAYING) this.state = STATE.CALIBRATE;
     }
 
     _closeSettings() {
@@ -119,7 +122,9 @@ class Game {
     }
 
     _showPreview() {
-        document.getElementById('previewStage').textContent = this.gs.stage;
+        const el = document.getElementById('previewStageText');
+        if (el) el.textContent =
+            t('previewStageLabel') + ' ' + this.gs.stage + ' ' + t('previewSuffix');
         document.getElementById('previewBar').classList.remove('hidden');
     }
 
@@ -131,7 +136,7 @@ class Game {
     }
 
     _calibLoop() {
-        if (this.state !== STATE.CALIBRATE) return;
+        if (this.state !== STATE.CALIBRATE && this.state !== STATE.INTRO) return;
         const dot  = document.getElementById('levelDot');
         const stat = document.getElementById('calibStatus');
         const btn  = document.getElementById('startBtn');
@@ -139,7 +144,6 @@ class Game {
         const W = ring.offsetWidth || 140, H = ring.offsetHeight || 140;
         const MAX = W / 2 - 12;
 
-        // Show relative tilt from calibrated base
         const rel = this.input.getRelative();
         const gx = Math.max(-MAX, Math.min(MAX, rel.gamma / 30 * MAX));
         const gy = Math.max(-MAX, Math.min(MAX, rel.beta  / 30 * MAX));
@@ -149,7 +153,7 @@ class Game {
         const isPC    = !this.input._gyroActive;
         const isLevel = isPC || this.input.isLevel(15);
 
-        stat.textContent = isPC ? 'キーボードモード (矢印/WASD)' : (isLevel ? '水平を保てています ✓' : '傾いています…もしくは「この向きを水平とする」を押してください');
+        stat.textContent = isPC ? t('kbdMode') : (isLevel ? t('calibOk') : t('calibNg'));
         stat.className   = isLevel ? 'ok' : 'ng';
         btn.disabled     = !isLevel;
 
@@ -161,14 +165,80 @@ class Game {
         this.physics.setupMaze(this.maze);
         this.gs.setupStage(this.maze, this.physics);
         this.clearCountdown = 0;
-        this.state = STATE.PLAYING;
         document.getElementById('gearBtn').classList.remove('hidden');
+
+        const hasIntro = this.gs.enemies.length > 0 || this.gs.pits.length > 0;
+        if (hasIntro) {
+            this._showStageIntro();
+        } else {
+            this.state = STATE.PLAYING;
+        }
+    }
+
+    _showStageIntro() {
+        this.state = STATE.INTRO;
+        const gs = this.gs;
+
+        // Title
+        document.getElementById('stageIntroTitle').textContent =
+            t('stageLabel') + ' ' + gs.stage;
+
+        const content = document.getElementById('stageIntroContent');
+        content.innerHTML = '';
+
+        const makeSection = (header, items) => {
+            if (!items.length) return;
+            const h = document.createElement('div');
+            h.className = 'intro-section-header';
+            h.textContent = header;
+            content.appendChild(h);
+            items.forEach(item => {
+                const row = document.createElement('div');
+                row.className = 'intro-row';
+                row.innerHTML = `<span class="intro-icon">${item.icon}</span>
+                    <span class="intro-name">${item.name}</span>
+                    <span class="intro-desc">${item.desc}</span>`;
+                content.appendChild(row);
+            });
+        };
+
+        // Enemies
+        const enemyNameMap = {
+            PATROL:  {icon:'👻', nameKey:'enemyPatrolName',  descKey:'enemyPatrolDesc'},
+            TRACKER: {icon:'🔴', nameKey:'enemyTrackerName', descKey:'enemyTrackerDesc'},
+            SLOW:    {icon:'🔵', nameKey:'enemySlowName',    descKey:'enemySlowDesc'},
+        };
+        const seenEnemyTypes = [...new Set(gs.enemies.map(e => e.type))];
+        makeSection(t('stageIntroEnemies'), seenEnemyTypes.map(type => {
+            const m = enemyNameMap[type] || {icon:'❓', nameKey: type, descKey: type};
+            return {icon: m.icon, name: t(m.nameKey), desc: t(m.descKey)};
+        }));
+
+        // Items
+        const itemDescMap = {
+            LIFE:'itemLifeDesc', SCORE:'itemScoreDesc', FREEZE:'itemFreezeDesc', SHIELD:'itemShieldDesc'
+        };
+        const seenItemTypes = [...new Set(gs.items.map(i => i.type))];
+        makeSection(t('stageIntroItems'), seenItemTypes.map(type => {
+            const info = ITEM_TYPES[type];
+            return {icon: info.label, name: '', desc: t(itemDescMap[type] || type)};
+        }));
+
+        // Pits
+        if (gs.pits.length > 0) {
+            makeSection(t('stageIntroPits'), [{
+                icon: '⚫', name: t('pitName'), desc: t('pitDesc')
+            }]);
+        }
+
+        document.getElementById('stageIntroBtn').textContent = t('stageIntroOk');
+        document.getElementById('stageIntroOverlay').classList.remove('hidden');
     }
 
     _startLoop() {
         if (this._loopRunning) return;
         this._loopRunning = true;
-        requestAnimationFrame(t => this._loop(t));
+        requestAnimationFrame(ts => this._loop(ts));
     }
 
     _loop(ts) {
@@ -177,7 +247,7 @@ class Game {
         this.time += dt;
         if (this.state === STATE.PLAYING) this._update(dt);
         this._draw();
-        requestAnimationFrame(t => this._loop(t));
+        requestAnimationFrame(ts => this._loop(ts));
     }
 
     _update(dt) {
@@ -203,14 +273,14 @@ class Game {
         }
 
         for (const ev of gs.update(maze, dt)) {
-            if (ev.type === 'enemy') {
+            if (ev.type === 'enemy' || ev.type === 'pit') {
                 const ball = gs.balls.find(b => b.id === ev.ballId);
                 if (ball && ball.needsRespawn) {
                     ball.needsRespawn = false;
                     ball.inGoal = false;
                     this.physics.respawnBall(ball, ball.startC, ball.startR, maze);
                 }
-                if (gs.lives <= 0) { this.state = STATE.OVER; return; }
+                if (ev.type === 'enemy' && gs.lives <= 0) { this.state = STATE.OVER; return; }
             }
         }
 
@@ -232,7 +302,12 @@ class Game {
         this.physics.setupMaze(this.maze);
         this.gs.setupStage(this.maze, this.physics);
         this.clearCountdown = 0;
-        this.state = STATE.PLAYING;
+        const hasIntro = this.gs.enemies.length > 0 || this.gs.pits.length > 0;
+        if (hasIntro) {
+            this._showStageIntro();
+        } else {
+            this.state = STATE.PLAYING;
+        }
     }
 
     _restartGame() {
@@ -251,6 +326,7 @@ class Game {
         if (maze) {
             r.drawMaze(maze);
             if (state !== STATE.PREVIEW && state !== STATE.CALIBRATE) {
+                for (const p of gs.pits)    r.drawPit(p, time);
                 for (const g of gs.goals)   r.drawGoal(g);
                 for (const k of gs.keys)    r.drawKey(k);
                 for (const i of gs.items)   r.drawItem(i, time);
@@ -259,8 +335,10 @@ class Game {
             }
             r.drawHUD(gs);
         }
-        if (state === STATE.CLEAR) r.drawMessage('🎉 クリア！', 'ステージ ' + gs.stage + ' へ…');
-        if (state === STATE.OVER)  r.drawMessage('💀 ゲームオーバー', 'タップして再スタート');
+        if (state === STATE.CLEAR)
+            r.drawMessage(t('clearMsg'), t('clearSub').replace('{N}', gs.stage));
+        if (state === STATE.OVER)
+            r.drawMessage(t('overMsg'), t('overSub'));
     }
 }
 

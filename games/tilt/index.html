@@ -6,111 +6,307 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>MOMO Tilt</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-46 -50 92 80'%3E%3Crect x='-46' y='-50' width='92' height='80' rx='8' fill='%23000000'/%3E%3Cg transform='rotate(-12,-12,8.3)'%3E%3Cpath d='M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cg transform='rotate(12,12,8.3)'%3E%3Cpath d='M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cellipse cx='0' cy='1.3' rx='34' ry='26' fill='%23c2410c'/%3E%3Cline x1='-14' y1='1.00' x2='-33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='6.0' x2='-33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='10.59' x2='-29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='1.00' x2='33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='6.0' x2='33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='10.59' x2='29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
-    *{margin:0;padding:0;box-sizing:border-box;}
-    body{background:#0d1117;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;}
-    #gameCanvas{display:block;position:fixed;top:0;left:0;}
-    .overlay{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,0.85);}
-    .overlay.hidden{display:none;}
-    .panel{background:#111827;border:1px solid #1e3a5f;border-radius:20px;padding:32px 28px;max-width:340px;width:90%;text-align:center;display:flex;flex-direction:column;align-items:center;gap:16px;}
-    .panel h2{font-size:22px;font-weight:700;color:#fff;}
-    .panel p{font-size:14px;color:#9ca3af;line-height:1.7;}
-    .btn{padding:14px 44px;font-size:18px;font-weight:bold;background:linear-gradient(135deg,#ff8c00,#ff4400);color:#fff;border:none;border-radius:50px;cursor:pointer;box-shadow:0 4px 18px rgba(255,100,0,.45);width:100%;max-width:260px;transition:transform .1s,opacity .1s;}
-    .btn:active{transform:scale(.96);}
-    .btn:disabled{opacity:.4;cursor:default;transform:none;}
-    .btn-sub{padding:10px 28px;font-size:13px;background:transparent;color:#6b7280;border:1px solid #374151;border-radius:30px;cursor:pointer;margin-top:-4px;}
-    #titleOverlay{background:#0d1117;}
-    .title-cat{font-size:72px;line-height:1;animation:float 3s ease-in-out infinite;}
-    @keyframes float{0%,100%{transform:translateY(0);}50%{transform:translateY(-10px);}}
-    .title-text{font-size:44px;font-weight:900;color:#fff;letter-spacing:2px;text-shadow:0 0 20px rgba(255,140,0,.8);}
-    .title-text span{color:#fb923c;}
-    .title-ver{font-size:12px;color:#4b5563;}
-    .title-desc{font-size:13px;color:#6b7280;line-height:1.8;}
-    .kbd-hint{font-size:11px;color:#374151;}
-    #previewBar{position:fixed;bottom:0;left:0;right:0;z-index:50;background:linear-gradient(to top,rgba(0,0,0,.92) 80%,transparent);padding:20px 24px 32px;display:flex;flex-direction:column;align-items:center;gap:12px;}
-    #previewBar.hidden{display:none;}
-    #previewBar p{font-size:13px;color:#9ca3af;text-align:center;line-height:1.6;}
-    #previewBar .btn{max-width:280px;}
-    .level-ring{width:140px;height:140px;border-radius:50%;border:2px solid #1e3a5f;background:#0d1117;position:relative;margin:8px auto;overflow:hidden;}
-    .level-target{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:38px;height:38px;border-radius:50%;border:2px dashed #22c55e;opacity:.7;}
-    .level-dot{position:absolute;width:20px;height:20px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff,#fb923c);transform:translate(-50%,-50%);transition:left .08s,top .08s;}
-    #calibStatus{font-size:13px;margin-top:-4px;}
-    #calibStatus.ok{color:#22c55e;}
-    #calibStatus.ng{color:#f87171;}
-    /* Settings panel */
-    #settingsOverlay .panel{gap:14px;}
-    .setting-row{width:100%;display:flex;flex-direction:column;gap:6px;text-align:left;}
-    .setting-row label{font-size:13px;color:#9ca3af;display:flex;justify-content:space-between;}
-    .setting-row label span{color:#fb923c;font-weight:bold;}
-    .setting-row input[type=range]{width:100%;accent-color:#fb923c;}
-    /* Gear button during play */
-    #gearBtn{position:fixed;top:12px;right:10px;z-index:60;background:transparent;border:none;font-size:22px;cursor:pointer;opacity:.7;padding:4px;}
-    #gearBtn.hidden{display:none;}
-    /* Calibrate reference button */
-    .btn-calib{padding:10px 20px;font-size:13px;background:#1e3a5f;color:#93c5fd;border:1px solid #2e5a8f;border-radius:30px;cursor:pointer;width:100%;max-width:260px;}
-    .btn-calib:active{opacity:.7;}
+    :root {
+      --bg:           #0a0a0a;
+      --surface:      #111111;
+      --surface2:     #1a1a1a;
+      --orange:       #c2410c;
+      --orange-mid:   #ea580c;
+      --orange-light: #fb923c;
+      --text:         #e5e5e5;
+      --text-muted:   #737373;
+      --border:       #2a2a2a;
+      --border-strong:#444;
+      --bg-selected:  rgba(194,65,12,0.15);
+    }
+
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      background: var(--bg);
+      background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 48px 48px;
+      overflow: hidden;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      font-family: 'Noto Sans JP', sans-serif;
+    }
+
+    #gameCanvas { display:block; position:fixed; top:0; left:0; }
+
+    /* ── Language switcher ── */
+    #lang-switcher {
+      position: fixed; top: 8px; right: 10px; z-index: 300;
+    }
+    #lang-select {
+      background: var(--surface2);
+      border: 1px solid var(--border-strong);
+      color: var(--text-muted);
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: 'Noto Sans JP', sans-serif;
+      outline: none;
+    }
+    #lang-select:focus { border-color: var(--orange); }
+
+    /* ── Overlays ── */
+    .overlay {
+      position: fixed; inset: 0; z-index: 100;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: rgba(10,10,10,0.92);
+    }
+    .overlay.hidden { display: none; }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 28px 24px;
+      max-width: 340px; width: 92%;
+      text-align: center;
+      display: flex; flex-direction: column;
+      align-items: center; gap: 14px;
+    }
+    .panel h2 {
+      font-size: 18px; font-weight: 700; color: var(--text);
+    }
+    .panel p {
+      font-size: 13px; color: var(--text-muted); line-height: 1.7;
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      padding: 13px 40px; font-size: 17px; font-weight: 700;
+      background: linear-gradient(135deg, var(--orange-light), var(--orange));
+      color: #fff; border: none; border-radius: 50px; cursor: pointer;
+      box-shadow: 0 4px 18px rgba(194,65,12,.45);
+      width: 100%; max-width: 260px;
+      transition: transform .1s, opacity .1s;
+      font-family: 'Noto Sans JP', sans-serif;
+    }
+    .btn:active  { transform: scale(.96); }
+    .btn:disabled { opacity: .4; cursor: default; transform: none; }
+    .btn-sub {
+      padding: 9px 24px; font-size: 12px;
+      background: transparent; color: var(--text-muted);
+      border: 1px solid var(--border-strong); border-radius: 30px; cursor: pointer;
+      margin-top: -6px; font-family: 'Noto Sans JP', sans-serif;
+    }
+    .btn-calib {
+      padding: 9px 18px; font-size: 12px;
+      background: var(--surface2); color: #93c5fd;
+      border: 1px solid #2e5a8f; border-radius: 30px; cursor: pointer;
+      width: 100%; max-width: 260px; font-family: 'Noto Sans JP', sans-serif;
+    }
+    .btn-calib:active { opacity: .7; }
+
+    /* ── Title overlay ── */
+    #titleOverlay { background: var(--bg); }
+    .title-wrap {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 14px;
+    }
+    .title-cat-svg {
+      width: 64px; height: 56px;
+      animation: float 3s ease-in-out infinite;
+    }
+    @keyframes float {
+      0%,100% { transform: translateY(0); }
+      50%      { transform: translateY(-9px); }
+    }
+    .title-text {
+      font-family: 'Fredoka One', sans-serif;
+      font-size: 42px; font-weight: 400; color: #fff; letter-spacing: 2px;
+      text-shadow: 0 0 24px rgba(234,88,12,.6);
+    }
+    .title-text span { color: var(--orange-mid); }
+    .title-ver  { font-size: 11px; color: var(--text-muted); }
+    .title-desc { font-size: 13px; color: var(--text-muted); line-height: 1.8; text-align: center; }
+    .kbd-hint   { font-size: 11px; color: var(--border-strong); }
+
+    /* ── Preview bar ── */
+    #previewBar {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+      background: linear-gradient(to top, rgba(10,10,10,.95) 80%, transparent);
+      padding: 18px 20px 28px;
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+    }
+    #previewBar.hidden { display: none; }
+    #previewBar p { font-size: 13px; color: var(--text-muted); text-align: center; line-height: 1.6; }
+    #previewBar .btn { max-width: 280px; }
+
+    /* ── Bubble level ── */
+    .level-ring {
+      width: 130px; height: 130px; border-radius: 50%;
+      border: 2px solid var(--border); background: var(--bg);
+      position: relative; margin: 4px auto; overflow: hidden;
+    }
+    .level-target {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%,-50%);
+      width: 36px; height: 36px; border-radius: 50%;
+      border: 2px dashed #22c55e; opacity: .7;
+    }
+    .level-dot {
+      position: absolute; width: 18px; height: 18px; border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #fff, var(--orange-light));
+      transform: translate(-50%,-50%);
+      transition: left .08s, top .08s;
+    }
+    #calibStatus { font-size: 12px; margin-top: -4px; }
+    #calibStatus.ok { color: #22c55e; }
+    #calibStatus.ng { color: #f87171; }
+
+    /* ── Settings ── */
+    #settingsOverlay .panel { gap: 12px; }
+    .setting-row { width: 100%; display: flex; flex-direction: column; gap: 6px; text-align: left; }
+    .setting-row label { font-size: 12px; color: var(--text-muted); display: flex; justify-content: space-between; }
+    .setting-row label span { color: var(--orange-light); font-weight: 700; }
+    .setting-row input[type=range] { width: 100%; accent-color: var(--orange-mid); }
+
+    /* ── Gear button ── */
+    #gearBtn {
+      position: fixed; top: 10px; right: 52px; z-index: 60;
+      background: transparent; border: none; font-size: 20px;
+      cursor: pointer; opacity: .65; padding: 4px;
+    }
+    #gearBtn.hidden { display: none; }
+
+    /* ── Stage intro overlay ── */
+    #stageIntroOverlay .panel { max-width: 360px; gap: 10px; }
+    #stageIntroTitle {
+      font-family: 'Fredoka One', sans-serif;
+      font-size: 22px; color: var(--orange-light);
+    }
+    #stageIntroContent { width: 100%; }
+    .intro-section-header {
+      font-size: 11px; font-weight: 700;
+      letter-spacing: .12em; text-transform: uppercase;
+      color: var(--orange); margin: 8px 0 4px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .intro-section-header::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
+    }
+    .intro-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 4px 0; font-size: 12px; color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+    }
+    .intro-row:last-child { border-bottom: none; }
+    .intro-icon { font-size: 16px; width: 22px; text-align: center; flex-shrink: 0; }
+    .intro-name { color: var(--text); font-weight: 500; min-width: 48px; }
+    .intro-desc { color: var(--text-muted); font-size: 11px; }
   </style>
 </head>
 <body>
+
+<!-- Language switcher -->
+<div id="lang-switcher">
+  <select id="lang-select" onchange="onLangChange(this.value)">
+    <option value="ja">日本語</option>
+    <option value="en">EN</option>
+    <option value="zh">中文</option>
+    <option value="cat">CAT</option>
+  </select>
+</div>
+
 <canvas id="gameCanvas"></canvas>
 
-<!-- 1: タイトル -->
+<!-- 1: Title -->
 <div class="overlay" id="titleOverlay">
-  <div style="display:flex;flex-direction:column;align-items:center;gap:14px;">
-    <div class="title-cat">🐱</div>
+  <div class="title-wrap">
+    <svg class="title-cat-svg" xmlns="http://www.w3.org/2000/svg" viewBox="-46 -50 92 80">
+      <g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/></g>
+      <g transform="rotate(12,12,8.3)"><path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/></g>
+      <ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/>
+      <line x1="-14" y1="1.00"  x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-14" y1="6.0"   x2="-33.44" y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="14"  y1="1.00"  x2="33.68"  y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="14"  y1="6.0"   x2="33.44"  y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="14"  y1="10.59" x2="29.58"  y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <ellipse cx="-12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+      <ellipse cx="12"  cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+      <ellipse cx="-12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+      <ellipse cx="12"  cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+      <circle  cx="-10.5" cy="-5.2" r="1.0" fill="#c2410c"/>
+      <circle  cx="13.5"  cy="-5.2" r="1.0" fill="#c2410c"/>
+      <path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/>
+      <line x1="0" y1="11.3" x2="0" y2="13.3" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M0,13.3 Q5,17.3 8,15.3"  fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+    </svg>
     <div class="title-text">MOMO <span>Tilt</span></div>
-    <div class="title-ver">v0.1.0</div>
-    <div class="title-desc">スマホを傾けてボールを転がし<br>同じ色のゴールへ同時に入れよう！</div>
-    <button class="btn" id="titleBtn" style="margin-top:12px;">はじめる</button>
-    <div class="kbd-hint">PCは矢印キー / WASD で操作</div>
+    <div class="title-ver">v0.2.0</div>
+    <div class="title-desc" id="titleDesc"></div>
+    <button class="btn" id="titleBtn" style="margin-top:10px;"></button>
+    <div class="kbd-hint" id="kbdHint"></div>
   </div>
 </div>
 
-<!-- 2: 迷路プレビュー後のバー -->
+<!-- 2: Maze preview bar -->
 <div id="previewBar" class="hidden">
-  <p>ステージ <span id="previewStage">1</span> の迷路が生成されました<br>
-     スマホを<strong style="color:#fb923c;">水平（画面を上向き）</strong>に持って操作します</p>
-  <button class="btn" id="sensorBtn">センサーを許可してスタート</button>
-  <button class="btn-sub" id="skipSensorBtn">（PCで遊ぶ / センサーなし）</button>
+  <p id="previewStageText"></p>
+  <button class="btn" id="sensorBtn"></button>
+  <button class="btn-sub" id="skipSensorBtn"></button>
 </div>
 
-<!-- 3: 水平キャリブレーション -->
+<!-- 3: Calibration -->
 <div class="overlay hidden" id="calibOverlay">
   <div class="panel">
-    <h2>📱 水平キャリブレーション</h2>
-    <p>スマホを操作しやすい角度に構えて<br>
-       <strong style="color:#fb923c;">「この向きを水平とする」</strong>を押してください</p>
+    <h2 id="calibTitle"></h2>
+    <p id="calibDesc"></p>
     <div class="level-ring" id="levelRing">
       <div class="level-target"></div>
       <div class="level-dot" id="levelDot" style="left:50%;top:50%;"></div>
     </div>
-    <div id="calibStatus" class="ng">傾いています…</div>
-    <button class="btn-calib" id="calibrateBtn">この向きを水平とする</button>
-    <button class="btn" id="startBtn" disabled>ゲームスタート</button>
-    <button class="btn-sub" id="skipCalibBtn">そのままスタート</button>
+    <div id="calibStatus" class="ng"></div>
+    <button class="btn-calib" id="calibrateBtn"></button>
+    <button class="btn" id="startBtn" disabled></button>
+    <button class="btn-sub" id="skipCalibBtn"></button>
   </div>
 </div>
 
-<!-- 4: 設定パネル -->
+<!-- 4: Stage intro -->
+<div class="overlay hidden" id="stageIntroOverlay">
+  <div class="panel">
+    <div id="stageIntroTitle"></div>
+    <div id="stageIntroContent"></div>
+    <button class="btn" id="stageIntroBtn"></button>
+  </div>
+</div>
+
+<!-- 5: Settings -->
 <div class="overlay hidden" id="settingsOverlay">
   <div class="panel">
-    <h2>⚙️ 感度設定</h2>
+    <h2 id="settingsTitle"></h2>
     <div class="setting-row">
-      <label>傾き感度 <span id="sensVal">1.0</span>x</label>
+      <label><span id="sensLabelText"></span> <span id="sensVal">1.0</span>x</label>
       <input type="range" id="sensSlider" min="0.3" max="3.0" step="0.1" value="1.0">
     </div>
     <div class="setting-row">
-      <label>最大速度（壁抜け防止） <span id="spdVal">10</span></label>
+      <label><span id="spdLabelText"></span> <span id="spdVal">10</span></label>
       <input type="range" id="spdSlider" min="4" max="20" step="1" value="10">
     </div>
-    <button class="btn" id="settingsCloseBtn">OK</button>
+    <button class="btn" id="settingsCloseBtn"></button>
   </div>
 </div>
 
-<!-- ゲーム中の設定ボタン -->
+<!-- Gear button (shown during play) -->
 <button id="gearBtn" class="hidden">⚙️</button>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+<script src="js/i18n.js"></script>
 <script src="js/maze.js"></script>
 <script src="js/entities.js"></script>
 <script src="js/input.js"></script>
@@ -118,5 +314,49 @@
 <script src="js/renderer.js"></script>
 <script src="js/gamestate.js"></script>
 <script src="js/main.js"></script>
+<script>
+  function applyLang() {
+    const sel = document.getElementById('lang-select');
+    if (sel) sel.value = currentLang;
+    document.documentElement.lang = currentLang === 'zh' ? 'zh-Hans' : (currentLang === 'cat' ? (catBase === 'zh' ? 'zh-Hans' : catBase) : currentLang);
+
+    // Title overlay
+    document.getElementById('titleDesc').textContent   = t('titleDesc');
+    document.getElementById('titleBtn').textContent    = t('titleBtn');
+    document.getElementById('kbdHint').textContent     = t('kbdHint');
+
+    // Preview bar
+    // (stage number is set dynamically in _showPreview)
+
+    // Sensor buttons
+    document.getElementById('sensorBtn').textContent     = t('sensorBtn');
+    document.getElementById('skipSensorBtn').textContent = t('skipSensorBtn');
+
+    // Calibration overlay
+    document.getElementById('calibTitle').textContent    = t('calibTitle');
+    document.getElementById('calibDesc').textContent     = t('calibDesc');
+    document.getElementById('calibrateBtn').textContent  = t('calibrateBtnText');
+    document.getElementById('startBtn').textContent      = t('startBtn');
+    document.getElementById('skipCalibBtn').textContent  = t('skipCalibBtn');
+
+    // Calib status default
+    const stat = document.getElementById('calibStatus');
+    if (stat && !stat.classList.contains('ok')) stat.textContent = t('calibNg');
+    else if (stat) stat.textContent = t('calibOk');
+
+    // Settings
+    const sensVal = document.getElementById('sensVal').textContent;
+    const spdVal  = document.getElementById('spdVal').textContent;
+    document.getElementById('settingsTitle').textContent    = t('settingsTitle');
+    document.getElementById('settingsCloseBtn').textContent = t('settingsClose');
+
+    document.getElementById('sensLabelText').textContent = t('sensLabel');
+    document.getElementById('spdLabelText').textContent  = t('spdLabel');
+  }
+
+  // Sync select on load
+  document.getElementById('lang-select').value = currentLang;
+  applyLang();
+</script>
 </body>
 </html>

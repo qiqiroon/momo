@@ -10,6 +10,7 @@ class GameState {
         this.keys   = [];
         this.items  = [];
         this.enemies = [];
+        this.pits    = [];
         this.clearTimer = 0;
         this.rng = null;
     }
@@ -21,6 +22,7 @@ class GameState {
         this.keys    = [];
         this.items   = [];
         this.enemies = [];
+        this.pits    = [];
 
         const s = this.stage;
         // Stage 1 = 1 ball, each clear adds 1 ball (max 5)
@@ -32,8 +34,8 @@ class GameState {
 
         this.rng = this._makeRng(this.stage * 137 + 31);
 
-        // Place balls (top zone): spread them as far apart as possible
-        const allBallCands = MazeGenerator.pickCells(maze, maze.rows * maze.cols, this.rng, [], 'top');
+        // Place balls (full maze): spread them as far apart as possible
+        const allBallCands = MazeGenerator.pickCells(maze, maze.rows * maze.cols, this.rng, [], null);
         const ballCells = this._pickFarthest(allBallCands, ballCount);
         for (let i = 0; i < ballCount; i++) {
             const cell = ballCells[i] || {c: 1 + i, r: 1};
@@ -80,6 +82,14 @@ class GameState {
             exclude.push(cell);
             const type = itemTypes[Math.floor(this.rng() * itemTypes.length)];
             this.items.push(new Item(i, type, cell.c, cell.r, maze));
+        }
+
+        // Place pits
+        const pitCount = s >= 2 ? Math.min(Math.floor((s - 1) / 2), 5) : 0;
+        const pitCells = MazeGenerator.pickCells(maze, pitCount, this.rng, exclude);
+        for (let i = 0; i < pitCells.length; i++) {
+            exclude.push(pitCells[i]);
+            this.pits.push(new Pit(i, pitCells[i].c, pitCells[i].r, maze));
         }
 
         // Place enemies
@@ -206,6 +216,18 @@ class GameState {
                         item.collected = true;
                         this._applyItem(item.type);
                         collected.push({type: 'item', id: item.id});
+                    }
+                }
+            }
+
+            // Pit collision (no life loss, just respawn)
+            if (ball.invincible <= 0) {
+                for (const pit of this.pits) {
+                    const dx = ball.x - pit.x, dy = ball.y - pit.y;
+                    if (dx*dx + dy*dy < (ball.radius + pit.radius)**2) {
+                        ball.needsRespawn = true;
+                        ball.invincible = 60 * 16;
+                        collected.push({type: 'pit', ballId: ball.id});
                     }
                 }
             }

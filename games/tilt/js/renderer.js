@@ -49,34 +49,42 @@ class Renderer {
         // Result: two parallel lines wt pixels apart — a double line — for every wall.
         ctx.save();
         ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
         ctx.lineWidth = 1.5;
         ctx.strokeStyle = '#2a5da8';
         ctx.shadowColor = '#5599ff';
         ctx.shadowBlur = 7;
         ctx.beginPath();
 
+        // Each cell draws lines on its closed edges, extended by wt/2 into the adjacent
+        // pillar area so that consecutive wall segments of the same wall connect smoothly.
+        const ext = wt / 2;
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
                 const x0 = offsetX + wt + c * cs;
                 const y0 = offsetY + wt + r * cs;
 
-                if (r === 0 || !passages[r-1][c].down) {   // top edge
-                    ctx.moveTo(x0, y0); ctx.lineTo(x0 + cw, y0);
+                // Top edge (wall above)
+                if (r === 0 || !passages[r-1][c].down) {
+                    ctx.moveTo(x0 - ext, y0); ctx.lineTo(x0 + cw + ext, y0);
                 }
-                if (c === 0 || !passages[r][c-1].right) {  // left edge
-                    ctx.moveTo(x0, y0); ctx.lineTo(x0, y0 + cw);
+                // Left edge (wall to left)
+                if (c === 0 || !passages[r][c-1].right) {
+                    ctx.moveTo(x0, y0 - ext); ctx.lineTo(x0, y0 + cw + ext);
                 }
-                if (r === rows-1 || !passages[r][c].down) { // bottom edge
-                    ctx.moveTo(x0, y0 + cw); ctx.lineTo(x0 + cw, y0 + cw);
+                // Bottom edge (wall below)
+                if (r === rows-1 || !passages[r][c].down) {
+                    ctx.moveTo(x0 - ext, y0 + cw); ctx.lineTo(x0 + cw + ext, y0 + cw);
                 }
-                if (c === cols-1 || !passages[r][c].right) { // right edge
-                    ctx.moveTo(x0 + cw, y0); ctx.lineTo(x0 + cw, y0 + cw);
+                // Right edge (wall to right)
+                if (c === cols-1 || !passages[r][c].right) {
+                    ctx.moveTo(x0 + cw, y0 - ext); ctx.lineTo(x0 + cw, y0 + cw + ext);
                 }
             }
         }
         ctx.stroke();
 
-        // Outer boundary outer faces (inner faces already drawn by border cells above)
+        // Outer boundary outer faces
         ctx.beginPath();
         ctx.moveTo(offsetX, offsetY);                    ctx.lineTo(offsetX + maze.mazeW, offsetY);
         ctx.moveTo(offsetX, offsetY + maze.mazeH);       ctx.lineTo(offsetX + maze.mazeW, offsetY + maze.mazeH);
@@ -151,9 +159,9 @@ class Renderer {
         ctx.stroke();
         ctx.shadowBlur = 0;
 
-        // Number label
-        ctx.fillStyle = hasBall ? color : color + '88';
-        ctx.font = `bold ${radius * 0.8}px sans-serif`;
+        // Number label (white for visibility; rim keeps goal color)
+        ctx.fillStyle = hasBall ? '#fff' : 'rgba(255,255,255,0.55)';
+        ctx.font = `bold ${radius * 0.85}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(goal.ballId + 1, x, y);
@@ -318,6 +326,47 @@ class Renderer {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(ball.id + 1, x, y + 1);
+
+        ctx.shadowBlur = 0;
+        ctx.restore();
+    }
+
+    drawPit(pit, time) {
+        const ctx = this.ctx;
+        const {x, y, radius} = pit;
+        const t = time * 0.0008;
+
+        ctx.save();
+        // Deep dark hole
+        const grad = ctx.createRadialGradient(x, y, 0, x, y, radius);
+        grad.addColorStop(0, '#000000');
+        grad.addColorStop(0.55, '#0d0005');
+        grad.addColorStop(1, '#2a0010');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Swirling danger ring
+        ctx.strokeStyle = '#660022';
+        ctx.lineWidth = 1;
+        ctx.shadowColor = '#ff0044';
+        ctx.shadowBlur = 5;
+        for (let i = 0; i < 3; i++) {
+            const r2 = radius * (0.3 + i * 0.22);
+            const a0 = t * (2 + i * 0.7) + i * 1.1;
+            ctx.beginPath();
+            ctx.arc(x, y, r2, a0, a0 + Math.PI * 1.35);
+            ctx.stroke();
+        }
+
+        // Outer red rim
+        ctx.shadowBlur = 8;
+        ctx.strokeStyle = '#cc0033';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.stroke();
 
         ctx.shadowBlur = 0;
         ctx.restore();

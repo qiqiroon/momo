@@ -73,6 +73,18 @@ class Item {
     get info() { return ITEM_TYPES[this.type]; }
 }
 
+class Pit {
+    constructor(id, c, r, maze) {
+        this.id = id;
+        this.c = c;
+        this.r = r;
+        const pos = MazeGenerator.cellCenter(c, r, maze);
+        this.x = pos.x;
+        this.y = pos.y;
+        this.radius = maze.corridorWidth * 0.36;
+    }
+}
+
 const ENEMY_TYPES = {
     PATROL:  {color: '#ff8844', speed: 0.8, label: 'パトロール'},
     TRACKER: {color: '#ff2244', speed: 0.6, label: '追跡'},

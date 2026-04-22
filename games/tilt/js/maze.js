@@ -64,9 +64,53 @@ class MazeGenerator {
         // Phase 6: fix seam dead ends
         this._fixDeadEnds(passages, cols, rows);
 
+        // Phase 7: guarantee full connectivity — no isolated clusters
+        this._ensureConnectivity(passages, cols, rows);
+
         const warps = this._placeWarps(rows, warpCount);
         return { cols, rows, cellSize: this.cs, corridorWidth: this.cw, wallThickness: this.wt,
                  passages, warps, offsetX, offsetY, mazeW, mazeH };
+    }
+
+    _ensureConnectivity(passages, cols, rows) {
+        const reachable = Array.from({length: rows}, () => new Array(cols).fill(false));
+
+        const bfs = (startC, startR) => {
+            const queue = [{c: startC, r: startR}];
+            reachable[startR][startC] = true;
+            let head = 0;
+            while (head < queue.length) {
+                const {c, r} = queue[head++];
+                if (c < cols-1 && passages[r][c].right  && !reachable[r][c+1]) { reachable[r][c+1]=true; queue.push({c:c+1,r}); }
+                if (c > 0      && passages[r][c-1].right && !reachable[r][c-1]) { reachable[r][c-1]=true; queue.push({c:c-1,r}); }
+                if (r < rows-1 && passages[r][c].down    && !reachable[r+1][c]) { reachable[r+1][c]=true; queue.push({c,r:r+1}); }
+                if (r > 0      && passages[r-1][c].down  && !reachable[r-1][c]) { reachable[r-1][c]=true; queue.push({c,r:r-1}); }
+            }
+        };
+
+        bfs(0, 0);
+
+        // Connect any unreachable cell bordering a reachable one; repeat until done
+        let changed = true;
+        while (changed) {
+            changed = false;
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    if (reachable[r][c]) continue;
+                    const nb = [];
+                    if (c < cols-1 && reachable[r][c+1]) nb.push([1,0]);
+                    if (c > 0      && reachable[r][c-1]) nb.push([-1,0]);
+                    if (r < rows-1 && reachable[r+1][c]) nb.push([0,1]);
+                    if (r > 0      && reachable[r-1][c]) nb.push([0,-1]);
+                    if (nb.length > 0) {
+                        const [dc,dr] = nb[Math.floor(this.rng() * nb.length)];
+                        this._open(passages, c, r, dc, dr, cols, rows);
+                        bfs(c, r);
+                        changed = true;
+                    }
+                }
+            }
+        }
     }
 
     _addIslands(passages, cols, rows, count) {

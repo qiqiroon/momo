@@ -42,7 +42,7 @@ const I18N = {
     pitName: 'ホール',
     pitDesc: '落ちるとスタートへ戻る',
     stageIntroLocks: '鍵付きゴール',
-    lockName: '錠前',
+    lockName: '鍵',
     lockDesc: '同じ番号の鍵を取るとゴールが解錠される',
   },
   en: {
@@ -86,7 +86,7 @@ const I18N = {
     pitName: 'Hole',
     pitDesc: 'Fall sends ball back to start',
     stageIntroLocks: 'Locked Goals',
-    lockName: 'Lock',
+    lockName: 'Key',
     lockDesc: 'Collect the matching key to unlock the goal',
   },
   zh: {
@@ -130,7 +130,7 @@ const I18N = {
     pitName: '陷坑',
     pitDesc: '落入返回起点',
     stageIntroLocks: '锁定目标',
-    lockName: '锁',
+    lockName: '钥匙',
     lockDesc: '拾取对应钥匙解锁目标',
   },
 };

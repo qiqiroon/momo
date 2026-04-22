@@ -282,28 +282,25 @@ class Renderer {
         ctx.fill();
 
         if (locked) {
-            // Locked: tinted with goal color so player sees which ball needs it
-            ctx.fillStyle = this._darken(color, 0.25);
+            // Locked: flat colored circle (ball color) with number
+            ctx.fillStyle = this._darken(color, 0.3);
             ctx.beginPath();
             ctx.arc(x, y, radius, 0, Math.PI * 2);
             ctx.fill();
-            ctx.strokeStyle = color + 'bb';
+            ctx.strokeStyle = color;
             ctx.lineWidth = 2;
             ctx.shadowColor = color;
             ctx.shadowBlur = 5;
             ctx.stroke();
             ctx.shadowBlur = 0;
-            // Key icon
-            ctx.font = `${radius * 0.95}px sans-serif`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('🔑', x, y - radius * 0.12);
             // Number
             ctx.fillStyle = '#fff';
-            ctx.font = `bold ${Math.max(7, radius * 0.55)}px sans-serif`;
+            ctx.font = `bold ${Math.max(8, radius * 0.85)}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
             ctx.shadowColor = '#000';
             ctx.shadowBlur = 4;
-            ctx.fillText(goal.ballId + 1, x, y + radius * 0.62);
+            ctx.fillText(goal.ballId + 1, x, y);
             ctx.shadowBlur = 0;
             return;
         }

@@ -234,7 +234,7 @@ class Game {
         // Locked goals
         if (gs.goals.some(g => g.locked)) {
             makeSection(t('stageIntroLocks'), [{
-                icon: '🔒', name: t('lockName'), desc: t('lockDesc')
+                icon: '🔑', name: t('lockName'), desc: t('lockDesc')
             }]);
         }
 

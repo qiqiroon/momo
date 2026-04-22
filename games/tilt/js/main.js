@@ -263,11 +263,16 @@ class Game {
         const frozenIds = gs.balls.filter(b => b.frozen > 0).map(b => b.id);
 
         this.physics.applyTilt(tilt.x, tilt.y, frozenIds);
+        this.physics.applyBallRepulsion(gs.balls);
         this.physics.applyGoalForces(gs.balls, gs.goals);
         this.physics.applyWarps(gs.balls, maze);
         this.physics.step(dt, this.input.maxSpeed);
         this.physics.checkBounds(gs.balls, maze);
-        this.physics.unstuckBalls(gs.balls, maze, (x, y) => gs._isWall(x, y, maze, this.physics.BALL_RADIUS * 0.9));
+        this.physics.unstuckBalls(
+            gs.balls, maze,
+            (x, y) => gs._isWall(x, y, maze, this.physics.BALL_RADIUS * 0.9),
+            (x, y) => gs._isWall(x, y, maze, 0)
+        );
 
         for (const b of gs.balls)
             b.sizeScale += ((b.inGoal ? 0.7 : 1.0) - b.sizeScale) * 0.12;

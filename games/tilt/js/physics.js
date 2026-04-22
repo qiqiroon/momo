@@ -212,32 +212,56 @@ class PhysicsEngine {
         }
     }
 
-    // Push any ball that is inside a wall back to free space
-    unstuckBalls(balls, maze, isWall) {
-        const pushDist = this.BALL_RADIUS + 2;
+    // Push any ball that is inside a wall back to free space.
+    // isWall: broad check with ball-radius expansion (for safe-position lookup)
+    // isWallStrict: single-point check (no radius) — teleport only when ball center itself is inside a wall
+    unstuckBalls(balls, maze, isWall, isWallStrict) {
+        if (!isWallStrict) isWallStrict = isWall;
+        const r = this.BALL_RADIUS;
         for (const ball of balls) {
-            if (!isWall(ball.x, ball.y)) {
-                // Apply outward force when near a wall — strong enough to overcome tilt force
-                for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
-                    if (isWall(ball.x + dx * pushDist, ball.y + dy * pushDist)) {
-                        Matter.Body.applyForce(ball.body, ball.body.position, {
-                            x: -dx * 0.0008 * ball.body.mass,
-                            y: -dy * 0.0008 * ball.body.mass
-                        });
+            // Teleport only when ball center is truly inside a wall
+            if (isWallStrict(ball.x, ball.y)) {
+                let freed = false;
+                for (let d = 2; d <= 28 && !freed; d += 2) {
+                    for (const [dx, dy] of [[d,0],[-d,0],[0,d],[0,-d],[d,d],[-d,-d],[d,-d],[-d,d]]) {
+                        if (!isWall(ball.x + dx, ball.y + dy)) {
+                            Matter.Body.setPosition(ball.body, {x: ball.x + dx, y: ball.y + dy});
+                            Matter.Body.setVelocity(ball.body, {x: 0, y: 0});
+                            freed = true;
+                            break;
+                        }
                     }
                 }
                 continue;
             }
-            let freed = false;
-            for (let d = 2; d <= 28 && !freed; d += 2) {
-                for (const [dx, dy] of [[d,0],[-d,0],[0,d],[0,-d],[d,d],[-d,-d],[d,-d],[-d,d]]) {
-                    if (!isWall(ball.x + dx, ball.y + dy)) {
-                        Matter.Body.setPosition(ball.body, {x: ball.x + dx, y: ball.y + dy});
-                        Matter.Body.setVelocity(ball.body, {x: 0, y: 0});
-                        freed = true;
-                        break;
-                    }
+            // Apply perpendicular force when ball edge overlaps or closely approaches a wall
+            for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+                if (isWall(ball.x + dx * (r + 2), ball.y + dy * (r + 2))) {
+                    Matter.Body.applyForce(ball.body, ball.body.position, {
+                        x: -dx * 0.010 * ball.body.mass,
+                        y: -dy * 0.010 * ball.body.mass
+                    });
                 }
+            }
+        }
+    }
+
+    // Apply repulsion force between balls that are close or overlapping
+    applyBallRepulsion(balls) {
+        const repulseRange = this.BALL_RADIUS * 2;
+        const K = 0.012;
+        for (let i = 0; i < balls.length; i++) {
+            for (let j = i + 1; j < balls.length; j++) {
+                const a = balls[i], b = balls[j];
+                const dx = b.x - a.x, dy = b.y - a.y;
+                const dist2 = dx * dx + dy * dy;
+                if (dist2 >= repulseRange * repulseRange || dist2 === 0) continue;
+                const dist = Math.sqrt(dist2);
+                const overlap = repulseRange - dist;
+                const nx = dx / dist, ny = dy / dist;
+                const f = K * overlap;
+                Matter.Body.applyForce(a.body, a.body.position, {x: -nx * f * a.body.mass, y: -ny * f * a.body.mass});
+                Matter.Body.applyForce(b.body, b.body.position, {x:  nx * f * b.body.mass, y:  ny * f * b.body.mass});
             }
         }
     }

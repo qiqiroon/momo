@@ -78,8 +78,8 @@ class InputHandler {
         window.addEventListener('devicemotion', e => {
             const accel = e.accelerationIncludingGravity;
             if (!accel) return;
-            this.gamma =  (accel.x || 0) / G * 90;
-            this.beta  = -(accel.y || 0) / G * 90;
+            this.gamma = -(accel.x || 0) / G * 90;
+            this.beta  =  (accel.y || 0) / G * 90;
         });
     }
 

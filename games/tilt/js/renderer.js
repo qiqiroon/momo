@@ -76,20 +76,13 @@ class Renderer {
             }
         }
 
-        // Fill pillar corners with floor color (removes black squares at corners)
+        // Fill all pillar corners with floor color (wall lines drawn on top show structure)
         ctx.fillStyle = floorColor;
-        for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < cols; c++) {
-                const passR = c < cols-1 && passages[r][c].right;
-                const passD = r < rows-1 && passages[r][c].down;
-                const passRD = c < cols-1 && r < rows-1 && passages[r+1][c].right;
-                const passDR = c < cols-1 && r < rows-1 && passages[r][c+1].down;
-                // Pillar at bottom-right corner of cell (c,r), only if all 4 adjacent corridors are open
-                if (c < cols-1 && r < rows-1 && passR && passD && passRD && passDR) {
-                    const px = offsetX + wt + c * cs + cw;
-                    const py = offsetY + wt + r * cs + cw;
-                    ctx.fillRect(px, py, wt, wt);
-                }
+        for (let r = 0; r < rows - 1; r++) {
+            for (let c = 0; c < cols - 1; c++) {
+                const px = offsetX + wt + c * cs + cw;
+                const py = offsetY + wt + r * cs + cw;
+                ctx.fillRect(px, py, wt, wt);
             }
         }
 

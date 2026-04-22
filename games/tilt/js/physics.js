@@ -56,11 +56,11 @@ class PhysicsEngine {
                     const wy = y0 + cw + wt / 2;
                     bodies.push(this.Bodies.rectangle(wx, wy, cw, wt, opts));
                 }
-                // Corner pillar (always)
+                // Corner pillar (circle to prevent ball-catching on sharp corners)
                 if (c < cols - 1 && r < rows - 1) {
                     const wx = x0 + cw + wt / 2;
                     const wy = y0 + cw + wt / 2;
-                    bodies.push(this.Bodies.rectangle(wx, wy, wt, wt, opts));
+                    bodies.push(this.Bodies.circle(wx, wy, wt / 2, opts));
                 }
             }
         }

@@ -65,11 +65,12 @@ class MazeGenerator {
         this._fixDeadEnds(passages, cols, rows);
 
         // Phase 7: guarantee full connectivity — no isolated clusters
-        this._ensureConnectivity(passages, cols, rows);
+        // Returns reachability map so pickCells can filter out unreachable cells
+        const reachable = this._ensureConnectivity(passages, cols, rows);
 
         const warps = this._placeWarps(rows, warpCount);
         return { cols, rows, cellSize: this.cs, corridorWidth: this.cw, wallThickness: this.wt,
-                 passages, warps, offsetX, offsetY, mazeW, mazeH };
+                 passages, warps, offsetX, offsetY, mazeW, mazeH, reachable };
     }
 
     _ensureConnectivity(passages, cols, rows) {
@@ -90,7 +91,7 @@ class MazeGenerator {
 
         bfs(0, 0);
 
-        // Connect any unreachable cell bordering a reachable one; repeat until done
+        // Connect any unreachable cell bordering a reachable one; repeat until all reachable
         let changed = true;
         while (changed) {
             changed = false;
@@ -111,6 +112,7 @@ class MazeGenerator {
                 }
             }
         }
+        return reachable;
     }
 
     _addIslands(passages, cols, rows, count) {
@@ -237,6 +239,8 @@ class MazeGenerator {
         const cands=[];
         for(let r=rMin;r<rMax;r++) for(let c=m;c<cols-m;c++){
             if(exclude.some(e=>e.c===c&&e.r===r)) continue;
+            // Require reachability from main maze (if reachable map available)
+            if(maze.reachable && !maze.reachable[r][c]) continue;
             // Require at least 1 passage (not a sealed island)
             const conn=(c<cols-1&&passages[r][c].right?1:0)+(c>0&&passages[r][c-1].right?1:0)
                       +(r<rows-1&&passages[r][c].down?1:0)+(r>0&&passages[r-1][c].down?1:0);

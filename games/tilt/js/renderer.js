@@ -95,6 +95,7 @@ class Renderer {
 
         // Wall rendering: per-cell Pac-Man style with inner + outer concentric arcs,
         // end caps at wall terminations, and T-junction handling.
+        console.log('renderer v6c8f7d8');
         ctx.save();
         ctx.lineCap = 'butt';
         ctx.lineWidth = 1.5;

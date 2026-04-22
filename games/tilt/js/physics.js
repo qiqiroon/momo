@@ -25,10 +25,12 @@ class PhysicsEngine {
         this.wallBodies = [];
         this.ballBodies = [];
 
-        const opts = {isStatic: true, restitution: 0.5, friction: 0, frictionStatic: 0, label: 'wall'};
+        const opts      = {isStatic: true, restitution: 0.5, friction: 0, frictionStatic: 0, label: 'wall'};
+        // Interior wall segments use chamfered (stadium/capsule) shape to eliminate sharp-corner catching
+        const innerOpts = {...opts, chamfer: {radius: wt / 2}};
         const bodies = [];
 
-        // Outer walls
+        // Outer walls (plain rectangles — corners are at maze edge, unreachable)
         const totalW = cols * cs + wt;
         const totalH = rows * cs + wt;
         const cx = offsetX + totalW / 2;
@@ -38,7 +40,7 @@ class PhysicsEngine {
         bodies.push(this.Bodies.rectangle(offsetX + wt / 2,           cy, wt,   totalH,         opts)); // left
         bodies.push(this.Bodies.rectangle(offsetX + totalW - wt / 2,  cy, wt,   totalH,         opts)); // right
 
-        // Interior walls
+        // Interior walls — chamfered capsules; no corner pillars
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
                 const x0 = offsetX + wt + c * cs; // corridor left
@@ -48,20 +50,15 @@ class PhysicsEngine {
                 if (c < cols - 1 && !passages[r][c].right) {
                     const wx = x0 + cw + wt / 2;
                     const wy = y0 + cw / 2;
-                    bodies.push(this.Bodies.rectangle(wx, wy, wt, cw, opts));
+                    bodies.push(this.Bodies.rectangle(wx, wy, wt, cw, innerOpts));
                 }
                 // Bottom wall between (c,r) and (c,r+1)
                 if (r < rows - 1 && !passages[r][c].down) {
                     const wx = x0 + cw / 2;
                     const wy = y0 + cw + wt / 2;
-                    bodies.push(this.Bodies.rectangle(wx, wy, cw, wt, opts));
+                    bodies.push(this.Bodies.rectangle(wx, wy, cw, wt, innerOpts));
                 }
-                // Corner pillar (circle to prevent ball-catching on sharp corners)
-                if (c < cols - 1 && r < rows - 1) {
-                    const wx = x0 + cw + wt / 2;
-                    const wy = y0 + cw + wt / 2;
-                    bodies.push(this.Bodies.circle(wx, wy, wt / 2, opts));
-                }
+                // Corner pillars removed — capsule wall ends naturally close junction gaps
             }
         }
 

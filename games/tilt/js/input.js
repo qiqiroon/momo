@@ -1,4 +1,4 @@
-// Input handler: gyroscope + keyboard fallback
+// Input handler: gyroscope → accelerometer fallback → keyboard
 // iOS13+: requestPermission() must be called synchronously from a user gesture
 
 class InputHandler {
@@ -51,11 +51,36 @@ class InputHandler {
 
     _attachGyro() {
         if (this._gyroActive) return;
-        window.addEventListener('deviceorientation', e => {
-            this.gamma = e.gamma || 0;
-            this.beta  = e.beta  || 0;
-        });
         this._gyroActive = true;
+
+        let gotGyroData = false;
+        const gyroListener = e => {
+            if (e.beta !== null && e.gamma !== null) {
+                gotGyroData = true;
+                this.gamma = e.gamma;
+                this.beta  = e.beta;
+            }
+        };
+        window.addEventListener('deviceorientation', gyroListener);
+
+        // Fall back to accelerometer if no valid gyro data within 1 second
+        setTimeout(() => {
+            if (!gotGyroData) {
+                window.removeEventListener('deviceorientation', gyroListener);
+                this._attachAccelerometer();
+            }
+        }, 1000);
+    }
+
+    _attachAccelerometer() {
+        this._accelActive = true;
+        const G = 9.81;
+        window.addEventListener('devicemotion', e => {
+            const accel = e.accelerationIncludingGravity;
+            if (!accel) return;
+            this.gamma =  (accel.x || 0) / G * 90;
+            this.beta  = -(accel.y || 0) / G * 90;
+        });
     }
 
     // Set current orientation as the "level" reference

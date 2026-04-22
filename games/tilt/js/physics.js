@@ -207,7 +207,11 @@ class PhysicsEngine {
                     x: Math.max(minX, Math.min(maxX, x)),
                     y: Math.max(minY, Math.min(maxY, y))
                 });
-                Matter.Body.setVelocity(ball.body, {x: 0, y: 0});
+                const v = ball.body.velocity;
+                Matter.Body.setVelocity(ball.body, {
+                    x: (x < minX && v.x < 0) ? -v.x : (x > maxX && v.x > 0) ? -v.x : v.x,
+                    y: (y < minY && v.y < 0) ? -v.y : (y > maxY && v.y > 0) ? -v.y : v.y
+                });
             }
         }
     }
@@ -234,9 +238,9 @@ class PhysicsEngine {
                 }
                 continue;
             }
-            // Apply perpendicular force when ball edge overlaps or closely approaches a wall
+            // Apply perpendicular force when ball edge closely approaches a wall
             for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
-                if (isWall(ball.x + dx * (r + 2), ball.y + dy * (r + 2))) {
+                if (isWall(ball.x + dx * (r + 1), ball.y + dy * (r + 1))) {
                     Matter.Body.applyForce(ball.body, ball.body.position, {
                         x: -dx * 0.010 * ball.body.mass,
                         y: -dy * 0.010 * ball.body.mass

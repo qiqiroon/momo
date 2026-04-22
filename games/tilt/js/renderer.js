@@ -76,12 +76,14 @@ class Renderer {
             }
         }
 
-        // Junction corner: floor color only when all 4 adjacent passages open (4-way crossing)
+        // Junction corner: floor color when both corridors are open on opposite sides
+        // (straight-through or 4-way open) — avoids dark "pillar" appearance between corridors
         ctx.fillStyle = floorColor;
         for (let r = 0; r < rows - 1; r++) {
             for (let c = 0; c < cols - 1; c++) {
-                if (passages[r][c].right && passages[r+1][c].right &&
-                    passages[r][c].down  && passages[r][c+1].down) {
+                const downBoth  = passages[r][c].down  && passages[r][c+1].down;
+                const rightBoth = passages[r][c].right && passages[r+1][c].right;
+                if (downBoth || rightBoth) {
                     const px = offsetX + wt + c * cs + cw;
                     const py = offsetY + wt + r * cs + cw;
                     ctx.fillRect(px, py, wt, wt);

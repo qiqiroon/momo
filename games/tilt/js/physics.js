@@ -58,16 +58,8 @@ class PhysicsEngine {
                     const wy = y0 + cw + wt / 2;
                     bodies.push(this.Bodies.rectangle(wx, wy, cw, wt, innerOpts));
                 }
-                // Gap-fill: only at fully-enclosed cross junctions (all 4 walls present)
-                // — corners would protrude into corridors for T/straight-through cases
-                if (c < cols - 1 && r < rows - 1) {
-                    if (!passages[r][c].right && !passages[r+1][c].right &&
-                        !passages[r][c].down  && !passages[r][c+1].down) {
-                        const wx = x0 + cw + wt / 2;
-                        const wy = y0 + cw + wt / 2;
-                        bodies.push(this.Bodies.rectangle(wx, wy, wt, wt, innerOpts));
-                    }
-                }
+                // No gap-fill bodies — enclosed cross bodies are unreachable;
+                // T/straight-through bodies cause corner catching in corridors
             }
         }
 

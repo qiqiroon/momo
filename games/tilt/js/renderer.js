@@ -282,20 +282,29 @@ class Renderer {
         ctx.fill();
 
         if (locked) {
-            // Locked: flat surface
-            ctx.fillStyle = '#445';
+            // Locked: tinted with goal color so player sees which ball needs it
+            ctx.fillStyle = this._darken(color, 0.25);
             ctx.beginPath();
             ctx.arc(x, y, radius, 0, Math.PI * 2);
             ctx.fill();
-            ctx.strokeStyle = '#667';
-            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = color + 'bb';
+            ctx.lineWidth = 2;
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 5;
             ctx.stroke();
-            // Lock icon
-            ctx.fillStyle = '#aaa';
-            ctx.font = `${radius}px sans-serif`;
+            ctx.shadowBlur = 0;
+            // Key icon
+            ctx.font = `${radius * 0.95}px sans-serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText('🔒', x, y);
+            ctx.fillText('🔑', x, y - radius * 0.12);
+            // Number
+            ctx.fillStyle = '#fff';
+            ctx.font = `bold ${Math.max(7, radius * 0.55)}px sans-serif`;
+            ctx.shadowColor = '#000';
+            ctx.shadowBlur = 4;
+            ctx.fillText(goal.ballId + 1, x, y + radius * 0.62);
+            ctx.shadowBlur = 0;
             return;
         }
 
@@ -329,25 +338,35 @@ class Renderer {
         if (key.collected) return;
         const ctx = this.ctx;
         const {x, y, radius, color, goalId} = key;
+        const r = radius * 1.35;
 
         ctx.save();
+        // Strong colored glow
         ctx.shadowColor = color;
-        ctx.shadowBlur  = 10;
-        // Ball-colored circle
+        ctx.shadowBlur = 20;
+        // Colored background circle
         ctx.fillStyle = color;
         ctx.beginPath();
-        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.arc(x, y, r, 0, Math.PI * 2);
         ctx.fill();
+        // White border
         ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 2;
+        ctx.shadowColor = '#fff';
+        ctx.shadowBlur = 6;
         ctx.stroke();
-        // Number label
+        // Key emoji
         ctx.shadowBlur = 0;
-        ctx.fillStyle = '#fff';
-        ctx.font = `bold ${Math.max(7, radius * 0.9)}px sans-serif`;
+        ctx.font = `${r * 1.1}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(goalId + 1, x, y + 1);
+        ctx.fillText('🔑', x, y);
+        // Number badge (bottom-right)
+        ctx.fillStyle = '#fff';
+        ctx.font = `bold ${Math.max(8, r * 0.72)}px sans-serif`;
+        ctx.shadowColor = '#000';
+        ctx.shadowBlur = 4;
+        ctx.fillText(goalId + 1, x + r * 0.62, y + r * 0.62);
         ctx.restore();
     }
 

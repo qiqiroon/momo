@@ -163,7 +163,15 @@ class Renderer {
         // Outer concentric arcs (radius or, same centers as inner arcs — drawn in wall space)
         // Suppressed at T/cross junctions (≥3 walls) to avoid drawing into open corridor space
         const jWalls = (cj, rj) => {
-            if (cj < 0 || cj >= cols-1 || rj < 0 || rj >= rows-1) return 0;
+            const inBounds = cj >= 0 && cj < cols-1 && rj >= 0 && rj < rows-1;
+            if (!inBounds) {
+                let count = 2; // outer boundary always provides 2 wall segments
+                if (rj === -1     && cj >= 0 && cj < cols-1) count += (hasWall(cj,      0,      'R') ? 1 : 0);
+                if (rj === rows-1 && cj >= 0 && cj < cols-1) count += (hasWall(cj,      rows-1, 'R') ? 1 : 0);
+                if (cj === -1     && rj >= 0 && rj < rows-1) count += (hasWall(0,       rj,     'B') ? 1 : 0);
+                if (cj === cols-1 && rj >= 0 && rj < rows-1) count += (hasWall(cols-1,  rj,     'B') ? 1 : 0);
+                return count;
+            }
             return (hasWall(cj, rj, 'R') ? 1 : 0) + (hasWall(cj, rj+1, 'R') ? 1 : 0) +
                    (hasWall(cj, rj, 'B') ? 1 : 0) + (hasWall(cj+1, rj, 'B') ? 1 : 0);
         };
@@ -271,12 +279,18 @@ class Renderer {
         }
         ctx.stroke();
 
-        // Boundary inner face: continuous lines along all 4 inner edges to fill pillar gaps
+        // Boundary inner face: only fill open-passage pillar gaps (skip T-junction positions)
         ctx.beginPath();
-        ctx.moveTo(offsetX + wt, offsetY + wt);              ctx.lineTo(offsetX + maze.mazeW - wt, offsetY + wt);
-        ctx.moveTo(offsetX + wt, offsetY + maze.mazeH - wt); ctx.lineTo(offsetX + maze.mazeW - wt, offsetY + maze.mazeH - wt);
-        ctx.moveTo(offsetX + wt, offsetY + wt);              ctx.lineTo(offsetX + wt, offsetY + maze.mazeH - wt);
-        ctx.moveTo(offsetX + maze.mazeW - wt, offsetY + wt); ctx.lineTo(offsetX + maze.mazeW - wt, offsetY + maze.mazeH - wt);
+        for (let c = 0; c < cols - 1; c++) {
+            const xl = offsetX + wt + c * cs + cw;
+            if (passages[0][c].right)      { ctx.moveTo(xl, offsetY + wt);            ctx.lineTo(xl + wt, offsetY + wt); }
+            if (passages[rows-1][c].right) { ctx.moveTo(xl, offsetY + maze.mazeH - wt); ctx.lineTo(xl + wt, offsetY + maze.mazeH - wt); }
+        }
+        for (let r = 0; r < rows - 1; r++) {
+            const yt = offsetY + wt + r * cs + cw;
+            if (passages[r][0].down)       { ctx.moveTo(offsetX + wt,             yt); ctx.lineTo(offsetX + wt,             yt + wt); }
+            if (passages[r][cols-1].down)  { ctx.moveTo(offsetX + maze.mazeW - wt, yt); ctx.lineTo(offsetX + maze.mazeW - wt, yt + wt); }
+        }
         ctx.stroke();
 
         // Outer boundary outer faces (shortened by or at each end to meet the corner arcs)

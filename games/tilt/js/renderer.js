@@ -242,6 +242,39 @@ class Renderer {
 
         ctx.stroke();
 
+        // Junction arcs: connect wall-tube endpoints at each 4-cell pillar corner.
+        // Quarter-circle fillets where two perpendicular walls share a corner;
+        // straight segments where a wall pair passes through the pillar with no lateral branch.
+        ctx.beginPath();
+        for (let r = 0; r <= rows - 2; r++) {
+            for (let c = 0; c <= cols - 2; c++) {
+                const U = hasWall(c,   r,   'R');   // vertical wall above junction
+                const D = hasWall(c,   r+1, 'R');   // vertical wall below
+                const L = hasWall(c,   r,   'B');   // horizontal wall to the left
+                const R = hasWall(c+1, r,   'B');   // horizontal wall to the right
+                if (!U && !D && !L && !R) continue;
+
+                const xl = offsetX + wt + c * cs + cw;   // pillar left x
+                const xr = xl + wt;                       // pillar right x
+                const yt = offsetY + wt + r * cs + cw;   // pillar top y
+                const yb = yt + wt;                       // pillar bottom y
+                const hw = wt / 2;                        // half-wall = arc radius
+
+                // Quarter-circle fillets (same arc direction as existing inner corridor arcs)
+                if (U && L) { ctx.moveTo(xl,      yt + hw); ctx.arc(xl + hw, yt + hw, hw, Math.PI,     3*Math.PI/2, false); }
+                if (U && R) { ctx.moveTo(xr - hw, yt);      ctx.arc(xr - hw, yt + hw, hw, 3*Math.PI/2, 0,           false); }
+                if (D && L) { ctx.moveTo(xl,      yb - hw); ctx.arc(xl + hw, yb - hw, hw, Math.PI,     Math.PI/2,   true);  }
+                if (D && R) { ctx.moveTo(xr - hw, yb);      ctx.arc(xr - hw, yb - hw, hw, Math.PI/2,   0,           true);  }
+
+                // Straight segments through the pillar where walls continue without a lateral branch
+                if (U && D && !L) { ctx.moveTo(xl, yt); ctx.lineTo(xl, yb); }
+                if (U && D && !R) { ctx.moveTo(xr, yt); ctx.lineTo(xr, yb); }
+                if (L && R && !U) { ctx.moveTo(xl, yt); ctx.lineTo(xr, yt); }
+                if (L && R && !D) { ctx.moveTo(xl, yb); ctx.lineTo(xr, yb); }
+            }
+        }
+        ctx.stroke();
+
         // Outer boundary outer faces
         ctx.beginPath();
         ctx.moveTo(offsetX, offsetY);                    ctx.lineTo(offsetX + maze.mazeW, offsetY);

@@ -4,254 +4,29 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MOMO Logue</title>
-
-<!-- ============================================================
-  MOMO Logue  内部バージョン: v1.00
-  変更履歴:
-    v1.00 - 初版
-  フォルダ構成:
-    logue/
-      index.html          ← このファイル（エントリー一覧）
-      entries/
-        001/
-          index.html      ← 第1エントリー
-          ja.txt          ← 日本語原文（管理用）
-        002/
-          index.html
-          ja.txt
-        ...
-  新規エントリー追加手順:
-    1. entries/NNN/ フォルダを作成
-    2. ja.txt に日本語原文を保存
-    3. entries/NNN/index.html を作成（entry-template を参照）
-    4. このファイル（logue/index.html）の ENTRIES 配列に追記
-  ============================================================ -->
-
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-46 -50 92 80'%3E%3Crect x='-46' y='-50' width='92' height='80' rx='8' fill='%23000000'/%3E%3Cg transform='rotate(-12,-12,8.3)'%3E%3Cpath d='M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cg transform='rotate(12,12,8.3)'%3E%3Cpath d='M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cellipse cx='0' cy='1.3' rx='34' ry='26' fill='%23c2410c'/%3E%3Cline x1='-14' y1='1.00' x2='-33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='6.0' x2='-33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='10.59' x2='-29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.68' y1='-2.28' x2='-38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.44' y1='6.0' x2='-40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-29.58' y1='14.26' x2='-37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='1.00' x2='33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='6.0' x2='33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='10.59' x2='29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.68' y1='-2.28' x2='38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.44' y1='6.0' x2='40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='29.58' y1='14.26' x2='37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cellipse cx='-12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='-12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Cellipse cx='12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Ccircle cx='-10.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Ccircle cx='13.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Cpath d='M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z' fill='%23000'/%3E%3Cline x1='0' y1='11.3' x2='0' y2='13.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q-5,17.3 -8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q5,17.3 8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg: #0a0a0a;
-    --surface: #111111;
-    --surface2: #1a1a1a;
-    --orange: #c2410c;
-    --orange-light: #ea580c;
-    --text: #e5e5e5;
-    --text-muted: #737373;
-    --border: #2a2a2a;
-    --border-strong: #444;
-    --bg-selected: rgba(194,65,12,0.15);
-  }
-
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Noto Sans JP', sans-serif;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background-image:
-      linear-gradient(var(--border) 1px, transparent 1px),
-      linear-gradient(90deg, var(--border) 1px, transparent 1px);
-    background-size: 48px 48px;
-    opacity: 0.3;
-    pointer-events: none;
-    z-index: 0;
-  }
-
-  /* ── LANG SWITCHER ── */
-  #lang-switcher { position: fixed; top: 8px; right: 12px; z-index: 200; }
-  #lang-select {
-    background: var(--surface2);
-    border: 1px solid var(--border-strong);
-    color: var(--text);
-    font-size: 12px;
-    padding: 4px 8px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-family: 'Noto Sans JP', sans-serif;
-    outline: none;
-  }
-  #lang-select:focus { border-color: var(--orange); }
-
-  .container {
-    position: relative;
-    z-index: 1;
-    width: 100%;
-    max-width: 760px;
-    padding: 0 24px;
-  }
-
-  header {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-    padding: 72px 0 56px;
-    animation: fadeDown 0.7s ease both;
-  }
-
-  .title-row {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 20px;
-  }
-
-  .cat-icon {
-    width: 72px;
-    height: 72px;
-    flex-shrink: 0;
-    filter: drop-shadow(0 0 18px rgba(194,65,12,0.5));
-    animation: pulse 3s ease-in-out infinite;
-  }
-
-  @keyframes pulse {
-    0%, 100% { filter: drop-shadow(0 0 18px rgba(194,65,12,0.5)); }
-    50%       { filter: drop-shadow(0 0 32px rgba(234,88,12,0.8)); }
-  }
-
-  h1 {
-    font-family: 'Fredoka One', cursive;
-    font-size: clamp(2.8rem, 8vw, 4.2rem);
-    font-weight: 400;
-    color: #fff;
-    letter-spacing: 0.04em;
-    line-height: 1;
-  }
-
-  h1 span { color: var(--orange-light); }
-
-  .tagline {
-    margin-top: 12px;
-    font-size: 0.875rem;
-    color: var(--text-muted);
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-  }
-
-  .section-label {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 28px;
-    animation: fadeUp 0.7s ease 0.2s both;
-  }
-
-  .section-label span {
-    font-size: 0.75rem;
-    font-weight: 500;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--orange);
-  }
-
-  .section-label::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: var(--border);
-  }
-
-  /* ── エントリーリスト ── */
-  .entry-list {
-    list-style: none;
-    margin-bottom: 64px;
-    animation: fadeUp 0.7s ease 0.3s both;
-  }
-
-  .entry-item {
-    border-bottom: 1px solid var(--border);
-  }
-
-  .entry-item:first-child {
-    border-top: 1px solid var(--border);
-  }
-
-  .entry-link {
-    display: flex;
-    align-items: baseline;
-    gap: 16px;
-    padding: 18px 4px;
-    text-decoration: none;
-    color: var(--text);
-    transition: color 0.2s;
-  }
-
-  .entry-link:hover {
-    color: var(--orange-light);
-  }
-
-  .entry-num {
-    font-size: 0.7rem;
-    color: var(--text-muted);
-    letter-spacing: 0.08em;
-    font-variant-numeric: tabular-nums;
-    flex-shrink: 0;
-    width: 2.4em;
-    text-align: right;
-  }
-
-  .entry-title {
-    font-size: 1rem;
-    line-height: 1.5;
-    letter-spacing: 0.02em;
-  }
-
-  .entry-date {
-    margin-left: auto;
-    font-size: 0.7rem;
-    color: var(--text-muted);
-    letter-spacing: 0.04em;
-    flex-shrink: 0;
-    padding-left: 16px;
-  }
-
-  /* ── 戻るリンク ── */
-  .back-link-wrap {
-    padding: 0 0 32px;
-    animation: fadeUp 0.7s ease 0.4s both;
-  }
-
-  .back-link {
-    font-size: 0.8rem;
-    color: var(--text-muted);
-    text-decoration: none;
-    letter-spacing: 0.06em;
-    transition: color 0.2s;
-  }
-
-  .back-link:hover { color: var(--text); }
-
-  footer {
-    margin-top: auto;
-    padding: 24px 0;
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    text-align: center;
-    border-top: 1px solid var(--border);
-    width: 100%;
-    position: relative;
-    z-index: 1;
-  }
-
-  @keyframes fadeDown {
-    from { opacity: 0; transform: translateY(-16px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(16px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
+  :root { --bg: #0a0a0a; --surface: #111111; --orange: #c2410c; --text: #e5e5e5; --text-muted: #737373; --border: #2a2a2a; }
+  body { background: var(--bg); color: var(--text); font-family: 'Noto Sans JP', sans-serif; display: flex; flex-direction: column; align-items: center; min-height: 100vh; margin: 0; }
+  .container { width: 100%; max-width: 760px; padding: 40px 24px; }
+  header { text-align: center; padding-bottom: 30px; } /* 余白を少し詰めました */
+  h1 { font-family: 'Fredoka One', cursive; font-size: 3rem; margin: 0; }
+  h1 span { color: #ea580c; }
+  .tagline { color: var(--text-muted); font-size: 0.9rem; margin-top: 10px; }
+  
+  .section-label { border-bottom: 1px solid var(--border); margin-bottom: 0; padding-bottom: 10px; color: var(--orange); font-size: 0.8rem; font-weight: bold; }
+  
+  .entry-list { list-style: none; padding: 0; margin: 0; }
+  .entry-item { border-bottom: 1px solid var(--border); }
+  /* 最初の子要素にだけ線をつける設定を削除し、すべての余白を統一 */
+  .entry-link { display: flex; align-items: baseline; gap: 15px; padding: 18px 5px; text-decoration: none; color: var(--text); }
+  .entry-link:hover { background: rgba(255,255,255,0.02); }
+  .entry-num { font-size: 0.8rem; color: var(--text-muted); width: 30px; }
+  .entry-date { margin-left: auto; font-size: 0.8rem; color: var(--text-muted); }
+  
+  #lang-switcher { position: fixed; top: 10px; right: 10px; z-index: 100; }
+  #lang-select { background: var(--surface); color: var(--text); border: 1px solid var(--border); padding: 5px; border-radius: 4px; }
+  footer { margin-top: auto; padding: 20px; font-size: 0.8rem; color: var(--text-muted); border-top: 1px solid var(--border); width: 100%; text-align: center; }
 </style>
 </head>
 <body>
@@ -267,179 +42,70 @@
 
 <div class="container">
   <header>
-    <div class="title-row">
-      <svg class="cat-icon" xmlns="http://www.w3.org/2000/svg" viewBox="-46 -50 92 80">
-        <g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/></g>
-        <g transform="rotate(12,12,8.3)"><path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/></g>
-        <ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/>
-        <line x1="-14" y1="1.00"  x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
-        <line x1="-14" y1="6.0"   x2="-33.44" y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
-        <line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
-        <line x1="-33.68" y1="-2.28" x2="-38" y2="-3"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
-        <line x1="-33.44" y1="6.0"   x2="-40" y2="6"    stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
-        <line x1="-29.58" y1="14.26" x2="-37" y2="16"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
-        <line x1="14"  y1="1.00"  x2="33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
-        <line x1="14"  y1="6.0"   x2="33.44" y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
-        <line x1="14"  y1="10.59" x2="29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
-        <line x1="33.68" y1="-2.28" x2="38"  y2="-3"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
-        <line x1="33.44" y1="6.0"   x2="40"  y2="6"    stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
-        <line x1="29.58" y1="14.26" x2="37"  y2="16"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
-        <ellipse cx="-12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
-        <ellipse cx="12"  cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
-        <ellipse cx="-12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
-        <ellipse cx="12"  cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
-        <circle cx="-10.5" cy="-5.2" r="1.0" fill="#c2410c"/>
-        <circle cx="13.5"  cy="-5.2" r="1.0" fill="#c2410c"/>
-        <path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/>
-        <line x1="0" y1="11.3" x2="0" y2="13.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
-        <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
-        <path d="M0,13.3 Q5,17.3 8,15.3"  fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
-      </svg>
-      <h1>MOMO <span>Logue</span></h1>
-    </div>
+    <h1>MOMO <span>Logue</span></h1>
     <p class="tagline" id="tagline">独り言 by MOMO</p>
   </header>
-
-  <div class="section-label"><span id="section-label-text">Entries</span></div>
-
-  <!-- ── エントリーリスト ──────────────────────────────────────
-       新規エントリーを追加するときはここに <li> を1行追加する。
-       ENTRIES 配列（下部JS）にも同じデータを追記すること。
-  ─────────────────────────────────────────────────────────── -->
-  <ul class="entry-list" id="entry-list">
-    <!-- JSで動的生成 -->
-  </ul>
-
-  <div class="back-link-wrap">
-    <a class="back-link" href="../" id="back-link">← MOMO Works</a>
+  
+  <div class="section-label">ENTRIES</div>
+  <ul class="entry-list" id="entry-list"></ul>
+  
+  <div style="margin-top: 30px;">
+    <a href="../" id="back-link" style="color: var(--text-muted); text-decoration: none; font-size: 0.8rem;">← MOMO Works</a>
   </div>
 </div>
 
-<footer id="footer-text">
-  &copy; MOMO Works
-</footer>
+<footer id="footer-text">&copy; MOMO Works</footer>
 
 <script>
-/* ══════════════════════════════════════════════════════════════
-   ENTRIES — 新規エントリーはここに追記する
-   形式: { id: '番号3桁', date: 'YYYY-MM-DD', ja: 'タイトル', en: '英語タイトル', zh: '中国語タイトル' }
-   catモードでは catSpeak() が動的生成するためタイトルフィールド不要。
-══════════════════════════════════════════════════════════════ */
 const ENTRIES = [
-  {
-    id:   '001',
-    date: '2026-04-19',
-    ja:   'こんにちは、世界',
-    en:   'Hello, World',
-    zh:   '你好，世界',
-  },
+  { id: '001', date: '2026-04-19', ja: 'こんにちは、世界', en: 'Hello, World', zh: '你好，世界' },
+  { id: '002', date: '2026-04-22', ja: '音楽ファイル', en: 'Audio Files', zh: '音频文件' }
 ];
 
-/* ── I18N ── */
 const I18N = {
-  ja: {
-    tagline:      '独り言 by MOMO',
-    sectionLabel: 'Entries',
-    backLink:     '← MOMO Works',
-    footer:       '© MOMO Works',
-  },
-  en: {
-    tagline:      'Soliloquy by MOMO',
-    sectionLabel: 'Entries',
-    backLink:     '← MOMO Works',
-    footer:       '© MOMO Works',
-  },
-  zh: {
-    tagline:      'MOMO 的独白',
-    sectionLabel: 'Entries',
-    backLink:     '← MOMO Works',
-    footer:       '© MOMO Works',
-  },
+  ja: { tagline: '独り言 by MOMO', back: '← MOMO Works', foot: '© MOMO Works' },
+  en: { tagline: 'Soliloquy by MOMO', back: '← MOMO Works', foot: '© MOMO Works' },
+  zh: { tagline: 'MOMO 的独白', back: '← MOMO Works', foot: '© MOMO Works' },
+  cat: { tagline: 'Nyaa?', back: 'Nyaa...', foot: 'Nyaa.' }
 };
 
-/* ── CAT ── */
-let catBase = 'ja';
+let currentLang = localStorage.getItem('momoLang') || 'ja';
+if (!['ja','en','zh','cat'].includes(currentLang)) currentLang = 'ja';
 
-function catSpeak(key) {
-  const calmKeys  = ['connecting','reconnecting','waitingGuest','waitingStart'];
-  const errorKeys = ['pwError','noRoomError','fullRoomError','kicked','createErrorEmpty'];
-  let vocab;
-  if (catBase === 'en') {
-    if (errorKeys.includes(key))      vocab = ['HISS!','SPIT!','FSSST!'];
-    else if (calmKeys.includes(key))  vocab = ['purrrr...','mrrr...','prrr...'];
-    else                              vocab = ['MEOW','meow','mrrrow','mew','NYA!'];
-  } else if (catBase === 'zh') {
-    if (errorKeys.includes(key))      vocab = ['嘶！','哈！','嘶嘶！'];
-    else if (calmKeys.includes(key))  vocab = ['咕噜…','喵…','噜噜…'];
-    else                              vocab = ['喵','喵呜','咪','喵！'];
-  } else {
-    if (errorKeys.includes(key))      vocab = ['シャー！','フーッ！','シャシャシャ！'];
-    else if (calmKeys.includes(key))  vocab = ['ごろごろ…','にゃ…','ぐるぐる…'];
-    else                              vocab = ['にゃあ','にゃ','にゃーん','みゃお','ニャ！'];
-  }
-  return vocab[Math.floor(Math.random() * vocab.length)];
-}
+function render() {
+  const d = I18N[currentLang] || I18N.ja;
+  const taglineEl = document.getElementById('tagline');
+  const backEl = document.getElementById('back-link');
+  const footEl = document.getElementById('footer-text');
+  
+  if (taglineEl) taglineEl.textContent = d.tagline;
+  if (backEl) backEl.textContent = d.back;
+  if (footEl) footEl.textContent = d.foot;
 
-let currentLang = (() => {
-  try {
-    const v = localStorage.getItem('momoLang');
-    return ['ja','en','zh','cat'].includes(v) ? v : 'ja';
-  } catch(e) { return 'ja'; }
-})();
-
-function getTitle(entry) {
-  if (currentLang === 'cat') return catSpeak('title');
-  return entry[currentLang] || entry.ja;
-}
-
-function renderEntries() {
   const ul = document.getElementById('entry-list');
+  if (!ul) return;
   ul.innerHTML = '';
-  ENTRIES.slice().reverse().forEach(entry => {
+
+  ENTRIES.forEach(e => {
     const li = document.createElement('li');
     li.className = 'entry-item';
-    const a = document.createElement('a');
-    a.className = 'entry-link';
-    a.href = `./entries/${entry.id}/`;
-    // 言語パラメータを引き継ぐ
-    if (currentLang !== 'ja') a.href += `?lang=${currentLang}`;
-    a.innerHTML = `
-      <span class="entry-num">${entry.id}</span>
-      <span class="entry-title">${getTitle(entry)}</span>
-      <span class="entry-date">${entry.date}</span>
-    `;
-    li.appendChild(a);
+    let title = (currentLang === 'cat') ? 'にゃあ' : (e[currentLang] || e.ja);
+    const url = `./entries/${e.id}/` + (currentLang === 'ja' ? '' : `?lang=${currentLang}`);
+    li.innerHTML = `<a class="entry-link" href="${url}"><span class="entry-num">${e.id}</span><span class="entry-title">${title}</span><span class="entry-date">${e.date}</span></a>`;
     ul.appendChild(li);
   });
-}
 
-function applyLang() {
-  const d = I18N[currentLang] || I18N.ja;
-  if (currentLang === 'cat') {
-    document.getElementById('tagline').textContent          = catSpeak('tagline');
-    document.getElementById('section-label-text').textContent = catSpeak('sectionLabel');
-    document.getElementById('back-link').textContent        = catSpeak('backLink');
-    document.getElementById('footer-text').textContent      = catSpeak('footer');
-  } else {
-    document.getElementById('tagline').textContent          = d.tagline;
-    document.getElementById('section-label-text').textContent = d.sectionLabel;
-    document.getElementById('back-link').textContent        = d.backLink;
-    document.getElementById('footer-text').textContent      = d.footer;
-  }
-  renderEntries();
   const sel = document.getElementById('lang-select');
   if (sel) sel.value = currentLang;
-  document.documentElement.lang = currentLang === 'zh' ? 'zh-Hans' : (currentLang === 'cat' ? catBase : currentLang);
 }
 
-function onLangChange(lang) {
-  if (lang === 'cat') catBase = currentLang;
-  currentLang = lang;
-  try { localStorage.setItem('momoLang', lang); } catch(e) {}
-  applyLang();
+function onLangChange(l) {
+  currentLang = l;
+  localStorage.setItem('momoLang', l);
+  render();
 }
 
-applyLang();
+render();
 </script>
 </body>
 </html>

@@ -161,6 +161,12 @@ class Renderer {
         ctx.stroke();
 
         // Outer concentric arcs (radius or, same centers as inner arcs — drawn in wall space)
+        // Suppressed at T/cross junctions (≥3 walls) to avoid drawing into open corridor space
+        const jWalls = (cj, rj) => {
+            if (cj < 0 || cj >= cols-1 || rj < 0 || rj >= rows-1) return 0;
+            return (hasWall(cj, rj, 'R') ? 1 : 0) + (hasWall(cj, rj+1, 'R') ? 1 : 0) +
+                   (hasWall(cj, rj, 'B') ? 1 : 0) + (hasWall(cj+1, rj, 'B') ? 1 : 0);
+        };
         ctx.beginPath();
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
@@ -171,10 +177,10 @@ class Renderer {
                 const L = hasWall(c, r, 'L');
                 const R = hasWall(c, r, 'R');
                 // Outer arcs: same centers, radius or, in the wall region outside corridor
-                if (T && L) { ctx.moveTo(x0-wt, y0+cr); ctx.arc(x0+cr, y0+cr, or, Math.PI, 3*Math.PI/2, false); }
-                if (T && R) { ctx.moveTo(x0+cw-cr, y0-wt); ctx.arc(x0+cw-cr, y0+cr, or, 3*Math.PI/2, 0, false); }
-                if (B && L) { ctx.moveTo(x0-wt, y0+cw-cr); ctx.arc(x0+cr, y0+cw-cr, or, Math.PI, Math.PI/2, true); }
-                if (B && R) { ctx.moveTo(x0+cw-cr, y0+cw+wt); ctx.arc(x0+cw-cr, y0+cw-cr, or, Math.PI/2, 0, true); }
+                if (T && L && jWalls(c-1, r-1) < 3) { ctx.moveTo(x0-wt, y0+cr); ctx.arc(x0+cr, y0+cr, or, Math.PI, 3*Math.PI/2, false); }
+                if (T && R && jWalls(c, r-1)   < 3) { ctx.moveTo(x0+cw-cr, y0-wt); ctx.arc(x0+cw-cr, y0+cr, or, 3*Math.PI/2, 0, false); }
+                if (B && L && jWalls(c-1, r)   < 3) { ctx.moveTo(x0-wt, y0+cw-cr); ctx.arc(x0+cr, y0+cw-cr, or, Math.PI, Math.PI/2, true); }
+                if (B && R && jWalls(c, r)      < 3) { ctx.moveTo(x0+cw-cr, y0+cw+wt); ctx.arc(x0+cw-cr, y0+cw-cr, or, Math.PI/2, 0, true); }
             }
         }
         ctx.stroke();
@@ -202,7 +208,7 @@ class Renderer {
                 // Top cap: only if wall doesn't continue AND neither side has a connecting wall
                 if (!contAbove && !TL && !TR) {
                     ctx.moveTo(cx - wt/2, yT);
-                    ctx.arc(cx, yT, wt/2, Math.PI, 0, true);
+                    ctx.arc(cx, yT, wt/2, Math.PI, 0, false);
                 }
                 // Bottom cap
                 if (!contBelow && !BL && !BR) {
@@ -275,12 +281,24 @@ class Renderer {
         }
         ctx.stroke();
 
-        // Outer boundary outer faces
+        // Boundary inner face gap fill: short segments at pillar positions where interior walls meet the outer wall
         ctx.beginPath();
-        ctx.moveTo(offsetX, offsetY);                    ctx.lineTo(offsetX + maze.mazeW, offsetY);
-        ctx.moveTo(offsetX, offsetY + maze.mazeH);       ctx.lineTo(offsetX + maze.mazeW, offsetY + maze.mazeH);
-        ctx.moveTo(offsetX, offsetY);                    ctx.lineTo(offsetX, offsetY + maze.mazeH);
-        ctx.moveTo(offsetX + maze.mazeW, offsetY);       ctx.lineTo(offsetX + maze.mazeW, offsetY + maze.mazeH);
+        for (let c = 0; c < cols-1; c++) {
+            if (!passages[0][c].right)      { const xl = offsetX+wt+c*cs+cw; ctx.moveTo(xl, offsetY+wt);           ctx.lineTo(xl+wt, offsetY+wt); }
+            if (!passages[rows-1][c].right) { const xl = offsetX+wt+c*cs+cw; ctx.moveTo(xl, offsetY+maze.mazeH-wt); ctx.lineTo(xl+wt, offsetY+maze.mazeH-wt); }
+        }
+        for (let r = 0; r < rows-1; r++) {
+            if (!passages[r][0].down)       { const yt = offsetY+wt+r*cs+cw; ctx.moveTo(offsetX+wt,           yt); ctx.lineTo(offsetX+wt,           yt+wt); }
+            if (!passages[r][cols-1].down)  { const yt = offsetY+wt+r*cs+cw; ctx.moveTo(offsetX+maze.mazeW-wt, yt); ctx.lineTo(offsetX+maze.mazeW-wt, yt+wt); }
+        }
+        ctx.stroke();
+
+        // Outer boundary outer faces (shortened by or at each end to meet the corner arcs)
+        ctx.beginPath();
+        ctx.moveTo(offsetX + or, offsetY);              ctx.lineTo(offsetX + maze.mazeW - or, offsetY);
+        ctx.moveTo(offsetX + or, offsetY + maze.mazeH); ctx.lineTo(offsetX + maze.mazeW - or, offsetY + maze.mazeH);
+        ctx.moveTo(offsetX, offsetY + or);              ctx.lineTo(offsetX, offsetY + maze.mazeH - or);
+        ctx.moveTo(offsetX + maze.mazeW, offsetY + or); ctx.lineTo(offsetX + maze.mazeW, offsetY + maze.mazeH - or);
         ctx.stroke();
 
         ctx.restore();

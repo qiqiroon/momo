@@ -281,15 +281,15 @@ class Renderer {
         }
         ctx.stroke();
 
-        // Boundary inner face gap fill: short segments at pillar positions where interior walls meet the outer wall
+        // Boundary inner face gap fill: segments spanning the full pillar width (wt + 2*cr) where interior walls meet the outer wall
         ctx.beginPath();
         for (let c = 0; c < cols-1; c++) {
-            if (!passages[0][c].right)      { const xl = offsetX+wt+c*cs+cw; ctx.moveTo(xl, offsetY+wt);           ctx.lineTo(xl+wt, offsetY+wt); }
-            if (!passages[rows-1][c].right) { const xl = offsetX+wt+c*cs+cw; ctx.moveTo(xl, offsetY+maze.mazeH-wt); ctx.lineTo(xl+wt, offsetY+maze.mazeH-wt); }
+            if (!passages[0][c].right)      { const xl = offsetX+wt+c*cs+cw; ctx.moveTo(xl-cr, offsetY+wt);            ctx.lineTo(xl+wt+cr, offsetY+wt); }
+            if (!passages[rows-1][c].right) { const xl = offsetX+wt+c*cs+cw; ctx.moveTo(xl-cr, offsetY+maze.mazeH-wt); ctx.lineTo(xl+wt+cr, offsetY+maze.mazeH-wt); }
         }
         for (let r = 0; r < rows-1; r++) {
-            if (!passages[r][0].down)       { const yt = offsetY+wt+r*cs+cw; ctx.moveTo(offsetX+wt,           yt); ctx.lineTo(offsetX+wt,           yt+wt); }
-            if (!passages[r][cols-1].down)  { const yt = offsetY+wt+r*cs+cw; ctx.moveTo(offsetX+maze.mazeW-wt, yt); ctx.lineTo(offsetX+maze.mazeW-wt, yt+wt); }
+            if (!passages[r][0].down)       { const yt = offsetY+wt+r*cs+cw; ctx.moveTo(offsetX+wt,            yt-cr); ctx.lineTo(offsetX+wt,            yt+wt+cr); }
+            if (!passages[r][cols-1].down)  { const yt = offsetY+wt+r*cs+cw; ctx.moveTo(offsetX+maze.mazeW-wt, yt-cr); ctx.lineTo(offsetX+maze.mazeW-wt, yt+wt+cr); }
         }
         ctx.stroke();
 

@@ -95,12 +95,11 @@ class Renderer {
 
         // Wall rendering: per-cell Pac-Man style with inner + outer concentric arcs,
         // end caps at wall terminations, and T-junction handling.
-        console.log('renderer v6c8f7d8');
         ctx.save();
         ctx.lineCap = 'butt';
         ctx.lineWidth = 1.5;
-        ctx.strokeStyle = '#2a5da8';
-        ctx.shadowColor = '#5599ff';
+        ctx.strokeStyle = '#ff0000';
+        ctx.shadowColor = '#ff6666';
         ctx.shadowBlur = 7;
 
         const cr = Math.max(2, wt / 2); // inner arc radius (= 4)

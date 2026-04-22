@@ -98,8 +98,8 @@ class Renderer {
         ctx.save();
         ctx.lineCap = 'butt';
         ctx.lineWidth = 1.5;
-        ctx.strokeStyle = '#ff0000';
-        ctx.shadowColor = '#ff6666';
+        ctx.strokeStyle = '#2a5da8';
+        ctx.shadowColor = '#5599ff';
         ctx.shadowBlur = 7;
 
         const cr = Math.max(2, wt / 2); // inner arc radius (= 4)

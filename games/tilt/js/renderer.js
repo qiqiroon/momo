@@ -248,31 +248,21 @@ class Renderer {
 
         ctx.stroke();
 
-        // Junction arcs: connect wall-tube endpoints at each 4-cell pillar corner.
-        // Quarter-circle fillets where two perpendicular walls share a corner;
-        // straight segments where a wall pair passes through the pillar with no lateral branch.
+        // Junction straight-through segments: connect wall faces across pillar where wall continues in opposite directions.
+        // No fillets — inner corridor arcs already handle all corner rounding correctly.
         ctx.beginPath();
         for (let r = 0; r <= rows - 2; r++) {
             for (let c = 0; c <= cols - 2; c++) {
-                const U = hasWall(c,   r,   'R');   // vertical wall above junction
-                const D = hasWall(c,   r+1, 'R');   // vertical wall below
-                const L = hasWall(c,   r,   'B');   // horizontal wall to the left
-                const R = hasWall(c+1, r,   'B');   // horizontal wall to the right
-                if (!U && !D && !L && !R) continue;
+                const U = hasWall(c,   r,   'R');
+                const D = hasWall(c,   r+1, 'R');
+                const L = hasWall(c,   r,   'B');
+                const R = hasWall(c+1, r,   'B');
 
-                const xl = offsetX + wt + c * cs + cw;   // pillar left x
-                const xr = xl + wt;                       // pillar right x
-                const yt = offsetY + wt + r * cs + cw;   // pillar top y
-                const yb = yt + wt;                       // pillar bottom y
-                const hw = wt / 2;                        // half-wall = arc radius
+                const xl = offsetX + wt + c * cs + cw;
+                const xr = xl + wt;
+                const yt = offsetY + wt + r * cs + cw;
+                const yb = yt + wt;
 
-                // Quarter-circle fillets (same arc direction as existing inner corridor arcs)
-                if (U && L) { ctx.moveTo(xl,      yt + hw); ctx.arc(xl + hw, yt + hw, hw, Math.PI,     3*Math.PI/2, false); }
-                if (U && R) { ctx.moveTo(xr - hw, yt);      ctx.arc(xr - hw, yt + hw, hw, 3*Math.PI/2, 0,           false); }
-                if (D && L) { ctx.moveTo(xl,      yb - hw); ctx.arc(xl + hw, yb - hw, hw, Math.PI,     Math.PI/2,   true);  }
-                if (D && R) { ctx.moveTo(xr - hw, yb);      ctx.arc(xr - hw, yb - hw, hw, Math.PI/2,   0,           true);  }
-
-                // Straight segments through the pillar where walls continue without a lateral branch
                 if (U && D && !L) { ctx.moveTo(xl, yt); ctx.lineTo(xl, yb); }
                 if (U && D && !R) { ctx.moveTo(xr, yt); ctx.lineTo(xr, yb); }
                 if (L && R && !U) { ctx.moveTo(xl, yt); ctx.lineTo(xr, yt); }
@@ -281,16 +271,12 @@ class Renderer {
         }
         ctx.stroke();
 
-        // Boundary inner face gap fill: segments spanning the full pillar width (wt + 2*cr) where interior walls meet the outer wall
+        // Boundary inner face: continuous lines along all 4 inner edges to fill pillar gaps
         ctx.beginPath();
-        for (let c = 0; c < cols-1; c++) {
-            if (!passages[0][c].right)      { const xl = offsetX+wt+c*cs+cw; ctx.moveTo(xl-cr, offsetY+wt);            ctx.lineTo(xl+wt+cr, offsetY+wt); }
-            if (!passages[rows-1][c].right) { const xl = offsetX+wt+c*cs+cw; ctx.moveTo(xl-cr, offsetY+maze.mazeH-wt); ctx.lineTo(xl+wt+cr, offsetY+maze.mazeH-wt); }
-        }
-        for (let r = 0; r < rows-1; r++) {
-            if (!passages[r][0].down)       { const yt = offsetY+wt+r*cs+cw; ctx.moveTo(offsetX+wt,            yt-cr); ctx.lineTo(offsetX+wt,            yt+wt+cr); }
-            if (!passages[r][cols-1].down)  { const yt = offsetY+wt+r*cs+cw; ctx.moveTo(offsetX+maze.mazeW-wt, yt-cr); ctx.lineTo(offsetX+maze.mazeW-wt, yt+wt+cr); }
-        }
+        ctx.moveTo(offsetX + wt, offsetY + wt);              ctx.lineTo(offsetX + maze.mazeW - wt, offsetY + wt);
+        ctx.moveTo(offsetX + wt, offsetY + maze.mazeH - wt); ctx.lineTo(offsetX + maze.mazeW - wt, offsetY + maze.mazeH - wt);
+        ctx.moveTo(offsetX + wt, offsetY + wt);              ctx.lineTo(offsetX + wt, offsetY + maze.mazeH - wt);
+        ctx.moveTo(offsetX + maze.mazeW - wt, offsetY + wt); ctx.lineTo(offsetX + maze.mazeW - wt, offsetY + maze.mazeH - wt);
         ctx.stroke();
 
         // Outer boundary outer faces (shortened by or at each end to meet the corner arcs)

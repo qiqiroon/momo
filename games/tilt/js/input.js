@@ -8,8 +8,9 @@ class InputHandler {
         this.baseBeta  = 0;   // calibration reference
         this.baseGamma = 0;
         // Settings (loaded from localStorage)
-        this.sensitivity = parseFloat(localStorage.getItem('tilt_sens') || '1.0');
-        this.maxSpeed    = parseFloat(localStorage.getItem('tilt_maxspd') || '10');
+        this.sensitivity    = parseFloat(localStorage.getItem('tilt_sens')    || '1.0');
+        this.maxSpeed       = parseFloat(localStorage.getItem('tilt_maxspd') || '10');
+        this.wallRepulsion  = parseFloat(localStorage.getItem('tilt_wallrep') || '5');
         this._keys = {};
         this._gyroActive = false;
         this._wakeLock   = null;
@@ -72,8 +73,9 @@ class InputHandler {
     }
 
     saveSettings() {
-        localStorage.setItem('tilt_sens',   this.sensitivity);
-        localStorage.setItem('tilt_maxspd', this.maxSpeed);
+        localStorage.setItem('tilt_sens',    this.sensitivity);
+        localStorage.setItem('tilt_maxspd',  this.maxSpeed);
+        localStorage.setItem('tilt_wallrep', this.wallRepulsion);
     }
 
     async _requestWakeLock() {

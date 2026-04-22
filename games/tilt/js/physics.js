@@ -11,9 +11,10 @@ class PhysicsEngine {
         this.Composite = Composite;
         this.wallBodies = [];
         this.ballBodies = [];
-        this.BALL_RADIUS = 7;
-        this.FRICTION    = 0;
-        this.RESTITUTION = 0.55;
+        this.BALL_RADIUS    = 7;
+        this.FRICTION       = 0;
+        this.RESTITUTION    = 0.55;
+        this.WALL_REPULSION = 0.005;
     }
 
     // Build static wall bodies from maze data
@@ -240,8 +241,8 @@ class PhysicsEngine {
             for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
                 if (isWall(ball.x + dx * (r + 1), ball.y + dy * (r + 1))) {
                     Matter.Body.applyForce(ball.body, ball.body.position, {
-                        x: -dx * 0.005 * ball.body.mass,
-                        y: -dy * 0.005 * ball.body.mass
+                        x: -dx * this.WALL_REPULSION * ball.body.mass,
+                        y: -dy * this.WALL_REPULSION * ball.body.mass
                     });
                 }
             }

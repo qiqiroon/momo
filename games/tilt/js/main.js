@@ -76,12 +76,16 @@ class Game {
         document.getElementById('settingsCloseBtn').addEventListener('click', () => {
             this._closeSettings();
         });
-        const sensSlider = document.getElementById('sensSlider');
-        const spdSlider  = document.getElementById('spdSlider');
-        sensSlider.value = this.input.sensitivity;
-        spdSlider.value  = this.input.maxSpeed;
-        document.getElementById('sensVal').textContent = this.input.sensitivity.toFixed(1);
-        document.getElementById('spdVal').textContent  = Math.round(this.input.maxSpeed);
+        const sensSlider    = document.getElementById('sensSlider');
+        const spdSlider     = document.getElementById('spdSlider');
+        const wallRepSlider = document.getElementById('wallRepSlider');
+        sensSlider.value    = this.input.sensitivity;
+        spdSlider.value     = this.input.maxSpeed;
+        wallRepSlider.value = this.input.wallRepulsion;
+        document.getElementById('sensVal').textContent    = this.input.sensitivity.toFixed(1);
+        document.getElementById('spdVal').textContent     = Math.round(this.input.maxSpeed);
+        document.getElementById('wallRepVal').textContent = Math.round(this.input.wallRepulsion);
+        this.physics.WALL_REPULSION = this.input.wallRepulsion * 0.001;
         sensSlider.addEventListener('input', () => {
             this.input.sensitivity = parseFloat(sensSlider.value);
             document.getElementById('sensVal').textContent = this.input.sensitivity.toFixed(1);
@@ -89,6 +93,11 @@ class Game {
         spdSlider.addEventListener('input', () => {
             this.input.maxSpeed = parseFloat(spdSlider.value);
             document.getElementById('spdVal').textContent = Math.round(this.input.maxSpeed);
+        });
+        wallRepSlider.addEventListener('input', () => {
+            this.input.wallRepulsion = parseFloat(wallRepSlider.value);
+            this.physics.WALL_REPULSION = this.input.wallRepulsion * 0.001;
+            document.getElementById('wallRepVal').textContent = Math.round(this.input.wallRepulsion);
         });
 
         this.canvas.addEventListener('click',    () => { if (this.state === STATE.OVER) this._restartGame(); });

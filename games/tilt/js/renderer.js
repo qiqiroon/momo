@@ -179,83 +179,67 @@ class Renderer {
         }
         ctx.stroke();
 
-        // End caps: semicircle connecting two parallel line ends at wall termination
-        // A wall segment "terminates" where it ends without a perpendicular wall.
-        // For each cell face that has a wall but no corner arc at an end, draw semicap.
+        // End caps: semicircle at isolated wall terminations only.
+        // Drawn per wall body. Cap is skipped if ANY perpendicular wall connects to that end.
         ctx.beginPath();
-        for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < cols; c++) {
-                const x0 = offsetX + wt + c * cs;
-                const y0 = offsetY + wt + r * cs;
-                const T = hasWall(c, r, 'T');
-                const B = hasWall(c, r, 'B');
-                const L = hasWall(c, r, 'L');
-                const R = hasWall(c, r, 'R');
 
-                // Top face end caps: left end (if no L wall), right end (if no R wall)
-                if (T && !L) {
-                    // Check no cell to the left also has T wall (i.e., this is the start of a segment)
-                    const prevHasT = c > 0 && hasWall(c-1, r, 'T');
-                    if (!prevHasT) {
-                        // Left cap at x0: semicircle from (x0, y0) curving left into wall
-                        ctx.moveTo(x0, y0 - wt/2);
-                        ctx.arc(x0, y0, wt/2, 3*Math.PI/2, Math.PI/2, true);
-                    }
+        // Vertical wall bodies (between corridors c and c+1 at row r)
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols - 1; c++) {
+                if (passages[r][c].right) continue;
+                const cx = offsetX + wt + c * cs + cw + wt / 2;
+                const yT = offsetY + wt + r * cs;
+                const yB = yT + cw;
+                // Perpendicular connections at top: horizontal wall above left or right corridor
+                const TL = r === 0 || !passages[r-1][c].down;
+                const TR = r === 0 || !passages[r-1][c+1].down;
+                // Perpendicular connections at bottom
+                const BL = r === rows-1 || !passages[r][c].down;
+                const BR = r === rows-1 || !passages[r][c+1].down;
+                // Vertical continuation
+                const contAbove = r > 0 && !passages[r-1][c].right;
+                const contBelow = r < rows-1 && !passages[r+1][c].right;
+                // Top cap: only if wall doesn't continue AND neither side has a connecting wall
+                if (!contAbove && !TL && !TR) {
+                    ctx.moveTo(cx - wt/2, yT);
+                    ctx.arc(cx, yT, wt/2, Math.PI, 0, true);
                 }
-                if (T && !R) {
-                    const nextHasT = c < cols-1 && hasWall(c+1, r, 'T');
-                    if (!nextHasT) {
-                        ctx.moveTo(x0 + cw, y0 - wt/2);
-                        ctx.arc(x0 + cw, y0, wt/2, 3*Math.PI/2, Math.PI/2, false);
-                    }
-                }
-                // Bottom face
-                if (B && !L) {
-                    const prevHasB = c > 0 && hasWall(c-1, r, 'B');
-                    if (!prevHasB) {
-                        ctx.moveTo(x0, y0+cw - wt/2);
-                        ctx.arc(x0, y0+cw, wt/2, 3*Math.PI/2, Math.PI/2, true);
-                    }
-                }
-                if (B && !R) {
-                    const nextHasB = c < cols-1 && hasWall(c+1, r, 'B');
-                    if (!nextHasB) {
-                        ctx.moveTo(x0+cw, y0+cw + wt/2);
-                        ctx.arc(x0+cw, y0+cw, wt/2, Math.PI/2, 3*Math.PI/2, false);
-                    }
-                }
-                // Left face
-                if (L && !T) {
-                    const prevHasL = r > 0 && hasWall(c, r-1, 'L');
-                    if (!prevHasL) {
-                        ctx.moveTo(x0 - wt/2, y0);
-                        ctx.arc(x0, y0, wt/2, Math.PI, 0, false);
-                    }
-                }
-                if (L && !B) {
-                    const nextHasL = r < rows-1 && hasWall(c, r+1, 'L');
-                    if (!nextHasL) {
-                        ctx.moveTo(x0 + wt/2, y0+cw);
-                        ctx.arc(x0, y0+cw, wt/2, 0, Math.PI, false);
-                    }
-                }
-                // Right face
-                if (R && !T) {
-                    const prevHasR = r > 0 && hasWall(c, r-1, 'R');
-                    if (!prevHasR) {
-                        ctx.moveTo(x0+cw + wt/2, y0);
-                        ctx.arc(x0+cw, y0, wt/2, 0, Math.PI, true);
-                    }
-                }
-                if (R && !B) {
-                    const nextHasR = r < rows-1 && hasWall(c, r+1, 'R');
-                    if (!nextHasR) {
-                        ctx.moveTo(x0+cw - wt/2, y0+cw);
-                        ctx.arc(x0+cw, y0+cw, wt/2, Math.PI, 0, true);
-                    }
+                // Bottom cap
+                if (!contBelow && !BL && !BR) {
+                    ctx.moveTo(cx + wt/2, yB);
+                    ctx.arc(cx, yB, wt/2, 0, Math.PI, false);
                 }
             }
         }
+
+        // Horizontal wall bodies (between corridors r and r+1 at column c)
+        for (let r = 0; r < rows - 1; r++) {
+            for (let c = 0; c < cols; c++) {
+                if (passages[r][c].down) continue;
+                const cy = offsetY + wt + r * cs + cw + wt / 2;
+                const xL = offsetX + wt + c * cs;
+                const xR = xL + cw;
+                // Perpendicular connections at left end: vertical wall left of top or bottom corridor
+                const LT = c === 0 || !passages[r][c-1].right;
+                const LB = c === 0 || !passages[r+1][c-1].right;
+                // Perpendicular connections at right end
+                const RT = c === cols-1 || !passages[r][c].right;
+                const RB = c === cols-1 || !passages[r+1][c].right;
+                const contLeft  = c > 0 && !passages[r][c-1].down;
+                const contRight = c < cols-1 && !passages[r][c+1].down;
+                // Left cap
+                if (!contLeft && !LT && !LB) {
+                    ctx.moveTo(xL, cy - wt/2);
+                    ctx.arc(xL, cy, wt/2, 3*Math.PI/2, Math.PI/2, true);
+                }
+                // Right cap
+                if (!contRight && !RT && !RB) {
+                    ctx.moveTo(xR, cy - wt/2);
+                    ctx.arc(xR, cy, wt/2, 3*Math.PI/2, Math.PI/2, false);
+                }
+            }
+        }
+
         ctx.stroke();
 
         // Outer boundary outer faces

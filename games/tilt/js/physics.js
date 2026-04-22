@@ -58,16 +58,14 @@ class PhysicsEngine {
                     const wy = y0 + cw + wt / 2;
                     bodies.push(this.Bodies.rectangle(wx, wy, cw, wt, innerOpts));
                 }
-                // Gap-fill: add wt×wt body only at straight-through junctions
+                // Gap-fill: only at fully-enclosed cross junctions (all 4 walls present)
+                // — corners would protrude into corridors for T/straight-through cases
                 if (c < cols - 1 && r < rows - 1) {
-                    const U = !passages[r][c].right;
-                    const D = !passages[r+1][c].right;
-                    const L = !passages[r][c].down;
-                    const R = !passages[r][c+1].down;
-                    if ((U && D) || (L && R)) {
+                    if (!passages[r][c].right && !passages[r+1][c].right &&
+                        !passages[r][c].down  && !passages[r][c+1].down) {
                         const wx = x0 + cw + wt / 2;
                         const wy = y0 + cw + wt / 2;
-                        bodies.push(this.Bodies.rectangle(wx, wy, wt, wt, opts));
+                        bodies.push(this.Bodies.rectangle(wx, wy, wt, wt, innerOpts));
                     }
                 }
             }

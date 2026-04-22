@@ -652,13 +652,15 @@ class Renderer {
         const dotR = 6;
         const totalW = balls.length * (dotR * 2 + 4) - 4;
         let bx = w / 2 - totalW / 2 + dotR;
+        const goals = gs.goals || [];
         for (let i = 0; i < balls.length; i++) {
             const b = balls[i];
-            ctx.fillStyle = b.inGoal ? b.color : b.color + '55';
+            const inMatchGoal = goals.some(g => g.ballId === b.id && g.hasBall);
+            ctx.fillStyle = inMatchGoal ? b.color : b.color + '55';
             ctx.beginPath();
             ctx.arc(bx, 75, dotR, 0, Math.PI * 2);
             ctx.fill();
-            if (b.inGoal) {
+            if (inMatchGoal) {
                 ctx.strokeStyle = '#fff';
                 ctx.lineWidth = 1.5;
                 ctx.stroke();

@@ -58,7 +58,18 @@ class PhysicsEngine {
                     const wy = y0 + cw + wt / 2;
                     bodies.push(this.Bodies.rectangle(wx, wy, cw, wt, innerOpts));
                 }
-                // Corner pillars removed — capsule wall ends naturally close junction gaps
+                // Gap-fill: add wt×wt body only at straight-through junctions
+                if (c < cols - 1 && r < rows - 1) {
+                    const U = !passages[r][c].right;
+                    const D = !passages[r+1][c].right;
+                    const L = !passages[r][c].down;
+                    const R = !passages[r][c+1].down;
+                    if ((U && D) || (L && R)) {
+                        const wx = x0 + cw + wt / 2;
+                        const wy = y0 + cw + wt / 2;
+                        bodies.push(this.Bodies.rectangle(wx, wy, wt, wt, opts));
+                    }
+                }
             }
         }
 
@@ -239,8 +250,8 @@ class PhysicsEngine {
             for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
                 if (isWall(ball.x + dx * (r + 1), ball.y + dy * (r + 1))) {
                     Matter.Body.applyForce(ball.body, ball.body.position, {
-                        x: -dx * 0.010 * ball.body.mass,
-                        y: -dy * 0.010 * ball.body.mass
+                        x: -dx * 0.005 * ball.body.mass,
+                        y: -dy * 0.005 * ball.body.mass
                     });
                 }
             }

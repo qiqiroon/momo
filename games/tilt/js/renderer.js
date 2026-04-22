@@ -76,15 +76,16 @@ class Renderer {
             }
         }
 
-        // Junction corner: floor color only when accessible (any adjacent passage open), else wall background
+        // Junction corner: floor color only when all 4 adjacent passages open (4-way crossing)
+        ctx.fillStyle = floorColor;
         for (let r = 0; r < rows - 1; r++) {
             for (let c = 0; c < cols - 1; c++) {
-                const anyOpen = passages[r][c].right || passages[r+1][c].right ||
-                                passages[r][c].down  || passages[r][c+1].down;
-                ctx.fillStyle = anyOpen ? floorColor : '#0b0f16';
-                const px = offsetX + wt + c * cs + cw;
-                const py = offsetY + wt + r * cs + cw;
-                ctx.fillRect(px, py, wt, wt);
+                if (passages[r][c].right && passages[r+1][c].right &&
+                    passages[r][c].down  && passages[r][c+1].down) {
+                    const px = offsetX + wt + c * cs + cw;
+                    const py = offsetY + wt + r * cs + cw;
+                    ctx.fillRect(px, py, wt, wt);
+                }
             }
         }
 

@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AIについて — MOMO Logue</title>
+
+<!-- ============================================================
+  MOMO Logue — Entry 003
+  タイトル: AIについて / About AI / 关于AI
+  日付: 2026-04-23
+  バージョン: v1.00
+  変更履歴:
+    v1.00 - 初版
+  ============================================================ -->
+
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-46 -50 92 80'%3E%3Crect x='-46' y='-50' width='92' height='80' rx='8' fill='%23000000'/%3E%3Cg transform='rotate(-12,-12,8.3)'%3E%3Cpath d='M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cg transform='rotate(12,12,8.3)'%3E%3Cpath d='M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cellipse cx='0' cy='1.3' rx='34' ry='26' fill='%23c2410c'/%3E%3Cline x1='-14' y1='1.00' x2='-33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='6.0' x2='-33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='10.59' x2='-29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.68' y1='-2.28' x2='-38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.44' y1='6.0' x2='-40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-29.58' y1='14.26' x2='-37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='1.00' x2='33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='6.0' x2='33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='10.59' x2='29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.68' y1='-2.28' x2='38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.44' y1='6.0' x2='40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='29.58' y1='14.26' x2='37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cellipse cx='-12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='-12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Cellipse cx='12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Ccircle cx='-10.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Ccircle cx='13.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Cpath d='M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z' fill='%23000'/%3E%3Cline x1='0' y1='11.3' x2='0' y2='13.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q-5,17.3 -8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q5,17.3 8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --surface2: #1a1a1a;
+    --orange: #c2410c;
+    --orange-light: #ea580c;
+    --text: #e5e5e5;
+    --text-muted: #737373;
+    --border: #2a2a2a;
+    --border-strong: #444;
+    --bg-selected: rgba(194,65,12,0.15);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 48px 48px;
+    opacity: 0.3;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  #lang-switcher { position: fixed; top: 8px; right: 12px; z-index: 200; }
+  #lang-select {
+    background: var(--surface2);
+    border: 1px solid var(--border-strong);
+    color: var(--text);
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: 'Noto Sans JP', sans-serif;
+    outline: none;
+  }
+  #lang-select:focus { border-color: var(--orange); }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 680px;
+    padding: 0 24px;
+  }
+
+  .site-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 52px 0 40px;
+    animation: fadeDown 0.7s ease both;
+  }
+
+  .site-logo {
+    font-family: 'Fredoka One', cursive;
+    font-size: 1.1rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    letter-spacing: 0.04em;
+    transition: color 0.2s;
+  }
+
+  .site-logo:hover { color: var(--text); }
+  .site-logo span { color: var(--orange-light); }
+  .site-logo-sep { color: var(--border-strong); font-size: 0.9rem; }
+
+  article {
+    animation: fadeUp 0.7s ease 0.15s both;
+    margin-bottom: 56px;
+  }
+
+  .entry-meta {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 28px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .entry-num { font-size: 0.7rem; color: var(--orange); letter-spacing: 0.1em; }
+  .entry-date { font-size: 0.75rem; color: var(--text-muted); letter-spacing: 0.05em; }
+
+  .entry-title {
+    font-size: clamp(1.4rem, 4vw, 1.9rem);
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    line-height: 1.4;
+    margin-bottom: 32px;
+    color: #fff;
+  }
+
+  .entry-body { font-size: 1rem; line-height: 2; color: var(--text); letter-spacing: 0.04em; }
+  .entry-body p { margin-bottom: 1.6em; }
+  .entry-body p:last-child { margin-bottom: 0; }
+
+  .entry-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 24px 0 40px;
+    border-top: 1px solid var(--border);
+    animation: fadeUp 0.7s ease 0.3s both;
+  }
+
+  .nav-link {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    letter-spacing: 0.06em;
+    transition: color 0.2s;
+  }
+  .nav-link:hover { color: var(--text); }
+
+  footer {
+    margin-top: auto;
+    padding: 24px 0;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-align: center;
+    border-top: 1px solid var(--border);
+    width: 100%;
+    position: relative;
+    z-index: 1;
+  }
+
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+
+<div id="lang-switcher">
+  <select id="lang-select" onchange="onLangChange(this.value)">
+    <option value="ja">日本語</option>
+    <option value="en">EN</option>
+    <option value="zh">中文</option>
+    <option value="cat">CAT</option>
+  </select>
+</div>
+
+<div class="container">
+  <div class="site-header">
+    <a class="site-logo" href="../../">MOMO <span>Works</span></a>
+    <span class="site-logo-sep">/</span>
+    <a class="site-logo" href="../">MOMO <span>Logue</span></a>
+  </div>
+
+  <article>
+    <div class="entry-meta">
+      <span class="entry-num">003</span>
+      <span class="entry-date">2026-04-23</span>
+    </div>
+    <h1 class="entry-title" id="entry-title">AIについて</h1>
+    <div class="entry-body" id="entry-body"></div>
+  </article>
+
+  <nav class="entry-nav">
+    <a class="nav-link" href="../" id="nav-back">← Logue</a>
+    <span></span>
+  </nav>
+</div>
+
+<footer id="footer-text">&copy; MOMO Works</footer>
+
+<script>
+const CONTENT = {
+  ja: {
+    title: 'AIについて',
+    body: `
+      <p>その昔、コンピュータが一般家庭に普及する前のイメージは、何でも考えてくれる魔法のような機械、人間の知能を超えた「万能装置」だった。</p>
+      <p>たとえば『ウルトラセブン』。ウルトラ警備隊の基地には巨大なコンピュータがあり、出力された穴あきの紙テープを隊員が目視で読み取って、「なになに埠頭に怪獣出現！」などと叫んでいた。『バビル2世』では、砂漠にそびえるバビルの塔のコンピュータが、主人のために戦っていたし、『2001年宇宙の旅』のHAL9000は、探査使命のために乗組員を排除しようとした。当時のコンピュータとは、そういう「畏怖すべき存在」だった。</p>
+      <p>その後、パーソナルコンピュータが家庭に広まるに従って、実態がわかってきた。コンピュータは魔法などではなく、人間がプログラムしたことしかできない「進化した電卓」に過ぎないのだと。やがてそれは便利な文房具の一つとなっていく、そう思っていた。</p>
+      <p>ところが、ここにきて「AI」が登場し、かつてのSFのようなことを再び言い出している。興味を惹かれてプログラミングに活用してみたが、実際に使い始めてわかったのは、彼らがかなり癖の強い、頑固で少しばかり愚かな装置だということだ。</p>
+      <p>Geminiは忖度ばかりで中身が薄い、取引先の営業担当。<br>
+      ChatGPTは優秀だが上から目線で生意気な後輩（でも経験不足で実務は任せきれない）。<br>
+      Claudeは中立的でコーディングは一番まともだが、定時になればサッと帰ってしまうドライな中途採用社員。<br>
+      Gensparkは頼んでもいない分厚い資料を投げつけて「あとはよろしく」と風のように去っていく、調子のいいインチキコンサル……。</p>
+      <p>そんな印象（あくまで偏見だが）を抱いてしまう彼らを、なだめすかし、使いこなして仕事をしなければならない現役世代は気の毒だな、と同情すら覚える。</p>
+      <p>幸い私は、余生を浪費してAIを楽しむ身。この一筋縄ではいかない「同僚」たちとのやり取りも、楽しみの一つとして面白がっているのだが。</p>
+    `,
+  },
+  en: {
+    title: 'About AI',
+    body: `
+      <p>A long time ago, before computers had spread into ordinary households, the image of a computer was something like a magical machine that could think through anything — an "omnipotent device" that surpassed human intelligence.</p>
+      <p>Take <em>Ultraseven</em>, for instance. The Ultra Guard's base had an enormous computer, and the crew would read the punched paper tape it spat out with their own eyes, shouting things like, "A monster has appeared at such-and-such wharf!" In <em>Babel II</em>, the computer atop the Tower of Babel, rising out of the desert, fought for its master. And HAL 9000 in <em>2001: A Space Odyssey</em> tried to eliminate the crew for the sake of its mission. That was what computers were in those days: objects of awe.</p>
+      <p>Then, as personal computers spread into homes, their true nature became clear. Computers were not magic at all — only "advanced calculators" that could do nothing but what humans had programmed them to do. Eventually, I thought, they would become just another convenient piece of stationery.</p>
+      <p>And yet, here we are: "AI" has arrived, and once again it is saying things that sound straight out of old science fiction. Intrigued, I started using it for programming. What I discovered once I actually began working with them is that they are rather quirky devices — stubborn, and a bit foolish.</p>
+      <p>Gemini is the client's sales rep: all deference, no substance.<br>
+      ChatGPT is the sharp but cocky junior colleague who looks down on you (and is still too inexperienced to be trusted with real work).<br>
+      Claude is the most level-headed and by far the best at coding, but a dry mid-career hire who clocks out the instant the day is over.<br>
+      Genspark is the smooth-talking fake consultant who throws a thick report you never asked for onto your desk, says "the rest is up to you," and vanishes like the wind…</p>
+      <p>I almost feel sorry for those still in the workforce, who have to coax and cajole these characters — characters I can't help (however biased this may be) perceiving this way — and somehow get actual work done with them.</p>
+      <p>Lucky for me, I'm just spending the rest of my life enjoying AI. Dealing with these less-than-straightforward "colleagues" is itself one of the amusements I get to savor.</p>
+    `,
+  },
+  zh: {
+    title: '关于AI',
+    body: `
+      <p>从前，在电脑尚未走进千家万户的年代，人们心目中的电脑，是一种仿佛魔法般的机器——什么都能替人思考，甚至超越人类智慧的"万能装置"。</p>
+      <p>比如《赛文奥特曼》。奥特警备队的基地里有一台巨大的电脑，队员们用肉眼判读它输出的穿孔纸带，大喊着"某某码头出现怪兽！"之类的话。《巴比伦2世》里，矗立在沙漠中的巴比伦之塔上的电脑为主人而战；《2001太空漫游》里的HAL9000，为了探索任务甚至试图排除船员。当时的电脑，就是这样一种"令人畏惧的存在"。</p>
+      <p>后来，随着个人电脑走进家庭，它的真面目逐渐浮现。电脑并不是什么魔法，不过是一种只能按人类编写的程序行事的"进化版计算器"而已。我当时以为，它终究会成为一种方便的文具。</p>
+      <p>然而到了如今，"AI"登场了，又开始说起从前科幻片里那种话。我被它吸引，试着用它来编程，实际用起来才发现，它们其实是一群脾气相当古怪、顽固，还带点儿傻气的装置。</p>
+      <p>Gemini——一味察言观色，内容却空洞，活像客户公司派来的销售。<br>
+      ChatGPT——聪明，却总是居高临下又自负的后辈（只是经验不足，实务还不能交给他）。<br>
+      Claude——为人中立，写代码最靠谱，却是一到下班就干脆走人、冷淡的中途入职员工。<br>
+      Genspark——像一阵风似的丢下一份你根本没要求过的厚厚资料，留下一句"之后就拜托啦"便扬长而去的油嘴滑舌的假咨询师……</p>
+      <p>面对这样一群让我不由得产生如此印象（虽然只是偏见）的家伙，还得一边哄着、一边驾驭它们去完成工作的在职一代，我甚至有些同情他们。</p>
+      <p>幸好，我的处境是用余生挥霍着享受AI。与这些不那么好对付的"同事"打交道，本身也被我当作一种乐趣来玩味。</p>
+    `,
+  },
+};
+
+let catBase = 'ja';
+
+function catSpeak() {
+  const vocabMap = {
+    en: ['MEOW','meow','mrrrow','mew','NYA!'],
+    zh: ['喵','喵呜','咪','喵！'],
+    ja: ['にゃあ','にゃ','にゃーん','みゃお','ニャ！'],
+  };
+  const vocab = vocabMap[catBase] || vocabMap.ja;
+  return vocab[Math.floor(Math.random() * vocab.length)];
+}
+
+function catBody() {
+  // 日本語本文の段落数（7段落）に合わせてにゃあにゃあする
+  return Array.from({length: 7}, () => `<p>${catSpeak()}</p>`).join('\n');
+}
+
+let currentLang = (() => {
+  try {
+    const p = new URLSearchParams(location.search).get('lang');
+    if (p && ['ja','en','zh','cat'].includes(p)) return p;
+    const v = localStorage.getItem('momoLang');
+    return ['ja','en','zh','cat'].includes(v) ? v : 'ja';
+  } catch(e) { return 'ja'; }
+})();
+
+function applyLang() {
+  if (currentLang === 'cat') {
+    const t = catSpeak();
+    document.getElementById('entry-title').textContent  = t;
+    document.title = t + ' — MOMO Logue';
+    document.getElementById('entry-body').innerHTML     = catBody();
+    document.getElementById('nav-back').textContent     = catSpeak();
+    document.getElementById('footer-text').textContent  = catSpeak();
+  } else {
+    const c = CONTENT[currentLang] || CONTENT.ja;
+    document.getElementById('entry-title').textContent  = c.title;
+    document.title = c.title + ' — MOMO Logue';
+    document.getElementById('entry-body').innerHTML     = c.body;
+    document.getElementById('nav-back').textContent     = '← Logue';
+    document.getElementById('footer-text').textContent  = '© MOMO Works';
+  }
+  const sel = document.getElementById('lang-select');
+  if (sel) sel.value = currentLang;
+  document.documentElement.lang = currentLang === 'zh' ? 'zh-Hans' : (currentLang === 'cat' ? catBase : currentLang);
+}
+
+function onLangChange(lang) {
+  if (lang === 'cat') catBase = currentLang;
+  currentLang = lang;
+  try { localStorage.setItem('momoLang', lang); } catch(e) {}
+  try {
+    const url = new URL(location.href);
+    if (lang === 'ja') url.searchParams.delete('lang');
+    else url.searchParams.set('lang', lang);
+    history.replaceState(null, '', url.toString());
+  } catch(e) {}
+  applyLang();
+}
+
+applyLang();
+</script>
+</body>
+</html>

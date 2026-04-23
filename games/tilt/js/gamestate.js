@@ -259,9 +259,15 @@ class GameState {
                 // bottom-wall strip
                 if (r >= rows - 1 || !passages[r][c].down) return true;
             } else if (lx >= cw && ly >= cw) {
-                // junction square — no physics body here
+                // junction square — no physics body, but treat as wall if any adjacent wall strip exists
                 if (c >= cols - 1 || r >= rows - 1) return true;
-                // interior junction: passable (open space between walls)
+                // Check the 4 wall strips bordering this junction
+                if (!passages[r][c].right    ||   // wall above (right strip of this cell)
+                    !passages[r][c].down     ||   // wall left (down strip of this cell)
+                    !passages[r+1][c].right  ||   // wall below (right strip of cell below)
+                    !passages[r][c+1].down)        // wall right (down strip of cell to right)
+                    return true;
+                // All 4 surrounding passages open → fully passable
             }
         }
         return false;

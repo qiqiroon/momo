@@ -66,12 +66,17 @@ class GameState {
             this.goals.push(goal);
         }
 
-        // Place keys for locked goals
+        // Place keys for locked goals — randomize which key unlocks which goal
+        const lockedGoalIds = this.goals.filter(g => g.locked).map(g => g.id);
+        for (let i = lockedGoalIds.length - 1; i > 0; i--) {
+            const j = Math.floor(this.rng() * (i + 1));
+            [lockedGoalIds[i], lockedGoalIds[j]] = [lockedGoalIds[j], lockedGoalIds[i]];
+        }
         const keyCells = MazeGenerator.pickCells(maze, keyCount, this.rng, exclude);
         for (let i = 0; i < keyCount; i++) {
             const cell = keyCells[i] || {c: Math.floor(maze.cols/2), r: Math.floor(maze.rows/2)};
             exclude.push(cell);
-            this.keys.push(new Key(i, i, cell.c, cell.r, maze));
+            this.keys.push(new Key(i, lockedGoalIds[i], cell.c, cell.r, maze));
         }
 
         // Place items (SHIELD only if enemies are present)
@@ -84,12 +89,14 @@ class GameState {
             this.items.push(new Item(i, type, cell.c, cell.r, maze));
         }
 
-        // Place pits
+        // Place pits (stagger cycle timers so they don't all disappear together)
         const pitCount = s >= 2 ? Math.min(Math.floor((s - 1) / 2), 5) : 0;
         const pitCells = MazeGenerator.pickCells(maze, pitCount, this.rng, exclude);
         for (let i = 0; i < pitCells.length; i++) {
             exclude.push(pitCells[i]);
-            this.pits.push(new Pit(i, pitCells[i].c, pitCells[i].r, maze));
+            const pit = new Pit(i, pitCells[i].c, pitCells[i].r, maze);
+            pit.cycleTimer = Math.floor(this.rng() * 15000);
+            this.pits.push(pit);
         }
 
         // Place enemies
@@ -109,18 +116,34 @@ class GameState {
 
     // Update enemy movement (pixel-space, maze-aware)
     updateEnemies(maze, dt) {
+        const cs = maze.cellSize, wt = maze.wallThickness;
+
         for (const enemy of this.enemies) {
             if (enemy.disabled > 0) { enemy.disabled -= dt; continue; }
+            enemy.eating = false;
 
             enemy.animTime += dt;
             enemy.dirTimer -= dt;
 
+            // Balls that can be targeted (not in goal, not hidden, not being eaten)
+            const activeBalls = this.balls.filter(b => !b.inGoal && !b.hidden && b.eatTimer === 0);
+
+            // Current enemy cell
+            const ec = Math.max(0, Math.min(maze.cols - 1, Math.floor((enemy.x - maze.offsetX - wt) / cs)));
+            const er = Math.max(0, Math.min(maze.rows - 1, Math.floor((enemy.y - maze.offsetY - wt) / cs)));
+
+            // 2x speed when any active ball is within 3 directly-connected cells
+            const nearbyCells = this._cellsWithin(ec, er, 3, maze);
+            const speedMult = activeBalls.some(ball => {
+                const bc = Math.max(0, Math.min(maze.cols - 1, Math.floor((ball.x - maze.offsetX - wt) / cs)));
+                const br = Math.max(0, Math.min(maze.rows - 1, Math.floor((ball.y - maze.offsetY - wt) / cs)));
+                return nearbyCells.has(`${bc},${br}`);
+            }) ? 2 : 1;
+
             if (enemy.type === 'TRACKER' && enemy.dirTimer <= 0) {
-                // Head toward nearest ball
                 let nearestBall = null, nearestDist = Infinity;
-                for (const ball of this.balls) {
-                    const dx = ball.x - enemy.x;
-                    const dy = ball.y - enemy.y;
+                for (const ball of activeBalls) {
+                    const dx = ball.x - enemy.x, dy = ball.y - enemy.y;
                     const d = dx * dx + dy * dy;
                     if (d < nearestDist) { nearestDist = d; nearestBall = ball; }
                 }
@@ -134,9 +157,9 @@ class GameState {
                 enemy.dirTimer = 500;
             }
 
-            // Bounce off walls
-            const nx = enemy.x + enemy.vx * dt * 0.06;
-            const ny = enemy.y + enemy.vy * dt * 0.06;
+            // Bounce off walls, apply speed multiplier
+            const nx = enemy.x + enemy.vx * speedMult * dt * 0.06;
+            const ny = enemy.y + enemy.vy * speedMult * dt * 0.06;
             const hitX = this._isWall(nx, enemy.y, maze, enemy.radius);
             const hitY = this._isWall(enemy.x, ny, maze, enemy.radius);
 
@@ -153,7 +176,6 @@ class GameState {
                 enemy.y = ny;
             }
 
-            // Occasional random redirect for patrol
             if (enemy.type === 'PATROL' && enemy.dirTimer <= 0) {
                 const angle = this.rng() * Math.PI * 2;
                 enemy.vx = Math.cos(angle) * enemy.speed;
@@ -161,6 +183,28 @@ class GameState {
                 enemy.dirTimer = 600 + this.rng() * 800;
             }
         }
+    }
+
+    // BFS: returns Set of "c,r" strings reachable within maxDist steps through open passages
+    _cellsWithin(c, r, maxDist, maze) {
+        const {cols, rows, passages} = maze;
+        const visited = new Set();
+        const queue = [{c, r, d: 0}];
+        visited.add(`${c},${r}`);
+        while (queue.length) {
+            const {c: cc, r: cr, d} = queue.shift();
+            if (d >= maxDist) continue;
+            const moves = [];
+            if (cr > 0       && passages[cr - 1][cc].down)  moves.push({c: cc,     r: cr - 1});
+            if (cr < rows-1  && passages[cr][cc].down)       moves.push({c: cc,     r: cr + 1});
+            if (cc > 0       && passages[cr][cc - 1].right)  moves.push({c: cc - 1, r: cr});
+            if (cc < cols-1  && passages[cr][cc].right)      moves.push({c: cc + 1, r: cr});
+            for (const m of moves) {
+                const k = `${m.c},${m.r}`;
+                if (!visited.has(k)) { visited.add(k); queue.push({...m, d: d + 1}); }
+            }
+        }
+        return visited;
     }
 
     // Check if pixel position is in a wall
@@ -190,9 +234,36 @@ class GameState {
     update(maze, dt) {
         const collected = [];
 
+        // Pit cycle: 15s total — 12s active, 0.5s shrink, 2s hidden, 0.5s grow
+        const PC = 15000, PA = 12000, PS = 500, PH = 14500;
+        for (const pit of this.pits) {
+            pit.cycleTimer = (pit.cycleTimer + dt) % PC;
+            const t = pit.cycleTimer;
+            if (t < PA)       { pit.scale = 1;                        pit.active = true; }
+            else if (t < PA+PS){ pit.scale = 1 - (t - PA) / PS;       pit.active = false; }
+            else if (t < PH)  { pit.scale = 0;                        pit.active = false; }
+            else              { pit.scale = (t - PH) / (PC - PH);     pit.active = false; }
+        }
+
         for (const ball of this.balls) {
             if (ball.invincible > 0) ball.invincible -= dt;
             if (ball.frozen > 0) ball.frozen -= dt;
+
+            // Eat animation: ball frozen/hidden until timer expires, then respawn
+            if (ball.eatTimer > 0) {
+                ball.eatTimer -= dt;
+                if (ball.eatTimer <= 0) {
+                    ball.eatTimer = 0;
+                    ball.hidden = false;
+                    ball.needsRespawn = true;
+                    ball.invincible = 60 * 16;
+                    collected.push({type: 'enemy_respawn', ballId: ball.id});
+                } else {
+                    ball.hidden = ball.eatTimer <= 1000; // invisible after 0.5s freeze
+                }
+                continue; // skip all other checks while being eaten
+            }
+            ball.hidden = false;
 
             // Key pickup
             for (const key of this.keys) {
@@ -220,11 +291,12 @@ class GameState {
                 }
             }
 
-            // Pit collision (no life loss, just respawn)
+            // Pit collision — only when pit is active
             if (ball.invincible <= 0) {
                 for (const pit of this.pits) {
+                    if (!pit.active) continue;
                     const dx = ball.x - pit.x, dy = ball.y - pit.y;
-                    if (dx*dx + dy*dy < (ball.radius + pit.radius)**2) {
+                    if (dx*dx + dy*dy < (ball.radius + pit.radius * pit.scale)**2) {
                         ball.needsRespawn = true;
                         ball.invincible = 60 * 16;
                         collected.push({type: 'pit', ballId: ball.id});
@@ -232,14 +304,16 @@ class GameState {
                 }
             }
 
-            // Enemy collision
-            if (ball.invincible <= 0) {
+            // Enemy collision — ignore balls in goals
+            if (ball.invincible <= 0 && !ball.inGoal) {
                 for (const enemy of this.enemies) {
                     if (enemy.disabled > 0) continue;
                     const dx = ball.x - enemy.x, dy = ball.y - enemy.y;
                     if (dx * dx + dy * dy < (ball.radius + enemy.radius) ** 2) {
                         this._hitByEnemy(ball, enemy);
-                        collected.push({type: 'enemy', ballId: ball.id});
+                        if (enemy.type !== 'SLOW') {
+                            collected.push({type: 'enemy', ballId: ball.id});
+                        }
                     }
                 }
             }
@@ -255,7 +329,6 @@ class GameState {
             case 'LIFE':   this.lives = Math.min(this.lives + 1, 9); break;
             case 'SCORE':  this.score += 200; break;
             case 'FREEZE':
-                // Freeze other balls (not the picker); picker can move freely
                 for (const b of this.balls) {
                     if (b !== pickerBall) b.frozen = Math.max(b.frozen, 10000);
                 }
@@ -267,16 +340,17 @@ class GameState {
     }
 
     _hitByEnemy(ball, enemy) {
-        this.lives--;
-        ball.invincible = 120 * 16; // ~2 sec at 60fps
-        // Will trigger respawn in main loop
-        ball.needsRespawn = true;
-
         if (enemy.type === 'SLOW') {
-            // Don't kill ball, just slow it
-            ball.needsRespawn = false;
-            this.lives++;
+            ball.invincible = 1000; // brief grace, no life loss
+            return;
         }
+        // Start eat animation: both freeze 0.5s, then ball hides for 1s, then respawns
+        this.lives--;
+        ball.eatTimer = 1500;
+        ball.frozen = 500;
+        ball.invincible = 99999;
+        enemy.disabled = 500;
+        enemy.eating = true;
     }
 
     isClear() {

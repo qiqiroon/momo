@@ -10,11 +10,13 @@ class Ball {
         this.c = c;
         this.r = r;
         this.color = BALL_COLORS[id % BALL_COLORS.length];
-        this.inGoal = false;       // currently inside a goal
-        this.currentGoalId = -1;   // which goal the ball is currently in
-        this.sizeScale = 1.0;      // shrinks when in goal
-        this.invincible = 0;       // frames of invincibility after respawn
-        this.frozen = 0;           // frames remaining of freeze effect
+        this.inGoal = false;
+        this.currentGoalId = -1;
+        this.sizeScale = 1.0;
+        this.invincible = 0;
+        this.frozen = 0;
+        this.hidden = false;       // invisible during enemy eat animation
+        this.eatTimer = 0;         // counts down from 1500ms when eaten
     }
     get radius() { return this.body.circleRadius; }
     get x() { return this.body.position.x; }
@@ -83,6 +85,9 @@ class Pit {
         this.x = pos.x;
         this.y = pos.y;
         this.radius = maze.corridorWidth * 0.36;
+        this.cycleTimer = 0;  // position within 15s disappear cycle
+        this.scale = 1;       // 0=hidden, 1=full size
+        this.active = true;   // false = balls don't fall
     }
 }
 
@@ -105,10 +110,11 @@ class Enemy {
         this.vy = 0;
         this.radius = 8;
         this.animTime = Math.random() * Math.PI * 2;
-        this.disabled = 0;       // frames remaining while disabled
-        this.dirTimer = 0;       // frames until next direction decision
+        this.disabled = 0;       // ms remaining while disabled (eat animation)
+        this.dirTimer = 0;
         this.dir = {x: 0, y: 0};
-        this.maze = maze;        // reference for wall checks
+        this.maze = maze;
+        this.eating = false;     // true during the 0.5s eat freeze
     }
     get info() { return ENEMY_TYPES[this.type] || ENEMY_TYPES.PATROL; }
     get speed() { return this.info.speed; }

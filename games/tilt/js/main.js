@@ -300,14 +300,15 @@ class Game {
         }
 
         for (const ev of gs.update(maze, dt)) {
-            if (ev.type === 'enemy' || ev.type === 'pit') {
+            if (ev.type === 'enemy') {
+                if (gs.lives <= 0) { this.state = STATE.OVER; return; }
+            } else if (ev.type === 'enemy_respawn' || ev.type === 'pit') {
                 const ball = gs.balls.find(b => b.id === ev.ballId);
                 if (ball && ball.needsRespawn) {
                     ball.needsRespawn = false;
                     ball.inGoal = false;
                     this.physics.respawnBall(ball, ball.startC, ball.startR, maze);
                 }
-                if (ev.type === 'enemy' && gs.lives <= 0) { this.state = STATE.OVER; return; }
             }
         }
 

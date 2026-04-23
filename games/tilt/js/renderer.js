@@ -440,7 +440,30 @@ class Renderer {
     }
 
     drawEnemy(enemy, time) {
-        if (enemy.disabled > 0) return;
+        if (enemy.disabled > 0) {
+            if (enemy.eating) {
+                // Eating animation: enemy pulses and shows chomping mouth
+                const ctx = this.ctx;
+                const {x, y, radius, color} = enemy;
+                ctx.save();
+                const pulse = 1 + 0.3 * Math.sin(time * 0.03);
+                ctx.shadowColor = color;
+                ctx.shadowBlur = 20;
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(x, y, radius * pulse, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#000';
+                ctx.beginPath();
+                const mouthAngle = 0.6;
+                ctx.moveTo(x, y);
+                ctx.arc(x, y, radius * pulse * 0.7, -mouthAngle, mouthAngle);
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+            }
+            return;
+        }
         const ctx = this.ctx;
         const {x, y, radius, color} = enemy;
         const t = time * 0.004;
@@ -509,14 +532,16 @@ class Renderer {
     }
 
     drawBall(ball, time) {
+        if (ball.hidden) return;
         const ctx = this.ctx;
         const r = ball.radius * ball.sizeScale;
         const x = ball.x;
         const y = ball.y;
         const col = ball.color;
 
-        // Invincibility flash
-        if (ball.invincible > 0 && Math.floor(ball.invincible / 4) % 2 === 0) return;
+        // Invincibility flash (skip during eat freeze phase to avoid flicker)
+        if (ball.eatTimer > 1000) return; // visible-frozen phase: just draw normally below
+        if (ball.invincible > 0 && ball.eatTimer === 0 && Math.floor(ball.invincible / 4) % 2 === 0) return;
 
         ctx.save();
         ctx.shadowColor = col;
@@ -563,12 +588,13 @@ class Renderer {
     }
 
     drawPit(pit, time) {
+        if (pit.scale <= 0) return;
         const ctx = this.ctx;
-        const {x, y, radius} = pit;
+        const {x, y} = pit;
+        const radius = pit.radius * pit.scale;
         const t = time * 0.0008;
 
         ctx.save();
-        // Deep dark hole
         const grad = ctx.createRadialGradient(x, y, 0, x, y, radius);
         grad.addColorStop(0, '#000000');
         grad.addColorStop(0.55, '#050505');
@@ -578,7 +604,6 @@ class Renderer {
         ctx.arc(x, y, radius, 0, Math.PI * 2);
         ctx.fill();
 
-        // Swirling danger ring
         ctx.strokeStyle = '#333';
         ctx.lineWidth = 1;
         ctx.shadowColor = '#666';
@@ -591,7 +616,6 @@ class Renderer {
             ctx.stroke();
         }
 
-        // Outer dark rim
         ctx.shadowBlur = 6;
         ctx.strokeStyle = '#444';
         ctx.lineWidth = 1.2;

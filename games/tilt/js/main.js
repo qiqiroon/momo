@@ -76,6 +76,18 @@ class Game {
         document.getElementById('settingsCloseBtn').addEventListener('click', () => {
             this._closeSettings();
         });
+        document.getElementById('settingsResetBtn').addEventListener('click', () => {
+            this.input.sensitivity   = 1.0;
+            this.input.maxSpeed      = 20;
+            this.input.wallRepulsion = 2;
+            sensSlider.value    = this.input.sensitivity;
+            spdSlider.value     = this.input.maxSpeed;
+            wallRepSlider.value = this.input.wallRepulsion;
+            document.getElementById('sensVal').textContent    = this.input.sensitivity.toFixed(1);
+            document.getElementById('spdVal').textContent     = Math.round(this.input.maxSpeed);
+            document.getElementById('wallRepVal').textContent = Math.round(this.input.wallRepulsion);
+            this.physics.WALL_REPULSION = this.input.wallRepulsion * 0.001;
+        });
         const sensSlider    = document.getElementById('sensSlider');
         const spdSlider     = document.getElementById('spdSlider');
         const wallRepSlider = document.getElementById('wallRepSlider');

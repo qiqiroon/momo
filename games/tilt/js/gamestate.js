@@ -33,7 +33,7 @@ class GameState {
         const itemCount    = Math.min(1 + Math.floor(s / 2), 4);
         const enemyCount   = s >= 3 ? Math.min(Math.floor((s - 2) / 2), 4) : 0;
 
-        this.rng = this._makeRng(this.stage * 137 + 31);
+        this.rng = this._makeRng(this.stage * 137 + 31 + this.gameSeed);
 
         // Place balls (full maze): spread them as far apart as possible
         const allBallCands = MazeGenerator.pickCells(maze, maze.rows * maze.cols, this.rng, [], null);

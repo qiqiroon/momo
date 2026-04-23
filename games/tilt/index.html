@@ -247,7 +247,7 @@
       <path d="M0,13.3 Q5,17.3 8,15.3"  fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
     </svg>
     <div class="title-text" lang="en">MOMO <span>Tilt</span></div>
-    <div class="title-ver">v0.2.8</div>
+    <div class="title-ver">v1.00</div>
     <div class="title-desc" id="titleDesc"></div>
     <button class="btn" id="titleBtn" style="margin-top:10px;"></button>
     <div class="kbd-hint" id="kbdHint"></div>
@@ -302,7 +302,10 @@
       <label><span id="wallRepLabelText"></span> <span id="wallRepVal">2</span></label>
       <input type="range" id="wallRepSlider" min="0" max="10" step="1" value="2">
     </div>
-    <button class="btn" id="settingsCloseBtn"></button>
+    <div style="display:flex;gap:8px;margin-top:4px;">
+      <button class="btn-sub" id="settingsResetBtn" style="flex:1;font-size:13px;"></button>
+      <button class="btn" id="settingsCloseBtn" style="flex:2;"></button>
+    </div>
   </div>
 </div>
 
@@ -353,6 +356,7 @@
     const spdVal  = document.getElementById('spdVal').textContent;
     document.getElementById('settingsTitle').textContent    = t('settingsTitle');
     document.getElementById('settingsCloseBtn').textContent = t('settingsClose');
+    document.getElementById('settingsResetBtn').textContent = t('settingsReset');
 
     document.getElementById('sensLabelText').textContent    = t('sensLabel');
     document.getElementById('spdLabelText').textContent     = t('spdLabel');

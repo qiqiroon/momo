@@ -331,25 +331,26 @@ class Renderer {
         ctx.fill();
 
         if (locked) {
-            // Locked: flat colored circle (ball color) with number
-            ctx.fillStyle = this._darken(color, 0.3);
+            // Locked: solid fill with ball color — clearly "closed"
+            ctx.fillStyle = color;
             ctx.beginPath();
             ctx.arc(x, y, radius, 0, Math.PI * 2);
             ctx.fill();
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2.5;
             ctx.shadowColor = color;
-            ctx.shadowBlur = 5;
+            ctx.shadowBlur = 12;
             ctx.stroke();
             ctx.shadowBlur = 0;
-            // Number
             ctx.fillStyle = '#fff';
-            ctx.font = `bold ${Math.max(8, radius * 0.85)}px sans-serif`;
+            ctx.font = `bold ${Math.max(8, radius * 0.75)}px sans-serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.shadowColor = '#000';
-            ctx.shadowBlur = 4;
-            ctx.fillText(goal.ballId + 1, x, y);
+            ctx.shadowBlur = 3;
+            ctx.fillText(goal.ballId + 1, x, y - radius * 0.18);
+            ctx.font = `${Math.max(7, radius * 0.55)}px sans-serif`;
+            ctx.fillText('🔒', x, y + radius * 0.52);
             ctx.shadowBlur = 0;
             return;
         }

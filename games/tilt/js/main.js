@@ -112,8 +112,10 @@ class Game {
             document.getElementById('wallRepVal').textContent = Math.round(this.input.wallRepulsion);
         });
 
-        this.canvas.addEventListener('click',    () => { if (this.state === STATE.OVER) this._restartGame(); });
-        this.canvas.addEventListener('touchend', () => { if (this.state === STATE.OVER) this._restartGame(); });
+        document.getElementById('gameOverBtn').addEventListener('click', () => {
+            document.getElementById('gameOverOverlay').classList.add('hidden');
+            this._restartGame();
+        });
     }
 
     _openSettings() {
@@ -315,7 +317,7 @@ class Game {
 
         for (const ev of gs.update(maze, dt)) {
             if (ev.type === 'enemy') {
-                if (gs.lives <= 0) { this.state = STATE.OVER; return; }
+                if (gs.lives <= 0) { this._setGameOver(); return; }
             } else if (ev.type === 'enemy_respawn' || ev.type === 'pit') {
                 const ball = gs.balls.find(b => b.id === ev.ballId);
                 if (ball && ball.needsRespawn) {
@@ -350,6 +352,49 @@ class Game {
         } else {
             this.state = STATE.PLAYING;
         }
+    }
+
+    _loadScores() {
+        try { return JSON.parse(localStorage.getItem('tilt_hiscores') || '[]'); } catch(e) { return []; }
+    }
+    _saveScores(s) {
+        try { localStorage.setItem('tilt_hiscores', JSON.stringify(s)); } catch(e) {}
+    }
+
+    _setGameOver() {
+        this.state = STATE.OVER;
+        const gs = this.gs;
+        const current = {stage: gs.stage, score: gs.score, current: true};
+        const scores = this._loadScores();
+        scores.push(current);
+        scores.sort((a, b) => b.score - a.score || b.stage - a.stage);
+
+        const currentIdx = scores.findIndex(s => s.current);
+        const display = [];
+        for (let i = 0; i < Math.min(3, scores.length); i++) display.push({...scores[i], rank: i + 1});
+        if (currentIdx >= 3) display.push({...scores[currentIdx], rank: currentIdx + 1});
+
+        this._saveScores(scores.map(({current: _, ...r}) => r).slice(0, 10));
+
+        document.getElementById('goTitle').textContent = t('overMsg');
+        document.getElementById('goResult').innerHTML =
+            `<span style="color:#aaa">${t('stageLabel')}</span> <strong>${gs.stage}</strong> &nbsp; ⭐ <strong>${gs.score}</strong>`;
+
+        const rankEl = document.getElementById('goRanking');
+        const medals = ['🥇','🥈','🥉'];
+        rankEl.innerHTML = `<div class="go-header">${t('overRanking')}</div>`;
+        for (const s of display) {
+            const row = document.createElement('div');
+            row.className = 'go-row' + (s.current ? ' go-current' : '');
+            row.innerHTML = `<span class="go-rank">${s.rank <= 3 ? medals[s.rank-1] : s.rank+'.'}</span>
+                <span class="go-stage">${t('stageLabel')} ${s.stage}</span>
+                <span class="go-score">⭐ ${s.score}</span>
+                ${s.current ? '<span style="font-size:10px;color:#ea580c">◀</span>' : ''}`;
+            rankEl.appendChild(row);
+        }
+
+        document.getElementById('gameOverBtn').textContent = 'OK';
+        document.getElementById('gameOverOverlay').classList.remove('hidden');
     }
 
     _restartGame() {

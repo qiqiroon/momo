@@ -47,23 +47,37 @@ class GameState {
             this.balls.push(ball);
         }
 
-        // Place goals (bottom zone): each goal near the point-symmetric position of its ball
+        // Place goals: random position near the point-symmetric of ball, not adjacent to other goals
         const exclude = [...ballCells];
-        const allGoalCands = MazeGenerator.pickCells(maze, maze.rows * maze.cols, this.rng, exclude, 'bottom');
+        const allGoalCands = MazeGenerator.pickCells(maze, maze.rows * maze.cols, this.rng, exclude, null);
+        const ctrC = (maze.cols - 1) / 2;
+        const ctrR = (maze.rows - 1) / 2;
+        const searchR = Math.max(3, Math.floor(Math.min(maze.cols, maze.rows) / 4));
+
         for (let i = 0; i < ballCount; i++) {
             const ball = ballCells[i] || {c: 1 + i, r: 1};
-            const symC = maze.cols - 1 - ball.c;
-            const symR = maze.rows - 1 - ball.r;
-            let best = null, bestD = Infinity;
-            for (const cand of allGoalCands) {
-                if (exclude.some(e => e.c === cand.c && e.r === cand.r)) continue;
-                const d = (cand.c - symC) ** 2 + (cand.r - symR) ** 2;
-                if (d < bestD) { bestD = d; best = cand; }
+            const symC = Math.max(1, Math.min(maze.cols - 2, Math.round(2 * ctrC - ball.c)));
+            const symR = Math.max(1, Math.min(maze.rows - 2, Math.round(2 * ctrR - ball.r)));
+
+            const placedGoals = this.goals.map(g => ({c: g.c, r: g.r}));
+            const notExcluded = c => !exclude.some(e => e.c === c.c && e.r === c.r);
+            const notAdjacent = c => !placedGoals.some(g =>
+                Math.abs(c.c - g.c) + Math.abs(c.r - g.r) < 2);
+
+            // Try decreasing radii until a valid candidate is found
+            let cell = null;
+            for (let r = searchR; r <= maze.cols + maze.rows && !cell; r += 2) {
+                const pool = allGoalCands.filter(c =>
+                    notExcluded(c) && notAdjacent(c) &&
+                    Math.sqrt((c.c - symC) ** 2 + (c.r - symR) ** 2) <= r);
+                if (pool.length > 0) cell = pool[0];
             }
-            const cell = best || {c: maze.cols - 2 - i, r: maze.rows - 2};
+            if (!cell) {
+                const pool = allGoalCands.filter(c => notExcluded(c) && notAdjacent(c));
+                cell = pool[0] || allGoalCands.find(notExcluded) || {c: maze.cols - 2 - i, r: maze.rows - 2};
+            }
             exclude.push(cell);
-            const goal = new Goal(i, i, cell.c, cell.r, maze);
-            this.goals.push(goal);
+            this.goals.push(new Goal(i, i, cell.c, cell.r, maze));
         }
 
         // Randomly choose which goals are locked (not always goal 0 = red)
@@ -105,8 +119,14 @@ class GameState {
             this.pits.push(pit);
         }
 
-        // Place enemies
-        const enemyCells = MazeGenerator.pickCells(maze, enemyCount, this.rng, exclude);
+        // Place enemies near maze center
+        const centerC = Math.floor(maze.cols / 2);
+        const centerR = Math.floor(maze.rows / 2);
+        const cRad = Math.max(2, Math.floor(Math.min(maze.cols, maze.rows) / 4));
+        const allEnemyCands = MazeGenerator.pickCells(maze, maze.rows * maze.cols, this.rng, exclude, null);
+        const centerPool = allEnemyCands.filter(c =>
+            Math.abs(c.c - centerC) <= cRad && Math.abs(c.r - centerR) <= cRad);
+        const enemyCells = (centerPool.length >= enemyCount ? centerPool : allEnemyCands).slice(0, enemyCount);
         const enemyTypeKeys = Object.keys(ENEMY_TYPES);
         for (let i = 0; i < enemyCells.length; i++) {
             const cell = enemyCells[i];
@@ -382,18 +402,31 @@ class GameState {
 
     _pickFarthest(cands, n) {
         if (n <= 1 || cands.length <= n) return cands.slice(0, n);
-        const selected = [cands[0]];
-        while (selected.length < n) {
-            let best = null, bestD = -1;
-            for (const c of cands) {
-                if (selected.some(s => s.c === c.c && s.r === c.r)) continue;
-                const minD = Math.min(...selected.map(s => (c.c - s.c) ** 2 + (c.r - s.r) ** 2));
-                if (minD > bestD) { bestD = minD; best = c; }
+        // Try several starting points and keep the arrangement with maximum min-pairwise-distance
+        let bestSelected = null, bestScore = -1;
+        const tryCount = Math.min(6, cands.length);
+        for (let t = 0; t < tryCount; t++) {
+            const startIdx = Math.floor(t * cands.length / tryCount);
+            const sel = [cands[startIdx]];
+            while (sel.length < n) {
+                let best = null, bestD = -1;
+                for (const c of cands) {
+                    if (sel.some(s => s.c === c.c && s.r === c.r)) continue;
+                    const minD = Math.min(...sel.map(s => (c.c - s.c) ** 2 + (c.r - s.r) ** 2));
+                    if (minD > bestD) { bestD = minD; best = c; }
+                }
+                if (best) sel.push(best); else break;
             }
-            if (best) selected.push(best);
-            else break;
+            if (sel.length < n) continue;
+            let score = Infinity;
+            for (let i = 0; i < sel.length; i++)
+                for (let j = i + 1; j < sel.length; j++) {
+                    const d = (sel[i].c - sel[j].c) ** 2 + (sel[i].r - sel[j].r) ** 2;
+                    if (d < score) score = d;
+                }
+            if (score > bestScore) { bestScore = score; bestSelected = [...sel]; }
         }
-        return selected;
+        return bestSelected || cands.slice(0, n);
     }
 
     _makeRng(seed) {

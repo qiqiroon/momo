@@ -206,6 +206,26 @@
     .intro-icon { font-size: 16px; width: 22px; text-align: center; flex-shrink: 0; }
     .intro-name { color: var(--text); font-weight: 500; min-width: 48px; }
     .intro-desc { color: var(--text-muted); font-size: 11px; }
+
+    /* ── Game Over overlay ── */
+    #gameOverOverlay .panel { max-width: 340px; gap: 12px; }
+    #goTitle { font-family: 'Fredoka One', sans-serif; font-size: 26px; color: #f87171; }
+    #goResult { font-size: 14px; color: #ddd; }
+    #goRanking { width: 100%; }
+    .go-header {
+      font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+      color: var(--orange); margin-bottom: 6px;
+    }
+    .go-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 5px 4px; border-bottom: 1px solid var(--border); font-size: 13px;
+    }
+    .go-row:last-child { border-bottom: none; }
+    .go-rank { min-width: 26px; font-size: 15px; text-align: center; }
+    .go-stage { min-width: 64px; color: var(--text-muted); }
+    .go-score { flex: 1; text-align: right; color: #ffcc22; font-weight: 700; }
+    .go-row.go-current { background: rgba(234,88,12,.15); border-radius: 6px; color: #fff; font-weight: 700; }
+    .go-row.go-current .go-stage { color: #fff; }
   </style>
 </head>
 <body>
@@ -247,7 +267,7 @@
       <path d="M0,13.3 Q5,17.3 8,15.3"  fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
     </svg>
     <div class="title-text" lang="en">MOMO <span>Tilt</span></div>
-    <div class="title-ver">v1.00</div>
+    <div class="title-ver">v1.01</div>
     <div class="title-desc" id="titleDesc"></div>
     <button class="btn" id="titleBtn" style="margin-top:10px;"></button>
     <div class="kbd-hint" id="kbdHint"></div>
@@ -286,7 +306,17 @@
   </div>
 </div>
 
-<!-- 5: Settings -->
+<!-- 5: Game Over -->
+<div class="overlay hidden" id="gameOverOverlay">
+  <div class="panel">
+    <div id="goTitle"></div>
+    <div id="goResult"></div>
+    <div id="goRanking"></div>
+    <button class="btn" id="gameOverBtn" style="width:100%;max-width:none;">OK</button>
+  </div>
+</div>
+
+<!-- 6: Settings -->
 <div class="overlay hidden" id="settingsOverlay">
   <div class="panel">
     <h2 id="settingsTitle"></h2>

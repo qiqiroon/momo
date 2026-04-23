@@ -41,26 +41,37 @@ class PhysicsEngine {
         bodies.push(this.Bodies.rectangle(offsetX + wt / 2,           cy, wt,   totalH,         opts)); // left
         bodies.push(this.Bodies.rectangle(offsetX + totalW - wt / 2,  cy, wt,   totalH,         opts)); // right
 
-        // Interior walls — chamfered capsules; no corner pillars
-        for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < cols; c++) {
-                const x0 = offsetX + wt + c * cs; // corridor left
-                const y0 = offsetY + wt + r * cs; // corridor top
+        // Interior vertical walls — grouped into continuous runs per column to eliminate junction gaps
+        for (let c = 0; c < cols - 1; c++) {
+            const xc = offsetX + wt + c * cs + cw + wt / 2;
+            let runStart = -1;
+            for (let r = 0; r <= rows; r++) {
+                const hasWall = r < rows && !passages[r][c].right;
+                if (hasWall && runStart === -1) {
+                    runStart = r;
+                } else if (!hasWall && runStart !== -1) {
+                    const yTop = offsetY + wt + runStart * cs;
+                    const yBot = offsetY + wt + (r - 1) * cs + cw;
+                    bodies.push(this.Bodies.rectangle(xc, (yTop + yBot) / 2, wt, yBot - yTop, innerOpts));
+                    runStart = -1;
+                }
+            }
+        }
 
-                // Right wall between (c,r) and (c+1,r)
-                if (c < cols - 1 && !passages[r][c].right) {
-                    const wx = x0 + cw + wt / 2;
-                    const wy = y0 + cw / 2;
-                    bodies.push(this.Bodies.rectangle(wx, wy, wt, cw, innerOpts));
+        // Interior horizontal walls — grouped into continuous runs per row to eliminate junction gaps
+        for (let r = 0; r < rows - 1; r++) {
+            const yc = offsetY + wt + r * cs + cw + wt / 2;
+            let runStart = -1;
+            for (let c = 0; c <= cols; c++) {
+                const hasWall = c < cols && !passages[r][c].down;
+                if (hasWall && runStart === -1) {
+                    runStart = c;
+                } else if (!hasWall && runStart !== -1) {
+                    const xLeft  = offsetX + wt + runStart * cs;
+                    const xRight = offsetX + wt + (c - 1) * cs + cw;
+                    bodies.push(this.Bodies.rectangle((xLeft + xRight) / 2, yc, xRight - xLeft, wt, innerOpts));
+                    runStart = -1;
                 }
-                // Bottom wall between (c,r) and (c,r+1)
-                if (r < rows - 1 && !passages[r][c].down) {
-                    const wx = x0 + cw / 2;
-                    const wy = y0 + cw + wt / 2;
-                    bodies.push(this.Bodies.rectangle(wx, wy, cw, wt, innerOpts));
-                }
-                // No gap-fill bodies — enclosed cross bodies are unreachable;
-                // T/straight-through bodies cause corner catching in corridors
             }
         }
 

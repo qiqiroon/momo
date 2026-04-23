@@ -2,17 +2,18 @@
 
 class GameState {
     constructor() {
-        this.stage  = 1;
-        this.score  = 0;
-        this.lives  = 3;
-        this.balls  = [];
-        this.goals  = [];
-        this.keys   = [];
-        this.items  = [];
-        this.enemies = [];
-        this.pits    = [];
+        this.stage    = 1;
+        this.score    = 0;
+        this.lives    = 3;
+        this.balls    = [];
+        this.goals    = [];
+        this.keys     = [];
+        this.items    = [];
+        this.enemies  = [];
+        this.pits     = [];
         this.clearTimer = 0;
-        this.rng = null;
+        this.rng      = null;
+        this.gameSeed = Math.floor(Math.random() * 1000000);
     }
 
     // Build a stage given a maze
@@ -62,16 +63,21 @@ class GameState {
             const cell = best || {c: maze.cols - 2 - i, r: maze.rows - 2};
             exclude.push(cell);
             const goal = new Goal(i, i, cell.c, cell.r, maze);
-            goal.locked = i < lockedGoals;
             this.goals.push(goal);
         }
 
-        // Place keys for locked goals — randomize which key unlocks which goal
-        const lockedGoalIds = this.goals.filter(g => g.locked).map(g => g.id);
-        for (let i = lockedGoalIds.length - 1; i > 0; i--) {
+        // Randomly choose which goals are locked (not always goal 0 = red)
+        const goalOrder = [...Array(ballCount).keys()];
+        for (let i = goalOrder.length - 1; i > 0; i--) {
             const j = Math.floor(this.rng() * (i + 1));
-            [lockedGoalIds[i], lockedGoalIds[j]] = [lockedGoalIds[j], lockedGoalIds[i]];
+            [goalOrder[i], goalOrder[j]] = [goalOrder[j], goalOrder[i]];
         }
+        for (let i = 0; i < ballCount; i++) {
+            this.goals[goalOrder[i]].locked = i < lockedGoals;
+        }
+
+        // Place keys — one per locked goal
+        const lockedGoalIds = this.goals.filter(g => g.locked).map(g => g.id);
         const keyCells = MazeGenerator.pickCells(maze, keyCount, this.rng, exclude);
         for (let i = 0; i < keyCount; i++) {
             const cell = keyCells[i] || {c: Math.floor(maze.cols/2), r: Math.floor(maze.rows/2)};
@@ -140,7 +146,8 @@ class GameState {
                 return nearbyCells.has(`${bc},${br}`);
             }) ? 2 : 1;
 
-            if (enemy.type === 'TRACKER' && enemy.dirTimer <= 0) {
+            // When within 3 cells: ALL enemy types chase the nearest ball
+            if (speedMult === 2 || (enemy.type === 'TRACKER' && enemy.dirTimer <= 0)) {
                 let nearestBall = null, nearestDist = Infinity;
                 for (const ball of activeBalls) {
                     const dx = ball.x - enemy.x, dy = ball.y - enemy.y;
@@ -154,7 +161,7 @@ class GameState {
                     enemy.vx = (dx / len) * enemy.speed;
                     enemy.vy = (dy / len) * enemy.speed;
                 }
-                enemy.dirTimer = 500;
+                if (enemy.type === 'TRACKER') enemy.dirTimer = 500;
             }
 
             // Bounce off walls, apply speed multiplier

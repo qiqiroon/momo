@@ -126,7 +126,7 @@ class Game {
             wallThickness:   8,
             wallBlockDensity: density,
             warpCount:       this.gs.stage >= 3 ? 1 : 0,
-            seed:            this.gs.stage * 7919
+            seed:            this.gs.stage * 7919 + this.gs.gameSeed
         });
     }
 
@@ -213,14 +213,16 @@ class Game {
 
         // Enemies
         const enemyNameMap = {
-            PATROL:  {icon:'👻', nameKey:'enemyPatrolName',  descKey:'enemyPatrolDesc'},
-            TRACKER: {icon:'🔴', nameKey:'enemyTrackerName', descKey:'enemyTrackerDesc'},
-            SLOW:    {icon:'🔵', nameKey:'enemySlowName',    descKey:'enemySlowDesc'},
+            PATROL:  {nameKey:'enemyPatrolName',  descKey:'enemyPatrolDesc'},
+            TRACKER: {nameKey:'enemyTrackerName', descKey:'enemyTrackerDesc'},
+            SLOW:    {nameKey:'enemySlowName',    descKey:'enemySlowDesc'},
         };
         const seenEnemyTypes = [...new Set(gs.enemies.map(e => e.type))];
         makeSection(t('stageIntroEnemies'), seenEnemyTypes.map(type => {
-            const m = enemyNameMap[type] || {icon:'❓', nameKey: type, descKey: type};
-            return {icon: m.icon, name: t(m.nameKey), desc: t(m.descKey)};
+            const m = enemyNameMap[type] || {nameKey: type, descKey: type};
+            const src = this.renderer.renderEnemyIcon(type, 32);
+            const icon = `<img src="${src}" style="width:28px;height:28px;vertical-align:middle;border-radius:4px;">`;
+            return {icon, name: t(m.nameKey), desc: t(m.descKey)};
         }));
 
         // Items

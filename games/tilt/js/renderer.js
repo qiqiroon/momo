@@ -713,6 +713,71 @@ class Renderer {
         }
     }
 
+    // Render enemy to a small offscreen canvas and return data URL for use in stage intro
+    renderEnemyIcon(type, size = 32) {
+        const off = document.createElement('canvas');
+        off.width = size; off.height = size;
+        const ctx = off.getContext('2d');
+        const color = (ENEMY_TYPES[type] || ENEMY_TYPES.PATROL).color;
+        const x = size / 2, y = size / 2;
+        const radius = size * 0.36;
+
+        ctx.save();
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 4;
+
+        if (type === 'TRACKER') {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            const spikes = 7;
+            for (let i = 0; i < spikes * 2; i++) {
+                const a = (i / (spikes * 2)) * Math.PI * 2;
+                const r = i % 2 === 0 ? radius * 1.25 : radius * 0.65;
+                if (i === 0) ctx.moveTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
+                else         ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
+            }
+            ctx.closePath();
+            ctx.fill();
+        } else if (type === 'SLOW') {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            for (let i = 0; i < 16; i++) {
+                const a = (i / 16) * Math.PI * 2;
+                const r = radius * (1 + 0.2 * Math.sin(a * 3));
+                if (i === 0) ctx.moveTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
+                else         ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
+            }
+            ctx.closePath();
+            ctx.fill();
+        } else {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(x, y - radius * 0.1, radius, Math.PI, 0);
+            const steps = 5;
+            for (let i = 0; i <= steps; i++) {
+                const px = (x + radius) - i * (radius * 2 / steps);
+                const py = y + radius * 0.8;
+                ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(x - radius * 0.25, y - radius * 0.2, radius * 0.25, 0, Math.PI * 2);
+        ctx.arc(x + radius * 0.25, y - radius * 0.2, radius * 0.25, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#222';
+        ctx.beginPath();
+        ctx.arc(x - radius * 0.22, y - radius * 0.15, radius * 0.12, 0, Math.PI * 2);
+        ctx.arc(x + radius * 0.22, y - radius * 0.15, radius * 0.12, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+        return off.toDataURL();
+    }
+
     _darken(hex, factor) {
         const r = parseInt(hex.slice(1, 3), 16);
         const g = parseInt(hex.slice(3, 5), 16);

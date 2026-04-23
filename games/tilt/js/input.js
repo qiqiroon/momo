@@ -9,8 +9,8 @@ class InputHandler {
         this.baseGamma = 0;
         // Settings (loaded from localStorage)
         this.sensitivity    = parseFloat(localStorage.getItem('tilt_sens')    || '1.0');
-        this.maxSpeed       = parseFloat(localStorage.getItem('tilt_maxspd') || '10');
-        this.wallRepulsion  = parseFloat(localStorage.getItem('tilt_wallrep') || '5');
+        this.maxSpeed       = parseFloat(localStorage.getItem('tilt_maxspd') || '20');
+        this.wallRepulsion  = parseFloat(localStorage.getItem('tilt_wallrep') || '2');
         this._keys = {};
         this._gyroActive = false;
         this._wakeLock   = null;

@@ -343,14 +343,12 @@ class Renderer {
             ctx.stroke();
             ctx.shadowBlur = 0;
             ctx.fillStyle = '#fff';
-            ctx.font = `bold ${Math.max(8, radius * 0.75)}px sans-serif`;
+            ctx.font = `bold ${Math.max(8, radius * 0.85)}px sans-serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.shadowColor = '#000';
             ctx.shadowBlur = 3;
-            ctx.fillText(goal.ballId + 1, x, y - radius * 0.18);
-            ctx.font = `${Math.max(7, radius * 0.55)}px sans-serif`;
-            ctx.fillText('🔒', x, y + radius * 0.52);
+            ctx.fillText(goal.ballId + 1, x, y);
             ctx.shadowBlur = 0;
             return;
         }

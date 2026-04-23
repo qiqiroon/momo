@@ -100,7 +100,11 @@ class GameState {
         }
 
         // Place items (SHIELD only if enemies are present)
-        const itemTypes = Object.keys(ITEM_TYPES).filter(k => k !== 'SHIELD' || enemyCount > 0);
+        const itemTypes = Object.keys(ITEM_TYPES).filter(k => {
+            if (k === 'SHIELD' && enemyCount === 0) return false;
+            if (k === 'FREEZE' && ballCount <= 1) return false;
+            return true;
+        });
         const itemCells = MazeGenerator.pickCells(maze, itemCount, this.rng, exclude);
         for (let i = 0; i < itemCells.length; i++) {
             const cell = itemCells[i];
@@ -248,11 +252,17 @@ class GameState {
             const lx = relX - c * cs;
             const ly = relY - r * cs;
             if (lx < 0 || ly < 0) return true;
-            if (lx >= cw && ly >= cw) return true; // corner
-            if (lx >= cw && c < cols - 1 && !passages[r][c].right) return true;
-            if (ly >= cw && r < rows - 1 && !passages[r][c].down) return true;
-            if (lx >= cw && c >= cols - 1) return true;
-            if (ly >= cw && r >= rows - 1) return true;
+            if (lx >= cw && ly < cw) {
+                // right-wall strip
+                if (c >= cols - 1 || !passages[r][c].right) return true;
+            } else if (ly >= cw && lx < cw) {
+                // bottom-wall strip
+                if (r >= rows - 1 || !passages[r][c].down) return true;
+            } else if (lx >= cw && ly >= cw) {
+                // junction square — no physics body here
+                if (c >= cols - 1 || r >= rows - 1) return true;
+                // interior junction: passable (open space between walls)
+            }
         }
         return false;
     }

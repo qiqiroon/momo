@@ -239,7 +239,7 @@ class PhysicsEngine {
             }
             // Apply perpendicular force when ball edge closely approaches a wall
             for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
-                if (isWall(ball.x + dx * (r + 1), ball.y + dy * (r + 1))) {
+                if (isWallStrict(ball.x + dx * (r + 1), ball.y + dy * (r + 1))) {
                     Matter.Body.applyForce(ball.body, ball.body.position, {
                         x: -dx * this.WALL_REPULSION * ball.body.mass,
                         y: -dy * this.WALL_REPULSION * ball.body.mass

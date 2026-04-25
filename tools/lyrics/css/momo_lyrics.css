@@ -1,0 +1,514 @@
+/* MOMO Lyrics スタイルシート
+   v1.10: 既存<style>を外部化し、プレイモード/トグル/プレビュー等の新規CSSを追加
+   デザイン仕様書(L:/momo/works/docs/design/design-spec-v1_0.md)のダーク×オレンジ体系に準拠 */
+
+/* ── デザイン仕様書準拠のCSS変数 ── */
+:root {
+    --bg:          #0a0a0a;
+    --surface:     #111111;
+    --surface2:    #1a1a1a;
+    --orange:      #c2410c;
+    --orange-mid:  #ea580c;
+    --orange-light:#fb923c;
+    --text:        #e5e5e5;
+    --text-muted:  #737373;
+    --border:      #2a2a2a;
+    --border-strong: #444;
+    --bg-selected: rgba(194,65,12,0.15);
+}
+
+/* ── アニメーション ── */
+@keyframes fadeDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+body {
+    margin: 0;
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    line-height: 1.6;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 48px 48px;
+    background-attachment: fixed;
+}
+
+body::before {
+    content: ''; position: fixed; inset: 0; background: var(--bg); opacity: 0.8; z-index: 0; pointer-events: none;
+}
+
+.page-wrap {
+    position: relative; z-index: 1; width: 100%; max-width: 900px; padding: 40px 24px; box-sizing: border-box;
+}
+
+/* 言語切り替え（v1.10: プルダウン化 cat-lang-spec.txt準拠） */
+#lang-switcher { position: fixed; top: 8px; right: 12px; z-index: 200; }
+#lang-select {
+    background: var(--surface2);
+    border: 1px solid var(--border-strong);
+    color: var(--text);
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: 'Noto Sans JP', sans-serif;
+    outline: none;
+}
+#lang-select:focus { border-color: var(--orange); }
+
+/* ヘッダー・パンくず */
+.breadcrumb { font-size: 12px; color: var(--text-muted); margin-bottom: 32px; animation: fadeDown 0.5s ease backwards; }
+.breadcrumb a { color: var(--text-muted); text-decoration: none; }
+.breadcrumb a:hover { color: var(--orange-light); }
+
+header { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; animation: fadeDown 0.5s ease backwards; }
+.cat-icon { width: 52px; height: 44px; flex-shrink: 0; }
+
+h1 { font-family: 'Fredoka One', cursive; font-size: 2.5rem; margin: 0; font-weight: 400; color: #fff; }
+h1 span { color: var(--orange-mid); }
+.version-badge {
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    letter-spacing: 0.06em;
+    vertical-align: middle;
+    margin-left: 10px;
+    position: relative;
+    top: -4px;
+}
+.header-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 40px; animation: fadeDown 0.5s ease 0.1s backwards; }
+
+/* タブ（v1.10: 3列化） */
+.tab-container { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; animation: fadeUp 0.5s ease 0.2s backwards; }
+.tab-btn {
+    background: var(--surface); border: 1px solid var(--border); color: var(--text-muted); padding: 16px;
+    border-radius: 12px; cursor: pointer; font-weight: 700; transition: all 0.2s;
+}
+.tab-btn.active { border-color: var(--orange); color: var(--orange-mid); background: var(--bg-selected); }
+
+/* メインカード */
+.tool-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 32px; margin-bottom: 24px; animation: fadeUp 0.5s ease 0.3s backwards; }
+.section-label { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.section-label span { font-size: 12px; font-weight: 700; color: var(--orange); text-transform: uppercase; letter-spacing: 0.1em; }
+.section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+.search-box { display: flex; gap: 10px; margin-bottom: 20px; }
+input[type="text"] { flex-grow: 1; padding: 12px; background: var(--surface2); border: 1px solid var(--border-strong); border-radius: 8px; font-size: 14px; color: var(--text); outline: none; }
+
+.momo-btn {
+    background: var(--orange); color: white; border: none; padding: 12px 24px; border-radius: 8px;
+    cursor: pointer; font-weight: bold; font-size: 14px; transition: 0.2s;
+}
+.momo-btn:hover:not(:disabled) { background: var(--orange-mid); }
+.momo-btn:disabled { background: var(--border-strong); color: var(--text-muted); cursor: not-allowed; }
+
+#log, #resultsList {
+    background: #000; border: 1px solid var(--border); border-radius: 8px; height: 450px;
+    overflow-y: auto; padding: 15px; font-family: monospace; font-size: 13px;
+}
+.entry { margin-bottom: 6px; border-bottom: 1px solid #1a1a1a; padding-bottom: 4px; color: var(--text-muted); text-align: left; }
+.success { color: #81c995; }
+.error { color: #f28b82; }
+.wait { color: var(--orange-light); }
+
+/* 検索結果アイテム（v1.10: プレビュー対応で縦積みに変更） */
+.result-item {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+.result-item > .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+.song-info { display: flex; flex-direction: column; gap: 4px; text-align: left; }
+.song-title { font-weight: bold; color: #fff; font-size: 14px; }
+.song-meta { font-size: 11px; color: var(--text-muted); }
+
+/* プレビュー領域（要件3） */
+.preview-panel {
+    margin-top: 12px;
+    padding: 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    max-height: 240px;
+    overflow-y: auto;
+    font-family: monospace;
+    font-size: 12px;
+    color: var(--text);
+    white-space: pre-wrap;
+    text-align: left;
+}
+
+/* トグル行（要件2/要件5） */
+.toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+    cursor: pointer;
+    user-select: none;
+}
+.toggle-row input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--orange);
+    cursor: pointer;
+}
+
+/* プレイモード（要件4） */
+.play-source-area { margin-bottom: 24px; }
+
+/* v1.17: ライブラリ登録/開くコントロール */
+.library-controls { margin-bottom: 8px; }
+.library-register, .library-loaded {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.library-name {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-left: 6px;
+    word-break: break-all;
+}
+
+/* v1.17: ヒント文 */
+.open-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin: 0 0 16px 0;
+    line-height: 1.5;
+}
+
+/* v1.17: ライブラリツリー */
+.library-tree {
+    background: #000;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    max-height: 320px;
+    overflow-y: auto;
+    padding: 10px 14px;
+    font-size: 13px;
+    text-align: left;
+    margin-bottom: 16px;
+}
+.library-tree ul {
+    list-style: none;
+    padding-left: 16px;
+    margin: 0;
+}
+.library-tree > ul { padding-left: 0; }
+.lib-folder, .lib-file {
+    cursor: pointer;
+    padding: 3px 6px;
+    border-radius: 4px;
+    color: var(--text);
+    user-select: none;
+}
+.lib-folder:hover, .lib-file:hover {
+    background: var(--surface2);
+    color: var(--orange-light);
+}
+.lib-folder::before {
+    content: '▶';
+    display: inline-block;
+    margin-right: 6px;
+    color: var(--orange-mid);
+    font-size: 9px;
+    transition: transform 0.15s;
+}
+.lib-folder.expanded::before {
+    content: '▼';
+}
+.lib-folder.loading::before {
+    content: '…';
+}
+.lib-file { color: var(--text-muted); }
+.lib-file.lrc { color: var(--orange-light); }
+.lib-file.txt { color: #81c995; }
+.lib-file.has-audio::after {
+    content: ' ♪';
+    color: var(--orange-mid);
+    font-size: 11px;
+    margin-left: 4px;
+}
+.lib-empty {
+    color: var(--text-muted);
+    font-style: italic;
+    font-size: 12px;
+    padding: 4px 6px;
+}
+
+.history-list {
+    background: #000;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    max-height: 160px;
+    overflow-y: auto;
+    padding: 10px;
+}
+.history-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    transition: 0.15s;
+}
+.history-item:hover { border-color: var(--orange); }
+.history-item.selected { border-color: var(--orange); background: var(--bg-selected); }
+
+.audio-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+    padding: 16px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+/* v1.18: 標準 audio コントロールに戻す(倍速・音量を提供) */
+.audio-controls audio {
+    flex: 1 1 100%;
+    margin-top: 8px;
+    accent-color: var(--orange-mid);
+    color-scheme: dark;
+}
+.audio-file-name { font-size: 12px; color: var(--text-muted); }
+
+/* 差分バナー(v1.11: 保存前LRCとの差分表示) */
+.diff-banner {
+    background: var(--surface2);
+    border: 1px solid var(--orange);
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    font-size: 12px;
+    color: var(--orange-light);
+    text-align: left;
+    white-space: pre-wrap;
+}
+
+.lyrics-view {
+    position: relative;
+    background: #000;
+    border: 1px solid var(--border);
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    border-bottom: none;
+    height: 280px;
+    min-height: 100px;
+    max-height: 80vh;
+    overflow-y: auto;
+    overflow-anchor: none;
+    overscroll-behavior: contain;
+    padding: 20px;
+    font-size: 15px;
+    line-height: 2.0;
+    text-align: center;
+    /* v1.18: 独自ハンドル方式に変更したため、CSS resize は無効化 */
+    resize: none;
+}
+
+/* v1.18: 歌詞ウィンドウのリサイズハンドル */
+.lyrics-resize-handle {
+    height: 14px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+    cursor: ns-resize;
+    position: relative;
+    margin-bottom: 8px;
+    user-select: none;
+    touch-action: none;
+}
+.lyrics-resize-handle:hover { background: var(--bg-selected); }
+.lyrics-resize-handle::after {
+    content: '═';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    color: var(--text-muted);
+    font-size: 11px;
+    line-height: 1;
+    letter-spacing: 2px;
+}
+.lyrics-line {
+    padding: 4px 12px;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 4px;
+    transition: 0.15s;
+}
+.lyrics-line:hover { background: var(--surface2); }
+.lyrics-line.current {
+    color: var(--orange-light);
+    font-weight: 700;
+    font-size: 17px;
+    background: var(--bg-selected);
+}
+.lyrics-line.unassigned { color: #555; font-style: italic; }
+.lyrics-line.info-header { color: var(--orange-mid); font-weight: 700; }
+
+/* v1.18: 1行目のタイトル化チェックボックス */
+.lyrics-line {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+.title-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--text-muted);
+    cursor: pointer;
+    user-select: none;
+    flex-shrink: 0;
+}
+.title-toggle input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    accent-color: var(--orange);
+    cursor: pointer;
+    margin: 0;
+}
+.title-toggle .title-icon {
+    color: var(--orange-mid);
+    font-size: 12px;
+}
+.lyrics-line.title-fixed .lyrics-line-text {
+    color: var(--orange-mid);
+    font-weight: 700;
+}
+
+/* v1.12: 行ごとのタイミング差分表示 */
+.lyrics-line .line-diff {
+    display: inline-block;
+    margin-left: 10px;
+    font-size: 11px;
+    color: var(--orange-light);
+    font-weight: 500;
+    opacity: 0.85;
+}
+.lyrics-line.current .line-diff { color: #fff; opacity: 1; }
+
+/* v1.18: カスタムシークバー削除済み (標準 audio controls に戻したため) */
+
+.adjust-controls {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 16px;
+}
+.adjust-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+.adjust-row label { font-size: 13px; color: var(--text-muted); }
+.adjust-row input[type="number"] {
+    width: 100px;
+    padding: 6px 8px;
+    background: var(--bg);
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    color: var(--text);
+}
+.momo-btn-small {
+    background: var(--surface);
+    color: var(--orange-light);
+    border: 1px solid var(--orange);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    font-weight: 700;
+}
+.momo-btn-small:hover { background: var(--bg-selected); }
+
+.tap-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 16px;
+    padding: 16px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    flex-wrap: wrap;
+}
+.momo-btn-tap {
+    background: var(--orange-mid);
+    font-size: 18px;
+    padding: 16px 40px;
+}
+.save-status { font-size: 12px; color: var(--orange-light); }
+
+/* v1.13: 曲名/アーティスト 入力+追加ボタン */
+.info-add-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+.info-add-row input[type="text"] {
+    flex: 1 1 140px;
+    padding: 8px 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--text);
+    outline: none;
+}
+.info-add-row button { padding: 8px 20px; font-size: 13px; }
+
+/* v1.13: フォルダ一括処理後の結果リスト */
+.folder-results {
+    margin-top: 16px;
+    max-height: 420px;
+    overflow-y: auto;
+}
+.folder-results .result-item { margin-bottom: 8px; }
+.btn-disable {
+    background: var(--border-strong);
+    color: var(--text);
+    border: 1px solid var(--border-strong);
+}
+.btn-disable:hover:not(:disabled) { background: #555; }
+.result-item.disabled { opacity: 0.5; }
+
+footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-muted); text-align: center; animation: fadeUp 0.5s ease 0.5s backwards; }
+.hidden { display: none; }

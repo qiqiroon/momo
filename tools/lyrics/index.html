@@ -1,138 +1,85 @@
 <!DOCTYPE html>
 <!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
-<!-- MOMO Lyrics 内部バージョン: v1.01
+<!-- MOMO Lyrics 内部バージョン: v1.20
      変更履歴:
-       v1.01 - 待機メッセージ・初期メッセージの3言語対応、folderLabel/searchLabelの多言語化、バージョン表示追加 -->
+       v1.01 - 待機メッセージ・初期メッセージの3言語対応、folderLabel/searchLabelの多言語化、バージョン表示追加
+       v1.10 - プレイモード追加(要件4)、既存LRCスキップ(要件1)、0秒情報追加(要件2)、プレビュー(要件3)、
+               オフセット調整と保存(要件5)、txt→TAP(要件6)、書き戻し(要件7)、4言語対応(ja/en/zh/cat)
+               ファイルを css/momo_lyrics.css と js/*.js に分割
+       v1.11 - 変更1.txt対応:
+               プレビュー開/閉ラベル切替、歌詞ウィンドウ内スクロール+リサイズ、シークバー色改善、
+               オフセット符号反転(マイナスで遅延)、保存時のUser activation維持(confirm削除+requestPermission)、
+               差分表示、0秒情報行の保持、負値0丸め、LRC/TXT開く時の音源自動ロード(multiple選択)、
+               TAP後のハイライト/スクロール修正、±0.1s前後行クランプ、TXT→LRC同フォルダ保存、
+               TXT 0秒情報追加、保存後audio 0復帰
+       v1.12 - 変更2.txt対応:
+               プレビュー▼▲を全言語統一、スクロール真因修正(getBoundingClientRect)、
+               カスタムシークバー(オレンジ丸+進捗線)、行ごとの差分表示、
+               findCurrentLineIndexで未割当行スキップ(TAP最終行スクロール根本修正)、
+               LRC/TXT同名音源baseName一致優先、プレイ画面に0秒情報追加トグル、
+               TAP押下時発火(pointerdown)
+       v1.13 - 変更3.txt対応:
+               個別検索の部分一致対応(「曲名 / アーティスト」区切り)、
+               スクロールnearest判定で視界内なら据え置き、シークバー色コントラスト強化、
+               行差分をoriginalTimeMs方式に変更(同テキスト複数行も正しく)、
+               .lrc/.txt開いた時の同名音源2段階ピッカー化、
+               プレイ画面の0秒情報トグル廃止→曲名/アーティスト入力欄+追加ボタン、
+               履歴選択時audio 0復帰、ポーズ中行クリック→1行プレビュー、
+               フォルダ一括結果のリスト表示+プレビュー+無効化ボタン
+       v1.14 - 変更4.txt対応:
+               .lrc/.txt 開く操作を showDirectoryPicker に変更し、フォルダ内の同名音源を
+               完全自動でロード(ユーザー選択不要)。各履歴エントリに音源を紐付け、
+               履歴選択時に音源を自動切替。標準 audio コントロールを非表示にし
+               カスタム再生/停止+シークバーのみで表示(2本→1本)。歌詞ウィンドウの
+               min-height を 100px に縮小、デフォルト280px。一時停止中に±でも1行プレビュー継続
+       v1.15 - ファイル選択UX修正:
+               ボタンラベルを「.lrcのあるフォルダを開く」に明示化(4言語)、ヒント文追加、
+               権限モードを 'read' に変更(保存時のみ readwrite を要求)、
+               scanDirectory で getFile() を遅延化、エラー時 alert 表示
+       v1.16 - ファイル選択UIに戻す:
+               フォルダ選択(showDirectoryPicker)では複数lrcから選べない問題を解消するため、
+               showOpenFilePicker(multiple:true) によるファイル選択方式に変更。
+               .lrc/.txt と音源ファイルを Ctrl+クリックで同時選択可能。
+               baseName 一致の音源を自動ペアリング。
+       v1.17 - ライブラリ登録方式:
+               音楽ライブラリのルートフォルダを登録し、IndexedDB に永続化。
+               起動時に1回だけ権限承認すれば、フォルダツリーから .lrc/.txt をクリックして開ける。
+               フォルダは展開時に遅延スキャン(直下のみ)、同フォルダの同名音源を自動ロード。
+               File System Access API の制約に沿った最良UX。
+       v1.18 - シークバー/タイトル/リサイズ修正:
+               シークバーを標準 audio controls に戻す(倍速・音量を回復)。
+               ポーズ中の±はポーズ維持して位置だけ変更(自動再生しない)。
+               1行プレビュー終了で対象行先頭に戻る(次行に移らない)。
+               歌詞ウィンドウのサイズ変更を独自ドラッグハンドルで実装(resize:vertical の代替)。
+               1行目左にタイトルチェックボックス。ON=0秒固定/編集対象外、OFF=通常行。
+       v1.19 - 行ロック+1行プレビュー連動:
+               ユーザー選択行 (focusedIdx) を独立管理。±押下や1行プレビュー中は
+               この行を current にロックし、findCurrentLineIndex の自動切替を抑制。
+               連続±押下でも対象行が変動しない。ポーズ中の±は対象行を1回だけ再生し、
+               終了時に対象行先頭で停止(次行に進まず、別行への自動切替もしない)。
+       v1.20 - 行クリック連発でも1行プレビュー維持:
+               プレビュー中(oneLineStopAt>=0)なら audio.paused でなくても
+               「クリックされた新しい行の1行プレビュー」に切り替えるよう修正。
+               ユーザーが明示的に再生ボタンを押した場合のみ通常再生に移行。 -->
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MOMO Lyrics - MOMO Works</title>
-    
+
     <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/momo_lyrics.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
-
-    <style>
-        /* ── デザイン仕様書準拠のCSS変数 ── */
-        :root {
-            --bg:          #0a0a0a;
-            --surface:     #111111;
-            --surface2:    #1a1a1a;
-            --orange:      #c2410c;
-            --orange-mid:  #ea580c;
-            --orange-light:#fb923c;
-            --text:        #e5e5e5;
-            --text-muted:  #737373;
-            --border:      #2a2a2a;
-            --border-strong: #444;
-            --bg-selected: rgba(194,65,12,0.15);
-        }
-
-        /* ── アニメーション ── */
-        @keyframes fadeDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-        body {
-            margin: 0;
-            background-color: var(--bg);
-            color: var(--text);
-            font-family: 'Noto Sans JP', sans-serif;
-            line-height: 1.6;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            background-image: 
-                linear-gradient(var(--border) 1px, transparent 1px),
-                linear-gradient(90deg, var(--border) 1px, transparent 1px);
-            background-size: 48px 48px;
-            background-attachment: fixed;
-        }
-
-        body::before {
-            content: ''; position: fixed; inset: 0; background: var(--bg); opacity: 0.8; z-index: 0; pointer-events: none;
-        }
-
-        .page-wrap {
-            position: relative; z-index: 1; width: 100%; max-width: 900px; padding: 40px 24px; box-sizing: border-box;
-        }
-
-        /* 言語切り替え */
-        #lang-switcher { position: fixed; top: 8px; right: 12px; display: flex; gap: 4px; z-index: 200; }
-        .lang-btn { background: transparent; border: 0.5px solid var(--border-strong); color: var(--text-muted); font-size: 10px; padding: 3px 7px; border-radius: 4px; cursor: pointer; }
-        .lang-btn.active { color: var(--orange-light); border-color: var(--orange); background: var(--bg-selected); }
-
-        /* ヘッダー・パンくず */
-        .breadcrumb { font-size: 12px; color: var(--text-muted); margin-bottom: 32px; animation: fadeDown 0.5s ease backwards; }
-        .breadcrumb a { color: var(--text-muted); text-decoration: none; }
-        .breadcrumb a:hover { color: var(--orange-light); }
-
-        header { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; animation: fadeDown 0.5s ease backwards; }
-        .cat-icon { width: 52px; height: 44px; flex-shrink: 0; }
-        
-        h1 { font-family: 'Fredoka One', cursive; font-size: 2.5rem; margin: 0; font-weight: 400; color: #fff; }
-        h1 span { color: var(--orange-mid); }
-        .version-badge {
-            font-family: 'Noto Sans JP', sans-serif;
-            font-size: 0.7rem;
-            font-weight: 500;
-            color: var(--text-muted);
-            letter-spacing: 0.06em;
-            vertical-align: middle;
-            margin-left: 10px;
-            position: relative;
-            top: -4px;
-        }
-        .header-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 40px; animation: fadeDown 0.5s ease 0.1s backwards; }
-
-        /* タブ */
-        .tab-container { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; animation: fadeUp 0.5s ease 0.2s backwards; }
-        .tab-btn {
-            background: var(--surface); border: 1px solid var(--border); color: var(--text-muted); padding: 16px; 
-            border-radius: 12px; cursor: pointer; font-weight: 700; transition: all 0.2s;
-        }
-        .tab-btn.active { border-color: var(--orange); color: var(--orange-mid); background: var(--bg-selected); }
-
-        /* メインカード */
-        .tool-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 32px; margin-bottom: 24px; animation: fadeUp 0.5s ease 0.3s backwards; }
-        .section-label { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
-        .section-label span { font-size: 12px; font-weight: 700; color: var(--orange); text-transform: uppercase; letter-spacing: 0.1em; }
-        .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-
-        .search-box { display: flex; gap: 10px; margin-bottom: 20px; }
-        input[type="text"] { flex-grow: 1; padding: 12px; background: var(--surface2); border: 1px solid var(--border-strong); border-radius: 8px; font-size: 14px; color: var(--text); outline: none; }
-        
-        .momo-btn {
-            background: var(--orange); color: white; border: none; padding: 12px 24px; border-radius: 8px; 
-            cursor: pointer; font-weight: bold; font-size: 14px; transition: 0.2s;
-        }
-        .momo-btn:hover:not(:disabled) { background: var(--orange-mid); }
-        .momo-btn:disabled { background: var(--border-strong); color: var(--text-muted); cursor: not-allowed; }
-
-        #log, #resultsList {
-            background: #000; border: 1px solid var(--border); border-radius: 8px; height: 450px; 
-            overflow-y: auto; padding: 15px; font-family: monospace; font-size: 13px;
-        }
-        .entry { margin-bottom: 6px; border-bottom: 1px solid #1a1a1a; padding-bottom: 4px; color: var(--text-muted); text-align: left; }
-        .success { color: #81c995; }
-        .error { color: #f28b82; }
-        .wait { color: var(--orange-light); }
-
-        .result-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; }
-        .song-info { display: flex; flex-direction: column; gap: 4px; text-align: left; }
-        .song-title { font-weight: bold; color: #fff; font-size: 14px; }
-        .song-meta { font-size: 11px; color: var(--text-muted); }
-
-        footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-muted); text-align: center; animation: fadeUp 0.5s ease 0.5s backwards; }
-        .hidden { display: none; }
-    </style>
 </head>
 <body>
 
 <div id="lang-switcher">
-    <button class="lang-btn" data-lang="ja">日本語</button>
-    <button class="lang-btn" data-lang="en">EN</button>
-    <button class="lang-btn" data-lang="zh">中文</button>
+    <select id="lang-select">
+        <option value="ja">日本語</option>
+        <option value="en">EN</option>
+        <option value="zh">中文</option>
+        <option value="cat">CAT</option>
+    </select>
 </div>
 
 <div class="page-wrap">
@@ -152,23 +99,29 @@
                 </g>
             </svg>
         </div>
-        <h1>MOMO <span>Lyrics</span><span class="version-badge">v1.01</span></h1>
+        <h1>MOMO <span>Lyrics</span><span class="version-badge">v1.20</span></h1>
     </header>
     <p class="header-sub" id="header-sub">LRCLIB APIを利用した同期歌詞（.lrc）の取得・保存ツール</p>
 
     <div class="tab-container">
-        <button class="tab-btn active" id="tab-folder" onclick="switchTab('folder')">フォルダ一括処理</button>
-        <button class="tab-btn" id="tab-search" onclick="switchTab('search')">個別検索保存</button>
+        <button class="tab-btn active" id="tab-folder" onclick="MOMO.app.switchTab('folder')">フォルダ一括処理</button>
+        <button class="tab-btn" id="tab-search" onclick="MOMO.app.switchTab('search')">個別検索保存</button>
+        <button class="tab-btn" id="tab-play" onclick="MOMO.app.switchTab('play')">プレイ</button>
     </div>
 
     <div id="folder-section" class="tool-card">
         <div class="section-label"><span id="folder-label">Folder Batch Processing</span></div>
-        <p id="folder-desc" style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">選択したフォルダ内の音楽ファイル（MP3/M4A/FLAC）を解析し、歌詞を自動保存します。</p>
+        <p id="folder-desc" style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">選択したフォルダ内の音楽ファイル(MP3/M4A/FLAC)を解析し、歌詞を自動保存します。</p>
         <div class="search-box">
             <button id="startBtn" class="momo-btn">フォルダを選択して開始</button>
             <span id="status-msg" style="align-self: center; font-weight: bold; color: var(--orange-mid); font-size: 14px;"></span>
         </div>
+        <label class="toggle-row">
+            <input type="checkbox" id="toggle-add-info-folder">
+            <span id="label-add-info-folder">曲名・アーティスト情報を0秒に追加</span>
+        </label>
         <div id="log"><div class="entry"><span id="log-init-msg">待機中... フォルダを選択してください。</span></div></div>
+        <div id="folderResults" class="folder-results hidden"></div>
     </div>
 
     <div id="search-section" class="tool-card hidden">
@@ -177,7 +130,77 @@
             <input type="text" id="query" placeholder="曲名 アーティスト名" autocomplete="off">
             <button id="searchBtn" class="momo-btn">検索</button>
         </div>
+        <label class="toggle-row">
+            <input type="checkbox" id="toggle-add-info-search">
+            <span id="label-add-info-search">曲名・アーティスト情報を0秒に追加</span>
+        </label>
         <div id="resultsList"><div class="entry"><span id="search-init-msg">キーワードを入力して検索してください。</span></div></div>
+    </div>
+
+    <div id="play-section" class="tool-card hidden">
+        <div class="section-label"><span id="play-label">Play Mode</span></div>
+
+        <div class="play-source-area">
+            <div class="library-controls">
+                <div id="library-register-row" class="library-register hidden">
+                    <button id="registerLibraryBtn" class="momo-btn">音楽フォルダを登録</button>
+                </div>
+                <div id="library-loaded-row" class="library-loaded hidden">
+                    <button id="openLibraryBtn" class="momo-btn">ライブラリを開く</button>
+                    <button id="changeLibraryBtn" class="momo-btn-small">変更</button>
+                    <span id="library-name" class="library-name"></span>
+                </div>
+            </div>
+            <p id="open-hint" class="open-hint">※音楽ライブラリのルートフォルダを登録すると、フォルダツリーから歌詞(.lrc/.txt)を選んで開けます。同名の音源は自動的に読み込まれます。</p>
+            <div id="library-tree" class="library-tree hidden"></div>
+            <div id="historyList" class="history-list">
+                <div class="entry"><span id="history-empty-msg">ダウンロード済み歌詞はここに表示されます</span></div>
+            </div>
+        </div>
+
+        <div class="audio-controls hidden" id="audio-controls">
+            <button id="chooseAudioBtn" class="momo-btn">音源ファイルを選択</button>
+            <span id="audio-file-name" class="audio-file-name"></span>
+            <audio id="audio-player" controls preload="metadata"></audio>
+        </div>
+
+        <div class="info-add-row hidden" id="info-add-row">
+            <input type="text" id="info-title-input" placeholder="曲名" autocomplete="off">
+            <input type="text" id="info-artist-input" placeholder="アーティスト" autocomplete="off">
+            <button id="addInfoBtn" class="momo-btn">追加</button>
+        </div>
+
+        <div id="diff-banner" class="diff-banner hidden"></div>
+        <div id="lyrics-view" class="lyrics-view hidden"></div>
+        <div id="lyrics-resize-handle" class="lyrics-resize-handle hidden" aria-label="resize"></div>
+
+        <div class="adjust-controls hidden" id="adjust-controls">
+            <div class="adjust-row">
+                <label id="label-global-offset">全体オフセット(ms):</label>
+                <input type="number" id="globalOffsetInput" step="100" value="0">
+            </div>
+            <div class="adjust-row">
+                <label id="label-current-line">現在行:</label>
+                <button id="offsetMinusBtn" class="momo-btn-small">−0.1s</button>
+                <button id="offsetPlusBtn" class="momo-btn-small">+0.1s</button>
+            </div>
+            <div class="adjust-row">
+                <label class="toggle-row">
+                    <input type="checkbox" id="toggle-save-as-offset-tag">
+                    <span id="label-save-as-offset-tag">offsetタグとして保存(互換性のあるプレイヤー用)</span>
+                </label>
+            </div>
+            <div class="adjust-row">
+                <button id="saveLyricsBtn" class="momo-btn">保存</button>
+                <span id="save-status" class="save-status"></span>
+            </div>
+        </div>
+
+        <div class="tap-controls hidden" id="tap-controls">
+            <button id="tapBtn" class="momo-btn momo-btn-tap">TAP</button>
+            <button id="undoTapBtn" class="momo-btn">Undo</button>
+            <span id="tap-progress"></span>
+        </div>
     </div>
 
     <footer>
@@ -186,252 +209,14 @@
     </footer>
 </div>
 
-<script>
-    // ── 多言語辞書 ──
-    const I18N = {
-        ja: {
-            breadcrumb: "MOMO Lyrics", headerSub: "LRCLIB APIを利用した同期歌詞（.lrc）の取得・保存ツール",
-            tabFolder: "フォルダ一括処理", tabSearch: "個別検索保存",
-            folderLabel: "フォルダ一括処理",
-            folderDesc: "選択したフォルダ内の音楽ファイル（MP3/M4A/FLAC）を解析し、歌詞を自動保存します。",
-            startBtn: "フォルダを選択して開始",
-            searchLabel: "個別検索・保存",
-            logInitMsg: "待機中... フォルダを選択してください。",
-            searchInitMsg: "キーワードを入力して検索してください。",
-            searchPlaceholder: "曲名 アーティスト名", searchBtn: "検索", footerBack: "← MOMO Works に戻る",
-            startMsg: "処理を開始しました。", fileCount: "対象ファイル: {n} 件", waiting: "5秒待機中...",
-            finishMsg: "すべての処理が終了しました。", searching: "検索中...",
-            noResults: "歌詞が見つかりませんでした。", saveBtn: "保存", anal: "解析: ", found: "保存: ", fail: "未検出"
-        },
-        en: {
-            breadcrumb: "MOMO Lyrics", headerSub: "Fetch and save .lrc lyrics via LRCLIB API",
-            tabFolder: "Batch Processing", tabSearch: "Manual Search",
-            folderLabel: "Folder Batch Processing",
-            folderDesc: "Analyze audio files in the selected folder and auto-save lyrics.",
-            startBtn: "Select Folder & Start",
-            searchLabel: "Manual Lyrics Search",
-            logInitMsg: "Waiting... Please select a folder.",
-            searchInitMsg: "Enter a keyword to search.",
-            searchPlaceholder: "Title, Artist", searchBtn: "Search", footerBack: "← Back to MOMO Works",
-            startMsg: "Process started.", fileCount: "Files found: {n}", waiting: "Waiting 5s...",
-            finishMsg: "All completed.", searching: "Searching...",
-            noResults: "Not found.", saveBtn: "Save", anal: "Analyzing: ", found: "Saved: ", fail: "Not Found"
-        },
-        zh: {
-            breadcrumb: "MOMO Lyrics", headerSub: "利用 LRCLIB API 获取并保存 .lrc 歌词",
-            tabFolder: "文件夹批量处理", tabSearch: "手动搜索保存",
-            folderLabel: "文件夹批量处理",
-            folderDesc: "解析所选文件夹中的音频文件并自動保存歌词。",
-            startBtn: "选择文件夹并開始",
-            searchLabel: "手动搜索・保存",
-            logInitMsg: "等待中... 请选择文件夹。",
-            searchInitMsg: "请输入关键词进行搜索。",
-            searchPlaceholder: "歌名、歌手名", searchBtn: "搜索", footerBack: "← 返回 MOMO Works",
-            startMsg: "已開始处理。", fileCount: "目标文件: {n} 件", waiting: "等待5秒...",
-            finishMsg: "处理完成。", searching: "正在搜索...",
-            noResults: "未找到歌词。", saveBtn: "保存", anal: "解析: ", found: "保存: ", fail: "未找到"
-        }
-    };
-
-    let curLang = localStorage.getItem('momoLang') || 'ja';
-
-    function applyLang() {
-        const d = I18N[curLang] || I18N.ja;
-        document.getElementById('breadcrumb-current').textContent = d.breadcrumb;
-        document.getElementById('header-sub').textContent = d.headerSub;
-        document.getElementById('tab-folder').textContent = d.tabFolder;
-        document.getElementById('tab-search').textContent = d.tabSearch;
-        document.getElementById('folder-label').textContent = d.folderLabel;
-        document.getElementById('folder-desc').textContent = d.folderDesc;
-        document.getElementById('startBtn').textContent = d.startBtn;
-        document.getElementById('search-label').textContent = d.searchLabel;
-        document.getElementById('log-init-msg').textContent = d.logInitMsg;
-        document.getElementById('search-init-msg').textContent = d.searchInitMsg;
-        document.getElementById('query').placeholder = d.searchPlaceholder;
-        document.getElementById('searchBtn').textContent = d.searchBtn;
-        document.getElementById('footer-back').textContent = d.footerBack;
-        document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('active', b.dataset.lang === curLang));
-    }
-
-    function switchTab(type) {
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        document.getElementById(type === 'folder' ? 'tab-folder' : 'tab-search').classList.add('active');
-        document.getElementById('folder-section').classList.toggle('hidden', type !== 'folder');
-        document.getElementById('search-section').classList.toggle('hidden', type !== 'search');
-    }
-
-    function addLog(msg, type = '') {
-        const log = document.getElementById('log');
-        const entry = document.createElement('div');
-        entry.className = `entry ${type}`;
-        entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-        log.appendChild(entry);
-        log.scrollTop = log.scrollHeight;
-    }
-
-    // ── 【重要】高ヒット率：3段階検索ロジック ──
-    async function fetchLyrics(title, artist) {
-        const queries = [
-            // 1. 歌手名＋曲名で正確に検索
-            `https://lrclib.net/api/get?track_name=${encodeURIComponent(title)}&artist_name=${encodeURIComponent(artist)}`,
-            // 2. キーワード検索（歌手＋曲名）
-            `https://lrclib.net/api/search?q=${encodeURIComponent((artist + " " + title).trim())}`,
-            // 3. キーワード検索（曲名のみ）
-            `https://lrclib.net/api/search?q=${encodeURIComponent(title)}`
-        ];
-
-        // 最初は厳密な get API を試す
-        try {
-            const res = await fetch(queries[0]);
-            if (res.ok) {
-                const data = await res.json();
-                if (data.syncedLyrics) return data.syncedLyrics;
-            }
-        } catch(e) {}
-
-        // 次に search API を順番に試す
-        for (let i = 1; i < queries.length; i++) {
-            try {
-                const res = await fetch(queries[i]);
-                if (res.ok) {
-                    const data = await res.json();
-                    const found = data.find(s => s.syncedLyrics);
-                    if (found) return found.syncedLyrics;
-                }
-            } catch(e) { continue; }
-        }
-        return null;
-    }
-
-    // ── フォルダ一括処理メイン ──
-    document.getElementById('startBtn').addEventListener('click', async () => {
-        if (!window.showDirectoryPicker) {
-            alert("ChromeまたはEdgeを使用してください。");
-            return;
-        }
-        const d = I18N[curLang];
-        try {
-            const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
-            document.getElementById('startBtn').disabled = true;
-            document.getElementById('log').innerHTML = '';
-            addLog(d.startMsg);
-
-            const files = [];
-            for await (const entry of dirHandle.values()) {
-                if (entry.kind === 'file' && entry.name.match(/\.(mp3|m4a|flac)$/i)) {
-                    files.push(entry);
-                }
-            }
-            addLog(d.fileCount.replace('{n}', files.length));
-
-            for (let i = 0; i < files.length; i++) {
-                const status = document.getElementById('status-msg');
-                status.textContent = `${i + 1} / ${files.length}`;
-                
-                const entry = files[i];
-                const file = await entry.getFile();
-                const baseName = entry.name.replace(/\.[^/.]+$/, "");
-
-                // タグの読み取り
-                const tags = await new Promise(res => {
-                    window.jsmediatags.read(file, {
-                        onSuccess: t => res(t.tags),
-                        onError: () => res({})
-                    });
-                });
-
-                const t = tags.title || baseName;
-                const a = tags.artist || "";
-                addLog(`${d.anal}${t} / ${a}`);
-
-                const lyrics = await fetchLyrics(t, a);
-                if (lyrics) {
-                    const lrcHandle = await dirHandle.getFileHandle(`${baseName}.lrc`, { create: true });
-                    const writable = await lrcHandle.createWritable();
-                    await writable.write(lyrics);
-                    await writable.close();
-                    addLog(`  → ${d.found}${baseName}.lrc`, "success");
-                } else {
-                    addLog(`  → ${d.fail}`, "error");
-                }
-
-                // APIの負荷制限回避（5秒待機）
-                if (i < files.length - 1) {
-                    addLog(d.waiting, "wait");
-                    await new Promise(r => setTimeout(r, 5000));
-                }
-            }
-            addLog(d.finishMsg);
-            status.textContent = "DONE";
-        } catch (e) {
-            if (e.name !== 'AbortError') addLog("Error: " + e.message, "error");
-        } finally {
-            document.getElementById('startBtn').disabled = false;
-        }
-    });
-
-    // ── 個別検索メイン ──
-    document.getElementById('searchBtn').addEventListener('click', async () => {
-        const query = document.getElementById('query').value.trim();
-        const resultsList = document.getElementById('resultsList');
-        const d = I18N[curLang];
-        if (!query) return;
-
-        document.getElementById('searchBtn').disabled = true;
-        resultsList.innerHTML = `<div class="entry wait">${d.searching}</div>`;
-
-        try {
-            const res = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(query)}`);
-            const data = await res.json();
-            const synced = data.filter(s => s.syncedLyrics);
-
-            resultsList.innerHTML = '';
-            if (synced.length === 0) {
-                resultsList.innerHTML = `<div class="entry error">${d.noResults}</div>`;
-            } else {
-                synced.forEach(song => {
-                    const item = document.createElement('div');
-                    item.className = 'result-item';
-                    item.innerHTML = `
-                        <div class="song-info">
-                            <span class="song-title">${song.trackName}</span>
-                            <span class="song-meta">${song.artistName} | Album: ${song.albumName || 'Unknown'}</span>
-                        </div>
-                        <button class="momo-btn" style="padding:8px 16px; font-size:12px;">${d.saveBtn}</button>
-                    `;
-                    item.querySelector('button').onclick = () => {
-                        const blob = new Blob([song.syncedLyrics], { type: 'text/plain' });
-                        const a = document.createElement('a');
-                        a.href = URL.createObjectURL(blob);
-                        a.download = `${song.artistName} - ${song.trackName}.lrc`.replace(/[\\/:*?"<>|]/g, '_');
-                        a.click();
-                    };
-                    resultsList.appendChild(item);
-                });
-            }
-        } catch (e) {
-            resultsList.innerHTML = `<div class="entry error">Error: ${e.message}</div>`;
-        } finally {
-            document.getElementById('searchBtn').disabled = false;
-        }
-    });
-
-    // キーボードEnter対応
-    document.getElementById('query').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') document.getElementById('searchBtn').click();
-    });
-
-    // 言語切り替えイベント
-    document.querySelectorAll('.lang-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            curLang = btn.dataset.lang;
-            localStorage.setItem('momoLang', curLang);
-            applyLang();
-        });
-    });
-
-    // 初期実行
-    applyLang();
-</script>
+<script src="js/i18n.js"></script>
+<script src="js/lrc.js"></script>
+<script src="js/api.js"></script>
+<script src="js/folder.js"></script>
+<script src="js/search.js"></script>
+<script src="js/play.js"></script>
+<script src="js/tap.js"></script>
+<script src="js/library.js"></script>
+<script src="js/app.js"></script>
 </body>
 </html>

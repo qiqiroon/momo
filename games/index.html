@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MOMO Games v1.14 -->
+<!-- MOMO Games v1.15 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -182,6 +182,18 @@
       </div>
       <div class="card-play" id="reversi-play">今すぐプレイ</div>
     </a>
+
+    <a class="card" href="javascript:void(0)" onclick="openGomokuGo()">
+      <div class="card-badge">🌐 Online</div>
+      <div class="card-title">MOMO <span>Go</span></div>
+      <div class="card-desc" id="gomokugo-desc">19路盤の五目並べでオンライン対戦。仮置きから確定の2段階で慎重に一手を選び、縦・横・斜めの5連を目指せ。チャットしながら静かな盤上の駆け引きを。</div>
+      <div class="card-meta" id="gomokugo-meta">
+        <span>♟ ボードゲーム</span>
+        <span>🌐 オンライン対戦</span>
+        <span id="gomokugo-players">2人</span>
+      </div>
+      <div class="card-play" id="gomokugo-play">今すぐプレイ</div>
+    </a>
   </div>
 </div>
 
@@ -203,6 +215,9 @@ const I18N = {
     reversiDesc: '世界中のプレイヤーとリアルタイムでリバーシ対決。部屋を作って友達を招待することも、公開部屋に飛び込むことも自由。チャットしながら白熱の盤上バトルを楽しもう。',
     reversiMeta1: '♟ ボードゲーム', reversiMeta2: '🌐 オンライン対戦', reversiPlayers: '2人',
     reversiPlay: '今すぐプレイ',
+    gomokugoDesc: '19路盤の五目並べでオンライン対戦。仮置きから確定の2段階で慎重に一手を選び、縦・横・斜めの5連を目指せ。チャットしながら静かな盤上の駆け引きを。',
+    gomokugoMeta1: '♟ ボードゲーム', gomokugoMeta2: '🌐 オンライン対戦', gomokugoPlayers: '2人',
+    gomokugoPlay: '今すぐプレイ',
     footerBack: '← MOMO Works に戻る',
   },
   en: {
@@ -217,6 +232,9 @@ const I18N = {
     reversiDesc: 'Challenge players around the world to a real-time game of Reversi. Create a private room for friends or jump into a public match — the board is always ready. Chat, play, and flip your way to victory.',
     reversiMeta1: '♟ Board Game', reversiMeta2: '🌐 Online', reversiPlayers: '2 Players',
     reversiPlay: 'Play Now',
+    gomokugoDesc: 'Online Gomoku on a 19×19 board. Place a tentative stone, confirm to commit, and aim for five in a row — vertical, horizontal, or diagonal. Chat while you play.',
+    gomokugoMeta1: '♟ Board Game', gomokugoMeta2: '🌐 Online', gomokugoPlayers: '2 Players',
+    gomokugoPlay: 'Play Now',
     footerBack: '← Back to MOMO Works',
   },
   zh: {
@@ -231,6 +249,9 @@ const I18N = {
     reversiDesc: '与全球玩家实时对战黑白棋。可以创建房间邀请好友，也可以随时加入公开对局。边聊天边享受激烈的翻棋乐趣。',
     reversiMeta1: '♟ 棋盘游戏', reversiMeta2: '🌐 在线对战', reversiPlayers: '2人',
     reversiPlay: '立即游玩',
+    gomokugoDesc: '19路盘的五子棋在线对战。先试落，再确定，谨慎落子，瞄准纵横斜三方向的五连。边聊边享受静谧的盘上博弈。',
+    gomokugoMeta1: '♟ 棋盘游戏', gomokugoMeta2: '🌐 在线对战', gomokugoPlayers: '2人',
+    gomokugoPlay: '立即游玩',
     footerBack: '← 返回 MOMO Works',
   },
 };
@@ -259,6 +280,12 @@ function applyLang() {
   if (reversiMetaSpans[1]) reversiMetaSpans[1].textContent = d.reversiMeta2;
   document.getElementById('reversi-players').textContent = d.reversiPlayers;
   document.getElementById('reversi-play').textContent = d.reversiPlay;
+  document.getElementById('gomokugo-desc').textContent = d.gomokugoDesc;
+  const gomokugoMetaSpans = document.querySelectorAll('#gomokugo-meta span');
+  if (gomokugoMetaSpans[0]) gomokugoMetaSpans[0].textContent = d.gomokugoMeta1;
+  if (gomokugoMetaSpans[1]) gomokugoMetaSpans[1].textContent = d.gomokugoMeta2;
+  document.getElementById('gomokugo-players').textContent = d.gomokugoPlayers;
+  document.getElementById('gomokugo-play').textContent = d.gomokugoPlay;
   document.getElementById('footer-back').textContent = d.footerBack;
   document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('active', b.dataset.lang === currentLang));
   document.documentElement.lang = currentLang === 'zh' ? 'zh-Hans' : currentLang;
@@ -276,6 +303,12 @@ document.querySelectorAll('.lang-btn').forEach(btn => {
 function openReversi() {
   fetch('https://momo-server-reversi.onrender.com/ping').catch(() => {});
   window.location.href = 'reversi/';
+}
+
+// MOMO Go（同じシグナリングサーバーを共用）
+function openGomokuGo() {
+  fetch('https://momo-server-reversi.onrender.com/ping').catch(() => {});
+  window.location.href = 'gomoku-go/';
 }
 
 applyLang();

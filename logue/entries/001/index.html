@@ -9,8 +9,11 @@
   MOMO Logue — Entry 001
   タイトル: こんにちは、世界 / Hello, World / 你好，世界
   日付: 2026-04-19
-  バージョン: v1.02
+  バージョン: v1.05
   変更履歴:
+    v1.05 - 注釈[3]の冒頭から具体的な生年「1965年」の記載を削除し、ぼかした表現に変更
+    v1.04 - 「世界は私を楽しませるために進化した」に対する注釈（人間原理・微調整問題）を追加。注釈番号を全体的に1つずつ後ろにずらして再採番
+    v1.03 - 4言語対応の注釈（脚注）を6箇所に追加。注釈用CSSと脚注リンク機能を実装
     v1.02 - ヘッダーのパンくずリンクを正しい階層に修正（MOMO Works→repoルート、MOMO Logue→logue/）
     v1.01 - 本文を ja.txt v1.01 に合わせて更新
   ============================================================ -->
@@ -159,6 +162,69 @@
     z-index: 1;
   }
 
+  /* 脚注リンク（本文中の番号） */
+  .fn-ref {
+    color: var(--orange);
+    text-decoration: none;
+    font-size: 0.7em;
+    vertical-align: super;
+    line-height: 0;
+    padding: 0 2px;
+    transition: color 0.2s;
+  }
+  .fn-ref:hover { color: var(--orange-light); }
+
+  /* 脚注セクション */
+  .footnotes {
+    margin-top: 56px;
+    padding-top: 32px;
+    border-top: 1px solid var(--border);
+    font-size: 0.85rem;
+    line-height: 1.85;
+    color: var(--text-muted);
+    letter-spacing: 0.03em;
+  }
+  .footnotes-title {
+    font-size: 0.7rem;
+    color: var(--orange);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+    font-weight: 500;
+  }
+  .footnotes ol {
+    list-style: none;
+    padding-left: 0;
+    counter-reset: fn;
+  }
+  .footnotes li {
+    margin-bottom: 1.4em;
+    padding-left: 32px;
+    position: relative;
+  }
+  .footnotes li::before {
+    content: counter(fn);
+    counter-increment: fn;
+    position: absolute;
+    left: 0;
+    top: 0;
+    color: var(--orange);
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+  .footnotes li:target { color: var(--text); }
+  .footnotes li:target::before { color: var(--orange-light); }
+  .fn-back {
+    color: var(--text-muted);
+    text-decoration: none;
+    margin-left: 6px;
+    font-size: 0.85em;
+    transition: color 0.2s;
+  }
+  .fn-back:hover { color: var(--orange); }
+
+  html { scroll-behavior: smooth; }
+
   @keyframes fadeDown {
     from { opacity: 0; transform: translateY(-16px); }
     to   { opacity: 1; transform: translateY(0); }
@@ -194,6 +260,10 @@
     </div>
     <h1 class="entry-title" id="entry-title">こんにちは、世界</h1>
     <div class="entry-body" id="entry-body"></div>
+    <section class="footnotes" id="footnotes">
+      <div class="footnotes-title" id="footnotes-title">Notes</div>
+      <ol id="footnotes-list"></ol>
+    </section>
   </article>
 
   <nav class="entry-nav">
@@ -208,54 +278,84 @@
 const CONTENT = {
   ja: {
     title: 'こんにちは、世界',
+    notesTitle: 'Notes',
     body: `
-      <p>こんにちは、世界。</p>
+      <p>こんにちは、世界<a class="fn-ref" href="#fn1" id="ref1">[1]</a>。</p>
       <p>このページは私がAIとともに作ったプログラムを公開する場所です。コードは1行も書いていません。公開の方法もAIが提案しました。私はAIには直接できない作業を手伝っただけです。</p>
       <p>公開しているプログラムの内容は、自分が欲しいと思ったもの、または作ったら面白そうだと思ったものです。「こういうものを作ってほしい」と伝えると、AIが作ってくれました。</p>
       <p>なぜこんなことをしているのか。それは、AIを全力で楽しむことにしたからです。</p>
-      <p>私にはひとつの仮説があります。「世界は私を楽しませるために進化した」というものです。独りよがりですね。</p>
-      <p>私が生まれた日本は、まだ後進国と呼ばれていた時代でした。世界はすべてアナログでした。物心がつく頃には、周囲がアニメで満たされていました。ゴールデンタイムの6時から8時まで、途切れることなく複数のアニメが放映されていた時代です。</p>
-      <p>やがてインベーダーゲームや家庭用ゲーム機が現れ、私はゲームにのめり込みました。続いてパソコンが登場し、コンピュータを自分一人で使えるという世界が生まれました。電話回線で通信するパソコン通信を通じて、フリーソフトや通信対戦ゲームを楽しみました。携帯電話とインターネットが普及すると、世界はネットで一つにつながり、当然のように私もその世界に入り浸りました。</p>
-      <p>音楽の面では、アメリカの80年代という黄金時代を最も感受性の高い年齢で過ごせたことは幸運だったと思います。アナログからデジタルへの移行と、ウォークマンの登場で音楽を持ち歩けるようになり、レンタルCDを借りまくって多くの音楽に触れました。</p>
-      <p>VOCALOIDが登場すると、ネット上の素人作曲家がライセンスフリーの曲を投稿し始めました。それを歌うアマチュア歌手、絵をつけるアマチュア絵師、踊る人——さまざまなサブカルチャーが花開いたニコニコ時代です。その延長線上にVTuberが現れました。日本のアマチュア歌い手がマスクで顔を隠して歌う文化の、自然な発展形だと私は思っています。</p>
+      <p>私にはひとつの仮説があります。「世界は私を楽しませるために進化した」というものです<a class="fn-ref" href="#fn2" id="ref2">[2]</a>。独りよがりですね。</p>
+      <p>私が生まれた日本は、まだ後進国と呼ばれていた時代でした<a class="fn-ref" href="#fn3" id="ref3">[3]</a>。世界はすべてアナログでした。物心がつく頃には、周囲がアニメで満たされていました。ゴールデンタイムの6時から8時まで、途切れることなく複数のアニメが放映されていた時代です。</p>
+      <p>やがてインベーダーゲーム<a class="fn-ref" href="#fn4" id="ref4">[4]</a>や家庭用ゲーム機が現れ、私はゲームにのめり込みました。続いてパソコンが登場し、コンピュータを自分一人で使えるという世界が生まれました。電話回線で通信するパソコン通信を通じて、フリーソフトや通信対戦ゲームを楽しみました。携帯電話とインターネットが普及すると、世界はネットで一つにつながり、当然のように私もその世界に入り浸りました。</p>
+      <p>音楽の面では、アメリカの80年代という黄金時代を最も感受性の高い年齢で過ごせたことは幸運だったと思います。アナログからデジタルへの移行と、ウォークマンの登場で音楽を持ち歩けるようになり、レンタルCDを借りまくって多くの音楽に触れました<a class="fn-ref" href="#fn5" id="ref5">[5]</a>。</p>
+      <p>VOCALOIDが登場すると、ネット上の素人作曲家がライセンスフリーの曲を投稿し始めました<a class="fn-ref" href="#fn6" id="ref6">[6]</a>。それを歌うアマチュア歌手、絵をつけるアマチュア絵師、踊る人——さまざまなサブカルチャーが花開いたニコニコ時代です。その延長線上にVTuberが現れました。日本のアマチュア歌い手がマスクで顔を隠して歌う文化の、自然な発展形だと私は思っています<a class="fn-ref" href="#fn7" id="ref7">[7]</a>。</p>
       <p>そしてAIが現れました。ちょうど退職を考え始めた頃、かねてからプログラミングを学びたいとは思っていたものの、年齢的にゼロから学ぶのは難しく、持て余す時間もある——そんなタイミングで、これ以上ないほど都合よくAIが登場しました。そうか、次はそうくるのか。乗るしかない。←ここが現在地です。</p>
       <p>どうせ作るなら、その労力に見合うだけのことをしたい。複数の人に使ってもらうしかない。それが今やっていることです。</p>
       <p>ところで、このサイトの名前「MOMO」は友人の猫の名前です。友人の許可を得て、使わせてもらっています。</p>
     `,
+    notes: [
+      `<span id="fn1">「Hello, World」は、プログラミング学習で長く受け継がれてきた伝統的な最初のプログラム。起源は1972年、ベル研究所のブライアン・カーニハンが書いた内部文書『A Tutorial Introduction to the Language B』にさかのぼり、1978年の名著『The C Programming Language』(K&R) で広く知られるようになった。新しい言語を学ぶ人が「画面に文字を出せる」ことを確認するための小さな儀式。AIと一緒に作ったプログラムを公開していくこのサイトの最初の挨拶として、これ以上ふさわしい言葉はないと思いました。<a class="fn-back" href="#ref1">↩</a></span>`,
+      `<span id="fn2">独りよがりな仮説と書いたが、これは現代の宇宙論で「微調整問題（fine-tuning problem）」「人間原理（anthropic principle）」と呼ばれる、れっきとした科学的議論のテーマと地続きである。重力定数、電磁気力の強さ、宇宙定数など、物理学の基本定数の値がほんのわずかでも違っていたら、原子も星も銀河も生まれず、当然生命も存在しなかった——これは主流の物理学者の多くが認める観測事実。ホーキングも『ホーキング、宇宙を語る』で、これらの数値は生命の発展を可能にするよう極めて精密に調整されているように見える、と書いている。なぜそうなのかについて学術的に支持されている主な仮説は二つ。一つは「マルチバース仮説」——宇宙は無数に存在し、定数の組み合わせもさまざまで、たまたま生命が生まれられる宇宙の観測者だけが「都合がいい」と感じる、というもの。もう一つが「人間原理」——観測者が存在できる宇宙でしか宇宙は観測されえない、という選択効果による説明。私の仮説はそこから一段階個人化したもので、「人類にとって」ではなく「私を楽しませるために」進化した、という。物理学者には怒られそうだが、まあ、そう感じてしまうほどタイミングがよかったのです。<a class="fn-back" href="#ref2">↩</a></span>`,
+      `<span id="fn3">私が生まれた頃の日本は、ちょうど高度経済成長のまっただ中だった。日本がOECD（経済協力開発機構、いわゆる「先進国クラブ」）に非欧米諸国として初めて加盟したのが1964年4月。同年10月には東海道新幹線が開業し、東京オリンピックが開催されている。形式上は「先進国の仲間入り」をした直後だったが、実態としては生活水準もインフラもまだ現在とは大きく違う段階。世代によっては「後進国」「発展途上国」という言葉のほうがしっくりくる時代の空気が残っていた。<a class="fn-back" href="#ref3">↩</a></span>`,
+      `<span id="fn4">タイトーが1978年に発売したアーケードゲーム『スペースインベーダー』が起こした空前のブーム。ゲームセンターだけでなく当時の喫茶店にもテーブル型筐体が次々と置かれ、「インベーダーハウス」と呼ばれる専門店まで現れた。あまりに100円玉が消費されたため、日本銀行が一時「100円硬貨が市中から消えている」と分析した記事が残っているほど。日本における家庭外ビデオゲーム文化の出発点。<a class="fn-back" href="#ref4">↩</a></span>`,
+      `<span id="fn5">ソニーのウォークマン発売は1979年。それまで家のステレオの前で聴くものだった音楽を、屋外に持ち歩けるようになった。ほぼ同時期の1980年に日本初のレンタルレコード店が東京・三鷹に誕生し、数年で全国1000店超に拡大、1986年にはCDのレンタルも始まった。アルバムを借りてカセットに録音しウォークマンで聴くというスタイルが、80年代の若い音楽ファンの標準となった。1980年代はマイケル・ジャクソン、マドンナ、プリンス、MTVに象徴される、ポップミュージック史で最も活気のあった時代の一つ。<a class="fn-back" href="#ref5">↩</a></span>`,
+      `<span id="fn6">正確には「二次創作が広く許諾された曲」。VOCALOID楽曲そのものは作者に著作権があるが、初音ミクを開発したクリプトン・フューチャー・メディアが2007年12月に寛容なキャラクター利用ガイドラインとピアプロというサイトを整備し、また作者自身が二次創作を歓迎する姿勢をとったことで、歌う・踊る・絵を付ける・MVを作るといった創作の連鎖が生まれた。<a class="fn-back" href="#ref6">↩</a></span>`,
+      `<span id="fn7">VTuber（バーチャルYouTuber）の出発点は、2016年12月に「世界初のバーチャルYouTuber」を自称して動画投稿を始めたキズナアイ。2017年にかけて「VTuber四天王」と呼ばれる複数のキャラクターが登場し、2018年には「ホロライブ」「にじさんじ」など大手事務所が本格始動した。本文の「マスクで顔を隠して歌う文化」は、ニコニコ動画時代に活発だった「歌ってみた」文化（顔出しせず歌声だけで活動する人が多数いた）を指す。自分の身体ではなくキャラクターという「もう一つの姿」を介してネットで表現するという発想は、確かに連続した文化の流れの上にある。<a class="fn-back" href="#ref7">↩</a></span>`,
+    ],
   },
   en: {
     title: 'Hello, World',
+    notesTitle: 'Notes',
     body: `
-      <p>Hello, world.</p>
+      <p>Hello, world<a class="fn-ref" href="#fn1" id="ref1">[1]</a>.</p>
       <p>This page is where I publish programs made together with AI. Not a single line of code was written by me. The way to publish them was also proposed by AI. I only helped with the tasks AI couldn't do directly.</p>
       <p>The programs I publish are things I wanted for myself, or things I thought would be interesting to build. I'd tell AI "make something like this," and it would.</p>
       <p>Why am I doing this? Because I decided to enjoy AI to the fullest.</p>
-      <p>I have one hypothesis: "The world evolved to entertain me." Self-centered, I know.</p>
-      <p>When I was born, Japan was still called a developing nation. The world was entirely analog. By the time I was old enough to be aware of my surroundings, they were saturated with anime. Multiple shows aired back-to-back from six to eight o'clock every evening without pause.</p>
-      <p>Then came Space Invaders and home game consoles, and I fell deep into gaming. Next came personal computers, and with them a world where you could use a computer all by yourself. Through dial-up bulletin board systems — an absurdly inefficient way to communicate by today's standards — I enjoyed free software and online multiplayer games. When mobile phones and the internet arrived, the world connected into one, and naturally I dove straight in.</p>
-      <p>On the music side, I was lucky enough to experience the golden age of American 1980s music at the most impressionable age of my life. As music shifted from analog to digital, and the Walkman made it possible to carry music anywhere, I rented stacks of CDs and soaked up as much as I could.</p>
-      <p>When VOCALOID appeared, amateur composers on the internet began posting royalty-free music in droves. Amateur singers performed it, amateur illustrators added visuals, dancers choreographed to it — a whole ecosystem of subcultures bloomed in what I think of as the Niconico era. VTubers emerged from that same lineage. Japanese amateur singers had long performed behind masks to hide their faces; I see VTubers as a natural evolution of that tradition.</p>
+      <p>I have one hypothesis: "The world evolved to entertain me."<a class="fn-ref" href="#fn2" id="ref2">[2]</a> Self-centered, I know.</p>
+      <p>When I was born, Japan was still called a developing nation<a class="fn-ref" href="#fn3" id="ref3">[3]</a>. The world was entirely analog. By the time I was old enough to be aware of my surroundings, they were saturated with anime. Multiple shows aired back-to-back from six to eight o'clock every evening without pause.</p>
+      <p>Then came Space Invaders<a class="fn-ref" href="#fn4" id="ref4">[4]</a> and home game consoles, and I fell deep into gaming. Next came personal computers, and with them a world where you could use a computer all by yourself. Through dial-up bulletin board systems — an absurdly inefficient way to communicate by today's standards — I enjoyed free software and online multiplayer games. When mobile phones and the internet arrived, the world connected into one, and naturally I dove straight in.</p>
+      <p>On the music side, I was lucky enough to experience the golden age of American 1980s music at the most impressionable age of my life. As music shifted from analog to digital, and the Walkman made it possible to carry music anywhere, I rented stacks of CDs and soaked up as much as I could<a class="fn-ref" href="#fn5" id="ref5">[5]</a>.</p>
+      <p>When VOCALOID appeared, amateur composers on the internet began posting royalty-free music in droves<a class="fn-ref" href="#fn6" id="ref6">[6]</a>. Amateur singers performed it, amateur illustrators added visuals, dancers choreographed to it — a whole ecosystem of subcultures bloomed in what I think of as the Niconico era. VTubers emerged from that same lineage. Japanese amateur singers had long performed behind masks to hide their faces; I see VTubers as a natural evolution of that tradition<a class="fn-ref" href="#fn7" id="ref7">[7]</a>.</p>
       <p>And then AI arrived. Right around when I was starting to think about retirement, I had always wanted to learn programming — but learning from scratch at my age felt daunting, and I had time on my hands I didn't know what to do with. Then, at the most convenient possible moment, AI showed up. So that's how it's going to go next? Well then, I'm getting on board. ← That's where I am now.</p>
       <p>If I'm going to make things anyway, I want them to be worth the effort. The only way to justify it is to have more than one person use them. That's what I'm doing.</p>
       <p>By the way, "MOMO" — the name of this site — is the name of a friend's cat. I have their permission to use it.</p>
     `,
+    notes: [
+      `<span id="fn1">"Hello, World" is the traditional first program in programming education. Its origin traces back to 1972, when Brian Kernighan at Bell Labs wrote it in an internal document, <em>A Tutorial Introduction to the Language B</em>. It became widely known through the 1978 classic <em>The C Programming Language</em> (K&amp;R). It's a small ritual for anyone learning a new language — confirming that "the screen can output text." For the opening greeting of a site where I publish programs made with AI, no other phrase felt more fitting.<a class="fn-back" href="#ref1">↩</a></span>`,
+      `<span id="fn2">I called it self-centered, but the hypothesis sits adjacent to a real topic of contemporary cosmology: the "fine-tuning problem" and the "anthropic principle." The values of the fundamental constants of physics — the strength of gravity, the electromagnetic force, the cosmological constant, and so on — appear to fall within an extraordinarily narrow range that permits atoms, stars, galaxies, and ultimately life. This is an observational fact acknowledged by most mainstream physicists. Even Stephen Hawking remarked in <em>A Brief History of Time</em> that these numbers seem precisely adjusted to make life possible. Two hypotheses dominate the academic debate over why this is so. One is the multiverse: countless universes exist with different combinations of constants, and only observers in life-permitting universes are around to find their universe "convenient." The other is the anthropic principle itself: a universe can only be observed if it permits observers, so the apparent fine-tuning is a selection effect. My version simply individualizes that one notch further — replacing "for humanity" with "for me." Physicists would no doubt object. But the timing really was that good.<a class="fn-back" href="#ref2">↩</a></span>`,
+      `<span id="fn3">When I was born, Japan was right in the middle of its high-growth period. The country had joined the OECD — the so-called "rich nations' club" — in April 1964, as the first non-Western member. That same October, the Tōkaidō Shinkansen opened and Tokyo hosted the Olympics. Formally Japan had just "joined the developed world," but in practice living standards and infrastructure were still far from what they are today. For some of my generation, the words "developing nation" still felt closer to lived reality.<a class="fn-back" href="#ref3">↩</a></span>`,
+      `<span id="fn4">The arcade game <em>Space Invaders</em>, released by Taito in 1978, set off an unprecedented boom. Beyond arcades, table-cabinet versions appeared in cafés, and dedicated venues called "Invader Houses" emerged. So many 100-yen coins were swallowed by the machines that the Bank of Japan reportedly analyzed at one point that "100-yen coins are disappearing from circulation." It marked the starting point of out-of-home video game culture in Japan.<a class="fn-back" href="#ref4">↩</a></span>`,
+      `<span id="fn5">Sony's Walkman launched in 1979, transforming music from something you sat down to listen to into something portable. Around the same time, in 1980, Japan's first record rental shop opened in Mitaka, Tokyo. Within a few years, the chain had grown to over 1,000 stores nationwide, and CD rentals began in 1986. Renting an album, recording it to cassette, and listening on the Walkman became the standard mode for young music fans in the 1980s. The decade itself — the era of Michael Jackson, Madonna, Prince, and MTV — was one of the most vibrant periods in pop music history.<a class="fn-back" href="#ref5">↩</a></span>`,
+      `<span id="fn6">More precisely, "music whose derivative use was broadly permitted." VOCALOID songs themselves are copyrighted by their composers, but Crypton Future Media — the developer of Hatsune Miku — published in December 2007 a permissive character-use guideline and launched the Piapro site to support secondary creation. Combined with composers themselves welcoming derivative works, this triggered the chain reaction of singing, dancing, illustrating, and making music videos.<a class="fn-back" href="#ref6">↩</a></span>`,
+      `<span id="fn7">The starting point of VTubers (Virtual YouTubers) was Kizuna AI, who began posting videos in December 2016 calling herself "the world's first virtual YouTuber." Through 2017, several characters known as the "VTuber Big Four" emerged, and in 2018 major agencies like Hololive and Nijisanji launched in earnest. The "tradition of performing behind masks" mentioned in the text refers to the "utattemita" (cover-singing) culture of the Niconico era — many singers performed without showing their faces, using only their voices. The idea of expressing oneself online through a character — a "second self" rather than one's body — sits clearly on that continuous cultural lineage.<a class="fn-back" href="#ref7">↩</a></span>`,
+    ],
   },
   zh: {
     title: '你好，世界',
+    notesTitle: '注释',
     body: `
-      <p>你好，世界。</p>
+      <p>你好，世界<a class="fn-ref" href="#fn1" id="ref1">[1]</a>。</p>
       <p>这个页面是我与AI共同创作程序并对外公开的地方。我一行代码都没有写，连发布的方式也是AI提议的。我只是协助完成了AI无法直接处理的那部分工作。</p>
       <p>这里公开的程序，都是我自己想要的东西，或者觉得做出来会很有趣的东西。我告诉AI"我想要这样的东西"，它就帮我做出来了。</p>
       <p>为什么要做这些？因为我决定全力享受AI带来的乐趣。</p>
-      <p>我有一个假设："世界是为了让我快乐而进化的。"有点自我中心，对吧。</p>
-      <p>我出生的那个年代，日本还被称为后进国。整个世界都是模拟的。等我懂事的时候，身边的世界已经被动画填满了。每天黄金时段的六点到八点，多部动画连续不断地播出。</p>
-      <p>后来太空侵略者和家用游戏机相继出现，我一头扎进了游戏的世界。再后来个人电脑问世，一个人独自使用电脑成为可能。通过电话线拨号通信的电脑通信——以今天的标准来看效率低得难以想象——我享受着免费软件和联机对战游戏的乐趣。手机和互联网普及后，世界通过网络连为一体，我自然也一头扎进了网络的世界。</p>
-      <p>在音乐方面，我很庆幸自己能在感受力最强的年纪，经历美国80年代那个黄金时代。随着音乐从模拟转向数字，随身听的出现让音乐可以随身携带，我借了一摞又一摞的租借CD，接触了大量的音乐。</p>
-      <p>VOCALOID登场后，网络上的业余作曲家开始大量发布免版权音乐。演唱这些歌曲的业余歌手、为其配画的业余画师、随之起舞的舞者——各种亚文化在我所称之为"Niconico时代"蓬勃盛开。VTuber就在这条延长线上出现了。日本的业余歌手长期以来习惯戴着面具遮住脸演唱，我认为VTuber正是这种文化的自然发展形态。</p>
+      <p>我有一个假设："世界是为了让我快乐而进化的。"<a class="fn-ref" href="#fn2" id="ref2">[2]</a>有点自我中心，对吧。</p>
+      <p>我出生的那个年代，日本还被称为后进国<a class="fn-ref" href="#fn3" id="ref3">[3]</a>。整个世界都是模拟的。等我懂事的时候，身边的世界已经被动画填满了。每天黄金时段的六点到八点，多部动画连续不断地播出。</p>
+      <p>后来太空侵略者<a class="fn-ref" href="#fn4" id="ref4">[4]</a>和家用游戏机相继出现，我一头扎进了游戏的世界。再后来个人电脑问世，一个人独自使用电脑成为可能。通过电话线拨号通信的电脑通信——以今天的标准来看效率低得难以想象——我享受着免费软件和联机对战游戏的乐趣。手机和互联网普及后，世界通过网络连为一体，我自然也一头扎进了网络的世界。</p>
+      <p>在音乐方面，我很庆幸自己能在感受力最强的年纪，经历美国80年代那个黄金时代。随着音乐从模拟转向数字，随身听的出现让音乐可以随身携带，我借了一摞又一摞的租借CD，接触了大量的音乐<a class="fn-ref" href="#fn5" id="ref5">[5]</a>。</p>
+      <p>VOCALOID登场后，网络上的业余作曲家开始大量发布免版权音乐<a class="fn-ref" href="#fn6" id="ref6">[6]</a>。演唱这些歌曲的业余歌手、为其配画的业余画师、随之起舞的舞者——各种亚文化在我所称之为"Niconico时代"蓬勃盛开。VTuber就在这条延长线上出现了。日本的业余歌手长期以来习惯戴着面具遮住脸演唱，我认为VTuber正是这种文化的自然发展形态<a class="fn-ref" href="#fn7" id="ref7">[7]</a>。</p>
       <p>然后AI出现了。就在我开始考虑退休的时候，我一直想学编程，但年纪大了从零开始太难，手头又有大把闲暇时间——就在这个时机，AI以最恰到好处的方式登场了。原来，下一步是这样来的吗？那就只能上车了。←这就是我现在所在的位置。</p>
       <p>既然要做，就要做得值得这份付出。唯一的办法就是让更多人来使用。这就是我现在正在做的事。</p>
       <p>顺便一提，这个网站的名字"MOMO"，是一位朋友家猫咪的名字。已获得朋友的许可，在此借用。</p>
     `,
+    notes: [
+      `<span id="fn1">"Hello, World"是编程学习中长期沿袭下来的传统首个程序。其起源可追溯至1972年，贝尔实验室的布莱恩·柯林汉在内部文件《A Tutorial Introduction to the Language B》中首次写下，并通过1978年的经典著作《The C Programming Language》（K&R）广为人知。这是初学者用以确认"屏幕能输出文字"的小小仪式。作为我与AI共同创作程序并发布的这个网站的开篇问候，再没有比这更合适的话了。<a class="fn-back" href="#ref1">↩</a></span>`,
+      `<span id="fn2">虽说是自我中心的假设，但其实它与现代宇宙学中一个真实的学术议题相邻——"精细调谐问题（fine-tuning problem）"与"人择原理（anthropic principle）"。引力常数、电磁力强度、宇宙学常数等物理学基本常数的数值，只要稍有偏差，原子、恒星、星系都不会形成，更不会有生命存在——这是大多数主流物理学家都承认的观测事实。霍金在《时间简史》中也写道，这些数值看起来像是为了让生命发展成为可能而被精密调节过的。学界对此的两种主要解释：其一是"多重宇宙假说"——存在无数宇宙，常数组合各异，恰好诞生于允许生命存在的宇宙中的观测者，自然会觉得"很方便"；其二是"人择原理"本身——只有允许观测者存在的宇宙才会被观测到，所谓的精细调谐不过是一种选择效应。我的假设只是把它再个人化了一步——把"为人类"换成"为我"。物理学家大概会反对，但当时的时机就是好得让人这么觉得。<a class="fn-back" href="#ref2">↩</a></span>`,
+      `<span id="fn3">我出生的那个年代，正值日本高速增长期的中段。日本作为首个非欧美国家加入OECD（经济合作与发展组织，即所谓的"发达国家俱乐部"）是在1964年4月。同年10月，东海道新干线开通，东京奥运会举办。日本在形式上刚刚"跻身发达国家行列"，但实际上生活水准和基础设施都与今天相去甚远。对部分我这一代人而言，"后进国""发展中国家"这类词反而更贴近真实感受。<a class="fn-back" href="#ref3">↩</a></span>`,
+      `<span id="fn4">指太东（Taito）公司于1978年发售的街机游戏《太空侵略者》引发的空前热潮。当时不仅游戏厅，咖啡店里也陆续摆满了桌台型机台，甚至出现了名为"侵略者屋"的专营店。由于游戏吞掉了过多的100日元硬币，据说日本银行一度分析"100日元硬币正在从市场上消失"。这是日本家庭以外的电子游戏文化的起点。<a class="fn-back" href="#ref4">↩</a></span>`,
+      `<span id="fn5">索尼随身听（Walkman）于1979年发售，将"坐在家中音响前聆听"的音乐变成了可以随身携带的东西。几乎同期的1980年，日本第一家唱片租赁店在东京三鹰开业，几年内全国扩展到1000多家，1986年起也开始租赁CD。借专辑、录到磁带、用Walkman听——这成为80年代年轻乐迷的标准模式。1980年代正是迈克尔·杰克逊、麦当娜、Prince、MTV登场的时代，是流行音乐史上最具活力的时期之一。<a class="fn-back" href="#ref5">↩</a></span>`,
+      `<span id="fn6">更准确地说是"广泛允许二次创作的乐曲"。VOCALOID乐曲本身的著作权归作者所有，但开发初音未来的Crypton Future Media公司于2007年12月制定了宽松的角色使用指南并搭建了"Piapro"网站；同时作曲者本人也欢迎二次创作。在这两者的共同推动下，演唱、舞蹈、配画、制作MV等创作链条由此被引爆。<a class="fn-back" href="#ref6">↩</a></span>`,
+      `<span id="fn7">VTuber（虚拟YouTuber）的起点，是2016年12月自称"世界首位虚拟YouTuber"开始投稿的绊爱（Kizuna AI）。到2017年间，被称为"VTuber四天王"的多位角色相继登场，2018年Hololive、Nijisanji等大型事务所正式启动。本文中"戴面具遮脸演唱的文化"指的是Niconico时代盛行的"翻唱"文化——许多歌手不露脸，只用声音活动。借由"角色"——也就是肉身之外的"另一个自己"——在网络上表达自我，这一发想确实坐落在一条连续的文化脉络之上。<a class="fn-back" href="#ref7">↩</a></span>`,
+    ],
   },
 };
 
@@ -272,8 +372,13 @@ function catSpeak() {
 }
 
 function catBody() {
-  // 日本語本文の段落数（10段落）に合わせてにゃあにゃあする
+  // 日本語本文の段落数（11段落）に合わせてにゃあにゃあする
   return Array.from({length: 11}, () => `<p>${catSpeak()}</p>`).join('\n');
+}
+
+function catNotes() {
+  // 注釈7個分のにゃあ
+  return Array.from({length: 7}, () => catSpeak());
 }
 
 let currentLang = (() => {
@@ -285,12 +390,20 @@ let currentLang = (() => {
   } catch(e) { return 'ja'; }
 })();
 
+function renderNotes(notesArray) {
+  const list = document.getElementById('footnotes-list');
+  if (!list) return;
+  list.innerHTML = notesArray.map(n => `<li>${n}</li>`).join('');
+}
+
 function applyLang() {
   if (currentLang === 'cat') {
     const t = catSpeak();
     document.getElementById('entry-title').textContent  = t;
     document.title = t + ' — MOMO Logue';
     document.getElementById('entry-body').innerHTML     = catBody();
+    document.getElementById('footnotes-title').textContent = catSpeak();
+    renderNotes(catNotes());
     document.getElementById('nav-back').textContent     = catSpeak();
     document.getElementById('footer-text').textContent  = catSpeak();
   } else {
@@ -298,6 +411,8 @@ function applyLang() {
     document.getElementById('entry-title').textContent  = c.title;
     document.title = c.title + ' — MOMO Logue';
     document.getElementById('entry-body').innerHTML     = c.body;
+    document.getElementById('footnotes-title').textContent = c.notesTitle;
+    renderNotes(c.notes);
     document.getElementById('nav-back').textContent     = '← Logue';
     document.getElementById('footer-text').textContent  = '© MOMO Works';
   }

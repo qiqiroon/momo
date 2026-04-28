@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>法則型の独り言 — MOMO Logue</title>
+
+<!-- ============================================================
+  MOMO Logue — Entry 006
+  タイトル: 法則型の独り言 / Soliloquy of a Hosoku-type / 法则型的独白
+  日付: 2026-04-28
+  バージョン: v1.02
+  変更履歴:
+    v1.02 - 英語版「法則型」の訳語を Hosoku-type に統一（初出箇所で law of the world と意味を併記、以降は Hosoku-type で通す方式）。Law-type 表記から、日本固有の枠組みを示す原語ローマ字＋意味補完方式へ変更
+    v1.01 - 注釈システムを仕様書 v1.08 §3.4 の AI ファクトチェック型として整備（fn-ref、footnotes セクション、Notes — Fact-checked by Claude 見出し、disclaimer 追加、注釈本文を常体に統一）
+    v1.00 - 初版
+  ============================================================ -->
+
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-46 -50 92 80'%3E%3Crect x='-46' y='-50' width='92' height='80' rx='8' fill='%23000000'/%3E%3Cg transform='rotate(-12,-12,8.3)'%3E%3Cpath d='M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cg transform='rotate(12,12,8.3)'%3E%3Cpath d='M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cellipse cx='0' cy='1.3' rx='34' ry='26' fill='%23c2410c'/%3E%3Cline x1='-14' y1='1.00' x2='-33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='6.0' x2='-33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='10.59' x2='-29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.68' y1='-2.28' x2='-38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.44' y1='6.0' x2='-40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-29.58' y1='14.26' x2='-37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='1.00' x2='33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='6.0' x2='33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='10.59' x2='29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.68' y1='-2.28' x2='38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.44' y1='6.0' x2='40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='29.58' y1='14.26' x2='37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cellipse cx='-12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='-12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Cellipse cx='12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Ccircle cx='-10.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Ccircle cx='13.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Cpath d='M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z' fill='%23000'/%3E%3Cline x1='0' y1='11.3' x2='0' y2='13.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q-5,17.3 -8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q5,17.3 8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --surface2: #1a1a1a;
+    --orange: #c2410c;
+    --orange-light: #ea580c;
+    --text: #e5e5e5;
+    --text-muted: #737373;
+    --border: #2a2a2a;
+    --border-strong: #444;
+    --bg-selected: rgba(194,65,12,0.15);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 48px 48px;
+    opacity: 0.3;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  #lang-switcher { position: fixed; top: 8px; right: 12px; z-index: 200; }
+  #lang-select {
+    background: var(--surface2);
+    border: 1px solid var(--border-strong);
+    color: var(--text);
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: 'Noto Sans JP', sans-serif;
+    outline: none;
+  }
+  #lang-select:focus { border-color: var(--orange); }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 680px;
+    padding: 0 24px;
+  }
+
+  .site-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 52px 0 40px;
+    animation: fadeDown 0.7s ease both;
+  }
+
+  .site-logo {
+    font-family: 'Fredoka One', cursive;
+    font-size: 1.1rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    letter-spacing: 0.04em;
+    transition: color 0.2s;
+  }
+
+  .site-logo:hover { color: var(--text); }
+  .site-logo span { color: var(--orange-light); }
+  .site-logo-sep { color: var(--border-strong); font-size: 0.9rem; }
+
+  article {
+    animation: fadeUp 0.7s ease 0.15s both;
+    margin-bottom: 56px;
+  }
+
+  .entry-meta {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 28px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .entry-num { font-size: 0.7rem; color: var(--orange); letter-spacing: 0.1em; }
+  .entry-date { font-size: 0.75rem; color: var(--text-muted); letter-spacing: 0.05em; }
+
+  .entry-title {
+    font-size: clamp(1.4rem, 4vw, 1.9rem);
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    line-height: 1.4;
+    margin-bottom: 32px;
+    color: #fff;
+  }
+
+  .entry-body { font-size: 1rem; line-height: 2; color: var(--text); letter-spacing: 0.04em; }
+  .entry-body p { margin-bottom: 1.6em; }
+  .entry-body p:last-child { margin-bottom: 0; }
+  .entry-body .types { margin-bottom: 1.6em; padding-left: 0.5em; }
+  .entry-body .types span { display: block; margin-bottom: 0.4em; }
+
+  /* 脚注リンク（本文中の番号） */
+  .fn-ref {
+    color: var(--orange);
+    text-decoration: none;
+    font-size: 0.7em;
+    vertical-align: super;
+    line-height: 0;
+    padding: 0 2px;
+    transition: color 0.2s;
+  }
+  .fn-ref:hover { color: var(--orange-light); }
+
+  /* 脚注セクション */
+  .footnotes {
+    margin-top: 56px;
+    padding-top: 32px;
+    border-top: 1px solid var(--border);
+    font-size: 0.85rem;
+    line-height: 1.85;
+    color: var(--text-muted);
+    letter-spacing: 0.03em;
+  }
+  .footnotes-title {
+    font-size: 0.7rem;
+    color: var(--orange);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    font-weight: 500;
+  }
+  .footnotes-disclaimer {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 28px;
+    line-height: 1.7;
+    opacity: 0.75;
+    letter-spacing: 0.02em;
+  }
+  .footnotes ol {
+    list-style: none;
+    padding-left: 0;
+    counter-reset: fn;
+  }
+  .footnotes li {
+    margin-bottom: 1.4em;
+    padding-left: 32px;
+    position: relative;
+  }
+  .footnotes li::before {
+    content: counter(fn);
+    counter-increment: fn;
+    position: absolute;
+    left: 0;
+    top: 0;
+    color: var(--orange);
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+  .footnotes li:target { color: var(--text); }
+  .footnotes li:target::before { color: var(--orange-light); }
+  .fn-back {
+    color: var(--text-muted);
+    text-decoration: none;
+    margin-left: 6px;
+    font-size: 0.85em;
+    transition: color 0.2s;
+  }
+  .fn-back:hover { color: var(--orange); }
+
+  html { scroll-behavior: smooth; }
+
+  .entry-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 24px 0 40px;
+    border-top: 1px solid var(--border);
+    animation: fadeUp 0.7s ease 0.3s both;
+  }
+
+  .nav-link {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    letter-spacing: 0.06em;
+    transition: color 0.2s;
+  }
+  .nav-link:hover { color: var(--text); }
+
+  footer {
+    margin-top: auto;
+    padding: 24px 0;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-align: center;
+    border-top: 1px solid var(--border);
+    width: 100%;
+    position: relative;
+    z-index: 1;
+  }
+
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+
+<div id="lang-switcher">
+  <select id="lang-select" onchange="onLangChange(this.value)">
+    <option value="ja">日本語</option>
+    <option value="en">EN</option>
+    <option value="zh">中文</option>
+    <option value="cat">CAT</option>
+  </select>
+</div>
+
+<div class="container">
+  <div class="site-header">
+    <a class="site-logo" href="../../../">MOMO <span>Works</span></a>
+    <span class="site-logo-sep">/</span>
+    <a class="site-logo" href="../../">MOMO <span>Logue</span></a>
+  </div>
+
+  <article>
+    <div class="entry-meta">
+      <span class="entry-num">006</span>
+      <span class="entry-date">2026-04-28</span>
+    </div>
+    <h1 class="entry-title" id="entry-title">法則型の独り言</h1>
+    <div class="entry-body" id="entry-body"></div>
+    <section class="footnotes" id="footnotes">
+      <div class="footnotes-title" id="footnotes-title">Notes</div>
+      <div class="footnotes-disclaimer" id="footnotes-disclaimer"></div>
+      <ol id="footnotes-list"></ol>
+    </section>
+  </article>
+
+  <nav class="entry-nav">
+    <a class="nav-link" href="../" id="nav-back">← Logue</a>
+    <span></span>
+  </nav>
+</div>
+
+<footer id="footer-text">&copy; MOMO Works</footer>
+
+<script>
+const CONTENT = {
+  ja: {
+    title: '法則型の独り言',
+    notesTitle: 'Notes — Fact-checked by Claude',
+    notesDisclaimer: '以下の注釈は本文の事実関係を補強するため Claude（Anthropic 社、Opus 4.7）が生成・確認したものです。',
+    body: `
+      <p>こんなサイト作って何が楽しいの、と思う人のほうが多いと思う。</p>
+      <p>岡田斗司夫<a class="fn-ref" href="#fn1" id="ref1">[1]</a>の４タイプ分類<a class="fn-ref" href="#fn2" id="ref2">[2]</a>というものがある。人間を「注目型」「司令型」「法則型」「理想型」の四つに分ける性格論で、外向／内向と、具体／抽象の二つの軸で人を区切る。MBTI<a class="fn-ref" href="#fn3" id="ref3">[3]</a>と似ているが別物で、岡田個人の経験から組み立てられた、科学的根拠もない分類法だ。だが、人を見るときの当たりをつける道具としては、まあ使える。MBTIは設問が多くて診断が面倒だし、出てきた４文字を見ても、その人がどう動くかが結局よくわからない。岡田の４分類は粗いかわりに、目の前の相手の行動原理にその場で当たりをつけて対処できる。私のような無精者にはこちらが合っている。</p>
+      <p>四つを並べると、こうなる。</p>
+      <div class="types">
+        <span>法則型（内向×具体）：世界の法則は全部知りたい、自分のことは何一つ世界に知られたくない</span>
+        <span>理想型（内向×抽象）：自分の中の「こうあるべき」に届かないものは、自分のものでさえ気に入らない</span>
+        <span>注目型（外向×抽象）：できるだけ多くの人に好かれたい、自分の熱を分け合いたい</span>
+        <span>司令型（外向×具体）：勝ちたい。場を仕切りたい。負ける勝負はしたくない</span>
+      </div>
+      <p>私は明らかに法則型に属す。世界の仕組みを覗き見たい、覗き見たことは黙っていたい、その癖は自分でもよくわかる。だから、こんなサイトをやっている動機もはっきりしている。プログラムの知識なしにAIだけでアプリを作って公開できる、なんて面白いんだ、この面白さの仕組みを誰かにもわかってほしい――それだけのことだ。</p>
+      <p>たぶん他のタイプの人は、こう思っている。</p>
+      <div class="types">
+        <span>司令型：なんでそんなもの作ってるの？　アフィリエイトでも貼って収益化すればいいのに</span>
+        <span>理想型：AIに作らせるなんて邪道。自分の能力でもないものを誇示して、無能をさらしているだけだ</span>
+        <span>注目型：そんなもので人の目を引きたいの？　もっと楽しいことたくさんあるよ。ゲームができたなら、いっしょに遊ぼう</span>
+      </div>
+      <p>これは私の妄想なので、実際にこう言われたわけではない。司令型から見れば法則型は損得に鈍く、理想型から見れば手抜きに見え、注目型から見れば一緒に楽しむ気がない奴に見える――というだけの話だ。たぶんそれぞれの目には、そう映る。</p>
+      <p>そして、こんなことをわざわざ書いていること自体が、法則型の呪縛にとらわれている、という気もする。世界の仕組みを説明したくて仕方がないのだ。誰に、というあてもなく。</p>
+      <p>いいじゃん、自分が楽しんでるんだから。</p>
+    `,
+    notes: [
+      `<span id="fn1">岡田斗司夫（おかだ としお／1958年生）。日本のオタク文化を代表する評論家・実業家。1984年、後に『新世紀エヴァンゲリオン』を世に送り出すアニメ制作会社ガイナックスを庵野秀明らと共同で設立し、初代社長を務めた。在籍中の作品に『王立宇宙軍 オネアミスの翼』『トップをねらえ！』『ふしぎの海のナディア』『プリンセスメーカー』など。退社後は東京大学教養学部・大阪芸術大学などで講師・客員教授を歴任し、自らを「オタキング」と称してオタク文化を学問として論じた。著書に『オタク学入門』『「世界征服」は可能か？』『いつまでもデブと思うなよ』など多数あり、累計部数は250万部を超えるとされる。<a class="fn-back" href="#ref1">↩</a></span>`,
+      `<span id="fn2">正式名称は「欲求の４タイプ」。岡田が大阪芸術大学で講義をする中で、学生のタイプ別に話し方を変えると伝わりやすくなることから整理されたとされる。書籍として最初にまとまったのは2000年の『人生テスト 人を動かす４つの力』、現在広く読まれているのは2011年の『人生の法則 「欲求の４タイプ」で分かるあなたと他人』（朝日新聞出版）である。岡田自身は「科学的根拠は一切ない」と明言しており、性格診断というより「他人の行動原理に当たりをつけるための実用ツール」と位置付けている。<a class="fn-back" href="#ref2">↩</a></span>`,
+      `<span id="fn3">MBTI（Myers-Briggs Type Indicator）。ユング（Carl Jung）の心理学的類型論を下敷きに、米国のキャサリン・ブリッグスとイザベル・マイヤーズの母娘によって開発された性格分類法。原型は第二次世界大戦中の1944年で、人間を16タイプ（INFJ、ESTPなど４文字で表記）に分類する。世界45か国以上で使われている一方、心理測定学の観点からは信頼性・妥当性に疑義があり、疑似科学とみなされることも多い。日本では2020年代に入ってからSNSを通じて再流行している。<a class="fn-back" href="#ref3">↩</a></span>`,
+    ],
+  },
+  en: {
+    title: 'Soliloquy of a Hosoku-type',
+    notesTitle: 'Notes — Fact-checked by Claude',
+    notesDisclaimer: 'The following notes were generated and verified by Claude (Anthropic, Opus 4.7) to support the factual content of the main text.',
+    body: `
+      <p>Most people, I think, wonder what's so fun about running a site like this.</p>
+      <p>There is a personality framework called the Four Types, proposed by Toshio Okada<a class="fn-ref" href="#fn1" id="ref1">[1]</a><a class="fn-ref" href="#fn2" id="ref2">[2]</a>. It sorts people into four kinds — Attention-type, Command-type, Hosoku-type (law of the world), and Ideal-type — along two axes: extroverted versus introverted, and concrete versus abstract. It resembles MBTI<a class="fn-ref" href="#fn3" id="ref3">[3]</a> but is a different thing — built from Okada's own experience, with no scientific grounding to speak of. Still, as a tool for taking a quick read on someone, it works well enough. MBTI's questionnaire is tedious, and once you have your four letters, you still don't really know how that person will act. Okada's framework is rougher, but you can size up the person in front of you on the spot and adjust your approach. For a lazy man like me, this one fits.</p>
+      <p>Laid out side by side, they look like this:</p>
+      <div class="types">
+        <span>Hosoku-type (introverted × concrete): wants to know every law of the world, and wants the world to know nothing of itself</span>
+        <span>Ideal-type (introverted × abstract): cannot stand anything — even one's own things — that fails to meet the inner standard of how things ought to be</span>
+        <span>Attention-type (extroverted × abstract): wants to be liked by as many people as possible, wants to share its warmth</span>
+        <span>Command-type (extroverted × concrete): wants to win, wants to run the show, refuses fights it cannot win</span>
+      </div>
+      <p>I am clearly a Hosoku-type. I want to peer into how the world works, and I want to keep what I've seen to myself — the habit is unmistakable, even to me. So my reasons for running this site are equally clear. That you can build and publish an app using only AI, without any programming knowledge — how interesting that is. I want someone to understand how this kind of fun is put together. That's all there is to it.</p>
+      <p>The other types, I imagine, see it like this:</p>
+      <div class="types">
+        <span>Command-type: Why are you making something like that? Slap on some ads and at least monetize it.</span>
+        <span>Ideal-type: Letting an AI build it for you is cheating. Showing off something that isn't even your own ability — you're only exposing how little you can do.</span>
+        <span>Attention-type: Is that really how you want to catch people's eyes? There are so many more enjoyable things out there. If you've made a game, let's play it together.</span>
+      </div>
+      <p>This is my own imagining; nobody actually said any of it. To a Command-type, a Hosoku-type seems indifferent to gain and loss; to an Ideal-type, a corner-cutter; to an Attention-type, someone uninterested in shared fun — that's all. Through each pair of eyes, it probably does look that way.</p>
+      <p>And the very fact that I'm bothering to write all this is, I suspect, the Hosoku-type's own bind. I cannot help wanting to explain how the world works. To no one in particular.</p>
+      <p>Well, it's fine — I'm enjoying myself.</p>
+    `,
+    notes: [
+      `<span id="fn1">Toshio Okada (b. 1958). A leading Japanese commentator and entrepreneur of otaku culture. In 1984, together with Hideaki Anno and others, he co-founded the animation studio Gainax — the company that would later release Neon Genesis Evangelion — and served as its first president. Works produced during his tenure include The Wings of Honneamise, Gunbuster, Nadia: The Secret of Blue Water, and Princess Maker. After leaving Gainax, he held lecturer and visiting-professor posts at the University of Tokyo's College of Arts and Sciences, Osaka University of Arts, and elsewhere, styling himself the "Otaking" and arguing for otaku culture as a subject of serious study. He has authored numerous books, including An Introduction to Otaku Studies, Is World Conquest Possible?, and Stop Thinking of Yourself as Fat, with cumulative sales reported to exceed 2.5 million copies.<a class="fn-back" href="#ref1">↩</a></span>`,
+      `<span id="fn2">Properly titled the "Four Types of Desire." The framework is reported to have taken shape while Okada was teaching at Osaka University of Arts, when he found that adjusting his speech to suit each student's type made his points land more clearly. The first book-length treatment was the 2000 volume Life Test: The Four Forces That Move People; the version most widely read today is the 2011 Laws of Life: Understanding Yourself and Others Through the Four Types of Desire (Asahi Shimbun Publications). Okada himself states plainly that the framework has "no scientific grounding whatsoever," and frames it less as a personality test than as a practical tool for taking a read on someone else's motivations.<a class="fn-back" href="#ref2">↩</a></span>`,
+      `<span id="fn3">MBTI (Myers-Briggs Type Indicator). A personality classification developed by the American mother-and-daughter pair Katharine Cook Briggs and Isabel Briggs Myers, building on Carl Jung's theory of psychological types. The original was completed in 1944, during World War II, and sorts people into sixteen types denoted by four-letter codes such as INFJ or ESTP. While used in over forty-five countries, MBTI has been criticized on psychometric grounds for poor reliability and validity, and is widely regarded by academic psychology as pseudoscience. In Japan, it has seen a renewed surge of popularity through social media since the early 2020s.<a class="fn-back" href="#ref3">↩</a></span>`,
+    ],
+  },
+  zh: {
+    title: '法则型的独白',
+    notesTitle: 'Notes — Fact-checked by Claude',
+    notesDisclaimer: '以下注释由 Claude（Anthropic 公司，Opus 4.7）生成并核对，用以补充正文中事实部分的依据。',
+    body: `
+      <p>大概多数人会觉得，做这样一个网站到底有什么意思。</p>
+      <p>有一种叫"四类型"的性格论，是冈田斗司夫<a class="fn-ref" href="#fn1" id="ref1">[1]</a><a class="fn-ref" href="#fn2" id="ref2">[2]</a>提出的。把人分为"注目型""司令型""法则型""理想型"四类，依据"外向／内向"与"具体／抽象"两条轴线划分。它和MBTI<a class="fn-ref" href="#fn3" id="ref3">[3]</a>有几分相似，却是另一回事——由冈田个人经验搭建起来，没有什么科学依据。但作为给人下个大致判断的工具，倒还算好用。MBTI题目繁多，做一遍颇为费事，得出的四个字母看完，那人究竟会怎么动，还是不甚明了。冈田这套四分法粗是粗了些，却能就着眼前这位的行事方式当场判定、就近应对。对我这样懒散的人来说，这一种正合适。</p>
+      <p>四类摆出来，是这样的。</p>
+      <div class="types">
+        <span>法则型（内向×具体）：想看透世界的所有规则，又不愿让世界知道自己分毫</span>
+        <span>理想型（内向×抽象）：心中有"应当如此"的标准，达不到的事物——哪怕是自己的——都看不顺眼</span>
+        <span>注目型（外向×抽象）：希望尽可能多的人喜欢自己，愿把自己的热情分给别人</span>
+        <span>司令型（外向×具体）：要赢。要主导局面。打不赢的仗不打。</span>
+      </div>
+      <p>我显然是法则型。想去窥探世界的运作，看明白了又愿意闷在心里——这种习性，自己再清楚不过。所以做这个网站的动机也就明白：不靠编程知识、单凭AI就能把应用做出来并公开，多有意思啊，这种"有意思"是怎么搭起来的，希望也有人能看懂——不过如此。</p>
+      <p>其他类型的人，多半是这么想的。</p>
+      <div class="types">
+        <span>司令型：做这玩意儿干嘛？随便挂点广告变现一下不就行了。</span>
+        <span>理想型：让AI替你做，这本身就是歪门邪道。把不是自己本事的东西拿出来摆，徒然暴露了无能。</span>
+        <span>注目型：靠这个吸引人？外头有意思的事多得是。游戏做出来了的话，一起玩呗。</span>
+      </div>
+      <p>这是我的臆想，并没有谁真的这么说过。在司令型眼里，法则型对得失迟钝；在理想型眼里，是偷懒；在注目型眼里，是个不肯一起玩的家伙——也就是这么回事。从各自那双眼睛望去，多半就是那个样子。</p>
+      <p>而我特意把这些写出来，本身大概就还在法则型的圈套里。忍不住想把世界的运作方式说清楚。也没有要说给谁。</p>
+      <p>就这样吧——自己玩得开心，就够了。</p>
+    `,
+    notes: [
+      `<span id="fn1">冈田斗司夫（おかだ としお／1958年生）。日本御宅文化的代表性评论家、实业家。1984年与庵野秀明等人共同创办动画制作公司GAINAX——后来推出《新世纪福音战士》的那家公司——并担任首任社长。在职期间参与的作品有《王立宇宙军 欧尼亚米斯之翼》《飞跃巅峰》《不可思议之海的娜迪亚》《美少女梦工厂》等。退社后历任东京大学教养学部、大阪艺术大学等校的讲师、客座教授，自称"御宅之王"，将御宅文化作为学问加以论述。著有《御宅学入门》《"世界征服"可能吗？》《别再以为自己永远是胖子》等多部作品，累计销量据称超过250万册。<a class="fn-back" href="#ref1">↩</a></span>`,
+      `<span id="fn2">正式名称为"欲求的四类型"。据称是冈田在大阪艺术大学授课时，发现按学生的类型分别调整说话方式更易让对方领会，由此整理而成。最早成书是2000年的《人生测试 推动人的四种力量》，现今流传较广的是2011年的《人生法则——"欲求的四类型"教你看懂自己和他人》（朝日新闻出版）。冈田本人明言此说"完全没有科学根据"，与其说是性格诊断，不如说是"用来对他人行为动机做大致判断的实用工具"。<a class="fn-back" href="#ref2">↩</a></span>`,
+      `<span id="fn3">MBTI（Myers-Briggs Type Indicator）。以荣格（Carl Jung）的心理类型论为底色，由美国的凯瑟琳·布里格斯与伊莎贝尔·迈尔斯母女共同开发的性格分类法。雏形完成于二战期间的1944年，将人分为十六个类型（以INFJ、ESTP之类的四字母组合表示）。在世界四十五个以上国家有使用，但从心理测量学角度看，其信度与效度均存疑，常被学术心理学界视为伪科学。日本自2020年代以来通过社交媒体再度流行。<a class="fn-back" href="#ref3">↩</a></span>`,
+    ],
+  },
+};
+
+const NOTE_COUNT = 3;
+
+let catBase = 'ja';
+
+function catSpeak() {
+  const vocabMap = {
+    en: ['MEOW','meow','mrrrow','mew','NYA!'],
+    zh: ['喵','喵呜','咪','喵！'],
+    ja: ['にゃあ','にゃ','にゃーん','みゃお','ニャ！'],
+  };
+  const vocab = vocabMap[catBase] || vocabMap.ja;
+  return vocab[Math.floor(Math.random() * vocab.length)];
+}
+
+function catBody() {
+  // 本文の段落数（11段落）に合わせてにゃあにゃあする
+  return Array.from({length: 11}, () => `<p>${catSpeak()}</p>`).join('\n');
+}
+
+function catNotes() {
+  return Array.from({length: NOTE_COUNT}, () => catSpeak());
+}
+
+function renderNotes(notesArray) {
+  const list = document.getElementById('footnotes-list');
+  if (!list) return;
+  list.innerHTML = notesArray.map(n => `<li>${n}</li>`).join('');
+}
+
+let currentLang = (() => {
+  try {
+    const p = new URLSearchParams(location.search).get('lang');
+    if (p && ['ja','en','zh','cat'].includes(p)) return p;
+    const v = localStorage.getItem('momoLang');
+    return ['ja','en','zh','cat'].includes(v) ? v : 'ja';
+  } catch(e) { return 'ja'; }
+})();
+
+function applyLang() {
+  if (currentLang === 'cat') {
+    const t = catSpeak();
+    document.getElementById('entry-title').textContent  = t;
+    document.title = t + ' — MOMO Logue';
+    document.getElementById('entry-body').innerHTML     = catBody();
+    document.getElementById('footnotes-title').textContent = catSpeak();
+    document.getElementById('footnotes-disclaimer').textContent = catSpeak();
+    renderNotes(catNotes());
+    document.getElementById('nav-back').textContent     = catSpeak();
+    document.getElementById('footer-text').textContent  = catSpeak();
+  } else {
+    const c = CONTENT[currentLang] || CONTENT.ja;
+    document.getElementById('entry-title').textContent  = c.title;
+    document.title = c.title + ' — MOMO Logue';
+    document.getElementById('entry-body').innerHTML     = c.body;
+    document.getElementById('footnotes-title').textContent = c.notesTitle;
+    document.getElementById('footnotes-disclaimer').textContent = c.notesDisclaimer;
+    renderNotes(c.notes);
+    document.getElementById('nav-back').textContent     = '← Logue';
+    document.getElementById('footer-text').textContent  = '© MOMO Works';
+  }
+  const sel = document.getElementById('lang-select');
+  if (sel) sel.value = currentLang;
+  document.documentElement.lang = currentLang === 'zh' ? 'zh-Hans' : (currentLang === 'cat' ? catBase : currentLang);
+}
+
+function onLangChange(lang) {
+  if (lang === 'cat') catBase = currentLang;
+  currentLang = lang;
+  try { localStorage.setItem('momoLang', lang); } catch(e) {}
+  try {
+    const url = new URL(location.href);
+    if (lang === 'ja') url.searchParams.delete('lang');
+    else url.searchParams.set('lang', lang);
+    history.replaceState(null, '', url.toString());
+  } catch(e) {}
+  applyLang();
+}
+
+applyLang();
+</script>
+</body>
+</html>

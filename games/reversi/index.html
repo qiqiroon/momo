@@ -458,6 +458,19 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
   </div>
 
   <div class="panel">
+    <div class="panel-title" id="i18n-cpu-title">🤖 コンピュータと対戦</div>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <div style="font-size:12px;color:var(--gray);" id="i18n-cpu-desc">難易度を選んで部屋を作成。AIが対戦相手として参加します。</div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-secondary" style="flex:1;" onclick="startCpuGame('easy')" id="i18n-cpu-easy">入門</button>
+        <button class="btn btn-secondary" style="flex:1;" onclick="startCpuGame('medium')" id="i18n-cpu-medium">中級</button>
+        <button class="btn btn-secondary" style="flex:1;" onclick="startCpuGame('hard')" id="i18n-cpu-hard">名人</button>
+      </div>
+      <div id="cpu-error" style="font-size:12px;color:var(--danger);min-height:16px;text-align:center;"></div>
+    </div>
+  </div>
+
+  <div class="panel">
     <div class="panel-title" id="i18n-private-title">非公開の部屋を表示</div>
     <div style="display:flex;flex-direction:column;gap:8px;">
       <div class="field">
@@ -737,6 +750,10 @@ function connectWS() {
       document.getElementById('waiting-room-name').textContent = roomName;
       document.getElementById('waiting-status').textContent = t('waitingGuest');
       showScreen('waiting');
+      // CPU対戦モードの場合、ゲスト入室をシミュレート
+      if (MomoCPU.isActive()) {
+        MomoCPU.onRoomCreatedForCpu();
+      }
     },
 
     onJoinedRoom: (roomId, roomName, hostName) => {
@@ -747,6 +764,12 @@ function connectWS() {
     },
 
     onGuestJoined: (guestName) => {
+      // CPU対戦モード中に実プレイヤーが入室してきた場合は、CPUモード解除
+      // (パスワード付き非公開部屋なのでまず起こらないが念のため)
+      if (MomoCPU.isActive()) {
+        MomoCPU.stop();
+        addChat('waiting', '⚠️ CPU mode canceled (real guest joined)');
+      }
       const msg = `${guestName}${t('guestJoined')}`;
       document.getElementById('waiting-status').textContent = msg;
       document.getElementById('room-status').textContent = currentRoomName;
@@ -980,6 +1003,7 @@ function leaveRoom() {
 }
 
 function resetToLobby() {
+  MomoCPU.stop();
   MomoMatchmaking.leaveRoom();
   myColor = null;
   gameReady = false;
@@ -1011,6 +1035,10 @@ function selectColor(color) {
   send({ type: 'color_select', color });
   updateColorUI();
   checkStartReady();
+  // CPU対戦モード: CPUが逆色を選択
+  if (MomoCPU.isActive()) {
+    MomoCPU.onOpponentSelectedColor(color);
+  }
 }
 
 function updateColorUI() {
@@ -1052,6 +1080,10 @@ function pressStart() {
   document.getElementById('start-waiting-msg').textContent = t('waitingStart');
   send({ type: 'start_press' });
   checkBothStart();
+  // CPU対戦モード: CPU側もスタート押下
+  if (MomoCPU.isActive()) {
+    MomoCPU.onHumanPressedStart();
+  }
 }
 
 function checkBothStart() {
@@ -1067,6 +1099,11 @@ function beginGame(swapColors) {
     myColor = myChoice;
   }
 
+  // CPU対戦: 人間の色の逆をCPUの色とする
+  if (MomoCPU.isActive()) {
+    MomoCPU.setAiColor(myColor === 'black' ? 'white' : 'black');
+  }
+
   gameReady = true;
   initBoard();
   turn = 'black';
@@ -1079,6 +1116,11 @@ function beginGame(swapColors) {
   showScreen('game');
   renderBoard();
   updateTurnUI();
+
+  // CPU対戦: 黒（先手）がCPUなら最初の手をCPUに打たせる
+  if (MomoCPU.isActive()) {
+    MomoCPU.onTurnChanged();
+  }
 }
 
 // ===== GAME =====
@@ -1184,6 +1226,12 @@ function nextTurn() {
 
   if (!hasMove('black') && !hasMove('white')) {
     endGame();
+    return;
+  }
+
+  // CPU対戦モード: CPUの手番なら自動で打つ、人間の手番なら評価値計算
+  if (MomoCPU.isActive()) {
+    MomoCPU.onTurnChanged();
   }
 }
 
@@ -1248,13 +1296,23 @@ function endGame() {
   board.flat().forEach(v => { if (v === 'black') black++; if (v === 'white') white++; });
 
   let result;
+  let humanResult; // 'win'|'lose'|'draw'
   if (myColor === 'black') {
-    result = black > white ? t('winMsg') : black < white ? t('loseMsg') : t('drawMsg');
+    if (black > white) { result = t('winMsg'); humanResult = 'win'; }
+    else if (black < white) { result = t('loseMsg'); humanResult = 'lose'; }
+    else { result = t('drawMsg'); humanResult = 'draw'; }
   } else {
-    result = white > black ? t('winMsg') : white < black ? t('loseMsg') : t('drawMsg');
+    if (white > black) { result = t('winMsg'); humanResult = 'win'; }
+    else if (white < black) { result = t('loseMsg'); humanResult = 'lose'; }
+    else { result = t('drawMsg'); humanResult = 'draw'; }
   }
 
   showEndScreen(result, true, black, white);
+
+  // CPU対戦: 結果に応じた感想を発話
+  if (MomoCPU.isActive()) {
+    MomoCPU.onGameEnded(humanResult);
+  }
 }
 
 function showEndScreen(result, showScore, black, white) {
@@ -1349,6 +1407,10 @@ function chooseEnd(choice) {
   send({ type: 'end_choice', choice });
   updateEndUI();
   checkEndMatch();
+  // CPU対戦: 同じ選択を返す
+  if (MomoCPU.isActive()) {
+    MomoCPU.onHumanEndChoice(choice);
+  }
 }
 
 function updateEndUI() {
@@ -1510,6 +1572,19 @@ const I18N = {
     privateTitle: '非公開の部屋を表示', privatePwLabel: 'パスワード（なければ空欄）',
     privateBtnShow: '表示',
     historyMe: '私', historyOpp: '相手', historyWinWord: '勝利', historyResignWord: '降参',
+    cpuTitle: '🤖 コンピュータと対戦',
+    cpuDesc: '難易度を選んで部屋を作成。AIが対戦相手として参加します。',
+    cpuEasy: '入門', cpuMedium: '中級', cpuHard: '名人',
+    cpuRoomName: 'CPU対戦', cpuPlayerName: 'CPU',
+    cpuGreet: ['よろしくお願いします', 'よろしくお願いしますね', 'お手柔らかにお願いします'],
+    cpuOppGood: ['うーん、あなた強いですね…', 'お見事です', 'なるほど、その手は気付きませんでした', 'やりますね…'],
+    cpuOppBad: ['ふふふ、その手は私にとっておいしいですよ', 'おや、それで良いのですか？', 'なるほど、ご馳走様です', 'いただきます'],
+    cpuMyBad: ['しまった、やられた', 'うっ、これは痛い…', 'ぐぬぬ…', 'やられました'],
+    cpuMyGood: ['この手はどうでしょう', 'ふむ、ここですね', 'これでどうだ', 'よし、ここだ'],
+    cpuPass: ['うーん、手がありませんね。パスします', 'やむを得ません、パスします', '打てる手がありません…'],
+    cpuWin: ['ありがとうございました。良い対局でした', '勝てて嬉しいです。お疲れ様でした', '楽しかったです、ありがとうございました'],
+    cpuLose: ['完敗です。お見事でした', 'まいりました、強いですね', 'ありがとうございました、勉強になりました'],
+    cpuDraw: ['引き分けですね、良い対局でした', '互角の戦いでした、ありがとうございました'],
   },
   en: {
     connecting: 'Connecting...', connected: 'Connected', reconnecting: 'Connecting...',
@@ -1550,6 +1625,19 @@ const I18N = {
     privateTitle: 'Show Private Rooms', privatePwLabel: 'Password (leave blank if none)',
     privateBtnShow: 'Show',
     historyMe: 'Me', historyOpp: 'Opp', historyWinWord: 'Win', historyResignWord: 'Resigned',
+    cpuTitle: '🤖 Play vs Computer',
+    cpuDesc: 'Choose a difficulty. The AI will join your room as opponent.',
+    cpuEasy: 'Beginner', cpuMedium: 'Strategist', cpuHard: 'Master',
+    cpuRoomName: 'CPU Match', cpuPlayerName: 'CPU',
+    cpuGreet: ['Good luck, have fun!', 'Nice to meet you. Good luck!', "Let's have a good game"],
+    cpuOppGood: ["Hmm, you're strong…", 'Nice move!', "I didn't see that coming", 'Well played'],
+    cpuOppBad: ['Hehe, that move is delicious for me', 'Oh, are you sure about that?', 'Thank you for the gift', 'I gladly accept'],
+    cpuMyBad: ['Ouch, you got me', 'Argh, that hurts…', 'Ngghh…', 'Well played, I lost ground'],
+    cpuMyGood: ['How about this?', 'Hmm, here it is', 'Take that', 'Yes, this is the spot'],
+    cpuPass: ['Hmm, no moves available. I pass', 'I have to pass, sorry', "I can't move…"],
+    cpuWin: ['Thanks for the game! It was fun', 'Glad I won. Thank you!', 'I enjoyed that, thanks'],
+    cpuLose: ['Total defeat. You played beautifully', 'I lost. You are strong!', 'Thank you, I learned a lot'],
+    cpuDraw: ["A draw — that was a great game", 'Evenly matched, thank you'],
   },
   zh: {
     connecting: '连接中...', connected: '已连接', reconnecting: '连接中...',
@@ -1590,6 +1678,19 @@ const I18N = {
     privateTitle: '显示非公开房间', privatePwLabel: '密码（无则留空）',
     privateBtnShow: '显示',
     historyMe: '我', historyOpp: '对手', historyWinWord: '胜利', historyResignWord: '认输',
+    cpuTitle: '🤖 与电脑对战',
+    cpuDesc: '选择难度后创建房间，AI将作为对手加入。',
+    cpuEasy: '入门', cpuMedium: '中级', cpuHard: '高手',
+    cpuRoomName: '电脑对战', cpuPlayerName: '电脑',
+    cpuGreet: ['请多指教', '请多关照', '我们来一局好棋'],
+    cpuOppGood: ['嗯，你很厉害啊…', '好棋！', '这步我没想到', '不错不错'],
+    cpuOppBad: ['哈哈，这步对我来说很美味', '哦？这样下没问题吗？', '多谢送礼', '不客气地收下了'],
+    cpuMyBad: ['糟了，被你抓住了', '啊，这下糟糕了…', '呃…', '失策了'],
+    cpuMyGood: ['这一步如何', '嗯，就是这里', '看这一手', '好，就下这里'],
+    cpuPass: ['嗯，没地方下了，我跳过', '只能跳过了', '没有可下之处…'],
+    cpuWin: ['谢谢你的对局，很有趣', '能赢真高兴，辛苦了', '玩得很开心，谢谢'],
+    cpuLose: ['完败，下得真漂亮', '我输了，你太强了', '谢谢，受教了'],
+    cpuDraw: ['平局，是场好棋', '势均力敌，谢谢你'],
   }
 };
 
@@ -1671,6 +1772,11 @@ function applyLang() {
   setText('i18n-private-title', 'privateTitle');
   setText('i18n-private-pw-label', 'privatePwLabel');
   setText('i18n-btn-private-show', 'privateBtnShow');
+  setText('i18n-cpu-title', 'cpuTitle');
+  setText('i18n-cpu-desc', 'cpuDesc');
+  setText('i18n-cpu-easy', 'cpuEasy');
+  setText('i18n-cpu-medium', 'cpuMedium');
+  setText('i18n-cpu-hard', 'cpuHard');
 
   // start-hint: only update if not overridden by game state
   const startHintEl = document.getElementById('start-hint');
@@ -1749,6 +1855,477 @@ function onLangChange(lang) {
   currentLang = lang;
   try { localStorage.setItem('momoLang', lang); } catch(e) {}
   applyLang();
+}
+
+// ============================================================
+// ===== CPU 対戦モジュール =====
+// 既存の通信プロトコルをそのまま使い、ロビー操作・色選択・着手・
+// 終了選択を AI が代行する。サーバーから見れば普通のプレイヤー。
+// ============================================================
+const MomoCPU = (() => {
+  let active = false;          // CPU対戦モード有効か
+  let difficulty = 'medium';   // 'easy' | 'medium' | 'hard'
+  let myAiColor = null;        // CPUの色（人間プレイヤーから見ると相手）
+  let lastChatMs = 0;          // 連発防止用クールダウン
+  let prevMyBest = null;       // 直前自分番の最善評価値（相手の悪手/好手判定用）
+  let greetSent = false;
+  let endChoiceTimer = null;
+  let cpuMoveTimer = null;
+  let waitTimer = null;        // ゲスト参加待ちタイムアウト
+
+  // ----- 評価重み -----
+  const W = [
+    [120,-20, 20,  5,  5, 20,-20,120],
+    [-20,-40, -5, -5, -5, -5,-40,-20],
+    [ 20, -5, 15,  3,  3, 15, -5, 20],
+    [  5, -5,  3,  3,  3,  3, -5,  5],
+    [  5, -5,  3,  3,  3,  3, -5,  5],
+    [ 20, -5, 15,  3,  3, 15, -5, 20],
+    [-20,-40, -5, -5, -5, -5,-40,-20],
+    [120,-20, 20,  5,  5, 20,-20,120]
+  ];
+  const DIRS = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+
+  function opp(c) { return c === 'black' ? 'white' : 'black'; }
+
+  function flipsAt(b, x, y, color) {
+    if (b[y][x]) return null;
+    const out = [];
+    const o = opp(color);
+    for (const [dx,dy] of DIRS) {
+      let nx=x+dx, ny=y+dy, line=[];
+      while (nx>=0 && nx<8 && ny>=0 && ny<8 && b[ny][nx]===o) {
+        line.push([nx,ny]); nx+=dx; ny+=dy;
+      }
+      if (line.length>0 && nx>=0 && nx<8 && ny>=0 && ny<8 && b[ny][nx]===color) {
+        out.push(...line);
+      }
+    }
+    return out.length>0 ? out : null;
+  }
+
+  function legalMoves(b, color) {
+    const moves = [];
+    for (let y=0; y<8; y++) for (let x=0; x<8; x++) {
+      const f = flipsAt(b,x,y,color);
+      if (f) moves.push({x,y,flips:f});
+    }
+    return moves;
+  }
+
+  function applyOnCopy(b, x, y, color) {
+    const flips = flipsAt(b,x,y,color);
+    if (!flips) return null;
+    const nb = b.map(r => r.slice());
+    nb[y][x] = color;
+    for (const [fx,fy] of flips) nb[fy][fx] = color;
+    return nb;
+  }
+
+  function countDiscs(b) {
+    let bk=0, wh=0;
+    for (let y=0;y<8;y++) for (let x=0;x<8;x++) {
+      if (b[y][x]==='black') bk++;
+      else if (b[y][x]==='white') wh++;
+    }
+    return {black:bk, white:wh};
+  }
+
+  function evaluate(b, me) {
+    const op = opp(me);
+    let s = 0;
+    let myN=0, opN=0;
+    for (let y=0;y<8;y++) for (let x=0;x<8;x++) {
+      if (b[y][x]===me) { s += W[y][x]; myN++; }
+      else if (b[y][x]===op) { s -= W[y][x]; opN++; }
+    }
+    const myMob = legalMoves(b, me).length;
+    const opMob = legalMoves(b, op).length;
+    if (myMob+opMob !== 0) s += 12*(myMob-opMob)/(myMob+opMob);
+    if (myN+opN > 50) s += 30*(myN-opN);
+    return s;
+  }
+
+  function alphaBeta(b, depth, alpha, beta, turnColor, rootMe) {
+    const moves = legalMoves(b, turnColor);
+    if (depth===0) return evaluate(b, rootMe);
+    if (moves.length===0) {
+      const oppMoves = legalMoves(b, opp(turnColor));
+      if (oppMoves.length===0) {
+        const c = countDiscs(b);
+        const my = c[rootMe], en = c[opp(rootMe)];
+        if (my>en) return 100000;
+        if (my<en) return -100000;
+        return 0;
+      }
+      return alphaBeta(b, depth, alpha, beta, opp(turnColor), rootMe);
+    }
+    if (turnColor===rootMe) {
+      let best = -Infinity;
+      for (const m of moves) {
+        const nb = applyOnCopy(b, m.x, m.y, turnColor);
+        const v = alphaBeta(nb, depth-1, alpha, beta, opp(turnColor), rootMe);
+        if (v>best) best=v;
+        if (v>alpha) alpha=v;
+        if (beta<=alpha) break;
+      }
+      return best;
+    } else {
+      let best = Infinity;
+      for (const m of moves) {
+        const nb = applyOnCopy(b, m.x, m.y, turnColor);
+        const v = alphaBeta(nb, depth-1, alpha, beta, opp(turnColor), rootMe);
+        if (v<best) best=v;
+        if (v<beta) beta=v;
+        if (beta<=alpha) break;
+      }
+      return best;
+    }
+  }
+
+  // 最善手と評価値を返す
+  function chooseMove(b, color, diff) {
+    const moves = legalMoves(b, color);
+    if (moves.length===0) return null;
+
+    if (diff==='easy') {
+      // 隅に隣接する危険な X-square を避ける程度のランダム
+      const corners = [[0,0],[0,7],[7,0],[7,7]];
+      const safe = moves.filter(m => {
+        for (const [cx,cy] of corners) {
+          if (Math.abs(m.x-cx)<=1 && Math.abs(m.y-cy)<=1 &&
+              !(m.x===cx && m.y===cy) && !b[cy][cx]) return false;
+        }
+        return true;
+      });
+      const pool = (safe.length>0 && Math.random()>0.25) ? safe : moves;
+      const pick = pool[Math.floor(Math.random()*pool.length)];
+      return { move: pick, score: 0 };
+    }
+
+    const depth = diff==='hard' ? 5 : 3;
+    let best = null, bestVal = -Infinity;
+    const shuffled = moves.slice().sort(() => Math.random()-0.5);
+    for (const m of shuffled) {
+      const nb = applyOnCopy(b, m.x, m.y, color);
+      const v = alphaBeta(nb, depth-1, -Infinity, Infinity, opp(color), color);
+      if (v>bestVal) { bestVal=v; best=m; }
+    }
+    return { move: best, score: bestVal };
+  }
+
+  // ----- 発話関連 -----
+  function rand(arr) { return arr[Math.floor(Math.random()*arr.length)]; }
+
+  function tArr(key) {
+    // 言語キーから配列を取得（cat時は ja を基本にして語尾変換）
+    const langKey = (currentLang==='cat') ? (catBase || 'ja') : currentLang;
+    const dict = I18N[langKey] || I18N.ja;
+    const arr = dict[key];
+    if (!arr) return null;
+    return Array.isArray(arr) ? arr : [arr];
+  }
+
+  function catTransform(s) {
+    // 簡易: 語尾を「にゃ」風に
+    const enders = ['にゃ', 'にゃー', 'にゃん'];
+    return s.replace(/[。.!！\s]*$/, '') + rand(enders);
+  }
+
+  function speak(key, opts) {
+    if (!active) return;
+    opts = opts || {};
+    const now = Date.now();
+    // クールダウン: 連発防止（強制発話以外は2手分=4秒程度）
+    if (!opts.force && (now - lastChatMs) < 3500) return;
+    if (!opts.force && Math.random() > (opts.prob || 0.7)) return;
+
+    const arr = tArr(key);
+    if (!arr) return;
+    let msg = rand(arr);
+    if (currentLang === 'cat') msg = catTransform(msg);
+
+    const delay = opts.delay != null ? opts.delay : 600;
+    setTimeout(() => {
+      if (!active) return;
+      lastChatMs = Date.now();
+      // CPUの発話は自分の画面に「CPU：xxx」として表示するだけ
+      // (実際のWebRTC相手はいないので送信不要)
+      const screens = ['waiting', 'room', 'game', 'end'];
+      screens.forEach(s => addChat(s, `${cpuLabel()}：${msg}`));
+    }, delay);
+  }
+
+  function cpuLabel() {
+    const dict = I18N[(currentLang==='cat'?(catBase||'ja'):currentLang)] || I18N.ja;
+    return dict.cpuPlayerName || 'CPU';
+  }
+
+  // ----- 思考時間（ランダム遅延） -----
+  function thinkDelay(moveCount, withChat) {
+    // 序盤・中盤・終盤で変化
+    let base;
+    if (moveCount < 12) base = 700 + Math.random()*1500;       // 0.7〜2.2秒
+    else if (moveCount < 45) base = 1200 + Math.random()*2800;  // 1.2〜4.0秒
+    else base = 900 + Math.random()*2100;                       // 0.9〜3.0秒
+    if (difficulty === 'easy') base *= 0.6;
+    if (difficulty === 'hard') base *= 1.15;
+    if (withChat) base += 1800 + Math.random()*1200;            // チャット読む時間
+    return Math.round(base);
+  }
+
+  // ----- 公開関数 -----
+  function start(diff) {
+    active = true;
+    difficulty = diff;
+    myAiColor = null;
+    greetSent = false;
+    prevMyBest = null;
+    lastChatMs = 0;
+
+    // 部屋を非公開で自動作成
+    const playerName = (document.getElementById('my-name').value.trim()) || 'Player';
+    myName = playerName;
+    try { localStorage.setItem('momoPlayerName', playerName); } catch(e) {}
+
+    const dict = I18N[(currentLang==='cat'?(catBase||'ja'):currentLang)] || I18N.ja;
+    const baseName = dict.cpuRoomName || 'CPU Match';
+    // ランダム文字列で他人の誤入室防止
+    const tag = Math.random().toString(36).slice(2, 7);
+    const roomName = `${baseName}-${tag}`;
+    const password = 'cpu_' + Math.random().toString(36).slice(2, 10);
+
+    MomoMatchmaking.createRoom({
+      hostName: playerName,
+      name: roomName,
+      password,
+      isPublic: false  // 非公開で他人が入らないように
+    });
+
+    // 一定時間ゲストが来なかった場合のフォールバック（30秒）
+    if (waitTimer) clearTimeout(waitTimer);
+    waitTimer = setTimeout(() => {
+      if (active && !MomoMatchmaking.getState().connected) {
+        // タイムアウトしたらキャンセル扱い
+        addChat('waiting', '(CPU connection timeout)');
+      }
+    }, 30000);
+  }
+
+  function stop() {
+    active = false;
+    myAiColor = null;
+    greetSent = false;
+    if (cpuMoveTimer) { clearTimeout(cpuMoveTimer); cpuMoveTimer = null; }
+    if (endChoiceTimer) { clearTimeout(endChoiceTimer); endChoiceTimer = null; }
+    if (waitTimer) { clearTimeout(waitTimer); waitTimer = null; }
+  }
+
+  function isActive() { return active; }
+
+  // ゲストが入室した直後（waitingScreen → room screen に遷移したあと）
+  // CPUが「色を選ぶ」必要があるが、人間プレイヤーが選ぶまで待つ。
+  // → 人間が選んだら onOpponentSelectedColor で逆を選ぶ。
+
+  function onOpponentSelectedColor(humanColor) {
+    if (!active) return;
+    // CPUは逆の色を自動選択
+    myAiColor = opp(humanColor);
+    setTimeout(() => {
+      if (!active) return;
+      // 既存の selectColor を内部用に呼ぶのではなく、
+      // 相手目線（CPU側）として color_select メッセージを送る相当の処理:
+      // 既存コードでは oppChoice にセットするだけなので、同じ効果を得るために
+      // 受信側のロジックを直接実行する。
+      // → ただし「人間プレイヤーから見たCPUの選択」= oppChoice にセット
+      oppChoice = myAiColor;
+      updateColorUI();
+      checkStartReady();
+
+      // 挨拶（最初の1回）
+      if (!greetSent) {
+        greetSent = true;
+        speak('cpuGreet', { force: true, delay: 800 });
+      }
+    }, 700 + Math.random()*900);
+  }
+
+  function onHumanPressedStart() {
+    if (!active) return;
+    // CPU 側もスタート押下を自動で行う
+    setTimeout(() => {
+      if (!active) return;
+      oppStartPressed = true;
+      checkBothStart();
+    }, 500 + Math.random()*700);
+  }
+
+  // 人間が手を打った後（または相手の手を反映した後）に呼ばれる
+  function onTurnChanged() {
+    if (!active) return;
+    if (!gameActive) return;
+
+    if (turn === myAiColor) {
+      // CPU の手番
+      cpuTakeTurn();
+    } else {
+      // 人間の手番。直前の人間の手の良し悪しを判定するため、評価値を計算しておく
+      evaluateAfterHumanMove();
+    }
+  }
+
+  function evaluateAfterHumanMove() {
+    if (!active) return;
+    // 人間が手を指した直後の局面で、CPU目線の最善評価を計算
+    const result = chooseMove(board, myAiColor, 'medium'); // 判定用は固定で深さ3
+    if (!result) return;
+    const cur = result.score;
+    if (prevMyBest != null) {
+      const diff = cur - prevMyBest;
+      // 大きく評価が上がった = 相手の悪手 → ふふふ系
+      if (diff > 35 && Math.random() < 0.5) {
+        speak('cpuOppBad', { prob: 1, delay: 900 });
+      }
+      // 大きく評価が下がった = 相手の好手 → 強いですね系
+      else if (diff < -35 && Math.random() < 0.5) {
+        speak('cpuOppGood', { prob: 1, delay: 900 });
+      }
+    }
+    // この値はCPUが指す前の参照になるので、CPUが指した後で更新する
+  }
+
+  function cpuTakeTurn() {
+    if (cpuMoveTimer) clearTimeout(cpuMoveTimer);
+
+    // 合法手があるか
+    if (!hasMove(myAiColor)) {
+      // パス
+      const moveCount = 64 - countEmpty();
+      const delay = thinkDelay(moveCount, true);
+      speak('cpuPass', { force: true, prob: 1, delay: 500 });
+      cpuMoveTimer = setTimeout(() => {
+        if (!active || !gameActive) return;
+        if (turn !== myAiColor) return;
+        // 既存の pass() は myColor チェックがあるため、内部処理を直接行う
+        send({ type: 'pass' });
+        nextTurn();
+      }, delay);
+      return;
+    }
+
+    // 思考開始
+    const result = chooseMove(board, myAiColor, difficulty);
+    if (!result || !result.move) return;
+    const m = result.move;
+    const myScore = result.score;
+
+    // チャット判断: 自分にとって苦しい手しかない=しまった、最善が高得点=この手はどうだ
+    let chatKey = null;
+    let chatProb = 0.25;
+    if (myScore < -40) { chatKey = 'cpuMyBad'; chatProb = 0.45; }
+    else if (myScore > 60 && Math.random() < 0.3) { chatKey = 'cpuMyGood'; chatProb = 0.35; }
+
+    const willChat = chatKey && Math.random() < chatProb;
+    const moveCount = 64 - countEmpty();
+    const delay = thinkDelay(moveCount, willChat);
+
+    if (willChat) {
+      speak(chatKey, { prob: 1, delay: 400 });
+    }
+
+    cpuMoveTimer = setTimeout(() => {
+      if (!active || !gameActive) return;
+      if (turn !== myAiColor) return;
+      // 直接盤面に反映 + send
+      flip(board, m.x, m.y, turn);
+      board[m.y][m.x] = turn;
+      lastMove = { x: m.x, y: m.y };
+      send({ type: 'move', x: m.x, y: m.y });
+      // 次の人間ターン用に参照値を保存
+      prevMyBest = myScore;
+      nextTurn();
+    }, delay);
+  }
+
+  function countEmpty() {
+    let n=0;
+    for (let y=0;y<8;y++) for (let x=0;x<8;x++) if (!board[y][x]) n++;
+    return n;
+  }
+
+  function onGameEnded(humanResult) {
+    // humanResult: 'win' | 'lose' | 'draw' （人間プレイヤーから見た結果）
+    if (!active) return;
+    // CPUから見ると逆
+    let key;
+    if (humanResult === 'win') key = 'cpuLose';
+    else if (humanResult === 'lose') key = 'cpuWin';
+    else key = 'cpuDraw';
+    speak(key, { force: true, prob: 1, delay: 1500 });
+
+    // 終了選択を待つ。人間が選んだら同じ選択を返す（onHumanEndChoiceで処理）
+  }
+
+  function onHumanEndChoice(choice) {
+    if (!active) return;
+    if (choice === 'quit') {
+      // 退出は自動的にロビーへ戻る（既存処理に任せる）
+      return;
+    }
+    // 人間と同じ選択を遅延後に返す
+    if (endChoiceTimer) clearTimeout(endChoiceTimer);
+    endChoiceTimer = setTimeout(() => {
+      if (!active) return;
+      oppEndChoice = choice;
+      updateEndUI();
+      checkEndMatch();
+    }, 1200 + Math.random()*1800);
+  }
+
+  // 部屋作成完了 → 自動でゲスト役のCPUを「入室」させる
+  function onRoomCreatedForCpu() {
+    if (!active) return;
+    if (waitTimer) { clearTimeout(waitTimer); waitTimer = null; }
+    // 部屋作成成功 → CPU が入室した体で表示を切り替える
+    setTimeout(() => {
+      if (!active) return;
+      const cpuName = cpuLabel();
+      // 既存の onGuestJoined と同等の処理を行う
+      const msg = `${cpuName}${t('guestJoined')}`;
+      const ws2 = document.getElementById('waiting-status');
+      if (ws2) ws2.textContent = msg;
+      const rs = document.getElementById('room-status');
+      if (rs) rs.textContent = currentRoomName + `｜vs ${cpuName}`;
+      const hc = document.getElementById('host-controls');
+      if (hc) hc.style.display = 'none'; // CPU相手にキックボタンは不要
+      showScreen('room');
+      addChat('room', msg);
+    }, 1500 + Math.random()*1500);
+  }
+
+  return {
+    start, stop, isActive,
+    onOpponentSelectedColor, onHumanPressedStart, onTurnChanged,
+    onGameEnded, onHumanEndChoice, onRoomCreatedForCpu,
+    setAiColor: (c) => { myAiColor = c; prevMyBest = null; },
+    getMyAiColor: () => myAiColor,
+  };
+})();
+
+// CPU対戦開始ボタンのハンドラ
+function startCpuGame(diff) {
+  const nameEl = document.getElementById('my-name');
+  const errEl = document.getElementById('cpu-error');
+  const playerName = nameEl.value.trim();
+  if (!playerName) {
+    errEl.textContent = t('createErrorEmpty');
+    nameEl.focus();
+    nameEl.style.borderColor = 'var(--danger)';
+    setTimeout(() => { nameEl.style.borderColor = ''; }, 2000);
+    return;
+  }
+  errEl.textContent = '';
+  MomoCPU.start(diff);
 }
 
 // ===== BOOT =====

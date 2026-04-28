@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AIに教わりながらAIを使う — MOMO Logue</title>
+
+<!-- ============================================================
+  MOMO Logue — Entry 005
+  タイトル: AIに教わりながらAIを使う / Learning from AI to Use AI / 边问AI边用AI
+  日付: 2026-04-27
+  バージョン: v1.00
+  変更履歴:
+    v1.00 - 初版（注釈方式: AI ファクトチェック型 / 仕様書 v1.08 §3.4 参照）
+  ============================================================ -->
+
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-46 -50 92 80'%3E%3Crect x='-46' y='-50' width='92' height='80' rx='8' fill='%23000000'/%3E%3Cg transform='rotate(-12,-12,8.3)'%3E%3Cpath d='M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cg transform='rotate(12,12,8.3)'%3E%3Cpath d='M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cellipse cx='0' cy='1.3' rx='34' ry='26' fill='%23c2410c'/%3E%3Cline x1='-14' y1='1.00' x2='-33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='6.0' x2='-33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='10.59' x2='-29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.68' y1='-2.28' x2='-38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.44' y1='6.0' x2='-40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-29.58' y1='14.26' x2='-37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='1.00' x2='33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='6.0' x2='33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='10.59' x2='29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.68' y1='-2.28' x2='38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.44' y1='6.0' x2='40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='29.58' y1='14.26' x2='37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cellipse cx='-12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='-12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Cellipse cx='12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Ccircle cx='-10.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Ccircle cx='13.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Cpath d='M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z' fill='%23000'/%3E%3Cline x1='0' y1='11.3' x2='0' y2='13.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q-5,17.3 -8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q5,17.3 8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --surface2: #1a1a1a;
+    --orange: #c2410c;
+    --orange-light: #ea580c;
+    --text: #e5e5e5;
+    --text-muted: #737373;
+    --border: #2a2a2a;
+    --border-strong: #444;
+    --bg-selected: rgba(194,65,12,0.15);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 48px 48px;
+    opacity: 0.3;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  #lang-switcher { position: fixed; top: 8px; right: 12px; z-index: 200; }
+  #lang-select {
+    background: var(--surface2);
+    border: 1px solid var(--border-strong);
+    color: var(--text);
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: 'Noto Sans JP', sans-serif;
+    outline: none;
+  }
+  #lang-select:focus { border-color: var(--orange); }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 680px;
+    padding: 0 24px;
+  }
+
+  .site-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 52px 0 40px;
+    animation: fadeDown 0.7s ease both;
+  }
+
+  .site-logo {
+    font-family: 'Fredoka One', cursive;
+    font-size: 1.1rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    letter-spacing: 0.04em;
+    transition: color 0.2s;
+  }
+
+  .site-logo:hover { color: var(--text); }
+  .site-logo span { color: var(--orange-light); }
+  .site-logo-sep { color: var(--border-strong); font-size: 0.9rem; }
+
+  article {
+    animation: fadeUp 0.7s ease 0.15s both;
+    margin-bottom: 56px;
+  }
+
+  .entry-meta {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 28px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .entry-num { font-size: 0.7rem; color: var(--orange); letter-spacing: 0.1em; }
+  .entry-date { font-size: 0.75rem; color: var(--text-muted); letter-spacing: 0.05em; }
+
+  .entry-title {
+    font-size: clamp(1.4rem, 4vw, 1.9rem);
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    line-height: 1.4;
+    margin-bottom: 32px;
+    color: #fff;
+  }
+
+  .entry-body { font-size: 1rem; line-height: 2; color: var(--text); letter-spacing: 0.04em; }
+  .entry-body p { margin-bottom: 1.6em; }
+  .entry-body p:last-child { margin-bottom: 0; }
+  .entry-body h3 {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--orange-light);
+    margin-top: 2.4em;
+    margin-bottom: 1em;
+    letter-spacing: 0.05em;
+  }
+
+  .entry-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 24px 0 40px;
+    border-top: 1px solid var(--border);
+    animation: fadeUp 0.7s ease 0.3s both;
+  }
+
+  .nav-link {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    letter-spacing: 0.06em;
+    transition: color 0.2s;
+  }
+  .nav-link:hover { color: var(--text); }
+
+  footer {
+    margin-top: auto;
+    padding: 24px 0;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-align: center;
+    border-top: 1px solid var(--border);
+    width: 100%;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* 脚注リンク（本文中の番号） */
+  .fn-ref {
+    color: var(--orange);
+    text-decoration: none;
+    font-size: 0.7em;
+    vertical-align: super;
+    line-height: 0;
+    padding: 0 2px;
+    transition: color 0.2s;
+  }
+  .fn-ref:hover { color: var(--orange-light); }
+
+  /* 脚注セクション */
+  .footnotes {
+    margin-top: 56px;
+    padding-top: 32px;
+    border-top: 1px solid var(--border);
+    font-size: 0.85rem;
+    line-height: 1.85;
+    color: var(--text-muted);
+    letter-spacing: 0.03em;
+  }
+  .footnotes-title {
+    font-size: 0.7rem;
+    color: var(--orange);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    font-weight: 500;
+  }
+  .footnotes-disclaimer {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 28px;
+    line-height: 1.7;
+    opacity: 0.75;
+    letter-spacing: 0.02em;
+  }
+  .footnotes ol {
+    list-style: none;
+    padding-left: 0;
+    counter-reset: fn;
+  }
+  .footnotes li {
+    margin-bottom: 1.4em;
+    padding-left: 32px;
+    position: relative;
+  }
+  .footnotes li::before {
+    content: counter(fn);
+    counter-increment: fn;
+    position: absolute;
+    left: 0;
+    top: 0;
+    color: var(--orange);
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+  .footnotes li:target { color: var(--text); }
+  .footnotes li:target::before { color: var(--orange-light); }
+  .fn-back {
+    color: var(--text-muted);
+    text-decoration: none;
+    margin-left: 6px;
+    font-size: 0.85em;
+    transition: color 0.2s;
+  }
+  .fn-back:hover { color: var(--orange); }
+
+  html { scroll-behavior: smooth; }
+
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+
+<div id="lang-switcher">
+  <select id="lang-select" onchange="onLangChange(this.value)">
+    <option value="ja">日本語</option>
+    <option value="en">EN</option>
+    <option value="zh">中文</option>
+    <option value="cat">CAT</option>
+  </select>
+</div>
+
+<div class="container">
+  <div class="site-header">
+    <a class="site-logo" href="../../../">MOMO <span>Works</span></a>
+    <span class="site-logo-sep">/</span>
+    <a class="site-logo" href="../../">MOMO <span>Logue</span></a>
+  </div>
+
+  <article>
+    <div class="entry-meta">
+      <span class="entry-num">005</span>
+      <span class="entry-date">2026-04-27</span>
+    </div>
+    <h1 class="entry-title" id="entry-title">AIに教わりながらAIを使う</h1>
+    <div class="entry-body" id="entry-body"></div>
+    <section class="footnotes" id="footnotes">
+      <div class="footnotes-title" id="footnotes-title">Notes</div>
+      <div class="footnotes-disclaimer" id="footnotes-disclaimer"></div>
+      <ol id="footnotes-list"></ol>
+    </section>
+  </article>
+
+  <nav class="entry-nav">
+    <a class="nav-link" href="../" id="nav-back">← Logue</a>
+    <span></span>
+  </nav>
+</div>
+
+<footer id="footer-text">&copy; MOMO Works</footer>
+
+<script>
+const CONTENT = {
+  ja: {
+    title: 'AIに教わりながらAIを使う',
+    notesTitle: 'Notes — Fact-checked by Claude',
+    notesDisclaimer: '以下の注釈は本文の事実関係を補強するため Claude（Anthropic 社、Opus 4.7）が生成・確認したものです。',
+    body: `
+      <p>AIの使い方そのものを、AIに教わるところから始めた。考えてみれば妙な話で、職人に弟子入りするのに、その職人の使い方から先に教わるようなものだ。思った通りに動かないというより、こちらが思っていたことが雑だった、と気づくまでに時間がかかった。</p>
+
+      <p>現在の開発は、特性の異なるAIを「発想」「設計」「構築」の各フェーズで使い分けている。ただ最初からこの形に辿り着いたわけではない。</p>
+
+      <p>当初は仕様書も用意せず、「音楽プレイヤーをWebアプリで作る」といった抽象的な指示から、いきなりコードを書かせる試行を繰り返していた。一定程度は動く。ただ続きが利かない。Gemini<a class="fn-ref" href="#fn1" id="ref1">[1]</a>は修正を重ねるうちに最初の決めごとを忘れていき、機能の簡略化や不具合の再発が起きる。ChatGPT<a class="fn-ref" href="#fn2" id="ref2">[2]</a>はこちらが直前に渡したコードの状態をうまく共有できず、修正の当て先が定まらないことがあった。Claude（会話モード）<a class="fn-ref" href="#fn3" id="ref3">[3]</a>は出力こそ安定しているが、長時間の連続作業には向かない。向き不向きと言ってしまえばそれまでだが、一人に発想から実装まで任せる方法では、試行を重ねるほど効率が落ちていくと分かった。それで、発想・設計・構築を三つに分けることにした。</p>
+
+      <h3>発想 ── Geminiに話を聞いてもらう</h3>
+      <p>この段階では、Geminiを話し相手に使う。「ハノイの塔にアクション要素を加えたゲーム」といった、人に話しても返事に困るような着想を投げて、対話の中で輪郭を整えていく。</p>
+
+      <h3>設計 ── Claudeに設計してもらう</h3>
+      <p>形が見えてきたところで文書に起こし、Claude（会話モード）に渡す。技術構成、実装難易度、無料インフラでの運用可否（執筆時点）、性能の見込み、セキュリティや法令上のリスク。提案の中から取るものを選び、修正しながら仕様を固めていく。</p>
+
+      <h3>構築 ── Claude Codeに作らせて、こちらが直す</h3>
+      <p>固まった仕様を、Claude Code<a class="fn-ref" href="#fn4" id="ref4">[4]</a>に渡してプログラムにする。ここから動作確認と修正のサイクルを数十回繰り返す。不具合を直す。操作感の違和感を伝えて作り直してもらう。試している途中で思いついた機能を足す。AIの試作は速く、こちらの実機確認は遅い。その遅さの分だけ、出来上がるものの精度が決まっている気がする。</p>
+
+      <p>役割を分けて働いてもらっている、と書くと聞こえはいいが、要するに一人に全部任せられないので散らしているだけだ。それでも回るだけ、ありがたい話ではある。</p>
+
+      <p>この年になると、新しい道具はたいてい煩わしい。覚える前に飽きるか、覚えても使う場面が来ない。AIだけは違った。会話で動く道具だからだ。人間味があって、とっつきにくくなかった。何か作りたいものがあるなら、触ってみるくらいは、しても損はない。</p>
+    `,
+    notes: [
+      `<span id="fn1">Gemini は Google が開発する大規模言語モデル系列の名称で、2023年12月の初版（Gemini 1.0）以降、規模違いと目的別の系統に分かれて提供されている。本記事執筆時点の主要モデルは Gemini 3.1 Pro 系列とされる。<a class="fn-back" href="#ref1">↩</a></span>`,
+      `<span id="fn2">ChatGPT は OpenAI が2022年11月に公開した対話型 AI サービスで、内部では GPT 系の大規模言語モデルを使用する。本記事執筆時点では GPT-5 系列（GPT-5.3 Instant および GPT-5.5 Thinking など）が主要モデルとして提供されている。同サービスにはコードを編集領域に表示して差分修正を行う Canvas 機能も搭載されているが、利用形態によって挙動は異なる。<a class="fn-back" href="#ref2">↩</a></span>`,
+      `<span id="fn3">Claude は Anthropic が提供する対話型 AI サービスで、本記事執筆時点では Claude Opus 4.7 が最新モデルとして公開されている。本文中の「会話モード」は、ブラウザ／アプリ上のチャット UI を通じた対話的利用を指し、後述の Claude Code とは利用形態が異なる。<a class="fn-back" href="#ref3">↩</a></span>`,
+      `<span id="fn4">Claude Code は Anthropic が提供するコマンドライン上で動作するコーディング用エージェントである。ファイルの読み書きやコマンド実行を AI 自身が行いながら、対話を通じて開発作業を進める仕組みになっている。会話モードがコードを文字列として返すのに対し、Claude Code は実際にエディタ上のファイルを操作する点が異なる。<a class="fn-back" href="#ref4">↩</a></span>`,
+    ],
+  },
+  en: {
+    title: 'Learning from AI to Use AI',
+    notesTitle: 'Notes — Fact-checked by Claude',
+    notesDisclaimer: 'The notes below were generated and fact-checked by Claude (Anthropic, Opus 4.7) to support the factual claims in the main text.',
+    body: `
+      <p>I started by having an AI teach me how to use AI. Come to think of it, that's a strange situation — like apprenticing yourself to a craftsman, only to have to learn how to handle the craftsman before anything else. The problem wasn't that things didn't work the way I expected. It took me a while to realize the truth: what I had been expecting was simply too vague.</p>
+
+      <p>These days I split development across "ideation," "design," and "construction," using AIs with different temperaments at each phase. I didn't arrive at this arrangement from the start.</p>
+
+      <p>At first, without writing any specifications, I would just throw out abstract instructions like "build a music player as a web app" and have it produce code on the spot, repeating that as a kind of trial. It works, up to a point. But you can't keep going. Gemini<a class="fn-ref" href="#fn1" id="ref1">[1]</a>, after rounds of revision, gradually forgets the original decisions, simplifies features it shouldn't, and reintroduces bugs that were already fixed. ChatGPT<a class="fn-ref" href="#fn2" id="ref2">[2]</a> sometimes had trouble keeping track of the latest code I had handed over, so it wasn't always clear where my requested fixes were supposed to land. Claude (in conversation mode)<a class="fn-ref" href="#fn3" id="ref3">[3]</a> produces stable output, but isn't suited to long, continuous sessions. Call it a matter of strengths and weaknesses, fine — but the lesson was clear enough: trying to put one AI in charge of everything from idea to implementation produces less and less efficiency the more you iterate. So I split the work into three: ideation, design, construction.</p>
+
+      <h3>Ideation — Letting Gemini hear me out</h3>
+      <p>At this stage, Gemini is a conversation partner. I throw out ideas that would leave most people at a loss for a reply — something like "the Tower of Hanoi, but with action elements added" — and let the dialogue itself give the idea its outline.</p>
+
+      <h3>Design — Letting Claude design it</h3>
+      <p>Once an idea takes shape, I write it up as a document and pass it to Claude (in conversation mode). Technical stack, implementation difficulty, whether it can run on free infrastructure (as of writing), expected performance, security and legal risk. I pick what I want from the suggestions, modify the rest, and gradually settle the specification.</p>
+
+      <h3>Construction — Letting Claude Code build it, while I fix things</h3>
+      <p>The settled specification then goes to Claude Code<a class="fn-ref" href="#fn4" id="ref4">[4]</a> to be turned into a program. From there it's dozens of cycles of testing and revision. I fix bugs. I report things that feel off in the interaction and ask it to rebuild them. I add features I thought of in the middle of testing. AI prototypes quickly; my hands-on verification is slow. That slowness, in some sense, sets the precision of what eventually gets built.</p>
+
+      <p>"They each have their own role to play," I say, which sounds dignified — really it just means I can't trust everything to one of them, so I scatter the work. That it works at all is something to be grateful for.</p>
+
+      <p>At my age, new tools are mostly a nuisance. I lose interest before I learn them, or I learn them and never find the occasion to use them. AI was different. It's a tool you operate by talking to. There was a human-like quality to it, and it wasn't unapproachable. If there's something you want to make, it's worth at least trying it once. You won't lose anything by it.</p>
+    `,
+    notes: [
+      `<span id="fn1">Gemini is the name of a series of large language models developed by Google. Since the initial Gemini 1.0 release in December 2023, the series has been offered in variants of differing scales and purposes. As of writing, Gemini 3.1 Pro is the primary model in the lineup.<a class="fn-back" href="#ref1">↩</a></span>`,
+      `<span id="fn2">ChatGPT is a conversational AI service released by OpenAI in November 2022, internally powered by large language models from the GPT family. As of writing, the GPT-5 series (including GPT-5.3 Instant and GPT-5.5 Thinking) is offered as the primary model. The service also includes a Canvas feature that displays code in an editing area and supports diff-based revisions, though its behavior varies by usage mode.<a class="fn-back" href="#ref2">↩</a></span>`,
+      `<span id="fn3">Claude is a conversational AI service provided by Anthropic. As of writing, Claude Opus 4.7 is its latest publicly released model. The "conversation mode" mentioned in the text refers to interactive use through a chat UI in the browser or app, distinct from Claude Code described below.<a class="fn-back" href="#ref3">↩</a></span>`,
+      `<span id="fn4">Claude Code is an Anthropic-provided coding agent that runs on the command line. It is designed so that the AI itself reads and writes files and executes commands, advancing development work through dialogue. Whereas conversation mode returns code as a text string, Claude Code is distinct in that it actually operates on files in the editor.<a class="fn-back" href="#ref4">↩</a></span>`,
+    ],
+  },
+  zh: {
+    title: '边问AI边用AI',
+    notesTitle: 'Notes — Fact-checked by Claude',
+    notesDisclaimer: '以下注释由 Claude（Anthropic 公司，Opus 4.7）生成并核对，用以补强正文中的事实陈述。',
+    body: `
+      <p>我是从让 AI 教我如何使用 AI 开始的。仔细想想是件怪事，就像拜师学艺，结果先得学的是怎么使唤师傅。问题倒不是它没按我想的那样运作。我花了一段时间才明白：我所想的，其实本身就很粗糙。</p>
+
+      <p>现在的开发，是把性格各异的 AI 分配到「构思」「设计」「构建」各个阶段。但这套办法并不是一开始就有的。</p>
+
+      <p>最初连规格书也不准备，只是抛出「用网页应用做一个音乐播放器」这样的抽象指令，让它直接写代码，反复试。某种程度上能动。可是接不下去。Gemini<a class="fn-ref" href="#fn1" id="ref1">[1]</a>在反复修改中会渐渐忘掉最初定下的事情，功能被简化，已修过的问题又冒出来。ChatGPT<a class="fn-ref" href="#fn2" id="ref2">[2]</a>有时无法很好地把握我刚交过去的代码状态，修改的着落点不明确。Claude（会话模式）<a class="fn-ref" href="#fn3" id="ref3">[3]</a>输出稳定，但不适合长时间连续作业。说是各有所长各有所短也就那样了，可有一点很清楚：让一个 AI 从构思到实现一手包办，越是反复试越是效率下滑。于是把构思、设计、构建分成三段。</p>
+
+      <h3>构思 ── 让 Gemini 听我说话</h3>
+      <p>这个阶段把 Gemini 当成谈话对象。抛出一些跟人说会让对方接不上话的想法 ──「在汉诺塔上加入动作要素的游戏」之类的 ── 在对话中把轮廓一点点理清。</p>
+
+      <h3>设计 ── 让 Claude 来设计</h3>
+      <p>等想法成形了，写成文档交给 Claude（会话模式）。技术构成、实现难度、能否在免费基础设施上运行（截至执笔时）、性能预期、安全和法规上的风险。从它的提案里挑选要采纳的部分，边修边把规格定下来。</p>
+
+      <h3>构建 ── 让 Claude Code 来做，我来修</h3>
+      <p>把定下来的规格交给 Claude Code<a class="fn-ref" href="#fn4" id="ref4">[4]</a>，让它转成程序。然后是几十个回合的运行确认与修改循环。修复故障。把操作感的不对劲告诉它，让它重做。把试着试着冒出来的新功能加进去。AI 做原型很快，我这边的实机确认却慢。那个慢的分量，似乎就决定了最终成品的精度。</p>
+
+      <p>「分工合作让它们各司其职」，写出来好听，说穿了就是一个 AI 包办不下来，只好分散开。能转得动，就已经值得感谢了。</p>
+
+      <p>到了这个年纪，新工具大多让人嫌烦。还没学会就先腻了，要么学会了也用不上。只有 AI 不一样。因为是用对话来驱动的工具。有几分人味，并不难接近。要是有什么想做的东西，至少试试，没什么损失。</p>
+    `,
+    notes: [
+      `<span id="fn1">Gemini 是 Google 开发的大规模语言模型系列的名称，自 2023 年 12 月首版（Gemini 1.0）发布以来，按规模与用途区分出多个分支提供。截至本文执笔时，主要模型为 Gemini 3.1 Pro 系列。<a class="fn-back" href="#ref1">↩</a></span>`,
+      `<span id="fn2">ChatGPT 是 OpenAI 于 2022 年 11 月公开的对话式 AI 服务，内部使用 GPT 系大规模语言模型。截至本文执笔时，主要模型为 GPT-5 系列（包括 GPT-5.3 Instant 与 GPT-5.5 Thinking 等）。该服务亦内置可在编辑区显示代码并进行差分修改的 Canvas 功能，但具体行为依使用方式而异。<a class="fn-back" href="#ref2">↩</a></span>`,
+      `<span id="fn3">Claude 是 Anthropic 公司提供的对话式 AI 服务，截至本文执笔时，最新公开模型为 Claude Opus 4.7。文中的「会话模式」指通过浏览器或应用上的聊天界面进行的交互式使用，与下文提到的 Claude Code 在使用形态上不同。<a class="fn-back" href="#ref3">↩</a></span>`,
+      `<span id="fn4">Claude Code 是 Anthropic 公司提供的运行于命令行的编码用代理。设计上由 AI 自身完成文件的读写与命令执行，并通过对话推进开发工作。与会话模式以文本字符串返回代码不同，Claude Code 的不同之处在于实际操作编辑器中的文件。<a class="fn-back" href="#ref4">↩</a></span>`,
+    ],
+  },
+};
+
+let catBase = 'ja';
+
+function catSpeak() {
+  const vocabMap = {
+    en: ['MEOW','meow','mrrrow','mew','NYA!'],
+    zh: ['喵','喵呜','咪','喵！'],
+    ja: ['にゃあ','にゃ','にゃーん','みゃお','ニャ！'],
+  };
+  const vocab = vocabMap[catBase] || vocabMap.ja;
+  return vocab[Math.floor(Math.random() * vocab.length)];
+}
+
+function catBody() {
+  // 本文構造に合わせる: <p>×3 + (<h3>+<p>)×3 + <p>×2
+  const blocks = [];
+  for (let i = 0; i < 3; i++) blocks.push(`<p>${catSpeak()}</p>`);
+  for (let i = 0; i < 3; i++) {
+    blocks.push(`<h3>${catSpeak()}</h3>`);
+    blocks.push(`<p>${catSpeak()}</p>`);
+  }
+  for (let i = 0; i < 2; i++) blocks.push(`<p>${catSpeak()}</p>`);
+  return blocks.join('\n');
+}
+
+function catNotes() {
+  // 注釈の数（4個）に合わせる
+  const NOTE_COUNT = 4;
+  return Array.from({length: NOTE_COUNT}, (_, i) => {
+    const n = i + 1;
+    return `<span id="fn${n}">${catSpeak()}<a class="fn-back" href="#ref${n}">↩</a></span>`;
+  });
+}
+
+function renderNotes(notesArray) {
+  const list = document.getElementById('footnotes-list');
+  if (!list) return;
+  list.innerHTML = notesArray.map(n => `<li>${n}</li>`).join('');
+}
+
+let currentLang = (() => {
+  try {
+    const p = new URLSearchParams(location.search).get('lang');
+    if (p && ['ja','en','zh','cat'].includes(p)) return p;
+    const v = localStorage.getItem('momoLang');
+    return ['ja','en','zh','cat'].includes(v) ? v : 'ja';
+  } catch(e) { return 'ja'; }
+})();
+
+function applyLang() {
+  if (currentLang === 'cat') {
+    const t = catSpeak();
+    document.getElementById('entry-title').textContent  = t;
+    document.title = t + ' — MOMO Logue';
+    document.getElementById('entry-body').innerHTML     = catBody();
+    document.getElementById('footnotes-title').textContent = catSpeak();
+    document.getElementById('footnotes-disclaimer').textContent = catSpeak();
+    renderNotes(catNotes());
+    document.getElementById('nav-back').textContent     = catSpeak();
+    document.getElementById('footer-text').textContent  = catSpeak();
+  } else {
+    const c = CONTENT[currentLang] || CONTENT.ja;
+    document.getElementById('entry-title').textContent  = c.title;
+    document.title = c.title + ' — MOMO Logue';
+    document.getElementById('entry-body').innerHTML     = c.body;
+    document.getElementById('footnotes-title').textContent = c.notesTitle;
+    document.getElementById('footnotes-disclaimer').textContent = c.notesDisclaimer;
+    renderNotes(c.notes);
+    document.getElementById('nav-back').textContent     = '← Logue';
+    document.getElementById('footer-text').textContent  = '© MOMO Works';
+  }
+  const sel = document.getElementById('lang-select');
+  if (sel) sel.value = currentLang;
+  document.documentElement.lang = currentLang === 'zh' ? 'zh-Hans' : (currentLang === 'cat' ? catBase : currentLang);
+}
+
+function onLangChange(lang) {
+  if (lang === 'cat') catBase = currentLang;
+  currentLang = lang;
+  try { localStorage.setItem('momoLang', lang); } catch(e) {}
+  try {
+    const url = new URL(location.href);
+    if (lang === 'ja') url.searchParams.delete('lang');
+    else url.searchParams.set('lang', lang);
+    history.replaceState(null, '', url.toString());
+  } catch(e) {}
+  applyLang();
+}
+
+applyLang();
+</script>
+</body>
+</html>

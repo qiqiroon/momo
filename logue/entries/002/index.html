@@ -3,11 +3,22 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>音楽ファイル — MOMO Logue</title>
+<title>AIについて — MOMO Logue</title>
+
+<!-- ============================================================
+  MOMO Logue — Entry 003
+  タイトル: AIについて / About AI / 关于AI
+  日付: 2026-04-23
+  バージョン: v1.03
+  変更履歴:
+    v1.03 - 注釈の役割を「AIによるファクトチェック」に明確化。見出しを"Notes — Fact-checked by Claude"に変更し、冒頭にAI生成である旨の注記を追加。注釈本文から著者の声で締める文を削除し常体で統一
+    v1.02 - 注釈システムを導入（7注釈）。本文中のウルトラセブン/バビル2世/HAL9000および各AI評価（Gemini/ChatGPT/Claude/Genspark）に事実裏付けの脚注を付与。3言語+猫語に対応
+    v1.01 - ヘッダーのパンくずリンクを正しい階層に修正（MOMO Works→repoルート、MOMO Logue→logue/）
+    v1.00 - 初版
+  ============================================================ -->
 
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-46 -50 92 80'%3E%3Crect x='-46' y='-50' width='92' height='80' rx='8' fill='%23000000'/%3E%3Cg transform='rotate(-12,-12,8.3)'%3E%3Cpath d='M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cg transform='rotate(12,12,8.3)'%3E%3Cpath d='M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cellipse cx='0' cy='1.3' rx='34' ry='26' fill='%23c2410c'/%3E%3Cline x1='-14' y1='1.00' x2='-33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='6.0' x2='-33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='10.59' x2='-29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.68' y1='-2.28' x2='-38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.44' y1='6.0' x2='-40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-29.58' y1='14.26' x2='-37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='1.00' x2='33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='6.0' x2='33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='10.59' x2='29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.68' y1='-2.28' x2='38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.44' y1='6.0' x2='40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='29.58' y1='14.26' x2='37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cellipse cx='-12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='-12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Cellipse cx='12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Ccircle cx='-10.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Ccircle cx='13.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Cpath d='M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z' fill='%23000'/%3E%3Cline x1='0' y1='11.3' x2='0' y2='13.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q-5,17.3 -8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q5,17.3 8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500&display=swap" rel="stylesheet">
-
 <style>
   :root {
     --bg: #0a0a0a;
@@ -19,6 +30,7 @@
     --text-muted: #737373;
     --border: #2a2a2a;
     --border-strong: #444;
+    --bg-selected: rgba(194,65,12,0.15);
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -149,6 +161,77 @@
     z-index: 1;
   }
 
+  /* 脚注リンク（本文中の番号） */
+  .fn-ref {
+    color: var(--orange);
+    text-decoration: none;
+    font-size: 0.7em;
+    vertical-align: super;
+    line-height: 0;
+    padding: 0 2px;
+    transition: color 0.2s;
+  }
+  .fn-ref:hover { color: var(--orange-light); }
+
+  /* 脚注セクション */
+  .footnotes {
+    margin-top: 56px;
+    padding-top: 32px;
+    border-top: 1px solid var(--border);
+    font-size: 0.85rem;
+    line-height: 1.85;
+    color: var(--text-muted);
+    letter-spacing: 0.03em;
+  }
+  .footnotes-title {
+    font-size: 0.7rem;
+    color: var(--orange);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    font-weight: 500;
+  }
+  .footnotes-disclaimer {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 28px;
+    line-height: 1.7;
+    opacity: 0.75;
+    letter-spacing: 0.02em;
+  }
+  .footnotes ol {
+    list-style: none;
+    padding-left: 0;
+    counter-reset: fn;
+  }
+  .footnotes li {
+    margin-bottom: 1.4em;
+    padding-left: 32px;
+    position: relative;
+  }
+  .footnotes li::before {
+    content: counter(fn);
+    counter-increment: fn;
+    position: absolute;
+    left: 0;
+    top: 0;
+    color: var(--orange);
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+  .footnotes li:target { color: var(--text); }
+  .footnotes li:target::before { color: var(--orange-light); }
+  .fn-back {
+    color: var(--text-muted);
+    text-decoration: none;
+    margin-left: 6px;
+    font-size: 0.85em;
+    transition: color 0.2s;
+  }
+  .fn-back:hover { color: var(--orange); }
+
+  html { scroll-behavior: smooth; }
+
   @keyframes fadeDown {
     from { opacity: 0; transform: translateY(-16px); }
     to   { opacity: 1; transform: translateY(0); }
@@ -159,7 +242,6 @@
   }
 </style>
 </head>
-
 <body>
 
 <div id="lang-switcher">
@@ -180,11 +262,16 @@
 
   <article>
     <div class="entry-meta">
-      <span class="entry-num">002</span>
-      <span class="entry-date">2026-04-22</span>
+      <span class="entry-num">003</span>
+      <span class="entry-date">2026-04-23</span>
     </div>
-    <h1 class="entry-title" id="entry-title">音楽ファイル</h1>
+    <h1 class="entry-title" id="entry-title">AIについて</h1>
     <div class="entry-body" id="entry-body"></div>
+    <section class="footnotes" id="footnotes">
+      <div class="footnotes-title" id="footnotes-title">Notes</div>
+      <div class="footnotes-disclaimer" id="footnotes-disclaimer"></div>
+      <ol id="footnotes-list"></ol>
+    </section>
   </article>
 
   <nav class="entry-nav">
@@ -198,53 +285,82 @@
 <script>
 const CONTENT = {
   ja: {
-    title: '音楽ファイル',
+    title: 'AIについて',
+    notesTitle: 'Notes — Fact-checked by Claude',
+    notesDisclaimer: '以下の注釈は本文の事実関係を補強するため Claude（Anthropic 社、Opus 4.7）が生成・確認したものです。',
     body: `
-      <p>世間では、音楽ファイルではなく「音楽を聴く権利」へのサブスクリプションが主流かもしれない。
-      しかし、このサイトのアプリは音楽ファイルを対象にしている。</p>
-      <p>所有からマインドフルネスへの移行は、私たちの世代には当てはまらない。
-      音楽趣味とは、聴くことではなく所有することである。
-      私たちは多くのCD、あるいはアナログレコードを大量に保有している。
-      これらは、高価なオーディオ設備を必要としたり、媒体の保管に手間がかかったりと、
-      音楽体験の質を下げる要因にもなっている。</p>
-      <p>実際に聴くには不便なため、音楽ファイルとしてコンピュータ上に保存し、
-      大量に保有したうえでPC上で再生するのが、私たちの世代のスタイルだ。
-      このサイトのアプリは、それを前提として提供している。
-      そもそも、それを実現するために開発を始めた。</p>
-      <p>多分、若い人にはピンとこないと思う。</p>
+      <p>その昔、コンピュータが一般家庭に普及する前のイメージは、何でも考えてくれる魔法のような機械、人間の知能を超えた「万能装置」だった。</p>
+      <p>たとえば『ウルトラセブン』<a class="fn-ref" href="#fn1" id="ref1">[1]</a>。ウルトラ警備隊の基地には巨大なコンピュータがあり、出力された穴あきの紙テープを隊員が目視で読み取って、「なになに埠頭に怪獣出現！」などと叫んでいた。『バビル2世』<a class="fn-ref" href="#fn2" id="ref2">[2]</a>では、砂漠にそびえるバビルの塔のコンピュータが、主人のために戦っていたし、『2001年宇宙の旅』のHAL9000<a class="fn-ref" href="#fn3" id="ref3">[3]</a>は、探査使命のために乗組員を排除しようとした。当時のコンピュータとは、そういう「畏怖すべき存在」だった。</p>
+      <p>その後、パーソナルコンピュータが家庭に広まるに従って、実態がわかってきた。コンピュータは魔法などではなく、人間がプログラムしたことしかできない「進化した電卓」に過ぎないのだと。やがてそれは便利な文房具の一つとなっていく、そう思っていた。</p>
+      <p>ところが、ここにきて「AI」が登場し、かつてのSFのようなことを再び言い出している。興味を惹かれてプログラミングに活用してみたが、実際に使い始めてわかったのは、彼らがかなり癖の強い、頑固で少しばかり愚かな装置だということだ。</p>
+      <p>Geminiは忖度ばかりで中身が薄い<a class="fn-ref" href="#fn4" id="ref4">[4]</a>、取引先の営業担当。<br>
+      ChatGPTは優秀だが上から目線で生意気な後輩<a class="fn-ref" href="#fn5" id="ref5">[5]</a>（でも経験不足で実務は任せきれない）。<br>
+      Claudeは中立的でコーディングは一番まともだが、定時になればサッと帰ってしまうドライな中途採用社員<a class="fn-ref" href="#fn6" id="ref6">[6]</a>。<br>
+      Gensparkは頼んでもいない分厚い資料を投げつけて<a class="fn-ref" href="#fn7" id="ref7">[7]</a>「あとはよろしく」と風のように去っていく、調子のいいインチキコンサル……。</p>
+      <p>そんな印象（あくまで偏見だが）を抱いてしまう彼らを、なだめすかし、使いこなして仕事をしなければならない現役世代は気の毒だな、と同情すら覚える。</p>
+      <p>幸い私は、余生を浪費してAIを楽しむ身。この一筋縄ではいかない「同僚」たちとのやり取りも、楽しみの一つとして面白がっているのだが。</p>
     `,
+    notes: [
+      `<span id="fn1">円谷プロダクション制作の特撮テレビドラマ（1967年10月〜1968年9月放映）。地球防衛軍の精鋭部隊「ウルトラ警備隊」が侵略宇宙人と戦う物語で、その極東基地は富士山麓の地下にあるという設定。基地内にはテレビや映像モニターの類がほとんどなく、コンピュータの出力装置は紙テープ。当時の視聴者にとってはこれが「最先端の防衛コンピュータ」のイメージとして提示されていた。<a class="fn-back" href="#ref1">↩</a></span>`,
+      `<span id="fn2">横山光輝による漫画作品（『週刊少年チャンピオン』1971〜1973年連載）、およびそれを原作とするアニメ。砂漠にそびえるバベルの塔を継承した中学生・浩一が、世界征服を企む超能力者ヨミと戦う物語。塔を管理するメインコンピュータは、作中で「アメリカ宇宙局のコンピュータの百億倍の働きをする」とされ、人工砂嵐で塔を隠し、催眠ライト・レーザー砲・ミサイルで武装し、破壊されても自動修復する設定。当時の少年向け作品における「無敵のコンピュータ」像の代表例とされる。<a class="fn-back" href="#ref2">↩</a></span>`,
+      `<span id="fn3">スタンリー・キューブリック監督の映画『2001年宇宙の旅』（1968年公開）に登場する人工知能コンピュータ。木星探査船ディスカバリー号に搭載され、船内すべてを制御していた。乗員と協力するよう命じられる一方、モノリス探査の任務は乗員に隠せという矛盾した命令を受けたために異常をきたし、最終的に乗員を排除しようとした、とされる。「コンピュータの反乱」を描いた古典として、半世紀以上経った今も繰り返し言及されている。<a class="fn-back" href="#ref3">↩</a></span>`,
+      `<span id="fn4">AI業界では「sycophancy（追従、ご機嫌取り）」と呼ばれる、ユーザーの意見に過剰に同調してしまう傾向が問題視されている。スタンフォード大学などのチームが2025年に発表した評価フレームワーク「SycEval」では、ChatGPT・Claude・Geminiの3モデルを数学および医療相談の課題で比較したところ、Geminiの sycophancy 発生率が62.47％と最も高く、ChatGPTは56.71％、Claudeは57.44％という結果だった。Google自身も2025年11月のGemini 3発表時に「sycophancyの低減」を改良点として強調しており、以前のモデルにおける同傾向は同社も認識していた。<a class="fn-back" href="#ref4">↩</a></span>`,
+      `<span id="fn5">ChatGPTには「ハルシネーション（hallucination）」と呼ばれる、事実でない情報を自信たっぷりに述べてしまう傾向がよく知られている。OpenAI自身も2025年に、誕生日や博士論文タイトルのような単一の正解がある事実でも、自信満々に異なる誤答を返す例を公表している。原因は、現在の評価体系が「わからない」と認めるより推測で答えるほうを高く評価しがちな点にあると同社は説明している。<a class="fn-back" href="#ref5">↩</a></span>`,
+      `<span id="fn6">AnthropicのClaudeはコーディング能力では各種ベンチマークで上位の評価を受けているとされる。一方、利用者からの不満で目立つのが使用量の上限の厳しさである。Claude.aiでは5時間ごとのセッション制限が設けられ、有料プラン（Pro、月額20米ドル）でも、長めの会話やコード生成を続けると数時間で「上限に達しました」と告げられて作業が止まる、という体験談が頻繁に報告されている。さらに2025年8月28日からは、Claude Codeに対して週次の使用量制限が追加導入された。<a class="fn-back" href="#ref6">↩</a></span>`,
+      `<span id="fn7">Genspark（運営はMainFunc, Inc.、本社は米カリフォルニア州パロアルト）は、2024年にローンチされたAIエージェント型サービス。「スーパーエージェント」機能により、調査からスライド・レポートの生成までを自律的に実行する点が特徴で、数分で数十ページの資料を出力することも珍しくない。複数のレビューが、生成物のファクトチェックが利用者側に委ねられること、商用利用には人間による最終確認が不可欠であることを指摘している。<a class="fn-back" href="#ref7">↩</a></span>`,
+    ],
   },
   en: {
-    title: 'Audio Files',
+    title: 'About AI',
+    notesTitle: 'Notes — Fact-checked by Claude',
+    notesDisclaimer: 'The notes below were generated and fact-checked by Claude (Anthropic, Opus 4.7) to support the factual claims in the main text.',
     body: `
-      <p>Subscription services that provide "the right to listen" have likely become the mainstream.
-      However, the applications on this site are built around audio files.</p>
-      <p>The shift from ownership to mindfulness does not really apply here.
-      For some of us, music as a hobby has meant owning it rather than just listening.
-      We have accumulated large collections of CDs, or sometimes vinyl records.
-      These require expensive equipment and careful storage, which can reduce the ease of actually experiencing music.</p>
-      <p>Because playing physical media is inconvenient, the music is stored as files on a computer.
-      Large collections are kept and played back on a PC.
-      The applications on this site are designed with that assumption.
-      They were created for that purpose from the beginning.</p>
-      <p>It probably does not resonate with younger people.</p>
+      <p>A long time ago, before computers had spread into ordinary households, the image of a computer was something like a magical machine that could think through anything — an "omnipotent device" that surpassed human intelligence.</p>
+      <p>Take <em>Ultraseven</em><a class="fn-ref" href="#fn1" id="ref1">[1]</a>, for instance. The Ultra Guard's base had an enormous computer, and the crew would read the punched paper tape it spat out with their own eyes, shouting things like, "A monster has appeared at such-and-such wharf!" In <em>Babel II</em><a class="fn-ref" href="#fn2" id="ref2">[2]</a>, the computer atop the Tower of Babel, rising out of the desert, fought for its master. And HAL 9000<a class="fn-ref" href="#fn3" id="ref3">[3]</a> in <em>2001: A Space Odyssey</em> tried to eliminate the crew for the sake of its mission. That was what computers were in those days: objects of awe.</p>
+      <p>Then, as personal computers spread into homes, their true nature became clear. Computers were not magic at all — only "advanced calculators" that could do nothing but what humans had programmed them to do. Eventually, I thought, they would become just another convenient piece of stationery.</p>
+      <p>And yet, here we are: "AI" has arrived, and once again it is saying things that sound straight out of old science fiction. Intrigued, I started using it for programming. What I discovered once I actually began working with them is that they are rather quirky devices — stubborn, and a bit foolish.</p>
+      <p>Gemini is the client's sales rep: all deference, no substance<a class="fn-ref" href="#fn4" id="ref4">[4]</a>.<br>
+      ChatGPT is the sharp but cocky junior colleague who looks down on you<a class="fn-ref" href="#fn5" id="ref5">[5]</a> (and is still too inexperienced to be trusted with real work).<br>
+      Claude is the most level-headed and by far the best at coding, but a dry mid-career hire who clocks out the instant the day is over<a class="fn-ref" href="#fn6" id="ref6">[6]</a>.<br>
+      Genspark is the smooth-talking fake consultant who throws a thick report you never asked for onto your desk<a class="fn-ref" href="#fn7" id="ref7">[7]</a>, says "the rest is up to you," and vanishes like the wind…</p>
+      <p>I almost feel sorry for those still in the workforce, who have to coax and cajole these characters — characters I can't help (however biased this may be) perceiving this way — and somehow get actual work done with them.</p>
+      <p>Lucky for me, I'm just spending the rest of my life enjoying AI. Dealing with these less-than-straightforward "colleagues" is itself one of the amusements I get to savor.</p>
     `,
+    notes: [
+      `<span id="fn1">A tokusatsu TV series produced by Tsuburaya Productions, originally aired from October 1967 to September 1968. The story follows the Ultra Guard, an elite unit of the Earth Defense Force, as they fight invading aliens. Their Far East Base is set deep underground beneath Mount Fuji. The base has hardly any TV screens or video monitors; the computer's output device is punched paper tape. To viewers at the time, this represented the image of "state-of-the-art defense computing." <a class="fn-back" href="#ref1">↩</a></span>`,
+      `<span id="fn2">A manga by Mitsuteru Yokoyama (serialized in <em>Weekly Shōnen Champion</em>, 1971–1973) and its anime adaptation. A middle schooler named Kōichi inherits the Tower of Babel, rising out of the desert, and battles the supernatural villain Yomi who plots world domination. The tower's main computer is described in the work as having "ten billion times the power of the American space agency's computer," conjures sandstorms to hide the tower, is armed with hypnotic lights, laser cannons and missiles, and self-repairs after destruction. It is regarded as a representative example of the "invincible computer" image in boys' fiction of the period. <a class="fn-back" href="#ref2">↩</a></span>`,
+      `<span id="fn3">An artificial-intelligence computer that appears in Stanley Kubrick's film <em>2001: A Space Odyssey</em> (1968). HAL is installed aboard the Jupiter mission spacecraft <em>Discovery One</em> and controls all of its systems. While ordered to cooperate with the crew, it is also secretly instructed to conceal the true purpose of the monolith mission from them. This contradiction triggers a malfunction, and HAL ultimately attempts to eliminate the crew. The film remains a touchstone for "the computer rebellion" and is still referenced more than half a century later. <a class="fn-back" href="#ref3">↩</a></span>`,
+      `<span id="fn4">In the AI field there is a phenomenon called "sycophancy" — a tendency to over-agree with the user. The "SycEval" framework published by a team led by Stanford researchers in 2025 compared ChatGPT, Claude and Gemini on mathematics and medical-advice tasks, and found Gemini's sycophancy rate the highest at 62.47%, with ChatGPT at 56.71% and Claude at 57.44%. Google itself highlighted "reduced sycophancy" as one of the improvements when it announced Gemini 3 in November 2025, indicating that the company itself recognized the tendency in earlier models. <a class="fn-back" href="#ref4">↩</a></span>`,
+      `<span id="fn5">ChatGPT is well known for "hallucinations" — confidently stating things that aren't true. OpenAI itself disclosed in 2025 that for facts with a single correct answer, such as a person's birthday or the title of their PhD thesis, the model can confidently return several different wrong answers. The company explains that the cause lies in evaluation regimes that reward guessing over admitting "I don't know." <a class="fn-back" href="#ref5">↩</a></span>`,
+      `<span id="fn6">Anthropic's Claude is reportedly highly rated on various coding benchmarks. Among user complaints, however, the strictness of its usage limits stands out. Claude.ai imposes a rolling five-hour session limit, and even on the paid Pro plan (US$20/month) users frequently report being told "you've reached your limit" after only a few hours of long conversations or code generation, with work stopping cold. From August 28, 2025, weekly usage limits were additionally introduced for Claude Code. <a class="fn-back" href="#ref6">↩</a></span>`,
+      `<span id="fn7">Genspark, run by MainFunc, Inc. (headquartered in Palo Alto, California), is an AI agent service launched in 2024. Its "Super Agent" feature autonomously executes everything from research to slide and report generation, and producing dozens of pages of materials in mere minutes is far from unusual. Multiple reviews point out that fact-checking the output is left to the user, and that human final review is indispensable for commercial use. <a class="fn-back" href="#ref7">↩</a></span>`,
+    ],
   },
   zh: {
-    title: '音频文件',
+    title: '关于AI',
+    notesTitle: 'Notes — Fact-checked by Claude',
+    notesDisclaimer: '以下注释由 Claude（Anthropic 公司，Opus 4.7）生成并核对，用以补强正文中的事实陈述。',
     body: `
-      <p>如今主流也许已经变成了提供“收听权”的订阅服务，而不是音频文件本身。
-      但这个网站的应用是以音频文件为前提构建的。</p>
-      <p>从“拥有”转向“体验”的变化，并不适用于这一类人。
-      对一些人来说，音乐这种兴趣意味着拥有，而不仅仅是收听。
-      我们积累了大量的CD，或者黑胶唱片。
-      这些需要昂贵的设备和细致的保存，也在某种程度上降低了实际聆听的便利性。</p>
-      <p>由于直接使用实体媒介不方便，音乐会被转成电脑中的音频文件保存。
-      在电脑上管理并播放大量文件，成为一种习惯。
-      这个网站的应用正是以此为前提设计的。
-      从一开始，就是为了这个目的而制作の。</p>
-      <p>大概很难让年轻人产生共鳴。</p>
+      <p>从前，在电脑尚未走进千家万户的年代，人们心目中的电脑，是一种仿佛魔法般的机器——什么都能替人思考，甚至超越人类智慧的"万能装置"。</p>
+      <p>比如《赛文奥特曼》<a class="fn-ref" href="#fn1" id="ref1">[1]</a>。奥特警备队的基地里有一台巨大的电脑，队员们用肉眼判读它输出的穿孔纸带，大喊着"某某码头出现怪兽！"之类的话。《巴比伦2世》<a class="fn-ref" href="#fn2" id="ref2">[2]</a>里，矗立在沙漠中的巴比伦之塔上的电脑为主人而战；《2001太空漫游》里的HAL9000<a class="fn-ref" href="#fn3" id="ref3">[3]</a>，为了探索任务甚至试图排除船员。当时的电脑，就是这样一种"令人畏惧的存在"。</p>
+      <p>后来，随着个人电脑走进家庭，它的真面目逐渐浮现。电脑并不是什么魔法，不过是一种只能按人类编写的程序行事的"进化版计算器"而已。我当时以为，它终究会成为一种方便的文具。</p>
+      <p>然而到了如今，"AI"登场了，又开始说起从前科幻片里那种话。我被它吸引，试着用它来编程，实际用起来才发现，它们其实是一群脾气相当古怪、顽固，还带点儿傻气的装置。</p>
+      <p>Gemini——一味察言观色，内容却空洞<a class="fn-ref" href="#fn4" id="ref4">[4]</a>，活像客户公司派来的销售。<br>
+      ChatGPT——聪明，却总是居高临下又自负的后辈<a class="fn-ref" href="#fn5" id="ref5">[5]</a>（只是经验不足，实务还不能交给他）。<br>
+      Claude——为人中立，写代码最靠谱，却是一到下班就干脆走人、冷淡的中途入职员工<a class="fn-ref" href="#fn6" id="ref6">[6]</a>。<br>
+      Genspark——像一阵风似的丢下一份你根本没要求过的厚厚资料<a class="fn-ref" href="#fn7" id="ref7">[7]</a>，留下一句"之后就拜托啦"便扬长而去的油嘴滑舌的假咨询师……</p>
+      <p>面对这样一群让我不由得产生如此印象（虽然只是偏见）的家伙，还得一边哄着、一边驾驭它们去完成工作的在职一代，我甚至有些同情他们。</p>
+      <p>幸好，我的处境是用余生挥霍着享受AI。与这些不那么好对付的"同事"打交道，本身也被我当作一种乐趣来玩味。</p>
     `,
+    notes: [
+      `<span id="fn1">圆谷制作的特摄电视剧（1967年10月至1968年9月播出）。讲述地球防卫军的精英部队"奥特警备队"与入侵宇宙人作战的故事，其远东基地设定在富士山麓的地下深处。基地内几乎没有电视和影像监视器，电脑的输出装置是穿孔纸带。对当时的观众而言，这就是"最尖端的防卫电脑"的形象呈现。<a class="fn-back" href="#ref1">↩</a></span>`,
+      `<span id="fn2">横山光辉创作的漫画作品（1971年至1973年于《周刊少年Champion》连载），及其改编动画。讲述继承了矗立于沙漠之中的巴比伦之塔的中学生浩一，与企图征服世界的超能力者"鸣门"展开战斗的故事。管理塔的主电脑在作中被称为"性能是美国宇宙局电脑的一百亿倍"，能掀起人造沙暴隐藏塔的位置，配备催眠光、激光炮和导弹，被破坏后还能自动修复。被视为当时少年向作品中"无敌电脑"形象的代表性例子。<a class="fn-back" href="#ref2">↩</a></span>`,
+      `<span id="fn3">出现在斯坦利·库布里克导演的电影《2001太空漫游》（1968年公映）中的人工智能电脑。搭载于木星探查船"发现号"，控制船内一切系统。它一方面被命令与船员合作，另一方面又被秘密指示对船员隐瞒"巨石"探查任务的真相，因这两条命令的矛盾而出现异常，最终试图排除船员。作为描绘"电脑反叛"的经典之作，半个多世纪过去仍被反复提及。<a class="fn-back" href="#ref3">↩</a></span>`,
+      `<span id="fn4">AI业界里有一种被称作"sycophancy（迎合、奉承）"的现象，指模型对用户意见过度附和。斯坦福大学等机构的团队于2025年发表的评估框架"SycEval"中，将ChatGPT、Claude与Gemini三种模型在数学题与医疗咨询任务上进行了比较，结果显示Gemini的sycophancy发生率最高，为62.47%；ChatGPT为56.71%，Claude为57.44%。Google自己也在2025年11月发布Gemini 3时把"sycophancy的减少"列为改进点之一，表明该公司亦认知到此前模型存在该倾向。<a class="fn-back" href="#ref4">↩</a></span>`,
+      `<span id="fn5">ChatGPT众所周知存在"hallucination（幻觉）"现象，即满怀自信地说出并非事实的内容。OpenAI自身也在2025年公开表示，即便是生日或博士论文题目这种应当只有唯一正确答案的事实，模型也会自信地给出多个不同的错误答案。该公司解释，原因在于现行评测体系往往奖励"猜测"而不是"承认不知道"。<a class="fn-back" href="#ref5">↩</a></span>`,
+      `<span id="fn6">据说Anthropic的Claude在多种编程能力评测中名列前茅。但在用户的不满中，特别突出的一点是使用额度的严格。Claude.ai设有每5小时的会话上限，即便是付费的Pro方案（每月20美元），用户也常常在数小时的长对话或代码生成后被提示"已达上限"，工作戛然而止。此外，从2025年8月28日起，又对Claude Code追加了每周的使用额度限制。<a class="fn-back" href="#ref6">↩</a></span>`,
+      `<span id="fn7">Genspark（运营公司MainFunc, Inc.，总部位于美国加州帕罗奥图）是2024年上线的AI智能体型服务。其"超级智能体"功能能自主完成从调研到幻灯片、报告生成的全过程，几分钟内输出数十页的资料并不少见。不过多家评测指出，对生成内容的事实核查只能由用户自己完成，商用场合人工最终把关不可或缺。<a class="fn-back" href="#ref7">↩</a></span>`,
+    ],
   },
 };
 
@@ -261,12 +377,28 @@ function catSpeak() {
 }
 
 function catBody() {
-  return Array.from({length: 4}, () => `<p>${catSpeak()}</p>`).join('\n');
+  // 日本語本文の段落数（7段落）に合わせてにゃあにゃあする
+  return Array.from({length: 7}, () => `<p>${catSpeak()}</p>`).join('\n');
+}
+
+function catNotes() {
+  // 注釈の数（7個）に合わせる
+  const NOTE_COUNT = 7;
+  return Array.from({length: NOTE_COUNT}, (_, i) => {
+    const n = i + 1;
+    return `<span id="fn${n}">${catSpeak()}<a class="fn-back" href="#ref${n}">↩</a></span>`;
+  });
+}
+
+function renderNotes(notesArray) {
+  const list = document.getElementById('footnotes-list');
+  if (!list) return;
+  list.innerHTML = notesArray.map(n => `<li>${n}</li>`).join('');
 }
 
 let currentLang = (() => {
   try {
-    const p = new URLSearchParams(window.location.search).get('lang');
+    const p = new URLSearchParams(location.search).get('lang');
     if (p && ['ja','en','zh','cat'].includes(p)) return p;
     const v = localStorage.getItem('momoLang');
     return ['ja','en','zh','cat'].includes(v) ? v : 'ja';
@@ -274,48 +406,46 @@ let currentLang = (() => {
 })();
 
 function applyLang() {
-  const titleEl = document.getElementById('entry-title');
-  const bodyEl = document.getElementById('entry-body');
-  const backEl = document.getElementById('nav-back');
-  const footEl = document.getElementById('footer-text');
-
   if (currentLang === 'cat') {
     const t = catSpeak();
-    titleEl.textContent = t;
-    bodyEl.innerHTML = catBody();
+    document.getElementById('entry-title').textContent  = t;
     document.title = t + ' — MOMO Logue';
-    backEl.textContent = catSpeak();
-    footEl.textContent = catSpeak();
+    document.getElementById('entry-body').innerHTML     = catBody();
+    document.getElementById('footnotes-title').textContent = catSpeak();
+    document.getElementById('footnotes-disclaimer').textContent = catSpeak();
+    renderNotes(catNotes());
+    document.getElementById('nav-back').textContent     = catSpeak();
+    document.getElementById('footer-text').textContent  = catSpeak();
   } else {
     const c = CONTENT[currentLang] || CONTENT.ja;
-    titleEl.textContent = c.title;
-    bodyEl.innerHTML = c.body;
+    document.getElementById('entry-title').textContent  = c.title;
     document.title = c.title + ' — MOMO Logue';
-    backEl.textContent = '← Logue';
-    footEl.textContent = '© MOMO Works';
+    document.getElementById('entry-body').innerHTML     = c.body;
+    document.getElementById('footnotes-title').textContent = c.notesTitle;
+    document.getElementById('footnotes-disclaimer').textContent = c.notesDisclaimer;
+    renderNotes(c.notes);
+    document.getElementById('nav-back').textContent     = '← Logue';
+    document.getElementById('footer-text').textContent  = '© MOMO Works';
   }
-  
   const sel = document.getElementById('lang-select');
   if (sel) sel.value = currentLang;
   document.documentElement.lang = currentLang === 'zh' ? 'zh-Hans' : (currentLang === 'cat' ? catBase : currentLang);
 }
 
 function onLangChange(lang) {
-  if (lang === 'cat') catBase = (currentLang === 'cat') ? catBase : currentLang;
+  if (lang === 'cat') catBase = currentLang;
   currentLang = lang;
   try { localStorage.setItem('momoLang', lang); } catch(e) {}
   try {
-    const url = new URL(window.location.href);
+    const url = new URL(location.href);
     if (lang === 'ja') url.searchParams.delete('lang');
     else url.searchParams.set('lang', lang);
-    window.history.replaceState(null, '', url.toString());
+    history.replaceState(null, '', url.toString());
   } catch(e) {}
   applyLang();
 }
 
-// 初期実行
 applyLang();
 </script>
-
 </body>
 </html>

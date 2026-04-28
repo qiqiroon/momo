@@ -86,7 +86,7 @@ const MomoMatchmaking = (() => {
       _currentRoomName = d.roomName;
       _isHost = true;
       _initRTC(true);
-      if (_options.onRoomCreated) _options.onRoomCreated(d.roomId, d.roomName);
+      if (_options.onRoomCreated) _options.onRoomCreated(d.roomId, d.roomName, d.rules);
       return;
     }
 
@@ -96,7 +96,7 @@ const MomoMatchmaking = (() => {
       _currentRoomName = d.roomName;
       _isHost = false;
       _initRTC(false);
-      if (_options.onJoinedRoom) _options.onJoinedRoom(d.roomId, d.roomName, d.hostName);
+      if (_options.onJoinedRoom) _options.onJoinedRoom(d.roomId, d.roomName, d.hostName, d.rules);
       return;
     }
 
@@ -281,7 +281,9 @@ const MomoMatchmaking = (() => {
 
   /**
    * 部屋を作成する。成功すると onRoomCreated が呼ばれる。
-   * @param {object} options - { hostName, name, password, isPublic }
+   * @param {object} options - { hostName, name, password, isPublic, rules }
+   *   rules はゲーム固有のルール設定オブジェクト（任意）。
+   *   サーバーは中身を保持・配信するのみで解釈はしない。
    */
   function createRoom(options) {
     if (!_ws || _ws.readyState !== WebSocket.OPEN) return;
@@ -291,7 +293,8 @@ const MomoMatchmaking = (() => {
       hostName: options.hostName || 'ホスト',
       name: options.name || '名無しの部屋',
       password: options.password || '',
-      isPublic: options.isPublic !== false
+      isPublic: options.isPublic !== false,
+      rules: options.rules
     }));
   }
 

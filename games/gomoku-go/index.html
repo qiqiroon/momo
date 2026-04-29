@@ -924,7 +924,7 @@ const RULE_ROWS = [
 let lobbyStatusKey = 'connecting';   // 'connecting' | 'connected'
 let waitingStatusKey = 'waitingGuest'; // 'waitingGuest' | 'guestJoined'
 let waitingStatusName = '';            // guestJoined時のゲスト名
-let turnIndicatorKey = null;           // 'myTurn' | 'oppTurn' | 'winMsg' | 'loseMsg' | 'drawMsg'
+let turnIndicatorKey = null;           // 'myTurn' | 'oppTurn' | 'winMsg' | 'loseMsg' | 'drawMsg' | 'forbiddenWin' | 'forbiddenLose'
 
 // ===== SCREENS =====
 function showScreen(id) {
@@ -1492,6 +1492,11 @@ function place(x, y) {
   if (turn !== myColor) return;
   if (board[y][x]) return;
 
+  // カジュアル: 三三禁を仮置き時点で弾く（無効クリック扱い）
+  if (getCurrentPreset() === 'casual' && isForbiddenAt(x, y, myColor)) {
+    return;
+  }
+
   // 同じ場所への2回目クリック → PCなら確定（モバイルは無視）
   if (pendingMove && pendingMove.x === x && pendingMove.y === y) {
     if (!IS_TOUCH) confirmMove();
@@ -1502,21 +1507,61 @@ function place(x, y) {
   updateTurnUI();
 }
 
+function getCurrentPreset() {
+  return (currentRules && currentRules.preset) || 'free';
+}
+
+function getRuleSetForMove(color) {
+  if (typeof GomokuRules === 'undefined') return null;
+  const tbl = GomokuRules.PRESET_RULESETS[getCurrentPreset()];
+  return tbl ? tbl[color] : null;
+}
+
+// 着手前 (board[y][x] === null) の禁手チェック
+function isForbiddenAt(x, y, color) {
+  if (typeof GomokuRules === 'undefined') return false;
+  const ruleSet = getRuleSetForMove(color);
+  if (!ruleSet) return false;
+  return GomokuRules.isForbidden(board, x, y, color, ruleSet, BOARD_SIZE);
+}
+
 function confirmMove() {
   if (!pendingMove) return;
   if (!gameReady || !gameActive) return;
   if (turn !== myColor) return;
   const { x, y } = pendingMove;
+  const preset = getCurrentPreset();
+
+  // 着手前の禁手判定（board[y][x] はまだ null）
+  // 正規: 禁手なら打って即敗北。カジュアル: 念のため確定時にもガード（仮置き済みでも蹴る）。
+  const forbidden = (typeof GomokuRules !== 'undefined') ? isForbiddenAt(x, y, myColor) : false;
+  if (preset === 'casual' && forbidden) {
+    pendingMove = null;
+    renderBoard();
+    updateTurnUI();
+    return;
+  }
+
   applyMove(x, y, myColor);
   send({ type: 'move', x, y });
   pendingMove = null;
   consecutivePasses = 0;
-  // 5連判定（自由ルール）
-  const winLine = (typeof GomokuRules !== 'undefined') ? GomokuRules.checkWin(board, x, y, myColor, BOARD_SIZE) : null;
-  if (winLine) {
-    winningLine = winLine;
-    endGame(myColor);
+
+  if (preset === 'normal' && forbidden) {
+    // 禁手で着手 → 自分の負け
+    const winnerColor = (myColor === 'black') ? 'white' : 'black';
+    endGame(winnerColor, 'forbidden');
     return;
+  }
+
+  // プリセット別の勝敗判定
+  if (typeof GomokuRules !== 'undefined') {
+    const r = GomokuRules.checkWinByPreset(board, x, y, myColor, preset, BOARD_SIZE);
+    if (r && r.result === 'win') {
+      winningLine = r.line;
+      endGame(myColor);
+      return;
+    }
   }
   nextTurn();
 }
@@ -1554,7 +1599,7 @@ function resign() {
   showEndScreen(t('resignLose'), 'resign');
 }
 
-function endGame(winnerColor) {
+function endGame(winnerColor, reason) {
   gameActive = false;
   pendingMove = null;
   renderBoard(); // winningLine を反映してハイライト
@@ -1563,9 +1608,11 @@ function endGame(winnerColor) {
   if (winnerColor === null) {
     resultKey = 'drawMsg'; outcome = 'draw'; resultClass = 'result-draw';
   } else if (winnerColor === myColor) {
-    resultKey = 'winMsg'; outcome = 'win'; resultClass = 'result-win';
+    resultKey = (reason === 'forbidden') ? 'forbiddenWin' : 'winMsg';
+    outcome = 'win'; resultClass = 'result-win';
   } else {
-    resultKey = 'loseMsg'; outcome = 'lose'; resultClass = 'result-lose';
+    resultKey = (reason === 'forbidden') ? 'forbiddenLose' : 'loseMsg';
+    outcome = 'lose'; resultClass = 'result-lose';
   }
 
   // 盤面下のターン表示部分に勝敗を表示（邪魔にならない位置）
@@ -1719,13 +1766,29 @@ function handleMsg(m) {
 
   if (m.type === 'move') {
     if (board[m.y][m.x]) return; // 既に石がある場合は無視
-    applyMove(m.x, m.y, turn);
+    const oppColor = turn;
+    const preset = getCurrentPreset();
+
+    // 相手の着手前盤面で禁手判定（正規のみ事後判定で勝敗反映）
+    const oppForbidden = (preset === 'normal' && typeof GomokuRules !== 'undefined')
+      ? isForbiddenAt(m.x, m.y, oppColor) : false;
+
+    applyMove(m.x, m.y, oppColor);
     consecutivePasses = 0;
-    const winLine = (typeof GomokuRules !== 'undefined') ? GomokuRules.checkWin(board, m.x, m.y, turn, BOARD_SIZE) : null;
-    if (winLine) {
-      winningLine = winLine;
-      endGame(turn);
+
+    if (oppForbidden) {
+      // 相手が禁手を打った → 自分の勝ち
+      endGame(myColor, 'forbidden');
       return;
+    }
+
+    if (typeof GomokuRules !== 'undefined') {
+      const r = GomokuRules.checkWinByPreset(board, m.x, m.y, oppColor, preset, BOARD_SIZE);
+      if (r && r.result === 'win') {
+        winningLine = r.line;
+        endGame(oppColor);
+        return;
+      }
     }
     nextTurn();
     return;
@@ -1825,6 +1888,7 @@ const I18N = {
     guestJoined: 'が入室しました', guestLeft: 'ゲストが退出しました',
     youAre: 'あなたは', black: '（先手）', white: '（後手）',
     winMsg: '勝利！', loseMsg: '敗北', drawMsg: '引き分け',
+    forbiddenWin: '相手の禁手 - 勝利！', forbiddenLose: '禁手で敗北',
     resignWin: '相手が降参 - 勝利！', resignLose: 'あなたの負け（降参）',
     oppQuit: '相手が退出しました',
     confirmLeave: '退出しますか？', confirmResign: '降参しますか？', confirmKick: 'ゲストをキックしますか？',
@@ -1875,6 +1939,7 @@ const I18N = {
     guestJoined: ' joined', guestLeft: 'Guest left',
     youAre: 'You are', black: '(1st)', white: '(2nd)',
     winMsg: 'Victory!', loseMsg: 'Defeat', drawMsg: 'Draw',
+    forbiddenWin: "Opponent's forbidden move - You win!", forbiddenLose: 'Lost by forbidden move',
     resignWin: 'Opponent resigned - You win!', resignLose: 'You lost (resigned)',
     oppQuit: 'Opponent left',
     confirmLeave: 'Leave room?', confirmResign: 'Resign?', confirmKick: 'Kick guest?',
@@ -1925,6 +1990,7 @@ const I18N = {
     guestJoined: ' 加入了', guestLeft: '访客离开了',
     youAre: '你是', black: '（先手）', white: '（后手）',
     winMsg: '胜利！', loseMsg: '败北', drawMsg: '平局',
+    forbiddenWin: '对手禁手 - 你赢了！', forbiddenLose: '因禁手败北',
     resignWin: '对手认输 - 你赢了！', resignLose: '你输了（认输）',
     oppQuit: '对手离开了',
     confirmLeave: '要退出吗？', confirmResign: '要认输吗？', confirmKick: '要踢出访客吗？',

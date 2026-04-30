@@ -615,7 +615,7 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
     <div style="display:flex;flex-direction:column;gap:8px;">
       <div class="field"><label id="i18n-label-name">あなたの名前</label><input class="input" id="my-name" value="" maxlength="12"></div>
       <div class="field"><label id="i18n-label-room">部屋の名前</label><input class="input" id="room-name-input" value="" maxlength="20"></div>
-      <div class="field"><label id="i18n-label-pw">パスワード（省略可）</label><input class="input" id="room-password" placeholder="なしの場合は空欄" maxlength="20" autocomplete="off"></div>
+      <div class="field"><label id="i18n-label-pw">パスワード（省略可）</label><input class="input" id="room-password" placeholder="なしの場合は空欄" maxlength="20" autocomplete="new-password"></div>
       <div class="toggle-row">
         <span id="i18n-label-public">一覧に公開する</span>
         <input type="checkbox" class="toggle" id="room-public" checked>
@@ -649,7 +649,7 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
       <div class="field">
         <label id="i18n-private-pw-label">パスワード（なければ空欄）</label>
         <div style="display:flex;gap:6px;">
-          <input class="input" id="private-room-pw" type="password" maxlength="20" style="flex:1;" autocomplete="off">
+          <input class="input" id="private-room-pw" type="password" maxlength="20" style="flex:1;" autocomplete="new-password">
           <button class="btn btn-secondary" onclick="showPrivateRooms()" id="i18n-btn-private-show" style="white-space:nowrap;flex-shrink:0;">表示</button>
         </div>
       </div>
@@ -887,6 +887,18 @@ function restoreInputs() {
     if (pn) { const el = document.getElementById('my-name'); if (el) { el.value = pn; myName = pn; } }
     if (rn) { const el = document.getElementById('room-name-input'); if (el) el.value = rn; }
   } catch(e) {}
+  // ブラウザの自動入力でパスワード欄が埋まることがあるため明示的にクリア。
+  // autocomplete="new-password" だけでは Chrome 等が無視する場合があるため、
+  // boot 直後と少し遅延した後の二段で値を空に戻す（autofill が遅延入力するケース対策）。
+  const clearPwFields = () => {
+    const a = document.getElementById('room-password');
+    const b = document.getElementById('private-room-pw');
+    if (a) a.value = '';
+    if (b) b.value = '';
+  };
+  clearPwFields();
+  setTimeout(clearPwFields, 0);
+  setTimeout(clearPwFields, 200);
 }
 
 // game

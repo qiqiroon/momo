@@ -353,6 +353,52 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
     0 0 22px var(--orange),
     0 0 36px rgba(251,146,60,0.6);
 }
+/* 待った（undo）プレビュー中のゴースト石 */
+.stone.undo-ghost { opacity: 0.3; }
+.stone.undo-ghost.undo-latest {
+  opacity: 0.6;
+}
+.stone.undo-ghost.undo-latest::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border: 3px solid var(--orange);
+  border-radius: 50%;
+  pointer-events: none;
+  box-shadow: 0 0 10px var(--orange-glow);
+}
+.stone.cat-piece.undo-ghost.undo-latest::after {
+  inset: -2px;
+  border-radius: 6px;
+}
+/* 待ったパネル（turn-indicator と同じ位置に表示） */
+.undo-panel {
+  background: var(--surface);
+  border: 1px solid var(--orange);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  text-align: center;
+  margin-top: 4px;
+}
+.undo-panel-text {
+  color: var(--text);
+  white-space: pre-line;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+.undo-panel.no-buttons .undo-panel-text { margin-bottom: 0; }
+.undo-panel-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.undo-panel-buttons .btn {
+  flex: 1;
+  min-width: 100px;
+  max-width: 160px;
+}
 @keyframes winPulse {
   from { transform: scale(1.0); }
   to   { transform: scale(1.18); }
@@ -739,10 +785,16 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
     </div>
 
     <div class="turn-indicator" id="turn-indicator">-</div>
+    <!-- 待った（undo）パネル: turn-indicator の直下に重ねる位置に表示 -->
+    <div class="undo-panel" id="undo-panel" style="display:none;">
+      <div class="undo-panel-text" id="undo-panel-text"></div>
+      <div class="undo-panel-buttons" id="undo-panel-buttons"></div>
+    </div>
 
     <div class="board-actions">
       <button class="btn btn-primary" id="btn-confirm" onclick="confirmMove()" disabled data-i18n="confirmMove">確定</button>
       <button class="btn btn-secondary" id="btn-pass" onclick="pass()" data-i18n="pass">パス</button>
+      <button class="btn btn-secondary" id="btn-undo" onclick="requestUndoStep()" style="display:none;">待った</button>
       <button class="btn btn-ghost" onclick="resign()" id="i18n-btn-resign">降参</button>
     </div>
 
@@ -973,6 +1025,19 @@ let lobbyStatusKey = 'connecting';   // 'connecting' | 'connected'
 let waitingStatusKey = 'waitingGuest'; // 'waitingGuest' | 'guestJoined'
 let waitingStatusName = '';            // guestJoined時のゲスト名
 let turnIndicatorKey = null;           // 'myTurn' | 'oppTurn' | 'winMsg' | 'loseMsg' | 'drawMsg' | 'forbiddenWin' | 'forbiddenLose' | 'phase_b1_me' | 'phase_b1_opp' | 'phase_w1_me' | 'phase_w1_opp' | 'phase_b2_me' | 'phase_b2_opp' | 'phase_swap_me' | 'phase_swap_opp' | 'phase_tengen_only'
+
+// ===== 待った（UNDO）STATE =====
+// moveHistory: 各エントリ {type:'move', x, y, color} または {type:'pass', color}
+// 巻き戻し用に着手・パスの履歴を保持。手番制なので末尾は常に直前の着手者。
+let moveHistory = [];
+// undoPhase: 'idle' | 'preparing' | 'awaiting_response' | 'reviewing'
+//  idle: 待った関与なし
+//  preparing: 自分が待ったボタンを押してプレビュー中（まだ申請していない）
+//  awaiting_response: 申請を送って相手の判断待ち
+//  reviewing: 相手から待った申請を受け、同意/拒否を判断中
+let undoPhase = 'idle';
+let undoPendingSteps = 0;        // プレビュー中の戻し手数
+let undoStatusKey = null;        // i18n再描画用に保持（preparing/awaiting/rejected）
 
 // ===== 三手交換 STATE =====
 // gamePhase: 'opening_b1' | 'opening_w1' | 'opening_b2' | 'swap_select' | 'swap_wait' | 'normal'
@@ -1346,6 +1411,16 @@ function resetToLobby() {
   mySwapDecided = false;
   if (tengenHintTimer) { clearTimeout(tengenHintTimer); tengenHintTimer = null; }
   closeSwapPanel();
+  // 待った状態のクリーンアップ
+  moveHistory = [];
+  undoPhase = 'idle';
+  undoPendingSteps = 0;
+  undoStatusKey = null;
+  if (undoRejectTimer) { clearTimeout(undoRejectTimer); undoRejectTimer = null; }
+  const upe = document.getElementById('undo-panel');
+  if (upe) upe.style.display = 'none';
+  const tie = document.getElementById('turn-indicator');
+  if (tie) tie.style.display = '';
   _showingPrivate = false;
   _pendingPrivatePw = '';
   const prl = document.getElementById('private-room-list');
@@ -1444,6 +1519,14 @@ function beginGame(swapColors) {
   lastSwapResult = null;
   mySwapDecided = false;
   closeSwapPanel();
+  // 待った（undo）状態のリセット
+  moveHistory = [];
+  undoPhase = 'idle';
+  undoPendingSteps = 0;
+  undoStatusKey = null;
+  if (typeof undoRejectTimer !== 'undefined' && undoRejectTimer) {
+    clearTimeout(undoRejectTimer); undoRejectTimer = null;
+  }
 
   document.getElementById('my-color-label').innerHTML =
     `${t('youAre')} ${PIECE.svg(myColor, '20px')}${t(myColor === 'black' ? 'black' : 'white')}`;
@@ -1497,6 +1580,21 @@ function drawBoardSvg() {
 function renderBoard() {
   const el = document.getElementById('board');
   el.innerHTML = '';
+  // 待ったプレビュー中は、ゴースト範囲のセル位置と「最新で戻された手」のIdxを事前計算
+  const ghostActive = (undoPhase !== 'idle' && undoPendingSteps > 0);
+  const ghostStart = ghostActive ? undoGhostStartIdx() : -1;
+  const latestUndoneIdx = ghostActive ? undoLatestMoveIdx() : -1;
+  // 高速参照: 各 (x,y) → 'ghost' / 'ghost-latest' / null
+  const ghostMap = new Map();
+  if (ghostActive) {
+    for (let i = ghostStart; i < moveHistory.length; i++) {
+      const e = moveHistory[i];
+      if (e.type === 'move') {
+        const key = e.y * BOARD_SIZE + e.x;
+        ghostMap.set(key, (i === latestUndoneIdx) ? 'ghost-latest' : 'ghost');
+      }
+    }
+  }
   for (let y = 0; y < BOARD_SIZE; y++) {
     for (let x = 0; x < BOARD_SIZE; x++) {
       const cell = document.createElement('div');
@@ -1505,21 +1603,24 @@ function renderBoard() {
 
       const stoneColor = board[y][x];
       const isPending = pendingMove && pendingMove.x === x && pendingMove.y === y;
+      const ghostKind = ghostMap.get(y * BOARD_SIZE + x); // 'ghost' | 'ghost-latest' | undefined
 
       if (stoneColor || isPending) {
         const colorToShow = stoneColor || myColor;
-        const isLast = lastMove && lastMove.x === x && lastMove.y === y && !isPending;
+        const isLast = !ghostActive && lastMove && lastMove.x === x && lastMove.y === y && !isPending;
         const isWin  = winningLine && winningLine.some(p => p.x === x && p.y === y);
+        const isGhost = !!ghostKind;
+        const isGhostLatest = ghostKind === 'ghost-latest';
 
         let stone;
+        const ghostCls = isGhost ? (' undo-ghost' + (isGhostLatest ? ' undo-latest' : '')) : '';
         if (currentLang === 'cat') {
-          // CATモード: 駒を猫/鳥アイコンで描画
           stone = document.createElement('div');
-          stone.className = 'stone cat-piece' + (isPending ? ' preview' : '') + (isLast ? ' last-move' : '') + (isWin ? ' winning' : '');
+          stone.className = 'stone cat-piece' + (isPending ? ' preview' : '') + (isLast ? ' last-move' : '') + (isWin ? ' winning' : '') + ghostCls;
           stone.innerHTML = PIECE.svg(colorToShow, '100%');
         } else {
           stone = document.createElement('div');
-          stone.className = 'stone ' + colorToShow + (isPending ? ' preview' : '') + (isLast ? ' last-move' : '') + (isWin ? ' winning' : '');
+          stone.className = 'stone ' + colorToShow + (isPending ? ' preview' : '') + (isLast ? ' last-move' : '') + (isWin ? ' winning' : '') + ghostCls;
         }
         cell.appendChild(stone);
 
@@ -1546,6 +1647,16 @@ function updateTurnUI() {
   const confirmBtn = document.getElementById('btn-confirm');
   const passBtn = document.getElementById('btn-pass');
   const myTurn = turn === myColor;
+
+  // 待った進行中は専用パネルが turn-indicator を覆い、ボタンは無効化
+  if (gameActive && undoPhase !== 'idle') {
+    if (frame) frame.classList.remove('my-turn');
+    if (confirmBtn) confirmBtn.disabled = true;
+    if (passBtn) passBtn.disabled = true;
+    // updateUndoUI で実際のパネル描画を行う
+    updateUndoUI();
+    return;
+  }
 
   // 三手交換の進行中は専用メッセージを表示
   if (gameActive && gamePhase !== 'normal') {
@@ -1583,6 +1694,8 @@ function updateTurnUI() {
   if (confirmBtn) confirmBtn.disabled = !(myTurn && pendingMove && gameActive);
   // パスボタン: 自分手番＋対局中のみ
   if (passBtn) passBtn.disabled = !(myTurn && gameActive);
+  // 待ったボタンの表示・有効状態
+  updateUndoUI();
 }
 
 // 三手交換フェーズに対応するturn-indicatorキーを返す
@@ -1602,6 +1715,8 @@ function place(x, y) {
   if (!gameReady || !gameActive) return;
   // 三手交換のスワップ選択フェーズでは盤面操作不可
   if (gamePhase === 'swap_select' || gamePhase === 'swap_wait') return;
+  // 待った進行中（preparing/awaiting/reviewing）も盤面操作不可
+  if (undoPhase !== 'idle') return;
   if (turn !== myColor) return;
   if (board[y][x]) return;
 
@@ -1722,6 +1837,245 @@ function applyMove(x, y, color) {
   moveCount++;
   moveNumberMap[y][x] = moveCount;
   lastMove = { x, y };
+  moveHistory.push({type: 'move', x, y, color});
+}
+
+// ===== 待った（UNDO）=====
+// 1回押し = 自分の手番に戻るまで戻す（相手の最新手 + 自分の最新手）。
+// 残り履歴が1個だけのときは1手戻し。
+
+// 1回押しで戻る手数を返す（0=戻せない）
+function undoStepsPerClick() {
+  const remaining = moveHistory.length - undoPendingSteps;
+  if (remaining <= 0) return 0;
+  return remaining >= 2 ? 2 : 1;
+}
+
+// ゴースト範囲（プレビュー中の戻し対象）の history インデックス開始位置
+function undoGhostStartIdx() {
+  return moveHistory.length - undoPendingSteps;
+}
+
+// ある history インデックスが現在ゴースト表示対象かを判定
+function isGhostHistoryIdx(idx) {
+  if (undoPhase === 'idle') return false;
+  return idx >= undoGhostStartIdx() && idx < moveHistory.length;
+}
+
+// ゴースト範囲の中で「最新で戻された」=オレンジ強調すべき着手のインデックス
+// = 範囲の最古 = ゴースト範囲先頭。pass の場合はその次の 'move' を探す。
+function undoLatestMoveIdx() {
+  if (undoPendingSteps === 0) return -1;
+  const start = undoGhostStartIdx();
+  for (let i = start; i < moveHistory.length; i++) {
+    if (moveHistory[i].type === 'move') return i;
+  }
+  return -1;
+}
+
+// 待ったボタン: 1段戻しの予約を増やす（自分の手番＋idle/preparing のみ）
+function requestUndoStep() {
+  if (!gameReady || !gameActive) return;
+  if (getCurrentPreset() === 'normal') return;
+  if (turn !== myColor) return;
+  if (undoPhase !== 'idle' && undoPhase !== 'preparing') return;
+  const steps = undoStepsPerClick();
+  if (steps === 0) return; // これ以上戻せない
+  undoPendingSteps += steps;
+  undoPhase = 'preparing';
+  undoStatusKey = null;
+  pendingMove = null; // 仮置きキャンセル
+  renderBoard();
+  updateUndoUI();
+  updateTurnUI();
+}
+
+// 待ったキャンセル: preparing 中のみ。idle に戻し、ゴーストを解除
+function cancelUndo() {
+  if (undoPhase !== 'preparing') return;
+  undoPhase = 'idle';
+  undoPendingSteps = 0;
+  undoStatusKey = null;
+  renderBoard();
+  updateUndoUI();
+  updateTurnUI();
+}
+
+// 同意申請: 相手に undo_request を送り awaiting_response へ
+function submitUndoRequest() {
+  if (undoPhase !== 'preparing') return;
+  if (undoPendingSteps <= 0) return;
+  send({type: 'undo_request', steps: undoPendingSteps});
+  undoPhase = 'awaiting_response';
+  undoStatusKey = null;
+  updateUndoUI();
+  updateTurnUI();
+}
+
+// 自分が同意（受信側）
+function acceptUndo() {
+  if (undoPhase !== 'reviewing') return;
+  send({type: 'undo_accept'});
+  applyUndoFinal(undoPendingSteps);
+  undoPhase = 'idle';
+  undoPendingSteps = 0;
+  undoStatusKey = null;
+  renderBoard();
+  updateUndoUI();
+  updateTurnUI();
+}
+
+// 自分が拒否（受信側）
+function rejectUndo() {
+  if (undoPhase !== 'reviewing') return;
+  send({type: 'undo_reject'});
+  undoPhase = 'idle';
+  undoPendingSteps = 0;
+  undoStatusKey = null;
+  renderBoard();
+  updateUndoUI();
+  updateTurnUI();
+}
+
+// 実際に moveHistory から末尾N個を削除して盤面状態を再構築する（合意後）
+function applyUndoFinal(N) {
+  if (N <= 0) return;
+  if (N > moveHistory.length) N = moveHistory.length;
+  const removed = moveHistory.splice(moveHistory.length - N, N);
+  for (const e of removed) {
+    if (e.type === 'move') {
+      board[e.y][e.x] = null;
+      moveNumberMap[e.y][e.x] = 0;
+      moveCount--;
+    }
+  }
+  // lastMove 再計算（残った末尾の 'move' を探す）
+  lastMove = null;
+  for (let i = moveHistory.length - 1; i >= 0; i--) {
+    if (moveHistory[i].type === 'move') {
+      lastMove = {x: moveHistory[i].x, y: moveHistory[i].y};
+      break;
+    }
+  }
+  // consecutivePasses 再計算（末尾から連続する 'pass' の数）
+  consecutivePasses = 0;
+  for (let i = moveHistory.length - 1; i >= 0 && moveHistory[i].type === 'pass'; i--) {
+    consecutivePasses++;
+  }
+  // turn 再計算（末尾の色の反対、履歴空なら 'black'）
+  const last = moveHistory[moveHistory.length - 1];
+  turn = last ? (last.color === 'black' ? 'white' : 'black') : 'black';
+  winningLine = null;
+  pendingMove = null;
+}
+
+// 拒否通知を turn-indicator に3秒表示（idle復帰後）
+let undoRejectTimer = null;
+function showUndoRejectedNotice() {
+  if (undoRejectTimer) clearTimeout(undoRejectTimer);
+  turnIndicatorKey = 'undoRejected';
+  const ind = document.getElementById('turn-indicator');
+  if (ind) {
+    ind.className = 'turn-indicator active';
+    ind.textContent = t('undoRejected');
+  }
+  undoRejectTimer = setTimeout(() => {
+    undoRejectTimer = null;
+    updateTurnUI();
+  }, 3000);
+}
+
+// undo-panel と btn-undo, btn-confirm, btn-pass の表示・有効状態を更新
+function updateUndoUI() {
+  const panel    = document.getElementById('undo-panel');
+  const panelText = document.getElementById('undo-panel-text');
+  const panelBtns = document.getElementById('undo-panel-buttons');
+  const btnUndo  = document.getElementById('btn-undo');
+  const btnConf  = document.getElementById('btn-confirm');
+  const btnPass  = document.getElementById('btn-pass');
+  const turnInd  = document.getElementById('turn-indicator');
+
+  // 待ったボタン: 自分の手番＋idle/preparing＋カジュアル/自由＋履歴に戻せるものがある
+  const preset = getCurrentPreset();
+  const myTurnNow = (turn === myColor);
+  const undoBtnVisible = gameActive
+    && preset !== 'normal'
+    && (undoPhase === 'idle' || undoPhase === 'preparing')
+    && myTurnNow
+    && (moveHistory.length - undoPendingSteps) > 0;
+  if (btnUndo) btnUndo.style.display = undoBtnVisible ? '' : 'none';
+  if (btnUndo) btnUndo.disabled = !undoBtnVisible;
+
+  // パネル表示
+  if (undoPhase === 'idle') {
+    if (panel) panel.style.display = 'none';
+    if (turnInd) turnInd.style.display = '';
+    return;
+  }
+
+  // パネル表示モード（preparing/awaiting/reviewing）
+  if (panel) panel.style.display = '';
+  if (turnInd) turnInd.style.display = 'none';
+
+  // 確定/パスは無効化
+  if (btnConf) btnConf.disabled = true;
+  if (btnPass) btnPass.disabled = true;
+
+  // パスM回カウント（戻し範囲内）
+  const start = undoGhostStartIdx();
+  let passCount = 0;
+  for (let i = start; i < moveHistory.length; i++) {
+    if (moveHistory[i].type === 'pass') passCount++;
+  }
+
+  if (panelText) {
+    let txt;
+    if (undoPhase === 'preparing') {
+      txt = t('undoPrepText').replace('{N}', String(undoPendingSteps));
+      if (passCount > 0) txt += ' ' + t('undoPassNote').replace('{M}', String(passCount));
+      undoStatusKey = 'undoPrepText';
+    } else if (undoPhase === 'awaiting_response') {
+      txt = t('undoAwaiting');
+      undoStatusKey = 'undoAwaiting';
+    } else { // reviewing
+      txt = t('undoReviewText').replace('{N}', String(undoPendingSteps));
+      if (passCount > 0) txt += ' ' + t('undoPassNote').replace('{M}', String(passCount));
+      undoStatusKey = 'undoReviewText';
+    }
+    panelText.textContent = txt;
+  }
+
+  if (panelBtns) {
+    panelBtns.innerHTML = '';
+    if (undoPhase === 'preparing') {
+      const btnSubmit = document.createElement('button');
+      btnSubmit.className = 'btn btn-primary';
+      btnSubmit.textContent = t('undoBtnSubmit');
+      btnSubmit.onclick = submitUndoRequest;
+      const btnCancel = document.createElement('button');
+      btnCancel.className = 'btn btn-ghost';
+      btnCancel.textContent = t('undoBtnCancel');
+      btnCancel.onclick = cancelUndo;
+      panelBtns.appendChild(btnSubmit);
+      panelBtns.appendChild(btnCancel);
+      panel.classList.remove('no-buttons');
+    } else if (undoPhase === 'reviewing') {
+      const btnAccept = document.createElement('button');
+      btnAccept.className = 'btn btn-primary';
+      btnAccept.textContent = t('undoBtnAccept');
+      btnAccept.onclick = acceptUndo;
+      const btnReject = document.createElement('button');
+      btnReject.className = 'btn btn-secondary';
+      btnReject.textContent = t('undoBtnReject');
+      btnReject.onclick = rejectUndo;
+      panelBtns.appendChild(btnAccept);
+      panelBtns.appendChild(btnReject);
+      panel.classList.remove('no-buttons');
+    } else {
+      // awaiting_response: ボタン無し（テキストのみ）
+      panel.classList.add('no-buttons');
+    }
+  }
 }
 
 // ===== 三手交換 SWAP PANEL =====
@@ -1856,8 +2210,10 @@ function nextTurn() {
 function pass() {
   if (!gameReady || !gameActive) return;
   if (turn !== myColor) return;
+  if (undoPhase !== 'idle') return; // 待った進行中はパス不可
   pendingMove = null;
   send({ type: 'pass' });
+  moveHistory.push({type: 'pass', color: myColor});
   consecutivePasses++;
   if (consecutivePasses >= 2) {
     endGame(null); // 引き分け
@@ -1873,6 +2229,13 @@ function resign() {
   gamePhase = 'normal';
   mySwapDecided = false;
   closeSwapPanel();
+  undoPhase = 'idle';
+  undoPendingSteps = 0;
+  if (undoRejectTimer) { clearTimeout(undoRejectTimer); undoRejectTimer = null; }
+  const upe = document.getElementById('undo-panel');
+  if (upe) upe.style.display = 'none';
+  const tie = document.getElementById('turn-indicator');
+  if (tie) tie.style.display = '';
   showEndScreen(t('resignLose'), 'resign');
 }
 
@@ -1883,6 +2246,15 @@ function endGame(winnerColor, reason) {
   gamePhase = 'normal';
   mySwapDecided = false;
   closeSwapPanel();
+  // 待った進行中の終局に備えて undo state をリセット＆パネル隠す
+  undoPhase = 'idle';
+  undoPendingSteps = 0;
+  undoStatusKey = null;
+  if (undoRejectTimer) { clearTimeout(undoRejectTimer); undoRejectTimer = null; }
+  const upe = document.getElementById('undo-panel');
+  if (upe) upe.style.display = 'none';
+  const tie = document.getElementById('turn-indicator');
+  if (tie) tie.style.display = '';
   renderBoard(); // winningLine を反映してハイライト
 
   let resultKey, outcome, resultClass;
@@ -2080,6 +2452,45 @@ function handleMsg(m) {
     return;
   }
 
+  if (m.type === 'undo_request') {
+    // 競合防止: 自分が preparing/awaiting 中なら受信を無視（仕様上発生しないが防御）
+    if (undoPhase !== 'idle') return;
+    const N = parseInt(m.steps, 10);
+    if (!Number.isFinite(N) || N <= 0 || N > moveHistory.length) return;
+    undoPendingSteps = N;
+    undoPhase = 'reviewing';
+    pendingMove = null;
+    renderBoard();
+    updateUndoUI();
+    updateTurnUI();
+    return;
+  }
+
+  if (m.type === 'undo_accept') {
+    if (undoPhase !== 'awaiting_response') return;
+    applyUndoFinal(undoPendingSteps);
+    undoPhase = 'idle';
+    undoPendingSteps = 0;
+    undoStatusKey = null;
+    renderBoard();
+    updateUndoUI();
+    updateTurnUI();
+    return;
+  }
+
+  if (m.type === 'undo_reject') {
+    if (undoPhase !== 'awaiting_response') return;
+    undoPhase = 'idle';
+    undoPendingSteps = 0;
+    undoStatusKey = null;
+    renderBoard();
+    updateUndoUI();
+    updateTurnUI();
+    // 拒否通知を3秒 turn-indicator に表示
+    showUndoRejectedNotice();
+    return;
+  }
+
   if (m.type === 'swap_choice') {
     // 白側からのswap決定。受信側は黒側（swap_wait）
     if (gamePhase !== 'swap_wait') return;
@@ -2097,6 +2508,8 @@ function handleMsg(m) {
   }
 
   if (m.type === 'pass') {
+    // 受信時 turn は相手の色（自分が直前に打った後 nextTurn で flip 済み、または初手で turn='black' = 相手が黒）
+    moveHistory.push({type: 'pass', color: turn});
     consecutivePasses++;
     if (consecutivePasses >= 2) {
       endGame(null);
@@ -2111,6 +2524,13 @@ function handleMsg(m) {
     gamePhase = 'normal';
     mySwapDecided = false;
     closeSwapPanel();
+    undoPhase = 'idle';
+    undoPendingSteps = 0;
+    if (undoRejectTimer) { clearTimeout(undoRejectTimer); undoRejectTimer = null; }
+    const upe = document.getElementById('undo-panel');
+    if (upe) upe.style.display = 'none';
+    const tie = document.getElementById('turn-indicator');
+    if (tie) tie.style.display = '';
     showEndScreen(t('resignWin'), 'win');
     return;
   }
@@ -2243,6 +2663,17 @@ const I18N = {
     swapResultKept: '先後はそのままです。あなたは{COLOR}です。',
     swapColorBlack: '先手（黒）',
     swapColorWhite: '後手（白）',
+    // 待った（undo）
+    btnUndo: '待った',
+    undoPrepText: '{N}手戻しました',
+    undoPassNote: '（うちパス{M}回）',
+    undoAwaiting: '待った申請中... 相手の判断を待っています',
+    undoReviewText: '相手が{N}手戻すことを申請しました',
+    undoBtnSubmit: '同意申請',
+    undoBtnCancel: 'キャンセル',
+    undoBtnAccept: '同意する',
+    undoBtnReject: '拒否する',
+    undoRejected: '待った申請が拒否されました',
   },
   en: {
     connecting: 'Connecting...', connected: 'Connected', reconnecting: 'Connecting...',
@@ -2318,6 +2749,17 @@ const I18N = {
     swapResultKept: 'Roles unchanged. You are {COLOR}.',
     swapColorBlack: 'Black (1st)',
     swapColorWhite: 'White (2nd)',
+    // Undo (待った)
+    btnUndo: 'Undo',
+    undoPrepText: 'Reverted {N} move(s)',
+    undoPassNote: '(incl. {M} pass)',
+    undoAwaiting: 'Undo requested... waiting for opponent',
+    undoReviewText: 'Opponent requests undoing {N} move(s)',
+    undoBtnSubmit: 'Send request',
+    undoBtnCancel: 'Cancel',
+    undoBtnAccept: 'Accept',
+    undoBtnReject: 'Reject',
+    undoRejected: 'Undo request was rejected',
   },
   zh: {
     connecting: '连接中...', connected: '已连接', reconnecting: '连接中...',
@@ -2393,6 +2835,17 @@ const I18N = {
     swapResultKept: '先后手保持不变。你是{COLOR}。',
     swapColorBlack: '先手（黑）',
     swapColorWhite: '后手（白）',
+    // 悔棋（待った）
+    btnUndo: '悔棋',
+    undoPrepText: '已回退{N}手',
+    undoPassNote: '（含{M}次跳过）',
+    undoAwaiting: '悔棋申请中... 等待对手判断',
+    undoReviewText: '对手申请回退{N}手',
+    undoBtnSubmit: '提交申请',
+    undoBtnCancel: '取消',
+    undoBtnAccept: '同意',
+    undoBtnReject: '拒绝',
+    undoRejected: '悔棋申请被拒绝',
   }
 };
 
@@ -2469,6 +2922,7 @@ function applyLang() {
   setText('i18n-btn-kick', 'btnKick');
   setText('btn-pass', 'btnPass');
   setText('btn-confirm', 'confirmMove');
+  setText('btn-undo', 'btnUndo');
   setText('i18n-btn-resign', 'btnResign');
   setText('i18n-btn-send-g', 'btnSend');
   setText('i18n-notation-toggle', 'notationToggle');
@@ -2552,6 +3006,11 @@ function applyLang() {
   // 三手交換パネルが開いていたら再描画（言語切替に完璧対応）
   if (typeof updateSwapPanelUI === 'function') {
     updateSwapPanelUI();
+  }
+
+  // 待ったパネルが開いていたら再描画（言語切替に完璧対応）
+  if (typeof updateUndoUI === 'function' && undoPhase !== 'idle') {
+    updateUndoUI();
   }
 
   // Lang select sync

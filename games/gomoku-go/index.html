@@ -496,6 +496,31 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
 }
 .modal-title { font-family: 'Fredoka One', cursive; color: var(--orange); font-size: 18px; }
 
+/* swap modal — 三手交換（正規ルール） */
+.swap-modal { width: 360px; max-width: calc(100vw - 32px); }
+.swap-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.55;
+  white-space: pre-line;
+}
+.swap-status {
+  font-size: 13px;
+  color: var(--text);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  min-height: 38px;
+  white-space: pre-line;
+}
+.swap-status.swap-result {
+  border-color: var(--orange);
+  color: var(--orange);
+}
+.swap-actions { gap: 8px; flex-wrap: wrap; }
+.swap-actions .btn { flex: 1; min-width: 120px; }
+
 .divider { border: none; border-top: 1px solid var(--border); }
 
 /* toggle */
@@ -786,6 +811,16 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
   </div>
 </div>
 
+<!-- ===== OVERLAY: 三手交換（正規ルールのみ） ===== -->
+<div class="overlay" id="swap-overlay">
+  <div class="modal swap-modal">
+    <div class="modal-title" id="swap-modal-title">三手交換</div>
+    <div class="swap-desc" id="swap-modal-desc"></div>
+    <div class="swap-status" id="swap-modal-status"></div>
+    <div class="row swap-actions" id="swap-modal-actions"></div>
+  </div>
+</div>
+
 <script>
 // ===== PIECE MARKS =====
 // 駒マークの一元定義。将来的にここだけ変えれば全体に反映される。
@@ -827,7 +862,8 @@ const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 // ===== STATE =====
 // マッチング状態は MomoMatchmaking.getState() で取得する
 let myName = '';
-let myColor = null;       // 'black' | 'white'
+let myColor = null;       // 'black' | 'white'（現在の色 — 三手交換で途中変化しうる）
+let initialMyColor = null; // 開局時の色（三手交換が起きても変わらない、再戦時の判断基準）
 let myChoice = null;      // color selected in lobby
 let oppChoice = null;
 let myStartPressed = false;
@@ -924,7 +960,18 @@ const RULE_ROWS = [
 let lobbyStatusKey = 'connecting';   // 'connecting' | 'connected'
 let waitingStatusKey = 'waitingGuest'; // 'waitingGuest' | 'guestJoined'
 let waitingStatusName = '';            // guestJoined時のゲスト名
-let turnIndicatorKey = null;           // 'myTurn' | 'oppTurn' | 'winMsg' | 'loseMsg' | 'drawMsg' | 'forbiddenWin' | 'forbiddenLose'
+let turnIndicatorKey = null;           // 'myTurn' | 'oppTurn' | 'winMsg' | 'loseMsg' | 'drawMsg' | 'forbiddenWin' | 'forbiddenLose' | 'phase_b1_me' | 'phase_b1_opp' | 'phase_w1_me' | 'phase_w1_opp' | 'phase_b2_me' | 'phase_b2_opp' | 'phase_swap_me' | 'phase_swap_opp' | 'phase_tengen_only'
+
+// ===== 三手交換 STATE =====
+// gamePhase: 'opening_b1' | 'opening_w1' | 'opening_b2' | 'swap_select' | 'swap_wait' | 'normal'
+// 正規ルール時のみ opening 系フェーズを使う。preset !== 'normal' なら 'normal' で始める。
+let gamePhase = 'normal';
+// 白側の選択を黒側に保存するためのキー（'pending' | 'swap' | 'continue'）
+let oppSwapChoice = 'pending';
+// 直近で発生したswap結果（メッセージ表示用、'swap' | 'continue' | null）
+let lastSwapResult = null;
+// 一時的な天元エラー表示タイマー
+let tengenHintTimer = null;
 
 // ===== SCREENS =====
 function showScreen(id) {
@@ -1275,10 +1322,18 @@ function leaveRoom() {
 function resetToLobby() {
   MomoMatchmaking.leaveRoom();
   myColor = null;
+  initialMyColor = null;
   gameReady = false;
   gameActive = false;
   matchHistory = [];
   currentRules = null;
+  // 三手交換ステートのクリーンアップ
+  gamePhase = 'normal';
+  oppSwapChoice = 'pending';
+  lastSwapResult = null;
+  mySwapDecided = false;
+  if (tengenHintTimer) { clearTimeout(tengenHintTimer); tengenHintTimer = null; }
+  closeSwapPanel();
   _showingPrivate = false;
   _pendingPrivatePw = '';
   const prl = document.getElementById('private-room-list');
@@ -1360,12 +1415,23 @@ function beginGame(swapColors) {
   } else if (!swapColors && myColor === null) {
     myColor = myChoice;
   }
+  // 開局時の色を記録。三手交換で myColor が反転してもこの値は維持され、
+  // 終局後の「先後入れ替え/そのまま再戦」は initialMyColor を基準に判定する。
+  initialMyColor = myColor;
 
   gameReady = true;
   initBoard();
   turn = 'black';
   gameActive = true;
   lastMove = null;
+
+  // 三手交換フェーズの初期化（正規ルール時のみ opening_b1 から開始）
+  const preset = getCurrentPreset();
+  gamePhase = (preset === 'normal') ? 'opening_b1' : 'normal';
+  oppSwapChoice = 'pending';
+  lastSwapResult = null;
+  mySwapDecided = false;
+  closeSwapPanel();
 
   document.getElementById('my-color-label').innerHTML =
     `${t('youAre')} ${PIECE.svg(myColor, '20px')}${t(myColor === 'black' ? 'black' : 'white')}`;
@@ -1469,6 +1535,26 @@ function updateTurnUI() {
   const passBtn = document.getElementById('btn-pass');
   const myTurn = turn === myColor;
 
+  // 三手交換の進行中は専用メッセージを表示
+  if (gameActive && gamePhase !== 'normal') {
+    const phaseKey = phaseIndicatorKey();
+    if (phaseKey) {
+      turnIndicatorKey = phaseKey;
+      indicator.className = 'turn-indicator active';
+      indicator.textContent = t(phaseKey);
+      // 自分の手番フェーズなら盤面枠もアクティブ
+      if (phaseKey === 'phase_b1_me' || phaseKey === 'phase_w1_me' || phaseKey === 'phase_b2_me') {
+        frame.classList.add('my-turn');
+      } else {
+        frame.classList.remove('my-turn');
+      }
+      // ボタン制御
+      if (confirmBtn) confirmBtn.disabled = !(myTurn && pendingMove && gameActive);
+      if (passBtn) passBtn.disabled = true; // 開局フェーズではパス禁止
+      return;
+    }
+  }
+
   if (myTurn) {
     frame.classList.add('my-turn');
     indicator.className = 'turn-indicator active';
@@ -1487,10 +1573,31 @@ function updateTurnUI() {
   if (passBtn) passBtn.disabled = !(myTurn && gameActive);
 }
 
+// 三手交換フェーズに対応するturn-indicatorキーを返す
+function phaseIndicatorKey() {
+  const myTurn = turn === myColor;
+  switch (gamePhase) {
+    case 'opening_b1': return myTurn ? 'phase_b1_me' : 'phase_b1_opp';
+    case 'opening_w1': return myTurn ? 'phase_w1_me' : 'phase_w1_opp';
+    case 'opening_b2': return myTurn ? 'phase_b2_me' : 'phase_b2_opp';
+    case 'swap_select': return 'phase_swap_me';   // 白側
+    case 'swap_wait':   return 'phase_swap_opp';  // 黒側
+    default: return null;
+  }
+}
+
 function place(x, y) {
   if (!gameReady || !gameActive) return;
+  // 三手交換のスワップ選択フェーズでは盤面操作不可
+  if (gamePhase === 'swap_select' || gamePhase === 'swap_wait') return;
   if (turn !== myColor) return;
   if (board[y][x]) return;
+
+  // 正規ルール: 黒1手目は天元(9,9)固定
+  if (gamePhase === 'opening_b1' && (x !== 9 || y !== 9)) {
+    showTengenHint();
+    return;
+  }
 
   // カジュアル: 三三禁を仮置き時点で弾く（無効クリック扱い）
   if (getCurrentPreset() === 'casual' && isForbiddenAt(x, y, myColor)) {
@@ -1505,6 +1612,21 @@ function place(x, y) {
   pendingMove = { x, y };
   renderBoard();
   updateTurnUI();
+}
+
+// 天元(9,9)以外をクリックした際のヒント表示（turn-indicator に一時表示）
+function showTengenHint() {
+  turnIndicatorKey = 'phase_tengen_only';
+  const ind = document.getElementById('turn-indicator');
+  if (ind) {
+    ind.className = 'turn-indicator active';
+    ind.textContent = t('phase_tengen_only');
+  }
+  if (tengenHintTimer) clearTimeout(tengenHintTimer);
+  tengenHintTimer = setTimeout(() => {
+    tengenHintTimer = null;
+    updateTurnUI();
+  }, 2000);
 }
 
 function getCurrentPreset() {
@@ -1563,7 +1685,24 @@ function confirmMove() {
       return;
     }
   }
+  // 三手交換のフェーズ進行
+  advancePhaseAfterMove();
   nextTurn();
+}
+
+// 着手後にフェーズを進める（自分の着手後に呼ぶ。相手側でも同じロジックを呼ぶ）
+function advancePhaseAfterMove() {
+  if (gamePhase === 'opening_b1') {
+    gamePhase = 'opening_w1';
+  } else if (gamePhase === 'opening_w1') {
+    gamePhase = 'opening_b2';
+  } else if (gamePhase === 'opening_b2') {
+    // 黒2手目完了 → swap選択フェーズへ
+    // 白側 = swap_select、黒側 = swap_wait
+    gamePhase = (myColor === 'white') ? 'swap_select' : 'swap_wait';
+    // パネルを開く
+    openSwapPanel();
+  }
 }
 
 function applyMove(x, y, color) {
@@ -1571,6 +1710,129 @@ function applyMove(x, y, color) {
   moveCount++;
   moveNumberMap[y][x] = moveCount;
   lastMove = { x, y };
+}
+
+// ===== 三手交換 SWAP PANEL =====
+// gamePhase が 'swap_select'(白側)/'swap_wait'(黒側) の間はパネル表示。
+// 白側は選択前=選択肢ボタン、選択後=結果表示+OK。
+// 黒側は白の決定前=待機中表示、決定後=結果表示+OK。
+// 双方が OK を押すと gamePhase='normal' で通常進行へ。
+let mySwapDecided = false; // 白側: 選択肢を確定済みか（true なら結果表示モード）
+
+function openSwapPanel() {
+  mySwapDecided = false;
+  if (gamePhase === 'swap_wait') oppSwapChoice = 'pending';
+  document.getElementById('swap-overlay').classList.add('show');
+  updateSwapPanelUI();
+  updateTurnUI();
+}
+
+function closeSwapPanel() {
+  document.getElementById('swap-overlay').classList.remove('show');
+}
+
+// パネル内部のテキスト・ボタンを現在状態と現在言語で再生成
+// 言語切替時にも applyLang から呼ぶ
+function updateSwapPanelUI() {
+  const overlay = document.getElementById('swap-overlay');
+  if (!overlay || !overlay.classList.contains('show')) return;
+
+  const titleEl  = document.getElementById('swap-modal-title');
+  const descEl   = document.getElementById('swap-modal-desc');
+  const statusEl = document.getElementById('swap-modal-status');
+  const actionEl = document.getElementById('swap-modal-actions');
+
+  if (titleEl) titleEl.textContent = t('swapTitle');
+  if (descEl)  descEl.textContent  = t('swapDesc');
+
+  if (gamePhase === 'swap_select' && !mySwapDecided) {
+    // 白側・選択前: 選択肢を表示
+    if (statusEl) {
+      statusEl.classList.remove('swap-result');
+      statusEl.textContent = t('swapPromptWhite');
+    }
+    if (actionEl) {
+      actionEl.innerHTML = '';
+      const btnSwap = document.createElement('button');
+      btnSwap.className = 'btn btn-primary';
+      btnSwap.textContent = t('swapBtnSwap');
+      btnSwap.onclick = () => chooseSwap(true);
+      const btnKeep = document.createElement('button');
+      btnKeep.className = 'btn btn-secondary';
+      btnKeep.textContent = t('swapBtnKeep');
+      btnKeep.onclick = () => chooseSwap(false);
+      actionEl.appendChild(btnSwap);
+      actionEl.appendChild(btnKeep);
+    }
+    return;
+  }
+
+  // ここから「結果表示+OK」モード（双方共通）
+  // 白側=swap_select+mySwapDecided / 黒側=swap_wait（pending or 決定済み）
+  if (statusEl) {
+    let txt;
+    let resultMode = false;
+    let choiceKey;
+    if (gamePhase === 'swap_select') {
+      // 白側: 自分が選んだ結果を表示
+      choiceKey = (lastSwapResult === 'swap') ? 'swapStatusSwapped' : 'swapStatusKept';
+    } else {
+      // 黒側: 白が選んだ結果（pendingなら待機中）
+      if (oppSwapChoice === 'pending') {
+        choiceKey = null;
+      } else {
+        choiceKey = (oppSwapChoice === 'swap') ? 'swapStatusSwapped' : 'swapStatusKept';
+      }
+    }
+    if (choiceKey) {
+      const meColorKey = myColor === 'black' ? 'swapColorBlack' : 'swapColorWhite';
+      const resultKey = (choiceKey === 'swapStatusSwapped') ? 'swapResultSwapped' : 'swapResultKept';
+      txt = t(choiceKey) + '\n' + t(resultKey).replace('{COLOR}', t(meColorKey));
+      resultMode = true;
+    } else {
+      txt = t('swapStatusPending');
+    }
+    statusEl.textContent = txt;
+    statusEl.classList.toggle('swap-result', resultMode);
+  }
+
+  if (actionEl) {
+    actionEl.innerHTML = '';
+    const btnOk = document.createElement('button');
+    btnOk.className = 'btn btn-primary';
+    btnOk.textContent = t('swapBtnOk');
+    // 黒側で白がまだ決定していない場合は無効化、白側（決定済み）と黒側（決定済み）は有効
+    btnOk.disabled = (gamePhase === 'swap_wait' && oppSwapChoice === 'pending');
+    btnOk.onclick = swapPanelOk;
+    actionEl.appendChild(btnOk);
+  }
+}
+
+// 白側: スワップ選択（true=入れ替え、false=継続）
+function chooseSwap(swap) {
+  if (gamePhase !== 'swap_select') return;
+  if (mySwapDecided) return;
+  send({ type: 'swap_choice', swap: !!swap });
+  lastSwapResult = swap ? 'swap' : 'continue';
+  mySwapDecided = true;
+  if (swap) {
+    // 役割入れ替え: myColor 反転（盤面はそのまま）
+    myColor = (myColor === 'black') ? 'white' : 'black';
+    const mcl = document.getElementById('my-color-label');
+    if (mcl) mcl.innerHTML = `${t('youAre')} ${PIECE.svg(myColor, '20px')}${t(myColor === 'black' ? 'black' : 'white')}`;
+  }
+  // パネルを「結果+OK」表示に切り替え（即時クローズはしない）
+  updateSwapPanelUI();
+}
+
+// 双方: OK押下でパネル閉じて通常進行へ
+function swapPanelOk() {
+  if (gamePhase === 'swap_wait' && oppSwapChoice === 'pending') return;
+  if (gamePhase === 'swap_select' && !mySwapDecided) return;
+  gamePhase = 'normal';
+  mySwapDecided = false;
+  closeSwapPanel();
+  updateTurnUI();
 }
 
 function nextTurn() {
@@ -1596,12 +1858,19 @@ function resign() {
   if (!confirm(t('confirmResign'))) return;
   send({ type: 'resign' });
   gameActive = false;
+  gamePhase = 'normal';
+  mySwapDecided = false;
+  closeSwapPanel();
   showEndScreen(t('resignLose'), 'resign');
 }
 
 function endGame(winnerColor, reason) {
   gameActive = false;
   pendingMove = null;
+  // 三手交換フェーズ中の終局（resign等）に備えてパネルを閉じてフェーズリセット
+  gamePhase = 'normal';
+  mySwapDecided = false;
+  closeSwapPanel();
   renderBoard(); // winningLine を反映してハイライト
 
   let resultKey, outcome, resultClass;
@@ -1736,8 +2005,11 @@ function checkEndMatch() {
   }
 
   // 一致
+  // 「開局時の色」(initialMyColor) を基準に判定する。三手交換で途中 myColor が
+  // 反転していても、再戦の先後入替/維持は最初に色選択画面で確定した色を基準にする。
+  const baseColor = initialMyColor || myColor;
   const swap = myEndChoice === 'swap';
-  myColor = swap ? (myColor === 'black' ? 'white' : 'black') : myColor;
+  myColor = swap ? (baseColor === 'black' ? 'white' : 'black') : baseColor;
   gameActive = false;
   beginGame();
 }
@@ -1790,7 +2062,25 @@ function handleMsg(m) {
         return;
       }
     }
+    // 相手の着手でもフェーズ進行
+    advancePhaseAfterMove();
     nextTurn();
+    return;
+  }
+
+  if (m.type === 'swap_choice') {
+    // 白側からのswap決定。受信側は黒側（swap_wait）
+    if (gamePhase !== 'swap_wait') return;
+    oppSwapChoice = m.swap ? 'swap' : 'continue';
+    lastSwapResult = oppSwapChoice;
+    if (m.swap) {
+      // 役割入れ替え: myColor を反転（盤面はそのまま）
+      myColor = (myColor === 'black') ? 'white' : 'black';
+      // my-color-label も更新
+      const mcl = document.getElementById('my-color-label');
+      if (mcl) mcl.innerHTML = `${t('youAre')} ${PIECE.svg(myColor, '20px')}${t(myColor === 'black' ? 'black' : 'white')}`;
+    }
+    updateSwapPanelUI();
     return;
   }
 
@@ -1806,6 +2096,9 @@ function handleMsg(m) {
 
   if (m.type === 'resign') {
     gameActive = false;
+    gamePhase = 'normal';
+    mySwapDecided = false;
+    closeSwapPanel();
     showEndScreen(t('resignWin'), 'win');
     return;
   }
@@ -1914,6 +2207,30 @@ const I18N = {
     ruleVal_winLoseSplit: '黒は負け、白は勝ち', ruleVal_win: '勝ち',
     ruleVal_tengen: '天元固定', ruleVal_free: '自由',
     ruleVal_simpleYes: 'あり', ruleVal_yes: 'あり（何手でも）',
+    // 三手交換フェーズ表示
+    phase_b1_me: '黒1手目：天元（中央）に置いてください',
+    phase_b1_opp: '相手の黒1手目を待っています...',
+    phase_w1_me: '白1手目：自由に置いてください',
+    phase_w1_opp: '相手の白1手目を待っています...',
+    phase_b2_me: '黒2手目：自由に置いてください',
+    phase_b2_opp: '相手の黒2手目を待っています...',
+    phase_swap_me: '三手交換：先後を選択してください',
+    phase_swap_opp: '三手交換：相手の判断を待っています...',
+    phase_tengen_only: '黒1手目は天元（中央）にのみ置けます',
+    // 三手交換パネル
+    swapTitle: '三手交換',
+    swapDesc: '正規ルール（連珠）の開局では、3手（黒1手目=天元、白1手目、黒2手目）を打った時点で、白プレイヤーが先後を入れ替えるか継続するかを選びます。\n盤面はそのまま、プレイヤーの先手・後手の役割だけが入れ替わります。\n黒の先手有利を補正するため、白側に色を選び直す権利を与えるルールです。',
+    swapPromptWhite: '先後の役割を入れ替えますか？',
+    swapBtnSwap: '先後を入れ替える',
+    swapBtnKeep: 'このまま継続する',
+    swapBtnOk: 'OK',
+    swapStatusPending: '白プレイヤーが選択中です...',
+    swapStatusSwapped: '白プレイヤーは「先後入れ替え」を選択しました。',
+    swapStatusKept: '白プレイヤーは「このまま継続」を選択しました。',
+    swapResultSwapped: '先後が入れ替わりました。あなたは{COLOR}となります。',
+    swapResultKept: '先後はそのままです。あなたは{COLOR}です。',
+    swapColorBlack: '先手（黒）',
+    swapColorWhite: '後手（白）',
   },
   en: {
     connecting: 'Connecting...', connected: 'Connected', reconnecting: 'Connecting...',
@@ -1965,6 +2282,30 @@ const I18N = {
     ruleVal_winLoseSplit: 'Black loses, White wins', ruleVal_win: 'Win',
     ruleVal_tengen: 'Tengen (center)', ruleVal_free: 'Free',
     ruleVal_simpleYes: 'Yes', ruleVal_yes: 'Allowed (any moves)',
+    // Three-move swap phase
+    phase_b1_me: 'Black move 1: place on Tengen (center)',
+    phase_b1_opp: "Waiting for opponent's Black move 1...",
+    phase_w1_me: 'White move 1: place freely',
+    phase_w1_opp: "Waiting for opponent's White move 1...",
+    phase_b2_me: 'Black move 2: place freely',
+    phase_b2_opp: "Waiting for opponent's Black move 2...",
+    phase_swap_me: 'Three-move swap: choose colors',
+    phase_swap_opp: "Three-move swap: waiting for opponent's choice...",
+    phase_tengen_only: 'Black move 1 must be at Tengen (center)',
+    // Swap panel
+    swapTitle: 'Three-Move Swap',
+    swapDesc: 'In the Standard (Renju) opening, after three moves (B1=Tengen, W1, B2) the White player chooses whether to swap colors or keep the current assignment.\nThe board stays the same — only the players\' first/second roles swap.\nThis rule balances Black\'s first-move advantage by giving White the right to reselect colors.',
+    swapPromptWhite: 'Swap the first/second player roles?',
+    swapBtnSwap: 'Swap colors',
+    swapBtnKeep: 'Keep colors',
+    swapBtnOk: 'OK',
+    swapStatusPending: 'White player is choosing...',
+    swapStatusSwapped: 'White player chose to swap.',
+    swapStatusKept: 'White player chose to keep.',
+    swapResultSwapped: 'Roles have been swapped. You are now {COLOR}.',
+    swapResultKept: 'Roles unchanged. You are {COLOR}.',
+    swapColorBlack: 'Black (1st)',
+    swapColorWhite: 'White (2nd)',
   },
   zh: {
     connecting: '连接中...', connected: '已连接', reconnecting: '连接中...',
@@ -2016,6 +2357,30 @@ const I18N = {
     ruleVal_winLoseSplit: '黑方负，白方胜', ruleVal_win: '胜',
     ruleVal_tengen: '天元固定', ruleVal_free: '自由',
     ruleVal_simpleYes: '有', ruleVal_yes: '允许（不限手数）',
+    // 三手交换阶段
+    phase_b1_me: '黑1手：请落子于天元（中央）',
+    phase_b1_opp: '等待对手的黑1手...',
+    phase_w1_me: '白1手：可自由落子',
+    phase_w1_opp: '等待对手的白1手...',
+    phase_b2_me: '黑2手：可自由落子',
+    phase_b2_opp: '等待对手的黑2手...',
+    phase_swap_me: '三手交换：请选择先后手',
+    phase_swap_opp: '三手交换：等待对手判断...',
+    phase_tengen_only: '黑1手只能落于天元（中央）',
+    // 三手交换面板
+    swapTitle: '三手交换',
+    swapDesc: '正规规则（连珠）的开局中，落下3手（黑1手=天元、白1手、黑2手）后，白方选择是否交换先后手或继续。\n盘面保持不变，仅交换双方的先手/后手角色。\n此规则旨在补偿黑方的先手优势，因此将选色权赋予白方。',
+    swapPromptWhite: '是否交换先后手角色？',
+    swapBtnSwap: '交换先后手',
+    swapBtnKeep: '保持当前先后手',
+    swapBtnOk: '确定',
+    swapStatusPending: '白方正在选择...',
+    swapStatusSwapped: '白方选择了「交换先后手」。',
+    swapStatusKept: '白方选择了「保持当前先后手」。',
+    swapResultSwapped: '先后手已交换。你现在是{COLOR}。',
+    swapResultKept: '先后手保持不变。你是{COLOR}。',
+    swapColorBlack: '先手（黑）',
+    swapColorWhite: '后手（白）',
   }
 };
 
@@ -2170,6 +2535,11 @@ function applyLang() {
   const gameScreen = document.getElementById('screen-game');
   if (gameScreen && gameScreen.classList.contains('active') && typeof renderBoard === 'function') {
     renderBoard();
+  }
+
+  // 三手交換パネルが開いていたら再描画（言語切替に完璧対応）
+  if (typeof updateSwapPanelUI === 'function') {
+    updateSwapPanelUI();
   }
 
   // Lang select sync

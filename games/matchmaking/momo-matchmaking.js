@@ -374,7 +374,23 @@ const MomoMatchmaking = (() => {
     };
   }
 
+  /**
+   * 接続を維持したまま gameType を変更する（タブ切替などで利用）。
+   * 内部状態の gameType を更新し、サーバーに enter_lobby を再送信して
+   * 部屋一覧の対象ゲームを切り替える。reversi は呼び出さないため影響なし。
+   * @param {string} gameType - 新しい gameType ('gomoku' | 'go' など)
+   */
+  function changeGameType(gameType) {
+    _options.gameType = gameType;
+    if (_ws && _ws.readyState === WebSocket.OPEN) {
+      _ws.send(JSON.stringify({
+        type: 'enter_lobby',
+        gameType: gameType
+      }));
+    }
+  }
+
   // 公開API
-  return { init, createRoom, joinRoom, send, leaveRoom, refreshRooms, kickGuest, getState };
+  return { init, createRoom, joinRoom, send, leaveRoom, refreshRooms, kickGuest, getState, changeGameType };
 
 })();

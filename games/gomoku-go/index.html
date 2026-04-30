@@ -644,6 +644,35 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
 }
 .toggle:checked::after { left: 19px; }
 
+/* ===== GAME TYPE TABS (ロビー上部) ===== */
+.game-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 3px;
+  margin-bottom: 8px;
+}
+.game-tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.game-tab:hover { color: var(--text); }
+.game-tab.active {
+  background: var(--orange);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(194,65,12,0.35);
+}
+
 /* ===== RULE PRESET CARDS (部屋作成) ===== */
 .rule-presets { display: flex; gap: 6px; margin-top: 4px; }
 .rule-card {
@@ -703,6 +732,10 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
 <!-- ===== SCREEN: LOBBY ===== -->
 <div class="screen active" id="screen-lobby">
   <div class="status-bar" id="lobby-status">接続中...</div>
+  <div class="game-tabs" id="game-tabs">
+    <button class="game-tab active" data-game="gomoku" onclick="selectGameType('gomoku')" id="i18n-tab-gomoku">五目並べ</button>
+    <button class="game-tab" data-game="go" onclick="selectGameType('go')" id="i18n-tab-go">囲碁</button>
+  </div>
   <div class="panel">
     <div class="panel-title" id="i18n-create-title">部屋を作る</div>
     <div style="display:flex;flex-direction:column;gap:8px;">
@@ -713,7 +746,7 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
         <span id="i18n-label-public">一覧に公開する</span>
         <input type="checkbox" class="toggle" id="room-public" checked>
       </div>
-      <div class="field">
+      <div class="field" id="rule-preset-field">
         <label id="i18n-label-rule">ルール</label>
         <div class="rule-presets" id="rule-presets">
           <div class="rule-card" data-preset="normal" onclick="selectPreset('normal')" id="i18n-preset-normal">正規（連珠）</div>
@@ -966,6 +999,8 @@ const PIECE = {
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 
 // ===== STATE =====
+// 現在選択中のゲームタイプ（'gomoku' | 'go'）。タブで切替。
+let currentGameType = 'gomoku';
 // マッチング状態は MomoMatchmaking.getState() で取得する
 let myName = '';
 let myColor = null;       // 'black' | 'white'（現在の色 — 三手交換で途中変化しうる）
@@ -1138,7 +1173,7 @@ function showScreen(id) {
 function connectWS() {
   MomoMatchmaking.init({
     signalingUrl: SIGNALING_URL,
-    gameType: 'gomoku',
+    gameType: currentGameType,
 
     onWsOpen: () => {
       lobbyStatusKey = 'connected';
@@ -1235,15 +1270,19 @@ function connectWS() {
 }
 
 // ===== RULE PRESET HELPERS =====
-// 部屋一覧に表示するルール+持ち時間バッジHTML
+// 部屋一覧に表示するルール+持ち時間バッジHTML。
+// 囲碁の部屋は preset を持たないので、持ち時間バッジのみ。
 function ruleBadgeHtml(rules) {
-  if (!rules || !rules.preset || !RULE_TABLE[rules.preset]) return '';
-  const preset = rules.preset;
-  let html = `<span class="badge badge-rule-${preset}">${escHtml(t(presetNameKey(preset)))}</span>`;
-  // 持ち時間バッジ
-  const tMin = Number.isFinite(rules.timeLimitMin) ? rules.timeLimitMin : 0;
-  const tLbl = tMin > 0 ? ('⏱' + tMin + t('timeMinUnit')) : ('⏱' + t('timeUnlimited'));
-  html += `<span class="badge badge-time">${escHtml(tLbl)}</span>`;
+  let html = '';
+  if (rules && rules.preset && RULE_TABLE[rules.preset]) {
+    const preset = rules.preset;
+    html += `<span class="badge badge-rule-${preset}">${escHtml(t(presetNameKey(preset)))}</span>`;
+  }
+  if (rules) {
+    const tMin = Number.isFinite(rules.timeLimitMin) ? rules.timeLimitMin : 0;
+    const tLbl = tMin > 0 ? ('⏱' + tMin + t('timeMinUnit')) : ('⏱' + t('timeUnlimited'));
+    html += `<span class="badge badge-time">${escHtml(tLbl)}</span>`;
+  }
   return html;
 }
 
@@ -1252,6 +1291,44 @@ function presetNameKey(preset) {
        : preset === 'casual' ? 'presetCasual'
        : preset === 'free'   ? 'presetFree'
        : 'presetCasual';
+}
+
+// ロビーのタブで gameType を切り替える。
+// 部屋に入っていれば resetToLobby で状態クリーンアップしてから gameType を切替。
+function selectGameType(gt) {
+  if (gt !== 'gomoku' && gt !== 'go') return;
+  if (gt === currentGameType) return;
+  // 部屋に入っているなら状態リセット込みで退出
+  if (typeof MomoMatchmaking !== 'undefined' && MomoMatchmaking.getState) {
+    const st = MomoMatchmaking.getState();
+    if (st && st.currentRoomId) {
+      resetToLobby();
+    }
+  }
+  currentGameType = gt;
+  // タブUI更新
+  document.querySelectorAll('#game-tabs .game-tab').forEach(el => {
+    el.classList.toggle('active', el.dataset.game === gt);
+  });
+  // ルールプリセット欄: 五目並べのみ表示
+  const rf = document.getElementById('rule-preset-field');
+  if (rf) rf.style.display = (gt === 'gomoku') ? '' : 'none';
+  // 持ち時間欄のデフォルト: 囲碁=空欄、五目=現在のプリセット連動
+  const tInput = document.getElementById('room-time-limit');
+  if (tInput) {
+    if (gt === 'go') {
+      tInput.value = '';
+    } else {
+      const def = PRESET_DEFAULT_TIME[selectedPreset];
+      tInput.value = (def === '' || def === undefined) ? '' : String(def);
+    }
+  }
+  // サーバーへ gameType 切替を通知（既存 WS を維持して enter_lobby 再送）
+  if (typeof MomoMatchmaking !== 'undefined' && MomoMatchmaking.changeGameType) {
+    MomoMatchmaking.changeGameType(gt);
+  }
+  // ロビー画面にいることを保証
+  showScreen('lobby');
 }
 
 // 部屋作成パネルでプリセットカードを選択する
@@ -1274,18 +1351,36 @@ function renderRoomRule() {
   const nameEl = document.getElementById('room-rule-name');
   const detailEl = document.getElementById('room-rule-detail');
   if (!nameEl || !detailEl) return;
-  if (!currentRules || !currentRules.preset) {
+  if (!currentRules) {
     nameEl.textContent = '-';
     detailEl.innerHTML = '';
     return;
   }
-  const preset = currentRules.preset;
-  nameEl.textContent = t(presetNameKey(preset));
-  const tbl = RULE_TABLE[preset] || RULE_TABLE.casual;
-  let rows = RULE_ROWS.map(([key, labelKey]) =>
-    `<div class="rd-label">${escHtml(t(labelKey))}</div><div class="rd-value">${escHtml(t(tbl[key]))}</div>`
-  ).join('');
-  // 持ち時間行を追加
+  let rows = '';
+  // currentRules.preset の有無で囲碁/五目並べを判定（ルームデータ準拠で確実）
+  const isGoRoom = !currentRules.preset;
+  if (isGoRoom) {
+    // 囲碁は固定ルール（コミ・コウ・自殺手・連続パス2回）+ 持ち時間
+    nameEl.textContent = t('goTitle');
+    const goRows = [
+      ['ruleLabel_komi',     'goRuleVal_komi'],
+      ['ruleLabel_ko',       'goRuleVal_ko'],
+      ['ruleLabel_suicide',  'goRuleVal_suicideForbid'],
+      ['ruleLabel_passEnd',  'goRuleVal_passEnd'],
+    ];
+    rows = goRows.map(([labelKey, valKey]) =>
+      `<div class="rd-label">${escHtml(t(labelKey))}</div><div class="rd-value">${escHtml(t(valKey))}</div>`
+    ).join('');
+  } else {
+    // 五目並べ: プリセット別の詳細行
+    const preset = currentRules.preset;
+    nameEl.textContent = t(presetNameKey(preset));
+    const tbl = RULE_TABLE[preset] || RULE_TABLE.casual;
+    rows = RULE_ROWS.map(([key, labelKey]) =>
+      `<div class="rd-label">${escHtml(t(labelKey))}</div><div class="rd-value">${escHtml(t(tbl[key]))}</div>`
+    ).join('');
+  }
+  // 持ち時間行（共通）
   const tMin = Number.isFinite(currentRules.timeLimitMin) ? currentRules.timeLimitMin : 0;
   const tStr = tMin > 0 ? (String(tMin) + t('timeMinUnit')) : t('timeUnlimited');
   rows += `<div class="rd-label">${escHtml(t('ruleLabel_timeLimit'))}</div><div class="rd-value">${escHtml(tStr)}</div>`;
@@ -1318,7 +1413,10 @@ function createRoom() {
   const tInput = document.getElementById('room-time-limit');
   const rawT = tInput ? tInput.value.trim() : '';
   const tMin = rawT === '' ? 0 : Math.max(0, Math.min(999, parseInt(rawT, 10) || 0));
-  const rules = { preset: selectedPreset, timeLimitMin: tMin };
+  // 囲碁は preset を持たない（コミ・コウ・自殺手は固定）
+  const rules = (currentGameType === 'go')
+    ? { timeLimitMin: tMin }
+    : { preset: selectedPreset, timeLimitMin: tMin };
 
   MomoMatchmaking.createRoom({ hostName: myName, name: roomName, password, isPublic, rules });
 }
@@ -1567,6 +1665,12 @@ function updateColorUI() {
 
 function checkStartReady() {
   const ready = myChoice && oppChoice && myChoice !== oppChoice;
+  // 囲碁モードは段階5-3 で対局画面実装予定。ボタン無効化＋案内表示。
+  if (currentGameType === 'go') {
+    document.getElementById('btn-start').disabled = true;
+    document.getElementById('start-hint').textContent = t('goComingSoon');
+    return;
+  }
   document.getElementById('btn-start').disabled = !ready;
   document.getElementById('start-hint').textContent = ready ? t('startReady') : t('startHint');
 }
@@ -2940,6 +3044,19 @@ const I18N = {
     timeoutWin: '相手の時間切れ - 勝利！',
     timeoutLose: '時間切れで敗北',
     opponentLabel: '相手',
+    // ゲームタイプ選択タブ
+    tabGomoku: '五目並べ',
+    tabGo: '囲碁',
+    goComingSoon: '囲碁モードの対局は次のアップデートで実装予定',
+    // 囲碁ルール詳細表
+    ruleLabel_komi: 'コミ',
+    ruleLabel_ko: 'コウ',
+    ruleLabel_suicide: '自殺手',
+    ruleLabel_passEnd: '連続パス2回',
+    goRuleVal_komi: '白に6.5目',
+    goRuleVal_ko: '直前の盤面のみ禁止',
+    goRuleVal_suicideForbid: '禁止',
+    goRuleVal_passEnd: '終局フェーズへ',
   },
   en: {
     connecting: 'Connecting...', connected: 'Connected', reconnecting: 'Connecting...',
@@ -3035,6 +3152,19 @@ const I18N = {
     timeoutWin: 'Opponent timed out - You win!',
     timeoutLose: 'Lost on time',
     opponentLabel: 'Opponent',
+    // Game type tabs
+    tabGomoku: 'Gomoku',
+    tabGo: 'Go',
+    goComingSoon: 'Go gameplay arrives in the next update',
+    // Go rule details
+    ruleLabel_komi: 'Komi',
+    ruleLabel_ko: 'Ko',
+    ruleLabel_suicide: 'Suicide',
+    ruleLabel_passEnd: 'Two passes',
+    goRuleVal_komi: 'White +6.5',
+    goRuleVal_ko: 'Previous board only',
+    goRuleVal_suicideForbid: 'Forbidden',
+    goRuleVal_passEnd: 'Move to scoring',
   },
   zh: {
     connecting: '连接中...', connected: '已连接', reconnecting: '连接中...',
@@ -3130,6 +3260,19 @@ const I18N = {
     timeoutWin: '对手超时 - 你赢了！',
     timeoutLose: '超时败北',
     opponentLabel: '对手',
+    // 游戏类型标签
+    tabGomoku: '五子棋',
+    tabGo: '围棋',
+    goComingSoon: '围棋对局将在下次更新中实现',
+    // 围棋规则详情
+    ruleLabel_komi: '贴目',
+    ruleLabel_ko: '劫',
+    ruleLabel_suicide: '自杀手',
+    ruleLabel_passEnd: '连续2次跳过',
+    goRuleVal_komi: '白方贴6.5目',
+    goRuleVal_ko: '仅前一盘面禁止',
+    goRuleVal_suicideForbid: '禁止',
+    goRuleVal_passEnd: '进入终局阶段',
   }
 };
 
@@ -3184,6 +3327,8 @@ function applyLang() {
   setText('i18n-label-public', 'labelPublic');
   setText('i18n-label-rule', 'labelRule');
   setText('i18n-label-time-limit', 'labelTimeLimit');
+  setText('i18n-tab-gomoku', 'tabGomoku');
+  setText('i18n-tab-go', 'tabGo');
   // 持ち時間 placeholder と時計表示の言語反映
   const tInput = document.getElementById('room-time-limit');
   if (tInput) tInput.placeholder = t('timeLimitPlaceholder');
@@ -3258,8 +3403,12 @@ function applyLang() {
   // start-hint: 色選択状態に応じて
   const startHintEl = document.getElementById('start-hint');
   if (startHintEl) {
-    const ready = myChoice && oppChoice && myChoice !== oppChoice;
-    startHintEl.textContent = ready ? t('startReady') : t('startHint');
+    if (currentGameType === 'go') {
+      startHintEl.textContent = t('goComingSoon');
+    } else {
+      const ready = myChoice && oppChoice && myChoice !== oppChoice;
+      startHintEl.textContent = ready ? t('startReady') : t('startHint');
+    }
   }
   // start-waiting-msg: スタート押下状態に応じて
   const sw = document.getElementById('start-waiting-msg');

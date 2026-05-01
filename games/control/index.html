@@ -416,7 +416,7 @@ h1 span { color: var(--orange-mid); }
       <div class="panel-title">監視対象 gameType</div>
       <div class="panel-badge" id="gametype-count-badge">1</div>
     </div>
-    <div class="panel-desc">部屋一覧はgameTypeごとにサーバーが絞り込みます。監視したいゲームをすべて登録してください。</div>
+    <div class="panel-desc">部屋一覧はgameTypeごとにサーバーが絞り込みます。監視したいゲームをすべて登録してください。<br>「<code>*</code>」を登録すると全タイプを一括取得します。</div>
     <div class="gametype-list" id="gametype-list"></div>
     <div class="gametype-input-row">
       <input type="text" id="gametype-input" placeholder="例: shogi" maxlength="30">
@@ -514,9 +514,14 @@ function renderGameTypes() {
 
 function toggleGameType(i) {
   gameTypes[i].enabled = !gameTypes[i].enabled;
-  // OFFにした場合はその部屋をリストから除去
+  // OFF にした場合は対象の部屋をリストから除去
+  // '*' (ワイルドカード) は混在キャッシュなので allRooms 全体をクリア
   if (!gameTypes[i].enabled) {
-    allRooms = allRooms.filter(r => r.gameType !== gameTypes[i].name);
+    if (gameTypes[i].name === '*') {
+      allRooms = [];
+    } else {
+      allRooms = allRooms.filter(r => r.gameType !== gameTypes[i].name);
+    }
     renderRooms();
   }
   saveGameTypes();
@@ -526,7 +531,14 @@ function toggleGameType(i) {
 
 function addGameType() {
   const input = document.getElementById('gametype-input');
-  const val = input.value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+  // '*' (ワイルドカード = 全タイプ取得) は特例で許容
+  const raw = input.value.trim();
+  let val;
+  if (raw === '*') {
+    val = '*';
+  } else {
+    val = raw.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+  }
   if (!val) return;
   if (gameTypes.some(g => g.name === val)) {
     input.value = '';
@@ -542,7 +554,12 @@ function addGameType() {
 function removeGameType(i) {
   const removed = gameTypes[i].name;
   gameTypes.splice(i, 1);
-  allRooms = allRooms.filter(r => r.gameType !== removed);
+  // '*' (ワイルドカード) を削除する場合はキャッシュ全体をクリア
+  if (removed === '*') {
+    allRooms = [];
+  } else {
+    allRooms = allRooms.filter(r => r.gameType !== removed);
+  }
   saveGameTypes();
   renderGameTypes();
   renderRooms();
@@ -558,13 +575,24 @@ document.getElementById('gametype-input').addEventListener('keydown', e => {
 // ===================================================
 
 // gameType -> 部屋Map（id -> roomObj）のキャッシュ
-// allRooms: { id, gameType, name, hostName, hasPassword, isPublic, guestConnected, gameState, firstSeen }[]
+// allRooms: { id, gameType, name, hostName, guestName, hasPassword, isPublic, guestConnected, gameState, firstSeen }[]
 let allRooms = [];
 
 function mergeRooms(gameType, rooms) {
-  // 既存の同gameType部屋を消す前に firstSeen を引き継ぐ
+  // 既存の firstSeen を引き継ぐためマップ化（id ベース）
   const oldMap = {};
-  allRooms.filter(r => r.gameType === gameType).forEach(r => { oldMap[r.id] = r.firstSeen; });
+  allRooms.forEach(r => { oldMap[r.id] = r.firstSeen; });
+
+  if (gameType === '*') {
+    // ワイルドカード: 全部屋を入れ替え。各部屋の gameType は server からの応答内に含まれる
+    const now = new Date();
+    allRooms = (rooms || []).map(r => ({
+      ...r,
+      gameType: r.gameType || '?', // サーバー応答に含まれる
+      firstSeen: oldMap[r.id] || now
+    }));
+    return;
+  }
 
   // 同gameTypeを削除してから再挿入
   allRooms = allRooms.filter(r => r.gameType !== gameType);
@@ -629,7 +657,7 @@ function renderRooms() {
           </svg>
           ${escHtml(r.hostName)}
         </span>
-        <span>${r.guestConnected ? '👥 ゲスト参加中' : '👤 待機中'}</span>
+        <span>${r.guestConnected ? '👥 ' + escHtml(r.guestName || 'ゲスト') : '👤 待機中'}</span>
       </div>
       <div class="room-card-bot">
         <span class="room-id">ID: ${escHtml(r.id)}</span>
@@ -678,6 +706,7 @@ function startProgressBar(durationMs) {
 }
 
 // 全gameTypeを順次ポーリング（1つずつ300ms間隔）
+// '*' (ワイルドカード) が有効なら、それ単独で全タイプを一括取得
 async function pollAllTypes() {
   if (!isConnected) {
     schedulePoll(POLL_INTERVAL_MS);
@@ -688,7 +717,11 @@ async function pollAllTypes() {
   bar.style.transition = 'none';
   bar.style.width = '0%';
 
-  const targets = gameTypes.filter(g => g.enabled);
+  let targets = gameTypes.filter(g => g.enabled);
+  // '*' が含まれていれば、それ単独でポーリング（重複防止）
+  if (targets.some(g => g.name === '*')) {
+    targets = targets.filter(g => g.name === '*');
+  }
   for (let i = 0; i < targets.length; i++) {
     await pollOneType(targets[i].name);
     await sleep(300);

@@ -142,6 +142,10 @@ h1 span { color: var(--orange-mid); }
   font-weight: 700;
 }
 .panel-desc { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
+#log-folder-status { font-size: 13px; padding: 6px 10px; border-radius: 6px; background: rgba(255,255,255,0.04); }
+#log-folder-status.log-folder-unset { color: var(--text-muted); }
+#log-folder-status.log-folder-set { color: var(--success); }
+#log-folder-status.log-folder-warn { color: var(--warning); }
 
 /* ===== ボタン ===== */
 .btn {
@@ -438,6 +442,21 @@ h1 span { color: var(--orange-mid); }
     <button class="btn btn-outline btn-sm" id="btn-refresh" onclick="manualRefresh()" style="width:100%">今すぐ更新</button>
   </div>
 
+  <!-- ログ出力 -->
+  <div class="panel">
+    <div class="panel-title">ログ出力</div>
+    <div class="panel-desc">
+      部屋の作成・ゲスト入退室・部屋クローズを<strong>日ごとのファイル</strong>(<code>momo-rooms-YYYY-MM-DD.log</code>) に TSV で追記します。<br>
+      ※ パスワード本体は記録しません（有無のみ）<br>
+      ※ Chrome/Edge/Opera のみ対応（File System Access API）
+    </div>
+    <div id="log-folder-status" class="log-folder-unset">ログ保存先: 未設定</div>
+    <div class="row" style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+      <button class="btn btn-outline btn-sm" id="btn-pick-log-folder" onclick="pickLogFolder()">フォルダを選択</button>
+      <button class="btn btn-outline btn-sm" id="btn-reauth-log-folder" onclick="reauthLogFolder()" style="display:none;">権限を再認可</button>
+    </div>
+  </div>
+
   <!-- 全室削除 -->
   <div class="panel">
     <div class="panel-title">緊急操作</div>
@@ -731,6 +750,8 @@ async function pollAllTypes() {
   document.getElementById('last-update-text').textContent =
     `最終更新 ${now.toLocaleTimeString('ja-JP')}`;
 
+  // 部屋の変化を検知してログに追記（CREATE/GUEST_JOIN/GUEST_LEAVE/CLOSE）
+  detectAndLogEvents(allRooms);
   renderRooms();
   schedulePoll(POLL_INTERVAL_MS);
 }
@@ -879,11 +900,264 @@ function log(msg, type) {
 }
 
 // ===================================================
+// ログ出力（File System Access API + IndexedDB で永続化）
+// ===================================================
+// Chrome/Edge/Opera のみ対応。FileSystemDirectoryHandle を IDB に保存し、
+// 再起動後はハンドルを復元して権限再確認 → 既存フォルダにそのまま追記する。
+// ファイル名は日ごとに momo-rooms-YYYY-MM-DD.log（TSV）。
+// 検知イベント: CREATE / GUEST_JOIN / GUEST_LEAVE / CLOSE。
+// ★ パスワード本体は server から客側に届かない設計のため、ログにも記録不可。
+//   hasPassword は boolean のみ（true/false）。
+
+const IDB_DB_NAME = 'momoControl';
+const IDB_STORE = 'handles';
+const IDB_KEY_LOG_FOLDER = 'logFolderHandle';
+
+let logDirHandle = null;            // 現在のログ保存先ハンドル
+let prevRoomsByKey = null;          // 直近ポーリングのスナップショット
+let logBaselineEstablished = false; // 最初のポーリングはベースライン取得のみで何も書かない
+
+const LOG_HEADER = 'timestamp\tevent\tgameType\troomId\troomName\thostName\tguestName\tisPublic\thasPassword\tgameState\trules';
+
+function idbOpen() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open(IDB_DB_NAME, 1);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) {
+        db.createObjectStore(IDB_STORE);
+      }
+    };
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => rej(req.error);
+  });
+}
+async function idbGet(key) {
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(IDB_STORE, 'readonly');
+    const req = tx.objectStore(IDB_STORE).get(key);
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => rej(req.error);
+  });
+}
+async function idbSet(key, value) {
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).put(value, key);
+    tx.oncomplete = () => res();
+    tx.onerror = () => rej(tx.error);
+  });
+}
+
+async function loadSavedLogFolder() {
+  if (!('showDirectoryPicker' in window)) {
+    document.getElementById('log-folder-status').textContent =
+      'このブラウザはフォルダ書き込み非対応 (Chrome/Edge 推奨)';
+    document.getElementById('btn-pick-log-folder').disabled = true;
+    return;
+  }
+  try {
+    const handle = await idbGet(IDB_KEY_LOG_FOLDER);
+    if (handle) {
+      logDirHandle = handle;
+      const status = await queryLogFolderPermission();
+      if (status === 'granted') {
+        renderLogFolderStatus();
+      } else {
+        // 権限未許可（リロード後の典型的状態）→ 再認可ボタン表示
+        renderLogFolderStatus(true);
+      }
+    } else {
+      renderLogFolderStatus();
+    }
+  } catch (e) {
+    log('ログフォルダ読み込み失敗: ' + e.message, 'err');
+  }
+}
+
+async function queryLogFolderPermission() {
+  if (!logDirHandle || !logDirHandle.queryPermission) return 'granted';
+  return await logDirHandle.queryPermission({ mode: 'readwrite' });
+}
+
+async function pickLogFolder() {
+  if (!('showDirectoryPicker' in window)) {
+    log('このブラウザは非対応です', 'err');
+    return;
+  }
+  try {
+    const handle = await window.showDirectoryPicker({
+      mode: 'readwrite',
+      id: 'momo-control-logs'
+    });
+    logDirHandle = handle;
+    await idbSet(IDB_KEY_LOG_FOLDER, handle);
+    log('ログ保存先: ' + handle.name, 'ok');
+    renderLogFolderStatus();
+  } catch (e) {
+    if (e.name !== 'AbortError') {
+      log('フォルダ選択失敗: ' + e.message, 'err');
+    }
+  }
+}
+
+async function reauthLogFolder() {
+  if (!logDirHandle) {
+    logDirHandle = await idbGet(IDB_KEY_LOG_FOLDER);
+  }
+  if (!logDirHandle) return;
+  try {
+    const status = await logDirHandle.requestPermission({ mode: 'readwrite' });
+    if (status === 'granted') {
+      log('権限を再認可しました', 'ok');
+      renderLogFolderStatus();
+    } else {
+      log('権限取得失敗', 'err');
+    }
+  } catch (e) {
+    log('権限取得失敗: ' + e.message, 'err');
+  }
+}
+
+function renderLogFolderStatus(reauthNeeded) {
+  const statusEl = document.getElementById('log-folder-status');
+  const pickBtn = document.getElementById('btn-pick-log-folder');
+  const reauthBtn = document.getElementById('btn-reauth-log-folder');
+  if (!statusEl || !pickBtn || !reauthBtn) return;
+  if (logDirHandle && !reauthNeeded) {
+    statusEl.textContent = 'ログ保存先: ' + logDirHandle.name + ' / ' + todayLogFilename();
+    statusEl.className = 'log-folder-set';
+    pickBtn.textContent = 'フォルダ変更';
+    reauthBtn.style.display = 'none';
+  } else if (logDirHandle && reauthNeeded) {
+    statusEl.textContent = 'ログ保存先（権限再認可が必要）: ' + logDirHandle.name;
+    statusEl.className = 'log-folder-warn';
+    pickBtn.textContent = 'フォルダ変更';
+    reauthBtn.style.display = '';
+  } else {
+    statusEl.textContent = 'ログ保存先: 未設定';
+    statusEl.className = 'log-folder-unset';
+    pickBtn.textContent = 'フォルダを選択';
+    reauthBtn.style.display = 'none';
+  }
+}
+
+function pad2(n) { return String(n).padStart(2, '0'); }
+function formatLogTimestamp(d) {
+  return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate()) +
+         'T' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
+}
+function formatLogDate(d) {
+  return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate());
+}
+function todayLogFilename() {
+  return 'momo-rooms-' + formatLogDate(new Date()) + '.log';
+}
+
+function escapeTSV(s) {
+  return String(s == null ? '' : s).replace(/[\t\r\n]/g, ' ');
+}
+
+function eventToRow(eventType, room, ts) {
+  // ★ パスワード本体は room オブジェクトに含まれていない（server が boolean 化済）
+  return [
+    formatLogTimestamp(ts),
+    eventType,
+    escapeTSV(room.gameType || ''),
+    escapeTSV(room.id || ''),
+    escapeTSV(room.name || ''),
+    escapeTSV(room.hostName || ''),
+    escapeTSV(room.guestName || ''),
+    String(!!room.isPublic),
+    String(!!room.hasPassword), // boolean のみ。実パスワードは保持していない
+    escapeTSV(room.gameState || ''),
+    escapeTSV(room.rules ? JSON.stringify(room.rules) : '')
+  ].join('\t');
+}
+
+// 部屋スナップショットからイベントを検知してログに追記する
+function detectAndLogEvents(currentRooms) {
+  if (!logBaselineEstablished) {
+    prevRoomsByKey = roomsToMap(currentRooms);
+    logBaselineEstablished = true;
+    return;
+  }
+  const newMap = roomsToMap(currentRooms);
+  const events = [];
+  // CREATE: 新規ID
+  for (const [key, r] of Object.entries(newMap)) {
+    if (!prevRoomsByKey[key]) {
+      events.push({ type: 'CREATE', room: r });
+    }
+  }
+  // CLOSE: 消失ID
+  for (const [key, r] of Object.entries(prevRoomsByKey)) {
+    if (!newMap[key]) {
+      events.push({ type: 'CLOSE', room: r });
+    }
+  }
+  // GUEST_JOIN / GUEST_LEAVE: guestConnected の変化
+  for (const [key, r] of Object.entries(newMap)) {
+    const prev = prevRoomsByKey[key];
+    if (!prev) continue;
+    if (!prev.guestConnected && r.guestConnected) {
+      events.push({ type: 'GUEST_JOIN', room: r });
+    } else if (prev.guestConnected && !r.guestConnected) {
+      events.push({ type: 'GUEST_LEAVE', room: r });
+    }
+  }
+  prevRoomsByKey = newMap;
+  if (events.length > 0) appendLogEvents(events);
+}
+
+function roomsToMap(rooms) {
+  const m = {};
+  for (const r of rooms) {
+    m[(r.gameType || '?') + ':' + r.id] = r;
+  }
+  return m;
+}
+
+async function appendLogEvents(events) {
+  if (!logDirHandle) return; // フォルダ未設定 → 静かにスキップ
+  // 権限失効チェック
+  const status = await queryLogFolderPermission();
+  if (status !== 'granted') {
+    log('ログフォルダ権限が失効しています。再認可してください', 'warn');
+    renderLogFolderStatus(true);
+    return;
+  }
+  const now = new Date();
+  const filename = todayLogFilename();
+  try {
+    const fileHandle = await logDirHandle.getFileHandle(filename, { create: true });
+    const file = await fileHandle.getFile();
+    let writeData = '';
+    if (file.size === 0) {
+      writeData = LOG_HEADER + '\n';
+    }
+    for (const e of events) {
+      writeData += eventToRow(e.type, e.room, now) + '\n';
+    }
+    const writable = await fileHandle.createWritable({ keepExistingData: true });
+    await writable.seek(file.size);
+    await writable.write(writeData);
+    await writable.close();
+    log(events.length + '件をログに追加: ' + filename, 'info');
+  } catch (e) {
+    log('ログ書き込み失敗: ' + e.message, 'err');
+  }
+}
+
+// ===================================================
 // 起動
 // ===================================================
 loadGameTypes();
 renderGameTypes();
 initMatchmaking();
+loadSavedLogFolder();
 
 </script>
 </body>

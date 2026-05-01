@@ -10,6 +10,7 @@
 <script src="../matchmaking/momo-matchmaking.js"></script>
 <script src="gomoku-rules.js"></script>
 <script src="go-rules.js"></script>
+<script src="go-scoring.js"></script>
 <style>
 :root {
   /* DESIGN_SPEC v1.0 準拠 */
@@ -248,13 +249,32 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
 .opp-color-badge {
   font-size: 13px;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   padding: 6px 14px;
   background: var(--surface2);
   border: 1px solid var(--border);
   border-radius: 20px;
 }
+.my-color-badge .badge-line,
+.opp-color-badge .badge-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.score-display {
+  font-size: 12px;
+  color: var(--orange);
+  background: rgba(194,65,12,0.12);
+  padding: 2px 8px;
+  border-radius: 6px;
+  text-align: center;
+  white-space: nowrap;
+  font-family: 'Fredoka One', cursive, sans-serif;
+}
+#my-score-display { color: #ffd9b8; background: rgba(251,146,60,0.18); }
+#opp-score-display { color: var(--orange); background: rgba(194,65,12,0.12); }
 .opp-color-badge { color: var(--text-muted); }
 .time-display {
   font-family: 'Fredoka One', cursive;
@@ -280,6 +300,32 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
   color: #fff;
   font-size: 11px;
 }
+
+/* 座標ラベル（着手番号トグルON時のみ） */
+.board-coord {
+  position: absolute;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-weight: 700;
+  pointer-events: none;
+  text-align: center;
+  letter-spacing: 0.5px;
+}
+.board-coord-top, .board-coord-bottom {
+  width: var(--cs);
+  height: 14px;
+  line-height: 14px;
+}
+.board-coord-top    { bottom: calc(100% + 2px); }
+.board-coord-bottom { top: calc(100% + 2px); }
+.board-coord-left, .board-coord-right {
+  width: 14px;
+  height: var(--cs);
+  line-height: var(--cs);
+}
+.board-coord-left  { right: calc(100% + 2px); }
+.board-coord-right { left: calc(100% + 2px); }
+.board-frame.with-coords { padding: 22px; }
 
 .board-frame {
   padding: 12px;
@@ -380,6 +426,57 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
     0 0 22px var(--orange),
     0 0 36px rgba(251,146,60,0.6);
 }
+/* 囲碁の終局フェーズ: 死石マーク + 領域可視化 */
+.stone.dead-stone {
+  opacity: 0.4;
+  cursor: pointer;
+}
+.stone.dead-stone::after {
+  content: '✕';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--orange);
+  text-shadow: 0 0 4px rgba(0,0,0,0.6);
+  pointer-events: none;
+}
+/* 領域（地）の薄い色付け + 中央に色付きドット */
+.cell.territory-black { background: rgba(0,0,0,0.38); }
+.cell.territory-white { background: rgba(255,255,255,0.38); }
+.cell.territory-black::before,
+.cell.territory-white::before {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 30%; height: 30%;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 1;
+}
+.cell.territory-black::before { background: #000; box-shadow: 0 0 0 1px rgba(255,255,255,0.4); }
+.cell.territory-white::before { background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,0.4); }
+/* 手動マーク（forcedTerritory）の印 — 右上にオレンジの小マーク */
+.cell.forced::after {
+  content: '';
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 5px;
+  height: 5px;
+  background: var(--orange);
+  border-radius: 50%;
+  box-shadow: 0 0 3px rgba(0,0,0,0.5);
+  pointer-events: none;
+  z-index: 2;
+}
+/* マーク中のセルにホバーした時のフィードバック */
+.scoring-active .cell:hover { outline: 1px solid var(--orange); outline-offset: -1px; }
+
 /* 囲碁の捕獲フラッシュ（一瞬光ってから消える） */
 .stone.captured {
   animation: capturedFlash 1.0s ease-out forwards;
@@ -902,9 +999,12 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
 <div class="screen" id="screen-game">
   <div class="board-wrap">
     <div class="my-color-badge">
-      <span id="my-color-label">あなたは ？</span>
-      <span class="capture-display" id="my-capture-display" style="display:none;"></span>
-      <span class="time-display" id="my-time-display" style="display:none;"></span>
+      <div class="badge-line">
+        <span id="my-color-label">あなたは ？</span>
+        <span class="capture-display" id="my-capture-display" style="display:none;"></span>
+        <span class="time-display" id="my-time-display" style="display:none;"></span>
+      </div>
+      <div class="score-display" id="my-score-display" style="display:none;"></div>
     </div>
 
     <div class="board-frame" id="board-frame">
@@ -915,9 +1015,12 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
     </div>
 
     <div class="opp-color-badge" id="opp-color-badge" style="display:none;">
-      <span id="opp-color-label"></span>
-      <span class="capture-display" id="opp-capture-display" style="display:none;"></span>
-      <span class="time-display" id="opp-time-display"></span>
+      <div class="badge-line">
+        <span id="opp-color-label"></span>
+        <span class="capture-display" id="opp-capture-display" style="display:none;"></span>
+        <span class="time-display" id="opp-time-display"></span>
+      </div>
+      <div class="score-display" id="opp-score-display" style="display:none;"></div>
     </div>
     <!-- 三手交換パネル（インライン、opp-color-badge と入れ替えで表示） -->
     <div class="swap-panel-inline" id="swap-overlay" style="display:none;">
@@ -938,6 +1041,8 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
       <button class="btn btn-primary" id="btn-confirm" onclick="confirmMove()" disabled data-i18n="confirmMove">確定</button>
       <button class="btn btn-secondary" id="btn-pass" onclick="pass()" data-i18n="pass">パス</button>
       <button class="btn btn-secondary" id="btn-undo" onclick="requestUndoStep()" style="display:none;">待った</button>
+      <button class="btn btn-primary" id="btn-scoring-agree" onclick="agreeScoring()" style="display:none;">合意する</button>
+      <button class="btn btn-ghost" id="btn-scoring-cancel" onclick="cancelAgreeScoring()" style="display:none;">合意取消</button>
       <button class="btn btn-ghost" onclick="resign()" id="i18n-btn-resign">降参</button>
     </div>
 
@@ -1177,6 +1282,20 @@ let goHintTimer = null;
 // 捕獲時にフラッシュ表示する石の座標（{x,y,color}）。renderBoard で .captured クラス付与
 let captureFlashStones = [];
 let captureFlashTimer = null;
+
+// ===== 囲碁 終局フェーズ STATE =====
+// 'idle': 通常対局、'marking': 死石マーク中
+let scoringPhase = 'idle';
+let deadStones = [];           // [{x, y}]
+let myScoringAgreed = false;
+let oppScoringAgreed = false;
+let scoringResult = null;      // GoScoring.computeScore の最新結果（recomputeScoring で更新）
+// 手動の地マーク上書き: key "x,y" → 'black' | 'white' | 'neutral'
+// 自動判定（GoScoring.computeTerritory）の結果を上書きする。
+// 動作: 色 → neutral（連結グループ全体）、neutral → 自分の色（単一）。
+// 自動判定と一致する手動マークは recomputeScoring で自動削除（オレンジマーク消去）。
+// 死石が変わったら全クリア（自動判定が変わるため）。
+let forcedTerritory = {};
 
 // 現在の対局が囲碁ルームかを返す（preset 不在で判定）
 function isGoRoom() {
@@ -1691,6 +1810,23 @@ function resetToLobby() {
   const oppCd = document.getElementById('opp-capture-display');
   if (myCd) myCd.style.display = 'none';
   if (oppCd) oppCd.style.display = 'none';
+  // 終局フェーズクリア
+  scoringPhase = 'idle';
+  deadStones = [];
+  myScoringAgreed = false;
+  oppScoringAgreed = false;
+  scoringResult = null;
+  forcedTerritory = {};
+  const bwR = document.getElementById('board-frame');
+  if (bwR && bwR.parentElement) bwR.parentElement.classList.remove('scoring-active');
+  const mySD = document.getElementById('my-score-display');
+  const oppSD = document.getElementById('opp-score-display');
+  if (mySD) mySD.style.display = 'none';
+  if (oppSD) oppSD.style.display = 'none';
+  const agB = document.getElementById('btn-scoring-agree');
+  const acB = document.getElementById('btn-scoring-cancel');
+  if (agB) agB.style.display = 'none';
+  if (acB) acB.style.display = 'none';
   _showingPrivate = false;
   _pendingPrivatePw = '';
   const prl = document.getElementById('private-room-list');
@@ -1812,7 +1948,26 @@ function beginGame(swapColors) {
   captureFlashStones = [];
   if (captureFlashTimer) { clearTimeout(captureFlashTimer); captureFlashTimer = null; }
   if (goHintTimer) { clearTimeout(goHintTimer); goHintTimer = null; }
+  // 囲碁終局フェーズの状態リセット
+  scoringPhase = 'idle';
+  deadStones = [];
+  myScoringAgreed = false;
+  oppScoringAgreed = false;
+  scoringResult = null;
+  forcedTerritory = {};
+  const bw = document.getElementById('board-frame');
+  if (bw && bw.parentElement) bw.parentElement.classList.remove('scoring-active');
+  // ボタン表示を通常状態に明示的にリセット（前対局の終局フェーズ残骸対策）
+  const cBtn = document.getElementById('btn-confirm');
+  const pBtn = document.getElementById('btn-pass');
+  const aBtn = document.getElementById('btn-scoring-agree');
+  const xBtn = document.getElementById('btn-scoring-cancel');
+  if (cBtn) cBtn.style.display = '';
+  if (pBtn) pBtn.style.display = '';
+  if (aBtn) aBtn.style.display = 'none';
+  if (xBtn) xBtn.style.display = 'none';
   renderCaptureDisplays();
+  renderScoreDisplay();
 
   document.getElementById('my-color-label').innerHTML =
     `${t('youAre')} ${PIECE.svg(myColor, '20px')}${t(myColor === 'black' ? 'black' : 'white')}`;
@@ -1834,6 +1989,7 @@ function initBoard() {
   moveCount = 0;
   winningLine = null;
   drawBoardSvg();
+  renderBoardCoords();
 }
 
 // 盤面の格子線・星9点を SVG で描画する（一度だけ呼ぶ）
@@ -1882,10 +2038,24 @@ function renderBoard() {
       }
     }
   }
+  // 終局フェーズ用: 死石セットと領域マップ（marking と finalized の両方で表示）
+  const scoringActive = isScoringDisplay();
+  const territoryMap = (scoringActive && scoringResult && scoringResult.territoryMap) ? scoringResult.territoryMap : null;
   for (let y = 0; y < BOARD_SIZE; y++) {
     for (let x = 0; x < BOARD_SIZE; x++) {
       const cell = document.createElement('div');
       cell.className = 'cell';
+      // 領域tint（空点 + 領域帰属あり）
+      if (scoringActive && territoryMap && !board[y][x]) {
+        const t = territoryMap[y][x];
+        if (t === 'black') cell.classList.add('territory-black');
+        else if (t === 'white') cell.classList.add('territory-white');
+        // 手動マーク（forcedTerritory）された空点には .forced を追加
+        const fkey = x + ',' + y;
+        if (Object.prototype.hasOwnProperty.call(forcedTerritory, fkey)) {
+          cell.classList.add('forced');
+        }
+      }
       cell.onclick = () => place(x, y);
 
       const stoneColor = board[y][x];
@@ -1893,10 +2063,12 @@ function renderBoard() {
       const ghostKind = ghostMap.get(y * BOARD_SIZE + x); // 'ghost' | 'ghost-latest' | undefined
       // 囲碁: 直前の捕獲で消える石をフラッシュ表示（board上は既に null だがアニメ用に一瞬描画）
       const flash = captureFlashStones && captureFlashStones.find(p => p.x === x && p.y === y);
+      // 終局フェーズ中の死石マーク
+      const isDead = scoringActive && stoneColor && isDeadStoneAt(x, y);
 
       if (stoneColor || isPending || flash) {
         const colorToShow = stoneColor || (flash && flash.color) || myColor;
-        const isLast = !ghostActive && !flash && lastMove && lastMove.x === x && lastMove.y === y && !isPending;
+        const isLast = !ghostActive && !flash && !scoringActive && lastMove && lastMove.x === x && lastMove.y === y && !isPending;
         const isWin  = winningLine && winningLine.some(p => p.x === x && p.y === y);
         const isGhost = !!ghostKind;
         const isGhostLatest = ghostKind === 'ghost-latest';
@@ -1905,13 +2077,14 @@ function renderBoard() {
         let stone;
         const ghostCls = isGhost ? (' undo-ghost' + (isGhostLatest ? ' undo-latest' : '')) : '';
         const capturedCls = isCaptured ? ' captured' : '';
+        const deadCls = isDead ? ' dead-stone' : '';
         if (currentLang === 'cat') {
           stone = document.createElement('div');
-          stone.className = 'stone cat-piece' + (isPending ? ' preview' : '') + (isLast ? ' last-move' : '') + (isWin ? ' winning' : '') + ghostCls + capturedCls;
+          stone.className = 'stone cat-piece' + (isPending ? ' preview' : '') + (isLast ? ' last-move' : '') + (isWin ? ' winning' : '') + ghostCls + capturedCls + deadCls;
           stone.innerHTML = PIECE.svg(colorToShow, '100%');
         } else {
           stone = document.createElement('div');
-          stone.className = 'stone ' + colorToShow + (isPending ? ' preview' : '') + (isLast ? ' last-move' : '') + (isWin ? ' winning' : '') + ghostCls + capturedCls;
+          stone.className = 'stone ' + colorToShow + (isPending ? ' preview' : '') + (isLast ? ' last-move' : '') + (isWin ? ' winning' : '') + ghostCls + capturedCls + deadCls;
         }
         cell.appendChild(stone);
 
@@ -1938,6 +2111,13 @@ function updateTurnUI() {
   const confirmBtn = document.getElementById('btn-confirm');
   const passBtn = document.getElementById('btn-pass');
   const myTurn = turn === myColor;
+
+  // 終局フェーズ中は updateScoringActions が turn-indicator とボタンを管理
+  if (gameActive && isScoringActive()) {
+    updateScoringActions();
+    if (frame) frame.classList.remove('my-turn');
+    return;
+  }
 
   // 待った進行中は専用パネルが turn-indicator を覆い、ボタンは無効化
   if (gameActive && undoPhase !== 'idle') {
@@ -1987,6 +2167,8 @@ function updateTurnUI() {
   if (passBtn) passBtn.disabled = !(myTurn && gameActive);
   // 待ったボタンの表示・有効状態
   updateUndoUI();
+  // 終局フェーズボタンの表示状態同期（前対局の終局からの遷移で残骸が出ないよう）
+  if (typeof updateScoringActions === 'function') updateScoringActions();
 }
 
 // 三手交換フェーズに対応するturn-indicatorキーを返す
@@ -2004,6 +2186,15 @@ function phaseIndicatorKey() {
 
 function place(x, y) {
   if (!gameReady || !gameActive) return;
+  // 終局フェーズ中: 石クリック=死石トグル、空点クリック=手動地マーク（自分の色方向）
+  if (isScoringActive()) {
+    if (board[y][x] !== null) {
+      toggleDeadStone(x, y, false);
+    } else {
+      toggleForcedTerritory(x, y, myColor, false);
+    }
+    return;
+  }
   // 三手交換のスワップ選択フェーズでは盤面操作不可
   if (gamePhase === 'swap_select' || gamePhase === 'swap_wait') return;
   // 待った進行中（preparing/awaiting/reviewing）も盤面操作不可
@@ -2192,6 +2383,355 @@ function applyGoMove(x, y, color) {
   return r;
 }
 
+// ===== 囲碁 終局フェーズ =====
+// 'marking': 死石・地マーク中（インタラクション可能）
+// 'finalized': 結果確定後の表示中（地・スコアは見えるがインタラクション不可）
+// 'idle': 通常状態
+function isScoringActive() { return scoringPhase === 'marking'; }
+function isScoringDisplay() { return scoringPhase === 'marking' || scoringPhase === 'finalized'; }
+
+function isDeadStoneAt(x, y) {
+  return deadStones.some(p => p.x === x && p.y === y);
+}
+
+function recomputeScoring() {
+  if (typeof GoScoring === 'undefined') return;
+  // Step 1: 自動判定（forcedTerritory 抜き）を計算
+  const result = GoScoring.computeScore(
+    board, deadStones, captureCount, GoScoring.DEFAULT_KOMI, BOARD_SIZE
+  );
+  // Step 2: forcedTerritory のうち自動判定と一致するエントリを削除
+  // （自動と同じならわざわざ手動上書きする必要がない=オレンジマーク不要）
+  for (const key of Object.keys(forcedTerritory)) {
+    const [xs, ys] = key.split(',');
+    const x = parseInt(xs, 10), y = parseInt(ys, 10);
+    if (forcedTerritory[key] === result.territoryMap[y][x]) {
+      delete forcedTerritory[key];
+    }
+  }
+  // Step 3: 残った forcedTerritory を applyForcedTerritory で適用
+  scoringResult = result;
+  applyForcedTerritory();
+}
+
+// 自動判定の territoryMap に手動マーク（forcedTerritory）を上書きし、
+// 黒地・白地・合計・勝敗・差を再計算する
+function applyForcedTerritory() {
+  if (!scoringResult || !scoringResult.territoryMap) return;
+  let bAdj = 0, wAdj = 0;
+  for (const key of Object.keys(forcedTerritory)) {
+    const [xs, ys] = key.split(',');
+    const x = parseInt(xs, 10), y = parseInt(ys, 10);
+    if (board[y][x] !== null) continue;
+    const newColor = forcedTerritory[key];
+    const oldColor = scoringResult.territoryMap[y][x];
+    if (oldColor === newColor) continue;
+    scoringResult.territoryMap[y][x] = newColor;
+    if (oldColor === 'black') bAdj--;
+    if (oldColor === 'white') wAdj--;
+    if (newColor === 'black') bAdj++;
+    if (newColor === 'white') wAdj++;
+  }
+  scoringResult.black.territory += bAdj;
+  scoringResult.white.territory += wAdj;
+  scoringResult.black.total += bAdj;
+  scoringResult.white.total += wAdj;
+  if (scoringResult.black.total > scoringResult.white.total) {
+    scoringResult.winner = 'black';
+    scoringResult.margin = scoringResult.black.total - scoringResult.white.total;
+  } else if (scoringResult.white.total > scoringResult.black.total) {
+    scoringResult.winner = 'white';
+    scoringResult.margin = scoringResult.white.total - scoringResult.black.total;
+  } else {
+    scoringResult.winner = 'draw';
+    scoringResult.margin = 0;
+  }
+}
+
+// 現在表示されている空点(x,y)の領域帰属を取得（手動 forced 優先、無ければ自動）
+function getDisplayTerritoryAt(x, y) {
+  const key = x + ',' + y;
+  if (Object.prototype.hasOwnProperty.call(forcedTerritory, key)) {
+    return forcedTerritory[key];
+  }
+  if (scoringResult && scoringResult.territoryMap) {
+    return scoringResult.territoryMap[y][x];
+  }
+  return null;
+}
+
+// (x,y)から同じ表示色で連結している空点群をBFSで取得。
+// 表示色は forced+auto 合成後の値。石は通過しない。
+function findConnectedTerritoryGroup(x, y, color) {
+  const region = [];
+  if (board[y][x] !== null) return region;
+  const visited = new Set();
+  const startKey = y * BOARD_SIZE + x;
+  visited.add(startKey);
+  const queue = [{x, y}];
+  while (queue.length) {
+    const p = queue.shift();
+    region.push(p);
+    const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+    for (const [dx, dy] of dirs) {
+      const nx = p.x + dx, ny = p.y + dy;
+      if (nx < 0 || nx >= BOARD_SIZE || ny < 0 || ny >= BOARD_SIZE) continue;
+      const k = ny * BOARD_SIZE + nx;
+      if (visited.has(k)) continue;
+      if (board[ny][nx] !== null) continue;
+      const ndc = getDisplayTerritoryAt(nx, ny);
+      if (ndc !== color) continue;
+      visited.add(k);
+      queue.push({x: nx, y: ny});
+    }
+  }
+  return region;
+}
+
+// (x,y) が「内部セル」（4近傍すべてが同じ表示色の地）かを判定。
+// 端や辺、石、neutral、別の色 のいずれかに接している場合は false（=端セル）。
+function isInteriorTerritoryCell(x, y, color) {
+  const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+  for (const [dx, dy] of dirs) {
+    const nx = x + dx, ny = y + dy;
+    if (nx < 0 || nx >= BOARD_SIZE || ny < 0 || ny >= BOARD_SIZE) return false;
+    if (board[ny][nx] !== null) return false;
+    if (getDisplayTerritoryAt(nx, ny) !== color) return false;
+  }
+  return true;
+}
+
+// 空点を手動でマーク。
+//   - 表示色が neutral（または null） → byColor（単一セルのみ）
+//   - 表示色が黒/白:
+//     * 中央セル（4近傍すべて同色地） → 連結している同色地グループ全体を neutral
+//     * 端セル（辺/角/石/別色/neutral に接する） → そのセルだけ neutral
+// byColor は「クリックした人の色」（白手番なら white, 黒手番なら black）。
+// 死石マークと同様、両者で同期、変更すると合意リセット。
+function toggleForcedTerritory(x, y, byColor, fromOpp) {
+  if (!isScoringActive()) return;
+  if (board[y][x] !== null) return;
+  if (byColor !== 'black' && byColor !== 'white') return;
+
+  const currentDisplay = getDisplayTerritoryAt(x, y);
+  if (currentDisplay === 'neutral' || currentDisplay === null) {
+    // neutral → byColor (単一)
+    forcedTerritory[x + ',' + y] = byColor;
+  } else {
+    // 黒地/白地 → neutral
+    if (isInteriorTerritoryCell(x, y, currentDisplay)) {
+      // 中央セル: 連結グループ全体を neutral
+      const region = findConnectedTerritoryGroup(x, y, currentDisplay);
+      for (const p of region) {
+        forcedTerritory[p.x + ',' + p.y] = 'neutral';
+      }
+    } else {
+      // 端セル: 単一のみ
+      forcedTerritory[x + ',' + y] = 'neutral';
+    }
+  }
+
+  if (!fromOpp) {
+    send({type: 'force_territory_toggle', x, y, byColor});
+  }
+  myScoringAgreed = false;
+  oppScoringAgreed = false;
+  recomputeScoring(); // 自動判定一致は自動的に cleanup される
+  renderBoard();
+  renderScoreDisplay();
+  updateScoringActions();
+}
+
+// 連続パス2回で呼ばれる: 終局フェーズに入る
+function enterScoringPhase() {
+  scoringPhase = 'marking';
+  deadStones = [];
+  myScoringAgreed = false;
+  oppScoringAgreed = false;
+  recomputeScoring();
+  // 盤面に scoring-active クラスをつけてホバー効果ON
+  const bf = document.getElementById('board-frame');
+  if (bf) bf.parentElement.classList.add('scoring-active');
+  renderBoard();
+  renderScoreDisplay();
+  updateTurnUI();
+  updateScoringActions();
+}
+
+function exitScoringPhase() {
+  scoringPhase = 'idle';
+  deadStones = [];
+  myScoringAgreed = false;
+  oppScoringAgreed = false;
+  scoringResult = null;
+  forcedTerritory = {};
+  const bf = document.getElementById('board-frame');
+  if (bf && bf.parentElement) bf.parentElement.classList.remove('scoring-active');
+  // ボタン表示を通常状態に戻す
+  const confirmBtn = document.getElementById('btn-confirm');
+  const passBtn = document.getElementById('btn-pass');
+  const agreeBtn = document.getElementById('btn-scoring-agree');
+  const cancelBtn = document.getElementById('btn-scoring-cancel');
+  if (confirmBtn) confirmBtn.style.display = '';
+  if (passBtn) passBtn.style.display = '';
+  if (agreeBtn) agreeBtn.style.display = 'none';
+  if (cancelBtn) cancelBtn.style.display = 'none';
+  renderScoreDisplay();
+}
+
+// 結果確定後（finalize 経由）の終局フェーズ。データ（deadStones / forcedTerritory /
+// scoringResult）は維持して地・スコアの表示を5秒間継続させる。インタラクション用
+// ボタンのみ非表示にする。完全クリアは beginGame / resetToLobby で行う。
+function softExitScoringPhase() {
+  scoringPhase = 'finalized';
+  myScoringAgreed = false;
+  oppScoringAgreed = false;
+  const agreeBtn = document.getElementById('btn-scoring-agree');
+  const cancelBtn = document.getElementById('btn-scoring-cancel');
+  if (agreeBtn) agreeBtn.style.display = 'none';
+  if (cancelBtn) cancelBtn.style.display = 'none';
+  // 通常ボタンも無効化（gameActiveもfalseになるが防御的に表示は戻す）
+  const confirmBtn = document.getElementById('btn-confirm');
+  const passBtn = document.getElementById('btn-pass');
+  if (confirmBtn) confirmBtn.style.display = '';
+  if (passBtn) passBtn.style.display = '';
+  // 板の scoring-active クラスは維持（ホバー効果）— 不要なら removable
+}
+
+// 死石をトグルして相手に通知。両者の合意フラグもリセット（Q5=b）
+// 死石が変わると自動地判定も変わるので、手動上書き（forcedTerritory）もクリア
+function toggleDeadStone(x, y, fromOpp) {
+  const idx = deadStones.findIndex(p => p.x === x && p.y === y);
+  if (idx >= 0) {
+    deadStones.splice(idx, 1);
+  } else {
+    deadStones.push({x, y});
+  }
+  if (!fromOpp) {
+    send({type: 'dead_stone_toggle', x, y});
+  }
+  // 死石変化で両者の合意 + 手動地マークもリセット
+  myScoringAgreed = false;
+  oppScoringAgreed = false;
+  forcedTerritory = {};
+  recomputeScoring();
+  renderBoard();
+  renderScoreDisplay();
+  updateScoringActions();
+}
+
+function agreeScoring() {
+  if (!isScoringActive()) return;
+  if (myScoringAgreed) return;
+  myScoringAgreed = true;
+  send({type: 'scoring_agree'});
+  updateScoringActions();
+  if (myScoringAgreed && oppScoringAgreed) {
+    finalizeScoring();
+  }
+}
+
+function cancelAgreeScoring() {
+  if (!isScoringActive()) return;
+  if (!myScoringAgreed) return;
+  myScoringAgreed = false;
+  send({type: 'scoring_disagree'});
+  updateScoringActions();
+}
+
+// 両者合意で最終結果へ移行。データは維持して結果表示中も地・スコアが見える状態にする。
+function finalizeScoring() {
+  if (!scoringResult) recomputeScoring();
+  const winnerColor = (scoringResult && scoringResult.winner !== 'draw')
+    ? scoringResult.winner : null;
+  softExitScoringPhase();
+  endGame(winnerColor, 'go-final');
+}
+
+// スコア表示を更新（my-score-display と opp-score-display）
+// marking と finalized の両方で表示する
+function renderScoreDisplay() {
+  const myEl = document.getElementById('my-score-display');
+  const oppEl = document.getElementById('opp-score-display');
+  if (!myEl || !oppEl) return;
+  if (!isScoringDisplay() || !scoringResult || !myColor) {
+    myEl.style.display = 'none';
+    oppEl.style.display = 'none';
+    return;
+  }
+  const oc = (myColor === 'black') ? 'white' : 'black';
+  const my = scoringResult[myColor];
+  const op = scoringResult[oc];
+  myEl.style.display = '';
+  oppEl.style.display = '';
+  myEl.textContent = formatScoreLine(my, myColor);
+  oppEl.textContent = formatScoreLine(op, oc);
+}
+
+// 囲碁の最終結果テキスト: "黒 17.5 - 白 13.5  黒 4.0目勝ち"
+function formatGoFinalResult(sr, viewerColor) {
+  if (!sr) return '';
+  const blackTotal = sr.black.total;
+  const whiteTotal = sr.white.total;
+  const head = `${t('black')} ${blackTotal} - ${t('white')} ${whiteTotal}`;
+  if (sr.winner === 'draw') return head + ' ' + t('drawMsg');
+  const winnerLabel = (sr.winner === 'black') ? t('black') : t('white');
+  return head + '  ' + winnerLabel + ' ' + sr.margin + t('goFinalMarginUnit');
+}
+
+function formatScoreLine(s, color) {
+  // 例: "17.5目 (地7+取4+コミ6.5)"
+  const parts = [];
+  parts.push(t('scoreTerritory') + s.territory);
+  parts.push(t('scoreCaptures') + (s.captures + s.deadOpp));
+  if (color === 'white' && s.komi) parts.push(t('scoreKomi') + s.komi);
+  return s.total + t('scoreUnit') + ' (' + parts.join('+') + ')';
+}
+
+// 終局フェーズの状態に応じて board-actions と turn-indicator を更新
+function updateScoringActions() {
+  const confirmBtn = document.getElementById('btn-confirm');
+  const passBtn = document.getElementById('btn-pass');
+  const undoBtn = document.getElementById('btn-undo');
+  const agreeBtn = document.getElementById('btn-scoring-agree');
+  const cancelBtn = document.getElementById('btn-scoring-cancel');
+  const indicator = document.getElementById('turn-indicator');
+  const frame = document.getElementById('board-frame');
+
+  if (isScoringActive()) {
+    if (confirmBtn) confirmBtn.style.display = 'none';
+    if (passBtn) passBtn.style.display = 'none';
+    if (undoBtn) undoBtn.style.display = 'none';
+    if (agreeBtn) {
+      agreeBtn.style.display = '';
+      agreeBtn.disabled = myScoringAgreed;
+    }
+    if (cancelBtn) {
+      cancelBtn.style.display = '';
+      cancelBtn.disabled = !myScoringAgreed;
+    }
+    // turn-indicator: 終局フェーズメッセージ
+    let key;
+    if (myScoringAgreed && !oppScoringAgreed) key = 'scoringWaitingOpp';
+    else if (!myScoringAgreed && oppScoringAgreed) key = 'scoringOppAgreed';
+    else if (myScoringAgreed && oppScoringAgreed) key = 'scoringBothAgreed';
+    else key = 'scoringMarkPrompt';
+    turnIndicatorKey = key;
+    if (indicator) {
+      indicator.className = 'turn-indicator active';
+      indicator.textContent = t(key);
+      indicator.style.display = '';
+    }
+    if (frame) frame.classList.remove('my-turn');
+  } else {
+    if (confirmBtn) confirmBtn.style.display = '';
+    if (passBtn) passBtn.style.display = '';
+    if (agreeBtn) agreeBtn.style.display = 'none';
+    if (cancelBtn) cancelBtn.style.display = 'none';
+    // undo button visibility は updateUndoUI に委ねる
+  }
+}
+
 // コウ違反/自殺手のヒントを turn-indicator に短時間表示
 function showGoViolationHint(reason) {
   const ind = document.getElementById('turn-indicator');
@@ -2210,12 +2750,13 @@ function showGoViolationHint(reason) {
   }, 1500);
 }
 
-// 取石数表示の更新
+// 取石数表示の更新（gameActive または scoring 中（marking/finalized）に表示）
 function renderCaptureDisplays() {
   const myEl = document.getElementById('my-capture-display');
   const oppEl = document.getElementById('opp-capture-display');
   if (!myEl || !oppEl) return;
-  if (gameActive && isGoRoom() && myColor) {
+  const showActive = (gameActive || isScoringDisplay()) && isGoRoom() && myColor;
+  if (showActive) {
     const oc = (myColor === 'black') ? 'white' : 'black';
     myEl.style.display = '';
     oppEl.style.display = '';
@@ -2243,12 +2784,14 @@ function formatTimeMs(ms) {
 //  - 時間制限ありの対局（timeLimitMs > 0）
 //  - 三手交換の swap_select/swap_wait 中は停止（互いの判断待ち）
 //  - 待った申請中は停止
+//  - 囲碁の終局フェーズ（scoring）中は停止
 // ※ opening_b1/w1/b2 中は通常通り動く（実際に着手している時間なので）
 function shouldTimerTick() {
   return gameActive && !isTimeUnlimited()
     && gamePhase !== 'swap_select'
     && gamePhase !== 'swap_wait'
-    && undoPhase === 'idle';
+    && undoPhase === 'idle'
+    && scoringPhase === 'idle';
 }
 
 // 1秒ごとに残時間を減算する。手番のプレイヤーの残時間が減る。
@@ -2334,8 +2877,10 @@ function renderTimeDisplays() {
 
   // opp-color-badge の表示/非表示のみ切り替え（ラベル文言は触らない）
   // 三手交換 swap_select/swap_wait 中は opp-badge を隠してスワップパネルが上書き表示
+  // 終局フェーズの結果表示中（finalized）も opp-badge を表示し続ける
   const swapActive = (gamePhase === 'swap_select' || gamePhase === 'swap_wait');
-  oppBadge.style.display = (gameActive && !swapActive) ? '' : 'none';
+  const showOpp = (gameActive || isScoringDisplay()) && !swapActive && myColor;
+  oppBadge.style.display = showOpp ? '' : 'none';
   const swapPanel = document.getElementById('swap-overlay');
   if (swapPanel) swapPanel.style.display = swapActive ? '' : 'none';
 }
@@ -2756,14 +3301,15 @@ function pass() {
   if (!gameReady || !gameActive) return;
   if (turn !== myColor) return;
   if (undoPhase !== 'idle') return; // 待った進行中はパス不可
+  if (isScoringActive()) return; // 終局フェーズ中はパス不可
   pendingMove = null;
   send({ type: 'pass', remainingMs: isTimeUnlimited() ? null : myTimeMs });
   moveHistory.push({type: 'pass', color: myColor});
   consecutivePasses++;
   if (consecutivePasses >= 2) {
-    // 囲碁: 終局フェーズ（地計算は次のアップデートで実装予定）
     if (isGoRoom()) {
-      endGame(null, 'go-end-pending');
+      // 囲碁: 終局フェーズ（死石マーク + 地計算）に移行
+      enterScoringPhase();
     } else {
       endGame(null); // 五目並べ: 引き分け
     }
@@ -2808,23 +3354,51 @@ function endGame(winnerColor, reason) {
   // 持ち時間タイマー停止
   stopTimer();
   renderTimeDisplays();
-  renderBoard(); // winningLine を反映してハイライト
+  // scoringPhase の扱い:
+  //   'marking' = 死石マーク中に異常終局 (resign/timeout) → 完全 exit
+  //   'finalized' = finalizeScoring 経由 → データを保持（地・スコアを5秒間表示）
+  //   'idle' = 何もしない
+  if (scoringPhase === 'marking') {
+    exitScoringPhase();
+  }
+  // ボタン表示は softExit / exit 内で処理されるが、念のため
+  const agB2 = document.getElementById('btn-scoring-agree');
+  const acB2 = document.getElementById('btn-scoring-cancel');
+  if (agB2) agB2.style.display = 'none';
+  if (acB2) acB2.style.display = 'none';
+  // スコア表示は finalized 中は維持
+  if (scoringPhase !== 'finalized') {
+    const mySD2 = document.getElementById('my-score-display');
+    const oppSD2 = document.getElementById('opp-score-display');
+    if (mySD2) mySD2.style.display = 'none';
+    if (oppSD2) oppSD2.style.display = 'none';
+  }
+  renderBoard(); // winningLine + territoryMap (finalized中) を反映
 
   let resultKey, outcome, resultClass;
+  // 囲碁の最終結果メッセージは scoringResult から動的に生成（margin 含む）
+  let goFinalText = null;
+  if (reason === 'go-final' && scoringResult) {
+    goFinalText = formatGoFinalResult(scoringResult, myColor);
+  }
   if (winnerColor === null) {
     if (reason === 'go-end-pending') {
       resultKey = 'goScoringPending'; outcome = 'draw'; resultClass = 'result-draw';
+    } else if (reason === 'go-final') {
+      resultKey = 'goFinalDraw'; outcome = 'draw'; resultClass = 'result-draw';
     } else {
       resultKey = 'drawMsg'; outcome = 'draw'; resultClass = 'result-draw';
     }
   } else if (winnerColor === myColor) {
     resultKey = (reason === 'forbidden') ? 'forbiddenWin'
               : (reason === 'timeout')   ? 'timeoutWin'
+              : (reason === 'go-final')  ? 'goFinalWin'
               : 'winMsg';
     outcome = 'win'; resultClass = 'result-win';
   } else {
     resultKey = (reason === 'forbidden') ? 'forbiddenLose'
               : (reason === 'timeout')   ? 'timeoutLose'
+              : (reason === 'go-final')  ? 'goFinalLose'
               : 'loseMsg';
     outcome = 'lose'; resultClass = 'result-lose';
   }
@@ -2834,33 +3408,82 @@ function endGame(winnerColor, reason) {
   const indicator = document.getElementById('turn-indicator');
   if (indicator) {
     indicator.className = 'turn-indicator ' + resultClass;
-    indicator.textContent = t(resultKey);
+    indicator.textContent = goFinalText ? goFinalText : t(resultKey);
   }
   // 確定/パスボタンを無効化
   const cb = document.getElementById('btn-confirm'); if (cb) cb.disabled = true;
   const pb = document.getElementById('btn-pass');    if (pb) pb.disabled = true;
   const fr = document.getElementById('board-frame'); if (fr) fr.classList.remove('my-turn');
 
-  // 5秒後に終了画面へ自動遷移（5連ハイライトを見てもらうため）
+  // 5秒後に終了画面へ自動遷移（5連ハイライト or 囲碁の地・スコアを見てもらうため）
+  // 囲碁の終局結果の場合、end画面に詳細結果文字列を引き継ぐ
+  const finalText = goFinalText || t(resultKey);
+  // matchHistory 用に囲碁の詳細スコアを captureしておく（scoringResult が後で消えるため）
+  const goScoreSnapshot = (reason === 'go-final' && scoringResult)
+    ? formatGoFinalResult(scoringResult, myColor) : null;
   setTimeout(() => {
-    showEndScreen(t(resultKey), outcome);
+    showEndScreen(finalText, outcome, goScoreSnapshot);
   }, 5000);
 }
 
 function toggleNotation() {
   showNotation = document.getElementById('notation-toggle').checked;
   renderBoard();
+  renderBoardCoords();
 }
 
-function showEndScreen(result, outcome) {
+// 盤面周囲に座標ラベルを描画（showNotation 連動）。
+// 列: A〜T（I除く、19文字、左→右）
+// 行: 19〜1（上→下、Go標準で下が1）
+// 表示位置: 盤面の上下左右4辺
+function renderBoardCoords() {
+  const container = document.querySelector('.board-container');
+  const frame = document.getElementById('board-frame');
+  if (!container || !frame) return;
+  // 既存の座標ラベルを削除
+  container.querySelectorAll('.board-coord').forEach(el => el.remove());
+  if (!showNotation) {
+    frame.classList.remove('with-coords');
+    return;
+  }
+  frame.classList.add('with-coords');
+  const colLabels = 'ABCDEFGHJKLMNOPQRST'; // I を除く 19 文字
+  for (let i = 0; i < BOARD_SIZE; i++) {
+    // 上下: 列ラベル（同じ）
+    ['top', 'bottom'].forEach(pos => {
+      const el = document.createElement('div');
+      el.className = 'board-coord board-coord-' + pos;
+      el.style.left = 'calc(' + i + ' * var(--cs))';
+      el.textContent = colLabels[i];
+      container.appendChild(el);
+    });
+    // 左右: 行番号（19 が上、1 が下 = Go標準）
+    const rowNum = String(BOARD_SIZE - i);
+    ['left', 'right'].forEach(pos => {
+      const el = document.createElement('div');
+      el.className = 'board-coord board-coord-' + pos;
+      el.style.top = 'calc(' + i + ' * var(--cs))';
+      el.textContent = rowNum;
+      container.appendChild(el);
+    });
+  }
+}
+
+function showEndScreen(result, outcome, goScoreText) {
   document.getElementById('end-result').textContent = result;
   const scoreEl = document.getElementById('end-score');
   if (scoreEl) {
-    scoreEl.textContent = moveCount > 0 ? `${moveCount}${t('movesUnit')}` : '';
+    // 囲碁の場合は手数+詳細スコア、それ以外は手数のみ
+    const movesPart = moveCount > 0 ? (moveCount + t('movesUnit')) : '';
+    if (goScoreText) {
+      scoreEl.textContent = movesPart ? (movesPart + ' / ' + goScoreText) : goScoreText;
+    } else {
+      scoreEl.textContent = movesPart;
+    }
   }
 
   if (outcome) {
-    matchHistory.push({ outcome, myColor, moves: moveCount });
+    matchHistory.push({ outcome, myColor, moves: moveCount, goScoreText: goScoreText || null });
     renderHistory();
   }
 
@@ -2904,7 +3527,9 @@ function renderHistory() {
 
     const badgeClass = h.outcome === 'win' ? 'win' : (h.outcome === 'draw' ? 'draw' : 'lose');
     const badgeText = h.outcome === 'win' ? t('historyWin') : (h.outcome === 'draw' ? t('historyDraw') : t('historyLose'));
-    row.innerHTML = `<span class="history-idx">${i + 1}</span><span class="history-badge ${badgeClass}">${badgeText}</span><span class="history-score" style="display:flex;align-items:center;gap:2px;">${scoreText}</span>`;
+    // 囲碁の場合、詳細スコア（黒X-白Y / 差Z目）を併記
+    const goPart = h.goScoreText ? `<span class="history-go-score" style="font-size:11px;color:var(--text-muted);margin-left:6px;">${escHtml(h.goScoreText)}</span>` : '';
+    row.innerHTML = `<span class="history-idx">${i + 1}</span><span class="history-badge ${badgeClass}">${badgeText}</span><span class="history-score" style="display:flex;align-items:center;gap:2px;flex-wrap:wrap;">${scoreText}${goPart}</span>`;
     list.appendChild(row);
   });
 
@@ -3094,7 +3719,7 @@ function handleMsg(m) {
     consecutivePasses++;
     if (consecutivePasses >= 2) {
       if (isGoRoom()) {
-        endGame(null, 'go-end-pending');
+        enterScoringPhase();
       } else {
         endGame(null);
       }
@@ -3108,6 +3733,37 @@ function handleMsg(m) {
     // 相手の時間切れ → 自分の勝ち
     oppTimeMs = 0;
     endGame(myColor, 'timeout');
+    return;
+  }
+
+  if (m.type === 'dead_stone_toggle') {
+    // 終局フェーズ中のみ有効
+    if (!isScoringActive()) return;
+    toggleDeadStone(m.x, m.y, true /* fromOpp */);
+    return;
+  }
+
+  if (m.type === 'force_territory_toggle') {
+    if (!isScoringActive()) return;
+    if (m.byColor !== 'black' && m.byColor !== 'white') return;
+    toggleForcedTerritory(m.x, m.y, m.byColor, true /* fromOpp */);
+    return;
+  }
+
+  if (m.type === 'scoring_agree') {
+    if (!isScoringActive()) return;
+    oppScoringAgreed = true;
+    updateScoringActions();
+    if (myScoringAgreed && oppScoringAgreed) {
+      finalizeScoring();
+    }
+    return;
+  }
+
+  if (m.type === 'scoring_disagree') {
+    if (!isScoringActive()) return;
+    oppScoringAgreed = false;
+    updateScoringActions();
     return;
   }
 
@@ -3294,6 +3950,22 @@ const I18N = {
     goHintSuicide: '自殺手は打てません',
     goHintInvalid: 'その手は打てません',
     goScoringPending: '終局（地計算は次のアップデートで実装予定）',
+    // 終局フェーズ
+    scoringMarkPrompt: '終局フェーズ - 死んだ石をクリックでマーク',
+    scoringWaitingOpp: '合意済み - 相手の判断を待っています',
+    scoringOppAgreed: '相手が合意済み - あなたの判断を入力してください',
+    scoringBothAgreed: '両者合意 - 結果を計算中...',
+    btnScoringAgree: '合意する',
+    btnScoringCancel: '合意取消',
+    scoreLabel: 'スコア: ',
+    scoreUnit: '目',
+    scoreTerritory: '地',
+    scoreCaptures: '取',
+    scoreKomi: 'コミ',
+    goFinalWin: '勝利！',
+    goFinalLose: '敗北',
+    goFinalDraw: '引き分け',
+    goFinalMarginUnit: '目勝ち',
   },
   en: {
     connecting: 'Connecting...', connected: 'Connected', reconnecting: 'Connecting...',
@@ -3408,6 +4080,22 @@ const I18N = {
     goHintSuicide: 'Suicide move not allowed',
     goHintInvalid: 'Move not allowed',
     goScoringPending: 'Game ended (scoring arrives in next update)',
+    // Scoring phase
+    scoringMarkPrompt: 'Scoring — click a stone to mark it dead',
+    scoringWaitingOpp: 'You agreed — waiting for opponent',
+    scoringOppAgreed: 'Opponent agreed — your decision needed',
+    scoringBothAgreed: 'Both agreed — finalizing result...',
+    btnScoringAgree: 'Agree',
+    btnScoringCancel: 'Cancel',
+    scoreLabel: 'Score: ',
+    scoreUnit: ' pts',
+    scoreTerritory: 'Territory ',
+    scoreCaptures: 'Caps ',
+    scoreKomi: 'Komi ',
+    goFinalWin: 'Victory!',
+    goFinalLose: 'Defeat',
+    goFinalDraw: 'Draw',
+    goFinalMarginUnit: ' pts win',
   },
   zh: {
     connecting: '连接中...', connected: '已连接', reconnecting: '连接中...',
@@ -3522,6 +4210,22 @@ const I18N = {
     goHintSuicide: '禁止自杀手',
     goHintInvalid: '此手不可下',
     goScoringPending: '终局（数子将在下次更新中实现）',
+    // 终局阶段
+    scoringMarkPrompt: '终局阶段 - 点击死石进行标记',
+    scoringWaitingOpp: '你已同意 - 等待对手判断',
+    scoringOppAgreed: '对手已同意 - 请输入你的判断',
+    scoringBothAgreed: '双方同意 - 正在计算结果...',
+    btnScoringAgree: '同意',
+    btnScoringCancel: '取消同意',
+    scoreLabel: '得分: ',
+    scoreUnit: '目',
+    scoreTerritory: '地',
+    scoreCaptures: '提',
+    scoreKomi: '贴',
+    goFinalWin: '胜利！',
+    goFinalLose: '败北',
+    goFinalDraw: '平局',
+    goFinalMarginUnit: '目胜',
   }
 };
 
@@ -3607,6 +4311,8 @@ function applyLang() {
   setText('btn-pass', 'btnPass');
   setText('btn-confirm', 'confirmMove');
   setText('btn-undo', 'btnUndo');
+  setText('btn-scoring-agree', 'btnScoringAgree');
+  setText('btn-scoring-cancel', 'btnScoringCancel');
   setText('i18n-btn-resign', 'btnResign');
   setText('i18n-btn-send-g', 'btnSend');
   setText('i18n-notation-toggle', 'notationToggle');
@@ -3646,7 +4352,15 @@ function applyLang() {
   // turn-indicator: ゲーム中・終局時の表示を再生成
   if (turnIndicatorKey) {
     const ind = document.getElementById('turn-indicator');
-    if (ind) ind.textContent = t(turnIndicatorKey);
+    if (ind) {
+      // 囲碁の最終結果（finalized 中）は詳細スコアテキストを再生成
+      if (scoringPhase === 'finalized' && scoringResult &&
+          (turnIndicatorKey === 'goFinalWin' || turnIndicatorKey === 'goFinalLose' || turnIndicatorKey === 'goFinalDraw')) {
+        ind.textContent = formatGoFinalResult(scoringResult, myColor);
+      } else {
+        ind.textContent = t(turnIndicatorKey);
+      }
+    }
   }
 
   // start-hint: 色選択状態に応じて
@@ -3728,6 +4442,9 @@ function applyLang() {
   }
   // 囲碁の取石数表示も言語切替で更新（"取石: " ラベル）
   if (typeof renderCaptureDisplays === 'function') renderCaptureDisplays();
+  // 囲碁終局フェーズのスコア表示・ボタン状態も再描画
+  if (typeof renderScoreDisplay === 'function') renderScoreDisplay();
+  if (typeof updateScoringActions === 'function') updateScoringActions();
 }
 
 function onLangChange(lang) {

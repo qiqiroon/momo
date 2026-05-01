@@ -42,8 +42,10 @@
     return out;
   }
 
-  // 領域（地）を計算する。死石を除去した盤面で、空点の連結成分ごとに
-  // 隣接する石の色を集めて、単色なら territory、複数色なら neutral とする。
+  // 領域（地）を計算する（Voronoi 方式: 多源BFS）。
+  // 死石を除去した盤面で、各空点について「最も近い石の色」を帰属とする。
+  // 同距離で異色が到達したら contested = neutral。
+  // 強制的な囲い込みより寛容で、囲碁の影響圏（influence）に近い直感的判定を返す。
   // 戻り値:
   //   territoryMap[y][x] = 'black'|'white'|'neutral'|null  (null は石の位置)
   //   blackTerritory, whiteTerritory: 各色の地の合計目数
@@ -52,53 +54,70 @@
     size = size || (board && board.length) || DEFAULT_SIZE;
     deadStones = deadStones || [];
     const effectiveBoard = applyDeadStones(board, deadStones, size);
-    const territoryMap = new Array(size);
-    for (let y = 0; y < size; y++) territoryMap[y] = new Array(size).fill(null);
 
-    let blackTerritory = 0, whiteTerritory = 0, neutralPoints = 0;
-    const visited = new Array(size * size).fill(false);
+    // 多源BFS用の距離・帰属マップ
+    const dist = new Array(size);
+    const owner = new Array(size);
+    for (let y = 0; y < size; y++) {
+      dist[y] = new Array(size).fill(Infinity);
+      owner[y] = new Array(size).fill(null);
+    }
 
+    // 全ての（生存）石を距離0で seed
+    const queue = [];
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
-        if (visited[y * size + x]) continue;
-        if (effectiveBoard[y][x] !== null) continue;
-
-        // 空点の連結領域を BFS で抽出し、隣接する石の色を集める
-        const region = [];
-        const bordering = new Set();
-        const queue = [{ x, y }];
-        visited[y * size + x] = true;
-        while (queue.length) {
-          const p = queue.shift();
-          region.push(p);
-          for (const n of neighbors(p.x, p.y, size)) {
-            const k = n.y * size + n.x;
-            const c = effectiveBoard[n.y][n.x];
-            if (c === null) {
-              if (!visited[k]) {
-                visited[k] = true;
-                queue.push(n);
-              }
-            } else {
-              bordering.add(c);
-            }
-          }
+        if (effectiveBoard[y][x]) {
+          dist[y][x] = 0;
+          owner[y][x] = effectiveBoard[y][x];
+          queue.push({ x, y });
         }
+      }
+    }
 
-        // 帰属判定
-        let owner;
-        if (bordering.size === 1) {
-          owner = bordering.has('black') ? 'black' : 'white';
+    // FIFO でBFS。空点に到達したら所有者を伝搬。
+    // 同距離で異色到達なら contested。contested セルは伝搬しない。
+    let head = 0;
+    while (head < queue.length) {
+      const p = queue[head++];
+      const d = dist[p.y][p.x];
+      const c = owner[p.y][p.x];
+      if (c === 'contested') continue;
+      for (const n of neighbors(p.x, p.y, size)) {
+        if (effectiveBoard[n.y][n.x] !== null) continue; // 石は通過しない
+        const nd = d + 1;
+        if (nd < dist[n.y][n.x]) {
+          dist[n.y][n.x] = nd;
+          owner[n.y][n.x] = c;
+          queue.push(n);
+        } else if (nd === dist[n.y][n.x] && owner[n.y][n.x] !== c && owner[n.y][n.x] !== 'contested') {
+          owner[n.y][n.x] = 'contested';
+        }
+      }
+    }
+
+    // territoryMap 構築 + 集計
+    const territoryMap = new Array(size);
+    for (let y = 0; y < size; y++) territoryMap[y] = new Array(size).fill(null);
+    let blackTerritory = 0, whiteTerritory = 0, neutralPoints = 0;
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        if (effectiveBoard[y][x] !== null) {
+          territoryMap[y][x] = null;
+          continue;
+        }
+        const o = owner[y][x];
+        if (o === 'black') {
+          territoryMap[y][x] = 'black';
+          blackTerritory++;
+        } else if (o === 'white') {
+          territoryMap[y][x] = 'white';
+          whiteTerritory++;
         } else {
-          owner = 'neutral';
+          // contested、または到達不可（石が一切ない場合）
+          territoryMap[y][x] = 'neutral';
+          neutralPoints++;
         }
-
-        for (const p of region) {
-          territoryMap[p.y][p.x] = owner;
-        }
-        if (owner === 'black') blackTerritory += region.length;
-        else if (owner === 'white') whiteTerritory += region.length;
-        else neutralPoints += region.length;
       }
     }
 

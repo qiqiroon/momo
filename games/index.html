@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MOMO Games v1.15 -->
+<!-- MOMO Games v1.16 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -30,10 +30,19 @@
   }
 
   /* ── LANG SWITCHER ── */
-  #lang-switcher { position:fixed; top:8px; right:12px; display:flex; gap:4px; z-index:200; }
-  .lang-btn { background:transparent; border:0.5px solid var(--border-strong); color:var(--text-muted); font-size:10px; padding:3px 7px; border-radius:4px; cursor:pointer; font-family:'Noto Sans JP',sans-serif; }
-  .lang-btn:hover { color:var(--orange-light); border-color:var(--orange); }
-  .lang-btn.active { color:var(--orange-light); border-color:var(--orange); background:var(--bg-selected); }
+  #lang-switcher { position:fixed; top:8px; right:12px; z-index:200; }
+  #lang-select {
+    background: var(--surface2);
+    border: 1px solid var(--border-strong);
+    color: var(--text);
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: 'Noto Sans JP', sans-serif;
+    outline: none;
+  }
+  #lang-select:focus { border-color: var(--orange); }
 
   .container {
     position:relative; z-index:1;
@@ -97,9 +106,12 @@
 <body>
 
 <div id="lang-switcher">
-  <button class="lang-btn" data-lang="ja">日本語</button>
-  <button class="lang-btn" data-lang="en">EN</button>
-  <button class="lang-btn" data-lang="zh">中文</button>
+  <select id="lang-select" onchange="onLangChange(this.value)">
+    <option value="ja">日本語</option>
+    <option value="en">EN</option>
+    <option value="zh">中文</option>
+    <option value="cat">CAT</option>
+  </select>
 </div>
 
 <div class="container">
@@ -148,7 +160,7 @@
 
   <div class="cards">
     <a class="card" href="tilt/">
-      <div class="card-badge">📱 New</div>
+      <div class="card-badge" id="tilt-badge">📱 Mobile</div>
       <div class="card-title">MOMO <span>Tilt</span></div>
       <div class="card-desc" id="tilt-desc">スマホを傾けてボールを転がし、同じ色のゴールへ同時に入れるパズル＆アクション。鍵を集めてゴールを解錠、敵をかわしながらクリアを目指せ！</div>
       <div class="card-meta" id="tilt-meta">
@@ -160,7 +172,7 @@
     </a>
 
     <a class="card" href="hanoi/">
-      <div class="card-badge">🎮 New</div>
+      <div class="card-badge" id="hanoi-badge">🧩 Puzzle</div>
       <div class="card-title">MOMO <span>Hanoi</span></div>
       <div class="card-desc" id="hanoi-desc">ハノイの塔を解きながらUFOを迎撃するパズル×シューティング。円盤を移動させて砲弾を発射し、地面を守れ！</div>
       <div class="card-meta" id="hanoi-meta">
@@ -172,7 +184,7 @@
     </a>
 
     <a class="card" href="javascript:void(0)" onclick="openReversi()">
-      <div class="card-badge">🌐 Online</div>
+      <div class="card-badge" id="reversi-badge">🌐 Online</div>
       <div class="card-title">MOMO <span>Reversi</span></div>
       <div class="card-desc" id="reversi-desc">世界中のプレイヤーとリアルタイムでリバーシ対決。部屋を作って友達を招待することも、公開部屋に飛び込むことも自由。チャットしながら白熱の盤上バトルを楽しもう。</div>
       <div class="card-meta" id="reversi-meta">
@@ -184,7 +196,7 @@
     </a>
 
     <a class="card" href="javascript:void(0)" onclick="openGomokuGo()">
-      <div class="card-badge">🌐 Online</div>
+      <div class="card-badge" id="gomokugo-badge">🆕 New</div>
       <div class="card-title">MOMO <span>Go</span></div>
       <div class="card-desc" id="gomokugo-desc">19路盤の五目並べでオンライン対戦。仮置きから確定の2段階で慎重に一手を選び、縦・横・斜めの5連を目指せ。チャットしながら静かな盤上の駆け引きを。</div>
       <div class="card-meta" id="gomokugo-meta">
@@ -206,16 +218,20 @@ const I18N = {
   ja: {
     headerSub: 'ブラウザで遊べるゲーム集',
     sectionLabel: 'Game List',
+    tiltBadge: '📱 モバイル',
     tiltDesc: 'スマホを傾けてボールを転がし、同じ色のゴールへ同時に入れるパズル＆アクション。鍵を集めてゴールを解錠、敵をかわしながらクリアを目指せ！',
     tiltMeta1: '📐 迷路', tiltMeta2: '🔵 マルチボール', tiltDevice: 'スマホ対応',
     tiltPlay: '今すぐプレイ',
+    hanoiBadge: '🧩 パズル',
     hanoiDesc: 'ハノイの塔を解きながらUFOを迎撃するパズル×シューティング。円盤を移動させて砲弾を発射し、地面を守れ！',
     hanoiMeta1: '🧩 パズル', hanoiMeta2: '🛸 シューティング', hanoiDiff: '3難易度',
     hanoiPlay: '今すぐプレイ',
+    reversiBadge: '🌐 オンライン',
     reversiDesc: '世界中のプレイヤーとリアルタイムでリバーシ対決。部屋を作って友達を招待することも、公開部屋に飛び込むことも自由。チャットしながら白熱の盤上バトルを楽しもう。',
     reversiMeta1: '♟ ボードゲーム', reversiMeta2: '🌐 オンライン対戦', reversiPlayers: '2人',
     reversiPlay: '今すぐプレイ',
-    gomokugoDesc: '19路盤の五目並べでオンライン対戦。仮置きから確定の2段階で慎重に一手を選び、縦・横・斜めの5連を目指せ。チャットしながら静かな盤上の駆け引きを。',
+    gomokugoBadge: '🆕 NEW',
+    gomokugoDesc: '19路盤で五目並べと囲碁のオンライン対戦。三手交換・待った・持ち時間+秒読み・地計算まで対応した本格派。チャットしながら静かな盤上の駆け引きを。',
     gomokugoMeta1: '♟ ボードゲーム', gomokugoMeta2: '🌐 オンライン対戦', gomokugoPlayers: '2人',
     gomokugoPlay: '今すぐプレイ',
     footerBack: '← MOMO Works に戻る',
@@ -223,16 +239,20 @@ const I18N = {
   en: {
     headerSub: 'Browser games collection',
     sectionLabel: 'Game List',
+    tiltBadge: '📱 Mobile',
     tiltDesc: 'Tilt your phone to roll balls through a maze and drop them into matching color goals simultaneously. Collect keys, dodge enemies, and clear each stage!',
     tiltMeta1: '📐 Maze', tiltMeta2: '🔵 Multi-ball', tiltDevice: 'Mobile-ready',
     tiltPlay: 'Play Now',
+    hanoiBadge: '🧩 Puzzle',
     hanoiDesc: 'A puzzle × shooting game where you solve the Tower of Hanoi while intercepting UFOs. Move discs to fire shells and protect the ground!',
     hanoiMeta1: '🧩 Puzzle', hanoiMeta2: '🛸 Shooting', hanoiDiff: '3 difficulties',
     hanoiPlay: 'Play Now',
+    reversiBadge: '🌐 Online',
     reversiDesc: 'Challenge players around the world to a real-time game of Reversi. Create a private room for friends or jump into a public match — the board is always ready. Chat, play, and flip your way to victory.',
     reversiMeta1: '♟ Board Game', reversiMeta2: '🌐 Online', reversiPlayers: '2 Players',
     reversiPlay: 'Play Now',
-    gomokugoDesc: 'Online Gomoku on a 19×19 board. Place a tentative stone, confirm to commit, and aim for five in a row — vertical, horizontal, or diagonal. Chat while you play.',
+    gomokugoBadge: '🆕 NEW',
+    gomokugoDesc: 'Online Gomoku & Go on a 19×19 board. Full-featured: three-move swap opening, undo, time control with byoyomi, and territory scoring. Chat while you play.',
     gomokugoMeta1: '♟ Board Game', gomokugoMeta2: '🌐 Online', gomokugoPlayers: '2 Players',
     gomokugoPlay: 'Play Now',
     footerBack: '← Back to MOMO Works',
@@ -240,64 +260,118 @@ const I18N = {
   zh: {
     headerSub: '可在浏览器中游玩的游戏合集',
     sectionLabel: 'Game List',
+    tiltBadge: '📱 移动',
     tiltDesc: '倾斜手机滚动小球穿越迷宫，同时将所有小球送入对应颜色的目标洞。收集钥匙解锁目标，躲避敌人，挑战每一关！',
     tiltMeta1: '📐 迷宫', tiltMeta2: '🔵 多球', tiltDevice: '支持手机',
     tiltPlay: '立即游玩',
+    hanoiBadge: '🧩 益智',
     hanoiDesc: '一边解汉诺塔谜题，一边拦截UFO的益智×射击游戏。移动圆盘发射炮弹，保卫大地！',
     hanoiMeta1: '🧩 益智', hanoiMeta2: '🛸 射击', hanoiDiff: '3种难度',
     hanoiPlay: '立即游玩',
+    reversiBadge: '🌐 在线',
     reversiDesc: '与全球玩家实时对战黑白棋。可以创建房间邀请好友，也可以随时加入公开对局。边聊天边享受激烈的翻棋乐趣。',
     reversiMeta1: '♟ 棋盘游戏', reversiMeta2: '🌐 在线对战', reversiPlayers: '2人',
     reversiPlay: '立即游玩',
-    gomokugoDesc: '19路盘的五子棋在线对战。先试落，再确定，谨慎落子，瞄准纵横斜三方向的五连。边聊边享受静谧的盘上博弈。',
+    gomokugoBadge: '🆕 NEW',
+    gomokugoDesc: '19路盘的五子棋与围棋在线对战。三手交换、悔棋、用时+读秒、数子计算全部支持。边聊边享受静谧的盘上博弈。',
     gomokugoMeta1: '♟ 棋盘游戏', gomokugoMeta2: '🌐 在线对战', gomokugoPlayers: '2人',
     gomokugoPlay: '立即游玩',
     footerBack: '← 返回 MOMO Works',
   },
 };
 
-let currentLang = (() => { try { return localStorage.getItem('momoLang') || 'ja'; } catch(e) { return 'ja'; } })();
+// 言語の永続化（cat 含む4種類を許容）
+let currentLang = (() => {
+  try {
+    const v = localStorage.getItem('momoLang');
+    return ['ja','en','zh','cat'].includes(v) ? v : 'ja';
+  } catch(e) { return 'ja'; }
+})();
 
-function applyLang() {
-  const d = I18N[currentLang] || I18N.ja;
-  document.getElementById('header-sub').textContent = d.headerSub;
-  document.getElementById('section-label').textContent = d.sectionLabel;
-  document.getElementById('tilt-desc').textContent = d.tiltDesc;
-  const tiltMetaSpans = document.querySelectorAll('#tilt-meta span');
-  if (tiltMetaSpans[0]) tiltMetaSpans[0].textContent = d.tiltMeta1;
-  if (tiltMetaSpans[1]) tiltMetaSpans[1].textContent = d.tiltMeta2;
-  document.getElementById('tilt-device').textContent = d.tiltDevice;
-  document.getElementById('tilt-play').textContent = d.tiltPlay;
-  document.getElementById('hanoi-desc').textContent = d.hanoiDesc;
-  const metaSpans = document.querySelectorAll('#hanoi-meta span');
-  if (metaSpans[0]) metaSpans[0].textContent = d.hanoiMeta1;
-  if (metaSpans[1]) metaSpans[1].textContent = d.hanoiMeta2;
-  document.getElementById('hanoi-diff').textContent = d.hanoiDiff;
-  document.getElementById('hanoi-play').textContent = d.hanoiPlay;
-  document.getElementById('reversi-desc').textContent = d.reversiDesc;
-  const reversiMetaSpans = document.querySelectorAll('#reversi-meta span');
-  if (reversiMetaSpans[0]) reversiMetaSpans[0].textContent = d.reversiMeta1;
-  if (reversiMetaSpans[1]) reversiMetaSpans[1].textContent = d.reversiMeta2;
-  document.getElementById('reversi-players').textContent = d.reversiPlayers;
-  document.getElementById('reversi-play').textContent = d.reversiPlay;
-  document.getElementById('gomokugo-desc').textContent = d.gomokugoDesc;
-  const gomokugoMetaSpans = document.querySelectorAll('#gomokugo-meta span');
-  if (gomokugoMetaSpans[0]) gomokugoMetaSpans[0].textContent = d.gomokugoMeta1;
-  if (gomokugoMetaSpans[1]) gomokugoMetaSpans[1].textContent = d.gomokugoMeta2;
-  document.getElementById('gomokugo-players').textContent = d.gomokugoPlayers;
-  document.getElementById('gomokugo-play').textContent = d.gomokugoPlay;
-  document.getElementById('footer-back').textContent = d.footerBack;
-  document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('active', b.dataset.lang === currentLang));
-  document.documentElement.lang = currentLang === 'zh' ? 'zh-Hans' : currentLang;
+// CAT 選択直前の言語を保持（語彙の選択に使用）
+let catBase = currentLang === 'cat' ? 'ja' : currentLang;
+
+// CAT モードの動的生成 — cat-lang-spec.txt 準拠
+function catSpeak(key) {
+  const errorKeys = ['pwError','noRoomError','fullRoomError','kicked','createErrorEmpty','privateIdRequired'];
+  const calmKeys  = ['connecting','reconnecting','waitingGuest','waitingStart'];
+  let vocab;
+  if (catBase === 'en') {
+    if (errorKeys.includes(key))      vocab = ['HISS!','SPIT!','FSSST!'];
+    else if (calmKeys.includes(key))  vocab = ['purrrr...','mrrr...','prrr...'];
+    else                              vocab = ['MEOW','meow','mrrrow','mew','NYA!'];
+  } else if (catBase === 'zh') {
+    if (errorKeys.includes(key))      vocab = ['嘶！','哈！','嘶嘶！'];
+    else if (calmKeys.includes(key))  vocab = ['咕噜…','喵…','噜噜…'];
+    else                              vocab = ['喵','喵呜','咪','喵！'];
+  } else {
+    if (errorKeys.includes(key))      vocab = ['シャー！','フーッ！','シャシャシャ！'];
+    else if (calmKeys.includes(key))  vocab = ['ごろごろ…','にゃ…','ぐるぐる…'];
+    else                              vocab = ['にゃあ','にゃ','にゃーん','みゃお','ニャ！'];
+  }
+  return vocab[Math.floor(Math.random() * vocab.length)];
 }
 
-document.querySelectorAll('.lang-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    currentLang = btn.dataset.lang;
-    try { localStorage.setItem('momoLang', currentLang); } catch(e) {}
-    applyLang();
-  });
-});
+function t(key) {
+  if (currentLang === 'cat') return catSpeak(key);
+  const d = I18N[currentLang] || I18N.ja;
+  return d[key] || (I18N.ja)[key] || key;
+}
+
+function applyLang() {
+  document.getElementById('header-sub').textContent = t('headerSub');
+  document.getElementById('section-label').textContent = t('sectionLabel');
+  // バッジ
+  document.getElementById('tilt-badge').textContent = t('tiltBadge');
+  document.getElementById('hanoi-badge').textContent = t('hanoiBadge');
+  document.getElementById('reversi-badge').textContent = t('reversiBadge');
+  document.getElementById('gomokugo-badge').textContent = t('gomokugoBadge');
+  // Tilt
+  document.getElementById('tilt-desc').textContent = t('tiltDesc');
+  const tiltMetaSpans = document.querySelectorAll('#tilt-meta span');
+  if (tiltMetaSpans[0]) tiltMetaSpans[0].textContent = t('tiltMeta1');
+  if (tiltMetaSpans[1]) tiltMetaSpans[1].textContent = t('tiltMeta2');
+  document.getElementById('tilt-device').textContent = t('tiltDevice');
+  document.getElementById('tilt-play').textContent = t('tiltPlay');
+  // Hanoi
+  document.getElementById('hanoi-desc').textContent = t('hanoiDesc');
+  const metaSpans = document.querySelectorAll('#hanoi-meta span');
+  if (metaSpans[0]) metaSpans[0].textContent = t('hanoiMeta1');
+  if (metaSpans[1]) metaSpans[1].textContent = t('hanoiMeta2');
+  document.getElementById('hanoi-diff').textContent = t('hanoiDiff');
+  document.getElementById('hanoi-play').textContent = t('hanoiPlay');
+  // Reversi
+  document.getElementById('reversi-desc').textContent = t('reversiDesc');
+  const reversiMetaSpans = document.querySelectorAll('#reversi-meta span');
+  if (reversiMetaSpans[0]) reversiMetaSpans[0].textContent = t('reversiMeta1');
+  if (reversiMetaSpans[1]) reversiMetaSpans[1].textContent = t('reversiMeta2');
+  document.getElementById('reversi-players').textContent = t('reversiPlayers');
+  document.getElementById('reversi-play').textContent = t('reversiPlay');
+  // Gomoku-go
+  document.getElementById('gomokugo-desc').textContent = t('gomokugoDesc');
+  const gomokugoMetaSpans = document.querySelectorAll('#gomokugo-meta span');
+  if (gomokugoMetaSpans[0]) gomokugoMetaSpans[0].textContent = t('gomokugoMeta1');
+  if (gomokugoMetaSpans[1]) gomokugoMetaSpans[1].textContent = t('gomokugoMeta2');
+  document.getElementById('gomokugo-players').textContent = t('gomokugoPlayers');
+  document.getElementById('gomokugo-play').textContent = t('gomokugoPlay');
+  // Footer
+  document.getElementById('footer-back').textContent = t('footerBack');
+  // セレクト同期
+  const sel = document.getElementById('lang-select');
+  if (sel) sel.value = currentLang;
+  // <html lang> 属性
+  document.documentElement.lang =
+    currentLang === 'zh'  ? 'zh-Hans'
+    : currentLang === 'cat' ? 'ja' // 猫語は ja相当（SEO上の最低限）
+    : currentLang;
+}
+
+function onLangChange(lang) {
+  if (lang === 'cat') catBase = currentLang; // CAT選択直前の言語を語彙ベースに
+  currentLang = lang;
+  try { localStorage.setItem('momoLang', lang); } catch(e) {}
+  applyLang();
+}
 
 // Reversiサーバーをウォームアップしてから遷移
 function openReversi() {

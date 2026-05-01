@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="../matchmaking/momo-matchmaking.js"></script>
 <script src="gomoku-rules.js"></script>
+<script src="go-rules.js"></script>
 <style>
 :root {
   /* DESIGN_SPEC v1.0 準拠 */
@@ -379,6 +380,49 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
     0 0 22px var(--orange),
     0 0 36px rgba(251,146,60,0.6);
 }
+/* 囲碁の捕獲フラッシュ（一瞬光ってから消える） */
+.stone.captured {
+  animation: capturedFlash 1.0s ease-out forwards;
+}
+@keyframes capturedFlash {
+  0%   { opacity: 1.0; box-shadow: 0 0 0 0 var(--orange); }
+  20%  { opacity: 1.0; box-shadow: 0 0 0 4px var(--orange-light), 0 0 18px var(--orange); transform: scale(1.15); }
+  60%  { opacity: 1.0; box-shadow: 0 0 0 4px var(--orange-light), 0 0 18px var(--orange); transform: scale(1.10); }
+  85%  { opacity: 0.5; transform: scale(0.85); }
+  100% { opacity: 0; transform: scale(0.4); }
+}
+.stone.cat-piece.captured { animation: capturedFlashCat 1.0s ease-out forwards; }
+@keyframes capturedFlashCat {
+  0%   { opacity: 1.0; }
+  20%  { opacity: 1.0; transform: scale(1.15); }
+  60%  { opacity: 1.0; transform: scale(1.10); }
+  85%  { opacity: 0.5; transform: scale(0.85); }
+  100% { opacity: 0; transform: scale(0.4); }
+}
+
+/* 取石数（アゲハマ）表示 */
+.capture-display {
+  font-size: 12px;
+  color: var(--text-muted);
+  background: rgba(0,0,0,0.3);
+  padding: 2px 8px;
+  border-radius: 6px;
+  margin-left: 6px;
+}
+/* 自分側の取石は白色で目立たせる */
+#my-capture-display { color: #ffffff; }
+
+/* コウ違反/自殺手のヒント時、turn-indicator が赤フラッシュ */
+.turn-indicator.violation-hint {
+  color: var(--danger, #ef4444) !important;
+  font-weight: 700;
+  animation: violationFlash 0.4s ease-out;
+}
+@keyframes violationFlash {
+  0%   { background: rgba(239,68,68,0.4); }
+  100% { background: transparent; }
+}
+
 /* 待った（undo）プレビュー中のゴースト石 */
 .stone.undo-ghost { opacity: 0.3; }
 .stone.undo-ghost.undo-latest {
@@ -859,6 +903,7 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
   <div class="board-wrap">
     <div class="my-color-badge">
       <span id="my-color-label">あなたは ？</span>
+      <span class="capture-display" id="my-capture-display" style="display:none;"></span>
       <span class="time-display" id="my-time-display" style="display:none;"></span>
     </div>
 
@@ -871,6 +916,7 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
 
     <div class="opp-color-badge" id="opp-color-badge" style="display:none;">
       <span id="opp-color-label"></span>
+      <span class="capture-display" id="opp-capture-display" style="display:none;"></span>
       <span class="time-display" id="opp-time-display"></span>
     </div>
     <!-- 三手交換パネル（インライン、opp-color-badge と入れ替えで表示） -->
@@ -1120,6 +1166,22 @@ let lobbyStatusKey = 'connecting';   // 'connecting' | 'connected'
 let waitingStatusKey = 'waitingGuest'; // 'waitingGuest' | 'guestJoined'
 let waitingStatusName = '';            // guestJoined時のゲスト名
 let turnIndicatorKey = null;           // 'myTurn' | 'oppTurn' | 'winMsg' | 'loseMsg' | 'drawMsg' | 'forbiddenWin' | 'forbiddenLose' | 'phase_b1_me' | 'phase_b1_opp' | 'phase_w1_me' | 'phase_w1_opp' | 'phase_b2_me' | 'phase_b2_opp' | 'phase_swap_me' | 'phase_swap_opp' | 'phase_tengen_only'
+
+// ===== 囲碁 STATE =====
+// 各色のコウ判定参照盤面（自分の前回手後の盤面）
+let goPrevBoardByColor = { black: null, white: null };
+// 取石数（アゲハマ）。各色が「取った」石の数
+let captureCount = { black: 0, white: 0 };
+// コウ違反/自殺手のヒント表示タイマー
+let goHintTimer = null;
+// 捕獲時にフラッシュ表示する石の座標（{x,y,color}）。renderBoard で .captured クラス付与
+let captureFlashStones = [];
+let captureFlashTimer = null;
+
+// 現在の対局が囲碁ルームかを返す（preset 不在で判定）
+function isGoRoom() {
+  return !!currentRules && !currentRules.preset;
+}
 
 // ===== 持ち時間 STATE =====
 // 0 = 無制限。timeLimitMs は対局のルール由来（不変）。
@@ -1619,6 +1681,16 @@ function resetToLobby() {
   if (oppBd) oppBd.style.display = 'none';
   const mtd = document.getElementById('my-time-display');
   if (mtd) mtd.style.display = 'none';
+  // 囲碁の状態クリア
+  goPrevBoardByColor = { black: null, white: null };
+  captureCount = { black: 0, white: 0 };
+  captureFlashStones = [];
+  if (captureFlashTimer) { clearTimeout(captureFlashTimer); captureFlashTimer = null; }
+  if (goHintTimer) { clearTimeout(goHintTimer); goHintTimer = null; }
+  const myCd = document.getElementById('my-capture-display');
+  const oppCd = document.getElementById('opp-capture-display');
+  if (myCd) myCd.style.display = 'none';
+  if (oppCd) oppCd.style.display = 'none';
   _showingPrivate = false;
   _pendingPrivatePw = '';
   const prl = document.getElementById('private-room-list');
@@ -1665,12 +1737,6 @@ function updateColorUI() {
 
 function checkStartReady() {
   const ready = myChoice && oppChoice && myChoice !== oppChoice;
-  // 囲碁モードは段階5-3 で対局画面実装予定。ボタン無効化＋案内表示。
-  if (currentGameType === 'go') {
-    document.getElementById('btn-start').disabled = true;
-    document.getElementById('start-hint').textContent = t('goComingSoon');
-    return;
-  }
   document.getElementById('btn-start').disabled = !ready;
   document.getElementById('start-hint').textContent = ready ? t('startReady') : t('startHint');
 }
@@ -1740,6 +1806,13 @@ function beginGame(swapColors) {
   stopTimer();
   renderTimeDisplays();
   if (!isTimeUnlimited()) startTimer();
+  // 囲碁の状態リセット
+  goPrevBoardByColor = { black: null, white: null };
+  captureCount = { black: 0, white: 0 };
+  captureFlashStones = [];
+  if (captureFlashTimer) { clearTimeout(captureFlashTimer); captureFlashTimer = null; }
+  if (goHintTimer) { clearTimeout(goHintTimer); goHintTimer = null; }
+  renderCaptureDisplays();
 
   document.getElementById('my-color-label').innerHTML =
     `${t('youAre')} ${PIECE.svg(myColor, '20px')}${t(myColor === 'black' ? 'black' : 'white')}`;
@@ -1818,23 +1891,27 @@ function renderBoard() {
       const stoneColor = board[y][x];
       const isPending = pendingMove && pendingMove.x === x && pendingMove.y === y;
       const ghostKind = ghostMap.get(y * BOARD_SIZE + x); // 'ghost' | 'ghost-latest' | undefined
+      // 囲碁: 直前の捕獲で消える石をフラッシュ表示（board上は既に null だがアニメ用に一瞬描画）
+      const flash = captureFlashStones && captureFlashStones.find(p => p.x === x && p.y === y);
 
-      if (stoneColor || isPending) {
-        const colorToShow = stoneColor || myColor;
-        const isLast = !ghostActive && lastMove && lastMove.x === x && lastMove.y === y && !isPending;
+      if (stoneColor || isPending || flash) {
+        const colorToShow = stoneColor || (flash && flash.color) || myColor;
+        const isLast = !ghostActive && !flash && lastMove && lastMove.x === x && lastMove.y === y && !isPending;
         const isWin  = winningLine && winningLine.some(p => p.x === x && p.y === y);
         const isGhost = !!ghostKind;
         const isGhostLatest = ghostKind === 'ghost-latest';
+        const isCaptured = !!flash;
 
         let stone;
         const ghostCls = isGhost ? (' undo-ghost' + (isGhostLatest ? ' undo-latest' : '')) : '';
+        const capturedCls = isCaptured ? ' captured' : '';
         if (currentLang === 'cat') {
           stone = document.createElement('div');
-          stone.className = 'stone cat-piece' + (isPending ? ' preview' : '') + (isLast ? ' last-move' : '') + (isWin ? ' winning' : '') + ghostCls;
+          stone.className = 'stone cat-piece' + (isPending ? ' preview' : '') + (isLast ? ' last-move' : '') + (isWin ? ' winning' : '') + ghostCls + capturedCls;
           stone.innerHTML = PIECE.svg(colorToShow, '100%');
         } else {
           stone = document.createElement('div');
-          stone.className = 'stone ' + colorToShow + (isPending ? ' preview' : '') + (isLast ? ' last-move' : '') + (isWin ? ' winning' : '') + ghostCls;
+          stone.className = 'stone ' + colorToShow + (isPending ? ' preview' : '') + (isLast ? ' last-move' : '') + (isWin ? ' winning' : '') + ghostCls + capturedCls;
         }
         cell.appendChild(stone);
 
@@ -1993,8 +2070,29 @@ function confirmMove() {
   if (!gameReady || !gameActive) return;
   if (turn !== myColor) return;
   const { x, y } = pendingMove;
-  const preset = getCurrentPreset();
 
+  // ===== 囲碁モード =====
+  if (isGoRoom()) {
+    const r = applyGoMove(x, y, myColor);
+    if (!r.valid) {
+      // 確定時に弾く: 仮置き解除 + 違反ヒント表示
+      pendingMove = null;
+      renderBoard();
+      showGoViolationHint(r.illegalReason);
+      return;
+    }
+    // 着手成功 → 相手に送信（受信側でも同じ placeMove を実行して同期）
+    send({ type: 'move', x, y, remainingMs: isTimeUnlimited() ? null : myTimeMs });
+    pendingMove = null;
+    consecutivePasses = 0;
+    renderBoard();
+    renderCaptureDisplays();
+    nextTurn();
+    return;
+  }
+
+  // ===== 五目並べモード =====
+  const preset = getCurrentPreset();
   // 着手前の禁手判定（board[y][x] はまだ null）
   // 正規: 禁手なら打って即敗北。カジュアル: 念のため確定時にもガード（仮置き済みでも蹴る）。
   const forbidden = (typeof GomokuRules !== 'undefined') ? isForbiddenAt(x, y, myColor) : false;
@@ -2052,6 +2150,81 @@ function applyMove(x, y, color) {
   moveNumberMap[y][x] = moveCount;
   lastMove = { x, y };
   moveHistory.push({type: 'move', x, y, color});
+}
+
+// ===== 囲碁の着手処理 =====
+// 共通エントリ: GoRules.placeMove で結果を取得し、UI/state を更新する。
+// 戻り値: { valid:true, captured:[{x,y,color}] } または { valid:false, illegalReason }
+function applyGoMove(x, y, color) {
+  if (typeof GoRules === 'undefined') return { valid: false, illegalReason: 'occupied' };
+  const prev = goPrevBoardByColor[color];
+  const r = GoRules.placeMove(board, x, y, color, prev, BOARD_SIZE);
+  if (!r.valid) return r;
+  // 捕獲フラッシュ用: 一瞬古い盤面に「取られる石」を残してアニメ（CSS と同じ1秒）
+  if (r.captured.length > 0) {
+    captureFlashStones = r.captured.slice();
+    if (captureFlashTimer) clearTimeout(captureFlashTimer);
+    captureFlashTimer = setTimeout(() => {
+      captureFlashStones = [];
+      captureFlashTimer = null;
+      renderBoard();
+    }, 1000);
+  }
+  // board / moveNumberMap 更新（newBoard を反映）
+  for (let yy = 0; yy < BOARD_SIZE; yy++) {
+    for (let xx = 0; xx < BOARD_SIZE; xx++) {
+      const before = board[yy][xx];
+      const after = r.newBoard[yy][xx];
+      if (before && !after) {
+        moveNumberMap[yy][xx] = 0;
+      }
+      board[yy][xx] = after;
+    }
+  }
+  moveCount++;
+  moveNumberMap[y][x] = moveCount;
+  lastMove = { x, y };
+  moveHistory.push({type: 'move', x, y, color});
+  // 取石数: 着手した側がオフになる相手色の石を「取った」
+  captureCount[color] += r.captured.length;
+  // コウ参照盤面更新（自分の手後の盤面）
+  goPrevBoardByColor[color] = GoRules.cloneBoard(board);
+  return r;
+}
+
+// コウ違反/自殺手のヒントを turn-indicator に短時間表示
+function showGoViolationHint(reason) {
+  const ind = document.getElementById('turn-indicator');
+  if (!ind) return;
+  if (goHintTimer) clearTimeout(goHintTimer);
+  const key = (reason === 'ko') ? 'goHintKo'
+            : (reason === 'suicide') ? 'goHintSuicide'
+            : 'goHintInvalid';
+  turnIndicatorKey = key;
+  ind.classList.add('violation-hint');
+  ind.textContent = t(key);
+  goHintTimer = setTimeout(() => {
+    goHintTimer = null;
+    ind.classList.remove('violation-hint');
+    updateTurnUI();
+  }, 1500);
+}
+
+// 取石数表示の更新
+function renderCaptureDisplays() {
+  const myEl = document.getElementById('my-capture-display');
+  const oppEl = document.getElementById('opp-capture-display');
+  if (!myEl || !oppEl) return;
+  if (gameActive && isGoRoom() && myColor) {
+    const oc = (myColor === 'black') ? 'white' : 'black';
+    myEl.style.display = '';
+    oppEl.style.display = '';
+    myEl.textContent = t('captureLabel') + captureCount[myColor];
+    oppEl.textContent = t('captureLabel') + captureCount[oc];
+  } else {
+    myEl.style.display = 'none';
+    oppEl.style.display = 'none';
+  }
 }
 
 // ===== 持ち時間 =====
@@ -2274,28 +2447,56 @@ function rejectUndo() {
 function applyUndoFinal(N) {
   if (N <= 0) return;
   if (N > moveHistory.length) N = moveHistory.length;
-  const removed = moveHistory.splice(moveHistory.length - N, N);
-  for (const e of removed) {
-    if (e.type === 'move') {
-      board[e.y][e.x] = null;
-      moveNumberMap[e.y][e.x] = 0;
-      moveCount--;
+  const remaining = moveHistory.slice(0, moveHistory.length - N);
+
+  if (isGoRoom()) {
+    // 囲碁: 取石を伴うため moveHistory を最初からリプレイして盤面を再構築
+    board = (typeof GoRules !== 'undefined') ? GoRules.createEmptyBoard(BOARD_SIZE)
+                                              : Array.from({length: BOARD_SIZE}, () => Array(BOARD_SIZE).fill(null));
+    moveNumberMap = Array.from({length: BOARD_SIZE}, () => Array(BOARD_SIZE).fill(0));
+    moveCount = 0;
+    captureCount = { black: 0, white: 0 };
+    goPrevBoardByColor = { black: null, white: null };
+    moveHistory = [];
+    lastMove = null;
+    consecutivePasses = 0;
+    for (const e of remaining) {
+      if (e.type === 'move') {
+        applyGoMove(e.x, e.y, e.color);
+        consecutivePasses = 0;
+      } else if (e.type === 'pass') {
+        moveHistory.push({type: 'pass', color: e.color});
+        consecutivePasses++;
+      }
+    }
+    // リプレイ中の捕獲フラッシュ残骸をクリア（巻き戻し時はアニメ抑制）
+    captureFlashStones = [];
+    if (captureFlashTimer) { clearTimeout(captureFlashTimer); captureFlashTimer = null; }
+  } else {
+    // 五目並べ: 末尾N手を物理的に削除（取石なしのため単純に巻き戻し可能）
+    const removed = moveHistory.splice(moveHistory.length - N, N);
+    for (const e of removed) {
+      if (e.type === 'move') {
+        board[e.y][e.x] = null;
+        moveNumberMap[e.y][e.x] = 0;
+        moveCount--;
+      }
+    }
+    // lastMove 再計算
+    lastMove = null;
+    for (let i = moveHistory.length - 1; i >= 0; i--) {
+      if (moveHistory[i].type === 'move') {
+        lastMove = {x: moveHistory[i].x, y: moveHistory[i].y};
+        break;
+      }
+    }
+    // consecutivePasses 再計算
+    consecutivePasses = 0;
+    for (let i = moveHistory.length - 1; i >= 0 && moveHistory[i].type === 'pass'; i--) {
+      consecutivePasses++;
     }
   }
-  // lastMove 再計算（残った末尾の 'move' を探す）
-  lastMove = null;
-  for (let i = moveHistory.length - 1; i >= 0; i--) {
-    if (moveHistory[i].type === 'move') {
-      lastMove = {x: moveHistory[i].x, y: moveHistory[i].y};
-      break;
-    }
-  }
-  // consecutivePasses 再計算（末尾から連続する 'pass' の数）
-  consecutivePasses = 0;
-  for (let i = moveHistory.length - 1; i >= 0 && moveHistory[i].type === 'pass'; i--) {
-    consecutivePasses++;
-  }
-  // turn 再計算（末尾の色の反対、履歴空なら 'black'）
+  // turn 再計算（共通: 末尾の色の反対、履歴空なら 'black'）
   const last = moveHistory[moveHistory.length - 1];
   turn = last ? (last.color === 'black' ? 'white' : 'black') : 'black';
   winningLine = null;
@@ -2560,7 +2761,12 @@ function pass() {
   moveHistory.push({type: 'pass', color: myColor});
   consecutivePasses++;
   if (consecutivePasses >= 2) {
-    endGame(null); // 引き分け
+    // 囲碁: 終局フェーズ（地計算は次のアップデートで実装予定）
+    if (isGoRoom()) {
+      endGame(null, 'go-end-pending');
+    } else {
+      endGame(null); // 五目並べ: 引き分け
+    }
     return;
   }
   nextTurn();
@@ -2606,7 +2812,11 @@ function endGame(winnerColor, reason) {
 
   let resultKey, outcome, resultClass;
   if (winnerColor === null) {
-    resultKey = 'drawMsg'; outcome = 'draw'; resultClass = 'result-draw';
+    if (reason === 'go-end-pending') {
+      resultKey = 'goScoringPending'; outcome = 'draw'; resultClass = 'result-draw';
+    } else {
+      resultKey = 'drawMsg'; outcome = 'draw'; resultClass = 'result-draw';
+    }
   } else if (winnerColor === myColor) {
     resultKey = (reason === 'forbidden') ? 'forbiddenWin'
               : (reason === 'timeout')   ? 'timeoutWin'
@@ -2775,6 +2985,23 @@ function handleMsg(m) {
     if (board[m.y][m.x]) return; // 既に石がある場合は無視
     if (typeof m.remainingMs === 'number') syncTimeFromMessage(m.remainingMs);
     const oppColor = turn;
+
+    // ===== 囲碁モード =====
+    if (isGoRoom()) {
+      const r = applyGoMove(m.x, m.y, oppColor);
+      if (!r.valid) {
+        // 受信したが違反? 通常起こらない（送信側でブロック済）。同期ズレなのでログレベル
+        console.warn('Received invalid go move:', r.illegalReason);
+        return;
+      }
+      consecutivePasses = 0;
+      renderBoard();
+      renderCaptureDisplays();
+      nextTurn();
+      return;
+    }
+
+    // ===== 五目並べモード =====
     const preset = getCurrentPreset();
 
     // 相手の着手前盤面で禁手判定（正規のみ事後判定で勝敗反映）
@@ -2866,7 +3093,11 @@ function handleMsg(m) {
     moveHistory.push({type: 'pass', color: turn});
     consecutivePasses++;
     if (consecutivePasses >= 2) {
-      endGame(null);
+      if (isGoRoom()) {
+        endGame(null, 'go-end-pending');
+      } else {
+        endGame(null);
+      }
       return;
     }
     nextTurn();
@@ -3057,6 +3288,12 @@ const I18N = {
     goRuleVal_ko: '直前の盤面のみ禁止',
     goRuleVal_suicideForbid: '禁止',
     goRuleVal_passEnd: '終局フェーズへ',
+    // 囲碁の対局
+    captureLabel: '取石: ',
+    goHintKo: 'コウ違反！同じ盤面には戻せません',
+    goHintSuicide: '自殺手は打てません',
+    goHintInvalid: 'その手は打てません',
+    goScoringPending: '終局（地計算は次のアップデートで実装予定）',
   },
   en: {
     connecting: 'Connecting...', connected: 'Connected', reconnecting: 'Connecting...',
@@ -3165,6 +3402,12 @@ const I18N = {
     goRuleVal_ko: 'Previous board only',
     goRuleVal_suicideForbid: 'Forbidden',
     goRuleVal_passEnd: 'Move to scoring',
+    // Go gameplay
+    captureLabel: 'Captures: ',
+    goHintKo: 'Ko violation — cannot recreate previous board',
+    goHintSuicide: 'Suicide move not allowed',
+    goHintInvalid: 'Move not allowed',
+    goScoringPending: 'Game ended (scoring arrives in next update)',
   },
   zh: {
     connecting: '连接中...', connected: '已连接', reconnecting: '连接中...',
@@ -3273,6 +3516,12 @@ const I18N = {
     goRuleVal_ko: '仅前一盘面禁止',
     goRuleVal_suicideForbid: '禁止',
     goRuleVal_passEnd: '进入终局阶段',
+    // 围棋对局
+    captureLabel: '提子: ',
+    goHintKo: '劫违规！不能恢复至前一盘面',
+    goHintSuicide: '禁止自杀手',
+    goHintInvalid: '此手不可下',
+    goScoringPending: '终局（数子将在下次更新中实现）',
   }
 };
 
@@ -3403,12 +3652,8 @@ function applyLang() {
   // start-hint: 色選択状態に応じて
   const startHintEl = document.getElementById('start-hint');
   if (startHintEl) {
-    if (currentGameType === 'go') {
-      startHintEl.textContent = t('goComingSoon');
-    } else {
-      const ready = myChoice && oppChoice && myChoice !== oppChoice;
-      startHintEl.textContent = ready ? t('startReady') : t('startHint');
-    }
+    const ready = myChoice && oppChoice && myChoice !== oppChoice;
+    startHintEl.textContent = ready ? t('startReady') : t('startHint');
   }
   // start-waiting-msg: スタート押下状態に応じて
   const sw = document.getElementById('start-waiting-msg');
@@ -3481,6 +3726,8 @@ function applyLang() {
     if (mcl) mcl.innerHTML = `${t('youAre')} ${PIECE.svg(myColor, '20px')}${myColor === 'black' ? t('black') : t('white')}`;
     if (typeof updateOppColorLabel === 'function') updateOppColorLabel();
   }
+  // 囲碁の取石数表示も言語切替で更新（"取石: " ラベル）
+  if (typeof renderCaptureDisplays === 'function') renderCaptureDisplays();
 }
 
 function onLangChange(lang) {

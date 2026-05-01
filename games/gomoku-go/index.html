@@ -294,6 +294,27 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
   outline: 1px solid var(--orange);
   background: rgba(194,65,12,0.15);
 }
+/* 秒読み表示（時計の隣にコンパクトに） */
+.byoyomi-display {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: 6px;
+  padding: 2px 6px;
+  background: rgba(0,0,0,0.25);
+  border-radius: 5px;
+  white-space: nowrap;
+}
+.byoyomi-display.active {
+  color: var(--orange);
+  font-weight: 700;
+  background: rgba(194,65,12,0.22);
+  outline: 1px solid var(--orange);
+}
+.byoyomi-display.warning { color: var(--danger, #ef4444); }
+/* 部屋作成パネルの秒読み3択 */
+.byoyomi-options { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.byoyomi-options label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.byoyomi-options input[type=radio] { margin: 0; }
 /* 部屋一覧の持ち時間バッジ */
 .badge-time {
   background: #334155;
@@ -899,6 +920,14 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
         <label id="i18n-label-time-limit" data-i18n="labelTimeLimit">持ち時間（分）</label>
         <input class="input" id="room-time-limit" type="number" min="0" max="999" inputmode="numeric" placeholder="0または空欄=無制限" autocomplete="off">
       </div>
+      <div class="field" id="room-byoyomi-field" style="display:none;">
+        <label id="i18n-label-byoyomi" data-i18n="labelByoyomi">秒読み</label>
+        <div class="byoyomi-options">
+          <label><input type="radio" name="byoyomi" value="0" checked> <span id="i18n-byoyomi-none">なし</span></label>
+          <label><input type="radio" name="byoyomi" value="30"> <span id="i18n-byoyomi-30">30秒×3回</span></label>
+          <label><input type="radio" name="byoyomi" value="60"> <span id="i18n-byoyomi-60">60秒×3回</span></label>
+        </div>
+      </div>
       <button class="btn btn-primary" onclick="createRoom()" id="i18n-btn-create">部屋を作成</button>
       <div id="create-error" style="font-size:12px;color:var(--danger);min-height:16px;text-align:center;"></div>
     </div>
@@ -1003,6 +1032,7 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
         <span id="my-color-label">あなたは ？</span>
         <span class="capture-display" id="my-capture-display" style="display:none;"></span>
         <span class="time-display" id="my-time-display" style="display:none;"></span>
+        <span class="byoyomi-display" id="my-byoyomi-display" style="display:none;"></span>
       </div>
       <div class="score-display" id="my-score-display" style="display:none;"></div>
     </div>
@@ -1019,6 +1049,7 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
         <span id="opp-color-label"></span>
         <span class="capture-display" id="opp-capture-display" style="display:none;"></span>
         <span class="time-display" id="opp-time-display"></span>
+        <span class="byoyomi-display" id="opp-byoyomi-display" style="display:none;"></span>
       </div>
       <div class="score-display" id="opp-score-display" style="display:none;"></div>
     </div>
@@ -1313,6 +1344,21 @@ let timeoutFired = false; // 二重発火防止
 // 部屋作成時のデフォルト値（プリセット連動）
 const PRESET_DEFAULT_TIME = { normal: 30, casual: '', free: '' };
 
+// ===== 秒読み STATE （囲碁のみ） =====
+// byoyomiSec/Count はルール由来（不変）。0 なら秒読み無効。
+let byoyomiSec = 0;
+let byoyomiCount = 0;
+let myByoyomiActive = false;
+let oppByoyomiActive = false;
+let myByoyomiRemain = 0;        // 残秒読み回数
+let oppByoyomiRemain = 0;
+let myByoyomiSecLeftMs = 0;     // 現在の秒読み回の残ミリ秒
+let oppByoyomiSecLeftMs = 0;
+
+function isByoyomiEnabled() {
+  return byoyomiSec > 0 && byoyomiCount > 0;
+}
+
 // ===== 待った（UNDO）STATE =====
 // moveHistory: 各エントリ {type:'move', x, y, color} または {type:'pass', color}
 // 巻き戻し用に着手・パスの履歴を保持。手番制なので末尾は常に直前の着手者。
@@ -1461,7 +1507,13 @@ function ruleBadgeHtml(rules) {
   }
   if (rules) {
     const tMin = Number.isFinite(rules.timeLimitMin) ? rules.timeLimitMin : 0;
-    const tLbl = tMin > 0 ? ('⏱' + tMin + t('timeMinUnit')) : ('⏱' + t('timeUnlimited'));
+    let tLbl = tMin > 0 ? ('⏱' + tMin + t('timeMinUnit')) : ('⏱' + t('timeUnlimited'));
+    // 秒読み情報を追加（囲碁ルームのみ）
+    const bSec = Number.isFinite(rules.byoyomiSec) ? rules.byoyomiSec : 0;
+    const bCnt = Number.isFinite(rules.byoyomiCount) ? rules.byoyomiCount : 0;
+    if (bSec > 0 && bCnt > 0) {
+      tLbl += ' +' + bSec + t('byoyomiSecUnit') + '×' + bCnt;
+    }
     html += `<span class="badge badge-time">${escHtml(tLbl)}</span>`;
   }
   return html;
@@ -1494,6 +1546,9 @@ function selectGameType(gt) {
   // ルールプリセット欄: 五目並べのみ表示
   const rf = document.getElementById('rule-preset-field');
   if (rf) rf.style.display = (gt === 'gomoku') ? '' : 'none';
+  // 秒読み欄: 囲碁のみ表示
+  const bf = document.getElementById('room-byoyomi-field');
+  if (bf) bf.style.display = (gt === 'go') ? '' : 'none';
   // 持ち時間欄のデフォルト: 囲碁=空欄、五目=現在のプリセット連動
   const tInput = document.getElementById('room-time-limit');
   if (tInput) {
@@ -1565,6 +1620,15 @@ function renderRoomRule() {
   const tMin = Number.isFinite(currentRules.timeLimitMin) ? currentRules.timeLimitMin : 0;
   const tStr = tMin > 0 ? (String(tMin) + t('timeMinUnit')) : t('timeUnlimited');
   rows += `<div class="rd-label">${escHtml(t('ruleLabel_timeLimit'))}</div><div class="rd-value">${escHtml(tStr)}</div>`;
+  // 秒読み行（囲碁ルームのみ）
+  if (isGoRoom) {
+    const bSec = Number.isFinite(currentRules.byoyomiSec) ? currentRules.byoyomiSec : 0;
+    const bCnt = Number.isFinite(currentRules.byoyomiCount) ? currentRules.byoyomiCount : 0;
+    const bStr = (bSec > 0 && bCnt > 0)
+      ? (bSec + t('byoyomiSecUnit') + '×' + bCnt + t('byoyomiCountUnit'))
+      : t('byoyomiNone');
+    rows += `<div class="rd-label">${escHtml(t('ruleLabel_byoyomi'))}</div><div class="rd-value">${escHtml(bStr)}</div>`;
+  }
   detailEl.innerHTML = rows;
 }
 
@@ -1594,10 +1658,17 @@ function createRoom() {
   const tInput = document.getElementById('room-time-limit');
   const rawT = tInput ? tInput.value.trim() : '';
   const tMin = rawT === '' ? 0 : Math.max(0, Math.min(999, parseInt(rawT, 10) || 0));
-  // 囲碁は preset を持たない（コミ・コウ・自殺手は固定）
-  const rules = (currentGameType === 'go')
-    ? { timeLimitMin: tMin }
-    : { preset: selectedPreset, timeLimitMin: tMin };
+  // 囲碁は preset を持たない（コミ・コウ・自殺手は固定）+ 秒読みオプション
+  let rules;
+  if (currentGameType === 'go') {
+    let bSec = 0;
+    const radio = document.querySelector('input[name="byoyomi"]:checked');
+    if (radio) bSec = parseInt(radio.value, 10) || 0;
+    const bCount = bSec > 0 ? 3 : 0;
+    rules = { timeLimitMin: tMin, byoyomiSec: bSec, byoyomiCount: bCount };
+  } else {
+    rules = { preset: selectedPreset, timeLimitMin: tMin };
+  }
 
   MomoMatchmaking.createRoom({ hostName: myName, name: roomName, password, isPublic, rules });
 }
@@ -1796,10 +1867,23 @@ function resetToLobby() {
   myTimeMs = 0;
   oppTimeMs = 0;
   timeoutFired = false;
+  // 秒読み state クリア
+  byoyomiSec = 0;
+  byoyomiCount = 0;
+  myByoyomiActive = false;
+  oppByoyomiActive = false;
+  myByoyomiRemain = 0;
+  oppByoyomiRemain = 0;
+  myByoyomiSecLeftMs = 0;
+  oppByoyomiSecLeftMs = 0;
   const oppBd = document.getElementById('opp-color-badge');
   if (oppBd) oppBd.style.display = 'none';
   const mtd = document.getElementById('my-time-display');
   if (mtd) mtd.style.display = 'none';
+  const myBy = document.getElementById('my-byoyomi-display');
+  const oppBy = document.getElementById('opp-byoyomi-display');
+  if (myBy) myBy.style.display = 'none';
+  if (oppBy) oppBy.style.display = 'none';
   // 囲碁の状態クリア
   goPrevBoardByColor = { black: null, white: null };
   captureCount = { black: 0, white: 0 };
@@ -1933,12 +2017,26 @@ function beginGame(swapColors) {
   if (typeof undoRejectTimer !== 'undefined' && undoRejectTimer) {
     clearTimeout(undoRejectTimer); undoRejectTimer = null;
   }
-  // 持ち時間の初期化（currentRules.timeLimitMin に基づく）
+  // 持ち時間 + 秒読みの初期化（currentRules.timeLimitMin / byoyomiSec / byoyomiCount）
   const tMin = (currentRules && Number.isFinite(currentRules.timeLimitMin)) ? currentRules.timeLimitMin : 0;
   timeLimitMs = tMin > 0 ? tMin * 60 * 1000 : 0;
   myTimeMs = timeLimitMs;
   oppTimeMs = timeLimitMs;
   timeoutFired = false;
+  // 秒読み state（囲碁ルームのみ意味あり）
+  byoyomiSec = (currentRules && Number.isFinite(currentRules.byoyomiSec)) ? currentRules.byoyomiSec : 0;
+  byoyomiCount = (currentRules && Number.isFinite(currentRules.byoyomiCount)) ? currentRules.byoyomiCount : 0;
+  myByoyomiActive = false;
+  oppByoyomiActive = false;
+  myByoyomiRemain = byoyomiCount;
+  oppByoyomiRemain = byoyomiCount;
+  myByoyomiSecLeftMs = byoyomiSec * 1000;
+  oppByoyomiSecLeftMs = byoyomiSec * 1000;
+  // 持ち時間=0 + 秒読み有効 → 開局直後から秒読みフェーズに突入（Q5=b）
+  if (timeLimitMs === 0 && isByoyomiEnabled()) {
+    myByoyomiActive = true;
+    oppByoyomiActive = true;
+  }
   stopTimer();
   renderTimeDisplays();
   if (!isTimeUnlimited()) startTimer();
@@ -2272,8 +2370,11 @@ function confirmMove() {
       showGoViolationHint(r.illegalReason);
       return;
     }
-    // 着手成功 → 相手に送信（受信側でも同じ placeMove を実行して同期）
-    send({ type: 'move', x, y, remainingMs: isTimeUnlimited() ? null : myTimeMs });
+    // 秒読み中の着手 → 残ms をリセット（残回数は維持）
+    if (myByoyomiActive && myByoyomiRemain > 0) {
+      myByoyomiSecLeftMs = byoyomiSec * 1000;
+    }
+    send(buildMoveMsg('move', x, y));
     pendingMove = null;
     consecutivePasses = 0;
     renderBoard();
@@ -2295,7 +2396,8 @@ function confirmMove() {
   }
 
   applyMove(x, y, myColor);
-  send({ type: 'move', x, y, remainingMs: isTimeUnlimited() ? null : myTimeMs });
+  // 五目並べでは秒読みなしだが、共通ヘルパーで送信
+  send(buildMoveMsg('move', x, y));
   pendingMove = null;
   consecutivePasses = 0;
 
@@ -2769,7 +2871,8 @@ function renderCaptureDisplays() {
 }
 
 // ===== 持ち時間 =====
-function isTimeUnlimited() { return timeLimitMs <= 0; }
+// 持ち時間も秒読みも無いときのみ「真の無制限」
+function isTimeUnlimited() { return timeLimitMs <= 0 && byoyomiSec <= 0; }
 
 function formatTimeMs(ms) {
   if (ms < 0) ms = 0;
@@ -2808,7 +2911,6 @@ function stopTimer() {
 
 function timerTick() {
   if (!shouldTimerTick()) {
-    // タイマーは生かしておくが減算しない（フェーズ復帰で自動再開できるよう）
     lastTickAt = (typeof performance !== 'undefined' ? performance.now() : Date.now());
     renderTimeDisplays();
     return;
@@ -2817,21 +2919,69 @@ function timerTick() {
   const dt = now - lastTickAt;
   lastTickAt = now;
   if (turn === myColor) {
-    myTimeMs -= dt;
-    if (myTimeMs <= 0 && !timeoutFired) {
-      myTimeMs = 0;
-      timeoutFired = true;
-      send({ type: 'time_out' });
-      // 自分の時間切れ → 自分の負け
-      const winnerColor = (myColor === 'black') ? 'white' : 'black';
-      endGame(winnerColor, 'timeout');
-      renderTimeDisplays();
-      return;
+    if (myByoyomiActive) {
+      myByoyomiSecLeftMs -= dt;
+      if (myByoyomiSecLeftMs <= 0) {
+        myByoyomiRemain--;
+        if (myByoyomiRemain > 0) {
+          // 残回数あり: 次の秒読み開始
+          myByoyomiSecLeftMs = byoyomiSec * 1000;
+        } else {
+          // タイムアウト
+          myByoyomiSecLeftMs = 0;
+          if (!timeoutFired) {
+            timeoutFired = true;
+            send({ type: 'time_out' });
+            const winnerColor = (myColor === 'black') ? 'white' : 'black';
+            endGame(winnerColor, 'timeout');
+            renderTimeDisplays();
+            return;
+          }
+        }
+      }
+    } else {
+      myTimeMs -= dt;
+      if (myTimeMs <= 0) {
+        myTimeMs = 0;
+        if (isByoyomiEnabled()) {
+          // 持ち時間切れ → 秒読みフェーズに突入
+          myByoyomiActive = true;
+          if (myByoyomiRemain <= 0) myByoyomiRemain = byoyomiCount;
+          myByoyomiSecLeftMs = byoyomiSec * 1000;
+        } else if (!timeoutFired) {
+          timeoutFired = true;
+          send({ type: 'time_out' });
+          const winnerColor = (myColor === 'black') ? 'white' : 'black';
+          endGame(winnerColor, 'timeout');
+          renderTimeDisplays();
+          return;
+        }
+      }
     }
   } else {
-    // 相手の手番中も相手側の表示を進める（ただし真の値は相手から着手時に上書きされる）
-    oppTimeMs -= dt;
-    if (oppTimeMs < 0) oppTimeMs = 0;
+    // 相手手番（着手時に上書きされるが、ローカル予測としても進める）
+    if (oppByoyomiActive) {
+      oppByoyomiSecLeftMs -= dt;
+      if (oppByoyomiSecLeftMs <= 0) {
+        oppByoyomiRemain--;
+        if (oppByoyomiRemain > 0) {
+          oppByoyomiSecLeftMs = byoyomiSec * 1000;
+        } else {
+          oppByoyomiSecLeftMs = 0;
+          // タイムアウト判定は相手側からの time_out 受信を待つ
+        }
+      }
+    } else {
+      oppTimeMs -= dt;
+      if (oppTimeMs <= 0) {
+        oppTimeMs = 0;
+        if (isByoyomiEnabled()) {
+          oppByoyomiActive = true;
+          if (oppByoyomiRemain <= 0) oppByoyomiRemain = byoyomiCount;
+          oppByoyomiSecLeftMs = byoyomiSec * 1000;
+        }
+      }
+    }
   }
   renderTimeDisplays();
 }
@@ -2855,7 +3005,7 @@ function renderTimeDisplays() {
   if (!myEl || !oppEl || !oppBadge) return;
 
   if (isTimeUnlimited()) {
-    // 無制限: ∞ 表示
+    // 持ち時間も秒読みも無いとき: ∞
     myEl.style.display = '';
     oppEl.style.display = '';
     myEl.textContent = '∞';
@@ -2865,15 +3015,24 @@ function renderTimeDisplays() {
   } else {
     myEl.style.display = '';
     oppEl.style.display = '';
-    myEl.textContent = formatTimeMs(myTimeMs);
-    oppEl.textContent = formatTimeMs(oppTimeMs);
-    const myWarn  = myTimeMs  <= 3 * 60 * 1000;
-    const oppWarn = oppTimeMs <= 3 * 60 * 1000;
+    // 秒読み中なら秒読みカウントダウンを時計位置に表示
+    const myText  = myByoyomiActive  ? String(Math.ceil(myByoyomiSecLeftMs / 1000))  : formatTimeMs(myTimeMs);
+    const oppText = oppByoyomiActive ? String(Math.ceil(oppByoyomiSecLeftMs / 1000)) : formatTimeMs(oppTimeMs);
+    myEl.textContent = myText;
+    oppEl.textContent = oppText;
+    const myWarn = myByoyomiActive
+      ? (myByoyomiSecLeftMs <= 10 * 1000)
+      : (myTimeMs <= 3 * 60 * 1000);
+    const oppWarn = oppByoyomiActive
+      ? (oppByoyomiSecLeftMs <= 10 * 1000)
+      : (oppTimeMs <= 3 * 60 * 1000);
     const myActive  = (turn === myColor) && shouldTimerTick();
     const oppActive = (turn !== myColor) && shouldTimerTick();
     myEl.className  = 'time-display' + (myWarn ? ' warning' : '') + (myActive ? ' active' : '');
     oppEl.className = 'time-display' + (oppWarn ? ' warning' : '') + (oppActive ? ' active' : '');
   }
+  // 秒読みインジケータ
+  renderByoyomiInfo();
 
   // opp-color-badge の表示/非表示のみ切り替え（ラベル文言は触らない）
   // 三手交換 swap_select/swap_wait 中は opp-badge を隠してスワップパネルが上書き表示
@@ -2889,6 +3048,68 @@ function syncTimeFromMessage(remainingMs) {
   if (typeof remainingMs !== 'number' || !isFinite(remainingMs)) return;
   // 着手メッセージは相手が送ってきたもの → 相手の残時間
   oppTimeMs = Math.max(0, remainingMs);
+}
+
+// move/pass メッセージ構築ヘルパー（持ち時間+秒読み状態を含める）
+function buildMoveMsg(type, x, y) {
+  const m = { type };
+  if (typeof x === 'number') m.x = x;
+  if (typeof y === 'number') m.y = y;
+  if (!isTimeUnlimited()) m.remainingMs = myTimeMs;
+  if (isByoyomiEnabled()) {
+    m.byoyomiActive = myByoyomiActive;
+    m.byoyomiRemain = myByoyomiRemain;
+    m.byoyomiSecLeftMs = myByoyomiSecLeftMs;
+  }
+  return m;
+}
+
+// 秒読み残情報の同期（着手メッセージから受信）
+function syncByoyomiFromMessage(m) {
+  if (typeof m.byoyomiActive === 'boolean') {
+    oppByoyomiActive = m.byoyomiActive;
+  }
+  if (typeof m.byoyomiRemain === 'number') {
+    oppByoyomiRemain = Math.max(0, m.byoyomiRemain);
+  }
+  if (typeof m.byoyomiSecLeftMs === 'number') {
+    oppByoyomiSecLeftMs = Math.max(0, m.byoyomiSecLeftMs);
+  }
+}
+
+// 秒読み表示の更新（badge内、時計の隣に "30秒×3" or "30×3" 等）
+function renderByoyomiInfo() {
+  const myEl = document.getElementById('my-byoyomi-display');
+  const oppEl = document.getElementById('opp-byoyomi-display');
+  if (!myEl || !oppEl) return;
+  if (!isByoyomiEnabled() || !myColor) {
+    myEl.style.display = 'none';
+    oppEl.style.display = 'none';
+    return;
+  }
+  myEl.style.display = '';
+  oppEl.style.display = '';
+  // 表示: 秒読み中はカウントダウン中の数字を時計が表示しているので、ここでは "×回数" だけ。
+  // 未突入時は "B秒×N回" の予備情報。
+  const myActiveTurn = (turn === myColor) && shouldTimerTick();
+  const oppActiveTurn = (turn !== myColor) && shouldTimerTick();
+  if (myByoyomiActive) {
+    myEl.textContent = '×' + myByoyomiRemain;
+    myEl.classList.add('active');
+  } else {
+    myEl.textContent = byoyomiSec + t('byoyomiSecUnit') + '×' + myByoyomiRemain;
+    myEl.classList.remove('active');
+  }
+  if (oppByoyomiActive) {
+    oppEl.textContent = '×' + oppByoyomiRemain;
+    oppEl.classList.add('active');
+  } else {
+    oppEl.textContent = byoyomiSec + t('byoyomiSecUnit') + '×' + oppByoyomiRemain;
+    oppEl.classList.remove('active');
+  }
+  // warning: 秒読み中で残10秒以下
+  myEl.classList.toggle('warning', myByoyomiActive && myByoyomiSecLeftMs <= 10 * 1000 && myActiveTurn);
+  oppEl.classList.toggle('warning', oppByoyomiActive && oppByoyomiSecLeftMs <= 10 * 1000 && oppActiveTurn);
 }
 
 // ===== 待った（UNDO）=====
@@ -3303,7 +3524,11 @@ function pass() {
   if (undoPhase !== 'idle') return; // 待った進行中はパス不可
   if (isScoringActive()) return; // 終局フェーズ中はパス不可
   pendingMove = null;
-  send({ type: 'pass', remainingMs: isTimeUnlimited() ? null : myTimeMs });
+  // 秒読み中なら残ms リセット
+  if (myByoyomiActive && myByoyomiRemain > 0) {
+    myByoyomiSecLeftMs = byoyomiSec * 1000;
+  }
+  send(buildMoveMsg('pass'));
   moveHistory.push({type: 'pass', color: myColor});
   consecutivePasses++;
   if (consecutivePasses >= 2) {
@@ -3609,6 +3834,7 @@ function handleMsg(m) {
   if (m.type === 'move') {
     if (board[m.y][m.x]) return; // 既に石がある場合は無視
     if (typeof m.remainingMs === 'number') syncTimeFromMessage(m.remainingMs);
+    syncByoyomiFromMessage(m);
     const oppColor = turn;
 
     // ===== 囲碁モード =====
@@ -3714,6 +3940,7 @@ function handleMsg(m) {
 
   if (m.type === 'pass') {
     if (typeof m.remainingMs === 'number') syncTimeFromMessage(m.remainingMs);
+    syncByoyomiFromMessage(m);
     // 受信時 turn は相手の色（自分が直前に打った後 nextTurn で flip 済み、または初手で turn='black' = 相手が黒）
     moveHistory.push({type: 'pass', color: turn});
     consecutivePasses++;
@@ -3931,6 +4158,14 @@ const I18N = {
     timeoutWin: '相手の時間切れ - 勝利！',
     timeoutLose: '時間切れで敗北',
     opponentLabel: '相手',
+    // 秒読み
+    labelByoyomi: '秒読み',
+    byoyomiNone: 'なし',
+    byoyomiSecUnit: '秒',
+    byoyomiCountUnit: '回',
+    byoyomi30: '30秒×3回',
+    byoyomi60: '60秒×3回',
+    ruleLabel_byoyomi: '秒読み',
     // ゲームタイプ選択タブ
     tabGomoku: '五目並べ',
     tabGo: '囲碁',
@@ -4061,6 +4296,14 @@ const I18N = {
     timeoutWin: 'Opponent timed out - You win!',
     timeoutLose: 'Lost on time',
     opponentLabel: 'Opponent',
+    // Byoyomi
+    labelByoyomi: 'Byoyomi',
+    byoyomiNone: 'None',
+    byoyomiSecUnit: 's',
+    byoyomiCountUnit: 'x',
+    byoyomi30: '30s × 3',
+    byoyomi60: '60s × 3',
+    ruleLabel_byoyomi: 'Byoyomi',
     // Game type tabs
     tabGomoku: 'Gomoku',
     tabGo: 'Go',
@@ -4191,6 +4434,14 @@ const I18N = {
     timeoutWin: '对手超时 - 你赢了！',
     timeoutLose: '超时败北',
     opponentLabel: '对手',
+    // 读秒
+    labelByoyomi: '读秒',
+    byoyomiNone: '无',
+    byoyomiSecUnit: '秒',
+    byoyomiCountUnit: '次',
+    byoyomi30: '30秒×3次',
+    byoyomi60: '60秒×3次',
+    ruleLabel_byoyomi: '读秒',
     // 游戏类型标签
     tabGomoku: '五子棋',
     tabGo: '围棋',
@@ -4280,6 +4531,10 @@ function applyLang() {
   setText('i18n-label-public', 'labelPublic');
   setText('i18n-label-rule', 'labelRule');
   setText('i18n-label-time-limit', 'labelTimeLimit');
+  setText('i18n-label-byoyomi', 'labelByoyomi');
+  setText('i18n-byoyomi-none', 'byoyomiNone');
+  setText('i18n-byoyomi-30', 'byoyomi30');
+  setText('i18n-byoyomi-60', 'byoyomi60');
   setText('i18n-tab-gomoku', 'tabGomoku');
   setText('i18n-tab-go', 'tabGo');
   // 持ち時間 placeholder と時計表示の言語反映

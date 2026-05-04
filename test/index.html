@@ -412,6 +412,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <div class="library-controls">
                 <div id="library-register-row" class="library-register">
                     <button id="registerLibraryBtn" class="momo-btn">音楽フォルダを登録</button>
+                    <input type="file" id="folderFallbackInput" webkitdirectory directory multiple style="display:none;">
                 </div>
                 <div id="library-loaded-row" class="library-loaded hidden">
                     <button id="openLibraryBtn" class="momo-btn">ライブラリを開く</button>
@@ -420,6 +421,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 </div>
             </div>
             <p id="open-hint" class="open-hint">※音楽ライブラリのルートフォルダを登録すると、フォルダツリーから音源(MP3/WAV/M4A/FLAC/OGG)を選んで開けます。同じフォルダにある同名の <code style="color:var(--green);">.lrc</code> 歌詞は自動で読み込まれます。</p>
+            <p id="open-hint-ios" class="open-hint hidden" style="color:var(--orange-light);">※iOS 版の Chrome / Safari は永続的なフォルダアクセスに対応していないため、毎回フォルダを選び直す必要があります。「ファイル」アプリ内の iCloud Drive やローカルフォルダから選択してください。</p>
             <div id="library-tree" class="library-tree hidden"></div>
 
             <div class="section-label" style="margin-top:18px;"><span>History</span></div>
@@ -1198,6 +1200,18 @@ async function selectEntry(entry){
 }
 
 // ============== LIBRARY (folder picker + tree) ==============
+// We support two modes:
+//  - 'fsa'  : File System Access API (Chrome/Edge desktop). Persistent via IndexedDB.
+//  - 'flat' : <input type="file" webkitdirectory> fallback (iOS/Safari/Firefox).
+//             Files are kept in memory; rebuilt as a virtual tree from relative paths.
+let libMode = 'fsa'; // decided at init
+const FSA_SUPPORTED = !!(window.showDirectoryPicker && window.FileSystemDirectoryHandle);
+
+// Virtual node for flat mode:
+//   { kind:'directory', name, path, children:Map<name,VirtualNode> }
+//   { kind:'file',      name, path, file:File }
+let flatRoot = null; // VirtualNode (kind:'directory') for flat-mode root
+
 async function ensurePermission(handle, mode){
     if(!handle.queryPermission) return true;
     let perm = await handle.queryPermission({ mode: mode || 'read' });
@@ -1205,11 +1219,9 @@ async function ensurePermission(handle, mode){
     perm = await handle.requestPermission({ mode: mode || 'read' });
     return perm === 'granted';
 }
-async function registerLibrary(){
-    if(!window.showDirectoryPicker){
-        alert('Chrome / Edge を使用してください。');
-        return;
-    }
+
+// ─── Mode: FSA ───────────────────────────────
+async function registerLibraryFsa(){
     let handle;
     try {
         handle = await window.showDirectoryPicker({ mode: 'read' });
@@ -1222,9 +1234,56 @@ async function registerLibrary(){
     updateLibraryControls();
     await renderRoot();
 }
+
+// ─── Mode: flat (webkitdirectory) ────────────
+function buildVirtualTree(fileList){
+    const root = { kind:'directory', name:'', path:'', children: new Map() };
+    for(const file of fileList){
+        // webkitRelativePath looks like "MyMusic/Album1/song.mp3"
+        const rel = file.webkitRelativePath || file.name;
+        const parts = rel.split('/');
+        let cur = root;
+        // record root name from first segment
+        if(!root.name && parts.length > 1) root.name = parts[0];
+        for(let i = 0; i < parts.length - 1; i++){
+            const p = parts[i];
+            if(i === 0){ continue; } // root segment already set as root.name
+            if(!cur.children.has(p)){
+                cur.children.set(p, { kind:'directory', name:p, path: parts.slice(0,i+1).join('/'), children: new Map() });
+            }
+            cur = cur.children.get(p);
+        }
+        const fname = parts[parts.length - 1];
+        cur.children.set(fname, { kind:'file', name:fname, path: rel, file: file });
+    }
+    return root;
+}
+function registerLibraryFlat(){
+    const input = $('folderFallbackInput');
+    if(!input) return;
+    input.value = ''; // allow re-selection of same folder
+    input.click();
+}
+function onFlatInputChange(e){
+    const files = e.target.files;
+    if(!files || !files.length) return;
+    flatRoot = buildVirtualTree(files);
+    state.rootHandle = { _flatMode: true, name: flatRoot.name || 'Library' };
+    updateLibraryControls();
+    renderRoot();
+}
+
+// ─── Common public API ───────────────────────
+async function registerLibrary(){
+    if(libMode === 'fsa') return registerLibraryFsa();
+    return registerLibraryFlat();
+}
 async function changeLibrary(){
     state.rootHandle = null;
-    try { await idbDelete(STORE_HANDLES, KEY_LIBRARY); } catch(e){}
+    flatRoot = null;
+    if(libMode === 'fsa'){
+        try { await idbDelete(STORE_HANDLES, KEY_LIBRARY); } catch(e){}
+    }
     libraryTree.innerHTML = '';
     libraryTree.classList.add('hidden');
     libraryName.textContent = '';
@@ -1232,10 +1291,15 @@ async function changeLibrary(){
     await registerLibrary();
 }
 async function openLibrary(){
-    if(!state.rootHandle){ return registerLibrary(); }
-    const ok = await ensurePermission(state.rootHandle, 'read');
-    if(!ok){ alert('ライブラリへのアクセスが拒否されました。'); return; }
-    await renderRoot();
+    if(libMode === 'fsa'){
+        if(!state.rootHandle){ return registerLibrary(); }
+        const ok = await ensurePermission(state.rootHandle, 'read');
+        if(!ok){ alert('ライブラリへのアクセスが拒否されました。'); return; }
+        await renderRoot();
+    } else {
+        // flat mode: reopen picker (selection isn't persistable on iOS)
+        return registerLibrary();
+    }
 }
 function updateLibraryControls(){
     const reg = $('library-register-row');
@@ -1244,27 +1308,51 @@ function updateLibraryControls(){
         reg.classList.add('hidden');
         loaded.classList.remove('hidden');
         libraryName.textContent = state.rootHandle.name || '';
+        // In flat mode, "Open Library" reopens picker — change label hint
+        const openBtn = $('openLibraryBtn');
+        if(openBtn) openBtn.textContent = (libMode === 'fsa') ? 'ライブラリを開く' : 'フォルダを選び直す';
     } else {
         reg.classList.remove('hidden');
         loaded.classList.add('hidden');
     }
 }
 
-async function scanDirShallow(dirHandle){
+// ─── Scanning (mode-aware) ───────────────────
+async function scanDirShallow(dirRef){
+    // dirRef is either a FileSystemDirectoryHandle (FSA) or a VirtualNode (flat)
     const folders = [], audioFiles = [];
     const lrcBaseSet = new Set();
-    for await (const entry of dirHandle.values()){
-        if(entry.kind === 'directory'){
-            folders.push({ handle: entry, name: entry.name });
-        } else {
-            const lower = entry.name.toLowerCase();
-            if(lower.endsWith('.lrc')){
-                lrcBaseSet.add(stripExt(entry.name).toLowerCase());
-            } else if(isAudioName(entry.name)){
-                audioFiles.push({ handle: entry, name: entry.name, base: stripExt(entry.name).toLowerCase() });
+
+    if(dirRef && dirRef.kind === 'directory' && dirRef.children instanceof Map){
+        // flat mode
+        for(const [name, node] of dirRef.children){
+            if(node.kind === 'directory'){
+                folders.push({ ref: node, name: name });
+            } else {
+                const lower = name.toLowerCase();
+                if(lower.endsWith('.lrc')){
+                    lrcBaseSet.add(stripExt(name).toLowerCase());
+                } else if(isAudioName(name)){
+                    audioFiles.push({ ref: node, name: name, base: stripExt(name).toLowerCase() });
+                }
+            }
+        }
+    } else {
+        // FSA mode (handle has values() async iterator)
+        for await (const entry of dirRef.values()){
+            if(entry.kind === 'directory'){
+                folders.push({ ref: entry, name: entry.name });
+            } else {
+                const lower = entry.name.toLowerCase();
+                if(lower.endsWith('.lrc')){
+                    lrcBaseSet.add(stripExt(entry.name).toLowerCase());
+                } else if(isAudioName(entry.name)){
+                    audioFiles.push({ ref: entry, name: entry.name, base: stripExt(entry.name).toLowerCase() });
+                }
             }
         }
     }
+
     folders.sort((a,b) => a.name.localeCompare(b.name));
     audioFiles.sort((a,b) => a.name.localeCompare(b.name));
     return { folders, audioFiles, lrcBaseSet };
@@ -1272,27 +1360,40 @@ async function scanDirShallow(dirHandle){
 
 /**
  * Find a .lrc file in the directory whose basename matches the audio.
- * Per user spec: ".mp3 を除いた部分が同じ名前の .lrc を、同じフォルダから見つけてロード"
+ * Per user spec: "MP3 拡張子を除いた部分が同じ名前の .lrc を、同じフォルダから見つけてロード"
+ * Works for both FSA handles and VirtualNode directories.
  */
-async function findLrcInDir(dirHandle, baseName){
-    const target = baseName.toLowerCase() + '.lrc';
-    for await (const entry of dirHandle.values()){
-        if(entry.kind === 'file' && entry.name.toLowerCase() === target){
-            return entry;
+async function findLrcInDir(dirRef, baseName){
+    const targetExact = baseName.toLowerCase() + '.lrc';
+
+    if(dirRef && dirRef.kind === 'directory' && dirRef.children instanceof Map){
+        // flat mode
+        for(const [name, node] of dirRef.children){
+            if(node.kind !== 'file') continue;
+            if(name.toLowerCase() === targetExact) return node;
         }
+        // case-flex base match
+        for(const [name, node] of dirRef.children){
+            if(node.kind !== 'file') continue;
+            const lower = name.toLowerCase();
+            if(lower.endsWith('.lrc') && stripExt(name).toLowerCase() === baseName.toLowerCase()) return node;
+        }
+        return null;
     }
-    // fallback: case-flexible base match
-    for await (const entry of dirHandle.values()){
+
+    // FSA mode
+    for await (const entry of dirRef.values()){
+        if(entry.kind === 'file' && entry.name.toLowerCase() === targetExact) return entry;
+    }
+    for await (const entry of dirRef.values()){
         if(entry.kind !== 'file') continue;
         const lower = entry.name.toLowerCase();
-        if(lower.endsWith('.lrc') && stripExt(entry.name).toLowerCase() === baseName.toLowerCase()){
-            return entry;
-        }
+        if(lower.endsWith('.lrc') && stripExt(entry.name).toLowerCase() === baseName.toLowerCase()) return entry;
     }
     return null;
 }
 
-function buildFolderNode(dirHandle, name){
+function buildFolderNode(dirRef, name){
     const li = document.createElement('li');
     li.className = 'lib-folder';
     li.textContent = name;
@@ -1310,8 +1411,8 @@ function buildFolderNode(dirHandle, name){
         if(li.dataset.scanned !== '1'){
             li.classList.add('loading');
             try {
-                const r = await scanDirShallow(dirHandle);
-                populateChildren(children, dirHandle, r.folders, r.audioFiles, r.lrcBaseSet);
+                const r = await scanDirShallow(dirRef);
+                populateChildren(children, dirRef, r.folders, r.audioFiles, r.lrcBaseSet);
                 li.dataset.scanned = '1';
             } catch(e){
                 children.innerHTML = '<li class="lib-empty">読み込みエラー: ' + escapeHtml(e.message) + '</li>';
@@ -1325,14 +1426,14 @@ function buildFolderNode(dirHandle, name){
     return li;
 }
 
-function populateChildren(container, dirHandle, folders, audioFiles, lrcBaseSet){
+function populateChildren(container, dirRef, folders, audioFiles, lrcBaseSet){
     container.innerHTML = '';
     if(folders.length === 0 && audioFiles.length === 0){
         container.innerHTML = '<li class="lib-empty">(空)</li>';
         return;
     }
     for(const f of folders){
-        container.appendChild(buildFolderNode(f.handle, f.name));
+        container.appendChild(buildFolderNode(f.ref, f.name));
     }
     for(const a of audioFiles){
         const li = document.createElement('li');
@@ -1341,21 +1442,22 @@ function populateChildren(container, dirHandle, folders, audioFiles, lrcBaseSet)
         li.textContent = a.name;
         li.addEventListener('click', (ev) => {
             ev.stopPropagation();
-            onAudioClicked(dirHandle, a.handle);
+            onAudioClicked(dirRef, a.ref);
         });
         container.appendChild(li);
     }
 }
 
 async function renderRoot(){
-    if(!state.rootHandle) return;
     libraryTree.innerHTML = '';
     libraryTree.classList.remove('hidden');
     const ul = document.createElement('ul');
     libraryTree.appendChild(ul);
+    const rootRef = (libMode === 'flat') ? flatRoot : state.rootHandle;
+    if(!rootRef) return;
     try {
-        const r = await scanDirShallow(state.rootHandle);
-        populateChildren(ul, state.rootHandle, r.folders, r.audioFiles, r.lrcBaseSet);
+        const r = await scanDirShallow(rootRef);
+        populateChildren(ul, rootRef, r.folders, r.audioFiles, r.lrcBaseSet);
     } catch(e){
         libraryTree.innerHTML = '<div class="lib-empty">読み込みエラー: ' + escapeHtml(e.message) + '</div>';
     }
@@ -1363,28 +1465,39 @@ async function renderRoot(){
 
 /**
  * MP3クリック時: 同名 .lrc を同フォルダから探して自動ロード。
+ * audioRef is FileSystemFileHandle (FSA) or VirtualNode (flat).
  */
-async function onAudioClicked(parentDirHandle, audioHandle){
+async function onAudioClicked(parentDirRef, audioRef){
     try {
-        const audioFile = await audioHandle.getFile();
+        // Get the actual File object (mode-aware)
+        let audioFile;
+        if(audioRef.kind === 'file' && audioRef.file){
+            audioFile = audioRef.file; // flat mode
+        } else {
+            audioFile = await audioRef.getFile(); // FSA
+        }
         const baseName = stripExt(audioFile.name);
 
         let lyricsLines = [];
         let lrcText = '';
         try {
-            const lrcHandle = await findLrcInDir(parentDirHandle, baseName);
-            if(lrcHandle){
-                const lrcFile = await lrcHandle.getFile();
+            const lrcRef = await findLrcInDir(parentDirRef, baseName);
+            if(lrcRef){
+                let lrcFile;
+                if(lrcRef.kind === 'file' && lrcRef.file){
+                    lrcFile = lrcRef.file; // flat
+                } else {
+                    lrcFile = await lrcRef.getFile(); // FSA
+                }
                 lrcText = await lrcFile.text();
                 lyricsLines = parseLRC(lrcText);
             }
         } catch(e){ /* lrc missing is fine */ }
 
-        // Try to extract metadata from filename "Artist - Title"
+        // Filename → "Artist - Title"
         let title = baseName, artist = '';
         const m = baseName.match(/^(.+?)\s*[-–]\s*(.+)$/);
         if(m){ artist = m[1].trim(); title = m[2].trim(); }
-        // If LRC has [ti:]/[ar:] override
         if(lrcText){
             const tiM = lrcText.match(/\[ti:([^\]]+)\]/i);
             const arM = lrcText.match(/\[ar:([^\]]+)\]/i);
@@ -1400,9 +1513,9 @@ async function onAudioClicked(parentDirHandle, audioHandle){
             baseName: baseName,
             audioFileName: audioFile.name,
             audioFile: audioFile,
-            audioHandle: audioHandle,
+            audioRef: audioRef,
             lyricsLines: lyricsLines,
-            takes: null, // will be loaded async in selectEntry
+            takes: null,
             createdAt: Date.now()
         };
         addToHistory(entry);
@@ -1414,6 +1527,7 @@ async function onAudioClicked(parentDirHandle, audioHandle){
 }
 
 async function tryRestoreLibrary(){
+    if(libMode !== 'fsa') return; // flat mode cannot persist
     try {
         const handle = await idbGet(STORE_HANDLES, KEY_LIBRARY);
         if(handle){
@@ -1563,6 +1677,26 @@ pillRecord.addEventListener('click',  () => setMonitorMode('record'));
 (async function init(){
     if(!window.AudioWorklet){ warnBox.classList.remove('hidden'); }
     setMonitorMode('monitor');
+
+    // Decide library mode based on capability
+    libMode = FSA_SUPPORTED ? 'fsa' : 'flat';
+
+    // Adjust UI hint copy for fallback mode (iOS / Safari / Firefox)
+    if(libMode === 'flat'){
+        const hintFsa = $('open-hint');
+        const hintIos = $('open-hint-ios');
+        if(hintFsa) hintFsa.classList.add('hidden');
+        if(hintIos) hintIos.classList.remove('hidden');
+        const regBtn = $('registerLibraryBtn');
+        if(regBtn) regBtn.textContent = '音楽フォルダを選択';
+    }
+
+    // Bind fallback input
+    const fallbackInput = $('folderFallbackInput');
+    if(fallbackInput){
+        fallbackInput.addEventListener('change', onFlatInputChange);
+    }
+
     await tryRestoreLibrary();
     setStatus('準備完了 — ライブラリから曲を選んでください', 'ok');
 })();

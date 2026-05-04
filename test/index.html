@@ -187,15 +187,59 @@ h1 span { color: var(--orange-mid); }
 
 /* オーディオコントロール */
 .audio-controls {
-    display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
     margin-bottom: 16px; padding: 16px;
     background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
 }
-.audio-controls audio {
-    flex: 1 1 100%; margin-top: 4px;
-    accent-color: var(--orange-mid); color-scheme: dark;
+.audio-file-name { font-size: 12px; color: var(--text-muted); flex: 1 1 auto; min-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.momo-btn-play {
+    background: transparent; border: 2px solid var(--orange); color: var(--orange);
+    width: 48px; height: 48px; border-radius: 50%; padding: 0;
+    font-size: 18px; cursor: pointer; transition: 0.2s; font-family: inherit;
+    display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
-.audio-file-name { font-size: 12px; color: var(--text-muted); }
+.momo-btn-play:hover:not(:disabled) { background: var(--orange); color: white; box-shadow: 0 0 16px rgba(194,65,12,0.5); }
+.momo-btn-play.playing { background: var(--orange); color: white; }
+.momo-btn-play:disabled { opacity: 0.35; cursor: not-allowed; border-color: var(--border-strong); color: var(--border-strong); }
+
+.transport-row {
+    display: flex; align-items: center; gap: 10px;
+    flex: 1 1 100%; margin-top: 4px;
+}
+.time-cur, .time-dur {
+    font-family: monospace; font-size: 12px; color: var(--text-muted);
+    min-width: 38px; flex-shrink: 0; letter-spacing: 0.5px;
+}
+.time-dur { text-align: right; }
+.seek-track {
+    flex: 1; height: 18px; position: relative; cursor: pointer;
+    display: flex; align-items: center;
+    touch-action: none;
+}
+.seek-track::before {
+    content: ''; position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%);
+    height: 4px; background: var(--bg); border: 1px solid var(--border); border-radius: 3px;
+}
+.seek-buffered, .seek-fill {
+    position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+    height: 4px; border-radius: 3px; pointer-events: none;
+}
+.seek-buffered { background: var(--border-strong); width: 0%; }
+.seek-fill { background: linear-gradient(90deg, var(--orange-mid), var(--orange-light)); width: 0%; }
+.seek-handle {
+    position: absolute; top: 50%; left: 0%; transform: translate(-50%, -50%);
+    width: 14px; height: 14px; border-radius: 50%; background: var(--orange-light);
+    border: 2px solid var(--bg);
+    box-shadow: 0 0 6px rgba(251,146,60,0.6);
+    pointer-events: none;
+}
+
+.load-progress {
+    flex: 1 1 100%;
+    font-size: 11px; color: var(--orange-light); font-family: monospace;
+    margin-top: 2px; letter-spacing: 0.5px;
+}
 
 /* 歌詞ビュー */
 .lyrics-view {
@@ -328,7 +372,45 @@ input[type=range]::-moz-range-thumb {
 .take-btn.active { background: var(--orange); color: white; border-color: var(--orange); }
 .take-btn.del:hover { border-color: var(--rec-red); color: var(--rec-red); }
 
-/* マイクレベル */
+.panel-desc {
+    font-size: 12px; color: var(--text-muted); margin: -4px 0 14px 0; line-height: 1.55;
+}
+
+/* Vocal Cut toggles */
+.vc-toggle {
+    align-items: flex-start; gap: 12px;
+    padding: 12px; margin-bottom: 8px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    transition: all 0.15s;
+}
+.vc-toggle:last-of-type { margin-bottom: 0; }
+.vc-toggle:hover { border-color: var(--border-strong); }
+.vc-toggle.active-now {
+    border-color: var(--orange);
+    background: var(--bg-selected);
+    box-shadow: 0 0 0 1px var(--orange);
+}
+.vc-toggle.active-now .vc-name { color: var(--orange-light); }
+.vc-toggle .vc-name { display: block; font-weight: 700; color: var(--text); font-size: 13px; }
+.vc-toggle .vc-sub  { display: block; font-size: 11px; color: var(--text-muted); margin-top: 3px; line-height: 1.5; }
+.vc-toggle input[type="checkbox"] { margin-top: 2px; }
+
+#vocalCutStateTag {
+    transition: all 0.2s;
+    padding: 2px 8px; border-radius: 4px;
+}
+#vocalCutStateTag.recording { background: var(--rec-red); color: white; }
+#vocalCutStateTag.playing   { background: var(--orange); color: white; }
+
+/* Mix balance */
+.balance-meters { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.meter-line { display: grid; grid-template-columns: 50px 1fr 60px; align-items: center; gap: 10px; }
+.meter-label { font-family: monospace; font-size: 11px; color: var(--text-muted); letter-spacing: 1px; }
+.meter-track { height: 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+.meter-fill { height: 100%; transition: width 0.15s ease; border-radius: 3px; }
+.meter-fill.bgm { background: linear-gradient(90deg, var(--orange), var(--orange-mid)); }
+.meter-fill.vox { background: linear-gradient(90deg, var(--orange-light), #ffd700); }
+.meter-num { font-family: 'Fredoka One', cursive; font-size: 11px; color: var(--orange-light); text-align: right; }
 .level-meter {
     height: 6px; background: var(--bg); border: 1px solid var(--border); border-radius: 3px;
     overflow: hidden; margin-top: 8px; position: relative;
@@ -449,9 +531,19 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
         </div>
 
         <div class="audio-controls" id="audio-controls">
+            <button id="btnPlay" class="momo-btn-play" title="再生 / 一時停止" disabled>▶</button>
             <button id="btnRec" class="momo-btn-rec" title="録音 / 停止" disabled>●</button>
             <span id="audio-file-name" class="audio-file-name">—</span>
-            <audio id="audio-player" controls preload="metadata"></audio>
+            <div class="transport-row">
+                <span class="time-cur" id="timeCur">0:00</span>
+                <div class="seek-track" id="seekTrack">
+                    <div class="seek-buffered" id="seekBuffered"></div>
+                    <div class="seek-fill" id="seekFill"></div>
+                    <div class="seek-handle" id="seekHandle"></div>
+                </div>
+                <span class="time-dur" id="timeDur">0:00</span>
+            </div>
+            <div id="loadProgress" class="load-progress hidden">読み込み中…</div>
         </div>
 
         <div class="lyrics-view" id="lyrics-view">
@@ -485,20 +577,54 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             </div>
         </div>
 
-        <!-- モニタリング -->
+        <!-- ミックスバランス -->
         <div class="karaoke-panel">
             <div class="panel-head">
-                <div class="panel-title">Monitoring</div>
-                <div class="panel-tag">VOCAL CUT POLICY</div>
+                <div class="panel-title">Mix Balance</div>
+                <div class="panel-tag">BGM ⇄ VOICE</div>
             </div>
-            <div class="mode-pills">
-                <div class="pill active" id="pillMonitor">モニタリング中: 残す</div>
-                <div class="pill" id="pillRecord">録音中: カット</div>
+            <div class="ctrl">
+                <div class="ctrl-label">
+                    <span style="color:var(--orange-mid);font-weight:700;">◀ BGM</span>
+                    <span class="ctrl-val" id="balanceVal">CENTER</span>
+                    <span style="color:var(--orange-light);font-weight:700;">VOICE ▶</span>
+                </div>
+                <input type="range" id="balanceSlider" min="-100" max="100" step="1" value="0">
             </div>
-            <label class="toggle-row" style="margin-top:8px;">
-                <input type="checkbox" id="vocalToggle">
-                <span>ボーカル除去（Mid/Side）</span>
-                <span class="toggle-desc" id="vocalCutDesc">— 現在の状態に応じて自動切替</span>
+            <div class="balance-meters">
+                <div class="meter-line">
+                    <span class="meter-label">BGM</span>
+                    <div class="meter-track"><div class="meter-fill bgm" id="bgmMeter"></div></div>
+                    <span class="meter-num" id="bgmGainNum">0 dB</span>
+                </div>
+                <div class="meter-line">
+                    <span class="meter-label">VOICE</span>
+                    <div class="meter-track"><div class="meter-fill vox" id="voxMeter"></div></div>
+                    <span class="meter-num" id="voxGainNum">0 dB</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ボーカルカット (録音時/再生時 独立) -->
+        <div class="karaoke-panel">
+            <div class="panel-head">
+                <div class="panel-title">Vocal Cut</div>
+                <div class="panel-tag" id="vocalCutStateTag">— READY</div>
+            </div>
+            <p class="panel-desc">BGMからボーカル成分を除去します(Mid/Side方式)。録音中・再生中それぞれで独立に設定できます。</p>
+            <label class="toggle-row vc-toggle" id="vcRecordRow">
+                <input type="checkbox" id="vcRecord">
+                <span>
+                    <span class="vc-name">録音時にカット</span>
+                    <span class="vc-sub">録音ボタンを押している間、ガイド用BGMからボーカルを除去</span>
+                </span>
+            </label>
+            <label class="toggle-row vc-toggle" id="vcPlaybackRow">
+                <input type="checkbox" id="vcPlayback" checked>
+                <span>
+                    <span class="vc-name">ミックス再生時にカット</span>
+                    <span class="vc-sub">録音テイクと一緒に聴く時、BGMのボーカルを除去</span>
+                </span>
             </label>
         </div>
 
@@ -560,9 +686,16 @@ const KEY_LIBRARY = 'libraryRoot';
 
 // ============== DOM ==============
 const $ = id => document.getElementById(id);
-const audioEl = $('audio-player');
+const btnPlay = $('btnPlay');
 const btnRec = $('btnRec');
 const audioFileName = $('audio-file-name');
+const seekTrack = $('seekTrack');
+const seekFill = $('seekFill');
+const seekHandle = $('seekHandle');
+const seekBuffered = $('seekBuffered');
+const timeCur = $('timeCur');
+const timeDur = $('timeDur');
+const loadProgress = $('loadProgress');
 const lyricsView = $('lyrics-view');
 const lyricsResize = $('lyrics-resize-handle');
 const npEmpty = $('npEmpty'), npInfo = $('npInfo');
@@ -571,8 +704,14 @@ const npBadges = $('npBadges');
 const speedSlider = $('speedSlider'), speedVal = $('speedVal');
 const pitchSlider = $('pitchSlider'), pitchVal = $('pitchVal');
 const bgmVolSlider = $('bgmVolSlider'), bgmVolVal = $('bgmVolVal');
-const vocalToggle = $('vocalToggle'), vocalCutDesc = $('vocalCutDesc');
-const pillMonitor = $('pillMonitor'), pillRecord = $('pillRecord');
+const vcRecord = $('vcRecord');           // 録音時カット
+const vcPlayback = $('vcPlayback');       // 再生時カット
+const vcRecordRow = $('vcRecordRow');
+const vcPlaybackRow = $('vcPlaybackRow');
+const vocalCutStateTag = $('vocalCutStateTag');
+const balanceSlider = $('balanceSlider'), balanceVal = $('balanceVal');
+const bgmMeter = $('bgmMeter'), voxMeter = $('voxMeter');
+const bgmGainNum = $('bgmGainNum'), voxGainNum = $('voxGainNum');
 const takesList = $('takesList'), takesCount = $('takesCount');
 const voxVolSlider = $('voxVolSlider'), voxVolVal = $('voxVolVal');
 const voxOfsSlider = $('voxOfsSlider'), voxOfsVal = $('voxOfsVal');
@@ -590,13 +729,11 @@ const voxEq = { lo:$('voxEqLo'), md:$('voxEqMd'), hi:$('voxEqHi'), loV:$('voxEqL
 // ============== STATE ==============
 const state = {
     rootHandle: null,
-    history: [],         // recent songs [{id,title,artist,baseName,audioFileName,lyricsLines, ...}]
+    history: [],
     currentEntry: null,
     currentTake: null,
-    monitorMode: 'monitor',
-    manualVocalCut: false,
     isRecording: false,
-    lyricsLines: [],     // [{t, text}]
+    lyricsLines: [],
     lastLyricIdx: -1,
     audioCtxStarted: false,
 };
@@ -757,7 +894,6 @@ function updateCurrentLine(){
 let audioCtx = null;
 let workletReady = false;
 
-let mediaSrc = null;
 let bgmShifter = null;
 let bgmEqLo = null, bgmEqMd = null, bgmEqHi = null;
 let bgmGain = null;
@@ -800,8 +936,7 @@ async function initCtx(){
 }
 
 function setupBgmGraph(){
-    if(mediaSrc) return;
-    mediaSrc = audioCtx.createMediaElementSource(audioEl);
+    if(bgmShifter) return;
     bgmShifter = new AudioWorkletNode(audioCtx, 'bgm-processor', {
         numberOfInputs:1, numberOfOutputs:1, outputChannelCount:[2]
     });
@@ -809,7 +944,6 @@ function setupBgmGraph(){
     bgmEqMd = audioCtx.createBiquadFilter(); bgmEqMd.type='peaking';    bgmEqMd.frequency.value=1200; bgmEqMd.Q.value=0.8; bgmEqMd.gain.value=0;
     bgmEqHi = audioCtx.createBiquadFilter(); bgmEqHi.type='highshelf';  bgmEqHi.frequency.value=4000; bgmEqHi.gain.value=0;
     bgmGain = audioCtx.createGain(); bgmGain.gain.value = 1.0;
-    mediaSrc.connect(bgmShifter);
     bgmShifter.connect(bgmEqLo);
     bgmEqLo.connect(bgmEqMd);
     bgmEqMd.connect(bgmEqHi);
@@ -817,6 +951,152 @@ function setupBgmGraph(){
     bgmGain.connect(master);
     applyBgmPitch(); applyBgmVocalCut(); applyBgmEq(); applyBgmVolume();
 }
+
+// ============== BGM TRANSPORT (AudioBufferSourceNode based) ==============
+// We do not use <audio>+MediaElementSource because on iOS, calling getUserMedia()
+// changes the AudioSession to a recording mode which can silence MediaElement
+// playback. Decoded AudioBuffer playback in WebAudio is not affected.
+const bgmTransport = (function(){
+    let buffer = null;       // AudioBuffer
+    let source = null;       // active AudioBufferSourceNode
+    let isPlaying = false;
+    let startCtxTime = 0;    // ctx.currentTime when source started
+    let startOffset = 0;     // position within the buffer when source started (seconds)
+    let userPlaybackRate = 1.0;
+    let pendingObjectUrl = null;
+
+    const T = {
+        get duration(){ return buffer ? buffer.duration : 0; },
+        get paused(){ return !isPlaying; },
+        get playbackRate(){ return userPlaybackRate; },
+        get currentTime(){
+            if(!buffer) return 0;
+            if(isPlaying){
+                const elapsed = audioCtx.currentTime - startCtxTime;
+                const pos = startOffset + elapsed * userPlaybackRate;
+                if(pos >= buffer.duration) return buffer.duration;
+                return Math.max(0, pos);
+            }
+            return startOffset;
+        },
+        set currentTime(t){ T.seekTo(t); },
+        set playbackRate(r){
+            if(!buffer){ userPlaybackRate = r; return; }
+            const wasPlaying = isPlaying;
+            // We update the running source in-place to avoid clicks; but currentTime
+            // bookkeeping needs adjustment because elapsed*playbackRate uses the new rate.
+            const pos = T.currentTime;       // computed with old rate
+            userPlaybackRate = r;
+            if(wasPlaying && source){
+                // Re-anchor: as if the source had been playing at the new rate from `pos`.
+                startCtxTime = audioCtx.currentTime;
+                startOffset = pos;
+                try { source.playbackRate.setTargetAtTime(r, audioCtx.currentTime, 0.02); }
+                catch(e){ source.playbackRate.value = r; }
+            } else {
+                startOffset = pos;
+            }
+        },
+        async loadFile(file){
+            // decode an AudioBuffer from a File
+            T.unload();
+            const arr = await file.arrayBuffer();
+            // decodeAudioData supports both promise and callback styles
+            buffer = await new Promise((res, rej) => {
+                try {
+                    const p = audioCtx.decodeAudioData(arr, res, rej);
+                    if(p && typeof p.then === 'function') p.then(res, rej);
+                } catch(e){ rej(e); }
+            });
+            isPlaying = false;
+            startOffset = 0;
+            T._notify();
+        },
+        unload(){
+            T._stopSource();
+            buffer = null;
+            isPlaying = false;
+            startOffset = 0;
+            T._notify();
+        },
+        play(){
+            if(!buffer) return Promise.reject(new Error('no buffer'));
+            if(isPlaying) return Promise.resolve();
+            const at = startOffset;
+            T._startSource(at);
+            T._fire('play');
+            return Promise.resolve();
+        },
+        pause(){
+            if(!buffer) return;
+            if(!isPlaying) return;
+            const pos = T.currentTime;
+            T._stopSource();
+            startOffset = pos;
+            T._fire('pause');
+        },
+        seekTo(t){
+            if(!buffer) return;
+            const wasPlaying = isPlaying;
+            T._stopSource();
+            startOffset = Math.max(0, Math.min(buffer.duration, t));
+            T._fire('seeking');
+            if(wasPlaying){
+                T._startSource(startOffset);
+            }
+            T._fire('seeked');
+        },
+        _startSource(at){
+            if(!buffer || !bgmShifter) return;
+            // tear down previous source first
+            T._stopSource();
+            const src = audioCtx.createBufferSource();
+            src.buffer = buffer;
+            src.playbackRate.value = userPlaybackRate;
+            src.connect(bgmShifter);
+            const dur = Math.max(0, buffer.duration - at);
+            src.start(0, at, dur);
+            src.onended = () => {
+                if(source === src && isPlaying){
+                    // natural end
+                    isPlaying = false;
+                    startOffset = buffer.duration;
+                    source = null;
+                    T._fire('ended');
+                }
+            };
+            source = src;
+            startCtxTime = audioCtx.currentTime;
+            startOffset = at;
+            isPlaying = true;
+            T._notify();
+        },
+        _stopSource(){
+            if(source){
+                try { source.onended = null; } catch(e){}
+                try { source.stop(); } catch(e){}
+                try { source.disconnect(); } catch(e){}
+                source = null;
+            }
+            isPlaying = false;
+        },
+
+        // simple event emitter (compat with existing code that uses addEventListener)
+        _listeners: {},
+        addEventListener(name, fn){
+            if(!T._listeners[name]) T._listeners[name] = [];
+            T._listeners[name].push(fn);
+        },
+        _fire(name){
+            const arr = T._listeners[name] || [];
+            for(const fn of arr){ try { fn(); } catch(e){ console.error(e); } }
+        },
+        _notify(){ T._fire('timeupdate'); }
+    };
+    return T;
+})();
+// alias for legacy code references
+const audioEl = bgmTransport;
 
 function setupTakeChain(){
     if(takeShifter) return;
@@ -851,13 +1131,36 @@ function applyBgmPitch(){
     const st = parseInt(pitchSlider.value, 10);
     bgmShifter.parameters.get('pitch').setValueAtTime(Math.pow(2, st/12), audioCtx.currentTime);
 }
+/**
+ * BGM のボーカルカットは2つの独立したスイッチで決まる:
+ *   - 録音中なら vcRecord の状態
+ *   - それ以外(再生中/停止中)なら vcPlayback の状態
+ * UI 側では「今どちらが効いているか」をハイライトする。
+ */
 function applyBgmVocalCut(){
     if(!bgmShifter) return;
-    const auto = state.monitorMode === 'record';
-    const cut = state.manualVocalCut ? !auto : auto;
-    vocalToggle.checked = cut;
+    const recording = state.isRecording;
+    const cut = recording ? vcRecord.checked : vcPlayback.checked;
     bgmShifter.parameters.get('vocalCut').setValueAtTime(cut ? 1.0 : 0.0, audioCtx.currentTime);
-    vocalCutDesc.textContent = cut ? '— 除去 ON（Mid/Side）' : '— ボーカル残し（ガイド有り）';
+}
+
+/**
+ * UI 状態の更新: 現在「どちらのスイッチが効いているか」を視覚的に示す。
+ */
+function updateVocalCutUI(){
+    if(!vcRecordRow || !vcPlaybackRow) return;
+    const recording = state.isRecording;
+    vcRecordRow.classList.toggle('active-now',  recording);
+    vcPlaybackRow.classList.toggle('active-now', !recording);
+    if(vocalCutStateTag){
+        if(recording){
+            vocalCutStateTag.textContent = '● RECORDING';
+            vocalCutStateTag.className = 'panel-tag recording';
+        } else {
+            vocalCutStateTag.textContent = '▶ PLAYBACK';
+            vocalCutStateTag.className = 'panel-tag playing';
+        }
+    }
 }
 function applyBgmEq(){
     if(!bgmEqLo) return;
@@ -866,8 +1169,8 @@ function applyBgmEq(){
     bgmEqHi.gain.setValueAtTime(parseFloat(bgmEq.hi.value), audioCtx.currentTime);
 }
 function applyBgmVolume(){
-    if(!bgmGain) return;
-    bgmGain.gain.setValueAtTime(dbToGain(parseFloat(bgmVolSlider.value)), audioCtx.currentTime);
+    // Delegated to applyBalance() (combined with mix balance + voice volume)
+    if(typeof applyBalance === 'function') applyBalance();
 }
 function applyTakePitch(){
     if(!takeShifter || !state.currentTake) return;
@@ -893,8 +1196,8 @@ function applyVoxEq(){
     voxEqHi.gain.setValueAtTime(parseFloat(voxEq.hi.value), audioCtx.currentTime);
 }
 function applyVoxVolume(){
-    if(!voxGain) return;
-    voxGain.gain.setValueAtTime(dbToGain(parseFloat(voxVolSlider.value)), audioCtx.currentTime);
+    // Delegated to applyBalance() (combined with mix balance + bgm volume)
+    if(typeof applyBalance === 'function') applyBalance();
 }
 function applyEcho(){
     if(!echoWet) return;
@@ -975,12 +1278,15 @@ async function startRecording(){
     recSpeedAtStart = parseFloat(speedSlider.value);
     recStartSongTime = audioEl.currentTime;
 
-    setMonitorMode('record');
-
     state.isRecording = true;
     btnRec.classList.add('recording');
     btnRec.textContent = '■';
     setStatus('録音中... ■で停止', 'warn');
+
+    // Switch BGM vocal-cut to whatever the user has set for "recording"
+    applyBgmVocalCut();
+    updateVocalCutUI();
+
     pumpMicLevel();
 }
 async function stopRecording(){
@@ -988,6 +1294,11 @@ async function stopRecording(){
     state.isRecording = false;
     btnRec.classList.remove('recording');
     btnRec.textContent = '●';
+
+    // Switch BGM vocal-cut to playback policy
+    applyBgmVocalCut();
+    updateVocalCutUI();
+
     try { recProcessor.disconnect(); } catch(e){}
     recProcessor = null;
     const total = recBuffers.reduce((s,b) => s+b.length, 0);
@@ -1033,15 +1344,6 @@ function pumpMicLevel(){
     }
     micLevel.style.width = Math.min(100, max*180) + '%';
     requestAnimationFrame(pumpMicLevel);
-}
-
-// ============== MONITOR MODE ==============
-function setMonitorMode(m){
-    state.monitorMode = m;
-    state.manualVocalCut = false;
-    pillMonitor.classList.toggle('active', m === 'monitor');
-    pillRecord.classList.toggle('active', m === 'record');
-    if(audioCtx) applyBgmVocalCut();
 }
 
 // ============== TAKES PERSISTENCE ==============
@@ -1162,20 +1464,37 @@ async function selectEntry(entry){
     if(!entry || !entry.audioFile) return;
 
     // stop everything
-    if(!audioEl.paused){ try { audioEl.pause(); } catch(e){} }
+    if(!bgmTransport.paused){ try { bgmTransport.pause(); } catch(e){} }
     stopTakePlayback();
     if(state.isRecording) await stopRecording();
 
     state.currentEntry = entry;
     state.lyricsLines = entry.lyricsLines || [];
 
-    // load audio file (BLOB url)
-    if(entry._objectUrl){
-        try { URL.revokeObjectURL(entry._objectUrl); } catch(e){}
+    // We need an AudioContext to decode. Initialize it now (within click context).
+    if(!await ensureAudioGraph()){
+        setStatus('オーディオ初期化に失敗しました', 'err');
+        return;
     }
-    entry._objectUrl = URL.createObjectURL(entry.audioFile);
-    audioEl.src = entry._objectUrl;
+
+    // Decode audio into a buffer (replaces <audio>+MediaElementSource path)
     audioFileName.textContent = entry.audioFile.name;
+    btnPlay.disabled = true;
+    btnRec.disabled = true;
+    loadProgress.classList.remove('hidden');
+    loadProgress.textContent = '音源を読み込み中…';
+    try {
+        await bgmTransport.loadFile(entry.audioFile);
+    } catch(e){
+        loadProgress.classList.add('hidden');
+        setStatus('音源のデコードに失敗しました: ' + e.message, 'err');
+        return;
+    }
+    loadProgress.classList.add('hidden');
+    timeDur.textContent = fmt(bgmTransport.duration);
+    timeCur.textContent = '0:00';
+    seekFill.style.width = '0%';
+    seekHandle.style.left = '0%';
 
     // load takes from IDB if not already loaded
     if(!entry.takes){
@@ -1188,6 +1507,7 @@ async function selectEntry(entry){
     npInfo.classList.remove('hidden');
     npTitle.textContent = entry.title || '(無題)';
     npArtist.textContent = entry.artist || '—';
+    btnPlay.disabled = false;
     btnRec.disabled = false;
     renderLyrics();
     renderTakes();
@@ -1553,33 +1873,90 @@ async function ensureAudioGraph(){
     return true;
 }
 
-audioEl.addEventListener('play', async () => {
-    if(!await ensureAudioGraph()) return;
+bgmTransport.addEventListener('play', () => {
+    btnPlay.classList.add('playing');
+    btnPlay.textContent = '⏸';
     if(state.currentTake) startTakePlayback();
 });
-audioEl.addEventListener('pause', () => {
+bgmTransport.addEventListener('pause', () => {
+    btnPlay.classList.remove('playing');
+    btnPlay.textContent = '▶';
     stopTakePlayback();
 });
-audioEl.addEventListener('seeking', () => {
+bgmTransport.addEventListener('seeking', () => {
     stopTakePlayback();
 });
-audioEl.addEventListener('seeked', () => {
-    if(!audioEl.paused && state.currentTake) startTakePlayback();
+bgmTransport.addEventListener('seeked', () => {
+    if(!bgmTransport.paused && state.currentTake) startTakePlayback();
 });
-audioEl.addEventListener('ratechange', () => {
-    // Keep playbackRate synced to our SPEED slider; if changed externally, snap back.
-    const v = parseFloat(speedSlider.value);
-    if(Math.abs(audioEl.playbackRate - v) > 0.001){
-        audioEl.playbackRate = v;
-    }
-});
-audioEl.addEventListener('timeupdate', updateCurrentLine);
-audioEl.addEventListener('ended', () => {
+bgmTransport.addEventListener('ended', () => {
+    btnPlay.classList.remove('playing');
+    btnPlay.textContent = '▶';
     stopTakePlayback();
     state.lastLyricIdx = -1;
     lyricsView.querySelectorAll('.lyrics-line').forEach(el => el.classList.remove('current','passed'));
     if(state.isRecording) stopRecording();
 });
+
+// rAF-driven UI updates (replaces timeupdate event)
+function tickUI(){
+    if(bgmTransport.duration > 0){
+        const cur = bgmTransport.currentTime;
+        const dur = bgmTransport.duration;
+        const pct = (cur / dur) * 100;
+        seekFill.style.width = pct + '%';
+        seekHandle.style.left = pct + '%';
+        timeCur.textContent = fmt(cur);
+        timeDur.textContent = fmt(dur);
+        if(!bgmTransport.paused) updateCurrentLine();
+    }
+    requestAnimationFrame(tickUI);
+}
+requestAnimationFrame(tickUI);
+
+// Play / Pause button
+btnPlay.addEventListener('click', async () => {
+    if(!state.currentEntry) return;
+    if(!await ensureAudioGraph()) return;
+    if(audioCtx.state === 'suspended') await audioCtx.resume();
+    if(bgmTransport.paused){
+        if(bgmTransport.duration <= 0){
+            // Buffer not ready yet — should not happen, but guard
+            return;
+        }
+        await bgmTransport.play();
+    } else {
+        bgmTransport.pause();
+    }
+});
+
+// Seek bar interactions (pointer-based, works on touch & mouse)
+(function initSeek(){
+    let dragging = false;
+    function seekFromEvent(e){
+        if(bgmTransport.duration <= 0) return;
+        const rect = seekTrack.getBoundingClientRect();
+        const x = (e.clientX || (e.touches && e.touches[0] && e.touches[0].clientX) || 0) - rect.left;
+        const pct = Math.max(0, Math.min(1, x / rect.width));
+        bgmTransport.currentTime = pct * bgmTransport.duration;
+    }
+    seekTrack.addEventListener('pointerdown', e => {
+        dragging = true;
+        try { seekTrack.setPointerCapture(e.pointerId); } catch(er){}
+        seekFromEvent(e);
+        e.preventDefault();
+    });
+    seekTrack.addEventListener('pointermove', e => {
+        if(!dragging) return;
+        seekFromEvent(e);
+    });
+    const stop = e => {
+        dragging = false;
+        try { seekTrack.releasePointerCapture(e.pointerId); } catch(er){}
+    };
+    seekTrack.addEventListener('pointerup', stop);
+    seekTrack.addEventListener('pointercancel', stop);
+})();
 
 // ============== UI WIRING ==============
 $('registerLibraryBtn').addEventListener('click', registerLibrary);
@@ -1588,9 +1965,12 @@ $('changeLibraryBtn').addEventListener('click', changeLibrary);
 
 btnRec.addEventListener('click', async () => {
     if(state.isRecording){ await stopRecording(); return; }
-    if(audioEl.paused){
-        try { await audioEl.play(); } catch(e){ /* may fail without gesture? click already gives gesture */ }
-        await new Promise(r => setTimeout(r, 80));
+    if(!state.currentEntry) return;
+    if(!await ensureAudioGraph()) return;
+    if(audioCtx.state === 'suspended') await audioCtx.resume();
+    // Start BGM playback if not already playing — gives the user a guide
+    if(bgmTransport.paused && bgmTransport.duration > 0){
+        try { await bgmTransport.play(); } catch(e){}
     }
     await startRecording();
 });
@@ -1642,12 +2022,69 @@ echoSlider.addEventListener('input', () => {
     });
 });
 
-vocalToggle.addEventListener('change', () => {
-    state.manualVocalCut = !state.manualVocalCut;
-    if(audioCtx) applyBgmVocalCut();
+vcRecord.addEventListener('change', () => {
+    if(audioCtx && state.isRecording) applyBgmVocalCut();
 });
-pillMonitor.addEventListener('click', () => setMonitorMode('monitor'));
-pillRecord.addEventListener('click',  () => setMonitorMode('record'));
+vcPlayback.addEventListener('change', () => {
+    if(audioCtx && !state.isRecording) applyBgmVocalCut();
+});
+
+// ============== MIX BALANCE ==============
+/**
+ * Master gain は2系統 (BGM / VOICE) を独立に制御。
+ *  - bgmVolSlider (-24..+6 dB) : BGM の絶対音量
+ *  - voxVolSlider (-24..+12 dB): VOICE の絶対音量
+ *  - balanceSlider (-100..100) : 上記の上に乗るバランス係数
+ *      -100 = BGM のみ (VOICE 完全カット)
+ *      0    = 両方そのまま (係数 1.0/1.0)
+ *      +100 = VOICE のみ (BGM 完全カット)
+ *      中間は等パワー(cos/sin)で滑らかにクロスフェード
+ */
+function balanceCoeffs(){
+    // pos in [-1, +1]
+    const pos = Math.max(-100, Math.min(100, parseFloat(balanceSlider.value))) / 100;
+    // Map to angle 0..π/2; pos=-1 → angle=0 (full BGM), pos=+1 → angle=π/2 (full VOICE)
+    const angle = (pos + 1) * 0.25 * Math.PI; // 0..π/2
+    const bgmCoeff = Math.cos(angle);
+    const voxCoeff = Math.sin(angle);
+    return { bgmCoeff, voxCoeff };
+}
+function gainToDb(g){
+    if(g <= 0.0001) return -Infinity;
+    return 20 * Math.log10(g);
+}
+function applyBalance(){
+    const { bgmCoeff, voxCoeff } = balanceCoeffs();
+    const bgmBase = dbToGain(parseFloat(bgmVolSlider.value));
+    const voxBase = dbToGain(parseFloat(voxVolSlider.value));
+    const bgmFinal = bgmBase * bgmCoeff;
+    const voxFinal = voxBase * voxCoeff;
+    // audio graph (only if ready)
+    if(bgmGain && voxGain){
+        try {
+            bgmGain.gain.setTargetAtTime(bgmFinal, audioCtx.currentTime, 0.01);
+            voxGain.gain.setTargetAtTime(voxFinal, audioCtx.currentTime, 0.01);
+        } catch(e){ /* noop */ }
+    }
+    // UI updates (always)
+    if(bgmMeter) bgmMeter.style.width = Math.min(100, bgmCoeff * 100) + '%';
+    if(voxMeter) voxMeter.style.width = Math.min(100, voxCoeff * 100) + '%';
+    if(bgmGainNum){
+        const db = gainToDb(bgmFinal);
+        bgmGainNum.textContent = isFinite(db) ? (db >= 0 ? '+' : '') + db.toFixed(1) + ' dB' : '−∞';
+    }
+    if(voxGainNum){
+        const db = gainToDb(voxFinal);
+        voxGainNum.textContent = isFinite(db) ? (db >= 0 ? '+' : '') + db.toFixed(1) + ' dB' : '−∞';
+    }
+    if(balanceVal){
+        const p = parseFloat(balanceSlider.value);
+        if(Math.abs(p) < 1) balanceVal.textContent = 'CENTER';
+        else if(p < 0) balanceVal.textContent = 'BGM ' + Math.abs(p).toFixed(0) + '%';
+        else balanceVal.textContent = 'VOICE ' + p.toFixed(0) + '%';
+    }
+}
+balanceSlider.addEventListener('input', applyBalance);
 
 // ============== LYRICS RESIZE HANDLE ==============
 (function initResize(){
@@ -1676,7 +2113,8 @@ pillRecord.addEventListener('click',  () => setMonitorMode('record'));
 // ============== INIT ==============
 (async function init(){
     if(!window.AudioWorklet){ warnBox.classList.remove('hidden'); }
-    setMonitorMode('monitor');
+    updateVocalCutUI();
+    applyBalance(); // initialize meter labels
 
     // Decide library mode based on capability
     libMode = FSA_SUPPORTED ? 'fsa' : 'flat';
@@ -1695,6 +2133,13 @@ pillRecord.addEventListener('click',  () => setMonitorMode('record'));
     const fallbackInput = $('folderFallbackInput');
     if(fallbackInput){
         fallbackInput.addEventListener('change', onFlatInputChange);
+    }
+
+    // Pre-initialize AudioContext + worklets early so the first user gesture
+    // doesn't have to wait for module fetches. (Created in suspended state on
+    // browsers with autoplay policy; resumed on first click.)
+    if(window.AudioWorklet){
+        initCtx().catch(e => console.warn('initCtx pre-warm failed', e));
     }
 
     await tryRestoreLibrary();

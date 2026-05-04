@@ -1,0 +1,1574 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MOMO Karaoke - MOMO Works</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* ─────────── MOMO Lyrics 系統のデザイン (ダーク × オレンジ) ─────────── */
+:root {
+    --bg:          #0a0a0a;
+    --surface:     #111111;
+    --surface2:    #1a1a1a;
+    --orange:      #c2410c;
+    --orange-mid:  #ea580c;
+    --orange-light:#fb923c;
+    --text:        #e5e5e5;
+    --text-muted:  #737373;
+    --border:      #2a2a2a;
+    --border-strong: #444;
+    --bg-selected: rgba(194,65,12,0.15);
+    --pink:        #f28b82;
+    --green:       #81c995;
+    --rec-red:     #dc2626;
+}
+@keyframes fadeDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeUp   { from { opacity: 0; transform: translateY( 10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes recPulse { 0%,100%{opacity:1}50%{opacity:0.45}}
+
+* { box-sizing: border-box; }
+body {
+    margin: 0;
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    line-height: 1.6;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 48px 48px;
+    background-attachment: fixed;
+}
+body::before {
+    content:''; position:fixed; inset:0;
+    background: var(--bg); opacity: 0.8; z-index: 0; pointer-events: none;
+}
+
+.page-wrap { position: relative; z-index: 1; width: 100%; max-width: 900px; padding: 40px 24px; }
+
+/* 言語切り替え */
+#lang-switcher { position: fixed; top: 8px; right: 12px; z-index: 200; }
+#lang-select {
+    background: var(--surface2); border: 1px solid var(--border-strong);
+    color: var(--text); font-size: 12px; padding: 4px 8px; border-radius: 4px;
+    cursor: pointer; font-family: inherit; outline: none;
+}
+#lang-select:focus { border-color: var(--orange); }
+
+/* パンくず・ヘッダ */
+.breadcrumb { font-size: 12px; color: var(--text-muted); margin-bottom: 32px; animation: fadeDown 0.5s ease backwards; }
+.breadcrumb a { color: var(--text-muted); text-decoration: none; }
+.breadcrumb a:hover { color: var(--orange-light); }
+
+header { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; animation: fadeDown 0.5s ease backwards; }
+.cat-icon { width: 52px; height: 44px; flex-shrink: 0; }
+
+h1 { font-family: 'Fredoka One', cursive; font-size: 2.5rem; margin: 0; font-weight: 400; color: #fff; }
+h1 span { color: var(--orange-mid); }
+.version-badge {
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 0.7rem; font-weight: 500; color: var(--text-muted);
+    letter-spacing: 0.06em; vertical-align: middle; margin-left: 10px;
+    position: relative; top: -4px;
+}
+.header-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 40px; animation: fadeDown 0.5s ease 0.1s backwards; }
+
+/* タブ */
+.tab-container { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 24px; animation: fadeUp 0.5s ease 0.2s backwards; }
+.tab-btn {
+    background: var(--surface); border: 1px solid var(--border); color: var(--text-muted);
+    padding: 16px; border-radius: 12px; cursor: pointer; font-weight: 700;
+    font-family: inherit; font-size: 14px; transition: all 0.2s;
+}
+.tab-btn.active { border-color: var(--orange); color: var(--orange-mid); background: var(--bg-selected); }
+
+/* メインカード */
+.tool-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 32px; margin-bottom: 24px; animation: fadeUp 0.5s ease 0.3s backwards; }
+.section-label { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.section-label > span { font-size: 12px; font-weight: 700; color: var(--orange); text-transform: uppercase; letter-spacing: 0.1em; }
+.section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* ボタン */
+.momo-btn {
+    background: var(--orange); color: white; border: none; padding: 12px 24px; border-radius: 8px;
+    cursor: pointer; font-weight: bold; font-size: 14px; transition: 0.2s; font-family: inherit;
+}
+.momo-btn:hover:not(:disabled) { background: var(--orange-mid); }
+.momo-btn:disabled { background: var(--border-strong); color: var(--text-muted); cursor: not-allowed; }
+
+.momo-btn-small {
+    background: var(--surface); color: var(--orange-light); border: 1px solid var(--orange);
+    padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 700;
+    font-family: inherit;
+}
+.momo-btn-small:hover { background: var(--bg-selected); }
+
+.momo-btn-rec {
+    background: transparent; border: 2px solid var(--rec-red); color: var(--rec-red);
+    width: 48px; height: 48px; border-radius: 50%; padding: 0;
+    font-size: 18px; cursor: pointer; transition: 0.2s; font-family: inherit;
+    display: inline-flex; align-items: center; justify-content: center;
+}
+.momo-btn-rec:hover:not(:disabled) { background: var(--rec-red); color: white; box-shadow: 0 0 16px rgba(220,38,38,0.45); }
+.momo-btn-rec.recording { background: var(--rec-red); color: white; animation: recPulse 1.4s infinite; }
+.momo-btn-rec:disabled { opacity: 0.35; cursor: not-allowed; border-color: var(--border-strong); color: var(--border-strong); }
+
+/* ライブラリ */
+.play-source-area { margin-bottom: 24px; }
+.library-controls { margin-bottom: 8px; }
+.library-register, .library-loaded { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.library-name { font-size: 12px; color: var(--text-muted); margin-left: 6px; word-break: break-all; }
+.open-hint { font-size: 11px; color: var(--text-muted); margin: 0 0 16px 0; line-height: 1.5; }
+
+.library-tree {
+    background: #000; border: 1px solid var(--border); border-radius: 8px;
+    max-height: 340px; overflow-y: auto; padding: 10px 14px;
+    font-size: 13px; text-align: left; margin-bottom: 16px;
+}
+.library-tree ul { list-style: none; padding-left: 16px; margin: 0; }
+.library-tree > ul { padding-left: 0; }
+.lib-folder, .lib-file {
+    cursor: pointer; padding: 3px 6px; border-radius: 4px; color: var(--text); user-select: none;
+}
+.lib-folder:hover, .lib-file:hover { background: var(--surface2); color: var(--orange-light); }
+.lib-folder::before {
+    content: '▶'; display: inline-block; margin-right: 6px;
+    color: var(--orange-mid); font-size: 9px; transition: transform 0.15s;
+}
+.lib-folder.expanded::before { content: '▼'; }
+.lib-folder.loading::before { content: '…'; }
+.lib-file { color: var(--text-muted); }
+.lib-file.audio { color: var(--orange-light); }
+.lib-file.audio::before { content: '♪ '; color: var(--orange-mid); margin-right: 2px; font-size: 12px; }
+.lib-file.has-lrc::after { content: ' [LRC]'; color: var(--green); font-size: 10px; margin-left: 4px; font-weight: 500; }
+.lib-empty { color: var(--text-muted); font-style: italic; font-size: 12px; padding: 4px 6px; }
+
+.history-list {
+    background: #000; border: 1px solid var(--border); border-radius: 8px;
+    max-height: 160px; overflow-y: auto; padding: 10px;
+}
+.entry { margin-bottom: 6px; border-bottom: 1px solid #1a1a1a; padding-bottom: 4px; color: var(--text-muted); text-align: left; font-size: 13px; }
+.history-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 10px; background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 6px; margin-bottom: 6px;
+    cursor: pointer; transition: 0.15s;
+}
+.history-item:hover { border-color: var(--orange); }
+.history-item.selected { border-color: var(--orange); background: var(--bg-selected); }
+.song-info { display: flex; flex-direction: column; gap: 4px; text-align: left; }
+.song-title { font-weight: bold; color: #fff; font-size: 14px; }
+.song-meta { font-size: 11px; color: var(--text-muted); }
+
+/* 楽曲情報（タイトル/アーティスト/状態） */
+.now-playing-row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; margin-bottom: 12px; padding: 14px 16px;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+    flex-wrap: wrap;
+}
+.np-info { flex: 1; min-width: 0; }
+.np-title { font-weight: 700; color: #fff; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.np-artist { font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.np-empty { color: var(--text-muted); font-size: 13px; font-style: italic; }
+.np-badges { display: flex; gap: 8px; align-items: center; }
+.badge {
+    font-size: 10px; padding: 3px 8px; border-radius: 4px;
+    background: var(--surface); border: 1px solid var(--border-strong);
+    color: var(--text-muted); font-family: monospace; letter-spacing: 0.5px;
+}
+.badge.lrc { color: var(--green); border-color: var(--green); }
+.badge.takes { color: var(--orange-light); border-color: var(--orange); }
+
+/* オーディオコントロール */
+.audio-controls {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+    margin-bottom: 16px; padding: 16px;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+}
+.audio-controls audio {
+    flex: 1 1 100%; margin-top: 4px;
+    accent-color: var(--orange-mid); color-scheme: dark;
+}
+.audio-file-name { font-size: 12px; color: var(--text-muted); }
+
+/* 歌詞ビュー */
+.lyrics-view {
+    position: relative; background: #000; border: 1px solid var(--border);
+    border-top-left-radius: 8px; border-top-right-radius: 8px; border-bottom: none;
+    height: 280px; min-height: 100px; max-height: 80vh;
+    overflow-y: auto; overflow-anchor: none; overscroll-behavior: contain;
+    padding: 20px; font-size: 15px; line-height: 2.0; text-align: center;
+    resize: none;
+}
+.lyrics-resize-handle {
+    height: 14px; background: var(--surface2); border: 1px solid var(--border); border-top: none;
+    border-bottom-left-radius: 8px; border-bottom-right-radius: 8px;
+    cursor: ns-resize; position: relative; margin-bottom: 16px;
+    user-select: none; touch-action: none;
+}
+.lyrics-resize-handle:hover { background: var(--bg-selected); }
+.lyrics-resize-handle::after {
+    content: '═'; position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%); color: var(--text-muted);
+    font-size: 11px; line-height: 1; letter-spacing: 2px;
+}
+.lyrics-line {
+    padding: 4px 12px; color: var(--text-muted); cursor: pointer;
+    border-radius: 4px; transition: 0.15s;
+}
+.lyrics-line:hover { background: var(--surface2); }
+.lyrics-line.current {
+    color: var(--orange-light); font-weight: 700; font-size: 17px;
+    background: var(--bg-selected);
+    text-shadow: 0 0 8px rgba(251,146,60,0.25);
+}
+.lyrics-line.passed { color: #555; }
+.lyrics-empty { color: var(--text-muted); font-style: italic; font-size: 13px; padding: 80px 0; }
+
+/* カラオケ調整パネル */
+.karaoke-panel {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px; margin-top: 8px; margin-bottom: 12px;
+}
+.karaoke-panel + .karaoke-panel { margin-top: 12px; }
+.panel-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border);
+}
+.panel-title {
+    font-family: 'Fredoka One', cursive; font-size: 13px; letter-spacing: 0.06em;
+    color: var(--orange-light); text-transform: uppercase;
+}
+.panel-title::before {
+    content: '●'; color: var(--orange); margin-right: 8px; font-size: 10px;
+}
+.panel-tag { font-family: monospace; font-size: 10px; color: var(--text-muted); letter-spacing: 1px; }
+
+.ctrl { margin-bottom: 12px; }
+.ctrl:last-child { margin-bottom: 0; }
+.ctrl-label {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 11px; color: var(--text-muted); text-transform: uppercase;
+    letter-spacing: 1.2px; margin-bottom: 6px;
+}
+.ctrl-val {
+    font-family: 'Fredoka One', cursive; font-size: 13px; color: var(--orange-light);
+    letter-spacing: 0.5px;
+}
+input[type=range] {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 4px; border-radius: 2px;
+    background: var(--bg); outline: none; cursor: pointer; margin: 0;
+}
+input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--orange-mid); border: 2px solid var(--bg);
+    box-shadow: 0 0 6px rgba(234,88,12,0.5); cursor: pointer;
+}
+input[type=range]::-moz-range-thumb {
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--orange-mid); border: 2px solid var(--bg); cursor: pointer;
+}
+
+/* トグル(Lyrics準拠) */
+.toggle-row {
+    display: flex; align-items: center; gap: 10px; font-size: 13px;
+    color: var(--text-muted); margin-bottom: 12px; cursor: pointer; user-select: none;
+}
+.toggle-row input[type="checkbox"] {
+    width: 16px; height: 16px; accent-color: var(--orange); cursor: pointer;
+}
+.toggle-row .toggle-desc { font-size: 11px; color: var(--text-muted); margin-left: 4px; }
+
+/* モードピル(モニタ/録音) */
+.mode-pills { display: flex; gap: 6px; margin-bottom: 8px; }
+.pill {
+    flex: 1; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--surface); color: var(--text-muted); font-size: 11px;
+    font-weight: 700; letter-spacing: 1px; cursor: pointer; text-align: center;
+    transition: all 0.15s; font-family: inherit;
+}
+.pill:hover { border-color: var(--orange); color: var(--orange-light); }
+.pill.active { background: var(--bg-selected); border-color: var(--orange); color: var(--orange-mid); }
+
+/* EQ */
+.eq-row { display: flex; flex-direction: column; gap: 10px; }
+.eq-band { display: grid; grid-template-columns: 44px 1fr 38px; align-items: center; gap: 10px; }
+.eq-band-label { font-family: monospace; font-size: 11px; color: var(--text-muted); letter-spacing: 1px; }
+.eq-band-val { font-family: 'Fredoka One', cursive; font-size: 11px; color: var(--orange-light); text-align: right; }
+
+/* テイクリスト */
+.takes-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.take-empty { font-size: 12px; color: var(--text-muted); text-align: center; padding: 20px 8px; border: 1.5px dashed var(--border); border-radius: 6px; }
+.take-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 6px; transition: 0.15s;
+}
+.take-item:hover { border-color: var(--border-strong); }
+.take-item.active { border-color: var(--orange); background: var(--bg-selected); }
+.take-info { flex: 1; min-width: 0; }
+.take-name { font-size: 12px; color: var(--text); font-weight: 500; }
+.take-meta { font-family: monospace; font-size: 10px; color: var(--text-muted); margin-top: 2px; letter-spacing: 0.4px; }
+.take-actions { display: flex; gap: 4px; }
+.take-btn {
+    width: 26px; height: 26px; border-radius: 5px;
+    border: 1px solid var(--border-strong); background: transparent;
+    color: var(--text-muted); cursor: pointer; font-size: 11px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s; font-family: inherit;
+}
+.take-btn:hover { border-color: var(--orange); color: var(--orange-light); }
+.take-btn.active { background: var(--orange); color: white; border-color: var(--orange); }
+.take-btn.del:hover { border-color: var(--rec-red); color: var(--rec-red); }
+
+/* マイクレベル */
+.level-meter {
+    height: 6px; background: var(--bg); border: 1px solid var(--border); border-radius: 3px;
+    overflow: hidden; margin-top: 8px; position: relative;
+}
+.level-meter-fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--green), #ffd700, var(--rec-red));
+    transition: width 0.06s linear;
+}
+
+/* ステータス・警告 */
+.status {
+    font-size: 11px; color: var(--text-muted); text-align: center;
+    padding: 8px; margin-top: 8px; letter-spacing: 0.5px;
+    font-family: monospace; border-top: 1px dashed var(--border);
+}
+.status.ok { color: var(--green); } .status.err { color: var(--pink); } .status.warn { color: var(--orange-light); }
+.warn-box {
+    background: rgba(220,38,38,0.08); border: 1px solid rgba(220,38,38,0.3);
+    border-radius: 8px; padding: 10px 14px; font-size: 12px;
+    color: var(--pink); margin-bottom: 14px; line-height: 1.6;
+}
+
+footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-muted); text-align: center; animation: fadeUp 0.5s ease 0.5s backwards; }
+.hidden { display: none !important; }
+
+/* アクセス時のオーディオラベル群を Lyrics の adjust-controls に合わせて見せる */
+.adjust-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.adjust-row label { font-size: 13px; color: var(--text-muted); }
+
+</style>
+</head>
+<body>
+
+<div id="lang-switcher">
+    <select id="lang-select">
+        <option value="ja">日本語</option>
+        <option value="en">EN</option>
+    </select>
+</div>
+
+<div class="page-wrap">
+
+    <nav class="breadcrumb">
+        <a href="https://qiqiroon.github.io/momo/">MOMO Works</a>
+        <span> › </span>
+        <a href="https://qiqiroon.github.io/momo/tools/">MOMO Tools</a>
+        <span> › </span>
+        <span id="breadcrumb-current">MOMO Karaoke</span>
+    </nav>
+
+    <header>
+        <div class="cat-icon">
+            <svg viewBox="-46 -50 92 80">
+                <g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="var(--orange-mid)"/></g>
+                <g transform="rotate(12,12,8.3)"><path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="var(--orange-mid)"/></g>
+                <ellipse cx="0" cy="1.3" rx="34" ry="26" fill="var(--orange-mid)"/>
+                <ellipse cx="-12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+                <ellipse cx="12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+                <path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/>
+                <g stroke="#000" stroke-width="1.5" stroke-linecap="round" opacity="0.6">
+                    <line x1="-18" y1="5" x2="-38" y2="2"/><line x1="-18" y1="9" x2="-40" y2="9"/><line x1="-18" y1="13" x2="-38" y2="16"/>
+                    <line x1="18" y1="5" x2="38" y2="2"/><line x1="18" y1="9" x2="40" y2="9"/><line x1="18" y1="13" x2="38" y2="16"/>
+                </g>
+            </svg>
+        </div>
+        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.00</span></h1>
+    </header>
+    <p class="header-sub" id="header-sub">ローカル音源と同名 .lrc を読み込む、こだわり派のカラオケサロン</p>
+
+    <div class="tab-container">
+        <button class="tab-btn active" id="tab-library" data-tab="library">ライブラリ</button>
+        <button class="tab-btn" id="tab-karaoke" data-tab="karaoke">カラオケ</button>
+    </div>
+
+    <!-- ============ ライブラリ ============ -->
+    <div id="library-section" class="tool-card">
+        <div class="section-label"><span id="library-label">Music Library</span></div>
+
+        <div class="play-source-area">
+            <div class="library-controls">
+                <div id="library-register-row" class="library-register">
+                    <button id="registerLibraryBtn" class="momo-btn">音楽フォルダを登録</button>
+                </div>
+                <div id="library-loaded-row" class="library-loaded hidden">
+                    <button id="openLibraryBtn" class="momo-btn">ライブラリを開く</button>
+                    <button id="changeLibraryBtn" class="momo-btn-small">変更</button>
+                    <span id="library-name" class="library-name"></span>
+                </div>
+            </div>
+            <p id="open-hint" class="open-hint">※音楽ライブラリのルートフォルダを登録すると、フォルダツリーから音源(MP3/WAV/M4A/FLAC/OGG)を選んで開けます。同じフォルダにある同名の <code style="color:var(--green);">.lrc</code> 歌詞は自動で読み込まれます。</p>
+            <div id="library-tree" class="library-tree hidden"></div>
+
+            <div class="section-label" style="margin-top:18px;"><span>History</span></div>
+            <div id="historyList" class="history-list">
+                <div class="entry"><span id="history-empty-msg">読み込んだ曲はここに表示されます</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ カラオケ ============ -->
+    <div id="karaoke-section" class="tool-card hidden">
+        <div class="section-label"><span id="karaoke-label">Karaoke Studio</span></div>
+
+        <div id="warnBox" class="warn-box hidden">⚠ このブラウザは AudioWorklet に対応していません。Chrome / Edge をお使いください。</div>
+
+        <div class="now-playing-row">
+            <div class="np-info">
+                <div id="npEmpty" class="np-empty">— ライブラリから楽曲を選んでください —</div>
+                <div id="npInfo" class="hidden">
+                    <div class="np-title" id="npTitle">—</div>
+                    <div class="np-artist" id="npArtist">—</div>
+                </div>
+            </div>
+            <div class="np-badges" id="npBadges"></div>
+        </div>
+
+        <div class="audio-controls" id="audio-controls">
+            <button id="btnRec" class="momo-btn-rec" title="録音 / 停止" disabled>●</button>
+            <span id="audio-file-name" class="audio-file-name">—</span>
+            <audio id="audio-player" controls preload="metadata"></audio>
+        </div>
+
+        <div class="lyrics-view" id="lyrics-view">
+            <div class="lyrics-empty">楽曲を選択すると同期歌詞がここに表示されます</div>
+        </div>
+        <div class="lyrics-resize-handle" id="lyrics-resize-handle" aria-label="resize"></div>
+
+        <!-- BGM 調整 -->
+        <div class="karaoke-panel">
+            <div class="panel-head">
+                <div class="panel-title">BGM Channel</div>
+                <div class="panel-tag">BASE TRACK</div>
+            </div>
+            <div class="ctrl">
+                <div class="ctrl-label"><span>SPEED</span><span class="ctrl-val" id="speedVal">1.00x</span></div>
+                <input type="range" id="speedSlider" min="0.5" max="2.0" step="0.05" value="1.0">
+            </div>
+            <div class="ctrl">
+                <div class="ctrl-label"><span>PITCH</span><span class="ctrl-val" id="pitchVal">0 st</span></div>
+                <input type="range" id="pitchSlider" min="-12" max="12" step="1" value="0">
+            </div>
+            <div class="ctrl">
+                <div class="ctrl-label"><span>VOLUME</span><span class="ctrl-val" id="bgmVolVal">0 dB</span></div>
+                <input type="range" id="bgmVolSlider" min="-24" max="6" step="0.5" value="0">
+            </div>
+            <div class="ctrl-label" style="margin-top:14px;"><span>EQ — 3 BAND</span><span></span></div>
+            <div class="eq-row">
+                <div class="eq-band"><span class="eq-band-label">LOW</span><input type="range" id="bgmEqLo" min="-12" max="12" step="0.5" value="0"><span class="eq-band-val" id="bgmEqLoVal">0</span></div>
+                <div class="eq-band"><span class="eq-band-label">MID</span><input type="range" id="bgmEqMd" min="-12" max="12" step="0.5" value="0"><span class="eq-band-val" id="bgmEqMdVal">0</span></div>
+                <div class="eq-band"><span class="eq-band-label">HIGH</span><input type="range" id="bgmEqHi" min="-12" max="12" step="0.5" value="0"><span class="eq-band-val" id="bgmEqHiVal">0</span></div>
+            </div>
+        </div>
+
+        <!-- モニタリング -->
+        <div class="karaoke-panel">
+            <div class="panel-head">
+                <div class="panel-title">Monitoring</div>
+                <div class="panel-tag">VOCAL CUT POLICY</div>
+            </div>
+            <div class="mode-pills">
+                <div class="pill active" id="pillMonitor">モニタリング中: 残す</div>
+                <div class="pill" id="pillRecord">録音中: カット</div>
+            </div>
+            <label class="toggle-row" style="margin-top:8px;">
+                <input type="checkbox" id="vocalToggle">
+                <span>ボーカル除去（Mid/Side）</span>
+                <span class="toggle-desc" id="vocalCutDesc">— 現在の状態に応じて自動切替</span>
+            </label>
+        </div>
+
+        <!-- 歌声テイク -->
+        <div class="karaoke-panel">
+            <div class="panel-head">
+                <div class="panel-title">Vocal Takes</div>
+                <div class="panel-tag" id="takesCount">0 takes</div>
+            </div>
+            <div class="takes-list" id="takesList">
+                <div class="take-empty">まだテイクがありません — 録音ボタンで歌声を記録</div>
+            </div>
+            <div class="ctrl">
+                <div class="ctrl-label"><span>VOICE VOLUME</span><span class="ctrl-val" id="voxVolVal">0 dB</span></div>
+                <input type="range" id="voxVolSlider" min="-24" max="12" step="0.5" value="0">
+            </div>
+            <div class="ctrl">
+                <div class="ctrl-label"><span>OFFSET (sec)</span><span class="ctrl-val" id="voxOfsVal">0.00</span></div>
+                <input type="range" id="voxOfsSlider" min="-2" max="2" step="0.01" value="0">
+            </div>
+            <div class="ctrl">
+                <div class="ctrl-label"><span>ECHO MIX</span><span class="ctrl-val" id="echoVal">0%</span></div>
+                <input type="range" id="echoSlider" min="0" max="100" step="1" value="0">
+            </div>
+            <div class="ctrl-label" style="margin-top:14px;"><span>VOICE EQ</span><span></span></div>
+            <div class="eq-row">
+                <div class="eq-band"><span class="eq-band-label">LOW</span><input type="range" id="voxEqLo" min="-12" max="12" step="0.5" value="0"><span class="eq-band-val" id="voxEqLoVal">0</span></div>
+                <div class="eq-band"><span class="eq-band-label">MID</span><input type="range" id="voxEqMd" min="-12" max="12" step="0.5" value="0"><span class="eq-band-val" id="voxEqMdVal">0</span></div>
+                <div class="eq-band"><span class="eq-band-label">HIGH</span><input type="range" id="voxEqHi" min="-12" max="12" step="0.5" value="0"><span class="eq-band-val" id="voxEqHiVal">0</span></div>
+            </div>
+            <div class="level-meter"><div class="level-meter-fill" id="micLevel"></div></div>
+        </div>
+
+        <div class="status" id="status">ファイルを読み込んでください</div>
+    </div>
+
+    <footer>
+        <a href="https://qiqiroon.github.io/momo/" id="footer-back" style="color: var(--text-muted); text-decoration: none;">← MOMO Works に戻る</a><br><br>
+        © MOMO Works
+    </footer>
+
+</div>
+
+<script>
+(function(){
+'use strict';
+
+// ============== AUDIO WORKLET URLS ==============
+const BGM_WORKLET_URL  = 'data:application/javascript;base64,Ly8gQkdNIChiYXNlIHRyYWNrKSBwcm9jZXNzb3I6IHBpdGNoIHNoaWZ0ICsgb3B0aW9uYWwgdm9jYWwgY3V0IChNaWQvU2lkZSkKY2xhc3MgQmdtUHJvY2Vzc29yIGV4dGVuZHMgQXVkaW9Xb3JrbGV0UHJvY2Vzc29yIHsKICBzdGF0aWMgZ2V0IHBhcmFtZXRlckRlc2NyaXB0b3JzKCkgewogICAgcmV0dXJuIFsKICAgICAgeyBuYW1lOiAncGl0Y2gnLCAgICBkZWZhdWx0VmFsdWU6IDEuMCwgbWluVmFsdWU6IDAuMjUsIG1heFZhbHVlOiA0LjAsIGF1dG9tYXRpb25SYXRlOiAnay1yYXRlJyB9LAogICAgICB7IG5hbWU6ICd2b2NhbEN1dCcsIGRlZmF1bHRWYWx1ZTogMC4wLCBtaW5WYWx1ZTogMC4wLCAgbWF4VmFsdWU6IDEuMCwgYXV0b21hdGlvblJhdGU6ICdrLXJhdGUnIH0KICAgIF07CiAgfQogIGNvbnN0cnVjdG9yKCkgewogICAgc3VwZXIoKTsKICAgIHRoaXMuX2J1ZlNpemUgPSA2NTUzNjsKICAgIHRoaXMuX2J1ZkwgPSBuZXcgRmxvYXQzMkFycmF5KHRoaXMuX2J1ZlNpemUpOwogICAgdGhpcy5fYnVmUiA9IG5ldyBGbG9hdDMyQXJyYXkodGhpcy5fYnVmU2l6ZSk7CiAgICB0aGlzLl93cml0ZVBvcyA9IDA7CiAgICB0aGlzLl9waGFzZTAgPSAwLjA7CiAgICB0aGlzLl9waGFzZTEgPSAwLjU7CiAgICB0aGlzLl93aW5MZW4gPSA4MTkyOwogIH0KICBfcmVhZEJ1ZihidWYsIHBvcykgewogICAgY29uc3QgaSA9IE1hdGguZmxvb3IocG9zKTsKICAgIGNvbnN0IGYgPSBwb3MgLSBpOwogICAgY29uc3QgcyA9IHRoaXMuX2J1ZlNpemU7CiAgICByZXR1cm4gYnVmW2kgJiAocyAtIDEpXSAqICgxIC0gZikgKyBidWZbKGkgKyAxKSAmIChzIC0gMSldICogZjsKICB9CiAgcHJvY2VzcyhpbnB1dHMsIG91dHB1dHMsIHBhcmFtZXRlcnMpIHsKICAgIGNvbnN0IGlucHV0ICA9IGlucHV0c1swXTsKICAgIGNvbnN0IG91dHB1dCA9IG91dHB1dHNbMF07CiAgICBpZiAoIWlucHV0IHx8ICFpbnB1dFswXSkgcmV0dXJuIHRydWU7CiAgICBjb25zdCBpbkwgID0gaW5wdXRbMF07CiAgICBjb25zdCBpblIgID0gaW5wdXRbMV0gfHwgaW5wdXRbMF07CiAgICBjb25zdCBvdXRMID0gb3V0cHV0WzBdOwogICAgY29uc3Qgb3V0UiA9IG91dHB1dFsxXSB8fCBvdXRwdXRbMF07CiAgICBjb25zdCBwaXRjaCAgICA9IHBhcmFtZXRlcnNbJ3BpdGNoJ11bMF07CiAgICBjb25zdCB2b2NhbEN1dCA9IHBhcmFtZXRlcnNbJ3ZvY2FsQ3V0J11bMF07CiAgICBjb25zdCB3aW5MZW4gICA9IHRoaXMuX3dpbkxlbjsKICAgIGNvbnN0IHBoYXNlSW5jID0gKDEuMCAtIHBpdGNoKSAvIHdpbkxlbjsKICAgIGZvciAobGV0IGkgPSAwOyBpIDwgaW5MLmxlbmd0aDsgaSsrKSB7CiAgICAgIHRoaXMuX2J1ZkxbdGhpcy5fd3JpdGVQb3MgJiAodGhpcy5fYnVmU2l6ZSAtIDEpXSA9IGluTFtpXTsKICAgICAgdGhpcy5fYnVmUlt0aGlzLl93cml0ZVBvcyAmICh0aGlzLl9idWZTaXplIC0gMSldID0gaW5SW2ldOwogICAgICB0aGlzLl93cml0ZVBvcysrOwogICAgICB0aGlzLl9waGFzZTAgPSAoKHRoaXMuX3BoYXNlMCArIHBoYXNlSW5jKSAlIDEuMCArIDEuMCkgJSAxLjA7CiAgICAgIHRoaXMuX3BoYXNlMSA9ICgodGhpcy5fcGhhc2UxICsgcGhhc2VJbmMpICUgMS4wICsgMS4wKSAlIDEuMDsKICAgICAgY29uc3QgdzAgPSBNYXRoLnNpbihNYXRoLlBJICogdGhpcy5fcGhhc2UwKTsgY29uc3QgZzAgPSB3MCAqIHcwOwogICAgICBjb25zdCB3MSA9IE1hdGguc2luKE1hdGguUEkgKiB0aGlzLl9waGFzZTEpOyBjb25zdCBnMSA9IHcxICogdzE7CiAgICAgIGNvbnN0IHJwMCA9IHRoaXMuX3dyaXRlUG9zIC0gdGhpcy5fcGhhc2UwICogd2luTGVuOwogICAgICBjb25zdCBycDEgPSB0aGlzLl93cml0ZVBvcyAtIHRoaXMuX3BoYXNlMSAqIHdpbkxlbjsKICAgICAgY29uc3Qgc0wgPSB0aGlzLl9yZWFkQnVmKHRoaXMuX2J1ZkwsIHJwMCkgKiBnMCArIHRoaXMuX3JlYWRCdWYodGhpcy5fYnVmTCwgcnAxKSAqIGcxOwogICAgICBjb25zdCBzUiA9IHRoaXMuX3JlYWRCdWYodGhpcy5fYnVmUiwgcnAwKSAqIGcwICsgdGhpcy5fcmVhZEJ1Zih0aGlzLl9idWZSLCBycDEpICogZzE7CiAgICAgIGlmICh2b2NhbEN1dCA+IDAuNSkgewogICAgICAgIGNvbnN0IHNpZGUgPSAoc0wgLSBzUikgKiAwLjU7CiAgICAgICAgb3V0TFtpXSA9IHNpZGU7CiAgICAgICAgb3V0UltpXSA9IHNpZGU7CiAgICAgIH0gZWxzZSB7CiAgICAgICAgb3V0TFtpXSA9IHNMOwogICAgICAgIG91dFJbaV0gPSBzUjsKICAgICAgfQogICAgfQogICAgcmV0dXJuIHRydWU7CiAgfQp9CnJlZ2lzdGVyUHJvY2Vzc29yKCdiZ20tcHJvY2Vzc29yJywgQmdtUHJvY2Vzc29yKTsK';
+const TAKE_WORKLET_URL = 'data:application/javascript;base64,Ly8gVGFrZSAocmVjb3JkZWQgdm9pY2UpIHByb2Nlc3NvcjogcGl0Y2ggc2hpZnQgb25seSAobW9ubyBpbiwgc3RlcmVvIG91dCkKY2xhc3MgVGFrZVByb2Nlc3NvciBleHRlbmRzIEF1ZGlvV29ya2xldFByb2Nlc3NvciB7CiAgc3RhdGljIGdldCBwYXJhbWV0ZXJEZXNjcmlwdG9ycygpIHsKICAgIHJldHVybiBbCiAgICAgIHsgbmFtZTogJ3BpdGNoJywgZGVmYXVsdFZhbHVlOiAxLjAsIG1pblZhbHVlOiAwLjI1LCBtYXhWYWx1ZTogNC4wLCBhdXRvbWF0aW9uUmF0ZTogJ2stcmF0ZScgfQogICAgXTsKICB9CiAgY29uc3RydWN0b3IoKSB7CiAgICBzdXBlcigpOwogICAgdGhpcy5fYnVmU2l6ZSA9IDY1NTM2OwogICAgdGhpcy5fYnVmID0gbmV3IEZsb2F0MzJBcnJheSh0aGlzLl9idWZTaXplKTsKICAgIHRoaXMuX3dyaXRlUG9zID0gMDsKICAgIHRoaXMuX3BoYXNlMCA9IDAuMDsKICAgIHRoaXMuX3BoYXNlMSA9IDAuNTsKICAgIHRoaXMuX3dpbkxlbiA9IDgxOTI7CiAgfQogIF9yZWFkQnVmKHBvcykgewogICAgY29uc3QgaSA9IE1hdGguZmxvb3IocG9zKTsKICAgIGNvbnN0IGYgPSBwb3MgLSBpOwogICAgY29uc3QgcyA9IHRoaXMuX2J1ZlNpemU7CiAgICByZXR1cm4gdGhpcy5fYnVmW2kgJiAocyAtIDEpXSAqICgxIC0gZikgKyB0aGlzLl9idWZbKGkgKyAxKSAmIChzIC0gMSldICogZjsKICB9CiAgcHJvY2VzcyhpbnB1dHMsIG91dHB1dHMsIHBhcmFtZXRlcnMpIHsKICAgIGNvbnN0IGlucHV0ICA9IGlucHV0c1swXTsKICAgIGNvbnN0IG91dHB1dCA9IG91dHB1dHNbMF07CiAgICBpZiAoIWlucHV0IHx8ICFpbnB1dFswXSkgcmV0dXJuIHRydWU7CiAgICBjb25zdCBpbkNoICA9IGlucHV0WzBdOwogICAgY29uc3Qgb3V0TCAgPSBvdXRwdXRbMF07CiAgICBjb25zdCBvdXRSICA9IG91dHB1dFsxXSB8fCBvdXRwdXRbMF07CiAgICBjb25zdCBwaXRjaCA9IHBhcmFtZXRlcnNbJ3BpdGNoJ11bMF07CiAgICBjb25zdCB3aW5MZW4gICA9IHRoaXMuX3dpbkxlbjsKICAgIGNvbnN0IHBoYXNlSW5jID0gKDEuMCAtIHBpdGNoKSAvIHdpbkxlbjsKICAgIGZvciAobGV0IGkgPSAwOyBpIDwgaW5DaC5sZW5ndGg7IGkrKykgewogICAgICB0aGlzLl9idWZbdGhpcy5fd3JpdGVQb3MgJiAodGhpcy5fYnVmU2l6ZSAtIDEpXSA9IGluQ2hbaV07CiAgICAgIHRoaXMuX3dyaXRlUG9zKys7CiAgICAgIHRoaXMuX3BoYXNlMCA9ICgodGhpcy5fcGhhc2UwICsgcGhhc2VJbmMpICUgMS4wICsgMS4wKSAlIDEuMDsKICAgICAgdGhpcy5fcGhhc2UxID0gKCh0aGlzLl9waGFzZTEgKyBwaGFzZUluYykgJSAxLjAgKyAxLjApICUgMS4wOwogICAgICBjb25zdCB3MCA9IE1hdGguc2luKE1hdGguUEkgKiB0aGlzLl9waGFzZTApOyBjb25zdCBnMCA9IHcwICogdzA7CiAgICAgIGNvbnN0IHcxID0gTWF0aC5zaW4oTWF0aC5QSSAqIHRoaXMuX3BoYXNlMSk7IGNvbnN0IGcxID0gdzEgKiB3MTsKICAgICAgY29uc3QgcnAwID0gdGhpcy5fd3JpdGVQb3MgLSB0aGlzLl9waGFzZTAgKiB3aW5MZW47CiAgICAgIGNvbnN0IHJwMSA9IHRoaXMuX3dyaXRlUG9zIC0gdGhpcy5fcGhhc2UxICogd2luTGVuOwogICAgICBjb25zdCBzID0gdGhpcy5fcmVhZEJ1ZihycDApICogZzAgKyB0aGlzLl9yZWFkQnVmKHJwMSkgKiBnMTsKICAgICAgb3V0TFtpXSA9IHM7CiAgICAgIG91dFJbaV0gPSBzOwogICAgfQogICAgcmV0dXJuIHRydWU7CiAgfQp9CnJlZ2lzdGVyUHJvY2Vzc29yKCd0YWtlLXByb2Nlc3NvcicsIFRha2VQcm9jZXNzb3IpOwo=';
+
+// ============== CONSTANTS ==============
+const AUDIO_EXTS = ['.mp3', '.m4a', '.flac', '.wav', '.ogg', '.opus', '.aac'];
+const DB_NAME = 'momo_karaoke';
+const DB_VERSION = 1;
+const STORE_HANDLES = 'handles';
+const STORE_TAKES   = 'takes';   // takes per song key
+const KEY_LIBRARY = 'libraryRoot';
+
+// ============== DOM ==============
+const $ = id => document.getElementById(id);
+const audioEl = $('audio-player');
+const btnRec = $('btnRec');
+const audioFileName = $('audio-file-name');
+const lyricsView = $('lyrics-view');
+const lyricsResize = $('lyrics-resize-handle');
+const npEmpty = $('npEmpty'), npInfo = $('npInfo');
+const npTitle = $('npTitle'), npArtist = $('npArtist');
+const npBadges = $('npBadges');
+const speedSlider = $('speedSlider'), speedVal = $('speedVal');
+const pitchSlider = $('pitchSlider'), pitchVal = $('pitchVal');
+const bgmVolSlider = $('bgmVolSlider'), bgmVolVal = $('bgmVolVal');
+const vocalToggle = $('vocalToggle'), vocalCutDesc = $('vocalCutDesc');
+const pillMonitor = $('pillMonitor'), pillRecord = $('pillRecord');
+const takesList = $('takesList'), takesCount = $('takesCount');
+const voxVolSlider = $('voxVolSlider'), voxVolVal = $('voxVolVal');
+const voxOfsSlider = $('voxOfsSlider'), voxOfsVal = $('voxOfsVal');
+const echoSlider = $('echoSlider'), echoVal = $('echoVal');
+const micLevel = $('micLevel');
+const statusEl = $('status');
+const warnBox = $('warnBox');
+const libraryTree = $('library-tree');
+const libraryName = $('library-name');
+const historyList = $('historyList');
+
+const bgmEq = { lo:$('bgmEqLo'), md:$('bgmEqMd'), hi:$('bgmEqHi'), loV:$('bgmEqLoVal'), mdV:$('bgmEqMdVal'), hiV:$('bgmEqHiVal') };
+const voxEq = { lo:$('voxEqLo'), md:$('voxEqMd'), hi:$('voxEqHi'), loV:$('voxEqLoVal'), mdV:$('voxEqMdVal'), hiV:$('voxEqHiVal') };
+
+// ============== STATE ==============
+const state = {
+    rootHandle: null,
+    history: [],         // recent songs [{id,title,artist,baseName,audioFileName,lyricsLines, ...}]
+    currentEntry: null,
+    currentTake: null,
+    monitorMode: 'monitor',
+    manualVocalCut: false,
+    isRecording: false,
+    lyricsLines: [],     // [{t, text}]
+    lastLyricIdx: -1,
+    audioCtxStarted: false,
+};
+
+// ============== UTILS ==============
+function fmt(s){ s = Math.max(0, s||0); return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0'); }
+function setStatus(msg, cls){ statusEl.textContent = msg; statusEl.className = 'status' + (cls?' '+cls:''); }
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+function dbToGain(db){ return Math.pow(10, db/20); }
+function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function stripExt(name){
+    const m = name.match(/\.[^./\\]+$/);
+    return m ? name.slice(0, name.length - m[0].length) : name;
+}
+function isAudioName(name){
+    const lower = name.toLowerCase();
+    return AUDIO_EXTS.some(e => lower.endsWith(e));
+}
+
+// ============== INDEXEDDB ==============
+let _db = null;
+function openDB(){
+    return new Promise((resolve, reject) => {
+        if(_db){ resolve(_db); return; }
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = () => {
+            const db = req.result;
+            if(!db.objectStoreNames.contains(STORE_HANDLES)) db.createObjectStore(STORE_HANDLES);
+            if(!db.objectStoreNames.contains(STORE_TAKES))   db.createObjectStore(STORE_TAKES);
+        };
+        req.onsuccess = () => { _db = req.result; resolve(_db); };
+        req.onerror   = () => reject(req.error);
+    });
+}
+async function idbGet(store, key){
+    const db = await openDB();
+    return new Promise((res, rej) => {
+        const tx = db.transaction(store, 'readonly');
+        const r = tx.objectStore(store).get(key);
+        r.onsuccess = () => res(r.result);
+        r.onerror = () => rej(r.error);
+    });
+}
+async function idbPut(store, key, value){
+    const db = await openDB();
+    return new Promise((res, rej) => {
+        const tx = db.transaction(store, 'readwrite');
+        tx.objectStore(store).put(value, key);
+        tx.oncomplete = () => res();
+        tx.onerror = () => rej(tx.error);
+    });
+}
+async function idbDelete(store, key){
+    const db = await openDB();
+    return new Promise((res, rej) => {
+        const tx = db.transaction(store, 'readwrite');
+        tx.objectStore(store).delete(key);
+        tx.oncomplete = () => res();
+        tx.onerror = () => rej(tx.error);
+    });
+}
+
+// ============== TABS ==============
+function switchTab(name){
+    document.querySelectorAll('.tab-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.tab === name);
+    });
+    $('library-section').classList.toggle('hidden', name !== 'library');
+    $('karaoke-section').classList.toggle('hidden', name !== 'karaoke');
+}
+document.querySelectorAll('.tab-btn').forEach(b => {
+    b.addEventListener('click', () => switchTab(b.dataset.tab));
+});
+
+// ============== LRC PARSER ==============
+function parseLRC(text){
+    const lines = [];
+    if(!text) return lines;
+    const re = /\[(\d+):(\d+(?:\.\d+)?)\]/g;
+    text.split(/\r?\n/).forEach(raw => {
+        const stamps = [];
+        let m;
+        while((m = re.exec(raw)) !== null){
+            stamps.push(parseInt(m[1],10)*60 + parseFloat(m[2]));
+        }
+        if(!stamps.length) return;
+        const txt = raw.replace(re,'').trim();
+        // skip metadata-only lines like [ti:...]
+        if(/^\[[a-zA-Z]+:[^\]]*\]$/.test(raw.trim()) && !stamps.length) return;
+        if(!txt && stamps.length === 0) return;
+        // only push lines that have a time tag (txt may be empty for "♪" interlude)
+        stamps.forEach(t => lines.push({ t, text: txt || '♪' }));
+    });
+    lines.sort((a, b) => a.t - b.t);
+    return lines;
+}
+
+function renderLyrics(){
+    if(!state.lyricsLines.length){
+        lyricsView.innerHTML = '<div class="lyrics-empty">この曲には同期歌詞 (.lrc) がありません</div>';
+        return;
+    }
+    lyricsView.innerHTML = state.lyricsLines.map((l,i) =>
+        `<div class="lyrics-line" data-idx="${i}">${escapeHtml(l.text)}</div>`
+    ).join('');
+    lyricsView.querySelectorAll('.lyrics-line').forEach(el => {
+        el.addEventListener('click', () => {
+            const idx = parseInt(el.dataset.idx, 10);
+            const t = state.lyricsLines[idx].t;
+            audioEl.currentTime = Math.max(0, t);
+            // If take is currently playing, restart it at new pos
+            if(!audioEl.paused && state.currentTake) startTakePlayback();
+        });
+    });
+    state.lastLyricIdx = -1;
+}
+
+function findCurrentLineIndex(curT){
+    let result = -1;
+    for(let i = 0; i < state.lyricsLines.length; i++){
+        if(state.lyricsLines[i].t <= curT) result = i;
+        else break;
+    }
+    return result;
+}
+
+// scrollIntoView with nearest behaviour (Lyrics-style)
+function scrollCurrentLineIntoView(){
+    const cur = lyricsView.querySelector('.lyrics-line.current');
+    if(!cur) return;
+    if(lyricsView.scrollHeight <= lyricsView.clientHeight) return;
+    const viewRect = lyricsView.getBoundingClientRect();
+    const curRect = cur.getBoundingClientRect();
+    const curTopInView = curRect.top - viewRect.top + lyricsView.scrollTop;
+    const curBottomInView = curTopInView + curRect.height;
+    if(curTopInView >= lyricsView.scrollTop && curBottomInView <= lyricsView.scrollTop + lyricsView.clientHeight) return;
+    const target = curTopInView - (lyricsView.clientHeight * 0.33) + (curRect.height / 2);
+    const maxScroll = lyricsView.scrollHeight - lyricsView.clientHeight;
+    const clamped = Math.max(0, Math.min(target, maxScroll));
+    lyricsView.scrollTo({ top: clamped, behavior: 'smooth' });
+}
+
+function updateCurrentLine(){
+    if(!state.lyricsLines.length) return;
+    const idx = findCurrentLineIndex(audioEl.currentTime);
+    if(idx === state.lastLyricIdx) return;
+    state.lastLyricIdx = idx;
+    const nodes = lyricsView.querySelectorAll('.lyrics-line');
+    nodes.forEach((el, i) => {
+        el.classList.remove('current', 'passed');
+        if(i < idx) el.classList.add('passed');
+        else if(i === idx) el.classList.add('current');
+    });
+    scrollCurrentLineIntoView();
+}
+
+// ============== AUDIO GRAPH ==============
+let audioCtx = null;
+let workletReady = false;
+
+let mediaSrc = null;
+let bgmShifter = null;
+let bgmEqLo = null, bgmEqMd = null, bgmEqHi = null;
+let bgmGain = null;
+let master = null;
+
+let takeBufferSource = null;
+let takeShifter = null;
+let voxEqLo = null, voxEqMd = null, voxEqHi = null;
+let voxGain = null;
+let echoDelay = null, echoFeedback = null, echoWet = null, echoDry = null;
+
+let micStream = null, recSrc = null, micAnalyser = null;
+let recProcessor = null;
+let recBuffers = [];
+let recSampleRate = 44100;
+let recPitchAtStart = 0, recSpeedAtStart = 1.0, recStartSongTime = 0;
+
+async function initCtx(){
+    if(audioCtx) return true;
+    if(!window.AudioWorklet){
+        warnBox.classList.remove('hidden');
+        setStatus('AudioWorklet 非対応ブラウザです', 'err');
+        return false;
+    }
+    audioCtx = new AudioContext();
+    recSampleRate = audioCtx.sampleRate;
+    master = audioCtx.createGain();
+    master.gain.value = 1.0;
+    master.connect(audioCtx.destination);
+    try {
+        await audioCtx.audioWorklet.addModule(BGM_WORKLET_URL);
+        await audioCtx.audioWorklet.addModule(TAKE_WORKLET_URL);
+        workletReady = true;
+        setStatus('準備完了', 'ok');
+        return true;
+    } catch(e){
+        setStatus('Worklet 登録失敗: ' + e.message, 'err');
+        return false;
+    }
+}
+
+function setupBgmGraph(){
+    if(mediaSrc) return;
+    mediaSrc = audioCtx.createMediaElementSource(audioEl);
+    bgmShifter = new AudioWorkletNode(audioCtx, 'bgm-processor', {
+        numberOfInputs:1, numberOfOutputs:1, outputChannelCount:[2]
+    });
+    bgmEqLo = audioCtx.createBiquadFilter(); bgmEqLo.type='lowshelf';   bgmEqLo.frequency.value=250;  bgmEqLo.gain.value=0;
+    bgmEqMd = audioCtx.createBiquadFilter(); bgmEqMd.type='peaking';    bgmEqMd.frequency.value=1200; bgmEqMd.Q.value=0.8; bgmEqMd.gain.value=0;
+    bgmEqHi = audioCtx.createBiquadFilter(); bgmEqHi.type='highshelf';  bgmEqHi.frequency.value=4000; bgmEqHi.gain.value=0;
+    bgmGain = audioCtx.createGain(); bgmGain.gain.value = 1.0;
+    mediaSrc.connect(bgmShifter);
+    bgmShifter.connect(bgmEqLo);
+    bgmEqLo.connect(bgmEqMd);
+    bgmEqMd.connect(bgmEqHi);
+    bgmEqHi.connect(bgmGain);
+    bgmGain.connect(master);
+    applyBgmPitch(); applyBgmVocalCut(); applyBgmEq(); applyBgmVolume();
+}
+
+function setupTakeChain(){
+    if(takeShifter) return;
+    takeShifter = new AudioWorkletNode(audioCtx, 'take-processor', {
+        numberOfInputs:1, numberOfOutputs:1, outputChannelCount:[2]
+    });
+    voxEqLo = audioCtx.createBiquadFilter(); voxEqLo.type='lowshelf';  voxEqLo.frequency.value=250;  voxEqLo.gain.value=0;
+    voxEqMd = audioCtx.createBiquadFilter(); voxEqMd.type='peaking';   voxEqMd.frequency.value=1200; voxEqMd.Q.value=0.8; voxEqMd.gain.value=0;
+    voxEqHi = audioCtx.createBiquadFilter(); voxEqHi.type='highshelf'; voxEqHi.frequency.value=4000; voxEqHi.gain.value=0;
+    voxGain = audioCtx.createGain(); voxGain.gain.value = 1.0;
+    echoDelay = audioCtx.createDelay(2.0); echoDelay.delayTime.value = 0.28;
+    echoFeedback = audioCtx.createGain(); echoFeedback.gain.value = 0.35;
+    echoWet = audioCtx.createGain(); echoWet.gain.value = 0;
+    echoDry = audioCtx.createGain(); echoDry.gain.value = 1.0;
+    takeShifter.connect(voxEqLo);
+    voxEqLo.connect(voxEqMd);
+    voxEqMd.connect(voxEqHi);
+    voxEqHi.connect(voxGain);
+    voxGain.connect(echoDry);
+    voxGain.connect(echoDelay);
+    echoDelay.connect(echoFeedback);
+    echoFeedback.connect(echoDelay);
+    echoDelay.connect(echoWet);
+    echoDry.connect(master);
+    echoWet.connect(master);
+    applyTakePitch(); applyVoxEq(); applyVoxVolume(); applyEcho();
+}
+
+// ============== PARAMETER APPLIERS ==============
+function applyBgmPitch(){
+    if(!bgmShifter) return;
+    const st = parseInt(pitchSlider.value, 10);
+    bgmShifter.parameters.get('pitch').setValueAtTime(Math.pow(2, st/12), audioCtx.currentTime);
+}
+function applyBgmVocalCut(){
+    if(!bgmShifter) return;
+    const auto = state.monitorMode === 'record';
+    const cut = state.manualVocalCut ? !auto : auto;
+    vocalToggle.checked = cut;
+    bgmShifter.parameters.get('vocalCut').setValueAtTime(cut ? 1.0 : 0.0, audioCtx.currentTime);
+    vocalCutDesc.textContent = cut ? '— 除去 ON（Mid/Side）' : '— ボーカル残し（ガイド有り）';
+}
+function applyBgmEq(){
+    if(!bgmEqLo) return;
+    bgmEqLo.gain.setValueAtTime(parseFloat(bgmEq.lo.value), audioCtx.currentTime);
+    bgmEqMd.gain.setValueAtTime(parseFloat(bgmEq.md.value), audioCtx.currentTime);
+    bgmEqHi.gain.setValueAtTime(parseFloat(bgmEq.hi.value), audioCtx.currentTime);
+}
+function applyBgmVolume(){
+    if(!bgmGain) return;
+    bgmGain.gain.setValueAtTime(dbToGain(parseFloat(bgmVolSlider.value)), audioCtx.currentTime);
+}
+function applyTakePitch(){
+    if(!takeShifter || !state.currentTake) return;
+    const curSt  = parseInt(pitchSlider.value, 10);
+    const takeSt = state.currentTake.pitchSemitones || 0;
+    const curSp  = parseFloat(speedSlider.value);
+    const takeSp = state.currentTake.speed || 1.0;
+    const semitoneRatio   = Math.pow(2, (curSt - takeSt)/12);
+    const speedPitchRatio = curSp / takeSp;
+    takeShifter.parameters.get('pitch').setValueAtTime(semitoneRatio / speedPitchRatio, audioCtx.currentTime);
+}
+function applyTakeSpeed(){
+    if(!takeBufferSource || !state.currentTake) return;
+    const curSp = parseFloat(speedSlider.value);
+    const takeSp = state.currentTake.speed || 1.0;
+    takeBufferSource.playbackRate.setValueAtTime(curSp / takeSp, audioCtx.currentTime);
+    applyTakePitch();
+}
+function applyVoxEq(){
+    if(!voxEqLo) return;
+    voxEqLo.gain.setValueAtTime(parseFloat(voxEq.lo.value), audioCtx.currentTime);
+    voxEqMd.gain.setValueAtTime(parseFloat(voxEq.md.value), audioCtx.currentTime);
+    voxEqHi.gain.setValueAtTime(parseFloat(voxEq.hi.value), audioCtx.currentTime);
+}
+function applyVoxVolume(){
+    if(!voxGain) return;
+    voxGain.gain.setValueAtTime(dbToGain(parseFloat(voxVolSlider.value)), audioCtx.currentTime);
+}
+function applyEcho(){
+    if(!echoWet) return;
+    const v = parseFloat(echoSlider.value)/100;
+    echoWet.gain.setValueAtTime(v * 0.6, audioCtx.currentTime);
+    echoDry.gain.setValueAtTime(1.0 - v*0.3, audioCtx.currentTime);
+}
+
+// ============== TAKE PLAYBACK ==============
+function stopTakePlayback(){
+    if(takeBufferSource){
+        try { takeBufferSource.stop(); } catch(e){}
+        try { takeBufferSource.disconnect(); } catch(e){}
+        takeBufferSource = null;
+    }
+}
+function startTakePlayback(){
+    if(!state.currentTake || !audioCtx || !takeShifter) return;
+    stopTakePlayback();
+    let buf = state.currentTake._decodedBuffer;
+    if(!buf){
+        const pcm = state.currentTake.pcm;
+        const sr  = state.currentTake.sampleRate;
+        buf = audioCtx.createBuffer(1, pcm.length, sr);
+        buf.copyToChannel(pcm, 0);
+        state.currentTake._decodedBuffer = buf;
+    }
+    takeBufferSource = audioCtx.createBufferSource();
+    takeBufferSource.buffer = buf;
+    takeBufferSource.connect(takeShifter);
+    const songT = audioEl.currentTime;
+    const takeStartSong = state.currentTake.startSongTime || 0;
+    const takeSp = state.currentTake.speed || 1.0;
+    const userOfs = parseFloat(voxOfsSlider.value);
+    const takeLocalT = (songT - takeStartSong - userOfs) / takeSp;
+    if(takeLocalT >= buf.duration){ takeBufferSource = null; return; }
+    const offset = Math.max(0, takeLocalT);
+    applyTakePitch();
+    const curSp = parseFloat(speedSlider.value);
+    takeBufferSource.playbackRate.value = curSp / takeSp;
+    takeBufferSource.start(0, offset);
+}
+
+// ============== RECORDING ==============
+async function startRecording(){
+    if(!state.currentEntry) return;
+    if(!await initCtx()) return;
+    if(audioCtx.state === 'suspended') await audioCtx.resume();
+    if(!micStream){
+        try {
+            micStream = await navigator.mediaDevices.getUserMedia({
+                audio: { echoCancellation:false, noiseSuppression:false, autoGainControl:false },
+                video: false
+            });
+        } catch(e){
+            setStatus('マイクの許可が必要です: ' + e.message, 'err');
+            return;
+        }
+    }
+    if(!recSrc){
+        recSrc = audioCtx.createMediaStreamSource(micStream);
+        micAnalyser = audioCtx.createAnalyser();
+        micAnalyser.fftSize = 512;
+        recSrc.connect(micAnalyser);
+    }
+    recBuffers = [];
+    recProcessor = audioCtx.createScriptProcessor(4096, 1, 1);
+    recProcessor.onaudioprocess = (e) => {
+        if(!state.isRecording) return;
+        recBuffers.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+    };
+    recSrc.connect(recProcessor);
+    const muteGain = audioCtx.createGain(); muteGain.gain.value = 0;
+    recProcessor.connect(muteGain);
+    muteGain.connect(audioCtx.destination);
+
+    recPitchAtStart = parseInt(pitchSlider.value, 10);
+    recSpeedAtStart = parseFloat(speedSlider.value);
+    recStartSongTime = audioEl.currentTime;
+
+    setMonitorMode('record');
+
+    state.isRecording = true;
+    btnRec.classList.add('recording');
+    btnRec.textContent = '■';
+    setStatus('録音中... ■で停止', 'warn');
+    pumpMicLevel();
+}
+async function stopRecording(){
+    if(!state.isRecording) return;
+    state.isRecording = false;
+    btnRec.classList.remove('recording');
+    btnRec.textContent = '●';
+    try { recProcessor.disconnect(); } catch(e){}
+    recProcessor = null;
+    const total = recBuffers.reduce((s,b) => s+b.length, 0);
+    if(total < 4000){
+        recBuffers = [];
+        setStatus('録音が短すぎます（破棄）', 'err');
+        return;
+    }
+    const pcm = new Float32Array(total);
+    let p = 0;
+    for(const b of recBuffers){ pcm.set(b, p); p += b.length; }
+    recBuffers = [];
+
+    const take = {
+        id: uid(),
+        name: 'Take ' + ((state.currentEntry.takes||[]).length + 1),
+        pcm: pcm,
+        sampleRate: recSampleRate,
+        pitchSemitones: recPitchAtStart,
+        speed: recSpeedAtStart,
+        startSongTime: recStartSongTime,
+        duration: total / recSampleRate,
+        createdAt: Date.now()
+    };
+    if(!state.currentEntry.takes) state.currentEntry.takes = [];
+    state.currentEntry.takes.push(take);
+    state.currentTake = take;
+    await persistTakes(state.currentEntry);
+    renderTakes();
+    renderBadges();
+    setStatus('テイクを保存: ' + take.name, 'ok');
+}
+
+function pumpMicLevel(){
+    if(!state.isRecording){ micLevel.style.width = '0%'; return; }
+    if(!micAnalyser){ requestAnimationFrame(pumpMicLevel); return; }
+    const buf = new Uint8Array(micAnalyser.fftSize);
+    micAnalyser.getByteTimeDomainData(buf);
+    let max = 0;
+    for(let i=0; i<buf.length; i++){
+        const v = Math.abs(buf[i]-128) / 128;
+        if(v > max) max = v;
+    }
+    micLevel.style.width = Math.min(100, max*180) + '%';
+    requestAnimationFrame(pumpMicLevel);
+}
+
+// ============== MONITOR MODE ==============
+function setMonitorMode(m){
+    state.monitorMode = m;
+    state.manualVocalCut = false;
+    pillMonitor.classList.toggle('active', m === 'monitor');
+    pillRecord.classList.toggle('active', m === 'record');
+    if(audioCtx) applyBgmVocalCut();
+}
+
+// ============== TAKES PERSISTENCE ==============
+function takesKeyFor(entry){
+    // Stable key based on baseName + audioFileName
+    return 'takes:' + (entry.baseName || '') + '::' + (entry.audioFileName || '');
+}
+async function persistTakes(entry){
+    if(!entry || !entry.takes) return;
+    const data = entry.takes.map(t => ({
+        id: t.id, name: t.name, pcm: t.pcm, sampleRate: t.sampleRate,
+        pitchSemitones: t.pitchSemitones, speed: t.speed,
+        startSongTime: t.startSongTime, duration: t.duration, createdAt: t.createdAt
+    }));
+    try { await idbPut(STORE_TAKES, takesKeyFor(entry), data); }
+    catch(e){ console.warn('persist takes failed', e); }
+}
+async function loadTakesFor(entry){
+    try {
+        const data = await idbGet(STORE_TAKES, takesKeyFor(entry));
+        return Array.isArray(data) ? data : [];
+    } catch(e){ return []; }
+}
+
+// ============== TAKES UI ==============
+function renderTakes(){
+    const takes = (state.currentEntry && state.currentEntry.takes) || [];
+    if(!takes.length){
+        takesList.innerHTML = '<div class="take-empty">まだテイクがありません — 録音ボタンで歌声を記録</div>';
+        takesCount.textContent = '0 takes';
+        return;
+    }
+    takesCount.textContent = takes.length + ' takes';
+    takesList.innerHTML = takes.map(t => {
+        const isActive = state.currentTake && t.id === state.currentTake.id;
+        const sign = (t.pitchSemitones||0) >= 0 ? '+' : '';
+        return `<div class="take-item ${isActive?'active':''}" data-id="${t.id}">
+            <div class="take-info">
+                <div class="take-name">${escapeHtml(t.name)}</div>
+                <div class="take-meta">${t.duration.toFixed(1)}s · ${sign}${t.pitchSemitones||0}st · ${(t.speed||1).toFixed(2)}x · @${fmt(t.startSongTime||0)}</div>
+            </div>
+            <div class="take-actions">
+                <button class="take-btn ${isActive?'active':''}" data-act="select" title="選択">●</button>
+                <button class="take-btn del" data-act="del" title="削除">×</button>
+            </div>
+        </div>`;
+    }).join('');
+    takesList.querySelectorAll('.take-item').forEach(el => {
+        const id = el.dataset.id;
+        el.querySelector('[data-act=select]').addEventListener('click', () => {
+            const t = state.currentEntry.takes.find(x => x.id === id);
+            if(t){
+                state.currentTake = t;
+                renderTakes();
+                if(!audioEl.paused) startTakePlayback();
+            }
+        });
+        el.querySelector('[data-act=del]').addEventListener('click', async () => {
+            if(!confirm('このテイクを削除しますか？')) return;
+            state.currentEntry.takes = state.currentEntry.takes.filter(x => x.id !== id);
+            if(state.currentTake && state.currentTake.id === id){
+                state.currentTake = state.currentEntry.takes.length ? state.currentEntry.takes[state.currentEntry.takes.length-1] : null;
+                stopTakePlayback();
+            }
+            await persistTakes(state.currentEntry);
+            renderTakes();
+            renderBadges();
+        });
+    });
+}
+
+function renderBadges(){
+    const parts = [];
+    if(state.currentEntry){
+        if(state.lyricsLines.length) parts.push('<span class="badge lrc">LRC</span>');
+        const n = (state.currentEntry.takes||[]).length;
+        if(n) parts.push(`<span class="badge takes">${n} TAKE${n>1?'S':''}</span>`);
+    }
+    npBadges.innerHTML = parts.join('');
+}
+
+// ============== HISTORY ==============
+function addToHistory(entry){
+    if(!state.history) state.history = [];
+    const idx = state.history.findIndex(e => e.id === entry.id);
+    if(idx >= 0) state.history[idx] = entry;
+    else state.history.unshift(entry);
+    if(state.history.length > 30) state.history.pop();
+    renderHistoryList();
+}
+function renderHistoryList(){
+    if(!state.history.length){
+        historyList.innerHTML = '<div class="entry"><span>読み込んだ曲はここに表示されます</span></div>';
+        return;
+    }
+    historyList.innerHTML = '';
+    for(const entry of state.history){
+        const div = document.createElement('div');
+        const selected = state.currentEntry && state.currentEntry.id === entry.id;
+        div.className = 'history-item' + (selected ? ' selected' : '');
+        const hasLrc = entry.lyricsLines && entry.lyricsLines.length;
+        const nTakes = (entry.takes||[]).length;
+        div.innerHTML =
+            '<div class="song-info">' +
+                '<span class="song-title">' + escapeHtml(entry.title) + '</span>' +
+                '<span class="song-meta">' + escapeHtml(entry.artist || '—') +
+                    (hasLrc ? ' · <span style="color:var(--green);">LRC</span>' : '') +
+                    (nTakes ? ' · <span style="color:var(--orange-light);">' + nTakes + ' takes</span>' : '') +
+                '</span>' +
+            '</div>';
+        div.addEventListener('click', () => selectEntry(entry));
+        historyList.appendChild(div);
+    }
+}
+
+// ============== ENTRY SELECTION (load song) ==============
+async function selectEntry(entry){
+    if(!entry || !entry.audioFile) return;
+
+    // stop everything
+    if(!audioEl.paused){ try { audioEl.pause(); } catch(e){} }
+    stopTakePlayback();
+    if(state.isRecording) await stopRecording();
+
+    state.currentEntry = entry;
+    state.lyricsLines = entry.lyricsLines || [];
+
+    // load audio file (BLOB url)
+    if(entry._objectUrl){
+        try { URL.revokeObjectURL(entry._objectUrl); } catch(e){}
+    }
+    entry._objectUrl = URL.createObjectURL(entry.audioFile);
+    audioEl.src = entry._objectUrl;
+    audioFileName.textContent = entry.audioFile.name;
+
+    // load takes from IDB if not already loaded
+    if(!entry.takes){
+        entry.takes = await loadTakesFor(entry);
+    }
+    state.currentTake = entry.takes.length ? entry.takes[entry.takes.length-1] : null;
+
+    // UI
+    npEmpty.classList.add('hidden');
+    npInfo.classList.remove('hidden');
+    npTitle.textContent = entry.title || '(無題)';
+    npArtist.textContent = entry.artist || '—';
+    btnRec.disabled = false;
+    renderLyrics();
+    renderTakes();
+    renderBadges();
+    renderHistoryList();
+    setStatus('「' + (entry.title || '(無題)') + '」を読み込みました', 'ok');
+
+    // switch to karaoke tab
+    switchTab('karaoke');
+}
+
+// ============== LIBRARY (folder picker + tree) ==============
+async function ensurePermission(handle, mode){
+    if(!handle.queryPermission) return true;
+    let perm = await handle.queryPermission({ mode: mode || 'read' });
+    if(perm === 'granted') return true;
+    perm = await handle.requestPermission({ mode: mode || 'read' });
+    return perm === 'granted';
+}
+async function registerLibrary(){
+    if(!window.showDirectoryPicker){
+        alert('Chrome / Edge を使用してください。');
+        return;
+    }
+    let handle;
+    try {
+        handle = await window.showDirectoryPicker({ mode: 'read' });
+    } catch(e){
+        if(e.name !== 'AbortError') alert('フォルダを開けませんでした: ' + e.message);
+        return;
+    }
+    state.rootHandle = handle;
+    try { await idbPut(STORE_HANDLES, KEY_LIBRARY, handle); } catch(e){ console.warn(e); }
+    updateLibraryControls();
+    await renderRoot();
+}
+async function changeLibrary(){
+    state.rootHandle = null;
+    try { await idbDelete(STORE_HANDLES, KEY_LIBRARY); } catch(e){}
+    libraryTree.innerHTML = '';
+    libraryTree.classList.add('hidden');
+    libraryName.textContent = '';
+    updateLibraryControls();
+    await registerLibrary();
+}
+async function openLibrary(){
+    if(!state.rootHandle){ return registerLibrary(); }
+    const ok = await ensurePermission(state.rootHandle, 'read');
+    if(!ok){ alert('ライブラリへのアクセスが拒否されました。'); return; }
+    await renderRoot();
+}
+function updateLibraryControls(){
+    const reg = $('library-register-row');
+    const loaded = $('library-loaded-row');
+    if(state.rootHandle){
+        reg.classList.add('hidden');
+        loaded.classList.remove('hidden');
+        libraryName.textContent = state.rootHandle.name || '';
+    } else {
+        reg.classList.remove('hidden');
+        loaded.classList.add('hidden');
+    }
+}
+
+async function scanDirShallow(dirHandle){
+    const folders = [], audioFiles = [];
+    const lrcBaseSet = new Set();
+    for await (const entry of dirHandle.values()){
+        if(entry.kind === 'directory'){
+            folders.push({ handle: entry, name: entry.name });
+        } else {
+            const lower = entry.name.toLowerCase();
+            if(lower.endsWith('.lrc')){
+                lrcBaseSet.add(stripExt(entry.name).toLowerCase());
+            } else if(isAudioName(entry.name)){
+                audioFiles.push({ handle: entry, name: entry.name, base: stripExt(entry.name).toLowerCase() });
+            }
+        }
+    }
+    folders.sort((a,b) => a.name.localeCompare(b.name));
+    audioFiles.sort((a,b) => a.name.localeCompare(b.name));
+    return { folders, audioFiles, lrcBaseSet };
+}
+
+/**
+ * Find a .lrc file in the directory whose basename matches the audio.
+ * Per user spec: ".mp3 を除いた部分が同じ名前の .lrc を、同じフォルダから見つけてロード"
+ */
+async function findLrcInDir(dirHandle, baseName){
+    const target = baseName.toLowerCase() + '.lrc';
+    for await (const entry of dirHandle.values()){
+        if(entry.kind === 'file' && entry.name.toLowerCase() === target){
+            return entry;
+        }
+    }
+    // fallback: case-flexible base match
+    for await (const entry of dirHandle.values()){
+        if(entry.kind !== 'file') continue;
+        const lower = entry.name.toLowerCase();
+        if(lower.endsWith('.lrc') && stripExt(entry.name).toLowerCase() === baseName.toLowerCase()){
+            return entry;
+        }
+    }
+    return null;
+}
+
+function buildFolderNode(dirHandle, name){
+    const li = document.createElement('li');
+    li.className = 'lib-folder';
+    li.textContent = name;
+    li.dataset.scanned = '0';
+    const children = document.createElement('ul');
+    children.className = 'lib-children hidden';
+    li.appendChild(children);
+    li.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        if(li.classList.contains('expanded')){
+            li.classList.remove('expanded');
+            children.classList.add('hidden');
+            return;
+        }
+        if(li.dataset.scanned !== '1'){
+            li.classList.add('loading');
+            try {
+                const r = await scanDirShallow(dirHandle);
+                populateChildren(children, dirHandle, r.folders, r.audioFiles, r.lrcBaseSet);
+                li.dataset.scanned = '1';
+            } catch(e){
+                children.innerHTML = '<li class="lib-empty">読み込みエラー: ' + escapeHtml(e.message) + '</li>';
+            } finally {
+                li.classList.remove('loading');
+            }
+        }
+        li.classList.add('expanded');
+        children.classList.remove('hidden');
+    });
+    return li;
+}
+
+function populateChildren(container, dirHandle, folders, audioFiles, lrcBaseSet){
+    container.innerHTML = '';
+    if(folders.length === 0 && audioFiles.length === 0){
+        container.innerHTML = '<li class="lib-empty">(空)</li>';
+        return;
+    }
+    for(const f of folders){
+        container.appendChild(buildFolderNode(f.handle, f.name));
+    }
+    for(const a of audioFiles){
+        const li = document.createElement('li');
+        const hasLrc = lrcBaseSet.has(a.base);
+        li.className = 'lib-file audio' + (hasLrc ? ' has-lrc' : '');
+        li.textContent = a.name;
+        li.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            onAudioClicked(dirHandle, a.handle);
+        });
+        container.appendChild(li);
+    }
+}
+
+async function renderRoot(){
+    if(!state.rootHandle) return;
+    libraryTree.innerHTML = '';
+    libraryTree.classList.remove('hidden');
+    const ul = document.createElement('ul');
+    libraryTree.appendChild(ul);
+    try {
+        const r = await scanDirShallow(state.rootHandle);
+        populateChildren(ul, state.rootHandle, r.folders, r.audioFiles, r.lrcBaseSet);
+    } catch(e){
+        libraryTree.innerHTML = '<div class="lib-empty">読み込みエラー: ' + escapeHtml(e.message) + '</div>';
+    }
+}
+
+/**
+ * MP3クリック時: 同名 .lrc を同フォルダから探して自動ロード。
+ */
+async function onAudioClicked(parentDirHandle, audioHandle){
+    try {
+        const audioFile = await audioHandle.getFile();
+        const baseName = stripExt(audioFile.name);
+
+        let lyricsLines = [];
+        let lrcText = '';
+        try {
+            const lrcHandle = await findLrcInDir(parentDirHandle, baseName);
+            if(lrcHandle){
+                const lrcFile = await lrcHandle.getFile();
+                lrcText = await lrcFile.text();
+                lyricsLines = parseLRC(lrcText);
+            }
+        } catch(e){ /* lrc missing is fine */ }
+
+        // Try to extract metadata from filename "Artist - Title"
+        let title = baseName, artist = '';
+        const m = baseName.match(/^(.+?)\s*[-–]\s*(.+)$/);
+        if(m){ artist = m[1].trim(); title = m[2].trim(); }
+        // If LRC has [ti:]/[ar:] override
+        if(lrcText){
+            const tiM = lrcText.match(/\[ti:([^\]]+)\]/i);
+            const arM = lrcText.match(/\[ar:([^\]]+)\]/i);
+            if(tiM) title = tiM[1].trim();
+            if(arM) artist = arM[1].trim();
+        }
+
+        const entry = {
+            id: 'audio_' + Date.now() + '_' + Math.random().toString(36).slice(2,8),
+            source: 'library',
+            title: title,
+            artist: artist,
+            baseName: baseName,
+            audioFileName: audioFile.name,
+            audioFile: audioFile,
+            audioHandle: audioHandle,
+            lyricsLines: lyricsLines,
+            takes: null, // will be loaded async in selectEntry
+            createdAt: Date.now()
+        };
+        addToHistory(entry);
+        await selectEntry(entry);
+    } catch(e){
+        console.error(e);
+        alert('読み込みエラー: ' + e.message);
+    }
+}
+
+async function tryRestoreLibrary(){
+    try {
+        const handle = await idbGet(STORE_HANDLES, KEY_LIBRARY);
+        if(handle){
+            state.rootHandle = handle;
+            updateLibraryControls();
+        } else {
+            updateLibraryControls();
+        }
+    } catch(e){
+        console.warn('IDB restore failed', e);
+        updateLibraryControls();
+    }
+}
+
+// ============== AUDIO ELEMENT EVENTS / CTX BOOTSTRAP ==============
+async function ensureAudioGraph(){
+    if(state.audioCtxStarted) return true;
+    if(!await initCtx()) return false;
+    if(audioCtx.state === 'suspended') await audioCtx.resume();
+    setupBgmGraph();
+    setupTakeChain();
+    state.audioCtxStarted = true;
+    return true;
+}
+
+audioEl.addEventListener('play', async () => {
+    if(!await ensureAudioGraph()) return;
+    if(state.currentTake) startTakePlayback();
+});
+audioEl.addEventListener('pause', () => {
+    stopTakePlayback();
+});
+audioEl.addEventListener('seeking', () => {
+    stopTakePlayback();
+});
+audioEl.addEventListener('seeked', () => {
+    if(!audioEl.paused && state.currentTake) startTakePlayback();
+});
+audioEl.addEventListener('ratechange', () => {
+    // Keep playbackRate synced to our SPEED slider; if changed externally, snap back.
+    const v = parseFloat(speedSlider.value);
+    if(Math.abs(audioEl.playbackRate - v) > 0.001){
+        audioEl.playbackRate = v;
+    }
+});
+audioEl.addEventListener('timeupdate', updateCurrentLine);
+audioEl.addEventListener('ended', () => {
+    stopTakePlayback();
+    state.lastLyricIdx = -1;
+    lyricsView.querySelectorAll('.lyrics-line').forEach(el => el.classList.remove('current','passed'));
+    if(state.isRecording) stopRecording();
+});
+
+// ============== UI WIRING ==============
+$('registerLibraryBtn').addEventListener('click', registerLibrary);
+$('openLibraryBtn').addEventListener('click', openLibrary);
+$('changeLibraryBtn').addEventListener('click', changeLibrary);
+
+btnRec.addEventListener('click', async () => {
+    if(state.isRecording){ await stopRecording(); return; }
+    if(audioEl.paused){
+        try { await audioEl.play(); } catch(e){ /* may fail without gesture? click already gives gesture */ }
+        await new Promise(r => setTimeout(r, 80));
+    }
+    await startRecording();
+});
+
+speedSlider.addEventListener('input', () => {
+    const v = parseFloat(speedSlider.value);
+    audioEl.playbackRate = v;
+    speedVal.textContent = v.toFixed(2) + 'x';
+    applyTakeSpeed();
+});
+pitchSlider.addEventListener('input', () => {
+    const v = parseInt(pitchSlider.value, 10);
+    pitchVal.textContent = (v >= 0 ? '+' : '') + v + ' st';
+    applyBgmPitch();
+    applyTakePitch();
+});
+bgmVolSlider.addEventListener('input', () => {
+    const v = parseFloat(bgmVolSlider.value);
+    bgmVolVal.textContent = (v >= 0 ? '+' : '') + v.toFixed(1) + ' dB';
+    applyBgmVolume();
+});
+voxVolSlider.addEventListener('input', () => {
+    const v = parseFloat(voxVolSlider.value);
+    voxVolVal.textContent = (v >= 0 ? '+' : '') + v.toFixed(1) + ' dB';
+    applyVoxVolume();
+});
+let voxOfsTimer = null;
+voxOfsSlider.addEventListener('input', () => {
+    voxOfsVal.textContent = parseFloat(voxOfsSlider.value).toFixed(2);
+    if(voxOfsTimer) clearTimeout(voxOfsTimer);
+    voxOfsTimer = setTimeout(() => {
+        if(!audioEl.paused && state.currentTake) startTakePlayback();
+    }, 220);
+});
+echoSlider.addEventListener('input', () => {
+    echoVal.textContent = parseInt(echoSlider.value, 10) + '%';
+    applyEcho();
+});
+[bgmEq.lo, bgmEq.md, bgmEq.hi].forEach((s, i) => {
+    s.addEventListener('input', () => {
+        [bgmEq.loV, bgmEq.mdV, bgmEq.hiV][i].textContent = parseFloat(s.value).toFixed(1);
+        applyBgmEq();
+    });
+});
+[voxEq.lo, voxEq.md, voxEq.hi].forEach((s, i) => {
+    s.addEventListener('input', () => {
+        [voxEq.loV, voxEq.mdV, voxEq.hiV][i].textContent = parseFloat(s.value).toFixed(1);
+        applyVoxEq();
+    });
+});
+
+vocalToggle.addEventListener('change', () => {
+    state.manualVocalCut = !state.manualVocalCut;
+    if(audioCtx) applyBgmVocalCut();
+});
+pillMonitor.addEventListener('click', () => setMonitorMode('monitor'));
+pillRecord.addEventListener('click',  () => setMonitorMode('record'));
+
+// ============== LYRICS RESIZE HANDLE ==============
+(function initResize(){
+    let dragging = false, startY = 0, startH = 0;
+    lyricsResize.addEventListener('pointerdown', e => {
+        dragging = true;
+        startY = e.clientY;
+        startH = lyricsView.getBoundingClientRect().height;
+        try { lyricsResize.setPointerCapture(e.pointerId); } catch(er){}
+        e.preventDefault();
+    });
+    lyricsResize.addEventListener('pointermove', e => {
+        if(!dragging) return;
+        const dy = e.clientY - startY;
+        const newH = Math.max(100, Math.min(window.innerHeight*0.85, startH + dy));
+        lyricsView.style.height = newH + 'px';
+    });
+    const stop = e => {
+        dragging = false;
+        try { lyricsResize.releasePointerCapture(e.pointerId); } catch(er){}
+    };
+    lyricsResize.addEventListener('pointerup', stop);
+    lyricsResize.addEventListener('pointercancel', stop);
+})();
+
+// ============== INIT ==============
+(async function init(){
+    if(!window.AudioWorklet){ warnBox.classList.remove('hidden'); }
+    setMonitorMode('monitor');
+    await tryRestoreLibrary();
+    setStatus('準備完了 — ライブラリから曲を選んでください', 'ok');
+})();
+
+})();
+
+</script>
+</body>
+</html>

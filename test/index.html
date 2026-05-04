@@ -241,6 +241,29 @@ h1 span { color: var(--orange-mid); }
     margin-top: 2px; letter-spacing: 0.5px;
 }
 
+.audio-rescue-row {
+    flex: 1 1 100%;
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; margin-top: 6px;
+    background: rgba(220,38,38,0.08); border: 1px solid rgba(220,38,38,0.4);
+    border-radius: 6px;
+}
+.audio-rescue-msg { font-size: 11px; color: var(--pink); flex: 1; }
+
+.ios-notice {
+    background: rgba(251,146,60,0.06);
+    border: 1px solid rgba(251,146,60,0.3);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 12px;
+    color: var(--orange-light);
+    line-height: 1.65;
+    margin-bottom: 16px;
+    display: none;
+}
+.ios-notice.show { display: block; }
+.ios-notice strong { color: var(--orange-mid); display: block; margin-bottom: 4px; }
+
 /* 歌詞ビュー */
 .lyrics-view {
     position: relative; background: #000; border: 1px solid var(--border);
@@ -441,6 +464,64 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
 .adjust-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
 .adjust-row label { font-size: 13px; color: var(--text-muted); }
 
+/* ──────── Debug Log Panel (iOS の F12 代替) ──────── */
+#debugPanel {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    max-height: 50vh;
+    background: rgba(0,0,0,0.92);
+    border-top: 2px solid var(--orange);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 -4px 16px rgba(0,0,0,0.5);
+    transform: translateY(0);
+    transition: transform 0.2s ease;
+}
+#debugPanel.collapsed { transform: translateY(calc(100% - 32px)); }
+#debugHeader {
+    background: var(--orange); color: white;
+    font-family: monospace; font-size: 11px; font-weight: 700;
+    padding: 6px 12px;
+    display: flex; justify-content: space-between; align-items: center;
+    cursor: pointer; user-select: none;
+    height: 32px; box-sizing: border-box;
+    letter-spacing: 1px;
+}
+#debugLog {
+    flex: 1; overflow-y: auto;
+    font-family: monospace; font-size: 11px;
+    color: #d8d8d8; padding: 8px 12px; line-height: 1.5;
+    -webkit-overflow-scrolling: touch;
+}
+#debugLog .dl-entry { margin-bottom: 3px; word-break: break-all; }
+#debugLog .dl-entry.err { color: var(--pink); }
+#debugLog .dl-entry.warn { color: var(--orange-light); }
+#debugLog .dl-entry.ok { color: var(--green); }
+#debugLog .dl-entry.info { color: #6dd5fa; }
+#debugLog .dl-time { color: #888; margin-right: 6px; }
+#debugActions {
+    display: flex; gap: 6px;
+    padding: 6px 12px;
+    background: #181818;
+    border-top: 1px solid var(--border);
+}
+#debugActions button {
+    padding: 4px 10px; font-size: 10px;
+    background: var(--surface2); color: var(--orange-light);
+    border: 1px solid var(--border-strong); border-radius: 4px;
+    cursor: pointer; font-family: monospace; letter-spacing: 0.5px;
+}
+#debugActions button:hover { background: var(--bg-selected); border-color: var(--orange); }
+#debugToggle { font-size: 14px; line-height: 1; }
+.debug-summary {
+    background: var(--surface2); border: 1px solid var(--orange);
+    border-radius: 6px; padding: 10px 12px; margin: 8px 0;
+    font-family: monospace; font-size: 11px; color: var(--text);
+    line-height: 1.7;
+}
+.debug-summary b { color: var(--orange-light); }
+
 </style>
 </head>
 <body>
@@ -544,6 +625,15 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 <span class="time-dur" id="timeDur">0:00</span>
             </div>
             <div id="loadProgress" class="load-progress hidden">読み込み中…</div>
+            <div id="audioRescueRow" class="audio-rescue-row hidden">
+                <span class="audio-rescue-msg">音が出ない場合（iOS で録音後によく発生します）</span>
+                <button id="btnAudioRescue" class="momo-btn-small">音声を復旧</button>
+            </div>
+        </div>
+
+        <div class="ios-notice" id="iosNotice">
+            <strong>📱 iPhone / iPad の方へ</strong><br>
+            iOS の制約により、録音すると BGM が消えることがあります。その場合は録音停止後に「<b>音声を復旧</b>」ボタンを押してください。可能であれば PC 版 Chrome / Edge をお使いいただくと、より安定して動作します。
         </div>
 
         <div class="lyrics-view" id="lyrics-view">
@@ -668,9 +758,159 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
 
 </div>
 
+<!-- ──────── Debug Panel (iOS の F12 代替) ──────── -->
+<div id="debugPanel">
+    <div id="debugHeader">
+        <span id="debugTitle">▼ DEBUG LOG</span>
+        <span id="debugToggle">⌄</span>
+    </div>
+    <div id="debugLog"></div>
+    <div id="debugActions">
+        <button id="debugClear">CLEAR</button>
+        <button id="debugCopy">COPY ALL</button>
+        <button id="debugProbe">AUDIO PROBE</button>
+        <button id="debugBeep">BEEP TEST</button>
+    </div>
+</div>
+
 <script>
 (function(){
 'use strict';
+
+// ============== DEBUG LOGGER (iOS の F12 代替) ==============
+// 画面下部のオーバーレイにログを表示。console.log/warn/error と
+// unhandledrejection をフックして全部画面で見える形に。
+const DEBUG = (function(){
+    const out = document.getElementById('debugLog');
+    const lines = [];
+    function fmt(t){ return t.toTimeString().slice(0,8) + '.' + String(t.getMilliseconds()).padStart(3,'0'); }
+    function add(level, args){
+        const t = new Date();
+        let msg = '';
+        try {
+            msg = args.map(a => {
+                if(a instanceof Error) return a.name + ': ' + a.message + (a.stack ? '\n' + a.stack.split('\n').slice(1,4).join('\n') : '');
+                if(typeof a === 'object') {
+                    try { return JSON.stringify(a); } catch(e){ return String(a); }
+                }
+                return String(a);
+            }).join(' ');
+        } catch(e){ msg = '[unserializable]'; }
+        lines.push({t, level, msg});
+        if(lines.length > 500) lines.shift();
+        if(out){
+            const div = document.createElement('div');
+            div.className = 'dl-entry ' + level;
+            div.innerHTML = '<span class="dl-time">' + fmt(t) + '</span>' + msg.replace(/[<>&]/g, c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])).replace(/\n/g,'<br>');
+            out.appendChild(div);
+            // auto-scroll
+            out.scrollTop = out.scrollHeight;
+            // limit DOM children
+            while(out.childNodes.length > 200) out.removeChild(out.firstChild);
+        }
+    }
+    return {
+        info(...a){ add('info', a); },
+        log (...a){ add('info', a); },
+        ok  (...a){ add('ok',   a); },
+        warn(...a){ add('warn', a); },
+        err (...a){ add('err',  a); },
+        clear(){
+            lines.length = 0;
+            if(out) out.innerHTML = '';
+        },
+        text(){
+            return lines.map(l => fmt(l.t) + ' [' + l.level.toUpperCase() + '] ' + l.msg).join('\n');
+        },
+        addSummary(html){
+            if(!out) return;
+            const d = document.createElement('div');
+            d.className = 'debug-summary';
+            d.innerHTML = html;
+            out.appendChild(d);
+            out.scrollTop = out.scrollHeight;
+        }
+    };
+})();
+
+// Hook console
+['log','warn','error','info'].forEach(method => {
+    const orig = console[method];
+    console[method] = function(...args){
+        try { DEBUG[method === 'error' ? 'err' : method === 'warn' ? 'warn' : 'info'](...args); } catch(e){}
+        try { orig.apply(console, args); } catch(e){}
+    };
+});
+
+// Global error catchers
+window.addEventListener('error', e => {
+    DEBUG.err('GLOBAL ERROR:', e.message, '@', e.filename + ':' + e.lineno);
+});
+window.addEventListener('unhandledrejection', e => {
+    DEBUG.err('UNHANDLED REJECTION:', e.reason && e.reason.message ? e.reason.message : String(e.reason));
+});
+
+// Wire panel actions (deferred until DOM ready below; these elements exist by the time IIFE runs)
+(function bindDebugPanel(){
+    const panel = document.getElementById('debugPanel');
+    const header = document.getElementById('debugHeader');
+    const toggle = document.getElementById('debugToggle');
+    const title = document.getElementById('debugTitle');
+    const clearBtn = document.getElementById('debugClear');
+    const copyBtn  = document.getElementById('debugCopy');
+    const probeBtn = document.getElementById('debugProbe');
+    const beepBtn  = document.getElementById('debugBeep');
+    if(!panel) return;
+    // start collapsed by default
+    panel.classList.add('collapsed');
+    if(title) title.textContent = '▲ DEBUG LOG (タップで開く)';
+    if(toggle) toggle.textContent = '⌃';
+    header.addEventListener('click', () => {
+        const collapsed = panel.classList.toggle('collapsed');
+        if(title) title.textContent = collapsed ? '▲ DEBUG LOG (タップで開く)' : '▼ DEBUG LOG';
+        if(toggle) toggle.textContent = collapsed ? '⌃' : '⌄';
+    });
+    if(clearBtn) clearBtn.addEventListener('click', e => { e.stopPropagation(); DEBUG.clear(); });
+    if(copyBtn) copyBtn.addEventListener('click', async e => {
+        e.stopPropagation();
+        const txt = DEBUG.text();
+        try {
+            if(navigator.clipboard && navigator.clipboard.writeText){
+                await navigator.clipboard.writeText(txt);
+                DEBUG.ok('COPIED ' + txt.length + ' chars to clipboard');
+            } else {
+                // fallback: select textarea
+                const ta = document.createElement('textarea');
+                ta.value = txt;
+                ta.style.position = 'fixed'; ta.style.top = '-9999px';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                DEBUG.ok('COPIED via execCommand');
+            }
+        } catch(err){
+            DEBUG.err('COPY FAILED:', err.message);
+        }
+    });
+    if(probeBtn) probeBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        runAudioProbe();
+    });
+    if(beepBtn) beepBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        runBeepTest();
+    });
+})();
+
+// Environment dump (logged immediately)
+DEBUG.info('═══ MOMO Karaoke debug log ═══');
+DEBUG.info('UA:', navigator.userAgent);
+DEBUG.info('Platform:', navigator.platform || '?', '· Vendor:', navigator.vendor || '?');
+DEBUG.info('AudioContext:', !!(window.AudioContext || window.webkitAudioContext),
+           '· AudioWorklet:', !!window.AudioWorklet,
+           '· FSA:', !!window.showDirectoryPicker,
+           '· getUserMedia:', !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia));
 
 // ============== AUDIO WORKLET URLS ==============
 const BGM_WORKLET_URL  = 'data:application/javascript;base64,Ly8gQkdNIChiYXNlIHRyYWNrKSBwcm9jZXNzb3I6IHBpdGNoIHNoaWZ0ICsgb3B0aW9uYWwgdm9jYWwgY3V0IChNaWQvU2lkZSkKY2xhc3MgQmdtUHJvY2Vzc29yIGV4dGVuZHMgQXVkaW9Xb3JrbGV0UHJvY2Vzc29yIHsKICBzdGF0aWMgZ2V0IHBhcmFtZXRlckRlc2NyaXB0b3JzKCkgewogICAgcmV0dXJuIFsKICAgICAgeyBuYW1lOiAncGl0Y2gnLCAgICBkZWZhdWx0VmFsdWU6IDEuMCwgbWluVmFsdWU6IDAuMjUsIG1heFZhbHVlOiA0LjAsIGF1dG9tYXRpb25SYXRlOiAnay1yYXRlJyB9LAogICAgICB7IG5hbWU6ICd2b2NhbEN1dCcsIGRlZmF1bHRWYWx1ZTogMC4wLCBtaW5WYWx1ZTogMC4wLCAgbWF4VmFsdWU6IDEuMCwgYXV0b21hdGlvblJhdGU6ICdrLXJhdGUnIH0KICAgIF07CiAgfQogIGNvbnN0cnVjdG9yKCkgewogICAgc3VwZXIoKTsKICAgIHRoaXMuX2J1ZlNpemUgPSA2NTUzNjsKICAgIHRoaXMuX2J1ZkwgPSBuZXcgRmxvYXQzMkFycmF5KHRoaXMuX2J1ZlNpemUpOwogICAgdGhpcy5fYnVmUiA9IG5ldyBGbG9hdDMyQXJyYXkodGhpcy5fYnVmU2l6ZSk7CiAgICB0aGlzLl93cml0ZVBvcyA9IDA7CiAgICB0aGlzLl9waGFzZTAgPSAwLjA7CiAgICB0aGlzLl9waGFzZTEgPSAwLjU7CiAgICB0aGlzLl93aW5MZW4gPSA4MTkyOwogIH0KICBfcmVhZEJ1ZihidWYsIHBvcykgewogICAgY29uc3QgaSA9IE1hdGguZmxvb3IocG9zKTsKICAgIGNvbnN0IGYgPSBwb3MgLSBpOwogICAgY29uc3QgcyA9IHRoaXMuX2J1ZlNpemU7CiAgICByZXR1cm4gYnVmW2kgJiAocyAtIDEpXSAqICgxIC0gZikgKyBidWZbKGkgKyAxKSAmIChzIC0gMSldICogZjsKICB9CiAgcHJvY2VzcyhpbnB1dHMsIG91dHB1dHMsIHBhcmFtZXRlcnMpIHsKICAgIGNvbnN0IGlucHV0ICA9IGlucHV0c1swXTsKICAgIGNvbnN0IG91dHB1dCA9IG91dHB1dHNbMF07CiAgICBpZiAoIWlucHV0IHx8ICFpbnB1dFswXSkgcmV0dXJuIHRydWU7CiAgICBjb25zdCBpbkwgID0gaW5wdXRbMF07CiAgICBjb25zdCBpblIgID0gaW5wdXRbMV0gfHwgaW5wdXRbMF07CiAgICBjb25zdCBvdXRMID0gb3V0cHV0WzBdOwogICAgY29uc3Qgb3V0UiA9IG91dHB1dFsxXSB8fCBvdXRwdXRbMF07CiAgICBjb25zdCBwaXRjaCAgICA9IHBhcmFtZXRlcnNbJ3BpdGNoJ11bMF07CiAgICBjb25zdCB2b2NhbEN1dCA9IHBhcmFtZXRlcnNbJ3ZvY2FsQ3V0J11bMF07CiAgICBjb25zdCB3aW5MZW4gICA9IHRoaXMuX3dpbkxlbjsKICAgIGNvbnN0IHBoYXNlSW5jID0gKDEuMCAtIHBpdGNoKSAvIHdpbkxlbjsKICAgIGZvciAobGV0IGkgPSAwOyBpIDwgaW5MLmxlbmd0aDsgaSsrKSB7CiAgICAgIHRoaXMuX2J1ZkxbdGhpcy5fd3JpdGVQb3MgJiAodGhpcy5fYnVmU2l6ZSAtIDEpXSA9IGluTFtpXTsKICAgICAgdGhpcy5fYnVmUlt0aGlzLl93cml0ZVBvcyAmICh0aGlzLl9idWZTaXplIC0gMSldID0gaW5SW2ldOwogICAgICB0aGlzLl93cml0ZVBvcysrOwogICAgICB0aGlzLl9waGFzZTAgPSAoKHRoaXMuX3BoYXNlMCArIHBoYXNlSW5jKSAlIDEuMCArIDEuMCkgJSAxLjA7CiAgICAgIHRoaXMuX3BoYXNlMSA9ICgodGhpcy5fcGhhc2UxICsgcGhhc2VJbmMpICUgMS4wICsgMS4wKSAlIDEuMDsKICAgICAgY29uc3QgdzAgPSBNYXRoLnNpbihNYXRoLlBJICogdGhpcy5fcGhhc2UwKTsgY29uc3QgZzAgPSB3MCAqIHcwOwogICAgICBjb25zdCB3MSA9IE1hdGguc2luKE1hdGguUEkgKiB0aGlzLl9waGFzZTEpOyBjb25zdCBnMSA9IHcxICogdzE7CiAgICAgIGNvbnN0IHJwMCA9IHRoaXMuX3dyaXRlUG9zIC0gdGhpcy5fcGhhc2UwICogd2luTGVuOwogICAgICBjb25zdCBycDEgPSB0aGlzLl93cml0ZVBvcyAtIHRoaXMuX3BoYXNlMSAqIHdpbkxlbjsKICAgICAgY29uc3Qgc0wgPSB0aGlzLl9yZWFkQnVmKHRoaXMuX2J1ZkwsIHJwMCkgKiBnMCArIHRoaXMuX3JlYWRCdWYodGhpcy5fYnVmTCwgcnAxKSAqIGcxOwogICAgICBjb25zdCBzUiA9IHRoaXMuX3JlYWRCdWYodGhpcy5fYnVmUiwgcnAwKSAqIGcwICsgdGhpcy5fcmVhZEJ1Zih0aGlzLl9idWZSLCBycDEpICogZzE7CiAgICAgIGlmICh2b2NhbEN1dCA+IDAuNSkgewogICAgICAgIGNvbnN0IHNpZGUgPSAoc0wgLSBzUikgKiAwLjU7CiAgICAgICAgb3V0TFtpXSA9IHNpZGU7CiAgICAgICAgb3V0UltpXSA9IHNpZGU7CiAgICAgIH0gZWxzZSB7CiAgICAgICAgb3V0TFtpXSA9IHNMOwogICAgICAgIG91dFJbaV0gPSBzUjsKICAgICAgfQogICAgfQogICAgcmV0dXJuIHRydWU7CiAgfQp9CnJlZ2lzdGVyUHJvY2Vzc29yKCdiZ20tcHJvY2Vzc29yJywgQmdtUHJvY2Vzc29yKTsK';
@@ -912,24 +1152,36 @@ let recSampleRate = 44100;
 let recPitchAtStart = 0, recSpeedAtStart = 1.0, recStartSongTime = 0;
 
 async function initCtx(){
-    if(audioCtx) return true;
+    if(audioCtx) { DEBUG.info('initCtx: already initialized, state=' + audioCtx.state); return true; }
     if(!window.AudioWorklet){
         warnBox.classList.remove('hidden');
         setStatus('AudioWorklet 非対応ブラウザです', 'err');
+        DEBUG.err('initCtx: AudioWorklet not supported');
         return false;
     }
-    audioCtx = new AudioContext();
+    DEBUG.info('initCtx: creating AudioContext...');
+    const AC = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AC();
     recSampleRate = audioCtx.sampleRate;
+    DEBUG.ok('initCtx: AudioContext created, sampleRate=' + audioCtx.sampleRate + ', state=' + audioCtx.state);
+    audioCtx.addEventListener && audioCtx.addEventListener('statechange', () => {
+        DEBUG.info('audioCtx statechange → ' + audioCtx.state);
+    });
     master = audioCtx.createGain();
     master.gain.value = 1.0;
     master.connect(audioCtx.destination);
+    DEBUG.info('initCtx: master gain connected to destination (channels=' + audioCtx.destination.maxChannelCount + ')');
     try {
+        DEBUG.info('initCtx: loading BGM worklet...');
         await audioCtx.audioWorklet.addModule(BGM_WORKLET_URL);
+        DEBUG.info('initCtx: loading TAKE worklet...');
         await audioCtx.audioWorklet.addModule(TAKE_WORKLET_URL);
         workletReady = true;
+        DEBUG.ok('initCtx: worklets ready');
         setStatus('準備完了', 'ok');
         return true;
     } catch(e){
+        DEBUG.err('initCtx: worklet load failed:', e.message);
         setStatus('Worklet 登録失敗: ' + e.message, 'err');
         return false;
     }
@@ -998,16 +1250,28 @@ const bgmTransport = (function(){
             }
         },
         async loadFile(file){
-            // decode an AudioBuffer from a File
+            DEBUG.info('bgmTransport.loadFile: ' + file.name + ' (' + file.size + ' bytes, type=' + (file.type || 'unknown') + ')');
             T.unload();
-            const arr = await file.arrayBuffer();
-            // decodeAudioData supports both promise and callback styles
-            buffer = await new Promise((res, rej) => {
-                try {
-                    const p = audioCtx.decodeAudioData(arr, res, rej);
-                    if(p && typeof p.then === 'function') p.then(res, rej);
-                } catch(e){ rej(e); }
-            });
+            let arr;
+            try {
+                arr = await file.arrayBuffer();
+                DEBUG.info('bgmTransport.loadFile: arrayBuffer ready, ' + arr.byteLength + ' bytes');
+            } catch(e){
+                DEBUG.err('bgmTransport.loadFile: arrayBuffer failed: ' + e.message);
+                throw e;
+            }
+            try {
+                buffer = await new Promise((res, rej) => {
+                    try {
+                        const p = audioCtx.decodeAudioData(arr, res, rej);
+                        if(p && typeof p.then === 'function') p.then(res, rej);
+                    } catch(e){ rej(e); }
+                });
+                DEBUG.ok('bgmTransport.loadFile: decoded ' + buffer.duration.toFixed(2) + 's, ' + buffer.numberOfChannels + 'ch, ' + buffer.sampleRate + 'Hz');
+            } catch(e){
+                DEBUG.err('bgmTransport.loadFile: decode failed: ' + (e && e.message ? e.message : e));
+                throw e;
+            }
             isPlaying = false;
             startOffset = 0;
             T._notify();
@@ -1020,9 +1284,10 @@ const bgmTransport = (function(){
             T._notify();
         },
         play(){
-            if(!buffer) return Promise.reject(new Error('no buffer'));
-            if(isPlaying) return Promise.resolve();
+            if(!buffer) { DEBUG.warn('bgmTransport.play: no buffer'); return Promise.reject(new Error('no buffer')); }
+            if(isPlaying) { DEBUG.info('bgmTransport.play: already playing'); return Promise.resolve(); }
             const at = startOffset;
+            DEBUG.info('bgmTransport.play: starting from ' + at.toFixed(2) + 's, ctx.state=' + audioCtx.state);
             T._startSource(at);
             T._fire('play');
             return Promise.resolve();
@@ -1031,6 +1296,7 @@ const bgmTransport = (function(){
             if(!buffer) return;
             if(!isPlaying) return;
             const pos = T.currentTime;
+            DEBUG.info('bgmTransport.pause: at ' + pos.toFixed(2) + 's');
             T._stopSource();
             startOffset = pos;
             T._fire('pause');
@@ -1047,7 +1313,7 @@ const bgmTransport = (function(){
             T._fire('seeked');
         },
         _startSource(at){
-            if(!buffer || !bgmShifter) return;
+            if(!buffer || !bgmShifter) { DEBUG.warn('_startSource: buffer=' + !!buffer + ' bgmShifter=' + !!bgmShifter); return; }
             // tear down previous source first
             T._stopSource();
             const src = audioCtx.createBufferSource();
@@ -1055,13 +1321,18 @@ const bgmTransport = (function(){
             src.playbackRate.value = userPlaybackRate;
             src.connect(bgmShifter);
             const dur = Math.max(0, buffer.duration - at);
-            src.start(0, at, dur);
+            try {
+                src.start(0, at, dur);
+            } catch(e){
+                DEBUG.err('_startSource: src.start failed: ' + e.message);
+                throw e;
+            }
             src.onended = () => {
                 if(source === src && isPlaying){
-                    // natural end
                     isPlaying = false;
                     startOffset = buffer.duration;
                     source = null;
+                    DEBUG.info('bgmTransport: natural end');
                     T._fire('ended');
                 }
             };
@@ -1242,37 +1513,85 @@ function startTakePlayback(){
 }
 
 // ============== RECORDING ==============
+// IMPORTANT: On iOS Safari/Chrome (WebKit), calling getUserMedia() on an
+// AudioContext that is also playing audio causes the AudioSession to switch
+// to "record" mode, which silences the AudioContext's destination output.
+// To avoid this, recording uses a SEPARATE AudioContext (`recCtx`) that is
+// created at startRecording() and fully closed at stopRecording(). The BGM
+// AudioContext (`audioCtx`) never touches getUserMedia, so it keeps playing.
+let recCtx = null;
+let recAudioBufferChunks = []; // Float32Array chunks
+let recCtxSampleRate = 44100;
+
 async function startRecording(){
-    if(!state.currentEntry) return;
-    if(!await initCtx()) return;
-    if(audioCtx.state === 'suspended') await audioCtx.resume();
-    if(!micStream){
-        try {
-            micStream = await navigator.mediaDevices.getUserMedia({
-                audio: { echoCancellation:false, noiseSuppression:false, autoGainControl:false },
-                video: false
-            });
-        } catch(e){
-            setStatus('マイクの許可が必要です: ' + e.message, 'err');
-            return;
+    DEBUG.info('═══ startRecording() called ═══');
+    DEBUG.info('  audioCtx.state BEFORE:', audioCtx ? audioCtx.state : 'no ctx');
+    DEBUG.info('  bgmTransport.paused:', bgmTransport.paused, '· duration:', bgmTransport.duration.toFixed(2) + 's');
+    if(!state.currentEntry) { DEBUG.warn('startRecording: no current entry'); return; }
+    if(!await initCtx()) { DEBUG.err('startRecording: initCtx failed'); return; }
+    if(audioCtx.state === 'suspended') {
+        DEBUG.info('startRecording: resuming audioCtx...');
+        await audioCtx.resume();
+        DEBUG.ok('startRecording: audioCtx resumed → ' + audioCtx.state);
+    }
+
+    DEBUG.info('startRecording: requesting getUserMedia...');
+    let stream;
+    let t0 = performance.now();
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+            },
+            video: false
+        });
+        DEBUG.ok('startRecording: getUserMedia OK in ' + (performance.now() - t0).toFixed(0) + 'ms, tracks=' + stream.getTracks().length);
+        DEBUG.info('  audioCtx.state AFTER getUserMedia:', audioCtx.state);
+        // Probe BGM source state immediately after getUserMedia
+        DEBUG.info('  bgmTransport.paused after gUM:', bgmTransport.paused);
+    } catch(e){
+        DEBUG.err('startRecording: getUserMedia failed:', e.name + ' - ' + e.message);
+        setStatus('マイクの許可が必要です: ' + e.message, 'err');
+        return;
+    }
+
+    // Build a dedicated context purely for capture
+    try {
+        DEBUG.info('startRecording: creating dedicated recCtx...');
+        recCtx = new (window.AudioContext || window.webkitAudioContext)();
+        DEBUG.info('  recCtx state after create:', recCtx.state, '· sampleRate:', recCtx.sampleRate);
+        if(recCtx.state === 'suspended') {
+            await recCtx.resume();
+            DEBUG.info('  recCtx state after resume:', recCtx.state);
         }
+        DEBUG.info('  audioCtx.state during recCtx setup:', audioCtx.state);
+    } catch(e){
+        DEBUG.err('startRecording: recCtx creation failed:', e.message);
+        try { stream.getTracks().forEach(t => t.stop()); } catch(_){}
+        setStatus('録音用コンテキストの作成に失敗: ' + e.message, 'err');
+        return;
     }
-    if(!recSrc){
-        recSrc = audioCtx.createMediaStreamSource(micStream);
-        micAnalyser = audioCtx.createAnalyser();
-        micAnalyser.fftSize = 512;
-        recSrc.connect(micAnalyser);
-    }
-    recBuffers = [];
-    recProcessor = audioCtx.createScriptProcessor(4096, 1, 1);
+    recCtxSampleRate = recCtx.sampleRate;
+    micStream = stream;
+    recSrc = recCtx.createMediaStreamSource(stream);
+    micAnalyser = recCtx.createAnalyser();
+    micAnalyser.fftSize = 512;
+    recSrc.connect(micAnalyser);
+    DEBUG.info('startRecording: mic source connected to analyser');
+
+    recAudioBufferChunks = [];
+    recProcessor = recCtx.createScriptProcessor(4096, 1, 1);
     recProcessor.onaudioprocess = (e) => {
         if(!state.isRecording) return;
-        recBuffers.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+        recAudioBufferChunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
     };
     recSrc.connect(recProcessor);
-    const muteGain = audioCtx.createGain(); muteGain.gain.value = 0;
+    const muteGain = recCtx.createGain(); muteGain.gain.value = 0;
     recProcessor.connect(muteGain);
-    muteGain.connect(audioCtx.destination);
+    muteGain.connect(recCtx.destination);
+    DEBUG.info('startRecording: ScriptProcessor connected (muted) to recCtx.destination');
 
     recPitchAtStart = parseInt(pitchSlider.value, 10);
     recSpeedAtStart = parseFloat(speedSlider.value);
@@ -1283,12 +1602,13 @@ async function startRecording(){
     btnRec.textContent = '■';
     setStatus('録音中... ■で停止', 'warn');
 
-    // Switch BGM vocal-cut to whatever the user has set for "recording"
     applyBgmVocalCut();
     updateVocalCutUI();
 
+    DEBUG.ok('startRecording: COMPLETE. audioCtx=' + audioCtx.state + ' · recCtx=' + recCtx.state + ' · isPlaying=' + !bgmTransport.paused);
     pumpMicLevel();
 }
+
 async function stopRecording(){
     if(!state.isRecording) return;
     state.isRecording = false;
@@ -1299,28 +1619,42 @@ async function stopRecording(){
     applyBgmVocalCut();
     updateVocalCutUI();
 
-    try { recProcessor.disconnect(); } catch(e){}
+    // Tear down the entire recording context to release the mic / AudioSession
+    try { if(recProcessor) recProcessor.disconnect(); } catch(e){}
+    try { if(recSrc) recSrc.disconnect(); } catch(e){}
+    try { if(micAnalyser) micAnalyser.disconnect(); } catch(e){}
+    try {
+        if(micStream){
+            micStream.getTracks().forEach(t => { try { t.stop(); } catch(_){} });
+        }
+    } catch(e){}
+    try { if(recCtx) await recCtx.close(); } catch(e){}
     recProcessor = null;
-    const total = recBuffers.reduce((s,b) => s+b.length, 0);
+    recSrc = null;
+    micAnalyser = null;
+    micStream = null;
+    recCtx = null;
+
+    const total = recAudioBufferChunks.reduce((s,b) => s+b.length, 0);
     if(total < 4000){
-        recBuffers = [];
+        recAudioBufferChunks = [];
         setStatus('録音が短すぎます（破棄）', 'err');
         return;
     }
     const pcm = new Float32Array(total);
     let p = 0;
-    for(const b of recBuffers){ pcm.set(b, p); p += b.length; }
-    recBuffers = [];
+    for(const b of recAudioBufferChunks){ pcm.set(b, p); p += b.length; }
+    recAudioBufferChunks = [];
 
     const take = {
         id: uid(),
         name: 'Take ' + ((state.currentEntry.takes||[]).length + 1),
         pcm: pcm,
-        sampleRate: recSampleRate,
+        sampleRate: recCtxSampleRate,
         pitchSemitones: recPitchAtStart,
         speed: recSpeedAtStart,
         startSongTime: recStartSongTime,
-        duration: total / recSampleRate,
+        duration: total / recCtxSampleRate,
         createdAt: Date.now()
     };
     if(!state.currentEntry.takes) state.currentEntry.takes = [];
@@ -1859,6 +2193,72 @@ async function tryRestoreLibrary(){
     } catch(e){
         console.warn('IDB restore failed', e);
         updateLibraryControls();
+    }
+}
+
+// ============== DEBUG: AUDIO PROBE & BEEP TEST ==============
+// These are user-triggered diagnostics for iOS where dev-tools aren't available.
+function runAudioProbe(){
+    DEBUG.info('═══ AUDIO PROBE ═══');
+    DEBUG.info('audioCtx exists:', !!audioCtx);
+    if(audioCtx){
+        DEBUG.info('  state:', audioCtx.state);
+        DEBUG.info('  sampleRate:', audioCtx.sampleRate);
+        DEBUG.info('  baseLatency:', audioCtx.baseLatency);
+        DEBUG.info('  outputLatency:', audioCtx.outputLatency);
+        DEBUG.info('  destination.maxChannelCount:', audioCtx.destination.maxChannelCount);
+        DEBUG.info('  destination.channelCount:', audioCtx.destination.channelCount);
+    }
+    DEBUG.info('bgmShifter:', !!bgmShifter, '· bgmGain:', !!bgmGain, '· master:', !!master);
+    DEBUG.info('bgmTransport.duration:', bgmTransport.duration.toFixed(2));
+    DEBUG.info('bgmTransport.paused:', bgmTransport.paused);
+    DEBUG.info('bgmTransport.currentTime:', bgmTransport.currentTime.toFixed(2));
+    DEBUG.info('isRecording:', state.isRecording);
+    DEBUG.info('recCtx exists:', !!recCtx, recCtx ? '· state=' + recCtx.state : '');
+    DEBUG.info('micStream:', !!micStream, micStream ? '· tracks=' + micStream.getTracks().length : '');
+    if(bgmGain){
+        try { DEBUG.info('bgmGain.gain.value:', bgmGain.gain.value); } catch(e){}
+    }
+    if(voxGain){
+        try { DEBUG.info('voxGain.gain.value:', voxGain.gain.value); } catch(e){}
+    }
+    DEBUG.info('═══ END PROBE ═══');
+}
+
+function runBeepTest(){
+    DEBUG.info('═══ BEEP TEST: 440Hz sine for 0.5s on audioCtx.destination directly ═══');
+    if(!audioCtx){
+        DEBUG.err('BEEP: no audioCtx — initialize first by selecting a song');
+        return;
+    }
+    if(audioCtx.state === 'suspended'){
+        audioCtx.resume().then(() => {
+            DEBUG.info('BEEP: ctx resumed → ' + audioCtx.state);
+            doBeep();
+        }).catch(e => DEBUG.err('BEEP: resume failed: ' + e.message));
+    } else {
+        doBeep();
+    }
+    function doBeep(){
+        try {
+            const osc = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            osc.frequency.value = 440;
+            g.gain.value = 0.0;
+            // short envelope to avoid clicks
+            const t = audioCtx.currentTime;
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.exponentialRampToValueAtTime(0.2, t + 0.02);
+            g.gain.setValueAtTime(0.2, t + 0.45);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+            osc.connect(g);
+            g.connect(audioCtx.destination);
+            osc.start(t);
+            osc.stop(t + 0.55);
+            DEBUG.ok('BEEP: scheduled. If you do NOT hear a beep within 1s, audioCtx output is silenced.');
+        } catch(e){
+            DEBUG.err('BEEP failed: ' + e.message);
+        }
     }
 }
 

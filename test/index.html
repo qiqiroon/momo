@@ -10,12 +10,15 @@
        v1.10 - 録音方式を MediaRecorder に変更、テイク UI 大改修
                 + バージョン自動進行ルール導入
        v1.11 - テイク再生の同期修正 (BGM途中録音→テイク頭から再生バグ)
-                iOS でも speed/volume が効くよう修正、effects無効化UIを精密化 -->
+                iOS でも speed/volume が効くよう修正、effects無効化UIを精密化
+       v1.12 - タブを「ライブラリ/カラオケ/ミックス」の3つに分割
+                ボーカルカット強度を可変に変更 (worklet 修正)
+                ドリフト補正を PLL 方式に変更 (5%ズレ対策) -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MOMO Karaoke v1.11 - MOMO Works</title>
+<title>MOMO Karaoke v1.12 - MOMO Works</title>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 /* ─────────── MOMO Lyrics 系統のデザイン (ダーク × オレンジ) ─────────── */
@@ -91,7 +94,7 @@ h1 span { color: var(--orange-mid); }
 .header-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 40px; animation: fadeDown 0.5s ease 0.1s backwards; }
 
 /* タブ */
-.tab-container { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 24px; animation: fadeUp 0.5s ease 0.2s backwards; }
+.tab-container { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; animation: fadeUp 0.5s ease 0.2s backwards; }
 .tab-btn {
     background: var(--surface); border: 1px solid var(--border); color: var(--text-muted);
     padding: 16px; border-radius: 12px; cursor: pointer; font-weight: 700;
@@ -654,13 +657,14 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 </g>
             </svg>
         </div>
-        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.11</span></h1>
+        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.12</span></h1>
     </header>
     <p class="header-sub" id="header-sub">ローカル音源と同名 .lrc を読み込む、こだわり派のカラオケサロン</p>
 
     <div class="tab-container">
         <button class="tab-btn active" id="tab-library" data-tab="library">ライブラリ</button>
         <button class="tab-btn" id="tab-karaoke" data-tab="karaoke">カラオケ</button>
+        <button class="tab-btn" id="tab-mix" data-tab="mix">ミックス</button>
     </div>
 
     <!-- ============ ライブラリ ============ -->
@@ -690,12 +694,8 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
         </div>
     </div>
 
-    <!-- ============ カラオケ ============ -->
-    <div id="karaoke-section" class="tool-card hidden">
-        <div class="section-label"><span id="karaoke-label">Karaoke Studio</span></div>
-
-        <div id="warnBox" class="warn-box hidden">⚠ このブラウザは AudioWorklet に対応していません。Chrome / Edge をお使いください。</div>
-
+    <!-- ============ 共通: 楽曲情報 + トランスポート + 歌詞 (カラオケ/ミックス両タブで表示) ============ -->
+    <div id="now-playing-area" class="hidden">
         <div class="now-playing-row">
             <div class="np-info">
                 <div id="npEmpty" class="np-empty">— ライブラリから楽曲を選んでください —</div>
@@ -709,7 +709,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
 
         <div class="audio-controls" id="audio-controls">
             <button id="btnPlay" class="momo-btn-play" title="再生 / 一時停止" disabled>▶</button>
-            <button id="btnRec" class="momo-btn-rec" title="録音 / 停止" disabled>●</button>
+            <button id="btnRec" class="momo-btn-rec" title="録音 / 停止 (カラオケタブで使用)" disabled>●</button>
             <span id="audio-file-name" class="audio-file-name">—</span>
             <div class="transport-row">
                 <span class="time-cur" id="timeCur">0:00</span>
@@ -736,6 +736,15 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <div class="lyrics-empty">楽曲を選択すると同期歌詞がここに表示されます</div>
         </div>
         <div class="lyrics-resize-handle" id="lyrics-resize-handle" aria-label="resize"></div>
+    </div>
+
+    <!-- ============ カラオケタブ: 録音用 ============ -->
+    <div id="karaoke-section" class="tool-card hidden">
+        <div class="section-label"><span id="karaoke-label">Karaoke — Record</span></div>
+
+        <div id="warnBox" class="warn-box hidden">⚠ このブラウザは AudioWorklet に対応していません。Chrome / Edge をお使いください。</div>
+
+        <p class="panel-desc" style="margin-bottom:14px;">楽曲を流しながら歌声を録音する画面です。録音は上の<b>●</b>ボタンで開始/停止できます。録音した歌声はミックスタブで再生・調整できます。</p>
 
         <!-- BGM 調整 -->
         <div class="karaoke-panel">
@@ -760,6 +769,64 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 <div class="eq-band"><span class="eq-band-label">LOW</span><input type="range" id="bgmEqLo" min="-12" max="12" step="0.5" value="0"><span class="eq-band-val" id="bgmEqLoVal">0</span></div>
                 <div class="eq-band"><span class="eq-band-label">MID</span><input type="range" id="bgmEqMd" min="-12" max="12" step="0.5" value="0"><span class="eq-band-val" id="bgmEqMdVal">0</span></div>
                 <div class="eq-band"><span class="eq-band-label">HIGH</span><input type="range" id="bgmEqHi" min="-12" max="12" step="0.5" value="0"><span class="eq-band-val" id="bgmEqHiVal">0</span></div>
+            </div>
+        </div>
+
+        <!-- 録音時のボーカルカット -->
+        <div class="karaoke-panel">
+            <div class="panel-head">
+                <div class="panel-title">Vocal Cut (録音時)</div>
+                <div class="panel-tag" id="vocalCutStateTag">— READY</div>
+            </div>
+            <p class="panel-desc">BGMからボーカル成分を除去します。歌う時のガイドだけにしたい場合に使います。</p>
+            <label class="toggle-row vc-toggle" id="vcRecordRow">
+                <input type="checkbox" id="vcRecord">
+                <span>
+                    <span class="vc-name">録音時にカット</span>
+                    <span class="vc-sub">録音中、ガイド用BGMからボーカルを除去</span>
+                </span>
+            </label>
+            <div class="ctrl" id="vcRecordLevelWrap">
+                <div class="ctrl-label"><span>CUT INTENSITY</span><span class="ctrl-val" id="vcRecordLevelVal">100%</span></div>
+                <input type="range" id="vcRecordLevel" min="0" max="100" step="5" value="100">
+            </div>
+        </div>
+
+        <!-- マイク -->
+        <div class="karaoke-panel">
+            <div class="panel-head">
+                <div class="panel-title">Microphone</div>
+                <div class="panel-tag">INPUT</div>
+            </div>
+            <p class="panel-desc">録音は上の<b>●</b>ボタンを押して開始、もう一度押して停止します。</p>
+            <div class="ctrl-label"><span>MIC INPUT LEVEL</span><span></span></div>
+            <div class="level-meter"><div class="level-meter-fill" id="micLevel"></div></div>
+        </div>
+
+        <div class="status" id="status">ファイルを読み込んでください</div>
+    </div>
+
+    <!-- ============ ミックスタブ: 再生用 ============ -->
+    <div id="mix-section" class="tool-card hidden">
+        <div class="section-label"><span id="mix-label">Mix — Playback</span></div>
+
+        <p class="panel-desc" style="margin-bottom:14px;">録音したテイクと BGM を組み合わせて再生・調整する画面です。テイクが無い場合はカラオケタブで録音してください。</p>
+
+        <!-- テイク一覧 + 再生モード -->
+        <div class="karaoke-panel">
+            <div class="panel-head">
+                <div class="panel-title">Vocal Takes</div>
+                <div class="panel-tag" id="takesCount">0 / 0</div>
+            </div>
+
+            <div class="play-mode-pills">
+                <div class="pill active" data-pmode="both" id="pmBoth">BGM + TAKE</div>
+                <div class="pill" data-pmode="bgm" id="pmBgm">BGM のみ</div>
+                <div class="pill" data-pmode="take" id="pmTake">TAKE のみ</div>
+            </div>
+
+            <div class="takes-list" id="takesList">
+                <div class="take-empty">まだテイクがありません — カラオケタブで録音してください</div>
             </div>
         </div>
 
@@ -791,47 +858,32 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             </div>
         </div>
 
-        <!-- ボーカルカット (録音時/再生時 独立) -->
+        <!-- 再生時のボーカルカット -->
         <div class="karaoke-panel">
             <div class="panel-head">
-                <div class="panel-title">Vocal Cut</div>
-                <div class="panel-tag" id="vocalCutStateTag">— READY</div>
+                <div class="panel-title">Vocal Cut (再生時)</div>
+                <div class="panel-tag">PLAYBACK</div>
             </div>
-            <p class="panel-desc">BGMからボーカル成分を除去します(Mid/Side方式)。録音中・再生中それぞれで独立に設定できます。</p>
-            <label class="toggle-row vc-toggle" id="vcRecordRow">
-                <input type="checkbox" id="vcRecord">
-                <span>
-                    <span class="vc-name">録音時にカット</span>
-                    <span class="vc-sub">録音ボタンを押している間、ガイド用BGMからボーカルを除去</span>
-                </span>
-            </label>
+            <p class="panel-desc">テイクを聴く時、BGMのボーカルを除去すると自分の歌が際立ちます。</p>
             <label class="toggle-row vc-toggle" id="vcPlaybackRow">
                 <input type="checkbox" id="vcPlayback" checked>
                 <span>
-                    <span class="vc-name">ミックス再生時にカット</span>
-                    <span class="vc-sub">録音テイクと一緒に聴く時、BGMのボーカルを除去</span>
+                    <span class="vc-name">再生時にカット</span>
+                    <span class="vc-sub">テイクと BGM を一緒に聴く時、BGMのボーカルを除去</span>
                 </span>
             </label>
+            <div class="ctrl" id="vcPlaybackLevelWrap">
+                <div class="ctrl-label"><span>CUT INTENSITY</span><span class="ctrl-val" id="vcPlaybackLevelVal">100%</span></div>
+                <input type="range" id="vcPlaybackLevel" min="0" max="100" step="5" value="100">
+            </div>
         </div>
 
-        <!-- 歌声テイク -->
+        <!-- Voice チャンネル -->
         <div class="karaoke-panel">
             <div class="panel-head">
-                <div class="panel-title">Vocal Takes</div>
-                <div class="panel-tag" id="takesCount">0 / 0</div>
+                <div class="panel-title">Voice Channel</div>
+                <div class="panel-tag">TAKE PLAYBACK</div>
             </div>
-
-            <!-- 再生モード(BGM+TAKE / BGM only / TAKE only) -->
-            <div class="play-mode-pills">
-                <div class="pill active" data-pmode="both" id="pmBoth">BGM + TAKE</div>
-                <div class="pill" data-pmode="bgm" id="pmBgm">BGM のみ</div>
-                <div class="pill" data-pmode="take" id="pmTake">TAKE のみ</div>
-            </div>
-
-            <div class="takes-list" id="takesList">
-                <div class="take-empty">まだテイクがありません — 録音ボタンで歌声を記録</div>
-            </div>
-
             <div class="ctrl">
                 <div class="ctrl-label"><span>VOICE VOLUME</span><span class="ctrl-val" id="voxVolVal">0 dB</span></div>
                 <input type="range" id="voxVolSlider" min="-24" max="12" step="0.5" value="0">
@@ -850,11 +902,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 <div class="eq-band"><span class="eq-band-label">MID</span><input type="range" id="voxEqMd" min="-12" max="12" step="0.5" value="0"><span class="eq-band-val" id="voxEqMdVal">0</span></div>
                 <div class="eq-band"><span class="eq-band-label">HIGH</span><input type="range" id="voxEqHi" min="-12" max="12" step="0.5" value="0"><span class="eq-band-val" id="voxEqHiVal">0</span></div>
             </div>
-            <div class="ctrl-label" style="margin-top:10px;"><span>MIC INPUT LEVEL</span><span></span></div>
-            <div class="level-meter"><div class="level-meter-fill" id="micLevel"></div></div>
         </div>
-
-        <div class="status" id="status">ファイルを読み込んでください</div>
     </div>
 
     <footer>
@@ -1010,7 +1058,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v1.11';
+const APP_VERSION = 'v1.12';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -1033,7 +1081,7 @@ DEBUG.info('AudioContext:', !!(window.AudioContext || window.webkitAudioContext)
 DEBUG.info('IS_IOS:', IS_IOS);
 
 // ============== AUDIO WORKLET URLS ==============
-const BGM_WORKLET_URL  = 'data:application/javascript;base64,Ly8gQkdNIChiYXNlIHRyYWNrKSBwcm9jZXNzb3I6IHBpdGNoIHNoaWZ0ICsgb3B0aW9uYWwgdm9jYWwgY3V0IChNaWQvU2lkZSkKY2xhc3MgQmdtUHJvY2Vzc29yIGV4dGVuZHMgQXVkaW9Xb3JrbGV0UHJvY2Vzc29yIHsKICBzdGF0aWMgZ2V0IHBhcmFtZXRlckRlc2NyaXB0b3JzKCkgewogICAgcmV0dXJuIFsKICAgICAgeyBuYW1lOiAncGl0Y2gnLCAgICBkZWZhdWx0VmFsdWU6IDEuMCwgbWluVmFsdWU6IDAuMjUsIG1heFZhbHVlOiA0LjAsIGF1dG9tYXRpb25SYXRlOiAnay1yYXRlJyB9LAogICAgICB7IG5hbWU6ICd2b2NhbEN1dCcsIGRlZmF1bHRWYWx1ZTogMC4wLCBtaW5WYWx1ZTogMC4wLCAgbWF4VmFsdWU6IDEuMCwgYXV0b21hdGlvblJhdGU6ICdrLXJhdGUnIH0KICAgIF07CiAgfQogIGNvbnN0cnVjdG9yKCkgewogICAgc3VwZXIoKTsKICAgIHRoaXMuX2J1ZlNpemUgPSA2NTUzNjsKICAgIHRoaXMuX2J1ZkwgPSBuZXcgRmxvYXQzMkFycmF5KHRoaXMuX2J1ZlNpemUpOwogICAgdGhpcy5fYnVmUiA9IG5ldyBGbG9hdDMyQXJyYXkodGhpcy5fYnVmU2l6ZSk7CiAgICB0aGlzLl93cml0ZVBvcyA9IDA7CiAgICB0aGlzLl9waGFzZTAgPSAwLjA7CiAgICB0aGlzLl9waGFzZTEgPSAwLjU7CiAgICB0aGlzLl93aW5MZW4gPSA4MTkyOwogIH0KICBfcmVhZEJ1ZihidWYsIHBvcykgewogICAgY29uc3QgaSA9IE1hdGguZmxvb3IocG9zKTsKICAgIGNvbnN0IGYgPSBwb3MgLSBpOwogICAgY29uc3QgcyA9IHRoaXMuX2J1ZlNpemU7CiAgICByZXR1cm4gYnVmW2kgJiAocyAtIDEpXSAqICgxIC0gZikgKyBidWZbKGkgKyAxKSAmIChzIC0gMSldICogZjsKICB9CiAgcHJvY2VzcyhpbnB1dHMsIG91dHB1dHMsIHBhcmFtZXRlcnMpIHsKICAgIGNvbnN0IGlucHV0ICA9IGlucHV0c1swXTsKICAgIGNvbnN0IG91dHB1dCA9IG91dHB1dHNbMF07CiAgICBpZiAoIWlucHV0IHx8ICFpbnB1dFswXSkgcmV0dXJuIHRydWU7CiAgICBjb25zdCBpbkwgID0gaW5wdXRbMF07CiAgICBjb25zdCBpblIgID0gaW5wdXRbMV0gfHwgaW5wdXRbMF07CiAgICBjb25zdCBvdXRMID0gb3V0cHV0WzBdOwogICAgY29uc3Qgb3V0UiA9IG91dHB1dFsxXSB8fCBvdXRwdXRbMF07CiAgICBjb25zdCBwaXRjaCAgICA9IHBhcmFtZXRlcnNbJ3BpdGNoJ11bMF07CiAgICBjb25zdCB2b2NhbEN1dCA9IHBhcmFtZXRlcnNbJ3ZvY2FsQ3V0J11bMF07CiAgICBjb25zdCB3aW5MZW4gICA9IHRoaXMuX3dpbkxlbjsKICAgIGNvbnN0IHBoYXNlSW5jID0gKDEuMCAtIHBpdGNoKSAvIHdpbkxlbjsKICAgIGZvciAobGV0IGkgPSAwOyBpIDwgaW5MLmxlbmd0aDsgaSsrKSB7CiAgICAgIHRoaXMuX2J1ZkxbdGhpcy5fd3JpdGVQb3MgJiAodGhpcy5fYnVmU2l6ZSAtIDEpXSA9IGluTFtpXTsKICAgICAgdGhpcy5fYnVmUlt0aGlzLl93cml0ZVBvcyAmICh0aGlzLl9idWZTaXplIC0gMSldID0gaW5SW2ldOwogICAgICB0aGlzLl93cml0ZVBvcysrOwogICAgICB0aGlzLl9waGFzZTAgPSAoKHRoaXMuX3BoYXNlMCArIHBoYXNlSW5jKSAlIDEuMCArIDEuMCkgJSAxLjA7CiAgICAgIHRoaXMuX3BoYXNlMSA9ICgodGhpcy5fcGhhc2UxICsgcGhhc2VJbmMpICUgMS4wICsgMS4wKSAlIDEuMDsKICAgICAgY29uc3QgdzAgPSBNYXRoLnNpbihNYXRoLlBJICogdGhpcy5fcGhhc2UwKTsgY29uc3QgZzAgPSB3MCAqIHcwOwogICAgICBjb25zdCB3MSA9IE1hdGguc2luKE1hdGguUEkgKiB0aGlzLl9waGFzZTEpOyBjb25zdCBnMSA9IHcxICogdzE7CiAgICAgIGNvbnN0IHJwMCA9IHRoaXMuX3dyaXRlUG9zIC0gdGhpcy5fcGhhc2UwICogd2luTGVuOwogICAgICBjb25zdCBycDEgPSB0aGlzLl93cml0ZVBvcyAtIHRoaXMuX3BoYXNlMSAqIHdpbkxlbjsKICAgICAgY29uc3Qgc0wgPSB0aGlzLl9yZWFkQnVmKHRoaXMuX2J1ZkwsIHJwMCkgKiBnMCArIHRoaXMuX3JlYWRCdWYodGhpcy5fYnVmTCwgcnAxKSAqIGcxOwogICAgICBjb25zdCBzUiA9IHRoaXMuX3JlYWRCdWYodGhpcy5fYnVmUiwgcnAwKSAqIGcwICsgdGhpcy5fcmVhZEJ1Zih0aGlzLl9idWZSLCBycDEpICogZzE7CiAgICAgIGlmICh2b2NhbEN1dCA+IDAuNSkgewogICAgICAgIGNvbnN0IHNpZGUgPSAoc0wgLSBzUikgKiAwLjU7CiAgICAgICAgb3V0TFtpXSA9IHNpZGU7CiAgICAgICAgb3V0UltpXSA9IHNpZGU7CiAgICAgIH0gZWxzZSB7CiAgICAgICAgb3V0TFtpXSA9IHNMOwogICAgICAgIG91dFJbaV0gPSBzUjsKICAgICAgfQogICAgfQogICAgcmV0dXJuIHRydWU7CiAgfQp9CnJlZ2lzdGVyUHJvY2Vzc29yKCdiZ20tcHJvY2Vzc29yJywgQmdtUHJvY2Vzc29yKTsK';
+const BGM_WORKLET_URL  = 'data:application/javascript;base64,Ly8gQkdNIChiYXNlIHRyYWNrKSBwcm9jZXNzb3I6IHBpdGNoIHNoaWZ0ICsgb3B0aW9uYWwgdm9jYWwgY3V0IChNaWQvU2lkZSkKY2xhc3MgQmdtUHJvY2Vzc29yIGV4dGVuZHMgQXVkaW9Xb3JrbGV0UHJvY2Vzc29yIHsKICBzdGF0aWMgZ2V0IHBhcmFtZXRlckRlc2NyaXB0b3JzKCkgewogICAgcmV0dXJuIFsKICAgICAgeyBuYW1lOiAncGl0Y2gnLCAgICBkZWZhdWx0VmFsdWU6IDEuMCwgbWluVmFsdWU6IDAuMjUsIG1heFZhbHVlOiA0LjAsIGF1dG9tYXRpb25SYXRlOiAnay1yYXRlJyB9LAogICAgICB7IG5hbWU6ICd2b2NhbEN1dCcsIGRlZmF1bHRWYWx1ZTogMC4wLCBtaW5WYWx1ZTogMC4wLCAgbWF4VmFsdWU6IDEuMCwgYXV0b21hdGlvblJhdGU6ICdrLXJhdGUnIH0KICAgIF07CiAgfQogIGNvbnN0cnVjdG9yKCkgewogICAgc3VwZXIoKTsKICAgIHRoaXMuX2J1ZlNpemUgPSA2NTUzNjsKICAgIHRoaXMuX2J1ZkwgPSBuZXcgRmxvYXQzMkFycmF5KHRoaXMuX2J1ZlNpemUpOwogICAgdGhpcy5fYnVmUiA9IG5ldyBGbG9hdDMyQXJyYXkodGhpcy5fYnVmU2l6ZSk7CiAgICB0aGlzLl93cml0ZVBvcyA9IDA7CiAgICB0aGlzLl9waGFzZTAgPSAwLjA7CiAgICB0aGlzLl9waGFzZTEgPSAwLjU7CiAgICB0aGlzLl93aW5MZW4gPSA4MTkyOwogIH0KICBfcmVhZEJ1ZihidWYsIHBvcykgewogICAgY29uc3QgaSA9IE1hdGguZmxvb3IocG9zKTsKICAgIGNvbnN0IGYgPSBwb3MgLSBpOwogICAgY29uc3QgcyA9IHRoaXMuX2J1ZlNpemU7CiAgICByZXR1cm4gYnVmW2kgJiAocyAtIDEpXSAqICgxIC0gZikgKyBidWZbKGkgKyAxKSAmIChzIC0gMSldICogZjsKICB9CiAgcHJvY2VzcyhpbnB1dHMsIG91dHB1dHMsIHBhcmFtZXRlcnMpIHsKICAgIGNvbnN0IGlucHV0ICA9IGlucHV0c1swXTsKICAgIGNvbnN0IG91dHB1dCA9IG91dHB1dHNbMF07CiAgICBpZiAoIWlucHV0IHx8ICFpbnB1dFswXSkgcmV0dXJuIHRydWU7CiAgICBjb25zdCBpbkwgID0gaW5wdXRbMF07CiAgICBjb25zdCBpblIgID0gaW5wdXRbMV0gfHwgaW5wdXRbMF07CiAgICBjb25zdCBvdXRMID0gb3V0cHV0WzBdOwogICAgY29uc3Qgb3V0UiA9IG91dHB1dFsxXSB8fCBvdXRwdXRbMF07CiAgICBjb25zdCBwaXRjaCAgICA9IHBhcmFtZXRlcnNbJ3BpdGNoJ11bMF07CiAgICBjb25zdCB2b2NhbEN1dCA9IHBhcmFtZXRlcnNbJ3ZvY2FsQ3V0J11bMF07CiAgICBjb25zdCB3aW5MZW4gICA9IHRoaXMuX3dpbkxlbjsKICAgIGNvbnN0IHBoYXNlSW5jID0gKDEuMCAtIHBpdGNoKSAvIHdpbkxlbjsKICAgIGZvciAobGV0IGkgPSAwOyBpIDwgaW5MLmxlbmd0aDsgaSsrKSB7CiAgICAgIHRoaXMuX2J1ZkxbdGhpcy5fd3JpdGVQb3MgJiAodGhpcy5fYnVmU2l6ZSAtIDEpXSA9IGluTFtpXTsKICAgICAgdGhpcy5fYnVmUlt0aGlzLl93cml0ZVBvcyAmICh0aGlzLl9idWZTaXplIC0gMSldID0gaW5SW2ldOwogICAgICB0aGlzLl93cml0ZVBvcysrOwogICAgICB0aGlzLl9waGFzZTAgPSAoKHRoaXMuX3BoYXNlMCArIHBoYXNlSW5jKSAlIDEuMCArIDEuMCkgJSAxLjA7CiAgICAgIHRoaXMuX3BoYXNlMSA9ICgodGhpcy5fcGhhc2UxICsgcGhhc2VJbmMpICUgMS4wICsgMS4wKSAlIDEuMDsKICAgICAgY29uc3QgdzAgPSBNYXRoLnNpbihNYXRoLlBJICogdGhpcy5fcGhhc2UwKTsgY29uc3QgZzAgPSB3MCAqIHcwOwogICAgICBjb25zdCB3MSA9IE1hdGguc2luKE1hdGguUEkgKiB0aGlzLl9waGFzZTEpOyBjb25zdCBnMSA9IHcxICogdzE7CiAgICAgIGNvbnN0IHJwMCA9IHRoaXMuX3dyaXRlUG9zIC0gdGhpcy5fcGhhc2UwICogd2luTGVuOwogICAgICBjb25zdCBycDEgPSB0aGlzLl93cml0ZVBvcyAtIHRoaXMuX3BoYXNlMSAqIHdpbkxlbjsKICAgICAgY29uc3Qgc0wgPSB0aGlzLl9yZWFkQnVmKHRoaXMuX2J1ZkwsIHJwMCkgKiBnMCArIHRoaXMuX3JlYWRCdWYodGhpcy5fYnVmTCwgcnAxKSAqIGcxOwogICAgICBjb25zdCBzUiA9IHRoaXMuX3JlYWRCdWYodGhpcy5fYnVmUiwgcnAwKSAqIGcwICsgdGhpcy5fcmVhZEJ1Zih0aGlzLl9idWZSLCBycDEpICogZzE7CiAgICAgIC8vIENvbnRpbnVvdXMgTWlkL1NpZGUgdm9jYWwgY3V0OiAwPXN0ZXJlbywgMT1mdWxsIHNpZGUgKHZvY2FsIHJlbW92ZWQpCiAgICAgIC8vIG91dCA9IHN0ZXJlbyooMS1jdXQpICsgc2lkZSpjdXQKICAgICAgY29uc3Qgc2lkZSA9IChzTCAtIHNSKSAqIDAuNTsKICAgICAgY29uc3QgaW52ICA9IDEuMCAtIHZvY2FsQ3V0OwogICAgICBvdXRMW2ldID0gc0wgKiBpbnYgKyBzaWRlICogdm9jYWxDdXQ7CiAgICAgIG91dFJbaV0gPSBzUiAqIGludiArIHNpZGUgKiB2b2NhbEN1dDsKICAgIH0KICAgIHJldHVybiB0cnVlOwogIH0KfQpyZWdpc3RlclByb2Nlc3NvcignYmdtLXByb2Nlc3NvcicsIEJnbVByb2Nlc3Nvcik7Cg==';
 const TAKE_WORKLET_URL = 'data:application/javascript;base64,Ly8gVGFrZSAocmVjb3JkZWQgdm9pY2UpIHByb2Nlc3NvcjogcGl0Y2ggc2hpZnQgb25seSAobW9ubyBpbiwgc3RlcmVvIG91dCkKY2xhc3MgVGFrZVByb2Nlc3NvciBleHRlbmRzIEF1ZGlvV29ya2xldFByb2Nlc3NvciB7CiAgc3RhdGljIGdldCBwYXJhbWV0ZXJEZXNjcmlwdG9ycygpIHsKICAgIHJldHVybiBbCiAgICAgIHsgbmFtZTogJ3BpdGNoJywgZGVmYXVsdFZhbHVlOiAxLjAsIG1pblZhbHVlOiAwLjI1LCBtYXhWYWx1ZTogNC4wLCBhdXRvbWF0aW9uUmF0ZTogJ2stcmF0ZScgfQogICAgXTsKICB9CiAgY29uc3RydWN0b3IoKSB7CiAgICBzdXBlcigpOwogICAgdGhpcy5fYnVmU2l6ZSA9IDY1NTM2OwogICAgdGhpcy5fYnVmID0gbmV3IEZsb2F0MzJBcnJheSh0aGlzLl9idWZTaXplKTsKICAgIHRoaXMuX3dyaXRlUG9zID0gMDsKICAgIHRoaXMuX3BoYXNlMCA9IDAuMDsKICAgIHRoaXMuX3BoYXNlMSA9IDAuNTsKICAgIHRoaXMuX3dpbkxlbiA9IDgxOTI7CiAgfQogIF9yZWFkQnVmKHBvcykgewogICAgY29uc3QgaSA9IE1hdGguZmxvb3IocG9zKTsKICAgIGNvbnN0IGYgPSBwb3MgLSBpOwogICAgY29uc3QgcyA9IHRoaXMuX2J1ZlNpemU7CiAgICByZXR1cm4gdGhpcy5fYnVmW2kgJiAocyAtIDEpXSAqICgxIC0gZikgKyB0aGlzLl9idWZbKGkgKyAxKSAmIChzIC0gMSldICogZjsKICB9CiAgcHJvY2VzcyhpbnB1dHMsIG91dHB1dHMsIHBhcmFtZXRlcnMpIHsKICAgIGNvbnN0IGlucHV0ICA9IGlucHV0c1swXTsKICAgIGNvbnN0IG91dHB1dCA9IG91dHB1dHNbMF07CiAgICBpZiAoIWlucHV0IHx8ICFpbnB1dFswXSkgcmV0dXJuIHRydWU7CiAgICBjb25zdCBpbkNoICA9IGlucHV0WzBdOwogICAgY29uc3Qgb3V0TCAgPSBvdXRwdXRbMF07CiAgICBjb25zdCBvdXRSICA9IG91dHB1dFsxXSB8fCBvdXRwdXRbMF07CiAgICBjb25zdCBwaXRjaCA9IHBhcmFtZXRlcnNbJ3BpdGNoJ11bMF07CiAgICBjb25zdCB3aW5MZW4gICA9IHRoaXMuX3dpbkxlbjsKICAgIGNvbnN0IHBoYXNlSW5jID0gKDEuMCAtIHBpdGNoKSAvIHdpbkxlbjsKICAgIGZvciAobGV0IGkgPSAwOyBpIDwgaW5DaC5sZW5ndGg7IGkrKykgewogICAgICB0aGlzLl9idWZbdGhpcy5fd3JpdGVQb3MgJiAodGhpcy5fYnVmU2l6ZSAtIDEpXSA9IGluQ2hbaV07CiAgICAgIHRoaXMuX3dyaXRlUG9zKys7CiAgICAgIHRoaXMuX3BoYXNlMCA9ICgodGhpcy5fcGhhc2UwICsgcGhhc2VJbmMpICUgMS4wICsgMS4wKSAlIDEuMDsKICAgICAgdGhpcy5fcGhhc2UxID0gKCh0aGlzLl9waGFzZTEgKyBwaGFzZUluYykgJSAxLjAgKyAxLjApICUgMS4wOwogICAgICBjb25zdCB3MCA9IE1hdGguc2luKE1hdGguUEkgKiB0aGlzLl9waGFzZTApOyBjb25zdCBnMCA9IHcwICogdzA7CiAgICAgIGNvbnN0IHcxID0gTWF0aC5zaW4oTWF0aC5QSSAqIHRoaXMuX3BoYXNlMSk7IGNvbnN0IGcxID0gdzEgKiB3MTsKICAgICAgY29uc3QgcnAwID0gdGhpcy5fd3JpdGVQb3MgLSB0aGlzLl9waGFzZTAgKiB3aW5MZW47CiAgICAgIGNvbnN0IHJwMSA9IHRoaXMuX3dyaXRlUG9zIC0gdGhpcy5fcGhhc2UxICogd2luTGVuOwogICAgICBjb25zdCBzID0gdGhpcy5fcmVhZEJ1ZihycDApICogZzAgKyB0aGlzLl9yZWFkQnVmKHJwMSkgKiBnMTsKICAgICAgb3V0TFtpXSA9IHM7CiAgICAgIG91dFJbaV0gPSBzOwogICAgfQogICAgcmV0dXJuIHRydWU7CiAgfQp9CnJlZ2lzdGVyUHJvY2Vzc29yKCd0YWtlLXByb2Nlc3NvcicsIFRha2VQcm9jZXNzb3IpOwo=';
 
 // ============== CONSTANTS ==============
@@ -1172,6 +1220,18 @@ function switchTab(name){
     });
     $('library-section').classList.toggle('hidden', name !== 'library');
     $('karaoke-section').classList.toggle('hidden', name !== 'karaoke');
+    const mixSection = $('mix-section');
+    if(mixSection) mixSection.classList.toggle('hidden', name !== 'mix');
+    // now-playing-area is shown for karaoke and mix tabs (hidden in library)
+    const npArea = $('now-playing-area');
+    if(npArea){
+        const showNp = (name === 'karaoke' || name === 'mix') && !!state.currentEntry;
+        npArea.classList.toggle('hidden', !showNp);
+    }
+    // Also: hide rec button on mix tab (recording is for karaoke tab)
+    if(btnRec){
+        btnRec.style.display = (name === 'mix') ? 'none' : '';
+    }
 }
 document.querySelectorAll('.tab-btn').forEach(b => {
     b.addEventListener('click', () => switchTab(b.dataset.tab));
@@ -1788,8 +1848,16 @@ function applyBgmPitch(){
 function applyBgmVocalCut(){
     if(!bgmShifter) return;
     const recording = state.isRecording;
-    const cut = recording ? vcRecord.checked : vcPlayback.checked;
-    bgmShifter.parameters.get('vocalCut').setValueAtTime(cut ? 1.0 : 0.0, audioCtx.currentTime);
+    const enabled = recording ? vcRecord.checked : vcPlayback.checked;
+    let intensity = 0;
+    if(enabled){
+        const lvlEl = recording ? document.getElementById('vcRecordLevel') : document.getElementById('vcPlaybackLevel');
+        intensity = lvlEl ? Math.max(0, Math.min(100, parseFloat(lvlEl.value))) / 100 : 1.0;
+    }
+    try {
+        bgmShifter.parameters.get('vocalCut').setValueAtTime(intensity, audioCtx.currentTime);
+    } catch(e){ /* noop */ }
+    DEBUG.info('Vocal cut: ' + (enabled ? 'ON @ ' + Math.round(intensity*100) + '%' : 'OFF') + ' (' + (recording?'rec':'pb') + ')');
 }
 
 /**
@@ -2633,7 +2701,11 @@ async function selectEntry(entry){
     renderHistoryList();
     setStatus('「' + (entry.title || '(無題)') + '」を読み込みました', 'ok');
 
-    // switch to karaoke tab
+    // Reveal the shared transport/lyrics area
+    const npArea = $('now-playing-area');
+    if(npArea) npArea.classList.remove('hidden');
+
+    // switch to karaoke tab (default after song selection)
     switchTab('karaoke');
 }
 
@@ -3147,23 +3219,40 @@ function syncTakeToBgm(){
             startTakePlaybackIOS();
             return;
         }
-        // drift check (account for take.speed since iOS uses preservesPitch)
+        // Drift correction (PLL style):
+        //   error = expected - actual  (positive: take is BEHIND)
+        //   |error| > 0.5s : hard resync via currentTime (audible click but corrects)
+        //   0.05s < |error| <= 0.5s : adjust playbackRate slightly to catch up smoothly
+        //   |error| <= 0.05s : keep nominal rate
         const takeSp = state.currentTake.speed || 1.0;
-        // iosTakeAudioEl runs at its own playbackRate; we set it below
+        const bgmRate = bgmTransport.playbackRate || 1.0;
+        const nominalRate = bgmRate / takeSp;
         const expected = takeLocalT;
         const actual = iosTakeAudioEl.currentTime;
-        if(Math.abs(expected - actual) > 0.25){
-            DEBUG.info('iOS take drift: expected=' + expected.toFixed(2) + ' actual=' + actual.toFixed(2) + ' → resync');
+        const error = expected - actual;
+        const absErr = Math.abs(error);
+        if(absErr > 0.5){
+            DEBUG.warn('iOS take HARD resync: err=' + error.toFixed(3) + 's');
             try { iosTakeAudioEl.currentTime = expected; } catch(e){}
+            try { iosTakeAudioEl.playbackRate = nominalRate; iosTakeAudioEl.preservesPitch = true; } catch(e){}
+        } else if(absErr > 0.05){
+            // Soft correction: speed up (or slow down) by up to 5% for a few seconds
+            const rateAdj = nominalRate * (1.0 + Math.max(-0.05, Math.min(0.05, error * 0.5)));
+            try { iosTakeAudioEl.playbackRate = rateAdj; iosTakeAudioEl.preservesPitch = true; } catch(e){}
+        } else {
+            // In sync — restore nominal rate
+            try {
+                if(Math.abs(iosTakeAudioEl.playbackRate - nominalRate) > 0.001){
+                    iosTakeAudioEl.playbackRate = nominalRate;
+                    iosTakeAudioEl.preservesPitch = true;
+                }
+            } catch(e){}
         }
     } else {
-        // Non-iOS: AudioBufferSourceNode is sample-accurate, so drift correction
-        // is rarely needed. Only handle the "BGM jumped while take was playing"
-        // case (caught via seek events) and "BGM crossed takeStartSong" case.
-        // We recreate the source if state is wrong.
+        // Non-iOS: AudioBufferSourceNode is sample-accurate, so drift is rare.
         const takeSp = state.currentTake.speed || 1.0;
         const localTime = takeLocalT / takeSp;
-        if(localTime >= state.currentTake._decodedBuffer?.duration){
+        if(localTime >= (state.currentTake._decodedBuffer ? state.currentTake._decodedBuffer.duration : Infinity)){
             stopTakePlayback();
             return;
         }
@@ -3331,6 +3420,24 @@ vcPlayback.addEventListener('change', () => {
     if(audioCtx && !state.isRecording) applyBgmVocalCut();
 });
 
+// Vocal-cut intensity sliders
+const vcRecordLevel = document.getElementById('vcRecordLevel');
+const vcRecordLevelVal = document.getElementById('vcRecordLevelVal');
+if(vcRecordLevel){
+    vcRecordLevel.addEventListener('input', () => {
+        if(vcRecordLevelVal) vcRecordLevelVal.textContent = vcRecordLevel.value + '%';
+        if(audioCtx && state.isRecording && vcRecord.checked) applyBgmVocalCut();
+    });
+}
+const vcPlaybackLevel = document.getElementById('vcPlaybackLevel');
+const vcPlaybackLevelVal = document.getElementById('vcPlaybackLevelVal');
+if(vcPlaybackLevel){
+    vcPlaybackLevel.addEventListener('input', () => {
+        if(vcPlaybackLevelVal) vcPlaybackLevelVal.textContent = vcPlaybackLevel.value + '%';
+        if(audioCtx && !state.isRecording && vcPlayback.checked) applyBgmVocalCut();
+    });
+}
+
 // ============== PLAY MODE PILLS (BGM+TAKE / BGM only / TAKE only) ==============
 /**
  * 再生モードはユーザーに「今何が鳴っているか」を明示するためのもの。
@@ -3490,6 +3597,8 @@ balanceSlider.addEventListener('input', applyBalance);
             { id:'voxEqLo', wrap:'.eq-band' },{ id:'voxEqMd', wrap:'.eq-band' },{ id:'voxEqHi', wrap:'.eq-band' },
             { id:'vcRecord', wrap:'label.toggle-row' },
             { id:'vcPlayback', wrap:'label.toggle-row' },
+            { id:'vcRecordLevel', wrap:'.ctrl' },
+            { id:'vcPlaybackLevel', wrap:'.ctrl' },
         ];
         for(const item of disableInfo){
             const el = document.getElementById(item.id);

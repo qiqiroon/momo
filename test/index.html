@@ -903,6 +903,15 @@ window.addEventListener('unhandledrejection', e => {
     });
 })();
 
+// iOS detection — used early in env dump
+const IS_IOS = (() => {
+    const ua = navigator.userAgent || '';
+    if(/iPhone|iPad|iPod|CriOS|FxiOS/i.test(ua)) return true;
+    // iPadOS 13+ lies as 'MacIntel' but has touch
+    if(navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) return true;
+    return false;
+})();
+
 // Environment dump (logged immediately)
 DEBUG.info('═══ MOMO Karaoke debug log ═══');
 DEBUG.info('UA:', navigator.userAgent);
@@ -911,6 +920,7 @@ DEBUG.info('AudioContext:', !!(window.AudioContext || window.webkitAudioContext)
            '· AudioWorklet:', !!window.AudioWorklet,
            '· FSA:', !!window.showDirectoryPicker,
            '· getUserMedia:', !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia));
+DEBUG.info('IS_IOS:', IS_IOS);
 
 // ============== AUDIO WORKLET URLS ==============
 const BGM_WORKLET_URL  = 'data:application/javascript;base64,Ly8gQkdNIChiYXNlIHRyYWNrKSBwcm9jZXNzb3I6IHBpdGNoIHNoaWZ0ICsgb3B0aW9uYWwgdm9jYWwgY3V0IChNaWQvU2lkZSkKY2xhc3MgQmdtUHJvY2Vzc29yIGV4dGVuZHMgQXVkaW9Xb3JrbGV0UHJvY2Vzc29yIHsKICBzdGF0aWMgZ2V0IHBhcmFtZXRlckRlc2NyaXB0b3JzKCkgewogICAgcmV0dXJuIFsKICAgICAgeyBuYW1lOiAncGl0Y2gnLCAgICBkZWZhdWx0VmFsdWU6IDEuMCwgbWluVmFsdWU6IDAuMjUsIG1heFZhbHVlOiA0LjAsIGF1dG9tYXRpb25SYXRlOiAnay1yYXRlJyB9LAogICAgICB7IG5hbWU6ICd2b2NhbEN1dCcsIGRlZmF1bHRWYWx1ZTogMC4wLCBtaW5WYWx1ZTogMC4wLCAgbWF4VmFsdWU6IDEuMCwgYXV0b21hdGlvblJhdGU6ICdrLXJhdGUnIH0KICAgIF07CiAgfQogIGNvbnN0cnVjdG9yKCkgewogICAgc3VwZXIoKTsKICAgIHRoaXMuX2J1ZlNpemUgPSA2NTUzNjsKICAgIHRoaXMuX2J1ZkwgPSBuZXcgRmxvYXQzMkFycmF5KHRoaXMuX2J1ZlNpemUpOwogICAgdGhpcy5fYnVmUiA9IG5ldyBGbG9hdDMyQXJyYXkodGhpcy5fYnVmU2l6ZSk7CiAgICB0aGlzLl93cml0ZVBvcyA9IDA7CiAgICB0aGlzLl9waGFzZTAgPSAwLjA7CiAgICB0aGlzLl9waGFzZTEgPSAwLjU7CiAgICB0aGlzLl93aW5MZW4gPSA4MTkyOwogIH0KICBfcmVhZEJ1ZihidWYsIHBvcykgewogICAgY29uc3QgaSA9IE1hdGguZmxvb3IocG9zKTsKICAgIGNvbnN0IGYgPSBwb3MgLSBpOwogICAgY29uc3QgcyA9IHRoaXMuX2J1ZlNpemU7CiAgICByZXR1cm4gYnVmW2kgJiAocyAtIDEpXSAqICgxIC0gZikgKyBidWZbKGkgKyAxKSAmIChzIC0gMSldICogZjsKICB9CiAgcHJvY2VzcyhpbnB1dHMsIG91dHB1dHMsIHBhcmFtZXRlcnMpIHsKICAgIGNvbnN0IGlucHV0ICA9IGlucHV0c1swXTsKICAgIGNvbnN0IG91dHB1dCA9IG91dHB1dHNbMF07CiAgICBpZiAoIWlucHV0IHx8ICFpbnB1dFswXSkgcmV0dXJuIHRydWU7CiAgICBjb25zdCBpbkwgID0gaW5wdXRbMF07CiAgICBjb25zdCBpblIgID0gaW5wdXRbMV0gfHwgaW5wdXRbMF07CiAgICBjb25zdCBvdXRMID0gb3V0cHV0WzBdOwogICAgY29uc3Qgb3V0UiA9IG91dHB1dFsxXSB8fCBvdXRwdXRbMF07CiAgICBjb25zdCBwaXRjaCAgICA9IHBhcmFtZXRlcnNbJ3BpdGNoJ11bMF07CiAgICBjb25zdCB2b2NhbEN1dCA9IHBhcmFtZXRlcnNbJ3ZvY2FsQ3V0J11bMF07CiAgICBjb25zdCB3aW5MZW4gICA9IHRoaXMuX3dpbkxlbjsKICAgIGNvbnN0IHBoYXNlSW5jID0gKDEuMCAtIHBpdGNoKSAvIHdpbkxlbjsKICAgIGZvciAobGV0IGkgPSAwOyBpIDwgaW5MLmxlbmd0aDsgaSsrKSB7CiAgICAgIHRoaXMuX2J1ZkxbdGhpcy5fd3JpdGVQb3MgJiAodGhpcy5fYnVmU2l6ZSAtIDEpXSA9IGluTFtpXTsKICAgICAgdGhpcy5fYnVmUlt0aGlzLl93cml0ZVBvcyAmICh0aGlzLl9idWZTaXplIC0gMSldID0gaW5SW2ldOwogICAgICB0aGlzLl93cml0ZVBvcysrOwogICAgICB0aGlzLl9waGFzZTAgPSAoKHRoaXMuX3BoYXNlMCArIHBoYXNlSW5jKSAlIDEuMCArIDEuMCkgJSAxLjA7CiAgICAgIHRoaXMuX3BoYXNlMSA9ICgodGhpcy5fcGhhc2UxICsgcGhhc2VJbmMpICUgMS4wICsgMS4wKSAlIDEuMDsKICAgICAgY29uc3QgdzAgPSBNYXRoLnNpbihNYXRoLlBJICogdGhpcy5fcGhhc2UwKTsgY29uc3QgZzAgPSB3MCAqIHcwOwogICAgICBjb25zdCB3MSA9IE1hdGguc2luKE1hdGguUEkgKiB0aGlzLl9waGFzZTEpOyBjb25zdCBnMSA9IHcxICogdzE7CiAgICAgIGNvbnN0IHJwMCA9IHRoaXMuX3dyaXRlUG9zIC0gdGhpcy5fcGhhc2UwICogd2luTGVuOwogICAgICBjb25zdCBycDEgPSB0aGlzLl93cml0ZVBvcyAtIHRoaXMuX3BoYXNlMSAqIHdpbkxlbjsKICAgICAgY29uc3Qgc0wgPSB0aGlzLl9yZWFkQnVmKHRoaXMuX2J1ZkwsIHJwMCkgKiBnMCArIHRoaXMuX3JlYWRCdWYodGhpcy5fYnVmTCwgcnAxKSAqIGcxOwogICAgICBjb25zdCBzUiA9IHRoaXMuX3JlYWRCdWYodGhpcy5fYnVmUiwgcnAwKSAqIGcwICsgdGhpcy5fcmVhZEJ1Zih0aGlzLl9idWZSLCBycDEpICogZzE7CiAgICAgIGlmICh2b2NhbEN1dCA+IDAuNSkgewogICAgICAgIGNvbnN0IHNpZGUgPSAoc0wgLSBzUikgKiAwLjU7CiAgICAgICAgb3V0TFtpXSA9IHNpZGU7CiAgICAgICAgb3V0UltpXSA9IHNpZGU7CiAgICAgIH0gZWxzZSB7CiAgICAgICAgb3V0TFtpXSA9IHNMOwogICAgICAgIG91dFJbaV0gPSBzUjsKICAgICAgfQogICAgfQogICAgcmV0dXJuIHRydWU7CiAgfQp9CnJlZ2lzdGVyUHJvY2Vzc29yKCdiZ20tcHJvY2Vzc29yJywgQmdtUHJvY2Vzc29yKTsK';
@@ -1209,13 +1219,14 @@ function setupBgmGraph(){
 // changes the AudioSession to a recording mode which can silence MediaElement
 // playback. Decoded AudioBuffer playback in WebAudio is not affected.
 const bgmTransport = (function(){
-    let buffer = null;       // AudioBuffer
+    let buffer = null;       // AudioBuffer (live, attached to current audioCtx)
+    let pcmChannels = null;  // Array<Float32Array> — original PCM kept for context rebuild
+    let pcmSampleRate = 0;
     let source = null;       // active AudioBufferSourceNode
     let isPlaying = false;
     let startCtxTime = 0;    // ctx.currentTime when source started
     let startOffset = 0;     // position within the buffer when source started (seconds)
     let userPlaybackRate = 1.0;
-    let pendingObjectUrl = null;
 
     const T = {
         get duration(){ return buffer ? buffer.duration : 0; },
@@ -1235,12 +1246,9 @@ const bgmTransport = (function(){
         set playbackRate(r){
             if(!buffer){ userPlaybackRate = r; return; }
             const wasPlaying = isPlaying;
-            // We update the running source in-place to avoid clicks; but currentTime
-            // bookkeeping needs adjustment because elapsed*playbackRate uses the new rate.
-            const pos = T.currentTime;       // computed with old rate
+            const pos = T.currentTime;
             userPlaybackRate = r;
             if(wasPlaying && source){
-                // Re-anchor: as if the source had been playing at the new rate from `pos`.
                 startCtxTime = audioCtx.currentTime;
                 startOffset = pos;
                 try { source.playbackRate.setTargetAtTime(r, audioCtx.currentTime, 0.02); }
@@ -1268,6 +1276,12 @@ const bgmTransport = (function(){
                     } catch(e){ rej(e); }
                 });
                 DEBUG.ok('bgmTransport.loadFile: decoded ' + buffer.duration.toFixed(2) + 's, ' + buffer.numberOfChannels + 'ch, ' + buffer.sampleRate + 'Hz');
+                // Keep raw PCM so we can rebuild the buffer if AudioContext is recreated
+                pcmChannels = [];
+                for(let c = 0; c < buffer.numberOfChannels; c++){
+                    pcmChannels.push(new Float32Array(buffer.getChannelData(c)));
+                }
+                pcmSampleRate = buffer.sampleRate;
             } catch(e){
                 DEBUG.err('bgmTransport.loadFile: decode failed: ' + (e && e.message ? e.message : e));
                 throw e;
@@ -1279,9 +1293,29 @@ const bgmTransport = (function(){
         unload(){
             T._stopSource();
             buffer = null;
+            pcmChannels = null;
+            pcmSampleRate = 0;
             isPlaying = false;
             startOffset = 0;
             T._notify();
+        },
+        // Re-create the AudioBuffer from stored PCM (used when audioCtx is rebuilt)
+        rebuildBufferOnNewCtx(){
+            if(!pcmChannels || !audioCtx){ return false; }
+            try {
+                const newBuf = audioCtx.createBuffer(pcmChannels.length, pcmChannels[0].length, pcmSampleRate);
+                for(let c = 0; c < pcmChannels.length; c++){
+                    newBuf.copyToChannel(pcmChannels[c], c);
+                }
+                buffer = newBuf;
+                source = null;
+                isPlaying = false;
+                DEBUG.ok('bgmTransport.rebuildBufferOnNewCtx: re-attached, duration=' + buffer.duration.toFixed(2) + 's');
+                return true;
+            } catch(e){
+                DEBUG.err('bgmTransport.rebuildBufferOnNewCtx failed: ' + e.message);
+                return false;
+            }
         },
         play(){
             if(!buffer) { DEBUG.warn('bgmTransport.play: no buffer'); return Promise.reject(new Error('no buffer')); }
@@ -1394,6 +1428,92 @@ function setupTakeChain(){
     echoDry.connect(master);
     echoWet.connect(master);
     applyTakePitch(); applyVoxEq(); applyVoxVolume(); applyEcho();
+}
+
+/**
+ * iOS で getUserMedia を使ったあと、AudioContext は state=running に見えても
+ * destination 出力が無音になる現象がある (AudioSession の内部状態)。
+ * この関数は audioCtx を完全に破棄して新しい context に作り直し、worklets と
+ * BGM チェーン、テイクチェーンも再構築する。BGM の AudioBuffer は保管した
+ * PCM データから再生成される (AudioBuffer は context 間で共有不可)。
+ */
+async function rebuildAudioContext(){
+    DEBUG.info('═══ rebuildAudioContext: rebuilding the main AudioContext ═══');
+    // Snapshot current state
+    const wasPlaying = !bgmTransport.paused;
+    const lastPos = bgmTransport.currentTime;
+    DEBUG.info('rebuild: wasPlaying=' + wasPlaying + ' · lastPos=' + lastPos.toFixed(2));
+
+    // Stop all current activity in the old context
+    try { bgmTransport.pause(); } catch(e){}
+    stopTakePlayback();
+
+    // Invalidate any cached take buffers (they belong to the old context)
+    if(state.currentEntry && state.currentEntry.takes){
+        for(const tk of state.currentEntry.takes){
+            delete tk._decodedBuffer;
+        }
+    }
+
+    // Tear down the old graph completely
+    try { if(bgmShifter) bgmShifter.disconnect(); } catch(e){}
+    try { if(bgmEqLo) bgmEqLo.disconnect(); } catch(e){}
+    try { if(bgmEqMd) bgmEqMd.disconnect(); } catch(e){}
+    try { if(bgmEqHi) bgmEqHi.disconnect(); } catch(e){}
+    try { if(bgmGain) bgmGain.disconnect(); } catch(e){}
+    try { if(takeShifter) takeShifter.disconnect(); } catch(e){}
+    try { if(voxEqLo) voxEqLo.disconnect(); } catch(e){}
+    try { if(voxEqMd) voxEqMd.disconnect(); } catch(e){}
+    try { if(voxEqHi) voxEqHi.disconnect(); } catch(e){}
+    try { if(voxGain) voxGain.disconnect(); } catch(e){}
+    try { if(echoDelay) echoDelay.disconnect(); } catch(e){}
+    try { if(echoFeedback) echoFeedback.disconnect(); } catch(e){}
+    try { if(echoWet) echoWet.disconnect(); } catch(e){}
+    try { if(echoDry) echoDry.disconnect(); } catch(e){}
+    try { if(master) master.disconnect(); } catch(e){}
+
+    bgmShifter = null; bgmEqLo = null; bgmEqMd = null; bgmEqHi = null; bgmGain = null;
+    takeShifter = null; voxEqLo = null; voxEqMd = null; voxEqHi = null; voxGain = null;
+    echoDelay = null; echoFeedback = null; echoWet = null; echoDry = null;
+    master = null;
+
+    // Close the old context
+    try {
+        if(audioCtx && audioCtx.state !== 'closed'){
+            await audioCtx.close();
+            DEBUG.info('rebuild: old audioCtx closed');
+        }
+    } catch(e){
+        DEBUG.warn('rebuild: close failed: ' + e.message);
+    }
+    audioCtx = null;
+    workletReady = false;
+    state.audioCtxStarted = false;
+
+    // Build a brand-new context
+    if(!await initCtx()){
+        DEBUG.err('rebuild: new initCtx failed');
+        return false;
+    }
+    if(audioCtx.state === 'suspended'){
+        try { await audioCtx.resume(); }
+        catch(e){ DEBUG.warn('rebuild: resume failed: ' + e.message); }
+    }
+    setupBgmGraph();
+    setupTakeChain();
+    DEBUG.ok('rebuild: graphs rebuilt, audioCtx.state=' + audioCtx.state);
+
+    // Re-attach BGM buffer from stored PCM
+    if(!bgmTransport.rebuildBufferOnNewCtx()){
+        DEBUG.warn('rebuild: BGM buffer rebuild skipped (no PCM)');
+    }
+    bgmTransport.currentTime = lastPos;
+
+    if(wasPlaying){
+        try { await bgmTransport.play(); DEBUG.ok('rebuild: resumed playback at ' + lastPos.toFixed(2)); }
+        catch(e){ DEBUG.warn('rebuild: auto-resume failed: ' + e.message); }
+    }
+    return true;
 }
 
 // ============== PARAMETER APPLIERS ==============
@@ -1611,6 +1731,7 @@ async function startRecording(){
 
 async function stopRecording(){
     if(!state.isRecording) return;
+    DEBUG.info('═══ stopRecording() called ═══');
     state.isRecording = false;
     btnRec.classList.remove('recording');
     btnRec.textContent = '●';
@@ -1634,36 +1755,50 @@ async function stopRecording(){
     micAnalyser = null;
     micStream = null;
     recCtx = null;
+    DEBUG.info('stopRecording: recording context torn down');
 
     const total = recAudioBufferChunks.reduce((s,b) => s+b.length, 0);
+    let take = null;
     if(total < 4000){
         recAudioBufferChunks = [];
         setStatus('録音が短すぎます（破棄）', 'err');
-        return;
-    }
-    const pcm = new Float32Array(total);
-    let p = 0;
-    for(const b of recAudioBufferChunks){ pcm.set(b, p); p += b.length; }
-    recAudioBufferChunks = [];
+    } else {
+        const pcm = new Float32Array(total);
+        let p = 0;
+        for(const b of recAudioBufferChunks){ pcm.set(b, p); p += b.length; }
+        recAudioBufferChunks = [];
 
-    const take = {
-        id: uid(),
-        name: 'Take ' + ((state.currentEntry.takes||[]).length + 1),
-        pcm: pcm,
-        sampleRate: recCtxSampleRate,
-        pitchSemitones: recPitchAtStart,
-        speed: recSpeedAtStart,
-        startSongTime: recStartSongTime,
-        duration: total / recCtxSampleRate,
-        createdAt: Date.now()
-    };
-    if(!state.currentEntry.takes) state.currentEntry.takes = [];
-    state.currentEntry.takes.push(take);
-    state.currentTake = take;
-    await persistTakes(state.currentEntry);
-    renderTakes();
-    renderBadges();
-    setStatus('テイクを保存: ' + take.name, 'ok');
+        take = {
+            id: uid(),
+            name: 'Take ' + ((state.currentEntry.takes||[]).length + 1),
+            pcm: pcm,
+            sampleRate: recCtxSampleRate,
+            pitchSemitones: recPitchAtStart,
+            speed: recSpeedAtStart,
+            startSongTime: recStartSongTime,
+            duration: total / recCtxSampleRate,
+            createdAt: Date.now()
+        };
+        if(!state.currentEntry.takes) state.currentEntry.takes = [];
+        state.currentEntry.takes.push(take);
+        state.currentTake = take;
+        await persistTakes(state.currentEntry);
+        renderTakes();
+        renderBadges();
+        setStatus('テイクを保存: ' + take.name, 'ok');
+        DEBUG.ok('stopRecording: take saved (' + take.duration.toFixed(2) + 's)');
+    }
+
+    // ─── iOS-specific recovery ─────────────────────────────────────────────
+    // On iOS WebKit, even after we close recCtx and stop the mic tracks, the
+    // main audioCtx's destination output remains silenced (the AudioSession
+    // is still in 'PlayAndRecord' mode). The reliable way to restore output
+    // is to fully close audioCtx and create a new one.
+    if(IS_IOS){
+        DEBUG.info('iOS detected: rebuilding main AudioContext to restore output...');
+        await rebuildAudioContext();
+        DEBUG.ok('iOS: AudioContext rebuilt, BGM should now be audible.');
+    }
 }
 
 function pumpMicLevel(){
@@ -2375,6 +2510,22 @@ btnRec.addEventListener('click', async () => {
     await startRecording();
 });
 
+// "音声を復旧" button — manual fallback if iOS audio output is silenced after recording
+const btnAudioRescue = $('btnAudioRescue');
+if(btnAudioRescue){
+    btnAudioRescue.addEventListener('click', async () => {
+        DEBUG.info('User clicked 音声を復旧');
+        await rebuildAudioContext();
+    });
+}
+const audioRescueRow = $('audioRescueRow');
+const iosNotice = $('iosNotice');
+// Always show rescue row & iOS notice on iOS so user can recover manually if auto-rebuild fails
+if(IS_IOS){
+    if(audioRescueRow) audioRescueRow.classList.remove('hidden');
+    if(iosNotice) iosNotice.classList.add('show');
+}
+
 speedSlider.addEventListener('input', () => {
     const v = parseFloat(speedSlider.value);
     audioEl.playbackRate = v;
@@ -2535,12 +2686,10 @@ balanceSlider.addEventListener('input', applyBalance);
         fallbackInput.addEventListener('change', onFlatInputChange);
     }
 
-    // Pre-initialize AudioContext + worklets early so the first user gesture
-    // doesn't have to wait for module fetches. (Created in suspended state on
-    // browsers with autoplay policy; resumed on first click.)
-    if(window.AudioWorklet){
-        initCtx().catch(e => console.warn('initCtx pre-warm failed', e));
-    }
+    // NOTE: Do NOT pre-initialize AudioContext here. On iOS, an AudioContext
+    // created without a user gesture immediately enters 'interrupted' state
+    // and may stay in a degraded mode. We initialize it lazily when the user
+    // first selects a song or presses a control.
 
     await tryRestoreLibrary();
     setStatus('準備完了 — ライブラリから曲を選んでください', 'ok');

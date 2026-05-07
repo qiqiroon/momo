@@ -8,12 +8,14 @@
        v1.04 - デバッグログオーバーレイ追加 (BEEP TEST / AUDIO PROBE)
        v1.05 - 録音用 AudioContext 分離、stopRecording 後に main ctx を rebuild
        v1.10 - 録音方式を MediaRecorder に変更、テイク UI 大改修
-                + バージョン自動進行ルール導入 -->
+                + バージョン自動進行ルール導入
+       v1.11 - テイク再生の同期修正 (BGM途中録音→テイク頭から再生バグ)
+                iOS でも speed/volume が効くよう修正、effects無効化UIを精密化 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MOMO Karaoke v1.10 - MOMO Works</title>
+<title>MOMO Karaoke v1.11 - MOMO Works</title>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 /* ─────────── MOMO Lyrics 系統のデザイン (ダーク × オレンジ) ─────────── */
@@ -273,6 +275,24 @@ h1 span { color: var(--orange-mid); }
 }
 .ios-notice.show { display: block; }
 .ios-notice strong { color: var(--orange-mid); display: block; margin-bottom: 4px; }
+
+/* iOS で無効化されたコントロール */
+.ctrl.ios-disabled,
+.eq-band.ios-disabled {
+    opacity: 0.4;
+    pointer-events: none;
+    position: relative;
+}
+.ctrl.ios-disabled::after,
+.eq-row.ios-disabled-block::after {
+    content: 'iOS 非対応';
+    position: absolute; top: 0; right: 0;
+    font-size: 9px; font-family: monospace;
+    color: var(--text-muted); letter-spacing: 1px;
+    background: var(--surface); padding: 2px 6px; border-radius: 3px;
+    border: 1px solid var(--border);
+}
+.eq-row.ios-disabled-block { position: relative; }
 
 /* 歌詞ビュー */
 .lyrics-view {
@@ -634,7 +654,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 </g>
             </svg>
         </div>
-        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.10</span></h1>
+        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.11</span></h1>
     </header>
     <p class="header-sub" id="header-sub">ローカル音源と同名 .lrc を読み込む、こだわり派のカラオケサロン</p>
 
@@ -990,7 +1010,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v1.10';
+const APP_VERSION = 'v1.11';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -1892,20 +1912,50 @@ function startTakePlayback(){
         buf.copyToChannel(pcm, 0);
         state.currentTake._decodedBuffer = buf;
     }
-    takeBufferSource = audioCtx.createBufferSource();
-    takeBufferSource.buffer = buf;
-    takeBufferSource.connect(takeShifter);
     const songT = audioEl.currentTime;
     const takeStartSong = state.currentTake.startSongTime || 0;
     const takeSp = state.currentTake.speed || 1.0;
+    const curSp  = parseFloat(speedSlider.value);
     const userOfs = parseFloat(voxOfsSlider.value);
     const takeLocalT = (songT - takeStartSong - userOfs) / takeSp;
-    if(takeLocalT >= buf.duration){ takeBufferSource = null; return; }
-    const offset = Math.max(0, takeLocalT);
+
+    // Already past the end of the take: nothing to play
+    if(takeLocalT >= buf.duration){
+        DEBUG.info('startTakePlayback: BGM is past end of take, skipping');
+        return;
+    }
+
+    takeBufferSource = audioCtx.createBufferSource();
+    takeBufferSource.buffer = buf;
+    takeBufferSource.connect(takeShifter);
     applyTakePitch();
-    const curSp = parseFloat(speedSlider.value);
     takeBufferSource.playbackRate.value = curSp / takeSp;
-    takeBufferSource.start(0, offset);
+
+    if(takeLocalT < 0){
+        // BGM hasn't reached the take's start position yet — schedule the take to begin
+        // when BGM time reaches takeStartSong + userOfs (in real-time seconds, accounting
+        // for current playback rate).
+        const realSecondsUntilStart = (-takeLocalT * takeSp) / curSp;
+        const startCtxTime = audioCtx.currentTime + realSecondsUntilStart;
+        DEBUG.info('startTakePlayback: scheduling delayed start in ' + realSecondsUntilStart.toFixed(2) + 's (BGM @' + songT.toFixed(2) + ', take starts @' + takeStartSong.toFixed(2) + ')');
+        try {
+            takeBufferSource.start(startCtxTime, 0);
+        } catch(e){
+            DEBUG.err('takeBufferSource.start (delayed) failed: ' + e.message);
+            takeBufferSource = null;
+            return;
+        }
+    } else {
+        // Mid-take: jump in
+        DEBUG.info('startTakePlayback: starting take @ local ' + takeLocalT.toFixed(2) + 's');
+        try {
+            takeBufferSource.start(0, takeLocalT);
+        } catch(e){
+            DEBUG.err('takeBufferSource.start (immediate) failed: ' + e.message);
+            takeBufferSource = null;
+            return;
+        }
+    }
 }
 
 function startTakePlaybackIOS(){
@@ -1928,15 +1978,26 @@ function startTakePlaybackIOS(){
         iosTakeAudioEl.src = state.currentTake._wavUrl;
         iosTakeAudioEl.load();
     }
-    // sync to current BGM time within the take
+    // Compute where in the take we should be, given current BGM time
     const songT = bgmTransport.currentTime;
     const takeStartSong = state.currentTake.startSongTime || 0;
     const userOfs = parseFloat(voxOfsSlider.value);
     const takeLocalT = songT - takeStartSong - userOfs;
+
     if(takeLocalT >= state.currentTake.duration){
+        DEBUG.info('iOS take: past end, skipping');
         return;
     }
-    try { iosTakeAudioEl.currentTime = Math.max(0, takeLocalT); } catch(e){}
+    if(takeLocalT < 0){
+        // BGM hasn't reached take's start position yet. Don't start — the
+        // tickUI loop will call this again once BGM catches up.
+        DEBUG.info('iOS take: BGM @' + songT.toFixed(2) + ' < take start @' + takeStartSong.toFixed(2) + ', waiting');
+        try { iosTakeAudioEl.pause(); } catch(e){}
+        try { iosTakeAudioEl.currentTime = 0; } catch(e){}
+        return;
+    }
+    DEBUG.info('iOS take: playing @ local ' + takeLocalT.toFixed(2) + 's');
+    try { iosTakeAudioEl.currentTime = takeLocalT; } catch(e){}
     iosTakeAudioEl.play().catch(e => DEBUG.err('iOS take play failed: ' + e.message));
 }
 
@@ -3023,6 +3084,7 @@ bgmTransport.addEventListener('ended', () => {
 
 // rAF-driven UI updates (replaces timeupdate event)
 let _takeUiCounter = 0;
+let _takeSyncCounter = 0;
 function tickUI(){
     if(bgmTransport.duration > 0){
         const cur = bgmTransport.currentTime;
@@ -3040,9 +3102,81 @@ function tickUI(){
             refreshTakeNowPlayingUI();
         }
     }
+    // Sync take playback to BGM position (~5 times per second, every 12 frames)
+    if((++_takeSyncCounter % 12) === 0 && !bgmTransport.paused && state.currentTake && state.playMode !== 'bgm'){
+        syncTakeToBgm();
+    }
     requestAnimationFrame(tickUI);
 }
 requestAnimationFrame(tickUI);
+
+/**
+ * Make sure the take's playback state matches where BGM is. Called periodically.
+ *  - Before takeStartSong: take should be silent / not playing
+ *  - At/within take range: take should be playing in sync
+ *  - After take's end: take should be stopped
+ * Detects drift > 0.25s and resyncs.
+ */
+function syncTakeToBgm(){
+    if(!state.currentTake) return;
+    const songT = bgmTransport.currentTime;
+    const takeStartSong = state.currentTake.startSongTime || 0;
+    const takeDur = state.currentTake.duration || 0;
+    const userOfs = parseFloat(voxOfsSlider.value);
+    const takeLocalT = songT - takeStartSong - userOfs;
+
+    if(IOS_MODE){
+        if(!iosTakeAudioEl) return;
+        const isPlaying = !iosTakeAudioEl.paused;
+        if(takeLocalT < 0){
+            // before start: ensure silent
+            if(isPlaying){
+                try { iosTakeAudioEl.pause(); } catch(e){}
+                try { iosTakeAudioEl.currentTime = 0; } catch(e){}
+            }
+            return;
+        }
+        if(takeLocalT >= takeDur){
+            // past end: stop
+            if(isPlaying){ try { iosTakeAudioEl.pause(); } catch(e){} }
+            return;
+        }
+        // in range
+        if(!isPlaying){
+            // start it now
+            startTakePlaybackIOS();
+            return;
+        }
+        // drift check (account for take.speed since iOS uses preservesPitch)
+        const takeSp = state.currentTake.speed || 1.0;
+        // iosTakeAudioEl runs at its own playbackRate; we set it below
+        const expected = takeLocalT;
+        const actual = iosTakeAudioEl.currentTime;
+        if(Math.abs(expected - actual) > 0.25){
+            DEBUG.info('iOS take drift: expected=' + expected.toFixed(2) + ' actual=' + actual.toFixed(2) + ' → resync');
+            try { iosTakeAudioEl.currentTime = expected; } catch(e){}
+        }
+    } else {
+        // Non-iOS: AudioBufferSourceNode is sample-accurate, so drift correction
+        // is rarely needed. Only handle the "BGM jumped while take was playing"
+        // case (caught via seek events) and "BGM crossed takeStartSong" case.
+        // We recreate the source if state is wrong.
+        const takeSp = state.currentTake.speed || 1.0;
+        const localTime = takeLocalT / takeSp;
+        if(localTime >= state.currentTake._decodedBuffer?.duration){
+            stopTakePlayback();
+            return;
+        }
+        // If we don't have a source running but should, start it
+        if(!takeBufferSource && localTime >= 0){
+            startTakePlayback();
+        }
+        // If we have one but BGM is now before takeStartSong (rare; covered by seek), stop
+        if(takeBufferSource && localTime < -0.05){
+            stopTakePlayback();
+        }
+    }
+}
 
 // Play / Pause button
 btnPlay.addEventListener('click', async () => {
@@ -3130,20 +3264,35 @@ if(IS_IOS){
 
 speedSlider.addEventListener('input', () => {
     const v = parseFloat(speedSlider.value);
-    audioEl.playbackRate = v;
     speedVal.textContent = v.toFixed(2) + 'x';
-    applyTakeSpeed();
+    if(IOS_MODE){
+        if(iosAudioEl){
+            try { iosAudioEl.playbackRate = v; iosAudioEl.preservesPitch = true; } catch(e){}
+        }
+        if(iosTakeAudioEl){
+            // Take should follow the BGM speed ratio relative to its recording speed.
+            const takeSp = (state.currentTake && state.currentTake.speed) || 1.0;
+            try { iosTakeAudioEl.playbackRate = v / takeSp; iosTakeAudioEl.preservesPitch = true; } catch(e){}
+        }
+    } else {
+        try { audioEl.playbackRate = v; } catch(e){}
+        applyTakeSpeed();
+    }
 });
 pitchSlider.addEventListener('input', () => {
     const v = parseInt(pitchSlider.value, 10);
     pitchVal.textContent = (v >= 0 ? '+' : '') + v + ' st';
-    applyBgmPitch();
-    applyTakePitch();
+    if(!IOS_MODE){
+        applyBgmPitch();
+        applyTakePitch();
+    }
+    // iOS: pitch shifting requires AudioWorklet which is unstable on iOS WebKit.
+    // The slider position is preserved but has no audible effect.
 });
 bgmVolSlider.addEventListener('input', () => {
     const v = parseFloat(bgmVolSlider.value);
     bgmVolVal.textContent = (v >= 0 ? '+' : '') + v.toFixed(1) + ' dB';
-    applyBgmVolume();
+    applyBgmVolume(); // delegates to applyBalance(), which handles iOS via <audio>.volume
 });
 voxVolSlider.addEventListener('input', () => {
     const v = parseFloat(voxVolSlider.value);
@@ -3160,18 +3309,18 @@ voxOfsSlider.addEventListener('input', () => {
 });
 echoSlider.addEventListener('input', () => {
     echoVal.textContent = parseInt(echoSlider.value, 10) + '%';
-    applyEcho();
+    if(!IOS_MODE) applyEcho();
 });
 [bgmEq.lo, bgmEq.md, bgmEq.hi].forEach((s, i) => {
     s.addEventListener('input', () => {
         [bgmEq.loV, bgmEq.mdV, bgmEq.hiV][i].textContent = parseFloat(s.value).toFixed(1);
-        applyBgmEq();
+        if(!IOS_MODE) applyBgmEq();
     });
 });
 [voxEq.lo, voxEq.md, voxEq.hi].forEach((s, i) => {
     s.addEventListener('input', () => {
         [voxEq.loV, voxEq.mdV, voxEq.hiV][i].textContent = parseFloat(s.value).toFixed(1);
-        applyVoxEq();
+        if(!IOS_MODE) applyVoxEq();
     });
 });
 
@@ -3248,15 +3397,15 @@ function applyBalance(){
     // Apply play mode mute
     if(state.playMode === 'bgm')  voxFinal = 0;
     if(state.playMode === 'take') bgmFinal = 0;
-    // iOS uses HTMLAudio elements directly; reflect mute on them too
+    // iOS uses HTMLAudio elements directly; reflect mute and volume on them
     if(IOS_MODE){
         if(typeof iosAudioEl !== 'undefined' && iosAudioEl){
             iosAudioEl.muted = (state.playMode === 'take');
-            iosAudioEl.volume = Math.max(0, Math.min(1, bgmCoeff * (bgmBase / 2)));
+            iosAudioEl.volume = Math.max(0, Math.min(1, bgmFinal));
         }
         if(iosTakeAudioEl){
             iosTakeAudioEl.muted = (state.playMode === 'bgm');
-            iosTakeAudioEl.volume = Math.max(0, Math.min(1, voxCoeff * (voxBase / 2)));
+            iosTakeAudioEl.volume = Math.max(0, Math.min(1, voxFinal));
         }
     }
     // audio graph (only if ready)
@@ -3330,20 +3479,29 @@ balanceSlider.addEventListener('input', applyBalance);
         // Show iOS notice and disable effects that require WebAudio chain
         const notice = document.getElementById('iosNotice');
         if(notice) notice.classList.add('show');
-        // Disable pitch / speed / vocal cut / EQ controls (they would not work
-        // because BGM is played via <audio>, not through the worklet chain).
-        const disableIds = [
-            'speedSlider','pitchSlider',
-            'bgmEqLo','bgmEqMd','bgmEqHi',
-            'voxEqLo','voxEqMd','voxEqHi',
-            'echoSlider',
-            'vcRecord','vcPlayback'
+        // On iOS, BGM and takes are played through <audio> elements (not through
+        // the AudioWorklet chain), so:
+        //   - playbackRate / volume / mute      ← supported via <audio> properties
+        //   - pitch shift / EQ / echo / vocal cut ← need WebAudio chain, NOT supported
+        const disableInfo = [
+            { id:'pitchSlider', wrap:'.ctrl' },
+            { id:'echoSlider',  wrap:'.ctrl' },
+            { id:'bgmEqLo', wrap:'.eq-band' },{ id:'bgmEqMd', wrap:'.eq-band' },{ id:'bgmEqHi', wrap:'.eq-band' },
+            { id:'voxEqLo', wrap:'.eq-band' },{ id:'voxEqMd', wrap:'.eq-band' },{ id:'voxEqHi', wrap:'.eq-band' },
+            { id:'vcRecord', wrap:'label.toggle-row' },
+            { id:'vcPlayback', wrap:'label.toggle-row' },
         ];
-        for(const id of disableIds){
-            const el = document.getElementById(id);
-            if(el) el.disabled = true;
+        for(const item of disableInfo){
+            const el = document.getElementById(item.id);
+            if(el){
+                el.disabled = true;
+                if(item.wrap){
+                    const wrap = el.closest(item.wrap);
+                    if(wrap) wrap.classList.add('ios-disabled');
+                }
+            }
         }
-        DEBUG.info('iOS: effect controls disabled (pitch/speed/vocal-cut/EQ unavailable on this platform)');
+        DEBUG.info('iOS: pitch / EQ / echo / vocal-cut disabled (WebAudio chain unavailable). speed/volume still work.');
     }
 
     // Decide library mode based on capability

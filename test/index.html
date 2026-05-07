@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MOMO Karaoke v1.10
+<!-- MOMO Karaoke v1.13
      変更履歴:
        v1.00 - 初版: ライブラリ登録、同名 .lrc 自動ロード、ピッチ/速度/ボーカルカット、録音テイク
        v1.01 - iOS フォールバック (webkitdirectory) 追加
@@ -13,12 +13,19 @@
                 iOS でも speed/volume が効くよう修正、effects無効化UIを精密化
        v1.12 - タブを「ライブラリ/カラオケ/ミックス」の3つに分割
                 ボーカルカット強度を可変に変更 (worklet 修正)
-                ドリフト補正を PLL 方式に変更 (5%ズレ対策) -->
+                ドリフト補正を PLL 方式に変更 (5%ズレ対策)
+       v1.13 - Google Drive 対応 (momo/lib/momo_gdrive/momo_gdrive.py 経由)
+                ライブラリ選択: ローカルフォルダ または Google Drive
+                Pyodide は遅延ロード -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MOMO Karaoke v1.12 - MOMO Works</title>
+<title>MOMO Karaoke v1.13 - MOMO Works</title>
+<!-- Google Identity Services (OAuth) — used by momo_gdrive.py -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<!-- Google API client — used for Picker -->
+<script src="https://apis.google.com/js/api.js" async defer></script>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 /* ─────────── MOMO Lyrics 系統のデザイン (ダーク × オレンジ) ─────────── */
@@ -140,6 +147,25 @@ h1 span { color: var(--orange-mid); }
 .library-name { font-size: 12px; color: var(--text-muted); margin-left: 6px; word-break: break-all; }
 .open-hint { font-size: 11px; color: var(--text-muted); margin: 0 0 16px 0; line-height: 1.5; }
 
+/* ライブラリのソース切替ピル (ローカル / Google Drive) */
+.lib-source-pills {
+    display: flex; gap: 6px; margin-bottom: 16px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 4px;
+}
+.lib-source-pills .pill {
+    flex: 1; padding: 9px 8px; border: none; border-radius: 5px;
+    background: transparent; color: var(--text-muted); font-size: 12px;
+    font-weight: 700; letter-spacing: 0.5px; cursor: pointer; text-align: center;
+    transition: all 0.15s; font-family: inherit;
+}
+.lib-source-pills .pill:hover:not(.active) { color: var(--orange-light); }
+.lib-source-pills .pill.active {
+    background: var(--orange); color: white;
+    box-shadow: 0 0 8px rgba(194,65,12,0.35);
+}
+.lib-pane { animation: fadeUp 0.25s ease; }
+
 .library-tree {
     background: #000; border: 1px solid var(--border); border-radius: 8px;
     max-height: 340px; overflow-y: auto; padding: 10px 14px;
@@ -162,6 +188,31 @@ h1 span { color: var(--orange-mid); }
 .lib-file.audio::before { content: '♪ '; color: var(--orange-mid); margin-right: 2px; font-size: 12px; }
 .lib-file.has-lrc::after { content: ' [LRC]'; color: var(--green); font-size: 10px; margin-left: 4px; font-weight: 500; }
 .lib-empty { color: var(--text-muted); font-style: italic; font-size: 12px; padding: 4px 6px; }
+
+/* Google Drive ファイルリスト用 */
+.folder-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px; margin-bottom: 6px;
+    background: var(--surface); border: 1px solid var(--border-strong);
+    border-radius: 6px; font-size: 12px; color: var(--orange-light);
+    font-weight: 600; letter-spacing: 0.4px;
+}
+.folder-name { flex: 1; }
+.file-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px 9px 24px; margin-bottom: 4px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 5px; cursor: pointer; transition: 0.12s;
+    font-size: 12px; color: var(--text);
+}
+.file-row:hover { border-color: var(--orange); background: var(--bg-selected); color: var(--orange-light); }
+.file-icon { font-size: 13px; opacity: 0.85; }
+.file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-badge {
+    font-size: 9px; padding: 2px 6px; border-radius: 3px;
+    font-weight: 700; letter-spacing: 1px; font-family: monospace;
+}
+.file-badge.lrc-badge { background: rgba(129,201,149,0.15); color: var(--green); border: 1px solid rgba(129,201,149,0.4); }
 
 .history-list {
     background: #000; border: 1px solid var(--border); border-radius: 8px;
@@ -657,7 +708,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 </g>
             </svg>
         </div>
-        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.12</span></h1>
+        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.13</span></h1>
     </header>
     <p class="header-sub" id="header-sub">ローカル音源と同名 .lrc を読み込む、こだわり派のカラオケサロン</p>
 
@@ -672,19 +723,43 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
         <div class="section-label"><span id="library-label">Music Library</span></div>
 
         <div class="play-source-area">
-            <div class="library-controls">
-                <div id="library-register-row" class="library-register">
-                    <button id="registerLibraryBtn" class="momo-btn">音楽フォルダを登録</button>
-                    <input type="file" id="folderFallbackInput" webkitdirectory directory multiple style="display:none;">
-                </div>
-                <div id="library-loaded-row" class="library-loaded hidden">
-                    <button id="openLibraryBtn" class="momo-btn">ライブラリを開く</button>
-                    <button id="changeLibraryBtn" class="momo-btn-small">変更</button>
-                    <span id="library-name" class="library-name"></span>
-                </div>
+            <!-- ライブラリ ソース選択 (ローカル / Google Drive) -->
+            <div class="lib-source-pills">
+                <div class="pill active" data-libsrc="local" id="libSrcLocal">📁 ローカル</div>
+                <div class="pill" data-libsrc="gdrive" id="libSrcGDrive">☁ Google Drive</div>
             </div>
-            <p id="open-hint" class="open-hint">※音楽ライブラリのルートフォルダを登録すると、フォルダツリーから音源(MP3/WAV/M4A/FLAC/OGG)を選んで開けます。同じフォルダにある同名の <code style="color:var(--green);">.lrc</code> 歌詞は自動で読み込まれます。</p>
-            <p id="open-hint-ios" class="open-hint hidden" style="color:var(--orange-light);">※iOS 版の Chrome / Safari は永続的なフォルダアクセスに対応していないため、毎回フォルダを選び直す必要があります。「ファイル」アプリ内の iCloud Drive やローカルフォルダから選択してください。</p>
+
+            <!-- ローカルライブラリ -->
+            <div id="lib-local-pane" class="lib-pane">
+                <div class="library-controls">
+                    <div id="library-register-row" class="library-register">
+                        <button id="registerLibraryBtn" class="momo-btn">音楽フォルダを登録</button>
+                        <input type="file" id="folderFallbackInput" webkitdirectory directory multiple style="display:none;">
+                    </div>
+                    <div id="library-loaded-row" class="library-loaded hidden">
+                        <button id="openLibraryBtn" class="momo-btn">ライブラリを開く</button>
+                        <button id="changeLibraryBtn" class="momo-btn-small">変更</button>
+                        <span id="library-name" class="library-name"></span>
+                    </div>
+                </div>
+                <p id="open-hint" class="open-hint">※音楽ライブラリのルートフォルダを登録すると、フォルダツリーから音源(MP3/WAV/M4A/FLAC/OGG)を選んで開けます。同じフォルダにある同名の <code style="color:var(--green);">.lrc</code> 歌詞は自動で読み込まれます。</p>
+                <p id="open-hint-ios" class="open-hint hidden" style="color:var(--orange-light);">※iOS 版の Chrome / Safari は永続的なフォルダアクセスに対応していないため、毎回フォルダを選び直す必要があります。「ファイル」アプリ内の iCloud Drive やローカルフォルダから選択してください。</p>
+            </div>
+
+            <!-- Google Drive ライブラリ -->
+            <div id="lib-gdrive-pane" class="lib-pane hidden">
+                <div class="library-controls">
+                    <button id="gdConnectBtn" class="momo-btn">Google Drive に接続</button>
+                    <button id="gdDisconnectBtn" class="momo-btn-small hidden">切断</button>
+                </div>
+                <div id="gdStatus" class="open-hint">未接続です。「Google Drive に接続」を押すと Google アカウントでログインします。</div>
+                <div id="gdPickRow" class="hidden" style="margin-top:10px;">
+                    <button id="gdPickFolderBtn" class="momo-btn">音楽フォルダを選択</button>
+                </div>
+                <p class="open-hint" style="margin-top:8px;">※初回はアカウント選択 → 「許可」をタップしてください。2回目以降は許可ボタンのみ表示されます。<code style="color:var(--green);">.lrc</code> 歌詞も自動的に読み込まれます。</p>
+                <div id="gdLoadingHint" class="hidden" style="font-size:11px;color:var(--orange-light);margin-top:6px;font-family:monospace;">⏳ Pyodide / Google Drive ライブラリ読み込み中…</div>
+            </div>
+
             <div id="library-tree" class="library-tree hidden"></div>
 
             <div class="section-label" style="margin-top:18px;"><span>History</span></div>
@@ -1058,7 +1133,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v1.12';
+const APP_VERSION = 'v1.13';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -3051,6 +3126,369 @@ async function tryRestoreLibrary(){
         updateLibraryControls();
     }
 }
+
+// ============== GOOGLE DRIVE LIBRARY ==============
+// Uses momo/lib/momo_gdrive/momo_gdrive.py via Pyodide for OAuth + Drive API access.
+// Pyodide is loaded lazily on first connect.
+//
+// Test environment: app at momo/test/index.html, library at momo/lib/momo_gdrive/momo_gdrive.py
+// → relative path from test/index.html is "../lib/momo_gdrive/momo_gdrive.py"
+const GDRIVE_PY_URL = '../lib/momo_gdrive/momo_gdrive.py';
+const PYODIDE_INDEX = 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/';
+
+// Storage for OAuth hint (skips account picker on subsequent connections)
+const KEY_GD_HINT = 'gdriveHint';
+const KEY_GD_FOLDER_ID = 'gdriveFolderId';
+const KEY_GD_FOLDER_NAME = 'gdriveFolderName';
+
+const gdrive = {
+    pyodideReady: false,
+    pyodide: null,
+    momo: null,             // Python MomoGDrive instance
+    folderId: null,         // selected folder ID
+    folderName: null,       // selected folder display name
+    fileCache: null,        // cached file list for the selected folder
+
+    async ensurePyodide(){
+        if(this.pyodideReady) return true;
+        const hint = document.getElementById('gdLoadingHint');
+        if(hint) hint.classList.remove('hidden');
+        try {
+            DEBUG.info('Loading Pyodide from CDN...');
+            // Inject the Pyodide script tag dynamically
+            if(!window.loadPyodide){
+                await new Promise((resolve, reject) => {
+                    const s = document.createElement('script');
+                    s.src = PYODIDE_INDEX + 'pyodide.js';
+                    s.onload = resolve;
+                    s.onerror = () => reject(new Error('Pyodide script load failed'));
+                    document.head.appendChild(s);
+                });
+            }
+            DEBUG.info('Pyodide script loaded; initializing...');
+            this.pyodide = await window.loadPyodide({ indexURL: PYODIDE_INDEX });
+            DEBUG.ok('Pyodide ready, version=' + this.pyodide.version);
+
+            // Load momo_gdrive.py
+            DEBUG.info('Fetching ' + GDRIVE_PY_URL + '...');
+            const resp = await fetch(GDRIVE_PY_URL, { cache: 'no-cache' });
+            if(!resp.ok) throw new Error('momo_gdrive.py fetch failed: ' + resp.status);
+            const code = await resp.text();
+            this.pyodide.runPython(code);
+            // Instantiate the helper class
+            this.pyodide.runPython('momo_gdrive_instance = MomoGDrive()');
+            this.momo = this.pyodide.globals.get('momo_gdrive_instance');
+            this.pyodideReady = true;
+            DEBUG.ok('momo_gdrive.py loaded and instance created');
+            return true;
+        } catch(e){
+            DEBUG.err('Pyodide setup failed: ' + e.message);
+            return false;
+        } finally {
+            if(hint) hint.classList.add('hidden');
+        }
+    },
+
+    async connect(){
+        if(!await this.ensurePyodide()) return false;
+        const hint = localStorage.getItem(KEY_GD_HINT);
+        DEBUG.info('Google Drive connect (hint=' + (hint || 'none') + ')');
+        try {
+            if(hint){
+                await this.momo.connect(hint);
+            } else {
+                await this.momo.connect();
+            }
+            DEBUG.ok('Google Drive: connected');
+
+            // Save hint for next time (extract email from token if available)
+            // Note: momo_gdrive.py doesn't expose user email; we keep the hint as-is
+            // or skip saving until we have it. For now, we mark a placeholder.
+            if(!hint){
+                localStorage.setItem(KEY_GD_HINT, 'authenticated');
+            }
+            this.updateUI();
+            return true;
+        } catch(e){
+            DEBUG.err('Google Drive connect failed: ' + e.message);
+            setStatus('Google Drive 接続に失敗: ' + e.message, 'err');
+            return false;
+        }
+    },
+
+    disconnect(){
+        localStorage.removeItem(KEY_GD_HINT);
+        localStorage.removeItem(KEY_GD_FOLDER_ID);
+        localStorage.removeItem(KEY_GD_FOLDER_NAME);
+        this.folderId = null;
+        this.folderName = null;
+        this.fileCache = null;
+        // We can't programmatically revoke the token here without an extra call;
+        // momo_gdrive.py doesn't expose disconnect. The hint removal forces account
+        // selection again on next connect.
+        this.updateUI();
+        DEBUG.info('Google Drive: disconnected (hint cleared)');
+    },
+
+    /**
+     * Show the Google Picker so the user can select a folder.
+     * Note: drive.file scope only sees files the app has selected, so picker is required.
+     */
+    async pickFolder(){
+        if(!this.momo){
+            DEBUG.warn('pickFolder: not connected');
+            return;
+        }
+        const tokenObj = this.momo._token;
+        if(!tokenObj){
+            DEBUG.err('pickFolder: no access token');
+            return;
+        }
+        const accessToken = String(tokenObj);
+        DEBUG.info('Loading Google Picker API...');
+
+        // Load the picker API
+        await new Promise((resolve, reject) => {
+            if(window.google && window.google.picker){ resolve(); return; }
+            if(!window.gapi){
+                reject(new Error('gapi not loaded yet — Google API client script may have failed'));
+                return;
+            }
+            window.gapi.load('picker', { callback: resolve, onerror: reject });
+        });
+
+        const view = new google.picker.DocsView(google.picker.ViewId.FOLDERS);
+        view.setSelectFolderEnabled(true);
+        view.setMimeTypes('application/vnd.google-apps.folder');
+        view.setIncludeFolders(true);
+
+        const picker = new google.picker.PickerBuilder()
+            .addView(view)
+            .setOAuthToken(accessToken)
+            .setDeveloperKey('') // not required for OAuth-based picker
+            .setCallback((data) => {
+                if(data.action === google.picker.Action.PICKED){
+                    const doc = data.docs && data.docs[0];
+                    if(doc && doc.mimeType === 'application/vnd.google-apps.folder'){
+                        gdrive.folderId = doc.id;
+                        gdrive.folderName = doc.name;
+                        localStorage.setItem(KEY_GD_FOLDER_ID, doc.id);
+                        localStorage.setItem(KEY_GD_FOLDER_NAME, doc.name);
+                        DEBUG.ok('Google Drive folder picked: ' + doc.name + ' (' + doc.id + ')');
+                        gdrive.fileCache = null;
+                        gdrive.openFolder().catch(e => DEBUG.err('openFolder failed: ' + e.message));
+                    }
+                }
+            })
+            .build();
+        picker.setVisible(true);
+    },
+
+    /**
+     * Load and display the contents of the selected folder as a flat tree.
+     * We treat each audio file as a "song" and pair it with same-base-name .lrc.
+     */
+    async openFolder(){
+        if(!this.folderId){
+            DEBUG.warn('openFolder: no folder selected');
+            return;
+        }
+        if(!this.momo){
+            DEBUG.warn('openFolder: not connected');
+            return;
+        }
+        try {
+            // Use the Python lib's _list_children to fetch the folder contents
+            const itemsProxy = await this.momo._list_children(this.folderId);
+            // Convert PyProxy list of dicts to JS array of objects
+            const items = itemsProxy.toJs({ dict_converter: Object.fromEntries });
+            itemsProxy.destroy();
+            this.fileCache = items;
+            DEBUG.ok('Drive folder "' + this.folderName + '" loaded: ' + items.length + ' items');
+            this.renderTree();
+        } catch(e){
+            DEBUG.err('openFolder failed: ' + e.message);
+            setStatus('Drive フォルダ読み込み失敗: ' + e.message, 'err');
+        }
+    },
+
+    /**
+     * Render the Google Drive folder contents in the existing #library-tree element.
+     * Audio files become clickable entries; .lrc files are paired implicitly.
+     */
+    renderTree(){
+        const tree = document.getElementById('library-tree');
+        if(!tree) return;
+        tree.classList.remove('hidden');
+        if(!this.fileCache || !this.fileCache.length){
+            tree.innerHTML = '<div class="lib-empty">フォルダが空です</div>';
+            return;
+        }
+        // Separate audio and .lrc files
+        const audioExts = ['.mp3','.m4a','.flac','.wav','.ogg','.opus','.aac'];
+        const audios = [];
+        const lrcs = new Map(); // basename -> item
+        for(const it of this.fileCache){
+            if(it.isFolder) continue;
+            const lower = it.name.toLowerCase();
+            if(lower.endsWith('.lrc')){
+                const base = it.name.slice(0, -4);
+                lrcs.set(base, it);
+            } else {
+                for(const ext of audioExts){
+                    if(lower.endsWith(ext)){ audios.push(it); break; }
+                }
+            }
+        }
+        if(!audios.length){
+            tree.innerHTML = '<div class="lib-empty">音源ファイルが見つかりません (MP3/M4A/FLAC/WAV/OGG)</div>';
+            return;
+        }
+        let html = '<div class="folder-row"><span class="folder-name">☁ ' + escapeHtml(this.folderName || 'Drive') + '</span></div>';
+        for(const a of audios){
+            const baseName = a.name.replace(/\.[^.]+$/, '');
+            const hasLrc = lrcs.has(baseName);
+            html += '<div class="file-row" data-gdid="' + a.id + '" data-gdname="' + escapeHtml(a.name) + '">'
+                +     '<span class="file-icon">🎵</span>'
+                +     '<span class="file-name">' + escapeHtml(a.name) + '</span>'
+                +     (hasLrc ? '<span class="file-badge lrc-badge">LRC</span>' : '')
+                + '</div>';
+        }
+        tree.innerHTML = html;
+        // Attach click handlers
+        tree.querySelectorAll('.file-row').forEach(row => {
+            row.addEventListener('click', () => {
+                const id = row.dataset.gdid;
+                const name = row.dataset.gdname;
+                const audioItem = audios.find(x => x.id === id);
+                if(audioItem) gdrive.loadSong(audioItem, lrcs);
+            });
+        });
+    },
+
+    /**
+     * Download a Drive audio file (and its .lrc if present), then hand off to the
+     * existing selectEntry() flow.
+     */
+    async loadSong(audioItem, lrcsMap){
+        DEBUG.info('Loading Drive song: ' + audioItem.name);
+        setStatus('「' + audioItem.name + '」を Drive からダウンロード中…', 'warn');
+        const loadProgress = document.getElementById('loadProgress');
+        if(loadProgress) loadProgress.classList.remove('hidden');
+        try {
+            // Download audio bytes via momo_gdrive.read_bytes(path).
+            // Since we have the file ID directly, use the internal _fetch.
+            const url = `https://www.googleapis.com/drive/v3/files/${audioItem.id}?alt=media`;
+            const bytesProxy = await this.momo._fetch(url);
+            // bytesProxy is a Python `bytes`. Convert to JS Uint8Array.
+            const audioBytes = bytesProxy.toJs();
+            bytesProxy.destroy();
+            const audioBlob = new Blob([audioBytes], { type: audioItem.mimeType || 'audio/mpeg' });
+            const audioFile = new File([audioBlob], audioItem.name, { type: audioBlob.type });
+
+            // Try to fetch .lrc with the same base name
+            const baseName = audioItem.name.replace(/\.[^.]+$/, '');
+            let lyrics = '';
+            const lrcItem = lrcsMap.get(baseName);
+            if(lrcItem){
+                try {
+                    const lrcBytesProxy = await this.momo._fetch(
+                        `https://www.googleapis.com/drive/v3/files/${lrcItem.id}?alt=media`
+                    );
+                    const lrcBytes = lrcBytesProxy.toJs();
+                    lrcBytesProxy.destroy();
+                    lyrics = new TextDecoder('utf-8').decode(lrcBytes);
+                    DEBUG.ok('Drive .lrc loaded: ' + lrcItem.name);
+                } catch(e){
+                    DEBUG.warn('Drive .lrc fetch failed: ' + e.message);
+                }
+            }
+
+            // Construct an "entry" object compatible with selectEntry()
+            const entry = {
+                title: baseName,
+                artist: '',
+                audioFile: audioFile,
+                audioFileName: audioItem.name,
+                lyricsText: lyrics,
+                lyricsLines: lyrics ? parseLRC(lyrics) : [],
+                source: 'gdrive',
+                gdriveFileId: audioItem.id,
+                takes: []
+            };
+            await selectEntry(entry);
+            setStatus('「' + audioItem.name + '」を読み込みました', 'ok');
+        } catch(e){
+            DEBUG.err('loadSong failed: ' + e.message);
+            setStatus('Drive 読み込み失敗: ' + e.message, 'err');
+        } finally {
+            if(loadProgress) loadProgress.classList.add('hidden');
+        }
+    },
+
+    /**
+     * Update the UI to reflect connection / folder state.
+     */
+    updateUI(){
+        const connectBtn = document.getElementById('gdConnectBtn');
+        const disconnectBtn = document.getElementById('gdDisconnectBtn');
+        const pickRow = document.getElementById('gdPickRow');
+        const status = document.getElementById('gdStatus');
+        const isConnected = !!(this.momo && this.momo.is_token_valid && this.momo.is_token_valid());
+        if(connectBtn) connectBtn.classList.toggle('hidden', isConnected);
+        if(disconnectBtn) disconnectBtn.classList.toggle('hidden', !isConnected);
+        if(pickRow) pickRow.classList.toggle('hidden', !isConnected);
+        if(status){
+            if(!isConnected){
+                status.textContent = '未接続です。「Google Drive に接続」を押すと Google アカウントでログインします。';
+                status.style.color = 'var(--text-muted)';
+            } else if(this.folderName){
+                status.textContent = '✓ 接続中 · 選択フォルダ: ' + this.folderName;
+                status.style.color = 'var(--green)';
+            } else {
+                status.textContent = '✓ 接続済み。「音楽フォルダを選択」を押してください。';
+                status.style.color = 'var(--green)';
+            }
+        }
+    },
+};
+
+// Bind library-source pills (local / gdrive) and Google Drive buttons
+(function bindLibSourceUI(){
+    const localPill  = document.getElementById('libSrcLocal');
+    const gdrivePill = document.getElementById('libSrcGDrive');
+    const localPane  = document.getElementById('lib-local-pane');
+    const gdrivePane = document.getElementById('lib-gdrive-pane');
+    function show(src){
+        if(localPill)  localPill.classList.toggle('active', src === 'local');
+        if(gdrivePill) gdrivePill.classList.toggle('active', src === 'gdrive');
+        if(localPane)  localPane.classList.toggle('hidden', src !== 'local');
+        if(gdrivePane) gdrivePane.classList.toggle('hidden', src !== 'gdrive');
+        // Hide tree when switching (each pane manages its own tree contents)
+        const tree = document.getElementById('library-tree');
+        if(tree) tree.innerHTML = '';
+    }
+    if(localPill)  localPill.addEventListener('click',  () => show('local'));
+    if(gdrivePill) gdrivePill.addEventListener('click', () => show('gdrive'));
+
+    const connectBtn    = document.getElementById('gdConnectBtn');
+    const disconnectBtn = document.getElementById('gdDisconnectBtn');
+    const pickBtn       = document.getElementById('gdPickFolderBtn');
+    if(connectBtn)    connectBtn.addEventListener('click', () => gdrive.connect());
+    if(disconnectBtn) disconnectBtn.addEventListener('click', () => gdrive.disconnect());
+    if(pickBtn)       pickBtn.addEventListener('click', () => gdrive.pickFolder());
+
+    // If we have a saved folder ID and hint, show that state
+    const savedHint = localStorage.getItem(KEY_GD_HINT);
+    const savedFolder = localStorage.getItem(KEY_GD_FOLDER_NAME);
+    if(savedHint){
+        const status = document.getElementById('gdStatus');
+        if(status){
+            status.textContent = '前回認証あり' + (savedFolder ? ' · 前回フォルダ: ' + savedFolder : '') + ' — 接続ボタンで再開';
+            status.style.color = 'var(--orange-light)';
+        }
+    }
+})();
 
 // ============== DEBUG: AUDIO PROBE & BEEP TEST ==============
 // These are user-triggered diagnostics for iOS where dev-tools aren't available.

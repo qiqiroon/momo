@@ -1,9 +1,19 @@
 <!DOCTYPE html>
+<!-- MOMO Karaoke v1.10
+     変更履歴:
+       v1.00 - 初版: ライブラリ登録、同名 .lrc 自動ロード、ピッチ/速度/ボーカルカット、録音テイク
+       v1.01 - iOS フォールバック (webkitdirectory) 追加
+       v1.02 - モニタリング → 録音時/再生時の独立2スイッチに再設計、ミックスバランスパネル追加
+       v1.03 - <audio> タグ撤廃、AudioBufferSourceNode 直接再生に変更 (iOS 対策)
+       v1.04 - デバッグログオーバーレイ追加 (BEEP TEST / AUDIO PROBE)
+       v1.05 - 録音用 AudioContext 分離、stopRecording 後に main ctx を rebuild
+       v1.10 - 録音方式を MediaRecorder に変更、テイク UI 大改修
+                + バージョン自動進行ルール導入 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MOMO Karaoke - MOMO Works</title>
+<title>MOMO Karaoke v1.10 - MOMO Works</title>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 /* ─────────── MOMO Lyrics 系統のデザイン (ダーク × オレンジ) ─────────── */
@@ -371,29 +381,95 @@ input[type=range]::-moz-range-thumb {
 .eq-band-val { font-family: 'Fredoka One', cursive; font-size: 11px; color: var(--orange-light); text-align: right; }
 
 /* テイクリスト */
-.takes-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.takes-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
 .take-empty { font-size: 12px; color: var(--text-muted); text-align: center; padding: 20px 8px; border: 1.5px dashed var(--border); border-radius: 6px; }
 .take-item {
-    display: flex; align-items: center; gap: 10px;
-    padding: 8px 12px; background: var(--surface);
-    border: 1px solid var(--border); border-radius: 6px; transition: 0.15s;
+    display: flex; align-items: stretch; gap: 0;
+    background: var(--surface);
+    border: 1px solid var(--border); border-radius: 8px;
+    transition: 0.18s;
+    overflow: hidden;
+    position: relative;
 }
 .take-item:hover { border-color: var(--border-strong); }
-.take-item.active { border-color: var(--orange); background: var(--bg-selected); }
-.take-info { flex: 1; min-width: 0; }
-.take-name { font-size: 12px; color: var(--text); font-weight: 500; }
-.take-meta { font-family: monospace; font-size: 10px; color: var(--text-muted); margin-top: 2px; letter-spacing: 0.4px; }
-.take-actions { display: flex; gap: 4px; }
+.take-item.active {
+    border-color: var(--orange);
+    background: var(--bg-selected);
+    box-shadow: 0 0 0 1px var(--orange), 0 2px 8px rgba(194,65,12,0.15);
+}
+.take-item.active::before {
+    content: '';
+    position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: var(--orange);
+}
+.take-select-area {
+    flex: 1; padding: 12px 14px; cursor: pointer; min-width: 0;
+    display: flex; flex-direction: column; gap: 4px;
+}
+.take-name-row {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; color: var(--text); font-weight: 600;
+}
+.take-now-playing {
+    display: none;
+    font-size: 9px; font-weight: 700; letter-spacing: 1px;
+    background: var(--orange); color: white;
+    padding: 2px 6px; border-radius: 3px;
+    animation: pulseBadge 1.6s ease-in-out infinite;
+}
+.take-item.now-playing .take-now-playing { display: inline-block; }
+.take-item.now-playing .take-name-row { color: var(--orange-light); }
+@keyframes pulseBadge { 0%,100%{opacity:1}50%{opacity:0.55}}
+
+.take-meta {
+    font-family: monospace; font-size: 10px; color: var(--text-muted);
+    letter-spacing: 0.4px;
+}
+.take-progress-bar {
+    height: 4px; background: var(--bg); border-radius: 2px; overflow: hidden;
+    margin-top: 4px;
+}
+.take-progress-fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--orange-light), var(--orange-mid));
+    transition: width 0.08s linear;
+}
+.take-actions {
+    display: flex; flex-direction: column;
+    border-left: 1px solid var(--border);
+}
 .take-btn {
-    width: 26px; height: 26px; border-radius: 5px;
-    border: 1px solid var(--border-strong); background: transparent;
-    color: var(--text-muted); cursor: pointer; font-size: 11px;
+    flex: 1; min-height: 30px; padding: 0 12px;
+    background: transparent; color: var(--text-muted);
+    border: none; border-bottom: 1px solid var(--border);
+    cursor: pointer; font-size: 12px; font-family: inherit;
+    transition: 0.15s; min-width: 44px;
     display: flex; align-items: center; justify-content: center;
+    gap: 4px;
+}
+.take-btn:last-child { border-bottom: none; }
+.take-btn:hover { background: var(--surface2); color: var(--orange-light); }
+.take-btn.preview:hover { color: var(--green); }
+.take-btn.preview.playing { color: var(--green); background: rgba(129,201,149,0.1); }
+.take-btn.del:hover { color: var(--rec-red); background: rgba(220,38,38,0.06); }
+
+/* 再生モードピル */
+.play-mode-pills {
+    display: flex; gap: 6px; margin-bottom: 14px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 4px;
+}
+.play-mode-pills .pill {
+    flex: 1; padding: 8px 6px; border: none; border-radius: 5px;
+    background: transparent; color: var(--text-muted); font-size: 11px;
+    font-weight: 700; letter-spacing: 0.5px; cursor: pointer; text-align: center;
     transition: all 0.15s; font-family: inherit;
 }
-.take-btn:hover { border-color: var(--orange); color: var(--orange-light); }
-.take-btn.active { background: var(--orange); color: white; border-color: var(--orange); }
-.take-btn.del:hover { border-color: var(--rec-red); color: var(--rec-red); }
+.play-mode-pills .pill:hover:not(.active) { color: var(--orange-light); }
+.play-mode-pills .pill.active {
+    background: var(--orange); color: white;
+    box-shadow: 0 0 8px rgba(194,65,12,0.35);
+}
 
 .panel-desc {
     font-size: 12px; color: var(--text-muted); margin: -4px 0 14px 0; line-height: 1.55;
@@ -558,7 +634,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 </g>
             </svg>
         </div>
-        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.00</span></h1>
+        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.10</span></h1>
     </header>
     <p class="header-sub" id="header-sub">ローカル音源と同名 .lrc を読み込む、こだわり派のカラオケサロン</p>
 
@@ -722,11 +798,20 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
         <div class="karaoke-panel">
             <div class="panel-head">
                 <div class="panel-title">Vocal Takes</div>
-                <div class="panel-tag" id="takesCount">0 takes</div>
+                <div class="panel-tag" id="takesCount">0 / 0</div>
             </div>
+
+            <!-- 再生モード(BGM+TAKE / BGM only / TAKE only) -->
+            <div class="play-mode-pills">
+                <div class="pill active" data-pmode="both" id="pmBoth">BGM + TAKE</div>
+                <div class="pill" data-pmode="bgm" id="pmBgm">BGM のみ</div>
+                <div class="pill" data-pmode="take" id="pmTake">TAKE のみ</div>
+            </div>
+
             <div class="takes-list" id="takesList">
                 <div class="take-empty">まだテイクがありません — 録音ボタンで歌声を記録</div>
             </div>
+
             <div class="ctrl">
                 <div class="ctrl-label"><span>VOICE VOLUME</span><span class="ctrl-val" id="voxVolVal">0 dB</span></div>
                 <input type="range" id="voxVolSlider" min="-24" max="12" step="0.5" value="0">
@@ -745,6 +830,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 <div class="eq-band"><span class="eq-band-label">MID</span><input type="range" id="voxEqMd" min="-12" max="12" step="0.5" value="0"><span class="eq-band-val" id="voxEqMdVal">0</span></div>
                 <div class="eq-band"><span class="eq-band-label">HIGH</span><input type="range" id="voxEqHi" min="-12" max="12" step="0.5" value="0"><span class="eq-band-val" id="voxEqHiVal">0</span></div>
             </div>
+            <div class="ctrl-label" style="margin-top:10px;"><span>MIC INPUT LEVEL</span><span></span></div>
             <div class="level-meter"><div class="level-meter-fill" id="micLevel"></div></div>
         </div>
 
@@ -903,6 +989,9 @@ window.addEventListener('unhandledrejection', e => {
     });
 })();
 
+// ============== APP VERSION ==============
+const APP_VERSION = 'v1.10';
+
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
     const ua = navigator.userAgent || '';
@@ -913,13 +1002,14 @@ const IS_IOS = (() => {
 })();
 
 // Environment dump (logged immediately)
-DEBUG.info('═══ MOMO Karaoke debug log ═══');
+DEBUG.info('═══ MOMO Karaoke ' + APP_VERSION + ' debug log ═══');
 DEBUG.info('UA:', navigator.userAgent);
 DEBUG.info('Platform:', navigator.platform || '?', '· Vendor:', navigator.vendor || '?');
 DEBUG.info('AudioContext:', !!(window.AudioContext || window.webkitAudioContext),
            '· AudioWorklet:', !!window.AudioWorklet,
            '· FSA:', !!window.showDirectoryPicker,
-           '· getUserMedia:', !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia));
+           '· getUserMedia:', !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
+           '· MediaRecorder:', !!window.MediaRecorder);
 DEBUG.info('IS_IOS:', IS_IOS);
 
 // ============== AUDIO WORKLET URLS ==============
@@ -986,6 +1076,15 @@ const state = {
     lyricsLines: [],
     lastLyricIdx: -1,
     audioCtxStarted: false,
+    playMode: 'both',  // 'both' = BGM+TAKE (default), 'bgm' = BGM only, 'take' = TAKE only
+};
+
+// Preview-only playback state (single-take audition, separate from BGM-sync playback)
+const previewState = {
+    takeId: null,
+    source: null,      // AudioBufferSourceNode (non-iOS) or null
+    audioEl: null,     // <audio> for iOS preview
+    startCtxTime: 0,
 };
 
 // ============== UTILS ==============
@@ -1403,6 +1502,144 @@ const bgmTransport = (function(){
 // alias for legacy code references
 const audioEl = bgmTransport;
 
+// ==================== iOS DETECTION & FALLBACK TRANSPORT ====================
+// On iOS WebKit (Safari/Chrome/Edge), calling getUserMedia() switches the
+// AudioSession from "Playback" to "PlayAndRecord", which routes audio to the
+// EARPIECE (small speaker) instead of the loudspeaker. AudioContext.state
+// stays "running" so we can't detect this from JS — but the user perceives it
+// as silent. Once switched, the session does NOT return to Playback even after
+// stopping the mic track and closing the recording AudioContext.
+//
+// The only way to keep the loudspeaker active across getUserMedia() on iOS is
+// to play BGM through an HTMLAudioElement that is NOT routed through a
+// MediaElementAudioSourceNode. That element stays on the iOS media-playback
+// session and is unaffected by the AudioSession switch.
+//
+// Trade-off: we lose pitch shifting, vocal cut and EQ on iOS (since those need
+// a worklet/biquad chain), but BGM playback survives recording. We surface
+// this clearly in the UI when iOS is detected.
+const IOS_MODE = IS_IOS;
+
+DEBUG.info('IOS_MODE = ' + IOS_MODE);
+
+let iosAudioEl = null; // HTMLAudioElement used as the transport on iOS
+function installIOSTransport(){
+    if(!IOS_MODE) return;
+    DEBUG.info('Installing iOS-compatible HTMLAudioElement transport...');
+
+    // Create a hidden <audio> element. On iOS this stays on the playback
+    // audio session even after getUserMedia switches AudioContext to record.
+    iosAudioEl = document.createElement('audio');
+    iosAudioEl.preload = 'auto';
+    iosAudioEl.style.display = 'none';
+    iosAudioEl.crossOrigin = 'anonymous';
+    iosAudioEl.playsInline = true;        // critical: prevent fullscreen on iOS
+    iosAudioEl.setAttribute('playsinline', '');
+    iosAudioEl.setAttribute('webkit-playsinline', '');
+    document.body.appendChild(iosAudioEl);
+
+    let lastObjectUrl = null;
+    iosAudioEl.addEventListener('play', () => {
+        DEBUG.info('iosAudioEl: play event');
+        bgmTransport._fire('play');
+    });
+    iosAudioEl.addEventListener('pause', () => {
+        DEBUG.info('iosAudioEl: pause event @ ' + iosAudioEl.currentTime.toFixed(2));
+        bgmTransport._fire('pause');
+    });
+    iosAudioEl.addEventListener('ended', () => {
+        DEBUG.info('iosAudioEl: ended event');
+        bgmTransport._fire('ended');
+    });
+    iosAudioEl.addEventListener('seeking', () => bgmTransport._fire('seeking'));
+    iosAudioEl.addEventListener('seeked', () => bgmTransport._fire('seeked'));
+    iosAudioEl.addEventListener('error', () => {
+        const e = iosAudioEl.error;
+        DEBUG.err('iosAudioEl error: code=' + (e ? e.code : '?') + ' message=' + (e ? e.message : ''));
+    });
+
+    // Override bgmTransport methods to use the audio element.
+    // NOTE: Object.assign would invoke the source object's getters at copy
+    // time, so we use defineProperty to install proper getters.
+    Object.defineProperty(bgmTransport, 'duration', {
+        configurable: true, get(){ return iosAudioEl.duration || 0; }
+    });
+    Object.defineProperty(bgmTransport, 'paused', {
+        configurable: true, get(){ return iosAudioEl.paused; }
+    });
+    Object.defineProperty(bgmTransport, 'currentTime', {
+        configurable: true,
+        get(){ return iosAudioEl.currentTime || 0; },
+        set(t){ try { iosAudioEl.currentTime = t; } catch(e){} }
+    });
+    Object.defineProperty(bgmTransport, 'playbackRate', {
+        configurable: true,
+        get(){ return iosAudioEl.playbackRate || 1.0; },
+        set(r){ try { iosAudioEl.playbackRate = r; iosAudioEl.preservesPitch = true; } catch(e){} }
+    });
+    bgmTransport.loadFile = async function(file){
+        DEBUG.info('iOS bgmTransport.loadFile: ' + file.name + ' (' + file.size + ' bytes)');
+        if(lastObjectUrl){
+            try { URL.revokeObjectURL(lastObjectUrl); } catch(e){}
+        }
+        lastObjectUrl = URL.createObjectURL(file);
+        iosAudioEl.src = lastObjectUrl;
+        await new Promise((resolve, reject) => {
+            let done = false;
+            const onCanPlay = () => { if(done) return; done = true; cleanup(); resolve(); };
+            const onErr = () => { if(done) return; done = true; cleanup(); reject(new Error('audio load error')); };
+            function cleanup(){
+                iosAudioEl.removeEventListener('loadedmetadata', onCanPlay);
+                iosAudioEl.removeEventListener('canplay', onCanPlay);
+                iosAudioEl.removeEventListener('error', onErr);
+            }
+            iosAudioEl.addEventListener('loadedmetadata', onCanPlay);
+            iosAudioEl.addEventListener('canplay', onCanPlay);
+            iosAudioEl.addEventListener('error', onErr);
+            try { iosAudioEl.load(); } catch(e){}
+        });
+        DEBUG.ok('iOS bgmTransport.loadFile: ready, duration=' + (iosAudioEl.duration||0).toFixed(2) + 's');
+    };
+    bgmTransport.unload = function(){
+        try { iosAudioEl.pause(); } catch(e){}
+        iosAudioEl.removeAttribute('src');
+        try { iosAudioEl.load(); } catch(e){}
+    };
+    bgmTransport.play = async function(){
+        DEBUG.info('iOS bgmTransport.play (HTMLAudio direct, no AudioContext)');
+        try { await iosAudioEl.play(); }
+        catch(e){ DEBUG.err('iOS bgmTransport.play failed: ' + e.message); throw e; }
+    };
+    bgmTransport.pause = function(){
+        DEBUG.info('iOS bgmTransport.pause');
+        try { iosAudioEl.pause(); } catch(e){}
+    };
+    bgmTransport.seekTo = function(t){
+        try { iosAudioEl.currentTime = Math.max(0, t); } catch(e){}
+    };
+    bgmTransport._startSource = function(){};
+    bgmTransport._stopSource = function(){};
+    bgmTransport.rebuildBufferOnNewCtx = function(){ return false; };
+    DEBUG.ok('iOS transport installed');
+}
+
+// Take playback on iOS uses a SECOND HTMLAudioElement so it shares the same
+// (loudspeaker) audio session as BGM. Buffer-based take playback through
+// AudioContext would be silenced after recording.
+let iosTakeAudioEl = null;
+let iosTakeObjectUrl = null;
+function ensureIOSTakeAudio(){
+    if(!IOS_MODE) return;
+    if(iosTakeAudioEl) return;
+    iosTakeAudioEl = document.createElement('audio');
+    iosTakeAudioEl.style.display = 'none';
+    iosTakeAudioEl.preload = 'auto';
+    iosTakeAudioEl.playsInline = true;
+    iosTakeAudioEl.setAttribute('playsinline', '');
+    iosTakeAudioEl.setAttribute('webkit-playsinline', '');
+    document.body.appendChild(iosTakeAudioEl);
+}
+
 function setupTakeChain(){
     if(takeShifter) return;
     takeShifter = new AudioWorkletNode(audioCtx, 'take-processor', {
@@ -1598,14 +1835,53 @@ function applyEcho(){
 }
 
 // ============== TAKE PLAYBACK ==============
+function pcmToWavBlob(pcm, sampleRate){
+    // Mono Float32Array → 16-bit PCM WAV Blob
+    const len = pcm.length;
+    const buf = new ArrayBuffer(44 + len * 2);
+    const view = new DataView(buf);
+    function writeStr(off, s){ for(let i=0;i<s.length;i++) view.setUint8(off+i, s.charCodeAt(i)); }
+    writeStr(0, 'RIFF');
+    view.setUint32(4, 36 + len*2, true);
+    writeStr(8, 'WAVE');
+    writeStr(12, 'fmt ');
+    view.setUint32(16, 16, true);             // PCM chunk size
+    view.setUint16(20, 1, true);              // format = PCM
+    view.setUint16(22, 1, true);              // channels = 1
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true); // byte rate
+    view.setUint16(32, 2, true);              // block align
+    view.setUint16(34, 16, true);             // bits/sample
+    writeStr(36, 'data');
+    view.setUint32(40, len*2, true);
+    let off = 44;
+    for(let i = 0; i < len; i++){
+        const s = Math.max(-1, Math.min(1, pcm[i]));
+        view.setInt16(off, s < 0 ? s*0x8000 : s*0x7FFF, true);
+        off += 2;
+    }
+    return new Blob([buf], { type:'audio/wav' });
+}
+
 function stopTakePlayback(){
+    if(IOS_MODE){
+        if(iosTakeAudioEl){
+            try { iosTakeAudioEl.pause(); } catch(e){}
+        }
+        return;
+    }
     if(takeBufferSource){
         try { takeBufferSource.stop(); } catch(e){}
         try { takeBufferSource.disconnect(); } catch(e){}
         takeBufferSource = null;
     }
 }
+
 function startTakePlayback(){
+    if(IOS_MODE){
+        startTakePlaybackIOS();
+        return;
+    }
     if(!state.currentTake || !audioCtx || !takeShifter) return;
     stopTakePlayback();
     let buf = state.currentTake._decodedBuffer;
@@ -1632,32 +1908,201 @@ function startTakePlayback(){
     takeBufferSource.start(0, offset);
 }
 
+function startTakePlaybackIOS(){
+    if(!state.currentTake) return;
+    ensureIOSTakeAudio();
+    if(!iosTakeAudioEl) return;
+    // Build/reuse a WAV Object URL for this take
+    if(!state.currentTake._wavUrl){
+        const pcm = state.currentTake.pcm;
+        const sr = state.currentTake.sampleRate || 44100;
+        if(!pcm || !pcm.length){
+            DEBUG.warn('startTakePlaybackIOS: no pcm for take');
+            return;
+        }
+        const blob = pcmToWavBlob(pcm, sr);
+        state.currentTake._wavUrl = URL.createObjectURL(blob);
+        DEBUG.info('iOS take: WAV blob built (' + blob.size + ' bytes)');
+    }
+    if(iosTakeAudioEl.src !== state.currentTake._wavUrl){
+        iosTakeAudioEl.src = state.currentTake._wavUrl;
+        iosTakeAudioEl.load();
+    }
+    // sync to current BGM time within the take
+    const songT = bgmTransport.currentTime;
+    const takeStartSong = state.currentTake.startSongTime || 0;
+    const userOfs = parseFloat(voxOfsSlider.value);
+    const takeLocalT = songT - takeStartSong - userOfs;
+    if(takeLocalT >= state.currentTake.duration){
+        return;
+    }
+    try { iosTakeAudioEl.currentTime = Math.max(0, takeLocalT); } catch(e){}
+    iosTakeAudioEl.play().catch(e => DEBUG.err('iOS take play failed: ' + e.message));
+}
+
+// ============== TAKE PREVIEW (audition single take from start, BGM-independent) ==============
+function ensureTakeWavUrl(take){
+    if(take._wavUrl) return take._wavUrl;
+    const pcm = take.pcm;
+    const sr = take.sampleRate || 44100;
+    if(!pcm || !pcm.length) return null;
+    const blob = pcmToWavBlob(pcm, sr);
+    take._wavUrl = URL.createObjectURL(blob);
+    return take._wavUrl;
+}
+function stopPreviewTake(){
+    // Stop preview <audio> element
+    if(previewState.audioEl){
+        try { previewState.audioEl.pause(); } catch(e){}
+        previewState.audioEl = null;
+    }
+    // Stop preview AudioBufferSource (non-iOS)
+    if(previewState.source){
+        try { previewState.source.stop(); } catch(e){}
+        try { previewState.source.disconnect(); } catch(e){}
+        previewState.source = null;
+    }
+    previewState.takeId = null;
+    previewState.startCtxTime = 0;
+    // Clear any "playing" indicator on preview buttons
+    takesList.querySelectorAll('.take-btn.preview').forEach(b => {
+        b.classList.remove('playing');
+        b.textContent = '▶';
+    });
+}
+function togglePreviewTake(take){
+    if(!take) return;
+    // If clicking the same one that's playing, stop it
+    if(previewState.takeId === take.id){
+        DEBUG.info('Preview stopped: ' + take.name);
+        stopPreviewTake();
+        return;
+    }
+    // Stop any current preview first
+    stopPreviewTake();
+
+    DEBUG.info('Preview started: ' + take.name);
+
+    if(IOS_MODE){
+        const url = ensureTakeWavUrl(take);
+        if(!url){ DEBUG.err('preview: cannot build WAV URL'); return; }
+        const a = document.createElement('audio');
+        a.style.display = 'none';
+        a.preload = 'auto';
+        a.playsInline = true;
+        a.setAttribute('playsinline', '');
+        a.src = url;
+        a.addEventListener('ended', stopPreviewTake);
+        document.body.appendChild(a);
+        previewState.audioEl = a;
+        previewState.takeId = take.id;
+        a.play().catch(e => {
+            DEBUG.err('preview play failed: ' + e.message);
+            stopPreviewTake();
+        });
+    } else {
+        // Non-iOS: use AudioContext directly through the existing voice chain
+        if(!audioCtx){
+            DEBUG.warn('preview: no audioCtx yet — falling back to <audio> element');
+            const url = ensureTakeWavUrl(take);
+            if(!url) return;
+            const a = document.createElement('audio');
+            a.src = url;
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.addEventListener('ended', stopPreviewTake);
+            previewState.audioEl = a;
+            previewState.takeId = take.id;
+            a.play().catch(e => DEBUG.err('preview play failed: ' + e.message));
+            return;
+        }
+        // Decode buffer via cached or fresh
+        let buf = take._decodedBuffer;
+        if(!buf){
+            const pcm = take.pcm;
+            const sr = take.sampleRate;
+            buf = audioCtx.createBuffer(1, pcm.length, sr);
+            buf.copyToChannel(pcm, 0);
+            take._decodedBuffer = buf;
+        }
+        const src = audioCtx.createBufferSource();
+        src.buffer = buf;
+        src.playbackRate.value = 1.0;
+        // Route through voice chain so EQ/echo apply
+        if(takeShifter){
+            src.connect(takeShifter);
+        } else {
+            src.connect(audioCtx.destination);
+        }
+        src.onended = () => {
+            if(previewState.source === src) stopPreviewTake();
+        };
+        src.start(0);
+        previewState.source = src;
+        previewState.takeId = take.id;
+        previewState.startCtxTime = audioCtx.currentTime;
+    }
+
+    // Update UI
+    const previewBtn = takesList.querySelector('.take-item[data-id="' + take.id + '"] .take-btn.preview');
+    if(previewBtn){
+        previewBtn.classList.add('playing');
+        previewBtn.textContent = '■';
+    }
+}
+
 // ============== RECORDING ==============
-// IMPORTANT: On iOS Safari/Chrome (WebKit), calling getUserMedia() on an
-// AudioContext that is also playing audio causes the AudioSession to switch
-// to "record" mode, which silences the AudioContext's destination output.
-// To avoid this, recording uses a SEPARATE AudioContext (`recCtx`) that is
-// created at startRecording() and fully closed at stopRecording(). The BGM
-// AudioContext (`audioCtx`) never touches getUserMedia, so it keeps playing.
-let recCtx = null;
-let recAudioBufferChunks = []; // Float32Array chunks
+// Strategy: use MediaRecorder for capture (well-supported on iOS WebKit),
+// then decode the resulting Blob into PCM via decodeAudioData when stopping.
+// This avoids ScriptProcessor/AudioWorklet on the recording path entirely,
+// which on iOS can be unreliable while a separate audio source is playing.
+let mediaRecorder = null;
+let mediaRecorderChunks = [];
+let mediaRecorderMime = '';
+let recCtx = null;        // kept around (we use a tiny analyser context for level meter only)
+let recAudioBufferChunks = []; // (legacy / unused with MediaRecorder, kept to satisfy disposal code)
 let recCtxSampleRate = 44100;
+let recCtxStream = null;  // mic stream
+
+function pickMediaRecorderMime(){
+    const candidates = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/mp4;codecs=mp4a.40.2',  // iOS 14+
+        'audio/mp4',
+        'audio/aac',
+        ''
+    ];
+    if(!window.MediaRecorder || !MediaRecorder.isTypeSupported) return '';
+    for(const c of candidates){
+        if(c === '') return '';
+        try { if(MediaRecorder.isTypeSupported(c)) return c; } catch(e){}
+    }
+    return '';
+}
 
 async function startRecording(){
     DEBUG.info('═══ startRecording() called ═══');
+    if(state.isRecording){ DEBUG.warn('startRecording: already recording, ignored'); return; }
+    if(!state.currentEntry) { DEBUG.warn('startRecording: no current entry'); return; }
+    if(!window.MediaRecorder){
+        DEBUG.err('startRecording: MediaRecorder not supported');
+        setStatus('このブラウザは録音に未対応です', 'err');
+        return;
+    }
     DEBUG.info('  audioCtx.state BEFORE:', audioCtx ? audioCtx.state : 'no ctx');
     DEBUG.info('  bgmTransport.paused:', bgmTransport.paused, '· duration:', bgmTransport.duration.toFixed(2) + 's');
-    if(!state.currentEntry) { DEBUG.warn('startRecording: no current entry'); return; }
-    if(!await initCtx()) { DEBUG.err('startRecording: initCtx failed'); return; }
-    if(audioCtx.state === 'suspended') {
-        DEBUG.info('startRecording: resuming audioCtx...');
-        await audioCtx.resume();
-        DEBUG.ok('startRecording: audioCtx resumed → ' + audioCtx.state);
-    }
 
+    // Optimistically claim "recording" to prevent double-press; revert on failure
+    state.isRecording = true;
+    btnRec.classList.add('recording');
+    btnRec.textContent = '■';
+    setStatus('マイクを準備中…', 'warn');
+
+    // Acquire mic
     DEBUG.info('startRecording: requesting getUserMedia...');
     let stream;
-    let t0 = performance.now();
+    const t0 = performance.now();
     try {
         stream = await navigator.mediaDevices.getUserMedia({
             audio: {
@@ -1667,81 +2112,130 @@ async function startRecording(){
             },
             video: false
         });
-        DEBUG.ok('startRecording: getUserMedia OK in ' + (performance.now() - t0).toFixed(0) + 'ms, tracks=' + stream.getTracks().length);
-        DEBUG.info('  audioCtx.state AFTER getUserMedia:', audioCtx.state);
-        // Probe BGM source state immediately after getUserMedia
-        DEBUG.info('  bgmTransport.paused after gUM:', bgmTransport.paused);
+        DEBUG.ok('getUserMedia OK in ' + (performance.now() - t0).toFixed(0) + 'ms, tracks=' + stream.getTracks().length);
     } catch(e){
-        DEBUG.err('startRecording: getUserMedia failed:', e.name + ' - ' + e.message);
+        DEBUG.err('getUserMedia failed:', e.name + ' - ' + e.message);
         setStatus('マイクの許可が必要です: ' + e.message, 'err');
+        // revert state
+        state.isRecording = false;
+        btnRec.classList.remove('recording');
+        btnRec.textContent = '●';
         return;
     }
 
-    // Build a dedicated context purely for capture
+    DEBUG.info('  audioCtx.state AFTER getUserMedia:', audioCtx ? audioCtx.state : 'no ctx');
+    DEBUG.info('  bgmTransport.paused after gUM:', bgmTransport.paused);
+
+    // Set up MediaRecorder
+    mediaRecorderMime = pickMediaRecorderMime();
+    DEBUG.info('MediaRecorder mime:', mediaRecorderMime || '(default)');
     try {
-        DEBUG.info('startRecording: creating dedicated recCtx...');
-        recCtx = new (window.AudioContext || window.webkitAudioContext)();
-        DEBUG.info('  recCtx state after create:', recCtx.state, '· sampleRate:', recCtx.sampleRate);
-        if(recCtx.state === 'suspended') {
-            await recCtx.resume();
-            DEBUG.info('  recCtx state after resume:', recCtx.state);
-        }
-        DEBUG.info('  audioCtx.state during recCtx setup:', audioCtx.state);
+        const opts = mediaRecorderMime ? { mimeType: mediaRecorderMime } : {};
+        mediaRecorder = new MediaRecorder(stream, opts);
     } catch(e){
-        DEBUG.err('startRecording: recCtx creation failed:', e.message);
+        DEBUG.err('MediaRecorder constructor failed:', e.message);
         try { stream.getTracks().forEach(t => t.stop()); } catch(_){}
-        setStatus('録音用コンテキストの作成に失敗: ' + e.message, 'err');
+        state.isRecording = false;
+        btnRec.classList.remove('recording');
+        btnRec.textContent = '●';
+        setStatus('録音オブジェクトの作成に失敗: ' + e.message, 'err');
         return;
     }
-    recCtxSampleRate = recCtx.sampleRate;
-    micStream = stream;
-    recSrc = recCtx.createMediaStreamSource(stream);
-    micAnalyser = recCtx.createAnalyser();
-    micAnalyser.fftSize = 512;
-    recSrc.connect(micAnalyser);
-    DEBUG.info('startRecording: mic source connected to analyser');
 
-    recAudioBufferChunks = [];
-    recProcessor = recCtx.createScriptProcessor(4096, 1, 1);
-    recProcessor.onaudioprocess = (e) => {
-        if(!state.isRecording) return;
-        recAudioBufferChunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+    mediaRecorderChunks = [];
+    mediaRecorder.ondataavailable = (e) => {
+        if(e.data && e.data.size > 0){
+            mediaRecorderChunks.push(e.data);
+            DEBUG.info('MediaRecorder dataavailable: ' + e.data.size + ' bytes (total=' + mediaRecorderChunks.length + ' chunks)');
+        }
     };
-    recSrc.connect(recProcessor);
-    const muteGain = recCtx.createGain(); muteGain.gain.value = 0;
-    recProcessor.connect(muteGain);
-    muteGain.connect(recCtx.destination);
-    DEBUG.info('startRecording: ScriptProcessor connected (muted) to recCtx.destination');
+    mediaRecorder.onerror = (e) => {
+        DEBUG.err('MediaRecorder error:', e.error ? e.error.message : e);
+    };
+    mediaRecorder.onstart = () => {
+        DEBUG.ok('MediaRecorder started, state=' + mediaRecorder.state);
+    };
+    mediaRecorder.onstop = () => {
+        DEBUG.info('MediaRecorder stopped, chunks=' + mediaRecorderChunks.length);
+    };
+
+    // Set up a small analyser context for the mic level meter (independent of recording)
+    try {
+        recCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if(recCtx.state === 'suspended') await recCtx.resume();
+        recCtxSampleRate = recCtx.sampleRate;
+        recCtxStream = stream;
+        recSrc = recCtx.createMediaStreamSource(stream);
+        micAnalyser = recCtx.createAnalyser();
+        micAnalyser.fftSize = 512;
+        recSrc.connect(micAnalyser);
+        DEBUG.info('Level meter context created, recCtx.state=' + recCtx.state);
+    } catch(e){
+        DEBUG.warn('Level meter setup failed (recording continues): ' + e.message);
+    }
+
+    micStream = stream;
 
     recPitchAtStart = parseInt(pitchSlider.value, 10);
     recSpeedAtStart = parseFloat(speedSlider.value);
     recStartSongTime = audioEl.currentTime;
 
-    state.isRecording = true;
-    btnRec.classList.add('recording');
-    btnRec.textContent = '■';
-    setStatus('録音中... ■で停止', 'warn');
+    // Start the recorder. timeslice=0 (no arg) is fine; we get one big blob on stop.
+    try {
+        mediaRecorder.start();
+    } catch(e){
+        DEBUG.err('MediaRecorder.start failed:', e.message);
+        try { stream.getTracks().forEach(t => t.stop()); } catch(_){}
+        try { if(recCtx) await recCtx.close(); } catch(_){}
+        state.isRecording = false;
+        btnRec.classList.remove('recording');
+        btnRec.textContent = '●';
+        recCtx = null; recSrc = null; micAnalyser = null; micStream = null; mediaRecorder = null;
+        setStatus('録音開始に失敗: ' + e.message, 'err');
+        return;
+    }
 
+    setStatus('録音中... ■で停止', 'warn');
     applyBgmVocalCut();
     updateVocalCutUI();
-
-    DEBUG.ok('startRecording: COMPLETE. audioCtx=' + audioCtx.state + ' · recCtx=' + recCtx.state + ' · isPlaying=' + !bgmTransport.paused);
+    DEBUG.ok('startRecording: COMPLETE. audioCtx=' + (audioCtx ? audioCtx.state : '?') + ' · isPlaying=' + !bgmTransport.paused);
     pumpMicLevel();
 }
 
 async function stopRecording(){
-    if(!state.isRecording) return;
     DEBUG.info('═══ stopRecording() called ═══');
+    if(!state.isRecording){ DEBUG.warn('stopRecording: not currently recording'); return; }
     state.isRecording = false;
     btnRec.classList.remove('recording');
     btnRec.textContent = '●';
 
-    // Switch BGM vocal-cut to playback policy
     applyBgmVocalCut();
     updateVocalCutUI();
 
-    // Tear down the entire recording context to release the mic / AudioSession
-    try { if(recProcessor) recProcessor.disconnect(); } catch(e){}
+    // Stop MediaRecorder and wait for the final dataavailable + stop events
+    let blob = null;
+    if(mediaRecorder){
+        try {
+            if(mediaRecorder.state === 'recording' || mediaRecorder.state === 'paused'){
+                const stopped = new Promise(res => {
+                    const onStop = () => res();
+                    mediaRecorder.addEventListener('stop', onStop, { once: true });
+                });
+                mediaRecorder.stop();
+                await stopped;
+            }
+            // Build the blob
+            const mime = mediaRecorderMime || (mediaRecorder.mimeType || 'audio/webm');
+            blob = new Blob(mediaRecorderChunks, { type: mime });
+            DEBUG.ok('Blob built: ' + blob.size + ' bytes, type=' + blob.type);
+        } catch(e){
+            DEBUG.err('MediaRecorder.stop failed:', e.message);
+        }
+    }
+    mediaRecorder = null;
+    mediaRecorderChunks = [];
+
+    // Tear down level meter / mic
     try { if(recSrc) recSrc.disconnect(); } catch(e){}
     try { if(micAnalyser) micAnalyser.disconnect(); } catch(e){}
     try {
@@ -1750,35 +2244,66 @@ async function stopRecording(){
         }
     } catch(e){}
     try { if(recCtx) await recCtx.close(); } catch(e){}
-    recProcessor = null;
-    recSrc = null;
-    micAnalyser = null;
-    micStream = null;
-    recCtx = null;
-    DEBUG.info('stopRecording: recording context torn down');
+    recSrc = null; micAnalyser = null; micStream = null; recCtx = null; recCtxStream = null;
+    DEBUG.info('stopRecording: mic + level-meter context torn down');
 
-    const total = recAudioBufferChunks.reduce((s,b) => s+b.length, 0);
+    // Decode the recorded Blob into Float32Array PCM. On iOS we don't have a
+    // long-lived audioCtx, so create a temporary one purely for decoding (it
+    // will be closed immediately after).
     let take = null;
-    if(total < 4000){
-        recAudioBufferChunks = [];
-        setStatus('録音が短すぎます（破棄）', 'err');
+    let decodeCtx = audioCtx;
+    let decodeCtxIsTemp = false;
+    if(!decodeCtx){
+        try {
+            decodeCtx = new (window.AudioContext || window.webkitAudioContext)();
+            decodeCtxIsTemp = true;
+            DEBUG.info('Created temporary decode AudioContext (iOS mode)');
+        } catch(e){
+            DEBUG.err('Could not create temp decode context: ' + e.message);
+        }
+    }
+    if(blob && blob.size > 1024 && decodeCtx){
+        try {
+            DEBUG.info('Decoding recorded blob...');
+            const arrBuf = await blob.arrayBuffer();
+            const decoded = await new Promise((res, rej) => {
+                try {
+                    const p = decodeCtx.decodeAudioData(arrBuf.slice(0), res, rej);
+                    if(p && typeof p.then === 'function') p.then(res, rej);
+                } catch(e){ rej(e); }
+            });
+            DEBUG.ok('Decoded: ' + decoded.duration.toFixed(2) + 's, ' + decoded.numberOfChannels + 'ch, ' + decoded.sampleRate + 'Hz');
+            const ch0 = decoded.getChannelData(0);
+            let pcm;
+            if(decoded.numberOfChannels >= 2){
+                const ch1 = decoded.getChannelData(1);
+                pcm = new Float32Array(ch0.length);
+                for(let i = 0; i < ch0.length; i++) pcm[i] = (ch0[i] + ch1[i]) * 0.5;
+            } else {
+                pcm = new Float32Array(ch0);
+            }
+            take = {
+                id: uid(),
+                name: 'Take ' + ((state.currentEntry.takes||[]).length + 1),
+                pcm: pcm,
+                sampleRate: decoded.sampleRate,
+                pitchSemitones: recPitchAtStart,
+                speed: recSpeedAtStart,
+                startSongTime: recStartSongTime,
+                duration: decoded.duration,
+                createdAt: Date.now()
+            };
+        } catch(e){
+            DEBUG.err('Decode failed: ' + e.message);
+        }
     } else {
-        const pcm = new Float32Array(total);
-        let p = 0;
-        for(const b of recAudioBufferChunks){ pcm.set(b, p); p += b.length; }
-        recAudioBufferChunks = [];
+        DEBUG.warn('No usable blob (size=' + (blob ? blob.size : 0) + ')');
+    }
+    if(decodeCtxIsTemp && decodeCtx){
+        try { await decodeCtx.close(); DEBUG.info('Temp decode context closed'); } catch(e){}
+    }
 
-        take = {
-            id: uid(),
-            name: 'Take ' + ((state.currentEntry.takes||[]).length + 1),
-            pcm: pcm,
-            sampleRate: recCtxSampleRate,
-            pitchSemitones: recPitchAtStart,
-            speed: recSpeedAtStart,
-            startSongTime: recStartSongTime,
-            duration: total / recCtxSampleRate,
-            createdAt: Date.now()
-        };
+    if(take){
         if(!state.currentEntry.takes) state.currentEntry.takes = [];
         state.currentEntry.takes.push(take);
         state.currentTake = take;
@@ -1786,18 +2311,24 @@ async function stopRecording(){
         renderTakes();
         renderBadges();
         setStatus('テイクを保存: ' + take.name, 'ok');
-        DEBUG.ok('stopRecording: take saved (' + take.duration.toFixed(2) + 's)');
+        DEBUG.ok('Take saved (' + take.duration.toFixed(2) + 's)');
+    } else {
+        setStatus('録音データがありません', 'err');
     }
 
     // ─── iOS-specific recovery ─────────────────────────────────────────────
-    // On iOS WebKit, even after we close recCtx and stop the mic tracks, the
-    // main audioCtx's destination output remains silenced (the AudioSession
-    // is still in 'PlayAndRecord' mode). The reliable way to restore output
-    // is to fully close audioCtx and create a new one.
-    if(IS_IOS){
-        DEBUG.info('iOS detected: rebuilding main AudioContext to restore output...');
+    // ─── Recovery after recording ──────────────────────────────────────────
+    // On non-iOS (or iOS with WebAudio BGM), the AudioSession switch to
+    // PlayAndRecord may have silenced audioCtx output. Rebuild it. On iOS
+    // mode (HTMLAudioElement-based BGM), this is unnecessary because BGM is
+    // not routed through audioCtx.
+    if(IS_IOS && !IOS_MODE){
+        // unreachable: IS_IOS always implies IOS_MODE here, kept for clarity
+        DEBUG.info('iOS detected (legacy path): rebuilding main AudioContext...');
         await rebuildAudioContext();
-        DEBUG.ok('iOS: AudioContext rebuilt, BGM should now be audible.');
+        DEBUG.ok('iOS: AudioContext rebuilt.');
+    } else if(IS_IOS){
+        DEBUG.info('iOS mode: BGM uses HTMLAudioElement, no rebuild needed');
     }
 }
 
@@ -1842,36 +2373,54 @@ function renderTakes(){
     const takes = (state.currentEntry && state.currentEntry.takes) || [];
     if(!takes.length){
         takesList.innerHTML = '<div class="take-empty">まだテイクがありません — 録音ボタンで歌声を記録</div>';
-        takesCount.textContent = '0 takes';
+        takesCount.textContent = '0 / 0';
         return;
     }
-    takesCount.textContent = takes.length + ' takes';
-    takesList.innerHTML = takes.map(t => {
+    const activeIdx = state.currentTake ? takes.findIndex(t => t.id === state.currentTake.id) : -1;
+    takesCount.textContent = (activeIdx >= 0 ? activeIdx + 1 : 0) + ' / ' + takes.length;
+
+    takesList.innerHTML = takes.map((t, i) => {
         const isActive = state.currentTake && t.id === state.currentTake.id;
+        const isNowPlaying = isActive && !bgmTransport.paused && state.playMode !== 'bgm';
         const sign = (t.pitchSemitones||0) >= 0 ? '+' : '';
-        return `<div class="take-item ${isActive?'active':''}" data-id="${t.id}">
-            <div class="take-info">
-                <div class="take-name">${escapeHtml(t.name)}</div>
-                <div class="take-meta">${t.duration.toFixed(1)}s · ${sign}${t.pitchSemitones||0}st · ${(t.speed||1).toFixed(2)}x · @${fmt(t.startSongTime||0)}</div>
+        return `<div class="take-item ${isActive?'active':''} ${isNowPlaying?'now-playing':''}" data-id="${t.id}">
+            <div class="take-select-area" data-act="select">
+                <div class="take-name-row">
+                    <span>${escapeHtml(t.name)}</span>
+                    <span class="take-now-playing">▶ NOW</span>
+                </div>
+                <div class="take-meta">${t.duration.toFixed(1)}s · ${sign}${t.pitchSemitones||0}st · ${(t.speed||1).toFixed(2)}x · 楽曲@${fmt(t.startSongTime||0)}</div>
+                <div class="take-progress-bar"><div class="take-progress-fill" data-progress-for="${t.id}" style="width:0%"></div></div>
             </div>
             <div class="take-actions">
-                <button class="take-btn ${isActive?'active':''}" data-act="select" title="選択">●</button>
+                <button class="take-btn preview" data-act="preview" title="このテイクだけ頭から試聴">▶</button>
                 <button class="take-btn del" data-act="del" title="削除">×</button>
             </div>
         </div>`;
     }).join('');
+
     takesList.querySelectorAll('.take-item').forEach(el => {
         const id = el.dataset.id;
+        // selecting (click anywhere on the select-area)
         el.querySelector('[data-act=select]').addEventListener('click', () => {
             const t = state.currentEntry.takes.find(x => x.id === id);
-            if(t){
-                state.currentTake = t;
-                renderTakes();
-                if(!audioEl.paused) startTakePlayback();
-            }
+            if(!t) return;
+            DEBUG.info('Take selected: ' + t.name);
+            state.currentTake = t;
+            renderTakes();
+            renderBadges();
+            // If BGM is playing, start the take in sync
+            if(!bgmTransport.paused && state.playMode !== 'bgm') startTakePlayback();
         });
-        el.querySelector('[data-act=del]').addEventListener('click', async () => {
+        el.querySelector('[data-act=preview]').addEventListener('click', e => {
+            e.stopPropagation();
+            const t = state.currentEntry.takes.find(x => x.id === id);
+            if(t) togglePreviewTake(t);
+        });
+        el.querySelector('[data-act=del]').addEventListener('click', async e => {
+            e.stopPropagation();
             if(!confirm('このテイクを削除しますか？')) return;
+            DEBUG.info('Take deleted: ' + id);
             state.currentEntry.takes = state.currentEntry.takes.filter(x => x.id !== id);
             if(state.currentTake && state.currentTake.id === id){
                 state.currentTake = state.currentEntry.takes.length ? state.currentEntry.takes[state.currentEntry.takes.length-1] : null;
@@ -1881,6 +2430,41 @@ function renderTakes(){
             renderTakes();
             renderBadges();
         });
+    });
+}
+
+// Update only the visual "now-playing" / progress bar, no DOM rebuild.
+function refreshTakeNowPlayingUI(){
+    const items = takesList.querySelectorAll('.take-item');
+    items.forEach(el => {
+        const id = el.dataset.id;
+        const isActive = state.currentTake && state.currentTake.id === id;
+        const isNowPlaying = isActive && !bgmTransport.paused && state.playMode !== 'bgm';
+        el.classList.toggle('now-playing', isNowPlaying);
+    });
+    // update progress for current take if playing
+    if(state.currentTake){
+        const fill = takesList.querySelector('.take-progress-fill[data-progress-for="' + state.currentTake.id + '"]');
+        if(fill && bgmTransport.duration > 0){
+            const songT = bgmTransport.currentTime;
+            const tk = state.currentTake;
+            const localT = (songT - (tk.startSongTime||0) - parseFloat(voxOfsSlider.value||0)) / (tk.speed||1);
+            const pct = Math.max(0, Math.min(100, (localT / tk.duration) * 100));
+            fill.style.width = pct + '%';
+        }
+        // also update preview progress if previewing
+        if(previewState.takeId === state.currentTake.id && previewState.startCtxTime > 0 && audioCtx){
+            const elapsed = audioCtx.currentTime - previewState.startCtxTime;
+            const pct = Math.max(0, Math.min(100, (elapsed / state.currentTake.duration) * 100));
+            if(fill) fill.style.width = pct + '%';
+        }
+    }
+    // Reset the not-active ones to 0% so old progress doesn't linger
+    items.forEach(el => {
+        const id = el.dataset.id;
+        if(state.currentTake && state.currentTake.id === id) return;
+        const fill = el.querySelector('.take-progress-fill');
+        if(fill && previewState.takeId !== id) fill.style.width = '0%';
     });
 }
 
@@ -1940,13 +2524,17 @@ async function selectEntry(entry){
     state.currentEntry = entry;
     state.lyricsLines = entry.lyricsLines || [];
 
-    // We need an AudioContext to decode. Initialize it now (within click context).
-    if(!await ensureAudioGraph()){
-        setStatus('オーディオ初期化に失敗しました', 'err');
-        return;
+    // On iOS we don't create an AudioContext at all — the transport uses a
+    // plain HTMLAudioElement instead. On other platforms we need it for the
+    // worklet-based decode/playback path.
+    if(!IOS_MODE){
+        if(!await ensureAudioGraph()){
+            setStatus('オーディオ初期化に失敗しました', 'err');
+            return;
+        }
     }
 
-    // Decode audio into a buffer (replaces <audio>+MediaElementSource path)
+    // Load the audio file
     audioFileName.textContent = entry.audioFile.name;
     btnPlay.disabled = true;
     btnRec.disabled = true;
@@ -2411,7 +2999,7 @@ async function ensureAudioGraph(){
 bgmTransport.addEventListener('play', () => {
     btnPlay.classList.add('playing');
     btnPlay.textContent = '⏸';
-    if(state.currentTake) startTakePlayback();
+    if(state.currentTake && state.playMode !== 'bgm') startTakePlayback();
 });
 bgmTransport.addEventListener('pause', () => {
     btnPlay.classList.remove('playing');
@@ -2422,7 +3010,7 @@ bgmTransport.addEventListener('seeking', () => {
     stopTakePlayback();
 });
 bgmTransport.addEventListener('seeked', () => {
-    if(!bgmTransport.paused && state.currentTake) startTakePlayback();
+    if(!bgmTransport.paused && state.currentTake && state.playMode !== 'bgm') startTakePlayback();
 });
 bgmTransport.addEventListener('ended', () => {
     btnPlay.classList.remove('playing');
@@ -2434,6 +3022,7 @@ bgmTransport.addEventListener('ended', () => {
 });
 
 // rAF-driven UI updates (replaces timeupdate event)
+let _takeUiCounter = 0;
 function tickUI(){
     if(bgmTransport.duration > 0){
         const cur = bgmTransport.currentTime;
@@ -2445,6 +3034,12 @@ function tickUI(){
         timeDur.textContent = fmt(dur);
         if(!bgmTransport.paused) updateCurrentLine();
     }
+    // Update take UI ~6 times per second (every 10 frames)
+    if((++_takeUiCounter % 10) === 0){
+        if(state.currentEntry && state.currentEntry.takes && state.currentEntry.takes.length){
+            refreshTakeNowPlayingUI();
+        }
+    }
     requestAnimationFrame(tickUI);
 }
 requestAnimationFrame(tickUI);
@@ -2452,14 +3047,19 @@ requestAnimationFrame(tickUI);
 // Play / Pause button
 btnPlay.addEventListener('click', async () => {
     if(!state.currentEntry) return;
-    if(!await ensureAudioGraph()) return;
-    if(audioCtx.state === 'suspended') await audioCtx.resume();
+    if(!IOS_MODE){
+        if(!await ensureAudioGraph()) return;
+        if(audioCtx && audioCtx.state === 'suspended') await audioCtx.resume();
+    }
     if(bgmTransport.paused){
         if(bgmTransport.duration <= 0){
-            // Buffer not ready yet — should not happen, but guard
             return;
         }
-        await bgmTransport.play();
+        try {
+            await bgmTransport.play();
+        } catch(e){
+            DEBUG.err('btnPlay: play failed:', e.message);
+        }
     } else {
         bgmTransport.pause();
     }
@@ -2501,8 +3101,10 @@ $('changeLibraryBtn').addEventListener('click', changeLibrary);
 btnRec.addEventListener('click', async () => {
     if(state.isRecording){ await stopRecording(); return; }
     if(!state.currentEntry) return;
-    if(!await ensureAudioGraph()) return;
-    if(audioCtx.state === 'suspended') await audioCtx.resume();
+    if(!IOS_MODE){
+        if(!await ensureAudioGraph()) return;
+        if(audioCtx && audioCtx.state === 'suspended') await audioCtx.resume();
+    }
     // Start BGM playback if not already playing — gives the user a guide
     if(bgmTransport.paused && bgmTransport.duration > 0){
         try { await bgmTransport.play(); } catch(e){}
@@ -2580,6 +3182,39 @@ vcPlayback.addEventListener('change', () => {
     if(audioCtx && !state.isRecording) applyBgmVocalCut();
 });
 
+// ============== PLAY MODE PILLS (BGM+TAKE / BGM only / TAKE only) ==============
+/**
+ * 再生モードはユーザーに「今何が鳴っているか」を明示するためのもの。
+ *   'both' = BGM とテイクを同時再生 (デフォルト、カラオケミックス)
+ *   'bgm'  = BGM のみ。テイクをミュート (ガイドだけ聴きたい時)
+ *   'take' = テイクのみ。BGM をミュート (録音した自分の声だけ確認したい時)
+ * 実装: applyBalance() の出力に応じて BGM/VOICE のゲインを 0 にする。
+ *       かつ、'bgm' モードでは take の playback をスキップ。
+ */
+function setPlayMode(mode){
+    if(mode !== 'both' && mode !== 'bgm' && mode !== 'take') mode = 'both';
+    state.playMode = mode;
+    DEBUG.info('Play mode → ' + mode);
+    // Update pill UI
+    const map = { both: 'pmBoth', bgm: 'pmBgm', take: 'pmTake' };
+    Object.entries(map).forEach(([m, id]) => {
+        const el = document.getElementById(id);
+        if(el) el.classList.toggle('active', m === mode);
+    });
+    applyBalance();
+    // If we're playing, start/stop take accordingly
+    if(!bgmTransport.paused){
+        if(mode === 'bgm') stopTakePlayback();
+        else if(state.currentTake) startTakePlayback();
+    }
+    refreshTakeNowPlayingUI();
+}
+
+['pmBoth','pmBgm','pmTake'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.addEventListener('click', () => setPlayMode(el.dataset.pmode));
+});
+
 // ============== MIX BALANCE ==============
 /**
  * Master gain は2系統 (BGM / VOICE) を独立に制御。
@@ -2608,8 +3243,22 @@ function applyBalance(){
     const { bgmCoeff, voxCoeff } = balanceCoeffs();
     const bgmBase = dbToGain(parseFloat(bgmVolSlider.value));
     const voxBase = dbToGain(parseFloat(voxVolSlider.value));
-    const bgmFinal = bgmBase * bgmCoeff;
-    const voxFinal = voxBase * voxCoeff;
+    let bgmFinal = bgmBase * bgmCoeff;
+    let voxFinal = voxBase * voxCoeff;
+    // Apply play mode mute
+    if(state.playMode === 'bgm')  voxFinal = 0;
+    if(state.playMode === 'take') bgmFinal = 0;
+    // iOS uses HTMLAudio elements directly; reflect mute on them too
+    if(IOS_MODE){
+        if(typeof iosAudioEl !== 'undefined' && iosAudioEl){
+            iosAudioEl.muted = (state.playMode === 'take');
+            iosAudioEl.volume = Math.max(0, Math.min(1, bgmCoeff * (bgmBase / 2)));
+        }
+        if(iosTakeAudioEl){
+            iosTakeAudioEl.muted = (state.playMode === 'bgm');
+            iosTakeAudioEl.volume = Math.max(0, Math.min(1, voxCoeff * (voxBase / 2)));
+        }
+    }
     // audio graph (only if ready)
     if(bgmGain && voxGain){
         try {
@@ -2618,15 +3267,21 @@ function applyBalance(){
         } catch(e){ /* noop */ }
     }
     // UI updates (always)
-    if(bgmMeter) bgmMeter.style.width = Math.min(100, bgmCoeff * 100) + '%';
-    if(voxMeter) voxMeter.style.width = Math.min(100, voxCoeff * 100) + '%';
+    const bgmDisplay = state.playMode === 'take' ? 0 : bgmCoeff;
+    const voxDisplay = state.playMode === 'bgm'  ? 0 : voxCoeff;
+    if(bgmMeter) bgmMeter.style.width = Math.min(100, bgmDisplay * 100) + '%';
+    if(voxMeter) voxMeter.style.width = Math.min(100, voxDisplay * 100) + '%';
     if(bgmGainNum){
         const db = gainToDb(bgmFinal);
-        bgmGainNum.textContent = isFinite(db) ? (db >= 0 ? '+' : '') + db.toFixed(1) + ' dB' : '−∞';
+        bgmGainNum.textContent = isFinite(db) && bgmFinal > 0
+            ? (db >= 0 ? '+' : '') + db.toFixed(1) + ' dB'
+            : (state.playMode === 'take' ? 'MUTED' : '−∞');
     }
     if(voxGainNum){
         const db = gainToDb(voxFinal);
-        voxGainNum.textContent = isFinite(db) ? (db >= 0 ? '+' : '') + db.toFixed(1) + ' dB' : '−∞';
+        voxGainNum.textContent = isFinite(db) && voxFinal > 0
+            ? (db >= 0 ? '+' : '') + db.toFixed(1) + ' dB'
+            : (state.playMode === 'bgm' ? 'MUTED' : '−∞');
     }
     if(balanceVal){
         const p = parseFloat(balanceSlider.value);
@@ -2666,6 +3321,30 @@ balanceSlider.addEventListener('input', applyBalance);
     if(!window.AudioWorklet){ warnBox.classList.remove('hidden'); }
     updateVocalCutUI();
     applyBalance(); // initialize meter labels
+
+    // Install iOS-compatible HTMLAudioElement-based transport. This must happen
+    // BEFORE any song is selected so that the buffer-based methods are
+    // overridden. On non-iOS this is a no-op.
+    installIOSTransport();
+    if(IOS_MODE){
+        // Show iOS notice and disable effects that require WebAudio chain
+        const notice = document.getElementById('iosNotice');
+        if(notice) notice.classList.add('show');
+        // Disable pitch / speed / vocal cut / EQ controls (they would not work
+        // because BGM is played via <audio>, not through the worklet chain).
+        const disableIds = [
+            'speedSlider','pitchSlider',
+            'bgmEqLo','bgmEqMd','bgmEqHi',
+            'voxEqLo','voxEqMd','voxEqHi',
+            'echoSlider',
+            'vcRecord','vcPlayback'
+        ];
+        for(const id of disableIds){
+            const el = document.getElementById(id);
+            if(el) el.disabled = true;
+        }
+        DEBUG.info('iOS: effect controls disabled (pitch/speed/vocal-cut/EQ unavailable on this platform)');
+    }
 
     // Decide library mode based on capability
     libMode = FSA_SUPPORTED ? 'fsa' : 'flat';

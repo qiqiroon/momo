@@ -16,12 +16,14 @@
                 ドリフト補正を PLL 方式に変更 (5%ズレ対策)
        v1.13 - Google Drive 対応 (momo/lib/momo_gdrive/momo_gdrive.py 経由)
                 ライブラリ選択: ローカルフォルダ または Google Drive
-                Pyodide は遅延ロード -->
+                Pyodide は遅延ロード
+       v1.14 - iOS テイク再生のブツ切れバグ修正
+                start() の Promise 中の重複呼び出しを抑止、ドリフト補正を緩和 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MOMO Karaoke v1.13 - MOMO Works</title>
+<title>MOMO Karaoke v1.14 - MOMO Works</title>
 <!-- Google Identity Services (OAuth) — used by momo_gdrive.py -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <!-- Google API client — used for Picker -->
@@ -708,7 +710,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 </g>
             </svg>
         </div>
-        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.13</span></h1>
+        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.14</span></h1>
     </header>
     <p class="header-sub" id="header-sub">ローカル音源と同名 .lrc を読み込む、こだわり派のカラオケサロン</p>
 
@@ -1133,7 +1135,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v1.13';
+const APP_VERSION = 'v1.14';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2101,8 +2103,16 @@ function startTakePlayback(){
     }
 }
 
+// Guard against re-entry while iosTakeAudioEl.play() is still pending.
+let iosTakeStarting = false;
+let iosTakeLastRateAdjust = 0;  // timestamp (ms) of last playbackRate change
+
 function startTakePlaybackIOS(){
     if(!state.currentTake) return;
+    if(iosTakeStarting){
+        DEBUG.info('iOS take: start already pending, skipping duplicate call');
+        return;
+    }
     ensureIOSTakeAudio();
     if(!iosTakeAudioEl) return;
     // Build/reuse a WAV Object URL for this take
@@ -2132,16 +2142,28 @@ function startTakePlaybackIOS(){
         return;
     }
     if(takeLocalT < 0){
-        // BGM hasn't reached take's start position yet. Don't start — the
-        // tickUI loop will call this again once BGM catches up.
-        DEBUG.info('iOS take: BGM @' + songT.toFixed(2) + ' < take start @' + takeStartSong.toFixed(2) + ', waiting');
-        try { iosTakeAudioEl.pause(); } catch(e){}
-        try { iosTakeAudioEl.currentTime = 0; } catch(e){}
+        // Just keep paused at 0; do not log every poll (was noisy in logs).
+        if(!iosTakeAudioEl.paused){
+            try { iosTakeAudioEl.pause(); } catch(e){}
+            try { iosTakeAudioEl.currentTime = 0; } catch(e){}
+        }
         return;
     }
-    DEBUG.info('iOS take: playing @ local ' + takeLocalT.toFixed(2) + 's');
+    DEBUG.info('iOS take: starting playback @ local ' + takeLocalT.toFixed(2) + 's');
+    iosTakeStarting = true;
     try { iosTakeAudioEl.currentTime = takeLocalT; } catch(e){}
-    iosTakeAudioEl.play().catch(e => DEBUG.err('iOS take play failed: ' + e.message));
+    const p = iosTakeAudioEl.play();
+    if(p && p.then){
+        p.then(() => {
+            iosTakeStarting = false;
+            DEBUG.ok('iOS take: play() resolved, now playing');
+        }).catch(e => {
+            iosTakeStarting = false;
+            DEBUG.err('iOS take play failed: ' + e.message);
+        });
+    } else {
+        iosTakeStarting = false;
+    }
 }
 
 // ============== TAKE PREVIEW (audition single take from start, BGM-independent) ==============
@@ -3637,9 +3659,11 @@ function syncTakeToBgm(){
 
     if(IOS_MODE){
         if(!iosTakeAudioEl) return;
+        // While a play() promise is still pending, leave the element alone.
+        if(iosTakeStarting) return;
         const isPlaying = !iosTakeAudioEl.paused;
         if(takeLocalT < 0){
-            // before start: ensure silent
+            // before start: ensure silent (no log spam)
             if(isPlaying){
                 try { iosTakeAudioEl.pause(); } catch(e){}
                 try { iosTakeAudioEl.currentTime = 0; } catch(e){}
@@ -3653,15 +3677,13 @@ function syncTakeToBgm(){
         }
         // in range
         if(!isPlaying){
-            // start it now
             startTakePlaybackIOS();
             return;
         }
-        // Drift correction (PLL style):
-        //   error = expected - actual  (positive: take is BEHIND)
-        //   |error| > 0.5s : hard resync via currentTime (audible click but corrects)
-        //   0.05s < |error| <= 0.5s : adjust playbackRate slightly to catch up smoothly
-        //   |error| <= 0.05s : keep nominal rate
+        // Drift correction with calm thresholds:
+        //   |error| > 0.7s : hard resync via currentTime
+        //   0.20s < |error| <= 0.7s : adjust playbackRate (max once per 1.5s)
+        //   |error| <= 0.20s : leave alone (small drift is inaudible)
         const takeSp = state.currentTake.speed || 1.0;
         const bgmRate = bgmTransport.playbackRate || 1.0;
         const nominalRate = bgmRate / takeSp;
@@ -3669,23 +3691,29 @@ function syncTakeToBgm(){
         const actual = iosTakeAudioEl.currentTime;
         const error = expected - actual;
         const absErr = Math.abs(error);
-        if(absErr > 0.5){
+        const now = performance.now();
+        if(absErr > 0.7){
             DEBUG.warn('iOS take HARD resync: err=' + error.toFixed(3) + 's');
             try { iosTakeAudioEl.currentTime = expected; } catch(e){}
             try { iosTakeAudioEl.playbackRate = nominalRate; iosTakeAudioEl.preservesPitch = true; } catch(e){}
-        } else if(absErr > 0.05){
-            // Soft correction: speed up (or slow down) by up to 5% for a few seconds
-            const rateAdj = nominalRate * (1.0 + Math.max(-0.05, Math.min(0.05, error * 0.5)));
+            iosTakeLastRateAdjust = now;
+        } else if(absErr > 0.20 && (now - iosTakeLastRateAdjust) > 1500){
+            // Soft correction: small rate offset toward catching up
+            const rateAdj = nominalRate * (1.0 + Math.max(-0.03, Math.min(0.03, error * 0.3)));
+            DEBUG.info('iOS take soft adjust rate=' + rateAdj.toFixed(3) + ' (err=' + error.toFixed(2) + ')');
             try { iosTakeAudioEl.playbackRate = rateAdj; iosTakeAudioEl.preservesPitch = true; } catch(e){}
-        } else {
-            // In sync — restore nominal rate
+            iosTakeLastRateAdjust = now;
+        } else if(absErr <= 0.05 && (now - iosTakeLastRateAdjust) > 3000){
+            // Restore nominal rate after we've been in sync for a while
             try {
-                if(Math.abs(iosTakeAudioEl.playbackRate - nominalRate) > 0.001){
+                if(Math.abs(iosTakeAudioEl.playbackRate - nominalRate) > 0.005){
                     iosTakeAudioEl.playbackRate = nominalRate;
                     iosTakeAudioEl.preservesPitch = true;
+                    iosTakeLastRateAdjust = now;
                 }
             } catch(e){}
         }
+        // else: small drift, keep current rate
     } else {
         // Non-iOS: AudioBufferSourceNode is sample-accurate, so drift is rare.
         const takeSp = state.currentTake.speed || 1.0;
@@ -3777,6 +3805,11 @@ btnRec.addEventListener('click', async () => {
 const btnAudioRescue = $('btnAudioRescue');
 if(btnAudioRescue){
     btnAudioRescue.addEventListener('click', async () => {
+        if(state.isRecording){
+            DEBUG.warn('音声を復旧: ignored — currently recording');
+            setStatus('録音中は復旧できません。録音を停止してから再度お試しください。', 'warn');
+            return;
+        }
         DEBUG.info('User clicked 音声を復旧');
         await rebuildAudioContext();
     });

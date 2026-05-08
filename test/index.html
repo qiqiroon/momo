@@ -40,12 +40,19 @@
        v1.21 - 録音開始時にテイク再生を確実に停止
                 録音中の syncTakeToBgm を止める (テイクが意図せず再生される問題)
                 ドリフト補正を「ハードリセット主体」に変更 (rate補正は逆効果と判明)
-                play() abort 時の re-entry 防止強化 -->
+                play() abort 時の re-entry 防止強化
+       v1.22 - テイク再生の遅延を解消 (録音直後・選択直後にプリロード)
+                録音停止後のプチノイズ対策 (gain ランプダウン + 順次クローズ)
+       v1.23 - 0.5秒間隔ボツボツ音の徹底対策
+                stopRecording 時に iosTakeAudioEl を完全リセット (src=空)
+                gainDest.stream のトラックも停止
+                teardown 後 800ms はテイク sync を完全停止
+                pumpMicLevel が closed context を読まないように防御 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MOMO Karaoke v1.21 - MOMO Works</title>
+<title>MOMO Karaoke v1.23 - MOMO Works</title>
 <!-- Google Identity Services (OAuth) — used by momo_gdrive.py -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <!-- Google API client — used for Picker -->
@@ -780,7 +787,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 </g>
             </svg>
         </div>
-        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.21</span></h1>
+        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.23</span></h1>
     </header>
     <p class="header-sub" id="header-sub">ローカル音源と同名 .lrc を読み込む、こだわり派のカラオケサロン</p>
 
@@ -1216,7 +1223,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v1.21';
+const APP_VERSION = 'v1.23';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2531,6 +2538,58 @@ let iosTakeStarting = false;
 let iosTakeLastRateAdjust = 0;  // timestamp (ms) of last playbackRate change
 let iosTakeStartedAt = 0;       // timestamp when last playback began (for settle period)
 
+/**
+ * Build the WAV blob URL for a take (if not already built) and preload it into
+ * the iosTakeAudioEl so that future play() calls can fire instantly.
+ * Without preloading, iOS takes ~1.8 seconds to load a multi-MB blob, which
+ * means the take starts well after BGM has passed its takeStartSong position.
+ */
+async function preloadIOSTake(take){
+    if(!IOS_MODE || !take) return;
+    ensureIOSTakeAudio();
+    if(!iosTakeAudioEl) return;
+    if(!take._wavUrl){
+        const pcm = take.pcm;
+        const sr = take.sampleRate || 44100;
+        if(!pcm || !pcm.length){
+            DEBUG.warn('preloadIOSTake: no pcm');
+            return;
+        }
+        const blob = pcmToWavBlob(pcm, sr);
+        take._wavUrl = URL.createObjectURL(blob);
+        DEBUG.info('preloadIOSTake: WAV blob built (' + blob.size + ' bytes)');
+    }
+    // Skip if already loaded into iosTakeAudioEl AND duration matches (sanity check)
+    if(take._iosLoadedUrl === take._wavUrl
+       && iosTakeAudioEl.src
+       && iosTakeAudioEl.src.indexOf(take._wavUrl) !== -1
+       && iosTakeAudioEl.readyState >= 2){
+        DEBUG.info('preloadIOSTake: already loaded, skipping');
+        return;
+    }
+    DEBUG.info('preloadIOSTake: priming src + load()');
+    iosTakeAudioEl.src = take._wavUrl;
+    await new Promise((resolve) => {
+        let done = false;
+        const onReady = () => { if(!done){ done = true; cleanup(); resolve(); } };
+        const onErr = () => { if(!done){ done = true; cleanup(); resolve(); } };
+        function cleanup(){
+            iosTakeAudioEl.removeEventListener('canplaythrough', onReady);
+            iosTakeAudioEl.removeEventListener('canplay', onReady);
+            iosTakeAudioEl.removeEventListener('loadedmetadata', onReady);
+            iosTakeAudioEl.removeEventListener('error', onErr);
+        }
+        iosTakeAudioEl.addEventListener('canplaythrough', onReady);
+        iosTakeAudioEl.addEventListener('canplay', onReady);
+        iosTakeAudioEl.addEventListener('loadedmetadata', onReady);
+        iosTakeAudioEl.addEventListener('error', onErr);
+        try { iosTakeAudioEl.load(); } catch(e){}
+        setTimeout(onReady, 3000);
+    });
+    take._iosLoadedUrl = take._wavUrl;
+    DEBUG.ok('preloadIOSTake: ready, duration=' + (iosTakeAudioEl.duration || 0).toFixed(2) + 's, readyState=' + iosTakeAudioEl.readyState);
+}
+
 function startTakePlaybackIOS(){
     if(!state.currentTake) return;
     if(iosTakeStarting){
@@ -2551,9 +2610,13 @@ function startTakePlaybackIOS(){
         state.currentTake._wavUrl = URL.createObjectURL(blob);
         DEBUG.info('iOS take: WAV blob built (' + blob.size + ' bytes)');
     }
-    if(iosTakeAudioEl.src !== state.currentTake._wavUrl){
+    if(state.currentTake._iosLoadedUrl !== state.currentTake._wavUrl
+       || iosTakeAudioEl.readyState < 2
+       || (iosTakeAudioEl.src || '').indexOf(state.currentTake._wavUrl) === -1){
+        DEBUG.info('iOS take: src not preloaded, loading now');
         iosTakeAudioEl.src = state.currentTake._wavUrl;
         iosTakeAudioEl.load();
+        state.currentTake._iosLoadedUrl = state.currentTake._wavUrl;
     }
     // Compute where in the take we should be, given current BGM time
     const songT = bgmTransport.currentTime;
@@ -2717,6 +2780,7 @@ let recCtx = null;        // kept around (we use a tiny analyser context for lev
 let recGainCtx = null;    // gain-stage AudioContext for mic gain
 let recGainNode = null;   // GainNode in the recording path
 let recGainSrc = null;    // MediaStreamSource feeding recGainNode
+let recordingTeardownAt = 0;  // timestamp when stopRecording teardown finished, used to suppress sync
 let recAudioBufferChunks = []; // (legacy / unused with MediaRecorder, kept to satisfy disposal code)
 let recCtxSampleRate = 44100;
 let recCtxStream = null;  // mic stream
@@ -2952,20 +3016,78 @@ async function stopRecording(){
     mediaRecorder = null;
     mediaRecorderChunks = [];
 
-    // Tear down level meter / mic
+    // Tear down level meter / mic.
+    // To avoid the audible "click/pop" some users report after stopRecording,
+    // we ramp gain to 0 over ~30ms before disconnecting, and stop tracks
+    // before closing AudioContexts. This gives the audio output a clean tail.
+    try {
+        if(recGainNode && recGainCtx){
+            const t0 = recGainCtx.currentTime;
+            try {
+                recGainNode.gain.cancelScheduledValues(t0);
+                recGainNode.gain.setValueAtTime(recGainNode.gain.value, t0);
+                recGainNode.gain.linearRampToValueAtTime(0.0001, t0 + 0.03);
+            } catch(_){}
+            // Wait for the ramp to finish before disconnecting
+            await new Promise(r => setTimeout(r, 40));
+        }
+    } catch(e){}
     try { if(recSrc) recSrc.disconnect(); } catch(e){}
     try { if(micAnalyser) micAnalyser.disconnect(); } catch(e){}
     try { if(recGainSrc) recGainSrc.disconnect(); } catch(e){}
     try { if(recGainNode) recGainNode.disconnect(); } catch(e){}
+    // Stop the original mic track AND any derived stream tracks.
+    // CRITICAL: recCtxStream points to gainDest.stream (the gain output), not the
+    // raw mic stream. We must stop tracks on BOTH so iOS releases all audio
+    // resources cleanly — otherwise the Audio Session can leave the device in a
+    // weird state that produces continuous popping.
     try {
         if(micStream){
-            micStream.getTracks().forEach(t => { try { t.stop(); } catch(_){} });
+            micStream.getTracks().forEach(t => {
+                try { t.stop(); } catch(_){}
+            });
         }
     } catch(e){}
+    try {
+        if(recCtxStream && recCtxStream !== micStream){
+            recCtxStream.getTracks().forEach(t => {
+                try { t.stop(); } catch(_){}
+            });
+        }
+    } catch(e){}
+    // Now close contexts in sequence (not in parallel — iOS occasionally pops
+    // when both are torn down at once).
     try { if(recCtx) await recCtx.close(); } catch(e){}
     try { if(recGainCtx) await recGainCtx.close(); } catch(e){}
     recSrc = null; micAnalyser = null; micStream = null; recCtx = null; recCtxStream = null;
     recGainCtx = null; recGainNode = null; recGainSrc = null;
+
+    // CRITICAL: Reset iosTakeAudioEl to prevent any background activity. After
+    // a recording, iOS sometimes leaves audio elements in a partial-load state
+    // that produces periodic popping. We FULLY clear it here — the next take
+    // selection or play attempt will reload via preloadIOSTake.
+    if(IOS_MODE && iosTakeAudioEl){
+        try { iosTakeAudioEl.pause(); } catch(e){}
+        // Mute as a safety net in case anything still tries to play
+        try { iosTakeAudioEl.muted = true; } catch(e){}
+        try { iosTakeAudioEl.currentTime = 0; } catch(e){}
+        // Force-clear src and reload — this halts any internal decode pipeline
+        try {
+            iosTakeAudioEl.removeAttribute('src');
+            iosTakeAudioEl.load();
+        } catch(e){}
+        // Mark all takes as needing reload (since src is now empty)
+        if(state.currentEntry && state.currentEntry.takes){
+            for(const t of state.currentEntry.takes){
+                t._iosLoadedUrl = null;
+            }
+        }
+        // Re-enable audio path; muted will be reset by applyBalance() later
+        try { iosTakeAudioEl.muted = false; } catch(e){}
+    }
+
+    // Mark teardown completion. tickUI will skip take sync for 800ms after this.
+    recordingTeardownAt = performance.now();
     DEBUG.info('stopRecording: mic + level-meter + gain stage torn down');
 
     // Decode the recorded Blob into Float32Array PCM. On iOS we don't have a
@@ -3074,6 +3196,11 @@ async function stopRecording(){
         renderBadges();
         setStatus('テイクを保存: ' + take.name, 'ok');
         DEBUG.ok('Take saved (' + take.duration.toFixed(2) + 's)');
+        // PRELOAD on iOS so that when BGM is restarted, take playback can fire
+        // instantly without the ~1.8s blob load delay.
+        if(IOS_MODE){
+            preloadIOSTake(take).catch(e => DEBUG.warn('preload after save failed: ' + e.message));
+        }
     } else {
         setStatus('録音データがありません', 'err');
     }
@@ -3099,20 +3226,12 @@ async function stopRecording(){
 
 function pumpMicLevel(){
     if(!state.isRecording){ micLevel.style.width = '0%'; return; }
-    if(!micAnalyser){ requestAnimationFrame(pumpMicLevel); return; }
+    // If the analyser was torn down (e.g. mid-stop race), stop pumping
+    if(!micAnalyser || !recCtx){ micLevel.style.width = '0%'; return; }
     const buf = new Float32Array(micAnalyser.fftSize);
     try { micAnalyser.getFloatTimeDomainData(buf); }
     catch(e){
-        // Older browsers may not have getFloatTimeDomainData
-        const u8 = new Uint8Array(micAnalyser.fftSize);
-        micAnalyser.getByteTimeDomainData(u8);
-        let max = 0;
-        for(let i = 0; i < u8.length; i++){
-            const v = Math.abs(u8[i]-128) / 128;
-            if(v > max) max = v;
-        }
-        micLevel.style.width = Math.min(100, max*100) + '%';
-        requestAnimationFrame(pumpMicLevel);
+        // Analyser was disconnected mid-frame — stop the loop
         return;
     }
     let peak = 0;
@@ -3200,6 +3319,13 @@ function renderTakes(){
             state.currentTake = t;
             renderTakes();
             renderBadges();
+            // PRELOAD on iOS: build the WAV URL and prime iosTakeAudioEl now,
+            // so that when BGM later starts and the take needs to begin, play()
+            // can fire instantly. Without this, iOS waits to load the blob and
+            // the take starts ~1.8 seconds late.
+            if(IOS_MODE){
+                preloadIOSTake(t).catch(e => DEBUG.warn('preload failed: ' + e.message));
+            }
             // If BGM is playing, start the take in sync
             if(!bgmTransport.paused && state.playMode !== 'bgm') startTakePlayback();
         });
@@ -4239,11 +4365,16 @@ function tickUI(){
     // CRITICAL: Skip while recording — the take must NOT play through speakers
     // when the user is recording, otherwise it bleeds into the mic and confuses
     // the user about what's audible.
+    // Also skip for 800ms after recording teardown — iOS audio system needs
+    // time to settle and any takeAudio activity during that window can produce
+    // continuous popping noise on headphones.
+    const sinceTeardown = recordingTeardownAt > 0 ? (performance.now() - recordingTeardownAt) : Infinity;
     if((++_takeSyncCounter % 12) === 0
         && !bgmTransport.paused
         && state.currentTake
         && state.playMode !== 'bgm'
-        && !state.isRecording){
+        && !state.isRecording
+        && sinceTeardown > 800){
         syncTakeToBgm();
     }
     requestAnimationFrame(tickUI);

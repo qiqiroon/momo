@@ -21,12 +21,15 @@
                 start() の Promise 中の重複呼び出しを抑止、ドリフト補正を緩和
        v1.15 - 録音時の Auto-Ducking 修正 (echoCancellation 等を OFF)
                 ボーカルカット済み BGM をオフライン生成 (iOS でも機能)
-                オフライン生成方式で worklet 不要 → iOS でもボーカルカット対応 -->
+                オフライン生成方式で worklet 不要 → iOS でもボーカルカット対応
+       v1.16 - ボーカルカット切替時の音切れ修正
+                switchSource 時の pause/play イベントを抑制
+                録音中の音源切替を凍結、stopRecording 直後の切替を遅延 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MOMO Karaoke v1.15 - MOMO Works</title>
+<title>MOMO Karaoke v1.16 - MOMO Works</title>
 <!-- Google Identity Services (OAuth) — used by momo_gdrive.py -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <!-- Google API client — used for Picker -->
@@ -725,7 +728,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 </g>
             </svg>
         </div>
-        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.15</span></h1>
+        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.16</span></h1>
     </header>
     <p class="header-sub" id="header-sub">ローカル音源と同名 .lrc を読み込む、こだわり派のカラオケサロン</p>
 
@@ -1150,7 +1153,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v1.15';
+const APP_VERSION = 'v1.16';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -1714,11 +1717,22 @@ function installIOSTransport(){
     let originalUrl = null;       // URL for the original audio file
     let cutUrl = null;            // URL for the vocal-cut version (null until ready)
     let currentSrcKind = 'original';  // 'original' or 'cut'
+    // When true, pause/play events fired by iosAudioEl are internal (e.g. during
+    // switchSource) and should NOT be forwarded to bgmTransport listeners.
+    let suppressTransportEvents = false;
     iosAudioEl.addEventListener('play', () => {
+        if(suppressTransportEvents){
+            DEBUG.info('iosAudioEl: play event (suppressed — internal switch)');
+            return;
+        }
         DEBUG.info('iosAudioEl: play event');
         bgmTransport._fire('play');
     });
     iosAudioEl.addEventListener('pause', () => {
+        if(suppressTransportEvents){
+            DEBUG.info('iosAudioEl: pause event (suppressed — internal switch) @ ' + iosAudioEl.currentTime.toFixed(2));
+            return;
+        }
         DEBUG.info('iosAudioEl: pause event @ ' + iosAudioEl.currentTime.toFixed(2));
         bgmTransport._fire('pause');
     });
@@ -1767,26 +1781,36 @@ function installIOSTransport(){
         const wasPlaying = !iosAudioEl.paused;
         const pos = iosAudioEl.currentTime || 0;
         DEBUG.info('iOS bgmTransport.switchSource → ' + kind + ' @ ' + pos.toFixed(2) + 's (wasPlaying=' + wasPlaying + ')');
-        try { iosAudioEl.pause(); } catch(e){}
-        iosAudioEl.src = targetUrl;
-        currentSrcKind = kind;
-        await new Promise((resolve) => {
-            let done = false;
-            const onReady = () => { if(done) return; done = true; cleanup(); resolve(); };
-            const onErr = () => { if(done) return; done = true; cleanup(); resolve(); };
-            function cleanup(){
-                iosAudioEl.removeEventListener('canplay', onReady);
-                iosAudioEl.removeEventListener('loadedmetadata', onReady);
-                iosAudioEl.removeEventListener('error', onErr);
+        // Suppress pause/play events during the swap so listeners (which would
+        // call stopTakePlayback / btnPlay UI changes) don't trigger.
+        suppressTransportEvents = true;
+        try {
+            try { iosAudioEl.pause(); } catch(e){}
+            iosAudioEl.src = targetUrl;
+            currentSrcKind = kind;
+            await new Promise((resolve) => {
+                let done = false;
+                const onReady = () => { if(done) return; done = true; cleanup(); resolve(); };
+                const onErr = () => { if(done) return; done = true; cleanup(); resolve(); };
+                function cleanup(){
+                    iosAudioEl.removeEventListener('canplay', onReady);
+                    iosAudioEl.removeEventListener('loadedmetadata', onReady);
+                    iosAudioEl.removeEventListener('error', onErr);
+                }
+                iosAudioEl.addEventListener('canplay', onReady);
+                iosAudioEl.addEventListener('loadedmetadata', onReady);
+                iosAudioEl.addEventListener('error', onErr);
+                try { iosAudioEl.load(); } catch(e){}
+            });
+            try { iosAudioEl.currentTime = pos; } catch(e){}
+            if(wasPlaying){
+                try { await iosAudioEl.play(); }
+                catch(e){ DEBUG.warn('switchSource: play resume failed: ' + e.message); }
             }
-            iosAudioEl.addEventListener('canplay', onReady);
-            iosAudioEl.addEventListener('loadedmetadata', onReady);
-            iosAudioEl.addEventListener('error', onErr);
-            try { iosAudioEl.load(); } catch(e){}
-        });
-        try { iosAudioEl.currentTime = pos; } catch(e){}
-        if(wasPlaying){
-            try { await iosAudioEl.play(); } catch(e){ DEBUG.warn('switchSource: play resume failed: ' + e.message); }
+        } finally {
+            // Small delay before re-enabling event forwarding, so any stragglers
+            // from the load process don't sneak through.
+            setTimeout(() => { suppressTransportEvents = false; }, 100);
         }
     };
 
@@ -1999,8 +2023,14 @@ function applyBgmVocalCut(){
 
     if(IOS_MODE){
         // On iOS, use the offline-generated cut WAV. Switch source on/off.
-        // (Intensity slider is informational only on iOS — generation uses 100%.
-        //  Future: regenerate at the requested intensity, but that takes ~1s.)
+        // CRITICAL: Do NOT switch source while recording — the iOS AudioSession
+        // gets confused and will mute/pause the audio. The user should set the
+        // cut state BEFORE starting to record; we honor whatever's set at that
+        // point and freeze it for the duration of the recording.
+        if(state.isRecording){
+            DEBUG.info('Vocal cut: skipping source-switch during recording (locked)');
+            return;
+        }
         if(!bgmTransport.switchSource){
             DEBUG.warn('iOS vocal cut: switchSource not available');
             return;
@@ -2649,8 +2679,21 @@ async function stopRecording(){
     btnRec.classList.remove('recording');
     btnRec.textContent = '●';
 
-    applyBgmVocalCut();
-    updateVocalCutUI();
+    // On iOS, defer the vocal-cut update — the AudioSession is in the middle of
+    // transitioning back from PlayAndRecord mode, and triggering a src change
+    // here can cause iosAudioEl to enter a bad state.
+    if(IOS_MODE){
+        updateVocalCutUI();
+        setTimeout(() => {
+            if(!state.isRecording){
+                DEBUG.info('Deferred vocal-cut apply (after recording teardown)');
+                applyBgmVocalCut();
+            }
+        }, 800);
+    } else {
+        applyBgmVocalCut();
+        updateVocalCutUI();
+    }
 
     // Stop MediaRecorder and wait for the final dataavailable + stop events
     let blob = null;

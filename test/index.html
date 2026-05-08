@@ -18,12 +18,15 @@
                 ライブラリ選択: ローカルフォルダ または Google Drive
                 Pyodide は遅延ロード
        v1.14 - iOS テイク再生のブツ切れバグ修正
-                start() の Promise 中の重複呼び出しを抑止、ドリフト補正を緩和 -->
+                start() の Promise 中の重複呼び出しを抑止、ドリフト補正を緩和
+       v1.15 - 録音時の Auto-Ducking 修正 (echoCancellation 等を OFF)
+                ボーカルカット済み BGM をオフライン生成 (iOS でも機能)
+                オフライン生成方式で worklet 不要 → iOS でもボーカルカット対応 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MOMO Karaoke v1.14 - MOMO Works</title>
+<title>MOMO Karaoke v1.15 - MOMO Works</title>
 <!-- Google Identity Services (OAuth) — used by momo_gdrive.py -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <!-- Google API client — used for Picker -->
@@ -349,6 +352,18 @@ h1 span { color: var(--orange-mid); }
     border: 1px solid var(--border);
 }
 .eq-row.ios-disabled-block { position: relative; }
+
+/* ボーカルカット生成状態のインジケータ */
+.vc-build-indicator {
+    display: inline-block;
+    margin-left: auto;
+    padding: 3px 8px;
+    font-size: 10px; font-family: monospace;
+    letter-spacing: 0.4px;
+    border-radius: 3px;
+    background: var(--surface2);
+    flex-shrink: 0;
+}
 
 /* 歌詞ビュー */
 .lyrics-view {
@@ -710,7 +725,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 </g>
             </svg>
         </div>
-        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.14</span></h1>
+        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.15</span></h1>
     </header>
     <p class="header-sub" id="header-sub">ローカル音源と同名 .lrc を読み込む、こだわり派のカラオケサロン</p>
 
@@ -1135,7 +1150,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v1.14';
+const APP_VERSION = 'v1.15';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -1696,6 +1711,9 @@ function installIOSTransport(){
     document.body.appendChild(iosAudioEl);
 
     let lastObjectUrl = null;
+    let originalUrl = null;       // URL for the original audio file
+    let cutUrl = null;            // URL for the vocal-cut version (null until ready)
+    let currentSrcKind = 'original';  // 'original' or 'cut'
     iosAudioEl.addEventListener('play', () => {
         DEBUG.info('iosAudioEl: play event');
         bgmTransport._fire('play');
@@ -1716,8 +1734,6 @@ function installIOSTransport(){
     });
 
     // Override bgmTransport methods to use the audio element.
-    // NOTE: Object.assign would invoke the source object's getters at copy
-    // time, so we use defineProperty to install proper getters.
     Object.defineProperty(bgmTransport, 'duration', {
         configurable: true, get(){ return iosAudioEl.duration || 0; }
     });
@@ -1734,12 +1750,61 @@ function installIOSTransport(){
         get(){ return iosAudioEl.playbackRate || 1.0; },
         set(r){ try { iosAudioEl.playbackRate = r; iosAudioEl.preservesPitch = true; } catch(e){} }
     });
+
+    /**
+     * Switch the audio element between the original BGM and the offline-generated
+     * vocal-cut version. Preserves the current playback position (and play/pause
+     * state). Used when the user toggles vocal cut on/off.
+     */
+    bgmTransport.switchSource = async function(kind){
+        if(kind !== 'original' && kind !== 'cut') return;
+        if(currentSrcKind === kind) return;
+        const targetUrl = (kind === 'cut') ? cutUrl : originalUrl;
+        if(!targetUrl){
+            DEBUG.warn('switchSource: ' + kind + ' URL not ready');
+            return;
+        }
+        const wasPlaying = !iosAudioEl.paused;
+        const pos = iosAudioEl.currentTime || 0;
+        DEBUG.info('iOS bgmTransport.switchSource → ' + kind + ' @ ' + pos.toFixed(2) + 's (wasPlaying=' + wasPlaying + ')');
+        try { iosAudioEl.pause(); } catch(e){}
+        iosAudioEl.src = targetUrl;
+        currentSrcKind = kind;
+        await new Promise((resolve) => {
+            let done = false;
+            const onReady = () => { if(done) return; done = true; cleanup(); resolve(); };
+            const onErr = () => { if(done) return; done = true; cleanup(); resolve(); };
+            function cleanup(){
+                iosAudioEl.removeEventListener('canplay', onReady);
+                iosAudioEl.removeEventListener('loadedmetadata', onReady);
+                iosAudioEl.removeEventListener('error', onErr);
+            }
+            iosAudioEl.addEventListener('canplay', onReady);
+            iosAudioEl.addEventListener('loadedmetadata', onReady);
+            iosAudioEl.addEventListener('error', onErr);
+            try { iosAudioEl.load(); } catch(e){}
+        });
+        try { iosAudioEl.currentTime = pos; } catch(e){}
+        if(wasPlaying){
+            try { await iosAudioEl.play(); } catch(e){ DEBUG.warn('switchSource: play resume failed: ' + e.message); }
+        }
+    };
+
+    bgmTransport.setCutUrl = function(url){
+        cutUrl = url || null;
+        DEBUG.info('iOS bgmTransport.setCutUrl: ' + (url ? 'cut version available' : 'cleared'));
+    };
+    bgmTransport.getCurrentSrcKind = function(){ return currentSrcKind; };
+
     bgmTransport.loadFile = async function(file){
         DEBUG.info('iOS bgmTransport.loadFile: ' + file.name + ' (' + file.size + ' bytes)');
         if(lastObjectUrl){
             try { URL.revokeObjectURL(lastObjectUrl); } catch(e){}
         }
         lastObjectUrl = URL.createObjectURL(file);
+        originalUrl = lastObjectUrl;
+        cutUrl = null;
+        currentSrcKind = 'original';
         iosAudioEl.src = lastObjectUrl;
         await new Promise((resolve, reject) => {
             let done = false;
@@ -1923,7 +1988,6 @@ function applyBgmPitch(){
  * UI 側では「今どちらが効いているか」をハイライトする。
  */
 function applyBgmVocalCut(){
-    if(!bgmShifter) return;
     const recording = state.isRecording;
     const enabled = recording ? vcRecord.checked : vcPlayback.checked;
     let intensity = 0;
@@ -1931,10 +1995,34 @@ function applyBgmVocalCut(){
         const lvlEl = recording ? document.getElementById('vcRecordLevel') : document.getElementById('vcPlaybackLevel');
         intensity = lvlEl ? Math.max(0, Math.min(100, parseFloat(lvlEl.value))) / 100 : 1.0;
     }
-    try {
-        bgmShifter.parameters.get('vocalCut').setValueAtTime(intensity, audioCtx.currentTime);
-    } catch(e){ /* noop */ }
     DEBUG.info('Vocal cut: ' + (enabled ? 'ON @ ' + Math.round(intensity*100) + '%' : 'OFF') + ' (' + (recording?'rec':'pb') + ')');
+
+    if(IOS_MODE){
+        // On iOS, use the offline-generated cut WAV. Switch source on/off.
+        // (Intensity slider is informational only on iOS — generation uses 100%.
+        //  Future: regenerate at the requested intensity, but that takes ~1s.)
+        if(!bgmTransport.switchSource){
+            DEBUG.warn('iOS vocal cut: switchSource not available');
+            return;
+        }
+        const entry = state.currentEntry;
+        if(enabled && intensity > 0.05){
+            if(entry && entry._cutWavUrl){
+                bgmTransport.setCutUrl(entry._cutWavUrl);
+                bgmTransport.switchSource('cut').catch(e => DEBUG.warn('switch to cut failed: ' + e.message));
+            } else {
+                DEBUG.warn('iOS vocal cut: cut version not yet ready (entry._cutWavUrl is null)');
+            }
+        } else {
+            bgmTransport.switchSource('original').catch(e => DEBUG.warn('switch to original failed: ' + e.message));
+        }
+    } else {
+        // Non-iOS: use the worklet's continuous-intensity vocalCut parameter
+        if(!bgmShifter) return;
+        try {
+            bgmShifter.parameters.get('vocalCut').setValueAtTime(intensity, audioCtx.currentTime);
+        } catch(e){ /* noop */ }
+    }
 }
 
 /**
@@ -1952,6 +2040,37 @@ function updateVocalCutUI(){
         } else {
             vocalCutStateTag.textContent = '▶ PLAYBACK';
             vocalCutStateTag.className = 'panel-tag playing';
+        }
+    }
+    // Show cut-version build status
+    const entry = state.currentEntry;
+    const tag = document.querySelectorAll('#vocalCutStateTag, .vocal-cut-status');
+    if(IOS_MODE && entry){
+        // Add or update a small status near the vocal-cut UI
+        const statusEls = [
+            document.getElementById('vcRecordRow'),
+            document.getElementById('vcPlaybackRow')
+        ];
+        for(const row of statusEls){
+            if(!row) continue;
+            let ind = row.querySelector('.vc-build-indicator');
+            if(!ind){
+                ind = document.createElement('span');
+                ind.className = 'vc-build-indicator';
+                row.appendChild(ind);
+            }
+            if(entry._cutBuilding){
+                ind.textContent = '⏳ 生成中…';
+                ind.style.color = 'var(--orange-light)';
+            } else if(entry._cutWavUrl){
+                ind.textContent = '✓ 準備完了';
+                ind.style.color = 'var(--green)';
+            } else if(entry._cutFailed){
+                ind.textContent = '× 生成失敗';
+                ind.style.color = 'var(--rec-red)';
+            } else {
+                ind.textContent = '';
+            }
         }
     }
 }
@@ -2026,6 +2145,96 @@ function pcmToWavBlob(pcm, sampleRate){
         off += 2;
     }
     return new Blob([buf], { type:'audio/wav' });
+}
+
+/**
+ * Stereo Float32 (interleaved L/R) → 16-bit PCM WAV Blob.
+ * Used for the offline-generated vocal-cut version of BGM on iOS.
+ */
+function stereoPcmToWavBlob(left, right, sampleRate){
+    const len = left.length;
+    const buf = new ArrayBuffer(44 + len * 4);  // 2 channels × 2 bytes/sample
+    const view = new DataView(buf);
+    function writeStr(off, s){ for(let i=0;i<s.length;i++) view.setUint8(off+i, s.charCodeAt(i)); }
+    writeStr(0, 'RIFF');
+    view.setUint32(4, 36 + len*4, true);
+    writeStr(8, 'WAVE');
+    writeStr(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);                  // PCM
+    view.setUint16(22, 2, true);                  // 2 channels
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 4, true);     // byte rate (stereo)
+    view.setUint16(32, 4, true);                  // block align
+    view.setUint16(34, 16, true);                 // bits/sample
+    writeStr(36, 'data');
+    view.setUint32(40, len*4, true);
+    let off = 44;
+    for(let i = 0; i < len; i++){
+        const sL = Math.max(-1, Math.min(1, left[i]));
+        const sR = Math.max(-1, Math.min(1, right[i]));
+        view.setInt16(off,   sL < 0 ? sL*0x8000 : sL*0x7FFF, true); off += 2;
+        view.setInt16(off, sR < 0 ? sR*0x8000 : sR*0x7FFF, true); off += 2;
+    }
+    return new Blob([buf], { type:'audio/wav' });
+}
+
+/**
+ * Generate a "vocal-cut" version of the loaded BGM audio offline.
+ *
+ * Mid/Side technique: vocals are typically panned to the center, so they appear
+ * equally in L and R channels (Mid). Subtracting them leaves only the Side
+ * (instruments panned left/right). The classic karaoke vocal-removal trick.
+ *
+ * Implementation: ChannelSplitter → invert R via gain(-1) → ChannelMerger
+ * (L + (-R) goes to both output channels). All native nodes — no AudioWorklet
+ * needed, so this works on iOS.
+ *
+ * @param {ArrayBuffer} arrayBuffer  Original BGM file bytes
+ * @param {number} intensity  0..1 (0=original, 1=full cut). Default 1.
+ * @returns {Promise<{left: Float32Array, right: Float32Array, sampleRate: number}>}
+ */
+async function generateVocalCutPcm(arrayBuffer, intensity = 1.0){
+    const ACtor = window.AudioContext || window.webkitAudioContext;
+    // Use a temp online context just for decoding
+    const tmpCtx = new ACtor();
+    const decoded = await new Promise((res, rej) => {
+        try {
+            const p = tmpCtx.decodeAudioData(arrayBuffer.slice(0), res, rej);
+            if(p && typeof p.then === 'function') p.then(res, rej);
+        } catch(e){ rej(e); }
+    });
+    DEBUG.info('vocalCut decode: ' + decoded.duration.toFixed(2) + 's, '
+               + decoded.numberOfChannels + 'ch, ' + decoded.sampleRate + 'Hz');
+
+    const sr = decoded.sampleRate;
+    const numCh = decoded.numberOfChannels;
+    const len = decoded.length;
+    const L = decoded.getChannelData(0);
+    const R = numCh >= 2 ? decoded.getChannelData(1) : decoded.getChannelData(0);
+
+    // Direct Mid/Side calculation in JavaScript (faster than OfflineAudioContext
+    // for simple linear ops, and avoids any AudioContext quirks on iOS).
+    //   mid  = (L + R) / 2          (vocals + center-panned content)
+    //   side = (L - R) / 2          (instruments panned to sides)
+    //   out_L = L*(1-cut) + side*cut * 2  (preserve perceived loudness when full cut)
+    //   out_R = R*(1-cut) - side*cut * 2  (negative side for proper stereo image)
+    // Simpler classic version: out = L - R  (symmetric, sums to mono if downmixed)
+    //
+    // We use a hybrid: at intensity=1, output is pure side*2 (instruments). At
+    // intensity=0, output is original. Linear blend.
+    const inv = 1.0 - intensity;
+    const outL = new Float32Array(len);
+    const outR = new Float32Array(len);
+    for(let i = 0; i < len; i++){
+        const sL = L[i];
+        const sR = R[i];
+        const side = (sL - sR) * 0.5;
+        outL[i] = sL * inv + side * intensity * 2.0;
+        outR[i] = sR * inv - side * intensity * 2.0;
+    }
+    try { tmpCtx.close(); } catch(e){}
+    return { left: outL, right: outR, sampleRate: sr };
 }
 
 function stopTakePlayback(){
@@ -2330,11 +2539,16 @@ async function startRecording(){
     let stream;
     const t0 = performance.now();
     try {
+        // IMPORTANT: All processing flags OFF.
+        // - echoCancellation:true causes iOS to enter "voice chat" AudioSession mode
+        //   which enables Auto-Ducking (BGM dips when you sing) and degrades quality.
+        // - noiseSuppression and autoGainControl can also cut/boost vocals unpredictably.
+        // Pure raw mic input is what we want for karaoke recording.
         stream = await navigator.mediaDevices.getUserMedia({
             audio: {
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false
             },
             video: false
         });
@@ -2804,6 +3018,42 @@ async function selectEntry(entry){
 
     // switch to karaoke tab (default after song selection)
     switchTab('karaoke');
+
+    // ─── Background: generate vocal-cut version of BGM ─────────────────────
+    // This runs after the song is playable. The user can switch to "vocal cut
+    // ON" once it's ready (a status badge will indicate readiness).
+    generateVocalCutForEntry(entry).catch(e => {
+        DEBUG.warn('Vocal cut generation failed: ' + e.message);
+    });
+}
+
+/**
+ * Generate a vocal-cut WAV for the given entry in the background, then store
+ * the resulting Blob URL on the entry. While generating, sets entry._cutBuilding=true.
+ */
+async function generateVocalCutForEntry(entry){
+    if(!entry || !entry.audioFile) return;
+    if(entry._cutWavUrl || entry._cutBuilding) return;
+    entry._cutBuilding = true;
+    updateVocalCutUI();
+    DEBUG.info('VocalCut: generating offline version of ' + entry.audioFile.name + '...');
+    setStatus('ボーカルカット版を生成中…', 'warn');
+    try {
+        const arrBuf = await entry.audioFile.arrayBuffer();
+        const t0 = performance.now();
+        const { left, right, sampleRate } = await generateVocalCutPcm(arrBuf, 1.0);
+        DEBUG.ok('VocalCut: PCM generated in ' + (performance.now() - t0).toFixed(0) + 'ms (' + (left.length / sampleRate).toFixed(2) + 's)');
+        const blob = stereoPcmToWavBlob(left, right, sampleRate);
+        entry._cutWavUrl = URL.createObjectURL(blob);
+        DEBUG.ok('VocalCut: WAV blob built (' + blob.size + ' bytes), URL=' + entry._cutWavUrl);
+        setStatus('ボーカルカット版の準備完了', 'ok');
+    } catch(e){
+        DEBUG.err('VocalCut generation failed: ' + e.message);
+        entry._cutFailed = true;
+    } finally {
+        entry._cutBuilding = false;
+        updateVocalCutUI();
+    }
 }
 
 // ============== LIBRARY (folder picker + tree) ==============
@@ -4060,14 +4310,15 @@ balanceSlider.addEventListener('input', applyBalance);
         // On iOS, BGM and takes are played through <audio> elements (not through
         // the AudioWorklet chain), so:
         //   - playbackRate / volume / mute      ← supported via <audio> properties
-        //   - pitch shift / EQ / echo / vocal cut ← need WebAudio chain, NOT supported
+        //   - vocal cut                          ← supported via offline-generated cut WAV (since v1.15)
+        //   - pitch shift / EQ / echo            ← need WebAudio chain, NOT supported
         const disableInfo = [
             { id:'pitchSlider', wrap:'.ctrl' },
             { id:'echoSlider',  wrap:'.ctrl' },
             { id:'bgmEqLo', wrap:'.eq-band' },{ id:'bgmEqMd', wrap:'.eq-band' },{ id:'bgmEqHi', wrap:'.eq-band' },
             { id:'voxEqLo', wrap:'.eq-band' },{ id:'voxEqMd', wrap:'.eq-band' },{ id:'voxEqHi', wrap:'.eq-band' },
-            { id:'vcRecord', wrap:'label.toggle-row' },
-            { id:'vcPlayback', wrap:'label.toggle-row' },
+            // vcRecord / vcPlayback are now ENABLED on iOS (use offline-cut WAV)
+            // vcRecordLevel / vcPlaybackLevel intensity is still informational on iOS (full cut only)
             { id:'vcRecordLevel', wrap:'.ctrl' },
             { id:'vcPlaybackLevel', wrap:'.ctrl' },
         ];
@@ -4081,7 +4332,7 @@ balanceSlider.addEventListener('input', applyBalance);
                 }
             }
         }
-        DEBUG.info('iOS: pitch / EQ / echo / vocal-cut disabled (WebAudio chain unavailable). speed/volume still work.');
+        DEBUG.info('iOS: pitch / EQ / echo disabled. speed / volume / vocal-cut now work.');
     }
 
     // Decide library mode based on capability

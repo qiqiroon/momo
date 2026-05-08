@@ -36,12 +36,16 @@
        v1.20 - 音量設計を根本見直し: 3レイヤー構造に
                 (1) MIC GAIN スライダ + テスト機能 (録音前のレベル合わせ)
                 (2) LUFS 統合ラウドネス正規化 (-16 LUFS、瞬間音耐性あり)
-                (3) iOS でヘッドホン推奨表示 (PlayAndRecord 仕様の音量低下回避) -->
+                (3) iOS でヘッドホン推奨表示 (PlayAndRecord 仕様の音量低下回避)
+       v1.21 - 録音開始時にテイク再生を確実に停止
+                録音中の syncTakeToBgm を止める (テイクが意図せず再生される問題)
+                ドリフト補正を「ハードリセット主体」に変更 (rate補正は逆効果と判明)
+                play() abort 時の re-entry 防止強化 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MOMO Karaoke v1.20 - MOMO Works</title>
+<title>MOMO Karaoke v1.21 - MOMO Works</title>
 <!-- Google Identity Services (OAuth) — used by momo_gdrive.py -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <!-- Google API client — used for Picker -->
@@ -776,7 +780,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 </g>
             </svg>
         </div>
-        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.20</span></h1>
+        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.21</span></h1>
     </header>
     <p class="header-sub" id="header-sub">ローカル音源と同名 .lrc を読み込む、こだわり派のカラオケサロン</p>
 
@@ -1212,7 +1216,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v1.20';
+const APP_VERSION = 'v1.21';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2580,8 +2584,10 @@ function startTakePlaybackIOS(){
             iosTakeStarting = false;
             DEBUG.ok('iOS take: play() resolved, now playing');
         }).catch(e => {
-            iosTakeStarting = false;
             DEBUG.err('iOS take play failed: ' + e.message);
+            // Hold the starting flag for an extra 500ms after a failed play
+            // so the sync loop doesn't immediately try again and thrash.
+            setTimeout(() => { iosTakeStarting = false; }, 500);
         });
     } else {
         iosTakeStarting = false;
@@ -2743,6 +2749,14 @@ async function startRecording(){
     }
     DEBUG.info('  audioCtx.state BEFORE:', audioCtx ? audioCtx.state : 'no ctx');
     DEBUG.info('  bgmTransport.paused:', bgmTransport.paused, '· duration:', bgmTransport.duration.toFixed(2) + 's');
+
+    // CRITICAL: Stop any take playback before recording. If a previously-recorded
+    // take is playing (from a prior playback session), we must not let it continue
+    // — it would feed into the mic and contaminate the new recording, and confuse
+    // the user about what is playing.
+    DEBUG.info('startRecording: stopping any active take playback');
+    stopTakePlayback();
+    stopPreviewTake();
 
     // Optimistically claim "recording" to prevent double-press; revert on failure
     state.isRecording = true;
@@ -4221,8 +4235,15 @@ function tickUI(){
             refreshTakeNowPlayingUI();
         }
     }
-    // Sync take playback to BGM position (~5 times per second, every 12 frames)
-    if((++_takeSyncCounter % 12) === 0 && !bgmTransport.paused && state.currentTake && state.playMode !== 'bgm'){
+    // Sync take playback to BGM position (~5 times per second, every 12 frames).
+    // CRITICAL: Skip while recording — the take must NOT play through speakers
+    // when the user is recording, otherwise it bleeds into the mic and confuses
+    // the user about what's audible.
+    if((++_takeSyncCounter % 12) === 0
+        && !bgmTransport.paused
+        && state.currentTake
+        && state.playMode !== 'bgm'
+        && !state.isRecording){
         syncTakeToBgm();
     }
     requestAnimationFrame(tickUI);
@@ -4273,10 +4294,13 @@ function syncTakeToBgm(){
         const sinceStart = performance.now() - iosTakeStartedAt;
         if(sinceStart < 2000) return;
 
-        // Drift correction with calm thresholds:
-        //   |error| > 1.0s : hard resync via currentTime (rare, only big jumps)
-        //   0.30s < |error| <= 1.0s : adjust playbackRate (max once per 2s)
-        //   |error| <= 0.30s : leave alone (small drift is inaudible)
+        // Drift correction strategy on iOS:
+        // We previously tried adjusting playbackRate for "soft" correction, but
+        // iOS's <audio>.playbackRate has high latency and produces audible
+        // pitch artifacts even with preservesPitch=true. Hard resync via
+        // currentTime is actually less audible at small magnitudes.
+        //   |error| > 0.30s : hard resync via currentTime (rate-limited to 1/3s)
+        //   |error| <= 0.30s : leave alone
         const takeSp = state.currentTake.speed || 1.0;
         const bgmRate = bgmTransport.playbackRate || 1.0;
         const nominalRate = bgmRate / takeSp;
@@ -4285,26 +4309,19 @@ function syncTakeToBgm(){
         const error = expected - actual;
         const absErr = Math.abs(error);
         const now = performance.now();
-        if(absErr > 1.0){
-            DEBUG.warn('iOS take HARD resync: err=' + error.toFixed(3) + 's');
+        if(absErr > 0.30 && (now - iosTakeLastRateAdjust) > 3000){
+            DEBUG.info('iOS take resync: err=' + error.toFixed(3) + 's, expected=' + expected.toFixed(2));
             try { iosTakeAudioEl.currentTime = expected; } catch(e){}
-            try { iosTakeAudioEl.playbackRate = nominalRate; iosTakeAudioEl.preservesPitch = true; } catch(e){}
-            iosTakeLastRateAdjust = now;
-        } else if(absErr > 0.30 && (now - iosTakeLastRateAdjust) > 2000){
-            const rateAdj = nominalRate * (1.0 + Math.max(-0.03, Math.min(0.03, error * 0.3)));
-            DEBUG.info('iOS take soft adjust rate=' + rateAdj.toFixed(3) + ' (err=' + error.toFixed(2) + ')');
-            try { iosTakeAudioEl.playbackRate = rateAdj; iosTakeAudioEl.preservesPitch = true; } catch(e){}
-            iosTakeLastRateAdjust = now;
-        } else if(absErr <= 0.10 && (now - iosTakeLastRateAdjust) > 4000){
+            // Make sure rate is at nominal in case prior code tampered with it
             try {
-                if(Math.abs(iosTakeAudioEl.playbackRate - nominalRate) > 0.005){
+                if(Math.abs(iosTakeAudioEl.playbackRate - nominalRate) > 0.01){
                     iosTakeAudioEl.playbackRate = nominalRate;
                     iosTakeAudioEl.preservesPitch = true;
-                    iosTakeLastRateAdjust = now;
                 }
             } catch(e){}
+            iosTakeLastRateAdjust = now;
         }
-        // else: small drift, keep current rate
+        // else: small drift, ignore
     } else {
         // Non-iOS: AudioBufferSourceNode is sample-accurate, so drift is rare.
         const takeSp = state.currentTake.speed || 1.0;

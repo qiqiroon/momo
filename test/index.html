@@ -24,12 +24,15 @@
                 オフライン生成方式で worklet 不要 → iOS でもボーカルカット対応
        v1.16 - ボーカルカット切替時の音切れ修正
                 switchSource 時の pause/play イベントを抑制
-                録音中の音源切替を凍結、stopRecording 直後の切替を遅延 -->
+                録音中の音源切替を凍結、stopRecording 直後の切替を遅延
+       v1.17 - iOS でチェックボックスが反応しないバグ修正 (audioCtx 不要に)
+                テイク再生のドリフト補正を緩和 (settle period 2秒、判定値を緩和)
+                「音声を復旧」ボタンを通常時は隠す (録音停止後15秒のみ表示) -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MOMO Karaoke v1.16 - MOMO Works</title>
+<title>MOMO Karaoke v1.17 - MOMO Works</title>
 <!-- Google Identity Services (OAuth) — used by momo_gdrive.py -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <!-- Google API client — used for Picker -->
@@ -728,7 +731,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 </g>
             </svg>
         </div>
-        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.16</span></h1>
+        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.17</span></h1>
     </header>
     <p class="header-sub" id="header-sub">ローカル音源と同名 .lrc を読み込む、こだわり派のカラオケサロン</p>
 
@@ -1153,7 +1156,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v1.16';
+const APP_VERSION = 'v1.17';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2345,6 +2348,7 @@ function startTakePlayback(){
 // Guard against re-entry while iosTakeAudioEl.play() is still pending.
 let iosTakeStarting = false;
 let iosTakeLastRateAdjust = 0;  // timestamp (ms) of last playbackRate change
+let iosTakeStartedAt = 0;       // timestamp when last playback began (for settle period)
 
 function startTakePlaybackIOS(){
     if(!state.currentTake) return;
@@ -2390,6 +2394,8 @@ function startTakePlaybackIOS(){
     }
     DEBUG.info('iOS take: starting playback @ local ' + takeLocalT.toFixed(2) + 's');
     iosTakeStarting = true;
+    iosTakeStartedAt = performance.now();
+    iosTakeLastRateAdjust = performance.now();  // suppress immediate rate adjustments
     try { iosTakeAudioEl.currentTime = takeLocalT; } catch(e){}
     const p = iosTakeAudioEl.play();
     if(p && p.then){
@@ -2812,6 +2818,9 @@ async function stopRecording(){
         DEBUG.ok('iOS: AudioContext rebuilt.');
     } else if(IS_IOS){
         DEBUG.info('iOS mode: BGM uses HTMLAudioElement, no rebuild needed');
+        // Reveal the rescue button briefly in case the user actually does
+        // experience audio loss after this recording.
+        if(typeof showRescueButtonBriefly === 'function') showRescueButtonBriefly();
     }
 }
 
@@ -3973,10 +3982,16 @@ function syncTakeToBgm(){
             startTakePlaybackIOS();
             return;
         }
+        // Settle period: for the first 2 seconds after take starts, skip ALL drift
+        // correction. iOS's audio element state is unstable just after play()
+        // resolves and currentTime can return wildly varying values.
+        const sinceStart = performance.now() - iosTakeStartedAt;
+        if(sinceStart < 2000) return;
+
         // Drift correction with calm thresholds:
-        //   |error| > 0.7s : hard resync via currentTime
-        //   0.20s < |error| <= 0.7s : adjust playbackRate (max once per 1.5s)
-        //   |error| <= 0.20s : leave alone (small drift is inaudible)
+        //   |error| > 1.0s : hard resync via currentTime (rare, only big jumps)
+        //   0.30s < |error| <= 1.0s : adjust playbackRate (max once per 2s)
+        //   |error| <= 0.30s : leave alone (small drift is inaudible)
         const takeSp = state.currentTake.speed || 1.0;
         const bgmRate = bgmTransport.playbackRate || 1.0;
         const nominalRate = bgmRate / takeSp;
@@ -3985,19 +4000,17 @@ function syncTakeToBgm(){
         const error = expected - actual;
         const absErr = Math.abs(error);
         const now = performance.now();
-        if(absErr > 0.7){
+        if(absErr > 1.0){
             DEBUG.warn('iOS take HARD resync: err=' + error.toFixed(3) + 's');
             try { iosTakeAudioEl.currentTime = expected; } catch(e){}
             try { iosTakeAudioEl.playbackRate = nominalRate; iosTakeAudioEl.preservesPitch = true; } catch(e){}
             iosTakeLastRateAdjust = now;
-        } else if(absErr > 0.20 && (now - iosTakeLastRateAdjust) > 1500){
-            // Soft correction: small rate offset toward catching up
+        } else if(absErr > 0.30 && (now - iosTakeLastRateAdjust) > 2000){
             const rateAdj = nominalRate * (1.0 + Math.max(-0.03, Math.min(0.03, error * 0.3)));
             DEBUG.info('iOS take soft adjust rate=' + rateAdj.toFixed(3) + ' (err=' + error.toFixed(2) + ')');
             try { iosTakeAudioEl.playbackRate = rateAdj; iosTakeAudioEl.preservesPitch = true; } catch(e){}
             iosTakeLastRateAdjust = now;
-        } else if(absErr <= 0.05 && (now - iosTakeLastRateAdjust) > 3000){
-            // Restore nominal rate after we've been in sync for a while
+        } else if(absErr <= 0.10 && (now - iosTakeLastRateAdjust) > 4000){
             try {
                 if(Math.abs(iosTakeAudioEl.playbackRate - nominalRate) > 0.005){
                     iosTakeAudioEl.playbackRate = nominalRate;
@@ -4109,10 +4122,21 @@ if(btnAudioRescue){
 }
 const audioRescueRow = $('audioRescueRow');
 const iosNotice = $('iosNotice');
-// Always show rescue row & iOS notice on iOS so user can recover manually if auto-rebuild fails
+// On iOS, show iOS notice always but keep rescue row hidden by default.
+// It is only revealed for ~10 seconds after a recording stops (when the rare
+// audio-silenced-after-recording bug might occur). This prevents users from
+// confusing it with vocal-cut toggling.
 if(IS_IOS){
-    if(audioRescueRow) audioRescueRow.classList.remove('hidden');
     if(iosNotice) iosNotice.classList.add('show');
+    // audioRescueRow stays hidden by default
+}
+// Helper to briefly reveal rescue UI after recording
+function showRescueButtonBriefly(){
+    if(!IS_IOS || !audioRescueRow) return;
+    audioRescueRow.classList.remove('hidden');
+    setTimeout(() => {
+        if(audioRescueRow) audioRescueRow.classList.add('hidden');
+    }, 15000);
 }
 
 speedSlider.addEventListener('input', () => {
@@ -4178,10 +4202,18 @@ echoSlider.addEventListener('input', () => {
 });
 
 vcRecord.addEventListener('change', () => {
-    if(audioCtx && state.isRecording) applyBgmVocalCut();
+    DEBUG.info('vcRecord changed → ' + (vcRecord.checked ? 'ON' : 'OFF'));
+    // On iOS, applyBgmVocalCut works without audioCtx (uses HTMLAudio source switch).
+    // On other platforms, audioCtx must exist before the worklet param can be set.
+    if(state.isRecording){
+        if(IOS_MODE || audioCtx) applyBgmVocalCut();
+    }
 });
 vcPlayback.addEventListener('change', () => {
-    if(audioCtx && !state.isRecording) applyBgmVocalCut();
+    DEBUG.info('vcPlayback changed → ' + (vcPlayback.checked ? 'ON' : 'OFF'));
+    if(!state.isRecording){
+        if(IOS_MODE || audioCtx) applyBgmVocalCut();
+    }
 });
 
 // Vocal-cut intensity sliders
@@ -4190,7 +4222,7 @@ const vcRecordLevelVal = document.getElementById('vcRecordLevelVal');
 if(vcRecordLevel){
     vcRecordLevel.addEventListener('input', () => {
         if(vcRecordLevelVal) vcRecordLevelVal.textContent = vcRecordLevel.value + '%';
-        if(audioCtx && state.isRecording && vcRecord.checked) applyBgmVocalCut();
+        if(state.isRecording && vcRecord.checked && (IOS_MODE || audioCtx)) applyBgmVocalCut();
     });
 }
 const vcPlaybackLevel = document.getElementById('vcPlaybackLevel');
@@ -4198,7 +4230,7 @@ const vcPlaybackLevelVal = document.getElementById('vcPlaybackLevelVal');
 if(vcPlaybackLevel){
     vcPlaybackLevel.addEventListener('input', () => {
         if(vcPlaybackLevelVal) vcPlaybackLevelVal.textContent = vcPlaybackLevel.value + '%';
-        if(audioCtx && !state.isRecording && vcPlayback.checked) applyBgmVocalCut();
+        if(!state.isRecording && vcPlayback.checked && (IOS_MODE || audioCtx)) applyBgmVocalCut();
     });
 }
 

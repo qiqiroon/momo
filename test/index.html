@@ -27,12 +27,15 @@
                 録音中の音源切替を凍結、stopRecording 直後の切替を遅延
        v1.17 - iOS でチェックボックスが反応しないバグ修正 (audioCtx 不要に)
                 テイク再生のドリフト補正を緩和 (settle period 2秒、判定値を緩和)
-                「音声を復旧」ボタンを通常時は隠す (録音停止後15秒のみ表示) -->
+                「音声を復旧」ボタンを通常時は隠す (録音停止後15秒のみ表示)
+       v1.18 - ボーカルカットを 1 つの設定に統合
+                カラオケタブ・ミックスタブ両方に同期したトグルを配置
+                どちらの画面でも ON/OFF できる -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MOMO Karaoke v1.17 - MOMO Works</title>
+<title>MOMO Karaoke v1.18 - MOMO Works</title>
 <!-- Google Identity Services (OAuth) — used by momo_gdrive.py -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <!-- Google API client — used for Picker -->
@@ -731,7 +734,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 </g>
             </svg>
         </div>
-        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.17</span></h1>
+        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.18</span></h1>
     </header>
     <p class="header-sub" id="header-sub">ローカル音源と同名 .lrc を読み込む、こだわり派のカラオケサロン</p>
 
@@ -870,18 +873,18 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             </div>
         </div>
 
-        <!-- 録音時のボーカルカット -->
+        <!-- ボーカルカット（録音時・再生時 共通） -->
         <div class="karaoke-panel">
             <div class="panel-head">
-                <div class="panel-title">Vocal Cut (録音時)</div>
+                <div class="panel-title">Vocal Cut</div>
                 <div class="panel-tag" id="vocalCutStateTag">— READY</div>
             </div>
-            <p class="panel-desc">BGMからボーカル成分を除去します。歌う時のガイドだけにしたい場合に使います。</p>
+            <p class="panel-desc">BGMからボーカル成分を除去します。録音中・再生中どちらにも適用されます。</p>
             <label class="toggle-row vc-toggle" id="vcRecordRow">
                 <input type="checkbox" id="vcRecord">
                 <span>
-                    <span class="vc-name">録音時にカット</span>
-                    <span class="vc-sub">録音中、ガイド用BGMからボーカルを除去</span>
+                    <span class="vc-name">ボーカルカット ON</span>
+                    <span class="vc-sub">BGMから歌声成分を除去（カラオケ・ミックス共通）</span>
                 </span>
             </label>
             <div class="ctrl" id="vcRecordLevelWrap">
@@ -956,18 +959,18 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             </div>
         </div>
 
-        <!-- 再生時のボーカルカット -->
+        <!-- ボーカルカット（録音時・再生時 共通、カラオケタブと同期） -->
         <div class="karaoke-panel">
             <div class="panel-head">
-                <div class="panel-title">Vocal Cut (再生時)</div>
-                <div class="panel-tag">PLAYBACK</div>
+                <div class="panel-title">Vocal Cut</div>
+                <div class="panel-tag">SHARED</div>
             </div>
-            <p class="panel-desc">テイクを聴く時、BGMのボーカルを除去すると自分の歌が際立ちます。</p>
+            <p class="panel-desc">BGMからボーカル成分を除去します。カラオケタブと連動しています。</p>
             <label class="toggle-row vc-toggle" id="vcPlaybackRow">
-                <input type="checkbox" id="vcPlayback" checked>
+                <input type="checkbox" id="vcPlayback">
                 <span>
-                    <span class="vc-name">再生時にカット</span>
-                    <span class="vc-sub">テイクと BGM を一緒に聴く時、BGMのボーカルを除去</span>
+                    <span class="vc-name">ボーカルカット ON</span>
+                    <span class="vc-sub">BGMから歌声成分を除去</span>
                 </span>
             </label>
             <div class="ctrl" id="vcPlaybackLevelWrap">
@@ -1156,7 +1159,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v1.17';
+const APP_VERSION = 'v1.18';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2014,22 +2017,22 @@ function applyBgmPitch(){
  *   - それ以外(再生中/停止中)なら vcPlayback の状態
  * UI 側では「今どちらが効いているか」をハイライトする。
  */
+/**
+ * ボーカルカットは1つの設定で動作する（録音時・再生時とも同じ）。
+ * UI 上は2か所（カラオケタブ / ミックスタブ）にあるが、状態は同期している。
+ * vcRecord を「マスター」として扱い、vcPlayback はそれにミラーする。
+ */
 function applyBgmVocalCut(){
-    const recording = state.isRecording;
-    const enabled = recording ? vcRecord.checked : vcPlayback.checked;
-    let intensity = 0;
-    if(enabled){
-        const lvlEl = recording ? document.getElementById('vcRecordLevel') : document.getElementById('vcPlaybackLevel');
-        intensity = lvlEl ? Math.max(0, Math.min(100, parseFloat(lvlEl.value))) / 100 : 1.0;
-    }
-    DEBUG.info('Vocal cut: ' + (enabled ? 'ON @ ' + Math.round(intensity*100) + '%' : 'OFF') + ' (' + (recording?'rec':'pb') + ')');
+    const enabled = vcRecord.checked;
+    const lvlEl = document.getElementById('vcRecordLevel');
+    const intensity = enabled ? (lvlEl ? Math.max(0, Math.min(100, parseFloat(lvlEl.value))) / 100 : 1.0) : 0;
+    DEBUG.info('Vocal cut: ' + (enabled ? 'ON @ ' + Math.round(intensity*100) + '%' : 'OFF') + (state.isRecording ? ' (recording)' : ''));
 
     if(IOS_MODE){
         // On iOS, use the offline-generated cut WAV. Switch source on/off.
         // CRITICAL: Do NOT switch source while recording — the iOS AudioSession
         // gets confused and will mute/pause the audio. The user should set the
-        // cut state BEFORE starting to record; we honor whatever's set at that
-        // point and freeze it for the duration of the recording.
+        // cut state BEFORE starting to record.
         if(state.isRecording){
             DEBUG.info('Vocal cut: skipping source-switch during recording (locked)');
             return;
@@ -2063,23 +2066,25 @@ function applyBgmVocalCut(){
  */
 function updateVocalCutUI(){
     if(!vcRecordRow || !vcPlaybackRow) return;
-    const recording = state.isRecording;
-    vcRecordRow.classList.toggle('active-now',  recording);
-    vcPlaybackRow.classList.toggle('active-now', !recording);
+    // Both panels are equally active in the unified design — just keep them
+    // visually consistent.
+    vcRecordRow.classList.toggle('active-now',  vcRecord.checked);
+    vcPlaybackRow.classList.toggle('active-now', vcPlayback.checked);
     if(vocalCutStateTag){
-        if(recording){
+        if(state.isRecording){
             vocalCutStateTag.textContent = '● RECORDING';
             vocalCutStateTag.className = 'panel-tag recording';
-        } else {
-            vocalCutStateTag.textContent = '▶ PLAYBACK';
+        } else if(vcRecord.checked){
+            vocalCutStateTag.textContent = '✓ ON';
             vocalCutStateTag.className = 'panel-tag playing';
+        } else {
+            vocalCutStateTag.textContent = '— OFF';
+            vocalCutStateTag.className = 'panel-tag';
         }
     }
-    // Show cut-version build status
+    // Show cut-version build status (iOS only)
     const entry = state.currentEntry;
-    const tag = document.querySelectorAll('#vocalCutStateTag, .vocal-cut-status');
     if(IOS_MODE && entry){
-        // Add or update a small status near the vocal-cut UI
         const statusEls = [
             document.getElementById('vcRecordRow'),
             document.getElementById('vcPlaybackRow')
@@ -4201,36 +4206,51 @@ echoSlider.addEventListener('input', () => {
     });
 });
 
+// Both checkboxes (one in karaoke tab, one in mix tab) drive the SAME setting.
+// Mirror state from master (vcRecord) to follower (vcPlayback) and vice versa.
+function syncVcCheckboxes(master){
+    const masterEl = master === 'rec' ? vcRecord : vcPlayback;
+    const followerEl = master === 'rec' ? vcPlayback : vcRecord;
+    if(followerEl.checked !== masterEl.checked){
+        followerEl.checked = masterEl.checked;
+    }
+}
 vcRecord.addEventListener('change', () => {
     DEBUG.info('vcRecord changed → ' + (vcRecord.checked ? 'ON' : 'OFF'));
-    // On iOS, applyBgmVocalCut works without audioCtx (uses HTMLAudio source switch).
-    // On other platforms, audioCtx must exist before the worklet param can be set.
-    if(state.isRecording){
-        if(IOS_MODE || audioCtx) applyBgmVocalCut();
-    }
+    syncVcCheckboxes('rec');
+    if(IOS_MODE || audioCtx) applyBgmVocalCut();
 });
 vcPlayback.addEventListener('change', () => {
     DEBUG.info('vcPlayback changed → ' + (vcPlayback.checked ? 'ON' : 'OFF'));
-    if(!state.isRecording){
-        if(IOS_MODE || audioCtx) applyBgmVocalCut();
-    }
+    syncVcCheckboxes('pb');
+    if(IOS_MODE || audioCtx) applyBgmVocalCut();
 });
 
-// Vocal-cut intensity sliders
+// Vocal-cut intensity sliders — also synced
 const vcRecordLevel = document.getElementById('vcRecordLevel');
 const vcRecordLevelVal = document.getElementById('vcRecordLevelVal');
-if(vcRecordLevel){
-    vcRecordLevel.addEventListener('input', () => {
-        if(vcRecordLevelVal) vcRecordLevelVal.textContent = vcRecordLevel.value + '%';
-        if(state.isRecording && vcRecord.checked && (IOS_MODE || audioCtx)) applyBgmVocalCut();
-    });
-}
 const vcPlaybackLevel = document.getElementById('vcPlaybackLevel');
 const vcPlaybackLevelVal = document.getElementById('vcPlaybackLevelVal');
+
+function syncVcLevels(master){
+    const fromEl = master === 'rec' ? vcRecordLevel : vcPlaybackLevel;
+    const toEl = master === 'rec' ? vcPlaybackLevel : vcRecordLevel;
+    const fromVal = master === 'rec' ? vcRecordLevelVal : vcPlaybackLevelVal;
+    const toVal = master === 'rec' ? vcPlaybackLevelVal : vcRecordLevelVal;
+    if(toEl) toEl.value = fromEl.value;
+    if(fromVal) fromVal.textContent = fromEl.value + '%';
+    if(toVal) toVal.textContent = fromEl.value + '%';
+}
+if(vcRecordLevel){
+    vcRecordLevel.addEventListener('input', () => {
+        syncVcLevels('rec');
+        if(vcRecord.checked && (IOS_MODE || audioCtx)) applyBgmVocalCut();
+    });
+}
 if(vcPlaybackLevel){
     vcPlaybackLevel.addEventListener('input', () => {
-        if(vcPlaybackLevelVal) vcPlaybackLevelVal.textContent = vcPlaybackLevel.value + '%';
-        if(!state.isRecording && vcPlayback.checked && (IOS_MODE || audioCtx)) applyBgmVocalCut();
+        syncVcLevels('pb');
+        if(vcRecord.checked && (IOS_MODE || audioCtx)) applyBgmVocalCut();
     });
 }
 

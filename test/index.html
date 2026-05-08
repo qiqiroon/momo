@@ -47,12 +47,15 @@
                 stopRecording 時に iosTakeAudioEl を完全リセット (src=空)
                 gainDest.stream のトラックも停止
                 teardown 後 800ms はテイク sync を完全停止
-                pumpMicLevel が closed context を読まないように防御 -->
+                pumpMicLevel が closed context を読まないように防御
+       v1.24 - 0.5秒ボツボツ音の真因対策: テイク末尾100ms以内では再生しない
+                テイク末尾でループ再生を試みるのを停止 (これがボツボツ音の正体)
+                recStartSongTime / startSongTime のログ可視化 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MOMO Karaoke v1.23 - MOMO Works</title>
+<title>MOMO Karaoke v1.24 - MOMO Works</title>
 <!-- Google Identity Services (OAuth) — used by momo_gdrive.py -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <!-- Google API client — used for Picker -->
@@ -787,7 +790,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 </g>
             </svg>
         </div>
-        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.23</span></h1>
+        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.24</span></h1>
     </header>
     <p class="header-sub" id="header-sub">ローカル音源と同名 .lrc を読み込む、こだわり派のカラオケサロン</p>
 
@@ -1223,7 +1226,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v1.23';
+const APP_VERSION = 'v1.24';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2624,8 +2627,8 @@ function startTakePlaybackIOS(){
     const userOfs = parseFloat(voxOfsSlider.value);
     const takeLocalT = songT - takeStartSong - userOfs;
 
-    if(takeLocalT >= state.currentTake.duration){
-        DEBUG.info('iOS take: past end, skipping');
+    if(takeLocalT >= state.currentTake.duration - 0.1){
+        DEBUG.info('iOS take: at/past end, skipping (takeLocalT=' + takeLocalT.toFixed(2) + ', dur=' + state.currentTake.duration.toFixed(2) + ')');
         return;
     }
     if(takeLocalT < 0){
@@ -2947,6 +2950,7 @@ async function startRecording(){
     recPitchAtStart = parseInt(pitchSlider.value, 10);
     recSpeedAtStart = parseFloat(speedSlider.value);
     recStartSongTime = audioEl.currentTime;
+    DEBUG.info('recStartSongTime captured: ' + recStartSongTime.toFixed(3) + 's (BGM position at record start)');
 
     // Start the recorder. timeslice=0 (no arg) is fine; we get one big blob on stop.
     try {
@@ -3195,7 +3199,7 @@ async function stopRecording(){
         renderTakes();
         renderBadges();
         setStatus('テイクを保存: ' + take.name, 'ok');
-        DEBUG.ok('Take saved (' + take.duration.toFixed(2) + 's)');
+        DEBUG.ok('Take saved: ' + take.name + ' · duration=' + take.duration.toFixed(2) + 's · startSongTime=' + take.startSongTime.toFixed(2) + 's');
         // PRELOAD on iOS so that when BGM is restarted, take playback can fire
         // instantly without the ~1.8s blob load delay.
         if(IOS_MODE){
@@ -4409,8 +4413,10 @@ function syncTakeToBgm(){
             }
             return;
         }
-        if(takeLocalT >= takeDur){
-            // past end: stop
+        // Past end OR within 100ms of end: stop and DON'T retry. Otherwise the
+        // sync loop keeps trying to start a play that immediately ends, producing
+        // 0.5s-interval popping noise on headphones.
+        if(takeLocalT >= takeDur - 0.1){
             if(isPlaying){ try { iosTakeAudioEl.pause(); } catch(e){} }
             return;
         }

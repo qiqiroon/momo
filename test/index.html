@@ -30,12 +30,18 @@
                 「音声を復旧」ボタンを通常時は隠す (録音停止後15秒のみ表示)
        v1.18 - ボーカルカットを 1 つの設定に統合
                 カラオケタブ・ミックスタブ両方に同期したトグルを配置
-                どちらの画面でも ON/OFF できる -->
+                どちらの画面でも ON/OFF できる
+       v1.19 - 録音テイクを -1dBFS にピーク正規化
+                マイク距離やゲイン依存の音量バラつきを排除
+       v1.20 - 音量設計を根本見直し: 3レイヤー構造に
+                (1) MIC GAIN スライダ + テスト機能 (録音前のレベル合わせ)
+                (2) LUFS 統合ラウドネス正規化 (-16 LUFS、瞬間音耐性あり)
+                (3) iOS でヘッドホン推奨表示 (PlayAndRecord 仕様の音量低下回避) -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MOMO Karaoke v1.18 - MOMO Works</title>
+<title>MOMO Karaoke v1.20 - MOMO Works</title>
 <!-- Google Identity Services (OAuth) — used by momo_gdrive.py -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <!-- Google API client — used for Picker -->
@@ -372,6 +378,42 @@ h1 span { color: var(--orange-mid); }
     border-radius: 3px;
     background: var(--surface2);
     flex-shrink: 0;
+}
+
+/* ゾーン色付きレベルメータ (赤/黄/緑のグラデ背景にfillが重なる) */
+.level-meter-zoned {
+    position: relative;
+    background: linear-gradient(to right,
+        rgba(129,201,149,0.08) 0%,
+        rgba(129,201,149,0.08) 50%,
+        rgba(251,146,60,0.10) 50%,
+        rgba(251,146,60,0.10) 75%,
+        rgba(220,38,38,0.12) 75%,
+        rgba(220,38,38,0.18) 100%);
+    height: 14px; overflow: hidden;
+    border: 1px solid var(--border-strong); border-radius: 4px;
+}
+.level-meter-zoned .level-meter-fill {
+    background: linear-gradient(to right,
+        var(--green) 0%,
+        var(--green) 50%,
+        var(--orange-mid) 75%,
+        var(--rec-red) 100%);
+    height: 100%;
+}
+
+/* マイクテスト行 */
+.mic-test-row {
+    display: flex; align-items: center; gap: 12px; margin-top: 12px;
+    flex-wrap: wrap;
+}
+.mic-test-status {
+    font-size: 11px; color: var(--text-muted); flex: 1; min-width: 200px;
+}
+.mic-test-status.recording { color: var(--orange-light); font-weight: 600; }
+.mic-test-status.playback { color: var(--green); font-weight: 600; }
+#btnMicTest.testing {
+    background: var(--orange); color: white; border-color: var(--orange);
 }
 
 /* 歌詞ビュー */
@@ -734,7 +776,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 </g>
             </svg>
         </div>
-        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.18</span></h1>
+        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.20</span></h1>
     </header>
     <p class="header-sub" id="header-sub">ローカル音源と同名 .lrc を読み込む、こだわり派のカラオケサロン</p>
 
@@ -893,15 +935,26 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             </div>
         </div>
 
-        <!-- マイク -->
+        <!-- マイクセットアップ -->
         <div class="karaoke-panel">
             <div class="panel-head">
-                <div class="panel-title">Microphone</div>
-                <div class="panel-tag">INPUT</div>
+                <div class="panel-title">Mic Setup</div>
+                <div class="panel-tag" id="micPeakTag">— dB</div>
             </div>
-            <p class="panel-desc">録音は上の<b>●</b>ボタンを押して開始、もう一度押して停止します。</p>
-            <div class="ctrl-label"><span>MIC INPUT LEVEL</span><span></span></div>
-            <div class="level-meter"><div class="level-meter-fill" id="micLevel"></div></div>
+            <p class="panel-desc">録音前に GAIN を調整して、声を出した時にレベルが緑〜黄ゾーン（−12 〜 −6 dB）に入るようにします。赤(0dB)に張り付くと音が割れます。</p>
+            <div id="iosHeadphoneHint" class="hidden" style="background:rgba(251,146,60,0.06);border:1px solid rgba(251,146,60,0.3);border-radius:6px;padding:8px 12px;font-size:11px;color:var(--orange-light);margin-bottom:10px;">
+                🎧 <b>iPhone でスピーカー再生中に録音すると BGM 音量が小さくなります。</b>ヘッドホン/イヤホンの使用を推奨します。
+            </div>
+            <div class="ctrl">
+                <div class="ctrl-label"><span>MIC GAIN</span><span class="ctrl-val" id="micGainVal">+0.0 dB</span></div>
+                <input type="range" id="micGainSlider" min="0" max="36" step="0.5" value="0">
+            </div>
+            <div class="ctrl-label"><span>MIC INPUT LEVEL (リアルタイム)</span><span style="font-family:monospace;font-size:10px;color:var(--text-muted);" id="micLevelHint">テスト録音 で確認</span></div>
+            <div class="level-meter level-meter-zoned"><div class="level-meter-fill" id="micLevel"></div></div>
+            <div class="mic-test-row">
+                <button id="btnMicTest" class="momo-btn-small">🎤 マイクテスト (5秒)</button>
+                <span id="micTestStatus" class="mic-test-status">押すと、マイクをON/OFF してレベルメータを確認できます</span>
+            </div>
         </div>
 
         <div class="status" id="status">ファイルを読み込んでください</div>
@@ -1159,7 +1212,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v1.18';
+const APP_VERSION = 'v1.20';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2218,6 +2271,125 @@ function stereoPcmToWavBlob(left, right, sampleRate){
 }
 
 /**
+ * Simplified ITU-R BS.1770 integrated loudness measurement (LUFS-I).
+ *
+ * Real BS.1770 has two pre-filter stages (high-shelf + high-pass), block-wise
+ * gating at -70 LUFS absolute and relative thresholds. This is an approximation
+ * suitable for normalizing voice recordings, not an audio-engineering-grade
+ * meter — but it's far more stable than peak normalization for variable mic
+ * distance / level recordings.
+ *
+ * Implementation:
+ *   1) Apply K-weighting (high-shelf at ~1.5 kHz +4dB, high-pass at ~38 Hz)
+ *      via simple biquad filters in JS
+ *   2) Compute mean-square in 400ms blocks with 75% overlap
+ *   3) Gate out blocks below -70 LUFS (absolute) and -10 LU below the mean
+ *   4) Take 10*log10(mean of remaining squared values) - 0.691 (BS.1770 const)
+ *
+ * @param {Float32Array} pcm   Mono input
+ * @param {number} sampleRate
+ * @returns {{lufs: number, peak: number}}
+ */
+function computeLufs(pcm, sampleRate){
+    if(!pcm || pcm.length < sampleRate * 0.5){
+        // Too short for meaningful LUFS — fall back to RMS-based estimate
+        let sum = 0, peak = 0;
+        for(let i = 0; i < pcm.length; i++){
+            const x = pcm[i];
+            sum += x * x;
+            const a = Math.abs(x);
+            if(a > peak) peak = a;
+        }
+        const rms = Math.sqrt(sum / Math.max(1, pcm.length));
+        return { lufs: rms > 0 ? 20 * Math.log10(rms) - 0.691 : -70, peak };
+    }
+    // K-weighting biquad coefficients (from BS.1770-4 spec at 48000 Hz).
+    // Approximated for arbitrary sample rate via bilinear pre-warping isn't
+    // perfect but acceptable for normalization purposes here.
+    // Stage 1: High-shelf @ 1681 Hz, +4 dB
+    // Stage 2: High-pass @ 38 Hz
+    const K1 = computeShelfCoeffs(1681, 4.0, sampleRate);
+    const K2 = computeHighpassCoeffs(38, sampleRate);
+
+    let peak = 0;
+    let s1x1 = 0, s1x2 = 0, s1y1 = 0, s1y2 = 0;
+    let s2x1 = 0, s2x2 = 0, s2y1 = 0, s2y2 = 0;
+    const filtered = new Float32Array(pcm.length);
+    for(let i = 0; i < pcm.length; i++){
+        const x = pcm[i];
+        const a = Math.abs(x);
+        if(a > peak) peak = a;
+        // Stage 1: high-shelf
+        const s1y = K1.b0*x + K1.b1*s1x1 + K1.b2*s1x2 - K1.a1*s1y1 - K1.a2*s1y2;
+        s1x2 = s1x1; s1x1 = x; s1y2 = s1y1; s1y1 = s1y;
+        // Stage 2: high-pass
+        const s2y = K2.b0*s1y + K2.b1*s2x1 + K2.b2*s2x2 - K2.a1*s2y1 - K2.a2*s2y2;
+        s2x2 = s2x1; s2x1 = s1y; s2y2 = s2y1; s2y1 = s2y;
+        filtered[i] = s2y;
+    }
+    // Block-wise mean square (400ms blocks, 100ms hop = 75% overlap)
+    const blockSize = Math.floor(sampleRate * 0.4);
+    const hopSize = Math.floor(sampleRate * 0.1);
+    const blockMS = [];
+    for(let start = 0; start + blockSize <= filtered.length; start += hopSize){
+        let sum = 0;
+        for(let i = 0; i < blockSize; i++){
+            const v = filtered[start + i];
+            sum += v * v;
+        }
+        blockMS.push(sum / blockSize);
+    }
+    if(blockMS.length === 0) return { lufs: -70, peak };
+    // Absolute gate: -70 LUFS = mean square below 10^((-70+0.691)/10) ≈ 1.17e-7
+    const ABSOLUTE_THRESHOLD_MS = Math.pow(10, (-70 + 0.691) / 10);
+    let kept = blockMS.filter(ms => ms > ABSOLUTE_THRESHOLD_MS);
+    if(kept.length === 0) return { lufs: -70, peak };
+    // Relative gate: -10 LU below the mean of the remaining blocks
+    let sum = 0;
+    for(const ms of kept) sum += ms;
+    const meanMS = sum / kept.length;
+    const relativeThresholdMS = meanMS * Math.pow(10, -10 / 10);
+    kept = kept.filter(ms => ms > relativeThresholdMS);
+    if(kept.length === 0) return { lufs: -70, peak };
+    sum = 0;
+    for(const ms of kept) sum += ms;
+    const finalMS = sum / kept.length;
+    const lufs = 10 * Math.log10(finalMS) - 0.691;
+    return { lufs, peak };
+}
+function computeShelfCoeffs(freq, gainDb, sampleRate){
+    // Audio EQ Cookbook: high-shelf
+    const A = Math.pow(10, gainDb / 40);
+    const w0 = 2 * Math.PI * freq / sampleRate;
+    const cosw = Math.cos(w0);
+    const sinw = Math.sin(w0);
+    const Q = 1 / Math.SQRT2;
+    const alpha = sinw / (2 * Q);
+    const beta = 2 * Math.sqrt(A) * alpha;
+    const b0 =    A * ((A + 1) + (A - 1) * cosw + beta);
+    const b1 = -2 * A * ((A - 1) + (A + 1) * cosw);
+    const b2 =    A * ((A + 1) + (A - 1) * cosw - beta);
+    const a0 =        ((A + 1) - (A - 1) * cosw + beta);
+    const a1 =    2 * ((A - 1) - (A + 1) * cosw);
+    const a2 =        ((A + 1) - (A - 1) * cosw - beta);
+    return { b0: b0/a0, b1: b1/a0, b2: b2/a0, a1: a1/a0, a2: a2/a0 };
+}
+function computeHighpassCoeffs(freq, sampleRate){
+    const w0 = 2 * Math.PI * freq / sampleRate;
+    const cosw = Math.cos(w0);
+    const sinw = Math.sin(w0);
+    const Q = 0.5;
+    const alpha = sinw / (2 * Q);
+    const b0 =  (1 + cosw) / 2;
+    const b1 = -(1 + cosw);
+    const b2 =  (1 + cosw) / 2;
+    const a0 =   1 + alpha;
+    const a1 =  -2 * cosw;
+    const a2 =   1 - alpha;
+    return { b0: b0/a0, b1: b1/a0, b2: b2/a0, a1: a1/a0, a2: a2/a0 };
+}
+
+/**
  * Generate a "vocal-cut" version of the loaded BGM audio offline.
  *
  * Mid/Side technique: vocals are typically panned to the center, so they appear
@@ -2536,6 +2708,9 @@ let mediaRecorder = null;
 let mediaRecorderChunks = [];
 let mediaRecorderMime = '';
 let recCtx = null;        // kept around (we use a tiny analyser context for level meter only)
+let recGainCtx = null;    // gain-stage AudioContext for mic gain
+let recGainNode = null;   // GainNode in the recording path
+let recGainSrc = null;    // MediaStreamSource feeding recGainNode
 let recAudioBufferChunks = []; // (legacy / unused with MediaRecorder, kept to satisfy disposal code)
 let recCtxSampleRate = 44100;
 let recCtxStream = null;  // mic stream
@@ -2607,15 +2782,47 @@ async function startRecording(){
     DEBUG.info('  audioCtx.state AFTER getUserMedia:', audioCtx ? audioCtx.state : 'no ctx');
     DEBUG.info('  bgmTransport.paused after gUM:', bgmTransport.paused);
 
-    // Set up MediaRecorder
+    // ─── Insert mic gain stage ─────────────────────────────────────────────
+    // Run the raw mic stream through an AudioContext gain node so the user-set
+    // MIC GAIN slider applies. We then convert back to a MediaStream and feed
+    // *that* to MediaRecorder. This gives consistent input levels regardless of
+    // mic-to-mouth distance, which is the root cause of "take is too quiet".
+    let recordingStream = stream;  // default: no gain (fallback)
+    let gainCtx = null, gainNodeRef = null, gainDest = null, gainSrc = null;
+    try {
+        const ACtor = window.AudioContext || window.webkitAudioContext;
+        gainCtx = new ACtor();
+        if(gainCtx.state === 'suspended') await gainCtx.resume();
+        gainSrc = gainCtx.createMediaStreamSource(stream);
+        gainNodeRef = gainCtx.createGain();
+        const micGainSlider = document.getElementById('micGainSlider');
+        const micGainDb = micGainSlider ? parseFloat(micGainSlider.value) : 0;
+        gainNodeRef.gain.value = Math.pow(10, micGainDb / 20);  // dB → linear
+        gainDest = gainCtx.createMediaStreamDestination();
+        gainSrc.connect(gainNodeRef);
+        gainNodeRef.connect(gainDest);
+        recordingStream = gainDest.stream;
+        DEBUG.info('Mic gain stage inserted: ' + micGainDb.toFixed(1) + ' dB');
+        // Stash for later reference (slider can adjust during recording)
+        recGainCtx = gainCtx;
+        recGainNode = gainNodeRef;
+        recGainSrc = gainSrc;
+    } catch(e){
+        DEBUG.warn('Mic gain stage failed (using raw stream): ' + e.message);
+        recordingStream = stream;
+    }
+
+    // Set up MediaRecorder on the gain-processed stream
     mediaRecorderMime = pickMediaRecorderMime();
     DEBUG.info('MediaRecorder mime:', mediaRecorderMime || '(default)');
     try {
         const opts = mediaRecorderMime ? { mimeType: mediaRecorderMime } : {};
-        mediaRecorder = new MediaRecorder(stream, opts);
+        mediaRecorder = new MediaRecorder(recordingStream, opts);
     } catch(e){
         DEBUG.err('MediaRecorder constructor failed:', e.message);
         try { stream.getTracks().forEach(t => t.stop()); } catch(_){}
+        try { if(recGainCtx) await recGainCtx.close(); } catch(_){}
+        recGainCtx = null; recGainNode = null; recGainSrc = null;
         state.isRecording = false;
         btnRec.classList.remove('recording');
         btnRec.textContent = '●';
@@ -2640,17 +2847,19 @@ async function startRecording(){
         DEBUG.info('MediaRecorder stopped, chunks=' + mediaRecorderChunks.length);
     };
 
-    // Set up a small analyser context for the mic level meter (independent of recording)
+    // Set up a small analyser for the mic level meter. We attach it to the
+    // post-gain signal (recordingStream → analyser) so the meter reflects what
+    // is actually being recorded, including the user's MIC GAIN setting.
     try {
         recCtx = new (window.AudioContext || window.webkitAudioContext)();
         if(recCtx.state === 'suspended') await recCtx.resume();
         recCtxSampleRate = recCtx.sampleRate;
-        recCtxStream = stream;
-        recSrc = recCtx.createMediaStreamSource(stream);
+        recCtxStream = recordingStream;
+        recSrc = recCtx.createMediaStreamSource(recordingStream);
         micAnalyser = recCtx.createAnalyser();
-        micAnalyser.fftSize = 512;
+        micAnalyser.fftSize = 1024;
         recSrc.connect(micAnalyser);
-        DEBUG.info('Level meter context created, recCtx.state=' + recCtx.state);
+        DEBUG.info('Level meter context created (post-gain), recCtx.state=' + recCtx.state);
     } catch(e){
         DEBUG.warn('Level meter setup failed (recording continues): ' + e.message);
     }
@@ -2732,14 +2941,18 @@ async function stopRecording(){
     // Tear down level meter / mic
     try { if(recSrc) recSrc.disconnect(); } catch(e){}
     try { if(micAnalyser) micAnalyser.disconnect(); } catch(e){}
+    try { if(recGainSrc) recGainSrc.disconnect(); } catch(e){}
+    try { if(recGainNode) recGainNode.disconnect(); } catch(e){}
     try {
         if(micStream){
             micStream.getTracks().forEach(t => { try { t.stop(); } catch(_){} });
         }
     } catch(e){}
     try { if(recCtx) await recCtx.close(); } catch(e){}
+    try { if(recGainCtx) await recGainCtx.close(); } catch(e){}
     recSrc = null; micAnalyser = null; micStream = null; recCtx = null; recCtxStream = null;
-    DEBUG.info('stopRecording: mic + level-meter context torn down');
+    recGainCtx = null; recGainNode = null; recGainSrc = null;
+    DEBUG.info('stopRecording: mic + level-meter + gain stage torn down');
 
     // Decode the recorded Blob into Float32Array PCM. On iOS we don't have a
     // long-lived audioCtx, so create a temporary one purely for decoding (it
@@ -2775,6 +2988,47 @@ async function stopRecording(){
                 for(let i = 0; i < ch0.length; i++) pcm[i] = (ch0[i] + ch1[i]) * 0.5;
             } else {
                 pcm = new Float32Array(ch0);
+            }
+            // LUFS-style loudness normalization (more stable than peak normalize):
+            //   - Compute integrated loudness via mean square of K-weighted signal
+            //     (simplified: ITU-R BS.1770 high-shelf + RLB filter approximation)
+            //   - Target: -16 LUFS (typical for music streaming services)
+            //   - Cap gain to avoid amplifying near-silent recordings
+            //   - Also enforce a true-peak limiter to prevent clipping after gain
+            try {
+                const stats = computeLufs(pcm, decoded.sampleRate);
+                DEBUG.info('Take loudness: ' + stats.lufs.toFixed(1) + ' LUFS · peak=' + (20 * Math.log10(stats.peak || 1e-6)).toFixed(1) + ' dBFS');
+                const TARGET_LUFS = -16;
+                const MAX_BOOST_DB = 24;   // safety cap
+                let gainDb = TARGET_LUFS - stats.lufs;
+                if(gainDb > MAX_BOOST_DB) gainDb = MAX_BOOST_DB;
+                if(gainDb < -12) gainDb = -12;  // don't drastically attenuate
+                let gain = Math.pow(10, gainDb / 20);
+                // True-peak limiter: ensure peak * gain ≤ 0.95 (-0.45 dBFS)
+                const peakAfter = stats.peak * gain;
+                if(peakAfter > 0.95){
+                    const limiterScale = 0.95 / peakAfter;
+                    gain *= limiterScale;
+                    DEBUG.info('Take normalize: peak limiter engaged, scale=' + limiterScale.toFixed(2));
+                }
+                if(Math.abs(gainDb) > 0.5){
+                    DEBUG.info('Take normalize (LUFS): ' + stats.lufs.toFixed(1) + ' → ' + TARGET_LUFS + ' LUFS, gain=' + (20 * Math.log10(gain)).toFixed(1) + ' dB');
+                    for(let i = 0; i < pcm.length; i++) pcm[i] *= gain;
+                } else {
+                    DEBUG.info('Take normalize: already at target loudness');
+                }
+            } catch(e){
+                DEBUG.warn('LUFS normalize failed (falling back to peak): ' + e.message);
+                // Fallback: simple peak normalize
+                let peak = 0;
+                for(let i = 0; i < pcm.length; i++){
+                    const a = Math.abs(pcm[i]);
+                    if(a > peak) peak = a;
+                }
+                if(peak > 0.001){
+                    const gain = Math.min(8.0, 0.89 / peak);
+                    if(gain > 1.05) for(let i = 0; i < pcm.length; i++) pcm[i] *= gain;
+                }
             }
             take = {
                 id: uid(),
@@ -2832,14 +3086,40 @@ async function stopRecording(){
 function pumpMicLevel(){
     if(!state.isRecording){ micLevel.style.width = '0%'; return; }
     if(!micAnalyser){ requestAnimationFrame(pumpMicLevel); return; }
-    const buf = new Uint8Array(micAnalyser.fftSize);
-    micAnalyser.getByteTimeDomainData(buf);
-    let max = 0;
-    for(let i=0; i<buf.length; i++){
-        const v = Math.abs(buf[i]-128) / 128;
-        if(v > max) max = v;
+    const buf = new Float32Array(micAnalyser.fftSize);
+    try { micAnalyser.getFloatTimeDomainData(buf); }
+    catch(e){
+        // Older browsers may not have getFloatTimeDomainData
+        const u8 = new Uint8Array(micAnalyser.fftSize);
+        micAnalyser.getByteTimeDomainData(u8);
+        let max = 0;
+        for(let i = 0; i < u8.length; i++){
+            const v = Math.abs(u8[i]-128) / 128;
+            if(v > max) max = v;
+        }
+        micLevel.style.width = Math.min(100, max*100) + '%';
+        requestAnimationFrame(pumpMicLevel);
+        return;
     }
-    micLevel.style.width = Math.min(100, max*180) + '%';
+    let peak = 0;
+    for(let i = 0; i < buf.length; i++){
+        const a = Math.abs(buf[i]);
+        if(a > peak) peak = a;
+    }
+    micLevel.style.width = Math.min(100, peak * 100) + '%';
+    const peakTag = document.getElementById('micPeakTag');
+    if(peakTag){
+        if(peak < 0.0005){
+            peakTag.textContent = '−∞ dB';
+            peakTag.style.color = '';
+        } else {
+            const db = 20 * Math.log10(peak);
+            peakTag.textContent = db.toFixed(1) + ' dB';
+            if(db > -3) peakTag.style.color = 'var(--rec-red)';
+            else if(db > -12) peakTag.style.color = 'var(--orange-light)';
+            else peakTag.style.color = 'var(--green)';
+        }
+    }
     requestAnimationFrame(pumpMicLevel);
 }
 
@@ -4205,6 +4485,155 @@ echoSlider.addEventListener('input', () => {
         if(!IOS_MODE) applyVoxEq();
     });
 });
+
+// MIC GAIN slider — applies in real time during recording or test mode
+const micGainSlider = document.getElementById('micGainSlider');
+const micGainVal = document.getElementById('micGainVal');
+if(micGainSlider){
+    micGainSlider.addEventListener('input', () => {
+        const db = parseFloat(micGainSlider.value);
+        if(micGainVal) micGainVal.textContent = (db >= 0 ? '+' : '') + db.toFixed(1) + ' dB';
+        // Apply to active gain node (recording or test)
+        const linearGain = Math.pow(10, db / 20);
+        if(recGainNode){
+            try { recGainNode.gain.setTargetAtTime(linearGain, recGainCtx.currentTime, 0.02); } catch(e){}
+        }
+        if(micTestState.gainNode){
+            try { micTestState.gainNode.gain.setTargetAtTime(linearGain, micTestState.ctx.currentTime, 0.02); } catch(e){}
+        }
+    });
+}
+
+// ============== MIC TEST (simple level-check, no recording saved) ==============
+// Lets the user dial in MIC GAIN before committing to a real take.
+const micTestState = {
+    active: false,
+    ctx: null,
+    src: null,
+    gainNode: null,
+    analyser: null,
+    stream: null,
+    timer: null,
+};
+async function startMicTest(){
+    if(micTestState.active) return;
+    const btn = document.getElementById('btnMicTest');
+    const status = document.getElementById('micTestStatus');
+    const levelEl = document.getElementById('micLevel');
+    DEBUG.info('Mic test: starting');
+    if(status){ status.textContent = '🎤 マイクテスト中… 声を出してレベルメータを確認してください (5秒)'; status.className = 'mic-test-status recording'; }
+    if(btn){ btn.classList.add('testing'); btn.textContent = '■ 停止'; }
+    let stream;
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+            video: false
+        });
+    } catch(e){
+        DEBUG.err('Mic test: getUserMedia failed: ' + e.message);
+        if(status){ status.textContent = 'マイクの許可が必要です'; status.className = 'mic-test-status'; }
+        if(btn){ btn.classList.remove('testing'); btn.textContent = '🎤 マイクテスト (5秒)'; }
+        return;
+    }
+    micTestState.active = true;
+    micTestState.stream = stream;
+    try {
+        const ACtor = window.AudioContext || window.webkitAudioContext;
+        micTestState.ctx = new ACtor();
+        if(micTestState.ctx.state === 'suspended') await micTestState.ctx.resume();
+        micTestState.src = micTestState.ctx.createMediaStreamSource(stream);
+        micTestState.gainNode = micTestState.ctx.createGain();
+        const db = micGainSlider ? parseFloat(micGainSlider.value) : 0;
+        micTestState.gainNode.gain.value = Math.pow(10, db / 20);
+        micTestState.analyser = micTestState.ctx.createAnalyser();
+        micTestState.analyser.fftSize = 1024;
+        micTestState.src.connect(micTestState.gainNode);
+        micTestState.gainNode.connect(micTestState.analyser);
+        // Note: NOT connected to destination, so no monitoring through speakers
+    } catch(e){
+        DEBUG.err('Mic test: setup failed: ' + e.message);
+        stopMicTest();
+        return;
+    }
+    DEBUG.ok('Mic test: running, gain=' + (micGainSlider ? micGainSlider.value : 0) + ' dB');
+
+    const buf = new Float32Array(micTestState.analyser.fftSize);
+    let peakHold = 0;
+    let peakHoldTime = 0;
+    function tick(){
+        if(!micTestState.active) return;
+        try {
+            micTestState.analyser.getFloatTimeDomainData(buf);
+            let peak = 0;
+            for(let i = 0; i < buf.length; i++){
+                const a = Math.abs(buf[i]);
+                if(a > peak) peak = a;
+            }
+            // Update UI
+            if(levelEl){
+                levelEl.style.width = Math.min(100, peak * 100) + '%';
+            }
+            const peakTag = document.getElementById('micPeakTag');
+            if(peakTag){
+                if(peak < 0.0005){
+                    peakTag.textContent = '−∞ dB';
+                } else {
+                    const db = 20 * Math.log10(peak);
+                    peakTag.textContent = db.toFixed(1) + ' dB';
+                    if(db > -3) peakTag.style.color = 'var(--rec-red)';
+                    else if(db > -12) peakTag.style.color = 'var(--orange-light)';
+                    else peakTag.style.color = 'var(--green)';
+                }
+            }
+        } catch(e){}
+        micTestState.timer = requestAnimationFrame(tick);
+    }
+    tick();
+    // Auto-stop after 5 seconds (or user can stop manually)
+    micTestState.autoStopTimer = setTimeout(() => {
+        DEBUG.info('Mic test: auto-stop after 5s');
+        stopMicTest();
+    }, 5000);
+}
+function stopMicTest(){
+    if(!micTestState.active) return;
+    DEBUG.info('Mic test: stopping');
+    micTestState.active = false;
+    if(micTestState.timer) cancelAnimationFrame(micTestState.timer);
+    if(micTestState.autoStopTimer) clearTimeout(micTestState.autoStopTimer);
+    try { if(micTestState.src) micTestState.src.disconnect(); } catch(e){}
+    try { if(micTestState.gainNode) micTestState.gainNode.disconnect(); } catch(e){}
+    try { if(micTestState.analyser) micTestState.analyser.disconnect(); } catch(e){}
+    try { if(micTestState.stream) micTestState.stream.getTracks().forEach(t => t.stop()); } catch(e){}
+    try { if(micTestState.ctx) micTestState.ctx.close(); } catch(e){}
+    micTestState.ctx = null; micTestState.src = null; micTestState.gainNode = null;
+    micTestState.analyser = null; micTestState.stream = null; micTestState.timer = null;
+    micTestState.autoStopTimer = null;
+    const btn = document.getElementById('btnMicTest');
+    const status = document.getElementById('micTestStatus');
+    const levelEl = document.getElementById('micLevel');
+    if(btn){ btn.classList.remove('testing'); btn.textContent = '🎤 マイクテスト (5秒)'; }
+    if(status){ status.textContent = 'テスト終了。録音前に GAIN を調整してください'; status.className = 'mic-test-status'; }
+    if(levelEl) levelEl.style.width = '0%';
+    DEBUG.ok('Mic test: stopped and resources released');
+}
+const btnMicTest = document.getElementById('btnMicTest');
+if(btnMicTest){
+    btnMicTest.addEventListener('click', () => {
+        if(state.isRecording){
+            DEBUG.warn('Mic test: cannot run while actually recording');
+            return;
+        }
+        if(micTestState.active) stopMicTest();
+        else startMicTest();
+    });
+}
+
+// Show iOS headphone hint when entering karaoke tab on iOS
+if(IS_IOS){
+    const hint = document.getElementById('iosHeadphoneHint');
+    if(hint) hint.classList.remove('hidden');
+}
 
 // Both checkboxes (one in karaoke tab, one in mix tab) drive the SAME setting.
 // Mirror state from master (vcRecord) to follower (vcPlayback) and vice versa.

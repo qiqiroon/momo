@@ -50,12 +50,15 @@
                 pumpMicLevel が closed context を読まないように防御
        v1.24 - 0.5秒ボツボツ音の真因対策: テイク末尾100ms以内では再生しない
                 テイク末尾でループ再生を試みるのを停止 (これがボツボツ音の正体)
-                recStartSongTime / startSongTime のログ可視化 -->
+                recStartSongTime / startSongTime のログ可視化
+       v1.25 - removeAttribute('src') が MEDIA_ERR を誘発していた問題を修正
+                (これがブツブツ音の真の原因の可能性)
+                preload で readyState>=3 を確実に待つ (テイク再生遅延対策) -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MOMO Karaoke v1.24 - MOMO Works</title>
+<title>MOMO Karaoke v1.25 - MOMO Works</title>
 <!-- Google Identity Services (OAuth) — used by momo_gdrive.py -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <!-- Google API client — used for Picker -->
@@ -790,7 +793,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 </g>
             </svg>
         </div>
-        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.24</span></h1>
+        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.25</span></h1>
     </header>
     <p class="header-sub" id="header-sub">ローカル音源と同名 .lrc を読み込む、こだわり派のカラオケサロン</p>
 
@@ -1226,7 +1229,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v1.24';
+const APP_VERSION = 'v1.25';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2566,28 +2569,43 @@ async function preloadIOSTake(take){
     if(take._iosLoadedUrl === take._wavUrl
        && iosTakeAudioEl.src
        && iosTakeAudioEl.src.indexOf(take._wavUrl) !== -1
-       && iosTakeAudioEl.readyState >= 2){
-        DEBUG.info('preloadIOSTake: already loaded, skipping');
+       && iosTakeAudioEl.readyState >= 4){
+        DEBUG.info('preloadIOSTake: already loaded (readyState=4), skipping');
         return;
     }
     DEBUG.info('preloadIOSTake: priming src + load()');
     iosTakeAudioEl.src = take._wavUrl;
+    // Force preload="auto" so iOS aggressively buffers the audio
+    iosTakeAudioEl.preload = 'auto';
     await new Promise((resolve) => {
         let done = false;
-        const onReady = () => { if(!done){ done = true; cleanup(); resolve(); } };
+        const onReady = () => {
+            // Only resolve when readyState >= 3 (HAVE_FUTURE_DATA) so that play()
+            // can start immediately without the ~1s buffering delay.
+            if(done) return;
+            if(iosTakeAudioEl.readyState >= 3){
+                done = true;
+                cleanup();
+                resolve();
+            }
+        };
         const onErr = () => { if(!done){ done = true; cleanup(); resolve(); } };
         function cleanup(){
             iosTakeAudioEl.removeEventListener('canplaythrough', onReady);
             iosTakeAudioEl.removeEventListener('canplay', onReady);
-            iosTakeAudioEl.removeEventListener('loadedmetadata', onReady);
+            iosTakeAudioEl.removeEventListener('loadeddata', onReady);
+            iosTakeAudioEl.removeEventListener('progress', onReady);
             iosTakeAudioEl.removeEventListener('error', onErr);
         }
         iosTakeAudioEl.addEventListener('canplaythrough', onReady);
         iosTakeAudioEl.addEventListener('canplay', onReady);
-        iosTakeAudioEl.addEventListener('loadedmetadata', onReady);
+        iosTakeAudioEl.addEventListener('loadeddata', onReady);
+        iosTakeAudioEl.addEventListener('progress', onReady);
         iosTakeAudioEl.addEventListener('error', onErr);
         try { iosTakeAudioEl.load(); } catch(e){}
-        setTimeout(onReady, 3000);
+        // Hard timeout — if it never reaches readyState 3, give up after 5s and
+        // proceed anyway (play() will buffer if needed).
+        setTimeout(() => { if(!done){ done = true; cleanup(); resolve(); } }, 5000);
     });
     take._iosLoadedUrl = take._wavUrl;
     DEBUG.ok('preloadIOSTake: ready, duration=' + (iosTakeAudioEl.duration || 0).toFixed(2) + 's, readyState=' + iosTakeAudioEl.readyState);
@@ -3066,28 +3084,15 @@ async function stopRecording(){
     recSrc = null; micAnalyser = null; micStream = null; recCtx = null; recCtxStream = null;
     recGainCtx = null; recGainNode = null; recGainSrc = null;
 
-    // CRITICAL: Reset iosTakeAudioEl to prevent any background activity. After
-    // a recording, iOS sometimes leaves audio elements in a partial-load state
-    // that produces periodic popping. We FULLY clear it here — the next take
-    // selection or play attempt will reload via preloadIOSTake.
+    // Reset iosTakeAudioEl gently. Important: do NOT clear the src attribute
+    // here — that triggers MEDIA_ERR cycles in iOS which can produce continuous
+    // popping. Just pause and reset playhead. The next take playback will
+    // overwrite src cleanly.
     if(IOS_MODE && iosTakeAudioEl){
         try { iosTakeAudioEl.pause(); } catch(e){}
-        // Mute as a safety net in case anything still tries to play
-        try { iosTakeAudioEl.muted = true; } catch(e){}
         try { iosTakeAudioEl.currentTime = 0; } catch(e){}
-        // Force-clear src and reload — this halts any internal decode pipeline
-        try {
-            iosTakeAudioEl.removeAttribute('src');
-            iosTakeAudioEl.load();
-        } catch(e){}
-        // Mark all takes as needing reload (since src is now empty)
-        if(state.currentEntry && state.currentEntry.takes){
-            for(const t of state.currentEntry.takes){
-                t._iosLoadedUrl = null;
-            }
-        }
-        // Re-enable audio path; muted will be reset by applyBalance() later
-        try { iosTakeAudioEl.muted = false; } catch(e){}
+        // Don't touch src/muted/load — leaving them alone lets the audio element
+        // settle into idle state without re-decoding or erroring.
     }
 
     // Mark teardown completion. tickUI will skip take sync for 800ms after this.

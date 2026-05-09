@@ -87,12 +87,16 @@
                 原因: src=...; load() で iOS Safari が muted 属性をリセット
                       → wasMuted=false で記録 → warm-up 末尾で muted=false に戻る
                       → 一度動き出した <audio> は誰にも止められず最後まで再生
-                v1.30 で導入したが「効果不明確」だった機能 — 害が判明したので削除 -->
+                v1.30 で導入したが「効果不明確」だった機能 — 害が判明したので削除
+       v1.34 - btnPlay 時の BGM とテイクの実出力開始タイミング差を実測する診断ログ追加
+                症状: 再生のたびにテイクが BGM より遅れたり早かったりランダムにズレる
+                目的: 実数値で「何ミリ秒、どの方向に」ズレるかを測定し、
+                      機種依存の経験値ではなく実測ベースで対策を立てる -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MOMO Karaoke v1.33 - MOMO Works</title>
+<title>MOMO Karaoke v1.34 - MOMO Works</title>
 <!-- Google Identity Services (OAuth) — used by momo_gdrive.py -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <!-- Google API client — used for Picker -->
@@ -827,7 +831,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 </g>
             </svg>
         </div>
-        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.33</span></h1>
+        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.34</span></h1>
     </header>
     <p class="header-sub" id="header-sub">ローカル音源と同名 .lrc を読み込む、こだわり派のカラオケサロン</p>
 
@@ -1263,7 +1267,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v1.33';
+const APP_VERSION = 'v1.34';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -4753,6 +4757,20 @@ btnPlay.addEventListener('click', async () => {
             // ~280ms before BGM produces its first sample), then start BGM.
             // This compensates for the iOS <audio>.play() resolution latency
             // and keeps take audio aligned with BGM at the start.
+            //
+            // ─── v1.34 diagnostics ──────────────────────────────────────
+            // Measure the *actual* time at which each <audio> element starts
+            // producing audio (currentTime crosses 0). This reveals the real
+            // alignment between BGM and take, independent of play() promise
+            // timing. The difference (takeStartT − bgmStartT) tells us
+            // whether the take is leading or lagging at the very first
+            // sample, before any drift correction can mask the issue.
+            let v134_takeCallT = 0;
+            let v134_bgmCallT = 0;
+            let v134_takeAudibleT = 0;
+            let v134_bgmAudibleT = 0;
+            const v134_startT0 = performance.now();
+            const v134_takeWanted = (IOS_MODE && state.currentTake && state.playMode !== 'bgm' && iosTakeAudioEl);
             if(IOS_MODE && state.currentTake && state.playMode !== 'bgm' && iosTakeAudioEl){
                 ensureIOSTakeAudio();
                 if(state.currentTake._iosLoadedUrl === state.currentTake._wavUrl
@@ -4760,6 +4778,7 @@ btnPlay.addEventListener('click', async () => {
                     try {
                         // Position the take to start from 0 (Plan B always)
                         iosTakeAudioEl.currentTime = 0;
+                        v134_takeCallT = performance.now();
                         const takeP = iosTakeAudioEl.play();
                         // Don't await fully — but give it a small head start
                         if(takeP && takeP.then){
@@ -4774,7 +4793,58 @@ btnPlay.addEventListener('click', async () => {
                     } catch(e){ DEBUG.warn('iOS take pre-start failed: ' + e.message); }
                 }
             }
+            v134_bgmCallT = performance.now();
             await bgmTransport.play();
+            // ─── v1.34: poll both currentTimes to catch first audible sample ──
+            // We poll at requestAnimationFrame frequency for up to 1500 ms,
+            // capturing the first time each element's currentTime exceeds a
+            // small threshold (0.001 s). The threshold guards against
+            // currentTime returning 0 even after play() resolves.
+            if(IOS_MODE && iosAudioEl){
+                const v134_pollDeadline = performance.now() + 1500;
+                const v134_threshold = 0.001;
+                const v134_poll = () => {
+                    const now = performance.now();
+                    // Capture first audible time for take
+                    if(v134_takeWanted && !v134_takeAudibleT && iosTakeAudioEl){
+                        try {
+                            if(iosTakeAudioEl.currentTime > v134_threshold){
+                                v134_takeAudibleT = now;
+                            }
+                        } catch(_){}
+                    }
+                    // Capture first audible time for BGM
+                    if(!v134_bgmAudibleT){
+                        try {
+                            if(iosAudioEl.currentTime > v134_threshold){
+                                v134_bgmAudibleT = now;
+                            }
+                        } catch(_){}
+                    }
+                    const takeDone = !v134_takeWanted || v134_takeAudibleT > 0;
+                    const bgmDone = v134_bgmAudibleT > 0;
+                    if((takeDone && bgmDone) || now > v134_pollDeadline){
+                        // Emit one line summarizing alignment
+                        const callDelta = (v134_bgmCallT - v134_takeCallT).toFixed(1);
+                        const takeAudibleMs = v134_takeAudibleT ? (v134_takeAudibleT - v134_takeCallT).toFixed(1) : 'never';
+                        const bgmAudibleMs = v134_bgmAudibleT ? (v134_bgmAudibleT - v134_bgmCallT).toFixed(1) : 'never';
+                        const audibleDelta = (v134_takeAudibleT && v134_bgmAudibleT)
+                            ? (v134_takeAudibleT - v134_bgmAudibleT).toFixed(1)
+                            : 'n/a';
+                        // Sign convention: positive = take audible AFTER bgm (take lags)
+                        DEBUG.info('═══ v1.34 START ALIGNMENT ═══');
+                        DEBUG.info('  take play() called at +' + (v134_takeCallT - v134_startT0).toFixed(1) + 'ms');
+                        DEBUG.info('  bgm play() called at +' + (v134_bgmCallT - v134_startT0).toFixed(1) + 'ms (take→bgm gap = ' + callDelta + 'ms)');
+                        DEBUG.info('  take first audible: +' + takeAudibleMs + 'ms after take call');
+                        DEBUG.info('  bgm first audible: +' + bgmAudibleMs + 'ms after bgm call');
+                        DEBUG.info('  ALIGNMENT (take−bgm at first audio): ' + audibleDelta + 'ms (positive=take lags)');
+                        DEBUG.info('═════════════════════════════');
+                        return;
+                    }
+                    requestAnimationFrame(v134_poll);
+                };
+                requestAnimationFrame(v134_poll);
+            }
         } catch(e){
             DEBUG.err('btnPlay: play failed:', e.message);
         }

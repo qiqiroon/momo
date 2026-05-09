@@ -53,12 +53,15 @@
                 recStartSongTime / startSongTime のログ可視化
        v1.25 - removeAttribute('src') が MEDIA_ERR を誘発していた問題を修正
                 (これがブツブツ音の真の原因の可能性)
-                preload で readyState>=3 を確実に待つ (テイク再生遅延対策) -->
+                preload で readyState>=3 を確実に待つ (テイク再生遅延対策)
+       v1.26 - 末尾境界での再生試行を防ぐマージン拡大 (100ms→500ms)
+                テイク再生の precise scheduling: BGM が takeStart に到達する瞬間を予約
+                stopRecording 後 1500ms iosTakeAudioEl を muted にして暴走時の音を抑止 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MOMO Karaoke v1.25 - MOMO Works</title>
+<title>MOMO Karaoke v1.26 - MOMO Works</title>
 <!-- Google Identity Services (OAuth) — used by momo_gdrive.py -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <!-- Google API client — used for Picker -->
@@ -793,7 +796,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 </g>
             </svg>
         </div>
-        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.25</span></h1>
+        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.26</span></h1>
     </header>
     <p class="header-sub" id="header-sub">ローカル音源と同名 .lrc を読み込む、こだわり派のカラオケサロン</p>
 
@@ -1229,7 +1232,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v1.25';
+const APP_VERSION = 'v1.26';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2469,6 +2472,10 @@ function stopTakePlayback(){
         if(iosTakeAudioEl){
             try { iosTakeAudioEl.pause(); } catch(e){}
         }
+        if(iosTakeScheduledStart){
+            clearTimeout(iosTakeScheduledStart);
+            iosTakeScheduledStart = null;
+        }
         return;
     }
     if(takeBufferSource){
@@ -2543,6 +2550,7 @@ function startTakePlayback(){
 let iosTakeStarting = false;
 let iosTakeLastRateAdjust = 0;  // timestamp (ms) of last playbackRate change
 let iosTakeStartedAt = 0;       // timestamp when last playback began (for settle period)
+let iosTakeScheduledStart = null;  // setTimeout handle for scheduled start
 
 /**
  * Build the WAV blob URL for a take (if not already built) and preload it into
@@ -2645,15 +2653,36 @@ function startTakePlaybackIOS(){
     const userOfs = parseFloat(voxOfsSlider.value);
     const takeLocalT = songT - takeStartSong - userOfs;
 
-    if(takeLocalT >= state.currentTake.duration - 0.1){
+    if(takeLocalT > state.currentTake.duration - 0.5){
         DEBUG.info('iOS take: at/past end, skipping (takeLocalT=' + takeLocalT.toFixed(2) + ', dur=' + state.currentTake.duration.toFixed(2) + ')');
         return;
     }
     if(takeLocalT < 0){
-        // Just keep paused at 0; do not log every poll (was noisy in logs).
+        // Take hasn't started yet. Keep paused at 0 and SCHEDULE a precise
+        // start at the right moment, so we don't have to wait for the sync
+        // loop's 200ms polling delay.
         if(!iosTakeAudioEl.paused){
             try { iosTakeAudioEl.pause(); } catch(e){}
             try { iosTakeAudioEl.currentTime = 0; } catch(e){}
+        }
+        // Compute real-time milliseconds until BGM reaches takeStartSong, given
+        // current BGM playback rate.
+        const bgmRate = bgmTransport.playbackRate || 1.0;
+        const realMsUntilStart = (-takeLocalT / bgmRate) * 1000;
+        // Cancel any prior scheduled start
+        if(iosTakeScheduledStart){
+            clearTimeout(iosTakeScheduledStart);
+            iosTakeScheduledStart = null;
+        }
+        // Only schedule if reasonably soon (within 30s) to avoid stale callbacks
+        if(realMsUntilStart < 30000){
+            DEBUG.info('iOS take: scheduling start in ' + realMsUntilStart.toFixed(0) + 'ms');
+            iosTakeScheduledStart = setTimeout(() => {
+                iosTakeScheduledStart = null;
+                if(!bgmTransport.paused && state.currentTake && state.playMode !== 'bgm' && !state.isRecording){
+                    startTakePlaybackIOS();
+                }
+            }, Math.max(0, realMsUntilStart - 50));  // 50ms early to compensate for play() latency
         }
         return;
     }
@@ -3087,12 +3116,21 @@ async function stopRecording(){
     // Reset iosTakeAudioEl gently. Important: do NOT clear the src attribute
     // here — that triggers MEDIA_ERR cycles in iOS which can produce continuous
     // popping. Just pause and reset playhead. The next take playback will
-    // overwrite src cleanly.
+    // overwrite src cleanly. Also mute as a safety net during the brief window
+    // where rogue start_playback attempts could produce blip noise.
     if(IOS_MODE && iosTakeAudioEl){
         try { iosTakeAudioEl.pause(); } catch(e){}
         try { iosTakeAudioEl.currentTime = 0; } catch(e){}
-        // Don't touch src/muted/load — leaving them alone lets the audio element
-        // settle into idle state without re-decoding or erroring.
+        try { iosTakeAudioEl.muted = true; } catch(e){}
+        // Cancel any scheduled start
+        if(iosTakeScheduledStart){
+            clearTimeout(iosTakeScheduledStart);
+            iosTakeScheduledStart = null;
+        }
+        // Re-enable audio output after grace period
+        setTimeout(() => {
+            try { if(iosTakeAudioEl) iosTakeAudioEl.muted = false; } catch(e){}
+        }, 1500);
     }
 
     // Mark teardown completion. tickUI will skip take sync for 800ms after this.
@@ -4374,7 +4412,7 @@ function tickUI(){
     // CRITICAL: Skip while recording — the take must NOT play through speakers
     // when the user is recording, otherwise it bleeds into the mic and confuses
     // the user about what's audible.
-    // Also skip for 800ms after recording teardown — iOS audio system needs
+    // Also skip for 1500ms after recording teardown — iOS audio system needs
     // time to settle and any takeAudio activity during that window can produce
     // continuous popping noise on headphones.
     const sinceTeardown = recordingTeardownAt > 0 ? (performance.now() - recordingTeardownAt) : Infinity;
@@ -4383,7 +4421,7 @@ function tickUI(){
         && state.currentTake
         && state.playMode !== 'bgm'
         && !state.isRecording
-        && sinceTeardown > 800){
+        && sinceTeardown > 1500){
         syncTakeToBgm();
     }
     requestAnimationFrame(tickUI);
@@ -4418,10 +4456,10 @@ function syncTakeToBgm(){
             }
             return;
         }
-        // Past end OR within 100ms of end: stop and DON'T retry. Otherwise the
+        // Past end OR within 500ms of end: stop and DON'T retry. Otherwise the
         // sync loop keeps trying to start a play that immediately ends, producing
         // 0.5s-interval popping noise on headphones.
-        if(takeLocalT >= takeDur - 0.1){
+        if(takeLocalT > takeDur - 0.5){
             if(isPlaying){ try { iosTakeAudioEl.pause(); } catch(e){} }
             return;
         }

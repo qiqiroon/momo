@@ -61,12 +61,16 @@
                 startSongTime = 0 固定 → BGM とテイクが完璧に同期
                 stopRecording 時に BGM も pause → teardown 中の音漏れ防止 (本命対策)
                 録音保存直後の preload を削除 → BGM 再生時に preload に変更
-                progress イベントリスナー削除 (副作用リスク回避) -->
+                progress イベントリスナー削除 (副作用リスク回避)
+       v1.28 - テイク再生 1秒遅延の修正
+                preload を stopRecording 内 (BGM pause済み) で await 完了
+                BGM play イベントから preload 呼び出しを削除 (競合解消)
+                Take選択時もpreload完了を待つように修正 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MOMO Karaoke v1.27 - MOMO Works</title>
+<title>MOMO Karaoke v1.28 - MOMO Works</title>
 <!-- Google Identity Services (OAuth) — used by momo_gdrive.py -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <!-- Google API client — used for Picker -->
@@ -801,7 +805,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 </g>
             </svg>
         </div>
-        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.27</span></h1>
+        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.28</span></h1>
     </header>
     <p class="header-sub" id="header-sub">ローカル音源と同名 .lrc を読み込む、こだわり派のカラオケサロン</p>
 
@@ -1237,7 +1241,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v1.27';
+const APP_VERSION = 'v1.28';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -3294,11 +3298,13 @@ async function stopRecording(){
         renderBadges();
         setStatus('テイクを保存: ' + take.name, 'ok');
         DEBUG.ok('Take saved: ' + take.name + ' · duration=' + take.duration.toFixed(2) + 's · startSongTime=' + take.startSongTime.toFixed(2) + 's');
-        // NOTE: Previously we preloaded the take WAV here (right after save) to
-        // make subsequent playback start instantly. But that load() call
-        // produces audible click noise on iOS while BGM speakers are still
-        // active in the audio session. We now defer preload until the user
-        // actually starts BGM playback (bgmTransport 'play' handler).
+        // PRELOAD the take WAV NOW. We're inside stopRecording, BGM has been
+        // paused already, so audio-element load() will not produce audible
+        // clicks. By the time the user presses "play" again, iosTakeAudioEl
+        // will be ready (readyState=4) and playback can fire instantly.
+        if(IOS_MODE){
+            await preloadIOSTake(take).catch(e => DEBUG.warn('preload after save failed: ' + e.message));
+        }
     } else {
         setStatus('録音データがありません', 'err');
     }
@@ -3410,19 +3416,23 @@ function renderTakes(){
     takesList.querySelectorAll('.take-item').forEach(el => {
         const id = el.dataset.id;
         // selecting (click anywhere on the select-area)
-        el.querySelector('[data-act=select]').addEventListener('click', () => {
+        el.querySelector('[data-act=select]').addEventListener('click', async () => {
             const t = state.currentEntry.takes.find(x => x.id === id);
             if(!t) return;
             DEBUG.info('Take selected: ' + t.name);
             state.currentTake = t;
             renderTakes();
             renderBadges();
-            // PRELOAD on iOS: build the WAV URL and prime iosTakeAudioEl now,
-            // so that when BGM later starts and the take needs to begin, play()
-            // can fire instantly. Without this, iOS waits to load the blob and
-            // the take starts ~1.8 seconds late.
+            // PRELOAD on iOS: must complete BEFORE startTakePlayback so the
+            // <audio> element doesn't race with itself (preload running while
+            // startTakePlaybackIOS sees src not yet loaded and triggers another
+            // load(), causing ~300ms delay).
             if(IOS_MODE){
-                preloadIOSTake(t).catch(e => DEBUG.warn('preload failed: ' + e.message));
+                try {
+                    await preloadIOSTake(t);
+                } catch(e){
+                    DEBUG.warn('preload failed: ' + e.message);
+                }
             }
             // If BGM is playing, start the take in sync
             if(!bgmTransport.paused && state.playMode !== 'bgm') startTakePlayback();
@@ -4417,13 +4427,6 @@ async function ensureAudioGraph(){
 bgmTransport.addEventListener('play', () => {
     btnPlay.classList.add('playing');
     btnPlay.textContent = '⏸';
-    // On iOS, ensure the current take's WAV is preloaded into iosTakeAudioEl now,
-    // so that playback can begin without delay. We do this here (not at save
-    // time) to avoid produce audible clicks while BGM is still in a transient
-    // state right after recording.
-    if(IOS_MODE && state.currentTake && !state.isRecording){
-        preloadIOSTake(state.currentTake).catch(e => DEBUG.warn('preload on play failed: ' + e.message));
-    }
     if(state.currentTake && state.playMode !== 'bgm') startTakePlayback();
 });
 bgmTransport.addEventListener('pause', () => {

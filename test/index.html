@@ -56,12 +56,17 @@
                 preload で readyState>=3 を確実に待つ (テイク再生遅延対策)
        v1.26 - 末尾境界での再生試行を防ぐマージン拡大 (100ms→500ms)
                 テイク再生の precise scheduling: BGM が takeStart に到達する瞬間を予約
-                stopRecording 後 1500ms iosTakeAudioEl を muted にして暴走時の音を抑止 -->
+                stopRecording 後 1500ms iosTakeAudioEl を muted にして暴走時の音を抑止
+       v1.27 - 案B採用: 録音は曲頭からのみ (3-2-1 カウントダウン後 BGM+録音同時開始)
+                startSongTime = 0 固定 → BGM とテイクが完璧に同期
+                stopRecording 時に BGM も pause → teardown 中の音漏れ防止 (本命対策)
+                録音保存直後の preload を削除 → BGM 再生時に preload に変更
+                progress イベントリスナー削除 (副作用リスク回避) -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MOMO Karaoke v1.26 - MOMO Works</title>
+<title>MOMO Karaoke v1.27 - MOMO Works</title>
 <!-- Google Identity Services (OAuth) — used by momo_gdrive.py -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <!-- Google API client — used for Picker -->
@@ -796,7 +801,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 </g>
             </svg>
         </div>
-        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.26</span></h1>
+        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.27</span></h1>
     </header>
     <p class="header-sub" id="header-sub">ローカル音源と同名 .lrc を読み込む、こだわり派のカラオケサロン</p>
 
@@ -1232,7 +1237,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v1.26';
+const APP_VERSION = 'v1.27';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2602,13 +2607,11 @@ async function preloadIOSTake(take){
             iosTakeAudioEl.removeEventListener('canplaythrough', onReady);
             iosTakeAudioEl.removeEventListener('canplay', onReady);
             iosTakeAudioEl.removeEventListener('loadeddata', onReady);
-            iosTakeAudioEl.removeEventListener('progress', onReady);
             iosTakeAudioEl.removeEventListener('error', onErr);
         }
         iosTakeAudioEl.addEventListener('canplaythrough', onReady);
         iosTakeAudioEl.addEventListener('canplay', onReady);
         iosTakeAudioEl.addEventListener('loadeddata', onReady);
-        iosTakeAudioEl.addEventListener('progress', onReady);
         iosTakeAudioEl.addEventListener('error', onErr);
         try { iosTakeAudioEl.load(); } catch(e){}
         // Hard timeout — if it never reaches readyState 3, give up after 5s and
@@ -2996,8 +2999,48 @@ async function startRecording(){
 
     recPitchAtStart = parseInt(pitchSlider.value, 10);
     recSpeedAtStart = parseFloat(speedSlider.value);
-    recStartSongTime = audioEl.currentTime;
-    DEBUG.info('recStartSongTime captured: ' + recStartSongTime.toFixed(3) + 's (BGM position at record start)');
+
+    // ─── Plan B: countdown then synchronized BGM + recording start ─────────
+    // After mic is ready, seek BGM to 0, run a 3-2-1 countdown, then start
+    // BGM playback and MediaRecorder simultaneously. This guarantees that
+    // startSongTime = 0 and the take audio is perfectly aligned with BGM.
+    try { bgmTransport.pause(); } catch(e){}
+    try { bgmTransport.currentTime = 0; } catch(e){}
+    DEBUG.info('startRecording: BGM rewound to 0, beginning countdown');
+
+    // Run the countdown
+    setStatus('3...', 'warn');
+    btnRec.textContent = '3';
+    await new Promise(r => setTimeout(r, 800));
+    setStatus('2...', 'warn');
+    btnRec.textContent = '2';
+    await new Promise(r => setTimeout(r, 800));
+    setStatus('1...', 'warn');
+    btnRec.textContent = '1';
+    await new Promise(r => setTimeout(r, 800));
+
+    // User may have hit stop during countdown — bail out cleanly
+    if(!state.isRecording){
+        DEBUG.warn('startRecording: cancelled during countdown');
+        try { stream.getTracks().forEach(t => t.stop()); } catch(_){}
+        try { if(recCtx) await recCtx.close(); } catch(_){}
+        try { if(recGainCtx) await recGainCtx.close(); } catch(_){}
+        recCtx = null; recGainCtx = null; recSrc = null; recGainNode = null; recGainSrc = null;
+        micAnalyser = null; micStream = null; mediaRecorder = null;
+        btnRec.textContent = '●';
+        return;
+    }
+
+    btnRec.textContent = '■';
+    recStartSongTime = 0;  // Plan B: always zero
+    DEBUG.info('recStartSongTime: 0 (Plan B fixed)');
+
+    // Start BGM and MediaRecorder simultaneously
+    try {
+        await bgmTransport.play();
+    } catch(e){
+        DEBUG.warn('startRecording: BGM play failed: ' + e.message);
+    }
 
     // Start the recorder. timeslice=0 (no arg) is fine; we get one big blob on stop.
     try {
@@ -3027,6 +3070,14 @@ async function stopRecording(){
     state.isRecording = false;
     btnRec.classList.remove('recording');
     btnRec.textContent = '●';
+
+    // CRITICAL: Pause BGM immediately when recording stops. The teardown
+    // sequence (mic context close, blob decode, preload) creates internal audio
+    // events that, if BGM is playing through speakers, are heard as click/pop
+    // noise. Pausing BGM gives the audio system a clean state to settle into
+    // while the teardown runs in the background.
+    DEBUG.info('stopRecording: pausing BGM to silence teardown clicks');
+    try { bgmTransport.pause(); } catch(e){}
 
     // On iOS, defer the vocal-cut update — the AudioSession is in the middle of
     // transitioning back from PlayAndRecord mode, and triggering a src change
@@ -3243,11 +3294,11 @@ async function stopRecording(){
         renderBadges();
         setStatus('テイクを保存: ' + take.name, 'ok');
         DEBUG.ok('Take saved: ' + take.name + ' · duration=' + take.duration.toFixed(2) + 's · startSongTime=' + take.startSongTime.toFixed(2) + 's');
-        // PRELOAD on iOS so that when BGM is restarted, take playback can fire
-        // instantly without the ~1.8s blob load delay.
-        if(IOS_MODE){
-            preloadIOSTake(take).catch(e => DEBUG.warn('preload after save failed: ' + e.message));
-        }
+        // NOTE: Previously we preloaded the take WAV here (right after save) to
+        // make subsequent playback start instantly. But that load() call
+        // produces audible click noise on iOS while BGM speakers are still
+        // active in the audio session. We now defer preload until the user
+        // actually starts BGM playback (bgmTransport 'play' handler).
     } else {
         setStatus('録音データがありません', 'err');
     }
@@ -4366,6 +4417,13 @@ async function ensureAudioGraph(){
 bgmTransport.addEventListener('play', () => {
     btnPlay.classList.add('playing');
     btnPlay.textContent = '⏸';
+    // On iOS, ensure the current take's WAV is preloaded into iosTakeAudioEl now,
+    // so that playback can begin without delay. We do this here (not at save
+    // time) to avoid produce audible clicks while BGM is still in a transient
+    // state right after recording.
+    if(IOS_MODE && state.currentTake && !state.isRecording){
+        preloadIOSTake(state.currentTake).catch(e => DEBUG.warn('preload on play failed: ' + e.message));
+    }
     if(state.currentTake && state.playMode !== 'bgm') startTakePlayback();
 });
 bgmTransport.addEventListener('pause', () => {
@@ -4582,10 +4640,8 @@ btnRec.addEventListener('click', async () => {
         if(!await ensureAudioGraph()) return;
         if(audioCtx && audioCtx.state === 'suspended') await audioCtx.resume();
     }
-    // Start BGM playback if not already playing — gives the user a guide
-    if(bgmTransport.paused && bgmTransport.duration > 0){
-        try { await bgmTransport.play(); } catch(e){}
-    }
+    // Plan B: startRecording handles BGM control (rewind to 0, countdown, then
+    // simultaneous BGM + recording start). Don't pre-start BGM here.
     await startRecording();
 });
 

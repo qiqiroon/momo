@@ -65,12 +65,15 @@
        v1.28 - テイク再生 1秒遅延の修正
                 preload を stopRecording 内 (BGM pause済み) で await 完了
                 BGM play イベントから preload 呼び出しを削除 (競合解消)
-                Take選択時もpreload完了を待つように修正 -->
+                Take選択時もpreload完了を待つように修正
+       v1.29 - 録音中に前のテイクが再生されるバグ修正
+                play イベントハンドラで isRecording チェック (致命的)
+                BGM 再生時に <audio>.play() 解決ラグ吸収 (テイクを先に play()) -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MOMO Karaoke v1.28 - MOMO Works</title>
+<title>MOMO Karaoke v1.29 - MOMO Works</title>
 <!-- Google Identity Services (OAuth) — used by momo_gdrive.py -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <!-- Google API client — used for Picker -->
@@ -805,7 +808,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 </g>
             </svg>
         </div>
-        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.28</span></h1>
+        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.29</span></h1>
     </header>
     <p class="header-sub" id="header-sub">ローカル音源と同名 .lrc を読み込む、こだわり派のカラオケサロン</p>
 
@@ -1241,7 +1244,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v1.28';
+const APP_VERSION = 'v1.29';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2634,6 +2637,11 @@ function startTakePlaybackIOS(){
     }
     ensureIOSTakeAudio();
     if(!iosTakeAudioEl) return;
+    // If already playing (e.g. pre-started by btnPlay handler), don't restart
+    if(!iosTakeAudioEl.paused){
+        DEBUG.info('iOS take: already playing, skipping');
+        return;
+    }
     // Build/reuse a WAV Object URL for this take
     if(!state.currentTake._wavUrl){
         const pcm = state.currentTake.pcm;
@@ -4427,6 +4435,10 @@ async function ensureAudioGraph(){
 bgmTransport.addEventListener('play', () => {
     btnPlay.classList.add('playing');
     btnPlay.textContent = '⏸';
+    // CRITICAL: Do NOT start take playback during recording. The play event
+    // here fires from inside startRecording (Plan B starts BGM after the
+    // countdown) and we must not let any prior take leak into the mic.
+    if(state.isRecording) return;
     if(state.currentTake && state.playMode !== 'bgm') startTakePlayback();
 });
 bgmTransport.addEventListener('pause', () => {
@@ -4594,6 +4606,31 @@ btnPlay.addEventListener('click', async () => {
             return;
         }
         try {
+            // On iOS, start take FIRST (so its play() promise can resolve
+            // ~280ms before BGM produces its first sample), then start BGM.
+            // This compensates for the iOS <audio>.play() resolution latency
+            // and keeps take audio aligned with BGM at the start.
+            if(IOS_MODE && state.currentTake && state.playMode !== 'bgm' && iosTakeAudioEl){
+                ensureIOSTakeAudio();
+                if(state.currentTake._iosLoadedUrl === state.currentTake._wavUrl
+                   && iosTakeAudioEl.readyState >= 3){
+                    try {
+                        // Position the take to start from 0 (Plan B always)
+                        iosTakeAudioEl.currentTime = 0;
+                        const takeP = iosTakeAudioEl.play();
+                        // Don't await fully — but give it a small head start
+                        if(takeP && takeP.then){
+                            takeP.then(() => {
+                                iosTakeStarting = false;
+                                DEBUG.ok('iOS take: pre-start play() resolved');
+                            }).catch(e => DEBUG.warn('iOS take pre-start: ' + e.message));
+                        }
+                        iosTakeStarting = true;
+                        iosTakeStartedAt = performance.now();
+                        DEBUG.info('iOS: take pre-started for sync');
+                    } catch(e){ DEBUG.warn('iOS take pre-start failed: ' + e.message); }
+                }
+            }
             await bgmTransport.play();
         } catch(e){
             DEBUG.err('btnPlay: play failed:', e.message);

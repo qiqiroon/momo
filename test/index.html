@@ -75,12 +75,18 @@
        v1.31 - Plan V: 録音は BGM 実出力開始まで待つ
                 bgmTransport.play() の後、playing イベント or currentTime>0 を待ってから MediaRecorder.start()
                 これで「録音開始時に BGM がまだ鳴っていない」期間がなくなり、テイクと BGM が同期するはず
-                1000ms タイムアウトでフォールバック (録音を確実に開始) -->
+                1000ms タイムアウトでフォールバック (録音を確実に開始)
+       v1.32 - レイテンシ実測診断ログを追加
+                AudioContext.baseLatency / outputLatency / sampleRate を出力
+                MediaStreamTrack の settings / capabilities をJSON でダンプ
+                MediaRecorder.start から first dataavailable までの実時間を測定
+                pause() 後の currentTime 推移を 100ms / 300ms 後にサンプリング
+                → これらから出力/入力レイテンシの実数値が判明する -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MOMO Karaoke v1.31 - MOMO Works</title>
+<title>MOMO Karaoke v1.32 - MOMO Works</title>
 <!-- Google Identity Services (OAuth) — used by momo_gdrive.py -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <!-- Google API client — used for Picker -->
@@ -815,7 +821,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 </g>
             </svg>
         </div>
-        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.31</span></h1>
+        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.32</span></h1>
     </header>
     <p class="header-sub" id="header-sub">ローカル音源と同名 .lrc を読み込む、こだわり派のカラオケサロン</p>
 
@@ -1251,7 +1257,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v1.31';
+const APP_VERSION = 'v1.32';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -3019,6 +3025,42 @@ async function startRecording(){
         gainNodeRef.connect(gainDest);
         recordingStream = gainDest.stream;
         DEBUG.info('Mic gain stage inserted: ' + micGainDb.toFixed(1) + ' dB');
+
+        // ─── LATENCY DIAGNOSTICS (v1.32) ─────────────────────────────────
+        // Log all latency-related properties iOS Safari may expose, so we can
+        // identify the actual cause of audio offset without guesswork.
+        try {
+            DEBUG.info('═══ LATENCY DIAGNOSTICS ═══');
+            DEBUG.info('gainCtx.sampleRate=' + gainCtx.sampleRate);
+            DEBUG.info('gainCtx.baseLatency=' + (gainCtx.baseLatency !== undefined ? gainCtx.baseLatency.toFixed(4) + 's (' + (gainCtx.baseLatency * 1000).toFixed(1) + 'ms)' : 'undefined'));
+            DEBUG.info('gainCtx.outputLatency=' + (gainCtx.outputLatency !== undefined ? gainCtx.outputLatency.toFixed(4) + 's (' + (gainCtx.outputLatency * 1000).toFixed(1) + 'ms)' : 'undefined'));
+            // MediaStreamTrack settings — may expose latency on some platforms
+            const tracks = stream.getAudioTracks();
+            if(tracks.length > 0){
+                const settings = tracks[0].getSettings();
+                DEBUG.info('mic track settings: ' + JSON.stringify(settings));
+                const constraints = tracks[0].getConstraints();
+                DEBUG.info('mic track constraints: ' + JSON.stringify(constraints));
+                const capabilities = tracks[0].getCapabilities ? tracks[0].getCapabilities() : null;
+                if(capabilities){
+                    DEBUG.info('mic track capabilities: ' + JSON.stringify(capabilities));
+                }
+            }
+            // iosAudioEl latency-relevant properties
+            if(IOS_MODE && iosAudioEl){
+                DEBUG.info('iosAudioEl.preload=' + iosAudioEl.preload);
+                DEBUG.info('iosAudioEl.readyState=' + iosAudioEl.readyState);
+                DEBUG.info('iosAudioEl.networkState=' + iosAudioEl.networkState);
+                DEBUG.info('iosAudioEl.buffered.length=' + iosAudioEl.buffered.length
+                    + (iosAudioEl.buffered.length > 0
+                        ? ' [0]=(' + iosAudioEl.buffered.start(0).toFixed(3) + ' - ' + iosAudioEl.buffered.end(0).toFixed(3) + ')'
+                        : ''));
+            }
+            DEBUG.info('═══════════════════════════');
+        } catch(latErr){
+            DEBUG.warn('Latency diagnostics failed: ' + latErr.message);
+        }
+
         // Stash for later reference (slider can adjust during recording)
         recGainCtx = gainCtx;
         recGainNode = gainNodeRef;
@@ -3047,17 +3089,26 @@ async function startRecording(){
     }
 
     mediaRecorderChunks = [];
+    let _mediaRecorderStartedAt = 0;
+    let _firstDataArrivedAt = 0;
     mediaRecorder.ondataavailable = (e) => {
         if(e.data && e.data.size > 0){
             mediaRecorderChunks.push(e.data);
-            DEBUG.info('MediaRecorder dataavailable: ' + e.data.size + ' bytes (total=' + mediaRecorderChunks.length + ' chunks)');
+            const now = performance.now();
+            if(_firstDataArrivedAt === 0 && _mediaRecorderStartedAt > 0){
+                _firstDataArrivedAt = now;
+                DEBUG.info('MediaRecorder: first data arrived ' + (now - _mediaRecorderStartedAt).toFixed(0) + 'ms after start, size=' + e.data.size);
+            } else {
+                DEBUG.info('MediaRecorder dataavailable: ' + e.data.size + ' bytes (total=' + mediaRecorderChunks.length + ' chunks)');
+            }
         }
     };
     mediaRecorder.onerror = (e) => {
         DEBUG.err('MediaRecorder error:', e.error ? e.error.message : e);
     };
     mediaRecorder.onstart = () => {
-        DEBUG.ok('MediaRecorder started, state=' + mediaRecorder.state);
+        _mediaRecorderStartedAt = performance.now();
+        DEBUG.ok('MediaRecorder started, state=' + mediaRecorder.state + ', perfNow=' + _mediaRecorderStartedAt.toFixed(1));
     };
     mediaRecorder.onstop = () => {
         DEBUG.info('MediaRecorder stopped, chunks=' + mediaRecorderChunks.length);
@@ -3201,8 +3252,26 @@ async function stopRecording(){
     // events that, if BGM is playing through speakers, are heard as click/pop
     // noise. Pausing BGM gives the audio system a clean state to settle into
     // while the teardown runs in the background.
-    DEBUG.info('stopRecording: pausing BGM to silence teardown clicks');
+    const pauseT0 = performance.now();
+    const ctBefore = IOS_MODE && iosAudioEl ? iosAudioEl.currentTime : -1;
+    DEBUG.info('stopRecording: pausing BGM to silence teardown clicks (ct before pause=' + ctBefore.toFixed(3) + ')');
     try { bgmTransport.pause(); } catch(e){}
+    if(IOS_MODE && iosAudioEl){
+        // Measure how long after pause() the currentTime stops advancing.
+        // If there's a 200ms output latency, currentTime might keep advancing
+        // for ~200ms after pause(). If pause() is immediate, we'll see it stop
+        // right away.
+        const ctAfterImmediate = iosAudioEl.currentTime;
+        DEBUG.info('  ct immediately after pause()=' + ctAfterImmediate.toFixed(3) + ' (delta=' + ((ctAfterImmediate - ctBefore) * 1000).toFixed(1) + 'ms)');
+        setTimeout(() => {
+            const ct100 = iosAudioEl.currentTime;
+            DEBUG.info('  ct +100ms after pause()=' + ct100.toFixed(3));
+        }, 100);
+        setTimeout(() => {
+            const ct300 = iosAudioEl.currentTime;
+            DEBUG.info('  ct +300ms after pause()=' + ct300.toFixed(3));
+        }, 300);
+    }
 
     // On iOS, defer the vocal-cut update — the AudioSession is in the middle of
     // transitioning back from PlayAndRecord mode, and triggering a src change

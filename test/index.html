@@ -81,12 +81,18 @@
                 MediaStreamTrack の settings / capabilities をJSON でダンプ
                 MediaRecorder.start から first dataavailable までの実時間を測定
                 pause() 後の currentTime 推移を 100ms / 300ms 後にサンプリング
-                → これらから出力/入力レイテンシの実数値が判明する -->
+                → これらから出力/入力レイテンシの実数値が判明する
+       v1.33 - 録音停止直後にテイクの音が勝手に再生されるバグ修正
+                preloadIOSTake() の warm-up cycle (v1.30) を削除
+                原因: src=...; load() で iOS Safari が muted 属性をリセット
+                      → wasMuted=false で記録 → warm-up 末尾で muted=false に戻る
+                      → 一度動き出した <audio> は誰にも止められず最後まで再生
+                v1.30 で導入したが「効果不明確」だった機能 — 害が判明したので削除 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MOMO Karaoke v1.32 - MOMO Works</title>
+<title>MOMO Karaoke v1.33 - MOMO Works</title>
 <!-- Google Identity Services (OAuth) — used by momo_gdrive.py -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <!-- Google API client — used for Picker -->
@@ -821,7 +827,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 </g>
             </svg>
         </div>
-        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.32</span></h1>
+        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.33</span></h1>
     </header>
     <p class="header-sub" id="header-sub">ローカル音源と同名 .lrc を読み込む、こだわり派のカラオケサロン</p>
 
@@ -1257,7 +1263,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v1.32';
+const APP_VERSION = 'v1.33';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -1950,39 +1956,12 @@ function installIOSTransport(){
         });
         DEBUG.ok('iOS bgmTransport.loadFile: ready, duration=' + (iosAudioEl.duration||0).toFixed(2) + 's');
 
-        // ─── BGM warm-up (Plan B step 1) ────────────────────────────────
-        // Run a brief muted play()/pause() cycle so that the next real play()
-        // call resolves and produces audio with minimal latency. We suppress
-        // the transport events so listeners (like the play handler that
-        // starts take playback) don't fire from this internal warm-up.
-        try {
-            suppressTransportEvents = true;
-            const wasMuted = iosAudioEl.muted;
-            iosAudioEl.muted = true;
-            const t0 = performance.now();
-            const p = iosAudioEl.play();
-            if(p && p.then){
-                await p.then(() => {
-                    try { iosAudioEl.pause(); } catch(e){}
-                    try { iosAudioEl.currentTime = 0; } catch(e){}
-                    DEBUG.info('iOS bgmTransport: warm-up done in ' + (performance.now() - t0).toFixed(0) + 'ms');
-                }).catch(e => {
-                    DEBUG.warn('BGM warm-up play() rejected: ' + e.message);
-                    try { iosAudioEl.pause(); } catch(_){}
-                    try { iosAudioEl.currentTime = 0; } catch(_){}
-                });
-            } else {
-                try { iosAudioEl.pause(); } catch(e){}
-                try { iosAudioEl.currentTime = 0; } catch(e){}
-            }
-            iosAudioEl.muted = wasMuted;
-            // Wait briefly for any in-flight events to clear before re-enabling
-            await new Promise(r => setTimeout(r, 50));
-            suppressTransportEvents = false;
-        } catch(e){
-            DEBUG.warn('BGM warm-up failed: ' + e.message);
-            suppressTransportEvents = false;
-        }
+        // ─── v1.33: BGM warm-up cycle removed ────────────────────────────
+        // Same rationale as the take-side warm-up removal: the muted-attribute
+        // dance around play()/pause() can leave the element in an unintended
+        // state on iOS (because src= and load() above can reset muted). The
+        // claimed latency benefit was never measured, and the risk of an
+        // audible accidental BGM playback parallels the take-side bug.
     };
     bgmTransport.unload = function(){
         try { iosAudioEl.pause(); } catch(e){}
@@ -2675,37 +2654,19 @@ async function preloadIOSTake(take){
     take._iosLoadedUrl = take._wavUrl;
     DEBUG.ok('preloadIOSTake: ready, duration=' + (iosTakeAudioEl.duration || 0).toFixed(2) + 's, readyState=' + iosTakeAudioEl.readyState);
 
-    // ─── Warm-up (Plan B step 1) ─────────────────────────────────────────
-    // After preload, run a brief play()/pause() cycle to push the <audio>
-    // element through iOS's full "ready-to-play" path. This reduces the
-    // latency of the next real play() call (the thinking is that iOS does
-    // additional internal setup the first time a given <audio> element is
-    // played, beyond just having data ready). We mute during warm-up so any
-    // small bit of audio that leaks through isn't audible.
-    try {
-        const wasMuted = iosTakeAudioEl.muted;
-        iosTakeAudioEl.muted = true;
-        const t0 = performance.now();
-        const p = iosTakeAudioEl.play();
-        if(p && p.then){
-            await p.then(() => {
-                try { iosTakeAudioEl.pause(); } catch(e){}
-                try { iosTakeAudioEl.currentTime = 0; } catch(e){}
-                DEBUG.info('preloadIOSTake: warm-up play->pause cycle done in ' + (performance.now() - t0).toFixed(0) + 'ms');
-            }).catch(e => {
-                DEBUG.warn('preloadIOSTake: warm-up play() rejected: ' + e.message);
-                try { iosTakeAudioEl.pause(); } catch(_){}
-                try { iosTakeAudioEl.currentTime = 0; } catch(_){}
-            });
-        } else {
-            try { iosTakeAudioEl.pause(); } catch(e){}
-            try { iosTakeAudioEl.currentTime = 0; } catch(e){}
-        }
-        iosTakeAudioEl.muted = wasMuted;
-        take._iosWarmedUp = true;
-    } catch(e){
-        DEBUG.warn('preloadIOSTake: warm-up failed: ' + e.message);
-    }
+    // ─── v1.33: warm-up cycle removed ────────────────────────────────────
+    // The warm-up code (v1.30) called play() / pause() on iosTakeAudioEl with
+    // muted=true, intending to push iOS through its first-play setup path so
+    // the next real play() would be faster. In practice the muted attribute
+    // got reset by the preceding `iosTakeAudioEl.src = ...; load()` calls,
+    // so wasMuted captured a stale (false) value. After warm-up the muted
+    // attribute was restored to false, and any later code that tried to
+    // mute the element (e.g. stopRecording's `iosTakeAudioEl.muted = true`)
+    // could be silently un-muted by this restore, leaving the element
+    // playing audibly when it shouldn't. This was the root cause of the
+    // "take plays automatically right after recording stops" bug.
+    //
+    // The latency reduction was never measured to be significant. Removing.
 }
 
 function startTakePlaybackIOS(){

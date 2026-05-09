@@ -71,12 +71,16 @@
                 BGM 再生時に <audio>.play() 解決ラグ吸収 (テイクを先に play())
        v1.30 - テイク・BGMのウォームアップ (Plan B step 1)
                 preload/loadFile 完了後にmuted で play→pause→currentTime=0 を実行
-                iOS の <audio> 要素が ready-to-play 状態に昇格 → 本番 play() が高速化される仮説 -->
+                iOS の <audio> 要素が ready-to-play 状態に昇格 → 本番 play() が高速化される仮説
+       v1.31 - Plan V: 録音は BGM 実出力開始まで待つ
+                bgmTransport.play() の後、playing イベント or currentTime>0 を待ってから MediaRecorder.start()
+                これで「録音開始時に BGM がまだ鳴っていない」期間がなくなり、テイクと BGM が同期するはず
+                1000ms タイムアウトでフォールバック (録音を確実に開始) -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MOMO Karaoke v1.30 - MOMO Works</title>
+<title>MOMO Karaoke v1.31 - MOMO Works</title>
 <!-- Google Identity Services (OAuth) — used by momo_gdrive.py -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <!-- Google API client — used for Picker -->
@@ -811,7 +815,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 </g>
             </svg>
         </div>
-        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.30</span></h1>
+        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.31</span></h1>
     </header>
     <p class="header-sub" id="header-sub">ローカル音源と同名 .lrc を読み込む、こだわり派のカラオケサロン</p>
 
@@ -1247,7 +1251,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v1.30';
+const APP_VERSION = 'v1.31';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -3116,11 +3120,51 @@ async function startRecording(){
     recStartSongTime = 0;  // Plan B: always zero
     DEBUG.info('recStartSongTime: 0 (Plan B fixed)');
 
-    // Start BGM and MediaRecorder simultaneously
+    // Start BGM and MediaRecorder.
+    // ─── Plan V (v1.31): Wait for BGM to actually start outputting before
+    //   starting MediaRecorder. The play() Promise resolves when iOS marks the
+    //   element as "playing" but the DAC may take additional time to actually
+    //   emit audio. Waiting for the 'playing' event (or currentTime to advance
+    //   past 0) gives us the moment when BGM is truly audible, so the recording
+    //   captures audio aligned to that moment.
     try {
         await bgmTransport.play();
     } catch(e){
         DEBUG.warn('startRecording: BGM play failed: ' + e.message);
+    }
+
+    if(IOS_MODE && iosAudioEl){
+        const waitStart = performance.now();
+        await new Promise((resolve) => {
+            let done = false;
+            const finish = (reason) => {
+                if(done) return;
+                done = true;
+                cleanup();
+                const elapsed = (performance.now() - waitStart).toFixed(0);
+                DEBUG.info('startRecording: BGM audible detected (' + reason + ') after ' + elapsed + 'ms, currentTime=' + iosAudioEl.currentTime.toFixed(3));
+                resolve();
+            };
+            const onPlaying = () => finish('playing event');
+            function cleanup(){
+                iosAudioEl.removeEventListener('playing', onPlaying);
+                if(pollTimer) clearInterval(pollTimer);
+                if(timeoutTimer) clearTimeout(timeoutTimer);
+            }
+            iosAudioEl.addEventListener('playing', onPlaying);
+            // Belt-and-suspenders: also poll currentTime in case 'playing' is
+            // unreliable on this iOS version.
+            const pollTimer = setInterval(() => {
+                if(iosAudioEl.currentTime > 0.01){
+                    finish('currentTime>0');
+                }
+            }, 16);
+            // Hard timeout: if neither event fires within 1000ms, proceed anyway
+            // (better to record with possible offset than to never record).
+            const timeoutTimer = setTimeout(() => {
+                finish('timeout 1000ms');
+            }, 1000);
+        });
     }
 
     // Start the recorder. timeslice=0 (no arg) is fine; we get one big blob on stop.

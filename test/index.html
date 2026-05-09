@@ -68,12 +68,15 @@
                 Take選択時もpreload完了を待つように修正
        v1.29 - 録音中に前のテイクが再生されるバグ修正
                 play イベントハンドラで isRecording チェック (致命的)
-                BGM 再生時に <audio>.play() 解決ラグ吸収 (テイクを先に play()) -->
+                BGM 再生時に <audio>.play() 解決ラグ吸収 (テイクを先に play())
+       v1.30 - テイク・BGMのウォームアップ (Plan B step 1)
+                preload/loadFile 完了後にmuted で play→pause→currentTime=0 を実行
+                iOS の <audio> 要素が ready-to-play 状態に昇格 → 本番 play() が高速化される仮説 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MOMO Karaoke v1.29 - MOMO Works</title>
+<title>MOMO Karaoke v1.30 - MOMO Works</title>
 <!-- Google Identity Services (OAuth) — used by momo_gdrive.py -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <!-- Google API client — used for Picker -->
@@ -808,7 +811,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 </g>
             </svg>
         </div>
-        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.29</span></h1>
+        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.30</span></h1>
     </header>
     <p class="header-sub" id="header-sub">ローカル音源と同名 .lrc を読み込む、こだわり派のカラオケサロン</p>
 
@@ -1244,7 +1247,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v1.29';
+const APP_VERSION = 'v1.30';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -1936,6 +1939,40 @@ function installIOSTransport(){
             try { iosAudioEl.load(); } catch(e){}
         });
         DEBUG.ok('iOS bgmTransport.loadFile: ready, duration=' + (iosAudioEl.duration||0).toFixed(2) + 's');
+
+        // ─── BGM warm-up (Plan B step 1) ────────────────────────────────
+        // Run a brief muted play()/pause() cycle so that the next real play()
+        // call resolves and produces audio with minimal latency. We suppress
+        // the transport events so listeners (like the play handler that
+        // starts take playback) don't fire from this internal warm-up.
+        try {
+            suppressTransportEvents = true;
+            const wasMuted = iosAudioEl.muted;
+            iosAudioEl.muted = true;
+            const t0 = performance.now();
+            const p = iosAudioEl.play();
+            if(p && p.then){
+                await p.then(() => {
+                    try { iosAudioEl.pause(); } catch(e){}
+                    try { iosAudioEl.currentTime = 0; } catch(e){}
+                    DEBUG.info('iOS bgmTransport: warm-up done in ' + (performance.now() - t0).toFixed(0) + 'ms');
+                }).catch(e => {
+                    DEBUG.warn('BGM warm-up play() rejected: ' + e.message);
+                    try { iosAudioEl.pause(); } catch(_){}
+                    try { iosAudioEl.currentTime = 0; } catch(_){}
+                });
+            } else {
+                try { iosAudioEl.pause(); } catch(e){}
+                try { iosAudioEl.currentTime = 0; } catch(e){}
+            }
+            iosAudioEl.muted = wasMuted;
+            // Wait briefly for any in-flight events to clear before re-enabling
+            await new Promise(r => setTimeout(r, 50));
+            suppressTransportEvents = false;
+        } catch(e){
+            DEBUG.warn('BGM warm-up failed: ' + e.message);
+            suppressTransportEvents = false;
+        }
     };
     bgmTransport.unload = function(){
         try { iosAudioEl.pause(); } catch(e){}
@@ -2627,6 +2664,38 @@ async function preloadIOSTake(take){
     });
     take._iosLoadedUrl = take._wavUrl;
     DEBUG.ok('preloadIOSTake: ready, duration=' + (iosTakeAudioEl.duration || 0).toFixed(2) + 's, readyState=' + iosTakeAudioEl.readyState);
+
+    // ─── Warm-up (Plan B step 1) ─────────────────────────────────────────
+    // After preload, run a brief play()/pause() cycle to push the <audio>
+    // element through iOS's full "ready-to-play" path. This reduces the
+    // latency of the next real play() call (the thinking is that iOS does
+    // additional internal setup the first time a given <audio> element is
+    // played, beyond just having data ready). We mute during warm-up so any
+    // small bit of audio that leaks through isn't audible.
+    try {
+        const wasMuted = iosTakeAudioEl.muted;
+        iosTakeAudioEl.muted = true;
+        const t0 = performance.now();
+        const p = iosTakeAudioEl.play();
+        if(p && p.then){
+            await p.then(() => {
+                try { iosTakeAudioEl.pause(); } catch(e){}
+                try { iosTakeAudioEl.currentTime = 0; } catch(e){}
+                DEBUG.info('preloadIOSTake: warm-up play->pause cycle done in ' + (performance.now() - t0).toFixed(0) + 'ms');
+            }).catch(e => {
+                DEBUG.warn('preloadIOSTake: warm-up play() rejected: ' + e.message);
+                try { iosTakeAudioEl.pause(); } catch(_){}
+                try { iosTakeAudioEl.currentTime = 0; } catch(_){}
+            });
+        } else {
+            try { iosTakeAudioEl.pause(); } catch(e){}
+            try { iosTakeAudioEl.currentTime = 0; } catch(e){}
+        }
+        iosTakeAudioEl.muted = wasMuted;
+        take._iosWarmedUp = true;
+    } catch(e){
+        DEBUG.warn('preloadIOSTake: warm-up failed: ' + e.message);
+    }
 }
 
 function startTakePlaybackIOS(){

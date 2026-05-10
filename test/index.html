@@ -98,12 +98,20 @@
                 追加ログ: btnPlay 押下時のテイク <audio> 状態スナップショット
                           (readyState / networkState / paused / buffered / currentTime)
                           + 直前の preload・take pause・bgm pause からの経過 ms。
-                目的: 何が「速い経路」と「遅い経路」を分岐させているかを特定 -->
+                目的: 何が「速い経路」と「遅い経路」を分岐させているかを特定
+       v1.36 - ALIGNMENT 二峰性分布の原因対策
+                v1.35 で判明: btnPlay の「currentTime = 0」が、押下時の currentTime > 0
+                             の場合に iOS の async seek + buffer reprep を引き起こし、
+                             play() 解決が 200-400ms 遅れる(=遅い経路に分岐)。
+                対策: pause/ended イベントの 200ms 後に currentTime = 0 にリセット。
+                      btnPlay 内では「既に 0 なら代入スキップ」(無駄な seek 回避)。
+                      これで毎回「速い経路 (~277ms)」に乗ることを期待。
+                目標: ALIGNMENT を ±100-150ms (16分音符相当) 以内に 80% 以上収める -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MOMO Karaoke v1.35 - MOMO Works</title>
+<title>MOMO Karaoke v1.36 - MOMO Works</title>
 <!-- Google Identity Services (OAuth) — used by momo_gdrive.py -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <!-- Google API client — used for Picker -->
@@ -838,7 +846,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 </g>
             </svg>
         </div>
-        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.35</span></h1>
+        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.36</span></h1>
     </header>
     <p class="header-sub" id="header-sub">ローカル音源と同名 .lrc を読み込む、こだわり派のカラオケサロン</p>
 
@@ -1274,7 +1282,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v1.35';
+const APP_VERSION = 'v1.36';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2015,6 +2023,32 @@ function ensureIOSTakeAudio(){
     // ─── v1.35 diagnostics: record pause timestamp for ALIGNMENT correlation ──
     iosTakeAudioEl.addEventListener('pause', () => {
         iosTakeLastPausedAt = performance.now();
+        // ─── v1.36: schedule currentTime=0 reset 200ms after pause ──────
+        // Why: btnPlay sets `iosTakeAudioEl.currentTime = 0` before play()
+        // but on iOS, that re-seek (from any non-zero value) triggers an
+        // async seek + buffer reprep that delays the play() resolution by
+        // 200-400ms — this is the "slow path" identified in v1.35 logs.
+        // If currentTime is already 0 when btnPlay runs, the assignment is
+        // a no-op and play() takes the fast path (~277ms instead of ~600ms).
+        // We delay 200ms to avoid racing with iOS's own internal pause-time
+        // bookkeeping, and to give any pending operations a chance to settle.
+        setTimeout(() => {
+            try {
+                if(iosTakeAudioEl && iosTakeAudioEl.paused){
+                    iosTakeAudioEl.currentTime = 0;
+                }
+            } catch(_){}
+        }, 200);
+    });
+    // v1.36: also reset on ended event (covers playback-completes-naturally case)
+    iosTakeAudioEl.addEventListener('ended', () => {
+        setTimeout(() => {
+            try {
+                if(iosTakeAudioEl && iosTakeAudioEl.paused){
+                    iosTakeAudioEl.currentTime = 0;
+                }
+            } catch(_){}
+        }, 200);
     });
     document.body.appendChild(iosTakeAudioEl);
 }
@@ -4828,7 +4862,15 @@ btnPlay.addEventListener('click', async () => {
                    && iosTakeAudioEl.readyState >= 3){
                     try {
                         // Position the take to start from 0 (Plan B always)
-                        iosTakeAudioEl.currentTime = 0;
+                        // ─── v1.36: only assign if not already 0 ──────────
+                        // Reassigning currentTime to the same value still
+                        // triggers an iOS seek pipeline run, which is what
+                        // we're trying to avoid. The pause/ended listeners
+                        // already reset to 0 200ms after the previous play
+                        // ended, so most of the time this is a no-op skip.
+                        if(iosTakeAudioEl.currentTime > 0.001){
+                            iosTakeAudioEl.currentTime = 0;
+                        }
                         v134_takeCallT = performance.now();
                         const takeP = iosTakeAudioEl.play();
                         // Don't await fully — but give it a small head start

@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MOMO Darts</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-46 -50 92 80'%3E%3Crect x='-46' y='-50' width='92' height='80' rx='8' fill='%23000000'/%3E%3Cg transform='rotate(-12,-12,8.3)'%3E%3Cpath d='M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cg transform='rotate(12,12,8.3)'%3E%3Cpath d='M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cellipse cx='0' cy='1.3' rx='34' ry='26' fill='%23c2410c'/%3E%3Cline x1='-14' y1='1.00' x2='-33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='6.0' x2='-33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='10.59' x2='-29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.68' y1='-2.28' x2='-38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.44' y1='6.0' x2='-40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-29.58' y1='14.26' x2='-37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='1.00' x2='33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='6.0' x2='33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='10.59' x2='29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.68' y1='-2.28' x2='38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.44' y1='6.0' x2='40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='29.58' y1='14.26' x2='37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cellipse cx='-12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='-12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Cellipse cx='12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Ccircle cx='-10.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Ccircle cx='13.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Cpath d='M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z' fill='%23000'/%3E%3Cline x1='0' y1='11.3' x2='0' y2='13.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q-5,17.3 -8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q5,17.3 8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* ===== DESIGN SPEC v1.0 標準セット ===== */
+:root {
+  --bg: #0a0a0a;
+  --surface: #111111;
+  --surface2: #1a1a1a;
+  --orange: #c2410c;
+  --orange-mid: #ea580c;
+  --orange-light: #fb923c;
+  --text: #e5e5e5;
+  --text-muted: #737373;
+  --border: #2a2a2a;
+  --border-strong: #444;
+  --bg-selected: rgba(194,65,12,0.15);
+  --danger: #c0392b;
+  --success: #27ae60;
+  /* MOMO Darts ゲームUI例外（SPEC 16.2） */
+  --player-self: #ef4444;
+  --player-opp: #3b82f6;
+  --turn-self: #fca5a5;
+  --turn-opp: #1e40af;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Noto Sans JP', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ロビー/部屋/結果は通常のコンテンツページレイアウト、ゲーム画面のみ全画面 */
+body:not(.in-game) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 12px 40px;
+}
+
+/* 48px グリッド背景（SPEC 16.9 / design-spec 3章 方式A） */
+body:not(.in-game)::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 48px 48px;
+  opacity: 0.3;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ===== LANG SWITCHER（プルダウン、gomoku-go 流儀） ===== */
+#lang-switcher {
+  position: fixed;
+  top: 8px;
+  right: 12px;
+  z-index: 200;
+}
+#lang-select {
+  background: var(--surface2);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: 'Noto Sans JP', sans-serif;
+  outline: none;
+}
+#lang-select:focus { border-color: var(--orange); }
+
+/* ===== タイトルヘッダー ===== */
+.site-header {
+  display: flex;
+  align-items: flex-start; /* 猫アイコン上端を MOMO Darts 上端に揃える */
+  gap: 10px;
+  margin: 24px 0 0;
+  position: relative;
+  z-index: 1;
+  animation: fadeDown 0.4s ease-out;
+}
+.cat-icon { width: 57px; height: 62px; flex-shrink: 0; }
+.title-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1;
+}
+h1 {
+  font-family: 'Fredoka One', cursive;
+  font-size: clamp(2rem, 6vw, 2.6rem);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 0.3em;
+}
+h1 .momo { color: var(--text); }
+h1 .darts { color: var(--orange-mid); }
+h1 .version-tag {
+  color: var(--text-muted);
+  font-size: 0.28em; /* 通常テキスト(13px)よりも小さく */
+  letter-spacing: 0.04em;
+  align-self: flex-end;
+  padding-bottom: 0.2em;
+}
+.subtitle {
+  font-family: 'Fredoka One', cursive;
+  color: #888888; /* もう1トーン暗めの明るいグレー */
+  letter-spacing: 0;
+  margin-top: 1px; /* タイトルにギリギリ寄せる */
+  margin-bottom: 16px;
+  position: relative;
+  z-index: 1;
+  font-size: 16px; /* 英語が "MOMO Darts" の幅とほぼ同じになる程度 */
+  animation: fadeDown 0.5s ease-out;
+  min-height: 1.2em;
+  text-align: left;
+}
+.subtitle.zh {
+  letter-spacing: 0; /* 英語と同じ視覚サイズ */
+  font-family: 'Fredoka One', 'Noto Sans SC', 'Noto Sans JP', sans-serif;
+}
+
+/* ===== SCREEN SYSTEM ===== */
+.screen {
+  display: none;
+  width: 100%;
+  max-width: 460px;
+  position: relative;
+  z-index: 1;
+  flex-direction: column;
+  gap: 12px;
+  animation: fadeUp 0.3s ease-out;
+}
+.screen.active { display: flex; }
+
+/* ゲーム画面はフルスクリーン特例（SPEC 16.4） */
+.screen#screen-game.active {
+  display: block;
+  max-width: none;
+  width: 100vw;
+  height: 100vh;
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  margin: 0;
+  padding: 0;
+}
+body.in-game .site-header,
+body.in-game .version,
+body.in-game #lang-switcher { display: none; }
+
+/* ===== PANEL ===== */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.panel-title {
+  font-family: 'Fredoka One', cursive;
+  font-size: 14px;
+  color: var(--orange);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.panel-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+/* ===== BUTTONS ===== */
+.btn {
+  padding: 10px 18px;
+  border: none;
+  border-radius: 6px;
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s, opacity 0.15s;
+}
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-primary { background: var(--orange); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: var(--orange-mid); }
+.btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border-strong); }
+.btn-secondary:hover:not(:disabled) { border-color: var(--orange); color: var(--orange-mid); }
+.btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+.btn-ghost:hover:not(:disabled) { color: var(--text); border-color: var(--border-strong); }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-danger:hover:not(:disabled) { background: #e74c3c; }
+
+.btn-row {
+  display: flex;
+  gap: 8px;
+}
+.btn-row > .btn { flex: 1; }
+
+/* ===== ルール詳細 ===== */
+.rule-name {
+  font-family: 'Fredoka One', cursive;
+  font-size: 18px;
+  color: var(--text);
+  text-align: center;
+  padding: 8px 0;
+}
+.rule-detail {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 12px;
+  font-size: 13px;
+}
+.rule-detail dt { color: var(--text-muted); }
+.rule-detail dd { color: var(--text); }
+
+/* ===== ゲーム画面プレースホルダ（段階2-C で 3D 描画に置き換え） ===== */
+#game-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: #1a1a1a;
+  color: var(--text);
+  text-align: center;
+  padding: 24px;
+}
+#game-placeholder .ph-title {
+  font-family: 'Fredoka One', cursive;
+  font-size: 22px;
+  color: var(--orange-mid);
+}
+#game-placeholder .ph-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.7;
+  max-width: 320px;
+}
+#game-placeholder .ph-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 280px;
+  margin-top: 16px;
+}
+
+/* 仮の歯車アイコン位置（段階4 で機能実装、本サブ段階では枠だけ） */
+#gear-icon {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  width: 36px;
+  height: 36px;
+  background: rgba(0,0,0,0.5);
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 90;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 18px;
+}
+body.in-game #gear-icon { display: flex; }
+
+/* ===== 結果画面 ===== */
+.result-message {
+  font-family: 'Fredoka One', cursive;
+  font-size: 36px;
+  text-align: center;
+  padding: 16px 0;
+  color: var(--text);
+}
+.result-message.win { color: var(--success); }
+.result-message.lose { color: var(--danger); }
+.result-sub {
+  font-size: 14px;
+  color: var(--text-muted);
+  text-align: center;
+  margin-top: -8px;
+}
+
+/* ===== ANIMATIONS ===== */
+@keyframes fadeDown {
+  from { opacity: 0; transform: translateY(-12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== モーダル（退出確認等） ===== */
+#modal-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 300;
+}
+#modal-mask.active { display: flex; }
+.modal-box {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  text-align: center;
+}
+.modal-text {
+  font-size: 15px;
+  color: var(--text);
+}
+
+/* ===== 許可手順案内パネル（SPEC 14.4、z-index 200） ===== */
+#permission-panel {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.9);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 20px;
+}
+#permission-panel.active { display: flex; }
+.permission-box {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  padding: 24px 20px;
+  max-width: 380px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.permission-title {
+  font-family: 'Fredoka One', cursive;
+  font-size: 18px;
+  color: var(--orange-mid);
+  text-align: center;
+}
+.permission-generic {
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.6;
+  text-align: center;
+}
+.permission-steps {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+.permission-steps b {
+  color: var(--text);
+  font-size: 13px;
+  display: block;
+  margin-bottom: 4px;
+}
+.permission-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ===== キャリブレーション画面 ===== */
+#calibration-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 24px 16px;
+}
+.calib-icon {
+  width: 80px;
+  height: 80px;
+  border: 3px solid var(--orange);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  color: var(--orange-mid);
+  box-shadow: 0 0 20px rgba(194,65,12,0.3);
+}
+.calib-title {
+  font-family: 'Fredoka One', cursive;
+  font-size: 20px;
+  color: var(--orange-mid);
+  text-align: center;
+}
+.calib-desc {
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.7;
+  text-align: center;
+  max-width: 320px;
+}
+.calib-status {
+  font-size: 12px;
+  color: var(--text-muted);
+  min-height: 1.4em;
+  text-align: center;
+}
+.calib-status.error { color: var(--danger); }
+</style>
+</head>
+<body>
+
+<!-- ===== 言語切替（プルダウン、段階4 で完全実装） ===== -->
+<div id="lang-switcher">
+  <select id="lang-select">
+    <option value="ja">日本語</option>
+    <option value="en">EN</option>
+    <option value="zh">中文</option>
+    <option value="cat">CAT</option>
+  </select>
+</div>
+
+<!-- ===== タイトルヘッダー（ロビー/部屋/結果のみ表示） ===== -->
+<header class="site-header">
+  <svg class="cat-icon" xmlns="http://www.w3.org/2000/svg" viewBox="-46 -50 100 110">
+    <g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/></g>
+    <g transform="rotate(12,12,8.3)"><path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/></g>
+    <ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/>
+    <line x1="-14" y1="1.00" x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="-14" y1="6.0" x2="-33.44" y2="6.0" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="-33.68" y1="-2.28" x2="-38" y2="-3" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="-33.44" y1="6.0" x2="-40" y2="6" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="-29.58" y1="14.26" x2="-37" y2="16" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="14" y1="1.00" x2="33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="14" y1="6.0" x2="33.44" y2="6.0" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="14" y1="10.59" x2="29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="33.68" y1="-2.28" x2="38" y2="-3" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="33.44" y1="6.0" x2="40" y2="6" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="29.58" y1="14.26" x2="37" y2="16" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+    <ellipse cx="-12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+    <ellipse cx="12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+    <ellipse cx="-12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+    <ellipse cx="12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+    <circle cx="-10.5" cy="-5.2" r="1.0" fill="#c2410c"/>
+    <circle cx="13.5" cy="-5.2" r="1.0" fill="#c2410c"/>
+    <path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/>
+    <line x1="0" y1="11.3" x2="0" y2="13.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M0,13.3 Q5,17.3 8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+    <!-- ===== ダーツ的（矢なし、的のみ、中心 (26, 22)、外周半径 27） ===== -->
+    <g id="dart-target-overlay">
+      <circle cx="26" cy="22" r="27" fill="#fafafa" stroke="#000" stroke-width="1.2"/>
+      <circle cx="26" cy="22" r="21.75" fill="#1a1a1a"/>
+      <circle cx="26" cy="22" r="15.75" fill="#c2410c"/>
+      <circle cx="26" cy="22" r="9.75" fill="#fafafa"/>
+      <circle cx="26" cy="22" r="4.8" fill="#c2410c"/>
+    </g>
+  </svg>
+  <div class="title-block">
+    <h1>
+      <span class="momo">MOMO</span>
+      <span class="darts">Darts</span>
+      <span class="version-tag" id="version-tag">v1.00</span>
+    </h1>
+    <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
+  </div>
+</header>
+
+<!-- ===== SCREEN: LOBBY ===== -->
+<div class="screen active" id="screen-lobby">
+  <div class="panel">
+    <div class="panel-title">1人で遊ぶ</div>
+    <div class="panel-desc">501 シングルアウトを練習モードで遊びます。勝敗判定なし、フィニッシュまでのターン数を記録します。</div>
+    <button class="btn btn-primary" id="btn-solo-start">1人で遊ぶ</button>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">対戦（段階3 で実装）</div>
+    <div class="panel-desc">オンライン2人対戦は段階3 のサブ段階で実装します。部屋作成・入室・マッチングは現時点では未実装です。</div>
+    <button class="btn btn-secondary" disabled>部屋を作る（未実装）</button>
+    <button class="btn btn-secondary" disabled>部屋一覧（未実装）</button>
+  </div>
+</div>
+
+<!-- ===== SCREEN: ROOM (1人用) ===== -->
+<div class="screen" id="screen-room">
+  <div class="panel">
+    <div class="panel-title">ルール</div>
+    <div class="rule-name">501 シングルアウト</div>
+    <dl class="rule-detail">
+      <dt>持ち点</dt><dd>501 からスタート</dd>
+      <dt>1ターン</dt><dd>最大 3投</dd>
+      <dt>勝利条件</dt><dd>持ち点をぴったり 0 にする</dd>
+      <dt>バースト</dt><dd>0 未満になる投はターン無効、ターン開始時の点に戻る</dd>
+      <dt>練習モード</dt><dd>勝敗判定なし、フィニッシュまでのターン数を記録</dd>
+    </dl>
+  </div>
+
+  <div class="panel">
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btn-game-start">ゲーム開始</button>
+      <button class="btn btn-ghost" id="btn-room-leave">退出</button>
+    </div>
+    <div class="panel-desc" style="font-size: 11px; text-align: center;">
+      ※ ゲーム開始時にセンサー許可・キャリブレーションを実行します（段階2-B で実装）
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCREEN: CALIBRATION（センサー許可後、ゲーム前に 0リセット） ===== -->
+<div class="screen" id="screen-calibration">
+  <div class="panel">
+    <div id="calibration-content">
+      <div class="calib-icon">🎯</div>
+      <div class="calib-title">キャリブレーション</div>
+      <div class="calib-desc">
+        端末を**楽な姿勢**で構えてください。<br>
+        その向きを「正面」として登録します。
+      </div>
+      <div class="calib-status" id="calib-status">センサーを検出中…</div>
+      <button class="btn btn-primary" id="btn-calib-fix" disabled>正面に固定</button>
+      <button class="btn btn-ghost" id="btn-calib-cancel">退出</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCREEN: GAME（プレースホルダ、段階2-B 以降で実装） ===== -->
+<div class="screen" id="screen-game">
+  <div id="game-placeholder">
+    <div class="ph-title">🎯 ゲーム画面</div>
+    <div class="ph-desc">
+      段階2-A: 画面骨組みのみ。<br>
+      段階2-B でセンサー許可・キャリブ、<br>
+      段階2-C で 3D空間と的、<br>
+      段階2-D でホールドボタンと強さバー、<br>
+      段階2-E で物理・投擲・ブレ、<br>
+      段階2-F で着弾判定・darts-rules、<br>
+      段階2-G でスコア・演出、<br>
+      段階2-H で結果画面 を順次追加します。
+    </div>
+    <div class="ph-actions">
+      <button class="btn btn-primary" id="btn-sim-finish">投擲シミュレートして結果へ</button>
+      <button class="btn btn-ghost" id="btn-game-leave">退出</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCREEN: END（1人用） ===== -->
+<div class="screen" id="screen-end">
+  <div class="panel">
+    <div class="result-message win" id="end-result-msg">FINISH!</div>
+    <div class="result-sub" id="end-result-sub">N ダーツでフィニッシュ（仮表示）</div>
+  </div>
+
+  <div class="panel">
+    <button class="btn btn-primary" id="btn-end-replay">もう一度プレイ</button>
+    <button class="btn btn-secondary" id="btn-end-rule-change">ルール変更</button>
+    <button class="btn btn-danger" id="btn-end-back-room">終了</button>
+  </div>
+</div>
+
+<!-- ===== ゲーム中の歯車アイコン（段階4 で機能実装） ===== -->
+<div id="gear-icon" title="設定（段階4 で実装）">⚙</div>
+
+<!-- ===== モーダル（退出確認） ===== -->
+<div id="modal-mask">
+  <div class="modal-box">
+    <div class="modal-text" id="modal-text">退出しますか？</div>
+    <div class="btn-row">
+      <button class="btn btn-danger" id="modal-yes">はい</button>
+      <button class="btn btn-ghost" id="modal-no">いいえ</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 許可手順案内パネル（SPEC 14.4） ===== -->
+<div id="permission-panel">
+  <div class="permission-box">
+    <div class="permission-title">センサー許可が必要です</div>
+    <div class="permission-generic">
+      お使いのブラウザの設定で<br>「動きと方向のアクセス」を<b style="color:var(--orange-mid)">許可</b>してください
+    </div>
+    <div class="permission-steps" id="permission-steps">
+      <!-- UA別手順は darts-app.js が動的に挿入 -->
+    </div>
+    <div class="permission-actions">
+      <button class="btn btn-primary" id="btn-perm-ok">許可しました(OK)</button>
+      <button class="btn btn-ghost" id="btn-perm-quit">ゲーム終了</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== ES Modules エントリー（段階2-A は骨組みのみ） ===== -->
+<script type="module" src="./darts-app.js"></script>
+
+</body>
+</html>

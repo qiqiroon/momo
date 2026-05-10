@@ -80,9 +80,15 @@
   .card-badge { display:inline-flex; align-items:center; gap:6px; font-size:0.65rem; font-weight:500; letter-spacing:0.1em; text-transform:uppercase; width:fit-content; padding:3px 10px; border-radius:4px; background:var(--orange-pale); color:var(--orange-bright); border:1px solid var(--orange); }
   .card-title { font-family:'Fredoka One',cursive; font-size:1.4rem; font-weight:400; color:#fff; letter-spacing:0.03em; }
   .card-title span { color:var(--orange-light); }
+  .card-subtitle { font-family:'Fredoka One',cursive; font-size:0.78rem; color:#888; letter-spacing:0.02em; margin-top:-4px; line-height:1.2; min-height:1em; }
+  /* 中国語サブタイトルは Noto Sans JP を優先（猫語(zh base)時と同じグリフを使うため、<html lang> による中華フォント切替を回避） */
+  .card-subtitle.zh-subtitle { letter-spacing:0; font-family:'Fredoka One','Noto Sans JP',sans-serif; }
   .card-desc { font-size:0.85rem; color:var(--text-muted); line-height:1.65; flex:1; }
   .card-meta { display:flex; gap:12px; flex-wrap:wrap; font-size:0.75rem; color:var(--text-muted); border-top:1px solid var(--border); padding-top:12px; margin-top:4px; }
   .card-meta span { display:flex; align-items:center; gap:4px; }
+  /* 対応端末タグ（MOMO Tools 流儀踏襲） */
+  .platform-row { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+  .platform-tag { font-size:10px; padding:2px 7px; border-radius:4px; background:rgba(194,65,12,0.12); border:1px solid rgba(194,65,12,0.3); color:var(--orange-light); }
   .card-play { margin-top:4px; font-size:0.82rem; color:var(--orange); letter-spacing:0.08em; display:flex; align-items:center; gap:6px; }
   .card-play::after { content:'→'; transition:transform 0.2s; }
   .card:hover .card-play::after { transform:translateX(4px); }
@@ -168,6 +174,10 @@
         <span>🔵 マルチボール</span>
         <span id="tilt-device">スマホ対応</span>
       </div>
+      <div class="platform-row">
+        <span class="platform-tag">🍎 iPhone</span>
+        <span class="platform-tag">🤖 Android</span>
+      </div>
       <div class="card-play" id="tilt-play">今すぐプレイ</div>
     </a>
 
@@ -179,6 +189,11 @@
         <span>🧩 パズル</span>
         <span>🛸 シューティング</span>
         <span id="hanoi-diff">3難易度</span>
+      </div>
+      <div class="platform-row">
+        <span class="platform-tag">🍎 iPhone</span>
+        <span class="platform-tag">🤖 Android</span>
+        <span class="platform-tag">💻 PC</span>
       </div>
       <div class="card-play" id="hanoi-play">今すぐプレイ</div>
     </a>
@@ -192,6 +207,11 @@
         <span>🌐 オンライン対戦</span>
         <span id="reversi-players">2人</span>
       </div>
+      <div class="platform-row">
+        <span class="platform-tag">🍎 iPhone</span>
+        <span class="platform-tag">🤖 Android</span>
+        <span class="platform-tag">💻 PC</span>
+      </div>
       <div class="card-play" id="reversi-play">今すぐプレイ</div>
     </a>
 
@@ -204,7 +224,29 @@
         <span>🌐 オンライン対戦</span>
         <span id="gomokugo-players">2人</span>
       </div>
+      <div class="platform-row">
+        <span class="platform-tag">🍎 iPhone</span>
+        <span class="platform-tag">🤖 Android</span>
+        <span class="platform-tag">💻 PC</span>
+      </div>
       <div class="card-play" id="gomokugo-play">今すぐプレイ</div>
+    </a>
+
+    <a class="card" href="javascript:void(0)" onclick="openDarts()">
+      <div class="card-badge" id="darts-badge">🆕 New</div>
+      <div class="card-title">MOMO <span>Darts</span></div>
+      <div class="card-subtitle" id="darts-subtitle">Concealed Edge, Single Touch</div>
+      <div class="card-desc" id="darts-desc">スマホを傾けて仮想空間で的を狙って投げる対戦型ダーツ。世界中のプレイヤーと各種ルールでオンライン対戦か、1人で練習モードを。</div>
+      <div class="card-meta" id="darts-meta">
+        <span>🎯 ダーツ</span>
+        <span>📱 センサー操作</span>
+        <span id="darts-players">1〜2人</span>
+      </div>
+      <div class="platform-row">
+        <span class="platform-tag">🍎 iPhone</span>
+        <span class="platform-tag">🤖 Android</span>
+      </div>
+      <div class="card-play" id="darts-play">今すぐプレイ</div>
     </a>
   </div>
 </div>
@@ -234,6 +276,11 @@ const I18N = {
     gomokugoDesc: '19路盤で五目並べと囲碁のオンライン対戦。三手交換・待った・持ち時間+秒読み・地計算まで対応した本格派。チャットしながら静かな盤上の駆け引きを。',
     gomokugoMeta1: '♟ ボードゲーム', gomokugoMeta2: '🌐 オンライン対戦', gomokugoPlayers: '2人',
     gomokugoPlay: '今すぐプレイ',
+    dartsBadge: '🆕 NEW',
+    dartsSubtitle: 'Concealed Edge, Single Touch',
+    dartsDesc: 'スマホを傾けて仮想空間で的を狙って投げる対戦型ダーツ。世界中のプレイヤーと各種ルールでオンライン対戦か、1人で練習モードを。',
+    dartsMeta1: '🎯 ダーツ', dartsMeta2: '📱 センサー操作', dartsPlayers: '1〜2人',
+    dartsPlay: '今すぐプレイ',
     footerBack: '← MOMO Works に戻る',
   },
   en: {
@@ -255,6 +302,11 @@ const I18N = {
     gomokugoDesc: 'Online Gomoku & Go on a 19×19 board. Full-featured: three-move swap opening, undo, time control with byoyomi, and territory scoring. Chat while you play.',
     gomokugoMeta1: '♟ Board Game', gomokugoMeta2: '🌐 Online', gomokugoPlayers: '2 Players',
     gomokugoPlay: 'Play Now',
+    dartsBadge: '🆕 NEW',
+    dartsSubtitle: 'Concealed Edge, Single Touch',
+    dartsDesc: 'A virtual 3D darts game using your phone\'s motion sensor. Tilt to aim and throw at the target. Battle online with various rules or practice solo.',
+    dartsMeta1: '🎯 Darts', dartsMeta2: '📱 Motion Sensor', dartsPlayers: '1–2 Players',
+    dartsPlay: 'Play Now',
     footerBack: '← Back to MOMO Works',
   },
   zh: {
@@ -276,6 +328,11 @@ const I18N = {
     gomokugoDesc: '19路盘的五子棋与围棋在线对战。三手交换、悔棋、用时+读秒、数子计算全部支持。边聊边享受静谧的盘上博弈。',
     gomokugoMeta1: '♟ 棋盘游戏', gomokugoMeta2: '🌐 在线对战', gomokugoPlayers: '2人',
     gomokugoPlay: '立即游玩',
+    dartsBadge: '🆕 NEW',
+    dartsSubtitle: '不露鋒心，一指乾坤',
+    dartsDesc: '使用手机传感器在虚拟3D空间中瞄准靶心投掷的对战型飞镖游戏。可在多种规则下在线对战，也可单人练习。',
+    dartsMeta1: '🎯 飞镖', dartsMeta2: '📱 传感器操作', dartsPlayers: '1〜2人',
+    dartsPlay: '立即游玩',
     footerBack: '← 返回 MOMO Works',
   },
 };
@@ -326,6 +383,7 @@ function applyLang() {
   document.getElementById('hanoi-badge').textContent = t('hanoiBadge');
   document.getElementById('reversi-badge').textContent = t('reversiBadge');
   document.getElementById('gomokugo-badge').textContent = t('gomokugoBadge');
+  document.getElementById('darts-badge').textContent = t('dartsBadge');
   // Tilt
   document.getElementById('tilt-desc').textContent = t('tiltDesc');
   const tiltMetaSpans = document.querySelectorAll('#tilt-meta span');
@@ -354,6 +412,19 @@ function applyLang() {
   if (gomokugoMetaSpans[1]) gomokugoMetaSpans[1].textContent = t('gomokugoMeta2');
   document.getElementById('gomokugo-players').textContent = t('gomokugoPlayers');
   document.getElementById('gomokugo-play').textContent = t('gomokugoPlay');
+  // Darts
+  document.getElementById('darts-desc').textContent = t('dartsDesc');
+  const dartsMetaSpans = document.querySelectorAll('#darts-meta span');
+  if (dartsMetaSpans[0]) dartsMetaSpans[0].textContent = t('dartsMeta1');
+  if (dartsMetaSpans[1]) dartsMetaSpans[1].textContent = t('dartsMeta2');
+  document.getElementById('darts-players').textContent = t('dartsPlayers');
+  document.getElementById('darts-play').textContent = t('dartsPlay');
+  // Darts サブタイトル: 猫語非対応のため、cat 選択時は catBase 言語のテキストを表示
+  const dartsSubtitleEl = document.getElementById('darts-subtitle');
+  const subtitleLang = currentLang === 'cat' ? catBase : currentLang;
+  const subtitleDict = I18N[subtitleLang] || I18N.ja;
+  dartsSubtitleEl.textContent = subtitleDict.dartsSubtitle;
+  dartsSubtitleEl.classList.toggle('zh-subtitle', subtitleLang === 'zh');
   // Footer
   document.getElementById('footer-back').textContent = t('footerBack');
   // セレクト同期
@@ -383,6 +454,12 @@ function openReversi() {
 function openGomokuGo() {
   fetch('https://momo-server-reversi.onrender.com/ping').catch(() => {});
   window.location.href = 'gomoku-go/';
+}
+
+// MOMO Darts（同じシグナリングサーバーを共用、対戦は段階3で実装）
+function openDarts() {
+  fetch('https://momo-server-reversi.onrender.com/ping').catch(() => {});
+  window.location.href = 'darts/';
 }
 
 applyLang();

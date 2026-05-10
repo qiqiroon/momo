@@ -91,12 +91,19 @@
        v1.34 - btnPlay 時の BGM とテイクの実出力開始タイミング差を実測する診断ログ追加
                 症状: 再生のたびにテイクが BGM より遅れたり早かったりランダムにズレる
                 目的: 実数値で「何ミリ秒、どの方向に」ズレるかを測定し、
-                      機種依存の経験値ではなく実測ベースで対策を立てる -->
+                      機種依存の経験値ではなく実測ベースで対策を立てる
+       v1.35 - ALIGNMENT 値の二峰性分布の原因調査用診断ログ拡張
+                v1.34 で判明: テイク起動が「速い経路 (~277ms)」と「遅い経路 (~460-625ms)」に
+                              二極化、中間値ほぼなし。3 秒 resync 連発の有無もこれに連動。
+                追加ログ: btnPlay 押下時のテイク <audio> 状態スナップショット
+                          (readyState / networkState / paused / buffered / currentTime)
+                          + 直前の preload・take pause・bgm pause からの経過 ms。
+                目的: 何が「速い経路」と「遅い経路」を分岐させているかを特定 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MOMO Karaoke v1.34 - MOMO Works</title>
+<title>MOMO Karaoke v1.35 - MOMO Works</title>
 <!-- Google Identity Services (OAuth) — used by momo_gdrive.py -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <!-- Google API client — used for Picker -->
@@ -831,7 +838,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 </g>
             </svg>
         </div>
-        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.34</span></h1>
+        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.35</span></h1>
     </header>
     <p class="header-sub" id="header-sub">ローカル音源と同名 .lrc を読み込む、こだわり派のカラオケサロン</p>
 
@@ -1267,7 +1274,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v1.34';
+const APP_VERSION = 'v1.35';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -1843,6 +1850,7 @@ function installIOSTransport(){
         bgmTransport._fire('play');
     });
     iosAudioEl.addEventListener('pause', () => {
+        iosBgmLastPausedAt = performance.now();
         if(suppressTransportEvents){
             DEBUG.info('iosAudioEl: pause event (suppressed — internal switch) @ ' + iosAudioEl.currentTime.toFixed(2));
             return;
@@ -2004,6 +2012,10 @@ function ensureIOSTakeAudio(){
     iosTakeAudioEl.playsInline = true;
     iosTakeAudioEl.setAttribute('playsinline', '');
     iosTakeAudioEl.setAttribute('webkit-playsinline', '');
+    // ─── v1.35 diagnostics: record pause timestamp for ALIGNMENT correlation ──
+    iosTakeAudioEl.addEventListener('pause', () => {
+        iosTakeLastPausedAt = performance.now();
+    });
     document.body.appendChild(iosTakeAudioEl);
 }
 
@@ -2593,6 +2605,10 @@ let iosTakeStarting = false;
 let iosTakeLastRateAdjust = 0;  // timestamp (ms) of last playbackRate change
 let iosTakeStartedAt = 0;       // timestamp when last playback began (for settle period)
 let iosTakeScheduledStart = null;  // setTimeout handle for scheduled start
+// ─── v1.35 diagnostics: timestamps for correlation with ALIGNMENT ──────
+let iosTakePreloadCompletedAt = 0;  // last time preloadIOSTake() finished
+let iosTakeLastPausedAt = 0;        // last time iosTakeAudioEl fired 'pause' event
+let iosBgmLastPausedAt = 0;         // last time iosAudioEl fired 'pause' event
 
 /**
  * Build the WAV blob URL for a take (if not already built) and preload it into
@@ -2656,6 +2672,7 @@ async function preloadIOSTake(take){
         setTimeout(() => { if(!done){ done = true; cleanup(); resolve(); } }, 5000);
     });
     take._iosLoadedUrl = take._wavUrl;
+    iosTakePreloadCompletedAt = performance.now();
     DEBUG.ok('preloadIOSTake: ready, duration=' + (iosTakeAudioEl.duration || 0).toFixed(2) + 's, readyState=' + iosTakeAudioEl.readyState);
 
     // ─── v1.33: warm-up cycle removed ────────────────────────────────────
@@ -4753,6 +4770,40 @@ btnPlay.addEventListener('click', async () => {
             return;
         }
         try {
+            // ─── v1.35 diagnostics: capture <audio> state BEFORE any change ──
+            // We sample readyState/networkState/buffered/paused on the take
+            // element, plus elapsed times since last preload, last take pause,
+            // and last bgm pause. Correlating these with ALIGNMENT will tell
+            // us what factor distinguishes the "fast start (~277ms)" path
+            // from the "slow start (~460-625ms)" path.
+            let v135_takeReadyState = -1, v135_takeNetworkState = -1;
+            let v135_takeBuffered = 'n/a', v135_takePaused = 'n/a';
+            let v135_takeCurrentTime = -1;
+            let v135_msSincePreload = -1;
+            let v135_msSinceTakePause = -1;
+            let v135_msSinceBgmPause = -1;
+            let v135_takeSrcMatchesLoaded = 'n/a';
+            const v135_now = performance.now();
+            try {
+                if(iosTakeAudioEl){
+                    v135_takeReadyState = iosTakeAudioEl.readyState;
+                    v135_takeNetworkState = iosTakeAudioEl.networkState;
+                    v135_takePaused = iosTakeAudioEl.paused ? 'true' : 'false';
+                    v135_takeCurrentTime = iosTakeAudioEl.currentTime;
+                    if(iosTakeAudioEl.buffered && iosTakeAudioEl.buffered.length){
+                        v135_takeBuffered = '[' + iosTakeAudioEl.buffered.start(0).toFixed(2) + '-' + iosTakeAudioEl.buffered.end(0).toFixed(2) + ']';
+                    } else {
+                        v135_takeBuffered = '(empty)';
+                    }
+                }
+                if(state.currentTake){
+                    v135_takeSrcMatchesLoaded = (state.currentTake._iosLoadedUrl === state.currentTake._wavUrl) ? 'yes' : 'no';
+                }
+                if(iosTakePreloadCompletedAt > 0) v135_msSincePreload = v135_now - iosTakePreloadCompletedAt;
+                if(iosTakeLastPausedAt > 0) v135_msSinceTakePause = v135_now - iosTakeLastPausedAt;
+                if(iosBgmLastPausedAt > 0) v135_msSinceBgmPause = v135_now - iosBgmLastPausedAt;
+            } catch(_){}
+
             // On iOS, start take FIRST (so its play() promise can resolve
             // ~280ms before BGM produces its first sample), then start BGM.
             // This compensates for the iOS <audio>.play() resolution latency
@@ -4838,6 +4889,10 @@ btnPlay.addEventListener('click', async () => {
                         DEBUG.info('  take first audible: +' + takeAudibleMs + 'ms after take call');
                         DEBUG.info('  bgm first audible: +' + bgmAudibleMs + 'ms after bgm call');
                         DEBUG.info('  ALIGNMENT (take−bgm at first audio): ' + audibleDelta + 'ms (positive=take lags)');
+                        // ─── v1.35 pre-state snapshot ────────────────────
+                        DEBUG.info('  [v1.35] take readyState=' + v135_takeReadyState + ' networkState=' + v135_takeNetworkState + ' paused=' + v135_takePaused + ' currentTime=' + v135_takeCurrentTime.toFixed(3));
+                        DEBUG.info('  [v1.35] take buffered=' + v135_takeBuffered + ' srcLoaded=' + v135_takeSrcMatchesLoaded);
+                        DEBUG.info('  [v1.35] msSincePreload=' + (v135_msSincePreload >= 0 ? v135_msSincePreload.toFixed(0) : 'n/a') + ' msSinceTakePause=' + (v135_msSinceTakePause >= 0 ? v135_msSinceTakePause.toFixed(0) : 'n/a') + ' msSinceBgmPause=' + (v135_msSinceBgmPause >= 0 ? v135_msSinceBgmPause.toFixed(0) : 'n/a'));
                         DEBUG.info('═════════════════════════════');
                         return;
                     }

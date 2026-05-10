@@ -106,12 +106,19 @@
                 対策: pause/ended イベントの 200ms 後に currentTime = 0 にリセット。
                       btnPlay 内では「既に 0 なら代入スキップ」(無駄な seek 回避)。
                       これで毎回「速い経路 (~277ms)」に乗ることを期待。
-                目標: ALIGNMENT を ±100-150ms (16分音符相当) 以内に 80% 以上収める -->
+                目標: ALIGNMENT を ±100-150ms (16分音符相当) 以内に 80% 以上収める
+       v1.37 - 録音中マイク音量で BGM が小さくなる現象 (Auto Ducking) の対策比較
+                v1.15 の対策 (echoCancellation:false 等) が iOS 18.7 で効かなくなった疑い。
+                4 つの対策案を切替できるセレクタを iOS UI に追加:
+                  案A: 制約追加 (channelCount:1, sampleRate:48000, latency:0)
+                  案B: 最小制約 (audio: true のみ)
+                  案C: AudioContext 先行起動 → getUserMedia
+                  案D: AudioContext (latencyHint:'playback') 先行起動 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MOMO Karaoke v1.36 - MOMO Works</title>
+<title>MOMO Karaoke v1.37 - MOMO Works</title>
 <!-- Google Identity Services (OAuth) — used by momo_gdrive.py -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <!-- Google API client — used for Picker -->
@@ -846,7 +853,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 </g>
             </svg>
         </div>
-        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.36</span></h1>
+        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.37</span></h1>
     </header>
     <p class="header-sub" id="header-sub">ローカル音源と同名 .lrc を読み込む、こだわり派のカラオケサロン</p>
 
@@ -943,6 +950,19 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
         <div class="ios-notice" id="iosNotice">
             <strong>📱 iPhone / iPad の方へ</strong><br>
             iOS の制約により、録音すると BGM が消えることがあります。その場合は録音停止後に「<b>音声を復旧</b>」ボタンを押してください。可能であれば PC 版 Chrome / Edge をお使いいただくと、より安定して動作します。
+        </div>
+
+        <!-- ===== v1.37 diagnostic: Auto Ducking strategy selector ===== -->
+        <div id="duckStrategyRow" class="duck-strategy-row" style="display:none; margin: 8px 0; padding: 8px 12px; background: rgba(255,200,0,0.08); border: 1px solid rgba(255,200,0,0.3); border-radius: 8px; font-size: 12px;">
+            <label for="duckStrategy" style="display: block; margin-bottom: 4px; font-weight: bold;">🔬 [v1.37] Auto Ducking 対策（録音前に選択）</label>
+            <select id="duckStrategy" style="width:100%; padding: 4px 8px; font-size: 12px;">
+                <option value="default" selected>デフォルト (v1.15: echoCancellation:false 等)</option>
+                <option value="A">案A: 制約追加 (channelCount:1, sampleRate:48000, latency:0)</option>
+                <option value="B">案B: 最小制約 (audio: true のみ)</option>
+                <option value="C">案C: AudioContext 先行起動 → getUserMedia</option>
+                <option value="D">案D: AudioContext (latencyHint: 'playback') 先行起動</option>
+            </select>
+            <div style="margin-top:4px; font-size: 11px; opacity: 0.7;">録音中マイク音量で BGM が小さくなる現象 (Auto Ducking) を抑える対策の比較用。</div>
         </div>
 
         <div class="lyrics-view" id="lyrics-view">
@@ -1282,7 +1302,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v1.36';
+const APP_VERSION = 'v1.37';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2992,6 +3012,72 @@ async function startRecording(){
     DEBUG.info('startRecording: requesting getUserMedia...');
     let stream;
     const t0 = performance.now();
+
+    // ─── v1.37: Auto Ducking strategy selector ──────────────────────────
+    // The default (v1.15) constraint set works on older iOS but iOS 18.7+
+    // may have changed AudioSession routing such that ducking returns even
+    // with echoCancellation:false. We try multiple strategies to find one
+    // that works on the user's current iOS version.
+    let v137_strategy = 'default';
+    try {
+        const sel = document.getElementById('duckStrategy');
+        if(sel) v137_strategy = sel.value || 'default';
+    } catch(_){}
+    DEBUG.info('[v1.37] Auto Ducking strategy: ' + v137_strategy);
+
+    // Strategy C/D: pre-create AudioContext to establish "playback" session
+    // BEFORE getUserMedia is called. The hypothesis: iOS routes audio
+    // session mode based on the first established context. If we get
+    // <playback> registered first, the subsequent gUM call won't switch
+    // to <voice chat> mode and ducking won't engage.
+    if((v137_strategy === 'C' || v137_strategy === 'D') && IS_IOS){
+        try {
+            const ACClass = window.AudioContext || window.webkitAudioContext;
+            const opts = (v137_strategy === 'D') ? { latencyHint: 'playback' } : {};
+            const preCtx = new ACClass(opts);
+            // Resume to establish session
+            if(preCtx.state === 'suspended'){ await preCtx.resume(); }
+            // Generate a brief silence to nail down the session mode
+            const silentBuf = preCtx.createBuffer(2, 128, preCtx.sampleRate);
+            const silentSrc = preCtx.createBufferSource();
+            silentSrc.buffer = silentBuf;
+            silentSrc.connect(preCtx.destination);
+            silentSrc.start();
+            DEBUG.info('[v1.37 ' + v137_strategy + '] pre-context established, sampleRate=' + preCtx.sampleRate + ', latency=' + (preCtx.baseLatency||0).toFixed(4));
+            // Don't close — let the session stay alive
+        } catch(e){
+            DEBUG.warn('[v1.37 ' + v137_strategy + '] pre-context creation failed: ' + e.message);
+        }
+    }
+
+    // Build constraint object based on strategy
+    let v137_constraints;
+    if(v137_strategy === 'A'){
+        // Strategy A: try to coerce iOS into "media playback" mode by
+        // requesting properties typical of playback streams (mono input
+        // of high sample rate, zero latency hint).
+        v137_constraints = {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+            channelCount: 1,
+            sampleRate: 48000,
+            latency: 0
+        };
+    } else if(v137_strategy === 'B'){
+        // Strategy B: trust iOS defaults. Sometimes adding constraints
+        // is itself what triggers the voice-chat mode interpretation.
+        v137_constraints = true;
+    } else {
+        // default / C / D: keep v1.15 settings (the constraint object
+        // doesn't change for C/D; only the pre-context preceding it does)
+        v137_constraints = {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false
+        };
+    }
+
     try {
         // IMPORTANT: All processing flags OFF.
         // - echoCancellation:true causes iOS to enter "voice chat" AudioSession mode
@@ -2999,11 +3085,7 @@ async function startRecording(){
         // - noiseSuppression and autoGainControl can also cut/boost vocals unpredictably.
         // Pure raw mic input is what we want for karaoke recording.
         stream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-                echoCancellation: false,
-                noiseSuppression: false,
-                autoGainControl: false
-            },
+            audio: v137_constraints,
             video: false
         });
         DEBUG.ok('getUserMedia OK in ' + (performance.now() - t0).toFixed(0) + 'ms, tracks=' + stream.getTracks().length);
@@ -5017,6 +5099,9 @@ const iosNotice = $('iosNotice');
 if(IS_IOS){
     if(iosNotice) iosNotice.classList.add('show');
     // audioRescueRow stays hidden by default
+    // v1.37: show duck strategy selector on iOS
+    const duckRow = document.getElementById('duckStrategyRow');
+    if(duckRow) duckRow.style.display = '';
 }
 // Helper to briefly reveal rescue UI after recording
 function showRescueButtonBriefly(){

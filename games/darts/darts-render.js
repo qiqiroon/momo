@@ -154,6 +154,10 @@ let _debugCallback = null;
 let _animFrameId = null;
 let _targetWorld = { yaw: 0, pitch: 0 };  // ワールド座標での的中心角度（度）
 
+// v1.10: low-pass filter（センサー値の jitter / cross-axis ノイズ抑制）
+const SMOOTH_FACTOR = 0.4;  // 0=止まる, 1=フィルタ無し（half-life ~2 frames @ 60fps）
+let _smoothRel = { alpha: 0, beta: 0, gamma: 0 };
+
 // ======================================================================
 // ログバッファ（直近 N 秒の入力↔反応サンプルを保持）
 // ======================================================================
@@ -221,10 +225,15 @@ function tick() {
   const rel = Sensor.getRelativeOrientation();
   let yawDelta = 0, pitchDelta = 0, roll = 0;
   if (rel) {
+    // v1.10: 低域パスフィルタ（cross-axis ノイズと jitter を緩和）
+    _smoothRel.alpha = _smoothRel.alpha * (1 - SMOOTH_FACTOR) + (rel.alpha || 0) * SMOOTH_FACTOR;
+    _smoothRel.beta  = _smoothRel.beta  * (1 - SMOOTH_FACTOR) + (rel.beta  || 0) * SMOOTH_FACTOR;
+    _smoothRel.gamma = _smoothRel.gamma * (1 - SMOOTH_FACTOR) + (rel.gamma || 0) * SMOOTH_FACTOR;
+
     // 縦持ち想定: gamma=Yaw, beta=Pitch, alpha=Roll
-    yawDelta   = SIGN_YAW   * (rel.gamma || 0);
-    pitchDelta = SIGN_PITCH * (rel.beta  || 0);
-    roll       = SIGN_ROLL  * (rel.alpha || 0) * ROLL_SCALE;
+    yawDelta   = SIGN_YAW   * _smoothRel.gamma;
+    pitchDelta = SIGN_PITCH * _smoothRel.beta;
+    roll       = SIGN_ROLL  * _smoothRel.alpha * ROLL_SCALE;
   }
 
   // 視線方向から的までの角度差
@@ -235,18 +244,14 @@ function tick() {
   const x = dxDeg * pxPerDeg;
   const y = -dyDeg * pxPerDeg;  // CSS Y は下が正
 
-  // 中心からのオフセット分だけシーン(壁+的)が傾いて見える（なんちゃって 3D）
-  const tiltX = -dyDeg * TILT_SCALE;
-  const tiltY =  dxDeg * TILT_SCALE;
-
   // 的（サイズだけ動的、シーン内でセンタリング固定）
   _boardEl.style.width  = `${targetSizePx}px`;
   _boardEl.style.height = `${targetSizePx}px`;
 
-  // シーン全体（壁+的）の transform — 壁と的が一体で動く
+  // v1.10: 純粋 2D 描画（translate + rotateZ のみ）
+  // 3D 合成パスを避けて pivot ズレを防ぐ。疑似 3D 傾きは v1.10+ で再導入予定
   _sceneEl.style.transform =
-    `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0px) ` +
-    `rotateX(${tiltX.toFixed(2)}deg) rotateY(${tiltY.toFixed(2)}deg) rotateZ(${roll.toFixed(2)}deg)`;
+    `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) rotate(${roll.toFixed(2)}deg)`;
 
   // ログサンプル記録（10Hz）
   const now = performance.now();
@@ -313,6 +318,7 @@ export function start({ viewEl, sceneEl, boardEl, arrowEl, debugCallback }) {
   _logBuffer = [];
   _lastLogTime = 0;
   _startTime = performance.now();
+  _smoothRel = { alpha: 0, beta: 0, gamma: 0 };  // v1.10
 
   if (_animFrameId) cancelAnimationFrame(_animFrameId);
   _animFrameId = requestAnimationFrame(tick);

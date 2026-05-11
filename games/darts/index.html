@@ -233,26 +233,23 @@ body.in-game #lang-switcher { display: none; }
 .rule-detail dt { color: var(--text-muted); }
 .rule-detail dd { color: var(--text); }
 
-/* ===== ゲーム画面：3D 空間ビュー（SPEC 4章 / 16章） ===== */
-/* 構造: #game-3d-view (perspective) > #game-3d-scene (壁+的を一体 transform) */
+/* ===== ゲーム画面：純粋 2D 描画（v1.10、3D 合成パスを撤去） ===== */
+/* 構造: #game-3d-view > #game-3d-scene (壁+的を一体 transform) */
 #game-3d-view {
   position: absolute;
   inset: 0;
   overflow: hidden;
   z-index: 0;
-  perspective: 1200px;
-  perspective-origin: 50% 50%;
   background-color: #0a0a0a;  /* シーンが回って外に出た時の保険色 */
 }
 
-/* シーン: 壁 + 的を含む、センサーで一体に transform される */
+/* シーン: 壁 + 的を含む、センサーで一体に transform される（純粋 2D） */
 #game-3d-scene {
   position: absolute;
   top: 50%;
   left: 50%;
   width: 0;
   height: 0;
-  transform-style: preserve-3d;
   transform-origin: 0 0;
   will-change: transform;
 }
@@ -264,8 +261,6 @@ body.in-game #lang-switcher { display: none; }
   left: -300vmax;
   width: 600vmax;
   height: 600vmax;
-  /* 的より僅かに奥に配置して z-fighting を回避 */
-  transform: translateZ(-1px);
   background-color: #1a1208;
   background-image:
     repeating-linear-gradient(
@@ -574,7 +569,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.09</span>
+      <span class="version-tag" id="version-tag">v1.10</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>

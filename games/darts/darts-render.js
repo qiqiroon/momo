@@ -11,12 +11,12 @@ const HORIZ_FOV_DEG = 30;           // 画面横幅 = 30度の仮想視野（v1.
 const TARGET_DIAMETER_RATIO = 0.9;  // 画面横幅 90% に占める基準サイズ
 const FOV_HARD_LIMIT_DEG = HORIZ_FOV_DEG;  // ±FOV/2 の角度範囲内に的を配置
 const SHIFT_RADIUS_RATIO = 0.25;    // 直径の 1/4 までシフト
-const TILT_SCALE = 0.6;             // 視野中心からのオフセットによる板の傾き係数
+const TILT_SCALE = 0;               // v1.09: 疑似3D傾きをいったん無効化（ロール pivot ズレ対策）
 
 // センサー軸マッピング（v1.08: 縦持ち専用の正しい対応に修正）
 //   縦持ち時:  Yaw=gamma(Y軸回転)  Pitch=beta(X軸回転)  Roll=alpha(Z軸回転)
 //   旧 v1.02-v1.07 は alpha と gamma が逆だった
-const SIGN_YAW = +1;    // rel.gamma → yawDelta
+const SIGN_YAW = -1;    // rel.gamma → yawDelta（v1.09 で反転）
 const SIGN_PITCH = +1;  // rel.beta → pitchDelta
 const SIGN_ROLL = +1;   // rel.alpha → roll (rotateZ)
 const ROLL_SCALE = 0.5; // ロール感度

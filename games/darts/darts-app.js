@@ -322,12 +322,12 @@ $('btn-end-replay').addEventListener('click', () => {
 $('btn-end-rule-change').addEventListener('click', () => showScreen('room'));
 $('btn-end-back-room').addEventListener('click', () => showScreen('room'));
 
-// ===== v1.13: 感度調整パネル =====
-const TUNE_DEFAULTS = { roll: 0.7, fov: 40, smooth: 0.4 };
-const TUNE_STEPS = { roll: 0.05, fov: 5, smooth: 0.05 };
+// ===== v1.14: 感度調整パネル（直感的ラベル + 倍率/%表示） =====
+const TUNE_DEFAULTS = { roll: 0.7, sens: 1.0, smooth: 0.4 };
+const TUNE_STEPS = { roll: 0.1, sens: 0.1, smooth: 0.1 };
 const TUNE_LIMITS = {
   roll:   { min: 0.3, max: 1.5 },
-  fov:    { min: 20,  max: 80  },
+  sens:   { min: 0.5, max: 2.0 },
   smooth: { min: 0.1, max: 1.0 },
 };
 const TUNE_LS_KEY = 'momoDartsTune';
@@ -337,7 +337,7 @@ function loadTuneFromStorage() {
     const saved = JSON.parse(localStorage.getItem(TUNE_LS_KEY) || '{}');
     return {
       roll:   typeof saved.roll   === 'number' ? saved.roll   : TUNE_DEFAULTS.roll,
-      fov:    typeof saved.fov    === 'number' ? saved.fov    : TUNE_DEFAULTS.fov,
+      sens:   typeof saved.sens   === 'number' ? saved.sens   : TUNE_DEFAULTS.sens,
       smooth: typeof saved.smooth === 'number' ? saved.smooth : TUNE_DEFAULTS.smooth,
     };
   } catch {
@@ -350,11 +350,11 @@ function saveTuneToStorage(t) {
 
 function applyTune(t) {
   Render.setRollScale(t.roll);
-  Render.setFov(t.fov);
+  Render.setYawPitchScale(t.sens);
   Render.setSmoothFactor(t.smooth);
-  $('tune-roll-val').textContent   = t.roll.toFixed(2);
-  $('tune-fov-val').textContent    = `${t.fov}°`;
-  $('tune-smooth-val').textContent = t.smooth.toFixed(2);
+  $('tune-roll-val').textContent   = `${t.roll.toFixed(1)}×`;
+  $('tune-sens-val').textContent   = `${t.sens.toFixed(1)}×`;
+  $('tune-smooth-val').textContent = `${Math.round(t.smooth * 100)}%`;
 }
 
 const _tune = loadTuneFromStorage();
@@ -374,15 +374,13 @@ $('btn-tune-reset').addEventListener('click', () => {
 
 document.querySelectorAll('.tune-btn').forEach((btn) => {
   btn.addEventListener('click', () => {
-    const key = btn.dataset.tune;  // 'roll' | 'fov' | 'smooth'
+    const key = btn.dataset.tune;  // 'roll' | 'sens' | 'smooth'
     const dir = btn.dataset.dir === '+' ? 1 : -1;
     const step = TUNE_STEPS[key];
     const limit = TUNE_LIMITS[key];
     let v = _tune[key] + dir * step;
     v = Math.max(limit.min, Math.min(limit.max, v));
-    // FOV は整数化
-    if (key === 'fov') v = Math.round(v);
-    else v = Math.round(v * 100) / 100;
+    v = Math.round(v * 100) / 100;
     _tune[key] = v;
     applyTune(_tune);
     saveTuneToStorage(_tune);

@@ -623,7 +623,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.13</span>
+      <span class="version-tag" id="version-tag">v1.14</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -725,24 +725,24 @@ body.in-game #gear-icon { display: flex; }
     <button class="btn btn-primary" id="btn-sim-finish">投擲シミュレート → 結果</button>
   </div>
 
-  <!-- v1.13: 感度調整パネル -->
+  <!-- v1.14: 感度調整パネル（ラベル/単位を直感的に変更） -->
   <div id="tune-panel">
     <div class="tune-row">
       <label>ロール感度</label>
       <button class="tune-btn" data-tune="roll" data-dir="-">−</button>
-      <span class="tune-value" id="tune-roll-val">0.7</span>
+      <span class="tune-value" id="tune-roll-val">0.7×</span>
       <button class="tune-btn" data-tune="roll" data-dir="+">＋</button>
     </div>
     <div class="tune-row">
-      <label>視野 (FOV)</label>
-      <button class="tune-btn" data-tune="fov" data-dir="-">−</button>
-      <span class="tune-value" id="tune-fov-val">40°</span>
-      <button class="tune-btn" data-tune="fov" data-dir="+">＋</button>
+      <label>ヨー/ピッチ感度</label>
+      <button class="tune-btn" data-tune="sens" data-dir="-">−</button>
+      <span class="tune-value" id="tune-sens-val">1.0×</span>
+      <button class="tune-btn" data-tune="sens" data-dir="+">＋</button>
     </div>
     <div class="tune-row">
-      <label>スムージング</label>
+      <label>応答速度</label>
       <button class="tune-btn" data-tune="smooth" data-dir="-">−</button>
-      <span class="tune-value" id="tune-smooth-val">0.4</span>
+      <span class="tune-value" id="tune-smooth-val">40%</span>
       <button class="tune-btn" data-tune="smooth" data-dir="+">＋</button>
     </div>
     <div class="tune-actions">

@@ -7,8 +7,9 @@ import * as Sensor from './darts-sensor.js';
 // ======================================================================
 // 設定（実装時調整・段階6 で性能フォールバック含めて最終確定）
 // ======================================================================
-// v1.13: 一部パラメータをユーザー調整可能に（let に変更 + setter エクスポート）
-let HORIZ_FOV_DEG = 40;             // 画面横幅の仮想視野（調整可: 20〜80）
+// v1.14: FOV は固定、ヨー/ピッチ感度は別倍率で調整
+const HORIZ_FOV_DEG = 40;           // 仮想視野（固定）— 的の配置範囲計算にのみ使用
+let YAW_PITCH_SCALE = 1.0;          // ヨー/ピッチ感度倍率（調整可: 0.5〜2.0）
 const TARGET_DIAMETER_RATIO = 0.9;  // 画面横幅 90% に占める基準サイズ
 const SHIFT_RADIUS_RATIO = 0.25;    // 直径の 1/4 までシフト
 const TILT_SCALE = 0;               // v1.09: 疑似3D傾きをいったん無効化
@@ -195,9 +196,9 @@ export function recenterTarget() {
   _targetWorld = { yaw: 0, pitch: 0 };
 }
 
-// v1.13: ユーザー調整可能パラメータの setter/getter
-export function setFov(deg) { HORIZ_FOV_DEG = Math.max(20, Math.min(80, deg)); }
-export function getFov() { return HORIZ_FOV_DEG; }
+// v1.14: ユーザー調整可能パラメータの setter/getter
+export function setYawPitchScale(s) { YAW_PITCH_SCALE = Math.max(0.5, Math.min(2.0, s)); }
+export function getYawPitchScale() { return YAW_PITCH_SCALE; }
 export function setRollScale(s) { ROLL_SCALE = Math.max(0.3, Math.min(1.5, s)); }
 export function getRollScale() { return ROLL_SCALE; }
 export function setSmoothFactor(f) { SMOOTH_FACTOR = Math.max(0.1, Math.min(1.0, f)); }
@@ -205,9 +206,9 @@ export function getSmoothFactor() { return SMOOTH_FACTOR; }
 
 // 直近のログ（JSON 文字列、Claude に貼り付け可能な形式）
 export function getLog() {
-  const header = `# MOMO Darts sensor log (v1.13, 10Hz, ${_logBuffer.length} samples)\n` +
+  const header = `# MOMO Darts sensor log (v1.14, 10Hz, ${_logBuffer.length} samples)\n` +
                  `# SIGN_YAW=${SIGN_YAW} SIGN_PITCH=${SIGN_PITCH} SIGN_ROLL=${SIGN_ROLL}\n` +
-                 `# HORIZ_FOV_DEG=${HORIZ_FOV_DEG} ROLL_SCALE=${ROLL_SCALE} SMOOTH_FACTOR=${SMOOTH_FACTOR}\n`;
+                 `# HORIZ_FOV_DEG=${HORIZ_FOV_DEG} YAW_PITCH_SCALE=${YAW_PITCH_SCALE} ROLL_SCALE=${ROLL_SCALE} SMOOTH_FACTOR=${SMOOTH_FACTOR}\n`;
   return header + JSON.stringify(_logBuffer);
 }
 
@@ -227,7 +228,7 @@ function tick() {
 
   const screenW = _viewEl.clientWidth || window.innerWidth;
   const screenH = _viewEl.clientHeight || window.innerHeight;
-  const pxPerDeg = screenW / HORIZ_FOV_DEG;
+  const pxPerDeg = (screenW / HORIZ_FOV_DEG) * YAW_PITCH_SCALE;
   const targetSizePx = screenW * TARGET_DIAMETER_RATIO;
 
   const rel = Sensor.getRelativeOrientation();

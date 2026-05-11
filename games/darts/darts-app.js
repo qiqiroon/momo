@@ -243,6 +243,43 @@ $('btn-next-turn').addEventListener('click', () => {
   Render.placeTargetForTurn();
 });
 
+// 中央リセット: 現在の姿勢を新キャリブとして登録し、的を画面中央へ
+$('btn-recenter').addEventListener('click', () => {
+  const ok = Sensor.setCalibration();
+  if (!ok) {
+    // 値未受信時は何もしない
+    return;
+  }
+  Render.recenterTarget();
+});
+
+// ログコピー: 直近 5 秒のセンサー入力↔反応をクリップボードへ
+$('btn-copy-log').addEventListener('click', async () => {
+  const log = Render.getLog();
+  const btn = $('btn-copy-log');
+  const original = btn.textContent;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(log);
+      btn.textContent = '✅ コピーしました';
+    } else {
+      // フォールバック: 一時 textarea で execCommand
+      const ta = document.createElement('textarea');
+      ta.value = log;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      btn.textContent = '✅ コピーしました';
+    }
+  } catch (e) {
+    btn.textContent = '⚠️ コピー失敗（共有不可）';
+  }
+  setTimeout(() => { btn.textContent = original; }, 1800);
+});
+
 $('btn-sim-finish').addEventListener('click', () => {
   // 段階2-A のスタブ：投擲をシミュレートせず即結果画面へ
   leaveGameScreen();

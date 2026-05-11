@@ -160,12 +160,19 @@ export function getCurrentOrientation() {
   return _currentOrientation;
 }
 
-// キャリブ基準で相対方向を取得
+// 角度を (-180, 180] に正規化（alpha が 0/360 境界を跨ぐ際のラップ対策）
+function _normalizeAngle(a) {
+  while (a > 180) a -= 360;
+  while (a <= -180) a += 360;
+  return a;
+}
+
+// キャリブ基準で相対方向を取得（ラップ補正済）
 export function getRelativeOrientation() {
   if (!_currentOrientation || !_calibration) return null;
   return {
-    alpha: (_currentOrientation.alpha || 0) - _calibration.alpha,
-    beta: (_currentOrientation.beta || 0) - _calibration.beta,
-    gamma: (_currentOrientation.gamma || 0) - _calibration.gamma,
+    alpha: _normalizeAngle((_currentOrientation.alpha || 0) - _calibration.alpha),
+    beta:  _normalizeAngle((_currentOrientation.beta  || 0) - _calibration.beta),
+    gamma: _normalizeAngle((_currentOrientation.gamma || 0) - _calibration.gamma),
   };
 }

@@ -7,7 +7,7 @@ import * as Sensor from './darts-sensor.js';
 // ======================================================================
 // 設定（実装時調整・段階6 で性能フォールバック含めて最終確定）
 // ======================================================================
-const HORIZ_FOV_DEG = 60;           // 画面横幅 = 60度の仮想視野
+const HORIZ_FOV_DEG = 30;           // 画面横幅 = 30度の仮想視野（v1.07 で 60→30）
 const TARGET_DIAMETER_RATIO = 0.9;  // 画面横幅 90% に占める基準サイズ
 const FOV_HARD_LIMIT_DEG = HORIZ_FOV_DEG;  // ±FOV/2 の角度範囲内に的を配置
 const SHIFT_RADIUS_RATIO = 0.25;    // 直径の 1/4 までシフト

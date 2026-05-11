@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cut &amp; Paste - Debug Tool</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel-2: #1f232c;
+    --border: #2a2f3a;
+    --text: #e7ebf3;
+    --muted: #8a92a6;
+    --accent: #6ee7b7;
+    --accent-2: #60a5fa;
+    --danger: #f87171;
+    --warn: #fbbf24;
+    --shadow: 0 6px 24px rgba(0,0,0,0.35);
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, "Cascadia Mono", "Roboto Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+    -webkit-text-size-adjust: 100%;
+    min-height: 100vh;
+  }
+  .app {
+    max-width: 980px; margin: 0 auto; padding: 16px;
+    min-height: 100vh;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap;
+  }
+  h1 {
+    font-size: 18px; margin: 0; letter-spacing: 0.02em;
+    display: flex; align-items: center; gap: 8px;
+  }
+  h1 .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--danger);
+    box-shadow: 0 0 12px var(--danger);
+  }
+  h1 .dot.on   { background: var(--accent); box-shadow: 0 0 12px var(--accent); }
+  h1 .dot.warn { background: var(--warn);   box-shadow: 0 0 12px var(--warn); }
+
+  .bar {
+    display: flex; gap: 8px; align-items: center;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 6px 10px;
+    font-family: var(--mono); font-size: 13px; flex-wrap: wrap;
+  }
+  .bar label { color: var(--muted); font-size: 12px; }
+  .bar input {
+    background: transparent; border: none; color: var(--text);
+    font-family: var(--mono); font-size: 13px; outline: none;
+    width: 220px;
+  }
+  .bar button {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border);
+    padding: 4px 10px; border-radius: 6px;
+    cursor: pointer; font-size: 12px;
+  }
+  .bar button:hover { border-color: var(--accent-2); }
+
+  .toolbar {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+  }
+  .btn {
+    appearance: none; border: 1px solid var(--border);
+    background: var(--panel); color: var(--text);
+    padding: 14px 12px; border-radius: 12px;
+    font-size: 15px; font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.05s ease, border-color 0.15s ease, background 0.15s ease;
+    box-shadow: var(--shadow);
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    touch-action: manipulation; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.paste   { border-color: #2f4a3a; }
+  .btn.paste:hover   { background: #19251f; border-color: var(--accent); }
+  .btn.copy    { border-color: #2a3a55; }
+  .btn.copy:hover    { background: #182236; border-color: var(--accent-2); }
+  .btn.clear   { border-color: #4d2a2a; }
+  .btn.clear:hover   { background: #2a1818; border-color: var(--danger); }
+  .btn.refresh { border-color: #4a3f1f; }
+  .btn.refresh:hover { background: #251f0f; border-color: var(--warn); }
+
+  .editor-wrap {
+    flex: 1; display: flex; flex-direction: column;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden;
+    box-shadow: var(--shadow); min-height: 320px;
+  }
+  textarea {
+    flex: 1; width: 100%;
+    background: transparent; color: var(--text);
+    border: none; outline: none;
+    padding: 14px;
+    font-family: var(--mono); font-size: 14px; line-height: 1.5;
+    resize: none; min-height: 260px;
+  }
+  .status {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 12px;
+    border-top: 1px solid var(--border);
+    background: var(--panel-2);
+    font-family: var(--mono); font-size: 12px; color: var(--muted);
+    flex-wrap: wrap; gap: 6px;
+  }
+  .status .left, .status .right { display: flex; gap: 12px; align-items: center; }
+  .status .ok   { color: var(--accent); }
+  .status .err  { color: var(--danger); }
+  .status .warn { color: var(--warn); }
+
+  .toast {
+    position: fixed; bottom: 20px; left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border);
+    padding: 10px 16px; border-radius: 10px;
+    box-shadow: var(--shadow);
+    font-size: 14px; opacity: 0; pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    z-index: 100; max-width: 90vw; text-align: center;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.ok  { border-color: var(--accent); }
+  .toast.err { border-color: var(--danger); }
+
+  .modal-back {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: none; align-items: center; justify-content: center;
+    z-index: 200; padding: 16px;
+  }
+  .modal-back.show { display: flex; }
+  .modal {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px;
+    max-width: 560px; width: 100%;
+    max-height: 90vh; overflow: auto;
+    box-shadow: var(--shadow);
+  }
+  .modal h2 { margin: 0 0 10px; font-size: 16px; color: var(--accent); }
+  .modal p, .modal li { font-size: 13px; line-height: 1.6; color: var(--text); }
+  .modal ol { padding-left: 18px; }
+  .modal code {
+    background: var(--bg); padding: 2px 6px; border-radius: 4px;
+    font-family: var(--mono); font-size: 12px; color: var(--accent-2);
+  }
+  .modal a { color: var(--accent-2); }
+  .modal .row { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .modal input[type="password"], .modal input[type="text"] {
+    flex: 1; min-width: 200px;
+    background: var(--bg); border: 1px solid var(--border);
+    color: var(--text); padding: 8px 10px; border-radius: 6px;
+    font-family: var(--mono); font-size: 13px;
+  }
+  .modal .actions {
+    margin-top: 14px; display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;
+  }
+  .modal .actions button {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border);
+    padding: 8px 14px; border-radius: 6px;
+    cursor: pointer; font-size: 13px;
+  }
+  .modal .actions button.primary {
+    background: var(--accent); color: #07241a;
+    border-color: var(--accent); font-weight: 600;
+  }
+
+  footer {
+    color: var(--muted); font-size: 11px;
+    text-align: center; padding: 4px 0 8px;
+    font-family: var(--mono);
+  }
+
+  @media (max-width: 600px) {
+    .app { padding: 10px; gap: 10px; }
+    .toolbar { grid-template-columns: repeat(2, 1fr); }
+    h1 { font-size: 16px; }
+    .btn { padding: 16px 10px; font-size: 14px; }
+    .bar input { width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header>
+    <h1><span id="statusDot" class="dot"></span>Cut &amp; Paste</h1>
+    <div class="bar">
+      <label>GIST:</label>
+      <input id="gistInput" type="text" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="Gist ID または URL">
+      <button id="gistApply">接続</button>
+      <button id="gistCopy" title="共有URLをコピー">URL</button>
+      <button id="setupBtn" title="セットアップ">⚙</button>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <button class="btn paste"   id="btnPaste"  ><span class="icon">📋</span>貼り付け</button>
+    <button class="btn copy"    id="btnCopy"   ><span class="icon">📑</span>コピー</button>
+    <button class="btn clear"   id="btnClear"  ><span class="icon">🗑</span>クリア</button>
+    <button class="btn refresh" id="btnRefresh"><span class="icon">⟳</span>更新</button>
+  </div>
+
+  <div class="editor-wrap">
+    <textarea id="editor" placeholder="ここにテキストを貼り付け、または直接入力してください…
+初回は右上の ⚙ ボタンから GitHub Personal Access Token を設定してください。" spellcheck="false"></textarea>
+    <div class="status">
+      <div class="left">
+        <span id="charCount">0 文字</span>
+        <span id="lineCount">0 行</span>
+      </div>
+      <div class="right">
+        <span id="syncStatus">未接続</span>
+      </div>
+    </div>
+  </div>
+
+  <footer>同期は GitHub Gist API 経由 / トークンはこの端末のみに保存 / Gist IDは「URL」で共有</footer>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<div id="setupModal" class="modal-back">
+  <div class="modal">
+    <h2>セットアップ: GitHub Personal Access Token</h2>
+    <p>このツールは GitHub Gist を使って PC と携帯の間でテキストを共有します。<br>
+       <b>トークンはこの端末のブラウザ内 (localStorage) にのみ保存され、GitHub以外には送信されません。</b></p>
+    <ol>
+      <li><a href="https://github.com/settings/tokens" target="_blank" rel="noopener">https://github.com/settings/tokens</a> を開く</li>
+      <li>「Generate new token」→「Generate new token (classic)」を選択</li>
+      <li>Note: <code>cutandpaste</code> など好きな名前</li>
+      <li>Expiration: 任意 (No expiration でも可)</li>
+      <li>Scopes は <code>gist</code> だけにチェック</li>
+      <li>「Generate token」を押し、表示された <code>ghp_xxx...</code> をコピー</li>
+      <li>下の欄に貼り付けて「保存して接続」</li>
+    </ol>
+    <p>※ PC と携帯で<b>同じトークン</b>を使ってもいいし、それぞれ別のトークンを作っても OK (同じ GitHub アカウントで)。</p>
+    <div class="row">
+      <input id="tokenInput" type="password" placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" spellcheck="false">
+      <button id="tokenShow" type="button" style="background:var(--panel-2);color:var(--text);border:1px solid var(--border);padding:8px 10px;border-radius:6px;cursor:pointer;">👁</button>
+    </div>
+    <div class="actions">
+      <button id="tokenClear">トークンを削除</button>
+      <button id="setupCancel">閉じる</button>
+      <button id="tokenSave" class="primary">保存して接続</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  const GH_API = 'https://api.github.com';
+  const FILENAME = 'cutandpaste.txt';
+
+  const editor      = document.getElementById('editor');
+  const btnPaste    = document.getElementById('btnPaste');
+  const btnCopy     = document.getElementById('btnCopy');
+  const btnClear    = document.getElementById('btnClear');
+  const btnRefresh  = document.getElementById('btnRefresh');
+  const gistInput   = document.getElementById('gistInput');
+  const gistApply   = document.getElementById('gistApply');
+  const gistCopy    = document.getElementById('gistCopy');
+  const setupBtn    = document.getElementById('setupBtn');
+  const setupModal  = document.getElementById('setupModal');
+  const tokenInput  = document.getElementById('tokenInput');
+  const tokenShow   = document.getElementById('tokenShow');
+  const tokenSave   = document.getElementById('tokenSave');
+  const tokenClear  = document.getElementById('tokenClear');
+  const setupCancel = document.getElementById('setupCancel');
+  const charCount   = document.getElementById('charCount');
+  const lineCount   = document.getElementById('lineCount');
+  const syncStatus  = document.getElementById('syncStatus');
+  const statusDot   = document.getElementById('statusDot');
+  const toast       = document.getElementById('toast');
+
+  let token = '';
+  let gistId = '';
+
+  function showToast(msg, type) {
+    toast.textContent = msg;
+    toast.className = 'toast show ' + (type || '');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => { toast.className = 'toast ' + (type || ''); }, 2400);
+  }
+  function updateCounts() {
+    const v = editor.value;
+    charCount.textContent = v.length + ' 文字';
+    lineCount.textContent = (v === '' ? 0 : v.split('\n').length) + ' 行';
+  }
+  function setStatus(text, cls) {
+    syncStatus.className = cls || '';
+    syncStatus.textContent = text;
+    statusDot.className = 'dot ' + (cls === 'ok' ? 'on' : (cls === 'warn' ? 'warn' : ''));
+  }
+
+  function loadToken() { try { return localStorage.getItem('cp_gh_token') || ''; } catch (e) { return ''; } }
+  function saveToken(t) { try { localStorage.setItem('cp_gh_token', t); } catch (e) {} }
+  function loadGistId() { try { return localStorage.getItem('cp_gist_id') || ''; } catch (e) { return ''; } }
+  function saveGistId(id) { try { localStorage.setItem('cp_gist_id', id); } catch (e) {} }
+
+  function normalizeGistId(s) {
+    if (!s) return '';
+    s = s.trim();
+    const m = s.match(/([0-9a-f]{20,})/i);
+    return m ? m[1] : s.replace(/[^0-9a-zA-Z]/g, '');
+  }
+
+  function parseHash() {
+    const h = location.hash.replace(/^#/, '');
+    const out = {};
+    h.split('&').forEach(p => {
+      const i = p.indexOf('=');
+      if (i > 0) out[decodeURIComponent(p.slice(0,i))] = decodeURIComponent(p.slice(i+1));
+    });
+    return out;
+  }
+  function setHash(id) {
+    const h = id ? ('gist=' + encodeURIComponent(id)) : '';
+    if (location.hash.replace(/^#/, '') !== h) {
+      history.replaceState(null, '', h ? ('#' + h) : location.pathname);
+    }
+  }
+
+  async function ghFetch(path, opts) {
+    opts = opts || {};
+    opts.headers = Object.assign({
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28'
+    }, opts.headers || {});
+    if (token) opts.headers['Authorization'] = 'Bearer ' + token;
+    const res = await fetch(GH_API + path, opts);
+    if (!res.ok) {
+      let msg = 'GitHub API ' + res.status;
+      try { const j = await res.json(); if (j && j.message) msg += ': ' + j.message; } catch (e) {}
+      const err = new Error(msg); err.status = res.status; throw err;
+    }
+    return res.json();
+  }
+
+  async function createGist(initialText) {
+    const body = {
+      description: 'cutandpaste shared text',
+      public: false,
+      files: { [FILENAME]: { content: initialText || ' ' } }
+    };
+    const j = await ghFetch('/gists', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    return j.id;
+  }
+
+  async function readGist(id) {
+    const j = await ghFetch('/gists/' + encodeURIComponent(id), { method: 'GET' });
+    let f = j.files && j.files[FILENAME];
+    if (!f) {
+      const names = j.files ? Object.keys(j.files) : [];
+      if (names.length === 0) return '';
+      f = j.files[names[0]];
+    }
+    if (f.truncated && f.raw_url) {
+      const r = await fetch(f.raw_url);
+      if (r.ok) return await r.text();
+    }
+    return f.content || '';
+  }
+
+  async function writeGist(id, text) {
+    const body = {
+      files: { [FILENAME]: { content: text === '' ? ' ' : text } }
+    };
+    await ghFetch('/gists/' + encodeURIComponent(id), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+  }
+
+  async function connect() {
+    if (!token) {
+      setStatus('トークン未設定', 'err');
+      openSetup();
+      return false;
+    }
+    if (!gistId) {
+      setStatus('Gist作成中…', 'warn');
+      try {
+        gistId = await createGist('');
+        saveGistId(gistId);
+        setHash(gistId);
+        gistInput.value = gistId;
+        showToast('新しい Gist を作成しました', 'ok');
+      } catch (e) {
+        setStatus('Gist作成失敗', 'err');
+        showToast(e.message, 'err');
+        return false;
+      }
+    }
+    return await pull(true);
+  }
+
+  async function pull(silent) {
+    if (!token) { setStatus('トークン未設定', 'err'); return false; }
+    if (!gistId) { setStatus('Gist未設定', 'err'); return false; }
+    setStatus('取得中…', 'warn');
+    try {
+      let text = await readGist(gistId);
+      if (text === ' ') text = '';
+      editor.value = text;
+      updateCounts();
+      setStatus('同期 ' + new Date().toLocaleTimeString(), 'ok');
+      if (!silent) showToast('最新の内容に更新しました', 'ok');
+      return true;
+    } catch (e) {
+      setStatus('取得失敗 (' + (e.status || '?') + ')', 'err');
+      if (!silent) showToast('更新失敗: ' + e.message, 'err');
+      return false;
+    }
+  }
+
+  async function push(text) {
+    if (!token || !gistId) return false;
+    setStatus('送信中…', 'warn');
+    try {
+      await writeGist(gistId, text);
+      setStatus('同期 ' + new Date().toLocaleTimeString(), 'ok');
+      return true;
+    } catch (e) {
+      setStatus('送信失敗 (' + (e.status || '?') + ')', 'err');
+      showToast('同期失敗: ' + e.message, 'err');
+      return false;
+    }
+  }
+
+  btnPaste.addEventListener('click', async () => {
+    let text = '';
+    try {
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        text = await navigator.clipboard.readText();
+      } else { throw new Error('no clipboard'); }
+    } catch (e) {
+      editor.focus();
+      showToast('クリップボード読取不可。テキストエリアで手動ペーストしてください', 'err');
+      return;
+    }
+    editor.value = text;
+    updateCounts();
+    const ok = await push(text);
+    if (ok) showToast('貼り付けて同期しました (' + text.length + '文字)', 'ok');
+  });
+
+  btnCopy.addEventListener('click', async () => {
+    const text = editor.value;
+    if (!text) { showToast('コピーする内容がありません', 'err'); return; }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        editor.select();
+        editor.setSelectionRange(0, text.length);
+        const ok = document.execCommand('copy');
+        if (!ok) throw new Error('execCommand failed');
+        editor.setSelectionRange(text.length, text.length);
+      }
+      showToast('クリップボードへコピーしました (' + text.length + '文字)', 'ok');
+    } catch (e) {
+      showToast('コピーに失敗しました', 'err');
+    }
+  });
+
+  btnClear.addEventListener('click', async () => {
+    editor.value = '';
+    updateCounts();
+    const ok = await push('');
+    if (ok) showToast('クリアして同期しました', 'ok');
+  });
+
+  btnRefresh.addEventListener('click', () => pull(false));
+
+  gistApply.addEventListener('click', async () => {
+    const id = normalizeGistId(gistInput.value);
+    if (!id) { showToast('Gist ID が無効です', 'err'); return; }
+    if (id === gistId) { showToast('同じ Gist です', 'warn'); return; }
+    gistId = id;
+    saveGistId(id);
+    setHash(id);
+    gistInput.value = id;
+    await pull(false);
+  });
+  gistInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); gistApply.click(); }
+  });
+
+  gistCopy.addEventListener('click', async () => {
+    if (!gistId) { showToast('Gist が未設定です', 'err'); return; }
+    const url = location.origin + location.pathname + '#gist=' + encodeURIComponent(gistId);
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const t = document.createElement('textarea');
+        t.value = url; document.body.appendChild(t); t.select();
+        document.execCommand('copy'); document.body.removeChild(t);
+      }
+      showToast('共有URLをコピーしました', 'ok');
+    } catch (e) { showToast('URL: ' + url, 'err'); }
+  });
+
+  function openSetup() {
+    tokenInput.value = token || '';
+    tokenInput.type = 'password';
+    setupModal.classList.add('show');
+  }
+  function closeSetup() { setupModal.classList.remove('show'); }
+
+  setupBtn.addEventListener('click', openSetup);
+  setupCancel.addEventListener('click', closeSetup);
+  setupModal.addEventListener('click', (e) => { if (e.target === setupModal) closeSetup(); });
+
+  tokenShow.addEventListener('click', () => {
+    tokenInput.type = tokenInput.type === 'password' ? 'text' : 'password';
+  });
+
+  tokenClear.addEventListener('click', () => {
+    if (!confirm('この端末からトークンを削除しますか?')) return;
+    token = '';
+    try { localStorage.removeItem('cp_gh_token'); } catch (e) {}
+    tokenInput.value = '';
+    showToast('トークンを削除しました', 'ok');
+    setStatus('トークン未設定', 'err');
+  });
+
+  tokenSave.addEventListener('click', async () => {
+    const t = tokenInput.value.trim();
+    if (!t) { showToast('トークンを入力してください', 'err'); return; }
+    token = t;
+    saveToken(t);
+    closeSetup();
+    showToast('トークンを保存しました', 'ok');
+    await connect();
+  });
+
+  let pushTimer = null;
+  editor.addEventListener('input', () => {
+    updateCounts();
+    if (!token || !gistId) return;
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(() => { push(editor.value); }, 800);
+  });
+
+  function boot() {
+    updateCounts();
+    token = loadToken();
+    const hash = parseHash();
+    gistId = normalizeGistId(hash.gist || '') || loadGistId();
+    if (gistId) { gistInput.value = gistId; setHash(gistId); }
+
+    if (!token) {
+      setStatus('トークン未設定 (⚙から設定)', 'err');
+      openSetup();
+      return;
+    }
+    connect();
+  }
+
+  window.addEventListener('hashchange', () => {
+    const hash = parseHash();
+    const id = normalizeGistId(hash.gist || '');
+    if (id && id !== gistId) {
+      gistId = id;
+      saveGistId(id);
+      gistInput.value = id;
+      pull(false);
+    }
+  });
+
+  boot();
+})();
+</script>
+
+</body>
+</html>

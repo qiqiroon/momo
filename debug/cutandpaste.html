@@ -314,11 +314,24 @@
   function loadGistId() { try { return localStorage.getItem('cp_gist_id') || ''; } catch (e) { return ''; } }
   function saveGistId(id) { try { localStorage.setItem('cp_gist_id', id); } catch (e) {} }
 
+  function looksLikeToken(s) {
+    if (!s) return false;
+    s = s.trim();
+    return /^ghp_/.test(s) || /^github_pat_/.test(s) || /^gho_/.test(s) || /^ghs_/.test(s);
+  }
   function normalizeGistId(s) {
     if (!s) return '';
     s = s.trim();
-    const m = s.match(/([0-9a-f]{20,})/i);
-    return m ? m[1] : s.replace(/[^0-9a-zA-Z]/g, '');
+    // 末尾の "#..." や "?..." を削除
+    s = s.replace(/[#?].*$/, '');
+    // URLっぽければ末尾のパス要素を取る
+    if (s.indexOf('/') >= 0) {
+      const parts = s.split('/').filter(Boolean);
+      s = parts[parts.length - 1] || '';
+    }
+    // Gist ID は16進文字列(20文字以上)。それ以外は不正
+    const m = s.match(/^([0-9a-f]{20,})$/i);
+    return m ? m[1] : '';
   }
 
   function parseHash() {
@@ -495,8 +508,16 @@
   btnRefresh.addEventListener('click', () => pull(false));
 
   gistApply.addEventListener('click', async () => {
-    const id = normalizeGistId(gistInput.value);
-    if (!id) { showToast('Gist ID が無効です', 'err'); return; }
+    const raw = gistInput.value;
+    if (looksLikeToken(raw)) {
+      showToast('⚠ これは GitHub トークンです。Gist ID 欄ではなく ⚙ から入力してください', 'err');
+      return;
+    }
+    const id = normalizeGistId(raw);
+    if (!id) {
+      showToast('Gist ID の形式が無効です (16進数20文字以上)', 'err');
+      return;
+    }
     if (id === gistId) { showToast('同じ Gist です', 'warn'); return; }
     gistId = id;
     saveGistId(id);
@@ -569,7 +590,15 @@
     updateCounts();
     token = loadToken();
     const hash = parseHash();
-    gistId = normalizeGistId(hash.gist || '') || loadGistId();
+    const hashRaw = hash.gist || '';
+    if (looksLikeToken(hashRaw)) {
+      // URL に誤ってトークンが入っていた場合は即座に除去
+      setHash('');
+      showToast('⚠ URLにトークンが含まれていました。安全のため除去しました。トークンは GitHub で破棄してください', 'err');
+      gistId = loadGistId();
+    } else {
+      gistId = normalizeGistId(hashRaw) || loadGistId();
+    }
     if (gistId) { gistInput.value = gistId; setHash(gistId); }
 
     if (!token) {

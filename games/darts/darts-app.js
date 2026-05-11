@@ -1,8 +1,10 @@
 // MOMO Darts - エントリーモジュール
 // 段階2-A: screen 切り替え、ボタンハンドラ、退出確認モーダル
 // 段階2-B: センサー許可フロー (SPEC 14.4) + キャリブレーション (SPEC 4.3)
+// 段階2-C: 3D 空間 + 的描画（SPEC 4章 / 16章）
 
 import * as Sensor from './darts-sensor.js';
+import * as Render from './darts-render.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -192,7 +194,7 @@ $('btn-calib-fix').addEventListener('click', () => {
     return;
   }
   // キャリブ完了 → ゲーム画面へ
-  showScreen('game');
+  enterGameScreen();
 });
 
 $('btn-calib-cancel').addEventListener('click', async () => {
@@ -214,8 +216,35 @@ $('btn-room-leave').addEventListener('click', async () => {
   if (await confirm('退出しますか？')) showScreen('lobby');
 });
 
+// ===== ゲーム画面ライフサイクル（段階2-C で追加） =====
+function enterGameScreen() {
+  showScreen('game');
+  const debugEl = $('game-debug-info');
+  Render.start({
+    viewEl: $('game-3d-view'),
+    boardEl: $('game-3d-board'),
+    arrowEl: $('game-3d-arrow'),
+    debugCallback: (info) => {
+      // 開発用：センサー値と画面位置を表示（段階2-G で残り点数 UI に置換）
+      debugEl.textContent =
+        `yaw=${info.yawDelta.toFixed(1)}° pitch=${info.pitchDelta.toFixed(1)}° roll=${info.roll.toFixed(1)}°\n` +
+        `target=(${info.target.yaw.toFixed(1)}°,${info.target.pitch.toFixed(1)}°) screen=(${info.x.toFixed(0)},${info.y.toFixed(0)})`;
+    },
+  });
+  Render.placeTargetForTurn();
+}
+
+function leaveGameScreen() {
+  Render.stop();
+}
+
+$('btn-next-turn').addEventListener('click', () => {
+  Render.placeTargetForTurn();
+});
+
 $('btn-sim-finish').addEventListener('click', () => {
   // 段階2-A のスタブ：投擲をシミュレートせず即結果画面へ
+  leaveGameScreen();
   $('end-result-msg').textContent = 'FINISH!';
   $('end-result-msg').classList.remove('lose');
   $('end-result-msg').classList.add('win');
@@ -225,6 +254,7 @@ $('btn-sim-finish').addEventListener('click', () => {
 
 $('btn-game-leave').addEventListener('click', async () => {
   if (await confirm('退出しますか？')) {
+    leaveGameScreen();
     Sensor.stopListening();
     Sensor.clearCalibration();
     showScreen('room');
@@ -235,7 +265,7 @@ $('btn-end-replay').addEventListener('click', () => {
   // SPEC 12.6: 再戦時はキャリブをセッション中スキップ
   // calibration を残したまま game へ直行
   if (Sensor.getCalibration()) {
-    showScreen('game');
+    enterGameScreen();
   } else {
     startGameFlow();
   }

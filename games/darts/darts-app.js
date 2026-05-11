@@ -96,21 +96,21 @@ async function startGameFlow() {
     return;
   }
 
-  // 2. localStorage の許可済フラグを確認
-  if (Sensor.getStoredPermission()) {
-    // 既に許可済 → センサー動作確認 → キャリブへ
-    proceedToCalibration();
+  // 2. 明示許可が必要なブラウザ(iOS Safari 13+ 等)は毎回 user-gesture から requestPermission を呼ぶ。
+  //    localStorage の許可済フラグだけでは iOS のイベント配信が始まらないケースに対応。
+  if (Sensor.needsExplicitPermission()) {
+    const result = await Sensor.requestPermission();
+    if (result === 'granted') {
+      proceedToCalibration();
+    } else {
+      // 拒否 or 利用不可 → 許可案内パネル表示
+      showPermissionPanel();
+    }
     return;
   }
 
-  // 3. 許可ダイアログを呼ぶ
-  const result = await Sensor.requestPermission();
-  if (result === 'granted') {
-    proceedToCalibration();
-  } else {
-    // 拒否 or 利用不可 → 許可案内パネル表示
-    showPermissionPanel();
-  }
+  // 3. Android Chrome 等は明示許可不要 → そのままキャリブへ
+  proceedToCalibration();
 }
 
 // 許可手順案内パネルの「許可しました(OK)」 → 再チェック
@@ -146,11 +146,22 @@ async function proceedToCalibration() {
   btnFix.disabled = true;
   _calibSensorActive = false;
 
+  // 診断用: 検出期間中のイベント数と最新値を記録（失敗時のみ画面に表示）
+  let diagEventCount = 0;
+  let diagLastValues = null;
+  const diagListener = (e) => {
+    diagEventCount++;
+    diagLastValues = { a: e.alpha, b: e.beta, g: e.gamma };
+  };
+  window.addEventListener('deviceorientation', diagListener);
+
   // センサーリスナー開始
   Sensor.startListening();
 
   // 5秒タイムアウトで非搭載判定（SPEC 18.7）
   const detected = await Sensor.detectSensorActive(5000);
+  window.removeEventListener('deviceorientation', diagListener);
+
   if (detected) {
     _calibSensorActive = true;
     statusEl.textContent = 'センサーOK。楽な姿勢で「正面に固定」を押してください';
@@ -159,10 +170,17 @@ async function proceedToCalibration() {
     // 5秒で値が来ない → 非搭載扱い（SPEC 14.4 / 18.7）
     Sensor.stopListening();
     statusEl.classList.add('error');
-    statusEl.textContent = 'センサーが検出できません。この端末では遊べません。';
+    const fmt = (v) => (v === null || v === undefined) ? '–' : (typeof v === 'number' ? v.toFixed(1) : String(v));
+    const valStr = diagLastValues
+      ? `α=${fmt(diagLastValues.a)} β=${fmt(diagLastValues.b)} γ=${fmt(diagLastValues.g)}`
+      : '値未受信';
+    statusEl.innerHTML =
+      `センサーが検出できません<br>` +
+      `<small style="font-size:11px;opacity:0.75;display:block;margin-top:6px;line-height:1.4;">` +
+      `events=${diagEventCount} ${valStr}<br>browser=${Sensor.detectBrowserKind()}` +
+      `</small>`;
     btnFix.disabled = true;
-    // 2秒後にロビーへ戻す
-    setTimeout(() => showScreen('lobby'), 2000);
+    // 自動ロビー戻りは廃止 — 退出ボタンで戻る
   }
 }
 

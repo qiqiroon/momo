@@ -234,7 +234,7 @@ body.in-game #lang-switcher { display: none; }
 .rule-detail dd { color: var(--text); }
 
 /* ===== ゲーム画面：3D 空間ビュー（SPEC 4章 / 16章） ===== */
-/* 木目テクスチャ（段階2-C 暫定: CSS グラデーションのみ。段階6 で PNG 差替え予定） */
+/* 構造: #game-3d-view (perspective) > #game-3d-scene (壁+的を一体 transform) */
 #game-3d-view {
   position: absolute;
   inset: 0;
@@ -242,6 +242,30 @@ body.in-game #lang-switcher { display: none; }
   z-index: 0;
   perspective: 1200px;
   perspective-origin: 50% 50%;
+  background-color: #0a0a0a;  /* シーンが回って外に出た時の保険色 */
+}
+
+/* シーン: 壁 + 的を含む、センサーで一体に transform される */
+#game-3d-scene {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  transform-style: preserve-3d;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+/* 壁: 暫定 CSS 木目（段階6 で PNG 差替え予定）。シーン原点を中心に大きく敷く */
+#game-3d-wall {
+  position: absolute;
+  top: -300vmax;
+  left: -300vmax;
+  width: 600vmax;
+  height: 600vmax;
+  /* 的より僅かに奥に配置して z-fighting を回避 */
+  transform: translateZ(-1px);
   background-color: #1a1208;
   background-image:
     repeating-linear-gradient(
@@ -255,17 +279,14 @@ body.in-game #lang-switcher { display: none; }
     radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.06), transparent 70%);
 }
 
-/* ダーツボード（中心アンカー、JS が transform で動かす） */
+/* ダーツボード（シーン原点を中心アンカー、サイズは JS が設定） */
 #game-3d-board {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 0;  /* JS で設定 */
+  top: 0;
+  left: 0;
+  width: 0;
   height: 0;
-  transform-style: preserve-3d;
-  transform-origin: center center;
-  will-change: transform;
-  z-index: 5;
+  transform: translate(-50%, -50%);
   filter: drop-shadow(0 6px 14px rgba(0,0,0,0.5));
 }
 
@@ -553,7 +574,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.02</span>
+      <span class="version-tag" id="version-tag">v1.03</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -619,9 +640,14 @@ body.in-game #gear-icon { display: flex; }
 
 <!-- ===== SCREEN: GAME（段階2-C: 3D空間 + 的描画） ===== -->
 <div class="screen" id="screen-game">
-  <!-- 3D 空間ビュー -->
+  <!-- 3D 空間ビュー（perspective container） -->
   <div id="game-3d-view">
-    <div id="game-3d-board"><!-- darts-render.js が SVG を注入 --></div>
+    <!-- 壁 + 的を含むシーン（センサーで一体 transform） -->
+    <div id="game-3d-scene">
+      <div id="game-3d-wall"></div>
+      <div id="game-3d-board"><!-- darts-render.js が SVG を注入 --></div>
+    </div>
+    <!-- 矢印は画面固定（シーンの外） -->
     <div id="game-3d-arrow">
       <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <path d="M5 12 L19 12 M13 6 L19 12 L13 18"

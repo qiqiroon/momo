@@ -222,6 +222,7 @@ function enterGameScreen() {
   const debugEl = $('game-debug-info');
   Render.start({
     viewEl: $('game-3d-view'),
+    sceneEl: $('game-3d-scene'),
     boardEl: $('game-3d-board'),
     arrowEl: $('game-3d-arrow'),
     debugCallback: (info) => {

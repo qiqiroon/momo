@@ -253,17 +253,24 @@ $('btn-recenter').addEventListener('click', () => {
   Render.recenterTarget();
 });
 
-// ログコピー: 直近 5 秒のセンサー入力↔反応をクリップボードへ
+// ログ共有: navigator.share（iOS Safari の共有シート → Mail/メモ等）優先、
+// 利用不可ならクリップボードへフォールバック
 $('btn-copy-log').addEventListener('click', async () => {
   const log = Render.getLog();
   const btn = $('btn-copy-log');
   const original = btn.textContent;
   try {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
+    if (navigator.share) {
+      // iOS Safari / Android Chrome: 共有シートを出す
+      await navigator.share({
+        title: 'MOMO Darts sensor log',
+        text: log,
+      });
+      btn.textContent = '✅ 共有しました';
+    } else if (navigator.clipboard && navigator.clipboard.writeText) {
       await navigator.clipboard.writeText(log);
-      btn.textContent = '✅ コピーしました';
+      btn.textContent = '✅ クリップボードへコピー';
     } else {
-      // フォールバック: 一時 textarea で execCommand
       const ta = document.createElement('textarea');
       ta.value = log;
       ta.style.position = 'fixed';
@@ -272,10 +279,14 @@ $('btn-copy-log').addEventListener('click', async () => {
       ta.select();
       document.execCommand('copy');
       document.body.removeChild(ta);
-      btn.textContent = '✅ コピーしました';
+      btn.textContent = '✅ クリップボードへコピー';
     }
   } catch (e) {
-    btn.textContent = '⚠️ コピー失敗（共有不可）';
+    if (e && e.name === 'AbortError') {
+      // ユーザーが共有シートを閉じた → 何も表示しない
+      return;
+    }
+    btn.textContent = '⚠️ 失敗: ' + (e.message || e.name || 'unknown');
   }
   setTimeout(() => { btn.textContent = original; }, 1800);
 });

@@ -322,6 +322,73 @@ $('btn-end-replay').addEventListener('click', () => {
 $('btn-end-rule-change').addEventListener('click', () => showScreen('room'));
 $('btn-end-back-room').addEventListener('click', () => showScreen('room'));
 
+// ===== v1.13: 感度調整パネル =====
+const TUNE_DEFAULTS = { roll: 0.7, fov: 40, smooth: 0.4 };
+const TUNE_STEPS = { roll: 0.05, fov: 5, smooth: 0.05 };
+const TUNE_LIMITS = {
+  roll:   { min: 0.3, max: 1.5 },
+  fov:    { min: 20,  max: 80  },
+  smooth: { min: 0.1, max: 1.0 },
+};
+const TUNE_LS_KEY = 'momoDartsTune';
+
+function loadTuneFromStorage() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(TUNE_LS_KEY) || '{}');
+    return {
+      roll:   typeof saved.roll   === 'number' ? saved.roll   : TUNE_DEFAULTS.roll,
+      fov:    typeof saved.fov    === 'number' ? saved.fov    : TUNE_DEFAULTS.fov,
+      smooth: typeof saved.smooth === 'number' ? saved.smooth : TUNE_DEFAULTS.smooth,
+    };
+  } catch {
+    return { ...TUNE_DEFAULTS };
+  }
+}
+function saveTuneToStorage(t) {
+  try { localStorage.setItem(TUNE_LS_KEY, JSON.stringify(t)); } catch {}
+}
+
+function applyTune(t) {
+  Render.setRollScale(t.roll);
+  Render.setFov(t.fov);
+  Render.setSmoothFactor(t.smooth);
+  $('tune-roll-val').textContent   = t.roll.toFixed(2);
+  $('tune-fov-val').textContent    = `${t.fov}°`;
+  $('tune-smooth-val').textContent = t.smooth.toFixed(2);
+}
+
+const _tune = loadTuneFromStorage();
+applyTune(_tune);
+
+$('btn-tune').addEventListener('click', () => {
+  $('tune-panel').classList.toggle('active');
+});
+$('btn-tune-close').addEventListener('click', () => {
+  $('tune-panel').classList.remove('active');
+});
+$('btn-tune-reset').addEventListener('click', () => {
+  Object.assign(_tune, TUNE_DEFAULTS);
+  applyTune(_tune);
+  saveTuneToStorage(_tune);
+});
+
+document.querySelectorAll('.tune-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const key = btn.dataset.tune;  // 'roll' | 'fov' | 'smooth'
+    const dir = btn.dataset.dir === '+' ? 1 : -1;
+    const step = TUNE_STEPS[key];
+    const limit = TUNE_LIMITS[key];
+    let v = _tune[key] + dir * step;
+    v = Math.max(limit.min, Math.min(limit.max, v));
+    // FOV は整数化
+    if (key === 'fov') v = Math.round(v);
+    else v = Math.round(v * 100) / 100;
+    _tune[key] = v;
+    applyTune(_tune);
+    saveTuneToStorage(_tune);
+  });
+});
+
 // ===== 言語切替（段階2-A: サブタイトルのみ。本格 i18n は段階4） =====
 const SUBTITLES = {
   ja: 'Concealed Edge, Single Touch',

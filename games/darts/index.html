@@ -339,6 +339,60 @@ body.in-game #lang-switcher { display: none; }
   z-index: 30;
 }
 
+/* v1.13: 感度調整パネル */
+#tune-panel {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 35;
+  background: rgba(20,20,20,0.92);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 240px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+}
+#tune-panel.active { display: flex; }
+.tune-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text);
+}
+.tune-row label { color: var(--text-muted); }
+.tune-row .tune-value {
+  min-width: 44px;
+  text-align: center;
+  font-family: ui-monospace, monospace;
+  background: var(--surface2);
+  border-radius: 4px;
+  padding: 2px 4px;
+}
+.tune-row .tune-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  background: var(--surface2);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+.tune-row .tune-btn:active { background: var(--orange); }
+.tune-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+.tune-actions .btn { flex: 1; font-size: 12px; padding: 6px 10px; }
+
 /* 仮の歯車アイコン位置（段階4 で機能実装、本サブ段階では枠だけ） */
 #gear-icon {
   position: fixed;
@@ -569,7 +623,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.12</span>
+      <span class="version-tag" id="version-tag">v1.13</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -664,10 +718,37 @@ body.in-game #gear-icon { display: flex; }
       <button class="btn btn-secondary" id="btn-next-turn">次のターン</button>
     </div>
     <div class="btn-row">
+      <button class="btn btn-ghost" id="btn-tune">⚙ 感度調整</button>
       <button class="btn btn-ghost" id="btn-copy-log">📤 ログ共有</button>
       <button class="btn btn-ghost" id="btn-game-leave">退出</button>
     </div>
     <button class="btn btn-primary" id="btn-sim-finish">投擲シミュレート → 結果</button>
+  </div>
+
+  <!-- v1.13: 感度調整パネル -->
+  <div id="tune-panel">
+    <div class="tune-row">
+      <label>ロール感度</label>
+      <button class="tune-btn" data-tune="roll" data-dir="-">−</button>
+      <span class="tune-value" id="tune-roll-val">0.7</span>
+      <button class="tune-btn" data-tune="roll" data-dir="+">＋</button>
+    </div>
+    <div class="tune-row">
+      <label>視野 (FOV)</label>
+      <button class="tune-btn" data-tune="fov" data-dir="-">−</button>
+      <span class="tune-value" id="tune-fov-val">40°</span>
+      <button class="tune-btn" data-tune="fov" data-dir="+">＋</button>
+    </div>
+    <div class="tune-row">
+      <label>スムージング</label>
+      <button class="tune-btn" data-tune="smooth" data-dir="-">−</button>
+      <span class="tune-value" id="tune-smooth-val">0.4</span>
+      <button class="tune-btn" data-tune="smooth" data-dir="+">＋</button>
+    </div>
+    <div class="tune-actions">
+      <button class="btn btn-ghost" id="btn-tune-reset">標準値</button>
+      <button class="btn btn-secondary" id="btn-tune-close">閉じる</button>
+    </div>
   </div>
 </div>
 

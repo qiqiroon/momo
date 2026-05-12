@@ -7,6 +7,7 @@ import * as Sensor from './darts-sensor.js';
 import * as Render from './darts-render.js';
 import * as Input from './darts-input.js';
 import * as Physics from './darts-physics.js';
+import * as Rules from './darts-rules.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -218,8 +219,27 @@ $('btn-room-leave').addEventListener('click', async () => {
   if (await confirm('退出しますか？')) showScreen('lobby');
 });
 
-// ===== ゲーム画面ライフサイクル（段階2-C で追加） =====
-let _shotCount = 0;  // v1.17: 現ターンの投擲数（ダミー、ルールエンジンは段階2-E）
+// ===== ゲーム画面ライフサイクル =====
+let _gameState = null;  // v1.23: Rules.createInitialState() の戻り値
+
+function updateScoreUI() {
+  if (!_gameState) return;
+  $('ui-remaining').textContent = String(_gameState.remaining);
+  $('ui-turn-total').textContent = `TURN +${Rules.turnTotal(_gameState)}`;
+  for (let i = 0; i < 3; i++) {
+    const slot = $(`ui-shot-${i + 1}`);
+    const shot = _gameState.turnShots[i];
+    if (shot) {
+      slot.textContent = `${shot.label}=${shot.value}`;
+      slot.classList.remove('pending');
+      slot.classList.toggle('miss', shot.kind === 'MISS');
+    } else {
+      slot.textContent = '—';
+      slot.classList.add('pending');
+      slot.classList.remove('miss');
+    }
+  }
+}
 
 function enterGameScreen() {
   showScreen('game');
@@ -230,20 +250,18 @@ function enterGameScreen() {
     boardEl: $('game-3d-board'),
     arrowEl: $('game-3d-arrow'),
     debugCallback: (info) => {
-      // 開発用：センサー値と画面位置を表示（段階2-G で残り点数 UI に置換）
       debugEl.textContent =
         `yaw=${info.yawDelta.toFixed(1)}° pitch=${info.pitchDelta.toFixed(1)}° roll=${info.roll.toFixed(1)}°\n` +
-        `target=(${info.target.yaw.toFixed(1)}°,${info.target.pitch.toFixed(1)}°) screen=(${info.x.toFixed(0)},${info.y.toFixed(0)})\n` +
-        `shot ${_shotCount}/3`;
+        `target=(${info.target.yaw.toFixed(1)}°,${info.target.pitch.toFixed(1)}°)`;
     },
   });
+  // ゲーム状態を初期化
+  _gameState = Rules.createInitialState();
+  updateScoreUI();
   Render.placeTargetForTurn();
-  _shotCount = 0;
 
   // v1.17: ホールドボタン入力を起動
-  Input.start({
-    onRelease: onDartReleased,
-  });
+  Input.start({ onRelease: onDartReleased });
 }
 
 function leaveGameScreen() {
@@ -251,42 +269,49 @@ function leaveGameScreen() {
   Input.stop();
 }
 
-// v1.21: 投擲リリース時のフロー（物理飛行 + 着弾判定）
+// v1.23: 投擲リリース → 物理シミュ → 着弾後にスコア計算
 function onDartReleased({ hand, strength, durationMs }) {
-  // 照準角度（現在のデバイス姿勢）をスナップショット
   const aim = Render.getCurrentAim();
   const aimYawRad   = (aim.yawDeg   * Math.PI) / 180;
   const aimPitchRad = (aim.pitchDeg * Math.PI) / 180;
 
-  // 物理シミュ
-  const sim = Physics.simulateThrow({
-    hand,
-    strength,
-    aimYawRad,
-    aimPitchRad,
-  });
+  const sim = Physics.simulateThrow({ hand, strength, aimYawRad, aimPitchRad });
 
-  console.log(`[darts] release hand=${hand} s=${strength.toFixed(3)} ` +
-              `aim=(${aim.yawDeg.toFixed(1)}°,${aim.pitchDeg.toFixed(1)}°) ` +
-              `impact=(${sim.impact.x.toFixed(2)},${sim.impact.y.toFixed(2)},${sim.impact.z.toFixed(2)}) ` +
-              `t=${sim.impact.t.toFixed(2)}s reason=${sim.impact.stopReason}`);
+  Render.fireFlight(sim, (result) => {
+    // result = { world, board: { x, y } | null }
+    const shot = Rules.scoreFromImpactSVG(result.board);
+    console.log(`[darts] hand=${hand} s=${strength.toFixed(2)} → ${shot.label} (${shot.value}pt) ` +
+                `imp=${result.board ? `(${result.board.x.toFixed(1)},${result.board.y.toFixed(1)})` : 'MISS-FALL'}`);
 
-  // 飛行アニメ開始
-  Render.fireFlight(sim, (impact) => {
-    _shotCount++;
-    // 3投終わったら自動でターンを進める（段階2-F でルールエンジンに置換予定）
-    if (_shotCount >= 3) {
-      _shotCount = 0;
-      Render.placeTargetForTurn();
+    const r = Rules.applyShot(_gameState, shot);
+    updateScoreUI();
+
+    if (r.finished) {
+      console.log('[darts] FINISH!');
+      // 段階2-F-C で結果画面に遷移
     }
-    // 飛行終了 → ホールドボタンを再有効化
+    if (r.turnEnded && !r.finished) {
+      // 少し間を置いてからターン進行（着弾を見せる時間）
+      setTimeout(() => {
+        Render.placeTargetForTurn();
+        updateScoreUI();  // 投スロットをリセット
+        Input.setDisabled(false);
+      }, 900);
+      return;
+    }
     Input.setDisabled(false);
   });
 }
 
 $('btn-next-turn').addEventListener('click', () => {
+  // v1.23: 強制ターン進行（デバッグ用）。現在のターンの shot は破棄
+  if (_gameState) {
+    _gameState.turnShots = [];
+    _gameState.turnIndex++;
+    _gameState.turnStartRemaining = _gameState.remaining;
+    updateScoreUI();
+  }
   Render.placeTargetForTurn();
-  _shotCount = 0;
 });
 
 // 中央リセット (v1.15): 現在の姿勢を新キャリブとして登録し、

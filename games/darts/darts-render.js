@@ -4,6 +4,7 @@
 
 import * as Sensor from './darts-sensor.js';
 import * as Physics from './darts-physics.js';
+import * as Rules from './darts-rules.js';
 
 // ======================================================================
 // 設定（実装時調整・段階6 で性能フォールバック含めて最終確定）
@@ -24,19 +25,13 @@ const SIGN_ROLL = +1;   // rel.alpha → roll (rotateZ)
 let ROLL_SCALE = 0.7;   // ロール感度（調整可: 0.3〜1.5）
 
 // ======================================================================
-// 標準ダーツボード（SPEC 3.4：ボード外周 = 100 とする半径比）
+// 標準ダーツボード（SPEC 3.4 / 単一情報源は darts-rules.js）
 // ======================================================================
-const R_BORDER       = 112;
-const R_NUMBERS      = 106;
-const R_DOUBLE_OUT   = 100;
-const R_DOUBLE_IN    = 95.3;
-const R_TRIPLE_OUT   = 62.9;
-const R_TRIPLE_IN    = 58.2;
-const R_OUTER_BULL   = 9.4;
-const R_INNER_BULL   = 3.7;
-
-// 12時方向から時計回り
-const SEGMENT_NUMBERS = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5];
+const {
+  R_BORDER, R_NUMBERS, R_DOUBLE_OUT, R_DOUBLE_IN,
+  R_TRIPLE_OUT, R_TRIPLE_IN, R_OUTER_BULL, R_INNER_BULL,
+  SEGMENT_NUMBERS,
+} = Rules;
 
 // 標準配色（4色配色 = 黒/赤/緑/白[クリーム]、SPEC 4.5）
 const COLOR_BLACK = '#1a1a1a';
@@ -425,18 +420,24 @@ function projectWorldToScreen(pos, devYawDeg, devPitchDeg, screenW, screenH, pxP
   };
 }
 
+// world 座標の着弾 → board-local SVG 座標
+function worldImpactToBoardSVG(impact) {
+  const rel = Physics.impactRelativeToTarget(impact, _targetWorld);
+  const unitsPerDeg = ((R_BORDER + 4) * 2) / (HORIZ_FOV_DEG * TARGET_DIAMETER_RATIO);
+  return {
+    x: rel.dxDeg * unitsPerDeg,
+    y: -rel.dyDeg * unitsPerDeg,   // SVG Y は下が正
+  };
+}
+
 // 着弾マーク（SVG circle）を的に追加
 function showImpactMark(impact) {
   if (!_boardEl) return;
   const svg = _boardEl.querySelector('svg');
   if (!svg) return;
-  const rel = Physics.impactRelativeToTarget(impact, _targetWorld);
-  // 板の SVG viewBox 全体 = (R_BORDER+4)*2 SVG 単位 = HORIZ_FOV_DEG * TARGET_DIAMETER_RATIO 度
-  const unitsPerDeg = ((R_BORDER + 4) * 2) / (HORIZ_FOV_DEG * TARGET_DIAMETER_RATIO);
-  const sx = rel.dxDeg * unitsPerDeg;
-  const sy = -rel.dyDeg * unitsPerDeg;
+  const sv = worldImpactToBoardSVG(impact);
   const dot = el('circle', {
-    cx: sx, cy: sy, r: 2.8,
+    cx: sv.x, cy: sv.y, r: 2.8,
     fill: '#ef4444',
     stroke: '#ffffff', 'stroke-width': 0.6,
   });
@@ -485,5 +486,7 @@ function endFlight() {
       dart.style.transition = '';
     }, 260);
   }
-  if (f.onComplete) f.onComplete(f.impact);
+  // 着弾の board-local SVG 座標も渡す（hit=true のみ意味がある）
+  const boardImpact = f.impact.hit ? worldImpactToBoardSVG(f.impact) : null;
+  if (f.onComplete) f.onComplete({ world: f.impact, board: boardImpact });
 }

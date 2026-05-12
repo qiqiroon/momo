@@ -320,8 +320,9 @@ body.in-game #lang-switcher { display: none; }
   filter: drop-shadow(0 0 6px rgba(0,0,0,0.7));
 }
 
-/* 上オーバーレイ（残り点数/ターン情報の場所、段階2-G で本実装）
-   v1.18: safe-area-inset-top でノッチ回避 */
+/* 上オーバーレイ（残り点数/ターン情報、SPEC 10.3 / 8.5）
+   v1.18: safe-area-inset-top でノッチ回避
+   v1.23: 残り点数 + 3投スロット */
 #game-overlay-top {
   position: absolute;
   top: env(safe-area-inset-top, 0px);
@@ -334,16 +335,74 @@ body.in-game #lang-switcher { display: none; }
   z-index: 40;
   pointer-events: none;
 }
-#game-debug-info {
-  font-family: ui-monospace, monospace;
-  font-size: 11px;
-  color: rgba(255,255,255,0.55);
-  line-height: 1.5;
+
+/* v1.23: スコアパネル（左上） */
+#ui-score {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
   pointer-events: auto;
-  background: rgba(0,0,0,0.35);
+}
+#ui-remaining {
+  font-family: 'Fredoka One', cursive;
+  font-size: 40px;
+  color: var(--player-self);
+  line-height: 1;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.85);
+  letter-spacing: 0.02em;
+}
+#ui-turn-total {
+  font-family: ui-monospace, 'SF Mono', monospace;
+  font-size: 11px;
+  color: rgba(255,255,255,0.75);
+  background: rgba(0,0,0,0.45);
   border-radius: 4px;
-  padding: 4px 8px;
+  padding: 2px 8px;
+  margin-top: 2px;
+}
+
+/* v1.23: 3投スロット（右上） */
+#ui-shots {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: auto;
+}
+.shot-slot {
+  font-family: 'Fredoka One', cursive;
+  font-size: 14px;
+  color: rgba(255,255,255,0.95);
+  background: rgba(0,0,0,0.55);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 4px;
+  padding: 3px 10px;
+  min-width: 76px;
+  text-align: center;
+  letter-spacing: 0.04em;
+}
+.shot-slot.pending {
+  color: rgba(255,255,255,0.28);
+  background: rgba(0,0,0,0.3);
+}
+.shot-slot.miss { color: rgba(255,255,255,0.4); }
+
+/* デバッグ HUD は上オーバーレイの外、左下に移動 */
+#game-debug-info {
+  position: absolute;
+  bottom: calc(120px + env(safe-area-inset-bottom));
+  left: 16px;
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  color: rgba(255,255,255,0.45);
+  line-height: 1.4;
+  pointer-events: none;
+  background: rgba(0,0,0,0.4);
+  border-radius: 4px;
+  padding: 3px 6px;
   white-space: pre-line;
+  max-width: 60vw;
+  z-index: 35;
 }
 
 /* 下オーバーレイ（v1.17: ホールド左右の間、デバッグ用）
@@ -852,7 +911,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.22</span>
+      <span class="version-tag" id="version-tag">v1.23</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -935,10 +994,21 @@ body.in-game #gear-icon { display: flex; }
     </div>
   </div>
 
-  <!-- 上オーバーレイ（debug 用、段階2-G で残り点数/ターン情報に置換） -->
+  <!-- 上オーバーレイ（v1.23: 残り点数 + 3投スロット、SPEC 10.3） -->
   <div id="game-overlay-top">
-    <div id="game-debug-info">init…</div>
+    <div id="ui-score">
+      <div id="ui-remaining">501</div>
+      <div id="ui-turn-total">TURN +0</div>
+    </div>
+    <div id="ui-shots">
+      <div class="shot-slot pending" id="ui-shot-1">—</div>
+      <div class="shot-slot pending" id="ui-shot-2">—</div>
+      <div class="shot-slot pending" id="ui-shot-3">—</div>
+    </div>
   </div>
+
+  <!-- デバッグ HUD（左下、開発中のみ表示） -->
+  <div id="game-debug-info">init…</div>
 
   <!-- v1.17: ホールドボタン + 強さバー（SPEC 5章）
        v1.18: 👍 はバー外（hold-stack 直下）に置いて clipping 回避 -->

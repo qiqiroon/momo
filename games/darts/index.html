@@ -150,13 +150,14 @@ h1 .version-tag {
 .screen.active { display: flex; }
 
 /* ゲーム画面はフルスクリーン特例（SPEC 16.4）
-   v1.18: 100dvh で iOS/Android Chrome のツールバー領域を除外 */
+   v1.19: 100lvh で 3D 背景を最大領域に伸ばし、UI 要素は dvh の下端に揃える。
+          これで iPhone Chrome の下部 URL バー領域も 3D 背景で埋まる */
 .screen#screen-game.active {
   display: block;
   max-width: none;
   width: 100vw;
   height: 100vh;       /* fallback */
-  height: 100dvh;      /* dynamic viewport: ツールバー表示時に縮む */
+  height: 100lvh;      /* large viewport: ツールバー含めた最大領域 */
   position: fixed;
   top: 0; left: 0;
   z-index: 1;
@@ -164,16 +165,19 @@ h1 .version-tag {
   padding: 0;
   overflow: hidden;
 }
-/* v1.18: ゲーム中は body のスクロールを完全に止める
-   Android Chrome でアドレスバーが押し出す問題を防ぐ */
+/* v1.19: body も 100lvh に揃える */
 body.in-game {
   position: fixed;
   inset: 0;
   width: 100vw;
   height: 100vh;
-  height: 100dvh;
+  height: 100lvh;
   overflow: hidden;
   overscroll-behavior: none;
+}
+/* v1.19: ブラウザツールバー高さを CSS 変数化（lvh と dvh の差） */
+body.in-game {
+  --browser-chrome-bottom: max(0px, calc(100lvh - 100dvh));
 }
 body.in-game .site-header,
 body.in-game .version,
@@ -343,11 +347,11 @@ body.in-game #lang-switcher { display: none; }
 }
 
 /* 下オーバーレイ（v1.17: ホールド左右の間、デバッグ用）
-   v1.18: safe-area 対応 */
+   v1.18: safe-area 対応  v1.19: ブラウザツールバー上にオフセット */
 #game-overlay-bottom {
   position: absolute;
   left: 50%;
-  bottom: calc(24px + env(safe-area-inset-bottom));
+  bottom: calc(24px + env(safe-area-inset-bottom) + var(--browser-chrome-bottom, 0px));
   transform: translateX(-50%);
   display: flex;
   flex-direction: row;
@@ -368,10 +372,11 @@ body.in-game #lang-switcher { display: none; }
            safe-area-inset-bottom で iOS のホームインジケータ回避 */
 /* 左右の容器（バー + ボタンを縦に重ねる） */
 .hold-stack {
-  /* v1.18: 画面の高さに合わせてバーを縮める（最大 220px、画面の 30dvh まで） */
+  /* v1.18: 画面の高さに合わせてバーを縮める（最大 220px、画面の 30dvh まで）
+     v1.19: ブラウザツールバー上に配置（lvh-dvh ぶん上にオフセット） */
   --bar-height: min(220px, 30dvh);
   position: absolute;
-  bottom: calc(20px + env(safe-area-inset-bottom));
+  bottom: calc(20px + env(safe-area-inset-bottom) + var(--browser-chrome-bottom, 0px));
   z-index: 30;
   display: flex;
   flex-direction: column;
@@ -824,7 +829,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.18</span>
+      <span class="version-tag" id="version-tag">v1.19</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>

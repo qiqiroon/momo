@@ -243,14 +243,35 @@ $('btn-next-turn').addEventListener('click', () => {
   Render.placeTargetForTurn();
 });
 
-// 中央リセット: 現在の姿勢を新キャリブとして登録し、的を画面中央へ
+// 中央リセット (v1.15): 現在の姿勢を新キャリブとして登録し、
+// 的は新ゲーム同様にランダムシフト配置
 $('btn-recenter').addEventListener('click', () => {
   const ok = Sensor.setCalibration();
   if (!ok) {
     // 値未受信時は何もしない
     return;
   }
-  Render.recenterTarget();
+  Render.placeTargetForTurn();
+  $('settings-menu').classList.remove('active');  // メニューを閉じる
+});
+
+// v1.15: 歯車メニュー
+$('gear-icon').addEventListener('click', (e) => {
+  e.stopPropagation();
+  $('settings-menu').classList.toggle('active');
+});
+$('btn-open-tune').addEventListener('click', () => {
+  $('settings-menu').classList.remove('active');
+  $('tune-panel').classList.add('active');
+});
+// メニュー外タップで閉じる
+document.addEventListener('click', (e) => {
+  const menu = $('settings-menu');
+  if (menu.classList.contains('active') &&
+      !menu.contains(e.target) &&
+      e.target.id !== 'gear-icon') {
+    menu.classList.remove('active');
+  }
 });
 
 // ログ共有: navigator.share（iOS Safari の共有シート → Mail/メモ等）優先、

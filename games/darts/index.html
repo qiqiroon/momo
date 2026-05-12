@@ -393,14 +393,14 @@ body.in-game #lang-switcher { display: none; }
 }
 .tune-actions .btn { flex: 1; font-size: 12px; padding: 6px 10px; }
 
-/* 仮の歯車アイコン位置（段階4 で機能実装、本サブ段階では枠だけ） */
+/* 歯車アイコン（v1.15: 設定メニューのトリガに昇格） */
 #gear-icon {
   position: fixed;
   top: 12px;
   right: 12px;
-  width: 36px;
-  height: 36px;
-  background: rgba(0,0,0,0.5);
+  width: 40px;
+  height: 40px;
+  background: rgba(0,0,0,0.6);
   border: 1px solid var(--border-strong);
   border-radius: 50%;
   display: none;
@@ -409,9 +409,32 @@ body.in-game #lang-switcher { display: none; }
   z-index: 90;
   cursor: pointer;
   color: var(--text);
-  font-size: 18px;
+  font-size: 20px;
+  user-select: none;
+  transition: background 0.15s, transform 0.1s;
 }
+#gear-icon:hover { background: rgba(40,40,40,0.8); }
+#gear-icon:active { transform: scale(0.92); }
 body.in-game #gear-icon { display: flex; }
+
+/* v1.15: 歯車メニュー（中央リセット / 感度調整 をここに集約） */
+#settings-menu {
+  position: fixed;
+  top: 60px;
+  right: 12px;
+  z-index: 100;
+  background: rgba(20,20,20,0.95);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  padding: 8px;
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 200px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+#settings-menu.active { display: flex; }
+#settings-menu .btn { font-size: 13px; padding: 8px 12px; }
 
 /* ===== 結果画面 ===== */
 .result-message {
@@ -623,7 +646,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.14</span>
+      <span class="version-tag" id="version-tag">v1.15</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -711,18 +734,20 @@ body.in-game #gear-icon { display: flex; }
     <div id="game-debug-info">init…</div>
   </div>
 
-  <!-- 下オーバーレイ（段階2-C 仮ボタン群） -->
+  <!-- 下オーバーレイ（v1.15: 中央リセット / 感度調整は歯車メニューへ移動） -->
   <div id="game-overlay-bottom">
+    <button class="btn btn-secondary" id="btn-next-turn">次のターン</button>
     <div class="btn-row">
-      <button class="btn btn-secondary" id="btn-recenter">中央リセット</button>
-      <button class="btn btn-secondary" id="btn-next-turn">次のターン</button>
-    </div>
-    <div class="btn-row">
-      <button class="btn btn-ghost" id="btn-tune">⚙ 感度調整</button>
       <button class="btn btn-ghost" id="btn-copy-log">📤 ログ共有</button>
       <button class="btn btn-ghost" id="btn-game-leave">退出</button>
     </div>
     <button class="btn btn-primary" id="btn-sim-finish">投擲シミュレート → 結果</button>
+  </div>
+
+  <!-- v1.15: 歯車メニュー -->
+  <div id="settings-menu">
+    <button class="btn btn-secondary" id="btn-recenter">中央リセット</button>
+    <button class="btn btn-secondary" id="btn-open-tune">感度調整…</button>
   </div>
 
   <!-- v1.14: 感度調整パネル（ラベル/単位を直感的に変更） -->
@@ -766,8 +791,8 @@ body.in-game #gear-icon { display: flex; }
   </div>
 </div>
 
-<!-- ===== ゲーム中の歯車アイコン（段階4 で機能実装） ===== -->
-<div id="gear-icon" title="設定（段階4 で実装）">⚙</div>
+<!-- ===== ゲーム中の歯車アイコン（v1.15: メニュー トリガ） ===== -->
+<div id="gear-icon" title="設定">⚙</div>
 
 <!-- ===== モーダル（退出確認） ===== -->
 <div id="modal-mask">

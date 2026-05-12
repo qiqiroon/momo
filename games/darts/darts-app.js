@@ -283,6 +283,31 @@ function onDartReleased({ hand, strength, durationMs }) {
     console.log(`[darts] hand=${hand} s=${strength.toFixed(2)} → ${shot.label} (${shot.value}pt) ` +
                 `imp=${result.board ? `(${result.board.x.toFixed(1)},${result.board.y.toFixed(1)})` : 'MISS-FALL'}`);
 
+    // v1.24: 投擲イベントをログ
+    const shotInTurn = _gameState.turnShots.length + 1;
+    Render.logEvent({
+      type: 'shot',
+      turn: _gameState.turnIndex,
+      shotInTurn,
+      hand,
+      strength: +strength.toFixed(3),
+      durationMs: +durationMs.toFixed(0),
+      aim: { yaw: +aim.yawDeg.toFixed(2), pitch: +aim.pitchDeg.toFixed(2) },
+      impactWorld: {
+        x: +result.world.x.toFixed(3),
+        y: +result.world.y.toFixed(3),
+        z: +result.world.z.toFixed(3),
+        t: +result.world.t.toFixed(3),
+        hit: result.world.hit,
+        stopReason: result.world.stopReason,
+      },
+      impactBoard: result.board
+        ? { x: +result.board.x.toFixed(1), y: +result.board.y.toFixed(1) }
+        : null,
+      score: shot,
+      remainingBefore: _gameState.remaining,
+    });
+
     const r = Rules.applyShot(_gameState, shot);
     updateScoreUI();
 
@@ -291,12 +316,12 @@ function onDartReleased({ hand, strength, durationMs }) {
       // 段階2-F-C で結果画面に遷移
     }
     if (r.turnEnded && !r.finished) {
-      // 少し間を置いてからターン進行（着弾を見せる時間）
+      // v1.24: 3投目を 2 秒見せてからターン進行
       setTimeout(() => {
         Render.placeTargetForTurn();
         updateScoreUI();  // 投スロットをリセット
         Input.setDisabled(false);
-      }, 900);
+      }, 2000);
       return;
     }
     Input.setDisabled(false);
@@ -349,14 +374,14 @@ document.addEventListener('click', (e) => {
 // 失敗時は navigator.share → クリップボードへフォールバック
 const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5gZZ9jDqzMpVgScOJWzxijTCXdP1RpbNyuQMdb29Flek-ffn87bf/exec';
 
-async function uploadLogToDrive(rawLog, tag) {
+async function uploadLogToDrive(logObj, tag) {
   const payload = {
     app: 'momo-darts',
     version: $('version-tag')?.textContent || '?',
     ts: new Date().toISOString(),
     ua: navigator.userAgent,
     screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
-    log: rawLog,
+    log: logObj,  // v1.24: object（config / samples / events）
   };
   // Content-Type: text/plain で CORS preflight を回避（Apps Script の制約）
   const url = `${DEBUG_LOG_URL}?tag=${encodeURIComponent(tag)}`;
@@ -384,12 +409,13 @@ $('btn-copy-log').addEventListener('click', async () => {
   } catch (e) {
     console.warn('[darts] Drive upload failed:', e);
     // フォールバック: navigator.share / クリップボード
+    const logText = JSON.stringify(log, null, 2);
     try {
       if (navigator.share) {
-        await navigator.share({ title: 'MOMO Darts log', text: log });
+        await navigator.share({ title: 'MOMO Darts log', text: logText });
         btn.textContent = '✅ 共有(代替)';
       } else if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(log);
+        await navigator.clipboard.writeText(logText);
         btn.textContent = '✅ コピー(代替)';
       } else {
         throw e;

@@ -301,42 +301,68 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// ログ共有: navigator.share（iOS Safari の共有シート → Mail/メモ等）優先、
-// 利用不可ならクリップボードへフォールバック
+// ===== ログ送信: Google Drive (Apps Script Web App 経由) =====
+// 失敗時は navigator.share → クリップボードへフォールバック
+const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5gZZ9jDqzMpVgScOJWzxijTCXdP1RpbNyuQMdb29Flek-ffn87bf/exec';
+
+async function uploadLogToDrive(rawLog, tag) {
+  const payload = {
+    app: 'momo-darts',
+    version: $('version-tag')?.textContent || '?',
+    ts: new Date().toISOString(),
+    ua: navigator.userAgent,
+    screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
+    log: rawLog,
+  };
+  // Content-Type: text/plain で CORS preflight を回避（Apps Script の制約）
+  const url = `${DEBUG_LOG_URL}?tag=${encodeURIComponent(tag)}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'apps-script error');
+  return data;
+}
+
 $('btn-copy-log').addEventListener('click', async () => {
   const log = Render.getLog();
   const btn = $('btn-copy-log');
   const original = btn.textContent;
+  btn.textContent = '⏳ 送信中…';
+  btn.disabled = true;
   try {
-    if (navigator.share) {
-      // iOS Safari / Android Chrome: 共有シートを出す
-      await navigator.share({
-        title: 'MOMO Darts sensor log',
-        text: log,
-      });
-      btn.textContent = '✅ 共有しました';
-    } else if (navigator.clipboard && navigator.clipboard.writeText) {
-      await navigator.clipboard.writeText(log);
-      btn.textContent = '✅ クリップボードへコピー';
-    } else {
-      const ta = document.createElement('textarea');
-      ta.value = log;
-      ta.style.position = 'fixed';
-      ta.style.left = '-9999px';
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-      btn.textContent = '✅ クリップボードへコピー';
-    }
+    const data = await uploadLogToDrive(log, 'darts-sensor');
+    btn.textContent = '✅ Drive 保存';
+    console.log('[darts] log uploaded:', data);
   } catch (e) {
-    if (e && e.name === 'AbortError') {
-      // ユーザーが共有シートを閉じた → 何も表示しない
-      return;
+    console.warn('[darts] Drive upload failed:', e);
+    // フォールバック: navigator.share / クリップボード
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: 'MOMO Darts log', text: log });
+        btn.textContent = '✅ 共有(代替)';
+      } else if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(log);
+        btn.textContent = '✅ コピー(代替)';
+      } else {
+        throw e;
+      }
+    } catch (e2) {
+      if (e2 && e2.name === 'AbortError') {
+        btn.textContent = original;
+        btn.disabled = false;
+        return;
+      }
+      btn.textContent = '⚠️ ' + (e.message || 'fail');
     }
-    btn.textContent = '⚠️ 失敗: ' + (e.message || e.name || 'unknown');
   }
-  setTimeout(() => { btn.textContent = original; }, 1800);
+  setTimeout(() => {
+    btn.textContent = original;
+    btn.disabled = false;
+  }, 2200);
 });
 
 $('btn-sim-finish').addEventListener('click', () => {

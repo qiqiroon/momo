@@ -3,7 +3,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
 <title>MOMO Darts</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-46 -50 92 80'%3E%3Crect x='-46' y='-50' width='92' height='80' rx='8' fill='%23000000'/%3E%3Cg transform='rotate(-12,-12,8.3)'%3E%3Cpath d='M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cg transform='rotate(12,12,8.3)'%3E%3Cpath d='M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cellipse cx='0' cy='1.3' rx='34' ry='26' fill='%23c2410c'/%3E%3Cline x1='-14' y1='1.00' x2='-33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='6.0' x2='-33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='10.59' x2='-29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.68' y1='-2.28' x2='-38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.44' y1='6.0' x2='-40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-29.58' y1='14.26' x2='-37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='1.00' x2='33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='6.0' x2='33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='10.59' x2='29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.68' y1='-2.28' x2='38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.44' y1='6.0' x2='40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='29.58' y1='14.26' x2='37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cellipse cx='-12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='-12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Cellipse cx='12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Ccircle cx='-10.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Ccircle cx='13.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Cpath d='M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z' fill='%23000'/%3E%3Cline x1='0' y1='11.3' x2='0' y2='13.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q-5,17.3 -8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q5,17.3 8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
@@ -149,17 +149,31 @@ h1 .version-tag {
 }
 .screen.active { display: flex; }
 
-/* ゲーム画面はフルスクリーン特例（SPEC 16.4） */
+/* ゲーム画面はフルスクリーン特例（SPEC 16.4）
+   v1.18: 100dvh で iOS/Android Chrome のツールバー領域を除外 */
 .screen#screen-game.active {
   display: block;
   max-width: none;
   width: 100vw;
-  height: 100vh;
+  height: 100vh;       /* fallback */
+  height: 100dvh;      /* dynamic viewport: ツールバー表示時に縮む */
   position: fixed;
-  inset: 0;
+  top: 0; left: 0;
   z-index: 1;
   margin: 0;
   padding: 0;
+  overflow: hidden;
+}
+/* v1.18: ゲーム中は body のスクロールを完全に止める
+   Android Chrome でアドレスバーが押し出す問題を防ぐ */
+body.in-game {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 body.in-game .site-header,
 body.in-game .version,
@@ -302,12 +316,13 @@ body.in-game #lang-switcher { display: none; }
   filter: drop-shadow(0 0 6px rgba(0,0,0,0.7));
 }
 
-/* 上オーバーレイ（残り点数/ターン情報の場所、段階2-G で本実装） */
+/* 上オーバーレイ（残り点数/ターン情報の場所、段階2-G で本実装）
+   v1.18: safe-area-inset-top でノッチ回避 */
 #game-overlay-top {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
+  top: env(safe-area-inset-top, 0px);
+  left: env(safe-area-inset-left, 0px);
+  right: env(safe-area-inset-right, 0px);
   padding: 14px 16px;
   display: flex;
   justify-content: space-between;
@@ -327,11 +342,12 @@ body.in-game #lang-switcher { display: none; }
   white-space: pre-line;
 }
 
-/* 下オーバーレイ（v1.17: ホールド左右の間、デバッグ用） */
+/* 下オーバーレイ（v1.17: ホールド左右の間、デバッグ用）
+   v1.18: safe-area 対応 */
 #game-overlay-bottom {
   position: absolute;
   left: 50%;
-  bottom: 24px;
+  bottom: calc(24px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
   display: flex;
   flex-direction: row;
@@ -347,11 +363,15 @@ body.in-game #lang-switcher { display: none; }
 }
 #game-overlay-bottom > .btn:hover { opacity: 1; }
 
-/* ===== v1.17: ホールドボタン + 強さバー（SPEC 5章） ===== */
+/* ===== v1.17: ホールドボタン + 強さバー（SPEC 5章） =====
+   v1.18: 👍 をバーの外（hold-stack の絶対配置）に出して clipping を回避、
+           safe-area-inset-bottom で iOS のホームインジケータ回避 */
 /* 左右の容器（バー + ボタンを縦に重ねる） */
 .hold-stack {
+  /* v1.18: 画面の高さに合わせてバーを縮める（最大 220px、画面の 30dvh まで） */
+  --bar-height: min(220px, 30dvh);
   position: absolute;
-  bottom: 24px;
+  bottom: calc(20px + env(safe-area-inset-bottom));
   z-index: 30;
   display: flex;
   flex-direction: column;
@@ -362,13 +382,13 @@ body.in-game #lang-switcher { display: none; }
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
-.hold-stack.left  { left: 28px; }
-.hold-stack.right { right: 28px; }
+.hold-stack.left  { left: calc(20px + env(safe-area-inset-left)); }
+.hold-stack.right { right: calc(20px + env(safe-area-inset-right)); }
 
 /* 強さバー（押下中だけ表示。バー本体 = 暗いトラック） */
 .strength-bar {
   width: 28px;
-  height: 220px;
+  height: var(--bar-height, 220px);
   background: rgba(20,20,20,0.65);
   border: 1px solid rgba(255,255,255,0.18);
   border-radius: 14px;
@@ -399,28 +419,14 @@ body.in-game #lang-switcher { display: none; }
       #b91c1c 82%,    /* 濃い赤 */
       #7f1d1d 100%    /* 最強 濃赤 */
     );
-  background-size: 100% 220px;
+  /* バーが伸び縮みしても下端から上端までで全段階を表示 */
+  background-size: 100% var(--bar-height, 220px);
   background-position: 0 100%;
   background-repeat: no-repeat;
   will-change: height;
 }
 
-/* 👍 最適マーク（バー内側 = 画面中央寄りに、中央=50% 位置）
-   SPEC 5.2: バーの内側に👍。左バーは右側、右バーは左側にはみ出す */
-.strength-optimal {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 18px;
-  line-height: 1;
-  font-family: "Apple Color Emoji", "Noto Color Emoji", "Segoe UI Emoji", sans-serif;
-  pointer-events: none;
-  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
-}
-.hold-stack.left  .strength-optimal { left: 100%;  margin-left: 4px; }
-.hold-stack.right .strength-optimal { right: 100%; margin-right: 4px; }
-
-/* 最適範囲（白の幅 12%、44%〜56%）を示す薄い帯（任意装飾、視認補助） */
+/* 最適範囲（白の幅 12%、44%〜56%）を示す薄い帯（バー内側、視認補助） */
 .strength-optimal-zone {
   position: absolute;
   left: -3px;
@@ -431,6 +437,28 @@ body.in-game #lang-switcher { display: none; }
   border-bottom: 1px solid rgba(255,255,255,0.5);
   pointer-events: none;
 }
+
+/* 👍 最適マーク（hold-stack の絶対配置、バー clip の外）
+   SPEC 5.2: バーの内側に👍。左バーは右側、右バーは左側に表示 */
+.strength-optimal {
+  position: absolute;
+  /* バー高さ var(--bar-height) の中央（バーは stack 先頭から始まる） */
+  top: calc(var(--bar-height, 220px) / 2);
+  transform: translateY(-50%);
+  font-size: 22px;
+  line-height: 1;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "EmojiOne Color", "Twemoji Mozilla", sans-serif;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8));
+  opacity: 0;
+  transition: opacity 0.12s ease-out;
+  /* SVG fallback 用のテキストは見えるよう確保 */
+  text-align: center;
+}
+.hold-stack.active .strength-optimal { opacity: 1; }
+/* stack 中心 (50%) + バー幅 14px + ギャップ 6px = 20px オフセット */
+.hold-stack.left  .strength-optimal { left:  calc(50% + 20px); }
+.hold-stack.right .strength-optimal { right: calc(50% + 20px); }
 
 /* ホールドボタン（左右下、SPEC 5.1） */
 .hold-button {
@@ -542,11 +570,12 @@ body.in-game #lang-switcher { display: none; }
 }
 .tune-actions .btn { flex: 1; font-size: 12px; padding: 6px 10px; }
 
-/* 歯車アイコン（v1.15: 設定メニューのトリガに昇格） */
+/* 歯車アイコン（v1.15: 設定メニューのトリガに昇格）
+   v1.18: safe-area-inset-top/right でノッチ回避 */
 #gear-icon {
   position: fixed;
-  top: 12px;
-  right: 12px;
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  right: calc(12px + env(safe-area-inset-right, 0px));
   width: 40px;
   height: 40px;
   background: rgba(0,0,0,0.6);
@@ -569,8 +598,8 @@ body.in-game #gear-icon { display: flex; }
 /* v1.15: 歯車メニュー（中央リセット / 感度調整 をここに集約） */
 #settings-menu {
   position: fixed;
-  top: 60px;
-  right: 12px;
+  top: calc(60px + env(safe-area-inset-top, 0px));
+  right: calc(12px + env(safe-area-inset-right, 0px));
   z-index: 100;
   background: rgba(20,20,20,0.95);
   border: 1px solid var(--border-strong);
@@ -795,7 +824,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.17</span>
+      <span class="version-tag" id="version-tag">v1.18</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -883,21 +912,22 @@ body.in-game #gear-icon { display: flex; }
     <div id="game-debug-info">init…</div>
   </div>
 
-  <!-- v1.17: ホールドボタン + 強さバー（SPEC 5章） -->
+  <!-- v1.17: ホールドボタン + 強さバー（SPEC 5章）
+       v1.18: 👍 はバー外（hold-stack 直下）に置いて clipping 回避 -->
   <div class="hold-stack left" id="hold-stack-L" data-hand="L">
     <div class="strength-bar">
       <div class="strength-fill" id="strength-fill-L"></div>
       <div class="strength-optimal-zone"></div>
-      <div class="strength-optimal">👍</div>
     </div>
+    <div class="strength-optimal" aria-hidden="true">👍</div>
     <div class="hold-button" id="hold-button-L"></div>
   </div>
   <div class="hold-stack right" id="hold-stack-R" data-hand="R">
     <div class="strength-bar">
       <div class="strength-fill" id="strength-fill-R"></div>
       <div class="strength-optimal-zone"></div>
-      <div class="strength-optimal">👍</div>
     </div>
+    <div class="strength-optimal" aria-hidden="true">👍</div>
     <div class="hold-button" id="hold-button-R"></div>
   </div>
 

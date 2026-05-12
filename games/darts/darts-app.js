@@ -6,6 +6,7 @@
 import * as Sensor from './darts-sensor.js';
 import * as Render from './darts-render.js';
 import * as Input from './darts-input.js';
+import * as Physics from './darts-physics.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -250,12 +251,30 @@ function leaveGameScreen() {
   Input.stop();
 }
 
-// v1.17: 投擲リリース時のフロー（ダミー直進）
+// v1.21: 投擲リリース時のフロー（物理飛行 + 着弾判定）
 function onDartReleased({ hand, strength, durationMs }) {
-  console.log(`[darts] release hand=${hand} strength=${strength.toFixed(3)} (${durationMs.toFixed(0)}ms)`);
-  Render.fireDummyFlight({ hand, strength }, () => {
+  // 照準角度（現在のデバイス姿勢）をスナップショット
+  const aim = Render.getCurrentAim();
+  const aimYawRad   = (aim.yawDeg   * Math.PI) / 180;
+  const aimPitchRad = (aim.pitchDeg * Math.PI) / 180;
+
+  // 物理シミュ
+  const sim = Physics.simulateThrow({
+    hand,
+    strength,
+    aimYawRad,
+    aimPitchRad,
+  });
+
+  console.log(`[darts] release hand=${hand} s=${strength.toFixed(3)} ` +
+              `aim=(${aim.yawDeg.toFixed(1)}°,${aim.pitchDeg.toFixed(1)}°) ` +
+              `impact=(${sim.impact.x.toFixed(2)},${sim.impact.y.toFixed(2)},${sim.impact.z.toFixed(2)}) ` +
+              `t=${sim.impact.t.toFixed(2)}s reason=${sim.impact.stopReason}`);
+
+  // 飛行アニメ開始
+  Render.fireFlight(sim, (impact) => {
     _shotCount++;
-    // 3投終わったら自動でターンを進める（段階2-E でルールエンジンに置換予定）
+    // 3投終わったら自動でターンを進める（段階2-F でルールエンジンに置換予定）
     if (_shotCount >= 3) {
       _shotCount = 0;
       Render.placeTargetForTurn();

@@ -3,6 +3,7 @@
 // 段階2-C: 3D空間 + 標準ダーツボード SVG + センサー連動 + 視界外方向矢印
 
 import * as Sensor from './darts-sensor.js';
+import * as Physics from './darts-physics.js';
 
 // ======================================================================
 // 設定（実装時調整・段階6 で性能フォールバック含めて最終確定）
@@ -155,6 +156,11 @@ let _debugCallback = null;
 let _animFrameId = null;
 let _targetWorld = { yaw: 0, pitch: 0 };  // ワールド座標での的中心角度（度）
 
+// v1.21: 飛行中ダーツの状態（null = 飛行なし）
+let _flight = null;   // { trajectory, impact, startTime, onComplete }
+// v1.21: 最新のスムージング済み角度（getCurrentAim 用、tick で更新）
+let _lastYawDeg = 0, _lastPitchDeg = 0;
+
 // v1.10: low-pass filter（センサー値の jitter / cross-axis ノイズ抑制）
 let SMOOTH_FACTOR = 0.4;  // 0=止まる, 1=フィルタ無し（調整可: 0.1〜1.0）
 let _smoothRel = { alpha: 0, beta: 0, gamma: 0 };
@@ -185,6 +191,8 @@ export function placeTargetForTurn() {
     yaw:   Math.max(-half, Math.min(half, yaw)),
     pitch: Math.max(-half, Math.min(half, pitch)),
   };
+  // v1.21: ターン進行時に着弾マークをクリア（履歴は段階2-F 以降で実装）
+  clearImpactMarks();
 }
 
 export function getTargetWorld() {
@@ -244,6 +252,9 @@ function tick() {
     pitchDelta = SIGN_PITCH * _smoothRel.beta;
     roll       = SIGN_ROLL  * _smoothRel.alpha * ROLL_SCALE;
   }
+  // v1.21: app から照準角度を取れるよう保存
+  _lastYawDeg = yawDelta;
+  _lastPitchDeg = pitchDelta;
 
   // 視線方向から的までの角度差
   const dxDeg = _targetWorld.yaw   - yawDelta;
@@ -302,6 +313,30 @@ function tick() {
     _arrowEl.style.display = 'none';
   }
 
+  // v1.21: 飛行中のダーツを 3D 投影
+  if (_flight) {
+    const dartEl = document.getElementById('flying-dart');
+    if (dartEl) {
+      const elapsedS = (performance.now() - _flight.startTime) / 1000;
+      if (elapsedS >= _flight.impact.t) {
+        // 着弾
+        if (_flight.impact.hit) showImpactMark(_flight.impact);
+        endFlight();
+      } else {
+        const pos = interpolateTrajectory(_flight.trajectory, elapsedS);
+        const proj = projectWorldToScreen(pos, yawDelta, pitchDelta,
+                                          screenW, screenH, pxPerDeg);
+        if (proj.behind) {
+          dartEl.style.opacity = '0';
+        } else {
+          dartEl.style.opacity = '1';
+          dartEl.style.left = `${proj.x.toFixed(1)}px`;
+          dartEl.style.top  = `${proj.y.toFixed(1)}px`;
+        }
+      }
+    }
+  }
+
   if (_debugCallback) {
     _debugCallback({ yawDelta, pitchDelta, roll, x, y, target: _targetWorld });
   }
@@ -338,6 +373,14 @@ export function stop() {
     cancelAnimationFrame(_animFrameId);
     _animFrameId = null;
   }
+  // v1.21: 飛行中なら捨てる（callback は呼ばない）
+  _flight = null;
+  const dart = document.getElementById('flying-dart');
+  if (dart) {
+    dart.classList.remove('flying');
+    dart.style.opacity = '0';
+    dart.style.transition = '';
+  }
   _viewEl = null;
   _sceneEl = null;
   _boardEl = null;
@@ -346,56 +389,101 @@ export function stop() {
 }
 
 // ======================================================================
-// 段階2-D: ダミー直進飛行（物理計算なし、SPEC 5.4 の方向だけ表現）
-//   - ボタン中央 → 画面中央 を直線で結ぶ
-//   - 強さ s∈[0,1] に応じて飛行時間を変える（弱=遅い、強=速い）
-//   - 着弾点表示・スコア・物理は段階2-E 以降で実装
+// 段階2-E: 物理飛行 + 着弾マーク
 // ======================================================================
-const FLIGHT_DURATION_MIN_MS = 500;   // MAX 強度時
-const FLIGHT_DURATION_MAX_MS = 1300;  // 最弱付近
 
-export function fireDummyFlight({ hand, strength }, onComplete) {
-  if (!_viewEl) { onComplete && onComplete(); return; }
+// 軌跡を時刻 t で線形補間
+function interpolateTrajectory(traj, t) {
+  if (!traj || traj.length === 0) return { x: 0, y: 0, z: 0 };
+  if (t <= traj[0].t) return { ...traj[0] };
+  for (let i = 1; i < traj.length; i++) {
+    if (traj[i].t >= t) {
+      const a = traj[i - 1], b = traj[i];
+      const dt = b.t - a.t || 1e-6;
+      const f = (t - a.t) / dt;
+      return {
+        x: a.x + f * (b.x - a.x),
+        y: a.y + f * (b.y - a.y),
+        z: a.z + f * (b.z - a.z),
+      };
+    }
+  }
+  return { ...traj[traj.length - 1] };
+}
 
-  const dart = document.getElementById('flying-dart');
-  const stackEl = document.getElementById(`hold-stack-${hand}`);
-  if (!dart || !stackEl) { onComplete && onComplete(); return; }
+// ワールド座標 (m) → 画面座標 (px)。プレイヤーは原点、Z+ 前方
+function projectWorldToScreen(pos, devYawDeg, devPitchDeg, screenW, screenH, pxPerDeg) {
+  if (pos.z <= 0.05) return { x: 0, y: 0, behind: true };
+  const yawDeg   = Math.atan2(pos.x, pos.z) * 180 / Math.PI;
+  const pitchDeg = Math.atan2(pos.y, Math.hypot(pos.x, pos.z)) * 180 / Math.PI;
+  const dxDeg = yawDeg   - devYawDeg;
+  const dyDeg = pitchDeg - devPitchDeg;
+  return {
+    x: dxDeg * pxPerDeg + screenW / 2,
+    y: -dyDeg * pxPerDeg + screenH / 2,
+    behind: false,
+  };
+}
 
-  const viewRect = _viewEl.getBoundingClientRect();
-  const stackRect = stackEl.getBoundingClientRect();
-
-  // 始点: ホールドボタンの中心
-  const startX = stackRect.left + stackRect.width / 2 - viewRect.left;
-  const startY = stackRect.bottom - 84 / 2 - viewRect.top;  // ボタン高さ 84px の中心
-  // 終点: 画面中央（SPEC 5.4 照準点）
-  const endX = viewRect.width  / 2;
-  const endY = viewRect.height / 2;
-
-  const s = Math.max(0, Math.min(1, strength));
-  const durationMs = FLIGHT_DURATION_MAX_MS - s * (FLIGHT_DURATION_MAX_MS - FLIGHT_DURATION_MIN_MS);
-
-  // 初期位置にセット（transition なし）
-  dart.style.transition = 'none';
-  dart.style.left = `${startX}px`;
-  dart.style.top = `${startY}px`;
-  dart.style.opacity = '1';
-  dart.classList.add('flying');
-
-  // 次フレームで終点へ
-  requestAnimationFrame(() => {
-    dart.style.transition = `left ${durationMs}ms linear, top ${durationMs}ms linear`;
-    dart.style.left = `${endX}px`;
-    dart.style.top = `${endY}px`;
+// 着弾マーク（SVG circle）を的に追加
+function showImpactMark(impact) {
+  if (!_boardEl) return;
+  const svg = _boardEl.querySelector('svg');
+  if (!svg) return;
+  const rel = Physics.impactRelativeToTarget(impact, _targetWorld);
+  // 板の SVG viewBox 全体 = (R_BORDER+4)*2 SVG 単位 = HORIZ_FOV_DEG * TARGET_DIAMETER_RATIO 度
+  const unitsPerDeg = ((R_BORDER + 4) * 2) / (HORIZ_FOV_DEG * TARGET_DIAMETER_RATIO);
+  const sx = rel.dxDeg * unitsPerDeg;
+  const sy = -rel.dyDeg * unitsPerDeg;
+  const dot = el('circle', {
+    cx: sx, cy: sy, r: 2.8,
+    fill: '#ef4444',
+    stroke: '#ffffff', 'stroke-width': 0.6,
   });
+  dot.classList.add('impact-mark');
+  svg.appendChild(dot);
+}
 
-  // 着弾後フェードアウト
-  setTimeout(() => {
-    dart.style.transition = 'opacity 280ms ease-out';
+export function clearImpactMarks() {
+  if (!_boardEl) return;
+  const svg = _boardEl.querySelector('svg');
+  if (svg) svg.querySelectorAll('.impact-mark').forEach((e) => e.remove());
+}
+
+// 現在のスムージング済み照準角度（app から照準を渡したいとき用）
+export function getCurrentAim() {
+  return { yawDeg: _lastYawDeg, pitchDeg: _lastPitchDeg };
+}
+
+// 飛行開始（simResult = Physics.simulateThrow の戻り値）
+export function fireFlight(simResult, onComplete) {
+  const dart = document.getElementById('flying-dart');
+  if (dart) {
+    dart.style.transition = 'none';
+    // tick の初回投影でちらつかないよう、最初は透明で表示
+    dart.style.opacity = '0';
+    dart.classList.add('flying');
+  }
+  _flight = {
+    trajectory: simResult.trajectory,
+    impact: simResult.impact,
+    startTime: performance.now(),
+    onComplete,
+  };
+}
+
+function endFlight() {
+  if (!_flight) return;
+  const f = _flight;
+  _flight = null;
+  const dart = document.getElementById('flying-dart');
+  if (dart) {
+    dart.style.transition = 'opacity 240ms ease-out';
     dart.style.opacity = '0';
     setTimeout(() => {
       dart.classList.remove('flying');
       dart.style.transition = '';
-      if (onComplete) onComplete();
-    }, 300);
-  }, durationMs);
+    }, 260);
+  }
+  if (f.onComplete) f.onComplete(f.impact);
 }

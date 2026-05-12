@@ -311,21 +311,83 @@ function onDartReleased({ hand, strength, durationMs }) {
     const r = Rules.applyShot(_gameState, shot);
     updateScoreUI();
 
+    // === FINISH (v1.25) ===
     if (r.finished) {
-      console.log('[darts] FINISH!');
-      // 段階2-F-C で結果画面に遷移
+      console.log('[darts] FINISH! darts=' + _gameState.dartCount);
+      Render.logEvent({ type: 'finish', dartCount: _gameState.dartCount, turns: _gameState.turnIndex });
+      showAnnouncement('finish', 'FINISH!', `${_gameState.dartCount} ダーツ`);
+      setTimeout(() => {
+        showEndScreen();
+      }, 2200);
+      return;
     }
-    if (r.turnEnded && !r.finished) {
+
+    // === BUST (v1.25) ===
+    if (r.bust) {
+      console.log('[darts] BUST! reverted to ' + _gameState.remaining);
+      Render.logEvent({ type: 'bust', remainingAfter: _gameState.remaining });
+      showAnnouncement('bust', 'BUST!', '');
+      // バースト時もターンは終了
+      setTimeout(() => {
+        Render.placeTargetForTurn();
+        updateScoreUI();
+        Input.setDisabled(false);
+      }, 2000);
+      return;
+    }
+
+    // === 通常のターン進行 ===
+    if (r.turnEnded) {
       // v1.24: 3投目を 2 秒見せてからターン進行
       setTimeout(() => {
         Render.placeTargetForTurn();
-        updateScoreUI();  // 投スロットをリセット
+        updateScoreUI();
         Input.setDisabled(false);
       }, 2000);
       return;
     }
     Input.setDisabled(false);
   });
+}
+
+// v1.25: BUST / FINISH の中央オーバーレイ
+function showAnnouncement(kind, main, sub) {
+  const el = $('big-announcement');
+  el.className = '';
+  el.classList.add(kind);
+  el.innerHTML = sub ? `${main}<span class="sub">${sub}</span>` : main;
+  // reflow trick to retrigger animation
+  void el.offsetWidth;
+  el.classList.add('show');
+  // フェードアウト
+  setTimeout(() => {
+    el.classList.remove('show');
+  }, 1700);
+}
+
+// v1.25: 結果画面の表示（FINISH 時に呼ばれる）
+function showEndScreen() {
+  if (!_gameState) return;
+  const ach = Rules.getAchievement(_gameState.dartCount);
+
+  // 統計集計
+  const turns = _gameState.history.length;
+  const busts = _gameState.history.filter(h => h.bust).length;
+  const turnScores = _gameState.history
+    .filter(h => !h.bust)
+    .map(h => h.shots.reduce((a, s) => a + s.value, 0));
+  const bestTurn = turnScores.length ? Math.max(...turnScores) : 0;
+
+  $('end-result-msg').textContent = `${ach.emoji} ${ach.label}`;
+  $('end-result-msg').className = 'result-message win';
+  $('end-result-sub').textContent = `${_gameState.dartCount} ダーツでフィニッシュ`;
+  $('end-stat-darts').textContent = _gameState.dartCount;
+  $('end-stat-turns').textContent = turns;
+  $('end-stat-busts').textContent = busts;
+  $('end-stat-best').textContent = bestTurn;
+
+  leaveGameScreen();
+  showScreen('end');
 }
 
 $('btn-next-turn').addEventListener('click', () => {
@@ -433,16 +495,6 @@ $('btn-copy-log').addEventListener('click', async () => {
     btn.textContent = original;
     btn.disabled = false;
   }, 2200);
-});
-
-$('btn-sim-finish').addEventListener('click', () => {
-  // 段階2-A のスタブ：投擲をシミュレートせず即結果画面へ
-  leaveGameScreen();
-  $('end-result-msg').textContent = 'FINISH!';
-  $('end-result-msg').classList.remove('lose');
-  $('end-result-msg').classList.add('win');
-  $('end-result-sub').textContent = '21 ダーツでフィニッシュ（仮表示）';
-  showScreen('end');
 });
 
 $('btn-game-leave').addEventListener('click', async () => {

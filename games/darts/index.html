@@ -562,6 +562,39 @@ body.in-game #lang-switcher { display: none; }
   pointer-events: none;
 }
 
+/* ===== v1.25: BUST / FINISH 中央オーバーレイ ===== */
+#big-announcement {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.8);
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.18s ease-out, transform 0.18s ease-out;
+  font-family: 'Fredoka One', cursive;
+  font-size: clamp(48px, 14vw, 92px);
+  letter-spacing: 0.04em;
+  text-align: center;
+  line-height: 1;
+  text-shadow:
+    0 2px 6px rgba(0,0,0,0.9),
+    0 0 20px rgba(0,0,0,0.6);
+}
+#big-announcement.show {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+#big-announcement.bust { color: var(--danger); }
+#big-announcement.finish { color: #ffd54a; }
+#big-announcement .sub {
+  display: block;
+  margin-top: 10px;
+  font-size: 0.32em;
+  letter-spacing: 0.05em;
+  color: rgba(255,255,255,0.92);
+}
+
 /* ===== v1.22: 照準クロスヘア（SPEC 5.4 デバッグ表示。将来削除予定） =====
    落下・ブレが無いときの着弾点 = カメラの向き × target 距離 = 画面中央 */
 #aim-crosshair {
@@ -911,7 +944,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.24</span>
+      <span class="version-tag" id="version-tag">v1.25</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -1032,6 +1065,9 @@ body.in-game #gear-icon { display: flex; }
   <!-- 飛行ダーツ（ダミー直進、段階2-D） -->
   <div id="flying-dart"></div>
 
+  <!-- v1.25: BUST / FINISH 中央オーバーレイ -->
+  <div id="big-announcement"></div>
+
   <!-- v1.22: 照準クロスヘア（SPEC 5.4 デバッグ表示。将来削除予定） -->
   <div id="aim-crosshair" aria-hidden="true">
     <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
@@ -1048,7 +1084,6 @@ body.in-game #gear-icon { display: flex; }
     <button class="btn btn-secondary" id="btn-next-turn">次のターン</button>
     <button class="btn btn-ghost" id="btn-copy-log">📤 ログ</button>
     <button class="btn btn-ghost" id="btn-game-leave">退出</button>
-    <button class="btn btn-secondary" id="btn-sim-finish">結果へ</button>
   </div>
 
   <!-- v1.15: 歯車メニュー -->
@@ -1088,7 +1123,13 @@ body.in-game #gear-icon { display: flex; }
 <div class="screen" id="screen-end">
   <div class="panel">
     <div class="result-message win" id="end-result-msg">FINISH!</div>
-    <div class="result-sub" id="end-result-sub">N ダーツでフィニッシュ（仮表示）</div>
+    <div class="result-sub" id="end-result-sub">— ダーツ</div>
+    <div id="end-stats" style="display:grid; grid-template-columns: 1fr auto; gap: 6px 14px; font-size: 13px; margin-top: 14px; padding: 12px 14px; background: var(--surface2); border-radius: 8px;">
+      <div style="color: var(--text-muted)">投擲数</div><div id="end-stat-darts" style="text-align:right; font-family: 'Fredoka One', cursive;">—</div>
+      <div style="color: var(--text-muted)">ターン</div><div id="end-stat-turns" style="text-align:right; font-family: 'Fredoka One', cursive;">—</div>
+      <div style="color: var(--text-muted)">バースト</div><div id="end-stat-busts" style="text-align:right; font-family: 'Fredoka One', cursive;">—</div>
+      <div style="color: var(--text-muted)">最高ターン得点</div><div id="end-stat-best" style="text-align:right; font-family: 'Fredoka One', cursive;">—</div>
+    </div>
   </div>
 
   <div class="panel">

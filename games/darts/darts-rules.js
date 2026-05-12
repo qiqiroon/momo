@@ -90,48 +90,59 @@ export function applyShot(state, shot) {
   }
   const newRemaining = state.remaining - shot.value;
 
-  // FINISH チェック（段階2-F では仮実装、段階2-F-C で FINISH 演出を追加）
+  // === FINISH（SPEC 3.3） === 0 ぴったりで勝利
   if (newRemaining === 0) {
     state.remaining = 0;
     state.turnShots.push(shot);
     state.dartCount++;
-    const finishedTurn = { shots: [...state.turnShots], bust: false, ended: 'finish' };
-    state.history.push(finishedTurn);
+    state.history.push({
+      shots: [...state.turnShots], bust: false, ended: 'finish',
+    });
     state.turnShots = [];
     state.finished = true;
     return { state, turnEnded: true, finished: true, bust: false };
   }
 
-  // バースト判定（段階2-F では未実装、段階2-F-C で追加予定）
-  // 現状: 負になっても残点は更新せず、ターン継続
+  // === BUST（SPEC 3.3） === 0 未満 → ターン無効、開始時の点に戻す
   if (newRemaining < 0) {
-    // とりあえずスコアは記録するが remaining は据え置き
     state.turnShots.push(shot);
     state.dartCount++;
-    if (state.turnShots.length >= 3) {
-      const endedTurn = { shots: [...state.turnShots], bust: false, ended: 'normal-overflow' };
-      state.history.push(endedTurn);
-      state.turnShots = [];
-      state.turnIndex++;
-      state.turnStartRemaining = state.remaining;
-      return { state, turnEnded: true, finished: false, bust: false };
-    }
-    return { state, turnEnded: false, finished: false, bust: false };
+    state.history.push({
+      shots: [...state.turnShots], bust: true, ended: 'bust',
+    });
+    state.turnShots = [];
+    state.remaining = state.turnStartRemaining;  // 巻き戻し
+    state.turnIndex++;
+    // turnStartRemaining は既に正しい
+    return { state, turnEnded: true, finished: false, bust: true };
   }
 
-  // 通常: 残点を減らす
+  // === 通常 ===
   state.remaining = newRemaining;
   state.turnShots.push(shot);
   state.dartCount++;
   if (state.turnShots.length >= 3) {
-    const endedTurn = { shots: [...state.turnShots], bust: false, ended: 'normal' };
-    state.history.push(endedTurn);
+    state.history.push({
+      shots: [...state.turnShots], bust: false, ended: 'normal',
+    });
     state.turnShots = [];
     state.turnIndex++;
     state.turnStartRemaining = state.remaining;
     return { state, turnEnded: true, finished: false, bust: false };
   }
   return { state, turnEnded: false, finished: false, bust: false };
+}
+
+// 称号判定（1人プレイ用、SPEC 10.8 / 12.x）
+//   - 9 ダーツ以下: PERFECT (9 ダーツゲーム)
+//   - 10〜15 ダーツ: GREAT
+//   - 16〜24 ダーツ: GOOD
+//   - 25〜: REGULAR
+export function getAchievement(dartCount) {
+  if (dartCount <= 9)  return { rank: 'PERFECT', emoji: '🎯', label: '9 ダーツ ゲーム！パーフェクト！' };
+  if (dartCount <= 15) return { rank: 'GREAT',   emoji: '⭐', label: 'GREAT!' };
+  if (dartCount <= 24) return { rank: 'GOOD',    emoji: '✨', label: 'GOOD!' };
+  return { rank: 'REGULAR', emoji: '🎯', label: 'FINISH!' };
 }
 
 // 現在のターンの合計得点

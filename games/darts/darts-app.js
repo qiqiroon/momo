@@ -381,9 +381,7 @@ function applyTune(t) {
 const _tune = loadTuneFromStorage();
 applyTune(_tune);
 
-$('btn-tune').addEventListener('click', () => {
-  $('tune-panel').classList.toggle('active');
-});
+// v1.15 で削除: btn-tune はゲーム画面下バーから歯車メニュー (btn-open-tune) へ移動
 $('btn-tune-close').addEventListener('click', () => {
   $('tune-panel').classList.remove('active');
 });

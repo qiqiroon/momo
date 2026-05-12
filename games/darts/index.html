@@ -503,6 +503,29 @@ body.in-game #lang-switcher { display: none; }
   pointer-events: none;
 }
 
+/* ===== v1.22: 照準クロスヘア（SPEC 5.4 デバッグ表示。将来削除予定） =====
+   落下・ブレが無いときの着弾点 = カメラの向き × target 距離 = 画面中央 */
+#aim-crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 32px;
+  height: 32px;
+  margin-left: -16px;
+  margin-top: -16px;
+  pointer-events: none;
+  z-index: 15;
+  opacity: 0.55;
+}
+#aim-crosshair svg {
+  width: 100%;
+  height: 100%;
+  stroke: #ffffff;
+  stroke-width: 1.4;
+  fill: none;
+  filter: drop-shadow(0 0 2px rgba(0,0,0,0.7));
+}
+
 /* ===== v1.17: ダミー直進飛行用ダーツ ===== */
 #flying-dart {
   position: absolute;
@@ -829,7 +852,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.21</span>
+      <span class="version-tag" id="version-tag">v1.22</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -938,6 +961,17 @@ body.in-game #gear-icon { display: flex; }
 
   <!-- 飛行ダーツ（ダミー直進、段階2-D） -->
   <div id="flying-dart"></div>
+
+  <!-- v1.22: 照準クロスヘア（SPEC 5.4 デバッグ表示。将来削除予定） -->
+  <div id="aim-crosshair" aria-hidden="true">
+    <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+      <line x1="16" y1="2"  x2="16" y2="11" stroke-linecap="round"/>
+      <line x1="16" y1="21" x2="16" y2="30" stroke-linecap="round"/>
+      <line x1="2"  y1="16" x2="11" y2="16" stroke-linecap="round"/>
+      <line x1="21" y1="16" x2="30" y2="16" stroke-linecap="round"/>
+      <circle cx="16" cy="16" r="1.5" fill="#ffffff"/>
+    </svg>
+  </div>
 
   <!-- 下オーバーレイ（デバッグ用、開発中のみ） -->
   <div id="game-overlay-bottom">

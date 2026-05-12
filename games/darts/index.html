@@ -327,17 +327,166 @@ body.in-game #lang-switcher { display: none; }
   white-space: pre-line;
 }
 
-/* 下オーバーレイ：段階2-C 仮ボタン（投擲操作は段階2-D 以降で実装） */
+/* 下オーバーレイ（v1.17: ホールド左右の間、デバッグ用） */
 #game-overlay-bottom {
   position: absolute;
-  left: 16px;
-  right: 16px;
-  bottom: 16px;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  z-index: 30;
+  pointer-events: none;
+}
+#game-overlay-bottom > .btn {
+  pointer-events: auto;
+  font-size: 11px;
+  padding: 5px 9px;
+  opacity: 0.6;
+}
+#game-overlay-bottom > .btn:hover { opacity: 1; }
+
+/* ===== v1.17: ホールドボタン + 強さバー（SPEC 5章） ===== */
+/* 左右の容器（バー + ボタンを縦に重ねる） */
+.hold-stack {
+  position: absolute;
+  bottom: 24px;
+  z-index: 30;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  z-index: 30;
+  align-items: center;
+  gap: 10px;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
+.hold-stack.left  { left: 28px; }
+.hold-stack.right { right: 28px; }
+
+/* 強さバー（押下中だけ表示。バー本体 = 暗いトラック） */
+.strength-bar {
+  width: 28px;
+  height: 220px;
+  background: rgba(20,20,20,0.65);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 14px;
+  overflow: hidden;
+  position: relative;
+  opacity: 0;
+  transition: opacity 0.12s ease-out;
+  pointer-events: none;
+}
+.hold-stack.active .strength-bar { opacity: 1; }
+
+/* 強さバーの中身（下から伸びる無段階グラデーション、SPEC 5.2） */
+.strength-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 0%;
+  background:
+    linear-gradient(
+      to top,
+      #0a0a0a  0%,    /* 最弱 黒 */
+      #0c1e4a 18%,    /* 紺 */
+      #1d4ed8 32%,    /* 青 */
+      #7dd3fc 42%,    /* 水色 */
+      #ffffff 50%,    /* 中央 最適 白 */
+      #f9a8d4 62%,    /* ピンク */
+      #b91c1c 82%,    /* 濃い赤 */
+      #7f1d1d 100%    /* 最強 濃赤 */
+    );
+  background-size: 100% 220px;
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  will-change: height;
+}
+
+/* 👍 最適マーク（バー内側 = 画面中央寄りに、中央=50% 位置）
+   SPEC 5.2: バーの内側に👍。左バーは右側、右バーは左側にはみ出す */
+.strength-optimal {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 18px;
+  line-height: 1;
+  font-family: "Apple Color Emoji", "Noto Color Emoji", "Segoe UI Emoji", sans-serif;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
+}
+.hold-stack.left  .strength-optimal { left: 100%;  margin-left: 4px; }
+.hold-stack.right .strength-optimal { right: 100%; margin-right: 4px; }
+
+/* 最適範囲（白の幅 12%、44%〜56%）を示す薄い帯（任意装飾、視認補助） */
+.strength-optimal-zone {
+  position: absolute;
+  left: -3px;
+  right: -3px;
+  top: 44%;
+  height: 12%;
+  border-top: 1px solid rgba(255,255,255,0.5);
+  border-bottom: 1px solid rgba(255,255,255,0.5);
+  pointer-events: none;
+}
+
+/* ホールドボタン（左右下、SPEC 5.1） */
+.hold-button {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.05);
+  border: 2px solid rgba(255,255,255,0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.12s, border-color 0.12s, transform 0.08s, box-shadow 0.15s;
+}
+.hold-button::after {
+  content: '';
+  position: absolute;
+  inset: 26%;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.35);
+  transition: background 0.12s;
+}
+/* 押下中: プレイヤー色（自分=赤）で光る */
+.hold-stack.active .hold-button {
+  background: rgba(239,68,68,0.18);
+  border-color: var(--player-self);
+  box-shadow: 0 0 18px rgba(239,68,68,0.55);
+  transform: scale(0.96);
+}
+.hold-stack.active .hold-button::after {
+  background: var(--player-self);
+}
+/* 飛行中・disabled: 透明度を下げて触れない */
+.hold-stack.disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+/* ===== v1.17: ダミー直進飛行用ダーツ ===== */
+#flying-dart {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--player-self);
+  box-shadow:
+    0 0 6px rgba(239,68,68,0.7),
+    0 0 14px rgba(239,68,68,0.4);
+  pointer-events: none;
+  display: none;
+  z-index: 25;
+  transform: translate(-50%, -50%);
+  will-change: left, top, transform, opacity;
+}
+#flying-dart.flying { display: block; }
 
 /* v1.13: 感度調整パネル */
 #tune-panel {
@@ -646,7 +795,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.16</span>
+      <span class="version-tag" id="version-tag">v1.17</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -734,14 +883,33 @@ body.in-game #gear-icon { display: flex; }
     <div id="game-debug-info">init…</div>
   </div>
 
-  <!-- 下オーバーレイ（v1.15: 中央リセット / 感度調整は歯車メニューへ移動） -->
+  <!-- v1.17: ホールドボタン + 強さバー（SPEC 5章） -->
+  <div class="hold-stack left" id="hold-stack-L" data-hand="L">
+    <div class="strength-bar">
+      <div class="strength-fill" id="strength-fill-L"></div>
+      <div class="strength-optimal-zone"></div>
+      <div class="strength-optimal">👍</div>
+    </div>
+    <div class="hold-button" id="hold-button-L"></div>
+  </div>
+  <div class="hold-stack right" id="hold-stack-R" data-hand="R">
+    <div class="strength-bar">
+      <div class="strength-fill" id="strength-fill-R"></div>
+      <div class="strength-optimal-zone"></div>
+      <div class="strength-optimal">👍</div>
+    </div>
+    <div class="hold-button" id="hold-button-R"></div>
+  </div>
+
+  <!-- 飛行ダーツ（ダミー直進、段階2-D） -->
+  <div id="flying-dart"></div>
+
+  <!-- 下オーバーレイ（デバッグ用、開発中のみ） -->
   <div id="game-overlay-bottom">
     <button class="btn btn-secondary" id="btn-next-turn">次のターン</button>
-    <div class="btn-row">
-      <button class="btn btn-ghost" id="btn-copy-log">📤 ログ共有</button>
-      <button class="btn btn-ghost" id="btn-game-leave">退出</button>
-    </div>
-    <button class="btn btn-primary" id="btn-sim-finish">投擲シミュレート → 結果</button>
+    <button class="btn btn-ghost" id="btn-copy-log">📤 ログ</button>
+    <button class="btn btn-ghost" id="btn-game-leave">退出</button>
+    <button class="btn btn-secondary" id="btn-sim-finish">結果へ</button>
   </div>
 
   <!-- v1.15: 歯車メニュー -->

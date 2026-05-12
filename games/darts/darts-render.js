@@ -344,3 +344,58 @@ export function stop() {
   _arrowEl = null;
   _debugCallback = null;
 }
+
+// ======================================================================
+// 段階2-D: ダミー直進飛行（物理計算なし、SPEC 5.4 の方向だけ表現）
+//   - ボタン中央 → 画面中央 を直線で結ぶ
+//   - 強さ s∈[0,1] に応じて飛行時間を変える（弱=遅い、強=速い）
+//   - 着弾点表示・スコア・物理は段階2-E 以降で実装
+// ======================================================================
+const FLIGHT_DURATION_MIN_MS = 500;   // MAX 強度時
+const FLIGHT_DURATION_MAX_MS = 1300;  // 最弱付近
+
+export function fireDummyFlight({ hand, strength }, onComplete) {
+  if (!_viewEl) { onComplete && onComplete(); return; }
+
+  const dart = document.getElementById('flying-dart');
+  const stackEl = document.getElementById(`hold-stack-${hand}`);
+  if (!dart || !stackEl) { onComplete && onComplete(); return; }
+
+  const viewRect = _viewEl.getBoundingClientRect();
+  const stackRect = stackEl.getBoundingClientRect();
+
+  // 始点: ホールドボタンの中心
+  const startX = stackRect.left + stackRect.width / 2 - viewRect.left;
+  const startY = stackRect.bottom - 84 / 2 - viewRect.top;  // ボタン高さ 84px の中心
+  // 終点: 画面中央（SPEC 5.4 照準点）
+  const endX = viewRect.width  / 2;
+  const endY = viewRect.height / 2;
+
+  const s = Math.max(0, Math.min(1, strength));
+  const durationMs = FLIGHT_DURATION_MAX_MS - s * (FLIGHT_DURATION_MAX_MS - FLIGHT_DURATION_MIN_MS);
+
+  // 初期位置にセット（transition なし）
+  dart.style.transition = 'none';
+  dart.style.left = `${startX}px`;
+  dart.style.top = `${startY}px`;
+  dart.style.opacity = '1';
+  dart.classList.add('flying');
+
+  // 次フレームで終点へ
+  requestAnimationFrame(() => {
+    dart.style.transition = `left ${durationMs}ms linear, top ${durationMs}ms linear`;
+    dart.style.left = `${endX}px`;
+    dart.style.top = `${endY}px`;
+  });
+
+  // 着弾後フェードアウト
+  setTimeout(() => {
+    dart.style.transition = 'opacity 280ms ease-out';
+    dart.style.opacity = '0';
+    setTimeout(() => {
+      dart.classList.remove('flying');
+      dart.style.transition = '';
+      if (onComplete) onComplete();
+    }, 300);
+  }, durationMs);
+}

@@ -5,6 +5,7 @@
 
 import * as Sensor from './darts-sensor.js';
 import * as Render from './darts-render.js';
+import * as Input from './darts-input.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -217,6 +218,8 @@ $('btn-room-leave').addEventListener('click', async () => {
 });
 
 // ===== ゲーム画面ライフサイクル（段階2-C で追加） =====
+let _shotCount = 0;  // v1.17: 現ターンの投擲数（ダミー、ルールエンジンは段階2-E）
+
 function enterGameScreen() {
   showScreen('game');
   const debugEl = $('game-debug-info');
@@ -229,18 +232,42 @@ function enterGameScreen() {
       // 開発用：センサー値と画面位置を表示（段階2-G で残り点数 UI に置換）
       debugEl.textContent =
         `yaw=${info.yawDelta.toFixed(1)}° pitch=${info.pitchDelta.toFixed(1)}° roll=${info.roll.toFixed(1)}°\n` +
-        `target=(${info.target.yaw.toFixed(1)}°,${info.target.pitch.toFixed(1)}°) screen=(${info.x.toFixed(0)},${info.y.toFixed(0)})`;
+        `target=(${info.target.yaw.toFixed(1)}°,${info.target.pitch.toFixed(1)}°) screen=(${info.x.toFixed(0)},${info.y.toFixed(0)})\n` +
+        `shot ${_shotCount}/3`;
     },
   });
   Render.placeTargetForTurn();
+  _shotCount = 0;
+
+  // v1.17: ホールドボタン入力を起動
+  Input.start({
+    onRelease: onDartReleased,
+  });
 }
 
 function leaveGameScreen() {
   Render.stop();
+  Input.stop();
+}
+
+// v1.17: 投擲リリース時のフロー（ダミー直進）
+function onDartReleased({ hand, strength, durationMs }) {
+  console.log(`[darts] release hand=${hand} strength=${strength.toFixed(3)} (${durationMs.toFixed(0)}ms)`);
+  Render.fireDummyFlight({ hand, strength }, () => {
+    _shotCount++;
+    // 3投終わったら自動でターンを進める（段階2-E でルールエンジンに置換予定）
+    if (_shotCount >= 3) {
+      _shotCount = 0;
+      Render.placeTargetForTurn();
+    }
+    // 飛行終了 → ホールドボタンを再有効化
+    Input.setDisabled(false);
+  });
 }
 
 $('btn-next-turn').addEventListener('click', () => {
   Render.placeTargetForTurn();
+  _shotCount = 0;
 });
 
 // 中央リセット (v1.15): 現在の姿勢を新キャリブとして登録し、

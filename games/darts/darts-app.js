@@ -343,25 +343,21 @@ function updateScoreUI() {
   updateTurnFrame();
 }
 
-// v1.33 (3-C): ターン情報「{名前}の N投目」
+// v1.34: ターン情報を 2 行に（"あなた/相手のターン" + 名前）
 function updateTurnInfo() {
-  const el = $('ui-turn-info');
+  const wrap = $('ui-turn-info');
+  const mainEl = $('ui-turn-info-main');
+  const nameEl = $('ui-turn-info-name');
   if (_mode !== 'battle') {
-    el.textContent = '';
-    el.classList.remove('self', 'opp');
+    wrap.style.display = 'none';
     return;
   }
-  const active = activeState();
-  if (!active) {
-    el.textContent = '';
-    return;
-  }
-  const shotN = Math.min(active.turnShots.length + 1, 3);
+  wrap.style.display = 'flex';
   const myTurn = isMyTurn();
-  const name = myTurn ? getMyName() : getOppName();
-  el.textContent = `${name} の ${shotN} 投目`;
-  el.classList.toggle('self', myTurn);
-  el.classList.toggle('opp', !myTurn);
+  mainEl.textContent = myTurn ? 'あなたのターン' : '相手のターン';
+  nameEl.textContent = myTurn ? getMyName() : getOppName();
+  wrap.classList.toggle('self', myTurn);
+  wrap.classList.toggle('opp', !myTurn);
 }
 
 // v1.33 (3-C): ターン枠 4px（自分=明赤発光 / 相手=暗青）
@@ -444,11 +440,10 @@ function onDartReleased({ hand, strength, durationMs }) {
 
   Render.fireFlight(sim, (result) => {
     // result = { world, board: { x, y } | null } — local の物理結果
-    // 着弾は自分の物理結果（local sim と完全一致するので同じ）
     const shot = Rules.scoreFromImpactSVG(result.board);
     logShotEvent(_gameState, hand, strength, durationMs, aim, result, shot);
     processShot(_gameState, shot, _myRole);
-  });
+  }, { thrower: 'self' });
 }
 
 // v1.33 (3-C): 相手の投擲を受信して再生
@@ -470,7 +465,7 @@ function handleOppThrow(data) {
     // 着弾点は送信者の authoritative 値で上書き → スコアも一致
     const shot = Rules.scoreFromImpactSVG(impactBoard);
     processShot(_oppState, shot, _activeRole);
-  });
+  }, { thrower: 'opp', authoritativeBoard: impactBoard });
 }
 
 // v1.33 (3-C): shot 後の共通処理（ローカル/受信どちらからも呼ぶ）

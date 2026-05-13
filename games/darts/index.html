@@ -23,11 +23,11 @@
   --bg-selected: rgba(194,65,12,0.15);
   --danger: #c0392b;
   --success: #27ae60;
-  /* MOMO Darts ゲームUI例外（SPEC 16.2） */
-  --player-self: #ef4444;
-  --player-opp: #3b82f6;
-  --turn-self: #fca5a5;
-  --turn-opp: #1e40af;
+  /* MOMO Darts ゲームUI例外（SPEC 16.2、v1.34 で色変更: 自分=オレンジ / 相手=グレー） */
+  --player-self: #ea580c;     /* orange-mid */
+  --player-opp: #9ca3af;      /* gray-400 */
+  --turn-self: #fb923c;       /* orange-light（明るい縁取り発光用） */
+  --turn-opp: #4b5563;        /* gray-600（暗い縁取り） */
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -391,16 +391,16 @@ body.in-game #lang-switcher { display: none; }
   text-align: center;
   line-height: 1.3;
 }
-/* 自分が選択 = 赤系（プレイヤー自分色） */
+/* 自分が選択 = オレンジ系（プレイヤー自分色） v1.34 */
 .role-card.selected-self {
   border-color: var(--player-self);
-  background: rgba(239, 68, 68, 0.08);
+  background: rgba(234, 88, 12, 0.10);
 }
 .role-card.selected-self .role-who { color: var(--player-self); }
-/* 相手が選択 = 青系 */
+/* 相手が選択 = グレー系 v1.34 */
 .role-card.selected-opp {
   border-color: var(--player-opp);
-  background: rgba(59, 130, 246, 0.08);
+  background: rgba(156, 163, 175, 0.10);
 }
 .role-card.selected-opp .role-who { color: var(--player-opp); }
 /* 両者が同じカードを選択 = 不一致状態 */
@@ -599,22 +599,40 @@ body.in-game #lang-switcher { display: none; }
   flex: 1;
   min-width: 0;
 }
+/* v1.34: 2行構成 — main: "あなたのターン"/"相手のターン", name: 名前小さく */
 #ui-turn-info {
-  font-family: 'Noto Sans JP', sans-serif;
-  font-size: 12px;
-  color: rgba(255,255,255,0.95);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
   background: rgba(0,0,0,0.55);
-  border-radius: 4px;
-  padding: 3px 10px;
-  text-align: center;
-  letter-spacing: 0.02em;
+  border-radius: 6px;
+  padding: 4px 12px;
   max-width: 100%;
+  pointer-events: auto;
+}
+#ui-turn-info-main {
+  font-family: 'Fredoka One', cursive;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  line-height: 1.1;
+  color: rgba(255,255,255,0.6);
+  white-space: nowrap;
+}
+#ui-turn-info-name {
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 11px;
+  color: rgba(255,255,255,0.55);
+  line-height: 1.1;
+  max-width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-#ui-turn-info.self  { color: var(--player-self); }
-#ui-turn-info.opp   { color: var(--player-opp); }
+#ui-turn-info.self #ui-turn-info-main { color: var(--player-self); }
+#ui-turn-info.self #ui-turn-info-name { color: var(--player-self); opacity: 0.85; }
+#ui-turn-info.opp  #ui-turn-info-main { color: var(--player-opp); }
+#ui-turn-info.opp  #ui-turn-info-name { color: var(--player-opp); opacity: 0.85; }
 
 /* v1.23: 3投スロット — v1.33 で center 横並び */
 #ui-shots {
@@ -634,12 +652,14 @@ body.in-game #lang-switcher { display: none; }
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 #turn-frame.self {
+  /* 自分のターン = 明るいオレンジ発光 v1.34 */
   border-color: var(--player-self);
-  box-shadow: inset 0 0 12px rgba(239, 68, 68, 0.55);
+  box-shadow: inset 0 0 12px rgba(251, 146, 60, 0.55);
 }
 #turn-frame.opp {
+  /* 相手のターン = 暗いグレー v1.34 */
   border-color: var(--turn-opp);
-  box-shadow: inset 0 0 6px rgba(30, 64, 175, 0.4);
+  box-shadow: inset 0 0 6px rgba(75, 85, 99, 0.4);
 }
 .shot-slot {
   font-family: 'Fredoka One', cursive;
@@ -891,21 +911,28 @@ body.in-game #lang-switcher { display: none; }
   filter: drop-shadow(0 0 2px rgba(0,0,0,0.7));
 }
 
-/* ===== v1.17: ダミー直進飛行用ダーツ ===== */
+/* ===== v1.17: ダミー直進飛行用ダーツ（v1.34: 投擲者色を class で切替） ===== */
 #flying-dart {
   position: absolute;
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: var(--player-self);
-  box-shadow:
-    0 0 6px rgba(239,68,68,0.7),
-    0 0 14px rgba(239,68,68,0.4);
   pointer-events: none;
   display: none;
   z-index: 25;
   transform: translate(-50%, -50%);
   will-change: left, top, transform, opacity;
+  /* デフォルトは自分色（オレンジ）。観戦時は .opp class で上書き */
+  background: var(--player-self);
+  box-shadow:
+    0 0 6px rgba(234, 88, 12, 0.7),
+    0 0 14px rgba(234, 88, 12, 0.4);
+}
+#flying-dart.opp {
+  background: var(--player-opp);
+  box-shadow:
+    0 0 6px rgba(156, 163, 175, 0.7),
+    0 0 14px rgba(156, 163, 175, 0.4);
 }
 #flying-dart.flying { display: block; }
 
@@ -1217,7 +1244,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.33</span>
+      <span class="version-tag" id="version-tag">v1.34</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -1387,7 +1414,10 @@ body.in-game #gear-icon { display: flex; }
       <div id="ui-turn-total">TURN +0</div>
     </div>
     <div id="ui-center-top">
-      <div id="ui-turn-info"></div>
+      <div id="ui-turn-info">
+        <div id="ui-turn-info-main"></div>
+        <div id="ui-turn-info-name"></div>
+      </div>
       <div id="ui-shots">
         <div class="shot-slot pending" id="ui-shot-1">—</div>
         <div class="shot-slot pending" id="ui-shot-2">—</div>

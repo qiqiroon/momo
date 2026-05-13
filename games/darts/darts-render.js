@@ -332,8 +332,20 @@ function tick() {
     if (dartEl) {
       const elapsedS = (performance.now() - _flight.startTime) / 1000;
       if (elapsedS >= _flight.impact.t) {
-        // 着弾
-        if (_flight.impact.hit) showImpactMark(_flight.impact);
+        // 着弾 — v1.34: 矢羽根 + 軌道方向 + 投擲者色
+        if (_flight.impact.hit) {
+          const traj = _flight.trajectory;
+          const last = traj[traj.length - 1];
+          const prev = traj[Math.max(0, traj.length - 2)];
+          const lastSV = worldImpactToBoardSVG(last);
+          const prevSV = worldImpactToBoardSVG(prev);
+          const angleDeg = Math.atan2(lastSV.y - prevSV.y, lastSV.x - prevSV.x) * 180 / Math.PI;
+          showImpactMark(_flight.impact, {
+            boardSV: _flight.authoritativeBoardSV || lastSV,
+            angleDeg,
+            thrower: _flight.thrower,
+          });
+        }
         endFlight();
       } else {
         const pos = interpolateTrajectory(_flight.trajectory, elapsedS);
@@ -440,13 +452,26 @@ function projectWorldToScreen(pos, devYawDeg, devPitchDeg, screenW, screenH, pxP
 }
 
 // world 座標の着弾 → board-local SVG 座標
+const _UNITS_PER_DEG = ((R_BORDER + 4) * 2) / (HORIZ_FOV_DEG * TARGET_DIAMETER_RATIO);
+
 function worldImpactToBoardSVG(impact) {
   const rel = Physics.impactRelativeToTarget(impact, _targetWorld);
-  const unitsPerDeg = ((R_BORDER + 4) * 2) / (HORIZ_FOV_DEG * TARGET_DIAMETER_RATIO);
   return {
-    x: rel.dxDeg * unitsPerDeg,
-    y: -rel.dyDeg * unitsPerDeg,   // SVG Y は下が正
+    x: rel.dxDeg * _UNITS_PER_DEG,
+    y: -rel.dyDeg * _UNITS_PER_DEG,   // SVG Y は下が正
   };
+}
+
+// v1.34: board SVG 座標 → world 座標（受信側が sender authoritative impact から world を逆算）
+function boardSVGToWorldImpact(boardSV) {
+  const dxDeg = boardSV.x / _UNITS_PER_DEG;
+  const dyDeg = -boardSV.y / _UNITS_PER_DEG;
+  const yawRad   = (_targetWorld.yaw   + dxDeg) * Math.PI / 180;
+  const pitchRad = (_targetWorld.pitch + dyDeg) * Math.PI / 180;
+  const z = 2.5;
+  const x = z * Math.tan(yawRad);
+  const y = (z / Math.cos(yawRad)) * Math.tan(pitchRad);
+  return { x, y, z, t: 0, hit: true };
 }
 
 // v1.33 (3-C): sim 結果から board impact を取得（対戦時の即時送信用）
@@ -454,19 +479,40 @@ export function boardImpactFromSim(sim) {
   return sim && sim.impact && sim.impact.hit ? worldImpactToBoardSVG(sim.impact) : null;
 }
 
-// 着弾マーク（SVG circle）を的に追加
-function showImpactMark(impact) {
+// v1.34: 投擲者色（CSS変数とも揃える）
+const COLOR_SELF = '#ea580c';  // orange-mid
+const COLOR_OPP  = '#9ca3af';  // gray-400
+
+// 着弾マーク：ダーツ形（矢羽根 + ヘッド）を投擲者色で、軌道方向に沿わせて配置
+function showImpactMark(impact, opts) {
   if (!_boardEl) return;
   const svg = _boardEl.querySelector('svg');
   if (!svg) return;
-  const sv = worldImpactToBoardSVG(impact);
-  const dot = el('circle', {
-    cx: sv.x, cy: sv.y, r: 2.8,
-    fill: '#ef4444',
-    stroke: '#ffffff', 'stroke-width': 0.6,
-  });
-  dot.classList.add('impact-mark');
-  svg.appendChild(dot);
+  const sv = (opts && opts.boardSV) || worldImpactToBoardSVG(impact);
+  const angleDeg = (opts && typeof opts.angleDeg === 'number') ? opts.angleDeg : 0;
+  const color = (opts && opts.thrower === 'opp') ? COLOR_OPP : COLOR_SELF;
+  // SVG の名前空間が必要（el ヘルパーで対応済みかは call site 次第）
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const group = document.createElementNS(SVG_NS, 'g');
+  group.setAttribute('transform', `translate(${sv.x},${sv.y}) rotate(${angleDeg})`);
+  group.classList.add('impact-mark');
+  // 矢羽根（ヘッドから後方=local -x 方向に伸びる、葉形）
+  const tail = document.createElementNS(SVG_NS, 'path');
+  tail.setAttribute('d', 'M 0 0 L -9 -2.6 Q -11 0 -9 2.6 Z');
+  tail.setAttribute('fill', color);
+  tail.setAttribute('stroke', '#0a0a0a');
+  tail.setAttribute('stroke-width', '0.4');
+  // ヘッド（着弾点のドット）
+  const head = document.createElementNS(SVG_NS, 'circle');
+  head.setAttribute('cx', '0');
+  head.setAttribute('cy', '0');
+  head.setAttribute('r', '1.6');
+  head.setAttribute('fill', color);
+  head.setAttribute('stroke', '#ffffff');
+  head.setAttribute('stroke-width', '0.5');
+  group.appendChild(tail);
+  group.appendChild(head);
+  svg.appendChild(group);
 }
 
 export function clearImpactMarks() {
@@ -481,19 +527,49 @@ export function getCurrentAim() {
 }
 
 // 飛行開始（simResult = Physics.simulateThrow の戻り値）
-export function fireFlight(simResult, onComplete) {
+// v1.34: opts.authoritativeBoard で受信側の sender authoritative impact を上書き、
+//        opts.thrower ('self' | 'opp') でダーツ色を切替
+export function fireFlight(simResult, onComplete, opts) {
   const dart = document.getElementById('flying-dart');
   if (dart) {
     dart.style.transition = 'none';
-    // tick の初回投影でちらつかないよう、最初は透明で表示
     dart.style.opacity = '0';
     dart.classList.add('flying');
+    // 投擲者色
+    if (opts && opts.thrower === 'opp') {
+      dart.classList.add('opp');
+    } else {
+      dart.classList.remove('opp');
+    }
   }
+
+  let trajectory = simResult.trajectory;
+  let impact = simResult.impact;
+  let authoritativeBoardSV = null;
+
+  if (opts && opts.authoritativeBoard && impact.hit && trajectory.length >= 2) {
+    // 受信側: sender authoritative impact を world に逆算 → 軌道末尾を shift
+    const targetWorld = boardSVGToWorldImpact(opts.authoritativeBoard);
+    const lastIdx = trajectory.length - 1;
+    const dx = targetWorld.x - trajectory[lastIdx].x;
+    const dy = targetWorld.y - trajectory[lastIdx].y;
+    trajectory = trajectory.map((p, i) => ({
+      x: p.x + dx * (i / lastIdx),
+      y: p.y + dy * (i / lastIdx),
+      z: p.z,
+      t: p.t,
+    }));
+    impact = { ...impact, x: targetWorld.x, y: targetWorld.y };
+    authoritativeBoardSV = opts.authoritativeBoard;
+  }
+
   _flight = {
-    trajectory: simResult.trajectory,
-    impact: simResult.impact,
+    trajectory,
+    impact,
     startTime: performance.now(),
     onComplete,
+    authoritativeBoardSV,
+    thrower: (opts && opts.thrower) || 'self',
   };
 }
 
@@ -507,10 +583,12 @@ function endFlight() {
     dart.style.opacity = '0';
     setTimeout(() => {
       dart.classList.remove('flying');
+      dart.classList.remove('opp');  // v1.34: 投擲者色をリセット
       dart.style.transition = '';
     }, 260);
   }
-  // 着弾の board-local SVG 座標も渡す（hit=true のみ意味がある）
-  const boardImpact = f.impact.hit ? worldImpactToBoardSVG(f.impact) : null;
+  // 受信側で sender authoritative を上書きしている場合はそれを返す
+  const boardImpact = f.authoritativeBoardSV
+    || (f.impact.hit ? worldImpactToBoardSVG(f.impact) : null);
   if (f.onComplete) f.onComplete({ world: f.impact, board: boardImpact });
 }

@@ -483,7 +483,8 @@ export function boardImpactFromSim(sim) {
 const COLOR_SELF = '#ea580c';  // orange-mid
 const COLOR_OPP  = '#9ca3af';  // gray-400
 
-// 着弾マーク：ダーツ形（矢羽根 + ヘッド）を投擲者色で、軌道方向に沿わせて配置
+// 着弾マーク（v1.35）：チップ円 + 3 枚の三角形フライトを軌道の真後ろに fan 配置
+// ローカル座標: +x = 軌道進行方向。フライトは 180°(直後ろ) ± 30° の 3 方向に展開
 function showImpactMark(impact, opts) {
   if (!_boardEl) return;
   const svg = _boardEl.querySelector('svg');
@@ -491,27 +492,36 @@ function showImpactMark(impact, opts) {
   const sv = (opts && opts.boardSV) || worldImpactToBoardSVG(impact);
   const angleDeg = (opts && typeof opts.angleDeg === 'number') ? opts.angleDeg : 0;
   const color = (opts && opts.thrower === 'opp') ? COLOR_OPP : COLOR_SELF;
-  // SVG の名前空間が必要（el ヘルパーで対応済みかは call site 次第）
-  const SVG_NS = 'http://www.w3.org/2000/svg';
-  const group = document.createElementNS(SVG_NS, 'g');
-  group.setAttribute('transform', `translate(${sv.x},${sv.y}) rotate(${angleDeg})`);
+
+  const group = el('g', {
+    transform: `translate(${sv.x},${sv.y}) rotate(${angleDeg})`,
+  });
   group.classList.add('impact-mark');
-  // 矢羽根（ヘッドから後方=local -x 方向に伸びる、葉形）
-  const tail = document.createElementNS(SVG_NS, 'path');
-  tail.setAttribute('d', 'M 0 0 L -9 -2.6 Q -11 0 -9 2.6 Z');
-  tail.setAttribute('fill', color);
-  tail.setAttribute('stroke', '#0a0a0a');
-  tail.setAttribute('stroke-width', '0.4');
-  // ヘッド（着弾点のドット）
-  const head = document.createElementNS(SVG_NS, 'circle');
-  head.setAttribute('cx', '0');
-  head.setAttribute('cy', '0');
-  head.setAttribute('r', '1.6');
-  head.setAttribute('fill', color);
-  head.setAttribute('stroke', '#ffffff');
-  head.setAttribute('stroke-width', '0.5');
-  group.appendChild(tail);
+
+  // 3 枚羽根（Q2B = 直線的な三角形、軌道の真後ろに 30° 刻みで扇展開）
+  // テンプレートは +x 方向に伸びる三角形 — 各フライトを希望角に回転して配置
+  for (const flightAngleDeg of [150, 180, 210]) {
+    const inner = el('g', { transform: `rotate(${flightAngleDeg})` });
+    const tri = el('path', {
+      d: 'M 0 0 L 9 -2.2 L 9 2.2 Z',
+      fill: color,
+      stroke: '#0a0a0a',
+      'stroke-width': '0.3',
+      'stroke-linejoin': 'round',
+    });
+    inner.appendChild(tri);
+    group.appendChild(inner);
+  }
+
+  // ヘッド（チップ）= 着弾点
+  const head = el('circle', {
+    cx: 0, cy: 0, r: 1.8,
+    fill: color,
+    stroke: '#ffffff',
+    'stroke-width': 0.5,
+  });
   group.appendChild(head);
+
   svg.appendChild(group);
 }
 

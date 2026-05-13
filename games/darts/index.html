@@ -32,12 +32,25 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* v1.32: iOS Safari の青タップハイライト・長押しコンテキスト・テキスト選択を全面抑止
+   （入力欄は下で text 選択を復活させる） */
+* {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
 body {
   background: var(--bg);
   color: var(--text);
   font-family: 'Noto Sans JP', sans-serif;
   min-height: 100vh;
   overflow-x: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+input, textarea {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 /* ロビー/部屋/結果は通常のコンテンツページレイアウト、ゲーム画面のみ全画面 */
@@ -1132,7 +1145,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.31</span>
+      <span class="version-tag" id="version-tag">v1.32</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>

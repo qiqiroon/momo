@@ -21,7 +21,38 @@ function showScreen(name) {
   }
   document.body.classList.toggle('in-game', name === 'game');
   window.scrollTo(0, 0);
+  // v1.32: ロビー以外では画面 sleep を抑制（iOS Safari 16.4+ 等の Wake Lock API）
+  if (name === 'lobby') {
+    releaseWakeLock();
+  } else {
+    requestWakeLock();
+  }
 }
+
+// ===== v1.32: Wake Lock — 画面ブラックアウトによる回線切断を防ぐ =====
+let _wakeLock = null;
+async function requestWakeLock() {
+  if (_wakeLock) return;
+  if (!('wakeLock' in navigator)) return;
+  try {
+    _wakeLock = await navigator.wakeLock.request('screen');
+    _wakeLock.addEventListener('release', () => { _wakeLock = null; });
+  } catch (e) {
+    // 許可拒否 / 非対応ブラウザは無音で諦める（SPEC 18.5 流儀）
+  }
+}
+function releaseWakeLock() {
+  if (_wakeLock) {
+    _wakeLock.release().catch(() => {});
+    _wakeLock = null;
+  }
+}
+// バックグラウンド復帰時に WakeLock が解放されているので再取得
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && !$('screen-lobby').classList.contains('active')) {
+    requestWakeLock();
+  }
+});
 
 // ===== モーダル =====
 let modalResolver = null;

@@ -1075,9 +1075,20 @@ function initMatchmaking() {
     },
 
     onDisconnected: (msg) => {
-      // v1.37 (3-D): 試合中の切断 → 切断敗北として end 画面へ
+      // v1.38: 試合中の切断は survivor=WIN / 自分が落ちた=LOSE で出し分け。
+      // MomoMatchmaking は room_closed 受信時に currentRoomId をクリアしてから
+      // onDisconnected を呼ぶ（= 相手が落ちて部屋が閉じた）。逆に自分の WS が
+      // 死んだ場合は currentRoomId をクリアしない（= 自分の通信切断）。
       if (_gameInProgress && _mode === 'battle') {
-        handleDisconnectLoss(msg);
+        const stillInRoom = (typeof MomoMatchmaking !== 'undefined')
+          && !!MomoMatchmaking.getState().currentRoomId;
+        if (stillInRoom) {
+          // 自分の WS が死んだ → 自分が切断敗北
+          handleDisconnectLoss(msg);
+        } else {
+          // 相手が抜けて部屋が閉じた → 自分は survivor、勝利
+          declareDisconnectWin();
+        }
         return;
       }
       if (_mode === 'battle') {

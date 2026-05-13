@@ -537,7 +537,7 @@ body.in-game #lang-switcher { display: none; }
   pointer-events: none;
 }
 
-/* v1.23: スコアパネル（左上） */
+/* v1.23: スコアパネル（左上=自分・赤） */
 #ui-score {
   display: flex;
   flex-direction: column;
@@ -563,12 +563,83 @@ body.in-game #lang-switcher { display: none; }
   margin-top: 2px;
 }
 
-/* v1.23: 3投スロット（右上） */
-#ui-shots {
+/* v1.33 (3-C): 対戦時のスコアパネル（右上=相手・青） */
+#ui-score-opp {
   display: flex;
   flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  pointer-events: auto;
+}
+#ui-remaining-opp {
+  font-family: 'Fredoka One', cursive;
+  font-size: 40px;
+  color: var(--player-opp);
+  line-height: 1;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.85);
+  letter-spacing: 0.02em;
+}
+#ui-turn-total-opp {
+  font-family: ui-monospace, 'SF Mono', monospace;
+  font-size: 11px;
+  color: rgba(255,255,255,0.75);
+  background: rgba(0,0,0,0.45);
+  border-radius: 4px;
+  padding: 2px 8px;
+  margin-top: 2px;
+}
+
+/* v1.33 (3-C): 中央上ペイン — ターン情報「TARO の N投目」+ 3投スロット */
+#ui-center-top {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: auto;
+  flex: 1;
+  min-width: 0;
+}
+#ui-turn-info {
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 12px;
+  color: rgba(255,255,255,0.95);
+  background: rgba(0,0,0,0.55);
+  border-radius: 4px;
+  padding: 3px 10px;
+  text-align: center;
+  letter-spacing: 0.02em;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#ui-turn-info.self  { color: var(--player-self); }
+#ui-turn-info.opp   { color: var(--player-opp); }
+
+/* v1.23: 3投スロット — v1.33 で center 横並び */
+#ui-shots {
+  display: flex;
+  flex-direction: row;
   gap: 4px;
   pointer-events: auto;
+}
+
+/* v1.33 (3-C): ターン枠 4px（SPEC 8.6） */
+#turn-frame {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 25;
+  border: 4px solid transparent;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+#turn-frame.self {
+  border-color: var(--player-self);
+  box-shadow: inset 0 0 12px rgba(239, 68, 68, 0.55);
+}
+#turn-frame.opp {
+  border-color: var(--turn-opp);
+  box-shadow: inset 0 0 6px rgba(30, 64, 175, 0.4);
 }
 .shot-slot {
   font-family: 'Fredoka One', cursive;
@@ -788,6 +859,7 @@ body.in-game #lang-switcher { display: none; }
 }
 #big-announcement.bust { color: var(--danger); }
 #big-announcement.finish { color: #ffd54a; }
+#big-announcement.lose { color: var(--text-muted); }  /* v1.33 (3-C) */
 #big-announcement .sub {
   display: block;
   margin-top: 10px;
@@ -1145,7 +1217,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.32</span>
+      <span class="version-tag" id="version-tag">v1.33</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -1303,16 +1375,28 @@ body.in-game #gear-icon { display: flex; }
     </div>
   </div>
 
-  <!-- 上オーバーレイ（v1.23: 残り点数 + 3投スロット、SPEC 10.3） -->
+  <!-- v1.33 (3-C): ターン枠（SPEC 8.6、自分=明赤発光 / 相手=暗青） -->
+  <div id="turn-frame"></div>
+
+  <!-- 上オーバーレイ（SPEC 10.3 / 8.5）
+       v1.23: 残り点数 + 3投スロット
+       v1.33: 自分(左赤) + 中央(ターン情報+3投) + 相手(右青) -->
   <div id="game-overlay-top">
     <div id="ui-score">
       <div id="ui-remaining">501</div>
       <div id="ui-turn-total">TURN +0</div>
     </div>
-    <div id="ui-shots">
-      <div class="shot-slot pending" id="ui-shot-1">—</div>
-      <div class="shot-slot pending" id="ui-shot-2">—</div>
-      <div class="shot-slot pending" id="ui-shot-3">—</div>
+    <div id="ui-center-top">
+      <div id="ui-turn-info"></div>
+      <div id="ui-shots">
+        <div class="shot-slot pending" id="ui-shot-1">—</div>
+        <div class="shot-slot pending" id="ui-shot-2">—</div>
+        <div class="shot-slot pending" id="ui-shot-3">—</div>
+      </div>
+    </div>
+    <div id="ui-score-opp" style="display:none;">
+      <div id="ui-remaining-opp">501</div>
+      <div id="ui-turn-total-opp">TURN +0</div>
     </div>
   </div>
 

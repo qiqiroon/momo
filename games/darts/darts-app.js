@@ -281,17 +281,51 @@ $('btn-room-leave').addEventListener('click', async () => {
 });
 
 // ===== ゲーム画面ライフサイクル =====
-let _gameState = null;  // v1.23: Rules.createInitialState() の戻り値
+let _gameState = null;  // v1.23: Rules.createInitialState() の戻り値（自分の状態）
+let _oppState = null;   // v1.33 (3-C): 対戦時の相手状態
+let _activeRole = null; // v1.33 (3-C): 'first' | 'second' | null（null=solo）
 // v1.26: ターン終了後 2 秒間「直前ターンの3投」を表示するためのオーバーライド。
 // applyShot 後 turnShots は即クリアされるため、これを介して表示を保持する。
 let _pendingTurnDisplay = null;  // shots[] | null
 
+function isMyTurn() {
+  if (_mode !== 'battle') return true;
+  return _activeRole === _myRole;
+}
+
+// アクティブな投擲者の state（shots 表示・ターン情報用）
+function activeState() {
+  if (_mode !== 'battle') return _gameState;
+  return isMyTurn() ? _gameState : _oppState;
+}
+
+function getMyName() {
+  if (typeof MomoMatchmaking === 'undefined') return 'あなた';
+  return MomoMatchmaking.getState().isHost ? (_hostName || 'ホスト') : (_guestName || 'ゲスト');
+}
+function getOppName() {
+  if (typeof MomoMatchmaking === 'undefined') return '相手';
+  return MomoMatchmaking.getState().isHost ? (_guestName || 'ゲスト') : (_hostName || 'ホスト');
+}
+
 function updateScoreUI() {
   if (!_gameState) return;
+  // 自分の残り点数（左上・赤）
   $('ui-remaining').textContent = String(_gameState.remaining);
-  const shotsForDisplay = _pendingTurnDisplay || _gameState.turnShots;
-  const turnTotal = shotsForDisplay.reduce((a, s) => a + s.value, 0);
-  $('ui-turn-total').textContent = `TURN +${turnTotal}`;
+  $('ui-turn-total').textContent =
+    `TURN +${_gameState.turnShots.reduce((a, s) => a + s.value, 0)}`;
+  // 相手の残り点数（右上・青、対戦時のみ）
+  if (_mode === 'battle' && _oppState) {
+    $('ui-score-opp').style.display = 'flex';
+    $('ui-remaining-opp').textContent = String(_oppState.remaining);
+    $('ui-turn-total-opp').textContent =
+      `TURN +${_oppState.turnShots.reduce((a, s) => a + s.value, 0)}`;
+  } else {
+    $('ui-score-opp').style.display = 'none';
+  }
+  // ショットスロット（中央上）— アクティブ投擲者の現ターン
+  const active = activeState();
+  const shotsForDisplay = _pendingTurnDisplay || (active ? active.turnShots : []);
   for (let i = 0; i < 3; i++) {
     const slot = $(`ui-shot-${i + 1}`);
     const shot = shotsForDisplay[i];
@@ -305,6 +339,40 @@ function updateScoreUI() {
       slot.classList.remove('miss');
     }
   }
+  updateTurnInfo();
+  updateTurnFrame();
+}
+
+// v1.33 (3-C): ターン情報「{名前}の N投目」
+function updateTurnInfo() {
+  const el = $('ui-turn-info');
+  if (_mode !== 'battle') {
+    el.textContent = '';
+    el.classList.remove('self', 'opp');
+    return;
+  }
+  const active = activeState();
+  if (!active) {
+    el.textContent = '';
+    return;
+  }
+  const shotN = Math.min(active.turnShots.length + 1, 3);
+  const myTurn = isMyTurn();
+  const name = myTurn ? getMyName() : getOppName();
+  el.textContent = `${name} の ${shotN} 投目`;
+  el.classList.toggle('self', myTurn);
+  el.classList.toggle('opp', !myTurn);
+}
+
+// v1.33 (3-C): ターン枠 4px（自分=明赤発光 / 相手=暗青）
+function updateTurnFrame() {
+  const fr = $('turn-frame');
+  if (_mode !== 'battle') {
+    fr.classList.remove('self', 'opp');
+    return;
+  }
+  fr.classList.toggle('self', isMyTurn());
+  fr.classList.toggle('opp', !isMyTurn());
 }
 
 function enterGameScreen() {
@@ -324,11 +392,23 @@ function enterGameScreen() {
   // ゲーム状態を初期化
   _gameState = Rules.createInitialState();
   _pendingTurnDisplay = null;
+  // v1.33 (3-C): 対戦時は相手 state も初期化、先攻決定
+  if (_mode === 'battle') {
+    _oppState = Rules.createInitialState();
+    _activeRole = 'first';  // 先攻が常に最初に投げる
+  } else {
+    _oppState = null;
+    _activeRole = null;
+  }
   updateScoreUI();
   Render.placeTargetForTurn();
 
-  // v1.17: ホールドボタン入力を起動
+  // v1.17: ホールドボタン入力を起動（Input.start 内で setDisabled(false) されるので
+  //        対戦時の観戦者は start のあとに改めて disable する）
   Input.start({ onRelease: onDartReleased });
+  if (_mode === 'battle') {
+    Input.setDisabled(!isMyTurn());
+  }
 }
 
 function leaveGameScreen() {
@@ -337,93 +417,162 @@ function leaveGameScreen() {
 }
 
 // v1.23: 投擲リリース → 物理シミュ → 着弾後にスコア計算
+// v1.33 (3-C): 対戦時は relAim + impactBoard を相手に送信、両者で同じ shot を処理
 function onDartReleased({ hand, strength, durationMs }) {
+  // 対戦時、相手のターン中はそもそもボタン disabled だが念のためガード
+  if (_mode === 'battle' && !isMyTurn()) return;
+
   const aim = Render.getCurrentAim();
   const aimYawRad   = (aim.yawDeg   * Math.PI) / 180;
   const aimPitchRad = (aim.pitchDeg * Math.PI) / 180;
 
   const sim = Physics.simulateThrow({ hand, strength, aimYawRad, aimPitchRad });
+  const myImpactBoard = Render.boardImpactFromSim(sim);  // null or {x, y}
+
+  // v1.33 (3-C): 投擲データを即座に相手へ送信（フライト中に相手側でも飛ぶ）
+  if (_mode === 'battle' && typeof MomoMatchmaking !== 'undefined') {
+    const target = Render.getTargetWorld();
+    MomoMatchmaking.send({
+      type: 'throw',
+      hand,
+      strength,
+      relYawDeg:   aim.yawDeg   - target.yaw,
+      relPitchDeg: aim.pitchDeg - target.pitch,
+      impactBoard: myImpactBoard,  // authoritative for scoring
+    });
+  }
 
   Render.fireFlight(sim, (result) => {
-    // result = { world, board: { x, y } | null }
+    // result = { world, board: { x, y } | null } — local の物理結果
+    // 着弾は自分の物理結果（local sim と完全一致するので同じ）
     const shot = Rules.scoreFromImpactSVG(result.board);
-    console.log(`[darts] hand=${hand} s=${strength.toFixed(2)} → ${shot.label} (${shot.value}pt) ` +
-                `imp=${result.board ? `(${result.board.x.toFixed(1)},${result.board.y.toFixed(1)})` : 'MISS-FALL'}`);
-
-    // v1.24: 投擲イベントをログ
-    const shotInTurn = _gameState.turnShots.length + 1;
-    Render.logEvent({
-      type: 'shot',
-      turn: _gameState.turnIndex,
-      shotInTurn,
-      hand,
-      strength: +strength.toFixed(3),
-      durationMs: +durationMs.toFixed(0),
-      aim: { yaw: +aim.yawDeg.toFixed(2), pitch: +aim.pitchDeg.toFixed(2) },
-      impactWorld: {
-        x: +result.world.x.toFixed(3),
-        y: +result.world.y.toFixed(3),
-        z: +result.world.z.toFixed(3),
-        t: +result.world.t.toFixed(3),
-        hit: result.world.hit,
-        stopReason: result.world.stopReason,
-      },
-      impactBoard: result.board
-        ? { x: +result.board.x.toFixed(1), y: +result.board.y.toFixed(1) }
-        : null,
-      score: shot,
-      remainingBefore: _gameState.remaining,
-    });
-
-    const r = Rules.applyShot(_gameState, shot);
-    // v1.26: ターン終了時は applyShot が turnShots をクリアするため、
-    // 履歴最終ターンの shots を表示オーバーライドにセットしてから UI 更新
-    if (r.turnEnded && _gameState.history.length > 0) {
-      _pendingTurnDisplay = _gameState.history[_gameState.history.length - 1].shots;
-    }
-    updateScoreUI();
-
-    // === FINISH (v1.25) ===
-    if (r.finished) {
-      console.log('[darts] FINISH! darts=' + _gameState.dartCount);
-      Render.logEvent({ type: 'finish', dartCount: _gameState.dartCount, turns: _gameState.turnIndex });
-      showAnnouncement('finish', 'FINISH!', `${_gameState.dartCount} ダーツ`);
-      setTimeout(() => {
-        _pendingTurnDisplay = null;
-        showEndScreen();
-      }, 2200);
-      return;
-    }
-
-    // === BUST (v1.25) ===
-    if (r.bust) {
-      console.log('[darts] BUST! reverted to ' + _gameState.remaining);
-      Render.logEvent({ type: 'bust', remainingAfter: _gameState.remaining });
-      showAnnouncement('bust', 'BUST!', '');
-      // バースト時もターンは終了
-      setTimeout(() => {
-        _pendingTurnDisplay = null;
-        Render.placeTargetForTurn();
-        updateScoreUI();
-        Input.setDisabled(false);
-      }, 2000);
-      return;
-    }
-
-    // === 通常のターン進行 ===
-    if (r.turnEnded) {
-      // v1.24: 3投目を 2 秒見せてからターン進行
-      // v1.26: 2 秒間は _pendingTurnDisplay で3投の表示を保持
-      setTimeout(() => {
-        _pendingTurnDisplay = null;
-        Render.placeTargetForTurn();
-        updateScoreUI();
-        Input.setDisabled(false);
-      }, 2000);
-      return;
-    }
-    Input.setDisabled(false);
+    logShotEvent(_gameState, hand, strength, durationMs, aim, result, shot);
+    processShot(_gameState, shot, _myRole);
   });
+}
+
+// v1.33 (3-C): 相手の投擲を受信して再生
+function handleOppThrow(data) {
+  if (_mode !== 'battle' || !_oppState) return;
+  if (isMyTurn()) {
+    // 自分のターン中に相手 throw が来たら無視（タイミング異常）
+    console.warn('[darts] received opp throw during my turn — ignoring');
+    return;
+  }
+  const { hand, strength, relYawDeg, relPitchDeg, impactBoard } = data;
+  // 受信側の自分の的位置に relAim を載せて再シミュレート
+  const target = Render.getTargetWorld();
+  const aimYawRad   = ((target.yaw   + (relYawDeg   || 0)) * Math.PI) / 180;
+  const aimPitchRad = ((target.pitch + (relPitchDeg || 0)) * Math.PI) / 180;
+  const sim = Physics.simulateThrow({ hand, strength, aimYawRad, aimPitchRad });
+
+  Render.fireFlight(sim, (_result) => {
+    // 着弾点は送信者の authoritative 値で上書き → スコアも一致
+    const shot = Rules.scoreFromImpactSVG(impactBoard);
+    processShot(_oppState, shot, _activeRole);
+  });
+}
+
+// v1.33 (3-C): shot 後の共通処理（ローカル/受信どちらからも呼ぶ）
+function processShot(throwerState, shot, throwerRole) {
+  const r = Rules.applyShot(throwerState, shot);
+  // v1.26: ターン終了時の表示保持
+  if (r.turnEnded && throwerState.history.length > 0) {
+    _pendingTurnDisplay = throwerState.history[throwerState.history.length - 1].shots;
+  }
+  updateScoreUI();
+
+  // === FINISH ===
+  if (r.finished) {
+    const isMyWin = (throwerRole === _myRole) || (_mode !== 'battle');
+    let mainText, subText;
+    if (_mode === 'battle') {
+      mainText = isMyWin ? 'WIN!' : 'LOSE!';
+      subText = `${isMyWin ? getMyName() : getOppName()} の勝利`;
+    } else {
+      mainText = 'FINISH!';
+      subText = `${throwerState.dartCount} ダーツ`;
+    }
+    console.log('[darts] FINISH! darts=' + throwerState.dartCount + ' winner=' + (isMyWin ? 'self' : 'opp'));
+    Render.logEvent({ type: 'finish', dartCount: throwerState.dartCount, turns: throwerState.turnIndex, winner: isMyWin ? 'self' : 'opp' });
+    showAnnouncement(_mode === 'battle' && !isMyWin ? 'lose' : 'finish', mainText, subText);
+    setTimeout(() => {
+      _pendingTurnDisplay = null;
+      showEndScreen({ winner: isMyWin ? 'self' : 'opp', finishedState: throwerState });
+    }, 2200);
+    return;
+  }
+
+  // === BUST ===
+  if (r.bust) {
+    console.log('[darts] BUST! thrower=' + throwerRole + ' reverted to ' + throwerState.remaining);
+    Render.logEvent({ type: 'bust', thrower: throwerRole, remainingAfter: throwerState.remaining });
+    showAnnouncement('bust', 'BUST!', '');
+    setTimeout(() => {
+      _pendingTurnDisplay = null;
+      endTurnAndPlace();
+    }, 2000);
+    return;
+  }
+
+  // === 通常のターン進行 ===
+  if (r.turnEnded) {
+    setTimeout(() => {
+      _pendingTurnDisplay = null;
+      endTurnAndPlace();
+    }, 2000);
+    return;
+  }
+
+  // === 同じプレイヤー継続 ===
+  // ボタン状態: 自分のターンで自分が投げ終わった直後 → 次の投げのため有効化。
+  // 相手のターン受信中 → 引き続き無効。
+  if (_mode === 'battle') {
+    Input.setDisabled(!isMyTurn());
+    updateScoreUI();  // turn-info の N 投目更新
+  } else {
+    Input.setDisabled(false);
+  }
+}
+
+// v1.33 (3-C): ターン終了 → 役割交代 + 新しい的位置（両者ローカル）
+function endTurnAndPlace() {
+  if (_mode === 'battle') {
+    _activeRole = (_activeRole === 'first') ? 'second' : 'first';
+    Input.setDisabled(!isMyTurn());
+  } else {
+    Input.setDisabled(false);
+  }
+  Render.placeTargetForTurn();
+  updateScoreUI();
+}
+
+// v1.33 (3-C): shot ログを記録（既存のログ機構を踏襲）
+function logShotEvent(state, hand, strength, durationMs, aim, result, shot) {
+  Render.logEvent({
+    type: 'shot',
+    turn: state.turnIndex,
+    shotInTurn: state.turnShots.length + 1,
+    hand,
+    strength: +strength.toFixed(3),
+    durationMs: +durationMs.toFixed(0),
+    aim: { yaw: +aim.yawDeg.toFixed(2), pitch: +aim.pitchDeg.toFixed(2) },
+    impactWorld: result.world ? {
+      x: +result.world.x.toFixed(3),
+      y: +result.world.y.toFixed(3),
+      z: +result.world.z.toFixed(3),
+      t: +result.world.t.toFixed(3),
+      hit: result.world.hit,
+      stopReason: result.world.stopReason,
+    } : null,
+    impactBoard: result.board
+      ? { x: +result.board.x.toFixed(1), y: +result.board.y.toFixed(1) }
+      : null,
+    score: shot,
+    remainingBefore: state.remaining,
+  });
+  console.log(`[darts] hand=${hand} s=${strength.toFixed(2)} → ${shot.label} (${shot.value}pt) ` +
+              `imp=${result.board ? `(${result.board.x.toFixed(1)},${result.board.y.toFixed(1)})` : 'MISS-FALL'}`);
 }
 
 // v1.25: BUST / FINISH の中央オーバーレイ
@@ -442,25 +591,42 @@ function showAnnouncement(kind, main, sub) {
 }
 
 // v1.25: 結果画面の表示（FINISH 時に呼ばれる）
-function showEndScreen() {
+function showEndScreen(opts) {
   if (!_gameState) return;
-  const ach = Rules.getAchievement(_gameState.dartCount);
-
-  // 統計集計
-  const turns = _gameState.history.length;
-  const busts = _gameState.history.filter(h => h.bust).length;
-  const turnScores = _gameState.history
-    .filter(h => !h.bust)
-    .map(h => h.shots.reduce((a, s) => a + s.value, 0));
-  const bestTurn = turnScores.length ? Math.max(...turnScores) : 0;
-
-  $('end-result-msg').textContent = `${ach.emoji} ${ach.label}`;
-  $('end-result-msg').className = 'result-message win';
-  $('end-result-sub').textContent = `${_gameState.dartCount} ダーツでフィニッシュ`;
-  $('end-stat-darts').textContent = _gameState.dartCount;
-  $('end-stat-turns').textContent = turns;
-  $('end-stat-busts').textContent = busts;
-  $('end-stat-best').textContent = bestTurn;
+  // v1.33 (3-C): 対戦時は WIN/LOSE 表示
+  if (_mode === 'battle' && opts && opts.winner) {
+    const isMyWin = opts.winner === 'self';
+    const winner = isMyWin ? getMyName() : getOppName();
+    const loser  = isMyWin ? getOppName() : getMyName();
+    const winnerState = isMyWin ? _gameState : _oppState;
+    $('end-result-msg').textContent = isMyWin ? '🏆 WIN!' : '😢 LOSE!';
+    $('end-result-msg').className = `result-message ${isMyWin ? 'win' : 'lose'}`;
+    $('end-result-sub').textContent =
+      `${winner} の勝利！ ${winnerState ? winnerState.dartCount + ' ダーツ' : ''}`;
+    $('end-stat-darts').textContent = winnerState ? winnerState.dartCount : '-';
+    $('end-stat-turns').textContent = (winnerState ? winnerState.history.length : '-');
+    $('end-stat-busts').textContent = winnerState ? winnerState.history.filter(h => h.bust).length : '-';
+    const turnScores = winnerState
+      ? winnerState.history.filter(h => !h.bust).map(h => h.shots.reduce((a, s) => a + s.value, 0))
+      : [];
+    $('end-stat-best').textContent = turnScores.length ? Math.max(...turnScores) : 0;
+  } else {
+    // 1人プレイ
+    const ach = Rules.getAchievement(_gameState.dartCount);
+    const turns = _gameState.history.length;
+    const busts = _gameState.history.filter(h => h.bust).length;
+    const turnScores = _gameState.history
+      .filter(h => !h.bust)
+      .map(h => h.shots.reduce((a, s) => a + s.value, 0));
+    const bestTurn = turnScores.length ? Math.max(...turnScores) : 0;
+    $('end-result-msg').textContent = `${ach.emoji} ${ach.label}`;
+    $('end-result-msg').className = 'result-message win';
+    $('end-result-sub').textContent = `${_gameState.dartCount} ダーツでフィニッシュ`;
+    $('end-stat-darts').textContent = _gameState.dartCount;
+    $('end-stat-turns').textContent = turns;
+    $('end-stat-busts').textContent = busts;
+    $('end-stat-best').textContent = bestTurn;
+  }
 
   leaveGameScreen();
   showScreen('end');
@@ -583,7 +749,20 @@ $('btn-game-leave').addEventListener('click', async () => {
   }
 });
 
+// v1.33 (3-C): 対戦終了後の lobby 戻り共通処理
+function exitBattleToLobby() {
+  if (_mode === 'battle' && typeof MomoMatchmaking !== 'undefined') {
+    MomoMatchmaking.leaveRoom();
+  }
+  _mode = 'solo';
+  _guestName = '';
+  resetRoomToSolo();
+  showScreen('lobby');
+}
+
 $('btn-end-replay').addEventListener('click', () => {
+  // v1.33 (3-C): 対戦の再戦合意フローは 3-E で実装。それまでは部屋を抜けて lobby
+  if (_mode === 'battle') { exitBattleToLobby(); return; }
   // SPEC 12.6: 再戦時はキャリブをセッション中スキップ
   // calibration を残したまま game へ直行
   if (Sensor.getCalibration()) {
@@ -592,8 +771,14 @@ $('btn-end-replay').addEventListener('click', () => {
     startGameFlow();
   }
 });
-$('btn-end-rule-change').addEventListener('click', () => showScreen('room'));
-$('btn-end-back-room').addEventListener('click', () => showScreen('room'));
+$('btn-end-rule-change').addEventListener('click', () => {
+  if (_mode === 'battle') { exitBattleToLobby(); return; }
+  showScreen('room');
+});
+$('btn-end-back-room').addEventListener('click', () => {
+  if (_mode === 'battle') { exitBattleToLobby(); return; }
+  showScreen('room');
+});
 
 // ===== v1.14: 感度調整パネル（直感的ラベル + 倍率/%表示） =====
 const TUNE_DEFAULTS = { roll: 0.7, sens: 1.0, smooth: 0.4 };
@@ -1113,7 +1298,11 @@ function handleBattleMessage(data) {
     }
     return;
   }
-  // 3-C 以降の投擲メッセージはここで分岐
+  // v1.33 (3-C): 投擲データ
+  if (data.type === 'throw') {
+    handleOppThrow(data);
+    return;
+  }
   console.log('[darts] msg (unhandled)', data);
 }
 

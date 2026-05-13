@@ -449,6 +449,11 @@ function worldImpactToBoardSVG(impact) {
   };
 }
 
+// v1.33 (3-C): sim 結果から board impact を取得（対戦時の即時送信用）
+export function boardImpactFromSim(sim) {
+  return sim && sim.impact && sim.impact.hit ? worldImpactToBoardSVG(sim.impact) : null;
+}
+
 // 着弾マーク（SVG circle）を的に追加
 function showImpactMark(impact) {
   if (!_boardEl) return;

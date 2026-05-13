@@ -1064,7 +1064,13 @@ function initMatchmaking() {
     onGuestLeft: () => {
       _guestName = '';
       updateKickButton();
-      // v1.31 (3-B): 合意・キャリブ状態を全リセット（次のゲストと最初から）
+      // v1.39: 試合中にゲスト退出 → waiting 画面に戻さず即 WIN 宣言
+      // （以前は waiting 表示 → 30秒後にようやく WIN が出ていた）
+      if (_gameInProgress && _mode === 'battle') {
+        declareDisconnectWin();
+        return;
+      }
+      // 試合前（待機・部屋画面）の退出 → 新しいゲストを待つ
       resetBattleAgreementState();
       $('waiting-status').textContent = 'ゲストが退出しました。新しいゲストを待っています…';
       showScreen('waiting');

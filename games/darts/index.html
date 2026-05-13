@@ -888,6 +888,31 @@ body.in-game #lang-switcher { display: none; }
   color: rgba(255,255,255,0.92);
 }
 
+/* ===== v1.37 (3-D): 切断検知中オーバーレイ（SPEC 8.8） ===== */
+#disconnect-warning {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.85);
+  color: var(--player-self);
+  border: 2px solid var(--player-self);
+  border-radius: 10px;
+  padding: 14px 24px;
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 16px;
+  letter-spacing: 0.04em;
+  z-index: 70;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 0 18px rgba(251, 146, 60, 0.4);
+  animation: pulse-warn 1.5s ease-in-out infinite;
+}
+@keyframes pulse-warn {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+
 /* ===== v1.22: 照準クロスヘア（SPEC 5.4 デバッグ表示。将来削除予定） =====
    落下・ブレが無いときの着弾点 = カメラの向き × target 距離 = 画面中央 */
 #aim-crosshair {
@@ -1244,7 +1269,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.36</span>
+      <span class="version-tag" id="version-tag">v1.37</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -1457,6 +1482,9 @@ body.in-game #gear-icon { display: flex; }
 
   <!-- v1.25: BUST / FINISH 中央オーバーレイ -->
   <div id="big-announcement"></div>
+
+  <!-- v1.37 (3-D): 切断検知中オーバーレイ -->
+  <div id="disconnect-warning" style="display:none;">相手の応答を待っています…</div>
 
   <!-- v1.22: 照準クロスヘア（SPEC 5.4 デバッグ表示。将来削除予定） -->
   <div id="aim-crosshair" aria-hidden="true">

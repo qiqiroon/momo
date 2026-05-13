@@ -404,12 +404,18 @@ function enterGameScreen() {
   Input.start({ onRelease: onDartReleased });
   if (_mode === 'battle') {
     Input.setDisabled(!isMyTurn());
+    // v1.37 (3-D): ハートビート開始（試合中のみ）
+    _gameInProgress = true;
+    startHeartbeat();
   }
 }
 
 function leaveGameScreen() {
   Render.stop();
   Input.stop();
+  // v1.37 (3-D): ハートビート停止
+  stopHeartbeat();
+  _gameInProgress = false;
 }
 
 // v1.23: 投擲リリース → 物理シミュ → 着弾後にスコア計算
@@ -426,8 +432,10 @@ function onDartReleased({ hand, strength, durationMs }) {
   const myImpactBoard = Render.boardImpactFromSim(sim);  // null or {x, y}
 
   // v1.33 (3-C): 投擲データを即座に相手へ送信（フライト中に相手側でも飛ぶ）
+  // v1.37 (3-D): throw_start も送信（受信側のハートビートタイムアウト計時を一時停止）
   if (_mode === 'battle' && typeof MomoMatchmaking !== 'undefined') {
     const target = Render.getTargetWorld();
+    MomoMatchmaking.send({ type: 'throw_start' });
     MomoMatchmaking.send({
       type: 'throw',
       hand,
@@ -439,6 +447,10 @@ function onDartReleased({ hand, strength, durationMs }) {
   }
 
   Render.fireFlight(sim, (result) => {
+    // v1.37 (3-D): 着弾完了 → throw_end を送信
+    if (_mode === 'battle' && typeof MomoMatchmaking !== 'undefined') {
+      MomoMatchmaking.send({ type: 'throw_end' });
+    }
     // result = { world, board: { x, y } | null } — local の物理結果
     const shot = Rules.scoreFromImpactSVG(result.board);
     logShotEvent(_gameState, hand, strength, durationMs, aim, result, shot);
@@ -589,15 +601,21 @@ function showAnnouncement(kind, main, sub) {
 function showEndScreen(opts) {
   if (!_gameState) return;
   // v1.33 (3-C): 対戦時は WIN/LOSE 表示
+  // v1.37 (3-D): opts.disconnect=true で切断による勝敗表示
   if (_mode === 'battle' && opts && opts.winner) {
     const isMyWin = opts.winner === 'self';
     const winner = isMyWin ? getMyName() : getOppName();
-    const loser  = isMyWin ? getOppName() : getMyName();
     const winnerState = isMyWin ? _gameState : _oppState;
     $('end-result-msg').textContent = isMyWin ? '🏆 WIN!' : '😢 LOSE!';
     $('end-result-msg').className = `result-message ${isMyWin ? 'win' : 'lose'}`;
-    $('end-result-sub').textContent =
-      `${winner} の勝利！ ${winnerState ? winnerState.dartCount + ' ダーツ' : ''}`;
+    if (opts.disconnect) {
+      $('end-result-sub').textContent = isMyWin
+        ? `${getOppName()} の切断による勝利`
+        : '通信切断による敗北';
+    } else {
+      $('end-result-sub').textContent =
+        `${winner} の勝利！ ${winnerState ? winnerState.dartCount + ' ダーツ' : ''}`;
+    }
     $('end-stat-darts').textContent = winnerState ? winnerState.dartCount : '-';
     $('end-stat-turns').textContent = (winnerState ? winnerState.history.length : '-');
     $('end-stat-busts').textContent = winnerState ? winnerState.history.filter(h => h.bust).length : '-';
@@ -1057,6 +1075,11 @@ function initMatchmaking() {
     },
 
     onDisconnected: (msg) => {
+      // v1.37 (3-D): 試合中の切断 → 切断敗北として end 画面へ
+      if (_gameInProgress && _mode === 'battle') {
+        handleDisconnectLoss(msg);
+        return;
+      }
       if (_mode === 'battle') {
         alert(msg || '接続が切断されました');
       }
@@ -1298,6 +1321,22 @@ function handleBattleMessage(data) {
     handleOppThrow(data);
     return;
   }
+  // v1.37 (3-D): ハートビート機構（SPEC 8.8）
+  if (data.type === 'heartbeat') {
+    _lastHeartbeatRcvd = performance.now();
+    showDisconnectWarning(false);
+    return;
+  }
+  if (data.type === 'throw_start') {
+    _oppInThrow = true;
+    showDisconnectWarning(false);
+    return;
+  }
+  if (data.type === 'throw_end') {
+    _oppInThrow = false;
+    _lastHeartbeatRcvd = performance.now();  // 着弾後に最新化
+    return;
+  }
   console.log('[darts] msg (unhandled)', data);
 }
 
@@ -1313,6 +1352,102 @@ $('btn-kick-guest').addEventListener('click', async () => {
     MomoMatchmaking.kickGuest();
   }
 });
+
+// =====================================================================
+// v1.37 (3-D): ハートビート機構（SPEC 8.8）
+// クライアント間で 5 秒間隔の ping、30 秒不達で切断確定。
+// 投擲動作中（throw_start ～ throw_end）はタイムアウト計時を停止する。
+// =====================================================================
+
+const HEARTBEAT_SEND_INTERVAL_MS = 5000;
+const HEARTBEAT_CHECK_INTERVAL_MS = 1000;
+const HEARTBEAT_WARN_THRESHOLD_MS = 8000;     // 警告表示開始
+const HEARTBEAT_TIMEOUT_MS = 30000;           // 切断確定
+
+let _lastHeartbeatRcvd = 0;
+let _oppInThrow = false;
+let _heartbeatSendTimer = null;
+let _heartbeatCheckTimer = null;
+let _disconnectWarnVisible = false;
+let _gameInProgress = false;
+let _disconnectDeclared = false;
+
+function startHeartbeat() {
+  _lastHeartbeatRcvd = performance.now();
+  _oppInThrow = false;
+  _disconnectDeclared = false;
+  showDisconnectWarning(false);
+  if (_heartbeatSendTimer) clearInterval(_heartbeatSendTimer);
+  _heartbeatSendTimer = setInterval(() => {
+    if (typeof MomoMatchmaking !== 'undefined') {
+      MomoMatchmaking.send({ type: 'heartbeat' });
+    }
+  }, HEARTBEAT_SEND_INTERVAL_MS);
+  if (_heartbeatCheckTimer) clearInterval(_heartbeatCheckTimer);
+  _heartbeatCheckTimer = setInterval(checkHeartbeat, HEARTBEAT_CHECK_INTERVAL_MS);
+}
+
+function stopHeartbeat() {
+  if (_heartbeatSendTimer) { clearInterval(_heartbeatSendTimer); _heartbeatSendTimer = null; }
+  if (_heartbeatCheckTimer) { clearInterval(_heartbeatCheckTimer); _heartbeatCheckTimer = null; }
+  showDisconnectWarning(false);
+}
+
+function checkHeartbeat() {
+  if (_disconnectDeclared) return;
+  if (_oppInThrow) return;  // SPEC 8.8: 投擲中は計時停止
+  const elapsed = performance.now() - _lastHeartbeatRcvd;
+  if (elapsed >= HEARTBEAT_TIMEOUT_MS) {
+    declareDisconnectWin();
+  } else if (elapsed >= HEARTBEAT_WARN_THRESHOLD_MS) {
+    showDisconnectWarning(true);
+  } else {
+    showDisconnectWarning(false);
+  }
+}
+
+function showDisconnectWarning(show) {
+  const el = $('disconnect-warning');
+  if (!el) return;
+  if (show && !_disconnectWarnVisible) {
+    _disconnectWarnVisible = true;
+    el.style.display = 'block';
+  } else if (!show && _disconnectWarnVisible) {
+    _disconnectWarnVisible = false;
+    el.style.display = 'none';
+  }
+}
+
+// 自分が survivor（タイムアウト検知側）として勝利確定
+function declareDisconnectWin() {
+  if (_disconnectDeclared) return;
+  _disconnectDeclared = true;
+  stopHeartbeat();
+  console.log('[darts] heartbeat timeout → declare disconnect-win');
+  showAnnouncement('finish', 'WIN!', '相手の切断による勝利');
+  setTimeout(() => {
+    if (typeof MomoMatchmaking !== 'undefined') {
+      try { MomoMatchmaking.leaveRoom(); } catch (e) {}
+    }
+    _gameInProgress = false;
+    showEndScreen({ winner: 'self', disconnect: true });
+  }, 2200);
+}
+
+// 自分が disconnected 側として敗北扱い（onDisconnected から呼ばれる）
+function handleDisconnectLoss(msg) {
+  if (_disconnectDeclared) return;
+  _disconnectDeclared = true;
+  stopHeartbeat();
+  console.log('[darts] WS disconnected mid-game → loss', msg);
+  showAnnouncement('lose', 'LOSE!', '通信切断による敗北');
+  setTimeout(() => {
+    _gameInProgress = false;
+    // showEndScreen は leaveGameScreen を呼ぶ → Render.stop / Input.stop
+    showEndScreen({ winner: 'opp', disconnect: true });
+    // mode は battle のまま end 画面で「lobby 戻り」されたら exitBattleToLobby が掃除する
+  }, 2200);
+}
 
 // ===== 起動時 =====
 applyLang('ja');

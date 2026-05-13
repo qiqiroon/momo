@@ -221,14 +221,19 @@ $('btn-room-leave').addEventListener('click', async () => {
 
 // ===== ゲーム画面ライフサイクル =====
 let _gameState = null;  // v1.23: Rules.createInitialState() の戻り値
+// v1.26: ターン終了後 2 秒間「直前ターンの3投」を表示するためのオーバーライド。
+// applyShot 後 turnShots は即クリアされるため、これを介して表示を保持する。
+let _pendingTurnDisplay = null;  // shots[] | null
 
 function updateScoreUI() {
   if (!_gameState) return;
   $('ui-remaining').textContent = String(_gameState.remaining);
-  $('ui-turn-total').textContent = `TURN +${Rules.turnTotal(_gameState)}`;
+  const shotsForDisplay = _pendingTurnDisplay || _gameState.turnShots;
+  const turnTotal = shotsForDisplay.reduce((a, s) => a + s.value, 0);
+  $('ui-turn-total').textContent = `TURN +${turnTotal}`;
   for (let i = 0; i < 3; i++) {
     const slot = $(`ui-shot-${i + 1}`);
-    const shot = _gameState.turnShots[i];
+    const shot = shotsForDisplay[i];
     if (shot) {
       slot.textContent = `${shot.label}=${shot.value}`;
       slot.classList.remove('pending');
@@ -257,6 +262,7 @@ function enterGameScreen() {
   });
   // ゲーム状態を初期化
   _gameState = Rules.createInitialState();
+  _pendingTurnDisplay = null;
   updateScoreUI();
   Render.placeTargetForTurn();
 
@@ -309,6 +315,11 @@ function onDartReleased({ hand, strength, durationMs }) {
     });
 
     const r = Rules.applyShot(_gameState, shot);
+    // v1.26: ターン終了時は applyShot が turnShots をクリアするため、
+    // 履歴最終ターンの shots を表示オーバーライドにセットしてから UI 更新
+    if (r.turnEnded && _gameState.history.length > 0) {
+      _pendingTurnDisplay = _gameState.history[_gameState.history.length - 1].shots;
+    }
     updateScoreUI();
 
     // === FINISH (v1.25) ===
@@ -317,6 +328,7 @@ function onDartReleased({ hand, strength, durationMs }) {
       Render.logEvent({ type: 'finish', dartCount: _gameState.dartCount, turns: _gameState.turnIndex });
       showAnnouncement('finish', 'FINISH!', `${_gameState.dartCount} ダーツ`);
       setTimeout(() => {
+        _pendingTurnDisplay = null;
         showEndScreen();
       }, 2200);
       return;
@@ -329,6 +341,7 @@ function onDartReleased({ hand, strength, durationMs }) {
       showAnnouncement('bust', 'BUST!', '');
       // バースト時もターンは終了
       setTimeout(() => {
+        _pendingTurnDisplay = null;
         Render.placeTargetForTurn();
         updateScoreUI();
         Input.setDisabled(false);
@@ -339,7 +352,9 @@ function onDartReleased({ hand, strength, durationMs }) {
     // === 通常のターン進行 ===
     if (r.turnEnded) {
       // v1.24: 3投目を 2 秒見せてからターン進行
+      // v1.26: 2 秒間は _pendingTurnDisplay で3投の表示を保持
       setTimeout(() => {
+        _pendingTurnDisplay = null;
         Render.placeTargetForTurn();
         updateScoreUI();
         Input.setDisabled(false);
@@ -396,6 +411,7 @@ $('btn-next-turn').addEventListener('click', () => {
     _gameState.turnShots = [];
     _gameState.turnIndex++;
     _gameState.turnStartRemaining = _gameState.remaining;
+    _pendingTurnDisplay = null;
     updateScoreUI();
   }
   Render.placeTargetForTurn();

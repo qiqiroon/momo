@@ -12,7 +12,7 @@ import * as Rules from './darts-rules.js';
 const $ = (id) => document.getElementById(id);
 
 // ===== screen 切り替え =====
-const SCREENS = ['lobby', 'room', 'calibration', 'game', 'end'];
+const SCREENS = ['lobby', 'waiting', 'room', 'calibration', 'game', 'end'];
 
 function showScreen(name) {
   if (!SCREENS.includes(name)) return;
@@ -209,14 +209,27 @@ $('btn-calib-cancel').addEventListener('click', async () => {
 });
 
 // ===== ボタンハンドラ =====
-$('btn-solo-start').addEventListener('click', () => showScreen('room'));
+$('btn-solo-start').addEventListener('click', () => {
+  _mode = 'solo';
+  resetRoomToSolo();
+  showScreen('room');
+});
 
 $('btn-game-start').addEventListener('click', () => {
+  // v1.27 (3-A): 対戦版の「ゲーム開始」は段階 3-B で実装。3-A 中はボタンを無効化済み
   startGameFlow();
 });
 
 $('btn-room-leave').addEventListener('click', async () => {
-  if (await confirm('退出しますか？')) showScreen('lobby');
+  if (await confirm('退出しますか？')) {
+    if (_mode === 'battle' && typeof MomoMatchmaking !== 'undefined') {
+      MomoMatchmaking.leaveRoom();
+    }
+    _mode = 'solo';
+    _guestName = '';
+    resetRoomToSolo();
+    showScreen('lobby');
+  }
 });
 
 // ===== ゲーム画面ライフサイクル =====
@@ -616,6 +629,274 @@ function applyLang(lang) {
 const langSelect = $('lang-select');
 langSelect.addEventListener('change', (e) => applyLang(e.target.value));
 
+// =====================================================================
+// v1.27 (3-A): 対戦マッチング統合（global MomoMatchmaking、SPEC 8章 / 21.5）
+// =====================================================================
+
+const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
+const GAME_TYPE = 'darts';
+const NAME_KEY = 'momo-darts-name';
+
+// 'solo' | 'battle' — 現在の遊び方モード
+let _mode = 'solo';
+let _hostName = '';
+let _guestName = '';
+let _currentRoomName = '';
+
+// 名前は localStorage で永続化
+const _savedName = localStorage.getItem(NAME_KEY);
+if (_savedName) $('my-name').value = _savedName;
+
+function setLobbyStatus(text, highlight) {
+  const el = $('lobby-status');
+  el.textContent = text;
+  el.classList.toggle('highlight', !!highlight);
+}
+
+function setError(elId, text) {
+  $(elId).textContent = text || '';
+}
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+// 対戦時の room → solo 標準表示への戻し
+function resetRoomToSolo() {
+  $('room-status').style.display = 'none';
+  $('room-status').textContent = '';
+  $('btn-kick-guest').style.display = 'none';
+  $('btn-game-start').disabled = false;
+  $('room-rule-mode-dt').textContent = '練習モード';
+  $('room-rule-mode-dd').textContent = '勝敗判定なし、フィニッシュまでのターン数を記録';
+  $('room-hint').textContent = '※ ゲーム開始時にセンサー許可・キャリブレーションを実行します';
+}
+
+function renderRoomList(rooms) {
+  const list = $('room-list');
+  const visible = (rooms || []).filter(r => r.isPublic);
+  if (visible.length === 0) {
+    list.innerHTML = '<div class="room-empty">公開中の部屋はまだありません</div>';
+    return;
+  }
+  list.innerHTML = '';
+  for (const r of visible) {
+    const div = document.createElement('div');
+    div.className = 'room-item';
+    const lock = r.hasPassword ? '<span class="room-lock">🔒</span>' : '';
+    div.innerHTML =
+      `<div class="room-meta">` +
+      `<div class="room-name">${escapeHtml(r.name)}</div>` +
+      `<div class="room-host">ホスト：${escapeHtml(r.hostName)}</div>` +
+      `</div>${lock}`;
+    div.addEventListener('click', () => clickJoinRoom(r));
+    list.appendChild(div);
+  }
+}
+
+let _showingPrivate = false;
+let _pendingPrivatePw = '';
+
+function renderPrivateRoomList(rooms, password) {
+  const list = $('private-room-list');
+  const visible = (rooms || []).filter(r => !r.isPublic && r.hasPassword);
+  if (visible.length === 0) {
+    list.style.display = 'none';
+    setError('private-error', 'パスワードに一致する非公開の部屋がありません');
+    return;
+  }
+  setError('private-error', '');
+  list.style.display = 'flex';
+  list.innerHTML = '';
+  for (const r of visible) {
+    const div = document.createElement('div');
+    div.className = 'room-item';
+    div.innerHTML =
+      `<div class="room-meta">` +
+      `<div class="room-name">${escapeHtml(r.name)}</div>` +
+      `<div class="room-host">ホスト：${escapeHtml(r.hostName)}</div>` +
+      `</div><span class="room-lock">🔒</span>`;
+    div.addEventListener('click', () => {
+      const myName = ($('my-name').value || '').trim() || 'ゲスト';
+      localStorage.setItem(NAME_KEY, myName);
+      MomoMatchmaking.joinRoom(r.id, password, myName);
+    });
+    list.appendChild(div);
+  }
+}
+
+function clickJoinRoom(room) {
+  const myName = ($('my-name').value || '').trim();
+  if (!myName) {
+    alert('「あなたの名前」を入力してください');
+    $('my-name').focus();
+    return;
+  }
+  let pw = '';
+  if (room.hasPassword) {
+    pw = prompt('パスワードを入力してください');
+    if (pw === null) return;
+  }
+  localStorage.setItem(NAME_KEY, myName);
+  MomoMatchmaking.joinRoom(room.id, pw, myName);
+}
+
+function enterBattleRoom() {
+  $('room-status').style.display = 'block';
+  $('room-status').textContent =
+    `${_currentRoomName} ｜ ${_hostName}${_guestName ? ' vs ' + _guestName : '（ゲスト待機中）'}`;
+  $('room-rule-mode-dt').textContent = '勝敗判定';
+  $('room-rule-mode-dd').textContent = '0 ぴったりでフィニッシュ。先にフィニッシュした方が勝ち';
+  // 3-A: 対戦版「ゲーム開始」は 3-B で先後合意できるまで無効化
+  $('btn-game-start').disabled = true;
+  $('room-hint').textContent = '※ 対戦版の先手後手選択・ゲーム開始は段階 3-B で実装します';
+  const isHost = MomoMatchmaking.getState().isHost;
+  $('btn-kick-guest').style.display = (isHost && _guestName) ? 'block' : 'none';
+  showScreen('room');
+}
+
+function initMatchmaking() {
+  if (typeof MomoMatchmaking === 'undefined') {
+    console.warn('[darts] MomoMatchmaking module not loaded');
+    setLobbyStatus('マッチングモジュール未読込', false);
+    return;
+  }
+  MomoMatchmaking.init({
+    signalingUrl: SIGNALING_URL,
+    gameType: GAME_TYPE,
+
+    onWsOpen: () => setLobbyStatus('接続中', true),
+    onWsClose: () => setLobbyStatus('接続切断、再接続中…', false),
+
+    onRoomList: (rooms) => {
+      renderRoomList(rooms);
+      if (_showingPrivate) {
+        renderPrivateRoomList(rooms, _pendingPrivatePw);
+        _showingPrivate = false;
+      }
+    },
+
+    onRoomCreated: (roomId, roomName) => {
+      _mode = 'battle';
+      _currentRoomName = roomName;
+      _hostName = ($('my-name').value || '').trim() || 'ホスト';
+      _guestName = '';
+      $('waiting-room-name').textContent = roomName;
+      $('waiting-status').textContent = 'ゲストの参加を待っています…';
+      showScreen('waiting');
+    },
+
+    onJoinedRoom: (roomId, roomName, hostName) => {
+      _mode = 'battle';
+      _currentRoomName = roomName;
+      _hostName = hostName;
+      _guestName = ($('my-name').value || '').trim() || 'ゲスト';
+      enterBattleRoom();
+    },
+
+    onGuestJoined: (guestName) => {
+      _guestName = guestName;
+      enterBattleRoom();
+    },
+
+    onGuestLeft: () => {
+      _guestName = '';
+      $('waiting-status').textContent = 'ゲストが退出しました。新しいゲストを待っています…';
+      showScreen('waiting');
+    },
+
+    onConnected: () => {
+      // DataChannel 確立。3-C 以降で利用
+    },
+
+    onDisconnected: (msg) => {
+      if (_mode === 'battle') {
+        alert(msg || '接続が切断されました');
+      }
+      _mode = 'solo';
+      _guestName = '';
+      resetRoomToSolo();
+      showScreen('lobby');
+    },
+
+    onError: (msg) => {
+      setError('create-error', msg || 'エラーが発生しました');
+    },
+
+    onKicked: () => {
+      alert('ホストから退出させられました');
+      _mode = 'solo';
+      _guestName = '';
+      resetRoomToSolo();
+      showScreen('lobby');
+    },
+
+    onMessage: (data) => {
+      // 3-C で投擲データ等を実装
+      console.log('[darts] msg', data);
+    },
+  });
+}
+
+// ----- ロビーの対戦 UI ハンドラ -----
+$('btn-create-room').addEventListener('click', () => {
+  const myName = ($('my-name').value || '').trim();
+  const roomName = ($('room-name-input').value || '').trim();
+  const password = ($('room-password').value || '').trim();
+  const isPublic = $('room-public').checked;
+  if (!myName) {
+    setError('create-error', '「あなたの名前」を入力してください');
+    return;
+  }
+  if (!roomName) {
+    setError('create-error', '「部屋の名前」を入力してください');
+    return;
+  }
+  setError('create-error', '');
+  localStorage.setItem(NAME_KEY, myName);
+  MomoMatchmaking.createRoom({
+    hostName: myName,
+    name: roomName,
+    password,
+    isPublic,
+    rules: { preset: '501-single' },  // 3-B でルール選択を拡張
+  });
+});
+
+$('btn-refresh-rooms').addEventListener('click', () => {
+  if (typeof MomoMatchmaking !== 'undefined') {
+    MomoMatchmaking.refreshRooms();
+  }
+});
+
+$('btn-show-private').addEventListener('click', () => {
+  const pw = ($('private-room-pw').value || '').trim();
+  if (!pw) {
+    setError('private-error', 'パスワードを入力してください');
+    return;
+  }
+  setError('private-error', '');
+  _showingPrivate = true;
+  _pendingPrivatePw = pw;
+  MomoMatchmaking.refreshRooms();
+});
+
+$('btn-waiting-leave').addEventListener('click', async () => {
+  if (await confirm('退出しますか？')) {
+    if (typeof MomoMatchmaking !== 'undefined') MomoMatchmaking.leaveRoom();
+    _mode = 'solo';
+    _guestName = '';
+    showScreen('lobby');
+  }
+});
+
+$('btn-kick-guest').addEventListener('click', async () => {
+  if (await confirm('ゲストをキックしますか？')) {
+    MomoMatchmaking.kickGuest();
+  }
+});
+
 // ===== 起動時 =====
 applyLang('ja');
 showScreen('lobby');
+initMatchmaking();

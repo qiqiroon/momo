@@ -234,6 +234,112 @@ body.in-game #lang-switcher { display: none; }
 }
 .btn-row > .btn { flex: 1; }
 
+/* ===== v1.27 (3-A): 対戦ロビー用 入力・トグル・部屋一覧 ===== */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.field label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.input {
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 14px;
+}
+.input:focus {
+  outline: none;
+  border-color: var(--orange);
+}
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--text);
+}
+.toggle {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--orange);
+}
+.status-bar {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  text-align: center;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+.status-bar.highlight {
+  color: var(--orange-light);
+  border-color: var(--orange);
+}
+.room-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.room-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.room-item:hover {
+  border-color: var(--orange);
+}
+.room-item .room-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.room-item .room-name {
+  font-size: 14px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.room-item .room-host {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.room-item .room-lock {
+  font-size: 12px;
+  color: var(--orange-light);
+  margin-left: 6px;
+}
+.room-empty {
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+  padding: 10px;
+}
+.error-msg {
+  font-size: 12px;
+  color: var(--danger);
+  min-height: 16px;
+  text-align: center;
+}
+
 /* ===== ルール詳細 ===== */
 .rule-name {
   font-family: 'Fredoka One', cursive;
@@ -944,7 +1050,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.26</span>
+      <span class="version-tag" id="version-tag">v1.27</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -952,31 +1058,84 @@ body.in-game #gear-icon { display: flex; }
 
 <!-- ===== SCREEN: LOBBY ===== -->
 <div class="screen active" id="screen-lobby">
+  <!-- 接続状態 -->
+  <div class="status-bar" id="lobby-status">接続中…</div>
+
+  <!-- 1人で遊ぶ -->
   <div class="panel">
     <div class="panel-title">1人で遊ぶ</div>
     <div class="panel-desc">501 シングルアウトを練習モードで遊びます。勝敗判定なし、フィニッシュまでのターン数を記録します。</div>
     <button class="btn btn-primary" id="btn-solo-start">1人で遊ぶ</button>
   </div>
 
+  <!-- v1.27 (3-A): 部屋を作る -->
   <div class="panel">
-    <div class="panel-title">対戦（段階3 で実装）</div>
-    <div class="panel-desc">オンライン2人対戦は段階3 のサブ段階で実装します。部屋作成・入室・マッチングは現時点では未実装です。</div>
-    <button class="btn btn-secondary" disabled>部屋を作る（未実装）</button>
-    <button class="btn btn-secondary" disabled>部屋一覧（未実装）</button>
+    <div class="panel-title">部屋を作る</div>
+    <div class="field"><label>あなたの名前</label><input class="input" id="my-name" maxlength="12" placeholder="名前"></div>
+    <div class="field"><label>部屋の名前</label><input class="input" id="room-name-input" maxlength="20" placeholder="例: 練習部屋"></div>
+    <div class="field"><label>パスワード（省略可）</label><input class="input" id="room-password" maxlength="20" placeholder="なしの場合は空欄" autocomplete="new-password"></div>
+    <div class="toggle-row">
+      <span>一覧に公開する</span>
+      <input type="checkbox" class="toggle" id="room-public" checked>
+    </div>
+    <button class="btn btn-primary" id="btn-create-room">部屋を作成</button>
+    <div class="error-msg" id="create-error"></div>
+  </div>
+
+  <!-- v1.27 (3-A): 部屋一覧 -->
+  <div class="panel">
+    <div class="panel-title" style="display:flex;justify-content:space-between;align-items:center;">
+      <span>部屋一覧</span>
+      <button class="btn btn-ghost" id="btn-refresh-rooms" style="font-size:11px;padding:4px 10px;">更新</button>
+    </div>
+    <div class="room-list" id="room-list">
+      <div class="room-empty">部屋を取得中…</div>
+    </div>
+  </div>
+
+  <!-- v1.27 (3-A): 非公開の部屋 -->
+  <div class="panel">
+    <div class="panel-title">非公開の部屋を表示</div>
+    <div class="field">
+      <label>パスワード（なければ空欄）</label>
+      <div style="display:flex;gap:6px;">
+        <input class="input" id="private-room-pw" type="password" maxlength="20" style="flex:1;" autocomplete="new-password">
+        <button class="btn btn-secondary" id="btn-show-private" style="white-space:nowrap;">表示</button>
+      </div>
+    </div>
+    <div class="room-list" id="private-room-list" style="display:none;"></div>
+    <div class="error-msg" id="private-error"></div>
   </div>
 </div>
 
-<!-- ===== SCREEN: ROOM (1人用) ===== -->
+<!-- ===== SCREEN: WAITING (HOST) v1.27 (3-A) ===== -->
+<div class="screen" id="screen-waiting">
+  <div class="status-bar highlight" id="waiting-status">ゲストの参加を待っています…</div>
+  <div class="panel">
+    <div class="panel-title">部屋情報</div>
+    <div style="font-size:13px;color:var(--text-muted);">
+      部屋名：<span id="waiting-room-name" style="color:var(--text);"></span>
+    </div>
+  </div>
+  <div class="panel">
+    <button class="btn btn-ghost" id="btn-waiting-leave">退出</button>
+  </div>
+</div>
+
+<!-- ===== SCREEN: ROOM（1人 / 対戦 共用、v1.27 で battle 対応追加） ===== -->
 <div class="screen" id="screen-room">
+  <!-- 対戦時のみ表示: 部屋名｜ホスト名／ゲスト名 -->
+  <div class="status-bar" id="room-status" style="display:none;"></div>
+
   <div class="panel">
     <div class="panel-title">ルール</div>
-    <div class="rule-name">501 シングルアウト</div>
+    <div class="rule-name" id="room-rule-name">501 シングルアウト</div>
     <dl class="rule-detail">
       <dt>持ち点</dt><dd>501 からスタート</dd>
       <dt>1ターン</dt><dd>最大 3投</dd>
       <dt>勝利条件</dt><dd>持ち点をぴったり 0 にする</dd>
       <dt>バースト</dt><dd>0 未満になる投はターン無効、ターン開始時の点に戻る</dd>
-      <dt>練習モード</dt><dd>勝敗判定なし、フィニッシュまでのターン数を記録</dd>
+      <dt id="room-rule-mode-dt">練習モード</dt><dd id="room-rule-mode-dd">勝敗判定なし、フィニッシュまでのターン数を記録</dd>
     </dl>
   </div>
 
@@ -985,8 +1144,10 @@ body.in-game #gear-icon { display: flex; }
       <button class="btn btn-primary" id="btn-game-start">ゲーム開始</button>
       <button class="btn btn-ghost" id="btn-room-leave">退出</button>
     </div>
-    <div class="panel-desc" style="font-size: 11px; text-align: center;">
-      ※ ゲーム開始時にセンサー許可・キャリブレーションを実行します（段階2-B で実装）
+    <!-- 対戦時のホスト用キックボタン（3-A 暫定） -->
+    <button class="btn btn-secondary" id="btn-kick-guest" style="display:none;">ゲストをキック</button>
+    <div class="panel-desc" id="room-hint" style="font-size: 11px; text-align: center;">
+      ※ ゲーム開始時にセンサー許可・キャリブレーションを実行します
     </div>
   </div>
 </div>
@@ -1171,6 +1332,8 @@ body.in-game #gear-icon { display: flex; }
 </div>
 
 <!-- ===== ES Modules エントリー（段階2-A は骨組みのみ） ===== -->
+<!-- v1.27 (3-A): 共通マッチングモジュール（global MomoMatchmaking） -->
+<script src="../matchmaking/momo-matchmaking.js"></script>
 <script type="module" src="./darts-app.js"></script>
 
 </body>

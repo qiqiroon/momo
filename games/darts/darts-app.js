@@ -665,10 +665,17 @@ function escapeHtml(s) {
 function resetRoomToSolo() {
   $('room-status').style.display = 'none';
   $('room-status').textContent = '';
+  $('btn-kick-guest').style.display = 'none';
   $('btn-game-start').disabled = false;
   $('room-rule-mode-dt').textContent = '練習モード';
   $('room-rule-mode-dd').textContent = '勝敗判定なし、フィニッシュまでのターン数を記録';
   $('room-hint').textContent = '※ ゲーム開始時にセンサー許可・キャリブレーションを実行します';
+}
+
+// 対戦時のキックボタン表示更新（host && guest在室 のときのみ表示）
+function updateKickButton() {
+  const isHost = (typeof MomoMatchmaking !== 'undefined') && MomoMatchmaking.getState().isHost;
+  $('btn-kick-guest').style.display = (_mode === 'battle' && isHost && _guestName) ? 'block' : 'none';
 }
 
 function renderRoomList(rooms) {
@@ -749,6 +756,7 @@ function enterBattleRoom() {
   // 3-A: 対戦版「ゲーム開始」は 3-B で先後合意できるまで無効化
   $('btn-game-start').disabled = true;
   $('room-hint').textContent = '※ 対戦版の先手後手選択・ゲーム開始は段階 3-B で実装します';
+  updateKickButton();
   showScreen('room');
 }
 
@@ -798,6 +806,7 @@ function initMatchmaking() {
 
     onGuestLeft: () => {
       _guestName = '';
+      updateKickButton();
       $('waiting-status').textContent = 'ゲストが退出しました。新しいゲストを待っています…';
       showScreen('waiting');
     },
@@ -887,7 +896,18 @@ $('btn-waiting-leave').addEventListener('click', async () => {
   }
 });
 
-// v1.28: 3-A ではキック機能を表に出さない（必要になる段階で再追加）
+// v1.29: ゲスト在室時のみキック反応。多重クリック・幽霊ゲスト時の誤動作を防ぐ
+$('btn-kick-guest').addEventListener('click', async () => {
+  if (_mode !== 'battle') return;
+  if (!_guestName) return;
+  if (typeof MomoMatchmaking === 'undefined') return;
+  if (!MomoMatchmaking.getState().isHost) return;
+  if (await confirm(`${_guestName} さんをキックしますか？`)) {
+    // 確認中にゲストが自発的に退出している可能性があるので再チェック
+    if (!_guestName) return;
+    MomoMatchmaking.kickGuest();
+  }
+});
 
 // ===== 起動時 =====
 applyLang('ja');

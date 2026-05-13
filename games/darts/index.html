@@ -1050,7 +1050,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.28</span>
+      <span class="version-tag" id="version-tag">v1.29</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -1144,6 +1144,8 @@ body.in-game #gear-icon { display: flex; }
       <button class="btn btn-primary" id="btn-game-start">ゲーム開始</button>
       <button class="btn btn-ghost" id="btn-room-leave">退出</button>
     </div>
+    <!-- 対戦時のホスト用キックボタン（ゲスト在室時のみ表示） -->
+    <button class="btn btn-secondary" id="btn-kick-guest" style="display:none;">ゲストをキック</button>
     <div class="panel-desc" id="room-hint" style="font-size: 11px; text-align: center;">
       ※ ゲーム開始時にセンサー許可・キャリブレーションを実行します
     </div>

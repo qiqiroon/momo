@@ -665,7 +665,6 @@ function escapeHtml(s) {
 function resetRoomToSolo() {
   $('room-status').style.display = 'none';
   $('room-status').textContent = '';
-  $('btn-kick-guest').style.display = 'none';
   $('btn-game-start').disabled = false;
   $('room-rule-mode-dt').textContent = '練習モード';
   $('room-rule-mode-dd').textContent = '勝敗判定なし、フィニッシュまでのターン数を記録';
@@ -750,8 +749,6 @@ function enterBattleRoom() {
   // 3-A: 対戦版「ゲーム開始」は 3-B で先後合意できるまで無効化
   $('btn-game-start').disabled = true;
   $('room-hint').textContent = '※ 対戦版の先手後手選択・ゲーム開始は段階 3-B で実装します';
-  const isHost = MomoMatchmaking.getState().isHost;
-  $('btn-kick-guest').style.display = (isHost && _guestName) ? 'block' : 'none';
   showScreen('room');
 }
 
@@ -890,11 +887,7 @@ $('btn-waiting-leave').addEventListener('click', async () => {
   }
 });
 
-$('btn-kick-guest').addEventListener('click', async () => {
-  if (await confirm('ゲストをキックしますか？')) {
-    MomoMatchmaking.kickGuest();
-  }
-});
+// v1.28: 3-A ではキック機能を表に出さない（必要になる段階で再追加）
 
 // ===== 起動時 =====
 applyLang('ja');

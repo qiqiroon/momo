@@ -483,44 +483,87 @@ export function boardImpactFromSim(sim) {
 const COLOR_SELF = '#ea580c';  // orange-mid
 const COLOR_OPP  = '#9ca3af';  // gray-400
 
-// 着弾マーク（v1.35）：チップ円 + 3 枚の三角形フライトを軌道の真後ろに fan 配置
-// ローカル座標: +x = 軌道進行方向。フライトは 180°(直後ろ) ± 30° の 3 方向に展開
+// 着弾マーク（v1.36）：的に垂直に刺さった姿。チップ + 軸線 + Y字3枚羽根
+//   - tip: 着弾点に小さな先端ドット（板に刺さった部分の頭）
+//   - shaft: tip → backCenter の細線（軌道方向の反対側に少しだけずれる）
+//   - backCenter: シャフト末端の小さな暗ドット（立体的な深み）
+//   - 3 枚羽根 Y 字: backCenter から +up, +down-right, +down-left の 3 方向
+//     画面上方向の1枚は full width、両側の2枚は半幅で foreshortening を簡易表現
 function showImpactMark(impact, opts) {
   if (!_boardEl) return;
   const svg = _boardEl.querySelector('svg');
   if (!svg) return;
   const sv = (opts && opts.boardSV) || worldImpactToBoardSVG(impact);
-  const angleDeg = (opts && typeof opts.angleDeg === 'number') ? opts.angleDeg : 0;
+  const motionAngleDeg = (opts && typeof opts.angleDeg === 'number') ? opts.angleDeg : 0;
   const color = (opts && opts.thrower === 'opp') ? COLOR_OPP : COLOR_SELF;
 
-  const group = el('g', {
-    transform: `translate(${sv.x},${sv.y}) rotate(${angleDeg})`,
-  });
+  const TILT_OFFSET = 2.5;     // tip → backCenter の距離（軌道方向の反対側）
+  const FLIGHT_LEN  = 6.5;     // 各羽根の長さ
+  const FLIGHT_W    = 2.4;     // 羽根の最大幅（正面を向く1枚）
+
+  const motionRad = motionAngleDeg * Math.PI / 180;
+  const backX = -TILT_OFFSET * Math.cos(motionRad);
+  const backY = -TILT_OFFSET * Math.sin(motionRad);
+
+  const group = el('g', { transform: `translate(${sv.x},${sv.y})` });
   group.classList.add('impact-mark');
 
-  // 3 枚羽根（Q2B = 直線的な三角形、軌道の真後ろに 30° 刻みで扇展開）
-  // テンプレートは +x 方向に伸びる三角形 — 各フライトを希望角に回転して配置
-  for (const flightAngleDeg of [150, 180, 210]) {
-    const inner = el('g', { transform: `rotate(${flightAngleDeg})` });
-    const tri = el('path', {
-      d: 'M 0 0 L 9 -2.2 L 9 2.2 Z',
+  // 軸線（tip → backCenter）
+  const shaft = el('line', {
+    x1: 0, y1: 0,
+    x2: backX, y2: backY,
+    stroke: color,
+    'stroke-width': 0.7,
+    'stroke-linecap': 'round',
+    opacity: 0.85,
+  });
+  group.appendChild(shaft);
+
+  // backCenter グループ — ここに Y 字 3 枚と中心ドット
+  const back = el('g', { transform: `translate(${backX}, ${backY})` });
+
+  // 3 枚羽根を Y 字配置（画面 -y = 上、+30° / +150° で下右と下左）
+  // 画面上の 1 枚は full width、左右両側の 2 枚は半幅で foreshortening 簡易表現
+  const FLIGHT_CONFIG = [
+    { angle: -90,  widthMult: 1.0  },  // 上（手前を向いている想定）
+    { angle:  30,  widthMult: 0.55 },  // 下右（120°回転、奥に向いて見えるので foreshortened）
+    { angle: 150,  widthMult: 0.55 },  // 下左（120°回転、同上）
+  ];
+  for (const cfg of FLIGHT_CONFIG) {
+    const flight = el('g', { transform: `rotate(${cfg.angle})` });
+    const w = FLIGHT_W * cfg.widthMult;
+    // 羽根 = 中央が太い菱形（diamond）。基部は backCenter から細く始まり、
+    // 中央でふくらみ、先端に向かって絞る
+    const paddle = el('path', {
+      d: `M 0 0 L ${FLIGHT_LEN * 0.5} -${(w/2).toFixed(2)} L ${FLIGHT_LEN} 0 L ${FLIGHT_LEN * 0.5} ${(w/2).toFixed(2)} Z`,
       fill: color,
       stroke: '#0a0a0a',
-      'stroke-width': '0.3',
+      'stroke-width': 0.3,
       'stroke-linejoin': 'round',
     });
-    inner.appendChild(tri);
-    group.appendChild(inner);
+    flight.appendChild(paddle);
+    back.appendChild(flight);
   }
 
-  // ヘッド（チップ）= 着弾点
-  const head = el('circle', {
-    cx: 0, cy: 0, r: 1.8,
+  // backCenter ドット（軸の末端 = 立体感の hint、暗色 + プレイヤー色の縁）
+  const backDot = el('circle', {
+    cx: 0, cy: 0, r: 1.0,
+    fill: '#0a0a0a',
+    stroke: color,
+    'stroke-width': 0.4,
+  });
+  back.appendChild(backDot);
+
+  group.appendChild(back);
+
+  // tip ドット（最後に追加 = 軸線の上に重ねる）
+  const tip = el('circle', {
+    cx: 0, cy: 0, r: 0.8,
     fill: color,
     stroke: '#ffffff',
-    'stroke-width': 0.5,
+    'stroke-width': 0.3,
   });
-  group.appendChild(head);
+  group.appendChild(tip);
 
   svg.appendChild(group);
 }

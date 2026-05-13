@@ -196,15 +196,28 @@ $('btn-calib-fix').addEventListener('click', () => {
     $('calib-status').textContent = 'まだセンサー値が取れていません。少し動かしてからもう一度試してください。';
     return;
   }
-  // キャリブ完了 → ゲーム画面へ
-  enterGameScreen();
+  // v1.31 (3-B): 対戦時は両者キャリブ完了で同時遷移
+  if (_mode === 'battle') {
+    onMyCalibDone();
+  } else {
+    enterGameScreen();
+  }
 });
 
 $('btn-calib-cancel').addEventListener('click', async () => {
   if (await confirm('退出しますか？')) {
     Sensor.stopListening();
     Sensor.clearCalibration();
-    showScreen('room');
+    if (_mode === 'battle' && typeof MomoMatchmaking !== 'undefined') {
+      // 対戦中の離脱は部屋ごと抜ける扱い
+      MomoMatchmaking.leaveRoom();
+      _mode = 'solo';
+      _guestName = '';
+      resetRoomToSolo();
+      showScreen('lobby');
+    } else {
+      showScreen('room');
+    }
   }
 });
 
@@ -216,8 +229,12 @@ $('btn-solo-start').addEventListener('click', () => {
 });
 
 $('btn-game-start').addEventListener('click', () => {
-  // v1.27 (3-A): 対戦版の「ゲーム開始」は段階 3-B で実装。3-A 中はボタンを無効化済み
-  startGameFlow();
+  // v1.31 (3-B): 対戦時は両者押下を待つ。Solo は即実行
+  if (_mode === 'battle') {
+    pressBattleStart();
+  } else {
+    startGameFlow();
+  }
 });
 
 $('btn-room-leave').addEventListener('click', async () => {
@@ -669,6 +686,7 @@ function resetRoomToSolo() {
   $('room-rule-mode-dt').textContent = '練習モード';
   $('room-rule-mode-dd').textContent = '勝敗判定なし、フィニッシュまでのターン数を記録';
   $('room-hint').textContent = '※ ゲーム開始時にセンサー許可・キャリブレーションを実行します';
+  $('role-select-panel').style.display = 'none';
   updateKickButton();  // _mode='solo' 等を反映してキックを隠す
 }
 
@@ -762,9 +780,10 @@ function enterBattleRoom() {
     `${_currentRoomName} ｜ ${_hostName}${_guestName ? ' vs ' + _guestName : '（ゲスト待機中）'}`;
   $('room-rule-mode-dt').textContent = '勝敗判定';
   $('room-rule-mode-dd').textContent = '0 ぴったりでフィニッシュ。先にフィニッシュした方が勝ち';
-  // 3-A: 対戦版「ゲーム開始」は 3-B で先後合意できるまで無効化
-  $('btn-game-start').disabled = true;
-  $('room-hint').textContent = '※ 対戦版の先手後手選択・ゲーム開始は段階 3-B で実装します';
+  $('room-hint').textContent = '※ ゲーム開始時にセンサー許可・キャリブレーションを実行します';
+  // v1.31 (3-B): 先攻/後攻 選択パネル表示 + 状態リセット（新たな相手と最初から）
+  $('role-select-panel').style.display = 'flex';
+  resetBattleAgreementState();
   updateKickButton();
   showScreen('room');
 }
@@ -816,6 +835,8 @@ function initMatchmaking() {
     onGuestLeft: () => {
       _guestName = '';
       updateKickButton();
+      // v1.31 (3-B): 合意・キャリブ状態を全リセット（次のゲストと最初から）
+      resetBattleAgreementState();
       $('waiting-status').textContent = 'ゲストが退出しました。新しいゲストを待っています…';
       showScreen('waiting');
     },
@@ -847,8 +868,8 @@ function initMatchmaking() {
     },
 
     onMessage: (data) => {
-      // 3-C で投擲データ等を実装
-      console.log('[darts] msg', data);
+      // v1.31 (3-B): 合意フローのメッセージはここで処理
+      handleBattleMessage(data);
     },
   });
 }
@@ -904,6 +925,166 @@ $('btn-waiting-leave').addEventListener('click', async () => {
     showScreen('lobby');
   }
 });
+
+// =====================================================================
+// v1.31 (3-B): 先攻/後攻 合意フロー（SPEC 11.1, 11.4）
+// =====================================================================
+
+// 'first' | 'second' | null
+let _myRole = null;
+let _oppRole = null;
+let _myStartPressed = false;
+let _oppStartPressed = false;
+let _myCalibDone = false;
+let _oppCalibDone = false;
+
+function resetBattleAgreementState() {
+  _myRole = null;
+  _oppRole = null;
+  _myStartPressed = false;
+  _oppStartPressed = false;
+  _myCalibDone = false;
+  _oppCalibDone = false;
+  renderRoleSelection();
+  renderAgreementHint();
+  $('btn-game-start').disabled = (_mode === 'battle');
+  $('calib-opp-wait').style.display = 'none';
+}
+
+function rolesConsistent() {
+  return _myRole && _oppRole && _myRole !== _oppRole;
+}
+
+function renderRoleSelection() {
+  const cardF = $('role-card-first');
+  const cardS = $('role-card-second');
+  if (!cardF || !cardS) return;
+  cardF.classList.toggle('selected-self', _myRole === 'first');
+  cardS.classList.toggle('selected-self', _myRole === 'second');
+  cardF.classList.toggle('selected-opp', _oppRole === 'first');
+  cardS.classList.toggle('selected-opp', _oppRole === 'second');
+  const labelFor = (role) => {
+    const parts = [];
+    if (_myRole === role) parts.push('あなた');
+    if (_oppRole === role) parts.push('相手');
+    return parts.join(' + ');
+  };
+  $('who-first').textContent = labelFor('first');
+  $('who-second').textContent = labelFor('second');
+}
+
+function renderAgreementHint() {
+  const hint = $('agreement-hint');
+  if (!hint) return;
+  hint.classList.remove('ready', 'waiting');
+  if (!rolesConsistent()) {
+    hint.textContent = '先攻と後攻をそれぞれ選択するとゲーム開始できます';
+    return;
+  }
+  if (_myStartPressed && !_oppStartPressed) {
+    hint.textContent = '相手のゲーム開始を待っています…';
+    hint.classList.add('waiting');
+  } else if (!_myStartPressed && _oppStartPressed) {
+    hint.textContent = '相手は準備完了。ゲーム開始を押してください';
+    hint.classList.add('waiting');
+  } else if (_myStartPressed && _oppStartPressed) {
+    hint.textContent = '両者準備完了！ゲームに移ります…';
+    hint.classList.add('ready');
+  } else {
+    hint.textContent = '準備完了！ゲーム開始を押してください';
+    hint.classList.add('ready');
+  }
+}
+
+function updateGameStartButton() {
+  if (_mode !== 'battle') return;
+  $('btn-game-start').disabled = !(rolesConsistent() && !_myStartPressed);
+}
+
+function selectRole(role) {
+  if (_mode !== 'battle') return;
+  if (_myRole === role) return;
+  _myRole = role;
+  // ロール変更すると自分の start_press は自動キャンセル（一貫性確保）
+  _myStartPressed = false;
+  if (typeof MomoMatchmaking !== 'undefined') {
+    MomoMatchmaking.send({ type: 'role_select', role });
+  }
+  renderRoleSelection();
+  renderAgreementHint();
+  updateGameStartButton();
+}
+
+$('role-card-first').addEventListener('click', () => selectRole('first'));
+$('role-card-second').addEventListener('click', () => selectRole('second'));
+
+function pressBattleStart() {
+  if (!rolesConsistent() || _myStartPressed) return;
+  _myStartPressed = true;
+  if (typeof MomoMatchmaking !== 'undefined') {
+    MomoMatchmaking.send({ type: 'start_press' });
+  }
+  renderAgreementHint();
+  updateGameStartButton();
+  if (_oppStartPressed) {
+    proceedToBattleGameStart();
+  }
+}
+
+async function proceedToBattleGameStart() {
+  // 両者押下成立 → センサー許可 → キャリブへ
+  _myCalibDone = false;
+  _oppCalibDone = false;
+  $('calib-opp-wait').style.display = 'none';
+  await startGameFlow();
+}
+
+// 自分のキャリブ完了。両者揃ったらゲーム画面へ
+function onMyCalibDone() {
+  _myCalibDone = true;
+  if (typeof MomoMatchmaking !== 'undefined') {
+    MomoMatchmaking.send({ type: 'calib_done' });
+  }
+  if (_oppCalibDone) {
+    $('calib-opp-wait').style.display = 'none';
+    enterGameScreen();
+  } else {
+    $('calib-opp-wait').style.display = 'block';
+    // 「正面に固定」を不可に（既にキャリブ済み）
+    $('btn-calib-fix').disabled = true;
+  }
+}
+
+function handleBattleMessage(data) {
+  if (!data || typeof data.type !== 'string') return;
+  if (data.type === 'role_select') {
+    _oppRole = (data.role === 'first' || data.role === 'second') ? data.role : null;
+    // 相手がロール変更したら相手の start_press も自動キャンセル
+    _oppStartPressed = false;
+    renderRoleSelection();
+    renderAgreementHint();
+    updateGameStartButton();
+    return;
+  }
+  if (data.type === 'start_press') {
+    _oppStartPressed = true;
+    renderAgreementHint();
+    if (_myStartPressed && rolesConsistent()) {
+      proceedToBattleGameStart();
+    }
+    return;
+  }
+  if (data.type === 'calib_done') {
+    _oppCalibDone = true;
+    if (_myCalibDone) {
+      $('calib-opp-wait').style.display = 'none';
+      enterGameScreen();
+    }
+    return;
+  }
+  // 3-C 以降の投擲メッセージはここで分岐
+  console.log('[darts] msg (unhandled)', data);
+}
 
 // v1.29: ゲスト在室時のみキック反応。多重クリック・幽霊ゲスト時の誤動作を防ぐ
 $('btn-kick-guest').addEventListener('click', async () => {

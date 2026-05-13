@@ -340,6 +340,88 @@ body.in-game #lang-switcher { display: none; }
   text-align: center;
 }
 
+/* ===== v1.31 (3-B): 先攻/後攻 選択カード（reversi 流儀） ===== */
+.role-select {
+  display: flex;
+  gap: 10px;
+}
+.role-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 8px;
+  background: var(--surface2);
+  border: 2px solid var(--border-strong);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, transform 0.1s;
+  min-height: 96px;
+}
+.role-card:active { transform: translateY(1px); }
+.role-card:hover { border-color: var(--orange); }
+.role-card .role-icon {
+  font-family: 'Fredoka One', cursive;
+  font-size: 22px;
+  color: var(--text);
+  line-height: 1;
+}
+.role-card .role-label {
+  font-size: 14px;
+  color: var(--text);
+}
+.role-card .role-who {
+  font-size: 11px;
+  color: var(--text-muted);
+  min-height: 14px;
+  text-align: center;
+  line-height: 1.3;
+}
+/* 自分が選択 = 赤系（プレイヤー自分色） */
+.role-card.selected-self {
+  border-color: var(--player-self);
+  background: rgba(239, 68, 68, 0.08);
+}
+.role-card.selected-self .role-who { color: var(--player-self); }
+/* 相手が選択 = 青系 */
+.role-card.selected-opp {
+  border-color: var(--player-opp);
+  background: rgba(59, 130, 246, 0.08);
+}
+.role-card.selected-opp .role-who { color: var(--player-opp); }
+/* 両者が同じカードを選択 = 不一致状態 */
+.role-card.selected-self.selected-opp {
+  border-color: var(--orange);
+  background: rgba(194, 65, 12, 0.12);
+}
+.role-card.selected-self.selected-opp .role-who { color: var(--orange-light); }
+.role-card.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+#agreement-hint {
+  font-size: 12px;
+  text-align: center;
+  min-height: 18px;
+  color: var(--text-muted);
+}
+#agreement-hint.ready {
+  color: var(--success);
+}
+#agreement-hint.waiting {
+  color: var(--orange-light);
+}
+
+/* ===== v1.31 (3-B): キャリブ画面の相手待ちオーバーレイ ===== */
+#calib-opp-wait {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--orange-light);
+  text-align: center;
+}
+
 /* ===== ルール詳細 ===== */
 .rule-name {
   font-family: 'Fredoka One', cursive;
@@ -1050,7 +1132,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.30</span>
+      <span class="version-tag" id="version-tag">v1.31</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -1139,6 +1221,24 @@ body.in-game #gear-icon { display: flex; }
     </dl>
   </div>
 
+  <!-- v1.31 (3-B): 対戦時のみ表示 — 先攻/後攻 選択 -->
+  <div class="panel" id="role-select-panel" style="display:none;">
+    <div class="panel-title">先攻 / 後攻 を選択</div>
+    <div class="role-select">
+      <div class="role-card" id="role-card-first" data-role="first">
+        <div class="role-icon">1st</div>
+        <div class="role-label">先攻</div>
+        <div class="role-who" id="who-first"></div>
+      </div>
+      <div class="role-card" id="role-card-second" data-role="second">
+        <div class="role-icon">2nd</div>
+        <div class="role-label">後攻</div>
+        <div class="role-who" id="who-second"></div>
+      </div>
+    </div>
+    <div id="agreement-hint">先攻と後攻をそれぞれ選択するとゲーム開始できます</div>
+  </div>
+
   <div class="panel">
     <div class="btn-row">
       <button class="btn btn-primary" id="btn-game-start">ゲーム開始</button>
@@ -1164,6 +1264,8 @@ body.in-game #gear-icon { display: flex; }
       </div>
       <div class="calib-status" id="calib-status">センサーを検出中…</div>
       <button class="btn btn-primary" id="btn-calib-fix" disabled>正面に固定</button>
+      <!-- v1.31 (3-B): 対戦時、自分のキャリブ完了後に表示 -->
+      <div id="calib-opp-wait" style="display:none;">相手のキャリブを待っています…</div>
       <button class="btn btn-ghost" id="btn-calib-cancel">退出</button>
     </div>
   </div>

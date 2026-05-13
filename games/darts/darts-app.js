@@ -665,17 +665,26 @@ function escapeHtml(s) {
 function resetRoomToSolo() {
   $('room-status').style.display = 'none';
   $('room-status').textContent = '';
-  $('btn-kick-guest').style.display = 'none';
   $('btn-game-start').disabled = false;
   $('room-rule-mode-dt').textContent = '練習モード';
   $('room-rule-mode-dd').textContent = '勝敗判定なし、フィニッシュまでのターン数を記録';
   $('room-hint').textContent = '※ ゲーム開始時にセンサー許可・キャリブレーションを実行します';
+  updateKickButton();  // _mode='solo' 等を反映してキックを隠す
 }
 
-// 対戦時のキックボタン表示更新（host && guest在室 のときのみ表示）
+// 対戦時のキックボタン表示更新
+//   - ホスト時のみ表示（ゲストには見せない）
+//   - ゲスト不在時は disabled（クリックイベント自体発火しない＝確認ダイアログも出ない）
 function updateKickButton() {
+  const btn = $('btn-kick-guest');
   const isHost = (typeof MomoMatchmaking !== 'undefined') && MomoMatchmaking.getState().isHost;
-  $('btn-kick-guest').style.display = (_mode === 'battle' && isHost && _guestName) ? 'block' : 'none';
+  if (_mode === 'battle' && isHost) {
+    btn.style.display = 'block';
+    btn.disabled = !_guestName;
+  } else {
+    btn.style.display = 'none';
+    btn.disabled = true;
+  }
 }
 
 function renderRoomList(rooms) {

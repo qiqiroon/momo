@@ -946,6 +946,118 @@ body.in-game #lang-switcher { display: none; }
   50% { opacity: 1; }
 }
 
+/* ===== v1.47 (3-E): チャット機能（SPEC 9章） ===== */
+/* game 画面では画面下部にオーバーレイ配置、ホールドボタンの上 */
+#screen-game .chat-area {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(120px + env(safe-area-inset-bottom));
+  z-index: 50;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+/* end 画面では panel として通常配置（display:none を JS で外す） */
+#screen-end .chat-area {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* メッセージスタック（下から上に積み上がる） */
+.chat-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 12px 4px 12px;
+  pointer-events: none;
+  transition: opacity 0.6s ease-out;
+}
+.chat-stack.fading { opacity: 0; }
+.chat-msg {
+  display: inline-block;
+  align-self: flex-start;
+  max-width: 80%;
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 12px;
+  background: rgba(20, 20, 22, 0.7);
+  border: 1.5px solid;
+  animation: chat-rise 0.25s ease-out;
+}
+.chat-msg.self {
+  align-self: flex-end;
+  border-color: var(--orange);
+  color: #fed7aa;
+}
+.chat-msg.opp {
+  align-self: flex-start;
+  border-color: var(--player-opp, #9ca3af);
+  color: #e5e7eb;
+}
+.chat-msg .chat-name {
+  font-size: 10px;
+  opacity: 0.75;
+  margin-right: 6px;
+}
+@keyframes chat-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* 入力エリア（3定型文ボタン横並び + ヒント） */
+.chat-input-row {
+  display: flex;
+  gap: 6px;
+  padding: 0 8px env(safe-area-inset-bottom) 8px;
+  pointer-events: auto;
+  justify-content: center;
+}
+.chat-preset-slot {
+  flex: 1;
+  max-width: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.chat-preset-btn {
+  width: 100%;
+  padding: 6px 4px;
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1.5px solid var(--orange);
+  background: rgba(20, 20, 22, 0.78);
+  color: #fed7aa;
+  border-radius: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 0.15s, transform 0.1s;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.chat-preset-btn:active {
+  transform: translateY(1px);
+  background: rgba(234, 88, 12, 0.35);
+}
+.chat-preset-btn.editing {
+  background: rgba(20, 20, 22, 0.95);
+  outline: 2px solid var(--orange);
+  cursor: text;
+}
+.chat-preset-hint {
+  font-size: 9px;
+  color: rgba(255,255,255,0.5);
+  margin-top: 2px;
+  pointer-events: none;
+  user-select: none;
+}
+
 /* ===== v1.22: 照準クロスヘア（SPEC 5.4 デバッグ表示。将来削除予定） =====
    落下・ブレが無いときの着弾点 = カメラの向き × target 距離 = 画面中央 */
 #aim-crosshair {
@@ -1303,7 +1415,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.46</span>
+      <span class="version-tag" id="version-tag">v1.47</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -1515,6 +1627,25 @@ body.in-game #gear-icon { display: flex; }
   <!-- v1.37 (3-D): 切断検知中オーバーレイ -->
   <div id="disconnect-warning" style="display:none;">相手の応答を待っています…</div>
 
+  <!-- v1.47 (3-E): チャット（SPEC 9章） -->
+  <div class="chat-area" id="chat-area-game">
+    <div class="chat-stack" id="chat-stack-game"></div>
+    <div class="chat-input-row">
+      <div class="chat-preset-slot">
+        <button class="chat-preset-btn" data-slot="0" data-screen="game">ナイス!</button>
+        <div class="chat-preset-hint">長押しで編集</div>
+      </div>
+      <div class="chat-preset-slot">
+        <button class="chat-preset-btn" data-slot="1" data-screen="game">すごい!</button>
+        <div class="chat-preset-hint">長押しで編集</div>
+      </div>
+      <div class="chat-preset-slot">
+        <button class="chat-preset-btn" data-slot="2" data-screen="game">がんばれ!</button>
+        <div class="chat-preset-hint">長押しで編集</div>
+      </div>
+    </div>
+  </div>
+
   <!-- v1.22: 照準クロスヘア（SPEC 5.4 デバッグ表示。将来削除予定） -->
   <div id="aim-crosshair" aria-hidden="true">
     <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
@@ -1591,6 +1722,25 @@ body.in-game #gear-icon { display: flex; }
     <button class="btn btn-danger" id="btn-end-back-room">
       <span class="end-btn-label">終了</span>
     </button>
+  </div>
+
+  <!-- v1.47 (3-E): チャット（SPEC 12.1 でも対戦時のみ表示。1人用では display:none） -->
+  <div class="chat-area" id="chat-area-end" style="display:none;">
+    <div class="chat-stack" id="chat-stack-end"></div>
+    <div class="chat-input-row">
+      <div class="chat-preset-slot">
+        <button class="chat-preset-btn" data-slot="0" data-screen="end">ナイス!</button>
+        <div class="chat-preset-hint">長押しで編集</div>
+      </div>
+      <div class="chat-preset-slot">
+        <button class="chat-preset-btn" data-slot="1" data-screen="end">すごい!</button>
+        <div class="chat-preset-hint">長押しで編集</div>
+      </div>
+      <div class="chat-preset-slot">
+        <button class="chat-preset-btn" data-slot="2" data-screen="end">がんばれ!</button>
+        <div class="chat-preset-hint">長押しで編集</div>
+      </div>
+    </div>
   </div>
 </div>
 

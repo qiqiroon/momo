@@ -430,6 +430,18 @@ function enterGameScreen() {
     // v1.40: ハートビート/`_gameInProgress` は proceedToBattleGameStart で起動済み
     // （SPEC 11.5: キャリブ中も有効）
   }
+  // v1.47 (3-E): チャット要素は対戦時のみ表示、メッセージスタックを毎ゲーム開始でクリア
+  const chatAreaGame = $('chat-area-game');
+  if (chatAreaGame) chatAreaGame.style.display = (_mode === 'battle') ? '' : 'none';
+  clearChatStack();
+}
+
+// v1.47 (3-E): チャットスタックをクリア（試合開始/再戦時に呼ぶ）
+function clearChatStack() {
+  _chatMessages = [];
+  if (_chatFadeTimer)  { clearTimeout(_chatFadeTimer);  _chatFadeTimer = null; }
+  if (_chatClearTimer) { clearTimeout(_chatClearTimer); _chatClearTimer = null; }
+  renderChatStack();
 }
 
 function leaveGameScreen() {
@@ -703,6 +715,9 @@ function showEndScreen(opts) {
       setEndBtnLabel('btn-end-back-room',   '終了');
     }
   }
+  // v1.47 (3-E): end 画面のチャット枠は対戦時のみ（SPEC 12.1）
+  const chatAreaEnd = $('chat-area-end');
+  if (chatAreaEnd) chatAreaEnd.style.display = (_mode === 'battle') ? '' : 'none';
 
   leaveGameScreen();
   showScreen('end');
@@ -1475,6 +1490,12 @@ function handleBattleMessage(data) {
     _lastHeartbeatRcvd = performance.now();  // 着弾後に最新化
     return;
   }
+  // v1.47 (3-E): チャット受信（SPEC 9章）
+  if (data.type === 'chat' && typeof data.text === 'string') {
+    const text = data.text.slice(0, CHAT_PRESET_MAX_LEN * 3);  // 過剰防御
+    if (text) addChatMessage(getOppName(), text, false);
+    return;
+  }
   // v1.44 (3-E): 対戦終了画面の再戦合意・退出
   if (data.type === 'end_choice') {
     if (data.choice === 'quit') {
@@ -1616,6 +1637,176 @@ function declareDisconnectAbort(reason) {
     showEndScreen({ disconnect: true, abort: true });
   }, 2200);
 }
+
+// =====================================================================
+// v1.47 (3-E): チャット機能（SPEC 9章）
+//   - 3定型文ボタン、タップ送信／長押し編集
+//   - 送受信メッセージを画面下部にスタック表示（最後から3秒で全消去）
+//   - 編集内容は sessionStorage にセッション中のみ保持
+// =====================================================================
+
+const CHAT_PRESET_LS_KEY = 'momoDartsChatPresets';
+const CHAT_PRESET_DEFAULTS = ['ナイス!', 'すごい!', 'がんばれ!'];
+const CHAT_PRESET_MAX_LEN = 20;
+const CHAT_FADE_DELAY_MS = 3000;
+const CHAT_EDIT_HOLD_MS = 700;
+const CHAT_FADE_DURATION_MS = 600;  // CSS の transition と合わせる
+
+let _chatPresets = [...CHAT_PRESET_DEFAULTS];
+let _chatMessages = [];        // {name, text, isSelf}
+let _chatFadeTimer = null;
+let _chatClearTimer = null;
+
+function loadChatPresets() {
+  try {
+    const saved = sessionStorage.getItem(CHAT_PRESET_LS_KEY);
+    if (saved) {
+      const arr = JSON.parse(saved);
+      if (Array.isArray(arr) && arr.length === 3) {
+        _chatPresets = arr.map((s, i) => {
+          const t = String(s).slice(0, CHAT_PRESET_MAX_LEN).trim();
+          return t || CHAT_PRESET_DEFAULTS[i];
+        });
+        return;
+      }
+    }
+  } catch (e) {}
+  _chatPresets = [...CHAT_PRESET_DEFAULTS];
+}
+
+function saveChatPresets() {
+  try { sessionStorage.setItem(CHAT_PRESET_LS_KEY, JSON.stringify(_chatPresets)); } catch (e) {}
+}
+
+function applyChatPresetsToButtons() {
+  document.querySelectorAll('.chat-preset-btn').forEach(btn => {
+    if (btn.classList.contains('editing')) return;
+    const slot = parseInt(btn.dataset.slot, 10);
+    if (slot >= 0 && slot < 3) btn.textContent = _chatPresets[slot];
+  });
+}
+
+function chatSend(slot) {
+  if (slot < 0 || slot >= 3) return;
+  const text = _chatPresets[slot];
+  if (!text) return;
+  addChatMessage(getMyName(), text, true);
+  if (_mode === 'battle' && typeof MomoMatchmaking !== 'undefined') {
+    try { MomoMatchmaking.send({ type: 'chat', text }); } catch (e) {}
+  }
+}
+
+function addChatMessage(name, text, isSelf) {
+  _chatMessages.push({ name, text, isSelf });
+  renderChatStack();
+  scheduleChatFade();
+}
+
+function renderChatStack() {
+  ['game', 'end'].forEach(scr => {
+    const stackEl = $('chat-stack-' + scr);
+    if (!stackEl) return;
+    stackEl.classList.remove('fading');
+    stackEl.innerHTML = '';
+    _chatMessages.forEach(msg => {
+      const div = document.createElement('div');
+      div.className = 'chat-msg ' + (msg.isSelf ? 'self' : 'opp');
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'chat-name';
+      nameSpan.textContent = msg.name + ':';
+      div.appendChild(nameSpan);
+      div.appendChild(document.createTextNode(msg.text));
+      stackEl.appendChild(div);
+    });
+  });
+}
+
+function scheduleChatFade() {
+  if (_chatFadeTimer) clearTimeout(_chatFadeTimer);
+  if (_chatClearTimer) clearTimeout(_chatClearTimer);
+  _chatFadeTimer = setTimeout(() => {
+    ['game', 'end'].forEach(scr => {
+      const stackEl = $('chat-stack-' + scr);
+      if (stackEl) stackEl.classList.add('fading');
+    });
+    _chatClearTimer = setTimeout(() => {
+      _chatMessages = [];
+      renderChatStack();
+    }, CHAT_FADE_DURATION_MS);
+  }, CHAT_FADE_DELAY_MS);
+}
+
+// 長押し編集制御（タップ=送信、700ms 長押し=編集モード）
+function bindChatPresetButton(btn) {
+  let pressTimer = null;
+  let isPressing = false;
+  btn.addEventListener('pointerdown', () => {
+    if (btn.classList.contains('editing')) return;
+    isPressing = true;
+    pressTimer = setTimeout(() => {
+      if (isPressing) {
+        isPressing = false;
+        startEditPreset(btn);
+      }
+    }, CHAT_EDIT_HOLD_MS);
+  });
+  const cancel = () => {
+    if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+  };
+  btn.addEventListener('pointerup', () => {
+    if (btn.classList.contains('editing')) return;
+    cancel();
+    if (isPressing) {
+      isPressing = false;
+      const slot = parseInt(btn.dataset.slot, 10);
+      chatSend(slot);
+    }
+  });
+  btn.addEventListener('pointerleave', () => { cancel(); isPressing = false; });
+  btn.addEventListener('pointercancel', () => { cancel(); isPressing = false; });
+}
+
+function startEditPreset(btn) {
+  const slot = parseInt(btn.dataset.slot, 10);
+  if (slot < 0 || slot >= 3) return;
+  btn.classList.add('editing');
+  btn.contentEditable = 'true';
+  btn.textContent = _chatPresets[slot];
+  btn.focus();
+  // 全選択
+  try {
+    const range = document.createRange();
+    range.selectNodeContents(btn);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  } catch (e) {}
+  const commit = () => {
+    btn.removeEventListener('blur', commit);
+    btn.removeEventListener('keydown', onKey);
+    btn.contentEditable = 'false';
+    btn.classList.remove('editing');
+    let newText = btn.textContent.replace(/\s+/g, ' ').trim().slice(0, CHAT_PRESET_MAX_LEN);
+    if (!newText) newText = CHAT_PRESET_DEFAULTS[slot];
+    _chatPresets[slot] = newText;
+    saveChatPresets();
+    applyChatPresetsToButtons();
+  };
+  const onKey = (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); btn.blur(); }
+    else if (e.key === 'Escape') {
+      e.preventDefault();
+      btn.textContent = _chatPresets[slot];
+      btn.blur();
+    }
+  };
+  btn.addEventListener('blur', commit);
+  btn.addEventListener('keydown', onKey);
+}
+
+loadChatPresets();
+applyChatPresetsToButtons();
+document.querySelectorAll('.chat-preset-btn').forEach(bindChatPresetButton);
 
 // ===== 起動時 =====
 applyLang('ja');

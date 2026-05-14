@@ -27,6 +27,11 @@ function showScreen(name) {
   } else {
     requestWakeLock();
   }
+  // v1.48: lobby に戻ったら対戦時のロビーチャット履歴を確実にクリア＆非表示
+  if (name === 'lobby' && typeof showLobbyChatPanels === 'function') {
+    showLobbyChatPanels(false);
+    clearLobbyChat();
+  }
 }
 
 // ===== v1.32: Wake Lock — 画面ブラックアウトによる回線切断を防ぐ =====
@@ -896,6 +901,9 @@ function exitBattleToLobby() {
   _guestName = '';
   // v1.42: abort 宣言フラグをここでリセット（end→lobby 遷移完了で次のゲームに備える）
   _disconnectDeclared = false;
+  // v1.48: ロビーチャット履歴をクリアしてパネル非表示
+  if (typeof clearLobbyChat === 'function') clearLobbyChat();
+  if (typeof showLobbyChatPanels === 'function') showLobbyChatPanels(false);
   resetRoomToSolo();
   showScreen('lobby');
 }
@@ -1173,6 +1181,9 @@ function initMatchmaking() {
       _guestName = '';
       $('waiting-room-name').textContent = roomName;
       $('waiting-status').textContent = 'ゲストの参加を待っています…';
+      // v1.48: ロビーチャットを起動（履歴クリア + パネル表示）
+      clearLobbyChat();
+      showLobbyChatPanels(true);
       showScreen('waiting');
     },
 
@@ -1181,6 +1192,9 @@ function initMatchmaking() {
       _currentRoomName = roomName;
       _hostName = hostName;
       _guestName = ($('my-name').value || '').trim() || 'ゲスト';
+      // v1.48: ロビーチャットを起動
+      clearLobbyChat();
+      showLobbyChatPanels(true);
       enterBattleRoom();
     },
 
@@ -1491,9 +1505,13 @@ function handleBattleMessage(data) {
     return;
   }
   // v1.47 (3-E): チャット受信（SPEC 9章）
+  // v1.48: ロビーチャット履歴にも反映（waiting/room 画面用）
   if (data.type === 'chat' && typeof data.text === 'string') {
-    const text = data.text.slice(0, CHAT_PRESET_MAX_LEN * 3);  // 過剰防御
-    if (text) addChatMessage(getOppName(), text, false);
+    const text = data.text.slice(0, LOBBY_CHAT_MAX_LEN);
+    if (text) {
+      addChatMessage(getOppName(), text, false);  // game/end のフェード型スタック
+      addLobbyChat(getOppName(), text, false);    // waiting/room の履歴リスト
+    }
     return;
   }
   // v1.44 (3-E): 対戦終了画面の再戦合意・退出
@@ -1691,6 +1709,8 @@ function chatSend(slot) {
   const text = _chatPresets[slot];
   if (!text) return;
   addChatMessage(getMyName(), text, true);
+  // v1.48: 試合中の preset 送信もロビー履歴に残す（戻ったとき会話を辿れるように）
+  if (typeof addLobbyChat === 'function') addLobbyChat(getMyName(), text, true);
   if (_mode === 'battle' && typeof MomoMatchmaking !== 'undefined') {
     try { MomoMatchmaking.send({ type: 'chat', text }); } catch (e) {}
   }
@@ -1769,44 +1789,110 @@ function bindChatPresetButton(btn) {
 function startEditPreset(btn) {
   const slot = parseInt(btn.dataset.slot, 10);
   if (slot < 0 || slot >= 3) return;
+  // v1.48: iOS Safari の contentEditable はキーボードが起動しないケースがあるため
+  //        ボタンを hidden にして同じスタイルの <input> を挿入する方式に変更。
+  //        この方式なら iOS でも確実にソフトウェアキーボードが出る。
+  if (btn.classList.contains('editing')) return;  // 二重起動防止
   btn.classList.add('editing');
-  btn.contentEditable = 'true';
-  btn.textContent = _chatPresets[slot];
-  btn.focus();
-  // 全選択
-  try {
-    const range = document.createRange();
-    range.selectNodeContents(btn);
-    const sel = window.getSelection();
-    sel.removeAllRanges();
-    sel.addRange(range);
-  } catch (e) {}
-  const commit = () => {
-    btn.removeEventListener('blur', commit);
-    btn.removeEventListener('keydown', onKey);
-    btn.contentEditable = 'false';
-    btn.classList.remove('editing');
-    let newText = btn.textContent.replace(/\s+/g, ' ').trim().slice(0, CHAT_PRESET_MAX_LEN);
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.maxLength = CHAT_PRESET_MAX_LEN;
+  input.value = _chatPresets[slot];
+  input.className = 'chat-preset-btn editing-input';
+  input.dataset.slot = String(slot);
+  // 同じ枠内でボタンと差し替え
+  btn.style.display = 'none';
+  btn.parentNode.insertBefore(input, btn);
+  // iOS でフォーカス＋選択を確実に発火させるため setTimeout
+  setTimeout(() => { try { input.focus(); input.select(); } catch (e) {} }, 0);
+  let cancelled = false;
+  const finish = () => {
+    input.removeEventListener('blur', finish);
+    input.removeEventListener('keydown', onKey);
+    let newText = cancelled
+      ? _chatPresets[slot]
+      : input.value.replace(/\s+/g, ' ').trim().slice(0, CHAT_PRESET_MAX_LEN);
     if (!newText) newText = CHAT_PRESET_DEFAULTS[slot];
     _chatPresets[slot] = newText;
     saveChatPresets();
+    // input を消してボタン復活
+    input.remove();
+    btn.style.display = '';
+    btn.classList.remove('editing');
     applyChatPresetsToButtons();
   };
   const onKey = (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); btn.blur(); }
-    else if (e.key === 'Escape') {
-      e.preventDefault();
-      btn.textContent = _chatPresets[slot];
-      btn.blur();
-    }
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    else if (e.key === 'Escape') { e.preventDefault(); cancelled = true; input.blur(); }
   };
-  btn.addEventListener('blur', commit);
-  btn.addEventListener('keydown', onKey);
+  input.addEventListener('blur', finish);
+  input.addEventListener('keydown', onKey);
 }
 
 loadChatPresets();
 applyChatPresetsToButtons();
 document.querySelectorAll('.chat-preset-btn').forEach(bindChatPresetButton);
+
+// =====================================================================
+// v1.48: ロビー（waiting/room）自由文章チャット（reversi 流儀）
+//   - 試合中のフェード型チャットとは別系統。履歴は退室まで残る
+//   - 通信プロトコルは試合中チャットと共用（{type:'chat', text}）
+// =====================================================================
+
+const LOBBY_CHAT_MAX_LEN = 100;
+
+function sendLobbyChat(screen) {
+  const input = $('lobby-chat-input-' + screen);
+  if (!input) return;
+  const text = input.value.replace(/\s+/g, ' ').trim().slice(0, LOBBY_CHAT_MAX_LEN);
+  if (!text) return;
+  if (_mode !== 'battle') return;
+  addLobbyChat(getMyName(), text, true);
+  if (typeof MomoMatchmaking !== 'undefined') {
+    try { MomoMatchmaking.send({ type: 'chat', text }); } catch (e) {}
+  }
+  input.value = '';
+}
+
+function addLobbyChat(name, text, isSelf) {
+  ['waiting', 'room'].forEach(scr => {
+    const listEl = $('lobby-chat-list-' + scr);
+    if (!listEl) return;
+    const div = document.createElement('div');
+    div.className = 'lobby-chat-msg ' + (isSelf ? 'self' : 'opp');
+    div.textContent = `${name}: ${text}`;
+    listEl.appendChild(div);
+    listEl.scrollTop = listEl.scrollHeight;
+  });
+}
+
+function clearLobbyChat() {
+  ['waiting', 'room'].forEach(scr => {
+    const listEl = $('lobby-chat-list-' + scr);
+    if (listEl) listEl.innerHTML = '';
+  });
+}
+
+function showLobbyChatPanels(show) {
+  ['waiting', 'room'].forEach(scr => {
+    const panel = $('lobby-chat-' + scr);
+    if (panel) panel.style.display = show ? '' : 'none';
+  });
+}
+
+// 起動時に送信ボタン / Enter キーをバインド
+document.querySelectorAll('.lobby-chat-send-btn').forEach(btn => {
+  btn.addEventListener('click', () => sendLobbyChat(btn.dataset.screen));
+});
+document.querySelectorAll('.lobby-chat-input').forEach(input => {
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const screen = input.id.replace('lobby-chat-input-', '');
+      sendLobbyChat(screen);
+    }
+  });
+});
 
 // ===== 起動時 =====
 applyLang('ja');

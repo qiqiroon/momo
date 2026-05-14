@@ -1050,6 +1050,64 @@ body.in-game #lang-switcher { display: none; }
   outline: 2px solid var(--orange);
   cursor: text;
 }
+/* v1.48: input 置換編集（iOS キーボード対応）。.chat-preset-btn と同じ見た目
+   になるよう、input 既定スタイルを打ち消して合わせる */
+input.chat-preset-btn.editing-input {
+  text-align: center;
+  outline: 2px solid var(--orange);
+  background: rgba(20, 20, 22, 0.95);
+  font-family: 'Noto Sans JP', sans-serif;
+  /* iOS のデフォルト appearance を打ち消し */
+  -webkit-appearance: none;
+  appearance: none;
+}
+input.chat-preset-btn.editing-input:focus {
+  outline: 2px solid var(--orange);
+}
+
+/* v1.48: ロビー（waiting/room）自由文章チャット（reversi 流儀） */
+.lobby-chat-list {
+  max-height: 140px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  background: var(--surface2);
+  border-radius: 6px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+}
+.lobby-chat-list:empty::before {
+  content: 'チャットを始められます';
+  color: var(--text-muted);
+  font-size: 11px;
+  opacity: 0.6;
+}
+.lobby-chat-msg {
+  word-break: break-word;
+}
+.lobby-chat-msg.self { color: var(--orange-light); }
+.lobby-chat-msg.opp  { color: var(--text); }
+.lobby-chat-input-row {
+  display: flex;
+  gap: 4px;
+}
+.lobby-chat-input {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 13px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.lobby-chat-input:focus { outline: none; border-color: var(--orange); }
+.lobby-chat-send-btn { padding: 8px 14px; flex: 0 0 auto; }
 .chat-preset-hint {
   font-size: 9px;
   color: rgba(255,255,255,0.5);
@@ -1415,7 +1473,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.47</span>
+      <span class="version-tag" id="version-tag">v1.48</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -1482,6 +1540,15 @@ body.in-game #gear-icon { display: flex; }
       部屋名：<span id="waiting-room-name" style="color:var(--text);"></span>
     </div>
   </div>
+  <!-- v1.48: 対戦時の自由文章チャット（reversi 流儀） -->
+  <div class="panel lobby-chat-panel" id="lobby-chat-waiting" style="display:none;">
+    <div class="panel-title">チャット</div>
+    <div class="lobby-chat-list" id="lobby-chat-list-waiting"></div>
+    <div class="lobby-chat-input-row">
+      <input type="text" class="lobby-chat-input" id="lobby-chat-input-waiting" placeholder="メッセージ" maxlength="100">
+      <button class="btn btn-secondary lobby-chat-send-btn" data-screen="waiting">送信</button>
+    </div>
+  </div>
   <div class="panel">
     <button class="btn btn-ghost" id="btn-waiting-leave">退出</button>
   </div>
@@ -1531,6 +1598,16 @@ body.in-game #gear-icon { display: flex; }
     <button class="btn btn-secondary" id="btn-kick-guest" style="display:none;">ゲストをキック</button>
     <div class="panel-desc" id="room-hint" style="font-size: 11px; text-align: center;">
       ※ ゲーム開始時にセンサー許可・キャリブレーションを実行します
+    </div>
+  </div>
+
+  <!-- v1.48: 対戦時の自由文章チャット（reversi 流儀） -->
+  <div class="panel lobby-chat-panel" id="lobby-chat-room" style="display:none;">
+    <div class="panel-title">チャット</div>
+    <div class="lobby-chat-list" id="lobby-chat-list-room"></div>
+    <div class="lobby-chat-input-row">
+      <input type="text" class="lobby-chat-input" id="lobby-chat-input-room" placeholder="メッセージ" maxlength="100">
+      <button class="btn btn-secondary lobby-chat-send-btn" data-screen="room">送信</button>
     </div>
   </div>
 </div>

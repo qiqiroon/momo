@@ -880,6 +880,7 @@ body.in-game #lang-switcher { display: none; }
 #big-announcement.bust { color: var(--danger); }
 #big-announcement.finish { color: #ffd54a; }
 #big-announcement.lose { color: var(--text-muted); }  /* v1.33 (3-C) */
+#big-announcement.abort { color: #94a3b8; }            /* v1.41: 対戦中止（中立グレー） */
 #big-announcement .sub {
   display: block;
   margin-top: 10px;
@@ -1069,6 +1070,7 @@ body.in-game #gear-icon { display: flex; }
 }
 .result-message.win { color: var(--success); }
 .result-message.lose { color: var(--danger); }
+.result-message.abort { color: #94a3b8; }  /* v1.41: 対戦中止（中立グレー） */
 .result-sub {
   font-size: 14px;
   color: var(--text-muted);
@@ -1269,7 +1271,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.40</span>
+      <span class="version-tag" id="version-tag">v1.41</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -1560,13 +1562,16 @@ body.in-game #gear-icon { display: flex; }
 <!-- ===== ゲーム中の歯車アイコン（v1.15: メニュー トリガ） ===== -->
 <div id="gear-icon" title="設定">⚙</div>
 
-<!-- ===== モーダル（退出確認） ===== -->
+<!-- ===== モーダル（退出確認 / 通知） ===== -->
 <div id="modal-mask">
   <div class="modal-box">
     <div class="modal-text" id="modal-text">退出しますか？</div>
-    <div class="btn-row">
+    <div class="btn-row" id="modal-yesno-row">
       <button class="btn btn-danger" id="modal-yes">はい</button>
       <button class="btn btn-ghost" id="modal-no">いいえ</button>
+    </div>
+    <div class="btn-row" id="modal-ok-row" style="display:none">
+      <button class="btn btn-primary" id="modal-ok">OK</button>
     </div>
   </div>
 </div>

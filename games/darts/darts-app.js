@@ -58,6 +58,16 @@ document.addEventListener('visibilitychange', () => {
 let modalResolver = null;
 function confirm(text) {
   $('modal-text').textContent = text;
+  $('modal-yesno-row').style.display = '';
+  $('modal-ok-row').style.display = 'none';
+  $('modal-mask').classList.add('active');
+  return new Promise((resolve) => { modalResolver = resolve; });
+}
+// v1.41: ブラウザ標準 alert はドメイン名（"qiqiroon.github.io の内容"）が出るため独自モーダルへ
+function alertInfo(text) {
+  $('modal-text').textContent = text;
+  $('modal-yesno-row').style.display = 'none';
+  $('modal-ok-row').style.display = '';
   $('modal-mask').classList.add('active');
   return new Promise((resolve) => { modalResolver = resolve; });
 }
@@ -70,6 +80,7 @@ function closeModal(answer) {
 }
 $('modal-yes').addEventListener('click', () => closeModal(true));
 $('modal-no').addEventListener('click', () => closeModal(false));
+$('modal-ok').addEventListener('click', () => closeModal(true));
 $('modal-mask').addEventListener('click', (e) => {
   if (e.target === $('modal-mask')) closeModal(false);
 });
@@ -611,22 +622,31 @@ function showAnnouncement(kind, main, sub) {
 // v1.25: 結果画面の表示（FINISH 時に呼ばれる）
 function showEndScreen(opts) {
   if (!_gameState) return;
-  // v1.33 (3-C): 対戦時は WIN/LOSE 表示
-  // v1.37 (3-D): opts.disconnect=true で切断による勝敗表示
-  if (_mode === 'battle' && opts && opts.winner) {
+  // v1.41: 表示状態を毎回リセット（前回 abort で隠した場合に備える）
+  $('end-stats').style.display = '';
+  $('btn-end-replay').style.display = '';
+  $('btn-end-rule-change').style.display = '';
+  $('btn-end-back-room').style.display = '';
+  $('btn-end-back-room').textContent = '終了';
+
+  // v1.41: 切断による対戦中止（勝敗なし、戦績記録なし）
+  if (_mode === 'battle' && opts && opts.abort) {
+    $('end-result-msg').textContent = '— 対戦中止 —';
+    $('end-result-msg').className = 'result-message abort';
+    $('end-result-sub').textContent = '通信切断のため対戦を中止しました';
+    $('end-stats').style.display = 'none';
+    $('btn-end-replay').style.display = 'none';
+    $('btn-end-rule-change').style.display = 'none';
+    $('btn-end-back-room').textContent = 'ロビーへ戻る';
+  } else if (_mode === 'battle' && opts && opts.winner) {
+    // v1.33 (3-C): 対戦時は WIN/LOSE 表示（通常勝敗時）
     const isMyWin = opts.winner === 'self';
     const winner = isMyWin ? getMyName() : getOppName();
     const winnerState = isMyWin ? _gameState : _oppState;
     $('end-result-msg').textContent = isMyWin ? '🏆 WIN!' : '😢 LOSE!';
     $('end-result-msg').className = `result-message ${isMyWin ? 'win' : 'lose'}`;
-    if (opts.disconnect) {
-      $('end-result-sub').textContent = isMyWin
-        ? `${getOppName()} の切断による勝利`
-        : '通信切断による敗北';
-    } else {
-      $('end-result-sub').textContent =
-        `${winner} の勝利！ ${winnerState ? winnerState.dartCount + ' ダーツ' : ''}`;
-    }
+    $('end-result-sub').textContent =
+      `${winner} の勝利！ ${winnerState ? winnerState.dartCount + ' ダーツ' : ''}`;
     $('end-stat-darts').textContent = winnerState ? winnerState.dartCount : '-';
     $('end-stat-turns').textContent = (winnerState ? winnerState.history.length : '-');
     $('end-stat-busts').textContent = winnerState ? winnerState.history.filter(h => h.bust).length : '-';
@@ -1001,7 +1021,7 @@ function renderPrivateRoomList(rooms, password) {
 function clickJoinRoom(room) {
   const myName = ($('my-name').value || '').trim();
   if (!myName) {
-    alert('「あなたの名前」を入力してください');
+    alertInfo('「あなたの名前」を入力してください');
     $('my-name').focus();
     return;
   }
@@ -1075,10 +1095,9 @@ function initMatchmaking() {
     onGuestLeft: () => {
       _guestName = '';
       updateKickButton();
-      // v1.39: 試合中にゲスト退出 → waiting 画面に戻さず即 WIN 宣言
-      // （以前は waiting 表示 → 30秒後にようやく WIN が出ていた）
+      // v1.41: 試合中にゲスト退出 → 対戦中止（勝敗なし）
       if (_gameInProgress && _mode === 'battle') {
-        declareDisconnectWin();
+        declareDisconnectAbort('guest-left');
         return;
       }
       // 試合前（待機・部屋画面）の退出 → 新しいゲストを待つ
@@ -1092,24 +1111,16 @@ function initMatchmaking() {
     },
 
     onDisconnected: (msg) => {
-      // v1.38: 試合中の切断は survivor=WIN / 自分が落ちた=LOSE で出し分け。
-      // MomoMatchmaking は room_closed 受信時に currentRoomId をクリアしてから
-      // onDisconnected を呼ぶ（= 相手が落ちて部屋が閉じた）。逆に自分の WS が
-      // 死んだ場合は currentRoomId をクリアしない（= 自分の通信切断）。
+      // v1.41: 試合中の切断はすべて「対戦中止（勝敗なし）」扱いに統一。
+      // currentRoomId の有無で reason だけ出し分け（ログ用途）。
       if (_gameInProgress && _mode === 'battle') {
         const stillInRoom = (typeof MomoMatchmaking !== 'undefined')
           && !!MomoMatchmaking.getState().currentRoomId;
-        if (stillInRoom) {
-          // 自分の WS が死んだ → 自分が切断敗北
-          handleDisconnectLoss(msg);
-        } else {
-          // 相手が抜けて部屋が閉じた → 自分は survivor、勝利
-          declareDisconnectWin();
-        }
+        declareDisconnectAbort(stillInRoom ? 'self-ws-died' : 'opp-ws-died');
         return;
       }
       if (_mode === 'battle') {
-        alert(msg || '接続が切断されました');
+        alertInfo('通信が切断されました。');
       }
       _mode = 'solo';
       _guestName = '';
@@ -1122,7 +1133,7 @@ function initMatchmaking() {
     },
 
     onKicked: () => {
-      alert('ホストから退出させられました');
+      alertInfo('ホストから退出させられました');
       _mode = 'solo';
       _guestName = '';
       resetRoomToSolo();
@@ -1389,9 +1400,16 @@ $('btn-kick-guest').addEventListener('click', async () => {
 });
 
 // =====================================================================
-// v1.37 (3-D): ハートビート機構（SPEC 8.8）
+// ハートビート機構（v1.37 で 3-D 導入、v1.41 で勝敗なし・対戦中止に変更）
 // クライアント間で 5 秒間隔の ping、30 秒不達で切断確定。
 // 投擲動作中（throw_start ～ throw_end）はタイムアウト計時を停止する。
+//
+// v1.41 仕様変更:
+//   - 切断時の勝敗判定を廃止。両者「対戦中止（勝敗なし）」扱いに統一
+//   - `_lastHeartbeatSent` を記録し、自分の送信が30秒以上止まっていれば
+//     相手から見て切断扱いされている前提で自分も中止確定（公平のため）
+//   - Page Visibility API で visible 復帰時に即チェック発火
+//     （バックグラウンド中の setInterval throttle 対策）
 // =====================================================================
 
 const HEARTBEAT_SEND_INTERVAL_MS = 5000;
@@ -1400,6 +1418,7 @@ const HEARTBEAT_WARN_THRESHOLD_MS = 8000;     // 警告表示開始
 const HEARTBEAT_TIMEOUT_MS = 30000;           // 切断確定
 
 let _lastHeartbeatRcvd = 0;
+let _lastHeartbeatSent = 0;
 let _oppInThrow = false;
 let _heartbeatSendTimer = null;
 let _heartbeatCheckTimer = null;
@@ -1408,7 +1427,9 @@ let _gameInProgress = false;
 let _disconnectDeclared = false;
 
 function startHeartbeat() {
-  _lastHeartbeatRcvd = performance.now();
+  const now = performance.now();
+  _lastHeartbeatRcvd = now;
+  _lastHeartbeatSent = now;
   _oppInThrow = false;
   _disconnectDeclared = false;
   showDisconnectWarning(false);
@@ -1416,6 +1437,7 @@ function startHeartbeat() {
   _heartbeatSendTimer = setInterval(() => {
     if (typeof MomoMatchmaking !== 'undefined') {
       MomoMatchmaking.send({ type: 'heartbeat' });
+      _lastHeartbeatSent = performance.now();
     }
   }, HEARTBEAT_SEND_INTERVAL_MS);
   if (_heartbeatCheckTimer) clearInterval(_heartbeatCheckTimer);
@@ -1431,15 +1453,30 @@ function stopHeartbeat() {
 function checkHeartbeat() {
   if (_disconnectDeclared) return;
   if (_oppInThrow) return;  // SPEC 8.8: 投擲中は計時停止
-  const elapsed = performance.now() - _lastHeartbeatRcvd;
-  if (elapsed >= HEARTBEAT_TIMEOUT_MS) {
-    declareDisconnectWin();
-  } else if (elapsed >= HEARTBEAT_WARN_THRESHOLD_MS) {
+  const now = performance.now();
+  // v1.41: 自分の送信が長く停止していたら、相手側ではタイムアウト扱いされている
+  //        前提で自分も中止確定（バックグラウンド throttle → visible 復帰時に検出）
+  const sentElapsed = now - _lastHeartbeatSent;
+  if (sentElapsed >= HEARTBEAT_TIMEOUT_MS) {
+    declareDisconnectAbort('self-stalled');
+    return;
+  }
+  const rcvdElapsed = now - _lastHeartbeatRcvd;
+  if (rcvdElapsed >= HEARTBEAT_TIMEOUT_MS) {
+    declareDisconnectAbort('opp-timeout');
+  } else if (rcvdElapsed >= HEARTBEAT_WARN_THRESHOLD_MS) {
     showDisconnectWarning(true);
   } else {
     showDisconnectWarning(false);
   }
 }
+
+// v1.41: visible 復帰時に即チェック → バックグラウンドで止まっていた間の経過を検出
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && _gameInProgress) {
+    checkHeartbeat();
+  }
+});
 
 function showDisconnectWarning(show) {
   const el = $('disconnect-warning');
@@ -1453,34 +1490,22 @@ function showDisconnectWarning(show) {
   }
 }
 
-// 自分が survivor（タイムアウト検知側）として勝利確定
-function declareDisconnectWin() {
+// v1.41: 切断起因の対戦中止（勝敗なし）
+// 旧 declareDisconnectWin / handleDisconnectLoss を統合。
+// reason: 'self-stalled' / 'opp-timeout' / 'self-ws-died' / 'opp-ws-died' / 'guest-left'
+function declareDisconnectAbort(reason) {
   if (_disconnectDeclared) return;
   _disconnectDeclared = true;
   stopHeartbeat();
-  console.log('[darts] heartbeat timeout → declare disconnect-win');
-  showAnnouncement('finish', 'WIN!', '相手の切断による勝利');
+  $('calib-opp-wait').style.display = 'none';
+  console.log('[darts] disconnect abort:', reason);
+  showAnnouncement('abort', '対戦中止', '通信切断のため');
   setTimeout(() => {
     if (typeof MomoMatchmaking !== 'undefined') {
       try { MomoMatchmaking.leaveRoom(); } catch (e) {}
     }
     _gameInProgress = false;
-    showEndScreen({ winner: 'self', disconnect: true });
-  }, 2200);
-}
-
-// 自分が disconnected 側として敗北扱い（onDisconnected から呼ばれる）
-function handleDisconnectLoss(msg) {
-  if (_disconnectDeclared) return;
-  _disconnectDeclared = true;
-  stopHeartbeat();
-  console.log('[darts] WS disconnected mid-game → loss', msg);
-  showAnnouncement('lose', 'LOSE!', '通信切断による敗北');
-  setTimeout(() => {
-    _gameInProgress = false;
-    // showEndScreen は leaveGameScreen を呼ぶ → Render.stop / Input.stop
-    showEndScreen({ winner: 'opp', disconnect: true });
-    // mode は battle のまま end 画面で「lobby 戻り」されたら exitBattleToLobby が掃除する
+    showEndScreen({ disconnect: true, abort: true });
   }, 2200);
 }
 

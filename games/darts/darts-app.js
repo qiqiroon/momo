@@ -800,6 +800,8 @@ function exitBattleToLobby() {
   }
   _mode = 'solo';
   _guestName = '';
+  // v1.42: abort 宣言フラグをここでリセット（end→lobby 遷移完了で次のゲームに備える）
+  _disconnectDeclared = false;
   resetRoomToSolo();
   showScreen('lobby');
 }
@@ -1095,6 +1097,9 @@ function initMatchmaking() {
     onGuestLeft: () => {
       _guestName = '';
       updateKickButton();
+      // v1.42: 既に abort 宣言済み（end画面表示中）なら何もしない
+      // （重複発火で end → lobby に巻き戻されるのを防ぐ）
+      if (_disconnectDeclared) return;
       // v1.41: 試合中にゲスト退出 → 対戦中止（勝敗なし）
       if (_gameInProgress && _mode === 'battle') {
         declareDisconnectAbort('guest-left');
@@ -1111,6 +1116,11 @@ function initMatchmaking() {
     },
 
     onDisconnected: (msg) => {
+      // v1.42: 既に abort 宣言済みなら何もしない。
+      // 復帰タイミングの WS.onclose や buffered room_closed が遅れて発火し、
+      // showEndScreen 後（_gameInProgress=false 時）に再入した場合に下の lobby
+      // 分岐へ落ちて end 画面が上書きされる現象を防ぐ。
+      if (_disconnectDeclared) return;
       // v1.41: 試合中の切断はすべて「対戦中止（勝敗なし）」扱いに統一。
       // currentRoomId の有無で reason だけ出し分け（ログ用途）。
       if (_gameInProgress && _mode === 'battle') {

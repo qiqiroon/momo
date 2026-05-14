@@ -1271,7 +1271,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.41</span>
+      <span class="version-tag" id="version-tag">v1.42</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -1482,9 +1482,6 @@ body.in-game #gear-icon { display: flex; }
   <!-- 飛行ダーツ（ダミー直進、段階2-D） -->
   <div id="flying-dart"></div>
 
-  <!-- v1.25: BUST / FINISH 中央オーバーレイ -->
-  <div id="big-announcement"></div>
-
   <!-- v1.37 (3-D): 切断検知中オーバーレイ -->
   <div id="disconnect-warning" style="display:none;">相手の応答を待っています…</div>
 
@@ -1561,6 +1558,10 @@ body.in-game #gear-icon { display: flex; }
 
 <!-- ===== ゲーム中の歯車アイコン（v1.15: メニュー トリガ） ===== -->
 <div id="gear-icon" title="設定">⚙</div>
+
+<!-- v1.42: BUST / FINISH / 対戦中止 中央オーバーレイ（screen 配下から出して
+     screen-calibration / screen-end など全画面共通で表示できるように） -->
+<div id="big-announcement"></div>
 
 <!-- ===== モーダル（退出確認 / 通知） ===== -->
 <div id="modal-mask">

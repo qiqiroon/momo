@@ -176,19 +176,24 @@ let _startTime = 0;
 
 // ======================================================================
 // 的の配置（SPEC 4.4：FOV ハード制限 + 毎ターン直径 1/4 ランダムシフト）
+// v1.45: 上下方向は現在の端末ピッチを基準にする（楽な姿勢のドリフトで
+//        上下誤差が累積するのを防ぐ。yaw 方向は従来通りキャリブ正面基準）
 // ======================================================================
 export function placeTargetForTurn() {
   const targetAngularDiameter = HORIZ_FOV_DEG * TARGET_DIAMETER_RATIO;
   const maxShift = targetAngularDiameter * SHIFT_RADIUS_RATIO;  // 直径の 1/4 まで
   const angle = Math.random() * Math.PI * 2;
   const r = Math.random() * maxShift;
-  const yaw = Math.cos(angle) * r;
-  const pitch = Math.sin(angle) * r;
-  // ハード制限（FOV の半分以内）
+  const yawShift   = Math.cos(angle) * r;
+  const pitchShift = Math.sin(angle) * r;
+  // 現在の端末ピッチを取得（楽な姿勢の上下方向）
+  const rel = Sensor.getRelativeOrientation();
+  const currentPitch = rel ? (SIGN_PITCH * (rel.beta || 0)) : 0;
+  // ハード制限（yaw はキャリブ正面基準で FOV の半分以内）
   const half = HORIZ_FOV_DEG / 2;
   _targetWorld = {
-    yaw:   Math.max(-half, Math.min(half, yaw)),
-    pitch: Math.max(-half, Math.min(half, pitch)),
+    yaw:   Math.max(-half, Math.min(half, yawShift)),
+    pitch: currentPitch + pitchShift,  // 端末ピッチ基準（ハード制限なし、楽な姿勢の前方に配置）
   };
   // v1.21: ターン進行時に着弾マークをクリア（履歴は段階2-F 以降で実装）
   clearImpactMarks();

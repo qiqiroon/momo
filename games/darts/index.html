@@ -241,17 +241,37 @@ body.in-game #lang-switcher { display: none; }
 .btn-danger { background: var(--danger); color: #fff; }
 .btn-danger:hover:not(:disabled) { background: #e74c3c; }
 
-/* v1.44 (3-E): 結果画面ボタンの自選択ハイライト + 相手選択表示 */
+/* v1.44 (3-E): 結果画面ボタンの自選択ハイライト + 相手選択表示
+   v1.45: 3ボタンの明るさを揃える（reversi の .end-btn 流儀踏襲、中立 surface2 背景） */
 #screen-end .btn {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 8px;
+  padding: 12px;
+  background: var(--surface2);
+  color: var(--text);
+  border: 2px solid var(--border);
+  font-weight: 700;
+}
+#screen-end .btn:hover:not(:disabled) {
+  border-color: var(--orange);
+  color: var(--text);
+}
+#screen-end .btn.btn-danger {
+  background: var(--surface2);
+  color: var(--text);
+  border-color: var(--danger);
+}
+#screen-end .btn.btn-danger:hover:not(:disabled) {
+  background: #2a0a0a;
+  border-color: var(--danger);
+  color: var(--danger);
 }
 #screen-end .btn.selected {
-  outline: 2px solid var(--orange);
-  outline-offset: -2px;
-  box-shadow: 0 0 0 2px rgba(234, 88, 12, 0.25);
+  border-color: var(--orange);
+  background: #1a0e04;
+  color: var(--orange);
 }
 #screen-end .opponent-choice {
   font-size: 11px;
@@ -1283,7 +1303,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.44</span>
+      <span class="version-tag" id="version-tag">v1.45</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>

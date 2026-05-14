@@ -634,13 +634,19 @@ function showEndScreen(opts) {
   $('btn-end-replay').style.display = '';
   $('btn-end-rule-change').style.display = '';
   $('btn-end-back-room').style.display = '';
-  // v1.44 (3-E): 再戦合意状態と相手選択表示もリセット
+  // v1.44 (3-E): 自選択ハイライトをリセット（自分はまだ未選択）
+  // v1.46: `_oppEndChoice` は触らない。相手が先に試合終了 → end_choice を
+  //        送信し、自分がまだ game 画面の段階で受信 → showEndScreen 直前で
+  //        既に値が入っているケースがあるため、ここでリセットすると相手の
+  //        選択を取りこぼす（「相手選択中」が表示されないバグの原因）。
+  //        前試合の残骸は次のゲーム開始時 (proceedToBattleGameStart) で
+  //        クリアする。
   _myEndChoice = null;
-  _oppEndChoice = null;
   $('btn-end-replay').classList.remove('selected');
   $('btn-end-rule-change').classList.remove('selected');
-  $('opp-end-replay').textContent = '';
-  $('opp-end-rule-change').textContent = '';
+  // 既受信済みの相手選択を opp-* テキストに反映（前試合残骸は proceedToBattleGameStart 側でクリア）
+  $('opp-end-replay').textContent      = _oppEndChoice === 'swap' ? '相手選択中' : '';
+  $('opp-end-rule-change').textContent = _oppEndChoice === 'same' ? '相手選択中' : '';
 
   // v1.41: 切断による対戦中止（勝敗なし、戦績記録なし）
   if (_mode === 'battle' && opts && opts.abort) {
@@ -1397,6 +1403,10 @@ async function proceedToBattleGameStart() {
   _gameInProgress = true;
   _gameState = Rules.createInitialState();
   _oppState = Rules.createInitialState();
+  // v1.46: 前試合の再戦合意状態をクリア（showEndScreen は `_oppEndChoice` を
+  //        触らない方針に変えたので、新ゲーム開始でここを通る時に初期化する）
+  _myEndChoice = null;
+  _oppEndChoice = null;
   startHeartbeat();
   await startGameFlow();
 }

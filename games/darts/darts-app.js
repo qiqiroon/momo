@@ -619,6 +619,13 @@ function showAnnouncement(kind, main, sub) {
   }, 1700);
 }
 
+// v1.44 (3-E): 結果画面ボタンのラベル設定ヘルパー
+function setEndBtnLabel(btnId, label) {
+  const labelEl = $(btnId).querySelector('.end-btn-label');
+  if (labelEl) labelEl.textContent = label;
+  else $(btnId).textContent = label;  // 子要素なし時のフォールバック（abort 画面の単独ボタン用）
+}
+
 // v1.25: 結果画面の表示（FINISH 時に呼ばれる）
 function showEndScreen(opts) {
   if (!_gameState) return;
@@ -627,7 +634,13 @@ function showEndScreen(opts) {
   $('btn-end-replay').style.display = '';
   $('btn-end-rule-change').style.display = '';
   $('btn-end-back-room').style.display = '';
-  $('btn-end-back-room').textContent = '終了';
+  // v1.44 (3-E): 再戦合意状態と相手選択表示もリセット
+  _myEndChoice = null;
+  _oppEndChoice = null;
+  $('btn-end-replay').classList.remove('selected');
+  $('btn-end-rule-change').classList.remove('selected');
+  $('opp-end-replay').textContent = '';
+  $('opp-end-rule-change').textContent = '';
 
   // v1.41: 切断による対戦中止（勝敗なし、戦績記録なし）
   if (_mode === 'battle' && opts && opts.abort) {
@@ -637,7 +650,7 @@ function showEndScreen(opts) {
     $('end-stats').style.display = 'none';
     $('btn-end-replay').style.display = 'none';
     $('btn-end-rule-change').style.display = 'none';
-    $('btn-end-back-room').textContent = 'ロビーへ戻る';
+    setEndBtnLabel('btn-end-back-room', 'ロビーへ戻る');
   } else if (_mode === 'battle' && opts && opts.winner) {
     // v1.33 (3-C): 対戦時は WIN/LOSE 表示（通常勝敗時）
     const isMyWin = opts.winner === 'self';
@@ -672,8 +685,68 @@ function showEndScreen(opts) {
     $('end-stat-best').textContent = bestTurn;
   }
 
+  // v1.44 (3-E): ボタンラベルを mode に応じて設定（abort 時は上書き済み）
+  if (!(opts && opts.abort)) {
+    if (_mode === 'battle') {
+      setEndBtnLabel('btn-end-replay',      '先後入れ替えて再戦');
+      setEndBtnLabel('btn-end-rule-change', '先後そのままで再戦');
+      setEndBtnLabel('btn-end-back-room',   '終了して退出');
+    } else {
+      setEndBtnLabel('btn-end-replay',      'もう一度プレイ');
+      setEndBtnLabel('btn-end-rule-change', 'ルール変更');
+      setEndBtnLabel('btn-end-back-room',   '終了');
+    }
+  }
+
   leaveGameScreen();
   showScreen('end');
+}
+
+// v1.44 (3-E): 対戦終了時の再戦合意・退出フロー（reversi 流儀踏襲）
+let _myEndChoice = null;   // 'swap' | 'same' | null
+let _oppEndChoice = null;  // 'swap' | 'same' | null
+
+function chooseEnd(choice) {
+  if (_mode !== 'battle') return;
+  if (choice === 'quit') {
+    if (typeof MomoMatchmaking !== 'undefined') {
+      try { MomoMatchmaking.send({ type: 'end_choice', choice: 'quit' }); } catch (e) {}
+    }
+    // v1.44: 後続の room_closed → onDisconnected で「通信切断」alert が出ないようガード
+    _disconnectDeclared = true;
+    exitBattleToLobby();
+    return;
+  }
+  _myEndChoice = choice;
+  if (typeof MomoMatchmaking !== 'undefined') {
+    MomoMatchmaking.send({ type: 'end_choice', choice });
+  }
+  updateEndUI();
+  checkEndMatch();
+}
+
+function updateEndUI() {
+  $('btn-end-replay').classList.toggle('selected',      _myEndChoice === 'swap');
+  $('btn-end-rule-change').classList.toggle('selected', _myEndChoice === 'same');
+  $('opp-end-replay').textContent      = _oppEndChoice === 'swap' ? '相手選択中' : '';
+  $('opp-end-rule-change').textContent = _oppEndChoice === 'same' ? '相手選択中' : '';
+}
+
+function checkEndMatch() {
+  if (!_myEndChoice || !_oppEndChoice) return;
+  if (_myEndChoice !== _oppEndChoice) return;  // 不一致は待機
+  // 合意成立 → 即試合再開（SPEC 12.6: キャリブはセッション中スキップ）
+  if (_myEndChoice === 'swap') {
+    _myRole = (_myRole === 'first') ? 'second' : 'first';
+  }
+  _myEndChoice = null;
+  _oppEndChoice = null;
+  // 再戦のための状態初期化（proceedToBattleGameStart 相当だがキャリブはスキップ）
+  _gameInProgress = true;
+  _gameState = Rules.createInitialState();
+  _oppState = Rules.createInitialState();
+  startHeartbeat();  // 内部で _disconnectDeclared / _lastHeartbeatRcvd / _lastHeartbeatSent を初期化
+  enterGameScreen();
 }
 
 $('btn-next-turn').addEventListener('click', () => {
@@ -807,10 +880,9 @@ function exitBattleToLobby() {
 }
 
 $('btn-end-replay').addEventListener('click', () => {
-  // v1.33 (3-C): 対戦の再戦合意フローは 3-E で実装。それまでは部屋を抜けて lobby
-  if (_mode === 'battle') { exitBattleToLobby(); return; }
-  // SPEC 12.6: 再戦時はキャリブをセッション中スキップ
-  // calibration を残したまま game へ直行
+  // v1.44 (3-E): 対戦時は「先後入れ替えて再戦」の合意フロー
+  if (_mode === 'battle') { chooseEnd('swap'); return; }
+  // SPEC 12.6: 1人用の再戦はキャリブをセッション中スキップ
   if (Sensor.getCalibration()) {
     enterGameScreen();
   } else {
@@ -818,11 +890,13 @@ $('btn-end-replay').addEventListener('click', () => {
   }
 });
 $('btn-end-rule-change').addEventListener('click', () => {
-  if (_mode === 'battle') { exitBattleToLobby(); return; }
+  // v1.44 (3-E): 対戦時は「先後そのままで再戦」の合意フロー
+  if (_mode === 'battle') { chooseEnd('same'); return; }
   showScreen('room');
 });
 $('btn-end-back-room').addEventListener('click', () => {
-  if (_mode === 'battle') { exitBattleToLobby(); return; }
+  // v1.44 (3-E): 対戦時は確認なしで退出（abort 経路は exitBattleToLobby 直行で OK）
+  if (_mode === 'battle') { chooseEnd('quit'); return; }
   showScreen('room');
 });
 
@@ -1389,6 +1463,23 @@ function handleBattleMessage(data) {
   if (data.type === 'throw_end') {
     _oppInThrow = false;
     _lastHeartbeatRcvd = performance.now();  // 着弾後に最新化
+    return;
+  }
+  // v1.44 (3-E): 対戦終了画面の再戦合意・退出
+  if (data.type === 'end_choice') {
+    if (data.choice === 'quit') {
+      // 相手が退出ボタン押下 → 自分もロビーへ
+      // v1.44: 後続の room_closed → onDisconnected で「通信切断」alert が出ないようガード
+      _disconnectDeclared = true;
+      alertInfo('相手が退出しました');
+      exitBattleToLobby();
+      return;
+    }
+    if (data.choice === 'swap' || data.choice === 'same') {
+      _oppEndChoice = data.choice;
+      updateEndUI();
+      checkEndMatch();
+    }
     return;
   }
   console.log('[darts] msg (unhandled)', data);

@@ -241,6 +241,26 @@ body.in-game #lang-switcher { display: none; }
 .btn-danger { background: var(--danger); color: #fff; }
 .btn-danger:hover:not(:disabled) { background: #e74c3c; }
 
+/* v1.44 (3-E): 結果画面ボタンの自選択ハイライト + 相手選択表示 */
+#screen-end .btn {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+#screen-end .btn.selected {
+  outline: 2px solid var(--orange);
+  outline-offset: -2px;
+  box-shadow: 0 0 0 2px rgba(234, 88, 12, 0.25);
+}
+#screen-end .opponent-choice {
+  font-size: 11px;
+  color: var(--orange-light);
+  font-weight: 400;
+  opacity: 0.95;
+}
+#screen-end .opponent-choice:empty { display: none; }
+
 .btn-row {
   display: flex;
   gap: 8px;
@@ -1263,7 +1283,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.43</span>
+      <span class="version-tag" id="version-tag">v1.44</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -1540,9 +1560,17 @@ body.in-game #gear-icon { display: flex; }
   </div>
 
   <div class="panel">
-    <button class="btn btn-primary" id="btn-end-replay">もう一度プレイ</button>
-    <button class="btn btn-secondary" id="btn-end-rule-change">ルール変更</button>
-    <button class="btn btn-danger" id="btn-end-back-room">終了</button>
+    <button class="btn btn-primary" id="btn-end-replay">
+      <span class="end-btn-label">もう一度プレイ</span>
+      <span class="opponent-choice" id="opp-end-replay"></span>
+    </button>
+    <button class="btn btn-secondary" id="btn-end-rule-change">
+      <span class="end-btn-label">ルール変更</span>
+      <span class="opponent-choice" id="opp-end-rule-change"></span>
+    </button>
+    <button class="btn btn-danger" id="btn-end-back-room">
+      <span class="end-btn-label">終了</span>
+    </button>
   </div>
 </div>
 

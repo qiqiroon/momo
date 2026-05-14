@@ -1231,7 +1231,6 @@ function resetBattleAgreementState() {
   renderRoleSelection();
   renderAgreementHint();
   $('btn-game-start').disabled = (_mode === 'battle');
-  $('calib-opp-wait').style.display = 'none';
 }
 
 function rolesConsistent() {
@@ -1318,7 +1317,6 @@ async function proceedToBattleGameStart() {
   // 両者押下成立 → センサー許可 → キャリブへ
   _myCalibDone = false;
   _oppCalibDone = false;
-  $('calib-opp-wait').style.display = 'none';
   // v1.40 (SPEC 11.5): キャリブ中もハートビート有効。`_gameInProgress` をここで立て、
   // `_gameState`/`_oppState` も先に初期化しておく（showEndScreen は `_gameState` が
   // 必要、キャリブ中の切断検知 → 結果画面遷移を成立させるため）
@@ -1336,12 +1334,13 @@ function onMyCalibDone() {
     MomoMatchmaking.send({ type: 'calib_done' });
   }
   if (_oppCalibDone) {
-    $('calib-opp-wait').style.display = 'none';
     enterGameScreen();
   } else {
-    $('calib-opp-wait').style.display = 'block';
-    // 「正面に固定」を不可に（既にキャリブ済み）
+    // v1.43: 「相手のキャリブを待っています…」表示は廃止
+    // （切断時に数秒で対戦中止になる挙動と矛盾するため）。ボタンを無効化して
+    // 完了フィードバックだけステータスに残す。
     $('btn-calib-fix').disabled = true;
+    $('calib-status').textContent = 'キャリブ完了';
   }
 }
 
@@ -1367,7 +1366,6 @@ function handleBattleMessage(data) {
   if (data.type === 'calib_done') {
     _oppCalibDone = true;
     if (_myCalibDone) {
-      $('calib-opp-wait').style.display = 'none';
       enterGameScreen();
     }
     return;
@@ -1507,7 +1505,6 @@ function declareDisconnectAbort(reason) {
   if (_disconnectDeclared) return;
   _disconnectDeclared = true;
   stopHeartbeat();
-  $('calib-opp-wait').style.display = 'none';
   console.log('[darts] disconnect abort:', reason);
   showAnnouncement('abort', '対戦中止', '通信切断のため');
   setTimeout(() => {

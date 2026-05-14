@@ -427,14 +427,6 @@ body.in-game #lang-switcher { display: none; }
   color: var(--orange-light);
 }
 
-/* ===== v1.31 (3-B): キャリブ画面の相手待ちオーバーレイ ===== */
-#calib-opp-wait {
-  margin-top: 10px;
-  font-size: 13px;
-  color: var(--orange-light);
-  text-align: center;
-}
-
 /* ===== ルール詳細 ===== */
 .rule-name {
   font-family: 'Fredoka One', cursive;
@@ -1271,7 +1263,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.42</span>
+      <span class="version-tag" id="version-tag">v1.43</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -1403,8 +1395,6 @@ body.in-game #gear-icon { display: flex; }
       </div>
       <div class="calib-status" id="calib-status">センサーを検出中…</div>
       <button class="btn btn-primary" id="btn-calib-fix" disabled>正面に固定</button>
-      <!-- v1.31 (3-B): 対戦時、自分のキャリブ完了後に表示 -->
-      <div id="calib-opp-wait" style="display:none;">相手のキャリブを待っています…</div>
       <button class="btn btn-ghost" id="btn-calib-cancel">退出</button>
     </div>
   </div>

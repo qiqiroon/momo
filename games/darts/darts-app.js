@@ -166,6 +166,15 @@ $('btn-perm-ok').addEventListener('click', async () => {
 // 「ゲーム終了」 → ロビーへ
 $('btn-perm-quit').addEventListener('click', () => {
   hidePermissionPanel();
+  // v1.40 (SPEC 11.5 / 14.4): 対戦中にここから抜けた場合も部屋を畳んでハートビート停止
+  if (_mode === 'battle' && typeof MomoMatchmaking !== 'undefined') {
+    stopHeartbeat();
+    _gameInProgress = false;
+    MomoMatchmaking.leaveRoom();
+    _mode = 'solo';
+    _guestName = '';
+    resetRoomToSolo();
+  }
   showScreen('lobby');
 });
 
@@ -241,6 +250,9 @@ $('btn-calib-cancel').addEventListener('click', async () => {
     Sensor.clearCalibration();
     if (_mode === 'battle' && typeof MomoMatchmaking !== 'undefined') {
       // 対戦中の離脱は部屋ごと抜ける扱い
+      // v1.40 (SPEC 11.5): キャリブ中に走らせていたハートビートを停止
+      stopHeartbeat();
+      _gameInProgress = false;
       MomoMatchmaking.leaveRoom();
       _mode = 'solo';
       _guestName = '';
@@ -404,9 +416,8 @@ function enterGameScreen() {
   Input.start({ onRelease: onDartReleased });
   if (_mode === 'battle') {
     Input.setDisabled(!isMyTurn());
-    // v1.37 (3-D): ハートビート開始（試合中のみ）
-    _gameInProgress = true;
-    startHeartbeat();
+    // v1.40: ハートビート/`_gameInProgress` は proceedToBattleGameStart で起動済み
+    // （SPEC 11.5: キャリブ中も有効）
   }
 }
 
@@ -1287,6 +1298,13 @@ async function proceedToBattleGameStart() {
   _myCalibDone = false;
   _oppCalibDone = false;
   $('calib-opp-wait').style.display = 'none';
+  // v1.40 (SPEC 11.5): キャリブ中もハートビート有効。`_gameInProgress` をここで立て、
+  // `_gameState`/`_oppState` も先に初期化しておく（showEndScreen は `_gameState` が
+  // 必要、キャリブ中の切断検知 → 結果画面遷移を成立させるため）
+  _gameInProgress = true;
+  _gameState = Rules.createInitialState();
+  _oppState = Rules.createInitialState();
+  startHeartbeat();
   await startGameFlow();
 }
 

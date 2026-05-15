@@ -412,6 +412,11 @@ function enterGameScreen() {
   const chatAreaGame = $('chat-area-game');
   if (chatAreaGame) chatAreaGame.style.display = (_mode === 'battle') ? '' : 'none';
   clearChatStack();
+  // v1.51: チャットプリセットは「ゲーム画面遷移時の言語」で確定（Q2A）。
+  //   以後は言語切替しても変わらない（ユーザー編集のみで上書き可）。
+  //   sessionStorage に編集済みデータがあればそれを優先。
+  loadChatPresets();
+  applyChatPresetsToButtons();
 }
 
 // v1.47 (3-E): チャットスタックをクリア（試合開始/再戦時に呼ぶ）
@@ -1045,13 +1050,27 @@ const CAT_CALM_KEYS = new Set([
   'game.disconnect.warn',
 ]);
 
-function catSpeak(key) {
+// v1.51: params が渡された場合（ユーザー名・数値などの動的データ）は、
+//   鳴き声の間に params の値をそのまま挟む形で残す。
+//   例: t('end.win.line', {winner:'TARO', darts:42}) (catBase=ja)
+//       → "にゃあ TARO ニャ！ 42 にゃ"
+//   ユーザー入力データの可読性を保ちつつ猫語っぽさも維持する。
+function catSpeak(key, params) {
   const vocab = CAT_VOCAB[_catBaseLang] || CAT_VOCAB.ja;
   let list;
   if (CAT_ERROR_KEYS.has(key))      list = vocab.error;
   else if (CAT_CALM_KEYS.has(key))  list = vocab.calm;
   else                              list = vocab.normal;
-  return list[Math.floor(Math.random() * list.length)];
+  const pick = () => list[Math.floor(Math.random() * list.length)];
+  if (!params) return pick();
+  const values = Object.values(params).filter(v => v !== undefined && v !== null && v !== '');
+  if (values.length === 0) return pick();
+  const parts = [pick()];
+  for (const v of values) {
+    parts.push(String(v));
+    parts.push(pick());
+  }
+  return parts.join(' ');
 }
 
 async function loadI18n() {
@@ -1063,7 +1082,7 @@ async function loadI18n() {
 
 // 訳文取得。CAT は catSpeak へ。それ以外は fallback: 現言語 → ja → key そのもの。{var} を params で置換。
 function t(key, params) {
-  if (_currentLang === 'cat') return catSpeak(key);
+  if (_currentLang === 'cat') return catSpeak(key, params);
   if (!_i18nDict) return key;
   const cur = _i18nDict[_currentLang] || {};
   const fb  = _i18nDict[FALLBACK_LANG] || {};
@@ -1123,9 +1142,9 @@ function refreshDynamicI18n() {
   document.querySelectorAll('.lobby-chat-list').forEach(el => {
     el.setAttribute('data-empty', t('chat.lobby.empty'));
   });
-  // チャットプリセット（未編集なら現在言語に追従、sessionStorage 保存ありはそのまま）
-  loadChatPresets();
-  if (typeof applyChatPresetsToButtons === 'function') applyChatPresetsToButtons();
+  // v1.51: チャットプリセットは「ゲーム画面遷移時に決定、以後言語切替で変更しない」
+  //        ため、ここでは loadChatPresets/applyChatPresetsToButtons を呼ばない。
+  //        enterGameScreen() 内で言語決定済みプリセットを生成する。
   // 各 status / hint / room status の再描画
   refreshLobbyStatus();
   refreshWaitingStatus();

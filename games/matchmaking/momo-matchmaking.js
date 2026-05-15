@@ -1,5 +1,5 @@
 /**
- * momo-matchmaking.js  v1.00
+ * momo-matchmaking.js  v1.01
  * MOMO Works 共通マッチング・通信モジュール
  * WebSocket（シグナリング）と WebRTC（P2P通信）を内包する。
  * ゲーム側は MomoMatchmaking.init() でコールバックを登録するだけで対戦相手との通信を確立できる。
@@ -7,6 +7,10 @@
  * 対応ゲーム: MOMO Reversi v2.06 以降、その他 MOMO Works ブラウザゲーム
  * GitHub Pages: qiqiroon.github.io/momo/
  * Terms of Use: https://qiqiroon.github.io/momo/terms.html
+ *
+ * v1.01 (2026-05-15): _resetConnection() 内で WS が CLOSED/CLOSING の場合
+ *   自動再接続を発火するよう変更。これにより「対戦中切断 → ロビー戻り → 新部屋作成/参加」
+ *   が再起動なしで成立する（Darts の対戦中止フロー / 他ゲームの切断後動作で必要）。
  */
 
 const MomoMatchmaking = (() => {
@@ -243,6 +247,11 @@ const MomoMatchmaking = (() => {
 
   // ===== 接続状態リセット（内部用）=====
   // 部屋状態・WebRTC接続だけをクリアする。WSは切断しない（自動再接続に任せる）。
+  // v1.01: ただし、対戦中の切断起因でここに来たケースでは WS 自体が既に CLOSED
+  //   になっていることがある。その場合は再接続を発火する。
+  //   （元の _ws.onclose 内の再接続は _currentRoomId が null の時だけ走るので、
+  //   onclose タイミングで _currentRoomId が残っていると WS が閉じたまま固まり
+  //   再起動するまで新規部屋に入れなくなる）
   function _resetConnection() {
     _currentRoomId = null;
     _currentRoomName = '';
@@ -250,6 +259,9 @@ const MomoMatchmaking = (() => {
     _connected = false;
     if (_dc) { try { _dc.close(); } catch {} _dc = null; }
     if (_pc) { try { _pc.close(); } catch {} _pc = null; }
+    if (!_ws || _ws.readyState === WebSocket.CLOSED || _ws.readyState === WebSocket.CLOSING) {
+      setTimeout(_connectWS, 100);
+    }
   }
 
   // ===== Renderスリープ抑止 =====

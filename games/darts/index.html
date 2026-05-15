@@ -75,12 +75,14 @@ body:not(.in-game)::before {
   z-index: 0;
 }
 
-/* ===== LANG SWITCHER（プルダウン、gomoku-go 流儀） ===== */
+/* ===== LANG SWITCHER（プルダウン、gomoku-go 流儀） =====
+   v1.51: 許可パネル（z-index 200）の上に出るよう 250 に。
+          modal-mask（z-index 300）より下なのでアラート中は触れないままで OK */
 #lang-switcher {
   position: fixed;
   top: 8px;
   right: 12px;
-  z-index: 200;
+  z-index: 250;
 }
 #lang-select {
   background: var(--surface2);
@@ -1263,7 +1265,7 @@ input.chat-preset-btn.editing-input:focus {
   display: none;
   align-items: center;
   justify-content: center;
-  z-index: 200;          /* 言語切替と同じレイヤーに */
+  z-index: 250;          /* 言語切替と同じレイヤーに（v1.51: 200→250、許可パネル上に出す） */
   cursor: pointer;
   color: var(--text);
   font-size: 16px;
@@ -1506,7 +1508,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.50</span>
+      <span class="version-tag" id="version-tag">v1.51</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>

@@ -966,8 +966,12 @@ document.querySelectorAll('.tune-btn').forEach((btn) => {
   });
 });
 
-// ===== 言語切替（段階4-A v1.49: 4言語 i18n ランタイム、SPEC 15章） =====
-//   - 辞書は darts-i18n.json から fetch ロード
+// ===== 言語切替（段階4-A v1.49 / v1.50: 4言語 i18n ランタイム、SPEC 15章 + cat-lang-spec.docx v1.0） =====
+//   - 辞書は darts-i18n.json から fetch ロード（ja/en/zh のみ）
+//   - CAT モードは catSpeak(key) でランダム鳴き声を返す（catBase = 直前選択言語）
+//     ・error 系キー: HISS! / シャー！ / 嘶！ などの威嚇音
+//     ・calm 系キー（接続中・待機中など）: purrrr... / ごろごろ… / 咕噜… などの低い喉鳴き
+//     ・その他: MEOW / にゃあ / 喵 などの通常鳴き声
 //   - data-i18n / data-i18n-html / data-i18n-placeholder / data-i18n-title 属性で
 //     静的テキストを一括書き換え
 //   - 動的テキスト（agreement-hint / status 表示等）は t(key, params) を都度呼ぶ
@@ -979,10 +983,76 @@ const SUBTITLES = {
   zh: '不露鋒心，一指乾坤',
 };
 const LANG_STORAGE_KEY = 'momoLang';
+const CAT_BASE_STORAGE_KEY = 'momoCatBase';
 const FALLBACK_LANG = 'ja';
 
 let _i18nDict = null;
 let _currentLang = FALLBACK_LANG;
+let _catBaseLang = FALLBACK_LANG;  // CAT 選択直前の言語（ja/en/zh）
+
+// --- 猫語語彙テーブル（cat-lang-spec.docx v1.0 §3-4） ---
+const CAT_VOCAB = {
+  ja: {
+    error:  ['シャー！', 'フーッ！', 'シャシャシャ！'],
+    calm:   ['ごろごろ…', 'にゃ…', 'ぐるぐる…'],
+    normal: ['にゃあ', 'にゃ', 'にゃーん', 'みゃお', 'ニャ！'],
+  },
+  en: {
+    error:  ['HISS!', 'SPIT!', 'FSSST!'],
+    calm:   ['purrrr...', 'mrrr...', 'prrr...'],
+    normal: ['MEOW', 'meow', 'mrrrow', 'mew', 'NYA!'],
+  },
+  zh: {
+    error:  ['嘶！', '哈！', '嘶嘶！'],
+    calm:   ['咕噜…', '喵…', '噜噜…'],
+    normal: ['喵', '喵呜', '咪', '喵！'],
+  },
+};
+
+// error / calm 分類対象キー（Darts 固有、docx の汎用キーを本アプリのキーにマッピング）
+const CAT_ERROR_KEYS = new Set([
+  'lobby.error.nameRequired',
+  'lobby.error.roomNameRequired',
+  'lobby.error.passwordRequired',
+  'lobby.error.passwordMismatch',
+  'lobby.error.generic',
+  'alert.kicked',
+  'alert.disconnected',
+  'alert.oppLeft',
+  'announce.abort',
+  'announce.abort.reason',
+  'end.abort.title',
+  'end.abort.reason',
+  'calib.status.notSampled',
+  'calib.status.errorPrefix_html',
+]);
+const CAT_CALM_KEYS = new Set([
+  'lobby.status.connecting',
+  'lobby.status.connected',
+  'lobby.status.reconnecting',
+  'lobby.status.notLoaded',
+  'waiting.status.title',
+  'waiting.status.left',
+  'calib.status.detecting',
+  'calib.status.ok',
+  'calib.status.needMove',
+  'calib.status.done',
+  'room.agreement.idle',
+  'room.agreement.waitOpp',
+  'room.agreement.youReady',
+  'room.agreement.bothReady',
+  'room.agreement.localReady',
+  'game.disconnect.warn',
+]);
+
+function catSpeak(key) {
+  const vocab = CAT_VOCAB[_catBaseLang] || CAT_VOCAB.ja;
+  let list;
+  if (CAT_ERROR_KEYS.has(key))      list = vocab.error;
+  else if (CAT_CALM_KEYS.has(key))  list = vocab.calm;
+  else                              list = vocab.normal;
+  return list[Math.floor(Math.random() * list.length)];
+}
 
 async function loadI18n() {
   if (_i18nDict) return _i18nDict;
@@ -991,8 +1061,9 @@ async function loadI18n() {
   return _i18nDict;
 }
 
-// 訳文取得。fallback: 現言語 → ja → key そのもの。{var} を params で置換。
+// 訳文取得。CAT は catSpeak へ。それ以外は fallback: 現言語 → ja → key そのもの。{var} を params で置換。
 function t(key, params) {
+  if (_currentLang === 'cat') return catSpeak(key);
   if (!_i18nDict) return key;
   const cur = _i18nDict[_currentLang] || {};
   const fb  = _i18nDict[FALLBACK_LANG] || {};
@@ -1022,10 +1093,15 @@ function applyI18nAttrs(root) {
 
 async function applyLang(lang) {
   await loadI18n();
+  // v1.50: CAT 選択直前の言語を catBase として保存（docx §3-2）
+  if (lang === 'cat' && _currentLang !== 'cat') {
+    _catBaseLang = _currentLang;
+    try { localStorage.setItem(CAT_BASE_STORAGE_KEY, _catBaseLang); } catch {}
+  }
   _currentLang = lang;
   try { localStorage.setItem(LANG_STORAGE_KEY, lang); } catch {}
-  // html lang 属性: CAT は ja として扱う（フォント・改行ヒューリスティクスのため）
-  document.documentElement.lang = (lang === 'cat') ? 'ja' : lang;
+  // html lang 属性: CAT は catBase の言語として扱う（フォント・改行ヒューリスティクスのため）
+  document.documentElement.lang = (lang === 'cat') ? (_catBaseLang || 'ja') : lang;
 
   // サブタイトル: CAT 選択時のみ前言語そのまま（SPEC 15章）
   const subtitleEl = $('subtitle');
@@ -1992,10 +2068,15 @@ document.querySelectorAll('.lobby-chat-input').forEach(input => {
 
 // ===== 起動時 =====
 // v1.49: momoLang を localStorage から復元（MOMO Works 共通キー、SPEC 14章）
+// v1.50: momoCatBase も復元（CAT モードで起動した時の鳴き声の系統）
 (async () => {
   let savedLang = FALLBACK_LANG;
+  let savedCatBase = FALLBACK_LANG;
   try { savedLang = localStorage.getItem(LANG_STORAGE_KEY) || FALLBACK_LANG; } catch {}
+  try { savedCatBase = localStorage.getItem(CAT_BASE_STORAGE_KEY) || FALLBACK_LANG; } catch {}
   if (!['ja', 'en', 'zh', 'cat'].includes(savedLang)) savedLang = FALLBACK_LANG;
+  if (!['ja', 'en', 'zh'].includes(savedCatBase)) savedCatBase = FALLBACK_LANG;
+  _catBaseLang = savedCatBase;
   if (langSelect) langSelect.value = savedLang;
   await applyLang(savedLang);
   // 言語ロード後の最終初期化

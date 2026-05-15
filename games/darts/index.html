@@ -972,12 +972,15 @@ body.in-game .site-header h1 {
 }
 
 /* ===== v1.47 (3-E): チャット機能（SPEC 9章） ===== */
-/* game 画面では画面下部にオーバーレイ配置、ホールドボタンの上 */
+/* game 画面では画面下部にオーバーレイ配置、ホールドボタンの上
+   v1.50: ホールドボタン bottom(20px + safe-area + browser-chrome) + ボタン高 84px
+          + 余白 16px = 120px ベース + safe-area + browser-chrome をそのまま継承。
+          Android Chrome の下部ツールバー上にも被らない */
 #screen-game .chat-area {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: calc(120px + env(safe-area-inset-bottom));
+  bottom: calc(120px + env(safe-area-inset-bottom) + var(--browser-chrome-bottom, 0px));
   z-index: 50;
   pointer-events: none;
   display: flex;
@@ -1246,12 +1249,12 @@ input.chat-preset-btn.editing-input:focus {
 
 /* 歯車アイコン（v1.15: 設定メニューのトリガに昇格）
    v1.18: safe-area-inset-top/right でノッチ回避
-   v1.49: 言語切替の左隣に常時配置するためサイズを 32px に縮小、
-          right を言語切替の幅ぶん（約 76px）オフセット */
+   v1.49: 言語切替の左隣に常時配置するためサイズを 32px に縮小
+   v1.50: 言語選択プルダウンと被るので余白を増やす（76px → 96px） */
 #gear-icon {
   position: fixed;
   top: calc(6px + env(safe-area-inset-top, 0px));
-  right: calc(76px + env(safe-area-inset-right, 0px));
+  right: calc(96px + env(safe-area-inset-right, 0px));
   width: 32px;
   height: 32px;
   background: rgba(0,0,0,0.6);
@@ -1272,11 +1275,12 @@ input.chat-preset-btn.editing-input:focus {
 body.in-game #gear-icon { display: flex; }
 
 /* v1.15: 歯車メニュー（中央リセット / 感度調整 をここに集約）
-   v1.49: 歯車の真下に出るよう位置調整（歯車を 32px に縮小し言語切替の左に移動したのに合わせる） */
+   v1.49: 歯車の真下に出るよう位置調整（歯車を 32px に縮小し言語切替の左に移動したのに合わせる）
+   v1.50: 歯車を 96px right にずらしたのに合わせる */
 #settings-menu {
   position: fixed;
   top: calc(44px + env(safe-area-inset-top, 0px));
-  right: calc(76px + env(safe-area-inset-right, 0px));
+  right: calc(96px + env(safe-area-inset-right, 0px));
   z-index: 100;
   background: rgba(20,20,20,0.95);
   border: 1px solid var(--border-strong);
@@ -1502,7 +1506,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.49</span>
+      <span class="version-tag" id="version-tag">v1.50</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -1551,7 +1555,7 @@ body.in-game #gear-icon { display: flex; }
     <div class="field">
       <label data-i18n="lobby.private.passwordLabel">パスワード（なければ空欄）</label>
       <div style="display:flex;gap:6px;">
-        <input class="input" id="private-room-pw" type="password" maxlength="20" style="flex:1;" autocomplete="new-password">
+        <input class="input" id="private-room-pw" type="password" maxlength="20" style="flex:1; min-width:0;" autocomplete="new-password">
         <button class="btn btn-secondary" id="btn-show-private" style="white-space:nowrap;" data-i18n="lobby.private.show">表示</button>
       </div>
     </div>

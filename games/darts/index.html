@@ -95,12 +95,17 @@ body:not(.in-game)::before {
 }
 #lang-select:focus { border-color: var(--orange); }
 
-/* ===== タイトルヘッダー ===== */
+/* ===== タイトルヘッダー =====
+   v1.49: カード幅左端と揃えるため width:100%; max-width:460px。
+          body の align-items:center 内で水平中央 + 内部 flex-start で
+          見た目は左寄せ（screen のカードと左端が揃う） */
 .site-header {
   display: flex;
   align-items: flex-start; /* 猫アイコン上端を MOMO Darts 上端に揃える */
   gap: 10px;
   margin: 24px 0 0;
+  width: 100%;
+  max-width: 460px;
   position: relative;
   z-index: 1;
   animation: fadeDown 0.4s ease-out;
@@ -192,9 +197,28 @@ body.in-game {
 body.in-game {
   --browser-chrome-bottom: max(0px, calc(100lvh - 100dvh));
 }
-body.in-game .site-header,
-body.in-game .version,
-body.in-game #lang-switcher { display: none; }
+/* v1.49: ゲーム画面でも site-header（タイトルのみ）と言語切替を表示する。
+   ・cat-icon / subtitle / version-tag は隠す
+   ・タイトル「MOMO Darts」だけを縮小して左上に固定
+   ・スコア帯はその下に配置（top を 56px ほど下げる） */
+body.in-game .site-header {
+  display: flex;
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 6px);
+  left: max(12px, calc((100vw - 460px) / 2));
+  margin: 0;
+  z-index: 50;
+  pointer-events: none;       /* 下のゲーム入力を遮らない */
+  width: auto;                 /* fixed なので max-width 不要 */
+  max-width: none;
+}
+body.in-game .site-header .cat-icon,
+body.in-game .site-header .subtitle,
+body.in-game .site-header .version-tag { display: none; }
+body.in-game .site-header h1 {
+  font-size: 1.25rem;          /* 通常の clamp(2rem, 6vw, 2.6rem) より小さく */
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
+}
 
 /* ===== PANEL ===== */
 .panel {
@@ -555,13 +579,14 @@ body.in-game #lang-switcher { display: none; }
 
 /* 上オーバーレイ（残り点数/ターン情報、SPEC 10.3 / 8.5）
    v1.18: safe-area-inset-top でノッチ回避
-   v1.23: 残り点数 + 3投スロット */
+   v1.23: 残り点数 + 3投スロット
+   v1.49: タイトル(MOMO Darts)+ 歯車・言語切替帯の下に降ろす */
 #game-overlay-top {
   position: absolute;
-  top: env(safe-area-inset-top, 0px);
+  top: calc(env(safe-area-inset-top, 0px) + 44px);
   left: env(safe-area-inset-left, 0px);
   right: env(safe-area-inset-right, 0px);
-  padding: 14px 16px;
+  padding: 6px 16px 14px;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -1079,8 +1104,9 @@ input.chat-preset-btn.editing-input:focus {
   font-size: 12px;
   border: 1px solid var(--border);
 }
+/* v1.49: 多言語化のため content を data 属性経由に。applyLang が data-empty を更新 */
 .lobby-chat-list:empty::before {
-  content: 'チャットを始められます';
+  content: attr(data-empty);
   color: var(--text-muted);
   font-size: 11px;
   opacity: 0.6;
@@ -1219,23 +1245,25 @@ input.chat-preset-btn.editing-input:focus {
 .tune-actions .btn { flex: 1; font-size: 12px; padding: 6px 10px; }
 
 /* 歯車アイコン（v1.15: 設定メニューのトリガに昇格）
-   v1.18: safe-area-inset-top/right でノッチ回避 */
+   v1.18: safe-area-inset-top/right でノッチ回避
+   v1.49: 言語切替の左隣に常時配置するためサイズを 32px に縮小、
+          right を言語切替の幅ぶん（約 76px）オフセット */
 #gear-icon {
   position: fixed;
-  top: calc(12px + env(safe-area-inset-top, 0px));
-  right: calc(12px + env(safe-area-inset-right, 0px));
-  width: 40px;
-  height: 40px;
+  top: calc(6px + env(safe-area-inset-top, 0px));
+  right: calc(76px + env(safe-area-inset-right, 0px));
+  width: 32px;
+  height: 32px;
   background: rgba(0,0,0,0.6);
   border: 1px solid var(--border-strong);
   border-radius: 50%;
   display: none;
   align-items: center;
   justify-content: center;
-  z-index: 90;
+  z-index: 200;          /* 言語切替と同じレイヤーに */
   cursor: pointer;
   color: var(--text);
-  font-size: 20px;
+  font-size: 16px;
   user-select: none;
   transition: background 0.15s, transform 0.1s;
 }
@@ -1243,11 +1271,12 @@ input.chat-preset-btn.editing-input:focus {
 #gear-icon:active { transform: scale(0.92); }
 body.in-game #gear-icon { display: flex; }
 
-/* v1.15: 歯車メニュー（中央リセット / 感度調整 をここに集約） */
+/* v1.15: 歯車メニュー（中央リセット / 感度調整 をここに集約）
+   v1.49: 歯車の真下に出るよう位置調整（歯車を 32px に縮小し言語切替の左に移動したのに合わせる） */
 #settings-menu {
   position: fixed;
-  top: calc(60px + env(safe-area-inset-top, 0px));
-  right: calc(12px + env(safe-area-inset-right, 0px));
+  top: calc(44px + env(safe-area-inset-top, 0px));
+  right: calc(76px + env(safe-area-inset-right, 0px));
   z-index: 100;
   background: rgba(20,20,20,0.95);
   border: 1px solid var(--border-strong);
@@ -1473,7 +1502,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.48</span>
+      <span class="version-tag" id="version-tag">v1.49</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -1482,48 +1511,48 @@ body.in-game #gear-icon { display: flex; }
 <!-- ===== SCREEN: LOBBY ===== -->
 <div class="screen active" id="screen-lobby">
   <!-- 接続状態 -->
-  <div class="status-bar" id="lobby-status">接続中…</div>
+  <div class="status-bar" id="lobby-status" data-i18n="lobby.status.connecting">接続中…</div>
 
   <!-- 1人で遊ぶ -->
   <div class="panel">
-    <div class="panel-title">1人で遊ぶ</div>
-    <div class="panel-desc">501 シングルアウトを練習モードで遊びます。勝敗判定なし、フィニッシュまでのターン数を記録します。</div>
-    <button class="btn btn-primary" id="btn-solo-start">1人で遊ぶ</button>
+    <div class="panel-title" data-i18n="lobby.solo.title">1人で遊ぶ</div>
+    <div class="panel-desc" data-i18n="lobby.solo.desc">501 シングルアウトを練習モードで遊びます。勝敗判定なし、フィニッシュまでのターン数を記録します。</div>
+    <button class="btn btn-primary" id="btn-solo-start" data-i18n="lobby.solo.start">1人で遊ぶ</button>
   </div>
 
   <!-- v1.27 (3-A): 部屋を作る -->
   <div class="panel">
-    <div class="panel-title">部屋を作る</div>
-    <div class="field"><label>あなたの名前</label><input class="input" id="my-name" maxlength="12" placeholder="名前"></div>
-    <div class="field"><label>部屋の名前</label><input class="input" id="room-name-input" maxlength="20" placeholder="例: 練習部屋"></div>
-    <div class="field"><label>パスワード（省略可）</label><input class="input" id="room-password" maxlength="20" placeholder="なしの場合は空欄" autocomplete="new-password"></div>
+    <div class="panel-title" data-i18n="lobby.create.title">部屋を作る</div>
+    <div class="field"><label data-i18n="lobby.field.name">あなたの名前</label><input class="input" id="my-name" maxlength="12" data-i18n-placeholder="lobby.field.name.placeholder" placeholder="名前"></div>
+    <div class="field"><label data-i18n="lobby.field.roomName">部屋の名前</label><input class="input" id="room-name-input" maxlength="20" data-i18n-placeholder="lobby.field.roomName.placeholder" placeholder="例: 練習部屋"></div>
+    <div class="field"><label data-i18n="lobby.field.password">パスワード（省略可）</label><input class="input" id="room-password" maxlength="20" data-i18n-placeholder="lobby.field.password.placeholder" placeholder="なしの場合は空欄" autocomplete="new-password"></div>
     <div class="toggle-row">
-      <span>一覧に公開する</span>
+      <span data-i18n="lobby.toggle.public">一覧に公開する</span>
       <input type="checkbox" class="toggle" id="room-public" checked>
     </div>
-    <button class="btn btn-primary" id="btn-create-room">部屋を作成</button>
+    <button class="btn btn-primary" id="btn-create-room" data-i18n="lobby.btn.create">部屋を作成</button>
     <div class="error-msg" id="create-error"></div>
   </div>
 
   <!-- v1.27 (3-A): 部屋一覧 -->
   <div class="panel">
     <div class="panel-title" style="display:flex;justify-content:space-between;align-items:center;">
-      <span>部屋一覧</span>
-      <button class="btn btn-ghost" id="btn-refresh-rooms" style="font-size:11px;padding:4px 10px;">更新</button>
+      <span data-i18n="lobby.rooms.title">部屋一覧</span>
+      <button class="btn btn-ghost" id="btn-refresh-rooms" style="font-size:11px;padding:4px 10px;" data-i18n="lobby.rooms.refresh">更新</button>
     </div>
     <div class="room-list" id="room-list">
-      <div class="room-empty">部屋を取得中…</div>
+      <div class="room-empty" data-i18n="lobby.rooms.loading">部屋を取得中…</div>
     </div>
   </div>
 
   <!-- v1.27 (3-A): 非公開の部屋 -->
   <div class="panel">
-    <div class="panel-title">非公開の部屋を表示</div>
+    <div class="panel-title" data-i18n="lobby.private.title">非公開の部屋を表示</div>
     <div class="field">
-      <label>パスワード（なければ空欄）</label>
+      <label data-i18n="lobby.private.passwordLabel">パスワード（なければ空欄）</label>
       <div style="display:flex;gap:6px;">
         <input class="input" id="private-room-pw" type="password" maxlength="20" style="flex:1;" autocomplete="new-password">
-        <button class="btn btn-secondary" id="btn-show-private" style="white-space:nowrap;">表示</button>
+        <button class="btn btn-secondary" id="btn-show-private" style="white-space:nowrap;" data-i18n="lobby.private.show">表示</button>
       </div>
     </div>
     <div class="room-list" id="private-room-list" style="display:none;"></div>
@@ -1533,24 +1562,24 @@ body.in-game #gear-icon { display: flex; }
 
 <!-- ===== SCREEN: WAITING (HOST) v1.27 (3-A) ===== -->
 <div class="screen" id="screen-waiting">
-  <div class="status-bar highlight" id="waiting-status">ゲストの参加を待っています…</div>
+  <div class="status-bar highlight" id="waiting-status" data-i18n="waiting.status.title">ゲストの参加を待っています…</div>
   <div class="panel">
-    <div class="panel-title">部屋情報</div>
+    <div class="panel-title" data-i18n="waiting.room.title">部屋情報</div>
     <div style="font-size:13px;color:var(--text-muted);">
-      部屋名：<span id="waiting-room-name" style="color:var(--text);"></span>
+      <span data-i18n="waiting.room.name">部屋名：</span><span id="waiting-room-name" style="color:var(--text);"></span>
     </div>
   </div>
   <!-- v1.48: 対戦時の自由文章チャット（reversi 流儀） -->
   <div class="panel lobby-chat-panel" id="lobby-chat-waiting" style="display:none;">
-    <div class="panel-title">チャット</div>
-    <div class="lobby-chat-list" id="lobby-chat-list-waiting"></div>
+    <div class="panel-title" data-i18n="chat.title">チャット</div>
+    <div class="lobby-chat-list" id="lobby-chat-list-waiting" data-empty="チャットを始められます"></div>
     <div class="lobby-chat-input-row">
-      <input type="text" class="lobby-chat-input" id="lobby-chat-input-waiting" placeholder="メッセージ" maxlength="100">
-      <button class="btn btn-secondary lobby-chat-send-btn" data-screen="waiting">送信</button>
+      <input type="text" class="lobby-chat-input" id="lobby-chat-input-waiting" data-i18n-placeholder="chat.placeholder" placeholder="メッセージ" maxlength="100">
+      <button class="btn btn-secondary lobby-chat-send-btn" data-screen="waiting" data-i18n="chat.send">送信</button>
     </div>
   </div>
   <div class="panel">
-    <button class="btn btn-ghost" id="btn-waiting-leave">退出</button>
+    <button class="btn btn-ghost" id="btn-waiting-leave" data-i18n="waiting.leave">退出</button>
   </div>
 </div>
 
@@ -1560,54 +1589,54 @@ body.in-game #gear-icon { display: flex; }
   <div class="status-bar" id="room-status" style="display:none;"></div>
 
   <div class="panel">
-    <div class="panel-title">ルール</div>
-    <div class="rule-name" id="room-rule-name">501 シングルアウト</div>
+    <div class="panel-title" data-i18n="room.rule.title">ルール</div>
+    <div class="rule-name" id="room-rule-name" data-i18n="room.rule.name.501single">501 シングルアウト</div>
     <dl class="rule-detail">
-      <dt>持ち点</dt><dd>501 からスタート</dd>
-      <dt>1ターン</dt><dd>最大 3投</dd>
-      <dt>勝利条件</dt><dd>持ち点をぴったり 0 にする</dd>
-      <dt>バースト</dt><dd>0 未満になる投はターン無効、ターン開始時の点に戻る</dd>
-      <dt id="room-rule-mode-dt">練習モード</dt><dd id="room-rule-mode-dd">勝敗判定なし、フィニッシュまでのターン数を記録</dd>
+      <dt data-i18n="room.rule.points.label">持ち点</dt><dd data-i18n="room.rule.points.value">501 からスタート</dd>
+      <dt data-i18n="room.rule.turn.label">1ターン</dt><dd data-i18n="room.rule.turn.value">最大 3投</dd>
+      <dt data-i18n="room.rule.win.label">勝利条件</dt><dd data-i18n="room.rule.win.value">持ち点をぴったり 0 にする</dd>
+      <dt data-i18n="room.rule.bust.label">バースト</dt><dd data-i18n="room.rule.bust.value">0 未満になる投はターン無効、ターン開始時の点に戻る</dd>
+      <dt id="room-rule-mode-dt" data-i18n="room.rule.mode.solo.label">練習モード</dt><dd id="room-rule-mode-dd" data-i18n="room.rule.mode.solo.value">勝敗判定なし、フィニッシュまでのターン数を記録</dd>
     </dl>
   </div>
 
   <!-- v1.31 (3-B): 対戦時のみ表示 — 先攻/後攻 選択 -->
   <div class="panel" id="role-select-panel" style="display:none;">
-    <div class="panel-title">先攻 / 後攻 を選択</div>
+    <div class="panel-title" data-i18n="room.roleSelect.title">先攻 / 後攻 を選択</div>
     <div class="role-select">
       <div class="role-card" id="role-card-first" data-role="first">
         <div class="role-icon">1st</div>
-        <div class="role-label">先攻</div>
+        <div class="role-label" data-i18n="room.role.first.label">先攻</div>
         <div class="role-who" id="who-first"></div>
       </div>
       <div class="role-card" id="role-card-second" data-role="second">
         <div class="role-icon">2nd</div>
-        <div class="role-label">後攻</div>
+        <div class="role-label" data-i18n="room.role.second.label">後攻</div>
         <div class="role-who" id="who-second"></div>
       </div>
     </div>
-    <div id="agreement-hint">先攻と後攻をそれぞれ選択するとゲーム開始できます</div>
+    <div id="agreement-hint" data-i18n="room.agreement.idle">先攻と後攻をそれぞれ選択するとゲーム開始できます</div>
   </div>
 
   <div class="panel">
     <div class="btn-row">
-      <button class="btn btn-primary" id="btn-game-start">ゲーム開始</button>
-      <button class="btn btn-ghost" id="btn-room-leave">退出</button>
+      <button class="btn btn-primary" id="btn-game-start" data-i18n="room.startGame">ゲーム開始</button>
+      <button class="btn btn-ghost" id="btn-room-leave" data-i18n="room.leave">退出</button>
     </div>
     <!-- 対戦時のホスト用キックボタン（ゲスト在室時のみ表示） -->
-    <button class="btn btn-secondary" id="btn-kick-guest" style="display:none;">ゲストをキック</button>
-    <div class="panel-desc" id="room-hint" style="font-size: 11px; text-align: center;">
+    <button class="btn btn-secondary" id="btn-kick-guest" style="display:none;" data-i18n="room.kick">ゲストをキック</button>
+    <div class="panel-desc" id="room-hint" style="font-size: 11px; text-align: center;" data-i18n="room.hint.prep">
       ※ ゲーム開始時にセンサー許可・キャリブレーションを実行します
     </div>
   </div>
 
   <!-- v1.48: 対戦時の自由文章チャット（reversi 流儀） -->
   <div class="panel lobby-chat-panel" id="lobby-chat-room" style="display:none;">
-    <div class="panel-title">チャット</div>
-    <div class="lobby-chat-list" id="lobby-chat-list-room"></div>
+    <div class="panel-title" data-i18n="chat.title">チャット</div>
+    <div class="lobby-chat-list" id="lobby-chat-list-room" data-empty="チャットを始められます"></div>
     <div class="lobby-chat-input-row">
-      <input type="text" class="lobby-chat-input" id="lobby-chat-input-room" placeholder="メッセージ" maxlength="100">
-      <button class="btn btn-secondary lobby-chat-send-btn" data-screen="room">送信</button>
+      <input type="text" class="lobby-chat-input" id="lobby-chat-input-room" data-i18n-placeholder="chat.placeholder" placeholder="メッセージ" maxlength="100">
+      <button class="btn btn-secondary lobby-chat-send-btn" data-screen="room" data-i18n="chat.send">送信</button>
     </div>
   </div>
 </div>
@@ -1617,14 +1646,14 @@ body.in-game #gear-icon { display: flex; }
   <div class="panel">
     <div id="calibration-content">
       <div class="calib-icon">🎯</div>
-      <div class="calib-title">キャリブレーション</div>
-      <div class="calib-desc">
-        端末を**楽な姿勢**で構えてください。<br>
+      <div class="calib-title" data-i18n="calib.title">キャリブレーション</div>
+      <div class="calib-desc" data-i18n-html="calib.desc_html">
+        端末を<b>楽な姿勢</b>で構えてください。<br>
         その向きを「正面」として登録します。
       </div>
-      <div class="calib-status" id="calib-status">センサーを検出中…</div>
-      <button class="btn btn-primary" id="btn-calib-fix" disabled>正面に固定</button>
-      <button class="btn btn-ghost" id="btn-calib-cancel">退出</button>
+      <div class="calib-status" id="calib-status" data-i18n="calib.status.detecting">センサーを検出中…</div>
+      <button class="btn btn-primary" id="btn-calib-fix" disabled data-i18n="calib.fix">正面に固定</button>
+      <button class="btn btn-ghost" id="btn-calib-cancel" data-i18n="calib.cancel">退出</button>
     </div>
   </div>
 </div>
@@ -1702,7 +1731,7 @@ body.in-game #gear-icon { display: flex; }
   <div id="flying-dart"></div>
 
   <!-- v1.37 (3-D): 切断検知中オーバーレイ -->
-  <div id="disconnect-warning" style="display:none;">相手の応答を待っています…</div>
+  <div id="disconnect-warning" style="display:none;" data-i18n="game.disconnect.warn">相手の応答を待っています…</div>
 
   <!-- v1.47 (3-E): チャット（SPEC 9章） -->
   <div class="chat-area" id="chat-area-game">
@@ -1710,15 +1739,15 @@ body.in-game #gear-icon { display: flex; }
     <div class="chat-input-row">
       <div class="chat-preset-slot">
         <button class="chat-preset-btn" data-slot="0" data-screen="game">ナイス!</button>
-        <div class="chat-preset-hint">長押しで編集</div>
+        <div class="chat-preset-hint" data-i18n="chat.preset.hint">長押しで編集</div>
       </div>
       <div class="chat-preset-slot">
         <button class="chat-preset-btn" data-slot="1" data-screen="game">すごい!</button>
-        <div class="chat-preset-hint">長押しで編集</div>
+        <div class="chat-preset-hint" data-i18n="chat.preset.hint">長押しで編集</div>
       </div>
       <div class="chat-preset-slot">
         <button class="chat-preset-btn" data-slot="2" data-screen="game">がんばれ!</button>
-        <div class="chat-preset-hint">長押しで編集</div>
+        <div class="chat-preset-hint" data-i18n="chat.preset.hint">長押しで編集</div>
       </div>
     </div>
   </div>
@@ -1736,40 +1765,40 @@ body.in-game #gear-icon { display: flex; }
 
   <!-- 下オーバーレイ（デバッグ用、開発中のみ） -->
   <div id="game-overlay-bottom">
-    <button class="btn btn-secondary" id="btn-next-turn">次のターン</button>
-    <button class="btn btn-ghost" id="btn-copy-log">📤 ログ</button>
-    <button class="btn btn-ghost" id="btn-game-leave">退出</button>
+    <button class="btn btn-secondary" id="btn-next-turn" data-i18n="game.btn.next">次のターン</button>
+    <button class="btn btn-ghost" id="btn-copy-log" data-i18n="game.btn.log">📤 ログ</button>
+    <button class="btn btn-ghost" id="btn-game-leave" data-i18n="game.btn.leave">退出</button>
   </div>
 
   <!-- v1.15: 歯車メニュー -->
   <div id="settings-menu">
-    <button class="btn btn-secondary" id="btn-recenter">中央リセット</button>
-    <button class="btn btn-secondary" id="btn-open-tune">感度調整…</button>
+    <button class="btn btn-secondary" id="btn-recenter" data-i18n="game.settings.recenter">中央リセット</button>
+    <button class="btn btn-secondary" id="btn-open-tune" data-i18n="game.settings.tune">感度調整…</button>
   </div>
 
   <!-- v1.14: 感度調整パネル（ラベル/単位を直感的に変更） -->
   <div id="tune-panel">
     <div class="tune-row">
-      <label>ロール感度</label>
+      <label data-i18n="game.tune.roll">ロール感度</label>
       <button class="tune-btn" data-tune="roll" data-dir="-">−</button>
       <span class="tune-value" id="tune-roll-val">0.7×</span>
       <button class="tune-btn" data-tune="roll" data-dir="+">＋</button>
     </div>
     <div class="tune-row">
-      <label>ヨー/ピッチ感度</label>
+      <label data-i18n="game.tune.sens">ヨー/ピッチ感度</label>
       <button class="tune-btn" data-tune="sens" data-dir="-">−</button>
       <span class="tune-value" id="tune-sens-val">1.0×</span>
       <button class="tune-btn" data-tune="sens" data-dir="+">＋</button>
     </div>
     <div class="tune-row">
-      <label>応答速度</label>
+      <label data-i18n="game.tune.smooth">応答速度</label>
       <button class="tune-btn" data-tune="smooth" data-dir="-">−</button>
       <span class="tune-value" id="tune-smooth-val">40%</span>
       <button class="tune-btn" data-tune="smooth" data-dir="+">＋</button>
     </div>
     <div class="tune-actions">
-      <button class="btn btn-ghost" id="btn-tune-reset">標準値</button>
-      <button class="btn btn-secondary" id="btn-tune-close">閉じる</button>
+      <button class="btn btn-ghost" id="btn-tune-reset" data-i18n="game.tune.reset">標準値</button>
+      <button class="btn btn-secondary" id="btn-tune-close" data-i18n="game.tune.close">閉じる</button>
     </div>
   </div>
 </div>
@@ -1780,24 +1809,24 @@ body.in-game #gear-icon { display: flex; }
     <div class="result-message win" id="end-result-msg">FINISH!</div>
     <div class="result-sub" id="end-result-sub">— ダーツ</div>
     <div id="end-stats" style="display:grid; grid-template-columns: 1fr auto; gap: 6px 14px; font-size: 13px; margin-top: 14px; padding: 12px 14px; background: var(--surface2); border-radius: 8px;">
-      <div style="color: var(--text-muted)">投擲数</div><div id="end-stat-darts" style="text-align:right; font-family: 'Fredoka One', cursive;">—</div>
-      <div style="color: var(--text-muted)">ターン</div><div id="end-stat-turns" style="text-align:right; font-family: 'Fredoka One', cursive;">—</div>
-      <div style="color: var(--text-muted)">バースト</div><div id="end-stat-busts" style="text-align:right; font-family: 'Fredoka One', cursive;">—</div>
-      <div style="color: var(--text-muted)">最高ターン得点</div><div id="end-stat-best" style="text-align:right; font-family: 'Fredoka One', cursive;">—</div>
+      <div style="color: var(--text-muted)" data-i18n="end.stat.darts">投擲数</div><div id="end-stat-darts" style="text-align:right; font-family: 'Fredoka One', cursive;">—</div>
+      <div style="color: var(--text-muted)" data-i18n="end.stat.turns">ターン</div><div id="end-stat-turns" style="text-align:right; font-family: 'Fredoka One', cursive;">—</div>
+      <div style="color: var(--text-muted)" data-i18n="end.stat.busts">バースト</div><div id="end-stat-busts" style="text-align:right; font-family: 'Fredoka One', cursive;">—</div>
+      <div style="color: var(--text-muted)" data-i18n="end.stat.best">最高ターン得点</div><div id="end-stat-best" style="text-align:right; font-family: 'Fredoka One', cursive;">—</div>
     </div>
   </div>
 
   <div class="panel">
     <button class="btn btn-primary" id="btn-end-replay">
-      <span class="end-btn-label">もう一度プレイ</span>
+      <span class="end-btn-label" data-i18n="end.btn.replay.solo">もう一度プレイ</span>
       <span class="opponent-choice" id="opp-end-replay"></span>
     </button>
     <button class="btn btn-secondary" id="btn-end-rule-change">
-      <span class="end-btn-label">ルール変更</span>
+      <span class="end-btn-label" data-i18n="end.btn.rule.solo">ルール変更</span>
       <span class="opponent-choice" id="opp-end-rule-change"></span>
     </button>
     <button class="btn btn-danger" id="btn-end-back-room">
-      <span class="end-btn-label">終了</span>
+      <span class="end-btn-label" data-i18n="end.btn.quit.solo">終了</span>
     </button>
   </div>
 
@@ -1807,22 +1836,22 @@ body.in-game #gear-icon { display: flex; }
     <div class="chat-input-row">
       <div class="chat-preset-slot">
         <button class="chat-preset-btn" data-slot="0" data-screen="end">ナイス!</button>
-        <div class="chat-preset-hint">長押しで編集</div>
+        <div class="chat-preset-hint" data-i18n="chat.preset.hint">長押しで編集</div>
       </div>
       <div class="chat-preset-slot">
         <button class="chat-preset-btn" data-slot="1" data-screen="end">すごい!</button>
-        <div class="chat-preset-hint">長押しで編集</div>
+        <div class="chat-preset-hint" data-i18n="chat.preset.hint">長押しで編集</div>
       </div>
       <div class="chat-preset-slot">
         <button class="chat-preset-btn" data-slot="2" data-screen="end">がんばれ!</button>
-        <div class="chat-preset-hint">長押しで編集</div>
+        <div class="chat-preset-hint" data-i18n="chat.preset.hint">長押しで編集</div>
       </div>
     </div>
   </div>
 </div>
 
 <!-- ===== ゲーム中の歯車アイコン（v1.15: メニュー トリガ） ===== -->
-<div id="gear-icon" title="設定">⚙</div>
+<div id="gear-icon" data-i18n-title="gear.title" title="設定">⚙</div>
 
 <!-- v1.42: BUST / FINISH / 対戦中止 中央オーバーレイ（screen 配下から出して
      screen-calibration / screen-end など全画面共通で表示できるように） -->
@@ -1833,11 +1862,11 @@ body.in-game #gear-icon { display: flex; }
   <div class="modal-box">
     <div class="modal-text" id="modal-text">退出しますか？</div>
     <div class="btn-row" id="modal-yesno-row">
-      <button class="btn btn-danger" id="modal-yes">はい</button>
-      <button class="btn btn-ghost" id="modal-no">いいえ</button>
+      <button class="btn btn-danger" id="modal-yes" data-i18n="modal.yes">はい</button>
+      <button class="btn btn-ghost" id="modal-no" data-i18n="modal.no">いいえ</button>
     </div>
     <div class="btn-row" id="modal-ok-row" style="display:none">
-      <button class="btn btn-primary" id="modal-ok">OK</button>
+      <button class="btn btn-primary" id="modal-ok" data-i18n="modal.ok">OK</button>
     </div>
   </div>
 </div>
@@ -1845,16 +1874,16 @@ body.in-game #gear-icon { display: flex; }
 <!-- ===== 許可手順案内パネル（SPEC 14.4） ===== -->
 <div id="permission-panel">
   <div class="permission-box">
-    <div class="permission-title">センサー許可が必要です</div>
-    <div class="permission-generic">
+    <div class="permission-title" data-i18n="perm.title">センサー許可が必要です</div>
+    <div class="permission-generic" data-i18n-html="perm.generic_html">
       お使いのブラウザの設定で<br>「動きと方向のアクセス」を<b style="color:var(--orange-mid)">許可</b>してください
     </div>
     <div class="permission-steps" id="permission-steps">
       <!-- UA別手順は darts-app.js が動的に挿入 -->
     </div>
     <div class="permission-actions">
-      <button class="btn btn-primary" id="btn-perm-ok">許可しました(OK)</button>
-      <button class="btn btn-ghost" id="btn-perm-quit">ゲーム終了</button>
+      <button class="btn btn-primary" id="btn-perm-ok" data-i18n="perm.ok">許可しました(OK)</button>
+      <button class="btn btn-ghost" id="btn-perm-quit" data-i18n="perm.quit">ゲーム終了</button>
     </div>
   </div>
 </div>

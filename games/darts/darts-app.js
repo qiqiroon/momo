@@ -91,48 +91,21 @@ $('modal-mask').addEventListener('click', (e) => {
 });
 
 // ===== 許可手順案内パネル（SPEC 14.4） =====
-function showPermissionPanel() {
-  // UA 別手順を挿入
-  const kind = Sensor.detectBrowserKind();
+// v1.49: UA別ステップキーを記録 → 言語切替時にも再描画できる
+let _permStepsKey = null;
+function refreshPermissionSteps() {
   const stepsEl = $('permission-steps');
-  let html = '';
-  if (kind === 'ios-safari') {
-    html = `
-      <b>iOS Safari の場合</b>
-      1. 「設定」アプリを開く<br>
-      2. 「Safari」を選択<br>
-      3. 「動きと方向のアクセス」を ON<br>
-      4. このページに戻ってリロード
-    `;
-  } else if (kind === 'ios-other') {
-    html = `
-      <b>iOS の場合</b>
-      お使いのブラウザの設定から<br>
-      「動きと方向のアクセス」を許可してください。<br>
-      （Safari でのプレイを推奨します）
-    `;
-  } else if (kind === 'android-chrome') {
-    html = `
-      <b>Android Chrome の場合</b>
-      1. アドレスバー左の鍵アイコンをタップ<br>
-      2. 「サイトの設定」 → 「動きセンサー」を許可<br>
-      3. このページに戻ってリロード
-    `;
-  } else if (kind === 'android-other') {
-    html = `
-      <b>Android の場合</b>
-      お使いのブラウザの設定から<br>
-      動きセンサーへのアクセスを許可してください。
-    `;
-  } else {
-    // その他のブラウザ：汎用テキストのみ（手順併記なし、SPEC 14.4 検出フォールバック）
-    html = `
-      <b>その他の環境</b>
-      お使いのブラウザの設定から<br>
-      動きと方向センサーへのアクセスを許可してください。
-    `;
-  }
-  stepsEl.innerHTML = html;
+  if (!stepsEl || !_permStepsKey) return;
+  stepsEl.innerHTML = t(_permStepsKey);
+}
+function showPermissionPanel() {
+  const kind = Sensor.detectBrowserKind();
+  if      (kind === 'ios-safari')     _permStepsKey = 'perm.steps.iosSafari_html';
+  else if (kind === 'ios-other')      _permStepsKey = 'perm.steps.iosOther_html';
+  else if (kind === 'android-chrome') _permStepsKey = 'perm.steps.androidChrome_html';
+  else if (kind === 'android-other')  _permStepsKey = 'perm.steps.androidOther_html';
+  else                                _permStepsKey = 'perm.steps.other_html';
+  refreshPermissionSteps();
   $('permission-panel').classList.add('active');
 }
 function hidePermissionPanel() {
@@ -203,7 +176,7 @@ async function proceedToCalibration() {
   const statusEl = $('calib-status');
   const btnFix = $('btn-calib-fix');
   statusEl.classList.remove('error');
-  statusEl.textContent = 'センサーを検出中…';
+  statusEl.textContent = t('calib.status.detecting');
   btnFix.disabled = true;
   _calibSensorActive = false;
 
@@ -225,7 +198,7 @@ async function proceedToCalibration() {
 
   if (detected) {
     _calibSensorActive = true;
-    statusEl.textContent = 'センサーOK。楽な姿勢で「正面に固定」を押してください';
+    statusEl.textContent = t('calib.status.ok');
     btnFix.disabled = false;
   } else {
     // 5秒で値が来ない → 非搭載扱い（SPEC 14.4 / 18.7）
@@ -234,9 +207,9 @@ async function proceedToCalibration() {
     const fmt = (v) => (v === null || v === undefined) ? '–' : (typeof v === 'number' ? v.toFixed(1) : String(v));
     const valStr = diagLastValues
       ? `α=${fmt(diagLastValues.a)} β=${fmt(diagLastValues.b)} γ=${fmt(diagLastValues.g)}`
-      : '値未受信';
+      : t('calib.status.notSampled');
     statusEl.innerHTML =
-      `センサーが検出できません<br>` +
+      t('calib.status.errorPrefix_html') +
       `<small style="font-size:11px;opacity:0.75;display:block;margin-top:6px;line-height:1.4;">` +
       `events=${diagEventCount} ${valStr}<br>browser=${Sensor.detectBrowserKind()}` +
       `</small>`;
@@ -249,7 +222,7 @@ $('btn-calib-fix').addEventListener('click', () => {
   if (!_calibSensorActive) return;
   const ok = Sensor.setCalibration();
   if (!ok) {
-    $('calib-status').textContent = 'まだセンサー値が取れていません。少し動かしてからもう一度試してください。';
+    $('calib-status').textContent = t('calib.status.needMove');
     return;
   }
   // v1.31 (3-B): 対戦時は両者キャリブ完了で同時遷移
@@ -261,7 +234,7 @@ $('btn-calib-fix').addEventListener('click', () => {
 });
 
 $('btn-calib-cancel').addEventListener('click', async () => {
-  if (await confirm('退出しますか？')) {
+  if (await confirm(t('modal.confirm.leave'))) {
     Sensor.stopListening();
     Sensor.clearCalibration();
     if (_mode === 'battle' && typeof MomoMatchmaking !== 'undefined') {
@@ -297,7 +270,7 @@ $('btn-game-start').addEventListener('click', () => {
 });
 
 $('btn-room-leave').addEventListener('click', async () => {
-  if (await confirm('退出しますか？')) {
+  if (await confirm(t('modal.confirm.leave'))) {
     if (_mode === 'battle' && typeof MomoMatchmaking !== 'undefined') {
       MomoMatchmaking.leaveRoom();
     }
@@ -328,12 +301,12 @@ function activeState() {
 }
 
 function getMyName() {
-  if (typeof MomoMatchmaking === 'undefined') return 'あなた';
-  return MomoMatchmaking.getState().isHost ? (_hostName || 'ホスト') : (_guestName || 'ゲスト');
+  if (typeof MomoMatchmaking === 'undefined') return t('lobby.you');
+  return MomoMatchmaking.getState().isHost ? (_hostName || t('lobby.host')) : (_guestName || t('lobby.guest'));
 }
 function getOppName() {
-  if (typeof MomoMatchmaking === 'undefined') return '相手';
-  return MomoMatchmaking.getState().isHost ? (_guestName || 'ゲスト') : (_hostName || 'ホスト');
+  if (typeof MomoMatchmaking === 'undefined') return t('lobby.opp');
+  return MomoMatchmaking.getState().isHost ? (_guestName || t('lobby.guest')) : (_hostName || t('lobby.host'));
 }
 
 function updateScoreUI() {
@@ -382,7 +355,7 @@ function updateTurnInfo() {
   }
   wrap.style.display = 'flex';
   const myTurn = isMyTurn();
-  mainEl.textContent = myTurn ? 'あなたのターン' : '相手のターン';
+  mainEl.textContent = myTurn ? t('game.turn.self') : t('game.turn.opp');
   nameEl.textContent = myTurn ? getMyName() : getOppName();
   wrap.classList.toggle('self', myTurn);
   wrap.classList.toggle('opp', !myTurn);
@@ -534,10 +507,10 @@ function processShot(throwerState, shot, throwerRole) {
     let mainText, subText;
     if (_mode === 'battle') {
       mainText = isMyWin ? 'WIN!' : 'LOSE!';
-      subText = `${isMyWin ? getMyName() : getOppName()} の勝利`;
+      subText = t('end.win.lineNoDarts', { winner: isMyWin ? getMyName() : getOppName() });
     } else {
       mainText = 'FINISH!';
-      subText = `${throwerState.dartCount} ダーツ`;
+      subText = `${throwerState.dartCount} ${t('end.dartsUnit')}`;
     }
     console.log('[darts] FINISH! darts=' + throwerState.dartCount + ' winner=' + (isMyWin ? 'self' : 'opp'));
     Render.logEvent({ type: 'finish', dartCount: throwerState.dartCount, turns: throwerState.turnIndex, winner: isMyWin ? 'self' : 'opp' });
@@ -662,18 +635,18 @@ function showEndScreen(opts) {
   $('btn-end-replay').classList.remove('selected');
   $('btn-end-rule-change').classList.remove('selected');
   // 既受信済みの相手選択を opp-* テキストに反映（前試合残骸は proceedToBattleGameStart 側でクリア）
-  $('opp-end-replay').textContent      = _oppEndChoice === 'swap' ? '相手選択中' : '';
-  $('opp-end-rule-change').textContent = _oppEndChoice === 'same' ? '相手選択中' : '';
+  $('opp-end-replay').textContent      = _oppEndChoice === 'swap' ? t('end.opp.selecting') : '';
+  $('opp-end-rule-change').textContent = _oppEndChoice === 'same' ? t('end.opp.selecting') : '';
 
   // v1.41: 切断による対戦中止（勝敗なし、戦績記録なし）
   if (_mode === 'battle' && opts && opts.abort) {
-    $('end-result-msg').textContent = '— 対戦中止 —';
+    $('end-result-msg').textContent = t('end.abort.title');
     $('end-result-msg').className = 'result-message abort';
-    $('end-result-sub').textContent = '通信切断のため対戦を中止しました';
+    $('end-result-sub').textContent = t('end.abort.reason');
     $('end-stats').style.display = 'none';
     $('btn-end-replay').style.display = 'none';
     $('btn-end-rule-change').style.display = 'none';
-    setEndBtnLabel('btn-end-back-room', 'ロビーへ戻る');
+    setEndBtnLabel('btn-end-back-room', t('end.btn.toLobby'));
   } else if (_mode === 'battle' && opts && opts.winner) {
     // v1.33 (3-C): 対戦時は WIN/LOSE 表示（通常勝敗時）
     const isMyWin = opts.winner === 'self';
@@ -681,8 +654,9 @@ function showEndScreen(opts) {
     const winnerState = isMyWin ? _gameState : _oppState;
     $('end-result-msg').textContent = isMyWin ? '🏆 WIN!' : '😢 LOSE!';
     $('end-result-msg').className = `result-message ${isMyWin ? 'win' : 'lose'}`;
-    $('end-result-sub').textContent =
-      `${winner} の勝利！ ${winnerState ? winnerState.dartCount + ' ダーツ' : ''}`;
+    $('end-result-sub').textContent = winnerState
+      ? t('end.win.line', { winner, darts: winnerState.dartCount })
+      : t('end.win.lineNoDarts', { winner });
     $('end-stat-darts').textContent = winnerState ? winnerState.dartCount : '-';
     $('end-stat-turns').textContent = (winnerState ? winnerState.history.length : '-');
     $('end-stat-busts').textContent = winnerState ? winnerState.history.filter(h => h.bust).length : '-';
@@ -701,7 +675,7 @@ function showEndScreen(opts) {
     const bestTurn = turnScores.length ? Math.max(...turnScores) : 0;
     $('end-result-msg').textContent = `${ach.emoji} ${ach.label}`;
     $('end-result-msg').className = 'result-message win';
-    $('end-result-sub').textContent = `${_gameState.dartCount} ダーツでフィニッシュ`;
+    $('end-result-sub').textContent = t('end.solo.finish', { darts: _gameState.dartCount });
     $('end-stat-darts').textContent = _gameState.dartCount;
     $('end-stat-turns').textContent = turns;
     $('end-stat-busts').textContent = busts;
@@ -711,13 +685,13 @@ function showEndScreen(opts) {
   // v1.44 (3-E): ボタンラベルを mode に応じて設定（abort 時は上書き済み）
   if (!(opts && opts.abort)) {
     if (_mode === 'battle') {
-      setEndBtnLabel('btn-end-replay',      '先後入れ替えて再戦');
-      setEndBtnLabel('btn-end-rule-change', '先後そのままで再戦');
-      setEndBtnLabel('btn-end-back-room',   '終了して退出');
+      setEndBtnLabel('btn-end-replay',      t('end.btn.replay.battle'));
+      setEndBtnLabel('btn-end-rule-change', t('end.btn.rule.battle'));
+      setEndBtnLabel('btn-end-back-room',   t('end.btn.quit.battle'));
     } else {
-      setEndBtnLabel('btn-end-replay',      'もう一度プレイ');
-      setEndBtnLabel('btn-end-rule-change', 'ルール変更');
-      setEndBtnLabel('btn-end-back-room',   '終了');
+      setEndBtnLabel('btn-end-replay',      t('end.btn.replay.solo'));
+      setEndBtnLabel('btn-end-rule-change', t('end.btn.rule.solo'));
+      setEndBtnLabel('btn-end-back-room',   t('end.btn.quit.solo'));
     }
   }
   // v1.47 (3-E): end 画面のチャット枠は対戦時のみ（SPEC 12.1）
@@ -754,8 +728,8 @@ function chooseEnd(choice) {
 function updateEndUI() {
   $('btn-end-replay').classList.toggle('selected',      _myEndChoice === 'swap');
   $('btn-end-rule-change').classList.toggle('selected', _myEndChoice === 'same');
-  $('opp-end-replay').textContent      = _oppEndChoice === 'swap' ? '相手選択中' : '';
-  $('opp-end-rule-change').textContent = _oppEndChoice === 'same' ? '相手選択中' : '';
+  $('opp-end-replay').textContent      = _oppEndChoice === 'swap' ? t('end.opp.selecting') : '';
+  $('opp-end-rule-change').textContent = _oppEndChoice === 'same' ? t('end.opp.selecting') : '';
 }
 
 function checkEndMatch() {
@@ -848,11 +822,11 @@ $('btn-copy-log').addEventListener('click', async () => {
   const log = Render.getLog();
   const btn = $('btn-copy-log');
   const original = btn.textContent;
-  btn.textContent = '⏳ 送信中…';
+  btn.textContent = t('log.send.sending');
   btn.disabled = true;
   try {
     const data = await uploadLogToDrive(log, 'darts-sensor');
-    btn.textContent = '✅ Drive 保存';
+    btn.textContent = t('log.send.driveOk');
     console.log('[darts] log uploaded:', data);
   } catch (e) {
     console.warn('[darts] Drive upload failed:', e);
@@ -861,10 +835,10 @@ $('btn-copy-log').addEventListener('click', async () => {
     try {
       if (navigator.share) {
         await navigator.share({ title: 'MOMO Darts log', text: logText });
-        btn.textContent = '✅ 共有(代替)';
+        btn.textContent = t('log.send.shareOk');
       } else if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(logText);
-        btn.textContent = '✅ コピー(代替)';
+        btn.textContent = t('log.send.clipOk');
       } else {
         throw e;
       }
@@ -884,7 +858,7 @@ $('btn-copy-log').addEventListener('click', async () => {
 });
 
 $('btn-game-leave').addEventListener('click', async () => {
-  if (await confirm('退出しますか？')) {
+  if (await confirm(t('modal.confirm.leave'))) {
     leaveGameScreen();
     Sensor.stopListening();
     Sensor.clearCalibration();
@@ -992,20 +966,104 @@ document.querySelectorAll('.tune-btn').forEach((btn) => {
   });
 });
 
-// ===== 言語切替（段階2-A: サブタイトルのみ。本格 i18n は段階4） =====
+// ===== 言語切替（段階4-A v1.49: 4言語 i18n ランタイム、SPEC 15章） =====
+//   - 辞書は darts-i18n.json から fetch ロード
+//   - data-i18n / data-i18n-html / data-i18n-placeholder / data-i18n-title 属性で
+//     静的テキストを一括書き換え
+//   - 動的テキスト（agreement-hint / status 表示等）は t(key, params) を都度呼ぶ
+//   - 永続化キーは momoLang（MOMO Works 全体で共通、SPEC 14章）
+//   - CAT 選択時のみサブタイトルは前言語そのまま固定（SPEC 15章）
 const SUBTITLES = {
   ja: 'Concealed Edge, Single Touch',
   en: 'Concealed Edge, Single Touch',
   zh: '不露鋒心，一指乾坤',
 };
+const LANG_STORAGE_KEY = 'momoLang';
+const FALLBACK_LANG = 'ja';
 
-function applyLang(lang) {
+let _i18nDict = null;
+let _currentLang = FALLBACK_LANG;
+
+async function loadI18n() {
+  if (_i18nDict) return _i18nDict;
+  const res = await fetch('./darts-i18n.json', { cache: 'no-cache' });
+  _i18nDict = await res.json();
+  return _i18nDict;
+}
+
+// 訳文取得。fallback: 現言語 → ja → key そのもの。{var} を params で置換。
+function t(key, params) {
+  if (!_i18nDict) return key;
+  const cur = _i18nDict[_currentLang] || {};
+  const fb  = _i18nDict[FALLBACK_LANG] || {};
+  let str = cur[key];
+  if (str === undefined) str = fb[key];
+  if (str === undefined) return key;
+  if (!params) return str;
+  return str.replace(/\{(\w+)\}/g, (m, name) => (params[name] !== undefined ? params[name] : m));
+}
+
+// data-i18n* 属性を一括反映
+function applyI18nAttrs(root) {
+  const scope = root || document;
+  scope.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  scope.querySelectorAll('[data-i18n-html]').forEach(el => {
+    el.innerHTML = t(el.dataset.i18nHtml);
+  });
+  scope.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    el.placeholder = t(el.dataset.i18nPlaceholder);
+  });
+  scope.querySelectorAll('[data-i18n-title]').forEach(el => {
+    el.title = t(el.dataset.i18nTitle);
+  });
+}
+
+async function applyLang(lang) {
+  await loadI18n();
+  _currentLang = lang;
+  try { localStorage.setItem(LANG_STORAGE_KEY, lang); } catch {}
+  // html lang 属性: CAT は ja として扱う（フォント・改行ヒューリスティクスのため）
+  document.documentElement.lang = (lang === 'cat') ? 'ja' : lang;
+
+  // サブタイトル: CAT 選択時のみ前言語そのまま（SPEC 15章）
   const subtitleEl = $('subtitle');
-  if (lang === 'cat') return; // 猫語選択時はサブタイトルだけ前言語のまま維持
-  if (SUBTITLES[lang]) {
-    subtitleEl.textContent = SUBTITLES[lang];
+  if (subtitleEl && lang !== 'cat') {
+    subtitleEl.textContent = SUBTITLES[lang] || SUBTITLES.ja;
     subtitleEl.classList.toggle('zh', lang === 'zh');
   }
+
+  // 静的テキストを一括反映
+  applyI18nAttrs();
+
+  // 動的テキストの再描画フック（既描画の status/hint/preset 等）
+  refreshDynamicI18n();
+}
+
+// 言語切替時に動的内容を再描画。state を関数群に持たせて t() で書き直す。
+function refreshDynamicI18n() {
+  // lobby chat 空メッセージ（::before の attr 経由）
+  document.querySelectorAll('.lobby-chat-list').forEach(el => {
+    el.setAttribute('data-empty', t('chat.lobby.empty'));
+  });
+  // チャットプリセット（未編集なら現在言語に追従、sessionStorage 保存ありはそのまま）
+  loadChatPresets();
+  if (typeof applyChatPresetsToButtons === 'function') applyChatPresetsToButtons();
+  // 各 status / hint / room status の再描画
+  refreshLobbyStatus();
+  refreshWaitingStatus();
+  refreshRoomStatusBar();
+  if (typeof renderAgreementHint === 'function') renderAgreementHint();
+  if (typeof renderRoleSelection === 'function') renderRoleSelection();
+  // game 画面 turn-info（現在表示中なら）
+  if (typeof updateTurnInfo === 'function' && document.body.classList.contains('in-game')) {
+    updateTurnInfo();
+  }
+  // 部屋一覧（last cache から再描画）
+  if (_lastPublicRooms) renderRoomList();
+  // 許可手順案内（表示中なら）
+  refreshPermissionSteps();
 }
 
 const langSelect = $('lang-select');
@@ -1029,11 +1087,25 @@ let _currentRoomName = '';
 const _savedName = localStorage.getItem(NAME_KEY);
 if (_savedName) $('my-name').value = _savedName;
 
-function setLobbyStatus(text, highlight) {
+// v1.49: i18n キーを保持し言語切替で再描画できるよう変更
+let _lobbyStatusKey = 'lobby.status.connecting';
+let _lobbyStatusHighlight = false;
+function setLobbyStatus(key, highlight) {
+  _lobbyStatusKey = key;
+  _lobbyStatusHighlight = !!highlight;
   const el = $('lobby-status');
-  el.textContent = text;
-  el.classList.toggle('highlight', !!highlight);
+  el.textContent = t(key);
+  el.classList.toggle('highlight', _lobbyStatusHighlight);
 }
+function refreshLobbyStatus() { setLobbyStatus(_lobbyStatusKey, _lobbyStatusHighlight); }
+
+// waiting-status も同様（key ベース）。引数なしで再描画
+let _waitingStatusKey = 'waiting.status.title';
+function setWaitingStatus(key) {
+  _waitingStatusKey = key;
+  $('waiting-status').textContent = t(key);
+}
+function refreshWaitingStatus() { setWaitingStatus(_waitingStatusKey); }
 
 function setError(elId, text) {
   $(elId).textContent = text || '';
@@ -1048,9 +1120,16 @@ function resetRoomToSolo() {
   $('room-status').style.display = 'none';
   $('room-status').textContent = '';
   $('btn-game-start').disabled = false;
-  $('room-rule-mode-dt').textContent = '練習モード';
-  $('room-rule-mode-dd').textContent = '勝敗判定なし、フィニッシュまでのターン数を記録';
-  $('room-hint').textContent = '※ ゲーム開始時にセンサー許可・キャリブレーションを実行します';
+  // v1.49: i18n キーを data-i18n 経由で動的更新（言語切替時も自動追従）
+  const dt = $('room-rule-mode-dt');
+  const dd = $('room-rule-mode-dd');
+  const hint = $('room-hint');
+  dt.dataset.i18n   = 'room.rule.mode.solo.label';
+  dd.dataset.i18n   = 'room.rule.mode.solo.value';
+  hint.dataset.i18n = 'room.hint.prep';
+  dt.textContent    = t('room.rule.mode.solo.label');
+  dd.textContent    = t('room.rule.mode.solo.value');
+  hint.textContent  = t('room.hint.prep');
   $('role-select-panel').style.display = 'none';
   updateKickButton();  // _mode='solo' 等を反映してキックを隠す
 }
@@ -1070,11 +1149,14 @@ function updateKickButton() {
   }
 }
 
+// v1.49: 言語切替時にも再描画できるよう、最後の rooms を保持
+let _lastPublicRooms = null;
 function renderRoomList(rooms) {
+  if (rooms) _lastPublicRooms = rooms;
   const list = $('room-list');
-  const visible = (rooms || []).filter(r => r.isPublic);
+  const visible = (_lastPublicRooms || []).filter(r => r.isPublic);
   if (visible.length === 0) {
-    list.innerHTML = '<div class="room-empty">公開中の部屋はまだありません</div>';
+    list.innerHTML = `<div class="room-empty">${escapeHtml(t('lobby.rooms.empty'))}</div>`;
     return;
   }
   list.innerHTML = '';
@@ -1085,7 +1167,7 @@ function renderRoomList(rooms) {
     div.innerHTML =
       `<div class="room-meta">` +
       `<div class="room-name">${escapeHtml(r.name)}</div>` +
-      `<div class="room-host">ホスト：${escapeHtml(r.hostName)}</div>` +
+      `<div class="room-host">${escapeHtml(t('lobby.room.host', { name: r.hostName }))}</div>` +
       `</div>${lock}`;
     div.addEventListener('click', () => clickJoinRoom(r));
     list.appendChild(div);
@@ -1100,7 +1182,7 @@ function renderPrivateRoomList(rooms, password) {
   const visible = (rooms || []).filter(r => !r.isPublic && r.hasPassword);
   if (visible.length === 0) {
     list.style.display = 'none';
-    setError('private-error', 'パスワードに一致する非公開の部屋がありません');
+    setError('private-error', t('lobby.error.passwordMismatch'));
     return;
   }
   setError('private-error', '');
@@ -1112,10 +1194,10 @@ function renderPrivateRoomList(rooms, password) {
     div.innerHTML =
       `<div class="room-meta">` +
       `<div class="room-name">${escapeHtml(r.name)}</div>` +
-      `<div class="room-host">ホスト：${escapeHtml(r.hostName)}</div>` +
+      `<div class="room-host">${escapeHtml(t('lobby.room.host', { name: r.hostName }))}</div>` +
       `</div><span class="room-lock">🔒</span>`;
     div.addEventListener('click', () => {
-      const myName = ($('my-name').value || '').trim() || 'ゲスト';
+      const myName = ($('my-name').value || '').trim() || t('lobby.guest');
       localStorage.setItem(NAME_KEY, myName);
       MomoMatchmaking.joinRoom(r.id, password, myName);
     });
@@ -1126,26 +1208,39 @@ function renderPrivateRoomList(rooms, password) {
 function clickJoinRoom(room) {
   const myName = ($('my-name').value || '').trim();
   if (!myName) {
-    alertInfo('「あなたの名前」を入力してください');
+    alertInfo(t('lobby.error.nameRequired'));
     $('my-name').focus();
     return;
   }
   let pw = '';
   if (room.hasPassword) {
-    pw = prompt('パスワードを入力してください');
+    pw = prompt(t('lobby.prompt.password'));
     if (pw === null) return;
   }
   localStorage.setItem(NAME_KEY, myName);
   MomoMatchmaking.joinRoom(room.id, pw, myName);
 }
 
+// v1.49: 言語切替時の再描画用に値を保持
+function refreshRoomStatusBar() {
+  if (_mode !== 'battle' || !_currentRoomName) return;
+  const tail = _guestName ? ' vs ' + _guestName : `（${t('lobby.room.guestWaiting')}）`;
+  $('room-status').textContent = `${_currentRoomName} ｜ ${_hostName}${tail}`;
+}
+
 function enterBattleRoom() {
   $('room-status').style.display = 'block';
-  $('room-status').textContent =
-    `${_currentRoomName} ｜ ${_hostName}${_guestName ? ' vs ' + _guestName : '（ゲスト待機中）'}`;
-  $('room-rule-mode-dt').textContent = '勝敗判定';
-  $('room-rule-mode-dd').textContent = '0 ぴったりでフィニッシュ。先にフィニッシュした方が勝ち';
-  $('room-hint').textContent = '※ ゲーム開始時にセンサー許可・キャリブレーションを実行します';
+  refreshRoomStatusBar();
+  // v1.49: data-i18n 経由で battle 用ラベルに切替（言語切替に自動追従）
+  const dt = $('room-rule-mode-dt');
+  const dd = $('room-rule-mode-dd');
+  const hint = $('room-hint');
+  dt.dataset.i18n   = 'room.rule.mode.battle.label';
+  dd.dataset.i18n   = 'room.rule.mode.battle.value';
+  hint.dataset.i18n = 'room.hint.prep';
+  dt.textContent    = t('room.rule.mode.battle.label');
+  dd.textContent    = t('room.rule.mode.battle.value');
+  hint.textContent  = t('room.hint.prep');
   // v1.31 (3-B): 先攻/後攻 選択パネル表示 + 状態リセット（新たな相手と最初から）
   $('role-select-panel').style.display = 'flex';
   resetBattleAgreementState();
@@ -1156,15 +1251,15 @@ function enterBattleRoom() {
 function initMatchmaking() {
   if (typeof MomoMatchmaking === 'undefined') {
     console.warn('[darts] MomoMatchmaking module not loaded');
-    setLobbyStatus('マッチングモジュール未読込', false);
+    setLobbyStatus('lobby.status.notLoaded', false);
     return;
   }
   MomoMatchmaking.init({
     signalingUrl: SIGNALING_URL,
     gameType: GAME_TYPE,
 
-    onWsOpen: () => setLobbyStatus('接続中', true),
-    onWsClose: () => setLobbyStatus('接続切断、再接続中…', false),
+    onWsOpen: () => setLobbyStatus('lobby.status.connected', true),
+    onWsClose: () => setLobbyStatus('lobby.status.reconnecting', false),
 
     onRoomList: (rooms) => {
       renderRoomList(rooms);
@@ -1177,10 +1272,10 @@ function initMatchmaking() {
     onRoomCreated: (roomId, roomName) => {
       _mode = 'battle';
       _currentRoomName = roomName;
-      _hostName = ($('my-name').value || '').trim() || 'ホスト';
+      _hostName = ($('my-name').value || '').trim() || t('lobby.host');
       _guestName = '';
       $('waiting-room-name').textContent = roomName;
-      $('waiting-status').textContent = 'ゲストの参加を待っています…';
+      setWaitingStatus('waiting.status.title');
       // v1.48: ロビーチャットを起動（履歴クリア + パネル表示）
       clearLobbyChat();
       showLobbyChatPanels(true);
@@ -1191,7 +1286,7 @@ function initMatchmaking() {
       _mode = 'battle';
       _currentRoomName = roomName;
       _hostName = hostName;
-      _guestName = ($('my-name').value || '').trim() || 'ゲスト';
+      _guestName = ($('my-name').value || '').trim() || t('lobby.guest');
       // v1.48: ロビーチャットを起動
       clearLobbyChat();
       showLobbyChatPanels(true);
@@ -1216,7 +1311,7 @@ function initMatchmaking() {
       }
       // 試合前（待機・部屋画面）の退出 → 新しいゲストを待つ
       resetBattleAgreementState();
-      $('waiting-status').textContent = 'ゲストが退出しました。新しいゲストを待っています…';
+      setWaitingStatus('waiting.status.left');
       showScreen('waiting');
     },
 
@@ -1239,7 +1334,7 @@ function initMatchmaking() {
         return;
       }
       if (_mode === 'battle') {
-        alertInfo('通信が切断されました。');
+        alertInfo(t('alert.disconnected'));
       }
       _mode = 'solo';
       _guestName = '';
@@ -1248,11 +1343,11 @@ function initMatchmaking() {
     },
 
     onError: (msg) => {
-      setError('create-error', msg || 'エラーが発生しました');
+      setError('create-error', msg || t('lobby.error.generic'));
     },
 
     onKicked: () => {
-      alertInfo('ホストから退出させられました');
+      alertInfo(t('alert.kicked'));
       _mode = 'solo';
       _guestName = '';
       resetRoomToSolo();
@@ -1273,11 +1368,11 @@ $('btn-create-room').addEventListener('click', () => {
   const password = ($('room-password').value || '').trim();
   const isPublic = $('room-public').checked;
   if (!myName) {
-    setError('create-error', '「あなたの名前」を入力してください');
+    setError('create-error', t('lobby.error.nameRequired'));
     return;
   }
   if (!roomName) {
-    setError('create-error', '「部屋の名前」を入力してください');
+    setError('create-error', t('lobby.error.roomNameRequired'));
     return;
   }
   setError('create-error', '');
@@ -1300,7 +1395,7 @@ $('btn-refresh-rooms').addEventListener('click', () => {
 $('btn-show-private').addEventListener('click', () => {
   const pw = ($('private-room-pw').value || '').trim();
   if (!pw) {
-    setError('private-error', 'パスワードを入力してください');
+    setError('private-error', t('lobby.error.passwordRequired'));
     return;
   }
   setError('private-error', '');
@@ -1310,7 +1405,7 @@ $('btn-show-private').addEventListener('click', () => {
 });
 
 $('btn-waiting-leave').addEventListener('click', async () => {
-  if (await confirm('退出しますか？')) {
+  if (await confirm(t('modal.confirm.leave'))) {
     if (typeof MomoMatchmaking !== 'undefined') MomoMatchmaking.leaveRoom();
     _mode = 'solo';
     _guestName = '';
@@ -1356,35 +1451,30 @@ function renderRoleSelection() {
   cardS.classList.toggle('selected-opp', _oppRole === 'second');
   const labelFor = (role) => {
     const parts = [];
-    if (_myRole === role) parts.push('あなた');
-    if (_oppRole === role) parts.push('相手');
+    if (_myRole === role) parts.push(t('lobby.you'));
+    if (_oppRole === role) parts.push(t('lobby.opp'));
     return parts.join(' + ');
   };
   $('who-first').textContent = labelFor('first');
   $('who-second').textContent = labelFor('second');
 }
 
+// v1.49: i18n キーを保持して言語切替時にも再描画
+function currentAgreementHintKey() {
+  if (!rolesConsistent()) return { key: 'room.agreement.idle', cls: null };
+  if (_myStartPressed && !_oppStartPressed) return { key: 'room.agreement.waitOpp', cls: 'waiting' };
+  if (!_myStartPressed && _oppStartPressed) return { key: 'room.agreement.youReady', cls: 'waiting' };
+  if (_myStartPressed && _oppStartPressed) return { key: 'room.agreement.bothReady', cls: 'ready' };
+  return { key: 'room.agreement.localReady', cls: 'ready' };
+}
 function renderAgreementHint() {
   const hint = $('agreement-hint');
   if (!hint) return;
   hint.classList.remove('ready', 'waiting');
-  if (!rolesConsistent()) {
-    hint.textContent = '先攻と後攻をそれぞれ選択するとゲーム開始できます';
-    return;
-  }
-  if (_myStartPressed && !_oppStartPressed) {
-    hint.textContent = '相手のゲーム開始を待っています…';
-    hint.classList.add('waiting');
-  } else if (!_myStartPressed && _oppStartPressed) {
-    hint.textContent = '相手は準備完了。ゲーム開始を押してください';
-    hint.classList.add('waiting');
-  } else if (_myStartPressed && _oppStartPressed) {
-    hint.textContent = '両者準備完了！ゲームに移ります…';
-    hint.classList.add('ready');
-  } else {
-    hint.textContent = '準備完了！ゲーム開始を押してください';
-    hint.classList.add('ready');
-  }
+  const { key, cls } = currentAgreementHintKey();
+  hint.dataset.i18n = key;  // 言語切替で自動再描画される
+  hint.textContent = t(key);
+  if (cls) hint.classList.add(cls);
 }
 
 function updateGameStartButton() {
@@ -1453,7 +1543,7 @@ function onMyCalibDone() {
     // （切断時に数秒で対戦中止になる挙動と矛盾するため）。ボタンを無効化して
     // 完了フィードバックだけステータスに残す。
     $('btn-calib-fix').disabled = true;
-    $('calib-status').textContent = 'キャリブ完了';
+    $('calib-status').textContent = t('calib.status.done');
   }
 }
 
@@ -1520,7 +1610,7 @@ function handleBattleMessage(data) {
       // 相手が退出ボタン押下 → 自分もロビーへ
       // v1.44: 後続の room_closed → onDisconnected で「通信切断」alert が出ないようガード
       _disconnectDeclared = true;
-      alertInfo('相手が退出しました');
+      alertInfo(t('alert.oppLeft'));
       exitBattleToLobby();
       return;
     }
@@ -1540,7 +1630,7 @@ $('btn-kick-guest').addEventListener('click', async () => {
   if (!_guestName) return;
   if (typeof MomoMatchmaking === 'undefined') return;
   if (!MomoMatchmaking.getState().isHost) return;
-  if (await confirm(`${_guestName} さんをキックしますか？`)) {
+  if (await confirm(t('room.kick.confirm', { name: _guestName }))) {
     // 確認中にゲストが自発的に退出している可能性があるので再チェック
     if (!_guestName) return;
     MomoMatchmaking.kickGuest();
@@ -1646,7 +1736,7 @@ function declareDisconnectAbort(reason) {
   _disconnectDeclared = true;
   stopHeartbeat();
   console.log('[darts] disconnect abort:', reason);
-  showAnnouncement('abort', '対戦中止', '通信切断のため');
+  showAnnouncement('abort', t('announce.abort'), t('announce.abort.reason'));
   setTimeout(() => {
     if (typeof MomoMatchmaking !== 'undefined') {
       try { MomoMatchmaking.leaveRoom(); } catch (e) {}
@@ -1664,32 +1754,37 @@ function declareDisconnectAbort(reason) {
 // =====================================================================
 
 const CHAT_PRESET_LS_KEY = 'momoDartsChatPresets';
-const CHAT_PRESET_DEFAULTS = ['ナイス!', 'すごい!', 'がんばれ!'];
 const CHAT_PRESET_MAX_LEN = 20;
 const CHAT_FADE_DELAY_MS = 3000;
 const CHAT_EDIT_HOLD_MS = 700;
 const CHAT_FADE_DURATION_MS = 600;  // CSS の transition と合わせる
 
-let _chatPresets = [...CHAT_PRESET_DEFAULTS];
+// v1.49: 現在言語に応じた preset デフォルト（sessionStorage 未保存時はこれ）
+function getDefaultChatPresets() {
+  return [t('chat.preset.0'), t('chat.preset.1'), t('chat.preset.2')];
+}
+
+let _chatPresets = ['ナイス!', 'すごい!', 'がんばれ!']; // 初期化、loadChatPresets で上書き
 let _chatMessages = [];        // {name, text, isSelf}
 let _chatFadeTimer = null;
 let _chatClearTimer = null;
 
 function loadChatPresets() {
+  const defs = getDefaultChatPresets();
   try {
     const saved = sessionStorage.getItem(CHAT_PRESET_LS_KEY);
     if (saved) {
       const arr = JSON.parse(saved);
       if (Array.isArray(arr) && arr.length === 3) {
         _chatPresets = arr.map((s, i) => {
-          const t = String(s).slice(0, CHAT_PRESET_MAX_LEN).trim();
-          return t || CHAT_PRESET_DEFAULTS[i];
+          const text = String(s).slice(0, CHAT_PRESET_MAX_LEN).trim();
+          return text || defs[i];
         });
         return;
       }
     }
   } catch (e) {}
-  _chatPresets = [...CHAT_PRESET_DEFAULTS];
+  _chatPresets = [...defs];
 }
 
 function saveChatPresets() {
@@ -1812,7 +1907,7 @@ function startEditPreset(btn) {
     let newText = cancelled
       ? _chatPresets[slot]
       : input.value.replace(/\s+/g, ' ').trim().slice(0, CHAT_PRESET_MAX_LEN);
-    if (!newText) newText = CHAT_PRESET_DEFAULTS[slot];
+    if (!newText) newText = getDefaultChatPresets()[slot];
     _chatPresets[slot] = newText;
     saveChatPresets();
     // input を消してボタン復活
@@ -1829,8 +1924,9 @@ function startEditPreset(btn) {
   input.addEventListener('keydown', onKey);
 }
 
-loadChatPresets();
-applyChatPresetsToButtons();
+// v1.49: loadChatPresets() は i18n 辞書読み込み後（applyLang 内 refreshDynamicI18n）に呼ぶ。
+// ここではボタンのイベントバインドのみ。preset の初期文字列は HTML 既定値（ja）が一瞬出るが
+// applyLang 完了時に上書きされる。
 document.querySelectorAll('.chat-preset-btn').forEach(bindChatPresetButton);
 
 // =====================================================================
@@ -1895,6 +1991,14 @@ document.querySelectorAll('.lobby-chat-input').forEach(input => {
 });
 
 // ===== 起動時 =====
-applyLang('ja');
-showScreen('lobby');
-initMatchmaking();
+// v1.49: momoLang を localStorage から復元（MOMO Works 共通キー、SPEC 14章）
+(async () => {
+  let savedLang = FALLBACK_LANG;
+  try { savedLang = localStorage.getItem(LANG_STORAGE_KEY) || FALLBACK_LANG; } catch {}
+  if (!['ja', 'en', 'zh', 'cat'].includes(savedLang)) savedLang = FALLBACK_LANG;
+  if (langSelect) langSelect.value = savedLang;
+  await applyLang(savedLang);
+  // 言語ロード後の最終初期化
+  showScreen('lobby');
+  initMatchmaking();
+})();

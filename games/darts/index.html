@@ -1638,7 +1638,7 @@ body.in-game #fps-display { display: block; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.60</span>
+      <span class="version-tag" id="version-tag">v1.61</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -1998,14 +1998,13 @@ body.in-game #fps-display { display: block; }
   <div id="settings-panel">
     <div class="settings-title" id="settings-title-text" data-i18n="settings.title">設定</div>
 
-    <!-- 音量（disabled プレースホルダー: SE 未実装、段階5で配線） -->
-    <div class="settings-row disabled" id="settings-row-volume">
+    <!-- 音量 (v1.61 で 5-a 配線完了。SPEC 13.10 / 14.2 / 14.5) -->
+    <div class="settings-row" id="settings-row-volume">
       <div class="settings-row-head">
         <span class="row-label" data-i18n="settings.volume.label">音量</span>
-        <span style="font-size:12px; color:var(--text-muted); display:inline-flex; align-items:center; gap:4px;"><svg class="icon" aria-hidden="true" style="width:14px;height:14px"><use href="#icon-volume-up"/></svg>50%</span>
+        <span style="font-size:12px; color:var(--text-muted); display:inline-flex; align-items:center; gap:4px;"><svg class="icon" id="volume-icon" aria-hidden="true" style="width:14px;height:14px"><use href="#icon-volume-up"/></svg><span id="volume-value">50%</span></span>
       </div>
-      <input type="range" class="settings-volume-slider" min="0" max="100" value="50" disabled>
-      <div class="settings-row-hint" data-i18n="settings.volume.placeholder">SE 未実装</div>
+      <input type="range" class="settings-volume-slider" id="settings-volume-slider" min="0" max="100" value="50">
     </div>
 
     <!-- 描画品質（v1.59 で 4-C-6 配線完了） -->

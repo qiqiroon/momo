@@ -5,6 +5,7 @@
 
 import * as Sensor from './darts-sensor.js';
 import * as Render from './darts-render.js';
+import * as Sound from './darts-sound.js';
 import * as Input from './darts-input.js';
 import * as Physics from './darts-physics.js';
 import * as Rules from './darts-rules.js';
@@ -261,6 +262,8 @@ $('btn-solo-start').addEventListener('click', () => {
 });
 
 $('btn-game-start').addEventListener('click', () => {
+  // v1.61 (5-a): AudioContext 初期化（SPEC 13.11、iOS Safari autoplay 対策・ユーザー操作起点）
+  Sound.init();
   // v1.31 (3-B): 対戦時は両者押下を待つ。Solo は即実行
   if (_mode === 'battle') {
     pressBattleStart();
@@ -437,9 +440,13 @@ function leaveGameScreen() {
 
 // v1.23: 投擲リリース → 物理シミュ → 着弾後にスコア計算
 // v1.33 (3-C): 対戦時は relAim + impactBoard を相手に送信、両者で同じ shot を処理
+// v1.61 (5-b): 投擲音 + 着弾音（SPEC 13.4/13.5/13.6）
 function onDartReleased({ hand, strength, durationMs }) {
   // 対戦時、相手のターン中はそもそもボタン disabled だが念のためガード
   if (_mode === 'battle' && !isMyTurn()) return;
+
+  // v1.61: 投擲音（強さで pitch+volume 変調、SPEC 13.5）
+  Sound.playThrow(strength);
 
   const aim = Render.getCurrentAim();
   const aimYawRad   = (aim.yawDeg   * Math.PI) / 180;
@@ -468,6 +475,8 @@ function onDartReleased({ hand, strength, durationMs }) {
     if (_mode === 'battle' && typeof MomoMatchmaking !== 'undefined') {
       MomoMatchmaking.send({ type: 'throw_end' });
     }
+    // v1.61 (5-b): 着弾音（命中時、SPEC 13.6 共通の「ストッ」）
+    if (result.board) Sound.playHit();
     // result = { world, board: { x, y } | null } — local の物理結果
     const shot = Rules.scoreFromImpactSVG(result.board);
     logShotEvent(_gameState, hand, strength, durationMs, aim, result, shot);
@@ -484,6 +493,8 @@ function handleOppThrow(data) {
     return;
   }
   const { hand, strength, relYawDeg, relPitchDeg, impactBoard } = data;
+  // v1.61 (5-b): 相手投擲音（自分と同音量、SPEC 13.7 相手振動音と同方針）
+  Sound.playThrow(strength);
   // 受信側の自分の的位置に relAim を載せて再シミュレート
   const target = Render.getTargetWorld();
   const aimYawRad   = ((target.yaw   + (relYawDeg   || 0)) * Math.PI) / 180;
@@ -491,6 +502,8 @@ function handleOppThrow(data) {
   const sim = Physics.simulateThrow({ hand, strength, aimYawRad, aimPitchRad });
 
   Render.fireFlight(sim, (_result) => {
+    // v1.61 (5-b): 受信側でも着弾音（authoritative board が null でなければ命中）
+    if (impactBoard) Sound.playHit();
     // 着弾点は送信者の authoritative 値で上書き → スコアも一致
     const shot = Rules.scoreFromImpactSVG(impactBoard);
     processShot(_oppState, shot, _activeRole);
@@ -506,6 +519,14 @@ function processShot(throwerState, shot, throwerRole) {
   }
   updateScoreUI();
 
+  // v1.61 (5-b): TON80 ジングル — ターン3投合計 180 点（SPEC 13.3 P0）
+  // BUST 時は無視（バーストは加算されない）。FINISH と同時の場合は重ね鳴らし（SPEC 13.9）
+  if (r.turnEnded && !r.bust && throwerState.history.length > 0) {
+    const lastShots = throwerState.history[throwerState.history.length - 1].shots;
+    const turnSum = lastShots.reduce((a, s) => a + (s.value || 0), 0);
+    if (turnSum === 180) Sound.playTon80();
+  }
+
   // === FINISH ===
   if (r.finished) {
     const isMyWin = (throwerRole === _myRole) || (_mode !== 'battle');
@@ -518,6 +539,8 @@ function processShot(throwerState, shot, throwerRole) {
       subText = `${throwerState.dartCount} ${t('end.dartsUnit')}`;
     }
     console.log('[darts] FINISH! darts=' + throwerState.dartCount + ' winner=' + (isMyWin ? 'self' : 'opp'));
+    // v1.61 (5-b): 9 ダーツ達成ジングル（SPEC 13.3 P0、最派手）
+    if (throwerState.dartCount <= 9) Sound.playNineDarts();
     Render.logEvent({ type: 'finish', dartCount: throwerState.dartCount, turns: throwerState.turnIndex, winner: isMyWin ? 'self' : 'opp' });
     showAnnouncement(_mode === 'battle' && !isMyWin ? 'lose' : 'finish', mainText, subText);
     setTimeout(() => {
@@ -529,6 +552,8 @@ function processShot(throwerState, shot, throwerRole) {
 
   // === BUST ===
   if (r.bust) {
+    // v1.61 (5-b): BUST 残念音（SPEC 13.3 P0）
+    Sound.playBust();
     console.log('[darts] BUST! thrower=' + throwerRole + ' reverted to ' + throwerState.remaining);
     Render.logEvent({ type: 'bust', thrower: throwerRole, remainingAfter: throwerState.remaining });
     showAnnouncement('bust', 'BUST!', '');
@@ -897,6 +922,34 @@ function openSettingsPanel() {
 function closeSettingsPanel() {
   $('settings-mask').classList.remove('active');
 }
+// v1.61 (5-a): 音量スライダー配線（SPEC 13.10 / 14.2 / 14.5）
+// - input 中: 連続反映、テスト音は鳴らさない
+// - change（離した瞬間）: テスト音（投擲音流用、ただし 0%/ミュート時は鳴らさない）
+// - 0%: 🔊 → 🔇 アイコンと表示テキストも切替
+function refreshVolumeUI() {
+  const v = Sound.getVolume();
+  const sld = $('settings-volume-slider');
+  if (sld && document.activeElement !== sld) sld.value = String(v);
+  const val = document.getElementById('volume-value');
+  if (val) val.textContent = `${v}%`;
+  const icon = document.getElementById('volume-icon');
+  if (icon) {
+    const use = icon.querySelector('use');
+    if (use) use.setAttribute('href', v === 0 ? '#icon-volume-off' : '#icon-volume-up');
+  }
+}
+refreshVolumeUI();
+$('settings-volume-slider').addEventListener('input', (e) => {
+  const v = parseInt(e.target.value, 10) || 0;
+  Sound.setVolume(v);
+  refreshVolumeUI();
+});
+$('settings-volume-slider').addEventListener('change', (e) => {
+  // 離した瞬間にテスト音（SPEC 14.2）。ミュート時は鳴らさない
+  const v = parseInt(e.target.value, 10) || 0;
+  if (v > 0 && Sound.isReady()) Sound.playThrow(0.7);
+});
+
 $('gear-icon').addEventListener('click', (e) => {
   e.stopPropagation();
   openSettingsPanel();

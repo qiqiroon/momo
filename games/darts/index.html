@@ -1263,11 +1263,12 @@ input.chat-preset-btn.editing-input:focus {
 #gear-icon:active { transform: scale(0.92); }
 body.in-game #gear-icon { display: flex; }
 
-/* v1.55: fps 表示（SPEC 17.4、4-C-4。ゲーム画面のみ、控えめな位置） */
+/* v1.55: fps 表示（SPEC 17.4、4-C-4。ゲーム画面のみ、控えめな位置）
+   v1.56: タイトル「MOMO Darts」と重なるのを避けて右上、歯車の左隣に移動 */
 #fps-display {
   position: fixed;
-  top: calc(6px + env(safe-area-inset-top, 0px));
-  left: calc(12px + env(safe-area-inset-left, 0px));
+  top: calc(10px + env(safe-area-inset-top, 0px));
+  right: calc(132px + env(safe-area-inset-right, 0px));   /* 歯車 (right:96, w:32) の左隣 */
   z-index: 250;
   font-family: ui-monospace, monospace;
   font-size: 11px;
@@ -1625,7 +1626,7 @@ body.in-game #fps-display { display: block; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.55</span>
+      <span class="version-tag" id="version-tag">v1.56</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>

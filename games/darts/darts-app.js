@@ -1443,9 +1443,13 @@ function initMatchmaking() {
         declareDisconnectAbort(stillInRoom ? 'self-ws-died' : 'opp-ws-died');
         return;
       }
-      if (_mode === 'battle') {
-        alertInfo(t('alert.disconnected'));
+      // v1.56: 1人プレイ中(_mode==='solo')は WS 切断と無関係に継続させる。
+      // SPEC 1.4「ネット要件: 1人=不要」。サーバー未接続でも 1 人プレイは成立する。
+      if (_mode === 'solo') {
+        return;
       }
+      // 対戦モードの非ゲーム時切断(ロビー/部屋/待機での切断) → ロビーに戻す
+      alertInfo(t('alert.disconnected'));
       _mode = 'solo';
       _guestName = '';
       resetRoomToSolo();

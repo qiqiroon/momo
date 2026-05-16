@@ -531,7 +531,10 @@ body.in-game .site-header h1 {
   will-change: transform;
 }
 
-/* 壁: 暫定 CSS 木目（段階6 で PNG 差替え予定）。シーン原点を中心に大きく敷く */
+/* 壁: 木目テクスチャ（v1.54: feTurbulence ベース SVG パターン、SPEC 16.5）
+   ・縦長 (baseFrequency 0.012 x 0.65) のノイズで木目筋を生成
+   ・feColorMatrix で暗ブラウンの明部/暗部マッピング
+   ・フォールバック段階1で `.no-texture` クラスを付与すれば単色のみに切替（SPEC 17.4） */
 #game-3d-wall {
   position: absolute;
   top: -300vmax;
@@ -539,17 +542,11 @@ body.in-game .site-header h1 {
   width: 600vmax;
   height: 600vmax;
   background-color: #1a1208;
-  background-image:
-    repeating-linear-gradient(
-      90deg,
-      rgba(0,0,0,0.18) 0 1px,
-      transparent 1px 7px),
-    repeating-linear-gradient(
-      90deg,
-      rgba(255,255,255,0.025) 0 2px,
-      transparent 2px 23px),
-    radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.06), transparent 70%);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='512' height='512'><filter id='w' x='0' y='0' width='1' height='1'><feTurbulence type='fractalNoise' baseFrequency='0.012 0.65' numOctaves='3' seed='7' stitchTiles='stitch'/><feColorMatrix values='0.42 0 0 0 0.04  0.24 0 0 0 0.02  0.12 0 0 0 0.01  0 0 0 0 1'/></filter><rect width='100%25' height='100%25' filter='url(%23w)'/></svg>");
+  background-size: 320px 640px;
+  background-repeat: repeat;
 }
+#game-3d-wall.no-texture { background-image: none; }
 
 /* ダーツボード（シーン原点を中心アンカー、サイズは JS が設定） */
 #game-3d-board {
@@ -1596,7 +1593,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.53</span>
+      <span class="version-tag" id="version-tag">v1.54</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>

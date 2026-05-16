@@ -778,30 +778,16 @@ $('btn-recenter').addEventListener('click', () => {
 });
 
 // v1.52: 設定パネル（SPEC 14章。v1.15 のドロップダウン式 settings-menu を置き換え）
+// v1.53: 開発用パネル ON/OFF トグル廃止。感度調整は設定パネル内に直接組み込み、
+// game-overlay-bottom（次のターン/ログ/退出）は常時表示に戻す。
 // 歯車クリック → モーダル表示。マスククリック / 閉じるボタンで閉じる。
 // 0リセットは設定パネル内、対戦中も常時有効（SPEC 14.2 を実装追従更新）。
-// 開発用パネル ON/OFF: ON で #tune-panel（感度調整）と #game-overlay-bottom（次のターン/ログ/退出）を表示。
-// 起動時必ず OFF（SPEC 14.3、永続化なし）。
 function openSettingsPanel() {
   $('settings-mask').classList.add('active');
 }
 function closeSettingsPanel() {
   $('settings-mask').classList.remove('active');
 }
-function setDevPanelVisible(on) {
-  const toggle = $('settings-devpanel-toggle');
-  toggle.classList.toggle('on', on);
-  toggle.setAttribute('aria-checked', on ? 'true' : 'false');
-  $('tune-panel').classList.toggle('active', on);
-  // 「次のターン」「ログ」は開発用扱い。「退出」は対戦離脱手段なので常時表示
-  const btnNext = document.getElementById('btn-next-turn');
-  const btnLog = document.getElementById('btn-copy-log');
-  if (btnNext) btnNext.style.display = on ? '' : 'none';
-  if (btnLog) btnLog.style.display = on ? '' : 'none';
-}
-// 起動時 OFF
-setDevPanelVisible(false);
-
 $('gear-icon').addEventListener('click', (e) => {
   e.stopPropagation();
   openSettingsPanel();
@@ -810,15 +796,6 @@ $('btn-settings-close').addEventListener('click', closeSettingsPanel);
 // マスク（パネル外）クリックで閉じる
 $('settings-mask').addEventListener('click', (e) => {
   if (e.target.id === 'settings-mask') closeSettingsPanel();
-});
-$('settings-devpanel-toggle').addEventListener('click', () => {
-  setDevPanelVisible(!$('settings-devpanel-toggle').classList.contains('on'));
-});
-$('settings-devpanel-toggle').addEventListener('keydown', (e) => {
-  if (e.key === ' ' || e.key === 'Enter') {
-    e.preventDefault();
-    setDevPanelVisible(!$('settings-devpanel-toggle').classList.contains('on'));
-  }
 });
 
 // ===== ログ送信: Google Drive (Apps Script Web App 経由) =====
@@ -971,10 +948,8 @@ const _tune = loadTuneFromStorage();
 applyTune(_tune);
 
 // v1.15 で削除: btn-tune はゲーム画面下バーから歯車メニュー (btn-open-tune) へ移動
-// v1.52: 「閉じる」は開発用パネル全体を OFF にする（設定パネルのトグルと整合）
-$('btn-tune-close').addEventListener('click', () => {
-  setDevPanelVisible(false);
-});
+// v1.52: 「閉じる」は開発用パネル全体を OFF にする → v1.53 で開発用パネル別UI廃止
+// 感度調整は設定パネル内に統合、専用「閉じる」は不要（パネル全体の「閉じる」を使う）
 $('btn-tune-reset').addEventListener('click', () => {
   Object.assign(_tune, TUNE_DEFAULTS);
   applyTune(_tune);

@@ -1276,26 +1276,136 @@ input.chat-preset-btn.editing-input:focus {
 #gear-icon:active { transform: scale(0.92); }
 body.in-game #gear-icon { display: flex; }
 
-/* v1.15: 歯車メニュー（中央リセット / 感度調整 をここに集約）
-   v1.49: 歯車の真下に出るよう位置調整（歯車を 32px に縮小し言語切替の左に移動したのに合わせる）
-   v1.50: 歯車を 96px right にずらしたのに合わせる */
-#settings-menu {
+/* v1.52: 設定パネル（SPEC 14章）
+   歯車クリックで開くモーダル。半透明マスク + 中央のパネル。
+   v1.15 の旧 #settings-menu（ドロップダウン2ボタン）は本パネルに統合 */
+#settings-mask {
   position: fixed;
-  top: calc(44px + env(safe-area-inset-top, 0px));
-  right: calc(96px + env(safe-area-inset-right, 0px));
-  z-index: 100;
-  background: rgba(20,20,20,0.95);
-  border: 1px solid var(--border-strong);
-  border-radius: 10px;
-  padding: 8px;
+  inset: 0;
+  background: rgba(0,0,0,0.6);   /* SPEC 16章: 設定マスク 0.6 */
   display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 20px;
+}
+#settings-mask.active { display: flex; }
+#settings-panel {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  padding: 18px 18px 14px;
+  max-width: 360px;
+  width: 100%;
+  max-height: 88vh;
+  overflow-y: auto;
+  display: flex;
   flex-direction: column;
-  gap: 6px;
-  min-width: 200px;
+  gap: 14px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.5);
 }
-#settings-menu.active { display: flex; }
-#settings-menu .btn { font-size: 13px; padding: 8px 12px; }
+#settings-panel .settings-title {
+  font-family: 'Fredoka One', cursive;
+  font-size: 20px;
+  color: var(--orange-mid);
+  text-align: center;
+  margin-bottom: 2px;
+}
+#settings-panel .settings-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+#settings-panel .settings-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text);
+}
+#settings-panel .settings-row-head .row-label { color: var(--text-muted); }
+#settings-panel .settings-row-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+#settings-panel .settings-row.disabled .row-label,
+#settings-panel .settings-row.disabled .settings-row-hint { opacity: 0.5; }
+#settings-panel input[type="range"]:disabled { opacity: 0.4; cursor: not-allowed; }
+#settings-panel .settings-segmented {
+  display: flex;
+  gap: 4px;
+  background: var(--surface2);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 3px;
+}
+#settings-panel .settings-segmented button {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 12px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+}
+#settings-panel .settings-segmented button.selected {
+  background: var(--orange);
+  color: #fff;
+}
+#settings-panel .settings-segmented button:disabled { opacity: 0.4; cursor: not-allowed; }
+#settings-panel .settings-toggle {
+  position: relative;
+  width: 42px;
+  height: 22px;
+  background: var(--surface2);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+#settings-panel .settings-toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: var(--text-muted);
+  border-radius: 50%;
+  transition: left 0.15s, background 0.15s;
+}
+#settings-panel .settings-toggle.on { background: var(--orange); }
+#settings-panel .settings-toggle.on::after { left: 22px; background: #fff; }
+#settings-panel .settings-action-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  font-size: 12px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+}
+#settings-panel .settings-action-btn:hover:not(:disabled) {
+  border-color: var(--orange);
+  color: var(--orange-mid);
+}
+#settings-panel .settings-action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+#settings-panel .settings-close-row {
+  display: flex;
+  justify-content: center;
+  margin-top: 4px;
+}
+#settings-panel .settings-close-row .btn { min-width: 120px; }
+#settings-panel .settings-volume-slider {
+  width: 100%;
+  accent-color: var(--orange);
+}
 
 /* ===== 結果画面 ===== */
 .result-message {
@@ -1508,7 +1618,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.51</span>
+      <span class="version-tag" id="version-tag">v1.52</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -1776,13 +1886,7 @@ body.in-game #gear-icon { display: flex; }
     <button class="btn btn-ghost" id="btn-game-leave" data-i18n="game.btn.leave">退出</button>
   </div>
 
-  <!-- v1.15: 歯車メニュー -->
-  <div id="settings-menu">
-    <button class="btn btn-secondary" id="btn-recenter" data-i18n="game.settings.recenter">中央リセット</button>
-    <button class="btn btn-secondary" id="btn-open-tune" data-i18n="game.settings.tune">感度調整…</button>
-  </div>
-
-  <!-- v1.14: 感度調整パネル（ラベル/単位を直感的に変更） -->
+  <!-- v1.14: 感度調整パネル（v1.52: 開発用調整パネルに改称、設定パネル内トグルから表示制御） -->
   <div id="tune-panel">
     <div class="tune-row">
       <label data-i18n="game.tune.roll">ロール感度</label>
@@ -1858,6 +1962,58 @@ body.in-game #gear-icon { display: flex; }
 
 <!-- ===== ゲーム中の歯車アイコン（v1.15: メニュー トリガ） ===== -->
 <div id="gear-icon" data-i18n-title="gear.title" title="設定">⚙</div>
+
+<!-- ===== 設定パネル（v1.52: SPEC 14章） ===== -->
+<div id="settings-mask" role="dialog" aria-modal="true" aria-labelledby="settings-title-text">
+  <div id="settings-panel">
+    <div class="settings-title" id="settings-title-text" data-i18n="settings.title">設定</div>
+
+    <!-- 音量（disabled プレースホルダー: SE 未実装、段階5で配線） -->
+    <div class="settings-row disabled" id="settings-row-volume">
+      <div class="settings-row-head">
+        <span class="row-label" data-i18n="settings.volume.label">音量</span>
+        <span style="font-size:12px; color:var(--text-muted);">🔊 50%</span>
+      </div>
+      <input type="range" class="settings-volume-slider" min="0" max="100" value="50" disabled>
+      <div class="settings-row-hint" data-i18n="settings.volume.placeholder">SE 未実装</div>
+    </div>
+
+    <!-- 描画品質（disabled プレースホルダー: 段階4-C で配線） -->
+    <div class="settings-row disabled" id="settings-row-quality">
+      <div class="settings-row-head">
+        <span class="row-label" data-i18n="settings.quality.label">描画品質</span>
+      </div>
+      <div class="settings-segmented" id="settings-quality-seg">
+        <button class="selected" data-quality="auto" disabled data-i18n="settings.quality.auto">自動</button>
+        <button data-quality="standard" disabled data-i18n="settings.quality.standard">標準</button>
+        <button data-quality="light" disabled data-i18n="settings.quality.light">軽量</button>
+      </div>
+      <div class="settings-row-hint" data-i18n="settings.quality.placeholder">段階4-C で実装予定</div>
+    </div>
+
+    <!-- 0リセット再実行（対戦中も有効: 実装追従で SPEC 14.2 を更新） -->
+    <div class="settings-row" id="settings-row-recenter">
+      <div class="settings-row-head">
+        <span class="row-label" data-i18n="settings.recenter.label">0リセット再実行</span>
+        <button class="settings-action-btn" id="btn-recenter" data-i18n="settings.recenter.btn">実行</button>
+      </div>
+      <div class="settings-row-hint" data-i18n="settings.recenter.hint">現在の端末向きを「正面」として再登録</div>
+    </div>
+
+    <!-- 開発用パネル ON/OFF -->
+    <div class="settings-row" id="settings-row-devpanel">
+      <div class="settings-row-head">
+        <span class="row-label" data-i18n="settings.devPanel.label">開発用パネル</span>
+        <div class="settings-toggle" id="settings-devpanel-toggle" role="switch" aria-checked="false" tabindex="0"></div>
+      </div>
+      <div class="settings-row-hint" data-i18n="settings.devPanel.hint">感度調整・ログ送信など</div>
+    </div>
+
+    <div class="settings-close-row">
+      <button class="btn btn-secondary" id="btn-settings-close" data-i18n="settings.close">閉じる</button>
+    </div>
+  </div>
+</div>
 
 <!-- v1.42: BUST / FINISH / 対戦中止 中央オーバーレイ（screen 配下から出して
      screen-calibration / screen-end など全画面共通で表示できるように） -->

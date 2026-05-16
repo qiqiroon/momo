@@ -766,34 +766,58 @@ $('btn-next-turn').addEventListener('click', () => {
   Render.placeTargetForTurn();
 });
 
-// 中央リセット (v1.15): 現在の姿勢を新キャリブとして登録し、
-// 的は新ゲーム同様にランダムシフト配置
+// 0リセット再実行 (v1.15→v1.52): 現在の姿勢を新キャリブとして登録し、
+// 的は新ゲーム同様にランダムシフト配置。
+// v1.52: SPEC 14.2 の「ゲーム外限定」を撤廃。的のランダム再配置でズル防止は担保済み、
+// 「常に一方向を向く強制」を緩和するため対戦中も実行可能とする。
 $('btn-recenter').addEventListener('click', () => {
   const ok = Sensor.setCalibration();
-  if (!ok) {
-    // 値未受信時は何もしない
-    return;
-  }
+  if (!ok) return;  // 値未受信時は何もしない
   Render.placeTargetForTurn();
-  $('settings-menu').classList.remove('active');  // メニューを閉じる
+  closeSettingsPanel();
 });
 
-// v1.15: 歯車メニュー
+// v1.52: 設定パネル（SPEC 14章。v1.15 のドロップダウン式 settings-menu を置き換え）
+// 歯車クリック → モーダル表示。マスククリック / 閉じるボタンで閉じる。
+// 0リセットは設定パネル内、対戦中も常時有効（SPEC 14.2 を実装追従更新）。
+// 開発用パネル ON/OFF: ON で #tune-panel（感度調整）と #game-overlay-bottom（次のターン/ログ/退出）を表示。
+// 起動時必ず OFF（SPEC 14.3、永続化なし）。
+function openSettingsPanel() {
+  $('settings-mask').classList.add('active');
+}
+function closeSettingsPanel() {
+  $('settings-mask').classList.remove('active');
+}
+function setDevPanelVisible(on) {
+  const toggle = $('settings-devpanel-toggle');
+  toggle.classList.toggle('on', on);
+  toggle.setAttribute('aria-checked', on ? 'true' : 'false');
+  $('tune-panel').classList.toggle('active', on);
+  // 「次のターン」「ログ」は開発用扱い。「退出」は対戦離脱手段なので常時表示
+  const btnNext = document.getElementById('btn-next-turn');
+  const btnLog = document.getElementById('btn-copy-log');
+  if (btnNext) btnNext.style.display = on ? '' : 'none';
+  if (btnLog) btnLog.style.display = on ? '' : 'none';
+}
+// 起動時 OFF
+setDevPanelVisible(false);
+
 $('gear-icon').addEventListener('click', (e) => {
   e.stopPropagation();
-  $('settings-menu').classList.toggle('active');
+  openSettingsPanel();
 });
-$('btn-open-tune').addEventListener('click', () => {
-  $('settings-menu').classList.remove('active');
-  $('tune-panel').classList.add('active');
+$('btn-settings-close').addEventListener('click', closeSettingsPanel);
+// マスク（パネル外）クリックで閉じる
+$('settings-mask').addEventListener('click', (e) => {
+  if (e.target.id === 'settings-mask') closeSettingsPanel();
 });
-// メニュー外タップで閉じる
-document.addEventListener('click', (e) => {
-  const menu = $('settings-menu');
-  if (menu.classList.contains('active') &&
-      !menu.contains(e.target) &&
-      e.target.id !== 'gear-icon') {
-    menu.classList.remove('active');
+$('settings-devpanel-toggle').addEventListener('click', () => {
+  setDevPanelVisible(!$('settings-devpanel-toggle').classList.contains('on'));
+});
+$('settings-devpanel-toggle').addEventListener('keydown', (e) => {
+  if (e.key === ' ' || e.key === 'Enter') {
+    e.preventDefault();
+    setDevPanelVisible(!$('settings-devpanel-toggle').classList.contains('on'));
   }
 });
 
@@ -947,8 +971,9 @@ const _tune = loadTuneFromStorage();
 applyTune(_tune);
 
 // v1.15 で削除: btn-tune はゲーム画面下バーから歯車メニュー (btn-open-tune) へ移動
+// v1.52: 「閉じる」は開発用パネル全体を OFF にする（設定パネルのトグルと整合）
 $('btn-tune-close').addEventListener('click', () => {
-  $('tune-panel').classList.remove('active');
+  setDevPanelVisible(false);
 });
 $('btn-tune-reset').addEventListener('click', () => {
   Object.assign(_tune, TUNE_DEFAULTS);

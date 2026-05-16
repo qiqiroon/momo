@@ -7,9 +7,9 @@
 //   - 投擲音は pitch + volume で強弱変調（SPEC 13.5）
 //   - ファイル未配置時は黙って失敗（SPEC 13.11 i/D-2/D-3 の方針に揃える）
 
+// v1.65: hit は v1.64 で Web Audio API 合成に切替したため mp3 不要
 const FILES = {
   throw:     'sounds/throw.mp3',
-  hit:       'sounds/hit.mp3',
   bust:      'sounds/bust.mp3',
   ton80:     'sounds/ton80.mp3',
   nineDarts: 'sounds/nine-darts.mp3',

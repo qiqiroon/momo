@@ -244,9 +244,38 @@ function round1(v) {
 }
 
 // ======================================================================
+// fps 計測（v1.55, SPEC 17.4 / 4-C-3）
+// performance.now() ベースの frame interval を移動平均。
+// タブ非表示時の異常値（1秒超）は除外
+// ======================================================================
+const _FPS_WINDOW = 60;     // 約1秒の平均（60fps想定）
+let _fpsLastTime = 0;
+let _fpsIntervals = [];     // ms
+function recordFrameTime(now) {
+  if (_fpsLastTime > 0) {
+    const dt = now - _fpsLastTime;
+    if (dt > 0 && dt < 1000) {
+      _fpsIntervals.push(dt);
+      if (_fpsIntervals.length > _FPS_WINDOW) _fpsIntervals.shift();
+    }
+  }
+  _fpsLastTime = now;
+}
+export function getFps() {
+  if (_fpsIntervals.length < 5) return null;
+  const sum = _fpsIntervals.reduce((a, b) => a + b, 0);
+  return Math.round(1000 / (sum / _fpsIntervals.length));
+}
+export function resetFps() {
+  _fpsIntervals = [];
+  _fpsLastTime = 0;
+}
+
+// ======================================================================
 // rAF ループ：センサー値 → シーン(壁+的) の transform 更新 + 矢印切替
 // ======================================================================
 function tick() {
+  recordFrameTime(performance.now());
   if (!_sceneEl || !_boardEl || !_viewEl) {
     _animFrameId = null;
     return;

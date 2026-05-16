@@ -531,22 +531,34 @@ body.in-game .site-header h1 {
   will-change: transform;
 }
 
-/* 壁: 木目テクスチャ（v1.54: feTurbulence ベース SVG パターン、SPEC 16.5）
-   ・縦長 (baseFrequency 0.012 x 0.65) のノイズで木目筋を生成
-   ・feColorMatrix で暗ブラウンの明部/暗部マッピング
-   ・フォールバック段階1で `.no-texture` クラスを付与すれば単色のみに切替（SPEC 17.4） */
+/* 壁: 木目テクスチャ（v1.54 feTurbulence 初版 → v1.55 で縦木目・暗色・全面化）
+   ・baseFrequency x=高 / y=低 → 縦に長い筋 = 縦木目
+   ・feColorMatrix を暗めに（明部 R=0.22, G=0.13, B=0.07）
+   ・base color と background-size は重ねた縦縞 CSS で補強（SVG タイル境界の継ぎ目隠し）
+   ・フォールバック段階1で `.no-texture` クラス付与で単色のみに切替（SPEC 17.4） */
 #game-3d-wall {
   position: absolute;
   top: -300vmax;
   left: -300vmax;
   width: 600vmax;
   height: 600vmax;
-  background-color: #1a1208;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='512' height='512'><filter id='w' x='0' y='0' width='1' height='1'><feTurbulence type='fractalNoise' baseFrequency='0.012 0.65' numOctaves='3' seed='7' stitchTiles='stitch'/><feColorMatrix values='0.42 0 0 0 0.04  0.24 0 0 0 0.02  0.12 0 0 0 0.01  0 0 0 0 1'/></filter><rect width='100%25' height='100%25' filter='url(%23w)'/></svg>");
-  background-size: 320px 640px;
+  background-color: #0d0805;
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      rgba(0,0,0,0.30) 0 1px,
+      transparent 1px 11px),
+    repeating-linear-gradient(
+      90deg,
+      rgba(255,255,255,0.02) 0 2px,
+      transparent 2px 31px),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='480' height='480'><filter id='w' x='0' y='0' width='100%25' height='100%25'><feTurbulence type='fractalNoise' baseFrequency='0.65 0.012' numOctaves='3' seed='7' stitchTiles='stitch'/><feColorMatrix values='0.22 0 0 0 0.015  0.13 0 0 0 0.008  0.07 0 0 0 0.004  0 0 0 0 1'/></filter><rect width='100%25' height='100%25' filter='url(%23w)'/></svg>");
+  background-size: auto, auto, 480px 480px;
   background-repeat: repeat;
 }
-#game-3d-wall.no-texture { background-image: none; }
+#game-3d-wall.no-texture {
+  background-image: none;
+}
 
 /* ダーツボード（シーン原点を中心アンカー、サイズは JS が設定） */
 #game-3d-board {
@@ -1251,6 +1263,26 @@ input.chat-preset-btn.editing-input:focus {
 #gear-icon:active { transform: scale(0.92); }
 body.in-game #gear-icon { display: flex; }
 
+/* v1.55: fps 表示（SPEC 17.4、4-C-4。ゲーム画面のみ、控えめな位置） */
+#fps-display {
+  position: fixed;
+  top: calc(6px + env(safe-area-inset-top, 0px));
+  left: calc(12px + env(safe-area-inset-left, 0px));
+  z-index: 250;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: rgba(0,0,0,0.45);
+  border: 1px solid var(--border);
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: none;
+  pointer-events: none;
+  user-select: none;
+}
+body.in-game #fps-display { display: block; }
+#fps-display.low { color: #fb923c; }   /* 30fps 割れの注意喚起色 */
+
 /* v1.52: 設定パネル（SPEC 14章）
    歯車クリックで開くモーダル。半透明マスク + 中央のパネル。
    v1.15 の旧 #settings-menu（ドロップダウン2ボタン）は本パネルに統合 */
@@ -1593,7 +1625,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.54</span>
+      <span class="version-tag" id="version-tag">v1.55</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -1914,6 +1946,10 @@ body.in-game #gear-icon { display: flex; }
 
 <!-- ===== ゲーム中の歯車アイコン（v1.15: メニュー トリガ） ===== -->
 <div id="gear-icon" data-i18n-title="gear.title" title="設定">⚙</div>
+
+<!-- v1.55 (4-C-4): fps 中立表示（SPEC 17.4）
+     段階4-C 開発期間中は常時表示。SPEC 17.4 完成時に「30fps 割れ時のみ」に絞り込み -->
+<div id="fps-display" aria-hidden="true">— fps</div>
 
 <!-- ===== 設定パネル（v1.52: SPEC 14章） ===== -->
 <div id="settings-mask" role="dialog" aria-modal="true" aria-labelledby="settings-title-text">

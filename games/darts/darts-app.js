@@ -777,6 +777,21 @@ $('btn-recenter').addEventListener('click', () => {
   closeSettingsPanel();
 });
 
+// v1.55 (4-C-4): fps 表示の定期更新（200ms 間隔）。SPEC 17.4
+// 開発期間中は常時表示、30fps 割れで .low クラスを付与（オレンジ色）
+const _fpsEl = $('fps-display');
+setInterval(() => {
+  if (!document.body.classList.contains('in-game')) return;
+  const fps = Render.getFps();
+  if (fps === null) {
+    _fpsEl.textContent = '— fps';
+    _fpsEl.classList.remove('low');
+  } else {
+    _fpsEl.textContent = `${fps} fps`;
+    _fpsEl.classList.toggle('low', fps < 30);
+  }
+}, 200);
+
 // v1.52: 設定パネル（SPEC 14章。v1.15 のドロップダウン式 settings-menu を置き換え）
 // v1.53: 開発用パネル ON/OFF トグル廃止。感度調整は設定パネル内に直接組み込み、
 // game-overlay-bottom（次のターン/ログ/退出）は常時表示に戻す。

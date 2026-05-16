@@ -54,9 +54,15 @@ export async function init() {
   await Promise.allSettled(Object.entries(FILES).map(([k, p]) => _preload(k, p)));
 }
 
+// v1.63: ブラウザ/Service Worker キャッシュ対策。version-tag を付与して
+// mp3 差替え時にも確実に新しいファイルが取得される
+function _versionedUrl(path) {
+  const v = document.getElementById('version-tag');
+  return v ? `${path}?v=${encodeURIComponent(v.textContent || '')}` : path;
+}
 async function _preload(key, path) {
   try {
-    const res = await fetch(path, { cache: 'force-cache' });
+    const res = await fetch(_versionedUrl(path), { cache: 'no-cache' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const arr = await res.arrayBuffer();
     const buf = await _ctx.decodeAudioData(arr);

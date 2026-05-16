@@ -178,11 +178,14 @@ let _startTime = 0;
 // 的の配置（SPEC 4.4：FOV ハード制限 + 毎ターン直径 1/4 ランダムシフト）
 // v1.45: 上下方向は現在の端末ピッチを基準にする（楽な姿勢のドリフトで
 //        上下誤差が累積するのを防ぐ。yaw 方向は従来通りキャリブ正面基準）
-// v1.62: 「中心を狙うクセで端末が上を向く」→ 次ターンの的位置も上へ
-//        ドリフトする問題を、ピッチ配置中心を「現在より少し下」(PITCH_DOWN_BIAS_DEG)
-//        にすることで緩和する
+// v1.62: 上方向ドリフト対策で「現在より少し下」を中心にする（DOWN_BIAS）
+// v1.63: 端末が下を向いていると的 pitch が深くマイナスになり、投擲時に
+//        z=2.5m に届く前に床落ちして MISS になる現象を、pitch ハード制限
+//        [PITCH_MIN, PITCH_MAX] で抑える。下バイアスも 8→5 に控えめに
 // ======================================================================
-const PITCH_DOWN_BIAS_DEG = 8;
+const PITCH_DOWN_BIAS_DEG = 5;
+const PITCH_MIN_DEG = -15;   // 弱投擲でも 2.5m に届く下限
+const PITCH_MAX_DEG = 25;    // 上向き極端ドリフト対策
 export function placeTargetForTurn() {
   const targetAngularDiameter = HORIZ_FOV_DEG * TARGET_DIAMETER_RATIO;
   const maxShift = targetAngularDiameter * SHIFT_RADIUS_RATIO;  // 直径の 1/4 まで
@@ -193,11 +196,13 @@ export function placeTargetForTurn() {
   // 現在の端末ピッチを取得（楽な姿勢の上下方向）
   const rel = Sensor.getRelativeOrientation();
   const currentPitch = rel ? (SIGN_PITCH * (rel.beta || 0)) : 0;
-  // ハード制限（yaw はキャリブ正面基準で FOV の半分以内）
+  // yaw ハード制限（キャリブ正面基準で FOV の半分以内）
   const half = HORIZ_FOV_DEG / 2;
+  // pitch ハード制限（物理で届く範囲、ドリフト抑制）
+  const rawPitch = currentPitch - PITCH_DOWN_BIAS_DEG + pitchShift;
   _targetWorld = {
     yaw:   Math.max(-half, Math.min(half, yawShift)),
-    pitch: currentPitch - PITCH_DOWN_BIAS_DEG + pitchShift,
+    pitch: Math.max(PITCH_MIN_DEG, Math.min(PITCH_MAX_DEG, rawPitch)),
   };
   // v1.21: ターン進行時に着弾マークをクリア（履歴は段階2-F 以降で実装）
   clearImpactMarks();

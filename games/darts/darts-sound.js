@@ -111,12 +111,51 @@ export function playThrow(s) {
   _play('throw', { playbackRate: rate, gain });
 }
 
+// v1.64: hit 音をフリー素材から合成音に切替（ユーザー要望、フリー素材3種すべて不採用）
+//   - ノイズ短バースト（30ms, bandpass 2kHz Q=2）= 板に当たる「コツ」のアタック
+//   - sine の thud（180Hz → 60Hz の slide, 80ms 指数減衰）= 「ン」の余韻
+//   - mp3 のロード不要、即時生成・低レイテンシ
+//   - 旧 fetch ベース hit ({arrow-pierce / hyoushigi / blow3}.mp3) は退避保存だけ残置
 export function playHit() {
-  const src = _play('hit', { gain: 1.0 });
-  if (src && _ctx) {
-    const dur = src.buffer ? src.buffer.duration / (src.playbackRate.value || 1) : 0.2;
-    _lastHitEnd = _ctx.currentTime + dur;
+  if (!_ctx || !_masterGain) return;
+  const now = _ctx.currentTime;
+
+  // === 1. ノイズバースト（短いアタック） ===
+  const noiseDuration = 0.030;
+  const noiseBuf = _ctx.createBuffer(1, Math.ceil(_ctx.sampleRate * noiseDuration), _ctx.sampleRate);
+  const noiseData = noiseBuf.getChannelData(0);
+  for (let i = 0; i < noiseData.length; i++) {
+    // 後半に向けて減衰するホワイトノイズ
+    noiseData[i] = (Math.random() * 2 - 1) * (1 - i / noiseData.length);
   }
+  const noise = _ctx.createBufferSource();
+  noise.buffer = noiseBuf;
+  const noiseFilter = _ctx.createBiquadFilter();
+  noiseFilter.type = 'bandpass';
+  noiseFilter.frequency.value = 2000;
+  noiseFilter.Q.value = 2;
+  const noiseGain = _ctx.createGain();
+  noiseGain.gain.setValueAtTime(0.5, now);
+  noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.04);
+  noise.connect(noiseFilter);
+  noiseFilter.connect(noiseGain);
+  noiseGain.connect(_masterGain);
+  noise.start(now);
+
+  // === 2. 低音 thud（板の余韻） ===
+  const thud = _ctx.createOscillator();
+  thud.type = 'sine';
+  thud.frequency.setValueAtTime(180, now);
+  thud.frequency.exponentialRampToValueAtTime(60, now + 0.08);
+  const thudGain = _ctx.createGain();
+  thudGain.gain.setValueAtTime(0.45, now);
+  thudGain.gain.exponentialRampToValueAtTime(0.01, now + 0.10);
+  thud.connect(thudGain);
+  thudGain.connect(_masterGain);
+  thud.start(now);
+  thud.stop(now + 0.12);
+
+  _lastHitEnd = now + 0.12;
 }
 
 export function playBust() {

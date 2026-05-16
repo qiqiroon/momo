@@ -1638,7 +1638,7 @@ body.in-game #fps-display { display: block; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.58</span>
+      <span class="version-tag" id="version-tag">v1.59</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -2008,17 +2008,17 @@ body.in-game #fps-display { display: block; }
       <div class="settings-row-hint" data-i18n="settings.volume.placeholder">SE 未実装</div>
     </div>
 
-    <!-- 描画品質（disabled プレースホルダー: 段階4-C で配線） -->
-    <div class="settings-row disabled" id="settings-row-quality">
+    <!-- 描画品質（v1.59 で 4-C-6 配線完了） -->
+    <div class="settings-row" id="settings-row-quality">
       <div class="settings-row-head">
         <span class="row-label" data-i18n="settings.quality.label">描画品質</span>
       </div>
       <div class="settings-segmented" id="settings-quality-seg">
-        <button class="selected" data-quality="auto" disabled data-i18n="settings.quality.auto">自動</button>
-        <button data-quality="standard" disabled data-i18n="settings.quality.standard">標準</button>
-        <button data-quality="light" disabled data-i18n="settings.quality.light">軽量</button>
+        <button class="selected" data-quality="auto" data-i18n="settings.quality.auto">自動</button>
+        <button data-quality="standard" data-i18n="settings.quality.standard">標準</button>
+        <button data-quality="light" data-i18n="settings.quality.light">軽量</button>
       </div>
-      <div class="settings-row-hint" data-i18n="settings.quality.placeholder">段階4-C で実装予定</div>
+      <div class="settings-row-hint" id="settings-quality-status" data-i18n="settings.quality.hint.auto">自動: fps に応じて段階的に簡略化</div>
     </div>
 
     <!-- 0リセット再実行（対戦中も有効: 実装追従で SPEC 14.2 を更新） -->

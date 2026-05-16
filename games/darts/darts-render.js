@@ -600,12 +600,42 @@ function showImpactMark(impact, opts) {
   group.appendChild(tip);
 
   svg.appendChild(group);
+
+  // v1.59 (4-C-5): 着弾履歴上限を超えたら古い順に削除（フォールバック段階2）
+  if (_maxImpactMarks !== Infinity) {
+    const marks = svg.querySelectorAll('.impact-mark');
+    const excess = marks.length - _maxImpactMarks;
+    for (let i = 0; i < excess; i++) marks[i].remove();
+  }
 }
 
 export function clearImpactMarks() {
   if (!_boardEl) return;
   const svg = _boardEl.querySelector('svg');
   if (svg) svg.querySelectorAll('.impact-mark').forEach((e) => e.remove());
+}
+
+// ======================================================================
+// 性能フォールバック（v1.59 / SPEC 17.4 段階1〜4 / 4-C-5）
+// ======================================================================
+//   段階1: 木目 → 単色（darts-app.js が #game-3d-wall に .no-texture を付与）
+//   段階2: 着弾履歴の上限化（_maxImpactMarks）
+//   段階3: 軌道線フェード即時消去（trail 未実装のため placeholder）
+//   段階4: 紙吹雪粒子数削減（紙吹雪未実装のため placeholder）
+let _maxImpactMarks = Infinity;
+let _trailEnabled = true;      // SPEC 7.3 軌道線。現状未実装、setter のみ用意
+let _confettiSimplified = false;  // SPEC 7.x 紙吹雪。現状未実装、setter のみ用意
+export function setMaxImpactMarks(n) {
+  _maxImpactMarks = (typeof n === 'number' && n > 0) ? Math.floor(n) : Infinity;
+}
+export function setTrailEnabled(on) { _trailEnabled = !!on; }
+export function setConfettiSimplified(on) { _confettiSimplified = !!on; }
+export function getQualityState() {
+  return {
+    maxImpactMarks: _maxImpactMarks,
+    trailEnabled: _trailEnabled,
+    confettiSimplified: _confettiSimplified,
+  };
 }
 
 // 現在のスムージング済み照準角度（app から照準を渡したいとき用）

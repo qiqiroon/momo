@@ -779,6 +779,7 @@ $('btn-recenter').addEventListener('click', () => {
 
 // v1.55 (4-C-4): fps 表示の定期更新（200ms 間隔）。SPEC 17.4
 // 開発期間中は常時表示、30fps 割れで .low クラスを付与（オレンジ色）
+// v1.59 (4-C-6): 自動モードのときは fps に応じて段階的にフォールバックを発動
 const _fpsEl = $('fps-display');
 setInterval(() => {
   if (!document.body.classList.contains('in-game')) return;
@@ -786,11 +787,100 @@ setInterval(() => {
   if (fps === null) {
     _fpsEl.textContent = '— fps';
     _fpsEl.classList.remove('low');
+    return;
+  }
+  _fpsEl.textContent = `${fps} fps`;
+  _fpsEl.classList.toggle('low', fps < AUTO_DROP_THRESHOLD);
+
+  // 自動モード時のレベル調整
+  if (_qualityMode !== 'auto') return;
+  if (fps < AUTO_DROP_THRESHOLD) {
+    _lowFpsCount++;
+    _highFpsCount = 0;
+    if (_lowFpsCount >= AUTO_DROP_TICKS && _qualityLevel < 4) {
+      applyQualityLevel(_qualityLevel + 1);
+      _lowFpsCount = 0;
+      refreshQualityUI();
+    }
+  } else if (fps >= AUTO_RECOVER_THRESHOLD) {
+    _highFpsCount++;
+    _lowFpsCount = 0;
+    if (_highFpsCount >= AUTO_RECOVER_TICKS && _qualityLevel > 0) {
+      applyQualityLevel(_qualityLevel - 1);
+      _highFpsCount = 0;
+      refreshQualityUI();
+    }
   } else {
-    _fpsEl.textContent = `${fps} fps`;
-    _fpsEl.classList.toggle('low', fps < 30);
+    // 30〜49 fps の中間帯ではカウントを増減させず維持
+    _lowFpsCount = 0;
+    _highFpsCount = 0;
   }
 }, 200);
+
+// v1.59 (4-C-5/6): 性能フォールバック + 描画品質モード（SPEC 14.2 + 17.4）
+// モード: 'auto' | 'standard' | 'light'。永続化キー: momoDartsQuality
+// level: 0=標準、1=木目→単色、2=+履歴1、3=+軌道線即時消去、4=+紙吹雪簡素化
+const QUALITY_LS_KEY = 'momoDartsQuality';
+let _qualityMode = localStorage.getItem(QUALITY_LS_KEY) || 'auto';
+let _qualityLevel = 0;
+// 自動発動: 30fps を下回る連続回数で 1 段階上げ、回復したら戻す
+let _lowFpsCount = 0;
+let _highFpsCount = 0;
+const AUTO_DROP_THRESHOLD = 30;
+const AUTO_RECOVER_THRESHOLD = 50;
+const AUTO_DROP_TICKS = 5;     // 200ms × 5 = 1秒継続で発動
+const AUTO_RECOVER_TICKS = 25; // 200ms × 25 = 5秒継続で回復
+function applyQualityLevel(level) {
+  _qualityLevel = Math.max(0, Math.min(4, level | 0));
+  const wall = document.getElementById('game-3d-wall');
+  // 段階1: 木目 → 単色（v1.55 で .no-texture クラス実装済み）
+  if (wall) wall.classList.toggle('no-texture', _qualityLevel >= 1);
+  // 段階2: 着弾履歴を 1 投のみに制限
+  Render.setMaxImpactMarks(_qualityLevel >= 2 ? 1 : Infinity);
+  // 段階3: 軌道線即時消去（軌道線実装後に有効化）
+  Render.setTrailEnabled(_qualityLevel < 3);
+  // 段階4: 紙吹雪簡素化（紙吹雪実装後に有効化）
+  Render.setConfettiSimplified(_qualityLevel >= 4);
+}
+function getQualityLevel() { return _qualityLevel; }
+function refreshQualityUI() {
+  // セグメントボタンの selected 状態
+  document.querySelectorAll('#settings-quality-seg button').forEach(btn => {
+    btn.classList.toggle('selected', btn.dataset.quality === _qualityMode);
+  });
+  // ヒント文（自動は現在の level も表示）
+  const hint = document.getElementById('settings-quality-status');
+  if (hint) {
+    if (_qualityMode === 'auto') {
+      if (_qualityLevel === 0) {
+        hint.textContent = t('settings.quality.hint.auto');
+      } else {
+        hint.textContent = t('settings.quality.hint.autoLevel', { level: _qualityLevel });
+      }
+    } else if (_qualityMode === 'light') {
+      hint.textContent = t('settings.quality.hint.light');
+    } else {
+      hint.textContent = t('settings.quality.hint.standard');
+    }
+  }
+}
+function applyQualityMode(mode) {
+  _qualityMode = mode;
+  localStorage.setItem(QUALITY_LS_KEY, mode);
+  if (mode === 'standard') applyQualityLevel(0);
+  else if (mode === 'light') applyQualityLevel(4);
+  else { _lowFpsCount = 0; _highFpsCount = 0; applyQualityLevel(0); }
+  refreshQualityUI();
+}
+// 初期適用（applyLang 完了前なので UI 更新は applyLang 後に再呼び出し）
+applyQualityMode(_qualityMode);
+
+// クリックハンドラ
+document.querySelectorAll('#settings-quality-seg button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    applyQualityMode(btn.dataset.quality || 'auto');
+  });
+});
 
 // v1.52: 設定パネル（SPEC 14章。v1.15 のドロップダウン式 settings-menu を置き換え）
 // v1.53: 開発用パネル ON/OFF トグル廃止。感度調整は設定パネル内に直接組み込み、
@@ -1179,6 +1269,8 @@ function refreshDynamicI18n() {
   if (_lastPublicRooms) renderRoomList();
   // 許可手順案内（表示中なら）
   refreshPermissionSteps();
+  // v1.59: 描画品質ヒント
+  if (typeof refreshQualityUI === 'function') refreshQualityUI();
 }
 
 const langSelect = $('lang-select');

@@ -839,15 +839,20 @@ async function uploadLogToDrive(logObj, tag) {
   return data;
 }
 
+// v1.57: SVG アイコン化に伴い textContent → innerHTML ベースに変更
+// 状態表示も Material Icons SVG（hourglass / check / warning）+ ラベルに統一
+function statusHtml(iconId, label) {
+  return `<svg class="icon" aria-hidden="true"><use href="#${iconId}"/></svg> ${label}`;
+}
 $('btn-copy-log').addEventListener('click', async () => {
   const log = Render.getLog();
   const btn = $('btn-copy-log');
-  const original = btn.textContent;
-  btn.textContent = t('log.send.sending');
+  const originalHTML = btn.innerHTML;
+  btn.innerHTML = statusHtml('icon-hourglass', t('log.send.sending'));
   btn.disabled = true;
   try {
     const data = await uploadLogToDrive(log, 'darts-sensor');
-    btn.textContent = t('log.send.driveOk');
+    btn.innerHTML = statusHtml('icon-check', t('log.send.driveOk'));
     console.log('[darts] log uploaded:', data);
   } catch (e) {
     console.warn('[darts] Drive upload failed:', e);
@@ -856,24 +861,24 @@ $('btn-copy-log').addEventListener('click', async () => {
     try {
       if (navigator.share) {
         await navigator.share({ title: 'MOMO Darts log', text: logText });
-        btn.textContent = t('log.send.shareOk');
+        btn.innerHTML = statusHtml('icon-check', t('log.send.shareOk'));
       } else if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(logText);
-        btn.textContent = t('log.send.clipOk');
+        btn.innerHTML = statusHtml('icon-check', t('log.send.clipOk'));
       } else {
         throw e;
       }
     } catch (e2) {
       if (e2 && e2.name === 'AbortError') {
-        btn.textContent = original;
+        btn.innerHTML = originalHTML;
         btn.disabled = false;
         return;
       }
-      btn.textContent = '⚠️ ' + (e.message || 'fail');
+      btn.innerHTML = statusHtml('icon-warning', e.message || 'fail');
     }
   }
   setTimeout(() => {
-    btn.textContent = original;
+    btn.innerHTML = originalHTML;
     btn.disabled = false;
   }, 2200);
 });

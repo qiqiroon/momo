@@ -122,7 +122,7 @@
     "game.turn.opp": "相手のターン",
     "game.disconnect.warn": "相手の応答を待っています…",
     "game.btn.next": "次のターン",
-    "game.btn.log": "📤 ログ",
+    "game.btn.log": "ログ",
     "game.btn.leave": "退出",
     "game.settings.recenter": "中央リセット",
     "game.settings.tune": "感度調整…",
@@ -173,10 +173,10 @@
     "alert.disconnected": "通信が切断されました。",
     "alert.oppLeft": "相手が退出しました",
 
-    "log.send.sending": "⏳ 送信中…",
-    "log.send.driveOk": "✅ Drive 保存",
-    "log.send.shareOk": "✅ 共有(代替)",
-    "log.send.clipOk": "✅ コピー(代替)"
+    "log.send.sending": "送信中…",
+    "log.send.driveOk": "Drive 保存",
+    "log.send.shareOk": "共有(代替)",
+    "log.send.clipOk": "コピー(代替)"
   },
 
   "en": {
@@ -300,7 +300,7 @@
     "game.turn.opp": "Opponent's Turn",
     "game.disconnect.warn": "Waiting for opponent…",
     "game.btn.next": "Next Turn",
-    "game.btn.log": "📤 Log",
+    "game.btn.log": "Log",
     "game.btn.leave": "Leave",
     "game.settings.recenter": "Recenter",
     "game.settings.tune": "Sensitivity…",
@@ -351,10 +351,10 @@
     "alert.disconnected": "Connection lost.",
     "alert.oppLeft": "Opponent left",
 
-    "log.send.sending": "⏳ Sending…",
-    "log.send.driveOk": "✅ Saved to Drive",
-    "log.send.shareOk": "✅ Shared (alt)",
-    "log.send.clipOk": "✅ Copied (alt)"
+    "log.send.sending": "Sending…",
+    "log.send.driveOk": "Saved to Drive",
+    "log.send.shareOk": "Shared (alt)",
+    "log.send.clipOk": "Copied (alt)"
   },
 
   "zh": {
@@ -478,7 +478,7 @@
     "game.turn.opp": "对手回合",
     "game.disconnect.warn": "等待对手响应…",
     "game.btn.next": "下一回合",
-    "game.btn.log": "📤 日志",
+    "game.btn.log": "日志",
     "game.btn.leave": "离开",
     "game.settings.recenter": "重新居中",
     "game.settings.tune": "灵敏度…",
@@ -529,9 +529,9 @@
     "alert.disconnected": "通信已中断。",
     "alert.oppLeft": "对手离开了",
 
-    "log.send.sending": "⏳ 发送中…",
-    "log.send.driveOk": "✅ 已保存到 Drive",
-    "log.send.shareOk": "✅ 已分享（备用）",
-    "log.send.clipOk": "✅ 已复制（备用）"
+    "log.send.sending": "发送中…",
+    "log.send.driveOk": "已保存到 Drive",
+    "log.send.shareOk": "已分享（备用）",
+    "log.send.clipOk": "已复制（备用）"
   }
 }

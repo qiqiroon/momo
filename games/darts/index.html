@@ -1236,6 +1236,18 @@ input.chat-preset-btn.editing-input:focus {
 }
 .tune-row .tune-btn:active { background: var(--orange); }
 
+/* Material Icons SVG 共通スタイル（v1.57 / 4-C-2）
+   inline sprite と `<svg class="icon"><use href="#icon-..."/></svg>` で利用 */
+.icon {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  fill: currentColor;
+  vertical-align: -0.15em;
+  flex-shrink: 0;
+}
+#gear-icon .icon { width: 20px; height: 20px; vertical-align: middle; }
+
 /* 歯車アイコン（v1.15: 設定メニューのトリガに昇格）
    v1.18: safe-area-inset-top/right でノッチ回避
    v1.49: 言語切替の左隣に常時配置するためサイズを 32px に縮小
@@ -1626,7 +1638,7 @@ body.in-game #fps-display { display: block; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.56</span>
+      <span class="version-tag" id="version-tag">v1.57</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -1890,7 +1902,7 @@ body.in-game #fps-display { display: block; }
   <!-- 下オーバーレイ（デバッグ用、開発中のみ） -->
   <div id="game-overlay-bottom">
     <button class="btn btn-secondary" id="btn-next-turn" data-i18n="game.btn.next">次のターン</button>
-    <button class="btn btn-ghost" id="btn-copy-log" data-i18n="game.btn.log">📤 ログ</button>
+    <button class="btn btn-ghost" id="btn-copy-log"><svg class="icon" aria-hidden="true"><use href="#icon-upload"/></svg> <span data-i18n="game.btn.log">ログ</span></button>
     <button class="btn btn-ghost" id="btn-game-leave" data-i18n="game.btn.leave">退出</button>
   </div>
 
@@ -1945,8 +1957,37 @@ body.in-game #fps-display { display: block; }
   </div>
 </div>
 
+<!-- ===== Material Icons SVG sprite（v1.57 / SPEC 16章 / 4-C-2） =====
+     Apache License 2.0、Google Material Icons から抽出。👍だけは絵文字維持（SPEC）。
+     使い方: <svg class="icon"><use href="#icon-..."/></svg> -->
+<svg id="icon-sprite" style="display:none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <defs>
+    <symbol id="icon-settings" viewBox="0 0 24 24">
+      <path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/>
+    </symbol>
+    <symbol id="icon-upload" viewBox="0 0 24 24">
+      <path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/>
+    </symbol>
+    <symbol id="icon-volume-up" viewBox="0 0 24 24">
+      <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+    </symbol>
+    <symbol id="icon-volume-off" viewBox="0 0 24 24">
+      <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zM19 12c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.17v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
+    </symbol>
+    <symbol id="icon-check" viewBox="0 0 24 24">
+      <path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+    </symbol>
+    <symbol id="icon-hourglass" viewBox="0 0 24 24">
+      <path d="M6 2v6h.01L6 8.01 10 12l-4 4 .01.01H6V22h12v-5.99h-.01L18 16l-4-4 4-3.99-.01-.01H18V2H6zm10 14.5V20H8v-3.5l4-4 4 4zm-4-5l-4-4V4h8v3.5l-4 4z"/>
+    </symbol>
+    <symbol id="icon-warning" viewBox="0 0 24 24">
+      <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+    </symbol>
+  </defs>
+</svg>
+
 <!-- ===== ゲーム中の歯車アイコン（v1.15: メニュー トリガ） ===== -->
-<div id="gear-icon" data-i18n-title="gear.title" title="設定">⚙</div>
+<div id="gear-icon" data-i18n-title="gear.title" title="設定"><svg class="icon"><use href="#icon-settings"/></svg></div>
 
 <!-- v1.55 (4-C-4): fps 中立表示（SPEC 17.4）
      段階4-C 開発期間中は常時表示。SPEC 17.4 完成時に「30fps 割れ時のみ」に絞り込み -->
@@ -1961,7 +2002,7 @@ body.in-game #fps-display { display: block; }
     <div class="settings-row disabled" id="settings-row-volume">
       <div class="settings-row-head">
         <span class="row-label" data-i18n="settings.volume.label">音量</span>
-        <span style="font-size:12px; color:var(--text-muted);">🔊 50%</span>
+        <span style="font-size:12px; color:var(--text-muted); display:inline-flex; align-items:center; gap:4px;"><svg class="icon" aria-hidden="true" style="width:14px;height:14px"><use href="#icon-volume-up"/></svg>50%</span>
       </div>
       <input type="range" class="settings-volume-slider" min="0" max="100" value="50" disabled>
       <div class="settings-row-hint" data-i18n="settings.volume.placeholder">SE 未実装</div>

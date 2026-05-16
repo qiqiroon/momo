@@ -314,21 +314,30 @@ function getOppName() {
 
 function updateScoreUI() {
   if (!_gameState) return;
+  // v1.62: ターン終了直後 (_pendingTurnDisplay 中) は active のターン合計も
+  // 直前の3投合計を維持する（_gameState.turnShots は applyShot で空にされるため）
+  const active = activeState();
+  const pendingSum = _pendingTurnDisplay
+    ? _pendingTurnDisplay.reduce((a, s) => a + (s.value || 0), 0)
+    : null;
+  const selfSum = (pendingSum !== null && active === _gameState)
+    ? pendingSum
+    : _gameState.turnShots.reduce((a, s) => a + s.value, 0);
   // 自分の残り点数（左上・赤）
   $('ui-remaining').textContent = String(_gameState.remaining);
-  $('ui-turn-total').textContent =
-    `TURN +${_gameState.turnShots.reduce((a, s) => a + s.value, 0)}`;
+  $('ui-turn-total').textContent = `TURN +${selfSum}`;
   // 相手の残り点数（右上・青、対戦時のみ）
   if (_mode === 'battle' && _oppState) {
     $('ui-score-opp').style.display = 'flex';
+    const oppSum = (pendingSum !== null && active === _oppState)
+      ? pendingSum
+      : _oppState.turnShots.reduce((a, s) => a + s.value, 0);
     $('ui-remaining-opp').textContent = String(_oppState.remaining);
-    $('ui-turn-total-opp').textContent =
-      `TURN +${_oppState.turnShots.reduce((a, s) => a + s.value, 0)}`;
+    $('ui-turn-total-opp').textContent = `TURN +${oppSum}`;
   } else {
     $('ui-score-opp').style.display = 'none';
   }
   // ショットスロット（中央上）— アクティブ投擲者の現ターン
-  const active = activeState();
   const shotsForDisplay = _pendingTurnDisplay || (active ? active.turnShots : []);
   for (let i = 0; i < 3; i++) {
     const slot = $(`ui-shot-${i + 1}`);

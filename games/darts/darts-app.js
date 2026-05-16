@@ -872,8 +872,12 @@ function applyQualityMode(mode) {
   else { _lowFpsCount = 0; _highFpsCount = 0; applyQualityLevel(0); }
   refreshQualityUI();
 }
-// 初期適用（applyLang 完了前なので UI 更新は applyLang 後に再呼び出し）
-applyQualityMode(_qualityMode);
+// v1.60: 起動時に level のみ即時適用。UI 更新（refreshQualityUI）は
+// applyLang 完了後に refreshDynamicI18n が呼んでくれる。
+// ここで applyQualityMode() を直接呼ぶと t() が _currentLang を TDZ で参照しエラーになり、
+// 以降の MomoMatchmaking.init / btn-solo-start.addEventListener が登録されなくなる。
+if (_qualityMode === 'light') applyQualityLevel(4);
+else applyQualityLevel(0);
 
 // クリックハンドラ
 document.querySelectorAll('#settings-quality-seg button').forEach(btn => {

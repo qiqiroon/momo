@@ -166,29 +166,36 @@ export function playMiss() {
   _play('miss', { gain: 0.75 });
 }
 
-// v1.69 (5-c): 振動音（SPEC 13.7、ユーザー要望「リアルな乾いた速いカサカサ音」）
-//   - SPEC は「びよーん」コミカル系だが、ユーザー要望でリアル路線に変更
-//   - ホワイトノイズ → バンドパス（中心 3.5kHz, Q=1.2）で乾いた高音域抽出
-//   - 6Hz の AM 変調で「ビビっ」と速い揺れ感（SPEC 7章 振動演出 6Hz と整合）
-//   - hit 音の余韻直後に重ねて鳴らす想定（呼び出し側でわずかに遅延 OK）
-//   - 全体 0.6 秒、後半は指数減衰で消える
-export function playVibrate() {
+// v1.69/v1.70 (5-c): 振動音（SPEC 13.7、ユーザー要望「リアルな乾いた速いカサカサ音」）
+//   - SPEC は「びよーん」コミカル系だが、ユーザー要望でリアル路線
+//   - ホワイトノイズ → バンドパス（中心 1.5kHz, Q=1.2）で低めの乾いた音域
+//   - 15Hz の AM 変調で速いビビり感
+//   - 全体 0.3 秒（短く）、線形減衰
+//   - v1.70: 強さに応じて発火。最適範囲上限 (0.56) 以下は無音、超過量に比例して音量増加
+//   - strength: 投擲強さ 0..1
+export function playVibrate(strength) {
   if (!_ctx || !_masterGain) return;
+  if (typeof strength !== 'number' || !Number.isFinite(strength)) return;
+  // 最適範囲上限 = 0.56（強さバー 44%〜56%、SPEC 5.2）。これ以下は鳴らさない
+  const VIBRATE_THRESHOLD = 0.56;
+  if (strength <= VIBRATE_THRESHOLD) return;
+  const intensity = Math.min(1, (strength - VIBRATE_THRESHOLD) / (1 - VIBRATE_THRESHOLD));
+
   const now = _ctx.currentTime;
-  const duration = 0.6;       // 振動全体の長さ
+  const duration = 0.3;       // 振動全体の長さ（短く）
   const sr = _ctx.sampleRate;
   const len = Math.ceil(sr * duration);
 
-  // === ホワイトノイズ + AM 変調（6Hz）をバッファに焼き込む ===
+  // === ホワイトノイズ + AM 変調（15Hz）をバッファに焼き込む ===
   const buf = _ctx.createBuffer(1, len, sr);
   const data = buf.getChannelData(0);
-  const amHz = 6;             // SPEC 7章「6Hz」と一致
+  const amHz = 15;            // 高速ビビり
   for (let i = 0; i < len; i++) {
     const t = i / sr;
-    // AM: 0..1 の正弦（6Hz）。深さ 0.6 → 振幅は 0.4..1.0 で揺れる
+    // AM: 0..1 の正弦（15Hz）。深さ 0.6 → 振幅は 0.4..1.0 で揺れる
     const am = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(2 * Math.PI * amHz * t));
-    // 全体エンベロープ: 最初 50ms で立ち上がり、その後線形減衰
-    const env = (t < 0.05) ? (t / 0.05) : Math.max(0, 1 - (t - 0.05) / (duration - 0.05));
+    // 全体エンベロープ: 最初 30ms で立ち上がり、その後線形減衰
+    const env = (t < 0.03) ? (t / 0.03) : Math.max(0, 1 - (t - 0.03) / (duration - 0.03));
     data[i] = (Math.random() * 2 - 1) * am * env;
   }
 
@@ -196,10 +203,11 @@ export function playVibrate() {
   src.buffer = buf;
   const bp = _ctx.createBiquadFilter();
   bp.type = 'bandpass';
-  bp.frequency.value = 3500;
+  bp.frequency.value = 1500;  // 低めの帯域
   bp.Q.value = 1.2;
   const g = _ctx.createGain();
-  g.gain.value = 0.35;        // hit と同程度。マスター音量に追従
+  // 小さい音、さらに強さ超過量に比例
+  g.gain.value = 0.20 * intensity;
   src.connect(bp);
   bp.connect(g);
   g.connect(_masterGain);

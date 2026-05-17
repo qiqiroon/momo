@@ -214,6 +214,36 @@ export function playVibrate(strength) {
   src.start(now);
 }
 
+// v1.71 (5-c): ターン切替音（SPEC 13.8、自分のターン開始時のみ）
+//   - ユーザー要望「短いふわん/うぉん、滑らかに始まって滑らかに消える、低音と高音が同時」
+//   - sine 2音（A3=220Hz + A4=440Hz）でオクターブ重ね（柔らかい協和）
+//   - 滑らかな ADR エンベロープ（attack 80ms / hold 80ms / release 180ms）
+//   - 全長 0.34 秒
+export function playTurnStart() {
+  if (!_ctx || !_masterGain) return;
+  const now = _ctx.currentTime;
+  const attack = 0.08;
+  const hold = 0.08;
+  const release = 0.18;
+  const duration = attack + hold + release;
+  const peak = 0.18;          // 1音あたりピーク。2音合成で約 0.36 相当
+  const freqs = [220, 440];   // A3 + A4（オクターブ重ね）
+  freqs.forEach((f) => {
+    const osc = _ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = f;
+    const g = _ctx.createGain();
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(peak, now + attack);
+    g.gain.setValueAtTime(peak, now + attack + hold);
+    g.gain.linearRampToValueAtTime(0, now + duration);
+    osc.connect(g);
+    g.connect(_masterGain);
+    osc.start(now);
+    osc.stop(now + duration + 0.01);
+  });
+}
+
 export function playBust() {
   _play('bust', { gain: 0.85 });
 }

@@ -411,6 +411,9 @@ function enterGameScreen() {
   }
   updateScoreUI();
   Render.placeTargetForTurn();
+  // v1.71 (5-c): 最初のターン開始でもターン切替音（SPEC 13.8）
+  //   solo は常時自分、battle は先攻=自分のときのみ
+  if (_mode !== 'battle' || isMyTurn()) Sound.playTurnStart();
 
   // v1.17: ホールドボタン入力を起動（Input.start 内で setDisabled(false) されるので
   //        対戦時の観戦者は start のあとに改めて disable する）
@@ -624,6 +627,10 @@ function endTurnAndPlace() {
   }
   Render.placeTargetForTurn();
   updateScoreUI();
+  // v1.71 (5-c): 自分のターン開始時のみターン切替音（SPEC 13.8）
+  //   solo: 毎ターン自分 → 毎回鳴らす
+  //   battle: isMyTurn() のときだけ
+  if (_mode !== 'battle' || isMyTurn()) Sound.playTurnStart();
 }
 
 // v1.33 (3-C): shot ログを記録（既存のログ機構を踏襲）

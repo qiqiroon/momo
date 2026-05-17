@@ -1925,9 +1925,11 @@ function handleBattleMessage(data) {
   }
   // v1.47 (3-E): チャット受信（SPEC 9章）
   // v1.48: ロビーチャット履歴にも反映（waiting/room 画面用）
+  // v1.77 (5-d): 相手のチャット表示時に軽い「ポン」音（SPEC 13.8、自分送信時は鳴らさない）
   if (data.type === 'chat' && typeof data.text === 'string') {
     const text = data.text.slice(0, LOBBY_CHAT_MAX_LEN);
     if (text) {
+      Sound.playChatReceive();
       addChatMessage(getOppName(), text, false);  // game/end のフェード型スタック
       addLobbyChat(getOppName(), text, false);    // waiting/room の履歴リスト
     }

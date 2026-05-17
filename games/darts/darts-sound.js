@@ -13,10 +13,12 @@
 // v1.75 (5-c): win/lose 追加（効果音ラボ levelup1/curse-melody1）、ton80 を jean1 に差替え
 // v1.76 (5-d): 「ton80 より短いトン素材が見つからない」を受けて全体を 1 段繰り上げ:
 //              win=cheer1 / ton80=levelup1(旧win) / ton=jean1(旧ton80)。SPEC 13.3 P2 トン新規発火
+// v1.77 (5-d): chat を追加（効果音ラボ decision52.mp3「ポン」、SPEC 13.8 チャット受信音）
 const FILES = {
   throw:     'sounds/throw.mp3',
   miss:      'sounds/miss.mp3',
   turn:      'sounds/turn.mp3',
+  chat:      'sounds/chat.mp3',
   bust:      'sounds/bust.mp3',
   ton:       'sounds/ton.mp3',
   ton80:     'sounds/ton80.mp3',
@@ -228,6 +230,12 @@ export function playVibrate(strength) {
 //   - mp3 は idle 時音量に揃えるため gain 0.85
 export function playTurnStart() {
   _play('turn', { gain: 0.85 });
+}
+
+// v1.77 (5-d): チャット受信音（SPEC 13.8、相手のチャット表示時のみ、自分送信時は鳴らさない）
+//   - 効果音ラボ button/decision52.mp3「ポン」soft pop
+export function playChatReceive() {
+  _play('chat', { gain: 0.75 });
 }
 
 export function playBust() {

@@ -447,6 +447,18 @@ function leaveGameScreen() {
   _gameInProgress = false;
 }
 
+// v1.68: 着弾点が「的盤面に当たったか」判定（数字エリアまでを的内とする）
+//   - null/undefined → 床落ち/視界外 → false
+//   - r > R_BORDER → 完全に枠外 → false
+//   - それ以外 → 数字エリアを含む的内 → true
+//   スコアは Rules.scoreFromImpactSVG が R_DOUBLE_OUT で MISS 判定するので
+//   「数字エリアに当たった = hit 音 + MISS スコア」を実現できる
+function isOnBoard(boardSV) {
+  if (!boardSV) return false;
+  const r = Math.hypot(boardSV.x, boardSV.y);
+  return r <= Rules.R_BORDER;
+}
+
 // v1.23: 投擲リリース → 物理シミュ → 着弾後にスコア計算
 // v1.33 (3-C): 対戦時は relAim + impactBoard を相手に送信、両者で同じ shot を処理
 // v1.61 (5-b): 投擲音 + 着弾音（SPEC 13.4/13.5/13.6）
@@ -487,9 +499,9 @@ function onDartReleased({ hand, strength, durationMs }) {
     // result = { world, board: { x, y } | null } — local の物理結果
     const shot = Rules.scoreFromImpactSVG(result.board);
     // v1.61 (5-b): 着弾音（命中時、SPEC 13.6 共通の「ストッ」）
-    // v1.66 (5-c): 的外（kind==='MISS'）時は miss 音。result.board が非null でも
-    //              R_DOUBLE_OUT 超の周辺ヒットは MISS 扱い（SPEC 13.6 壁/床「ボヨン」）
-    if (shot.kind === 'MISS') Sound.playMiss(); else Sound.playHit();
+    // v1.67/v1.68: 「数字エリア(R_DOUBLE_OUT〜R_BORDER)」は的内なので hit 音、
+    //              スコアは MISS のまま。完全に枠外/床落ちのみ miss 音「ボヨン」
+    if (isOnBoard(result.board)) Sound.playHit(); else Sound.playMiss();
     logShotEvent(_gameState, hand, strength, durationMs, aim, result, shot);
     processShot(_gameState, shot, _myRole);
   }, { thrower: 'self' });
@@ -516,8 +528,8 @@ function handleOppThrow(data) {
     // 着弾点は送信者の authoritative 値で上書き → スコアも一致
     const shot = Rules.scoreFromImpactSVG(impactBoard);
     // v1.61 (5-b): 着弾音（命中時、SPEC 13.6 共通の「ストッ」）
-    // v1.66 (5-c): kind==='MISS'（周辺ヒット含む）は miss 音
-    if (shot.kind === 'MISS') Sound.playMiss(); else Sound.playHit();
+    // v1.68: 数字エリアまでは的内として hit 音、枠外/床落ちのみ miss 音
+    if (isOnBoard(impactBoard)) Sound.playHit(); else Sound.playMiss();
     processShot(_oppState, shot, _activeRole);
   }, { thrower: 'opp', authoritativeBoard: impactBoard });
 }

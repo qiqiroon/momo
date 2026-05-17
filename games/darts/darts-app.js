@@ -572,14 +572,31 @@ function processShot(throwerState, shot, throwerRole) {
       subText = `${throwerState.dartCount} ${t('end.dartsUnit')}`;
     }
     console.log('[darts] FINISH! darts=' + throwerState.dartCount + ' winner=' + (isMyWin ? 'self' : 'opp'));
-    // v1.61 (5-b): 9 ダーツ達成ジングル（SPEC 13.3 P0、最派手）
-    if (throwerState.dartCount <= 9) Sound.playNineDarts();
     Render.logEvent({ type: 'finish', dartCount: throwerState.dartCount, turns: throwerState.turnIndex, winner: isMyWin ? 'self' : 'opp' });
     showAnnouncement(_mode === 'battle' && !isMyWin ? 'lose' : 'finish', mainText, subText);
+
+    // v1.75 (5-c): 特別演出ジングル → 勝利/敗北ジングル → 勝利画面の順次再生
+    //   各 mp3 の実 duration を待ってから次へ。abort 経路は別（ここに来ない）
+    let delayMs = 0;
+    const NINE_DARTS_FALLBACK_MS = 2500;
+    const JINGLE_FALLBACK_MS = 2200;
+    // 1. 9 ダーツ達成ジングル
+    if (throwerState.dartCount <= 9) {
+      Sound.playNineDarts();
+      delayMs += Math.ceil((Sound.getDuration('nineDarts') || NINE_DARTS_FALLBACK_MS / 1000) * 1000);
+    }
+    // 2. 勝利/敗北ジングル（9D の鳴り終わり後）
+    const jingleKey = isMyWin ? 'win' : 'lose';
+    setTimeout(() => {
+      if (isMyWin) Sound.playWinJingle();
+      else Sound.playLoseJingle();
+    }, delayMs);
+    delayMs += Math.ceil((Sound.getDuration(jingleKey) || JINGLE_FALLBACK_MS / 1000) * 1000);
+    // 3. 勝利画面遷移（ジングル鳴り終わり後）
     setTimeout(() => {
       _pendingTurnDisplay = null;
       showEndScreen({ winner: isMyWin ? 'self' : 'opp', finishedState: throwerState });
-    }, 2200);
+    }, delayMs);
     return;
   }
 

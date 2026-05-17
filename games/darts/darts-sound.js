@@ -9,7 +9,9 @@
 
 // v1.65: hit は v1.64 で Web Audio API 合成に切替したため mp3 不要
 // v1.66 (5-c): miss を追加（効果音ラボ boyon1.mp3、SPEC 13.6 的外音「ボヨン」）
-// v1.73 (5-c): turn を追加（効果音ラボ stupid4.mp3、SPEC 13.8 ターン切替音）
+// v1.73 (5-c): turn を追加（効果音ラボ decision34.mp3、SPEC 13.8 ターン切替音）
+// v1.75 (5-c): win/lose 追加（効果音ラボ levelup1/curse-melody1）
+//              ton80 は ton80 (jajean1) → win-jean1 に差替え（勝利との音量バランス）
 const FILES = {
   throw:     'sounds/throw.mp3',
   miss:      'sounds/miss.mp3',
@@ -17,6 +19,8 @@ const FILES = {
   bust:      'sounds/bust.mp3',
   ton80:     'sounds/ton80.mp3',
   nineDarts: 'sounds/nine-darts.mp3',
+  win:       'sounds/win.mp3',
+  lose:      'sounds/lose.mp3',
 };
 
 const VOLUME_LS_KEY = 'momoDartsVolume';
@@ -234,6 +238,22 @@ export function playTon80() {
 
 export function playNineDarts() {
   _play('nineDarts', { gain: 1.0 });
+}
+
+// v1.75 (5-c): 勝利/敗北ジングル（SPEC 13.9）
+//   勝利=派手（levelup1）/ 敗北=控えめ（curse-melody1）。素材の特性で派手/控えめを表現
+export function playWinJingle() {
+  _play('win', { gain: 1.0 });
+}
+export function playLoseJingle() {
+  _play('lose', { gain: 0.85 });
+}
+
+// v1.75 (5-c): 音の長さ（秒）。順次再生のタイミング計算用
+//   未ロード時は 0 を返す（呼び出し側でフォールバック値）
+export function getDuration(key) {
+  const buf = _buffers.get(key);
+  return buf ? buf.duration : 0;
 }
 
 // 状態確認用

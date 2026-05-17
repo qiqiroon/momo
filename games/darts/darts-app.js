@@ -553,11 +553,18 @@ function processShot(throwerState, shot, throwerRole) {
   updateScoreUI();
 
   // v1.61 (5-b): TON80 ジングル — ターン3投合計 180 点（SPEC 13.3 P0）
+  // v1.76 (5-d): ハットトリック (1ターン3本ともインナーブル、SPEC 13.3 P2) も ton80 流用
+  //   - ユーザー判断: 専用素材は使わず ton80 と同じ音
+  //   - hatTrick は 50×3=150 点なので turnSum===180 と重複しない
+  // v1.76 (5-d): トン（ターン合計 101〜179、SPEC 13.3 P2）
+  //   - ton80 (180 ジャスト) より軽い祝福音。ton80/ハットトリックと排他
   // BUST 時は無視（バーストは加算されない）。FINISH と同時の場合は重ね鳴らし（SPEC 13.9）
   if (r.turnEnded && !r.bust && throwerState.history.length > 0) {
     const lastShots = throwerState.history[throwerState.history.length - 1].shots;
     const turnSum = lastShots.reduce((a, s) => a + (s.value || 0), 0);
     if (turnSum === 180) Sound.playTon80();
+    else if (r.hatTrick) Sound.playTon80();
+    else if (turnSum >= 101) Sound.playTon();
   }
 
   // === FINISH ===

@@ -10,13 +10,15 @@
 // v1.65: hit は v1.64 で Web Audio API 合成に切替したため mp3 不要
 // v1.66 (5-c): miss を追加（効果音ラボ boyon1.mp3、SPEC 13.6 的外音「ボヨン」）
 // v1.73 (5-c): turn を追加（効果音ラボ decision34.mp3、SPEC 13.8 ターン切替音）
-// v1.75 (5-c): win/lose 追加（効果音ラボ levelup1/curse-melody1）
-//              ton80 は ton80 (jajean1) → win-jean1 に差替え（勝利との音量バランス）
+// v1.75 (5-c): win/lose 追加（効果音ラボ levelup1/curse-melody1）、ton80 を jean1 に差替え
+// v1.76 (5-d): 「ton80 より短いトン素材が見つからない」を受けて全体を 1 段繰り上げ:
+//              win=cheer1 / ton80=levelup1(旧win) / ton=jean1(旧ton80)。SPEC 13.3 P2 トン新規発火
 const FILES = {
   throw:     'sounds/throw.mp3',
   miss:      'sounds/miss.mp3',
   turn:      'sounds/turn.mp3',
   bust:      'sounds/bust.mp3',
+  ton:       'sounds/ton.mp3',
   ton80:     'sounds/ton80.mp3',
   nineDarts: 'sounds/nine-darts.mp3',
   win:       'sounds/win.mp3',
@@ -234,6 +236,12 @@ export function playBust() {
 
 export function playTon80() {
   _play('ton80', { gain: 0.9 });
+}
+
+// v1.76 (5-d): トン軽ジングル（SPEC 13.3 P2、ターン合計 100点超 / 180未満）
+//   ton80 より軽め
+export function playTon() {
+  _play('ton', { gain: 0.8 });
 }
 
 export function playNineDarts() {

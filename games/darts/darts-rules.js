@@ -122,15 +122,20 @@ export function applyShot(state, shot) {
   state.turnShots.push(shot);
   state.dartCount++;
   if (state.turnShots.length >= 3) {
+    const lastShots = [...state.turnShots];
     state.history.push({
-      shots: [...state.turnShots], bust: false, ended: 'normal',
+      shots: lastShots, bust: false, ended: 'normal',
     });
     state.turnShots = [];
     state.turnIndex++;
     state.turnStartRemaining = state.remaining;
-    return { state, turnEnded: true, finished: false, bust: false };
+    // v1.76 (5-d): ハットトリック判定（1ターン3本ともインナーブル = DBULL）
+    //   - BUST 経路は上で別 return しているのでここは到達せず
+    //   - FINISH 経路 (newRemaining === 0) も上で別 return、ここは通常終了のみ
+    const hatTrick = lastShots.every((s) => s.kind === 'DBULL');
+    return { state, turnEnded: true, finished: false, bust: false, hatTrick };
   }
-  return { state, turnEnded: false, finished: false, bust: false };
+  return { state, turnEnded: false, finished: false, bust: false, hatTrick: false };
 }
 
 // 称号判定（1人プレイ用、SPEC 10.8 / 12.x）

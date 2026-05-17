@@ -501,7 +501,9 @@ function onDartReleased({ hand, strength, durationMs }) {
     // v1.61 (5-b): 着弾音（命中時、SPEC 13.6 共通の「ストッ」）
     // v1.67/v1.68: 「数字エリア(R_DOUBLE_OUT〜R_BORDER)」は的内なので hit 音、
     //              スコアは MISS のまま。完全に枠外/床落ちのみ miss 音「ボヨン」
-    if (isOnBoard(result.board)) Sound.playHit(); else Sound.playMiss();
+    // v1.69 (5-c): 命中時のみ振動音（SPEC 13.7、カサカサ系合成）
+    if (isOnBoard(result.board)) { Sound.playHit(); Sound.playVibrate(); }
+    else Sound.playMiss();
     logShotEvent(_gameState, hand, strength, durationMs, aim, result, shot);
     processShot(_gameState, shot, _myRole);
   }, { thrower: 'self' });
@@ -529,7 +531,9 @@ function handleOppThrow(data) {
     const shot = Rules.scoreFromImpactSVG(impactBoard);
     // v1.61 (5-b): 着弾音（命中時、SPEC 13.6 共通の「ストッ」）
     // v1.68: 数字エリアまでは的内として hit 音、枠外/床落ちのみ miss 音
-    if (isOnBoard(impactBoard)) Sound.playHit(); else Sound.playMiss();
+    // v1.69 (5-c): 相手投擲も命中時のみ振動音（SPEC 13.7「相手も自分と同音量」）
+    if (isOnBoard(impactBoard)) { Sound.playHit(); Sound.playVibrate(); }
+    else Sound.playMiss();
     processShot(_oppState, shot, _activeRole);
   }, { thrower: 'opp', authoritativeBoard: impactBoard });
 }

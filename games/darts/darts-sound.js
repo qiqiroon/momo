@@ -166,6 +166,46 @@ export function playMiss() {
   _play('miss', { gain: 0.75 });
 }
 
+// v1.69 (5-c): 振動音（SPEC 13.7、ユーザー要望「リアルな乾いた速いカサカサ音」）
+//   - SPEC は「びよーん」コミカル系だが、ユーザー要望でリアル路線に変更
+//   - ホワイトノイズ → バンドパス（中心 3.5kHz, Q=1.2）で乾いた高音域抽出
+//   - 6Hz の AM 変調で「ビビっ」と速い揺れ感（SPEC 7章 振動演出 6Hz と整合）
+//   - hit 音の余韻直後に重ねて鳴らす想定（呼び出し側でわずかに遅延 OK）
+//   - 全体 0.6 秒、後半は指数減衰で消える
+export function playVibrate() {
+  if (!_ctx || !_masterGain) return;
+  const now = _ctx.currentTime;
+  const duration = 0.6;       // 振動全体の長さ
+  const sr = _ctx.sampleRate;
+  const len = Math.ceil(sr * duration);
+
+  // === ホワイトノイズ + AM 変調（6Hz）をバッファに焼き込む ===
+  const buf = _ctx.createBuffer(1, len, sr);
+  const data = buf.getChannelData(0);
+  const amHz = 6;             // SPEC 7章「6Hz」と一致
+  for (let i = 0; i < len; i++) {
+    const t = i / sr;
+    // AM: 0..1 の正弦（6Hz）。深さ 0.6 → 振幅は 0.4..1.0 で揺れる
+    const am = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(2 * Math.PI * amHz * t));
+    // 全体エンベロープ: 最初 50ms で立ち上がり、その後線形減衰
+    const env = (t < 0.05) ? (t / 0.05) : Math.max(0, 1 - (t - 0.05) / (duration - 0.05));
+    data[i] = (Math.random() * 2 - 1) * am * env;
+  }
+
+  const src = _ctx.createBufferSource();
+  src.buffer = buf;
+  const bp = _ctx.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = 3500;
+  bp.Q.value = 1.2;
+  const g = _ctx.createGain();
+  g.gain.value = 0.35;        // hit と同程度。マスター音量に追従
+  src.connect(bp);
+  bp.connect(g);
+  g.connect(_masterGain);
+  src.start(now);
+}
+
 export function playBust() {
   _play('bust', { gain: 0.85 });
 }

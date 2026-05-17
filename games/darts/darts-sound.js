@@ -216,9 +216,9 @@ export function playVibrate(strength) {
   src.start(now);
 }
 
-// v1.71〜v1.73 (5-c): ターン切替音（SPEC 13.8、自分のターン開始時のみ）
-//   - 効果音ラボ stupid4.mp3（緩い「ふぉん」系、間抜け音カテゴリ）
-//   - 合成路線(v1.71/v1.72)は不採用（オクターブ重ねが単音化、AM が「ぶっ」と聞こえた）
+// v1.71〜v1.74 (5-c): ターン切替音（SPEC 13.8、自分のターン開始時のみ）
+//   - 効果音ラボ button/decision34.mp3「ポン。柔らかい音」
+//   - v1.71/v1.72 合成路線、v1.73 stupid4.mp3 すべて不採用を経て確定
 //   - mp3 は idle 時音量に揃えるため gain 0.85
 export function playTurnStart() {
   _play('turn', { gain: 0.85 });

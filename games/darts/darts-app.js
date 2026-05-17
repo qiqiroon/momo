@@ -484,11 +484,12 @@ function onDartReleased({ hand, strength, durationMs }) {
     if (_mode === 'battle' && typeof MomoMatchmaking !== 'undefined') {
       MomoMatchmaking.send({ type: 'throw_end' });
     }
-    // v1.61 (5-b): 着弾音（命中時、SPEC 13.6 共通の「ストッ」）
-    // v1.66 (5-c): 的外時は miss 音（SPEC 13.6 壁/床「ボヨン」）
-    if (result.board) Sound.playHit(); else Sound.playMiss();
     // result = { world, board: { x, y } | null } — local の物理結果
     const shot = Rules.scoreFromImpactSVG(result.board);
+    // v1.61 (5-b): 着弾音（命中時、SPEC 13.6 共通の「ストッ」）
+    // v1.66 (5-c): 的外（kind==='MISS'）時は miss 音。result.board が非null でも
+    //              R_DOUBLE_OUT 超の周辺ヒットは MISS 扱い（SPEC 13.6 壁/床「ボヨン」）
+    if (shot.kind === 'MISS') Sound.playMiss(); else Sound.playHit();
     logShotEvent(_gameState, hand, strength, durationMs, aim, result, shot);
     processShot(_gameState, shot, _myRole);
   }, { thrower: 'self' });
@@ -512,11 +513,11 @@ function handleOppThrow(data) {
   const sim = Physics.simulateThrow({ hand, strength, aimYawRad, aimPitchRad });
 
   Render.fireFlight(sim, (_result) => {
-    // v1.61 (5-b): 受信側でも着弾音（authoritative board が null でなければ命中）
-    // v1.66 (5-c): 的外時は miss 音
-    if (impactBoard) Sound.playHit(); else Sound.playMiss();
     // 着弾点は送信者の authoritative 値で上書き → スコアも一致
     const shot = Rules.scoreFromImpactSVG(impactBoard);
+    // v1.61 (5-b): 着弾音（命中時、SPEC 13.6 共通の「ストッ」）
+    // v1.66 (5-c): kind==='MISS'（周辺ヒット含む）は miss 音
+    if (shot.kind === 'MISS') Sound.playMiss(); else Sound.playHit();
     processShot(_oppState, shot, _activeRole);
   }, { thrower: 'opp', authoritativeBoard: impactBoard });
 }

@@ -9,9 +9,11 @@
 
 // v1.65: hit は v1.64 で Web Audio API 合成に切替したため mp3 不要
 // v1.66 (5-c): miss を追加（効果音ラボ boyon1.mp3、SPEC 13.6 的外音「ボヨン」）
+// v1.73 (5-c): turn を追加（効果音ラボ stupid4.mp3、SPEC 13.8 ターン切替音）
 const FILES = {
   throw:     'sounds/throw.mp3',
   miss:      'sounds/miss.mp3',
+  turn:      'sounds/turn.mp3',
   bust:      'sounds/bust.mp3',
   ton80:     'sounds/ton80.mp3',
   nineDarts: 'sounds/nine-darts.mp3',
@@ -214,51 +216,12 @@ export function playVibrate(strength) {
   src.start(now);
 }
 
-// v1.71/v1.72 (5-c): ターン切替音（SPEC 13.8、自分のターン開始時のみ）
-//   - ユーザー要望「ぶおんという強弱がある音、低音と高音をずらした2音、hold 短め」
-//   - sine 2音（A3=220Hz + E4=329.6Hz）= 完全5度（オクターブ重ねを避けて2音を区別）
-//   - 低音優位（A3 peak 0.25 / E4 peak 0.15）で「ぶおん」感
-//   - attack 25ms（速めて強弱感）/ hold 25ms（短く）/ release 220ms（滑らかに消える）
-//   - 8Hz の軽い AM 変調を低音に重ねて強弱感を出す
-//   - 全長 0.27 秒
+// v1.71〜v1.73 (5-c): ターン切替音（SPEC 13.8、自分のターン開始時のみ）
+//   - 効果音ラボ stupid4.mp3（緩い「ふぉん」系、間抜け音カテゴリ）
+//   - 合成路線(v1.71/v1.72)は不採用（オクターブ重ねが単音化、AM が「ぶっ」と聞こえた）
+//   - mp3 は idle 時音量に揃えるため gain 0.85
 export function playTurnStart() {
-  if (!_ctx || !_masterGain) return;
-  const now = _ctx.currentTime;
-  const attack = 0.025;
-  const hold = 0.025;
-  const release = 0.22;
-  const duration = attack + hold + release;
-  // [frequency, peak gain]
-  const voices = [
-    [220.0, 0.25],    // A3 — 低音優位
-    [329.6, 0.15],    // E4 — 完全5度上
-  ];
-  voices.forEach(([f, peak], idx) => {
-    const osc = _ctx.createOscillator();
-    osc.type = 'sine';
-    osc.frequency.value = f;
-    const g = _ctx.createGain();
-    g.gain.setValueAtTime(0, now);
-    g.gain.linearRampToValueAtTime(peak, now + attack);
-    g.gain.setValueAtTime(peak, now + attack + hold);
-    g.gain.linearRampToValueAtTime(0, now + duration);
-    // 低音側に 8Hz AM 変調で「ぶおん」の揺れ感
-    if (idx === 0) {
-      const lfo = _ctx.createOscillator();
-      lfo.type = 'sine';
-      lfo.frequency.value = 8;
-      const lfoGain = _ctx.createGain();
-      lfoGain.gain.value = peak * 0.35;  // 変調深さ
-      lfo.connect(lfoGain);
-      lfoGain.connect(g.gain);
-      lfo.start(now);
-      lfo.stop(now + duration + 0.01);
-    }
-    osc.connect(g);
-    g.connect(_masterGain);
-    osc.start(now);
-    osc.stop(now + duration + 0.01);
-  });
+  _play('turn', { gain: 0.85 });
 }
 
 export function playBust() {

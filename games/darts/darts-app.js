@@ -485,7 +485,8 @@ function onDartReleased({ hand, strength, durationMs }) {
       MomoMatchmaking.send({ type: 'throw_end' });
     }
     // v1.61 (5-b): 着弾音（命中時、SPEC 13.6 共通の「ストッ」）
-    if (result.board) Sound.playHit();
+    // v1.66 (5-c): 的外時は miss 音（SPEC 13.6 壁/床「ボヨン」）
+    if (result.board) Sound.playHit(); else Sound.playMiss();
     // result = { world, board: { x, y } | null } — local の物理結果
     const shot = Rules.scoreFromImpactSVG(result.board);
     logShotEvent(_gameState, hand, strength, durationMs, aim, result, shot);
@@ -512,7 +513,8 @@ function handleOppThrow(data) {
 
   Render.fireFlight(sim, (_result) => {
     // v1.61 (5-b): 受信側でも着弾音（authoritative board が null でなければ命中）
-    if (impactBoard) Sound.playHit();
+    // v1.66 (5-c): 的外時は miss 音
+    if (impactBoard) Sound.playHit(); else Sound.playMiss();
     // 着弾点は送信者の authoritative 値で上書き → スコアも一致
     const shot = Rules.scoreFromImpactSVG(impactBoard);
     processShot(_oppState, shot, _activeRole);

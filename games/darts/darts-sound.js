@@ -8,8 +8,10 @@
 //   - ファイル未配置時は黙って失敗（SPEC 13.11 i/D-2/D-3 の方針に揃える）
 
 // v1.65: hit は v1.64 で Web Audio API 合成に切替したため mp3 不要
+// v1.66 (5-c): miss を追加（効果音ラボ boyon1.mp3、SPEC 13.6 的外音「ボヨン」）
 const FILES = {
   throw:     'sounds/throw.mp3',
+  miss:      'sounds/miss.mp3',
   bust:      'sounds/bust.mp3',
   ton80:     'sounds/ton80.mp3',
   nineDarts: 'sounds/nine-darts.mp3',
@@ -156,6 +158,12 @@ export function playHit() {
   thud.stop(now + 0.12);
 
   _lastHitEnd = now + 0.12;
+}
+
+// v1.66 (5-c): 的外音（SPEC 13.6 床/壁/視界外）
+//   命中の hit と対になる。命中音と被らない程度の音量
+export function playMiss() {
+  _play('miss', { gain: 0.75 });
 }
 
 export function playBust() {

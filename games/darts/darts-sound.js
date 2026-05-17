@@ -214,21 +214,26 @@ export function playVibrate(strength) {
   src.start(now);
 }
 
-// v1.71 (5-c): ターン切替音（SPEC 13.8、自分のターン開始時のみ）
-//   - ユーザー要望「短いふわん/うぉん、滑らかに始まって滑らかに消える、低音と高音が同時」
-//   - sine 2音（A3=220Hz + A4=440Hz）でオクターブ重ね（柔らかい協和）
-//   - 滑らかな ADR エンベロープ（attack 80ms / hold 80ms / release 180ms）
-//   - 全長 0.34 秒
+// v1.71/v1.72 (5-c): ターン切替音（SPEC 13.8、自分のターン開始時のみ）
+//   - ユーザー要望「ぶおんという強弱がある音、低音と高音をずらした2音、hold 短め」
+//   - sine 2音（A3=220Hz + E4=329.6Hz）= 完全5度（オクターブ重ねを避けて2音を区別）
+//   - 低音優位（A3 peak 0.25 / E4 peak 0.15）で「ぶおん」感
+//   - attack 25ms（速めて強弱感）/ hold 25ms（短く）/ release 220ms（滑らかに消える）
+//   - 8Hz の軽い AM 変調を低音に重ねて強弱感を出す
+//   - 全長 0.27 秒
 export function playTurnStart() {
   if (!_ctx || !_masterGain) return;
   const now = _ctx.currentTime;
-  const attack = 0.08;
-  const hold = 0.08;
-  const release = 0.18;
+  const attack = 0.025;
+  const hold = 0.025;
+  const release = 0.22;
   const duration = attack + hold + release;
-  const peak = 0.18;          // 1音あたりピーク。2音合成で約 0.36 相当
-  const freqs = [220, 440];   // A3 + A4（オクターブ重ね）
-  freqs.forEach((f) => {
+  // [frequency, peak gain]
+  const voices = [
+    [220.0, 0.25],    // A3 — 低音優位
+    [329.6, 0.15],    // E4 — 完全5度上
+  ];
+  voices.forEach(([f, peak], idx) => {
     const osc = _ctx.createOscillator();
     osc.type = 'sine';
     osc.frequency.value = f;
@@ -237,6 +242,18 @@ export function playTurnStart() {
     g.gain.linearRampToValueAtTime(peak, now + attack);
     g.gain.setValueAtTime(peak, now + attack + hold);
     g.gain.linearRampToValueAtTime(0, now + duration);
+    // 低音側に 8Hz AM 変調で「ぶおん」の揺れ感
+    if (idx === 0) {
+      const lfo = _ctx.createOscillator();
+      lfo.type = 'sine';
+      lfo.frequency.value = 8;
+      const lfoGain = _ctx.createGain();
+      lfoGain.gain.value = peak * 0.35;  // 変調深さ
+      lfo.connect(lfoGain);
+      lfoGain.connect(g.gain);
+      lfo.start(now);
+      lfo.stop(now + duration + 0.01);
+    }
     osc.connect(g);
     g.connect(_masterGain);
     osc.start(now);

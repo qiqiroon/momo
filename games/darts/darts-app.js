@@ -507,10 +507,11 @@ function onDartReleased({ hand, strength, durationMs }) {
     // v1.69 (5-c): 命中時のみ振動音（SPEC 13.7、カサカサ系合成）
     // v1.70: 振動音は強さに比例（最適範囲上限 0.56 超のみ、超過量で音量増）
     // v1.81 (v1.1): 視覚的振動演出も命中時に発火（SPEC 7.3 振幅12度/6Hz/0.1^t/1.2秒）
+    // v1.82: 振動も強さ・当たり位置で物理風に変化（支点=上端中央、下当たりはピッチ、横当たりはヨー）
     if (isOnBoard(result.board)) {
       Sound.playHit();
       Sound.playVibrate(strength);
-      Render.startTargetVibrate();
+      Render.startTargetVibrate(strength, result.board);
     } else {
       Sound.playMiss();
     }
@@ -544,10 +545,11 @@ function handleOppThrow(data) {
     // v1.69 (5-c): 相手投擲も命中時のみ振動音（SPEC 13.7「相手も自分と同音量」）
     // v1.70: 強さに比例（相手側も同じ閾値・減衰）
     // v1.81 (v1.1): 相手投擲時も視覚的振動演出（SPEC 7.3）
+    // v1.82: 当たり位置で振動方向（相手の impactBoard を使用）
     if (isOnBoard(impactBoard)) {
       Sound.playHit();
       Sound.playVibrate(strength);
-      Render.startTargetVibrate();
+      Render.startTargetVibrate(strength, impactBoard);
     } else {
       Sound.playMiss();
     }

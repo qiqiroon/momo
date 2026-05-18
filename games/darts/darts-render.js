@@ -211,27 +211,52 @@ export function placeTargetForTurn() {
 }
 
 // ======================================================================
-// 視覚的振動演出（v1.81 / SPEC 7.3 v1.1 で本体仕様に昇格）
+// 視覚的振動演出（v1.81 / SPEC 7.3 v1.1 で本体仕様に昇格、v1.82 で物理風に拡張）
 // ======================================================================
-//   - 振幅 12 度 / 周波数 6 Hz / 減衰係数 0.1^t / 1.2 秒
-//   - 着弾点を支点にダーツ後端が振動する想定だが、簡素実装として
-//     ダーツボード SVG 全体を rotate で揺らす（ダーツも一緒に揺れる）
-//   - 命中時のみ発火、isOnBoard 判定は呼び出し側で行う
+//   - 振幅 12 度 / 周波数 6 Hz / 減衰係数 0.1^t / 1.2 秒（SPEC 7.3）
+//   - 支点 = 円盤の上端中央（20 の数字の上、SVG ローカル (0, -R_BORDER)）
+//   - 「上端で吊られた円盤」風の物理風振動。当たり位置に応じて方向と振幅が変わる:
+//       * 当たりが下方向（3 の近く）→ ピッチ揺れ大（前後にお辞儀）
+//       * 当たりが真上（20 直下）→ ほぼ揺れない
+//       * 当たりが左右（6 / 11 近く）→ ヨー揺れ大（左右に首振り）
+//   - CSS 3D の rotateX/rotateY + perspective() で表現
+//   - 強さ連動: 0〜最適範囲上限 (0.56) は無音／無振動、超過量に比例して振幅増
 let _vibrateAnimId = null;
-export function startTargetVibrate() {
+export function startTargetVibrate(strength, impactBoard) {
   if (!_boardEl) return;
+  // 強さ閾値（Sound.playVibrate と同じ）
+  const VIBRATE_THRESHOLD = 0.56;
+  if (typeof strength !== 'number' || strength <= VIBRATE_THRESHOLD) return;
+
   const svg = _boardEl.querySelector('svg');
   if (!svg) return;
-  // 既存振動があれば停止して再開
   if (_vibrateAnimId) cancelAnimationFrame(_vibrateAnimId);
 
-  const AMPLITUDE_DEG = 12;
-  const FREQUENCY_HZ  = 6;
-  const DECAY_BASE    = 0.1;   // 1秒経過で base^1 = 0.1 倍
-  const DURATION_MS   = 1200;
-  const start = performance.now();
-  svg.style.transformOrigin = '50% 50%';
+  const intensity = Math.min(1, (strength - VIBRATE_THRESHOLD) / (1 - VIBRATE_THRESHOLD));
+  const MAX_AMP_DEG = 12;
+  const FREQ_HZ     = 6;
+  const DECAY_BASE  = 0.1;
+  const DURATION_MS = 1200;
 
+  // 当たり位置から振動成分のスケールを計算
+  // 支点 = (0, -R_BORDER)、impactBoard は中央(0,0)からの SVG ローカル座標(Y下向き)
+  //   - pitchScale: 支点から下方向距離 / 直径 (0〜1)
+  //   - yawScale:   左右距離 / 半径 (-1〜+1)
+  let pitchScale = 0;
+  let yawScale   = 0;
+  if (impactBoard) {
+    const dy = impactBoard.y + R_BORDER;     // 支点からの下方向距離 0〜2R
+    const dx = impactBoard.x;                // 左右距離 -R〜+R
+    pitchScale = Math.max(0, Math.min(1, dy / (2 * R_BORDER)));
+    yawScale   = Math.max(-1, Math.min(1, dx / R_BORDER));
+  }
+  const pitchAmp = MAX_AMP_DEG * intensity * pitchScale;
+  const yawAmp   = MAX_AMP_DEG * intensity * yawScale;
+
+  // 支点を上端中央に。bbox 基準で 50% 0%（SVG viewBox の top-center に対応）
+  svg.style.transformOrigin = '50% 0%';
+
+  const start = performance.now();
   function step(now) {
     const t = (now - start) / 1000;
     if (t >= DURATION_MS / 1000) {
@@ -240,8 +265,12 @@ export function startTargetVibrate() {
       _vibrateAnimId = null;
       return;
     }
-    const angle = AMPLITUDE_DEG * Math.sin(2 * Math.PI * FREQUENCY_HZ * t) * Math.pow(DECAY_BASE, t);
-    svg.style.transform = `rotate(${angle}deg)`;
+    const decay = Math.pow(DECAY_BASE, t);
+    const phase = 2 * Math.PI * FREQ_HZ * t;
+    const pitch = pitchAmp * Math.sin(phase) * decay;
+    const yaw   = yawAmp   * Math.sin(phase) * decay;
+    // perspective() を transform 内に埋めて 3D 効果を出す（親要素の CSS 変更不要）
+    svg.style.transform = `perspective(600px) rotateX(${pitch}deg) rotateY(${yaw}deg)`;
     _vibrateAnimId = requestAnimationFrame(step);
   }
   _vibrateAnimId = requestAnimationFrame(step);

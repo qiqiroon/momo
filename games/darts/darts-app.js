@@ -323,16 +323,15 @@ function updateScoreUI() {
   const selfSum = (pendingSum !== null && active === _gameState)
     ? pendingSum
     : _gameState.turnShots.reduce((a, s) => a + s.value, 0);
-  // 自分の残り点数（左上・赤）
-  $('ui-remaining').textContent = String(_gameState.remaining);
+  // v1.88 (v1.3): 01 = 残り点数 / countup = 累積得点 を表示
+  $('ui-remaining').textContent = String(Rules.currentScore(_gameState));
   $('ui-turn-total').textContent = `TURN +${selfSum}`;
-  // 相手の残り点数（右上・青、対戦時のみ）
   if (_mode === 'battle' && _oppState) {
     $('ui-score-opp').style.display = 'flex';
     const oppSum = (pendingSum !== null && active === _oppState)
       ? pendingSum
       : _oppState.turnShots.reduce((a, s) => a + s.value, 0);
-    $('ui-remaining-opp').textContent = String(_oppState.remaining);
+    $('ui-remaining-opp').textContent = String(Rules.currentScore(_oppState));
     $('ui-turn-total-opp').textContent = `TURN +${oppSum}`;
   } else {
     $('ui-score-opp').style.display = 'none';
@@ -399,11 +398,11 @@ function enterGameScreen() {
     },
   });
   // ゲーム状態を初期化
-  _gameState = Rules.createInitialState();
+  _gameState = Rules.createInitialState(_currentRule);
   _pendingTurnDisplay = null;
   // v1.33 (3-C): 対戦時は相手 state も初期化、先攻決定
   if (_mode === 'battle') {
-    _oppState = Rules.createInitialState();
+    _oppState = Rules.createInitialState(_currentRule);
     _activeRole = 'first';  // 先攻が常に最初に投げる
   } else {
     _oppState = null;
@@ -777,20 +776,35 @@ function showEndScreen(opts) {
     $('end-stat-best').textContent = turnScores.length ? Math.max(...turnScores) : 0;
   } else {
     // 1人プレイ
-    const ach = Rules.getAchievement(_gameState.dartCount);
-    const turns = _gameState.history.length;
-    const busts = _gameState.history.filter(h => h.bust).length;
-    const turnScores = _gameState.history
-      .filter(h => !h.bust)
-      .map(h => h.shots.reduce((a, s) => a + s.value, 0));
-    const bestTurn = turnScores.length ? Math.max(...turnScores) : 0;
-    $('end-result-msg').textContent = `${ach.emoji} ${ach.label}`;
-    $('end-result-msg').className = 'result-message win';
-    $('end-result-sub').textContent = t('end.solo.finish', { darts: _gameState.dartCount });
-    $('end-stat-darts').textContent = _gameState.dartCount;
-    $('end-stat-turns').textContent = turns;
-    $('end-stat-busts').textContent = busts;
-    $('end-stat-best').textContent = bestTurn;
+    // v1.88 (v1.3): カウントアップ対応 — total ベースで achievement
+    if (_gameState.rule && _gameState.rule.type === 'countup') {
+      const ach = Rules.getAchievementCountup(_gameState.total);
+      const turns = _gameState.history.length;
+      const turnScores = _gameState.history.map(h => h.shots.reduce((a, s) => a + s.value, 0));
+      const bestTurn = turnScores.length ? Math.max(...turnScores) : 0;
+      $('end-result-msg').textContent = `${ach.emoji} ${ach.label}`;
+      $('end-result-msg').className = 'result-message win';
+      $('end-result-sub').textContent = t('end.countup.solo.finish', { total: _gameState.total });
+      $('end-stat-darts').textContent = String(_gameState.dartCount);
+      $('end-stat-turns').textContent = String(turns);
+      $('end-stat-busts').textContent = '—';
+      $('end-stat-best').textContent = String(bestTurn);
+    } else {
+      const ach = Rules.getAchievement(_gameState.dartCount);
+      const turns = _gameState.history.length;
+      const busts = _gameState.history.filter(h => h.bust).length;
+      const turnScores = _gameState.history
+        .filter(h => !h.bust)
+        .map(h => h.shots.reduce((a, s) => a + s.value, 0));
+      const bestTurn = turnScores.length ? Math.max(...turnScores) : 0;
+      $('end-result-msg').textContent = `${ach.emoji} ${ach.label}`;
+      $('end-result-msg').className = 'result-message win';
+      $('end-result-sub').textContent = t('end.solo.finish', { darts: _gameState.dartCount });
+      $('end-stat-darts').textContent = _gameState.dartCount;
+      $('end-stat-turns').textContent = turns;
+      $('end-stat-busts').textContent = busts;
+      $('end-stat-best').textContent = bestTurn;
+    }
   }
 
   // v1.44 (3-E): ボタンラベルを mode に応じて設定（abort 時は上書き済み）
@@ -866,18 +880,21 @@ function checkEndMatch() {
   _oppEndChoice = null;
   // 再戦のための状態初期化（proceedToBattleGameStart 相当だがキャリブはスキップ）
   _gameInProgress = true;
-  _gameState = Rules.createInitialState();
-  _oppState = Rules.createInitialState();
+  _gameState = Rules.createInitialState(_currentRule);
+  _oppState = Rules.createInitialState(_currentRule);
   startHeartbeat();  // 内部で _disconnectDeclared / _lastHeartbeatRcvd / _lastHeartbeatSent を初期化
   enterGameScreen();
 }
 
 $('btn-next-turn').addEventListener('click', () => {
   // v1.23: 強制ターン進行（デバッグ用）。現在のターンの shot は破棄
+  // v1.88: turnStartRemaining は 01 ルールのみ
   if (_gameState) {
     _gameState.turnShots = [];
     _gameState.turnIndex++;
-    _gameState.turnStartRemaining = _gameState.remaining;
+    if (_gameState.rule && _gameState.rule.type === '01') {
+      _gameState.turnStartRemaining = _gameState.remaining;
+    }
     _pendingTurnDisplay = null;
     updateScoreUI();
   }
@@ -1427,6 +1444,8 @@ function refreshDynamicI18n() {
   refreshPermissionSteps();
   // v1.59: 描画品質ヒント
   if (typeof refreshQualityUI === 'function') refreshQualityUI();
+  // v1.88 (v1.3): ルール選択 UI（言語変更時にラベル・詳細を再描画）
+  if (typeof applyRuleToUI === 'function') applyRuleToUI();
 }
 
 const langSelect = $('lang-select');
@@ -1446,6 +1465,104 @@ const LEGACY_NAME_KEY = 'momo-darts-name';
 
 // 'solo' | 'battle' — 現在の遊び方モード
 let _mode = 'solo';
+
+// v1.88 (v1.3): 現在選択中のルール（room 画面の選択 UI と同期）
+//   SPEC 3.2: { type:'01', startScore:301..1501, outRule:'single'|'double'|'master' }
+//             | { type:'countup', rounds:8 }
+let _currentRule = { type: '01', startScore: 501, outRule: 'single' };
+
+// v1.88 (v1.3): ルール選択 UI の反映（タブ + 持ち点/アウトルール/ラウンド数）
+function applyRuleToUI() {
+  // タブのハイライト + 表示切替
+  document.querySelectorAll('#rule-tabs .rule-tab').forEach((tab) => {
+    tab.classList.toggle('active', tab.dataset.ruleType === _currentRule.type);
+  });
+  const tab01El = $('rule-tab-01');
+  const tabCountupEl = $('rule-tab-countup');
+  if (tab01El) tab01El.style.display = _currentRule.type === '01' ? 'block' : 'none';
+  if (tabCountupEl) tabCountupEl.style.display = _currentRule.type === 'countup' ? 'block' : 'none';
+
+  // 01 タブ内ボタンのハイライト
+  document.querySelectorAll('.rule-btn[data-start-score]').forEach((btn) => {
+    btn.classList.toggle('selected', Number(btn.dataset.startScore) === _currentRule.startScore);
+  });
+  document.querySelectorAll('.rule-btn[data-out-rule]').forEach((btn) => {
+    btn.classList.toggle('selected', btn.dataset.outRule === _currentRule.outRule);
+  });
+
+  // ホスト/ゲスト disabled 制御（対戦時はゲストの選択肢を無効化）
+  const isHost = (typeof MomoMatchmaking !== 'undefined') && MomoMatchmaking.getState().isHost;
+  const lockUI = (_mode === 'battle' && !isHost);
+  document.querySelectorAll('#rule-tabs .rule-tab').forEach((b) => { b.disabled = lockUI; });
+  document.querySelectorAll('.rule-btn[data-start-score], .rule-btn[data-out-rule]').forEach((b) => { b.disabled = lockUI; });
+
+  // ルール詳細の動的更新
+  updateRuleDetail();
+}
+
+// v1.88: ルール詳細表示の動的更新（SPEC 11.3）
+function updateRuleDetail() {
+  const nameEl  = $('room-rule-name');
+  const pointsEl= $('rd-points');
+  const turnEl  = $('rd-turn');
+  const winEl   = $('rd-win');
+  const bustDt  = $('rd-bust-dt');
+  const bustEl  = $('rd-bust');
+  if (!nameEl) return;
+
+  if (_currentRule.type === '01') {
+    const out = _currentRule.outRule;
+    const outName = t(`room.rule.outRule.${out}`);
+    nameEl.textContent = `${_currentRule.startScore} ${outName}`;
+    pointsEl.textContent = t('room.rule.points.value01', { score: _currentRule.startScore });
+    turnEl.textContent   = t('room.rule.turn.value');
+    winEl.textContent    = t(`room.rule.win.value.${out}`);
+    if (bustDt) bustDt.textContent = t('room.rule.bust.label');
+    bustEl.textContent   = t('room.rule.bust.value');
+    bustDt.style.display = '';
+    bustEl.style.display = '';
+  } else {
+    // countup
+    nameEl.textContent = t('room.rule.name.countup');
+    pointsEl.textContent = t('room.rule.rounds.value8');
+    turnEl.textContent   = t('room.rule.countup.turn');
+    winEl.textContent    = t('room.rule.countup.win');
+    // バーストはカウントアップではないので非表示
+    bustDt.style.display = 'none';
+    bustEl.style.display = 'none';
+  }
+}
+
+// v1.88: ルール選択 UI のイベントハンドラ
+function setupRuleUIHandlers() {
+  document.querySelectorAll('#rule-tabs .rule-tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      const ruleType = tab.dataset.ruleType;
+      if (ruleType === _currentRule.type) return;
+      if (ruleType === '01') {
+        _currentRule = { type: '01', startScore: 501, outRule: 'single' };
+      } else if (ruleType === 'countup') {
+        _currentRule = { type: 'countup', rounds: 8 };
+      }
+      applyRuleToUI();
+      // v1.89 で rule_change 送信を追加予定
+    });
+  });
+  document.querySelectorAll('.rule-btn[data-start-score]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (_currentRule.type !== '01') return;
+      _currentRule.startScore = Number(btn.dataset.startScore);
+      applyRuleToUI();
+    });
+  });
+  document.querySelectorAll('.rule-btn[data-out-rule]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (_currentRule.type !== '01') return;
+      _currentRule.outRule = btn.dataset.outRule;
+      applyRuleToUI();
+    });
+  });
+}
 let _hostName = '';
 let _guestName = '';
 let _currentRoomName = '';
@@ -1908,8 +2025,8 @@ async function proceedToBattleGameStart() {
   // `_gameState`/`_oppState` も先に初期化しておく（showEndScreen は `_gameState` が
   // 必要、キャリブ中の切断検知 → 結果画面遷移を成立させるため）
   _gameInProgress = true;
-  _gameState = Rules.createInitialState();
-  _oppState = Rules.createInitialState();
+  _gameState = Rules.createInitialState(_currentRule);
+  _oppState = Rules.createInitialState(_currentRule);
   // v1.46: 前試合の再戦合意状態をクリア（showEndScreen は `_oppEndChoice` を
   //        触らない方針に変えたので、新ゲーム開始でここを通る時に初期化する）
   _myEndChoice = null;
@@ -2394,6 +2511,9 @@ document.querySelectorAll('.lobby-chat-input').forEach(input => {
   if (langSelect) langSelect.value = savedLang;
   await applyLang(savedLang);
   // 言語ロード後の最終初期化
+  // v1.88 (v1.3): ルール選択 UI のハンドラ登録（DOM は既に存在、i18n も applyLang 完了済み）
+  setupRuleUIHandlers();
+  applyRuleToUI();
   showScreen('lobby');
   initMatchmaking();
 })();

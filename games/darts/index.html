@@ -493,6 +493,71 @@ body.in-game .site-header h1 {
   color: var(--orange-light);
 }
 
+/* ===== ルール選択 (v1.88, v1.3) ===== */
+.rule-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+.rule-tab {
+  flex: 1;
+  padding: 8px 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.rule-tab.active {
+  background: var(--orange-mid);
+  color: var(--text);
+  border-color: var(--orange-mid);
+}
+.rule-tab:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.rule-group { margin: 8px 0; }
+.rule-group-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.rule-btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.rule-btn {
+  flex: 1;
+  min-width: 56px;
+  padding: 6px 8px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 12px;
+  font-family: 'Noto Sans JP', sans-serif;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.rule-btn.selected {
+  background: var(--orange-mid);
+  border-color: var(--orange-mid);
+  color: var(--text);
+}
+.rule-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* ===== ルール詳細 ===== */
 .rule-name {
   font-family: 'Fredoka One', cursive;
@@ -1692,7 +1757,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.87</span>
+      <span class="version-tag" id="version-tag">v1.88</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -1780,12 +1845,53 @@ body.in-game #gear-icon { display: flex; }
 
   <div class="panel">
     <div class="panel-title" data-i18n="room.rule.title">ルール</div>
-    <div class="rule-name" id="room-rule-name" data-i18n="room.rule.name.501single">501 シングルアウト</div>
+
+    <!-- v1.88 (v1.3): ルール選択 — タブ式 (SPEC 11.1) -->
+    <div class="rule-tabs" id="rule-tabs">
+      <button class="rule-tab active" data-rule-type="01" data-i18n="room.rule.tab.01">01</button>
+      <button class="rule-tab" data-rule-type="countup" data-i18n="room.rule.tab.countup">カウントアップ</button>
+    </div>
+
+    <!-- 01 タブ -->
+    <div class="rule-tab-content" id="rule-tab-01">
+      <div class="rule-group">
+        <div class="rule-group-label" data-i18n="room.rule.startScore.label">持ち点</div>
+        <div class="rule-btn-row">
+          <button class="rule-btn" data-start-score="301">301</button>
+          <button class="rule-btn selected" data-start-score="501">501</button>
+          <button class="rule-btn" data-start-score="701">701</button>
+          <button class="rule-btn" data-start-score="901">901</button>
+          <button class="rule-btn" data-start-score="1101">1101</button>
+          <button class="rule-btn" data-start-score="1501">1501</button>
+        </div>
+      </div>
+      <div class="rule-group">
+        <div class="rule-group-label" data-i18n="room.rule.outRule.label">アウトルール</div>
+        <div class="rule-btn-row">
+          <button class="rule-btn selected" data-out-rule="single" data-i18n="room.rule.outRule.single">シングル</button>
+          <button class="rule-btn" data-out-rule="double" data-i18n="room.rule.outRule.double">ダブル</button>
+          <button class="rule-btn" data-out-rule="master" data-i18n="room.rule.outRule.master">マスター</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- カウントアップ タブ -->
+    <div class="rule-tab-content" id="rule-tab-countup" style="display:none;">
+      <div class="rule-group">
+        <div class="rule-group-label" data-i18n="room.rule.rounds.label">ラウンド数</div>
+        <div class="rule-btn-row">
+          <button class="rule-btn selected" data-rounds="8" disabled data-i18n="room.rule.rounds.value8">8 ラウンド (24投)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ルール詳細表示（選択に応じて動的更新） -->
+    <div class="rule-name" id="room-rule-name">501 シングルアウト</div>
     <dl class="rule-detail">
-      <dt data-i18n="room.rule.points.label">持ち点</dt><dd data-i18n="room.rule.points.value">501 からスタート</dd>
-      <dt data-i18n="room.rule.turn.label">1ターン</dt><dd data-i18n="room.rule.turn.value">最大 3投</dd>
-      <dt data-i18n="room.rule.win.label">勝利条件</dt><dd data-i18n="room.rule.win.value">持ち点をぴったり 0 にする</dd>
-      <dt data-i18n="room.rule.bust.label">バースト</dt><dd data-i18n="room.rule.bust.value">0 未満になる投はターン無効、ターン開始時の点に戻る</dd>
+      <dt data-i18n="room.rule.points.label">持ち点</dt><dd id="rd-points">501 からスタート</dd>
+      <dt data-i18n="room.rule.turn.label">1ターン</dt><dd id="rd-turn">最大 3投</dd>
+      <dt data-i18n="room.rule.win.label">勝利条件</dt><dd id="rd-win">持ち点をぴったり 0 にする</dd>
+      <dt id="rd-bust-dt" data-i18n="room.rule.bust.label">バースト</dt><dd id="rd-bust">0 未満になる投はターン無効、ターン開始時の点に戻る</dd>
       <dt id="room-rule-mode-dt" data-i18n="room.rule.mode.solo.label">練習モード</dt><dd id="room-rule-mode-dd" data-i18n="room.rule.mode.solo.value">勝敗判定なし、フィニッシュまでのターン数を記録</dd>
     </dl>
   </div>

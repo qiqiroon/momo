@@ -1578,6 +1578,15 @@ function applyRuleSelectUI() {
   document.querySelectorAll('#rule-select-content-01 .rule-btn[data-out-rule]').forEach((b) => {
     b.classList.toggle('selected', b.dataset.outRule === rule.outRule);
   });
+  // v1.94 (v1.4): インルール ハイライト
+  document.querySelectorAll('#rule-select-content-01 .rule-btn[data-in-rule]').forEach((b) => {
+    const cur = rule.inRule || 'normal';
+    b.classList.toggle('selected', b.dataset.inRule === cur);
+  });
+  // v1.94 (v1.4): カウントアップ ラウンド数 ハイライト
+  document.querySelectorAll('#rule-select-content-countup .rule-btn[data-rounds]').forEach((b) => {
+    b.classList.toggle('selected', Number(b.dataset.rounds) === rule.rounds);
+  });
   // 詳細表示 (screen-rule-select 内)
   updateRuleSelectDetail();
   // status-bar 文言
@@ -1585,7 +1594,7 @@ function applyRuleSelectUI() {
   if (sb) sb.textContent = t(_ruleSelectScope === 'solo' ? 'ruleSelect.status.solo' : 'ruleSelect.status.create');
 }
 
-// v1.91 (v1.4): screen-rule-select 内のルール詳細表示
+// v1.91/v1.94 (v1.4): screen-rule-select 内のルール詳細表示
 function updateRuleSelectDetail() {
   const rule = getRuleByScope(_ruleSelectScope);
   const nameEl  = $('rule-select-name');
@@ -1596,18 +1605,23 @@ function updateRuleSelectDetail() {
   const bustEl  = $('rs-bust');
   if (!nameEl) return;
   if (rule.type === '01') {
-    nameEl.textContent = `${rule.startScore} ${t(`room.rule.outRule.${rule.outRule}`)}`;
+    const inSfx = (rule.inRule === 'doubleIn') ? ` (${t('room.rule.inRule.doubleIn')})` : '';
+    nameEl.textContent = `${rule.startScore} ${t(`room.rule.outRule.${rule.outRule}`)}${inSfx}`;
     pointsEl.textContent = t('room.rule.points.value01', { score: rule.startScore });
     turnEl.textContent   = t('room.rule.turn.value');
-    winEl.textContent    = t(`room.rule.win.value.${rule.outRule}`);
-    bustEl.textContent   = t('room.rule.bust.value');
+    // 勝利条件: アウトルールに加えて、ダブルインなら冒頭注記
+    const winBase = t(`room.rule.win.value.${rule.outRule}`);
+    winEl.textContent = (rule.inRule === 'doubleIn')
+      ? `${t('room.rule.in.value.doubleIn')} / ${winBase}`
+      : winBase;
+    bustEl.textContent = t('room.rule.bust.value');
     if (bustDt) bustDt.style.display = '';
     bustEl.style.display = '';
   } else {
     nameEl.textContent = t('room.rule.name.countup');
-    pointsEl.textContent = t('room.rule.rounds.value8');
+    pointsEl.textContent = t(`room.rule.rounds.value${rule.rounds}`);
     turnEl.textContent   = t('room.rule.countup.turn');
-    winEl.textContent    = t('room.rule.countup.win');
+    winEl.textContent    = t('room.rule.countup.win.dyn', { rounds: rule.rounds, darts: rule.rounds * 3 });
     if (bustDt) bustDt.style.display = 'none';
     bustEl.style.display = 'none';
   }
@@ -1639,11 +1653,14 @@ function updateRuleDetail() {
 
   if (_currentRule.type === '01') {
     const out = _currentRule.outRule;
+    const inRule = _currentRule.inRule || 'normal';
     const outName = t(`room.rule.outRule.${out}`);
-    nameEl.textContent = `${_currentRule.startScore} ${outName}`;
+    const inSfx = (inRule === 'doubleIn') ? ` (${t('room.rule.inRule.doubleIn')})` : '';
+    nameEl.textContent = `${_currentRule.startScore} ${outName}${inSfx}`;
     pointsEl.textContent = t('room.rule.points.value01', { score: _currentRule.startScore });
     turnEl.textContent   = t('room.rule.turn.value');
-    winEl.textContent    = t(`room.rule.win.value.${out}`);
+    const winBase = t(`room.rule.win.value.${out}`);
+    winEl.textContent = (inRule === 'doubleIn') ? `${t('room.rule.in.value.doubleIn')} / ${winBase}` : winBase;
     if (bustDt) bustDt.textContent = t('room.rule.bust.label');
     bustEl.textContent   = t('room.rule.bust.value');
     bustDt.style.display = '';
@@ -1651,9 +1668,9 @@ function updateRuleDetail() {
   } else {
     // countup
     nameEl.textContent = t('room.rule.name.countup');
-    pointsEl.textContent = t('room.rule.rounds.value8');
+    pointsEl.textContent = t(`room.rule.rounds.value${_currentRule.rounds}`);
     turnEl.textContent   = t('room.rule.countup.turn');
-    winEl.textContent    = t('room.rule.countup.win');
+    winEl.textContent    = t('room.rule.countup.win.dyn', { rounds: _currentRule.rounds, darts: _currentRule.rounds * 3 });
     // バーストはカウントアップではないので非表示
     bustDt.style.display = 'none';
     bustEl.style.display = 'none';
@@ -1689,6 +1706,26 @@ function setupRuleUIHandlers() {
       const current = getRuleByScope(_ruleSelectScope);
       if (current.type !== '01') return;
       const next = { ...current, outRule: btn.dataset.outRule };
+      setRuleByScope(_ruleSelectScope, next);
+      applyRuleSelectUI();
+    });
+  });
+  // v1.94 (v1.4): インルール (ダブルイン)
+  document.querySelectorAll('#rule-select-content-01 .rule-btn[data-in-rule]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const current = getRuleByScope(_ruleSelectScope);
+      if (current.type !== '01') return;
+      const next = { ...current, inRule: btn.dataset.inRule };
+      setRuleByScope(_ruleSelectScope, next);
+      applyRuleSelectUI();
+    });
+  });
+  // v1.94 (v1.4): ラウンド数 (4/8/12)
+  document.querySelectorAll('#rule-select-content-countup .rule-btn[data-rounds]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const current = getRuleByScope(_ruleSelectScope);
+      if (current.type !== 'countup') return;
+      const next = { ...current, rounds: Number(btn.dataset.rounds) };
       setRuleByScope(_ruleSelectScope, next);
       applyRuleSelectUI();
     });
@@ -1814,14 +1851,15 @@ function updateKickButton() {
 }
 
 // v1.49: 言語切替時にも再描画できるよう、最後の rooms を保持
-// v1.90 (v1.4): rule オブジェクトを表示文字列にする（部屋一覧 + 部屋画面 ルール名で共用）
+// v1.90/v1.94 (v1.4): rule オブジェクトを表示文字列にする
 function formatRuleName(rule) {
   if (!Rules.isValidRule(rule)) return '';
   if (rule.type === '01') {
-    return `${rule.startScore} ${t(`room.rule.outRule.${rule.outRule}`)}`;
+    const inSfx = (rule.inRule === 'doubleIn') ? ` (${t('room.rule.inRule.doubleIn')})` : '';
+    return `${rule.startScore} ${t(`room.rule.outRule.${rule.outRule}`)}${inSfx}`;
   }
   if (rule.type === 'countup') {
-    return t('room.rule.name.countup');
+    return `${t('room.rule.name.countup')} ${rule.rounds}R`;
   }
   return '';
 }

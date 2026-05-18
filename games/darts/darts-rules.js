@@ -71,10 +71,14 @@ export function isValidRule(rule) {
   if (rule.type === '01') {
     const validScores = [301, 501, 701, 901, 1101, 1501];
     const validOuts = ['single', 'double', 'master'];
-    return validScores.includes(rule.startScore) && validOuts.includes(rule.outRule);
+    const validIns  = ['normal', 'doubleIn'];
+    // inRule は省略可（省略時 = 'normal'）
+    const inOk = (rule.inRule === undefined) || validIns.includes(rule.inRule);
+    return validScores.includes(rule.startScore) && validOuts.includes(rule.outRule) && inOk;
   }
   if (rule.type === 'countup') {
-    return typeof rule.rounds === 'number' && rule.rounds > 0;
+    const validRounds = [4, 8, 12];
+    return validRounds.includes(rule.rounds);
   }
   return false;
 }
@@ -97,6 +101,8 @@ export function createInitialState(rule) {
       rule,
       remaining: rule.startScore,
       turnStartRemaining: rule.startScore,
+      // v1.94 (v1.4): ダブルインで開始した場合 false、最初の D/DBULL 投擲で true
+      started: (rule.inRule !== 'doubleIn'),
       turnShots: [],     // 現在のターンの shot 配列（最大3個）
       history: [],       // 完了したターンの配列
       dartCount: 0,
@@ -133,6 +139,29 @@ export function applyShot(state, shot) {
 // ----- 01 系 (シングル/ダブル/マスター 共通) -----
 function applyShot01(state, shot) {
   const outRule = (state.rule && state.rule.outRule) || 'single';
+  const inRule  = (state.rule && state.rule.inRule)  || 'normal';
+
+  // v1.94 (v1.4): ダブルイン — 最初の有効投擲が D/DBULL でないと得点開始しない
+  //   未開始時の投擲は得点 0 として記録し、ターン終了は通常通り進行
+  if (inRule === 'doubleIn' && !state.started) {
+    const isDoubleHit = (shot.kind === 'D' || shot.kind === 'DBULL');
+    if (!isDoubleHit) {
+      const zeroShot = { ...shot, value: 0 };
+      state.turnShots.push(zeroShot);
+      state.dartCount++;
+      if (state.turnShots.length >= 3) {
+        const lastShots = [...state.turnShots];
+        state.history.push({ shots: lastShots, bust: false, ended: 'normal' });
+        state.turnShots = [];
+        state.turnIndex++;
+        return { state, turnEnded: true, finished: false, bust: false, hatTrick: false };
+      }
+      return { state, turnEnded: false, finished: false, bust: false, hatTrick: false };
+    }
+    // D/DBULL を当てた → 得点開始
+    state.started = true;
+  }
+
   const newRemaining = state.remaining - shot.value;
 
   // === FINISH (0 ぴったり、アウトルール違反は BUST) ===

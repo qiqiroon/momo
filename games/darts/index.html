@@ -1757,7 +1757,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.93</span>
+      <span class="version-tag" id="version-tag">v1.94</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -1848,13 +1848,24 @@ body.in-game #gear-icon { display: flex; }
           <button class="rule-btn" data-out-rule="master" data-i18n="room.rule.outRule.master">マスター</button>
         </div>
       </div>
+      <!-- v1.94 (v1.4): インルール (ダブルイン) -->
+      <div class="rule-group">
+        <div class="rule-group-label" data-i18n="room.rule.inRule.label">インルール</div>
+        <div class="rule-btn-row">
+          <button class="rule-btn selected" data-in-rule="normal" data-i18n="room.rule.inRule.normal">通常</button>
+          <button class="rule-btn" data-in-rule="doubleIn" data-i18n="room.rule.inRule.doubleIn">ダブルイン</button>
+        </div>
+      </div>
     </div>
 
     <div class="rule-tab-content" id="rule-select-content-countup" data-rule-type="countup" style="display:none;">
+      <!-- v1.94 (v1.4): ラウンド数 4/8/12 から選択可 -->
       <div class="rule-group">
         <div class="rule-group-label" data-i18n="room.rule.rounds.label">ラウンド数</div>
         <div class="rule-btn-row">
-          <button class="rule-btn selected" data-rounds="8" disabled data-i18n="room.rule.rounds.value8">8 ラウンド (24投)</button>
+          <button class="rule-btn" data-rounds="4" data-i18n="room.rule.rounds.value4">4 ラウンド (12投)</button>
+          <button class="rule-btn selected" data-rounds="8" data-i18n="room.rule.rounds.value8">8 ラウンド (24投)</button>
+          <button class="rule-btn" data-rounds="12" data-i18n="room.rule.rounds.value12">12 ラウンド (36投)</button>
         </div>
       </div>
     </div>

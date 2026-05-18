@@ -13,7 +13,7 @@ import * as Rules from './darts-rules.js';
 const $ = (id) => document.getElementById(id);
 
 // ===== screen 切り替え =====
-const SCREENS = ['lobby', 'waiting', 'room', 'calibration', 'game', 'end'];
+const SCREENS = ['lobby', 'rule-select', 'waiting', 'room', 'calibration', 'game', 'end'];
 
 function showScreen(name) {
   if (!SCREENS.includes(name)) return;

@@ -257,6 +257,9 @@ $('btn-calib-cancel').addEventListener('click', async () => {
 // ===== ボタンハンドラ =====
 $('btn-solo-start').addEventListener('click', () => {
   _mode = 'solo';
+  // v1.90 (v1.4): solo 開始時にロビーで選んだルールを _currentRule に確定
+  _currentRule = { ..._soloRule };
+  updateRuleDetail();
   resetRoomToSolo();
   showScreen('room');
 });
@@ -1528,37 +1531,59 @@ const LEGACY_NAME_KEY = 'momo-darts-name';
 // 'solo' | 'battle' — 現在の遊び方モード
 let _mode = 'solo';
 
-// v1.88 (v1.3): 現在選択中のルール（room 画面の選択 UI と同期）
+// v1.88〜v1.90 (v1.4): ルール状態
+//   _soloRule:    「1人で遊ぶ」パネルの選択状態（localStorage `momoDartsSoloRule`）
+//   _createRule:  「部屋を作る」パネルの選択状態（localStorage `momoDartsCreateRule`）
+//   _currentRule: ゲーム実行中のルール（solo 開始時=_soloRule、battle 入室時=サーバーから受信）
 //   SPEC 3.2: { type:'01', startScore:301..1501, outRule:'single'|'double'|'master' }
 //             | { type:'countup', rounds:8 }
-let _currentRule = { type: '01', startScore: 501, outRule: 'single' };
+const DEFAULT_RULE = { type: '01', startScore: 501, outRule: 'single' };
+const SOLO_RULE_LS_KEY   = 'momoDartsSoloRule';
+const CREATE_RULE_LS_KEY = 'momoDartsCreateRule';
+function loadRuleFromLS(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return { ...DEFAULT_RULE };
+    const parsed = JSON.parse(raw);
+    return Rules.isValidRule(parsed) ? parsed : { ...DEFAULT_RULE };
+  } catch { return { ...DEFAULT_RULE }; }
+}
+function saveRuleToLS(key, rule) {
+  try { localStorage.setItem(key, JSON.stringify(rule)); } catch {}
+}
+let _soloRule   = loadRuleFromLS(SOLO_RULE_LS_KEY);
+let _createRule = loadRuleFromLS(CREATE_RULE_LS_KEY);
+let _currentRule = { ..._soloRule };  // 既定は solo 経路
 
-// v1.88 (v1.3): ルール選択 UI の反映（タブ + 持ち点/アウトルール/ラウンド数）
+function getRuleByScope(scope) { return scope === 'create' ? _createRule : _soloRule; }
+function setRuleByScope(scope, rule) {
+  if (scope === 'create') { _createRule = rule; saveRuleToLS(CREATE_RULE_LS_KEY, rule); }
+  else                    { _soloRule   = rule; saveRuleToLS(SOLO_RULE_LS_KEY,   rule); }
+}
+
+// v1.90 (v1.4): ロビー内 2 箇所(solo / create) のルール選択 UI を反映
+function applyRuleToScope(scope) {
+  const rule = getRuleByScope(scope);
+  document.querySelectorAll(`.rule-tabs[data-rule-scope="${scope}"] .rule-tab`).forEach((tab) => {
+    tab.classList.toggle('active', tab.dataset.ruleType === rule.type);
+  });
+  document.querySelectorAll(`.rule-tab-content[data-rule-scope="${scope}"]`).forEach((c) => {
+    c.style.display = c.dataset.ruleType === rule.type ? 'block' : 'none';
+  });
+  document.querySelectorAll(`.rule-tab-content[data-rule-scope="${scope}"] .rule-btn[data-start-score]`).forEach((btn) => {
+    btn.classList.toggle('selected', Number(btn.dataset.startScore) === rule.startScore);
+  });
+  document.querySelectorAll(`.rule-tab-content[data-rule-scope="${scope}"] .rule-btn[data-out-rule]`).forEach((btn) => {
+    btn.classList.toggle('selected', btn.dataset.outRule === rule.outRule);
+  });
+}
+
+// v1.90 (v1.4): 既存の applyRuleToUI を維持（部屋画面のルール詳細表示を更新するため）
+//   ロビーの 2 箇所の選択 UI 反映 + 部屋画面の詳細表示更新
 function applyRuleToUI() {
-  // タブのハイライト + 表示切替
-  document.querySelectorAll('#rule-tabs .rule-tab').forEach((tab) => {
-    tab.classList.toggle('active', tab.dataset.ruleType === _currentRule.type);
-  });
-  const tab01El = $('rule-tab-01');
-  const tabCountupEl = $('rule-tab-countup');
-  if (tab01El) tab01El.style.display = _currentRule.type === '01' ? 'block' : 'none';
-  if (tabCountupEl) tabCountupEl.style.display = _currentRule.type === 'countup' ? 'block' : 'none';
-
-  // 01 タブ内ボタンのハイライト
-  document.querySelectorAll('.rule-btn[data-start-score]').forEach((btn) => {
-    btn.classList.toggle('selected', Number(btn.dataset.startScore) === _currentRule.startScore);
-  });
-  document.querySelectorAll('.rule-btn[data-out-rule]').forEach((btn) => {
-    btn.classList.toggle('selected', btn.dataset.outRule === _currentRule.outRule);
-  });
-
-  // ホスト/ゲスト disabled 制御（対戦時はゲストの選択肢を無効化）
-  const isHost = (typeof MomoMatchmaking !== 'undefined') && MomoMatchmaking.getState().isHost;
-  const lockUI = (_mode === 'battle' && !isHost);
-  document.querySelectorAll('#rule-tabs .rule-tab').forEach((b) => { b.disabled = lockUI; });
-  document.querySelectorAll('.rule-btn[data-start-score], .rule-btn[data-out-rule]').forEach((b) => { b.disabled = lockUI; });
-
-  // ルール詳細の動的更新
+  applyRuleToScope('solo');
+  applyRuleToScope('create');
+  // 部屋画面のルール詳細は _currentRule に従って更新（入室・ゲーム開始時に決まる）
   updateRuleDetail();
 }
 
@@ -1595,51 +1620,44 @@ function updateRuleDetail() {
   }
 }
 
-// v1.88/v1.89 (v1.3): ルール選択 UI のイベントハンドラ
+// v1.88〜v1.90 (v1.4): ルール選択 UI のイベントハンドラ (scope = solo / create)
 function setupRuleUIHandlers() {
-  document.querySelectorAll('#rule-tabs .rule-tab').forEach((tab) => {
+  document.querySelectorAll('.rule-tabs[data-rule-scope] .rule-tab').forEach((tab) => {
     tab.addEventListener('click', () => {
       if (tab.disabled) return;
+      const scope = tab.parentElement.dataset.ruleScope;  // 'solo' | 'create'
       const ruleType = tab.dataset.ruleType;
-      if (ruleType === _currentRule.type) return;
-      if (ruleType === '01') {
-        _currentRule = { type: '01', startScore: 501, outRule: 'single' };
-      } else if (ruleType === 'countup') {
-        _currentRule = { type: 'countup', rounds: 8 };
-      }
-      onRuleChangedLocally();
+      const rule = getRuleByScope(scope);
+      if (ruleType === rule.type) return;
+      const next = (ruleType === '01')
+        ? { type: '01', startScore: 501, outRule: 'single' }
+        : { type: 'countup', rounds: 8 };
+      setRuleByScope(scope, next);
+      applyRuleToScope(scope);
     });
   });
-  document.querySelectorAll('.rule-btn[data-start-score]').forEach((btn) => {
+  document.querySelectorAll('.rule-tab-content[data-rule-scope] .rule-btn[data-start-score]').forEach((btn) => {
     btn.addEventListener('click', () => {
       if (btn.disabled) return;
-      if (_currentRule.type !== '01') return;
-      _currentRule.startScore = Number(btn.dataset.startScore);
-      onRuleChangedLocally();
+      const scope = btn.closest('.rule-tab-content').dataset.ruleScope;
+      const rule = getRuleByScope(scope);
+      if (rule.type !== '01') return;
+      const next = { ...rule, startScore: Number(btn.dataset.startScore) };
+      setRuleByScope(scope, next);
+      applyRuleToScope(scope);
     });
   });
-  document.querySelectorAll('.rule-btn[data-out-rule]').forEach((btn) => {
+  document.querySelectorAll('.rule-tab-content[data-rule-scope] .rule-btn[data-out-rule]').forEach((btn) => {
     btn.addEventListener('click', () => {
       if (btn.disabled) return;
-      if (_currentRule.type !== '01') return;
-      _currentRule.outRule = btn.dataset.outRule;
-      onRuleChangedLocally();
+      const scope = btn.closest('.rule-tab-content').dataset.ruleScope;
+      const rule = getRuleByScope(scope);
+      if (rule.type !== '01') return;
+      const next = { ...rule, outRule: btn.dataset.outRule };
+      setRuleByScope(scope, next);
+      applyRuleToScope(scope);
     });
   });
-}
-
-// v1.89: 自分(ホスト or solo) のルール変更後の共通処理
-//   - UI 反映
-//   - 対戦時: ゲストに rule_change 送信 + 役割選択合意リセット
-function onRuleChangedLocally() {
-  applyRuleToUI();
-  if (_mode !== 'battle') return;
-  const isHost = (typeof MomoMatchmaking !== 'undefined') && MomoMatchmaking.getState().isHost;
-  if (!isHost) return;
-  try {
-    MomoMatchmaking.send({ type: 'rule_change', rule: _currentRule });
-  } catch (e) {}
-  resetBattleAgreementState();
 }
 let _hostName = '';
 let _guestName = '';
@@ -1727,6 +1745,18 @@ function updateKickButton() {
 }
 
 // v1.49: 言語切替時にも再描画できるよう、最後の rooms を保持
+// v1.90 (v1.4): rule オブジェクトを表示文字列にする（部屋一覧 + 部屋画面 ルール名で共用）
+function formatRuleName(rule) {
+  if (!Rules.isValidRule(rule)) return '';
+  if (rule.type === '01') {
+    return `${rule.startScore} ${t(`room.rule.outRule.${rule.outRule}`)}`;
+  }
+  if (rule.type === 'countup') {
+    return t('room.rule.name.countup');
+  }
+  return '';
+}
+
 let _lastPublicRooms = null;
 function renderRoomList(rooms) {
   if (rooms) _lastPublicRooms = rooms;
@@ -1741,10 +1771,14 @@ function renderRoomList(rooms) {
     const div = document.createElement('div');
     div.className = 'room-item';
     const lock = r.hasPassword ? '<span class="room-lock">🔒</span>' : '';
+    // v1.90 (v1.4): 部屋のルール名表示
+    const ruleName = formatRuleName(r.rules);
+    const ruleHtml = ruleName ? `<div class="room-rule">${escapeHtml(ruleName)}</div>` : '';
     div.innerHTML =
       `<div class="room-meta">` +
       `<div class="room-name">${escapeHtml(r.name)}</div>` +
       `<div class="room-host">${escapeHtml(t('lobby.room.host', { name: r.hostName }))}</div>` +
+      `${ruleHtml}` +
       `</div>${lock}`;
     div.addEventListener('click', () => clickJoinRoom(r));
     list.appendChild(div);
@@ -1768,10 +1802,13 @@ function renderPrivateRoomList(rooms, password) {
   for (const r of visible) {
     const div = document.createElement('div');
     div.className = 'room-item';
+    const ruleName = formatRuleName(r.rules);
+    const ruleHtml = ruleName ? `<div class="room-rule">${escapeHtml(ruleName)}</div>` : '';
     div.innerHTML =
       `<div class="room-meta">` +
       `<div class="room-name">${escapeHtml(r.name)}</div>` +
       `<div class="room-host">${escapeHtml(t('lobby.room.host', { name: r.hostName }))}</div>` +
+      `${ruleHtml}` +
       `</div><span class="room-lock">🔒</span>`;
     div.addEventListener('click', () => {
       const myName = ($('my-name').value || '').trim() || t('lobby.guest');
@@ -1846,25 +1883,29 @@ function initMatchmaking() {
       }
     },
 
-    onRoomCreated: (roomId, roomName) => {
+    onRoomCreated: (roomId, roomName, rules) => {
       _mode = 'battle';
       _currentRoomName = roomName;
       _hostName = ($('my-name').value || '').trim() || t('lobby.host');
       _guestName = '';
+      // v1.90 (v1.4): サーバーから返された rules を _currentRule に反映（fallback あり）
+      if (Rules.isValidRule(rules)) _currentRule = rules;
+      updateRuleDetail();
       $('waiting-room-name').textContent = roomName;
       setWaitingStatus('waiting.status.title');
-      // v1.48: ロビーチャットを起動（履歴クリア + パネル表示）
       clearLobbyChat();
       showLobbyChatPanels(true);
       showScreen('waiting');
     },
 
-    onJoinedRoom: (roomId, roomName, hostName) => {
+    onJoinedRoom: (roomId, roomName, hostName, rules) => {
       _mode = 'battle';
       _currentRoomName = roomName;
       _hostName = hostName;
       _guestName = ($('my-name').value || '').trim() || t('lobby.guest');
-      // v1.48: ロビーチャットを起動
+      // v1.90 (v1.4): 入室時にホストのルールを受信して _currentRule に反映
+      if (Rules.isValidRule(rules)) _currentRule = rules;
+      updateRuleDetail();
       clearLobbyChat();
       showLobbyChatPanels(true);
       enterBattleRoom();
@@ -1873,12 +1914,8 @@ function initMatchmaking() {
     onGuestJoined: (guestName) => {
       _guestName = guestName;
       enterBattleRoom();
-      // v1.89 (v1.3): 新規ゲスト入室時、ホストは現在のルールを送信して同期
-      //   ゲスト側は room 画面遷移時に _currentRule = default 501-single でセットされているので
-      //   ホストのルールに上書きする必要がある
-      try {
-        MomoMatchmaking.send({ type: 'rule_change', rule: _currentRule });
-      } catch (e) {}
+      // v1.90 (v1.4): rule_change protocol 削除済み（v1.89 暫定対応撤回）
+      //   入室時にサーバーが返す rules を信頼するため、入室後の同期送信は不要
     },
 
     onGuestLeft: () => {
@@ -1966,12 +2003,16 @@ $('btn-create-room').addEventListener('click', () => {
   localStorage.setItem(NAME_KEY, myName);
   // v1.79: 部屋名も永続化（reversi / gomoku-go と共通キー momoRoomName）
   try { localStorage.setItem(ROOM_NAME_KEY, roomName); } catch {}
+  // v1.90 (v1.4): 部屋作成時にロビーで選んだルールを送信。サーバー protocol の
+  //   汎用 `rules` フィールド流用 (gomoku/go と同じ仕組み、SPEC 8.2)
+  _currentRule = { ..._createRule };
+  updateRuleDetail();
   MomoMatchmaking.createRoom({
     hostName: myName,
     name: roomName,
     password,
     isPublic,
-    rules: { preset: '501-single' },  // 3-B でルール選択を拡張
+    rules: _createRule,
   });
 });
 
@@ -2138,14 +2179,8 @@ function onMyCalibDone() {
 
 function handleBattleMessage(data) {
   if (!data || typeof data.type !== 'string') return;
-  // v1.89 (v1.3): ホストからのルール変更通知（SPEC 8.2 / 11.1）
-  //   ゲスト側で _currentRule を更新、役割選択合意をリセット
-  if (data.type === 'rule_change' && Rules.isValidRule(data.rule)) {
-    _currentRule = data.rule;
-    applyRuleToUI();
-    resetBattleAgreementState();
-    return;
-  }
+  // v1.90 (v1.4): rule_change protocol 削除済み（v1.89 で追加 → SPEC v1.4 で撤回）
+  //   ルールは部屋作成時に確定、入室時に rules で受信。途中変更は不可
   if (data.type === 'role_select') {
     _oppRole = (data.role === 'first' || data.role === 'second') ? data.role : null;
     // 相手がロール変更したら相手の start_press も自動キャンセル

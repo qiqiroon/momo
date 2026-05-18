@@ -506,8 +506,14 @@ function onDartReleased({ hand, strength, durationMs }) {
     //              スコアは MISS のまま。完全に枠外/床落ちのみ miss 音「ボヨン」
     // v1.69 (5-c): 命中時のみ振動音（SPEC 13.7、カサカサ系合成）
     // v1.70: 振動音は強さに比例（最適範囲上限 0.56 超のみ、超過量で音量増）
-    if (isOnBoard(result.board)) { Sound.playHit(); Sound.playVibrate(strength); }
-    else Sound.playMiss();
+    // v1.81 (v1.1): 視覚的振動演出も命中時に発火（SPEC 7.3 振幅12度/6Hz/0.1^t/1.2秒）
+    if (isOnBoard(result.board)) {
+      Sound.playHit();
+      Sound.playVibrate(strength);
+      Render.startTargetVibrate();
+    } else {
+      Sound.playMiss();
+    }
     logShotEvent(_gameState, hand, strength, durationMs, aim, result, shot);
     processShot(_gameState, shot, _myRole);
   }, { thrower: 'self' });
@@ -537,8 +543,14 @@ function handleOppThrow(data) {
     // v1.68: 数字エリアまでは的内として hit 音、枠外/床落ちのみ miss 音
     // v1.69 (5-c): 相手投擲も命中時のみ振動音（SPEC 13.7「相手も自分と同音量」）
     // v1.70: 強さに比例（相手側も同じ閾値・減衰）
-    if (isOnBoard(impactBoard)) { Sound.playHit(); Sound.playVibrate(strength); }
-    else Sound.playMiss();
+    // v1.81 (v1.1): 相手投擲時も視覚的振動演出（SPEC 7.3）
+    if (isOnBoard(impactBoard)) {
+      Sound.playHit();
+      Sound.playVibrate(strength);
+      Render.startTargetVibrate();
+    } else {
+      Sound.playMiss();
+    }
     processShot(_oppState, shot, _activeRole);
   }, { thrower: 'opp', authoritativeBoard: impactBoard });
 }

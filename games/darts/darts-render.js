@@ -206,6 +206,59 @@ export function placeTargetForTurn() {
   };
   // v1.21: ターン進行時に着弾マークをクリア（履歴は段階2-F 以降で実装）
   clearImpactMarks();
+  // v1.81 (v1.1): 残っている振動演出があれば停止（前ターンの振動がターン進行で残らないように）
+  stopTargetVibrate();
+}
+
+// ======================================================================
+// 視覚的振動演出（v1.81 / SPEC 7.3 v1.1 で本体仕様に昇格）
+// ======================================================================
+//   - 振幅 12 度 / 周波数 6 Hz / 減衰係数 0.1^t / 1.2 秒
+//   - 着弾点を支点にダーツ後端が振動する想定だが、簡素実装として
+//     ダーツボード SVG 全体を rotate で揺らす（ダーツも一緒に揺れる）
+//   - 命中時のみ発火、isOnBoard 判定は呼び出し側で行う
+let _vibrateAnimId = null;
+export function startTargetVibrate() {
+  if (!_boardEl) return;
+  const svg = _boardEl.querySelector('svg');
+  if (!svg) return;
+  // 既存振動があれば停止して再開
+  if (_vibrateAnimId) cancelAnimationFrame(_vibrateAnimId);
+
+  const AMPLITUDE_DEG = 12;
+  const FREQUENCY_HZ  = 6;
+  const DECAY_BASE    = 0.1;   // 1秒経過で base^1 = 0.1 倍
+  const DURATION_MS   = 1200;
+  const start = performance.now();
+  svg.style.transformOrigin = '50% 50%';
+
+  function step(now) {
+    const t = (now - start) / 1000;
+    if (t >= DURATION_MS / 1000) {
+      svg.style.transform = '';
+      svg.style.transformOrigin = '';
+      _vibrateAnimId = null;
+      return;
+    }
+    const angle = AMPLITUDE_DEG * Math.sin(2 * Math.PI * FREQUENCY_HZ * t) * Math.pow(DECAY_BASE, t);
+    svg.style.transform = `rotate(${angle}deg)`;
+    _vibrateAnimId = requestAnimationFrame(step);
+  }
+  _vibrateAnimId = requestAnimationFrame(step);
+}
+
+export function stopTargetVibrate() {
+  if (_vibrateAnimId) {
+    cancelAnimationFrame(_vibrateAnimId);
+    _vibrateAnimId = null;
+  }
+  if (_boardEl) {
+    const svg = _boardEl.querySelector('svg');
+    if (svg) {
+      svg.style.transform = '';
+      svg.style.transformOrigin = '';
+    }
+  }
 }
 
 export function getTargetWorld() {

@@ -1276,7 +1276,9 @@ input.chat-preset-btn.editing-input:focus {
 body.in-game #gear-icon { display: flex; }
 
 /* v1.55: fps 表示（SPEC 17.4、4-C-4。ゲーム画面のみ、控えめな位置）
-   v1.56: タイトル「MOMO Darts」と重なるのを避けて右上、歯車の左隣に移動 */
+   v1.56: タイトル「MOMO Darts」と重なるのを避けて右上、歯車の左隣に移動
+   v1.79: 「30fps 割れ時のみ表示」に切替。常時表示用 body.in-game 規則は削除。
+          表示制御は JS の style.display で。色は中立 var(--text-muted) のみ */
 #fps-display {
   position: fixed;
   top: calc(10px + env(safe-area-inset-top, 0px));
@@ -1293,8 +1295,6 @@ body.in-game #gear-icon { display: flex; }
   pointer-events: none;
   user-select: none;
 }
-body.in-game #fps-display { display: block; }
-#fps-display.low { color: #fb923c; }   /* 30fps 割れの注意喚起色 */
 
 /* v1.52: 設定パネル（SPEC 14章）
    歯車クリックで開くモーダル。半透明マスク + 中央のパネル。
@@ -1638,7 +1638,7 @@ body.in-game #fps-display { display: block; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.78</span>
+      <span class="version-tag" id="version-tag">v1.79</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>

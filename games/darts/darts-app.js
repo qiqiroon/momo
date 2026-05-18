@@ -866,19 +866,22 @@ $('btn-recenter').addEventListener('click', () => {
 });
 
 // v1.55 (4-C-4): fps 表示の定期更新（200ms 間隔）。SPEC 17.4
-// 開発期間中は常時表示、30fps 割れで .low クラスを付与（オレンジ色）
+// v1.79 (段階6): 「30fps 割れ時のみ中立表示」に切替。閾値超は非表示
 // v1.59 (4-C-6): 自動モードのときは fps に応じて段階的にフォールバックを発動
 const _fpsEl = $('fps-display');
 setInterval(() => {
-  if (!document.body.classList.contains('in-game')) return;
+  if (!document.body.classList.contains('in-game')) {
+    _fpsEl.style.display = 'none';
+    return;
+  }
   const fps = Render.getFps();
-  if (fps === null) {
-    _fpsEl.textContent = '— fps';
-    _fpsEl.classList.remove('low');
+  if (fps === null || fps >= AUTO_DROP_THRESHOLD) {
+    // 30fps 以上は非表示。「機種が古い」等の直接表現は使わず、中立に隠す
+    _fpsEl.style.display = 'none';
     return;
   }
   _fpsEl.textContent = `${fps} fps`;
-  _fpsEl.classList.toggle('low', fps < AUTO_DROP_THRESHOLD);
+  _fpsEl.style.display = 'block';
 
   // 自動モード時のレベル調整
   if (_qualityMode !== 'auto') return;
@@ -1402,7 +1405,11 @@ langSelect.addEventListener('change', (e) => applyLang(e.target.value));
 
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const GAME_TYPE = 'darts';
-const NAME_KEY = 'momo-darts-name';
+// v1.79 (段階6): MOMO Works 共通キーに揃える（reversi / gomoku-go と同じ）
+//   - 旧 'momo-darts-name' は v0.x の名残。マイグレーションで新キーへ移行
+const NAME_KEY = 'momoPlayerName';
+const ROOM_NAME_KEY = 'momoRoomName';
+const LEGACY_NAME_KEY = 'momo-darts-name';
 
 // 'solo' | 'battle' — 現在の遊び方モード
 let _mode = 'solo';
@@ -1410,9 +1417,24 @@ let _hostName = '';
 let _guestName = '';
 let _currentRoomName = '';
 
-// 名前は localStorage で永続化
+// v1.79: プレイヤー名のレガシーキーから新キーへ自動マイグレーション
+try {
+  const legacy = localStorage.getItem(LEGACY_NAME_KEY);
+  if (legacy && !localStorage.getItem(NAME_KEY)) {
+    localStorage.setItem(NAME_KEY, legacy);
+  }
+  if (legacy) localStorage.removeItem(LEGACY_NAME_KEY);
+} catch {}
+
+// 名前は localStorage で永続化（MOMO Works 全体共通）
 const _savedName = localStorage.getItem(NAME_KEY);
 if (_savedName) $('my-name').value = _savedName;
+// 部屋名も MOMO Works 全体共通でプリフィル（reversi / gomoku-go と同じ流儀）
+try {
+  const _savedRoomName = localStorage.getItem(ROOM_NAME_KEY);
+  const roomInput = $('room-name-input');
+  if (_savedRoomName && roomInput) roomInput.value = _savedRoomName;
+} catch {}
 
 // v1.49: i18n キーを保持し言語切替で再描画できるよう変更
 let _lobbyStatusKey = 'lobby.status.connecting';
@@ -1708,6 +1730,8 @@ $('btn-create-room').addEventListener('click', () => {
   }
   setError('create-error', '');
   localStorage.setItem(NAME_KEY, myName);
+  // v1.79: 部屋名も永続化（reversi / gomoku-go と共通キー momoRoomName）
+  try { localStorage.setItem(ROOM_NAME_KEY, roomName); } catch {}
   MomoMatchmaking.createRoom({
     hostName: myName,
     name: roomName,

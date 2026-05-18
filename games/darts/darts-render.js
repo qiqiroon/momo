@@ -211,16 +211,18 @@ export function placeTargetForTurn() {
 }
 
 // ======================================================================
-// 視覚的振動演出（v1.81 / SPEC 7.3 v1.1 で本体仕様に昇格、v1.82 で物理風に拡張）
+// 視覚的振動演出（v1.81 / SPEC 7.3 v1.1 で本体仕様に昇格、v1.83 押し込み物理風）
 // ======================================================================
 //   - 振幅 12 度 / 周波数 6 Hz / 減衰係数 0.1^t / 1.2 秒（SPEC 7.3）
-//   - 支点 = 円盤の上端中央（20 の数字の上、SVG ローカル (0, -R_BORDER)）
-//   - 「上端で吊られた円盤」風の物理風振動。当たり位置に応じて方向と振幅が変わる:
-//       * 当たりが下方向（3 の近く）→ ピッチ揺れ大（前後にお辞儀）
-//       * 当たりが真上（20 直下）→ ほぼ揺れない
-//       * 当たりが左右（6 / 11 近く）→ ヨー揺れ大（左右に首振り）
-//   - CSS 3D の rotateX/rotateY + perspective() で表現
-//   - 強さ連動: 0〜最適範囲上限 (0.56) は無音／無振動、超過量に比例して振幅増
+//   - 支点 = 円盤の上端中央（20 の数字の上、SVG ローカル (0, -R_BORDER)）固定
+//   - 物理モデル: 当たり位置に z 方向（奥行き）の衝撃 → 上端を固定したまま当たり位置が奥に
+//     沈み込む。回転軸は支点と当たり位置を結ぶ線(PH)の **円盤面内垂直方向**。
+//     つまり PH が長いほど振幅大（てこの長さ）、PH の向きで振動軸が決まる:
+//       * 真下当たり (20 直下を超えて中心〜下まで)  → PH ≈ Y 軸 → 軸 ≈ X 軸 → 前後にお辞儀
+//       * 真上当たり (20 直下、支点直近)            → PH ≈ 0  → ほぼ振動なし
+//       * 右当たり (6 / 11 寄り)                     → PH 斜め → 斜め軸まわり、右が奥にねじれる
+//   - CSS の rotate3d(rx, ry, 0, θ) で実装。perspective(600px) で 3D 効果可視化
+//   - 強さ連動: 0〜最適範囲上限 (0.56) は無振動、超過量に比例して振幅増
 let _vibrateAnimId = null;
 export function startTargetVibrate(strength, impactBoard) {
   if (!_boardEl) return;
@@ -238,22 +240,26 @@ export function startTargetVibrate(strength, impactBoard) {
   const DECAY_BASE  = 0.1;
   const DURATION_MS = 1200;
 
-  // 当たり位置から振動成分のスケールを計算
-  // 支点 = (0, -R_BORDER)、impactBoard は中央(0,0)からの SVG ローカル座標(Y下向き)
-  //   - pitchScale: 支点から下方向距離 / 直径 (0〜1)
-  //   - yawScale:   左右距離 / 半径 (-1〜+1)
-  let pitchScale = 0;
-  let yawScale   = 0;
+  // 支点 (0, -R_BORDER) から当たり位置への振り子の腕ベクトル PH
+  let leverX = 0, leverY = 0;
   if (impactBoard) {
-    const dy = impactBoard.y + R_BORDER;     // 支点からの下方向距離 0〜2R
-    const dx = impactBoard.x;                // 左右距離 -R〜+R
-    pitchScale = Math.max(0, Math.min(1, dy / (2 * R_BORDER)));
-    yawScale   = Math.max(-1, Math.min(1, dx / R_BORDER));
+    leverX = impactBoard.x;                  // -R 〜 +R
+    leverY = impactBoard.y + R_BORDER;       // 0 〜 2R（支点真上は 0）
   }
-  const pitchAmp = MAX_AMP_DEG * intensity * pitchScale;
-  const yawAmp   = MAX_AMP_DEG * intensity * yawScale;
+  const leverLen = Math.hypot(leverX, leverY);
+  // てこ長さスケール（最大は対角 sqrt(R^2 + (2R)^2) ≈ 2.236R、それで割って 0〜1）
+  const leverScale = Math.min(1, leverLen / (R_BORDER * Math.sqrt(5)));
+  const amp = MAX_AMP_DEG * intensity * leverScale;
+  // 振動軸 = PH に円盤面内で垂直な方向（XY 平面内）
+  //   PH = (leverX, leverY) を 90度回転 → (leverY, -leverX)、正規化
+  //   leverLen が小さい時(中心当たり、しかも支点真下)は軸不定→無振動でOK
+  let rx = 1, ry = 0;
+  if (leverLen > 0.001) {
+    rx = leverY / leverLen;
+    ry = -leverX / leverLen;
+  }
 
-  // 支点を上端中央に。bbox 基準で 50% 0%（SVG viewBox の top-center に対応）
+  // 支点を上端中央に
   svg.style.transformOrigin = '50% 0%';
 
   const start = performance.now();
@@ -267,10 +273,9 @@ export function startTargetVibrate(strength, impactBoard) {
     }
     const decay = Math.pow(DECAY_BASE, t);
     const phase = 2 * Math.PI * FREQ_HZ * t;
-    const pitch = pitchAmp * Math.sin(phase) * decay;
-    const yaw   = yawAmp   * Math.sin(phase) * decay;
-    // perspective() を transform 内に埋めて 3D 効果を出す（親要素の CSS 変更不要）
-    svg.style.transform = `perspective(600px) rotateX(${pitch}deg) rotateY(${yaw}deg)`;
+    const angle = amp * Math.sin(phase) * decay;
+    // 任意軸まわりの 3D 回転で「押し込み振動」を表現
+    svg.style.transform = `perspective(600px) rotate3d(${rx}, ${ry}, 0, ${angle}deg)`;
     _vibrateAnimId = requestAnimationFrame(step);
   }
   _vibrateAnimId = requestAnimationFrame(step);

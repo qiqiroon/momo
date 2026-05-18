@@ -625,25 +625,18 @@ export function clearImpactMarks() {
 }
 
 // ======================================================================
-// 性能フォールバック（v1.59 / SPEC 17.4 段階1〜4 / 4-C-5）
+// 性能フォールバック（v1.59 / SPEC 17.4 段階1〜2、v1.80 で 3/4 を SPEC 19 へ）
 // ======================================================================
 //   段階1: 木目 → 単色（darts-app.js が #game-3d-wall に .no-texture を付与）
 //   段階2: 着弾履歴の上限化（_maxImpactMarks）
-//   段階3: 軌道線フェード即時消去（trail 未実装のため placeholder）
-//   段階4: 紙吹雪粒子数削減（紙吹雪未実装のため placeholder）
+//   段階3/4 は軌道線・紙吹雪自体が v1.0 で未実装のため SPEC 19 残課題に移動
 let _maxImpactMarks = Infinity;
-let _trailEnabled = true;      // SPEC 7.3 軌道線。現状未実装、setter のみ用意
-let _confettiSimplified = false;  // SPEC 7.x 紙吹雪。現状未実装、setter のみ用意
 export function setMaxImpactMarks(n) {
   _maxImpactMarks = (typeof n === 'number' && n > 0) ? Math.floor(n) : Infinity;
 }
-export function setTrailEnabled(on) { _trailEnabled = !!on; }
-export function setConfettiSimplified(on) { _confettiSimplified = !!on; }
 export function getQualityState() {
   return {
     maxImpactMarks: _maxImpactMarks,
-    trailEnabled: _trailEnabled,
-    confettiSimplified: _confettiSimplified,
   };
 }
 

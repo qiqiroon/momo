@@ -888,7 +888,7 @@ setInterval(() => {
   if (fps < AUTO_DROP_THRESHOLD) {
     _lowFpsCount++;
     _highFpsCount = 0;
-    if (_lowFpsCount >= AUTO_DROP_TICKS && _qualityLevel < 4) {
+    if (_lowFpsCount >= AUTO_DROP_TICKS && _qualityLevel < QUALITY_MAX_LEVEL) {
       applyQualityLevel(_qualityLevel + 1);
       _lowFpsCount = 0;
       refreshQualityUI();
@@ -910,10 +910,12 @@ setInterval(() => {
 
 // v1.59 (4-C-5/6): 性能フォールバック + 描画品質モード（SPEC 14.2 + 17.4）
 // モード: 'auto' | 'standard' | 'light'。永続化キー: momoDartsQuality
-// level: 0=標準、1=木目→単色、2=+履歴1、3=+軌道線即時消去、4=+紙吹雪簡素化
+// level: 0=標準、1=木目→単色、2=+履歴1
+// v1.80 (段階6): 段階3/4 (軌道線即時消去/紙吹雪簡素化) は対象機能が未実装のため SPEC 19 残課題に移動。max level も 2 に。
 const QUALITY_LS_KEY = 'momoDartsQuality';
 let _qualityMode = localStorage.getItem(QUALITY_LS_KEY) || 'auto';
 let _qualityLevel = 0;
+const QUALITY_MAX_LEVEL = 2;
 // 自動発動: 30fps を下回る連続回数で 1 段階上げ、回復したら戻す
 let _lowFpsCount = 0;
 let _highFpsCount = 0;
@@ -922,16 +924,12 @@ const AUTO_RECOVER_THRESHOLD = 50;
 const AUTO_DROP_TICKS = 5;     // 200ms × 5 = 1秒継続で発動
 const AUTO_RECOVER_TICKS = 25; // 200ms × 25 = 5秒継続で回復
 function applyQualityLevel(level) {
-  _qualityLevel = Math.max(0, Math.min(4, level | 0));
+  _qualityLevel = Math.max(0, Math.min(QUALITY_MAX_LEVEL, level | 0));
   const wall = document.getElementById('game-3d-wall');
   // 段階1: 木目 → 単色（v1.55 で .no-texture クラス実装済み）
   if (wall) wall.classList.toggle('no-texture', _qualityLevel >= 1);
   // 段階2: 着弾履歴を 1 投のみに制限
   Render.setMaxImpactMarks(_qualityLevel >= 2 ? 1 : Infinity);
-  // 段階3: 軌道線即時消去（軌道線実装後に有効化）
-  Render.setTrailEnabled(_qualityLevel < 3);
-  // 段階4: 紙吹雪簡素化（紙吹雪実装後に有効化）
-  Render.setConfettiSimplified(_qualityLevel >= 4);
 }
 function getQualityLevel() { return _qualityLevel; }
 function refreshQualityUI() {
@@ -959,7 +957,7 @@ function applyQualityMode(mode) {
   _qualityMode = mode;
   localStorage.setItem(QUALITY_LS_KEY, mode);
   if (mode === 'standard') applyQualityLevel(0);
-  else if (mode === 'light') applyQualityLevel(4);
+  else if (mode === 'light') applyQualityLevel(QUALITY_MAX_LEVEL);
   else { _lowFpsCount = 0; _highFpsCount = 0; applyQualityLevel(0); }
   refreshQualityUI();
 }
@@ -967,7 +965,7 @@ function applyQualityMode(mode) {
 // applyLang 完了後に refreshDynamicI18n が呼んでくれる。
 // ここで applyQualityMode() を直接呼ぶと t() が _currentLang を TDZ で参照しエラーになり、
 // 以降の MomoMatchmaking.init / btn-solo-start.addEventListener が登録されなくなる。
-if (_qualityMode === 'light') applyQualityLevel(4);
+if (_qualityMode === 'light') applyQualityLevel(QUALITY_MAX_LEVEL);
 else applyQualityLevel(0);
 
 // クリックハンドラ

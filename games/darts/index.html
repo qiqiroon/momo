@@ -583,17 +583,18 @@ body.in-game .site-header h1 {
   pointer-events: none;
   z-index: 2;  /* 矢印・タイトル(z:50)より下、シーン(z:0)より上 */
 }
-#trail-layer polyline {
+/* v1.86 (v1.2): 先細り軌道線 — group 単位で opacity 制御、0.5 秒フェード */
+#trail-layer g {
   fill: none;
-  stroke-width: 3;
-  stroke-linecap: round;
-  stroke-linejoin: round;
   opacity: 0.7;
-  transition: opacity 2.5s ease-out;
+  transition: opacity 0.5s ease-out;
 }
-#trail-layer polyline.self { stroke: #ea580c; }   /* オレンジ（自分） */
-#trail-layer polyline.opp  { stroke: #9ca3af; }   /* グレー（相手） */
-#trail-layer polyline.fade { opacity: 0; }
+#trail-layer g line {
+  stroke-linecap: round;
+}
+#trail-layer g.self line { stroke: #ea580c; }   /* オレンジ（自分） */
+#trail-layer g.opp  line { stroke: #9ca3af; }   /* グレー（相手） */
+#trail-layer g.fade { opacity: 0; }
 
 /* v1.85 (v1.2): 紙吹雪演出（SPEC 7章 / 10.5、勝利時のみ） */
 #confetti-overlay {
@@ -1691,7 +1692,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.85</span>
+      <span class="version-tag" id="version-tag">v1.86</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>

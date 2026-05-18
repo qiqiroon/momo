@@ -871,8 +871,14 @@ export function fireFlight(simResult, onComplete, opts) {
   _currentTrail = [];
 }
 
-// v1.85 (v1.2): 軌道線を SVG polyline として #trail-layer に追加、2.5 秒でフェード
-//   性能フォールバック段階3: setTrailEnabled(false) で trail 蓄積自体を停止 → ここに来てもスキップ
+// v1.85/v1.86 (v1.2): 軌道線を #trail-layer に追加、着弾後 0.5 秒でフェード (SPEC 7.2)
+//   - 先細り表現: 投擲元（手前）が太く、着弾点（先端）に向けて細くなる
+//   - 個別 <line> セグメントの stroke-width を線形補間
+//   - 性能フォールバック段階3: setTrailEnabled(false) で trail 蓄積自体を停止
+const TRAIL_WIDTH_NEAR = 6;  // 手前（投擲元側）の太さ
+const TRAIL_WIDTH_FAR  = 1;  // 先端（着弾点側）の太さ
+const TRAIL_FADE_MS    = 500; // 0.5 秒で完全消去
+
 function spawnTrailPolyline(thrower) {
   if (!_trailEnabled || _currentTrail.length < 2) return;
   const layer = document.getElementById('trail-layer');
@@ -882,19 +888,32 @@ function spawnTrailPolyline(thrower) {
   const w = layer.clientWidth || window.innerWidth;
   const h = layer.clientHeight || window.innerHeight;
   layer.setAttribute('viewBox', `0 0 ${w} ${h}`);
-  const points = _currentTrail.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
-  const line = document.createElementNS(ns, 'polyline');
-  line.setAttribute('points', points);
-  line.setAttribute('class', thrower === 'opp' ? 'opp' : 'self');
-  layer.appendChild(line);
-  // フェード発動（次フレームに opacity transition を有効化）
+  // 線形補間で stroke-width を変えるセグメント群を <g> に詰める
+  const g = document.createElementNS(ns, 'g');
+  g.setAttribute('class', thrower === 'opp' ? 'opp' : 'self');
+  const N = _currentTrail.length - 1;
+  for (let i = 0; i < N; i++) {
+    const p0 = _currentTrail[i];
+    const p1 = _currentTrail[i + 1];
+    const seg = document.createElementNS(ns, 'line');
+    seg.setAttribute('x1', p0.x.toFixed(1));
+    seg.setAttribute('y1', p0.y.toFixed(1));
+    seg.setAttribute('x2', p1.x.toFixed(1));
+    seg.setAttribute('y2', p1.y.toFixed(1));
+    // i=0 で TRAIL_WIDTH_NEAR、i=N-1 で TRAIL_WIDTH_FAR に線形補間
+    const tFrac = N > 1 ? i / (N - 1) : 0;
+    const sw = TRAIL_WIDTH_NEAR * (1 - tFrac) + TRAIL_WIDTH_FAR * tFrac;
+    seg.setAttribute('stroke-width', sw.toFixed(2));
+    g.appendChild(seg);
+  }
+  layer.appendChild(g);
+  // 着弾後即フェード開始
   requestAnimationFrame(() => {
-    line.classList.add('fade');
+    g.classList.add('fade');
   });
-  // フェード完了後に DOM から remove (CSS transition 2.5s + 余裕 200ms)
   setTimeout(() => {
-    if (line.parentNode) line.parentNode.removeChild(line);
-  }, 2700);
+    if (g.parentNode) g.parentNode.removeChild(g);
+  }, TRAIL_FADE_MS + 100);  // 余裕 100ms
 }
 
 function endFlight() {

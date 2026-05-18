@@ -809,6 +809,18 @@ function showEndScreen(opts) {
   const chatAreaEnd = $('chat-area-end');
   if (chatAreaEnd) chatAreaEnd.style.display = (_mode === 'battle') ? '' : 'none';
 
+  // v1.85 (v1.2): 紙吹雪演出（SPEC 7章 / 10.5）
+  //   - 対戦勝者(winner==='self') or 1人プレイ完走時のみ発動
+  //   - abort では発動しない
+  //   - 性能フォールバック段階4 で粒子数半減（Render 側で処理）
+  const isVictory =
+    (opts && opts.abort) ? false
+    : (_mode === 'battle') ? (opts && opts.winner === 'self')
+    : true;  // solo 完走
+  if (isVictory) {
+    Render.startConfetti();
+  }
+
   leaveGameScreen();
   showScreen('end');
 }
@@ -928,12 +940,13 @@ setInterval(() => {
 
 // v1.59 (4-C-5/6): 性能フォールバック + 描画品質モード（SPEC 14.2 + 17.4）
 // モード: 'auto' | 'standard' | 'light'。永続化キー: momoDartsQuality
-// level: 0=標準、1=木目→単色、2=+履歴1
-// v1.80 (段階6): 段階3/4 (軌道線即時消去/紙吹雪簡素化) は対象機能が未実装のため SPEC 19 残課題に移動。max level も 2 に。
+// level: 0=標準、1=木目→単色、2=+履歴1、3=+軌道線即時消去、4=+紙吹雪簡素化
+// v1.80 (段階6): 段階3/4 を SPEC 19 残課題に移動、max level=2 に縮約
+// v1.85 (v1.2): 軌道線・紙吹雪を実装したので段階3/4 復活、max level=4 に戻す
 const QUALITY_LS_KEY = 'momoDartsQuality';
 let _qualityMode = localStorage.getItem(QUALITY_LS_KEY) || 'auto';
 let _qualityLevel = 0;
-const QUALITY_MAX_LEVEL = 2;
+const QUALITY_MAX_LEVEL = 4;
 // 自動発動: 30fps を下回る連続回数で 1 段階上げ、回復したら戻す
 let _lowFpsCount = 0;
 let _highFpsCount = 0;
@@ -948,6 +961,10 @@ function applyQualityLevel(level) {
   if (wall) wall.classList.toggle('no-texture', _qualityLevel >= 1);
   // 段階2: 着弾履歴を 1 投のみに制限
   Render.setMaxImpactMarks(_qualityLevel >= 2 ? 1 : Infinity);
+  // 段階3: 軌道線即時消去（trail 蓄積自体を止める）
+  Render.setTrailEnabled(_qualityLevel < 3);
+  // 段階4: 紙吹雪粒子数を半減
+  Render.setConfettiSimplified(_qualityLevel >= 4);
 }
 function getQualityLevel() { return _qualityLevel; }
 function refreshQualityUI() {

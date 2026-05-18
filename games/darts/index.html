@@ -571,6 +571,59 @@ body.in-game .site-header h1 {
   filter: drop-shadow(0 6px 14px rgba(0,0,0,0.5));
 }
 
+/* v1.85 (v1.2): 軌道線フェード描画レイヤー（SPEC 7.2）
+   ・画面全体を覆う SVG、座標は CSS ピクセル
+   ・polyline を JS が動的に append、CSS opacity transition でフェードアウト
+   ・性能フォールバック段階3 で即時消去 (.no-trail) */
+#trail-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;  /* 矢印・タイトル(z:50)より下、シーン(z:0)より上 */
+}
+#trail-layer polyline {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.7;
+  transition: opacity 2.5s ease-out;
+}
+#trail-layer polyline.self { stroke: #ea580c; }   /* オレンジ（自分） */
+#trail-layer polyline.opp  { stroke: #9ca3af; }   /* グレー（相手） */
+#trail-layer polyline.fade { opacity: 0; }
+
+/* v1.85 (v1.2): 紙吹雪演出（SPEC 7章 / 10.5、勝利時のみ） */
+#confetti-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 250;     /* end 画面の上に重ねる */
+  overflow: hidden;
+}
+.confetti-piece {
+  position: absolute;
+  top: -20px;
+  width: 8px;
+  height: 12px;
+  border-radius: 1px;
+  will-change: transform, opacity;
+  animation: confetti-fall linear forwards;
+}
+@keyframes confetti-fall {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    opacity: 1;
+  }
+  90% { opacity: 1; }
+  100% {
+    transform: translate3d(var(--cf-x, 0px), 110vh, 0) rotate(var(--cf-rot, 720deg));
+    opacity: 0;
+  }
+}
+
 /* 視界外方向矢印（SPEC 4.2 / 16.10：z-index 10 系） */
 #game-3d-arrow {
   position: absolute;
@@ -1638,7 +1691,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.84</span>
+      <span class="version-tag" id="version-tag">v1.85</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -1803,6 +1856,8 @@ body.in-game #gear-icon { display: flex; }
       <div id="game-3d-wall"></div>
       <div id="game-3d-board"><!-- darts-render.js が SVG を注入 --></div>
     </div>
+    <!-- v1.85 (v1.2): 軌道線フェード描画レイヤー（画面座標、シーン外）SPEC 7.2 -->
+    <svg id="trail-layer" preserveAspectRatio="none" aria-hidden="true"></svg>
     <!-- 矢印は画面固定（シーンの外） -->
     <div id="game-3d-arrow">
       <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">

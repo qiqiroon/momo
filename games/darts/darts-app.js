@@ -256,12 +256,8 @@ $('btn-calib-cancel').addEventListener('click', async () => {
 
 // ===== ボタンハンドラ =====
 $('btn-solo-start').addEventListener('click', () => {
-  _mode = 'solo';
-  // v1.90 (v1.4): solo 開始時にロビーで選んだルールを _currentRule に確定
-  _currentRule = { ..._soloRule };
-  updateRuleDetail();
-  resetRoomToSolo();
-  showScreen('room');
+  // v1.91 (v1.4): screen-rule-select 経由 → 決定で screen-room へ
+  showRuleSelectScreen('solo');
 });
 
 $('btn-game-start').addEventListener('click', () => {
@@ -1531,10 +1527,11 @@ const LEGACY_NAME_KEY = 'momo-darts-name';
 // 'solo' | 'battle' — 現在の遊び方モード
 let _mode = 'solo';
 
-// v1.88〜v1.90 (v1.4): ルール状態
-//   _soloRule:    「1人で遊ぶ」パネルの選択状態（localStorage `momoDartsSoloRule`）
-//   _createRule:  「部屋を作る」パネルの選択状態（localStorage `momoDartsCreateRule`）
+// v1.88〜v1.91 (v1.4): ルール状態
+//   _soloRule:    「一人で遊ぶ」用の選択状態（localStorage `momoDartsSoloRule`）
+//   _createRule:  「部屋を作る」用の選択状態（localStorage `momoDartsCreateRule`）
 //   _currentRule: ゲーム実行中のルール（solo 開始時=_soloRule、battle 入室時=サーバーから受信）
+//   _ruleSelectScope: 'solo' | 'create' (screen-rule-select 表示中にどちらを編集しているか)
 //   SPEC 3.2: { type:'01', startScore:301..1501, outRule:'single'|'double'|'master' }
 //             | { type:'countup', rounds:8 }
 const DEFAULT_RULE = { type: '01', startScore: 501, outRule: 'single' };
@@ -1554,6 +1551,7 @@ function saveRuleToLS(key, rule) {
 let _soloRule   = loadRuleFromLS(SOLO_RULE_LS_KEY);
 let _createRule = loadRuleFromLS(CREATE_RULE_LS_KEY);
 let _currentRule = { ..._soloRule };  // 既定は solo 経路
+let _ruleSelectScope = 'solo';
 
 function getRuleByScope(scope) { return scope === 'create' ? _createRule : _soloRule; }
 function setRuleByScope(scope, rule) {
@@ -1561,28 +1559,70 @@ function setRuleByScope(scope, rule) {
   else                    { _soloRule   = rule; saveRuleToLS(SOLO_RULE_LS_KEY,   rule); }
 }
 
-// v1.90 (v1.4): ロビー内 2 箇所(solo / create) のルール選択 UI を反映
-function applyRuleToScope(scope) {
-  const rule = getRuleByScope(scope);
-  document.querySelectorAll(`.rule-tabs[data-rule-scope="${scope}"] .rule-tab`).forEach((tab) => {
+// v1.91 (v1.4): screen-rule-select の表示反映（scope の現状ルール → UI）
+function applyRuleSelectUI() {
+  const rule = getRuleByScope(_ruleSelectScope);
+  // タブ
+  document.querySelectorAll('#rule-select-tabs .rule-tab').forEach((tab) => {
     tab.classList.toggle('active', tab.dataset.ruleType === rule.type);
   });
-  document.querySelectorAll(`.rule-tab-content[data-rule-scope="${scope}"]`).forEach((c) => {
-    c.style.display = c.dataset.ruleType === rule.type ? 'block' : 'none';
+  // タブコンテンツ
+  const c01 = $('rule-select-content-01');
+  const cCu = $('rule-select-content-countup');
+  if (c01) c01.style.display = rule.type === '01' ? 'block' : 'none';
+  if (cCu) cCu.style.display = rule.type === 'countup' ? 'block' : 'none';
+  // ボタンのハイライト
+  document.querySelectorAll('#rule-select-content-01 .rule-btn[data-start-score]').forEach((b) => {
+    b.classList.toggle('selected', Number(b.dataset.startScore) === rule.startScore);
   });
-  document.querySelectorAll(`.rule-tab-content[data-rule-scope="${scope}"] .rule-btn[data-start-score]`).forEach((btn) => {
-    btn.classList.toggle('selected', Number(btn.dataset.startScore) === rule.startScore);
+  document.querySelectorAll('#rule-select-content-01 .rule-btn[data-out-rule]').forEach((b) => {
+    b.classList.toggle('selected', b.dataset.outRule === rule.outRule);
   });
-  document.querySelectorAll(`.rule-tab-content[data-rule-scope="${scope}"] .rule-btn[data-out-rule]`).forEach((btn) => {
-    btn.classList.toggle('selected', btn.dataset.outRule === rule.outRule);
-  });
+  // 詳細表示 (screen-rule-select 内)
+  updateRuleSelectDetail();
+  // status-bar 文言
+  const sb = $('rule-select-status');
+  if (sb) sb.textContent = t(_ruleSelectScope === 'solo' ? 'ruleSelect.status.solo' : 'ruleSelect.status.create');
 }
 
-// v1.90 (v1.4): 既存の applyRuleToUI を維持（部屋画面のルール詳細表示を更新するため）
-//   ロビーの 2 箇所の選択 UI 反映 + 部屋画面の詳細表示更新
+// v1.91 (v1.4): screen-rule-select 内のルール詳細表示
+function updateRuleSelectDetail() {
+  const rule = getRuleByScope(_ruleSelectScope);
+  const nameEl  = $('rule-select-name');
+  const pointsEl= $('rs-points');
+  const turnEl  = $('rs-turn');
+  const winEl   = $('rs-win');
+  const bustDt  = $('rs-bust-dt');
+  const bustEl  = $('rs-bust');
+  if (!nameEl) return;
+  if (rule.type === '01') {
+    nameEl.textContent = `${rule.startScore} ${t(`room.rule.outRule.${rule.outRule}`)}`;
+    pointsEl.textContent = t('room.rule.points.value01', { score: rule.startScore });
+    turnEl.textContent   = t('room.rule.turn.value');
+    winEl.textContent    = t(`room.rule.win.value.${rule.outRule}`);
+    bustEl.textContent   = t('room.rule.bust.value');
+    if (bustDt) bustDt.style.display = '';
+    bustEl.style.display = '';
+  } else {
+    nameEl.textContent = t('room.rule.name.countup');
+    pointsEl.textContent = t('room.rule.rounds.value8');
+    turnEl.textContent   = t('room.rule.countup.turn');
+    winEl.textContent    = t('room.rule.countup.win');
+    if (bustDt) bustDt.style.display = 'none';
+    bustEl.style.display = 'none';
+  }
+}
+
+// v1.91 (v1.4): screen-rule-select 遷移ヘルパー
+function showRuleSelectScreen(scope) {
+  _ruleSelectScope = scope;
+  applyRuleSelectUI();
+  showScreen('rule-select');
+}
+
+// 言語切替・他から呼ばれる UI 再描画
 function applyRuleToUI() {
-  applyRuleToScope('solo');
-  applyRuleToScope('create');
+  applyRuleSelectUI();
   // 部屋画面のルール詳細は _currentRule に従って更新（入室・ゲーム開始時に決まる）
   updateRuleDetail();
 }
@@ -1620,44 +1660,73 @@ function updateRuleDetail() {
   }
 }
 
-// v1.88〜v1.90 (v1.4): ルール選択 UI のイベントハンドラ (scope = solo / create)
+// v1.91 (v1.4): screen-rule-select 内の UI イベントハンドラ
+//   _ruleSelectScope ('solo' or 'create') の現在ルールを編集
 function setupRuleUIHandlers() {
-  document.querySelectorAll('.rule-tabs[data-rule-scope] .rule-tab').forEach((tab) => {
+  document.querySelectorAll('#rule-select-tabs .rule-tab').forEach((tab) => {
     tab.addEventListener('click', () => {
-      if (tab.disabled) return;
-      const scope = tab.parentElement.dataset.ruleScope;  // 'solo' | 'create'
       const ruleType = tab.dataset.ruleType;
-      const rule = getRuleByScope(scope);
-      if (ruleType === rule.type) return;
+      const current = getRuleByScope(_ruleSelectScope);
+      if (ruleType === current.type) return;
       const next = (ruleType === '01')
         ? { type: '01', startScore: 501, outRule: 'single' }
         : { type: 'countup', rounds: 8 };
-      setRuleByScope(scope, next);
-      applyRuleToScope(scope);
+      setRuleByScope(_ruleSelectScope, next);
+      applyRuleSelectUI();
     });
   });
-  document.querySelectorAll('.rule-tab-content[data-rule-scope] .rule-btn[data-start-score]').forEach((btn) => {
+  document.querySelectorAll('#rule-select-content-01 .rule-btn[data-start-score]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      if (btn.disabled) return;
-      const scope = btn.closest('.rule-tab-content').dataset.ruleScope;
-      const rule = getRuleByScope(scope);
-      if (rule.type !== '01') return;
-      const next = { ...rule, startScore: Number(btn.dataset.startScore) };
-      setRuleByScope(scope, next);
-      applyRuleToScope(scope);
+      const current = getRuleByScope(_ruleSelectScope);
+      if (current.type !== '01') return;
+      const next = { ...current, startScore: Number(btn.dataset.startScore) };
+      setRuleByScope(_ruleSelectScope, next);
+      applyRuleSelectUI();
     });
   });
-  document.querySelectorAll('.rule-tab-content[data-rule-scope] .rule-btn[data-out-rule]').forEach((btn) => {
+  document.querySelectorAll('#rule-select-content-01 .rule-btn[data-out-rule]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      if (btn.disabled) return;
-      const scope = btn.closest('.rule-tab-content').dataset.ruleScope;
-      const rule = getRuleByScope(scope);
-      if (rule.type !== '01') return;
-      const next = { ...rule, outRule: btn.dataset.outRule };
-      setRuleByScope(scope, next);
-      applyRuleToScope(scope);
+      const current = getRuleByScope(_ruleSelectScope);
+      if (current.type !== '01') return;
+      const next = { ...current, outRule: btn.dataset.outRule };
+      setRuleByScope(_ruleSelectScope, next);
+      applyRuleSelectUI();
     });
   });
+
+  // 戻る・決定
+  const btnBack = $('btn-rule-select-back');
+  const btnOk = $('btn-rule-select-ok');
+  if (btnBack) btnBack.addEventListener('click', () => { showScreen('lobby'); });
+  if (btnOk) btnOk.addEventListener('click', onRuleSelectConfirm);
+}
+
+// v1.91 (v1.4): 「決定」ボタン押下 → scope に応じて次フロー
+function onRuleSelectConfirm() {
+  if (_ruleSelectScope === 'solo') {
+    _mode = 'solo';
+    _currentRule = { ..._soloRule };
+    updateRuleDetail();
+    resetRoomToSolo();
+    showScreen('room');
+  } else {
+    // create
+    _currentRule = { ..._createRule };
+    updateRuleDetail();
+    const myName = ($('my-name').value || '').trim();
+    const roomName = ($('room-name-input').value || '').trim();
+    const password = ($('room-password').value || '').trim();
+    const isPublic = $('room-public').checked;
+    if (typeof MomoMatchmaking !== 'undefined') {
+      MomoMatchmaking.createRoom({
+        hostName: myName,
+        name: roomName,
+        password,
+        isPublic,
+        rules: _createRule,
+      });
+    }
+  }
 }
 let _hostName = '';
 let _guestName = '';
@@ -2003,17 +2072,9 @@ $('btn-create-room').addEventListener('click', () => {
   localStorage.setItem(NAME_KEY, myName);
   // v1.79: 部屋名も永続化（reversi / gomoku-go と共通キー momoRoomName）
   try { localStorage.setItem(ROOM_NAME_KEY, roomName); } catch {}
-  // v1.90 (v1.4): 部屋作成時にロビーで選んだルールを送信。サーバー protocol の
-  //   汎用 `rules` フィールド流用 (gomoku/go と同じ仕組み、SPEC 8.2)
-  _currentRule = { ..._createRule };
-  updateRuleDetail();
-  MomoMatchmaking.createRoom({
-    hostName: myName,
-    name: roomName,
-    password,
-    isPublic,
-    rules: _createRule,
-  });
+  // v1.91 (v1.4): 入力バリデーション後、ルール選択画面に遷移
+  //   実際の MomoMatchmaking.createRoom 呼出は決定ボタン押下時 (onRuleSelectConfirm)
+  showRuleSelectScreen('create');
 });
 
 $('btn-refresh-rooms').addEventListener('click', () => {

@@ -1764,7 +1764,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.90</span>
+      <span class="version-tag" id="version-tag">v1.91</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -1779,42 +1779,6 @@ body.in-game #gear-icon { display: flex; }
   <div class="panel">
     <div class="panel-title" data-i18n="lobby.solo.title">1人で遊ぶ</div>
     <div class="panel-desc" data-i18n="lobby.solo.desc">501 シングルアウトを練習モードで遊びます。勝敗判定なし、フィニッシュまでのターン数を記録します。</div>
-
-    <!-- v1.90 (v1.4): ルール選択 — 1人で遊ぶパネル内 -->
-    <div class="rule-tabs" data-rule-scope="solo">
-      <button class="rule-tab active" data-rule-type="01" data-i18n="room.rule.tab.01">01</button>
-      <button class="rule-tab" data-rule-type="countup" data-i18n="room.rule.tab.countup">カウントアップ</button>
-    </div>
-    <div class="rule-tab-content" data-rule-scope="solo" data-rule-type="01">
-      <div class="rule-group">
-        <div class="rule-group-label" data-i18n="room.rule.startScore.label">持ち点</div>
-        <div class="rule-btn-row">
-          <button class="rule-btn" data-start-score="301">301</button>
-          <button class="rule-btn selected" data-start-score="501">501</button>
-          <button class="rule-btn" data-start-score="701">701</button>
-          <button class="rule-btn" data-start-score="901">901</button>
-          <button class="rule-btn" data-start-score="1101">1101</button>
-          <button class="rule-btn" data-start-score="1501">1501</button>
-        </div>
-      </div>
-      <div class="rule-group">
-        <div class="rule-group-label" data-i18n="room.rule.outRule.label">アウトルール</div>
-        <div class="rule-btn-row">
-          <button class="rule-btn selected" data-out-rule="single" data-i18n="room.rule.outRule.single">シングル</button>
-          <button class="rule-btn" data-out-rule="double" data-i18n="room.rule.outRule.double">ダブル</button>
-          <button class="rule-btn" data-out-rule="master" data-i18n="room.rule.outRule.master">マスター</button>
-        </div>
-      </div>
-    </div>
-    <div class="rule-tab-content" data-rule-scope="solo" data-rule-type="countup" style="display:none;">
-      <div class="rule-group">
-        <div class="rule-group-label" data-i18n="room.rule.rounds.label">ラウンド数</div>
-        <div class="rule-btn-row">
-          <button class="rule-btn selected" data-rounds="8" disabled data-i18n="room.rule.rounds.value8">8 ラウンド (24投)</button>
-        </div>
-      </div>
-    </div>
-
     <button class="btn btn-primary" id="btn-solo-start" data-i18n="lobby.solo.start">1人で遊ぶ</button>
   </div>
 
@@ -1828,42 +1792,6 @@ body.in-game #gear-icon { display: flex; }
       <span data-i18n="lobby.toggle.public">一覧に公開する</span>
       <input type="checkbox" class="toggle" id="room-public" checked>
     </div>
-
-    <!-- v1.90 (v1.4): ルール選択 — 部屋を作るパネル内 -->
-    <div class="rule-tabs" data-rule-scope="create">
-      <button class="rule-tab active" data-rule-type="01" data-i18n="room.rule.tab.01">01</button>
-      <button class="rule-tab" data-rule-type="countup" data-i18n="room.rule.tab.countup">カウントアップ</button>
-    </div>
-    <div class="rule-tab-content" data-rule-scope="create" data-rule-type="01">
-      <div class="rule-group">
-        <div class="rule-group-label" data-i18n="room.rule.startScore.label">持ち点</div>
-        <div class="rule-btn-row">
-          <button class="rule-btn" data-start-score="301">301</button>
-          <button class="rule-btn selected" data-start-score="501">501</button>
-          <button class="rule-btn" data-start-score="701">701</button>
-          <button class="rule-btn" data-start-score="901">901</button>
-          <button class="rule-btn" data-start-score="1101">1101</button>
-          <button class="rule-btn" data-start-score="1501">1501</button>
-        </div>
-      </div>
-      <div class="rule-group">
-        <div class="rule-group-label" data-i18n="room.rule.outRule.label">アウトルール</div>
-        <div class="rule-btn-row">
-          <button class="rule-btn selected" data-out-rule="single" data-i18n="room.rule.outRule.single">シングル</button>
-          <button class="rule-btn" data-out-rule="double" data-i18n="room.rule.outRule.double">ダブル</button>
-          <button class="rule-btn" data-out-rule="master" data-i18n="room.rule.outRule.master">マスター</button>
-        </div>
-      </div>
-    </div>
-    <div class="rule-tab-content" data-rule-scope="create" data-rule-type="countup" style="display:none;">
-      <div class="rule-group">
-        <div class="rule-group-label" data-i18n="room.rule.rounds.label">ラウンド数</div>
-        <div class="rule-btn-row">
-          <button class="rule-btn selected" data-rounds="8" disabled data-i18n="room.rule.rounds.value8">8 ラウンド (24投)</button>
-        </div>
-      </div>
-    </div>
-
     <button class="btn btn-primary" id="btn-create-room" data-i18n="lobby.btn.create">部屋を作成</button>
     <div class="error-msg" id="create-error"></div>
   </div>
@@ -1891,6 +1819,65 @@ body.in-game #gear-icon { display: flex; }
     </div>
     <div class="room-list" id="private-room-list" style="display:none;"></div>
     <div class="error-msg" id="private-error"></div>
+  </div>
+</div>
+
+<!-- ===== SCREEN: RULE SELECT v1.91 (v1.4) ===== -->
+<!-- 「一人で遊ぶ」「部屋を作成」押下後、ルールを選んで「決定」で次画面へ -->
+<div class="screen" id="screen-rule-select">
+  <div class="status-bar" id="rule-select-status" data-i18n="ruleSelect.status.solo">ルールを選択(1人プレイ)</div>
+
+  <div class="panel">
+    <div class="panel-title" data-i18n="ruleSelect.title">ルール選択</div>
+
+    <div class="rule-tabs" id="rule-select-tabs">
+      <button class="rule-tab active" data-rule-type="01" data-i18n="room.rule.tab.01">01</button>
+      <button class="rule-tab" data-rule-type="countup" data-i18n="room.rule.tab.countup">カウントアップ</button>
+    </div>
+
+    <div class="rule-tab-content" id="rule-select-content-01" data-rule-type="01">
+      <div class="rule-group">
+        <div class="rule-group-label" data-i18n="room.rule.startScore.label">持ち点</div>
+        <div class="rule-btn-row">
+          <button class="rule-btn" data-start-score="301">301</button>
+          <button class="rule-btn selected" data-start-score="501">501</button>
+          <button class="rule-btn" data-start-score="701">701</button>
+          <button class="rule-btn" data-start-score="901">901</button>
+          <button class="rule-btn" data-start-score="1101">1101</button>
+          <button class="rule-btn" data-start-score="1501">1501</button>
+        </div>
+      </div>
+      <div class="rule-group">
+        <div class="rule-group-label" data-i18n="room.rule.outRule.label">アウトルール</div>
+        <div class="rule-btn-row">
+          <button class="rule-btn selected" data-out-rule="single" data-i18n="room.rule.outRule.single">シングル</button>
+          <button class="rule-btn" data-out-rule="double" data-i18n="room.rule.outRule.double">ダブル</button>
+          <button class="rule-btn" data-out-rule="master" data-i18n="room.rule.outRule.master">マスター</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="rule-tab-content" id="rule-select-content-countup" data-rule-type="countup" style="display:none;">
+      <div class="rule-group">
+        <div class="rule-group-label" data-i18n="room.rule.rounds.label">ラウンド数</div>
+        <div class="rule-btn-row">
+          <button class="rule-btn selected" data-rounds="8" disabled data-i18n="room.rule.rounds.value8">8 ラウンド (24投)</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="rule-name" id="rule-select-name">501 シングルアウト</div>
+    <dl class="rule-detail">
+      <dt data-i18n="room.rule.points.label">持ち点</dt><dd id="rs-points">501 からスタート</dd>
+      <dt data-i18n="room.rule.turn.label">1ターン</dt><dd id="rs-turn">最大 3投</dd>
+      <dt data-i18n="room.rule.win.label">勝利条件</dt><dd id="rs-win">持ち点をぴったり 0 にする</dd>
+      <dt id="rs-bust-dt" data-i18n="room.rule.bust.label">バースト</dt><dd id="rs-bust">0 未満になる投はターン無効、ターン開始時の点に戻る</dd>
+    </dl>
+  </div>
+
+  <div class="panel" style="flex-direction:row; gap:8px;">
+    <button class="btn btn-secondary" id="btn-rule-select-back" style="flex:1;" data-i18n="ruleSelect.back">戻る</button>
+    <button class="btn btn-primary" id="btn-rule-select-ok" style="flex:1;" data-i18n="ruleSelect.ok">決定</button>
   </div>
 </div>
 

@@ -586,42 +586,76 @@ function processShot(throwerState, shot, throwerRole) {
 
   // === FINISH ===
   if (r.finished) {
-    const isMyWin = (throwerRole === _myRole) || (_mode !== 'battle');
+    // v1.89 (v1.3): 対戦カウントアップは両者 24 投終了まで待ち、total 比較で勝敗判定
+    const isBattleCountup = (_mode === 'battle' && _currentRule.type === 'countup');
+    if (isBattleCountup && _oppState && !_oppState.finished) {
+      // 相手はまだ投擲中 → 自分はこれ以上投げず通常のターン交代
+      setTimeout(() => {
+        _pendingTurnDisplay = null;
+        endTurnAndPlace();
+      }, 2000);
+      return;
+    }
+
+    // 勝者判定
+    let winner;  // 'self' | 'opp' | 'draw'
+    if (isBattleCountup) {
+      // 両者 finished で total 比較
+      if (_gameState.total > _oppState.total) winner = 'self';
+      else if (_gameState.total < _oppState.total) winner = 'opp';
+      else winner = 'draw';
+    } else if (_mode === 'battle') {
+      winner = (throwerRole === _myRole) ? 'self' : 'opp';
+    } else {
+      winner = 'self';  // solo
+    }
+    const isMyWin = (winner === 'self');
+    const isDraw = (winner === 'draw');
+
     let mainText, subText;
     if (_mode === 'battle') {
-      mainText = isMyWin ? 'WIN!' : 'LOSE!';
-      subText = t('end.win.lineNoDarts', { winner: isMyWin ? getMyName() : getOppName() });
+      if (isDraw) {
+        mainText = 'DRAW';
+        subText = t('end.countup.draw.sub', { selfTotal: _gameState.total, oppTotal: _oppState.total });
+      } else {
+        mainText = isMyWin ? 'WIN!' : 'LOSE!';
+        subText = isBattleCountup
+          ? t('end.countup.battle.sub', { selfTotal: _gameState.total, oppTotal: _oppState.total })
+          : t('end.win.lineNoDarts', { winner: isMyWin ? getMyName() : getOppName() });
+      }
+    } else if (_currentRule.type === 'countup') {
+      mainText = 'COMPLETE!';
+      subText = t('end.countup.solo.finish', { total: _gameState.total });
     } else {
       mainText = 'FINISH!';
       subText = `${throwerState.dartCount} ${t('end.dartsUnit')}`;
     }
-    console.log('[darts] FINISH! darts=' + throwerState.dartCount + ' winner=' + (isMyWin ? 'self' : 'opp'));
-    Render.logEvent({ type: 'finish', dartCount: throwerState.dartCount, turns: throwerState.turnIndex, winner: isMyWin ? 'self' : 'opp' });
-    showAnnouncement(_mode === 'battle' && !isMyWin ? 'lose' : 'finish', mainText, subText);
+    console.log('[darts] FINISH! winner=' + winner + ' rule=' + _currentRule.type);
+    Render.logEvent({ type: 'finish', dartCount: throwerState.dartCount, turns: throwerState.turnIndex, winner });
+    showAnnouncement(isDraw ? 'finish' : (_mode === 'battle' && !isMyWin ? 'lose' : 'finish'), mainText, subText);
 
     // v1.75 (5-c): 特別演出ジングル → 勝利/敗北ジングル → 勝利画面の順次再生
-    //   各 mp3 の実 duration を待ってから次へ。abort 経路は別（ここに来ない）
     let delayMs = 0;
     const NINE_DARTS_FALLBACK_MS = 2500;
     const JINGLE_FALLBACK_MS = 2200;
-    // 1. 9 ダーツ達成ジングル
-    // v1.84: 9D 達成時も祝祭振動（中心回転・最大振幅、強さ無視、SPEC v1.1）
-    if (throwerState.dartCount <= 9) {
+    // 1. 9 ダーツ達成ジングル（01 のみ、カウントアップでは概念なし）
+    if (_currentRule.type === '01' && throwerState.dartCount <= 9) {
       Sound.playNineDarts();
       Render.startCelebrateVibrate();
       delayMs += Math.ceil((Sound.getDuration('nineDarts') || NINE_DARTS_FALLBACK_MS / 1000) * 1000);
     }
-    // 2. 勝利/敗北ジングル（9D の鳴り終わり後）
-    const jingleKey = isMyWin ? 'win' : 'lose';
+    // 2. 勝利/敗北ジングル
+    //    draw 時は勝利ジングルを軽めに（loseJingle 流用は重すぎ、winJingle が祝賀感）
+    const jingleKey = (isMyWin || isDraw) ? 'win' : 'lose';
     setTimeout(() => {
-      if (isMyWin) Sound.playWinJingle();
+      if (isMyWin || isDraw) Sound.playWinJingle();
       else Sound.playLoseJingle();
     }, delayMs);
     delayMs += Math.ceil((Sound.getDuration(jingleKey) || JINGLE_FALLBACK_MS / 1000) * 1000);
-    // 3. 勝利画面遷移（ジングル鳴り終わり後）
+    // 3. 勝利画面遷移
     setTimeout(() => {
       _pendingTurnDisplay = null;
-      showEndScreen({ winner: isMyWin ? 'self' : 'opp', finishedState: throwerState });
+      showEndScreen({ winner, finishedState: throwerState });
     }, delayMs);
     return;
   }
@@ -759,21 +793,49 @@ function showEndScreen(opts) {
     setEndBtnLabel('btn-end-back-room', t('end.btn.toLobby'));
   } else if (_mode === 'battle' && opts && opts.winner) {
     // v1.33 (3-C): 対戦時は WIN/LOSE 表示（通常勝敗時）
-    const isMyWin = opts.winner === 'self';
-    const winner = isMyWin ? getMyName() : getOppName();
-    const winnerState = isMyWin ? _gameState : _oppState;
-    $('end-result-msg').textContent = isMyWin ? '🏆 WIN!' : '😢 LOSE!';
-    $('end-result-msg').className = `result-message ${isMyWin ? 'win' : 'lose'}`;
-    $('end-result-sub').textContent = winnerState
-      ? t('end.win.line', { winner, darts: winnerState.dartCount })
-      : t('end.win.lineNoDarts', { winner });
-    $('end-stat-darts').textContent = winnerState ? winnerState.dartCount : '-';
-    $('end-stat-turns').textContent = (winnerState ? winnerState.history.length : '-');
-    $('end-stat-busts').textContent = winnerState ? winnerState.history.filter(h => h.bust).length : '-';
-    const turnScores = winnerState
-      ? winnerState.history.filter(h => !h.bust).map(h => h.shots.reduce((a, s) => a + s.value, 0))
-      : [];
-    $('end-stat-best').textContent = turnScores.length ? Math.max(...turnScores) : 0;
+    // v1.89 (v1.3): カウントアップ対応 — DRAW / total 比較
+    const isCountup = (_currentRule.type === 'countup');
+    const isDraw = (opts.winner === 'draw');
+    const isMyWin = (opts.winner === 'self');
+    const winnerName = isDraw ? '' : (isMyWin ? getMyName() : getOppName());
+    if (isDraw) {
+      $('end-result-msg').textContent = '🤝 DRAW';
+      $('end-result-msg').className = 'result-message';
+      $('end-result-sub').textContent = t('end.countup.draw.sub', {
+        selfTotal: _gameState.total, oppTotal: _oppState.total,
+      });
+    } else {
+      $('end-result-msg').textContent = isMyWin ? '🏆 WIN!' : '😢 LOSE!';
+      $('end-result-msg').className = `result-message ${isMyWin ? 'win' : 'lose'}`;
+      if (isCountup) {
+        $('end-result-sub').textContent = t('end.countup.battle.sub', {
+          selfTotal: _gameState.total, oppTotal: _oppState.total,
+        });
+      } else {
+        const winnerState = isMyWin ? _gameState : _oppState;
+        $('end-result-sub').textContent = winnerState
+          ? t('end.win.line', { winner: winnerName, darts: winnerState.dartCount })
+          : t('end.win.lineNoDarts', { winner: winnerName });
+      }
+    }
+    // stat 表示の rule 別切替
+    if (isCountup) {
+      $('end-stat-darts').textContent = String(_gameState.dartCount);
+      $('end-stat-turns').textContent = String(_gameState.history.length);
+      $('end-stat-busts').textContent = '—';
+      const turnScores = _gameState.history.map(h => h.shots.reduce((a, s) => a + s.value, 0));
+      $('end-stat-best').textContent = turnScores.length ? String(Math.max(...turnScores)) : '0';
+    } else {
+      // 01 系 battle WIN/LOSE
+      const winnerState = isMyWin ? _gameState : _oppState;
+      $('end-stat-darts').textContent = winnerState ? winnerState.dartCount : '-';
+      $('end-stat-turns').textContent = (winnerState ? winnerState.history.length : '-');
+      $('end-stat-busts').textContent = winnerState ? winnerState.history.filter(h => h.bust).length : '-';
+      const turnScores = winnerState
+        ? winnerState.history.filter(h => !h.bust).map(h => h.shots.reduce((a, s) => a + s.value, 0))
+        : [];
+      $('end-stat-best').textContent = turnScores.length ? Math.max(...turnScores) : 0;
+    }
   } else {
     // 1人プレイ
     // v1.88 (v1.3): カウントアップ対応 — total ベースで achievement
@@ -1533,10 +1595,11 @@ function updateRuleDetail() {
   }
 }
 
-// v1.88: ルール選択 UI のイベントハンドラ
+// v1.88/v1.89 (v1.3): ルール選択 UI のイベントハンドラ
 function setupRuleUIHandlers() {
   document.querySelectorAll('#rule-tabs .rule-tab').forEach((tab) => {
     tab.addEventListener('click', () => {
+      if (tab.disabled) return;
       const ruleType = tab.dataset.ruleType;
       if (ruleType === _currentRule.type) return;
       if (ruleType === '01') {
@@ -1544,24 +1607,39 @@ function setupRuleUIHandlers() {
       } else if (ruleType === 'countup') {
         _currentRule = { type: 'countup', rounds: 8 };
       }
-      applyRuleToUI();
-      // v1.89 で rule_change 送信を追加予定
+      onRuleChangedLocally();
     });
   });
   document.querySelectorAll('.rule-btn[data-start-score]').forEach((btn) => {
     btn.addEventListener('click', () => {
+      if (btn.disabled) return;
       if (_currentRule.type !== '01') return;
       _currentRule.startScore = Number(btn.dataset.startScore);
-      applyRuleToUI();
+      onRuleChangedLocally();
     });
   });
   document.querySelectorAll('.rule-btn[data-out-rule]').forEach((btn) => {
     btn.addEventListener('click', () => {
+      if (btn.disabled) return;
       if (_currentRule.type !== '01') return;
       _currentRule.outRule = btn.dataset.outRule;
-      applyRuleToUI();
+      onRuleChangedLocally();
     });
   });
+}
+
+// v1.89: 自分(ホスト or solo) のルール変更後の共通処理
+//   - UI 反映
+//   - 対戦時: ゲストに rule_change 送信 + 役割選択合意リセット
+function onRuleChangedLocally() {
+  applyRuleToUI();
+  if (_mode !== 'battle') return;
+  const isHost = (typeof MomoMatchmaking !== 'undefined') && MomoMatchmaking.getState().isHost;
+  if (!isHost) return;
+  try {
+    MomoMatchmaking.send({ type: 'rule_change', rule: _currentRule });
+  } catch (e) {}
+  resetBattleAgreementState();
 }
 let _hostName = '';
 let _guestName = '';
@@ -1795,6 +1873,12 @@ function initMatchmaking() {
     onGuestJoined: (guestName) => {
       _guestName = guestName;
       enterBattleRoom();
+      // v1.89 (v1.3): 新規ゲスト入室時、ホストは現在のルールを送信して同期
+      //   ゲスト側は room 画面遷移時に _currentRule = default 501-single でセットされているので
+      //   ホストのルールに上書きする必要がある
+      try {
+        MomoMatchmaking.send({ type: 'rule_change', rule: _currentRule });
+      } catch (e) {}
     },
 
     onGuestLeft: () => {
@@ -2054,6 +2138,14 @@ function onMyCalibDone() {
 
 function handleBattleMessage(data) {
   if (!data || typeof data.type !== 'string') return;
+  // v1.89 (v1.3): ホストからのルール変更通知（SPEC 8.2 / 11.1）
+  //   ゲスト側で _currentRule を更新、役割選択合意をリセット
+  if (data.type === 'rule_change' && Rules.isValidRule(data.rule)) {
+    _currentRule = data.rule;
+    applyRuleToUI();
+    resetBattleAgreementState();
+    return;
+  }
   if (data.type === 'role_select') {
     _oppRole = (data.role === 'first' || data.role === 'second') ? data.role : null;
     // 相手がロール変更したら相手の start_press も自動キャンセル

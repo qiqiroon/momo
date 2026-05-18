@@ -295,6 +295,40 @@ export function stopTargetVibrate() {
   }
 }
 
+// v1.84: 役達成時の祝祭振動（TON80 / 9D / ハットトリック等）
+//   - 物理風振動(startTargetVibrate)とは別物
+//   - 中心を支点に z 軸まわり平面回転（rotate）
+//   - 投擲の強さに関係なく最大振幅(12度) で発動、当たり位置も無視
+//   - 既存振動を上書きして開始
+export function startCelebrateVibrate() {
+  if (!_boardEl) return;
+  const svg = _boardEl.querySelector('svg');
+  if (!svg) return;
+  if (_vibrateAnimId) cancelAnimationFrame(_vibrateAnimId);
+
+  const AMP_DEG     = 12;       // 最大振幅(強さ無視)
+  const FREQ_HZ     = 6;
+  const DECAY_BASE  = 0.1;
+  const DURATION_MS = 1200;
+  svg.style.transformOrigin = '50% 50%';
+
+  const start = performance.now();
+  function step(now) {
+    const t = (now - start) / 1000;
+    if (t >= DURATION_MS / 1000) {
+      svg.style.transform = '';
+      svg.style.transformOrigin = '';
+      _vibrateAnimId = null;
+      return;
+    }
+    const decay = Math.pow(DECAY_BASE, t);
+    const angle = AMP_DEG * Math.sin(2 * Math.PI * FREQ_HZ * t) * decay;
+    svg.style.transform = `rotate(${angle}deg)`;
+    _vibrateAnimId = requestAnimationFrame(step);
+  }
+  _vibrateAnimId = requestAnimationFrame(step);
+}
+
 export function getTargetWorld() {
   return { ..._targetWorld };
 }

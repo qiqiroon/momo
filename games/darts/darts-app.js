@@ -574,12 +574,14 @@ function processShot(throwerState, shot, throwerRole) {
   //   - ダーツ慣例: 100 点ジャストから TON。SPEC 13.3「100点超」表記は実装追従で
   //     「100点以上」に変更（v1.78、ユーザー指摘）
   //   - ton80 (180 ジャスト) より軽い祝福音。ton80/ハットトリックと排他
+  // v1.84: TON80/ハットトリック達成時は通常の物理振動を上書きして祝祭振動（中心回転、最大振幅）
+  //   - トン（>=100、179以下）は祝祭対象外（通常振動のまま、ユーザー指示「TON80 などの役」に該当しない）
   // BUST 時は無視（バーストは加算されない）。FINISH と同時の場合は重ね鳴らし（SPEC 13.9）
   if (r.turnEnded && !r.bust && throwerState.history.length > 0) {
     const lastShots = throwerState.history[throwerState.history.length - 1].shots;
     const turnSum = lastShots.reduce((a, s) => a + (s.value || 0), 0);
-    if (turnSum === 180) Sound.playTon80();
-    else if (r.hatTrick) Sound.playTon80();
+    if (turnSum === 180) { Sound.playTon80(); Render.startCelebrateVibrate(); }
+    else if (r.hatTrick) { Sound.playTon80(); Render.startCelebrateVibrate(); }
     else if (turnSum >= 100) Sound.playTon();
   }
 
@@ -604,8 +606,10 @@ function processShot(throwerState, shot, throwerRole) {
     const NINE_DARTS_FALLBACK_MS = 2500;
     const JINGLE_FALLBACK_MS = 2200;
     // 1. 9 ダーツ達成ジングル
+    // v1.84: 9D 達成時も祝祭振動（中心回転・最大振幅、強さ無視、SPEC v1.1）
     if (throwerState.dartCount <= 9) {
       Sound.playNineDarts();
+      Render.startCelebrateVibrate();
       delayMs += Math.ceil((Sound.getDuration('nineDarts') || NINE_DARTS_FALLBACK_MS / 1000) * 1000);
     }
     // 2. 勝利/敗北ジングル（9D の鳴り終わり後）

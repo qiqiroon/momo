@@ -214,9 +214,14 @@ body.in-game .site-header {
   width: auto;                 /* fixed なので max-width 不要 */
   max-width: none;
 }
-body.in-game .site-header .cat-icon,
 body.in-game .site-header .subtitle,
 body.in-game .site-header .version-tag { display: none; }
+/* v1.93: ゲーム中も猫+ダーツアイコンを表示（サイズ縮小） */
+body.in-game .site-header .cat-icon {
+  width: 36px;
+  height: 40px;
+}
+body.in-game .site-header { gap: 6px; }
 body.in-game .site-header h1 {
   font-size: 1.25rem;          /* 通常の clamp(2rem, 6vw, 2.6rem) より小さく */
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
@@ -873,22 +878,10 @@ body.in-game .site-header h1 {
 }
 .shot-slot.miss { color: rgba(255,255,255,0.4); }
 
-/* デバッグ HUD は上オーバーレイの外、左下に移動 */
+/* デバッグ HUD は左下に表示していたが v1.93 で常時非表示に
+   （開発時のみ display: block に戻す） */
 #game-debug-info {
-  position: absolute;
-  bottom: calc(120px + env(safe-area-inset-bottom));
-  left: 16px;
-  font-family: ui-monospace, monospace;
-  font-size: 10px;
-  color: rgba(255,255,255,0.45);
-  line-height: 1.4;
-  pointer-events: none;
-  background: rgba(0,0,0,0.4);
-  border-radius: 4px;
-  padding: 3px 6px;
-  white-space: pre-line;
-  max-width: 60vw;
-  z-index: 35;
+  display: none;
 }
 
 /* 下オーバーレイ（v1.17: ホールド左右の間、デバッグ用）
@@ -1764,7 +1757,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.92</span>
+      <span class="version-tag" id="version-tag">v1.93</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -2087,10 +2080,9 @@ body.in-game #gear-icon { display: flex; }
     </svg>
   </div>
 
-  <!-- 下オーバーレイ（デバッグ用、開発中のみ） -->
+  <!-- 下オーバーレイ（v1.93: ログボタンは設定パネル内に移動） -->
   <div id="game-overlay-bottom">
     <button class="btn btn-secondary" id="btn-next-turn" data-i18n="game.btn.next">次のターン</button>
-    <button class="btn btn-ghost" id="btn-copy-log"><svg class="icon" aria-hidden="true"><use href="#icon-upload"/></svg> <span data-i18n="game.btn.log">ログ</span></button>
     <button class="btn btn-ghost" id="btn-game-leave" data-i18n="game.btn.leave">退出</button>
   </div>
 
@@ -2241,6 +2233,15 @@ body.in-game #gear-icon { display: flex; }
         <span class="tune-value" id="tune-smooth-val">40%</span>
         <button class="tune-btn" data-tune="smooth" data-dir="+">＋</button>
       </div>
+    </div>
+
+    <!-- v1.93: ログ送信 (旧 #game-overlay-bottom の btn-copy-log を移動) -->
+    <div class="settings-row" id="settings-row-log">
+      <div class="settings-row-head">
+        <span class="row-label" data-i18n="settings.log.label">ログ送信</span>
+        <button class="settings-action-btn" id="btn-copy-log"><svg class="icon" aria-hidden="true"><use href="#icon-upload"/></svg> <span data-i18n="game.btn.log">ログ</span></button>
+      </div>
+      <div class="settings-row-hint" data-i18n="settings.log.hint">直近のデバッグ情報を Drive 保存または共有</div>
     </div>
 
     <div class="settings-close-row">

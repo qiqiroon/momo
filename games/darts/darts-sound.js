@@ -238,15 +238,15 @@ export function playChatReceive() {
   _play('chat', { gain: 0.75 });
 }
 
-// v1.96/v1.97 (v1.5): 正解音 (ラウンド・ザ・クロックで current target に的中時)
-//   v1.97 でクイズ風「ピンポン」(高→低) に変更
-//   1音目: B5 (987.77 Hz、ピン) → 2音目: F#5 (739.99 Hz、ポン)
-//   音程差は完全4度下、クイズ正解感が出る
+// v1.96/v1.97/v1.98 (v1.5): 正解音 (ラウンド・ザ・クロックで current target に的中時)
+//   v1.98 で「ミ→ド」(クイズ正解音の標準) に変更:
+//   1音目: E5 (659.25 Hz、ミ) → 2音目: C5 (523.25 Hz、ド)
+//   長3度下で「トニック(C)に向かう終止感」、クイズ正解音の典型
 //   長さは v1.96 と同じ (50ms 間隔、各音 220ms 程度)
 export function playCorrect() {
   if (!_ctx || !_masterGain) return;
   const now = _ctx.currentTime;
-  const freqs = [987.77, 739.99];  // B5 → F#5 (高→低)
+  const freqs = [659.25, 523.25];  // E5(ミ) → C5(ド)、高→低
   freqs.forEach((f, idx) => {
     const startT = now + idx * 0.05;
     const osc = _ctx.createOscillator();

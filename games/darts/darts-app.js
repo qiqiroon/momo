@@ -350,22 +350,38 @@ function initSoundOnFirstGesture() {
 document.addEventListener('pointerdown', initSoundOnFirstGesture, { once: true });
 document.addEventListener('keydown', initSoundOnFirstGesture, { once: true });
 
-// v2.11 (v1.5): バックグラウンド時の BGM 停止
+// v2.11/v2.15/v2.16 (v1.5): バックグラウンド時の BGM 停止 + 長時間放置時の抑止
 //   Android Chrome は visibility hidden でも AudioContext が走り続けるため、
 //   アプリを閉じても BGM が鳴り続ける問題があった。明示的に AudioContext を
-//   suspend し、復帰時に resume + 画面に応じた BGM カテゴリを再適用する。
+//   suspend する。
+//   v2.16: 「ずっと前に閉じたアプリをいつか開いたら勝手に BGM が再生される」
+//   問題への対策として、 hidden 期間が 1 分以上なら復帰時 BGM を再開せず
+//   'none' のままにする。 ユーザーが画面遷移 (showScreen 内で refreshBgm) や
+//   音量変更などで「能動的に」操作した瞬間に BGM が再開する。
+const BGM_SUPPRESS_MS = 60 * 1000;  // 1 分以上閉じていたら復帰時に BGM を鳴らさない
+let _lastHiddenAt = 0;
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') {
+    _lastHiddenAt = Date.now();
     Sound.suspendAudio();
   } else {
+    const hiddenDur = _lastHiddenAt ? (Date.now() - _lastHiddenAt) : 0;
     Sound.resumeAudio().then(() => {
-      // 復帰時に画面に応じた BGM カテゴリを再確認
-      refreshBgmForScreen();
+      if (hiddenDur < BGM_SUPPRESS_MS) {
+        // 1 分未満 → 通常復帰
+        refreshBgmForScreen();
+      } else {
+        // 1 分以上閉じていた → BGM を停止状態のまま維持
+        // (ユーザーが画面遷移や音量変更を行えば showScreen / 音量UI から
+        //  refreshBgmForScreen が呼ばれ、 BGM 再開)
+        Sound.setBgmCategory('none');
+      }
     });
   }
 });
 // pagehide でも明示的に止める (タブ閉じ / iOS の bfcache 退避)
 window.addEventListener('pagehide', () => {
+  _lastHiddenAt = Date.now();
   Sound.suspendAudio();
 });
 
@@ -1525,6 +1541,9 @@ $('settings-bgm-volume-slider').addEventListener('input', (e) => {
   const v = parseInt(e.target.value, 10) || 0;
   Sound.setBgmVolume(v);
   refreshBgmVolumeUI();
+  // v2.16: 「1 分以上閉じていた」抑止後でも、 音量変更を「能動的な再開意思」
+  //  と見なして refresh
+  if (v > 0) refreshBgmForScreen();
 });
 
 $('gear-icon').addEventListener('click', (e) => {

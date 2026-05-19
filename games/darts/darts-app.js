@@ -585,14 +585,13 @@ function processShot(throwerState, shot, throwerRole) {
   }
   updateScoreUI();
 
-  // v1.96 (v1.5): rtc 投擲音 (正解/不正解) + セグメント色更新
-  //   shot.segment が prevTarget と一致 (S/D/T) なら正解音、そうでなければ不正解音 (bust 流用)
-  //   自分・相手の投擲とも音を鳴らす (両者の状況把握のため)
+  // v1.96/v1.97 (v1.5): rtc 投擲音 (正解時のみ) + セグメント色更新
+  //   shot.segment が prevTarget と一致 (S/D/T) なら正解音、外したときは音なし (v1.97 ユーザー指示)
+  //   自分・相手の投擲とも正解音を鳴らす (両者の状況把握のため)
   if (isRtc) {
     const isCorrect = (shot.segment === rtcPrevTarget)
                    && (shot.kind === 'S' || shot.kind === 'D' || shot.kind === 'T');
     if (isCorrect) Sound.playCorrect();
-    else Sound.playBust();
     refreshRtcSegmentHighlight();
   }
 

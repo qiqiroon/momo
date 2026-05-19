@@ -86,28 +86,20 @@ function buildDartboardSVG() {
   svg.appendChild(el('circle', { cx: 0, cy: 0, r: R_BORDER, fill: COLOR_BORDER }));
 
   // 20 セグメント本体（インナーシングル + トリプル + アウターシングル + ダブル）
-  // v1.96 (v1.5): 各セクタに data-seg-num / data-orig-fill を付与
-  //   ラウンド・ザ・クロックで current target を色付けする際に元の色に戻せるよう
   for (let i = 0; i < 20; i++) {
     const center = -90 + i * 18;
     const a1 = center - 9;
     const a2 = center + 9;
-    const segNum = SEGMENT_NUMBERS[i];
     const bb = isBlackBody(i);
     const bodyColor   = bb ? COLOR_BLACK : COLOR_CREAM;
     // 標準配色: 黒胴体は ダブル=赤 / トリプル=緑、クリーム胴体は逆
     const tripleColor = bb ? COLOR_GREEN : COLOR_RED;
     const doubleColor = bb ? COLOR_RED   : COLOR_GREEN;
 
-    const innerSingle = sectorPath(a1, a2, R_OUTER_BULL, R_TRIPLE_IN, bodyColor);
-    const triple      = sectorPath(a1, a2, R_TRIPLE_IN, R_TRIPLE_OUT, tripleColor);
-    const outerSingle = sectorPath(a1, a2, R_TRIPLE_OUT, R_DOUBLE_IN, bodyColor);
-    const double_     = sectorPath(a1, a2, R_DOUBLE_IN, R_DOUBLE_OUT, doubleColor);
-    [innerSingle, triple, outerSingle, double_].forEach((p, ringIdx) => {
-      p.setAttribute('data-seg-num', String(segNum));
-      p.setAttribute('data-orig-fill', p.getAttribute('fill'));
-      svg.appendChild(p);
-    });
+    svg.appendChild(sectorPath(a1, a2, R_OUTER_BULL, R_TRIPLE_IN, bodyColor));   // インナーシングル
+    svg.appendChild(sectorPath(a1, a2, R_TRIPLE_IN, R_TRIPLE_OUT, tripleColor)); // トリプル
+    svg.appendChild(sectorPath(a1, a2, R_TRIPLE_OUT, R_DOUBLE_IN, bodyColor));   // アウターシングル
+    svg.appendChild(sectorPath(a1, a2, R_DOUBLE_IN, R_DOUBLE_OUT, doubleColor)); // ダブル
   }
 
   // セグメント境界の細線（金属ワイヤ風）
@@ -126,6 +118,22 @@ function buildDartboardSVG() {
   // アウターブル(25, 緑) → インナーブル(50, 赤)
   svg.appendChild(el('circle', { cx: 0, cy: 0, r: R_OUTER_BULL, fill: COLOR_GREEN, stroke: COLOR_WIRE, 'stroke-width': 0.35 }));
   svg.appendChild(el('circle', { cx: 0, cy: 0, r: R_INNER_BULL, fill: COLOR_RED }));
+
+  // v1.97 (v1.5): RTC 用のセグメント枠線 overlay
+  //   通常は stroke=transparent、setSegmentHighlight() で current target だけ着色
+  //   fill='none' で内部は元の色のまま、枠線だけ強調
+  for (let i = 0; i < 20; i++) {
+    const center = -90 + i * 18;
+    const a1 = center - 9;
+    const a2 = center + 9;
+    const segNum = SEGMENT_NUMBERS[i];
+    const outline = sectorPath(a1, a2, R_OUTER_BULL, R_DOUBLE_OUT, 'none');
+    outline.setAttribute('stroke', 'transparent');
+    outline.setAttribute('stroke-width', '2.5');
+    outline.setAttribute('data-seg-outline', String(segNum));
+    outline.setAttribute('pointer-events', 'none');
+    svg.appendChild(outline);
+  }
 
   // 数字（黒帯の上、白文字）
   for (let i = 0; i < 20; i++) {
@@ -346,25 +354,24 @@ export function startConfetti() {
   }
 }
 
-// v1.96 (v1.5): ラウンド・ザ・クロック用 セグメント色付け
+// v1.96/v1.97 (v1.5): ラウンド・ザ・クロック用 セグメント枠線色付け
 //   myTarget=自分の current target (1-20)、oppTarget=相手の current target (1-20 or null)
 //   両者同じセグメントなら myTarget(オレンジ)優先
-//   ターゲット外のセグメントは元の色 (data-orig-fill) に戻す
+//   v1.97: fill 塗りつぶし → 枠線 (stroke) のみに変更 (ユーザー指示「煩いので枠だけ」)
 const RTC_COLOR_SELF = '#ea580c';  // オレンジ
 const RTC_COLOR_OPP  = '#9ca3af';  // グレー
 export function setSegmentHighlight(myTarget, oppTarget) {
   if (!_boardEl) return;
   const svg = _boardEl.querySelector('svg');
   if (!svg) return;
-  svg.querySelectorAll('[data-seg-num]').forEach((p) => {
-    const segNum = Number(p.getAttribute('data-seg-num'));
-    const origFill = p.getAttribute('data-orig-fill');
+  svg.querySelectorAll('[data-seg-outline]').forEach((p) => {
+    const segNum = Number(p.getAttribute('data-seg-outline'));
     if (segNum === myTarget) {
-      p.setAttribute('fill', RTC_COLOR_SELF);  // 自分=オレンジ (両者同じならこっち優先)
+      p.setAttribute('stroke', RTC_COLOR_SELF);  // 自分=オレンジ (両者同じならこっち優先)
     } else if (segNum === oppTarget) {
-      p.setAttribute('fill', RTC_COLOR_OPP);   // 相手=グレー
-    } else if (origFill) {
-      p.setAttribute('fill', origFill);
+      p.setAttribute('stroke', RTC_COLOR_OPP);   // 相手=グレー
+    } else {
+      p.setAttribute('stroke', 'transparent');
     }
   });
 }
@@ -372,9 +379,8 @@ export function clearSegmentHighlight() {
   if (!_boardEl) return;
   const svg = _boardEl.querySelector('svg');
   if (!svg) return;
-  svg.querySelectorAll('[data-seg-num]').forEach((p) => {
-    const origFill = p.getAttribute('data-orig-fill');
-    if (origFill) p.setAttribute('fill', origFill);
+  svg.querySelectorAll('[data-seg-outline]').forEach((p) => {
+    p.setAttribute('stroke', 'transparent');
   });
 }
 

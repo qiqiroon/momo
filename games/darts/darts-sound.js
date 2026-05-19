@@ -93,7 +93,12 @@ export function setBgmVolume(v) {
   if (_bgmGain) _bgmGain.gain.value = v / 100;
 }
 
-// ---- 初期化（ゲーム開始ボタン押下時に呼ぶ。SPEC 13.11）----
+// ---- 初期化（v2.11: DOMContentLoaded での suspended-state プリロードに対応）----
+//   従来は「ゲーム開始ボタン押下時」に user gesture を要したが、AudioContext は
+//   suspended 状態であれば user gesture 不要で作れる。プリロード (fetch+decode) も
+//   suspended 状態で可能なため、起動時にここまで済ませておき、最初の user gesture で
+//   resumeAudio() するだけにする。
+//   SPEC 13.11 (iOS Safari autoplay 対策) は最初の resume() で満たされる。
 export async function init() {
   if (_initStarted) return;
   _initStarted = true;
@@ -373,6 +378,26 @@ export function setBgmCategory(cat) {
 }
 export function stopBgm() { setBgmCategory('none'); }
 export function getBgmCategory() { return _bgmCategory; }
+
+// v2.11 (v1.5): visibility hidden 時の BGM 一時停止 / visible 復帰時の再開
+//   - Android Chrome では visibility hidden でも AudioContext が走り続ける
+//     ため、アプリを閉じても BGM が鳴り続けてしまう。明示的に suspend する。
+//   - 現在の曲は維持したいので gain を 0 にするのではなく AudioContext を
+//     suspend (BufferSourceNode の時間進行も停止)。SFX も止まるがバックグラウンド
+//     なら問題ない。
+export async function suspendAudio() {
+  if (_ctx && _ctx.state === 'running') {
+    try { await _ctx.suspend(); } catch {}
+  }
+}
+export async function resumeAudio() {
+  if (_ctx && _ctx.state === 'suspended') {
+    try { await _ctx.resume(); } catch {}
+  }
+}
+export function getAudioContextState() {
+  return _ctx ? _ctx.state : 'no-ctx';
+}
 
 // 状態確認用
 export function isReady() {

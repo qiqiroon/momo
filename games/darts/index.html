@@ -1422,7 +1422,8 @@ input.chat-preset-btn.editing-input:focus {
 /* 歯車アイコン（v1.15: 設定メニューのトリガに昇格）
    v1.18: safe-area-inset-top/right でノッチ回避
    v1.49: 言語切替の左隣に常時配置するためサイズを 32px に縮小
-   v1.50: 言語選択プルダウンと被るので余白を増やす（76px → 96px） */
+   v1.50: 言語選択プルダウンと被るので余白を増やす（76px → 96px）
+   v2.11 (v1.5): 全画面で常時表示（ロビーで音量変更できないという指摘を反映） */
 #gear-icon {
   position: fixed;
   top: calc(6px + env(safe-area-inset-top, 0px));
@@ -1432,7 +1433,7 @@ input.chat-preset-btn.editing-input:focus {
   background: rgba(0,0,0,0.6);
   border: 1px solid var(--border-strong);
   border-radius: 50%;
-  display: none;
+  display: flex;
   align-items: center;
   justify-content: center;
   z-index: 250;          /* 言語切替と同じレイヤーに（v1.51: 200→250、許可パネル上に出す） */
@@ -1444,7 +1445,6 @@ input.chat-preset-btn.editing-input:focus {
 }
 #gear-icon:hover { background: rgba(40,40,40,0.8); }
 #gear-icon:active { transform: scale(0.92); }
-body.in-game #gear-icon { display: flex; }
 
 /* v1.55: fps 表示（SPEC 17.4、4-C-4。ゲーム画面のみ、控えめな位置）
    v1.56: タイトル「MOMO Darts」と重なるのを避けて右上、歯車の左隣に移動
@@ -1809,7 +1809,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v2.10</span>
+      <span class="version-tag" id="version-tag">v2.11</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>

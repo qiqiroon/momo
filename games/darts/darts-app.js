@@ -37,11 +37,28 @@ function showScreen(name) {
   //   - game           → play (4 曲ランダム)
   //   - end            → 即停止 (showEndScreen 内でファンファーレ後に lobby 開始)
   //   - それ以外       → lobby (2 曲ランダム)
-  if (Sound && Sound.setBgmCategory) {
-    if (name === 'game')      Sound.setBgmCategory('play');
-    else if (name === 'end')  Sound.setBgmCategory('none');
-    else                       Sound.setBgmCategory('lobby');
+  // v2.11 (v1.5): ゲストとして他人の部屋に入っている間は lobby BGM を停止
+  refreshBgmForScreen(name);
+}
+
+// v2.11 (v1.5): 現在の screen と部屋状態から BGM カテゴリを決定して適用
+function refreshBgmForScreen(name) {
+  if (!Sound || !Sound.setBgmCategory) return;
+  const cur = name || (SCREENS.find((s) => {
+    const el = document.getElementById(`screen-${s}`);
+    return el && el.classList.contains('active');
+  }) || 'lobby');
+  if (cur === 'game') { Sound.setBgmCategory('play'); return; }
+  if (cur === 'end')  { Sound.setBgmCategory('none'); return; }
+  // lobby 系: ゲスト (他人の部屋に入った isHost=false の状態) なら停止
+  if (_mode === 'battle' && typeof MomoMatchmaking !== 'undefined') {
+    const st = MomoMatchmaking.getState();
+    if (st && st.currentRoomId && st.isHost === false) {
+      Sound.setBgmCategory('none');
+      return;
+    }
   }
+  Sound.setBgmCategory('lobby');
 }
 
 // ===== v1.32: Wake Lock — 画面ブラックアウトによる回線切断を防ぐ =====
@@ -280,23 +297,42 @@ $('btn-game-start').addEventListener('click', () => {
   }
 });
 
-// v2.09 (v1.5): ロビー画面でも BGM を鳴らすため、最初のユーザー操作時に
-//   AudioContext を初期化して現在画面に応じた BGM カテゴリを開始する
-//   （AudioContext は user gesture 起点でしか作れないため）
+// v2.09/v2.11 (v1.5): AudioContext のプリロードを起動時に開始し、最初の user
+//   gesture で resume + 現在画面に応じた BGM カテゴリで再生開始する。
+//   - DOMContentLoaded で Sound.init() を呼ぶと AudioContext は suspended 状態で
+//     作られ、mp3 の fetch+decode はバックグラウンドで進む。
+//   - 最初の pointerdown/keydown で Sound.resumeAudio() → BGM 開始。
+//     こうすることで「アプリ起動 → 最初のタップ → 即 BGM 再生」を最短で実現。
+Sound.init();  // ページロード直後に AudioContext 作成 + プリロード開始
+
 function initSoundOnFirstGesture() {
-  Sound.init().then(() => {
-    const cur = SCREENS.find((s) => {
-      const el = document.getElementById(`screen-${s}`);
-      return el && el.classList.contains('active');
-    }) || 'lobby';
-    if (cur === 'game')      Sound.setBgmCategory('play');
-    else if (cur !== 'end')  Sound.setBgmCategory('lobby');
+  Sound.resumeAudio().then(() => {
+    refreshBgmForScreen();
   });
   document.removeEventListener('pointerdown', initSoundOnFirstGesture);
   document.removeEventListener('keydown', initSoundOnFirstGesture);
 }
 document.addEventListener('pointerdown', initSoundOnFirstGesture, { once: true });
 document.addEventListener('keydown', initSoundOnFirstGesture, { once: true });
+
+// v2.11 (v1.5): バックグラウンド時の BGM 停止
+//   Android Chrome は visibility hidden でも AudioContext が走り続けるため、
+//   アプリを閉じても BGM が鳴り続ける問題があった。明示的に AudioContext を
+//   suspend し、復帰時に resume + 画面に応じた BGM カテゴリを再適用する。
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    Sound.suspendAudio();
+  } else {
+    Sound.resumeAudio().then(() => {
+      // 復帰時に画面に応じた BGM カテゴリを再確認
+      refreshBgmForScreen();
+    });
+  }
+});
+// pagehide でも明示的に止める (タブ閉じ / iOS の bfcache 退避)
+window.addEventListener('pagehide', () => {
+  Sound.suspendAudio();
+});
 
 $('btn-room-leave').addEventListener('click', async () => {
   if (await confirm(t('modal.confirm.leave'))) {

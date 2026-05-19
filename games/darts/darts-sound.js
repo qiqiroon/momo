@@ -238,6 +238,29 @@ export function playChatReceive() {
   _play('chat', { gain: 0.75 });
 }
 
+// v1.96 (v1.5): 正解音 (ラウンド・ザ・クロックで current target に的中時)
+//   合成 — 2音アルペジオで「ピン!」感 (E5 + B5 を 50ms ずらして)
+//   各音 220ms 程度で減衰
+export function playCorrect() {
+  if (!_ctx || !_masterGain) return;
+  const now = _ctx.currentTime;
+  const freqs = [659.25, 987.77];  // E5, B5
+  freqs.forEach((f, idx) => {
+    const startT = now + idx * 0.05;
+    const osc = _ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = f;
+    const g = _ctx.createGain();
+    g.gain.setValueAtTime(0, startT);
+    g.gain.linearRampToValueAtTime(0.25, startT + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.01, startT + 0.22);
+    osc.connect(g);
+    g.connect(_masterGain);
+    osc.start(startT);
+    osc.stop(startT + 0.24);
+  });
+}
+
 export function playBust() {
   _play('bust', { gain: 0.85 });
 }

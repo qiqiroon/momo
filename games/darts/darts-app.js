@@ -430,6 +430,8 @@ function enterGameScreen() {
   //   sessionStorage に編集済みデータがあればそれを優先。
   loadChatPresets();
   applyChatPresetsToButtons();
+  // v1.96 (v1.5): rtc 初期セグメント色付け
+  refreshRtcSegmentHighlight();
 }
 
 // v1.47 (3-E): チャットスタックをクリア（試合開始/再戦時に呼ぶ）
@@ -440,12 +442,27 @@ function clearChatStack() {
   renderChatStack();
 }
 
+// v1.96 (v1.5): ラウンド・ザ・クロックのセグメント色付け更新
+//   自分の current target = オレンジ、相手 = グレー、両者同じならオレンジ優先
+//   nextTarget が 21 以上 (クリア済) は null (色付け対象外)
+function refreshRtcSegmentHighlight() {
+  if (!_currentRule || _currentRule.type !== 'rtc') return;
+  const my = (_gameState && _gameState.nextTarget >= 1 && _gameState.nextTarget <= 20)
+    ? _gameState.nextTarget : null;
+  const opp = (_mode === 'battle' && _oppState
+            && _oppState.nextTarget >= 1 && _oppState.nextTarget <= 20)
+    ? _oppState.nextTarget : null;
+  Render.setSegmentHighlight(my, opp);
+}
+
 function leaveGameScreen() {
   Render.stop();
   Input.stop();
   // v1.37 (3-D): ハートビート停止
   stopHeartbeat();
   _gameInProgress = false;
+  // v1.96 (v1.5): rtc セグメント色付けをクリア（次のゲームに残らないように）
+  Render.clearSegmentHighlight();
 }
 
 // v1.68: 着弾点が「的盤面に当たったか」判定（数字エリアまでを的内とする）
@@ -557,12 +574,27 @@ function handleOppThrow(data) {
 
 // v1.33 (3-C): shot 後の共通処理（ローカル/受信どちらからも呼ぶ）
 function processShot(throwerState, shot, throwerRole) {
+  // v1.96 (v1.5): rtc 用に投擲前の current target を保存（正解音判定用）
+  const isRtc = (throwerState.rule && throwerState.rule.type === 'rtc');
+  const rtcPrevTarget = isRtc ? throwerState.nextTarget : null;
+
   const r = Rules.applyShot(throwerState, shot);
   // v1.26: ターン終了時の表示保持
   if (r.turnEnded && throwerState.history.length > 0) {
     _pendingTurnDisplay = throwerState.history[throwerState.history.length - 1].shots;
   }
   updateScoreUI();
+
+  // v1.96 (v1.5): rtc 投擲音 (正解/不正解) + セグメント色更新
+  //   shot.segment が prevTarget と一致 (S/D/T) なら正解音、そうでなければ不正解音 (bust 流用)
+  //   自分・相手の投擲とも音を鳴らす (両者の状況把握のため)
+  if (isRtc) {
+    const isCorrect = (shot.segment === rtcPrevTarget)
+                   && (shot.kind === 'S' || shot.kind === 'D' || shot.kind === 'T');
+    if (isCorrect) Sound.playCorrect();
+    else Sound.playBust();
+    refreshRtcSegmentHighlight();
+  }
 
   // v1.61 (5-b): TON80 ジングル — ターン3投合計 180 点（SPEC 13.3 P0）
   // v1.76 (5-d): ハットトリック (1ターン3本ともインナーブル、SPEC 13.3 P2) も ton80 流用
@@ -2744,10 +2776,12 @@ function clearLobbyChat() {
 }
 
 function showLobbyChatPanels(show) {
-  ['waiting', 'room'].forEach(scr => {
-    const panel = $('lobby-chat-' + scr);
-    if (panel) panel.style.display = show ? '' : 'none';
-  });
+  // v1.96 (v1.5): waiting 画面ではゲストがまだ入室していないためチャットを送信しても届かない
+  //   → waiting のチャットパネルは常時非表示、room 画面のみ表示
+  const waitingPanel = $('lobby-chat-waiting');
+  const roomPanel = $('lobby-chat-room');
+  if (waitingPanel) waitingPanel.style.display = 'none';
+  if (roomPanel) roomPanel.style.display = show ? '' : 'none';
 }
 
 // 起動時に送信ボタン / Enter キーをバインド

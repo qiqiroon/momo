@@ -159,6 +159,59 @@ function buildDartboardSVG() {
   });
   svg.appendChild(bullOutline);
 
+  // v2.07 (v1.5): クリケット用 mark テキスト (15-20 各セグメント + bull)
+  //   セグメント中央線 (-90 + i*18) を基準に、左右に 4° オフセットで配置
+  //   自分(left) = 反時計回り側、相手(right) = 時計回り側 (ユーザー指示)
+  const CRICKET_MARK_R = R_NUMBERS;  // 数字と同じ半径
+  const CRICKET_TARGET_SEGMENTS = [15, 16, 17, 18, 19, 20];
+  CRICKET_TARGET_SEGMENTS.forEach((segNum) => {
+    const i = SEGMENT_NUMBERS.indexOf(segNum);
+    const center = -90 + i * 18;
+    const selfRad = (center - 4) * Math.PI / 180;
+    const oppRad  = (center + 4) * Math.PI / 180;
+    const sx = Math.cos(selfRad) * CRICKET_MARK_R;
+    const sy = Math.sin(selfRad) * CRICKET_MARK_R;
+    const ox = Math.cos(oppRad)  * CRICKET_MARK_R;
+    const oy = Math.sin(oppRad)  * CRICKET_MARK_R;
+    const baseAttrs = {
+      'text-anchor': 'middle',
+      'dominant-baseline': 'central',
+      'font-family': "'Fredoka One', 'Noto Sans JP', sans-serif",
+      'font-size': 7,
+      'font-weight': 'bold',
+      stroke: '#000',
+      'stroke-width': 0.6,
+      'paint-order': 'stroke fill',
+      'pointer-events': 'none',
+    };
+    const selfT = el('text', { ...baseAttrs, x: sx, y: sy, fill: '#ea580c',
+                                'data-cricket-mark': 'self', 'data-cricket-seg': String(segNum) });
+    svg.appendChild(selfT);
+    const oppT  = el('text', { ...baseAttrs, x: ox, y: oy, fill: '#f3f4f6',
+                                'data-cricket-mark': 'opp',  'data-cricket-seg': String(segNum) });
+    svg.appendChild(oppT);
+  });
+  // bull の左右にマーク (中央 y=0、x= ±15 アウターブル R=9.4 の少し外)
+  {
+    const bullAttrs = {
+      'text-anchor': 'middle',
+      'dominant-baseline': 'central',
+      'font-family': "'Fredoka One', 'Noto Sans JP', sans-serif",
+      'font-size': 7,
+      'font-weight': 'bold',
+      stroke: '#000',
+      'stroke-width': 0.6,
+      'paint-order': 'stroke fill',
+      'pointer-events': 'none',
+    };
+    const bSelf = el('text', { ...bullAttrs, x: -15, y: 0, fill: '#ea580c',
+                                'data-cricket-mark': 'self', 'data-cricket-seg': 'bull' });
+    svg.appendChild(bSelf);
+    const bOpp  = el('text', { ...bullAttrs, x: 15, y: 0, fill: '#f3f4f6',
+                                'data-cricket-mark': 'opp',  'data-cricket-seg': 'bull' });
+    svg.appendChild(bOpp);
+  }
+
   // 数字（黒帯の上、白文字）
   for (let i = 0; i < 20; i++) {
     const center = -90 + i * 18;
@@ -403,28 +456,24 @@ export function clearSegmentHighlight() {
   });
 }
 
-// v2.05/v2.06 (v1.5): クリケット用ボード色付け
-//   - 1〜14 セグメント = 使えないエリア = 元の白黒のヒントを残したグレー
-//   - 15-20+bull の「両者 3 mark 達成 (ロック)」 = 同じグレー塗り
-//   - 「自分のオープン」(= 自分 3 mark + 相手 < 3) = オレンジ枠 (得点取得可)
-//   - 「相手のオープン」(= 相手 3 mark + 自分 < 3) = 濃いグレー枠
+// v2.05〜v2.07 (v1.5): クリケット用ボード色付け
+//   - 1〜14 セグメント (使えない) + 両者ロック = 単色の明るいグレー塗り (元色のヒント不要)
+//   - 「自分のオープン」(自分 ≥3 + 相手 <3) = オレンジ枠 (得点取得可)
+//   - 「相手のオープン」(相手 ≥3 + 自分 <3) = 濃いグレー枠
 //   - 上記以外 = 元の色を維持 (mark 取得中、まだオープンしてない)
+//   - 各セグメント外側に自分/相手のマーク数 (/, X, Ⓧ) を表示
 //   ※ オープン/クローズの判定は Rules の applyShotCricket と同じ流儀
 const CRICKET_STROKE_SELF = '#ea580c';   // 自分オープン
 const CRICKET_STROKE_OPP  = '#6b7280';   // 相手オープン
-// 元の色をデサチュレート: 黒/白ヒントを残しつつグレー化
-const CRICKET_GRAY_MAP = {
-  '#1a1a1a': '#262626',  // 黒胴体 → やや明るい黒
-  '#fafafa': '#a8a8a8',  // クリーム → 明るめグレー
-  '#dc2626': '#553838',  // 赤 → 暗いグレー (赤味少残)
-  '#16a34a': '#385538',  // 緑 → 暗いグレー (緑味少残)
-};
-function _cricketGray(orig) {
-  if (!orig) return '#3a3a3a';
-  return CRICKET_GRAY_MAP[orig.toLowerCase()] || '#3a3a3a';
-}
+const CRICKET_FILL_GRAY   = '#7a7a7a';   // v2.07: 明るい中明度の単色グレー
 function _isCricketTarget(segKey) {
   return segKey === 'bull' || (typeof segKey === 'number' && segKey >= 15 && segKey <= 20);
+}
+function _cricketMarkChar(n) {
+  if (n === 1) return '/';
+  if (n === 2) return 'X';
+  if (n >= 3)  return 'Ⓧ';
+  return '';
 }
 export function setCricketBoard(myMarks, oppMarks) {
   if (!_boardEl) return;
@@ -439,22 +488,19 @@ export function setCricketBoard(myMarks, oppMarks) {
     const segKey = (raw === 'bull') ? 'bull' : Number(raw);
     const orig = p.getAttribute('data-orig-fill');
     if (!_isCricketTarget(segKey)) {
-      // 使えないエリア
-      p.setAttribute('fill', _cricketGray(orig));
+      p.setAttribute('fill', CRICKET_FILL_GRAY);
       return;
     }
     const my  = myMarks[segKey]  || 0;
     const opp = oppMarks[segKey] || 0;
     if (my >= 3 && opp >= 3) {
-      // ロック (両者クローズ済)
-      p.setAttribute('fill', _cricketGray(orig));
+      p.setAttribute('fill', CRICKET_FILL_GRAY);
     } else if (orig) {
-      // それ以外 (未取得 or 片方のみオープン) は元の色
       p.setAttribute('fill', orig);
     }
   });
 
-  // 外周枠 — 「オープン状態」 = 3 mark 達成 + 相手未達 の側だけ
+  // 外周枠
   svg.querySelectorAll('[data-seg-outline]').forEach((p) => {
     const raw = p.getAttribute('data-seg-outline');
     const segKey = (raw === 'bull') ? 'bull' : Number(raw);
@@ -465,12 +511,21 @@ export function setCricketBoard(myMarks, oppMarks) {
     const my  = myMarks[segKey]  || 0;
     const opp = oppMarks[segKey] || 0;
     if (my >= 3 && opp < 3) {
-      p.setAttribute('stroke', CRICKET_STROKE_SELF);   // 自分のオープン (得点可)
+      p.setAttribute('stroke', CRICKET_STROKE_SELF);
     } else if (opp >= 3 && my < 3) {
-      p.setAttribute('stroke', CRICKET_STROKE_OPP);    // 相手のオープン
+      p.setAttribute('stroke', CRICKET_STROKE_OPP);
     } else {
       p.setAttribute('stroke', 'transparent');
     }
+  });
+
+  // マーク数表示 (15-20 + bull の左右に /、X、Ⓧ)
+  svg.querySelectorAll('[data-cricket-mark]').forEach((t) => {
+    const who = t.getAttribute('data-cricket-mark');   // 'self' | 'opp'
+    const raw = t.getAttribute('data-cricket-seg');
+    const segKey = (raw === 'bull') ? 'bull' : Number(raw);
+    const marks = (who === 'self') ? myMarks : oppMarks;
+    t.textContent = _cricketMarkChar(marks[segKey] || 0);
   });
 }
 export function clearCricketBoard() {
@@ -483,6 +538,9 @@ export function clearCricketBoard() {
   });
   svg.querySelectorAll('[data-seg-outline]').forEach((p) => {
     p.setAttribute('stroke', 'transparent');
+  });
+  svg.querySelectorAll('[data-cricket-mark]').forEach((t) => {
+    t.textContent = '';
   });
 }
 

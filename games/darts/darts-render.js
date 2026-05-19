@@ -403,15 +403,26 @@ export function clearSegmentHighlight() {
   });
 }
 
-// v2.05 (v1.5): クリケット用ボード色付け
-//   - 1〜14 セグメント = 使えないエリア = 薄いグレー塗り
-//   - 15-20+bull のクローズ済 (自分 or 相手 mark=3) = 同じ薄いグレー塗り
-//   - 自分オープン (1〜2 mark) = オレンジ枠
-//   - 相手オープン (1〜2 mark) = 濃いグレー枠
-//   - 未マーク = 元の色を維持
-const CRICKET_FILL_INACTIVE = '#3a3a3a';   // 使えない / クローズ済
-const CRICKET_STROKE_SELF   = '#ea580c';   // 自分オープン
-const CRICKET_STROKE_OPP    = '#6b7280';   // 相手オープン
+// v2.05/v2.06 (v1.5): クリケット用ボード色付け
+//   - 1〜14 セグメント = 使えないエリア = 元の白黒のヒントを残したグレー
+//   - 15-20+bull の「両者 3 mark 達成 (ロック)」 = 同じグレー塗り
+//   - 「自分のオープン」(= 自分 3 mark + 相手 < 3) = オレンジ枠 (得点取得可)
+//   - 「相手のオープン」(= 相手 3 mark + 自分 < 3) = 濃いグレー枠
+//   - 上記以外 = 元の色を維持 (mark 取得中、まだオープンしてない)
+//   ※ オープン/クローズの判定は Rules の applyShotCricket と同じ流儀
+const CRICKET_STROKE_SELF = '#ea580c';   // 自分オープン
+const CRICKET_STROKE_OPP  = '#6b7280';   // 相手オープン
+// 元の色をデサチュレート: 黒/白ヒントを残しつつグレー化
+const CRICKET_GRAY_MAP = {
+  '#1a1a1a': '#262626',  // 黒胴体 → やや明るい黒
+  '#fafafa': '#a8a8a8',  // クリーム → 明るめグレー
+  '#dc2626': '#553838',  // 赤 → 暗いグレー (赤味少残)
+  '#16a34a': '#385538',  // 緑 → 暗いグレー (緑味少残)
+};
+function _cricketGray(orig) {
+  if (!orig) return '#3a3a3a';
+  return CRICKET_GRAY_MAP[orig.toLowerCase()] || '#3a3a3a';
+}
 function _isCricketTarget(segKey) {
   return segKey === 'bull' || (typeof segKey === 'number' && segKey >= 15 && segKey <= 20);
 }
@@ -428,19 +439,22 @@ export function setCricketBoard(myMarks, oppMarks) {
     const segKey = (raw === 'bull') ? 'bull' : Number(raw);
     const orig = p.getAttribute('data-orig-fill');
     if (!_isCricketTarget(segKey)) {
-      p.setAttribute('fill', CRICKET_FILL_INACTIVE);
+      // 使えないエリア
+      p.setAttribute('fill', _cricketGray(orig));
       return;
     }
     const my  = myMarks[segKey]  || 0;
     const opp = oppMarks[segKey] || 0;
-    if (my >= 3 || opp >= 3) {
-      p.setAttribute('fill', CRICKET_FILL_INACTIVE);
+    if (my >= 3 && opp >= 3) {
+      // ロック (両者クローズ済)
+      p.setAttribute('fill', _cricketGray(orig));
     } else if (orig) {
+      // それ以外 (未取得 or 片方のみオープン) は元の色
       p.setAttribute('fill', orig);
     }
   });
 
-  // 外周枠 (15-20+bull のオープン中だけ)
+  // 外周枠 — 「オープン状態」 = 3 mark 達成 + 相手未達 の側だけ
   svg.querySelectorAll('[data-seg-outline]').forEach((p) => {
     const raw = p.getAttribute('data-seg-outline');
     const segKey = (raw === 'bull') ? 'bull' : Number(raw);
@@ -450,12 +464,10 @@ export function setCricketBoard(myMarks, oppMarks) {
     }
     const my  = myMarks[segKey]  || 0;
     const opp = oppMarks[segKey] || 0;
-    if (my >= 3 || opp >= 3) {
-      p.setAttribute('stroke', 'transparent');
-    } else if (my > 0) {
-      p.setAttribute('stroke', CRICKET_STROKE_SELF);
-    } else if (opp > 0) {
-      p.setAttribute('stroke', CRICKET_STROKE_OPP);
+    if (my >= 3 && opp < 3) {
+      p.setAttribute('stroke', CRICKET_STROKE_SELF);   // 自分のオープン (得点可)
+    } else if (opp >= 3 && my < 3) {
+      p.setAttribute('stroke', CRICKET_STROKE_OPP);    // 相手のオープン
     } else {
       p.setAttribute('stroke', 'transparent');
     }

@@ -605,30 +605,42 @@ function processShot(throwerState, shot, throwerRole) {
 
   // v2.03 (v1.5): クリケット時は相手の marks を applyShot に渡す（得点判定のため）
   let applyOpts;
-  let cricketBeforeMarks;
+  let cricketBeforeMy;
+  let cricketBeforeOpp;
   if (isCricket) {
     const oppOfThrower = (throwerState === _gameState) ? _oppState : _gameState;
     applyOpts = { oppMarks: oppOfThrower ? oppOfThrower.marks : {} };
-    // v2.05: 投擲前の mark スナップショット (オープン/クローズ判定用)
-    cricketBeforeMarks = { ...throwerState.marks };
+    // v2.06: 投擲前の自分・相手の mark スナップショット (オープン/クローズ判定用)
+    cricketBeforeMy = { ..._gameState.marks };
+    cricketBeforeOpp = _oppState ? { ..._oppState.marks } : {};
   }
 
   const r = Rules.applyShot(throwerState, shot, applyOpts);
 
-  // v2.05 (v1.5): クリケット音 + ボード色付け更新
-  //   1 mark 以上増加 → 正解音 (オープン or マーク追加)
-  //   3 mark 達成 (オープン→クローズ) → bust 音 (優先)
-  if (isCricket && cricketBeforeMarks) {
-    let anyIncrease = false;
-    let anyClose = false;
+  // v2.05/v2.06 (v1.5): クリケット音 + ボード色付け更新
+  //   オープン/クローズ判定は Rules の applyShotCricket と同じ流儀:
+  //     - 自分 3 mark 達成 + 相手 < 3 = 自分のオープン (得点取得 ready) → 正解音
+  //     - 両者 3 mark 達成 = クローズ (ロック) → bust 音
+  //     - それ以外 (mark 取得中) = 無音
+  if (isCricket && cricketBeforeMy) {
+    const myAfter  = _gameState ? _gameState.marks : {};
+    const oppAfter = _oppState ? _oppState.marks : {};
+    let anySelfOpen = false;
+    let anyLockClose = false;
     [15,16,17,18,19,20,'bull'].forEach((k) => {
-      const b = cricketBeforeMarks[k] || 0;
-      const a = throwerState.marks[k] || 0;
-      if (a > b) anyIncrease = true;
-      if (b < 3 && a >= 3) anyClose = true;
+      const myB = cricketBeforeMy[k]  || 0;
+      const myA = myAfter[k]  || 0;
+      const opB = cricketBeforeOpp[k] || 0;
+      const opA = oppAfter[k] || 0;
+      const wasSelfOpen = (myB >= 3 && opB < 3);
+      const isSelfOpen  = (myA >= 3 && opA < 3);
+      const wasLocked   = (myB >= 3 && opB >= 3);
+      const isLocked    = (myA >= 3 && opA >= 3);
+      if (!wasSelfOpen && isSelfOpen) anySelfOpen = true;
+      if (!wasLocked && isLocked) anyLockClose = true;
     });
-    if (anyClose) Sound.playBust();
-    else if (anyIncrease) Sound.playCorrect();
+    if (anyLockClose) Sound.playBust();
+    else if (anySelfOpen) Sound.playCorrect();
     refreshCricketBoard();
   }
 

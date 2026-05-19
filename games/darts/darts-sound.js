@@ -238,28 +238,27 @@ export function playChatReceive() {
   _play('chat', { gain: 0.75 });
 }
 
-// v1.96/v1.97/v1.98 (v1.5): 正解音 (ラウンド・ザ・クロックで current target に的中時)
-//   v1.98 で「ミ→ド」(クイズ正解音の標準) に変更:
-//   1音目: E5 (659.25 Hz、ミ) → 2音目: C5 (523.25 Hz、ド)
-//   長3度下で「トニック(C)に向かう終止感」、クイズ正解音の典型
-//   長さは v1.96 と同じ (50ms 間隔、各音 220ms 程度)
+// v1.96〜v1.99 (v1.5): 正解音 (ラウンド・ザ・クロックで current target に的中時)
+//   v1.99 で「ミ→ド」を 1 オクターブ上げ + ゆっくりに変更 (ユーザー指示):
+//   1音目: E6 (1318.51 Hz、ミ) → 2音目: C6 (1046.50 Hz、ド)
+//   高音で正解音らしく、ゆっくり (150ms 間隔、各音 400ms 程度) で余韻
 export function playCorrect() {
   if (!_ctx || !_masterGain) return;
   const now = _ctx.currentTime;
-  const freqs = [659.25, 523.25];  // E5(ミ) → C5(ド)、高→低
+  const freqs = [1318.51, 1046.50];  // E6(ミ) → C6(ド)、高→低、1 オクターブ上
   freqs.forEach((f, idx) => {
-    const startT = now + idx * 0.05;
+    const startT = now + idx * 0.15;  // 50ms → 150ms、ゆっくり
     const osc = _ctx.createOscillator();
     osc.type = 'sine';
     osc.frequency.value = f;
     const g = _ctx.createGain();
     g.gain.setValueAtTime(0, startT);
-    g.gain.linearRampToValueAtTime(0.25, startT + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.01, startT + 0.22);
+    g.gain.linearRampToValueAtTime(0.25, startT + 0.03);  // 立ち上がり 30ms
+    g.gain.exponentialRampToValueAtTime(0.01, startT + 0.40);  // 400ms 余韻
     osc.connect(g);
     g.connect(_masterGain);
     osc.start(startT);
-    osc.stop(startT + 0.24);
+    osc.stop(startT + 0.42);
   });
 }
 

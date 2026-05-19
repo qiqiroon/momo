@@ -595,18 +595,13 @@ function processShot(throwerState, shot, throwerRole) {
     refreshRtcSegmentHighlight();
   }
 
-  // v1.61 (5-b): TON80 ジングル — ターン3投合計 180 点（SPEC 13.3 P0）
-  // v1.76 (5-d): ハットトリック (1ターン3本ともインナーブル、SPEC 13.3 P2) も ton80 流用
-  //   - ユーザー判断: 専用素材は使わず ton80 と同じ音
-  //   - hatTrick は 50×3=150 点なので turnSum===180 と重複しない
-  // v1.76/v1.78 (5-d): トン（ターン合計 100〜179、SPEC 13.3 P2）
-  //   - ダーツ慣例: 100 点ジャストから TON。SPEC 13.3「100点超」表記は実装追従で
-  //     「100点以上」に変更（v1.78、ユーザー指摘）
-  //   - ton80 (180 ジャスト) より軽い祝福音。ton80/ハットトリックと排他
-  // v1.84: TON80/ハットトリック達成時は通常の物理振動を上書きして祝祭振動（中心回転、最大振幅）
-  //   - トン（>=100、179以下）は祝祭対象外（通常振動のまま、ユーザー指示「TON80 などの役」に該当しない）
+  // v1.61〜v1.84: TON80/ハットトリック/トン ジングル
+  // v1.99 (v1.5): rtc / cricket では turnSum/ハットトリック演出を発火させない
+  //   (得点ベースのルールではないため、ユーザー指示で無効化)
   // BUST 時は無視（バーストは加算されない）。FINISH と同時の場合は重ね鳴らし（SPEC 13.9）
-  if (r.turnEnded && !r.bust && throwerState.history.length > 0) {
+  const ruleType = throwerState.rule && throwerState.rule.type;
+  const allowTonJingles = (ruleType === '01' || ruleType === 'countup');
+  if (r.turnEnded && !r.bust && throwerState.history.length > 0 && allowTonJingles) {
     const lastShots = throwerState.history[throwerState.history.length - 1].shots;
     const turnSum = lastShots.reduce((a, s) => a + (s.value || 0), 0);
     if (turnSum === 180) { Sound.playTon80(); Render.startCelebrateVibrate(); }

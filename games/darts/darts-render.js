@@ -597,7 +597,7 @@ function tick() {
         endFlight();
       } else {
         const pos = interpolateTrajectory(_flight.trajectory, elapsedS);
-        const proj = projectWorldToScreen(pos, yawDelta, pitchDelta,
+        const proj = projectWorldToScreen(pos, yawDelta, pitchDelta, roll,
                                           screenW, screenH, pxPerDeg);
         if (proj.behind) {
           dartEl.style.opacity = '0';
@@ -690,15 +690,27 @@ function interpolateTrajectory(traj, t) {
 }
 
 // ワールド座標 (m) → 画面座標 (px)。プレイヤーは原点、Z+ 前方
-function projectWorldToScreen(pos, devYawDeg, devPitchDeg, screenW, screenH, pxPerDeg) {
+// v2.02 (v1.5): roll 回転を反映
+//   scene (壁+的) は `translate(...) rotate(roll)` で描画される（rotate origin = 画面中央）。
+//   放物線 / 飛行中ダーツは scene 外の画面座標で配置されるため、roll を適用しないと
+//   ロール時に的との位置関係がズレる。座標を画面中央を支点に rotate(roll) する。
+function projectWorldToScreen(pos, devYawDeg, devPitchDeg, rollDeg, screenW, screenH, pxPerDeg) {
   if (pos.z <= 0.05) return { x: 0, y: 0, behind: true };
   const yawDeg   = Math.atan2(pos.x, pos.z) * 180 / Math.PI;
   const pitchDeg = Math.atan2(pos.y, Math.hypot(pos.x, pos.z)) * 180 / Math.PI;
   const dxDeg = yawDeg   - devYawDeg;
   const dyDeg = pitchDeg - devPitchDeg;
+  const offX = dxDeg * pxPerDeg;
+  const offY = -dyDeg * pxPerDeg;  // CSS Y は下が正
+  // 画面中央を支点に roll で回転（scene と同じ方向）
+  const rad = (rollDeg || 0) * Math.PI / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const rotX = offX * cos - offY * sin;
+  const rotY = offX * sin + offY * cos;
   return {
-    x: dxDeg * pxPerDeg + screenW / 2,
-    y: -dyDeg * pxPerDeg + screenH / 2,
+    x: rotX + screenW / 2,
+    y: rotY + screenH / 2,
     behind: false,
   };
 }

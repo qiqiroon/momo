@@ -13,7 +13,7 @@ import * as Rules from './darts-rules.js';
 const $ = (id) => document.getElementById(id);
 
 // ===== screen 切り替え =====
-const SCREENS = ['lobby', 'rule-select', 'waiting', 'room', 'calibration', 'game', 'end'];
+const SCREENS = ['lobby', 'rule-select', 'difficulty', 'waiting', 'room', 'calibration', 'game', 'end'];
 
 function showScreen(name) {
   if (!SCREENS.includes(name)) return;
@@ -280,6 +280,43 @@ $('btn-solo-start').addEventListener('click', () => {
   showRuleSelectScreen('solo');
 });
 
+// v2.14 (v1.5): AI と対戦 → ルール選択 (scope='ai') → 難度選択 → ゲーム
+$('btn-ai-start').addEventListener('click', () => {
+  _mode = 'ai';
+  showRuleSelectScreen('ai');
+});
+
+// 難度選択画面
+$('#difficulty-tabs') && document.querySelectorAll('#difficulty-tabs .rule-tab').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#difficulty-tabs .rule-tab').forEach((b) => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    const diff = btn.getAttribute('data-difficulty');
+    _aiDifficulty = diff;
+    try { localStorage.setItem(AI_DIFFICULTY_LS_KEY, diff); } catch {}
+    const descEl = document.getElementById('difficulty-desc');
+    if (descEl) descEl.textContent = t('difficulty.' + diff + '.desc');
+  });
+});
+const _btnDifficultyBack = $('btn-difficulty-back');
+if (_btnDifficultyBack) _btnDifficultyBack.addEventListener('click', () => {
+  showRuleSelectScreen('ai');
+});
+const _btnDifficultyOk = $('btn-difficulty-ok');
+if (_btnDifficultyOk) _btnDifficultyOk.addEventListener('click', () => {
+  // 決定 → 直接ゲーム開始フロー (キャリブ + game)
+  _currentRule = { ..._aiRule };
+  startGameFlow();
+});
+// 難度画面表示時に現在の選択を反映
+function refreshDifficultyUI() {
+  document.querySelectorAll('#difficulty-tabs .rule-tab').forEach((b) => {
+    b.classList.toggle('selected', b.getAttribute('data-difficulty') === _aiDifficulty);
+  });
+  const descEl = document.getElementById('difficulty-desc');
+  if (descEl) descEl.textContent = t('difficulty.' + _aiDifficulty + '.desc');
+}
+
 $('btn-game-start').addEventListener('click', () => {
   // v1.61 (5-a): AudioContext 初期化（SPEC 13.11、iOS Safari autoplay 対策・ユーザー操作起点）
   Sound.init();
@@ -349,22 +386,31 @@ let _activeRole = null; // v1.33 (3-C): 'first' | 'second' | null（null=solo）
 let _pendingTurnDisplay = null;  // shots[] | null
 
 function isMyTurn() {
-  if (_mode !== 'battle') return true;
+  if (!isVersus()) return true;
   return _activeRole === _myRole;
 }
 
 // アクティブな投擲者の state（shots 表示・ターン情報用）
 function activeState() {
-  if (_mode !== 'battle') return _gameState;
+  if (!isVersus()) return _gameState;
   return isMyTurn() ? _gameState : _oppState;
 }
 
 function getMyName() {
   if (typeof MomoMatchmaking === 'undefined') return t('lobby.you');
+  // v2.14 (v1.5): AI 対戦時は「自分 = プレイヤー名 (input か lobby.you)」
+  if (isAi()) {
+    const myInputName = ($('my-name') && $('my-name').value && $('my-name').value.trim()) || _hostName;
+    return myInputName || t('lobby.you');
+  }
   return MomoMatchmaking.getState().isHost ? (_hostName || t('lobby.host')) : (_guestName || t('lobby.guest'));
 }
 function getOppName() {
   if (typeof MomoMatchmaking === 'undefined') return t('lobby.opp');
+  // v2.14 (v1.5): AI 対戦時は「CPU(難度)」 表示
+  if (isAi()) {
+    return 'CPU(' + (_aiDifficulty.charAt(0).toUpperCase() + _aiDifficulty.slice(1)) + ')';
+  }
   return MomoMatchmaking.getState().isHost ? (_guestName || t('lobby.guest')) : (_hostName || t('lobby.host'));
 }
 
@@ -393,7 +439,7 @@ function updateScoreUI() {
   // v1.88 (v1.3): 01 = 残り点数 / countup = 累積得点 を表示
   $('ui-remaining').textContent = String(Rules.currentScore(_gameState));
   $('ui-turn-total').textContent = `TURN +${selfSum}`;
-  if (_mode === 'battle' && _oppState) {
+  if (isVersus() && _oppState) {
     $('ui-score-opp').style.display = 'flex';
     const oppSum = (pendingSum !== null && active === _oppState)
       ? pendingSum
@@ -435,7 +481,7 @@ function updateCricketScoreboard() {
   }
   sb.style.display = 'flex';
   const myMarks  = (_gameState && _gameState.marks) || {};
-  const oppMarks = (_mode === 'battle' && _oppState && _oppState.marks) || {};
+  const oppMarks = (isVersus() && _oppState && _oppState.marks) || {};
   const charOf = (n) => {
     if (n === 1) return '/';
     if (n === 2) return 'X';
@@ -451,16 +497,17 @@ function updateCricketScoreboard() {
     const selfEl = row.querySelector('.cri-self');
     const oppEl  = row.querySelector('.cri-opp');
     if (selfEl) selfEl.textContent = charOf(my);
-    if (oppEl)  oppEl.textContent  = (_mode === 'battle') ? charOf(opp) : '';
+    if (oppEl)  oppEl.textContent  = isVersus() ? charOf(opp) : '';
   });
 }
 
 // v1.34: ターン情報を 2 行に（"あなた/相手のターン" + 名前）
+// v2.14 (v1.5): AI 対戦でも表示する
 function updateTurnInfo() {
   const wrap = $('ui-turn-info');
   const mainEl = $('ui-turn-info-main');
   const nameEl = $('ui-turn-info-name');
-  if (_mode !== 'battle') {
+  if (!isVersus()) {
     wrap.style.display = 'none';
     return;
   }
@@ -473,9 +520,10 @@ function updateTurnInfo() {
 }
 
 // v1.33 (3-C): ターン枠 4px（自分=明赤発光 / 相手=暗青）
+// v2.14 (v1.5): AI 対戦でも表示する
 function updateTurnFrame() {
   const fr = $('turn-frame');
-  if (_mode !== 'battle') {
+  if (!isVersus()) {
     fr.classList.remove('self', 'opp');
     return;
   }
@@ -500,10 +548,12 @@ function enterGameScreen() {
   // ゲーム状態を初期化
   _gameState = Rules.createInitialState(_currentRule);
   _pendingTurnDisplay = null;
-  // v1.33 (3-C): 対戦時は相手 state も初期化、先攻決定
-  if (_mode === 'battle') {
+  // v1.33 (3-C) / v2.14 (v1.5): 対戦 / AI 対戦時は相手 state も初期化、先攻決定
+  if (isVersus()) {
     _oppState = Rules.createInitialState(_currentRule);
     _activeRole = 'first';  // 先攻が常に最初に投げる
+    // AI モードは「プレイヤー = first / AI = second」固定
+    if (isAi()) _myRole = 'first';
   } else {
     _oppState = null;
     _activeRole = null;
@@ -517,12 +567,14 @@ function enterGameScreen() {
   // v1.17: ホールドボタン入力を起動（Input.start 内で setDisabled(false) されるので
   //        対戦時の観戦者は start のあとに改めて disable する）
   Input.start({ onRelease: onDartReleased });
-  if (_mode === 'battle') {
+  if (isVersus()) {
     Input.setDisabled(!isMyTurn());
     // v1.40: ハートビート/`_gameInProgress` は proceedToBattleGameStart で起動済み
     // （SPEC 11.5: キャリブ中も有効）
+    // v2.14 (v1.5): AI モードで AI が先攻なら最初の投擲をスケジュール (player=first 固定なので通常 player から)
+    if (isAi() && !isMyTurn()) scheduleAiShot();
   }
-  // v1.47 (3-E): チャット要素は対戦時のみ表示、メッセージスタックを毎ゲーム開始でクリア
+  // v1.47 (3-E): チャット要素は対戦時のみ表示 (AI モードはチャットなし)、メッセージスタックを毎ゲーム開始でクリア
   const chatAreaGame = $('chat-area-game');
   if (chatAreaGame) chatAreaGame.style.display = (_mode === 'battle') ? '' : 'none';
   clearChatStack();
@@ -552,7 +604,7 @@ function refreshRtcSegmentHighlight() {
   if (!_currentRule || _currentRule.type !== 'rtc') return;
   const my = (_gameState && _gameState.nextTarget >= 1 && _gameState.nextTarget <= 20)
     ? _gameState.nextTarget : null;
-  const opp = (_mode === 'battle' && _oppState
+  const opp = (isVersus() && _oppState
             && _oppState.nextTarget >= 1 && _oppState.nextTarget <= 20)
     ? _oppState.nextTarget : null;
   Render.setSegmentHighlight(my, opp);
@@ -563,7 +615,7 @@ function refreshRtcSegmentHighlight() {
 function refreshCricketBoard() {
   if (!_currentRule || _currentRule.type !== 'cricket') return;
   const myMarks = (_gameState && _gameState.marks) || {};
-  const oppMarks = (_mode === 'battle' && _oppState && _oppState.marks) || {};
+  const oppMarks = (isVersus() && _oppState && _oppState.marks) || {};
   Render.setCricketBoard(myMarks, oppMarks);
 }
 
@@ -596,7 +648,7 @@ function isOnBoard(boardSV) {
 // v1.61 (5-b): 投擲音 + 着弾音（SPEC 13.4/13.5/13.6）
 function onDartReleased({ hand, strength, durationMs }) {
   // 対戦時、相手のターン中はそもそもボタン disabled だが念のためガード
-  if (_mode === 'battle' && !isMyTurn()) return;
+  if (isVersus() && !isMyTurn()) return;
 
   // v1.61: 投擲音（強さで pitch+volume 変調、SPEC 13.5）
   Sound.playThrow(strength);
@@ -776,9 +828,9 @@ function processShot(throwerState, shot, throwerRole) {
 
   // === FINISH ===
   if (r.finished) {
-    // v1.89 (v1.3): 対戦カウントアップは両者 24 投終了まで待ち、total 比較で勝敗判定
-    const isBattleCountup = (_mode === 'battle' && _currentRule.type === 'countup');
-    if (isBattleCountup && _oppState && !_oppState.finished) {
+    // v1.89 (v1.3) / v2.14: 対戦/AI カウントアップは両者 全投終了まで待ち、 total 比較で勝敗判定
+    const isVersusCountup = (isVersus() && _currentRule.type === 'countup');
+    if (isVersusCountup && _oppState && !_oppState.finished) {
       // 相手はまだ投擲中 → 自分はこれ以上投げず通常のターン交代
       setTimeout(() => {
         _pendingTurnDisplay = null;
@@ -789,15 +841,15 @@ function processShot(throwerState, shot, throwerRole) {
 
     // 勝者判定
     // v2.03 (v1.5): クリケット — r.cricketWinner で確定済み (processShot 内で set)
-    const isBattleCricket = (_mode === 'battle' && _currentRule.type === 'cricket');
+    const isVersusCricket = (isVersus() && _currentRule.type === 'cricket');
     let winner;  // 'self' | 'opp' | 'draw'
-    if (isBattleCricket && r.cricketWinner) {
+    if (isVersusCricket && r.cricketWinner) {
       winner = r.cricketWinner;
-    } else if (isBattleCountup) {
+    } else if (isVersusCountup) {
       if (_gameState.total > _oppState.total) winner = 'self';
       else if (_gameState.total < _oppState.total) winner = 'opp';
       else winner = 'draw';
-    } else if (_mode === 'battle') {
+    } else if (isVersus()) {
       winner = (throwerRole === _myRole) ? 'self' : 'opp';
     } else {
       winner = 'self';  // solo
@@ -806,17 +858,17 @@ function processShot(throwerState, shot, throwerRole) {
     const isDraw = (winner === 'draw');
 
     let mainText, subText;
-    if (_mode === 'battle') {
+    if (isVersus()) {
       if (isDraw) {
         mainText = 'DRAW';
-        subText = isBattleCricket
+        subText = isVersusCricket
           ? t('end.cricket.draw.sub', { selfScore: _gameState.score, oppScore: _oppState.score })
           : t('end.countup.draw.sub', { selfTotal: _gameState.total, oppTotal: _oppState.total });
       } else {
         mainText = isMyWin ? 'WIN!' : 'LOSE!';
-        if (isBattleCricket) {
+        if (isVersusCricket) {
           subText = t('end.cricket.battle.sub', { selfScore: _gameState.score, oppScore: _oppState.score });
-        } else if (isBattleCountup) {
+        } else if (isVersusCountup) {
           subText = t('end.countup.battle.sub', { selfTotal: _gameState.total, oppTotal: _oppState.total });
         } else {
           subText = t('end.win.lineNoDarts', { winner: isMyWin ? getMyName() : getOppName() });
@@ -831,7 +883,7 @@ function processShot(throwerState, shot, throwerRole) {
     }
     console.log('[darts] FINISH! winner=' + winner + ' rule=' + _currentRule.type);
     Render.logEvent({ type: 'finish', dartCount: throwerState.dartCount, turns: throwerState.turnIndex, winner });
-    showAnnouncement(isDraw ? 'finish' : (_mode === 'battle' && !isMyWin ? 'lose' : 'finish'), mainText, subText);
+    showAnnouncement(isDraw ? 'finish' : (isVersus() && !isMyWin ? 'lose' : 'finish'), mainText, subText);
 
     // v1.75 (5-c): 特別演出ジングル → 勝利/敗北ジングル → 勝利画面の順次再生
     let delayMs = 0;
@@ -885,9 +937,11 @@ function processShot(throwerState, shot, throwerRole) {
   // === 同じプレイヤー継続 ===
   // ボタン状態: 自分のターンで自分が投げ終わった直後 → 次の投げのため有効化。
   // 相手のターン受信中 → 引き続き無効。
-  if (_mode === 'battle') {
+  if (isVersus()) {
     Input.setDisabled(!isMyTurn());
     updateScoreUI();  // turn-info の N 投目更新
+    // v2.14 (v1.5): AI モードで AI のターン継続中なら次の投擲をスケジュール
+    if (isAi() && !isMyTurn() && !throwerState.finished) scheduleAiShot();
   } else {
     Input.setDisabled(false);
   }
@@ -895,7 +949,7 @@ function processShot(throwerState, shot, throwerRole) {
 
 // v1.33 (3-C): ターン終了 → 役割交代 + 新しい的位置（両者ローカル）
 function endTurnAndPlace() {
-  if (_mode === 'battle') {
+  if (isVersus()) {
     _activeRole = (_activeRole === 'first') ? 'second' : 'first';
     Input.setDisabled(!isMyTurn());
   } else {
@@ -913,8 +967,44 @@ function endTurnAndPlace() {
   updateScoreUI();
   // v1.71 (5-c): 自分のターン開始時のみターン切替音（SPEC 13.8）
   //   solo: 毎ターン自分 → 毎回鳴らす
-  //   battle: isMyTurn() のときだけ
-  if (_mode !== 'battle' || isMyTurn()) Sound.playTurnStart();
+  //   battle / ai: isMyTurn() のときだけ
+  if (!isVersus() || isMyTurn()) Sound.playTurnStart();
+  // v2.14 (v1.5): AI モードで AI のターンに切替わった場合、 1.0〜2.0 秒後に AI 投擲
+  if (isAi() && !isMyTurn()) scheduleAiShot();
+}
+
+// v2.14 (v1.5): AI 投擲のスケジューリング (SPEC 22.4 「1.0〜2.0 秒待機」)
+let _aiShotTimer = null;
+function scheduleAiShot() {
+  if (!isAi() || isMyTurn()) return;
+  if (_aiShotTimer) clearTimeout(_aiShotTimer);
+  const delay = 1000 + Math.random() * 1000;  // 1.0〜2.0 秒
+  _aiShotTimer = setTimeout(() => {
+    _aiShotTimer = null;
+    aiTakeShot();
+  }, delay);
+}
+function aiTakeShot() {
+  if (!isAi() || !_oppState || _oppState.finished) return;
+  if (isMyTurn()) return;  // 切替で既に自分のターンに戻っていれば中止
+  const targetWorld = Render.getTargetWorld();
+  const { aimYawDeg, aimPitchDeg, strength } =
+    Rules.aiChooseShot(_oppState, _gameState, targetWorld, _aiDifficulty);
+  Sound.playThrow(strength);
+  const aimYawRad   = aimYawDeg   * Math.PI / 180;
+  const aimPitchRad = aimPitchDeg * Math.PI / 180;
+  const sim = Physics.simulateThrow({ hand: 'R', strength, aimYawRad, aimPitchRad });
+  Render.fireFlight(sim, (result) => {
+    const shot = Rules.scoreFromImpactSVG(result.board);
+    if (isOnBoard(result.board)) {
+      Sound.playHit();
+      Sound.playVibrate(strength);
+      Render.startTargetVibrate(strength, result.board);
+    } else {
+      Sound.playMiss();
+    }
+    processShot(_oppState, shot, 'second');
+  }, { thrower: 'opp' });
 }
 
 // v2.10 (v1.5): デッドロック解除「投擲権移譲」
@@ -1516,7 +1606,14 @@ $('btn-game-leave').addEventListener('click', async () => {
     leaveGameScreen();
     Sensor.stopListening();
     Sensor.clearCalibration();
-    showScreen('room');
+    // v2.14 (v1.5): AI モードは pending AI タイマーをクリアしてロビーへ戻す
+    if (_aiShotTimer) { clearTimeout(_aiShotTimer); _aiShotTimer = null; }
+    if (isAi()) {
+      _mode = 'solo';
+      showScreen('lobby');
+    } else {
+      showScreen('room');
+    }
   }
 });
 
@@ -1549,11 +1646,15 @@ $('btn-end-replay').addEventListener('click', () => {
 $('btn-end-rule-change').addEventListener('click', () => {
   // v1.44 (3-E): 対戦時は「先後そのままで再戦」の合意フロー
   if (_mode === 'battle') { chooseEnd('same'); return; }
+  // v2.14 (v1.5): AI モードは「ルール変更」 → ロビーに戻る
+  if (isAi()) { _mode = 'solo'; showScreen('lobby'); return; }
   showScreen('room');
 });
 $('btn-end-back-room').addEventListener('click', () => {
   // v1.44 (3-E): 対戦時は確認なしで退出（abort 経路は exitBattleToLobby 直行で OK）
   if (_mode === 'battle') { chooseEnd('quit'); return; }
+  // v2.14 (v1.5): AI モードは ロビーに戻る + _mode リセット
+  if (isAi()) { _mode = 'solo'; showScreen('lobby'); return; }
   showScreen('room');
 });
 
@@ -1828,8 +1929,14 @@ const NAME_KEY = 'momoPlayerName';
 const ROOM_NAME_KEY = 'momoRoomName';
 const LEGACY_NAME_KEY = 'momo-darts-name';
 
-// 'solo' | 'battle' — 現在の遊び方モード
+// 'solo' | 'battle' | 'ai' — 現在の遊び方モード (v2.14: 'ai' 追加)
 let _mode = 'solo';
+// v2.14 (v1.5): AI 対戦の難度。 'easy' | 'normal' | 'hard'
+let _aiDifficulty = 'normal';
+
+// v2.14 (v1.5): 「相手あり」モード (battle / ai 共通)
+function isVersus() { return _mode === 'battle' || _mode === 'ai'; }
+function isAi() { return _mode === 'ai'; }
 
 // v1.88〜v1.91 (v1.4): ルール状態
 //   _soloRule:    「一人で遊ぶ」用の選択状態（localStorage `momoDartsSoloRule`）
@@ -1852,14 +1959,29 @@ function loadRuleFromLS(key) {
 function saveRuleToLS(key, rule) {
   try { localStorage.setItem(key, JSON.stringify(rule)); } catch {}
 }
+// v2.14 (v1.5): AI 対戦用のルール永続化キー
+const AI_RULE_LS_KEY     = 'momoDartsAiRule';
+const AI_DIFFICULTY_LS_KEY = 'momoDartsAiDifficulty';
+
 let _soloRule   = loadRuleFromLS(SOLO_RULE_LS_KEY);
 let _createRule = loadRuleFromLS(CREATE_RULE_LS_KEY);
+let _aiRule     = loadRuleFromLS(AI_RULE_LS_KEY);
 let _currentRule = { ..._soloRule };  // 既定は solo 経路
 let _ruleSelectScope = 'solo';
+// 起動時 AI 難度を localStorage から復元
+try {
+  const d = localStorage.getItem(AI_DIFFICULTY_LS_KEY);
+  if (d === 'easy' || d === 'normal' || d === 'hard') _aiDifficulty = d;
+} catch {}
 
-function getRuleByScope(scope) { return scope === 'create' ? _createRule : _soloRule; }
+function getRuleByScope(scope) {
+  if (scope === 'create') return _createRule;
+  if (scope === 'ai')     return _aiRule;
+  return _soloRule;
+}
 function setRuleByScope(scope, rule) {
   if (scope === 'create') { _createRule = rule; saveRuleToLS(CREATE_RULE_LS_KEY, rule); }
+  else if (scope === 'ai') { _aiRule    = rule; saveRuleToLS(AI_RULE_LS_KEY,     rule); }
   else                    { _soloRule   = rule; saveRuleToLS(SOLO_RULE_LS_KEY,   rule); }
 }
 
@@ -1876,11 +1998,13 @@ function applyRuleSelectUI() {
     if (el) el.style.display = rule.type === t ? 'block' : 'none';
   });
   // v1.95/v2.03 (v1.5): クリケットは対戦専用 (solo では disabled、対戦では選択可)
+  // v2.14 (v1.5): クリケットは対戦専用だが、 AI 対戦 (scope='ai') でも有効化
   const cricketTab = document.querySelector('#rule-select-tabs .rule-tab[data-rule-type="cricket"]');
   if (cricketTab) {
-    cricketTab.disabled = (_ruleSelectScope === 'solo');
-    cricketTab.style.opacity = (_ruleSelectScope === 'solo') ? '0.4' : '1';
-    cricketTab.title = (_ruleSelectScope === 'solo') ? 'Cricket — 対戦専用 (battle のみ)' : '';
+    const isSoloScope = (_ruleSelectScope === 'solo');
+    cricketTab.disabled = isSoloScope;
+    cricketTab.style.opacity = isSoloScope ? '0.4' : '1';
+    cricketTab.title = isSoloScope ? 'Cricket — 対戦専用' : '';
   }
   // ボタンのハイライト
   document.querySelectorAll('#rule-select-content-01 .rule-btn[data-start-score]').forEach((b) => {
@@ -1902,7 +2026,11 @@ function applyRuleSelectUI() {
   updateRuleSelectDetail();
   // status-bar 文言
   const sb = $('rule-select-status');
-  if (sb) sb.textContent = t(_ruleSelectScope === 'solo' ? 'ruleSelect.status.solo' : 'ruleSelect.status.create');
+  if (sb) {
+    if (_ruleSelectScope === 'solo')      sb.textContent = t('ruleSelect.status.solo');
+    else if (_ruleSelectScope === 'ai')   sb.textContent = t('ruleSelect.status.ai');
+    else                                   sb.textContent = t('ruleSelect.status.create');
+  }
 }
 
 // v1.91/v1.94 (v1.4): screen-rule-select 内のルール詳細表示
@@ -2087,6 +2215,12 @@ function onRuleSelectConfirm() {
     updateRuleDetail();
     resetRoomToSolo();
     showScreen('room');
+  } else if (_ruleSelectScope === 'ai') {
+    // v2.14 (v1.5): AI 対戦 → 難度選択画面へ
+    _mode = 'ai';
+    _currentRule = { ..._aiRule };
+    refreshDifficultyUI();
+    showScreen('difficulty');
   } else {
     // create
     _currentRule = { ..._createRule };

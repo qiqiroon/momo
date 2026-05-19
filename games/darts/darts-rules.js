@@ -405,6 +405,117 @@ function applyShotCountup(state, shot) {
 }
 
 // ======================================================================
+// v2.14 (v1.5): AI 対戦の投擲決定 (SPEC 22 章)
+// ======================================================================
+//   - state: AI 自分の state
+//   - oppState: 相手 (= プレイヤー) の state
+//   - targetWorld: { yaw, pitch } (現在のボード中心ワールド角度)
+//   - difficulty: 'easy' | 'normal' | 'hard'
+//   - 戻り値: { aimYawDeg, aimPitchDeg, strength }
+const _AI_PARAMS = {
+  easy:   { sigma: 6.0,  strengthBase: 0.40, strengthBlur: 0.10 },
+  normal: { sigma: 3.0,  strengthBase: 0.50, strengthBlur: 0.07 },
+  hard:   { sigma: 1.5,  strengthBase: 0.55, strengthBlur: 0.04 },
+};
+// SVG ユニット → 角度 換算定数 (darts-render.js の _UNITS_PER_DEG と一致):
+//   ((R_BORDER + 4) * 2) / (HORIZ_FOV_DEG * TARGET_DIAMETER_RATIO)
+//   = (112+4)*2 / (40 * 0.9) ≒ 6.444
+const _AI_UNITS_PER_DEG = ((R_BORDER + 4) * 2) / (40 * 0.9);
+
+function _aiGaussRand() {
+  // Box-Muller (簡易): 平均 0, 標準偏差 1 の正規乱数
+  const u = Math.max(1e-9, Math.random());
+  const v = Math.random();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+// セグメント中心の (yaw, pitch) 度 (ターゲット中心からの相対) を返す
+//   segment: 1〜20 / 'bull'  ring: 'S'|'D'|'T'|'BULL'|'DBULL'
+function _aiSegmentCenterOffset(segment, ring) {
+  if (segment === 'bull' || ring === 'BULL' || ring === 'DBULL') {
+    return { dxDeg: 0, dyDeg: 0 };
+  }
+  const idx = SEGMENT_NUMBERS.indexOf(segment);
+  if (idx < 0) return { dxDeg: 0, dyDeg: 0 };
+  // ring の代表半径 (SVG 単位)
+  let radius_svg;
+  if (ring === 'T')      radius_svg = (R_TRIPLE_IN + R_TRIPLE_OUT) / 2;   // ≒ 60.5
+  else if (ring === 'D') radius_svg = (R_DOUBLE_IN + R_DOUBLE_OUT) / 2;   // ≒ 97.6
+  else                    radius_svg = (R_TRIPLE_OUT + R_DOUBLE_IN) / 2;  // outer S 中央 ≒ 79
+  // SVG 上のセグメント中心角度 (画面上が -y、 12 時 = -90°、 時計回り 18°/seg)
+  const angle_svg = -90 + idx * 18;
+  const rad = angle_svg * Math.PI / 180;
+  const svg_x = radius_svg * Math.cos(rad);
+  const svg_y = radius_svg * Math.sin(rad);
+  // SVG → ボード相対角度 (度)
+  return {
+    dxDeg:  svg_x / _AI_UNITS_PER_DEG,
+    dyDeg: -svg_y / _AI_UNITS_PER_DEG,    // SVG y は下向き、 pitch は上向き
+  };
+}
+
+// 01: 残り点数で最適セグメントを選ぶ (簡略)
+function _aiTargetFor01(state) {
+  const rem = state.remaining || 0;
+  // 高残り → T20 (60 点)
+  if (rem >= 61) return { segment: 20, ring: 'T' };
+  // 50 → DBULL (フィニッシュ)
+  if (rem === 50) return { segment: 'bull', ring: 'DBULL' };
+  // 40 → D20
+  if (rem === 40) return { segment: 20, ring: 'D' };
+  // 偶数 (out=single/master): D が望ましいが、 とりあえず分かりやすく D で
+  if (rem >= 2 && rem <= 40 && rem % 2 === 0) return { segment: rem / 2, ring: 'D' };
+  // 奇数 残り: S を狙って 1 を残す (簡略)
+  if (rem > 0) {
+    const seg = Math.min(20, Math.max(1, rem - 1));
+    return { segment: seg, ring: 'S' };
+  }
+  return { segment: 20, ring: 'T' };
+}
+
+// クリケット: 自分が未クローズなら 20→19→18→...→bull、 クローズ済なら相手の未クローズ
+function _aiTargetForCricket(state, oppState) {
+  const segs = [20, 19, 18, 17, 16, 15, 'bull'];
+  // 自分が未クローズの最も高得点
+  for (const s of segs) {
+    if ((state.marks && (state.marks[s] || 0) < 3)) return { segment: s, ring: 'T' };
+  }
+  // 自分は全クローズ → 相手が未クローズで自分がオープン中 (= state.marks>=3 && opp.marks<3) なら得点取りに行く
+  for (const s of segs) {
+    const opp = (oppState && oppState.marks && oppState.marks[s]) || 0;
+    if (opp < 3) return { segment: s, ring: 'T' };
+  }
+  return { segment: 20, ring: 'T' };
+}
+
+export function aiChooseShot(state, oppState, targetWorld, difficulty) {
+  const params = _AI_PARAMS[difficulty] || _AI_PARAMS.normal;
+  const t = state.rule && state.rule.type;
+  let target;
+  if (t === '01') {
+    target = _aiTargetFor01(state);
+  } else if (t === 'countup') {
+    target = { segment: 20, ring: 'T' };
+  } else if (t === 'rtc') {
+    const next = state.nextTarget;
+    if (next === 25 || next === 'bull') target = { segment: 'bull', ring: 'BULL' };
+    else if (typeof next === 'number' && next >= 1 && next <= 20) target = { segment: next, ring: 'S' };
+    else target = { segment: 20, ring: 'T' };
+  } else if (t === 'cricket') {
+    target = _aiTargetForCricket(state, oppState);
+  } else {
+    target = { segment: 20, ring: 'T' };
+  }
+  const off = _aiSegmentCenterOffset(target.segment, target.ring);
+  // ターゲットボード中心 + セグメント中心 offset + 精度ノイズ
+  const aimYawDeg   = (targetWorld ? targetWorld.yaw   : 0) + off.dxDeg + _aiGaussRand() * params.sigma;
+  const aimPitchDeg = (targetWorld ? targetWorld.pitch : 0) + off.dyDeg + _aiGaussRand() * params.sigma;
+  const strength = Math.max(0.20, Math.min(0.90,
+    params.strengthBase + (Math.random() - 0.5) * 2 * params.strengthBlur));
+  return { aimYawDeg, aimPitchDeg, strength };
+}
+
+// ======================================================================
 // その他ユーティリティ
 // ======================================================================
 

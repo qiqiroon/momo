@@ -1809,7 +1809,7 @@ input.chat-preset-btn.editing-input:focus {
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v2.13</span>
+      <span class="version-tag" id="version-tag">v2.14</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -1825,6 +1825,13 @@ input.chat-preset-btn.editing-input:focus {
     <div class="panel-title" data-i18n="lobby.solo.title">1人で遊ぶ</div>
     <div class="panel-desc" data-i18n="lobby.solo.desc">501 シングルアウトを練習モードで遊びます。勝敗判定なし、フィニッシュまでのターン数を記録します。</div>
     <button class="btn btn-primary" id="btn-solo-start" data-i18n="lobby.solo.start">1人で遊ぶ</button>
+  </div>
+
+  <!-- v2.14 (v1.5): AI と対戦 (SPEC 22 章) -->
+  <div class="panel">
+    <div class="panel-title" data-i18n="lobby.ai.title">AI と対戦</div>
+    <div class="panel-desc" data-i18n="lobby.ai.desc">CPU と対戦します。難度 Easy / Normal / Hard を選んで腕試し。クリケットも対戦専用ルールとしてプレイ可能。</div>
+    <button class="btn btn-primary" id="btn-ai-start" data-i18n="lobby.ai.start">AI と対戦</button>
   </div>
 
   <!-- v1.27 (3-A): 部屋を作る -->
@@ -1952,6 +1959,27 @@ input.chat-preset-btn.editing-input:focus {
   <div class="panel" style="flex-direction:row; gap:8px;">
     <button class="btn btn-secondary" id="btn-rule-select-back" style="flex:1;" data-i18n="ruleSelect.back">戻る</button>
     <button class="btn btn-primary" id="btn-rule-select-ok" style="flex:1;" data-i18n="ruleSelect.ok">決定</button>
+  </div>
+</div>
+
+<!-- ===== SCREEN: DIFFICULTY (AI 難度選択) v2.14 (v1.5) ===== -->
+<div class="screen" id="screen-difficulty">
+  <div class="status-bar" data-i18n="difficulty.status">AI 難度を選択</div>
+  <div class="panel">
+    <div class="panel-title" data-i18n="difficulty.title">難度</div>
+    <div class="rule-tabs" id="difficulty-tabs">
+      <button class="rule-tab" data-difficulty="easy" data-i18n="difficulty.easy">初級</button>
+      <button class="rule-tab selected" data-difficulty="normal" data-i18n="difficulty.normal">中級</button>
+      <button class="rule-tab" data-difficulty="hard" data-i18n="difficulty.hard">上級</button>
+    </div>
+    <div class="rule-group">
+      <div class="rule-group-label" data-i18n="difficulty.desc.label">説明</div>
+      <div class="rule-group-text" id="difficulty-desc" data-i18n="difficulty.normal.desc">中心や T20 を狙う。 ブレ少なめ。</div>
+    </div>
+  </div>
+  <div class="panel" style="flex-direction:row; gap:8px;">
+    <button class="btn btn-secondary" id="btn-difficulty-back" style="flex:1;" data-i18n="ruleSelect.back">戻る</button>
+    <button class="btn btn-primary" id="btn-difficulty-ok" style="flex:1;" data-i18n="ruleSelect.ok">決定</button>
   </div>
 </div>
 

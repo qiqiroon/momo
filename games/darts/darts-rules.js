@@ -430,6 +430,22 @@ const _AI_PARAMS = {
 //   AI 投擲は常に hand='R' (aiTakeShot) なので、 これを逆方向に予加算して相殺する。
 const _PHYSICS_HAND_BIAS_YAW_R_DEG = -0.8;
 const _PHYSICS_HAND_BIAS_PITCH_DEG = -0.4;
+
+// v2.19 (v1.5): 重力による pitch 落下の予補正
+//   simulateThrow は aimPitch 方向に飛び出した後、 重力 G=9.8 m/s² で落下する。
+//   標的距離 z=2.5m、 速度 speed = 4 + s*8 m/s で空気抵抗無視の単純落下を計算し、
+//   pitch を「重力で落ちる分だけ上向きに」予補正する。
+const _PHYSICS_SPEED_MIN = 4.0;
+const _PHYSICS_SPEED_MAX = 12.0;
+const _PHYSICS_TARGET_Z = 2.5;
+const _PHYSICS_G = 9.8;
+function _gravityCompensatePitchDeg(strength) {
+  const speed = _PHYSICS_SPEED_MIN + strength * (_PHYSICS_SPEED_MAX - _PHYSICS_SPEED_MIN);
+  const t = _PHYSICS_TARGET_Z / speed;
+  const drop = 0.5 * _PHYSICS_G * t * t;
+  // 落下量を角度に変換 (= 上方向にこの分多く狙う)
+  return Math.atan2(drop, _PHYSICS_TARGET_Z) * 180 / Math.PI;
+}
 // SVG ユニット → 角度 換算定数 (darts-render.js の _UNITS_PER_DEG と一致):
 //   ((R_BORDER + 4) * 2) / (HORIZ_FOV_DEG * TARGET_DIAMETER_RATIO)
 //   = (112+4)*2 / (40 * 0.9) ≒ 6.444
@@ -523,6 +539,8 @@ export function aiChooseShot(state, oppState, targetWorld, difficulty) {
   // ターゲットボード中心 + セグメント中心 offset + 精度ノイズ
   let aimYawDeg   = (targetWorld ? targetWorld.yaw   : 0) + off.dxDeg + _aiGaussRand() * params.sigma;
   let aimPitchDeg = (targetWorld ? targetWorld.pitch : 0) + off.dyDeg + _aiGaussRand() * params.sigma;
+  const strength = Math.max(0.20, Math.min(0.90,
+    params.strengthBase + (Math.random() - 0.5) * 2 * params.strengthBlur));
   // v2.18 (v1.5): 物理の利き手バイアスを予補正 (APOCALYPSE のみ)
   //   simulateThrow が R 投げで yaw に -0.8°、 pitch に -0.4° を加えるので、
   //   それを打ち消すよう +0.8°、 +0.4° を予加算
@@ -530,8 +548,9 @@ export function aiChooseShot(state, oppState, targetWorld, difficulty) {
     aimYawDeg   -= _PHYSICS_HAND_BIAS_YAW_R_DEG;
     aimPitchDeg -= _PHYSICS_HAND_BIAS_PITCH_DEG;
   }
-  const strength = Math.max(0.20, Math.min(0.90,
-    params.strengthBase + (Math.random() - 0.5) * 2 * params.strengthBlur));
+  // v2.19 (v1.5): 重力落下分を pitch 方向に予加算 (全難度に適用)
+  //   easy/normal でも「狙った場所より下に着弾」していたバグを解消
+  aimPitchDeg += _gravityCompensatePitchDeg(strength);
   return { aimYawDeg, aimPitchDeg, strength };
 }
 

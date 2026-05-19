@@ -176,6 +176,8 @@
 
     "settings.title": "設定",
     "settings.volume.label": "音量",
+    "settings.sfxVolume.label": "効果音",
+    "settings.bgmVolume.label": "BGM",
     "settings.quality.label": "描画品質",
     "settings.quality.auto": "自動",
     "settings.quality.standard": "標準",
@@ -405,6 +407,8 @@
 
     "settings.title": "Settings",
     "settings.volume.label": "Volume",
+    "settings.sfxVolume.label": "SFX",
+    "settings.bgmVolume.label": "BGM",
     "settings.quality.label": "Render quality",
     "settings.quality.auto": "Auto",
     "settings.quality.standard": "Standard",
@@ -634,6 +638,8 @@
 
     "settings.title": "设置",
     "settings.volume.label": "音量",
+    "settings.sfxVolume.label": "效果音",
+    "settings.bgmVolume.label": "BGM",
     "settings.quality.label": "渲染质量",
     "settings.quality.auto": "自动",
     "settings.quality.standard": "标准",

@@ -701,9 +701,12 @@ function tick() {
   _boardEl.style.height = `${targetSizePx}px`;
 
   // v1.10: 純粋 2D 描画（translate + rotateZ のみ）
-  // 3D 合成パスを避けて pivot ズレを防ぐ。疑似 3D 傾きは v1.10+ で再導入予定
+  // v2.09 (v1.5): rotate を先、translate を後の R*T 順に変更
+  //   projectWorldToScreen (trail/dart 用) は (offX, offY) を rotate してから画面中央加算する
+  //   R*T 順。scene 側も同じ計算順に揃えることで、ロール時の着弾点と放物線の終端が一致する。
+  //   設計: 「0 リセット時の真下=重力下」を基準にし、端末ロール時も的の位置は重力空間で固定。
   _sceneEl.style.transform =
-    `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) rotate(${roll.toFixed(2)}deg)`;
+    `rotate(${roll.toFixed(2)}deg) translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
 
   // ログサンプル記録（10Hz）
   const now = performance.now();

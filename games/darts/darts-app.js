@@ -33,6 +33,15 @@ function showScreen(name) {
     showLobbyChatPanels(false);
     clearLobbyChat();
   }
+  // v2.09 (v1.5): BGM カテゴリを切替
+  //   - game           → play (4 曲ランダム)
+  //   - end            → 即停止 (showEndScreen 内でファンファーレ後に lobby 開始)
+  //   - それ以外       → lobby (2 曲ランダム)
+  if (Sound && Sound.setBgmCategory) {
+    if (name === 'game')      Sound.setBgmCategory('play');
+    else if (name === 'end')  Sound.setBgmCategory('none');
+    else                       Sound.setBgmCategory('lobby');
+  }
 }
 
 // ===== v1.32: Wake Lock — 画面ブラックアウトによる回線切断を防ぐ =====
@@ -270,6 +279,24 @@ $('btn-game-start').addEventListener('click', () => {
     startGameFlow();
   }
 });
+
+// v2.09 (v1.5): ロビー画面でも BGM を鳴らすため、最初のユーザー操作時に
+//   AudioContext を初期化して現在画面に応じた BGM カテゴリを開始する
+//   （AudioContext は user gesture 起点でしか作れないため）
+function initSoundOnFirstGesture() {
+  Sound.init().then(() => {
+    const cur = SCREENS.find((s) => {
+      const el = document.getElementById(`screen-${s}`);
+      return el && el.classList.contains('active');
+    }) || 'lobby';
+    if (cur === 'game')      Sound.setBgmCategory('play');
+    else if (cur !== 'end')  Sound.setBgmCategory('lobby');
+  });
+  document.removeEventListener('pointerdown', initSoundOnFirstGesture);
+  document.removeEventListener('keydown', initSoundOnFirstGesture);
+}
+document.addEventListener('pointerdown', initSoundOnFirstGesture, { once: true });
+document.addEventListener('keydown', initSoundOnFirstGesture, { once: true });
 
 $('btn-room-leave').addEventListener('click', async () => {
   if (await confirm(t('modal.confirm.leave'))) {
@@ -1058,6 +1085,11 @@ function showEndScreen(opts) {
 
   leaveGameScreen();
   showScreen('end');
+  // v2.09 (v1.5): ファンファーレ (win/lose jingle) は showEndScreen 呼出前に
+  //   delayMs 経過させてから呼ばれているため、ここに到達した時点でジングルは
+  //   既に再生開始済。showScreen('end') で BGM は一旦停止される。
+  //   end 画面に入ってから lobby BGM を開始 (他の SE と重なってよい)。
+  if (Sound && Sound.setBgmCategory) Sound.setBgmCategory('lobby');
 }
 
 // v1.44 (3-E): 対戦終了時の再戦合意・退出フロー（reversi 流儀踏襲）
@@ -1285,6 +1317,28 @@ $('settings-volume-slider').addEventListener('change', (e) => {
   // 離した瞬間にテスト音（SPEC 14.2）。ミュート時は鳴らさない
   const v = parseInt(e.target.value, 10) || 0;
   if (v > 0 && Sound.isReady()) Sound.playThrow(0.7);
+});
+
+// v2.09 (v1.5): BGM 音量スライダー配線
+//   - input 中: 連続反映
+//   - 0%: 🔊 → 🔇 アイコンと表示テキストも切替
+function refreshBgmVolumeUI() {
+  const v = Sound.getBgmVolume();
+  const sld = $('settings-bgm-volume-slider');
+  if (sld && document.activeElement !== sld) sld.value = String(v);
+  const val = document.getElementById('bgm-volume-value');
+  if (val) val.textContent = `${v}%`;
+  const icon = document.getElementById('bgm-volume-icon');
+  if (icon) {
+    const use = icon.querySelector('use');
+    if (use) use.setAttribute('href', v === 0 ? '#icon-volume-off' : '#icon-volume-up');
+  }
+}
+refreshBgmVolumeUI();
+$('settings-bgm-volume-slider').addEventListener('input', (e) => {
+  const v = parseInt(e.target.value, 10) || 0;
+  Sound.setBgmVolume(v);
+  refreshBgmVolumeUI();
 });
 
 $('gear-icon').addEventListener('click', (e) => {

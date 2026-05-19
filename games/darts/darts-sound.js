@@ -27,30 +27,71 @@ const FILES = {
   lose:      'sounds/lose.mp3',
 };
 
-const VOLUME_LS_KEY = 'momoDartsVolume';
+// v2.09 (v1.5): BGM 用ファイル群（lobby = 対戦室系画面、play = ゲーム中）
+const BGM_FILES = {
+  lobby1: 'sounds/lobby1.mp3',
+  lobby2: 'sounds/lobby2.mp3',
+  play1:  'sounds/play1.mp3',
+  play2:  'sounds/play2.mp3',
+  play3:  'sounds/play3.mp3',
+  play4:  'sounds/play4.mp3',
+};
+const BGM_CATEGORY = {
+  lobby: ['lobby1', 'lobby2'],
+  play:  ['play1', 'play2', 'play3', 'play4'],
+};
+
+// v2.09: localStorage キーを SFX / BGM 別に分離。旧 momoDartsVolume は移行のため初回読み込み
+const SFX_LS_KEY = 'momoDartsSfxVolume';
+const BGM_LS_KEY = 'momoDartsBgmVolume';
+const LEGACY_VOLUME_LS_KEY = 'momoDartsVolume';
 
 let _ctx = null;
-let _masterGain = null;
+let _masterGain = null;   // SFX 用マスター（既存挙動を維持）
+let _bgmGain = null;       // v2.09: BGM 用独立 GainNode
+let _bgmSource = null;     // 現在再生中の BGM BufferSource
+let _bgmCategory = 'none'; // 'none' | 'lobby' | 'play'
 const _buffers = new Map();
 let _initStarted = false;
 let _lastHitEnd = 0;  // 着弾音再生終了予定時刻（AudioContext currentTime）— SPEC 13.4 順序保護
 
 // ---- 音量（localStorage 永続化、SPEC 14.5）----
-export function getVolume() {
-  const raw = localStorage.getItem(VOLUME_LS_KEY);
-  if (raw === null) return 50;  // 既定 50%（SPEC 13.10 / 14.2）
+// v2.09 (v1.5): SFX (効果音) 専用に意味を絞り込み。旧キーが残っていればそれを初期値に
+export function getSfxVolume() {
+  const raw = localStorage.getItem(SFX_LS_KEY);
+  if (raw === null) {
+    const legacy = localStorage.getItem(LEGACY_VOLUME_LS_KEY);
+    if (legacy !== null) {
+      const lv = parseInt(legacy, 10);
+      if (Number.isFinite(lv)) return Math.max(0, Math.min(100, lv));
+    }
+    return 50;
+  }
   const v = parseInt(raw, 10);
   return Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 50;
 }
-export function setVolume(v) {
+export function setSfxVolume(v) {
   v = Math.max(0, Math.min(100, v | 0));
-  try { localStorage.setItem(VOLUME_LS_KEY, String(v)); } catch {}
-  if (_masterGain) {
-    // 線形値をそのまま gain に。0=完全ミュート
-    _masterGain.gain.value = v / 100;
-  }
+  try { localStorage.setItem(SFX_LS_KEY, String(v)); } catch {}
+  if (_masterGain) _masterGain.gain.value = v / 100;
 }
-export function isMuted() { return getVolume() === 0; }
+// 後方互換 alias
+export const getVolume = getSfxVolume;
+export const setVolume = setSfxVolume;
+export function isMuted() { return getSfxVolume() === 0; }
+
+// v2.09 (v1.5): BGM 音量
+export function getBgmVolume() {
+  const raw = localStorage.getItem(BGM_LS_KEY);
+  if (raw === null) return 40;  // 既定 40%（SFX より控えめ）
+  const v = parseInt(raw, 10);
+  return Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 40;
+}
+export function setBgmVolume(v) {
+  v = Math.max(0, Math.min(100, v | 0));
+  try { localStorage.setItem(BGM_LS_KEY, String(v)); } catch {}
+  if (_bgmGain) _bgmGain.gain.value = v / 100;
+}
 
 // ---- 初期化（ゲーム開始ボタン押下時に呼ぶ。SPEC 13.11）----
 export async function init() {
@@ -60,10 +101,15 @@ export async function init() {
   if (!Ctx) return;
   _ctx = new Ctx();
   _masterGain = _ctx.createGain();
-  _masterGain.gain.value = getVolume() / 100;
+  _masterGain.gain.value = getSfxVolume() / 100;
   _masterGain.connect(_ctx.destination);
+  // v2.09: BGM 用 Gain
+  _bgmGain = _ctx.createGain();
+  _bgmGain.gain.value = getBgmVolume() / 100;
+  _bgmGain.connect(_ctx.destination);
   // 全ファイル並行プリロード（失敗は個別に黙って許容）
-  await Promise.allSettled(Object.entries(FILES).map(([k, p]) => _preload(k, p)));
+  const all = { ...FILES, ...BGM_FILES };
+  await Promise.allSettled(Object.entries(all).map(([k, p]) => _preload(k, p)));
 }
 
 // v1.63: ブラウザ/Service Worker キャッシュ対策。version-tag を付与して
@@ -295,6 +341,38 @@ export function getDuration(key) {
   const buf = _buffers.get(key);
   return buf ? buf.duration : 0;
 }
+
+// v2.09 (v1.5): BGM カテゴリ切替
+//   - 'lobby': 対戦室系画面（ゲーム以外）
+//   - 'play': ゲーム中
+//   - 'none': 停止
+//   呼出毎に、同カテゴリ再生中なら no-op、異カテゴリなら停止→ランダム選曲→ループ再生
+export function setBgmCategory(cat) {
+  if (cat !== 'none' && cat !== 'lobby' && cat !== 'play') return;
+  if (cat === _bgmCategory && (_bgmSource || cat === 'none')) return;
+  _bgmCategory = cat;
+  // 既存再生を停止
+  if (_bgmSource) {
+    try { _bgmSource.stop(); } catch {}
+    _bgmSource = null;
+  }
+  if (cat === 'none') return;
+  if (!_ctx || !_bgmGain) return;
+  const keys = BGM_CATEGORY[cat] || [];
+  const pool = keys.filter((k) => _buffers.has(k));
+  if (pool.length === 0) return;
+  const key = pool[Math.floor(Math.random() * pool.length)];
+  const buf = _buffers.get(key);
+  if (!buf) return;
+  const src = _ctx.createBufferSource();
+  src.buffer = buf;
+  src.loop = true;
+  src.connect(_bgmGain);
+  try { src.start(); } catch { return; }
+  _bgmSource = src;
+}
+export function stopBgm() { setBgmCategory('none'); }
+export function getBgmCategory() { return _bgmCategory; }
 
 // 状態確認用
 export function isReady() {

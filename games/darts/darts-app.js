@@ -287,17 +287,21 @@ $('btn-ai-start').addEventListener('click', () => {
 });
 
 // 難度選択画面
-$('#difficulty-tabs') && document.querySelectorAll('#difficulty-tabs .rule-tab').forEach((btn) => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('#difficulty-tabs .rule-tab').forEach((b) => b.classList.remove('selected'));
-    btn.classList.add('selected');
-    const diff = btn.getAttribute('data-difficulty');
-    _aiDifficulty = diff;
-    try { localStorage.setItem(AI_DIFFICULTY_LS_KEY, diff); } catch {}
-    const descEl = document.getElementById('difficulty-desc');
-    if (descEl) descEl.textContent = t('difficulty.' + diff + '.desc');
+// v2.15 (v1.5): $('#difficulty-tabs') は ID プレフィックスがズレるため null だった (v2.14 のバグ)
+//   getElementById ベースに修正
+if (document.getElementById('difficulty-tabs')) {
+  document.querySelectorAll('#difficulty-tabs .rule-tab').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#difficulty-tabs .rule-tab').forEach((b) => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      const diff = btn.getAttribute('data-difficulty');
+      _aiDifficulty = diff;
+      try { localStorage.setItem(AI_DIFFICULTY_LS_KEY, diff); } catch {}
+      const descEl = document.getElementById('difficulty-desc');
+      if (descEl) descEl.textContent = t('difficulty.' + diff + '.desc');
+    });
   });
-});
+}
 const _btnDifficultyBack = $('btn-difficulty-back');
 if (_btnDifficultyBack) _btnDifficultyBack.addEventListener('click', () => {
   showRuleSelectScreen('ai');
@@ -405,11 +409,13 @@ function getMyName() {
   }
   return MomoMatchmaking.getState().isHost ? (_hostName || t('lobby.host')) : (_guestName || t('lobby.guest'));
 }
+// v2.15 (v1.5): 内部 ID → 表示ラベル
+const AI_DIFFICULTY_LABEL = { easy: 'EASY', normal: 'HARD', hard: 'APOCALYPSE' };
 function getOppName() {
   if (typeof MomoMatchmaking === 'undefined') return t('lobby.opp');
-  // v2.14 (v1.5): AI 対戦時は「CPU(難度)」 表示
+  // v2.14/v2.15 (v1.5): AI 対戦時は「CPU(難度)」 表示
   if (isAi()) {
-    return 'CPU(' + (_aiDifficulty.charAt(0).toUpperCase() + _aiDifficulty.slice(1)) + ')';
+    return 'CPU(' + (AI_DIFFICULTY_LABEL[_aiDifficulty] || _aiDifficulty.toUpperCase()) + ')';
   }
   return MomoMatchmaking.getState().isHost ? (_guestName || t('lobby.guest')) : (_hostName || t('lobby.host'));
 }

@@ -379,13 +379,15 @@ export function setBgmCategory(cat) {
 export function stopBgm() { setBgmCategory('none'); }
 export function getBgmCategory() { return _bgmCategory; }
 
-// v2.11 (v1.5): visibility hidden 時の BGM 一時停止 / visible 復帰時の再開
-//   - Android Chrome では visibility hidden でも AudioContext が走り続ける
-//     ため、アプリを閉じても BGM が鳴り続けてしまう。明示的に suspend する。
-//   - 現在の曲は維持したいので gain を 0 にするのではなく AudioContext を
-//     suspend (BufferSourceNode の時間進行も停止)。SFX も止まるがバックグラウンド
-//     なら問題ない。
+// v2.11/v2.15 (v1.5): visibility hidden 時の BGM 一時停止 / visible 復帰時の再開
+//   - Android Chrome では visibility hidden でも AudioContext が走り続けて
+//     アプリを閉じても BGM が鳴り続ける問題があるため、二重に止める:
+//     (1) BGM gain を即時 0 にして確実に無音化 (Android で AudioContext.suspend が
+//         効かないケースの保険、 ユーザー提案の `bgm.pause()` 相当)
+//     (2) AudioContext.suspend() で BufferSourceNode の時間進行も停止
+//   - 復帰時は AudioContext.resume() + gain を元の volume に戻す
 export async function suspendAudio() {
+  if (_bgmGain) _bgmGain.gain.value = 0;
   if (_ctx && _ctx.state === 'running') {
     try { await _ctx.suspend(); } catch {}
   }
@@ -394,6 +396,7 @@ export async function resumeAudio() {
   if (_ctx && _ctx.state === 'suspended') {
     try { await _ctx.resume(); } catch {}
   }
+  if (_bgmGain) _bgmGain.gain.value = getBgmVolume() / 100;
 }
 export function getAudioContextState() {
   return _ctx ? _ctx.state : 'no-ctx';

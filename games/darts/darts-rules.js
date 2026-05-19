@@ -410,12 +410,12 @@ export function turnTotal(state) {
 }
 
 // 現在のスコア表示用値（UI が rule.type で分岐する代わりに使う）
-//   01: remaining、countup: total、rtc: nextTarget、cricket: score
+//   01: remaining、countup: total、rtc: nextTarget (クリア後は 20 で固定)、cricket: score
 export function currentScore(state) {
   if (!state) return 0;
   const t = state.rule && state.rule.type;
   if (t === 'countup') return state.total;
-  if (t === 'rtc')     return state.nextTarget;
+  if (t === 'rtc')     return state.finished ? 20 : state.nextTarget;
   if (t === 'cricket') return state.score;
   return state.remaining;
 }

@@ -159,16 +159,22 @@ function buildDartboardSVG() {
   });
   svg.appendChild(bullOutline);
 
-  // v2.07 (v1.5): クリケット用 mark テキスト (15-20 各セグメント + bull)
-  //   セグメント中央線 (-90 + i*18) を基準に、左右に 4° オフセットで配置
-  //   自分(left) = 反時計回り側、相手(right) = 時計回り側 (ユーザー指示)
-  const CRICKET_MARK_R = R_NUMBERS;  // 数字と同じ半径
+  // v2.07/v2.08 (v1.5): クリケット用 mark テキスト (15-20 各セグメント + bull)
+  //   セグメント中央線 (-90 + i*18) を基準に、左右 4° オフセット
+  //   v2.08: 画面の上半分/下半分で「画面上の左 = self」になるよう向きを切替:
+  //     - 上半分 (sin(center) <= 0): self = 反時計回り (center - 4)、opp = (center + 4)
+  //     - 下半分 (sin(center) >  0): self = 時計回り側 (center + 4)、opp = (center - 4)
+  //   これで 15/16/17/19 (下半分) でも self が画面の左、opp が右に表示される
+  const CRICKET_MARK_R = R_NUMBERS;
   const CRICKET_TARGET_SEGMENTS = [15, 16, 17, 18, 19, 20];
   CRICKET_TARGET_SEGMENTS.forEach((segNum) => {
     const i = SEGMENT_NUMBERS.indexOf(segNum);
     const center = -90 + i * 18;
-    const selfRad = (center - 4) * Math.PI / 180;
-    const oppRad  = (center + 4) * Math.PI / 180;
+    const isLower = Math.sin(center * Math.PI / 180) > 0;
+    const selfDeg = isLower ? (center + 4) : (center - 4);
+    const oppDeg  = isLower ? (center - 4) : (center + 4);
+    const selfRad = selfDeg * Math.PI / 180;
+    const oppRad  = oppDeg  * Math.PI / 180;
     const sx = Math.cos(selfRad) * CRICKET_MARK_R;
     const sy = Math.sin(selfRad) * CRICKET_MARK_R;
     const ox = Math.cos(oppRad)  * CRICKET_MARK_R;

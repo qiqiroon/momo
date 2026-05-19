@@ -893,6 +893,43 @@ body.in-game .site-header h1 {
 }
 .shot-slot.miss { color: rgba(255,255,255,0.4); }
 
+/* v2.08: クリケット スコア表（3 投スロットの下に表示、クリケットルールのみ） */
+#cricket-scoreboard {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: 'Fredoka One', cursive;
+  font-size: 13px;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 4px;
+  padding: 4px 6px;
+  pointer-events: auto;
+}
+#cricket-scoreboard .cricket-row {
+  display: grid;
+  grid-template-columns: 36px 38px 36px;
+  align-items: center;
+  text-align: center;
+  letter-spacing: 0.02em;
+  line-height: 1.0;
+  min-height: 16px;
+}
+#cricket-scoreboard .cri-self {
+  color: var(--player-self);
+  text-align: right;
+  padding-right: 6px;
+}
+#cricket-scoreboard .cri-opp {
+  color: var(--player-opp);
+  text-align: left;
+  padding-left: 6px;
+}
+#cricket-scoreboard .cri-num {
+  color: #ffffff;
+}
+
 /* デバッグ HUD は左下に表示していたが v1.93 で常時非表示に
    （開発時のみ display: block に戻す） */
 #game-debug-info {
@@ -1772,7 +1809,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v2.07</span>
+      <span class="version-tag" id="version-tag">v2.08</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -2060,6 +2097,16 @@ body.in-game #gear-icon { display: flex; }
         <div class="shot-slot pending" id="ui-shot-1">—</div>
         <div class="shot-slot pending" id="ui-shot-2">—</div>
         <div class="shot-slot pending" id="ui-shot-3">—</div>
+      </div>
+      <!-- v2.08 (v1.5): クリケット スコア表 (3 投表示の下、クリケットルールのみ表示) -->
+      <div id="cricket-scoreboard" style="display:none;">
+        <div class="cricket-row"><span class="cri-self"></span><span class="cri-num">20</span><span class="cri-opp"></span></div>
+        <div class="cricket-row"><span class="cri-self"></span><span class="cri-num">19</span><span class="cri-opp"></span></div>
+        <div class="cricket-row"><span class="cri-self"></span><span class="cri-num">18</span><span class="cri-opp"></span></div>
+        <div class="cricket-row"><span class="cri-self"></span><span class="cri-num">17</span><span class="cri-opp"></span></div>
+        <div class="cricket-row"><span class="cri-self"></span><span class="cri-num">16</span><span class="cri-opp"></span></div>
+        <div class="cricket-row"><span class="cri-self"></span><span class="cri-num">15</span><span class="cri-opp"></span></div>
+        <div class="cricket-row"><span class="cri-self"></span><span class="cri-num">Bull</span><span class="cri-opp"></span></div>
       </div>
     </div>
     <div id="ui-score-opp" style="display:none;">

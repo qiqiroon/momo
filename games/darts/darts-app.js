@@ -363,6 +363,39 @@ function updateScoreUI() {
   }
   updateTurnInfo();
   updateTurnFrame();
+  updateCricketScoreboard();
+}
+
+// v2.08 (v1.5): クリケット用 スコア表
+//   3 投表示の下に 20/19/18/17/16/15/Bull の自分/相手マークを並べる
+//   自分=オレンジ(左)、相手=グレー(右)、数字=白(中央)
+function updateCricketScoreboard() {
+  const sb = $('cricket-scoreboard');
+  if (!sb) return;
+  if (!_currentRule || _currentRule.type !== 'cricket') {
+    sb.style.display = 'none';
+    return;
+  }
+  sb.style.display = 'flex';
+  const myMarks  = (_gameState && _gameState.marks) || {};
+  const oppMarks = (_mode === 'battle' && _oppState && _oppState.marks) || {};
+  const charOf = (n) => {
+    if (n === 1) return '/';
+    if (n === 2) return 'X';
+    if (n >= 3)  return 'Ⓧ';
+    return '';
+  };
+  const rows = sb.querySelectorAll('.cricket-row');
+  const order = [20, 19, 18, 17, 16, 15, 'bull'];
+  rows.forEach((row, i) => {
+    const segKey = order[i];
+    const my  = myMarks[segKey]  || 0;
+    const opp = oppMarks[segKey] || 0;
+    const selfEl = row.querySelector('.cri-self');
+    const oppEl  = row.querySelector('.cri-opp');
+    if (selfEl) selfEl.textContent = charOf(my);
+    if (oppEl)  oppEl.textContent  = (_mode === 'battle') ? charOf(opp) : '';
+  });
 }
 
 // v1.34: ターン情報を 2 行に（"あなた/相手のターン" + 名前）

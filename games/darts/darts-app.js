@@ -576,9 +576,28 @@ function handleOppThrow(data) {
 function processShot(throwerState, shot, throwerRole) {
   // v1.96 (v1.5): rtc 用に投擲前の current target を保存（正解音判定用）
   const isRtc = (throwerState.rule && throwerState.rule.type === 'rtc');
+  const isCricket = (throwerState.rule && throwerState.rule.type === 'cricket');
   const rtcPrevTarget = isRtc ? throwerState.nextTarget : null;
 
-  const r = Rules.applyShot(throwerState, shot);
+  // v2.03 (v1.5): クリケット時は相手の marks を applyShot に渡す（得点判定のため）
+  let applyOpts;
+  if (isCricket) {
+    const oppOfThrower = (throwerState === _gameState) ? _oppState : _gameState;
+    applyOpts = { oppMarks: oppOfThrower ? oppOfThrower.marks : {} };
+  }
+
+  const r = Rules.applyShot(throwerState, shot, applyOpts);
+
+  // v2.03 (v1.5): クリケット勝敗判定（相手 state を見て finished を立てる）
+  if (isCricket && r.turnEnded && _gameState && _oppState) {
+    const winner = Rules.cricketWinner(_gameState, _oppState);
+    if (winner !== null) {
+      _gameState.finished = true;
+      _oppState.finished = true;
+      r.finished = true;
+      r.cricketWinner = winner;
+    }
+  }
   // v1.26: ターン終了時の表示保持
   if (r.turnEnded && throwerState.history.length > 0) {
     _pendingTurnDisplay = throwerState.history[throwerState.history.length - 1].shots;
@@ -623,9 +642,12 @@ function processShot(throwerState, shot, throwerRole) {
     }
 
     // 勝者判定
+    // v2.03 (v1.5): クリケット — r.cricketWinner で確定済み (processShot 内で set)
+    const isBattleCricket = (_mode === 'battle' && _currentRule.type === 'cricket');
     let winner;  // 'self' | 'opp' | 'draw'
-    if (isBattleCountup) {
-      // 両者 finished で total 比較
+    if (isBattleCricket && r.cricketWinner) {
+      winner = r.cricketWinner;
+    } else if (isBattleCountup) {
       if (_gameState.total > _oppState.total) winner = 'self';
       else if (_gameState.total < _oppState.total) winner = 'opp';
       else winner = 'draw';
@@ -641,12 +663,18 @@ function processShot(throwerState, shot, throwerRole) {
     if (_mode === 'battle') {
       if (isDraw) {
         mainText = 'DRAW';
-        subText = t('end.countup.draw.sub', { selfTotal: _gameState.total, oppTotal: _oppState.total });
+        subText = isBattleCricket
+          ? t('end.cricket.draw.sub', { selfScore: _gameState.score, oppScore: _oppState.score })
+          : t('end.countup.draw.sub', { selfTotal: _gameState.total, oppTotal: _oppState.total });
       } else {
         mainText = isMyWin ? 'WIN!' : 'LOSE!';
-        subText = isBattleCountup
-          ? t('end.countup.battle.sub', { selfTotal: _gameState.total, oppTotal: _oppState.total })
-          : t('end.win.lineNoDarts', { winner: isMyWin ? getMyName() : getOppName() });
+        if (isBattleCricket) {
+          subText = t('end.cricket.battle.sub', { selfScore: _gameState.score, oppScore: _oppState.score });
+        } else if (isBattleCountup) {
+          subText = t('end.countup.battle.sub', { selfTotal: _gameState.total, oppTotal: _oppState.total });
+        } else {
+          subText = t('end.win.lineNoDarts', { winner: isMyWin ? getMyName() : getOppName() });
+        }
       }
     } else if (_currentRule.type === 'countup') {
       mainText = 'COMPLETE!';
@@ -819,20 +847,32 @@ function showEndScreen(opts) {
   } else if (_mode === 'battle' && opts && opts.winner) {
     // v1.33 (3-C): 対戦時は WIN/LOSE 表示（通常勝敗時）
     // v1.89 (v1.3): カウントアップ対応 — DRAW / total 比較
+    // v2.03 (v1.5): クリケット対応 — WIN/LOSE/DRAW + score 比較
     const isCountup = (_currentRule.type === 'countup');
+    const isCricket = (_currentRule.type === 'cricket');
     const isDraw = (opts.winner === 'draw');
     const isMyWin = (opts.winner === 'self');
     const winnerName = isDraw ? '' : (isMyWin ? getMyName() : getOppName());
     if (isDraw) {
       $('end-result-msg').textContent = '🤝 DRAW';
       $('end-result-msg').className = 'result-message';
-      $('end-result-sub').textContent = t('end.countup.draw.sub', {
-        selfTotal: _gameState.total, oppTotal: _oppState.total,
-      });
+      if (isCricket) {
+        $('end-result-sub').textContent = t('end.cricket.draw.sub', {
+          selfScore: _gameState.score, oppScore: _oppState.score,
+        });
+      } else {
+        $('end-result-sub').textContent = t('end.countup.draw.sub', {
+          selfTotal: _gameState.total, oppTotal: _oppState.total,
+        });
+      }
     } else {
       $('end-result-msg').textContent = isMyWin ? '🏆 WIN!' : '😢 LOSE!';
       $('end-result-msg').className = `result-message ${isMyWin ? 'win' : 'lose'}`;
-      if (isCountup) {
+      if (isCricket) {
+        $('end-result-sub').textContent = t('end.cricket.battle.sub', {
+          selfScore: _gameState.score, oppScore: _oppState.score,
+        });
+      } else if (isCountup) {
         $('end-result-sub').textContent = t('end.countup.battle.sub', {
           selfTotal: _gameState.total, oppTotal: _oppState.total,
         });
@@ -850,6 +890,11 @@ function showEndScreen(opts) {
       $('end-stat-busts').textContent = '—';
       const turnScores = _gameState.history.map(h => h.shots.reduce((a, s) => a + s.value, 0));
       $('end-stat-best').textContent = turnScores.length ? String(Math.max(...turnScores)) : '0';
+    } else if (isCricket) {
+      $('end-stat-darts').textContent = String(_gameState.dartCount);
+      $('end-stat-turns').textContent = String(_gameState.history.length);
+      $('end-stat-busts').textContent = '—';
+      $('end-stat-best').textContent = String(_gameState.score);
     } else {
       // 01 系 battle WIN/LOSE
       const winnerState = isMyWin ? _gameState : _oppState;
@@ -1597,14 +1642,12 @@ function applyRuleSelectUI() {
     const el = $(`rule-select-content-${t}`);
     if (el) el.style.display = rule.type === t ? 'block' : 'none';
   });
-  // v1.95: クリケットは対戦専用 (solo では disabled)
-  //   さらに v1.95 時点では cricket 全体が未完成のため全 scope で disabled
-  //   (v1.96 で得点判定+結果画面を実装後に解禁)
+  // v1.95/v2.03 (v1.5): クリケットは対戦専用 (solo では disabled、対戦では選択可)
   const cricketTab = document.querySelector('#rule-select-tabs .rule-tab[data-rule-type="cricket"]');
   if (cricketTab) {
-    cricketTab.disabled = true;
-    cricketTab.style.opacity = '0.4';
-    cricketTab.title = 'Cricket — v1.96 で対応予定';
+    cricketTab.disabled = (_ruleSelectScope === 'solo');
+    cricketTab.style.opacity = (_ruleSelectScope === 'solo') ? '0.4' : '1';
+    cricketTab.title = (_ruleSelectScope === 'solo') ? 'Cricket — 対戦専用 (battle のみ)' : '';
   }
   // ボタンのハイライト
   document.querySelectorAll('#rule-select-content-01 .rule-btn[data-start-score]').forEach((b) => {

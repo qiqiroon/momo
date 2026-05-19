@@ -162,14 +162,14 @@ export function createInitialState(rule) {
 // applyShot（ルール別 dispatch）
 //   戻り値: { state, turnEnded, finished, bust, hatTrick }
 // ======================================================================
-export function applyShot(state, shot) {
+export function applyShot(state, shot, opts) {
   if (state.finished) {
     return { state, turnEnded: false, finished: true, bust: false, hatTrick: false };
   }
   const t = state.rule && state.rule.type;
   if (t === 'countup') return applyShotCountup(state, shot);
   if (t === 'rtc')     return applyShotRtc(state, shot);
-  if (t === 'cricket') return applyShotCricket(state, shot);
+  if (t === 'cricket') return applyShotCricket(state, shot, opts);
   return applyShot01(state, shot);
 }
 
@@ -356,6 +356,27 @@ function applyShotCricket(state, shot, opts) {
 export function cricketAllClosed(state) {
   if (!state || !state.marks) return false;
   return [15,16,17,18,19,20,'bull'].every(k => (state.marks[k] || 0) >= 3);
+}
+
+// v2.03 (v1.5): クリケット勝敗判定
+//   - 両者全クローズ → score 比較で 'self'/'opp'/'draw'
+//   - 自分のみ全クローズ かつ self.score >= opp.score → 'self'
+//   - 相手のみ全クローズ かつ opp.score >= self.score → 'opp'
+//   - それ以外 → null (継続)
+export function cricketWinner(selfState, oppState) {
+  if (!selfState || !oppState) return null;
+  const selfAll = cricketAllClosed(selfState);
+  const oppAll = cricketAllClosed(oppState);
+  const s = selfState.score || 0;
+  const o = oppState.score || 0;
+  if (selfAll && oppAll) {
+    if (s > o) return 'self';
+    if (o > s) return 'opp';
+    return 'draw';
+  }
+  if (selfAll && s >= o) return 'self';
+  if (oppAll && o >= s) return 'opp';
+  return null;
 }
 
 // ----- カウントアップ (SPEC 3.4) -----

@@ -871,12 +871,61 @@ function endTurnAndPlace() {
   } else {
     Input.setDisabled(false);
   }
+  // v2.10 (v1.5): ターン切替を診断ログに記録（再現時の同期ズレ調査用）
+  Render.logEvent({
+    type: 'turn-end',
+    activeRole: _activeRole,
+    myRole: _myRole,
+    selfTurnIdx: _gameState ? _gameState.turnIndex : null,
+    oppTurnIdx: _oppState ? _oppState.turnIndex : null,
+  });
   Render.placeTargetForTurn();
   updateScoreUI();
   // v1.71 (5-c): 自分のターン開始時のみターン切替音（SPEC 13.8）
   //   solo: 毎ターン自分 → 毎回鳴らす
   //   battle: isMyTurn() のときだけ
   if (_mode !== 'battle' || isMyTurn()) Sound.playTurnStart();
+}
+
+// v2.10 (v1.5): デッドロック解除「投擲権移譲」
+//   - 仕様: 「次のターン」ボタンを押すと、自分の投擲権を相手に移譲する。
+//     自分のターン中か否かに関わらず、押すと _activeRole を相手のロールに固定。
+//     受信側は「相手のターン」表示中なら自分のターンに変わる、「自分のターン」中なら no-op。
+//   - 両者のターン認識が「お互い相手」になるデッドロック (例: バックグラウンド復帰時の状態
+//     破損や WS 送信ロス) から脱出する手段。
+//   - 自分のターン情報 (_gameState.turnIndex / turnShots) はリセットしない (= 「最初から」
+//     にはならない、 進行中のターンはそのまま継続)。
+function passMyTurnToOpp() {
+  if (_mode !== 'battle' || !_myRole) return;
+  const oppRole = (_myRole === 'first') ? 'second' : 'first';
+  _activeRole = oppRole;
+  Input.setDisabled(true);
+  Render.logEvent({
+    type: 'pass-turn',
+    actor: 'self',
+    newActiveRole: _activeRole,
+    myRole: _myRole,
+  });
+  updateScoreUI();
+}
+function handleRemotePassTurn() {
+  if (_mode !== 'battle' || !_myRole) return;
+  if (_activeRole === _myRole) {
+    // 既に自分のターンなら no-op（仕様通り）
+    Render.logEvent({ type: 'pass-turn', actor: 'opp', result: 'noop', activeRole: _activeRole, myRole: _myRole });
+    return;
+  }
+  _activeRole = _myRole;
+  Input.setDisabled(false);
+  Render.logEvent({
+    type: 'pass-turn',
+    actor: 'opp',
+    result: 'taken',
+    newActiveRole: _activeRole,
+    myRole: _myRole,
+  });
+  updateScoreUI();
+  Sound.playTurnStart();
 }
 
 // v1.33 (3-C): shot ログを記録（既存のログ機構を踏襲）
@@ -1139,8 +1188,19 @@ function checkEndMatch() {
   enterGameScreen();
 }
 
-$('btn-next-turn').addEventListener('click', () => {
-  // v1.23: 強制ターン進行（デバッグ用）。現在のターンの shot は破棄
+$('btn-next-turn').addEventListener('click', async () => {
+  // v2.10 (v1.5): 対戦時はデッドロック解除「投擲権移譲」、ソロは従来の強制ターン進行
+  if (_mode === 'battle') {
+    // 確認モーダル: 誤タップで投擲権を失わないよう
+    const ok = await confirm(t('confirm.passTurn'));
+    if (!ok) return;
+    passMyTurnToOpp();
+    if (typeof MomoMatchmaking !== 'undefined') {
+      MomoMatchmaking.send({ type: 'pass_turn' });
+    }
+    return;
+  }
+  // v1.23: ソロ用 強制ターン進行（デバッグ用）。現在のターンの shot は破棄
   // v1.88: turnStartRemaining は 01 ルールのみ
   if (_gameState) {
     _gameState.turnShots = [];
@@ -2562,6 +2622,11 @@ function handleBattleMessage(data) {
     handleOppThrow(data);
     return;
   }
+  // v2.10 (v1.5): 投擲権移譲（相手の「次のターン」ボタン押下）
+  if (data.type === 'pass_turn') {
+    handleRemotePassTurn();
+    return;
+  }
   // v1.37 (3-D): ハートビート機構（SPEC 8.8）
   if (data.type === 'heartbeat') {
     _lastHeartbeatRcvd = performance.now();
@@ -2696,9 +2761,30 @@ function checkHeartbeat() {
 }
 
 // v1.41: visible 復帰時に即チェック → バックグラウンドで止まっていた間の経過を検出
+// v2.10 (v1.5): 復帰時にゲーム状態を診断ログに記録（バックグラウンド復帰時の同期ズレ調査用）
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && _gameInProgress) {
     checkHeartbeat();
+    if (_mode === 'battle') {
+      Render.logEvent({
+        type: 'visibility-resume',
+        activeRole: _activeRole,
+        myRole: _myRole,
+        selfShots: _gameState ? _gameState.turnShots.length : null,
+        selfTurnIdx: _gameState ? _gameState.turnIndex : null,
+        oppShots: _oppState ? _oppState.turnShots.length : null,
+        oppTurnIdx: _oppState ? _oppState.turnIndex : null,
+        oppInThrow: _oppInThrow,
+      });
+    }
+  } else if (document.visibilityState === 'hidden' && _gameInProgress) {
+    Render.logEvent({
+      type: 'visibility-hidden',
+      activeRole: _activeRole,
+      myRole: _myRole,
+      selfShots: _gameState ? _gameState.turnShots.length : null,
+      selfTurnIdx: _gameState ? _gameState.turnIndex : null,
+    });
   }
 });
 

@@ -5,6 +5,7 @@
     "gear.title": "設定",
 
     "modal.confirm.leave": "退出しますか？",
+    "confirm.passTurn": "投擲権を相手に移譲しますか？",
     "modal.yes": "はい",
     "modal.no": "いいえ",
     "modal.ok": "OK",
@@ -236,6 +237,7 @@
     "gear.title": "Settings",
 
     "modal.confirm.leave": "Leave?",
+    "confirm.passTurn": "Pass the turn to your opponent?",
     "modal.yes": "Yes",
     "modal.no": "No",
     "modal.ok": "OK",
@@ -467,6 +469,7 @@
     "gear.title": "设置",
 
     "modal.confirm.leave": "确定要离开吗？",
+    "confirm.passTurn": "将投掷权移交给对手？",
     "modal.yes": "是",
     "modal.no": "否",
     "modal.ok": "OK",

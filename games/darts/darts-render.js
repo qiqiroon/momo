@@ -268,7 +268,7 @@ let _smoothRel = { alpha: 0, beta: 0, gamma: 0 };
 const LOG_INTERVAL_MS = 100;   // 10 Hz でサンプリング
 const LOG_DURATION_MS = 5000;  // 直近 5 秒
 const LOG_BUFFER_SIZE = LOG_DURATION_MS / LOG_INTERVAL_MS;
-const EVENT_BUFFER_SIZE = 30;  // 直近 30 イベント（= 10 ターン分）
+const EVENT_BUFFER_SIZE = 60;  // 直近 60 イベント（v2.10: shot 以外も含めた診断ログ拡張で増量）
 let _logBuffer = [];
 let _eventBuffer = [];
 let _lastLogTime = 0;

@@ -80,6 +80,14 @@ export function isValidRule(rule) {
     const validRounds = [4, 8, 12];
     return validRounds.includes(rule.rounds);
   }
+  // v1.5: ラウンド・ザ・クロック
+  if (rule.type === 'rtc') {
+    return true;  // 追加オプションなし
+  }
+  // v1.5: スタンダードクリケット
+  if (rule.type === 'cricket') {
+    return true;  // 追加オプションなし
+  }
   return false;
 }
 
@@ -88,6 +96,8 @@ export function ruleId(rule) {
   if (!rule) return 'unknown';
   if (rule.type === '01') return `01-${rule.startScore}-${rule.outRule}`;
   if (rule.type === 'countup') return `countup-${rule.rounds}`;
+  if (rule.type === 'rtc') return 'rtc';
+  if (rule.type === 'cricket') return 'cricket';
   return 'unknown';
 }
 
@@ -105,6 +115,32 @@ export function createInitialState(rule) {
       started: (rule.inRule !== 'doubleIn'),
       turnShots: [],     // 現在のターンの shot 配列（最大3個）
       history: [],       // 完了したターンの配列
+      dartCount: 0,
+      turnIndex: 1,
+      finished: false,
+    };
+  }
+  // v1.5: ラウンド・ザ・クロック
+  if (rule.type === 'rtc') {
+    return {
+      rule,
+      nextTarget: 1,
+      cleared: [],
+      turnShots: [],
+      history: [],
+      dartCount: 0,
+      turnIndex: 1,
+      finished: false,
+    };
+  }
+  // v1.5: スタンダードクリケット (対戦のみ、両プレイヤー分の state を別途持つ)
+  if (rule.type === 'cricket') {
+    return {
+      rule,
+      marks: { 15:0, 16:0, 17:0, 18:0, 19:0, 20:0, bull:0 },  // 自分の mark
+      score: 0,                                                // 自分の累積得点
+      turnShots: [],
+      history: [],
       dartCount: 0,
       turnIndex: 1,
       finished: false,
@@ -130,9 +166,10 @@ export function applyShot(state, shot) {
   if (state.finished) {
     return { state, turnEnded: false, finished: true, bust: false, hatTrick: false };
   }
-  if (state.rule && state.rule.type === 'countup') {
-    return applyShotCountup(state, shot);
-  }
+  const t = state.rule && state.rule.type;
+  if (t === 'countup') return applyShotCountup(state, shot);
+  if (t === 'rtc')     return applyShotRtc(state, shot);
+  if (t === 'cricket') return applyShotCricket(state, shot);
   return applyShot01(state, shot);
 }
 
@@ -232,6 +269,95 @@ function doBust01(state, shot) {
   return { state, turnEnded: true, finished: false, bust: true, hatTrick: false };
 }
 
+// ----- ラウンド・ザ・クロック (SPEC 3.6) -----
+//   1→20 を順番に当てる。S/D/T どれでも OK
+//   20 をクリアした投擲で finished=true
+function applyShotRtc(state, shot) {
+  let advanced = false;
+  // shot.segment が現在の nextTarget なら進める (S/D/T いずれでも OK、MISS は不可)
+  if ((shot.kind === 'S' || shot.kind === 'D' || shot.kind === 'T')
+      && shot.segment === state.nextTarget) {
+    state.cleared.push(state.nextTarget);
+    state.nextTarget++;
+    advanced = true;
+  }
+  state.turnShots.push(shot);
+  state.dartCount++;
+
+  // 20 まで全部クリアで finished
+  if (state.nextTarget > 20) {
+    const lastShots = [...state.turnShots];
+    state.history.push({ shots: lastShots, bust: false, ended: 'finish' });
+    state.turnShots = [];
+    state.finished = true;
+    return { state, turnEnded: true, finished: true, bust: false, hatTrick: false };
+  }
+
+  if (state.turnShots.length >= 3) {
+    const lastShots = [...state.turnShots];
+    state.history.push({ shots: lastShots, bust: false, ended: 'normal' });
+    state.turnShots = [];
+    state.turnIndex++;
+    return { state, turnEnded: true, finished: false, bust: false, hatTrick: false };
+  }
+  return { state, turnEnded: false, finished: false, bust: false, hatTrick: false };
+}
+
+// ----- スタンダードクリケット (SPEC 3.7) -----
+//   15-20 + bull を 3 mark でクローズ
+//   クローズ済 + 相手未クローズなら得点
+//   ※ 対戦時の「相手」は呼び出し側 (darts-app.js) が _oppState の marks を見て判定する必要があるため、
+//      ここでは「自分の mark/score 更新」のみ行い、得点判定は呼び出し側で行う
+//      → opts.oppMarks を渡すことで判定可能にする
+function applyShotCricket(state, shot, opts) {
+  const oppMarks = (opts && opts.oppMarks) || {};
+  // 対象セグメント判定
+  let segKey = null;
+  let markCount = 0;
+  if (shot.kind === 'DBULL')       { segKey = 'bull'; markCount = 2; }
+  else if (shot.kind === 'BULL')   { segKey = 'bull'; markCount = 1; }
+  else if (shot.segment >= 15 && shot.segment <= 20) {
+    segKey = shot.segment;
+    markCount = (shot.kind === 'T') ? 3 : (shot.kind === 'D') ? 2 : 1;
+  }
+
+  if (segKey !== null) {
+    const before = state.marks[segKey] || 0;
+    const closeRemain = Math.max(0, 3 - before);
+    const used = Math.min(markCount, closeRemain);
+    state.marks[segKey] = before + used;
+    const excess = markCount - used;
+
+    // 余り mark を得点に (相手が未クローズの場合のみ)
+    if (excess > 0 && (oppMarks[segKey] || 0) < 3) {
+      const segValue = (segKey === 'bull')
+        ? 25  // 1 mark あたり 25 点(BULL)、DBULL hit で markCount=2 = 50 点扱い
+        : segKey;
+      state.score += segValue * excess;
+    }
+  }
+  state.turnShots.push(shot);
+  state.dartCount++;
+
+  // 終了判定: 自分が全 7 セグメントクローズ かつ 得点 ≧ 相手の得点
+  //   呼び出し側で _gameState.allClosed && _gameState.score >= _oppState.score を判定
+  //   ここでは finished フラグは立てない (呼び出し側が判定)
+  if (state.turnShots.length >= 3) {
+    const lastShots = [...state.turnShots];
+    state.history.push({ shots: lastShots, bust: false, ended: 'normal' });
+    state.turnShots = [];
+    state.turnIndex++;
+    return { state, turnEnded: true, finished: false, bust: false, hatTrick: false };
+  }
+  return { state, turnEnded: false, finished: false, bust: false, hatTrick: false };
+}
+
+// クリケット用ヘルパー: 全クローズ判定
+export function cricketAllClosed(state) {
+  if (!state || !state.marks) return false;
+  return [15,16,17,18,19,20,'bull'].every(k => (state.marks[k] || 0) >= 3);
+}
+
 // ----- カウントアップ (SPEC 3.4) -----
 //   バースト・フィニッシュなし、3 投で 1 ラウンド完了、rounds 達成で finished
 function applyShotCountup(state, shot) {
@@ -284,9 +410,12 @@ export function turnTotal(state) {
 }
 
 // 現在のスコア表示用値（UI が rule.type で分岐する代わりに使う）
-//   01: remaining、countup: total
+//   01: remaining、countup: total、rtc: nextTarget、cricket: score
 export function currentScore(state) {
   if (!state) return 0;
-  if (state.rule && state.rule.type === 'countup') return state.total;
+  const t = state.rule && state.rule.type;
+  if (t === 'countup') return state.total;
+  if (t === 'rtc')     return state.nextTarget;
+  if (t === 'cricket') return state.score;
   return state.remaining;
 }

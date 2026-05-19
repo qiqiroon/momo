@@ -1559,7 +1559,7 @@ function setRuleByScope(scope, rule) {
   else                    { _soloRule   = rule; saveRuleToLS(SOLO_RULE_LS_KEY,   rule); }
 }
 
-// v1.91 (v1.4): screen-rule-select の表示反映（scope の現状ルール → UI）
+// v1.91/v1.95 (v1.5): screen-rule-select の表示反映（scope の現状ルール → UI）
 function applyRuleSelectUI() {
   const rule = getRuleByScope(_ruleSelectScope);
   // タブ
@@ -1567,10 +1567,19 @@ function applyRuleSelectUI() {
     tab.classList.toggle('active', tab.dataset.ruleType === rule.type);
   });
   // タブコンテンツ
-  const c01 = $('rule-select-content-01');
-  const cCu = $('rule-select-content-countup');
-  if (c01) c01.style.display = rule.type === '01' ? 'block' : 'none';
-  if (cCu) cCu.style.display = rule.type === 'countup' ? 'block' : 'none';
+  ['01', 'countup', 'rtc', 'cricket'].forEach((t) => {
+    const el = $(`rule-select-content-${t}`);
+    if (el) el.style.display = rule.type === t ? 'block' : 'none';
+  });
+  // v1.95: クリケットは対戦専用 (solo では disabled)
+  //   さらに v1.95 時点では cricket 全体が未完成のため全 scope で disabled
+  //   (v1.96 で得点判定+結果画面を実装後に解禁)
+  const cricketTab = document.querySelector('#rule-select-tabs .rule-tab[data-rule-type="cricket"]');
+  if (cricketTab) {
+    cricketTab.disabled = true;
+    cricketTab.style.opacity = '0.4';
+    cricketTab.title = 'Cricket — v1.96 で対応予定';
+  }
   // ボタンのハイライト
   document.querySelectorAll('#rule-select-content-01 .rule-btn[data-start-score]').forEach((b) => {
     b.classList.toggle('selected', Number(b.dataset.startScore) === rule.startScore);
@@ -1617,11 +1626,25 @@ function updateRuleSelectDetail() {
     bustEl.textContent = t('room.rule.bust.value');
     if (bustDt) bustDt.style.display = '';
     bustEl.style.display = '';
-  } else {
+  } else if (rule.type === 'countup') {
     nameEl.textContent = t('room.rule.name.countup');
     pointsEl.textContent = t(`room.rule.rounds.value${rule.rounds}`);
     turnEl.textContent   = t('room.rule.countup.turn');
     winEl.textContent    = t('room.rule.countup.win.dyn', { rounds: rule.rounds, darts: rule.rounds * 3 });
+    if (bustDt) bustDt.style.display = 'none';
+    bustEl.style.display = 'none';
+  } else if (rule.type === 'rtc') {
+    nameEl.textContent = t('room.rule.name.rtc');
+    pointsEl.textContent = t('room.rule.rtc.points');
+    turnEl.textContent   = t('room.rule.turn.value');
+    winEl.textContent    = t('room.rule.rtc.win');
+    if (bustDt) bustDt.style.display = 'none';
+    bustEl.style.display = 'none';
+  } else if (rule.type === 'cricket') {
+    nameEl.textContent = t('room.rule.name.cricket');
+    pointsEl.textContent = t('room.rule.cricket.targets');
+    turnEl.textContent   = t('room.rule.turn.value');
+    winEl.textContent    = t('room.rule.cricket.win');
     if (bustDt) bustDt.style.display = 'none';
     bustEl.style.display = 'none';
   }
@@ -1665,13 +1688,25 @@ function updateRuleDetail() {
     bustEl.textContent   = t('room.rule.bust.value');
     bustDt.style.display = '';
     bustEl.style.display = '';
-  } else {
-    // countup
+  } else if (_currentRule.type === 'countup') {
     nameEl.textContent = t('room.rule.name.countup');
     pointsEl.textContent = t(`room.rule.rounds.value${_currentRule.rounds}`);
     turnEl.textContent   = t('room.rule.countup.turn');
     winEl.textContent    = t('room.rule.countup.win.dyn', { rounds: _currentRule.rounds, darts: _currentRule.rounds * 3 });
-    // バーストはカウントアップではないので非表示
+    bustDt.style.display = 'none';
+    bustEl.style.display = 'none';
+  } else if (_currentRule.type === 'rtc') {
+    nameEl.textContent = t('room.rule.name.rtc');
+    pointsEl.textContent = t('room.rule.rtc.points');
+    turnEl.textContent   = t('room.rule.turn.value');
+    winEl.textContent    = t('room.rule.rtc.win');
+    bustDt.style.display = 'none';
+    bustEl.style.display = 'none';
+  } else if (_currentRule.type === 'cricket') {
+    nameEl.textContent = t('room.rule.name.cricket');
+    pointsEl.textContent = t('room.rule.cricket.targets');
+    turnEl.textContent   = t('room.rule.turn.value');
+    winEl.textContent    = t('room.rule.cricket.win');
     bustDt.style.display = 'none';
     bustEl.style.display = 'none';
   }
@@ -1682,12 +1717,16 @@ function updateRuleDetail() {
 function setupRuleUIHandlers() {
   document.querySelectorAll('#rule-select-tabs .rule-tab').forEach((tab) => {
     tab.addEventListener('click', () => {
+      if (tab.disabled) return;
       const ruleType = tab.dataset.ruleType;
       const current = getRuleByScope(_ruleSelectScope);
       if (ruleType === current.type) return;
-      const next = (ruleType === '01')
-        ? { type: '01', startScore: 501, outRule: 'single' }
-        : { type: 'countup', rounds: 8 };
+      let next;
+      if (ruleType === '01')           next = { type: '01', startScore: 501, outRule: 'single' };
+      else if (ruleType === 'countup') next = { type: 'countup', rounds: 8 };
+      else if (ruleType === 'rtc')     next = { type: 'rtc' };
+      else if (ruleType === 'cricket') next = { type: 'cricket' };
+      else return;
       setRuleByScope(_ruleSelectScope, next);
       applyRuleSelectUI();
     });
@@ -1851,7 +1890,7 @@ function updateKickButton() {
 }
 
 // v1.49: 言語切替時にも再描画できるよう、最後の rooms を保持
-// v1.90/v1.94 (v1.4): rule オブジェクトを表示文字列にする
+// v1.90/v1.95 (v1.5): rule オブジェクトを表示文字列にする
 function formatRuleName(rule) {
   if (!Rules.isValidRule(rule)) return '';
   if (rule.type === '01') {
@@ -1861,6 +1900,8 @@ function formatRuleName(rule) {
   if (rule.type === 'countup') {
     return `${t('room.rule.name.countup')} ${rule.rounds}R`;
   }
+  if (rule.type === 'rtc')     return t('room.rule.name.rtc');
+  if (rule.type === 'cricket') return t('room.rule.name.cricket');
   return '';
 }
 

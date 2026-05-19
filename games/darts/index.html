@@ -1757,7 +1757,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v1.94</span>
+      <span class="version-tag" id="version-tag">v1.95</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -1826,6 +1826,8 @@ body.in-game #gear-icon { display: flex; }
     <div class="rule-tabs" id="rule-select-tabs">
       <button class="rule-tab active" data-rule-type="01" data-i18n="room.rule.tab.01">01</button>
       <button class="rule-tab" data-rule-type="countup" data-i18n="room.rule.tab.countup">カウントアップ</button>
+      <button class="rule-tab" data-rule-type="rtc" data-i18n="room.rule.tab.rtc">ラウンド</button>
+      <button class="rule-tab" data-rule-type="cricket" data-i18n="room.rule.tab.cricket">クリケット</button>
     </div>
 
     <div class="rule-tab-content" id="rule-select-content-01" data-rule-type="01">
@@ -1867,6 +1869,22 @@ body.in-game #gear-icon { display: flex; }
           <button class="rule-btn selected" data-rounds="8" data-i18n="room.rule.rounds.value8">8 ラウンド (24投)</button>
           <button class="rule-btn" data-rounds="12" data-i18n="room.rule.rounds.value12">12 ラウンド (36投)</button>
         </div>
+      </div>
+    </div>
+
+    <!-- v1.95 (v1.5): ラウンド・ザ・クロック (オプションなし) -->
+    <div class="rule-tab-content" id="rule-select-content-rtc" data-rule-type="rtc" style="display:none;">
+      <div class="rule-group">
+        <div class="rule-group-label" data-i18n="room.rule.rtc.desc.label">概要</div>
+        <div class="rule-group-text" data-i18n="room.rule.rtc.desc.text">1 から 20 まで順番に当てるゲーム。S/D/T いずれでも OK</div>
+      </div>
+    </div>
+
+    <!-- v1.96 (v1.5): スタンダードクリケット (オプションなし、対戦専用) -->
+    <div class="rule-tab-content" id="rule-select-content-cricket" data-rule-type="cricket" style="display:none;">
+      <div class="rule-group">
+        <div class="rule-group-label" data-i18n="room.rule.cricket.desc.label">概要</div>
+        <div class="rule-group-text" data-i18n="room.rule.cricket.desc.text">15-20 + ブル を 3 mark ずつクローズ、相手より高得点で勝利(対戦専用)</div>
       </div>
     </div>
 

@@ -412,15 +412,24 @@ function applyShotCountup(state, shot) {
 //   - targetWorld: { yaw, pitch } (現在のボード中心ワールド角度)
 //   - difficulty: 'easy' | 'normal' | 'hard'
 //   - 戻り値: { aimYawDeg, aimPitchDeg, strength }
-// v2.17 (v1.5): APOCALYPSE (=hard) を「強く正確に」強化
-//   sigma を 1.5° → 0.6° (精度大幅向上)
-//   strengthBase を 0.55 → 0.60 (最適範囲上限 0.56 を確実に超え、 振動演出も発動)
-//   strengthBlur を 0.04 → 0.02 (強さのバラツキ減)
+// v2.17/v2.18 (v1.5): 難度パラメータ
+//   - sigma: AI 戦略上の追加 yaw/pitch ノイズ標準偏差 (度)
+//   - strengthBase / Blur: 投擲強さの基準とブレ
+//   - compensateBias: 物理の利き手バイアス (R 投げ -0.8°, -0.4°) を補正するか
+// v2.18: APOCALYPSE を「ゲームプレイ的に強く」 = TON80 (T20×3) を狙えるレベルに
+//   sigma を 0.6 → 0.0 (戦略狙いそのもの、 物理ブレに任せる)
+//   strengthBase を 0.5 (最適 = 物理 sigma 最小)
+//   compensateBias = true: 物理の利き手バイアスを補正して T20 のような細い T ring を貫く
 const _AI_PARAMS = {
-  easy:   { sigma: 6.0,  strengthBase: 0.40, strengthBlur: 0.10 },
-  normal: { sigma: 3.0,  strengthBase: 0.50, strengthBlur: 0.07 },
-  hard:   { sigma: 0.6,  strengthBase: 0.60, strengthBlur: 0.02 },
+  easy:   { sigma: 6.0,  strengthBase: 0.40, strengthBlur: 0.10, compensateBias: false },
+  normal: { sigma: 3.0,  strengthBase: 0.50, strengthBlur: 0.07, compensateBias: false },
+  hard:   { sigma: 0.0,  strengthBase: 0.50, strengthBlur: 0.00, compensateBias: true  },
 };
+// darts-physics.js の HAND_BIAS_X_DEG / HAND_BIAS_Y_DEG を補正するための定数
+//   simulateThrow 内で R 投げの場合 yaw に -0.8°、 pitch に -0.4° が加わる。
+//   AI 投擲は常に hand='R' (aiTakeShot) なので、 これを逆方向に予加算して相殺する。
+const _PHYSICS_HAND_BIAS_YAW_R_DEG = -0.8;
+const _PHYSICS_HAND_BIAS_PITCH_DEG = -0.4;
 // SVG ユニット → 角度 換算定数 (darts-render.js の _UNITS_PER_DEG と一致):
 //   ((R_BORDER + 4) * 2) / (HORIZ_FOV_DEG * TARGET_DIAMETER_RATIO)
 //   = (112+4)*2 / (40 * 0.9) ≒ 6.444
@@ -512,8 +521,15 @@ export function aiChooseShot(state, oppState, targetWorld, difficulty) {
   }
   const off = _aiSegmentCenterOffset(target.segment, target.ring);
   // ターゲットボード中心 + セグメント中心 offset + 精度ノイズ
-  const aimYawDeg   = (targetWorld ? targetWorld.yaw   : 0) + off.dxDeg + _aiGaussRand() * params.sigma;
-  const aimPitchDeg = (targetWorld ? targetWorld.pitch : 0) + off.dyDeg + _aiGaussRand() * params.sigma;
+  let aimYawDeg   = (targetWorld ? targetWorld.yaw   : 0) + off.dxDeg + _aiGaussRand() * params.sigma;
+  let aimPitchDeg = (targetWorld ? targetWorld.pitch : 0) + off.dyDeg + _aiGaussRand() * params.sigma;
+  // v2.18 (v1.5): 物理の利き手バイアスを予補正 (APOCALYPSE のみ)
+  //   simulateThrow が R 投げで yaw に -0.8°、 pitch に -0.4° を加えるので、
+  //   それを打ち消すよう +0.8°、 +0.4° を予加算
+  if (params.compensateBias) {
+    aimYawDeg   -= _PHYSICS_HAND_BIAS_YAW_R_DEG;
+    aimPitchDeg -= _PHYSICS_HAND_BIAS_PITCH_DEG;
+  }
   const strength = Math.max(0.20, Math.min(0.90,
     params.strengthBase + (Math.random() - 0.5) * 2 * params.strengthBlur));
   return { aimYawDeg, aimPitchDeg, strength };

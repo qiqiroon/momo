@@ -412,10 +412,14 @@ function applyShotCountup(state, shot) {
 //   - targetWorld: { yaw, pitch } (現在のボード中心ワールド角度)
 //   - difficulty: 'easy' | 'normal' | 'hard'
 //   - 戻り値: { aimYawDeg, aimPitchDeg, strength }
+// v2.17 (v1.5): APOCALYPSE (=hard) を「強く正確に」強化
+//   sigma を 1.5° → 0.6° (精度大幅向上)
+//   strengthBase を 0.55 → 0.60 (最適範囲上限 0.56 を確実に超え、 振動演出も発動)
+//   strengthBlur を 0.04 → 0.02 (強さのバラツキ減)
 const _AI_PARAMS = {
   easy:   { sigma: 6.0,  strengthBase: 0.40, strengthBlur: 0.10 },
   normal: { sigma: 3.0,  strengthBase: 0.50, strengthBlur: 0.07 },
-  hard:   { sigma: 1.5,  strengthBase: 0.55, strengthBlur: 0.04 },
+  hard:   { sigma: 0.6,  strengthBase: 0.60, strengthBlur: 0.02 },
 };
 // SVG ユニット → 角度 換算定数 (darts-render.js の _UNITS_PER_DEG と一致):
 //   ((R_BORDER + 4) * 2) / (HORIZ_FOV_DEG * TARGET_DIAMETER_RATIO)

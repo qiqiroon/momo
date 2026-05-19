@@ -292,8 +292,9 @@ $('btn-ai-start').addEventListener('click', () => {
 if (document.getElementById('difficulty-tabs')) {
   document.querySelectorAll('#difficulty-tabs .rule-tab').forEach((btn) => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('#difficulty-tabs .rule-tab').forEach((b) => b.classList.remove('selected'));
-      btn.classList.add('selected');
+      // v2.17: rule-tab のハイライトは .active クラスで定義されているため active に統一
+      document.querySelectorAll('#difficulty-tabs .rule-tab').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
       const diff = btn.getAttribute('data-difficulty');
       _aiDifficulty = diff;
       try { localStorage.setItem(AI_DIFFICULTY_LS_KEY, diff); } catch {}
@@ -315,7 +316,7 @@ if (_btnDifficultyOk) _btnDifficultyOk.addEventListener('click', () => {
 // 難度画面表示時に現在の選択を反映
 function refreshDifficultyUI() {
   document.querySelectorAll('#difficulty-tabs .rule-tab').forEach((b) => {
-    b.classList.toggle('selected', b.getAttribute('data-difficulty') === _aiDifficulty);
+    b.classList.toggle('active', b.getAttribute('data-difficulty') === _aiDifficulty);
   });
   const descEl = document.getElementById('difficulty-desc');
   if (descEl) descEl.textContent = t('difficulty.' + _aiDifficulty + '.desc');

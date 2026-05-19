@@ -41,7 +41,9 @@ function showScreen(name) {
   refreshBgmForScreen(name);
 }
 
-// v2.11 (v1.5): 現在の screen と部屋状態から BGM カテゴリを決定して適用
+// v2.11/v2.12 (v1.5): 現在の screen から BGM カテゴリを決定して適用
+//   v2.12: ホスト/ゲストの区別なく、プレイ中以外は lobby BGM を再生する仕様に修正
+//          (v2.11 で誤って入れた「ゲスト時は停止」ロジックを削除)
 function refreshBgmForScreen(name) {
   if (!Sound || !Sound.setBgmCategory) return;
   const cur = name || (SCREENS.find((s) => {
@@ -50,14 +52,6 @@ function refreshBgmForScreen(name) {
   }) || 'lobby');
   if (cur === 'game') { Sound.setBgmCategory('play'); return; }
   if (cur === 'end')  { Sound.setBgmCategory('none'); return; }
-  // lobby 系: ゲスト (他人の部屋に入った isHost=false の状態) なら停止
-  if (_mode === 'battle' && typeof MomoMatchmaking !== 'undefined') {
-    const st = MomoMatchmaking.getState();
-    if (st && st.currentRoomId && st.isHost === false) {
-      Sound.setBgmCategory('none');
-      return;
-    }
-  }
   Sound.setBgmCategory('lobby');
 }
 

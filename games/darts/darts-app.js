@@ -322,6 +322,17 @@ function updateScoreUI() {
   const selfSum = (pendingSum !== null && active === _gameState)
     ? pendingSum
     : _gameState.turnShots.reduce((a, s) => a + s.value, 0);
+  // v2.04 (v1.5): ラウンド (ターン) 表示 — 中央上部
+  //   countup は N/M 形式、それ以外は N
+  const roundInfoEl = $('ui-round-info');
+  if (roundInfoEl) {
+    const cur = _gameState.turnIndex || 1;
+    if (_currentRule.type === 'countup') {
+      roundInfoEl.textContent = t('ui.round.label.dyn', { current: cur, total: _currentRule.rounds });
+    } else {
+      roundInfoEl.textContent = t('ui.round.label', { current: cur });
+    }
+  }
   // v1.88 (v1.3): 01 = 残り点数 / countup = 累積得点 を表示
   $('ui-remaining').textContent = String(Rules.currentScore(_gameState));
   $('ui-turn-total').textContent = `TURN +${selfSum}`;
@@ -432,6 +443,8 @@ function enterGameScreen() {
   applyChatPresetsToButtons();
   // v1.96 (v1.5): rtc 初期セグメント色付け
   refreshRtcSegmentHighlight();
+  // v2.05 (v1.5): クリケット初期ボード色付け
+  refreshCricketBoard();
 }
 
 // v1.47 (3-E): チャットスタックをクリア（試合開始/再戦時に呼ぶ）
@@ -455,6 +468,15 @@ function refreshRtcSegmentHighlight() {
   Render.setSegmentHighlight(my, opp);
 }
 
+// v2.05 (v1.5): クリケットのボード色付け更新
+//   自分の marks (15-20+bull) と相手の marks をボードに反映
+function refreshCricketBoard() {
+  if (!_currentRule || _currentRule.type !== 'cricket') return;
+  const myMarks = (_gameState && _gameState.marks) || {};
+  const oppMarks = (_mode === 'battle' && _oppState && _oppState.marks) || {};
+  Render.setCricketBoard(myMarks, oppMarks);
+}
+
 function leaveGameScreen() {
   Render.stop();
   Input.stop();
@@ -463,6 +485,8 @@ function leaveGameScreen() {
   _gameInProgress = false;
   // v1.96 (v1.5): rtc セグメント色付けをクリア（次のゲームに残らないように）
   Render.clearSegmentHighlight();
+  // v2.05 (v1.5): クリケットボード色付けもクリア
+  Render.clearCricketBoard();
 }
 
 // v1.68: 着弾点が「的盤面に当たったか」判定（数字エリアまでを的内とする）
@@ -581,12 +605,32 @@ function processShot(throwerState, shot, throwerRole) {
 
   // v2.03 (v1.5): クリケット時は相手の marks を applyShot に渡す（得点判定のため）
   let applyOpts;
+  let cricketBeforeMarks;
   if (isCricket) {
     const oppOfThrower = (throwerState === _gameState) ? _oppState : _gameState;
     applyOpts = { oppMarks: oppOfThrower ? oppOfThrower.marks : {} };
+    // v2.05: 投擲前の mark スナップショット (オープン/クローズ判定用)
+    cricketBeforeMarks = { ...throwerState.marks };
   }
 
   const r = Rules.applyShot(throwerState, shot, applyOpts);
+
+  // v2.05 (v1.5): クリケット音 + ボード色付け更新
+  //   1 mark 以上増加 → 正解音 (オープン or マーク追加)
+  //   3 mark 達成 (オープン→クローズ) → bust 音 (優先)
+  if (isCricket && cricketBeforeMarks) {
+    let anyIncrease = false;
+    let anyClose = false;
+    [15,16,17,18,19,20,'bull'].forEach((k) => {
+      const b = cricketBeforeMarks[k] || 0;
+      const a = throwerState.marks[k] || 0;
+      if (a > b) anyIncrease = true;
+      if (b < 3 && a >= 3) anyClose = true;
+    });
+    if (anyClose) Sound.playBust();
+    else if (anyIncrease) Sound.playCorrect();
+    refreshCricketBoard();
+  }
 
   // v2.03 (v1.5): クリケット勝敗判定（相手 state を見て finished を立てる）
   if (isCricket && r.turnEnded && _gameState && _oppState) {

@@ -798,6 +798,21 @@ body.in-game .site-header h1 {
   flex: 1;
   min-width: 0;
 }
+/* v2.04 (v1.5): ラウンド表示 — turn-info の上に小さく中央表示 */
+#ui-round-info {
+  font-family: 'Fredoka One', cursive;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: rgba(255,255,255,0.55);
+  background: rgba(0,0,0,0.55);
+  border-radius: 4px;
+  padding: 2px 8px;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+  margin-bottom: 3px;
+  pointer-events: none;
+}
+#ui-round-info:empty { display: none; }
 /* v1.34: 2行構成 — main: "あなたのターン"/"相手のターン", name: 名前小さく */
 #ui-turn-info {
   display: flex;
@@ -1757,7 +1772,7 @@ body.in-game #gear-icon { display: flex; }
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v2.03</span>
+      <span class="version-tag" id="version-tag">v2.05</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -2035,6 +2050,8 @@ body.in-game #gear-icon { display: flex; }
       <div id="ui-turn-total">TURN +0</div>
     </div>
     <div id="ui-center-top">
+      <!-- v2.04 (v1.5): ラウンド表示 (全ルール、countup は N/M、それ以外は N) -->
+      <div id="ui-round-info"></div>
       <div id="ui-turn-info">
         <div id="ui-turn-info-main"></div>
         <div id="ui-turn-info-name"></div>

@@ -158,6 +158,8 @@
     "perm.ok": "許可しました(OK)",
     "perm.quit": "ゲーム終了",
 
+    "ui.round.label": "ラウンド {current}",
+    "ui.round.label.dyn": "ラウンド {current}/{total}",
     "game.turn.self": "あなたのターン",
     "game.turn.opp": "相手のターン",
     "game.disconnect.warn": "相手の応答を待っています…",
@@ -385,6 +387,8 @@
     "perm.ok": "I have allowed (OK)",
     "perm.quit": "Quit",
 
+    "ui.round.label": "Round {current}",
+    "ui.round.label.dyn": "Round {current}/{total}",
     "game.turn.self": "Your Turn",
     "game.turn.opp": "Opponent's Turn",
     "game.disconnect.warn": "Waiting for opponent…",
@@ -612,6 +616,8 @@
     "perm.ok": "已允许 (OK)",
     "perm.quit": "退出",
 
+    "ui.round.label": "第 {current} 回合",
+    "ui.round.label.dyn": "第 {current}/{total} 回合",
     "game.turn.self": "你的回合",
     "game.turn.opp": "对手回合",
     "game.disconnect.warn": "等待对手响应…",

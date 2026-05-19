@@ -86,20 +86,27 @@ function buildDartboardSVG() {
   svg.appendChild(el('circle', { cx: 0, cy: 0, r: R_BORDER, fill: COLOR_BORDER }));
 
   // 20 セグメント本体（インナーシングル + トリプル + アウターシングル + ダブル）
+  // v2.05 (v1.5): 各セクタに data-seg-sector + data-orig-fill を付与
+  //   クリケットのボード色付け用。元の色に戻せるよう orig-fill を覚えておく
   for (let i = 0; i < 20; i++) {
     const center = -90 + i * 18;
     const a1 = center - 9;
     const a2 = center + 9;
+    const segNum = SEGMENT_NUMBERS[i];
     const bb = isBlackBody(i);
     const bodyColor   = bb ? COLOR_BLACK : COLOR_CREAM;
-    // 標準配色: 黒胴体は ダブル=赤 / トリプル=緑、クリーム胴体は逆
     const tripleColor = bb ? COLOR_GREEN : COLOR_RED;
     const doubleColor = bb ? COLOR_RED   : COLOR_GREEN;
 
-    svg.appendChild(sectorPath(a1, a2, R_OUTER_BULL, R_TRIPLE_IN, bodyColor));   // インナーシングル
-    svg.appendChild(sectorPath(a1, a2, R_TRIPLE_IN, R_TRIPLE_OUT, tripleColor)); // トリプル
-    svg.appendChild(sectorPath(a1, a2, R_TRIPLE_OUT, R_DOUBLE_IN, bodyColor));   // アウターシングル
-    svg.appendChild(sectorPath(a1, a2, R_DOUBLE_IN, R_DOUBLE_OUT, doubleColor)); // ダブル
+    const innerSingle = sectorPath(a1, a2, R_OUTER_BULL, R_TRIPLE_IN, bodyColor);
+    const triple      = sectorPath(a1, a2, R_TRIPLE_IN, R_TRIPLE_OUT, tripleColor);
+    const outerSingle = sectorPath(a1, a2, R_TRIPLE_OUT, R_DOUBLE_IN, bodyColor);
+    const double_     = sectorPath(a1, a2, R_DOUBLE_IN, R_DOUBLE_OUT, doubleColor);
+    [innerSingle, triple, outerSingle, double_].forEach((p) => {
+      p.setAttribute('data-seg-sector', String(segNum));
+      p.setAttribute('data-orig-fill', p.getAttribute('fill'));
+      svg.appendChild(p);
+    });
   }
 
   // セグメント境界の細線（金属ワイヤ風）
@@ -116,11 +123,18 @@ function buildDartboardSVG() {
   }
 
   // アウターブル(25, 緑) → インナーブル(50, 赤)
-  svg.appendChild(el('circle', { cx: 0, cy: 0, r: R_OUTER_BULL, fill: COLOR_GREEN, stroke: COLOR_WIRE, 'stroke-width': 0.35 }));
-  svg.appendChild(el('circle', { cx: 0, cy: 0, r: R_INNER_BULL, fill: COLOR_RED }));
+  // v2.05: ブルにも data-seg-sector='bull' を付けてクリケット色付け対応
+  const outerBull = el('circle', { cx: 0, cy: 0, r: R_OUTER_BULL, fill: COLOR_GREEN, stroke: COLOR_WIRE, 'stroke-width': 0.35 });
+  outerBull.setAttribute('data-seg-sector', 'bull');
+  outerBull.setAttribute('data-orig-fill', COLOR_GREEN);
+  svg.appendChild(outerBull);
+  const innerBull = el('circle', { cx: 0, cy: 0, r: R_INNER_BULL, fill: COLOR_RED });
+  innerBull.setAttribute('data-seg-sector', 'bull');
+  innerBull.setAttribute('data-orig-fill', COLOR_RED);
+  svg.appendChild(innerBull);
 
-  // v1.97 (v1.5): RTC 用のセグメント枠線 overlay
-  //   通常は stroke=transparent、setSegmentHighlight() で current target だけ着色
+  // v1.97/v2.05 (v1.5): RTC + クリケット用のセグメント枠線 overlay
+  //   通常は stroke=transparent、setSegmentHighlight/setCricketBoard() で着色
   //   fill='none' で内部は元の色のまま、枠線だけ強調
   for (let i = 0; i < 20; i++) {
     const center = -90 + i * 18;
@@ -134,6 +148,16 @@ function buildDartboardSVG() {
     outline.setAttribute('pointer-events', 'none');
     svg.appendChild(outline);
   }
+  // v2.05: ブル用の outline (円形、クリケットのブル オープン/クローズ枠用)
+  const bullOutline = el('circle', {
+    cx: 0, cy: 0, r: R_OUTER_BULL,
+    fill: 'none',
+    stroke: 'transparent',
+    'stroke-width': 2.5,
+    'data-seg-outline': 'bull',
+    'pointer-events': 'none',
+  });
+  svg.appendChild(bullOutline);
 
   // 数字（黒帯の上、白文字）
   for (let i = 0; i < 20; i++) {
@@ -374,6 +398,77 @@ export function clearSegmentHighlight() {
   if (!_boardEl) return;
   const svg = _boardEl.querySelector('svg');
   if (!svg) return;
+  svg.querySelectorAll('[data-seg-outline]').forEach((p) => {
+    p.setAttribute('stroke', 'transparent');
+  });
+}
+
+// v2.05 (v1.5): クリケット用ボード色付け
+//   - 1〜14 セグメント = 使えないエリア = 薄いグレー塗り
+//   - 15-20+bull のクローズ済 (自分 or 相手 mark=3) = 同じ薄いグレー塗り
+//   - 自分オープン (1〜2 mark) = オレンジ枠
+//   - 相手オープン (1〜2 mark) = 濃いグレー枠
+//   - 未マーク = 元の色を維持
+const CRICKET_FILL_INACTIVE = '#3a3a3a';   // 使えない / クローズ済
+const CRICKET_STROKE_SELF   = '#ea580c';   // 自分オープン
+const CRICKET_STROKE_OPP    = '#6b7280';   // 相手オープン
+function _isCricketTarget(segKey) {
+  return segKey === 'bull' || (typeof segKey === 'number' && segKey >= 15 && segKey <= 20);
+}
+export function setCricketBoard(myMarks, oppMarks) {
+  if (!_boardEl) return;
+  const svg = _boardEl.querySelector('svg');
+  if (!svg) return;
+  myMarks = myMarks || {};
+  oppMarks = oppMarks || {};
+
+  // セクタ fill
+  svg.querySelectorAll('[data-seg-sector]').forEach((p) => {
+    const raw = p.getAttribute('data-seg-sector');
+    const segKey = (raw === 'bull') ? 'bull' : Number(raw);
+    const orig = p.getAttribute('data-orig-fill');
+    if (!_isCricketTarget(segKey)) {
+      p.setAttribute('fill', CRICKET_FILL_INACTIVE);
+      return;
+    }
+    const my  = myMarks[segKey]  || 0;
+    const opp = oppMarks[segKey] || 0;
+    if (my >= 3 || opp >= 3) {
+      p.setAttribute('fill', CRICKET_FILL_INACTIVE);
+    } else if (orig) {
+      p.setAttribute('fill', orig);
+    }
+  });
+
+  // 外周枠 (15-20+bull のオープン中だけ)
+  svg.querySelectorAll('[data-seg-outline]').forEach((p) => {
+    const raw = p.getAttribute('data-seg-outline');
+    const segKey = (raw === 'bull') ? 'bull' : Number(raw);
+    if (!_isCricketTarget(segKey)) {
+      p.setAttribute('stroke', 'transparent');
+      return;
+    }
+    const my  = myMarks[segKey]  || 0;
+    const opp = oppMarks[segKey] || 0;
+    if (my >= 3 || opp >= 3) {
+      p.setAttribute('stroke', 'transparent');
+    } else if (my > 0) {
+      p.setAttribute('stroke', CRICKET_STROKE_SELF);
+    } else if (opp > 0) {
+      p.setAttribute('stroke', CRICKET_STROKE_OPP);
+    } else {
+      p.setAttribute('stroke', 'transparent');
+    }
+  });
+}
+export function clearCricketBoard() {
+  if (!_boardEl) return;
+  const svg = _boardEl.querySelector('svg');
+  if (!svg) return;
+  svg.querySelectorAll('[data-seg-sector]').forEach((p) => {
+    const orig = p.getAttribute('data-orig-fill');
+    if (orig) p.setAttribute('fill', orig);
+  });
   svg.querySelectorAll('[data-seg-outline]').forEach((p) => {
     p.setAttribute('stroke', 'transparent');
   });

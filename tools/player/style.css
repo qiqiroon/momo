@@ -28,9 +28,10 @@ body { height: 100%; font-family: var(--font); background: var(--bg-base); color
 #left-title-cat { display: flex; align-items: center; gap: 8px; }
 #left-title-cat svg { width: 30px; height: 33px; flex-shrink: 0; }
 /* app-card-design v1.0 §3 準拠: 3 span (MOMO / Player / version-tag) を baseline 揃え */
+/* 左ペイン幅の制約のため h1 は仕様 clamp の最小値 2rem (32px) より縮めて 26px */
 #left-title-name {
-  font-family: 'Fredoka One', sans-serif;
-  font-size: 18px;
+  font-family: 'Fredoka One', cursive;
+  font-size: 26px;
   font-weight: 400;
   letter-spacing: 0.02em;
   line-height: 1;
@@ -42,11 +43,11 @@ body { height: 100%; font-family: var(--font); background: var(--bg-base); color
 #left-title-name .player { color: var(--accent); }
 #left-title-name .version-tag {
   color: var(--text-hint);
-  font-family: 'Fredoka One', sans-serif;
-  font-size: 0.55em;
+  font-family: 'Fredoka One', cursive;
+  font-size: 0.28em;
   letter-spacing: 0.04em;
   align-self: flex-end;
-  padding-bottom: 0.15em;
+  padding-bottom: 0.2em;
 }
 #left-title-sub { font-family: 'Fredoka One', sans-serif; font-size: 11px; color: #888888; letter-spacing: 0; margin-top: 2px; }
 #left-title-sub.zh { font-family: 'Fredoka One', 'Noto Sans SC', 'Noto Sans JP', sans-serif; }

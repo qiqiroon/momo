@@ -26,7 +26,7 @@ body::before { content:''; position:fixed; inset:0; background:var(--bg); opacit
 
 /* Splash */
 #splash { position:fixed; inset:0; z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; cursor:pointer; background:var(--bg); }
-#splash .splash-cat { width:72px; height:72px; animation:pulse 3s ease-in-out infinite; }
+#splash .splash-cat { width:72px; height:79px; animation:pulse 3s ease-in-out infinite; }
 #splash h1 { font-family:'Fredoka One',sans-serif; font-size:clamp(2rem,8vw,3rem); color:#fff; }
 #splash h1 span { color:var(--orange-mid); }
 .splash-ver { font-size:10px; color:var(--text-muted); text-align:center; max-width:90vw; }
@@ -40,7 +40,7 @@ body::before { content:''; position:fixed; inset:0; background:var(--bg); opacit
 /* Header */
 header { position:sticky; top:0; z-index:100; background:rgba(10,10,10,.95); border-bottom:1px solid var(--border); backdrop-filter:blur(8px); padding:8px 16px; animation:fadeDown .3s ease both; }
 .header-top { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-.header-cat { width:36px; height:30px; flex-shrink:0; }
+.header-cat { width:34px; height:37px; flex-shrink:0; }
 .header-title { font-family:'Fredoka One',sans-serif; font-size:1.4rem; color:#fff; white-space:nowrap; }
 .header-title span { color:var(--orange-mid); }
 .header-sub { font-size:10px; color:var(--text-muted); }

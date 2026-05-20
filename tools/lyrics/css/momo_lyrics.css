@@ -67,7 +67,7 @@ body::before {
 .breadcrumb a:hover { color: var(--orange-light); }
 
 header { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; animation: fadeDown 0.5s ease backwards; }
-.cat-icon { width: 52px; height: 44px; flex-shrink: 0; }
+.cat-icon { width: 48px; height: 53px; flex-shrink: 0; }
 
 h1 { font-family: 'Fredoka One', cursive; font-size: 2.5rem; margin: 0; font-weight: 400; color: #fff; }
 h1 span { color: var(--orange-mid); }

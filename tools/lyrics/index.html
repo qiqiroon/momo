@@ -98,17 +98,21 @@
                     <line x1="-18" y1="5" x2="-38" y2="2" /><line x1="-18" y1="9" x2="-40" y2="9" /><line x1="-18" y1="13" x2="-38" y2="16" />
                     <line x1="18" y1="5" x2="38" y2="2" /><line x1="18" y1="9" x2="40" y2="9" /><line x1="18" y1="13" x2="38" y2="16" />
                 </g>
-                <!-- Lyrics 固有: ♪ + 歌詞の行 (白黒灰) -->
+                <!-- Lyrics 固有: 歌詞の行 + 八分音符 2 連 (白黒灰) -->
                 <g id="lyrics-overlay">
-                    <!-- ♪ (音符、 左上) -->
-                    <ellipse cx="6" cy="20" rx="4" ry="3.2" fill="#f5f5f5" stroke="#000" stroke-width="0.6"/>
-                    <path d="M 9.5 20 L 9.5 -2 L 22 -2 L 22 2 L 13 2 L 13 20 Z" fill="#f5f5f5" stroke="#000" stroke-width="0.6" stroke-linejoin="round"/>
-                    <!-- 歌詞の行 (テキスト線、 右下) -->
-                    <rect x="18" y="14" width="36" height="32" rx="2" fill="#1a1a1a" stroke="#888" stroke-width="0.7"/>
-                    <line x1="22" y1="22" x2="50" y2="22" stroke="#bbb" stroke-width="1.2" stroke-linecap="round"/>
-                    <line x1="22" y1="28" x2="46" y2="28" stroke="#999" stroke-width="1.2" stroke-linecap="round"/>
-                    <line x1="22" y1="34" x2="48" y2="34" stroke="#999" stroke-width="1.2" stroke-linecap="round"/>
-                    <line x1="22" y1="40" x2="42" y2="40" stroke="#999" stroke-width="1.2" stroke-linecap="round"/>
+                    <!-- 上段左: 短い線 2 本 -->
+                    <line x1="2" y1="3"  x2="23" y2="3"  stroke="#e5e5e5" stroke-width="4.5" stroke-linecap="round"/>
+                    <line x1="2" y1="12" x2="19" y2="12" stroke="#e5e5e5" stroke-width="4.5" stroke-linecap="round"/>
+                    <!-- 上段右: 八分音符 2 連 (旗で繋がる) -->
+                    <ellipse cx="33"   cy="14"   rx="4.2" ry="3.2" fill="#f5f5f5" stroke="#000" stroke-width="0.6" transform="rotate(-15 33 14)"/>
+                    <ellipse cx="47.5" cy="11.5" rx="4.2" ry="3.2" fill="#f5f5f5" stroke="#000" stroke-width="0.6" transform="rotate(-15 47.5 11.5)"/>
+                    <line x1="37"   y1="13" x2="37"   y2="-8" stroke="#f5f5f5" stroke-width="2.2" stroke-linecap="round"/>
+                    <line x1="51.5" y1="10" x2="51.5" y2="-8" stroke="#f5f5f5" stroke-width="2.2" stroke-linecap="round"/>
+                    <path d="M 36 -8 L 52.6 -8 L 52.6 -2.5 L 36 -2.5 Z" fill="#f5f5f5" stroke="#000" stroke-width="0.55" stroke-linejoin="round"/>
+                    <!-- 下段: 長い線 3 本 -->
+                    <line x1="2" y1="25" x2="50" y2="25" stroke="#e5e5e5" stroke-width="4.5" stroke-linecap="round"/>
+                    <line x1="2" y1="34" x2="50" y2="34" stroke="#e5e5e5" stroke-width="4.5" stroke-linecap="round"/>
+                    <line x1="2" y1="43" x2="50" y2="43" stroke="#e5e5e5" stroke-width="4.5" stroke-linecap="round"/>
                 </g>
             </svg>
         </div>

@@ -14,7 +14,7 @@
     const I18N = {
         ja: {
             breadcrumb: "MOMO Lyrics",
-            headerSub: "LRCLIB APIを利用した同期歌詞(.lrc)の取得・保存ツール",
+            headerSub: "Lyric Meta-Data Manager",
             tabFolder: "フォルダ一括処理",
             tabSearch: "個別検索保存",
             tabPlay: "プレイ",
@@ -76,7 +76,7 @@
         },
         en: {
             breadcrumb: "MOMO Lyrics",
-            headerSub: "Fetch and save .lrc lyrics via LRCLIB API",
+            headerSub: "Lyric Meta-Data Manager",
             tabFolder: "Batch Processing",
             tabSearch: "Manual Search",
             tabPlay: "Play",
@@ -138,7 +138,7 @@
         },
         zh: {
             breadcrumb: "MOMO Lyrics",
-            headerSub: "利用 LRCLIB API 获取并保存 .lrc 歌词",
+            headerSub: "歌詞元数据管理器",
             tabFolder: "文件夹批量处理",
             tabSearch: "手动搜索保存",
             tabPlay: "播放",

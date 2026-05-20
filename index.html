@@ -260,33 +260,37 @@
     width: fit-content;
   }
 
-  /* ── MOMO Logue / Test リンク (v1.05: 枠なしシンプル文字リンク、 フッター付近) ── */
+  /* ── MOMO Logue / Test リンク (v1.06: Logue 内改行 + テストを右寄せに) ── */
   .footer-links {
     margin-top: 72px;   /* フッターに近い、 ヒーローやカードからは大きく行を空ける */
     padding: 0 0 24px;
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 16px;
     animation: fadeUp 0.7s ease 0.4s both;
   }
   .logue-link {
+    display: inline-block;
     font-size: 0.85rem;
     color: var(--text-muted);
     text-decoration: none;
     letter-spacing: 0.04em;
+    line-height: 1.4;
     transition: color 0.2s;
   }
   .logue-link:hover { color: var(--text); }
   .logue-link-sub {
+    display: block;       /* MOMO Logue とは改行で分離 */
     font-size: 0.72rem;
     color: var(--text-muted);
     letter-spacing: 0.02em;
     opacity: 0.7;
+    margin-top: 1px;
   }
   .test-link {
-    font-size: 0.65rem;
-    color: #333;
+    font-size: 0.6rem;
+    color: #0a0a0a;       /* 背景 #0a0a0a と同色でほぼ不可視 */
     text-decoration: none;
     letter-spacing: 0.06em;
   }
@@ -408,7 +412,7 @@ const I18N = {
     footer:     '© MOMO Works',
     tosNotice:  'お約束：<a href="terms.html">利用規約</a>に同意したものとみなします。｜<a href="privacy.html">プライバシーポリシー</a>',
     logueLink:  'MOMO Logue',
-    logueSub:   '— 作者の独り言',
+    logueSub:   '作者の独り言',
   },
   en: {
     tagline:    'Browser-based games and tools by an individual. No signup, no install — just click and play.',
@@ -419,7 +423,7 @@ const I18N = {
     footer:     '© MOMO Works',
     tosNotice:  'Ground Rules: <a href="terms.html">Terms</a> required for use. | <a href="privacy.html">Privacy Policy</a>',
     logueLink:  'MOMO Logue',
-    logueSub:   "— Author's Murmurs",
+    logueSub:   "Author's Murmurs",
   },
   zh: {
     tagline:    '在浏览器中运行的个人作品集 (游戏与工具)。无需注册、无需安装，点击即可使用。',
@@ -430,7 +434,7 @@ const I18N = {
     footer:     '© MOMO Works',
     tosNotice:  '约定：使用即表示同意<a href="terms.html">使用条款</a>。｜<a href="privacy.html">隐私政策</a>',
     logueLink:  'MOMO Logue',
-    logueSub:   '— 作者的随笔',
+    logueSub:   '作者的随笔',
   },
 };
 

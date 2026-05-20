@@ -108,6 +108,7 @@
   @keyframes fadeDown { from{opacity:0;transform:translateY(-14px);} to{opacity:1;transform:translateY(0);} }
   @keyframes fadeUp   { from{opacity:0;transform:translateY(14px);}  to{opacity:1;transform:translateY(0);} }
 </style>
+<script src="/momo/lib/momo-analytics.js" defer></script>
 </head>
 <body>
 
@@ -168,6 +169,7 @@
     <a class="card" href="tilt/">
       <div class="card-badge" id="tilt-badge">📱 Mobile</div>
       <div class="card-title">MOMO <span>Tilt</span></div>
+      <div class="card-subtitle" id="tilt-subtitle">Tilt the World, Balance the Fate</div>
       <div class="card-desc" id="tilt-desc">スマホを傾けてボールを転がし、同じ色のゴールへ同時に入れるパズル＆アクション。鍵を集めてゴールを解錠、敵をかわしながらクリアを目指せ！</div>
       <div class="card-meta" id="tilt-meta">
         <span>📐 迷路</span>
@@ -184,6 +186,7 @@
     <a class="card" href="hanoi/">
       <div class="card-badge" id="hanoi-badge">🧩 Puzzle</div>
       <div class="card-title">MOMO <span>Hanoi</span></div>
+      <div class="card-subtitle" id="hanoi-subtitle">Tower Defence of Hanoi</div>
       <div class="card-desc" id="hanoi-desc">ハノイの塔を解きながらUFOを迎撃するパズル×シューティング。円盤を移動させて砲弾を発射し、地面を守れ！</div>
       <div class="card-meta" id="hanoi-meta">
         <span>🧩 パズル</span>
@@ -201,6 +204,7 @@
     <a class="card" href="javascript:void(0)" onclick="openReversi()">
       <div class="card-badge" id="reversi-badge">🌐 Online</div>
       <div class="card-title">MOMO <span>Reversi</span></div>
+      <div class="card-subtitle" id="reversi-subtitle">Flip the Board, Rewrite the Fate</div>
       <div class="card-desc" id="reversi-desc">世界中のプレイヤーとリアルタイムでリバーシ対決。部屋を作って友達を招待することも、公開部屋に飛び込むことも自由。チャットしながら白熱の盤上バトルを楽しもう。</div>
       <div class="card-meta" id="reversi-meta">
         <span>♟ ボードゲーム</span>
@@ -218,6 +222,7 @@
     <a class="card" href="javascript:void(0)" onclick="openGomokuGo()">
       <div class="card-badge" id="gomokugo-badge">🆕 New</div>
       <div class="card-title">MOMO <span>Go</span></div>
+      <div class="card-subtitle" id="gomokugo-subtitle">Master the Stones, Rule the Realm</div>
       <div class="card-desc" id="gomokugo-desc">19路盤の五目並べでオンライン対戦。仮置きから確定の2段階で慎重に一手を選び、縦・横・斜めの5連を目指せ。チャットしながら静かな盤上の駆け引きを。</div>
       <div class="card-meta" id="gomokugo-meta">
         <span>♟ ボードゲーム</span>
@@ -261,18 +266,22 @@ const I18N = {
     headerSub: 'ブラウザで遊べるゲーム集',
     sectionLabel: 'Game List',
     tiltBadge: '📱 モバイル',
+    tiltSubtitle: 'Tilt the World, Balance the Fate',
     tiltDesc: 'スマホを傾けてボールを転がし、同じ色のゴールへ同時に入れるパズル＆アクション。鍵を集めてゴールを解錠、敵をかわしながらクリアを目指せ！',
     tiltMeta1: '📐 迷路', tiltMeta2: '🔵 マルチボール', tiltDevice: 'スマホ対応',
     tiltPlay: '今すぐプレイ',
     hanoiBadge: '🧩 パズル',
+    hanoiSubtitle: 'Tower Defence of Hanoi',
     hanoiDesc: 'ハノイの塔を解きながらUFOを迎撃するパズル×シューティング。円盤を移動させて砲弾を発射し、地面を守れ！',
     hanoiMeta1: '🧩 パズル', hanoiMeta2: '🛸 シューティング', hanoiDiff: '3難易度',
     hanoiPlay: '今すぐプレイ',
     reversiBadge: '🌐 オンライン',
+    reversiSubtitle: 'Flip the Board, Rewrite the Fate',
     reversiDesc: '世界中のプレイヤーとリアルタイムでリバーシ対決。部屋を作って友達を招待することも、公開部屋に飛び込むことも自由。チャットしながら白熱の盤上バトルを楽しもう。',
     reversiMeta1: '♟ ボードゲーム', reversiMeta2: '🌐 オンライン対戦', reversiPlayers: '2人',
     reversiPlay: '今すぐプレイ',
     gomokugoBadge: '🆕 NEW',
+    gomokugoSubtitle: 'Master the Stones, Rule the Realm',
     gomokugoDesc: '19路盤で五目並べと囲碁のオンライン対戦。三手交換・待った・持ち時間+秒読み・地計算まで対応した本格派。チャットしながら静かな盤上の駆け引きを。',
     gomokugoMeta1: '♟ ボードゲーム', gomokugoMeta2: '🌐 オンライン対戦', gomokugoPlayers: '2人',
     gomokugoPlay: '今すぐプレイ',
@@ -287,18 +296,22 @@ const I18N = {
     headerSub: 'Browser games collection',
     sectionLabel: 'Game List',
     tiltBadge: '📱 Mobile',
+    tiltSubtitle: 'Tilt the World, Balance the Fate',
     tiltDesc: 'Tilt your phone to roll balls through a maze and drop them into matching color goals simultaneously. Collect keys, dodge enemies, and clear each stage!',
     tiltMeta1: '📐 Maze', tiltMeta2: '🔵 Multi-ball', tiltDevice: 'Mobile-ready',
     tiltPlay: 'Play Now',
     hanoiBadge: '🧩 Puzzle',
+    hanoiSubtitle: 'Tower Defence of Hanoi',
     hanoiDesc: 'A puzzle × shooting game where you solve the Tower of Hanoi while intercepting UFOs. Move discs to fire shells and protect the ground!',
     hanoiMeta1: '🧩 Puzzle', hanoiMeta2: '🛸 Shooting', hanoiDiff: '3 difficulties',
     hanoiPlay: 'Play Now',
     reversiBadge: '🌐 Online',
+    reversiSubtitle: 'Flip the Board, Rewrite the Fate',
     reversiDesc: 'Challenge players around the world to a real-time game of Reversi. Create a private room for friends or jump into a public match — the board is always ready. Chat, play, and flip your way to victory.',
     reversiMeta1: '♟ Board Game', reversiMeta2: '🌐 Online', reversiPlayers: '2 Players',
     reversiPlay: 'Play Now',
     gomokugoBadge: '🆕 NEW',
+    gomokugoSubtitle: 'Master the Stones, Rule the Realm',
     gomokugoDesc: 'Online Gomoku & Go on a 19×19 board. Full-featured: three-move swap opening, undo, time control with byoyomi, and territory scoring. Chat while you play.',
     gomokugoMeta1: '♟ Board Game', gomokugoMeta2: '🌐 Online', gomokugoPlayers: '2 Players',
     gomokugoPlay: 'Play Now',
@@ -313,18 +326,22 @@ const I18N = {
     headerSub: '可在浏览器中游玩的游戏合集',
     sectionLabel: 'Game List',
     tiltBadge: '📱 移动',
+    tiltSubtitle: '倾斜世界，掌握乾坤',
     tiltDesc: '倾斜手机滚动小球穿越迷宫，同时将所有小球送入对应颜色的目标洞。收集钥匙解锁目标，躲避敌人，挑战每一关！',
     tiltMeta1: '📐 迷宫', tiltMeta2: '🔵 多球', tiltDevice: '支持手机',
     tiltPlay: '立即游玩',
     hanoiBadge: '🧩 益智',
+    hanoiSubtitle: '汉诺塔防',
     hanoiDesc: '一边解汉诺塔谜题，一边拦截UFO的益智×射击游戏。移动圆盘发射炮弹，保卫大地！',
     hanoiMeta1: '🧩 益智', hanoiMeta2: '🛸 射击', hanoiDiff: '3种难度',
     hanoiPlay: '立即游玩',
     reversiBadge: '🌐 在线',
+    reversiSubtitle: '智取黑白，反转乾坤',
     reversiDesc: '与全球玩家实时对战黑白棋。可以创建房间邀请好友，也可以随时加入公开对局。边聊天边享受激烈的翻棋乐趣。',
     reversiMeta1: '♟ 棋盘游戏', reversiMeta2: '🌐 在线对战', reversiPlayers: '2人',
     reversiPlay: '立即游玩',
     gomokugoBadge: '🆕 NEW',
+    gomokugoSubtitle: '纵横黑白，棋弈天下',
     gomokugoDesc: '19路盘的五子棋与围棋在线对战。三手交换、悔棋、用时+读秒、数子计算全部支持。边聊边享受静谧的盘上博弈。',
     gomokugoMeta1: '♟ 棋盘游戏', gomokugoMeta2: '🌐 在线对战', gomokugoPlayers: '2人',
     gomokugoPlay: '立即游玩',
@@ -419,12 +436,21 @@ function applyLang() {
   if (dartsMetaSpans[1]) dartsMetaSpans[1].textContent = t('dartsMeta2');
   document.getElementById('darts-players').textContent = t('dartsPlayers');
   document.getElementById('darts-play').textContent = t('dartsPlay');
-  // Darts サブタイトル: 猫語非対応のため、cat 選択時は catBase 言語のテキストを表示
-  const dartsSubtitleEl = document.getElementById('darts-subtitle');
+  // 各サブタイトル: 猫語非対応のため、cat 選択時は catBase 言語のテキストを表示
   const subtitleLang = currentLang === 'cat' ? catBase : currentLang;
   const subtitleDict = I18N[subtitleLang] || I18N.ja;
-  dartsSubtitleEl.textContent = subtitleDict.dartsSubtitle;
-  dartsSubtitleEl.classList.toggle('zh-subtitle', subtitleLang === 'zh');
+  [
+    ['tilt-subtitle',     subtitleDict.tiltSubtitle],
+    ['hanoi-subtitle',    subtitleDict.hanoiSubtitle],
+    ['reversi-subtitle',  subtitleDict.reversiSubtitle],
+    ['gomokugo-subtitle', subtitleDict.gomokugoSubtitle],
+    ['darts-subtitle',    subtitleDict.dartsSubtitle],
+  ].forEach(([id, text]) => {
+    const el = document.getElementById(id);
+    if (!el || !text) return;
+    el.textContent = text;
+    el.classList.toggle('zh-subtitle', subtitleLang === 'zh');
+  });
   // Footer
   document.getElementById('footer-back').textContent = t('footerBack');
   // セレクト同期

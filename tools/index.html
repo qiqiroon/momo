@@ -184,6 +184,16 @@
       color: var(--text-main);
       line-height: 1.2;
     }
+    .card-subtitle {
+      font-family: 'Fredoka One', cursive;
+      font-size: 0.78rem;
+      color: #888;
+      letter-spacing: 0.02em;
+      margin-top: -2px;
+      line-height: 1.2;
+      min-height: 1em;
+    }
+    .card-subtitle.zh-subtitle { letter-spacing: 0; font-family: 'Fredoka One','Noto Sans JP',sans-serif; }
     .card-desc {
       font-size: 13px;
       color: var(--text-muted);
@@ -279,6 +289,7 @@
       to   { opacity: 1; transform: translateY(0); }
     }
   </style>
+<script src="/momo/lib/momo-analytics.js" defer></script>
 </head>
 <body>
 
@@ -347,6 +358,7 @@
           <span class="badge">🔖</span>
         </div>
         <div class="card-title">MOMO <span style="color:var(--orange);">Links</span></div>
+        <div class="card-subtitle" id="links-subtitle">Tab-Based Bookmark Manager</div>
         <p class="card-desc" id="links-desc">タグで整理するブックマーク管理ツール。データはあなたのブラウザにのみ保存されます。</p>
         <div class="card-meta">
           <span class="meta-tag" id="links-meta1">🔖 ブックマーク</span>
@@ -366,6 +378,7 @@
           <span class="badge">📁</span>
         </div>
         <div class="card-title">MOMO <span style="color:var(--orange);">Explorer</span></div>
+        <div class="card-subtitle" id="explorer-subtitle">Unified Multi-Storage Explorer</div>
         <p class="card-desc" id="explorer-desc">GitHub・ローカルストレージ・Google Drive 間でファイルの移動・コピー・削除・サブフォルダ作成ができるファイルエクスプローラーです。</p>
         <div class="card-meta">
           <span class="meta-tag" id="explorer-meta1">📁 ファイル管理</span>
@@ -393,6 +406,7 @@
           <span class="badge">🎧</span>
         </div>
         <div class="card-title">MOMO <span style="color:var(--orange);">Player</span></div>
+        <div class="card-subtitle" id="player-subtitle">HDD-Bound Music Player</div>
         <p class="card-desc" id="player-desc">ローカルの音楽ファイルをブラウザで再生できる高機能プレイヤー。NASやフォルダをライブラリ管理でき、アーティスト・アルバム・プレイリストに対応。</p>
         <div class="card-meta">
           <span class="meta-tag" id="player-meta1">🎧 音楽プレイヤー</span>
@@ -410,6 +424,7 @@
           <span class="badge">🎵</span>
         </div>
         <div class="card-title">MOMO <span style="color:var(--orange);">Lyrics</span></div>
+        <div class="card-subtitle" id="lyrics-subtitle">Lyric Meta-Data Manager</div>
         <p class="card-desc" id="lyrics-desc">音楽ファイルに合う歌詞を自動で保存するツールです。フォルダ内の曲をまとめて処理したり、好きな曲を検索して保存したりできます。</p>
         <div class="card-meta">
           <span class="meta-tag" id="lyrics-meta1">🎵 歌詞を見つける</span>
@@ -419,6 +434,24 @@
           <span class="platform-tag" id="lyrics-pc">💻 PC</span>
         </div>
         <div class="card-btn" id="lyrics-open">今すぐ使う</div>
+      </a>
+
+      <!-- MOMO Karaoke card (v2.18 で追加) -->
+      <a class="tool-card" href="karaoke/" style="animation-delay:0.58s">
+        <div class="card-top">
+          <span class="badge">🎤</span>
+        </div>
+        <div class="card-title">MOMO <span style="color:var(--orange);">Karaoke</span></div>
+        <div class="card-subtitle" id="karaoke-subtitle">Sing With Lyrics</div>
+        <p class="card-desc" id="karaoke-desc">音楽ファイルと .lrc 歌詞を同期表示するブラウザカラオケ。 ローカルファイルをそのまま読み込み、 歌詞と一緒に歌える。</p>
+        <div class="card-meta">
+          <span class="meta-tag" id="karaoke-meta1">🎤 カラオケ</span>
+          <span class="meta-tag" id="karaoke-meta2">📄 同期歌詞表示</span>
+        </div>
+        <div class="platform-row">
+          <span class="platform-tag" id="karaoke-pc">💻 PC</span>
+        </div>
+        <div class="card-btn" id="karaoke-open">今すぐ使う</div>
       </a>
 
     </div>
@@ -435,6 +468,7 @@
           <span class="badge">🔊</span>
         </div>
         <div class="card-title">MOMO <span style="color:var(--orange);">Noise</span></div>
+        <div class="card-subtitle" id="noise-subtitle">Recording & Clipping Noise Maker</div>
         <p class="card-desc" id="noise-desc">ボタンに音声をアサインして即座に再生できるサウンドパッド。複数音の同時再生、録音、リズムシンク機能付き。</p>
         <div class="card-meta">
           <span class="meta-tag" id="noise-meta1">🔊 サウンドパッド</span>
@@ -464,16 +498,25 @@
       catManagement:   'Management Tools',
       catMusic:        'Music Tools',
       catGadget:       'Gadget Tools',
+      playerSubtitle:  'HDD-Bound Music Player',
       playerDesc:      'ローカルの音楽ファイルをブラウザで再生できる高機能プレイヤー。NASやフォルダをライブラリ管理でき、アーティスト・アルバム・プレイリストに対応。',
       playerMeta1:     '🎧 音楽プレイヤー',
       playerMeta2:     '📁 ローカルファイル',
       playerOpen:      '今すぐ使う',
       playerPc:        '💻 PC',
+      lyricsSubtitle:  'Lyric Meta-Data Manager',
       lyricsDesc:      '音楽ファイルに合う歌詞を自動で保存するツールです。フォルダ内の曲をまとめて処理したり、好きな曲を検索して保存したりできます。',
       lyricsMeta1:     '🎵 歌詞を見つける',
       lyricsMeta2:     '📄 同期歌詞 (.lrc)',
       lyricsOpen:      '今すぐ使う',
       lyricsPc:        '💻 PC',
+      karaokeSubtitle: 'Sing With Lyrics',
+      karaokeDesc:     '音楽ファイルと .lrc 歌詞を同期表示するブラウザカラオケ。ローカルファイルをそのまま読み込み、歌詞と一緒に歌える。',
+      karaokeMeta1:    '🎤 カラオケ',
+      karaokeMeta2:    '📄 同期歌詞表示',
+      karaokeOpen:     '今すぐ使う',
+      karaokePc:       '💻 PC',
+      linksSubtitle:   'Tab-Based Bookmark Manager',
       linksDesc:       'タグで整理するブックマーク管理ツール。データはあなたのブラウザにのみ保存されます。',
       linksMeta1:      '🔖 ブックマーク',
       linksMeta2:      '💾 ローカル保存',
@@ -481,6 +524,7 @@
       linksPc:         '💻 PC',
       linksIphone:     '🍎 iPhone',
       linksAndroid:    '🤖 Android',
+      explorerSubtitle:'Unified Multi-Storage Explorer',
       explorerDesc:    'GitHub・ローカルストレージ・Google Drive 間でファイルの移動・コピー・削除・サブフォルダ作成ができるファイルエクスプローラーです。',
       explorerMeta1:   '📁 ファイル管理',
       explorerMeta2:   '☁️ クラウド連携',
@@ -488,6 +532,7 @@
       explorerPc:      '💻 PC',
       explorerIphone:  '🍎 iPhone',
       explorerAndroid: '🤖 Android',
+      noiseSubtitle:   'Recording & Clipping Noise Maker',
       noiseDesc:       'ボタンに音声をアサインして即座に再生できるサウンドパッド。複数音の同時再生、録音、リズムシンク機能付き。',
       noiseMeta1:      '🔊 サウンドパッド',
       noiseMeta2:      '🎙️ 録音機能',
@@ -501,16 +546,25 @@
       catManagement:   'Management Tools',
       catMusic:        'Music Tools',
       catGadget:       'Gadget Tools',
+      playerSubtitle:  'HDD-Bound Music Player',
       playerDesc:      'A full-featured music player that plays local files in your browser. Supports library management with NAS/folders, artists, albums, and playlists.',
       playerMeta1:     '🎧 Music Player',
       playerMeta2:     '📁 Local Files',
       playerOpen:      'Open Now',
       playerPc:        '💻 PC',
+      lyricsSubtitle:  'Lyric Meta-Data Manager',
       lyricsDesc:      'Automatically finds and saves lyrics for your music. You can batch-process folders or search and download specific songs.',
       lyricsMeta1:     '🎵 Find Lyrics',
       lyricsMeta2:     '📄 Synced Lyrics (.lrc)',
       lyricsOpen:      'Open Now',
       lyricsPc:        '💻 PC',
+      karaokeSubtitle: 'Sing With Lyrics',
+      karaokeDesc:     'Browser-based karaoke that syncs music files with .lrc lyrics. Load local files directly and sing along.',
+      karaokeMeta1:    '🎤 Karaoke',
+      karaokeMeta2:    '📄 Synced Lyrics',
+      karaokeOpen:     'Open Now',
+      karaokePc:       '💻 PC',
+      linksSubtitle:   'Tab-Based Bookmark Manager',
       linksDesc:       'A bookmark manager that organizes links with tags. Your data stays local in your browser.',
       linksMeta1:      '🔖 Bookmarks',
       linksMeta2:      '💾 Local Storage',
@@ -518,6 +572,7 @@
       linksPc:         '💻 PC',
       linksIphone:     '🍎 iPhone',
       linksAndroid:    '🤖 Android',
+      explorerSubtitle:'Unified Multi-Storage Explorer',
       explorerDesc:    'A file explorer that lets you move, copy, delete, and create subfolders across GitHub, local storage, and Google Drive.',
       explorerMeta1:   '📁 File Manager',
       explorerMeta2:   '☁️ Cloud Integration',
@@ -525,6 +580,7 @@
       explorerPc:      '💻 PC',
       explorerIphone:  '🍎 iPhone',
       explorerAndroid: '🤖 Android',
+      noiseSubtitle:   'Recording & Clipping Noise Maker',
       noiseDesc:       'A sound pad that assigns audio to buttons for instant playback. Supports polyphonic playback, recording, and rhythm sync.',
       noiseMeta1:      '🔊 Sound Pad',
       noiseMeta2:      '🎙️ Recording',
@@ -538,16 +594,25 @@
       catManagement:   'Management Tools',
       catMusic:        'Music Tools',
       catGadget:       'Gadget Tools',
+      playerSubtitle:  '硬盤駆動型音楽播放器',
       playerDesc:      '可在浏览器中播放本地音乐文件的全功能播放器。支持NAS/文件夹的曲库管理，涵盖艺术家、专辑和播放列表。',
       playerMeta1:     '🎧 音乐播放器',
       playerMeta2:     '📁 本地文件',
       playerOpen:      '立即使用',
       playerPc:        '💻 PC',
+      lyricsSubtitle:  '歌詞元数据管理器',
       lyricsDesc:      '自动为音乐文件查找并保存歌词。支持文件夹批量处理，也可以搜索并下载特定歌曲。',
       lyricsMeta1:     '🎵 获取歌词',
       lyricsMeta2:     '📄 同步歌词 (.lrc)',
       lyricsOpen:      '立即使用',
       lyricsPc:        '💻 PC',
+      karaokeSubtitle: '随词同唱',
+      karaokeDesc:     '在浏览器中同步播放音乐文件与 .lrc 歌词，直接读取本地文件随词同唱。',
+      karaokeMeta1:    '🎤 卡拉OK',
+      karaokeMeta2:    '📄 同步歌词',
+      karaokeOpen:     '立即使用',
+      karaokePc:       '💻 PC',
+      linksSubtitle:   '標簽式書簽管理',
       linksDesc:       '用标签整理书签的管理工具。数据仅保存在您的浏览器中。',
       linksMeta1:      '🔖 书签管理',
       linksMeta2:      '💾 本地保存',
@@ -555,6 +620,7 @@
       linksPc:         '💻 PC',
       linksIphone:     '🍎 iPhone',
       linksAndroid:    '🤖 Android',
+      explorerSubtitle:'統合式多源資源管理器',
       explorerDesc:    '可在 GitHub、本地存储和 Google Drive 之间移动、复制、删除文件以及创建子文件夹的文件管理器。',
       explorerMeta1:   '📁 文件管理',
       explorerMeta2:   '☁️ 云端协作',
@@ -562,6 +628,7 @@
       explorerPc:      '💻 PC',
       explorerIphone:  '🍎 iPhone',
       explorerAndroid: '🤖 Android',
+      noiseSubtitle:   '録製与剪輯雑音製造機',
       noiseDesc:       '可将音频分配到按钮并即时播放的音效板。支持多音同时播放、录音及节奏同步功能。',
       noiseMeta1:      '🔊 音效板',
       noiseMeta2:      '🎙️ 录音功能',
@@ -641,6 +708,28 @@
     document.getElementById('noise-open').textContent       = t('noiseOpen');
     document.getElementById('noise-iphone').textContent     = t('noiseIphone');
     document.getElementById('noise-android').textContent    = t('noiseAndroid');
+    // Karaoke (v2.18 で追加)
+    document.getElementById('karaoke-desc').textContent     = t('karaokeDesc');
+    document.getElementById('karaoke-meta1').textContent    = t('karaokeMeta1');
+    document.getElementById('karaoke-meta2').textContent    = t('karaokeMeta2');
+    document.getElementById('karaoke-open').textContent     = t('karaokeOpen');
+    document.getElementById('karaoke-pc').textContent       = t('karaokePc');
+    // 各ツール サブタイトル: 猫語非対応のため cat 時は catBase 言語のテキスト
+    const subtitleLang = currentLang === 'cat' ? catBase : currentLang;
+    const subtitleDict = I18N[subtitleLang] || I18N.ja;
+    [
+      ['links-subtitle',    subtitleDict.linksSubtitle],
+      ['explorer-subtitle', subtitleDict.explorerSubtitle],
+      ['player-subtitle',   subtitleDict.playerSubtitle],
+      ['lyrics-subtitle',   subtitleDict.lyricsSubtitle],
+      ['karaoke-subtitle',  subtitleDict.karaokeSubtitle],
+      ['noise-subtitle',    subtitleDict.noiseSubtitle],
+    ].forEach(([id, text]) => {
+      const el = document.getElementById(id);
+      if (!el || !text) return;
+      el.textContent = text;
+      el.classList.toggle('zh-subtitle', subtitleLang === 'zh');
+    });
     document.getElementById('footer-back').textContent      = t('footerBack');
     const sel = document.getElementById('lang-select');
     if (sel) sel.value = currentLang;

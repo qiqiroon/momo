@@ -106,13 +106,13 @@ html, body {
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
-  padding: 0 12px;
+  padding: 4px 12px;
   gap: 8px;
   user-select: none;
+  min-height: 44px;
 }
 #header .logo {
   font-family: 'Fredoka One', var(--sans);
-  font-size: 15px;
   font-weight: 400;
   color: var(--text);
   letter-spacing: 0.02em;
@@ -122,19 +122,21 @@ html, body {
   gap: 6px;
 }
 #header .logo .logo-cat {
-  width: 26px;
-  height: 29px;
+  width: 30px;
+  height: 33px;
   flex-shrink: 0;
 }
-#header .logo .logo-name { color: var(--text); }
-#header .logo .logo-name span { color: var(--orange-mid); }
-#header .logo .ver {
+#header .logo-text { display: flex; flex-direction: column; line-height: 1.05; }
+#header .logo-title { font-size: 16px; display: inline-flex; align-items: baseline; gap: 5px; color: var(--text); }
+#header .logo-title .brand-link { color: var(--orange-mid); }
+#header .logo-title .ver {
   color: var(--text-muted);
   font-family: var(--mono);
   font-weight: 400;
   font-size: 10px;
-  margin-left: 4px;
 }
+#header .logo-sub { font-family: 'Fredoka One', var(--sans); font-size: 10px; color: #888888; letter-spacing: 0; margin-top: 1px; }
+#header .logo-sub.zh { font-family: 'Fredoka One','Noto Sans SC','Noto Sans JP',sans-serif; }
 #header .spacer { flex: 1; }
 #pyodide-status {
   font-family: var(--mono);
@@ -762,7 +764,10 @@ html, body {
           <line x1="10" y1="40" x2="28" y2="40" stroke="#666" stroke-width="0.9"/>
         </g>
       </svg>
-      <span class="logo-name">MOMO <span>Explorer</span></span><span class="ver" id="ver-label">v2.00</span>
+      <span class="logo-text">
+        <span class="logo-title">MOMO <span class="brand-link">Explorer</span><span class="ver" id="ver-label">v2.00</span></span>
+        <span class="logo-sub" id="logoSub">Unified Multi-Storage Explorer</span>
+      </span>
     </span>
     <span class="spacer"></span>
     <a id="momo-works-link" href="https://qiqiroon.github.io/momo/" target="_blank">← MOMO Works</a>
@@ -3081,6 +3086,18 @@ function applyLang() {
   // select同期
   const sel = document.getElementById('lang-select');
   if (sel) sel.value = currentLang;
+  // v2.00: ロゴ下サブタイトル (cat 時は catBase 言語)
+  const subEl = document.getElementById('logoSub');
+  if (subEl) {
+    const sLang = currentLang === 'cat' ? catBase : currentLang;
+    const subMap = {
+      ja: 'Unified Multi-Storage Explorer',
+      en: 'Unified Multi-Storage Explorer',
+      zh: '統合式多源資源管理器',
+    };
+    subEl.textContent = subMap[sLang] || subMap.ja;
+    subEl.classList.toggle('zh', sLang === 'zh');
+  }
   // ヘッダー pyodideラベル
   const pyLabel = document.getElementById('py-label');
   if (pyLabel) pyLabel.textContent = pyReady ? t('pyodideReady') : t('pyodideInit');

@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-46 -50 100 110">
+  <g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/></g>
+  <g transform="rotate(12,12,8.3)"><path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/></g>
+  <ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/>
+  <ellipse cx="-12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+  <ellipse cx="12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+  <path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/>
+  <g stroke="#000" stroke-width="1.5" stroke-linecap="round" opacity="0.6">
+    <line x1="-18" y1="5" x2="-38" y2="2"/>
+    <line x1="-18" y1="9" x2="-40" y2="9"/>
+    <line x1="-18" y1="13" x2="-38" y2="16"/>
+    <line x1="18" y1="5" x2="38" y2="2"/>
+    <line x1="18" y1="9" x2="40" y2="9"/>
+    <line x1="18" y1="13" x2="38" y2="16"/>
+  </g>
+  <!-- Lyrics overlay: 歌詞行 5 本 (等間隔) + 八分音符 2 連 -->
+  <g>
+    <line x1="2" y1="4"  x2="23" y2="4"  stroke="#e5e5e5" stroke-width="5" stroke-linecap="round"/>
+    <line x1="2" y1="13" x2="19" y2="13" stroke="#e5e5e5" stroke-width="5" stroke-linecap="round"/>
+    <line x1="2" y1="22" x2="50" y2="22" stroke="#e5e5e5" stroke-width="5" stroke-linecap="round"/>
+    <line x1="2" y1="31" x2="50" y2="31" stroke="#e5e5e5" stroke-width="5" stroke-linecap="round"/>
+    <line x1="2" y1="40" x2="50" y2="40" stroke="#e5e5e5" stroke-width="5" stroke-linecap="round"/>
+    <ellipse cx="33"   cy="14"   rx="4.2" ry="3.2" fill="#f5f5f5" stroke="#000" stroke-width="0.6" transform="rotate(-15 33 14)"/>
+    <ellipse cx="47.5" cy="11.5" rx="4.2" ry="3.2" fill="#f5f5f5" stroke="#000" stroke-width="0.6" transform="rotate(-15 47.5 11.5)"/>
+    <line x1="37"   y1="13" x2="37"   y2="-8" stroke="#f5f5f5" stroke-width="2.2" stroke-linecap="round"/>
+    <line x1="51.5" y1="10" x2="51.5" y2="-8" stroke="#f5f5f5" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M 36 -8 L 52.6 -8 L 52.6 -2.5 L 36 -2.5 Z" fill="#f5f5f5" stroke="#000" stroke-width="0.55" stroke-linejoin="round"/>
+  </g>
+</svg>

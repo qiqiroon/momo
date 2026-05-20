@@ -269,6 +269,12 @@
         };
         setText('breadcrumb-current', d.breadcrumb);
         setText('header-sub', d.headerSub);
+        // v2.00: サブタイトル zh 用フォントスタック切替 (仕様書 §4.1)
+        const subEl = document.getElementById('header-sub');
+        if (subEl) {
+            const effLang = MOMO.state.curLang === 'cat' ? MOMO.state.catBase : MOMO.state.curLang;
+            subEl.classList.toggle('zh', effLang === 'zh');
+        }
         setText('tab-folder', d.tabFolder);
         setText('tab-search', d.tabSearch);
         setText('tab-play', d.tabPlay);

@@ -117,7 +117,7 @@ h1 .version-tag {
     margin-bottom: 16px;
     position: relative;
     z-index: 1;
-    font-size: 16px;
+    font-size: 22px;
     animation: fadeDown 0.5s ease-out;
     min-height: 1.2em;
     text-align: left;
@@ -125,6 +125,7 @@ h1 .version-tag {
 .subtitle.zh {
     letter-spacing: 0;
     font-family: 'Fredoka One', 'Noto Sans SC', 'Noto Sans JP', sans-serif;
+    font-size: 16px;
 }
 
 /* タブ（v1.10: 3列化） */

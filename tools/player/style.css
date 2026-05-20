@@ -29,7 +29,8 @@ body { height: 100%; font-family: var(--font); background: var(--bg-base); color
 #left-title-cat svg { width: 30px; height: 33px; flex-shrink: 0; }
 #left-title-name { font-size: 16px; font-weight: 700; color: var(--text-primary); letter-spacing: 0.03em; line-height: 1; }
 #left-title-ver { font-size: 10px; font-weight: 400; color: rgba(255,255,255,0.45); margin-left: 1px; }
-#left-title-sub { font-size: 9px; color: rgba(255,255,255,0.35); letter-spacing: 0.06em; text-transform: uppercase; margin-top: 1px; }
+#left-title-sub { font-family: 'Fredoka One', sans-serif; font-size: 11px; color: #888888; letter-spacing: 0; margin-top: 2px; }
+#left-title-sub.zh { font-family: 'Fredoka One', 'Noto Sans SC', 'Noto Sans JP', sans-serif; }
 /* v10: ライブラリ管理ボタンはタイトルエリア下に */
 #left-lib-manage-bar { padding: 6px 16px; border-bottom: 0.5px solid var(--border); flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
 

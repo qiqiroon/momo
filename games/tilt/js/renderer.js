@@ -11,7 +11,14 @@ class Renderer {
     }
 
     _loadCatIcon() {
-        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-46 -50 92 80">
+        // v2.00: app-card-design v1.0 準拠の猫 + 迷路 + 球体ボールアイコン
+        //        (viewBox -46 -50 100 110、 ヘッダー / ファビコンと統一)
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-46 -50 100 110">
+<defs><radialGradient id="b" cx="35%" cy="30%" r="70%">
+<stop offset="0%" stop-color="#fca5a5"/>
+<stop offset="40%" stop-color="#ef4444"/>
+<stop offset="100%" stop-color="#7f1d1d"/>
+</radialGradient></defs>
 <g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/></g>
 <g transform="rotate(12,12,8.3)"><path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/></g>
 <ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/>
@@ -31,6 +38,18 @@ class Renderer {
 <line x1="0" y1="11.3" x2="0" y2="13.3" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
 <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
 <path d="M0,13.3 Q5,17.3 8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+<rect x="-1" y="-5" width="54" height="54" rx="3" fill="#0a0a0a" stroke="#1e40af" stroke-width="2.2" stroke-linejoin="round"/>
+<g stroke="#1e40af" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none">
+<path d="M 6 -3 L 6 14 L 22 14"/>
+<path d="M 30 -3 L 30 8 L 46 8"/>
+<path d="M 12 22 L 12 30 L 26 30 L 26 42"/>
+<path d="M 36 16 L 48 16 L 48 28 L 34 28 L 34 40"/>
+<path d="M -2 36 L 6 36 L 6 44 L 18 44"/>
+<path d="M 42 34 L 42 48"/>
+</g>
+<circle cx="32" cy="22" r="6" fill="url(#b)" stroke="#000" stroke-width="0.7"/>
+<ellipse cx="30" cy="19" rx="1.8" ry="1.1" fill="#fff" opacity="0.85"/>
+<text x="32" y="24.6" font-family="Fredoka One,sans-serif" font-size="7" font-weight="700" fill="#fff" text-anchor="middle">1</text>
 </svg>`;
         const blob = new Blob([svg], {type: 'image/svg+xml'});
         const url  = URL.createObjectURL(blob);
@@ -641,9 +660,10 @@ class Renderer {
         ctx.stroke();
 
         // Row 1 (y≈8): cat icon + "MOMO Tilt" on left; gear & lang buttons handled by HTML overlay
-        const iconH = 28, iconW = 32;
+        // v2.00: viewBox -46 -50 100 110 に合わせて縦長 (100:110 ≒ 1:1.1)
+        const iconH = 33, iconW = 30;
         if (this._catImg) {
-            ctx.drawImage(this._catImg, 6, 4, iconW, iconH);
+            ctx.drawImage(this._catImg, 6, 3, iconW, iconH);
         }
         const titleX = 6 + iconW + 4;
         ctx.font = 'bold 16px sans-serif';

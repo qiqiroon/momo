@@ -2,14 +2,14 @@
 'use strict';
 
 const VERSIONS = {
-  app: '1.14',
+  app: '2.00',
   modules: {
     app:   '0.15',
     audio: '0.04',
     drive: '0.03',
     metro: '0.03',
     style: '0.06',
-    html:  '0.04',
+    html:  '0.05',
   },
   history: [
     { app: '1.00', modules: { app:'0.01', audio:'0.01', drive:'0.01', metro:'0.01', style:'0.01', html:'0.01' }, note: '初版' },

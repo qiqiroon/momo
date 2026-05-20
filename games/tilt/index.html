@@ -228,6 +228,19 @@
     .go-row.go-current .go-stage { color: #fff; }
   </style>
 <script src="/momo/lib/momo-analytics.js" defer></script>
+<style>
+  /* ── app-card-design v1.0 準拠 共通ヘッダー (v2.00 で全アプリ統一) ── */
+  .site-header{display:flex;align-items:flex-start;gap:10px;margin:0 auto 16px;width:100%;max-width:460px;position:relative;z-index:1;animation:fadeDown 0.4s ease-out;}
+  .site-header .cat-icon{width:57px;height:62px;flex-shrink:0;}
+  .site-header .title-block{display:flex;flex-direction:column;align-items:flex-start;line-height:1;}
+  .site-header h1{font-family:'Fredoka One',cursive;font-size:clamp(2rem,6vw,2.6rem);font-weight:400;letter-spacing:0.02em;line-height:1;display:flex;align-items:baseline;gap:0.3em;color:#fff;margin:0;}
+  .site-header h1 .momo{color:var(--text);}
+  .site-header h1 .tilt{color:var(--orange-mid,#ea580c);}
+  .site-header h1 .version-tag{color:var(--text-muted);font-size:0.28em;letter-spacing:0.04em;align-self:flex-end;padding-bottom:0.2em;}
+  .site-header .subtitle{font-family:'Fredoka One',cursive;color:#888;letter-spacing:0;margin-top:1px;font-size:16px;text-align:left;min-height:1.2em;}
+  .site-header .subtitle.zh{font-family:'Fredoka One','Noto Sans SC','Noto Sans JP',sans-serif;}
+  @keyframes fadeDown{from{opacity:0;transform:translateY(-14px);}to{opacity:1;transform:translateY(0);}}
+</style>
 </head>
 <body>
 
@@ -246,29 +259,51 @@
 <!-- 1: Title -->
 <div class="overlay" id="titleOverlay">
   <div class="title-wrap">
-    <svg class="title-cat-svg" xmlns="http://www.w3.org/2000/svg" viewBox="-46 -50 92 80">
-      <g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/></g>
-      <g transform="rotate(12,12,8.3)"><path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/></g>
-      <ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/>
-      <line x1="-14" y1="1.00"  x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
-      <line x1="-14" y1="6.0"   x2="-33.44" y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
-      <line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
-      <line x1="14"  y1="1.00"  x2="33.68"  y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
-      <line x1="14"  y1="6.0"   x2="33.44"  y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
-      <line x1="14"  y1="10.59" x2="29.58"  y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
-      <ellipse cx="-12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
-      <ellipse cx="12"  cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
-      <ellipse cx="-12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
-      <ellipse cx="12"  cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
-      <circle  cx="-10.5" cy="-5.2" r="1.0" fill="#c2410c"/>
-      <circle  cx="13.5"  cy="-5.2" r="1.0" fill="#c2410c"/>
-      <path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/>
-      <line x1="0" y1="11.3" x2="0" y2="13.3" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
-      <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
-      <path d="M0,13.3 Q5,17.3 8,15.3"  fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
-    </svg>
-    <div class="title-text" lang="en">MOMO <span>Tilt</span></div>
-    <div class="title-ver">v1.02</div>
+    <!-- v2.00: app-card-design v1.0 準拠ヘッダー (猫 + 迷路+ボール アイコン) -->
+    <header class="site-header" style="margin-bottom:8px;">
+      <svg class="cat-icon" xmlns="http://www.w3.org/2000/svg" viewBox="-46 -50 100 110" aria-hidden="true">
+        <g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/></g>
+        <g transform="rotate(12,12,8.3)"><path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/></g>
+        <ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/>
+        <line x1="-14" y1="1.00" x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="-14" y1="6.0"  x2="-33.44" y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="-33.68" y1="-2.28" x2="-38" y2="-3"  stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="-33.44" y1="6.0"   x2="-40" y2="6"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="-29.58" y1="14.26" x2="-37" y2="16"  stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="14" y1="1.00" x2="33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="14" y1="6.0"  x2="33.44" y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="14" y1="10.59" x2="29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="33.68" y1="-2.28" x2="38" y2="-3"  stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="33.44" y1="6.0"   x2="40" y2="6"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="29.58" y1="14.26" x2="37" y2="16"  stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+        <ellipse cx="-12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+        <ellipse cx="12"  cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+        <ellipse cx="-12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+        <ellipse cx="12"  cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+        <circle cx="-10.5" cy="-5.2" r="1.0" fill="#c2410c"/>
+        <circle cx="13.5"  cy="-5.2" r="1.0" fill="#c2410c"/>
+        <path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/>
+        <line x1="0" y1="11.3" x2="0" y2="13.3" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M0,13.3 Q5,17.3  8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+        <!-- 迷路+穴+ボール (中心 26,22、 ゲーム中イメージ) -->
+        <g id="tilt-overlay">
+          <rect x="10" y="6" width="32" height="32" rx="2" fill="#1a1a1a" stroke="#888" stroke-width="1"/>
+          <line x1="10" y1="17" x2="28" y2="17" stroke="#666" stroke-width="0.8"/>
+          <line x1="22" y1="17" x2="22" y2="32" stroke="#666" stroke-width="0.8"/>
+          <line x1="36" y1="6"  x2="36" y2="22" stroke="#666" stroke-width="0.8"/>
+          <circle cx="14" cy="12" r="2.5" fill="#000"/>
+          <circle cx="38" cy="34" r="2.5" fill="#000"/>
+          <circle cx="28" cy="28" r="4" fill="#dc2626" stroke="#000" stroke-width="0.6"/>
+          <text x="28" y="30.2" font-family="Fredoka One,cursive" font-size="6" fill="#fff" text-anchor="middle">1</text>
+        </g>
+      </svg>
+      <div class="title-block">
+        <h1><span class="momo">MOMO</span><span class="tilt">Tilt</span><span class="version-tag" id="version-tag">v2.00</span></h1>
+        <div class="subtitle" id="subtitle">Tilt the World, Balance the Fate</div>
+      </div>
+    </header>
     <div class="title-desc" id="titleDesc"></div>
     <button class="btn" id="titleBtn" style="margin-top:10px;"></button>
     <div class="kbd-hint" id="kbdHint"></div>
@@ -359,6 +394,18 @@
     document.documentElement.lang = currentLang === 'zh' ? 'zh-Hans' : (currentLang === 'cat' ? (catBase === 'zh' ? 'zh-Hans' : catBase) : currentLang);
 
     // Title overlay
+    // v2.00: subtitle (cat 時は catBase に追従、 zh は別フォントスタック)
+    const subEl = document.getElementById('subtitle');
+    if (subEl) {
+      const sLang = currentLang === 'cat' ? catBase : currentLang;
+      const subMap = {
+        ja: 'Tilt the World, Balance the Fate',
+        en: 'Tilt the World, Balance the Fate',
+        zh: '倾斜世界，掌握乾坤',
+      };
+      subEl.textContent = subMap[sLang] || subMap.ja;
+      subEl.classList.toggle('zh', sLang === 'zh');
+    }
     document.getElementById('titleDesc').textContent   = t('titleDesc');
     document.getElementById('titleBtn').textContent    = t('titleBtn');
     document.getElementById('kbdHint').textContent     = t('kbdHint');

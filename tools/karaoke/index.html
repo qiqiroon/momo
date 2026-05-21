@@ -434,10 +434,19 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 <line x1="0" y1="11.3" x2="0" y2="13.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
                 <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
                 <path d="M0,13.3 Q5,17.3 8,15.3"  fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
-                <g stroke="#000" stroke-width="1.5" stroke-linecap="round" opacity="0.6">
-                    <line x1="-18" y1="5" x2="-38" y2="2"/><line x1="-18" y1="9" x2="-40" y2="9"/><line x1="-18" y1="13" x2="-38" y2="16"/>
-                    <line x1="18" y1="5" x2="38" y2="2"/><line x1="18" y1="9" x2="40" y2="9"/><line x1="18" y1="13" x2="38" y2="16"/>
-                </g>
+                <!-- 髭 (他アイコンと統一: 黒 + オレンジ先端) -->
+                <line x1="-14" y1="1" x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+                <line x1="-14" y1="6" x2="-33.44" y2="6"     stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+                <line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+                <line x1="-33.68" y1="-2.28" x2="-38" y2="-3" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+                <line x1="-33.44" y1="6"     x2="-40" y2="6"  stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+                <line x1="-29.58" y1="14.26" x2="-37" y2="16" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+                <line x1="14" y1="1" x2="33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+                <line x1="14" y1="6" x2="33.44" y2="6"     stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+                <line x1="14" y1="10.59" x2="29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+                <line x1="33.68" y1="-2.28" x2="38" y2="-3" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+                <line x1="33.44" y1="6"     x2="40" y2="6"  stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+                <line x1="29.58" y1="14.26" x2="37" y2="16" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
                 <!-- Karaoke 固有: 左=マイク (縦)、 右=音符 (Player と同比率) -->
                 <g id="karaoke-overlay">
                     <!-- 左: マイク (縦) -->
@@ -472,8 +481,8 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                     <!-- ハンドル下端キャップ -->
                     <ellipse cx="12" cy="45" rx="4.5" ry="1.8" fill="#222" stroke="#000" stroke-width="0.5"/>
 
-                    <!-- 右: 音符 (Player と同サイズ、 玉を大きく rx=10 ry=7.5、 棒は玉に近づけて x=36) -->
-                    <ellipse cx="33" cy="38" rx="10" ry="7.5" fill="#f5f5f5" stroke="#000" stroke-width="1.0" transform="rotate(-22 33 38)"/>
+                    <!-- 右: 音符 (玉を棒の太さ分 (3px) 左に移動 cx=30) -->
+                    <ellipse cx="30" cy="38" rx="10" ry="7.5" fill="#f5f5f5" stroke="#000" stroke-width="1.0" transform="rotate(-22 30 38)"/>
                     <rect x="36" y="-4" width="3" height="42" fill="#f5f5f5" stroke="#f5f5f5" stroke-width="0.6"/>
                     <path d="M 39 -4 C 52 -4, 54 6, 52 18 C 51 11, 48 6, 39 8 Z" fill="#f5f5f5" stroke="#f5f5f5" stroke-width="0.7" stroke-linejoin="round"/>
                 </g>

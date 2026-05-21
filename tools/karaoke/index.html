@@ -394,19 +394,26 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                     <line x1="-18" y1="5" x2="-38" y2="2"/><line x1="-18" y1="9" x2="-40" y2="9"/><line x1="-18" y1="13" x2="-38" y2="16"/>
                     <line x1="18" y1="5" x2="38" y2="2"/><line x1="18" y1="9" x2="40" y2="9"/><line x1="18" y1="13" x2="38" y2="16"/>
                 </g>
-                <!-- Karaoke 固有: マイク + ♪ (白黒灰) -->
+                <!-- Karaoke 固有: 左=マイク (縦)、 右=音符 (Player と同じ) -->
                 <g id="karaoke-overlay">
-                    <!-- マイクヘッド (右下、 楕円) -->
-                    <ellipse cx="34" cy="36" rx="9" ry="11" fill="#aaaaaa" stroke="#000" stroke-width="0.8"/>
-                    <!-- マイクのグリル (横線) -->
-                    <line x1="27" y1="32" x2="41" y2="32" stroke="#555" stroke-width="0.7"/>
-                    <line x1="27" y1="36" x2="41" y2="36" stroke="#555" stroke-width="0.7"/>
-                    <line x1="27" y1="40" x2="41" y2="40" stroke="#555" stroke-width="0.7"/>
-                    <!-- マイク柄 (左上方向の棒) -->
-                    <rect x="14" y="10" width="3.5" height="22" fill="#555" stroke="#000" stroke-width="0.5" transform="rotate(-30 16 21)"/>
-                    <!-- ♪ (左上の音符、 白) -->
-                    <ellipse cx="6" cy="10" rx="3.5" ry="2.8" fill="#f5f5f5" stroke="#000" stroke-width="0.6"/>
-                    <path d="M 9 10 L 9 -6 L 20 -6 L 20 -3 L 12 -3 L 12 10 Z" fill="#f5f5f5" stroke="#000" stroke-width="0.6" stroke-linejoin="round"/>
+                    <!-- 左半分: マイク (縦向き) -->
+                    <!-- グリル (頭、 縦長楕円) -->
+                    <ellipse cx="12" cy="8" rx="9" ry="11.5" fill="#cccccc" stroke="#000" stroke-width="1.2"/>
+                    <!-- グリル内メッシュ (水平 3 本) -->
+                    <line x1="4" y1="3"  x2="20" y2="3"  stroke="#555" stroke-width="0.6"/>
+                    <line x1="3" y1="8"  x2="21" y2="8"  stroke="#555" stroke-width="0.6"/>
+                    <line x1="4" y1="13" x2="20" y2="13" stroke="#555" stroke-width="0.6"/>
+                    <!-- 接続部 (グリル下) -->
+                    <rect x="10" y="19" width="4" height="3" fill="#666" stroke="#000" stroke-width="0.5"/>
+                    <!-- ハンドル (縦) -->
+                    <rect x="8" y="22" width="8" height="20" fill="#333333" stroke="#000" stroke-width="0.7"/>
+                    <!-- ハンドル下端 (キャップ) -->
+                    <ellipse cx="12" cy="43" rx="4.5" ry="1.6" fill="#222" stroke="#000" stroke-width="0.5"/>
+
+                    <!-- 右半分: 音符 (MOMO Player と同じ 8 分音符、 縮小 + 右配置、 白縁統一) -->
+                    <ellipse cx="32" cy="40" rx="6" ry="4.5" fill="#f5f5f5" stroke="#000" stroke-width="1.0" transform="rotate(-22 32 40)"/>
+                    <rect x="36" y="4" width="2.5" height="36" fill="#f5f5f5" stroke="#f5f5f5" stroke-width="0.6"/>
+                    <path d="M 38.5 4 C 50 4, 54 10, 52 20 C 51 14, 47 10, 38.5 13 Z" fill="#f5f5f5" stroke="#f5f5f5" stroke-width="0.7" stroke-linejoin="round"/>
                 </g>
             </svg>
         </div>

@@ -750,7 +750,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.02</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.03</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -1114,12 +1114,16 @@ function save(){
 // ══════════════════════════════════════
 // FAVICON
 // ══════════════════════════════════════
-// v4.02: Google Favicon API は 404 でもデフォルトアイコン (16x16 程度の灰色地球) を
+// v4.03: 起動時マーカー (ブラウザに新版が反映されているか即確認用)
+// 旧キャッシュが残っている場合この行自体が出ないので、 ユーザーに確認しやすい
+console.log('[fav] === Links v4.03 favicon module loaded ===');
+// v4.03-: Google Favicon API は 404 でもデフォルトアイコン (16x16 程度の灰色地球) を
 // レスポンス body に含めて返すため、 ブラウザの img.onerror が発火しない。
 // onload 時にサイズチェックして、 sz=32 要求に対して 24px 未満なら fallback を強制起動。
 function checkFaviconSize(img, host, url, linkId){
+  console.log(`[fav] onload size=${img.naturalWidth}x${img.naturalHeight} host=${host||'(empty)'} src=${(img.src||'').substring(0,80)}`);
   if(img.naturalWidth > 0 && img.naturalWidth < 24){
-    console.log(`[fav] suspicious size ${img.naturalWidth}x${img.naturalHeight} for ${host}, forcing fallback`);
+    console.log(`[fav] suspicious size, forcing fallback for host=${host}`);
     img.dataset.fbStep = '0';
     faviconFallback(img, host, url);
     return;
@@ -1136,7 +1140,7 @@ function faviconFallback(img, host, url){
   else if(step===3) fetchFaviconFromHtml(img,host,url);
   else{console.log(`[fav] giving up host=${host}`); img.style.visibility='hidden';img.onerror=null;}
 }
-// v4.02 改修: ドメインルートの favicon が無い (サブパス公開、 GitHub Pages 等) サイトでも
+// v4.03 改修: ドメインルートの favicon が無い (サブパス公開、 GitHub Pages 等) サイトでも
 // 登録 URL のフルパス HTML を fetch して <link rel=icon> を抽出することで favicon 表示可能に
 async function fetchFaviconFromHtml(img, host, url){
   if(location.protocol==='file:'){img.style.visibility='hidden';img.onerror=null;return;}
@@ -2650,7 +2654,7 @@ function applyLang(){
   const ih=(id,v)=>{const e=g(id);if(e)e.innerHTML=v;};
   const ph=(id,v)=>{const e=g(id);if(e)e.placeholder=v;};
 
-  // v4.02: ロゴ下サブタイトル (cat 時は catBase 言語)
+  // v4.03: ロゴ下サブタイトル (cat 時は catBase 言語)
   const subEl = g('logoSub');
   if (subEl) {
     const sLang = currentLang === 'cat' ? (typeof catBase !== 'undefined' ? catBase : 'ja') : currentLang;
@@ -2742,7 +2746,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.02',
+      verDesc:'MOMO Links v4.03',
     },
     en:{
       basic:'## Basic Operations',
@@ -2757,7 +2761,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.02',
+      verDesc:'MOMO Links v4.03',
     },
     zh:{
       basic:'## 基本操作',
@@ -2772,7 +2776,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.02',
+      verDesc:'MOMO Links v4.03',
     },
   };
   const s=c[L]||c.ja;

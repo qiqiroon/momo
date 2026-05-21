@@ -1115,24 +1115,28 @@ function save(){
 // FAVICON
 // ══════════════════════════════════════
 function faviconFallback(img, host, url){
-  if(!host){img.style.visibility='hidden';img.onerror=null;return;}
+  if(!host){console.log('[fav] no host, give up'); img.style.visibility='hidden';img.onerror=null;return;}
   const step=(parseInt(img.dataset.fbStep||'0'))+1;
   img.dataset.fbStep=step;
+  console.log(`[fav] step${step} host=${host}${url?` url=${url}`:''}`);
   if(step===1)      img.src=`https://icons.duckduckgo.com/ip3/${host}.ico`;
   else if(step===2) img.src=`https://${host}/favicon.ico`;
   else if(step===3) fetchFaviconFromHtml(img,host,url);
-  else{img.style.visibility='hidden';img.onerror=null;}
+  else{console.log(`[fav] giving up host=${host}`); img.style.visibility='hidden';img.onerror=null;}
 }
-// v1.x 改修: ドメインルートの favicon が無い (サブパス公開、 GitHub Pages 等) サイトでも
+// v4.01 改修: ドメインルートの favicon が無い (サブパス公開、 GitHub Pages 等) サイトでも
 // 登録 URL のフルパス HTML を fetch して <link rel=icon> を抽出することで favicon 表示可能に
 async function fetchFaviconFromHtml(img, host, url){
   if(location.protocol==='file:'){img.style.visibility='hidden';img.onerror=null;return;}
   try{
     // 登録 URL があればそのフルパス、 なければドメインルートをフォールバック
     const pageUrl = url || `https://${host}/`;
+    console.log(`[fav] step3 fetch ${pageUrl}`);
     const res=await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(pageUrl)}`);
-    if(!res.ok) throw new Error();
-    const {contents:html}=await res.json();
+    if(!res.ok){console.log(`[fav] allorigins HTTP ${res.status}`); throw new Error('http');}
+    const json=await res.json();
+    const html=json.contents||'';
+    console.log(`[fav] html received len=${html.length} status=${json.status&&json.status.http_code}`);
     // <link rel="icon"> or <link rel="shortcut icon"> を探す（属性順不問・data URI対応）
     const patterns=[
       /<link[^>]+rel=["'](?:shortcut icon|icon)["'][^>]*href="([^"]+)"/i,
@@ -1144,7 +1148,8 @@ async function fetchFaviconFromHtml(img, host, url){
     ];
     let faviconUrl=null;
     for(const p of patterns){const m=html.match(p);if(m){faviconUrl=m[1];break;}}
-    if(!faviconUrl) throw new Error();
+    if(!faviconUrl){console.log(`[fav] no <link rel=icon> in HTML`); throw new Error('no-link');}
+    console.log(`[fav] raw href: ${faviconUrl}`);
     // 相対URLを絶対URLに変換 (pageUrl を base とする URL コンストラクタで正確に解決)
     try {
       faviconUrl = new URL(faviconUrl, pageUrl).href;
@@ -1155,9 +1160,11 @@ async function fetchFaviconFromHtml(img, host, url){
       else if(!faviconUrl.startsWith('http')&&!faviconUrl.startsWith('data:'))
                                             faviconUrl=`https://${host}/${faviconUrl}`;
     }
-    img.onerror=()=>{img.style.visibility='hidden';img.onerror=null;};
+    console.log(`[fav] resolved -> ${faviconUrl}`);
+    img.onerror=()=>{console.log(`[fav] final img failed: ${faviconUrl}`); img.style.visibility='hidden';img.onerror=null;};
     img.src=faviconUrl;
-  }catch{
+  }catch(e){
+    console.log(`[fav] step3 fail: ${(e&&e.message)||e}`);
     img.style.visibility='hidden';img.onerror=null;
   }
 }

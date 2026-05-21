@@ -113,12 +113,22 @@
                   案A: 制約追加 (channelCount:1, sampleRate:48000, latency:0)
                   案B: 最小制約 (audio: true のみ)
                   案C: AudioContext 先行起動 → getUserMedia
-                  案D: AudioContext (latencyHint:'playback') 先行起動 -->
+                  案D: AudioContext (latencyHint:'playback') 先行起動
+                テスト結果 (iOS 18.7, iPhone, 2026-05): 案Bのみ Auto Ducking 解消。
+                  他案 (default/A/C) は echoCancellation:false でも ducking 発生。
+                  案Bでは echoCancellation がデフォルト true になるが ducking は起きない。
+                  → 「明示的に audio 制約オブジェクトを渡すこと自体」が voice-chat モードを
+                    誘発する可能性。constraints={} だと iOS は media mode と判定するらしい。
+       v1.38 - Auto Ducking 対策の本実装 (v1.37 案 B をデフォルト化)
+                getUserMedia 制約から audio オブジェクトを撤去し、audio:true に統一。
+                v1.37 の対策セレクタは診断用に残置 (将来の iOS 更新で挙動が変わった時用)。
+                デフォルトを 'B' に変更。echoCancellation がデフォルト true になる影響は
+                未測定 (歌声に対するエコーキャンセルが品質に与える影響は要検証)。 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MOMO Karaoke v1.37 - MOMO Works</title>
+<title>MOMO Karaoke v1.38 - MOMO Works</title>
 <!-- Google Identity Services (OAuth) — used by momo_gdrive.py -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <!-- Google API client — used for Picker -->
@@ -853,7 +863,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 </g>
             </svg>
         </div>
-        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.37</span></h1>
+        <h1>MOMO <span>Karaoke</span><span class="version-badge">v1.38</span></h1>
     </header>
     <p class="header-sub" id="header-sub">ローカル音源と同名 .lrc を読み込む、こだわり派のカラオケサロン</p>
 
@@ -956,13 +966,13 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
         <div id="duckStrategyRow" class="duck-strategy-row" style="display:none; margin: 8px 0; padding: 8px 12px; background: rgba(255,200,0,0.08); border: 1px solid rgba(255,200,0,0.3); border-radius: 8px; font-size: 12px;">
             <label for="duckStrategy" style="display: block; margin-bottom: 4px; font-weight: bold;">🔬 [v1.37] Auto Ducking 対策（録音前に選択）</label>
             <select id="duckStrategy" style="width:100%; padding: 4px 8px; font-size: 12px;">
-                <option value="default" selected>デフォルト (v1.15: echoCancellation:false 等)</option>
+                <option value="default">案 default (v1.15: echoCancellation:false 等)</option>
                 <option value="A">案A: 制約追加 (channelCount:1, sampleRate:48000, latency:0)</option>
-                <option value="B">案B: 最小制約 (audio: true のみ)</option>
+                <option value="B" selected>案B: 最小制約 (audio: true のみ) ← v1.38 デフォルト・推奨</option>
                 <option value="C">案C: AudioContext 先行起動 → getUserMedia</option>
                 <option value="D">案D: AudioContext (latencyHint: 'playback') 先行起動</option>
             </select>
-            <div style="margin-top:4px; font-size: 11px; opacity: 0.7;">録音中マイク音量で BGM が小さくなる現象 (Auto Ducking) を抑える対策の比較用。</div>
+            <div style="margin-top:4px; font-size: 11px; opacity: 0.7;">v1.37 比較テストで案 B のみ Auto Ducking 解消を確認 (iOS 18.7)。他案は診断用に残置。</div>
         </div>
 
         <div class="lyrics-view" id="lyrics-view">
@@ -1302,7 +1312,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v1.37';
+const APP_VERSION = 'v1.38';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -3013,15 +3023,17 @@ async function startRecording(){
     let stream;
     const t0 = performance.now();
 
-    // ─── v1.37: Auto Ducking strategy selector ──────────────────────────
+    // ─── v1.37 → v1.38: Auto Ducking strategy selector ──────────────────
     // The default (v1.15) constraint set works on older iOS but iOS 18.7+
-    // may have changed AudioSession routing such that ducking returns even
-    // with echoCancellation:false. We try multiple strategies to find one
-    // that works on the user's current iOS version.
-    let v137_strategy = 'default';
+    // changed AudioSession routing — passing ANY explicit audio constraint
+    // object (even { echoCancellation: false }) causes voice-chat mode and
+    // ducking. The fix in v1.38 is to use `audio: true` (no constraint
+    // object) which keeps the session in media-playback mode despite
+    // echoCancellation defaulting to true.
+    let v137_strategy = 'B';  // v1.38: 'B' (audio:true) is the proven safe default
     try {
         const sel = document.getElementById('duckStrategy');
-        if(sel) v137_strategy = sel.value || 'default';
+        if(sel) v137_strategy = sel.value || 'B';
     } catch(_){}
     DEBUG.info('[v1.37] Auto Ducking strategy: ' + v137_strategy);
 

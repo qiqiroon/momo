@@ -750,7 +750,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.03</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.04</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -1114,17 +1114,17 @@ function save(){
 // ══════════════════════════════════════
 // FAVICON
 // ══════════════════════════════════════
-// v4.03: 起動時マーカー (ブラウザに新版が反映されているか即確認用)
-// 旧キャッシュが残っている場合この行自体が出ないので、 ユーザーに確認しやすい
-console.log('[fav] === Links v4.03 favicon module loaded ===');
-// v4.03-: Google Favicon API は 404 でもデフォルトアイコン (16x16 程度の灰色地球) を
-// レスポンス body に含めて返すため、 ブラウザの img.onerror が発火しない。
-// onload 時にサイズチェックして、 sz=32 要求に対して 24px 未満なら fallback を強制起動。
+console.log('[fav] === Links v4.04 favicon module loaded ===');
+// v4.04: Google API も DuckDuckGo も 404 でデフォルトアイコンを画像で返すため
+// img.onerror が発火しない。 検出策:
+//   - Google API (sz=32) 404 → 16x16 (24px 未満で検出可能)
+//   - DuckDuckGo /ip3/ 404 → 48x48 (24px 閾値では弾けない、 困る)
+// → DuckDuckGo を fallback から除外し、 step1=/favicon.ico → step2=HTML fetch の 2 段
 function checkFaviconSize(img, host, url, linkId){
-  console.log(`[fav] onload size=${img.naturalWidth}x${img.naturalHeight} host=${host||'(empty)'} src=${(img.src||'').substring(0,80)}`);
-  if(img.naturalWidth > 0 && img.naturalWidth < 24){
-    console.log(`[fav] suspicious size, forcing fallback for host=${host}`);
-    img.dataset.fbStep = '0';
+  const w=img.naturalWidth, h=img.naturalHeight;
+  console.log(`[fav] onload size=${w}x${h} host=${host||'(empty)'} src=${(img.src||'').substring(0,80)}`);
+  if(w > 0 && w < 24){
+    console.log(`[fav] too small, advancing fallback for host=${host}`);
     faviconFallback(img, host, url);
     return;
   }
@@ -1135,12 +1135,11 @@ function faviconFallback(img, host, url){
   const step=(parseInt(img.dataset.fbStep||'0'))+1;
   img.dataset.fbStep=step;
   console.log(`[fav] step${step} host=${host}${url?` url=${url}`:''}`);
-  if(step===1)      img.src=`https://icons.duckduckgo.com/ip3/${host}.ico`;
-  else if(step===2) img.src=`https://${host}/favicon.ico`;
-  else if(step===3) fetchFaviconFromHtml(img,host,url);
+  if(step===1)      img.src=`https://${host}/favicon.ico`;
+  else if(step===2) fetchFaviconFromHtml(img,host,url);
   else{console.log(`[fav] giving up host=${host}`); img.style.visibility='hidden';img.onerror=null;}
 }
-// v4.03 改修: ドメインルートの favicon が無い (サブパス公開、 GitHub Pages 等) サイトでも
+// v4.04 改修: ドメインルートの favicon が無い (サブパス公開、 GitHub Pages 等) サイトでも
 // 登録 URL のフルパス HTML を fetch して <link rel=icon> を抽出することで favicon 表示可能に
 async function fetchFaviconFromHtml(img, host, url){
   if(location.protocol==='file:'){img.style.visibility='hidden';img.onerror=null;return;}
@@ -2654,7 +2653,7 @@ function applyLang(){
   const ih=(id,v)=>{const e=g(id);if(e)e.innerHTML=v;};
   const ph=(id,v)=>{const e=g(id);if(e)e.placeholder=v;};
 
-  // v4.03: ロゴ下サブタイトル (cat 時は catBase 言語)
+  // v4.04: ロゴ下サブタイトル (cat 時は catBase 言語)
   const subEl = g('logoSub');
   if (subEl) {
     const sLang = currentLang === 'cat' ? (typeof catBase !== 'undefined' ? catBase : 'ja') : currentLang;
@@ -2746,7 +2745,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.03',
+      verDesc:'MOMO Links v4.04',
     },
     en:{
       basic:'## Basic Operations',
@@ -2761,7 +2760,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.03',
+      verDesc:'MOMO Links v4.04',
     },
     zh:{
       basic:'## 基本操作',
@@ -2776,7 +2775,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.03',
+      verDesc:'MOMO Links v4.04',
     },
   };
   const s=c[L]||c.ja;

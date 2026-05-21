@@ -750,7 +750,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.04</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.05</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -1114,8 +1114,8 @@ function save(){
 // ══════════════════════════════════════
 // FAVICON
 // ══════════════════════════════════════
-console.log('[fav] === Links v4.04 favicon module loaded ===');
-// v4.04: Google API も DuckDuckGo も 404 でデフォルトアイコンを画像で返すため
+console.log('[fav] === Links v4.05 favicon module loaded ===');
+// v4.05: Google API も DuckDuckGo も 404 でデフォルトアイコンを画像で返すため
 // img.onerror が発火しない。 検出策:
 //   - Google API (sz=32) 404 → 16x16 (24px 未満で検出可能)
 //   - DuckDuckGo /ip3/ 404 → 48x48 (24px 閾値では弾けない、 困る)
@@ -1139,19 +1139,38 @@ function faviconFallback(img, host, url){
   else if(step===2) fetchFaviconFromHtml(img,host,url);
   else{console.log(`[fav] giving up host=${host}`); img.style.visibility='hidden';img.onerror=null;}
 }
-// v4.04 改修: ドメインルートの favicon が無い (サブパス公開、 GitHub Pages 等) サイトでも
-// 登録 URL のフルパス HTML を fetch して <link rel=icon> を抽出することで favicon 表示可能に
+// v4.05: 複数の CORS プロキシをフォールバックチェーンで試行
+// AllOrigins は無料サービスで時々 522/Failed (Cloudflare Origin タイムアウト) を返すため、
+// corsproxy.io / r.jina.ai を併用する
+const FAV_PROXIES = [
+  { name: 'allorigins', url: u => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`, parse: async r => (await r.json()).contents || '' },
+  { name: 'corsproxy.io', url: u => `https://corsproxy.io/?${encodeURIComponent(u)}`, parse: async r => await r.text() },
+  { name: 'jina', url: u => `https://r.jina.ai/${u}`, parse: async r => await r.text() },
+];
+async function fetchHtmlViaProxy(pageUrl){
+  for(const p of FAV_PROXIES){
+    try {
+      console.log(`[fav] try proxy=${p.name} for ${pageUrl}`);
+      const res = await fetch(p.url(pageUrl));
+      if(!res.ok){ console.log(`[fav] ${p.name} HTTP ${res.status}`); continue; }
+      const html = await p.parse(res);
+      if(html && html.length > 100){
+        console.log(`[fav] ${p.name} ok len=${html.length}`);
+        return html;
+      }
+      console.log(`[fav] ${p.name} empty/short response`);
+    } catch(e) {
+      console.log(`[fav] ${p.name} fail: ${(e&&e.message)||e}`);
+    }
+  }
+  throw new Error('all proxies failed');
+}
 async function fetchFaviconFromHtml(img, host, url){
   if(location.protocol==='file:'){img.style.visibility='hidden';img.onerror=null;return;}
   try{
-    // 登録 URL があればそのフルパス、 なければドメインルートをフォールバック
     const pageUrl = url || `https://${host}/`;
-    console.log(`[fav] step3 fetch ${pageUrl}`);
-    const res=await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(pageUrl)}`);
-    if(!res.ok){console.log(`[fav] allorigins HTTP ${res.status}`); throw new Error('http');}
-    const json=await res.json();
-    const html=json.contents||'';
-    console.log(`[fav] html received len=${html.length} status=${json.status&&json.status.http_code}`);
+    console.log(`[fav] step2 fetch ${pageUrl}`);
+    const html = await fetchHtmlViaProxy(pageUrl);
     // <link rel="icon"> or <link rel="shortcut icon"> を探す（属性順不問・data URI対応）
     const patterns=[
       /<link[^>]+rel=["'](?:shortcut icon|icon)["'][^>]*href="([^"]+)"/i,
@@ -1163,7 +1182,7 @@ async function fetchFaviconFromHtml(img, host, url){
     ];
     let faviconUrl=null;
     for(const p of patterns){const m=html.match(p);if(m){faviconUrl=m[1];break;}}
-    if(!faviconUrl){console.log(`[fav] no <link rel=icon> in HTML`); throw new Error('no-link');}
+    if(!faviconUrl){console.log(`[fav] no <link rel=icon> in HTML (len=${html.length})`); throw new Error('no-link');}
     console.log(`[fav] raw href: ${faviconUrl}`);
     // 相対URLを絶対URLに変換 (pageUrl を base とする URL コンストラクタで正確に解決)
     try {
@@ -1179,7 +1198,7 @@ async function fetchFaviconFromHtml(img, host, url){
     img.onerror=()=>{console.log(`[fav] final img failed: ${faviconUrl}`); img.style.visibility='hidden';img.onerror=null;};
     img.src=faviconUrl;
   }catch(e){
-    console.log(`[fav] step3 fail: ${(e&&e.message)||e}`);
+    console.log(`[fav] step2 fail: ${(e&&e.message)||e}`);
     img.style.visibility='hidden';img.onerror=null;
   }
 }
@@ -2653,7 +2672,7 @@ function applyLang(){
   const ih=(id,v)=>{const e=g(id);if(e)e.innerHTML=v;};
   const ph=(id,v)=>{const e=g(id);if(e)e.placeholder=v;};
 
-  // v4.04: ロゴ下サブタイトル (cat 時は catBase 言語)
+  // v4.05: ロゴ下サブタイトル (cat 時は catBase 言語)
   const subEl = g('logoSub');
   if (subEl) {
     const sLang = currentLang === 'cat' ? (typeof catBase !== 'undefined' ? catBase : 'ja') : currentLang;
@@ -2745,7 +2764,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.04',
+      verDesc:'MOMO Links v4.05',
     },
     en:{
       basic:'## Basic Operations',
@@ -2760,7 +2779,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.04',
+      verDesc:'MOMO Links v4.05',
     },
     zh:{
       basic:'## 基本操作',
@@ -2775,7 +2794,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.04',
+      verDesc:'MOMO Links v4.05',
     },
   };
   const s=c[L]||c.ja;

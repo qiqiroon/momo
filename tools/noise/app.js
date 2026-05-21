@@ -42,6 +42,7 @@ const I18N = {
     micDenied:     'マイクへのアクセスが拒否されています。\n設定 → Safari → マイク → 許可 に変更してください。',
     micError:      'マイクエラー: ',
     muteWarn:      '音が出ない場合はiPhoneのサイドスイッチ（無音スイッチ）を確認してください',
+    headerSub:     'Recording & Clipping Noise Maker',
   },
   en: {
     editMode:      'Edit',
@@ -82,6 +83,7 @@ const I18N = {
     micDenied:     'Microphone access denied.\nSettings → Safari → Microphone → Allow.',
     micError:      'Mic error: ',
     muteWarn:      'No sound? Check the silent switch on the side of your iPhone.',
+    headerSub:     'Recording & Clipping Noise Maker',
   },
   zh: {
     editMode:      '编辑',
@@ -122,6 +124,7 @@ const I18N = {
     micDenied:     '麦克风访问被拒绝。\n请前往设置 → Safari → 麦克风 → 允许。',
     micError:      '麦克风错误: ',
     muteWarn:      '没有声音？请检查iPhone侧面的静音开关。',
+    headerSub:     '録製与剪輯雑音製造機',
   }
 };
 
@@ -159,6 +162,14 @@ function applyLang() {
   const sel = document.getElementById('lang-select');
   if (sel) sel.value = currentLang;
   document.documentElement.lang = currentLang === 'zh' ? 'zh-Hans' : currentLang === 'cat' ? catBase : currentLang;
+  // サブタイトル (§4.1): cat 時は catBase の実体言語を採用
+  const sub = document.getElementById('header-sub');
+  if (sub) {
+    const effLang = currentLang === 'cat' ? catBase : currentLang;
+    const txt = (I18N[effLang] && I18N[effLang].headerSub) || I18N.ja.headerSub;
+    sub.textContent = txt;
+    sub.classList.toggle('zh', effLang === 'zh');
+  }
   renderEditList();
   renderControls();
 }
@@ -669,8 +680,8 @@ function renderControls() {
   if (trimEl) trimEl.value = trimDb;
   setTxt('trim-val', trimDb + 'dB');
 
-  // version display
-  setTxt('ver-display', 'ver ' + VERSIONS.app);
+  // version display (h1 内 version-tag)
+  setTxt('ver-display', 'v' + VERSIONS.app);
 }
 
 function renderEditRow(btnId) {
@@ -801,9 +812,9 @@ function showVersions() {
     `ver ${VERSIONS.app}<br>` +
     `app:${m.app} &nbsp;audio:${m.audio} &nbsp;drive:${m.drive}<br>` +
     `metro:${m.metro} &nbsp;style:${m.style} &nbsp;html:${m.html}`;
-  // Also update header sub
+  // Also update header version-tag (v2.00 形式)
   const hs = document.getElementById('ver-display');
-  if (hs) hs.textContent = 'ver ' + VERSIONS.app;
+  if (hs) hs.textContent = 'v' + VERSIONS.app;
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────

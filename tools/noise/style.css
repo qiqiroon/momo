@@ -1,5 +1,5 @@
 /* style.css - MOMO Noise v0.06 */
-@import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap');
 
 :root {
   --bg:           #0a0a0a;
@@ -41,9 +41,31 @@ body::before { content:''; position:fixed; inset:0; background:var(--bg); opacit
 header { position:sticky; top:0; z-index:100; background:rgba(10,10,10,.95); border-bottom:1px solid var(--border); backdrop-filter:blur(8px); padding:8px 16px; animation:fadeDown .3s ease both; }
 .header-top { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 .header-cat { width:34px; height:37px; flex-shrink:0; }
-.header-title { font-family:'Fredoka One',sans-serif; font-size:1.4rem; color:#fff; white-space:nowrap; }
-.header-title span { color:var(--orange-mid); }
-.header-sub { font-size:10px; color:var(--text-muted); }
+/* app-card-design v1.0 §3 準拠: 3 span (MOMO / Noise / version-tag) を baseline 揃え */
+.header-title {
+  font-family:'Fredoka One',sans-serif;
+  font-size:1.4rem;
+  font-weight:400;
+  letter-spacing:0.02em;
+  line-height:1;
+  white-space:nowrap;
+  display:inline-flex;
+  align-items:baseline;
+  gap:0.3em;
+}
+.header-title .momo { color:#fff; }
+.header-title .noise { color:var(--orange-mid); }
+.header-title .version-tag {
+  color:var(--text-muted);
+  font-family:'Fredoka One',sans-serif;
+  font-size:0.28em;
+  letter-spacing:0.04em;
+  align-self:flex-end;
+  padding-bottom:0.2em;
+}
+/* サブタイトル (§4.1) */
+.header-sub { font-family:'Fredoka One',sans-serif; font-size:16px; color:#888888; letter-spacing:0; margin-top:1px; min-height:1.2em; }
+.header-sub.zh { font-family:'Fredoka One','Noto Sans SC','Noto Sans JP',sans-serif; font-size:13px; }
 
 /* Lang */
 #lang-switcher { margin-left:auto; }

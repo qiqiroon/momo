@@ -750,7 +750,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.00</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.01</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -1114,19 +1114,22 @@ function save(){
 // ══════════════════════════════════════
 // FAVICON
 // ══════════════════════════════════════
-function faviconFallback(img, host){
+function faviconFallback(img, host, url){
   if(!host){img.style.visibility='hidden';img.onerror=null;return;}
   const step=(parseInt(img.dataset.fbStep||'0'))+1;
   img.dataset.fbStep=step;
   if(step===1)      img.src=`https://icons.duckduckgo.com/ip3/${host}.ico`;
   else if(step===2) img.src=`https://${host}/favicon.ico`;
-  else if(step===3) fetchFaviconFromHtml(img,host);
+  else if(step===3) fetchFaviconFromHtml(img,host,url);
   else{img.style.visibility='hidden';img.onerror=null;}
 }
-async function fetchFaviconFromHtml(img, host){
+// v1.x 改修: ドメインルートの favicon が無い (サブパス公開、 GitHub Pages 等) サイトでも
+// 登録 URL のフルパス HTML を fetch して <link rel=icon> を抽出することで favicon 表示可能に
+async function fetchFaviconFromHtml(img, host, url){
   if(location.protocol==='file:'){img.style.visibility='hidden';img.onerror=null;return;}
   try{
-    const pageUrl=`https://${host}/`;
+    // 登録 URL があればそのフルパス、 なければドメインルートをフォールバック
+    const pageUrl = url || `https://${host}/`;
     const res=await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(pageUrl)}`);
     if(!res.ok) throw new Error();
     const {contents:html}=await res.json();
@@ -1142,11 +1145,16 @@ async function fetchFaviconFromHtml(img, host){
     let faviconUrl=null;
     for(const p of patterns){const m=html.match(p);if(m){faviconUrl=m[1];break;}}
     if(!faviconUrl) throw new Error();
-    // 相対URLを絶対URLに変換
-    if(faviconUrl.startsWith('//'))       faviconUrl='https:'+faviconUrl;
-    else if(faviconUrl.startsWith('/'))   faviconUrl=`https://${host}${faviconUrl}`;
-    else if(!faviconUrl.startsWith('http')&&!faviconUrl.startsWith('data:'))
-                                          faviconUrl=`https://${host}/${faviconUrl}`;
+    // 相対URLを絶対URLに変換 (pageUrl を base とする URL コンストラクタで正確に解決)
+    try {
+      faviconUrl = new URL(faviconUrl, pageUrl).href;
+    } catch(e) {
+      // URL コンストラクタが失敗した場合の fallback (data: URI 等)
+      if(faviconUrl.startsWith('//'))       faviconUrl='https:'+faviconUrl;
+      else if(faviconUrl.startsWith('/'))   faviconUrl=`https://${host}${faviconUrl}`;
+      else if(!faviconUrl.startsWith('http')&&!faviconUrl.startsWith('data:'))
+                                            faviconUrl=`https://${host}/${faviconUrl}`;
+    }
     img.onerror=()=>{img.style.visibility='hidden';img.onerror=null;};
     img.src=faviconUrl;
   }catch{
@@ -1901,7 +1909,7 @@ function renderCardView(filtered,area){
       html+=`<div class="group-block">
         <div class="group-header" onclick="toggleGroupNode('${esc(h)}')">
           <span class="group-arrow${isOpen?' open':''}">▶</span>
-          <img class="group-favicon" src="https://www.google.com/s2/favicons?domain=${esc(h)}&sz=32" onerror="faviconFallback(this,'${esc(h)}')">
+          <img class="group-favicon" src="https://www.google.com/s2/favicons?domain=${esc(h)}&sz=32" onerror="faviconFallback(this,'${esc(h)}','${esc(grp[0]&&grp[0].url||'')}')">
           <span class="group-domain">${esc(h)}</span>
           <span class="group-cnt">${grp.length}${t('groupCnt')}</span>
         </div>
@@ -1950,7 +1958,7 @@ function renderCardItem(l){
   return`<div class="card${isEdit?' editing':''}" id="card-${l.id}">
     <img class="card-favicon" src="${esc(favSrc)}"
       onload="cacheFavicon(${l.id},this.src)"
-      onerror="faviconFallback(this,'${esc(host)}')">
+      onerror="faviconFallback(this,'${esc(host)}','${esc(l.url)}')">
     <div class="card-body">
       ${isEdit
         ?`<div class="edit-row" style="margin-bottom:6px">
@@ -2007,7 +2015,7 @@ function renderListItem(l){
   const tags=(l.tags||[]).slice(0,3);
   const isExpanded=expandedListItems.has(l.id);
   return`<div class="list-item${isExpanded?' expanded':''}" id="lrow-${l.id}" onclick="toggleListExpand(${l.id})">
-    <img class="list-favicon" src="${esc(favSrc)}" onerror="faviconFallback(this,'${esc(host)}')">
+    <img class="list-favicon" src="${esc(favSrc)}" onerror="faviconFallback(this,'${esc(host)}','${esc(l.url)}')">
     <span class="list-title">${esc(l.title)}</span>
     <div class="list-tags">${tags.map(t=>`<span class="list-tag">#${esc(displayName(t))}</span>`).join('')}</div>
     <span class="list-host">${esc(host)}</span>
@@ -2061,7 +2069,7 @@ function renderListView(filtered,area){
       const isOpen=openNodes.has('grp:'+h);
       html+=`<div class="list-group-header" onclick="toggleGroupNode('${esc(h)}')">
         <span class="group-arrow${isOpen?' open':''}">▶</span>
-        <img class="list-favicon" src="https://www.google.com/s2/favicons?domain=${esc(h)}&sz=32" onerror="faviconFallback(this,'${esc(h)}')">
+        <img class="list-favicon" src="https://www.google.com/s2/favicons?domain=${esc(h)}&sz=32" onerror="faviconFallback(this,'${esc(h)}','${esc(grp[0]&&grp[0].url||'')}')">
         <span style="font-size:12px;color:var(--text-muted);flex:1">${esc(h)}</span>
         <span class="group-cnt">${grp.length}${t('groupCnt')}</span>
       </div>
@@ -2623,7 +2631,7 @@ function applyLang(){
   const ih=(id,v)=>{const e=g(id);if(e)e.innerHTML=v;};
   const ph=(id,v)=>{const e=g(id);if(e)e.placeholder=v;};
 
-  // v4.00: ロゴ下サブタイトル (cat 時は catBase 言語)
+  // v4.01: ロゴ下サブタイトル (cat 時は catBase 言語)
   const subEl = g('logoSub');
   if (subEl) {
     const sLang = currentLang === 'cat' ? (typeof catBase !== 'undefined' ? catBase : 'ja') : currentLang;
@@ -2715,7 +2723,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.00',
+      verDesc:'MOMO Links v4.01',
     },
     en:{
       basic:'## Basic Operations',
@@ -2730,7 +2738,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.00',
+      verDesc:'MOMO Links v4.01',
     },
     zh:{
       basic:'## 基本操作',
@@ -2745,7 +2753,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.00',
+      verDesc:'MOMO Links v4.01',
     },
   };
   const s=c[L]||c.ja;

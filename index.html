@@ -21,6 +21,19 @@
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="icon" type="image/x-icon" href="favicon.ico">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<meta name="description" content="ブラウザで遊べる個人製のゲームとツール集。五目並べ・囲碁・ダーツ・ハノイの塔などのゲームと、音楽プレイヤーや歌詞管理などのツール。登録不要・インストール不要・無料。">
+<link rel="alternate" hreflang="ja" href="https://qiqiroon.github.io/momo/">
+<link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/">
+<link rel="alternate" hreflang="zh-Hans" href="https://qiqiroon.github.io/momo/">
+<link rel="alternate" hreflang="x-default" href="https://qiqiroon.github.io/momo/">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://qiqiroon.github.io/momo/">
+<meta property="og:title" content="MOMO Works">
+<meta property="og:description" content="ブラウザで遊べる個人製のゲームとツール集。五目並べ・囲碁・ダーツ・ハノイの塔などのゲームと、音楽プレイヤーや歌詞管理などのツール。登録不要・インストール不要・無料。">
+<meta property="og:image" content="https://qiqiroon.github.io/momo/apple-touch-icon.png">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:locale:alternate" content="en_US">
+<meta property="og:locale:alternate" content="zh_CN">
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -394,6 +407,17 @@
   <div class="footer-links">
     <a class="logue-link" href="./logue/"><span id="logue-link">MOMO Logue</span> <span class="logue-link-sub" id="logue-sub">— 作者の独り言</span></a>
     <a class="test-link" href="test/">テスト</a>
+  </div>
+
+  <!-- SEO 用: 多言語並列セクション (visually-hidden、 検索クローラー向け)
+       Google/Bing/百度 が初期 HTML を読む際に、 英語/中国語キーワードからも
+       MOMO Works に到達できるようにするための非表示テキスト。
+       既存の tagline (ja、 JS で多言語切替) と組み合わせて 3 言語並列を実現。 -->
+  <div class="seo-multilingual" aria-hidden="true" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;">
+    <h2 lang="en">About MOMO Works</h2>
+    <p lang="en">A collection of browser-based games and tools by an indie developer. Gomoku, Go, Darts, Tower of Hanoi, music player, lyrics manager and more. Free, no signup, no install. Just open and play.</p>
+    <h2 lang="zh-Hans">关于 MOMO Works</h2>
+    <p lang="zh-Hans">由独立开发者制作的浏览器游戏与工具集。五子棋、围棋、飞镖、汉诺塔等游戏，以及音乐播放器、歌词管理等工具。免费，无需注册，无需安装，打开即可使用。</p>
   </div>
 </div>
 

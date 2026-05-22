@@ -1284,8 +1284,10 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
 
 </div>
 
-<!-- ──────── Debug Panel (iOS の F12 代替) ──────── -->
-<div id="debugPanel">
+<!-- ──────── Debug Panel (iOS の F12 代替) ────────
+     v1.39: ?debug=1 クエリパラメータがある時のみ表示 (一般ユーザーには非表示)
+     開発者は https://qiqiroon.github.io/momo/tools/karaoke/?debug=1 でアクセス -->
+<div id="debugPanel" style="display:none">
     <div id="debugHeader">
         <span id="debugTitle">▼ DEBUG LOG</span>
         <span id="debugToggle">⌄</span>
@@ -1411,6 +1413,13 @@ window.addEventListener('unhandledrejection', e => {
     const probeBtn = document.getElementById('debugProbe');
     const beepBtn  = document.getElementById('debugBeep');
     if(!panel) return;
+    // v1.39: ?debug=1 クエリでのみ表示 (一般ユーザーには非表示で セキュリティ確保)
+    const params = new URLSearchParams(location.search);
+    if(params.get('debug') !== '1'){
+        panel.style.display = 'none';
+        return;  // 一般ユーザー向け: イベントバインドもスキップ
+    }
+    panel.style.display = '';  // 開発者向け: 表示
     // start collapsed by default
     panel.classList.add('collapsed');
     if(title) title.textContent = '▲ DEBUG LOG (タップで開く)';

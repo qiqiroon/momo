@@ -1588,6 +1588,15 @@ async function uploadLogToDrive(logObj, tag) {
 function statusHtml(iconId, label) {
   return `<svg class="icon" aria-hidden="true"><use href="#${iconId}"/></svg> ${label}`;
 }
+// 2026-05-22: ?debug=1 クエリ時のみログ送信行を表示 (一般ユーザー非表示でセキュリティ確保)
+(function setupDebugVisibility() {
+  const params = new URLSearchParams(location.search);
+  if (params.get('debug') === '1') {
+    const row = document.getElementById('settings-row-log');
+    if (row) row.style.display = '';
+  }
+})();
+
 $('btn-copy-log').addEventListener('click', async () => {
   const log = Render.getLog();
   const btn = $('btn-copy-log');

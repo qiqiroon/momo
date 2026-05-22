@@ -2382,7 +2382,8 @@ input.chat-preset-btn.editing-input:focus {
     </div>
 
     <!-- v1.93: ログ送信 (旧 #game-overlay-bottom の btn-copy-log を移動) -->
-    <div class="settings-row" id="settings-row-log">
+    <!-- 2026-05-22: ?debug=1 クエリ時のみ表示 (一般ユーザーには非表示でセキュリティ確保) -->
+    <div class="settings-row" id="settings-row-log" style="display:none">
       <div class="settings-row-head">
         <span class="row-label" data-i18n="settings.log.label">ログ送信</span>
         <button class="settings-action-btn" id="btn-copy-log"><svg class="icon" aria-hidden="true"><use href="#icon-upload"/></svg> <span data-i18n="game.btn.log">ログ</span></button>

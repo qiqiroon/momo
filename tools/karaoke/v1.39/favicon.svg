@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-46 -50 100 110">
+  <rect x="-46" y="-50" width="100" height="110" rx="8" fill="#000000"/>
+  <g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/></g>
+  <g transform="rotate(12,12,8.3)"><path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/></g>
+  <ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/>
+  <ellipse cx="-12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+  <ellipse cx="12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+  <path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/>
+  <line x1="0" y1="11.3" x2="0" y2="13.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M0,13.3 Q5,17.3 8,15.3"  fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="-14" y1="1" x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="-14" y1="6" x2="-33.44" y2="6"     stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="-33.68" y1="-2.28" x2="-38" y2="-3" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="-33.44" y1="6"     x2="-40" y2="6"  stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="-29.58" y1="14.26" x2="-37" y2="16" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="14" y1="1" x2="33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="14" y1="6" x2="33.44" y2="6"     stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="14" y1="10.59" x2="29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="33.68" y1="-2.28" x2="38" y2="-3" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="33.44" y1="6"     x2="40" y2="6"  stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="29.58" y1="14.26" x2="37" y2="16" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+  <!-- Karaoke: 左マイク + 右音符 -->
+  <defs>
+    <clipPath id="favicon-karaoke-grille-clip"><circle cx="12" cy="10" r="9.4"/></clipPath>
+  </defs>
+  <circle cx="12" cy="10" r="10" fill="#cccccc" stroke="#000" stroke-width="1.2"/>
+  <g stroke="#555" stroke-width="1.0" stroke-linecap="round" clip-path="url(#favicon-karaoke-grille-clip)">
+    <line x1="-2" y1="8"  x2="6"  y2="0"/>
+    <line x1="-2" y1="12" x2="10" y2="0"/>
+    <line x1="-2" y1="16" x2="14" y2="0"/>
+    <line x1="-2" y1="20" x2="18" y2="0"/>
+    <line x1="2"  y1="20" x2="22" y2="0"/>
+    <line x1="6"  y1="20" x2="22" y2="4"/>
+    <line x1="10" y1="20" x2="22" y2="8"/>
+    <line x1="14" y1="20" x2="22" y2="12"/>
+    <line x1="-2" y1="0"  x2="18" y2="20"/>
+    <line x1="-2" y1="4"  x2="14" y2="20"/>
+    <line x1="-2" y1="8"  x2="10" y2="20"/>
+    <line x1="-2" y1="12" x2="6"  y2="20"/>
+    <line x1="2"  y1="0"  x2="22" y2="20"/>
+    <line x1="6"  y1="0"  x2="22" y2="16"/>
+    <line x1="10" y1="0"  x2="22" y2="12"/>
+    <line x1="14" y1="0"  x2="22" y2="8"/>
+  </g>
+  <rect x="8" y="18" width="8" height="26" fill="#333333" stroke="#000" stroke-width="0.7"/>
+  <ellipse cx="12" cy="45" rx="4.5" ry="1.8" fill="#222" stroke="#000" stroke-width="0.5"/>
+  <ellipse cx="30" cy="38" rx="10" ry="7.5" fill="#f5f5f5" stroke="#000" stroke-width="1.0" transform="rotate(-22 30 38)"/>
+  <rect x="36" y="-4" width="3" height="42" fill="#f5f5f5" stroke="#f5f5f5" stroke-width="0.6"/>
+  <path d="M 39 -4 C 52 -4, 54 6, 52 18 C 51 11, 48 6, 39 8 Z" fill="#f5f5f5" stroke="#f5f5f5" stroke-width="0.7" stroke-linejoin="round"/>
+</svg>

@@ -134,19 +134,7 @@
                   → Apps Script 経由で Google Drive に JSON 化、 Claude Code が MCP で直接読取
                   既存のクリップボードコピーはフォールバックとして保持
                 Google Fonts に Noto Sans SC を追加 (zh サブタイトル用)
-                hreflang / og:* メタタグを追加 (SEO Phase 1 準拠)
-       v2.00 - 大規模リファクタリング Phase 1 (スケルトン) — 2026-05-23 着手
-                v2 仕様書 (L:\momo\tools\karaoke\momo_karaoke_v2_spec.md) に基づき、
-                タブ構成を 3 (ライブラリ/カラオケ/ミックス) から
-                4 (メイク/カラオケ/ミックス/管理) に再構成。 Phase 1 では:
-                  - タブのラベルと枠だけ変更 (ライブラリ → メイク)
-                  - 管理タブを新規追加 (中身は Phase 7 で実装、 当面プレースホルダ)
-                  - 既存の app.js / audio.js / drive.js / metro.js / style.css / c.html は
-                    一切触らない (iPhone 同期ロジック保護のため)
-                  - 録音/再生/voicecut 生成のコアロジックは v1.39 のまま
-                v1.39 を tools/karaoke/v1.39/ にバックアップ + 別 URL 公開
-                  → https://qiqiroon.github.io/momo/tools/karaoke/v1.39/
-                Phase 2 以降の計画は v2_implementation_plan.md を参照 -->
+                hreflang / og:* メタタグを追加 (SEO Phase 1 準拠) -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -295,8 +283,7 @@ h1 .version-tag {
 .header-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 40px; }
 
 /* タブ */
-/* v2.00: 4 タブ構成 (メイク/カラオケ/ミックス/管理) */
-.tab-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; animation: fadeUp 0.5s ease 0.2s backwards; }
+.tab-container { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; animation: fadeUp 0.5s ease 0.2s backwards; }
 .tab-btn {
     background: var(--surface); border: 1px solid var(--border); color: var(--text-muted);
     padding: 16px; border-radius: 12px; cursor: pointer; font-weight: 700;
@@ -992,19 +979,16 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.00</span>
+                <span class="version-tag" id="version-tag">v1.39</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
     </header>
 
-    <!-- v2.00: 4 タブ構成 (メイク / カラオケ / ミックス / 管理)
-         v1.39 までは 3 タブ (ライブラリ / カラオケ / ミックス) だった -->
     <div class="tab-container">
-        <button class="tab-btn active" id="tab-library" data-tab="library">メイク</button>
+        <button class="tab-btn active" id="tab-library" data-tab="library">ライブラリ</button>
         <button class="tab-btn" id="tab-karaoke" data-tab="karaoke">カラオケ</button>
         <button class="tab-btn" id="tab-mix" data-tab="mix">ミックス</button>
-        <button class="tab-btn" id="tab-manage" data-tab="manage">管理</button>
     </div>
 
     <!-- ============ ライブラリ ============ -->
@@ -1102,7 +1086,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <select id="duckStrategy" style="width:100%; padding: 4px 8px; font-size: 12px;">
                 <option value="default">案 default (v1.15: echoCancellation:false 等)</option>
                 <option value="A">案A: 制約追加 (channelCount:1, sampleRate:48000, latency:0)</option>
-                <option value="B" selected>案B: 最小制約 (audio: true のみ) ← v2.00 デフォルト・推奨</option>
+                <option value="B" selected>案B: 最小制約 (audio: true のみ) ← v1.39 デフォルト・推奨</option>
                 <option value="C">案C: AudioContext 先行起動 → getUserMedia</option>
                 <option value="D">案D: AudioContext (latencyHint: 'playback') 先行起動</option>
             </select>
@@ -1293,23 +1277,6 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
         </div>
     </div>
 
-    <!-- ============ v2.00 管理タブ: export / import / 削除 (Phase 7 で本実装) ============ -->
-    <div id="manage-section" class="tool-card hidden">
-        <div class="section-label"><span>Manage — Data</span></div>
-        <p class="panel-desc" style="margin-bottom:14px;">
-            データ管理機能 (export / import / 削除) は Phase 7 で実装予定です。
-            現在はプレースホルダ表示のみです。
-        </p>
-        <div style="padding:24px 16px;text-align:center;color:var(--text-muted);font-size:13px;line-height:1.7;">
-            <div style="font-size:36px;margin-bottom:12px;">🚧</div>
-            <div style="font-weight:700;color:var(--orange-light);margin-bottom:8px;">Phase 7 で実装予定</div>
-            <div>全カラオケの一括 export (ZIP)</div>
-            <div>個別曲の export / import (ZIP)</div>
-            <div>曲ごとの削除 (確認ダイアログあり)</div>
-            <div style="margin-top:14px;font-size:11px;">v2 仕様書 §7 参照</div>
-        </div>
-    </div>
-
     <footer>
         <a href="https://qiqiroon.github.io/momo/" id="footer-back" style="color: var(--text-muted); text-decoration: none;">← MOMO Works に戻る</a><br><br>
         © MOMO Works
@@ -1409,7 +1376,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.00',
+        version: document.getElementById('version-tag')?.textContent || 'v1.39',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -1515,7 +1482,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.00';
+const APP_VERSION = 'v1.39';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -1671,9 +1638,6 @@ async function idbDelete(store, key){
 }
 
 // ============== TABS ==============
-// v2.00: 4 タブ構成 (メイク/カラオケ/ミックス/管理)
-//   - 'library' タブ ID は内部互換のため維持、 ラベルだけ「メイク」 に変更
-//   - 'manage' タブを新規追加 (Phase 7 で本実装、 当面プレースホルダ表示のみ)
 function switchTab(name){
     document.querySelectorAll('.tab-btn').forEach(b => {
         b.classList.toggle('active', b.dataset.tab === name);
@@ -1682,17 +1646,15 @@ function switchTab(name){
     $('karaoke-section').classList.toggle('hidden', name !== 'karaoke');
     const mixSection = $('mix-section');
     if(mixSection) mixSection.classList.toggle('hidden', name !== 'mix');
-    const manageSection = $('manage-section');
-    if(manageSection) manageSection.classList.toggle('hidden', name !== 'manage');
-    // now-playing-area is shown for karaoke and mix tabs (hidden in library/manage)
+    // now-playing-area is shown for karaoke and mix tabs (hidden in library)
     const npArea = $('now-playing-area');
     if(npArea){
         const showNp = (name === 'karaoke' || name === 'mix') && !!state.currentEntry;
         npArea.classList.toggle('hidden', !showNp);
     }
-    // Also: hide rec button on mix/manage tabs (recording is for karaoke tab)
+    // Also: hide rec button on mix tab (recording is for karaoke tab)
     if(btnRec){
-        btnRec.style.display = (name === 'mix' || name === 'manage') ? 'none' : '';
+        btnRec.style.display = (name === 'mix') ? 'none' : '';
     }
 }
 document.querySelectorAll('.tab-btn').forEach(b => {
@@ -4496,9 +4458,9 @@ async function tryRestoreLibrary(){
 // Uses momo/lib/momo_gdrive/momo_gdrive.py via Pyodide for OAuth + Drive API access.
 // Pyodide is loaded lazily on first connect.
 //
-// Test environment: app at momo/test/index.html, library at momo/lib/momo_gdrive/momo_gdrive.py
-// → relative path from test/index.html is "../lib/momo_gdrive/momo_gdrive.py"
-const GDRIVE_PY_URL = '../lib/momo_gdrive/momo_gdrive.py';
+// Backup at momo/tools/karaoke/v1.39/index.html, library at momo/lib/momo_gdrive/momo_gdrive.py
+// → relative path from this file is "../../../lib/momo_gdrive/momo_gdrive.py"
+const GDRIVE_PY_URL = '../../../lib/momo_gdrive/momo_gdrive.py';
 const PYODIDE_INDEX = 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/';
 
 // Storage for OAuth hint (skips account picker on subsequent connections)

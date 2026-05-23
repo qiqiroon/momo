@@ -157,7 +157,20 @@
                     isDuplicateAlpha / isDuplicateBeta / nextTakeId / nextMixId /
                     parseLrcHeader / sanitizeFileName / Local.{pick,load,save,list,...}
                   - Phase 2 (ストレージ抽象化) はスキップ、 当面 if 分岐で直接呼ぶ
-                  - 既存 UI からはまだ呼ばない、 Phase 4 (メイクモード本実装) で UI 連携 -->
+                  - 既存 UI からはまだ呼ばない、 Phase 4 (メイクモード本実装) で UI 連携
+                Phase 4a (2026-05-23): メイクモード本実装の最小スコープ (make.js 新規)
+                  - メイクタブ (library-section) 上部に取り込みパネル UI を追加
+                    (音楽ファイル/歌詞ファイル/曲名/アーティスト 入力 + 登録/キャンセル)
+                  - カラオケフォルダ接続セクションを上部に追加 (ローカル限定、 FS Access API)
+                  - 自動フィル: lrc ヘッダ [ti:][ar:] + mp3 タグ (jsmediatags) 空欄のみ補完
+                  - 重複判定 α/β: 既存曲を列挙して title+artist / mp3Hash で照合
+                  - 登録: 曲フォルダ作成 (重複時 _001 サフィックス) + ファイル複製 + meta.json
+                  - 既存 v1.39 ライブラリ UI (ローカル/Drive 選択 + ファイルツリー + 履歴) は
+                    そのまま下部に残置 (カラオケ/ミックスタブの動作を壊さないため)
+                  - Phase 4b 以降の予定:
+                    * voicecut100 / voicecut50 の OfflineAudioContext 生成 (v1.15 流用)
+                    * Google Drive 上のカラオケフォルダ対応
+                    * 重複時の '上書き' 処理 (alpha 一致時) -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -191,6 +204,10 @@
 <!-- v2.00 Phase 3: データレイヤ (meta.json / _app_settings.json / カラオケフォルダ概念)
      window.MomoMeta に公開 API。 Phase 4 以降 (メイクモード本実装) で UI 側から呼ぶ -->
 <script src="meta.js" defer></script>
+<!-- v2.00 Phase 4a: メイクモード (取り込みパネル + カラオケフォルダ接続)。
+     既存 v1.39 ライブラリ UI は触らず、 メイクタブ上部に新規 UI を追加。
+     voicecut 生成 / Drive 対応 / 上書き処理は Phase 4b 以降。 -->
+<script src="make.js" defer></script>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 /* ─────────── MOMO Lyrics 系統のデザイン (ダーク × オレンジ) ─────────── */
@@ -1021,9 +1038,50 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
         <button class="tab-btn" id="tab-manage" data-tab="manage">管理</button>
     </div>
 
-    <!-- ============ ライブラリ ============ -->
+    <!-- ============ メイクタブ ============ -->
+    <!-- v2.00 Phase 4: 取り込みパネル (仕様書 §4) を上部に新規追加。
+         既存の v1.39 ライブラリ UI (ローカル/Drive 選択 + ファイルツリー + 履歴) は
+         そのまま下部に残置 (音楽ライブラリ参照として継続利用、 iPhone 録音/再生機能保護のため)。
+         Phase 4b 以降で voicecut 生成連携 + Drive 対応 + 重複処理 (上書き) を追加予定。 -->
     <div id="library-section" class="tool-card">
-        <div class="section-label"><span id="library-label">Music Library</span></div>
+        <div class="section-label"><span id="library-label">Make — Import a Song</span></div>
+
+        <!-- v2.00 Phase 4: カラオケフォルダ接続 -->
+        <div class="make-folder-section" style="background: var(--surface2); padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; border: 1px solid var(--border);">
+            <span style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; font-weight:700;">カラオケフォルダ</span>
+            <span id="make-folder-status" style="font-size:13px; color:var(--text-muted); flex:1; min-width:80px; word-break:break-all;">未接続</span>
+            <button class="momo-btn-small" id="make-folder-btn">接続</button>
+        </div>
+
+        <!-- v2.00 Phase 4: 取り込みパネル -->
+        <div class="make-import-panel" id="make-import-panel" style="background: var(--bg-selected); border: 1px solid var(--orange); border-radius: 12px; padding: 18px; margin-bottom: 24px;">
+            <div style="font-size:11px; color:var(--orange-light); text-transform:uppercase; letter-spacing:0.08em; font-weight:700; margin-bottom:14px;">Import Panel — 取り込み</div>
+            <div style="display:grid; grid-template-columns: 110px 1fr auto; gap: 8px 10px; align-items:center; margin-bottom: 18px;">
+                <label for="make-mp3-name" style="font-size:12px; color:var(--text-muted);">音楽ファイル</label>
+                <input id="make-mp3-name" type="text" readonly placeholder="未選択" style="background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 4px; font-size: 12px; font-family:inherit; min-width:0;">
+                <button class="momo-btn-small" id="make-pick-mp3">選択</button>
+
+                <label for="make-lrc-name" style="font-size:12px; color:var(--text-muted);">歌詞ファイル</label>
+                <input id="make-lrc-name" type="text" readonly placeholder="未選択 (.lrc)" style="background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 4px; font-size: 12px; font-family:inherit; min-width:0;">
+                <button class="momo-btn-small" id="make-pick-lrc">選択</button>
+
+                <label for="make-title" style="font-size:12px; color:var(--text-muted);">曲名 *</label>
+                <input id="make-title" type="text" placeholder="必須" style="background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 4px; font-size: 13px; font-family:inherit; grid-column: span 2; min-width:0;">
+
+                <label for="make-artist" style="font-size:12px; color:var(--text-muted);">アーティスト *</label>
+                <input id="make-artist" type="text" placeholder="必須" style="background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 4px; font-size: 13px; font-family:inherit; grid-column: span 2; min-width:0;">
+            </div>
+            <div style="display:flex; gap: 10px; justify-content: space-between; align-items:center;">
+                <button class="momo-btn-small" id="make-cancel">キャンセル</button>
+                <span id="make-status" style="font-size:11px; color:var(--text-muted); flex:1; text-align:center;"></span>
+                <button class="momo-btn" id="make-register">登録</button>
+            </div>
+            <p style="font-size:11px; color:var(--text-muted); margin: 12px 0 0 0; line-height:1.5;">
+                ※ Phase 4a では voicecut 生成・Drive 上のカラオケフォルダ・上書き処理は未実装です (Phase 4b 以降)。
+            </p>
+        </div>
+
+        <div class="section-label" style="margin-top: 24px;"><span>Music Library (取り込み元)</span></div>
 
         <div class="play-source-area">
             <!-- ライブラリ ソース選択 (ローカル / Google Drive) -->

@@ -18,6 +18,16 @@
 //   - 歌詞ファイル選択 = 同様、 lrc 選択 → 同フォルダの同名 mp3 を自動セット (音楽欄が空時)
 //   - iOS Safari (showDirectoryPicker 非対応) は multiple 選択にフォールバック (v2.01 動作)
 //
+// v2.06 (2026-05-23): voicecut カーブをさらに強化 (sqrt → 2 次関数) + デバッグログ
+//   - ユーザー指摘: v2.05 でもまだ 50% の変化が小さい
+//   - 対策: eff = 2*i - i^2 (= 1 - (1-i)^2) で intensity=0.5 → eff=0.75
+//     v2.04 線形=0.5 / v2.05 sqrt=0.707 / v2.06 二次=0.75
+//     ボーカル成分 (mid) は 0.25 倍 = -12dB 減衰
+//   - 補足: 「カラオケモードで 50% トグル」 は Phase 5 未実装のため
+//     v1.39 リアルタイム vocalCut (index.html line 2902) が動いている可能性。
+//     その場合は本修正 (make.js の generate) は効かない。 確認用に
+//     console.log で intensity → eff の対応を出力するよう追加。
+//
 // v2.05 (2026-05-23): voicecut 強度カーブ調整 (50% の実効カットを強める)
 //   - ユーザー指摘: voicecut 50% がほとんどカットできていない
 //   - 原因: v2.04 までは線形ブレンド (intensity=0.5 で side 0.5 + 元 0.5)
@@ -533,12 +543,14 @@ async function generateVoicecutWav(arrayBuffer, intensity) {
     }
 
     // ボイスカット PCM 生成 (Mid/Side ベース)
-    // v2.05: intensity → sqrt(intensity) の非線形変換で 50% を実効的に強める
+    // v2.06: intensity → 2*i - i^2 (= 1 - (1-i)^2) の 2 次関数カーブで 50% を強化
     //   intensity=0 → eff=0 (元音源)
-    //   intensity=0.5 → eff=0.707 (ボーカル約 70% カット、 実用的)
-    //   intensity=1 → eff=1 (完全カット、 動作 v2.04 と同じ)
-    const eff = Math.sqrt(Math.max(0, Math.min(1, intensity)));
+    //   intensity=0.5 → eff=0.750 (ボーカル -12dB、 v2.05 sqrt=0.707 より強い)
+    //   intensity=1 → eff=1 (完全カット、 動作変わらず)
+    const i = Math.max(0, Math.min(1, intensity));
+    const eff = 2 * i - i * i;
     const inv = 1.0 - eff;
+    console.log('[make] voicecut gen: intensity=' + i.toFixed(2) + ' → eff=' + eff.toFixed(3) + ' (v2.06 curve)');
     const outL = new Float32Array(len);
     const outR = new Float32Array(len);
     let outSumSq = 0, inSumSq = 0;

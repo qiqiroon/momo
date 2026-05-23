@@ -193,6 +193,21 @@
                   - iOS Safari (showDirectoryPicker 非対応) は v2.01 の multiple 選択方式に
                     フォールバック (動作は維持)
                   - ファイル選択モーダル (#make-file-picker-modal) を新規追加
+       v2.06 - voicecut カーブをさらに強化 + デバッグログ追加 — 2026-05-23
+                  ユーザー指摘: v2.05 でも 50% の変化が小さい。
+                  原因の可能性: (A) sqrt カーブでもボーカル -10.6dB 減衰では弱い、
+                  (B) カラオケモードで試した場合 v1.39 のリアルタイム vocalCut
+                      (index.html line 2902 generateVocalCutPcm) が動いていて
+                      私の make.js 修正は効かない (Phase 5 で voicecut*.wav 読込型に
+                      切り替えるまで)。
+                  対策:
+                  - generateVoicecutWav の強度カーブを sqrt → 二次関数に変更
+                    eff = 2*i - i*i (= 1 - (1-i)^2)
+                    intensity=0.5 → eff=0.750 (ボーカル -12dB 減衰)
+                  - console.log で intensity / eff 対応を出力 (反映確認用)
+                  - 既存 v1.39 の index.html generateVocalCutPcm はリアルタイム再生で
+                    使われるため、 本修正の対象外。 Phase 5 で voicecut*.wav 読込型に
+                    切替時に統合検討する。
        v2.05 - voicecut 強度カーブ調整 (50% の実効カットを強める) — 2026-05-23
                   ユーザー指摘: voicecut 50% がほとんどカットできていない。
                   原因: v2.04 までは線形ブレンド (intensity=0.5 で side 0.5 + 元 0.5)
@@ -204,7 +219,7 @@
                   ※ iOS Safari のフォルダ参照非対応の質問への回答:
                     showDirectoryPicker / showOpenFilePicker は iOS Safari 仕様上非対応。
                     サブフォルダの有無に関わらず開けない。
-                    iPhone は仕様書 §3.3 通り Google Drive 経由が前提 (v2.06 で実装予定)。
+                    iPhone は仕様書 §3.3 通り Google Drive 経由が前提 (v2.07 以降で実装予定)。
                     現状は input multiple fallback (v2.01 実装) で対応中。
        v2.04 - voicecut 自動生成 + 段階 A/B/C 検証 (仕様書 §4.7) — 2026-05-23
                   - メイクモード登録時に voicecut100.wav と voicecut50.wav を自動生成して
@@ -1096,7 +1111,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.05</span>
+                <span class="version-tag" id="version-tag">v2.06</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1590,7 +1605,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.05',
+        version: document.getElementById('version-tag')?.textContent || 'v2.06',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -1696,7 +1711,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.05';
+const APP_VERSION = 'v2.06';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {

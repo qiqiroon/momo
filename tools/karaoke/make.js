@@ -18,6 +18,14 @@
 //   - 歌詞ファイル選択 = 同様、 lrc 選択 → 同フォルダの同名 mp3 を自動セット (音楽欄が空時)
 //   - iOS Safari (showDirectoryPicker 非対応) は multiple 選択にフォールバック (v2.01 動作)
 //
+// v2.05 (2026-05-23): voicecut 強度カーブ調整 (50% の実効カットを強める)
+//   - ユーザー指摘: voicecut 50% がほとんどカットできていない
+//   - 原因: v2.04 までは線形ブレンド (intensity=0.5 で side 0.5 + 元 0.5)
+//     → ボーカル成分は理論上 50% しか減衰せず、 体感的にほぼ変わらない
+//   - 対策: intensity → sqrt(intensity) の非線形変換
+//     0%→0.000、 50%→0.707 (ボーカル 約 70% カット)、 100%→1.000
+//   - 100% (完全カット) の動作は同じ (sqrt(1) = 1)、 0% も同じ (sqrt(0) = 0)
+//
 // v2.04 (2026-05-23): voicecut100/50 自動生成 + 段階 A/B/C 検証 (仕様書 §4.7)
 //   - generateVoicecutWav() — v1.39 の generateVocalCutPcm + stereoPcmToWavBlob を
 //     make.js 内に同等再実装 (既存ロジック保護のため index.html は触らず)
@@ -524,8 +532,13 @@ async function generateVoicecutWav(arrayBuffer, intensity) {
         return { available: false, reason: 'pseudo-mono', diffDb };
     }
 
-    // ボイスカット PCM 生成 (Mid/Side ベース、 線形ブレンド)
-    const inv = 1.0 - intensity;
+    // ボイスカット PCM 生成 (Mid/Side ベース)
+    // v2.05: intensity → sqrt(intensity) の非線形変換で 50% を実効的に強める
+    //   intensity=0 → eff=0 (元音源)
+    //   intensity=0.5 → eff=0.707 (ボーカル約 70% カット、 実用的)
+    //   intensity=1 → eff=1 (完全カット、 動作 v2.04 と同じ)
+    const eff = Math.sqrt(Math.max(0, Math.min(1, intensity)));
+    const inv = 1.0 - eff;
     const outL = new Float32Array(len);
     const outR = new Float32Array(len);
     let outSumSq = 0, inSumSq = 0;
@@ -533,8 +546,8 @@ async function generateVoicecutWav(arrayBuffer, intensity) {
         const sL = L[i];
         const sR = R[i];
         const side = (sL - sR) * 0.5;
-        outL[i] = sL * inv + side * intensity * 2.0;
-        outR[i] = sR * inv - side * intensity * 2.0;
+        outL[i] = sL * inv + side * eff * 2.0;
+        outR[i] = sR * inv - side * eff * 2.0;
         outSumSq += (outL[i] * outL[i] + outR[i] * outR[i]) * 0.5;
         inSumSq += (sL * sL + sR * sR) * 0.5;
     }

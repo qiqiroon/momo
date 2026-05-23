@@ -193,6 +193,19 @@
                   - iOS Safari (showDirectoryPicker 非対応) は v2.01 の multiple 選択方式に
                     フォールバック (動作は維持)
                   - ファイル選択モーダル (#make-file-picker-modal) を新規追加
+       v2.05 - voicecut 強度カーブ調整 (50% の実効カットを強める) — 2026-05-23
+                  ユーザー指摘: voicecut 50% がほとんどカットできていない。
+                  原因: v2.04 までは線形ブレンド (intensity=0.5 で side 0.5 + 元 0.5)
+                  対策: intensity → sqrt(intensity) の非線形変換
+                    0% → eff=0.000 (元音源、 動作変わらず)
+                    50% → eff=0.707 (ボーカル約 70% カット、 実用的)
+                    100% → eff=1.000 (完全カット、 動作 v2.04 と同じ)
+                  メイクモードの voicecut50.wav 生成にも反映 (取り込み時に正しい強度)
+                  ※ iOS Safari のフォルダ参照非対応の質問への回答:
+                    showDirectoryPicker / showOpenFilePicker は iOS Safari 仕様上非対応。
+                    サブフォルダの有無に関わらず開けない。
+                    iPhone は仕様書 §3.3 通り Google Drive 経由が前提 (v2.06 で実装予定)。
+                    現状は input multiple fallback (v2.01 実装) で対応中。
        v2.04 - voicecut 自動生成 + 段階 A/B/C 検証 (仕様書 §4.7) — 2026-05-23
                   - メイクモード登録時に voicecut100.wav と voicecut50.wav を自動生成して
                     曲フォルダに保存。 これでカラオケモードの 0%/50%/100% トグルが
@@ -1083,7 +1096,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.04</span>
+                <span class="version-tag" id="version-tag">v2.05</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1148,7 +1161,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 ※ 選択した音楽ファイルと同フォルダに同名 .lrc があれば自動セットされます (歌詞欄が空の時)。<br>
                 ※ iOS Safari ではフォルダ参照に非対応のため、 mp3 と .lrc を同時に複数選択する代替方式が動きます。<br>
                 ※ <strong>登録時に voicecut100/50 を自動生成します</strong> (モノラル等で不可能な場合は警告表示)。<br>
-                ※ Phase 4 残作業: 重複上書き処理 (v2.05〜) / Drive 上のカラオケフォルダ (v2.06〜)。
+                ※ Phase 4 残作業: 重複上書き処理 (v2.06〜) / Drive 上のカラオケフォルダ (v2.07〜)。
             </p>
         </div>
 
@@ -1577,7 +1590,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.04',
+        version: document.getElementById('version-tag')?.textContent || 'v2.05',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -1683,7 +1696,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.04';
+const APP_VERSION = 'v2.05';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {

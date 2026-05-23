@@ -146,7 +146,18 @@
                   - 録音/再生/voicecut 生成のコアロジックは v1.39 のまま
                 v1.39 を tools/karaoke/v1.39/ にバックアップ + 別 URL 公開
                   → https://qiqiroon.github.io/momo/tools/karaoke/v1.39/
-                Phase 2 以降の計画は v2_implementation_plan.md を参照 -->
+                Phase 1b: 本番 GDRIVE_PY_URL を '../../lib/...' に修正
+                  (v1.39 統合時の修正漏れで Drive 連携が壊れていた)
+                Phase 3 (2026-05-23): データレイヤ meta.js 新規追加
+                  - 仕様書 §3.5〜§3.7 / §9 (meta.json / _app_settings.json /
+                    カラオケフォルダ概念) のデータレイヤを meta.js に集約
+                  - window.MomoMeta に公開 API (Local 完備、 Drive は Phase 4 で詳細化)
+                  - 関数: generateSongFolderId / sha256Hex / defaultAppSettings /
+                    defaultSongMeta / mergeAppSettings / mergeSongMeta /
+                    isDuplicateAlpha / isDuplicateBeta / nextTakeId / nextMixId /
+                    parseLrcHeader / sanitizeFileName / Local.{pick,load,save,list,...}
+                  - Phase 2 (ストレージ抽象化) はスキップ、 当面 if 分岐で直接呼ぶ
+                  - 既存 UI からはまだ呼ばない、 Phase 4 (メイクモード本実装) で UI 連携 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -177,6 +188,9 @@
 <script src="https://apis.google.com/js/api.js" async defer></script>
 <!-- MOMO Works 共通アクセス解析 (GoatCounter + GA4 China-excluded) -->
 <script src="/momo/lib/momo-analytics.js" defer></script>
+<!-- v2.00 Phase 3: データレイヤ (meta.json / _app_settings.json / カラオケフォルダ概念)
+     window.MomoMeta に公開 API。 Phase 4 以降 (メイクモード本実装) で UI 側から呼ぶ -->
+<script src="meta.js" defer></script>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 /* ─────────── MOMO Lyrics 系統のデザイン (ダーク × オレンジ) ─────────── */

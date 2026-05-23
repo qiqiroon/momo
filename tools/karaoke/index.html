@@ -193,6 +193,24 @@
                   - iOS Safari (showDirectoryPicker 非対応) は v2.01 の multiple 選択方式に
                     フォールバック (動作は維持)
                   - ファイル選択モーダル (#make-file-picker-modal) を新規追加
+       v2.04 - voicecut 自動生成 + 段階 A/B/C 検証 (仕様書 §4.7) — 2026-05-23
+                  - メイクモード登録時に voicecut100.wav と voicecut50.wav を自動生成して
+                    曲フォルダに保存。 これでカラオケモードの 0%/50%/100% トグルが
+                    機能する基盤が整う (実 UI 連携は Phase 5 で)
+                  - generateVoicecutWav() を make.js 内に v1.39 と同等再実装
+                    (既存 index.html の generateVocalCutPcm / stereoPcmToWavBlob は触らず)
+                  - 段階 A 事前チェック (デコード直後):
+                    * モノラル (numberOfChannels === 1) → ボイスカット不可
+                    * 疑似モノラル (L/R 差分 RMS が −60dB 以下) → 同上
+                    → 警告ダイアログ「ボイスカットなしで取り込みますか?」 → voicecutAvailable: false
+                  - 段階 B 効果チェック (生成後):
+                    * 元音源と voicecut100 の RMS 差が 3dB 未満 → 'weak'
+                    → 取り込み続行、 meta.json に voicecutEffective: 'weak' 記録 + 情報表示
+                    * 3dB 以上 → 'good' 記録
+                  - 段階 C その他失敗 (decode 不能、 メモリ不足等):
+                    → 「ボイスカット生成に失敗、 voicecut なしで取り込みますか?」
+                    → 拒否なら全体中止、 続行なら voicecutAvailable: false で登録
+                  - ハッシュ用 ArrayBuffer を voicecut 用にも使い回し (decode 1 回のみ)
        v2.03 - カラオケフォルダ + 音楽ライブラリの永続化 (IndexedDB) — 2026-05-23
                   ユーザー指摘:
                     1. カラオケフォルダは一度選択したら次回起動時に記憶されている仕様だった
@@ -1065,7 +1083,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.03</span>
+                <span class="version-tag" id="version-tag">v2.04</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1126,10 +1144,11 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 <button class="momo-btn" id="make-register">登録</button>
             </div>
             <p style="font-size:11px; color:var(--text-muted); margin: 12px 0 0 0; line-height:1.5;">
-                ※ ファイル選択ボタンを押すと音楽フォルダを指定するダイアログが開き、 中のファイルから選択できます (PC)。<br>
+                ※ ファイル選択ボタンを押すと音楽ライブラリの中身が一覧表示されます (初回は音楽ライブラリを設定)。<br>
                 ※ 選択した音楽ファイルと同フォルダに同名 .lrc があれば自動セットされます (歌詞欄が空の時)。<br>
                 ※ iOS Safari ではフォルダ参照に非対応のため、 mp3 と .lrc を同時に複数選択する代替方式が動きます。<br>
-                ※ Phase 4b 以降の予定: voicecut 自動生成 / Drive 上のカラオケフォルダ / 重複上書き処理。
+                ※ <strong>登録時に voicecut100/50 を自動生成します</strong> (モノラル等で不可能な場合は警告表示)。<br>
+                ※ Phase 4 残作業: 重複上書き処理 (v2.05〜) / Drive 上のカラオケフォルダ (v2.06〜)。
             </p>
         </div>
 
@@ -1558,7 +1577,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.03',
+        version: document.getElementById('version-tag')?.textContent || 'v2.04',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -1664,7 +1683,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.03';
+const APP_VERSION = 'v2.04';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {

@@ -18,6 +18,14 @@
 //   - 歌詞ファイル選択 = 同様、 lrc 選択 → 同フォルダの同名 mp3 を自動セット (音楽欄が空時)
 //   - iOS Safari (showDirectoryPicker 非対応) は multiple 選択にフォールバック (v2.01 動作)
 //
+// v2.04 (2026-05-23): voicecut100/50 自動生成 + 段階 A/B/C 検証 (仕様書 §4.7)
+//   - generateVoicecutWav() — v1.39 の generateVocalCutPcm + stereoPcmToWavBlob を
+//     make.js 内に同等再実装 (既存ロジック保護のため index.html は触らず)
+//   - 段階 A: 事前チェック (モノラル / 疑似モノラル) → 警告ダイアログ
+//   - 段階 B: 効果チェック (voicecut100 vs 元音源 RMS 差 < 3dB → weak)
+//   - 段階 C: その他失敗 (decode 不能、 メモリ不足等) → エラーダイアログ
+//   - meta.json に voicecutAvailable / voicecutEffective を正しく記録
+//
 // v2.03 (2026-05-23): カラオケフォルダ + 音楽ライブラリの永続化 (IndexedDB) + 自動復元
 //   - 仕様書 §3.4 L1 通り、 FileSystemDirectoryHandle を IndexedDB に保存
 //   - 起動時に queryPermission → 'granted' なら自動接続
@@ -470,6 +478,104 @@ async function autofillFromFiles() {
     }
 }
 
+// ─────────── v2.04: voicecut 自動生成 (仕様書 §4.7) ───────────
+// 戻り値:
+//   { available:true,  wavBlob, sampleRate, effectiveDb }  通常
+//   { available:false, reason:'mono' | 'pseudo-mono', diffDb? }  段階 A 該当
+// 既存 v1.39 の generateVocalCutPcm + stereoPcmToWavBlob と同じロジックを再実装
+// (既存コード触らず、 make.js 内で完結させるため)
+async function generateVoicecutWav(arrayBuffer, intensity) {
+    const ACtor = window.AudioContext || window.webkitAudioContext;
+    if (!ACtor) throw new Error('AudioContext 非対応');
+    const tmpCtx = new ACtor();
+    let decoded;
+    try {
+        decoded = await new Promise((res, rej) => {
+            try {
+                const p = tmpCtx.decodeAudioData(arrayBuffer.slice(0), res, rej);
+                if (p && typeof p.then === 'function') p.then(res, rej);
+            } catch (e) { rej(e); }
+        });
+    } finally {
+        try { tmpCtx.close(); } catch (e) {}
+    }
+
+    const sr = decoded.sampleRate;
+    const numCh = decoded.numberOfChannels;
+    const len = decoded.length;
+    const L = decoded.getChannelData(0);
+    const R = numCh >= 2 ? decoded.getChannelData(1) : decoded.getChannelData(0);
+
+    // 段階 A: モノラル
+    if (numCh === 1) {
+        return { available: false, reason: 'mono' };
+    }
+    // 段階 A: 疑似モノラル判定 (L/R 差分 RMS が -60dB 以下)
+    let sumDiffSq = 0, sumSq = 0;
+    for (let i = 0; i < len; i++) {
+        const d = L[i] - R[i];
+        sumDiffSq += d * d;
+        sumSq += (L[i] * L[i] + R[i] * R[i]) * 0.5;
+    }
+    const diffRms = Math.sqrt(sumDiffSq / len);
+    const overallRms = Math.sqrt(sumSq / len);
+    const diffDb = 20 * Math.log10((diffRms + 1e-12) / (overallRms + 1e-12));
+    if (diffDb < -60) {
+        return { available: false, reason: 'pseudo-mono', diffDb };
+    }
+
+    // ボイスカット PCM 生成 (Mid/Side ベース、 線形ブレンド)
+    const inv = 1.0 - intensity;
+    const outL = new Float32Array(len);
+    const outR = new Float32Array(len);
+    let outSumSq = 0, inSumSq = 0;
+    for (let i = 0; i < len; i++) {
+        const sL = L[i];
+        const sR = R[i];
+        const side = (sL - sR) * 0.5;
+        outL[i] = sL * inv + side * intensity * 2.0;
+        outR[i] = sR * inv - side * intensity * 2.0;
+        outSumSq += (outL[i] * outL[i] + outR[i] * outR[i]) * 0.5;
+        inSumSq += (sL * sL + sR * sR) * 0.5;
+    }
+    const outRms = Math.sqrt(outSumSq / len);
+    const inRms = Math.sqrt(inSumSq / len);
+    // 段階 B 用: 元音源との RMS 差 (dB)
+    const effectiveDb = 20 * Math.log10((inRms + 1e-12) / (outRms + 1e-12));
+
+    // WAV エンコード (16bit ステレオ PCM)
+    const wavBlob = _encodeStereoToWav(outL, outR, sr);
+    return { available: true, wavBlob, sampleRate: sr, effectiveDb };
+}
+
+function _encodeStereoToWav(left, right, sampleRate) {
+    const len = left.length;
+    const buf = new ArrayBuffer(44 + len * 4);
+    const view = new DataView(buf);
+    const writeStr = (off, s) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
+    writeStr(0, 'RIFF');
+    view.setUint32(4, 36 + len * 4, true);
+    writeStr(8, 'WAVE');
+    writeStr(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 2, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 4, true);
+    view.setUint16(32, 4, true);
+    view.setUint16(34, 16, true);
+    writeStr(36, 'data');
+    view.setUint32(40, len * 4, true);
+    let off = 44;
+    for (let i = 0; i < len; i++) {
+        const sL = Math.max(-1, Math.min(1, left[i]));
+        const sR = Math.max(-1, Math.min(1, right[i]));
+        view.setInt16(off,   sL < 0 ? sL * 0x8000 : sL * 0x7FFF, true); off += 2;
+        view.setInt16(off, sR < 0 ? sR * 0x8000 : sR * 0x7FFF, true); off += 2;
+    }
+    return new Blob([buf], { type: 'audio/wav' });
+}
+
 // ─────────── 登録 ───────────
 async function onRegister() {
     const title = ((titleEl && titleEl.value) || '').trim();
@@ -495,11 +601,12 @@ async function onRegister() {
     setStatus('ハッシュ計算中…', 'var(--orange-light)');
 
     try {
-        // 1. mp3 ハッシュ計算
+        // 1. mp3 ハッシュ計算 + ArrayBuffer を voicecut 用にも使い回す
         let mp3Hash = null;
+        let mp3Buffer = null;  // voicecut 生成用 (Phase 5 で使うため取り回し)
         if (mkState.pendingMp3File) {
-            const buf = await mkState.pendingMp3File.arrayBuffer();
-            mp3Hash = await META.sha256Prefixed(buf);
+            mp3Buffer = await mkState.pendingMp3File.arrayBuffer();
+            mp3Hash = await META.sha256Prefixed(mp3Buffer);
         }
 
         // 2. 重複判定 — 既存曲の列挙
@@ -561,9 +668,69 @@ async function onRegister() {
             await META.Local.writeFile(songFolder, safeName, mkState.pendingLrcFile);
         }
 
-        // 5. voicecut 生成 (Phase 4b で実装)
+        // 5. voicecut 自動生成 (v2.04、 仕様書 §4.7 段階 A/B/C)
         candidateMeta.voicecutAvailable = false;
         candidateMeta.voicecutEffective = null;
+        let voicecutSummary = '';
+
+        if (mp3Buffer) {
+            setStatus('ボイスカット生成中… (100%)', 'var(--orange-light)');
+            try {
+                const r100 = await generateVoicecutWav(mp3Buffer, 1.0);
+
+                if (!r100.available) {
+                    // 段階 A: モノラル / 疑似モノラル
+                    const reasonText = r100.reason === 'mono'
+                        ? 'モノラル音源です'
+                        : '左右チャンネル差が小さい (疑似モノラル、 ' + (r100.diffDb || 0).toFixed(1) + 'dB)';
+                    const ok = confirm(
+                        'この曲はボイスカットできません:\n  ' + reasonText + '\n\n' +
+                        'ボイスカットなしで取り込みますか?'
+                    );
+                    if (!ok) {
+                        setStatus('キャンセルしました', 'var(--text-muted)');
+                        return;
+                    }
+                    // voicecutAvailable=false で続行 (仕様書 §4.7 段階 A)
+                    candidateMeta.voicecutAvailable = false;
+                    voicecutSummary = 'ボイスカット: 未生成 (' + reasonText + ')';
+                } else {
+                    // 50% 版生成
+                    setStatus('ボイスカット生成中… (50%)', 'var(--orange-light)');
+                    const r50 = await generateVoicecutWav(mp3Buffer, 0.5);
+
+                    // 保存
+                    setStatus('voicecut wav 保存中…', 'var(--orange-light)');
+                    await META.Local.writeFile(songFolder, 'voicecut100.wav', r100.wavBlob);
+                    if (r50.available) {
+                        await META.Local.writeFile(songFolder, 'voicecut50.wav', r50.wavBlob);
+                    }
+                    candidateMeta.voicecutAvailable = true;
+
+                    // 段階 B: 効果チェック (RMS 差 3dB 未満 → weak)
+                    if (Math.abs(r100.effectiveDb) < 3) {
+                        candidateMeta.voicecutEffective = 'weak';
+                        voicecutSummary = 'ボイスカット: 効果が弱い (' + r100.effectiveDb.toFixed(1) + 'dB)';
+                    } else {
+                        candidateMeta.voicecutEffective = 'good';
+                        voicecutSummary = 'ボイスカット: 良好 (差分 ' + r100.effectiveDb.toFixed(1) + 'dB)';
+                    }
+                }
+            } catch (e) {
+                // 段階 C: decode 不能、 メモリ不足等
+                console.error('[make] voicecut 生成失敗:', e);
+                const retry = confirm(
+                    'ボイスカット生成に失敗しました:\n  ' + (e.message || '不明エラー') + '\n\n' +
+                    'voicecut なしで取り込みますか?\n(キャンセルで全体を中止)'
+                );
+                if (!retry) {
+                    setStatus('❌ voicecut 失敗で中止', '#f87171');
+                    return;
+                }
+                candidateMeta.voicecutAvailable = false;
+                voicecutSummary = 'ボイスカット生成失敗: ' + (e.message || '不明エラー');
+            }
+        }
 
         // 6. meta.json 保存
         setStatus('meta.json 保存中…', 'var(--orange-light)');
@@ -574,8 +741,13 @@ async function onRegister() {
             '登録完了!\n' +
             '曲: ' + title + ' - ' + artist + '\n' +
             'フォルダ: ' + internalId + '\n' +
-            'voicecut 生成は Phase 4b で実装予定 (今は voicecutAvailable=false)'
+            (voicecutSummary || '')
         );
+
+        // weak の場合は別途情報表示
+        if (candidateMeta.voicecutEffective === 'weak') {
+            alert('ボイスカット効果が弱い可能性があります (取り込みは完了しました)');
+        }
         clearPanel();
 
     } catch (e) {

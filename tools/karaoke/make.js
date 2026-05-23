@@ -1,17 +1,21 @@
 // =============================================================================
 // MOMO Karaoke v2 — メイクモード (make.js)
 // =============================================================================
-// Phase 4a (2026-05-23): 仕様書 §4 メイクモード本実装の最小スコープ
+// Phase 4a (2026-05-23 v2.00): 仕様書 §4 メイクモード本実装の最小スコープ
 //   - 取り込みパネル UI のイベントハンドラ (ファイル選択 / 自動フィル / 登録 / キャンセル)
 //   - カラオケフォルダ接続 (ローカル限定、 File System Access API)
 //   - 重複判定 α/β (同名・同ハッシュ検出)
 //   - meta.json 作成 + mp3/lrc ファイル複製
 //
+// v2.01 (2026-05-23): v200改造.txt の 3〜5 を対応
+//   - 音楽ファイル選択を multiple 対応 (mp3 と同名 .lrc を同時選択で自動振り分け)
+//   - mp3 タグ自動フィルが動くよう jsmediatags を index.html で読込
+//   - 重複時 3 択を prompt → ボタン式モーダル (#make-conflict-modal)
+//
 // Phase 4b 以降の予定:
 //   - voicecut100 / voicecut50 の OfflineAudioContext 生成 (v1.15 流用)
 //   - Google Drive 上のカラオケフォルダ対応
-//   - 上書き処理 (alpha 一致時の選択肢 '上書き')
-//   - mp3 タグから空欄補完 (jsmediatags) を完全に
+//   - 上書き処理 (alpha 一致時の選択肢 '上書き') の本実装
 // =============================================================================
 
 (function(global){
@@ -90,33 +94,70 @@ async function onConnectFolder() {
 }
 
 // ─────────── ファイル選択 (input[type=file] で簡易対応) ───────────
-function pickFile(accept, onPicked) {
+// v2.01: multiple 対応 + mp3/lrc 自動振り分け (PC + iOS 両対応)
+function pickFiles(accept, multiple, onPicked) {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = accept;
+    if (multiple) input.multiple = true;
     input.style.display = 'none';
     document.body.appendChild(input);
     input.addEventListener('change', () => {
-        const file = input.files && input.files[0];
+        const files = input.files ? Array.from(input.files) : [];
         document.body.removeChild(input);
-        if (file) onPicked(file);
+        if (files.length) onPicked(files);
     });
     input.addEventListener('cancel', () => {
-        document.body.removeChild(input);
+        try { document.body.removeChild(input); } catch (e) {}
     });
     input.click();
 }
 
+function isAudioFile(name) {
+    return /\.(mp3|wav|m4a|aac|flac|ogg)$/i.test(name);
+}
+function isLrcFile(name) {
+    return /\.lrc$/i.test(name);
+}
+function baseName(name) {
+    return name.replace(/\.[^.]+$/, '');
+}
+
+// 音楽ファイル選択: 同じフォルダから mp3 + 同名 .lrc を一緒に選んだ場合は自動振り分け
 async function onPickMp3() {
-    pickFile('audio/*', async (file) => {
-        mkState.pendingMp3File = file;
-        if (mp3NameEl) mp3NameEl.value = file.name;
+    pickFiles('audio/*,.lrc', /* multiple */ true, async (files) => {
+        // 1) mp3 / lrc を分離
+        const audio = files.find(f => isAudioFile(f.name));
+        let lrc = files.find(f => isLrcFile(f.name));
+
+        if (audio) {
+            mkState.pendingMp3File = audio;
+            if (mp3NameEl) mp3NameEl.value = audio.name;
+
+            // 同名 .lrc を自動マッチング (multiple 選択時)
+            if (!lrc && files.length > 1) {
+                const base = baseName(audio.name);
+                lrc = files.find(f => isLrcFile(f.name) && baseName(f.name) === base);
+            }
+        }
+        if (lrc) {
+            mkState.pendingLrcFile = lrc;
+            if (lrcNameEl) lrcNameEl.value = lrc.name;
+        }
+
+        // 警告: lrc のみ選択された場合は、 lrc は「歌詞ファイル選択」 で選ぶ想定だがここでも対応
+        if (!audio && lrc) {
+            // 何も警告せず lrc だけ受け付ける
+        }
         await autofillFromFiles();
     });
 }
 
+// 歌詞ファイル選択: lrc 単体選択 (同名 mp3 自動探索は input[type=file] では不可)
 async function onPickLrc() {
-    pickFile('.lrc,text/plain', async (file) => {
+    pickFiles('.lrc,text/plain', /* multiple */ false, async (files) => {
+        const file = files[0];
+        if (!file) return;
         mkState.pendingLrcFile = file;
         if (lrcNameEl) lrcNameEl.value = file.name;
         await autofillFromFiles();
@@ -203,16 +244,21 @@ async function onRegister() {
             return;
         }
         if (alphaHit) {
-            const choice = prompt(
-                '同名の曲が既に登録されています (別 BGM の可能性):\n  ' +
-                alphaHit.meta.title + ' - ' + alphaHit.meta.artist +
-                '\n\n1: 別バージョンとして登録\n2: 上書き (Phase 4b で実装、 今は別バージョン扱い)\n3: キャンセル\n\n番号を入力 (1/2/3):', '3'
+            // v2.01: prompt → ボタン式モーダル
+            const choice = await showConflictModal(
+                '同名の曲が既に登録されています (別 BGM の可能性):\n' +
+                '  ' + (alphaHit.meta.title || '(無題)') + ' - ' + (alphaHit.meta.artist || '(無記名)') + '\n' +
+                'どうしますか?'
             );
-            if (choice === '3' || choice === null) {
+            if (choice === 'cancel') {
                 setStatus('キャンセルしました', 'var(--text-muted)');
                 return;
             }
-            // 1 or 2 → 別バージョンとして登録
+            if (choice === 'overwrite') {
+                // 上書きは Phase 4b で本実装。 現状は別バージョン扱いで続行
+                console.log('[make] 上書き選択 → 別バージョン扱いで続行 (Phase 4b で本実装予定)');
+            }
+            // 'version' or 'overwrite' → 別バージョンとして登録
         } else if (betaHit) {
             const ok = confirm(
                 '同じ音源で別名の登録があります:\n  ' +
@@ -273,6 +319,39 @@ function onCancel() {
         if (!confirm('入力をクリアしますか?')) return;
     }
     clearPanel();
+}
+
+// ─────────── v2.01: 重複時の 3 択モーダル ───────────
+// returns Promise<'version' | 'overwrite' | 'cancel'>
+function showConflictModal(message) {
+    return new Promise((resolve) => {
+        const modal = $('make-conflict-modal');
+        const msgEl = $('make-conflict-message');
+        const btnVersion = $('make-conflict-version');
+        const btnOverwrite = $('make-conflict-overwrite');
+        const btnCancel = $('make-conflict-cancel');
+        if (!modal || !msgEl || !btnVersion || !btnOverwrite || !btnCancel) {
+            // モーダル要素が無ければ confirm にフォールバック
+            const ok = confirm(message + '\n\nOK で別バージョンとして登録、 キャンセルで中止します');
+            resolve(ok ? 'version' : 'cancel');
+            return;
+        }
+        msgEl.textContent = message;
+        modal.style.display = 'flex';
+        const close = (result) => {
+            modal.style.display = 'none';
+            btnVersion.removeEventListener('click', onV);
+            btnOverwrite.removeEventListener('click', onO);
+            btnCancel.removeEventListener('click', onC);
+            resolve(result);
+        };
+        const onV = () => close('version');
+        const onO = () => close('overwrite');
+        const onC = () => close('cancel');
+        btnVersion.addEventListener('click', onV);
+        btnOverwrite.addEventListener('click', onO);
+        btnCancel.addEventListener('click', onC);
+    });
 }
 
 // ─────────── DOM バインド ───────────

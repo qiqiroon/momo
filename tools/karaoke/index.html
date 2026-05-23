@@ -169,8 +169,17 @@
                     そのまま下部に残置 (カラオケ/ミックスタブの動作を壊さないため)
                   - Phase 4b 以降の予定:
                     * voicecut100 / voicecut50 の OfflineAudioContext 生成 (v1.15 流用)
-                    * Google Drive 上のカラオケフォルダ対応
-                    * 重複時の '上書き' 処理 (alpha 一致時) -->
+                    * Google Drive 上のカラオケフォルダ対応 (v200改造.txt 1, 2)
+                    * 重複時の '上書き' 処理 (alpha 一致時)
+       v2.01 - Phase 4a UX 改善 (v200改造.txt の 3〜5) — 2026-05-23
+                  - jsmediatags ライブラリを CDN から読込 (本来 v2.00 で必要だったが
+                    抜けていたため mp3 タグ自動フィルが動作していなかった)
+                  - 音楽ファイル選択を multiple 対応に: input[type=file] multiple で
+                    mp3 と同名 .lrc を 1 度に選択可能 (PC + iOS 両対応)。
+                    複数選択時は basename 一致で mp3 と lrc を自動振り分け
+                  - 重複時の 3 択 prompt を HTML ベースのボタン式モーダルに変更
+                    (別バージョンとして登録 / 上書き / キャンセル の 3 ボタン)
+                  - 以降のバージョンインクリメントは 0.01 刻みで運用 (ユーザー方針) -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -208,6 +217,8 @@
      既存 v1.39 ライブラリ UI は触らず、 メイクタブ上部に新規 UI を追加。
      voicecut 生成 / Drive 対応 / 上書き処理は Phase 4b 以降。 -->
 <script src="make.js" defer></script>
+<!-- v2.01: mp3 タグ (ID3v1/v2) から曲名/アーティスト自動フィル用 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js" defer></script>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 /* ─────────── MOMO Lyrics 系統のデザイン (ダーク × オレンジ) ─────────── */
@@ -1023,7 +1034,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.00</span>
+                <span class="version-tag" id="version-tag">v2.01</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1077,8 +1088,22 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 <button class="momo-btn" id="make-register">登録</button>
             </div>
             <p style="font-size:11px; color:var(--text-muted); margin: 12px 0 0 0; line-height:1.5;">
-                ※ Phase 4a では voicecut 生成・Drive 上のカラオケフォルダ・上書き処理は未実装です (Phase 4b 以降)。
+                ※ 音楽ファイル選択時、 同じフォルダから mp3 と .lrc を同時に複数選択すると自動で振り分けられます。<br>
+                ※ Phase 4b 以降の予定: voicecut 自動生成 / Drive 上のカラオケフォルダ / 重複上書き処理。
             </p>
+        </div>
+
+        <!-- v2.01: 重複判定の 3 択モーダル (prompt 数字入力を置換) -->
+        <div id="make-conflict-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1000; align-items:center; justify-content:center; padding:20px;">
+            <div style="background:var(--surface); border:1px solid var(--orange); border-radius:12px; padding:24px; max-width:420px; width:100%;">
+                <div style="font-size:14px; font-weight:700; color:var(--orange-light); margin-bottom:10px;">同名の曲が既に登録されています</div>
+                <div id="make-conflict-message" style="font-size:13px; color:var(--text); margin-bottom:18px; line-height:1.6;"></div>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                    <button class="momo-btn" id="make-conflict-version">別バージョンとして登録</button>
+                    <button class="momo-btn-small" id="make-conflict-overwrite" style="opacity:0.6;">上書き (Phase 4b で本実装、 現状は別バージョン扱い)</button>
+                    <button class="momo-btn-small" id="make-conflict-cancel">キャンセル</button>
+                </div>
+            </div>
         </div>
 
         <div class="section-label" style="margin-top: 24px;"><span>Music Library (取り込み元)</span></div>
@@ -1481,7 +1506,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.00',
+        version: document.getElementById('version-tag')?.textContent || 'v2.01',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -1587,7 +1612,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.00';
+const APP_VERSION = 'v2.01';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {

@@ -4496,9 +4496,12 @@ async function tryRestoreLibrary(){
 // Uses momo/lib/momo_gdrive/momo_gdrive.py via Pyodide for OAuth + Drive API access.
 // Pyodide is loaded lazily on first connect.
 //
-// Test environment: app at momo/test/index.html, library at momo/lib/momo_gdrive/momo_gdrive.py
-// → relative path from test/index.html is "../lib/momo_gdrive/momo_gdrive.py"
-const GDRIVE_PY_URL = '../lib/momo_gdrive/momo_gdrive.py';
+// v2.00: 本番統合後の正しいパス。 app at momo/tools/karaoke/index.html、
+// library at momo/lib/momo_gdrive/momo_gdrive.py
+// → relative path from this file is "../../lib/momo_gdrive/momo_gdrive.py" (2 階層上)
+// (v1.39 本番統合時に test/ から tools/karaoke/ に移動した際の修正漏れ。 v1.39 本番でも
+//  Drive 連携が動かなかった原因。 v2.00 Phase 1 で修正)
+const GDRIVE_PY_URL = '../../lib/momo_gdrive/momo_gdrive.py';
 const PYODIDE_INDEX = 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/';
 
 // Storage for OAuth hint (skips account picker on subsequent connections)

@@ -18,6 +18,14 @@
 //   - 歌詞ファイル選択 = 同様、 lrc 選択 → 同フォルダの同名 mp3 を自動セット (音楽欄が空時)
 //   - iOS Safari (showDirectoryPicker 非対応) は multiple 選択にフォールバック (v2.01 動作)
 //
+// v2.03 (2026-05-23): カラオケフォルダ + 音楽ライブラリの永続化 (IndexedDB) + 自動復元
+//   - 仕様書 §3.4 L1 通り、 FileSystemDirectoryHandle を IndexedDB に保存
+//   - 起動時に queryPermission → 'granted' なら自動接続
+//   - 音楽ライブラリ概念を追加 (UI セクション + 永続化)、 ファイル選択時は
+//     showDirectoryPicker を毎回呼ばず、 保存済みハンドルから直接列挙
+//   - 「変更」 ボタンでフォルダ再選択
+//   - サブフォルダ再帰探索 (深さ 1) で直下に無い場合もファイルを発見
+//
 // Phase 4b 以降の予定:
 //   - voicecut100 / voicecut50 の OfflineAudioContext 生成 (v1.15 流用)
 //   - Google Drive 上のカラオケフォルダ対応
@@ -32,10 +40,12 @@ if (!META) { console.error('[make.js] MomoMeta not loaded'); return; }
 
 // ─────────── State ───────────
 const mkState = {
-    karaokeFolderHandle: null,    // ローカル時の FileSystemDirectoryHandle
-    karaokeFolderProvider: null,  // 'local' | 'drive' (Phase 4b)
-    pendingMp3File: null,         // 音楽ファイル (File オブジェクト)
-    pendingLrcFile: null,         // 歌詞ファイル (File オブジェクト)
+    karaokeFolderHandle: null,     // ローカル時の FileSystemDirectoryHandle
+    karaokeFolderProvider: null,   // 'local' | 'drive' (Phase 4b)
+    musicLibraryHandle: null,      // v2.03: 音楽ライブラリの FileSystemDirectoryHandle
+    musicLibraryProvider: null,    // 'local' | 'drive' (Phase 4b)
+    pendingMp3File: null,
+    pendingLrcFile: null,
 };
 
 // ─────────── DOM 参照 ───────────
@@ -43,6 +53,7 @@ function $(id) { return document.getElementById(id); }
 let mp3NameEl, lrcNameEl, titleEl, artistEl, statusEl;
 let btnPickMp3, btnPickLrc, btnRegister, btnCancel;
 let folderStatusEl, btnConnectFolder;
+let libraryStatusEl, btnConnectLibrary;  // v2.03
 
 function setStatus(msg, color) {
     if (!statusEl) return;
@@ -60,6 +71,20 @@ function updateFolderStatus() {
         folderStatusEl.textContent = '未接続';
         folderStatusEl.style.color = 'var(--text-muted)';
         if (btnConnectFolder) btnConnectFolder.textContent = '接続';
+    }
+}
+
+// v2.03: 音楽ライブラリの状態表示
+function updateLibraryStatus() {
+    if (!libraryStatusEl) return;
+    if (mkState.musicLibraryHandle) {
+        libraryStatusEl.textContent = '📁 ' + mkState.musicLibraryHandle.name + ' (ローカル)';
+        libraryStatusEl.style.color = 'var(--orange-light)';
+        if (btnConnectLibrary) btnConnectLibrary.textContent = '変更';
+    } else {
+        libraryStatusEl.textContent = '未設定';
+        libraryStatusEl.style.color = 'var(--text-muted)';
+        if (btnConnectLibrary) btnConnectLibrary.textContent = '設定';
     }
 }
 
@@ -83,10 +108,11 @@ async function onConnectFolder() {
         const handle = await META.Local.pickKaraokeFolder();
         mkState.karaokeFolderHandle = handle;
         mkState.karaokeFolderProvider = 'local';
+        // v2.03: IndexedDB に保存して次回起動時に自動復元
+        try { await META.saveHandle('karaokeFolder', handle); } catch (e) { console.warn('[make] saveHandle karaokeFolder fail:', e); }
         // 初回接続なら _app_settings.json をデフォルトで作成 (なければ)
         try {
-            await META.Local.loadAppSettings(handle);  // 試しに読む
-            // 読めた = 既存フォルダ。 何もしない
+            await META.Local.loadAppSettings(handle);
         } catch (e) {
             await META.Local.saveAppSettings(handle, META.defaultAppSettings());
         }
@@ -97,6 +123,74 @@ async function onConnectFolder() {
         console.error('[make] カラオケフォルダ接続失敗:', e);
         alert('カラオケフォルダ接続失敗: ' + e.message);
     }
+}
+
+// v2.03: 音楽ライブラリ接続/変更
+async function onConnectLibrary() {
+    if (typeof window.showDirectoryPicker !== 'function') {
+        alert('このブラウザはフォルダ参照に対応していません (iOS Safari 等)。\nファイル選択ボタンで mp3 と .lrc を複数同時選択してください。');
+        return;
+    }
+    try {
+        const handle = await window.showDirectoryPicker({
+            id: 'momo-music-library',
+            mode: 'read',
+        });
+        mkState.musicLibraryHandle = handle;
+        mkState.musicLibraryProvider = 'local';
+        try { await META.saveHandle('musicLibrary', handle); } catch (e) { console.warn('[make] saveHandle musicLibrary fail:', e); }
+        updateLibraryStatus();
+        console.log('[make] 音楽ライブラリ設定:', handle.name);
+    } catch (e) {
+        if (e.name === 'AbortError') return;
+        console.error('[make] 音楽ライブラリ設定失敗:', e);
+        alert('音楽ライブラリ設定失敗: ' + e.message);
+    }
+}
+
+// v2.03: 起動時の自動復元
+async function tryRestoreHandles() {
+    // カラオケフォルダ
+    try {
+        const handle = await META.loadHandle('karaokeFolder');
+        if (handle && typeof handle.queryPermission === 'function') {
+            const perm = await handle.queryPermission({ mode: 'readwrite' });
+            if (perm === 'granted') {
+                mkState.karaokeFolderHandle = handle;
+                mkState.karaokeFolderProvider = 'local';
+                updateFolderStatus();
+                console.log('[make] カラオケフォルダ自動復元:', handle.name);
+            } else {
+                console.log('[make] カラオケフォルダ復元保留 (権限要再認証):', handle.name);
+                // 状態だけ「前回: <名前>」 表示してユーザーに再接続を促す
+                if (folderStatusEl) {
+                    folderStatusEl.textContent = '前回: ' + handle.name + ' (再接続必要)';
+                    folderStatusEl.style.color = 'var(--text-muted)';
+                }
+                mkState._pendingKaraokeHandle = handle;
+            }
+        }
+    } catch (e) { console.warn('[make] カラオケフォルダ復元失敗:', e); }
+
+    // 音楽ライブラリ
+    try {
+        const handle = await META.loadHandle('musicLibrary');
+        if (handle && typeof handle.queryPermission === 'function') {
+            const perm = await handle.queryPermission({ mode: 'read' });
+            if (perm === 'granted') {
+                mkState.musicLibraryHandle = handle;
+                mkState.musicLibraryProvider = 'local';
+                updateLibraryStatus();
+                console.log('[make] 音楽ライブラリ自動復元:', handle.name);
+            } else {
+                if (libraryStatusEl) {
+                    libraryStatusEl.textContent = '前回: ' + handle.name + ' (再認証必要)';
+                    libraryStatusEl.style.color = 'var(--text-muted)';
+                }
+                mkState._pendingLibraryHandle = handle;
+            }
+        }
+    } catch (e) { console.warn('[make] 音楽ライブラリ復元失敗:', e); }
 }
 
 // ─────────── ファイル選択 (input[type=file] で簡易対応) ───────────
@@ -129,56 +223,89 @@ function baseName(name) {
     return name.replace(/\.[^.]+$/, '');
 }
 
-// v2.02: フォルダから ファイル一覧を取得し、 audio / lrc を分類
-async function collectMusicLibraryFiles(folderHandle) {
+// v2.02 + v2.03: フォルダから ファイル一覧を取得 (サブフォルダ深さ 1 まで再帰)
+// 返却: [{ name, handle, kind, relPath }]
+async function collectMusicLibraryFiles(folderHandle, maxDepth) {
     const list = [];
-    for await (const entry of folderHandle.values()) {
-        if (entry.kind === 'file' && (isAudioFile(entry.name) || isLrcFile(entry.name))) {
-            list.push({ name: entry.name, handle: entry, kind: isAudioFile(entry.name) ? 'audio' : 'lrc' });
+    const depth = (typeof maxDepth === 'number') ? maxDepth : 1;  // デフォルト 1 階層
+    async function walk(dir, prefix, curDepth) {
+        try {
+            for await (const entry of dir.values()) {
+                if (entry.kind === 'file') {
+                    if (isAudioFile(entry.name) || isLrcFile(entry.name)) {
+                        list.push({
+                            name: entry.name,
+                            handle: entry,
+                            kind: isAudioFile(entry.name) ? 'audio' : 'lrc',
+                            relPath: prefix + entry.name,
+                            parentHandle: dir,
+                        });
+                    }
+                } else if (entry.kind === 'directory' && curDepth < depth) {
+                    await walk(entry, prefix + entry.name + '/', curDepth + 1);
+                }
+            }
+        } catch (e) {
+            console.warn('[make] フォルダ列挙エラー (' + (prefix || dir.name) + '):', e);
         }
     }
-    // ソート: kind 別 + 名前
+    await walk(folderHandle, '', 0);
+    console.log('[make] collectMusicLibraryFiles: ' + list.length + ' ファイル検出 (' + folderHandle.name + ')');
+    // ソート: kind 別 + relPath
     list.sort((a, b) => {
         if (a.kind !== b.kind) return a.kind === 'audio' ? -1 : 1;
-        return a.name.localeCompare(b.name, 'ja');
+        return (a.relPath || a.name).localeCompare(b.relPath || b.name, 'ja');
     });
     return list;
 }
 
-// v2.02: 仕様書 §4.3 通り — 音楽ファイル選択 = フォルダ参照 → 中の audio から選択 → 同名 .lrc 自動セット
+// v2.03: 音楽ライブラリから直接ファイル一覧 → ユーザー選択 → 同フォルダ同名 .lrc 自動セット
+// 仕様書 §4.3 通り。 ライブラリ未設定なら設定を促す。 サブフォルダ深さ 1 まで再帰探索。
 async function onPickMp3() {
-    // PC (showDirectoryPicker 対応) → フォルダ参照 + ファイル選択モーダル
     if (typeof window.showDirectoryPicker === 'function') {
-        let folderHandle;
-        try {
-            folderHandle = await window.showDirectoryPicker({
-                id: 'momo-music-library',
-                mode: 'read',
-                startIn: 'music',
-            });
-        } catch (e) {
-            if (e.name === 'AbortError') return;
-            console.error('[make] フォルダ参照失敗:', e);
-            return;
+        // 音楽ライブラリが未設定 or 保留中 → 設定/再認証
+        if (!mkState.musicLibraryHandle) {
+            if (mkState._pendingLibraryHandle) {
+                const ok = await META.ensureHandlePermission(mkState._pendingLibraryHandle, 'read');
+                if (ok) {
+                    mkState.musicLibraryHandle = mkState._pendingLibraryHandle;
+                    mkState._pendingLibraryHandle = null;
+                    updateLibraryStatus();
+                }
+            }
+            if (!mkState.musicLibraryHandle) {
+                const ok = confirm('音楽ライブラリが未設定です。 mp3 が入っているフォルダを設定しますか?');
+                if (!ok) return;
+                await onConnectLibrary();
+                if (!mkState.musicLibraryHandle) return;
+            }
         }
+        // 権限再確認
+        const permOk = await META.ensureHandlePermission(mkState.musicLibraryHandle, 'read');
+        if (!permOk) { alert('音楽ライブラリへのアクセス権限が必要です'); return; }
         try {
-            const allFiles = await collectMusicLibraryFiles(folderHandle);
+            const allFiles = await collectMusicLibraryFiles(mkState.musicLibraryHandle);
             const audioFiles = allFiles.filter(f => f.kind === 'audio');
             if (audioFiles.length === 0) {
-                alert('選択したフォルダに音楽ファイル (mp3/wav/m4a/aac/flac/ogg) が見つかりません');
+                const change = confirm('音楽ライブラリ「' + mkState.musicLibraryHandle.name + '」 に音楽ファイルが見つかりません。\n別のフォルダに変更しますか?');
+                if (change) await onConnectLibrary();
                 return;
             }
-            const picked = await showFilePickerModal(audioFiles, '音楽ファイルを選択', folderHandle.name);
+            const picked = await showFilePickerModal(audioFiles, '音楽ファイルを選択', mkState.musicLibraryHandle.name);
             if (!picked) return;
-            // 選択した mp3 を読み込む
             mkState.pendingMp3File = await picked.handle.getFile();
             if (mp3NameEl) mp3NameEl.value = picked.name;
-            // 仕様書 §4.3 step 3: 同フォルダの同名 .lrc を自動セット (歌詞欄が空ならセット)
+            // 仕様書 §4.3 step 3: 同フォルダ (= parentHandle 同一) の同名 .lrc を自動セット
             const base = baseName(picked.name);
-            const lrcMatch = allFiles.find(f => f.kind === 'lrc' && baseName(f.name) === base);
+            const lrcMatch = allFiles.find(f =>
+                f.kind === 'lrc' &&
+                baseName(f.name) === base &&
+                f.parentHandle === picked.parentHandle
+            );
             if (lrcMatch && !mkState.pendingLrcFile) {
                 mkState.pendingLrcFile = await lrcMatch.handle.getFile();
                 if (lrcNameEl) lrcNameEl.value = lrcMatch.name;
+                console.log('[make] 同名 .lrc 自動セット:', lrcMatch.name);
             }
             await autofillFromFiles();
         } catch (e) {
@@ -187,9 +314,8 @@ async function onPickMp3() {
         }
         return;
     }
-
-    // iOS Safari fallback — multiple 選択 + 自動振り分け (v2.01 互換)
-    pickFiles('audio/*,.lrc', /* multiple */ true, async (files) => {
+    // iOS Safari fallback
+    pickFiles('audio/*,.lrc', true, async (files) => {
         const audio = files.find(f => isAudioFile(f.name));
         let lrc = files.find(f => isLrcFile(f.name));
         if (audio) {
@@ -208,40 +334,51 @@ async function onPickMp3() {
     });
 }
 
-// v2.02: 仕様書 §4.4 通り — 歌詞ファイル選択 = フォルダ参照 → 中の lrc から選択 → 同名 mp3 自動セット (音楽欄が空時)
+// v2.03: 歌詞ファイル選択 (音楽ライブラリ経由)
 async function onPickLrc() {
-    // PC (showDirectoryPicker 対応)
     if (typeof window.showDirectoryPicker === 'function') {
-        let folderHandle;
-        try {
-            folderHandle = await window.showDirectoryPicker({
-                id: 'momo-music-library',
-                mode: 'read',
-                startIn: 'music',
-            });
-        } catch (e) {
-            if (e.name === 'AbortError') return;
-            console.error('[make] フォルダ参照失敗:', e);
-            return;
+        if (!mkState.musicLibraryHandle) {
+            if (mkState._pendingLibraryHandle) {
+                const ok = await META.ensureHandlePermission(mkState._pendingLibraryHandle, 'read');
+                if (ok) {
+                    mkState.musicLibraryHandle = mkState._pendingLibraryHandle;
+                    mkState._pendingLibraryHandle = null;
+                    updateLibraryStatus();
+                }
+            }
+            if (!mkState.musicLibraryHandle) {
+                const ok = confirm('音楽ライブラリが未設定です。 .lrc が入っているフォルダを設定しますか?');
+                if (!ok) return;
+                await onConnectLibrary();
+                if (!mkState.musicLibraryHandle) return;
+            }
         }
+        const permOk = await META.ensureHandlePermission(mkState.musicLibraryHandle, 'read');
+        if (!permOk) { alert('音楽ライブラリへのアクセス権限が必要です'); return; }
         try {
-            const allFiles = await collectMusicLibraryFiles(folderHandle);
+            const allFiles = await collectMusicLibraryFiles(mkState.musicLibraryHandle);
             const lrcFiles = allFiles.filter(f => f.kind === 'lrc');
             if (lrcFiles.length === 0) {
-                alert('選択したフォルダに歌詞ファイル (.lrc) が見つかりません');
+                const change = confirm('音楽ライブラリ「' + mkState.musicLibraryHandle.name + '」 に .lrc が見つかりません。\n別のフォルダに変更しますか?');
+                if (change) await onConnectLibrary();
                 return;
             }
-            const picked = await showFilePickerModal(lrcFiles, '歌詞ファイルを選択', folderHandle.name);
+            const picked = await showFilePickerModal(lrcFiles, '歌詞ファイルを選択', mkState.musicLibraryHandle.name);
             if (!picked) return;
             mkState.pendingLrcFile = await picked.handle.getFile();
             if (lrcNameEl) lrcNameEl.value = picked.name;
-            // 仕様書 §4.4 step 3: 音楽ファイル欄が空の場合のみ、 同フォルダの同名 mp3 を自動セット
+            // 仕様書 §4.4 step 3
             if (!mkState.pendingMp3File) {
                 const base = baseName(picked.name);
-                const audioMatch = allFiles.find(f => f.kind === 'audio' && baseName(f.name) === base);
+                const audioMatch = allFiles.find(f =>
+                    f.kind === 'audio' &&
+                    baseName(f.name) === base &&
+                    f.parentHandle === picked.parentHandle
+                );
                 if (audioMatch) {
                     mkState.pendingMp3File = await audioMatch.handle.getFile();
                     if (mp3NameEl) mp3NameEl.value = audioMatch.name;
+                    console.log('[make] 同名音楽ファイル自動セット:', audioMatch.name);
                 }
             }
             await autofillFromFiles();
@@ -251,9 +388,8 @@ async function onPickLrc() {
         }
         return;
     }
-
-    // iOS Safari fallback — 単一 lrc 選択
-    pickFiles('.lrc,text/plain', /* multiple */ false, async (files) => {
+    // iOS Safari fallback
+    pickFiles('.lrc,text/plain', false, async (files) => {
         const file = files[0];
         if (!file) return;
         mkState.pendingLrcFile = file;
@@ -505,14 +641,21 @@ function bindDom() {
     btnCancel = $('make-cancel');
     folderStatusEl = $('make-folder-status');
     btnConnectFolder = $('make-folder-btn');
+    libraryStatusEl = $('make-library-status');
+    btnConnectLibrary = $('make-library-btn');
 
     if (btnPickMp3) btnPickMp3.addEventListener('click', onPickMp3);
     if (btnPickLrc) btnPickLrc.addEventListener('click', onPickLrc);
     if (btnRegister) btnRegister.addEventListener('click', onRegister);
     if (btnCancel) btnCancel.addEventListener('click', onCancel);
     if (btnConnectFolder) btnConnectFolder.addEventListener('click', onConnectFolder);
+    if (btnConnectLibrary) btnConnectLibrary.addEventListener('click', onConnectLibrary);
 
     updateFolderStatus();
+    updateLibraryStatus();
+
+    // v2.03: 起動時の IndexedDB からハンドル自動復元
+    tryRestoreHandles().catch(e => console.warn('[make] 自動復元エラー:', e));
 }
 
 if (document.readyState === 'loading') {

@@ -273,6 +273,72 @@ function parseLrcHeader(lrcText) {
 }
 
 // ───────────────────────────────────────────────────────────────────────────
+// 8a. IndexedDB ヘルパー (v2.03)
+//     FileSystemDirectoryHandle は localStorage に格納できないため IndexedDB を使う。
+//     仕様書 §3.4 L1: カラオケフォルダのプロバイダ種別 + フォルダハンドル参照を保持。
+// ───────────────────────────────────────────────────────────────────────────
+const IDB_NAME = 'momoKaraokeV2';
+const IDB_VERSION = 1;
+const IDB_STORE = 'handles';
+
+function _openIdb() {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open(IDB_NAME, IDB_VERSION);
+        req.onupgradeneeded = () => {
+            const db = req.result;
+            if (!db.objectStoreNames.contains(IDB_STORE)) {
+                db.createObjectStore(IDB_STORE);
+            }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+    });
+}
+
+async function saveHandle(key, handle) {
+    const db = await _openIdb();
+    return new Promise((res, rej) => {
+        const tx = db.transaction(IDB_STORE, 'readwrite');
+        tx.objectStore(IDB_STORE).put(handle, key);
+        tx.oncomplete = () => { db.close(); res(); };
+        tx.onerror = () => { db.close(); rej(tx.error); };
+    });
+}
+
+async function loadHandle(key) {
+    const db = await _openIdb();
+    return new Promise((res, rej) => {
+        const tx = db.transaction(IDB_STORE, 'readonly');
+        const req = tx.objectStore(IDB_STORE).get(key);
+        req.onsuccess = () => { db.close(); res(req.result || null); };
+        req.onerror = () => { db.close(); rej(req.error); };
+    });
+}
+
+async function deleteHandle(key) {
+    const db = await _openIdb();
+    return new Promise((res, rej) => {
+        const tx = db.transaction(IDB_STORE, 'readwrite');
+        tx.objectStore(IDB_STORE).delete(key);
+        tx.oncomplete = () => { db.close(); res(); };
+        tx.onerror = () => { db.close(); rej(tx.error); };
+    });
+}
+
+// 権限確認: 既に granted なら何もせず、 prompt ならユーザー操作で requestPermission
+async function ensureHandlePermission(handle, mode) {
+    if (!handle || typeof handle.queryPermission !== 'function') return false;
+    const opts = { mode: mode || 'read' };
+    const cur = await handle.queryPermission(opts);
+    if (cur === 'granted') return true;
+    if (cur === 'prompt') {
+        const req = await handle.requestPermission(opts);
+        return req === 'granted';
+    }
+    return false;  // 'denied' or unknown
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 // 9. 公開 API
 // ───────────────────────────────────────────────────────────────────────────
 global.MomoMeta = {
@@ -294,6 +360,12 @@ global.MomoMeta = {
     // storage providers (Phase 2 抽象化はスキップ、 if 分岐で直接呼ぶ)
     Local,
     Drive: DriveStub,
+
+    // v2.03: IndexedDB によるハンドル永続化 + 権限確認
+    saveHandle,
+    loadHandle,
+    deleteHandle,
+    ensureHandlePermission,
 
     // Phase 3 識別用
     SCHEMA_VERSION: 1,

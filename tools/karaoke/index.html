@@ -192,7 +192,25 @@
                       (ただし「音楽ファイル欄が空の場合のみ」、 §4.4 step 3 通り)
                   - iOS Safari (showDirectoryPicker 非対応) は v2.01 の multiple 選択方式に
                     フォールバック (動作は維持)
-                  - ファイル選択モーダル (#make-file-picker-modal) を新規追加 -->
+                  - ファイル選択モーダル (#make-file-picker-modal) を新規追加
+       v2.03 - カラオケフォルダ + 音楽ライブラリの永続化 (IndexedDB) — 2026-05-23
+                  ユーザー指摘:
+                    1. カラオケフォルダは一度選択したら次回起動時に記憶されている仕様だった
+                    2. 音楽/歌詞ファイル選択で mp3/lrc が見つからない (毎回別フォルダ選択させて
+                       いた、 仕様書 §3.3 の 「音楽ライブラリ」 概念がない)
+                  対応:
+                  - meta.js に IndexedDB ヘルパー追加: saveHandle / loadHandle /
+                    deleteHandle / ensureHandlePermission
+                  - make.js でカラオケフォルダ接続時に IndexedDB へ保存
+                  - 「音楽ライブラリ」 概念を追加 (UI セクション + 永続化、 仕様書 §3.3)
+                    メイクタブ上部に 2 つの行を表示: カラオケフォルダ / 音楽ライブラリ
+                  - 音楽ファイル/歌詞ファイル選択時は「音楽ライブラリ」 から直接列挙
+                    (毎回 showDirectoryPicker しない)
+                  - 起動時に IndexedDB からハンドル復元 + queryPermission で
+                    'granted' なら自動接続、 'prompt' なら status に 「前回: X」 表示
+                  - collectMusicLibraryFiles をサブフォルダ再帰探索 (深さ 1) に拡張
+                    → mp3/lrc が直下にない場合も発見可能
+                  - 「同名」 マッチングを 'parentHandle 同一' まで厳密化 (同フォルダ内のみ) -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -1047,7 +1065,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.02</span>
+                <span class="version-tag" id="version-tag">v2.03</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1070,11 +1088,18 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
     <div id="library-section" class="tool-card">
         <div class="section-label"><span id="library-label">Make — Import a Song</span></div>
 
-        <!-- v2.00 Phase 4: カラオケフォルダ接続 -->
-        <div class="make-folder-section" style="background: var(--surface2); padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; border: 1px solid var(--border);">
-            <span style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; font-weight:700;">カラオケフォルダ</span>
+        <!-- v2.00 Phase 4: カラオケフォルダ接続 (v2.03 で永続化対応) -->
+        <div class="make-folder-section" style="background: var(--surface2); padding: 12px 16px; border-radius: 8px; margin-bottom: 8px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; border: 1px solid var(--border);">
+            <span style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; font-weight:700; min-width:100px;">カラオケフォルダ</span>
             <span id="make-folder-status" style="font-size:13px; color:var(--text-muted); flex:1; min-width:80px; word-break:break-all;">未接続</span>
             <button class="momo-btn-small" id="make-folder-btn">接続</button>
+        </div>
+
+        <!-- v2.03: 音楽ライブラリ (取り込み元、 仕様書 §3.3) -->
+        <div class="make-library-section" style="background: var(--surface2); padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; border: 1px solid var(--border);">
+            <span style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; font-weight:700; min-width:100px;">音楽ライブラリ</span>
+            <span id="make-library-status" style="font-size:13px; color:var(--text-muted); flex:1; min-width:80px; word-break:break-all;">未設定</span>
+            <button class="momo-btn-small" id="make-library-btn">設定</button>
         </div>
 
         <!-- v2.00 Phase 4: 取り込みパネル -->
@@ -1533,7 +1558,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.02',
+        version: document.getElementById('version-tag')?.textContent || 'v2.03',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -1639,7 +1664,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.02';
+const APP_VERSION = 'v2.03';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {

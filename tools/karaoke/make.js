@@ -12,6 +12,12 @@
 //   - mp3 タグ自動フィルが動くよう jsmediatags を index.html で読込
 //   - 重複時 3 択を prompt → ボタン式モーダル (#make-conflict-modal)
 //
+// v2.02 (2026-05-23): 仕様書 §4.3-§4.4 の自動セットルール正しく反映
+//   - 音楽ファイル選択 = showDirectoryPicker でフォルダ参照 → 中の音楽ファイル一覧から選択
+//     → 選択した mp3 と同フォルダの同名 .lrc を自動セット
+//   - 歌詞ファイル選択 = 同様、 lrc 選択 → 同フォルダの同名 mp3 を自動セット (音楽欄が空時)
+//   - iOS Safari (showDirectoryPicker 非対応) は multiple 選択にフォールバック (v2.01 動作)
+//
 // Phase 4b 以降の予定:
 //   - voicecut100 / voicecut50 の OfflineAudioContext 生成 (v1.15 流用)
 //   - Google Drive 上のカラオケフォルダ対応
@@ -123,18 +129,72 @@ function baseName(name) {
     return name.replace(/\.[^.]+$/, '');
 }
 
-// 音楽ファイル選択: 同じフォルダから mp3 + 同名 .lrc を一緒に選んだ場合は自動振り分け
+// v2.02: フォルダから ファイル一覧を取得し、 audio / lrc を分類
+async function collectMusicLibraryFiles(folderHandle) {
+    const list = [];
+    for await (const entry of folderHandle.values()) {
+        if (entry.kind === 'file' && (isAudioFile(entry.name) || isLrcFile(entry.name))) {
+            list.push({ name: entry.name, handle: entry, kind: isAudioFile(entry.name) ? 'audio' : 'lrc' });
+        }
+    }
+    // ソート: kind 別 + 名前
+    list.sort((a, b) => {
+        if (a.kind !== b.kind) return a.kind === 'audio' ? -1 : 1;
+        return a.name.localeCompare(b.name, 'ja');
+    });
+    return list;
+}
+
+// v2.02: 仕様書 §4.3 通り — 音楽ファイル選択 = フォルダ参照 → 中の audio から選択 → 同名 .lrc 自動セット
 async function onPickMp3() {
+    // PC (showDirectoryPicker 対応) → フォルダ参照 + ファイル選択モーダル
+    if (typeof window.showDirectoryPicker === 'function') {
+        let folderHandle;
+        try {
+            folderHandle = await window.showDirectoryPicker({
+                id: 'momo-music-library',
+                mode: 'read',
+                startIn: 'music',
+            });
+        } catch (e) {
+            if (e.name === 'AbortError') return;
+            console.error('[make] フォルダ参照失敗:', e);
+            return;
+        }
+        try {
+            const allFiles = await collectMusicLibraryFiles(folderHandle);
+            const audioFiles = allFiles.filter(f => f.kind === 'audio');
+            if (audioFiles.length === 0) {
+                alert('選択したフォルダに音楽ファイル (mp3/wav/m4a/aac/flac/ogg) が見つかりません');
+                return;
+            }
+            const picked = await showFilePickerModal(audioFiles, '音楽ファイルを選択', folderHandle.name);
+            if (!picked) return;
+            // 選択した mp3 を読み込む
+            mkState.pendingMp3File = await picked.handle.getFile();
+            if (mp3NameEl) mp3NameEl.value = picked.name;
+            // 仕様書 §4.3 step 3: 同フォルダの同名 .lrc を自動セット (歌詞欄が空ならセット)
+            const base = baseName(picked.name);
+            const lrcMatch = allFiles.find(f => f.kind === 'lrc' && baseName(f.name) === base);
+            if (lrcMatch && !mkState.pendingLrcFile) {
+                mkState.pendingLrcFile = await lrcMatch.handle.getFile();
+                if (lrcNameEl) lrcNameEl.value = lrcMatch.name;
+            }
+            await autofillFromFiles();
+        } catch (e) {
+            console.error('[make] ファイル選択失敗:', e);
+            alert('ファイル選択失敗: ' + e.message);
+        }
+        return;
+    }
+
+    // iOS Safari fallback — multiple 選択 + 自動振り分け (v2.01 互換)
     pickFiles('audio/*,.lrc', /* multiple */ true, async (files) => {
-        // 1) mp3 / lrc を分離
         const audio = files.find(f => isAudioFile(f.name));
         let lrc = files.find(f => isLrcFile(f.name));
-
         if (audio) {
             mkState.pendingMp3File = audio;
             if (mp3NameEl) mp3NameEl.value = audio.name;
-
-            // 同名 .lrc を自動マッチング (multiple 選択時)
             if (!lrc && files.length > 1) {
                 const base = baseName(audio.name);
                 lrc = files.find(f => isLrcFile(f.name) && baseName(f.name) === base);
@@ -144,23 +204,101 @@ async function onPickMp3() {
             mkState.pendingLrcFile = lrc;
             if (lrcNameEl) lrcNameEl.value = lrc.name;
         }
-
-        // 警告: lrc のみ選択された場合は、 lrc は「歌詞ファイル選択」 で選ぶ想定だがここでも対応
-        if (!audio && lrc) {
-            // 何も警告せず lrc だけ受け付ける
-        }
         await autofillFromFiles();
     });
 }
 
-// 歌詞ファイル選択: lrc 単体選択 (同名 mp3 自動探索は input[type=file] では不可)
+// v2.02: 仕様書 §4.4 通り — 歌詞ファイル選択 = フォルダ参照 → 中の lrc から選択 → 同名 mp3 自動セット (音楽欄が空時)
 async function onPickLrc() {
+    // PC (showDirectoryPicker 対応)
+    if (typeof window.showDirectoryPicker === 'function') {
+        let folderHandle;
+        try {
+            folderHandle = await window.showDirectoryPicker({
+                id: 'momo-music-library',
+                mode: 'read',
+                startIn: 'music',
+            });
+        } catch (e) {
+            if (e.name === 'AbortError') return;
+            console.error('[make] フォルダ参照失敗:', e);
+            return;
+        }
+        try {
+            const allFiles = await collectMusicLibraryFiles(folderHandle);
+            const lrcFiles = allFiles.filter(f => f.kind === 'lrc');
+            if (lrcFiles.length === 0) {
+                alert('選択したフォルダに歌詞ファイル (.lrc) が見つかりません');
+                return;
+            }
+            const picked = await showFilePickerModal(lrcFiles, '歌詞ファイルを選択', folderHandle.name);
+            if (!picked) return;
+            mkState.pendingLrcFile = await picked.handle.getFile();
+            if (lrcNameEl) lrcNameEl.value = picked.name;
+            // 仕様書 §4.4 step 3: 音楽ファイル欄が空の場合のみ、 同フォルダの同名 mp3 を自動セット
+            if (!mkState.pendingMp3File) {
+                const base = baseName(picked.name);
+                const audioMatch = allFiles.find(f => f.kind === 'audio' && baseName(f.name) === base);
+                if (audioMatch) {
+                    mkState.pendingMp3File = await audioMatch.handle.getFile();
+                    if (mp3NameEl) mp3NameEl.value = audioMatch.name;
+                }
+            }
+            await autofillFromFiles();
+        } catch (e) {
+            console.error('[make] ファイル選択失敗:', e);
+            alert('ファイル選択失敗: ' + e.message);
+        }
+        return;
+    }
+
+    // iOS Safari fallback — 単一 lrc 選択
     pickFiles('.lrc,text/plain', /* multiple */ false, async (files) => {
         const file = files[0];
         if (!file) return;
         mkState.pendingLrcFile = file;
         if (lrcNameEl) lrcNameEl.value = file.name;
         await autofillFromFiles();
+    });
+}
+
+// v2.02: フォルダ内ファイル選択モーダル
+//   files: [{ name, handle, kind }]
+//   returns Promise<picked | null>
+function showFilePickerModal(files, title, folderName) {
+    return new Promise((resolve) => {
+        const modal = $('make-file-picker-modal');
+        const titleEl2 = $('make-file-picker-title');
+        const folderEl = $('make-file-picker-folder');
+        const listEl = $('make-file-picker-list');
+        const btnCancel = $('make-file-picker-cancel');
+        if (!modal || !listEl || !btnCancel) {
+            console.warn('[make] file picker modal elements missing — using alert fallback');
+            resolve(null);
+            return;
+        }
+        if (titleEl2) titleEl2.textContent = title;
+        if (folderEl) folderEl.textContent = '📁 ' + (folderName || '(無名フォルダ)');
+        listEl.innerHTML = '';
+        const close = (result) => {
+            modal.style.display = 'none';
+            btnCancel.removeEventListener('click', onCancelClick);
+            resolve(result);
+        };
+        const onCancelClick = () => close(null);
+        btnCancel.addEventListener('click', onCancelClick);
+        // ファイル一覧描画
+        files.forEach(f => {
+            const item = document.createElement('div');
+            item.style.cssText = 'padding:8px 10px; cursor:pointer; color:var(--text); font-size:13px; border-bottom:1px solid var(--border); border-radius:4px;';
+            const icon = f.kind === 'audio' ? '♪ ' : '📄 ';
+            item.textContent = icon + f.name;
+            item.addEventListener('mouseenter', () => { item.style.background = 'var(--bg-selected)'; item.style.color = 'var(--orange-light)'; });
+            item.addEventListener('mouseleave', () => { item.style.background = ''; item.style.color = 'var(--text)'; });
+            item.addEventListener('click', () => close(f));
+            listEl.appendChild(item);
+        });
+        modal.style.display = 'flex';
     });
 }
 

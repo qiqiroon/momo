@@ -179,7 +179,20 @@
                     複数選択時は basename 一致で mp3 と lrc を自動振り分け
                   - 重複時の 3 択 prompt を HTML ベースのボタン式モーダルに変更
                     (別バージョンとして登録 / 上書き / キャンセル の 3 ボタン)
-                  - 以降のバージョンインクリメントは 0.01 刻みで運用 (ユーザー方針) -->
+                  - 以降のバージョンインクリメントは 0.01 刻みで運用 (ユーザー方針)
+       v2.02 - 仕様書 §4.3-§4.4 自動セットルールの正しい反映 — 2026-05-23
+                  ユーザー指摘: v2.01 の multiple 選択方式は仕様書の意図と違う。
+                  仕様書は「同じフォルダ内の同名ファイルを自動で探索・セット」 を求める。
+                  - 音楽ファイル選択 = showDirectoryPicker でフォルダ参照
+                    → 中の audio (mp3/wav/m4a/aac/flac/ogg) を一覧モーダルで提示
+                    → 選択した音楽ファイルと同フォルダの同名 .lrc を自動セット
+                  - 歌詞ファイル選択 = showDirectoryPicker でフォルダ参照
+                    → 中の .lrc を一覧モーダルで提示
+                    → 選択した lrc と同フォルダの同名音楽ファイルを自動セット
+                      (ただし「音楽ファイル欄が空の場合のみ」、 §4.4 step 3 通り)
+                  - iOS Safari (showDirectoryPicker 非対応) は v2.01 の multiple 選択方式に
+                    フォールバック (動作は維持)
+                  - ファイル選択モーダル (#make-file-picker-modal) を新規追加 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -1034,7 +1047,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.01</span>
+                <span class="version-tag" id="version-tag">v2.02</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1088,9 +1101,23 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 <button class="momo-btn" id="make-register">登録</button>
             </div>
             <p style="font-size:11px; color:var(--text-muted); margin: 12px 0 0 0; line-height:1.5;">
-                ※ 音楽ファイル選択時、 同じフォルダから mp3 と .lrc を同時に複数選択すると自動で振り分けられます。<br>
+                ※ ファイル選択ボタンを押すと音楽フォルダを指定するダイアログが開き、 中のファイルから選択できます (PC)。<br>
+                ※ 選択した音楽ファイルと同フォルダに同名 .lrc があれば自動セットされます (歌詞欄が空の時)。<br>
+                ※ iOS Safari ではフォルダ参照に非対応のため、 mp3 と .lrc を同時に複数選択する代替方式が動きます。<br>
                 ※ Phase 4b 以降の予定: voicecut 自動生成 / Drive 上のカラオケフォルダ / 重複上書き処理。
             </p>
+        </div>
+
+        <!-- v2.02: ファイル選択モーダル (showDirectoryPicker でフォルダ参照 → 中のファイルから選択) -->
+        <div id="make-file-picker-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1000; align-items:center; justify-content:center; padding:20px;">
+            <div style="background:var(--surface); border:1px solid var(--orange); border-radius:12px; padding:20px; max-width:480px; width:100%; max-height:70vh; display:flex; flex-direction:column;">
+                <div id="make-file-picker-title" style="font-size:14px; font-weight:700; color:var(--orange-light); margin-bottom:8px;">ファイルを選択</div>
+                <div id="make-file-picker-folder" style="font-size:11px; color:var(--text-muted); margin-bottom:10px; word-break:break-all;"></div>
+                <div id="make-file-picker-list" style="flex:1; overflow-y:auto; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:6px; min-height:120px; max-height:50vh;"></div>
+                <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:14px;">
+                    <button class="momo-btn-small" id="make-file-picker-cancel">キャンセル</button>
+                </div>
+            </div>
         </div>
 
         <!-- v2.01: 重複判定の 3 択モーダル (prompt 数字入力を置換) -->
@@ -1506,7 +1533,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.01',
+        version: document.getElementById('version-tag')?.textContent || 'v2.02',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -1612,7 +1639,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.01';
+const APP_VERSION = 'v2.02';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {

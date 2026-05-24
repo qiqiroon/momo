@@ -202,6 +202,18 @@
                   対策 (meta.js のみ):
                     - ensureKaraokeRoot を split('/') で階層分割し、 各階層ごとに
                       exists → mkdir → refresh → cd の順で確実に作成・移動
+       v2.16 - Drive 取り込みの mp3/lrc ファイル名修正 + 重複判定ログ — 2026-05-24
+                  ユーザー報告: Drive 経由で取り込んだ mp3/lrc が 'untitled' という
+                  ファイル名で保存される + 同名同アーティスト同音源なのに別バージョン
+                  として登録される。
+                  対策:
+                    - meta.js Drive.collectMusicLibrary.getFile() を Blob ではなく
+                      File ([blob], name, {type}) を返すように変更。 Blob には name
+                      プロパティが無く pendingMp3File.name = undefined →
+                      sanitizeFileName('untitled') に落ちていた
+                    - make.js onRegister の重複判定に listSongs の中身と判定結果を
+                      [make] ログ出力 (現象再現時の真因究明用、 既存曲 0 件 or
+                      meta.json 読込失敗のどちらか切り分け)
        v2.15 - Drive 再接続時の不要 OAuth 抑制 — 2026-05-24
                   ユーザー報告: 音楽ファイル選択ボタンを押すたびに Google アカウント
                   選択画面が再表示される (場合により 2〜3 回連続)。
@@ -1237,7 +1249,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.15</span>
+                <span class="version-tag" id="version-tag">v2.16</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1782,7 +1794,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.15',
+        version: document.getElementById('version-tag')?.textContent || 'v2.16',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -1888,7 +1900,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.15';
+const APP_VERSION = 'v2.16';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {

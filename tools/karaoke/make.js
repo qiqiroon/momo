@@ -983,8 +983,18 @@ async function onRegister() {
         const candidateMeta = META.defaultSongMeta(title, artist);
         candidateMeta.mp3Hash = mp3Hash;
 
+        // v2.16: 重複判定の動作を可視化 (Drive 上で重複検出されない問題のデバッグ用)
+        console.log('[make] 既存曲列挙: ' + existing.length + ' 件');
+        for (const s of existing) {
+            const hashShort = s.meta.mp3Hash ? s.meta.mp3Hash.slice(0, 22) + '…' : '(none)';
+            console.log('  • ' + s.internalId + ' "' + (s.meta.title || '') + '" - "' + (s.meta.artist || '') + '" hash=' + hashShort);
+        }
+        const candHashShort = mp3Hash ? mp3Hash.slice(0, 22) + '…' : '(none)';
+        console.log('[make] 候補: "' + title + '" - "' + artist + '" hash=' + candHashShort);
+
         const alphaHit = existing.find(s => META.isDuplicateAlpha(s.meta, candidateMeta));
         const betaHit = mp3Hash ? existing.find(s => META.isDuplicateBeta(s.meta, candidateMeta)) : null;
+        console.log('[make] 判定結果: alphaHit=' + (alphaHit ? alphaHit.internalId : 'なし') + ', betaHit=' + (betaHit ? betaHit.internalId : 'なし'));
 
         // 仕様 §4.6 重複判定マトリクス
         if (alphaHit && betaHit && alphaHit.internalId === betaHit.internalId) {

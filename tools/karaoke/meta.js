@@ -536,12 +536,19 @@ const Drive = {
                     const isLrc = isLrcFn ? isLrcFn(it.name) : false;
                     if (isAud || isLrc) {
                         const fileAbs = childAbs;
+                        const itName = it.name;
                         out.push({
-                            name: it.name,
+                            name: itName,
                             kind: isAud ? 'audio' : 'lrc',
-                            relPath: prefix + it.name,
+                            relPath: prefix + itName,
                             parentKey: absPath,
-                            getFile: async () => await self.readBlobAbs(fileAbs),
+                            // v2.16: Blob ではなく File を返す。 onRegister の pendingMp3File.name で
+                            //   ファイル名が取れるようにするため (Blob だと name が undefined →
+                            //   sanitizeFileName で 'untitled' になっていた)
+                            getFile: async () => {
+                                const blob = await self.readBlobAbs(fileAbs);
+                                return new File([blob], itName, { type: blob.type });
+                            },
                         });
                     }
                 } else if (curDepth < depth) {

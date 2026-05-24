@@ -193,6 +193,22 @@
                   - iOS Safari (showDirectoryPicker 非対応) は v2.01 の multiple 選択方式に
                     フォールバック (動作は維持)
                   - ファイル選択モーダル (#make-file-picker-modal) を新規追加
+       v2.08 - カラオケフォルダの Drive 対応 (v200改造.txt 1) — 2026-05-24
+                  - 「接続/変更」 ボタンを押すと「ローカル / Google Drive」 選択モーダルが出る
+                  - ローカル選択 → 従来通り showDirectoryPicker
+                  - Drive 選択 → 既存 v1.39 の gdrive.connect() で OAuth → momo-works/karaoke を
+                    navigate (なければ mkdir)
+                  - 永続化: provider 種別 (local/drive) を localStorage に保存
+                    起動時に Drive 選択だった場合は status に「前回: Google Drive (再接続が必要)」 表示
+                    (OAuth は user gesture 必要なので自動再接続しない)
+                  - index.html 既存 IIFE 末尾に 1 行追加: window.gdrive = gdrive
+                    (既存 v1.39 ロジックは無変更、 expose のみ)
+                  - MomoMeta.Drive stub を本実装に置き換え (meta.js)
+                    connect / ensureKaraokeRoot / load/saveAppSettings /
+                    load/saveSongMeta / listSongs / createSongFolder /
+                    read/write/deleteFile / listFiles
+                    内部で window.gdrive 経由で momo_gdrive.py の API を呼ぶ
+                  - 音楽ライブラリの Drive 対応 / メイクタブの Drive 連携完成は v2.09 以降
        v2.07 - 重複時「上書き」 処理の本実装 (仕様書 §4.6) — 2026-05-24
                   v2.06 までは α 一致時の 3 択モーダル「上書き」 が「別バージョン扱い」
                   に流れて実質スキップだったのを、 本実装に切替。
@@ -1126,7 +1142,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.07</span>
+                <span class="version-tag" id="version-tag">v2.08</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1204,6 +1220,22 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:14px;">
                     <button class="momo-btn-small" id="make-file-picker-cancel">キャンセル</button>
                 </div>
+            </div>
+        </div>
+
+        <!-- v2.08: ストレージプロバイダ選択モーダル (カラオケフォルダ / 音楽ライブラリ共通) -->
+        <div id="make-provider-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1000; align-items:center; justify-content:center; padding:20px;">
+            <div style="background:var(--surface); border:1px solid var(--orange); border-radius:12px; padding:24px; max-width:380px; width:100%;">
+                <div id="make-provider-title" style="font-size:14px; font-weight:700; color:var(--orange-light); margin-bottom:18px;">ストレージを選択</div>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                    <button class="momo-btn" id="make-provider-local">📁 ローカルフォルダ (PC のみ)</button>
+                    <button class="momo-btn" id="make-provider-drive">☁ Google Drive (iPhone OK)</button>
+                    <button class="momo-btn-small" id="make-provider-cancel">キャンセル</button>
+                </div>
+                <p style="font-size:11px; color:var(--text-muted); margin: 12px 0 0 0; line-height:1.5;">
+                    ※ Drive 選択時、 カラオケフォルダは <code>momo-works/karaoke</code> 固定で自動作成されます (仕様書 §3.3)。<br>
+                    ※ ローカル選択時、 任意のフォルダを指定できます。
+                </p>
             </div>
         </div>
 
@@ -1636,7 +1668,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.07',
+        version: document.getElementById('version-tag')?.textContent || 'v2.08',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -1742,7 +1774,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.07';
+const APP_VERSION = 'v2.08';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -6024,6 +6056,11 @@ balanceSlider.addEventListener('input', applyBalance);
     await tryRestoreLibrary();
     setStatus('準備完了 — ライブラリから曲を選んでください', 'ok');
 })();
+
+// v2.08: 既存 gdrive オブジェクトを window グローバルに expose
+// make.js (MomoMeta.Drive 本実装) から既存 v1.39 の Drive 接続ロジックを再利用するため。
+// 既存 v1.39 の動作は無変更 (export 1 行のみ追加)。
+window.gdrive = gdrive;
 
 })();
 

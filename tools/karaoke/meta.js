@@ -234,24 +234,167 @@ const Local = {
 };
 
 // ───────────────────────────────────────────────────────────────────────────
-// 7. Google Drive 実装 stub (Phase 4 で本実装、 Phase 3 では interface のみ)
-//    既存の Pyodide + momo_gdrive.py 経由で呼び出す想定
+// 7. Google Drive 実装 (v2.08〜)
+//    既存 v1.39 の window.gdrive (index.html IIFE 末尾で expose) を経由して
+//    momo_gdrive.py の API を呼ぶ。 既存の Drive 接続ロジックは破壊せず再利用。
+//    momo_gdrive.py API: connect / navigate / cd / mkdir / exists / read_text /
+//      read_bytes / read_json / write_bytes / delete / copy / move / _list_children
 // ───────────────────────────────────────────────────────────────────────────
-const DriveStub = {
+const Drive = {
     KARAOKE_ROOT_PATH: 'momo-works/karaoke',
 
-    async ensureKaraokeRoot(/* gdrive */) {
-        throw new Error('Drive support: pending Phase 4');
+    // 既存 v1.39 の gdrive オブジェクト参照を取得 (expose されていれば)
+    _g() {
+        if (typeof window === 'undefined' || !window.gdrive) {
+            throw new Error('Drive not available: window.gdrive missing (v1.39 IIFE must run first)');
+        }
+        return window.gdrive;
     },
-    async loadAppSettings(/* gdrive */) {
-        return defaultAppSettings();
+
+    isSupported() {
+        return typeof window !== 'undefined' && !!window.gdrive;
     },
-    async saveAppSettings(/* gdrive, settings */) { /* TODO */ },
-    async loadSongMeta(/* gdrive, songFolderId */) { return null; },
-    async saveSongMeta(/* gdrive, songFolderId, meta */) { /* TODO */ },
-    async listSongs(/* gdrive */) { return []; },
-    async createSongFolder(/* gdrive, baseInternalId */) {
-        throw new Error('Drive support: pending Phase 4');
+
+    // Drive に接続 (Pyodide ロード + OAuth)
+    async connect() {
+        const g = this._g();
+        const ok = await g.connect();
+        if (!ok) throw new Error('Drive connect failed');
+        return true;
+    },
+
+    // ensureKaraokeRoot: `momo-works/karaoke` フォルダを navigate (存在しなければ mkdir)
+    // momo_gdrive.py の navigate は存在しないパスでエラーになる可能性あり、 mkdir でフォルダ作成
+    async ensureKaraokeRoot() {
+        const g = this._g();
+        if (!g.momo) await this.connect();
+        try {
+            // mkdir は冪等 (既存なら同じ ID を返す想定、 momo_gdrive.py 仕様による)
+            await g.momo.mkdir(this.KARAOKE_ROOT_PATH);
+            await g.momo.cd(this.KARAOKE_ROOT_PATH);
+            return this.KARAOKE_ROOT_PATH;
+        } catch (e) {
+            throw new Error('ensureKaraokeRoot failed: ' + (e.message || e));
+        }
+    },
+
+    // _app_settings.json 読み込み (カラオケフォルダ直下から)
+    async loadAppSettings() {
+        const g = this._g();
+        try {
+            const data = await g.momo.read_json('_app_settings.json');
+            const obj = (data && typeof data.toJs === 'function') ? data.toJs({ dict_converter: Object.fromEntries }) : data;
+            return mergeAppSettings(obj);
+        } catch (e) {
+            // ファイルが無ければデフォルト返却
+            return defaultAppSettings();
+        }
+    },
+
+    // _app_settings.json 保存
+    async saveAppSettings(settings) {
+        const g = this._g();
+        const text = JSON.stringify(settings, null, 2);
+        const bytes = new TextEncoder().encode(text);
+        await g.momo.write_bytes('_app_settings.json', bytes);
+    },
+
+    // 各曲フォルダの meta.json 読み込み
+    async loadSongMeta(songFolderName) {
+        const g = this._g();
+        try {
+            const data = await g.momo.read_json(songFolderName + '/meta.json');
+            const obj = (data && typeof data.toJs === 'function') ? data.toJs({ dict_converter: Object.fromEntries }) : data;
+            return mergeSongMeta(obj);
+        } catch (e) {
+            return null;
+        }
+    },
+
+    async saveSongMeta(songFolderName, meta) {
+        const g = this._g();
+        meta.modifiedAt = new Date().toISOString();
+        const text = JSON.stringify(meta, null, 2);
+        const bytes = new TextEncoder().encode(text);
+        await g.momo.write_bytes(songFolderName + '/meta.json', bytes);
+    },
+
+    // 曲一覧 (カラオケフォルダ直下のサブフォルダ + 各 meta.json)
+    async listSongs() {
+        const g = this._g();
+        // momo._list_children は folder_id を要求 — 現在の cd 位置の folder_id を取得する必要
+        // gdrive.folderId は v1.39 で「ユーザーが選んだフォルダ」 を保持しているが、
+        // カラオケフォルダ用には別 ID が必要。 当面 ensureKaraokeRoot 後の info() で取得。
+        const info = g.momo.info ? await g.momo.info() : null;
+        const folderId = info && info.cwd_id;
+        if (!folderId) throw new Error('listSongs: current folder id missing');
+        const itemsProxy = await g.momo._list_children(folderId);
+        const items = itemsProxy.toJs({ dict_converter: Object.fromEntries });
+        if (itemsProxy.destroy) itemsProxy.destroy();
+        const songs = [];
+        for (const it of items) {
+            if (it.isFolder) {
+                const meta = await this.loadSongMeta(it.name);
+                if (meta) songs.push({ internalId: it.name, meta });
+            }
+        }
+        return songs;
+    },
+
+    // 曲フォルダ作成 (重複時 _001 サフィックス)
+    async createSongFolder(baseInternalId) {
+        const g = this._g();
+        let id = baseInternalId;
+        let suffix = 0;
+        while (true) {
+            const exists = await g.momo.exists(id);
+            if (!exists) {
+                await g.momo.mkdir(id);
+                return { internalId: id };
+            }
+            suffix++;
+            id = `${baseInternalId}_${String(suffix).padStart(3, '0')}`;
+            if (suffix > 999) throw new Error('too many duplicates');
+        }
+    },
+
+    // 任意ファイルの読み書き (song フォルダ内)
+    async readFile(songFolderName, fileName) {
+        const g = this._g();
+        const bytes = await g.momo.read_bytes(songFolderName + '/' + fileName);
+        // bytes は PyProxy(memoryview) 想定。 JS Uint8Array に変換
+        let buf;
+        if (bytes && typeof bytes.toJs === 'function') {
+            buf = bytes.toJs();
+            if (bytes.destroy) bytes.destroy();
+        } else {
+            buf = bytes;
+        }
+        return new Blob([buf]);
+    },
+    async writeFile(songFolderName, fileName, blob) {
+        const g = this._g();
+        const ab = await blob.arrayBuffer();
+        await g.momo.write_bytes(songFolderName + '/' + fileName, new Uint8Array(ab));
+    },
+    async deleteFile(songFolderName, fileName) {
+        const g = this._g();
+        await g.momo.delete(songFolderName + '/' + fileName);
+    },
+    async listFiles(songFolderName) {
+        const g = this._g();
+        // song フォルダ ID を取得して _list_children
+        // 簡易: ls 相当が momo に無いので、 cd して info を取って戻す
+        // (要 momo_gdrive.py 側の API 確認、 当面は scan で対応)
+        try {
+            const itemsProxy = await g.momo._list_children_by_name(songFolderName);
+            const items = itemsProxy.toJs({ dict_converter: Object.fromEntries });
+            if (itemsProxy.destroy) itemsProxy.destroy();
+            return items.filter(it => !it.isFolder).map(it => it.name);
+        } catch (e) {
+            console.warn('[Drive] listFiles fallback:', e);
+            return [];
+        }
     },
 };
 
@@ -359,7 +502,7 @@ global.MomoMeta = {
 
     // storage providers (Phase 2 抽象化はスキップ、 if 分岐で直接呼ぶ)
     Local,
-    Drive: DriveStub,
+    Drive,  // v2.08: stub から本実装に置き換え
 
     // v2.03: IndexedDB によるハンドル永続化 + 権限確認
     saveHandle,

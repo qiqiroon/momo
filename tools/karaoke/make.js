@@ -18,6 +18,16 @@
 //   - 歌詞ファイル選択 = 同様、 lrc 選択 → 同フォルダの同名 mp3 を自動セット (音楽欄が空時)
 //   - iOS Safari (showDirectoryPicker 非対応) は multiple 選択にフォールバック (v2.01 動作)
 //
+// v2.08 (2026-05-24): カラオケフォルダの Drive 対応 (v200改造.txt 1)
+//   - 「接続/変更」 ボタンを押すと「ローカル / Google Drive」 選択モーダル
+//   - Drive 選択 → 既存 v1.39 の gdrive.connect() で OAuth →
+//     ensureKaraokeRoot で `momo-works/karaoke` を navigate (なければ mkdir)
+//   - ローカル選択 → 従来通り showDirectoryPicker
+//   - 永続化: provider 種別 (local/drive) を localStorage に保存
+//   - 既存 v1.39 の gdrive オブジェクトは index.html IIFE 末尾で window.gdrive に
+//     expose されている (v2.08 で追加、 中身は無変更)
+//   - 音楽ライブラリの Drive 対応 / メイクタブの Drive 連携完成は v2.09 以降
+//
 // v2.07 (2026-05-24): 重複時「上書き」 処理の本実装 (仕様書 §4.6)
 //   - α 一致時の 3 択モーダル「上書き」 を選んだ場合の動作:
 //     既存曲フォルダを再利用し、 mp3 / lrc / voicecut*.wav を新ファイルに差し替え。
@@ -98,8 +108,12 @@ function setStatus(msg, color) {
 
 function updateFolderStatus() {
     if (!folderStatusEl) return;
-    if (mkState.karaokeFolderHandle) {
-        folderStatusEl.textContent = '✅ ' + mkState.karaokeFolderHandle.name + ' (ローカル)';
+    if (mkState.karaokeFolderProvider === 'drive') {
+        folderStatusEl.textContent = '☁ Google Drive (' + META.Drive.KARAOKE_ROOT_PATH + ')';
+        folderStatusEl.style.color = 'var(--orange-light)';
+        if (btnConnectFolder) btnConnectFolder.textContent = '変更';
+    } else if (mkState.karaokeFolderHandle) {
+        folderStatusEl.textContent = '📁 ' + mkState.karaokeFolderHandle.name + ' (ローカル)';
         folderStatusEl.style.color = 'var(--orange-light)';
         if (btnConnectFolder) btnConnectFolder.textContent = '変更';
     } else {
@@ -133,31 +147,104 @@ function clearPanel() {
     setStatus('');
 }
 
-// ─────────── カラオケフォルダ接続 ───────────
+// ─────────── カラオケフォルダ接続 (v2.08: ローカル / Drive 選択) ───────────
 async function onConnectFolder() {
+    // ローカル / Drive 選択モーダル
+    const provider = await showProviderPicker('カラオケフォルダのストレージを選択');
+    if (provider === 'cancel') return;
+
+    if (provider === 'local') {
+        await _connectKaraokeFolderLocal();
+    } else if (provider === 'drive') {
+        await _connectKaraokeFolderDrive();
+    }
+}
+
+async function _connectKaraokeFolderLocal() {
     if (!META.Local.isSupported()) {
-        alert('このブラウザはローカルフォルダに対応していません (iOS Safari 等)。\nGoogle Drive 経由のカラオケフォルダ接続は Phase 4b で実装予定です。');
+        alert('このブラウザはローカルフォルダに対応していません (iOS Safari 等)。\nGoogle Drive を選択してください。');
         return;
     }
     try {
         const handle = await META.Local.pickKaraokeFolder();
         mkState.karaokeFolderHandle = handle;
         mkState.karaokeFolderProvider = 'local';
-        // v2.03: IndexedDB に保存して次回起動時に自動復元
         try { await META.saveHandle('karaokeFolder', handle); } catch (e) { console.warn('[make] saveHandle karaokeFolder fail:', e); }
-        // 初回接続なら _app_settings.json をデフォルトで作成 (なければ)
+        try { localStorage.setItem('momoKaraokeProvider', 'local'); } catch (e) {}
         try {
             await META.Local.loadAppSettings(handle);
         } catch (e) {
             await META.Local.saveAppSettings(handle, META.defaultAppSettings());
         }
         updateFolderStatus();
-        console.log('[make] カラオケフォルダ接続:', handle.name);
+        console.log('[make] カラオケフォルダ接続 (ローカル):', handle.name);
     } catch (e) {
         if (e.name === 'AbortError') return;
         console.error('[make] カラオケフォルダ接続失敗:', e);
         alert('カラオケフォルダ接続失敗: ' + e.message);
     }
+}
+
+async function _connectKaraokeFolderDrive() {
+    if (!META.Drive.isSupported()) {
+        alert('Drive 連携が利用できません (gdrive オブジェクト未公開、 v1.39 IIFE 未実行)。');
+        return;
+    }
+    try {
+        setStatus('Drive 接続中…', 'var(--orange-light)');
+        await META.Drive.connect();
+        setStatus('カラオケルートフォルダ確認中…', 'var(--orange-light)');
+        const rootPath = await META.Drive.ensureKaraokeRoot();
+        mkState.karaokeFolderHandle = null;  // Drive ではハンドル不要
+        mkState.karaokeFolderProvider = 'drive';
+        try { localStorage.setItem('momoKaraokeProvider', 'drive'); } catch (e) {}
+        // 初回接続なら _app_settings.json をデフォルトで作成
+        try {
+            await META.Drive.loadAppSettings();
+        } catch (e) {
+            await META.Drive.saveAppSettings(META.defaultAppSettings());
+        }
+        updateFolderStatus();
+        setStatus('✅ Drive 接続完了 (' + rootPath + ')', 'var(--orange-light)');
+        console.log('[make] カラオケフォルダ接続 (Drive):', rootPath);
+    } catch (e) {
+        console.error('[make] Drive 接続失敗:', e);
+        alert('Drive 接続失敗: ' + (e.message || e));
+        setStatus('❌ Drive 接続失敗', '#f87171');
+    }
+}
+
+// v2.08: ローカル / Drive 選択モーダル
+// returns Promise<'local' | 'drive' | 'cancel'>
+function showProviderPicker(title) {
+    return new Promise((resolve) => {
+        const modal = $('make-provider-modal');
+        const titleEl = $('make-provider-title');
+        const btnLocal = $('make-provider-local');
+        const btnDrive = $('make-provider-drive');
+        const btnCancel = $('make-provider-cancel');
+        if (!modal || !btnLocal || !btnDrive || !btnCancel) {
+            // fallback: confirm
+            const isDrive = confirm((title || 'ストレージ選択') + '\n\nOK = Google Drive、 キャンセル = ローカル');
+            resolve(isDrive ? 'drive' : 'local');
+            return;
+        }
+        if (titleEl) titleEl.textContent = title || 'ストレージを選択';
+        modal.style.display = 'flex';
+        const close = (result) => {
+            modal.style.display = 'none';
+            btnLocal.removeEventListener('click', onL);
+            btnDrive.removeEventListener('click', onD);
+            btnCancel.removeEventListener('click', onC);
+            resolve(result);
+        };
+        const onL = () => close('local');
+        const onD = () => close('drive');
+        const onC = () => close('cancel');
+        btnLocal.addEventListener('click', onL);
+        btnDrive.addEventListener('click', onD);
+        btnCancel.addEventListener('click', onC);
+    });
 }
 
 // v2.03: 音楽ライブラリ接続/変更
@@ -183,19 +270,30 @@ async function onConnectLibrary() {
     }
 }
 
-// v2.03: 起動時の自動復元
+// v2.03: 起動時の自動復元 (v2.08: Drive provider 復元も対応)
 async function tryRestoreHandles() {
-    // カラオケフォルダ
+    // v2.08: provider 種別を localStorage から取得
+    const provider = (() => { try { return localStorage.getItem('momoKaraokeProvider'); } catch (e) { return null; } })();
+    if (provider === 'drive') {
+        // Drive 接続は初回ロード時の自動接続 (OAuth) を避けて、 status だけ「前回: Drive」 表示
+        if (folderStatusEl) {
+            folderStatusEl.textContent = '☁ 前回: Google Drive (再接続が必要)';
+            folderStatusEl.style.color = 'var(--text-muted)';
+        }
+        mkState._pendingDriveKaraoke = true;
+        // 注意: 自動接続しない。 ユーザーが「変更」 ボタンを押した時に再接続
+    }
+    // カラオケフォルダ (ローカル)
     try {
         const handle = await META.loadHandle('karaokeFolder');
         if (handle && typeof handle.queryPermission === 'function') {
             const perm = await handle.queryPermission({ mode: 'readwrite' });
-            if (perm === 'granted') {
+            if (perm === 'granted' && provider !== 'drive') {
                 mkState.karaokeFolderHandle = handle;
                 mkState.karaokeFolderProvider = 'local';
                 updateFolderStatus();
                 console.log('[make] カラオケフォルダ自動復元:', handle.name);
-            } else {
+            } else if (provider !== 'drive') {
                 console.log('[make] カラオケフォルダ復元保留 (権限要再認証):', handle.name);
                 // 状態だけ「前回: <名前>」 表示してユーザーに再接続を促す
                 if (folderStatusEl) {

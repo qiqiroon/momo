@@ -4,7 +4,7 @@
 MOMO Project - Google Drive 共通ライブラリ
 momo/lib/momo_drive/momo_gdrive.py
 
-Version : v1.06
+Version : v1.07
 Requires: Pyodide 0.2x+ (js モジュール経由で Google Drive API v3 を呼び出す)
 Scope   : https://www.googleapis.com/auth/drive.file
 """
@@ -239,11 +239,15 @@ class MomoGDrive:
         return data.decode(encoding)
 
     async def read_bytes(self, path: str) -> bytes:
-        """ファイルをバイト列で返す。"""
+        """ファイルをバイト列で返す。
+        v1.07: _fetch の Content-Type ベース自動 JSON parse を回避するため
+               raw_response=True を渡す。 JSON ファイル (meta.json 等) を read_bytes
+               すると _fetch が dict 化してしまい、 bytes(dict) で TypeError になっていた。
+        """
         file_id = await self.resolve_path(path)
         url     = f"{DRIVE_API}/files/{file_id}?alt=media"
-        resp    = await self._fetch(url)
-        return bytes(resp)
+        data    = await self._fetch(url, raw_response=True)
+        return data
 
     async def read_json(self, path: str, encoding: str = "utf-8") -> Any:
         """JSON ファイルを読み込んでオブジェクトで返す。"""
@@ -580,16 +584,20 @@ class MomoGDrive:
 
     async def _fetch(
         self,
-        url     : str,
-        method  : str = "GET",
-        body    : bytes | str | None = None,
-        headers : dict | None = None,
-        raw_body: bool = False,
+        url         : str,
+        method      : str = "GET",
+        body        : bytes | str | None = None,
+        headers     : dict | None = None,
+        raw_body    : bool = False,
+        raw_response: bool = False,
     ) -> Any:
         """
         js.fetch() 経由で Drive API を呼び出す薄いラッパー。
         JSON レスポンスはデコードして dict で返す。
         バイナリ（alt=media）は bytes で返す。
+        v1.07: raw_response=True で Content-Type 判定をスキップ、 必ず bytes を返す。
+               JSON ファイル本体を read_bytes するケースで dict 化されないよう、
+               read_bytes 側から指定する。
         """
         js = _js()
 
@@ -621,6 +629,11 @@ class MomoGDrive:
             raise IOError(
                 f"Drive API エラー {resp.status}: {text}"
             )
+
+        # v1.07: raw_response=True なら Content-Type 関係なく ArrayBuffer → bytes
+        if raw_response:
+            buf = await resp.arrayBuffer()
+            return bytes(js.Uint8Array.new(buf).to_py())
 
         # alt=media の場合は ArrayBuffer → bytes
         content_type = str(resp.headers.get("Content-Type") or "")

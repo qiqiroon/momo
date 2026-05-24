@@ -202,6 +202,19 @@
                   対策 (meta.js のみ):
                     - ensureKaraokeRoot を split('/') で階層分割し、 各階層ごとに
                       exists → mkdir → refresh → cd の順で確実に作成・移動
+       v2.18 - meta.json 読込失敗 (重複判定 0 件問題) の真因修正 — 2026-05-24
+                  v2.17 ログで真因確定: song フォルダは 2 件正しく見えるが
+                  「meta.json 読込失敗」 で有効 0 件 → 重複判定不能になっていた。
+                  真因: momo_gdrive.py の _fetch が response の Content-Type を見て
+                  application/json なら自動 JSON parse する仕様。 read_bytes で
+                  meta.json を取得すると _fetch が dict を返し、 bytes(dict) で
+                  TypeError → loadSongMeta の catch で silent fail。
+                  対策:
+                    - momo_gdrive.py v1.07: _fetch に raw_response=True オプション
+                      追加 (Content-Type 関係なく ArrayBuffer→bytes 強制)。 read_bytes
+                      は raw_response=True で呼ぶ
+                    - meta.js loadSongMeta の catch を console.warn でログ出力に変更
+                      (silent fail を再発させない)
        v2.17 - Drive listSongs に詳細ログ追加 (重複判定 0 件問題の切り分け) — 2026-05-24
                   v2.16 で「同名同音源を 2 回連続登録しても既存曲列挙: 0 件」 と
                   なる問題を切り分けるため、 listSongs に rootId と _list_children の
@@ -1259,7 +1272,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.17</span>
+                <span class="version-tag" id="version-tag">v2.18</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1804,7 +1817,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.17',
+        version: document.getElementById('version-tag')?.textContent || 'v2.18',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -1910,7 +1923,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.17';
+const APP_VERSION = 'v2.18';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {

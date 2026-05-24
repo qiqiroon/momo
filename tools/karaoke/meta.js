@@ -373,6 +373,11 @@ const Drive = {
             const t = await this._readTextAbs(this._filePath(songFolderName, 'meta.json'));
             return mergeSongMeta(JSON.parse(t));
         } catch (e) {
+            // v2.18: silent fail を解消、 真因 (FileNotFound / parse error / API エラー等)
+            //   を必ずログに残す。 listSongs 側のラッパでは「読み込み失敗」 と呼んでいた
+            //   が、 失敗理由が見えなかったため重複判定不能の真因 (Content-Type 自動 JSON
+            //   parse による bytes(dict) TypeError) の発見が遅れた。
+            console.warn('[Drive] loadSongMeta fail for', songFolderName, ':', e && (e.message || e));
             return null;
         }
     },

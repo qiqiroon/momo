@@ -202,6 +202,16 @@
                   対策 (meta.js のみ):
                     - ensureKaraokeRoot を split('/') で階層分割し、 各階層ごとに
                       exists → mkdir → refresh → cd の順で確実に作成・移動
+       v2.21 - Phase 5b: ボイスカット 0/50/100% トグル (voicecut*.wav 読込型) — 2026-05-24
+                  仕様書 §5.3。 メイクモードで取り込み時に生成した voicecut100.wav /
+                  voicecut50.wav を読み込んで、 0/50/100% トグルで bgmTransport の
+                  ソースを切替。 既存 v1.39 のリアルタイム vocalCut (generateVocalCutPcm /
+                  vcRecord チェックボックス) は当面温存 (Phase 5c で整理予定)。
+                    - #karaoke-vc-toggle-row: 3 ボタン (0% / 50% / 100%) + ヒントテキスト
+                    - voicecutAvailable=false の曲では 50/100 グレーアウト
+                    - 切替時: 現在時刻 currentTime を退避 → bgmTransport.loadFile(blob) →
+                      seekTo で位置復元 → 再生中なら再開
+                    - 曲ロード時に voicecut*.wav を並列読込してキャッシュ (初回切替を高速化)
        v2.20 - Phase 5a 着手: カラオケモードに曲選択モーダル + 上部表示 — 2026-05-24
                   仕様書 §5.2 + §8.1。 カラオケフォルダ (Local/Drive) から登録済み曲を
                   列挙、 アーティスト見出し + 検索 (大小無視 + ひらがな↔カタカナ統一) で
@@ -1288,7 +1298,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.20</span>
+                <span class="version-tag" id="version-tag">v2.21</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1552,6 +1562,17 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <span style="color:var(--orange-light); font-size:18px;">♪</span>
             <span id="karaoke-current-song-label" style="flex:1; min-width:160px; color:var(--text); font-weight:600; font-size:14px;">曲を選択してください</span>
             <button class="momo-btn-small" id="karaoke-btn-pick-song">曲選択</button>
+        </div>
+
+        <!-- v2.21 (Phase 5b): ボイスカット 0/50/100% トグル (仕様書 §5.3) -->
+        <div id="karaoke-vc-toggle-row" style="display:flex; align-items:center; gap:10px; padding:10px 14px; background:var(--surface); border:1px solid var(--border); border-radius:10px; margin-bottom:14px; flex-wrap:wrap;">
+            <span style="color:var(--text-muted); font-size:12px; font-weight:600; margin-right:6px;">ボイスカット</span>
+            <div id="karaoke-vc-toggle" role="radiogroup" style="display:inline-flex; gap:4px; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:3px;">
+                <button class="karaoke-vc-btn active" data-vc="0" style="padding:6px 14px; font-size:12px; font-weight:600; border:none; border-radius:6px; background:var(--orange); color:#000; cursor:pointer;">0%</button>
+                <button class="karaoke-vc-btn" data-vc="50" style="padding:6px 14px; font-size:12px; font-weight:600; border:none; border-radius:6px; background:transparent; color:var(--text); cursor:pointer;">50%</button>
+                <button class="karaoke-vc-btn" data-vc="100" style="padding:6px 14px; font-size:12px; font-weight:600; border:none; border-radius:6px; background:transparent; color:var(--text); cursor:pointer;">100%</button>
+            </div>
+            <span id="karaoke-vc-hint" style="flex:1; min-width:140px; color:var(--text-muted); font-size:11px;">取り込み時に生成した voicecut.wav に切替</span>
         </div>
 
         <!-- v2.20: 曲選択モーダル (仕様書 §8.1) -->
@@ -1853,7 +1874,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.20',
+        version: document.getElementById('version-tag')?.textContent || 'v2.21',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -1959,7 +1980,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.20';
+const APP_VERSION = 'v2.21';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -6246,9 +6267,15 @@ balanceSlider.addEventListener('input', applyBalance);
 // カラオケフォルダ (Local/Drive) から登録済み曲を列挙して選択 → 既存 selectEntry に流す。
 // 録音/再生コア (state, selectEntry, parseLRC, bgmTransport, btnPlay 等) は触らず、
 // 「選んだ曲を entry オブジェクトに変換して selectEntry(entry) を呼ぶ」 ラッパに徹する。
+// v2.21 (Phase 5b): voicecut*.wav 読込型に切替 (0/50/100% トグル)。
 const karaokeUiState = {
     allSongs: [],      // [{internalId, meta, handle?}]
     hasLoaded: false,
+    // v2.21: 現在ロード中の曲の 0/50/100% 別 Blob と現在値
+    currentSong: null,            // 選択中の song オブジェクト
+    vcLevel: 0,                   // 0 / 50 / 100
+    vcBlobs: { 0: null, 50: null, 100: null },  // 各レベルのソース Blob
+    vcAvailable: false,           // voicecutAvailable (50/100 が使えるか)
 };
 
 // 検索用正規化 (大小無視 + ひらがな→カタカナ統一、 仕様書 §8.1)
@@ -6298,16 +6325,16 @@ async function _karaokeListFiles(song) {
 }
 
 // 選択された曲を entry オブジェクトに変換して selectEntry に流し込む
+// v2.21: voicecut*.wav も同時に読み込んでキャッシュ (0/50/100% トグル切替で使う)
 async function _karaokeLoadSongEntry(song) {
-    const META = window.MomoMeta;
     setStatus('曲データを読み込み中…', 'ok');
     try {
-        // フォルダ内ファイル一覧から mp3/lrc を特定
         const files = await _karaokeListFiles(song);
         const audioName = files.find(n => /\.(mp3|m4a|aac|flac|ogg|wav)$/i.test(n) && !/^voicecut/i.test(n));
         const lrcName = files.find(n => /\.lrc$/i.test(n));
+        const vc100Name = files.find(n => /^voicecut100\.wav$/i.test(n));
+        const vc50Name = files.find(n => /^voicecut50\.wav$/i.test(n));
         if (!audioName) {
-            // 音楽ファイルが無い (BGM なし) — Phase 5e で対応、 当面は警告
             setStatus('音楽ファイルが見つかりません (BGM なし対応は Phase 5e)', 'err');
             return false;
         }
@@ -6315,6 +6342,31 @@ async function _karaokeLoadSongEntry(song) {
         const audioFile = (audioBlob instanceof File)
             ? audioBlob
             : new File([audioBlob], audioName, { type: audioBlob.type || 'audio/mpeg' });
+
+        // voicecut*.wav 並列読込 (meta.voicecutAvailable が true でかつファイルが存在する場合のみ)
+        const vcAvailable = !!song.meta.voicecutAvailable && !!vc100Name;
+        let vc100File = null, vc50File = null;
+        if (vcAvailable) {
+            try {
+                setStatus('ボイスカット wav 読み込み中…', 'ok');
+                const [vc100Blob, vc50Blob] = await Promise.all([
+                    _karaokeReadFile(song, vc100Name),
+                    vc50Name ? _karaokeReadFile(song, vc50Name) : Promise.resolve(null),
+                ]);
+                vc100File = (vc100Blob instanceof File)
+                    ? vc100Blob
+                    : new File([vc100Blob], vc100Name, { type: 'audio/wav' });
+                if (vc50Blob) {
+                    vc50File = (vc50Blob instanceof File)
+                        ? vc50Blob
+                        : new File([vc50Blob], vc50Name, { type: 'audio/wav' });
+                }
+                console.log('[karaoke] voicecut wav 読込完了: 100=' + vc100File.size + ', 50=' + (vc50File ? vc50File.size : 'なし'));
+            } catch (e) {
+                console.warn('[karaoke] voicecut wav 読込失敗:', e);
+            }
+        }
+
         let lyricsLines = [];
         if (lrcName) {
             try {
@@ -6325,18 +6377,25 @@ async function _karaokeLoadSongEntry(song) {
                 console.warn('[karaoke] lrc 読込失敗:', e);
             }
         }
-        // 既存の selectEntry が要求する entry 形式 (id / title / artist / audioFile / lyricsLines)
+
         const entry = {
             id: song.internalId,
             title: song.meta.title || '(無題)',
             artist: song.meta.artist || '',
             audioFile,
             lyricsLines,
-            takes: null,  // selectEntry 内で IDB から復元される
-            _karaokeSource: { internalId: song.internalId },  // Phase 5b 以降の voicecut wav 切替で使う
+            takes: null,
+            _karaokeSource: { internalId: song.internalId },
         };
         await selectEntry(entry);
-        // 上部表示更新 + 永続化
+
+        // v2.21: トグル状態リセット + Blob キャッシュ更新
+        karaokeUiState.currentSong = song;
+        karaokeUiState.vcLevel = 0;
+        karaokeUiState.vcBlobs = { 0: audioFile, 50: vc50File, 100: vc100File };
+        karaokeUiState.vcAvailable = vcAvailable;
+        _updateKaraokeVcToggleUI();
+
         _updateKaraokeCurrentSongLabel(song);
         _karaokeSaveLastSelected(song.internalId);
         return true;
@@ -6344,6 +6403,67 @@ async function _karaokeLoadSongEntry(song) {
         console.error('[karaoke] loadSongEntry 失敗:', e);
         setStatus('曲読込失敗: ' + (e.message || e), 'err');
         return false;
+    }
+}
+
+// v2.21: トグルボタンの活性/グレーアウト状態を更新
+function _updateKaraokeVcToggleUI() {
+    const btns = document.querySelectorAll('.karaoke-vc-btn');
+    const hintEl = document.getElementById('karaoke-vc-hint');
+    btns.forEach(btn => {
+        const lvl = Number(btn.dataset.vc);
+        const isActive = (lvl === karaokeUiState.vcLevel);
+        // 50/100 は voicecutAvailable=true の時のみ有効
+        const enabled = (lvl === 0) || karaokeUiState.vcAvailable;
+        btn.disabled = !enabled;
+        btn.style.opacity = enabled ? '1' : '0.35';
+        btn.style.cursor = enabled ? 'pointer' : 'not-allowed';
+        btn.style.background = isActive ? 'var(--orange)' : 'transparent';
+        btn.style.color = isActive ? '#000' : 'var(--text)';
+    });
+    if (hintEl) {
+        if (!karaokeUiState.currentSong) {
+            hintEl.textContent = '曲を選択するとトグル可能になります';
+        } else if (!karaokeUiState.vcAvailable) {
+            hintEl.textContent = 'この曲はボイスカット未生成 (モノラル / 疑似モノラル等)';
+        } else {
+            hintEl.textContent = '0 = 元音源 / 50 = ボーカル -12dB / 100 = フルカット';
+        }
+    }
+}
+
+// v2.21: トグル切替時の Blob 差し替え
+//   再生中の現在位置を覚えて、 ロード後 seek で復元する。 既存の bgmTransport は
+//   PC: AudioWorklet (loadFile で decodeAudioData)、 iOS: HTMLAudioElement (loadFile で
+//   src 更新) のどちらも currentTime 持つので共通の seek 復元で OK。
+async function _karaokeSetVcLevel(level) {
+    const blob = karaokeUiState.vcBlobs[level];
+    if (!blob) {
+        setStatus('レベル ' + level + '% の音源がありません', 'err');
+        return;
+    }
+    const wasPlaying = !!(window.bgmTransport && !bgmTransport.paused);
+    const prevTime = (window.bgmTransport && typeof bgmTransport.currentTime === 'number') ? bgmTransport.currentTime : 0;
+    try {
+        if (wasPlaying && !bgmTransport.paused) {
+            try { bgmTransport.pause(); } catch (e) {}
+        }
+        setStatus('ボイスカット切替: ' + level + '% …', 'ok');
+        await bgmTransport.loadFile(blob);
+        // 位置復元
+        try {
+            if (typeof bgmTransport.seekTo === 'function') bgmTransport.seekTo(prevTime);
+            else bgmTransport.currentTime = prevTime;
+        } catch (e) { console.warn('[karaoke] seek 復元失敗:', e); }
+        karaokeUiState.vcLevel = level;
+        _updateKaraokeVcToggleUI();
+        setStatus('ボイスカット: ' + level + '%', 'ok');
+        if (wasPlaying) {
+            try { await bgmTransport.play(); } catch (e) { console.warn('[karaoke] 再生再開失敗:', e); }
+        }
+    } catch (e) {
+        console.error('[karaoke] vc 切替失敗:', e);
+        setStatus('ボイスカット切替失敗: ' + (e.message || e), 'err');
     }
 }
 
@@ -6515,6 +6635,16 @@ async function openKaraokeSongPicker() {
     if (searchEl) {
         searchEl.addEventListener('input', () => _renderKaraokeSongPickerList(searchEl.value));
     }
+    // v2.21: 0/50/100% トグルボタン
+    document.querySelectorAll('.karaoke-vc-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (btn.disabled) return;
+            const lvl = Number(btn.dataset.vc);
+            if (lvl === karaokeUiState.vcLevel) return;
+            _karaokeSetVcLevel(lvl);
+        });
+    });
+    _updateKaraokeVcToggleUI();  // 初期状態 (currentSong なし) で 50/100 グレーアウト
 })();
 
 // v2.08: 既存 gdrive オブジェクトを window グローバルに expose

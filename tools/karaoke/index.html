@@ -202,6 +202,16 @@
                   対策 (meta.js のみ):
                     - ensureKaraokeRoot を split('/') で階層分割し、 各階層ごとに
                       exists → mkdir → refresh → cd の順で確実に作成・移動
+       v2.25 - DEBUG.* を Console DevTools にもミラー (マイクテスト不動の真因切り分け用) — 2026-05-24
+                  v2.24 動作確認で「PC マイクテスト反応しない」 報告が継続。 ログを
+                  console.log でしか追えていない一方、 v1.39 startMicTest 内の進捗
+                  メッセージは DEBUG.info で書かれていて Console DevTools には出ない
+                  仕様だった (デバッグパネル #debugLog 専用)。
+                  対策: ネイティブ console 関数を hook 前に _natConsole として保存、
+                  DEBUG.add 内で直接呼出時のみ _natConsole.log/warn/error に [LEVEL]
+                  付きで出力。 console.log → DEBUG.* hook 経由は _fromHook で二重
+                  出力を防ぐ。 これで [INFO] Mic test: starting / [ERR] getUserMedia
+                  failed 等が Console に流れて真因が見えるようになる
        v2.24 - iPhone OAuth 2 回押下回避 (Pyodide 事前ロード) + マイクゲイン永続化 — 2026-05-24
                   ユーザー報告:
                     (1) iPhone でカラオケフォルダ「変更」 → Drive 選択時に
@@ -1337,7 +1347,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.24</span>
+                <span class="version-tag" id="version-tag">v2.25</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1866,11 +1876,20 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
 // ============== DEBUG LOGGER (iOS の F12 代替) ==============
 // 画面下部のオーバーレイにログを表示。console.log/warn/error と
 // unhandledrejection をフックして全部画面で見える形に。
+// v2.25: ネイティブ console 関数を保存 (hook 前)。 DEBUG.* メッセージを Console
+//   DevTools にも出すために使う (デバッグパネルが見えない環境でも見られるよう)。
+const _natConsole = {
+    log:   console.log.bind(console),
+    warn:  console.warn.bind(console),
+    error: console.error.bind(console),
+    info:  console.info.bind(console),
+};
+
 const DEBUG = (function(){
     const out = document.getElementById('debugLog');
     const lines = [];
     function fmt(t){ return t.toTimeString().slice(0,8) + '.' + String(t.getMilliseconds()).padStart(3,'0'); }
-    function add(level, args){
+    function add(level, args, fromHook){
         const t = new Date();
         let msg = '';
         try {
@@ -1889,18 +1908,27 @@ const DEBUG = (function(){
             div.className = 'dl-entry ' + level;
             div.innerHTML = '<span class="dl-time">' + fmt(t) + '</span>' + msg.replace(/[<>&]/g, c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])).replace(/\n/g,'<br>');
             out.appendChild(div);
-            // auto-scroll
             out.scrollTop = out.scrollHeight;
-            // limit DOM children
             while(out.childNodes.length > 200) out.removeChild(out.firstChild);
+        }
+        // v2.25: 直接 DEBUG.* 呼出時のみ ネイティブ console にも出す。 hook 経由
+        //   (console.log → DEBUG.info) は二重出力になるので除外。
+        if (!fromHook) {
+            try {
+                const fn = (level === 'err') ? _natConsole.error
+                         : (level === 'warn') ? _natConsole.warn
+                         : _natConsole.log;
+                fn.apply(console, ['[' + level.toUpperCase() + ']'].concat(args));
+            } catch (e) {}
         }
     }
     return {
-        info(...a){ add('info', a); },
-        log (...a){ add('info', a); },
-        ok  (...a){ add('ok',   a); },
-        warn(...a){ add('warn', a); },
-        err (...a){ add('err',  a); },
+        info(...a){ add('info', a, false); },
+        log (...a){ add('info', a, false); },
+        ok  (...a){ add('ok',   a, false); },
+        warn(...a){ add('warn', a, false); },
+        err (...a){ add('err',  a, false); },
+        _fromHook(level, args){ add(level, args, true); },  // console hook 用 (二重防止)
         clear(){
             lines.length = 0;
             if(out) out.innerHTML = '';
@@ -1919,11 +1947,12 @@ const DEBUG = (function(){
     };
 })();
 
-// Hook console
+// Hook console — v2.25: DEBUG._fromHook で二重出力を防ぐ
 ['log','warn','error','info'].forEach(method => {
-    const orig = console[method];
+    const orig = _natConsole[method] || console[method];
+    const level = method === 'error' ? 'err' : method === 'warn' ? 'warn' : 'info';
     console[method] = function(...args){
-        try { DEBUG[method === 'error' ? 'err' : method === 'warn' ? 'warn' : 'info'](...args); } catch(e){}
+        try { DEBUG._fromHook(level, args); } catch(e){}
         try { orig.apply(console, args); } catch(e){}
     };
 });
@@ -1934,7 +1963,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.24',
+        version: document.getElementById('version-tag')?.textContent || 'v2.25',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2040,7 +2069,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.24';
+const APP_VERSION = 'v2.25';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {

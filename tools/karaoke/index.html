@@ -193,6 +193,21 @@
                   - iOS Safari (showDirectoryPicker 非対応) は v2.01 の multiple 選択方式に
                     フォールバック (動作は維持)
                   - ファイル選択モーダル (#make-file-picker-modal) を新規追加
+       v2.10 - Drive 登録時の listSongs エラー修正 + PyProxy 変換徹底 — 2026-05-24
+                  ユーザー報告: v2.09 で Drive 接続後に登録すると
+                  「登録失敗: listSongs: current folder id missing」 エラー。
+                  原因:
+                    1) momo_gdrive.py の info() 戻り値フィールド名が 'current_id' なのに
+                       'cwd_id' を見ていた (v2.08 で誤実装)
+                    2) Python dict は PyProxy で返るため toJs() 変換が必要だったが
+                       直接 .cwd_id にアクセスして undefined になっていた
+                  対策:
+                    - MomoMeta.Drive.listSongs: info() の戻り PyProxy を toJs で変換 +
+                      フィールド名を current_id に修正、 エラー時に info 内容をログ表示
+                    - loadAppSettings / loadSongMeta: read_json (PyProxy 不安定) を
+                      read_text + JSON.parse に置き換え
+                    - listFiles: 存在しない _list_children_by_name の代わりに
+                      cd → info → _list_children → cd .. のパターンで実装
        v2.09 - メイクタブ登録/上書き処理の Drive 対応 — 2026-05-24
                   ユーザー報告: カラオケフォルダ Drive 選択後に mp3 登録すると
                   「先にカラオケフォルダを接続してください」 のエラー。
@@ -1158,7 +1173,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.09</span>
+                <span class="version-tag" id="version-tag">v2.10</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1684,7 +1699,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.09',
+        version: document.getElementById('version-tag')?.textContent || 'v2.10',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -1790,7 +1805,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.09';
+const APP_VERSION = 'v2.10';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {

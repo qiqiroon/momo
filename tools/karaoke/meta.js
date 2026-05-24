@@ -279,14 +279,14 @@ const Drive = {
     },
 
     // _app_settings.json 読み込み (カラオケフォルダ直下から)
+    // v2.10: read_text 経由で JSON 取得 (read_json は PyProxy/path 解釈が不安定)
     async loadAppSettings() {
         const g = this._g();
         try {
-            const data = await g.momo.read_json('_app_settings.json');
-            const obj = (data && typeof data.toJs === 'function') ? data.toJs({ dict_converter: Object.fromEntries }) : data;
-            return mergeAppSettings(obj);
+            const text = await g.momo.read_text('_app_settings.json');
+            const t = (text && typeof text.toString === 'function') ? text.toString() : String(text);
+            return mergeAppSettings(JSON.parse(t));
         } catch (e) {
-            // ファイルが無ければデフォルト返却
             return defaultAppSettings();
         }
     },
@@ -302,11 +302,13 @@ const Drive = {
     // 各曲フォルダの meta.json 読み込み
     async loadSongMeta(songFolderName) {
         const g = this._g();
+        // v2.10: read_text 経由で JSON 取得 (read_json が path/PyProxy 系で不安定なため)
         try {
-            const data = await g.momo.read_json(songFolderName + '/meta.json');
-            const obj = (data && typeof data.toJs === 'function') ? data.toJs({ dict_converter: Object.fromEntries }) : data;
-            return mergeSongMeta(obj);
+            const text = await g.momo.read_text(songFolderName + '/meta.json');
+            const t = (text && typeof text.toString === 'function') ? text.toString() : String(text);
+            return mergeSongMeta(JSON.parse(t));
         } catch (e) {
+            // ファイルが無いか、 read 失敗
             return null;
         }
     },
@@ -320,14 +322,36 @@ const Drive = {
     },
 
     // 曲一覧 (カラオケフォルダ直下のサブフォルダ + 各 meta.json)
+    // v2.10: フィールド名修正 (cwd_id → current_id) + PyProxy → JS 変換
     async listSongs() {
         const g = this._g();
-        // momo._list_children は folder_id を要求 — 現在の cd 位置の folder_id を取得する必要
-        // gdrive.folderId は v1.39 で「ユーザーが選んだフォルダ」 を保持しているが、
-        // カラオケフォルダ用には別 ID が必要。 当面 ensureKaraokeRoot 後の info() で取得。
-        const info = g.momo.info ? await g.momo.info() : null;
-        const folderId = info && info.cwd_id;
-        if (!folderId) throw new Error('listSongs: current folder id missing');
+        let info = null;
+        if (g.momo.info) {
+            try {
+                // momo_gdrive.py の info() は def info(self) -> dict (同期 method)
+                const ret = g.momo.info();
+                // Python dict は PyProxy で返る → toJs で JS オブジェクトへ
+                if (ret && typeof ret.toJs === 'function') {
+                    info = ret.toJs({ dict_converter: Object.fromEntries });
+                    if (typeof ret.destroy === 'function') ret.destroy();
+                } else if (ret && typeof ret.then === 'function') {
+                    // 念のため Promise の場合
+                    const awaited = await ret;
+                    info = (awaited && typeof awaited.toJs === 'function')
+                        ? awaited.toJs({ dict_converter: Object.fromEntries })
+                        : awaited;
+                } else {
+                    info = ret;
+                }
+            } catch (e) {
+                console.warn('[Drive] info() failed:', e);
+            }
+        }
+        // フィールド名は momo_gdrive.py 仕様で current_id (v2.09 で誤って cwd_id を見ていた)
+        const folderId = info && (info.current_id || info.cwd_id);
+        if (!folderId) {
+            throw new Error('listSongs: current folder id missing (info=' + JSON.stringify(info) + ')');
+        }
         const itemsProxy = await g.momo._list_children(folderId);
         const items = itemsProxy.toJs({ dict_converter: Object.fromEntries });
         if (itemsProxy.destroy) itemsProxy.destroy();
@@ -383,16 +407,43 @@ const Drive = {
     },
     async listFiles(songFolderName) {
         const g = this._g();
-        // song フォルダ ID を取得して _list_children
-        // 簡易: ls 相当が momo に無いので、 cd して info を取って戻す
-        // (要 momo_gdrive.py 側の API 確認、 当面は scan で対応)
+        // v2.10: cd で対象フォルダに移動 → info で current_id 取得 → _list_children → cd で戻る
+        // 簡素化のため: 親フォルダ ID を最初に保存 → 子フォルダへ navigate → 終わったら戻す
+        // momo_gdrive.py には ls(path) 系の直接 API が無いので往復が必要
         try {
-            const itemsProxy = await g.momo._list_children_by_name(songFolderName);
+            // 現 cwd を保存
+            const beforeProxy = g.momo.info();
+            const before = beforeProxy && beforeProxy.toJs
+                ? beforeProxy.toJs({ dict_converter: Object.fromEntries })
+                : beforeProxy;
+            if (beforeProxy && beforeProxy.destroy) beforeProxy.destroy();
+            const beforeId = before && (before.current_id || before.cwd_id);
+            const beforePath = before && before.current_path;
+
+            // 対象フォルダへ cd
+            await g.momo.cd(songFolderName);
+
+            // info で current_id 取得
+            const targetProxy = g.momo.info();
+            const target = targetProxy && targetProxy.toJs
+                ? targetProxy.toJs({ dict_converter: Object.fromEntries })
+                : targetProxy;
+            if (targetProxy && targetProxy.destroy) targetProxy.destroy();
+            const targetId = target && (target.current_id || target.cwd_id);
+
+            // _list_children で 子要素取得
+            const itemsProxy = await g.momo._list_children(targetId);
             const items = itemsProxy.toJs({ dict_converter: Object.fromEntries });
             if (itemsProxy.destroy) itemsProxy.destroy();
+
+            // 元の cwd に戻す
+            if (beforePath) {
+                try { await g.momo.cd('..'); } catch (e) { console.warn('[Drive] cd .. fail:', e); }
+            }
+
             return items.filter(it => !it.isFolder).map(it => it.name);
         } catch (e) {
-            console.warn('[Drive] listFiles fallback:', e);
+            console.warn('[Drive] listFiles failed for ' + songFolderName + ':', e);
             return [];
         }
     },

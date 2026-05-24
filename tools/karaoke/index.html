@@ -202,6 +202,22 @@
                   対策 (meta.js のみ):
                     - ensureKaraokeRoot を split('/') で階層分割し、 各階層ごとに
                       exists → mkdir → refresh → cd の順で確実に作成・移動
+       v2.24 - iPhone OAuth 2 回押下回避 (Pyodide 事前ロード) + マイクゲイン永続化 — 2026-05-24
+                  ユーザー報告:
+                    (1) iPhone でカラオケフォルダ「変更」 → Drive 選択時に
+                        1 回目は OAuth が表示されず、 2 回目で表示される
+                    (2) マイクゲインが毎回 0 dB に戻る (v1.39 から永続化されていない、
+                        ユーザーは v2.23 で気づいた)
+                  対策:
+                    (1) ストレージ選択モーダル表示と並行で gdrive.ensurePyodide() を
+                        裏で発火 (await しない)。 これで「Drive」 ボタン押下時には
+                        Pyodide ロード済み → 即 OAuth → iOS の user gesture 判定内に
+                        ポップアップが開く
+                    (2) micGainSlider の値を localStorage (momoKaraokeMicGainDb) に
+                        保存・復元 (仕様書 §9.1 micGain の暫定実装、 _app_settings.json
+                        統合は Phase 7 設定ダイアログで)
+                  問題 (3) PC マイク入力なし は Windows 側か v2.23 影響か切り分け中、
+                  ユーザー再テスト待ち
        v2.23 - Phase 5c: BGM 音量 + マイク設定モーダル化 + v1.39 UI 整理 — 2026-05-24
                   仕様書 §5.4 + §5.5 + §5.1。
                     - #karaoke-bgm-vol-row: 常時表示の BGM 音量スライダ (0〜200%、
@@ -1321,7 +1337,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.23</span>
+                <span class="version-tag" id="version-tag">v2.24</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1918,7 +1934,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.23',
+        version: document.getElementById('version-tag')?.textContent || 'v2.24',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2024,7 +2040,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.23';
+const APP_VERSION = 'v2.24';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -5907,9 +5923,23 @@ echoSlider.addEventListener('input', () => {
 });
 
 // MIC GAIN slider — applies in real time during recording or test mode
+// v2.24: localStorage 永続化 (リロードしても前回の値を復元、 仕様書 §9.1 micGain の代替)
+const MIC_GAIN_LS_KEY = 'momoKaraokeMicGainDb';
 const micGainSlider = document.getElementById('micGainSlider');
 const micGainVal = document.getElementById('micGainVal');
 if(micGainSlider){
+    // 起動時復元
+    try {
+        const saved = localStorage.getItem(MIC_GAIN_LS_KEY);
+        if (saved !== null) {
+            const v = parseFloat(saved);
+            if (isFinite(v) && v >= 0 && v <= 36) {
+                micGainSlider.value = String(v);
+                if (micGainVal) micGainVal.textContent = (v >= 0 ? '+' : '') + v.toFixed(1) + ' dB';
+            }
+        }
+    } catch (e) { console.warn('[karaoke] mic gain restore fail:', e); }
+
     micGainSlider.addEventListener('input', () => {
         const db = parseFloat(micGainSlider.value);
         if(micGainVal) micGainVal.textContent = (db >= 0 ? '+' : '') + db.toFixed(1) + ' dB';
@@ -5921,6 +5951,8 @@ if(micGainSlider){
         if(micTestState.gainNode){
             try { micTestState.gainNode.gain.setTargetAtTime(linearGain, micTestState.ctx.currentTime, 0.02); } catch(e){}
         }
+        // v2.24: 永続化
+        try { localStorage.setItem(MIC_GAIN_LS_KEY, String(db)); } catch (e) {}
     });
 }
 

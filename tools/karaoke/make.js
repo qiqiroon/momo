@@ -166,6 +166,12 @@ function clearPanel() {
 
 // ─────────── カラオケフォルダ接続 (v2.08: ローカル / Drive 選択) ───────────
 async function onConnectFolder() {
+    // v2.24: iOS Safari の OAuth ポップアップは user gesture から距離が離れると
+    // ブロックされる。 ストレージモーダル表示中に Pyodide を裏で事前ロードしておき、
+    // 「Drive 選択」 押下時には即座に OAuth を呼べる状態にする。
+    if (window.gdrive && typeof window.gdrive.ensurePyodide === 'function') {
+        window.gdrive.ensurePyodide().catch(e => console.warn('[make] preload Pyodide fail:', e));
+    }
     // ローカル / Drive 選択モーダル
     const provider = await showProviderPicker('カラオケフォルダのストレージを選択');
     if (provider === 'cancel') return;
@@ -266,6 +272,10 @@ function showProviderPicker(title) {
 
 // v2.03 + v2.14: 音楽ライブラリ接続/変更 (Local / Drive 二択)
 async function onConnectLibrary() {
+    // v2.24: iOS Safari の OAuth ブロック対策 — モーダル表示中に Pyodide 事前ロード
+    if (window.gdrive && typeof window.gdrive.ensurePyodide === 'function') {
+        window.gdrive.ensurePyodide().catch(e => console.warn('[make] preload Pyodide fail:', e));
+    }
     const provider = await showProviderPicker('音楽ライブラリのストレージを選択');
     if (provider === 'cancel') return;
     if (provider === 'local') {

@@ -18,6 +18,15 @@
 //   - 歌詞ファイル選択 = 同様、 lrc 選択 → 同フォルダの同名 mp3 を自動セット (音楽欄が空時)
 //   - iOS Safari (showDirectoryPicker 非対応) は multiple 選択にフォールバック (v2.01 動作)
 //
+// v2.07 (2026-05-24): 重複時「上書き」 処理の本実装 (仕様書 §4.6)
+//   - α 一致時の 3 択モーダル「上書き」 を選んだ場合の動作:
+//     既存曲フォルダを再利用し、 mp3 / lrc / voicecut*.wav を新ファイルに差し替え。
+//     internalId は維持、 createdAt は維持、 modifiedAt のみ更新。
+//   - 既存テイク/MIX の扱いは 「ユーザーに毎回確認」 (Q2C 採用):
+//     新規モーダル #make-overwrite-modal の 3 ボタン
+//       「保持して上書き」 / 「削除して上書き」 / 「キャンセル」
+//     既存テイク/MIX が無ければ確認スキップ (削除でも保持でも同じ)
+//
 // v2.06 (2026-05-23): voicecut カーブをさらに強化 (sqrt → 2 次関数) + デバッグログ
 //   - ユーザー指摘: v2.05 でもまだ 50% の変化が小さい
 //   - 対策: eff = 2*i - i^2 (= 1 - (1-i)^2) で intensity=0.5 → eff=0.75
@@ -661,10 +670,17 @@ async function onRegister() {
                 return;
             }
             if (choice === 'overwrite') {
-                // 上書きは Phase 4b で本実装。 現状は別バージョン扱いで続行
-                console.log('[make] 上書き選択 → 別バージョン扱いで続行 (Phase 4b で本実装予定)');
+                // v2.07: 上書き処理 本実装
+                const keepOrDelete = await showOverwriteConfirm(alphaHit);
+                if (keepOrDelete === 'cancel') {
+                    setStatus('キャンセルしました', 'var(--text-muted)');
+                    return;
+                }
+                // 上書きフローへ (新規フォルダ作成しない、 既存フォルダ再利用)
+                await performOverwrite(alphaHit, candidateMeta, mp3Buffer, mp3Hash, keepOrDelete);
+                return;  // 通常フローをスキップ
             }
-            // 'version' or 'overwrite' → 別バージョンとして登録
+            // 'version' → 別バージョンとして登録 (通常フロー続行)
         } else if (betaHit) {
             const ok = confirm(
                 '同じ音源で別名の登録があります:\n  ' +
@@ -790,6 +806,185 @@ function onCancel() {
         if (!confirm('入力をクリアしますか?')) return;
     }
     clearPanel();
+}
+
+// ─────────── v2.07: 上書きフロー (既存フォルダ再利用) ───────────
+// keepOrDelete: 'keep' (テイク/MIX 保持) | 'delete' (テイク/MIX も削除)
+async function performOverwrite(existing, candidateMeta, mp3Buffer, mp3Hash, keepOrDelete) {
+    const folder = existing.handle;
+    const internalId = existing.internalId;
+    const oldMeta = existing.meta;
+    const title = candidateMeta.title;
+    const artist = candidateMeta.artist;
+
+    btnRegister.disabled = true;
+    const oldLabel = btnRegister.textContent;
+    btnRegister.textContent = '上書き中…';
+    setStatus('既存ファイル削除中…', 'var(--orange-light)');
+
+    try {
+        // 1. 既存ファイルの削除 (mp3/lrc/voicecut*.wav は常に、 take/mix は keepOrDelete に応じて)
+        const oldFiles = await META.Local.listFiles(folder);
+        for (const name of oldFiles) {
+            const isTakeOrMix = /^take\d+\.wav$/i.test(name) || /^mix\d+\.wav$/i.test(name);
+            const isAudio = /\.(mp3|wav|m4a|aac|flac|ogg)$/i.test(name);
+            const isLrc = /\.lrc$/i.test(name);
+            const isVoicecut = /^voicecut\d+\.wav$/i.test(name);
+            const isMeta = name === 'meta.json';
+
+            let shouldDelete = false;
+            if (isMeta) shouldDelete = false;  // 後で上書き保存するので残す
+            else if (isTakeOrMix) shouldDelete = (keepOrDelete === 'delete');
+            else if (isVoicecut || isLrc) shouldDelete = true;
+            else if (isAudio && !isTakeOrMix) shouldDelete = true;  // mp3 等 (元音楽)
+            else shouldDelete = false;  // それ以外は触らない (将来拡張用ファイルなど)
+
+            if (shouldDelete) {
+                try { await META.Local.deleteFile(folder, name); console.log('[make] 削除:', name); }
+                catch (e) { console.warn('[make] 削除失敗:', name, e); }
+            }
+        }
+
+        // 2. 新規 mp3/lrc 書き込み
+        setStatus('ファイル複製中…', 'var(--orange-light)');
+        if (mkState.pendingMp3File) {
+            const safeName = META.sanitizeFileName(mkState.pendingMp3File.name);
+            await META.Local.writeFile(folder, safeName, mkState.pendingMp3File);
+        }
+        if (mkState.pendingLrcFile) {
+            const safeName = META.sanitizeFileName(mkState.pendingLrcFile.name);
+            await META.Local.writeFile(folder, safeName, mkState.pendingLrcFile);
+        }
+
+        // 3. voicecut 生成 + 保存 + 段階 A/B/C 判定 (共通関数)
+        const vc = await _runVoicecutFlow(folder, candidateMeta, mp3Buffer);
+        if (vc === 'cancel') {
+            setStatus('キャンセルしました', 'var(--text-muted)');
+            // 注意: 既にファイル削除済みなので、 部分的に破損状態。 ユーザーに警告
+            alert('上書き処理が中断されました。\n既存ファイルは削除済みです — 必要なら再度登録してください。');
+            return;
+        }
+
+        // 4. meta.json 更新 (既存メタを継承、 一部上書き)
+        setStatus('meta.json 保存中…', 'var(--orange-light)');
+        const updatedMeta = Object.assign({}, oldMeta, {
+            title,
+            artist,
+            mp3Hash,
+            voicecutAvailable: candidateMeta.voicecutAvailable,
+            voicecutEffective: candidateMeta.voicecutEffective,
+            modifiedAt: new Date().toISOString(),
+            takes: (keepOrDelete === 'keep') ? (oldMeta.takes || []) : [],
+            mixes: (keepOrDelete === 'keep') ? (oldMeta.mixes || []) : [],
+        });
+        await META.Local.saveSongMeta(folder, updatedMeta);
+
+        setStatus('✅ 上書き完了: ' + internalId, 'var(--orange-light)');
+        const takeMixSummary = (keepOrDelete === 'keep')
+            ? 'テイク/MIX を保持しました (テイク ' + (oldMeta.takes || []).length + ' 個 / MIX ' + (oldMeta.mixes || []).length + ' 個)'
+            : 'テイク/MIX も削除しました';
+        alert(
+            '上書き完了!\n' +
+            '曲: ' + title + ' - ' + artist + '\n' +
+            'フォルダ: ' + internalId + '\n' +
+            takeMixSummary + '\n' +
+            (vc.summary || '')
+        );
+        clearPanel();
+    } catch (e) {
+        console.error('[make] 上書き失敗:', e);
+        setStatus('❌ 上書き失敗: ' + e.message, '#f87171');
+        alert('上書き失敗: ' + e.message);
+    } finally {
+        btnRegister.disabled = false;
+        btnRegister.textContent = oldLabel || '登録';
+    }
+}
+
+// v2.07: voicecut 生成 + 保存 + 段階 A/B/C 判定 (登録・上書き共通)
+// 戻り値: { summary: '...' } または 'cancel'
+// candidateMeta の voicecutAvailable / voicecutEffective を書き換える
+async function _runVoicecutFlow(folder, candidateMeta, mp3Buffer) {
+    candidateMeta.voicecutAvailable = false;
+    candidateMeta.voicecutEffective = null;
+    let summary = '';
+
+    if (!mp3Buffer) return { summary: '' };
+
+    setStatus('ボイスカット生成中… (100%)', 'var(--orange-light)');
+    try {
+        const r100 = await generateVoicecutWav(mp3Buffer, 1.0);
+        if (!r100.available) {
+            const reasonText = r100.reason === 'mono'
+                ? 'モノラル音源です'
+                : '左右チャンネル差が小さい (疑似モノラル、 ' + (r100.diffDb || 0).toFixed(1) + 'dB)';
+            const ok = confirm('この曲はボイスカットできません:\n  ' + reasonText + '\n\nボイスカットなしで取り込みますか?');
+            if (!ok) return 'cancel';
+            candidateMeta.voicecutAvailable = false;
+            summary = 'ボイスカット: 未生成 (' + reasonText + ')';
+        } else {
+            setStatus('ボイスカット生成中… (50%)', 'var(--orange-light)');
+            const r50 = await generateVoicecutWav(mp3Buffer, 0.5);
+            setStatus('voicecut wav 保存中…', 'var(--orange-light)');
+            await META.Local.writeFile(folder, 'voicecut100.wav', r100.wavBlob);
+            if (r50.available) {
+                await META.Local.writeFile(folder, 'voicecut50.wav', r50.wavBlob);
+            }
+            candidateMeta.voicecutAvailable = true;
+            if (Math.abs(r100.effectiveDb) < 3) {
+                candidateMeta.voicecutEffective = 'weak';
+                summary = 'ボイスカット: 効果が弱い (' + r100.effectiveDb.toFixed(1) + 'dB)';
+            } else {
+                candidateMeta.voicecutEffective = 'good';
+                summary = 'ボイスカット: 良好 (差分 ' + r100.effectiveDb.toFixed(1) + 'dB)';
+            }
+        }
+    } catch (e) {
+        console.error('[make] voicecut 生成失敗:', e);
+        const retry = confirm('ボイスカット生成に失敗しました:\n  ' + (e.message || '不明エラー') + '\n\nvoicecut なしで取り込みますか?\n(キャンセルで全体を中止)');
+        if (!retry) return 'cancel';
+        candidateMeta.voicecutAvailable = false;
+        summary = 'ボイスカット生成失敗: ' + (e.message || '不明エラー');
+    }
+    return { summary };
+}
+
+// v2.07: 上書き時のテイク/MIX 削除確認モーダル
+//   既存テイク/MIX が無ければ 'delete' を即返却 (どちらでも結果同じ)
+//   戻り値: 'keep' | 'delete' | 'cancel'
+function showOverwriteConfirm(existing) {
+    const takeCount = (existing.meta.takes || []).length;
+    const mixCount = (existing.meta.mixes || []).length;
+    if (takeCount === 0 && mixCount === 0) {
+        return Promise.resolve('delete');  // 保持するものがないので「削除」 扱いで進める
+    }
+    return new Promise((resolve) => {
+        const modal = $('make-overwrite-modal');
+        const msgEl = $('make-overwrite-message');
+        const btnKeep = $('make-overwrite-keep');
+        const btnDelete = $('make-overwrite-delete');
+        const btnCancel = $('make-overwrite-cancel');
+        if (!modal || !btnKeep || !btnDelete || !btnCancel) {
+            const r = confirm('テイク ' + takeCount + ' 個 + MIX ' + mixCount + ' 個があります。\nOK で保持して上書き、 キャンセルで中止');
+            resolve(r ? 'keep' : 'cancel');
+            return;
+        }
+        msgEl.textContent = '上書き対象の既存曲には テイク ' + takeCount + ' 個、 MIX ' + mixCount + ' 個が登録されています。 どうしますか?';
+        modal.style.display = 'flex';
+        const close = (result) => {
+            modal.style.display = 'none';
+            btnKeep.removeEventListener('click', onK);
+            btnDelete.removeEventListener('click', onD);
+            btnCancel.removeEventListener('click', onC);
+            resolve(result);
+        };
+        const onK = () => close('keep');
+        const onD = () => close('delete');
+        const onC = () => close('cancel');
+        btnKeep.addEventListener('click', onK);
+        btnDelete.addEventListener('click', onD);
+        btnCancel.addEventListener('click', onC);
+    });
 }
 
 // ─────────── v2.01: 重複時の 3 択モーダル ───────────

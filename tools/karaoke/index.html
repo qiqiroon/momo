@@ -193,6 +193,21 @@
                   - iOS Safari (showDirectoryPicker 非対応) は v2.01 の multiple 選択方式に
                     フォールバック (動作は維持)
                   - ファイル選択モーダル (#make-file-picker-modal) を新規追加
+       v2.07 - 重複時「上書き」 処理の本実装 (仕様書 §4.6) — 2026-05-24
+                  v2.06 までは α 一致時の 3 択モーダル「上書き」 が「別バージョン扱い」
+                  に流れて実質スキップだったのを、 本実装に切替。
+                  - 既存曲フォルダを再利用 (internalId / createdAt は維持、 modifiedAt 更新)
+                  - mp3 / lrc / voicecut*.wav は常に新ファイルに差し替え
+                  - 既存テイク (take*.wav) / MIX (mix*.wav) の扱いは
+                    新規モーダル #make-overwrite-modal の 3 ボタンで毎回確認 (Q2C 採用):
+                      1) 保持して上書き → take/mix と meta.json の takes/mixes を維持
+                      2) 削除して上書き → take/mix も削除、 takes/mixes は空配列に
+                      3) キャンセル → 全体を中止
+                  - 既存テイク/MIX がゼロなら確認スキップ
+                  - voicecut 生成 + 段階 A/B/C 判定を _runVoicecutFlow に共通化
+                    (通常登録フロー / 上書きフロー両方で利用)
+                  - 既存ファイル削除途中で voicecut 生成キャンセルされた場合は
+                    「部分破損状態」 を警告 (リカバリは再登録)
        v2.06 - voicecut カーブをさらに強化 + デバッグログ追加 — 2026-05-23
                   ユーザー指摘: v2.05 でも 50% の変化が小さい。
                   原因の可能性: (A) sqrt カーブでもボーカル -10.6dB 減衰では弱い、
@@ -219,7 +234,7 @@
                   ※ iOS Safari のフォルダ参照非対応の質問への回答:
                     showDirectoryPicker / showOpenFilePicker は iOS Safari 仕様上非対応。
                     サブフォルダの有無に関わらず開けない。
-                    iPhone は仕様書 §3.3 通り Google Drive 経由が前提 (v2.07 以降で実装予定)。
+                    iPhone は仕様書 §3.3 通り Google Drive 経由が前提 (v2.08 以降で実装予定)。
                     現状は input multiple fallback (v2.01 実装) で対応中。
        v2.04 - voicecut 自動生成 + 段階 A/B/C 検証 (仕様書 §4.7) — 2026-05-23
                   - メイクモード登録時に voicecut100.wav と voicecut50.wav を自動生成して
@@ -1111,7 +1126,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.06</span>
+                <span class="version-tag" id="version-tag">v2.07</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1176,7 +1191,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 ※ 選択した音楽ファイルと同フォルダに同名 .lrc があれば自動セットされます (歌詞欄が空の時)。<br>
                 ※ iOS Safari ではフォルダ参照に非対応のため、 mp3 と .lrc を同時に複数選択する代替方式が動きます。<br>
                 ※ <strong>登録時に voicecut100/50 を自動生成します</strong> (モノラル等で不可能な場合は警告表示)。<br>
-                ※ Phase 4 残作業: 重複上書き処理 (v2.06〜) / Drive 上のカラオケフォルダ (v2.07〜)。
+                ※ Phase 4 残作業: Drive 上のカラオケフォルダ + 音楽ライブラリ (v2.08 以降)。
             </p>
         </div>
 
@@ -1189,6 +1204,22 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:14px;">
                     <button class="momo-btn-small" id="make-file-picker-cancel">キャンセル</button>
                 </div>
+            </div>
+        </div>
+
+        <!-- v2.07: 上書き時のテイク/MIX 削除確認モーダル (3 択) -->
+        <div id="make-overwrite-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1000; align-items:center; justify-content:center; padding:20px;">
+            <div style="background:var(--surface); border:1px solid var(--orange); border-radius:12px; padding:24px; max-width:440px; width:100%;">
+                <div style="font-size:14px; font-weight:700; color:var(--orange-light); margin-bottom:10px;">上書き対象に既存テイク/MIX があります</div>
+                <div id="make-overwrite-message" style="font-size:13px; color:var(--text); margin-bottom:18px; line-height:1.6;"></div>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                    <button class="momo-btn" id="make-overwrite-keep">テイク/MIX を保持して上書き</button>
+                    <button class="momo-btn-small" id="make-overwrite-delete">テイク/MIX も削除して上書き</button>
+                    <button class="momo-btn-small" id="make-overwrite-cancel">キャンセル</button>
+                </div>
+                <p style="font-size:10px; color:var(--text-muted); margin: 12px 0 0 0; line-height:1.5;">
+                    ※ 上書きでは mp3 / 歌詞 / voicecut*.wav は常に新ファイルに差し替えられます。
+                </p>
             </div>
         </div>
 
@@ -1605,7 +1636,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.06',
+        version: document.getElementById('version-tag')?.textContent || 'v2.07',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -1711,7 +1742,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.06';
+const APP_VERSION = 'v2.07';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {

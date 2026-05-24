@@ -193,6 +193,18 @@
                   - iOS Safari (showDirectoryPicker 非対応) は v2.01 の multiple 選択方式に
                     フォールバック (動作は維持)
                   - ファイル選択モーダル (#make-file-picker-modal) を新規追加
+       v2.12 - ensureKaraokeRoot を階層別 mkdir+cd に修正 — 2026-05-24
+                  ユーザー報告: アプリは 'Google Drive (momo-works/karaoke)' と表示
+                  しているのに、 実際は Google Drive のトップに カラオケファイルが作られる。
+                  原因: mkdir/cd に 'momo-works/karaoke' を 1 度に渡していたが
+                  momo_gdrive.py 側で '/' 区切りパスを階層として解釈できず、 cwd が
+                  実際にはルートのまま (静かに失敗していた)。
+                  対策 (meta.js のみ):
+                    - ensureKaraokeRoot を split('/') で階層分割し、 各階層ごとに
+                      exists → mkdir → refresh → cd の順で確実に作成・移動
+                    - createSongFolder でも mkdir 後に refresh() でキャッシュ反映
+                    - 各操作で console.log を追加して cwd を可視化
+                    - 最後に info() の current_path / current_id をログ出力で verify
        v2.11 - Drive write_bytes の FileNotFoundError + PyProxy bytes 変換エラー修正 — 2026-05-24
                   ユーザー報告:
                     - 'FileNotFoundError: パスが見つかりません song_xxx/02 ECHO.mp3'
@@ -1190,7 +1202,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.11</span>
+                <span class="version-tag" id="version-tag">v2.12</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1716,7 +1728,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.11',
+        version: document.getElementById('version-tag')?.textContent || 'v2.12',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -1822,7 +1834,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.11';
+const APP_VERSION = 'v2.12';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {

@@ -263,15 +263,38 @@ const Drive = {
         return true;
     },
 
-    // ensureKaraokeRoot: `momo-works/karaoke` フォルダを navigate (存在しなければ mkdir)
-    // momo_gdrive.py の navigate は存在しないパスでエラーになる可能性あり、 mkdir でフォルダ作成
+    // ensureKaraokeRoot: `momo-works/karaoke` フォルダを **階層別に** navigate
+    // v2.12: 'momo-works/karaoke' を 1 度に渡すと momo_gdrive.py 側の解釈で失敗するため、
+    //        ['momo-works', 'karaoke'] に分割して各階層で exists → mkdir → cd
+    //        mkdir 後 refresh() でキャッシュ更新、 最後に info() で cwd を verify
     async ensureKaraokeRoot() {
         const g = this._g();
         if (!g.momo) await this.connect();
+        const parts = this.KARAOKE_ROOT_PATH.split('/').filter(Boolean);  // ['momo-works','karaoke']
         try {
-            // mkdir は冪等 (既存なら同じ ID を返す想定、 momo_gdrive.py 仕様による)
-            await g.momo.mkdir(this.KARAOKE_ROOT_PATH);
-            await g.momo.cd(this.KARAOKE_ROOT_PATH);
+            for (const part of parts) {
+                let exists = false;
+                try { exists = await g.momo.exists(part); }
+                catch (e) { console.warn('[Drive] exists check fail for', part, ':', e); }
+                if (!exists) {
+                    console.log('[Drive] mkdir:', part);
+                    await g.momo.mkdir(part);
+                    if (g.momo.refresh) {
+                        try { await g.momo.refresh(); } catch (e) {}
+                    }
+                }
+                console.log('[Drive] cd:', part);
+                await g.momo.cd(part);
+            }
+            // verify: 現 cwd をログ出力
+            try {
+                const ip = g.momo.info();
+                const i = (ip && typeof ip.toJs === 'function')
+                    ? ip.toJs({ dict_converter: Object.fromEntries })
+                    : ip;
+                if (ip && typeof ip.destroy === 'function') ip.destroy();
+                console.log('[Drive] ensureKaraokeRoot done, cwd:', i && i.current_path, 'id:', i && i.current_id);
+            } catch (e) { console.warn('[Drive] info() verify fail:', e); }
             return this.KARAOKE_ROOT_PATH;
         } catch (e) {
             throw new Error('ensureKaraokeRoot failed: ' + (e.message || e));
@@ -407,14 +430,28 @@ const Drive = {
     },
 
     // 曲フォルダ作成 (重複時 _001 サフィックス)
+    // v2.12: mkdir 後 refresh() でキャッシュ反映、 ログ出力で動作可視化
     async createSongFolder(baseInternalId) {
         const g = this._g();
+        // 念のため現 cwd を確認 (= karaoke ルートのはず)
+        try {
+            const ip = g.momo.info();
+            const i = (ip && typeof ip.toJs === 'function')
+                ? ip.toJs({ dict_converter: Object.fromEntries })
+                : ip;
+            if (ip && typeof ip.destroy === 'function') ip.destroy();
+            console.log('[Drive] createSongFolder: cwd before mkdir =', i && i.current_path);
+        } catch (e) {}
         let id = baseInternalId;
         let suffix = 0;
         while (true) {
             const exists = await g.momo.exists(id);
             if (!exists) {
+                console.log('[Drive] mkdir song folder:', id);
                 await g.momo.mkdir(id);
+                if (g.momo.refresh) {
+                    try { await g.momo.refresh(); } catch (e) {}
+                }
                 return { internalId: id };
             }
             suffix++;

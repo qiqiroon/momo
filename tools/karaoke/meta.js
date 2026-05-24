@@ -278,47 +278,88 @@ const Drive = {
         }
     },
 
-    // _app_settings.json 読み込み (カラオケフォルダ直下から)
-    // v2.10: read_text 経由で JSON 取得 (read_json は PyProxy/path 解釈が不安定)
-    async loadAppSettings() {
+    // v2.11: Uint8Array → Python bytes 明示変換ヘルパ
+    //   Pyodide で JS Uint8Array を直接渡すと PyProxy のままになり
+    //   'can't contact pyodide.ffi.JsProxy to bytes' エラーになるため、
+    //   pyodide.toPy() で明示的に Python bytes に変換する。
+    _toPyBytes(uint8Array) {
         const g = this._g();
+        const pyodide = g.pyodide;
+        if (!pyodide || typeof pyodide.toPy !== 'function') {
+            // fallback: そのまま渡す (古い Pyodide で動く可能性)
+            return uint8Array;
+        }
+        return pyodide.toPy(uint8Array);
+    },
+
+    // v2.11: writeFile の汎用ヘルパ (cd ベース、 親フォルダに移動してから書き込み)
+    //   理由: write_bytes に 'a/b.txt' のような相対パスを渡すと
+    //   momo_gdrive.py の resolve_path が壊れて FileNotFoundError になる
+    async _writeFileInFolder(folderName, fileName, blob) {
+        const g = this._g();
+        const ab = await blob.arrayBuffer();
+        const ua = new Uint8Array(ab);
+        const pyBytes = this._toPyBytes(ua);
+        if (folderName) {
+            await g.momo.cd(folderName);
+        }
         try {
-            const text = await g.momo.read_text('_app_settings.json');
-            const t = (text && typeof text.toString === 'function') ? text.toString() : String(text);
+            await g.momo.write_bytes(fileName, pyBytes);
+        } finally {
+            if (folderName) {
+                try { await g.momo.cd('..'); } catch (e) { console.warn('[Drive] cd .. fail:', e); }
+            }
+            if (pyBytes && typeof pyBytes.destroy === 'function') {
+                try { pyBytes.destroy(); } catch (e) {}
+            }
+        }
+    },
+
+    async _readTextInFolder(folderName, fileName) {
+        const g = this._g();
+        if (folderName) {
+            await g.momo.cd(folderName);
+        }
+        try {
+            const text = await g.momo.read_text(fileName);
+            return (text && typeof text.toString === 'function') ? text.toString() : String(text);
+        } finally {
+            if (folderName) {
+                try { await g.momo.cd('..'); } catch (e) { console.warn('[Drive] cd .. fail:', e); }
+            }
+        }
+    },
+
+    // _app_settings.json 読み込み (カラオケフォルダ直下、 cwd = momo-works/karaoke 想定)
+    async loadAppSettings() {
+        try {
+            const t = await this._readTextInFolder(null, '_app_settings.json');
             return mergeAppSettings(JSON.parse(t));
         } catch (e) {
             return defaultAppSettings();
         }
     },
 
-    // _app_settings.json 保存
     async saveAppSettings(settings) {
-        const g = this._g();
         const text = JSON.stringify(settings, null, 2);
         const bytes = new TextEncoder().encode(text);
-        await g.momo.write_bytes('_app_settings.json', bytes);
+        await this._writeFileInFolder(null, '_app_settings.json', new Blob([bytes]));
     },
 
-    // 各曲フォルダの meta.json 読み込み
     async loadSongMeta(songFolderName) {
-        const g = this._g();
-        // v2.10: read_text 経由で JSON 取得 (read_json が path/PyProxy 系で不安定なため)
         try {
-            const text = await g.momo.read_text(songFolderName + '/meta.json');
-            const t = (text && typeof text.toString === 'function') ? text.toString() : String(text);
+            const t = await this._readTextInFolder(songFolderName, 'meta.json');
             return mergeSongMeta(JSON.parse(t));
         } catch (e) {
-            // ファイルが無いか、 read 失敗
             return null;
         }
     },
 
     async saveSongMeta(songFolderName, meta) {
-        const g = this._g();
         meta.modifiedAt = new Date().toISOString();
         const text = JSON.stringify(meta, null, 2);
         const bytes = new TextEncoder().encode(text);
-        await g.momo.write_bytes(songFolderName + '/meta.json', bytes);
+        await this._writeFileInFolder(songFolderName, 'meta.json', new Blob([bytes]));
     },
 
     // 曲一覧 (カラオケフォルダ直下のサブフォルダ + 各 meta.json)
@@ -382,28 +423,35 @@ const Drive = {
         }
     },
 
-    // 任意ファイルの読み書き (song フォルダ内)
+    // 任意ファイルの読み書き (song フォルダ内、 cd ベース)
     async readFile(songFolderName, fileName) {
         const g = this._g();
-        const bytes = await g.momo.read_bytes(songFolderName + '/' + fileName);
-        // bytes は PyProxy(memoryview) 想定。 JS Uint8Array に変換
-        let buf;
-        if (bytes && typeof bytes.toJs === 'function') {
-            buf = bytes.toJs();
-            if (bytes.destroy) bytes.destroy();
-        } else {
-            buf = bytes;
+        await g.momo.cd(songFolderName);
+        try {
+            const bytes = await g.momo.read_bytes(fileName);
+            let buf;
+            if (bytes && typeof bytes.toJs === 'function') {
+                buf = bytes.toJs();
+                if (bytes.destroy) bytes.destroy();
+            } else {
+                buf = bytes;
+            }
+            return new Blob([buf]);
+        } finally {
+            try { await g.momo.cd('..'); } catch (e) {}
         }
-        return new Blob([buf]);
     },
     async writeFile(songFolderName, fileName, blob) {
-        const g = this._g();
-        const ab = await blob.arrayBuffer();
-        await g.momo.write_bytes(songFolderName + '/' + fileName, new Uint8Array(ab));
+        await this._writeFileInFolder(songFolderName, fileName, blob);
     },
     async deleteFile(songFolderName, fileName) {
         const g = this._g();
-        await g.momo.delete(songFolderName + '/' + fileName);
+        await g.momo.cd(songFolderName);
+        try {
+            await g.momo.delete(fileName);
+        } finally {
+            try { await g.momo.cd('..'); } catch (e) {}
+        }
     },
     async listFiles(songFolderName) {
         const g = this._g();

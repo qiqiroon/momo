@@ -193,6 +193,23 @@
                   - iOS Safari (showDirectoryPicker 非対応) は v2.01 の multiple 選択方式に
                     フォールバック (動作は維持)
                   - ファイル選択モーダル (#make-file-picker-modal) を新規追加
+       v2.11 - Drive write_bytes の FileNotFoundError + PyProxy bytes 変換エラー修正 — 2026-05-24
+                  ユーザー報告:
+                    - 'FileNotFoundError: パスが見つかりません song_xxx/02 ECHO.mp3'
+                    - 'TypeError: can\'t contact pyodide.ffi.JsProxy to bytes'
+                  原因:
+                    1) write_bytes に 'song_xxx/02 ECHO.mp3' のような相対パスを渡すと
+                       momo_gdrive.py の resolve_path が壊れて見つけられない
+                    2) Pyodide で JS Uint8Array を直接渡すと PyProxy のまま Python に
+                       渡され、 bytes 型として認識されず TypeError になる
+                  対策 (meta.js のみ):
+                    - _writeFileInFolder / _readTextInFolder ヘルパ新規追加
+                      cd <folderName> → 操作 → cd .. で確実に親フォルダに移動
+                    - _toPyBytes(uint8Array) で pyodide.toPy() による明示変換
+                      Python の bytes 型に正しく変換されるように
+                    - writeFile / readFile / deleteFile / saveAppSettings /
+                      loadAppSettings / saveSongMeta / loadSongMeta を全て
+                      cd ベース + toPy 対応に書き換え
        v2.10 - Drive 登録時の listSongs エラー修正 + PyProxy 変換徹底 — 2026-05-24
                   ユーザー報告: v2.09 で Drive 接続後に登録すると
                   「登録失敗: listSongs: current folder id missing」 エラー。
@@ -1173,7 +1190,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.10</span>
+                <span class="version-tag" id="version-tag">v2.11</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1699,7 +1716,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.10',
+        version: document.getElementById('version-tag')?.textContent || 'v2.11',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -1805,7 +1822,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.10';
+const APP_VERSION = 'v2.11';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {

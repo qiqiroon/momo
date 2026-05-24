@@ -202,6 +202,19 @@
                   対策 (meta.js のみ):
                     - ensureKaraokeRoot を split('/') で階層分割し、 各階層ごとに
                       exists → mkdir → refresh → cd の順で確実に作成・移動
+       v2.20 - Phase 5a 着手: カラオケモードに曲選択モーダル + 上部表示 — 2026-05-24
+                  仕様書 §5.2 + §8.1。 カラオケフォルダ (Local/Drive) から登録済み曲を
+                  列挙、 アーティスト見出し + 検索 (大小無視 + ひらがな↔カタカナ統一) で
+                  絞り込み、 タップで既存 selectEntry に流し込んで再生可能状態に。
+                    - #karaoke-current-song-row: 「♪ 曲名 - アーティスト [曲選択]」 行
+                    - #karaoke-song-picker-modal: 検索付き曲リストモーダル
+                    - _karaokeLoadSongEntry: mp3/lrc を listFiles で特定 → 読込 → entry
+                      オブジェクトに変換 → selectEntry()
+                    - lastSelectedSongInternalId を _app_settings.json に保存
+                    - カラオケタブ初回オープン時に 1 度だけ復元 (Local のみ、 自動再生は
+                      せず上部表示のみ)
+                  録音/再生コア (state, selectEntry, parseLRC, bgmTransport 等) は
+                  ノータッチ
        v2.19 - 既登録アラート後にステータス「既存曲を確認中…」 が残る不具合修正 — 2026-05-24
                   α+β 両方一致の return パスで setStatus がクリアされていなかった。
                   「既に登録済みです」 メッセージに置換。
@@ -1275,7 +1288,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.19</span>
+                <span class="version-tag" id="version-tag">v2.20</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1533,6 +1546,26 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
         <div id="warnBox" class="warn-box hidden">⚠ このブラウザは AudioWorklet に対応していません。Chrome / Edge をお使いください。</div>
 
         <p class="panel-desc" style="margin-bottom:14px;">楽曲を流しながら歌声を録音する画面です。録音は上の<b>●</b>ボタンで開始/停止できます。録音した歌声はミックスタブで再生・調整できます。</p>
+
+        <!-- v2.20 (Phase 5a): カラオケフォルダから登録済み曲を選ぶ行 (仕様書 §5.2) -->
+        <div id="karaoke-current-song-row" style="display:flex; align-items:center; gap:10px; padding:10px 14px; background:var(--surface); border:1px solid var(--border); border-radius:10px; margin-bottom:14px; flex-wrap:wrap;">
+            <span style="color:var(--orange-light); font-size:18px;">♪</span>
+            <span id="karaoke-current-song-label" style="flex:1; min-width:160px; color:var(--text); font-weight:600; font-size:14px;">曲を選択してください</span>
+            <button class="momo-btn-small" id="karaoke-btn-pick-song">曲選択</button>
+        </div>
+
+        <!-- v2.20: 曲選択モーダル (仕様書 §8.1) -->
+        <div id="karaoke-song-picker-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1000; align-items:center; justify-content:center; padding:20px;">
+            <div style="background:var(--surface); border:1px solid var(--orange); border-radius:12px; padding:18px; max-width:520px; width:100%; max-height:80vh; display:flex; flex-direction:column;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <div style="font-size:14px; font-weight:700; color:var(--orange-light);">曲を選択</div>
+                    <button class="momo-btn-small" id="karaoke-song-picker-close" style="padding:4px 10px;">×</button>
+                </div>
+                <input type="text" id="karaoke-song-picker-search" placeholder="🔍 検索 (アーティスト / 曲名)…" style="width:100%; padding:8px 10px; box-sizing:border-box; background:var(--bg); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:13px; margin-bottom:10px;">
+                <div id="karaoke-song-picker-list" style="flex:1; overflow-y:auto; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:8px; min-height:160px; max-height:55vh;"></div>
+                <div id="karaoke-song-picker-empty" style="display:none; padding:14px; text-align:center; color:var(--text-muted); font-size:12px;">該当する曲がありません</div>
+            </div>
+        </div>
 
         <!-- BGM 調整 -->
         <div class="karaoke-panel">
@@ -1820,7 +1853,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.19',
+        version: document.getElementById('version-tag')?.textContent || 'v2.20',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -1926,7 +1959,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.19';
+const APP_VERSION = 'v2.20';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -6207,6 +6240,281 @@ balanceSlider.addEventListener('input', applyBalance);
 
     await tryRestoreLibrary();
     setStatus('準備完了 — ライブラリから曲を選んでください', 'ok');
+})();
+
+// ===== v2.20 (Phase 5a): カラオケモードの曲選択 =====
+// カラオケフォルダ (Local/Drive) から登録済み曲を列挙して選択 → 既存 selectEntry に流す。
+// 録音/再生コア (state, selectEntry, parseLRC, bgmTransport, btnPlay 等) は触らず、
+// 「選んだ曲を entry オブジェクトに変換して selectEntry(entry) を呼ぶ」 ラッパに徹する。
+const karaokeUiState = {
+    allSongs: [],      // [{internalId, meta, handle?}]
+    hasLoaded: false,
+};
+
+// 検索用正規化 (大小無視 + ひらがな→カタカナ統一、 仕様書 §8.1)
+function _karaokeNormalize(s) {
+    if (!s) return '';
+    return String(s)
+        .toLowerCase()
+        .replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60));
+}
+
+// provider 別 listSongs ラッパ (make.js の _ksListSongs と同等、 ただし mkState を参照)
+async function _karaokeListSongs() {
+    const META = window.MomoMeta;
+    const MK = window.MomoMake;
+    if (!META || !MK || !MK.state) throw new Error('MomoMeta / MomoMake が未ロード');
+    const prov = MK.state.karaokeFolderProvider;
+    if (prov === 'drive') return await META.Drive.listSongs();
+    if (prov === 'local' && MK.state.karaokeFolderHandle) {
+        return await META.Local.listSongs(MK.state.karaokeFolderHandle);
+    }
+    throw new Error('カラオケフォルダが未接続です。 メイクタブで接続してください');
+}
+
+async function _karaokeReadFile(song, fileName) {
+    const META = window.MomoMeta;
+    const MK = window.MomoMake;
+    if (MK.state.karaokeFolderProvider === 'drive') {
+        return await META.Drive.readFile(song.internalId, fileName);
+    }
+    if (song.handle) {
+        return await META.Local.readFile(song.handle, fileName);
+    }
+    throw new Error('readFile: song handle missing');
+}
+
+// song フォルダ内のファイル一覧を取得 (mp3/lrc のファイル名解決用)
+async function _karaokeListFiles(song) {
+    const META = window.MomoMeta;
+    const MK = window.MomoMake;
+    if (MK.state.karaokeFolderProvider === 'drive') {
+        return await META.Drive.listFiles(song.internalId);
+    }
+    if (song.handle) {
+        return await META.Local.listFiles(song.handle);
+    }
+    return [];
+}
+
+// 選択された曲を entry オブジェクトに変換して selectEntry に流し込む
+async function _karaokeLoadSongEntry(song) {
+    const META = window.MomoMeta;
+    setStatus('曲データを読み込み中…', 'ok');
+    try {
+        // フォルダ内ファイル一覧から mp3/lrc を特定
+        const files = await _karaokeListFiles(song);
+        const audioName = files.find(n => /\.(mp3|m4a|aac|flac|ogg|wav)$/i.test(n) && !/^voicecut/i.test(n));
+        const lrcName = files.find(n => /\.lrc$/i.test(n));
+        if (!audioName) {
+            // 音楽ファイルが無い (BGM なし) — Phase 5e で対応、 当面は警告
+            setStatus('音楽ファイルが見つかりません (BGM なし対応は Phase 5e)', 'err');
+            return false;
+        }
+        const audioBlob = await _karaokeReadFile(song, audioName);
+        const audioFile = (audioBlob instanceof File)
+            ? audioBlob
+            : new File([audioBlob], audioName, { type: audioBlob.type || 'audio/mpeg' });
+        let lyricsLines = [];
+        if (lrcName) {
+            try {
+                const lrcBlob = await _karaokeReadFile(song, lrcName);
+                const lrcText = await lrcBlob.text();
+                lyricsLines = parseLRC(lrcText);
+            } catch (e) {
+                console.warn('[karaoke] lrc 読込失敗:', e);
+            }
+        }
+        // 既存の selectEntry が要求する entry 形式 (id / title / artist / audioFile / lyricsLines)
+        const entry = {
+            id: song.internalId,
+            title: song.meta.title || '(無題)',
+            artist: song.meta.artist || '',
+            audioFile,
+            lyricsLines,
+            takes: null,  // selectEntry 内で IDB から復元される
+            _karaokeSource: { internalId: song.internalId },  // Phase 5b 以降の voicecut wav 切替で使う
+        };
+        await selectEntry(entry);
+        // 上部表示更新 + 永続化
+        _updateKaraokeCurrentSongLabel(song);
+        _karaokeSaveLastSelected(song.internalId);
+        return true;
+    } catch (e) {
+        console.error('[karaoke] loadSongEntry 失敗:', e);
+        setStatus('曲読込失敗: ' + (e.message || e), 'err');
+        return false;
+    }
+}
+
+// 仕様書 §9.2: lastSelectedSongInternalId を _app_settings.json に保存
+async function _karaokeSaveLastSelected(internalId) {
+    try {
+        const META = window.MomoMeta;
+        const MK = window.MomoMake;
+        if (!META || !MK || !MK.state) return;
+        const prov = MK.state.karaokeFolderProvider;
+        let settings;
+        if (prov === 'drive') {
+            settings = await META.Drive.loadAppSettings();
+            settings.lastSelectedSongInternalId = internalId;
+            await META.Drive.saveAppSettings(settings);
+        } else if (prov === 'local' && MK.state.karaokeFolderHandle) {
+            settings = await META.Local.loadAppSettings(MK.state.karaokeFolderHandle);
+            settings.lastSelectedSongInternalId = internalId;
+            await META.Local.saveAppSettings(MK.state.karaokeFolderHandle, settings);
+        }
+    } catch (e) { console.warn('[karaoke] saveLastSelected fail:', e && (e.message || e)); }
+}
+
+// 起動時の前回選択曲の **表示のみ** 復元 (自動再生はしない)
+//   Drive は再接続必要なので skip、 Local 接続済みなら listSongs から find して上部に表示
+async function _karaokeRestoreLastSong() {
+    try {
+        const META = window.MomoMeta;
+        const MK = window.MomoMake;
+        if (!META || !MK || !MK.state) return;
+        const prov = MK.state.karaokeFolderProvider;
+        let settings = null;
+        if (prov === 'local' && MK.state.karaokeFolderHandle) {
+            settings = await META.Local.loadAppSettings(MK.state.karaokeFolderHandle);
+        } else if (prov === 'drive') {
+            // Drive は OAuth 必要、 ユーザー操作で再接続するまで待つ
+            return;
+        } else {
+            return;
+        }
+        const lastId = settings && settings.lastSelectedSongInternalId;
+        if (!lastId) return;
+        const songs = await _karaokeListSongs();
+        const song = songs.find(s => s.internalId === lastId);
+        if (song) {
+            karaokeUiState.allSongs = songs;  // ピッカー初回が即描画になる
+            karaokeUiState.hasLoaded = true;
+            _updateKaraokeCurrentSongLabel(song);
+            console.log('[karaoke] 前回選択曲を表示:', lastId, song.meta.title);
+        }
+    } catch (e) { console.warn('[karaoke] restoreLastSong fail:', e && (e.message || e)); }
+}
+
+// カラオケタブ初回オープン時に 1 度だけ復元を試みる
+let _karaokeRestoredOnce = false;
+(function _hookKaraokeTabRestore(){
+    const tabBtn = document.getElementById('tab-karaoke');
+    if (!tabBtn) return;
+    tabBtn.addEventListener('click', () => {
+        if (_karaokeRestoredOnce) return;
+        _karaokeRestoredOnce = true;
+        // make.js の tryRestoreHandles は async なので少し遅延 (handle 復元待ち)
+        setTimeout(() => _karaokeRestoreLastSong(), 100);
+    });
+})();
+
+function _updateKaraokeCurrentSongLabel(song) {
+    const labelEl = document.getElementById('karaoke-current-song-label');
+    if (!labelEl) return;
+    if (!song) {
+        labelEl.textContent = '曲を選択してください';
+        labelEl.style.color = '';
+        return;
+    }
+    const title = song.meta.title || '(無題)';
+    const artist = song.meta.artist || '';
+    labelEl.textContent = artist ? (title + ' — ' + artist) : title;
+    labelEl.style.color = 'var(--orange-light)';
+}
+
+// モーダル: アーティストグループ + 検索フィルタで描画
+function _renderKaraokeSongPickerList(filterRaw) {
+    const listEl = document.getElementById('karaoke-song-picker-list');
+    const emptyEl = document.getElementById('karaoke-song-picker-empty');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+    const filter = _karaokeNormalize(filterRaw);
+    const filtered = karaokeUiState.allSongs.filter(s => {
+        if (!filter) return true;
+        const t = _karaokeNormalize(s.meta.title || '');
+        const a = _karaokeNormalize(s.meta.artist || '');
+        return t.includes(filter) || a.includes(filter);
+    });
+    if (filtered.length === 0) {
+        emptyEl.style.display = '';
+        listEl.style.display = 'none';
+        return;
+    }
+    emptyEl.style.display = 'none';
+    listEl.style.display = '';
+    // アーティスト → 曲 でグルーピング
+    const byArtist = new Map();
+    for (const s of filtered) {
+        const a = s.meta.artist || '(アーティスト未設定)';
+        if (!byArtist.has(a)) byArtist.set(a, []);
+        byArtist.get(a).push(s);
+    }
+    // アーティスト名昇順
+    const artists = Array.from(byArtist.keys()).sort((x, y) => x.localeCompare(y, 'ja'));
+    for (const artist of artists) {
+        const head = document.createElement('div');
+        head.style.cssText = 'padding:6px 4px 4px; color:var(--text-muted); font-size:11px; font-weight:700; border-bottom:1px solid var(--border); margin:6px 0 4px;';
+        head.textContent = '─ ' + artist + ' ─';
+        listEl.appendChild(head);
+        const songs = byArtist.get(artist).sort((x, y) =>
+            (x.meta.title || '').localeCompare(y.meta.title || '', 'ja'));
+        for (const s of songs) {
+            const row = document.createElement('div');
+            row.style.cssText = 'padding:8px 12px; cursor:pointer; color:var(--text); font-size:13px; border-radius:6px;';
+            row.textContent = '♪ ' + (s.meta.title || '(無題)');
+            row.addEventListener('mouseenter', () => row.style.background = 'var(--bg-selected, rgba(255,255,255,0.06))');
+            row.addEventListener('mouseleave', () => row.style.background = '');
+            row.addEventListener('click', async () => {
+                _closeKaraokeSongPicker();
+                await _karaokeLoadSongEntry(s);
+            });
+            listEl.appendChild(row);
+        }
+    }
+}
+
+function _closeKaraokeSongPicker() {
+    const modal = document.getElementById('karaoke-song-picker-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+async function openKaraokeSongPicker() {
+    const modal = document.getElementById('karaoke-song-picker-modal');
+    const searchEl = document.getElementById('karaoke-song-picker-search');
+    const listEl = document.getElementById('karaoke-song-picker-list');
+    if (!modal) return;
+    if (searchEl) searchEl.value = '';
+    if (listEl) listEl.innerHTML = '<div style="padding:14px; text-align:center; color:var(--text-muted); font-size:12px;">曲一覧を読み込み中…</div>';
+    modal.style.display = 'flex';
+    try {
+        const songs = await _karaokeListSongs();
+        karaokeUiState.allSongs = songs;
+        karaokeUiState.hasLoaded = true;
+        _renderKaraokeSongPickerList('');
+    } catch (e) {
+        console.error('[karaoke] listSongs 失敗:', e);
+        if (listEl) listEl.innerHTML = '<div style="padding:14px; text-align:center; color:#f87171; font-size:12px;">曲一覧取得失敗: ' + (e.message || e) + '</div>';
+    }
+}
+
+// ボタン/モーダルのバインド (DOMContentLoaded 後だが、 IIFE は既に実行済みなので即座にバインド)
+(function _bindKaraokePicker(){
+    const btnPick = document.getElementById('karaoke-btn-pick-song');
+    if (btnPick) btnPick.addEventListener('click', () => openKaraokeSongPicker());
+    const btnClose = document.getElementById('karaoke-song-picker-close');
+    if (btnClose) btnClose.addEventListener('click', _closeKaraokeSongPicker);
+    const modal = document.getElementById('karaoke-song-picker-modal');
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) _closeKaraokeSongPicker();  // 背景クリックで閉じる
+        });
+    }
+    const searchEl = document.getElementById('karaoke-song-picker-search');
+    if (searchEl) {
+        searchEl.addEventListener('input', () => _renderKaraokeSongPickerList(searchEl.value));
+    }
 })();
 
 // v2.08: 既存 gdrive オブジェクトを window グローバルに expose

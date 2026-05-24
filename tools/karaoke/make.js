@@ -18,6 +18,18 @@
 //   - 歌詞ファイル選択 = 同様、 lrc 選択 → 同フォルダの同名 mp3 を自動セット (音楽欄が空時)
 //   - iOS Safari (showDirectoryPicker 非対応) は multiple 選択にフォールバック (v2.01 動作)
 //
+// v2.09 (2026-05-24): メイクタブ登録/上書き処理の Drive 対応
+//   - 問題: v2.08 でカラオケフォルダ Drive 接続 UI を作ったが、 登録ボタン押下時に
+//     'karaokeFolderHandle' (Local 限定) でしか接続判定していなかったため、
+//     Drive 接続済みでも「先にカラオケフォルダを接続してください」 エラー。
+//   - 対策:
+//     1) _isKaraokeConnected() で provider 別に接続判定
+//     2) _ks* ラッパー関数群 (listSongs / createSongFolder / writeFile /
+//        saveSongMeta / deleteFile / listFiles) を導入
+//     3) onRegister / performOverwrite / _runVoicecutFlow 内の Local 呼び出しを
+//        ラッパー経由に置き換え (provider 別自動分岐)
+//   - 音楽ライブラリ Drive 対応 (mp3 選択を Drive 経由) は v2.10 で予定
+//
 // v2.08 (2026-05-24): カラオケフォルダの Drive 対応 (v200改造.txt 1)
 //   - 「接続/変更」 ボタンを押すと「ローカル / Google Drive」 選択モーダル
 //   - Drive 選択 → 既存 v1.39 の gdrive.connect() で OAuth →
@@ -603,6 +615,44 @@ async function autofillFromFiles() {
     }
 }
 
+// ─────────── v2.09: カラオケフォルダ provider 抽象 (Local/Drive 切替) ───────────
+function _isKaraokeConnected() {
+    if (mkState.karaokeFolderProvider === 'drive') return true;  // Drive は cwd で管理
+    if (mkState.karaokeFolderProvider === 'local' && mkState.karaokeFolderHandle) return true;
+    return false;
+}
+async function _ksListSongs() {
+    if (mkState.karaokeFolderProvider === 'drive') return await META.Drive.listSongs();
+    return await META.Local.listSongs(mkState.karaokeFolderHandle);
+}
+// returns { internalId, folderRef }
+//   Local: folderRef = FileSystemDirectoryHandle
+//   Drive: folderRef = internalId 文字列 (内部で path として使う)
+async function _ksCreateSongFolder(baseId) {
+    if (mkState.karaokeFolderProvider === 'drive') {
+        const { internalId } = await META.Drive.createSongFolder(baseId);
+        return { internalId, folderRef: internalId };
+    }
+    const { internalId, handle } = await META.Local.createSongFolder(mkState.karaokeFolderHandle, baseId);
+    return { internalId, folderRef: handle };
+}
+async function _ksWriteFile(folderRef, name, blob) {
+    if (mkState.karaokeFolderProvider === 'drive') return await META.Drive.writeFile(folderRef, name, blob);
+    return await META.Local.writeFile(folderRef, name, blob);
+}
+async function _ksSaveSongMeta(folderRef, meta) {
+    if (mkState.karaokeFolderProvider === 'drive') return await META.Drive.saveSongMeta(folderRef, meta);
+    return await META.Local.saveSongMeta(folderRef, meta);
+}
+async function _ksDeleteFile(folderRef, name) {
+    if (mkState.karaokeFolderProvider === 'drive') return await META.Drive.deleteFile(folderRef, name);
+    return await META.Local.deleteFile(folderRef, name);
+}
+async function _ksListFiles(folderRef) {
+    if (mkState.karaokeFolderProvider === 'drive') return await META.Drive.listFiles(folderRef);
+    return await META.Local.listFiles(folderRef);
+}
+
 // ─────────── v2.04: voicecut 自動生成 (仕様書 §4.7) ───────────
 // 戻り値:
 //   { available:true,  wavBlob, sampleRate, effectiveDb }  通常
@@ -722,7 +772,7 @@ async function onRegister() {
         alert('音楽ファイルまたは歌詞ファイルのいずれか少なくとも 1 つは必須です');
         return;
     }
-    if (!mkState.karaokeFolderHandle) {
+    if (!_isKaraokeConnected()) {
         alert('先にカラオケフォルダを接続してください');
         return;
     }
@@ -741,9 +791,9 @@ async function onRegister() {
             mp3Hash = await META.sha256Prefixed(mp3Buffer);
         }
 
-        // 2. 重複判定 — 既存曲の列挙
+        // 2. 重複判定 — 既存曲の列挙 (v2.09: provider 別)
         setStatus('既存曲を確認中…', 'var(--orange-light)');
-        const existing = await META.Local.listSongs(mkState.karaokeFolderHandle);
+        const existing = await _ksListSongs();
         const candidateMeta = META.defaultSongMeta(title, artist);
         candidateMeta.mp3Hash = mp3Hash;
 
@@ -794,17 +844,18 @@ async function onRegister() {
         // 3. 曲フォルダ作成 (重複時 _001, _002 サフィックス自動)
         setStatus('曲フォルダ作成中…', 'var(--orange-light)');
         const baseId = META.generateSongFolderId(title, artist);
-        const { internalId, handle: songFolder } = await META.Local.createSongFolder(mkState.karaokeFolderHandle, baseId);
+        // v2.09: provider 別 (Local: handle / Drive: internalId 文字列)
+        const { internalId, folderRef: songFolder } = await _ksCreateSongFolder(baseId);
 
         // 4. ファイル複製
         setStatus('ファイル複製中…', 'var(--orange-light)');
         if (mkState.pendingMp3File) {
             const safeName = META.sanitizeFileName(mkState.pendingMp3File.name);
-            await META.Local.writeFile(songFolder, safeName, mkState.pendingMp3File);
+            await _ksWriteFile(songFolder, safeName, mkState.pendingMp3File);
         }
         if (mkState.pendingLrcFile) {
             const safeName = META.sanitizeFileName(mkState.pendingLrcFile.name);
-            await META.Local.writeFile(songFolder, safeName, mkState.pendingLrcFile);
+            await _ksWriteFile(songFolder, safeName, mkState.pendingLrcFile);
         }
 
         // 5. voicecut 自動生成 (v2.04、 仕様書 §4.7 段階 A/B/C)
@@ -840,9 +891,9 @@ async function onRegister() {
 
                     // 保存
                     setStatus('voicecut wav 保存中…', 'var(--orange-light)');
-                    await META.Local.writeFile(songFolder, 'voicecut100.wav', r100.wavBlob);
+                    await _ksWriteFile(songFolder, 'voicecut100.wav', r100.wavBlob);
                     if (r50.available) {
-                        await META.Local.writeFile(songFolder, 'voicecut50.wav', r50.wavBlob);
+                        await _ksWriteFile(songFolder, 'voicecut50.wav', r50.wavBlob);
                     }
                     candidateMeta.voicecutAvailable = true;
 
@@ -873,7 +924,7 @@ async function onRegister() {
 
         // 6. meta.json 保存
         setStatus('meta.json 保存中…', 'var(--orange-light)');
-        await META.Local.saveSongMeta(songFolder, candidateMeta);
+        await _ksSaveSongMeta(songFolder, candidateMeta);
 
         setStatus('✅ 登録完了: ' + internalId, 'var(--orange-light)');
         alert(
@@ -909,8 +960,9 @@ function onCancel() {
 // ─────────── v2.07: 上書きフロー (既存フォルダ再利用) ───────────
 // keepOrDelete: 'keep' (テイク/MIX 保持) | 'delete' (テイク/MIX も削除)
 async function performOverwrite(existing, candidateMeta, mp3Buffer, mp3Hash, keepOrDelete) {
-    const folder = existing.handle;
+    // v2.09: provider 別 folderRef (Local: handle / Drive: internalId 文字列)
     const internalId = existing.internalId;
+    const folderRef = (mkState.karaokeFolderProvider === 'drive') ? internalId : existing.handle;
     const oldMeta = existing.meta;
     const title = candidateMeta.title;
     const artist = candidateMeta.artist;
@@ -922,7 +974,7 @@ async function performOverwrite(existing, candidateMeta, mp3Buffer, mp3Hash, kee
 
     try {
         // 1. 既存ファイルの削除 (mp3/lrc/voicecut*.wav は常に、 take/mix は keepOrDelete に応じて)
-        const oldFiles = await META.Local.listFiles(folder);
+        const oldFiles = await _ksListFiles(folderRef);
         for (const name of oldFiles) {
             const isTakeOrMix = /^take\d+\.wav$/i.test(name) || /^mix\d+\.wav$/i.test(name);
             const isAudio = /\.(mp3|wav|m4a|aac|flac|ogg)$/i.test(name);
@@ -931,14 +983,14 @@ async function performOverwrite(existing, candidateMeta, mp3Buffer, mp3Hash, kee
             const isMeta = name === 'meta.json';
 
             let shouldDelete = false;
-            if (isMeta) shouldDelete = false;  // 後で上書き保存するので残す
+            if (isMeta) shouldDelete = false;
             else if (isTakeOrMix) shouldDelete = (keepOrDelete === 'delete');
             else if (isVoicecut || isLrc) shouldDelete = true;
-            else if (isAudio && !isTakeOrMix) shouldDelete = true;  // mp3 等 (元音楽)
-            else shouldDelete = false;  // それ以外は触らない (将来拡張用ファイルなど)
+            else if (isAudio && !isTakeOrMix) shouldDelete = true;
+            else shouldDelete = false;
 
             if (shouldDelete) {
-                try { await META.Local.deleteFile(folder, name); console.log('[make] 削除:', name); }
+                try { await _ksDeleteFile(folderRef, name); console.log('[make] 削除:', name); }
                 catch (e) { console.warn('[make] 削除失敗:', name, e); }
             }
         }
@@ -947,18 +999,17 @@ async function performOverwrite(existing, candidateMeta, mp3Buffer, mp3Hash, kee
         setStatus('ファイル複製中…', 'var(--orange-light)');
         if (mkState.pendingMp3File) {
             const safeName = META.sanitizeFileName(mkState.pendingMp3File.name);
-            await META.Local.writeFile(folder, safeName, mkState.pendingMp3File);
+            await _ksWriteFile(folderRef, safeName, mkState.pendingMp3File);
         }
         if (mkState.pendingLrcFile) {
             const safeName = META.sanitizeFileName(mkState.pendingLrcFile.name);
-            await META.Local.writeFile(folder, safeName, mkState.pendingLrcFile);
+            await _ksWriteFile(folderRef, safeName, mkState.pendingLrcFile);
         }
 
         // 3. voicecut 生成 + 保存 + 段階 A/B/C 判定 (共通関数)
-        const vc = await _runVoicecutFlow(folder, candidateMeta, mp3Buffer);
+        const vc = await _runVoicecutFlow(folderRef, candidateMeta, mp3Buffer);
         if (vc === 'cancel') {
             setStatus('キャンセルしました', 'var(--text-muted)');
-            // 注意: 既にファイル削除済みなので、 部分的に破損状態。 ユーザーに警告
             alert('上書き処理が中断されました。\n既存ファイルは削除済みです — 必要なら再度登録してください。');
             return;
         }
@@ -975,7 +1026,7 @@ async function performOverwrite(existing, candidateMeta, mp3Buffer, mp3Hash, kee
             takes: (keepOrDelete === 'keep') ? (oldMeta.takes || []) : [],
             mixes: (keepOrDelete === 'keep') ? (oldMeta.mixes || []) : [],
         });
-        await META.Local.saveSongMeta(folder, updatedMeta);
+        await _ksSaveSongMeta(folderRef, updatedMeta);
 
         setStatus('✅ 上書き完了: ' + internalId, 'var(--orange-light)');
         const takeMixSummary = (keepOrDelete === 'keep')
@@ -1024,9 +1075,9 @@ async function _runVoicecutFlow(folder, candidateMeta, mp3Buffer) {
             setStatus('ボイスカット生成中… (50%)', 'var(--orange-light)');
             const r50 = await generateVoicecutWav(mp3Buffer, 0.5);
             setStatus('voicecut wav 保存中…', 'var(--orange-light)');
-            await META.Local.writeFile(folder, 'voicecut100.wav', r100.wavBlob);
+            await _ksWriteFile(folder, 'voicecut100.wav', r100.wavBlob);
             if (r50.available) {
-                await META.Local.writeFile(folder, 'voicecut50.wav', r50.wavBlob);
+                await _ksWriteFile(folder, 'voicecut50.wav', r50.wavBlob);
             }
             candidateMeta.voicecutAvailable = true;
             if (Math.abs(r100.effectiveDb) < 3) {

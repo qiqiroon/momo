@@ -193,6 +193,22 @@
                   - iOS Safari (showDirectoryPicker 非対応) は v2.01 の multiple 選択方式に
                     フォールバック (動作は維持)
                   - ファイル選択モーダル (#make-file-picker-modal) を新規追加
+       v2.09 - メイクタブ登録/上書き処理の Drive 対応 — 2026-05-24
+                  ユーザー報告: カラオケフォルダ Drive 選択後に mp3 登録すると
+                  「先にカラオケフォルダを接続してください」 のエラー。
+                  原因: onRegister の判定が karaokeFolderHandle (Local 限定) だけ
+                  見ていて Drive 接続を認識していなかった。
+                  対策:
+                  - _isKaraokeConnected() で provider 別接続判定
+                  - _ks* ラッパー関数群 (listSongs / createSongFolder / writeFile /
+                    saveSongMeta / deleteFile / listFiles) を導入
+                  - onRegister / performOverwrite / _runVoicecutFlow 内の
+                    META.Local.* 呼び出しをラッパー経由に置き換え
+                  - folderRef 抽象: Local では FileSystemDirectoryHandle、
+                    Drive では internalId 文字列を持ち回す
+                  - これで Drive カラオケフォルダ + ローカル音楽ライブラリの組み合わせで
+                    登録・上書きが動作可能になる
+                  - 音楽ライブラリ Drive 対応 (iPhone 完全対応) は v2.10 で予定
        v2.08 - カラオケフォルダの Drive 対応 (v200改造.txt 1) — 2026-05-24
                   - 「接続/変更」 ボタンを押すと「ローカル / Google Drive」 選択モーダルが出る
                   - ローカル選択 → 従来通り showDirectoryPicker
@@ -1142,7 +1158,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.08</span>
+                <span class="version-tag" id="version-tag">v2.09</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1668,7 +1684,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.08',
+        version: document.getElementById('version-tag')?.textContent || 'v2.09',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -1774,7 +1790,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.08';
+const APP_VERSION = 'v2.09';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {

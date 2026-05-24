@@ -202,6 +202,18 @@
                   対策 (meta.js のみ):
                     - ensureKaraokeRoot を split('/') で階層分割し、 各階層ごとに
                       exists → mkdir → refresh → cd の順で確実に作成・移動
+       v2.27 - マイク無反応時のガイド表示 (Chrome/Edge は設定 URL コピー) — 2026-05-24
+                  ユーザーの真因: Chrome のマイクデバイス選択が物理マイクではない方を
+                  指していた → chrome://settings/content/microphone で変更で解決。
+                  同じ問題に遭遇するユーザー向けにガイドを実装:
+                    - マイクテストで 5 秒間 peakMax<0.005 (ほぼ無音) なら警告 +
+                      ヘルプボックスを自動展開
+                    - マイク設定モーダル内に常設の折りたたみヘルプ「▸ マイクが反応
+                      しない時は…」 を追加
+                    - ブラウザ判定 (Chrome/Edge/Firefox/Safari/iOS) に応じた案内
+                    - Chrome/Edge は設定 URL を <code> + 📋 コピーボタン (リンクの
+                      直接クリックはブラウザがブロックするため URL コピー方式)
+                  v2.26 で追加した 200ms 診断ログは削除 (真因判明済み)
        v2.26 - PC マイクテスト無反応の診断ログ追加 (200ms 毎の peak/DOM 状態) — 2026-05-24
                   v2.25 ログで startMicTest は成功 (running, gain=36 dB) するが MIC
                   INPUT LEVEL バーは無反応。 真因候補:
@@ -1357,7 +1369,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.26</span>
+                <span class="version-tag" id="version-tag">v2.27</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1973,7 +1985,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.26',
+        version: document.getElementById('version-tag')?.textContent || 'v2.27',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2079,7 +2091,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.26';
+const APP_VERSION = 'v2.27';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -6051,6 +6063,7 @@ async function startMicTest(){
     const buf = new Float32Array(micTestState.analyser.fftSize);
     let peakHold = 0;
     let peakHoldTime = 0;
+    micTestState._peakMax = 0;  // v2.27: テスト中の最大 peak を記録 (無音判定用)
     function tick(){
         if(!micTestState.active) return;
         try {
@@ -6060,21 +6073,10 @@ async function startMicTest(){
                 const a = Math.abs(buf[i]);
                 if(a > peak) peak = a;
             }
+            if(peak > micTestState._peakMax) micTestState._peakMax = peak;
             // Update UI
             if(levelEl){
                 levelEl.style.width = Math.min(100, peak * 100) + '%';
-            }
-            // v2.26: マイクテスト中の peak / DOM 状態を 200ms 毎にログ (PC マイク無反応の真因切り分け)
-            const _now = performance.now();
-            if (!micTestState._lastDiagLog || _now - micTestState._lastDiagLog > 200) {
-                micTestState._lastDiagLog = _now;
-                const _parent = levelEl ? levelEl.parentElement : null;
-                const _pw = _parent ? _parent.getBoundingClientRect().width : -1;
-                const _ctxState = micTestState.ctx ? micTestState.ctx.state : 'no-ctx';
-                DEBUG.info('Mic tick: peak=' + peak.toFixed(4) +
-                    ' levelEl=' + (levelEl ? ('w=' + levelEl.style.width) : 'NULL') +
-                    ' parent.width=' + (_pw >= 0 ? _pw.toFixed(0) : '?') +
-                    ' ctx=' + _ctxState);
             }
             const peakTag = document.getElementById('micPeakTag');
             if(peakTag){
@@ -6116,9 +6118,50 @@ function stopMicTest(){
     const status = document.getElementById('micTestStatus');
     const levelEl = document.getElementById('micLevel');
     if(btn){ btn.classList.remove('testing'); btn.textContent = '🎤 マイクテスト (5秒)'; }
-    if(status){ status.textContent = 'テスト終了。録音前に GAIN を調整してください'; status.className = 'mic-test-status'; }
     if(levelEl) levelEl.style.width = '0%';
-    DEBUG.ok('Mic test: stopped and resources released');
+
+    // v2.27: 5 秒間ほぼ無音 (peakMax < 0.005 ≒ -46 dB) ならマイク設定見直しを案内
+    const peakMax = micTestState._peakMax || 0;
+    DEBUG.ok('Mic test: stopped, peakMax=' + peakMax.toFixed(4));
+    if (status) {
+        if (peakMax < 0.005) {
+            status.textContent = '⚠ マイク入力を検出できませんでした';
+            status.className = 'mic-test-status';
+            status.style.color = 'var(--rec-red, #f87171)';
+            _showMicHelpForUnresponsive();
+        } else {
+            status.textContent = 'テスト終了。録音前に GAIN を調整してください';
+            status.className = 'mic-test-status';
+            status.style.color = '';
+            _hideMicHelp();
+        }
+    }
+}
+
+// v2.27: マイク設定変更ガイド (Chrome/Edge は設定 URL コピー、 他ブラウザは文字案内のみ)
+function _detectBrowserForMicHelp() {
+    const ua = navigator.userAgent;
+    // Edge が "Edg/" を含む (Chrome は含まない)。 順序注意 (Edge 先)
+    if (/Edg\//.test(ua)) return { name: 'Edge', settingsUrl: 'edge://settings/content/microphone' };
+    if (/Chrome\//.test(ua) && !/OPR\//.test(ua)) return { name: 'Chrome', settingsUrl: 'chrome://settings/content/microphone' };
+    if (/Firefox\//.test(ua)) return { name: 'Firefox', settingsUrl: 'about:preferences#privacy' };
+    if (/Safari\//.test(ua) && /Macintosh/.test(ua)) return { name: 'Safari (Mac)', settingsUrl: null };  // システム環境設定
+    if (/iPhone|iPad/.test(ua)) return { name: 'iOS', settingsUrl: null };
+    return { name: 'unknown', settingsUrl: null };
+}
+function _showMicHelpForUnresponsive() {
+    let helpBox = document.getElementById('karaoke-mic-help-box');
+    if (!helpBox) return;  // モーダル内 helpBox が無ければ何もしない
+    helpBox.style.display = '';
+    helpBox.querySelector('.mic-help-trigger').style.display = 'none';  // 折りたたみリンクは隠す
+    helpBox.querySelector('.mic-help-content').style.display = '';      // 中身を即展開
+}
+function _hideMicHelp() {
+    const helpBox = document.getElementById('karaoke-mic-help-box');
+    if (!helpBox) return;
+    // 自動表示モードを終わらせて、 折りたたみリンク表示に戻す
+    helpBox.querySelector('.mic-help-trigger').style.display = '';
+    helpBox.querySelector('.mic-help-content').style.display = 'none';
 }
 const btnMicTest = document.getElementById('btnMicTest');
 if(btnMicTest){
@@ -6796,8 +6839,62 @@ function _initKaraoke5c() {
     const micModalBody = document.getElementById('karaoke-mic-setup-modal-body');
     if (micPanel && micModalBody) {
         micModalBody.appendChild(micPanel);
-        // モーダル内ではパネルの外側余白を消す
         micPanel.style.marginBottom = '0';
+    }
+
+    // v2.27: マイク無反応ヘルプボックス (折りたたみ式 + 設定 URL コピー)
+    if (micModalBody && !document.getElementById('karaoke-mic-help-box')) {
+        const br = _detectBrowserForMicHelp();
+        const helpBox = document.createElement('div');
+        helpBox.id = 'karaoke-mic-help-box';
+        helpBox.style.cssText = 'margin-top:14px; padding:10px 12px; background:rgba(251,146,60,0.06); border:1px solid rgba(251,146,60,0.3); border-radius:8px; font-size:11px; line-height:1.6;';
+        let inner =
+            '<a class="mic-help-trigger" href="#" style="color:var(--orange-light); text-decoration:none; font-size:11px;">▸ マイクが反応しない時は…</a>' +
+            '<div class="mic-help-content" style="display:none; margin-top:8px; color:var(--text);">' +
+            '<b>1.</b> マイクが ブラウザに接続されているか確認 (USB/Bluetooth)<br>' +
+            '<b>2.</b> URL バー左の 🔒/ⓘ アイコン → サイト設定 → マイクが「許可」 か確認<br>';
+        if (br.settingsUrl) {
+            inner += '<b>3.</b> ' + br.name + ' のマイクデバイス選択を確認:<br>' +
+                '<div style="display:flex; gap:6px; align-items:center; margin-top:6px; flex-wrap:wrap;">' +
+                '<code style="background:var(--bg); padding:3px 8px; border-radius:4px; font-size:10px; user-select:all; word-break:break-all;">' + br.settingsUrl + '</code>' +
+                '<button class="momo-btn-small mic-help-copy-btn" data-url="' + br.settingsUrl + '" style="padding:3px 10px; font-size:10px;">📋 コピー</button>' +
+                '</div>' +
+                '<div style="margin-top:4px; color:var(--text-muted);">↑ URL をコピーしてアドレスバーに貼って開く (リンクのクリックはブラウザがブロックします)</div>';
+        } else if (br.name === 'iOS') {
+            inner += '<b>3.</b> iPhone/iPad の設定アプリ → Safari → カメラとマイク → 「許可」 を確認';
+        } else if (br.name === 'Safari (Mac)') {
+            inner += '<b>3.</b> Mac のシステム環境設定 → セキュリティとプライバシー → マイク → Safari にチェック';
+        }
+        inner += '</div>';
+        helpBox.innerHTML = inner;
+        micModalBody.appendChild(helpBox);
+
+        // トリガーの展開/折りたたみ
+        const trigger = helpBox.querySelector('.mic-help-trigger');
+        const content = helpBox.querySelector('.mic-help-content');
+        if (trigger && content) {
+            trigger.addEventListener('click', (e) => {
+                e.preventDefault();
+                const show = content.style.display === 'none';
+                content.style.display = show ? '' : 'none';
+                trigger.textContent = (show ? '▾' : '▸') + ' マイクが反応しない時は…';
+            });
+        }
+        // コピーボタン
+        const copyBtn = helpBox.querySelector('.mic-help-copy-btn');
+        if (copyBtn) {
+            copyBtn.addEventListener('click', async () => {
+                const url = copyBtn.dataset.url;
+                try {
+                    await navigator.clipboard.writeText(url);
+                    copyBtn.textContent = '✅ コピー済';
+                    setTimeout(() => { copyBtn.textContent = '📋 コピー'; }, 2000);
+                } catch (e) {
+                    copyBtn.textContent = '❌ 失敗';
+                    setTimeout(() => { copyBtn.textContent = '📋 コピー'; }, 2000);
+                }
+            });
+        }
     }
 
     // (3) BGM 音量スライダ % ↔ dB 変換 + 双方向同期

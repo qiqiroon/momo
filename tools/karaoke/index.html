@@ -202,6 +202,18 @@
                   対策 (meta.js のみ):
                     - ensureKaraokeRoot を split('/') で階層分割し、 各階層ごとに
                       exists → mkdir → refresh → cd の順で確実に作成・移動
+       v2.23 - Phase 5c: BGM 音量 + マイク設定モーダル化 + v1.39 UI 整理 — 2026-05-24
+                  仕様書 §5.4 + §5.5 + §5.1。
+                    - #karaoke-bgm-vol-row: 常時表示の BGM 音量スライダ (0〜200%、
+                      デフォルト 100%)。 内部で % → dB 変換して既存 #bgmVolSlider に
+                      input イベント発火で反映 (v1.39 ロジックそのまま利用)
+                    - ⚙ ボタン → #karaoke-mic-setup-modal: 既存 #karaoke-mic-setup-panel
+                      を起動時に物理 appendChild でモーダル内へ移動。 MIC GAIN /
+                      マイクテスト / iOS ヘッドホン推奨 表示まで含めて温存
+                    - #karaoke-bgm-channel-panel (SPEED/PITCH/VOLUME/EQ) +
+                      #karaoke-legacy-vc-panel (リアルタイム vocalCut UI) を
+                      style.display='none' で非表示化。 内部ロジック・既存スライダーは
+                      DOM 上に残るので動作継続 (録音/再生コアに影響なし)
        v2.22 - Phase 5b 修正: トグル切替後に再生再開されないバグ — 2026-05-24
                   ユーザー報告: 再生中に 50/100 を押すと曲が止まったまま、 ボタンも
                   停止状態に戻ってしまう。 真因 2 つ:
@@ -1309,7 +1321,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.22</span>
+                <span class="version-tag" id="version-tag">v2.23</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1586,6 +1598,27 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <span id="karaoke-vc-hint" style="flex:1; min-width:140px; color:var(--text-muted); font-size:11px;">取り込み時に生成した voicecut.wav に切替</span>
         </div>
 
+        <!-- v2.23 (Phase 5c): BGM 音量スライダ (常時表示 0〜200%) + マイク設定ボタン (仕様書 §5.4/§5.5) -->
+        <div id="karaoke-bgm-vol-row" style="display:flex; align-items:center; gap:10px; padding:10px 14px; background:var(--surface); border:1px solid var(--border); border-radius:10px; margin-bottom:14px; flex-wrap:wrap;">
+            <span style="color:var(--text-muted); font-size:12px; font-weight:600; min-width:60px;">🎵 BGM</span>
+            <input type="range" id="karaoke-bgm-vol-slider" min="0" max="200" step="5" value="100" style="flex:1; min-width:140px;">
+            <span id="karaoke-bgm-vol-val" style="color:var(--text); font-size:12px; font-family:monospace; min-width:48px; text-align:right;">100%</span>
+            <button class="momo-btn-small" id="karaoke-btn-mic-setup" title="マイク設定">⚙ マイク</button>
+        </div>
+
+        <!-- v2.23 (Phase 5c): マイク設定モーダル — 中身は既存 Mic Setup パネルを起動時に移動 -->
+        <div id="karaoke-mic-setup-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1000; align-items:center; justify-content:center; padding:20px;">
+            <div style="background:var(--surface); border:1px solid var(--orange); border-radius:12px; padding:18px; max-width:460px; width:100%; max-height:80vh; overflow-y:auto;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <div style="font-size:14px; font-weight:700; color:var(--orange-light);">マイク設定</div>
+                    <button class="momo-btn-small" id="karaoke-mic-setup-close" style="padding:4px 10px;">×</button>
+                </div>
+                <div id="karaoke-mic-setup-modal-body">
+                    <!-- 既存 #karaoke-mic-setup-panel が JS で append される -->
+                </div>
+            </div>
+        </div>
+
         <!-- v2.20: 曲選択モーダル (仕様書 §8.1) -->
         <div id="karaoke-song-picker-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1000; align-items:center; justify-content:center; padding:20px;">
             <div style="background:var(--surface); border:1px solid var(--orange); border-radius:12px; padding:18px; max-width:520px; width:100%; max-height:80vh; display:flex; flex-direction:column;">
@@ -1599,8 +1632,8 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             </div>
         </div>
 
-        <!-- BGM 調整 -->
-        <div class="karaoke-panel">
+        <!-- BGM 調整 (v2.23 で id 付与: Phase 5c で カラオケタブで非表示化) -->
+        <div class="karaoke-panel" id="karaoke-bgm-channel-panel">
             <div class="panel-head">
                 <div class="panel-title">BGM Channel</div>
                 <div class="panel-tag">BASE TRACK</div>
@@ -1625,8 +1658,8 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             </div>
         </div>
 
-        <!-- ボーカルカット（録音時・再生時 共通） -->
-        <div class="karaoke-panel">
+        <!-- ボーカルカット（録音時・再生時 共通） (v2.23 で id 付与: 5c で非表示化) -->
+        <div class="karaoke-panel" id="karaoke-legacy-vc-panel">
             <div class="panel-head">
                 <div class="panel-title">Vocal Cut</div>
                 <div class="panel-tag" id="vocalCutStateTag">— READY</div>
@@ -1645,8 +1678,8 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             </div>
         </div>
 
-        <!-- マイクセットアップ -->
-        <div class="karaoke-panel">
+        <!-- マイクセットアップ (v2.23 で id 付与: モーダル化のため起動時に JS で物理移動) -->
+        <div class="karaoke-panel" id="karaoke-mic-setup-panel">
             <div class="panel-head">
                 <div class="panel-title">Mic Setup</div>
                 <div class="panel-tag" id="micPeakTag">— dB</div>
@@ -1885,7 +1918,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.22',
+        version: document.getElementById('version-tag')?.textContent || 'v2.23',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -1991,7 +2024,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.22';
+const APP_VERSION = 'v2.23';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -6657,8 +6690,85 @@ async function openKaraokeSongPicker() {
             _karaokeSetVcLevel(lvl);
         });
     });
-    _updateKaraokeVcToggleUI();  // 初期状態 (currentSong なし) で 50/100 グレーアウト
+    _updateKaraokeVcToggleUI();
+
+    // v2.23 (Phase 5c): BGM 音量スライダ + マイク設定モーダル
+    _initKaraoke5c();
 })();
+
+// v2.23: Phase 5c 初期化
+//   1. 既存 BGM Channel パネル + Vocal Cut パネルを非表示化 (ロジックは温存)
+//   2. 既存 Mic Setup パネルをモーダル内へ DOM 物理移動 (イベントハンドラ温存)
+//   3. 新規 BGM 音量スライダ (0〜200%) と既存 #bgmVolSlider (-24〜+6 dB) を双方向同期
+//   4. ⚙ ボタンでマイクモーダル表示
+function _initKaraoke5c() {
+    // (1) 既存 v1.39 UI パネルを非表示化
+    const bgmCh = document.getElementById('karaoke-bgm-channel-panel');
+    if (bgmCh) bgmCh.style.display = 'none';
+    const legacyVc = document.getElementById('karaoke-legacy-vc-panel');
+    if (legacyVc) legacyVc.style.display = 'none';
+
+    // (2) Mic Setup パネルをモーダル内へ物理移動
+    const micPanel = document.getElementById('karaoke-mic-setup-panel');
+    const micModalBody = document.getElementById('karaoke-mic-setup-modal-body');
+    if (micPanel && micModalBody) {
+        micModalBody.appendChild(micPanel);
+        // モーダル内ではパネルの外側余白を消す
+        micPanel.style.marginBottom = '0';
+    }
+
+    // (3) BGM 音量スライダ % ↔ dB 変換 + 双方向同期
+    const newSlider = document.getElementById('karaoke-bgm-vol-slider');
+    const newVal = document.getElementById('karaoke-bgm-vol-val');
+    const oldSlider = document.getElementById('bgmVolSlider');  // v1.39 既存 (-24〜+6 dB)
+    if (newSlider && oldSlider) {
+        const pctToDb = (p) => (p <= 0) ? -24 : Math.max(-24, Math.min(6, 20 * Math.log10(p / 100)));
+        const dbToPct = (d) => Math.max(0, Math.min(200, Math.round(Math.pow(10, d / 20) * 100)));
+        // 初期値: 既存スライダの dB を % に反映 (デフォルト 0 dB → 100%)
+        try {
+            const initDb = parseFloat(oldSlider.value) || 0;
+            newSlider.value = String(dbToPct(initDb));
+        } catch (e) {}
+        const syncLabel = () => {
+            if (newVal) newVal.textContent = newSlider.value + '%';
+        };
+        syncLabel();
+        // 新 → 旧 (UI 操作 → 既存ロジック反映、 input イベント発火で v1.39 ハンドラ起動)
+        newSlider.addEventListener('input', () => {
+            const pct = parseInt(newSlider.value, 10) || 0;
+            const db = pctToDb(pct);
+            oldSlider.value = String(db);
+            oldSlider.dispatchEvent(new Event('input', { bubbles: true }));
+            syncLabel();
+        });
+        // 旧 → 新 (外部から oldSlider が変わった時の追従、 念のため)
+        oldSlider.addEventListener('input', () => {
+            const db = parseFloat(oldSlider.value) || 0;
+            const pct = dbToPct(db);
+            // 微小な丸め誤差で input イベント無限ループ防止
+            if (String(pct) !== newSlider.value) {
+                newSlider.value = String(pct);
+                syncLabel();
+            }
+        });
+    }
+
+    // (4) マイク設定モーダル開閉
+    const btnOpen = document.getElementById('karaoke-btn-mic-setup');
+    const btnClose = document.getElementById('karaoke-mic-setup-close');
+    const modal = document.getElementById('karaoke-mic-setup-modal');
+    if (btnOpen && modal) {
+        btnOpen.addEventListener('click', () => { modal.style.display = 'flex'; });
+    }
+    if (btnClose && modal) {
+        btnClose.addEventListener('click', () => { modal.style.display = 'none'; });
+    }
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.style.display = 'none';
+        });
+    }
+}
 
 // v2.08: 既存 gdrive オブジェクトを window グローバルに expose
 // make.js (MomoMeta.Drive 本実装) から既存 v1.39 の Drive 接続ロジックを再利用するため。

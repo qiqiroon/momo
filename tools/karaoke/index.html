@@ -202,6 +202,16 @@
                   対策 (meta.js のみ):
                     - ensureKaraokeRoot を split('/') で階層分割し、 各階層ごとに
                       exists → mkdir → refresh → cd の順で確実に作成・移動
+       v2.26 - PC マイクテスト無反応の診断ログ追加 (200ms 毎の peak/DOM 状態) — 2026-05-24
+                  v2.25 ログで startMicTest は成功 (running, gain=36 dB) するが MIC
+                  INPUT LEVEL バーは無反応。 真因候補:
+                    (a) マイク入力自体が来ていない (peak が常に 0、 ブラウザ権限 or
+                        Windows デバイス設定問題)
+                    (b) levelEl が見つけられない (DOM 移動の影響)
+                    (c) levelEl は更新されるが視覚的に見えない (親 width=0 等)
+                  切り分けのため tick 内に 200ms 毎の診断ログを追加:
+                    'Mic tick: peak=0.0123 levelEl=w=50% parent.width=240 ctx=running'
+                  これでログから (a)(b)(c) のどれかが特定できる
        v2.25 - DEBUG.* を Console DevTools にもミラー (マイクテスト不動の真因切り分け用) — 2026-05-24
                   v2.24 動作確認で「PC マイクテスト反応しない」 報告が継続。 ログを
                   console.log でしか追えていない一方、 v1.39 startMicTest 内の進捗
@@ -1347,7 +1357,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.25</span>
+                <span class="version-tag" id="version-tag">v2.26</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1963,7 +1973,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.25',
+        version: document.getElementById('version-tag')?.textContent || 'v2.26',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2069,7 +2079,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.25';
+const APP_VERSION = 'v2.26';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -6053,6 +6063,18 @@ async function startMicTest(){
             // Update UI
             if(levelEl){
                 levelEl.style.width = Math.min(100, peak * 100) + '%';
+            }
+            // v2.26: マイクテスト中の peak / DOM 状態を 200ms 毎にログ (PC マイク無反応の真因切り分け)
+            const _now = performance.now();
+            if (!micTestState._lastDiagLog || _now - micTestState._lastDiagLog > 200) {
+                micTestState._lastDiagLog = _now;
+                const _parent = levelEl ? levelEl.parentElement : null;
+                const _pw = _parent ? _parent.getBoundingClientRect().width : -1;
+                const _ctxState = micTestState.ctx ? micTestState.ctx.state : 'no-ctx';
+                DEBUG.info('Mic tick: peak=' + peak.toFixed(4) +
+                    ' levelEl=' + (levelEl ? ('w=' + levelEl.style.width) : 'NULL') +
+                    ' parent.width=' + (_pw >= 0 ? _pw.toFixed(0) : '?') +
+                    ' ctx=' + _ctxState);
             }
             const peakTag = document.getElementById('micPeakTag');
             if(peakTag){

@@ -999,6 +999,7 @@ async function onRegister() {
         // 仕様 §4.6 重複判定マトリクス
         if (alphaHit && betaHit && alphaHit.internalId === betaHit.internalId) {
             // α・β 両方一致: 既登録
+            setStatus('既に登録済みです', 'var(--text-muted)');  // v2.19: 「既存曲を確認中…」 残り解消
             alert('既に登録済みです:\n' + title + ' - ' + artist);
             return;
         }

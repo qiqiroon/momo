@@ -202,6 +202,9 @@
                   対策 (meta.js のみ):
                     - ensureKaraokeRoot を split('/') で階層分割し、 各階層ごとに
                       exists → mkdir → refresh → cd の順で確実に作成・移動
+       v2.19 - 既登録アラート後にステータス「既存曲を確認中…」 が残る不具合修正 — 2026-05-24
+                  α+β 両方一致の return パスで setStatus がクリアされていなかった。
+                  「既に登録済みです」 メッセージに置換。
        v2.18 - meta.json 読込失敗 (重複判定 0 件問題) の真因修正 — 2026-05-24
                   v2.17 ログで真因確定: song フォルダは 2 件正しく見えるが
                   「meta.json 読込失敗」 で有効 0 件 → 重複判定不能になっていた。
@@ -1272,7 +1275,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.18</span>
+                <span class="version-tag" id="version-tag">v2.19</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1817,7 +1820,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.18',
+        version: document.getElementById('version-tag')?.textContent || 'v2.19',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -1923,7 +1926,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.18';
+const APP_VERSION = 'v2.19';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {

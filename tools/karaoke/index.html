@@ -202,6 +202,17 @@
                   対策 (meta.js のみ):
                     - ensureKaraokeRoot を split('/') で階層分割し、 各階層ごとに
                       exists → mkdir → refresh → cd の順で確実に作成・移動
+       v2.22 - Phase 5b 修正: トグル切替後に再生再開されないバグ — 2026-05-24
+                  ユーザー報告: 再生中に 50/100 を押すと曲が止まったまま、 ボタンも
+                  停止状態に戻ってしまう。 真因 2 つ:
+                    (a) `window.bgmTransport && !bgmTransport.paused` の判定で
+                        window.bgmTransport が undefined (IIFE 内 const なので
+                        window 直下にいない) → wasPlaying が常に false
+                    (b) 仮に bgmTransport.play() を直接呼んでも、 歌詞ティック・
+                        録音同期・ボタン UI 更新が走らない (それらは btnPlay.click
+                        ハンドラ内で起動される)
+                  対策: bgmTransport を直接参照 + 切替前後とも btnPlay.click() で
+                  停止/再開 (歌詞ティック等の周辺処理を維持)
        v2.21 - Phase 5b: ボイスカット 0/50/100% トグル (voicecut*.wav 読込型) — 2026-05-24
                   仕様書 §5.3。 メイクモードで取り込み時に生成した voicecut100.wav /
                   voicecut50.wav を読み込んで、 0/50/100% トグルで bgmTransport の
@@ -1298,7 +1309,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.21</span>
+                <span class="version-tag" id="version-tag">v2.22</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1874,7 +1885,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.21',
+        version: document.getElementById('version-tag')?.textContent || 'v2.22',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -1980,7 +1991,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.21';
+const APP_VERSION = 'v2.22';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -6432,25 +6443,26 @@ function _updateKaraokeVcToggleUI() {
     }
 }
 
-// v2.21: トグル切替時の Blob 差し替え
-//   再生中の現在位置を覚えて、 ロード後 seek で復元する。 既存の bgmTransport は
-//   PC: AudioWorklet (loadFile で decodeAudioData)、 iOS: HTMLAudioElement (loadFile で
-//   src 更新) のどちらも currentTime 持つので共通の seek 復元で OK。
+// v2.21 → v2.22: トグル切替時の Blob 差し替え
+//   再生中の現在位置を覚えて、 ロード後 seek で復元する。
+//   v2.22 修正: bgmTransport は IIFE 内 const なので window 経由不可 (常に false 判定の
+//   バグがあった)。 直接参照に変更。 また bgmTransport.play() を直接呼ぶと歌詞ティック
+//   や録音同期等の周辺更新が走らないため、 既存の btnPlay.click() で再生再開する。
 async function _karaokeSetVcLevel(level) {
     const blob = karaokeUiState.vcBlobs[level];
     if (!blob) {
         setStatus('レベル ' + level + '% の音源がありません', 'err');
         return;
     }
-    const wasPlaying = !!(window.bgmTransport && !bgmTransport.paused);
-    const prevTime = (window.bgmTransport && typeof bgmTransport.currentTime === 'number') ? bgmTransport.currentTime : 0;
+    const wasPlaying = !bgmTransport.paused;
+    const prevTime = (typeof bgmTransport.currentTime === 'number') ? bgmTransport.currentTime : 0;
     try {
-        if (wasPlaying && !bgmTransport.paused) {
-            try { bgmTransport.pause(); } catch (e) {}
+        if (wasPlaying) {
+            // btnPlay.click で停止 (歌詞ティック停止 + UI 更新含む)
+            try { btnPlay.click(); } catch (e) { try { bgmTransport.pause(); } catch (_) {} }
         }
         setStatus('ボイスカット切替: ' + level + '% …', 'ok');
         await bgmTransport.loadFile(blob);
-        // 位置復元
         try {
             if (typeof bgmTransport.seekTo === 'function') bgmTransport.seekTo(prevTime);
             else bgmTransport.currentTime = prevTime;
@@ -6459,7 +6471,8 @@ async function _karaokeSetVcLevel(level) {
         _updateKaraokeVcToggleUI();
         setStatus('ボイスカット: ' + level + '%', 'ok');
         if (wasPlaying) {
-            try { await bgmTransport.play(); } catch (e) { console.warn('[karaoke] 再生再開失敗:', e); }
+            // 既存 btnPlay.click ハンドラで歌詞ティック + UI 更新まで含めて再生
+            try { btnPlay.click(); } catch (e) { console.warn('[karaoke] 再生再開失敗:', e); }
         }
     } catch (e) {
         console.error('[karaoke] vc 切替失敗:', e);

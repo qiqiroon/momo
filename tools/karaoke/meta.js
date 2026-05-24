@@ -265,8 +265,19 @@ const Drive = {
     },
 
     // Drive に接続 (Pyodide ロード + OAuth)
+    // v2.15: 既存接続再利用 (トークン有効ならスキップ)。
+    //   v1.39 の gdrive.connect は毎回 OAuth プロンプトを開く実装のため、
+    //   音楽ライブラリ取り込み等で再呼び出しすると不要な OAuth が走る。
+    //   momo_gdrive.py の is_token_valid() でトークンが生きていれば skip する。
     async connect() {
         const g = this._g();
+        if (g.momo) {
+            try {
+                if (typeof g.momo.is_token_valid === 'function' && g.momo.is_token_valid()) {
+                    return true;
+                }
+            } catch (e) { /* fallthrough: 再認証へ */ }
+        }
         const ok = await g.connect();
         if (!ok) throw new Error('Drive connect failed');
         return true;

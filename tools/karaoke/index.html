@@ -202,6 +202,16 @@
                   対策 (meta.js のみ):
                     - ensureKaraokeRoot を split('/') で階層分割し、 各階層ごとに
                       exists → mkdir → refresh → cd の順で確実に作成・移動
+       v2.17 - Drive listSongs に詳細ログ追加 (重複判定 0 件問題の切り分け) — 2026-05-24
+                  v2.16 で「同名同音源を 2 回連続登録しても既存曲列挙: 0 件」 と
+                  なる問題を切り分けるため、 listSongs に rootId と _list_children の
+                  結果 (件数 + 各アイテム名) + 代替系統 list_dir(abs, use_cache=False)
+                  の結果を比較ログ出力。 真因候補:
+                    (a) _list_children が drive.file スコープで自分の作ったフォルダを
+                        list で見つけられない
+                    (b) Drive API の eventual consistency (作成直後の list 反映遅延)
+                    (c) ユーザーが手動で過去 song を全削除済み (= 0 件正常)
+                  ログでこれらを切り分ける
        v2.16 - Drive 取り込みの mp3/lrc ファイル名修正 + 重複判定ログ — 2026-05-24
                   ユーザー報告: Drive 経由で取り込んだ mp3/lrc が 'untitled' という
                   ファイル名で保存される + 同名同アーティスト同音源なのに別バージョン
@@ -1249,7 +1259,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.16</span>
+                <span class="version-tag" id="version-tag">v2.17</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1794,7 +1804,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.16',
+        version: document.getElementById('version-tag')?.textContent || 'v2.17',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -1900,7 +1910,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.16';
+const APP_VERSION = 'v2.17';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {

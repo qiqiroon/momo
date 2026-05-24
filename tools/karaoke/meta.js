@@ -384,24 +384,48 @@ const Drive = {
     },
 
     // 曲一覧 (カラオケルート直下のサブフォルダ + 各 meta.json)
+    // v2.17: 真因切り分け用の詳細ログを追加 (重複判定で既存曲 0 件問題のデバッグ)。
+    //   さらに _list_children → list_dir(use_cache=false) で 2 系統取得して比較する。
+    //   drive.file スコープによる挙動差を可視化するため。
     async listSongs() {
         const g = this._g();
         let rootId = this._rootId;
         if (!rootId) {
-            // ensureKaraokeRoot を未通過なら mkdir で取得 (既存なら resolve_path で即返る)
             rootId = await g.momo.mkdir(this.KARAOKE_ROOT_ABS);
             this._rootId = rootId;
         }
+        console.log('[Drive] listSongs: rootId =', rootId, 'abs =', this.KARAOKE_ROOT_ABS);
+
+        // 1 系統目: _list_children (cache 不使用、 素 fetch)
         const itemsProxy = await g.momo._list_children(rootId);
         const items = itemsProxy.toJs({ dict_converter: Object.fromEntries });
         if (itemsProxy.destroy) itemsProxy.destroy();
+        console.log('[Drive] listSongs: _list_children →', items.length, '件:',
+            items.map(i => i.name + (i.isFolder ? '/' : '')).join(', ') || '(空)');
+
+        // 2 系統目: list_dir(abs, use_cache=False) を試す (絶対パス → 内部で resolve_path → _list_children)
+        try {
+            const altProxy = await g.momo.list_dir(this.KARAOKE_ROOT_ABS, false);
+            const alt = altProxy.toJs({ dict_converter: Object.fromEntries });
+            if (altProxy.destroy) altProxy.destroy();
+            console.log('[Drive] listSongs: list_dir(abs,false) →', alt.length, '件:',
+                alt.map(i => i.name + (i.isFolder ? '/' : '')).join(', ') || '(空)');
+        } catch (e) {
+            console.warn('[Drive] listSongs: list_dir alt fail:', e);
+        }
+
         const songs = [];
         for (const it of items) {
             if (it.isFolder) {
                 const meta = await this.loadSongMeta(it.name);
-                if (meta) songs.push({ internalId: it.name, meta });
+                if (meta) {
+                    songs.push({ internalId: it.name, meta });
+                } else {
+                    console.log('[Drive] listSongs: meta.json 読込失敗 or 空:', it.name);
+                }
             }
         }
+        console.log('[Drive] listSongs: 有効な song フォルダ =', songs.length);
         return songs;
     },
 

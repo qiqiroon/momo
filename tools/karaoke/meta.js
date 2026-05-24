@@ -240,8 +240,17 @@ const Local = {
 //    momo_gdrive.py API: connect / navigate / cd / mkdir / exists / read_text /
 //      read_bytes / read_json / write_bytes / delete / copy / move / _list_children
 // ───────────────────────────────────────────────────────────────────────────
+// v2.13 (2026-05-24): Drive 実装を **絶対パス方式** に全面書き換え。
+//   v2.12 までは cd() で cwd を移動してファイル名のみ渡す方式だったが、
+//   momo_gdrive.py の navigate() は相対 cd ではなく絶対パスで current_path を
+//   上書きするため、 連続 cd では cwd が思った場所に来ない (= 'Drive ルート直下に
+//   karaoke が作られる' 不具合の真因)。 本版では cd を使わず、 全ファイル操作を
+//   '/momo-works/karaoke/...' の絶対パスで実行する。
+//   併せて momo_gdrive.py を v1.06 に更新 (_upload の PATCH に parents 同梱バグ
+//   修正、 既存ファイル上書き時の 403 を解消)。
 const Drive = {
-    KARAOKE_ROOT_PATH: 'momo-works/karaoke',
+    KARAOKE_ROOT_ABS: '/momo-works/karaoke',
+    _rootId: null,  // ensureKaraokeRoot で取得 (listSongs などで再利用)
 
     // 既存 v1.39 の gdrive オブジェクト参照を取得 (expose されていれば)
     _g() {
@@ -263,160 +272,116 @@ const Drive = {
         return true;
     },
 
-    // ensureKaraokeRoot: `momo-works/karaoke` フォルダを **階層別に** navigate
-    // v2.12: 'momo-works/karaoke' を 1 度に渡すと momo_gdrive.py 側の解釈で失敗するため、
-    //        ['momo-works', 'karaoke'] に分割して各階層で exists → mkdir → cd
-    //        mkdir 後 refresh() でキャッシュ更新、 最後に info() で cwd を verify
-    async ensureKaraokeRoot() {
-        const g = this._g();
-        if (!g.momo) await this.connect();
-        const parts = this.KARAOKE_ROOT_PATH.split('/').filter(Boolean);  // ['momo-works','karaoke']
-        try {
-            for (const part of parts) {
-                let exists = false;
-                try { exists = await g.momo.exists(part); }
-                catch (e) { console.warn('[Drive] exists check fail for', part, ':', e); }
-                if (!exists) {
-                    console.log('[Drive] mkdir:', part);
-                    await g.momo.mkdir(part);
-                    if (g.momo.refresh) {
-                        try { await g.momo.refresh(); } catch (e) {}
-                    }
-                }
-                console.log('[Drive] cd:', part);
-                await g.momo.cd(part);
-            }
-            // verify: 現 cwd をログ出力
-            try {
-                const ip = g.momo.info();
-                const i = (ip && typeof ip.toJs === 'function')
-                    ? ip.toJs({ dict_converter: Object.fromEntries })
-                    : ip;
-                if (ip && typeof ip.destroy === 'function') ip.destroy();
-                console.log('[Drive] ensureKaraokeRoot done, cwd:', i && i.current_path, 'id:', i && i.current_id);
-            } catch (e) { console.warn('[Drive] info() verify fail:', e); }
-            return this.KARAOKE_ROOT_PATH;
-        } catch (e) {
-            throw new Error('ensureKaraokeRoot failed: ' + (e.message || e));
-        }
+    // パス組立てユーティリティ
+    _songPath(songFolderName) {
+        if (!songFolderName) return this.KARAOKE_ROOT_ABS;
+        if (songFolderName.startsWith('/')) return songFolderName;
+        return this.KARAOKE_ROOT_ABS + '/' + songFolderName;
+    },
+    _filePath(songFolderName, fileName) {
+        return this._songPath(songFolderName) + '/' + fileName;
     },
 
-    // v2.11: Uint8Array → Python bytes 明示変換ヘルパ
-    //   Pyodide で JS Uint8Array を直接渡すと PyProxy のままになり
+    // Uint8Array → Python bytes 明示変換
+    //   Pyodide に Uint8Array を直接渡すと PyProxy のままになり
     //   'can't contact pyodide.ffi.JsProxy to bytes' エラーになるため、
     //   pyodide.toPy() で明示的に Python bytes に変換する。
     _toPyBytes(uint8Array) {
         const g = this._g();
         const pyodide = g.pyodide;
         if (!pyodide || typeof pyodide.toPy !== 'function') {
-            // fallback: そのまま渡す (古い Pyodide で動く可能性)
-            return uint8Array;
+            return uint8Array;  // fallback
         }
         return pyodide.toPy(uint8Array);
     },
 
-    // v2.11: writeFile の汎用ヘルパ (cd ベース、 親フォルダに移動してから書き込み)
-    //   理由: write_bytes に 'a/b.txt' のような相対パスを渡すと
-    //   momo_gdrive.py の resolve_path が壊れて FileNotFoundError になる
-    async _writeFileInFolder(folderName, fileName, blob) {
+    async _writeAbs(absPath, bytesOrBlob) {
         const g = this._g();
-        const ab = await blob.arrayBuffer();
-        const ua = new Uint8Array(ab);
-        const pyBytes = this._toPyBytes(ua);
-        if (folderName) {
-            await g.momo.cd(folderName);
+        let ua;
+        if (bytesOrBlob instanceof Blob) {
+            ua = new Uint8Array(await bytesOrBlob.arrayBuffer());
+        } else if (bytesOrBlob instanceof Uint8Array) {
+            ua = bytesOrBlob;
+        } else if (bytesOrBlob instanceof ArrayBuffer) {
+            ua = new Uint8Array(bytesOrBlob);
+        } else {
+            ua = new TextEncoder().encode(String(bytesOrBlob));
         }
+        const pyBytes = this._toPyBytes(ua);
+        console.log('[Drive] write:', absPath, 'bytes:', ua.byteLength);
         try {
-            await g.momo.write_bytes(fileName, pyBytes);
+            await g.momo.write_bytes(absPath, pyBytes);
         } finally {
-            if (folderName) {
-                try { await g.momo.cd('..'); } catch (e) { console.warn('[Drive] cd .. fail:', e); }
-            }
             if (pyBytes && typeof pyBytes.destroy === 'function') {
                 try { pyBytes.destroy(); } catch (e) {}
             }
         }
     },
 
-    async _readTextInFolder(folderName, fileName) {
+    async _readTextAbs(absPath) {
         const g = this._g();
-        if (folderName) {
-            await g.momo.cd(folderName);
-        }
+        const text = await g.momo.read_text(absPath);
+        return (text && typeof text.toString === 'function') ? text.toString() : String(text);
+    },
+
+    // ensureKaraokeRoot: '/momo-works/karaoke' を 1 回の mkdir() で再帰作成し、
+    //   その folder_id をキャッシュ。 mkdir() 内部で resolve_path が階層を辿るので、
+    //   絶対パス '/momo-works/karaoke' を渡すだけで両階層が作られる。
+    async ensureKaraokeRoot() {
+        const g = this._g();
+        if (!g.momo) await this.connect();
         try {
-            const text = await g.momo.read_text(fileName);
-            return (text && typeof text.toString === 'function') ? text.toString() : String(text);
-        } finally {
-            if (folderName) {
-                try { await g.momo.cd('..'); } catch (e) { console.warn('[Drive] cd .. fail:', e); }
-            }
+            console.log('[Drive] mkdir abs:', this.KARAOKE_ROOT_ABS);
+            const rootId = await g.momo.mkdir(this.KARAOKE_ROOT_ABS);
+            this._rootId = rootId;
+            console.log('[Drive] karaoke root id:', rootId);
+            return this.KARAOKE_ROOT_ABS;
+        } catch (e) {
+            throw new Error('ensureKaraokeRoot failed: ' + (e.message || e));
         }
     },
 
-    // _app_settings.json 読み込み (カラオケフォルダ直下、 cwd = momo-works/karaoke 想定)
+    // _app_settings.json (カラオケフォルダ直下)
     async loadAppSettings() {
         try {
-            const t = await this._readTextInFolder(null, '_app_settings.json');
+            const t = await this._readTextAbs(this.KARAOKE_ROOT_ABS + '/_app_settings.json');
             return mergeAppSettings(JSON.parse(t));
         } catch (e) {
             return defaultAppSettings();
         }
     },
-
     async saveAppSettings(settings) {
         const text = JSON.stringify(settings, null, 2);
         const bytes = new TextEncoder().encode(text);
-        await this._writeFileInFolder(null, '_app_settings.json', new Blob([bytes]));
+        await this._writeAbs(this.KARAOKE_ROOT_ABS + '/_app_settings.json', bytes);
     },
 
+    // meta.json (各曲フォルダ直下)
     async loadSongMeta(songFolderName) {
         try {
-            const t = await this._readTextInFolder(songFolderName, 'meta.json');
+            const t = await this._readTextAbs(this._filePath(songFolderName, 'meta.json'));
             return mergeSongMeta(JSON.parse(t));
         } catch (e) {
             return null;
         }
     },
-
     async saveSongMeta(songFolderName, meta) {
         meta.modifiedAt = new Date().toISOString();
         const text = JSON.stringify(meta, null, 2);
         const bytes = new TextEncoder().encode(text);
-        await this._writeFileInFolder(songFolderName, 'meta.json', new Blob([bytes]));
+        await this._writeAbs(this._filePath(songFolderName, 'meta.json'), bytes);
     },
 
-    // 曲一覧 (カラオケフォルダ直下のサブフォルダ + 各 meta.json)
-    // v2.10: フィールド名修正 (cwd_id → current_id) + PyProxy → JS 変換
+    // 曲一覧 (カラオケルート直下のサブフォルダ + 各 meta.json)
     async listSongs() {
         const g = this._g();
-        let info = null;
-        if (g.momo.info) {
-            try {
-                // momo_gdrive.py の info() は def info(self) -> dict (同期 method)
-                const ret = g.momo.info();
-                // Python dict は PyProxy で返る → toJs で JS オブジェクトへ
-                if (ret && typeof ret.toJs === 'function') {
-                    info = ret.toJs({ dict_converter: Object.fromEntries });
-                    if (typeof ret.destroy === 'function') ret.destroy();
-                } else if (ret && typeof ret.then === 'function') {
-                    // 念のため Promise の場合
-                    const awaited = await ret;
-                    info = (awaited && typeof awaited.toJs === 'function')
-                        ? awaited.toJs({ dict_converter: Object.fromEntries })
-                        : awaited;
-                } else {
-                    info = ret;
-                }
-            } catch (e) {
-                console.warn('[Drive] info() failed:', e);
-            }
+        let rootId = this._rootId;
+        if (!rootId) {
+            // ensureKaraokeRoot を未通過なら mkdir で取得 (既存なら resolve_path で即返る)
+            rootId = await g.momo.mkdir(this.KARAOKE_ROOT_ABS);
+            this._rootId = rootId;
         }
-        // フィールド名は momo_gdrive.py 仕様で current_id (v2.09 で誤って cwd_id を見ていた)
-        const folderId = info && (info.current_id || info.cwd_id);
-        if (!folderId) {
-            throw new Error('listSongs: current folder id missing (info=' + JSON.stringify(info) + ')');
-        }
-        const itemsProxy = await g.momo._list_children(folderId);
+        const itemsProxy = await g.momo._list_children(rootId);
         const items = itemsProxy.toJs({ dict_converter: Object.fromEntries });
         if (itemsProxy.destroy) itemsProxy.destroy();
         const songs = [];
@@ -430,28 +395,16 @@ const Drive = {
     },
 
     // 曲フォルダ作成 (重複時 _001 サフィックス)
-    // v2.12: mkdir 後 refresh() でキャッシュ反映、 ログ出力で動作可視化
     async createSongFolder(baseInternalId) {
         const g = this._g();
-        // 念のため現 cwd を確認 (= karaoke ルートのはず)
-        try {
-            const ip = g.momo.info();
-            const i = (ip && typeof ip.toJs === 'function')
-                ? ip.toJs({ dict_converter: Object.fromEntries })
-                : ip;
-            if (ip && typeof ip.destroy === 'function') ip.destroy();
-            console.log('[Drive] createSongFolder: cwd before mkdir =', i && i.current_path);
-        } catch (e) {}
         let id = baseInternalId;
         let suffix = 0;
         while (true) {
-            const exists = await g.momo.exists(id);
+            const absPath = this._songPath(id);
+            const exists = await g.momo.exists(absPath);
             if (!exists) {
-                console.log('[Drive] mkdir song folder:', id);
-                await g.momo.mkdir(id);
-                if (g.momo.refresh) {
-                    try { await g.momo.refresh(); } catch (e) {}
-                }
+                console.log('[Drive] mkdir song folder:', absPath);
+                await g.momo.mkdir(absPath);
                 return { internalId: id };
             }
             suffix++;
@@ -460,72 +413,34 @@ const Drive = {
         }
     },
 
-    // 任意ファイルの読み書き (song フォルダ内、 cd ベース)
+    // 任意ファイルの読み書き (絶対パス直接)
     async readFile(songFolderName, fileName) {
         const g = this._g();
-        await g.momo.cd(songFolderName);
-        try {
-            const bytes = await g.momo.read_bytes(fileName);
-            let buf;
-            if (bytes && typeof bytes.toJs === 'function') {
-                buf = bytes.toJs();
-                if (bytes.destroy) bytes.destroy();
-            } else {
-                buf = bytes;
-            }
-            return new Blob([buf]);
-        } finally {
-            try { await g.momo.cd('..'); } catch (e) {}
+        const bytes = await g.momo.read_bytes(this._filePath(songFolderName, fileName));
+        let buf;
+        if (bytes && typeof bytes.toJs === 'function') {
+            buf = bytes.toJs();
+            if (bytes.destroy) bytes.destroy();
+        } else {
+            buf = bytes;
         }
+        return new Blob([buf]);
     },
     async writeFile(songFolderName, fileName, blob) {
-        await this._writeFileInFolder(songFolderName, fileName, blob);
+        await this._writeAbs(this._filePath(songFolderName, fileName), blob);
     },
     async deleteFile(songFolderName, fileName) {
         const g = this._g();
-        await g.momo.cd(songFolderName);
-        try {
-            await g.momo.delete(fileName);
-        } finally {
-            try { await g.momo.cd('..'); } catch (e) {}
-        }
+        await g.momo.delete(this._filePath(songFolderName, fileName));
     },
     async listFiles(songFolderName) {
         const g = this._g();
-        // v2.10: cd で対象フォルダに移動 → info で current_id 取得 → _list_children → cd で戻る
-        // 簡素化のため: 親フォルダ ID を最初に保存 → 子フォルダへ navigate → 終わったら戻す
-        // momo_gdrive.py には ls(path) 系の直接 API が無いので往復が必要
         try {
-            // 現 cwd を保存
-            const beforeProxy = g.momo.info();
-            const before = beforeProxy && beforeProxy.toJs
-                ? beforeProxy.toJs({ dict_converter: Object.fromEntries })
-                : beforeProxy;
-            if (beforeProxy && beforeProxy.destroy) beforeProxy.destroy();
-            const beforeId = before && (before.current_id || before.cwd_id);
-            const beforePath = before && before.current_path;
-
-            // 対象フォルダへ cd
-            await g.momo.cd(songFolderName);
-
-            // info で current_id 取得
-            const targetProxy = g.momo.info();
-            const target = targetProxy && targetProxy.toJs
-                ? targetProxy.toJs({ dict_converter: Object.fromEntries })
-                : targetProxy;
-            if (targetProxy && targetProxy.destroy) targetProxy.destroy();
-            const targetId = target && (target.current_id || target.cwd_id);
-
-            // _list_children で 子要素取得
-            const itemsProxy = await g.momo._list_children(targetId);
+            // song フォルダの ID を取得 (既存なら mkdir は resolve_path で即返却)
+            const folderId = await g.momo.mkdir(this._songPath(songFolderName));
+            const itemsProxy = await g.momo._list_children(folderId);
             const items = itemsProxy.toJs({ dict_converter: Object.fromEntries });
             if (itemsProxy.destroy) itemsProxy.destroy();
-
-            // 元の cwd に戻す
-            if (beforePath) {
-                try { await g.momo.cd('..'); } catch (e) { console.warn('[Drive] cd .. fail:', e); }
-            }
-
             return items.filter(it => !it.isFolder).map(it => it.name);
         } catch (e) {
             console.warn('[Drive] listFiles failed for ' + songFolderName + ':', e);

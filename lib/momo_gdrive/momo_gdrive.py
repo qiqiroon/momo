@@ -4,7 +4,7 @@
 MOMO Project - Google Drive 共通ライブラリ
 momo/lib/momo_drive/momo_gdrive.py
 
-Version : v1.05
+Version : v1.06
 Requires: Pyodide 0.2x+ (js モジュール経由で Google Drive API v3 を呼び出す)
 Scope   : https://www.googleapis.com/auth/drive.file
 """
@@ -544,12 +544,21 @@ class MomoGDrive:
         multipart アップロードでファイルを作成または更新する。
 
         file_id が指定された場合は更新（PATCH）、なければ新規作成（POST）。
+        v1.06: PATCH 時は metadata から parents を除外する
+               (Google Drive API v3 仕様: update リクエストに parents は不可。
+                親フォルダ変更は addParents/removeParents クエリを使う)。
         """
         boundary = "momo_boundary_xXx"
-        metadata = json.dumps({
-            "name"   : name,
-            "parents": [parent_id],
-        })
+        if file_id:
+            # update では parents を含めない
+            metadata = json.dumps({"name": name})
+            url    = f"{UPLOAD_API}/files/{file_id}?uploadType=multipart&fields=id"
+            method = "PATCH"
+        else:
+            metadata = json.dumps({"name": name, "parents": [parent_id]})
+            url    = f"{UPLOAD_API}/files?uploadType=multipart&fields=id"
+            method = "POST"
+
         body = (
             f"--{boundary}\r\n"
             f"Content-Type: application/json; charset=UTF-8\r\n\r\n"
@@ -557,13 +566,6 @@ class MomoGDrive:
             f"--{boundary}\r\n"
             f"Content-Type: {mime_type}\r\n\r\n"
         ).encode() + data + f"\r\n--{boundary}--".encode()
-
-        if file_id:
-            url    = f"{UPLOAD_API}/files/{file_id}?uploadType=multipart&fields=id"
-            method = "PATCH"
-        else:
-            url    = f"{UPLOAD_API}/files?uploadType=multipart&fields=id"
-            method = "POST"
 
         resp = await self._fetch(
             url,

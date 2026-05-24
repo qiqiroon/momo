@@ -202,6 +202,20 @@
                   対策 (meta.js のみ):
                     - ensureKaraokeRoot を split('/') で階層分割し、 各階層ごとに
                       exists → mkdir → refresh → cd の順で確実に作成・移動
+       v2.13 - Drive 実装を 絶対パス方式 に書き換え + momo_gdrive.py v1.06 修正 — 2026-05-24
+                  v2.12 でログを追加して再確認したところ、 cwd が /momo-works/karaoke
+                  ではなく /karaoke になっていた。 真因は momo_gdrive.py の navigate()
+                  が連続 cd で current_path を相対的に積み上げず、 各 cd の引数を
+                  絶対パスとして上書きしてしまうこと (= cd 'momo-works' → cd 'karaoke'
+                  で cwd が /karaoke で上書き)。
+                  対策:
+                    - meta.js: Drive オブジェクトを全面書き換え。 cd を一切使わず、
+                      ensureKaraokeRoot は mkdir('/momo-works/karaoke') を 1 回呼ぶだけ、
+                      ファイル操作はすべて '/momo-works/karaoke/<song>/<file>' の絶対
+                      パスで write_bytes / read_bytes / delete に渡す方式に統一
+                    - momo_gdrive.py v1.06: _upload() の PATCH 時 metadata から parents
+                      を除外 (Google Drive API v3 仕様で update に parents は不可、
+                      同梱すると 403 fieldNotWritable)。 既存ファイル上書き失敗を解消
                     - createSongFolder でも mkdir 後に refresh() でキャッシュ反映
                     - 各操作で console.log を追加して cwd を可視化
                     - 最後に info() の current_path / current_id をログ出力で verify
@@ -1202,7 +1216,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.12</span>
+                <span class="version-tag" id="version-tag">v2.13</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1728,7 +1742,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.12',
+        version: document.getElementById('version-tag')?.textContent || 'v2.13',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -1834,7 +1848,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.12';
+const APP_VERSION = 'v2.13';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {

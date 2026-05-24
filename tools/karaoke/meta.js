@@ -447,6 +447,105 @@ const Drive = {
             return [];
         }
     },
+
+    // ===== v2.14: 音楽ライブラリ (任意 Drive フォルダ) 対応 =====
+
+    // 指定絶対パス配下のサブフォルダ一覧 (階層ピッカー用)
+    // 戻り値: [{name, absPath}]、 並びは名前昇順 (ja)
+    async listFoldersAbs(absPath) {
+        const g = this._g();
+        if (!g.momo) await this.connect();
+        const path = absPath || '/';
+        // ルート '/' は mkdir せず root 直接利用
+        let folderId;
+        if (path === '/') {
+            folderId = 'root';
+        } else {
+            // mkdir は既存なら resolve_path で ID 返却するため副作用なし。
+            // 仮に音楽ライブラリの選択中に存在しないパスを指定された場合のみ新規作成される
+            // が、 ユーザー操作 (リストクリック) でしか呼ばないので副作用ほぼなし。
+            folderId = await g.momo.mkdir(path);
+        }
+        const itemsProxy = await g.momo._list_children(folderId);
+        const items = itemsProxy.toJs({ dict_converter: Object.fromEntries });
+        if (itemsProxy.destroy) itemsProxy.destroy();
+        const folders = items
+            .filter(it => it.isFolder)
+            .map(it => ({
+                name: it.name,
+                absPath: (path === '/' ? '' : path) + '/' + it.name,
+            }));
+        folders.sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+        return folders;
+    },
+
+    // 絶対パスのファイルを Blob として取得 (音楽ライブラリ取り込み時に呼ぶ)
+    async readBlobAbs(absPath) {
+        const g = this._g();
+        if (!g.momo) await this.connect();
+        const bytes = await g.momo.read_bytes(absPath);
+        let buf;
+        if (bytes && typeof bytes.toJs === 'function') {
+            buf = bytes.toJs();
+            if (bytes.destroy) bytes.destroy();
+        } else {
+            buf = bytes;
+        }
+        return new Blob([buf]);
+    },
+
+    // 音楽ライブラリ (rootAbsPath 配下) を再帰列挙して audio/lrc を返す
+    //   make.js の collectMusicLibraryFiles (Local 版) と同形式の戻り値:
+    //     [{name, kind: 'audio'|'lrc', relPath, parentKey, getFile}]
+    //   ・ parentKey は parent フォルダの絶対パス (Local の parentHandle 相当、 同フォルダ判定用)
+    //   ・ getFile() は async で Blob/File を返す (Drive はオンデマンドで read_bytes)
+    //   ・ maxDepth=1 (デフォルト) でサブフォルダ 1 階層まで再帰
+    async collectMusicLibrary(rootAbsPath, maxDepth, isAudioFn, isLrcFn) {
+        const g = this._g();
+        if (!g.momo) await this.connect();
+        const depth = (typeof maxDepth === 'number') ? maxDepth : 1;
+        const self = this;
+        const out = [];
+        async function walk(absPath, prefix, curDepth) {
+            let folderId;
+            try {
+                if (absPath === '/') folderId = 'root';
+                else folderId = await g.momo.mkdir(absPath);  // 既存なら resolve_path のみ
+            } catch (e) {
+                console.warn('[Drive] collectMusicLibrary walk fail at ' + absPath + ':', e);
+                return;
+            }
+            const itemsProxy = await g.momo._list_children(folderId);
+            const items = itemsProxy.toJs({ dict_converter: Object.fromEntries });
+            if (itemsProxy.destroy) itemsProxy.destroy();
+            for (const it of items) {
+                const childAbs = (absPath === '/' ? '' : absPath) + '/' + it.name;
+                if (!it.isFolder) {
+                    const isAud = isAudioFn ? isAudioFn(it.name) : false;
+                    const isLrc = isLrcFn ? isLrcFn(it.name) : false;
+                    if (isAud || isLrc) {
+                        const fileAbs = childAbs;
+                        out.push({
+                            name: it.name,
+                            kind: isAud ? 'audio' : 'lrc',
+                            relPath: prefix + it.name,
+                            parentKey: absPath,
+                            getFile: async () => await self.readBlobAbs(fileAbs),
+                        });
+                    }
+                } else if (curDepth < depth) {
+                    await walk(childAbs, prefix + it.name + '/', curDepth + 1);
+                }
+            }
+        }
+        await walk(rootAbsPath, '', 0);
+        out.sort((a, b) => {
+            if (a.kind !== b.kind) return a.kind === 'audio' ? -1 : 1;
+            return (a.relPath || a.name).localeCompare(b.relPath || b.name, 'ja');
+        });
+        console.log('[Drive] collectMusicLibrary: ' + out.length + ' ファイル検出 (' + rootAbsPath + ')');
+        return out;
+    },
 };
 
 // ───────────────────────────────────────────────────────────────────────────

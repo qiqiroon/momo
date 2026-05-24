@@ -202,6 +202,18 @@
                   対策 (meta.js のみ):
                     - ensureKaraokeRoot を split('/') で階層分割し、 各階層ごとに
                       exists → mkdir → refresh → cd の順で確実に作成・移動
+       v2.14 - 音楽ライブラリの Drive 対応 (任意フォルダ階層ピッカー) — 2026-05-24
+                  v200改造.txt #2 残課題: 音楽ファイル選択を押すと Local/Drive 二択 + Drive
+                  なら任意フォルダを階層ピッカーで選択。 iPhone でも取り込み元を Drive に
+                  できるようになり Phase 4 メイクモードが完結。
+                  追加要素:
+                    - meta.js Drive: listFoldersAbs / readBlobAbs / collectMusicLibrary
+                      (絶対パス指定で再帰列挙、 Local 互換形式 + getFile() オンデマンド)
+                    - index.html: #make-drive-folder-picker モーダル (パンくず + サブ
+                      フォルダリスト + ↑上の階層 + このフォルダを使用)
+                    - make.js: onConnectLibrary を Local/Drive 二択化、 musicLibraryDrivePath
+                      を localStorage に永続化、 collectMusicLibraryFiles を共通形式
+                      (parentKey + getFile) に統一、 onPickMp3/onPickLrc を provider 別分岐
        v2.13 - Drive 実装を 絶対パス方式 に書き換え + momo_gdrive.py v1.06 修正 — 2026-05-24
                   v2.12 でログを追加して再確認したところ、 cwd が /momo-works/karaoke
                   ではなく /karaoke になっていた。 真因は momo_gdrive.py の navigate()
@@ -1216,7 +1228,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.13</span>
+                <span class="version-tag" id="version-tag">v2.14</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1310,6 +1322,25 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                     ※ Drive 選択時、 カラオケフォルダは <code>momo-works/karaoke</code> 固定で自動作成されます (仕様書 §3.3)。<br>
                     ※ ローカル選択時、 任意のフォルダを指定できます。
                 </p>
+            </div>
+        </div>
+
+        <!-- v2.14: Drive フォルダ階層ピッカー (音楽ライブラリ用) -->
+        <div id="make-drive-folder-picker" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1000; align-items:center; justify-content:center; padding:20px;">
+            <div style="background:var(--surface); border:1px solid var(--orange); border-radius:12px; padding:20px; max-width:480px; width:100%; max-height:70vh; display:flex; flex-direction:column;">
+                <div style="font-size:14px; font-weight:700; color:var(--orange-light); margin-bottom:8px;">Drive フォルダを選択 (音楽ライブラリ)</div>
+                <div id="make-drive-folder-breadcrumb" style="font-size:11px; color:var(--text-muted); margin-bottom:10px; word-break:break-all; font-family:monospace;">/</div>
+                <div id="make-drive-folder-list" style="flex:1; overflow-y:auto; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:6px; min-height:140px; max-height:50vh;"></div>
+                <p style="font-size:10px; color:var(--text-muted); margin: 10px 0 0 0; line-height:1.5;">
+                    フォルダをタップで降りる、 「↑ 上の階層」 で戻る、 「このフォルダを使用」 で確定。
+                </p>
+                <div style="display:flex; gap:8px; justify-content:space-between; margin-top:12px; flex-wrap:wrap;">
+                    <button class="momo-btn-small" id="make-drive-folder-up">↑ 上の階層</button>
+                    <div style="display:flex; gap:8px;">
+                        <button class="momo-btn-small" id="make-drive-folder-cancel">キャンセル</button>
+                        <button class="momo-btn" id="make-drive-folder-use">このフォルダを使用</button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -1742,7 +1773,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.13',
+        version: document.getElementById('version-tag')?.textContent || 'v2.14',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -1848,7 +1879,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.13';
+const APP_VERSION = 'v2.14';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {

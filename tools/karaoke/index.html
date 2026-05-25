@@ -202,6 +202,11 @@
                   対策 (meta.js のみ):
                     - ensureKaraokeRoot を split('/') で階層分割し、 各階層ごとに
                       exists → mkdir → refresh → cd の順で確実に作成・移動
+       v2.30 - Phase 5e-1: 「聞く」 / 「録音」 ボタンラベルを明示 — 2026-05-25
+                  仕様書 §5.6 §5.7。 既存 btnPlay (▶) は BGM のみ再生 = 聞くモード、
+                  btnRec (●) は BGM + マイク録音同時 = 録音モード。 既存ロジックは
+                  そのままで、 ボタン下にラベル「聞く」「録音」 を表示 + title 属性を
+                  分かりやすく更新。 既存 textContent (▶/⏸ アイコン切替) は触らない。
        v2.29 - Phase 5d 修正: 進行バー / ⋮ メニュー / ラベル / 操作ヒント — 2026-05-25
                   v2.28 動作確認で 4 件報告 + 修正:
                     (1) [1][2][3] が何のボタンか分かりにくい → 前に「テイク:」 ラベル
@@ -1448,7 +1453,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.29</span>
+                <span class="version-tag" id="version-tag">v2.30</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1656,8 +1661,10 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
         </div>
 
         <div class="audio-controls" id="audio-controls">
-            <button id="btnPlay" class="momo-btn-play" title="再生 / 一時停止" disabled>▶</button>
-            <button id="btnRec" class="momo-btn-rec" title="録音 / 停止 (カラオケタブで使用)" disabled>●</button>
+            <button id="btnPlay" class="momo-btn-play" title="🎧 聞く / ⏸ 一時停止 (BGM のみ、 録音しません)" disabled>▶</button>
+            <span class="audio-btn-label" id="btnPlayLabel" style="font-size:10px; color:var(--text-muted); margin-left:-4px; margin-right:4px; min-width:34px; line-height:1; pointer-events:none;">聞く</span>
+            <button id="btnRec" class="momo-btn-rec" title="● 録音 / 停止 (BGM 同時再生 + マイク録音)" disabled>●</button>
+            <span class="audio-btn-label" id="btnRecLabel" style="font-size:10px; color:var(--text-muted); margin-left:-4px; margin-right:4px; min-width:34px; line-height:1; pointer-events:none;">録音</span>
             <span id="audio-file-name" class="audio-file-name">—</span>
             <div class="transport-row">
                 <span class="time-cur" id="timeCur">0:00</span>
@@ -2076,7 +2083,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.29',
+        version: document.getElementById('version-tag')?.textContent || 'v2.30',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2182,7 +2189,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.29';
+const APP_VERSION = 'v2.30';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {

@@ -202,6 +202,21 @@
                   対策 (meta.js のみ):
                     - ensureKaraokeRoot を split('/') で階層分割し、 各階層ごとに
                       exists → mkdir → refresh → cd の順で確実に作成・移動
+       v2.28 - Phase 5d: テイク UI を ボタン群 + ⋮ メニュー (削除/リネーム/複製) に整理 — 2026-05-25
+                  仕様書 §5.8。 既存縦長カード形式から「[1][2][3] ボタン群 + 選択中
+                  テイクの詳細パネル」 にリビルド。
+                    - 5d-1: renderTakes / refreshTakeNowPlayingUI を新構造に書き換え
+                      (.takes-buttons + .takes-detail)。 既存 .take-item / preview /
+                      progress 等の CSS は詳細パネル内で再利用、 新規 .take-btn-mini
+                      スタイル追加
+                    - 5d-2: 詳細パネル内に ⋮ ボタン + ポップオーバー (rename / 複製 /
+                      削除)。 メニュー外クリック / アイテム選択で閉じる
+                    - 5d-3: テイクリネーム (新規 #take-rename-modal、 OK/キャンセル +
+                      Enter/Escape ショートカット)。 persistTakes で IDB 保存
+                    - 5d-4: テイク複製 (_duplicateTake、 新 ID + 「<元名> (コピー)」
+                      で takes に追加 → persistTakes → 新テイクを active に)
+                  既存の選択/プレビュー/プログレスバー連動/state.currentTake 遷移は
+                  全部維持、 録音/再生コアは未タッチ
        v2.27 - マイク無反応時のガイド表示 (Chrome/Edge は設定 URL コピー) — 2026-05-24
                   ユーザーの真因: Chrome のマイクデバイス選択が物理マイクではない方を
                   指していた → chrome://settings/content/microphone で変更で解決。
@@ -1147,6 +1162,56 @@ input[type=range]::-moz-range-thumb {
 .take-btn.preview.playing { color: var(--green); background: rgba(129,201,149,0.1); }
 .take-btn.del:hover { color: var(--rec-red); background: rgba(220,38,38,0.06); }
 
+/* v2.28 (Phase 5d-1): テイクのボタン群 + 詳細パネル形式 */
+.takes-buttons {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    margin-bottom: 10px;
+}
+.take-btn-mini {
+    min-width: 36px; height: 36px; padding: 0 10px;
+    background: var(--surface); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px;
+    cursor: pointer; font-size: 13px; font-weight: 600;
+    font-family: inherit;
+    transition: 0.15s;
+    display: inline-flex; align-items: center; justify-content: center;
+}
+.take-btn-mini:hover {
+    border-color: var(--border-strong);
+    color: var(--orange-light);
+}
+.take-btn-mini.active {
+    background: var(--orange); color: #000;
+    border-color: var(--orange);
+    box-shadow: 0 0 0 1px var(--orange), 0 2px 6px rgba(194,65,12,0.25);
+}
+.takes-detail {
+    /* 詳細パネル コンテナ — 単一 .take-item を内包 */
+}
+/* v2.28: 詳細パネル内 .take-item は縦配置 (横並びの .take-actions も縦に変更) */
+.takes-detail .take-item {
+    flex-direction: column;
+    padding: 12px 14px;
+    gap: 6px;
+}
+.takes-detail .take-name-row {
+    font-size: 14px;
+}
+.takes-detail .take-actions {
+    flex-direction: row;
+    border-left: none;
+    border-top: 1px solid var(--border);
+    padding-top: 8px;
+    gap: 6px;
+}
+.takes-detail .take-btn {
+    border-bottom: none;
+    border-radius: 6px;
+    min-height: 32px;
+    flex: 0 0 auto;
+    padding: 0 14px;
+}
+
 /* 再生モードピル */
 .play-mode-pills {
     display: flex; gap: 6px; margin-bottom: 14px;
@@ -1369,7 +1434,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.27</span>
+                <span class="version-tag" id="version-tag">v2.28</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1652,6 +1717,18 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <input type="range" id="karaoke-bgm-vol-slider" min="0" max="200" step="5" value="100" style="flex:1; min-width:140px;">
             <span id="karaoke-bgm-vol-val" style="color:var(--text); font-size:12px; font-family:monospace; min-width:48px; text-align:right;">100%</span>
             <button class="momo-btn-small" id="karaoke-btn-mic-setup" title="マイク設定">⚙ マイク</button>
+        </div>
+
+        <!-- v2.28 (Phase 5d-3): テイクのリネーム用モーダル -->
+        <div id="take-rename-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1000; align-items:center; justify-content:center; padding:20px;">
+            <div style="background:var(--surface); border:1px solid var(--orange); border-radius:12px; padding:20px; max-width:380px; width:100%;">
+                <div style="font-size:14px; font-weight:700; color:var(--orange-light); margin-bottom:12px;">テイクの名前を変更</div>
+                <input type="text" id="take-rename-input" maxlength="60" style="width:100%; padding:8px 10px; box-sizing:border-box; background:var(--bg); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:13px; margin-bottom:14px;">
+                <div style="display:flex; gap:8px; justify-content:flex-end;">
+                    <button class="momo-btn-small" id="take-rename-cancel">キャンセル</button>
+                    <button class="momo-btn" id="take-rename-ok">変更</button>
+                </div>
+            </div>
         </div>
 
         <!-- v2.23 (Phase 5c): マイク設定モーダル — 中身は既存 Mic Setup パネルを起動時に移動 -->
@@ -1985,7 +2062,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.27',
+        version: document.getElementById('version-tag')?.textContent || 'v2.28',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2091,7 +2168,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.27';
+const APP_VERSION = 'v2.28';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -4467,6 +4544,10 @@ async function loadTakesFor(entry){
 }
 
 // ============== TAKES UI ==============
+// v2.28 (Phase 5d-1): テイク表示を [1][2][3] ボタン群 + 選択中の詳細パネルに整理。
+//   仕様書 §5.8。 既存の縦長カード形式から、 コンパクトなボタン群 + 詳細パネル 1 つ
+//   へ移行。 ⋮ メニュー (削除/リネーム/複製) は 5d-2 で詳細パネル内に追加予定。
+//   refreshTakeNowPlayingUI は新構造に合わせて書き換え。
 function renderTakes(){
     const takes = (state.currentEntry && state.currentEntry.takes) || [];
     if(!takes.length){
@@ -4477,57 +4558,100 @@ function renderTakes(){
     const activeIdx = state.currentTake ? takes.findIndex(t => t.id === state.currentTake.id) : -1;
     takesCount.textContent = (activeIdx >= 0 ? activeIdx + 1 : 0) + ' / ' + takes.length;
 
-    takesList.innerHTML = takes.map((t, i) => {
+    // ボタン群 HTML
+    const buttonsHtml = takes.map((t, i) => {
         const isActive = state.currentTake && t.id === state.currentTake.id;
-        const isNowPlaying = isActive && !bgmTransport.paused && state.playMode !== 'bgm';
-        const sign = (t.pitchSemitones||0) >= 0 ? '+' : '';
-        return `<div class="take-item ${isActive?'active':''} ${isNowPlaying?'now-playing':''}" data-id="${t.id}">
-            <div class="take-select-area" data-act="select">
-                <div class="take-name-row">
-                    <span>${escapeHtml(t.name)}</span>
-                    <span class="take-now-playing">▶ NOW</span>
-                </div>
-                <div class="take-meta">${t.duration.toFixed(1)}s · ${sign}${t.pitchSemitones||0}st · ${(t.speed||1).toFixed(2)}x · 楽曲@${fmt(t.startSongTime||0)}</div>
-                <div class="take-progress-bar"><div class="take-progress-fill" data-progress-for="${t.id}" style="width:0%"></div></div>
-            </div>
-            <div class="take-actions">
-                <button class="take-btn preview" data-act="preview" title="このテイクだけ頭から試聴">▶</button>
-                <button class="take-btn del" data-act="del" title="削除">×</button>
-            </div>
-        </div>`;
+        return `<button class="take-btn-mini ${isActive?'active':''}" data-id="${t.id}" data-act="select" title="${escapeHtml(t.name)}">${i + 1}</button>`;
     }).join('');
 
-    takesList.querySelectorAll('.take-item').forEach(el => {
-        const id = el.dataset.id;
-        // selecting (click anywhere on the select-area)
-        el.querySelector('[data-act=select]').addEventListener('click', async () => {
+    // 選択中の詳細パネル HTML (active テイクがあれば表示)
+    let detailHtml = '';
+    if (state.currentTake) {
+        const t = state.currentTake;
+        const isNowPlaying = !bgmTransport.paused && state.playMode !== 'bgm';
+        const sign = (t.pitchSemitones||0) >= 0 ? '+' : '';
+        detailHtml = `<div class="take-item ${isNowPlaying?'now-playing':''}" data-id="${t.id}">
+            <div class="take-name-row">
+                <span class="take-name">${escapeHtml(t.name)}</span>
+                <span class="take-now-playing">▶ NOW</span>
+            </div>
+            <div class="take-meta">${t.duration.toFixed(1)}s · ${sign}${t.pitchSemitones||0}st · ${(t.speed||1).toFixed(2)}x · 楽曲@${fmt(t.startSongTime||0)}</div>
+            <div class="take-progress-bar"><div class="take-progress-fill" data-progress-for="${t.id}" style="width:0%"></div></div>
+            <div class="take-actions">
+                <button class="take-btn preview" data-act="preview" title="このテイクだけ頭から試聴">▶ プレビュー</button>
+                <div class="take-menu-wrap" style="position:relative; margin-left:auto;">
+                    <button class="take-btn take-menu-btn" data-act="menu" title="メニュー" style="min-width:32px; padding:0 10px;">⋮</button>
+                    <div class="take-menu-pop" data-menu-for="${t.id}" style="display:none; position:absolute; right:0; top:calc(100% + 4px); background:var(--surface); border:1px solid var(--orange); border-radius:8px; padding:4px; z-index:20; min-width:140px; box-shadow:0 4px 12px rgba(0,0,0,0.4);">
+                        <button class="take-menu-item" data-act="rename" style="display:block; width:100%; text-align:left; padding:8px 12px; background:transparent; border:none; color:var(--text); font-size:12px; cursor:pointer; border-radius:4px; font-family:inherit;">✎ リネーム</button>
+                        <button class="take-menu-item" data-act="duplicate" style="display:block; width:100%; text-align:left; padding:8px 12px; background:transparent; border:none; color:var(--text); font-size:12px; cursor:pointer; border-radius:4px; font-family:inherit;">⎘ 複製</button>
+                        <button class="take-menu-item" data-act="del" style="display:block; width:100%; text-align:left; padding:8px 12px; background:transparent; border:none; color:var(--rec-red, #f87171); font-size:12px; cursor:pointer; border-radius:4px; font-family:inherit;">× 削除</button>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+    } else {
+        detailHtml = '<div class="take-empty" style="font-size:11px;">テイクを選択すると詳細が表示されます</div>';
+    }
+
+    takesList.innerHTML = `<div class="takes-buttons">${buttonsHtml}</div><div class="takes-detail">${detailHtml}</div>`;
+
+    // ボタンクリック = 選択 (= 既存の select 動作: state.currentTake 更新 + preload + 同期再生)
+    takesList.querySelectorAll('.take-btn-mini').forEach(btn => {
+        const id = btn.dataset.id;
+        btn.addEventListener('click', async () => {
             const t = state.currentEntry.takes.find(x => x.id === id);
             if(!t) return;
             DEBUG.info('Take selected: ' + t.name);
             state.currentTake = t;
             renderTakes();
             renderBadges();
-            // PRELOAD on iOS: must complete BEFORE startTakePlayback so the
-            // <audio> element doesn't race with itself (preload running while
-            // startTakePlaybackIOS sees src not yet loaded and triggers another
-            // load(), causing ~300ms delay).
             if(IOS_MODE){
-                try {
-                    await preloadIOSTake(t);
-                } catch(e){
-                    DEBUG.warn('preload failed: ' + e.message);
-                }
+                try { await preloadIOSTake(t); }
+                catch(e){ DEBUG.warn('preload failed: ' + e.message); }
             }
-            // If BGM is playing, start the take in sync
             if(!bgmTransport.paused && state.playMode !== 'bgm') startTakePlayback();
         });
-        el.querySelector('[data-act=preview]').addEventListener('click', e => {
+    });
+
+    // 詳細パネル内アクション — active テイクに対してのみ
+    const detail = takesList.querySelector('.take-item');
+    if (detail && state.currentTake) {
+        const id = detail.dataset.id;
+        const previewBtn = detail.querySelector('[data-act=preview]');
+        if (previewBtn) previewBtn.addEventListener('click', e => {
             e.stopPropagation();
             const t = state.currentEntry.takes.find(x => x.id === id);
             if(t) togglePreviewTake(t);
         });
-        el.querySelector('[data-act=del]').addEventListener('click', async e => {
+
+        // v2.28 (Phase 5d-2): ⋮ メニュー開閉
+        const menuBtn = detail.querySelector('[data-act=menu]');
+        const menuPop = detail.querySelector('.take-menu-pop');
+        if (menuBtn && menuPop) {
+            menuBtn.addEventListener('click', e => {
+                e.stopPropagation();
+                const open = menuPop.style.display === 'none' || !menuPop.style.display;
+                menuPop.style.display = open ? '' : 'none';
+            });
+            // メニュー外クリックで閉じる
+            const closeMenu = (ev) => {
+                if (!menuPop.contains(ev.target) && ev.target !== menuBtn) {
+                    menuPop.style.display = 'none';
+                }
+            };
+            document.addEventListener('click', closeMenu, { capture: true });
+            // メニューアイテムのホバー
+            menuPop.querySelectorAll('.take-menu-item').forEach(item => {
+                item.addEventListener('mouseenter', () => item.style.background = 'var(--bg-selected, rgba(255,255,255,0.06))');
+                item.addEventListener('mouseleave', () => item.style.background = '');
+            });
+        }
+
+        // 削除 (メニュー内)
+        const delBtn = detail.querySelector('[data-act=del]');
+        if (delBtn) delBtn.addEventListener('click', async e => {
             e.stopPropagation();
+            if (menuPop) menuPop.style.display = 'none';
             if(!confirm('このテイクを削除しますか？')) return;
             DEBUG.info('Take deleted: ' + id);
             state.currentEntry.takes = state.currentEntry.takes.filter(x => x.id !== id);
@@ -4539,18 +4663,107 @@ function renderTakes(){
             renderTakes();
             renderBadges();
         });
+
+        // v2.28 (Phase 5d-3): リネーム
+        const renameBtn = detail.querySelector('[data-act=rename]');
+        if (renameBtn) renameBtn.addEventListener('click', async e => {
+            e.stopPropagation();
+            if (menuPop) menuPop.style.display = 'none';
+            const t = state.currentEntry.takes.find(x => x.id === id);
+            if (!t) return;
+            const newName = await _showRenameTakeModal(t.name);
+            if (newName === null) return;  // キャンセル
+            const trimmed = newName.trim();
+            if (!trimmed) return;
+            DEBUG.info('Take rename: ' + t.name + ' → ' + trimmed);
+            t.name = trimmed;
+            await persistTakes(state.currentEntry);
+            renderTakes();
+        });
+
+        // v2.28 (Phase 5d-4): 複製
+        const dupBtn = detail.querySelector('[data-act=duplicate]');
+        if (dupBtn) dupBtn.addEventListener('click', async e => {
+            e.stopPropagation();
+            if (menuPop) menuPop.style.display = 'none';
+            const t = state.currentEntry.takes.find(x => x.id === id);
+            if (!t) return;
+            await _duplicateTake(t);
+        });
+    }
+}
+
+// v2.28: リネーム用モーダル (テキスト入力 + OK/キャンセル、 既存 take-rename-modal 使用)
+function _showRenameTakeModal(currentName) {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('take-rename-modal');
+        const input = document.getElementById('take-rename-input');
+        const btnOk = document.getElementById('take-rename-ok');
+        const btnCancel = document.getElementById('take-rename-cancel');
+        if (!modal || !input || !btnOk || !btnCancel) {
+            // fallback: prompt
+            resolve(window.prompt('新しい名前:', currentName || ''));
+            return;
+        }
+        input.value = currentName || '';
+        modal.style.display = 'flex';
+        // フォーカス + 全選択
+        setTimeout(() => { try { input.focus(); input.select(); } catch (e) {} }, 30);
+        const close = (result) => {
+            modal.style.display = 'none';
+            btnOk.removeEventListener('click', onOk);
+            btnCancel.removeEventListener('click', onCancel);
+            input.removeEventListener('keydown', onKey);
+            resolve(result);
+        };
+        const onOk = () => close(input.value);
+        const onCancel = () => close(null);
+        const onKey = (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); onOk(); }
+            else if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
+        };
+        btnOk.addEventListener('click', onOk);
+        btnCancel.addEventListener('click', onCancel);
+        input.addEventListener('keydown', onKey);
     });
 }
 
-// Update only the visual "now-playing" / progress bar, no DOM rebuild.
+// v2.28: テイク複製 — 既存テイクの全データ (audioBuffer 含む) を新 ID で IDB に追加
+async function _duplicateTake(srcTake) {
+    if (!state.currentEntry || !srcTake) return;
+    DEBUG.info('Take duplicate: ' + srcTake.name);
+    // 新 ID: 既存と被らないようにタイムスタンプ + ランダム
+    const newId = 'take_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
+    const newTake = Object.assign({}, srcTake, {
+        id: newId,
+        name: srcTake.name + ' (コピー)',
+    });
+    // takes 配列に追加 → persistTakes で IDB に書き込まれる (audioBuffer 含むディープコピーは
+    //   srcTake を再代入する Object.assign で参照共有、 IDB write 時に IDB がディープコピー)
+    state.currentEntry.takes.push(newTake);
+    await persistTakes(state.currentEntry);
+    state.currentTake = newTake;
+    renderTakes();
+    renderBadges();
+}
+
+// v2.28: 新構造に合わせて更新。 active ボタン (.take-btn-mini.active) と
+//   詳細パネル (.take-item.now-playing) のみリビルド無しで状態反映。
 function refreshTakeNowPlayingUI(){
-    const items = takesList.querySelectorAll('.take-item');
-    items.forEach(el => {
-        const id = el.dataset.id;
+    // ボタンの active 状態を更新
+    takesList.querySelectorAll('.take-btn-mini').forEach(btn => {
+        const id = btn.dataset.id;
+        const isActive = state.currentTake && state.currentTake.id === id;
+        btn.classList.toggle('active', isActive);
+    });
+    // 詳細パネルの now-playing 状態
+    const detail = takesList.querySelector('.take-item');
+    if (detail) {
+        const id = detail.dataset.id;
         const isActive = state.currentTake && state.currentTake.id === id;
         const isNowPlaying = isActive && !bgmTransport.paused && state.playMode !== 'bgm';
-        el.classList.toggle('now-playing', isNowPlaying);
-    });
+        detail.classList.toggle('now-playing', isNowPlaying);
+    }
     // update progress for current take if playing
     if(state.currentTake){
         const fill = takesList.querySelector('.take-progress-fill[data-progress-for="' + state.currentTake.id + '"]');

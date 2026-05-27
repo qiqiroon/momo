@@ -202,6 +202,20 @@
                   対策 (meta.js のみ):
                     - ensureKaraokeRoot を split('/') で階層分割し、 各階層ごとに
                       exists → mkdir → refresh → cd の順で確実に作成・移動
+       v2.31 - Phase 5d-改: 機能整理 3 件 (カラオケのテイク非同期 / ミックス歌詞 1 行 / BGM-テイク近接 progress) — 2026-05-27
+                  ユーザー機能整理計画 (2026-05-25) を実装:
+                    - 5d-改1: switchTab('karaoke') 時に state.currentTake = null +
+                      stopTakePlayback() → カラオケタブで btnPlay 押下時にミックスタブで
+                      選択していた古いテイクが BGM 同期再生されなくなる。 録音後の試聴は
+                      currentTake が自動再セットされるので影響なし
+                    - 5d-改2: lyrics-view に single-line-mode CSS クラスをミックスタブ
+                      時のみ付与。 CSS で current 以外の lyrics-line を display:none に、
+                      current 行を中央寄せ + フォント大きく
+                    - 5d-改3: now-playing-area の audio-controls 内、 BGM seek の真下に
+                      take-near-bgm-row を追加 (ミックスタブ専用、 height:4px の細い
+                      progress bar)。 refreshTakeNowPlayingUI で take-near-bgm-fill も
+                      同時更新で BGM と接触配置
+                  録音/再生コアは未タッチ
        v2.30 - Phase 5e-1: 「聞く」 / 「録音」 ボタンラベルを明示 — 2026-05-25
                   仕様書 §5.6 §5.7。 既存 btnPlay (▶) は BGM のみ再生 = 聞くモード、
                   btnRec (●) は BGM + マイク録音同時 = 録音モード。 既存ロジックは
@@ -1036,6 +1050,15 @@ h1 .version-tag {
 .lyrics-line.passed { color: #555; }
 .lyrics-empty { color: var(--text-muted); font-style: italic; font-size: 13px; padding: 80px 0; }
 
+/* v2.31 (5d-改2): ミックス画面では歌詞は「再生中の 1 行のみ」 表示 (歌わないので) */
+.lyrics-view.single-line-mode .lyrics-line:not(.current) { display: none; }
+.lyrics-view.single-line-mode .lyrics-line.current {
+    /* current 行を画面中央付近に固定的に大きく見せる */
+    text-align: center;
+    padding: 20px 12px;
+    font-size: 19px;
+}
+
 /* カラオケ調整パネル */
 .karaoke-panel {
     background: var(--surface2); border: 1px solid var(--border);
@@ -1453,7 +1476,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.30</span>
+                <span class="version-tag" id="version-tag">v2.31</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1674,6 +1697,14 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                     <div class="seek-handle" id="seekHandle"></div>
                 </div>
                 <span class="time-dur" id="timeDur">0:00</span>
+            </div>
+            <!-- v2.31 (5d-改3): ミックスタブでのみ表示する、 BGM seek の真下のテイク用 progress bar -->
+            <div class="transport-row take-near-bgm" id="take-near-bgm-row" style="display:none; margin-top:-4px;">
+                <span class="time-cur" style="visibility:hidden;">0:00</span>
+                <div class="seek-track" style="height:4px; cursor:default;">
+                    <div class="take-near-bgm-fill" id="take-near-bgm-fill" style="height:100%; width:0%; background:linear-gradient(90deg, var(--orange-light), var(--orange-mid)); border-radius:2px; transition:width 0.08s linear;"></div>
+                </div>
+                <span class="time-dur" style="visibility:hidden;">0:00</span>
             </div>
             <div id="loadProgress" class="load-progress hidden">読み込み中…</div>
             <div id="audioRescueRow" class="audio-rescue-row hidden">
@@ -2083,7 +2114,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.30',
+        version: document.getElementById('version-tag')?.textContent || 'v2.31',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2189,7 +2220,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.30';
+const APP_VERSION = 'v2.31';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2368,6 +2399,29 @@ function switchTab(name){
     if(btnRec){
         btnRec.style.display = (name === 'mix' || name === 'manage') ? 'none' : '';
     }
+    // v2.31 (5d-改1): カラオケタブに切替時はテイク選択をリセット (BGM 同期 take 再生を抑制)。
+    //   ユーザー指示: 「カラオケ画面の再生ボタンでは BGM またはボイスカットの再生 or 録音
+    //   だけ、 テイクの再生は不要」。 ミックスタブで選択していた古い take が BGM 再生時に
+    //   同時に鳴ってしまう問題を解消。 録音時には新 take が currentTake に自動セットされる
+    //   ので、 録音直後の試聴フローには影響なし。
+    if (name === 'karaoke') {
+        try { if (typeof stopTakePlayback === 'function') stopTakePlayback(); } catch (e) {}
+        if (state) state.currentTake = null;
+        try { if (typeof refreshTakeNowPlayingUI === 'function') refreshTakeNowPlayingUI(); } catch (e) {}
+    }
+    // v2.31 (5d-改2): ミックスタブでは歌詞を「再生中の 1 行のみ」 表示 (歌わないので)。
+    //   CSS .single-line-mode で current 以外の行を display:none、 current 行を中央
+    //   寄せ + 大きめフォント。 カラオケタブでは従来通り全行表示。
+    if (lyricsView) {
+        lyricsView.classList.toggle('single-line-mode', name === 'mix');
+    }
+    // v2.31 (5d-改3): ミックスタブで BGM seek の真下にテイク用 progress bar を表示
+    const takeNearBgm = document.getElementById('take-near-bgm-row');
+    if (takeNearBgm) {
+        takeNearBgm.style.display = (name === 'mix') ? '' : 'none';
+    }
+    // 状態タブを記録 (今後の機能分岐用)
+    state.activeTab = name;
 }
 document.querySelectorAll('.tab-btn').forEach(b => {
     b.addEventListener('click', () => switchTab(b.dataset.tab));
@@ -4826,22 +4880,28 @@ function refreshTakeNowPlayingUI(){
         const isNowPlaying = isActive && !bgmTransport.paused && state.playMode !== 'bgm';
         detail.classList.toggle('now-playing', isNowPlaying);
     }
+    // v2.31 (5d-改3): BGM seek 直下のテイク progress bar (ミックス用) も同時更新
+    const nearBgmFill = document.getElementById('take-near-bgm-fill');
     // update progress for current take if playing
     if(state.currentTake){
         const fill = takesList.querySelector('.take-progress-fill[data-progress-for="' + state.currentTake.id + '"]');
-        if(fill && bgmTransport.duration > 0){
+        let pct = 0;
+        if(bgmTransport.duration > 0){
             const songT = bgmTransport.currentTime;
             const tk = state.currentTake;
             const localT = (songT - (tk.startSongTime||0) - parseFloat(voxOfsSlider.value||0)) / (tk.speed||1);
-            const pct = Math.max(0, Math.min(100, (localT / tk.duration) * 100));
-            fill.style.width = pct + '%';
+            pct = Math.max(0, Math.min(100, (localT / tk.duration) * 100));
+            if(fill) fill.style.width = pct + '%';
         }
         // also update preview progress if previewing
         if(previewState.takeId === state.currentTake.id && previewState.startCtxTime > 0 && audioCtx){
             const elapsed = audioCtx.currentTime - previewState.startCtxTime;
-            const pct = Math.max(0, Math.min(100, (elapsed / state.currentTake.duration) * 100));
+            pct = Math.max(0, Math.min(100, (elapsed / state.currentTake.duration) * 100));
             if(fill) fill.style.width = pct + '%';
         }
+        if (nearBgmFill) nearBgmFill.style.width = pct + '%';
+    } else {
+        if (nearBgmFill) nearBgmFill.style.width = '0%';
     }
     // v2.29: 旧構造の items.forEach reset ループは新構造で不要 (詳細パネルは 1 つだけ、
     //   active 以外のテイクには fill 要素が無い)。 v2.28 で削除し忘れて未定義 items

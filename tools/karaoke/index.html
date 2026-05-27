@@ -202,6 +202,18 @@
                   対策 (meta.js のみ):
                     - ensureKaraokeRoot を split('/') で階層分割し、 各階層ごとに
                       exists → mkdir → refresh → cd の順で確実に作成・移動
+       v2.38 - MIX で voxOfsSlider 負値補正が効かないバグ修正 — 2026-05-27
+                  ユーザー Drive デバッグログから真因確定:
+                  ログ: 'MIX: + take "..." @ 0.00s, dur=10.3s' で startAt=0 に。
+                  既存テイク (v1.39 由来) は take.startSongTime=0 で IDB に保存され
+                  ているため、 Math.max(0, 0 + voxOfsSlider 負値) = 0 でクランプ →
+                  補正が効かない。
+                  対策: OfflineAudioContext.start(when, offset) の offset パラメータで
+                  テイクの先頭をスキップ。
+                  - desiredStart >= 0: start(desiredStart) で通常通り BGM の特定時刻から
+                  - desiredStart < 0: start(0, -desiredStart) で BGM 頭からテイクの
+                    途中を再生 (録音先頭の遅延部分をユーザーが手動でカット)
+                  ログには voxOfs と bufOffset も出力して動作確認しやすく
        v2.37 - MIX プレビュー + voxOfsSlider 拡張 (Phase 6f 前倒し) — 2026-05-27
                   v2.36 動作確認: テイクが BGM より遅れる (既存 v1.39 課題 A) + 複数選択
                   しても 1 つしか再生されない (既存 startTakePlayback の単一 take 設計)。
@@ -1597,7 +1609,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.37</span>
+                <span class="version-tag" id="version-tag">v2.38</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2262,7 +2274,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.37',
+        version: document.getElementById('version-tag')?.textContent || 'v2.38',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2368,7 +2380,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.37';
+const APP_VERSION = 'v2.38';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -7541,10 +7553,22 @@ async function _generateMixWav() {
         takeGainNode.gain.value = voxGainLin;
         takeSource.connect(takeGainNode);
         takeGainNode.connect(offlineCtx.destination);
-        const startAt = Math.max(0, (take.startSongTime || 0) + offset);
-        takeSource.start(startAt);
+        // v2.38: desiredStart が負の場合は OfflineAudioContext.start(when, offset) の
+        //   offset パラメータでテイク先頭をスキップ (= 録音先頭の遅延部分を切り捨てて
+        //   BGM 頭から再生)。 正の場合は通常通り BGM の特定時刻からテイク開始
+        const desiredStart = (take.startSongTime || 0) + offset;
+        let logStart, logBufOffset;
+        if (desiredStart >= 0) {
+            takeSource.start(desiredStart);
+            logStart = desiredStart;
+            logBufOffset = 0;
+        } else {
+            takeSource.start(0, -desiredStart);
+            logStart = 0;
+            logBufOffset = -desiredStart;
+        }
         usedTakes++;
-        DEBUG.info('MIX:   + take "' + take.name + '" @ ' + startAt.toFixed(2) + 's, dur=' + take.duration.toFixed(1) + 's, sp=' + (take.speed||1).toFixed(2) + 'x, pitch=' + (take.pitchSemitones||0) + 'st');
+        DEBUG.info('MIX:   + take "' + take.name + '" @ ' + logStart.toFixed(2) + 's (bufOffset=' + logBufOffset.toFixed(2) + 's), dur=' + take.duration.toFixed(1) + 's, sp=' + (take.speed||1).toFixed(2) + 'x, pitch=' + (take.pitchSemitones||0) + 'st, voxOfs=' + offset.toFixed(3) + 's');
     }
     if (usedTakes === 0) throw new Error('選択中のテイクに有効な音声データがありません');
 

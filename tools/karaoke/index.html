@@ -202,6 +202,19 @@
                   対策 (meta.js のみ):
                     - ensureKaraokeRoot を split('/') で階層分割し、 各階層ごとに
                       exists → mkdir → refresh → cd の順で確実に作成・移動
+       v2.35 - near-bgm progress を BGM 時間軸対応 (テイク位置と長さを縮尺表示) — 2026-05-27
+                  ユーザー指示確認: 「BGM とテイクのプログレスバーを並列に並べた目的は、
+                  同じ時間軸上のどこに存在するか示すため。 BGM のプログレスバーとの間で
+                  時間計算をして、 対応する長さに縮めて表示してほしい」。
+                  実装:
+                    - DOM 2 層構造: track (BGM 全長スケール) > region (テイクが占める
+                      位置と長さ) > fill (テイク内の進行)
+                    - region.left = (startSongTime / bgmDur) * 100% で位置
+                    - region.width = (takeDur*speed / bgmDur) * 100% で長さ (BGM 全体に
+                      対する割合に縮尺)
+                    - fill.width = テイク内の再生位置を 0〜100% で表示 (region 内)
+                    - 視覚: BGM seek bar と同じスケールの下に、 テイクが「ここから
+                      ここまで占めている」 と半透明オレンジ領域 + 再生進行を濃色で
        v2.34 - near-bgm progress: パーセント数値削除 + 外部 CSS 化で表示問題解消 — 2026-05-27
                   v2.33 動作確認でユーザー報告:
                     - パーセント数値は更新されるが progress bar が視覚的に動かない
@@ -1106,6 +1119,7 @@ h1 .version-tag {
     flex-shrink: 0; min-width: 38px;
 }
 .take-near-bgm-track {
+    position: relative;
     flex: 1 1 0; min-width: 0;
     height: 8px;
     background: var(--bg);
@@ -1113,6 +1127,15 @@ h1 .version-tag {
     border-radius: 4px;
     overflow: hidden;
 }
+/* v2.35: テイクが BGM タイムライン上で占める位置と長さを表す半透明領域 */
+.take-near-bgm-region {
+    position: absolute;
+    top: 0; left: 0; width: 0%;
+    height: 100%;
+    background: rgba(251,146,60,0.18);
+    transition: left 0.15s linear, width 0.15s linear;
+}
+/* テイク内の再生進行 (region 内で左→右へ伸びる) */
 .take-near-bgm-fill {
     height: 100%; width: 0%;
     background: linear-gradient(90deg, var(--orange-light), var(--orange-mid));
@@ -1546,7 +1569,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.34</span>
+                <span class="version-tag" id="version-tag">v2.35</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1768,12 +1791,16 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 </div>
                 <span class="time-dur" id="timeDur">0:00</span>
             </div>
-            <!-- v2.31〜v2.34: BGM seek の真下に並ぶテイク用 progress bar (ミックスタブ専用)。
-                 v2.34: 数値表示を削除 + 外部 CSS 化で flex/width 問題を解消 -->
+            <!-- v2.31〜v2.35: BGM seek の真下に並ぶテイク用 progress bar (ミックスタブ専用)。
+                 v2.35: BGM 時間軸対応 — track 全体を BGM 全長としたとき、 テイクが占める
+                 位置 (left = startSongTime/bgmDur) と長さ (width = takeDur/bgmDur) を
+                 region で縮尺表示、 その内で再生進行 fill が左→右に動く -->
             <div id="take-near-bgm-row" class="take-near-bgm-row">
                 <span class="take-near-bgm-label">TAKE</span>
                 <div class="take-near-bgm-track">
-                    <div class="take-near-bgm-fill" id="take-near-bgm-fill"></div>
+                    <div class="take-near-bgm-region" id="take-near-bgm-region">
+                        <div class="take-near-bgm-fill" id="take-near-bgm-fill"></div>
+                    </div>
                 </div>
             </div>
             <div id="loadProgress" class="load-progress hidden">読み込み中…</div>
@@ -2184,7 +2211,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.34',
+        version: document.getElementById('version-tag')?.textContent || 'v2.35',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2290,7 +2317,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.34';
+const APP_VERSION = 'v2.35';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -4950,23 +4977,35 @@ function refreshTakeNowPlayingUI(){
         const isNowPlaying = isActive && !bgmTransport.paused && state.playMode !== 'bgm';
         detail.classList.toggle('now-playing', isNowPlaying);
     }
-    // v2.34: BGM seek 直下のテイク progress bar (ミックス用) を更新。 パーセント数値表示は削除
+    // v2.35: BGM 時間軸対応の near-bgm progress bar
+    //   track 全体 = BGM 全長、 region = テイクが占める位置と長さ (startSongTime → +duration)、
+    //   fill = region 内の再生進行 (テイクの 0 → duration を 0% → 100%)
+    const nearBgmRegion = document.getElementById('take-near-bgm-region');
     const nearBgmFill = document.getElementById('take-near-bgm-fill');
-    if(state.currentTake){
-        let pct = 0;
-        if(bgmTransport.duration > 0){
-            const songT = bgmTransport.currentTime;
-            const tk = state.currentTake;
-            const localT = (songT - (tk.startSongTime||0) - parseFloat(voxOfsSlider.value||0)) / (tk.speed||1);
-            pct = Math.max(0, Math.min(100, (localT / tk.duration) * 100));
+    if(state.currentTake && bgmTransport.duration > 0){
+        const tk = state.currentTake;
+        const bgmDur = bgmTransport.duration;
+        const startSong = tk.startSongTime || 0;
+        const speed = tk.speed || 1;
+        const takeSpanInSong = tk.duration * speed;  // テイクが BGM タイムライン上で占める長さ
+        const leftPct = Math.max(0, Math.min(100, (startSong / bgmDur) * 100));
+        const widthPct = Math.max(0, Math.min(100 - leftPct, (takeSpanInSong / bgmDur) * 100));
+        if (nearBgmRegion) {
+            nearBgmRegion.style.left = leftPct + '%';
+            nearBgmRegion.style.width = widthPct + '%';
         }
-        // preview state があれば追従 (v2.33: preview ボタンは削除済みだがロジックは維持)
-        if(previewState.takeId === state.currentTake.id && previewState.startCtxTime > 0 && audioCtx){
+        // テイク内の進行 (region 内 0→100%)
+        const songT = bgmTransport.currentTime;
+        const localT = (songT - startSong - parseFloat(voxOfsSlider.value||0)) / speed;
+        let fillPct = Math.max(0, Math.min(100, (localT / tk.duration) * 100));
+        // preview state があれば優先 (v2.33: preview ボタン削除済みだがロジック維持)
+        if(previewState.takeId === tk.id && previewState.startCtxTime > 0 && audioCtx){
             const elapsed = audioCtx.currentTime - previewState.startCtxTime;
-            pct = Math.max(0, Math.min(100, (elapsed / state.currentTake.duration) * 100));
+            fillPct = Math.max(0, Math.min(100, (elapsed / tk.duration) * 100));
         }
-        if (nearBgmFill) nearBgmFill.style.width = pct + '%';
+        if (nearBgmFill) nearBgmFill.style.width = fillPct + '%';
     } else {
+        if (nearBgmRegion) { nearBgmRegion.style.left = '0%'; nearBgmRegion.style.width = '0%'; }
         if (nearBgmFill) nearBgmFill.style.width = '0%';
     }
     // v2.29: 旧構造の items.forEach reset ループは新構造で不要 (詳細パネルは 1 つだけ、

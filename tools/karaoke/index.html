@@ -202,6 +202,14 @@
                   対策 (meta.js のみ):
                     - ensureKaraokeRoot を split('/') で階層分割し、 各階層ごとに
                       exists → mkdir → refresh → cd の順で確実に作成・移動
+       v2.34 - near-bgm progress: パーセント数値削除 + 外部 CSS 化で表示問題解消 — 2026-05-27
+                  v2.33 動作確認でユーザー報告:
+                    - パーセント数値は更新されるが progress bar が視覚的に動かない
+                    - パーセント数値は要求外 → 削除
+                  真因推定: inline style の width 更新と flex/parent overflow の干渉。
+                  対策: 数値表示削除 + DOM 構造を外部 CSS 化 (.take-near-bgm-row /
+                  -label / -track / -fill)。 track に flex:1 1 0 + min-width:0 を明示、
+                  高さ 8px に増やして視認性向上。 switchTab で .show クラス切替に変更。
        v2.33 - 5d-改 仕上げ: 詳細パネル progress 削除 + near-bgm 独立スタイル — 2026-05-27
                   v2.32 ログで真因確定: take-near-bgm-fill は内部的に w=95% まで進捗
                   していたが、 transport-row class 依存スタイルでユーザー視点では
@@ -1081,6 +1089,36 @@ h1 .version-tag {
     padding: 10px 12px;
     font-size: 17px;
 }
+/* v2.34: BGM seek の真下に並ぶテイク用 progress bar (ミックスタブ専用) */
+.take-near-bgm-row {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+    padding: 2px 0;
+    box-sizing: border-box;
+    width: 100%;
+}
+.take-near-bgm-row.show { display: flex; }
+.take-near-bgm-label {
+    font-size: 10px; font-weight: 700;
+    color: var(--text-muted); letter-spacing: 0.5px;
+    flex-shrink: 0; min-width: 38px;
+}
+.take-near-bgm-track {
+    flex: 1 1 0; min-width: 0;
+    height: 8px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+}
+.take-near-bgm-fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--orange-light), var(--orange-mid));
+    transition: width 0.1s linear;
+}
+
 /* v2.32: 1 行モード時は表示エリアを圧縮 (ユーザー指示: 画面集約のため) */
 .lyrics-view.single-line-mode {
     height: 60px !important;
@@ -1508,7 +1546,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.33</span>
+                <span class="version-tag" id="version-tag">v2.34</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1730,14 +1768,13 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 </div>
                 <span class="time-dur" id="timeDur">0:00</span>
             </div>
-            <!-- v2.31 (5d-改3) + v2.33: BGM seek の真下に並ぶテイク用 progress bar (ミックスタブ専用)。
-                 transport-row class 依存をやめて独立スタイル、 「TAKE」 ラベル付きで視認性を改善 -->
-            <div id="take-near-bgm-row" style="display:none; align-items:center; gap:6px; margin-top:2px; padding:0 0 0 2px;">
-                <span style="font-size:10px; font-weight:700; color:var(--text-muted); letter-spacing:0.5px; min-width:38px;">TAKE</span>
-                <div style="flex:1; height:6px; background:var(--bg); border:1px solid var(--border); border-radius:3px; overflow:hidden;">
-                    <div id="take-near-bgm-fill" style="height:100%; width:0%; background:linear-gradient(90deg, var(--orange-light), var(--orange-mid)); transition:width 0.08s linear;"></div>
+            <!-- v2.31〜v2.34: BGM seek の真下に並ぶテイク用 progress bar (ミックスタブ専用)。
+                 v2.34: 数値表示を削除 + 外部 CSS 化で flex/width 問題を解消 -->
+            <div id="take-near-bgm-row" class="take-near-bgm-row">
+                <span class="take-near-bgm-label">TAKE</span>
+                <div class="take-near-bgm-track">
+                    <div class="take-near-bgm-fill" id="take-near-bgm-fill"></div>
                 </div>
-                <span id="take-near-bgm-time" style="font-family:monospace; font-size:10px; color:var(--text-muted); min-width:42px; text-align:right;">0%</span>
             </div>
             <div id="loadProgress" class="load-progress hidden">読み込み中…</div>
             <div id="audioRescueRow" class="audio-rescue-row hidden">
@@ -2147,7 +2184,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.33',
+        version: document.getElementById('version-tag')?.textContent || 'v2.34',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2253,7 +2290,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.33';
+const APP_VERSION = 'v2.34';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2448,10 +2485,10 @@ function switchTab(name){
     if (lyricsView) {
         lyricsView.classList.toggle('single-line-mode', name === 'mix');
     }
-    // v2.31 (5d-改3) + v2.33: ミックスタブで BGM seek の真下にテイク用 progress bar を表示
+    // v2.34: ミックスタブで BGM seek の真下にテイク用 progress bar を表示 (.show クラスで切替)
     const takeNearBgm = document.getElementById('take-near-bgm-row');
     if (takeNearBgm) {
-        takeNearBgm.style.display = (name === 'mix') ? 'flex' : 'none';
+        takeNearBgm.classList.toggle('show', name === 'mix');
     }
     // 状態タブを記録 (今後の機能分岐用)
     state.activeTab = name;
@@ -4913,10 +4950,8 @@ function refreshTakeNowPlayingUI(){
         const isNowPlaying = isActive && !bgmTransport.paused && state.playMode !== 'bgm';
         detail.classList.toggle('now-playing', isNowPlaying);
     }
-    // v2.31 + v2.33: BGM seek 直下のテイク progress bar (ミックス用) を更新
-    //   詳細パネル内 .take-progress-fill は v2.33 で削除済み、 残りは near-bgm のみ
+    // v2.34: BGM seek 直下のテイク progress bar (ミックス用) を更新。 パーセント数値表示は削除
     const nearBgmFill = document.getElementById('take-near-bgm-fill');
-    const nearBgmTime = document.getElementById('take-near-bgm-time');
     if(state.currentTake){
         let pct = 0;
         if(bgmTransport.duration > 0){
@@ -4925,17 +4960,14 @@ function refreshTakeNowPlayingUI(){
             const localT = (songT - (tk.startSongTime||0) - parseFloat(voxOfsSlider.value||0)) / (tk.speed||1);
             pct = Math.max(0, Math.min(100, (localT / tk.duration) * 100));
         }
-        // also update preview progress if previewing (v2.33: preview ボタンは削除済みだが
-        // ロジックは念のため残す、 previewState 経由の再生があれば追従)
+        // preview state があれば追従 (v2.33: preview ボタンは削除済みだがロジックは維持)
         if(previewState.takeId === state.currentTake.id && previewState.startCtxTime > 0 && audioCtx){
             const elapsed = audioCtx.currentTime - previewState.startCtxTime;
             pct = Math.max(0, Math.min(100, (elapsed / state.currentTake.duration) * 100));
         }
         if (nearBgmFill) nearBgmFill.style.width = pct + '%';
-        if (nearBgmTime) nearBgmTime.textContent = pct.toFixed(0) + '%';
     } else {
         if (nearBgmFill) nearBgmFill.style.width = '0%';
-        if (nearBgmTime) nearBgmTime.textContent = '0%';
     }
     // v2.29: 旧構造の items.forEach reset ループは新構造で不要 (詳細パネルは 1 つだけ、
     //   active 以外のテイクには fill 要素が無い)。 v2.28 で削除し忘れて未定義 items

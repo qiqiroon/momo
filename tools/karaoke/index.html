@@ -202,6 +202,19 @@
                   対策 (meta.js のみ):
                     - ensureKaraokeRoot を split('/') で階層分割し、 各階層ごとに
                       exists → mkdir → refresh → cd の順で確実に作成・移動
+       v2.32 - 5d-改 修正 4 件 (歌詞圧縮 / プレビュー削除 / 近接 progress ログ / リネーム真因修正) — 2026-05-27
+                  v2.31 動作確認でユーザー報告:
+                    (1) 歌詞 1 行モードだが表示エリアが広い → CSS で height/min/max を
+                        60px に固定、 padding/line-height も圧縮
+                    (3) ▶ プレビュー (テイクのみ再生) が残っている → 整理計画 (Q1A) に
+                        従い削除。 詳細パネルから preview ボタン + ハンドラ削除
+                    (4) ⋮ メニュー → リネーム機能しない → 真因確定: #take-rename-modal
+                        を #karaoke-section 内に置いていたため、 ミックスタブ操作中は
+                        親が hidden で表示されなかった。 起動時に document.body 直下に
+                        appendChild で移動
+                    (2) 近接 progress 進捗しない → 真因切り分けのため refreshTakeNowPlayingUI
+                        に 500ms 毎の診断ログ追加 (nearBgmFill / currentTake / bgmDur /
+                        bgmCur の状態を出力)
        v2.31 - Phase 5d-改: 機能整理 3 件 (カラオケのテイク非同期 / ミックス歌詞 1 行 / BGM-テイク近接 progress) — 2026-05-27
                   ユーザー機能整理計画 (2026-05-25) を実装:
                     - 5d-改1: switchTab('karaoke') 時に state.currentTake = null +
@@ -1053,11 +1066,19 @@ h1 .version-tag {
 /* v2.31 (5d-改2): ミックス画面では歌詞は「再生中の 1 行のみ」 表示 (歌わないので) */
 .lyrics-view.single-line-mode .lyrics-line:not(.current) { display: none; }
 .lyrics-view.single-line-mode .lyrics-line.current {
-    /* current 行を画面中央付近に固定的に大きく見せる */
     text-align: center;
-    padding: 20px 12px;
-    font-size: 19px;
+    padding: 10px 12px;
+    font-size: 17px;
 }
+/* v2.32: 1 行モード時は表示エリアを圧縮 (ユーザー指示: 画面集約のため) */
+.lyrics-view.single-line-mode {
+    height: 60px !important;
+    min-height: 60px !important;
+    max-height: 60px !important;
+    padding: 6px 12px !important;
+    line-height: 1.4 !important;
+}
+.lyrics-view.single-line-mode + .lyrics-resize-handle { display: none; }
 
 /* カラオケ調整パネル */
 .karaoke-panel {
@@ -1476,7 +1497,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.31</span>
+                <span class="version-tag" id="version-tag">v2.32</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2114,7 +2135,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.31',
+        version: document.getElementById('version-tag')?.textContent || 'v2.32',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2220,7 +2241,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.31';
+const APP_VERSION = 'v2.32';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -4653,7 +4674,8 @@ function renderTakes(){
             <div class="take-meta">${t.duration.toFixed(1)}s · ${sign}${t.pitchSemitones||0}st · ${(t.speed||1).toFixed(2)}x · 楽曲@${fmt(t.startSongTime||0)}</div>
             <div class="take-progress-bar"><div class="take-progress-fill" data-progress-for="${t.id}" style="width:0%"></div></div>
             <div class="take-actions">
-                <button class="take-btn preview" data-act="preview" title="このテイクだけ頭から試聴">▶ プレビュー</button>
+                <!-- v2.32: ▶ プレビュー削除 (ユーザー指示: テイクのみ再生は不要)。
+                     BGM+TAKE 同期再生はメインの ▶ ボタンで行う。 -->
                 <div class="take-menu-wrap" style="margin-left:auto;">
                     <button class="take-btn take-menu-btn" data-act="menu" title="メニュー" style="min-width:32px; padding:0 10px;">⋮</button>
                 </div>
@@ -4692,16 +4714,10 @@ function renderTakes(){
     });
 
     // 詳細パネル内アクション — active テイクに対してのみ
+    //   v2.32: ▶ プレビューボタン削除 (ユーザー指示)。 BGM+TAKE 同期再生はメインの ▶ で。
     const detail = takesList.querySelector('.take-item');
     if (detail && state.currentTake) {
         const id = detail.dataset.id;
-        const previewBtn = detail.querySelector('[data-act=preview]');
-        if (previewBtn) previewBtn.addEventListener('click', e => {
-            e.stopPropagation();
-            const t = state.currentEntry.takes.find(x => x.id === id);
-            if(t) togglePreviewTake(t);
-        });
-
         // v2.29 (Phase 5d-2 修正): ⋮ メニューは body 直下の fixed メニューを使い回す
         const menuBtn = detail.querySelector('[data-act=menu]');
         if (menuBtn) {
@@ -4755,16 +4771,20 @@ function _openTakeContextMenu(anchorBtn, take) {
         newItem.addEventListener('mouseleave', () => newItem.style.background = '');
     });
     // 各アクションを take にバインド
+    // v2.32: リネーム機能のバグ調査用ログ追加
     m.querySelector('[data-act=rename]').addEventListener('click', async (e) => {
         e.stopPropagation();
+        DEBUG.info('rename clicked, take=' + take.name + ' id=' + take.id);
         _closeTakeContextMenu();
         const newName = await _showRenameTakeModal(take.name);
+        DEBUG.info('rename modal returned: ' + (newName === null ? 'null (cancel)' : '"' + newName + '"'));
         if (newName === null) return;
         const trimmed = newName.trim();
-        if (!trimmed) return;
+        if (!trimmed) { DEBUG.warn('rename: empty after trim, skip'); return; }
         DEBUG.info('Take rename: ' + take.name + ' → ' + trimmed);
         take.name = trimmed;
-        await persistTakes(state.currentEntry);
+        try { await persistTakes(state.currentEntry); DEBUG.ok('rename: persistTakes OK'); }
+        catch (err) { DEBUG.err('rename persistTakes fail: ' + err.message); return; }
         renderTakes();
     });
     m.querySelector('[data-act=duplicate]').addEventListener('click', async (e) => {
@@ -4882,6 +4902,16 @@ function refreshTakeNowPlayingUI(){
     }
     // v2.31 (5d-改3): BGM seek 直下のテイク progress bar (ミックス用) も同時更新
     const nearBgmFill = document.getElementById('take-near-bgm-fill');
+    // v2.32: 500ms 毎の診断ログ (near-bgm 進捗が止まる問題の真因切り分け)
+    const _rtDiagNow = performance.now();
+    if (!refreshTakeNowPlayingUI._lastLog || _rtDiagNow - refreshTakeNowPlayingUI._lastLog > 500) {
+        refreshTakeNowPlayingUI._lastLog = _rtDiagNow;
+        DEBUG.info('refresh tick: nearBgmFill=' + (nearBgmFill ? ('OK,w=' + nearBgmFill.style.width) : 'NULL')
+            + ' currentTake=' + (state.currentTake ? state.currentTake.id : 'null')
+            + ' bgmPaused=' + bgmTransport.paused
+            + ' bgmDur=' + (bgmTransport.duration ? bgmTransport.duration.toFixed(1) : '?')
+            + ' bgmCur=' + (bgmTransport.currentTime ? bgmTransport.currentTime.toFixed(1) : '?'));
+    }
     // update progress for current take if playing
     if(state.currentTake){
         const fill = takesList.querySelector('.take-progress-fill[data-progress-for="' + state.currentTake.id + '"]');
@@ -7151,6 +7181,15 @@ async function openKaraokeSongPicker() {
 
     // v2.23 (Phase 5c): BGM 音量スライダ + マイク設定モーダル
     _initKaraoke5c();
+})();
+
+// v2.32: take-rename-modal を body 直下に移動 (#karaoke-section 内だと
+//   ミックスタブ操作中に親が hidden で表示されない)
+(function _moveRenameModalToBody(){
+    const m = document.getElementById('take-rename-modal');
+    if (m && m.parentNode !== document.body) {
+        document.body.appendChild(m);
+    }
 })();
 
 // v2.23: Phase 5c 初期化

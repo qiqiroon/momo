@@ -202,6 +202,17 @@
                   対策 (meta.js のみ):
                     - ensureKaraokeRoot を split('/') で階層分割し、 各階層ごとに
                       exists → mkdir → refresh → cd の順で確実に作成・移動
+       v2.33 - 5d-改 仕上げ: 詳細パネル progress 削除 + near-bgm 独立スタイル — 2026-05-27
+                  v2.32 ログで真因確定: take-near-bgm-fill は内部的に w=95% まで進捗
+                  していたが、 transport-row class 依存スタイルでユーザー視点では
+                  目立たず、 詳細パネル内の旧 .take-progress-fill が目立って「テイク
+                  専用 progress bar が残ってる」 と認識された。
+                  対策:
+                    - 詳細パネル内 .take-progress-bar 削除 (renderTakes detailHtml)
+                    - take-near-bgm-row を transport-row 依存から独立、 「TAKE」 ラベル
+                      + パーセント数値表示 + 高さ 6px の独自スタイルで視認性大幅向上
+                    - switchTab で display:'' ではなく 'flex' に変更 (independent layout)
+                    - v2.32 の診断ログ削除 (真因判明済み)
        v2.32 - 5d-改 修正 4 件 (歌詞圧縮 / プレビュー削除 / 近接 progress ログ / リネーム真因修正) — 2026-05-27
                   v2.31 動作確認でユーザー報告:
                     (1) 歌詞 1 行モードだが表示エリアが広い → CSS で height/min/max を
@@ -1497,7 +1508,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.32</span>
+                <span class="version-tag" id="version-tag">v2.33</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1719,13 +1730,14 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 </div>
                 <span class="time-dur" id="timeDur">0:00</span>
             </div>
-            <!-- v2.31 (5d-改3): ミックスタブでのみ表示する、 BGM seek の真下のテイク用 progress bar -->
-            <div class="transport-row take-near-bgm" id="take-near-bgm-row" style="display:none; margin-top:-4px;">
-                <span class="time-cur" style="visibility:hidden;">0:00</span>
-                <div class="seek-track" style="height:4px; cursor:default;">
-                    <div class="take-near-bgm-fill" id="take-near-bgm-fill" style="height:100%; width:0%; background:linear-gradient(90deg, var(--orange-light), var(--orange-mid)); border-radius:2px; transition:width 0.08s linear;"></div>
+            <!-- v2.31 (5d-改3) + v2.33: BGM seek の真下に並ぶテイク用 progress bar (ミックスタブ専用)。
+                 transport-row class 依存をやめて独立スタイル、 「TAKE」 ラベル付きで視認性を改善 -->
+            <div id="take-near-bgm-row" style="display:none; align-items:center; gap:6px; margin-top:2px; padding:0 0 0 2px;">
+                <span style="font-size:10px; font-weight:700; color:var(--text-muted); letter-spacing:0.5px; min-width:38px;">TAKE</span>
+                <div style="flex:1; height:6px; background:var(--bg); border:1px solid var(--border); border-radius:3px; overflow:hidden;">
+                    <div id="take-near-bgm-fill" style="height:100%; width:0%; background:linear-gradient(90deg, var(--orange-light), var(--orange-mid)); transition:width 0.08s linear;"></div>
                 </div>
-                <span class="time-dur" style="visibility:hidden;">0:00</span>
+                <span id="take-near-bgm-time" style="font-family:monospace; font-size:10px; color:var(--text-muted); min-width:42px; text-align:right;">0%</span>
             </div>
             <div id="loadProgress" class="load-progress hidden">読み込み中…</div>
             <div id="audioRescueRow" class="audio-rescue-row hidden">
@@ -2135,7 +2147,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.32',
+        version: document.getElementById('version-tag')?.textContent || 'v2.33',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2241,7 +2253,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.32';
+const APP_VERSION = 'v2.33';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2436,10 +2448,10 @@ function switchTab(name){
     if (lyricsView) {
         lyricsView.classList.toggle('single-line-mode', name === 'mix');
     }
-    // v2.31 (5d-改3): ミックスタブで BGM seek の真下にテイク用 progress bar を表示
+    // v2.31 (5d-改3) + v2.33: ミックスタブで BGM seek の真下にテイク用 progress bar を表示
     const takeNearBgm = document.getElementById('take-near-bgm-row');
     if (takeNearBgm) {
-        takeNearBgm.style.display = (name === 'mix') ? '' : 'none';
+        takeNearBgm.style.display = (name === 'mix') ? 'flex' : 'none';
     }
     // 状態タブを記録 (今後の機能分岐用)
     state.activeTab = name;
@@ -4672,7 +4684,8 @@ function renderTakes(){
                 <span class="take-now-playing">▶ NOW</span>
             </div>
             <div class="take-meta">${t.duration.toFixed(1)}s · ${sign}${t.pitchSemitones||0}st · ${(t.speed||1).toFixed(2)}x · 楽曲@${fmt(t.startSongTime||0)}</div>
-            <div class="take-progress-bar"><div class="take-progress-fill" data-progress-for="${t.id}" style="width:0%"></div></div>
+            <!-- v2.33: 詳細パネル内の take-progress-bar 削除。 進行表示は BGM seek bar
+                 直下の take-near-bgm-row で並列表示するため、 詳細パネル内は冗長 -->
             <div class="take-actions">
                 <!-- v2.32: ▶ プレビュー削除 (ユーザー指示: テイクのみ再生は不要)。
                      BGM+TAKE 同期再生はメインの ▶ ボタンで行う。 -->
@@ -4900,38 +4913,29 @@ function refreshTakeNowPlayingUI(){
         const isNowPlaying = isActive && !bgmTransport.paused && state.playMode !== 'bgm';
         detail.classList.toggle('now-playing', isNowPlaying);
     }
-    // v2.31 (5d-改3): BGM seek 直下のテイク progress bar (ミックス用) も同時更新
+    // v2.31 + v2.33: BGM seek 直下のテイク progress bar (ミックス用) を更新
+    //   詳細パネル内 .take-progress-fill は v2.33 で削除済み、 残りは near-bgm のみ
     const nearBgmFill = document.getElementById('take-near-bgm-fill');
-    // v2.32: 500ms 毎の診断ログ (near-bgm 進捗が止まる問題の真因切り分け)
-    const _rtDiagNow = performance.now();
-    if (!refreshTakeNowPlayingUI._lastLog || _rtDiagNow - refreshTakeNowPlayingUI._lastLog > 500) {
-        refreshTakeNowPlayingUI._lastLog = _rtDiagNow;
-        DEBUG.info('refresh tick: nearBgmFill=' + (nearBgmFill ? ('OK,w=' + nearBgmFill.style.width) : 'NULL')
-            + ' currentTake=' + (state.currentTake ? state.currentTake.id : 'null')
-            + ' bgmPaused=' + bgmTransport.paused
-            + ' bgmDur=' + (bgmTransport.duration ? bgmTransport.duration.toFixed(1) : '?')
-            + ' bgmCur=' + (bgmTransport.currentTime ? bgmTransport.currentTime.toFixed(1) : '?'));
-    }
-    // update progress for current take if playing
+    const nearBgmTime = document.getElementById('take-near-bgm-time');
     if(state.currentTake){
-        const fill = takesList.querySelector('.take-progress-fill[data-progress-for="' + state.currentTake.id + '"]');
         let pct = 0;
         if(bgmTransport.duration > 0){
             const songT = bgmTransport.currentTime;
             const tk = state.currentTake;
             const localT = (songT - (tk.startSongTime||0) - parseFloat(voxOfsSlider.value||0)) / (tk.speed||1);
             pct = Math.max(0, Math.min(100, (localT / tk.duration) * 100));
-            if(fill) fill.style.width = pct + '%';
         }
-        // also update preview progress if previewing
+        // also update preview progress if previewing (v2.33: preview ボタンは削除済みだが
+        // ロジックは念のため残す、 previewState 経由の再生があれば追従)
         if(previewState.takeId === state.currentTake.id && previewState.startCtxTime > 0 && audioCtx){
             const elapsed = audioCtx.currentTime - previewState.startCtxTime;
             pct = Math.max(0, Math.min(100, (elapsed / state.currentTake.duration) * 100));
-            if(fill) fill.style.width = pct + '%';
         }
         if (nearBgmFill) nearBgmFill.style.width = pct + '%';
+        if (nearBgmTime) nearBgmTime.textContent = pct.toFixed(0) + '%';
     } else {
         if (nearBgmFill) nearBgmFill.style.width = '0%';
+        if (nearBgmTime) nearBgmTime.textContent = '0%';
     }
     // v2.29: 旧構造の items.forEach reset ループは新構造で不要 (詳細パネルは 1 つだけ、
     //   active 以外のテイクには fill 要素が無い)。 v2.28 で削除し忘れて未定義 items

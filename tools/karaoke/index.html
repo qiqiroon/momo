@@ -202,6 +202,18 @@
                   対策 (meta.js のみ):
                     - ensureKaraokeRoot を split('/') で階層分割し、 各階層ごとに
                       exists → mkdir → refresh → cd の順で確実に作成・移動
+       v2.37 - MIX プレビュー + voxOfsSlider 拡張 (Phase 6f 前倒し) — 2026-05-27
+                  v2.36 動作確認: テイクが BGM より遅れる (既存 v1.39 課題 A) + 複数選択
+                  しても 1 つしか再生されない (既存 startTakePlayback の単一 take 設計)。
+                  対策:
+                    - 「▶ MIX プレビュー」 ボタンを MIX を作成パネル内に追加。 押下で
+                      _generateMixWav → blob URL → 単一 audio タグで再生 (複数テイク
+                      同時 wav を出力済みなので、 audio タグで普通に再生)
+                    - 再生中は ⏸ 停止 ボタンに変化、 停止/曲終了で blob URL 解放
+                    - voxOfsSlider を ±2秒 → ±3秒 に拡張 + ステップボタン
+                      [-0.1][-0.01][⟳0][+0.01][+0.1] + 「テイクを早める/遅らせる」 文言
+                      明示 (仕様書 §6.8 準拠)
+                  既存 v1.39 の同期ズレ自体は根本未解決、 voxOfsSlider 手動補正の運用
        v2.36 - Phase 6a 着手 (MVP): テイク複数選択 + MIX 生成 — 2026-05-27
                   仕様書 §6.3 + §6.12。 ミックスモードの本丸機能を MVP で実装。
                     - 6a-1: state.selectedTakeIds (Set) で複数選択管理、 [1][2][3]
@@ -1585,7 +1597,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.36</span>
+                <span class="version-tag" id="version-tag">v2.37</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2076,8 +2088,19 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 <input type="range" id="voxVolSlider" min="-24" max="12" step="0.5" value="0">
             </div>
             <div class="ctrl">
-                <div class="ctrl-label"><span>OFFSET (sec)</span><span class="ctrl-val" id="voxOfsVal">0.00</span></div>
-                <input type="range" id="voxOfsSlider" min="-2" max="2" step="0.01" value="0">
+                <div class="ctrl-label"><span>OFFSET (テイクを早める/遅らせる, sec)</span><span class="ctrl-val" id="voxOfsVal">0.00</span></div>
+                <input type="range" id="voxOfsSlider" min="-3" max="3" step="0.01" value="0">
+                <!-- v2.37 (Phase 6f 前倒し): 微調整ボタン (仕様書 §6.8) -->
+                <div style="display:flex; gap:6px; margin-top:8px; justify-content:center; flex-wrap:wrap;">
+                    <button class="momo-btn-small" data-ofs-step="-0.1" title="テイクを 0.1 秒早める">-0.1s</button>
+                    <button class="momo-btn-small" data-ofs-step="-0.01" title="テイクを 0.01 秒早める">-0.01s</button>
+                    <button class="momo-btn-small" data-ofs-reset title="0 にリセット">⟳ 0</button>
+                    <button class="momo-btn-small" data-ofs-step="0.01" title="テイクを 0.01 秒遅らせる">+0.01s</button>
+                    <button class="momo-btn-small" data-ofs-step="0.1" title="テイクを 0.1 秒遅らせる">+0.1s</button>
+                </div>
+                <p style="font-size:10px; color:var(--text-muted); margin: 8px 0 0 0; line-height:1.5;">
+                    + 値でテイクを遅らせる / − 値で早める。 BGM とテイクの位相がずれて聞こえる時に補正してください。
+                </p>
             </div>
             <div class="ctrl">
                 <div class="ctrl-label"><span>ECHO MIX</span><span class="ctrl-val" id="echoVal">0%</span></div>
@@ -2098,7 +2121,8 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 <div class="panel-tag" id="mix-create-status">READY</div>
             </div>
             <p class="panel-desc">選択中のテイクと BGM (上の Vocal Cut 等の設定を反映) で MIX wav を生成し、 曲フォルダに保存します。 MVP のため範囲は曲頭〜末で固定 (範囲指定は Phase 6c で実装予定)。</p>
-            <button class="momo-btn" id="mix-create-btn" style="width:100%; padding:12px;" disabled>🎚 MIX を作成 (テイクを 1 つ以上選択してください)</button>
+            <button class="momo-btn" id="mix-preview-btn" style="width:100%; padding:12px; margin-bottom:8px;" disabled>▶ MIX プレビュー (生成して試聴、 保存はしない)</button>
+            <button class="momo-btn" id="mix-create-btn" style="width:100%; padding:12px;" disabled>🎚 MIX を作成して保存 (テイクを 1 つ以上選択してください)</button>
             <div id="mix-create-progress" style="display:none; margin-top:10px; font-size:11px; color:var(--text-muted);"></div>
         </div>
     </div>
@@ -2238,7 +2262,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.36',
+        version: document.getElementById('version-tag')?.textContent || 'v2.37',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2344,7 +2368,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.36';
+const APP_VERSION = 'v2.37';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -7590,6 +7614,118 @@ async function _saveMix(wavBlob, sourceTakeIds) {
     DEBUG.ok('MIX: saved + meta.json updated, mixId=' + mixId);
     return { mixId, fileName };
 }
+
+// v2.37 (Phase 6f 前倒し): voxOfsSlider 微調整ボタン (仕様書 §6.8)
+(function _bindOfsButtons(){
+    const slider = document.getElementById('voxOfsSlider');
+    if (!slider) return;
+    document.querySelectorAll('[data-ofs-step]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const step = parseFloat(btn.dataset.ofsStep) || 0;
+            const cur = parseFloat(slider.value) || 0;
+            const min = parseFloat(slider.min) || -3;
+            const max = parseFloat(slider.max) || 3;
+            const next = Math.max(min, Math.min(max, cur + step));
+            slider.value = String(next);
+            slider.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+    });
+    document.querySelectorAll('[data-ofs-reset]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            slider.value = '0';
+            slider.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+    });
+})();
+
+// v2.37: MIX プレビュー (複数テイク同時再生のため、 MIX wav を生成 → blob URL → audio で再生)
+let _mixPreviewAudio = null;
+let _mixPreviewBlobUrl = null;
+let _mixPreviewState = 'idle';  // 'idle' | 'generating' | 'playing'
+
+function _stopMixPreview() {
+    if (_mixPreviewAudio) {
+        try { _mixPreviewAudio.pause(); } catch (e) {}
+        try { _mixPreviewAudio.remove(); } catch (e) {}
+        _mixPreviewAudio = null;
+    }
+    if (_mixPreviewBlobUrl) {
+        try { URL.revokeObjectURL(_mixPreviewBlobUrl); } catch (e) {}
+        _mixPreviewBlobUrl = null;
+    }
+    _mixPreviewState = 'idle';
+    _updateMixPreviewBtn();
+}
+
+function _updateMixPreviewBtn() {
+    const btn = document.getElementById('mix-preview-btn');
+    if (!btn) return;
+    const n = state.selectedTakeIds ? state.selectedTakeIds.size : 0;
+    const hasEntry = !!state.currentEntry;
+    if (_mixPreviewState === 'generating') {
+        btn.disabled = true;
+        btn.textContent = '⏳ MIX プレビュー生成中…';
+    } else if (_mixPreviewState === 'playing') {
+        btn.disabled = false;
+        btn.textContent = '⏸ MIX プレビュー停止';
+    } else if (!hasEntry || n === 0) {
+        btn.disabled = true;
+        btn.textContent = '▶ MIX プレビュー (テイクを選択してください)';
+    } else {
+        btn.disabled = false;
+        btn.textContent = '▶ MIX プレビュー (テイク ' + n + ' 個 × BGM)';
+    }
+}
+
+async function _startMixPreview() {
+    if (_mixPreviewState !== 'idle') return;
+    _mixPreviewState = 'generating';
+    _updateMixPreviewBtn();
+    try {
+        // 既存 BGM 再生は停止 (重なって聞こえるのを防ぐ)
+        if (!bgmTransport.paused) { try { bgmTransport.pause(); } catch (e) {} }
+        stopTakePlayback();
+
+        const { wavBlob } = await _generateMixWav();
+        _mixPreviewBlobUrl = URL.createObjectURL(wavBlob);
+        const a = document.createElement('audio');
+        a.src = _mixPreviewBlobUrl;
+        a.style.display = 'none';
+        a.preload = 'auto';
+        document.body.appendChild(a);
+        _mixPreviewAudio = a;
+        a.addEventListener('ended', () => _stopMixPreview());
+        a.addEventListener('error', (e) => {
+            console.error('MIX preview audio error:', e);
+            _stopMixPreview();
+        });
+        await a.play();
+        _mixPreviewState = 'playing';
+        _updateMixPreviewBtn();
+        DEBUG.info('MIX preview: playing (' + (wavBlob.size / 1024).toFixed(0) + ' KB)');
+    } catch (e) {
+        console.error('MIX preview 失敗:', e);
+        alert('MIX プレビュー失敗: ' + (e.message || e));
+        _stopMixPreview();
+    }
+}
+
+// プレビューボタンのバインド + ボタン文言更新 hook
+(function _bindMixPreview(){
+    const btn = document.getElementById('mix-preview-btn');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+        if (_mixPreviewState === 'playing') _stopMixPreview();
+        else if (_mixPreviewState === 'idle') _startMixPreview();
+    });
+    // 選択数変化に追従させるため _refreshMixCreateBtn を拡張 (フック追加)
+    const origRefresh = window._refreshMixCreateBtn;
+    window._refreshMixCreateBtn = function () {
+        if (typeof origRefresh === 'function') origRefresh();
+        _updateMixPreviewBtn();
+    };
+    _updateMixPreviewBtn();
+})();
 
 // ボタンと選択数の連動 + クリックハンドラ
 (function _bindMixCreate(){

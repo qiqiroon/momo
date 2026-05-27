@@ -1,8 +1,0 @@
-User-agent: *
-Disallow: /
-
-Allow: /momo/
-Allow: /momo/games/
-Allow: /momo/tools/
-Allow: /momo/logue/
-

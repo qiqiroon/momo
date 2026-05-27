@@ -202,6 +202,22 @@
                   対策 (meta.js のみ):
                     - ensureKaraokeRoot を split('/') で階層分割し、 各階層ごとに
                       exists → mkdir → refresh → cd の順で確実に作成・移動
+       v2.36 - Phase 6a 着手 (MVP): テイク複数選択 + MIX 生成 — 2026-05-27
+                  仕様書 §6.3 + §6.12。 ミックスモードの本丸機能を MVP で実装。
+                    - 6a-1: state.selectedTakeIds (Set) で複数選択管理、 [1][2][3]
+                      ボタンクリックで toggle + ✓ マーク表示。 selectEntry 時にリセット
+                    - 6a-2: 「MIX を作成」 パネル + ボタン (Voice Channel パネル下に追加)。
+                      選択数に応じてボタン文言 + 有効/無効を _refreshMixCreateBtn で切替
+                    - 6a-3: _generateMixWav (OfflineAudioContext で BGM + 選択テイクを
+                      重ねて render)。 voxOfsSlider オフセット / voxVolSlider TAKE 音量 /
+                      bgmVolSlider BGM 音量 / take.speed / take.pitchSemitones を反映。
+                      範囲は曲頭〜末固定 (MVP、 範囲指定は Phase 6c)
+                    - 6a-4: _saveMix で wav を `mix<N>.wav` で曲フォルダ書き込み +
+                      meta.json.mixes に追加 → saveSongMeta。 mixId は META.nextMixId で
+                      単調増加
+                  Phase 6 残: 6b MIX 一覧 / 6c 範囲指定 / 6d フェード / 6e BGM プルダウン
+                  + エコープリセット / 6f オフセット拡張 / 6g ⋮ メニュー拡張 / 6h 音量
+                  0〜200%
        v2.35 - near-bgm progress を BGM 時間軸対応 (テイク位置と長さを縮尺表示) — 2026-05-27
                   ユーザー指示確認: 「BGM とテイクのプログレスバーを並列に並べた目的は、
                   同じ時間軸上のどこに存在するか示すため。 BGM のプログレスバーとの間で
@@ -1569,7 +1585,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.35</span>
+                <span class="version-tag" id="version-tag">v2.36</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2074,6 +2090,17 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 <div class="eq-band"><span class="eq-band-label">HIGH</span><input type="range" id="voxEqHi" min="-12" max="12" step="0.5" value="0"><span class="eq-band-val" id="voxEqHiVal">0</span></div>
             </div>
         </div>
+
+        <!-- v2.36 (Phase 6a): MIX 生成パネル (MVP: 範囲指定なし、 曲頭〜末で生成) -->
+        <div class="karaoke-panel" id="mix-create-panel">
+            <div class="panel-head">
+                <div class="panel-title">MIX を作成</div>
+                <div class="panel-tag" id="mix-create-status">READY</div>
+            </div>
+            <p class="panel-desc">選択中のテイクと BGM (上の Vocal Cut 等の設定を反映) で MIX wav を生成し、 曲フォルダに保存します。 MVP のため範囲は曲頭〜末で固定 (範囲指定は Phase 6c で実装予定)。</p>
+            <button class="momo-btn" id="mix-create-btn" style="width:100%; padding:12px;" disabled>🎚 MIX を作成 (テイクを 1 つ以上選択してください)</button>
+            <div id="mix-create-progress" style="display:none; margin-top:10px; font-size:11px; color:var(--text-muted);"></div>
+        </div>
     </div>
 
     <!-- ============ v2.00 管理タブ: export / import / 削除 (Phase 7 で本実装) ============ -->
@@ -2211,7 +2238,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.35',
+        version: document.getElementById('version-tag')?.textContent || 'v2.36',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2317,7 +2344,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.35';
+const APP_VERSION = 'v2.36';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2399,6 +2426,8 @@ const state = {
     history: [],
     currentEntry: null,
     currentTake: null,
+    // v2.36 (Phase 6a-1): ミックスタブでのテイク複数選択 (Set of take.id)
+    selectedTakeIds: new Set(),
     isRecording: false,
     lyricsLines: [],
     lastLyricIdx: -1,
@@ -4731,9 +4760,12 @@ function renderTakes(){
     takesCount.textContent = (activeIdx >= 0 ? activeIdx + 1 : 0) + ' / ' + takes.length;
 
     // ボタン群 HTML
+    // v2.36 (Phase 6a-1): 複数選択対応 — active 表示は selectedTakeIds に含まれるかどうか
+    //   ✓ マーク付きで視覚的に強調。 既存の state.currentTake は「最後に touch したテイク」
+    //   として既存の再生ロジック (BGM 同期再生 / preload) でも利用継続
     const buttonsHtml = takes.map((t, i) => {
-        const isActive = state.currentTake && t.id === state.currentTake.id;
-        return `<button class="take-btn-mini ${isActive?'active':''}" data-id="${t.id}" data-act="select" title="${escapeHtml(t.name)}">${i + 1}</button>`;
+        const isSelected = state.selectedTakeIds.has(t.id);
+        return `<button class="take-btn-mini ${isSelected?'active':''}" data-id="${t.id}" data-act="select" title="${escapeHtml(t.name)}">${i + 1}${isSelected ? ' ✓' : ''}</button>`;
     }).join('');
 
     // 選択中の詳細パネル HTML (active テイクがあれば表示)
@@ -4772,21 +4804,38 @@ function renderTakes(){
         hintHtml +
         '<div class="takes-detail" style="margin-top:10px;">' + detailHtml + '</div>';
 
-    // ボタンクリック = 選択 (= 既存の select 動作: state.currentTake 更新 + preload + 同期再生)
+    // v2.36 (Phase 6a-1): ボタンクリック = 選択トグル (仕様書 §6.3)
+    //   selectedTakeIds に add/delete でトグル、 currentTake は active なテイクの最後を維持
     takesList.querySelectorAll('.take-btn-mini').forEach(btn => {
         const id = btn.dataset.id;
         btn.addEventListener('click', async () => {
             const t = state.currentEntry.takes.find(x => x.id === id);
             if(!t) return;
-            DEBUG.info('Take selected: ' + t.name);
-            state.currentTake = t;
+            // トグル
+            if (state.selectedTakeIds.has(id)) {
+                state.selectedTakeIds.delete(id);
+                DEBUG.info('Take deselected: ' + t.name);
+            } else {
+                state.selectedTakeIds.add(id);
+                DEBUG.info('Take selected: ' + t.name);
+            }
+            // currentTake = 最後に選択されているテイク (再生用)
+            if (state.selectedTakeIds.has(id)) {
+                state.currentTake = t;
+            } else if (state.selectedTakeIds.size > 0) {
+                const lastId = [...state.selectedTakeIds].pop();
+                state.currentTake = state.currentEntry.takes.find(x => x.id === lastId) || null;
+            } else {
+                state.currentTake = null;
+            }
             renderTakes();
             renderBadges();
-            if(IOS_MODE){
-                try { await preloadIOSTake(t); }
+            if (window._refreshMixCreateBtn) window._refreshMixCreateBtn();
+            if(state.currentTake && IOS_MODE){
+                try { await preloadIOSTake(state.currentTake); }
                 catch(e){ DEBUG.warn('preload failed: ' + e.message); }
             }
-            if(!bgmTransport.paused && state.playMode !== 'bgm') startTakePlayback();
+            if(state.currentTake && !bgmTransport.paused && state.playMode !== 'bgm') startTakePlayback();
         });
     });
 
@@ -4875,6 +4924,8 @@ function _openTakeContextMenu(anchorBtn, take) {
         if (!confirm('このテイクを削除しますか？')) return;
         DEBUG.info('Take deleted: ' + take.id);
         state.currentEntry.takes = state.currentEntry.takes.filter(x => x.id !== take.id);
+        // v2.36: selectedTakeIds からも削除
+        state.selectedTakeIds.delete(take.id);
         if (state.currentTake && state.currentTake.id === take.id) {
             state.currentTake = state.currentEntry.takes.length ? state.currentEntry.takes[state.currentEntry.takes.length-1] : null;
             stopTakePlayback();
@@ -4963,10 +5014,10 @@ async function _duplicateTake(srcTake) {
 // v2.28: 新構造に合わせて更新。 active ボタン (.take-btn-mini.active) と
 //   詳細パネル (.take-item.now-playing) のみリビルド無しで状態反映。
 function refreshTakeNowPlayingUI(){
-    // ボタンの active 状態を更新
+    // v2.36: ボタンの active 状態は selectedTakeIds ベース (複数選択)
     takesList.querySelectorAll('.take-btn-mini').forEach(btn => {
         const id = btn.dataset.id;
-        const isActive = state.currentTake && state.currentTake.id === id;
+        const isActive = state.selectedTakeIds.has(id);
         btn.classList.toggle('active', isActive);
     });
     // 詳細パネルの now-playing 状態
@@ -5068,6 +5119,9 @@ async function selectEntry(entry){
 
     state.currentEntry = entry;
     state.lyricsLines = entry.lyricsLines || [];
+    // v2.36 (Phase 6a-1): 曲切替時はテイク選択リセット (異なる曲のテイクは MIX 対象外)
+    state.selectedTakeIds = new Set();
+    if (window._refreshMixCreateBtn) window._refreshMixCreateBtn();
 
     // On iOS we don't create an AudioContext at all — the transport uses a
     // plain HTMLAudioElement instead. On other platforms we need it for the
@@ -7394,6 +7448,199 @@ function _initKaraoke5c() {
         });
     }
 }
+
+// ===== v2.36 (Phase 6a): MIX 生成機能 =====
+// OfflineAudioContext で BGM + 選択テイクを焼き込んで wav を生成、 曲フォルダに保存。
+// MVP: 範囲指定なし (曲頭〜末)、 フェードなし、 echo/vocalCut も既存スライダー値を反映
+// する程度。 完全な仕様 (範囲、 フェード、 エコープリセット等) は Phase 6c〜6e で。
+
+async function _generateMixWav() {
+    if (!state.currentEntry) throw new Error('曲が未選択です');
+    if (!state.selectedTakeIds || state.selectedTakeIds.size === 0) {
+        throw new Error('テイクが 1 つも選択されていません');
+    }
+    if (!state.currentEntry.audioFile) throw new Error('BGM 音源がありません');
+
+    // 1. BGM decode (再 decode で安全に独立した AudioBuffer 取得)
+    const audioFile = state.currentEntry.audioFile;
+    const ab = await audioFile.arrayBuffer();
+    const tmpCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const bgmBuf = await new Promise((res, rej) => {
+        try {
+            const p = tmpCtx.decodeAudioData(ab.slice(0), res, rej);
+            if (p && typeof p.then === 'function') p.then(res, rej);
+        } catch (e) { rej(e); }
+    });
+    try { tmpCtx.close(); } catch (e) {}
+
+    const sampleRate = bgmBuf.sampleRate;
+    const channels = 2;
+    const totalSamples = Math.ceil(bgmBuf.duration * sampleRate);
+    DEBUG.info('MIX: rendering ' + bgmBuf.duration.toFixed(1) + 's @ ' + sampleRate + 'Hz × ' + channels + 'ch');
+
+    // 2. OfflineAudioContext
+    const offlineCtx = new OfflineAudioContext(channels, totalSamples, sampleRate);
+
+    // BGM source + gain
+    const bgmSource = offlineCtx.createBufferSource();
+    bgmSource.buffer = bgmBuf;
+    const bgmDb = parseFloat(bgmVolSlider.value) || 0;
+    const bgmGainLin = Math.pow(10, bgmDb / 20);
+    const bgmGainNode = offlineCtx.createGain();
+    bgmGainNode.gain.value = bgmGainLin;
+    bgmSource.connect(bgmGainNode);
+    bgmGainNode.connect(offlineCtx.destination);
+    bgmSource.start(0);
+
+    // 各テイク
+    const takeIds = Array.from(state.selectedTakeIds);
+    const voxDb = parseFloat(voxVolSlider.value) || 0;
+    const voxGainLin = Math.pow(10, voxDb / 20);
+    const offset = parseFloat(voxOfsSlider.value) || 0;
+
+    let usedTakes = 0;
+    for (const tid of takeIds) {
+        const take = state.currentEntry.takes.find(t => t.id === tid);
+        if (!take || !take.pcm || !take.pcm.length) {
+            DEBUG.warn('MIX: skip take (no pcm): ' + tid);
+            continue;
+        }
+        const takeBuf = offlineCtx.createBuffer(1, take.pcm.length, take.sampleRate || 44100);
+        takeBuf.copyToChannel(take.pcm, 0);
+        const takeSource = offlineCtx.createBufferSource();
+        takeSource.buffer = takeBuf;
+        takeSource.playbackRate.value = take.speed || 1.0;
+        if (take.pitchSemitones) {
+            try { takeSource.detune.value = (take.pitchSemitones || 0) * 100; } catch (e) {}
+        }
+        const takeGainNode = offlineCtx.createGain();
+        takeGainNode.gain.value = voxGainLin;
+        takeSource.connect(takeGainNode);
+        takeGainNode.connect(offlineCtx.destination);
+        const startAt = Math.max(0, (take.startSongTime || 0) + offset);
+        takeSource.start(startAt);
+        usedTakes++;
+        DEBUG.info('MIX:   + take "' + take.name + '" @ ' + startAt.toFixed(2) + 's, dur=' + take.duration.toFixed(1) + 's, sp=' + (take.speed||1).toFixed(2) + 'x, pitch=' + (take.pitchSemitones||0) + 'st');
+    }
+    if (usedTakes === 0) throw new Error('選択中のテイクに有効な音声データがありません');
+
+    DEBUG.info('MIX: startRendering...');
+    const t0 = performance.now();
+    const rendered = await offlineCtx.startRendering();
+    DEBUG.ok('MIX: rendered in ' + (performance.now() - t0).toFixed(0) + 'ms');
+
+    // 3. AudioBuffer (stereo) → WAV
+    const L = rendered.getChannelData(0);
+    const R = rendered.numberOfChannels >= 2 ? rendered.getChannelData(1) : L;
+    return { wavBlob: stereoPcmToWavBlob(L, R, sampleRate), sampleRate, duration: rendered.duration, sourceTakeIds: takeIds };
+}
+
+// v2.36 (Phase 6a-4): 生成 wav を曲フォルダに保存 + meta.json mixes 配列更新
+async function _saveMix(wavBlob, sourceTakeIds) {
+    const META = window.MomoMeta;
+    const MK = window.MomoMake;
+    if (!META || !MK || !MK.state) throw new Error('MomoMeta / MomoMake が未ロード');
+    const prov = MK.state.karaokeFolderProvider;
+    const songFolderName = state.currentEntry && state.currentEntry.id;
+    if (!songFolderName) throw new Error('song folder name 不明');
+
+    // 既存 meta.json をロード
+    let songMeta;
+    if (prov === 'drive') {
+        songMeta = await META.Drive.loadSongMeta(songFolderName);
+    } else if (prov === 'local' && MK.state.karaokeFolderHandle) {
+        const songHandle = await MK.state.karaokeFolderHandle.getDirectoryHandle(songFolderName);
+        songMeta = await META.Local.loadSongMeta(songHandle);
+    } else {
+        throw new Error('カラオケフォルダ未接続');
+    }
+    if (!songMeta) songMeta = META.defaultSongMeta();
+    if (!Array.isArray(songMeta.mixes)) songMeta.mixes = [];
+
+    // 新 mix の番号 (単調増加)
+    const mixId = META.nextMixId(songMeta);
+    const fileName = 'mix' + mixId + '.wav';
+    DEBUG.info('MIX: save as ' + fileName + ' (' + wavBlob.size + ' bytes)');
+
+    // wav 書込
+    if (prov === 'drive') {
+        await META.Drive.writeFile(songFolderName, fileName, wavBlob);
+    } else {
+        const songHandle = await MK.state.karaokeFolderHandle.getDirectoryHandle(songFolderName);
+        await META.Local.writeFile(songHandle, fileName, wavBlob);
+    }
+
+    // mixes 配列に追加
+    const now = new Date().toISOString();
+    songMeta.mixes.push({
+        id: mixId,
+        name: 'MIX ' + mixId,
+        fileName: fileName,
+        sourceTakeIds: sourceTakeIds,
+        sourceBgm: state.currentEntry.audioFile && state.currentEntry.audioFile.name,
+        createdAt: now,
+        sizeBytes: wavBlob.size,
+    });
+    if (prov === 'drive') {
+        await META.Drive.saveSongMeta(songFolderName, songMeta);
+    } else {
+        const songHandle = await MK.state.karaokeFolderHandle.getDirectoryHandle(songFolderName);
+        await META.Local.saveSongMeta(songHandle, songMeta);
+    }
+    DEBUG.ok('MIX: saved + meta.json updated, mixId=' + mixId);
+    return { mixId, fileName };
+}
+
+// ボタンと選択数の連動 + クリックハンドラ
+(function _bindMixCreate(){
+    const btn = document.getElementById('mix-create-btn');
+    const status = document.getElementById('mix-create-status');
+    const progress = document.getElementById('mix-create-progress');
+    if (!btn) return;
+
+    // 選択数の変化に応じてボタン文言を更新する小関数 (renderTakes / refreshTake から呼ぶ)
+    window._refreshMixCreateBtn = function () {
+        const n = state.selectedTakeIds ? state.selectedTakeIds.size : 0;
+        const hasEntry = !!state.currentEntry;
+        if (!hasEntry) {
+            btn.disabled = true;
+            btn.textContent = '🎚 曲を選択してください';
+        } else if (n === 0) {
+            btn.disabled = true;
+            btn.textContent = '🎚 MIX を作成 (テイクを 1 つ以上選択してください)';
+        } else {
+            btn.disabled = false;
+            btn.textContent = '🎚 MIX を作成 (テイク ' + n + ' 個 × BGM)';
+        }
+    };
+
+    btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        const oldLabel = btn.textContent;
+        btn.textContent = '⏳ MIX を生成中…';
+        if (status) status.textContent = 'RENDERING';
+        if (progress) { progress.style.display = ''; progress.textContent = 'OfflineAudioContext で render 中… (数秒〜十数秒)'; }
+        try {
+            const { wavBlob, duration, sourceTakeIds } = await _generateMixWav();
+            if (progress) progress.textContent = '生成完了 (' + duration.toFixed(1) + 's, ' + (wavBlob.size / 1024).toFixed(0) + ' KB)。 保存中…';
+            const { mixId, fileName } = await _saveMix(wavBlob, sourceTakeIds);
+            if (status) status.textContent = 'DONE';
+            if (progress) progress.textContent = '✅ ' + fileName + ' を保存しました (mixId=' + mixId + ')';
+            btn.textContent = '✅ MIX 作成完了 (' + fileName + ')';
+        } catch (e) {
+            console.error('MIX 生成失敗:', e);
+            if (status) status.textContent = 'ERR';
+            if (progress) progress.textContent = '❌ ' + (e.message || e);
+            btn.textContent = oldLabel;
+        } finally {
+            btn.disabled = state.selectedTakeIds.size === 0;
+            setTimeout(() => { if (window._refreshMixCreateBtn) window._refreshMixCreateBtn(); }, 3000);
+        }
+    });
+
+    // 初期状態
+    window._refreshMixCreateBtn();
+})();
 
 // v2.08: 既存 gdrive オブジェクトを window グローバルに expose
 // make.js (MomoMeta.Drive 本実装) から既存 v1.39 の Drive 接続ロジックを再利用するため。

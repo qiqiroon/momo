@@ -164,6 +164,17 @@
       border-color: var(--orange-dark);
       transform: translateY(-2px);
     }
+    /* 工事中オーバーレイ。 pointer-events:none でクリックは下の <a> に透過 → リンクは機能する */
+    .tool-card.card-wip { position: relative; }
+    .tool-card.card-wip::after {
+      content: '🚧 UNDER CONSTRUCTION 工事中 🚧';
+      position: absolute; inset: 0; border-radius: 12px;
+      background: rgba(0,0,0,0.68);
+      color: #fb923c; font-size: 13px; font-weight: 700; letter-spacing: .04em;
+      display: flex; align-items: center; justify-content: center;
+      text-align: center; padding: 12px; line-height: 1.7;
+      border: 2px dashed #c2410c; pointer-events: none;
+    }
     .card-top {
       display: flex;
       align-items: center;
@@ -436,8 +447,8 @@
         <div class="card-btn" id="lyrics-open">今すぐ使う</div>
       </a>
 
-      <!-- MOMO Karaoke card (v2.18 で追加) -->
-      <a class="tool-card" href="karaoke/" style="animation-delay:0.58s">
+      <!-- MOMO Karaoke card (v2.18 で追加)。 工事中表示 (リンクは機能する) -->
+      <a class="tool-card card-wip" href="karaoke/" style="animation-delay:0.58s">
         <div class="card-top">
           <span class="badge">🎤</span>
         </div>

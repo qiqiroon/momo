@@ -1645,7 +1645,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.40</span>
+                <span class="version-tag" id="version-tag">v2.41</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2313,7 +2313,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.40',
+        version: document.getElementById('version-tag')?.textContent || 'v2.41',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2419,7 +2419,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.40';
+const APP_VERSION = 'v2.41';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -4956,7 +4956,7 @@ function _ensureTakeMenuEl() {
     document.body.appendChild(m);
     m.querySelectorAll('.take-menu-item').forEach(item => {
         item.addEventListener('mouseenter', () => item.style.background = 'var(--bg-selected, rgba(255,255,255,0.06))');
-        item.addEventListener('mouseleave', () => item.style.background = '');
+        item.addEventListener('mouseleave', () => item.style.background = 'transparent');
     });
     _takeMenuEl = m;
     return m;
@@ -4976,7 +4976,7 @@ function _openTakeContextMenu(anchorBtn, take) {
         item.parentNode.replaceChild(newItem, item);
         // ホバー再付与
         newItem.addEventListener('mouseenter', () => newItem.style.background = 'var(--bg-selected, rgba(255,255,255,0.06))');
-        newItem.addEventListener('mouseleave', () => newItem.style.background = '');
+        newItem.addEventListener('mouseleave', () => newItem.style.background = 'transparent');
     });
     // 各アクションを take にバインド
     // v2.32: リネーム機能のバグ調査用ログ追加
@@ -7791,12 +7791,14 @@ async function _playStoredMix(m) {
     if (!bgmTransport.paused) { try { bgmTransport.pause(); } catch (e) {} }
     stopTakePlayback();
     const myToken = _mixLoadToken;
+    // v2.41: 読込中インジケータ (MIX wav は数十 MB で Drive 読込に数秒かかるため明示)
+    if (typeof btnPlay !== 'undefined' && btnPlay) { btnPlay.classList.remove('playing'); btnPlay.textContent = '⏳'; }
     let blob;
     try {
         blob = (ctx.prov === 'drive')
             ? await META.Drive.readFile(ctx.songFolderName, m.fileName)
             : await META.Local.readFile(ctx.songHandle, m.fileName);
-    } catch (e) { alert('MIX ファイルの読込に失敗しました: ' + (e.message || e)); return; }
+    } catch (e) { _setPlayBtnIcon(false); alert('MIX ファイルの読込に失敗しました: ' + (e.message || e)); return; }
     if (myToken !== _mixLoadToken) { DEBUG.info('MIX load superseded, abort'); return; }  // 新しい操作が来た
     _storedMixBlobUrl = URL.createObjectURL(blob);
     const a = document.createElement('audio');
@@ -7921,7 +7923,7 @@ function _popupMenu(anchorBtn, items) {
         b.textContent = it.label;
         b.style.cssText = 'display:block; width:100%; text-align:left; padding:8px 12px; background:transparent; border:none; color:' + (it.color || 'var(--text)') + '; font-size:13px; cursor:pointer; border-radius:4px; font-family:inherit;';
         b.addEventListener('mouseenter', () => b.style.background = 'var(--bg-selected, rgba(255,255,255,0.06))');
-        b.addEventListener('mouseleave', () => b.style.background = '');
+        b.addEventListener('mouseleave', () => b.style.background = 'transparent');
         b.addEventListener('click', (e) => { e.stopPropagation(); close(); it.onClick(); });
         m.appendChild(b);
     });
@@ -7995,19 +7997,32 @@ async function _deleteMix(mix) {
     const META = window.MomoMeta;
     const ctx = await _mixStorageCtx();
     if (!META || !ctx) { alert('カラオケフォルダ未接続'); return; }
+    // v2.41: 楽観的 UI — 先に一覧から消して即描画 (体感速度向上)。 永続化は背後で並列実行。
+    const prevMixes = (state.currentEntry.mixes || []).slice();
+    state.currentEntry.mixes = prevMixes.filter(x => x.id !== mix.id);
+    if (state.selectedMixId === mix.id) _deselectMix();
+    renderMixes();
+    DEBUG.info('MIX delete (optimistic UI): ' + mix.id);
     try {
-        try {
-            if (ctx.prov === 'drive') await META.Drive.deleteFile(ctx.songFolderName, mix.fileName);
-            else await META.Local.deleteFile(ctx.songHandle, mix.fileName);
-        } catch (e) { DEBUG.warn('MIX wav delete fail (continue): ' + (e.message || e)); }
-        const mixes = await _mutateSongMeta(async (songMeta) => {
-            songMeta.mixes = songMeta.mixes.filter(x => x.id !== mix.id);
-        });
-        state.currentEntry.mixes = mixes;
-        if (state.selectedMixId === mix.id) _deselectMix();
-        renderMixes();
+        // wav 削除 と meta.json 更新を並列 (順次だと Drive 往復が積算して遅い)
+        await Promise.all([
+            (async () => {
+                try {
+                    if (ctx.prov === 'drive') await META.Drive.deleteFile(ctx.songFolderName, mix.fileName);
+                    else await META.Local.deleteFile(ctx.songHandle, mix.fileName);
+                } catch (e) { DEBUG.warn('MIX wav delete fail (continue): ' + (e.message || e)); }
+            })(),
+            _mutateSongMeta(async (songMeta) => {
+                songMeta.mixes = songMeta.mixes.filter(x => x.id !== mix.id);
+            }),
+        ]);
         DEBUG.ok('MIX deleted: ' + mix.id);
-    } catch (e) { alert('削除失敗: ' + (e.message || e)); }
+    } catch (e) {
+        // 失敗 → ロールバック
+        state.currentEntry.mixes = prevMixes;
+        renderMixes();
+        alert('削除に失敗しました: ' + (e.message || e));
+    }
 }
 
 // v2.37 (Phase 6f 前倒し): voxOfsSlider 微調整ボタン (仕様書 §6.8)

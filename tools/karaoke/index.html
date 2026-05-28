@@ -1645,7 +1645,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.41</span>
+                <span class="version-tag" id="version-tag">v2.42</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2313,7 +2313,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.41',
+        version: document.getElementById('version-tag')?.textContent || 'v2.42',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2419,7 +2419,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.41';
+const APP_VERSION = 'v2.42';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -6123,7 +6123,16 @@ bgmTransport.addEventListener('ended', () => {
 let _takeUiCounter = 0;
 let _takeSyncCounter = 0;
 function tickUI(){
-    if(bgmTransport.duration > 0){
+    // v2.42: MIX 再生中は seek バーを MIX audio の位置で更新 (bgmTransport は停止していて動かないため)
+    if(state.selectedMixId != null && _storedMixAudio && _storedMixAudio.duration > 0){
+        const cur = _storedMixAudio.currentTime;
+        const dur = _storedMixAudio.duration;
+        const pct = Math.max(0, Math.min(100, (cur / dur) * 100));
+        seekFill.style.width = pct + '%';
+        seekHandle.style.left = pct + '%';
+        timeCur.textContent = fmt(cur);
+        timeDur.textContent = fmt(dur);
+    } else if(bgmTransport.duration > 0){
         const cur = bgmTransport.currentTime;
         const dur = bgmTransport.duration;
         const pct = (cur / dur) * 100;
@@ -6414,10 +6423,15 @@ btnPlay.addEventListener('click', async () => {
 (function initSeek(){
     let dragging = false;
     function seekFromEvent(e){
-        if(bgmTransport.duration <= 0) return;
         const rect = seekTrack.getBoundingClientRect();
         const x = (e.clientX || (e.touches && e.touches[0] && e.touches[0].clientX) || 0) - rect.left;
         const pct = Math.max(0, Math.min(1, x / rect.width));
+        // v2.42: MIX 再生中は MIX audio をシーク (bgmTransport ではなく)
+        if(state.selectedMixId != null && _storedMixAudio && _storedMixAudio.duration > 0){
+            _storedMixAudio.currentTime = pct * _storedMixAudio.duration;
+            return;
+        }
+        if(bgmTransport.duration <= 0) return;
         bgmTransport.currentTime = pct * bgmTransport.duration;
     }
     seekTrack.addEventListener('pointerdown', e => {

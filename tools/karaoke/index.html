@@ -1363,7 +1363,7 @@ input[type=range]::-moz-range-thumb {
 .takes-detail {
     /* 詳細パネル コンテナ — 単一 .take-item を内包 */
 }
-/* v2.39 (Phase 6b): MIX 一覧ボタン群 (take-btn-mini を踏襲、 色をシアン系で区別) */
+/* v2.39 (Phase 6b): MIX 一覧ボタン群。 v2.40 で配色を take と同じオレンジに統一 */
 .mixes-list:empty { display: none; }
 .mixes-list { margin-top: 12px; }
 .mixes-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -1376,10 +1376,10 @@ input[type=range]::-moz-range-thumb {
     font-family: inherit; transition: 0.15s;
     display: inline-flex; align-items: center; justify-content: center;
 }
-.mix-btn-mini:hover { border-color: var(--border-strong); color: var(--cyan, #67e8f9); }
+.mix-btn-mini:hover { border-color: var(--border-strong); color: var(--orange-light); }
 .mix-btn-mini.active {
-    background: var(--cyan, #22d3ee); color: #000; border-color: var(--cyan, #22d3ee);
-    box-shadow: 0 0 0 1px var(--cyan, #22d3ee), 0 2px 6px rgba(8,145,178,0.3);
+    background: var(--orange); color: #000; border-color: var(--orange);
+    box-shadow: 0 0 0 1px var(--orange), 0 2px 6px rgba(194,65,12,0.25);
 }
 .mix-menu-btn {
     min-width: 28px; height: 36px; padding: 0 8px;
@@ -1388,14 +1388,16 @@ input[type=range]::-moz-range-thumb {
     cursor: pointer; font-size: 14px; font-family: inherit; transition: 0.15s;
 }
 .mix-menu-btn:hover { color: var(--orange-light); border-color: var(--border-strong); }
-/* MIX 再生専用モード: テイク選択・調整 UI を無効化 (仕様書 §6.4) */
-#mix-section.mix-playback-mode #mix-balance-panel,
-#mix-section.mix-playback-mode #mix-vc-panel,
-#mix-section.mix-playback-mode #mix-voice-panel,
-#mix-section.mix-playback-mode #mix-create-panel,
-#mix-section.mix-playback-mode .play-mode-pills,
-#mix-section.mix-playback-mode #takesList {
-    opacity: 0.38; pointer-events: none; filter: grayscale(0.3);
+/* v2.40: MIX 選択中、 MIX に効かない「使えないコントロールだけ」 を暗く (仕様書 §6.4)。
+   パネル全体は暗くしない (ラベル・背景は通常のまま、 操作不可の input/ボタンのみ dim)。 */
+#mix-section.mix-playback-mode #takesList .take-btn-mini,
+#mix-section.mix-playback-mode .play-mode-pills .pill,
+#mix-section.mix-playback-mode #mix-balance-panel input,
+#mix-section.mix-playback-mode #mix-vc-panel input,
+#mix-section.mix-playback-mode #mix-vc-panel .toggle-row,
+#mix-section.mix-playback-mode #mix-voice-panel input,
+#mix-section.mix-playback-mode #mix-create-panel .momo-btn {
+    opacity: 0.4; pointer-events: none;
 }
 /* v2.28: 詳細パネル内 .take-item は縦配置 (横並びの .take-actions も縦に変更) */
 .takes-detail .take-item {
@@ -1643,7 +1645,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.39</span>
+                <span class="version-tag" id="version-tag">v2.40</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2311,7 +2313,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.39',
+        version: document.getElementById('version-tag')?.textContent || 'v2.40',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2417,7 +2419,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.39';
+const APP_VERSION = 'v2.40';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -7746,11 +7748,27 @@ async function _mutateSongMeta(mutator) {
     return songMeta.mixes;
 }
 
-// ── 保存済み MIX の再生 (生成済み wav を読込 → audio で再生) ──
+// ── 保存済み MIX の再生 ──
+//   v2.40: 再生/停止は主トランスポート ▶/⏸ ボタンが兼ねる (ユーザー IF 要望)。
+//   MIX ボタンは「選択」 のみ。 選択された MIX を主 ▶ で再生、 再押下で一時停止。
+//   二重再生対策: Drive readFile は非同期で遅いため _mixLoadToken で再入を無効化。
 let _storedMixAudio = null;
 let _storedMixBlobUrl = null;
+let _mixLoadToken = 0;
+
+function _setPlayBtnIcon(playing) {
+    if (typeof btnPlay === 'undefined' || !btnPlay) return;
+    btnPlay.classList.toggle('playing', !!playing);
+    btnPlay.textContent = playing ? '⏸' : '▶';
+}
+
+function _currentSelectedMix() {
+    if (state.selectedMixId == null) return null;
+    return ((state.currentEntry && state.currentEntry.mixes) || []).find(x => x.id === state.selectedMixId) || null;
+}
 
 function _stopStoredMixPlayback() {
+    _mixLoadToken++;  // in-flight の読込を無効化
     if (_storedMixAudio) {
         try { _storedMixAudio.pause(); } catch (e) {}
         try { _storedMixAudio.remove(); } catch (e) {}
@@ -7762,57 +7780,76 @@ function _stopStoredMixPlayback() {
     }
 }
 
+// 選択中の MIX を読み込んで頭から再生 (主トランスポートからのみ呼ぶ)
 async function _playStoredMix(m) {
     const META = window.MomoMeta;
     const ctx = await _mixStorageCtx();
     if (!META || !ctx) { alert('カラオケフォルダ未接続のため MIX を読み込めません'); return; }
-    // 他の音声をすべて停止 (プレビュー / BGM / テイク)
+    // 他の音声を停止 + このロードのトークンを確定 (連打時は最後の 1 回だけ生き残る)
     _stopMixPreview();
     _stopStoredMixPlayback();
     if (!bgmTransport.paused) { try { bgmTransport.pause(); } catch (e) {} }
     stopTakePlayback();
+    const myToken = _mixLoadToken;
     let blob;
     try {
         blob = (ctx.prov === 'drive')
             ? await META.Drive.readFile(ctx.songFolderName, m.fileName)
             : await META.Local.readFile(ctx.songHandle, m.fileName);
     } catch (e) { alert('MIX ファイルの読込に失敗しました: ' + (e.message || e)); return; }
+    if (myToken !== _mixLoadToken) { DEBUG.info('MIX load superseded, abort'); return; }  // 新しい操作が来た
     _storedMixBlobUrl = URL.createObjectURL(blob);
     const a = document.createElement('audio');
     a.src = _storedMixBlobUrl; a.preload = 'auto'; a.style.display = 'none';
     document.body.appendChild(a);
     _storedMixAudio = a;
-    a.addEventListener('ended', () => { _stopStoredMixPlayback(); renderMixes(); });
-    a.addEventListener('error', () => { _stopStoredMixPlayback(); renderMixes(); });
+    a.addEventListener('ended', () => { _stopStoredMixPlayback(); _setPlayBtnIcon(false); renderMixes(); });
+    a.addEventListener('error', () => { _stopStoredMixPlayback(); _setPlayBtnIcon(false); renderMixes(); });
     try { await a.play(); }
-    catch (e) { DEBUG.warn('MIX play fail: ' + (e.message || e)); _stopStoredMixPlayback(); return; }
+    catch (e) { DEBUG.warn('MIX play fail: ' + (e.message || e)); _stopStoredMixPlayback(); _setPlayBtnIcon(false); return; }
+    _setPlayBtnIcon(true);
     DEBUG.info('MIX playback: ' + _mixDisplayName(m) + ' (' + (blob.size / 1024).toFixed(0) + ' KB)');
     renderMixes();
 }
 
-// ── 排他選択モードの UI 反映 (テイク選択・調整 UI を無効化) ──
+// 主トランスポート ▶/⏸ が押された時の MIX 用ハンドラ (BGM 再生コアの代わりに実行)
+function _toggleStoredMixPlayback() {
+    if (_storedMixAudio && !_storedMixAudio.paused) {
+        try { _storedMixAudio.pause(); } catch (e) {}
+        _setPlayBtnIcon(false);
+        renderMixes();
+    } else if (_storedMixAudio) {
+        try { _storedMixAudio.play(); _setPlayBtnIcon(true); } catch (e) {}
+        renderMixes();
+    } else {
+        const m = _currentSelectedMix();
+        if (m) _playStoredMix(m);
+    }
+}
+
+// ── MIX 選択中の UI 反映 (MIX に効かないコントロールだけ dim) ──
 function _applyMixPlaybackModeUI() {
     const sec = document.getElementById('mix-section');
     if (sec) sec.classList.toggle('mix-playback-mode', state.selectedMixId != null);
 }
 
-// MIX を選択 (排他: テイク選択クリア + 再生専用モード)。 opts.play=false で再生しない
-async function _selectMix(m, opts) {
-    opts = opts || {};
-    state.selectedTakeIds.clear();
-    state.currentTake = null;
+// MIX を選択 (再生はしない。 BGM を止めて MIX を再生ソースにする)
+function _selectMix(m) {
+    if (!bgmTransport.paused) { try { bgmTransport.pause(); } catch (e) {} }
+    stopTakePlayback();
+    _stopStoredMixPlayback();   // 別 MIX が鳴っていたら停止
+    _setPlayBtnIcon(false);
     state.selectedMixId = m.id;
     _applyMixPlaybackModeUI();
-    renderTakes();
     if (window._refreshMixCreateBtn) window._refreshMixCreateBtn();
     renderMixes();
-    if (opts.play !== false) await _playStoredMix(m);
 }
 
-// MIX 選択解除 (通常モードに戻る)
+// MIX 選択解除 (BGM ソースに戻る)
 function _deselectMix() {
     state.selectedMixId = null;
     _stopStoredMixPlayback();
+    _setPlayBtnIcon(false);
     _applyMixPlaybackModeUI();
     renderMixes();
     if (window._refreshMixCreateBtn) window._refreshMixCreateBtn();
@@ -7823,29 +7860,33 @@ function renderMixes() {
     if (!mixesList) return;
     const mixes = (state.currentEntry && state.currentEntry.mixes) || [];
     if (!mixes.length) { mixesList.innerHTML = ''; return; }
-    const isPlaying = !!_storedMixAudio;
+    const isPlaying = !!(_storedMixAudio && !_storedMixAudio.paused);
     const buttonsHtml = mixes.map((m) => {
         const isSel = state.selectedMixId === m.id;
         const label = _mixDisplayName(m);
-        const mark = isSel ? (isPlaying ? ' ⏸' : ' ▶') : '';
+        const mark = (isSel && isPlaying) ? ' ♪' : '';
         return '<div class="mix-btn-wrap">' +
             '<button class="mix-btn-mini ' + (isSel ? 'active' : '') + '" data-mixid="' + m.id + '" data-act="mixsel" title="' + escapeHtml(label) + '">' + escapeHtml(label) + mark + '</button>' +
             '<button class="mix-menu-btn" data-act="mixmenu" data-mixid="' + m.id + '" title="メニュー">⋮</button>' +
         '</div>';
     }).join('');
+    const hint = (state.selectedMixId != null)
+        ? '選択中の MIX を上の <b style="color:var(--orange-light);">▶</b> で再生 / もう一度 MIX をタップで解除 (BGM に戻る)'
+        : 'MIX をタップで選択 → 上の <b style="color:var(--orange-light);">▶</b> で再生';
     mixesList.innerHTML =
         '<div style="display:flex; align-items:center; gap:8px;">' +
             '<span style="font-size:12px; font-weight:600; color:var(--text-muted);">MIX:</span>' +
             '<div class="mixes-buttons">' + buttonsHtml + '</div>' +
-        '</div>';
-    // 選択/再生トグル (タップで選択+再生、 再選択で解除)
+        '</div>' +
+        '<div style="font-size:11px; color:var(--text-muted); margin-top:6px;">' + hint + '</div>';
+    // タップ = 選択トグルのみ (再生は主トランスポートで)。 再選択で解除
     mixesList.querySelectorAll('[data-act=mixsel]').forEach(btn => {
         const id = parseInt(btn.dataset.mixid, 10);
-        btn.addEventListener('click', async () => {
+        btn.addEventListener('click', () => {
             const m = ((state.currentEntry && state.currentEntry.mixes) || []).find(x => x.id === id);
             if (!m) return;
             if (state.selectedMixId === id) _deselectMix();
-            else await _selectMix(m);
+            else _selectMix(m);
         });
     });
     // ⋮ メニュー
@@ -8117,10 +8158,11 @@ async function _startMixPreview() {
             if (status) status.textContent = 'DONE';
             if (progress) progress.textContent = '✅ ' + fileName + ' を保存しました (mixId=' + mixId + ')';
             btn.textContent = '✅ MIX 作成完了 (' + fileName + ')';
-            // v2.39 (Phase 6b): 一覧を再読込 → 生成 MIX を選択状態に (仕様書 §6.12、 自動再生はしない)
+            // v2.39 (Phase 6b): 一覧を再読込 → 生成 MIX を選択状態に (仕様書 §6.12)。
+            //   v2.40: 選択のみ (自動再生しない)。 再生は主 ▶ ボタンで。
             state.currentEntry.mixes = await _loadMixesForCurrent();
             const newMix = state.currentEntry.mixes.find(x => x.id === mixId);
-            if (newMix) await _selectMix(newMix, { play: false });
+            if (newMix) _selectMix(newMix);
             else renderMixes();
         } catch (e) {
             console.error('MIX 生成失敗:', e);
@@ -8137,13 +8179,19 @@ async function _startMixPreview() {
     window._refreshMixCreateBtn();
 })();
 
-// v2.39 (Phase 6b): MIX 再生専用モード中に共有トランスポート ▶ が押されたら、
-//   二重再生を防ぐため先に MIX を解除 (停止) してから通常の再生ハンドラに委ねる。
-//   capture フェーズで先行実行し、 既存の btnPlay 再生コアには手を加えない。
-(function _guardTransportDuringMix(){
+// v2.40 (Phase 6b): MIX が選択されている間、 主トランスポート ▶/⏸ ボタンは MIX の
+//   再生/停止を兼ねる (ユーザー IF 要望: 再生は BGM か MIX を選択、 停止は同じボタン)。
+//   document の capture フェーズで横取りし、 既存 btnPlay の BGM 再生コアには委ねない
+//   (stopImmediatePropagation)。 capture を document に付けるのは、 btnPlay 自身の
+//   target フェーズリスナー (登録順で BGM コアが先) より前に実行する必要があるため。
+(function _routePlayBtnToMix(){
     if (typeof btnPlay === 'undefined' || !btnPlay) return;
-    btnPlay.addEventListener('click', () => {
-        if (state.selectedMixId != null) _deselectMix();
+    document.addEventListener('click', (e) => {
+        if (state.selectedMixId == null) return;          // BGM モード → コアに委ねる
+        if (!btnPlay.contains(e.target)) return;          // ▶ ボタン以外は無視
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        _toggleStoredMixPlayback();
     }, { capture: true });
 })();
 

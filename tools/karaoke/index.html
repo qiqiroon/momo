@@ -1363,6 +1363,40 @@ input[type=range]::-moz-range-thumb {
 .takes-detail {
     /* 詳細パネル コンテナ — 単一 .take-item を内包 */
 }
+/* v2.39 (Phase 6b): MIX 一覧ボタン群 (take-btn-mini を踏襲、 色をシアン系で区別) */
+.mixes-list:empty { display: none; }
+.mixes-list { margin-top: 12px; }
+.mixes-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+.mix-btn-wrap { display: inline-flex; align-items: center; gap: 2px; }
+.mix-btn-mini {
+    min-width: 36px; height: 36px; padding: 0 12px;
+    background: var(--surface); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px 0 0 8px;
+    cursor: pointer; font-size: 13px; font-weight: 600;
+    font-family: inherit; transition: 0.15s;
+    display: inline-flex; align-items: center; justify-content: center;
+}
+.mix-btn-mini:hover { border-color: var(--border-strong); color: var(--cyan, #67e8f9); }
+.mix-btn-mini.active {
+    background: var(--cyan, #22d3ee); color: #000; border-color: var(--cyan, #22d3ee);
+    box-shadow: 0 0 0 1px var(--cyan, #22d3ee), 0 2px 6px rgba(8,145,178,0.3);
+}
+.mix-menu-btn {
+    min-width: 28px; height: 36px; padding: 0 8px;
+    background: var(--surface); color: var(--text-muted);
+    border: 1px solid var(--border); border-left: none; border-radius: 0 8px 8px 0;
+    cursor: pointer; font-size: 14px; font-family: inherit; transition: 0.15s;
+}
+.mix-menu-btn:hover { color: var(--orange-light); border-color: var(--border-strong); }
+/* MIX 再生専用モード: テイク選択・調整 UI を無効化 (仕様書 §6.4) */
+#mix-section.mix-playback-mode #mix-balance-panel,
+#mix-section.mix-playback-mode #mix-vc-panel,
+#mix-section.mix-playback-mode #mix-voice-panel,
+#mix-section.mix-playback-mode #mix-create-panel,
+#mix-section.mix-playback-mode .play-mode-pills,
+#mix-section.mix-playback-mode #takesList {
+    opacity: 0.38; pointer-events: none; filter: grayscale(0.3);
+}
 /* v2.28: 詳細パネル内 .take-item は縦配置 (横並びの .take-actions も縦に変更) */
 .takes-detail .take-item {
     flex-direction: column;
@@ -1609,7 +1643,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.38</span>
+                <span class="version-tag" id="version-tag">v2.39</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2039,10 +2073,13 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <div class="takes-list" id="takesList">
                 <div class="take-empty">まだテイクがありません — カラオケタブで録音してください</div>
             </div>
+
+            <!-- v2.39 (Phase 6b): 既存 MIX 一覧。 タップでプレビュー再生 + ⋮ メニュー -->
+            <div class="mixes-list" id="mixesList"></div>
         </div>
 
         <!-- ミックスバランス -->
-        <div class="karaoke-panel">
+        <div class="karaoke-panel" id="mix-balance-panel">
             <div class="panel-head">
                 <div class="panel-title">Mix Balance</div>
                 <div class="panel-tag">BGM ⇄ VOICE</div>
@@ -2070,7 +2107,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
         </div>
 
         <!-- ボーカルカット（録音時・再生時 共通、カラオケタブと同期） -->
-        <div class="karaoke-panel">
+        <div class="karaoke-panel" id="mix-vc-panel">
             <div class="panel-head">
                 <div class="panel-title">Vocal Cut</div>
                 <div class="panel-tag">SHARED</div>
@@ -2090,7 +2127,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
         </div>
 
         <!-- Voice チャンネル -->
-        <div class="karaoke-panel">
+        <div class="karaoke-panel" id="mix-voice-panel">
             <div class="panel-head">
                 <div class="panel-title">Voice Channel</div>
                 <div class="panel-tag">TAKE PLAYBACK</div>
@@ -2274,7 +2311,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.38',
+        version: document.getElementById('version-tag')?.textContent || 'v2.39',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2380,7 +2417,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.38';
+const APP_VERSION = 'v2.39';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2464,6 +2501,8 @@ const state = {
     currentTake: null,
     // v2.36 (Phase 6a-1): ミックスタブでのテイク複数選択 (Set of take.id)
     selectedTakeIds: new Set(),
+    // v2.39 (Phase 6b): 選択中の MIX (排他、 null=非選択)。 MIX 選択中は MIX 再生専用モード
+    selectedMixId: null,
     isRecording: false,
     lyricsLines: [],
     lastLyricIdx: -1,
@@ -2549,6 +2588,11 @@ function switchTab(name){
     $('karaoke-section').classList.toggle('hidden', name !== 'karaoke');
     const mixSection = $('mix-section');
     if(mixSection) mixSection.classList.toggle('hidden', name !== 'mix');
+    // v2.39 (Phase 6b): ミックスタブを離れたら保存済み MIX 再生を停止 (選択状態は維持)
+    if(name !== 'mix' && typeof _stopStoredMixPlayback === 'function'){
+        _stopStoredMixPlayback();
+        if(typeof renderMixes === 'function') renderMixes();
+    }
     const manageSection = $('manage-section');
     if(manageSection) manageSection.classList.toggle('hidden', name !== 'manage');
     // now-playing-area is shown for karaoke and mix tabs (hidden in library/manage)
@@ -5157,6 +5201,10 @@ async function selectEntry(entry){
     state.lyricsLines = entry.lyricsLines || [];
     // v2.36 (Phase 6a-1): 曲切替時はテイク選択リセット (異なる曲のテイクは MIX 対象外)
     state.selectedTakeIds = new Set();
+    // v2.39 (Phase 6b): MIX 選択もリセット + 再生停止 + 再生専用モード解除
+    state.selectedMixId = null;
+    if (typeof _stopStoredMixPlayback === 'function') _stopStoredMixPlayback();
+    if (typeof _applyMixPlaybackModeUI === 'function') _applyMixPlaybackModeUI();
     if (window._refreshMixCreateBtn) window._refreshMixCreateBtn();
 
     // On iOS we don't create an AudioContext at all — the transport uses a
@@ -5193,6 +5241,8 @@ async function selectEntry(entry){
         entry.takes = await loadTakesFor(entry);
     }
     state.currentTake = entry.takes.length ? entry.takes[entry.takes.length-1] : null;
+    // v2.39 (Phase 6b): MIX 一覧を meta.json からロード (失敗時は空)
+    entry.mixes = await _loadMixesForCurrent();
 
     // UI
     npEmpty.classList.add('hidden');
@@ -5203,6 +5253,7 @@ async function selectEntry(entry){
     btnRec.disabled = false;
     renderLyrics();
     renderTakes();
+    renderMixes();
     renderBadges();
     renderHistoryList();
     setStatus('「' + (entry.title || '(無題)') + '」を読み込みました', 'ok');
@@ -7639,6 +7690,285 @@ async function _saveMix(wavBlob, sourceTakeIds) {
     return { mixId, fileName };
 }
 
+// ============================================================================
+// v2.39 (Phase 6b): MIX 一覧 — 表示 / プレビュー再生 / 排他選択 / ⋮ メニュー
+//   仕様書 §6.4 + §6.13。 MIX は完成品 wav なので調整 UI なし、 再生専用。
+//   テイクは IDB、 MIX は meta.json (mixes 配列) + mix<N>.wav に保存される。
+// ============================================================================
+
+function _mixDisplayName(m) {
+    return (m && (m.displayName || m.name)) || ('MIX ' + (m && m.id));
+}
+
+// 現在の曲フォルダに対するストレージコンテキスト (Local handle / Drive folder name)
+async function _mixStorageCtx() {
+    const MK = window.MomoMake;
+    if (!MK || !MK.state) return null;
+    const prov = MK.state.karaokeFolderProvider;
+    const songFolderName = state.currentEntry && state.currentEntry.id;
+    if (!songFolderName || !prov) return null;
+    if (prov === 'local') {
+        if (!MK.state.karaokeFolderHandle) return null;
+        try {
+            const songHandle = await MK.state.karaokeFolderHandle.getDirectoryHandle(songFolderName);
+            return { prov, songFolderName, songHandle };
+        } catch (e) { return null; }
+    }
+    return { prov, songFolderName, songHandle: null };
+}
+
+// meta.json から現在の曲の mixes 配列をロード (失敗時は空配列、 例外は投げない)
+async function _loadMixesForCurrent() {
+    const META = window.MomoMeta;
+    const ctx = await _mixStorageCtx();
+    if (!META || !ctx) return [];
+    try {
+        const songMeta = (ctx.prov === 'drive')
+            ? await META.Drive.loadSongMeta(ctx.songFolderName)
+            : await META.Local.loadSongMeta(ctx.songHandle);
+        return (songMeta && Array.isArray(songMeta.mixes)) ? songMeta.mixes : [];
+    } catch (e) { DEBUG.warn('loadMixes fail: ' + (e.message || e)); return []; }
+}
+
+// meta.json をロード → mutator で mixes を加工 → 保存。 戻り値: 更新後 mixes 配列
+async function _mutateSongMeta(mutator) {
+    const META = window.MomoMeta;
+    const ctx = await _mixStorageCtx();
+    if (!META || !ctx) throw new Error('カラオケフォルダ未接続');
+    let songMeta = (ctx.prov === 'drive')
+        ? await META.Drive.loadSongMeta(ctx.songFolderName)
+        : await META.Local.loadSongMeta(ctx.songHandle);
+    if (!songMeta) songMeta = META.defaultSongMeta();
+    if (!Array.isArray(songMeta.mixes)) songMeta.mixes = [];
+    await mutator(songMeta, ctx);
+    if (ctx.prov === 'drive') await META.Drive.saveSongMeta(ctx.songFolderName, songMeta);
+    else await META.Local.saveSongMeta(ctx.songHandle, songMeta);
+    return songMeta.mixes;
+}
+
+// ── 保存済み MIX の再生 (生成済み wav を読込 → audio で再生) ──
+let _storedMixAudio = null;
+let _storedMixBlobUrl = null;
+
+function _stopStoredMixPlayback() {
+    if (_storedMixAudio) {
+        try { _storedMixAudio.pause(); } catch (e) {}
+        try { _storedMixAudio.remove(); } catch (e) {}
+        _storedMixAudio = null;
+    }
+    if (_storedMixBlobUrl) {
+        try { URL.revokeObjectURL(_storedMixBlobUrl); } catch (e) {}
+        _storedMixBlobUrl = null;
+    }
+}
+
+async function _playStoredMix(m) {
+    const META = window.MomoMeta;
+    const ctx = await _mixStorageCtx();
+    if (!META || !ctx) { alert('カラオケフォルダ未接続のため MIX を読み込めません'); return; }
+    // 他の音声をすべて停止 (プレビュー / BGM / テイク)
+    _stopMixPreview();
+    _stopStoredMixPlayback();
+    if (!bgmTransport.paused) { try { bgmTransport.pause(); } catch (e) {} }
+    stopTakePlayback();
+    let blob;
+    try {
+        blob = (ctx.prov === 'drive')
+            ? await META.Drive.readFile(ctx.songFolderName, m.fileName)
+            : await META.Local.readFile(ctx.songHandle, m.fileName);
+    } catch (e) { alert('MIX ファイルの読込に失敗しました: ' + (e.message || e)); return; }
+    _storedMixBlobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('audio');
+    a.src = _storedMixBlobUrl; a.preload = 'auto'; a.style.display = 'none';
+    document.body.appendChild(a);
+    _storedMixAudio = a;
+    a.addEventListener('ended', () => { _stopStoredMixPlayback(); renderMixes(); });
+    a.addEventListener('error', () => { _stopStoredMixPlayback(); renderMixes(); });
+    try { await a.play(); }
+    catch (e) { DEBUG.warn('MIX play fail: ' + (e.message || e)); _stopStoredMixPlayback(); return; }
+    DEBUG.info('MIX playback: ' + _mixDisplayName(m) + ' (' + (blob.size / 1024).toFixed(0) + ' KB)');
+    renderMixes();
+}
+
+// ── 排他選択モードの UI 反映 (テイク選択・調整 UI を無効化) ──
+function _applyMixPlaybackModeUI() {
+    const sec = document.getElementById('mix-section');
+    if (sec) sec.classList.toggle('mix-playback-mode', state.selectedMixId != null);
+}
+
+// MIX を選択 (排他: テイク選択クリア + 再生専用モード)。 opts.play=false で再生しない
+async function _selectMix(m, opts) {
+    opts = opts || {};
+    state.selectedTakeIds.clear();
+    state.currentTake = null;
+    state.selectedMixId = m.id;
+    _applyMixPlaybackModeUI();
+    renderTakes();
+    if (window._refreshMixCreateBtn) window._refreshMixCreateBtn();
+    renderMixes();
+    if (opts.play !== false) await _playStoredMix(m);
+}
+
+// MIX 選択解除 (通常モードに戻る)
+function _deselectMix() {
+    state.selectedMixId = null;
+    _stopStoredMixPlayback();
+    _applyMixPlaybackModeUI();
+    renderMixes();
+    if (window._refreshMixCreateBtn) window._refreshMixCreateBtn();
+}
+
+function renderMixes() {
+    const mixesList = document.getElementById('mixesList');
+    if (!mixesList) return;
+    const mixes = (state.currentEntry && state.currentEntry.mixes) || [];
+    if (!mixes.length) { mixesList.innerHTML = ''; return; }
+    const isPlaying = !!_storedMixAudio;
+    const buttonsHtml = mixes.map((m) => {
+        const isSel = state.selectedMixId === m.id;
+        const label = _mixDisplayName(m);
+        const mark = isSel ? (isPlaying ? ' ⏸' : ' ▶') : '';
+        return '<div class="mix-btn-wrap">' +
+            '<button class="mix-btn-mini ' + (isSel ? 'active' : '') + '" data-mixid="' + m.id + '" data-act="mixsel" title="' + escapeHtml(label) + '">' + escapeHtml(label) + mark + '</button>' +
+            '<button class="mix-menu-btn" data-act="mixmenu" data-mixid="' + m.id + '" title="メニュー">⋮</button>' +
+        '</div>';
+    }).join('');
+    mixesList.innerHTML =
+        '<div style="display:flex; align-items:center; gap:8px;">' +
+            '<span style="font-size:12px; font-weight:600; color:var(--text-muted);">MIX:</span>' +
+            '<div class="mixes-buttons">' + buttonsHtml + '</div>' +
+        '</div>';
+    // 選択/再生トグル (タップで選択+再生、 再選択で解除)
+    mixesList.querySelectorAll('[data-act=mixsel]').forEach(btn => {
+        const id = parseInt(btn.dataset.mixid, 10);
+        btn.addEventListener('click', async () => {
+            const m = ((state.currentEntry && state.currentEntry.mixes) || []).find(x => x.id === id);
+            if (!m) return;
+            if (state.selectedMixId === id) _deselectMix();
+            else await _selectMix(m);
+        });
+    });
+    // ⋮ メニュー
+    mixesList.querySelectorAll('[data-act=mixmenu]').forEach(btn => {
+        const id = parseInt(btn.dataset.mixid, 10);
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const m = ((state.currentEntry && state.currentEntry.mixes) || []).find(x => x.id === id);
+            if (m) _openMixContextMenu(btn, m);
+        });
+    });
+}
+
+// ── 汎用ポップアップメニュー (MIX ⋮ 用、 既存の take 用 _openTakeContextMenu とは独立) ──
+let _popupMenuEl = null;
+let _popupMenuCloseHandler = null;
+function _popupMenu(anchorBtn, items) {
+    if (!_popupMenuEl) {
+        _popupMenuEl = document.createElement('div');
+        _popupMenuEl.id = 'momo-popup-menu';
+        _popupMenuEl.style.cssText = 'display:none; position:fixed; background:var(--surface); border:1px solid var(--orange); border-radius:8px; padding:4px; z-index:1100; min-width:160px; box-shadow:0 6px 20px rgba(0,0,0,0.5);';
+        document.body.appendChild(_popupMenuEl);
+    }
+    const m = _popupMenuEl;
+    const close = () => {
+        m.style.display = 'none';
+        if (_popupMenuCloseHandler) { document.removeEventListener('click', _popupMenuCloseHandler, { capture: true }); _popupMenuCloseHandler = null; }
+    };
+    m.innerHTML = '';
+    items.forEach(it => {
+        const b = document.createElement('button');
+        b.textContent = it.label;
+        b.style.cssText = 'display:block; width:100%; text-align:left; padding:8px 12px; background:transparent; border:none; color:' + (it.color || 'var(--text)') + '; font-size:13px; cursor:pointer; border-radius:4px; font-family:inherit;';
+        b.addEventListener('mouseenter', () => b.style.background = 'var(--bg-selected, rgba(255,255,255,0.06))');
+        b.addEventListener('mouseleave', () => b.style.background = '');
+        b.addEventListener('click', (e) => { e.stopPropagation(); close(); it.onClick(); });
+        m.appendChild(b);
+    });
+    const rect = anchorBtn.getBoundingClientRect();
+    m.style.display = 'block';
+    const mw = m.offsetWidth || 160;
+    let left = rect.left;
+    if (left + mw > window.innerWidth - 8) left = window.innerWidth - mw - 8;
+    if (left < 8) left = 8;
+    let top = rect.bottom + 4;
+    const mh = m.offsetHeight || 130;
+    if (top + mh > window.innerHeight - 8) top = rect.top - mh - 4;
+    m.style.left = left + 'px';
+    m.style.top = top + 'px';
+    _popupMenuCloseHandler = (ev) => { if (!m.contains(ev.target) && ev.target !== anchorBtn) close(); };
+    setTimeout(() => document.addEventListener('click', _popupMenuCloseHandler, { capture: true }), 0);
+}
+
+function _openMixContextMenu(anchorBtn, mix) {
+    _popupMenu(anchorBtn, [
+        { label: '✎ リネーム', onClick: () => _renameMix(mix) },
+        { label: '⎘ 複製', onClick: () => _duplicateMix(mix) },
+        { label: '× 削除', color: 'var(--rec-red, #f87171)', onClick: () => _deleteMix(mix) },
+    ]);
+}
+
+async function _renameMix(mix) {
+    const newName = await _showRenameTakeModal(_mixDisplayName(mix));
+    if (newName === null) return;
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    try {
+        const mixes = await _mutateSongMeta(async (songMeta) => {
+            const target = songMeta.mixes.find(x => x.id === mix.id);
+            if (target) target.displayName = trimmed;
+        });
+        state.currentEntry.mixes = mixes;
+        renderMixes();
+        DEBUG.ok('MIX rename: ' + mix.id + ' → ' + trimmed);
+    } catch (e) { alert('リネーム失敗: ' + (e.message || e)); }
+}
+
+async function _duplicateMix(mix) {
+    const META = window.MomoMeta;
+    const ctx = await _mixStorageCtx();
+    if (!META || !ctx) { alert('カラオケフォルダ未接続'); return; }
+    try {
+        const blob = (ctx.prov === 'drive')
+            ? await META.Drive.readFile(ctx.songFolderName, mix.fileName)
+            : await META.Local.readFile(ctx.songHandle, mix.fileName);
+        const mixes = await _mutateSongMeta(async (songMeta, c) => {
+            const newId = META.nextMixId(songMeta);
+            const fileName = 'mix' + newId + '.wav';
+            if (c.prov === 'drive') await META.Drive.writeFile(c.songFolderName, fileName, blob);
+            else await META.Local.writeFile(c.songHandle, fileName, blob);
+            songMeta.mixes.push(Object.assign({}, mix, {
+                id: newId,
+                fileName: fileName,
+                displayName: _mixDisplayName(mix) + ' (コピー)',
+                createdAt: new Date().toISOString(),
+            }));
+        });
+        state.currentEntry.mixes = mixes;
+        renderMixes();
+        DEBUG.ok('MIX duplicate: ' + mix.id + ' → 新規');
+    } catch (e) { alert('複製失敗: ' + (e.message || e)); }
+}
+
+async function _deleteMix(mix) {
+    if (!confirm('この MIX を削除しますか？\n' + _mixDisplayName(mix))) return;
+    const META = window.MomoMeta;
+    const ctx = await _mixStorageCtx();
+    if (!META || !ctx) { alert('カラオケフォルダ未接続'); return; }
+    try {
+        try {
+            if (ctx.prov === 'drive') await META.Drive.deleteFile(ctx.songFolderName, mix.fileName);
+            else await META.Local.deleteFile(ctx.songHandle, mix.fileName);
+        } catch (e) { DEBUG.warn('MIX wav delete fail (continue): ' + (e.message || e)); }
+        const mixes = await _mutateSongMeta(async (songMeta) => {
+            songMeta.mixes = songMeta.mixes.filter(x => x.id !== mix.id);
+        });
+        state.currentEntry.mixes = mixes;
+        if (state.selectedMixId === mix.id) _deselectMix();
+        renderMixes();
+        DEBUG.ok('MIX deleted: ' + mix.id);
+    } catch (e) { alert('削除失敗: ' + (e.message || e)); }
+}
+
 // v2.37 (Phase 6f 前倒し): voxOfsSlider 微調整ボタン (仕様書 §6.8)
 (function _bindOfsButtons(){
     const slider = document.getElementById('voxOfsSlider');
@@ -7787,6 +8117,11 @@ async function _startMixPreview() {
             if (status) status.textContent = 'DONE';
             if (progress) progress.textContent = '✅ ' + fileName + ' を保存しました (mixId=' + mixId + ')';
             btn.textContent = '✅ MIX 作成完了 (' + fileName + ')';
+            // v2.39 (Phase 6b): 一覧を再読込 → 生成 MIX を選択状態に (仕様書 §6.12、 自動再生はしない)
+            state.currentEntry.mixes = await _loadMixesForCurrent();
+            const newMix = state.currentEntry.mixes.find(x => x.id === mixId);
+            if (newMix) await _selectMix(newMix, { play: false });
+            else renderMixes();
         } catch (e) {
             console.error('MIX 生成失敗:', e);
             if (status) status.textContent = 'ERR';
@@ -7800,6 +8135,16 @@ async function _startMixPreview() {
 
     // 初期状態
     window._refreshMixCreateBtn();
+})();
+
+// v2.39 (Phase 6b): MIX 再生専用モード中に共有トランスポート ▶ が押されたら、
+//   二重再生を防ぐため先に MIX を解除 (停止) してから通常の再生ハンドラに委ねる。
+//   capture フェーズで先行実行し、 既存の btnPlay 再生コアには手を加えない。
+(function _guardTransportDuringMix(){
+    if (typeof btnPlay === 'undefined' || !btnPlay) return;
+    btnPlay.addEventListener('click', () => {
+        if (state.selectedMixId != null) _deselectMix();
+    }, { capture: true });
 })();
 
 // v2.08: 既存 gdrive オブジェクトを window グローバルに expose

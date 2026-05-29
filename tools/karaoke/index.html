@@ -1666,7 +1666,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.47</span>
+                <span class="version-tag" id="version-tag">v2.48</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2340,7 +2340,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.47',
+        version: document.getElementById('version-tag')?.textContent || 'v2.48',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2446,7 +2446,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.47';
+const APP_VERSION = 'v2.48';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2742,9 +2742,19 @@ function scrollCurrentLineIntoView(){
     lyricsView.scrollTo({ top: clamped, behavior: 'smooth' });
 }
 
+// v2.48: 歌詞同期に使う「現在の曲タイムライン時刻」。 MIX 選択中は MIX の保存開始時刻
+//   (フェードイン込み songStartTime) + MIX audio の再生位置。 それ以外は BGM の現在位置。
+function _currentLyricTime(){
+    if (state.selectedMixId != null) {
+        const m = (typeof _currentSelectedMix === 'function') ? _currentSelectedMix() : null;
+        const base = (m && m.songStartTime) || 0;
+        return base + ((_storedMixAudio && _storedMixAudio.currentTime) || 0);
+    }
+    return bgmTransport.currentTime;
+}
 function updateCurrentLine(){
     if(!state.lyricsLines.length) return;
-    const idx = findCurrentLineIndex(audioEl.currentTime);
+    const idx = findCurrentLineIndex(_currentLyricTime());
     if(idx === state.lastLyricIdx) return;
     state.lastLyricIdx = idx;
     const nodes = lyricsView.querySelectorAll('.lyrics-line');
@@ -4971,6 +4981,7 @@ function _afterSourceChange(){
     renderBadges();
     if (window._refreshMixCreateBtn) window._refreshMixCreateBtn();
     if (typeof renderMixRange === 'function') renderMixRange();
+    state.lastLyricIdx = -1; updateCurrentLine();   // v2.48: 選択変化で歌詞行を更新
 }
 function _syncPlayMode(){
     let mode;
@@ -5022,6 +5033,7 @@ function _selToggleMix(mixId){
     _applyMixPlaybackModeUI();
     renderTakes();
     if (window._refreshMixCreateBtn) window._refreshMixCreateBtn();
+    state.lastLyricIdx = -1; updateCurrentLine();   // v2.48: MIX の開始時刻に合わせた歌詞行を表示
 }
 
 // v2.29: body 直下に 1 つだけ作って使い回すコンテキストメニュー
@@ -6223,6 +6235,8 @@ function tickUI(){
         seekHandle.style.left = pct + '%';
         timeCur.textContent = fmt(cur);
         timeDur.textContent = fmt(dur);
+        // v2.48: MIX 再生中も歌詞を時間同期 (songStartTime + 再生位置)
+        if(!_storedMixAudio.paused) updateCurrentLine();
     } else if(bgmTransport.duration > 0){
         const cur = bgmTransport.currentTime;
         const dur = bgmTransport.duration;
@@ -7759,11 +7773,13 @@ async function _generateMixWav() {
     // 3. AudioBuffer (stereo) → WAV
     const L = rendered.getChannelData(0);
     const R = rendered.numberOfChannels >= 2 ? rendered.getChannelData(1) : L;
-    return { wavBlob: stereoPcmToWavBlob(L, R, sampleRate), sampleRate, duration: rendered.duration, sourceTakeIds: takeIds };
+    // v2.48: songStart = フェードイン込みの出力開始 (曲タイムライン)。 MIX 再生時の歌詞同期に使う
+    return { wavBlob: stereoPcmToWavBlob(L, R, sampleRate), sampleRate, duration: rendered.duration, sourceTakeIds: takeIds, songStart: effStart, songEnd: effEnd };
 }
 
 // v2.36 (Phase 6a-4): 生成 wav を曲フォルダに保存 + meta.json mixes 配列更新
-async function _saveMix(wavBlob, sourceTakeIds) {
+//   v2.48: extra = {songStartTime, duration} を mixes エントリに保存 (歌詞同期/長さ表示用)
+async function _saveMix(wavBlob, sourceTakeIds, extra) {
     const META = window.MomoMeta;
     const MK = window.MomoMake;
     if (!META || !MK || !MK.state) throw new Error('MomoMeta / MomoMake が未ロード');
@@ -7807,6 +7823,9 @@ async function _saveMix(wavBlob, sourceTakeIds) {
         sourceBgm: state.currentEntry.audioFile && state.currentEntry.audioFile.name,
         createdAt: now,
         sizeBytes: wavBlob.size,
+        // v2.48: 歌詞同期用の曲タイムライン開始時刻 (フェードイン込み) + 出力長
+        songStartTime: (extra && extra.songStartTime) || 0,
+        duration: (extra && extra.duration) || 0,
     });
     if (prov === 'drive') {
         await META.Drive.saveSongMeta(songFolderName, songMeta);
@@ -8365,9 +8384,9 @@ async function _startMixPreview() {
         if (status) status.textContent = 'RENDERING';
         if (progress) { progress.style.display = ''; progress.textContent = 'OfflineAudioContext で render 中… (数秒〜十数秒)'; }
         try {
-            const { wavBlob, duration, sourceTakeIds } = await _generateMixWav();
+            const { wavBlob, duration, sourceTakeIds, songStart } = await _generateMixWav();
             if (progress) progress.textContent = '生成完了 (' + duration.toFixed(1) + 's, ' + (wavBlob.size / 1024).toFixed(0) + ' KB)。 保存中…';
-            const { mixId, fileName } = await _saveMix(wavBlob, sourceTakeIds);
+            const { mixId, fileName } = await _saveMix(wavBlob, sourceTakeIds, { songStartTime: songStart, duration });
             if (status) status.textContent = 'DONE';
             if (progress) progress.textContent = '✅ ' + fileName + ' を保存しました (mixId=' + mixId + ')';
             btn.textContent = '✅ MIX 作成完了 (' + fileName + ')';

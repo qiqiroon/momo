@@ -1666,7 +1666,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.46</span>
+                <span class="version-tag" id="version-tag">v2.47</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2197,7 +2197,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 <div class="panel-title">MIX を作成</div>
                 <div class="panel-tag" id="mix-create-status">READY</div>
             </div>
-            <p class="panel-desc">選択中のテイクと BGM で MIX wav を生成し、 曲フォルダに保存します。 MIX にする区間と OFFSET は上のシークバー直下で調整できます (範囲端が曲頭/曲末でなければ 0.5 秒の自動フェード)。</p>
+            <p class="panel-desc">選択中のテイクと BGM で MIX wav を生成し、 曲フォルダに保存します。 MIX にする区間と OFFSET は上のシークバー直下で調整できます (指定区間は 100% 音量、 その前後に 0.5 秒のフェードを追加)。</p>
 
             <button class="momo-btn" id="mix-preview-btn" style="width:100%; padding:12px; margin-bottom:8px;" disabled>▶ MIX プレビュー (生成して試聴、 保存はしない)</button>
             <button class="momo-btn" id="mix-create-btn" style="width:100%; padding:12px;" disabled>🎚 MIX を作成して保存 (テイクを 1 つ以上選択してください)</button>
@@ -2340,7 +2340,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.46',
+        version: document.getElementById('version-tag')?.textContent || 'v2.47',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2446,7 +2446,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.46';
+const APP_VERSION = 'v2.47';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -6929,9 +6929,11 @@ function setPlayMode(mode){
     state.playMode = mode;
     applyBalance();
     // If we're playing, start/stop take accordingly
+    //   v2.47: currentTake が無い (全テイク解除) 場合も停止する。 これが無いと
+    //   テイクのみ再生中に全解除してもテイクが鳴り続けていた (バグ)。
     if(!bgmTransport.paused){
-        if(mode === 'bgm') stopTakePlayback();
-        else if(state.currentTake) startTakePlayback();
+        if(mode === 'bgm' || !state.currentTake) stopTakePlayback();
+        else startTakePlayback();
     }
     refreshTakeNowPlayingUI();
 }
@@ -7665,9 +7667,17 @@ async function _generateMixWav() {
     const rStart = Math.max(0, Math.min(bgmDur, state.mixRange.start || 0));
     const rEnd = Math.max(0, Math.min(bgmDur, (state.mixRange.end != null ? state.mixRange.end : bgmDur)));
     if (rEnd - rStart <= 0.05) throw new Error('範囲が不正です (開始 < 終了)');
-    const outDur = rEnd - rStart;
+    // v2.47: フェード方式変更 — 指定区間 [rStart,rEnd] は 100% 音量。 その前後に 0.5 秒の
+    //   フェード期間を「追加」 する。 開始 0.5 秒前から fade in→開始で 100%→終了まで 100%→
+    //   終了後 0.5 秒で fade out。 曲頭/曲末で 0.5 秒の余地が無い場合は取れる分だけ。
+    const FADE = 0.5;
+    const preFade = Math.min(FADE, rStart);              // 開始前に確保できるフェード長
+    const postFade = Math.min(FADE, bgmDur - rEnd);      // 終了後に確保できるフェード長
+    const effStart = rStart - preFade;                   // 実際の出力開始 (曲タイムライン)
+    const effEnd = rEnd + postFade;                      // 実際の出力終了
+    const outDur = effEnd - effStart;
     const totalSamples = Math.ceil(outDur * sampleRate);
-    DEBUG.info('MIX: rendering range ' + rStart.toFixed(2) + '〜' + rEnd.toFixed(2) + 's (' + outDur.toFixed(1) + 's) @ ' + sampleRate + 'Hz × ' + channels + 'ch');
+    DEBUG.info('MIX: range ' + rStart.toFixed(2) + '〜' + rEnd.toFixed(2) + 's, 出力 ' + effStart.toFixed(2) + '〜' + effEnd.toFixed(2) + 's (' + outDur.toFixed(1) + 's, preFade=' + preFade.toFixed(2) + ' postFade=' + postFade.toFixed(2) + ') @ ' + sampleRate + 'Hz × ' + channels + 'ch');
 
     // 2. OfflineAudioContext + master gain (フェード用)
     const offlineCtx = new OfflineAudioContext(channels, totalSamples, sampleRate);
@@ -7687,7 +7697,7 @@ async function _generateMixWav() {
     bgmGainNode.gain.value = bgmGainLin;
     bgmSource.connect(bgmGainNode);
     bgmGainNode.connect(master);
-    bgmSource.start(0, rStart);
+    bgmSource.start(0, effStart);
 
     // 各テイク
     const takeIds = Array.from(state.selectedTakeIds);
@@ -7703,8 +7713,8 @@ async function _generateMixWav() {
         }
         const songStart = (take.startSongTime || 0) + offset;   // 曲タイムライン上の開始
         const span = (take.duration || 0) * (take.speed || 1);
-        if (songStart - rStart >= outDur) continue;             // テイクが範囲より後 → スキップ
-        if (songStart + span <= rStart) continue;               // テイクが範囲より前 → スキップ
+        if (songStart - effStart >= outDur) continue;           // テイクが出力範囲より後 → スキップ
+        if (songStart + span <= effStart) continue;             // テイクが出力範囲より前 → スキップ
         const takeBuf = offlineCtx.createBuffer(1, take.pcm.length, take.sampleRate || 44100);
         takeBuf.copyToChannel(take.pcm, 0);
         const takeSource = offlineCtx.createBufferSource();
@@ -7719,7 +7729,7 @@ async function _generateMixWav() {
         takeGainNode.connect(master);
         // 出力タイムライン上の開始位置。 負 (範囲開始より前から始まるテイク) なら
         //   buffer 内をスキップ (playbackRate を考慮して buffer 秒換算)
-        const outStart = songStart - rStart;
+        const outStart = songStart - effStart;
         let when, bufOffset;
         if (outStart >= 0) { when = outStart; bufOffset = 0; }
         else { when = 0; bufOffset = (-outStart) * (take.speed || 1); }
@@ -7729,18 +7739,17 @@ async function _generateMixWav() {
     }
     if (usedTakes === 0) throw new Error('範囲内に有効なテイクがありません (範囲やオフセットを確認してください)');
 
-    // フェード (Phase 6d): 範囲端が曲頭/曲末でなければ 0.5 秒の自動フェード (master gain)
-    const fadeIn = rStart > 0.001;
-    const fadeOut = rEnd < bgmDur - 0.001;
-    const fd = Math.min(0.5, outDur / 2);
+    // フェード (Phase 6d、 v2.47 方式): 指定区間は 100%。 追加した前後の余地でフェード。
+    //   出力 0〜preFade で 0→1 (fade in)、 preFade〜(outDur-postFade) は 1 (100%)、
+    //   末尾 postFade で 1→0 (fade out)。
     const g = master.gain;
-    g.setValueAtTime(fadeIn ? 0 : 1, 0);
-    if (fadeIn) g.linearRampToValueAtTime(1, fd);
-    if (fadeOut) {
-        g.setValueAtTime(1, Math.max(fadeIn ? fd : 0, outDur - fd));
+    g.setValueAtTime(preFade > 0 ? 0 : 1, 0);
+    if (preFade > 0) g.linearRampToValueAtTime(1, preFade);
+    if (postFade > 0) {
+        g.setValueAtTime(1, outDur - postFade);
         g.linearRampToValueAtTime(0, outDur);
     }
-    if (fadeIn || fadeOut) DEBUG.info('MIX: fade in=' + fadeIn + ' out=' + fadeOut + ' (' + fd.toFixed(2) + 's)');
+    DEBUG.info('MIX: fade preFade=' + preFade.toFixed(2) + 's postFade=' + postFade.toFixed(2) + 's (指定区間は 100%)');
 
     DEBUG.info('MIX: startRendering...');
     const t0 = performance.now();

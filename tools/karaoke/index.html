@@ -1400,33 +1400,25 @@ input[type=range]::-moz-range-thumb {
 #mix-section.mix-playback-mode #mix-range-ui {
     opacity: 0.4; pointer-events: none;
 }
-/* v2.43 (Phase 6c): MIX 範囲指定 UI */
-.mix-range-track {
-    position: relative; width: 100%; height: 34px;
-    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
-    overflow: hidden; touch-action: none; user-select: none;
-}
-.mix-range-takes { position: absolute; inset: 0; pointer-events: none; }
-.mix-range-takes .seg { position: absolute; top: 0; height: 100%; background: rgba(251,146,60,0.20); }
-.mix-range-sel {
-    position: absolute; top: 0; height: 100%; left: 0; width: 100%;
-    background: rgba(194,65,12,0.20);
+/* v2.44 (Phase 6c): MIX 範囲をシークバーに重ねて表示 (ミックスタブのみ) */
+.seek-range, .seek-range-handle { display: none; }
+#seekTrack.show-range .seek-range, #seekTrack.show-range .seek-range-handle { display: block; }
+.seek-range {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    height: 10px; left: 0; width: 100%;
+    background: rgba(194,65,12,0.32);
     border-left: 2px solid var(--orange); border-right: 2px solid var(--orange);
-    box-sizing: border-box; pointer-events: none;
+    box-sizing: border-box; pointer-events: none; z-index: 1;
 }
-.mix-range-sel.invalid { background: rgba(248,113,113,0.18); border-color: var(--rec-red,#f87171); }
-.mix-range-handle {
-    position: absolute; top: 0; height: 100%; width: 16px; margin-left: -8px;
-    cursor: ew-resize; z-index: 3; display: flex; align-items: center; justify-content: center;
+.seek-range.invalid { background: rgba(248,113,113,0.30); border-color: var(--rec-red,#f87171); }
+.seek-range-handle {
+    position: absolute; top: 50%; left: 0; transform: translate(-50%, -50%);
+    width: 12px; height: 22px; border-radius: 3px;
+    background: var(--orange-light); border: 1px solid var(--bg);
+    box-shadow: 0 0 5px rgba(251,146,60,0.7);
+    cursor: ew-resize; z-index: 4; touch-action: none;
 }
-.mix-range-handle::before {
-    content: ''; width: 4px; height: 70%; background: var(--orange-light);
-    border-radius: 2px; box-shadow: 0 0 0 1px rgba(0,0,0,0.5);
-}
-.mix-range-cursor {
-    position: absolute; top: 0; height: 100%; width: 2px; margin-left: -1px; left: 0;
-    background: #fff; opacity: 0.85; z-index: 2; pointer-events: none;
-}
+.seek-handle { z-index: 3; }
 .mix-range-time {
     width: 64px; background: var(--surface); border: 1px solid var(--border); color: var(--text);
     padding: 3px 6px; border-radius: 4px; font-family: inherit; font-size: 11px; text-align: center;
@@ -1677,7 +1669,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.43</span>
+                <span class="version-tag" id="version-tag">v2.44</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1895,6 +1887,10 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 <div class="seek-track" id="seekTrack">
                     <div class="seek-buffered" id="seekBuffered"></div>
                     <div class="seek-fill" id="seekFill"></div>
+                    <!-- v2.44 (Phase 6c): MIX 範囲をシークバー上に重ねる (ミックスタブのみ表示) -->
+                    <div class="seek-range" id="seekRange"></div>
+                    <div class="seek-range-handle" id="seekRangeStart" data-h="start" title="MIX 開始"></div>
+                    <div class="seek-range-handle" id="seekRangeEnd" data-h="end" title="MIX 終了"></div>
                     <div class="seek-handle" id="seekHandle"></div>
                 </div>
                 <span class="time-dur" id="timeDur">0:00</span>
@@ -2205,17 +2201,10 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             </div>
             <p class="panel-desc">選択中のテイクと BGM で MIX wav を生成し、 曲フォルダに保存します。 下のバーで MIX にする区間を指定できます (範囲端が曲頭/曲末でなければ 0.5 秒の自動フェード)。</p>
 
-            <!-- v2.43 (Phase 6c/6d): 範囲指定 UI -->
+            <!-- v2.43/v2.44 (Phase 6c/6d): 範囲指定。 範囲ハンドルは上のシークバーに重ねて表示 -->
             <div id="mix-range-ui" style="margin-bottom:14px;">
-                <div class="ctrl-label" style="margin-bottom:6px;"><span>範囲 (この区間で MIX を作成)</span><span></span></div>
-                <div class="mix-range-track" id="mix-range-track">
-                    <div class="mix-range-takes" id="mix-range-takes"></div>
-                    <div class="mix-range-sel" id="mix-range-sel"></div>
-                    <div class="mix-range-handle" id="mix-range-h-start" data-h="start" title="開始ハンドル"></div>
-                    <div class="mix-range-handle" id="mix-range-h-end" data-h="end" title="終了ハンドル"></div>
-                    <div class="mix-range-cursor" id="mix-range-cursor"></div>
-                </div>
-                <div style="display:flex; align-items:center; gap:6px; margin-top:8px; flex-wrap:wrap; font-size:11px;">
+                <div class="ctrl-label" style="margin-bottom:6px;"><span>範囲 (上のシークバーのハンドルでも調整可)</span><span></span></div>
+                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:11px;">
                     <span style="color:var(--text-muted);">開始</span>
                     <input type="text" id="mix-range-start-in" class="mix-range-time" value="0:00.0" inputmode="decimal">
                     <span style="color:var(--text-muted);">終了</span>
@@ -2368,7 +2357,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.43',
+        version: document.getElementById('version-tag')?.textContent || 'v2.44',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2474,7 +2463,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.43';
+const APP_VERSION = 'v2.44';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2517,7 +2506,6 @@ const seekTrack = $('seekTrack');
 const seekFill = $('seekFill');
 const seekHandle = $('seekHandle');
 const seekBuffered = $('seekBuffered');
-const mixRangeCursor = $('mix-range-cursor');
 const timeCur = $('timeCur');
 const timeDur = $('timeDur');
 const loadProgress = $('loadProgress');
@@ -2686,6 +2674,11 @@ function switchTab(name){
     if (takeNearBgm) {
         takeNearBgm.classList.toggle('show', name === 'mix');
     }
+    // v2.44 (Phase 6c): ミックスタブでシークバーに MIX 範囲ハンドルを重ねて表示
+    if (typeof seekTrack !== 'undefined' && seekTrack) {
+        seekTrack.classList.toggle('show-range', name === 'mix');
+    }
+    if (typeof renderMixRange === 'function') renderMixRange();
     // 状態タブを記録 (今後の機能分岐用)
     state.activeTab = name;
 }
@@ -6204,10 +6197,6 @@ function tickUI(){
         timeDur.textContent = fmt(dur);
         if(!bgmTransport.paused) updateCurrentLine();
     }
-    // v2.43 (Phase 6c): MIX 範囲バーの再生カーソルを BGM 位置で更新
-    if(mixRangeCursor && bgmTransport.duration > 0){
-        mixRangeCursor.style.left = (bgmTransport.currentTime / bgmTransport.duration * 100) + '%';
-    }
     // Update take UI ~6 times per second (every 10 frames)
     if((++_takeUiCounter % 10) === 0){
         if(state.currentEntry && state.currentEntry.takes && state.currentEntry.takes.length){
@@ -7662,7 +7651,12 @@ async function _generateMixWav() {
     // BGM source + gain → master。 範囲開始位置からデコード再生
     const bgmSource = offlineCtx.createBufferSource();
     bgmSource.buffer = bgmBuf;
-    const bgmGainLin = Math.pow(10, (parseFloat(bgmVolSlider.value) || 0) / 20);
+    // v2.44: 再生と同じ最終ゲイン (base dB × Mix Balance の cos/sin) を MIX に焼き込む。
+    //   applyBalance() と同じ式。 play mode のモニタ用ミュートは MIX には適用しない
+    //   (MIX は常に BGM+テイクを含める)。
+    const _balPos = Math.max(-100, Math.min(100, parseFloat(balanceSlider.value) || 0)) / 100;
+    const _balAngle = (_balPos + 1) * 0.25 * Math.PI;
+    const bgmGainLin = dbToGain(parseFloat(bgmVolSlider.value) || 0) * Math.cos(_balAngle);
     const bgmGainNode = offlineCtx.createGain();
     bgmGainNode.gain.value = bgmGainLin;
     bgmSource.connect(bgmGainNode);
@@ -7671,7 +7665,7 @@ async function _generateMixWav() {
 
     // 各テイク
     const takeIds = Array.from(state.selectedTakeIds);
-    const voxGainLin = Math.pow(10, (parseFloat(voxVolSlider.value) || 0) / 20);
+    const voxGainLin = dbToGain(parseFloat(voxVolSlider.value) || 0) * Math.sin(_balAngle);
     const offset = parseFloat(voxOfsSlider.value) || 0;
 
     let usedTakes = 0;
@@ -8156,18 +8150,15 @@ function _isMixRangeValid() {
 
 let _mixRangeEditing = false;  // 時刻入力の編集中はバー更新で値を上書きしない
 function renderMixRange() {
-    const track = document.getElementById('mix-range-track');
-    if (!track) return;
     const dur = _bgmDur();
     if (dur <= 0) return;
     const r = state.mixRange;
     const a = Math.max(0, Math.min(dur, r.start || 0));
     const b = Math.max(0, Math.min(dur, r.end || 0));
     const lo = Math.min(a, b), hi = Math.max(a, b);
-    const sel = document.getElementById('mix-range-sel');
-    const hS = document.getElementById('mix-range-h-start');
-    const hE = document.getElementById('mix-range-h-end');
-    const segs = document.getElementById('mix-range-takes');
+    const sel = document.getElementById('seekRange');
+    const hS = document.getElementById('seekRangeStart');
+    const hE = document.getElementById('seekRangeEnd');
     const err = document.getElementById('mix-range-err');
     const inS = document.getElementById('mix-range-start-in');
     const inE = document.getElementById('mix-range-end-in');
@@ -8178,20 +8169,6 @@ function renderMixRange() {
     }
     if (hS) hS.style.left = (a / dur * 100) + '%';
     if (hE) hE.style.left = (b / dur * 100) + '%';
-    if (segs) {
-        const offset = parseFloat(voxOfsSlider.value) || 0;
-        const takes = (state.currentEntry && state.currentEntry.takes) || [];
-        let html = '';
-        takes.forEach(t => {
-            if (!state.selectedTakeIds.has(t.id)) return;
-            const ss = Math.max(0, (t.startSongTime || 0) + offset);
-            const span = (t.duration || 0) * (t.speed || 1);
-            const left = Math.max(0, Math.min(100, ss / dur * 100));
-            const w = Math.max(0, Math.min(100 - left, span / dur * 100));
-            html += '<div class="seg" style="left:' + left + '%; width:' + w + '%;"></div>';
-        });
-        segs.innerHTML = html;
-    }
     if (!_mixRangeEditing) {
         if (inS && document.activeElement !== inS) inS.value = fmtRange(a);
         if (inE && document.activeElement !== inE) inE.value = fmtRange(b);
@@ -8209,33 +8186,33 @@ function _setMixRange(start, end) {
 }
 
 (function _bindMixRange(){
-    const track = document.getElementById('mix-range-track');
-    if (!track) return;
-    let draggingH = null;
-    function pctFromEvent(e) {
-        const rect = track.getBoundingClientRect();
-        const x = (e.clientX != null ? e.clientX : 0) - rect.left;
-        return Math.max(0, Math.min(1, x / rect.width));
+    // 範囲ハンドルはシークバー (#seekTrack) 上のハンドル。 ドラッグ中は stopPropagation で
+    //   シーク (seekFromEvent) を抑止。 ハンドル自身に pointer capture して移動を追う。
+    function bindHandle(el, which) {
+        if (!el) return;
+        el.addEventListener('pointerdown', e => {
+            const dur = _bgmDur(); if (dur <= 0) return;
+            e.stopPropagation(); e.preventDefault();
+            try { el.setPointerCapture(e.pointerId); } catch (er) {}
+            const rect = () => seekTrack.getBoundingClientRect();
+            const move = ev => {
+                const r = rect();
+                const pct = Math.max(0, Math.min(1, ((ev.clientX || 0) - r.left) / r.width));
+                _setMixRange(which === 'start' ? pct * dur : null, which === 'end' ? pct * dur : null);
+            };
+            const up = () => {
+                try { el.releasePointerCapture(e.pointerId); } catch (er) {}
+                el.removeEventListener('pointermove', move);
+                el.removeEventListener('pointerup', up);
+                el.removeEventListener('pointercancel', up);
+            };
+            el.addEventListener('pointermove', move);
+            el.addEventListener('pointerup', up);
+            el.addEventListener('pointercancel', up);
+        });
     }
-    track.addEventListener('pointerdown', e => {
-        const dur = _bgmDur(); if (dur <= 0) return;
-        const t = pctFromEvent(e) * dur;
-        const handle = e.target.closest && e.target.closest('.mix-range-handle');
-        if (handle) draggingH = handle.dataset.h;
-        else draggingH = (Math.abs(t - state.mixRange.start) <= Math.abs(t - state.mixRange.end)) ? 'start' : 'end';
-        try { track.setPointerCapture(e.pointerId); } catch (er) {}
-        _setMixRange(draggingH === 'start' ? t : null, draggingH === 'end' ? t : null);
-        e.preventDefault();
-    });
-    track.addEventListener('pointermove', e => {
-        if (!draggingH) return;
-        const dur = _bgmDur(); if (dur <= 0) return;
-        const t = pctFromEvent(e) * dur;
-        _setMixRange(draggingH === 'start' ? t : null, draggingH === 'end' ? t : null);
-    });
-    const stop = e => { draggingH = null; try { track.releasePointerCapture(e.pointerId); } catch (er) {} };
-    track.addEventListener('pointerup', stop);
-    track.addEventListener('pointercancel', stop);
+    bindHandle(document.getElementById('seekRangeStart'), 'start');
+    bindHandle(document.getElementById('seekRangeEnd'), 'end');
 
     const inS = document.getElementById('mix-range-start-in');
     const inE = document.getElementById('mix-range-end-in');
@@ -8258,8 +8235,6 @@ function _setMixRange(start, end) {
     if (bS) bS.addEventListener('click', () => _setMixRange(bgmTransport.currentTime || 0, null));
     if (bE) bE.addEventListener('click', () => _setMixRange(null, bgmTransport.currentTime || 0));
     if (bR) bR.addEventListener('click', () => _setMixRange(0, _bgmDur()));
-    // オフセット変更でテイク領域表示を更新
-    if (typeof voxOfsSlider !== 'undefined' && voxOfsSlider) voxOfsSlider.addEventListener('input', renderMixRange);
 })();
 
 // v2.37 (Phase 6f 前倒し): voxOfsSlider 微調整ボタン (仕様書 §6.8)

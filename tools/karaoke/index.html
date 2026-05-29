@@ -1142,25 +1142,18 @@ h1 .version-tag {
     padding: 10px 12px;
     font-size: 17px;
 }
-/* v2.34: BGM seek の真下に並ぶテイク用 progress bar (ミックスタブ専用) */
+/* v2.45: テイク用 progress bar — grid の col2 (シークと同幅) に配置、 すぐ下に接触気味 */
 .take-near-bgm-row {
+    grid-column: 2;
     display: none;
-    align-items: center;
-    gap: 8px;
-    margin-top: 4px;
-    padding: 2px 0;
+    margin-top: 7px;
     box-sizing: border-box;
     width: 100%;
 }
-.take-near-bgm-row.show { display: flex; }
-.take-near-bgm-label {
-    font-size: 10px; font-weight: 700;
-    color: var(--text-muted); letter-spacing: 0.5px;
-    flex-shrink: 0; min-width: 38px;
-}
+.take-near-bgm-row.show { display: block; }
 .take-near-bgm-track {
     position: relative;
-    flex: 1 1 0; min-width: 0;
+    width: 100%;
     height: 8px;
     background: var(--bg);
     border: 1px solid var(--border);
@@ -1411,14 +1404,25 @@ input[type=range]::-moz-range-thumb {
     box-sizing: border-box; pointer-events: none; z-index: 1;
 }
 .seek-range.invalid { background: rgba(248,113,113,0.30); border-color: var(--rec-red,#f87171); }
+/* v2.45: 範囲ハンドルはシークバーの真下に「上が尖った逆ホームベース型」 でぶら下げる。
+   シークバー本体には重ねないので、 バーはそのまま触れる (シーク/再生位置変更が可能)。 */
 .seek-range-handle {
-    position: absolute; top: 50%; left: 0; transform: translate(-50%, -50%);
-    width: 12px; height: 22px; border-radius: 3px;
-    background: var(--orange-light); border: 1px solid var(--bg);
-    box-shadow: 0 0 5px rgba(251,146,60,0.7);
-    cursor: ew-resize; z-index: 4; touch-action: none;
+    position: absolute; top: 60%; left: 0; transform: translateX(-50%);
+    width: 14px; height: 13px;
+    background: var(--orange-light);
+    clip-path: polygon(50% 0, 100% 38%, 100% 100%, 0 100%, 0 38%);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.55);
+    cursor: ew-resize; z-index: 5; touch-action: none;
 }
 .seek-handle { z-index: 3; }
+/* MIX 選択中は範囲 (帯/ハンドル/下の調整パネル) をグレーアウト = 操作不可 */
+#seekTrack.range-disabled .seek-range, #seekTrack.range-disabled .seek-range-handle { opacity: 0.3; pointer-events: none; }
+#mix-seek-controls.range-disabled { opacity: 0.45; pointer-events: none; }
+/* v2.45: シーク行とテイクバーを同列で揃える grid */
+.transport-grid {
+    display: grid; grid-template-columns: auto 1fr auto;
+    align-items: center; column-gap: 10px; flex: 1 1 100%; margin-top: 4px; width: 100%;
+}
 .mix-range-time {
     width: 64px; background: var(--surface); border: 1px solid var(--border); color: var(--text);
     padding: 3px 6px; border-radius: 4px; font-family: inherit; font-size: 11px; text-align: center;
@@ -1669,7 +1673,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.44</span>
+                <span class="version-tag" id="version-tag">v2.45</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1882,28 +1886,52 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <button id="btnRec" class="momo-btn-rec" title="● 録音 / 停止 (BGM 同時再生 + マイク録音)" disabled>●</button>
             <span class="audio-btn-label" id="btnRecLabel" style="font-size:10px; color:var(--text-muted); margin-left:-4px; margin-right:4px; min-width:34px; line-height:1; pointer-events:none;">録音</span>
             <span id="audio-file-name" class="audio-file-name">—</span>
-            <div class="transport-row">
+            <!-- v2.45: シーク行とテイクバーを grid で同じ列に揃える (col2 = トラック)。
+                 範囲ハンドルはシークバーの真下に逆ホームベース型でぶら下げる。 -->
+            <div class="transport-grid" id="transport-grid">
                 <span class="time-cur" id="timeCur">0:00</span>
                 <div class="seek-track" id="seekTrack">
                     <div class="seek-buffered" id="seekBuffered"></div>
                     <div class="seek-fill" id="seekFill"></div>
-                    <!-- v2.44 (Phase 6c): MIX 範囲をシークバー上に重ねる (ミックスタブのみ表示) -->
+                    <!-- v2.44/v2.45: MIX 範囲 — 帯はシークバー上、 ハンドルは真下に表示 (ミックスタブのみ) -->
                     <div class="seek-range" id="seekRange"></div>
                     <div class="seek-range-handle" id="seekRangeStart" data-h="start" title="MIX 開始"></div>
                     <div class="seek-range-handle" id="seekRangeEnd" data-h="end" title="MIX 終了"></div>
                     <div class="seek-handle" id="seekHandle"></div>
                 </div>
                 <span class="time-dur" id="timeDur">0:00</span>
+                <!-- row2: テイク用 progress bar (col2 のみ = シークと同幅。 ミックスタブ専用) -->
+                <div id="take-near-bgm-row" class="take-near-bgm-row">
+                    <div class="take-near-bgm-track">
+                        <div class="take-near-bgm-region" id="take-near-bgm-region">
+                            <div class="take-near-bgm-fill" id="take-near-bgm-fill"></div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <!-- v2.31〜v2.35: BGM seek の真下に並ぶテイク用 progress bar (ミックスタブ専用)。
-                 v2.35: BGM 時間軸対応 — track 全体を BGM 全長としたとき、 テイクが占める
-                 位置 (left = startSongTime/bgmDur) と長さ (width = takeDur/bgmDur) を
-                 region で縮尺表示、 その内で再生進行 fill が左→右に動く -->
-            <div id="take-near-bgm-row" class="take-near-bgm-row">
-                <span class="take-near-bgm-label">TAKE</span>
-                <div class="take-near-bgm-track">
-                    <div class="take-near-bgm-region" id="take-near-bgm-region">
-                        <div class="take-near-bgm-fill" id="take-near-bgm-fill"></div>
+
+            <!-- v2.45: 範囲(開始/終了)と OFFSET の調整をシークバーのすぐ下に集約 (ミックスタブのみ) -->
+            <div id="mix-seek-controls" style="display:none; margin-top:10px;">
+                <div class="ctrl-label" style="margin-bottom:6px;"><span>MIX 範囲 (上のシークバーのハンドルでも調整可)</span><span></span></div>
+                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:11px;">
+                    <span style="color:var(--text-muted);">開始</span>
+                    <input type="text" id="mix-range-start-in" class="mix-range-time" value="0:00.0" inputmode="decimal">
+                    <span style="color:var(--text-muted);">終了</span>
+                    <input type="text" id="mix-range-end-in" class="mix-range-time" value="0:00.0" inputmode="decimal">
+                    <button class="momo-btn-small" id="mix-range-set-start" title="再生位置を開始に">現在位置 → 開始</button>
+                    <button class="momo-btn-small" id="mix-range-set-end" title="再生位置を終了に">→ 終了</button>
+                    <button class="momo-btn-small" id="mix-range-reset" title="全体に戻す">⟳ 全体</button>
+                </div>
+                <div id="mix-range-err" style="display:none; font-size:11px; color:var(--rec-red,#f87171); margin-top:6px;">⚠ 開始は終了より前にしてください</div>
+                <div class="ctrl" style="margin-top:10px;">
+                    <div class="ctrl-label"><span>OFFSET (テイクを早める/遅らせる, sec)</span><span class="ctrl-val" id="voxOfsVal">0.00</span></div>
+                    <input type="range" id="voxOfsSlider" min="-3" max="3" step="0.01" value="0">
+                    <div style="display:flex; gap:6px; margin-top:8px; justify-content:center; flex-wrap:wrap;">
+                        <button class="momo-btn-small" data-ofs-step="-0.1" title="テイクを 0.1 秒早める">-0.1s</button>
+                        <button class="momo-btn-small" data-ofs-step="-0.01" title="テイクを 0.01 秒早める">-0.01s</button>
+                        <button class="momo-btn-small" data-ofs-reset title="0 にリセット">⟳ 0</button>
+                        <button class="momo-btn-small" data-ofs-step="0.01" title="テイクを 0.01 秒遅らせる">+0.01s</button>
+                        <button class="momo-btn-small" data-ofs-step="0.1" title="テイクを 0.1 秒遅らせる">+0.1s</button>
                     </div>
                 </div>
             </div>
@@ -2166,21 +2194,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 <div class="ctrl-label"><span>VOICE VOLUME</span><span class="ctrl-val" id="voxVolVal">0 dB</span></div>
                 <input type="range" id="voxVolSlider" min="-24" max="12" step="0.5" value="0">
             </div>
-            <div class="ctrl">
-                <div class="ctrl-label"><span>OFFSET (テイクを早める/遅らせる, sec)</span><span class="ctrl-val" id="voxOfsVal">0.00</span></div>
-                <input type="range" id="voxOfsSlider" min="-3" max="3" step="0.01" value="0">
-                <!-- v2.37 (Phase 6f 前倒し): 微調整ボタン (仕様書 §6.8) -->
-                <div style="display:flex; gap:6px; margin-top:8px; justify-content:center; flex-wrap:wrap;">
-                    <button class="momo-btn-small" data-ofs-step="-0.1" title="テイクを 0.1 秒早める">-0.1s</button>
-                    <button class="momo-btn-small" data-ofs-step="-0.01" title="テイクを 0.01 秒早める">-0.01s</button>
-                    <button class="momo-btn-small" data-ofs-reset title="0 にリセット">⟳ 0</button>
-                    <button class="momo-btn-small" data-ofs-step="0.01" title="テイクを 0.01 秒遅らせる">+0.01s</button>
-                    <button class="momo-btn-small" data-ofs-step="0.1" title="テイクを 0.1 秒遅らせる">+0.1s</button>
-                </div>
-                <p style="font-size:10px; color:var(--text-muted); margin: 8px 0 0 0; line-height:1.5;">
-                    + 値でテイクを遅らせる / − 値で早める。 BGM とテイクの位相がずれて聞こえる時に補正してください。
-                </p>
-            </div>
+            <!-- v2.45: OFFSET 調整はシークバー直下 (#mix-seek-controls) に移動 -->
             <div class="ctrl">
                 <div class="ctrl-label"><span>ECHO MIX</span><span class="ctrl-val" id="echoVal">0%</span></div>
                 <input type="range" id="echoSlider" min="0" max="100" step="1" value="0">
@@ -2199,22 +2213,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 <div class="panel-title">MIX を作成</div>
                 <div class="panel-tag" id="mix-create-status">READY</div>
             </div>
-            <p class="panel-desc">選択中のテイクと BGM で MIX wav を生成し、 曲フォルダに保存します。 下のバーで MIX にする区間を指定できます (範囲端が曲頭/曲末でなければ 0.5 秒の自動フェード)。</p>
-
-            <!-- v2.43/v2.44 (Phase 6c/6d): 範囲指定。 範囲ハンドルは上のシークバーに重ねて表示 -->
-            <div id="mix-range-ui" style="margin-bottom:14px;">
-                <div class="ctrl-label" style="margin-bottom:6px;"><span>範囲 (上のシークバーのハンドルでも調整可)</span><span></span></div>
-                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:11px;">
-                    <span style="color:var(--text-muted);">開始</span>
-                    <input type="text" id="mix-range-start-in" class="mix-range-time" value="0:00.0" inputmode="decimal">
-                    <span style="color:var(--text-muted);">終了</span>
-                    <input type="text" id="mix-range-end-in" class="mix-range-time" value="0:00.0" inputmode="decimal">
-                    <button class="momo-btn-small" id="mix-range-set-start" title="再生位置を開始に">現在位置 → 開始</button>
-                    <button class="momo-btn-small" id="mix-range-set-end" title="再生位置を終了に">→ 終了</button>
-                    <button class="momo-btn-small" id="mix-range-reset" title="全体に戻す">⟳ 全体</button>
-                </div>
-                <div id="mix-range-err" style="display:none; font-size:11px; color:var(--rec-red,#f87171); margin-top:6px;">⚠ 開始は終了より前にしてください</div>
-            </div>
+            <p class="panel-desc">選択中のテイクと BGM で MIX wav を生成し、 曲フォルダに保存します。 MIX にする区間と OFFSET は上のシークバー直下で調整できます (範囲端が曲頭/曲末でなければ 0.5 秒の自動フェード)。</p>
 
             <button class="momo-btn" id="mix-preview-btn" style="width:100%; padding:12px; margin-bottom:8px;" disabled>▶ MIX プレビュー (生成して試聴、 保存はしない)</button>
             <button class="momo-btn" id="mix-create-btn" style="width:100%; padding:12px;" disabled>🎚 MIX を作成して保存 (テイクを 1 つ以上選択してください)</button>
@@ -2357,7 +2356,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.44',
+        version: document.getElementById('version-tag')?.textContent || 'v2.45',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2463,7 +2462,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.44';
+const APP_VERSION = 'v2.45';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2678,6 +2677,9 @@ function switchTab(name){
     if (typeof seekTrack !== 'undefined' && seekTrack) {
         seekTrack.classList.toggle('show-range', name === 'mix');
     }
+    // v2.45: 範囲/OFFSET 調整パネルをミックスタブのみ表示
+    const mixSeekCtl = document.getElementById('mix-seek-controls');
+    if (mixSeekCtl) mixSeekCtl.style.display = (name === 'mix') ? '' : 'none';
     if (typeof renderMixRange === 'function') renderMixRange();
     // 状態タブを記録 (今後の機能分岐用)
     state.activeTab = name;
@@ -7922,8 +7924,13 @@ function _toggleStoredMixPlayback() {
 
 // ── MIX 選択中の UI 反映 (MIX に効かないコントロールだけ dim) ──
 function _applyMixPlaybackModeUI() {
+    const mixSel = state.selectedMixId != null;
     const sec = document.getElementById('mix-section');
-    if (sec) sec.classList.toggle('mix-playback-mode', state.selectedMixId != null);
+    if (sec) sec.classList.toggle('mix-playback-mode', mixSel);
+    // v2.45: MIX 選択中は範囲 (シーク上の帯/ハンドル + 直下の調整パネル) をグレーアウト
+    if (typeof seekTrack !== 'undefined' && seekTrack) seekTrack.classList.toggle('range-disabled', mixSel);
+    const sc = document.getElementById('mix-seek-controls');
+    if (sc) sc.classList.toggle('range-disabled', mixSel);
 }
 
 // MIX を選択 (再生はしない。 BGM を止めて MIX を再生ソースにする)

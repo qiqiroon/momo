@@ -1356,43 +1356,36 @@ input[type=range]::-moz-range-thumb {
 .takes-detail {
     /* 詳細パネル コンテナ — 単一 .take-item を内包 */
 }
-/* v2.39 (Phase 6b): MIX 一覧ボタン群。 v2.40 で配色を take と同じオレンジに統一 */
-.mixes-list:empty { display: none; }
-.mixes-list { margin-top: 12px; }
-.mixes-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
-.mix-btn-wrap { display: inline-flex; align-items: center; gap: 2px; }
-.mix-btn-mini {
-    min-width: 36px; height: 36px; padding: 0 12px;
-    background: var(--surface); color: var(--text);
-    border: 1px solid var(--border); border-radius: 8px 0 0 8px;
-    cursor: pointer; font-size: 13px; font-weight: 600;
-    font-family: inherit; transition: 0.15s;
-    display: inline-flex; align-items: center; justify-content: center;
+/* v2.46: BGM / テイク / MIX 統合音源リスト */
+.src-list { display: flex; flex-direction: column; gap: 2px; }
+.src-group-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.6px;
+    color: var(--text-muted); margin: 8px 0 2px;
 }
-.mix-btn-mini:hover { border-color: var(--border-strong); color: var(--orange-light); }
-.mix-btn-mini.active {
-    background: var(--orange); color: #000; border-color: var(--orange);
-    box-shadow: 0 0 0 1px var(--orange), 0 2px 6px rgba(194,65,12,0.25);
+.src-group-label:first-child { margin-top: 0; }
+.src-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--surface); cursor: pointer; transition: 0.12s;
 }
-.mix-menu-btn {
-    min-width: 28px; height: 36px; padding: 0 8px;
-    background: var(--surface); color: var(--text-muted);
-    border: 1px solid var(--border); border-left: none; border-radius: 0 8px 8px 0;
-    cursor: pointer; font-size: 14px; font-family: inherit; transition: 0.15s;
+.src-row:hover { border-color: var(--border-strong); }
+.src-row.selected {
+    border-color: var(--orange); background: var(--bg-selected);
+    box-shadow: 0 0 0 1px var(--orange);
 }
-.mix-menu-btn:hover { color: var(--orange-light); border-color: var(--border-strong); }
-/* v2.40: MIX 選択中、 MIX に効かない「使えないコントロールだけ」 を暗く (仕様書 §6.4)。
-   パネル全体は暗くしない (ラベル・背景は通常のまま、 操作不可の input/ボタンのみ dim)。 */
-#mix-section.mix-playback-mode #takesList .take-btn-mini,
-#mix-section.mix-playback-mode .play-mode-pills .pill,
-#mix-section.mix-playback-mode #mix-balance-panel input,
-#mix-section.mix-playback-mode #mix-vc-panel input,
-#mix-section.mix-playback-mode #mix-vc-panel .toggle-row,
-#mix-section.mix-playback-mode #mix-voice-panel input,
-#mix-section.mix-playback-mode #mix-create-panel .momo-btn,
-#mix-section.mix-playback-mode #mix-range-ui {
-    opacity: 0.4; pointer-events: none;
+.src-check { font-size: 14px; width: 18px; flex-shrink: 0; text-align: center; color: var(--orange-light); }
+.src-row:not(.selected) .src-check { color: var(--text-muted); }
+.src-num { font-size: 12px; width: 16px; flex-shrink: 0; text-align: center; color: var(--text-muted); font-weight: 700; }
+.src-name { flex: 1 1 auto; min-width: 0; font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.src-len { font-size: 11px; color: var(--text-muted); font-family: monospace; flex-shrink: 0; }
+.src-speed { font-size: 11px; color: var(--text-muted); font-family: monospace; flex-shrink: 0; min-width: 42px; text-align: right; }
+.src-menu-btn {
+    min-width: 28px; height: 28px; padding: 0; flex-shrink: 0;
+    background: transparent; color: var(--text-muted); border: none;
+    cursor: pointer; font-size: 16px; font-family: inherit; border-radius: 4px;
 }
+.src-menu-btn:hover { color: var(--orange-light); background: var(--bg-selected); }
+.src-menu-spacer { width: 28px; flex-shrink: 0; }
 /* v2.44 (Phase 6c): MIX 範囲をシークバーに重ねて表示 (ミックスタブのみ) */
 .seek-range, .seek-range-handle { display: none; }
 #seekTrack.show-range .seek-range, #seekTrack.show-range .seek-range-handle { display: block; }
@@ -1673,7 +1666,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.45</span>
+                <span class="version-tag" id="version-tag">v2.46</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2115,25 +2108,16 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
 
         <p class="panel-desc" style="margin-bottom:14px;">録音したテイクと BGM を組み合わせて再生・調整する画面です。テイクが無い場合はカラオケタブで録音してください。</p>
 
-        <!-- テイク一覧 + 再生モード -->
+        <!-- v2.46: BGM / テイク / MIX を縦並列リスト化。 play-mode pill は廃止し選択に委ねる。
+             BGM+テイク群 と MIX 群は相互排他 (片方を押すともう片方を自動解除、 グレーアウト無し)。 -->
         <div class="karaoke-panel">
             <div class="panel-head">
-                <div class="panel-title">Vocal Takes</div>
+                <div class="panel-title">音源 (BGM / テイク / MIX)</div>
                 <div class="panel-tag" id="takesCount">0 / 0</div>
             </div>
-
-            <div class="play-mode-pills">
-                <div class="pill active" data-pmode="both" id="pmBoth">BGM + TAKE</div>
-                <div class="pill" data-pmode="bgm" id="pmBgm">BGM のみ</div>
-                <div class="pill" data-pmode="take" id="pmTake">TAKE のみ</div>
+            <div class="src-list" id="takesList">
+                <div class="take-empty">楽曲を選択してください</div>
             </div>
-
-            <div class="takes-list" id="takesList">
-                <div class="take-empty">まだテイクがありません — カラオケタブで録音してください</div>
-            </div>
-
-            <!-- v2.39 (Phase 6b): 既存 MIX 一覧。 タップでプレビュー再生 + ⋮ メニュー -->
-            <div class="mixes-list" id="mixesList"></div>
         </div>
 
         <!-- ミックスバランス -->
@@ -2356,7 +2340,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.45',
+        version: document.getElementById('version-tag')?.textContent || 'v2.46',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2462,7 +2446,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.45';
+const APP_VERSION = 'v2.46';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2550,6 +2534,8 @@ const state = {
     selectedMixId: null,
     // v2.43 (Phase 6c): MIX 作成範囲 (秒)。 selectEntry で {0, BGM 長} に初期化
     mixRange: { start: 0, end: 0 },
+    // v2.46: 統合音源リストの選択。 bgmSelected (BGM ON) + selectedTakeIds か、 selectedMixId のどちらか
+    bgmSelected: true,
     isRecording: false,
     lyricsLines: [],
     lastLyricIdx: -1,
@@ -4884,112 +4870,158 @@ async function loadTakesFor(entry){
 //   仕様書 §5.8。 既存の縦長カード形式から、 コンパクトなボタン群 + 詳細パネル 1 つ
 //   へ移行。 ⋮ メニュー (削除/リネーム/複製) は 5d-2 で詳細パネル内に追加予定。
 //   refreshTakeNowPlayingUI は新構造に合わせて書き換え。
+// v2.46: BGM / テイク / MIX を縦並列リスト化 (renderTakes が全体を描画)。
+//   行: [選択] 番号 / 名前 / 長さ / 速度 / ⋮ (BGM は ⋮ 無し)。
+//   排他: BGM/テイク群 と MIX 群は相互に押すと相手を自動解除 (グレーアウト無し)。
+function _fmtLen(sec){ return fmt(sec || 0); }
+function _mixApproxDur(m){
+    // mixes に duration を持たないため wav サイズから概算 (48kHz/2ch/16bit 前提)
+    if (m && m.duration) return m.duration;
+    if (m && m.sizeBytes) return Math.max(0, (m.sizeBytes - 44) / (48000 * 2 * 2));
+    return 0;
+}
+function _srcRow(opts){
+    // opts: {kind, id, selected, num, name, len, speed, menu(bool), single(bool)}
+    const mark = opts.selected ? (opts.single ? '◉' : '☑') : (opts.single ? '○' : '☐');
+    const dataAttr = opts.kind === 'take' ? ('data-id="' + opts.id + '"')
+                  : opts.kind === 'mix' ? ('data-mixid="' + opts.id + '"') : '';
+    return '<div class="src-row' + (opts.selected ? ' selected' : '') + '" data-kind="' + opts.kind + '" ' + dataAttr + '>' +
+        '<span class="src-check">' + mark + '</span>' +
+        '<span class="src-num">' + (opts.num != null ? opts.num : '') + '</span>' +
+        '<span class="src-name" title="' + escapeHtml(opts.name) + '">' + escapeHtml(opts.name) + '</span>' +
+        '<span class="src-len">' + _fmtLen(opts.len) + '</span>' +
+        '<span class="src-speed">' + (opts.speed != null ? opts.speed.toFixed(2) + 'x' : '') + '</span>' +
+        (opts.menu ? '<button class="src-menu-btn" data-act="menu" title="メニュー">⋮</button>' : '<span class="src-menu-spacer"></span>') +
+    '</div>';
+}
 function renderTakes(){
-    const takes = (state.currentEntry && state.currentEntry.takes) || [];
-    if(!takes.length){
-        takesList.innerHTML = '<div class="take-empty">まだテイクがありません — 録音ボタンで歌声を記録</div>';
-        takesCount.textContent = '0 / 0';
-        return;
-    }
-    const activeIdx = state.currentTake ? takes.findIndex(t => t.id === state.currentTake.id) : -1;
-    takesCount.textContent = (activeIdx >= 0 ? activeIdx + 1 : 0) + ' / ' + takes.length;
+    if (!takesList) return;
+    const entry = state.currentEntry;
+    if (!entry) { takesList.innerHTML = '<div class="take-empty">楽曲を選択してください</div>'; takesCount.textContent = '0 / 0'; return; }
+    const takes = entry.takes || [];
+    const mixes = entry.mixes || [];
+    takesCount.textContent = state.selectedTakeIds.size + ' / ' + takes.length;
 
-    // ボタン群 HTML
-    // v2.36 (Phase 6a-1): 複数選択対応 — active 表示は selectedTakeIds に含まれるかどうか
-    //   ✓ マーク付きで視覚的に強調。 既存の state.currentTake は「最後に touch したテイク」
-    //   として既存の再生ロジック (BGM 同期再生 / preload) でも利用継続
-    const buttonsHtml = takes.map((t, i) => {
-        const isSelected = state.selectedTakeIds.has(t.id);
-        return `<button class="take-btn-mini ${isSelected?'active':''}" data-id="${t.id}" data-act="select" title="${escapeHtml(t.name)}">${i + 1}${isSelected ? ' ✓' : ''}</button>`;
-    }).join('');
-
-    // 選択中の詳細パネル HTML (active テイクがあれば表示)
-    let detailHtml = '';
-    if (state.currentTake) {
-        const t = state.currentTake;
-        const isNowPlaying = !bgmTransport.paused && state.playMode !== 'bgm';
-        const sign = (t.pitchSemitones||0) >= 0 ? '+' : '';
-        detailHtml = `<div class="take-item ${isNowPlaying?'now-playing':''}" data-id="${t.id}">
-            <div class="take-name-row">
-                <span class="take-name">${escapeHtml(t.name)}</span>
-                <span class="take-now-playing">▶ NOW</span>
-            </div>
-            <div class="take-meta">${t.duration.toFixed(1)}s · ${sign}${t.pitchSemitones||0}st · ${(t.speed||1).toFixed(2)}x · 楽曲@${fmt(t.startSongTime||0)}</div>
-            <!-- v2.33: 詳細パネル内の take-progress-bar 削除。 進行表示は BGM seek bar
-                 直下の take-near-bgm-row で並列表示するため、 詳細パネル内は冗長 -->
-            <div class="take-actions">
-                <!-- v2.32: ▶ プレビュー削除 (ユーザー指示: テイクのみ再生は不要)。
-                     BGM+TAKE 同期再生はメインの ▶ ボタンで行う。 -->
-                <div class="take-menu-wrap" style="margin-left:auto;">
-                    <button class="take-btn take-menu-btn" data-act="menu" title="メニュー" style="min-width:32px; padding:0 10px;">⋮</button>
-                </div>
-            </div>
-        </div>`;
+    let html = '';
+    // BGM
+    html += '<div class="src-group-label">BGM</div>';
+    html += _srcRow({ kind: 'bgm', selected: state.bgmSelected, num: '',
+        name: (entry.audioFile && entry.audioFile.name) || (entry.title || 'BGM'),
+        len: bgmTransport.duration || 0, speed: 1.00, menu: false, single: false });
+    // テイク
+    html += '<div class="src-group-label">テイク</div>';
+    if (!takes.length) {
+        html += '<div class="take-empty" style="font-size:11px;">まだテイクがありません — カラオケタブで録音</div>';
     } else {
-        detailHtml = '<div class="take-empty" style="font-size:11px;">テイクを選択すると詳細が表示されます</div>';
+        takes.forEach((t, i) => {
+            html += _srcRow({ kind: 'take', id: t.id, selected: state.selectedTakeIds.has(t.id),
+                num: i + 1, name: t.name, len: t.duration || 0, speed: (t.speed || 1), menu: true, single: false });
+        });
     }
+    // MIX
+    html += '<div class="src-group-label">MIX</div>';
+    if (!mixes.length) {
+        html += '<div class="take-empty" style="font-size:11px;">まだ MIX がありません</div>';
+    } else {
+        mixes.forEach((m, i) => {
+            html += _srcRow({ kind: 'mix', id: m.id, selected: state.selectedMixId === m.id,
+                num: i + 1, name: _mixDisplayName(m), len: _mixApproxDur(m), speed: 1.00, menu: true, single: true });
+        });
+    }
+    takesList.innerHTML = html;
 
-    // v2.29: ボタン群の前にラベル + 操作ヒント
-    const hintHtml = '<div style="font-size:11px; color:var(--text-muted); margin-top:6px;">タップで選択 → 上の <b style="color:var(--orange-light);">▶</b> で BGM + TAKE 同期再生 / 詳細パネルの「プレビュー」 はテイクのみ試聴</div>';
-    takesList.innerHTML =
-        '<div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">' +
-            '<span style="font-size:12px; font-weight:600; color:var(--text-muted);">テイク:</span>' +
-            '<div class="takes-buttons" style="flex:1;">' + buttonsHtml + '</div>' +
-        '</div>' +
-        hintHtml +
-        '<div class="takes-detail" style="margin-top:10px;">' + detailHtml + '</div>';
-
-    // v2.36 (Phase 6a-1): ボタンクリック = 選択トグル (仕様書 §6.3)
-    //   selectedTakeIds に add/delete でトグル、 currentTake は active なテイクの最後を維持
-    takesList.querySelectorAll('.take-btn-mini').forEach(btn => {
-        const id = btn.dataset.id;
-        btn.addEventListener('click', async () => {
-            const t = state.currentEntry.takes.find(x => x.id === id);
-            if(!t) return;
-            // トグル
-            if (state.selectedTakeIds.has(id)) {
-                state.selectedTakeIds.delete(id);
-                DEBUG.info('Take deselected: ' + t.name);
-            } else {
-                state.selectedTakeIds.add(id);
-                DEBUG.info('Take selected: ' + t.name);
-            }
-            // currentTake = 最後に選択されているテイク (再生用)
-            if (state.selectedTakeIds.has(id)) {
-                state.currentTake = t;
-            } else if (state.selectedTakeIds.size > 0) {
-                const lastId = [...state.selectedTakeIds].pop();
-                state.currentTake = state.currentEntry.takes.find(x => x.id === lastId) || null;
-            } else {
-                state.currentTake = null;
-            }
-            renderTakes();
-            renderBadges();
-            if (window._refreshMixCreateBtn) window._refreshMixCreateBtn();
-            if (typeof renderMixRange === 'function') renderMixRange();
-            if(state.currentTake && IOS_MODE){
-                try { await preloadIOSTake(state.currentTake); }
-                catch(e){ DEBUG.warn('preload failed: ' + e.message); }
-            }
-            if(state.currentTake && !bgmTransport.paused && state.playMode !== 'bgm') startTakePlayback();
+    // 行クリック (⋮ 以外) = 選択トグル
+    takesList.querySelectorAll('.src-row').forEach(row => {
+        row.addEventListener('click', e => {
+            if (e.target.closest('[data-act=menu]')) return;  // ⋮ は別処理
+            const kind = row.dataset.kind;
+            if (kind === 'bgm') _selToggleBgm();
+            else if (kind === 'take') _selToggleTake(row.dataset.id);
+            else if (kind === 'mix') _selToggleMix(parseInt(row.dataset.mixid, 10));
         });
     });
+    // ⋮ メニュー
+    takesList.querySelectorAll('.src-row [data-act=menu]').forEach(btn => {
+        const row = btn.closest('.src-row');
+        btn.addEventListener('click', e => {
+            e.stopPropagation();
+            if (row.dataset.kind === 'take') {
+                const t = (state.currentEntry.takes || []).find(x => x.id === row.dataset.id);
+                if (t) _openTakeContextMenu(btn, t);
+            } else if (row.dataset.kind === 'mix') {
+                const m = (state.currentEntry.mixes || []).find(x => x.id === parseInt(row.dataset.mixid, 10));
+                if (m) _openMixContextMenu(btn, m);
+            }
+        });
+    });
+}
 
-    // 詳細パネル内アクション — active テイクに対してのみ
-    //   v2.32: ▶ プレビューボタン削除 (ユーザー指示)。 BGM+TAKE 同期再生はメインの ▶ で。
-    const detail = takesList.querySelector('.take-item');
-    if (detail && state.currentTake) {
-        const id = detail.dataset.id;
-        // v2.29 (Phase 5d-2 修正): ⋮ メニューは body 直下の fixed メニューを使い回す
-        const menuBtn = detail.querySelector('[data-act=menu]');
-        if (menuBtn) {
-            menuBtn.addEventListener('click', e => {
-                e.stopPropagation();
-                const t = state.currentEntry.takes.find(x => x.id === id);
-                if (t) _openTakeContextMenu(menuBtn, t);
-            });
-        }
+// ── v2.46: 統合リストの選択ロジック (排他: BGM/テイク群 ⇔ MIX 群、 グレーアウト無し) ──
+function _clearMixSel(){
+    if (state.selectedMixId != null) {
+        state.selectedMixId = null;
+        _stopStoredMixPlayback();
+        _setPlayBtnIcon(false);
     }
+}
+function _afterSourceChange(){
+    _syncPlayMode();
+    _applyMixPlaybackModeUI();
+    renderTakes();
+    renderBadges();
+    if (window._refreshMixCreateBtn) window._refreshMixCreateBtn();
+    if (typeof renderMixRange === 'function') renderMixRange();
+}
+function _syncPlayMode(){
+    let mode;
+    if (!state.bgmSelected) mode = 'take';              // BGM 非選択 → BGM ミュート
+    else if (state.selectedTakeIds.size > 0) mode = 'both';
+    else mode = 'bgm';
+    setPlayMode(mode);
+}
+function _selToggleBgm(){
+    _clearMixSel();
+    state.bgmSelected = !state.bgmSelected;
+    DEBUG.info('BGM ' + (state.bgmSelected ? 'selected' : 'deselected'));
+    _afterSourceChange();
+}
+async function _selToggleTake(id){
+    _clearMixSel();
+    const t = (state.currentEntry.takes || []).find(x => x.id === id);
+    if (!t) return;
+    if (state.selectedTakeIds.has(id)) state.selectedTakeIds.delete(id);
+    else state.selectedTakeIds.add(id);
+    if (state.selectedTakeIds.has(id)) state.currentTake = t;
+    else if (state.selectedTakeIds.size > 0) state.currentTake = (state.currentEntry.takes || []).find(x => x.id === [...state.selectedTakeIds].pop()) || null;
+    else state.currentTake = null;
+    DEBUG.info('Take toggle: ' + t.name);
+    _afterSourceChange();
+    if (state.currentTake && IOS_MODE) { try { await preloadIOSTake(state.currentTake); } catch (e) { DEBUG.warn('preload failed: ' + e.message); } }
+    if (state.currentTake && !bgmTransport.paused && state.playMode !== 'bgm') startTakePlayback();
+}
+function _selToggleMix(mixId){
+    if (state.selectedMixId === mixId) {
+        // 解除 → 既定の BGM 選択に戻す
+        state.selectedMixId = null;
+        _stopStoredMixPlayback();
+        _setPlayBtnIcon(false);
+        state.bgmSelected = true;
+        _afterSourceChange();
+        return;
+    }
+    // MIX を選択 → BGM/テイクを自動解除
+    state.bgmSelected = false;
+    state.selectedTakeIds.clear();
+    state.currentTake = null;
+    stopTakePlayback();
+    if (!bgmTransport.paused) { try { bgmTransport.pause(); } catch (e) {} }
+    _stopStoredMixPlayback();
+    _setPlayBtnIcon(false);
+    state.selectedMixId = mixId;
+    DEBUG.info('MIX selected: ' + mixId);
+    _applyMixPlaybackModeUI();
+    renderTakes();
+    if (window._refreshMixCreateBtn) window._refreshMixCreateBtn();
 }
 
 // v2.29: body 直下に 1 つだけ作って使い回すコンテキストメニュー
@@ -5259,6 +5291,8 @@ async function selectEntry(entry){
     state.selectedTakeIds = new Set();
     // v2.39 (Phase 6b): MIX 選択もリセット + 再生停止 + 再生専用モード解除
     state.selectedMixId = null;
+    // v2.46: 既定は BGM 選択 (統合リスト)
+    state.bgmSelected = true;
     if (typeof _stopStoredMixPlayback === 'function') _stopStoredMixPlayback();
     if (typeof _applyMixPlaybackModeUI === 'function') _applyMixPlaybackModeUI();
     if (window._refreshMixCreateBtn) window._refreshMixCreateBtn();
@@ -6888,16 +6922,11 @@ if(vcPlaybackLevel){
  * 実装: applyBalance() の出力に応じて BGM/VOICE のゲインを 0 にする。
  *       かつ、'bgm' モードでは take の playback をスキップ。
  */
+// v2.46: play-mode pill 廃止。 playMode は統合リストの選択 (_syncPlayMode) から導出。
+//   この関数は内部状態 (BGM/take ミュート + take 再生開始停止) の適用のみ担う。
 function setPlayMode(mode){
     if(mode !== 'both' && mode !== 'bgm' && mode !== 'take') mode = 'both';
     state.playMode = mode;
-    DEBUG.info('Play mode → ' + mode);
-    // Update pill UI
-    const map = { both: 'pmBoth', bgm: 'pmBgm', take: 'pmTake' };
-    Object.entries(map).forEach(([m, id]) => {
-        const el = document.getElementById(id);
-        if(el) el.classList.toggle('active', m === mode);
-    });
     applyBalance();
     // If we're playing, start/stop take accordingly
     if(!bgmTransport.paused){
@@ -6906,11 +6935,6 @@ function setPlayMode(mode){
     }
     refreshTakeNowPlayingUI();
 }
-
-['pmBoth','pmBgm','pmTake'].forEach(id => {
-    const el = document.getElementById(id);
-    if(el) el.addEventListener('click', () => setPlayMode(el.dataset.pmode));
-});
 
 // ============== MIX BALANCE ==============
 /**
@@ -7933,72 +7957,8 @@ function _applyMixPlaybackModeUI() {
     if (sc) sc.classList.toggle('range-disabled', mixSel);
 }
 
-// MIX を選択 (再生はしない。 BGM を止めて MIX を再生ソースにする)
-function _selectMix(m) {
-    if (!bgmTransport.paused) { try { bgmTransport.pause(); } catch (e) {} }
-    stopTakePlayback();
-    _stopStoredMixPlayback();   // 別 MIX が鳴っていたら停止
-    _setPlayBtnIcon(false);
-    state.selectedMixId = m.id;
-    _applyMixPlaybackModeUI();
-    if (window._refreshMixCreateBtn) window._refreshMixCreateBtn();
-    renderMixes();
-}
-
-// MIX 選択解除 (BGM ソースに戻る)
-function _deselectMix() {
-    state.selectedMixId = null;
-    _stopStoredMixPlayback();
-    _setPlayBtnIcon(false);
-    _applyMixPlaybackModeUI();
-    renderMixes();
-    if (window._refreshMixCreateBtn) window._refreshMixCreateBtn();
-}
-
-function renderMixes() {
-    const mixesList = document.getElementById('mixesList');
-    if (!mixesList) return;
-    const mixes = (state.currentEntry && state.currentEntry.mixes) || [];
-    if (!mixes.length) { mixesList.innerHTML = ''; return; }
-    const isPlaying = !!(_storedMixAudio && !_storedMixAudio.paused);
-    const buttonsHtml = mixes.map((m) => {
-        const isSel = state.selectedMixId === m.id;
-        const label = _mixDisplayName(m);
-        const mark = (isSel && isPlaying) ? ' ♪' : '';
-        return '<div class="mix-btn-wrap">' +
-            '<button class="mix-btn-mini ' + (isSel ? 'active' : '') + '" data-mixid="' + m.id + '" data-act="mixsel" title="' + escapeHtml(label) + '">' + escapeHtml(label) + mark + '</button>' +
-            '<button class="mix-menu-btn" data-act="mixmenu" data-mixid="' + m.id + '" title="メニュー">⋮</button>' +
-        '</div>';
-    }).join('');
-    const hint = (state.selectedMixId != null)
-        ? '選択中の MIX を上の <b style="color:var(--orange-light);">▶</b> で再生 / もう一度 MIX をタップで解除 (BGM に戻る)'
-        : 'MIX をタップで選択 → 上の <b style="color:var(--orange-light);">▶</b> で再生';
-    mixesList.innerHTML =
-        '<div style="display:flex; align-items:center; gap:8px;">' +
-            '<span style="font-size:12px; font-weight:600; color:var(--text-muted);">MIX:</span>' +
-            '<div class="mixes-buttons">' + buttonsHtml + '</div>' +
-        '</div>' +
-        '<div style="font-size:11px; color:var(--text-muted); margin-top:6px;">' + hint + '</div>';
-    // タップ = 選択トグルのみ (再生は主トランスポートで)。 再選択で解除
-    mixesList.querySelectorAll('[data-act=mixsel]').forEach(btn => {
-        const id = parseInt(btn.dataset.mixid, 10);
-        btn.addEventListener('click', () => {
-            const m = ((state.currentEntry && state.currentEntry.mixes) || []).find(x => x.id === id);
-            if (!m) return;
-            if (state.selectedMixId === id) _deselectMix();
-            else _selectMix(m);
-        });
-    });
-    // ⋮ メニュー
-    mixesList.querySelectorAll('[data-act=mixmenu]').forEach(btn => {
-        const id = parseInt(btn.dataset.mixid, 10);
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const m = ((state.currentEntry && state.currentEntry.mixes) || []).find(x => x.id === id);
-            if (m) _openMixContextMenu(btn, m);
-        });
-    });
-}
+// v2.46: MIX 一覧は統合リスト (renderTakes) に統合済み。 既存呼び出し互換のため委譲。
+function renderMixes() { renderTakes(); }
 
 // ── 汎用ポップアップメニュー (MIX ⋮ 用、 既存の take 用 _openTakeContextMenu とは独立) ──
 let _popupMenuEl = null;
@@ -8098,8 +8058,15 @@ async function _deleteMix(mix) {
     // v2.41: 楽観的 UI — 先に一覧から消して即描画 (体感速度向上)。 永続化は背後で並列実行。
     const prevMixes = (state.currentEntry.mixes || []).slice();
     state.currentEntry.mixes = prevMixes.filter(x => x.id !== mix.id);
-    if (state.selectedMixId === mix.id) _deselectMix();
-    renderMixes();
+    // 選択中の MIX を消したら BGM 選択に戻す
+    if (state.selectedMixId === mix.id) {
+        state.selectedMixId = null;
+        _stopStoredMixPlayback();
+        _setPlayBtnIcon(false);
+        state.bgmSelected = true;
+        _applyMixPlaybackModeUI();
+    }
+    renderTakes();
     DEBUG.info('MIX delete (optimistic UI): ' + mix.id);
     try {
         // wav 削除 と meta.json 更新を並列 (順次だと Drive 往復が積算して遅い)
@@ -8399,8 +8366,8 @@ async function _startMixPreview() {
             //   v2.40: 選択のみ (自動再生しない)。 再生は主 ▶ ボタンで。
             state.currentEntry.mixes = await _loadMixesForCurrent();
             const newMix = state.currentEntry.mixes.find(x => x.id === mixId);
-            if (newMix) _selectMix(newMix);
-            else renderMixes();
+            renderTakes();
+            if (newMix && state.selectedMixId !== mixId) _selToggleMix(mixId);  // 生成 MIX を選択状態に
         } catch (e) {
             console.error('MIX 生成失敗:', e);
             if (status) status.textContent = 'ERR';

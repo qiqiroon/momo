@@ -1675,7 +1675,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.58</span>
+                <span class="version-tag" id="version-tag">v2.59</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2368,7 +2368,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.58',
+        version: document.getElementById('version-tag')?.textContent || 'v2.59',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2482,7 +2482,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.58';
+const APP_VERSION = 'v2.59';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -3352,11 +3352,12 @@ function setupTakeChain(){
     // v2.55: VOICE LEVELING — DynamicsCompressorNode を voxEqHi と voxGain の間に挟む。
     //   既定は素通り (threshold=0, ratio=1)。 トグル ON で threshold=-18/ratio=3 等を適用。
     voxComp = audioCtx.createDynamicsCompressor();
-    voxComp.threshold.value = 0;  // off (= 圧縮しない閾値)
-    voxComp.ratio.value = 1;      // off (= 1:1 = 素通り)
+    voxComp.threshold.value = 0;  // 初期: off (= 圧縮しない閾値)
+    voxComp.ratio.value = 1;      // 初期: off (= 1:1 = 素通り)
     voxComp.attack.value = 0.005;
     voxComp.release.value = 0.25;
     voxComp.knee.value = 6;
+    DEBUG.info('voxComp 初期化: threshold=' + voxComp.threshold.value + ' ratio=' + voxComp.ratio.value);
     // v2.58: take も同じ — fade gain は素通り、 takeShifter のバッファクリアで対策
     takeFadeGain = audioCtx.createGain(); takeFadeGain.gain.value = 1.0;
     takeShifter.connect(takeFadeGain);
@@ -6479,11 +6480,14 @@ function tickUI(){
     //   これで「コード内のゲインは一定だが信号自体が減衰している」 のか切り分け可能。
     if((_takeSyncCounter % 60) === 0 && !bgmTransport.paused && state.currentTake && !state.isRecording){
         let vg = '?', bg = '?', tRem = '?', eDry = '?', eWet = '?', mst = '?', lvl = '?';
+        let compRed = '?', compThr = '?', compRat = '?';
         try { if(voxGain) vg = voxGain.gain.value.toFixed(3); } catch(e){}
         try { if(bgmGain) bg = bgmGain.gain.value.toFixed(3); } catch(e){}
         try { if(echoDry) eDry = echoDry.gain.value.toFixed(3); } catch(e){}
         try { if(echoWet) eWet = echoWet.gain.value.toFixed(3); } catch(e){}
         try { if(master) mst = master.gain.value.toFixed(3); } catch(e){}
+        // v2.59: voxComp の実圧縮量 (reduction、 dB) と現在の閾値/比率を診断
+        try { if(voxComp) { compRed = voxComp.reduction.toFixed(2); compThr = voxComp.threshold.value.toFixed(1); compRat = voxComp.ratio.value.toFixed(1); } } catch(e){}
         try {
             if(voxLevelAnalyser && voxLevelBuf){
                 voxLevelAnalyser.getFloatTimeDomainData(voxLevelBuf);
@@ -6502,7 +6506,7 @@ function tickUI(){
                 tRem = (buf.duration - localT).toFixed(2);
             }
         } catch(e){}
-        DEBUG.info('[diag] voxGain=' + vg + ' bgmGain=' + bg + ' echoDry=' + eDry + ' echoWet=' + eWet + ' master=' + mst + ' tRem=' + tRem + 's voxLvl(' + lvl + ')');
+        DEBUG.info('[diag] voxGain=' + vg + ' bgmGain=' + bg + ' echoDry=' + eDry + ' echoWet=' + eWet + ' master=' + mst + ' tRem=' + tRem + 's voxLvl(' + lvl + ') comp(red=' + compRed + 'dB thr=' + compThr + ' ratio=' + compRat + ')');
     }
     requestAnimationFrame(tickUI);
 }
@@ -6881,23 +6885,25 @@ voxVolSlider.addEventListener('input', () => {
     voxVolVal.textContent = (v >= 0 ? '+' : '') + v.toFixed(1) + ' dB';
     applyVoxVolume();
 });
-// v2.55: VOICE LEVELING — DynamicsCompressor の閾値/比率を切替えで適用 (素通り or 圧縮)
+// v2.55: VOICE LEVELING — DynamicsCompressor の閾値/比率を切替えで適用
+// v2.59: setValueAtTime ではなく .value 直接代入に変更 (前者は v2.55 ログで反映されていなかった)
 function applyVoxLeveling(){
-    if(!voxComp || !audioCtx) return;
-    const t = audioCtx.currentTime;
+    if(!voxComp) return;
     if(state.voxLeveling){
-        // 圧縮 ON: -18dB を超えたら 3:1 で抑える (録音 AGC の前半大・後半小を均すため)
-        try { voxComp.threshold.setValueAtTime(-18, t); } catch(e){}
-        try { voxComp.ratio.setValueAtTime(3, t); } catch(e){}
-        try { voxComp.knee.setValueAtTime(6, t); } catch(e){}
-        try { voxComp.attack.setValueAtTime(0.005, t); } catch(e){}
-        try { voxComp.release.setValueAtTime(0.25, t); } catch(e){}
+        // 圧縮 ON: -18dB を超えたら 4:1 で抑える + 録音 AGC の前半大・後半小を強めに均す
+        try { voxComp.threshold.value = -18; } catch(e){}
+        try { voxComp.ratio.value = 4; } catch(e){}    // v2.59: 3 → 4 で効果をより明確に
+        try { voxComp.knee.value = 6; } catch(e){}
+        try { voxComp.attack.value = 0.005; } catch(e){}
+        try { voxComp.release.value = 0.25; } catch(e){}
     } else {
-        // OFF: 素通り (圧縮しない閾値 + 1:1)
-        try { voxComp.threshold.setValueAtTime(0, t); } catch(e){}
-        try { voxComp.ratio.setValueAtTime(1, t); } catch(e){}
+        // OFF: 素通り (compress しない閾値 + 1:1)
+        try { voxComp.threshold.value = 0; } catch(e){}
+        try { voxComp.ratio.value = 1; } catch(e){}
     }
-    DEBUG.info('VOICE LEVELING: ' + (state.voxLeveling ? 'ON (threshold=-18dB ratio=3:1)' : 'OFF (素通り)'));
+    DEBUG.info('VOICE LEVELING: ' + (state.voxLeveling ? 'ON (threshold=-18dB ratio=4:1)' : 'OFF (素通り)') +
+        ' .value: threshold=' + (voxComp.threshold ? voxComp.threshold.value : '?') +
+        ' ratio=' + (voxComp.ratio ? voxComp.ratio.value : '?'));
 }
 (function _bindVoxLeveling(){
     const chk = document.getElementById('voxLevelingChk');

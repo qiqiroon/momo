@@ -1675,7 +1675,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.51</span>
+                <span class="version-tag" id="version-tag">v2.52</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2122,7 +2122,12 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
         <div class="karaoke-panel">
             <div class="panel-head">
                 <div class="panel-title">音源 (BGM / テイク / MIX)</div>
-                <div class="panel-tag" id="takesCount">0 / 0</div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <!-- v2.52: ?debug=1 のみ表示。 一定振幅のサイン波 take を生成して -->
+                    <!--   「2秒後に小さくなる」 が信号自体か体感かを切り分け -->
+                    <button class="momo-btn-small" id="genTestSineBtn" style="display:none;" title="30秒/1kHz/-16dB のサイン波 take を生成 (診断用)">🔊 サイン波 take</button>
+                    <div class="panel-tag" id="takesCount">0 / 0</div>
+                </div>
             </div>
             <div class="src-list" id="takesList">
                 <div class="take-empty">楽曲を選択してください</div>
@@ -2354,7 +2359,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.51',
+        version: document.getElementById('version-tag')?.textContent || 'v2.52',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2398,6 +2403,14 @@ window.addEventListener('unhandledrejection', e => {
         return;  // 一般ユーザー向け: イベントバインドもスキップ
     }
     panel.style.display = '';  // 開発者向け: 表示
+    // v2.52: ?debug=1 のときだけ「サイン波 take 生成」 ボタンも表示
+    try {
+        const sineBtn = document.getElementById('genTestSineBtn');
+        if (sineBtn) {
+            sineBtn.style.display = '';
+            sineBtn.addEventListener('click', e => { e.stopPropagation(); _generateTestSineTake(); });
+        }
+    } catch (e) {}
     // start collapsed by default
     panel.classList.add('collapsed');
     if(title) title.textContent = '▲ DEBUG LOG (タップで開く)';
@@ -2460,7 +2473,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.51';
+const APP_VERSION = 'v2.52';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -5269,6 +5282,40 @@ function _showRenameTakeModal(currentName) {
 }
 
 // v2.28: テイク複製 — 既存テイクの全データ (audioBuffer 含む) を新 ID で IDB に追加
+// v2.52: 診断用 — 一定振幅のサイン波 take を生成 (?debug=1 ボタン経由)。
+//   「2秒後にテイクが小さくなる」 が信号自体の問題か体感問題かを切り分けるための物差し。
+//   30秒・1kHz・振幅 0.15 (-16dB) + 冒頭/末尾 50ms フェード。 voxGain 経由で最終 -19dB 程度。
+async function _generateTestSineTake() {
+    if (!state.currentEntry) { alert('曲を選択してください'); return; }
+    const sr = 48000;
+    const dur = 30;
+    const freq = 1000;
+    const amp = 0.15;
+    const fadeSamples = Math.floor(sr * 0.05);   // 50ms
+    const pcm = new Float32Array(sr * dur);
+    const w = 2 * Math.PI * freq / sr;
+    for (let i = 0; i < pcm.length; i++) {
+        let env = 1;
+        if (i < fadeSamples) env = i / fadeSamples;
+        else if (i > pcm.length - fadeSamples) env = (pcm.length - i) / fadeSamples;
+        pcm[i] = amp * env * Math.sin(w * i);
+    }
+    const t = Date.now();
+    const newTake = {
+        id: 'sine_' + t.toString(36) + '_' + Math.random().toString(36).slice(2, 6),
+        name: 'TEST: Sine 1kHz -16dB (30s)',
+        pcm: pcm, sampleRate: sr,
+        pitchSemitones: 0, speed: 1.0,
+        startSongTime: 0, duration: dur,
+        createdAt: new Date().toISOString(),
+    };
+    state.currentEntry.takes = state.currentEntry.takes || [];
+    state.currentEntry.takes.push(newTake);
+    try { await persistTakes(state.currentEntry); } catch(e) { DEBUG.warn('persist sine take failed: ' + e.message); }
+    renderTakes(); renderBadges();
+    DEBUG.ok('TEST sine take 生成: ' + dur + 's @ ' + freq + 'Hz amp=' + amp + ' (-16dB)');
+}
+
 async function _duplicateTake(srcTake) {
     if (!state.currentEntry || !srcTake) return;
     DEBUG.info('Take duplicate: ' + srcTake.name);

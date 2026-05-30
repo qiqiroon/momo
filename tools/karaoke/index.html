@@ -1675,7 +1675,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.54</span>
+                <span class="version-tag" id="version-tag">v2.55</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2192,6 +2192,15 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 <div class="ctrl-label"><span>VOICE VOLUME</span><span class="ctrl-val" id="voxVolVal">0 dB</span></div>
                 <input type="range" id="voxVolSlider" min="-24" max="12" step="0.5" value="0">
             </div>
+            <!-- v2.55: VOICE LEVELING (DynamicsCompressor) — 一定音量に均す。 録音時 AGC で
+                 前半大・後半小になったテイクを聴感上揃える。 OFF (素通り) がデフォルト -->
+            <label class="toggle-row" id="voxLevelingRow" style="margin-top:8px;">
+                <input type="checkbox" id="voxLevelingChk">
+                <span>
+                    <span class="vc-name">VOICE LEVELING</span>
+                    <span class="vc-sub">声を一定音量に均す (Compressor、 既存テイクの抑揚軽減に)</span>
+                </span>
+            </label>
             <!-- v2.45: OFFSET 調整はシークバー直下 (#mix-seek-controls) に移動 -->
             <div class="ctrl">
                 <div class="ctrl-label"><span>ECHO (テイクのみ、 全テイク共通)</span><span class="ctrl-val" id="echoVal">なし</span></div>
@@ -2359,7 +2368,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.54',
+        version: document.getElementById('version-tag')?.textContent || 'v2.55',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2473,7 +2482,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.54';
+const APP_VERSION = 'v2.55';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2567,6 +2576,8 @@ const state = {
     bgmCutPct: 0,
     // v2.49 (Phase 6e): エコープリセット 'none'|'room'|'hall'|'plate'
     echoPreset: 'none',
+    // v2.55: VOICE LEVELING (Compressor) ON/OFF。 デフォルト OFF (素通り)
+    voxLeveling: false,
     isRecording: false,
     lyricsLines: [],
     lastLyricIdx: -1,
@@ -2813,6 +2824,7 @@ let voxEqLo = null, voxEqMd = null, voxEqHi = null;
 let voxGain = null;
 let echoDelay = null, echoFeedback = null, echoWet = null, echoDry = null;
 let voxLevelAnalyser = null, voxLevelBuf = null;
+let voxComp = null;  // v2.55: VOICE LEVELING DynamicsCompressor
 
 let micStream = null, recSrc = null, micAnalyser = null;
 let recProcessor = null;
@@ -3329,10 +3341,19 @@ function setupTakeChain(){
     echoFeedback = audioCtx.createGain(); echoFeedback.gain.value = 0.35;
     echoWet = audioCtx.createGain(); echoWet.gain.value = 0;
     echoDry = audioCtx.createGain(); echoDry.gain.value = 1.0;
+    // v2.55: VOICE LEVELING — DynamicsCompressorNode を voxEqHi と voxGain の間に挟む。
+    //   既定は素通り (threshold=0, ratio=1)。 トグル ON で threshold=-18/ratio=3 等を適用。
+    voxComp = audioCtx.createDynamicsCompressor();
+    voxComp.threshold.value = 0;  // off (= 圧縮しない閾値)
+    voxComp.ratio.value = 1;      // off (= 1:1 = 素通り)
+    voxComp.attack.value = 0.005;
+    voxComp.release.value = 0.25;
+    voxComp.knee.value = 6;
     takeShifter.connect(voxEqLo);
     voxEqLo.connect(voxEqMd);
     voxEqMd.connect(voxEqHi);
-    voxEqHi.connect(voxGain);
+    voxEqHi.connect(voxComp);
+    voxComp.connect(voxGain);
     voxGain.connect(echoDry);
     voxGain.connect(echoDelay);
     echoDelay.connect(echoFeedback);
@@ -3341,6 +3362,7 @@ function setupTakeChain(){
     echoDry.connect(master);
     echoWet.connect(master);
     applyTakePitch(); applyVoxEq(); applyVoxVolume(); applyEcho();
+    if (typeof applyVoxLeveling === 'function') applyVoxLeveling();
 }
 
 /**
@@ -3384,12 +3406,14 @@ async function rebuildAudioContext(){
     try { if(echoWet) echoWet.disconnect(); } catch(e){}
     try { if(echoDry) echoDry.disconnect(); } catch(e){}
     try { if(voxLevelAnalyser) voxLevelAnalyser.disconnect(); } catch(e){}
+    try { if(voxComp) voxComp.disconnect(); } catch(e){}
     try { if(master) master.disconnect(); } catch(e){}
 
     bgmShifter = null; bgmEqLo = null; bgmEqMd = null; bgmEqHi = null; bgmGain = null;
     takeShifter = null; voxEqLo = null; voxEqMd = null; voxEqHi = null; voxGain = null;
     echoDelay = null; echoFeedback = null; echoWet = null; echoDry = null;
     voxLevelAnalyser = null; voxLevelBuf = null;
+    voxComp = null;
     master = null;
 
     // Close the old context
@@ -4329,7 +4353,18 @@ async function startRecording(){
     } else if(v137_strategy === 'B'){
         // Strategy B: trust iOS defaults. Sometimes adding constraints
         // is itself what triggers the voice-chat mode interpretation.
-        v137_constraints = true;
+        //   v2.55: ただし PC (非iOS) では audio:true でも AGC がデフォルト true になり
+        //   「前半大・後半小」 になることが判明。 PC のみ明示的に AGC/NS/EC を OFF にして
+        //   生マイク信号を録る (iOS Auto Ducking 問題は PC では起きない)。
+        if (IS_IOS) {
+            v137_constraints = true;
+        } else {
+            v137_constraints = {
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false   // ★ AGC OFF (根本対策、 v2.55)
+            };
+        }
     } else {
         // default / C / D: keep v1.15 settings (the constraint object
         // doesn't change for C/D; only the pre-context preceding it does)
@@ -6823,6 +6858,32 @@ voxVolSlider.addEventListener('input', () => {
     voxVolVal.textContent = (v >= 0 ? '+' : '') + v.toFixed(1) + ' dB';
     applyVoxVolume();
 });
+// v2.55: VOICE LEVELING — DynamicsCompressor の閾値/比率を切替えで適用 (素通り or 圧縮)
+function applyVoxLeveling(){
+    if(!voxComp || !audioCtx) return;
+    const t = audioCtx.currentTime;
+    if(state.voxLeveling){
+        // 圧縮 ON: -18dB を超えたら 3:1 で抑える (録音 AGC の前半大・後半小を均すため)
+        try { voxComp.threshold.setValueAtTime(-18, t); } catch(e){}
+        try { voxComp.ratio.setValueAtTime(3, t); } catch(e){}
+        try { voxComp.knee.setValueAtTime(6, t); } catch(e){}
+        try { voxComp.attack.setValueAtTime(0.005, t); } catch(e){}
+        try { voxComp.release.setValueAtTime(0.25, t); } catch(e){}
+    } else {
+        // OFF: 素通り (圧縮しない閾値 + 1:1)
+        try { voxComp.threshold.setValueAtTime(0, t); } catch(e){}
+        try { voxComp.ratio.setValueAtTime(1, t); } catch(e){}
+    }
+    DEBUG.info('VOICE LEVELING: ' + (state.voxLeveling ? 'ON (threshold=-18dB ratio=3:1)' : 'OFF (素通り)'));
+}
+(function _bindVoxLeveling(){
+    const chk = document.getElementById('voxLevelingChk');
+    if (!chk) return;
+    chk.addEventListener('change', () => {
+        state.voxLeveling = !!chk.checked;
+        applyVoxLeveling();
+    });
+})();
 let voxOfsTimer = null;
 voxOfsSlider.addEventListener('input', () => {
     voxOfsVal.textContent = parseFloat(voxOfsSlider.value).toFixed(2);

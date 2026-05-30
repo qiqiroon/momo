@@ -1675,7 +1675,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.55</span>
+                <span class="version-tag" id="version-tag">v2.56</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2368,7 +2368,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.55',
+        version: document.getElementById('version-tag')?.textContent || 'v2.56',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2482,7 +2482,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.55';
+const APP_VERSION = 'v2.56';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2825,6 +2825,8 @@ let voxGain = null;
 let echoDelay = null, echoFeedback = null, echoWet = null, echoDry = null;
 let voxLevelAnalyser = null, voxLevelBuf = null;
 let voxComp = null;  // v2.55: VOICE LEVELING DynamicsCompressor
+// v2.56: worklet 循環バッファに残る前回再生末尾 (~85ms) を抑止する 100ms fade-in 用 gain
+let bgmFadeGain = null, takeFadeGain = null;
 
 let micStream = null, recSrc = null, micAnalyser = null;
 let recProcessor = null;
@@ -2877,7 +2879,10 @@ function setupBgmGraph(){
     bgmEqMd = audioCtx.createBiquadFilter(); bgmEqMd.type='peaking';    bgmEqMd.frequency.value=1200; bgmEqMd.Q.value=0.8; bgmEqMd.gain.value=0;
     bgmEqHi = audioCtx.createBiquadFilter(); bgmEqHi.type='highshelf';  bgmEqHi.frequency.value=4000; bgmEqHi.gain.value=0;
     bgmGain = audioCtx.createGain(); bgmGain.gain.value = 1.0;
-    bgmShifter.connect(bgmEqLo);
+    // v2.56: 残響対策 — worklet 直後に挟む fade-in 用 gain。 play 時に 0→1 を 100ms でランプ
+    bgmFadeGain = audioCtx.createGain(); bgmFadeGain.gain.value = 0;  // 初期 0 (まだ再生していない)
+    bgmShifter.connect(bgmFadeGain);
+    bgmFadeGain.connect(bgmEqLo);
     bgmEqLo.connect(bgmEqMd);
     bgmEqMd.connect(bgmEqHi);
     bgmEqHi.connect(bgmGain);
@@ -3349,7 +3354,10 @@ function setupTakeChain(){
     voxComp.attack.value = 0.005;
     voxComp.release.value = 0.25;
     voxComp.knee.value = 6;
-    takeShifter.connect(voxEqLo);
+    // v2.56: take 残響対策 — worklet 直後に挟む fade-in 用 gain (BGM と同じ仕組み)
+    takeFadeGain = audioCtx.createGain(); takeFadeGain.gain.value = 0;  // 初期 0
+    takeShifter.connect(takeFadeGain);
+    takeFadeGain.connect(voxEqLo);
     voxEqLo.connect(voxEqMd);
     voxEqMd.connect(voxEqHi);
     voxEqHi.connect(voxComp);
@@ -3407,6 +3415,8 @@ async function rebuildAudioContext(){
     try { if(echoDry) echoDry.disconnect(); } catch(e){}
     try { if(voxLevelAnalyser) voxLevelAnalyser.disconnect(); } catch(e){}
     try { if(voxComp) voxComp.disconnect(); } catch(e){}
+    try { if(bgmFadeGain) bgmFadeGain.disconnect(); } catch(e){}
+    try { if(takeFadeGain) takeFadeGain.disconnect(); } catch(e){}
     try { if(master) master.disconnect(); } catch(e){}
 
     bgmShifter = null; bgmEqLo = null; bgmEqMd = null; bgmEqHi = null; bgmGain = null;
@@ -3414,6 +3424,7 @@ async function rebuildAudioContext(){
     echoDelay = null; echoFeedback = null; echoWet = null; echoDry = null;
     voxLevelAnalyser = null; voxLevelBuf = null;
     voxComp = null;
+    bgmFadeGain = null; takeFadeGain = null;
     master = null;
 
     // Close the old context
@@ -3881,6 +3892,11 @@ function stopTakePlayback(){
         });
         takeBufferSources = [];
     }
+    // v2.56: take fadeGain を即 0 にして残響を出さない
+    if(takeFadeGain && audioCtx){
+        const now = audioCtx.currentTime;
+        try { takeFadeGain.gain.cancelScheduledValues(now); takeFadeGain.gain.setValueAtTime(0, now); } catch(e){}
+    }
 }
 
 function startTakePlayback(){
@@ -3899,6 +3915,15 @@ function startTakePlayback(){
     // 複数テイク対応のため、 worklet は pitch=1 (bypass)。 per-source detune/playbackRate で各々制御。
     //   ※ live pitchSlider 効果は take には乗らなくなる (BGM には bgmShifter で引き続き乗る)。
     try { takeShifter.parameters.get('pitch').setValueAtTime(1.0, audioCtx.currentTime); } catch(e){}
+    // v2.56: take worklet 残響対策 — 100ms fade-in
+    if(takeFadeGain){
+        const now = audioCtx.currentTime;
+        try {
+            takeFadeGain.gain.cancelScheduledValues(now);
+            takeFadeGain.gain.setValueAtTime(0, now);
+            takeFadeGain.gain.linearRampToValueAtTime(1, now + 0.1);
+        } catch(e){}
+    }
     for (const id of ids) {
         const take = (state.currentEntry && state.currentEntry.takes || []).find(t => t.id === id);
         if(!take) continue;
@@ -6378,6 +6403,15 @@ async function ensureAudioGraph(){
 bgmTransport.addEventListener('play', () => {
     btnPlay.classList.add('playing');
     btnPlay.textContent = '⏸';
+    // v2.56: BGM worklet 残響対策 — 100ms fade-in (古いバッファ内容を確実にゼロ化)
+    if(bgmFadeGain && audioCtx){
+        const now = audioCtx.currentTime;
+        try {
+            bgmFadeGain.gain.cancelScheduledValues(now);
+            bgmFadeGain.gain.setValueAtTime(0, now);
+            bgmFadeGain.gain.linearRampToValueAtTime(1, now + 0.1);
+        } catch(e){}
+    }
     // CRITICAL: Do NOT start take playback during recording. The play event
     // here fires from inside startRecording (Plan B starts BGM after the
     // countdown) and we must not let any prior take leak into the mic.
@@ -6387,6 +6421,11 @@ bgmTransport.addEventListener('play', () => {
 bgmTransport.addEventListener('pause', () => {
     btnPlay.classList.remove('playing');
     btnPlay.textContent = '▶';
+    // v2.56: BGM fadeGain を即 0 にして次回再生まで信号を止める
+    if(bgmFadeGain && audioCtx){
+        const now = audioCtx.currentTime;
+        try { bgmFadeGain.gain.cancelScheduledValues(now); bgmFadeGain.gain.setValueAtTime(0, now); } catch(e){}
+    }
     stopTakePlayback();
 });
 bgmTransport.addEventListener('seeking', () => {

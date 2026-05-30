@@ -1675,7 +1675,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.52</span>
+                <span class="version-tag" id="version-tag">v2.53</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2359,7 +2359,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.52',
+        version: document.getElementById('version-tag')?.textContent || 'v2.53',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2473,7 +2473,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.52';
+const APP_VERSION = 'v2.53';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2806,7 +2806,8 @@ let bgmEqLo = null, bgmEqMd = null, bgmEqHi = null;
 let bgmGain = null;
 let master = null;
 
-let takeBufferSource = null;
+// v2.53: 複数テイク同時再生対応。 単一の takeBufferSource → 配列に変更
+let takeBufferSources = [];
 let takeShifter = null;
 let voxEqLo = null, voxEqMd = null, voxEqHi = null;
 let voxGain = null;
@@ -3558,10 +3559,16 @@ function applyTakePitch(){
     takeShifter.parameters.get('pitch').setValueAtTime(semitoneRatio / speedPitchRatio, audioCtx.currentTime);
 }
 function applyTakeSpeed(){
-    if(!takeBufferSource || !state.currentTake) return;
+    // v2.53: 配列内の全 source に対し、 各テイクの speed に応じた playbackRate を適用
+    if(!takeBufferSources || !takeBufferSources.length || !audioCtx) return;
     const curSp = parseFloat(speedSlider.value);
-    const takeSp = state.currentTake.speed || 1.0;
-    takeBufferSource.playbackRate.setValueAtTime(curSp / takeSp, audioCtx.currentTime);
+    const takes = (state.currentEntry && state.currentEntry.takes) || [];
+    takeBufferSources.forEach(src => {
+        const take = takes.find(t => t.id === src._takeId);
+        if(!take) return;
+        const takeSp = take.speed || 1.0;
+        try { src.playbackRate.setValueAtTime(curSp / takeSp, audioCtx.currentTime); } catch(e){}
+    });
     applyTakePitch();
 }
 function applyVoxEq(){
@@ -3842,10 +3849,13 @@ function stopTakePlayback(){
         }
         return;
     }
-    if(takeBufferSource){
-        try { takeBufferSource.stop(); } catch(e){}
-        try { takeBufferSource.disconnect(); } catch(e){}
-        takeBufferSource = null;
+    // v2.53: 配列内の全 source を停止 + 切断
+    if(takeBufferSources && takeBufferSources.length){
+        takeBufferSources.forEach(src => {
+            try { src.stop(); } catch(e){}
+            try { src.disconnect(); } catch(e){}
+        });
+        takeBufferSources = [];
     }
 }
 
@@ -3854,58 +3864,52 @@ function startTakePlayback(){
         startTakePlaybackIOS();
         return;
     }
-    if(!state.currentTake || !audioCtx || !takeShifter) return;
+    if(!audioCtx || !takeShifter) return;
     stopTakePlayback();
-    let buf = state.currentTake._decodedBuffer;
-    if(!buf){
-        const pcm = state.currentTake.pcm;
-        const sr  = state.currentTake.sampleRate;
-        buf = audioCtx.createBuffer(1, pcm.length, sr);
-        buf.copyToChannel(pcm, 0);
-        state.currentTake._decodedBuffer = buf;
-    }
+    // v2.53: 選択された全テイクを同時再生 (BGM 同期)
+    const ids = Array.from(state.selectedTakeIds || []);
+    if(!ids.length) return;
     const songT = audioEl.currentTime;
-    const takeStartSong = state.currentTake.startSongTime || 0;
-    const takeSp = state.currentTake.speed || 1.0;
     const curSp  = parseFloat(speedSlider.value);
     const userOfs = parseFloat(voxOfsSlider.value);
-    const takeLocalT = (songT - takeStartSong - userOfs) / takeSp;
-
-    // Already past the end of the take: nothing to play
-    if(takeLocalT >= buf.duration){
-        DEBUG.info('startTakePlayback: BGM is past end of take, skipping');
-        return;
-    }
-
-    takeBufferSource = audioCtx.createBufferSource();
-    takeBufferSource.buffer = buf;
-    takeBufferSource.connect(takeShifter);
-    applyTakePitch();
-    takeBufferSource.playbackRate.value = curSp / takeSp;
-
-    if(takeLocalT < 0){
-        // BGM hasn't reached the take's start position yet — schedule the take to begin
-        // when BGM time reaches takeStartSong + userOfs (in real-time seconds, accounting
-        // for current playback rate).
-        const realSecondsUntilStart = (-takeLocalT * takeSp) / curSp;
-        const startCtxTime = audioCtx.currentTime + realSecondsUntilStart;
-        DEBUG.info('startTakePlayback: scheduling delayed start in ' + realSecondsUntilStart.toFixed(2) + 's (BGM @' + songT.toFixed(2) + ', take starts @' + takeStartSong.toFixed(2) + ')');
-        try {
-            takeBufferSource.start(startCtxTime, 0);
-        } catch(e){
-            DEBUG.err('takeBufferSource.start (delayed) failed: ' + e.message);
-            takeBufferSource = null;
-            return;
+    // 複数テイク対応のため、 worklet は pitch=1 (bypass)。 per-source detune/playbackRate で各々制御。
+    //   ※ live pitchSlider 効果は take には乗らなくなる (BGM には bgmShifter で引き続き乗る)。
+    try { takeShifter.parameters.get('pitch').setValueAtTime(1.0, audioCtx.currentTime); } catch(e){}
+    for (const id of ids) {
+        const take = (state.currentEntry && state.currentEntry.takes || []).find(t => t.id === id);
+        if(!take) continue;
+        let buf = take._decodedBuffer;
+        if(!buf){
+            const pcm = take.pcm;
+            const sr  = take.sampleRate;
+            buf = audioCtx.createBuffer(1, pcm.length, sr);
+            buf.copyToChannel(pcm, 0);
+            take._decodedBuffer = buf;
         }
-    } else {
-        // Mid-take: jump in
-        DEBUG.info('startTakePlayback: starting take @ local ' + takeLocalT.toFixed(2) + 's');
-        try {
-            takeBufferSource.start(0, takeLocalT);
-        } catch(e){
-            DEBUG.err('takeBufferSource.start (immediate) failed: ' + e.message);
-            takeBufferSource = null;
-            return;
+        const takeStartSong = take.startSongTime || 0;
+        const takeSp = take.speed || 1.0;
+        const takeLocalT = (songT - takeStartSong - userOfs) / takeSp;
+        if(takeLocalT >= buf.duration){
+            DEBUG.info('startTakePlayback: "' + take.name + '" past end, skip');
+            continue;
+        }
+        const src = audioCtx.createBufferSource();
+        src.buffer = buf;
+        src.connect(takeShifter);
+        src.playbackRate.value = curSp / takeSp;
+        // per-take pitch (cents)。 ※ playbackRate と合わさり pitch+speed 結合 (worklet なしのため)
+        try { src.detune.value = (take.pitchSemitones || 0) * 100; } catch(e){}
+        src._takeId = id;  // 後で逆引き用
+        if(takeLocalT < 0){
+            const realSecondsUntilStart = (-takeLocalT * takeSp) / curSp;
+            const startCtxTime = audioCtx.currentTime + realSecondsUntilStart;
+            try { src.start(startCtxTime, 0); takeBufferSources.push(src); }
+            catch(e){ DEBUG.err('startTake "' + take.name + '" (delayed) failed: ' + e.message); }
+            DEBUG.info('startTakePlayback: "' + take.name + '" scheduled +' + realSecondsUntilStart.toFixed(2) + 's');
+        } else {
+            try { src.start(0, takeLocalT); takeBufferSources.push(src); }
+            catch(e){ DEBUG.err('startTake "' + take.name + '" (immediate) failed: ' + e.message); }
+            DEBUG.info('startTakePlayback: "' + take.name + '" @ local ' + takeLocalT.toFixed(2) + 's');
         }
     }
 }
@@ -6435,7 +6439,7 @@ function tickUI(){
         } catch(e){}
         try {
             const buf = state.currentTake._decodedBuffer;
-            if(buf && takeBufferSource){
+            if(buf && takeBufferSources.length){
                 const localT = (bgmTransport.currentTime - (state.currentTake.startSongTime||0) - parseFloat(voxOfsSlider.value||0)) / (state.currentTake.speed||1);
                 tRem = (buf.duration - localT).toFixed(2);
             }
@@ -6528,12 +6532,12 @@ function syncTakeToBgm(){
             stopTakePlayback();
             return;
         }
-        // If we don't have a source running but should, start it
-        if(!takeBufferSource && localTime >= 0){
+        // v2.53: 配列ベース判定。 source が無いが再生位置がテイク範囲内 → start
+        if(takeBufferSources.length === 0 && localTime >= 0){
             startTakePlayback();
         }
-        // If we have one but BGM is now before takeStartSong (rare; covered by seek), stop
-        if(takeBufferSource && localTime < -0.05){
+        // source 有りで BGM が take 開始前へ巻き戻った場合は stop
+        if(takeBufferSources.length > 0 && localTime < -0.05){
             stopTakePlayback();
         }
     }

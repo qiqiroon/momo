@@ -1675,7 +1675,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.49</span>
+                <span class="version-tag" id="version-tag">v2.50</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2354,7 +2354,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.49',
+        version: document.getElementById('version-tag')?.textContent || 'v2.50',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2460,7 +2460,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.49';
+const APP_VERSION = 'v2.50';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -4943,19 +4943,20 @@ function renderTakes(){
     takesCount.textContent = state.selectedTakeIds.size + ' / ' + takes.length;
 
     let html = '';
-    // BGM (v2.49: 行内に「なし/0%/50%/100% カット」 プルダウンを追加。 ☐☑ ではなくプルダウンが選択を表す)
+    // BGM (v2.50: VOICE CUT のレベル選択プルダウン。 BGM なしは行クリックで ON/OFF。
+    //   プルダウンは bgmCutPct を変えるだけ (常に表示)。 行 .selected が BGM ON 表示。)
     html += '<div class="src-group-label">BGM</div>';
     {
         const bgmSel = state.bgmSelected;
-        const cur = bgmSel ? ('cut' + (state.bgmCutPct || 0)) : 'none';
+        const cur = 'cut' + (state.bgmCutPct || 0);
         const bgmName = (entry.audioFile && entry.audioFile.name) || (entry.title || 'BGM');
         const bgmLen = bgmTransport.duration || 0;
         const opt = (v, label) => '<option value="' + v + '"' + (cur === v ? ' selected' : '') + '>' + label + '</option>';
         html += '<div class="src-row' + (bgmSel ? ' selected' : '') + '" data-kind="bgm">' +
-            '<select class="bgm-mode-select" id="bgmModeSelect">' +
-                opt('none', 'BGM なし') + opt('cut0', '0% カット (元のまま)') + opt('cut50', '50% カット') + opt('cut100', '100% カット') +
+            '<span class="src-check">' + (bgmSel ? '☑' : '☐') + '</span>' +
+            '<select class="bgm-mode-select" id="bgmModeSelect" title="BGM のボイスカット率 (行クリックで BGM ON/OFF)">' +
+                opt('cut0', 'VOICE CUT 0%') + opt('cut50', 'VOICE CUT 50%') + opt('cut100', 'VOICE CUT 100%') +
             '</select>' +
-            '<span class="src-num"></span>' +
             '<span class="src-name" title="' + escapeHtml(bgmName) + '">' + escapeHtml(bgmName) + '</span>' +
             '<span class="src-len">' + _fmtLen(bgmLen) + '</span>' +
             '<span class="src-speed">1.00x</span>' +
@@ -4995,13 +4996,15 @@ function renderTakes(){
             else if (kind === 'mix') _selToggleMix(parseInt(row.dataset.mixid, 10));
         });
     });
-    // v2.49: BGM プルダウン change = モード設定 (排他: 何か選ぶと MIX 解除)
+    // v2.50: BGM プルダウン change = VOICE CUT 率の変更 (排他: 何か選ぶと MIX 解除)。
+    //   行クリック (プルダウン外) で BGM ON/OFF (既存の _selToggleBgm)。
     const bgmSel = takesList.querySelector('#bgmModeSelect');
     if (bgmSel) {
         bgmSel.addEventListener('click', e => e.stopPropagation());
         bgmSel.addEventListener('change', () => {
             const v = bgmSel.value;
-            _setBgmMode(v);
+            const pct = (v === 'cut50') ? 50 : (v === 'cut100') ? 100 : 0;
+            _setBgmCut(pct);
         });
     }
     // ⋮ メニュー
@@ -5051,16 +5054,32 @@ function _selToggleBgm(){
     DEBUG.info('BGM ' + (state.bgmSelected ? 'selected pct=' + state.bgmCutPct : 'deselected'));
     _afterSourceChange();
 }
-// v2.49: プルダウン値からモード設定 ('none'|'cut0'|'cut50'|'cut100')
-function _setBgmMode(modeStr){
+// v2.50: BGM ボイスカット率のみを変更 (プルダウン)。 BGM ON/OFF は行クリックで行う。
+//   ライブモニタにも反映するため vcPlayback/vcRecord と level を連動させて applyBgmVocalCut を呼ぶ。
+function _applyLiveVocalCut(pct){
+    const on = pct > 0;
+    try {
+        if (typeof vcPlayback !== 'undefined' && vcPlayback) vcPlayback.checked = on;
+        if (typeof vcRecord !== 'undefined' && vcRecord) vcRecord.checked = on;
+        const vcRL = document.getElementById('vcRecordLevel');
+        const vcPL = document.getElementById('vcPlaybackLevel');
+        if (vcRL) vcRL.value = String(pct);
+        if (vcPL) vcPL.value = String(pct);
+        const vcRLV = document.getElementById('vcRecordLevelVal');
+        const vcPLV = document.getElementById('vcPlaybackLevelVal');
+        if (vcRLV) vcRLV.textContent = pct + '%';
+        if (vcPLV) vcPLV.textContent = pct + '%';
+        if (typeof applyBgmVocalCut === 'function') applyBgmVocalCut();
+        if (typeof updateVocalCutUI === 'function') updateVocalCutUI();
+    } catch (e) { DEBUG.warn('applyLiveVocalCut failed: ' + (e.message || e)); }
+}
+function _setBgmCut(pct){
     _clearMixSel();
-    if (modeStr === 'none') { state.bgmSelected = false; }
-    else {
-        const pct = (modeStr === 'cut50') ? 50 : (modeStr === 'cut100') ? 100 : 0;
-        state.bgmSelected = true;
-        state.bgmCutPct = pct;
-    }
-    DEBUG.info('BGM mode → ' + modeStr + ' (sel=' + state.bgmSelected + ' pct=' + state.bgmCutPct + ')');
+    state.bgmCutPct = pct;
+    // pct を変えただけでは BGM の ON/OFF は変えない (BGM 行クリックで切替)。 ただし
+    //   ライブ vocalcut は常にプルダウンに連動 (BGM OFF 中でもプルダウンは将来再生時の値)
+    _applyLiveVocalCut(pct);
+    DEBUG.info('BGM cut → ' + pct + '% (bgmSelected=' + state.bgmSelected + ')');
     _afterSourceChange();
 }
 async function _selToggleTake(id){
@@ -6335,6 +6354,21 @@ function tickUI(){
         && !state.isRecording
         && sinceTeardown > 1500){
         syncTakeToBgm();
+    }
+    // v2.50: 「BGM+テイク 同時再生でテイクが数秒後に小さくなる」 診断用ログ (約 1 秒毎)。
+    //   voxGain と bgmGain の現在値、 take buffer 残量を記録して原因切り分け。
+    if((_takeSyncCounter % 60) === 0 && !bgmTransport.paused && state.currentTake && !state.isRecording){
+        let vg = '?', bg = '?', tRem = '?';
+        try { if(voxGain) vg = voxGain.gain.value.toFixed(3); } catch(e){}
+        try { if(bgmGain) bg = bgmGain.gain.value.toFixed(3); } catch(e){}
+        try {
+            const buf = state.currentTake._decodedBuffer;
+            if(buf && takeBufferSource){
+                const localT = (bgmTransport.currentTime - (state.currentTake.startSongTime||0) - parseFloat(voxOfsSlider.value||0)) / (state.currentTake.speed||1);
+                tRem = (buf.duration - localT).toFixed(2);
+            }
+        } catch(e){}
+        DEBUG.info('[diag] voxGain=' + vg + ' bgmGain=' + bg + ' takeRemaining=' + tRem + 's');
     }
     requestAnimationFrame(tickUI);
 }

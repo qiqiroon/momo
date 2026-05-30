@@ -1675,7 +1675,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.57</span>
+                <span class="version-tag" id="version-tag">v2.58</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2368,7 +2368,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.57',
+        version: document.getElementById('version-tag')?.textContent || 'v2.58',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2482,7 +2482,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.57';
+const APP_VERSION = 'v2.58';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2505,8 +2505,8 @@ DEBUG.info('AudioContext:', !!(window.AudioContext || window.webkitAudioContext)
 DEBUG.info('IS_IOS:', IS_IOS);
 
 // ============== AUDIO WORKLET URLS ==============
-const BGM_WORKLET_URL  = 'data:application/javascript;base64,Ly8gQkdNIChiYXNlIHRyYWNrKSBwcm9jZXNzb3I6IHBpdGNoIHNoaWZ0ICsgb3B0aW9uYWwgdm9jYWwgY3V0IChNaWQvU2lkZSkKY2xhc3MgQmdtUHJvY2Vzc29yIGV4dGVuZHMgQXVkaW9Xb3JrbGV0UHJvY2Vzc29yIHsKICBzdGF0aWMgZ2V0IHBhcmFtZXRlckRlc2NyaXB0b3JzKCkgewogICAgcmV0dXJuIFsKICAgICAgeyBuYW1lOiAncGl0Y2gnLCAgICBkZWZhdWx0VmFsdWU6IDEuMCwgbWluVmFsdWU6IDAuMjUsIG1heFZhbHVlOiA0LjAsIGF1dG9tYXRpb25SYXRlOiAnay1yYXRlJyB9LAogICAgICB7IG5hbWU6ICd2b2NhbEN1dCcsIGRlZmF1bHRWYWx1ZTogMC4wLCBtaW5WYWx1ZTogMC4wLCAgbWF4VmFsdWU6IDEuMCwgYXV0b21hdGlvblJhdGU6ICdrLXJhdGUnIH0KICAgIF07CiAgfQogIGNvbnN0cnVjdG9yKCkgewogICAgc3VwZXIoKTsKICAgIHRoaXMuX2J1ZlNpemUgPSA2NTUzNjsKICAgIHRoaXMuX2J1ZkwgPSBuZXcgRmxvYXQzMkFycmF5KHRoaXMuX2J1ZlNpemUpOwogICAgdGhpcy5fYnVmUiA9IG5ldyBGbG9hdDMyQXJyYXkodGhpcy5fYnVmU2l6ZSk7CiAgICB0aGlzLl93cml0ZVBvcyA9IDA7CiAgICB0aGlzLl9waGFzZTAgPSAwLjA7CiAgICB0aGlzLl9waGFzZTEgPSAwLjU7CiAgICB0aGlzLl93aW5MZW4gPSA4MTkyOwogIH0KICBfcmVhZEJ1ZihidWYsIHBvcykgewogICAgY29uc3QgaSA9IE1hdGguZmxvb3IocG9zKTsKICAgIGNvbnN0IGYgPSBwb3MgLSBpOwogICAgY29uc3QgcyA9IHRoaXMuX2J1ZlNpemU7CiAgICByZXR1cm4gYnVmW2kgJiAocyAtIDEpXSAqICgxIC0gZikgKyBidWZbKGkgKyAxKSAmIChzIC0gMSldICogZjsKICB9CiAgcHJvY2VzcyhpbnB1dHMsIG91dHB1dHMsIHBhcmFtZXRlcnMpIHsKICAgIGNvbnN0IGlucHV0ICA9IGlucHV0c1swXTsKICAgIGNvbnN0IG91dHB1dCA9IG91dHB1dHNbMF07CiAgICBpZiAoIWlucHV0IHx8ICFpbnB1dFswXSkgcmV0dXJuIHRydWU7CiAgICBjb25zdCBpbkwgID0gaW5wdXRbMF07CiAgICBjb25zdCBpblIgID0gaW5wdXRbMV0gfHwgaW5wdXRbMF07CiAgICBjb25zdCBvdXRMID0gb3V0cHV0WzBdOwogICAgY29uc3Qgb3V0UiA9IG91dHB1dFsxXSB8fCBvdXRwdXRbMF07CiAgICBjb25zdCBwaXRjaCAgICA9IHBhcmFtZXRlcnNbJ3BpdGNoJ11bMF07CiAgICBjb25zdCB2b2NhbEN1dCA9IHBhcmFtZXRlcnNbJ3ZvY2FsQ3V0J11bMF07CiAgICBjb25zdCB3aW5MZW4gICA9IHRoaXMuX3dpbkxlbjsKICAgIGNvbnN0IHBoYXNlSW5jID0gKDEuMCAtIHBpdGNoKSAvIHdpbkxlbjsKICAgIGZvciAobGV0IGkgPSAwOyBpIDwgaW5MLmxlbmd0aDsgaSsrKSB7CiAgICAgIHRoaXMuX2J1ZkxbdGhpcy5fd3JpdGVQb3MgJiAodGhpcy5fYnVmU2l6ZSAtIDEpXSA9IGluTFtpXTsKICAgICAgdGhpcy5fYnVmUlt0aGlzLl93cml0ZVBvcyAmICh0aGlzLl9idWZTaXplIC0gMSldID0gaW5SW2ldOwogICAgICB0aGlzLl93cml0ZVBvcysrOwogICAgICB0aGlzLl9waGFzZTAgPSAoKHRoaXMuX3BoYXNlMCArIHBoYXNlSW5jKSAlIDEuMCArIDEuMCkgJSAxLjA7CiAgICAgIHRoaXMuX3BoYXNlMSA9ICgodGhpcy5fcGhhc2UxICsgcGhhc2VJbmMpICUgMS4wICsgMS4wKSAlIDEuMDsKICAgICAgY29uc3QgdzAgPSBNYXRoLnNpbihNYXRoLlBJICogdGhpcy5fcGhhc2UwKTsgY29uc3QgZzAgPSB3MCAqIHcwOwogICAgICBjb25zdCB3MSA9IE1hdGguc2luKE1hdGguUEkgKiB0aGlzLl9waGFzZTEpOyBjb25zdCBnMSA9IHcxICogdzE7CiAgICAgIGNvbnN0IHJwMCA9IHRoaXMuX3dyaXRlUG9zIC0gdGhpcy5fcGhhc2UwICogd2luTGVuOwogICAgICBjb25zdCBycDEgPSB0aGlzLl93cml0ZVBvcyAtIHRoaXMuX3BoYXNlMSAqIHdpbkxlbjsKICAgICAgY29uc3Qgc0wgPSB0aGlzLl9yZWFkQnVmKHRoaXMuX2J1ZkwsIHJwMCkgKiBnMCArIHRoaXMuX3JlYWRCdWYodGhpcy5fYnVmTCwgcnAxKSAqIGcxOwogICAgICBjb25zdCBzUiA9IHRoaXMuX3JlYWRCdWYodGhpcy5fYnVmUiwgcnAwKSAqIGcwICsgdGhpcy5fcmVhZEJ1Zih0aGlzLl9idWZSLCBycDEpICogZzE7CiAgICAgIC8vIENvbnRpbnVvdXMgTWlkL1NpZGUgdm9jYWwgY3V0OiAwPXN0ZXJlbywgMT1mdWxsIHNpZGUgKHZvY2FsIHJlbW92ZWQpCiAgICAgIC8vIG91dCA9IHN0ZXJlbyooMS1jdXQpICsgc2lkZSpjdXQKICAgICAgY29uc3Qgc2lkZSA9IChzTCAtIHNSKSAqIDAuNTsKICAgICAgY29uc3QgaW52ICA9IDEuMCAtIHZvY2FsQ3V0OwogICAgICBvdXRMW2ldID0gc0wgKiBpbnYgKyBzaWRlICogdm9jYWxDdXQ7CiAgICAgIG91dFJbaV0gPSBzUiAqIGludiArIHNpZGUgKiB2b2NhbEN1dDsKICAgIH0KICAgIHJldHVybiB0cnVlOwogIH0KfQpyZWdpc3RlclByb2Nlc3NvcignYmdtLXByb2Nlc3NvcicsIEJnbVByb2Nlc3Nvcik7Cg==';
-const TAKE_WORKLET_URL = 'data:application/javascript;base64,Ly8gVGFrZSAocmVjb3JkZWQgdm9pY2UpIHByb2Nlc3NvcjogcGl0Y2ggc2hpZnQgb25seSAobW9ubyBpbiwgc3RlcmVvIG91dCkKY2xhc3MgVGFrZVByb2Nlc3NvciBleHRlbmRzIEF1ZGlvV29ya2xldFByb2Nlc3NvciB7CiAgc3RhdGljIGdldCBwYXJhbWV0ZXJEZXNjcmlwdG9ycygpIHsKICAgIHJldHVybiBbCiAgICAgIHsgbmFtZTogJ3BpdGNoJywgZGVmYXVsdFZhbHVlOiAxLjAsIG1pblZhbHVlOiAwLjI1LCBtYXhWYWx1ZTogNC4wLCBhdXRvbWF0aW9uUmF0ZTogJ2stcmF0ZScgfQogICAgXTsKICB9CiAgY29uc3RydWN0b3IoKSB7CiAgICBzdXBlcigpOwogICAgdGhpcy5fYnVmU2l6ZSA9IDY1NTM2OwogICAgdGhpcy5fYnVmID0gbmV3IEZsb2F0MzJBcnJheSh0aGlzLl9idWZTaXplKTsKICAgIHRoaXMuX3dyaXRlUG9zID0gMDsKICAgIHRoaXMuX3BoYXNlMCA9IDAuMDsKICAgIHRoaXMuX3BoYXNlMSA9IDAuNTsKICAgIHRoaXMuX3dpbkxlbiA9IDgxOTI7CiAgfQogIF9yZWFkQnVmKHBvcykgewogICAgY29uc3QgaSA9IE1hdGguZmxvb3IocG9zKTsKICAgIGNvbnN0IGYgPSBwb3MgLSBpOwogICAgY29uc3QgcyA9IHRoaXMuX2J1ZlNpemU7CiAgICByZXR1cm4gdGhpcy5fYnVmW2kgJiAocyAtIDEpXSAqICgxIC0gZikgKyB0aGlzLl9idWZbKGkgKyAxKSAmIChzIC0gMSldICogZjsKICB9CiAgcHJvY2VzcyhpbnB1dHMsIG91dHB1dHMsIHBhcmFtZXRlcnMpIHsKICAgIGNvbnN0IGlucHV0ICA9IGlucHV0c1swXTsKICAgIGNvbnN0IG91dHB1dCA9IG91dHB1dHNbMF07CiAgICBpZiAoIWlucHV0IHx8ICFpbnB1dFswXSkgcmV0dXJuIHRydWU7CiAgICBjb25zdCBpbkNoICA9IGlucHV0WzBdOwogICAgY29uc3Qgb3V0TCAgPSBvdXRwdXRbMF07CiAgICBjb25zdCBvdXRSICA9IG91dHB1dFsxXSB8fCBvdXRwdXRbMF07CiAgICBjb25zdCBwaXRjaCA9IHBhcmFtZXRlcnNbJ3BpdGNoJ11bMF07CiAgICBjb25zdCB3aW5MZW4gICA9IHRoaXMuX3dpbkxlbjsKICAgIGNvbnN0IHBoYXNlSW5jID0gKDEuMCAtIHBpdGNoKSAvIHdpbkxlbjsKICAgIGZvciAobGV0IGkgPSAwOyBpIDwgaW5DaC5sZW5ndGg7IGkrKykgewogICAgICB0aGlzLl9idWZbdGhpcy5fd3JpdGVQb3MgJiAodGhpcy5fYnVmU2l6ZSAtIDEpXSA9IGluQ2hbaV07CiAgICAgIHRoaXMuX3dyaXRlUG9zKys7CiAgICAgIHRoaXMuX3BoYXNlMCA9ICgodGhpcy5fcGhhc2UwICsgcGhhc2VJbmMpICUgMS4wICsgMS4wKSAlIDEuMDsKICAgICAgdGhpcy5fcGhhc2UxID0gKCh0aGlzLl9waGFzZTEgKyBwaGFzZUluYykgJSAxLjAgKyAxLjApICUgMS4wOwogICAgICBjb25zdCB3MCA9IE1hdGguc2luKE1hdGguUEkgKiB0aGlzLl9waGFzZTApOyBjb25zdCBnMCA9IHcwICogdzA7CiAgICAgIGNvbnN0IHcxID0gTWF0aC5zaW4oTWF0aC5QSSAqIHRoaXMuX3BoYXNlMSk7IGNvbnN0IGcxID0gdzEgKiB3MTsKICAgICAgY29uc3QgcnAwID0gdGhpcy5fd3JpdGVQb3MgLSB0aGlzLl9waGFzZTAgKiB3aW5MZW47CiAgICAgIGNvbnN0IHJwMSA9IHRoaXMuX3dyaXRlUG9zIC0gdGhpcy5fcGhhc2UxICogd2luTGVuOwogICAgICBjb25zdCBzID0gdGhpcy5fcmVhZEJ1ZihycDApICogZzAgKyB0aGlzLl9yZWFkQnVmKHJwMSkgKiBnMTsKICAgICAgb3V0TFtpXSA9IHM7CiAgICAgIG91dFJbaV0gPSBzOwogICAgfQogICAgcmV0dXJuIHRydWU7CiAgfQp9CnJlZ2lzdGVyUHJvY2Vzc29yKCd0YWtlLXByb2Nlc3NvcicsIFRha2VQcm9jZXNzb3IpOwo=';
+const BGM_WORKLET_URL  = 'data:application/javascript;base64,Ly8gQkdNIChiYXNlIHRyYWNrKSBwcm9jZXNzb3I6IHBpdGNoIHNoaWZ0ICsgb3B0aW9uYWwgdm9jYWwgY3V0IChNaWQvU2lkZSkgKyBjbGVhci1idWZmZXIgbWVzc2FnZQpjbGFzcyBCZ21Qcm9jZXNzb3IgZXh0ZW5kcyBBdWRpb1dvcmtsZXRQcm9jZXNzb3IgewogIHN0YXRpYyBnZXQgcGFyYW1ldGVyRGVzY3JpcHRvcnMoKSB7CiAgICByZXR1cm4gWwogICAgICB7IG5hbWU6ICdwaXRjaCcsICAgIGRlZmF1bHRWYWx1ZTogMS4wLCBtaW5WYWx1ZTogMC4yNSwgbWF4VmFsdWU6IDQuMCwgYXV0b21hdGlvblJhdGU6ICdrLXJhdGUnIH0sCiAgICAgIHsgbmFtZTogJ3ZvY2FsQ3V0JywgZGVmYXVsdFZhbHVlOiAwLjAsIG1pblZhbHVlOiAwLjAsICBtYXhWYWx1ZTogMS4wLCBhdXRvbWF0aW9uUmF0ZTogJ2stcmF0ZScgfQogICAgXTsKICB9CiAgY29uc3RydWN0b3IoKSB7CiAgICBzdXBlcigpOwogICAgdGhpcy5fYnVmU2l6ZSA9IDY1NTM2OwogICAgdGhpcy5fYnVmTCA9IG5ldyBGbG9hdDMyQXJyYXkodGhpcy5fYnVmU2l6ZSk7CiAgICB0aGlzLl9idWZSID0gbmV3IEZsb2F0MzJBcnJheSh0aGlzLl9idWZTaXplKTsKICAgIHRoaXMuX3dyaXRlUG9zID0gMDsKICAgIHRoaXMuX3BoYXNlMCA9IDAuMDsKICAgIHRoaXMuX3BoYXNlMSA9IDAuNTsKICAgIHRoaXMuX3dpbkxlbiA9IDgxOTI7CiAgICB0aGlzLnBvcnQub25tZXNzYWdlID0gKGUpID0+IHsKICAgICAgaWYgKGUuZGF0YSAmJiBlLmRhdGEudHlwZSA9PT0gJ2NsZWFyJykgewogICAgICAgIHRoaXMuX2J1ZkwuZmlsbCgwKTsgdGhpcy5fYnVmUi5maWxsKDApOyB0aGlzLl93cml0ZVBvcyA9IDA7CiAgICAgIH0KICAgIH07CiAgfQogIF9yZWFkQnVmKGJ1ZiwgcG9zKSB7CiAgICBjb25zdCBpID0gTWF0aC5mbG9vcihwb3MpOwogICAgY29uc3QgZiA9IHBvcyAtIGk7CiAgICBjb25zdCBzID0gdGhpcy5fYnVmU2l6ZTsKICAgIHJldHVybiBidWZbaSAmIChzIC0gMSldICogKDEgLSBmKSArIGJ1ZlsoaSArIDEpICYgKHMgLSAxKV0gKiBmOwogIH0KICBwcm9jZXNzKGlucHV0cywgb3V0cHV0cywgcGFyYW1ldGVycykgewogICAgY29uc3QgaW5wdXQgID0gaW5wdXRzWzBdOwogICAgY29uc3Qgb3V0cHV0ID0gb3V0cHV0c1swXTsKICAgIGlmICghaW5wdXQgfHwgIWlucHV0WzBdKSByZXR1cm4gdHJ1ZTsKICAgIGNvbnN0IGluTCAgPSBpbnB1dFswXTsKICAgIGNvbnN0IGluUiAgPSBpbnB1dFsxXSB8fCBpbnB1dFswXTsKICAgIGNvbnN0IG91dEwgPSBvdXRwdXRbMF07CiAgICBjb25zdCBvdXRSID0gb3V0cHV0WzFdIHx8IG91dHB1dFswXTsKICAgIGNvbnN0IHBpdGNoICAgID0gcGFyYW1ldGVyc1sncGl0Y2gnXVswXTsKICAgIGNvbnN0IHZvY2FsQ3V0ID0gcGFyYW1ldGVyc1sndm9jYWxDdXQnXVswXTsKICAgIGNvbnN0IHdpbkxlbiAgID0gdGhpcy5fd2luTGVuOwogICAgY29uc3QgcGhhc2VJbmMgPSAoMS4wIC0gcGl0Y2gpIC8gd2luTGVuOwogICAgZm9yIChsZXQgaSA9IDA7IGkgPCBpbkwubGVuZ3RoOyBpKyspIHsKICAgICAgdGhpcy5fYnVmTFt0aGlzLl93cml0ZVBvcyAmICh0aGlzLl9idWZTaXplIC0gMSldID0gaW5MW2ldOwogICAgICB0aGlzLl9idWZSW3RoaXMuX3dyaXRlUG9zICYgKHRoaXMuX2J1ZlNpemUgLSAxKV0gPSBpblJbaV07CiAgICAgIHRoaXMuX3dyaXRlUG9zKys7CiAgICAgIHRoaXMuX3BoYXNlMCA9ICgodGhpcy5fcGhhc2UwICsgcGhhc2VJbmMpICUgMS4wICsgMS4wKSAlIDEuMDsKICAgICAgdGhpcy5fcGhhc2UxID0gKCh0aGlzLl9waGFzZTEgKyBwaGFzZUluYykgJSAxLjAgKyAxLjApICUgMS4wOwogICAgICBjb25zdCB3MCA9IE1hdGguc2luKE1hdGguUEkgKiB0aGlzLl9waGFzZTApOyBjb25zdCBnMCA9IHcwICogdzA7CiAgICAgIGNvbnN0IHcxID0gTWF0aC5zaW4oTWF0aC5QSSAqIHRoaXMuX3BoYXNlMSk7IGNvbnN0IGcxID0gdzEgKiB3MTsKICAgICAgY29uc3QgcnAwID0gdGhpcy5fd3JpdGVQb3MgLSB0aGlzLl9waGFzZTAgKiB3aW5MZW47CiAgICAgIGNvbnN0IHJwMSA9IHRoaXMuX3dyaXRlUG9zIC0gdGhpcy5fcGhhc2UxICogd2luTGVuOwogICAgICBjb25zdCBzTCA9IHRoaXMuX3JlYWRCdWYodGhpcy5fYnVmTCwgcnAwKSAqIGcwICsgdGhpcy5fcmVhZEJ1Zih0aGlzLl9idWZMLCBycDEpICogZzE7CiAgICAgIGNvbnN0IHNSID0gdGhpcy5fcmVhZEJ1Zih0aGlzLl9idWZSLCBycDApICogZzAgKyB0aGlzLl9yZWFkQnVmKHRoaXMuX2J1ZlIsIHJwMSkgKiBnMTsKICAgICAgY29uc3Qgc2lkZSA9IChzTCAtIHNSKSAqIDAuNTsKICAgICAgY29uc3QgaW52ICA9IDEuMCAtIHZvY2FsQ3V0OwogICAgICBvdXRMW2ldID0gc0wgKiBpbnYgKyBzaWRlICogdm9jYWxDdXQ7CiAgICAgIG91dFJbaV0gPSBzUiAqIGludiArIHNpZGUgKiB2b2NhbEN1dDsKICAgIH0KICAgIHJldHVybiB0cnVlOwogIH0KfQpyZWdpc3RlclByb2Nlc3NvcignYmdtLXByb2Nlc3NvcicsIEJnbVByb2Nlc3Nvcik7Cg==';
+const TAKE_WORKLET_URL = 'data:application/javascript;base64,Ly8gVGFrZSAocmVjb3JkZWQgdm9pY2UpIHByb2Nlc3NvcjogcGl0Y2ggc2hpZnQgb25seSAobW9ubyBpbiwgc3RlcmVvIG91dCkgKyBjbGVhci1idWZmZXIgbWVzc2FnZQpjbGFzcyBUYWtlUHJvY2Vzc29yIGV4dGVuZHMgQXVkaW9Xb3JrbGV0UHJvY2Vzc29yIHsKICBzdGF0aWMgZ2V0IHBhcmFtZXRlckRlc2NyaXB0b3JzKCkgewogICAgcmV0dXJuIFsKICAgICAgeyBuYW1lOiAncGl0Y2gnLCBkZWZhdWx0VmFsdWU6IDEuMCwgbWluVmFsdWU6IDAuMjUsIG1heFZhbHVlOiA0LjAsIGF1dG9tYXRpb25SYXRlOiAnay1yYXRlJyB9CiAgICBdOwogIH0KICBjb25zdHJ1Y3RvcigpIHsKICAgIHN1cGVyKCk7CiAgICB0aGlzLl9idWZTaXplID0gNjU1MzY7CiAgICB0aGlzLl9idWYgPSBuZXcgRmxvYXQzMkFycmF5KHRoaXMuX2J1ZlNpemUpOwogICAgdGhpcy5fd3JpdGVQb3MgPSAwOwogICAgdGhpcy5fcGhhc2UwID0gMC4wOwogICAgdGhpcy5fcGhhc2UxID0gMC41OwogICAgdGhpcy5fd2luTGVuID0gODE5MjsKICAgIHRoaXMucG9ydC5vbm1lc3NhZ2UgPSAoZSkgPT4gewogICAgICBpZiAoZS5kYXRhICYmIGUuZGF0YS50eXBlID09PSAnY2xlYXInKSB7CiAgICAgICAgdGhpcy5fYnVmLmZpbGwoMCk7IHRoaXMuX3dyaXRlUG9zID0gMDsKICAgICAgfQogICAgfTsKICB9CiAgX3JlYWRCdWYocG9zKSB7CiAgICBjb25zdCBpID0gTWF0aC5mbG9vcihwb3MpOwogICAgY29uc3QgZiA9IHBvcyAtIGk7CiAgICBjb25zdCBzID0gdGhpcy5fYnVmU2l6ZTsKICAgIHJldHVybiB0aGlzLl9idWZbaSAmIChzIC0gMSldICogKDEgLSBmKSArIHRoaXMuX2J1ZlsoaSArIDEpICYgKHMgLSAxKV0gKiBmOwogIH0KICBwcm9jZXNzKGlucHV0cywgb3V0cHV0cywgcGFyYW1ldGVycykgewogICAgY29uc3QgaW5wdXQgID0gaW5wdXRzWzBdOwogICAgY29uc3Qgb3V0cHV0ID0gb3V0cHV0c1swXTsKICAgIGlmICghaW5wdXQgfHwgIWlucHV0WzBdKSByZXR1cm4gdHJ1ZTsKICAgIGNvbnN0IGluQ2ggID0gaW5wdXRbMF07CiAgICBjb25zdCBvdXRMICA9IG91dHB1dFswXTsKICAgIGNvbnN0IG91dFIgID0gb3V0cHV0WzFdIHx8IG91dHB1dFswXTsKICAgIGNvbnN0IHBpdGNoID0gcGFyYW1ldGVyc1sncGl0Y2gnXVswXTsKICAgIGNvbnN0IHdpbkxlbiAgID0gdGhpcy5fd2luTGVuOwogICAgY29uc3QgcGhhc2VJbmMgPSAoMS4wIC0gcGl0Y2gpIC8gd2luTGVuOwogICAgZm9yIChsZXQgaSA9IDA7IGkgPCBpbkNoLmxlbmd0aDsgaSsrKSB7CiAgICAgIHRoaXMuX2J1Zlt0aGlzLl93cml0ZVBvcyAmICh0aGlzLl9idWZTaXplIC0gMSldID0gaW5DaFtpXTsKICAgICAgdGhpcy5fd3JpdGVQb3MrKzsKICAgICAgdGhpcy5fcGhhc2UwID0gKCh0aGlzLl9waGFzZTAgKyBwaGFzZUluYykgJSAxLjAgKyAxLjApICUgMS4wOwogICAgICB0aGlzLl9waGFzZTEgPSAoKHRoaXMuX3BoYXNlMSArIHBoYXNlSW5jKSAlIDEuMCArIDEuMCkgJSAxLjA7CiAgICAgIGNvbnN0IHcwID0gTWF0aC5zaW4oTWF0aC5QSSAqIHRoaXMuX3BoYXNlMCk7IGNvbnN0IGcwID0gdzAgKiB3MDsKICAgICAgY29uc3QgdzEgPSBNYXRoLnNpbihNYXRoLlBJICogdGhpcy5fcGhhc2UxKTsgY29uc3QgZzEgPSB3MSAqIHcxOwogICAgICBjb25zdCBycDAgPSB0aGlzLl93cml0ZVBvcyAtIHRoaXMuX3BoYXNlMCAqIHdpbkxlbjsKICAgICAgY29uc3QgcnAxID0gdGhpcy5fd3JpdGVQb3MgLSB0aGlzLl9waGFzZTEgKiB3aW5MZW47CiAgICAgIGNvbnN0IHMgPSB0aGlzLl9yZWFkQnVmKHJwMCkgKiBnMCArIHRoaXMuX3JlYWRCdWYocnAxKSAqIGcxOwogICAgICBvdXRMW2ldID0gczsKICAgICAgb3V0UltpXSA9IHM7CiAgICB9CiAgICByZXR1cm4gdHJ1ZTsKICB9Cn0KcmVnaXN0ZXJQcm9jZXNzb3IoJ3Rha2UtcHJvY2Vzc29yJywgVGFrZVByb2Nlc3Nvcik7Cg==';
 
 // ============== CONSTANTS ==============
 const AUDIO_EXTS = ['.mp3', '.m4a', '.flac', '.wav', '.ogg', '.opus', '.aac'];
@@ -2879,8 +2879,11 @@ function setupBgmGraph(){
     bgmEqMd = audioCtx.createBiquadFilter(); bgmEqMd.type='peaking';    bgmEqMd.frequency.value=1200; bgmEqMd.Q.value=0.8; bgmEqMd.gain.value=0;
     bgmEqHi = audioCtx.createBiquadFilter(); bgmEqHi.type='highshelf';  bgmEqHi.frequency.value=4000; bgmEqHi.gain.value=0;
     bgmGain = audioCtx.createGain(); bgmGain.gain.value = 1.0;
-    // v2.56: 残響対策 — worklet 直後に挟む fade-in 用 gain。 play 時に 0→1 を 100ms でランプ
-    bgmFadeGain = audioCtx.createGain(); bgmFadeGain.gain.value = 0;  // 初期 0 (まだ再生していない)
+    // v2.58: worklet バッファクリア方式に変更。 bgmFadeGain は素通り (gain=1)。
+    //   bgmShifter.port.postMessage({type:'clear'}) で worklet 内 65536-sample 循環バッファを
+    //   ゼロ化 → 次回再生で worklet 出力の最初 ~85ms は自動的に無音、 85ms 以降は新音が
+    //   フルゲインで出る (頭が欠けない)。
+    bgmFadeGain = audioCtx.createGain(); bgmFadeGain.gain.value = 1.0;
     bgmShifter.connect(bgmFadeGain);
     bgmFadeGain.connect(bgmEqLo);
     bgmEqLo.connect(bgmEqMd);
@@ -3354,8 +3357,8 @@ function setupTakeChain(){
     voxComp.attack.value = 0.005;
     voxComp.release.value = 0.25;
     voxComp.knee.value = 6;
-    // v2.56: take 残響対策 — worklet 直後に挟む fade-in 用 gain (BGM と同じ仕組み)
-    takeFadeGain = audioCtx.createGain(); takeFadeGain.gain.value = 0;  // 初期 0
+    // v2.58: take も同じ — fade gain は素通り、 takeShifter のバッファクリアで対策
+    takeFadeGain = audioCtx.createGain(); takeFadeGain.gain.value = 1.0;
     takeShifter.connect(takeFadeGain);
     takeFadeGain.connect(voxEqLo);
     voxEqLo.connect(voxEqMd);
@@ -3892,11 +3895,8 @@ function stopTakePlayback(){
         });
         takeBufferSources = [];
     }
-    // v2.56: take fadeGain を即 0 にして残響を出さない
-    if(takeFadeGain && audioCtx){
-        const now = audioCtx.currentTime;
-        try { takeFadeGain.gain.cancelScheduledValues(now); takeFadeGain.gain.setValueAtTime(0, now); } catch(e){}
-    }
+    // v2.58: take 停止時に worklet 内バッファを即クリア
+    if(takeShifter){ try { takeShifter.port.postMessage({type:'clear'}); } catch(e){} }
 }
 
 function startTakePlayback(){
@@ -3915,17 +3915,8 @@ function startTakePlayback(){
     // 複数テイク対応のため、 worklet は pitch=1 (bypass)。 per-source detune/playbackRate で各々制御。
     //   ※ live pitchSlider 効果は take には乗らなくなる (BGM には bgmShifter で引き続き乗る)。
     try { takeShifter.parameters.get('pitch').setValueAtTime(1.0, audioCtx.currentTime); } catch(e){}
-    // v2.57: take worklet 残響対策 — 90ms ゼロ保持 + 10ms ramp (BGM と同じ構造に訂正)
-    if(takeFadeGain){
-        const now = audioCtx.currentTime;
-        const HOLD = 0.090, RAMP = 0.010;
-        try {
-            takeFadeGain.gain.cancelScheduledValues(now);
-            takeFadeGain.gain.setValueAtTime(0, now);
-            takeFadeGain.gain.setValueAtTime(0, now + HOLD);
-            takeFadeGain.gain.linearRampToValueAtTime(1, now + HOLD + RAMP);
-        } catch(e){}
-    }
+    // v2.58: take worklet バッファクリア (再生開始時の保険)
+    if(takeShifter){ try { takeShifter.port.postMessage({type:'clear'}); } catch(e){} }
     for (const id of ids) {
         const take = (state.currentEntry && state.currentEntry.takes || []).find(t => t.id === id);
         if(!take) continue;
@@ -6405,19 +6396,9 @@ async function ensureAudioGraph(){
 bgmTransport.addEventListener('play', () => {
     btnPlay.classList.add('playing');
     btnPlay.textContent = '⏸';
-    // v2.57: BGM worklet 残響対策 — 残響期間 (winLen/2 = 4096 samples ≒ 85ms) を完全に
-    //   ゼロ保持し、 その後 10ms で立ち上げ。 リニアフェードだと残響期間中もゲインが上がって
-    //   古い音が漏れてしまうため、 hold→ramp 構造に変更 (v2.56 の素朴な線形ランプから訂正)。
-    if(bgmFadeGain && audioCtx){
-        const now = audioCtx.currentTime;
-        const HOLD = 0.090, RAMP = 0.010;   // 90ms hold + 10ms ramp (合計 100ms)
-        try {
-            bgmFadeGain.gain.cancelScheduledValues(now);
-            bgmFadeGain.gain.setValueAtTime(0, now);
-            bgmFadeGain.gain.setValueAtTime(0, now + HOLD);
-            bgmFadeGain.gain.linearRampToValueAtTime(1, now + HOLD + RAMP);
-        } catch(e){}
-    }
+    // v2.58: 念のため再生開始時にも worklet バッファをクリア (pause 時に送ったクリア要求が
+    //   何らかの理由で未到達のケースに備える保険)
+    if(bgmShifter){ try { bgmShifter.port.postMessage({type:'clear'}); } catch(e){} }
     // CRITICAL: Do NOT start take playback during recording. The play event
     // here fires from inside startRecording (Plan B starts BGM after the
     // countdown) and we must not let any prior take leak into the mic.
@@ -6427,11 +6408,8 @@ bgmTransport.addEventListener('play', () => {
 bgmTransport.addEventListener('pause', () => {
     btnPlay.classList.remove('playing');
     btnPlay.textContent = '▶';
-    // v2.56: BGM fadeGain を即 0 にして次回再生まで信号を止める
-    if(bgmFadeGain && audioCtx){
-        const now = audioCtx.currentTime;
-        try { bgmFadeGain.gain.cancelScheduledValues(now); bgmFadeGain.gain.setValueAtTime(0, now); } catch(e){}
-    }
+    // v2.58: pause 時に worklet 内バッファを即クリア (次回再生で stale 残響が出ないように)
+    if(bgmShifter){ try { bgmShifter.port.postMessage({type:'clear'}); } catch(e){} }
     stopTakePlayback();
 });
 bgmTransport.addEventListener('seeking', () => {

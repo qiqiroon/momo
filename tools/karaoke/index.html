@@ -1675,7 +1675,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.56</span>
+                <span class="version-tag" id="version-tag">v2.57</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2368,7 +2368,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.56',
+        version: document.getElementById('version-tag')?.textContent || 'v2.57',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2482,7 +2482,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.56';
+const APP_VERSION = 'v2.57';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -3915,13 +3915,15 @@ function startTakePlayback(){
     // 複数テイク対応のため、 worklet は pitch=1 (bypass)。 per-source detune/playbackRate で各々制御。
     //   ※ live pitchSlider 効果は take には乗らなくなる (BGM には bgmShifter で引き続き乗る)。
     try { takeShifter.parameters.get('pitch').setValueAtTime(1.0, audioCtx.currentTime); } catch(e){}
-    // v2.56: take worklet 残響対策 — 100ms fade-in
+    // v2.57: take worklet 残響対策 — 90ms ゼロ保持 + 10ms ramp (BGM と同じ構造に訂正)
     if(takeFadeGain){
         const now = audioCtx.currentTime;
+        const HOLD = 0.090, RAMP = 0.010;
         try {
             takeFadeGain.gain.cancelScheduledValues(now);
             takeFadeGain.gain.setValueAtTime(0, now);
-            takeFadeGain.gain.linearRampToValueAtTime(1, now + 0.1);
+            takeFadeGain.gain.setValueAtTime(0, now + HOLD);
+            takeFadeGain.gain.linearRampToValueAtTime(1, now + HOLD + RAMP);
         } catch(e){}
     }
     for (const id of ids) {
@@ -6403,13 +6405,17 @@ async function ensureAudioGraph(){
 bgmTransport.addEventListener('play', () => {
     btnPlay.classList.add('playing');
     btnPlay.textContent = '⏸';
-    // v2.56: BGM worklet 残響対策 — 100ms fade-in (古いバッファ内容を確実にゼロ化)
+    // v2.57: BGM worklet 残響対策 — 残響期間 (winLen/2 = 4096 samples ≒ 85ms) を完全に
+    //   ゼロ保持し、 その後 10ms で立ち上げ。 リニアフェードだと残響期間中もゲインが上がって
+    //   古い音が漏れてしまうため、 hold→ramp 構造に変更 (v2.56 の素朴な線形ランプから訂正)。
     if(bgmFadeGain && audioCtx){
         const now = audioCtx.currentTime;
+        const HOLD = 0.090, RAMP = 0.010;   // 90ms hold + 10ms ramp (合計 100ms)
         try {
             bgmFadeGain.gain.cancelScheduledValues(now);
             bgmFadeGain.gain.setValueAtTime(0, now);
-            bgmFadeGain.gain.linearRampToValueAtTime(1, now + 0.1);
+            bgmFadeGain.gain.setValueAtTime(0, now + HOLD);
+            bgmFadeGain.gain.linearRampToValueAtTime(1, now + HOLD + RAMP);
         } catch(e){}
     }
     // CRITICAL: Do NOT start take playback during recording. The play event

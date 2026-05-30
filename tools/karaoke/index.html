@@ -1675,7 +1675,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.50</span>
+                <span class="version-tag" id="version-tag">v2.51</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2354,7 +2354,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.50',
+        version: document.getElementById('version-tag')?.textContent || 'v2.51',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2460,7 +2460,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.50';
+const APP_VERSION = 'v2.51';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2798,6 +2798,7 @@ let takeShifter = null;
 let voxEqLo = null, voxEqMd = null, voxEqHi = null;
 let voxGain = null;
 let echoDelay = null, echoFeedback = null, echoWet = null, echoDry = null;
+let voxLevelAnalyser = null, voxLevelBuf = null;
 
 let micStream = null, recSrc = null, micAnalyser = null;
 let recProcessor = null;
@@ -3303,6 +3304,13 @@ function setupTakeChain(){
     voxEqMd = audioCtx.createBiquadFilter(); voxEqMd.type='peaking';   voxEqMd.frequency.value=1200; voxEqMd.Q.value=0.8; voxEqMd.gain.value=0;
     voxEqHi = audioCtx.createBiquadFilter(); voxEqHi.type='highshelf'; voxEqHi.frequency.value=4000; voxEqHi.gain.value=0;
     voxGain = audioCtx.createGain(); voxGain.gain.value = 1.0;
+    // v2.51: テイク音量が下がる問題の診断用 Analyser (voxGain 出力に並列接続、 信号レベルを計測)
+    try {
+        voxLevelAnalyser = audioCtx.createAnalyser();
+        voxLevelAnalyser.fftSize = 1024; voxLevelAnalyser.smoothingTimeConstant = 0;
+        voxLevelBuf = new Float32Array(voxLevelAnalyser.fftSize);
+        voxGain.connect(voxLevelAnalyser);
+    } catch (e) { DEBUG.warn('voxLevelAnalyser init failed: ' + (e.message || e)); }
     echoDelay = audioCtx.createDelay(2.0); echoDelay.delayTime.value = 0.28;
     echoFeedback = audioCtx.createGain(); echoFeedback.gain.value = 0.35;
     echoWet = audioCtx.createGain(); echoWet.gain.value = 0;
@@ -3361,11 +3369,13 @@ async function rebuildAudioContext(){
     try { if(echoFeedback) echoFeedback.disconnect(); } catch(e){}
     try { if(echoWet) echoWet.disconnect(); } catch(e){}
     try { if(echoDry) echoDry.disconnect(); } catch(e){}
+    try { if(voxLevelAnalyser) voxLevelAnalyser.disconnect(); } catch(e){}
     try { if(master) master.disconnect(); } catch(e){}
 
     bgmShifter = null; bgmEqLo = null; bgmEqMd = null; bgmEqHi = null; bgmGain = null;
     takeShifter = null; voxEqLo = null; voxEqMd = null; voxEqHi = null; voxGain = null;
     echoDelay = null; echoFeedback = null; echoWet = null; echoDry = null;
+    voxLevelAnalyser = null; voxLevelBuf = null;
     master = null;
 
     // Close the old context
@@ -6355,12 +6365,27 @@ function tickUI(){
         && sinceTeardown > 1500){
         syncTakeToBgm();
     }
-    // v2.50: 「BGM+テイク 同時再生でテイクが数秒後に小さくなる」 診断用ログ (約 1 秒毎)。
-    //   voxGain と bgmGain の現在値、 take buffer 残量を記録して原因切り分け。
+    // v2.50/51: 「BGM+テイク 同時再生でテイクが数秒後に小さくなる」 診断用ログ (約 1 秒毎)。
+    //   voxGain/bgmGain の設定値 + voxLevelAnalyser で voxGain 出力の実信号レベル (RMS/Peak) を測定。
+    //   これで「コード内のゲインは一定だが信号自体が減衰している」 のか切り分け可能。
     if((_takeSyncCounter % 60) === 0 && !bgmTransport.paused && state.currentTake && !state.isRecording){
-        let vg = '?', bg = '?', tRem = '?';
+        let vg = '?', bg = '?', tRem = '?', eDry = '?', eWet = '?', mst = '?', lvl = '?';
         try { if(voxGain) vg = voxGain.gain.value.toFixed(3); } catch(e){}
         try { if(bgmGain) bg = bgmGain.gain.value.toFixed(3); } catch(e){}
+        try { if(echoDry) eDry = echoDry.gain.value.toFixed(3); } catch(e){}
+        try { if(echoWet) eWet = echoWet.gain.value.toFixed(3); } catch(e){}
+        try { if(master) mst = master.gain.value.toFixed(3); } catch(e){}
+        try {
+            if(voxLevelAnalyser && voxLevelBuf){
+                voxLevelAnalyser.getFloatTimeDomainData(voxLevelBuf);
+                let sum = 0, peak = 0;
+                for(let i = 0; i < voxLevelBuf.length; i++){
+                    const v = voxLevelBuf[i]; sum += v * v; const a = Math.abs(v); if(a > peak) peak = a;
+                }
+                const rms = Math.sqrt(sum / voxLevelBuf.length);
+                lvl = 'rms=' + rms.toFixed(4) + ' peak=' + peak.toFixed(4);
+            }
+        } catch(e){}
         try {
             const buf = state.currentTake._decodedBuffer;
             if(buf && takeBufferSource){
@@ -6368,7 +6393,7 @@ function tickUI(){
                 tRem = (buf.duration - localT).toFixed(2);
             }
         } catch(e){}
-        DEBUG.info('[diag] voxGain=' + vg + ' bgmGain=' + bg + ' takeRemaining=' + tRem + 's');
+        DEBUG.info('[diag] voxGain=' + vg + ' bgmGain=' + bg + ' echoDry=' + eDry + ' echoWet=' + eWet + ' master=' + mst + ' tRem=' + tRem + 's voxLvl(' + lvl + ')');
     }
     requestAnimationFrame(tickUI);
 }

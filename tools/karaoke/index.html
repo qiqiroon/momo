@@ -2746,8 +2746,8 @@ function renderLyrics(){
             const idx = parseInt(el.dataset.idx, 10);
             const t = state.lyricsLines[idx].t;
             audioEl.currentTime = Math.max(0, t);
-            // If take is currently playing, restart it at new pos
-            if(!audioEl.paused && state.currentTake) startTakePlayback();
+            // If take is currently playing, restart it at new pos (v2.61: seek 系は明示停止 → 差分更新では位置同期できないため)
+            if(!audioEl.paused && state.currentTake) { stopTakePlayback(); startTakePlayback(); }
         });
     });
     state.lastLyricIdx = -1;
@@ -3921,10 +3921,25 @@ function startTakePlayback(){
         return;
     }
     if(!audioCtx || !takeShifter) return;
-    stopTakePlayback();
-    // v2.53: 選択された全テイクを同時再生 (BGM 同期)
+    // v2.61: 差分更新 — 既に再生中で selectedTakeIds にも含まれるテイクは触らない。
+    //   過去は stopTakePlayback() で全停止 → 全再起動だったため、 テイクを 1 つ追加 / 削除
+    //   するだけで他の再生中テイクが 5〜10ms 切れていた。
+    //   注意: BGM seek / 速度変更等の "位置が変わる" イベントでは呼び出し側で
+    //   stopTakePlayback() してから本関数を呼ぶこと。
     const ids = Array.from(state.selectedTakeIds || []);
+    const wantedSet = new Set(ids);
+    const kept = [];
+    for(const src of (takeBufferSources || [])){
+        if(src && wantedSet.has(src._takeId)){
+            kept.push(src);
+        } else if(src){
+            try { src.stop(); } catch(e){}
+            try { src.disconnect(); } catch(e){}
+        }
+    }
+    takeBufferSources = kept;
     if(!ids.length) return;
+    const playingIds = new Set(takeBufferSources.map(s => s._takeId));
     const songT = audioEl.currentTime;
     const curSp  = parseFloat(speedSlider.value);
     const userOfs = parseFloat(voxOfsSlider.value);
@@ -3932,8 +3947,10 @@ function startTakePlayback(){
     //   ※ live pitchSlider 効果は take には乗らなくなる (BGM には bgmShifter で引き続き乗る)。
     try { takeShifter.parameters.get('pitch').setValueAtTime(1.0, audioCtx.currentTime); } catch(e){}
     // v2.58: take worklet バッファクリア (再生開始時の保険)
-    if(takeShifter){ try { takeShifter.port.postMessage({type:'clear'}); } catch(e){} }
+    //   v2.61: 既存ソースがある場合はクリアしない (再生中の音が途切れる)
+    if(takeShifter && kept.length === 0){ try { takeShifter.port.postMessage({type:'clear'}); } catch(e){} }
     for (const id of ids) {
+        if(playingIds.has(id)) continue;  // v2.61: 既に再生中 → スキップ
         const take = (state.currentEntry && state.currentEntry.takes || []).find(t => t.id === id);
         if(!take) continue;
         let buf = take._decodedBuffer;
@@ -5245,8 +5262,11 @@ async function _selToggleTake(id){
     else state.currentTake = null;
     DEBUG.info('Take toggle: ' + t.name);
     _afterSourceChange();
+    // v2.61 hotfix: startTakePlayback の重複呼び出しを削除。 _afterSourceChange → _syncPlayMode
+    //   → setPlayMode が再生中ならば内部で startTakePlayback を呼ぶため、 ここでの追加呼び出しは
+    //   stopTakePlayback (sources を全停止 → 再起動) を発生させ、 複数テイク同時再生時に
+    //   関係ないテイクまで毎回 5〜10ms 音切れする原因になっていた。
     if (state.currentTake && IOS_MODE) { try { await preloadIOSTake(state.currentTake); } catch (e) { DEBUG.warn('preload failed: ' + e.message); } }
-    if (state.currentTake && !bgmTransport.paused && state.playMode !== 'bgm') startTakePlayback();
 }
 function _selToggleMix(mixId){
     if (state.selectedMixId === mixId) {
@@ -6488,7 +6508,8 @@ bgmTransport.addEventListener('seeking', () => {
     stopTakePlayback();
 });
 bgmTransport.addEventListener('seeked', () => {
-    if(!bgmTransport.paused && state.currentTake && state.playMode !== 'bgm') startTakePlayback();
+    // v2.61: seek 系は再生位置が変わるため、 差分更新ではなく明示停止 → 全再起動
+    if(!bgmTransport.paused && state.currentTake && state.playMode !== 'bgm') { stopTakePlayback(); startTakePlayback(); }
 });
 bgmTransport.addEventListener('ended', () => {
     btnPlay.classList.remove('playing');
@@ -6998,7 +7019,8 @@ voxOfsSlider.addEventListener('input', () => {
     voxOfsVal.textContent = parseFloat(voxOfsSlider.value).toFixed(2);
     if(voxOfsTimer) clearTimeout(voxOfsTimer);
     voxOfsTimer = setTimeout(() => {
-        if(!audioEl.paused && state.currentTake) startTakePlayback();
+        // v2.61: voxOfs 変更は take の出現位置が変わるため、 明示停止 → 全再起動
+        if(!audioEl.paused && state.currentTake) { stopTakePlayback(); startTakePlayback(); }
     }, 220);
 });
 // v2.49: エコーはプリセット select (#echoPreset) で選択。 state.echoPreset 経由で applyEcho に反映

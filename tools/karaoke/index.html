@@ -3943,7 +3943,9 @@ function startTakePlayback(){
         src.buffer = buf;
         // v2.61: 各テイクに個別音量 GainNode を挿入 (src → perTakeGain → takeShifter)
         const perTakeGain = audioCtx.createGain();
-        perTakeGain.gain.value = (take.volume != null ? take.volume : 1.0);
+        const _ptv = (take.volume != null && Number.isFinite(take.volume)) ? take.volume : 1.0;
+        perTakeGain.gain.value = _ptv;
+        DEBUG.info('startTakePlayback: "' + take.name + '" perTakeGain=' + _ptv + ' (take.volume=' + take.volume + ')');
         src.connect(perTakeGain);
         perTakeGain.connect(takeShifter);
         src.playbackRate.value = curSp / takeSp;

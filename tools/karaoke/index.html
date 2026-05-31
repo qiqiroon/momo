@@ -2667,10 +2667,22 @@ function switchTab(name){
     //   だけ、 テイクの再生は不要」。 ミックスタブで選択していた古い take が BGM 再生時に
     //   同時に鳴ってしまう問題を解消。 録音時には新 take が currentTake に自動セットされる
     //   ので、 録音直後の試聴フローには影響なし。
+    // v2.61 hotfix: mix タブに戻った時 state.currentTake を selectedTakeIds から復元
+    //   (これが無いと karaoke→mix 切替後、 BGM 再生してもテイクが鳴らない真因だった)
     if (name === 'karaoke') {
         try { if (typeof stopTakePlayback === 'function') stopTakePlayback(); } catch (e) {}
         if (state) state.currentTake = null;
         try { if (typeof refreshTakeNowPlayingUI === 'function') refreshTakeNowPlayingUI(); } catch (e) {}
+    } else if (name === 'mix' && state && !state.currentTake && state.selectedTakeIds && state.selectedTakeIds.size > 0) {
+        // mix タブ復帰: 選択済みテイクから currentTake を復元 (最後に選択されたものを優先)
+        const ids = [...state.selectedTakeIds];
+        const lastId = ids[ids.length - 1];
+        const takes = (state.currentEntry && state.currentEntry.takes) || [];
+        const restored = takes.find(t => t.id === lastId);
+        if (restored) {
+            state.currentTake = restored;
+            try { if (typeof refreshTakeNowPlayingUI === 'function') refreshTakeNowPlayingUI(); } catch (e) {}
+        }
     }
     // v2.31 (5d-改2): ミックスタブでは歌詞を「再生中の 1 行のみ」 表示 (歌わないので)。
     //   CSS .single-line-mode で current 以外の行を display:none、 current 行を中央

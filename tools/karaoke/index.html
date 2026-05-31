@@ -8221,10 +8221,17 @@ async function _generateMixWav() {
         perTakeGain.connect(voxBus);
         // 出力タイムライン上の開始位置。 負 (範囲開始より前から始まるテイク) なら
         //   buffer 内をスキップ (playbackRate を考慮して buffer 秒換算)
+        // v2.62 fix4: bufOffset の単位は buffer 秒 (元波形の経過時間)。 take は MIX 内で
+        //   playbackRate = 1/takeSp で再生されるため、 1 output-秒で buffer は 1/takeSp 秒進む。
+        //   よって outStart 秒分先頭をスキップするには bufOffset = (-outStart) / takeSp。
+        //   v2.62 fix2 で playbackRate を 1/takeSp に変えたとき、 旧式 (-outStart * takeSp) を
+        //   更新し忘れていた。 take.speed=1.2 のテイクが 0.5 秒程度先に鳴る原因。
+        //   live playback (startTakePlayback) は takeLocalT = ... / takeSp で正しく動いていたため
+        //   ライブ側は正常、 MIX 側だけずれていた。
         const outStart = songStart - effStart;
         let when, bufOffset;
         if (outStart >= 0) { when = outStart; bufOffset = 0; }
-        else { when = 0; bufOffset = (-outStart) * (take.speed || 1); }
+        else { when = 0; bufOffset = (-outStart) / (take.speed || 1); }
         takeSource.start(when, bufOffset);
         usedTakes++;
         DEBUG.info('MIX:   + take "' + take.name + '" out@' + when.toFixed(2) + 's bufOff=' + bufOffset.toFixed(2) + 's dur=' + (take.duration||0).toFixed(1) + 's sp=' + (take.speed||1).toFixed(2) + 'x pitch=' + (take.pitchSemitones||0) + 'st voxOfs=' + offset.toFixed(3) + 's');

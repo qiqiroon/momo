@@ -8119,6 +8119,16 @@ async function _generateMixWav() {
 
     // 2. OfflineAudioContext + master gain (フェード用)
     const offlineCtx = new OfflineAudioContext(channels, totalSamples, sampleRate);
+    // v2.62 fix3: take-processor worklet を offlineCtx にも登録 (live と同じ pitch shift を MIX に焼き込む)。
+    //   v2.62 fix2 までは detune で代用していたが、 detune は playbackRate と連動するため time/pitch を
+    //   独立に制御できず、 pitch != 0 or speed != 1 のテイクが live playback と MIX で食い違っていた。
+    let _mixWorkletReady = false;
+    try {
+        await offlineCtx.audioWorklet.addModule(TAKE_WORKLET_URL);
+        _mixWorkletReady = true;
+    } catch (e) {
+        DEBUG.warn('MIX: take-processor addModule 失敗、 detune fallback: ' + (e.message || e));
+    }
     const master = offlineCtx.createGain();
     master.connect(offlineCtx.destination);
 
@@ -8178,17 +8188,36 @@ async function _generateMixWav() {
         const takeSource = offlineCtx.createBufferSource();
         takeSource.buffer = takeBuf;
         // v2.62 fix2: MIX 用 take playbackRate は live playback と同じ式 (curSp / takeSp) を使う。
-        //   MIX 目標速度は 1.0x (saved MIX は normal speed) のため、 takeRate = 1.0 / take.speed。
-        //   以前は take.speed をそのまま入れていたため、 take.speed=1.2 の場合 1.2x で焼き込まれ
-        //   live playback (= 1.0/1.2 = 0.833) と全く違う結果になっていた。
+        //   MIX 目標速度は 1.0x (saved MIX) のため、 takeRate = 1.0 / take.speed。
         takeSource.playbackRate.value = 1.0 / (take.speed || 1.0);
-        if (take.pitchSemitones) {
-            try { takeSource.detune.value = (take.pitchSemitones || 0) * 100; } catch (e) {}
-        }
-        // v2.61: 各テイク個別音量を間に挟む (voxBus に直結ではなく perTakeGain → voxBus)
+        const takeSt = take.pitchSemitones || 0;
+        const takeSp = take.speed || 1.0;
+        // v2.62 fix3: worklet が登録できれば worklet で pitch のみ shift (time に影響なし)。
+        //   そうでない場合は detune で fallback (time にも影響、 pitch != 0 で drift)。
+        //   公式: worklet.pitch = 2^((targetMasterPitch - takeSt)/12) / (targetMasterSpeed/takeSp)
+        //         MIX 目標 (0st, 1.0x) → 2^(-takeSt/12) * takeSp
         const perTakeGain = offlineCtx.createGain();
         perTakeGain.gain.value = (take.volume != null ? take.volume : 1.0);
-        takeSource.connect(perTakeGain);
+        if (_mixWorkletReady) {
+            // detune は使わない (worklet で pitch を扱う)
+            try { takeSource.detune.value = 0; } catch (e) {}
+            const perTakeShifter = new AudioWorkletNode(offlineCtx, 'take-processor', {
+                numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2]
+            });
+            const workletPitch = Math.pow(2, -takeSt / 12) * takeSp;
+            try { perTakeShifter.parameters.get('pitch').setValueAtTime(workletPitch, 0); } catch (e) {}
+            takeSource.connect(perTakeShifter);
+            perTakeShifter.connect(perTakeGain);
+            DEBUG.info('MIX:   take pitch shift via worklet, pitch=' + workletPitch.toFixed(4) + ' (takeSt=' + takeSt + ', takeSp=' + takeSp + ')');
+        } else {
+            // Fallback: detune を使う (符号注意: targetMasterPitch - takeSt = 0 - takeSt = -takeSt)
+            //   pitch != 0 のテイクは time drift する (worklet 取得失敗時のみの保険)
+            if (takeSt) {
+                try { takeSource.detune.value = (-takeSt) * 100; } catch (e) {}
+            }
+            takeSource.connect(perTakeGain);
+            DEBUG.warn('MIX:   take pitch shift via detune fallback (time drift may occur), takeSt=' + takeSt);
+        }
         perTakeGain.connect(voxBus);
         // 出力タイムライン上の開始位置。 負 (範囲開始より前から始まるテイク) なら
         //   buffer 内をスキップ (playbackRate を考慮して buffer 秒換算)

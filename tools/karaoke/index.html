@@ -1379,6 +1379,14 @@ input[type=range]::-moz-range-thumb {
 .src-name { flex: 1 1 auto; min-width: 0; font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .src-len { font-size: 11px; color: var(--text-muted); font-family: monospace; flex-shrink: 0; }
 .src-speed { font-size: 11px; color: var(--text-muted); font-family: monospace; flex-shrink: 0; min-width: 42px; text-align: right; }
+/* v2.61: src-row 内の音量スライダ (テイク個別 / MIX 再生 / BGM 音量) */
+.src-vol { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.src-vol-slider { width: 70px; height: 18px; margin: 0; cursor: pointer; }
+.src-vol-num { font-size: 10px; color: var(--text-muted); font-family: monospace; min-width: 32px; text-align: right; }
+/* v2.61: mix タブだけ padding を削減 (横幅確保) */
+.mix-section-compact { padding: 10px !important; }
+.mix-section-compact .karaoke-panel { padding: 10px 12px; }
+.mix-section-compact .panel-head { margin-bottom: 8px; }
 .src-menu-btn {
     min-width: 28px; height: 28px; padding: 0; flex-shrink: 0;
     background: transparent; color: var(--text-muted); border: none;
@@ -1675,7 +1683,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.60</span>
+                <span class="version-tag" id="version-tag">v2.61</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2112,11 +2120,8 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
     </div>
 
     <!-- ============ ミックスタブ: 再生用 ============ -->
-    <div id="mix-section" class="tool-card hidden">
-        <div class="section-label"><span id="mix-label">Mix — Playback</span></div>
-
-        <p class="panel-desc" style="margin-bottom:14px;">録音したテイクと BGM を組み合わせて再生・調整する画面です。テイクが無い場合はカラオケタブで録音してください。</p>
-
+    <!-- v2.61: section-label + panel-desc 削除 (タブ名で判別可)。 .tool-card padding 削減 (mix タブ限定)。 -->
+    <div id="mix-section" class="tool-card mix-section-compact hidden">
         <!-- v2.46: BGM / テイク / MIX を縦並列リスト化。 play-mode pill は廃止し選択に委ねる。
              BGM+テイク群 と MIX 群は相互排他 (片方を押すともう片方を自動解除、 グレーアウト無し)。 -->
         <div class="karaoke-panel">
@@ -2134,33 +2139,8 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             </div>
         </div>
 
-        <!-- ミックスバランス -->
-        <div class="karaoke-panel" id="mix-balance-panel">
-            <div class="panel-head">
-                <div class="panel-title">Mix Balance</div>
-                <div class="panel-tag">BGM ⇄ VOICE</div>
-            </div>
-            <div class="ctrl">
-                <div class="ctrl-label">
-                    <span style="color:var(--orange-mid);font-weight:700;">◀ BGM</span>
-                    <span class="ctrl-val" id="balanceVal">CENTER</span>
-                    <span style="color:var(--orange-light);font-weight:700;">VOICE ▶</span>
-                </div>
-                <input type="range" id="balanceSlider" min="-100" max="100" step="1" value="0">
-            </div>
-            <div class="balance-meters">
-                <div class="meter-line">
-                    <span class="meter-label">BGM</span>
-                    <div class="meter-track"><div class="meter-fill bgm" id="bgmMeter"></div></div>
-                    <span class="meter-num" id="bgmGainNum">0 dB</span>
-                </div>
-                <div class="meter-line">
-                    <span class="meter-label">VOICE</span>
-                    <div class="meter-track"><div class="meter-fill vox" id="voxMeter"></div></div>
-                    <span class="meter-num" id="voxGainNum">0 dB</span>
-                </div>
-            </div>
-        </div>
+        <!-- v2.61: Mix Balance パネル廃止。 BGM/VOICE は独立した音量スライダ + テイク個別音量で代替。
+             balanceSlider/bgmMeter/voxMeter/bgmGainNum/voxGainNum の DOM 要素は削除済 (JS 側で null-safe) -->
 
         <!-- ボーカルカット（録音時・再生時 共通、カラオケタブと同期） -->
         <div class="karaoke-panel" id="mix-vc-panel">
@@ -2368,7 +2348,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.60',
+        version: document.getElementById('version-tag')?.textContent || 'v2.61',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2482,7 +2462,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.60';
+const APP_VERSION = 'v2.61';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2541,9 +2521,11 @@ const vcPlayback = $('vcPlayback');       // 再生時カット
 const vcRecordRow = $('vcRecordRow');
 const vcPlaybackRow = $('vcPlaybackRow');
 const vocalCutStateTag = $('vocalCutStateTag');
-const balanceSlider = $('balanceSlider'), balanceVal = $('balanceVal');
-const bgmMeter = $('bgmMeter'), voxMeter = $('voxMeter');
-const bgmGainNum = $('bgmGainNum'), voxGainNum = $('voxGainNum');
+// v2.61: Mix Balance パネル廃止に伴い balanceSlider/balanceVal/bgmMeter/voxMeter/bgmGainNum/voxGainNum 要素は削除。
+//   後方互換のため null 参照を許容 (旧コード参照は全て if() ガード済)。
+const balanceSlider = null, balanceVal = null;
+const bgmMeter = null, voxMeter = null;
+const bgmGainNum = null, voxGainNum = null;
 const takesList = $('takesList'), takesCount = $('takesCount');
 const voxVolSlider = $('voxVolSlider'), voxVolVal = $('voxVolVal');
 const voxOfsSlider = $('voxOfsSlider'), voxOfsVal = $('voxOfsVal');
@@ -3900,6 +3882,27 @@ function stopTakePlayback(){
     if(takeShifter){ try { takeShifter.port.postMessage({type:'clear'}); } catch(e){} }
 }
 
+// v2.61: ライブ再生中のテイク個別音量を即時反映
+function applyTakeVolume(takeId){
+    if(!takeBufferSources || !takeBufferSources.length || !audioCtx) return;
+    const take = (state.currentEntry && state.currentEntry.takes || []).find(t => t.id === takeId);
+    if(!take) return;
+    const vol = (take.volume != null ? take.volume : 1.0);
+    for(const src of takeBufferSources){
+        if(src && src._takeId === takeId && src._perTakeGain){
+            try { src._perTakeGain.gain.setTargetAtTime(vol, audioCtx.currentTime, 0.01); } catch(e){}
+        }
+    }
+}
+// v2.61: MIX 再生中の音量を audio.volume へ反映
+function applyMixPlayVolume(mixId){
+    if(!_storedMixAudio) return;
+    if(state.selectedMixId !== mixId) return;
+    const m = (state.currentEntry && state.currentEntry.mixes || []).find(x => x.id === mixId);
+    if(!m) return;
+    try { _storedMixAudio.volume = Math.max(0, Math.min(1, m.playVolume != null ? m.playVolume : 1.0)); } catch(e){}
+}
+
 function startTakePlayback(){
     if(IOS_MODE){
         startTakePlaybackIOS();
@@ -3938,11 +3941,16 @@ function startTakePlayback(){
         }
         const src = audioCtx.createBufferSource();
         src.buffer = buf;
-        src.connect(takeShifter);
+        // v2.61: 各テイクに個別音量 GainNode を挿入 (src → perTakeGain → takeShifter)
+        const perTakeGain = audioCtx.createGain();
+        perTakeGain.gain.value = (take.volume != null ? take.volume : 1.0);
+        src.connect(perTakeGain);
+        perTakeGain.connect(takeShifter);
         src.playbackRate.value = curSp / takeSp;
         // per-take pitch (cents)。 ※ playbackRate と合わさり pitch+speed 結合 (worklet なしのため)
         try { src.detune.value = (take.pitchSemitones || 0) * 100; } catch(e){}
         src._takeId = id;  // 後で逆引き用
+        src._perTakeGain = perTakeGain;
         if(takeLocalT < 0){
             const realSecondsUntilStart = (-takeLocalT * takeSp) / curSp;
             const startCtxTime = audioCtx.currentTime + realSecondsUntilStart;
@@ -4974,7 +4982,8 @@ async function persistTakes(entry){
     const data = entry.takes.map(t => ({
         id: t.id, name: t.name, pcm: t.pcm, sampleRate: t.sampleRate,
         pitchSemitones: t.pitchSemitones, speed: t.speed,
-        startSongTime: t.startSongTime, duration: t.duration, createdAt: t.createdAt
+        startSongTime: t.startSongTime, duration: t.duration, createdAt: t.createdAt,
+        volume: (t.volume != null ? t.volume : 1.0)  // v2.61: テイク個別音量
     }));
     try { await idbPut(STORE_TAKES, takesKeyFor(entry), data); }
     catch(e){ console.warn('persist takes failed', e); }
@@ -5024,70 +5033,118 @@ function renderTakes(){
     takesCount.textContent = state.selectedTakeIds.size + ' / ' + takes.length;
 
     let html = '';
-    // BGM (v2.50: VOICE CUT のレベル選択プルダウン。 BGM なしは行クリックで ON/OFF。
-    //   プルダウンは bgmCutPct を変えるだけ (常に表示)。 行 .selected が BGM ON 表示。)
+    // v2.61: BGM 行プルダウン (cut0/50/100) を廃止。 ボイスカットは Vocal Cut パネルで一元化 (live + MIX 共通)。
+    // BGM 行は [☑][名前][長さ][音量スライダ] のみ。
     html += '<div class="src-group-label">BGM</div>';
     {
         const bgmSel = state.bgmSelected;
-        const cur = 'cut' + (state.bgmCutPct || 0);
         const bgmName = (entry.audioFile && entry.audioFile.name) || (entry.title || 'BGM');
         const bgmLen = bgmTransport.duration || 0;
-        const opt = (v, label) => '<option value="' + v + '"' + (cur === v ? ' selected' : '') + '>' + label + '</option>';
+        const bgmPct = Math.round(parseFloat(bgmVolSlider.value) || 100);
         html += '<div class="src-row' + (bgmSel ? ' selected' : '') + '" data-kind="bgm">' +
             '<span class="src-check">' + (bgmSel ? '☑' : '☐') + '</span>' +
-            '<select class="bgm-mode-select" id="bgmModeSelect" title="BGM のボイスカット率 (行クリックで BGM ON/OFF)">' +
-                opt('cut0', 'VOICE CUT 0%') + opt('cut50', 'VOICE CUT 50%') + opt('cut100', 'VOICE CUT 100%') +
-            '</select>' +
+            '<span class="src-num"></span>' +
             '<span class="src-name" title="' + escapeHtml(bgmName) + '">' + escapeHtml(bgmName) + '</span>' +
             '<span class="src-len">' + _fmtLen(bgmLen) + '</span>' +
-            '<span class="src-speed">1.00x</span>' +
+            '<span class="src-vol">' +
+                '<input type="range" class="src-vol-slider" id="bgmRowVol" min="0" max="200" step="1" value="' + bgmPct + '" title="BGM 音量">' +
+                '<span class="src-vol-num" id="bgmRowVolNum">' + bgmPct + '%</span>' +
+            '</span>' +
             '<span class="src-menu-spacer"></span>' +
         '</div>';
     }
-    // テイク
+    // テイク (v2.61: 速度列を個別音量スライダに置換)
     html += '<div class="src-group-label">テイク</div>';
     if (!takes.length) {
         html += '<div class="take-empty" style="font-size:11px;">まだテイクがありません — カラオケタブで録音</div>';
     } else {
         takes.forEach((t, i) => {
-            html += _srcRow({ kind: 'take', id: t.id, selected: state.selectedTakeIds.has(t.id),
-                num: i + 1, name: t.name, len: t.duration || 0, speed: (t.speed || 1), menu: true, single: false });
+            const vol = Math.round(((t.volume != null ? t.volume : 1) * 100));
+            html += '<div class="src-row' + (state.selectedTakeIds.has(t.id) ? ' selected' : '') + '" data-kind="take" data-id="' + t.id + '">' +
+                '<span class="src-check">' + (state.selectedTakeIds.has(t.id) ? '☑' : '☐') + '</span>' +
+                '<span class="src-num">' + (i + 1) + '</span>' +
+                '<span class="src-name" title="' + escapeHtml(t.name) + '">' + escapeHtml(t.name) + '</span>' +
+                '<span class="src-len">' + _fmtLen(t.duration || 0) + '</span>' +
+                '<span class="src-vol">' +
+                    '<input type="range" class="src-vol-slider" data-takeid="' + t.id + '" min="0" max="200" step="1" value="' + vol + '" title="テイク音量">' +
+                    '<span class="src-vol-num">' + vol + '%</span>' +
+                '</span>' +
+                '<button class="src-menu-btn" data-act="menu" title="メニュー">⋮</button>' +
+            '</div>';
         });
     }
-    // MIX
+    // MIX (v2.61: 再生音量スライダ追加)
     html += '<div class="src-group-label">MIX</div>';
     if (!mixes.length) {
         html += '<div class="take-empty" style="font-size:11px;">まだ MIX がありません</div>';
     } else {
         mixes.forEach((m, i) => {
-            html += _srcRow({ kind: 'mix', id: m.id, selected: state.selectedMixId === m.id,
-                num: i + 1, name: _mixDisplayName(m), len: _mixApproxDur(m), speed: 1.00, menu: true, single: true });
+            const vol = Math.round(((m.playVolume != null ? m.playVolume : 1) * 100));
+            html += '<div class="src-row' + (state.selectedMixId === m.id ? ' selected' : '') + '" data-kind="mix" data-mixid="' + m.id + '">' +
+                '<span class="src-check">' + (state.selectedMixId === m.id ? '◉' : '○') + '</span>' +
+                '<span class="src-num">' + (i + 1) + '</span>' +
+                '<span class="src-name" title="' + escapeHtml(_mixDisplayName(m)) + '">' + escapeHtml(_mixDisplayName(m)) + '</span>' +
+                '<span class="src-len">' + _fmtLen(_mixApproxDur(m)) + '</span>' +
+                '<span class="src-vol">' +
+                    '<input type="range" class="src-vol-slider" data-mixid="' + m.id + '" min="0" max="200" step="1" value="' + vol + '" title="再生音量">' +
+                    '<span class="src-vol-num">' + vol + '%</span>' +
+                '</span>' +
+                '<button class="src-menu-btn" data-act="menu" title="メニュー">⋮</button>' +
+            '</div>';
         });
     }
     takesList.innerHTML = html;
 
-    // 行クリック (⋮ 以外、 BGM プルダウン以外) = 選択トグル
+    // 行クリック (⋮ / 音量スライダ以外) = 選択トグル
     takesList.querySelectorAll('.src-row').forEach(row => {
         row.addEventListener('click', e => {
             if (e.target.closest('[data-act=menu]')) return;        // ⋮ は別処理
-            if (e.target.closest('.bgm-mode-select')) return;       // BGM プルダウンも別処理
+            if (e.target.closest('.src-vol')) return;                // 音量スライダ操作は別処理
             const kind = row.dataset.kind;
             if (kind === 'bgm') _selToggleBgm();
             else if (kind === 'take') _selToggleTake(row.dataset.id);
             else if (kind === 'mix') _selToggleMix(parseInt(row.dataset.mixid, 10));
         });
     });
-    // v2.50: BGM プルダウン change = VOICE CUT 率の変更 (排他: 何か選ぶと MIX 解除)。
-    //   行クリック (プルダウン外) で BGM ON/OFF (既存の _selToggleBgm)。
-    const bgmSel = takesList.querySelector('#bgmModeSelect');
-    if (bgmSel) {
-        bgmSel.addEventListener('click', e => e.stopPropagation());
-        bgmSel.addEventListener('change', () => {
-            const v = bgmSel.value;
-            const pct = (v === 'cut50') ? 50 : (v === 'cut100') ? 100 : 0;
-            _setBgmCut(pct);
+    // v2.61: BGM 行音量スライダ → 既存 bgmVolSlider と同期
+    const bgmRowVol = takesList.querySelector('#bgmRowVol');
+    const bgmRowVolNum = takesList.querySelector('#bgmRowVolNum');
+    if (bgmRowVol && bgmVolSlider) {
+        bgmRowVol.addEventListener('click', e => e.stopPropagation());
+        bgmRowVol.addEventListener('input', e => {
+            e.stopPropagation();
+            const pct = parseInt(bgmRowVol.value, 10) || 0;
+            bgmVolSlider.value = String(pct);
+            bgmVolSlider.dispatchEvent(new Event('input', { bubbles: true }));
+            if (bgmRowVolNum) bgmRowVolNum.textContent = pct + '%';
         });
     }
+    // v2.61: テイク個別音量
+    takesList.querySelectorAll('.src-vol-slider[data-takeid]').forEach(sl => {
+        sl.addEventListener('click', e => e.stopPropagation());
+        sl.addEventListener('input', e => {
+            e.stopPropagation();
+            const takeId = sl.dataset.takeid;
+            const pct = parseInt(sl.value, 10) || 0;
+            const t = (state.currentEntry.takes || []).find(x => x.id === takeId);
+            if (t) { t.volume = pct / 100; applyTakeVolume(takeId); }
+            const numEl = sl.parentElement.querySelector('.src-vol-num');
+            if (numEl) numEl.textContent = pct + '%';
+        });
+    });
+    // v2.61: MIX 再生音量
+    takesList.querySelectorAll('.src-vol-slider[data-mixid]').forEach(sl => {
+        sl.addEventListener('click', e => e.stopPropagation());
+        sl.addEventListener('input', e => {
+            e.stopPropagation();
+            const mixId = parseInt(sl.dataset.mixid, 10);
+            const pct = parseInt(sl.value, 10) || 0;
+            const m = (state.currentEntry.mixes || []).find(x => x.id === mixId);
+            if (m) { m.playVolume = pct / 100; applyMixPlayVolume(mixId); }
+            const numEl = sl.parentElement.querySelector('.src-vol-num');
+            if (numEl) numEl.textContent = pct + '%';
+        });
+    });
     // ⋮ メニュー
     takesList.querySelectorAll('.src-row [data-act=menu]').forEach(btn => {
         const row = btn.closest('.src-row');
@@ -6880,6 +6937,13 @@ bgmVolSlider.addEventListener('input', () => {
     const v = parseFloat(bgmVolSlider.value) || 0;
     bgmVolVal.textContent = v.toFixed(0) + '%';
     applyBgmVolume(); // delegates to applyBalance(), which handles iOS via <audio>.volume
+    // v2.61: BGM 行に同期 (mix タブ source list 内の同名スライダ)
+    const rowSl = document.getElementById('bgmRowVol');
+    const rowNum = document.getElementById('bgmRowVolNum');
+    if (rowSl && String(parseInt(v, 10)) !== rowSl.value) {
+        rowSl.value = String(parseInt(v, 10));
+        if (rowNum) rowNum.textContent = rowSl.value + '%';
+    }
 });
 voxVolSlider.addEventListener('input', () => {
     // v2.60 (Phase 6h): スライダは 0〜200% (linear gain = value/100)
@@ -7226,37 +7290,24 @@ function setPlayMode(mode){
     refreshTakeNowPlayingUI();
 }
 
-// ============== MIX BALANCE ==============
+// ============== VOLUME (旧 MIX BALANCE) ==============
 /**
- * Master gain は2系統 (BGM / VOICE) を独立に制御。
- *  - bgmVolSlider (0..200%) : BGM の絶対音量 (v2.60〜、 linear = value/100)
- *  - voxVolSlider (0..200%) : VOICE の絶対音量 (v2.60〜)
- *  - balanceSlider (-100..100) : 上記の上に乗るバランス係数
- *      -100 = BGM のみ (VOICE 完全カット)
- *      0    = 両方そのまま (係数 1.0/1.0)
- *      +100 = VOICE のみ (BGM 完全カット)
- *      中間は等パワー(cos/sin)で滑らかにクロスフェード
+ * v2.61: Mix Balance 廃止。 BGM/VOICE 独立 + テイク個別音量 + MIX 再生音量で代替。
+ *  - bgmVolSlider (0..200%) : BGM 音量 (linear = value/100)
+ *  - voxVolSlider (0..200%) : VOICE 全体音量 (テイク共通、 個別音量と乗算)
+ *  - take.volume (0..2)     : テイク個別音量
+ *  - mix.playVolume (0..2)  : 保存済 MIX 再生時の音量 (audio.volume 直結)
  */
-function balanceCoeffs(){
-    // pos in [-1, +1]
-    const pos = Math.max(-100, Math.min(100, parseFloat(balanceSlider.value))) / 100;
-    // Map to angle 0..π/2; pos=-1 → angle=0 (full BGM), pos=+1 → angle=π/2 (full VOICE)
-    const angle = (pos + 1) * 0.25 * Math.PI; // 0..π/2
-    const bgmCoeff = Math.cos(angle);
-    const voxCoeff = Math.sin(angle);
-    return { bgmCoeff, voxCoeff };
-}
 function gainToDb(g){
     if(g <= 0.0001) return -Infinity;
     return 20 * Math.log10(g);
 }
 function applyBalance(){
-    const { bgmCoeff, voxCoeff } = balanceCoeffs();
-    // v2.60 (Phase 6h): スライダ値は 0〜200% (linear gain = value/100)
+    // v2.61: cos/sin balance 廃止。 BGM/VOICE は独立スライダ。
     const bgmBase = (parseFloat(bgmVolSlider.value) || 0) / 100;
     const voxBase = (parseFloat(voxVolSlider.value) || 0) / 100;
-    let bgmFinal = bgmBase * bgmCoeff;
-    let voxFinal = voxBase * voxCoeff;
+    let bgmFinal = bgmBase;
+    let voxFinal = voxBase;
     // Apply play mode mute
     if(state.playMode === 'bgm')  voxFinal = 0;
     if(state.playMode === 'take') bgmFinal = 0;
@@ -7278,30 +7329,9 @@ function applyBalance(){
             voxGain.gain.setTargetAtTime(voxFinal, audioCtx.currentTime, 0.01);
         } catch(e){ /* noop */ }
     }
-    // UI updates (always)
-    const bgmDisplay = state.playMode === 'take' ? 0 : bgmCoeff;
-    const voxDisplay = state.playMode === 'bgm'  ? 0 : voxCoeff;
-    if(bgmMeter) bgmMeter.style.width = Math.min(100, bgmDisplay * 100) + '%';
-    if(voxMeter) voxMeter.style.width = Math.min(100, voxDisplay * 100) + '%';
-    if(bgmGainNum){
-        // v2.60 (Phase 6h): 最終ゲインを % 表示 (100% = unity)
-        bgmGainNum.textContent = bgmFinal > 0
-            ? Math.round(bgmFinal * 100) + '%'
-            : (state.playMode === 'take' ? 'MUTED' : '0%');
-    }
-    if(voxGainNum){
-        voxGainNum.textContent = voxFinal > 0
-            ? Math.round(voxFinal * 100) + '%'
-            : (state.playMode === 'bgm' ? 'MUTED' : '0%');
-    }
-    if(balanceVal){
-        const p = parseFloat(balanceSlider.value);
-        if(Math.abs(p) < 1) balanceVal.textContent = 'CENTER';
-        else if(p < 0) balanceVal.textContent = 'BGM ' + Math.abs(p).toFixed(0) + '%';
-        else balanceVal.textContent = 'VOICE ' + p.toFixed(0) + '%';
-    }
+    // v2.61: Mix Balance パネル削除に伴い、 bgmMeter/voxMeter/bgmGainNum/voxGainNum/balanceVal 更新ロジックを撤去。
 }
-balanceSlider.addEventListener('input', applyBalance);
+// v2.61: balanceSlider 廃止 (Mix Balance パネル削除済)。 イベント登録なし。
 
 // ============== LYRICS RESIZE HANDLE ==============
 (function initResize(){
@@ -7982,16 +8012,13 @@ async function _generateMixWav() {
     const master = offlineCtx.createGain();
     master.connect(offlineCtx.destination);
 
-    // v2.44: 再生と同じ最終ゲイン (base dB × Mix Balance の cos/sin) を MIX に焼き込む。
-    //   applyBalance() と同じ式。 play mode のモニタ用ミュートは MIX には適用しない。
-    const _balPos = Math.max(-100, Math.min(100, parseFloat(balanceSlider.value) || 0)) / 100;
-    const _balAngle = (_balPos + 1) * 0.25 * Math.PI;
-    // v2.60 (Phase 6h): スライダは 0〜200% (linear gain = value/100)
-    const bgmGainLin = ((parseFloat(bgmVolSlider.value) || 0) / 100) * Math.cos(_balAngle);
-    // v2.49 (Phase 6e): BGM プルダウンの状態に従って BGM を組み込む or スキップ。
-    //   bgmSelected=false → BGM なし。 cut>0 → Mid/Side 方式でボイスカット適用したバッファに差替え。
+    // v2.61: Mix Balance 廃止 → BGM/VOICE 独立。 ボイスカットは Vocal Cut パネルの値を使用 (live と共通)。
+    const bgmGainLin = (parseFloat(bgmVolSlider.value) || 0) / 100;
+    const vcOn = (typeof vcPlayback !== 'undefined' && vcPlayback && vcPlayback.checked);
+    const vcLvlEl = document.getElementById('vcPlaybackLevel');
+    const vcLvl = vcOn ? (parseFloat((vcLvlEl && vcLvlEl.value) || '100') / 100) : 0;
     if (state.bgmSelected) {
-        const cutBuf = _applyVocalCutToBuffer(bgmBuf, offlineCtx, (state.bgmCutPct || 0) / 100);
+        const cutBuf = _applyVocalCutToBuffer(bgmBuf, offlineCtx, vcLvl);
         const bgmSource = offlineCtx.createBufferSource();
         bgmSource.buffer = cutBuf;
         const bgmGainNode = offlineCtx.createGain();
@@ -7999,14 +8026,14 @@ async function _generateMixWav() {
         bgmSource.connect(bgmGainNode);
         bgmGainNode.connect(master);
         bgmSource.start(0, effStart);
-        DEBUG.info('MIX: BGM cut=' + (state.bgmCutPct || 0) + '%');
+        DEBUG.info('MIX: BGM cut=' + Math.round(vcLvl * 100) + '% (Vocal Cut パネル統合)');
     } else {
         DEBUG.info('MIX: BGM なし (テイクのみ)');
     }
 
     // 各テイク
     const takeIds = Array.from(state.selectedTakeIds);
-    const voxGainLin = ((parseFloat(voxVolSlider.value) || 0) / 100) * Math.sin(_balAngle);
+    const voxGainLin = (parseFloat(voxVolSlider.value) || 0) / 100;
     const offset = parseFloat(voxOfsSlider.value) || 0;
 
     // v2.49 (Phase 6e): 共有 voxBus + エコープリセット (テイクのみに適用、 全テイク共通)
@@ -8044,8 +8071,11 @@ async function _generateMixWav() {
         if (take.pitchSemitones) {
             try { takeSource.detune.value = (take.pitchSemitones || 0) * 100; } catch (e) {}
         }
-        // v2.49: 共有 voxBus (ゲイン+エコー) 経由で master へ
-        takeSource.connect(voxBus);
+        // v2.61: 各テイク個別音量を間に挟む (voxBus に直結ではなく perTakeGain → voxBus)
+        const perTakeGain = offlineCtx.createGain();
+        perTakeGain.gain.value = (take.volume != null ? take.volume : 1.0);
+        takeSource.connect(perTakeGain);
+        perTakeGain.connect(voxBus);
         // 出力タイムライン上の開始位置。 負 (範囲開始より前から始まるテイク) なら
         //   buffer 内をスキップ (playbackRate を考慮して buffer 秒換算)
         const outStart = songStart - effStart;
@@ -8135,6 +8165,8 @@ async function _saveMix(wavBlob, sourceTakeIds, extra) {
         // v2.48: 歌詞同期用の曲タイムライン開始時刻 (フェードイン込み) + 出力長
         songStartTime: (extra && extra.songStartTime) || 0,
         duration: (extra && extra.duration) || 0,
+        // v2.61: 再生音量 (audio.volume へ直結、 0〜2 でクリップ)
+        playVolume: 1.0,
     });
     if (prov === 'drive') {
         await META.Drive.saveSongMeta(songFolderName, songMeta);
@@ -8259,6 +8291,8 @@ async function _playStoredMix(m) {
     a.src = _storedMixBlobUrl; a.preload = 'auto'; a.style.display = 'none';
     document.body.appendChild(a);
     _storedMixAudio = a;
+    // v2.61: 個別 MIX 再生音量を反映
+    try { a.volume = Math.max(0, Math.min(1, m.playVolume != null ? m.playVolume : 1.0)); } catch(e){}
     a.addEventListener('ended', () => { _stopStoredMixPlayback(); _setPlayBtnIcon(false); renderMixes(); });
     a.addEventListener('error', () => { _stopStoredMixPlayback(); _setPlayBtnIcon(false); renderMixes(); });
     try { await a.play(); }

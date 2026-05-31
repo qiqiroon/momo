@@ -3480,7 +3480,11 @@ async function rebuildAudioContext(){
 function applyBgmPitch(){
     if(!bgmShifter) return;
     const st = parseInt(pitchSlider.value, 10);
-    bgmShifter.parameters.get('pitch').setValueAtTime(Math.pow(2, st/12), audioCtx.currentTime);
+    // v2.62: speed による rate-induced pitch shift を打ち消す。 BGM source の playbackRate が
+    //   sp 倍だと音程も sp 倍に上がってしまうため、 bgmShifter で 1/sp 倍に戻す。
+    //   結果: bgmShifter.pitch = 2^(st/12) / sp で「速度は sp 倍、 ピッチは st 半音のみ」 を実現
+    const sp = parseFloat(speedSlider.value) || 1.0;
+    bgmShifter.parameters.get('pitch').setValueAtTime(Math.pow(2, st/12) / sp, audioCtx.currentTime);
 }
 /**
  * BGM のボーカルカットは2つの独立したスイッチで決まる:
@@ -6971,7 +6975,8 @@ speedSlider.addEventListener('input', () => {
     } else {
         try { audioEl.playbackRate = v; } catch(e){}
         applyTakeSpeed();
-        // v2.62: speed 変更で speedPitchRatio が変わるため worklet pitch を再計算
+        // v2.62: speed 変更で speedPitchRatio が変わるため、 BGM/TAKE 両方の worklet pitch を再計算
+        applyBgmPitch();
         applyTakePitch();
     }
 });

@@ -1683,7 +1683,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.61</span>
+                <span class="version-tag" id="version-tag">v2.62</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -1896,6 +1896,18 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <button id="btnRec" class="momo-btn-rec" title="● 録音 / 停止 (BGM 同時再生 + マイク録音)" disabled>●</button>
             <span class="audio-btn-label" id="btnRecLabel" style="font-size:10px; color:var(--text-muted); margin-left:-4px; margin-right:4px; min-width:34px; line-height:1; pointer-events:none;">録音</span>
             <span id="audio-file-name" class="audio-file-name">—</span>
+            <!-- v2.62: マスター SPEED + PITCH コンパクトスライダ (karaoke/mix 両タブ共通)。
+                 隠れた #speedSlider / #pitchSlider と双方向同期。 PITCH は shared worklet 方式
+                 (state.currentTake を代表として takeShifter.pitch を計算、 異なる pitchSemitones
+                 を持つテイク同時再生時のみ近似)。 -->
+            <div class="master-sp-row" style="display:flex; align-items:center; gap:6px; flex-shrink:0; padding:4px 8px; background:var(--surface); border:1px solid var(--border); border-radius:6px;">
+                <span style="font-size:11px; color:var(--text-muted);" title="マスター速度">⏱</span>
+                <input type="range" id="masterSpeedSlider" min="0.5" max="2.0" step="0.05" value="1.0" style="width:80px;" title="マスター速度">
+                <span class="ctrl-val" id="masterSpeedVal" style="font-size:11px; min-width:40px; font-family:monospace;">1.00x</span>
+                <span style="font-size:11px; color:var(--text-muted); margin-left:4px;" title="マスターピッチ">🎵</span>
+                <input type="range" id="masterPitchSlider" min="-12" max="12" step="1" value="0" style="width:80px;" title="マスターピッチ (BGM のキー)">
+                <span class="ctrl-val" id="masterPitchVal" style="font-size:11px; min-width:30px; font-family:monospace;">0 st</span>
+            </div>
             <!-- v2.45: シーク行とテイクバーを grid で同じ列に揃える (col2 = トラック)。
                  範囲ハンドルはシークバーの真下に逆ホームベース型でぶら下げる。 -->
             <div class="transport-grid" id="transport-grid">
@@ -2348,7 +2360,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.61',
+        version: document.getElementById('version-tag')?.textContent || 'v2.62',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2462,7 +2474,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.61';
+const APP_VERSION = 'v2.62';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -3943,9 +3955,11 @@ function startTakePlayback(){
     const songT = audioEl.currentTime;
     const curSp  = parseFloat(speedSlider.value);
     const userOfs = parseFloat(voxOfsSlider.value);
-    // 複数テイク対応のため、 worklet は pitch=1 (bypass)。 per-source detune/playbackRate で各々制御。
-    //   ※ live pitchSlider 効果は take には乗らなくなる (BGM には bgmShifter で引き続き乗る)。
-    try { takeShifter.parameters.get('pitch').setValueAtTime(1.0, audioCtx.currentTime); } catch(e){}
+    // v2.62: shared worklet PITCH に戻す。 関数末尾で applyTakePitch() を呼び、
+    //   takeShifter.pitch = 2^((curSt - takeSt)/12) / (curSp/takeSp) で時刻を変えず pitch shift。
+    //   state.currentTake を代表として計算 (異なる pitchSemitones を持つテイク同時再生時のみ近似)。
+    //   v2.53 の bypass (pitch=1.0) + per-source detune は detune が playbackRate と連動して時刻
+    //   ずれを起こすため撤去。
     // v2.58: take worklet バッファクリア (再生開始時の保険)
     //   v2.61: 既存ソースがある場合はクリアしない (再生中の音が途切れる)
     if(takeShifter && kept.length === 0){ try { takeShifter.port.postMessage({type:'clear'}); } catch(e){} }
@@ -3978,8 +3992,8 @@ function startTakePlayback(){
         src.connect(perTakeGain);
         perTakeGain.connect(takeShifter);
         src.playbackRate.value = curSp / takeSp;
-        // per-take pitch (cents)。 ※ playbackRate と合わさり pitch+speed 結合 (worklet なしのため)
-        try { src.detune.value = (take.pitchSemitones || 0) * 100; } catch(e){}
+        // v2.62: detune は使わない (worklet 経由の applyTakePitch で時刻を変えずに pitch shift)
+        try { src.detune.value = 0; } catch(e){}
         src._takeId = id;  // 後で逆引き用
         src._perTakeGain = perTakeGain;
         if(takeLocalT < 0){
@@ -3994,6 +4008,8 @@ function startTakePlayback(){
             DEBUG.info('startTakePlayback: "' + take.name + '" @ local ' + takeLocalT.toFixed(2) + 's');
         }
     }
+    // v2.62: shared worklet pitch を state.currentTake を代表として計算
+    try { applyTakePitch(); } catch(e){ DEBUG.warn('applyTakePitch in startTakePlayback failed: ' + (e.message || e)); }
 }
 
 // Guard against re-entry while iosTakeAudioEl.play() is still pending.
@@ -6955,6 +6971,8 @@ speedSlider.addEventListener('input', () => {
     } else {
         try { audioEl.playbackRate = v; } catch(e){}
         applyTakeSpeed();
+        // v2.62: speed 変更で speedPitchRatio が変わるため worklet pitch を再計算
+        applyTakePitch();
     }
 });
 pitchSlider.addEventListener('input', () => {
@@ -6967,6 +6985,46 @@ pitchSlider.addEventListener('input', () => {
     // iOS: pitch shifting requires AudioWorklet which is unstable on iOS WebKit.
     // The slider position is preserved but has no audible effect.
 });
+// v2.62: マスター SPEED + PITCH コンパクトスライダ ↔ 既存隠れスライダ双方向同期
+(function _bindMasterSpPitch(){
+    const ms = document.getElementById('masterSpeedSlider');
+    const msv = document.getElementById('masterSpeedVal');
+    const mp = document.getElementById('masterPitchSlider');
+    const mpv = document.getElementById('masterPitchVal');
+    if (ms && speedSlider) {
+        // 初期値: 既存スライダから取得
+        try { ms.value = String(parseFloat(speedSlider.value) || 1.0); } catch(e){}
+        if (msv) msv.textContent = parseFloat(ms.value).toFixed(2) + 'x';
+        ms.addEventListener('input', () => {
+            speedSlider.value = ms.value;
+            speedSlider.dispatchEvent(new Event('input', { bubbles: true }));
+            if (msv) msv.textContent = parseFloat(ms.value).toFixed(2) + 'x';
+        });
+        speedSlider.addEventListener('input', () => {
+            if (ms.value !== speedSlider.value) {
+                ms.value = speedSlider.value;
+                if (msv) msv.textContent = parseFloat(speedSlider.value).toFixed(2) + 'x';
+            }
+        });
+    }
+    if (mp && pitchSlider) {
+        try { mp.value = String(parseInt(pitchSlider.value, 10) || 0); } catch(e){}
+        if (mpv) { const v = parseInt(mp.value, 10); mpv.textContent = (v >= 0 ? '+' : '') + v + ' st'; }
+        mp.addEventListener('input', () => {
+            pitchSlider.value = mp.value;
+            pitchSlider.dispatchEvent(new Event('input', { bubbles: true }));
+            const v = parseInt(mp.value, 10);
+            if (mpv) mpv.textContent = (v >= 0 ? '+' : '') + v + ' st';
+        });
+        pitchSlider.addEventListener('input', () => {
+            if (mp.value !== pitchSlider.value) {
+                mp.value = pitchSlider.value;
+                const v = parseInt(mp.value, 10);
+                if (mpv) mpv.textContent = (v >= 0 ? '+' : '') + v + ' st';
+            }
+        });
+    }
+})();
 bgmVolSlider.addEventListener('input', () => {
     // v2.60 (Phase 6h): スライダは 0〜200% (linear gain = value/100)
     const v = parseFloat(bgmVolSlider.value) || 0;

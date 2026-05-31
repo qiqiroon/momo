@@ -6996,6 +6996,17 @@ pitchSlider.addEventListener('input', () => {
     const msv = document.getElementById('masterSpeedVal');
     const mp = document.getElementById('masterPitchSlider');
     const mpv = document.getElementById('masterPitchVal');
+    // v2.62 fix2: iOS は AudioWorklet 不安定のため pitch 不可。 speed は HTMLAudio で動くが
+    //   一貫性のためユーザー要望で両方無効化 (Q1C)。
+    if (typeof IOS_MODE !== 'undefined' && IOS_MODE) {
+        const grayOut = (sl, val) => {
+            if (sl) { sl.disabled = true; sl.style.opacity = '0.4'; sl.style.cursor = 'not-allowed'; sl.title = 'iPhone は非対応 (AudioWorklet 不安定のため)'; }
+            if (val) val.style.opacity = '0.4';
+        };
+        grayOut(ms, msv);
+        grayOut(mp, mpv);
+        return;  // 同期処理はスキップ (slider は disabled で操作不可)
+    }
     if (ms && speedSlider) {
         // 初期値: 既存スライダから取得
         try { ms.value = String(parseFloat(speedSlider.value) || 1.0); } catch(e){}
@@ -8166,7 +8177,11 @@ async function _generateMixWav() {
         takeBuf.copyToChannel(take.pcm, 0);
         const takeSource = offlineCtx.createBufferSource();
         takeSource.buffer = takeBuf;
-        takeSource.playbackRate.value = take.speed || 1.0;
+        // v2.62 fix2: MIX 用 take playbackRate は live playback と同じ式 (curSp / takeSp) を使う。
+        //   MIX 目標速度は 1.0x (saved MIX は normal speed) のため、 takeRate = 1.0 / take.speed。
+        //   以前は take.speed をそのまま入れていたため、 take.speed=1.2 の場合 1.2x で焼き込まれ
+        //   live playback (= 1.0/1.2 = 0.833) と全く違う結果になっていた。
+        takeSource.playbackRate.value = 1.0 / (take.speed || 1.0);
         if (take.pitchSemitones) {
             try { takeSource.detune.value = (take.pitchSemitones || 0) * 100; } catch (e) {}
         }

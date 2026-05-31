@@ -1675,7 +1675,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.59</span>
+                <span class="version-tag" id="version-tag">v2.60</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2055,8 +2055,8 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 <input type="range" id="pitchSlider" min="-12" max="12" step="1" value="0">
             </div>
             <div class="ctrl">
-                <div class="ctrl-label"><span>VOLUME</span><span class="ctrl-val" id="bgmVolVal">0 dB</span></div>
-                <input type="range" id="bgmVolSlider" min="-24" max="6" step="0.5" value="0">
+                <div class="ctrl-label"><span>VOLUME</span><span class="ctrl-val" id="bgmVolVal">100%</span></div>
+                <input type="range" id="bgmVolSlider" min="0" max="200" step="1" value="100">
             </div>
             <div class="ctrl-label" style="margin-top:14px;"><span>EQ — 3 BAND</span><span></span></div>
             <div class="eq-row">
@@ -2189,8 +2189,8 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 <div class="panel-tag">TAKE PLAYBACK</div>
             </div>
             <div class="ctrl">
-                <div class="ctrl-label"><span>VOICE VOLUME</span><span class="ctrl-val" id="voxVolVal">0 dB</span></div>
-                <input type="range" id="voxVolSlider" min="-24" max="12" step="0.5" value="0">
+                <div class="ctrl-label"><span>VOICE VOLUME</span><span class="ctrl-val" id="voxVolVal">100%</span></div>
+                <input type="range" id="voxVolSlider" min="0" max="200" step="1" value="100">
             </div>
             <!-- v2.55: VOICE LEVELING (DynamicsCompressor) — 一定音量に均す。 録音時 AGC で
                  前半大・後半小になったテイクを聴感上揃える。 OFF (素通り) がデフォルト -->
@@ -2368,7 +2368,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.59',
+        version: document.getElementById('version-tag')?.textContent || 'v2.60',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2482,7 +2482,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.59';
+const APP_VERSION = 'v2.60';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -6876,13 +6876,15 @@ pitchSlider.addEventListener('input', () => {
     // The slider position is preserved but has no audible effect.
 });
 bgmVolSlider.addEventListener('input', () => {
-    const v = parseFloat(bgmVolSlider.value);
-    bgmVolVal.textContent = (v >= 0 ? '+' : '') + v.toFixed(1) + ' dB';
+    // v2.60 (Phase 6h): スライダは 0〜200% (linear gain = value/100)
+    const v = parseFloat(bgmVolSlider.value) || 0;
+    bgmVolVal.textContent = v.toFixed(0) + '%';
     applyBgmVolume(); // delegates to applyBalance(), which handles iOS via <audio>.volume
 });
 voxVolSlider.addEventListener('input', () => {
-    const v = parseFloat(voxVolSlider.value);
-    voxVolVal.textContent = (v >= 0 ? '+' : '') + v.toFixed(1) + ' dB';
+    // v2.60 (Phase 6h): スライダは 0〜200% (linear gain = value/100)
+    const v = parseFloat(voxVolSlider.value) || 0;
+    voxVolVal.textContent = v.toFixed(0) + '%';
     applyVoxVolume();
 });
 // v2.55: VOICE LEVELING — DynamicsCompressor の閾値/比率を切替えで適用
@@ -7227,8 +7229,8 @@ function setPlayMode(mode){
 // ============== MIX BALANCE ==============
 /**
  * Master gain は2系統 (BGM / VOICE) を独立に制御。
- *  - bgmVolSlider (-24..+6 dB) : BGM の絶対音量
- *  - voxVolSlider (-24..+12 dB): VOICE の絶対音量
+ *  - bgmVolSlider (0..200%) : BGM の絶対音量 (v2.60〜、 linear = value/100)
+ *  - voxVolSlider (0..200%) : VOICE の絶対音量 (v2.60〜)
  *  - balanceSlider (-100..100) : 上記の上に乗るバランス係数
  *      -100 = BGM のみ (VOICE 完全カット)
  *      0    = 両方そのまま (係数 1.0/1.0)
@@ -7250,8 +7252,9 @@ function gainToDb(g){
 }
 function applyBalance(){
     const { bgmCoeff, voxCoeff } = balanceCoeffs();
-    const bgmBase = dbToGain(parseFloat(bgmVolSlider.value));
-    const voxBase = dbToGain(parseFloat(voxVolSlider.value));
+    // v2.60 (Phase 6h): スライダ値は 0〜200% (linear gain = value/100)
+    const bgmBase = (parseFloat(bgmVolSlider.value) || 0) / 100;
+    const voxBase = (parseFloat(voxVolSlider.value) || 0) / 100;
     let bgmFinal = bgmBase * bgmCoeff;
     let voxFinal = voxBase * voxCoeff;
     // Apply play mode mute
@@ -7281,16 +7284,15 @@ function applyBalance(){
     if(bgmMeter) bgmMeter.style.width = Math.min(100, bgmDisplay * 100) + '%';
     if(voxMeter) voxMeter.style.width = Math.min(100, voxDisplay * 100) + '%';
     if(bgmGainNum){
-        const db = gainToDb(bgmFinal);
-        bgmGainNum.textContent = isFinite(db) && bgmFinal > 0
-            ? (db >= 0 ? '+' : '') + db.toFixed(1) + ' dB'
-            : (state.playMode === 'take' ? 'MUTED' : '−∞');
+        // v2.60 (Phase 6h): 最終ゲインを % 表示 (100% = unity)
+        bgmGainNum.textContent = bgmFinal > 0
+            ? Math.round(bgmFinal * 100) + '%'
+            : (state.playMode === 'take' ? 'MUTED' : '0%');
     }
     if(voxGainNum){
-        const db = gainToDb(voxFinal);
-        voxGainNum.textContent = isFinite(db) && voxFinal > 0
-            ? (db >= 0 ? '+' : '') + db.toFixed(1) + ' dB'
-            : (state.playMode === 'bgm' ? 'MUTED' : '−∞');
+        voxGainNum.textContent = voxFinal > 0
+            ? Math.round(voxFinal * 100) + '%'
+            : (state.playMode === 'bgm' ? 'MUTED' : '0%');
     }
     if(balanceVal){
         const p = parseFloat(balanceSlider.value);
@@ -7796,7 +7798,7 @@ async function openKaraokeSongPicker() {
 // v2.23: Phase 5c 初期化
 //   1. 既存 BGM Channel パネル + Vocal Cut パネルを非表示化 (ロジックは温存)
 //   2. 既存 Mic Setup パネルをモーダル内へ DOM 物理移動 (イベントハンドラ温存)
-//   3. 新規 BGM 音量スライダ (0〜200%) と既存 #bgmVolSlider (-24〜+6 dB) を双方向同期
+//   3. BGM 音量スライダ (0〜200%) と既存 #bgmVolSlider を双方向同期 (v2.60 から両者とも %)
 //   4. ⚙ ボタンでマイクモーダル表示
 function _initKaraoke5c() {
     // (1) 既存 v1.39 UI パネルを非表示化
@@ -7868,39 +7870,26 @@ function _initKaraoke5c() {
         }
     }
 
-    // (3) BGM 音量スライダ % ↔ dB 変換 + 双方向同期
+    // (3) BGM 音量スライダ % 同期 (v2.60 以降は両者とも 0〜200%、 dB 変換不要)
     const newSlider = document.getElementById('karaoke-bgm-vol-slider');
     const newVal = document.getElementById('karaoke-bgm-vol-val');
-    const oldSlider = document.getElementById('bgmVolSlider');  // v1.39 既存 (-24〜+6 dB)
+    const oldSlider = document.getElementById('bgmVolSlider');  // v2.60 で 0〜200% に統一
     if (newSlider && oldSlider) {
-        const pctToDb = (p) => (p <= 0) ? -24 : Math.max(-24, Math.min(6, 20 * Math.log10(p / 100)));
-        const dbToPct = (d) => Math.max(0, Math.min(200, Math.round(Math.pow(10, d / 20) * 100)));
-        // 初期値: 既存スライダの dB を % に反映 (デフォルト 0 dB → 100%)
-        try {
-            const initDb = parseFloat(oldSlider.value) || 0;
-            newSlider.value = String(dbToPct(initDb));
-        } catch (e) {}
-        const syncLabel = () => {
-            if (newVal) newVal.textContent = newSlider.value + '%';
-        };
+        // 初期値: 既存スライダの % をそのまま反映 (デフォルト 100%)
+        try { newSlider.value = String(parseInt(oldSlider.value, 10) || 100); } catch (e) {}
+        const syncLabel = () => { if (newVal) newVal.textContent = newSlider.value + '%'; };
         syncLabel();
-        // 新 → 旧 (UI 操作 → 既存ロジック反映、 input イベント発火で v1.39 ハンドラ起動)
+        // 新 → 旧 (UI 操作 → 既存ハンドラ起動)
         newSlider.addEventListener('input', () => {
             const pct = parseInt(newSlider.value, 10) || 0;
-            const db = pctToDb(pct);
-            oldSlider.value = String(db);
+            oldSlider.value = String(pct);
             oldSlider.dispatchEvent(new Event('input', { bubbles: true }));
             syncLabel();
         });
-        // 旧 → 新 (外部から oldSlider が変わった時の追従、 念のため)
+        // 旧 → 新 (外部から oldSlider が変わった時の追従)
         oldSlider.addEventListener('input', () => {
-            const db = parseFloat(oldSlider.value) || 0;
-            const pct = dbToPct(db);
-            // 微小な丸め誤差で input イベント無限ループ防止
-            if (String(pct) !== newSlider.value) {
-                newSlider.value = String(pct);
-                syncLabel();
-            }
+            const pct = String(parseInt(oldSlider.value, 10) || 0);
+            if (pct !== newSlider.value) { newSlider.value = pct; syncLabel(); }
         });
     }
 
@@ -7997,7 +7986,8 @@ async function _generateMixWav() {
     //   applyBalance() と同じ式。 play mode のモニタ用ミュートは MIX には適用しない。
     const _balPos = Math.max(-100, Math.min(100, parseFloat(balanceSlider.value) || 0)) / 100;
     const _balAngle = (_balPos + 1) * 0.25 * Math.PI;
-    const bgmGainLin = dbToGain(parseFloat(bgmVolSlider.value) || 0) * Math.cos(_balAngle);
+    // v2.60 (Phase 6h): スライダは 0〜200% (linear gain = value/100)
+    const bgmGainLin = ((parseFloat(bgmVolSlider.value) || 0) / 100) * Math.cos(_balAngle);
     // v2.49 (Phase 6e): BGM プルダウンの状態に従って BGM を組み込む or スキップ。
     //   bgmSelected=false → BGM なし。 cut>0 → Mid/Side 方式でボイスカット適用したバッファに差替え。
     if (state.bgmSelected) {
@@ -8016,7 +8006,7 @@ async function _generateMixWav() {
 
     // 各テイク
     const takeIds = Array.from(state.selectedTakeIds);
-    const voxGainLin = dbToGain(parseFloat(voxVolSlider.value) || 0) * Math.sin(_balAngle);
+    const voxGainLin = ((parseFloat(voxVolSlider.value) || 0) / 100) * Math.sin(_balAngle);
     const offset = parseFloat(voxOfsSlider.value) || 0;
 
     // v2.49 (Phase 6e): 共有 voxBus + エコープリセット (テイクのみに適用、 全テイク共通)

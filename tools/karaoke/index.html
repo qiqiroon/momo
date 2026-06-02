@@ -1690,7 +1690,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.63e</span>
+                <span class="version-tag" id="version-tag">v2.64</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2218,6 +2218,28 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             </div>
         </div>
 
+        <!-- v2.64: 機種別 MIX オフセット パネル -->
+        <div class="karaoke-panel" id="mix-offset-panel">
+            <div class="panel-head">
+                <div class="panel-title">機種別 MIX オフセット</div>
+                <div class="panel-tag" id="mixOffsetSourceTag">既定</div>
+            </div>
+            <p class="panel-desc" style="font-size:11px;">monitor 再生と MIX 生成の経路差を補正します。 値は voxOfs に加算されて MIX のみに適用 (monitor は raw voxOfs だけ)。 PC は通常 0、 iPhone は -300ms 程度。</p>
+            <div class="ctrl-label" style="margin-top:4px;">
+                <span>現在の値</span>
+                <span class="ctrl-val" id="mixOffsetValueLabel" style="font-family:monospace;">0 ms</span>
+            </div>
+            <div class="ctrl-label" style="margin-top:4px;">
+                <span>機種</span>
+                <span class="ctrl-val" id="mixOffsetDeviceLabelEl" style="font-family:monospace; font-size:10px;">不明</span>
+            </div>
+            <div style="display:flex; gap:6px; margin-top:10px; flex-wrap:wrap;">
+                <button class="momo-btn-small" id="mixOffsetCalibrateBtn">📐 校正</button>
+                <button class="momo-btn-small" id="mixOffsetResetBtn">↺ 既定値</button>
+                <button class="momo-btn-small" id="mixOffsetEditBtn">✏ 手動</button>
+            </div>
+        </div>
+
         <!-- v2.36 (Phase 6a): MIX 生成パネル (MVP: 範囲指定なし、 曲頭〜末で生成) -->
         <div class="karaoke-panel" id="mix-create-panel">
             <div class="panel-head">
@@ -2367,7 +2389,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.63e',
+        version: document.getElementById('version-tag')?.textContent || 'v2.64',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2481,7 +2503,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.63e';
+const APP_VERSION = 'v2.64';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2509,6 +2531,76 @@ const TAKE_WORKLET_URL = 'data:application/javascript;base64,Ly8gVGFrZSAocmVjb3J
 
 // ============== CONSTANTS ==============
 const AUDIO_EXTS = ['.mp3', '.m4a', '.flac', '.wav', '.ogg', '.opus', '.aac'];
+
+// ============================================================================
+// v2.64: 機種別 MIX オフセット既定値テーブル
+// ============================================================================
+//
+// 目的: 機種・ブラウザ毎の monitor (HTMLAudio on iOS / AudioContext on PC) と
+//   MIX 生成 (OfflineAudioContext、 サンプル正確) の経路差を吸収する初期値テーブル。
+//
+// 値の意味:
+//   voxOfs (ユーザー設定) に加算される ms 値 (負値 = take を MIX で「遅らせる」 方向に補正)。
+//   公式: MIX bufOff の effective voxOfs = voxOfs + (mixOffsetMs / 1000)
+//
+// 適用順位:
+//   1. ユーザーが「校正」 した値 (localStorage と karaoke folder の両方に保存)
+//   2. 校正なし → このテーブルから navigator.userAgent でマッチした既定値
+//   3. テーブルも該当なし → MIX_OFFSET_FALLBACK (= 0、 補正なし)
+//
+// テーブル更新方法:
+//   - 校正データが蓄積されたら entry を手動で追記・更新する
+//   - 新機種は OS / ブラウザ別の正規表現 + ラベル + 既定値 ms (整数) で追加
+//   - 順序: より具体的なものを先頭に (上から順に match される)
+//   - 仕様書: L:\momo\tools\karaoke\docs\mix-offset-defaults-spec.md
+//
+const MIX_OFFSET_DEFAULTS = [
+    // ─── iOS (要補正、 HTMLAudio 出力バッファ) ───
+    { match: /iPhone.*OS 18_/i,    label: 'iPhone iOS 18',  offsetMs: -330 },  // 2026-06-02 ユーザー empirical
+    { match: /iPhone.*OS 17_/i,    label: 'iPhone iOS 17',  offsetMs: -300 },  // 推定
+    { match: /iPhone.*OS 16_/i,    label: 'iPhone iOS 16',  offsetMs: -280 },  // 推定
+    { match: /iPad.*OS 18_/i,      label: 'iPad iOS 18',    offsetMs: -330 },  // 推定 (iPhone iOS 18 と同程度)
+    { match: /iPad.*OS 17_/i,      label: 'iPad iOS 17',    offsetMs: -300 },  // 推定
+
+    // ─── PC・Android (補正不要、 sample-accurate 経路) ───
+    { match: /Windows.*Chrome/i,   label: 'Windows Chrome', offsetMs: 0 },
+    { match: /Windows.*Edg\//i,    label: 'Windows Edge',   offsetMs: 0 },
+    { match: /Windows.*Firefox/i,  label: 'Windows Firefox',offsetMs: 0 },
+    { match: /Macintosh.*Safari/i, label: 'Mac Safari',     offsetMs: 0 },
+    { match: /Macintosh.*Chrome/i, label: 'Mac Chrome',     offsetMs: 0 },
+    { match: /Macintosh.*Firefox/i,label: 'Mac Firefox',    offsetMs: 0 },
+    { match: /Android.*Chrome/i,   label: 'Android Chrome', offsetMs: 0 },   // 未検証
+];
+const MIX_OFFSET_FALLBACK = { label: '不明 (補正なし)', offsetMs: 0 };
+
+function lookupDeviceMixOffset() {
+    const ua = navigator.userAgent || '';
+    for (const entry of MIX_OFFSET_DEFAULTS) {
+        if (entry.match.test(ua)) return entry;
+    }
+    return MIX_OFFSET_FALLBACK;
+}
+
+// UA から短いハッシュを生成 (機種別 localStorage / JSON キー用、 4 バイト 8 hex 文字)
+async function _uaHash(ua) {
+    try {
+        const buf = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(ua || ''));
+        const arr = Array.from(new Uint8Array(buf)).slice(0, 4);
+        return arr.map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch (e) {
+        // crypto.subtle 失敗時の fallback (簡易ハッシュ)
+        let h = 5381;
+        const s = ua || '';
+        for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+        return h.toString(16).padStart(8, '0');
+    }
+}
+
+async function _mixOffsetStorageKey() {
+    const entry = lookupDeviceMixOffset();
+    const hash = await _uaHash(navigator.userAgent || '');
+    return entry.label + '/' + hash;  // 例: "iPhone iOS 18/a3f7c891"
+}
 const DB_NAME = 'momo_karaoke';
 const DB_VERSION = 1;
 const STORE_HANDLES = 'handles';
@@ -2574,13 +2666,13 @@ const state = {
     // v2.63a: テイクの Drive 同期状態 (in-memory のみ、 page reload で消える)。
     //   {takeId: 'syncing' | 'synced' | 'error'}。 take.file が存在すれば持続的に「同期済」 扱い。
     takeSyncStatus: {},
-    // v2.63c: iOS MIX オフセット補正 (ms)。 iOS HTMLAudio の playback drift が MIX (sample-accurate)
-    //   に乗らないため、 voxOfs に手動補正を加える。 デフォルト -330ms (テイクを 0.33s ぶん遅らせる方向に補正)。
-    //   localStorage で persist + live monitor の resync 統計から自動更新。
-    iosMixCompensationMs: -330,
-    // v2.63c: live monitor で測定した iOS テイクドリフトの累積サンプル (resync err 値)。
-    //   平均値を 1/2 (resync 周期内の平均ドリフト) して MIX 補正値に反映。
-    iosTakeDriftSamples: [],
+    // v2.64: 機種別 MIX オフセット (ms)。 monitor (HTMLAudio on iOS / AudioContext on PC) と MIX
+    //   (OfflineAudioContext) の経路差を吸収する。 voxOfs に加算される。
+    //   読み込み順: localStorage → karaoke folder _app_settings.json → MIX_OFFSET_DEFAULTS テーブル → 0
+    //   詳細仕様: docs/mix-offset-defaults-spec.md
+    mixOffsetMs: 0,
+    mixOffsetSource: 'default-fallback',  // 'calibration' | 'karaoke-folder' | 'default-table' | 'default-fallback' | 'manual'
+    mixOffsetDeviceLabel: '不明',
     // v2.46: 統合音源リストの選択。 bgmSelected (BGM ON) + selectedTakeIds か、 selectedMixId のどちらか
     bgmSelected: true,
     // v2.49 (Phase 6e): BGM ボイスカット率 (0/50/100)。 「BGM なし」 は bgmSelected=false で表現
@@ -5071,49 +5163,358 @@ async function loadTakesFor(entry){
     } catch(e){ return []; }
 }
 
-// ============== v2.63c: iOS MIX オフセット自動補正 ==============
-//   iOS HTMLAudio の take playback は ~0.3〜0.6s 遅れて再生される (resync で補正)。
-//   MIX は OfflineAudioContext (sample-accurate) のため drift が乗らず、 同じ voxOfs だと
-//   take が monitor より早く聞こえる (= MIX に drift 分の補正が必要)。
-//   対処: voxOfs に static デフォルト -330ms を足し、 さらに live monitor で測定した
-//   resync err 値の平均 / 2 (resync 周期内の平均ドリフト) で自動更新。
-//   localStorage に保存して page reload 後も保持。 PC では使わない (IOS_MODE のみ)。
-(function _loadIosMixComp(){
+// ============== v2.64: 機種別 MIX オフセット — Load/Save (二段ストレージ) ==============
+//   読み込み順位:
+//     1. localStorage['mixOffsetMs::<key>'] (高速、 7日 ITP 制限あり on iOS)
+//     2. karaoke folder _app_settings.json の mixOffsetCalibrations[<key>] (端末横断・永続)
+//     3. MIX_OFFSET_DEFAULTS テーブル (UA マッチ)
+//     4. MIX_OFFSET_FALLBACK (= 0)
+//   保存時は localStorage と karaoke folder の両方に書く。
+
+// 起動初期 (Drive/Local 接続前) のシンプルな同期ロード — テーブル既定値 or localStorage のみ
+async function _loadMixOffsetInitial() {
     try {
-        const stored = localStorage.getItem('iosMixCompMs');
+        const key = await _mixOffsetStorageKey();
+        const localKey = 'mixOffsetMs::' + key;
+        const stored = localStorage.getItem(localKey);
+        const entry = lookupDeviceMixOffset();
         if (stored != null) {
             const v = parseInt(stored, 10);
-            // v2.63e migration: 自動更新が壊れていた v2.63d の遺産 (~+86ms) を破棄。
-            //   有効な値は -1000ms 〜 -100ms の範囲とする (それ以外は default -330ms を使用)。
-            if (Number.isFinite(v) && v >= -1000 && v <= -100) {
-                state.iosMixCompensationMs = v;
+            if (Number.isFinite(v) && v >= -2000 && v <= 2000) {
+                state.mixOffsetMs = v;
+                state.mixOffsetSource = 'calibration';
+                state.mixOffsetDeviceLabel = entry.label;
+                DEBUG.info('MIX オフセット: localStorage から ' + v + 'ms (' + entry.label + ')');
+                return;
             } else {
-                try { localStorage.removeItem('iosMixCompMs'); } catch(e) {}
-                DEBUG.info('iOS MIX 補正: localStorage 値 ' + v + 'ms が無効 (range 外)、 デフォルト -330ms にリセット');
+                try { localStorage.removeItem(localKey); } catch(_) {}
             }
         }
-    } catch(e) {}
-})();
-
-let _lastDriftLogTime = 0;
-function _accumulateIosDriftSample(errSec) {
-    if (typeof IOS_MODE === 'undefined' || !IOS_MODE) return;
-    if (!Number.isFinite(errSec)) return;
-    state.iosTakeDriftSamples.push(errSec);
-    if (state.iosTakeDriftSamples.length > 50) state.iosTakeDriftSamples.shift();
-    if (state.iosTakeDriftSamples.length < 5) return;
-    const sum = state.iosTakeDriftSamples.reduce((a, b) => a + b, 0);
-    const avgErrSec = sum / state.iosTakeDriftSamples.length;
-    // v2.63e: 自動更新は無効化 (currentTime ベース計測では iOS HTMLAudio 出力バッファ遅延を
-    //   検出できないため、 過小評価して逆効果になる。 ユーザー体感は 300-500ms だが計測値は ~86ms)。
-    //   静的デフォルトのみ使用、 ログ出力で診断のみ提供。
-    //   localStorage に手動値があれば優先 (DevTools コンソールから localStorage.setItem('iosMixCompMs', '-450') 等で変更可能)。
-    const now = performance.now();
-    if (now - _lastDriftLogTime > 10000) {
-        _lastDriftLogTime = now;
-        DEBUG.info('iOS drift 診断 (採用せず): 平均 err=' + avgErrSec.toFixed(3) + 's (' + state.iosTakeDriftSamples.length + ' 件、 現在の補正値 ' + state.iosMixCompensationMs + 'ms 維持)');
+        // localStorage なし → テーブル既定値
+        state.mixOffsetMs = entry.offsetMs;
+        state.mixOffsetSource = (entry === MIX_OFFSET_FALLBACK) ? 'default-fallback' : 'default-table';
+        state.mixOffsetDeviceLabel = entry.label;
+        DEBUG.info('MIX オフセット: 既定値 ' + entry.offsetMs + 'ms (' + entry.label + ', source=' + state.mixOffsetSource + ')');
+    } catch (e) {
+        DEBUG.warn('MIX オフセット 初期ロード 失敗: ' + (e.message || e));
     }
 }
+
+// karaoke folder 接続後の load — _app_settings.json から復元 (localStorage が無い場合)
+async function _loadMixOffsetFromFolder() {
+    if (state.mixOffsetSource === 'calibration') return;  // localStorage 既にあり → 触らない
+    const META = window.MomoMeta;
+    const MK = window.MomoMake;
+    if (!META || !MK || !MK.state) return;
+    const prov = MK.state.karaokeFolderProvider;
+    if (!prov) return;
+    try {
+        let settings;
+        if (prov === 'drive') settings = await META.Drive.loadAppSettings();
+        else if (prov === 'local' && MK.state.karaokeFolderHandle) {
+            settings = await META.Local.loadAppSettings(MK.state.karaokeFolderHandle);
+        }
+        if (!settings || !settings.mixOffsetCalibrations) return;
+        const key = await _mixOffsetStorageKey();
+        const cal = settings.mixOffsetCalibrations[key];
+        if (cal && Number.isFinite(cal.offsetMs)) {
+            state.mixOffsetMs = cal.offsetMs;
+            state.mixOffsetSource = 'karaoke-folder';
+            state.mixOffsetDeviceLabel = cal.label || lookupDeviceMixOffset().label;
+            // localStorage にも書き戻し (高速参照用)
+            try { localStorage.setItem('mixOffsetMs::' + key, String(cal.offsetMs)); } catch(_) {}
+            DEBUG.info('MIX オフセット: karaoke folder から復元 ' + cal.offsetMs + 'ms (' + state.mixOffsetDeviceLabel + ', 校正日 ' + (cal.calibratedAt || '不明') + ')');
+            if (typeof _renderMixOffsetUI === 'function') _renderMixOffsetUI();
+        }
+    } catch (e) {
+        DEBUG.warn('MIX オフセット karaoke folder ロード 失敗: ' + (e.message || e));
+    }
+}
+
+// 保存: localStorage と karaoke folder の両方に書く
+async function _saveMixOffset(offsetMs, source) {
+    const META = window.MomoMeta;
+    const MK = window.MomoMake;
+    const key = await _mixOffsetStorageKey();
+    const entry = lookupDeviceMixOffset();
+    const now = new Date().toISOString();
+    state.mixOffsetMs = offsetMs;
+    state.mixOffsetSource = source || 'manual';
+    state.mixOffsetDeviceLabel = entry.label;
+    // 1. localStorage
+    try { localStorage.setItem('mixOffsetMs::' + key, String(offsetMs)); } catch (e) {}
+    // 2. karaoke folder _app_settings.json
+    if (META && MK && MK.state && MK.state.karaokeFolderProvider) {
+        const prov = MK.state.karaokeFolderProvider;
+        try {
+            let settings;
+            if (prov === 'drive') settings = await META.Drive.loadAppSettings();
+            else if (prov === 'local' && MK.state.karaokeFolderHandle) {
+                settings = await META.Local.loadAppSettings(MK.state.karaokeFolderHandle);
+            }
+            if (!settings) settings = META.defaultAppSettings ? META.defaultAppSettings() : {};
+            if (!settings.mixOffsetCalibrations) settings.mixOffsetCalibrations = {};
+            settings.mixOffsetCalibrations[key] = {
+                label: entry.label,
+                offsetMs: offsetMs,
+                calibratedAt: now,
+                source: source || 'manual'
+            };
+            if (prov === 'drive') await META.Drive.saveAppSettings(settings);
+            else if (prov === 'local' && MK.state.karaokeFolderHandle) {
+                await META.Local.saveAppSettings(MK.state.karaokeFolderHandle, settings);
+            }
+            DEBUG.ok('MIX オフセット 保存完了: ' + offsetMs + 'ms (' + key + ', source=' + source + ', karaoke folder + localStorage)');
+        } catch (e) {
+            DEBUG.warn('MIX オフセット karaoke folder 保存 失敗 (localStorage のみ保存済): ' + (e.message || e));
+        }
+    }
+    if (typeof _renderMixOffsetUI === 'function') _renderMixOffsetUI();
+}
+
+// 既定値に戻す: localStorage 削除 + karaoke folder のエントリ削除
+async function _resetMixOffsetToDefault() {
+    const key = await _mixOffsetStorageKey();
+    const entry = lookupDeviceMixOffset();
+    try { localStorage.removeItem('mixOffsetMs::' + key); } catch (e) {}
+    const META = window.MomoMeta;
+    const MK = window.MomoMake;
+    if (META && MK && MK.state && MK.state.karaokeFolderProvider) {
+        const prov = MK.state.karaokeFolderProvider;
+        try {
+            let settings;
+            if (prov === 'drive') settings = await META.Drive.loadAppSettings();
+            else if (prov === 'local' && MK.state.karaokeFolderHandle) {
+                settings = await META.Local.loadAppSettings(MK.state.karaokeFolderHandle);
+            }
+            if (settings && settings.mixOffsetCalibrations && settings.mixOffsetCalibrations[key]) {
+                delete settings.mixOffsetCalibrations[key];
+                if (prov === 'drive') await META.Drive.saveAppSettings(settings);
+                else if (prov === 'local' && MK.state.karaokeFolderHandle) {
+                    await META.Local.saveAppSettings(MK.state.karaokeFolderHandle, settings);
+                }
+            }
+        } catch (e) {
+            DEBUG.warn('MIX オフセット reset 時の folder 更新 失敗: ' + (e.message || e));
+        }
+    }
+    state.mixOffsetMs = entry.offsetMs;
+    state.mixOffsetSource = (entry === MIX_OFFSET_FALLBACK) ? 'default-fallback' : 'default-table';
+    state.mixOffsetDeviceLabel = entry.label;
+    DEBUG.info('MIX オフセット 既定値リセット: ' + entry.offsetMs + 'ms (' + entry.label + ')');
+    if (typeof _renderMixOffsetUI === 'function') _renderMixOffsetUI();
+}
+
+// 初期ロード (起動直後、 localStorage + テーブル既定値 のみ)
+_loadMixOffsetInitial();
+
+// ============== v2.64: MIX オフセット UI 表示更新 ==============
+function _renderMixOffsetUI() {
+    const valLabel = document.getElementById('mixOffsetValueLabel');
+    const devLabel = document.getElementById('mixOffsetDeviceLabelEl');
+    const srcTag = document.getElementById('mixOffsetSourceTag');
+    if (valLabel) valLabel.textContent = (state.mixOffsetMs || 0) + ' ms';
+    if (devLabel) devLabel.textContent = state.mixOffsetDeviceLabel || '不明';
+    if (srcTag) {
+        const srcMap = {
+            'calibration': '校正済',
+            'karaoke-folder': '校正済 (folder 復元)',
+            'default-table': '機種既定',
+            'default-fallback': '未対応機種',
+            'manual': '手動設定',
+        };
+        srcTag.textContent = srcMap[state.mixOffsetSource] || state.mixOffsetSource || '?';
+    }
+}
+
+// ============== v2.64: マイク校正 ==============
+async function _runMixOffsetCalibration() {
+    if (!confirm('MIX オフセット校正を実行します。\n\n手順:\n1. マイク使用許可を求めます (echoCancellation OFF)\n2. 3 連続のクリック音をスピーカーから再生\n3. マイクで録音 → ピーク検出で出力遅延を実測\n4. 結果を localStorage と karaoke folder に保存\n\n静かな環境で実行してください。 約 5 秒かかります。')) return;
+    let micStream = null;
+    let ctx = null;
+    let ctxIsTemp = false;
+    try {
+        DEBUG.info('MIX 校正: getUserMedia 要求中...');
+        micStream = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+        });
+        DEBUG.ok('MIX 校正: マイク取得');
+
+        // AudioContext (校正専用、 既存があれば再利用)
+        ctx = audioCtx;
+        if (!ctx) {
+            ctx = new (window.AudioContext || window.webkitAudioContext)();
+            ctxIsTemp = true;
+        }
+        if (ctx.state === 'suspended') await ctx.resume();
+
+        // mic → analyser でレベル監視
+        const micSrc = ctx.createMediaStreamSource(micStream);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 256;
+        analyser.smoothingTimeConstant = 0;
+        const buf = new Float32Array(analyser.fftSize);
+        micSrc.connect(analyser);
+
+        // 短いクリック WAV を生成 (20ms、 1kHz、 fade in/out 2ms)
+        const clickSr = 48000;
+        const clickDur = 0.02;
+        const clickLen = Math.floor(clickSr * clickDur);
+        const fadeLen = Math.floor(clickSr * 0.002);
+        const clickPcm = new Float32Array(clickLen);
+        for (let i = 0; i < clickLen; i++) {
+            let amp = 0.6;
+            if (i < fadeLen) amp *= i / fadeLen;
+            else if (i > clickLen - fadeLen) amp *= (clickLen - i) / fadeLen;
+            clickPcm[i] = amp * Math.sin(2 * Math.PI * 1000 * (i / clickSr));
+        }
+        // WAV blob 化 (mono)
+        const clickWav = _pcmToWavBlob(clickPcm, clickSr, 1);
+        const clickUrl = URL.createObjectURL(clickWav);
+
+        // mic 安定化待ち
+        await new Promise(r => setTimeout(r, 600));
+
+        // 3 回測定して中央値
+        const measurements = [];
+        for (let trial = 0; trial < 3; trial++) {
+            DEBUG.info('MIX 校正: trial ' + (trial + 1) + '/3 開始');
+            // 静寂レベル測定 (peak threshold 計算用)
+            let baseline = 0;
+            for (let k = 0; k < 10; k++) {
+                analyser.getFloatTimeDomainData(buf);
+                let p = 0;
+                for (let i = 0; i < buf.length; i++) if (Math.abs(buf[i]) > p) p = Math.abs(buf[i]);
+                if (p > baseline) baseline = p;
+                await new Promise(r => setTimeout(r, 5));
+            }
+            const threshold = Math.max(0.05, baseline * 3);  // baseline の 3 倍 or 0.05 のうち大きい方
+
+            // クリック再生 (iOS でも PC でも HTMLAudio で統一 — monitor 経路に近い)
+            const audio = document.createElement('audio');
+            audio.src = clickUrl;
+            audio.preload = 'auto';
+            audio.style.display = 'none';
+            document.body.appendChild(audio);
+            await new Promise((res, rej) => {
+                if (audio.readyState >= 2) res();
+                else {
+                    audio.addEventListener('canplay', res, { once: true });
+                    audio.addEventListener('error', () => rej(new Error('audio load failed')), { once: true });
+                    setTimeout(() => res(), 1000);  // タイムアウト保険
+                }
+            });
+
+            const T0 = performance.now();
+            try { await audio.play(); } catch (e) {
+                DEBUG.warn('MIX 校正: audio.play 失敗 ' + e.message);
+                try { audio.remove(); } catch(_) {}
+                continue;
+            }
+            // ピーク検出 (1ms 間隔で 1 秒以内)
+            let detectedT = 0;
+            const deadline = T0 + 1500;
+            while (performance.now() < deadline) {
+                analyser.getFloatTimeDomainData(buf);
+                let peak = 0;
+                for (let i = 0; i < buf.length; i++) {
+                    const a = Math.abs(buf[i]);
+                    if (a > peak) peak = a;
+                }
+                if (peak > threshold) {
+                    detectedT = performance.now();
+                    break;
+                }
+                await new Promise(r => setTimeout(r, 2));
+            }
+            try { audio.pause(); audio.remove(); } catch(_) {}
+
+            if (detectedT > 0) {
+                const roundTrip = detectedT - T0;
+                // assumed input latency ~ 50ms (Web Audio mic capture)
+                const outputLatency = roundTrip - 50;
+                measurements.push(outputLatency);
+                DEBUG.info('MIX 校正: trial ' + (trial + 1) + ' round_trip=' + roundTrip.toFixed(0) + 'ms output_lat≈' + outputLatency.toFixed(0) + 'ms (threshold=' + threshold.toFixed(3) + ', baseline=' + baseline.toFixed(3) + ')');
+            } else {
+                DEBUG.warn('MIX 校正: trial ' + (trial + 1) + ' クリック検出失敗 (静かな環境で再試行を推奨)');
+            }
+            await new Promise(r => setTimeout(r, 500));  // 試行間 0.5 秒待機
+        }
+
+        URL.revokeObjectURL(clickUrl);
+
+        if (measurements.length === 0) {
+            alert('校正失敗: クリック音が検出できませんでした。 静かな環境で再試行してください。');
+            return;
+        }
+        // 中央値
+        measurements.sort((a, b) => a - b);
+        const median = measurements[Math.floor(measurements.length / 2)];
+        // 補正値は MIX で voxOfs に加算される負値 (monitor で遅れる分だけ MIX で先取り)
+        const offsetMs = -Math.round(median);
+        DEBUG.ok('MIX 校正完了: 測定値 ' + measurements.map(m => m.toFixed(0)).join('/') + 'ms → 中央値 ' + median.toFixed(0) + 'ms → 補正 ' + offsetMs + 'ms');
+        await _saveMixOffset(offsetMs, 'calibration');
+        alert('校正完了!\n\n測定値: ' + measurements.map(m => Math.round(m)).join(' / ') + ' ms\n適用補正: ' + offsetMs + ' ms\n\nMIX を作成して monitor と比較してください。');
+    } catch (e) {
+        DEBUG.err('MIX 校正 失敗: ' + (e.message || e));
+        alert('校正失敗: ' + (e.message || e));
+    } finally {
+        if (micStream) try { micStream.getTracks().forEach(t => t.stop()); } catch(_) {}
+        if (ctxIsTemp && ctx) try { ctx.close(); } catch(_) {}
+    }
+}
+
+// PCM Float32Array → WAV blob (mono、 校正用クリック生成)
+function _pcmToWavBlob(pcm, sampleRate, channels) {
+    const numSamples = pcm.length;
+    const buf = new ArrayBuffer(44 + numSamples * 2);
+    const view = new DataView(buf);
+    const writeStr = (offset, str) => { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); };
+    writeStr(0, 'RIFF');
+    view.setUint32(4, 36 + numSamples * 2, true);
+    writeStr(8, 'WAVE');
+    writeStr(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, channels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * channels * 2, true);
+    view.setUint16(32, channels * 2, true);
+    view.setUint16(34, 16, true);
+    writeStr(36, 'data');
+    view.setUint32(40, numSamples * 2, true);
+    for (let i = 0; i < numSamples; i++) {
+        let s = Math.max(-1, Math.min(1, pcm[i]));
+        view.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    }
+    return new Blob([buf], { type: 'audio/wav' });
+}
+
+// ボタンバインド (DOMContentLoaded 後)
+(function _bindMixOffsetButtons(){
+    const tryBind = () => {
+        const calBtn = document.getElementById('mixOffsetCalibrateBtn');
+        const resetBtn = document.getElementById('mixOffsetResetBtn');
+        const editBtn = document.getElementById('mixOffsetEditBtn');
+        if (calBtn) calBtn.addEventListener('click', () => _runMixOffsetCalibration());
+        if (resetBtn) resetBtn.addEventListener('click', async () => {
+            if (!confirm('校正値を破棄して機種既定値に戻します。 よろしいですか?')) return;
+            await _resetMixOffsetToDefault();
+        });
+        if (editBtn) editBtn.addEventListener('click', async () => {
+            const cur = state.mixOffsetMs || 0;
+            const inp = prompt('MIX オフセット (ms) を入力してください。\n負値 = take を MIX で「遅らせる」 方向に補正 (iOS 既定 -330ms)。\n0 = 補正なし (PC 既定)。', String(cur));
+            if (inp == null) return;
+            const v = parseInt(inp, 10);
+            if (!Number.isFinite(v) || v < -2000 || v > 2000) { alert('-2000 〜 +2000 の整数で入力してください'); return; }
+            await _saveMixOffset(v, 'manual');
+        });
+        // 初期 UI 更新
+        if (typeof _renderMixOffsetUI === 'function') _renderMixOffsetUI();
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', tryBind);
+    else tryBind();
+})();
 
 // ============== v2.63a: TAKE FILE SYNC (webm/opus → Drive/Local) ==============
 //   録音直後の MediaRecorder blob を曲フォルダに `take_<id>.webm` で保存し、
@@ -5951,6 +6352,8 @@ async function selectEntry(entry){
     // v2.63b: meta.json から欠けてる take (他端末で sync されたもの) をバックグラウンド DL
     //   await しない (UI ブロック無し)、 取得完了したら逐次 renderTakes
     _reconcileTakesInBackground(entry).catch(e => DEBUG.warn('reconcile bg failed: ' + (e.message || e)));
+    // v2.64: 機種別 MIX オフセットを karaoke folder から復元 (localStorage 7日消失対策)
+    _loadMixOffsetFromFolder().catch(e => DEBUG.warn('mix offset folder load failed: ' + (e.message || e)));
 
     // UI
     npEmpty.classList.add('hidden');
@@ -6976,10 +7379,8 @@ function syncTakeToBgm(){
         const actual = iosTakeAudioEl.currentTime;
         const error = expected - actual;
         const absErr = Math.abs(error);
-        // v2.63c (revised): passive サンプル蓄積。 resync 発動 (>0.30s) は短い take や短時間再生
-        //   ではほぼ起きないため、 毎 syncTakeToBgm (5Hz) で集計 → 1〜2 秒で十分サンプル数確保。
-        //   0.02s 未満は noise として除外。
-        if (absErr > 0.02) { try { _accumulateIosDriftSample(error); } catch(e){} }
+        // v2.64: 旧 _accumulateIosDriftSample (v2.63c-e) は撤去。 currentTime ベース計測では
+        //   iOS HTMLAudio 出力バッファ遅延が見えないため不正確。 代わりにマイク校正で実測する設計。
         const now = performance.now();
         if(absErr > 0.30 && (now - iosTakeLastRateAdjust) > 3000){
             DEBUG.info('iOS take resync: err=' + error.toFixed(3) + 's, expected=' + expected.toFixed(2));
@@ -8450,13 +8851,14 @@ async function _generateMixWav() {
     // 各テイク
     const takeIds = Array.from(state.selectedTakeIds);
     const voxGainLin = (parseFloat(voxVolSlider.value) || 0) / 100;
-    // v2.63c: iOS は HTMLAudio playback drift が live monitor だけにかかり MIX には乗らないため、
-    //   voxOfs に補正値を加える (静的デフォルト -330ms + live monitor 自動測定)。
-    //   convention: offset_eff = voxOfs - (iosCompMs/1000) で take を遅らせる方向に効く。
-    //   PC では補正なし。
-    const iosCompMs = (typeof IOS_MODE !== 'undefined' && IOS_MODE) ? (state.iosMixCompensationMs || 0) : 0;
-    const offset = (parseFloat(voxOfsSlider.value) || 0) - (iosCompMs / 1000);
-    if (iosCompMs) DEBUG.info('MIX: iOS 補正 ' + iosCompMs + 'ms 適用 → effective voxOfs = ' + offset.toFixed(3) + 's (raw voxOfs=' + (parseFloat(voxOfsSlider.value) || 0).toFixed(3) + 's)');
+    // v2.64: 機種別 MIX オフセット (state.mixOffsetMs) を voxOfs に加算する。
+    //   convention: effective voxOfs = voxOfs - (mixOffsetMs/1000)。 mixOffsetMs が負値なら
+    //   voxOfs に絶対値を加算する形になり、 take を「遅らせる」 方向に補正。
+    //   PC は既定値 0 のため voxOfs だけで monitor/MIX 両方 sync (現状動作維持)。
+    //   iOS は -330ms 等の既定値 or 校正値で MIX↔monitor 経路差を補正。
+    const mixOffMs = state.mixOffsetMs || 0;
+    const offset = (parseFloat(voxOfsSlider.value) || 0) - (mixOffMs / 1000);
+    if (mixOffMs) DEBUG.info('MIX: 機種別オフセット ' + mixOffMs + 'ms 適用 (' + state.mixOffsetSource + ', ' + state.mixOffsetDeviceLabel + ') → effective voxOfs = ' + offset.toFixed(3) + 's (raw voxOfs=' + (parseFloat(voxOfsSlider.value) || 0).toFixed(3) + 's)');
 
     // v2.49 (Phase 6e): 共有 voxBus + エコープリセット (テイクのみに適用、 全テイク共通)
     const voxBus = offlineCtx.createGain();

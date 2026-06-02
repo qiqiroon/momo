@@ -1690,7 +1690,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.64d</span>
+                <span class="version-tag" id="version-tag">v2.64e</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2389,7 +2389,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.64d',
+        version: document.getElementById('version-tag')?.textContent || 'v2.64e',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2503,7 +2503,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.64d';
+const APP_VERSION = 'v2.64e';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -5356,7 +5356,7 @@ async function _runMixOffsetCalibration() {
         const buf = new Float32Array(analyser.fftSize);
         micSrc.connect(analyser);
 
-        // v2.64d: クリック音を 200ms に延長 (50ms だと iPhone 内蔵 mic で拾えないことが多い)。
+        // v2.64e: クリック音を 200ms に延長 (50ms だと iPhone 内蔵 mic で拾えないことが多い)。
         //   1kHz サイン波 + fade in/out 5ms + amp 1.0。 検出ウィンドウも広がり安定。
         const clickSr = 48000;
         const clickDur = 0.20;
@@ -5389,14 +5389,14 @@ async function _runMixOffsetCalibration() {
                 setTimeout(res, 1500);
             }
         });
-        // 最初の 1 回は短く再生して iOS の audio element を「ユーザー起動済」 状態にする
-        try { audio.muted = true; await audio.play(); audio.pause(); audio.currentTime = 0; audio.muted = false; }
-        catch (e) { DEBUG.warn('MIX 校正: priming play 失敗 ' + e.message); }
+        // v2.64e: priming play を廃止 (Plan C)。 旧 muted play は iOS AGC を狂わせ、
+        //   本番 trial 出力 gain を下げる副作用が疑われたため。 trial 1 が時々 autoplay
+        //   denial になるが、 5 trial で吸収する設計。
 
         // mic 安定化待ち
         await new Promise(r => setTimeout(r, 600));
 
-        // v2.64d: 5 回測定 → trimmed mean (中央値 → 平均に変更)
+        // v2.64e: 5 回測定 → trimmed mean (中央値 → 平均に変更)
         //   trial 1 は失敗 / 異常値が出やすい (speaker warm-up, autoplay denial, priming 残響)
         //   ため、 trial 数を 5 にして 1 つ失敗 / 異常でも安定した平均が得られるようにした。
         const TRIAL_COUNT = 5;
@@ -5411,7 +5411,7 @@ async function _runMixOffsetCalibration() {
                 if (p > baseline) baseline = p;
                 await new Promise(r => setTimeout(r, 5));
             }
-            const threshold = Math.max(0.02, baseline * 3);  // v2.64-fix: 閾値下限 0.05 → 0.02
+            const threshold = Math.max(0.05, baseline * 3);  // v2.64e: 0.02 → 0.05 復元 (低すぎると HTMLAudio バッファ準備音で誤検出)
             try {
                 audio.pause(); audio.currentTime = 0;
             } catch (_) {}
@@ -5454,7 +5454,7 @@ async function _runMixOffsetCalibration() {
             alert('校正失敗: クリック音が検出できませんでした。 静かな環境で、 スピーカー部分を覆って再試行してください。');
             return;
         }
-        // v2.64d: trimmed mean (5 trial 中 最大・最小を除いた中央域の平均)
+        // v2.64e: trimmed mean (5 trial 中 最大・最小を除いた中央域の平均)
         //   n>=4: sort 後に min/max 各 1 個除外 → 残り (n-2) 個の算術平均
         //   n==3: min/max 除外で残り 1 個 (中央値と同じ)
         //   n==2: 2 個の算術平均
@@ -9055,7 +9055,7 @@ async function _saveMix(wavBlob, sourceTakeIds, extra) {
     if (!songMeta) songMeta = META.defaultSongMeta();
     if (!Array.isArray(songMeta.mixes)) songMeta.mixes = [];
 
-    // v2.64d fix: in-memory state.currentEntry.mixes を真値として採用 (削除済 MIX が _saveMix で
+    // v2.64e fix: in-memory state.currentEntry.mixes を真値として採用 (削除済 MIX が _saveMix で
     //   復活するのを防ぐ)。 Drive 上の meta.json は古い可能性があるため、 削除直後に MIX 作成すると
     //   load した meta に削除済 MIX が残っていて、 そのまま save すると復活してしまう問題があった。
     //   ただし mixId 算出は load した meta から計算 (in-memory も Drive も同等の番号採番のため)。
@@ -9365,7 +9365,7 @@ async function _deleteMix(mix) {
     // v2.41: 楽観的 UI — 先に一覧から消して即描画 (体感速度向上)。 永続化は背後で並列実行。
     const prevMixes = (state.currentEntry.mixes || []).slice();
     state.currentEntry.mixes = prevMixes.filter(x => x.id !== mix.id);
-    // v2.64d fix: 生成直後キャッシュもクリア (削除した MIX が cache に残ると次回再生で蘇る)
+    // v2.64e fix: 生成直後キャッシュもクリア (削除した MIX が cache に残ると次回再生で蘇る)
     try { delete _freshMixBlobs[mix.id]; } catch (e) {}
     // 選択中の MIX を消したら BGM 選択に戻す
     if (state.selectedMixId === mix.id) {
@@ -9664,7 +9664,7 @@ async function _startMixPreview() {
         btn.textContent = '⏳ MIX を生成中…';
         if (status) status.textContent = 'RENDERING';
         if (progress) { progress.style.display = ''; progress.textContent = 'OfflineAudioContext で render 中… (数秒〜十数秒)'; }
-        // v2.64d: MIX 生成中の screen lock 防止。 iOS Safari 16.4+ / Chrome / Edge で対応。
+        // v2.64e: MIX 生成中の screen lock 防止。 iOS Safari 16.4+ / Chrome / Edge で対応。
         //   ロック後の screen saver 中は JS / network が suspend され、 大きい WAV upload (37MB) が
         //   完了しないため。 失敗しても続行 (fallback: 通常通り render + upload)。
         let _wakeLock = null;

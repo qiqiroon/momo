@@ -1383,6 +1383,13 @@ input[type=range]::-moz-range-thumb {
 .src-vol { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .src-vol-slider { width: 70px; height: 18px; margin: 0; cursor: pointer; }
 .src-vol-num { font-size: 10px; color: var(--text-muted); font-family: monospace; min-width: 32px; text-align: right; }
+/* v2.63a: テイク Drive 同期状態アイコン */
+.take-sync { font-size: 12px; flex-shrink: 0; width: 20px; text-align: center; background: transparent; border: none; padding: 0; cursor: default; line-height: 1; }
+.take-sync.error { cursor: pointer; color: var(--orange-light); }
+.take-sync.syncing { animation: take-sync-spin 1.4s linear infinite; opacity: 0.7; }
+.take-sync.synced { opacity: 0.6; }
+.take-sync.local { opacity: 0.5; filter: grayscale(0.7); }
+@keyframes take-sync-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 /* v2.61: mix タブだけ padding を削減 (横幅確保) */
 .mix-section-compact { padding: 10px !important; }
 .mix-section-compact .karaoke-panel { padding: 10px 12px; }
@@ -1683,7 +1690,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.62</span>
+                <span class="version-tag" id="version-tag">v2.63a</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2360,7 +2367,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.62',
+        version: document.getElementById('version-tag')?.textContent || 'v2.63a',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2474,7 +2481,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.62';
+const APP_VERSION = 'v2.63a';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2564,6 +2571,9 @@ const state = {
     selectedMixId: null,
     // v2.43 (Phase 6c): MIX 作成範囲 (秒)。 selectEntry で {0, BGM 長} に初期化
     mixRange: { start: 0, end: 0 },
+    // v2.63a: テイクの Drive 同期状態 (in-memory のみ、 page reload で消える)。
+    //   {takeId: 'syncing' | 'synced' | 'error'}。 take.file が存在すれば持続的に「同期済」 扱い。
+    takeSyncStatus: {},
     // v2.46: 統合音源リストの選択。 bgmSelected (BGM ON) + selectedTakeIds か、 selectedMixId のどちらか
     bgmSelected: true,
     // v2.49 (Phase 6e): BGM ボイスカット率 (0/50/100)。 「BGM なし」 は bgmSelected=false で表現
@@ -4957,6 +4967,13 @@ async function stopRecording(){
         state.currentEntry.takes.push(take);
         state.currentTake = take;
         await persistTakes(state.currentEntry);
+        // v2.63a: 録音 blob を in-memory に保持 + Drive/Local に bg 同期 (await しない、 UI ブロック無し)
+        if (blob && blob.size > 1024) {
+            _takeBlobs[take.id] = blob;
+            try { enqueueTakeUpload(take.id); } catch (e) { DEBUG.err('enqueueTakeUpload failed: ' + e.message); }
+        } else {
+            DEBUG.warn('v2.63a: blob 不在のため Drive 同期 skip (size=' + (blob ? blob.size : 0) + ')');
+        }
         renderTakes();
         renderBadges();
         setStatus('テイクを保存: ' + take.name, 'ok');
@@ -5034,7 +5051,8 @@ async function persistTakes(entry){
         id: t.id, name: t.name, pcm: t.pcm, sampleRate: t.sampleRate,
         pitchSemitones: t.pitchSemitones, speed: t.speed,
         startSongTime: t.startSongTime, duration: t.duration, createdAt: t.createdAt,
-        volume: (t.volume != null ? t.volume : 1.0)  // v2.61: テイク個別音量
+        volume: (t.volume != null ? t.volume : 1.0),  // v2.61: テイク個別音量
+        file: t.file || null  // v2.63a: Drive 同期済ファイル名 (synced 時のみ)
     }));
     try { await idbPut(STORE_TAKES, takesKeyFor(entry), data); }
     catch(e){ console.warn('persist takes failed', e); }
@@ -5044,6 +5062,103 @@ async function loadTakesFor(entry){
         const data = await idbGet(STORE_TAKES, takesKeyFor(entry));
         return Array.isArray(data) ? data : [];
     } catch(e){ return []; }
+}
+
+// ============== v2.63a: TAKE FILE SYNC (webm/opus → Drive/Local) ==============
+//   録音直後の MediaRecorder blob を曲フォルダに `take_<id>.webm` で保存し、
+//   meta.json の takes[] にメタ情報 + file 名を追加する。 同期はバックグラウンド。
+//   blob は in-memory のみ (IDB には PCM のみ保存、 容量節約)。 失敗時はリトライ用に保持。
+const _takeBlobs = {};  // takeId → Blob (in-memory only)
+const _takeUploadQueue = [];
+let _takeUploadInFlight = false;
+
+function enqueueTakeUpload(takeId) {
+    if (!_takeBlobs[takeId]) { DEBUG.warn('enqueueTakeUpload: blob 未保存、 skip ' + takeId); return; }
+    if (_takeUploadQueue.includes(takeId)) return;
+    state.takeSyncStatus[takeId] = 'syncing';
+    _takeUploadQueue.push(takeId);
+    if (typeof renderTakes === 'function') renderTakes();
+    if (!_takeUploadInFlight) processTakeUploadQueue();
+}
+
+async function processTakeUploadQueue() {
+    if (_takeUploadInFlight) return;
+    _takeUploadInFlight = true;
+    try {
+        while (_takeUploadQueue.length) {
+            const takeId = _takeUploadQueue.shift();
+            try {
+                await syncTakeFile(takeId);
+                state.takeSyncStatus[takeId] = 'synced';
+                delete _takeBlobs[takeId];   // 成功後は blob 破棄 (メモリ節約)
+            } catch (e) {
+                DEBUG.err('Take upload failed (' + takeId + '): ' + (e.message || e));
+                state.takeSyncStatus[takeId] = 'error';
+                // blob は保持 (リトライ用)
+            }
+            if (typeof renderTakes === 'function') renderTakes();
+        }
+    } finally {
+        _takeUploadInFlight = false;
+    }
+}
+
+async function syncTakeFile(takeId) {
+    const META = window.MomoMeta;
+    if (!META) throw new Error('MomoMeta 未ロード');
+    const ctx = await _mixStorageCtx();
+    if (!ctx) throw new Error('カラオケフォルダ未接続');
+    const blob = _takeBlobs[takeId];
+    if (!blob) throw new Error('blob 喪失 (page reload 後はリトライ不可)');
+    const take = (state.currentEntry && state.currentEntry.takes || []).find(t => t.id === takeId);
+    if (!take) throw new Error('take が見つかりません: ' + takeId);
+    const fileName = 'take_' + takeId + '.webm';
+    DEBUG.info('Take sync: uploading ' + fileName + ' (' + blob.size + ' bytes, ' + (blob.type || 'unknown') + ')');
+    if (ctx.prov === 'drive') {
+        await META.Drive.writeFile(ctx.songFolderName, fileName, blob);
+    } else {
+        await META.Local.writeFile(ctx.songHandle, fileName, blob);
+    }
+    take.file = fileName;
+    // meta.json の takes[] を現メモリ状態で再構築 (新規 take の file 名を反映)
+    let songMeta;
+    if (ctx.prov === 'drive') {
+        songMeta = await META.Drive.loadSongMeta(ctx.songFolderName);
+    } else {
+        songMeta = await META.Local.loadSongMeta(ctx.songHandle);
+    }
+    if (!songMeta) songMeta = META.defaultSongMeta();
+    if (!Array.isArray(songMeta.takes)) songMeta.takes = [];
+    songMeta.takes = (state.currentEntry.takes || []).map(t => ({
+        id: t.id,
+        name: t.name,
+        startSongTime: t.startSongTime || 0,
+        duration: t.duration || 0,
+        speed: t.speed || 1.0,
+        pitchSemitones: t.pitchSemitones || 0,
+        volume: (t.volume != null ? t.volume : 1.0),
+        file: t.file || null,    // 新規録音は file あり、 v2.62 以前は null
+        createdAt: t.createdAt || Date.now()
+    }));
+    if (ctx.prov === 'drive') {
+        await META.Drive.saveSongMeta(ctx.songFolderName, songMeta);
+    } else {
+        await META.Local.saveSongMeta(ctx.songHandle, songMeta);
+    }
+    // IDB にも file 名を保存
+    try { await persistTakes(state.currentEntry); } catch (e) { DEBUG.warn('persistTakes after sync failed: ' + e.message); }
+    DEBUG.ok('Take sync: ' + fileName + ' uploaded + meta.json updated');
+}
+
+function retryTakeUpload(takeId) {
+    if (!_takeBlobs[takeId]) {
+        alert('録音データが見つかりません (page reload 後はリトライ不可。 同期は次回録音から有効です)');
+        return;
+    }
+    state.takeSyncStatus[takeId] = 'syncing';
+    if (!_takeUploadQueue.includes(takeId)) _takeUploadQueue.push(takeId);
+    if (typeof renderTakes === 'function') renderTakes();
+    if (!_takeUploadInFlight) processTakeUploadQueue();
 }
 
 // ============== TAKES UI ==============
@@ -5111,10 +5226,23 @@ function renderTakes(){
     } else {
         takes.forEach((t, i) => {
             const vol = Math.round(((t.volume != null ? t.volume : 1) * 100));
+            // v2.63a: 同期状態アイコン (state in-memory + take.file の persisted フラグから判定)
+            const syncStat = state.takeSyncStatus[t.id];
+            let syncIcon = '';
+            if (syncStat === 'syncing') {
+                syncIcon = '<span class="take-sync syncing" title="Drive 同期中">⏳</span>';
+            } else if (syncStat === 'error') {
+                syncIcon = '<button class="take-sync error" data-act="retry-sync" data-takeid="' + t.id + '" title="同期失敗 — クリックで再試行">⚠</button>';
+            } else if (t.file) {
+                syncIcon = '<span class="take-sync synced" title="Drive 同期済 (' + t.file + ')">✅</span>';
+            } else {
+                syncIcon = '<span class="take-sync local" title="ローカルのみ (Drive 未同期)">📱</span>';
+            }
             html += '<div class="src-row' + (state.selectedTakeIds.has(t.id) ? ' selected' : '') + '" data-kind="take" data-id="' + t.id + '">' +
                 '<span class="src-check">' + (state.selectedTakeIds.has(t.id) ? '☑' : '☐') + '</span>' +
                 '<span class="src-num">' + (i + 1) + '</span>' +
                 '<span class="src-name" title="' + escapeHtml(t.name) + '">' + escapeHtml(t.name) + '</span>' +
+                syncIcon +
                 '<span class="src-len">' + _fmtLen(t.duration || 0) + '</span>' +
                 '<span class="src-vol">' +
                     '<input type="range" class="src-vol-slider" data-takeid="' + t.id + '" min="0" max="200" step="1" value="' + vol + '" title="テイク音量">' +
@@ -5146,15 +5274,24 @@ function renderTakes(){
     }
     takesList.innerHTML = html;
 
-    // 行クリック (⋮ / 音量スライダ以外) = 選択トグル
+    // 行クリック (⋮ / 音量スライダ / 同期リトライ以外) = 選択トグル
     takesList.querySelectorAll('.src-row').forEach(row => {
         row.addEventListener('click', e => {
             if (e.target.closest('[data-act=menu]')) return;        // ⋮ は別処理
             if (e.target.closest('.src-vol')) return;                // 音量スライダ操作は別処理
+            if (e.target.closest('[data-act=retry-sync]')) return;   // v2.63a: 同期リトライは別処理
             const kind = row.dataset.kind;
             if (kind === 'bgm') _selToggleBgm();
             else if (kind === 'take') _selToggleTake(row.dataset.id);
             else if (kind === 'mix') _selToggleMix(parseInt(row.dataset.mixid, 10));
+        });
+    });
+    // v2.63a: 同期リトライボタンのクリックハンドラ
+    takesList.querySelectorAll('[data-act=retry-sync]').forEach(btn => {
+        btn.addEventListener('click', e => {
+            e.stopPropagation();
+            const id = btn.dataset.takeid;
+            if (id) retryTakeUpload(id);
         });
     });
     // v2.61: BGM 行音量スライダ → 既存 bgmVolSlider と同期

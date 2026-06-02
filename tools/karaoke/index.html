@@ -1690,7 +1690,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.63b</span>
+                <span class="version-tag" id="version-tag">v2.63c</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2367,7 +2367,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.63b',
+        version: document.getElementById('version-tag')?.textContent || 'v2.63c',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2481,7 +2481,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.63b';
+const APP_VERSION = 'v2.63c';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2574,6 +2574,13 @@ const state = {
     // v2.63a: テイクの Drive 同期状態 (in-memory のみ、 page reload で消える)。
     //   {takeId: 'syncing' | 'synced' | 'error'}。 take.file が存在すれば持続的に「同期済」 扱い。
     takeSyncStatus: {},
+    // v2.63c: iOS MIX オフセット補正 (ms)。 iOS HTMLAudio の playback drift が MIX (sample-accurate)
+    //   に乗らないため、 voxOfs に手動補正を加える。 デフォルト -330ms (テイクを 0.33s ぶん遅らせる方向に補正)。
+    //   localStorage で persist + live monitor の resync 統計から自動更新。
+    iosMixCompensationMs: -330,
+    // v2.63c: live monitor で測定した iOS テイクドリフトの累積サンプル (resync err 値)。
+    //   平均値を 1/2 (resync 周期内の平均ドリフト) して MIX 補正値に反映。
+    iosTakeDriftSamples: [],
     // v2.46: 統合音源リストの選択。 bgmSelected (BGM ON) + selectedTakeIds か、 selectedMixId のどちらか
     bgmSelected: true,
     // v2.49 (Phase 6e): BGM ボイスカット率 (0/50/100)。 「BGM なし」 は bgmSelected=false で表現
@@ -5064,6 +5071,38 @@ async function loadTakesFor(entry){
     } catch(e){ return []; }
 }
 
+// ============== v2.63c: iOS MIX オフセット自動補正 ==============
+//   iOS HTMLAudio の take playback は ~0.3〜0.6s 遅れて再生される (resync で補正)。
+//   MIX は OfflineAudioContext (sample-accurate) のため drift が乗らず、 同じ voxOfs だと
+//   take が monitor より早く聞こえる (= MIX に drift 分の補正が必要)。
+//   対処: voxOfs に static デフォルト -330ms を足し、 さらに live monitor で測定した
+//   resync err 値の平均 / 2 (resync 周期内の平均ドリフト) で自動更新。
+//   localStorage に保存して page reload 後も保持。 PC では使わない (IOS_MODE のみ)。
+(function _loadIosMixComp(){
+    try {
+        const stored = localStorage.getItem('iosMixCompMs');
+        if (stored != null) state.iosMixCompensationMs = parseInt(stored, 10) || -330;
+    } catch(e) {}
+})();
+
+function _accumulateIosDriftSample(errSec) {
+    if (typeof IOS_MODE === 'undefined' || !IOS_MODE) return;
+    if (!Number.isFinite(errSec)) return;
+    state.iosTakeDriftSamples.push(errSec);
+    if (state.iosTakeDriftSamples.length > 20) state.iosTakeDriftSamples.shift();
+    if (state.iosTakeDriftSamples.length < 5) return;
+    const sum = state.iosTakeDriftSamples.reduce((a, b) => a + b, 0);
+    const avgErrSec = sum / state.iosTakeDriftSamples.length;
+    // resync は err > 0.30s で発動 → 周期内の平均ドリフトは err/2 程度。
+    // err が正 (take が behind) なら、 MIX で take を遅らせる方向に補正 = voxOfs に + する。
+    // 「voxOfs - iosCompMs/1000」 の式で補正するため、 iosCompMs は err/2 の負値。
+    const compMs = Math.round(-avgErrSec * 1000 / 2);
+    if (compMs === state.iosMixCompensationMs) return;
+    state.iosMixCompensationMs = compMs;
+    try { localStorage.setItem('iosMixCompMs', String(compMs)); } catch(e){}
+    DEBUG.info('iOS MIX 補正 自動更新: ' + compMs + 'ms (drift サンプル数=' + state.iosTakeDriftSamples.length + ', 平均 err=' + avgErrSec.toFixed(3) + 's)');
+}
+
 // ============== v2.63a: TAKE FILE SYNC (webm/opus → Drive/Local) ==============
 //   録音直後の MediaRecorder blob を曲フォルダに `take_<id>.webm` で保存し、
 //   meta.json の takes[] にメタ情報 + file 名を追加する。 同期はバックグラウンド。
@@ -6928,6 +6967,8 @@ function syncTakeToBgm(){
         const now = performance.now();
         if(absErr > 0.30 && (now - iosTakeLastRateAdjust) > 3000){
             DEBUG.info('iOS take resync: err=' + error.toFixed(3) + 's, expected=' + expected.toFixed(2));
+            // v2.63c: ドリフトサンプルを蓄積 → MIX 補正値の自動更新
+            try { _accumulateIosDriftSample(error); } catch(e){}
             try { iosTakeAudioEl.currentTime = expected; } catch(e){}
             // Make sure rate is at nominal in case prior code tampered with it
             try {
@@ -8395,7 +8436,13 @@ async function _generateMixWav() {
     // 各テイク
     const takeIds = Array.from(state.selectedTakeIds);
     const voxGainLin = (parseFloat(voxVolSlider.value) || 0) / 100;
-    const offset = parseFloat(voxOfsSlider.value) || 0;
+    // v2.63c: iOS は HTMLAudio playback drift が live monitor だけにかかり MIX には乗らないため、
+    //   voxOfs に補正値を加える (静的デフォルト -330ms + live monitor 自動測定)。
+    //   convention: offset_eff = voxOfs - (iosCompMs/1000) で take を遅らせる方向に効く。
+    //   PC では補正なし。
+    const iosCompMs = (typeof IOS_MODE !== 'undefined' && IOS_MODE) ? (state.iosMixCompensationMs || 0) : 0;
+    const offset = (parseFloat(voxOfsSlider.value) || 0) - (iosCompMs / 1000);
+    if (iosCompMs) DEBUG.info('MIX: iOS 補正 ' + iosCompMs + 'ms 適用 → effective voxOfs = ' + offset.toFixed(3) + 's (raw voxOfs=' + (parseFloat(voxOfsSlider.value) || 0).toFixed(3) + 's)');
 
     // v2.49 (Phase 6e): 共有 voxBus + エコープリセット (テイクのみに適用、 全テイク共通)
     const voxBus = offlineCtx.createGain();

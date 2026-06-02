@@ -1690,7 +1690,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.64a</span>
+                <span class="version-tag" id="version-tag">v2.64b</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2389,7 +2389,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.64a',
+        version: document.getElementById('version-tag')?.textContent || 'v2.64b',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2503,7 +2503,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.64a';
+const APP_VERSION = 'v2.64b';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -5329,7 +5329,7 @@ function _renderMixOffsetUI() {
 
 // ============== v2.64: マイク校正 ==============
 async function _runMixOffsetCalibration() {
-    if (!confirm('MIX オフセット校正を実行します。\n\n手順:\n1. マイク使用許可を求めます (echoCancellation OFF)\n2. 3 連続のクリック音をスピーカーから再生\n3. マイクで録音 → ピーク検出で出力遅延を実測\n4. 結果を localStorage と karaoke folder に保存\n\n静かな環境で実行してください。 約 5 秒かかります。')) return;
+    if (!confirm('MIX オフセット校正を実行します。\n\n⚠ 重要:\n• iPhone の音量を 最大 にしてください\n• 静かな環境で実行\n• マイクとスピーカーの間に物を置かない\n\n手順:\n1. マイク使用許可を求めます (echoCancellation OFF)\n2. 200ms のクリック音を 3 回スピーカーから再生\n3. マイクで録音 → ピーク検出で出力遅延を実測\n4. 結果を localStorage + karaoke folder に保存\n\n約 8 秒かかります。')) return;
     let micStream = null;
     let ctx = null;
     let ctxIsTemp = false;
@@ -5356,14 +5356,15 @@ async function _runMixOffsetCalibration() {
         const buf = new Float32Array(analyser.fftSize);
         micSrc.connect(analyser);
 
-        // 短いクリック WAV を生成 (v2.64-fix: 50ms、 1kHz、 fade in/out 3ms、 amp 1.0)
+        // v2.64b: クリック音を 200ms に延長 (50ms だと iPhone 内蔵 mic で拾えないことが多い)。
+        //   1kHz サイン波 + fade in/out 5ms + amp 1.0。 検出ウィンドウも広がり安定。
         const clickSr = 48000;
-        const clickDur = 0.05;
+        const clickDur = 0.20;
         const clickLen = Math.floor(clickSr * clickDur);
-        const fadeLen = Math.floor(clickSr * 0.003);
+        const fadeLen = Math.floor(clickSr * 0.005);
         const clickPcm = new Float32Array(clickLen);
         for (let i = 0; i < clickLen; i++) {
-            let amp = 1.0;  // フルスケール (iPhone 内蔵スピーカーで mic 拾えるよう)
+            let amp = 1.0;
             if (i < fadeLen) amp *= i / fadeLen;
             else if (i > clickLen - fadeLen) amp *= (clickLen - i) / fadeLen;
             clickPcm[i] = amp * Math.sin(2 * Math.PI * 1000 * (i / clickSr));
@@ -5447,17 +5448,22 @@ async function _runMixOffsetCalibration() {
         URL.revokeObjectURL(clickUrl);
 
         if (measurements.length === 0) {
-            alert('校正失敗: クリック音が検出できませんでした。 静かな環境で再試行してください。');
+            alert('校正失敗: クリック音が検出できませんでした。 静かな環境で、 スピーカー部分を覆って再試行してください。');
             return;
         }
-        // 中央値
-        measurements.sort((a, b) => a - b);
-        const median = measurements[Math.floor(measurements.length / 2)];
-        // 補正値は MIX で voxOfs に加算される負値 (monitor で遅れる分だけ MIX で先取り)
+        // v2.64b fix: trial 1 は priming 余韻で短い値が出る傾向 → 複数 trial あれば破棄
+        const allMeas = measurements.slice();
+        let usable = measurements;
+        if (measurements.length >= 2) {
+            usable = measurements.slice(1);  // trial 1 を捨てる
+            DEBUG.info('MIX 校正: trial 1 を破棄 (priming 余韻の影響回避)、 残り ' + usable.length + ' trial で集計');
+        }
+        usable.sort((a, b) => a - b);
+        const median = usable[Math.floor(usable.length / 2)];
         const offsetMs = -Math.round(median);
-        DEBUG.ok('MIX 校正完了: 測定値 ' + measurements.map(m => m.toFixed(0)).join('/') + 'ms → 中央値 ' + median.toFixed(0) + 'ms → 補正 ' + offsetMs + 'ms');
+        DEBUG.ok('MIX 校正完了: 全測定 ' + allMeas.map(m => m.toFixed(0)).join('/') + 'ms、 採用 ' + usable.map(m => m.toFixed(0)).join('/') + 'ms → 中央値 ' + median.toFixed(0) + 'ms → 補正 ' + offsetMs + 'ms');
         await _saveMixOffset(offsetMs, 'calibration');
-        alert('校正完了!\n\n測定値: ' + measurements.map(m => Math.round(m)).join(' / ') + ' ms\n適用補正: ' + offsetMs + ' ms\n\nMIX を作成して monitor と比較してください。');
+        alert('校正完了!\n\n全測定値: ' + allMeas.map(m => Math.round(m)).join(' / ') + ' ms\n' + (allMeas.length >= 2 ? '採用 (trial 1 除外): ' + usable.map(m => Math.round(m)).join(' / ') + ' ms\n' : '') + '適用補正: ' + offsetMs + ' ms\n\nMIX を作成して monitor と比較してください。');
     } catch (e) {
         DEBUG.err('MIX 校正 失敗: ' + (e.message || e));
         alert('校正失敗: ' + (e.message || e));
@@ -9032,6 +9038,15 @@ async function _saveMix(wavBlob, sourceTakeIds, extra) {
     if (!songMeta) songMeta = META.defaultSongMeta();
     if (!Array.isArray(songMeta.mixes)) songMeta.mixes = [];
 
+    // v2.64b fix: in-memory state.currentEntry.mixes を真値として採用 (削除済 MIX が _saveMix で
+    //   復活するのを防ぐ)。 Drive 上の meta.json は古い可能性があるため、 削除直後に MIX 作成すると
+    //   load した meta に削除済 MIX が残っていて、 そのまま save すると復活してしまう問題があった。
+    //   ただし mixId 算出は load した meta から計算 (in-memory も Drive も同等の番号採番のため)。
+    const inMemMixes = (state.currentEntry && Array.isArray(state.currentEntry.mixes)) ? state.currentEntry.mixes : null;
+    if (inMemMixes) {
+        songMeta.mixes = inMemMixes.slice();  // 配列コピー、 in-memory 状態を Drive に反映
+    }
+
     // 新 mix の番号 (単調増加)
     const mixId = META.nextMixId(songMeta);
     const fileName = 'mix' + mixId + '.wav';
@@ -9333,6 +9348,8 @@ async function _deleteMix(mix) {
     // v2.41: 楽観的 UI — 先に一覧から消して即描画 (体感速度向上)。 永続化は背後で並列実行。
     const prevMixes = (state.currentEntry.mixes || []).slice();
     state.currentEntry.mixes = prevMixes.filter(x => x.id !== mix.id);
+    // v2.64b fix: 生成直後キャッシュもクリア (削除した MIX が cache に残ると次回再生で蘇る)
+    try { delete _freshMixBlobs[mix.id]; } catch (e) {}
     // 選択中の MIX を消したら BGM 選択に戻す
     if (state.selectedMixId === mix.id) {
         state.selectedMixId = null;

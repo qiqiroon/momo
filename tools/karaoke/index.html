@@ -1690,7 +1690,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.63a</span>
+                <span class="version-tag" id="version-tag">v2.63b</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2367,7 +2367,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.63a',
+        version: document.getElementById('version-tag')?.textContent || 'v2.63b',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2481,7 +2481,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.63a';
+const APP_VERSION = 'v2.63b';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -5161,6 +5161,107 @@ function retryTakeUpload(takeId) {
     if (!_takeUploadInFlight) processTakeUploadQueue();
 }
 
+// ============== v2.63b: TAKE DOWNLOAD/RECONCILE (別端末ロード) ==============
+//   曲を開く時に meta.json の takes[] を確認し、 IDB に無くて file がある take を
+//   Drive/Local から DL → decodeAudioData → PCM → IDB キャッシュ + entry.takes に追加。
+//   バックグラウンド (await しない)、 取得完了で renderTakes 再呼出して逐次表示。
+async function _reconcileTakesInBackground(entry) {
+    const META = window.MomoMeta;
+    const ctx = await _mixStorageCtx();
+    if (!ctx || !META) return;
+    let songMeta;
+    try {
+        if (ctx.prov === 'drive') songMeta = await META.Drive.loadSongMeta(ctx.songFolderName);
+        else songMeta = await META.Local.loadSongMeta(ctx.songHandle);
+    } catch (e) { DEBUG.warn('v2.63b: songMeta load failed: ' + (e.message || e)); return; }
+    if (!songMeta || !Array.isArray(songMeta.takes) || !songMeta.takes.length) return;
+    if (state.currentEntry !== entry) return;  // 曲切替検知
+
+    const idbMap = new Map();
+    (entry.takes || []).forEach(t => idbMap.set(t.id, t));
+
+    // 既存 IDB take への file 名補完 (他端末で sync された情報を取り込む)
+    let anyMetaPatched = false;
+    for (const mt of songMeta.takes) {
+        if (!mt.id || !mt.file) continue;
+        const idbTake = idbMap.get(mt.id);
+        if (idbTake && !idbTake.file) { idbTake.file = mt.file; anyMetaPatched = true; }
+    }
+
+    // file ありで IDB に無い take を抽出 → DL
+    const toDownload = songMeta.takes.filter(mt => mt.id && mt.file && !idbMap.has(mt.id));
+    if (!toDownload.length) {
+        if (anyMetaPatched) {
+            try { await persistTakes(entry); renderTakes(); } catch (e) { DEBUG.warn('persistTakes patch failed: ' + e.message); }
+        }
+        return;
+    }
+
+    DEBUG.info('v2.63b: reconcile ' + toDownload.length + ' take(s) from ' + ctx.prov);
+    setStatus('テイクをダウンロード中… (' + toDownload.length + ' 件)', 'info');
+
+    let decodeCtxLocal = audioCtx, decodeCtxIsTemp = false;
+    if (!decodeCtxLocal) {
+        try {
+            decodeCtxLocal = new (window.AudioContext || window.webkitAudioContext)();
+            decodeCtxIsTemp = true;
+        } catch (e) { DEBUG.err('v2.63b: AudioContext 作成失敗: ' + e.message); return; }
+    }
+
+    try {
+        for (const mt of toDownload) {
+            if (state.currentEntry !== entry) return;  // 曲切替で中断
+            try {
+                let blob;
+                if (ctx.prov === 'drive') blob = await META.Drive.readFile(ctx.songFolderName, mt.file);
+                else blob = await META.Local.readFile(ctx.songHandle, mt.file);
+                const ab = await blob.arrayBuffer();
+                const decoded = await new Promise((res, rej) => {
+                    try {
+                        const p = decodeCtxLocal.decodeAudioData(ab.slice(0), res, rej);
+                        if (p && typeof p.then === 'function') p.then(res, rej);
+                    } catch (e) { rej(e); }
+                });
+                const ch0 = decoded.getChannelData(0);
+                let pcm;
+                if (decoded.numberOfChannels >= 2) {
+                    const ch1 = decoded.getChannelData(1);
+                    pcm = new Float32Array(ch0.length);
+                    for (let i = 0; i < ch0.length; i++) pcm[i] = (ch0[i] + ch1[i]) * 0.5;
+                } else {
+                    pcm = new Float32Array(ch0);
+                }
+                const newTake = {
+                    id: mt.id,
+                    name: mt.name || 'Take',
+                    pcm: pcm,
+                    sampleRate: decoded.sampleRate,
+                    pitchSemitones: mt.pitchSemitones || 0,
+                    speed: mt.speed || 1.0,
+                    startSongTime: mt.startSongTime || 0,
+                    duration: mt.duration || decoded.duration,
+                    createdAt: mt.createdAt || Date.now(),
+                    volume: (mt.volume != null ? mt.volume : 1.0),
+                    file: mt.file
+                };
+                if (state.currentEntry !== entry) return;
+                if (!entry.takes) entry.takes = [];
+                entry.takes.push(newTake);
+                if (state.currentTake == null) state.currentTake = newTake;
+                renderTakes();
+                if (typeof renderBadges === 'function') renderBadges();
+                DEBUG.ok('v2.63b: downloaded + decoded: ' + mt.file + ' (' + decoded.duration.toFixed(2) + 's)');
+            } catch (e) {
+                DEBUG.err('v2.63b: download/decode failed for ' + mt.file + ': ' + (e.message || e));
+            }
+        }
+        try { await persistTakes(entry); } catch (e) { DEBUG.warn('persistTakes after reconcile failed: ' + e.message); }
+        setStatus('テイク同期完了', 'ok');
+    } finally {
+        if (decodeCtxIsTemp && decodeCtxLocal) { try { await decodeCtxLocal.close(); } catch (e) {} }
+    }
+}
+
 // ============== TAKES UI ==============
 // v2.28 (Phase 5d-1): テイク表示を [1][2][3] ボタン群 + 選択中の詳細パネルに整理。
 //   仕様書 §5.8。 既存の縦長カード形式から、 コンパクトなボタン群 + 詳細パネル 1 つ
@@ -5796,6 +5897,9 @@ async function selectEntry(entry){
     state.currentTake = entry.takes.length ? entry.takes[entry.takes.length-1] : null;
     // v2.39 (Phase 6b): MIX 一覧を meta.json からロード (失敗時は空)
     entry.mixes = await _loadMixesForCurrent();
+    // v2.63b: meta.json から欠けてる take (他端末で sync されたもの) をバックグラウンド DL
+    //   await しない (UI ブロック無し)、 取得完了したら逐次 renderTakes
+    _reconcileTakesInBackground(entry).catch(e => DEBUG.warn('reconcile bg failed: ' + (e.message || e)));
 
     // UI
     npEmpty.classList.add('hidden');

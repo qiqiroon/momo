@@ -1690,7 +1690,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.63d</span>
+                <span class="version-tag" id="version-tag">v2.63e</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2367,7 +2367,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.63d',
+        version: document.getElementById('version-tag')?.textContent || 'v2.63e',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2481,7 +2481,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.63d';
+const APP_VERSION = 'v2.63e';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -5081,7 +5081,17 @@ async function loadTakesFor(entry){
 (function _loadIosMixComp(){
     try {
         const stored = localStorage.getItem('iosMixCompMs');
-        if (stored != null) state.iosMixCompensationMs = parseInt(stored, 10) || -330;
+        if (stored != null) {
+            const v = parseInt(stored, 10);
+            // v2.63e migration: 自動更新が壊れていた v2.63d の遺産 (~+86ms) を破棄。
+            //   有効な値は -1000ms 〜 -100ms の範囲とする (それ以外は default -330ms を使用)。
+            if (Number.isFinite(v) && v >= -1000 && v <= -100) {
+                state.iosMixCompensationMs = v;
+            } else {
+                try { localStorage.removeItem('iosMixCompMs'); } catch(e) {}
+                DEBUG.info('iOS MIX 補正: localStorage 値 ' + v + 'ms が無効 (range 外)、 デフォルト -330ms にリセット');
+            }
+        }
     } catch(e) {}
 })();
 
@@ -5094,20 +5104,14 @@ function _accumulateIosDriftSample(errSec) {
     if (state.iosTakeDriftSamples.length < 5) return;
     const sum = state.iosTakeDriftSamples.reduce((a, b) => a + b, 0);
     const avgErrSec = sum / state.iosTakeDriftSamples.length;
-    // err が正 (take が behind) なら MIX で take を遅らせる方向に補正 = voxOfs に + する。
-    // 式: offset_eff = voxOfs - iosCompMs/1000 なので iosCompMs は負値 (= -avgErrSec*1000)。
-    // 旧: avgErr/2 だったが passive sampling では平均が drift cycle 全体の avg ≈ peak/2 になるため
-    //     そのまま avgErr を使う (× 1000 to ms, sign negative)。
-    const compMs = Math.round(-avgErrSec * 1000);
-    const oldMs = state.iosMixCompensationMs;
-    if (Math.abs(compMs - oldMs) < 5) return;  // ±5ms 以内は更新しない (頻繁な log を避ける)
-    state.iosMixCompensationMs = compMs;
-    try { localStorage.setItem('iosMixCompMs', String(compMs)); } catch(e){}
-    // 5 秒に 1 回だけログ出力 (頻繁過ぎを防ぐ)
+    // v2.63e: 自動更新は無効化 (currentTime ベース計測では iOS HTMLAudio 出力バッファ遅延を
+    //   検出できないため、 過小評価して逆効果になる。 ユーザー体感は 300-500ms だが計測値は ~86ms)。
+    //   静的デフォルトのみ使用、 ログ出力で診断のみ提供。
+    //   localStorage に手動値があれば優先 (DevTools コンソールから localStorage.setItem('iosMixCompMs', '-450') 等で変更可能)。
     const now = performance.now();
-    if (now - _lastDriftLogTime > 5000) {
+    if (now - _lastDriftLogTime > 10000) {
         _lastDriftLogTime = now;
-        DEBUG.info('iOS MIX 補正 自動更新: ' + compMs + 'ms (旧 ' + oldMs + 'ms、 サンプル ' + state.iosTakeDriftSamples.length + ' 件、 平均 err=' + avgErrSec.toFixed(3) + 's)');
+        DEBUG.info('iOS drift 診断 (採用せず): 平均 err=' + avgErrSec.toFixed(3) + 's (' + state.iosTakeDriftSamples.length + ' 件、 現在の補正値 ' + state.iosMixCompensationMs + 'ms 維持)');
     }
 }
 

@@ -1690,7 +1690,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.63c</span>
+                <span class="version-tag" id="version-tag">v2.63d</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2367,7 +2367,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.63c',
+        version: document.getElementById('version-tag')?.textContent || 'v2.63d',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2481,7 +2481,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.63c';
+const APP_VERSION = 'v2.63d';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -5085,22 +5085,30 @@ async function loadTakesFor(entry){
     } catch(e) {}
 })();
 
+let _lastDriftLogTime = 0;
 function _accumulateIosDriftSample(errSec) {
     if (typeof IOS_MODE === 'undefined' || !IOS_MODE) return;
     if (!Number.isFinite(errSec)) return;
     state.iosTakeDriftSamples.push(errSec);
-    if (state.iosTakeDriftSamples.length > 20) state.iosTakeDriftSamples.shift();
+    if (state.iosTakeDriftSamples.length > 50) state.iosTakeDriftSamples.shift();
     if (state.iosTakeDriftSamples.length < 5) return;
     const sum = state.iosTakeDriftSamples.reduce((a, b) => a + b, 0);
     const avgErrSec = sum / state.iosTakeDriftSamples.length;
-    // resync は err > 0.30s で発動 → 周期内の平均ドリフトは err/2 程度。
-    // err が正 (take が behind) なら、 MIX で take を遅らせる方向に補正 = voxOfs に + する。
-    // 「voxOfs - iosCompMs/1000」 の式で補正するため、 iosCompMs は err/2 の負値。
-    const compMs = Math.round(-avgErrSec * 1000 / 2);
-    if (compMs === state.iosMixCompensationMs) return;
+    // err が正 (take が behind) なら MIX で take を遅らせる方向に補正 = voxOfs に + する。
+    // 式: offset_eff = voxOfs - iosCompMs/1000 なので iosCompMs は負値 (= -avgErrSec*1000)。
+    // 旧: avgErr/2 だったが passive sampling では平均が drift cycle 全体の avg ≈ peak/2 になるため
+    //     そのまま avgErr を使う (× 1000 to ms, sign negative)。
+    const compMs = Math.round(-avgErrSec * 1000);
+    const oldMs = state.iosMixCompensationMs;
+    if (Math.abs(compMs - oldMs) < 5) return;  // ±5ms 以内は更新しない (頻繁な log を避ける)
     state.iosMixCompensationMs = compMs;
     try { localStorage.setItem('iosMixCompMs', String(compMs)); } catch(e){}
-    DEBUG.info('iOS MIX 補正 自動更新: ' + compMs + 'ms (drift サンプル数=' + state.iosTakeDriftSamples.length + ', 平均 err=' + avgErrSec.toFixed(3) + 's)');
+    // 5 秒に 1 回だけログ出力 (頻繁過ぎを防ぐ)
+    const now = performance.now();
+    if (now - _lastDriftLogTime > 5000) {
+        _lastDriftLogTime = now;
+        DEBUG.info('iOS MIX 補正 自動更新: ' + compMs + 'ms (旧 ' + oldMs + 'ms、 サンプル ' + state.iosTakeDriftSamples.length + ' 件、 平均 err=' + avgErrSec.toFixed(3) + 's)');
+    }
 }
 
 // ============== v2.63a: TAKE FILE SYNC (webm/opus → Drive/Local) ==============
@@ -6964,11 +6972,13 @@ function syncTakeToBgm(){
         const actual = iosTakeAudioEl.currentTime;
         const error = expected - actual;
         const absErr = Math.abs(error);
+        // v2.63c (revised): passive サンプル蓄積。 resync 発動 (>0.30s) は短い take や短時間再生
+        //   ではほぼ起きないため、 毎 syncTakeToBgm (5Hz) で集計 → 1〜2 秒で十分サンプル数確保。
+        //   0.02s 未満は noise として除外。
+        if (absErr > 0.02) { try { _accumulateIosDriftSample(error); } catch(e){} }
         const now = performance.now();
         if(absErr > 0.30 && (now - iosTakeLastRateAdjust) > 3000){
             DEBUG.info('iOS take resync: err=' + error.toFixed(3) + 's, expected=' + expected.toFixed(2));
-            // v2.63c: ドリフトサンプルを蓄積 → MIX 補正値の自動更新
-            try { _accumulateIosDriftSample(error); } catch(e){}
             try { iosTakeAudioEl.currentTime = expected; } catch(e){}
             // Make sure rate is at nominal in case prior code tampered with it
             try {

@@ -1690,7 +1690,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.64</span>
+                <span class="version-tag" id="version-tag">v2.64a</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2389,7 +2389,7 @@ const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5g
 async function uploadLogToDrive(logText, tag) {
     const payload = {
         app: 'momo-karaoke',
-        version: document.getElementById('version-tag')?.textContent || 'v2.64',
+        version: document.getElementById('version-tag')?.textContent || 'v2.64a',
         ts: new Date().toISOString(),
         ua: navigator.userAgent,
         screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
@@ -2503,7 +2503,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.64';
+const APP_VERSION = 'v2.64a';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -5356,21 +5356,41 @@ async function _runMixOffsetCalibration() {
         const buf = new Float32Array(analyser.fftSize);
         micSrc.connect(analyser);
 
-        // 短いクリック WAV を生成 (20ms、 1kHz、 fade in/out 2ms)
+        // 短いクリック WAV を生成 (v2.64-fix: 50ms、 1kHz、 fade in/out 3ms、 amp 1.0)
         const clickSr = 48000;
-        const clickDur = 0.02;
+        const clickDur = 0.05;
         const clickLen = Math.floor(clickSr * clickDur);
-        const fadeLen = Math.floor(clickSr * 0.002);
+        const fadeLen = Math.floor(clickSr * 0.003);
         const clickPcm = new Float32Array(clickLen);
         for (let i = 0; i < clickLen; i++) {
-            let amp = 0.6;
+            let amp = 1.0;  // フルスケール (iPhone 内蔵スピーカーで mic 拾えるよう)
             if (i < fadeLen) amp *= i / fadeLen;
             else if (i > clickLen - fadeLen) amp *= (clickLen - i) / fadeLen;
             clickPcm[i] = amp * Math.sin(2 * Math.PI * 1000 * (i / clickSr));
         }
-        // WAV blob 化 (mono)
         const clickWav = _pcmToWavBlob(clickPcm, clickSr, 1);
         const clickUrl = URL.createObjectURL(clickWav);
+
+        // v2.64-fix: audio 要素は 1 回だけ作って再利用 (iOS autoplay policy 回避)。
+        //   trial ごとに新しい要素を作ると、 2 回目以降の play() が拒否される。
+        //   同じ要素なら pause + currentTime=0 + play() で再再生可能。
+        const audio = document.createElement('audio');
+        audio.src = clickUrl;
+        audio.preload = 'auto';
+        audio.style.display = 'none';
+        audio.volume = 1.0;
+        document.body.appendChild(audio);
+        await new Promise((res) => {
+            if (audio.readyState >= 2) res();
+            else {
+                audio.addEventListener('canplay', res, { once: true });
+                audio.addEventListener('error', res, { once: true });
+                setTimeout(res, 1500);
+            }
+        });
+        // 最初の 1 回は短く再生して iOS の audio element を「ユーザー起動済」 状態にする
+        try { audio.muted = true; await audio.play(); audio.pause(); audio.currentTime = 0; audio.muted = false; }
+        catch (e) { DEBUG.warn('MIX 校正: priming play 失敗 ' + e.message); }
 
         // mic 安定化待ち
         await new Promise(r => setTimeout(r, 600));
@@ -5379,7 +5399,6 @@ async function _runMixOffsetCalibration() {
         const measurements = [];
         for (let trial = 0; trial < 3; trial++) {
             DEBUG.info('MIX 校正: trial ' + (trial + 1) + '/3 開始');
-            // 静寂レベル測定 (peak threshold 計算用)
             let baseline = 0;
             for (let k = 0; k < 10; k++) {
                 analyser.getFloatTimeDomainData(buf);
@@ -5388,30 +5407,17 @@ async function _runMixOffsetCalibration() {
                 if (p > baseline) baseline = p;
                 await new Promise(r => setTimeout(r, 5));
             }
-            const threshold = Math.max(0.05, baseline * 3);  // baseline の 3 倍 or 0.05 のうち大きい方
-
-            // クリック再生 (iOS でも PC でも HTMLAudio で統一 — monitor 経路に近い)
-            const audio = document.createElement('audio');
-            audio.src = clickUrl;
-            audio.preload = 'auto';
-            audio.style.display = 'none';
-            document.body.appendChild(audio);
-            await new Promise((res, rej) => {
-                if (audio.readyState >= 2) res();
-                else {
-                    audio.addEventListener('canplay', res, { once: true });
-                    audio.addEventListener('error', () => rej(new Error('audio load failed')), { once: true });
-                    setTimeout(() => res(), 1000);  // タイムアウト保険
-                }
-            });
+            const threshold = Math.max(0.02, baseline * 3);  // v2.64-fix: 閾値下限 0.05 → 0.02
+            try {
+                audio.pause(); audio.currentTime = 0;
+            } catch (_) {}
 
             const T0 = performance.now();
             try { await audio.play(); } catch (e) {
-                DEBUG.warn('MIX 校正: audio.play 失敗 ' + e.message);
-                try { audio.remove(); } catch(_) {}
+                DEBUG.warn('MIX 校正: trial ' + (trial + 1) + ' play 失敗 ' + e.message);
                 continue;
             }
-            // ピーク検出 (1ms 間隔で 1 秒以内)
+            // ピーク検出 (2ms 間隔で 1.5 秒以内)
             let detectedT = 0;
             const deadline = T0 + 1500;
             while (performance.now() < deadline) {
@@ -5421,26 +5427,23 @@ async function _runMixOffsetCalibration() {
                     const a = Math.abs(buf[i]);
                     if (a > peak) peak = a;
                 }
-                if (peak > threshold) {
-                    detectedT = performance.now();
-                    break;
-                }
+                if (peak > threshold) { detectedT = performance.now(); break; }
                 await new Promise(r => setTimeout(r, 2));
             }
-            try { audio.pause(); audio.remove(); } catch(_) {}
+            try { audio.pause(); } catch(_) {}
 
             if (detectedT > 0) {
                 const roundTrip = detectedT - T0;
-                // assumed input latency ~ 50ms (Web Audio mic capture)
                 const outputLatency = roundTrip - 50;
                 measurements.push(outputLatency);
                 DEBUG.info('MIX 校正: trial ' + (trial + 1) + ' round_trip=' + roundTrip.toFixed(0) + 'ms output_lat≈' + outputLatency.toFixed(0) + 'ms (threshold=' + threshold.toFixed(3) + ', baseline=' + baseline.toFixed(3) + ')');
             } else {
-                DEBUG.warn('MIX 校正: trial ' + (trial + 1) + ' クリック検出失敗 (静かな環境で再試行を推奨)');
+                DEBUG.warn('MIX 校正: trial ' + (trial + 1) + ' クリック検出失敗 (mic 音量不足の可能性、 スピーカー側を覆ってみてください)');
             }
-            await new Promise(r => setTimeout(r, 500));  // 試行間 0.5 秒待機
+            await new Promise(r => setTimeout(r, 400));
         }
 
+        try { audio.remove(); } catch(_) {}
         URL.revokeObjectURL(clickUrl);
 
         if (measurements.length === 0) {
@@ -6002,6 +6005,42 @@ function _selToggleMix(mixId){
     renderTakes();
     if (window._refreshMixCreateBtn) window._refreshMixCreateBtn();
     state.lastLyricIdx = -1; updateCurrentLine();   // v2.48: MIX の開始時刻に合わせた歌詞行を表示
+    // v2.64-fix: 選択直後に audio 要素を事前準備 (Drive readFile を await しても問題なし)。
+    //   ▶ タップ時に既に audio 準備済 → play() 同期実行可能 (iOS user gesture 維持)。
+    _preloadStoredMix(mixId).catch(e => DEBUG.warn('MIX preload failed: ' + (e.message || e)));
+}
+
+// v2.64-fix: MIX 選択直後に audio 要素を事前準備 (▶ タップから user gesture 維持で play 可能に)
+async function _preloadStoredMix(mixId) {
+    const m = ((state.currentEntry && state.currentEntry.mixes) || []).find(x => x.id === mixId);
+    if (!m) return;
+    // 既に load 済 (同じ mixId) ならスキップ
+    if (_storedMixAudio && _storedMixAudio._mixId === mixId) return;
+    _stopStoredMixPlayback();
+    let blob = _freshMixBlobs[mixId];
+    if (!blob) {
+        const META = window.MomoMeta;
+        const ctx = await _mixStorageCtx();
+        if (!META || !ctx) return;
+        try {
+            blob = (ctx.prov === 'drive')
+                ? await META.Drive.readFile(ctx.songFolderName, m.fileName)
+                : await META.Local.readFile(ctx.songHandle, m.fileName);
+        } catch (e) { DEBUG.warn('MIX preload readFile fail: ' + e.message); return; }
+        if (state.selectedMixId !== mixId) return;  // 選択切替で中断
+    }
+    _storedMixBlobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('audio');
+    a.src = _storedMixBlobUrl;
+    a.preload = 'auto';
+    a.style.display = 'none';
+    a._mixId = mixId;
+    document.body.appendChild(a);
+    try { a.volume = Math.max(0, Math.min(1, m.playVolume != null ? m.playVolume : 1.0)); } catch(e){}
+    a.addEventListener('ended', () => { _stopStoredMixPlayback(); _setPlayBtnIcon(false); renderMixes(); });
+    a.addEventListener('error', () => { _stopStoredMixPlayback(); _setPlayBtnIcon(false); renderMixes(); });
+    _storedMixAudio = a;
+    DEBUG.info('MIX preload ready: mixId=' + mixId + ' (' + (blob.size / 1024).toFixed(0) + ' KB)');
 }
 
 // v2.29: body 直下に 1 つだけ作って使い回すコンテキストメニュー
@@ -9029,8 +9068,15 @@ async function _saveMix(wavBlob, sourceTakeIds, extra) {
         await META.Local.saveSongMeta(songHandle, songMeta);
     }
     DEBUG.ok('MIX: saved + meta.json updated, mixId=' + mixId);
+    // v2.64-fix: 生成直後の wavBlob を in-memory にキャッシュ (再生時の Drive 再 DL を回避)。
+    //   iOS では Drive readFile を await すると user gesture から外れて audio.play が拒否される。
+    //   このキャッシュにより、 直後に再生する時は同期的に blob URL から play 可能。
+    try { _freshMixBlobs[mixId] = wavBlob; } catch (e) {}
     return { mixId, fileName };
 }
+
+// v2.64-fix: 直近生成 MIX の wavBlob キャッシュ (mixId → Blob)。 同一セッション内のみ有効。
+const _freshMixBlobs = {};
 
 // ============================================================================
 // v2.39 (Phase 6b): MIX 一覧 — 表示 / プレビュー再生 / 排他選択 / ⋮ メニュー
@@ -9123,23 +9169,27 @@ function _stopStoredMixPlayback() {
 // 選択中の MIX を読み込んで頭から再生 (主トランスポートからのみ呼ぶ)
 async function _playStoredMix(m) {
     const META = window.MomoMeta;
-    const ctx = await _mixStorageCtx();
-    if (!META || !ctx) { alert('カラオケフォルダ未接続のため MIX を読み込めません'); return; }
     // 他の音声を停止 + このロードのトークンを確定 (連打時は最後の 1 回だけ生き残る)
     _stopMixPreview();
     _stopStoredMixPlayback();
     if (!bgmTransport.paused) { try { bgmTransport.pause(); } catch (e) {} }
     stopTakePlayback();
     const myToken = _mixLoadToken;
-    // v2.41: 読込中インジケータ (MIX wav は数十 MB で Drive 読込に数秒かかるため明示)
-    if (typeof btnPlay !== 'undefined' && btnPlay) { btnPlay.classList.remove('playing'); btnPlay.textContent = '⏳'; }
-    let blob;
-    try {
-        blob = (ctx.prov === 'drive')
-            ? await META.Drive.readFile(ctx.songFolderName, m.fileName)
-            : await META.Local.readFile(ctx.songHandle, m.fileName);
-    } catch (e) { _setPlayBtnIcon(false); alert('MIX ファイルの読込に失敗しました: ' + (e.message || e)); return; }
-    if (myToken !== _mixLoadToken) { DEBUG.info('MIX load superseded, abort'); return; }  // 新しい操作が来た
+    // v2.64-fix: 生成直後の MIX なら _freshMixBlobs[mixId] にキャッシュあり → Drive readFile 不要 → 同期 play 可能
+    let blob = _freshMixBlobs[m.id];
+    if (!blob) {
+        const ctx = await _mixStorageCtx();
+        if (!META || !ctx) { alert('カラオケフォルダ未接続のため MIX を読み込めません'); return; }
+        if (typeof btnPlay !== 'undefined' && btnPlay) { btnPlay.classList.remove('playing'); btnPlay.textContent = '⏳'; }
+        try {
+            blob = (ctx.prov === 'drive')
+                ? await META.Drive.readFile(ctx.songFolderName, m.fileName)
+                : await META.Local.readFile(ctx.songHandle, m.fileName);
+        } catch (e) { _setPlayBtnIcon(false); alert('MIX ファイルの読込に失敗しました: ' + (e.message || e)); return; }
+        if (myToken !== _mixLoadToken) { DEBUG.info('MIX load superseded, abort'); return; }
+    } else {
+        DEBUG.info('MIX playback: 生成直後キャッシュから直接再生 (Drive 再 DL 回避)');
+    }
     _storedMixBlobUrl = URL.createObjectURL(blob);
     const a = document.createElement('audio');
     a.src = _storedMixBlobUrl; a.preload = 'auto'; a.style.display = 'none';

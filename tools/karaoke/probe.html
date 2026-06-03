@@ -20,7 +20,7 @@
 </style>
 </head>
 <body>
-  <h1>Karaoke HTMLAudio 遅延プローブ</h1>
+  <h1>Karaoke HTMLAudio 遅延プローブ v2</h1>
   <p class="sub">マイク不使用。HTMLAudio の再生遅延が AudioContext のタップ点に現れるかを実測する使い捨てツール。</p>
   <button id="run">▶ 計測開始 (5 trial)</button>
   <button id="copyBtn" class="copy" style="display:none">📋 結果をコピー</button>
@@ -43,7 +43,6 @@ const CLICK_FREQ = 1000;
 const THRESHOLD = 0.15;   // デジタルタップなので減衰なし、高めでOK
 const TRIALS = 5;
 
-// クリック入り PCM (Float32) を作る
 function makeClickPcm(){
   const n = Math.round(BUF_DUR * SR);
   const pcm = new Float32Array(n);
@@ -51,9 +50,7 @@ function makeClickPcm(){
   const len = Math.round(CLICK_DUR * SR);
   for(let i=0;i<len;i++){
     const t = i/SR;
-    // fade in/out 2ms
-    let env = 1;
-    const f = 0.002;
+    let env = 1; const f = 0.002;
     if(t < f) env = t/f;
     else if(t > CLICK_DUR - f) env = (CLICK_DUR - t)/f;
     pcm[start+i] = Math.sin(2*Math.PI*CLICK_FREQ*t) * env * 0.9;
@@ -75,8 +72,7 @@ function pcmToWavBlob(pcm){
   return new Blob([buf], {type:'audio/wav'});
 }
 
-// analyser を ~1ms 間隔で監視し、閾値超え時刻 (audioCtx.currentTime) を返す
-function detectPeak(ctx, analyser, playCtxTime, timeoutSec){
+function detectPeak(ctx, analyser, timeoutSec){
   return new Promise((resolve)=>{
     const data = new Float32Array(analyser.fftSize);
     const t0 = performance.now();
@@ -84,42 +80,12 @@ function detectPeak(ctx, analyser, playCtxTime, timeoutSec){
       analyser.getFloatTimeDomainData(data);
       let peak = 0;
       for(let i=0;i<data.length;i++){ const a=Math.abs(data[i]); if(a>peak) peak=a; }
-      if(peak >= THRESHOLD){
-        resolve({ detectCtx: ctx.currentTime, peak });
-        return;
-      }
+      if(peak >= THRESHOLD){ resolve({ detectCtx: ctx.currentTime, peak }); return; }
       if((performance.now()-t0)/1000 > timeoutSec){ resolve(null); return; }
       setTimeout(tick, 1);
     }
     tick();
   });
-}
-
-async function measureHtmlAudio(ctx, wavUrl){
-  const el = new Audio();
-  el.src = wavUrl;
-  el.preload = 'auto';
-  await new Promise(r=>{ el.oncanplaythrough = r; el.onloadeddata = r; setTimeout(r, 1500); });
-  const srcNode = ctx.createMediaElementSource(el);
-  const analyser = ctx.createAnalyser();
-  analyser.fftSize = 1024;
-  srcNode.connect(analyser);
-  analyser.connect(ctx.destination);
-  const results = [];
-  for(let t=0;t<TRIALS;t++){
-    try { el.pause(); el.currentTime = 0; } catch(e){}
-    await new Promise(r=>setTimeout(r,120));
-    const playCtx = ctx.currentTime;
-    try { await el.play(); } catch(e){ log('  HTMLAudio trial '+(t+1)+' play失敗: '+(e.message||e)); results.push(null); continue; }
-    const det = await detectPeak(ctx, analyser, playCtx, BUF_DUR+1.0);
-    if(!det){ log('  HTMLAudio trial '+(t+1)+' 検出失敗'); results.push(null); continue; }
-    const delayMs = (det.detectCtx - playCtx - CLICK_AT) * 1000;
-    log('  HTMLAudio trial '+(t+1)+': '+delayMs.toFixed(1)+' ms (peak '+det.peak.toFixed(2)+')');
-    results.push(delayMs);
-    await new Promise(r=>setTimeout(r,200));
-  }
-  try { srcNode.disconnect(); analyser.disconnect(); } catch(e){}
-  return results;
 }
 
 async function measureBufferSource(ctx, pcm){
@@ -135,15 +101,42 @@ async function measureBufferSource(ctx, pcm){
     src.connect(analyser);
     const playCtx = ctx.currentTime;
     src.start();
-    const det = await detectPeak(ctx, analyser, playCtx, BUF_DUR+1.0);
+    const det = await detectPeak(ctx, analyser, BUF_DUR+1.0);
     if(!det){ log('  BufferSource trial '+(t+1)+' 検出失敗'); results.push(null); try{src.stop();}catch(e){} continue; }
     const delayMs = (det.detectCtx - playCtx - CLICK_AT) * 1000;
     log('  BufferSource trial '+(t+1)+': '+delayMs.toFixed(1)+' ms (peak '+det.peak.toFixed(2)+')');
     results.push(delayMs);
     try{src.stop();}catch(e){}
-    await new Promise(r=>setTimeout(r,200));
+    await new Promise(r=>setTimeout(r,150));
   }
   try { analyser.disconnect(); } catch(e){}
+  return results;
+}
+
+// el は呼び出し前にジェスチャ内で unlock 済み。MediaElementSource はここで一度だけ作る。
+async function measureHtmlAudio(ctx, el){
+  let analyser;
+  try {
+    const srcNode = ctx.createMediaElementSource(el);
+    analyser = ctx.createAnalyser();
+    analyser.fftSize = 1024;
+    srcNode.connect(analyser);
+    analyser.connect(ctx.destination);
+  } catch(e){ log('  MediaElementSource 作成失敗: '+(e.message||e)); return []; }
+  const results = [];
+  for(let t=0;t<TRIALS;t++){
+    try { el.pause(); el.currentTime = 0; } catch(e){}
+    await new Promise(r=>setTimeout(r,150));
+    const playCtx = ctx.currentTime;
+    try { await el.play(); }
+    catch(e){ log('  HTMLAudio trial '+(t+1)+' play失敗: '+(e.message||e)); results.push(null); await new Promise(r=>setTimeout(r,150)); continue; }
+    const det = await detectPeak(ctx, analyser, BUF_DUR+1.0);
+    if(!det){ log('  HTMLAudio trial '+(t+1)+' 検出失敗'); results.push(null); continue; }
+    const delayMs = (det.detectCtx - playCtx - CLICK_AT) * 1000;
+    log('  HTMLAudio trial '+(t+1)+': '+delayMs.toFixed(1)+' ms (peak '+det.peak.toFixed(2)+')');
+    results.push(delayMs);
+    await new Promise(r=>setTimeout(r,200));
+  }
   return results;
 }
 
@@ -154,30 +147,26 @@ function median(arr){
   return v.length%2 ? v[m] : (v[m-1]+v[m])/2;
 }
 
-async function run(){
-  runBtn.disabled = true;
-  logText = ''; verdictEl.textContent = ''; verdictEl.className = 'verdict';
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
-  await ctx.resume();
+async function run(ctx, pcm, wavUrl, el, getUnlock){
+  try { await ctx.resume(); } catch(e){}
   log('UA: ' + navigator.userAgent);
   log('sampleRate: ' + ctx.sampleRate +
       ' · baseLatency: ' + (ctx.baseLatency!=null?(ctx.baseLatency*1000).toFixed(1)+'ms':'n/a') +
       ' · outputLatency: ' + (ctx.outputLatency!=null?(ctx.outputLatency*1000).toFixed(1)+'ms':'n/a'));
+  await new Promise(r=>setTimeout(r, 500));   // unlock + load 待ち
+  log('HTMLAudio unlock: ' + getUnlock());
   log('');
 
-  const pcm = makeClickPcm();
-  const wavUrl = URL.createObjectURL(pcmToWavBlob(pcm));
+  log('[1] HTMLAudio (createMediaElementSource タップ):');
+  const haRes = await measureHtmlAudio(ctx, el);
+  const haMed = median(haRes);
+  log('  → median: ' + (haMed!=null?haMed.toFixed(1)+' ms':'測定不能'));
+  log('');
 
-  log('[1] AudioBufferSource (Web Audio native, 基準):');
+  log('[2] AudioBufferSource (Web Audio native, 基準):');
   const bufRes = await measureBufferSource(ctx, pcm);
   const bufMed = median(bufRes);
   log('  → median: ' + (bufMed!=null?bufMed.toFixed(1)+' ms':'測定不能'));
-  log('');
-
-  log('[2] HTMLAudio (createMediaElementSource タップ):');
-  const haRes = await measureHtmlAudio(ctx, wavUrl);
-  const haMed = median(haRes);
-  log('  → median: ' + (haMed!=null?haMed.toFixed(1)+' ms':'測定不能'));
   log('');
 
   if(bufMed!=null && haMed!=null){
@@ -194,13 +183,34 @@ async function run(){
     verdictEl.className = 'verdict no';
     verdictEl.textContent = '⚠ 測定不能。ログを確認してください。';
   }
-  URL.revokeObjectURL(wavUrl);
+  try { URL.revokeObjectURL(wavUrl); } catch(e){}
   try { ctx.close(); } catch(e){}
-  runBtn.disabled = false;
   copyBtn.style.display = 'block';
 }
 
-runBtn.addEventListener('click', run);
+runBtn.addEventListener('click', ()=>{
+  runBtn.disabled = true;
+  logText = ''; verdictEl.textContent = ''; verdictEl.className = 'verdict';
+  out.textContent = '計測中...';
+  // --- ジェスチャ内で同期実行 (iOS autoplay 回避) ---
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  ctx.resume();
+  const pcm = makeClickPcm();
+  const wavUrl = URL.createObjectURL(pcmToWavBlob(pcm));
+  const el = new Audio();
+  el.preload = 'auto';
+  el.src = wavUrl;
+  // この要素をジェスチャ内で play() して unlock → 後続の programmatic play() が通る
+  let unlockState = 'pending';
+  try {
+    const up = el.play();
+    if(up && up.then){ up.then(()=>{ try{el.pause(); el.currentTime=0;}catch(e){} unlockState='ok'; })
+                         .catch(e=>{ unlockState='fail:'+(e.name||e.message||e); }); }
+    else { unlockState='ok(sync)'; }
+  } catch(e){ unlockState='throw:'+(e.name||e); }
+  run(ctx, pcm, wavUrl, el, ()=>unlockState).finally(()=>{ runBtn.disabled = false; });
+});
+
 copyBtn.addEventListener('click', async ()=>{
   try { await navigator.clipboard.writeText(logText + '\n' + verdictEl.textContent); copyBtn.textContent='✓ コピーしました'; setTimeout(()=>copyBtn.textContent='📋 結果をコピー',1500); }
   catch(e){ alert('コピー失敗: '+(e.message||e)); }

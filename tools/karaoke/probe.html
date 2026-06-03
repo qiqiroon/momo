@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Karaoke Latency Probe</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; margin: 0; padding: 16px; background: #111; color: #eee; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .sub { font-size: 12px; color: #999; margin: 0 0 16px; }
+  button { font-size: 18px; padding: 14px 22px; border-radius: 10px; border: none;
+           background: #2d7; color: #042; font-weight: 700; width: 100%; margin-bottom: 14px; }
+  button:disabled { background: #444; color: #888; }
+  pre { background: #000; border: 1px solid #333; border-radius: 8px; padding: 12px;
+        font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; min-height: 200px; }
+  .verdict { font-size: 16px; font-weight: 700; padding: 10px; border-radius: 8px; margin-top: 12px; }
+  .ok { background: #143; color: #6f9; }
+  .no { background: #411; color: #f99; }
+  .copy { background: #58a; color: #fff; }
+</style>
+</head>
+<body>
+  <h1>Karaoke HTMLAudio 遅延プローブ</h1>
+  <p class="sub">マイク不使用。HTMLAudio の再生遅延が AudioContext のタップ点に現れるかを実測する使い捨てツール。</p>
+  <button id="run">▶ 計測開始 (5 trial)</button>
+  <button id="copyBtn" class="copy" style="display:none">📋 結果をコピー</button>
+  <pre id="out">ボタンを押すと計測します。</pre>
+  <div id="verdict"></div>
+
+<script>
+const out = document.getElementById('out');
+const verdictEl = document.getElementById('verdict');
+const runBtn = document.getElementById('run');
+const copyBtn = document.getElementById('copyBtn');
+let logText = '';
+function log(s){ logText += s + '\n'; out.textContent = logText; }
+
+const SR = 44100;
+const CLICK_AT = 1.0;     // クリックを置く秒位置 (バッファ先頭から)
+const BUF_DUR = 1.4;      // バッファ全長
+const CLICK_DUR = 0.02;   // 20ms
+const CLICK_FREQ = 1000;
+const THRESHOLD = 0.15;   // デジタルタップなので減衰なし、高めでOK
+const TRIALS = 5;
+
+// クリック入り PCM (Float32) を作る
+function makeClickPcm(){
+  const n = Math.round(BUF_DUR * SR);
+  const pcm = new Float32Array(n);
+  const start = Math.round(CLICK_AT * SR);
+  const len = Math.round(CLICK_DUR * SR);
+  for(let i=0;i<len;i++){
+    const t = i/SR;
+    // fade in/out 2ms
+    let env = 1;
+    const f = 0.002;
+    if(t < f) env = t/f;
+    else if(t > CLICK_DUR - f) env = (CLICK_DUR - t)/f;
+    pcm[start+i] = Math.sin(2*Math.PI*CLICK_FREQ*t) * env * 0.9;
+  }
+  return pcm;
+}
+
+function pcmToWavBlob(pcm){
+  const n = pcm.length;
+  const buf = new ArrayBuffer(44 + n*2);
+  const dv = new DataView(buf);
+  const ws = (o,s)=>{ for(let i=0;i<s.length;i++) dv.setUint8(o+i, s.charCodeAt(i)); };
+  ws(0,'RIFF'); dv.setUint32(4, 36+n*2, true); ws(8,'WAVE');
+  ws(12,'fmt '); dv.setUint32(16,16,true); dv.setUint16(20,1,true); dv.setUint16(22,1,true);
+  dv.setUint32(24,SR,true); dv.setUint32(28,SR*2,true); dv.setUint16(32,2,true); dv.setUint16(34,16,true);
+  ws(36,'data'); dv.setUint32(40, n*2, true);
+  let o=44;
+  for(let i=0;i<n;i++){ let s=Math.max(-1,Math.min(1,pcm[i])); dv.setInt16(o, s<0?s*0x8000:s*0x7FFF, true); o+=2; }
+  return new Blob([buf], {type:'audio/wav'});
+}
+
+// analyser を ~1ms 間隔で監視し、閾値超え時刻 (audioCtx.currentTime) を返す
+function detectPeak(ctx, analyser, playCtxTime, timeoutSec){
+  return new Promise((resolve)=>{
+    const data = new Float32Array(analyser.fftSize);
+    const t0 = performance.now();
+    function tick(){
+      analyser.getFloatTimeDomainData(data);
+      let peak = 0;
+      for(let i=0;i<data.length;i++){ const a=Math.abs(data[i]); if(a>peak) peak=a; }
+      if(peak >= THRESHOLD){
+        resolve({ detectCtx: ctx.currentTime, peak });
+        return;
+      }
+      if((performance.now()-t0)/1000 > timeoutSec){ resolve(null); return; }
+      setTimeout(tick, 1);
+    }
+    tick();
+  });
+}
+
+async function measureHtmlAudio(ctx, wavUrl){
+  const el = new Audio();
+  el.src = wavUrl;
+  el.preload = 'auto';
+  await new Promise(r=>{ el.oncanplaythrough = r; el.onloadeddata = r; setTimeout(r, 1500); });
+  const srcNode = ctx.createMediaElementSource(el);
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 1024;
+  srcNode.connect(analyser);
+  analyser.connect(ctx.destination);
+  const results = [];
+  for(let t=0;t<TRIALS;t++){
+    try { el.pause(); el.currentTime = 0; } catch(e){}
+    await new Promise(r=>setTimeout(r,120));
+    const playCtx = ctx.currentTime;
+    try { await el.play(); } catch(e){ log('  HTMLAudio trial '+(t+1)+' play失敗: '+(e.message||e)); results.push(null); continue; }
+    const det = await detectPeak(ctx, analyser, playCtx, BUF_DUR+1.0);
+    if(!det){ log('  HTMLAudio trial '+(t+1)+' 検出失敗'); results.push(null); continue; }
+    const delayMs = (det.detectCtx - playCtx - CLICK_AT) * 1000;
+    log('  HTMLAudio trial '+(t+1)+': '+delayMs.toFixed(1)+' ms (peak '+det.peak.toFixed(2)+')');
+    results.push(delayMs);
+    await new Promise(r=>setTimeout(r,200));
+  }
+  try { srcNode.disconnect(); analyser.disconnect(); } catch(e){}
+  return results;
+}
+
+async function measureBufferSource(ctx, pcm){
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 1024;
+  analyser.connect(ctx.destination);
+  const buf = ctx.createBuffer(1, pcm.length, SR);
+  buf.copyToChannel(pcm, 0);
+  const results = [];
+  for(let t=0;t<TRIALS;t++){
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(analyser);
+    const playCtx = ctx.currentTime;
+    src.start();
+    const det = await detectPeak(ctx, analyser, playCtx, BUF_DUR+1.0);
+    if(!det){ log('  BufferSource trial '+(t+1)+' 検出失敗'); results.push(null); try{src.stop();}catch(e){} continue; }
+    const delayMs = (det.detectCtx - playCtx - CLICK_AT) * 1000;
+    log('  BufferSource trial '+(t+1)+': '+delayMs.toFixed(1)+' ms (peak '+det.peak.toFixed(2)+')');
+    results.push(delayMs);
+    try{src.stop();}catch(e){}
+    await new Promise(r=>setTimeout(r,200));
+  }
+  try { analyser.disconnect(); } catch(e){}
+  return results;
+}
+
+function median(arr){
+  const v = arr.filter(x=>x!=null).sort((a,b)=>a-b);
+  if(!v.length) return null;
+  const m = Math.floor(v.length/2);
+  return v.length%2 ? v[m] : (v[m-1]+v[m])/2;
+}
+
+async function run(){
+  runBtn.disabled = true;
+  logText = ''; verdictEl.textContent = ''; verdictEl.className = 'verdict';
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  await ctx.resume();
+  log('UA: ' + navigator.userAgent);
+  log('sampleRate: ' + ctx.sampleRate +
+      ' · baseLatency: ' + (ctx.baseLatency!=null?(ctx.baseLatency*1000).toFixed(1)+'ms':'n/a') +
+      ' · outputLatency: ' + (ctx.outputLatency!=null?(ctx.outputLatency*1000).toFixed(1)+'ms':'n/a'));
+  log('');
+
+  const pcm = makeClickPcm();
+  const wavUrl = URL.createObjectURL(pcmToWavBlob(pcm));
+
+  log('[1] AudioBufferSource (Web Audio native, 基準):');
+  const bufRes = await measureBufferSource(ctx, pcm);
+  const bufMed = median(bufRes);
+  log('  → median: ' + (bufMed!=null?bufMed.toFixed(1)+' ms':'測定不能'));
+  log('');
+
+  log('[2] HTMLAudio (createMediaElementSource タップ):');
+  const haRes = await measureHtmlAudio(ctx, wavUrl);
+  const haMed = median(haRes);
+  log('  → median: ' + (haMed!=null?haMed.toFixed(1)+' ms':'測定不能'));
+  log('');
+
+  if(bufMed!=null && haMed!=null){
+    const diff = haMed - bufMed;
+    log('=== 差 (HTMLAudio − native) = ' + diff.toFixed(1) + ' ms ===');
+    if(Math.abs(diff) >= 80){
+      verdictEl.className = 'verdict ok';
+      verdictEl.textContent = '✅ タップに HTMLAudio 遅延が現れる (' + diff.toFixed(0) + 'ms) → A\' 実装可能';
+    } else {
+      verdictEl.className = 'verdict no';
+      verdictEl.textContent = '❌ 差が小さい (' + diff.toFixed(0) + 'ms) → 遅延はタップに映らない → B 案へ';
+    }
+  } else {
+    verdictEl.className = 'verdict no';
+    verdictEl.textContent = '⚠ 測定不能。ログを確認してください。';
+  }
+  URL.revokeObjectURL(wavUrl);
+  try { ctx.close(); } catch(e){}
+  runBtn.disabled = false;
+  copyBtn.style.display = 'block';
+}
+
+runBtn.addEventListener('click', run);
+copyBtn.addEventListener('click', async ()=>{
+  try { await navigator.clipboard.writeText(logText + '\n' + verdictEl.textContent); copyBtn.textContent='✓ コピーしました'; setTimeout(()=>copyBtn.textContent='📋 結果をコピー',1500); }
+  catch(e){ alert('コピー失敗: '+(e.message||e)); }
+});
+</script>
+</body>
+</html>

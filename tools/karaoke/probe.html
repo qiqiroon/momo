@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>Karaoke Latency Probe</title>
+<title>Karaoke Latency Probe v3</title>
 <style>
   body { font-family: -apple-system, system-ui, sans-serif; margin: 0; padding: 16px; background: #111; color: #eee; }
   h1 { font-size: 18px; margin: 0 0 4px; }
@@ -12,17 +12,16 @@
            background: #2d7; color: #042; font-weight: 700; width: 100%; margin-bottom: 14px; }
   button:disabled { background: #444; color: #888; }
   pre { background: #000; border: 1px solid #333; border-radius: 8px; padding: 12px;
-        font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; min-height: 200px; }
+        font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; min-height: 220px; }
   .verdict { font-size: 16px; font-weight: 700; padding: 10px; border-radius: 8px; margin-top: 12px; }
   .ok { background: #143; color: #6f9; }
-  .no { background: #411; color: #f99; }
   .copy { background: #58a; color: #fff; }
 </style>
 </head>
 <body>
-  <h1>Karaoke HTMLAudio 遅延プローブ v2</h1>
-  <p class="sub">マイク不使用。HTMLAudio の再生遅延が AudioContext のタップ点に現れるかを実測する使い捨てツール。</p>
-  <button id="run">▶ 計測開始 (5 trial)</button>
+  <h1>Karaoke 遅延プローブ v3 (L_take + β)</h1>
+  <p class="sub">マイク不使用。triggered take 遅延と continuous BGM 遅延を測り mixOffset 候補を算出。</p>
+  <button id="run">▶ 計測開始</button>
   <button id="copyBtn" class="copy" style="display:none">📋 結果をコピー</button>
   <pre id="out">ボタンを押すと計測します。</pre>
   <div id="verdict"></div>
@@ -36,24 +35,24 @@ let logText = '';
 function log(s){ logText += s + '\n'; out.textContent = logText; }
 
 const SR = 44100;
-const CLICK_AT = 1.0;     // クリックを置く秒位置 (バッファ先頭から)
-const BUF_DUR = 1.4;      // バッファ全長
-const CLICK_DUR = 0.02;   // 20ms
+const CLICK_AT = 1.0;
+const BUF_DUR = 1.4;
+const CLICK_DUR = 0.02;
 const CLICK_FREQ = 1000;
-const THRESHOLD = 0.15;   // デジタルタップなので減衰なし、高めでOK
+const THRESHOLD = 0.15;
 const TRIALS = 5;
 
-function makeClickPcm(){
-  const n = Math.round(BUF_DUR * SR);
+function makeClickPcm(positions, totalDur){
+  const n = Math.round(totalDur * SR);
   const pcm = new Float32Array(n);
-  const start = Math.round(CLICK_AT * SR);
   const len = Math.round(CLICK_DUR * SR);
-  for(let i=0;i<len;i++){
-    const t = i/SR;
-    let env = 1; const f = 0.002;
-    if(t < f) env = t/f;
-    else if(t > CLICK_DUR - f) env = (CLICK_DUR - t)/f;
-    pcm[start+i] = Math.sin(2*Math.PI*CLICK_FREQ*t) * env * 0.9;
+  for(const P of positions){
+    const start = Math.round(P * SR);
+    for(let i=0;i<len;i++){
+      const t = i/SR; let env = 1; const f = 0.002;
+      if(t < f) env = t/f; else if(t > CLICK_DUR - f) env = (CLICK_DUR - t)/f;
+      if(start+i < n) pcm[start+i] = Math.sin(2*Math.PI*CLICK_FREQ*t) * env * 0.9;
+    }
   }
   return pcm;
 }
@@ -88,58 +87,6 @@ function detectPeak(ctx, analyser, timeoutSec){
   });
 }
 
-async function measureBufferSource(ctx, pcm){
-  const analyser = ctx.createAnalyser();
-  analyser.fftSize = 1024;
-  analyser.connect(ctx.destination);
-  const buf = ctx.createBuffer(1, pcm.length, SR);
-  buf.copyToChannel(pcm, 0);
-  const results = [];
-  for(let t=0;t<TRIALS;t++){
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-    src.connect(analyser);
-    const playCtx = ctx.currentTime;
-    src.start();
-    const det = await detectPeak(ctx, analyser, BUF_DUR+1.0);
-    if(!det){ log('  BufferSource trial '+(t+1)+' 検出失敗'); results.push(null); try{src.stop();}catch(e){} continue; }
-    const delayMs = (det.detectCtx - playCtx - CLICK_AT) * 1000;
-    log('  BufferSource trial '+(t+1)+': '+delayMs.toFixed(1)+' ms (peak '+det.peak.toFixed(2)+')');
-    results.push(delayMs);
-    try{src.stop();}catch(e){}
-    await new Promise(r=>setTimeout(r,150));
-  }
-  try { analyser.disconnect(); } catch(e){}
-  return results;
-}
-
-// el は呼び出し前にジェスチャ内で unlock 済み。MediaElementSource はここで一度だけ作る。
-async function measureHtmlAudio(ctx, el){
-  let analyser;
-  try {
-    const srcNode = ctx.createMediaElementSource(el);
-    analyser = ctx.createAnalyser();
-    analyser.fftSize = 1024;
-    srcNode.connect(analyser);
-    analyser.connect(ctx.destination);
-  } catch(e){ log('  MediaElementSource 作成失敗: '+(e.message||e)); return []; }
-  const results = [];
-  for(let t=0;t<TRIALS;t++){
-    try { el.pause(); el.currentTime = 0; } catch(e){}
-    await new Promise(r=>setTimeout(r,150));
-    const playCtx = ctx.currentTime;
-    try { await el.play(); }
-    catch(e){ log('  HTMLAudio trial '+(t+1)+' play失敗: '+(e.message||e)); results.push(null); await new Promise(r=>setTimeout(r,150)); continue; }
-    const det = await detectPeak(ctx, analyser, BUF_DUR+1.0);
-    if(!det){ log('  HTMLAudio trial '+(t+1)+' 検出失敗'); results.push(null); continue; }
-    const delayMs = (det.detectCtx - playCtx - CLICK_AT) * 1000;
-    log('  HTMLAudio trial '+(t+1)+': '+delayMs.toFixed(1)+' ms (peak '+det.peak.toFixed(2)+')');
-    results.push(delayMs);
-    await new Promise(r=>setTimeout(r,200));
-  }
-  return results;
-}
-
 function median(arr){
   const v = arr.filter(x=>x!=null).sort((a,b)=>a-b);
   if(!v.length) return null;
@@ -147,43 +94,139 @@ function median(arr){
   return v.length%2 ? v[m] : (v[m-1]+v[m])/2;
 }
 
-async function run(ctx, pcm, wavUrl, el, getUnlock){
+// [1] triggered HTMLAudio: 毎回 pause→seek0→play してクリック遅延 (play_call 基準) を測る
+async function measureTriggered(ctx, el){
+  let analyser;
+  try {
+    const srcNode = ctx.createMediaElementSource(el);
+    analyser = ctx.createAnalyser(); analyser.fftSize = 1024;
+    srcNode.connect(analyser); analyser.connect(ctx.destination);
+  } catch(e){ log('  MES作成失敗: '+(e.message||e)); return []; }
+  const results = [];
+  for(let t=0;t<TRIALS;t++){
+    try { el.pause(); el.currentTime = 0; } catch(e){}
+    await new Promise(r=>setTimeout(r,150));
+    const playCall = ctx.currentTime;
+    try { await el.play(); }
+    catch(e){ log('  triggered trial '+(t+1)+' play失敗: '+(e.message||e)); results.push(null); await new Promise(r=>setTimeout(r,150)); continue; }
+    const det = await detectPeak(ctx, analyser, BUF_DUR+1.0);
+    if(!det){ log('  triggered trial '+(t+1)+' 検出失敗'); results.push(null); continue; }
+    const ct = el.currentTime;
+    const delayMs = (det.detectCtx - playCall - CLICK_AT) * 1000;
+    const ctLagMs = (ct - CLICK_AT) * 1000;  // currentTime が tap より先行している量
+    log('  triggered trial '+(t+1)+': rel-play='+delayMs.toFixed(1)+'ms · currentTime-lead='+ctLagMs.toFixed(1)+'ms');
+    results.push(delayMs);
+    await new Promise(r=>setTimeout(r,200));
+  }
+  try { el.pause(); } catch(e){}
+  return results;
+}
+
+// [2] native baseline
+async function measureBufferSource(ctx, pcm){
+  const analyser = ctx.createAnalyser(); analyser.fftSize = 1024;
+  analyser.connect(ctx.destination);
+  const buf = ctx.createBuffer(1, pcm.length, SR);
+  buf.copyToChannel(pcm, 0);
+  const results = [];
+  for(let t=0;t<TRIALS;t++){
+    const src = ctx.createBufferSource();
+    src.buffer = buf; src.connect(analyser);
+    const playCall = ctx.currentTime;
+    src.start();
+    const det = await detectPeak(ctx, analyser, BUF_DUR+1.0);
+    if(!det){ results.push(null); try{src.stop();}catch(e){} continue; }
+    const delayMs = (det.detectCtx - playCall - CLICK_AT) * 1000;
+    log('  native trial '+(t+1)+': '+delayMs.toFixed(1)+' ms');
+    results.push(delayMs);
+    try{src.stop();}catch(e){}
+    await new Promise(r=>setTimeout(r,120));
+  }
+  try { analyser.disconnect(); } catch(e){}
+  return results;
+}
+
+// [3] continuous HTMLAudio: 連続再生し、各クリックで β = (currentTime − media位置) を測る
+async function measureContinuous(ctx, el){
+  let analyser;
+  try {
+    const srcNode = ctx.createMediaElementSource(el);
+    analyser = ctx.createAnalyser(); analyser.fftSize = 1024;
+    srcNode.connect(analyser); analyser.connect(ctx.destination);
+  } catch(e){ log('  MES作成失敗: '+(e.message||e)); return []; }
+  try { el.pause(); el.currentTime = 0; } catch(e){}
+  await new Promise(r=>setTimeout(r,150));
+  const playCall = ctx.currentTime;
+  try { await el.play(); }
+  catch(e){ log('  continuous play失敗: '+(e.message||e)); return []; }
+  const data = new Float32Array(analyser.fftSize);
+  const detections = [];
+  let lastDetect = -10;
+  const tEnd = ctx.currentTime + 5.5;
+  await new Promise(resolve=>{
+    function tick(){
+      analyser.getFloatTimeDomainData(data);
+      let peak=0; for(let i=0;i<data.length;i++){ const a=Math.abs(data[i]); if(a>peak) peak=a; }
+      const now = ctx.currentTime;
+      if(peak>=THRESHOLD && (now-lastDetect)>0.4){
+        lastDetect = now;
+        detections.push({ ctxT: now, ct: el.currentTime, peak });
+      }
+      if(now > tEnd){ resolve(); return; }
+      setTimeout(tick, 1);
+    }
+    tick();
+  });
+  try { el.pause(); } catch(e){}
+  const betas = [];
+  for(const d of detections){
+    const M = Math.round(d.ct);          // 直近整数 = どのクリック
+    if(M < 1) continue;
+    const beta = (d.ct - M) * 1000;             // currentTime が tap 出力より先行している量
+    const relPlay = (d.ctxT - playCall - M) * 1000;
+    log('  click media~'+M+'s: β(currentTime−media)='+beta.toFixed(1)+'ms · rel-play='+relPlay.toFixed(1)+'ms (peak '+d.peak.toFixed(2)+')');
+    if(M >= 2) betas.push(beta);  // 定常状態のみ
+  }
+  return betas;
+}
+
+async function run(ctx, wavSingle, wavTrain, elClick, elTrain, getUnlock){
   try { await ctx.resume(); } catch(e){}
   log('UA: ' + navigator.userAgent);
   log('sampleRate: ' + ctx.sampleRate +
       ' · baseLatency: ' + (ctx.baseLatency!=null?(ctx.baseLatency*1000).toFixed(1)+'ms':'n/a') +
       ' · outputLatency: ' + (ctx.outputLatency!=null?(ctx.outputLatency*1000).toFixed(1)+'ms':'n/a'));
-  await new Promise(r=>setTimeout(r, 500));   // unlock + load 待ち
-  log('HTMLAudio unlock: ' + getUnlock());
+  await new Promise(r=>setTimeout(r, 500));
+  log('unlock: ' + getUnlock());
   log('');
 
-  log('[1] HTMLAudio (createMediaElementSource タップ):');
-  const haRes = await measureHtmlAudio(ctx, el);
-  const haMed = median(haRes);
-  log('  → median: ' + (haMed!=null?haMed.toFixed(1)+' ms':'測定不能'));
+  log('[1] triggered HTMLAudio (take 相当):');
+  const trig = await measureTriggered(ctx, elClick);
+  const Ltake = median(trig);
+  log('  → L_take median (rel-play): ' + (Ltake!=null?Ltake.toFixed(1)+' ms':'測定不能'));
   log('');
 
-  log('[2] AudioBufferSource (Web Audio native, 基準):');
-  const bufRes = await measureBufferSource(ctx, pcm);
-  const bufMed = median(bufRes);
-  log('  → median: ' + (bufMed!=null?bufMed.toFixed(1)+' ms':'測定不能'));
+  log('[2] native BufferSource (基準):');
+  const nat = median(await measureBufferSource(ctx, makeClickPcm([CLICK_AT], BUF_DUR)));
+  log('  → median: ' + (nat!=null?nat.toFixed(1)+' ms':'測定不能'));
   log('');
 
-  if(bufMed!=null && haMed!=null){
-    const diff = haMed - bufMed;
-    log('=== 差 (HTMLAudio − native) = ' + diff.toFixed(1) + ' ms ===');
-    if(Math.abs(diff) >= 80){
-      verdictEl.className = 'verdict ok';
-      verdictEl.textContent = '✅ タップに HTMLAudio 遅延が現れる (' + diff.toFixed(0) + 'ms) → A\' 実装可能';
-    } else {
-      verdictEl.className = 'verdict no';
-      verdictEl.textContent = '❌ 差が小さい (' + diff.toFixed(0) + 'ms) → 遅延はタップに映らない → B 案へ';
-    }
+  log('[3] continuous HTMLAudio (BGM 相当):');
+  const betas = await measureContinuous(ctx, elTrain);
+  const beta = median(betas);
+  log('  → β median (currentTime−media, 定常): ' + (beta!=null?beta.toFixed(1)+' ms':'測定不能'));
+  log('');
+
+  if(Ltake!=null && beta!=null){
+    const mixOff = -(Ltake - beta);
+    log('=== mixOffset 候補 = -(L_take − β) = -(' + Ltake.toFixed(0) + ' − ' + beta.toFixed(0) + ') = ' + mixOff.toFixed(0) + ' ms ===');
+    verdictEl.className = 'verdict ok';
+    verdictEl.textContent = '📐 mixOffset 候補: ' + mixOff.toFixed(0) + ' ms (L_take=' + Ltake.toFixed(0) + ', β=' + beta.toFixed(0) + ')';
   } else {
-    verdictEl.className = 'verdict no';
+    verdictEl.className = 'verdict ok';
     verdictEl.textContent = '⚠ 測定不能。ログを確認してください。';
   }
-  try { URL.revokeObjectURL(wavUrl); } catch(e){}
+  try { URL.revokeObjectURL(wavSingle); URL.revokeObjectURL(wavTrain); } catch(e){}
   try { ctx.close(); } catch(e){}
   copyBtn.style.display = 'block';
 }
@@ -192,23 +235,18 @@ runBtn.addEventListener('click', ()=>{
   runBtn.disabled = true;
   logText = ''; verdictEl.textContent = ''; verdictEl.className = 'verdict';
   out.textContent = '計測中...';
-  // --- ジェスチャ内で同期実行 (iOS autoplay 回避) ---
   const ctx = new (window.AudioContext || window.webkitAudioContext)();
   ctx.resume();
-  const pcm = makeClickPcm();
-  const wavUrl = URL.createObjectURL(pcmToWavBlob(pcm));
-  const el = new Audio();
-  el.preload = 'auto';
-  el.src = wavUrl;
-  // この要素をジェスチャ内で play() して unlock → 後続の programmatic play() が通る
+  const wavSingle = URL.createObjectURL(pcmToWavBlob(makeClickPcm([CLICK_AT], BUF_DUR)));
+  const wavTrain  = URL.createObjectURL(pcmToWavBlob(makeClickPcm([1,2,3,4,5], 5.6)));
+  const elClick = new Audio(); elClick.preload='auto'; elClick.src = wavSingle;
+  const elTrain = new Audio(); elTrain.preload='auto'; elTrain.src = wavTrain;
+  // 2 要素ともジェスチャ内で unlock
   let unlockState = 'pending';
-  try {
-    const up = el.play();
-    if(up && up.then){ up.then(()=>{ try{el.pause(); el.currentTime=0;}catch(e){} unlockState='ok'; })
-                         .catch(e=>{ unlockState='fail:'+(e.name||e.message||e); }); }
-    else { unlockState='ok(sync)'; }
-  } catch(e){ unlockState='throw:'+(e.name||e); }
-  run(ctx, pcm, wavUrl, el, ()=>unlockState).finally(()=>{ runBtn.disabled = false; });
+  function unlock(el){ try { const p = el.play(); if(p&&p.then){ return p.then(()=>{ try{el.pause(); el.currentTime=0;}catch(e){} }); } } catch(e){} return Promise.resolve(); }
+  Promise.all([unlock(elClick), unlock(elTrain)])
+    .then(()=>{ unlockState='ok'; }).catch(e=>{ unlockState='fail:'+(e.name||e); });
+  run(ctx, wavSingle, wavTrain, elClick, elTrain, ()=>unlockState).finally(()=>{ runBtn.disabled = false; });
 });
 
 copyBtn.addEventListener('click', async ()=>{

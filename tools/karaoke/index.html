@@ -1690,7 +1690,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.65</span>
+                <span class="version-tag" id="version-tag">v2.65a</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2503,7 +2503,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.65';
+const APP_VERSION = 'v2.65a';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -3603,13 +3603,16 @@ async function rebuildAudioContext(){
 
 // ============== PARAMETER APPLIERS ==============
 function applyBgmPitch(){
-    if(!bgmShifter) return;
+    if(!bgmShifter){ DEBUG.warn('[spdiag] applyBgmPitch: SKIP (bgmShifter null)'); return; }
     const st = parseInt(pitchSlider.value, 10);
     // v2.62: speed による rate-induced pitch shift を打ち消す。 BGM source の playbackRate が
     //   sp 倍だと音程も sp 倍に上がってしまうため、 bgmShifter で 1/sp 倍に戻す。
     //   結果: bgmShifter.pitch = 2^(st/12) / sp で「速度は sp 倍、 ピッチは st 半音のみ」 を実現
     const sp = parseFloat(speedSlider.value) || 1.0;
-    bgmShifter.parameters.get('pitch').setValueAtTime(Math.pow(2, st/12) / sp, audioCtx.currentTime);
+    const val = Math.pow(2, st/12) / sp;
+    try { bgmShifter.parameters.get('pitch').setValueAtTime(val, audioCtx.currentTime); }
+    catch(e){ DEBUG.err('[spdiag] applyBgmPitch: setValueAtTime threw: ' + (e.message||e)); }
+    DEBUG.info('[spdiag] applyBgmPitch: st=' + st + ' sp=' + sp + ' -> bgmShifter.pitch=' + val.toFixed(4) + ' ctx=' + (audioCtx?audioCtx.state:'?'));
 }
 /**
  * BGM のボーカルカットは2つの独立したスイッチで決まる:
@@ -3723,26 +3726,31 @@ function applyBgmVolume(){
     if(typeof applyBalance === 'function') applyBalance();
 }
 function applyTakePitch(){
-    if(!takeShifter || !state.currentTake) return;
+    if(!takeShifter || !state.currentTake){ DEBUG.warn('[spdiag] applyTakePitch: SKIP (takeShifter=' + !!takeShifter + ' currentTake=' + !!state.currentTake + ')'); return; }
     const curSt  = parseInt(pitchSlider.value, 10);
     const takeSt = state.currentTake.pitchSemitones || 0;
     const curSp  = parseFloat(speedSlider.value);
     const takeSp = state.currentTake.speed || 1.0;
     const semitoneRatio   = Math.pow(2, (curSt - takeSt)/12);
     const speedPitchRatio = curSp / takeSp;
-    takeShifter.parameters.get('pitch').setValueAtTime(semitoneRatio / speedPitchRatio, audioCtx.currentTime);
+    const val = semitoneRatio / speedPitchRatio;
+    try { takeShifter.parameters.get('pitch').setValueAtTime(val, audioCtx.currentTime); }
+    catch(e){ DEBUG.err('[spdiag] applyTakePitch: setValueAtTime threw: ' + (e.message||e)); }
+    DEBUG.info('[spdiag] applyTakePitch: curSt=' + curSt + ' takeSt=' + takeSt + ' curSp=' + curSp + ' takeSp=' + takeSp + ' -> takeShifter.pitch=' + val.toFixed(4));
 }
 function applyTakeSpeed(){
     // v2.53: 配列内の全 source に対し、 各テイクの speed に応じた playbackRate を適用
-    if(!takeBufferSources || !takeBufferSources.length || !audioCtx) return;
+    if(!takeBufferSources || !takeBufferSources.length || !audioCtx){ DEBUG.warn('[spdiag] applyTakeSpeed: SKIP (sources=' + (takeBufferSources?takeBufferSources.length:0) + ' ctx=' + !!audioCtx + ')'); applyTakePitch(); return; }
     const curSp = parseFloat(speedSlider.value);
     const takes = (state.currentEntry && state.currentEntry.takes) || [];
+    let n = 0;
     takeBufferSources.forEach(src => {
         const take = takes.find(t => t.id === src._takeId);
         if(!take) return;
         const takeSp = take.speed || 1.0;
-        try { src.playbackRate.setValueAtTime(curSp / takeSp, audioCtx.currentTime); } catch(e){}
+        try { src.playbackRate.setValueAtTime(curSp / takeSp, audioCtx.currentTime); n++; } catch(e){ DEBUG.err('[spdiag] applyTakeSpeed: src.playbackRate threw: ' + (e.message||e)); }
     });
+    DEBUG.info('[spdiag] applyTakeSpeed: curSp=' + curSp + ' applied to ' + n + '/' + takeBufferSources.length + ' src');
     applyTakePitch();
 }
 function applyVoxEq(){
@@ -7749,7 +7757,8 @@ speedSlider.addEventListener('input', () => {
             try { iosTakeAudioEl.playbackRate = v / takeSp; iosTakeAudioEl.preservesPitch = true; } catch(e){}
         }
     } else {
-        try { audioEl.playbackRate = v; } catch(e){}
+        DEBUG.info('[spdiag] SPEED input v=' + v + ' IOS=' + IOS_MODE + ' bgmShifter=' + !!bgmShifter + ' takeShifter=' + !!takeShifter + ' currentTake=' + !!state.currentTake + ' sources=' + (takeBufferSources?takeBufferSources.length:0) + ' bgmPaused=' + audioEl.paused);
+        try { audioEl.playbackRate = v; } catch(e){ DEBUG.err('[spdiag] audioEl.playbackRate threw: ' + (e.message||e)); }
         applyTakeSpeed();
         // v2.62: speed 変更で speedPitchRatio が変わるため、 BGM/TAKE 両方の worklet pitch を再計算
         applyBgmPitch();
@@ -7760,6 +7769,7 @@ pitchSlider.addEventListener('input', () => {
     const v = parseInt(pitchSlider.value, 10);
     pitchVal.textContent = (v >= 0 ? '+' : '') + v + ' st';
     if(!IOS_MODE || !IOS_AUDIO_HTML){   // v2.65: iOS Web Audio パスでは worklet pitch を適用
+        DEBUG.info('[spdiag] PITCH input v=' + v + ' IOS=' + IOS_MODE + ' bgmShifter=' + !!bgmShifter + ' takeShifter=' + !!takeShifter + ' currentTake=' + !!state.currentTake + ' sources=' + (takeBufferSources?takeBufferSources.length:0) + ' bgmPaused=' + audioEl.paused);
         applyBgmPitch();
         applyTakePitch();
     }

@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cut &amp; Paste - Debug Tool</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel-2: #1f232c;
+    --border: #2a2f3a;
+    --text: #e7ebf3;
+    --muted: #8a92a6;
+    --accent: #6ee7b7;
+    --accent-2: #60a5fa;
+    --danger: #f87171;
+    --warn: #fbbf24;
+    --shadow: 0 6px 24px rgba(0,0,0,0.35);
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, "Cascadia Mono", "Roboto Mono", Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+    -webkit-text-size-adjust: 100%;
+    min-height: 100vh;
+  }
+
+  .app {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 16px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  h1 {
+    font-size: 18px;
+    margin: 0;
+    letter-spacing: 0.02em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  h1 .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 12px var(--accent);
+  }
+
+  .room-bar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 6px 10px;
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+  .room-bar label {
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .room-bar input {
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    width: 130px;
+    outline: none;
+  }
+  .room-bar button {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .room-bar button:hover { border-color: var(--accent-2); }
+
+  .toolbar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+
+  .btn {
+    appearance: none;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    padding: 14px 12px;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.05s ease, border-color 0.15s ease, background 0.15s ease;
+    box-shadow: var(--shadow);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn .icon { font-size: 16px; }
+
+  .btn.paste  { border-color: #2f4a3a; }
+  .btn.paste:hover  { background: #19251f; border-color: var(--accent); }
+  .btn.copy   { border-color: #2a3a55; }
+  .btn.copy:hover   { background: #182236; border-color: var(--accent-2); }
+  .btn.clear  { border-color: #4d2a2a; }
+  .btn.clear:hover  { background: #2a1818; border-color: var(--danger); }
+  .btn.refresh { border-color: #4a3f1f; }
+  .btn.refresh:hover { background: #251f0f; border-color: var(--warn); }
+
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .editor-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    min-height: 320px;
+  }
+
+  textarea {
+    flex: 1;
+    width: 100%;
+    background: transparent;
+    color: var(--text);
+    border: none;
+    outline: none;
+    padding: 14px;
+    font-family: var(--mono);
+    font-size: 14px;
+    line-height: 1.5;
+    resize: none;
+    min-height: 280px;
+  }
+
+  .status {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    border-top: 1px solid var(--border);
+    background: var(--panel-2);
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .status .left, .status .right { display: flex; gap: 12px; align-items: center; }
+  .status .ok { color: var(--accent); }
+  .status .err { color: var(--danger); }
+  .status .warn { color: var(--warn); }
+
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 10px 16px;
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    font-size: 14px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    z-index: 100;
+    max-width: 90vw;
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  .toast.ok { border-color: var(--accent); }
+  .toast.err { border-color: var(--danger); }
+
+  footer {
+    color: var(--muted);
+    font-size: 11px;
+    text-align: center;
+    padding: 4px 0 8px;
+    font-family: var(--mono);
+  }
+
+  @media (max-width: 600px) {
+    .app { padding: 10px; gap: 10px; }
+    .toolbar { grid-template-columns: repeat(2, 1fr); }
+    h1 { font-size: 16px; }
+    .btn { padding: 16px 10px; font-size: 14px; }
+    .room-bar input { width: 100px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header>
+    <h1><span class="dot"></span>Cut &amp; Paste</h1>
+    <div class="room-bar">
+      <label>ROOM:</label>
+      <input id="roomInput" type="text" spellcheck="false" autocapitalize="off" autocomplete="off">
+      <button id="roomApply" title="ルームを切り替え">切替</button>
+      <button id="roomCopy" title="共有URLをコピー">URL</button>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <button class="btn paste"   id="btnPaste"  ><span class="icon">📋</span>貼り付け</button>
+    <button class="btn copy"    id="btnCopy"   ><span class="icon">📑</span>コピー</button>
+    <button class="btn clear"   id="btnClear"  ><span class="icon">🗑</span>クリア</button>
+    <button class="btn refresh" id="btnRefresh"><span class="icon">⟳</span>更新</button>
+  </div>
+
+  <div class="editor-wrap">
+    <textarea id="editor" placeholder="ここにテキストを貼り付け、または直接入力してください…
+PC と携帯で同じ ROOM 名を使うことで内容を共有できます。
+「更新」ボタンで相手の変更を取り込みます。" spellcheck="false"></textarea>
+    <div class="status">
+      <div class="left">
+        <span id="charCount">0 文字</span>
+        <span id="lineCount">0 行</span>
+      </div>
+      <div class="right">
+        <span id="syncStatus">未同期</span>
+      </div>
+    </div>
+  </div>
+
+  <footer>同期は jsonblob.com 経由 / 同じ ROOM 名 = 同じデータ / 共有URLは「URL」ボタンで取得</footer>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ---------- 設定 ----------
+  // jsonblob.com は認証不要・CORS対応の無料JSONストレージ。
+  // 各ROOMはひとつのBLOB IDに対応する。ROOM名→BLOB ID のマップはlocalStorageに保存。
+  const JSONBLOB_API = 'https://jsonblob.com/api/jsonBlob';
+
+  // ---------- 要素 ----------
+  const editor      = document.getElementById('editor');
+  const btnPaste    = document.getElementById('btnPaste');
+  const btnCopy     = document.getElementById('btnCopy');
+  const btnClear    = document.getElementById('btnClear');
+  const btnRefresh  = document.getElementById('btnRefresh');
+  const roomInput   = document.getElementById('roomInput');
+  const roomApply   = document.getElementById('roomApply');
+  const roomCopy    = document.getElementById('roomCopy');
+  const charCount   = document.getElementById('charCount');
+  const lineCount   = document.getElementById('lineCount');
+  const syncStatus  = document.getElementById('syncStatus');
+  const toast       = document.getElementById('toast');
+
+  // ---------- 状態 ----------
+  let currentRoom = '';
+  let currentBlobId = null; // jsonblob のID
+
+  // ---------- ユーティリティ ----------
+  function showToast(msg, type) {
+    toast.textContent = msg;
+    toast.className = 'toast show ' + (type || '');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => {
+      toast.className = 'toast ' + (type || '');
+    }, 1800);
+  }
+
+  function updateCounts() {
+    const v = editor.value;
+    charCount.textContent = v.length + ' 文字';
+    lineCount.textContent = (v === '' ? 0 : v.split('\n').length) + ' 行';
+  }
+
+  function setSyncStatus(text, cls) {
+    syncStatus.className = cls || '';
+    syncStatus.textContent = text;
+  }
+
+  // ROOM名 → BLOB ID マップは localStorage に保存
+  function getRoomMap() {
+    try {
+      return JSON.parse(localStorage.getItem('cp_room_map') || '{}');
+    } catch (e) { return {}; }
+  }
+  function setRoomMap(map) {
+    try {
+      localStorage.setItem('cp_room_map', JSON.stringify(map));
+    } catch (e) {}
+  }
+  function rememberRoomBlob(room, blobId) {
+    const m = getRoomMap();
+    m[room] = blobId;
+    setRoomMap(m);
+  }
+  function lookupBlob(room) {
+    return getRoomMap()[room] || null;
+  }
+
+  function randomRoom() {
+    // 5文字のランダムなルーム名
+    const chars = 'abcdefghijkmnpqrstuvwxyz23456789';
+    let s = '';
+    for (let i = 0; i < 5; i++) s += chars[Math.floor(Math.random() * chars.length)];
+    return s;
+  }
+
+  // URL の #room=xxx,blob=yyy をパース
+  function parseHash() {
+    const h = location.hash.replace(/^#/, '');
+    const out = {};
+    h.split('&').forEach(p => {
+      const i = p.indexOf('=');
+      if (i > 0) out[decodeURIComponent(p.slice(0,i))] = decodeURIComponent(p.slice(i+1));
+    });
+    return out;
+  }
+  function setHash(room, blobId) {
+    const h = 'room=' + encodeURIComponent(room) + (blobId ? '&blob=' + encodeURIComponent(blobId) : '');
+    if (location.hash.replace(/^#/, '') !== h) {
+      history.replaceState(null, '', '#' + h);
+    }
+  }
+
+  // ---------- jsonblob API ----------
+  async function createBlob(initialText) {
+    setSyncStatus('作成中…', 'warn');
+    const res = await fetch(JSONBLOB_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ text: initialText, updatedAt: Date.now() })
+    });
+    if (!res.ok) throw new Error('作成失敗 ' + res.status);
+    // jsonblob は Location ヘッダで /api/jsonBlob/<id> を返す
+    const loc = res.headers.get('Location') || '';
+    const id = loc.split('/').pop();
+    if (!id) throw new Error('IDの取得に失敗');
+    return id;
+  }
+
+  async function readBlob(blobId) {
+    const res = await fetch(JSONBLOB_API + '/' + encodeURIComponent(blobId), {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' }
+    });
+    if (!res.ok) throw new Error('読込失敗 ' + res.status);
+    return await res.json();
+  }
+
+  async function writeBlob(blobId, text) {
+    const res = await fetch(JSONBLOB_API + '/' + encodeURIComponent(blobId), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ text: text, updatedAt: Date.now() })
+    });
+    if (!res.ok) throw new Error('書込失敗 ' + res.status);
+    return true;
+  }
+
+  // ---------- ROOM 切替 ----------
+  async function activateRoom(room, knownBlobId) {
+    room = (room || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    if (!room) {
+      showToast('ROOM名が無効です', 'err');
+      return;
+    }
+    currentRoom = room;
+    roomInput.value = room;
+
+    // BLOB IDを決定する: 引数 → URL → localStorage → 新規作成
+    let blobId = knownBlobId || lookupBlob(room);
+    if (!blobId) {
+      // 新規作成
+      try {
+        blobId = await createBlob('');
+        rememberRoomBlob(room, blobId);
+        showToast('新しいROOMを作成しました: ' + room, 'ok');
+      } catch (e) {
+        showToast('ROOM作成に失敗しました', 'err');
+        setSyncStatus('オフライン', 'err');
+        return;
+      }
+    } else {
+      rememberRoomBlob(room, blobId);
+    }
+    currentBlobId = blobId;
+    setHash(room, blobId);
+
+    // 初回読み込み
+    await pull(true);
+  }
+
+  // ---------- pull (更新) / push ----------
+  async function pull(silent) {
+    if (!currentBlobId) return;
+    setSyncStatus('取得中…', 'warn');
+    try {
+      const data = await readBlob(currentBlobId);
+      const text = (data && typeof data.text === 'string') ? data.text : '';
+      editor.value = text;
+      updateCounts();
+      setSyncStatus('同期済み ' + new Date().toLocaleTimeString(), 'ok');
+      if (!silent) showToast('最新の内容に更新しました', 'ok');
+    } catch (e) {
+      setSyncStatus('取得失敗', 'err');
+      if (!silent) showToast('更新に失敗しました', 'err');
+    }
+  }
+
+  async function push(text) {
+    if (!currentBlobId) return;
+    setSyncStatus('送信中…', 'warn');
+    try {
+      await writeBlob(currentBlobId, text);
+      setSyncStatus('同期済み ' + new Date().toLocaleTimeString(), 'ok');
+      return true;
+    } catch (e) {
+      setSyncStatus('送信失敗', 'err');
+      showToast('同期に失敗しました', 'err');
+      return false;
+    }
+  }
+
+  // ---------- ボタン動作 ----------
+
+  // 貼り付け: クリップボードから読み取り、テキストエリアに置き換え、サーバへ送信
+  btnPaste.addEventListener('click', async () => {
+    let text = '';
+    try {
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        text = await navigator.clipboard.readText();
+      } else {
+        throw new Error('no clipboard read');
+      }
+    } catch (e) {
+      // フォールバック: テキストエリアにフォーカスしてユーザに手動paste促す
+      editor.focus();
+      showToast('クリップボード読取不可。テキストエリアで手動ペースト(⌘V/Ctrl+V)してください', 'err');
+      return;
+    }
+    editor.value = text;
+    updateCounts();
+    const ok = await push(text);
+    if (ok) showToast('貼り付けて同期しました', 'ok');
+  });
+
+  // コピー: テキストエリアの内容を自分のクリップボードへ
+  btnCopy.addEventListener('click', async () => {
+    const text = editor.value;
+    if (!text) {
+      showToast('コピーする内容がありません', 'err');
+      return;
+    }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        // フォールバック (古いブラウザ / iOS旧バージョン)
+        editor.select();
+        editor.setSelectionRange(0, text.length);
+        const ok = document.execCommand('copy');
+        if (!ok) throw new Error('execCommand failed');
+        editor.setSelectionRange(text.length, text.length);
+      }
+      showToast('クリップボードへコピーしました (' + text.length + '文字)', 'ok');
+    } catch (e) {
+      showToast('コピーに失敗しました', 'err');
+    }
+  });
+
+  // クリア: テキストエリアを空にして、サーバへ反映
+  btnClear.addEventListener('click', async () => {
+    editor.value = '';
+    updateCounts();
+    const ok = await push('');
+    if (ok) showToast('クリアして同期しました', 'ok');
+  });
+
+  // 更新: サーバから最新の状態を取得
+  btnRefresh.addEventListener('click', () => pull(false));
+
+  // ---------- ROOM 切替 UI ----------
+  roomApply.addEventListener('click', () => {
+    const r = roomInput.value;
+    if (r && r.toLowerCase() !== currentRoom) {
+      activateRoom(r);
+    }
+  });
+  roomInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      roomApply.click();
+    }
+  });
+
+  // 共有URLをコピー
+  roomCopy.addEventListener('click', async () => {
+    const url = location.origin + location.pathname + '#room=' + encodeURIComponent(currentRoom) + (currentBlobId ? '&blob=' + encodeURIComponent(currentBlobId) : '');
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const t = document.createElement('textarea');
+        t.value = url; document.body.appendChild(t); t.select();
+        document.execCommand('copy'); document.body.removeChild(t);
+      }
+      showToast('共有URLをコピーしました', 'ok');
+    } catch (e) {
+      showToast('URLコピー失敗。表示: ' + url, 'err');
+    }
+  });
+
+  // ---------- テキストエリアの直接編集 → 自動でpush (デバウンス) ----------
+  let pushTimer = null;
+  editor.addEventListener('input', () => {
+    updateCounts();
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(() => {
+      push(editor.value);
+    }, 700);
+  });
+
+  // ---------- 起動 ----------
+  function boot() {
+    updateCounts();
+    const hash = parseHash();
+    let room = hash.room;
+    const blobFromUrl = hash.blob || null;
+
+    if (!room) {
+      // localStorageに最後に使ったROOMがあれば使う
+      try {
+        const last = localStorage.getItem('cp_last_room');
+        if (last) room = last;
+      } catch (e) {}
+    }
+    if (!room) {
+      room = randomRoom();
+    }
+    try { localStorage.setItem('cp_last_room', room); } catch (e) {}
+    activateRoom(room, blobFromUrl);
+  }
+
+  // URLハッシュが手動で変更されたとき
+  window.addEventListener('hashchange', () => {
+    const hash = parseHash();
+    if (hash.room && hash.room.toLowerCase() !== currentRoom) {
+      activateRoom(hash.room, hash.blob);
+    }
+  });
+
+  // 最後に使ったROOMを保存
+  window.addEventListener('beforeunload', () => {
+    try { if (currentRoom) localStorage.setItem('cp_last_room', currentRoom); } catch (e) {}
+  });
+
+  boot();
+})();
+</script>
+
+</body>
+</html>

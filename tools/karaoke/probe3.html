@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Karaoke Take-Engine Probe v5 (post-record)</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; margin: 0; padding: 16px; background: #111; color: #eee; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .sub { font-size: 12px; color: #999; margin: 0 0 16px; }
+  button { font-size: 18px; padding: 14px 22px; border-radius: 10px; border: none;
+           background: #2d7; color: #042; font-weight: 700; width: 100%; margin-bottom: 14px; }
+  button:disabled { background: #444; color: #888; }
+  pre { background: #000; border: 1px solid #333; border-radius: 8px; padding: 12px;
+        font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; min-height: 240px; }
+  .verdict { font-size: 16px; font-weight: 700; padding: 10px; border-radius: 8px; margin-top: 12px; }
+  .ok { background: #143; color: #6f9; }
+  .ng { background: #411; color: #f99; }
+  .copy { background: #58a; color: #fff; }
+</style>
+</head>
+<body>
+  <h1>テイク再生エンジン検証 v5 (録音後の AudioBufferSource lock)</h1>
+  <p class="sub">本番と同じ手順を再現: ①マイク録音(getUserMedia) → ②同じ context で Web Audio take が BGM とロックするか → ③context を作り直して再検証。iOS で「録音後に destination が無音化する」既知問題に AudioBufferSource take が耐えるかを確認。結果は自動で Google Drive に送信されます。</p>
+  <button id="run">▶ 検証開始（マイク許可が出ます → 録音1.5秒 → 検証）</button>
+  <button id="copyBtn" class="copy" style="display:none">📋 結果を手動コピー（自動送信の予備）</button>
+  <pre id="out">ボタンを押すと検証します。各回 BGM(8発)+テイク(7発)=15発のクリックが 0.5 秒間隔で鳴れば完全ロック。</pre>
+  <div id="verdict"></div>
+
+<script>
+const out = document.getElementById('out');
+const verdictEl = document.getElementById('verdict');
+const runBtn = document.getElementById('run');
+const copyBtn = document.getElementById('copyBtn');
+let logText = '';
+function log(s){ logText += s + '\n'; out.textContent = logText; }
+
+// ── Google Drive 自動ログ送信 (本番 karaoke と同じ Apps Script) ──
+const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5gZZ9jDqzMpVgScOJWzxijTCXdP1RpbNyuQMdb29Flek-ffn87bf/exec';
+async function uploadLogToDrive(txt, tag){
+  const payload = {
+    app: 'momo-karaoke-probe3',
+    version: 'v5',
+    ts: new Date().toISOString(),
+    ua: navigator.userAgent,
+    screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
+    log: txt,
+  };
+  const res = await fetch(`${DEBUG_LOG_URL}?tag=${encodeURIComponent(tag)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload),
+  });
+  if(!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  if(!data.ok) throw new Error(data.error || 'apps-script error');
+  return data;
+}
+
+const CLICK_DUR = 0.02;
+const CLICK_FREQ = 1000;
+const THRESHOLD = 0.15;
+const BGM_CLICKS  = [1,2,3,4,5,6,7,8];
+const TAKE_CLICKS = [1.5,2.5,3.5,4.5,5.5,6.5,7.5];
+const EXPECTED_COUNT = BGM_CLICKS.length + TAKE_CLICKS.length;   // 15
+const EXPECTED_GAP_MS = 500;
+const TOTAL_DUR = 9.0;
+const REPEATS = 2;          // 各フェーズ 2 trial（録音→検証を短く）
+const RECORD_MS = 1500;     // getUserMedia 録音時間
+
+function makeClickPcm(positions, totalDur, sr){
+  const n = Math.round(totalDur * sr);
+  const pcm = new Float32Array(n);
+  const len = Math.round(CLICK_DUR * sr);
+  for(const P of positions){
+    const start = Math.round(P * sr);
+    for(let i=0;i<len;i++){
+      const t = i/sr; let env = 1; const f = 0.002;
+      if(t < f) env = t/f; else if(t > CLICK_DUR - f) env = (CLICK_DUR - t)/f;
+      if(start+i < n) pcm[start+i] = Math.sin(2*Math.PI*CLICK_FREQ*t) * env * 0.9;
+    }
+  }
+  return pcm;
+}
+function makeBuffer(ctx, positions){
+  const sr = ctx.sampleRate;
+  const pcm = makeClickPcm(positions, TOTAL_DUR, sr);
+  const buf = ctx.createBuffer(1, pcm.length, sr);
+  buf.copyToChannel(pcm, 0);
+  return buf;
+}
+
+function detectAll(ctx, analyser, untilCtxTime, debounce){
+  return new Promise((resolve)=>{
+    const data = new Float32Array(analyser.fftSize);
+    const peaks = [];
+    let lastDetect = -10;
+    function tick(){
+      analyser.getFloatTimeDomainData(data);
+      let peak = 0;
+      for(let i=0;i<data.length;i++){ const a=Math.abs(data[i]); if(a>peak) peak=a; }
+      const now = ctx.currentTime;
+      if(peak >= THRESHOLD && (now - lastDetect) > debounce){
+        lastDetect = now;
+        peaks.push({ t: now, peak });
+      }
+      if(now > untilCtxTime){ resolve(peaks); return; }
+      setTimeout(tick, 1);
+    }
+    tick();
+  });
+}
+
+async function runTrial(ctx, analyser){
+  const bgmBuf  = makeBuffer(ctx, BGM_CLICKS);
+  const takeBuf = makeBuffer(ctx, TAKE_CLICKS);
+  const bgmSrc  = ctx.createBufferSource(); bgmSrc.buffer  = bgmBuf;  bgmSrc.connect(analyser);
+  const takeSrc = ctx.createBufferSource(); takeSrc.buffer = takeBuf; takeSrc.connect(analyser);
+  const t0 = ctx.currentTime + 0.25;
+  bgmSrc.start(t0);
+  takeSrc.start(t0);
+  const peaks = await detectAll(ctx, analyser, t0 + TOTAL_DUR, 0.30);
+  try { bgmSrc.stop(); } catch(e){}
+  try { takeSrc.stop(); } catch(e){}
+  try { bgmSrc.disconnect(); } catch(e){}
+  try { takeSrc.disconnect(); } catch(e){}
+  const times = peaks.map(p=>p.t);
+  const intervals = [];
+  for(let i=1;i<times.length;i++) intervals.push((times[i]-times[i-1])*1000);
+  let maxDev = 0;
+  for(const iv of intervals){ const d = Math.abs(iv - EXPECTED_GAP_MS); if(d > maxDev) maxDev = d; }
+  return { count: times.length, intervals, maxDev };
+}
+
+// 1 フェーズ = REPEATS 回の lock テスト。ctx と analyser を受け取る。
+async function runPhase(label, ctx, analyser){
+  let allMaxDev = 0, anyBadCount = false, totalDetected = 0;
+  const devs = [];
+  log('── ' + label + ' ──');
+  log('   ctx.state=' + ctx.state + ' · sampleRate=' + ctx.sampleRate);
+  for(let tr=1; tr<=REPEATS; tr++){
+    const r = await runTrial(ctx, analyser);
+    totalDetected += r.count;
+    const countOk = (r.count === EXPECTED_COUNT);
+    if(!countOk) anyBadCount = true;
+    devs.push(r.maxDev);
+    if(r.maxDev > allMaxDev) allMaxDev = r.maxDev;
+    log('   trial ' + tr + ': 検出 ' + r.count + '/' + EXPECTED_COUNT + (countOk?' ✓':' ✗') +
+        ' · 最大ずれ ' + r.maxDev.toFixed(0) + 'ms · 間隔[' + r.intervals.map(v=>v.toFixed(0)).join(',') + ']');
+    await new Promise(res=>setTimeout(res,250));
+  }
+  const silent = (totalDetected === 0);
+  const locked = (!anyBadCount && allMaxDev < 20);
+  log('   → ' + (silent ? '無音(destination 出力なし)' : locked ? '完全ロック (最大ずれ ' + allMaxDev.toFixed(0) + 'ms)' : '検出異常/ずれ大 (最大ずれ ' + allMaxDev.toFixed(0) + 'ms)'));
+  log('');
+  return { label, locked, silent, anyBadCount, allMaxDev };
+}
+
+function newCtxAndAnalyser(){
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const analyser = ctx.createAnalyser(); analyser.fftSize = 1024;
+  analyser.connect(ctx.destination);
+  return { ctx, analyser };
+}
+
+async function main(){
+  log('UA: ' + navigator.userAgent);
+  log('期待: 各回 ' + EXPECTED_COUNT + ' 発、隣接間隔すべて ' + EXPECTED_GAP_MS + 'ms');
+  log('');
+
+  // ── Phase A: getUserMedia 録音 (iOS AudioSession を録音後状態にする) ──
+  const { ctx, analyser } = newCtxAndAnalyser();
+  try { await ctx.resume(); } catch(e){}
+  log('Phase A: マイク取得 + ' + (RECORD_MS/1000) + '秒 録音中...');
+  let micStream = null;
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    // 実際に audio session を起動させるため mic source を作って analyser に通す(録音相当の負荷)
+    const micSrc = ctx.createMediaStreamSource(micStream);
+    const sink = ctx.createGain(); sink.gain.value = 0;   // 自分の声を出力しない
+    micSrc.connect(sink); sink.connect(ctx.destination);
+    await new Promise(res=>setTimeout(res, RECORD_MS));
+    try { micSrc.disconnect(); } catch(e){}
+    try { sink.disconnect(); } catch(e){}
+    micStream.getTracks().forEach(t=>t.stop());
+    log('Phase A: 録音停止・マイク解放 完了');
+  } catch(e){
+    log('Phase A: getUserMedia 失敗: ' + (e.message||e) + ' (マイク不許可? → Phase B/C は無録音状態の検証になります)');
+  }
+  log('');
+
+  // ── Phase B: 録音に使った “同じ context” で Web Audio take の lock を検証 ──
+  const resB = await runPhase('Phase B: 録音した同じ context で検証 (rebuild なし)', ctx, analyser);
+  try { ctx.close(); } catch(e){}
+
+  // ── Phase C: context を作り直して検証 (本番 rebuildAudioContext 相当) ──
+  const { ctx: ctx2, analyser: analyser2 } = newCtxAndAnalyser();
+  try { await ctx2.resume(); } catch(e){}
+  const resC = await runPhase('Phase C: context を作り直して検証 (本番 rebuild 相当)', ctx2, analyser2);
+  try { ctx2.close(); } catch(e){}
+
+  // ── 総合判定 ──
+  log('=== 総合判定 ===');
+  let cls = 'verdict ok', msg = '';
+  if(resC.silent){
+    cls = 'verdict ng';
+    msg = '⚠ 致命: context 作り直し後も無音。Web Audio take が録音後に鳴らない → ROOT FIX 不可。本番 HTMLAudio 維持。';
+  } else if(!resC.locked){
+    cls = 'verdict ng';
+    msg = '⚠ context 作り直し後もずれ/欠け (最大ずれ ' + resC.allMaxDev.toFixed(0) + 'ms)。要ログ確認。';
+  } else if(resB.locked){
+    cls = 'verdict ok';
+    msg = '✅ 録音後も rebuild 不要で Web Audio take が完全ロック (B/C とも OK)。ROOT FIX は安全に実装可能。';
+  } else {
+    cls = 'verdict ok';
+    msg = '✅ 録音直後は ' + (resB.silent?'無音':'不安定') + 'だが、context 作り直し後は完全ロック (最大ずれ ' + resC.allMaxDev.toFixed(0) + 'ms)。本番は録音後に rebuild 済みなので ROOT FIX 実装可能。';
+  }
+  verdictEl.className = cls;
+  verdictEl.textContent = msg;
+  log(msg);
+
+  // ── Google Drive 自動送信 ──
+  log('');
+  log('Drive へ送信中...');
+  try {
+    const data = await uploadLogToDrive(logText + '\n[VERDICT] ' + msg, 'karaoke-probe3');
+    log('✅ Drive 送信成功: ' + data.filename);
+  } catch(e){
+    log('⚠ Drive 送信失敗: ' + (e.message||e) + ' → 下の「手動コピー」ボタンで貼り付けてください');
+  }
+  copyBtn.style.display = 'block';
+}
+
+runBtn.addEventListener('click', ()=>{
+  runBtn.disabled = true;
+  logText = ''; verdictEl.textContent = ''; verdictEl.className = 'verdict';
+  out.textContent = '検証中...';
+  main().catch(e=>{
+    log('FATAL: ' + (e.message||e));
+    verdictEl.className = 'verdict ng';
+    verdictEl.textContent = '検証中に例外: ' + (e.message||e);
+    copyBtn.style.display = 'block';
+  }).finally(()=>{ runBtn.disabled = false; });
+});
+
+copyBtn.addEventListener('click', async ()=>{
+  try { await navigator.clipboard.writeText(logText + '\n' + verdictEl.textContent); copyBtn.textContent='✓ コピーしました'; setTimeout(()=>copyBtn.textContent='📋 結果を手動コピー（自動送信の予備）',1500); }
+  catch(e){ alert('コピー失敗: '+(e.message||e)); }
+});
+</script>
+</body>
+</html>

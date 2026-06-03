@@ -2503,7 +2503,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.64e';
+const APP_VERSION = 'v2.65';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -3210,16 +3210,28 @@ const audioEl = bgmTransport;
 // MediaElementAudioSourceNode. That element stays on the iOS media-playback
 // session and is unaffected by the AudioSession switch.
 //
-// Trade-off: we lose pitch shifting, vocal cut and EQ on iOS (since those need
-// a worklet/biquad chain), but BGM playback survives recording. We surface
-// this clearly in the UI when iOS is detected.
+// Trade-off (HTMLAudio path): we lose pitch shifting, vocal cut and EQ on iOS
+// (since those need a worklet/biquad chain), but BGM playback survives recording.
+//
+// ─── v2.65: iOS を Web Audio (AudioBufferSource) へ移行 ────────────────────────
+// IOS_AUDIO_HTML で上記 HTMLAudio パスと、 PC と同じ Web Audio パスを切替える。
+//   false = Web Audio (本番、 v2.65〜): BGM/Take を AudioBufferSource で鳴らし、
+//           モニターも MIX (OfflineAudioContext) もサンプル正確になり mixOffset を
+//           根絶できる。 ピッチ/EQ/エコー/音量スライダも iOS で効くようになる。
+//   true  = 旧 HTMLAudio パス (退行時の即時ロールバック用にコードを残す、 v2.68 で削除予定)。
+// 根拠 (iOS 18.7 実機 probe): tools/karaoke/docs/ios-audio-engine-findings.md
+//   ※注意: probe は raw AudioBufferSource を検証。 worklet pitch-shifter
+//   (bgmShifter/takeShifter) チェーンは iOS で実音声を通したことが無いため、
+//   v2.65 の実機確認で「音が出るか・グリッチが無いか」 を最優先で見ること。
+// 退行: Web Audio は画面ロックで suspend する → v2.66 の wakeLock で相殺。
 const IOS_MODE = IS_IOS;
+const IOS_AUDIO_HTML = false;   // v2.65: false=Web Audio パス / true=旧 HTMLAudio パス
 
-DEBUG.info('IOS_MODE = ' + IOS_MODE);
+DEBUG.info('IOS_MODE = ' + IOS_MODE + ' · IOS_AUDIO_HTML = ' + IOS_AUDIO_HTML);
 
 let iosAudioEl = null; // HTMLAudioElement used as the transport on iOS
 function installIOSTransport(){
-    if(!IOS_MODE) return;
+    if(!IOS_MODE || !IOS_AUDIO_HTML) return;  // v2.65: Web Audio パスでは bgmTransport を上書きしない
     DEBUG.info('Installing iOS-compatible HTMLAudioElement transport...');
 
     // Create a hidden <audio> element. On iOS this stays on the playback
@@ -3400,10 +3412,14 @@ function installIOSTransport(){
 // Take playback on iOS uses a SECOND HTMLAudioElement so it shares the same
 // (loudspeaker) audio session as BGM. Buffer-based take playback through
 // AudioContext would be silenced after recording.
+// ─── v2.65: 上記「録音後に無音化する」 前提は iOS 18.7 実機 probe で否定された ──
+//   (tools/karaoke/docs/ios-audio-engine-findings.md の検証 2)。 IOS_AUDIO_HTML=false
+//   では以下の HTMLAudio take 系 (ensureIOSTakeAudio/preloadIOSTake/startTakePlaybackIOS)
+//   は呼ばれず、 take は startTakePlayback の Web Audio パスで鳴らす。
 let iosTakeAudioEl = null;
 let iosTakeObjectUrl = null;
 function ensureIOSTakeAudio(){
-    if(!IOS_MODE) return;
+    if(!IOS_MODE || !IOS_AUDIO_HTML) return;  // v2.65: Web Audio パスでは take 用 HTMLAudio を作らない
     if(iosTakeAudioEl) return;
     iosTakeAudioEl = document.createElement('audio');
     iosTakeAudioEl.style.display = 'none';
@@ -3612,8 +3628,8 @@ function applyBgmVocalCut(){
     const intensity = enabled ? (lvlEl ? Math.max(0, Math.min(100, parseFloat(lvlEl.value))) / 100 : 1.0) : 0;
     DEBUG.info('Vocal cut: ' + (enabled ? 'ON @ ' + Math.round(intensity*100) + '%' : 'OFF') + (state.isRecording ? ' (recording)' : ''));
 
-    if(IOS_MODE){
-        // On iOS, use the offline-generated cut WAV. Switch source on/off.
+    if(IOS_MODE && IOS_AUDIO_HTML){
+        // On iOS (HTMLAudio path), use the offline-generated cut WAV. Switch source on/off.
         // CRITICAL: Do NOT switch source while recording — the iOS AudioSession
         // gets confused and will mute/pause the audio. The user should set the
         // cut state BEFORE starting to record.
@@ -3997,7 +4013,7 @@ async function generateVocalCutPcm(arrayBuffer, intensity = 1.0){
 }
 
 function stopTakePlayback(){
-    if(IOS_MODE){
+    if(IOS_MODE && IOS_AUDIO_HTML){
         if(iosTakeAudioEl){
             try { iosTakeAudioEl.pause(); } catch(e){}
         }
@@ -4041,7 +4057,7 @@ function applyMixPlayVolume(mixId){
 }
 
 function startTakePlayback(){
-    if(IOS_MODE){
+    if(IOS_MODE && IOS_AUDIO_HTML){
         startTakePlaybackIOS();
         return;
     }
@@ -4142,7 +4158,7 @@ let iosBgmLastPausedAt = 0;         // last time iosAudioEl fired 'pause' event
  * means the take starts well after BGM has passed its takeStartSong position.
  */
 async function preloadIOSTake(take){
-    if(!IOS_MODE || !take) return;
+    if(!IOS_MODE || !IOS_AUDIO_HTML || !take) return;  // v2.65: Web Audio パスでは不要
     ensureIOSTakeAudio();
     if(!iosTakeAudioEl) return;
     if(!take._wavUrl){
@@ -4855,10 +4871,11 @@ async function stopRecording(){
         }, 300);
     }
 
-    // On iOS, defer the vocal-cut update — the AudioSession is in the middle of
-    // transitioning back from PlayAndRecord mode, and triggering a src change
-    // here can cause iosAudioEl to enter a bad state.
-    if(IOS_MODE){
+    // On iOS (HTMLAudio path), defer the vocal-cut update — the AudioSession is in
+    // the middle of transitioning back from PlayAndRecord mode, and triggering a
+    // src change here can cause iosAudioEl to enter a bad state.
+    // v2.65: Web Audio パスでは worklet vocalCut param なので即時適用でよい (else 経由)。
+    if(IOS_MODE && IOS_AUDIO_HTML){
         updateVocalCutUI();
         setTimeout(() => {
             if(!state.isRecording){
@@ -6373,10 +6390,10 @@ async function selectEntry(entry){
     if (typeof _applyMixPlaybackModeUI === 'function') _applyMixPlaybackModeUI();
     if (window._refreshMixCreateBtn) window._refreshMixCreateBtn();
 
-    // On iOS we don't create an AudioContext at all — the transport uses a
-    // plain HTMLAudioElement instead. On other platforms we need it for the
-    // worklet-based decode/playback path.
-    if(!IOS_MODE){
+    // We need the AudioContext + worklet graph for the worklet-based decode/playback
+    // path. v2.65: iOS も Web Audio パス (IOS_AUDIO_HTML=false) では graph が必要。
+    // 旧 HTMLAudio パス (IOS_AUDIO_HTML=true) のみ graph 不要。
+    if(!IOS_MODE || !IOS_AUDIO_HTML){
         if(!await ensureAudioGraph()){
             setStatus('オーディオ初期化に失敗しました', 'err');
             return;
@@ -7396,7 +7413,7 @@ function syncTakeToBgm(){
     const userOfs = parseFloat(voxOfsSlider.value);
     const takeLocalT = songT - takeStartSong - userOfs;
 
-    if(IOS_MODE){
+    if(IOS_MODE && IOS_AUDIO_HTML){
         if(!iosTakeAudioEl) return;
         // While a play() promise is still pending, leave the element alone.
         if(iosTakeStarting) return;
@@ -7479,9 +7496,9 @@ function syncTakeToBgm(){
 // Play / Pause button
 btnPlay.addEventListener('click', async () => {
     if(!state.currentEntry) return;
-    if(!IOS_MODE){
+    if(!IOS_MODE || !IOS_AUDIO_HTML){   // v2.65: iOS Web Audio パスでも graph + resume が必要
         if(!await ensureAudioGraph()) return;
-        if(audioCtx && audioCtx.state === 'suspended') await audioCtx.resume();
+        if(audioCtx && (audioCtx.state === 'suspended' || audioCtx.state === 'interrupted')) await audioCtx.resume();
     }
     if(bgmTransport.paused){
         if(bgmTransport.duration <= 0){
@@ -7675,9 +7692,9 @@ $('changeLibraryBtn').addEventListener('click', changeLibrary);
 btnRec.addEventListener('click', async () => {
     if(state.isRecording){ await stopRecording(); return; }
     if(!state.currentEntry) return;
-    if(!IOS_MODE){
+    if(!IOS_MODE || !IOS_AUDIO_HTML){   // v2.65: iOS Web Audio パスでも BGM 再生に graph + resume が必要
         if(!await ensureAudioGraph()) return;
-        if(audioCtx && audioCtx.state === 'suspended') await audioCtx.resume();
+        if(audioCtx && (audioCtx.state === 'suspended' || audioCtx.state === 'interrupted')) await audioCtx.resume();
     }
     // Plan B: startRecording handles BGM control (rewind to 0, countdown, then
     // simultaneous BGM + recording start). Don't pre-start BGM here.
@@ -7722,7 +7739,7 @@ function showRescueButtonBriefly(){
 speedSlider.addEventListener('input', () => {
     const v = parseFloat(speedSlider.value);
     speedVal.textContent = v.toFixed(2) + 'x';
-    if(IOS_MODE){
+    if(IOS_MODE && IOS_AUDIO_HTML){
         if(iosAudioEl){
             try { iosAudioEl.playbackRate = v; iosAudioEl.preservesPitch = true; } catch(e){}
         }
@@ -7742,12 +7759,12 @@ speedSlider.addEventListener('input', () => {
 pitchSlider.addEventListener('input', () => {
     const v = parseInt(pitchSlider.value, 10);
     pitchVal.textContent = (v >= 0 ? '+' : '') + v + ' st';
-    if(!IOS_MODE){
+    if(!IOS_MODE || !IOS_AUDIO_HTML){   // v2.65: iOS Web Audio パスでは worklet pitch を適用
         applyBgmPitch();
         applyTakePitch();
     }
-    // iOS: pitch shifting requires AudioWorklet which is unstable on iOS WebKit.
-    // The slider position is preserved but has no audible effect.
+    // 旧 HTMLAudio パス (IOS_AUDIO_HTML=true): pitch shifting は worklet 必須で iOS 不安定
+    // のため無効 (slider 位置は保持するが効果なし)。
 });
 // v2.62: マスター SPEED + PITCH コンパクトスライダ ↔ 既存隠れスライダ双方向同期
 (function _bindMasterSpPitch(){
@@ -7757,7 +7774,9 @@ pitchSlider.addEventListener('input', () => {
     const mpv = document.getElementById('masterPitchVal');
     // v2.62 fix2: iOS は AudioWorklet 不安定のため pitch 不可。 speed は HTMLAudio で動くが
     //   一貫性のためユーザー要望で両方無効化 (Q1C)。
-    if (typeof IOS_MODE !== 'undefined' && IOS_MODE) {
+    // v2.65: Web Audio パス (IOS_AUDIO_HTML=false) では worklet 経由で pitch/speed とも
+    //   有効化するため、 灰色化は旧 HTMLAudio パスのみ。 ※ユーザー方針: ピッチ優先 (speed 連動は許容)。
+    if (typeof IOS_MODE !== 'undefined' && IOS_MODE && IOS_AUDIO_HTML) {
         const grayOut = (sl, val) => {
             if (sl) { sl.disabled = true; sl.style.opacity = '0.4'; sl.style.cursor = 'not-allowed'; sl.title = 'iPhone は非対応 (AudioWorklet 不安定のため)'; }
             if (val) val.style.opacity = '0.4';
@@ -7862,19 +7881,19 @@ if (echoPresetSel) {
         state.echoPreset = echoPresetSel.value || 'none';
         const labelMap = { none: 'なし', room: '部屋 (Room)', hall: 'ホール (Hall)', plate: 'プレート (Plate)' };
         if (echoVal) echoVal.textContent = labelMap[state.echoPreset] || 'なし';
-        if (!IOS_MODE) applyEcho();
+        if (!IOS_MODE || !IOS_AUDIO_HTML) applyEcho();   // v2.65: iOS Web Audio パスでエコー有効
     });
 }
 [bgmEq.lo, bgmEq.md, bgmEq.hi].forEach((s, i) => {
     s.addEventListener('input', () => {
         [bgmEq.loV, bgmEq.mdV, bgmEq.hiV][i].textContent = parseFloat(s.value).toFixed(1);
-        if(!IOS_MODE) applyBgmEq();
+        if(!IOS_MODE || !IOS_AUDIO_HTML) applyBgmEq();   // v2.65: iOS Web Audio パスで EQ 有効
     });
 });
 [voxEq.lo, voxEq.md, voxEq.hi].forEach((s, i) => {
     s.addEventListener('input', () => {
         [voxEq.loV, voxEq.mdV, voxEq.hiV][i].textContent = parseFloat(s.value).toFixed(1);
-        if(!IOS_MODE) applyVoxEq();
+        if(!IOS_MODE || !IOS_AUDIO_HTML) applyVoxEq();   // v2.65: iOS Web Audio パスで EQ 有効
     });
 });
 
@@ -8236,7 +8255,9 @@ function applyBalance(){
     // BEFORE any song is selected so that the buffer-based methods are
     // overridden. On non-iOS this is a no-op.
     installIOSTransport();
-    if(IOS_MODE){
+    if(IOS_MODE && IOS_AUDIO_HTML){
+        // 旧 HTMLAudio パスのみ: pitch/EQ/echo は worklet 必須で iOS 非対応のため無効化。
+        // v2.65 Web Audio パスではこれらも有効なので、 このブロックはスキップする。
         // Show iOS notice and disable effects that require WebAudio chain
         const notice = document.getElementById('iosNotice');
         if(notice) notice.classList.add('show');

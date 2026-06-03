@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Karaoke Take-Engine Probe v4</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; margin: 0; padding: 16px; background: #111; color: #eee; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .sub { font-size: 12px; color: #999; margin: 0 0 16px; }
+  button { font-size: 18px; padding: 14px 22px; border-radius: 10px; border: none;
+           background: #2d7; color: #042; font-weight: 700; width: 100%; margin-bottom: 14px; }
+  button:disabled { background: #444; color: #888; }
+  pre { background: #000; border: 1px solid #333; border-radius: 8px; padding: 12px;
+        font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; min-height: 240px; }
+  .verdict { font-size: 16px; font-weight: 700; padding: 10px; border-radius: 8px; margin-top: 12px; }
+  .ok { background: #143; color: #6f9; }
+  .ng { background: #411; color: #f99; }
+  .copy { background: #58a; color: #fff; }
+</style>
+</head>
+<body>
+  <h1>テイク再生エンジン検証 v4 (AudioBufferSource lock)</h1>
+  <p class="sub">声(take)を AudioBufferSource で鳴らし、BGM と完全ロックするか・ずれ/ドリフトが無いかを検証。音が出ます（クリック音が等間隔に聞こえれば成功）。</p>
+  <button id="run">▶ 検証開始（BGM＋テイクを5回再生）</button>
+  <button id="copyBtn" class="copy" style="display:none">📋 結果をコピー</button>
+  <pre id="out">ボタンを押すと検証します。各回 BGM(8発) + テイク(7発) = 15発のクリックが 0.5 秒間隔で鳴れば完全ロック。</pre>
+  <div id="verdict"></div>
+
+<script>
+const out = document.getElementById('out');
+const verdictEl = document.getElementById('verdict');
+const runBtn = document.getElementById('run');
+const copyBtn = document.getElementById('copyBtn');
+let logText = '';
+function log(s){ logText += s + '\n'; out.textContent = logText; }
+
+const CLICK_DUR = 0.02;
+const CLICK_FREQ = 1000;
+const THRESHOLD = 0.15;
+const BGM_CLICKS  = [1,2,3,4,5,6,7,8];
+const TAKE_CLICKS = [1.5,2.5,3.5,4.5,5.5,6.5,7.5];
+const EXPECTED_COUNT = BGM_CLICKS.length + TAKE_CLICKS.length;   // 15
+const EXPECTED_GAP_MS = 500;                                     // 隣接クリック間隔
+const TOTAL_DUR = 9.0;
+const REPEATS = 5;
+
+function makeClickPcm(positions, totalDur, sr){
+  const n = Math.round(totalDur * sr);
+  const pcm = new Float32Array(n);
+  const len = Math.round(CLICK_DUR * sr);
+  for(const P of positions){
+    const start = Math.round(P * sr);
+    for(let i=0;i<len;i++){
+      const t = i/sr; let env = 1; const f = 0.002;
+      if(t < f) env = t/f; else if(t > CLICK_DUR - f) env = (CLICK_DUR - t)/f;
+      if(start+i < n) pcm[start+i] = Math.sin(2*Math.PI*CLICK_FREQ*t) * env * 0.9;
+    }
+  }
+  return pcm;
+}
+
+function makeBuffer(ctx, positions){
+  const sr = ctx.sampleRate;
+  const pcm = makeClickPcm(positions, TOTAL_DUR, sr);
+  const buf = ctx.createBuffer(1, pcm.length, sr);
+  buf.copyToChannel(pcm, 0);
+  return buf;
+}
+
+// 指定 ctx 時刻まで全ピークを検出（debounce で 1 クリック 1 検出）
+function detectAll(ctx, analyser, untilCtxTime, debounce){
+  return new Promise((resolve)=>{
+    const data = new Float32Array(analyser.fftSize);
+    const peaks = [];
+    let lastDetect = -10;
+    function tick(){
+      analyser.getFloatTimeDomainData(data);
+      let peak = 0;
+      for(let i=0;i<data.length;i++){ const a=Math.abs(data[i]); if(a>peak) peak=a; }
+      const now = ctx.currentTime;
+      if(peak >= THRESHOLD && (now - lastDetect) > debounce){
+        lastDetect = now;
+        peaks.push({ t: now, peak });
+      }
+      if(now > untilCtxTime){ resolve(peaks); return; }
+      setTimeout(tick, 1);
+    }
+    tick();
+  });
+}
+
+async function runTrial(ctx, analyser, trialNo){
+  const bgmBuf  = makeBuffer(ctx, BGM_CLICKS);
+  const takeBuf = makeBuffer(ctx, TAKE_CLICKS);
+  const bgmSrc  = ctx.createBufferSource(); bgmSrc.buffer  = bgmBuf;  bgmSrc.connect(analyser);
+  const takeSrc = ctx.createBufferSource(); takeSrc.buffer = takeBuf; takeSrc.connect(analyser);
+  const t0 = ctx.currentTime + 0.25;
+  bgmSrc.start(t0);     // BGM クリックは t0+1, t0+2, ...
+  takeSrc.start(t0);    // TAKE クリックは t0+1.5, t0+2.5, ...（両方同じ ctx クロック）
+  const peaks = await detectAll(ctx, analyser, t0 + TOTAL_DUR, 0.30);
+  try { bgmSrc.stop(); } catch(e){}
+  try { takeSrc.stop(); } catch(e){}
+  try { bgmSrc.disconnect(); } catch(e){}
+  try { takeSrc.disconnect(); } catch(e){}
+  const times = peaks.map(p=>p.t);
+  const intervals = [];
+  for(let i=1;i<times.length;i++) intervals.push((times[i]-times[i-1])*1000);
+  let maxDev = 0;
+  for(const iv of intervals){ const d = Math.abs(iv - EXPECTED_GAP_MS); if(d > maxDev) maxDev = d; }
+  return { count: times.length, intervals, maxDev };
+}
+
+async function run(ctx, analyser){
+  try { await ctx.resume(); } catch(e){}
+  log('UA: ' + navigator.userAgent);
+  log('sampleRate: ' + ctx.sampleRate +
+      ' · baseLatency: ' + (ctx.baseLatency!=null?(ctx.baseLatency*1000).toFixed(1)+'ms':'n/a') +
+      ' · outputLatency: ' + (ctx.outputLatency!=null?(ctx.outputLatency*1000).toFixed(1)+'ms':'n/a'));
+  log('期待: 各回 ' + EXPECTED_COUNT + ' 発、隣接間隔すべて ' + EXPECTED_GAP_MS + 'ms');
+  log('');
+
+  let allMaxDev = 0;
+  let anyBadCount = false;
+  const devs = [];
+  for(let tr=1; tr<=REPEATS; tr++){
+    const r = await runTrial(ctx, analyser, tr);
+    const ivStr = r.intervals.map(v=>v.toFixed(0)).join(',');
+    const countOk = (r.count === EXPECTED_COUNT);
+    if(!countOk) anyBadCount = true;
+    devs.push(r.maxDev);
+    if(r.maxDev > allMaxDev) allMaxDev = r.maxDev;
+    log('trial ' + tr + ': 検出 ' + r.count + '/' + EXPECTED_COUNT + (countOk?' ✓':' ✗(欠け/混入)') +
+        ' · 最大ずれ ' + r.maxDev.toFixed(0) + 'ms');
+    log('   間隔[ms]: ' + ivStr);
+    await new Promise(r=>setTimeout(r,250));
+  }
+  log('');
+
+  // 回ごとの最大ずれのばらつき（ドリフト指標）
+  const meanDev = devs.reduce((a,b)=>a+b,0)/devs.length;
+  let spread = 0;
+  for(const d of devs){ if(Math.abs(d-meanDev) > spread) spread = Math.abs(d-meanDev); }
+  log('=== 集計 ===');
+  log('全 trial 最大ずれ: ' + allMaxDev.toFixed(0) + 'ms');
+  log('回ごとのばらつき(ドリフト): ±' + spread.toFixed(0) + 'ms');
+  log('検出数: ' + (anyBadCount ? '異常あり（欠け/混入）' : '全回 ' + EXPECTED_COUNT + ' 発 OK'));
+
+  const locked = (!anyBadCount && allMaxDev < 20);
+  if(locked){
+    verdictEl.className = 'verdict ok';
+    verdictEl.textContent = '✅ Web Audio take は BGM と完全ロック（最大ずれ ' + allMaxDev.toFixed(0) +
+      'ms、ドリフト ±' + spread.toFixed(0) + 'ms）。本番採用で mixOffset も課題A も解消見込み。';
+  } else if(anyBadCount){
+    verdictEl.className = 'verdict ng';
+    verdictEl.textContent = '⚠ クリック検出数が異常（take が鳴っていない/欠けた可能性）。iOS で AudioBufferSource take が不安定かも。ログ確認。';
+  } else {
+    verdictEl.className = 'verdict ng';
+    verdictEl.textContent = '⚠ ずれ ' + allMaxDev.toFixed(0) + 'ms 検出。完全ロックではない。ログ確認。';
+  }
+  try { ctx.close(); } catch(e){}
+  copyBtn.style.display = 'block';
+}
+
+runBtn.addEventListener('click', ()=>{
+  runBtn.disabled = true;
+  logText = ''; verdictEl.textContent = ''; verdictEl.className = 'verdict';
+  out.textContent = '検証中...';
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  ctx.resume();
+  const analyser = ctx.createAnalyser(); analyser.fftSize = 1024;
+  analyser.connect(ctx.destination);   // tap かつ可聴
+  run(ctx, analyser).finally(()=>{ runBtn.disabled = false; });
+});
+
+copyBtn.addEventListener('click', async ()=>{
+  try { await navigator.clipboard.writeText(logText + '\n' + verdictEl.textContent); copyBtn.textContent='✓ コピーしました'; setTimeout(()=>copyBtn.textContent='📋 結果をコピー',1500); }
+  catch(e){ alert('コピー失敗: '+(e.message||e)); }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Karaoke Take-Engine Probe v6 (MediaRecorder + screen-lock)</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; margin: 0; padding: 16px; background: #111; color: #eee; }
+  h1 { font-size: 17px; margin: 0 0 4px; }
+  .sub { font-size: 12px; color: #999; margin: 0 0 14px; }
+  button { font-size: 17px; padding: 13px 18px; border-radius: 10px; border: none; font-weight: 700; width: 100%; margin-bottom: 10px; }
+  #runRec { background: #2d7; color: #042; }
+  #runLock { background: #e94; color: #321; }
+  #copyBtn { background: #58a; color: #fff; }
+  button:disabled { background: #444; color: #888; }
+  pre { background: #000; border: 1px solid #333; border-radius: 8px; padding: 12px;
+        font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; min-height: 220px; }
+  .verdict { font-size: 15px; font-weight: 700; padding: 10px; border-radius: 8px; margin-top: 10px; }
+  .ok { background: #143; color: #6f9; }
+  .ng { background: #411; color: #f99; }
+  .warn2 { background: #431; color: #fc8; }
+</style>
+</head>
+<body>
+  <h1>テイク再生エンジン検証 v6</h1>
+  <p class="sub">iOS で BGM+Take を両方 Web Audio(AudioBufferSource) 化できるかの最終検証。①本物の MediaRecorder 録音の後に Web Audio が無音化せずロック維持するか ②画面ロックで Web Audio が止まらないか。結果は各段階で自動的に Google Drive へ送信されます。</p>
+  <button id="runRec">▶ ①録音→再生 検証（自動・マイク許可が出ます）</button>
+  <button id="runLock">🔒 ②画面ロック耐久テスト（手動操作あり）</button>
+  <button id="copyBtn" style="display:none">📋 結果を手動コピー（予備）</button>
+  <pre id="out">①を先に実行してください。録音(1.5秒)後に BGM(8発)+Take(7発)=15発のクリックが 0.5秒間隔で鳴ればロック維持・可聴。</pre>
+  <div id="verdict"></div>
+
+<script>
+const out = document.getElementById('out');
+const verdictEl = document.getElementById('verdict');
+const runRec = document.getElementById('runRec');
+const runLock = document.getElementById('runLock');
+const copyBtn = document.getElementById('copyBtn');
+let logText = '';
+function log(s){ logText += s + '\n'; out.textContent = logText; }
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+// ── Google Drive 自動ログ送信 (本番 karaoke と同じ Apps Script) ──
+const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5gZZ9jDqzMpVgScOJWzxijTCXdP1RpbNyuQMdb29Flek-ffn87bf/exec';
+async function uploadLogToDrive(tag){
+  const payload = {
+    app: 'momo-karaoke-probe4', version: 'v6', ts: new Date().toISOString(),
+    ua: navigator.userAgent,
+    screen: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
+    log: logText,
+  };
+  const res = await fetch(`${DEBUG_LOG_URL}?tag=${encodeURIComponent(tag)}`, {
+    method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload),
+  });
+  if(!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  if(!data.ok) throw new Error(data.error || 'apps-script error');
+  return data;
+}
+// 逐次アップロード（失敗してもプローブは続行）
+async function pushLog(tag){
+  log('… Drive へ送信中 (' + tag + ')');
+  try { const d = await uploadLogToDrive(tag); log('   ✅ Drive: ' + d.filename); }
+  catch(e){ log('   ⚠ Drive 送信失敗: ' + (e.message||e)); }
+}
+
+// ── 共有 AudioContext（ハング回避のため1つだけ・ユーザー操作で生成）──
+let audioCtx = null, analyser = null;
+function ensureCtx(){
+  if(!audioCtx){
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioCtx.createAnalyser(); analyser.fftSize = 1024;
+    analyser.connect(audioCtx.destination);
+  }
+  try { audioCtx.resume(); } catch(e){}
+  return audioCtx;
+}
+
+// ── クリック合成（probe2/3 と同一）──
+const CLICK_DUR = 0.02, CLICK_FREQ = 1000, THRESHOLD = 0.15;
+const BGM_CLICKS  = [1,2,3,4,5,6,7,8];
+const TAKE_CLICKS = [1.5,2.5,3.5,4.5,5.5,6.5,7.5];
+const EXPECTED_COUNT = 15, EXPECTED_GAP_MS = 500, TOTAL_DUR = 9.0, REPEATS = 2;
+const RECORD_MS = 1500;
+
+function makeClickPcm(positions, totalDur, sr){
+  const n = Math.round(totalDur * sr); const pcm = new Float32Array(n);
+  const len = Math.round(CLICK_DUR * sr);
+  for(const P of positions){
+    const start = Math.round(P * sr);
+    for(let i=0;i<len;i++){
+      const t = i/sr; let env = 1; const f = 0.002;
+      if(t < f) env = t/f; else if(t > CLICK_DUR - f) env = (CLICK_DUR - t)/f;
+      if(start+i < n) pcm[start+i] = Math.sin(2*Math.PI*CLICK_FREQ*t) * env * 0.9;
+    }
+  }
+  return pcm;
+}
+function makeBuffer(ctx, positions){
+  const sr = ctx.sampleRate;
+  const pcm = makeClickPcm(positions, TOTAL_DUR, sr);
+  const buf = ctx.createBuffer(1, pcm.length, sr); buf.copyToChannel(pcm, 0); return buf;
+}
+function detectAll(ctx, an, untilCtxTime, debounce){
+  return new Promise((resolve)=>{
+    const data = new Float32Array(an.fftSize); const peaks = []; let lastDetect = -10;
+    function tick(){
+      an.getFloatTimeDomainData(data);
+      let peak = 0; for(let i=0;i<data.length;i++){ const a=Math.abs(data[i]); if(a>peak) peak=a; }
+      const now = ctx.currentTime;
+      if(peak >= THRESHOLD && (now - lastDetect) > debounce){ lastDetect = now; peaks.push(now); }
+      if(now > untilCtxTime){ resolve(peaks); return; }
+      setTimeout(tick, 1);
+    }
+    tick();
+  });
+}
+async function runTrial(ctx, an){
+  const bgmSrc  = ctx.createBufferSource(); bgmSrc.buffer  = makeBuffer(ctx, BGM_CLICKS);  bgmSrc.connect(an);
+  const takeSrc = ctx.createBufferSource(); takeSrc.buffer = makeBuffer(ctx, TAKE_CLICKS); takeSrc.connect(an);
+  const t0 = ctx.currentTime + 0.25;
+  bgmSrc.start(t0); takeSrc.start(t0);
+  const times = await detectAll(ctx, an, t0 + TOTAL_DUR, 0.30);
+  try { bgmSrc.stop(); takeSrc.stop(); } catch(e){}
+  try { bgmSrc.disconnect(); takeSrc.disconnect(); } catch(e){}
+  const intervals = [];
+  for(let i=1;i<times.length;i++) intervals.push((times[i]-times[i-1])*1000);
+  let maxDev = 0; for(const iv of intervals){ const d = Math.abs(iv - EXPECTED_GAP_MS); if(d > maxDev) maxDev = d; }
+  return { count: times.length, intervals, maxDev };
+}
+async function runLockTestPhase(label){
+  const ctx = ensureCtx();
+  let allMaxDev = 0, anyBad = false, totalDetected = 0;
+  log('── ' + label + ' ──');
+  log('   ctx.state=' + ctx.state + ' · sampleRate=' + ctx.sampleRate);
+  for(let tr=1; tr<=REPEATS; tr++){
+    const r = await runTrial(ctx, analyser);
+    totalDetected += r.count;
+    const ok = (r.count === EXPECTED_COUNT); if(!ok) anyBad = true;
+    if(r.maxDev > allMaxDev) allMaxDev = r.maxDev;
+    log('   trial ' + tr + ': 検出 ' + r.count + '/15' + (ok?' ✓':' ✗') + ' · 最大ずれ ' + r.maxDev.toFixed(0) + 'ms · [' + r.intervals.map(v=>v.toFixed(0)).join(',') + ']');
+    await sleep(250);
+  }
+  const silent = (totalDetected === 0);
+  const locked = (!anyBad && allMaxDev < 20);
+  log('   → ' + (silent?'無音(destination 出力なし)':locked?'完全ロック (最大ずれ '+allMaxDev.toFixed(0)+'ms)':'検出異常/ずれ大 ('+allMaxDev.toFixed(0)+'ms)'));
+  return { locked, silent, allMaxDev };
+}
+
+// ════ ① 録音→再生 検証 ════
+async function runRecTest(){
+  logText=''; verdictEl.textContent=''; verdictEl.className='verdict'; out.textContent='検証中...';
+  ensureCtx();
+  log('UA: ' + navigator.userAgent);
+  log('MediaRecorder: ' + (typeof MediaRecorder !== 'undefined'));
+  log('');
+
+  // baseline（録音前・同一 context のコントロール）
+  const base = await runLockTestPhase('Phase 1: 録音前ベースライン');
+  log('');
+
+  // 本物の MediaRecorder 録音サイクル
+  log('Phase 2: MediaRecorder で実録音 ' + (RECORD_MS/1000) + '秒...');
+  let recOk = false;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    let mr = null, mime = '';
+    try { mr = new MediaRecorder(stream); } catch(e){
+      try { mr = new MediaRecorder(stream, { mimeType: 'audio/mp4' }); } catch(e2){ mr = null; }
+    }
+    if(mr){
+      mime = mr.mimeType || '?';
+      const chunks = [];
+      mr.ondataavailable = e => { if(e.data && e.data.size) chunks.push(e.data); };
+      mr.start();
+      await sleep(RECORD_MS);
+      await new Promise(res => { mr.onstop = res; try { mr.stop(); } catch(e){ res(); } });
+      let bytes = 0; for(const c of chunks) bytes += c.size;
+      log('   録音完了: ' + chunks.length + ' chunk · ' + bytes + ' bytes · mime=' + mime);
+      recOk = true;
+    } else {
+      log('   ⚠ MediaRecorder 生成不可 → getUserMedia のみで継続');
+    }
+    stream.getTracks().forEach(t => t.stop());
+    log('   マイク解放完了');
+  } catch(e){
+    log('   ⚠ getUserMedia/録音 失敗: ' + (e.message||e));
+  }
+  log('');
+
+  // 録音後・同一 context で再検証（無音化しないか・ロック維持するか）
+  const post = await runLockTestPhase('Phase 3: 実録音の後、同一 context で再検証');
+  log('');
+
+  // 判定
+  let cls, msg;
+  if(post.silent){
+    cls='verdict ng';
+    msg='⚠ 致命: 実録音の後、Web Audio が無音化。HTMLAudio をやめると録音後に音が出ない → 単純な Web Audio 化は不可。rebuild 等の対策が必須。';
+  } else if(!post.locked){
+    cls='verdict ng';
+    msg='⚠ 実録音後にずれ/欠け ('+post.allMaxDev.toFixed(0)+'ms)。要ログ確認。';
+  } else {
+    cls='verdict ok';
+    msg='✅ 本物の録音の後でも BGM+Take を両方 Web Audio でサンプル正確に再生 (最大ずれ '+post.allMaxDev.toFixed(0)+'ms)。iOS の Web Audio 化は実装可能。次は②画面ロックテストへ。';
+  }
+  verdictEl.className=cls; verdictEl.textContent=msg; log('[判定①] '+msg);
+  await pushLog('karaoke-probe4-rec');
+  copyBtn.style.display='block';
+}
+
+// ════ ② 画面ロック耐久テスト ════
+// Web Audio(AudioContext) は iOS で画面ロック/バックグラウンドで suspend される可能性がある。
+// HTMLAudio はロック中も鳴り続ける。これが HTMLAudio をやめる際の最大の回帰リスク。
+async function runLockTest(){
+  logText=''; verdictEl.textContent=''; verdictEl.className='verdict'; out.textContent='ロックテスト中...';
+  const ctx = ensureCtx();
+  log('UA: ' + navigator.userAgent);
+  log('── Phase L: 画面ロック耐久（Web Audio が止まらないか）──');
+  log('連続クリック音を鳴らします。指示に従って画面をロック→数秒後にロック解除してください。');
+  log('');
+
+  // 1秒ループの可聴クリック（先頭にクリック）を連続再生
+  const sr = ctx.sampleRate;
+  const oneSec = ctx.createBuffer(1, Math.round(1.0*sr), sr);
+  { const ch = oneSec.getChannelData(0); const len = Math.round(CLICK_DUR*sr);
+    for(let i=0;i<len;i++){ const t=i/sr; let env=1; const f=0.002; if(t<f)env=t/f; else if(t>CLICK_DUR-f)env=(CLICK_DUR-t)/f; ch[i]=Math.sin(2*Math.PI*CLICK_FREQ*t)*env*0.9; } }
+  const src = ctx.createBufferSource(); src.buffer = oneSec; src.loop = true; src.connect(analyser); src.start();
+
+  const samples = [];
+  let visEvents = [];
+  const onVis = ()=>{ visEvents.push({ t: performance.now(), hidden: document.hidden }); };
+  document.addEventListener('visibilitychange', onVis);
+  const t0wall = performance.now(), t0ctx = ctx.currentTime;
+
+  log('▶ いま再生開始。3秒後に「画面ロックしてください」と出ます。');
+  // 12秒サンプリング（250ms毎に wall と ctx を記録）
+  const DURATION = 14000;
+  let announced = false, announced2 = false;
+  await new Promise((resolve)=>{
+    const iv = setInterval(()=>{
+      const wall = performance.now() - t0wall;
+      samples.push({ wall: wall, ctx: ctx.currentTime - t0ctx, state: ctx.state, hidden: document.hidden });
+      if(!announced && wall > 2500){ announced = true; out.textContent = logText + '\n🔒🔒 いま画面をロックしてください（約5秒）🔒🔒'; }
+      if(!announced2 && wall > 9000){ announced2 = true; out.textContent = logText + '\n🔓 そろそろロック解除してください'; }
+      if(wall > DURATION){ clearInterval(iv); resolve(); }
+    }, 250);
+  });
+  try { src.stop(); src.disconnect(); } catch(e){}
+  document.removeEventListener('visibilitychange', onVis);
+
+  // 解析: wall が大きく飛んだ区間（=ロックで JS が止まった区間）で ctx がどれだけ進んだか
+  let maxWallGap = 0, ctxAdvanceInGap = 0, wallInGap = 0;
+  for(let i=1;i<samples.length;i++){
+    const dWall = samples[i].wall - samples[i-1].wall;
+    if(dWall > maxWallGap){
+      maxWallGap = dWall;
+      wallInGap = dWall;
+      ctxAdvanceInGap = samples[i].ctx - samples[i-1].ctx;
+    }
+  }
+  const totalWall = samples.length? samples[samples.length-1].wall : 0;
+  const totalCtx  = samples.length? samples[samples.length-1].ctx : 0;
+  log('サンプル数: ' + samples.length + ' · 総 wall=' + (totalWall/1000).toFixed(1) + 's · 総 ctx=' + totalCtx.toFixed(1) + 's');
+  log('visibilitychange: ' + JSON.stringify(visEvents.map(v=>({hidden:v.hidden}))));
+  log('最大 wall ギャップ(=ロック区間の可能性): ' + (maxWallGap/1000).toFixed(1) + 's, その間 ctx は ' + ctxAdvanceInGap.toFixed(2) + 's 進行');
+  log('最終 ctx.state: ' + ctx.state);
+
+  let cls, msg;
+  if(maxWallGap < 3000){
+    cls='verdict warn2';
+    msg='△ 画面ロックが検出できませんでした（ロックされなかった/タイミングずれ）。もう一度②を実行し、指示が出たら確実に画面をロックしてください。';
+  } else if(ctxAdvanceInGap < wallInGap * 0.3){
+    cls='verdict ng';
+    msg='⚠ 重要: 画面ロック中に Web Audio(AudioContext) が停止（wall '+(wallInGap/1000).toFixed(1)+'s 経過に対し ctx は '+ctxAdvanceInGap.toFixed(1)+'s しか進まず）。HTMLAudio をやめると「ロック中に音が止まる」回帰が起きる。録音中ロックの扱いを設計で要検討（wakeLock 等）。';
+  } else {
+    cls='verdict ok';
+    msg='✅ 画面ロック中も Web Audio が継続（ctx が wall と同等に進行）。ロック回帰なし。Web Audio 化に支障なし。';
+  }
+  verdictEl.className=cls; verdictEl.textContent=msg; log('[判定②] '+msg);
+  await pushLog('karaoke-probe4-lock');
+  copyBtn.style.display='block';
+}
+
+runRec.addEventListener('click', ()=>{
+  runRec.disabled = true; runLock.disabled = true;
+  runRecTest().catch(e=>{ log('FATAL①: '+(e.message||e)); pushLog('karaoke-probe4-rec'); })
+    .finally(()=>{ runRec.disabled = false; runLock.disabled = false; });
+});
+runLock.addEventListener('click', ()=>{
+  runRec.disabled = true; runLock.disabled = true;
+  runLockTest().catch(e=>{ log('FATAL②: '+(e.message||e)); pushLog('karaoke-probe4-lock'); })
+    .finally(()=>{ runRec.disabled = false; runLock.disabled = false; });
+});
+copyBtn.addEventListener('click', async ()=>{
+  try { await navigator.clipboard.writeText(logText + '\n' + verdictEl.textContent); copyBtn.textContent='✓ コピーしました'; setTimeout(()=>copyBtn.textContent='📋 結果を手動コピー（予備）',1500); }
+  catch(e){ alert('コピー失敗: '+(e.message||e)); }
+});
+</script>
+</body>
+</html>

@@ -1730,7 +1730,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.71</span>
+                <span class="version-tag" id="version-tag">v2.72</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2557,7 +2557,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.71';
+const APP_VERSION = 'v2.72';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -5232,22 +5232,22 @@ async function stopRecording(){
     // PlayAndRecord may have silenced audioCtx output. Rebuild it. On iOS
     // mode (HTMLAudioElement-based BGM), this is unnecessary because BGM is
     // not routed through audioCtx.
-    if(IS_IOS && !IOS_AUDIO_HTML && getRecMode() !== 'classic'){
-        // v2.70 (Q2B) / v2.71: 案2 clean・案3 hybrid (エコー除去オフ録音) では、 iOS の audioSession が
-        //   録音開始時に受話口(小音量)ルートへ切り替わり、 録音を止めても戻らない → 録音後の再生
-        //   (BGM/テイク/MIX) が全部小さくなる。 AudioContext を作り直すと playback セッション
-        //   (大音量の本体スピーカー) に復帰するため、 録音後に自動で再構築して再生音量を回復する。
-        //   ※録音中の試聴は受話口のまま (iOS の制約、 イヤホン推奨)。
-        DEBUG.info('iOS WebAudio (案2/3): 録音後に AudioContext を再構築して再生ルートを回復...');
+    if(IS_IOS && !IOS_AUDIO_HTML){
+        // v2.70 / v2.72: 録音 (getUserMedia) で iOS の audioSession が受話口(小音量)ルートへ
+        //   切り替わり、 録音を止めても戻らない → 録音後の再生 (BGM/テイク/MIX) が小さくなる。
+        //   これは **エコー除去オン(案1)でも起きる** (2026-06-07 実機確認、 v2.71 で案1を rebuild
+        //   除外したのが退行原因)。 → モードに関わらず、 録音後は AudioContext を作り直して
+        //   playback セッション (大音量の本体スピーカー) に復帰させる。
+        //   ※録音「中」の試聴音量は getUserMedia の EC 設定で決まる (案1=大/案2=小)、 ここは録音「後」。
+        DEBUG.info('iOS WebAudio: 録音後に AudioContext を再構築して再生ルートを回復...');
         try { await rebuildAudioContext(); DEBUG.ok('iOS: 再生ルート回復 (rebuild) 完了'); }
         catch(e){
             DEBUG.err('iOS: rebuild 失敗: ' + (e.message || e));
             if(typeof showRescueButtonBriefly === 'function') showRescueButtonBriefly();
         }
     } else if(IS_IOS){
-        // 案1 classic (エコー除去オン): ルートは大音量スピーカーのまま (v2.65-2.67 実績) → rebuild 不要。
-        // 旧 HTMLAudio パス (IOS_AUDIO_HTML=true、 現状休眠) も BGM が audioCtx を通らないので不要。
-        DEBUG.info('iOS classic(案1)/HTMLAudio: rebuild 不要 (ルート大音量のまま)');
+        // 旧 HTMLAudio パス (IOS_AUDIO_HTML=true、 現状休眠): BGM は audioCtx を通らないので rebuild 不要
+        DEBUG.info('iOS HTMLAudio: rebuild 不要');
         if(typeof showRescueButtonBriefly === 'function') showRescueButtonBriefly();
     }
 }

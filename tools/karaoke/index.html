@@ -1730,7 +1730,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.70</span>
+                <span class="version-tag" id="version-tag">v2.71</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2177,6 +2177,16 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 <button id="btnMicTest" class="momo-btn-small">🎤 マイクテスト (5秒)</button>
                 <span id="micTestStatus" class="mic-test-status">押すと、マイクをON/OFF して声の大きさを確認できます</span>
             </div>
+            <!-- v2.71: 録音方式 (3案) の切替 -->
+            <div class="ctrl" style="margin-top:16px; border-top:1px solid var(--border); padding-top:12px;">
+                <div class="ctrl-label"><span>録音方式（詳細）</span></div>
+                <select id="recModeSelect" style="width:100%; box-sizing:border-box; background:var(--bg); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:12px; padding:8px 10px;">
+                    <option value="classic">標準：音が大きい・ピッタリ合う（歌うとBGMが少し下がる）</option>
+                    <option value="clean">クリーン：BGMは下がらない・録音中は小さい（イヤホン向き）</option>
+                    <option value="hybrid" disabled>実験：大きい＋下がらない（ずれる・準備中）</option>
+                </select>
+                <div style="font-size:10px; color:var(--text-muted); margin-top:4px; line-height:1.5;">スピーカーで歌うなら「標準」、イヤホンを使うなら「クリーン」がおすすめ。<br>※iPhoneでは「大きい音」と「BGMが下がらない」の両立ができないため選べるようにしています。</div>
+            </div>
         </div>
 
         <div class="status" id="status">ファイルを読み込んでください</div>
@@ -2547,7 +2557,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.70';
+const APP_VERSION = 'v2.71';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -4662,18 +4672,22 @@ async function startRecording(){
         //   v2.55: ただし PC (非iOS) では audio:true でも AGC がデフォルト true になり
         //   「前半大・後半小」 になることが判明。 PC のみ明示的に AGC/NS/EC を OFF にして
         //   生マイク信号を録る (iOS Auto Ducking 問題は PC では起きない)。
-        // v2.68: iOS も生マイク (EC/NS/AGC OFF) に統一。
-        //   v1.37/v1.38 の旧結論「iOS は audio:true (EC=true) のみ Auto Ducking 解消」は
-        //   HTMLAudio 時代のもの。 v2.65 で BGM/Take を Web Audio 化したら状況が逆転し、
-        //   EC=true (audio:true) だと「声を拾った瞬間 BGM が下がる」 ダッキングが再発した
-        //   (2026-06-07 実機ログで確認)。 EC を切ると iOS が録音を通話扱いしなくなり
-        //   ダッキングが止まる。 代償としてスピーカー再生だと BGM が録音に混じるため
-        //   イヤホン使用が前提 (画面に注記)。 マイク音量は D4 の手動ゲインで合わせる。
-        v137_constraints = {
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false   // ★ AGC OFF (生マイク、 PC/iOS 共通)
-        };
+        // v2.71: 録音方式 (3案) で getUserMedia を出し分ける。
+        //   案1 classic (既定) + iOS … audio:true で エコー除去オン → 大音量・同期完璧、
+        //     ダッキングは我慢 (v2.65-2.67 の挙動)。
+        //   案2 clean / 案3 hybrid、 および PC … 生マイク (EC/NS/AGC OFF) でクリーン録音。
+        //     ※iOS の clean は録音中ルートが受話口(小音量)に落ちる → stopRecording で rebuild 復帰。
+        //     ※EC を切るとダッキングは止まるが、 スピーカー再生だと BGM が録音に混じる (イヤホン推奨)。
+        if (IS_IOS && getRecMode() === 'classic') {
+            v137_constraints = true;   // audio:true → iOS 既定 (エコー除去オン)
+            DEBUG.info('録音方式=classic(案1): エコー除去オン (大音量・ダッキングは許容)');
+        } else {
+            v137_constraints = {
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false   // ★ AGC OFF (生マイク)
+            };
+        }
     } else {
         // default / C / D: keep v1.15 settings (the constraint object
         // doesn't change for C/D; only the pre-context preceding it does)
@@ -5218,21 +5232,22 @@ async function stopRecording(){
     // PlayAndRecord may have silenced audioCtx output. Rebuild it. On iOS
     // mode (HTMLAudioElement-based BGM), this is unnecessary because BGM is
     // not routed through audioCtx.
-    if(IS_IOS && !IOS_AUDIO_HTML){
-        // v2.70 (Q2B): iOS Web Audio パスでは、 生マイク録音 (EC off) で iOS の audioSession が
-        //   受話口(小音量)ルートに切り替わり、 録音を止めても戻らない → 録音後の再生
+    if(IS_IOS && !IOS_AUDIO_HTML && getRecMode() !== 'classic'){
+        // v2.70 (Q2B) / v2.71: 案2 clean・案3 hybrid (エコー除去オフ録音) では、 iOS の audioSession が
+        //   録音開始時に受話口(小音量)ルートへ切り替わり、 録音を止めても戻らない → 録音後の再生
         //   (BGM/テイク/MIX) が全部小さくなる。 AudioContext を作り直すと playback セッション
         //   (大音量の本体スピーカー) に復帰するため、 録音後に自動で再構築して再生音量を回復する。
-        //   ※録音中の試聴は受話口のままになる (iOS の制約、 イヤホン推奨)。
-        DEBUG.info('iOS WebAudio: 録音後に AudioContext を再構築して再生ルートを回復...');
+        //   ※録音中の試聴は受話口のまま (iOS の制約、 イヤホン推奨)。
+        DEBUG.info('iOS WebAudio (案2/3): 録音後に AudioContext を再構築して再生ルートを回復...');
         try { await rebuildAudioContext(); DEBUG.ok('iOS: 再生ルート回復 (rebuild) 完了'); }
         catch(e){
             DEBUG.err('iOS: rebuild 失敗: ' + (e.message || e));
             if(typeof showRescueButtonBriefly === 'function') showRescueButtonBriefly();
         }
     } else if(IS_IOS){
-        // 旧 HTMLAudio パス (IOS_AUDIO_HTML=true、 現状休眠): BGM は audioCtx を通らないので rebuild 不要
-        DEBUG.info('iOS mode (HTMLAudio): no rebuild needed');
+        // 案1 classic (エコー除去オン): ルートは大音量スピーカーのまま (v2.65-2.67 実績) → rebuild 不要。
+        // 旧 HTMLAudio パス (IOS_AUDIO_HTML=true、 現状休眠) も BGM が audioCtx を通らないので不要。
+        DEBUG.info('iOS classic(案1)/HTMLAudio: rebuild 不要 (ルート大音量のまま)');
         if(typeof showRescueButtonBriefly === 'function') showRescueButtonBriefly();
     }
 }
@@ -8092,6 +8107,21 @@ if (echoPresetSel) {
     });
 });
 
+// ── v2.71: 録音方式 (3案) の設定 ──────────────────────────────────────────
+// classic(案1, 既定)=エコー除去オン: 大音量・同期完璧、 ダッキングは我慢 (iOS audio:true)。
+// clean  (案2)      =エコー除去オフ(生マイク): ダッキング無し・クリーン・同期完璧だが録音中は小音量、 録音後 rebuild で復帰。
+// hybrid (案3, 未実装)=HTMLAudio ハイブリッド: 大音量+ダッキング無しだが同期ずれ (枠のみ、 UIは準備中)。
+const REC_MODE_LS_KEY = 'momoKaraokeRecMode';
+function getRecMode(){
+    try { const v = localStorage.getItem(REC_MODE_LS_KEY); if(v==='classic'||v==='clean'||v==='hybrid') return v; } catch(e){}
+    return 'classic';  // 既定 = 案1
+}
+function setRecMode(v){
+    if(v!=='classic'&&v!=='clean'&&v!=='hybrid') return;
+    try { localStorage.setItem(REC_MODE_LS_KEY, v); } catch(e){}
+    DEBUG.info('録音方式 → ' + v);
+}
+
 // MIC GAIN slider — applies in real time during recording or test mode
 // v2.24: localStorage 永続化 (リロードしても前回の値を復元、 仕様書 §9.1 micGain の代替)
 const MIC_GAIN_LS_KEY = 'momoKaraokeMicGainDb';
@@ -8990,6 +9020,13 @@ function _initKaraoke5c() {
             const pct = String(parseInt(oldSlider.value, 10) || 0);
             if (pct !== newSlider.value) { newSlider.value = pct; syncLabel(); }
         });
+    }
+
+    // (3b) v2.71: 録音方式セレクタ
+    const recModeSel = document.getElementById('recModeSelect');
+    if (recModeSel) {
+        try { recModeSel.value = getRecMode(); } catch(e){}
+        recModeSel.addEventListener('change', () => { setRecMode(recModeSel.value); });
     }
 
     // (4) マイク設定モーダル開閉

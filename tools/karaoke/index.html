@@ -1690,7 +1690,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.65a</span>
+                <span class="version-tag" id="version-tag">v2.66</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2503,7 +2503,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.65a';
+const APP_VERSION = 'v2.66';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -3114,6 +3114,13 @@ const bgmTransport = (function(){
         play(){
             if(!buffer) { DEBUG.warn('bgmTransport.play: no buffer'); return Promise.reject(new Error('no buffer')); }
             if(isPlaying) { DEBUG.info('bgmTransport.play: already playing'); return Promise.resolve(); }
+            // D3 (A-5): 終端まで再生し切った状態 (startOffset≈duration) で再生ボタンを押したら、
+            // 0秒再生＝無反応になるのを避け、 自動的に先頭へ巻き戻す。 終端以外の位置はその位置から再生 (現状維持)。
+            if(startOffset >= buffer.duration - 0.05){
+                DEBUG.info('bgmTransport.play: 終端からの再生 → 先頭へ巻き戻し');
+                startOffset = 0;
+                T._fire('seeking'); T._fire('seeked');
+            }
             const at = startOffset;
             DEBUG.info('bgmTransport.play: starting from ' + at.toFixed(2) + 's, ctx.state=' + audioCtx.state);
             T._startSource(at);
@@ -5794,13 +5801,27 @@ function _srcRow(opts){
         (opts.menu ? '<button class="src-menu-btn" data-act="menu" title="メニュー">⋮</button>' : '<span class="src-menu-spacer"></span>') +
     '</div>';
 }
+// ── D1: selectedTakeIds の orphan(実体なし id) 剪定ヘルパ ──
+// 削除/Drive 切断のタイミングで実在しない take id が selectedTakeIds に残ると、
+// 「選択数」が水増し表示され、 存在しないテイクで MIX が走る恐れがある。
+// 実在テイクと照合して Set を剪定し、 生きている id 配列を返す。
+function _liveSelectedTakeIds(){
+    const takes = (state.currentEntry && state.currentEntry.takes) || [];
+    const ids = state.selectedTakeIds ? [...state.selectedTakeIds] : [];
+    const live = ids.filter(id => takes.some(t => t.id === id));
+    if (live.length !== ids.length) {
+        state.selectedTakeIds = new Set(live);
+        DEBUG.warn('D1: orphan selected take id を剪定 (' + ids.length + ' → ' + live.length + ')');
+    }
+    return live;
+}
 function renderTakes(){
     if (!takesList) return;
     const entry = state.currentEntry;
     if (!entry) { takesList.innerHTML = '<div class="take-empty">楽曲を選択してください</div>'; takesCount.textContent = '0 / 0'; return; }
     const takes = entry.takes || [];
     const mixes = entry.mixes || [];
-    takesCount.textContent = state.selectedTakeIds.size + ' / ' + takes.length;
+    takesCount.textContent = _liveSelectedTakeIds().length + ' / ' + takes.length;
 
     let html = '';
     // v2.61: BGM 行プルダウン (cut0/50/100) を廃止。 ボイスカットは Vocal Cut パネルで一元化 (live + MIX 共通)。
@@ -6824,7 +6845,7 @@ async function onAudioClicked(parentDirRef, audioRef){
         await selectEntry(entry);
     } catch(e){
         console.error(e);
-        alert('読み込みエラー: ' + e.message);
+        alert(_friendlyErr(e, '読み込みエラー'));
     }
 }
 
@@ -7028,7 +7049,7 @@ const gdrive = {
             this.renderTree();
         } catch(e){
             DEBUG.err('openFolder failed: ' + e.message);
-            setStatus('Drive フォルダ読み込み失敗: ' + e.message, 'err');
+            setStatus(_friendlyErr(e, 'Drive フォルダ読み込み失敗'), 'err');
         }
     },
 
@@ -7140,7 +7161,7 @@ const gdrive = {
             setStatus('「' + audioItem.name + '」を読み込みました', 'ok');
         } catch(e){
             DEBUG.err('loadSong failed: ' + e.message);
-            setStatus('Drive 読み込み失敗: ' + e.message, 'err');
+            setStatus(_friendlyErr(e, 'Drive 読み込み失敗'), 'err');
         } finally {
             if(loadProgress) loadProgress.classList.add('hidden');
         }
@@ -8465,7 +8486,7 @@ async function _karaokeLoadSongEntry(song) {
         return true;
     } catch (e) {
         console.error('[karaoke] loadSongEntry 失敗:', e);
-        setStatus('曲読込失敗: ' + (e.message || e), 'err');
+        setStatus(_friendlyErr(e, '曲読込失敗'), 'err');
         return false;
     }
 }
@@ -8870,7 +8891,7 @@ function _applyVocalCutToBuffer(srcBuf, ctx, cutAmount) {
 
 async function _generateMixWav() {
     if (!state.currentEntry) throw new Error('曲が未選択です');
-    if (!state.selectedTakeIds || state.selectedTakeIds.size === 0) {
+    if (_liveSelectedTakeIds().length === 0) {
         throw new Error('テイクが 1 つも選択されていません');
     }
     if (!state.currentEntry.audioFile) throw new Error('BGM 音源がありません');
@@ -8941,8 +8962,8 @@ async function _generateMixWav() {
         DEBUG.info('MIX: BGM なし (テイクのみ)');
     }
 
-    // 各テイク
-    const takeIds = Array.from(state.selectedTakeIds);
+    // 各テイク (D1: orphan id を剪定した実在テイクのみ)
+    const takeIds = _liveSelectedTakeIds();
     const voxGainLin = (parseFloat(voxVolSlider.value) || 0) / 100;
     // v2.64: 機種別 MIX オフセット (state.mixOffsetMs) を voxOfs に加算する。
     //   convention: effective voxOfs = voxOfs - (mixOffsetMs/1000)。 mixOffsetMs が負値なら
@@ -9248,7 +9269,7 @@ async function _playStoredMix(m) {
             blob = (ctx.prov === 'drive')
                 ? await META.Drive.readFile(ctx.songFolderName, m.fileName)
                 : await META.Local.readFile(ctx.songHandle, m.fileName);
-        } catch (e) { _setPlayBtnIcon(false); alert('MIX ファイルの読込に失敗しました: ' + (e.message || e)); return; }
+        } catch (e) { _setPlayBtnIcon(false); alert(_friendlyErr(e, 'MIX ファイルの読込に失敗しました')); return; }
         if (myToken !== _mixLoadToken) { DEBUG.info('MIX load superseded, abort'); return; }
     } else {
         DEBUG.info('MIX playback: 生成直後キャッシュから直接再生 (Drive 再 DL 回避)');
@@ -9338,6 +9359,18 @@ function _popupMenu(anchorBtn, items) {
     setTimeout(() => document.addEventListener('click', _popupMenuCloseHandler, { capture: true }), 0);
 }
 
+// ── D2: Drive 認証切れ (401/authError) を友好メッセージに変換する共通ヘルパ ──
+// 長時間放置で OAuth トークンが切れると Python(momo_gdrive.py) が 'Drive API 401: authError'
+// を投げる。 これをそのまま alert すると致命的に見えるため、 再接続を促す文言に置換する。
+function _isDriveAuthError(e){
+    const s = (e && (e.message != null ? e.message : e)) || '';
+    return /401|authError|invalid_grant|unauthor/i.test(String(s));
+}
+function _friendlyErr(e, prefix){
+    if (_isDriveAuthError(e)) return 'Google Drive の接続が切れています。 画面上部から再接続してから、 もう一度お試しください。';
+    return prefix + ': ' + (e && (e.message != null ? e.message : e));
+}
+
 function _openMixContextMenu(anchorBtn, mix) {
     _popupMenu(anchorBtn, [
         { label: '✎ リネーム', onClick: () => _renameMix(mix) },
@@ -9359,7 +9392,7 @@ async function _renameMix(mix) {
         state.currentEntry.mixes = mixes;
         renderMixes();
         DEBUG.ok('MIX rename: ' + mix.id + ' → ' + trimmed);
-    } catch (e) { alert('リネーム失敗: ' + (e.message || e)); }
+    } catch (e) { alert(_friendlyErr(e, 'リネーム失敗')); }
 }
 
 async function _duplicateMix(mix) {
@@ -9385,7 +9418,7 @@ async function _duplicateMix(mix) {
         state.currentEntry.mixes = mixes;
         renderMixes();
         DEBUG.ok('MIX duplicate: ' + mix.id + ' → 新規');
-    } catch (e) { alert('複製失敗: ' + (e.message || e)); }
+    } catch (e) { alert(_friendlyErr(e, '複製失敗')); }
 }
 
 async function _deleteMix(mix) {
@@ -9426,7 +9459,7 @@ async function _deleteMix(mix) {
         // 失敗 → ロールバック
         state.currentEntry.mixes = prevMixes;
         renderMixes();
-        alert('削除に失敗しました: ' + (e.message || e));
+        alert(_friendlyErr(e, '削除に失敗しました'));
     }
 }
 
@@ -9596,7 +9629,7 @@ function _stopMixPreview() {
 function _updateMixPreviewBtn() {
     const btn = document.getElementById('mix-preview-btn');
     if (!btn) return;
-    const n = state.selectedTakeIds ? state.selectedTakeIds.size : 0;
+    const n = _liveSelectedTakeIds().length;
     const hasEntry = !!state.currentEntry;
     if (_mixPreviewState === 'generating') {
         btn.disabled = true;
@@ -9641,7 +9674,7 @@ async function _startMixPreview() {
         DEBUG.info('MIX preview: playing (' + (wavBlob.size / 1024).toFixed(0) + ' KB)');
     } catch (e) {
         console.error('MIX preview 失敗:', e);
-        alert('MIX プレビュー失敗: ' + (e.message || e));
+        alert(_friendlyErr(e, 'MIX プレビュー失敗'));
         _stopMixPreview();
     }
 }
@@ -9672,7 +9705,7 @@ async function _startMixPreview() {
 
     // 選択数の変化に応じてボタン文言を更新する小関数 (renderTakes / refreshTake から呼ぶ)
     window._refreshMixCreateBtn = function () {
-        const n = state.selectedTakeIds ? state.selectedTakeIds.size : 0;
+        const n = _liveSelectedTakeIds().length;
         const hasEntry = !!state.currentEntry;
         if (!hasEntry) {
             btn.disabled = true;
@@ -9721,11 +9754,11 @@ async function _startMixPreview() {
         } catch (e) {
             console.error('MIX 生成失敗:', e);
             if (status) status.textContent = 'ERR';
-            if (progress) progress.textContent = '❌ ' + (e.message || e);
+            if (progress) progress.textContent = '❌ ' + (_isDriveAuthError(e) ? 'Drive 接続切れ。 再接続してください' : (e.message || e));
             btn.textContent = oldLabel;
         } finally {
             if (_wakeLock) { try { await _wakeLock.release(); DEBUG.info('MIX: screen wake lock 解放'); } catch(e) {} }
-            btn.disabled = state.selectedTakeIds.size === 0;
+            btn.disabled = _liveSelectedTakeIds().length === 0;
             setTimeout(() => { if (window._refreshMixCreateBtn) window._refreshMixCreateBtn(); }, 3000);
         }
     });

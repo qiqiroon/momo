@@ -1730,7 +1730,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.73</span>
+                <span class="version-tag" id="version-tag">v2.74</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2219,9 +2219,9 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
         <div class="karaoke-panel" id="mix-vc-panel">
             <div class="panel-head">
                 <div class="panel-title">Vocal Cut</div>
-                <div class="panel-tag">SHARED</div>
+                <div class="panel-tag">MIX</div>
             </div>
-            <p class="panel-desc">BGMからボーカル成分を除去します。カラオケタブと連動しています。</p>
+            <p class="panel-desc">ミックス再生・MIX生成時に、BGMからボーカル成分を除去します。カラオケタブのボイスカットとは独立です。</p>
             <label class="toggle-row vc-toggle" id="vcPlaybackRow">
                 <input type="checkbox" id="vcPlayback">
                 <span>
@@ -2557,7 +2557,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.73';
+const APP_VERSION = 'v2.74';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2903,6 +2903,8 @@ function switchTab(name){
         else if (state.selectedTakeIds && state.selectedTakeIds.size > 0) state.playMode = 'both';
         else state.playMode = 'bgm';
         applyTabBgmVolume();   // このタブの BGM 音量 + 新 playMode を applyBalance で反映
+        // v2.74: このタブのボイスカット量を worklet に反映 (二重カット解消・タブ独立)
+        try { applyBgmVocalCut(); } catch (e) {}
     }
 }
 document.querySelectorAll('.tab-btn').forEach(b => {
@@ -3711,10 +3713,20 @@ function applyBgmPitch(){
  * vcRecord を「マスター」として扱い、vcPlayback はそれにミラーする。
  */
 function applyBgmVocalCut(){
-    const enabled = vcRecord.checked;
-    const lvlEl = document.getElementById('vcRecordLevel');
-    const intensity = enabled ? (lvlEl ? Math.max(0, Math.min(100, parseFloat(lvlEl.value))) / 100 : 1.0) : 0;
-    DEBUG.info('Vocal cut: ' + (enabled ? 'ON @ ' + Math.round(intensity*100) + '%' : 'OFF') + (state.isRecording ? ' (recording)' : ''));
+    // v2.74 (タスクC続き): ボイスカットを worklet に一本化し、 「アクティブタブのカット量」 を適用する。
+    //   旧: カラオケ=事前生成Blobをbufferに差替 / ミックス=worklet、 の2機構が共存し、 タブ切替で
+    //   重なって二重カット (かつ両タブに残留) していた。 → buffer は常に元音源、 カット量だけ worklet に集約。
+    //   カラオケ = karaokeUiState.vcLevel(0/50/100)、 ミックス = vcRecord/vcPlayback(同期) のレベル。
+    const _tab = (state.activeTab === 'mix') ? 'mix' : 'karaoke';
+    let intensity;
+    if (_tab === 'karaoke') {
+        intensity = ((typeof karaokeUiState !== 'undefined' && karaokeUiState) ? (karaokeUiState.vcLevel || 0) : 0) / 100;
+    } else {
+        const lvlEl = document.getElementById('vcRecordLevel');
+        intensity = (vcRecord && vcRecord.checked) ? (lvlEl ? Math.max(0, Math.min(100, parseFloat(lvlEl.value))) / 100 : 1.0) : 0;
+    }
+    const enabled = intensity > 0;
+    DEBUG.info('Vocal cut [' + _tab + ']: ' + (enabled ? 'ON @ ' + Math.round(intensity*100) + '%' : 'OFF') + (state.isRecording ? ' (recording)' : ''));
 
     if(IOS_MODE && IOS_AUDIO_HTML){
         // On iOS (HTMLAudio path), use the offline-generated cut WAV. Switch source on/off.
@@ -8740,36 +8752,21 @@ function _updateKaraokeVcToggleUI() {
 //   v2.22 修正: bgmTransport は IIFE 内 const なので window 経由不可 (常に false 判定の
 //   バグがあった)。 直接参照に変更。 また bgmTransport.play() を直接呼ぶと歌詞ティック
 //   や録音同期等の周辺更新が走らないため、 既存の btnPlay.click() で再生再開する。
-async function _karaokeSetVcLevel(level) {
-    const blob = karaokeUiState.vcBlobs[level];
-    if (!blob) {
-        setStatus('レベル ' + level + '% の音源がありません', 'err');
+function _karaokeSetVcLevel(level) {
+    // v2.74: カラオケのボイスカットも worklet でリアルタイム適用 (旧: 事前生成 Blob を buffer に
+    //   差替えていた → mix の worklet カットと二重適用になっていた)。 buffer は常に元音源のまま、
+    //   カット量は worklet (applyBgmVocalCut) に集約。 再生中でも瞬時に切替わり、 音途切れ無し。
+    if (level !== 0 && !karaokeUiState.vcAvailable) {
+        setStatus('この曲はボイスカットを生成できませんでした', 'err');
         return;
     }
-    const wasPlaying = !bgmTransport.paused;
-    const prevTime = (typeof bgmTransport.currentTime === 'number') ? bgmTransport.currentTime : 0;
-    try {
-        if (wasPlaying) {
-            // btnPlay.click で停止 (歌詞ティック停止 + UI 更新含む)
-            try { btnPlay.click(); } catch (e) { try { bgmTransport.pause(); } catch (_) {} }
-        }
-        setStatus('ボイスカット切替: ' + level + '% …', 'ok');
-        await bgmTransport.loadFile(blob);
-        try {
-            if (typeof bgmTransport.seekTo === 'function') bgmTransport.seekTo(prevTime);
-            else bgmTransport.currentTime = prevTime;
-        } catch (e) { console.warn('[karaoke] seek 復元失敗:', e); }
-        karaokeUiState.vcLevel = level;
-        _updateKaraokeVcToggleUI();
-        setStatus('ボイスカット: ' + level + '%', 'ok');
-        if (wasPlaying) {
-            // 既存 btnPlay.click ハンドラで歌詞ティック + UI 更新まで含めて再生
-            try { btnPlay.click(); } catch (e) { console.warn('[karaoke] 再生再開失敗:', e); }
-        }
-    } catch (e) {
-        console.error('[karaoke] vc 切替失敗:', e);
-        setStatus('ボイスカット切替失敗: ' + (e.message || e), 'err');
+    karaokeUiState.vcLevel = level;
+    _updateKaraokeVcToggleUI();
+    // カラオケ表示中のみ即エンジンへ反映 (ミックス表示中なら switchTab 復帰時に反映される)
+    if ((state.activeTab || 'karaoke') !== 'mix') {
+        try { applyBgmVocalCut(); } catch (e) { DEBUG.warn('vc apply failed: ' + (e.message || e)); }
     }
+    setStatus('ボイスカット: ' + level + '%', 'ok');
 }
 
 // 仕様書 §9.2: lastSelectedSongInternalId を _app_settings.json に保存

@@ -1090,23 +1090,25 @@ h1 .version-tag {
 /* v2.68: マイク入力レベルメータ (固定色ゾーン + ピークホールド)
    色はトラック幅に固定 (バーが伸びても色位置が動かない)。
    ゾーン境界 dB→%: -48dB=0%, -30dB=37.5%(=緑開始), -9dB=81.25%(=黄), -3dB=93.75%(=赤), 0dB=100% */
+/* 暗い背景(無音時)と塗り(バー)は同一の色相・同一の境界。 暗い=低不透明度版、 塗り=ソリッド。
+   gray=#6b7280 / green=#4ade80 / yellow=#facc15 / red=#ef4444 */
 .mic-meter-track {
     position: relative; height: 18px; overflow: hidden;
     border: 1px solid var(--border-strong); border-radius: 4px;
     background: linear-gradient(to right,
-        rgba(120,120,120,0.12) 0%, rgba(120,120,120,0.12) 37.5%,
-        rgba(129,201,149,0.12) 37.5%, rgba(129,201,149,0.12) 81.25%,
-        rgba(251,146,60,0.14) 81.25%, rgba(251,146,60,0.14) 93.75%,
-        rgba(220,38,38,0.16) 93.75%, rgba(220,38,38,0.16) 100%);
+        rgba(107,114,128,0.16) 0%, rgba(107,114,128,0.16) 37.5%,
+        rgba(74,222,128,0.16) 37.5%, rgba(74,222,128,0.16) 81.25%,
+        rgba(250,204,21,0.16) 81.25%, rgba(250,204,21,0.16) 93.75%,
+        rgba(239,68,68,0.18) 93.75%, rgba(239,68,68,0.18) 100%);
 }
 .mic-meter-fill {
     position: absolute; left: 0; top: 0; height: 100%; width: 0%;
     background-repeat: no-repeat; background-position: left center;
     background-image: linear-gradient(to right,
         #6b7280 0%, #6b7280 37.5%,
-        var(--green) 37.5%, var(--green) 81.25%,
-        var(--orange) 81.25%, var(--orange) 93.75%,
-        var(--rec-red) 93.75%, var(--rec-red) 100%);
+        #4ade80 37.5%, #4ade80 81.25%,
+        #facc15 81.25%, #facc15 93.75%,
+        #ef4444 93.75%, #ef4444 100%);
 }
 .mic-meter-peak-marker {
     position: absolute; top: 0; bottom: 0; width: 2px;
@@ -1728,7 +1730,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.68</span>
+                <span class="version-tag" id="version-tag">v2.69</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2545,7 +2547,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.68';
+const APP_VERSION = 'v2.69';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -5257,7 +5259,8 @@ function _renderMicMeter(amp){
     if (instPct > _micMeter.disp) _micMeter.disp = instPct;
     else _micMeter.disp += (instPct - _micMeter.disp) * 0.3;
     if (fill) {
-        if (track) fill.style.backgroundSize = track.clientWidth + 'px 100%';  // 色をトラック幅に固定
+        const tw = track ? track.clientWidth : 0;
+        if (tw > 0) fill.style.backgroundSize = tw + 'px 100%';  // 色をトラック幅に固定 (バー幅で伸縮させない)
         fill.style.width = _micMeter.disp.toFixed(1) + '%';
     }
     // ピークホールド (約1.2秒保持 → ゆっくり減衰) — 数字が読み取れるように

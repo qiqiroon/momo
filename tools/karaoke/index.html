@@ -1690,7 +1690,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.66</span>
+                <span class="version-tag" id="version-tag">v2.67</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2503,7 +2503,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.66';
+const APP_VERSION = 'v2.67';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -7718,9 +7718,33 @@ $('registerLibraryBtn').addEventListener('click', registerLibrary);
 $('openLibraryBtn').addEventListener('click', openLibrary);
 $('changeLibraryBtn').addEventListener('click', changeLibrary);
 
+// ── D4: マイクゲイン未調整(≈0)のまま録音させない ──
+// 新端末の初回や iOS の localStorage eviction (無操作 約7日) で micGain が 0 に戻ると、
+// マイク生レベルが低い端末では実質無音録音になり、 ユーザーは原因が分からない。
+// 録音の意志を一旦止め、 「調整が必要」 と明示してから既存のマイク設定画面へ自動で誘導する。
+const MIC_GAIN_SETUP_THRESHOLD_DB = 1.0;
+function _micGainNeedsSetup(){
+    const slider = document.getElementById('micGainSlider');
+    const db = slider ? parseFloat(slider.value) : 0;
+    return !(db >= MIC_GAIN_SETUP_THRESHOLD_DB);  // NaN・0近傍は要調整
+}
+function _forceMicGainSetup(){
+    DEBUG.info('D4: micGain 未調整のため録音をブロックしマイク調整へ誘導');
+    // まず必要性を明示 (録音したい意志を一旦受け止めつつ必要性を伝える)
+    alert('マイクゲインの調整が必要です。\n\n録音の前に、 マイクテストで声を出しながら音量を合わせてください。 これからマイク調整画面を開きます。');
+    const modal = document.getElementById('karaoke-mic-setup-modal');
+    if(modal) modal.style.display = 'flex';
+    setStatus('録音の前にマイクゲインを調整してください (マイクテストで音量を確認)', 'warn');
+    // 既存のマイクゲイン調整と同じ画面で、 マイクテストに自動で入る
+    try { if(typeof micTestState !== 'undefined' && !micTestState.active) startMicTest(); }
+    catch(e){ DEBUG.warn('D4: startMicTest 自動起動失敗 (テストボタンから手動可): ' + (e.message||e)); }
+}
+
 btnRec.addEventListener('click', async () => {
     if(state.isRecording){ await stopRecording(); return; }
     if(!state.currentEntry) return;
+    // D4: マイクゲインが未調整(≈0)なら録音せずマイク調整へ誘導
+    if(_micGainNeedsSetup()){ _forceMicGainSetup(); return; }
     if(!IOS_MODE || !IOS_AUDIO_HTML){   // v2.65: iOS Web Audio パスでも BGM 再生に graph + resume が必要
         if(!await ensureAudioGraph()) return;
         if(audioCtx && (audioCtx.state === 'suspended' || audioCtx.state === 'interrupted')) await audioCtx.resume();

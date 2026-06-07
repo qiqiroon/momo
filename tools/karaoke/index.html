@@ -1730,7 +1730,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.72</span>
+                <span class="version-tag" id="version-tag">v2.73</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2557,7 +2557,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.72';
+const APP_VERSION = 'v2.73';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2728,7 +2728,14 @@ const state = {
     mixOffsetSource: 'default-fallback',  // 'calibration' | 'karaoke-folder' | 'default-table' | 'default-fallback' | 'manual'
     mixOffsetDeviceLabel: '不明',
     // v2.46: 統合音源リストの選択。 bgmSelected (BGM ON) + selectedTakeIds か、 selectedMixId のどちらか
+    //   ※bgmSelected は「現在アクティブなタブの実効値」。 真の保持先は bgmSelByTab (タブ独立)。
     bgmSelected: true,
+    // v2.73 (タスクC): BGM 音量・BGM選択(ON/OFF) をカラオケ/ミックスで独立保持。
+    //   選曲 (currentEntry) は共通だが、 BGM の音量と ON/OFF はタブごと。 switchTab で
+    //   アクティブタブの値をエンジン (bgmVolSlider→bgmGain / bgmSelected→playMode) に反映する。
+    //   カラオケの bgmSelByTab.karaoke は常に true (カラオケは BGM を消す概念が無い)。
+    bgmVolByTab: { karaoke: 100, mix: 100 },   // %
+    bgmSelByTab: { karaoke: true, mix: true },
     // v2.49 (Phase 6e): BGM ボイスカット率 (0/50/100)。 「BGM なし」 は bgmSelected=false で表現
     bgmCutPct: 0,
     // v2.49 (Phase 6e): エコープリセット 'none'|'room'|'hall'|'plate'
@@ -2880,6 +2887,23 @@ function switchTab(name){
     if (typeof renderMixRange === 'function') renderMixRange();
     // 状態タブを記録 (今後の機能分岐用)
     state.activeTab = name;
+    // v2.73 (タスクC): タブごとの BGM 音量・選択をエンジンへ反映 (カラオケ/ミックス独立)。
+    //   カラオケは BGM を消す概念が無いので常に ON 扱い (bgmSelByTab.karaoke は true 固定)。
+    if (name === 'karaoke' || name === 'mix') {
+        state.bgmSelected = (state.bgmSelByTab && state.bgmSelByTab[name] != null) ? state.bgmSelByTab[name] : true;
+        // カラオケ表示スライダを自分のタブ値に同期
+        if (name === 'karaoke') {
+            const ks = document.getElementById('karaoke-bgm-vol-slider');
+            const kv = document.getElementById('karaoke-bgm-vol-val');
+            if (ks) { ks.value = String(Math.round(state.bgmVolByTab.karaoke)); if (kv) kv.textContent = ks.value + '%'; }
+        }
+        // bgmSelected の変化を BGM ミュート (playMode) に反映。 ※setPlayMode は使わない
+        //   (タブ切替だけでテイク再生が始まるのを避けるため、 playMode を直接計算して applyBalance のみ)。
+        if (!state.bgmSelected) state.playMode = 'take';
+        else if (state.selectedTakeIds && state.selectedTakeIds.size > 0) state.playMode = 'both';
+        else state.playMode = 'bgm';
+        applyTabBgmVolume();   // このタブの BGM 音量 + 新 playMode を applyBalance で反映
+    }
 }
 document.querySelectorAll('.tab-btn').forEach(b => {
     b.addEventListener('click', () => switchTab(b.dataset.tab));
@@ -3785,6 +3809,15 @@ function applyBgmEq(){
 function applyBgmVolume(){
     // Delegated to applyBalance() (combined with mix balance + voice volume)
     if(typeof applyBalance === 'function') applyBalance();
+}
+// v2.73 (タスクC): 現在アクティブなタブの BGM 音量をエンジン (bgmVolSlider→bgmGain) に反映。
+//   カラオケ/ミックスで独立した値を持ち、 タブを開いたときその値を適用する。
+function applyTabBgmVolume(){
+    const tab = (state.activeTab === 'mix') ? 'mix' : 'karaoke';
+    let v = (state.bgmVolByTab && state.bgmVolByTab[tab] != null) ? state.bgmVolByTab[tab] : 100;
+    if (bgmVolSlider) bgmVolSlider.value = String(v);   // エンジンの値 (applyBalance が読む)
+    if (typeof bgmVolVal !== 'undefined' && bgmVolVal) bgmVolVal.textContent = Math.round(v) + '%';
+    if (typeof applyBalance === 'function') applyBalance();
 }
 function applyTakePitch(){
     if(!takeShifter || !state.currentTake){ DEBUG.warn('[spdiag] applyTakePitch: SKIP (takeShifter=' + !!takeShifter + ' currentTake=' + !!state.currentTake + ')'); return; }
@@ -5983,10 +6016,11 @@ function renderTakes(){
     // BGM 行は [☑][名前][長さ][音量スライダ] のみ。
     html += '<div class="src-group-label">BGM</div>';
     {
-        const bgmSel = state.bgmSelected;
+        // v2.73 (タスクC): ミックスタブの表示なので、 ミックス専用の選択/音量を使う
+        const bgmSel = (state.bgmSelByTab && state.bgmSelByTab.mix != null) ? state.bgmSelByTab.mix : state.bgmSelected;
         const bgmName = (entry.audioFile && entry.audioFile.name) || (entry.title || 'BGM');
         const bgmLen = bgmTransport.duration || 0;
-        const bgmPct = Math.round(parseFloat(bgmVolSlider.value) || 100);
+        const bgmPct = Math.round((state.bgmVolByTab && state.bgmVolByTab.mix != null) ? state.bgmVolByTab.mix : 100);
         html += '<div class="src-row' + (bgmSel ? ' selected' : '') + '" data-kind="bgm">' +
             '<span class="src-check">' + (bgmSel ? '☑' : '☐') + '</span>' +
             '<span class="src-num"></span>' +
@@ -6074,17 +6108,18 @@ function renderTakes(){
             if (id) retryTakeUpload(id);
         });
     });
-    // v2.61: BGM 行音量スライダ → 既存 bgmVolSlider と同期
+    // v2.61 / v2.73 (タスクC): ミックスタブの BGM 行音量。 ミックス専用値 state.bgmVolByTab.mix に書く
+    //   (カラオケとは独立)。 ミックス表示中のみエンジンへ反映。
     const bgmRowVol = takesList.querySelector('#bgmRowVol');
     const bgmRowVolNum = takesList.querySelector('#bgmRowVolNum');
-    if (bgmRowVol && bgmVolSlider) {
+    if (bgmRowVol) {
         bgmRowVol.addEventListener('click', e => e.stopPropagation());
         bgmRowVol.addEventListener('input', e => {
             e.stopPropagation();
             const pct = parseInt(bgmRowVol.value, 10) || 0;
-            bgmVolSlider.value = String(pct);
-            bgmVolSlider.dispatchEvent(new Event('input', { bubbles: true }));
+            state.bgmVolByTab.mix = pct;
             if (bgmRowVolNum) bgmRowVolNum.textContent = pct + '%';
+            if ((state.activeTab || 'karaoke') === 'mix') applyTabBgmVolume();
         });
     }
     // v2.61: テイク個別音量
@@ -6155,9 +6190,12 @@ function _syncPlayMode(){
 }
 function _selToggleBgm(){
     // v2.49: BGM 行クリックでは ON/OFF をトグル (プルダウン外側のクリック時)
+    // v2.73 (タスクC): BGM 行はミックスタブのみ → ミックス専用フラグ bgmSelByTab.mix を切替。
+    //   カラオケ側 (bgmSelByTab.karaoke=true 固定) には波及させない。
     _clearMixSel();
     state.bgmSelected = !state.bgmSelected;
-    DEBUG.info('BGM ' + (state.bgmSelected ? 'selected pct=' + state.bgmCutPct : 'deselected'));
+    state.bgmSelByTab.mix = state.bgmSelected;
+    DEBUG.info('BGM ' + (state.bgmSelected ? 'selected pct=' + state.bgmCutPct : 'deselected') + ' (mix tab)');
     _afterSourceChange();
 }
 // v2.50: BGM ボイスカット率のみを変更 (プルダウン)。 BGM ON/OFF は行クリックで行う。
@@ -6212,11 +6250,13 @@ function _selToggleMix(mixId){
         _stopStoredMixPlayback();
         _setPlayBtnIcon(false);
         state.bgmSelected = true;
+        state.bgmSelByTab.mix = true;   // v2.73 (タスクC): ミックス専用フラグも同期
         _afterSourceChange();
         return;
     }
     // MIX を選択 → BGM/テイクを自動解除
     state.bgmSelected = false;
+    state.bgmSelByTab.mix = false;       // v2.73 (タスクC): ミックス専用フラグも同期
     state.selectedTakeIds.clear();
     state.currentTake = null;
     stopTakePlayback();
@@ -8999,26 +9039,19 @@ function _initKaraoke5c() {
         }
     }
 
-    // (3) BGM 音量スライダ % 同期 (v2.60 以降は両者とも 0〜200%、 dB 変換不要)
+    // (3) カラオケタブの BGM 音量スライダ。 v2.73 (タスクC): ミックスとは独立。
+    //   旧: bgmVolSlider と双方向同期で「共有」 だった → ミックスで下げるとカラオケも下がっていた。
+    //   新: カラオケ専用値 state.bgmVolByTab.karaoke に書き、 カラオケ表示中のみエンジンへ反映。
     const newSlider = document.getElementById('karaoke-bgm-vol-slider');
     const newVal = document.getElementById('karaoke-bgm-vol-val');
-    const oldSlider = document.getElementById('bgmVolSlider');  // v2.60 で 0〜200% に統一
-    if (newSlider && oldSlider) {
-        // 初期値: 既存スライダの % をそのまま反映 (デフォルト 100%)
-        try { newSlider.value = String(parseInt(oldSlider.value, 10) || 100); } catch (e) {}
-        const syncLabel = () => { if (newVal) newVal.textContent = newSlider.value + '%'; };
-        syncLabel();
-        // 新 → 旧 (UI 操作 → 既存ハンドラ起動)
+    if (newSlider) {
+        try { newSlider.value = String(Math.round(state.bgmVolByTab.karaoke)); } catch (e) {}
+        if (newVal) newVal.textContent = newSlider.value + '%';
         newSlider.addEventListener('input', () => {
             const pct = parseInt(newSlider.value, 10) || 0;
-            oldSlider.value = String(pct);
-            oldSlider.dispatchEvent(new Event('input', { bubbles: true }));
-            syncLabel();
-        });
-        // 旧 → 新 (外部から oldSlider が変わった時の追従)
-        oldSlider.addEventListener('input', () => {
-            const pct = String(parseInt(oldSlider.value, 10) || 0);
-            if (pct !== newSlider.value) { newSlider.value = pct; syncLabel(); }
+            state.bgmVolByTab.karaoke = pct;
+            if (newVal) newVal.textContent = pct + '%';
+            if ((state.activeTab || 'karaoke') !== 'mix') applyTabBgmVolume();  // カラオケ表示中のみ反映
         });
     }
 

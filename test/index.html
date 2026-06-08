@@ -1,124 +1,652 @@
-<div style="padding: 1rem 0; font-family: var(--font-sans);">
-  <h2 class="sr-only">Coin year OCR prototype: photograph a Japanese coin to detect its mint year.</h2>
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MOMO Pet</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-46 -50 92 80'%3E%3Crect x='-46' y='-50' width='92' height='80' rx='8' fill='%23000000'/%3E%3Cg transform='rotate(-12,-12,8.3)'%3E%3Cpath d='M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cg transform='rotate(12,12,8.3)'%3E%3Cpath d='M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cellipse cx='0' cy='1.3' rx='34' ry='26' fill='%23c2410c'/%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:          #0a0a0a;
+    --surface:     #111111;
+    --surface2:    #1a1a1a;
+    --orange:      #c2410c;
+    --orange-mid:  #ea580c;
+    --orange-light:#fb923c;
+    --orange-dark: #9a330a;
+    --text:        #e5e5e5;
+    --text-muted:  #737373;
+    --border:      #2a2a2a;
+    --border-strong: #444;
+    --bg-selected: rgba(194,65,12,0.15);
+  }
 
-  <div style="background: var(--color-background-secondary); border-radius: var(--border-radius-lg); padding: 1rem 1.25rem; margin-bottom: 1rem;">
-    <input type="file" accept="image/*" capture="environment" id="file" style="display:none" />
-    <button id="pick" style="width:100%; height:44px; font-size:15px;"><i class="ti ti-camera" style="font-size:18px; vertical-align:-3px; margin-right:8px" aria-hidden="true"></i>写真を撮る / 選ぶ</button>
-    <p style="font-size:12px; color:var(--color-text-tertiary); margin:10px 0 0; line-height:1.6;">年号の部分を大きく、斜め光で陰影をつけると認識しやすくなります。</p>
-  </div>
+  html, body {
+    margin: 0; padding: 0;
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+  }
 
-  <div id="preview-wrap" style="display:none; margin-bottom:1rem;">
-    <img id="preview" style="width:100%; border-radius:var(--border-radius-md); border:0.5px solid var(--color-border-tertiary);" />
-  </div>
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 48px 48px;
+    opacity: 0.3;
+    pointer-events: none;
+    z-index: 0;
+  }
 
-  <div id="status" style="display:none; font-size:14px; color:var(--color-text-secondary); margin-bottom:1rem; display:none; align-items:center; gap:8px;">
-    <i class="ti ti-loader-2" style="font-size:16px" aria-hidden="true"></i><span id="status-text">処理中…</span>
-  </div>
+  /* ---- 操作パネル ---- */
+  #panel {
+    position: fixed; top: 8px; right: 12px;
+    display: flex; gap: 4px; z-index: 200; flex-wrap: wrap; justify-content: flex-end;
+  }
+  .btn {
+    background: transparent;
+    border: 0.5px solid var(--border-strong);
+    color: var(--text-muted);
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 10px;
+    padding: 3px 9px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .btn:hover { color: var(--orange-mid); border-color: var(--orange); }
+  .btn.active { color: var(--orange-mid); border-color: var(--orange); background: var(--bg-selected); }
 
-  <div id="result" style="display:none;">
-    <div style="background:var(--color-background-primary); border:0.5px solid var(--color-border-tertiary); border-radius:var(--border-radius-lg); padding:1rem 1.25rem;">
-      <p style="font-size:13px; color:var(--color-text-secondary); margin:0 0 4px;">判定結果</p>
-      <p id="year-out" style="font-size:24px; font-weight:500; margin:0 0 12px;">—</p>
-      <div style="border-top:0.5px solid var(--color-border-tertiary); padding-top:12px;">
-        <p style="font-size:12px; color:var(--color-text-tertiary); margin:0 0 4px;">認識された文字（生データ）</p>
-        <p id="raw-out" style="font-size:13px; font-family:var(--font-mono); color:var(--color-text-secondary); margin:0; word-break:break-all; white-space:pre-wrap;"></p>
-      </div>
-    </div>
-  </div>
+  #label {
+    position: fixed; top: 8px; left: 12px; z-index: 200;
+    font-family: 'Fredoka One', cursive;
+    font-size: 14px; color: #fff;
+  }
+  #label span { color: var(--orange-mid); }
+  #label .ver { font-family: 'Noto Sans JP', sans-serif; font-size: 9px; color: var(--text-muted); margin-left: 5px; vertical-align: middle; }
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.0/tesseract.min.js"></script>
-  <script>
-    (function(){
-      var pick = document.getElementById('pick');
-      var file = document.getElementById('file');
-      var status = document.getElementById('status');
-      var statusText = document.getElementById('status-text');
-      var result = document.getElementById('result');
-      var yearOut = document.getElementById('year-out');
-      var rawOut = document.getElementById('raw-out');
-      var preview = document.getElementById('preview');
-      var previewWrap = document.getElementById('preview-wrap');
+  .hint {
+    position: fixed; bottom: 10px; left: 12px; z-index: 200;
+    font-size: 11px; color: var(--text-muted);
+    letter-spacing: 0.04em;
+  }
 
-      var eraStart = { '令和':2018, '平成':1988, '昭和':1925 };
-      var kanjiNum = {'〇':0,'零':0,'一':1,'二':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9,'十':10,'廿':20,'卅':30};
+  /* ---- 猫の置き場 ---- */
+  #stage { position: fixed; inset: 0; z-index: 1; }
+  #wrap {
+    position: absolute;
+    bottom: 24px; left: 100px;
+    will-change: left;
+  }
+  #wrap.flip #inner { transform: scaleX(-1); }
+  #cat { width: 150px; height: auto; cursor: pointer; display: block; }
 
-      function kanjiToNum(s){
-        if(!s) return null;
-        if(/^\d+$/.test(s)) return parseInt(s,10);
-        var total=0, current=0, found=false;
-        for(var i=0;i<s.length;i++){
-          var c=s[i];
-          if(c==='十'||c==='廿'||c==='卅'){
-            found=true;
-            var mult = c==='十'?10:(c==='廿'?20:30);
-            if(current===0) current=1;
-            if(c==='十') total += current*10; else total += mult;
-            current=0;
-          } else if(kanjiNum[c]!==undefined){
-            found=true; current=kanjiNum[c];
-          }
-        }
-        total+=current;
-        return found?total:null;
-      }
+  /* 状態ごとにパーツを出し分け */
+  .pose { display: none; }
+  .show-walk  .pose-walk  { display: block; }
+  .show-sit   .pose-sit   { display: block; }
+  .show-belly .pose-belly { display: block; }
+  .show-flip  .pose-flip  { display: block; }
 
-      function detect(text){
-        var clean = text.replace(/\s/g,'');
-        for(var era in eraStart){
-          var idx = clean.indexOf(era);
-          if(idx>=0){
-            var after = clean.slice(idx+era.length);
-            var m = after.match(/^(元|[〇零一二三四五六七八九十廿卅\d]{1,3})/);
-            if(m){
-              var n = m[1]==='元' ? 1 : kanjiToNum(m[1]);
-              if(n && n>0 && n<70){
-                return { era:era, n:n, seireki: eraStart[era]+n };
-              }
-            }
-          }
-        }
-        return null;
-      }
+  /* タイピング用の正面猫（通常は隠す） */
+  #typeCat, #phoneCat { width: 190px; height: auto; display: none; cursor: pointer; }
+  body.typing.phone #phoneCat { display: block; }
+  body.typing:not(.phone) #typeCat { display: block; }
+  body.typing #cat { display: none; }
+  /* タイピング中はwrapの左右反転を無効化（正面なので） */
+  body.typing #wrap.flip #inner { transform: none; }
+  #leftArm, #rightArm, #phonePaw { transition: transform 0.06s ease-out; }
+  .keycap { transition: fill 0.08s; }
+  .keycap.lit { fill: var(--orange-mid) !important; }
 
-      pick.addEventListener('click', function(){ file.click(); });
+  /* === 歩行アニメ === */
+  .leg { transform-box: fill-box; }
+  @keyframes walkA { 0%,100%{transform:rotate(16deg);} 50%{transform:rotate(-16deg);} }
+  @keyframes walkB { 0%,100%{transform:rotate(-16deg);} 50%{transform:rotate(16deg);} }
+  @keyframes bob   { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-3px);} }
+  @keyframes tailWag { 0%,100%{transform:rotate(0);} 50%{transform:rotate(-8deg);} }
+  .show-walk #legFL{animation:walkA .42s infinite;transform-origin:top center;}
+  .show-walk #legFR{animation:walkB .42s infinite;transform-origin:top center;}
+  .show-walk #legBL{animation:walkB .42s infinite;transform-origin:top center;}
+  .show-walk #legBR{animation:walkA .42s infinite;transform-origin:top center;}
+  .show-walk #walkBody{animation:bob .42s infinite;}
+  .show-walk #walkTail{animation:tailWag .8s infinite;transform-origin:top right;}
 
-      file.addEventListener('change', function(e){
-        var f = e.target.files[0];
-        if(!f) return;
-        var url = URL.createObjectURL(f);
-        preview.src = url; previewWrap.style.display='block';
-        result.style.display='none';
-        status.style.display='flex'; statusText.textContent='OCRエンジン準備中…';
+  /* === 座り：しっぽをゆらゆら === */
+  @keyframes sitTail { 0%,100%{transform:rotate(0);} 50%{transform:rotate(10deg);} }
+  .show-sit #sitTail{animation:sitTail 2s ease-in-out infinite;transform-origin:bottom left;}
 
-        Tesseract.recognize(url, 'jpn', {
-          logger: function(m){
-            if(m.status==='recognizing text'){
-              statusText.textContent='文字を認識中… '+Math.round(m.progress*100)+'%';
-            } else if(m.status){
-              statusText.textContent = m.status;
-            }
-          }
-        }).then(function(res){
-          status.style.display='none';
-          var text = res.data.text || '';
-          rawOut.textContent = text.trim() || '(文字を検出できませんでした)';
-          var d = detect(text);
-          if(d){
-            yearOut.textContent = d.era+d.n+'年 ＝ 西暦'+d.seireki+'年';
-            yearOut.style.color='var(--color-text-success)';
-          } else {
-            yearOut.textContent='年号を判定できませんでした';
-            yearOut.style.color='var(--color-text-danger)';
-          }
-          result.style.display='block';
-        }).catch(function(err){
-          status.style.display='none';
-          yearOut.textContent='エラー: '+err.message;
-          yearOut.style.color='var(--color-text-danger)';
-          rawOut.textContent='';
-          result.style.display='block';
-        });
-      });
-    })();
-  </script>
+  /* === へそ天：呼吸でおなかが上下（足は動かさない） === */
+  @keyframes breathe { 0%,100%{transform:scaleY(1);} 50%{transform:scaleY(1.04);} }
+  .show-belly #bellyBody{animation:breathe 3s ease-in-out infinite;transform-origin:center bottom;}
+
+  /* === ひっくり返って足ぐるぐる === */
+  @keyframes spin { from{transform:rotate(0deg);} to{transform:rotate(360deg);} }
+  @keyframes spinRev { from{transform:rotate(0deg);} to{transform:rotate(-360deg);} }
+  @keyframes wiggle { 0%,100%{transform:rotate(-2deg);} 50%{transform:rotate(2deg);} }
+  .show-flip #flipLeg1{animation:spin .5s linear infinite;}
+  .show-flip #flipLeg2{animation:spinRev .45s linear infinite;}
+  .show-flip #flipLeg3{animation:spin .55s linear infinite;}
+  .show-flip #flipLeg4{animation:spinRev .48s linear infinite;}
+  .show-flip #flipBody{animation:wiggle .3s infinite;transform-origin:center;}
+</style>
+</head>
+<body>
+
+<div id="label">MOMO <span>Pet</span><span class="ver">v1.07</span></div>
+
+<div id="panel">
+  <button class="btn active" data-act="walk">歩く</button>
+  <button class="btn" data-act="sit">座る</button>
+  <button class="btn" data-act="belly">へそ天</button>
 </div>
+
+<div class="hint" id="hint">キーボードを打つと猫がタイピングのお手伝い / 猫クリックでぐるぐる / ボタンで動作切替 / 背景ダブルクリックで全画面</div>
+
+<div id="stage">
+  <div id="wrap">
+    <div id="inner">
+      <svg id="cat" class="show-walk" viewBox="0 -10 150 130" xmlns="http://www.w3.org/2000/svg">
+
+        <!-- ===================== 歩く ===================== -->
+        <g class="pose pose-walk">
+          <path id="walkTail" d="M40 70 Q16 60 24 34" stroke="#c2410c" stroke-width="8" stroke-linecap="round" fill="none"/>
+          <rect id="legBL" class="leg" x="40" y="74" width="8" height="26" rx="4" fill="#9a330a"/>
+          <rect id="legBR" class="leg" x="52" y="74" width="8" height="26" rx="4" fill="#c2410c"/>
+          <rect id="legFL" class="leg" x="74" y="74" width="8" height="26" rx="4" fill="#9a330a"/>
+          <rect id="legFR" class="leg" x="86" y="74" width="8" height="26" rx="4" fill="#c2410c"/>
+          <g id="walkBody">
+            <ellipse cx="64" cy="64" rx="40" ry="25" fill="#c2410c"/>
+            <g transform="translate(96,42) scale(0.78)">
+              <use href="#faceFront"/>
+            </g>
+          </g>
+        </g>
+
+        <!-- ===================== 座る ===================== -->
+        <g class="pose pose-sit">
+          <!-- しっぽ：体の根元から前に回す -->
+          <path id="sitTail" d="M64 96 Q47 100 51 78" stroke="#c2410c" stroke-width="8" stroke-linecap="round" fill="none"/>
+          <!-- お尻〜背中（縦長の三角ぽい体） -->
+          <path d="M52 100 Q44 60 72 50 Q100 56 92 100 Z" fill="#c2410c"/>
+          <!-- 前足を揃えて前に出す -->
+          <rect x="66" y="84" width="8" height="18" rx="4" fill="#9a330a"/>
+          <rect x="78" y="84" width="8" height="18" rx="4" fill="#c2410c"/>
+          <!-- 頭 -->
+          <g transform="translate(78,42) scale(0.8)">
+            <use href="#faceFront"/>
+          </g>
+        </g>
+
+        <!-- ===================== へそ天（仰向け） ===================== -->
+        <g class="pose pose-belly">
+          <!-- しっぽ -->
+          <path d="M30 96 Q8 92 16 70" stroke="#c2410c" stroke-width="8" stroke-linecap="round" fill="none"/>
+          <!-- 仰向けの胴（単色） -->
+          <g id="bellyBody">
+            <ellipse cx="78" cy="92" rx="48" ry="20" fill="#c2410c"/>
+          </g>
+          <!-- 上に投げ出した4本の足（動かさない） -->
+          <rect x="56" y="58" width="7" height="22" rx="3.5" fill="#9a330a"/>
+          <rect x="68" y="56" width="7" height="22" rx="3.5" fill="#c2410c"/>
+          <rect x="86" y="56" width="7" height="22" rx="3.5" fill="#c2410c"/>
+          <rect x="98" y="58" width="7" height="22" rx="3.5" fill="#9a330a"/>
+          <!-- 仰向けの頭（上下逆さの寝顔） -->
+          <g transform="translate(124,92) scale(0.62) rotate(180)">
+            <use href="#faceSleep"/>
+          </g>
+        </g>
+
+        <!-- ===================== ひっくり返り＋足ぐるぐる ===================== -->
+        <g class="pose pose-flip">
+          <!-- しっぽ（へそ天と同じ形） -->
+          <path d="M30 96 Q8 92 16 70" stroke="#c2410c" stroke-width="8" stroke-linecap="round" fill="none"/>
+          <g id="flipBody">
+            <!-- 背中を下にした胴（単色） -->
+            <ellipse cx="75" cy="90" rx="46" ry="19" fill="#c2410c"/>
+          </g>
+          <!-- ぐるぐる回る4本足（各足は付け根を中心に円運動） -->
+          <g id="flipLeg1" style="transform-origin:56px 78px;"><rect x="52" y="56" width="7" height="24" rx="3.5" fill="#9a330a"/></g>
+          <g id="flipLeg2" style="transform-origin:69px 76px;"><rect x="66" y="54" width="7" height="24" rx="3.5" fill="#c2410c"/></g>
+          <g id="flipLeg3" style="transform-origin:87px 76px;"><rect x="84" y="54" width="7" height="24" rx="3.5" fill="#c2410c"/></g>
+          <g id="flipLeg4" style="transform-origin:101px 78px;"><rect x="98" y="56" width="7" height="24" rx="3.5" fill="#9a330a"/></g>
+          <!-- 頭（上下逆さのびっくり顔） -->
+          <g transform="translate(120,88) scale(0.6) rotate(180)">
+            <use href="#faceSurprise"/>
+          </g>
+        </g>
+
+        <!-- ===================== 顔の共通定義（仕様シンボル準拠・正面対称） ===================== -->
+        <defs>
+          <!-- 通常の正面顔 -->
+          <g id="faceFront">
+            <g transform="rotate(-12,-12,8.3)">
+              <path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/>
+            </g>
+            <g transform="rotate(12,12,8.3)">
+              <path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/>
+            </g>
+            <ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/>
+            <line x1="-14" y1="1.00"  x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="-14" y1="6.0"   x2="-33.44" y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="-33.68" y1="-2.28" x2="-38" y2="-3"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="-33.44" y1="6.0"   x2="-40" y2="6"    stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="-29.58" y1="14.26" x2="-37" y2="16"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="14"  y1="1.00"  x2="33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="14"  y1="6.0"   x2="33.44" y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="14"  y1="10.59" x2="29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="33.68" y1="-2.28" x2="38"  y2="-3"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="33.44" y1="6.0"   x2="40"  y2="6"    stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="29.58" y1="14.26" x2="37"  y2="16"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+            <ellipse cx="-12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+            <ellipse cx="12"  cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+            <ellipse cx="-12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+            <ellipse cx="12"  cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+            <circle cx="-10.5" cy="-5.2" r="1.0" fill="#c2410c"/>
+            <circle cx="13.5"  cy="-5.2" r="1.0" fill="#c2410c"/>
+            <path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/>
+            <line x1="0" y1="11.3" x2="0" y2="13.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+            <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+            <path d="M0,13.3 Q5,17.3 8,15.3"  fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+          </g>
+
+          <!-- 寝顔（目を閉じる）：へそ天用 -->
+          <g id="faceSleep">
+            <g transform="rotate(-12,-12,8.3)">
+              <path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/>
+            </g>
+            <g transform="rotate(12,12,8.3)">
+              <path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/>
+            </g>
+            <ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/>
+            <line x1="-14" y1="1.00"  x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="-14" y1="6.0"   x2="-33.44" y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="14"  y1="1.00"  x2="33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="14"  y1="6.0"   x2="33.44" y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="14"  y1="10.59" x2="29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+            <!-- 閉じた目（への字の線） -->
+            <path d="M-16,-4 Q-12,-1 -8,-4" fill="none" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M8,-4 Q12,-1 16,-4" fill="none" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/>
+            <line x1="0" y1="11.3" x2="0" y2="13.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+            <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+            <path d="M0,13.3 Q5,17.3 8,15.3"  fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+          </g>
+
+          <!-- びっくり顔（目を見開く・口を開ける）：ひっくり返り用 -->
+          <g id="faceSurprise">
+            <g transform="rotate(-12,-12,8.3)">
+              <path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/>
+            </g>
+            <g transform="rotate(12,12,8.3)">
+              <path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/>
+            </g>
+            <ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/>
+            <line x1="-14" y1="1.00"  x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="-14" y1="6.0"   x2="-33.44" y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="14"  y1="1.00"  x2="33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="14"  y1="6.0"   x2="33.44" y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="14"  y1="10.59" x2="29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+            <!-- 弧を描いた目（上下反転修正版） -->
+            <path d="M-17,1 Q-12,-4 -7,1" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round"/>
+            <path d="M7,1 Q12,-4 17,1" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round"/>
+            <!-- 鼻（小さめのハート鼻） -->
+            <path d="M0,5.3 C-0.6,4.2 -2.6,4.2 -2.6,5.9 C-2.6,7.4 0,9.0 0,9.0 C0,9.0 2.6,7.4 2.6,5.9 C2.6,4.2 0.6,4.2 0,5.3 Z" fill="#000"/>
+            <!-- 鼻から口へつなぐ線 -->
+            <line x1="0" y1="9.0" x2="0" y2="11.0" stroke="#000" stroke-width="1.6" stroke-linecap="round"/>
+            <!-- 開いた口（おどろきの「O」・大きめ） -->
+            <ellipse cx="0" cy="15.5" rx="4.8" ry="6.0" fill="#1a0800"/>
+          </g>
+        </defs>
+
+      </svg>
+
+      <!-- ===================== タイピング（正面・手前にキーボード） ===================== -->
+      <svg id="typeCat" viewBox="0 0 220 210" xmlns="http://www.w3.org/2000/svg">
+        <!-- しっぽ -->
+        <path d="M150 120 Q185 110 178 80" stroke="#c2410c" stroke-width="9" stroke-linecap="round" fill="none"/>
+        <!-- 体（一回り小さく） -->
+        <ellipse cx="110" cy="122" rx="44" ry="40" fill="#c2410c"/>
+        <!-- 頭（正面顔・直接描画） -->
+        <g transform="translate(110,70) scale(0.92)">
+          <g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/></g>
+          <g transform="rotate(12,12,8.3)"><path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/></g>
+          <ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/>
+          <line x1="-14" y1="1" x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+          <line x1="-14" y1="6" x2="-33.44" y2="6" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+          <line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+          <line x1="14" y1="1" x2="33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+          <line x1="14" y1="6" x2="33.44" y2="6" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+          <line x1="14" y1="10.59" x2="29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+          <ellipse cx="-12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+          <ellipse cx="12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+          <ellipse cx="-12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+          <ellipse cx="12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+          <circle cx="-10.5" cy="-5.2" r="1.0" fill="#c2410c"/>
+          <circle cx="13.5" cy="-5.2" r="1.0" fill="#c2410c"/>
+          <path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/>
+          <line x1="0" y1="11.3" x2="0" y2="13.3" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M0,13.3 Q5,17.3 8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+        </g>
+        <!-- キーボード（体の前・腕より後ろ） -->
+        <g id="kbd" transform="translate(36,158)">
+          <rect x="-6" y="-6" width="160" height="44" rx="6" fill="#161616" stroke="#444" stroke-width="1"/>
+        </g>
+        <!-- 腕（肩中心に回転して叩く・棒状、先端の丸なし） -->
+        <g id="leftArm" style="transform-origin:92px 100px;">
+          <rect x="87" y="98" width="10" height="74" rx="5" fill="#c2410c"/>
+        </g>
+        <g id="rightArm" style="transform-origin:128px 100px;">
+          <rect x="123" y="98" width="10" height="74" rx="5" fill="#c2410c"/>
+        </g>
+      </svg>
+
+      <!-- ===================== スマホ操作（正面・小さなスマホをタップ） ===================== -->
+      <svg id="phoneCat" viewBox="0 0 220 210" xmlns="http://www.w3.org/2000/svg">
+        <!-- しっぽ -->
+        <path d="M150 120 Q185 110 178 80" stroke="#c2410c" stroke-width="9" stroke-linecap="round" fill="none"/>
+        <!-- 体 -->
+        <ellipse cx="110" cy="122" rx="44" ry="40" fill="#c2410c"/>
+        <!-- 頭（正面顔） -->
+        <g transform="translate(110,70) scale(0.92)">
+          <g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/></g>
+          <g transform="rotate(12,12,8.3)"><path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/></g>
+          <ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/>
+          <line x1="-14" y1="1" x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+          <line x1="-14" y1="6" x2="-33.44" y2="6" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+          <line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+          <line x1="14" y1="1" x2="33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+          <line x1="14" y1="6" x2="33.44" y2="6" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+          <line x1="14" y1="10.59" x2="29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+          <ellipse cx="-12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+          <ellipse cx="12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+          <ellipse cx="-12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+          <ellipse cx="12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+          <circle cx="-10.5" cy="-5.2" r="1.0" fill="#c2410c"/>
+          <circle cx="13.5" cy="-5.2" r="1.0" fill="#c2410c"/>
+          <path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/>
+          <line x1="0" y1="11.3" x2="0" y2="13.3" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M0,13.3 Q5,17.3 8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+        </g>
+        <!-- スマホ本体（縦長・体の手前中央） -->
+        <g transform="translate(110,150)">
+          <rect x="-22" y="-26" width="44" height="64" rx="7" fill="#161616" stroke="#444" stroke-width="1.5"/>
+          <rect x="-17" y="-20" width="34" height="50" rx="3" fill="#0e2a3a"/>
+          <circle cx="0" cy="34" r="2.4" fill="#333"/>
+        </g>
+        <!-- 左手：スマホを支える（固定） -->
+        <g>
+          <rect x="78" y="118" width="9" height="44" rx="4.5" fill="#9a330a" transform="rotate(24,82,120)"/>
+        </g>
+        <!-- 右手：画面をタップする（上下に動く） -->
+        <g id="phonePaw" style="transform-origin:134px 120px;">
+          <rect x="129" y="118" width="9" height="40" rx="4.5" fill="#c2410c" transform="rotate(-18,134,120)"/>
+        </g>
+      </svg>
+
+<script>
+  const wrap = document.getElementById('wrap');
+  const cat  = document.getElementById('cat');
+  const typeCat = document.getElementById('typeCat');
+  const phoneCat = document.getElementById('phoneCat');
+  const phonePaw = document.getElementById('phonePaw');
+  const leftArm = document.getElementById('leftArm');
+  const rightArm = document.getElementById('rightArm');
+  const kbd = document.getElementById('kbd');
+  const hint = document.getElementById('hint');
+  const W = () => window.innerWidth;
+  const CAT_W = 150;
+
+  // ===== 簡略キーボードのキーを生成 =====
+  const KEY_COLS = 11, KEY_ROWS = 3, KW = 12, KH = 10, GAP = 2;
+  const keycaps = [];  // {el, cx(0..1の横位置), row}
+  for (let r = 0; r < KEY_ROWS; r++) {
+    for (let c = 0; c < KEY_COLS; c++) {
+      const rx = c * (KW + GAP) + r * 3;
+      const ry = r * (KH + GAP);
+      const k = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      k.setAttribute('x', rx); k.setAttribute('y', ry);
+      k.setAttribute('width', KW); k.setAttribute('height', KH);
+      k.setAttribute('rx', 2);
+      k.setAttribute('fill', '#2a2a2a');
+      k.setAttribute('stroke', '#3a3a3a'); k.setAttribute('stroke-width', '0.5');
+      k.classList.add('keycap');
+      kbd.appendChild(k);
+      keycaps.push({ el: k, fx: (c + 0.5) / KEY_COLS, row: r, rxCenter: rx + KW/2 });
+    }
+  }
+
+  // 状態: walk / sit / belly / flip （タイピングは別管理）
+  let pose = 'walk';
+  let x = 120, dir = 1, speed = 0.9;
+  let lockUntil = 0;          // flipなどで一定時間ロック
+  let returnPose = 'walk';    // flip後に戻る動作
+  let nextAutoAt = 0;         // 次に自動で動作を変える時刻
+  let typing = false;         // タイピング中フラグ
+  let typingUntil = 0;        // この時刻まで入力なければ解除
+  let beforeTypingPose = 'walk';
+  // 自動遷移の法則：各状態からランダムで選ぶ遷移先
+  const AUTO_TRANSITIONS = {
+    walk:  ['sit'],          // 歩く → 座る
+    sit:   ['walk','belly'], // 座る → 歩く or 寝る
+    belly: ['walk'],         // 寝る → 歩く
+  };
+
+  function applyPose(p) {
+    pose = p;
+    // SVG要素は className への文字列代入が効かないため classList を使う
+    cat.classList.remove('show-walk','show-sit','show-belly','show-flip');
+    cat.classList.add('show-' + p);
+    document.querySelectorAll('#panel .btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.act === p);
+    });
+  }
+
+  function scheduleNextAuto(now) {
+    // 4〜9秒後にランダムで次の動作へ
+    nextAutoAt = now + 4000 + Math.random() * 5000;
+  }
+
+  function setPose(p, opts = {}) {
+    applyPose(p);
+    hint.textContent = labelOf(p);
+    if (opts.lock) lockUntil = performance.now() + opts.lock;
+    scheduleNextAuto(performance.now());
+  }
+
+  function labelOf(p) {
+    return ({
+      walk: '歩いています',
+      sit: '座っています',
+      belly: 'へそ天で寝ています',
+      flip: 'ひっくり返って足ぐるぐる！'
+    })[p] || '';
+  }
+
+  // ===== タイピング処理 =====
+  // 物理キーのおおよその横位置(0=左端,1=右端)を返す
+  const KEY_ROWS_STR = [
+    "1234567890-",
+    "QWERTYUIOP",
+    "ASDFGHJKL",
+    "ZXCVBNM",
+  ];
+  function keyFx(e) {
+    let ch = '';
+    if (e.key && e.key.length === 1) ch = e.key.toUpperCase();
+    else if (e.code && e.code.startsWith('Key')) ch = e.code.slice(3);
+    else if (e.code && e.code.startsWith('Digit')) ch = e.code.slice(5);
+    if (e.code === 'Space') return 0.5;
+    for (const row of KEY_ROWS_STR) {
+      const i = row.indexOf(ch);
+      if (i >= 0) return (i + 0.5) / row.length;
+    }
+    // 修飾キーやEnterなどは端寄り
+    if (/Enter|Backspace|Shift.*Right|Control.*Right/.test(e.code || '')) return 0.9;
+    if (/Tab|Shift.*Left|Control.*Left|Caps/.test(e.code || '')) return 0.1;
+    return 0.5;
+  }
+
+  // デバイス判定（スマホ/タブレットか）
+  const isMobile = (() => {
+    const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    const ua = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+    const touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    return ua || (coarse && touch);
+  })();
+
+  function enterTyping() {
+    if (!typing) {
+      typing = true;
+      beforeTypingPose = pose;
+      document.body.classList.add('typing');
+      document.body.classList.toggle('phone', isMobile);
+      hint.textContent = isMobile ? 'スマホを操作中…' : 'タイピングをお手伝い中…';
+    }
+    typingUntil = performance.now() + 1600;
+  }
+
+  function exitTyping() {
+    typing = false;
+    document.body.classList.remove('typing', 'phone');
+    setPose('sit');
+  }
+
+  // スマホ：右手で画面をタップ（上下に小さく動かす）
+  function phoneTap() {
+    phonePaw.style.transform = 'translateY(8px)';
+    setTimeout(() => { phonePaw.style.transform = 'translateY(0)'; }, 90);
+  }
+
+  // 押されたキーに対応して腕を振り下ろす（光る機能は廃止）
+  function pawHit(fx) {
+    const useLeft = fx < 0.5;
+    const arm = useLeft ? leftArm : rightArm;
+
+    const reach = Math.max(0.02, Math.min(0.98, fx));
+    const homeFx = useLeft ? 0.32 : 0.68;
+    const spread = (reach - homeFx) * 150; // 度
+    const tilt = -spread;
+    const stretch = Math.min(18, Math.abs(reach - homeFx) * 40);
+
+    // 振り下ろし → 戻す
+    arm.style.transform = `rotate(${tilt}deg) translateY(${6 + stretch}px)`;
+    setTimeout(() => { arm.style.transform = `rotate(${tilt*0.5}deg) translateY(0)`; }, 70);
+  }
+
+  function tick(now) {
+    // タイピング中は移動も自動遷移もしない。時間切れで解除。
+    if (typing) {
+      if (now >= typingUntil) exitTyping();
+      requestAnimationFrame(tick);
+      return;
+    }
+
+    if (pose === 'walk') {
+      x += speed * dir;
+      if (x > W() - CAT_W) { x = W() - CAT_W; dir = -1; }
+      if (x < 0) { x = 0; dir = 1; }
+      wrap.classList.toggle('flip', dir === -1);
+      wrap.style.left = x + 'px';
+    }
+
+    // ロック中（flip中）は遷移しない
+    if (now < lockUntil) { requestAnimationFrame(tick); return; }
+
+    // flipが終わったら戻す
+    if (pose === 'flip' && lockUntil !== 0) {
+      lockUntil = 0;
+      setPose(returnPose);
+      requestAnimationFrame(tick);
+      return;
+    }
+
+    // 自動切り替え（なで=flip以外のとき、時間が来たら法則に従って別の動作へ）
+    if (now >= nextAutoAt) {
+      const choices = AUTO_TRANSITIONS[pose] || ['walk'];
+      const next = choices[Math.floor(Math.random() * choices.length)];
+      setPose(next);
+    }
+
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+
+  // ===== クリックでひっくり返って足ぐるぐる =====
+  cat.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (pose === 'flip') return;
+    returnPose = (pose === 'belly') ? 'belly' : 'sit';
+    setPose('flip', { lock: 2400 });
+  });
+
+  // ===== パネルのボタン（手動操作。次の自動切替まで少し猶予を置く） =====
+  document.querySelectorAll('#panel .btn').forEach(b => {
+    b.addEventListener('click', () => {
+      lockUntil = 0;
+      setPose(b.dataset.act);
+      // 手動操作直後はすぐ自動で変わらないよう長めに
+      nextAutoAt = performance.now() + 8000 + Math.random() * 4000;
+    });
+  });
+
+  // ===== 背景ダブルクリックで全画面 =====
+  document.body.addEventListener('dblclick', () => {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+    else document.exitFullscreen?.();
+  });
+
+  // ===== 入力で猫が反応 =====
+  // 注：ブラウザではこのウィンドウにフォーカスがある時のみ反応します。
+  //     OSレベルの枠外キー検知はElectron化時にglobalShortcut/keyフックで対応。
+  function onInput(e) {
+    enterTyping();
+    if (isMobile) phoneTap();
+    else pawHit(keyFx(e || {}));
+  }
+  window.addEventListener('keydown', onInput);
+  // スマホのソフトキーボードはkeydownが来ないことがあるので入力系も拾う
+  window.addEventListener('input', () => onInput(null), true);
+
+  // ===== スマホ：ソフトキーボードで画面が狭くなったのを検知 =====
+  // visualViewport の高さがレイアウト高さより一定以上小さくなったら
+  // 「ソフトキーボードが出て画面が狭くなった」とみなす。
+  if (window.visualViewport) {
+    const vv = window.visualViewport;
+    let kbdOpen = false;
+    function checkViewport() {
+      const shrink = window.innerHeight - vv.height;
+      const nowOpen = shrink > 150; // 150px以上縮んだらキーボードありとみなす
+      if (nowOpen && !kbdOpen) {
+        kbdOpen = true;
+        enterTyping();
+      } else if (!nowOpen && kbdOpen) {
+        kbdOpen = false;
+        // 閉じたら通常はタイピング解除（時間切れにも任せる）
+      }
+      // 猫を「見えている領域」の下端に収める（キーボードに隠れないように）
+      if (nowOpen) {
+        wrap.style.bottom = (shrink + 12) + 'px';
+      } else {
+        wrap.style.bottom = '24px';
+      }
+    }
+    vv.addEventListener('resize', checkViewport);
+    vv.addEventListener('scroll', checkViewport);
+  }
+
+  // 初期化
+  wrap.style.left = x + 'px';
+  setPose('walk');
+</script>
+</body>
+</html>

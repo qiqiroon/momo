@@ -124,7 +124,7 @@
   body.typing #cat { display: none; }
   /* タイピング中はwrapの左右反転を無効化（正面なので） */
   body.typing #wrap.flip #inner { transform: none; }
-  #leftArm, #rightArm, #phonePaw { transition: transform 0.06s ease-out; }
+  #leftArm, #rightArm, #phoneArmL, #phoneArmR { transition: transform 0.06s ease-out; }
   .keycap { transition: fill 0.08s; }
   .keycap.lit { fill: var(--orange-mid) !important; }
 
@@ -162,7 +162,7 @@
 </head>
 <body>
 
-<div id="label">MOMO <span>Pet</span><span class="ver">v1.11</span></div>
+<div id="label">MOMO <span>Pet</span><span class="ver">v1.12</span></div>
 
 <input id="kbInput" type="text" placeholder=" here ..." autocomplete="off" autocapitalize="off" autocorrect="off" />
 
@@ -376,7 +376,7 @@
         </g>
       </svg>
 
-      <!-- ===================== スマホ操作（正面・小さなスマホをタップ） ===================== -->
+      <!-- ===================== スマホ操作（下に置いたスマホを上から両足で押す） ===================== -->
       <svg id="phoneCat" viewBox="0 0 220 210" xmlns="http://www.w3.org/2000/svg">
         <!-- しっぽ -->
         <path d="M150 120 Q185 110 178 80" stroke="#c2410c" stroke-width="9" stroke-linecap="round" fill="none"/>
@@ -404,19 +404,18 @@
           <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
           <path d="M0,13.3 Q5,17.3 8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
         </g>
-        <!-- スマホ本体（縦長・体の手前中央） -->
-        <g transform="translate(110,150)">
-          <rect x="-22" y="-26" width="44" height="64" rx="7" fill="#161616" stroke="#444" stroke-width="1.5"/>
-          <rect x="-17" y="-20" width="34" height="50" rx="3" fill="#0e2a3a"/>
-          <circle cx="0" cy="34" r="2.4" fill="#333"/>
+        <!-- スマホ（下に横長に置く・キーボードと同じ位置） -->
+        <g transform="translate(40,158)">
+          <rect x="-6" y="-6" width="160" height="44" rx="8" fill="#161616" stroke="#444" stroke-width="1.5"/>
+          <rect x="2" y="-1" width="144" height="34" rx="4" fill="#0e2a3a"/>
+          <circle cx="74" cy="40" r="2.6" fill="#333"/>
         </g>
-        <!-- 左手：スマホを支える（固定） -->
-        <g>
-          <rect x="78" y="118" width="9" height="44" rx="4.5" fill="#9a330a" transform="rotate(24,82,120)"/>
+        <!-- 両足（上から押す・棒状、肩中心に回転） -->
+        <g id="phoneArmL" style="transform-origin:92px 100px;">
+          <rect x="87" y="98" width="10" height="74" rx="5" fill="#c2410c"/>
         </g>
-        <!-- 右手：画面をタップする（上下に動く） -->
-        <g id="phonePaw" style="transform-origin:134px 120px;">
-          <rect x="129" y="118" width="9" height="40" rx="4.5" fill="#c2410c" transform="rotate(-18,134,120)"/>
+        <g id="phoneArmR" style="transform-origin:128px 100px;">
+          <rect x="123" y="98" width="10" height="74" rx="5" fill="#c2410c"/>
         </g>
       </svg>
 
@@ -425,7 +424,8 @@
   const cat  = document.getElementById('cat');
   const typeCat = document.getElementById('typeCat');
   const phoneCat = document.getElementById('phoneCat');
-  const phonePaw = document.getElementById('phonePaw');
+  const phoneArmL = document.getElementById('phoneArmL');
+  const phoneArmR = document.getElementById('phoneArmR');
   const leftArm = document.getElementById('leftArm');
   const rightArm = document.getElementById('rightArm');
   const kbd = document.getElementById('kbd');
@@ -549,10 +549,18 @@
     setPose('sit');
   }
 
-  // スマホ：右手で画面をタップ（上下に小さく動かす）
+  // スマホ：下に置いたスマホを上から足で押す（キーボードと同じ要領で左右の足を振る）
   function phoneTap() {
-    phonePaw.style.transform = 'translateY(8px)';
-    setTimeout(() => { phonePaw.style.transform = 'translateY(0)'; }, 90);
+    const fx = Math.random(); // 押す位置はランダム（あちこち押す）
+    const useLeft = fx < 0.5;
+    const arm = useLeft ? phoneArmL : phoneArmR;
+    const homeFx = useLeft ? 0.32 : 0.68;
+    const reach = Math.max(0.02, Math.min(0.98, fx));
+    const spread = (reach - homeFx) * 150;
+    const tilt = -spread;
+    const stretch = Math.min(18, Math.abs(reach - homeFx) * 40);
+    arm.style.transform = `rotate(${tilt}deg) translateY(${6 + stretch}px)`;
+    setTimeout(() => { arm.style.transform = `rotate(${tilt*0.5}deg) translateY(0)`; }, 80);
   }
 
   // 押されたキーに対応して腕を振り下ろす（光る機能は廃止）

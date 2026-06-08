@@ -69,6 +69,27 @@
   #label span { color: var(--orange-mid); }
   #label .ver { font-family: 'Noto Sans JP', sans-serif; font-size: 9px; color: var(--text-muted); margin-left: 5px; vertical-align: middle; }
 
+  /* スマホでソフトキーボードを出すための入力欄 */
+  #kbInput {
+    position: fixed; top: 6px; left: 50%; transform: translateX(-50%);
+    z-index: 200;
+    width: 180px; max-width: 42vw;
+    padding: 5px 10px;
+    background: var(--surface2);
+    border: 0.5px solid var(--border-strong);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 13px;
+    outline: none;
+  }
+  /* 狭い画面では入力欄を2段目に下げて、ラベル・ボタンと重ならないように */
+  @media (max-width: 520px) {
+    #kbInput { top: 34px; max-width: 70vw; width: 220px; }
+  }
+  #kbInput::placeholder { color: var(--text-muted); }
+  #kbInput:focus { border-color: var(--orange); }
+
   .hint {
     position: fixed; bottom: 10px; left: 12px; z-index: 200;
     font-size: 11px; color: var(--text-muted);
@@ -137,7 +158,9 @@
 </head>
 <body>
 
-<div id="label">MOMO <span>Pet</span><span class="ver">v1.07</span></div>
+<div id="label">MOMO <span>Pet</span><span class="ver">v1.08</span></div>
+
+<input id="kbInput" type="text" placeholder=" here ..." autocomplete="off" autocapitalize="off" autocorrect="off" />
 
 <div id="panel">
   <button class="btn active" data-act="walk">歩く</button>
@@ -645,6 +668,10 @@
   }
 
   // 初期化
+  const kbInput = document.getElementById('kbInput');
+  kbInput.addEventListener('dblclick', (e) => e.stopPropagation());
+  kbInput.addEventListener('click', (e) => e.stopPropagation());
+
   wrap.style.left = x + 'px';
   setPose('walk');
 </script>

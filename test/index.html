@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>MOMO Pet</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-46 -50 92 80'%3E%3Crect x='-46' y='-50' width='92' height='80' rx='8' fill='%23000000'/%3E%3Cg transform='rotate(-12,-12,8.3)'%3E%3Cpath d='M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cg transform='rotate(12,12,8.3)'%3E%3Cpath d='M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cellipse cx='0' cy='1.3' rx='34' ry='26' fill='%23c2410c'/%3E%3C/svg%3E">
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
@@ -80,7 +80,7 @@
     border-radius: 6px;
     color: var(--text);
     font-family: 'Noto Sans JP', sans-serif;
-    font-size: 13px;
+    font-size: 16px; /* 16px未満だとiOSがフォーカス時に自動ズームするため16pxに */
     outline: none;
   }
   /* 狭い画面では入力欄を2段目に下げて、ラベル・ボタンと重ならないように */
@@ -162,7 +162,7 @@
 </head>
 <body>
 
-<div id="label">MOMO <span>Pet</span><span class="ver">v1.09</span></div>
+<div id="label">MOMO <span>Pet</span><span class="ver">v1.10</span></div>
 
 <input id="kbInput" type="text" placeholder=" here ..." autocomplete="off" autocapitalize="off" autocorrect="off" />
 

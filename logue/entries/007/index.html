@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>プログラミングが手の届く存在になること — MOMO Logue</title>
+
+<!-- ============================================================
+  MOMO Logue — Entry 007
+  タイトル: プログラミングが手の届く存在になること / When Programming Comes Within Reach / 当编程变得触手可及
+  日付: 2026-06-08
+  バージョン: v1.00
+  注釈方式: AI ファクトチェック型（既定。注釈ルール仕様書 v1.08 §3.4 参照）
+  ファクトチェック: Claude (Anthropic, Opus 4.8)
+  変更履歴:
+    v1.00 - 初版。本文10段落、AIファクトチェック型の注釈3箇所（PC-8001/N-BASIC、個人プログラマーと代表作、開発規模の変遷）を4言語（ja/en/zh/cat）で実装
+  ============================================================ -->
+
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-46 -50 92 80'%3E%3Crect x='-46' y='-50' width='92' height='80' rx='8' fill='%23000000'/%3E%3Cg transform='rotate(-12,-12,8.3)'%3E%3Cpath d='M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cg transform='rotate(12,12,8.3)'%3E%3Cpath d='M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cellipse cx='0' cy='1.3' rx='34' ry='26' fill='%23c2410c'/%3E%3Cline x1='-14' y1='1.00' x2='-33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='6.0' x2='-33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='10.59' x2='-29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.68' y1='-2.28' x2='-38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.44' y1='6.0' x2='-40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-29.58' y1='14.26' x2='-37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='1.00' x2='33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='6.0' x2='33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='10.59' x2='29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.68' y1='-2.28' x2='38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.44' y1='6.0' x2='40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='29.58' y1='14.26' x2='37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cellipse cx='-12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='-12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Cellipse cx='12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Ccircle cx='-10.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Ccircle cx='13.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Cpath d='M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z' fill='%23000'/%3E%3Cline x1='0' y1='11.3' x2='0' y2='13.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q-5,17.3 -8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q5,17.3 8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --surface2: #1a1a1a;
+    --orange: #c2410c;
+    --orange-light: #ea580c;
+    --text: #e5e5e5;
+    --text-muted: #737373;
+    --border: #2a2a2a;
+    --border-strong: #444;
+    --bg-selected: rgba(194,65,12,0.15);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 48px 48px;
+    opacity: 0.3;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  #lang-switcher { position: fixed; top: 8px; right: 12px; z-index: 200; }
+  #lang-select {
+    background: var(--surface2);
+    border: 1px solid var(--border-strong);
+    color: var(--text);
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: 'Noto Sans JP', sans-serif;
+    outline: none;
+  }
+  #lang-select:focus { border-color: var(--orange); }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 680px;
+    padding: 0 24px;
+  }
+
+  .site-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 52px 0 40px;
+    animation: fadeDown 0.7s ease both;
+  }
+
+  .site-logo {
+    font-family: 'Fredoka One', cursive;
+    font-size: 1.1rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    letter-spacing: 0.04em;
+    transition: color 0.2s;
+  }
+
+  .site-logo:hover { color: var(--text); }
+  .site-logo span { color: var(--orange-light); }
+  .site-logo-sep { color: var(--border-strong); font-size: 0.9rem; }
+
+  article {
+    animation: fadeUp 0.7s ease 0.15s both;
+    margin-bottom: 56px;
+  }
+
+  .entry-meta {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 28px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .entry-num { font-size: 0.7rem; color: var(--orange); letter-spacing: 0.1em; }
+  .entry-date { font-size: 0.75rem; color: var(--text-muted); letter-spacing: 0.05em; }
+
+  .entry-title {
+    font-size: clamp(1.4rem, 4vw, 1.9rem);
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    line-height: 1.4;
+    margin-bottom: 32px;
+    color: #fff;
+  }
+
+  .entry-body { font-size: 1rem; line-height: 2; color: var(--text); letter-spacing: 0.04em; }
+  .entry-body p { margin-bottom: 1.6em; }
+  .entry-body p:last-child { margin-bottom: 0; }
+
+  .entry-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 24px 0 40px;
+    border-top: 1px solid var(--border);
+    animation: fadeUp 0.7s ease 0.3s both;
+  }
+
+  .nav-link {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    letter-spacing: 0.06em;
+    transition: color 0.2s;
+  }
+  .nav-link:hover { color: var(--text); }
+
+  footer {
+    margin-top: auto;
+    padding: 24px 0;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-align: center;
+    border-top: 1px solid var(--border);
+    width: 100%;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* 脚注リンク（本文中の番号） */
+  .fn-ref {
+    color: var(--orange);
+    text-decoration: none;
+    font-size: 0.7em;
+    vertical-align: super;
+    line-height: 0;
+    padding: 0 2px;
+    transition: color 0.2s;
+  }
+  .fn-ref:hover { color: var(--orange-light); }
+
+  /* 脚注セクション */
+  .footnotes {
+    margin-top: 56px;
+    padding-top: 32px;
+    border-top: 1px solid var(--border);
+    font-size: 0.85rem;
+    line-height: 1.85;
+    color: var(--text-muted);
+    letter-spacing: 0.03em;
+  }
+  .footnotes-title {
+    font-size: 0.7rem;
+    color: var(--orange);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    font-weight: 500;
+  }
+  .footnotes-disclaimer {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 28px;
+    line-height: 1.7;
+    opacity: 0.75;
+    letter-spacing: 0.02em;
+  }
+  .footnotes ol {
+    list-style: none;
+    padding-left: 0;
+    counter-reset: fn;
+  }
+  .footnotes li {
+    margin-bottom: 1.4em;
+    padding-left: 32px;
+    position: relative;
+  }
+  .footnotes li::before {
+    content: counter(fn);
+    counter-increment: fn;
+    position: absolute;
+    left: 0;
+    top: 0;
+    color: var(--orange);
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+  .footnotes li:target { color: var(--text); }
+  .footnotes li:target::before { color: var(--orange-light); }
+  .fn-back {
+    color: var(--text-muted);
+    text-decoration: none;
+    margin-left: 6px;
+    font-size: 0.85em;
+    transition: color 0.2s;
+  }
+  .fn-back:hover { color: var(--orange); }
+
+  html { scroll-behavior: smooth; }
+
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+</style>
+<script src="/momo/lib/momo-analytics.js" defer></script>
+</head>
+<body>
+
+<div id="lang-switcher">
+  <select id="lang-select" onchange="onLangChange(this.value)">
+    <option value="ja">日本語</option>
+    <option value="en">EN</option>
+    <option value="zh">中文</option>
+    <option value="cat">CAT</option>
+  </select>
+</div>
+
+<div class="container">
+  <div class="site-header">
+    <a class="site-logo" href="../../../">MOMO <span>Works</span></a>
+    <span class="site-logo-sep">/</span>
+    <a class="site-logo" href="../../">MOMO <span>Logue</span></a>
+  </div>
+
+  <article>
+    <div class="entry-meta">
+      <span class="entry-num">007</span>
+      <span class="entry-date">2026-06-08</span>
+    </div>
+    <h1 class="entry-title" id="entry-title">プログラミングが手の届く存在になること</h1>
+    <div class="entry-body" id="entry-body"></div>
+    <section class="footnotes" id="footnotes">
+      <div class="footnotes-title" id="footnotes-title">Notes — Fact-checked by Claude</div>
+      <div class="footnotes-disclaimer" id="footnotes-disclaimer"></div>
+      <ol id="footnotes-list"></ol>
+    </section>
+  </article>
+
+  <nav class="entry-nav">
+    <a class="nav-link" href="../" id="nav-back">← Logue</a>
+    <span></span>
+  </nav>
+</div>
+
+<footer id="footer-text">&copy; MOMO Works</footer>
+
+<script>
+const CONTENT = {
+  ja: {
+    title: 'プログラミングが手の届く存在になること',
+    notesTitle: 'Notes — Fact-checked by Claude',
+    notesDisclaimer: '本注釈は、本文の事実関係を補強する目的で Claude（Anthropic 社、Opus 4.8）が生成・確認した記述である。',
+    body: `
+      <p>若かった頃、コンピュータがパーソナルになった。それまで大きいほど良いとされ、個人が触れるものではなかった機械が、自分の目的のために使える道具になった。素人でもプログラムが書けた。NECのPC-8001やPC-8801でBASICを打ち<a class="fn-ref" href="#fn1" id="ref1">[1]</a>、私も簡単なゲームを作って遊んだ。市販ソフトの世界でも、一人のプログラマーが名前で勝負できる時代だった<a class="fn-ref" href="#fn2" id="ref2">[2]</a>。</p>
+      <p>あの頃のプログラムは、たしかに手の内にあった。一行ずつ自分で書き、一行ずつ自分で理解していた。動かなければ、どこが悪いかは自分にしかわからなかったし、自分でわかった。機械は小さかったが、その中で起きていることは、すべて私のものだった。</p>
+      <p>やがてWindowsが広まる頃から、プログラムは複雑になっていった<a class="fn-ref" href="#fn3" id="ref3">[3]</a>。そのうち書くことはあきらめて、アプリを買ってきて使うものになった。手の届かないところへ遠ざかっていった。</p>
+      <p>今、AIの力を借りて、プログラミングがまた手の内に戻ってきた——と、最初はそう思った。</p>
+      <p>けれど、本当にそうだろうか。AIと作ったプログラムは、たしかに動く。けれど、その一行一行を、私は昔のように理解しているわけではない。動くが、なぜ動くのかを全部は言えない。これは「手の届く」状態ではあっても、「手の内にある」状態とは、少し違う気がする。あの頃の私は、小さな機械の全部をわかっていた。今の私は、大きなことができるのに、その中身を手放している。</p>
+      <p>道具が手元にあることと、その道具をわかっていることは、同じではないらしい。便利さと引き換えに、私はいつのまにか「わかる」を手放したのかもしれない。</p>
+      <p>学生の頃のことを思い出す。当時の指導教授は、自分の研究にプログラムを使っていた。ただし、コードを書くのはいつもゼミ生で、教授自身は一行も打たない。それでいて「自分はプログラミングができる」と豪語していた。私たちは陰で笑っていた。あれをプログラミングと呼ぶのか、と。</p>
+      <p>今になって思う。あの教授は、半世紀ぶん早く、今の私たちを先取りしていたのかもしれない。</p>
+      <p>この先、プログラムはまた複雑になるのだろう。それでもAIが肩代わりしてくれるから、困りはしないのだろう。あるいは——プログラミングという概念そのものが、消えてしまうのかもしれない。人間が考えるより先に、AIが答えを差し出す世界。いつか「プログラミング」は、説明しないと通じない言葉になっているのかもしれない。</p>
+      <p>そうなるまでの数年か、十数年か。この、半分しかわからない楽しさを、もう少し続けられるといい。</p>
+    `,
+    notes: [
+      `<span id="fn1">NEC PC-8001。1979年9月発売。日本における初期の本格的パーソナルコンピュータの一機種。マイクロソフト製BASICを拡張したN-BASICをROMに搭載。起動時にBASICが立ち上がる仕様であり、利用者は即座にプログラムを記述・実行できた。発売後約3年間で約25万台を販売したとされる。上位機種PC-8801は1981年11月発売。当時のパソコン雑誌はプログラムのソースリストを誌面に掲載し、利用者がこれを手入力して実行する利用形態が一般的であった。専門教育を受けていない個人がプログラムを記述・実行する環境を提供した機種。<a class="fn-back" href="#ref1">↩</a></span>`,
+      `<span id="fn2">当該時期のゲームソフトは、企画・プログラミング・グラフィック・音楽を一名ないし少人数で担当する開発形態が一般的であった。中村光一は高校在学時にPC-8001を用いてプログラミングを習得。1982年、エニックス主催のゲームコンテストに『ドアドア』で入賞。後にドラゴンクエストシリーズのメインプログラマーを務めた。同コンテストの最優秀賞受賞者は、後に『森田将棋』で知られる森田和郎である。<a class="fn-back" href="#ref2">↩</a></span>`,
+      `<span id="fn3">Microsoft Windowsは1985年に初版を公開。1995年のWindows 95以降、日本国内の個人利用者に急速に普及した。GUIアプリケーションの開発は習得対象が広範であり、個人が単独でソフトウェアを完成させる難度は上昇した。開発規模の変化はゲーム開発に顕著である。1980年代初頭は一作品を一名から数名で開発可能であった。一方、近年の大規模タイトルでは、『Red Dead Redemption 2』（2018年）の開発ピーク時の人員が約1,600名、『ELDEN RING』（2022年）のクレジット記載人員が約1,600名規模に達した。<a class="fn-back" href="#ref3">↩</a></span>`,
+    ],
+  },
+  en: {
+    title: 'When Programming Comes Within Reach',
+    notesTitle: 'Notes — Fact-checked by Claude',
+    notesDisclaimer: 'These notes were generated and verified by Claude (Anthropic, Opus 4.8) to corroborate the factual statements in the main text.',
+    body: `
+      <p>When I was young, computers became personal. Machines once judged better the larger they were, machines no individual could touch, became tools you could use for your own ends. Even an amateur could write a program. I tapped out BASIC on NEC's PC-8001 and PC-8801<a class="fn-ref" href="#fn1" id="ref1">[1]</a>, and made simple games to play. In the world of commercial software, too, it was an era when a single programmer could make a name on their own<a class="fn-ref" href="#fn2" id="ref2">[2]</a>.</p>
+      <p>Back then, a program was truly within my grasp. I wrote it line by line, and I understood it line by line. When it didn't run, only I could tell what was wrong — and I could tell. The machine was small, but everything happening inside it was mine.</p>
+      <p>Eventually, around the time Windows spread, programs grew complex<a class="fn-ref" href="#fn3" id="ref3">[3]</a>. Before long I gave up writing them, and they became things you bought as apps and used. They drifted off to somewhere beyond my reach.</p>
+      <p>Now, with the power of AI, programming has returned to my grasp — or so I thought at first.</p>
+      <p>But is that really so? The programs I make with AI do run. Yet I don't understand each line the way I once did. They work, but I can't fully say why. This may be a state of being "within reach," but it feels a little different from being "within my grasp." Back then, I knew the whole of a small machine. Now I can do large things, yet I've let go of what's inside them.</p>
+      <p>Having a tool at hand and understanding that tool, it seems, are not the same. In exchange for convenience, perhaps I let go of "understanding" somewhere along the way.</p>
+      <p>I recall my student days. My academic advisor at the time used programs in his research. But it was always the seminar students who wrote the code; the professor himself never typed a single line. And yet he boasted that he "could program." We laughed behind his back. Is that what you call programming, we said.</p>
+      <p>Now I think differently. That professor may have been half a century ahead of us, anticipating exactly where we are today.</p>
+      <p>From here, programs will likely grow complex again. Even so, AI will take over the burden, so I probably won't be troubled. Or perhaps — the very concept of programming may vanish. A world where, before a human can even think, AI sets out the answer. Someday "programming" may have become a word that no longer makes sense without explanation.</p>
+      <p>However many years, or decades, it takes to get there — I hope I can keep up this half-understood pleasure a little longer.</p>
+    `,
+    notes: [
+      `<span id="fn1">NEC PC-8001. Released September 1979. One of the early full-fledged personal computers to gain wide use in Japan. It carried N-BASIC, an extension of Microsoft BASIC, in ROM. The specification booted directly into BASIC, allowing the user to write and run programs immediately. An estimated 250,000 units were sold over roughly three years. The higher-end PC-8801 was released in November 1981. Personal-computer magazines of the period printed program source listings on the page, and the common mode of use was for readers to type them in by hand and run them. A machine that provided an environment in which individuals without specialized training could write and run programs.<a class="fn-back" href="#ref1">↩</a></span>`,
+      `<span id="fn2">Game software of this period was commonly developed with planning, programming, graphics, and music handled by one person or a small group. Koichi Nakamura learned programming on the PC-8001 while in high school. In 1982 he won an award in a game contest hosted by Enix with <em>Door Door</em>, and later served as the lead programmer of the Dragon Quest series. The contest's grand prize went to Kazuro Morita, later known for <em>Morita Shogi</em>.<a class="fn-back" href="#ref2">↩</a></span>`,
+      `<span id="fn3">Microsoft Windows released its first version in 1985. From Windows 95 (1995) onward it spread rapidly among individual users in Japan. Developing GUI applications required mastering a broad range of material, and the difficulty of an individual completing software alone rose. The shift in development scale is conspicuous in game development. In the early 1980s a single title could be developed by one to several people. By contrast, among recent large-scale titles, <em>Red Dead Redemption 2</em> (2018) had roughly 1,600 personnel at its development peak, and <em>ELDEN RING</em> (2022) reached a credited headcount on the order of 1,600.<a class="fn-back" href="#ref3">↩</a></span>`,
+    ],
+  },
+  zh: {
+    title: '当编程变得触手可及',
+    notesTitle: 'Notes — Fact-checked by Claude',
+    notesDisclaimer: '本注释由 Claude（Anthropic 公司，Opus 4.8）生成并核实，用以佐证正文中的事实陈述。',
+    body: `
+      <p>年轻的时候，计算机变得个人化了。曾经被认为越大越好、个人无从触碰的机器，变成了可以为自己的目的所用的工具。即便是外行也能写程序。我在NEC的PC-8001和PC-8801上敲BASIC<a class="fn-ref" href="#fn1" id="ref1">[1]</a>，也做过简单的游戏来玩。在市售软件的世界里，那也是一个程序员凭一己之力就能闯出名号的时代<a class="fn-ref" href="#fn2" id="ref2">[2]</a>。</p>
+      <p>那时候的程序，确实在我的掌握之中。一行一行自己写，一行一行自己理解。跑不起来时，哪里出了问题只有我自己清楚，而我也确实弄得清楚。机器很小，但其中发生的一切，都属于我。</p>
+      <p>后来，大约在Windows普及的时候，程序逐渐变得复杂起来<a class="fn-ref" href="#fn3" id="ref3">[3]</a>。渐渐地我放弃了自己写，程序变成了买来即用的应用。它渐渐远去，到了我够不着的地方。</p>
+      <p>如今，借助AI的力量，编程又回到了我的掌握之中——起初我是这么以为的。</p>
+      <p>但真的是这样吗？我与AI一起做的程序，确实能跑。可那一行一行，我并不像从前那样真正理解。它能运行，但我无法完整说出它为何能运行。这或许是"触手可及"的状态，却和"在掌握之中"的状态，似乎有些不同。那时的我，了解一台小机器的全部。如今的我，能做很大的事，却把其中的内容拱手让了出去。</p>
+      <p>工具在手边，与真正理解这件工具，看来并不是一回事。作为便利的交换，或许我在不知不觉间，把"理解"拱手让了出去。</p>
+      <p>我想起学生时代的事。当时的指导教授，会在自己的研究中使用程序。只不过，写代码的永远是研究室的学生，教授本人一行都不敲。即便如此，他却夸口说"自己会编程"。我们在背后偷笑：那也叫编程吗。</p>
+      <p>如今再想，那位教授，或许提前了半个世纪，预演了今天的我们。</p>
+      <p>往后，程序大概还会再次变得复杂。即便如此，AI会替我们承担，所以大概也不会为难。又或者——编程这个概念本身，也许会就此消失。在人类思考之前，AI就先把答案摆了出来的世界。也许有一天，"编程"会变成一个不加解释便无法理解的词。</p>
+      <p>在那一天到来之前的数年，或十几年里——但愿我还能把这份只懂得一半的乐趣，再延续一阵子。</p>
+    `,
+    notes: [
+      `<span id="fn1">NEC PC-8001。1979年9月发售。日本早期正式普及的个人计算机机型之一。在ROM中搭载了以微软BASIC为基础扩展而成的N-BASIC。其规格为开机即启动BASIC，使用者可立即编写并运行程序。据称发售后约三年间售出约25万台。上位机型PC-8801于1981年11月发售。当时的个人电脑杂志会在版面上刊登程序源码清单，使用者手动录入并运行是普遍的使用形态。这是一款为未受专业训练的个人提供了编写并运行程序之环境的机型。<a class="fn-back" href="#ref1">↩</a></span>`,
+      `<span id="fn2">该时期的游戏软件，普遍采用由一人或少数人负责企划、编程、图形与音乐的开发形态。中村光一在高中在学期间使用PC-8001掌握了编程。1982年，他以《Door Door》在艾尼克斯（Enix）主办的游戏大赛中获奖，后来担任勇者斗恶龙系列的主程序员。该大赛的最优秀奖得主，是后来以《森田将棋》闻名的森田和郎。<a class="fn-back" href="#ref2">↩</a></span>`,
+      `<span id="fn3">Microsoft Windows于1985年公开首个版本。自1995年的Windows 95以后，在日本国内的个人用户中迅速普及。GUI应用程序的开发所需掌握的对象范围广泛，个人独力完成软件的难度随之上升。开发规模的变化在游戏开发中尤为显著。1980年代初期，一部作品可由一人至数人开发。相较之下，近年的大型作品中，《Red Dead Redemption 2》（2018年）开发高峰期的人员约1,600名，《ELDEN RING》（2022年）的职员表记载人数也达到约1,600名规模。<a class="fn-back" href="#ref3">↩</a></span>`,
+    ],
+  },
+};
+
+let catBase = 'ja';
+
+function catSpeak() {
+  const vocabMap = {
+    en: ['MEOW','meow','mrrrow','mew','NYA!'],
+    zh: ['喵','喵呜','咪','喵！'],
+    ja: ['にゃあ','にゃ','にゃーん','みゃお','ニャ！'],
+  };
+  const vocab = vocabMap[catBase] || vocabMap.ja;
+  return vocab[Math.floor(Math.random() * vocab.length)];
+}
+
+function catBody() {
+  // 日本語本文の段落数（10段落）に合わせてにゃあにゃあする
+  return Array.from({length: 10}, () => `<p>${catSpeak()}</p>`).join('\n');
+}
+
+function catNotes() {
+  // 注釈3個分のにゃあ
+  return Array.from({length: 3}, () => catSpeak());
+}
+
+let currentLang = (() => {
+  try {
+    const p = new URLSearchParams(location.search).get('lang');
+    if (p && ['ja','en','zh','cat'].includes(p)) return p;
+    const v = localStorage.getItem('momoLang');
+    return ['ja','en','zh','cat'].includes(v) ? v : 'ja';
+  } catch(e) { return 'ja'; }
+})();
+
+function renderNotes(notesArray) {
+  const list = document.getElementById('footnotes-list');
+  if (!list) return;
+  list.innerHTML = notesArray.map(n => `<li>${n}</li>`).join('');
+}
+
+function applyLang() {
+  if (currentLang === 'cat') {
+    const t = catSpeak();
+    document.getElementById('entry-title').textContent  = t;
+    document.title = t + ' — MOMO Logue';
+    document.getElementById('entry-body').innerHTML     = catBody();
+    document.getElementById('footnotes-title').textContent = catSpeak();
+    document.getElementById('footnotes-disclaimer').textContent = catSpeak();
+    renderNotes(catNotes());
+    document.getElementById('nav-back').textContent     = catSpeak();
+    document.getElementById('footer-text').textContent  = catSpeak();
+  } else {
+    const c = CONTENT[currentLang] || CONTENT.ja;
+    document.getElementById('entry-title').textContent  = c.title;
+    document.title = c.title + ' — MOMO Logue';
+    document.getElementById('entry-body').innerHTML     = c.body;
+    document.getElementById('footnotes-title').textContent = c.notesTitle;
+    document.getElementById('footnotes-disclaimer').textContent = c.notesDisclaimer;
+    renderNotes(c.notes);
+    document.getElementById('nav-back').textContent     = '← Logue';
+    document.getElementById('footer-text').textContent  = '© MOMO Works';
+  }
+  const sel = document.getElementById('lang-select');
+  if (sel) sel.value = currentLang;
+  document.documentElement.lang = currentLang === 'zh' ? 'zh-Hans' : (currentLang === 'cat' ? catBase : currentLang);
+}
+
+function onLangChange(lang) {
+  if (lang === 'cat') catBase = currentLang;
+  currentLang = lang;
+  try { localStorage.setItem('momoLang', lang); } catch(e) {}
+  try {
+    const url = new URL(location.href);
+    if (lang === 'ja') url.searchParams.delete('lang');
+    else url.searchParams.set('lang', lang);
+    history.replaceState(null, '', url.toString());
+  } catch(e) {}
+  applyLang();
+}
+
+applyLang();
+</script>
+</body>
+</html>

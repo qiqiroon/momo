@@ -106,9 +106,9 @@
   #wrap.flip #inner { transform: scaleX(-1); }
   #cat { width: 150px; height: auto; cursor: pointer; display: block; }
 
-  /* スマホでは猫の絵全体を約1/5に縮小 */
-  body.mobile #cat { width: 30px; }
-  body.mobile #typeCat, body.mobile #phoneCat { width: 38px; }
+  /* スマホでは猫の絵全体を縮小（PCの約3/5） */
+  body.mobile #cat { width: 90px; }
+  body.mobile #typeCat, body.mobile #phoneCat { width: 114px; }
 
   /* 状態ごとにパーツを出し分け */
   .pose { display: none; }
@@ -162,7 +162,7 @@
 </head>
 <body>
 
-<div id="label">MOMO <span>Pet</span><span class="ver">v1.10</span></div>
+<div id="label">MOMO <span>Pet</span><span class="ver">v1.11</span></div>
 
 <input id="kbInput" type="text" placeholder=" here ..." autocomplete="off" autocapitalize="off" autocorrect="off" />
 

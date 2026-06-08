@@ -106,6 +106,10 @@
   #wrap.flip #inner { transform: scaleX(-1); }
   #cat { width: 150px; height: auto; cursor: pointer; display: block; }
 
+  /* スマホでは猫の絵全体を約1/5に縮小 */
+  body.mobile #cat { width: 30px; }
+  body.mobile #typeCat, body.mobile #phoneCat { width: 38px; }
+
   /* 状態ごとにパーツを出し分け */
   .pose { display: none; }
   .show-walk  .pose-walk  { display: block; }
@@ -158,7 +162,7 @@
 </head>
 <body>
 
-<div id="label">MOMO <span>Pet</span><span class="ver">v1.08</span></div>
+<div id="label">MOMO <span>Pet</span><span class="ver">v1.09</span></div>
 
 <input id="kbInput" type="text" placeholder=" here ..." autocomplete="off" autocapitalize="off" autocorrect="off" />
 
@@ -526,6 +530,7 @@
     const touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     return ua || (coarse && touch);
   })();
+  if (isMobile) document.body.classList.add('mobile');
 
   function enterTyping() {
     if (!typing) {
@@ -647,7 +652,7 @@
     const vv = window.visualViewport;
     let kbdOpen = false;
     function checkViewport() {
-      const shrink = window.innerHeight - vv.height;
+      const shrink = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
       const nowOpen = shrink > 150; // 150px以上縮んだらキーボードありとみなす
       if (nowOpen && !kbdOpen) {
         kbdOpen = true;
@@ -656,9 +661,11 @@
         kbdOpen = false;
         // 閉じたら通常はタイピング解除（時間切れにも任せる）
       }
-      // 猫を「見えている領域」の下端に収める（キーボードに隠れないように）
+      // 猫を「見えている領域」の上、キーボードに完全にかぶらない位置へ。
+      // wrapの下端(=猫の足元)をキーボード上端より十分上に置く。
       if (nowOpen) {
-        wrap.style.bottom = (shrink + 12) + 'px';
+        const MARGIN = 24; // キーボード上端からの余白
+        wrap.style.bottom = (shrink + MARGIN) + 'px';
       } else {
         wrap.style.bottom = '24px';
       }

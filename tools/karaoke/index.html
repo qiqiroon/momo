@@ -1763,7 +1763,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.79</span>
+                <span class="version-tag" id="version-tag">v2.80</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2605,7 +2605,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.79';
+const APP_VERSION = 'v2.80';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -5977,6 +5977,29 @@ async function _reconcileTakesInBackground(entry) {
     } catch (e) { DEBUG.warn('v2.63b: songMeta load failed: ' + (e.message || e)); return; }
     if (!songMeta || !Array.isArray(songMeta.takes) || !songMeta.takes.length) return;
     if (state.currentEntry !== entry) return;  // 曲切替検知
+
+    // v2.80: 別端末で削除されたテイクの剪定。 reconcile は従来「追加専用」 で、 他端末 (例: iPhone)
+    //   で削除→Drive meta.json から消えても、 この端末の IDB キャッシュに残った同期済みテイクを
+    //   除去できず復活して見えた。 → meta.json (=同期の正本) に無い「file 有り(=過去に同期済)」
+    //   テイクを除去する。 ※file 無し(=未同期のローカル録音/複製)は保護して残す。
+    //   ※meta.takes が空のケースは上の guard で早期 return するため、 全件剪定の暴発は起きない。
+    {
+        const metaIds = new Set(songMeta.takes.map(t => t.id).filter(Boolean));
+        const pruned = [];
+        entry.takes = (entry.takes || []).filter(t => {
+            if (t.file && !metaIds.has(t.id)) { pruned.push(t.id); return false; }
+            return true;
+        });
+        if (pruned.length) {
+            pruned.forEach(id => { if (state.selectedTakeIds) state.selectedTakeIds.delete(id); });
+            if (state.currentTake && pruned.indexOf(state.currentTake.id) !== -1) {
+                state.currentTake = entry.takes.length ? entry.takes[entry.takes.length - 1] : null;
+            }
+            try { await persistTakes(entry); } catch (e) { DEBUG.warn('v2.80 prune persistTakes 失敗: ' + (e.message || e)); }
+            DEBUG.info('v2.80: 別端末で削除された同期テイクを除去: ' + pruned.length + ' 件');
+            try { renderTakes(); if (typeof renderBadges === 'function') renderBadges(); } catch (e) {}
+        }
+    }
 
     const idbMap = new Map();
     (entry.takes || []).forEach(t => idbMap.set(t.id, t));

@@ -1763,7 +1763,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.77</span>
+                <span class="version-tag" id="version-tag">v2.78</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2605,7 +2605,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.77';
+const APP_VERSION = 'v2.78';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -5916,6 +5916,41 @@ async function syncTakeFile(takeId) {
     DEBUG.ok('Take sync: ' + fileName + ' uploaded + meta.json updated');
 }
 
+// v2.78: 現メモリの takes[] で保存先 (Drive/Local) の meta.json を再構築・保存。
+//   削除/リネーム/複製後に呼ぶと、 再読込時の reconcile が古い take を復活させない。
+async function _syncTakesMetaToStore() {
+    const META = window.MomoMeta;
+    const ctx = await _mixStorageCtx();
+    if (!ctx || !META || !state.currentEntry) return;
+    let songMeta;
+    if (ctx.prov === 'drive') songMeta = await META.Drive.loadSongMeta(ctx.songFolderName);
+    else songMeta = await META.Local.loadSongMeta(ctx.songHandle);
+    if (!songMeta) songMeta = META.defaultSongMeta();
+    songMeta.takes = (state.currentEntry.takes || []).map(t => ({
+        id: t.id,
+        name: t.name,
+        startSongTime: t.startSongTime || 0,
+        duration: t.duration || 0,
+        speed: t.speed || 1.0,
+        pitchSemitones: t.pitchSemitones || 0,
+        volume: (t.volume != null ? t.volume : 1.0),
+        file: t.file || null,
+        createdAt: t.createdAt || Date.now()
+    }));
+    if (ctx.prov === 'drive') await META.Drive.saveSongMeta(ctx.songFolderName, songMeta);
+    else await META.Local.saveSongMeta(ctx.songHandle, songMeta);
+}
+
+// v2.78: 保存先からテイク音声ファイルを削除 (存在しない場合のエラーは無害)。
+async function _deleteTakeFileFromStore(fileName) {
+    if (!fileName) return;
+    const META = window.MomoMeta;
+    const ctx = await _mixStorageCtx();
+    if (!ctx || !META) return;
+    if (ctx.prov === 'drive') await META.Drive.deleteFile(ctx.songFolderName, fileName);
+    else await META.Local.deleteFile(ctx.songHandle, fileName);
+}
+
 function retryTakeUpload(takeId) {
     if (!_takeBlobs[takeId]) {
         alert('録音データが見つかりません (page reload 後はリトライ不可。 同期は次回録音から有効です)');
@@ -6442,6 +6477,7 @@ function _openTakeContextMenu(anchorBtn, take) {
         _closeTakeContextMenu();
         if (!confirm('このテイクを削除しますか？')) return;
         DEBUG.info('Take deleted: ' + take.id);
+        const delFile = take.file || ('take_' + take.id + '.webm');
         state.currentEntry.takes = state.currentEntry.takes.filter(x => x.id !== take.id);
         // v2.36: selectedTakeIds からも削除
         state.selectedTakeIds.delete(take.id);
@@ -6449,9 +6485,24 @@ function _openTakeContextMenu(anchorBtn, take) {
             state.currentTake = state.currentEntry.takes.length ? state.currentEntry.takes[state.currentEntry.takes.length-1] : null;
             stopTakePlayback();
         }
-        await persistTakes(state.currentEntry);
+        await persistTakes(state.currentEntry);  // 端末内キャッシュ (IDB)
         renderTakes();
         renderBadges();
+        // v2.78: 保存先 (Drive/Local) にも反映。 これが無いと再読込時に reconcile が
+        //   Drive の meta.json から削除済みテイクを復活させてしまう (再起動で全部戻る不具合)。
+        try {
+            await _syncTakesMetaToStore();
+            DEBUG.ok('Take delete: meta.json に反映');
+        } catch (err) {
+            DEBUG.err('Take delete: meta.json 反映に失敗: ' + (err.message || err));
+            setStatus(_friendlyErr(err, 'テイクの削除を保存できませんでした (再接続して再試行してください)'), 'warn');
+        }
+        try {
+            await _deleteTakeFileFromStore(delFile);
+            DEBUG.ok('Take delete: ファイル削除 ' + delFile);
+        } catch (err) {
+            DEBUG.warn('Take delete: ファイル削除に失敗 (未同期なら無害): ' + (err.message || err));
+        }
     });
     // 位置計算: anchorBtn の下、 はみ出るなら左寄せ
     const rect = anchorBtn.getBoundingClientRect();

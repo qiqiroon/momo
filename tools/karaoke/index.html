@@ -1763,7 +1763,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.76</span>
+                <span class="version-tag" id="version-tag">v2.77</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2173,6 +2173,18 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                 <input type="text" id="karaoke-song-picker-search" placeholder="🔍 検索 (アーティスト / 曲名)…" style="width:100%; padding:8px 10px; box-sizing:border-box; background:var(--bg); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:13px; margin-bottom:10px;">
                 <div id="karaoke-song-picker-list" style="flex:1; overflow-y:auto; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:8px; min-height:160px; max-height:55vh;"></div>
                 <div id="karaoke-song-picker-empty" style="display:none; padding:14px; text-align:center; color:var(--text-muted); font-size:12px;">該当する曲がありません</div>
+            </div>
+        </div>
+
+        <!-- v2.77 (UI再編③): iPhone 起動ごと、 カラオケタブ初回表示で録音マイクを質問 (本体/イヤホン)。 PCでは出さない。 -->
+        <div id="karaoke-mic-init-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1100; align-items:center; justify-content:center; padding:20px;">
+            <div style="background:var(--surface); border:1px solid var(--orange); border-radius:12px; padding:20px; max-width:380px; width:100%;">
+                <div style="font-size:15px; font-weight:700; color:var(--orange-light); margin-bottom:8px;">録音マイクの選択</div>
+                <p style="font-size:12px; color:var(--text-muted); line-height:1.6; margin:0 0 16px;">今回はどちらで録音しますか？<br>（あとで「録音モード」からいつでも変えられます）</p>
+                <div style="display:flex; gap:10px;">
+                    <button class="momo-btn" id="karaoke-mic-init-builtin" style="flex:1; padding:12px 8px; line-height:1.4;">本体マイク<br><small style="font-weight:400; font-size:10px; color:var(--text-muted);">音が大きい・歌うとBGMが少し下がる</small></button>
+                    <button class="momo-btn" id="karaoke-mic-init-earphone" style="flex:1; padding:12px 8px; line-height:1.4;">イヤホンマイク<br><small style="font-weight:400; font-size:10px; color:var(--text-muted);">BGMが下がらない・イヤホン向き</small></button>
+                </div>
             </div>
         </div>
 
@@ -2593,7 +2605,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.76';
+const APP_VERSION = 'v2.77';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2855,6 +2867,8 @@ async function idbDelete(store, key){
 // v2.00: 4 タブ構成 (メイク/カラオケ/ミックス/管理)
 //   - 'library' タブ ID は内部互換のため維持、 ラベルだけ「メイク」 に変更
 //   - 'manage' タブを新規追加 (Phase 7 で本実装、 当面プレースホルダ表示のみ)
+// v2.77 (UI再編③): iPhone は起動ごとにカラオケタブ初回表示で録音マイクを質問。 launch 中は保持 (リロードで起動=リセット)。
+let _micInitAsked = false;
 function switchTab(name){
     document.querySelectorAll('.tab-btn').forEach(b => {
         b.classList.toggle('active', b.dataset.tab === name);
@@ -2941,6 +2955,12 @@ function switchTab(name){
         applyTabBgmVolume();   // このタブの BGM 音量 + 新 playMode を applyBalance で反映
         // v2.74: このタブのボイスカット量を worklet に反映 (二重カット解消・タブ独立)
         try { applyBgmVocalCut(); } catch (e) {}
+    }
+    // v2.77 (UI再編③): iPhone は起動ごとにカラオケタブ初回表示で録音マイクを質問 (本体/イヤホン)。 PCは出さない。
+    if (name === 'karaoke' && IS_IOS && !_micInitAsked) {
+        _micInitAsked = true;
+        const im = document.getElementById('karaoke-mic-init-modal');
+        if (im) im.style.display = 'flex';
     }
 }
 document.querySelectorAll('.tab-btn').forEach(b => {
@@ -8217,6 +8237,14 @@ function setRecMode(v){
     try { localStorage.setItem(REC_MODE_LS_KEY, v); } catch(e){}
     DEBUG.info('録音方式 → ' + v);
 }
+// v2.77: 録音モードの現在値をUI (録音モードのラジオ + マイク枠ボタン面) に反映 (init配線・初回質問の両方から使う)
+const REC_MODE_LABELS = { classic: '本体マイク', clean: 'イヤホンマイク', hybrid: '実験' };
+function _applyRecModeUI(){
+    const m = getRecMode();
+    document.querySelectorAll('input[name="krecmode"]').forEach(r => { r.checked = (r.value === m); });
+    const el = document.getElementById('karaoke-acc-recmode-val');
+    if (el) el.textContent = REC_MODE_LABELS[m] || m;
+}
 
 // MIC GAIN slider — applies in real time during recording or test mode
 // v2.24: localStorage 永続化 (リロードしても前回の値を復元、 仕様書 §9.1 micGain の代替)
@@ -9115,19 +9143,19 @@ function _initKaraoke5c() {
 
     // (3b) v2.75 (UI再編): 録音モード = ラジオ (本体マイク / イヤホンマイク / 実験)。 ボタン面に現在モード表示。
     const recModeRadios = document.querySelectorAll('input[name="krecmode"]');
-    const recModeValEl = document.getElementById('karaoke-acc-recmode-val');
-    const REC_MODE_LABELS = { classic: '本体マイク', clean: 'イヤホンマイク', hybrid: '実験' };
-    function _updateRecModeUI() {
-        const m = getRecMode();
-        recModeRadios.forEach(r => { r.checked = (r.value === m); });
-        if (recModeValEl) recModeValEl.textContent = REC_MODE_LABELS[m] || m;
-    }
-    _updateRecModeUI();
+    _applyRecModeUI();  // v2.77: 共通関数で現在モードを反映 (初回質問からも使う)
     recModeRadios.forEach(r => {
         r.addEventListener('change', () => {
-            if (r.checked && !r.disabled) { setRecMode(r.value); _updateRecModeUI(); }
+            if (r.checked && !r.disabled) { setRecMode(r.value); _applyRecModeUI(); }
         });
     });
+
+    // (3c) v2.77 (UI再編③): iPhone 初回質問モーダルの2ボタン配線
+    const micInitBuiltin = document.getElementById('karaoke-mic-init-builtin');
+    const micInitEarphone = document.getElementById('karaoke-mic-init-earphone');
+    function _closeMicInitModal(){ const m = document.getElementById('karaoke-mic-init-modal'); if (m) m.style.display = 'none'; }
+    if (micInitBuiltin) micInitBuiltin.addEventListener('click', () => { setRecMode('classic'); _applyRecModeUI(); _closeMicInitModal(); });
+    if (micInitEarphone) micInitEarphone.addEventListener('click', () => { setRecMode('clean'); _applyRecModeUI(); _closeMicInitModal(); });
 
     // (4) v2.75 (UI再編): マイク枠アコーディオンの開閉 (⚙モーダル廃止 → その場展開)
     function _bindKaraokeAcc(btnId, bodyId) {

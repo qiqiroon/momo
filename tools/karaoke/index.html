@@ -1231,6 +1231,39 @@ h1 .version-tag {
     border-radius: 8px; padding: 16px; margin-top: 8px; margin-bottom: 12px;
 }
 .karaoke-panel + .karaoke-panel { margin-top: 12px; }
+
+/* v2.75 (UI再編): カラオケタブの BGM設定枠 / マイク枠 + アコーディオン */
+.karaoke-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px; margin-bottom: 14px;
+}
+.karaoke-box-title {
+    font-size: 11px; font-weight: 700; color: var(--orange); text-transform: uppercase;
+    letter-spacing: 0.08em; margin-bottom: 10px;
+}
+.karaoke-box-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.karaoke-box-row + .karaoke-box-row { margin-top: 10px; }
+.karaoke-box-label { color: var(--text-muted); font-size: 12px; font-weight: 600; min-width: 84px; }
+.karaoke-acc-btn {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; cursor: pointer; color: var(--text); font-size: 13px; text-align: left;
+}
+.karaoke-acc-btn + .karaoke-acc-btn { margin-top: 8px; }
+.karaoke-acc-btn:hover, .karaoke-acc-btn.open { border-color: var(--orange); }
+.karaoke-acc-name { font-weight: 600; }
+.karaoke-acc-val { margin-left: auto; font-family: monospace; font-size: 12px; color: var(--orange-light); }
+.karaoke-acc-arrow { color: var(--text-muted); font-size: 12px; }
+.karaoke-acc-body { padding: 12px 4px 4px; }
+.karaoke-recmode-list { display: flex; flex-direction: column; gap: 6px; }
+.karaoke-recmode-opt {
+    display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
+}
+.karaoke-recmode-opt input { margin-top: 3px; flex: 0 0 auto; }
+.karaoke-recmode-opt b { font-size: 13px; color: var(--text); }
+.karaoke-recmode-opt small { display: block; font-size: 10px; color: var(--text-muted); line-height: 1.4; margin-top: 2px; }
+.karaoke-recmode-disabled { opacity: 0.45; cursor: not-allowed; }
 .panel-head {
     display: flex; align-items: center; justify-content: space-between;
     margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border);
@@ -1730,7 +1763,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.74</span>
+                <span class="version-tag" id="version-tag">v2.75</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2050,23 +2083,70 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <button class="momo-btn-small" id="karaoke-btn-pick-song">曲選択</button>
         </div>
 
-        <!-- v2.21 (Phase 5b): ボイスカット 0/50/100% トグル (仕様書 §5.3) -->
-        <div id="karaoke-vc-toggle-row" style="display:flex; align-items:center; gap:10px; padding:10px 14px; background:var(--surface); border:1px solid var(--border); border-radius:10px; margin-bottom:14px; flex-wrap:wrap;">
-            <span style="color:var(--text-muted); font-size:12px; font-weight:600; margin-right:6px;">ボイスカット</span>
-            <div id="karaoke-vc-toggle" role="radiogroup" style="display:inline-flex; gap:4px; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:3px;">
-                <button class="karaoke-vc-btn active" data-vc="0" style="padding:6px 14px; font-size:12px; font-weight:600; border:none; border-radius:6px; background:var(--orange); color:#000; cursor:pointer;">0%</button>
-                <button class="karaoke-vc-btn" data-vc="50" style="padding:6px 14px; font-size:12px; font-weight:600; border:none; border-radius:6px; background:transparent; color:var(--text); cursor:pointer;">50%</button>
-                <button class="karaoke-vc-btn" data-vc="100" style="padding:6px 14px; font-size:12px; font-weight:600; border:none; border-radius:6px; background:transparent; color:var(--text); cursor:pointer;">100%</button>
+        <!-- v2.75 (UI再編): BGM設定枠 — ボイスカット + 音量を1枠に統合 -->
+        <div class="karaoke-box" id="karaoke-bgm-settings">
+            <div class="karaoke-box-title">BGM設定</div>
+            <div class="karaoke-box-row">
+                <span class="karaoke-box-label">ボイスカット</span>
+                <div id="karaoke-vc-toggle" role="radiogroup" style="display:inline-flex; gap:4px; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:3px;">
+                    <button class="karaoke-vc-btn active" data-vc="0" style="padding:6px 14px; font-size:12px; font-weight:600; border:none; border-radius:6px; background:var(--orange); color:#000; cursor:pointer;">0%</button>
+                    <button class="karaoke-vc-btn" data-vc="50" style="padding:6px 14px; font-size:12px; font-weight:600; border:none; border-radius:6px; background:transparent; color:var(--text); cursor:pointer;">50%</button>
+                    <button class="karaoke-vc-btn" data-vc="100" style="padding:6px 14px; font-size:12px; font-weight:600; border:none; border-radius:6px; background:transparent; color:var(--text); cursor:pointer;">100%</button>
+                </div>
+                <span id="karaoke-vc-hint" style="flex:1; min-width:140px; color:var(--text-muted); font-size:11px;">取り込み時に生成した voicecut.wav に切替</span>
             </div>
-            <span id="karaoke-vc-hint" style="flex:1; min-width:140px; color:var(--text-muted); font-size:11px;">取り込み時に生成した voicecut.wav に切替</span>
+            <div class="karaoke-box-row">
+                <span class="karaoke-box-label">🎵 音量</span>
+                <input type="range" id="karaoke-bgm-vol-slider" min="0" max="200" step="5" value="100" style="flex:1; min-width:140px;">
+                <span id="karaoke-bgm-vol-val" style="color:var(--text); font-size:12px; font-family:monospace; min-width:48px; text-align:right;">100%</span>
+            </div>
         </div>
 
-        <!-- v2.23 (Phase 5c): BGM 音量スライダ (常時表示 0〜200%) + マイク設定ボタン (仕様書 §5.4/§5.5) -->
-        <div id="karaoke-bgm-vol-row" style="display:flex; align-items:center; gap:10px; padding:10px 14px; background:var(--surface); border:1px solid var(--border); border-radius:10px; margin-bottom:14px; flex-wrap:wrap;">
-            <span style="color:var(--text-muted); font-size:12px; font-weight:600; min-width:60px;">🎵 BGM</span>
-            <input type="range" id="karaoke-bgm-vol-slider" min="0" max="200" step="5" value="100" style="flex:1; min-width:140px;">
-            <span id="karaoke-bgm-vol-val" style="color:var(--text); font-size:12px; font-family:monospace; min-width:48px; text-align:right;">100%</span>
-            <button class="momo-btn-small" id="karaoke-btn-mic-setup" title="マイク設定">⚙ マイク</button>
+        <!-- v2.75 (UI再編): マイク枠 — ⚙廃止、 「マイク感度設定」「録音モード」を表に (タップでその場展開) -->
+        <div class="karaoke-box" id="karaoke-mic-box">
+            <div class="karaoke-box-title">マイク</div>
+
+            <!-- マイク感度設定 アコーディオン (テスト・レベルメーターを内包) -->
+            <button type="button" class="karaoke-acc-btn" id="karaoke-acc-gain" aria-expanded="false">
+                <span class="karaoke-acc-name">🎚 マイク感度設定</span>
+                <span class="karaoke-acc-val" id="karaoke-acc-gain-val">+0.0 dB</span>
+                <span class="karaoke-acc-arrow">▾</span>
+            </button>
+            <div class="karaoke-acc-body" id="karaoke-acc-gain-body" style="display:none;">
+                <p class="panel-desc"><b>① のつまみ</b>でマイクの感度を変え、<b>②</b> の声の大きさ（入力レベル）を見ながら、歌う声で<b style="color:var(--green)">緑〜黄</b>のあたりに届くように合わせます。<b style="color:var(--rec-red,#f87171)">赤</b>まで行くと音が割れます。数字は「今の声の大きさ」で、つまみの値ではありません。</p>
+                <div class="ctrl">
+                    <div class="ctrl-label"><span>① マイクの感度（つまみで調整）</span><span class="ctrl-val" id="micGainVal">+0.0 dB</span></div>
+                    <input type="range" id="micGainSlider" min="0" max="36" step="0.5" value="0">
+                </div>
+                <div class="ctrl-label"><span>② 出ている声の大きさ（入力レベル）</span><span class="mic-level-peak" id="micLevelHint">— dB</span></div>
+                <div class="mic-meter-track" id="micMeterTrack">
+                    <div class="mic-meter-fill" id="micLevel"></div>
+                    <div class="mic-meter-peak-marker" id="micPeakMarker"></div>
+                </div>
+                <div class="mic-meter-legend"><span class="zg">🟢 ちょうど</span><span class="zy">🟡 大きめ</span><span class="zr">🔴 割れる</span></div>
+                <div class="mic-test-row">
+                    <button id="btnMicTest" class="momo-btn-small">🎤 マイクテスト (5秒)</button>
+                    <span id="micTestStatus" class="mic-test-status">押すと、マイクをON/OFF して声の大きさを確認できます</span>
+                </div>
+            </div>
+
+            <!-- 録音モード アコーディオン (3案・改名: 本体マイク / イヤホンマイク / 実験) -->
+            <button type="button" class="karaoke-acc-btn" id="karaoke-acc-recmode" aria-expanded="false">
+                <span class="karaoke-acc-name">🎙 録音モード</span>
+                <span class="karaoke-acc-val" id="karaoke-acc-recmode-val">本体マイク</span>
+                <span class="karaoke-acc-arrow">▾</span>
+            </button>
+            <div class="karaoke-acc-body" id="karaoke-acc-recmode-body" style="display:none;">
+                <div id="iosHeadphoneHint" class="hidden" style="background:rgba(251,146,60,0.06);border:1px solid rgba(251,146,60,0.3);border-radius:6px;padding:8px 12px;font-size:11px;color:var(--orange-light);margin-bottom:10px;">
+                    🎧 <b>スピーカー再生のまま録音すると、BGM が録音に混ざります。</b>きれいに録るにはヘッドホン/イヤホンの使用を推奨します。
+                </div>
+                <div class="karaoke-recmode-list" role="radiogroup">
+                    <label class="karaoke-recmode-opt"><input type="radio" name="krecmode" value="classic"><span><b>本体マイク</b><small>音が大きい・ピッタリ合う（歌うとBGMが少し下がる）</small></span></label>
+                    <label class="karaoke-recmode-opt"><input type="radio" name="krecmode" value="clean"><span><b>イヤホンマイク</b><small>BGMは下がらない／録音中は小さい（イヤホン向き）</small></span></label>
+                    <label class="karaoke-recmode-opt karaoke-recmode-disabled"><input type="radio" name="krecmode" value="hybrid" disabled><span><b>実験</b><small>大きい＋下がらない（ずれる・準備中）</small></span></label>
+                </div>
+                <div style="font-size:10px; color:var(--text-muted); margin-top:8px; line-height:1.5;">スピーカーで歌うなら「本体マイク」、イヤホンを使うなら「イヤホンマイク」がおすすめ。<br>※iPhoneでは「大きい音」と「BGMが下がらない」の両立ができないため選べるようにしています。</div>
+            </div>
         </div>
 
         <!-- v2.28 (Phase 5d-3): テイクのリネーム用モーダル -->
@@ -2081,18 +2161,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             </div>
         </div>
 
-        <!-- v2.23 (Phase 5c): マイク設定モーダル — 中身は既存 Mic Setup パネルを起動時に移動 -->
-        <div id="karaoke-mic-setup-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1000; align-items:center; justify-content:center; padding:20px;">
-            <div style="background:var(--surface); border:1px solid var(--orange); border-radius:12px; padding:18px; max-width:460px; width:100%; max-height:80vh; overflow-y:auto;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                    <div style="font-size:14px; font-weight:700; color:var(--orange-light);">マイク設定</div>
-                    <button class="momo-btn-small" id="karaoke-mic-setup-close" style="padding:4px 10px;">×</button>
-                </div>
-                <div id="karaoke-mic-setup-modal-body">
-                    <!-- 既存 #karaoke-mic-setup-panel が JS で append される -->
-                </div>
-            </div>
-        </div>
+        <!-- v2.75 (UI再編): マイク設定モーダルは廃止。 感度設定/録音モードはマイク枠のアコーディオンに表出。 -->
 
         <!-- v2.20: 曲選択モーダル (仕様書 §8.1) -->
         <div id="karaoke-song-picker-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1000; align-items:center; justify-content:center; padding:20px;">
@@ -2153,41 +2222,8 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             </div>
         </div>
 
-        <!-- マイクセットアップ (v2.23 で id 付与: モーダル化のため起動時に JS で物理移動) -->
-        <div class="karaoke-panel" id="karaoke-mic-setup-panel">
-            <div class="panel-head">
-                <div class="panel-title">Mic Setup</div>
-                <div class="panel-tag" id="micPeakTag">— dB</div>
-            </div>
-            <p class="panel-desc"><b>① のつまみ</b>でマイクの感度を変え、<b>②</b> の声の大きさ（入力レベル）を見ながら、歌う声で<b style="color:var(--green)">緑〜黄</b>のあたりに届くように合わせます。<b style="color:var(--rec-red,#f87171)">赤</b>まで行くと音が割れます。数字は「今の声の大きさ」で、つまみの値ではありません。</p>
-            <div id="iosHeadphoneHint" class="hidden" style="background:rgba(251,146,60,0.06);border:1px solid rgba(251,146,60,0.3);border-radius:6px;padding:8px 12px;font-size:11px;color:var(--orange-light);margin-bottom:10px;">
-                🎧 <b>スピーカー再生のまま録音すると、BGM が録音に混ざります。</b>きれいに録るにはヘッドホン/イヤホンの使用を推奨します。
-            </div>
-            <div class="ctrl">
-                <div class="ctrl-label"><span>① マイクの感度（つまみで調整）</span><span class="ctrl-val" id="micGainVal">+0.0 dB</span></div>
-                <input type="range" id="micGainSlider" min="0" max="36" step="0.5" value="0">
-            </div>
-            <div class="ctrl-label"><span>② 出ている声の大きさ（入力レベル）</span><span class="mic-level-peak" id="micLevelHint">— dB</span></div>
-            <div class="mic-meter-track" id="micMeterTrack">
-                <div class="mic-meter-fill" id="micLevel"></div>
-                <div class="mic-meter-peak-marker" id="micPeakMarker"></div>
-            </div>
-            <div class="mic-meter-legend"><span class="zg">🟢 ちょうど</span><span class="zy">🟡 大きめ</span><span class="zr">🔴 割れる</span></div>
-            <div class="mic-test-row">
-                <button id="btnMicTest" class="momo-btn-small">🎤 マイクテスト (5秒)</button>
-                <span id="micTestStatus" class="mic-test-status">押すと、マイクをON/OFF して声の大きさを確認できます</span>
-            </div>
-            <!-- v2.71: 録音方式 (3案) の切替 -->
-            <div class="ctrl" style="margin-top:16px; border-top:1px solid var(--border); padding-top:12px;">
-                <div class="ctrl-label"><span>録音方式（詳細）</span></div>
-                <select id="recModeSelect" style="width:100%; box-sizing:border-box; background:var(--bg); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:12px; padding:8px 10px;">
-                    <option value="classic">標準：音が大きい・ピッタリ合う（歌うとBGMが少し下がる）</option>
-                    <option value="clean">クリーン：BGMは下がらない・録音中は小さい（イヤホン向き）</option>
-                    <option value="hybrid" disabled>実験：大きい＋下がらない（ずれる・準備中）</option>
-                </select>
-                <div style="font-size:10px; color:var(--text-muted); margin-top:4px; line-height:1.5;">スピーカーで歌うなら「標準」、イヤホンを使うなら「クリーン」がおすすめ。<br>※iPhoneでは「大きい音」と「BGMが下がらない」の両立ができないため選べるようにしています。</div>
-            </div>
-        </div>
+        <!-- v2.75 (UI再編): 旧 Mic Setup パネルは廃止。 中身 (感度つまみ/レベルメーター/テスト/録音方式) は上のマイク枠アコーディオンへ移設済み。 -->
+        <span id="micPeakTag" style="display:none;"></span>
 
         <div class="status" id="status">ファイルを読み込んでください</div>
     </div>
@@ -2557,7 +2593,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.74';
+const APP_VERSION = 'v2.75';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -7939,8 +7975,16 @@ function _forceMicGainSetup(){
     DEBUG.info('D4: micGain 未調整のため録音をブロックしマイク調整へ誘導');
     // まず必要性を明示 (録音したい意志を一旦受け止めつつ必要性を伝える)
     alert('マイクゲインの調整が必要です。\n\n録音の前に、 マイクテストで声を出しながら音量を合わせてください。 これからマイク調整画面を開きます。');
-    const modal = document.getElementById('karaoke-mic-setup-modal');
-    if(modal) modal.style.display = 'flex';
+    // v2.75 (UI再編): 別窓モーダルは廃止 → 「マイク感度設定」アコーディオンをその場で開き、 見える位置へスクロール
+    const accBtn = document.getElementById('karaoke-acc-gain');
+    const accBody = document.getElementById('karaoke-acc-gain-body');
+    if (accBody) accBody.style.display = '';
+    if (accBtn) {
+        accBtn.setAttribute('aria-expanded', 'true');
+        accBtn.classList.add('open');
+        const ar = accBtn.querySelector('.karaoke-acc-arrow'); if (ar) ar.textContent = '▴';
+        try { accBtn.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch(e){}
+    }
     setStatus('録音の前にマイクゲインを調整してください (マイクテストで音量を確認)', 'warn');
     // 既存のマイクゲイン調整と同じ画面で、 マイクテストに自動で入る
     try { if(typeof micTestState !== 'undefined' && !micTestState.active) startMicTest(); }
@@ -8179,6 +8223,13 @@ function setRecMode(v){
 const MIC_GAIN_LS_KEY = 'momoKaraokeMicGainDb';
 const micGainSlider = document.getElementById('micGainSlider');
 const micGainVal = document.getElementById('micGainVal');
+// v2.75 (UI再編): 感度の値を①ラベルとマイク枠ボタン面 (karaoke-acc-gain-val) の両方に反映
+const micGainAccVal = document.getElementById('karaoke-acc-gain-val');
+function _setMicGainText(db){
+    const t = (db >= 0 ? '+' : '') + db.toFixed(1) + ' dB';
+    if (micGainVal) micGainVal.textContent = t;
+    if (micGainAccVal) micGainAccVal.textContent = t;
+}
 if(micGainSlider){
     // 起動時復元
     try {
@@ -8187,14 +8238,14 @@ if(micGainSlider){
             const v = parseFloat(saved);
             if (isFinite(v) && v >= 0 && v <= 36) {
                 micGainSlider.value = String(v);
-                if (micGainVal) micGainVal.textContent = (v >= 0 ? '+' : '') + v.toFixed(1) + ' dB';
+                _setMicGainText(v);
             }
         }
     } catch (e) { console.warn('[karaoke] mic gain restore fail:', e); }
 
     micGainSlider.addEventListener('input', () => {
         const db = parseFloat(micGainSlider.value);
-        if(micGainVal) micGainVal.textContent = (db >= 0 ? '+' : '') + db.toFixed(1) + ' dB';
+        _setMicGainText(db);
         // Apply to active gain node (recording or test)
         const linearGain = Math.pow(10, db / 20);
         if(recGainNode){
@@ -8973,16 +9024,12 @@ function _initKaraoke5c() {
     const legacyVc = document.getElementById('karaoke-legacy-vc-panel');
     if (legacyVc) legacyVc.style.display = 'none';
 
-    // (2) Mic Setup パネルをモーダル内へ物理移動
-    const micPanel = document.getElementById('karaoke-mic-setup-panel');
-    const micModalBody = document.getElementById('karaoke-mic-setup-modal-body');
-    if (micPanel && micModalBody) {
-        micModalBody.appendChild(micPanel);
-        micPanel.style.marginBottom = '0';
-    }
+    // (2) v2.75 (UI再編): マイク感度設定/録音モードは「マイク枠」アコーディオンに直接配置済み
+    //     (旧: Mic Setup パネルをモーダルへ物理移動 → 廃止)。 ヘルプボックスは感度アコーディオン内へ。
+    const gainBody = document.getElementById('karaoke-acc-gain-body');
 
-    // v2.27: マイク無反応ヘルプボックス (折りたたみ式 + 設定 URL コピー)
-    if (micModalBody && !document.getElementById('karaoke-mic-help-box')) {
+    // v2.27: マイク無反応ヘルプボックス (折りたたみ式 + 設定 URL コピー) — 感度アコーディオン内へ追加
+    if (gainBody && !document.getElementById('karaoke-mic-help-box')) {
         const br = _detectBrowserForMicHelp();
         const helpBox = document.createElement('div');
         helpBox.id = 'karaoke-mic-help-box';
@@ -9006,7 +9053,7 @@ function _initKaraoke5c() {
         }
         inner += '</div>';
         helpBox.innerHTML = inner;
-        micModalBody.appendChild(helpBox);
+        gainBody.appendChild(helpBox);
 
         // トリガーの展開/折りたたみ
         const trigger = helpBox.querySelector('.mic-help-trigger');
@@ -9052,28 +9099,38 @@ function _initKaraoke5c() {
         });
     }
 
-    // (3b) v2.71: 録音方式セレクタ
-    const recModeSel = document.getElementById('recModeSelect');
-    if (recModeSel) {
-        try { recModeSel.value = getRecMode(); } catch(e){}
-        recModeSel.addEventListener('change', () => { setRecMode(recModeSel.value); });
+    // (3b) v2.75 (UI再編): 録音モード = ラジオ (本体マイク / イヤホンマイク / 実験)。 ボタン面に現在モード表示。
+    const recModeRadios = document.querySelectorAll('input[name="krecmode"]');
+    const recModeValEl = document.getElementById('karaoke-acc-recmode-val');
+    const REC_MODE_LABELS = { classic: '本体マイク', clean: 'イヤホンマイク', hybrid: '実験' };
+    function _updateRecModeUI() {
+        const m = getRecMode();
+        recModeRadios.forEach(r => { r.checked = (r.value === m); });
+        if (recModeValEl) recModeValEl.textContent = REC_MODE_LABELS[m] || m;
     }
+    _updateRecModeUI();
+    recModeRadios.forEach(r => {
+        r.addEventListener('change', () => {
+            if (r.checked && !r.disabled) { setRecMode(r.value); _updateRecModeUI(); }
+        });
+    });
 
-    // (4) マイク設定モーダル開閉
-    const btnOpen = document.getElementById('karaoke-btn-mic-setup');
-    const btnClose = document.getElementById('karaoke-mic-setup-close');
-    const modal = document.getElementById('karaoke-mic-setup-modal');
-    if (btnOpen && modal) {
-        btnOpen.addEventListener('click', () => { modal.style.display = 'flex'; });
-    }
-    if (btnClose && modal) {
-        btnClose.addEventListener('click', () => { modal.style.display = 'none'; });
-    }
-    if (modal) {
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) modal.style.display = 'none';
+    // (4) v2.75 (UI再編): マイク枠アコーディオンの開閉 (⚙モーダル廃止 → その場展開)
+    function _bindKaraokeAcc(btnId, bodyId) {
+        const btn = document.getElementById(btnId);
+        const body = document.getElementById(bodyId);
+        if (!btn || !body) return;
+        btn.addEventListener('click', () => {
+            const isOpen = body.style.display !== 'none';
+            body.style.display = isOpen ? 'none' : '';
+            btn.setAttribute('aria-expanded', String(!isOpen));
+            btn.classList.toggle('open', !isOpen);
+            const arrow = btn.querySelector('.karaoke-acc-arrow');
+            if (arrow) arrow.textContent = isOpen ? '▾' : '▴';
         });
     }
+    _bindKaraokeAcc('karaoke-acc-gain', 'karaoke-acc-gain-body');
+    _bindKaraokeAcc('karaoke-acc-recmode', 'karaoke-acc-recmode-body');
 }
 
 // ===== v2.36 (Phase 6a): MIX 生成機能 =====

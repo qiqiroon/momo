@@ -1763,7 +1763,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.75</span>
+                <span class="version-tag" id="version-tag">v2.76</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2593,7 +2593,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.75';
+const APP_VERSION = 'v2.76';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -8371,6 +8371,20 @@ function stopMicTest(){
             status.style.color = '';
             _hideMicHelp();
         }
+    }
+
+    // v2.76: マイクテストも getUserMedia で iOS の出口を受話口(小音量)へ落とす (録音と同じ)。
+    //   テスト中に BGM が小さくなり、 終了しても戻らない問題 → 録音停止後と同じく AudioContext を
+    //   作り直して大音量の再生ルートへ復帰させる (v2.70 の処置をマイクテスト停止にも適用)。
+    //   ※非iOS (PC) は getUserMedia で出口が変わらないので rebuild 不要 (BGM を無駄に中断しない)。
+    if (IS_IOS && !IOS_AUDIO_HTML) {
+        DEBUG.info('iOS WebAudio: マイクテスト後に AudioContext を再構築して再生ルートを回復...');
+        rebuildAudioContext()
+            .then(() => DEBUG.ok('iOS: マイクテスト後の再生ルート回復 (rebuild) 完了'))
+            .catch(e => {
+                DEBUG.err('iOS: マイクテスト後 rebuild 失敗: ' + (e.message || e));
+                if (typeof showRescueButtonBriefly === 'function') showRescueButtonBriefly();
+            });
     }
 }
 

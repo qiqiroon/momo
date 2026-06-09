@@ -1763,7 +1763,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.78</span>
+                <span class="version-tag" id="version-tag">v2.79</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2605,7 +2605,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.78';
+const APP_VERSION = 'v2.79';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -6466,6 +6466,9 @@ function _openTakeContextMenu(anchorBtn, take) {
         try { await persistTakes(state.currentEntry); DEBUG.ok('rename: persistTakes OK'); }
         catch (err) { DEBUG.err('rename persistTakes fail: ' + err.message); return; }
         renderTakes();
+        // v2.79: 保存先 meta.json にもリネームを反映 (別端末でも新名が見えるように)
+        try { await _syncTakesMetaToStore(); DEBUG.ok('rename: meta.json 反映'); }
+        catch (err) { DEBUG.warn('rename: meta.json 反映失敗: ' + (err.message || err)); setStatus(_friendlyErr(err, 'リネームの保存に失敗しました (再接続して再試行してください)'), 'warn'); }
     });
     m.querySelector('[data-act=duplicate]').addEventListener('click', async (e) => {
         e.stopPropagation();
@@ -6605,6 +6608,8 @@ async function _duplicateTake(srcTake) {
     const newTake = Object.assign({}, srcTake, {
         id: newId,
         name: srcTake.name + ' (コピー)',
+        file: null,   // v2.79: 元の Drive ファイルを共有しない (この端末内のローカルコピー扱い)。
+                      //   共有すると元テイク削除で複製の音源も消える/別端末で取り違える恐れがある。
     });
     // takes 配列に追加 → persistTakes で IDB に書き込まれる (audioBuffer 含むディープコピーは
     //   srcTake を再代入する Object.assign で参照共有、 IDB write 時に IDB がディープコピー)
@@ -6613,6 +6618,9 @@ async function _duplicateTake(srcTake) {
     state.currentTake = newTake;
     renderTakes();
     renderBadges();
+    // v2.79: 保存先 meta.json にも複製を反映 (file=null=ローカルコピー、 再読込で消えない)
+    try { await _syncTakesMetaToStore(); DEBUG.ok('duplicate: meta.json 反映'); }
+    catch (err) { DEBUG.warn('duplicate: meta.json 反映失敗: ' + (err.message || err)); setStatus(_friendlyErr(err, '複製の保存に失敗しました (再接続して再試行してください)'), 'warn'); }
 }
 
 // v2.28: 新構造に合わせて更新。 active ボタン (.take-btn-mini.active) と

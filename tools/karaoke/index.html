@@ -1763,7 +1763,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.83</span>
+                <span class="version-tag" id="version-tag">v2.84</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2605,7 +2605,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.83';
+const APP_VERSION = 'v2.84';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -4697,32 +4697,26 @@ async function startRecording(){
     DEBUG.info('  audioCtx.state BEFORE:', audioCtx ? audioCtx.state : 'no ctx');
     DEBUG.info('  bgmTransport.paused:', bgmTransport.paused, '· duration:', bgmTransport.duration.toFixed(2) + 's');
 
+    // CRITICAL: Stop any take playback before recording. If a previously-recorded
+    // take is playing (from a prior playback session), we must not let it continue
+    // — it would feed into the mic and contaminate the new recording, and confuse
+    // the user about what is playing.
+    DEBUG.info('startRecording: stopping any active take playback');
+    stopTakePlayback();
+    stopPreviewTake();
+
     // Optimistically claim "recording" to prevent double-press; revert on failure
-    // (v2.83: 再生中テイク/BGM の停止は master を無音化した後 = getUserMedia 直後に行う。 早い段階で
-    //  急停止するとプチノイズが出るため。 この間ソースは master=0 で無音再生されるだけでマイク混入も無い。)
     state.isRecording = true;
     refreshScreenWakeLock();  // v2.68: 録音中は自動スリープ抑止
     btnRec.classList.add('recording');
     btnRec.textContent = '■';
     setStatus('マイクを準備中…', 'warn');
 
-    // v2.83: 録音開始の瞬間に master 出力をなめらかに無音化「予約」する (JS の待ちは挟まない)。
-    //   master は destination 直前の最終段なので、 これで getUserMedia の約 1.6 秒の間ずっと出力が
-    //   無音 = iOS 録音セッション切替時の大雑音が出ない (v2.82 の目的を最終段で確実化)。 さらに
-    //   後で再生中ソース (BGM/テイク) を止める時も無音下になるのでプチノイズも出ない。 復帰は停止後。
-    //   フェードは音声側の時計への予約だけなので getUserMedia は従来どおり同じ流れで即実行できる
-    //   (待ちを挟まない＝録音許可のユーザー操作要件を崩さない)。
-    let _recMasterFaded = false;
-    if(audioCtx && master){
-        try {
-            const t = audioCtx.currentTime;
-            master.gain.cancelScheduledValues(t);
-            master.gain.setValueAtTime(master.gain.value, t);
-            master.gain.linearRampToValueAtTime(0, t + 0.012);
-            _recMasterFaded = true;
-            DEBUG.info('startRecording: master faded to 0 (v2.83 anti-click, pre-gUM)');
-        } catch(e){ DEBUG.warn('startRecording: master fade(v2.83) failed: ' + e.message); }
-    }
+    // v2.82: 録音ボタンを押した瞬間に BGM を止める (マイク取得より前)。 これまでは再生中だと
+    //   getUserMedia の約 1.6 秒の間 BGM が大音量で鳴り続け、 iOS の録音セッション切替＋直後の
+    //   停止/worklet クリアでカウント開始前に雑音が出ていた (v2.81 実機で発覚)。 ここで即停止すれば
+    //   カウント前が静かになる。 後段 (count 前) で改めて 0 へ巻き戻す処理は従来どおり。
+    try { if(!bgmTransport.paused){ bgmTransport.pause(); DEBUG.info('startRecording: BGM paused immediately on record press (v2.82)'); } } catch(e){}
 
     // Acquire mic
     DEBUG.info('startRecording: requesting getUserMedia...');
@@ -4832,31 +4826,11 @@ async function startRecording(){
         state.isRecording = false;
         btnRec.classList.remove('recording');
         btnRec.textContent = '●';
-        // v2.83: 失敗時は無音化した master をすぐ戻す (無音のまま放置しない)
-        if(_recMasterFaded && audioCtx && master){ try { const t=audioCtx.currentTime; master.gain.cancelScheduledValues(t); master.gain.setValueAtTime(master.gain.value,t); master.gain.linearRampToValueAtTime(1, t+0.012); } catch(_){} }
         return;
     }
 
     DEBUG.info('  audioCtx.state AFTER getUserMedia:', audioCtx ? audioCtx.state : 'no ctx');
     DEBUG.info('  bgmTransport.paused after gUM:', bgmTransport.paused);
-
-    // v2.83: getUserMedia を通過したので、 無音 (master=0) のうちに再生中ソースを止め、 その後 master を戻す。
-    //   これで「マイク取得中ずっと無音 (大雑音なし)」+「停止が無音下 (プチノイズなし)」を両立する。
-    //   テイク停止は従来この後ではなく録音開始の最初に行っていたが、 無音下で止めるためここへ移動。
-    try { stopTakePlayback(); } catch(e){}
-    try { stopPreviewTake(); } catch(e){}
-    try { if(!bgmTransport.paused){ bgmTransport.pause(); } } catch(e){}
-    try { bgmTransport.currentTime = 0; } catch(e){}
-    if(_recMasterFaded && audioCtx && master){
-        try {
-            const t = audioCtx.currentTime;
-            master.gain.cancelScheduledValues(t);
-            master.gain.setValueAtTime(0, t);
-            master.gain.linearRampToValueAtTime(1, t + 0.012);
-            _recMasterFaded = false;
-            DEBUG.info('startRecording: sources stopped under mute, master restored (v2.83)');
-        } catch(e){ DEBUG.warn('startRecording: master restore(v2.83) failed: ' + e.message); }
-    }
 
     // ─── Insert mic gain stage ─────────────────────────────────────────────
     // Run the raw mic stream through an AudioContext gain node so the user-set

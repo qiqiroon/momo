@@ -1763,7 +1763,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.80</span>
+                <span class="version-tag" id="version-tag">v2.81</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2605,7 +2605,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.80';
+const APP_VERSION = 'v2.81';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -3078,6 +3078,9 @@ let voxLevelAnalyser = null, voxLevelBuf = null;
 let voxComp = null;  // v2.55: VOICE LEVELING DynamicsCompressor
 // v2.56: worklet 循環バッファに残る前回再生末尾 (~85ms) を抑止する 100ms fade-in 用 gain
 let bgmFadeGain = null, takeFadeGain = null;
+// v2.81: 録音前の予熱で温めた worklet バッファを、本番再生への受け渡し中に保持するためのフラグ。
+//   true の間は play/pause 時の {type:'clear'} を抑止する (温めた頭の音を消さない)。
+let bgmPreheatHold = false;
 
 let micStream = null, recSrc = null, micAnalyser = null;
 let recProcessor = null;
@@ -4990,17 +4993,70 @@ async function startRecording(){
     recStartSongTime = 0;  // Plan B: always zero
     DEBUG.info('recStartSongTime: 0 (Plan B fixed)');
 
-    // Start BGM and MediaRecorder.
+    // ─── v2.81: 加工部 (ピッチ worklet) の予熱 ───────────────────────────────
+    // 頭欠けの原因 = カウント中ずっと止まっていた worklet を、再生開始の瞬間に
+    //   {type:'clear'} で空にしてから冷えた状態で動かすこと (最初の ~85ms が痩せる)。
+    // 対策: 本番再生の直前に、出力を絞った (無音の) まま BGM の頭を ~130ms だけ流して
+    //   worklet の OLA バッファを正しい頭の音で満たす。 その後、 待ち時間を作らず一気に
+    //   本番再生へ受け渡す (worklet は入力が無いと無音を取り込んで温まりを上書きするため)。
+    //   受け渡し中は bgmPreheatHold=true でクリアを抑止し、 温めたバッファを保持する。
+    //   ※残響対策 (stale flush) は予熱の入口の play で 1 回だけ効かせる (bgmPreheatHold=false)。
+    let preheated = false;
+    if(bgmFadeGain && bgmShifter && bgmTransport.duration > 0){
+        try {
+            bgmPreheatHold = false;                 // 入口の play では従来どおりクリア (古い残響を流す)
+            bgmFadeGain.gain.cancelScheduledValues(audioCtx.currentTime);
+            bgmFadeGain.gain.value = 0;             // 予熱中は BGM 出力を無音化
+            bgmTransport.currentTime = 0;
+            await bgmTransport.play();               // 'play' → worklet クリア (stale flush)
+            await new Promise(r => setTimeout(r, 130)); // OLA バッファが頭の音で満ちるのを待つ
+            bgmPreheatHold = true;                   // 以降はクリア抑止 (温めたバッファを保持)
+            preheated = true;
+            DEBUG.info('startRecording: BGM worklet preheated (130ms muted)');
+        } catch(e){
+            DEBUG.warn('startRecording: BGM preheat failed: ' + e.message);
+            bgmPreheatHold = false;
+            try { bgmFadeGain.gain.value = 1; } catch(_){}
+        }
+    }
+
+    // カウント中 (予熱中) に停止された場合は片付けて抜ける
+    if(!state.isRecording){
+        DEBUG.warn('startRecording: cancelled during preheat');
+        bgmPreheatHold = false;
+        try { bgmTransport.pause(); } catch(_){}
+        try { if(bgmFadeGain) bgmFadeGain.gain.value = 1; } catch(_){}
+        try { stream.getTracks().forEach(t => t.stop()); } catch(_){}
+        try { if(recCtx) await recCtx.close(); } catch(_){}
+        try { if(recGainCtx) await recGainCtx.close(); } catch(_){}
+        recCtx = null; recGainCtx = null; recSrc = null; recGainNode = null; recGainSrc = null;
+        micAnalyser = null; micStream = null; mediaRecorder = null;
+        btnRec.textContent = '●';
+        return;
+    }
+
+    // Start BGM (audible) and MediaRecorder.
     // ─── Plan V (v1.31): Wait for BGM to actually start outputting before
-    //   starting MediaRecorder. The play() Promise resolves when iOS marks the
-    //   element as "playing" but the DAC may take additional time to actually
-    //   emit audio. Waiting for the 'playing' event (or currentTime to advance
-    //   past 0) gives us the moment when BGM is truly audible, so the recording
-    //   captures audio aligned to that moment.
+    //   starting MediaRecorder. (iOS HTMLAudio パスのみ。 Web Audio では即時。)
+    // 予熱済みなら、 温めた worklet を保ったまま待ち無しで本番再生へ受け渡し、
+    //   無音化を 12ms ランプで戻してクリックを防ぐ。
     try {
-        await bgmTransport.play();
+        if(preheated){
+            bgmTransport.pause();                    // クリア抑止中 (bgmPreheatHold)
+            bgmTransport.currentTime = 0;            // 必ず曲頭から (録音は recStartSongTime=0 前提)
+            const t0 = audioCtx.currentTime;
+            bgmFadeGain.gain.cancelScheduledValues(t0);
+            bgmFadeGain.gain.setValueAtTime(0, t0);
+            bgmFadeGain.gain.linearRampToValueAtTime(1, t0 + 0.012);
+            await bgmTransport.play();                // クリア抑止 → 温かい worklet → 頭欠けなし
+        } else {
+            await bgmTransport.play();
+        }
     } catch(e){
         DEBUG.warn('startRecording: BGM play failed: ' + e.message);
+        try { if(bgmFadeGain){ bgmFadeGain.gain.cancelScheduledValues(audioCtx.currentTime); bgmFadeGain.gain.value = 1; } } catch(_){}
+    } finally {
+        bgmPreheatHold = false;                       // 通常のクリア動作へ復帰
     }
 
     if(IOS_MODE && iosAudioEl){
@@ -7657,8 +7713,8 @@ bgmTransport.addEventListener('play', () => {
     btnPlay.classList.add('playing');
     btnPlay.textContent = '⏸';
     // v2.58: 念のため再生開始時にも worklet バッファをクリア (pause 時に送ったクリア要求が
-    //   何らかの理由で未到達のケースに備える保険)
-    if(bgmShifter){ try { bgmShifter.port.postMessage({type:'clear'}); } catch(e){} }
+    //   何らかの理由で未到達のケースに備える保険)。 v2.81: 予熱中 (bgmPreheatHold) は温めたバッファを保持するためクリアしない。
+    if(bgmShifter && !bgmPreheatHold){ try { bgmShifter.port.postMessage({type:'clear'}); } catch(e){} }
     // CRITICAL: Do NOT start take playback during recording. The play event
     // here fires from inside startRecording (Plan B starts BGM after the
     // countdown) and we must not let any prior take leak into the mic.
@@ -7668,8 +7724,8 @@ bgmTransport.addEventListener('play', () => {
 bgmTransport.addEventListener('pause', () => {
     btnPlay.classList.remove('playing');
     btnPlay.textContent = '▶';
-    // v2.58: pause 時に worklet 内バッファを即クリア (次回再生で stale 残響が出ないように)
-    if(bgmShifter){ try { bgmShifter.port.postMessage({type:'clear'}); } catch(e){} }
+    // v2.58: pause 時に worklet 内バッファを即クリア (次回再生で stale 残響が出ないように)。 v2.81: 予熱中は保持。
+    if(bgmShifter && !bgmPreheatHold){ try { bgmShifter.port.postMessage({type:'clear'}); } catch(e){} }
     stopTakePlayback();
 });
 bgmTransport.addEventListener('seeking', () => {

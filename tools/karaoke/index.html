@@ -1763,7 +1763,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.86</span>
+                <span class="version-tag" id="version-tag">v2.87</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2605,7 +2605,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.86';
+const APP_VERSION = 'v2.87';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -5917,6 +5917,30 @@ function enqueueTakeUpload(takeId) {
     if (!_takeUploadInFlight) processTakeUploadQueue();
 }
 
+// v2.87 (段階1a の追修正): オフライン/ハング対策込みのテイク同期。
+//   ネットを要する保存先(Drive)にオフラインで挑むと write がタイムアウトせず ⏳ のまま固まり、
+//   アップロード列ごと止まっていた。 オフライン即判定 + 時間切れ保険で「届かない」を素早く確定し、
+//   呼び出し側で 📱(ローカル保持) に落とす。 ローカルフォルダ保存はネット不要なのでそのまま。
+async function _attemptTakeSync(takeId) {
+    const ctx = await _mixStorageCtx();
+    if (!ctx) { const e = new Error('カラオケフォルダ未接続'); e._offline = true; throw e; }
+    if (ctx.prov === 'drive') {
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+            const e = new Error('オフライン (Drive 未到達)'); e._offline = true; throw e;
+        }
+        // ハング保険: 一定時間で打ち切り (webm テイクは軽量、 通常は数秒)。 ※下層の write は
+        //   キャンセルできないが、 アップロード列を解放するのが目的。
+        let to = null;
+        const timeout = new Promise((_, rej) => {
+            to = setTimeout(() => { const e = new Error('同期タイムアウト (保存先に未到達)'); e._offline = true; rej(e); }, 30000);
+        });
+        try { await Promise.race([syncTakeFile(takeId), timeout]); }
+        finally { if (to) clearTimeout(to); }
+    } else {
+        await syncTakeFile(takeId);   // ローカルフォルダ: ネット不要
+    }
+}
+
 async function processTakeUploadQueue() {
     if (_takeUploadInFlight) return;
     _takeUploadInFlight = true;
@@ -5924,13 +5948,20 @@ async function processTakeUploadQueue() {
         while (_takeUploadQueue.length) {
             const takeId = _takeUploadQueue.shift();
             try {
-                await syncTakeFile(takeId);
+                await _attemptTakeSync(takeId);   // v2.87: オフライン/ハング対策込みの同期
                 state.takeSyncStatus[takeId] = 'synced';
                 delete _takeBlobs[takeId];   // 成功後は blob 破棄 (メモリ節約)
                 try { await idbDelete(STORE_TAKE_BLOBS, takeId); } catch (e) {}   // v2.86: 永続 blob も片付け
             } catch (e) {
-                DEBUG.err('Take upload failed (' + takeId + '): ' + (e.message || e));
-                state.takeSyncStatus[takeId] = 'error';
+                if (e && e._offline) {
+                    // v2.87: 保存先に届かない (オフライン/タイムアウト) → ⏳ で固まらせず 📱(ローカル) に落とす。
+                    //   blob は IDB に永続 (1a) されているので、 後でタップ or 自動再開(ステップ4)でアップロード可。
+                    delete state.takeSyncStatus[takeId];   // file==null のまま → render は 📱(クリック可)
+                    DEBUG.warn('Take sync: 保存先に未到達 (' + takeId + ') → ローカル保持: ' + (e.message || e));
+                } else {
+                    DEBUG.err('Take upload failed (' + takeId + '): ' + (e.message || e));
+                    state.takeSyncStatus[takeId] = 'error';
+                }
                 // blob は保持 (リトライ用)
             }
             if (typeof renderTakes === 'function') renderTakes();

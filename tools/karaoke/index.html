@@ -1461,7 +1461,7 @@ input[type=range]::-moz-range-thumb {
 .take-sync.error { cursor: pointer; color: var(--orange-light); }
 .take-sync.syncing { animation: take-sync-spin 1.4s linear infinite; opacity: 0.7; }
 .take-sync.synced { opacity: 0.6; }
-.take-sync.local { opacity: 0.5; filter: grayscale(0.7); }
+.take-sync.local { opacity: 0.5; filter: grayscale(0.7); cursor: pointer; }
 @keyframes take-sync-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 /* v2.61: mix タブだけ padding を削減 (横幅確保) */
 .mix-section-compact { padding: 10px !important; }
@@ -1763,7 +1763,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.85</span>
+                <span class="version-tag" id="version-tag">v2.86</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2605,7 +2605,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.85';
+const APP_VERSION = 'v2.86';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -2704,9 +2704,10 @@ async function _mixOffsetStorageKey() {
     return entry.label + '/' + hash;  // 例: "iPhone iOS 18/a3f7c891"
 }
 const DB_NAME = 'momo_karaoke';
-const DB_VERSION = 1;
+const DB_VERSION = 2;   // v2.86 (段階1a): takeBlobs ストア追加
 const STORE_HANDLES = 'handles';
 const STORE_TAKES   = 'takes';   // takes per song key
+const STORE_TAKE_BLOBS = 'takeBlobs';   // v2.86: takeId → アップロード用 webm Blob (未同期テイクをリロード後も保存可に)
 const KEY_LIBRARY = 'libraryRoot';
 
 // ============== DOM ==============
@@ -2830,6 +2831,7 @@ function openDB(){
             const db = req.result;
             if(!db.objectStoreNames.contains(STORE_HANDLES)) db.createObjectStore(STORE_HANDLES);
             if(!db.objectStoreNames.contains(STORE_TAKES))   db.createObjectStore(STORE_TAKES);
+            if(!db.objectStoreNames.contains(STORE_TAKE_BLOBS)) db.createObjectStore(STORE_TAKE_BLOBS);  // v2.86
         };
         req.onsuccess = () => { _db = req.result; resolve(_db); };
         req.onerror   = () => reject(req.error);
@@ -5370,6 +5372,10 @@ async function stopRecording(){
         // v2.63a: 録音 blob を in-memory に保持 + Drive/Local に bg 同期 (await しない、 UI ブロック無し)
         if (blob && blob.size > 1024) {
             _takeBlobs[take.id] = blob;
+            // v2.86 (段階1a): アップロード用 blob を IndexedDB にも永続化。 メモリのみだと
+            //   未同期のままリロードすると消えて二度とアップロード不可だった (穴①)。
+            try { await idbPut(STORE_TAKE_BLOBS, take.id, blob); }
+            catch (e) { DEBUG.warn('take blob persist failed: ' + (e.message || e)); }
             try { enqueueTakeUpload(take.id); } catch (e) { DEBUG.err('enqueueTakeUpload failed: ' + e.message); }
         } else {
             DEBUG.warn('v2.63a: blob 不在のため Drive 同期 skip (size=' + (blob ? blob.size : 0) + ')');
@@ -5895,13 +5901,15 @@ function _pcmToWavBlob(pcm, sampleRate, channels) {
 // ============== v2.63a: TAKE FILE SYNC (webm/opus → Drive/Local) ==============
 //   録音直後の MediaRecorder blob を曲フォルダに `take_<id>.webm` で保存し、
 //   meta.json の takes[] にメタ情報 + file 名を追加する。 同期はバックグラウンド。
-//   blob は in-memory のみ (IDB には PCM のみ保存、 容量節約)。 失敗時はリトライ用に保持。
-const _takeBlobs = {};  // takeId → Blob (in-memory only)
+//   blob は in-memory (_takeBlobs) + IndexedDB(STORE_TAKE_BLOBS) に保持 (v2.86 段階1a〜)。
+//   メモリは高速参照、 IDB は未同期テイクをリロード後もアップロード可にする永続。 同期成功で両方破棄。
+const _takeBlobs = {};  // takeId → Blob (メモリ高速参照、 永続は STORE_TAKE_BLOBS)
 const _takeUploadQueue = [];
 let _takeUploadInFlight = false;
 
 function enqueueTakeUpload(takeId) {
-    if (!_takeBlobs[takeId]) { DEBUG.warn('enqueueTakeUpload: blob 未保存、 skip ' + takeId); return; }
+    // v2.86: blob はメモリに無くても IDB(STORE_TAKE_BLOBS) から syncTakeFile が復旧するため、
+    //   ここで「メモリ blob 必須」 の skip はしない (リロード後の再同期を塞いでいた)。
     if (_takeUploadQueue.includes(takeId)) return;
     state.takeSyncStatus[takeId] = 'syncing';
     _takeUploadQueue.push(takeId);
@@ -5919,6 +5927,7 @@ async function processTakeUploadQueue() {
                 await syncTakeFile(takeId);
                 state.takeSyncStatus[takeId] = 'synced';
                 delete _takeBlobs[takeId];   // 成功後は blob 破棄 (メモリ節約)
+                try { await idbDelete(STORE_TAKE_BLOBS, takeId); } catch (e) {}   // v2.86: 永続 blob も片付け
             } catch (e) {
                 DEBUG.err('Take upload failed (' + takeId + '): ' + (e.message || e));
                 state.takeSyncStatus[takeId] = 'error';
@@ -5936,8 +5945,11 @@ async function syncTakeFile(takeId) {
     if (!META) throw new Error('MomoMeta 未ロード');
     const ctx = await _mixStorageCtx();
     if (!ctx) throw new Error('カラオケフォルダ未接続');
-    const blob = _takeBlobs[takeId];
-    if (!blob) throw new Error('blob 喪失 (page reload 後はリトライ不可)');
+    let blob = _takeBlobs[takeId];
+    if (!blob) {   // v2.86 (段階1a): メモリに無ければ IDB の永続 blob から復旧 (リロード後も同期可)
+        try { blob = await idbGet(STORE_TAKE_BLOBS, takeId); if (blob) _takeBlobs[takeId] = blob; } catch (e) {}
+    }
+    if (!blob) throw new Error('録音データが見つかりません (blob 喪失)');
     const take = (state.currentEntry && state.currentEntry.takes || []).find(t => t.id === takeId);
     if (!take) throw new Error('take が見つかりません: ' + takeId);
     const fileName = 'take_' + takeId + '.webm';
@@ -6013,9 +6025,12 @@ async function _deleteTakeFileFromStore(fileName) {
     else await META.Local.deleteFile(ctx.songHandle, fileName);
 }
 
-function retryTakeUpload(takeId) {
+async function retryTakeUpload(takeId) {
+    if (!_takeBlobs[takeId]) {   // v2.86 (段階1a): リロードでメモリが空でも IDB の永続 blob から復旧
+        try { const b = await idbGet(STORE_TAKE_BLOBS, takeId); if (b) _takeBlobs[takeId] = b; } catch (e) {}
+    }
     if (!_takeBlobs[takeId]) {
-        alert('録音データが見つかりません (page reload 後はリトライ不可。 同期は次回録音から有効です)');
+        alert('録音データが見つかりません (アップロード用データが残っていません)');
         return;
     }
     state.takeSyncStatus[takeId] = 'syncing';
@@ -6238,7 +6253,9 @@ function renderTakes(){
             } else if (t.file) {
                 syncIcon = '<span class="take-sync synced" title="Drive 同期済 (' + t.file + ')">✅</span>';
             } else {
-                syncIcon = '<span class="take-sync local" title="ローカルのみ (Drive 未同期)">📱</span>';
+                // v2.86 (段階1a): ローカルのみ (未同期) もクリックで保存先へ同期できるようにする
+                //   (リロード後は IDB の永続 blob から復旧してアップロード)。
+                syncIcon = '<button class="take-sync local" data-act="retry-sync" data-takeid="' + t.id + '" title="ローカルのみ (未同期) — クリックで保存先へ同期">📱</button>';
             }
             html += '<div class="src-row' + (state.selectedTakeIds.has(t.id) ? ' selected' : '') + '" data-kind="take" data-id="' + t.id + '">' +
                 '<span class="src-check">' + (state.selectedTakeIds.has(t.id) ? '☑' : '☐') + '</span>' +

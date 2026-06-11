@@ -1763,7 +1763,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.84</span>
+                <span class="version-tag" id="version-tag">v2.85</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2605,7 +2605,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.84';
+const APP_VERSION = 'v2.85';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -7912,18 +7912,37 @@ function syncTakeToBgm(){
         // else: small drift, ignore
     } else {
         // Non-iOS: AudioBufferSourceNode is sample-accurate, so drift is rare.
-        const takeSp = state.currentTake.speed || 1.0;
-        const localTime = takeLocalT / takeSp;
-        if(localTime >= (state.currentTake._decodedBuffer ? state.currentTake._decodedBuffer.duration : Infinity)){
+        // v2.85 fix: 複数テイク同時再生で「代表テイク (state.currentTake) 1 個」 の終端だけを見て
+        //   stopTakePlayback() すると、 まだ途中の他テイクも巻き添えで止まる。 短いテイクを
+        //   後から選ぶと currentTake = 短い方 → 長い方が短い方の終端で切れる不具合 (2026-06-10 報告)。
+        //   各 source は自分の buffer 終端で自然停止するので、 一括停止 (後片付け) は
+        //   「選択中の全テイクが終端を越えたとき」 のみに行い、 開始/巻き戻し判定も全テイクで見る。
+        const selIds = Array.from(state.selectedTakeIds || []);
+        const allTakes = (state.currentEntry && state.currentEntry.takes) || [];
+        let anyActive = false;   // まだ終端前 (鳴っているべき) のテイクがあるか (未来 + 範囲内)
+        let anyInRange = false;  // 開始済み〜終端前のテイクがあるか
+        let anyFuture = false;   // 開始前 (これから鳴る) のテイクがあるか
+        for(const id of selIds){
+            const tk = allTakes.find(t => t.id === id);
+            if(!tk) continue;
+            const buf = tk._decodedBuffer;
+            const dur = buf ? buf.duration : (tk.duration || 0);
+            const localT = (songT - (tk.startSongTime || 0) - userOfs) / (tk.speed || 1.0);
+            if(localT < dur) anyActive = true;
+            if(localT >= 0 && localT < dur) anyInRange = true;
+            if(localT < -0.05) anyFuture = true;
+        }
+        if(!anyActive){
+            // 選択中の全テイクが終端を越えた → 後片付け
             stopTakePlayback();
             return;
         }
-        // v2.53: 配列ベース判定。 source が無いが再生位置がテイク範囲内 → start
-        if(takeBufferSources.length === 0 && localTime >= 0){
+        // source が無いが再生範囲内のテイクがある → start
+        if(takeBufferSources.length === 0 && anyInRange){
             startTakePlayback();
         }
-        // source 有りで BGM が take 開始前へ巻き戻った場合は stop
-        if(takeBufferSources.length > 0 && localTime < -0.05){
+        // source 有りで BGM が (範囲内テイク無し かつ) 全テイクの開始前へ巻き戻った場合は stop
+        if(takeBufferSources.length > 0 && !anyInRange && anyFuture){
             stopTakePlayback();
         }
     }

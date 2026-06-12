@@ -199,6 +199,8 @@ async function _connectKaraokeFolderLocal() {
         } catch (e) {
             await META.Local.saveAppSettings(handle, META.defaultAppSettings());
         }
+        // v2.88 (段階1b): 接続時にカラオケフォルダID を発行/読込してキャッシュ (オフライン録音の目印用)
+        try { if (window._ensureKaraokeFolderId) await window._ensureKaraokeFolderId(true); } catch (e) {}
         updateFolderStatus();
         console.log('[make] カラオケフォルダ接続 (ローカル):', handle.name);
     } catch (e) {
@@ -227,6 +229,8 @@ async function _connectKaraokeFolderDrive() {
         } catch (e) {
             await META.Drive.saveAppSettings(META.defaultAppSettings());
         }
+        // v2.88 (段階1b): 接続時にカラオケフォルダID を発行/読込してキャッシュ (オフライン録音の目印用)
+        try { if (window._ensureKaraokeFolderId) await window._ensureKaraokeFolderId(true); } catch (e) {}
         updateFolderStatus();
         setStatus('✅ Drive 接続完了 (' + rootPath + ')', 'var(--orange-light)');
         console.log('[make] カラオケフォルダ接続 (Drive):', rootPath);
@@ -436,6 +440,8 @@ async function tryRestoreHandles() {
             if (perm === 'granted' && provider !== 'drive') {
                 mkState.karaokeFolderHandle = handle;
                 mkState.karaokeFolderProvider = 'local';
+                // v2.88 (段階1b): 自動復元時もカラオケフォルダID を用意 (ローカルは常に到達可)
+                try { if (window._ensureKaraokeFolderId) await window._ensureKaraokeFolderId(true); } catch (e) {}
                 updateFolderStatus();
                 console.log('[make] カラオケフォルダ自動復元:', handle.name);
             } else if (provider !== 'drive') {

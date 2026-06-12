@@ -1763,7 +1763,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.87</span>
+                <span class="version-tag" id="version-tag">v2.88</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2605,7 +2605,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.87';
+const APP_VERSION = 'v2.88';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -5343,6 +5343,12 @@ async function stopRecording(){
                     if(gain > 1.05) for(let i = 0; i < pcm.length; i++) pcm[i] *= gain;
                 }
             }
+            // v2.88 (段階1b): 宛先の目印 = 曲フォルダID + カラオケフォルダID。
+            //   カラオケフォルダID はほぼキャッシュ即返 (接続時に発行済)。 オフライン初回のみ
+            //   読み込みを試みるが、 失敗時は null を許容し録音保存を妨げない (best-effort)。
+            const _songFolderId = (state.currentEntry && state.currentEntry.id) || null;
+            let _karaokeFolderId = null;
+            try { _karaokeFolderId = await _ensureKaraokeFolderId(); } catch (e) {}
             take = {
                 id: uid(),
                 name: 'Take ' + ((state.currentEntry.takes||[]).length + 1),
@@ -5352,7 +5358,9 @@ async function stopRecording(){
                 speed: recSpeedAtStart,
                 startSongTime: recStartSongTime,
                 duration: decoded.duration,
-                createdAt: Date.now()
+                createdAt: Date.now(),
+                songFolderId: _songFolderId,        // v2.88 (段階1b): どの曲か
+                karaokeFolderId: _karaokeFolderId    // v2.88 (段階1b): どの保存先か
             };
         } catch(e){
             DEBUG.err('Decode failed: ' + e.message);
@@ -5507,7 +5515,9 @@ async function persistTakes(entry){
         pitchSemitones: t.pitchSemitones, speed: t.speed,
         startSongTime: t.startSongTime, duration: t.duration, createdAt: t.createdAt,
         volume: (t.volume != null ? t.volume : 1.0),  // v2.61: テイク個別音量
-        file: t.file || null  // v2.63a: Drive 同期済ファイル名 (synced 時のみ)
+        file: t.file || null,  // v2.63a: Drive 同期済ファイル名 (synced 時のみ)
+        songFolderId: t.songFolderId || null,        // v2.88 (段階1b): 宛先の目印 (曲)
+        karaokeFolderId: t.karaokeFolderId || null   // v2.88 (段階1b): 宛先の目印 (保存先)
     }));
     try { await idbPut(STORE_TAKES, takesKeyFor(entry), data); }
     catch(e){ console.warn('persist takes failed', e); }
@@ -5898,6 +5908,77 @@ function _pcmToWavBlob(pcm, sampleRate, channels) {
     else tryBind();
 })();
 
+// ============== v2.88 (段階1b): カラオケフォルダID (宛先の目印) ==============
+//   各カラオケフォルダ直下の _app_settings.json に 1 個だけ持つ不変のランダム ID。
+//   ローカル / Drive(複数アカウント) / 将来の OneDrive 等を「どの保存先か」で区別せず
+//   統一的に識別するための土台。 各テイクに「曲フォルダID + カラオケフォルダID」を刻み、
+//   タスクB③ ステップ4 (宛先一致を検知して未保存テイクを能動保存) のマッチングに使う。
+//   ※ID は接続時(オンライン)に発行・キャッシュ → オフライン録音でも目印を確実に持たせる。
+let _karaokeFolderIdCache = null;
+let _karaokeFolderIdSig = null;
+
+// 現在の保存先の「同一性シグネチャ」: local はフォルダハンドル(オブジェクト同一性)、
+//   drive は文字列。 これが変わったらキャッシュを捨てて読み直す (フォルダ/アカウント切替対策)。
+function _kfProviderSig() {
+    const MK = window.MomoMake;
+    if (!MK || !MK.state || !MK.state.karaokeFolderProvider) return null;
+    const prov = MK.state.karaokeFolderProvider;
+    return prov === 'local' ? (MK.state.karaokeFolderHandle || null) : prov;
+}
+
+function _genKaraokeFolderId() {
+    try {
+        if (window.crypto && typeof crypto.randomUUID === 'function') return 'kf-' + crypto.randomUUID();
+    } catch (e) {}
+    // フォールバック (crypto.randomUUID 非対応環境): 十分長い擬似乱数
+    return 'kf-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
+}
+
+async function _loadKaraokeAppSettings() {
+    const META = window.MomoMeta, MK = window.MomoMake;
+    if (!META || !MK || !MK.state) return null;
+    const prov = MK.state.karaokeFolderProvider;
+    if (prov === 'drive') return await META.Drive.loadAppSettings();
+    if (prov === 'local' && MK.state.karaokeFolderHandle) return await META.Local.loadAppSettings(MK.state.karaokeFolderHandle);
+    return null;
+}
+async function _saveKaraokeAppSettings(settings) {
+    const META = window.MomoMeta, MK = window.MomoMake;
+    if (!META || !MK || !MK.state) return;
+    const prov = MK.state.karaokeFolderProvider;
+    if (prov === 'drive') await META.Drive.saveAppSettings(settings);
+    else if (prov === 'local' && MK.state.karaokeFolderHandle) await META.Local.saveAppSettings(MK.state.karaokeFolderHandle, settings);
+}
+
+// カラオケフォルダID を取得 (無ければ発行して _app_settings.json に保存)。 結果はキャッシュ。
+//   forceReload=true で接続切替時にキャッシュを捨てて読み直す (別アカウント/別フォルダ対策)。
+async function _ensureKaraokeFolderId(forceReload) {
+    const sig = _kfProviderSig();
+    if (!sig) return null;
+    if (forceReload || _karaokeFolderIdSig !== sig) { _karaokeFolderIdCache = null; _karaokeFolderIdSig = sig; }
+    if (_karaokeFolderIdCache) return _karaokeFolderIdCache;
+    try {
+        const settings = await _loadKaraokeAppSettings();
+        if (!settings) return null;
+        if (settings.karaokeFolderId) {
+            _karaokeFolderIdCache = settings.karaokeFolderId;
+        } else {
+            const id = _genKaraokeFolderId();
+            settings.karaokeFolderId = id;
+            await _saveKaraokeAppSettings(settings);
+            _karaokeFolderIdCache = id;
+            DEBUG.ok('カラオケフォルダID 発行: ' + id);
+        }
+        _karaokeFolderIdSig = sig;
+        return _karaokeFolderIdCache;
+    } catch (e) {
+        DEBUG.warn('カラオケフォルダID 取得失敗: ' + (e.message || e));
+        return null;
+    }
+}
+// make.js (接続フロー) から接続完了時に呼ぶ
+window._ensureKaraokeFolderId = _ensureKaraokeFolderId;
+
 // ============== v2.63a: TAKE FILE SYNC (webm/opus → Drive/Local) ==============
 //   録音直後の MediaRecorder blob を曲フォルダに `take_<id>.webm` で保存し、
 //   meta.json の takes[] にメタ情報 + file 名を追加する。 同期はバックグラウンド。
@@ -6009,7 +6090,9 @@ async function syncTakeFile(takeId) {
         pitchSemitones: t.pitchSemitones || 0,
         volume: (t.volume != null ? t.volume : 1.0),
         file: t.file || null,    // 新規録音は file あり、 v2.62 以前は null
-        createdAt: t.createdAt || Date.now()
+        createdAt: t.createdAt || Date.now(),
+        songFolderId: t.songFolderId || null,        // v2.88 (段階1b): 宛先の目印 (曲)
+        karaokeFolderId: t.karaokeFolderId || null   // v2.88 (段階1b): 宛先の目印 (保存先)
     }));
     if (ctx.prov === 'drive') {
         await META.Drive.saveSongMeta(ctx.songFolderName, songMeta);
@@ -6040,7 +6123,9 @@ async function _syncTakesMetaToStore() {
         pitchSemitones: t.pitchSemitones || 0,
         volume: (t.volume != null ? t.volume : 1.0),
         file: t.file || null,
-        createdAt: t.createdAt || Date.now()
+        createdAt: t.createdAt || Date.now(),
+        songFolderId: t.songFolderId || null,        // v2.88 (段階1b): 宛先の目印 (曲)
+        karaokeFolderId: t.karaokeFolderId || null   // v2.88 (段階1b): 宛先の目印 (保存先)
     }));
     if (ctx.prov === 'drive') await META.Drive.saveSongMeta(ctx.songFolderName, songMeta);
     else await META.Local.saveSongMeta(ctx.songHandle, songMeta);
@@ -6174,7 +6259,11 @@ async function _reconcileTakesInBackground(entry) {
                     duration: mt.duration || decoded.duration,
                     createdAt: mt.createdAt || Date.now(),
                     volume: (mt.volume != null ? mt.volume : 1.0),
-                    file: mt.file
+                    file: mt.file,
+                    // v2.88 (段階1b): 宛先の目印。 meta に無い旧テイクは、 この曲フォルダ由来なので
+                    //   曲フォルダIDだけ現在地で補完 (カラオケフォルダIDは不明なら null のまま)。
+                    songFolderId: mt.songFolderId || (entry && entry.id) || null,
+                    karaokeFolderId: mt.karaokeFolderId || null
                 };
                 if (state.currentEntry !== entry) return;
                 if (!entry.takes) entry.takes = [];

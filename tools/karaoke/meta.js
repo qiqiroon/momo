@@ -69,6 +69,7 @@ function defaultAppSettings() {
         language: 'ja',
         lastSelectedSongInternalId: null,
         lastTabId: 'karaoke',
+        karaokeFolderId: null,   // v2.88 (段階1b): このカラオケフォルダ固有のランダムID (宛先識別用)
     };
 }
 function defaultSongMeta(title, artist) {

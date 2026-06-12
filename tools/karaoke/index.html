@@ -1767,7 +1767,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.95</span>
+                <span class="version-tag" id="version-tag">v2.96</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2609,7 +2609,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.95';
+const APP_VERSION = 'v2.96';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -6149,12 +6149,18 @@ async function processTakeUploadQueue() {
                 state.takeSyncStatus[takeId] = 'synced';
                 delete _takeBlobs[takeId];   // 成功後は blob 破棄 (メモリ節約)
                 try { await idbDelete(STORE_TAKE_BLOBS, takeId); } catch (e) {}   // v2.86: 永続 blob も片付け
+                try { await _deregisterPendingUpload(takeId); } catch (e) {}   // v2.96 (ステップ4): 控えから外す
             } catch (e) {
                 if (e && e._offline) {
                     // v2.87: 保存先に届かない (オフライン/タイムアウト) → ⏳ で固まらせず 📱(ローカル) に落とす。
                     //   blob は IDB に永続 (1a) されているので、 後でタップ or 自動再開(ステップ4)でアップロード可。
                     delete state.takeSyncStatus[takeId];   // file==null のまま → render は 📱(クリック可)
                     DEBUG.warn('Take sync: 保存先に未到達 (' + takeId + ') → ローカル保持: ' + (e.message || e));
+                    // v2.96 (ステップ4): 控え(registry)に登録 → 宛先に繋がったのを検知して曲を開かず直行保存できるように。
+                    try {
+                        const tk = (state.currentEntry && state.currentEntry.takes || []).find(t => t.id === takeId);
+                        if (tk) await _registerPendingUpload(tk);
+                    } catch (e2) { DEBUG.warn('ステップ4: registry 登録失敗: ' + (e2.message || e2)); }
                 } else {
                     DEBUG.err('Take upload failed (' + takeId + '): ' + (e.message || e));
                     state.takeSyncStatus[takeId] = 'error';
@@ -6167,6 +6173,130 @@ async function processTakeUploadQueue() {
         _takeUploadInFlight = false;
     }
 }
+
+// ============== v2.96 (ステップ4): 宛先接続を検知して未保存テイクを能動保存 ==============
+//   設計 (原典 = タスクB③): ステップ4は「受け身」。 自分から繰り返し繋ぎに行かない (それは無駄)。
+//   代わりに、 ユーザーがたまたま宛先 (カラオケフォルダIDが一致する Drive) に繋いだのを「検知」したら、
+//   曲選択を待たず、 控えに持つ「曲フォルダID」を頼りに対象フォルダへ直行して保存する (穴②解消)。
+//   ※本版は Drive 宛のみ (ローカルFSA=PC専用は次段)。 トークン有効なら無操作でサイレント保存。
+//   控え(registry) = 各未保存テイクの { takeId, fileName, songFolderId, karaokeFolderId, takeMeta }。
+//   音声 blob 自体は STORE_TAKE_BLOBS に永続済 (段階1a)。
+const PENDING_UPLOADS_KEY = 'pendingTakeUploads';
+
+async function _loadPendingUploads() {
+    try { const d = await idbGet(STORE_TAKES, PENDING_UPLOADS_KEY); return Array.isArray(d) ? d : []; }
+    catch (e) { return []; }
+}
+async function _savePendingUploads(list) {
+    try { await idbPut(STORE_TAKES, PENDING_UPLOADS_KEY, list || []); } catch (e) {}
+}
+async function _registerPendingUpload(take) {
+    if (!take || !take.id) return;
+    const fileName = 'take_' + take.id + '.webm';
+    const meta = _takeToMeta(take); meta.file = fileName;
+    const e = {
+        takeId: take.id,
+        fileName: fileName,
+        songFolderId: take.songFolderId || (state.currentEntry && state.currentEntry.id) || null,
+        karaokeFolderId: take.karaokeFolderId || null,
+        takeMeta: meta,
+        at: Date.now()
+    };
+    const list = await _loadPendingUploads();
+    const idx = list.findIndex(x => x.takeId === take.id);
+    if (idx >= 0) list[idx] = e; else list.push(e);
+    await _savePendingUploads(list);
+    DEBUG.info('ステップ4: 未保存テイクを控えに登録 (' + take.id + ' → 曲' + e.songFolderId + ' / 宛先' + e.karaokeFolderId + ')');
+}
+async function _deregisterPendingUpload(takeId) {
+    const list = await _loadPendingUploads();
+    const next = list.filter(e => e.takeId !== takeId);
+    if (next.length !== list.length) await _savePendingUploads(next);
+}
+
+// Drive トークンが今有効か (プロンプトを出さずに確認)。 ステップ4は受け身なので connect は呼ばない。
+function _driveTokenValid() {
+    try {
+        const g = window.gdrive;
+        return !!(g && g.momo && typeof g.momo.is_token_valid === 'function' && g.momo.is_token_valid());
+    } catch (e) { return false; }
+}
+
+// 控えの1件を、 その「曲フォルダ」へ直行アップロード + meta.json 統合 (曲を開かずに)。
+async function _uploadPendingTakeToDrive(entry) {
+    const META = window.MomoMeta;
+    const fileName = entry.fileName || ('take_' + entry.takeId + '.webm');
+    const songFolderName = entry.songFolderId;
+    if (!songFolderName) throw new Error('曲フォルダID 不明');
+    let blob = _takeBlobs[entry.takeId];
+    if (!blob) { blob = await idbGet(STORE_TAKE_BLOBS, entry.takeId); if (blob) _takeBlobs[entry.takeId] = blob; }
+    if (!blob) throw new Error('録音データ(blob)が見つかりません');
+    // 1) 音声ファイルを宛先の曲フォルダへ
+    await META.Drive.writeFile(songFolderName, fileName, blob);
+    // 2) その曲の meta.json にこのテイクを統合 (削除印は尊重、 他端末分は消さない = 段階2bと同じマージ)
+    let songMeta = await META.Drive.loadSongMeta(songFolderName);
+    if (!songMeta) songMeta = META.defaultSongMeta();
+    if (!Array.isArray(songMeta.takes)) songMeta.takes = [];
+    if (!Array.isArray(songMeta.deletedTakeIds)) songMeta.deletedTakeIds = [];
+    if (songMeta.deletedTakeIds.some(d => (d && d.id) === entry.takeId)) return; // 既に削除済み → 一覧へ戻さない
+    const takeMeta = Object.assign({}, entry.takeMeta || {}, { id: entry.takeId, file: fileName });
+    const remoteMeta = songMeta.takes.map(_takeToMeta);
+    songMeta.takes = _mergeTakeLists(remoteMeta, [_takeToMeta(takeMeta)], new Set(songMeta.deletedTakeIds.map(d => d.id)));
+    await META.Drive.saveSongMeta(songFolderName, songMeta);
+}
+
+// ★ステップ4本体: 「今繋がっているカラオケフォルダ」 と宛先が一致する未保存テイクを直行保存。
+//   受け身トリガー (online 検知 / ユーザーの Drive 接続検知) から呼ぶ。 自分から connect はしない。
+let _resumeInFlight = false;
+async function _resumePendingUploads(reason) {
+    if (_resumeInFlight) return;
+    const META = window.MomoMeta, MK = window.MomoMake;
+    if (!META || !MK || !MK.state) return;
+    if (MK.state.karaokeFolderProvider !== 'drive') return;   // 本版は Drive のみ (ローカルFSA=PC専用は次段)
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+    if (!_driveTokenValid()) return;                          // 受け身: 繋がっていない時は何もしない
+    const list = await _loadPendingUploads();
+    if (!list.length) return;
+    let curKfId = null;
+    try { curKfId = await _ensureKaraokeFolderId(); } catch (e) {}
+    if (!curKfId) return;
+    const targets = list.filter(e => e.karaokeFolderId === curKfId);
+    if (!targets.length) return;
+    _resumeInFlight = true;
+    DEBUG.info('ステップ4: 宛先一致を検知 (' + reason + ') → 未保存テイク ' + targets.length + ' 件を曲フォルダへ直行保存');
+    setStatus('未保存のテイクをドライブに書き込んでいます… (' + targets.length + ' 件)', 'info');
+    try {
+        let ok = 0;
+        for (const e of targets) {
+            try {
+                await _uploadPendingTakeToDrive(e);
+                await _deregisterPendingUpload(e.takeId);
+                try { delete _takeBlobs[e.takeId]; } catch (_) {}
+                try { await idbDelete(STORE_TAKE_BLOBS, e.takeId); } catch (_) {}
+                // 今その曲を開いていれば画面も更新
+                if (state.currentEntry && state.currentEntry.id === e.songFolderId) {
+                    const t = (state.currentEntry.takes || []).find(x => x.id === e.takeId);
+                    if (t) t.file = e.fileName;
+                    delete state.takeSyncStatus[e.takeId];
+                    if (typeof renderTakes === 'function') renderTakes();
+                }
+                ok++;
+                DEBUG.ok('ステップ4: 保存完了 ' + e.fileName + ' → 曲' + e.songFolderId);
+            } catch (err) {
+                DEBUG.warn('ステップ4: 保存失敗 (控えは維持、次の検知で再試行) ' + e.takeId + ': ' + (err.message || err));
+            }
+        }
+        if (ok) setStatus('未保存テイクの保存が完了しました (' + ok + ' 件)', 'ok');
+    } finally { _resumeInFlight = false; }
+}
+window._resumePendingUploads = _resumePendingUploads;
+
+// 受け身トリガー①: ネット復帰(online)を検知 → Drive トークンが既に有効な時だけ直行保存 (connect はしない)。
+if (typeof window !== 'undefined') {
+    window.addEventListener('online', () => { _resumePendingUploads('online').catch(() => {}); });
+}
+// ※トリガー②: ユーザーが Drive を接続した瞬間 → make.js の _connectKaraokeFolderDrive から
+//   window._resumePendingUploads('drive-connect') を呼ぶ。
 
 async function syncTakeFile(takeId) {
     const META = window.MomoMeta;

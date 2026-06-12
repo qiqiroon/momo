@@ -233,6 +233,9 @@ async function _connectKaraokeFolderDrive() {
         try { if (window._ensureKaraokeFolderId) await window._ensureKaraokeFolderId(true); } catch (e) {}
         updateFolderStatus();
         setStatus('✅ Drive 接続完了 (' + rootPath + ')', 'var(--orange-light)');
+        // v2.96 (ステップ4): ユーザーが Drive に接続した = 宛先が書ける状態になった、 を検知 →
+        //   宛先一致の未保存テイクを曲を開かず直行保存 (受け身トリガー②)。
+        try { if (window._resumePendingUploads) window._resumePendingUploads('drive-connect'); } catch (e) {}
         console.log('[make] カラオケフォルダ接続 (Drive):', rootPath);
     } catch (e) {
         console.error('[make] Drive 接続失敗:', e);

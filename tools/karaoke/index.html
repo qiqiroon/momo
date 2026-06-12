@@ -1767,7 +1767,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.92</span>
+                <span class="version-tag" id="version-tag">v2.93</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2609,7 +2609,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.92';
+const APP_VERSION = 'v2.93';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -6108,14 +6108,36 @@ async function _attemptTakeSync(takeId) {
         if (typeof navigator !== 'undefined' && navigator.onLine === false) {
             const e = new Error('オフライン (Drive 未到達)'); e._offline = true; throw e;
         }
-        // ハング保険: 一定時間で打ち切り (webm テイクは軽量、 通常は数秒)。 ※下層の write は
-        //   キャンセルできないが、 アップロード列を解放するのが目的。
-        let to = null;
-        const timeout = new Promise((_, rej) => {
-            to = setTimeout(() => { const e = new Error('同期タイムアウト (保存先に未到達)'); e._offline = true; rej(e); }, 30000);
-        });
-        try { await Promise.race([syncTakeFile(takeId), timeout]); }
-        finally { if (to) clearTimeout(to); }
+        // v2.93 (ステップ2): 録音直後の「一時切断」 は、 そのまま繋ぎ直して数回リトライしてから諦める。
+        //   オンライン(navigator.onLine=true)なのに write が失敗/ハング = 一時的ブリップの公算 →
+        //   Drive.connect()(有効トークンは無プロンプトで再利用) + 短い待機で再試行。 途中で完全オフライン
+        //   化したら即 _offline で 📱(ローカル保持) に落とし、 ステップ4(再接続検知)に委ねる。
+        const MAX = 3;
+        let lastErr = null;
+        for (let attempt = 1; attempt <= MAX; attempt++) {
+            if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+                const e = new Error('オフライン化 (Drive 未到達)'); e._offline = true; throw e;
+            }
+            let to = null;
+            const timeout = new Promise((_, rej) => {
+                to = setTimeout(() => { const e = new Error('同期タイムアウト'); e._timeout = true; rej(e); }, 30000);
+            });
+            try {
+                await Promise.race([syncTakeFile(takeId), timeout]);
+                return;   // 成功
+            } catch (e) {
+                lastErr = e;
+                if (attempt < MAX) {
+                    DEBUG.warn('ステップ2: テイク同期 失敗 (試行 ' + attempt + '/' + MAX + ') → 繋ぎ直して再試行: ' + (e.message || e));
+                    try { if (window.MomoMeta && window.MomoMeta.Drive) await window.MomoMeta.Drive.connect(); } catch (_) {}
+                    await new Promise(r => setTimeout(r, 1500 * attempt));
+                }
+            } finally { if (to) clearTimeout(to); }
+        }
+        // 数回繋ぎ直しても駄目 = 保存先に未到達扱い → 📱(ローカル保持)。 ステップ4で再接続時に拾う。
+        const e = new Error('保存先に未到達 (リトライ上限): ' + (lastErr && (lastErr.message || lastErr)));
+        e._offline = true;
+        throw e;
     } else {
         await syncTakeFile(takeId);   // ローカルフォルダ: ネット不要
     }

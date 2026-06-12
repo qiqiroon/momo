@@ -842,7 +842,11 @@ h1 .version-tag {
     display: inline-flex; align-items: center; justify-content: center;
 }
 .momo-btn-rec:hover:not(:disabled) { background: var(--rec-red); color: white; box-shadow: 0 0 16px rgba(220,38,38,0.45); }
-.momo-btn-rec.recording { background: var(--rec-red); color: white; animation: recPulse 1.4s infinite; }
+/* v2.89: 録音中の点滅はボタン全体に均一にかける。 translateZ(0)+backface-visibility で
+   ボタンを単一の合成レイヤーに固定し、 iOS Safari が opacity アニメ中に入れ替わる
+   カウント数字(3/2/1/■)だけを別レイヤーへ切り出して「文字の四角だけ点滅」させる
+   描画アーティファクトを防ぐ。 見た目(全体がふわっと暗くなる点滅)は不変。 */
+.momo-btn-rec.recording { background: var(--rec-red); color: white; animation: recPulse 1.4s infinite; transform: translateZ(0); backface-visibility: hidden; }
 .momo-btn-rec:disabled { opacity: 0.35; cursor: not-allowed; border-color: var(--border-strong); color: var(--border-strong); }
 
 /* ライブラリ */
@@ -1763,7 +1767,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.88</span>
+                <span class="version-tag" id="version-tag">v2.89</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2605,7 +2609,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.88';
+const APP_VERSION = 'v2.89';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {

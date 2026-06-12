@@ -85,6 +85,7 @@ function defaultSongMeta(title, artist) {
         modifiedAt: now,
         takes: [],
         mixes: [],
+        deletedTakeIds: [],   // v2.90 (段階2): 削除済みテイクの印 (tombstone)。[{id, deletedAt}]
     };
 }
 function mergeAppSettings(loaded) {

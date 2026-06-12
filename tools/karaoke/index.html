@@ -1767,7 +1767,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.89</span>
+                <span class="version-tag" id="version-tag">v2.90</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2609,7 +2609,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.89';
+const APP_VERSION = 'v2.90';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -5363,6 +5363,7 @@ async function stopRecording(){
                 startSongTime: recStartSongTime,
                 duration: decoded.duration,
                 createdAt: Date.now(),
+                editedAt: Date.now(),                // v2.90 (段階2): 最終編集時刻 (作成も編集)
                 songFolderId: _songFolderId,        // v2.88 (段階1b): どの曲か
                 karaokeFolderId: _karaokeFolderId    // v2.88 (段階1b): どの保存先か
             };
@@ -5520,6 +5521,7 @@ async function persistTakes(entry){
         startSongTime: t.startSongTime, duration: t.duration, createdAt: t.createdAt,
         volume: (t.volume != null ? t.volume : 1.0),  // v2.61: テイク個別音量
         file: t.file || null,  // v2.63a: Drive 同期済ファイル名 (synced 時のみ)
+        editedAt: t.editedAt || t.createdAt || Date.now(),  // v2.90 (段階2): 最終編集時刻
         songFolderId: t.songFolderId || null,        // v2.88 (段階1b): 宛先の目印 (曲)
         karaokeFolderId: t.karaokeFolderId || null   // v2.88 (段階1b): 宛先の目印 (保存先)
     }));
@@ -5983,6 +5985,97 @@ async function _ensureKaraokeFolderId(forceReload) {
 // make.js (接続フロー) から接続完了時に呼ぶ
 window._ensureKaraokeFolderId = _ensureKaraokeFolderId;
 
+// ============== v2.90 (段階2): テイク一覧のID突き合わせ統合 (マージ) ==============
+//   保存を「手元の一覧で保存先をまるごと上書き」から「ID単位の突き合わせ」に変える。
+//   - 削除済み印(tombstone)に在るIDは常に除外 = 削除は最強・復活しない。
+//   - 両方に在るIDは editedAt(最終編集時刻)が新しい方を採用 = 後から編集した方が勝つ。
+//   - 片方にしか無いIDはそのまま残す = 知らない(別端末が足した)テイクを消さない(穴③)。
+//   editedAt は絶対時刻(Date.now、UTC基準の通算ミリ秒)でタイムゾーン非依存。
+
+// テイク(メモリ/メタ)を meta.json 用のクリーンな形へ。 pcm 等の実行時フィールドを落とす。
+function _takeToMeta(t) {
+    return {
+        id: t.id,
+        name: t.name,
+        startSongTime: t.startSongTime || 0,
+        duration: t.duration || 0,
+        speed: t.speed || 1.0,
+        pitchSemitones: t.pitchSemitones || 0,
+        volume: (t.volume != null ? t.volume : 1.0),
+        file: t.file || null,
+        createdAt: t.createdAt || Date.now(),
+        editedAt: t.editedAt || t.createdAt || Date.now(),   // 段階2: 最終編集時刻 (LWW)
+        songFolderId: t.songFolderId || null,        // 段階1b: 宛先の目印 (曲)
+        karaokeFolderId: t.karaokeFolderId || null   // 段階1b: 宛先の目印 (保存先)
+    };
+}
+
+// remote(保存先) と local(手元) のテイク配列を ID で突き合わせ統合 (上の3ルール)。
+//   入力はいずれも meta 形 (_takeToMeta 済) を想定。 戻り値は meta 形の配列。
+function _mergeTakeLists(remoteTakes, localTakes, tombSet) {
+    const byId = new Map();
+    const consider = (t) => {
+        if (!t || !t.id) return;
+        if (tombSet && tombSet.has(t.id)) return;            // 削除済みは除外 (最強)
+        const prev = byId.get(t.id);
+        if (!prev) { byId.set(t.id, t); return; }
+        const a = prev.editedAt || prev.createdAt || 0;
+        const b = t.editedAt || t.createdAt || 0;
+        if (b >= a) byId.set(t.id, t);                       // 新しい方を採用 (同値は後勝ち)
+    };
+    (remoteTakes || []).forEach(consider);                   // remote 先 → local 後 (tie は local)
+    (localTakes || []).forEach(consider);
+    return Array.from(byId.values());
+}
+
+// 削除済み印の統合: remote と local の和集合 (同IDは早い deletedAt を残す)。
+function _mergeTombstones(remoteList, localList) {
+    const map = new Map();
+    const add = (e) => {
+        if (!e) return;
+        const id = (typeof e === 'string') ? e : e.id;
+        if (!id) return;
+        const deletedAt = (typeof e === 'string') ? Date.now() : (e.deletedAt || Date.now());
+        const prev = map.get(id);
+        if (!prev || deletedAt < prev.deletedAt) map.set(id, { id, deletedAt });
+    };
+    (remoteList || []).forEach(add);
+    (localList || []).forEach(add);
+    return Array.from(map.values());
+}
+
+// 手元の削除済み印 (entry.deletedTakeIds) を IDB に永続化 (オフライン削除がリロードを越える)。
+function tombKeyFor(entry) { return takesKeyFor(entry) + '::tomb'; }
+async function persistTombstones(entry) {
+    if (!entry) return;
+    try { await idbPut(STORE_TAKES, tombKeyFor(entry), entry.deletedTakeIds || []); }
+    catch (e) { console.warn('persist tombstones failed', e); }
+}
+async function loadTombstonesFor(entry) {
+    try { const d = await idbGet(STORE_TAKES, tombKeyFor(entry)); return Array.isArray(d) ? d : []; }
+    catch (e) { return []; }
+}
+// 手元で削除した印を1件足す (重複は無視)
+function _addLocalTombstone(entry, takeId) {
+    if (!entry || !takeId) return;
+    if (!Array.isArray(entry.deletedTakeIds)) entry.deletedTakeIds = [];
+    if (!entry.deletedTakeIds.some(e => (e && e.id) === takeId)) {
+        entry.deletedTakeIds.push({ id: takeId, deletedAt: Date.now() });
+    }
+}
+
+// 現在の曲の meta.json 用に「統合済みテイク配列＋統合済み削除印」を組み立てる。
+//   load済みの remote songMeta と手元 state.currentEntry から作る。 songMeta を直接更新。
+function _buildMergedSongTakes(songMeta) {
+    const entry = state.currentEntry;
+    const tombs = _mergeTombstones(songMeta.deletedTakeIds, entry && entry.deletedTakeIds);
+    const tombSet = new Set(tombs.map(e => e.id));
+    const remoteMeta = (songMeta.takes || []).map(_takeToMeta);   // 旧テイクにも editedAt を補完
+    const localMeta = ((entry && entry.takes) || []).map(_takeToMeta);
+    songMeta.takes = _mergeTakeLists(remoteMeta, localMeta, tombSet);
+    songMeta.deletedTakeIds = tombs;
+}
+
 // ============== v2.63a: TAKE FILE SYNC (webm/opus → Drive/Local) ==============
 //   録音直後の MediaRecorder blob を曲フォルダに `take_<id>.webm` で保存し、
 //   meta.json の takes[] にメタ情報 + file 名を追加する。 同期はバックグラウンド。
@@ -6085,19 +6178,8 @@ async function syncTakeFile(takeId) {
     }
     if (!songMeta) songMeta = META.defaultSongMeta();
     if (!Array.isArray(songMeta.takes)) songMeta.takes = [];
-    songMeta.takes = (state.currentEntry.takes || []).map(t => ({
-        id: t.id,
-        name: t.name,
-        startSongTime: t.startSongTime || 0,
-        duration: t.duration || 0,
-        speed: t.speed || 1.0,
-        pitchSemitones: t.pitchSemitones || 0,
-        volume: (t.volume != null ? t.volume : 1.0),
-        file: t.file || null,    // 新規録音は file あり、 v2.62 以前は null
-        createdAt: t.createdAt || Date.now(),
-        songFolderId: t.songFolderId || null,        // v2.88 (段階1b): 宛先の目印 (曲)
-        karaokeFolderId: t.karaokeFolderId || null   // v2.88 (段階1b): 宛先の目印 (保存先)
-    }));
+    // v2.90 (段階2): 上書きでなく ID 突き合わせ統合 (他端末のテイクを消さない/削除印を尊重)
+    _buildMergedSongTakes(songMeta);
     if (ctx.prov === 'drive') {
         await META.Drive.saveSongMeta(ctx.songFolderName, songMeta);
     } else {
@@ -6105,7 +6187,7 @@ async function syncTakeFile(takeId) {
     }
     // IDB にも file 名を保存
     try { await persistTakes(state.currentEntry); } catch (e) { DEBUG.warn('persistTakes after sync failed: ' + e.message); }
-    DEBUG.ok('Take sync: ' + fileName + ' uploaded + meta.json updated');
+    DEBUG.ok('Take sync: ' + fileName + ' uploaded + meta.json updated (merge)');
 }
 
 // v2.78: 現メモリの takes[] で保存先 (Drive/Local) の meta.json を再構築・保存。
@@ -6118,19 +6200,8 @@ async function _syncTakesMetaToStore() {
     if (ctx.prov === 'drive') songMeta = await META.Drive.loadSongMeta(ctx.songFolderName);
     else songMeta = await META.Local.loadSongMeta(ctx.songHandle);
     if (!songMeta) songMeta = META.defaultSongMeta();
-    songMeta.takes = (state.currentEntry.takes || []).map(t => ({
-        id: t.id,
-        name: t.name,
-        startSongTime: t.startSongTime || 0,
-        duration: t.duration || 0,
-        speed: t.speed || 1.0,
-        pitchSemitones: t.pitchSemitones || 0,
-        volume: (t.volume != null ? t.volume : 1.0),
-        file: t.file || null,
-        createdAt: t.createdAt || Date.now(),
-        songFolderId: t.songFolderId || null,        // v2.88 (段階1b): 宛先の目印 (曲)
-        karaokeFolderId: t.karaokeFolderId || null   // v2.88 (段階1b): 宛先の目印 (保存先)
-    }));
+    // v2.90 (段階2): 上書きでなく ID 突き合わせ統合 (削除/改名後も他端末分を消さない)
+    _buildMergedSongTakes(songMeta);
     if (ctx.prov === 'drive') await META.Drive.saveSongMeta(ctx.songFolderName, songMeta);
     else await META.Local.saveSongMeta(ctx.songHandle, songMeta);
 }
@@ -6262,6 +6333,7 @@ async function _reconcileTakesInBackground(entry) {
                     startSongTime: mt.startSongTime || 0,
                     duration: mt.duration || decoded.duration,
                     createdAt: mt.createdAt || Date.now(),
+                    editedAt: mt.editedAt || mt.createdAt || Date.now(),  // v2.90 (段階2): 最終編集時刻
                     volume: (mt.volume != null ? mt.volume : 1.0),
                     file: mt.file,
                     // v2.88 (段階1b): 宛先の目印。 meta に無い旧テイクは、 この曲フォルダ由来なので
@@ -6459,7 +6531,7 @@ function renderTakes(){
             const takeId = sl.dataset.takeid;
             const pct = parseInt(sl.value, 10) || 0;
             const t = (state.currentEntry.takes || []).find(x => x.id === takeId);
-            if (t) { t.volume = pct / 100; applyTakeVolume(takeId); }
+            if (t) { t.volume = pct / 100; t.editedAt = Date.now(); applyTakeVolume(takeId); }
             const numEl = sl.parentElement.querySelector('.src-vol-num');
             if (numEl) numEl.textContent = pct + '%';
         });
@@ -6689,6 +6761,7 @@ function _openTakeContextMenu(anchorBtn, take) {
         if (!trimmed) { DEBUG.warn('rename: empty after trim, skip'); return; }
         DEBUG.info('Take rename: ' + take.name + ' → ' + trimmed);
         take.name = trimmed;
+        take.editedAt = Date.now();   // v2.90 (段階2): 編集 → 最終編集時刻を更新 (後勝ち判定用)
         try { await persistTakes(state.currentEntry); DEBUG.ok('rename: persistTakes OK'); }
         catch (err) { DEBUG.err('rename persistTakes fail: ' + err.message); return; }
         renderTakes();
@@ -6708,6 +6781,10 @@ function _openTakeContextMenu(anchorBtn, take) {
         DEBUG.info('Take deleted: ' + take.id);
         const delFile = take.file || ('take_' + take.id + '.webm');
         state.currentEntry.takes = state.currentEntry.takes.filter(x => x.id !== take.id);
+        // v2.90 (段階2): 削除済み印を付ける (最強・永続)。 これで「知らなかった」 と区別でき、
+        //   他端末や再接続後のマージで復活しない。 オフライン削除でもリロードを越えるよう IDB 永続。
+        _addLocalTombstone(state.currentEntry, take.id);
+        try { await persistTombstones(state.currentEntry); } catch (e) { DEBUG.warn('persistTombstones 失敗: ' + (e.message || e)); }
         // v2.36: selectedTakeIds からも削除
         state.selectedTakeIds.delete(take.id);
         if (state.currentTake && state.currentTake.id === take.id) {
@@ -6834,6 +6911,8 @@ async function _duplicateTake(srcTake) {
     const newTake = Object.assign({}, srcTake, {
         id: newId,
         name: srcTake.name + ' (コピー)',
+        createdAt: Date.now(),        // v2.90 (段階2): 複製は新しいテイク扱い
+        editedAt: Date.now(),         // v2.90 (段階2): 最終編集時刻
         file: null,   // v2.79: 元の Drive ファイルを共有しない (この端末内のローカルコピー扱い)。
                       //   共有すると元テイク削除で複製の音源も消える/別端末で取り違える恐れがある。
     });
@@ -7001,6 +7080,10 @@ async function selectEntry(entry){
     // load takes from IDB if not already loaded
     if(!entry.takes){
         entry.takes = await loadTakesFor(entry);
+    }
+    // v2.90 (段階2): 削除済み印も復元 (オフライン削除がリロード/再接続を越えてマージに効く)
+    if(!entry.deletedTakeIds){
+        entry.deletedTakeIds = await loadTombstonesFor(entry);
     }
     state.currentTake = entry.takes.length ? entry.takes[entry.takes.length-1] : null;
     // v2.39 (Phase 6b): MIX 一覧を meta.json からロード (失敗時は空)

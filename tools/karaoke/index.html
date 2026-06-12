@@ -1767,7 +1767,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.91</span>
+                <span class="version-tag" id="version-tag">v2.92</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2609,7 +2609,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.91';
+const APP_VERSION = 'v2.92';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -6198,6 +6198,12 @@ async function _syncTakesMetaToStore() {
     const META = window.MomoMeta;
     const ctx = await _mixStorageCtx();
     if (!ctx || !META || !state.currentEntry) return;
+    // v2.92 (段階2b): Drive 宛でオフラインなら、 失敗する書込みを試みず保留 (iOSの未捕捉エラー回避)。
+    //   手元の編集/削除印は IDB に残っており、 再接続して曲を開いた時の同期(reconcile)が push-back する。
+    if (ctx.prov === 'drive' && typeof navigator !== 'undefined' && navigator.onLine === false) {
+        DEBUG.info('段階2b: オフラインのため meta.json 反映を保留 (再接続時に push-back)');
+        return;
+    }
     let songMeta;
     if (ctx.prov === 'drive') songMeta = await META.Drive.loadSongMeta(ctx.songFolderName);
     else songMeta = await META.Local.loadSongMeta(ctx.songHandle);
@@ -6214,6 +6220,9 @@ async function _deleteTakeFileFromStore(fileName) {
     const META = window.MomoMeta;
     const ctx = await _mixStorageCtx();
     if (!ctx || !META) return;
+    // v2.92 (段階2b): Drive 宛でオフラインならファイル削除も保留 (未捕捉エラー回避)。 残った .webm は
+    //   meta から外れる(=他端末はDLしない)ので無害、 後日の整理(段階5)で掃除。
+    if (ctx.prov === 'drive' && typeof navigator !== 'undefined' && navigator.onLine === false) return;
     if (ctx.prov === 'drive') await META.Drive.deleteFile(ctx.songFolderName, fileName);
     else await META.Local.deleteFile(ctx.songHandle, fileName);
 }
@@ -6245,53 +6254,77 @@ async function _reconcileTakesInBackground(entry) {
         if (ctx.prov === 'drive') songMeta = await META.Drive.loadSongMeta(ctx.songFolderName);
         else songMeta = await META.Local.loadSongMeta(ctx.songHandle);
     } catch (e) { DEBUG.warn('v2.63b: songMeta load failed: ' + (e.message || e)); return; }
-    if (!songMeta || !Array.isArray(songMeta.takes) || !songMeta.takes.length) return;
+    // v2.92 (段階2b): 「読めない(オフライン等)」 は同期見送り。 手元の保留編集は次回 online 時に送る。
+    //   ※valid な空 meta (takes:[]) は object で返るので通過する (削除でテイク0でも剪定/同期が効く)。
+    if (!songMeta) return;
+    if (!Array.isArray(songMeta.takes)) songMeta.takes = [];
+    if (!Array.isArray(songMeta.deletedTakeIds)) songMeta.deletedTakeIds = [];
     if (state.currentEntry !== entry) return;  // 曲切替検知
+    if (!Array.isArray(entry.deletedTakeIds)) entry.deletedTakeIds = [];
 
-    // v2.80: 別端末で削除されたテイクの剪定。 reconcile は従来「追加専用」 で、 他端末 (例: iPhone)
-    //   で削除→Drive meta.json から消えても、 この端末の IDB キャッシュに残った同期済みテイクを
-    //   除去できず復活して見えた。 → meta.json (=同期の正本) に無い「file 有り(=過去に同期済)」
-    //   テイクを除去する。 ※file 無し(=未同期のローカル録音/複製)は保護して残す。
-    //   ※meta.takes が空のケースは上の guard で早期 return するため、 全件剪定の暴発は起きない。
-    {
-        const metaIds = new Set(songMeta.takes.map(t => t.id).filter(Boolean));
-        const pruned = [];
-        entry.takes = (entry.takes || []).filter(t => {
-            if (t.file && !metaIds.has(t.id)) { pruned.push(t.id); return false; }
-            return true;
-        });
-        if (pruned.length) {
-            pruned.forEach(id => { if (state.selectedTakeIds) state.selectedTakeIds.delete(id); });
-            if (state.currentTake && pruned.indexOf(state.currentTake.id) !== -1) {
-                state.currentTake = entry.takes.length ? entry.takes[entry.takes.length - 1] : null;
-            }
-            try { await persistTakes(entry); } catch (e) { DEBUG.warn('v2.80 prune persistTakes 失敗: ' + (e.message || e)); }
-            DEBUG.info('v2.80: 別端末で削除された同期テイクを除去: ' + pruned.length + ' 件');
-            try { renderTakes(); if (typeof renderBadges === 'function') renderBadges(); } catch (e) {}
+    // ── 1. remote(保存先) と local(手元メモリ) を ID 突き合わせ統合 (editedAt + tombstone) ──
+    //   local は「この曲のテイクだけ」 を採用 (段階1bの songFolderId で照合)。 takesKeyFor の
+    //   全カラオケ曲共有キャッシュ(別曲混入)を push してしまう事故を防ぐ。
+    const remoteMeta = songMeta.takes.map(_takeToMeta);
+    const localMeta = (entry.takes || [])
+        .filter(t => !t.songFolderId || t.songFolderId === entry.id)
+        .map(_takeToMeta);
+    const tombs = _mergeTombstones(songMeta.deletedTakeIds, entry.deletedTakeIds);
+    const tombSet = new Set(tombs.map(e => e.id));
+    const mergedMeta = _mergeTakeLists(remoteMeta, localMeta, tombSet);
+    const mergedById = new Map(mergedMeta.map(t => [t.id, t]));
+
+    // ── 2. 手元(メモリ)を merged に合わせる: tombstone/非勝者を除去 + 生き残りは勝者の
+    //       フィールド(名前/音量/編集時刻/file)を採用 (= 他端末の改名を表示へ取り込む field-pull) ──
+    const removed = [];
+    entry.takes = (entry.takes || []).filter(t => {
+        if (!mergedById.has(t.id)) { removed.push(t.id); return false; }
+        return true;
+    });
+    for (const t of entry.takes) {
+        const w = mergedById.get(t.id);
+        t.name = w.name;
+        t.volume = w.volume;
+        t.editedAt = w.editedAt;
+        if (w.file) t.file = w.file;
+        if (w.songFolderId) t.songFolderId = w.songFolderId;
+        if (w.karaokeFolderId) t.karaokeFolderId = w.karaokeFolderId;
+    }
+    if (removed.length) {
+        removed.forEach(id => { if (state.selectedTakeIds) state.selectedTakeIds.delete(id); });
+        if (state.currentTake && removed.indexOf(state.currentTake.id) !== -1) {
+            state.currentTake = entry.takes.length ? entry.takes[entry.takes.length - 1] : null;
+        }
+    }
+    entry.deletedTakeIds = tombs;   // 統合済み削除印を手元にも採用 (他端末の削除を learned)
+    try { await persistTakes(entry); } catch (e) { DEBUG.warn('段階2b persistTakes 失敗: ' + (e.message || e)); }
+    try { await persistTombstones(entry); } catch (e) {}
+    try { renderTakes(); if (typeof renderBadges === 'function') renderBadges(); } catch (e) {}
+
+    // ── 3. 再接続 push-back: merged が remote と違えば 保存先へ書き戻す ──
+    //   (オフライン中の改名/削除が、 再接続して曲を開いた時にここで保存先=Drive/Local へ届く)
+    const _sig = (takes, ds) =>
+        (takes || []).map(t => t.id + ':' + (t.editedAt || 0) + ':' + (t.name || '') + ':' + t.volume + ':' + (t.file || '')).sort().join('|')
+        + '#' + (ds || []).map(d => d.id).sort().join('|');
+    if (_sig(remoteMeta, songMeta.deletedTakeIds) !== _sig(mergedMeta, tombs)) {
+        songMeta.takes = mergedMeta;
+        songMeta.deletedTakeIds = tombs;
+        try {
+            if (ctx.prov === 'drive') await META.Drive.saveSongMeta(ctx.songFolderName, songMeta);
+            else await META.Local.saveSongMeta(ctx.songHandle, songMeta);
+            DEBUG.ok('段階2b: 手元の保留編集を保存先へ反映 (push-back)');
+        } catch (e) {
+            DEBUG.warn('段階2b push-back 失敗 (次回 online 時に再試行): ' + (e.message || e));
         }
     }
 
-    const idbMap = new Map();
-    (entry.takes || []).forEach(t => idbMap.set(t.id, t));
+    // ── 4. merged にあって手元に pcm が無いテイクをダウンロード (tombstone は除外済み) ──
+    if (state.currentEntry !== entry) return;
+    const haveIds = new Set((entry.takes || []).map(t => t.id));
+    const toDownload = mergedMeta.filter(mt => mt.id && mt.file && !haveIds.has(mt.id));
+    if (!toDownload.length) return;
 
-    // 既存 IDB take への file 名補完 (他端末で sync された情報を取り込む)
-    let anyMetaPatched = false;
-    for (const mt of songMeta.takes) {
-        if (!mt.id || !mt.file) continue;
-        const idbTake = idbMap.get(mt.id);
-        if (idbTake && !idbTake.file) { idbTake.file = mt.file; anyMetaPatched = true; }
-    }
-
-    // file ありで IDB に無い take を抽出 → DL
-    const toDownload = songMeta.takes.filter(mt => mt.id && mt.file && !idbMap.has(mt.id));
-    if (!toDownload.length) {
-        if (anyMetaPatched) {
-            try { await persistTakes(entry); renderTakes(); } catch (e) { DEBUG.warn('persistTakes patch failed: ' + e.message); }
-        }
-        return;
-    }
-
-    DEBUG.info('v2.63b: reconcile ' + toDownload.length + ' take(s) from ' + ctx.prov);
+    DEBUG.info('段階2b: reconcile ' + toDownload.length + ' take(s) from ' + ctx.prov);
     setStatus('テイクをダウンロード中… (' + toDownload.length + ' 件)', 'info');
 
     let decodeCtxLocal = audioCtx, decodeCtxIsTemp = false;
@@ -6345,7 +6378,7 @@ async function _reconcileTakesInBackground(entry) {
                 };
                 if (state.currentEntry !== entry) return;
                 if (!entry.takes) entry.takes = [];
-                entry.takes.push(newTake);
+                if (!entry.takes.some(t => t.id === newTake.id)) entry.takes.push(newTake);
                 if (state.currentTake == null) state.currentTake = newTake;
                 renderTakes();
                 if (typeof renderBadges === 'function') renderBadges();

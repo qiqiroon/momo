@@ -1767,7 +1767,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.96</span>
+                <span class="version-tag" id="version-tag">v2.97</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2609,7 +2609,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.96';
+const APP_VERSION = 'v2.97';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -6105,34 +6105,33 @@ async function _attemptTakeSync(takeId) {
     const ctx = await _mixStorageCtx();
     if (!ctx) { const e = new Error('カラオケフォルダ未接続'); e._offline = true; throw e; }
     if (ctx.prov === 'drive') {
-        // v2.95 (ステップ2 ＝ユーザー正本仕様): 録音中にタイムアウト等で Drive 接続が切れることがある
-        //   (ユーザーの意図ではない)。 宛先は分かっているので、 録音終了時のアップロードが失敗したら
-        //   **能動的に Drive へ繋ぎ直して** 数回まで試す。 ※navigator.onLine が false でも早期に諦めない
-        //   (オフライン判定が誤ることもあり、 指示は「とにかく再接続を試みる」)。 数回試して届かなければ
-        //   📱(ローカル保持) に落とす。 ※ハング保険として各試行に時間切れを付ける。
+        // v2.97 (ステップ2 ＝ユーザー正本仕様): 録音中にタイムアウト等で接続が切れることがある。
+        //   「書き込みを繰り返す」 のではなく、 **能動的に宛先(Drive)へ繋ぎに行く**。 宛先情報は
+        //   アプリが起動時に取得済み (Drive接続＋カラオケフォルダ探索)。 → 録音終了時の保存が失敗したら、
+        //   その起動時と同じ手順 (Drive.connect ＋ ensureKaraokeRoot=カラオケフォルダ再探索) をやり直して
+        //   繋ぎに行き、 繋がったら書き込み直す。 繋げなければ (まだネット未復帰) 📱 に落として
+        //   ステップ4 (復帰検知で能動保存) に委ねる。
         const META = window.MomoMeta;
-        const MAX = 3;
-        let lastErr = null;
-        for (let attempt = 1; attempt <= MAX; attempt++) {
+        const _race = (p, ms, label) => {
             let to = null;
-            const timeout = new Promise((_, rej) => {
-                to = setTimeout(() => { const e = new Error('同期タイムアウト'); e._timeout = true; rej(e); }, 15000);
-            });
-            try {
-                await Promise.race([syncTakeFile(takeId), timeout]);
-                return;   // 成功
-            } catch (e) {
-                lastErr = e;
-            } finally { if (to) clearTimeout(to); }
-            if (attempt < MAX) {
-                DEBUG.warn('ステップ2: テイク保存 失敗 (試行 ' + attempt + '/' + MAX + ') → Drive へ能動的に繋ぎ直して再試行: ' + (lastErr && (lastErr.message || lastErr)));
-                try { if (META && META.Drive) await META.Drive.connect(); } catch (_) {}   // 有効トークンは無プロンプトで再利用
-                await new Promise(r => setTimeout(r, 2000 * attempt));
-            }
+            const t = new Promise((_, rej) => { to = setTimeout(() => rej(new Error((label || '処理') + 'タイムアウト')), ms); });
+            return Promise.race([Promise.resolve(p), t]).finally(() => { if (to) clearTimeout(to); });
+        };
+        // 1) まず普通に書き込み (オンライン時はこれで成功・速い)
+        try { await _race(syncTakeFile(takeId), 12000, '同期'); return; }
+        catch (e1) { DEBUG.warn('ステップ2: 保存に失敗 → 宛先(Drive)へ能動的に繋ぎに行く: ' + (e1.message || e1)); }
+        // 2) ★宛先へ繋ぎに行く = 起動時と同じ「Drive接続 ＋ カラオケフォルダ探索」をやり直す
+        try {
+            await _race(META.Drive.connect(), 12000, 'Drive再接続');
+            await _race(META.Drive.ensureKaraokeRoot(), 12000, 'カラオケフォルダ再探索');
+            DEBUG.ok('ステップ2: 宛先へ繋ぎ直せた → 書き込み再試行');
+        } catch (e2) {
+            const err = new Error('録音終了時に宛先へ繋ぎに行ったが未到達 (まだネット未復帰): ' + (e2.message || e2));
+            err._offline = true; throw err;   // → 📱 + ステップ4 へ委譲
         }
-        const e = new Error('保存先に未到達 (能動再接続を試みたが届かず): ' + (lastErr && (lastErr.message || lastErr)));
-        e._offline = true;   // → 📱(ローカル保持、 後でタップで保存可)
-        throw e;
+        // 3) 繋がった → 書き込み直す
+        try { await _race(syncTakeFile(takeId), 15000, '同期'); return; }
+        catch (e3) { const err = new Error('再接続後の保存に失敗: ' + (e3.message || e3)); err._offline = true; throw err; }
     } else {
         await syncTakeFile(takeId);   // ローカルフォルダ: ネット不要
     }
@@ -6294,6 +6293,15 @@ window._resumePendingUploads = _resumePendingUploads;
 // 受け身トリガー①: ネット復帰(online)を検知 → Drive トークンが既に有効な時だけ直行保存 (connect はしない)。
 if (typeof window !== 'undefined') {
     window.addEventListener('online', () => { _resumePendingUploads('online').catch(() => {}); });
+    // v2.97: iOS の pyodide はオフライン時に write 例外を正しく伝播できず「invalid exception object」 の
+    //   未処理 rejection を投げる。 機能には影響しない (各処理にタイムアウトを敷いてある) が、 ノイズなので抑制。
+    window.addEventListener('unhandledrejection', (ev) => {
+        const msg = ev && ev.reason && (ev.reason.message || String(ev.reason)) || '';
+        if (/invalid exception object/i.test(msg)) {
+            try { ev.preventDefault(); } catch (e) {}
+            try { DEBUG.warn('Drive のオフライン由来の未処理例外を抑制: ' + msg); } catch (e) {}
+        }
+    });
 }
 // ※トリガー②: ユーザーが Drive を接続した瞬間 → make.js の _connectKaraokeFolderDrive から
 //   window._resumePendingUploads('drive-connect') を呼ぶ。

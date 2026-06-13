@@ -99,16 +99,16 @@ body.in-game .site-header h1{font-size:1.25rem;text-shadow:0 1px 4px rgba(0,0,0,
 .rank-diff{font-size:0.7rem;color:var(--text-muted);text-align:right;}
 .ranking-empty{padding:16px 20px;color:var(--text-muted);font-size:0.82rem;text-align:center;}
 /* ── SEO 説明フッター (タイトル画面のみ表示・クローラ向け実コンテンツ) ── */
-.site-footer{position:relative;z-index:1;border-top:1px solid var(--border);background:#0d0d0d;padding:26px 24px 38px;color:var(--text-muted);}
-.site-footer-inner{max-width:760px;margin:0 auto;}
+.site-footer{position:relative;z-index:1;padding:26px 16px 38px;color:var(--text-muted);text-align:left;}
+.site-footer-inner{max-width:556px;margin:0 auto;padding:0 28px;}
 .site-footer h2{font-family:'Fredoka One',sans-serif;font-weight:400;font-size:15px;color:var(--text);margin-bottom:9px;letter-spacing:.02em;}
 .site-footer p{font-size:12px;line-height:1.9;margin-bottom:14px;color:var(--text-muted);}
-.foot-links{display:flex;flex-wrap:wrap;gap:8px 16px;justify-content:center;}
+.foot-links{display:flex;flex-wrap:wrap;gap:8px 16px;justify-content:flex-start;}
 .foot-links a{font-size:12px;color:var(--orangeB);text-decoration:none;}
 .foot-links a:hover{text-decoration:underline;}
 /* プレイ中はフッターを隠す */
 body.in-game .site-footer{display:none;}
-@media (max-width:640px){.site-footer{padding:22px 14px 32px;}}
+@media (max-width:640px){.site-footer{padding:22px 16px 32px;}}
 </style>
 <script src="/momo/lib/momo-analytics.js" defer></script>
 </head>

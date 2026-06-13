@@ -14,6 +14,7 @@
 <link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/games/darts/">
 <link rel="alternate" hreflang="zh-Hans" href="https://qiqiroon.github.io/momo/games/darts/">
 <link rel="alternate" hreflang="x-default" href="https://qiqiroon.github.io/momo/games/darts/">
+<link rel="canonical" href="https://qiqiroon.github.io/momo/games/darts/">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://qiqiroon.github.io/momo/games/darts/">
 <meta property="og:title" content="MOMO Darts - スマホ 3D ダーツ">
@@ -1765,6 +1766,18 @@ input.chat-preset-btn.editing-input:focus {
   text-align: center;
 }
 .calib-status.error { color: var(--danger); }
+
+/* ── SEO 説明フッター (プレイ中は非表示・クローラ向け実コンテンツ) ── */
+.site-footer{position:relative;z-index:1;border-top:1px solid var(--border);background:#0d0d0d;padding:26px 24px 38px;color:var(--text-muted);}
+.site-footer-inner{max-width:760px;margin:0 auto;}
+.site-footer h2{font-family:'Fredoka One',sans-serif;font-weight:400;font-size:15px;color:var(--text);margin-bottom:9px;letter-spacing:.02em;}
+.site-footer p{font-size:12px;line-height:1.9;margin-bottom:14px;color:var(--text-muted);}
+.foot-links{display:flex;flex-wrap:wrap;gap:8px 16px;justify-content:center;}
+.foot-links a{font-size:12px;color:var(--orange-light);text-decoration:none;}
+.foot-links a:hover{text-decoration:underline;}
+/* プレイ中はフッターを隠す */
+body.in-game .site-footer{display:none;}
+@media (max-width:640px){.site-footer{padding:22px 14px 32px;}}
 </style>
 <script src="/momo/lib/momo-analytics.js" defer></script>
 </head>
@@ -2431,6 +2444,19 @@ input.chat-preset-btn.editing-input:focus {
     </div>
   </div>
 </div>
+
+<!-- SEO 説明フッター（プレイ中は非表示） -->
+<footer class="site-footer">
+  <div class="site-footer-inner">
+    <h2 data-i18n="foot.about">MOMO Darts について</h2>
+    <p data-i18n="foot.desc">MOMO Darts は、スマホで遊ぶブラウザ 3D ダーツゲームです。ジャイロで的を見回し、画面タッチでダーツを投げます。オンライン対戦・クリケット・AI 対戦に対応しています。アカウント登録もインストールも不要です。</p>
+    <div class="foot-links">
+      <a href="../../" data-i18n="foot.top">MOMO Works トップ</a>
+      <a href="../../games/" data-i18n="foot.games">ゲーム一覧</a>
+      <a href="../../tools/" data-i18n="foot.tools">ツール一覧</a>
+    </div>
+  </div>
+</footer>
 
 <!-- ===== ES Modules エントリー（段階2-A は骨組みのみ） ===== -->
 <!-- v1.27 (3-A): 共通マッチングモジュール（global MomoMatchmaking） -->

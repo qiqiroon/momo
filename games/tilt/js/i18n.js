@@ -47,6 +47,11 @@ const I18N = {
     stageIntroLocks: '鍵付きゴール',
     lockName: '鍵',
     lockDesc: '同じ番号の鍵を取るとゴールが解錠される',
+    footAbout: 'MOMO Tilt について',
+    footDesc: 'MOMO Tilt は、スマホを傾けて迷路の中のボールを穴に落とすブラウザゲームです。端末のジャイロセンサーを使って、転がるボールを物理的に操作します。アカウント登録もインストールも不要で、ブラウザだけですぐに遊べます。',
+    footTop: 'MOMO Works トップ',
+    footGames: 'ゲーム一覧',
+    footTools: 'ツール一覧',
   },
   en: {
     titleBtn: 'Start',
@@ -94,6 +99,11 @@ const I18N = {
     stageIntroLocks: 'Locked Goals',
     lockName: 'Key',
     lockDesc: 'Collect the matching key to unlock the goal',
+    footAbout: 'About MOMO Tilt',
+    footDesc: "MOMO Tilt is a browser game where you tilt your phone to roll a ball through a maze and drop it into the hole. It uses your device's gyroscope to control the rolling ball with real physics. No account or installation required — just play instantly in your browser.",
+    footTop: 'MOMO Works Home',
+    footGames: 'Games',
+    footTools: 'Tools',
   },
   zh: {
     titleBtn: '开始',
@@ -141,6 +151,11 @@ const I18N = {
     stageIntroLocks: '锁定目标',
     lockName: '钥匙',
     lockDesc: '拾取对应钥匙解锁目标',
+    footAbout: '关于 MOMO Tilt',
+    footDesc: 'MOMO Tilt 是一款通过倾斜手机让迷宫中的小球滚动并落入洞中的浏览器游戏。利用设备的陀螺仪传感器，以真实的物理效果操控滚动的小球。无需注册账号或安装，在浏览器中即可立即游玩。',
+    footTop: 'MOMO Works 首页',
+    footGames: '游戏列表',
+    footTools: '工具列表',
   },
 };
 

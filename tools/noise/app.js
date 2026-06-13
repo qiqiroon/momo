@@ -43,6 +43,11 @@ const I18N = {
     micError:      'マイクエラー: ',
     muteWarn:      '音が出ない場合はiPhoneのサイドスイッチ（無音スイッチ）を確認してください',
     headerSub:     'Recording & Clipping Noise Maker',
+    footAbout:     'MOMO Noise について',
+    footDesc:      'MOMO Noise は、マイク録音した音や読み込んだ音声ファイルを切り出して効果音ボタンを作れるブラウザツールです。無音カットによる音声の自動トリミング、ピッチ調整、メトロノームとの同期再生に対応し、作ったボタンセットは Google Drive に保存・読み込みできます。インストール不要でスマホでもそのまま動きます。',
+    footTop:       'MOMO Works トップ',
+    footGames:     'ゲーム一覧',
+    footTools:     'ツール一覧',
   },
   en: {
     editMode:      'Edit',
@@ -84,6 +89,11 @@ const I18N = {
     micError:      'Mic error: ',
     muteWarn:      'No sound? Check the silent switch on the side of your iPhone.',
     headerSub:     'Recording & Clipping Noise Maker',
+    footAbout:     'About MOMO Noise',
+    footDesc:      'MOMO Noise is a browser tool for making sound-effect buttons by recording from your mic or clipping loaded audio files. It supports automatic silence trimming, pitch adjustment, and playback synced to a metronome, and your button sets can be saved to and loaded from Google Drive. No install needed, and it runs right in your phone browser.',
+    footTop:       'MOMO Works Home',
+    footGames:     'Games',
+    footTools:     'Tools',
   },
   zh: {
     editMode:      '编辑',
@@ -125,6 +135,11 @@ const I18N = {
     micError:      '麦克风错误: ',
     muteWarn:      '没有声音？请检查iPhone侧面的静音开关。',
     headerSub:     '録製与剪輯雑音製造機',
+    footAbout:     '关于 MOMO Noise',
+    footDesc:      'MOMO Noise 是一款浏览器工具，可通过麦克风录音或剪切已加载的音频文件来制作音效按钮。它支持静音自动裁切、音调调整以及与节拍器同步播放，制作好的按钮组还能保存到 Google Drive 并随时加载。无需安装，在手机浏览器中即可直接使用。',
+    footTop:       'MOMO Works 首页',
+    footGames:     '游戏列表',
+    footTools:     '工具列表',
   }
 };
 
@@ -169,6 +184,18 @@ function applyLang() {
     const txt = (I18N[effLang] && I18N[effLang].headerSub) || I18N.ja.headerSub;
     sub.textContent = txt;
     sub.classList.toggle('zh', effLang === 'zh');
+  }
+  // SEO 説明フッター (cat 時も catBase の実体言語を採用)
+  {
+    const fLang = currentLang === 'cat' ? catBase : currentLang;
+    const fd = (k) => (I18N[fLang] && I18N[fLang][k]) || I18N.ja[k];
+    const setT = (id, k) => { const e = document.getElementById(id); if (e) e.textContent = fd(k); };
+    const fa = document.getElementById('footDesc');
+    if (fa) fa.innerHTML = fd('footDesc');
+    setT('footAbout', 'footAbout');
+    setT('footTop',   'footTop');
+    setT('footGames', 'footGames');
+    setT('footTools', 'footTools');
   }
   renderEditList();
   renderControls();

@@ -153,3 +153,13 @@ header { position:sticky; top:0; z-index:100; background:rgba(10,10,10,.95); bor
 .noise-btn.btn-rec-active.active {
   background: var(--bg-selected);
 }
+
+/* ── SEO 説明フッター (常時表示・クローラ向けの実コンテンツ) ── */
+.site-footer{position:relative;z-index:1;border-top:1px solid var(--border);background:#0d0d0d;padding:26px 24px 38px;color:var(--text-muted);}
+.site-footer-inner{max-width:760px;margin:0 auto;}
+.site-footer h2{font-family:'Fredoka One',sans-serif;font-weight:400;font-size:15px;color:var(--text);margin-bottom:9px;letter-spacing:.02em;}
+.site-footer p{font-size:12px;line-height:1.9;margin-bottom:14px;color:var(--text-muted);}
+.foot-links{display:flex;flex-wrap:wrap;gap:8px 16px;}
+.foot-links a{font-size:12px;color:var(--orange-light);text-decoration:none;}
+.foot-links a:hover{text-decoration:underline;}
+@media (max-width:640px){.site-footer{padding:22px 14px 32px;}}

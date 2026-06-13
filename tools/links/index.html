@@ -14,6 +14,7 @@
 <link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/tools/links/">
 <link rel="alternate" hreflang="zh-Hans" href="https://qiqiroon.github.io/momo/tools/links/">
 <link rel="alternate" hreflang="x-default" href="https://qiqiroon.github.io/momo/tools/links/">
+<link rel="canonical" href="https://qiqiroon.github.io/momo/tools/links/">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://qiqiroon.github.io/momo/tools/links/">
 <meta property="og:title" content="MOMO Links - タブ式ブックマーク管理">
@@ -691,6 +692,16 @@ main{animation:fadeUp .25s .05s ease both;}
 
 @keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
 #syncIndicator{display:none;margin-left:8px;color:orange;font-size:12px;font-weight:bold;animation:blink 1s infinite;}
+
+/* ── SEO 説明フッター (常時表示・クローラ向けの実コンテンツ) ── */
+.site-footer{position:relative;z-index:1;border-top:1px solid var(--border);background:#0d0d0d;padding:26px 24px 38px;color:var(--text-muted);}
+.site-footer-inner{max-width:760px;margin:0 auto;}
+.site-footer h2{font-family:'Fredoka One',sans-serif;font-weight:400;font-size:15px;color:var(--text);margin-bottom:9px;letter-spacing:.02em;}
+.site-footer p{font-size:12px;line-height:1.9;margin-bottom:14px;color:var(--text-muted);}
+.foot-links{display:flex;flex-wrap:wrap;gap:8px 16px;}
+.foot-links a{font-size:12px;color:var(--orange-light);text-decoration:none;}
+.foot-links a:hover{text-decoration:underline;}
+@media (max-width:640px){.site-footer{padding:22px 14px 32px;}}
 </style>
 <script src="/momo/lib/momo-analytics.js" defer></script>
 </head>
@@ -873,6 +884,19 @@ main{animation:fadeUp .25s .05s ease both;}
   <div id="cardsArea"></div>
 </main>
 </div>
+
+<!-- SEO 説明フッター -->
+<footer class="site-footer">
+  <div class="site-footer-inner">
+    <h2 id="footAbout">MOMO Links について</h2>
+    <p id="footDesc">MOMO Links は、ブラウザだけで使えるタブ式のブックマーク管理ツールです。複数のフォルダ（タグ）を並べて整理でき、保存したデータはお使いの端末内に残るため、アカウント登録もインストールも必要ありません。ブックマークのエクスポート／インポートや、Chrome 用ブックマーク HTML の書き出しにも対応しています。</p>
+    <div class="foot-links">
+      <a href="../../" id="footTop">MOMO Works トップ</a>
+      <a href="../../games/" id="footGames">ゲーム一覧</a>
+      <a href="../../tools/" id="footTools">ツール一覧</a>
+    </div>
+  </div>
+</footer>
 
 <!-- PIN入力ダイアログ -->
 <div class="dialog-overlay" id="pinDialog">
@@ -2501,6 +2525,9 @@ const I18N={
     gdriveSyncNowBtn:'今すぐ同期',
     gdriveLastSync:'前回同期: %s',
     gdriveNoSync:'未同期',
+    footAbout:'MOMO Links について',
+    footDesc:'MOMO Links は、ブラウザだけで使えるタブ式のブックマーク管理ツールです。複数のフォルダ（タグ）を並べて整理でき、保存したデータはお使いの端末内に残るため、アカウント登録もインストールも必要ありません。ブックマークのエクスポート／インポートや、Chrome 用ブックマーク HTML の書き出しにも対応しています。',
+    footTop:'MOMO Works トップ', footGames:'ゲーム一覧', footTools:'ツール一覧',
   },
   en:{
     searchPlaceholder:'Search title, URL, tags...',
@@ -2577,6 +2604,9 @@ const I18N={
     gdriveSyncNowBtn:'Sync now',
     gdriveLastSync:'Last sync: %s',
     gdriveNoSync:'Not synced yet',
+    footAbout:'About MOMO Links',
+    footDesc:'MOMO Links is a tab-based bookmark manager that runs entirely in your browser. Organize your bookmarks across multiple folders (tags); your data stays on your own device, so no account or installation is required. It also supports exporting and importing bookmarks and generating bookmark HTML for Chrome.',
+    footTop:'MOMO Works Home', footGames:'Games', footTools:'Tools',
   },
   zh:{
     searchPlaceholder:'搜索标题、URL、标签...',
@@ -2653,6 +2683,9 @@ const I18N={
     gdriveSyncNowBtn:'立即同步',
     gdriveLastSync:'上次同步: %s',
     gdriveNoSync:'尚未同步',
+    footAbout:'关于 MOMO Links',
+    footDesc:'MOMO Links 是一款完全在浏览器中运行的标签式书签管理工具。可以通过多个文件夹（标签）整理书签，数据保存在你自己的设备上，无需注册账号或安装。还支持书签的导出／导入，以及生成 Chrome 用书签 HTML。',
+    footTop:'MOMO Works 首页', footGames:'游戏列表', footTools:'工具列表',
   },
 };
 
@@ -2744,6 +2777,8 @@ function applyLang(){
   tx('gdriveCloseBtn',t('closeBtn'));
   ph('secretPinNew1',t('pinSetupPlaceholder1')); ph('secretPinNew2',t('pinSetupPlaceholder2'));
   const sb=g('secretBadge');if(sb)sb.textContent=t('secretBadge');
+  tx('footAbout',t('footAbout')); ih('footDesc',t('footDesc'));
+  tx('footTop',t('footTop')); tx('footGames',t('footGames')); tx('footTools',t('footTools'));
 
   document.querySelectorAll('.lang-select').forEach(s=>s.value=currentLang);
   const _hl=currentLang==='cat'

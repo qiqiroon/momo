@@ -72,7 +72,12 @@
             searchPlaceholderV13: "曲名 / アーティスト",
             disableBtn: "無効化",
             confirmDisable: "「{name}」を空ファイルで上書き（無効化）します。よろしいですか?",
-            disabled: "無効化しました"
+            disabled: "無効化しました",
+            footAbout: "MOMO Lyrics について",
+            footDesc: "MOMO Lyrics は、楽曲の歌詞メタデータをブラウザだけで一括管理できるツールです。フォルダ内の音楽ファイル(MP3/M4A/FLAC)のタグ情報などから歌詞を自動保存できるほか、同期歌詞(.lrc)の作成・編集や、再生に合わせて行をタップしてタイミングを付ける TAP 入力にも対応しています。アカウント登録もインストールも不要で、データはお使いの端末内に残ります。",
+            footTop: "MOMO Works トップ",
+            footGames: "ゲーム一覧",
+            footTools: "ツール一覧"
         },
         en: {
             breadcrumb: "MOMO Lyrics",
@@ -134,7 +139,12 @@
             searchPlaceholderV13: "Title / Artist",
             disableBtn: "Disable",
             confirmDisable: "Overwrite \"{name}\" with an empty file (disable)?",
-            disabled: "Disabled"
+            disabled: "Disabled",
+            footAbout: "About MOMO Lyrics",
+            footDesc: "MOMO Lyrics is a browser tool for managing song lyric metadata in bulk. It can automatically save lyrics from the tag information of the audio files (MP3/M4A/FLAC) in a folder, and it also supports creating and editing synced lyrics (.lrc) as well as TAP input, where you tap each line in time with playback to set its timing. No account or installation is required, and your data stays on your own device.",
+            footTop: "MOMO Works Home",
+            footGames: "Games",
+            footTools: "Tools"
         },
         zh: {
             breadcrumb: "MOMO Lyrics",
@@ -196,7 +206,12 @@
             searchPlaceholderV13: "歌名 / 歌手",
             disableBtn: "禁用",
             confirmDisable: "用空文件覆盖「{name}」(禁用)吗?",
-            disabled: "已禁用"
+            disabled: "已禁用",
+            footAbout: "关于 MOMO Lyrics",
+            footDesc: "MOMO Lyrics 是一款仅在浏览器中即可批量管理歌曲歌词元数据的工具。可从文件夹内音频文件(MP3/M4A/FLAC)的标签信息等自动保存歌词，还支持创建和编辑同步歌詞(.lrc)，以及随播放点击每一行来设置时间的 TAP 输入。无需注册账号或安装，数据保留在您的设备中。",
+            footTop: "MOMO Works 首页",
+            footGames: "游戏列表",
+            footTools: "工具列表"
         }
     };
 
@@ -288,7 +303,6 @@
         const q = document.getElementById('query');
         if (q) q.placeholder = d.searchPlaceholder;
         setText('searchBtn', d.searchBtn);
-        setText('footer-back', d.footerBack);
         setText('label-add-info-folder', d.addInfoLabel);
         setText('label-add-info-search', d.addInfoLabel);
         // v1.13: プレイ画面トグルは削除済み(label-add-info-play は存在しない)
@@ -313,6 +327,14 @@
         setText('saveLyricsBtn', d.saveBtn2);
         setText('tapBtn', d.tapBtn);
         setText('undoTapBtn', d.undoTap);
+
+        // SEO 説明フッター (footDesc のみ innerHTML、他は textContent)
+        setText('footAbout', d.footAbout);
+        const footDescEl = document.getElementById('footDesc');
+        if (footDescEl && d.footDesc) footDescEl.innerHTML = d.footDesc;
+        setText('footTop', d.footTop);
+        setText('footGames', d.footGames);
+        setText('footTools', d.footTools);
 
         // select の value を現在言語に合わせる
         const sel = document.getElementById('lang-select');

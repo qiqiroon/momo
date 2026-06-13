@@ -13,6 +13,7 @@
 <link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/games/hanoi/">
 <link rel="alternate" hreflang="zh-Hans" href="https://qiqiroon.github.io/momo/games/hanoi/">
 <link rel="alternate" hreflang="x-default" href="https://qiqiroon.github.io/momo/games/hanoi/">
+<link rel="canonical" href="https://qiqiroon.github.io/momo/games/hanoi/">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://qiqiroon.github.io/momo/games/hanoi/">
 <meta property="og:title" content="MOMO Hanoi - ハノイの塔パズル">
@@ -97,6 +98,17 @@ body.in-game .site-header h1{font-size:1.25rem;text-shadow:0 1px 4px rgba(0,0,0,
 .rank-score{color:var(--orangeB);font-family:'Fredoka One',cursive;text-align:right;}
 .rank-diff{font-size:0.7rem;color:var(--text-muted);text-align:right;}
 .ranking-empty{padding:16px 20px;color:var(--text-muted);font-size:0.82rem;text-align:center;}
+/* ── SEO 説明フッター (タイトル画面のみ表示・クローラ向け実コンテンツ) ── */
+.site-footer{position:relative;z-index:1;border-top:1px solid var(--border);background:#0d0d0d;padding:26px 24px 38px;color:var(--text-muted);}
+.site-footer-inner{max-width:760px;margin:0 auto;}
+.site-footer h2{font-family:'Fredoka One',sans-serif;font-weight:400;font-size:15px;color:var(--text);margin-bottom:9px;letter-spacing:.02em;}
+.site-footer p{font-size:12px;line-height:1.9;margin-bottom:14px;color:var(--text-muted);}
+.foot-links{display:flex;flex-wrap:wrap;gap:8px 16px;justify-content:center;}
+.foot-links a{font-size:12px;color:var(--orangeB);text-decoration:none;}
+.foot-links a:hover{text-decoration:underline;}
+/* プレイ中はフッターを隠す */
+body.in-game .site-footer{display:none;}
+@media (max-width:640px){.site-footer{padding:22px 14px 32px;}}
 </style>
 <script src="/momo/lib/momo-analytics.js" defer></script>
 </head>
@@ -218,6 +230,19 @@ body.in-game .site-header h1{font-size:1.25rem;text-shadow:0 1px 4px rgba(0,0,0,
     <div class="ranking-empty">まだ記録がありません</div>
   </div>
 </div>
+
+<!-- SEO 説明フッター（タイトル画面のみ表示） -->
+<footer class="site-footer">
+  <div class="site-footer-inner">
+    <h2 id="footAbout">MOMO Hanoi について</h2>
+    <p id="footDesc">MOMO Hanoi は、ブラウザで遊べる無料のハノイの塔パズルです。円盤の枚数を選び、すべての円盤を別の杭へ移して最少手数を目指します。アカウント登録もインストールも不要で、ブラウザだけですぐに遊べます。</p>
+    <div class="foot-links">
+      <a href="../../" id="footTop">MOMO Works トップ</a>
+      <a href="../../games/" id="footGames">ゲーム一覧</a>
+      <a href="../../tools/" id="footTools">ツール一覧</a>
+    </div>
+  </div>
+</footer>
 
 <script>
 const canvas = document.getElementById('gameCanvas');
@@ -763,6 +788,11 @@ const I18N_HANOI = {
     nameInputPlaceholder: '名前を入力してランキング登録',
     saveBtn: '登録', saveBtnDone: '登録済み',
     retryBtn: 'もう一度',
+    footAbout: 'MOMO Hanoi について',
+    footDesc: 'MOMO Hanoi は、ブラウザで遊べる無料のハノイの塔パズルです。円盤の枚数を選び、すべての円盤を別の杭へ移して最少手数を目指します。アカウント登録もインストールも不要で、ブラウザだけですぐに遊べます。',
+    footTop: 'MOMO Works トップ',
+    footGames: 'ゲーム一覧',
+    footTools: 'ツール一覧',
   },
   en: {
     subtitleText: 'Tower Defence of Hanoi',
@@ -781,6 +811,11 @@ const I18N_HANOI = {
     nameInputPlaceholder: 'Enter name to register score',
     saveBtn: 'Register', saveBtnDone: 'Registered',
     retryBtn: 'Play Again',
+    footAbout: 'About MOMO Hanoi',
+    footDesc: 'MOMO Hanoi is a free Tower of Hanoi puzzle you can play in your browser. Choose the number of disks and move them all to another peg, aiming for the fewest moves. No account or installation required — just play instantly in your browser.',
+    footTop: 'MOMO Works Home',
+    footGames: 'Games',
+    footTools: 'Tools',
   },
   zh: {
     subtitleText: '汉诺塔防',
@@ -799,6 +834,11 @@ const I18N_HANOI = {
     nameInputPlaceholder: '输入名字以注册分数',
     saveBtn: '注册', saveBtnDone: '已注册',
     retryBtn: '再玩一次',
+    footAbout: '关于 MOMO Hanoi',
+    footDesc: 'MOMO Hanoi 是一款可在浏览器中免费游玩的汉诺塔益智游戏。选择圆盘数量，将所有圆盘移动到另一根柱子上，挑战最少步数。无需注册账号或安装，在浏览器中即可立即游玩。',
+    footTop: 'MOMO Works 首页',
+    footGames: '游戏列表',
+    footTools: '工具列表',
   },
 };
 
@@ -821,6 +861,11 @@ function applyLangHanoi() {
   const sb = document.getElementById('saveBtn');
   if (!sb.disabled) sb.textContent = d.saveBtn;
   document.getElementById('retryBtn').textContent = d.retryBtn;
+  const fA = document.getElementById('footAbout'); if (fA) fA.textContent = d.footAbout;
+  const fD = document.getElementById('footDesc'); if (fD) fD.innerHTML = d.footDesc;
+  const fTop = document.getElementById('footTop'); if (fTop) fTop.textContent = d.footTop;
+  const fG = document.getElementById('footGames'); if (fG) fG.textContent = d.footGames;
+  const fT = document.getElementById('footTools'); if (fT) fT.textContent = d.footTools;
   document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('active', b.dataset.lang === currentLang));
   document.documentElement.lang = currentLang === 'zh' ? 'zh-Hans' : currentLang;
 }

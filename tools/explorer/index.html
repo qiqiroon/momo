@@ -18,6 +18,7 @@
 <link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/tools/explorer/">
 <link rel="alternate" hreflang="zh-Hans" href="https://qiqiroon.github.io/momo/tools/explorer/">
 <link rel="alternate" hreflang="x-default" href="https://qiqiroon.github.io/momo/tools/explorer/">
+<link rel="canonical" href="https://qiqiroon.github.io/momo/tools/explorer/">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://qiqiroon.github.io/momo/tools/explorer/">
 <meta property="og:title" content="MOMO Explorer - 統合ファイル管理">
@@ -104,7 +105,8 @@ html, body {
   color: var(--fg);
   font-family: var(--sans);
   font-size: 13px;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -702,17 +704,6 @@ html, body {
 #lang-select:focus,
 #lang-select:hover { border-color: var(--orange); color: var(--orange-light); }
 
-/* ── MOMO Worksリンク ── */
-#momo-works-link {
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--fg3);
-  text-decoration: none;
-  white-space: nowrap;
-  transition: color 0.15s;
-}
-#momo-works-link:hover { color: var(--fg2); }
-
 /* ── モバイル対応 ── */
 @media (max-width: 600px) {
   :root { --tree-w: 150px; }
@@ -730,6 +721,16 @@ html, body {
   #left-pane { min-width: 110px; }
   .logo-cat { width: 20px !important; height: 22px !important; }
 }
+
+/* ── SEO 説明フッター (常時表示・クローラ向けの実コンテンツ) ── */
+.site-footer{position:relative;z-index:1;border-top:1px solid var(--border);background:#0d0d0d;padding:26px 24px 38px;color:var(--text-muted);}
+.site-footer-inner{max-width:760px;margin:0 auto;}
+.site-footer h2{font-family:'Fredoka One',sans-serif;font-weight:400;font-size:15px;color:var(--text);margin-bottom:9px;letter-spacing:.02em;}
+.site-footer p{font-size:12px;line-height:1.9;margin-bottom:14px;color:var(--text-muted);}
+.foot-links{display:flex;flex-wrap:wrap;gap:8px 16px;}
+.foot-links a{font-size:12px;color:var(--orange-light);text-decoration:none;}
+.foot-links a:hover{text-decoration:underline;}
+@media (max-width:640px){.site-footer{padding:22px 14px 32px;}}
 </style>
 <script src="/momo/lib/momo-analytics.js" defer></script>
 </head>
@@ -789,7 +790,6 @@ html, body {
       </span>
     </span>
     <span class="spacer"></span>
-    <a id="momo-works-link" href="https://qiqiroon.github.io/momo/" target="_blank">← MOMO Works</a>
     <div id="pyodide-status">
       <div class="dot loading" id="py-dot"></div>
       <span id="py-label">Pyodide 初期化中</span>
@@ -880,6 +880,19 @@ html, body {
 
 <!-- iOS webkitdirectory フォールバック用 隠しinput -->
 <input type="file" id="ios-folder-input" webkitdirectory multiple style="display:none">
+
+<!-- SEO 説明フッター -->
+<footer class="site-footer">
+  <div class="site-footer-inner">
+    <h2 id="footAbout">MOMO Explorer について</h2>
+    <p id="footDesc">MOMO Explorer は、ローカルフォルダや Google Drive など複数のストレージを 1 つの画面でまとめて扱える統合ファイル管理ツールです。コピー・移動・削除・フォルダ作成などを、ストレージをまたいで同じ操作感で行えます。ブラウザだけで動き、アカウント登録やインストールは不要です。</p>
+    <div class="foot-links">
+      <a href="../../" id="footTop">MOMO Works トップ</a>
+      <a href="../../games/" id="footGames">ゲーム一覧</a>
+      <a href="../../tools/" id="footTools">ツール一覧</a>
+    </div>
+  </div>
+</footer>
 
 <script>
 /* =====================================================
@@ -2844,6 +2857,9 @@ const I18N = {
     modalCopyBtn:    "コピー",
     modalMoveBtn:    "移動",
     modalDeleteFolderNote: "⚠ フォルダごと削除されます（中のファイルも含む）",
+    footAbout:"MOMO Explorer について",
+    footDesc:"MOMO Explorer は、ローカルフォルダや Google Drive など複数のストレージを 1 つの画面でまとめて扱える統合ファイル管理ツールです。コピー・移動・削除・フォルダ作成などを、ストレージをまたいで同じ操作感で行えます。ブラウザだけで動き、アカウント登録やインストールは不要です。",
+    footTop:"MOMO Works トップ", footGames:"ゲーム一覧", footTools:"ツール一覧",
   },
   en: {
     pyodideInit:    "Pyodide initializing",
@@ -2949,6 +2965,9 @@ const I18N = {
     modalCopyBtn:    "Copy",
     modalMoveBtn:    "Move",
     modalDeleteFolderNote: "⚠ The entire folder will be deleted (including all contents)",
+    footAbout:"About MOMO Explorer",
+    footDesc:"MOMO Explorer is a unified file manager that lets you handle multiple storages — local folders, Google Drive and more — in a single screen. Copy, move, delete and create folders across storages with the same feel. It runs entirely in your browser, with no account or installation required.",
+    footTop:"MOMO Works Home", footGames:"Games", footTools:"Tools",
   },
   zh: {
     pyodideInit:    "Pyodide 初始化中",
@@ -3054,6 +3073,9 @@ const I18N = {
     modalCopyBtn:    "复制",
     modalMoveBtn:    "移动",
     modalDeleteFolderNote: "⚠ 整个文件夹将被删除（包括所有内容）",
+    footAbout:"关于 MOMO Explorer",
+    footDesc:"MOMO Explorer 是一款整合式文件管理工具，可在同一个界面中操作本地文件夹、Google Drive 等多个存储。可跨存储进行复制、移动、删除、新建文件夹等操作，体验一致。完全在浏览器中运行，无需注册账号或安装。",
+    footTop:"MOMO Works 首页", footGames:"游戏列表", footTools:"工具列表",
   },
 };
 
@@ -3120,9 +3142,12 @@ function applyLang() {
   // ヘッダー pyodideラベル
   const pyLabel = document.getElementById('py-label');
   if (pyLabel) pyLabel.textContent = pyReady ? t('pyodideReady') : t('pyodideInit');
-  // MOMO Worksリンク
-  const momoLink = document.getElementById('momo-works-link');
-  if (momoLink) momoLink.textContent = t('momoWorksLink');
+  // SEO 説明フッター
+  const _fa=document.getElementById('footAbout'); if(_fa) _fa.textContent=t('footAbout');
+  const _fd=document.getElementById('footDesc'); if(_fd) _fd.innerHTML=t('footDesc');
+  const _ft=document.getElementById('footTop'); if(_ft) _ft.textContent=t('footTop');
+  const _fg=document.getElementById('footGames'); if(_fg) _fg.textContent=t('footGames');
+  const _fo=document.getElementById('footTools'); if(_fo) _fo.textContent=t('footTools');
   // アドレスバー
   const addrInput = document.getElementById('addr-input');
   if (addrInput) addrInput.placeholder = t('addrPlaceholder');

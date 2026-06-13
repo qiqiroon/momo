@@ -4,6 +4,12 @@
   "ja": {
     "gear.title": "設定",
 
+    "foot.about": "MOMO Darts について",
+    "foot.desc": "MOMO Darts は、スマホで遊ぶブラウザ 3D ダーツゲームです。ジャイロで的を見回し、画面タッチでダーツを投げます。オンライン対戦・クリケット・AI 対戦に対応しています。アカウント登録もインストールも不要です。",
+    "foot.top": "MOMO Works トップ",
+    "foot.games": "ゲーム一覧",
+    "foot.tools": "ツール一覧",
+
     "modal.confirm.leave": "退出しますか？",
     "confirm.passTurn": "投擲権を相手に移譲しますか？",
     "modal.yes": "はい",
@@ -251,6 +257,12 @@
   "en": {
     "gear.title": "Settings",
 
+    "foot.about": "About MOMO Darts",
+    "foot.desc": "MOMO Darts is a 3D darts game for your phone that runs in the browser. Look around the board with your gyroscope and throw by tapping the screen. It supports online matches, cricket and AI opponents. No account or installation required.",
+    "foot.top": "MOMO Works Home",
+    "foot.games": "Games",
+    "foot.tools": "Tools",
+
     "modal.confirm.leave": "Leave?",
     "confirm.passTurn": "Pass the turn to your opponent?",
     "modal.yes": "Yes",
@@ -497,6 +509,12 @@
 
   "zh": {
     "gear.title": "设置",
+
+    "foot.about": "关于 MOMO Darts",
+    "foot.desc": "MOMO Darts 是一款在浏览器中游玩的手机 3D 飞镖游戏。用陀螺仪环视靶盘，点击屏幕投掷飞镖。支持在线对战、板球计分和 AI 对战。无需注册账号或安装。",
+    "foot.top": "MOMO Works 首页",
+    "foot.games": "游戏列表",
+    "foot.tools": "工具列表",
 
     "modal.confirm.leave": "确定要离开吗？",
     "confirm.passTurn": "将投掷权移交给对手？",

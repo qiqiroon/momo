@@ -14,8 +14,8 @@
   --font: system-ui, -apple-system, 'Helvetica Neue', sans-serif;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html { height: 100%; overflow: hidden; }
-body { height: 100%; font-family: var(--font); background: var(--bg-base); color: var(--text-primary); font-size: 14px; min-width: 960px; overflow-x: auto; overflow-y: hidden; }
+html { height: 100%; overflow-x: hidden; overflow-y: auto; }
+body { height: 100%; font-family: var(--font); background: var(--bg-base); color: var(--text-primary); font-size: 14px; min-width: 960px; overflow-x: auto; overflow-y: auto; }
 #app { display: flex; height: 100vh; }
 
 /* LEFT */

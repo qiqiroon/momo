@@ -15,6 +15,7 @@
 <link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/games/tilt/">
 <link rel="alternate" hreflang="zh-Hans" href="https://qiqiroon.github.io/momo/games/tilt/">
 <link rel="alternate" hreflang="x-default" href="https://qiqiroon.github.io/momo/games/tilt/">
+<link rel="canonical" href="https://qiqiroon.github.io/momo/games/tilt/">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://qiqiroon.github.io/momo/games/tilt/">
 <meta property="og:title" content="MOMO Tilt - スマホ傾けゲーム">
@@ -256,6 +257,20 @@
   .site-header .subtitle{font-family:'Fredoka One',cursive;color:#888;letter-spacing:0;margin-top:1px;font-size:16px;text-align:left;min-height:1.2em;}
   .site-header .subtitle.zh{font-family:'Fredoka One','Noto Sans SC','Noto Sans JP',sans-serif;}
   @keyframes fadeDown{from{opacity:0;transform:translateY(-14px);}to{opacity:1;transform:translateY(0);}}
+
+  /* ── SEO 説明フッター (タイトル画面のみ表示・クローラ向け実コンテンツ) ── */
+  .site-footer{position:relative;z-index:1;border-top:1px solid var(--border);background:#0d0d0d;padding:26px 24px 38px;color:var(--text-muted);}
+  .site-footer-inner{max-width:760px;margin:0 auto;}
+  .site-footer h2{font-family:'Fredoka One',sans-serif;font-weight:400;font-size:15px;color:var(--text);margin-bottom:9px;letter-spacing:.02em;}
+  .site-footer p{font-size:12px;line-height:1.9;margin-bottom:14px;color:var(--text-muted);}
+  .foot-links{display:flex;flex-wrap:wrap;gap:8px 16px;justify-content:center;}
+  .foot-links a{font-size:12px;color:var(--orange-light);text-decoration:none;}
+  .foot-links a:hover{text-decoration:underline;}
+  /* タイトルオーバーレイ内配置: タイトルは中央維持・フッターは下部、狭ければオーバーレイ内スクロール */
+  #titleOverlay{justify-content:flex-start;overflow-y:auto;}
+  #titleOverlay>.title-wrap{margin:auto;}
+  #titleOverlay>.site-footer{width:100%;flex-shrink:0;}
+  @media (max-width:640px){.site-footer{padding:22px 14px 32px;}}
 </style>
 </head>
 <body>
@@ -344,6 +359,18 @@
     <button class="btn" id="titleBtn" style="margin-top:10px;"></button>
     <div class="kbd-hint" id="kbdHint"></div>
   </div>
+  <!-- SEO 説明フッター（タイトル画面内・下部、プレイ中はタイトルごと非表示） -->
+  <footer class="site-footer">
+    <div class="site-footer-inner">
+      <h2 id="footAbout">MOMO Tilt について</h2>
+      <p id="footDesc">MOMO Tilt は、スマホを傾けて迷路の中のボールを穴に落とすブラウザゲームです。端末のジャイロセンサーを使って、転がるボールを物理的に操作します。アカウント登録もインストールも不要で、ブラウザだけですぐに遊べます。</p>
+      <div class="foot-links">
+        <a href="../../" id="footTop">MOMO Works トップ</a>
+        <a href="../../games/" id="footGames">ゲーム一覧</a>
+        <a href="../../tools/" id="footTools">ツール一覧</a>
+      </div>
+    </div>
+  </footer>
 </div>
 
 <!-- 2: Maze preview bar -->
@@ -475,6 +502,18 @@
     document.getElementById('sensLabelText').textContent    = t('sensLabel');
     document.getElementById('spdLabelText').textContent     = t('spdLabel');
     document.getElementById('wallRepLabelText').textContent = t('wallRepLabel');
+
+    // SEO footer
+    const fAbout = document.getElementById('footAbout');
+    if (fAbout) fAbout.textContent = t('footAbout');
+    const fDesc = document.getElementById('footDesc');
+    if (fDesc) fDesc.innerHTML = t('footDesc');
+    const fTop = document.getElementById('footTop');
+    if (fTop) fTop.textContent = t('footTop');
+    const fGames = document.getElementById('footGames');
+    if (fGames) fGames.textContent = t('footGames');
+    const fTools = document.getElementById('footTools');
+    if (fTools) fTools.textContent = t('footTools');
   }
 
   // Sync select on load

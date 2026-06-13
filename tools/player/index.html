@@ -13,6 +13,7 @@
 <link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/tools/player/">
 <link rel="alternate" hreflang="zh-Hans" href="https://qiqiroon.github.io/momo/tools/player/">
 <link rel="alternate" hreflang="x-default" href="https://qiqiroon.github.io/momo/tools/player/">
+<link rel="canonical" href="https://qiqiroon.github.io/momo/tools/player/">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://qiqiroon.github.io/momo/tools/player/">
 <meta property="og:title" content="MOMO Player - HDD 直結音楽プレイヤー">
@@ -23,6 +24,17 @@
 <meta property="og:locale:alternate" content="zh_CN">
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<style>
+/* ── SEO 説明フッター (常時表示・クローラ向けの実コンテンツ) ── */
+.site-footer{position:relative;z-index:1;border-top:1px solid var(--border);background:#0d0d0d;padding:26px 24px 38px;color:var(--text-secondary);}
+.site-footer-inner{max-width:760px;margin:0 auto;}
+.site-footer h2{font-family:'Fredoka One',sans-serif;font-weight:400;font-size:15px;color:var(--text-primary);margin-bottom:9px;letter-spacing:.02em;}
+.site-footer p{font-size:12px;line-height:1.9;margin-bottom:14px;color:var(--text-secondary);}
+.foot-links{display:flex;flex-wrap:wrap;gap:8px 16px;}
+.foot-links a{font-size:12px;color:var(--accent);text-decoration:none;}
+.foot-links a:hover{text-decoration:underline;}
+@media (max-width:640px){.site-footer{padding:22px 14px 32px;}}
+</style>
 <script src="/momo/lib/momo-analytics.js" defer></script>
 </head>
 <body>
@@ -297,6 +309,19 @@
 
 <!-- v8: DB確認ダイアログは廃止 -->
 
+<!-- SEO 説明フッター -->
+<footer class="site-footer">
+  <div class="site-footer-inner">
+    <h2 id="footAbout">MOMO Player について</h2>
+    <p id="footDesc">MOMO Player は、パソコン内の HDD にある音楽ファイルをブラウザだけで直接再生できる音楽プレイヤーです。アプリのインストールや会員登録は不要で、大規模なライブラリ管理・歌詞表示・同期歌詞 (.lrc) 表示に対応しています。</p>
+    <div class="foot-links">
+      <a href="../../" id="footTop">MOMO Works トップ</a>
+      <a href="../../games/" id="footGames">ゲーム一覧</a>
+      <a href="../../tools/" id="footTools">ツール一覧</a>
+    </div>
+  </div>
+</footer>
+
 <script>
 'use strict';
 
@@ -378,6 +403,10 @@ const I18N = {
     disableLyricsConfirm: 'この曲の歌詞を無効化しますか？\n（空の.lrcファイルが作成され、以後自動DLされなくなります）',
     disableLyricsDone: '歌詞を無効化しました',
     headerSub: 'HDD-Bound Music Player',
+    // SEO 説明フッター
+    footAbout: 'MOMO Player について',
+    footDesc: 'MOMO Player は、パソコン内の HDD にある音楽ファイルをブラウザだけで直接再生できる音楽プレイヤーです。アプリのインストールや会員登録は不要で、大規模なライブラリ管理・歌詞表示・同期歌詞 (.lrc) 表示に対応しています。',
+    footTop: 'MOMO Works トップ', footGames: 'ゲーム一覧', footTools: 'ツール一覧',
   },
   en: {
     libraryManagement: 'Library Management', addFolder: '+ Add Folder', deleteFolder: 'Delete',
@@ -425,6 +454,10 @@ const I18N = {
     disableLyricsConfirm: 'Disable lyrics for this track?\n(An empty .lrc file will be created and auto-download will be skipped.)',
     disableLyricsDone: 'Lyrics disabled',
     headerSub: 'HDD-Bound Music Player',
+    // SEO 説明フッター
+    footAbout: 'About MOMO Player',
+    footDesc: 'MOMO Player is a browser-based music player that plays audio files directly from your local HDD. No installation or sign-up is required, and it supports large library management, lyrics display, and synchronized lyrics (.lrc).',
+    footTop: 'MOMO Works Home', footGames: 'Games', footTools: 'Tools',
   },
   zh: {
     libraryManagement: '音乐库管理', addFolder: '＋ 添加文件夹', deleteFolder: '删除',
@@ -471,6 +504,10 @@ const I18N = {
     disableLyricsConfirm: '要禁用此曲的歌词吗？\n（将创建空.lrc文件，之后不会自动下载歌词。）',
     disableLyricsDone: '歌词已禁用',
     headerSub: '硬盤駆動型音楽播放器',
+    // SEO 説明フッター
+    footAbout: '关于 MOMO Player',
+    footDesc: 'MOMO Player 是一款仅用浏览器即可直接播放本地 HDD 中音乐文件的音乐播放器。无需安装应用、无需注册，支持大规模音乐库管理、歌词显示以及同步歌词 (.lrc)。',
+    footTop: 'MOMO Works 首页', footGames: '游戏列表', footTools: '工具列表',
   },
 };
 let catBase = 'ja'; // v11: CAT選択直前の言語
@@ -582,6 +619,12 @@ function applyLang() {
   if (el('sleep-min-label')) el('sleep-min-label').textContent = t('sleepMinLabel');
   if (el('sleep-set-btn')) el('sleep-set-btn').textContent = t('sleepSet');
   if (el('sleep-cancel-btn')) el('sleep-cancel-btn').textContent = t('sleepCancel');
+  // SEO 説明フッター
+  if (el('footAbout')) el('footAbout').textContent = t('footAbout');
+  if (el('footDesc')) el('footDesc').innerHTML = t('footDesc');
+  if (el('footTop')) el('footTop').textContent = t('footTop');
+  if (el('footGames')) el('footGames').textContent = t('footGames');
+  if (el('footTools')) el('footTools').textContent = t('footTools');
 }
 // v11: 言語切替ハンドラ（<select onchange> から呼ばれる）
 function onLangChange(lang) {

@@ -14,6 +14,7 @@
 <link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/games/gomoku-go/">
 <link rel="alternate" hreflang="zh-Hans" href="https://qiqiroon.github.io/momo/games/gomoku-go/">
 <link rel="alternate" hreflang="x-default" href="https://qiqiroon.github.io/momo/games/gomoku-go/">
+<link rel="canonical" href="https://qiqiroon.github.io/momo/games/gomoku-go/">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://qiqiroon.github.io/momo/games/gomoku-go/">
 <meta property="og:title" content="MOMO Go - 五目並べ・囲碁">
@@ -889,6 +890,17 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
   text-align: center;
 }
 
+/* ── SEO 説明フッター (対局中は非表示・クローラ向け実コンテンツ) ── */
+.site-footer{position:relative;z-index:1;border-top:1px solid var(--border);background:#0d0d0d;padding:26px 24px 38px;color:var(--text-muted);}
+.site-footer-inner{max-width:760px;margin:0 auto;}
+.site-footer h2{font-family:'Fredoka One',sans-serif;font-weight:400;font-size:15px;color:var(--text);margin-bottom:9px;letter-spacing:.02em;}
+.site-footer p{font-size:12px;line-height:1.9;margin-bottom:14px;color:var(--text-muted);}
+.foot-links{display:flex;flex-wrap:wrap;gap:8px 16px;justify-content:center;}
+.foot-links a{font-size:12px;color:var(--orange-light);text-decoration:none;}
+.foot-links a:hover{text-decoration:underline;}
+/* 対局盤面(screen-game)がアクティブな間はフッターを隠す */
+#screen-game.active ~ .site-footer{display:none;}
+@media (max-width:640px){.site-footer{padding:22px 14px 32px;}}
 </style>
 <script src="/momo/lib/momo-analytics.js" defer></script>
 </head>
@@ -1224,6 +1236,19 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
     </div>
   </div>
 </div>
+
+<!-- SEO 説明フッター（対局中は非表示） -->
+<footer class="site-footer">
+  <div class="site-footer-inner">
+    <h2 id="footAbout">MOMO Go について</h2>
+    <p id="footDesc">MOMO Go は、ブラウザで遊べる無料の五目並べ・囲碁ゲームです。オンラインでの対人対戦と、CPU との対戦に対応しています。アカウント登録もインストールも不要で、ブラウザだけですぐに遊べます。</p>
+    <div class="foot-links">
+      <a href="../../" id="footTop">MOMO Works トップ</a>
+      <a href="../../games/" id="footGames">ゲーム一覧</a>
+      <a href="../../tools/" id="footTools">ツール一覧</a>
+    </div>
+  </div>
+</footer>
 
 <script>
 // ===== PIECE MARKS =====
@@ -4284,6 +4309,9 @@ const I18N = {
     goFinalLose: '敗北',
     goFinalDraw: '引き分け',
     goFinalMarginUnit: '目勝ち',
+    footAbout: 'MOMO Go について',
+    footDesc: 'MOMO Go は、ブラウザで遊べる無料の五目並べ・囲碁ゲームです。オンラインでの対人対戦と、CPU との対戦に対応しています。アカウント登録もインストールも不要で、ブラウザだけですぐに遊べます。',
+    footTop: 'MOMO Works トップ', footGames: 'ゲーム一覧', footTools: 'ツール一覧',
   },
   en: {
     connecting: 'Connecting...', connected: 'Connected', reconnecting: 'Connecting...',
@@ -4422,6 +4450,9 @@ const I18N = {
     goFinalLose: 'Defeat',
     goFinalDraw: 'Draw',
     goFinalMarginUnit: ' pts win',
+    footAbout: 'About MOMO Go',
+    footDesc: 'MOMO Go is a free Gomoku (Five-in-a-Row) and Go game you can play in your browser. It supports online matches against other players as well as games against the CPU. No account or installation required — just play instantly in your browser.',
+    footTop: 'MOMO Works Home', footGames: 'Games', footTools: 'Tools',
   },
   zh: {
     connecting: '连接中...', connected: '已连接', reconnecting: '连接中...',
@@ -4560,6 +4591,9 @@ const I18N = {
     goFinalLose: '败北',
     goFinalDraw: '平局',
     goFinalMarginUnit: '目胜',
+    footAbout: '关于 MOMO Go',
+    footDesc: 'MOMO Go 是一款可在浏览器中免费游玩的五子棋・围棋游戏。支持在线对战和与电脑对战。无需注册账号或安装，在浏览器中即可立即游玩。',
+    footTop: 'MOMO Works 首页', footGames: '游戏列表', footTools: '工具列表',
   }
 };
 
@@ -4620,6 +4654,12 @@ function applyLang() {
 
   // Static UI elements
   const setText = (id, key) => { const el = document.getElementById(id); if (el) el.textContent = t(key); };
+  // SEO 説明フッター
+  setText('footAbout', 'footAbout');
+  const footDescEl = document.getElementById('footDesc'); if (footDescEl) footDescEl.innerHTML = t('footDesc');
+  setText('footTop', 'footTop');
+  setText('footGames', 'footGames');
+  setText('footTools', 'footTools');
   setText('i18n-create-title', 'createTitle');
   setText('i18n-label-name', 'labelName');
   setText('i18n-label-room', 'labelRoom');

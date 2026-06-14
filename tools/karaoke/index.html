@@ -1767,7 +1767,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.99</span>
+                <span class="version-tag" id="version-tag">v3.00</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2619,7 +2619,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.99';
+const APP_VERSION = 'v3.00';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -6312,7 +6312,17 @@ window._resumePendingUploads = _resumePendingUploads;
 
 // 受け身トリガー①: ネット復帰(online)を検知 → Drive トークンが既に有効な時だけ直行保存 (connect はしない)。
 if (typeof window !== 'undefined') {
-    window.addEventListener('online', () => { _resumePendingUploads('online').catch(() => {}); });
+    window.addEventListener('online', () => {
+        // v3.00 (Option A): ネット復帰したら Drive部品(Pyodide)を裏で先読み。 次の「接続」タップ時に
+        //   読み込み待ちが無くなり、 アカウント選択ポップアップを user gesture 内で開ける(初回成功率↑)。
+        //   オフライン起動→復帰後の初回接続が「アカウント選択が出ず無言で戻る」事象の対策。
+        try {
+            if (window.gdrive && typeof window.gdrive.ensurePyodide === 'function' && !window.gdrive.pyodideReady) {
+                window.gdrive.ensurePyodide().catch(() => {});
+            }
+        } catch (e) {}
+        _resumePendingUploads('online').catch(() => {});
+    });
     // v2.98: オフライン由来の「invalid exception object」 抑制は、 上部の早い unhandledrejection
     //   リスナー(Global error catchers)に一本化した。 後段で再登録すると赤い [ERR] 行が先に出てしまう
     //   (リスナーは登録順に発火し、 後段の preventDefault では間に合わない) ため、 ここでは登録しない。
@@ -7760,45 +7770,55 @@ const gdrive = {
     folderName: null,       // selected folder display name
     fileCache: null,        // cached file list for the selected folder
     _gisLoadPromise: null,  // v2.99: GIS(Googleログイン部品) 動的再ロードの進行中 Promise
+    _pyodidePromise: null,  // v3.00: Pyodide+momo 読み込みの進行中 Promise (二重ロード防止)
 
     async ensurePyodide(){
         if(this.pyodideReady) return true;
-        const hint = document.getElementById('gdLoadingHint');
-        if(hint) hint.classList.remove('hidden');
-        try {
-            DEBUG.info('Loading Pyodide from CDN...');
-            // Inject the Pyodide script tag dynamically
-            if(!window.loadPyodide){
-                await new Promise((resolve, reject) => {
-                    const s = document.createElement('script');
-                    s.src = PYODIDE_INDEX + 'pyodide.js';
-                    s.onload = resolve;
-                    s.onerror = () => reject(new Error('Pyodide script load failed'));
-                    document.head.appendChild(s);
-                });
-            }
-            DEBUG.info('Pyodide script loaded; initializing...');
-            this.pyodide = await window.loadPyodide({ indexURL: PYODIDE_INDEX });
-            DEBUG.ok('Pyodide ready, version=' + this.pyodide.version);
+        // v3.00: 並行呼び出し(裏のプリロード + ユーザーの接続タップ)が二重ロードしないよう、
+        //   進行中の読み込みは同じ Promise を共有する。 接続タップ時に既に進行中/完了済みの
+        //   読み込みへ相乗りでき、 OAuth アカウント選択ポップアップを user gesture 内で開ける
+        //   確率が上がる (オフライン起動後の初回接続が無言で失敗する事象の対策)。
+        if(this._pyodidePromise) return this._pyodidePromise;
+        this._pyodidePromise = (async () => {
+            const hint = document.getElementById('gdLoadingHint');
+            if(hint) hint.classList.remove('hidden');
+            try {
+                DEBUG.info('Loading Pyodide from CDN...');
+                // Inject the Pyodide script tag dynamically
+                if(!window.loadPyodide){
+                    await new Promise((resolve, reject) => {
+                        const s = document.createElement('script');
+                        s.src = PYODIDE_INDEX + 'pyodide.js';
+                        s.onload = resolve;
+                        s.onerror = () => reject(new Error('Pyodide script load failed'));
+                        document.head.appendChild(s);
+                    });
+                }
+                DEBUG.info('Pyodide script loaded; initializing...');
+                this.pyodide = await window.loadPyodide({ indexURL: PYODIDE_INDEX });
+                DEBUG.ok('Pyodide ready, version=' + this.pyodide.version);
 
-            // Load momo_gdrive.py
-            DEBUG.info('Fetching ' + GDRIVE_PY_URL + '...');
-            const resp = await fetch(GDRIVE_PY_URL, { cache: 'no-cache' });
-            if(!resp.ok) throw new Error('momo_gdrive.py fetch failed: ' + resp.status);
-            const code = await resp.text();
-            this.pyodide.runPython(code);
-            // Instantiate the helper class
-            this.pyodide.runPython('momo_gdrive_instance = MomoGDrive()');
-            this.momo = this.pyodide.globals.get('momo_gdrive_instance');
-            this.pyodideReady = true;
-            DEBUG.ok('momo_gdrive.py loaded and instance created');
-            return true;
-        } catch(e){
-            DEBUG.err('Pyodide setup failed: ' + e.message);
-            return false;
-        } finally {
-            if(hint) hint.classList.add('hidden');
-        }
+                // Load momo_gdrive.py
+                DEBUG.info('Fetching ' + GDRIVE_PY_URL + '...');
+                const resp = await fetch(GDRIVE_PY_URL, { cache: 'no-cache' });
+                if(!resp.ok) throw new Error('momo_gdrive.py fetch failed: ' + resp.status);
+                const code = await resp.text();
+                this.pyodide.runPython(code);
+                // Instantiate the helper class
+                this.pyodide.runPython('momo_gdrive_instance = MomoGDrive()');
+                this.momo = this.pyodide.globals.get('momo_gdrive_instance');
+                this.pyodideReady = true;
+                DEBUG.ok('momo_gdrive.py loaded and instance created');
+                return true;
+            } catch(e){
+                DEBUG.err('Pyodide setup failed: ' + e.message);
+                this._pyodidePromise = null;   // 失敗は次回やり直せるように
+                return false;
+            } finally {
+                if(hint) hint.classList.add('hidden');
+            }
+        })();
+        return this._pyodidePromise;
     },
 
     // v2.99 (別件調査=オフライン起動でDrive接続不能 の修正): Google ログイン部品(GIS)を確実に用意する。

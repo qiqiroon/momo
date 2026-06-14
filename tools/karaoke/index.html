@@ -1767,7 +1767,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.97</span>
+                <span class="version-tag" id="version-tag">v2.98</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2518,7 +2518,17 @@ window.addEventListener('error', e => {
     DEBUG.err('GLOBAL ERROR:', e.message, '@', e.filename + ':' + e.lineno);
 });
 window.addEventListener('unhandledrejection', e => {
-    DEBUG.err('UNHANDLED REJECTION:', e.reason && e.reason.message ? e.reason.message : String(e.reason));
+    const msg = e.reason && e.reason.message ? e.reason.message : String(e.reason);
+    // v2.98: iOS の pyodide はオフライン時に write 例外を正しく伝播できず
+    //   「invalid exception object」 の未処理 rejection を投げる。 無害(各処理にタイムアウト有り)
+    //   なノイズ。 この早いリスナーが先に [ERR] で出すと赤い行が残るため、 ここで warn に降格する
+    //   (以前は後段リスナーの preventDefault では間に合わず赤行が出ていた)。
+    if (/invalid exception object/i.test(msg)) {
+        try { e.preventDefault(); } catch (_) {}
+        DEBUG.warn('オフライン由来の未処理例外を抑制: ' + msg);
+        return;
+    }
+    DEBUG.err('UNHANDLED REJECTION:', msg);
 });
 
 // Wire panel actions (deferred until DOM ready below; these elements exist by the time IIFE runs)
@@ -2609,7 +2619,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.97';
+const APP_VERSION = 'v2.98';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -6021,7 +6031,17 @@ function _mergeTakeLists(remoteTakes, localTakes, tombSet) {
         if (!prev) { byId.set(t.id, t); return; }
         const a = prev.editedAt || prev.createdAt || 0;
         const b = t.editedAt || t.createdAt || 0;
-        if (b >= a) byId.set(t.id, t);                       // 新しい方を採用 (同値は後勝ち)
+        const winner = (b >= a) ? t : prev;                  // 新しい方を採用 (同値は後勝ち)
+        const loser  = (b >= a) ? prev : t;
+        // v2.98: file(保存済み音声)と宛先目印は set→null へ退行させない。 勝者(editedAt新)の
+        //   編集内容を採りつつ、 file/目印だけは非nullを優先して保全する。 これが無いと、
+        //   保存直後に古い local コピー(file=null・同editedAt)が tie で勝ち、 push-back が
+        //   Drive の file を null に巻き戻す「別件調査2」(保存済み→未保存) を起こす。
+        const merged = Object.assign({}, winner);
+        if (!merged.file && loser.file) merged.file = loser.file;
+        if (!merged.songFolderId && loser.songFolderId) merged.songFolderId = loser.songFolderId;
+        if (!merged.karaokeFolderId && loser.karaokeFolderId) merged.karaokeFolderId = loser.karaokeFolderId;
+        byId.set(t.id, merged);
     };
     (remoteTakes || []).forEach(consider);                   // remote 先 → local 後 (tie は local)
     (localTakes || []).forEach(consider);
@@ -6293,15 +6313,9 @@ window._resumePendingUploads = _resumePendingUploads;
 // 受け身トリガー①: ネット復帰(online)を検知 → Drive トークンが既に有効な時だけ直行保存 (connect はしない)。
 if (typeof window !== 'undefined') {
     window.addEventListener('online', () => { _resumePendingUploads('online').catch(() => {}); });
-    // v2.97: iOS の pyodide はオフライン時に write 例外を正しく伝播できず「invalid exception object」 の
-    //   未処理 rejection を投げる。 機能には影響しない (各処理にタイムアウトを敷いてある) が、 ノイズなので抑制。
-    window.addEventListener('unhandledrejection', (ev) => {
-        const msg = ev && ev.reason && (ev.reason.message || String(ev.reason)) || '';
-        if (/invalid exception object/i.test(msg)) {
-            try { ev.preventDefault(); } catch (e) {}
-            try { DEBUG.warn('Drive のオフライン由来の未処理例外を抑制: ' + msg); } catch (e) {}
-        }
-    });
+    // v2.98: オフライン由来の「invalid exception object」 抑制は、 上部の早い unhandledrejection
+    //   リスナー(Global error catchers)に一本化した。 後段で再登録すると赤い [ERR] 行が先に出てしまう
+    //   (リスナーは登録順に発火し、 後段の preventDefault では間に合わない) ため、 ここでは登録しない。
 }
 // ※トリガー②: ユーザーが Drive を接続した瞬間 → make.js の _connectKaraokeFolderDrive から
 //   window._resumePendingUploads('drive-connect') を呼ぶ。
@@ -6417,6 +6431,29 @@ async function _reconcileTakesInBackground(entry) {
     if (state.currentEntry !== entry) return;  // 曲切替検知
     if (!Array.isArray(entry.deletedTakeIds)) entry.deletedTakeIds = [];
 
+    // ── 0. 孤児webm復旧 (v2.98): meta上 file=null だが曲フォルダに take_<id>.webm が実在する
+    //       テイクは、 保存済みなのに目印だけ null へ巻き戻った「別件調査2」の被害。 実ファイルへ
+    //       貼り直す。 対象は「録音された実テイク」(songFolderId 有り)のみ ＝ webm を持たない昔の
+    //       プレースホルダ(フルコーラス/Sine 等)には触れない。 push-back で Drive 側 meta.json も
+    //       恒久修復される (_remoteSnapshot を復旧前のDrive状態として残し、 比較で差分検知させる)。
+    const _remoteSnapshot = songMeta.takes.map(_takeToMeta);
+    const _healTargets = songMeta.takes.filter(t => t && t.id && !t.file && t.songFolderId);
+    if (_healTargets.length) {
+        let folderFiles = [];
+        try {
+            if (ctx.prov === 'drive') folderFiles = await META.Drive.listFiles(ctx.songFolderName);
+            else folderFiles = await META.Local.listFiles(ctx.songHandle);
+        } catch (e) { folderFiles = []; }
+        if (state.currentEntry !== entry) return;   // 一覧取得中の曲切替
+        const fileSet = new Set(folderFiles || []);
+        let healed = 0;
+        for (const t of _healTargets) {
+            const fn = 'take_' + t.id + '.webm';
+            if (fileSet.has(fn)) { t.file = fn; healed++; }
+        }
+        if (healed) DEBUG.ok('孤児webm復旧: 保存済みテイク ' + healed + ' 件の目印を貼り直し (file=null → 実ファイル)');
+    }
+
     // ── 1. remote(保存先) と local(手元メモリ) を ID 突き合わせ統合 (editedAt + tombstone) ──
     //   local は「この曲のテイクだけ」 を採用 (段階1bの songFolderId で照合)。 takesKeyFor の
     //   全カラオケ曲共有キャッシュ(別曲混入)を push してしまう事故を防ぐ。
@@ -6461,7 +6498,7 @@ async function _reconcileTakesInBackground(entry) {
     const _sig = (takes, ds) =>
         (takes || []).map(t => t.id + ':' + (t.editedAt || 0) + ':' + (t.name || '') + ':' + t.volume + ':' + (t.file || '')).sort().join('|')
         + '#' + (ds || []).map(d => d.id).sort().join('|');
-    if (_sig(remoteMeta, songMeta.deletedTakeIds) !== _sig(mergedMeta, tombs)) {
+    if (_sig(_remoteSnapshot, songMeta.deletedTakeIds) !== _sig(mergedMeta, tombs)) {
         songMeta.takes = mergedMeta;
         songMeta.deletedTakeIds = tombs;
         try {
@@ -6474,9 +6511,11 @@ async function _reconcileTakesInBackground(entry) {
     }
 
     // ── 4. merged にあって手元に pcm が無いテイクをダウンロード (tombstone は除外済み) ──
+    //   v2.98: 「id を持つか」 ではなく 「pcm(音声)を持つか」 で判定。 孤児webm復旧で file を
+    //   貼り直したテイクが、 一覧には居る(idはある)が pcm を失っている場合に再取得して再生可能にする。
     if (state.currentEntry !== entry) return;
-    const haveIds = new Set((entry.takes || []).map(t => t.id));
-    const toDownload = mergedMeta.filter(mt => mt.id && mt.file && !haveIds.has(mt.id));
+    const havePcmIds = new Set((entry.takes || []).filter(t => t.pcm && t.pcm.length).map(t => t.id));
+    const toDownload = mergedMeta.filter(mt => mt.id && mt.file && !havePcmIds.has(mt.id));
     if (!toDownload.length) return;
 
     DEBUG.info('段階2b: reconcile ' + toDownload.length + ' take(s) from ' + ctx.prov);
@@ -6533,8 +6572,18 @@ async function _reconcileTakesInBackground(entry) {
                 };
                 if (state.currentEntry !== entry) return;
                 if (!entry.takes) entry.takes = [];
-                if (!entry.takes.some(t => t.id === newTake.id)) entry.takes.push(newTake);
-                if (state.currentTake == null) state.currentTake = newTake;
+                const _existing = entry.takes.find(t => t.id === newTake.id);
+                if (_existing) {
+                    // v2.98: 既に一覧に居る(孤児復旧で file を貼り直した等)テイクへ pcm を充填。
+                    _existing.pcm = newTake.pcm;
+                    _existing.sampleRate = newTake.sampleRate;
+                    if (!_existing.duration) _existing.duration = newTake.duration;
+                    if (!_existing.file) _existing.file = newTake.file;
+                    delete state.takeSyncStatus[newTake.id];   // 📱(未保存)表示を解除
+                } else {
+                    entry.takes.push(newTake);
+                }
+                if (state.currentTake == null) state.currentTake = (_existing || newTake);
                 renderTakes();
                 if (typeof renderBadges === 'function') renderBadges();
                 DEBUG.ok('v2.63b: downloaded + decoded: ' + mt.file + ' (' + decoded.duration.toFixed(2) + 's)');

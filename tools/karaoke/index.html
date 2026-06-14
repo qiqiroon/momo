@@ -1767,7 +1767,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v2.98</span>
+                <span class="version-tag" id="version-tag">v2.99</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2619,7 +2619,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v2.98';
+const APP_VERSION = 'v2.99';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -7759,6 +7759,7 @@ const gdrive = {
     folderId: null,         // selected folder ID
     folderName: null,       // selected folder display name
     fileCache: null,        // cached file list for the selected folder
+    _gisLoadPromise: null,  // v2.99: GIS(Googleログイン部品) 動的再ロードの進行中 Promise
 
     async ensurePyodide(){
         if(this.pyodideReady) return true;
@@ -7800,8 +7801,42 @@ const gdrive = {
         }
     },
 
+    // v2.99 (別件調査=オフライン起動でDrive接続不能 の修正): Google ログイン部品(GIS)を確実に用意する。
+    //   起動時の静的 <script src="...gsi/client"> はオフラインだと黙って失敗し window.google が未定義の
+    //   まま。 GIS は起動時に1回しか読まれないため、 ネット復帰後も接続不能だった (momo_gdrive.py の
+    //   connect が js.google.accounts.oauth2 を参照できず AttributeError)。 connect 前にここで
+    //   window.google を確認し、 無ければ GIS スクリプトを動的に(再)ロードしてから認証へ進む。
+    async ensureGis(timeoutMs){
+        const ok = () => !!(window.google && window.google.accounts && window.google.accounts.oauth2);
+        if(ok()) return true;
+        if(!this._gisLoadPromise){
+            DEBUG.info('GIS(Googleログイン部品)を動的に再ロード中…');
+            this._gisLoadPromise = new Promise((resolve) => {
+                const s = document.createElement('script');
+                s.src = 'https://accounts.google.com/gsi/client';
+                s.async = true; s.defer = true;
+                s.onload  = () => resolve(true);
+                s.onerror = () => { this._gisLoadPromise = null; resolve(false); };  // 失敗は次回再試行可に
+                document.head.appendChild(s);
+            });
+        }
+        const TO = timeoutMs || 12000;
+        const timeout = new Promise(r => setTimeout(() => r(false), TO));
+        await Promise.race([this._gisLoadPromise, timeout]);
+        // onload 直後に window.google が生えるまで少し待つ (最大 ~2s)
+        for(let i = 0; i < 20 && !ok(); i++){ await new Promise(r => setTimeout(r, 100)); }
+        if(!ok()) this._gisLoadPromise = null;   // まだ駄目 (ネット未復帰等) → 次回 connect でやり直せるように
+        return ok();
+    },
+
     async connect(){
         if(!await this.ensurePyodide()) return false;
+        // v2.99: Googleログイン部品(GIS)が未ロード(オフライン起動など)なら動的に読み込んでから認証する
+        if(!await this.ensureGis()){
+            DEBUG.err('Google Drive connect: GIS(ログイン部品)を読み込めません — ネット未接続の可能性');
+            setStatus('Googleログイン部品を読み込めません。ネット接続を確認して再度お試しください', 'err');
+            return false;
+        }
         const hint = localStorage.getItem(KEY_GD_HINT);
         DEBUG.info('Google Drive connect (hint=' + (hint || 'none') + ')');
         try {

@@ -761,7 +761,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.07</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.08</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -1067,6 +1067,15 @@ main{animation:fadeUp .25s .05s ease both;}
 // ══════════════════════════════════════
 let link_data   = JSON.parse(localStorage.getItem('links_v2')||'[]');
 let link_allTags = JSON.parse(localStorage.getItem('tags_v2') ||'[]');
+// ── タグ整合性: 明らかなゴミ(URL等)はタグとして扱わない（自浄ゲートの判定） ──
+function isJunkTag(name){
+  if(typeof name!=='string') return true;
+  const s=name.trim();
+  if(!s) return true;
+  if(s.includes('://')) return true;            // URL（http://… 等）
+  if(/^(https?|ftp|file):/i.test(s)) return true;
+  return false;
+}
 
 let link_selectedTags=[], link_filterMode='AND', specialFilter='';
 let link_cardSort='date', link_sideSort='alpha';
@@ -1127,9 +1136,11 @@ function applyExternalData(links,tags){
   renderAll();
 }
 function save(){
+  // 自浄: 保存のたびに「明らかなゴミタグ」を各リンク・タグ一覧からそぎ落とす
+  link_data.forEach(l=>{ if(l.tags) l.tags=l.tags.filter(t=>!isJunkTag(t)); });
   const used=new Set();
   link_data.filter(l=>!l.deleted_at).forEach(l=>(l.tags||[]).forEach(t=>used.add(t)));
-  link_allTags.forEach(t=>used.add(t));
+  link_allTags.forEach(t=>{ if(!isJunkTag(t)) used.add(t); });
   link_allTags=[...used].sort((a,b)=>a.localeCompare(b,'ja'));
   localStorage.setItem('links_v2',JSON.stringify(link_data));
   localStorage.setItem('tags_v2', JSON.stringify(link_allTags));
@@ -1756,7 +1767,8 @@ function deleteTagFull(fp){
     :t('confirmDeleteTag',fp);
   if(!confirm(msg))return;
   link_allTags=link_allTags.filter(t=>t!==fp&&!t.startsWith(fp+'/'));
-  link_data.forEach(l=>{l.tags=(l.tags||[]).filter(t=>t!==fp&&!t.startsWith(fp+'/'));});
+  const _delNow=Math.floor(Date.now()/1000);
+  link_data.forEach(l=>{const _b=(l.tags||[]).length;l.tags=(l.tags||[]).filter(t=>t!==fp&&!t.startsWith(fp+'/'));if(l.tags.length!==_b)l.updated_at=_delNow;});
   link_selectedTags=link_selectedTags.filter(t=>t!==fp&&!t.startsWith(fp+'/'));
   link_editingTags=link_editingTags.filter(t=>t!==fp&&!t.startsWith(fp+'/'));
   link_addFormTags=link_addFormTags.filter(t=>t!==fp&&!t.startsWith(fp+'/'));
@@ -1813,10 +1825,13 @@ function saveEdit(){
   const inp=document.getElementById('editTagIn-'+id);
   if(inp&&inp.value.trim()){
     const v=inp.value.trim();
-    if(!link_allTags.includes(v))link_allTags.push(v);
-    if(!link_editingTags.includes(v))link_editingTags.push(v);
+    if(!isJunkTag(v)){                       // 居残り文字がURL等のゴミなら黙ってタグ化しない
+      if(!link_allTags.includes(v))link_allTags.push(v);
+      if(!link_editingTags.includes(v))link_editingTags.push(v);
+    }
   }
   l.tags=[...link_editingTags];
+  l.updated_at=Math.floor(Date.now()/1000);  // 編集を同期で正しく伝えるため更新時刻を刻む
   link_editingId=null;link_editingTags=[];
   save();renderAll();
 }
@@ -2833,7 +2848,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.07',
+      verDesc:'MOMO Links v4.08',
     },
     en:{
       basic:'## Basic Operations',
@@ -2848,7 +2863,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.07',
+      verDesc:'MOMO Links v4.08',
     },
     zh:{
       basic:'## 基本操作',
@@ -2863,7 +2878,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.07',
+      verDesc:'MOMO Links v4.08',
     },
   };
   const s=c[L]||c.ja;

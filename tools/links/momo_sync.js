@@ -171,9 +171,20 @@ function _mergeLinks(local,remote){
   return Object.values(map).filter(l=>!(l.deleted_at&&now-l.deleted_at>YEAR_SEC));
 }
 
+// 自浄ゲート: 明らかなゴミ(URL等)はタグとして扱わない
+function _isJunkTag(n){
+  if(typeof n!=='string') return true;
+  const s=n.trim();
+  if(!s) return true;
+  if(s.includes('://')) return true;
+  if(/^(https?|ftp|file):/i.test(s)) return true;
+  return false;
+}
 function _mergeData(loc,rem){
   const links=_mergeLinks(loc.links||[],rem.links||[]);
-  const tags=[...new Set([...(loc.tags||[]),...(rem.tags||[])])].sort();
+  // 同期のたびにゴミタグを各リンク・タグ一覧から除去（保存先に書く前に毎回掃除）
+  links.forEach(l=>{ if(l.tags) l.tags=l.tags.filter(t=>!_isJunkTag(t)); });
+  const tags=[...new Set([...(loc.tags||[]),...(rem.tags||[])])].filter(t=>!_isJunkTag(t)).sort();
   return{links,tags};
 }
 

@@ -761,7 +761,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.09</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.10</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -1150,8 +1150,9 @@ function save(){
   link_allTags.forEach(t=>{ if(!isJunkTag(t)) used.add(t); });
   // 削除記録(tombstone)されたタグは一覧から除外
   link_allTags=[...used].filter(t=>!(link_tagMeta[t]&&link_tagMeta[t].del)).sort((a,b)=>a.localeCompare(b,'ja'));
-  // 生きているタグに記録が無ければ付与(作成時刻=今)
-  link_allTags.forEach(t=>{ if(!link_tagMeta[t]) link_tagMeta[t]={t:_nowSec(),del:0}; });
+  // 記録の無い古いタグは「ゼロ＝いちばん昔」で生きている扱いにする。
+  // こうすると実際の削除(必ずゼロより後の時刻)が同期順に依らず必ず勝つ＝削除が確実に伝わる。
+  link_allTags.forEach(t=>{ if(!link_tagMeta[t]) link_tagMeta[t]={t:0,del:0}; });
   localStorage.setItem('links_v2',JSON.stringify(link_data));
   localStorage.setItem('tags_v2', JSON.stringify(link_allTags));
   localStorage.setItem('tagmeta_v2',JSON.stringify(link_tagMeta));
@@ -2862,7 +2863,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.09',
+      verDesc:'MOMO Links v4.10',
     },
     en:{
       basic:'## Basic Operations',
@@ -2877,7 +2878,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.09',
+      verDesc:'MOMO Links v4.10',
     },
     zh:{
       basic:'## 基本操作',
@@ -2892,7 +2893,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.09',
+      verDesc:'MOMO Links v4.10',
     },
   };
   const s=c[L]||c.ja;

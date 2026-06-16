@@ -20,6 +20,9 @@ let _syncing  = false;
 let _gToken   = null;   // 手動トリガー時にキャッシュするGSIアクセストークン
 let _gTokenExp= 0;      // トークン有効期限（Unix秒）
 
+// ── 多言語ヘルパー（本体 index.html の t() を利用。未定義時はキーをそのまま返す）──
+function _t(key,...args){ return (typeof t==='function') ? t(key,...args) : key; }
+
 // ── localStorage ヘルパー ──
 function syncEnabled(){ try{return localStorage.getItem(LS_ENABLED)==='true';}catch{return false;} }
 function setSyncEnabled(v){ try{localStorage.setItem(LS_ENABLED,v?'true':'false');}catch{} }
@@ -45,7 +48,7 @@ async function loadDeps(){
     await Promise.all([_loadScript(GSI_URL), _loadScript(PYODIDE_URL)]);
     _pyodide = await globalThis.loadPyodide();
     const resp = await fetch(GDRIVE_PY);
-    if(!resp.ok) throw new Error('momo_gdrive.py の取得に失敗しました');
+    if(!resp.ok) throw new Error(_t('syncModuleLoadError'));
     _pyodide.runPython(await resp.text());
     _pyodide.runPython('import js');
   }finally{
@@ -77,7 +80,7 @@ async function _gReadJson(path){
   const token=_pyodide.runPython('gdrive._token');
   const resp=await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
     {headers:{Authorization:`Bearer ${token}`}});
-  if(!resp.ok) throw new Error(`Drive API error ${resp.status}`);
+  if(!resp.ok) throw new Error(_t('syncDriveApiError',resp.status));
   return await resp.json();
 }
 
@@ -106,7 +109,7 @@ async function _gWriteText(path,content){
 
   const body=`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: application/octet-stream\r\n\r\n${content}\r\n--${boundary}--`;
   const resp=await fetch(url,{method,headers:{'Authorization':`Bearer ${token}`,'Content-Type':`multipart/related; boundary=${boundary}`},body});
-  if(!resp.ok) throw new Error(`Drive API エラー ${resp.status}: ${await resp.text()}`);
+  if(!resp.ok) throw new Error(_t('syncDriveApiError',resp.status)+': '+await resp.text());
   await _pyodide.runPythonAsync('gdrive.cache.clear()');
 }
 
@@ -123,7 +126,7 @@ function _getOrCreateIndicator(){
 }
 function _showIndicator(){
   const el=_getOrCreateIndicator();
-  el.textContent='☁ 同期中';
+  el.textContent=_t('syncBusy');
   el.onclick=null;
   el.style.cursor='default';
   el.style.display='inline';
@@ -136,8 +139,8 @@ function _hideIndicator(){
 // ── 「同期が必要」バッジ（トークンなし自動同期スキップ時）──
 function _showSyncNeeded(){
   const el=_getOrCreateIndicator();
-  el.textContent='● 同期が必要です';
-  el.title='クリックして今すぐ同期';
+  el.textContent=_t('syncNeeded');
+  el.title=_t('syncNeededHint');
   el.style.cursor='pointer';
   el.onclick=()=>runSyncManual();
   el.style.display='inline';
@@ -208,7 +211,7 @@ function runSyncManual(){
         client_id:CLIENT_ID,
         scope:GDRIVE_SCOPE,
         callback:(resp)=>{
-          if(resp.error){ alert('Google認証エラー:\n'+resp.error); return; }
+          if(resp.error){ alert(_t('syncAuthError',resp.error)); return; }
           _gToken=resp.access_token;
           _gTokenExp=Math.floor(Date.now()/1000)+(resp.expires_in||3600)-60;
           runSync();
@@ -219,7 +222,7 @@ function runSyncManual(){
     if(typeof google!=='undefined'&&google.accounts){
       doRequest();
     }else{
-      _loadScript(GSI_URL).then(doRequest).catch(e=>alert('GSI読み込みエラー:\n'+e));
+      _loadScript(GSI_URL).then(doRequest).catch(e=>alert(_t('syncGsiError',e)));
     }
   };
   _doSync();
@@ -246,7 +249,7 @@ async function runSync(){
 
     if(!remoteExists){
       // GDriveにファイルなし → ローカルをアップロード
-      if(!confirm('GDriveに同期ファイルがありません。\nローカルのデータをGDriveにアップロードしますか？')) return;
+      if(!confirm(_t('syncUploadAsk'))) return;
       await _gWriteText(SYNC_FILE, JSON.stringify(loc));
 
     }else{
@@ -255,20 +258,12 @@ async function runSync(){
 
       if(!hasLocal&&hasRemote){
         // ローカル空 → GDriveから取得
-        if(!confirm('ローカルにデータがありません。\nGDriveのデータをローカルに読み込みますか？')) return;
+        if(!confirm(_t('syncDownloadAsk'))) return;
         _applyMerged(rem);
 
       }else if(firstSync){
         // 初回または長期未同期 → 3択
-        const msg=
-          '初回同期または長期間（1年以上）未同期です。\n\n'+
-          '操作を選んでください：\n'+
-          '  1 ── マージ（updated_at で勝敗判定・推奨）\n'+
-          '  2 ── GDrive → ローカルに上書き（⚠️ローカルデータが消えます）\n'+
-          '  3 ── ローカル → GDriveに上書き（⚠️GDriveデータが消えます）\n\n'+
-          '※ 2・3 を選ぶ前に「データ管理 → エクスポート」でバックアップを推奨します。\n\n'+
-          '番号を入力（キャンセルで中止）:';
-        const ch=prompt(msg,'1');
+        const ch=prompt(_t('syncChoiceAsk'),'1');
         if(!ch) return;
         if(ch==='1'){
           const merged=_mergeData(loc,rem);
@@ -279,7 +274,7 @@ async function runSync(){
         }else if(ch==='3'){
           await _gWriteText(SYNC_FILE, JSON.stringify(loc));
         }else{
-          alert('無効な入力です。同期をキャンセルしました。');
+          alert(_t('syncInvalid'));
           return;
         }
 
@@ -296,7 +291,7 @@ async function runSync(){
 
   }catch(e){
     console.error('[MomoSync]',e);
-    alert('GDrive同期エラー:\n'+(e.message||String(e)));
+    alert(_t('syncErrorMsg',(e.message||String(e))));
     // lastSync は更新しない（次回再試行）
   }finally{
     _syncing=false;

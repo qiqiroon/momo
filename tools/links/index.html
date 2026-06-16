@@ -761,7 +761,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.06</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.07</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -2525,6 +2525,13 @@ const I18N={
     gdriveSyncNowBtn:'今すぐ同期',
     gdriveLastSync:'前回同期: %s',
     gdriveNoSync:'未同期',
+    syncBusy:'☁ 同期中', syncNeeded:'● 同期が必要です', syncNeededHint:'クリックして今すぐ同期',
+    syncUploadAsk:'GDriveに同期ファイルがありません。\nローカルのデータをGDriveにアップロードしますか？',
+    syncDownloadAsk:'ローカルにデータがありません。\nGDriveのデータをローカルに読み込みますか？',
+    syncChoiceAsk:'初回同期または長期間（1年以上）未同期です。\n\n操作を選んでください：\n  1 ── マージ（更新時刻の新しい方を採用・推奨）\n  2 ── GDrive → ローカルに上書き（⚠️ローカルデータが消えます）\n  3 ── ローカル → GDriveに上書き（⚠️GDriveデータが消えます）\n\n※ 2・3 を選ぶ前に「データ管理 → エクスポート」でバックアップを推奨します。\n\n番号を入力（キャンセルで中止）:',
+    syncInvalid:'無効な入力です。同期をキャンセルしました。',
+    syncErrorMsg:'GDrive同期エラー:\n%s', syncAuthError:'Google認証エラー:\n%s', syncGsiError:'GSI読み込みエラー:\n%s',
+    syncModuleLoadError:'Googleドライブ連携の読み込みに失敗しました。', syncDriveApiError:'Drive APIエラー %s',
     footAbout:'MOMO Links について',
     footDesc:'MOMO Links は、ブラウザだけで使えるタブ式のブックマーク管理ツールです。複数のフォルダ（タグ）を並べて整理でき、保存したデータはお使いの端末内に残るため、アカウント登録もインストールも必要ありません。ブックマークのエクスポート／インポートや、Chrome 用ブックマーク HTML の書き出しにも対応しています。',
     footTop:'MOMO Works トップ', footGames:'ゲーム一覧', footTools:'ツール一覧',
@@ -2604,6 +2611,13 @@ const I18N={
     gdriveSyncNowBtn:'Sync now',
     gdriveLastSync:'Last sync: %s',
     gdriveNoSync:'Not synced yet',
+    syncBusy:'☁ Syncing', syncNeeded:'● Sync needed', syncNeededHint:'Click to sync now',
+    syncUploadAsk:'No sync file on Google Drive.\nUpload local data to Google Drive?',
+    syncDownloadAsk:'No data on this device.\nLoad data from Google Drive?',
+    syncChoiceAsk:'This is the first sync, or over a year has passed since the last sync.\n\nChoose an action:\n  1 ── Merge (newer one wins; recommended)\n  2 ── Overwrite local with Google Drive (⚠️ local data will be lost)\n  3 ── Overwrite Google Drive with local (⚠️ Drive data will be lost)\n\n※ Before choosing 2 or 3, back up via "Data" → "Export" first.\n\nEnter a number (cancel to abort):',
+    syncInvalid:'Invalid input. Sync canceled.',
+    syncErrorMsg:'Google Drive sync error:\n%s', syncAuthError:'Google authentication error:\n%s', syncGsiError:'Failed to load Google sign-in:\n%s',
+    syncModuleLoadError:'Failed to load Google Drive integration.', syncDriveApiError:'Drive API error %s',
     footAbout:'About MOMO Links',
     footDesc:'MOMO Links is a tab-based bookmark manager that runs entirely in your browser. Organize your bookmarks across multiple folders (tags); your data stays on your own device, so no account or installation is required. It also supports exporting and importing bookmarks and generating bookmark HTML for Chrome.',
     footTop:'MOMO Works Home', footGames:'Games', footTools:'Tools',
@@ -2683,6 +2697,13 @@ const I18N={
     gdriveSyncNowBtn:'立即同步',
     gdriveLastSync:'上次同步: %s',
     gdriveNoSync:'尚未同步',
+    syncBusy:'☁ 同步中', syncNeeded:'● 需要同步', syncNeededHint:'点击立即同步',
+    syncUploadAsk:'Google云端硬盘上没有同步文件。\n要将本地数据上传到Google云端硬盘吗？',
+    syncDownloadAsk:'本地没有数据。\n要从Google云端硬盘加载数据吗？',
+    syncChoiceAsk:'这是首次同步，或距上次同步已超过一年。\n\n请选择操作：\n  1 ── 合并（以较新的为准·推荐）\n  2 ── 用Google云端硬盘覆盖本地（⚠️本地数据将丢失）\n  3 ── 用本地覆盖Google云端硬盘（⚠️云端数据将丢失）\n\n※ 选择2或3前，请先通过“数据管理→导出”备份。\n\n请输入数字（取消则中止）:',
+    syncInvalid:'输入无效。已取消同步。',
+    syncErrorMsg:'Google云端硬盘同步错误：\n%s', syncAuthError:'Google身份验证错误：\n%s', syncGsiError:'Google登录组件加载失败：\n%s',
+    syncModuleLoadError:'加载Google云端硬盘集成失败。', syncDriveApiError:'Drive API错误 %s',
     footAbout:'关于 MOMO Links',
     footDesc:'MOMO Links 是一款完全在浏览器中运行的标签式书签管理工具。可以通过多个文件夹（标签）整理书签，数据保存在你自己的设备上，无需注册账号或安装。还支持书签的导出／导入，以及生成 Chrome 用书签 HTML。',
     footTop:'MOMO Works 首页', footGames:'游戏列表', footTools:'工具列表',
@@ -2812,7 +2833,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.06',
+      verDesc:'MOMO Links v4.07',
     },
     en:{
       basic:'## Basic Operations',
@@ -2827,7 +2848,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.06',
+      verDesc:'MOMO Links v4.07',
     },
     zh:{
       basic:'## 基本操作',
@@ -2842,7 +2863,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.06',
+      verDesc:'MOMO Links v4.07',
     },
   };
   const s=c[L]||c.ja;

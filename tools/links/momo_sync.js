@@ -182,26 +182,33 @@ function _isJunkTag(n){
 }
 function _mergeData(loc,rem){
   const links=_mergeLinks(loc.links||[],rem.links||[]);
-  // 同期のたびにゴミタグを各リンク・タグ一覧から除去（保存先に書く前に毎回掃除）
+  // 同期のたびにゴミタグを各リンクから除去（保存先に書く前に毎回掃除）
   links.forEach(l=>{ if(l.tags) l.tags=l.tags.filter(t=>!_isJunkTag(t)); });
-  const tags=[...new Set([...(loc.tags||[]),...(rem.tags||[])])].filter(t=>!_isJunkTag(t)).sort();
-  return{links,tags};
+  // タグの削除記録(tombstone)を突き合わせ、削除済み・ゴミを除いた「生きたタグ一覧」を作る
+  const meta=(typeof mergeTagMeta==='function')
+    ? mergeTagMeta(loc.tagMeta||{}, rem.tagMeta||{})
+    : Object.assign({}, loc.tagMeta||{}, rem.tagMeta||{});
+  const tags=[...new Set([...(loc.tags||[]),...(rem.tags||[])])]
+    .filter(t=>!_isJunkTag(t) && !(meta[t]&&meta[t].del)).sort();
+  return{links,tags,tagMeta:meta};
 }
 
 // ── ローカルへの適用 ──
 function _applyMerged(data){
   if(typeof applyExternalData==='function'){
-    applyExternalData(data.links||[],data.tags||[]);
+    applyExternalData(data.links||[],data.tags||[],data.tagMeta||{});
   }else{
     localStorage.setItem('links_v2',JSON.stringify(data.links||[]));
     localStorage.setItem('tags_v2',JSON.stringify(data.tags||[]));
+    localStorage.setItem('tagmeta_v2',JSON.stringify(data.tagMeta||{}));
   }
 }
 
 function _localSnapshot(){
   return{
     links:JSON.parse(localStorage.getItem('links_v2')||'[]'),
-    tags:JSON.parse(localStorage.getItem('tags_v2')||'[]')
+    tags:JSON.parse(localStorage.getItem('tags_v2')||'[]'),
+    tagMeta:JSON.parse(localStorage.getItem('tagmeta_v2')||'{}')
   };
 }
 
@@ -279,7 +286,7 @@ async function runSync(){
         if(ch==='1'){
           const merged=_mergeData(loc,rem);
           _applyMerged(merged);
-          await _gWriteText(SYNC_FILE, JSON.stringify({links:merged.links,tags:merged.tags}));
+          await _gWriteText(SYNC_FILE, JSON.stringify(merged));
         }else if(ch==='2'){
           _applyMerged(rem);
         }else if(ch==='3'){
@@ -293,7 +300,7 @@ async function runSync(){
         // 通常マージ
         const merged=_mergeData(loc,rem);
         _applyMerged(merged);
-        await _gWriteText(SYNC_FILE, JSON.stringify({links:merged.links,tags:merged.tags}));
+        await _gWriteText(SYNC_FILE, JSON.stringify(merged));
       }
     }
 

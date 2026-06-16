@@ -761,7 +761,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.08</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.09</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -1076,6 +1076,12 @@ function isJunkTag(name){
   if(/^(https?|ftp|file):/i.test(s)) return true;
   return false;
 }
+// ── タグの削除記録(tombstone)と変更時刻。削除を同期で伝え、復活を防ぐ ──
+let link_tagMeta = JSON.parse(localStorage.getItem('tagmeta_v2')||'{}');
+function _nowSec(){return Math.floor(Date.now()/1000);}
+function touchTag(name){ if(isJunkTag(name))return; link_tagMeta[name]={t:_nowSec(),del:0}; }   // 作成/復活
+function tombTag(name){ link_tagMeta[name]={t:_nowSec(),del:1}; }                                 // 削除記録
+function mergeTagMeta(a,b){ const out={...(a||{})},src=b||{}; for(const k in src){ if(!out[k]||(src[k].t||0)>(out[k].t||0)) out[k]=src[k]; } return out; }
 
 let link_selectedTags=[], link_filterMode='AND', specialFilter='';
 let link_cardSort='date', link_sideSort='alpha';
@@ -1129,9 +1135,10 @@ try{
 // ══════════════════════════════════════
 // SAVE
 // ══════════════════════════════════════
-function applyExternalData(links,tags){
+function applyExternalData(links,tags,tagMeta){
   link_data=[...links];
   link_allTags=[...tags];
+  if(tagMeta) link_tagMeta=tagMeta;
   save();
   renderAll();
 }
@@ -1141,9 +1148,13 @@ function save(){
   const used=new Set();
   link_data.filter(l=>!l.deleted_at).forEach(l=>(l.tags||[]).forEach(t=>used.add(t)));
   link_allTags.forEach(t=>{ if(!isJunkTag(t)) used.add(t); });
-  link_allTags=[...used].sort((a,b)=>a.localeCompare(b,'ja'));
+  // 削除記録(tombstone)されたタグは一覧から除外
+  link_allTags=[...used].filter(t=>!(link_tagMeta[t]&&link_tagMeta[t].del)).sort((a,b)=>a.localeCompare(b,'ja'));
+  // 生きているタグに記録が無ければ付与(作成時刻=今)
+  link_allTags.forEach(t=>{ if(!link_tagMeta[t]) link_tagMeta[t]={t:_nowSec(),del:0}; });
   localStorage.setItem('links_v2',JSON.stringify(link_data));
   localStorage.setItem('tags_v2', JSON.stringify(link_allTags));
+  localStorage.setItem('tagmeta_v2',JSON.stringify(link_tagMeta));
 }
 
 // ══════════════════════════════════════
@@ -1590,6 +1601,7 @@ function pushAddTag(v){
     document.getElementById('addTagIn').value='';return;
   }
   if(!link_allTags.includes(v)){if(!warnLeafConflict(v))return;link_allTags.push(v);}
+  touchTag(v);
   link_addFormTags.push(v);
   document.getElementById('addTagIn').value='';
   renderSidebar();renderAddPills();
@@ -1704,7 +1716,7 @@ function addTagManual(){
   const err=validateNewTag(tagVal);
   if(err){showTagErr(err);return;}
   if(!warnLeafConflict(tagVal))return;
-  link_allTags.push(tagVal);inp.value='';hideTagErr();
+  link_allTags.push(tagVal);touchTag(tagVal);inp.value='';hideTagErr();
   save();renderSidebar();
 }
 function showTagErr(m){const e=document.getElementById('tagErr');e.textContent=m;e.style.display='';}
@@ -1753,7 +1765,7 @@ function commitFolderAdd(parentFp){
   const err=validateNewTag(newTag);
   if(err){alert(err);inp.focus();return;}
   if(!warnLeafConflict(newTag))return;
-  link_allTags.push(newTag);openNodes.add(parentFp);
+  link_allTags.push(newTag);touchTag(newTag);openNodes.add(parentFp);
   row.classList.remove('show');save();renderSidebar();
 }
 function cancelFolderAdd(parentFp){
@@ -1766,6 +1778,7 @@ function deleteTagFull(fp){
     ?t('confirmDeleteTagWithChildren',fp,children.length-1)
     :t('confirmDeleteTag',fp);
   if(!confirm(msg))return;
+  children.forEach(c=>tombTag(c));   // 削除記録を残し、同期で他端末にも削除を伝える（復活しない）
   link_allTags=link_allTags.filter(t=>t!==fp&&!t.startsWith(fp+'/'));
   const _delNow=Math.floor(Date.now()/1000);
   link_data.forEach(l=>{const _b=(l.tags||[]).length;l.tags=(l.tags||[]).filter(t=>t!==fp&&!t.startsWith(fp+'/'));if(l.tags.length!==_b)l.updated_at=_delNow;});
@@ -1827,6 +1840,7 @@ function saveEdit(){
     const v=inp.value.trim();
     if(!isJunkTag(v)){                       // 居残り文字がURL等のゴミなら黙ってタグ化しない
       if(!link_allTags.includes(v))link_allTags.push(v);
+      touchTag(v);
       if(!link_editingTags.includes(v))link_editingTags.push(v);
     }
   }
@@ -2072,7 +2086,7 @@ function renderCardItem(l){
           <div class="tag-input-wrap editing" id="editTagWrap-${l.id}" style="margin-top:6px">
             <input class="t-pill-in" id="editTagIn-${l.id}" placeholder="${t('editTagPlaceholder')}"
               onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();
-                var v=this.value.trim();if(v&&!link_editingTags.includes(v)){if(!link_allTags.includes(v))link_allTags.push(v);link_editingTags.push(v);renderSidebar();renderEditTagPills();}this.value='';}
+                var v=this.value.trim();if(v&&!isJunkTag(v)&&!link_editingTags.includes(v)){if(!link_allTags.includes(v))link_allTags.push(v);touchTag(v);link_editingTags.push(v);renderSidebar();renderEditTagPills();}this.value='';}
               if(event.key==='Backspace'&&!this.value&&link_editingTags.length){link_editingTags.pop();renderSidebar();renderEditTagPills();}">
           </div>
           <div style="display:flex;gap:6px;align-items:center;margin-top:8px">
@@ -2216,7 +2230,7 @@ function renderAll(){renderSidebar();displayedCount=0;renderCards();}
 // DATA MODAL
 // ══════════════════════════════════════
 function openDataModal(){
-  const data={version:2,exported:new Date().toISOString(),link_data,tags:link_allTags};
+  const data={version:2,exported:new Date().toISOString(),link_data,tags:link_allTags,tagMeta:link_tagMeta};
   document.getElementById('jsonExportArea').value=JSON.stringify(data,null,2);
   document.getElementById('chromeExportArea').value=genChromeHtml();
   document.getElementById('importInfo').classList.remove('show');
@@ -2848,7 +2862,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.08',
+      verDesc:'MOMO Links v4.09',
     },
     en:{
       basic:'## Basic Operations',
@@ -2863,7 +2877,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.08',
+      verDesc:'MOMO Links v4.09',
     },
     zh:{
       basic:'## 基本操作',
@@ -2878,7 +2892,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.08',
+      verDesc:'MOMO Links v4.09',
     },
   };
   const s=c[L]||c.ja;

@@ -761,7 +761,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.15</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.16</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -2362,6 +2362,7 @@ document.getElementById('inTitle').addEventListener('keydown',()=>{_titleTouched
 document.getElementById('inUrl').addEventListener('blur',async()=>{
   const url=document.getElementById('inUrl').value.trim();
   if(!url||location.protocol==='file:') return;
+  if(secretMode) return;   // ⑪: シークレット中はURLを業者(プロキシ)に送らない
   _titleTouched=false;
   if(_titleFetchCtrl) _titleFetchCtrl.abort();
   _titleFetchCtrl=new AbortController();
@@ -2390,6 +2391,7 @@ async function _fetchPageTitle(url,signal){
 }
 async function editUrlBlur(id){
   if(location.protocol==='file:') return;
+  if(secretMode) return;   // ⑪: シークレット中はURLを業者(プロキシ)に送らない
   const eu=document.getElementById('eu-'+id), et=document.getElementById('et-'+id);
   if(!eu||!et) return;
   const url=eu.value.trim();
@@ -2894,7 +2896,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.15',
+      verDesc:'MOMO Links v4.16',
     },
     en:{
       basic:'## Basic Operations',
@@ -2909,7 +2911,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.15',
+      verDesc:'MOMO Links v4.16',
     },
     zh:{
       basic:'## 基本操作',
@@ -2924,7 +2926,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.15',
+      verDesc:'MOMO Links v4.16',
     },
   };
   const s=c[L]||c.ja;

@@ -761,7 +761,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.13</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.14</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -1820,7 +1820,6 @@ function startEdit(id){
   closeAddPanel();
   const l=link_data.find(l=>l.id===id);if(!l)return;
   link_editingId=id;link_editingTags=[...(l.tags||[])];
-  _editTitleTouched=false;   // 編集開始時はタイトル未編集
   renderAll();
   const card=document.getElementById('card-'+id);
   if(card)card.scrollIntoView({behavior:'smooth',block:'nearest'});
@@ -2077,7 +2076,7 @@ function renderCardItem(l){
             </div>
             <div class="form-field" style="flex:2;min-width:140px">
               <label style="font-size:10px;text-transform:uppercase;color:var(--text-muted)">${t('labelEditTitle')}</label>
-              <input class="edit-input" id="et-${l.id}" value="${esc(l.title)}" autocomplete="off" oninput="editTitleTouch()" onmousedown="editTitleTouch()">
+              <input class="edit-input" id="et-${l.id}" value="${esc(l.title)}" autocomplete="off">
             </div>
           </div>
           <div class="form-field" style="margin-bottom:6px">
@@ -2381,8 +2380,8 @@ document.getElementById('inUrl').addEventListener('blur',async()=>{
 document.getElementById('addPanel').addEventListener('transitionend',()=>{_titleTouched=false;});
 
 // 案件⑨: 編集中もURL変更でタイトルを拾い直す（編集フォーム用。既存の追加フォーム処理は別系統で温存）
-let _editTitleTouched=false, _editTitleCtrl=null;
-function editTitleTouch(){ _editTitleTouched=true; if(_editTitleCtrl){_editTitleCtrl.abort();_editTitleCtrl=null;} }
+// ルール: URLを変更し、かつタイトル欄が空のときだけ拾い直す（タイトルが入っていれば尊重＝消せば拾い直す）
+let _editTitleCtrl=null;
 async function _fetchPageTitle(url,signal){
   const res=await fetch(`https://corsproxy.io/?url=${encodeURIComponent(normalizeUrl(url))}`,{signal});
   if(!res.ok) return null;
@@ -2398,12 +2397,13 @@ async function editUrlBlur(id){
   const l=link_data.find(x=>x.id===id);
   if(!url) return;
   if(l && normalizeUrl(url)===l.url) return;   // URL未変更なら拾い直さない
-  if(_editTitleTouched) return;                 // タイトルを手で編集済みなら尊重して上書きしない
+  if(et.value.trim()!=='') return;             // タイトルが入っていれば尊重（空にすれば拾い直す）
   if(_editTitleCtrl) _editTitleCtrl.abort();
   _editTitleCtrl=new AbortController();
   try{
     const title=await _fetchPageTitle(url,_editTitleCtrl.signal);
-    if(title && !_editTitleTouched) et.value=title;
+    const et2=document.getElementById('et-'+id);
+    if(title && et2 && !et2.value.trim()) et2.value=title;
   }catch(e){ if(e.name!=='AbortError') console.warn('[MomoLinks] 編集タイトル取得失敗:',e); }
   finally{ _editTitleCtrl=null; }
 }
@@ -2895,7 +2895,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.13',
+      verDesc:'MOMO Links v4.14',
     },
     en:{
       basic:'## Basic Operations',
@@ -2910,7 +2910,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.13',
+      verDesc:'MOMO Links v4.14',
     },
     zh:{
       basic:'## 基本操作',
@@ -2925,7 +2925,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.13',
+      verDesc:'MOMO Links v4.14',
     },
   };
   const s=c[L]||c.ja;

@@ -761,7 +761,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.12</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.13</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -903,7 +903,7 @@ main{animation:fadeUp .25s .05s ease both;}
   <div class="dialog">
     <div class="dialog-title" id="pinDialogTitle">🔒 シークレットモード</div>
     <div class="dialog-msg" id="pinDialogMsg">PINを入力してください</div>
-    <input type="password" id="pinInput"
+    <input type="password" id="pinInput" autocomplete="off"
       style="width:100%;padding:8px 12px;font-size:16px;letter-spacing:.3em;text-align:center;
              background:var(--surface2);border:1px solid var(--border-strong);border-radius:7px;
              color:var(--text);outline:none;margin-bottom:4px;font-family:inherit"
@@ -922,12 +922,12 @@ main{animation:fadeUp .25s .05s ease both;}
   <div class="dialog">
     <div class="dialog-title" id="pinSetupTitle">🔒 PIN初期設定</div>
     <div class="dialog-msg" id="pinSetupMsg">シークレットモードのPINを設定してください。<br><span style="font-size:11px" id="pinSetupSub">英数字・記号・長さ制限なし</span></div>
-    <input type="password" id="pinSetupInput1"
+    <input type="password" id="pinSetupInput1" autocomplete="new-password"
       style="width:100%;padding:8px 12px;font-size:16px;letter-spacing:.3em;text-align:center;
              background:var(--surface2);border:1px solid var(--border-strong);border-radius:7px;
              color:var(--text);outline:none;margin-bottom:8px;font-family:inherit"
       placeholder="新しいPIN">
-    <input type="password" id="pinSetupInput2"
+    <input type="password" id="pinSetupInput2" autocomplete="new-password"
       style="width:100%;padding:8px 12px;font-size:16px;letter-spacing:.3em;text-align:center;
              background:var(--surface2);border:1px solid var(--border-strong);border-radius:7px;
              color:var(--text);outline:none;margin-bottom:4px;font-family:inherit"
@@ -1008,9 +1008,9 @@ main{animation:fadeUp .25s .05s ease both;}
           <div class="form-field">
             <label id="labelPinChange">PIN変更</label>
             <div style="display:flex;gap:8px;align-items:center">
-              <input type="password" id="secretPinNew1" placeholder="新しいPIN"
+              <input type="password" id="secretPinNew1" placeholder="新しいPIN" autocomplete="new-password"
                 style="flex:1;padding:6px 10px;font-size:13px;font-family:inherit;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface2);color:var(--text);outline:none">
-              <input type="password" id="secretPinNew2" placeholder="確認"
+              <input type="password" id="secretPinNew2" placeholder="確認" autocomplete="new-password"
                 style="flex:1;padding:6px 10px;font-size:13px;font-family:inherit;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface2);color:var(--text);outline:none">
               <button class="btn" id="changePinBtn" onclick="changePin()">変更</button>
             </div>
@@ -1820,6 +1820,7 @@ function startEdit(id){
   closeAddPanel();
   const l=link_data.find(l=>l.id===id);if(!l)return;
   link_editingId=id;link_editingTags=[...(l.tags||[])];
+  _editTitleTouched=false;   // 編集開始時はタイトル未編集
   renderAll();
   const card=document.getElementById('card-'+id);
   if(card)card.scrollIntoView({behavior:'smooth',block:'nearest'});
@@ -2072,16 +2073,16 @@ function renderCardItem(l){
         ?`<div class="edit-row" style="margin-bottom:6px">
             <div class="form-field" style="flex:2;min-width:140px">
               <label style="font-size:10px;text-transform:uppercase;color:var(--text-muted)">${t('labelEditUrl')}</label>
-              <input class="edit-input" id="eu-${l.id}" value="${esc(l.url)}">
+              <input class="edit-input" id="eu-${l.id}" value="${esc(l.url)}" autocomplete="off" onblur="editUrlBlur(${l.id})">
             </div>
             <div class="form-field" style="flex:2;min-width:140px">
               <label style="font-size:10px;text-transform:uppercase;color:var(--text-muted)">${t('labelEditTitle')}</label>
-              <input class="edit-input" id="et-${l.id}" value="${esc(l.title)}">
+              <input class="edit-input" id="et-${l.id}" value="${esc(l.title)}" autocomplete="off" oninput="editTitleTouch()" onmousedown="editTitleTouch()">
             </div>
           </div>
           <div class="form-field" style="margin-bottom:6px">
             <label style="font-size:10px;text-transform:uppercase;color:var(--text-muted)">${t('labelEditComment')}</label>
-            <textarea class="edit-textarea" id="ec-${l.id}">${esc(l.comment||'')}</textarea>
+            <textarea class="edit-textarea" id="ec-${l.id}" autocomplete="off">${esc(l.comment||'')}</textarea>
           </div>
           <div class="edit-tag-hint">${t('editTagHint')}</div>
           <div class="tag-input-wrap editing" id="editTagWrap-${l.id}" style="margin-top:6px">
@@ -2378,6 +2379,34 @@ document.getElementById('inUrl').addEventListener('blur',async()=>{
   }catch(e){if(e.name!=='AbortError')console.warn('[MomoLinks] タイトル取得失敗:',e);}finally{_titleFetchCtrl=null;}
 });
 document.getElementById('addPanel').addEventListener('transitionend',()=>{_titleTouched=false;});
+
+// 案件⑨: 編集中もURL変更でタイトルを拾い直す（編集フォーム用。既存の追加フォーム処理は別系統で温存）
+let _editTitleTouched=false, _editTitleCtrl=null;
+function editTitleTouch(){ _editTitleTouched=true; if(_editTitleCtrl){_editTitleCtrl.abort();_editTitleCtrl=null;} }
+async function _fetchPageTitle(url,signal){
+  const res=await fetch(`https://corsproxy.io/?url=${encodeURIComponent(normalizeUrl(url))}`,{signal});
+  if(!res.ok) return null;
+  const html=await res.text();
+  const m=html.match(/<title[^>]*>([^<]+)<\/title>/i);
+  return m?m[1].trim():null;
+}
+async function editUrlBlur(id){
+  if(location.protocol==='file:') return;
+  const eu=document.getElementById('eu-'+id), et=document.getElementById('et-'+id);
+  if(!eu||!et) return;
+  const url=eu.value.trim();
+  const l=link_data.find(x=>x.id===id);
+  if(!url) return;
+  if(l && normalizeUrl(url)===l.url) return;   // URL未変更なら拾い直さない
+  if(_editTitleTouched) return;                 // タイトルを手で編集済みなら尊重して上書きしない
+  if(_editTitleCtrl) _editTitleCtrl.abort();
+  _editTitleCtrl=new AbortController();
+  try{
+    const title=await _fetchPageTitle(url,_editTitleCtrl.signal);
+    if(title && !_editTitleTouched) et.value=title;
+  }catch(e){ if(e.name!=='AbortError') console.warn('[MomoLinks] 編集タイトル取得失敗:',e); }
+  finally{ _editTitleCtrl=null; }
+}
 
 document.getElementById('addTagIn').addEventListener('keydown',e=>{
   if(e.key==='Enter'||e.key===' '){e.preventDefault();pushAddTag();}
@@ -2866,7 +2895,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.12',
+      verDesc:'MOMO Links v4.13',
     },
     en:{
       basic:'## Basic Operations',
@@ -2881,7 +2910,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.12',
+      verDesc:'MOMO Links v4.13',
     },
     zh:{
       basic:'## 基本操作',
@@ -2896,7 +2925,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.12',
+      verDesc:'MOMO Links v4.13',
     },
   };
   const s=c[L]||c.ja;

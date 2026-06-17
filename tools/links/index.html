@@ -761,7 +761,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.11</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.12</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -2866,7 +2866,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.11',
+      verDesc:'MOMO Links v4.12',
     },
     en:{
       basic:'## Basic Operations',
@@ -2881,7 +2881,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.11',
+      verDesc:'MOMO Links v4.12',
     },
     zh:{
       basic:'## 基本操作',
@@ -2896,7 +2896,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.11',
+      verDesc:'MOMO Links v4.12',
     },
   };
   const s=c[L]||c.ja;
@@ -2927,6 +2927,10 @@ function onLangChange(lang){
   applyLang();
 }
 
+// 案件④: 起動時、表示できる _TOP タグ付きブックマークが1つでもあれば _TOP で絞り込んで開く（無ければ従来どおり全件）
+if(link_data.some(l=>!l.deleted_at && (l.tags||[]).includes('_TOP') && (secretMode||!(l.tags||[]).includes(SECRET_TAG)))){
+  link_selectedTags=['_TOP']; specialFilter='';
+}
 save();applyLang();
 document.getElementById('inUrl').value='';
 document.getElementById('inTitle').value='';

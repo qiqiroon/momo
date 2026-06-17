@@ -2,6 +2,7 @@
 'use strict';
 
 const SYNC_FILE   = '/momo-works/links/links_data.json';
+const SYNC_BAK    = '/momo-works/links/links_data.bak.json';   // 上書き前に退避する一世代バックアップ
 const GDRIVE_PY   = 'https://qiqiroon.github.io/momo/lib/momo_gdrive/momo_gdrive.py';
 const PYODIDE_URL = 'https://cdn.jsdelivr.net/pyodide/v0.27.4/full/pyodide.js';
 const GSI_URL     = 'https://accounts.google.com/gsi/client';
@@ -111,6 +112,40 @@ async function _gWriteText(path,content){
   const resp=await fetch(url,{method,headers:{'Authorization':`Bearer ${token}`,'Content-Type':`multipart/related; boundary=${boundary}`},body});
   if(!resp.ok) throw new Error(_t('syncDriveApiError',resp.status)+': '+await resp.text());
   await _pyodide.runPythonAsync('gdrive.cache.clear()');
+}
+
+// ── 整合性チェック（チェックサム）＋バックアップ ──
+// データ本体(links/tags/tagMeta)を一定の順で文字列化してから指紋を取る（読み書きで同一結果になる）
+function _canonical(d){ return JSON.stringify({links:d.links||[],tags:d.tags||[],tagMeta:d.tagMeta||{}}); }
+async function _sha256(str){
+  try{
+    const buf=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  }catch(e){ return null; }   // 安全でない環境等でハッシュ不可なら指紋なしで運用
+}
+// 指紋＋件数を同梱して書き込む
+async function _writeSync(path,data){
+  const obj={links:data.links||[],tags:data.tags||[],tagMeta:data.tagMeta||{}};
+  const sum=await _sha256(_canonical(obj));
+  if(sum) obj._checksum=sum;
+  obj._count={links:obj.links.length,tags:obj.tags.length};
+  await _gWriteText(path, JSON.stringify(obj));
+}
+// 読み込み＋指紋照合。指紋の無い旧式ファイルは ok 扱い（後方互換）
+async function _readVerified(path){
+  const obj=await _gReadJson(path);
+  if(obj && obj._checksum){
+    const got=await _sha256(_canonical(obj));
+    if(got && got!==obj._checksum) return {obj,ok:false};
+  }
+  return {obj,ok:true};
+}
+// 上書き前に現行を退避(backup)→本体を書く→書いた直後に読み返して照合
+async function _commitRemote(data, prevRemote){
+  if(prevRemote){ try{ await _writeSync(SYNC_BAK, prevRemote); }catch(e){ console.warn('[MomoSync] backup failed', e); } }
+  await _writeSync(SYNC_FILE, data);
+  const v=await _readVerified(SYNC_FILE);          // 書き込み後の確認
+  if(!v.ok) throw new Error(_t('syncWriteVerifyFail'));
 }
 
 // ── 同期中インジケーター ──
@@ -268,10 +303,21 @@ async function runSync(){
     if(!remoteExists){
       // GDriveにファイルなし → ローカルをアップロード
       if(!confirm(_t('syncUploadAsk'))) return;
-      await _gWriteText(SYNC_FILE, JSON.stringify(loc));
+      await _writeSync(SYNC_FILE, loc);
 
     }else{
-      const rem     = await _gReadJson(SYNC_FILE);
+      // 整合性チェック付きで読む。壊れていたらバックアップから復旧
+      let rem;
+      const v=await _readVerified(SYNC_FILE);
+      if(v.ok){
+        rem=v.obj;
+      }else if(await _gExists(SYNC_BAK)){
+        const vb=await _readVerified(SYNC_BAK);
+        if(vb.ok){ rem=vb.obj; alert(_t('syncRecovered')); }
+        else { throw new Error(_t('syncCorrupt')); }
+      }else{
+        throw new Error(_t('syncCorrupt'));
+      }
       const hasRemote = (rem.links||[]).filter(l=>!l.deleted_at).length>0;
 
       if(!hasLocal&&hasRemote){
@@ -286,11 +332,11 @@ async function runSync(){
         if(ch==='1'){
           const merged=_mergeData(loc,rem);
           _applyMerged(merged);
-          await _gWriteText(SYNC_FILE, JSON.stringify(merged));
+          await _commitRemote(merged, rem);
         }else if(ch==='2'){
           _applyMerged(rem);
         }else if(ch==='3'){
-          await _gWriteText(SYNC_FILE, JSON.stringify(loc));
+          await _commitRemote(loc, rem);
         }else{
           alert(_t('syncInvalid'));
           return;
@@ -300,7 +346,7 @@ async function runSync(){
         // 通常マージ
         const merged=_mergeData(loc,rem);
         _applyMerged(merged);
-        await _gWriteText(SYNC_FILE, JSON.stringify(merged));
+        await _commitRemote(merged, rem);
       }
     }
 

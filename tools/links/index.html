@@ -761,7 +761,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.14</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.15</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -2366,12 +2366,7 @@ document.getElementById('inUrl').addEventListener('blur',async()=>{
   if(_titleFetchCtrl) _titleFetchCtrl.abort();
   _titleFetchCtrl=new AbortController();
   try{
-    const res=await fetch(`https://corsproxy.io/?url=${encodeURIComponent(normalizeUrl(url))}`,{signal:_titleFetchCtrl.signal});
-    if(!res.ok) return;
-    const html=await res.text();
-    const m=html.match(/<title[^>]*>([^<]+)<\/title>/i);
-    if(!m) return;
-    const title=m[1].trim();
+    const title=await _fetchPageTitle(url,_titleFetchCtrl.signal);
     if(title&&!_titleTouched&&!document.getElementById('inTitle').value.trim()){
       document.getElementById('inTitle').value=title;
     }
@@ -2386,8 +2381,12 @@ async function _fetchPageTitle(url,signal){
   const res=await fetch(`https://corsproxy.io/?url=${encodeURIComponent(normalizeUrl(url))}`,{signal});
   if(!res.ok) return null;
   const html=await res.text();
-  const m=html.match(/<title[^>]*>([^<]+)<\/title>/i);
-  return m?m[1].trim():null;
+  const m=html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  if(!m) return null;
+  const ta=document.createElement('textarea');
+  ta.innerHTML=m[1];                                 // HTMLエンティティ(&nbsp; &amp; &#39; 等)を実文字へ復号
+  const title=ta.value.replace(/\s+/g,' ').trim();   // 空白(nbsp含む)を整理。&nbsp;だけ等は空になる
+  return title||null;                                // 実質空タイトルは「無し」扱い
 }
 async function editUrlBlur(id){
   if(location.protocol==='file:') return;
@@ -2895,7 +2894,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.14',
+      verDesc:'MOMO Links v4.15',
     },
     en:{
       basic:'## Basic Operations',
@@ -2910,7 +2909,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.14',
+      verDesc:'MOMO Links v4.15',
     },
     zh:{
       basic:'## 基本操作',
@@ -2925,7 +2924,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.14',
+      verDesc:'MOMO Links v4.15',
     },
   };
   const s=c[L]||c.ja;

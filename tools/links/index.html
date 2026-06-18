@@ -706,7 +706,7 @@ main{animation:fadeUp .25s .05s ease both;}
 .icon-grid{display:flex;flex-wrap:wrap;gap:10px;padding:6px 2px;}
 .icon-cell{display:flex;flex-direction:column;align-items:center;width:78px;text-decoration:none;color:var(--text);padding:8px 4px;border-radius:9px;cursor:pointer;}
 .icon-cell:hover{background:var(--surface2);}
-.icon-fav{width:36px;height:36px;object-fit:contain;margin-bottom:5px;}
+.icon-fav{width:36px;height:36px;object-fit:contain;margin-bottom:5px;background:#fff;border-radius:7px;padding:3px;box-sizing:border-box;}
 .icon-label{font-size:11px;line-height:1.25;text-align:center;width:100%;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;}
 @media (max-width:640px){.icon-cell{width:64px;}.icon-fav{width:32px;height:32px;}}
 </style>
@@ -768,7 +768,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.17</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.18</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -780,7 +780,7 @@ main{animation:fadeUp .25s .05s ease both;}
   <div class="view-toggle-wrap">
     <button class="view-toggle-btn active" id="vbtn-card" onclick="setViewMode('card')" title="カード表示">▤</button>
     <button class="view-toggle-btn" id="vbtn-list" onclick="setViewMode('list')" title="リスト表示">☰</button>
-    <button class="view-toggle-btn" id="vbtn-grid" onclick="setViewMode('grid')" title="アイコン表示">▦</button>
+    <button class="view-toggle-btn" id="vbtn-grid" onclick="setViewMode('grid')" title="アイコン表示"><svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor" style="vertical-align:middle"><rect x="1" y="1" width="6" height="6" rx="1.3"/><rect x="9" y="1" width="6" height="6" rx="1.3"/><rect x="1" y="9" width="6" height="6" rx="1.3"/><rect x="9" y="9" width="6" height="6" rx="1.3"/></svg></button>
   </div>
   <button class="nav-toggle-btn" id="navToggleBtn" onclick="toggleNav(event)" title="タグエリア">TAG</button>
   <button class="btn" id="btnAdd" onclick="toggleAdd()">＋ 追加</button>
@@ -2927,7 +2927,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.17',
+      verDesc:'MOMO Links v4.18',
     },
     en:{
       basic:'## Basic Operations',
@@ -2942,7 +2942,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.17',
+      verDesc:'MOMO Links v4.18',
     },
     zh:{
       basic:'## 基本操作',
@@ -2957,7 +2957,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.17',
+      verDesc:'MOMO Links v4.18',
     },
   };
   const s=c[L]||c.ja;

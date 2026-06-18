@@ -702,6 +702,13 @@ main{animation:fadeUp .25s .05s ease both;}
 .foot-links a{font-size:12px;color:var(--orange-light);text-decoration:none;}
 .foot-links a:hover{text-decoration:underline;}
 @media (max-width:640px){.site-footer{padding:22px 14px 32px;}}
+/* 案件⑤A: アイコン並べ表示 */
+.icon-grid{display:flex;flex-wrap:wrap;gap:10px;padding:6px 2px;}
+.icon-cell{display:flex;flex-direction:column;align-items:center;width:78px;text-decoration:none;color:var(--text);padding:8px 4px;border-radius:9px;cursor:pointer;}
+.icon-cell:hover{background:var(--surface2);}
+.icon-fav{width:36px;height:36px;object-fit:contain;margin-bottom:5px;}
+.icon-label{font-size:11px;line-height:1.25;text-align:center;width:100%;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;}
+@media (max-width:640px){.icon-cell{width:64px;}.icon-fav{width:32px;height:32px;}}
 </style>
 <script src="/momo/lib/momo-analytics.js" defer></script>
 </head>
@@ -761,7 +768,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.16</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.17</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -773,6 +780,7 @@ main{animation:fadeUp .25s .05s ease both;}
   <div class="view-toggle-wrap">
     <button class="view-toggle-btn active" id="vbtn-card" onclick="setViewMode('card')" title="カード表示">▤</button>
     <button class="view-toggle-btn" id="vbtn-list" onclick="setViewMode('list')" title="リスト表示">☰</button>
+    <button class="view-toggle-btn" id="vbtn-grid" onclick="setViewMode('grid')" title="アイコン表示">▦</button>
   </div>
   <button class="nav-toggle-btn" id="navToggleBtn" onclick="toggleNav(event)" title="タグエリア">TAG</button>
   <button class="btn" id="btnAdd" onclick="toggleAdd()">＋ 追加</button>
@@ -1335,6 +1343,7 @@ function setViewMode(m){
   link_viewMode=m;
   document.getElementById('vbtn-card').classList.toggle('active',m==='card');
   document.getElementById('vbtn-list').classList.toggle('active',m==='list');
+  document.getElementById('vbtn-grid').classList.toggle('active',m==='grid');
   displayedCount=0;
   renderCards();
 }
@@ -1981,6 +1990,9 @@ function renderCards(){
   if(link_viewMode==='list'){
     renderListView(filtered,area);return;
   }
+  if(link_viewMode==='grid'){
+    renderGridView(filtered,area);return;
+  }
 
   renderCardView(filtered,area);
 }
@@ -2050,6 +2062,25 @@ function toggleGroupNode(h){
 function loadMore(){
   displayedCount+=PAGE_SIZE;
   renderCards();
+}
+
+// ── ICON GRID VIEW (案件⑤A: アイコンだけをグリッドで並べる) ──
+function renderGridView(filtered,area){
+  if(displayedCount===0)displayedCount=PAGE_SIZE;
+  const toShow=filtered.slice(0,displayedCount);
+  let html='<div class="icon-grid">';
+  toShow.forEach(l=>{
+    const host=getHost(l.url);
+    const favSrc=l.faviconUrl||`https://www.google.com/s2/favicons?domain=${host}&sz=32`;
+    html+=`<a class="icon-cell" href="${esc(normalizeUrl(l.url))}" target="_blank" rel="noopener" title="${esc(l.title)} — ${esc(host)}">`
+      +`<img class="icon-fav" src="${esc(favSrc)}" onload="checkFaviconSize(this,'${esc(host)}','${esc(l.url)}',${l.id})" onerror="faviconFallback(this,'${esc(host)}','${esc(l.url)}')">`
+      +`<span class="icon-label">${esc(l.title)}</span></a>`;
+  });
+  html+='</div>';
+  if(displayedCount<filtered.length){
+    html+=`<div style="text-align:center;padding:16px"><button class="btn" onclick="loadMore()">${t('loadMore',filtered.length-displayedCount)}</button></div>`;
+  }
+  area.innerHTML=html;
 }
 
 function renderCardItem(l){
@@ -2896,7 +2927,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.16',
+      verDesc:'MOMO Links v4.17',
     },
     en:{
       basic:'## Basic Operations',
@@ -2911,7 +2942,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.16',
+      verDesc:'MOMO Links v4.17',
     },
     zh:{
       basic:'## 基本操作',
@@ -2926,7 +2957,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.16',
+      verDesc:'MOMO Links v4.17',
     },
   };
   const s=c[L]||c.ja;

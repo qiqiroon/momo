@@ -325,7 +325,7 @@ main{padding:20px 24px;}
 }
 .card:hover{border-color:var(--border-strong);}
 .card.editing{border-color:var(--orange);box-shadow:0 0 0 3px rgba(194,65,12,.12);}
-.card-favicon{width:16px;height:16px;flex-shrink:0;margin-top:2px;}
+.card-favicon{width:36px;height:36px;flex-shrink:0;margin-top:2px;background:#fff;border-radius:7px;padding:3px;box-sizing:border-box;}
 .card-body{flex:1;overflow:hidden;}
 .card-title{
   font-size:13px;font-weight:500;color:var(--text);
@@ -410,7 +410,7 @@ main{padding:20px 24px;}
 }
 .list-item:hover{border-color:var(--border-strong);}
 .list-item.expanded{border-color:var(--orange);border-radius:6px 6px 0 0;border-bottom-color:transparent;}
-.list-favicon{width:14px;height:14px;flex-shrink:0;}
+.list-favicon{width:16px;height:16px;flex-shrink:0;background:#fff;border-radius:3px;padding:1px;box-sizing:border-box;}
 .list-title{font-size:13px;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .list-host{font-size:10px;color:var(--text-muted);white-space:nowrap;min-width:80px;text-align:right;}
 .list-tags{display:flex;gap:3px;flex-wrap:nowrap;overflow:hidden;flex-shrink:0;max-width:180px;}
@@ -768,7 +768,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.18</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.19</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -1187,6 +1187,7 @@ function restoreFailsafe(img){
 // img.onerror が発火しない。 onload サイズチェックで「24px 未満は明らかに小さい
 // デフォルトアイコン」 と判定して fallback を起動する。
 function checkFaviconSize(img, host, url, linkId){
+  if((img.src||'').startsWith('data:')) return;   // フォルダ等のデータURIアイコンはフォールバック/サイズ判定不要
   const w=img.naturalWidth, h=img.naturalHeight;
   console.log(`[fav] onload size=${w}x${h} host=${host||'(empty)'} src=${(img.src||'').substring(0,80)}`);
   if(w > 0 && w < 24){
@@ -1545,6 +1546,12 @@ setInterval(()=>{
 // SORT
 // ══════════════════════════════════════
 function getHost(u){try{return new URL(u).hostname.replace(/^www\./,'');}catch{return u;}}
+// ローカルファイル(file:)はフォルダ風アイコン。それ以外は通常のファビコン(キャッシュ済みURL or Google)
+const FOLDER_ICON='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#f6c350" d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>');
+function faviconSrcFor(l,host){
+  if(/^file:/i.test(l.url||'')) return FOLDER_ICON;
+  return l.faviconUrl||`https://www.google.com/s2/favicons?domain=${host}&sz=32`;
+}
 function getSorted(a){
   return[...a].sort((x,y)=>{
     if(link_cardSort==='title')return(x.title||'').localeCompare(y.title||'','ja');
@@ -2071,7 +2078,7 @@ function renderGridView(filtered,area){
   let html='<div class="icon-grid">';
   toShow.forEach(l=>{
     const host=getHost(l.url);
-    const favSrc=l.faviconUrl||`https://www.google.com/s2/favicons?domain=${host}&sz=32`;
+    const favSrc=faviconSrcFor(l,host);
     html+=`<a class="icon-cell" href="${esc(normalizeUrl(l.url))}" target="_blank" rel="noopener" title="${esc(l.title)} — ${esc(host)}">`
       +`<img class="icon-fav" src="${esc(favSrc)}" onload="checkFaviconSize(this,'${esc(host)}','${esc(l.url)}',${l.id})" onerror="faviconFallback(this,'${esc(host)}','${esc(l.url)}')">`
       +`<span class="icon-label">${esc(l.title)}</span></a>`;
@@ -2085,7 +2092,7 @@ function renderGridView(filtered,area){
 
 function renderCardItem(l){
   const host=getHost(l.url);
-  const favSrc=l.faviconUrl||`https://www.google.com/s2/favicons?domain=${host}&sz=32`;
+  const favSrc=faviconSrcFor(l,host);
   const dateStr=new Date(l.date).toLocaleDateString('ja-JP',{month:'numeric',day:'numeric'});
   const isEdit=(link_editingId===l.id);
   const showTags=isEdit?link_editingTags:(l.tags||[]);
@@ -2149,7 +2156,7 @@ function renderCardItem(l){
 
 function renderListItem(l){
   const host=getHost(l.url);
-  const favSrc=l.faviconUrl||`https://www.google.com/s2/favicons?domain=${host}&sz=32`;
+  const favSrc=faviconSrcFor(l,host);
   const dateStr=new Date(l.date).toLocaleDateString('ja-JP',{month:'numeric',day:'numeric'});
   const tags=(l.tags||[]).slice(0,3);
   const isExpanded=expandedListItems.has(l.id);
@@ -2927,7 +2934,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.18',
+      verDesc:'MOMO Links v4.19',
     },
     en:{
       basic:'## Basic Operations',
@@ -2942,7 +2949,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.18',
+      verDesc:'MOMO Links v4.19',
     },
     zh:{
       basic:'## 基本操作',
@@ -2957,7 +2964,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.18',
+      verDesc:'MOMO Links v4.19',
     },
   };
   const s=c[L]||c.ja;

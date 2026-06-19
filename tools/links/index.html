@@ -768,7 +768,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.29</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.30</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -994,6 +994,7 @@ main{animation:fadeUp .25s .05s ease both;}
         </div>
         <div class="import-info" id="importInfo"></div>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
+          <button class="btn" id="resetFavBtn" onclick="resetFaviconMemory()" title="アイコンの記憶だけを消去。ブックマークは消えません">🔄 アイコンの記憶をリセット</button>
           <button class="btn danger" id="clearAllBtn" onclick="clearAllData()">⚠️ すべて削除</button>
         </div>
       </div>
@@ -1204,7 +1205,32 @@ function checkFaviconSize(img, host, url, linkId){
     faviconFallback(img, host, url);
     return;
   }
-  if(url){ try { setFavDir(url, img.src); } catch(e){} }   // ⑤B(い): フォルダ(パス)単位で記憶＝同一ドメインの別アプリも区別
+  if(url){ try { setFavDir(url, img.src); maybeUpgradeFavicon(img, host, url); } catch(e){} }   // ⑤B(い): フォルダ(パス)単位で記憶＝同一ドメインの別アプリも区別
+}
+// v4.30(a): ⑤B-3。表示中のアイコンが「そのブックマーク自身のフォルダのアイコン(最高優先)」でない場合だけ、
+//  裏でフォルダ直下の favicon.ico→favicon.svg を試し、取れたら表示と記憶を格上げ更新する。
+//  ＝高優先が一時的に失敗して低優先(地球/Google/サイトてっぺん等)を記憶してしまった事故を自動修復。
+//  1表示につき1ブックマーク1回だけ(_favUpgradeChecked)＝無駄な再取得を抑える。
+function maybeUpgradeFavicon(img, host, url){
+  if(!url) return;
+  const dir = favKeyOf(url); if(!dir) return;
+  const cur = img.src||'';
+  if(cur===dir+'favicon.ico' || cur===dir+'favicon.svg') return; // 既に自分のフォルダのアイコン＝最高優先、何もしない
+  if(/^data:/.test(cur)) return;                                  // file:のフォルダ/書類アイコンは対象外
+  if(_favUpgradeChecked.has(url)) return;
+  _favUpgradeChecked.add(url);
+  const apply=(better)=>{
+    setFavDir(url, better);
+    document.querySelectorAll('img[data-favurl]').forEach(im=>{
+      if(im.getAttribute('data-favurl')===url){ im.onerror=null; im.src=better; }
+    });
+    console.log(`[fav] upgraded to own-folder icon: ${better}`);
+  };
+  const probeSvg=()=>{ const p=new Image(); p.onload=()=>{ if(p.naturalWidth>=16) apply(dir+'favicon.svg'); }; p.src=dir+'favicon.svg'; };
+  const p=new Image();
+  p.onload=()=>{ if(p.naturalWidth>=16) apply(dir+'favicon.ico'); else probeSvg(); };
+  p.onerror=probeSvg;
+  p.src=dir+'favicon.ico';
 }
 function faviconFallback(img, host, url){
   if(!host){console.log('[fav] no host, give up'); restoreFailsafe(img); return;}
@@ -1568,6 +1594,8 @@ const DOC_ICON='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.
 // 案件⑤B(い): 「効いたファビコンURL」をブックマークのフォルダ(パス)単位で記憶し即表示(ローカルのみ・中継不要)
 // ※host単位だと同一ドメインの別アプリ(qiqiroon.github.io/momo/各アプリ)が同じアイコンになるためフォルダ単位にする
 let favDirCache=JSON.parse(localStorage.getItem('favdir_v3')||'{}');
+// v4.30(a): ⑤B-3「裏で取り直して格上げ」用。1回の表示につき1ブックマーク1回だけ裏チェック。
+const _favUpgradeChecked=new Set();
 // v4.29: 旧 v4.26 の「起動時に .svg の記憶を一掃」処理を撤去。
 //  当時「svg が黒くなる」と推測したが誤りで(実描画でMOMOのsvgは正常)、真の黒因は
 //  末尾/欠落の誤URL(v4.27)と取得失敗時の非表示(v4.28)だった。一掃は svg のみ提供の
@@ -2137,7 +2165,7 @@ function renderGridView(filtered,area){
     const host=getHost(l.url);
     const favSrc=faviconSrcFor(l,host);
     html+=`<a class="icon-cell" href="${esc(normalizeUrl(l.url))}" target="_blank" rel="noopener" title="${esc(l.title)} — ${esc(host)}">`
-      +`<img class="icon-fav" src="${esc(favSrc)}" onload="checkFaviconSize(this,'${esc(host)}','${esc(l.url)}',${l.id})" onerror="faviconFallback(this,'${esc(host)}','${esc(l.url)}')">`
+      +`<img class="icon-fav" data-favurl="${esc(l.url)}" src="${esc(favSrc)}" onload="checkFaviconSize(this,'${esc(host)}','${esc(l.url)}',${l.id})" onerror="faviconFallback(this,'${esc(host)}','${esc(l.url)}')">`
       +`<span class="icon-label">${esc(l.title)}</span></a>`;
   });
   html+='</div>';
@@ -2159,7 +2187,7 @@ function renderCardItem(l){
   }).join('');
 
   return`<div class="card${isEdit?' editing':''}" id="card-${l.id}">
-    <img class="card-favicon" src="${esc(favSrc)}"
+    <img class="card-favicon" data-favurl="${esc(l.url)}" src="${esc(favSrc)}"
       onload="checkFaviconSize(this,'${esc(host)}','${esc(l.url)}',${l.id})"
       onerror="faviconFallback(this,'${esc(host)}','${esc(l.url)}')">
     <div class="card-body">
@@ -2218,7 +2246,7 @@ function renderListItem(l){
   const tags=(l.tags||[]).slice(0,3);
   const isExpanded=expandedListItems.has(l.id);
   return`<div class="list-item${isExpanded?' expanded':''}" id="lrow-${l.id}" onclick="toggleListExpand(${l.id})">
-    <img class="list-favicon" src="${esc(favSrc)}" onload="checkFaviconSize(this,'${esc(host)}','${esc(l.url)}',${l.id})" onerror="faviconFallback(this,'${esc(host)}','${esc(l.url)}')">
+    <img class="list-favicon" data-favurl="${esc(l.url)}" src="${esc(favSrc)}" onload="checkFaviconSize(this,'${esc(host)}','${esc(l.url)}',${l.id})" onerror="faviconFallback(this,'${esc(host)}','${esc(l.url)}')">
     <span class="list-title">${esc(l.title)}</span>
     <div class="list-tags">${tags.map(t=>`<span class="list-tag">#${esc(displayName(t))}</span>`).join('')}</div>
     <span class="list-host">${esc(host)}</span>
@@ -2419,6 +2447,15 @@ function clearAllData(){
   // 全削除はユーザーの意思なのでフラグを立てて自動DLを抑止
   try{localStorage.setItem('links_initialized','1');}catch(e){}
   save();renderAll();document.getElementById('importInfo').classList.remove('show');
+}
+// v4.30(b): アイコンの記憶だけを消去(ブックマークは残す)。次の描画で全アイコンを最初から探し直す。
+function resetFaviconMemory(){
+  if(!confirm(t('confirmResetFav')))return;
+  favDirCache={};
+  try{localStorage.removeItem('favdir_v3');}catch(e){}
+  try{_favUpgradeChecked.clear();}catch(e){}
+  renderAll();
+  alert(t('resetFavDone'));
 }
 
 // ══════════════════════════════════════
@@ -2651,6 +2688,7 @@ const I18N={
     importDesc:'<strong>bookmark.json</strong> を選択またはドロップして読み込みます。',
     importModeLabel:'追記モード', importDropLabel:'📂 クリックして bookmark.json を選択',
     importDropSub:'またはここにドラッグ＆ドロップ',
+    resetFavBtn:'🔄 アイコンの記憶をリセット',
     clearAllBtn:'⚠️ すべて削除', closeBtn:'閉じる',
     chromeDesc:'Chrome「ブックマークのインポート」用のHTMLを生成します。',
     copyChromeBtn:'コピー', dlChromeBtn:'HTMLダウンロード',
@@ -2666,6 +2704,8 @@ const I18N={
     confirmPermDelete:'完全に削除します。この操作は取り消せません。',
     confirmClearAll:'すべてのリンクとタグを削除します。この操作は取り消せません。\n本当によいですか？',
     confirmClearAll2:'最終確認：本当にすべて削除しますか？',
+    confirmResetFav:'記憶しているアイコンを消去して取り直します（ブックマークは消えません）。よいですか？',
+    resetFavDone:'アイコンの記憶をリセットしました。',
     alertDuplicate:'このURLは既に登録されています。\n%s',
     alertTagExists:'「%s」は既に登録されています',
     alertTagEmpty:'タグ名を入力してください',
@@ -2738,6 +2778,7 @@ const I18N={
     importDesc:'Select or drop a <strong>bookmark.json</strong> file.',
     importModeLabel:'Append mode', importDropLabel:'📂 Click to select bookmark.json',
     importDropSub:'or drag & drop here',
+    resetFavBtn:'🔄 Reset icon memory',
     clearAllBtn:'⚠️ Delete all', closeBtn:'Close',
     chromeDesc:'Generate HTML for Chrome bookmark import.',
     copyChromeBtn:'Copy', dlChromeBtn:'Download HTML',
@@ -2753,6 +2794,8 @@ const I18N={
     confirmPermDelete:'Permanently delete? This cannot be undone.',
     confirmClearAll:'Delete all link_data and tags? This cannot be undone.\nAre you sure?',
     confirmClearAll2:'Final confirmation: really delete everything?',
+    confirmResetFav:'Clear remembered icons and refetch them? (Bookmarks are kept.)',
+    resetFavDone:'Icon memory has been reset.',
     alertDuplicate:'This URL is already registered.\n%s',
     alertTagExists:'"%s" is already registered',
     alertTagEmpty:'Please enter a tag name',
@@ -2825,6 +2868,7 @@ const I18N={
     importDesc:'选择或拖入 <strong>bookmark.json</strong> 文件。',
     importModeLabel:'追加模式', importDropLabel:'📂 点击选择 bookmark.json',
     importDropSub:'或拖放到此处',
+    resetFavBtn:'🔄 重置图标记忆',
     clearAllBtn:'⚠️ 全部删除', closeBtn:'关闭',
     chromeDesc:'生成用于Chrome书签导入的HTML文件。',
     copyChromeBtn:'复制', dlChromeBtn:'下载HTML',
@@ -2840,6 +2884,8 @@ const I18N={
     confirmPermDelete:'永久删除？此操作无法撤销。',
     confirmClearAll:'删除全部链接和标签？此操作无法撤销。\n确定吗？',
     confirmClearAll2:'最终确认：真的要删除全部内容吗？',
+    confirmResetFav:'清除已记忆的图标并重新获取？（书签保留。）',
+    resetFavDone:'图标记忆已重置。',
     alertDuplicate:'该URL已存在。\n%s',
     alertTagExists:'「%s」已注册',
     alertTagEmpty:'请输入标签名',
@@ -2940,7 +2986,7 @@ function applyLang(){
   ih('importDesc',t('importDesc'));
   tx('importModeLabel',t('importModeLabel'));
   tx('importDropLabel',t('importDropLabel')); tx('importDropSub',t('importDropSub'));
-  tx('clearAllBtn',t('clearAllBtn')); tx('closeImportBtn',t('closeBtn'));
+  tx('resetFavBtn',t('resetFavBtn')); tx('clearAllBtn',t('clearAllBtn')); tx('closeImportBtn',t('closeBtn'));
   tx('chromeDesc',t('chromeDesc'));
   tx('copyChromeBtn',t('copyChromeBtn')); tx('dlChromeBtn',t('dlChromeBtn'));
   tx('secretSettingsDesc',t('secretSettingsDesc'));
@@ -2991,7 +3037,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.29',
+      verDesc:'MOMO Links v4.30',
     },
     en:{
       basic:'## Basic Operations',
@@ -3006,7 +3052,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.29',
+      verDesc:'MOMO Links v4.30',
     },
     zh:{
       basic:'## 基本操作',
@@ -3021,7 +3067,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.29',
+      verDesc:'MOMO Links v4.30',
     },
   };
   const s=c[L]||c.ja;

@@ -768,7 +768,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.27</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.28</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -1172,15 +1172,20 @@ function save(){
 console.log('[fav] === Links v4.06 favicon module loaded ===');
 // v4.06: 全 fallback 失敗時に visibility:hidden で消すのではなく、 元の Google API
 // レスポンス (灰色地球) を許容する仕様に変更。 全プロキシ同時障害でも UI 崩れなし。
-function restoreFailsafe(img){
-  if(img.dataset.failsafeSrc){
-    console.log(`[fav] restoring Google default (failsafe)`);
-    img.onload = null;  // ループ防止 (灰色地球の onload で checkFaviconSize が再起しないように)
-    img.onerror = null;
+function restoreFailsafe(img, host){
+  img.onload = null;  // ループ防止 (地球の onload で checkFaviconSize が再起しないように)
+  img.onerror = null;
+  img.style.visibility='';
+  // v4.28: アイコンが全く見つからない時は「非表示」にしない。
+  //  非表示にすると暗いカード背景が透けて『黒い四角』に見えてしまう(=黒アイコンの正体)。
+  //  代わりに Google の地球(ドメイン既定)を出す。host が無い時のみ最終手段で非表示。
+  if(host){
+    console.log(`[fav] failsafe -> globe for host=${host}`);
+    img.src = `https://www.google.com/s2/favicons?domain=${host}&sz=32`;
+  } else if(img.dataset.failsafeSrc){
     img.src = img.dataset.failsafeSrc;
   } else {
     img.style.visibility='hidden';
-    img.onerror = null;
   }
 }
 // v4.06-: Google API / DuckDuckGo / etc. は 404 でもデフォルトアイコンを画像で返すため
@@ -1212,8 +1217,9 @@ function faviconFallback(img, host, url){
   if(step===1)      img.src=dir+'favicon.ico';
   else if(step===2) img.src=dir+'favicon.svg';
   else if(step===3) img.src=`https://${host}/favicon.ico`;
-  else if(step===4) fetchFaviconFromHtml(img,host,url);
-  else{console.log(`[fav] giving up host=${host}`); restoreFailsafe(img);}
+  else if(step===4) img.src=`https://www.google.com/s2/favicons?domain=${host}&sz=32`; // v4.28: Googleが実アイコンを持てば取得(無ければ16px地球→checkで弾き次へ)
+  else if(step===5) fetchFaviconFromHtml(img,host,url);
+  else{console.log(`[fav] giving up host=${host}`); restoreFailsafe(img, host);}
 }
 // v4.06: 複数の CORS プロキシをフォールバックチェーンで試行
 // AllOrigins は無料サービスで時々 522/Failed (Cloudflare Origin タイムアウト) を返すため、
@@ -1242,7 +1248,7 @@ async function fetchHtmlViaProxy(pageUrl){
   throw new Error('all proxies failed');
 }
 async function fetchFaviconFromHtml(img, host, url){
-  if(location.protocol==='file:'){restoreFailsafe(img); return;}
+  if(location.protocol==='file:'){restoreFailsafe(img, host); return;}
   try{
     const pageUrl = url || `https://${host}/`;
     console.log(`[fav] step2 fetch ${pageUrl}`);
@@ -1274,11 +1280,11 @@ async function fetchFaviconFromHtml(img, host, url){
                                             faviconUrl=`https://${host}/${faviconUrl}`;
     }
     console.log(`[fav] resolved -> ${faviconUrl}`);
-    img.onerror=()=>{console.log(`[fav] final img failed: ${faviconUrl}`); restoreFailsafe(img);};
+    img.onerror=()=>{console.log(`[fav] final img failed: ${faviconUrl}`); restoreFailsafe(img, host);};
     img.src=faviconUrl;
   }catch(e){
     console.log(`[fav] step2 fail: ${(e&&e.message)||e}`);
-    restoreFailsafe(img);
+    restoreFailsafe(img, host);
   }
 }
 
@@ -2988,7 +2994,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.27',
+      verDesc:'MOMO Links v4.28',
     },
     en:{
       basic:'## Basic Operations',
@@ -3003,7 +3009,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.27',
+      verDesc:'MOMO Links v4.28',
     },
     zh:{
       basic:'## 基本操作',
@@ -3018,7 +3024,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.27',
+      verDesc:'MOMO Links v4.28',
     },
   };
   const s=c[L]||c.ja;

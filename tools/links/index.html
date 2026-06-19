@@ -768,7 +768,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.24</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.25</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -1190,8 +1190,10 @@ function checkFaviconSize(img, host, url, linkId){
   if((img.src||'').startsWith('data:')) return;   // フォルダ等のデータURIアイコンはフォールバック/サイズ判定不要
   const w=img.naturalWidth, h=img.naturalHeight;
   console.log(`[fav] onload size=${w}x${h} host=${host||'(empty)'} src=${(img.src||'').substring(0,80)}`);
-  if(w > 0 && w < 24){
-    console.log(`[fav] too small, advancing fallback for host=${host}`);
+  // 小さすぎ判定は「ファビコン提供サービス(Google/DuckDuckGo)の極小デフォルト」だけに適用。
+  // サイト自身の実ファビコン(favicon.ico等)は16pxでも本物なので採用する。
+  if(w > 0 && w < 24 && /s2\/favicons|icons\.duckduckgo/.test(img.src||'')){
+    console.log(`[fav] too small (service default), advancing fallback for host=${host}`);
     // v4.06: 全 fallback 失敗時の復帰先として元 src を退避
     if(!img.dataset.failsafeSrc) img.dataset.failsafeSrc = img.src;
     faviconFallback(img, host, url);
@@ -1556,13 +1558,13 @@ const FOLDER_ICON='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://w
 const DOC_ICON='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#c6cfdb" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path fill="#94a1b3" d="M14 2v6h6z"/></svg>');
 // 案件⑤B(い): 「効いたファビコンURL」をブックマークのフォルダ(パス)単位で記憶し即表示(ローカルのみ・中継不要)
 // ※host単位だと同一ドメインの別アプリ(qiqiroon.github.io/momo/各アプリ)が同じアイコンになるためフォルダ単位にする
-let favDirCache=JSON.parse(localStorage.getItem('favdir_v2')||'{}');
+let favDirCache=JSON.parse(localStorage.getItem('favdir_v3')||'{}');
 function favKeyOf(url){ try{ return new URL('.', url).href; }catch(e){ return ''; } }
 function setFavDir(url,src){
   const k=favKeyOf(url);
   if(!k||!src||src.startsWith('data:')||favDirCache[k]===src) return;
   favDirCache[k]=src;
-  try{localStorage.setItem('favdir_v2',JSON.stringify(favDirCache));}catch(e){}
+  try{localStorage.setItem('favdir_v3',JSON.stringify(favDirCache));}catch(e){}
 }
 function faviconSrcFor(l,host){
   const u=l.url||'';
@@ -1575,7 +1577,7 @@ function faviconSrcFor(l,host){
   const cached=favDirCache[favKeyOf(u)];
   if(cached) return cached;
   // 下位パス(サブフォルダ)のブックマークはドメイン既定(地球)に誤魔化されないよう自分のフォルダのファビコンを優先
-  try{ const p=new URL(u).pathname; if(p&&p.length>1) return new URL('favicon.svg', favKeyOf(u)).href; }catch(e){}
+  try{ const p=new URL(u).pathname; if(p&&p.length>1) return new URL('favicon.ico', favKeyOf(u)).href; }catch(e){}
   return `https://www.google.com/s2/favicons?domain=${host}&sz=32`;
 }
 function getSorted(a){
@@ -2960,7 +2962,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.24',
+      verDesc:'MOMO Links v4.25',
     },
     en:{
       basic:'## Basic Operations',
@@ -2975,7 +2977,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.24',
+      verDesc:'MOMO Links v4.25',
     },
     zh:{
       basic:'## 基本操作',
@@ -2990,7 +2992,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.24',
+      verDesc:'MOMO Links v4.25',
     },
   };
   const s=c[L]||c.ja;

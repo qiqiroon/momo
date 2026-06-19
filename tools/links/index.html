@@ -768,7 +768,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.28</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.29</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -1568,13 +1568,10 @@ const DOC_ICON='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.
 // 案件⑤B(い): 「効いたファビコンURL」をブックマークのフォルダ(パス)単位で記憶し即表示(ローカルのみ・中継不要)
 // ※host単位だと同一ドメインの別アプリ(qiqiroon.github.io/momo/各アプリ)が同じアイコンになるためフォルダ単位にする
 let favDirCache=JSON.parse(localStorage.getItem('favdir_v3')||'{}');
-// v4.26: 幅/高さ未指定の .svg ファビコンは一部ブラウザ(Chrome/iOS Safari)で黒い四角に描かれる。
-// 旧版が記憶した .svg を一掃し、.ico(ラスター=どの環境でも確実に描ける)で取り直させる＝黒アイコンの自己修復。
-(function(){
-  let changed=false;
-  for(const k in favDirCache){ if(/\.svg(\?|#|$)/i.test(favDirCache[k]||'')){ delete favDirCache[k]; changed=true; } }
-  if(changed){ try{localStorage.setItem('favdir_v3',JSON.stringify(favDirCache));}catch(e){} }
-})();
+// v4.29: 旧 v4.26 の「起動時に .svg の記憶を一掃」処理を撤去。
+//  当時「svg が黒くなる」と推測したが誤りで(実描画でMOMOのsvgは正常)、真の黒因は
+//  末尾/欠落の誤URL(v4.27)と取得失敗時の非表示(v4.28)だった。一掃は svg のみ提供の
+//  サイトを毎回忘れて探し直す副作用があり不当なため削除。探索順の ico 優先は無害なので維持。
 function favKeyOf(url){
   // v4.27: そのブックマーク「自身のフォルダ」を堅牢に求める。
   //  末尾/付き = そのフォルダ／拡張子付き(index.html等) = ファイルなので親フォルダ／
@@ -2994,7 +2991,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.28',
+      verDesc:'MOMO Links v4.29',
     },
     en:{
       basic:'## Basic Operations',
@@ -3009,7 +3006,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.28',
+      verDesc:'MOMO Links v4.29',
     },
     zh:{
       basic:'## 基本操作',
@@ -3024,7 +3021,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.28',
+      verDesc:'MOMO Links v4.29',
     },
   };
   const s=c[L]||c.ja;

@@ -768,7 +768,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.21</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.22</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -1205,8 +1205,13 @@ function faviconFallback(img, host, url){
   const step=(parseInt(img.dataset.fbStep||'0'))+1;
   img.dataset.fbStep=step;
   console.log(`[fav] step${step} host=${host}${url?` url=${url}`:''}`);
-  if(step===1)      img.src=`https://${host}/favicon.ico`;
-  else if(step===2) fetchFaviconFromHtml(img,host,url);
+  // ⑤B-2: ブックマークのフォルダ直下のファビコンも直接試す（下位パスのサイト=MOMO Works等。中継不要）
+  let dir=`https://${host}/`;
+  try{ if(url) dir=new URL('.', url).href; }catch(e){}
+  if(step===1)      img.src=dir+'favicon.svg';
+  else if(step===2) img.src=dir+'favicon.ico';
+  else if(step===3) img.src=`https://${host}/favicon.ico`;
+  else if(step===4) fetchFaviconFromHtml(img,host,url);
   else{console.log(`[fav] giving up host=${host}`); restoreFailsafe(img);}
 }
 // v4.06: 複数の CORS プロキシをフォールバックチェーンで試行
@@ -2950,7 +2955,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.21',
+      verDesc:'MOMO Links v4.22',
     },
     en:{
       basic:'## Basic Operations',
@@ -2965,7 +2970,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.21',
+      verDesc:'MOMO Links v4.22',
     },
     zh:{
       basic:'## 基本操作',
@@ -2980,7 +2985,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.21',
+      verDesc:'MOMO Links v4.22',
     },
   };
   const s=c[L]||c.ja;

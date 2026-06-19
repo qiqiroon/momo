@@ -1,9 +1,12 @@
 MOMO Links — プログラム版 ⇔ 文書版 対応の目印
-（バージョン管理ルール v1.0 準拠。節目で両側に1回刻む。詳細は docs/ の各改訂履歴と開発日誌へ）
+（バージョン管理ルール v1.0 準拠。節目で両側に1回刻む。詳細は開発日誌へ）
 
 プログラム v4.30  ⇔  文書 v4.0   2026-06-19
-  docs/MOMO_Links_外部仕様書_v4.0.md
-  docs/MOMO_Links_内部仕様書_v4.0.md
-  docs/MOMO_Links_ユーザーマニュアル_v4.0.md
+  文書の置き場所（非公開・ローカル）: L:\momo\tools\links\doc\v4.0\
+    MOMO_Links_外部仕様書_v4.0.md
+    MOMO_Links_内部仕様書_v4.0.md
+    MOMO_Links_ユーザーマニュアル_v4.0.md
 
-（前の節目：プログラム v3.30 ⇔ 文書 v3.30 / 旧フォルダ tools/links/doc/v3.30/）
+（前の節目：プログラム v3.30 ⇔ 文書 v3.30 / L:\momo\tools\links\doc\v3.30\）
+
+※ 文書は公開リポジトリ(github/momo)には置かない。この versions.txt は版対応の目印のみ。

@@ -768,7 +768,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.22</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.23</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -1197,8 +1197,7 @@ function checkFaviconSize(img, host, url, linkId){
     faviconFallback(img, host, url);
     return;
   }
-  if(linkId){ try { cacheFavicon(linkId, img.src); } catch(e) {} }
-  if(host){ try { setFavHost(host, img.src); } catch(e){} }   // ⑤B(い): host単位でも記憶（同一ドメインで共有・即表示）
+  if(url){ try { setFavDir(url, img.src); } catch(e){} }   // ⑤B(い): フォルダ(パス)単位で記憶＝同一ドメインの別アプリも区別
 }
 function faviconFallback(img, host, url){
   if(!host){console.log('[fav] no host, give up'); restoreFailsafe(img); return;}
@@ -1555,13 +1554,15 @@ function getHost(u){try{return new URL(u).hostname.replace(/^www\./,'');}catch{r
 // ローカルファイル(file:)はフォルダ風アイコン。それ以外は通常のファビコン(キャッシュ済みURL or Google)
 const FOLDER_ICON='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#f6c350" d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>');
 const DOC_ICON='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#c6cfdb" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path fill="#94a1b3" d="M14 2v6h6z"/></svg>');
-// 案件⑤B(い): host単位で「効いたファビコンURL」を記憶し、次回は探索チェーンを飛ばして即表示(ローカルのみ・中継不要)
-let favHostCache=JSON.parse(localStorage.getItem('favhost_v1')||'{}');
-function setFavHost(host,url){
-  if(!host||!url||url.startsWith('data:')) return;
-  if(favHostCache[host]===url) return;
-  favHostCache[host]=url;
-  try{localStorage.setItem('favhost_v1',JSON.stringify(favHostCache));}catch(e){}
+// 案件⑤B(い): 「効いたファビコンURL」をブックマークのフォルダ(パス)単位で記憶し即表示(ローカルのみ・中継不要)
+// ※host単位だと同一ドメインの別アプリ(qiqiroon.github.io/momo/各アプリ)が同じアイコンになるためフォルダ単位にする
+let favDirCache=JSON.parse(localStorage.getItem('favdir_v1')||'{}');
+function favKeyOf(url){ try{ return new URL('.', url).href; }catch(e){ return ''; } }
+function setFavDir(url,src){
+  const k=favKeyOf(url);
+  if(!k||!src||src.startsWith('data:')||favDirCache[k]===src) return;
+  favDirCache[k]=src;
+  try{localStorage.setItem('favdir_v1',JSON.stringify(favDirCache));}catch(e){}
 }
 function faviconSrcFor(l,host){
   const u=l.url||'';
@@ -1571,7 +1572,7 @@ function faviconSrcFor(l,host){
     const seg=path.replace(/\/+$/,'').split('/').pop()||'';
     return (!path.endsWith('/') && /\.[^.]+$/.test(seg)) ? DOC_ICON : FOLDER_ICON;
   }
-  return favHostCache[host]||l.faviconUrl||`https://www.google.com/s2/favicons?domain=${host}&sz=32`;
+  return favDirCache[favKeyOf(u)]||`https://www.google.com/s2/favicons?domain=${host}&sz=32`;
 }
 function getSorted(a){
   return[...a].sort((x,y)=>{
@@ -2955,7 +2956,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.22',
+      verDesc:'MOMO Links v4.23',
     },
     en:{
       basic:'## Basic Operations',
@@ -2970,7 +2971,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.22',
+      verDesc:'MOMO Links v4.23',
     },
     zh:{
       basic:'## 基本操作',
@@ -2985,7 +2986,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.22',
+      verDesc:'MOMO Links v4.23',
     },
   };
   const s=c[L]||c.ja;

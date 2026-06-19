@@ -768,7 +768,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.26</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.27</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -1208,7 +1208,7 @@ function faviconFallback(img, host, url){
   console.log(`[fav] step${step} host=${host}${url?` url=${url}`:''}`);
   // ⑤B-2: ブックマークのフォルダ直下のファビコンも直接試す（下位パスのサイト=MOMO Works等。中継不要）
   let dir=`https://${host}/`;
-  try{ if(url) dir=new URL('.', url).href; }catch(e){}
+  if(url){ const d=favKeyOf(url); if(d) dir=d; }   // v4.27: 末尾/欠落でも自身のフォルダを正しく解決
   if(step===1)      img.src=dir+'favicon.ico';
   else if(step===2) img.src=dir+'favicon.svg';
   else if(step===3) img.src=`https://${host}/favicon.ico`;
@@ -1260,9 +1260,12 @@ async function fetchFaviconFromHtml(img, host, url){
     for(const p of patterns){const m=html.match(p);if(m){faviconUrl=m[1];break;}}
     if(!faviconUrl){console.log(`[fav] no <link rel=icon> in HTML (len=${html.length})`); throw new Error('no-link');}
     console.log(`[fav] raw href: ${faviconUrl}`);
-    // 相対URLを絶対URLに変換 (pageUrl を base とする URL コンストラクタで正確に解決)
+    // 相対URLを絶対URLに変換。base は「自身のフォルダ」(favKeyOf)を使う。
+    // v4.27: pageUrl が末尾/無し(/momo)だと相対href(favicon.svg)がルート(/favicon.svg)に化けるため、
+    //        フォルダURL(/momo/)を base にして /momo/favicon.svg に正しく解決する。
+    const resolveBase=(url?favKeyOf(url):'')||pageUrl;
     try {
-      faviconUrl = new URL(faviconUrl, pageUrl).href;
+      faviconUrl = new URL(faviconUrl, resolveBase).href;
     } catch(e) {
       // URL コンストラクタが失敗した場合の fallback (data: URI 等)
       if(faviconUrl.startsWith('//'))       faviconUrl='https:'+faviconUrl;
@@ -1566,7 +1569,23 @@ let favDirCache=JSON.parse(localStorage.getItem('favdir_v3')||'{}');
   for(const k in favDirCache){ if(/\.svg(\?|#|$)/i.test(favDirCache[k]||'')){ delete favDirCache[k]; changed=true; } }
   if(changed){ try{localStorage.setItem('favdir_v3',JSON.stringify(favDirCache));}catch(e){} }
 })();
-function favKeyOf(url){ try{ return new URL('.', url).href; }catch(e){ return ''; } }
+function favKeyOf(url){
+  // v4.27: そのブックマーク「自身のフォルダ」を堅牢に求める。
+  //  末尾/付き = そのフォルダ／拡張子付き(index.html等) = ファイルなので親フォルダ／
+  //  拡張子なし(/momo 等) = フォルダ扱いで / を補う。
+  //  ←旧 new URL('.',url) は末尾/が無いと最後の区画(momo)をファイルとみなしルート(/)を返し、
+  //    /momo/favicon.ico を生成できず黒アイコンになっていた不具合の修正。
+  try{
+    const u=new URL(url);
+    let p=u.pathname;
+    if(!p.endsWith('/')){
+      const last=p.split('/').pop();
+      if(last && /\.[^./]+$/.test(last)) p=p.replace(/[^/]*$/,''); // index.html 等＝親フォルダ
+      else p=p+'/';                                                 // /momo 等＝フォルダ扱い
+    }
+    return u.origin + p;
+  }catch(e){ return ''; }
+}
 function setFavDir(url,src){
   const k=favKeyOf(url);
   if(!k||!src||src.startsWith('data:')||favDirCache[k]===src) return;
@@ -2969,7 +2988,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.26',
+      verDesc:'MOMO Links v4.27',
     },
     en:{
       basic:'## Basic Operations',
@@ -2984,7 +3003,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.26',
+      verDesc:'MOMO Links v4.27',
     },
     zh:{
       basic:'## 基本操作',
@@ -2999,7 +3018,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.26',
+      verDesc:'MOMO Links v4.27',
     },
   };
   const s=c[L]||c.ja;

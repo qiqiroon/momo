@@ -256,12 +256,14 @@ function _localSnapshot(){
 function runSyncManual(){
   if(_syncing) return;
   if(location.protocol==='file:') return;
-  if(typeof closeDataModal==='function') closeDataModal();
+  // v4.33: データ管理を閉じるのは「実際に同期/サインインへ進む時」だけ。
+  //  準備中(GSI未ロード)では閉じない→目の前の「同期」ボタンをもう一度押すだけで済む。
+  const _closeModal=()=>{ if(typeof closeDataModal==='function') closeDataModal(); };
 
   const _doSync=()=>{
     const now=Math.floor(Date.now()/1000);
     if(_gToken&&now<_gTokenExp){
-      runSync(); return;
+      _closeModal(); runSync(); return;
     }
     const doRequest=()=>{
       const client=google.accounts.oauth2.initTokenClient({
@@ -274,6 +276,7 @@ function runSyncManual(){
           runSync();
         }
       });
+      _closeModal();
       client.requestAccessToken();
     };
     if(typeof google!=='undefined'&&google.accounts){

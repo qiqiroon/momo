@@ -31,7 +31,7 @@
 <meta property="og:locale:alternate" content="en_US">
 <meta property="og:locale:alternate" content="zh_CN">
 <!-- v4.35 案件⑦: 言語切り替えの共通ルーチン(全アプリ共通・lib集約)。本体スクリプトより先に読む(defer不可) -->
-<script src="/momo/lib/momo-lang.js"></script>
+<script src="/momo/lib/momo-lang/momo-lang.js"></script>
 <style>
 :root {
   --bg:          #0a0a0a;
@@ -777,7 +777,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.35</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.36</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -3052,7 +3052,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.35',
+      verDesc:'MOMO Links v4.36',
     },
     en:{
       basic:'## Basic Operations',
@@ -3067,7 +3067,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.35',
+      verDesc:'MOMO Links v4.36',
     },
     zh:{
       basic:'## 基本操作',
@@ -3082,7 +3082,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.35',
+      verDesc:'MOMO Links v4.36',
     },
   };
   const s=c[L]||c.ja;

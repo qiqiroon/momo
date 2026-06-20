@@ -26,7 +26,11 @@ function _t(key,...args){ return (typeof t==='function') ? t(key,...args) : key;
 
 // ── localStorage ヘルパー ──
 function syncEnabled(){ try{return localStorage.getItem(LS_ENABLED)==='true';}catch{return false;} }
-function setSyncEnabled(v){ try{localStorage.setItem(LS_ENABLED,v?'true':'false');}catch{} }
+function setSyncEnabled(v){
+  try{localStorage.setItem(LS_ENABLED,v?'true':'false');}catch{}
+  // v4.32: ONにした時点でサインイン部品(GSI)を先読み→初回同期タップでアカウント選択が間に合うように
+  if(v && location.protocol!=='file:'){ try{ _loadScript(GSI_URL); }catch{} }
+}
 function lastSyncTs(){ try{return parseInt(localStorage.getItem(LS_LAST_SYNC)||'0');}catch{return 0;} }
 function saveLastSync(){ try{localStorage.setItem(LS_LAST_SYNC,String(Math.floor(Date.now()/1000)));}catch{} }
 
@@ -275,7 +279,11 @@ function runSyncManual(){
     if(typeof google!=='undefined'&&google.accounts){
       doRequest();
     }else{
-      _loadScript(GSI_URL).then(doRequest).catch(e=>alert(_t('syncGsiError',e)));
+      // v4.32: GSI未ロード時に「読込→then→requestAccessToken」とするとユーザー操作の文脈が切れ、
+      //  ブラウザがアカウント選択ポップアップをブロックし「無反応で空振り」になる(特にPWA初回)。
+      //  黙って失敗させず、準備を始めて「もう一度押して」と促す(2回目はロード済みで選択画面が出る)。
+      _loadScript(GSI_URL).catch(()=>{});
+      alert(_t('syncPreparing'));
     }
   };
   _doSync();

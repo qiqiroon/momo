@@ -777,7 +777,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.36</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.37</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -2646,8 +2646,10 @@ const LANG_APP_ID='links';
 // 案件⑦: 言語の「判定 / モード取得 / 切替(保存ルール)」は共通ルーチン MomoLang(/momo/lib/momo-lang.js)に集約。
 //  ここはその呼び出し側。MomoLang未ロード時(file://やネット不通)に備え最小限のfallbackだけ持つ。
 function _langDetectFallback(){
-  try{ const l=(navigator.language||'en').toLowerCase();
-    if(l.indexOf('ja')===0)return'ja'; if(l.indexOf('zh')===0)return'zh'; if(l.indexOf('en')===0)return'en'; return'en';
+  try{ const list=(navigator.languages&&navigator.languages.length)?navigator.languages:[navigator.language||'en'];
+    for(let i=0;i<list.length;i++){ const l=(list[i]||'').toLowerCase();
+      if(l.indexOf('ja')===0)return'ja'; if(l.indexOf('zh')===0)return'zh'; if(l.indexOf('en')===0)return'en'; }
+    return'en';
   }catch(e){return'ja';}
 }
 let catBase='ja';
@@ -3052,7 +3054,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.36',
+      verDesc:'MOMO Links v4.37',
     },
     en:{
       basic:'## Basic Operations',
@@ -3067,7 +3069,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.36',
+      verDesc:'MOMO Links v4.37',
     },
     zh:{
       basic:'## 基本操作',
@@ -3082,7 +3084,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.36',
+      verDesc:'MOMO Links v4.37',
     },
   };
   const s=c[L]||c.ja;

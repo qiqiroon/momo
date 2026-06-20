@@ -62,8 +62,10 @@ const SUPPORTED_LANGS = ['ja','en','zh','cat'];
 const LANG_APP_ID = '<appId>';
 // MomoLang 未ロード時(file:// やネット不通)に備える最小fallback
 function _langDetectFallback(){
-  try{ const l=(navigator.language||'en').toLowerCase();
-    if(l.indexOf('ja')===0)return'ja'; if(l.indexOf('zh')===0)return'zh'; if(l.indexOf('en')===0)return'en'; return'en';
+  try{ const list=(navigator.languages&&navigator.languages.length)?navigator.languages:[navigator.language||'en'];
+    for(let i=0;i<list.length;i++){ const l=(list[i]||'').toLowerCase();
+      if(l.indexOf('ja')===0)return'ja'; if(l.indexOf('zh')===0)return'zh'; if(l.indexOf('en')===0)return'en'; }
+    return'en';
   }catch(e){return'ja';}
 }
 let catBase = 'ja';   // CATの基準言語（cat選択直前の言語を覚える。アプリ固有）
@@ -133,3 +135,4 @@ document.querySelectorAll('.lang-select').forEach(s => s.value = langMode);
 ## 6. バージョン
 
 - v1.0（2026-06-19）: 初版。Links が最初の採用アプリ。
+- v1.1（2026-06-19）: `detect()` を `navigator.languages`（希望言語の並び）対応に。第1希望が未対応でも次の希望を拾い、多言語設定の取りこぼしを防ぐ。zh-CN/zh-TW/zh-HK 等はすべて zh。

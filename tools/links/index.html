@@ -30,6 +30,8 @@
 <meta property="og:locale" content="ja_JP">
 <meta property="og:locale:alternate" content="en_US">
 <meta property="og:locale:alternate" content="zh_CN">
+<!-- v4.35 案件⑦: 言語切り替えの共通ルーチン(全アプリ共通・lib集約)。本体スクリプトより先に読む(defer不可) -->
+<script src="/momo/lib/momo-lang.js"></script>
 <style>
 :root {
   --bg:          #0a0a0a;
@@ -775,7 +777,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.34</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.35</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -2640,30 +2642,18 @@ function _navOutsideClick(e){
 // オーバーレイはポインターイベントを受け取らない（navのz-indexで後ろに隠れるべきだが
 // モバイル模擬で前面に来てしまうため、pointer-eventsをnoneにしてクリックを無効化）
 const SUPPORTED_LANGS=['ja','en','zh','cat'];
-const LANG_MODES=['auto','ja','en','zh','cat'];   // 案件⑦: ドロップダウンの選択肢(autoを含む)
-// 案件⑦: auto時のみブラウザ/OS言語から ja/zh/en を判定(それ以外はen)。CATは自動選択しない。
-function detectLang(){
-  try{
-    const l=(navigator.language||navigator.userLanguage||'en').toLowerCase();
-    if(l.indexOf('ja')===0) return 'ja';
-    if(l.indexOf('zh')===0) return 'zh';
-    if(l.indexOf('en')===0) return 'en';
-    return 'en';
-  }catch(e){ return 'en'; }
+const LANG_APP_ID='links';
+// 案件⑦: 言語の「判定 / モード取得 / 切替(保存ルール)」は共通ルーチン MomoLang(/momo/lib/momo-lang.js)に集約。
+//  ここはその呼び出し側。MomoLang未ロード時(file://やネット不通)に備え最小限のfallbackだけ持つ。
+function _langDetectFallback(){
+  try{ const l=(navigator.language||'en').toLowerCase();
+    if(l.indexOf('ja')===0)return'ja'; if(l.indexOf('zh')===0)return'zh'; if(l.indexOf('en')===0)return'en'; return'en';
+  }catch(e){return'ja';}
 }
 let catBase='ja';
-// 案件⑦: 「Links内の言語モード」をローカルに保持(auto/ja/en/zh/cat)。未設定=auto。
-//  ★autoや明示言語の"モード"は全MOMO共有キー(momoLang)とは別物。autoを共有に書くと旧アプリが
-//   未対応として'ja'にリセットし共有値を壊すため、モードはLinksローカルにだけ持つ。
-let langMode=(()=>{
-  try{
-    const m=localStorage.getItem('links_langMode');
-    if(m&&LANG_MODES.includes(m))return m;
-    return 'auto';   // 既存ユーザー(共有momoLang持ち)含め、Links未設定はauto
-  }catch(e){return'auto';}
-})();
-// 実際の表示言語(ja/en/zh/cat)。autoならブラウザ言語から解決。
-let currentLang=(langMode==='auto')?detectLang():(SUPPORTED_LANGS.includes(langMode)?langMode:detectLang());
+let langMode   = window.MomoLang ? MomoLang.getMode(LANG_APP_ID) : 'auto';
+let currentLang= window.MomoLang ? MomoLang.resolve(LANG_APP_ID)
+               : (langMode==='auto'?_langDetectFallback():(SUPPORTED_LANGS.includes(langMode)?langMode:_langDetectFallback()));
 
 const I18N={
   ja:{
@@ -3062,7 +3052,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.34',
+      verDesc:'MOMO Links v4.35',
     },
     en:{
       basic:'## Basic Operations',
@@ -3077,7 +3067,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.34',
+      verDesc:'MOMO Links v4.35',
     },
     zh:{
       basic:'## 基本操作',
@@ -3092,7 +3082,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.34',
+      verDesc:'MOMO Links v4.35',
     },
   };
   const s=c[L]||c.ja;
@@ -3116,13 +3106,12 @@ document.getElementById('helpModal').addEventListener('click',e=>{
 });
 
 function onLangChange(mode){
-  // 案件⑦: mode = auto/ja/en/zh/cat
+  // 案件⑦: mode = auto/ja/en/zh/cat。保存ルール(ローカルモード+明示のみ共有momoLang)は共通ルーチンに委譲。
+  //  catBase / applyLang はアプリ固有なのでここで扱う。
   if(mode==='cat'&&currentLang!=='cat') catBase=currentLang;
   langMode=mode;
-  currentLang=(mode==='auto')?detectLang():mode;
-  try{localStorage.setItem('links_langMode',mode);}catch(e){}
-  // 明示言語(auto以外)を選んだ時だけ全MOMO共有キーに書く=他アプリも追従。autoは共有に書かない。
-  if(mode!=='auto'){ try{localStorage.setItem('momoLang',mode);}catch(e){} }
+  currentLang = window.MomoLang ? MomoLang.setMode(LANG_APP_ID,mode)
+              : (mode==='auto'?_langDetectFallback():(SUPPORTED_LANGS.includes(mode)?mode:_langDetectFallback()));
   document.querySelectorAll('.lang-select').forEach(s=>s.value=mode);
   applyLang();
 }

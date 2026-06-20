@@ -9,6 +9,13 @@
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="icon" type="image/x-icon" href="favicon.ico">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<!-- v4.31 案件①: ホーム画面に追加した時に独立アプリ(全画面)として開く。iOSは記憶(localStorage)が長持ちしやすくなる -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a0a0a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="MOMO Links">
 <meta name="description" content="タブ式のブックマーク管理ツール。ブラウザで複数フォルダを並列管理。ローカル保存、登録不要・インストール不要。">
 <link rel="alternate" hreflang="ja" href="https://qiqiroon.github.io/momo/tools/links/">
 <link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/tools/links/">
@@ -768,7 +775,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.30</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.31</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -3037,7 +3044,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.30',
+      verDesc:'MOMO Links v4.31',
     },
     en:{
       basic:'## Basic Operations',
@@ -3052,7 +3059,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.30',
+      verDesc:'MOMO Links v4.31',
     },
     zh:{
       basic:'## 基本操作',
@@ -3067,7 +3074,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.30',
+      verDesc:'MOMO Links v4.31',
     },
   };
   const s=c[L]||c.ja;

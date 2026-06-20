@@ -775,7 +775,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.33</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.34</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -801,6 +801,7 @@ main{animation:fadeUp .25s .05s ease both;}
 <!-- Lang Switcher (PC) -->
 <div id="lang-switcher">
   <select class="lang-select" onchange="onLangChange(this.value)">
+    <option value="auto">Auto</option>
     <option value="ja">日本語</option>
     <option value="en">EN</option>
     <option value="zh">中文</option>
@@ -814,6 +815,7 @@ main{animation:fadeUp .25s .05s ease both;}
   <button id="mobileDataBtn" class="btn" onclick="openDataModal()" style="padding:4px 10px;font-size:11px;display:none">データ管理</button>
   <div id="mobileLangSwitcher" style="margin-left:auto">
     <select class="lang-select" onchange="onLangChange(this.value)">
+      <option value="auto">Auto</option>
       <option value="ja">日本語</option>
       <option value="en">EN</option>
       <option value="zh">中文</option>
@@ -2638,14 +2640,30 @@ function _navOutsideClick(e){
 // オーバーレイはポインターイベントを受け取らない（navのz-indexで後ろに隠れるべきだが
 // モバイル模擬で前面に来てしまうため、pointer-eventsをnoneにしてクリックを無効化）
 const SUPPORTED_LANGS=['ja','en','zh','cat'];
-let catBase='ja';
-let currentLang=(()=>{
+const LANG_MODES=['auto','ja','en','zh','cat'];   // 案件⑦: ドロップダウンの選択肢(autoを含む)
+// 案件⑦: auto時のみブラウザ/OS言語から ja/zh/en を判定(それ以外はen)。CATは自動選択しない。
+function detectLang(){
   try{
-    const s=localStorage.getItem('momoLang')||'ja';
-    if(SUPPORTED_LANGS.includes(s))return s;
-    localStorage.setItem('momoLang','ja');return'ja';
-  }catch(e){return'ja';}
+    const l=(navigator.language||navigator.userLanguage||'en').toLowerCase();
+    if(l.indexOf('ja')===0) return 'ja';
+    if(l.indexOf('zh')===0) return 'zh';
+    if(l.indexOf('en')===0) return 'en';
+    return 'en';
+  }catch(e){ return 'en'; }
+}
+let catBase='ja';
+// 案件⑦: 「Links内の言語モード」をローカルに保持(auto/ja/en/zh/cat)。未設定=auto。
+//  ★autoや明示言語の"モード"は全MOMO共有キー(momoLang)とは別物。autoを共有に書くと旧アプリが
+//   未対応として'ja'にリセットし共有値を壊すため、モードはLinksローカルにだけ持つ。
+let langMode=(()=>{
+  try{
+    const m=localStorage.getItem('links_langMode');
+    if(m&&LANG_MODES.includes(m))return m;
+    return 'auto';   // 既存ユーザー(共有momoLang持ち)含め、Links未設定はauto
+  }catch(e){return'auto';}
 })();
+// 実際の表示言語(ja/en/zh/cat)。autoならブラウザ言語から解決。
+let currentLang=(langMode==='auto')?detectLang():(SUPPORTED_LANGS.includes(langMode)?langMode:detectLang());
 
 const I18N={
   ja:{
@@ -3012,7 +3030,7 @@ function applyLang(){
   tx('footAbout',t('footAbout')); ih('footDesc',t('footDesc'));
   tx('footTop',t('footTop')); tx('footGames',t('footGames')); tx('footTools',t('footTools'));
 
-  document.querySelectorAll('.lang-select').forEach(s=>s.value=currentLang);
+  document.querySelectorAll('.lang-select').forEach(s=>s.value=langMode);
   const _hl=currentLang==='cat'
     ?{ja:'にゃ？',en:'NYA?',zh:'喵～'}[catBase]||'にゃ？'
     :{ja:'ヘルプ',en:'Help',zh:'帮助'}[currentLang]||'ヘルプ';
@@ -3044,7 +3062,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.33',
+      verDesc:'MOMO Links v4.34',
     },
     en:{
       basic:'## Basic Operations',
@@ -3059,7 +3077,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.33',
+      verDesc:'MOMO Links v4.34',
     },
     zh:{
       basic:'## 基本操作',
@@ -3074,7 +3092,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.33',
+      verDesc:'MOMO Links v4.34',
     },
   };
   const s=c[L]||c.ja;
@@ -3097,11 +3115,15 @@ document.getElementById('helpModal').addEventListener('click',e=>{
   if(e.target===e.currentTarget)closeHelp();
 });
 
-function onLangChange(lang){
-  if(lang==='cat'&&currentLang!=='cat') catBase=currentLang;
-  currentLang=lang;
-  try{localStorage.setItem('momoLang',currentLang);}catch(e){}
-  document.querySelectorAll('.lang-select').forEach(s=>s.value=currentLang);
+function onLangChange(mode){
+  // 案件⑦: mode = auto/ja/en/zh/cat
+  if(mode==='cat'&&currentLang!=='cat') catBase=currentLang;
+  langMode=mode;
+  currentLang=(mode==='auto')?detectLang():mode;
+  try{localStorage.setItem('links_langMode',mode);}catch(e){}
+  // 明示言語(auto以外)を選んだ時だけ全MOMO共有キーに書く=他アプリも追従。autoは共有に書かない。
+  if(mode!=='auto'){ try{localStorage.setItem('momoLang',mode);}catch(e){} }
+  document.querySelectorAll('.lang-select').forEach(s=>s.value=mode);
   applyLang();
 }
 

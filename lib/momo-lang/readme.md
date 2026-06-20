@@ -118,6 +118,8 @@ document.querySelectorAll('.lang-select').forEach(s => s.value = langMode);
 
 ## 4. 検証チェックリスト（プレビューで確認）
 
+> ★ローカルプレビューで**実物のライブラリ**を読ませるには、配信ルートを**リポジトリ直下（`github/momo`）**にして `/momo/...` の絶対パスが解決する状態にする（`/` を `/momo/tools/<app>/` にリダイレクトすると楽）。アプリのフォルダだけを配信すると `/momo/lib/...` が 404 になり `MomoLang` が読めず fallback 動作になる（fallbackも壊れはしないが、実物の検証にならない）。デプロイ済みURLで確認してもよい。
+
 1. `window.MomoLang` が読み込まれている（公開URLが 200）。
 2. **新規/未設定ユーザー** → 起動が `auto`、表示はブラウザ言語、ドロップダウン「Auto」。
 3. **明示で EN 等を選択** → 表示が切替、`localStorage.momoLang` に書かれる（他アプリ追従）、`momolang_mode_<appId>` に保存、**再読込で保持**。

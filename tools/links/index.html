@@ -65,6 +65,9 @@
 .sync-warn{font-size:15px;cursor:pointer;line-height:1}
 @keyframes momospin{to{transform:rotate(-360deg)}}
 .sync-ic svg.spin{animation:momospin 1s linear infinite;transform-origin:50% 50%}
+@keyframes syncblink{0%,100%{opacity:1}50%{opacity:.35}}
+.sync-status.sync-needed .sync-ic{color:#f59e0b;border-color:#f59e0b}
+.sync-status.sync-needed .sync-main{animation:syncblink 1.2s ease-in-out infinite}
 body{
   font-family:'Noto Sans JP',sans-serif;
   background:var(--bg);
@@ -790,7 +793,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.41</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.42</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -3100,7 +3103,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.41',
+      verDesc:'MOMO Links v4.42',
     },
     en:{
       basic:'## Basic Operations',
@@ -3115,7 +3118,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.41',
+      verDesc:'MOMO Links v4.42',
     },
     zh:{
       basic:'## 基本操作',
@@ -3130,7 +3133,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.41',
+      verDesc:'MOMO Links v4.42',
     },
   };
   const s=c[L]||c.ja;

@@ -52,17 +52,18 @@
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 /* 案件②: 同期状態表示 兼 手動更新ボタン */
-.sync-status{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;vertical-align:middle}
+.sync-status{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;vertical-align:middle;user-select:none;-webkit-user-select:none;caret-color:transparent}
 .sync-main{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .sync-ic{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid var(--border-strong);border-radius:7px;background:var(--surface);color:var(--text-muted);transition:all .15s}
 .sync-ic svg{width:15px;height:15px;display:block}
 .sync-main:hover .sync-ic{border-color:var(--orange);color:var(--orange-light)}
+.sync-main:hover .sync-tx{color:var(--orange-light)}
 .sync-status.sync-idle .sync-tx{color:#bdbdbd}
 .sync-status.sync-needed .sync-tx{color:#f59e0b}
 .sync-status.sync-manual .sync-tx,.sync-status.sync-auto .sync-tx{color:var(--orange-light)}
 .sync-status.sync-manual .sync-ic,.sync-status.sync-auto .sync-ic{color:var(--orange-light);border-color:var(--orange)}
 .sync-warn{font-size:15px;cursor:pointer;line-height:1}
-@keyframes momospin{to{transform:rotate(360deg)}}
+@keyframes momospin{to{transform:rotate(-360deg)}}
 .sync-ic svg.spin{animation:momospin 1s linear infinite;transform-origin:50% 50%}
 body{
   font-family:'Noto Sans JP',sans-serif;
@@ -712,8 +713,7 @@ main{animation:fadeUp .25s .05s ease both;}
 ::-webkit-scrollbar-track{background:transparent;}
 ::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:2px;}
 
-@keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
-#syncIndicator{display:none;margin-left:8px;color:orange;font-size:12px;font-weight:bold;animation:blink 1s infinite;}
+#syncIndicator{display:none;}   /* v4.40: 旧blink点滅アニメを撤去(状態色は .sync-status クラスで制御) */
 
 /* ── SEO 説明フッター (常時表示・クローラ向けの実コンテンツ) ── */
 .site-footer{position:relative;z-index:1;border-top:1px solid var(--border);background:#0d0d0d;padding:26px 24px 38px;color:var(--text-muted);}
@@ -790,7 +790,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.39</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.40</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -3100,7 +3100,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.39',
+      verDesc:'MOMO Links v4.40',
     },
     en:{
       basic:'## Basic Operations',
@@ -3115,7 +3115,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.39',
+      verDesc:'MOMO Links v4.40',
     },
     zh:{
       basic:'## 基本操作',
@@ -3130,7 +3130,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.39',
+      verDesc:'MOMO Links v4.40',
     },
   };
   const s=c[L]||c.ja;

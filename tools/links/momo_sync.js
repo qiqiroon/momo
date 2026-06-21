@@ -30,6 +30,7 @@ function setSyncEnabled(v){
   try{localStorage.setItem(LS_ENABLED,v?'true':'false');}catch{}
   // v4.32: ONにした時点でサインイン部品(GSI)を先読み→初回同期タップでアカウント選択が間に合うように
   if(v && location.protocol!=='file:'){ try{ _loadScript(GSI_URL); }catch{} }
+  if(typeof updateSyncStatus==='function') updateSyncStatus();   // v4.38(②): トグルで状態表示を更新(オフ→⚠B/iOS等)
 }
 function lastSyncTs(){ try{return parseInt(localStorage.getItem(LS_LAST_SYNC)||'0');}catch{return 0;} }
 function saveLastSync(){ try{localStorage.setItem(LS_LAST_SYNC,String(Math.floor(Date.now()/1000)));}catch{} }
@@ -152,42 +153,51 @@ async function _commitRemote(data, prevRemote){
   if(!v.ok) throw new Error(_t('syncWriteVerifyFail'));
 }
 
-// ── 同期中インジケーター ──
-function _getOrCreateIndicator(){
+// ── 状態表示 兼 手動更新ボタン（案件②）──
+//   状態: 'manual'/'auto'(=更新中・オレンジ＋回転) / 'idle'(=手動更新・通常) / 'needed'(=更新が必要・アンバー＋⚠A) / 'warnB'(=同期オフ・⚠B・iOSのみ) / 'hide'
+function _isIOS(){
+  try{ return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1); }catch(e){ return false; }
+}
+let _syncNeeded=false;   // 画面なしサインイン失敗等で手動サインインが要る状態
+function _getStatusEl(){
   let el=document.getElementById('syncIndicator');
   if(!el){
-    el=document.createElement('span');
-    el.id='syncIndicator';
-    const hdr=document.querySelector('header')||document.body;
-    hdr.appendChild(el);
+    el=document.createElement('span'); el.id='syncIndicator';
+    el.style.marginRight='8px';
+    const anchor=document.getElementById('btnData');   // 「データ管理」ボタンの前に差し込む（ヘッダー制御行に収める）
+    if(anchor&&anchor.parentNode) anchor.parentNode.insertBefore(el,anchor);
+    else (document.querySelector('header')||document.body).appendChild(el);
   }
   return el;
 }
-function _showIndicator(){
-  const el=_getOrCreateIndicator();
-  el.textContent=_t('syncBusy');
-  el.onclick=null;
-  el.style.cursor='default';
-  el.style.display='inline';
+function _renderStatus(state){
+  const el=_getStatusEl();
+  if(state==='hide'){ el.style.display='none'; return; }
+  el.style.display='inline-flex';
+  let icon='↻', text='', warn='', spin='';
+  if(state==='manual'||state==='auto'){ spin=' spin'; text=_t(state==='auto'?'syncAuto':'syncManual'); }
+  else if(state==='idle'){ text=_t('syncManual'); }
+  else if(state==='needed'){ text=_t('syncNeeded'); warn='A'; }
+  else if(state==='warnB'){ icon=''; warn='B'; }
+  let html='';
+  if(state!=='warnB') html+=`<span class="sync-main"><span class="sync-ic${spin}">${icon}</span><span class="sync-tx">${text}</span></span>`;
+  if(warn) html+=`<span class="sync-warn" title="${_t(warn==='A'?'syncWarnTitleA':'syncWarnTitleB')}">⚠</span>`;
+  el.innerHTML=html;
+  el.className='sync-status sync-'+state;
+  const main=el.querySelector('.sync-main');
+  if(main && (state==='idle'||state==='needed')){ main.style.cursor='pointer'; main.onclick=()=>runSyncManual(); }
+  const w=el.querySelector('.sync-warn');
+  if(w){ w.style.cursor='pointer'; w.onclick=(e)=>{ e.stopPropagation(); openSyncWarn(warn); }; }
 }
-function _hideIndicator(){
-  const el=document.getElementById('syncIndicator');
-  if(el) el.style.display='none';
+// 非同期中の通常状態を判定して描画（load/トグル/同期完了時に呼ぶ）
+function updateSyncStatus(){
+  if(location.protocol==='file:'){ _renderStatus('hide'); return; }
+  if(_syncing) return;                          // 更新中は runSync が描画
+  if(!syncEnabled()){ _renderStatus(_isIOS()?'warnB':'hide'); return; }   // 同期オフ: iOSのみ⚠B
+  _renderStatus(_syncNeeded?'needed':'idle');
 }
-
-// ── 「同期が必要」バッジ（トークンなし自動同期スキップ時）──
-function _showSyncNeeded(){
-  const el=_getOrCreateIndicator();
-  el.textContent=_t('syncNeeded');
-  el.title=_t('syncNeededHint');
-  el.style.cursor='pointer';
-  el.onclick=()=>runSyncManual();
-  el.style.display='inline';
-}
-function _hideSyncNeeded(){
-  const el=document.getElementById('syncIndicator');
-  if(el) el.style.display='none';
-}
+// ⚠押下→データ管理のGDrive同期タブで該当警告を表示（index.html側 openSyncHelp）
+function openSyncWarn(which){ if(typeof openSyncHelp==='function') openSyncHelp(which); }
 
 // ── ページ離脱抑止 ──
 let _unloadHandler=null;
@@ -293,11 +303,12 @@ function runSyncManual(){
 }
 
 // ── メイン同期処理 ──
-async function runSync(){
+async function runSync(mode){
   if(_syncing) return;
   if(location.protocol==='file:') return;
   _syncing=true;
-  _showIndicator();
+  _syncNeeded=false;
+  _renderStatus(mode==='auto'?'auto':'manual');
   _lockUnload();
 
   try{
@@ -362,7 +373,7 @@ async function runSync(){
     }
 
     saveLastSync();
-    _hideSyncNeeded();
+    _syncNeeded=false;
 
   }catch(e){
     console.error('[MomoSync]',e);
@@ -370,8 +381,8 @@ async function runSync(){
     // lastSync は更新しない（次回再試行）
   }finally{
     _syncing=false;
-    _hideIndicator();
     _unlockUnload();
+    updateSyncStatus();
   }
 }
 
@@ -385,16 +396,17 @@ function _autoSyncOrBadge(){
   if(!shouldAutoSync()) return;
   const now=Math.floor(Date.now()/1000);
   if(_gToken&&now<_gTokenExp){
-    runSync();
+    runSync('auto');
   }else{
-    _showSyncNeeded();
+    _syncNeeded=true; updateSyncStatus();
   }
 }
 
-// ── 起動時：GSI先読み＋自動同期チェック ──
+// ── 起動時：GSI先読み＋自動同期チェック＋状態表示 ──
 window.addEventListener('load',()=>{
   if(syncEnabled()&&location.protocol!=='file:') _loadScript(GSI_URL);
   _autoSyncOrBadge();
+  updateSyncStatus();
 });
 
 // ── 継続使用中の定期チェック（1時間ごと）──

@@ -174,20 +174,23 @@ function _renderStatus(state){
   const el=_getStatusEl();
   if(state==='hide'){ el.style.display='none'; return; }
   el.style.display='inline-flex';
-  let icon='↻', text='', warn='', spin='';
-  if(state==='manual'||state==='auto'){ spin=' spin'; text=_t(state==='auto'?'syncAuto':'syncManual'); }
-  else if(state==='idle'){ text=_t('syncManual'); }
+  const spinning=(state==='manual'||state==='auto');
+  let text='', warn='';
+  if(state==='manual'||state==='auto') text=_t(state==='auto'?'syncAuto':'syncManual');
+  else if(state==='idle') text=_t('syncManual');
   else if(state==='needed'){ text=_t('syncNeeded'); warn='A'; }
-  else if(state==='warnB'){ icon=''; warn='B'; }
+  else if(state==='warnB') warn='B';
+  // 更新アイコンはSVG（フォント字形由来の縦棒等を避ける）。更新中はSVGだけ回転。
+  const svg=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${spinning?'spin':''}"><path d="M20 11A8.1 8.1 0 0 0 4.5 9M4 5v4h4"/><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/></svg>`;
   let html='';
-  if(state!=='warnB') html+=`<span class="sync-main"><span class="sync-ic${spin}">${icon}</span><span class="sync-tx">${text}</span></span>`;
-  if(warn) html+=`<span class="sync-warn" title="${_t(warn==='A'?'syncWarnTitleA':'syncWarnTitleB')}">⚠</span>`;
+  if(state!=='warnB') html+=`<span class="sync-main"><span class="sync-ic">${svg}</span><span class="sync-tx">${text}</span></span>`;
+  if(warn) html+=`<span class="sync-warn" title="${_t(warn==='A'?'syncWarnTitleA':'syncWarnTitleB')}">⚠️</span>`;
   el.innerHTML=html;
   el.className='sync-status sync-'+state;
   const main=el.querySelector('.sync-main');
-  if(main && (state==='idle'||state==='needed')){ main.style.cursor='pointer'; main.onclick=()=>runSyncManual(); }
+  if(main && (state==='idle'||state==='needed')) main.onclick=()=>runSyncManual();   // 文字・アイコンどちら押下でも手動更新
   const w=el.querySelector('.sync-warn');
-  if(w){ w.style.cursor='pointer'; w.onclick=(e)=>{ e.stopPropagation(); openSyncWarn(warn); }; }
+  if(w) w.onclick=(e)=>{ e.stopPropagation(); openSyncWarn(warn); };
 }
 // 非同期中の通常状態を判定して描画（load/トグル/同期完了時に呼ぶ）
 function updateSyncStatus(){

@@ -526,6 +526,7 @@ async function runSync(mode){
 
     saveLastSync();
     _syncNeeded=false;
+    _disarmUserGestureSilentRetry();   // v4.51: 同期成功で待機解除
     // 段3: 同期成功後、現在のリモート更新時刻を取得して保存(次回チェックの基準)
     try{
       window._sp=SYNC_FILE;
@@ -561,6 +562,39 @@ function shouldAutoSync(){
 //     3) silent成功→新tokenで同期。失敗→15分バックオフ＋⚠表示
 //     4) hint無し or 未サインインは何もしない（初回は手動更新ボタンから）
 let _silentBackoffUntil=0;   // 段A: silent失敗時のバックオフ期限(Unix秒)
+
+// v4.51(⑥段A改良): 「更新が必要」状態のとき、次のユーザー操作(クリック/タップ/キー入力)直下で
+//   こっそりsilent試行を走らせる。ユーザーが「更新が必要」表示を押さなくても、普通に使い始めた
+//   最初のクリック等で勝手に同期が再開する。ブラウザの「user gesture直下のpopupは許可」を活用。
+let _gestureListenerActive=false;
+let _gestureHandler=null;
+function _armUserGestureSilentRetry(){
+  if(_gestureListenerActive) return;
+  const now=Math.floor(Date.now()/1000);
+  if(_silentBackoffUntil && now<_silentBackoffUntil) return;   // バックオフ中は仕掛けない
+  if(!_savedHint() || !_everSigned()) return;                   // 試行条件を満たさない時は仕掛けない
+  _gestureHandler=function(ev){
+    if(!_syncNeeded || _syncing) return;
+    const n=Math.floor(Date.now()/1000);
+    if(_silentBackoffUntil && n<_silentBackoffUntil) return;
+    _disarmUserGestureSilentRetry();
+    _autoSyncOrBadge('user-gesture');
+  };
+  document.addEventListener('click', _gestureHandler, {capture:true});
+  document.addEventListener('touchstart', _gestureHandler, {capture:true, passive:true});
+  document.addEventListener('keydown', _gestureHandler, {capture:true});
+  _gestureListenerActive=true;
+}
+function _disarmUserGestureSilentRetry(){
+  if(!_gestureListenerActive) return;
+  if(_gestureHandler){
+    document.removeEventListener('click', _gestureHandler, {capture:true});
+    document.removeEventListener('touchstart', _gestureHandler, {capture:true, passive:true});
+    document.removeEventListener('keydown', _gestureHandler, {capture:true});
+  }
+  _gestureHandler=null;
+  _gestureListenerActive=false;
+}
 async function _autoSyncOrBadge(autoTrigger){
   if(location.protocol==='file:' || !syncEnabled()) return;
   if(_syncing) return;
@@ -573,14 +607,15 @@ async function _autoSyncOrBadge(autoTrigger){
   if(_silentBackoffUntil && now<_silentBackoffUntil) return;
   // hint無しはsilent試行できない→次の手動更新待ち
   const hint=_savedHint();
-  if(!hint){ _syncNeeded=true; updateSyncStatus(); return; }
+  if(!hint){ _syncNeeded=true; updateSyncStatus(); _armUserGestureSilentRetry(); return; }
   // hint付きsilent試行
   _requestToken('none',
-    ()=>{ _logSync('silent',true,'auto'); _silentBackoffUntil=0; _doAutoCheck(autoTrigger); },
+    ()=>{ _logSync('silent',true,'auto'); _silentBackoffUntil=0; _disarmUserGestureSilentRetry(); _doAutoCheck(autoTrigger); },
     (err)=>{
       _logSync('silent',false,'auto:'+err);
       _silentBackoffUntil = now + 15*60;   // 15分バックオフ
       _syncNeeded=true; updateSyncStatus();
+      _armUserGestureSilentRetry();   // v4.51: 次のユーザー操作で再試行を仕掛ける
     }
   );
 }

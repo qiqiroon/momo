@@ -547,34 +547,55 @@ function shouldAutoSync(){
 }
 
 // ── 自動同期：トークンが有効な場合のみ実行、なければバッジ表示 ──
-// 案件②段3: 自動同期＝「変更があるときだけ実行・popup絶対なし」。
-//   設計判断(v4.45): 自動経路ではsilent試行を行わない。GSIのsilent試行はpopup抑制を完全保証しないため
-//   (localhost等で再現)、メモリにtokenがある時だけ動く。tokenが無ければ⚠表示で次の手動更新を促す。
-//   tokenは手動更新時のsilent取得で確保される(段2)→以後1時間は自動経路が動く。
+// 案件⑥段A: 自動同期＝silent試行復活＋5分ごと＋編集後30秒＋失敗時15分バックオフ。
+//   方針(2026-06-19/2026-06-23 ユーザー再確認): アクセスできるなら更新する。
+//     1) tokenあり→そのまま軽いチェック→必要なら同期
+//     2) tokenなし＋hint(メール記憶)あり＋everSigned→silent試行（一瞬ぐるぐる許容）
+//     3) silent成功→新tokenで同期。失敗→15分バックオフ＋⚠表示
+//     4) hint無し or 未サインインは何もしない（初回は手動更新ボタンから）
+let _silentBackoffUntil=0;   // 段A: silent失敗時のバックオフ期限(Unix秒)
 async function _autoSyncOrBadge(autoTrigger){
-  // autoTrigger: 'startup' | 'interval' | undefined。
   if(location.protocol==='file:' || !syncEnabled()) return;
   if(_syncing) return;
-  // 過去にサインインしたことがあるか確認
   if(!_everSigned()) return;
-  // token生存チェック。無ければ⚠表示(silent試行はしない=popup事故回避)
+  if(typeof google==='undefined' || !google.accounts){ _loadScript(GSI_URL).catch(()=>{}); return; }
   const now=Math.floor(Date.now()/1000);
-  if(!(_gToken&&now<_gTokenExp)){ _syncNeeded=true; updateSyncStatus(); return; }
-  // 軽いチェック: リモート変更時刻＋ローカル未送信編集
+  // token生存時はそのまま軽いチェックへ
+  if(_gToken && now<_gTokenExp){ await _doAutoCheck(autoTrigger); return; }
+  // バックオフ中は試行しない(⚠表示はそのまま維持)
+  if(_silentBackoffUntil && now<_silentBackoffUntil) return;
+  // hint無しはsilent試行できない→次の手動更新待ち
+  const hint=_savedHint();
+  if(!hint){ _syncNeeded=true; updateSyncStatus(); return; }
+  // hint付きsilent試行
+  _requestToken('none',
+    ()=>{ _logSync('silent',true,'auto'); _silentBackoffUntil=0; _doAutoCheck(autoTrigger); },
+    (err)=>{
+      _logSync('silent',false,'auto:'+err);
+      _silentBackoffUntil = now + 15*60;   // 15分バックオフ
+      _syncNeeded=true; updateSyncStatus();
+    }
+  );
+}
+// 軽いチェック→変更あれば同期(token必須・両方変化なしで静かに終了)
+async function _doAutoCheck(autoTrigger){
   const remote=await _checkRemoteChanged();
   const localDirty=_hasLocalChanges();
   _logSync('check', remote!=='error', remote+(localDirty?' / local-dirty':' / local-clean'));
-  if(remote==='unchanged' && !localDirty){
-    _logSync('skip', true, autoTrigger||'auto');   // 変更なし→静かに終了
-    return;
-  }
-  if(remote==='error'){
-    return;   // ネット断等。⚠は出さず次回に任せる
-  }
+  if(remote==='unchanged' && !localDirty){ _logSync('skip', true, autoTrigger||'auto'); return; }
+  if(remote==='error') return;
   runSync('auto');
 }
-// 起動時/間隔チェックの共通入口
-function _intervalAutoSync(){ if(shouldAutoSync()) _autoSyncOrBadge('interval'); }
+// 起動時/間隔チェックの共通入口(段A: shouldAutoSyncの24時間判定は廃止＝5分ごとに毎回チェック)
+function _intervalAutoSync(){ _autoSyncOrBadge('interval'); }
+
+// 段A: ローカル編集の通知(index.html の save() 等から呼ぶ)→30秒デバウンス→自動同期
+let _editDebounceTimer=null;
+function notifyLocalEdit(){
+  if(location.protocol==='file:' || !syncEnabled()) return;
+  if(_editDebounceTimer) clearTimeout(_editDebounceTimer);
+  _editDebounceTimer=setTimeout(()=>{ _editDebounceTimer=null; _autoSyncOrBadge('edit'); }, 30*1000);
+}
 
 // ── 起動時：GSI先読み＋軽いチェック＋状態表示（段3: 24時間判定無視で毎起動1回チェック）──
 window.addEventListener('load',()=>{
@@ -584,5 +605,5 @@ window.addEventListener('load',()=>{
   updateSyncStatus();
 });
 
-// ── 継続使用中の定期チェック（1時間ごと・24時間経過時に発動）──
-setInterval(()=>{ _intervalAutoSync(); }, 3600*1000);
+// ── 段A: 継続使用中の定期チェック（5分ごと・毎回 軽いチェック→必要なら同期）──
+setInterval(()=>{ _intervalAutoSync(); }, 5*60*1000);

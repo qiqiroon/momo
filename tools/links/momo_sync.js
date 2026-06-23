@@ -17,6 +17,7 @@ const LS_SYNC_LOG  = 'gdrive_sync_log';        // 案件②段2: 同期ログ(JS
 const SYNC_LOG_MAX = 50;
 const LS_EVER_SIGNED = 'gdrive_ever_signed';   // 一度でもサインインしたか(⚠表示判定)
 const LS_REMOTE_MOD  = 'gdrive_remote_modified';  // 段3: 最後に同期成功したときのリモートmodifiedTime(ISO)
+const LS_ACCOUNT_HINT= 'gdrive_account_hint';     // 段4: 自分のメール(silent取得時のhint用・追加権限不要でdrive/about?fields=userから取得)
 
 // ── 状態 ──
 let _pyodide  = null;
@@ -58,6 +59,21 @@ function _markEverSigned(){ try{localStorage.setItem(LS_EVER_SIGNED,'1');}catch{
 // 段3: リモート更新時刻(ISO)を保存/取得。同期完了時に更新→次回チェックの基準。
 function _savedRemoteMod(){ try{return localStorage.getItem(LS_REMOTE_MOD)||'';}catch{return '';} }
 function _setRemoteMod(iso){ try{localStorage.setItem(LS_REMOTE_MOD, iso||'');}catch{} }
+
+// 段4: 「どのアカウントを使うか」のhint(メール)を保存/取得/クリア。silent試行時にGoogleに渡し、複数アカウント勢でも選択画面なしで通る。
+function _savedHint(){ try{return localStorage.getItem(LS_ACCOUNT_HINT)||'';}catch{return '';} }
+function _setHint(email){ try{ if(email) localStorage.setItem(LS_ACCOUNT_HINT,email); else localStorage.removeItem(LS_ACCOUNT_HINT); }catch{} }
+// 段4: Drive APIから自分のメールを取得して保存(追加権限不要・drive.file scope内で /drive/v3/about にアクセス可)
+async function _fetchAndSaveHint(){
+  if(!_gToken) return;
+  try{
+    const r=await fetch('https://www.googleapis.com/drive/v3/about?fields=user',{headers:{Authorization:`Bearer ${_gToken}`}});
+    if(!r.ok){ _logSync('hint',false,'http-'+r.status); return; }
+    const j=await r.json();
+    const email=(j&&j.user&&j.user.emailAddress)||'';
+    if(email){ _setHint(email); _logSync('hint',true,email); }
+  }catch(e){ _logSync('hint',false,(e.message||String(e))); }
+}
 
 // 段3: ローカルに「未送信の編集」があるか。前回同期成功時刻より新しい updated_at を持つリンクがあるか。
 function _hasLocalChanges(){
@@ -354,10 +370,15 @@ function _requestToken(prompt, onSuccess, onFail){
       _gToken=resp.access_token;
       _gTokenExp=Math.floor(Date.now()/1000)+(resp.expires_in||3600)-60;
       _markEverSigned();
+      // 段4: hint未保存ならDriveから自分のメールを取得して保存(次回silent取得で複数アカウント勢でも通る)
+      if(!_savedHint()) _fetchAndSaveHint();
       onSuccess&&onSuccess();
     }
   };
   if(prompt!==undefined) opt.prompt=prompt;
+  // 段4: 保存済みhint(メール)があれば渡す→Googleが「このアカウントを使う」と判断し、複数アカウント時もsilent成功率向上
+  const hint=_savedHint();
+  if(hint) opt.hint=hint;
   const client=google.accounts.oauth2.initTokenClient(opt);
   client.requestAccessToken();
 }
@@ -407,6 +428,7 @@ function changeSyncAccount(){
     return;
   }
   if(typeof closeDataModal==='function') closeDataModal();
+  _setHint('');   // 段4: 古いhintをクリア→強制選択画面→新しい選択後にhint再取得
   _requestToken('select_account',
     ()=>{ _logSync('account-change',true,''); runSync('manual'); },
     (err)=>{ _logSync('account-change',false,err); alert(_t('syncAuthError',err)); }

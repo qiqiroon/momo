@@ -588,7 +588,11 @@ function _userGestureSilentRetry(){
   if(!_savedHint() || !_everSigned()) return;
   if(typeof google==='undefined' || !google.accounts){ _loadScript(GSI_URL).catch(()=>{}); return; }
   _requestToken('none',
-    ()=>{ _logSync('silent',true,'user-gesture'); _silentBackoffUntil=0; _doAutoCheck('user-gesture'); },
+    ()=>{
+      _logSync('silent',true,'user-gesture'); _silentBackoffUntil=0;
+      _syncNeeded=false; updateSyncStatus();   // v4.53: silent成功で「更新が必要」表示を解除
+      _doAutoCheck('user-gesture');
+    },
     (err)=>{
       _logSync('silent',false,'user-gesture:'+err);
       _silentBackoffUntil = Math.floor(Date.now()/1000) + 15*60;
@@ -622,7 +626,12 @@ async function _autoSyncOrBadge(autoTrigger){
   if(!hint){ _syncNeeded=true; updateSyncStatus(); _armUserGestureSilentRetry(); return; }
   // hint付きsilent試行
   _requestToken('none',
-    ()=>{ _logSync('silent',true,'auto'); _silentBackoffUntil=0; _disarmUserGestureSilentRetry(); _doAutoCheck(autoTrigger); },
+    ()=>{
+      _logSync('silent',true,'auto'); _silentBackoffUntil=0;
+      _syncNeeded=false; updateSyncStatus();   // v4.53: silent成功=「更新が必要」の理由解消→表示を戻す
+      _disarmUserGestureSilentRetry();
+      _doAutoCheck(autoTrigger);
+    },
     (err)=>{
       _logSync('silent',false,'auto:'+err);
       _silentBackoffUntil = now + 15*60;   // 15分バックオフ

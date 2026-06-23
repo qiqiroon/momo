@@ -563,6 +563,12 @@ function shouldAutoSync(){
 //     4) hint無し or 未サインインは何もしない（初回は手動更新ボタンから）
 let _silentBackoffUntil=0;   // 段A: silent失敗時のバックオフ期限(Unix秒)
 
+// v4.55: silentエラーが「回復見込みあり(popup系)」かを判定。回復見込みありなら警告を出さず、
+// 次のユーザー操作で再試行→たいてい成功する。本当のサインイン切れ等のときだけ警告。
+function _isRecoverableSilentError(err){
+  return /popup_failed_to_open|popup_closed/i.test(String(err||''));
+}
+
 // v4.51(⑥段A改良): 「更新が必要」状態のとき、次のユーザー操作(クリック/タップ/キー入力)直下で
 //   こっそりsilent試行を走らせる。ユーザーが「更新が必要」表示を押さなくても、普通に使い始めた
 //   最初のクリック等で勝手に同期が再開する。ブラウザの「user gesture直下のpopupは許可」を活用。
@@ -575,12 +581,12 @@ function _armUserGestureSilentRetry(){
   _gestureHandler=function(ev){
     if(!_syncNeeded || _syncing) return;
     // v4.54: リンク(<a>)クリックは除外。silent試行のpopupでフォーカスがLinksに戻る不便を回避。
-    //   ユーザーは新タブで開きたいので、その瞬間に silent試行を割り込ませない。
-    //   他の操作(タグ選択・検索・ボタン押下・キー入力等)では発動する。
+    // v4.55: 同期ボタン(syncIndicator)上のクリックも除外＝ボタンのonclick=runSyncManualと二重起動するのを防ぐ。
     if(ev.type!=='keydown'){
       let el=ev.target;
       for(let i=0; el && i<10; i++){
         if(el.tagName==='A') return;
+        if(el.id==='syncIndicator') return;
         el=el.parentElement;
       }
     }
@@ -606,7 +612,9 @@ function _userGestureSilentRetry(){
     (err)=>{
       _logSync('silent',false,'user-gesture:'+err);
       _silentBackoffUntil = Math.floor(Date.now()/1000) + 15*60;
-      _syncNeeded=true; updateSyncStatus();
+      // v4.55: popup系エラーは警告無しで再arm(レース等で偶発失敗・次のユーザー操作で回復見込み)。
+      //  非popup系(本当のサインイン切れ等)のみ警告。
+      if(!_isRecoverableSilentError(err)){ _syncNeeded=true; updateSyncStatus(); }
       _armUserGestureSilentRetry();   // 次のユーザー操作で再試行を仕掛け直す
     }
   );
@@ -645,7 +653,9 @@ async function _autoSyncOrBadge(autoTrigger){
     (err)=>{
       _logSync('silent',false,'auto:'+err);
       _silentBackoffUntil = now + 15*60;   // 15分バックオフ
-      _syncNeeded=true; updateSyncStatus();
+      // v4.55: popup系エラー(回復見込みあり)では警告を出さない。次のユーザー操作で再試行→たいてい成功。
+      //  本当のサインイン切れ等(access_denied/invalid_grant等)の時だけ「更新が必要」表示。
+      if(!_isRecoverableSilentError(err)){ _syncNeeded=true; updateSyncStatus(); }
       _armUserGestureSilentRetry();   // v4.51: 次のユーザー操作で再試行を仕掛ける
     }
   );

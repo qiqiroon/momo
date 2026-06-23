@@ -37,6 +37,8 @@ function setSyncEnabled(v){
   if(v && location.protocol!=='file:'){ try{ _loadScript(GSI_URL); }catch{} }
   if(typeof updateSyncStatus==='function') updateSyncStatus();   // v4.38(②): トグルで状態表示を更新(オフ→⚠B/iOS等)
 }
+// v4.48: 同期ONのユーザーは「windowload を待たず即GSI先読み」。ハードリロード直後の手動更新が gsi-not-ready にならないように。
+try{ if(syncEnabled() && location.protocol!=='file:') _loadScript(GSI_URL).catch(()=>{}); }catch{}
 function lastSyncTs(){ try{return parseInt(localStorage.getItem(LS_LAST_SYNC)||'0');}catch{return 0;} }
 function saveLastSync(){ try{localStorage.setItem(LS_LAST_SYNC,String(Math.floor(Date.now()/1000)));}catch{} }
 

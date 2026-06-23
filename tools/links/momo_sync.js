@@ -574,6 +574,16 @@ function _armUserGestureSilentRetry(){
   if(!_savedHint() || !_everSigned()) return;                   // 試行条件を満たさない時は仕掛けない
   _gestureHandler=function(ev){
     if(!_syncNeeded || _syncing) return;
+    // v4.54: リンク(<a>)クリックは除外。silent試行のpopupでフォーカスがLinksに戻る不便を回避。
+    //   ユーザーは新タブで開きたいので、その瞬間に silent試行を割り込ませない。
+    //   他の操作(タグ選択・検索・ボタン押下・キー入力等)では発動する。
+    if(ev.type!=='keydown'){
+      let el=ev.target;
+      for(let i=0; el && i<10; i++){
+        if(el.tagName==='A') return;
+        el=el.parentElement;
+      }
+    }
     _disarmUserGestureSilentRetry();
     _userGestureSilentRetry();   // バックオフを無視してsilent試行(ユーザー操作直下)
   };

@@ -166,7 +166,7 @@ async function _gReadJson(path){
   return await resp.json();
 }
 
-async function _gWriteText(path,content){
+async function _gWriteText(path,content,ifMatchEtag){
   const token=_pyodide.runPython('gdrive._token');
   const name=path.split('/').pop();
   const boundary='momo_boundary_xXx';
@@ -189,8 +189,13 @@ async function _gWriteText(path,content){
     meta=JSON.stringify({name,parents:[parentId]});
   }
 
+  const headers={'Authorization':`Bearer ${token}`,'Content-Type':`multipart/related; boundary=${boundary}`};
+  // v4.58(⑥段B): If-Match ヘッダーで原子的 compare-and-set。412 Precondition Failed なら他端末が割り込んだ。
+  if(ifMatchEtag && method==='PATCH') headers['If-Match']=ifMatchEtag;
+
   const body=`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: application/octet-stream\r\n\r\n${content}\r\n--${boundary}--`;
-  const resp=await fetch(url,{method,headers:{'Authorization':`Bearer ${token}`,'Content-Type':`multipart/related; boundary=${boundary}`},body});
+  const resp=await fetch(url,{method,headers,body});
+  if(resp.status===412) throw new Error('version-conflict');   // v4.58: サーバー側で原子的に検知された衝突
   if(!resp.ok) throw new Error(_t('syncDriveApiError',resp.status)+': '+await resp.text());
   await _pyodide.runPythonAsync('gdrive.cache.clear()');
 }
@@ -204,13 +209,13 @@ async function _sha256(str){
     return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
   }catch(e){ return null; }   // 安全でない環境等でハッシュ不可なら指紋なしで運用
 }
-// 指紋＋件数を同梱して書き込む
-async function _writeSync(path,data){
+// 指紋＋件数を同梱して書き込む。v4.58: ifMatchEtag を渡せば原子的 compare-and-set。
+async function _writeSync(path,data,ifMatchEtag){
   const obj={links:data.links||[],tags:data.tags||[],tagMeta:data.tagMeta||{}};
   const sum=await _sha256(_canonical(obj));
   if(sum) obj._checksum=sum;
   obj._count={links:obj.links.length,tags:obj.tags.length};
-  await _gWriteText(path, JSON.stringify(obj));
+  await _gWriteText(path, JSON.stringify(obj), ifMatchEtag);
 }
 // 読み込み＋指紋照合。指紋の無い旧式ファイルは ok 扱い（後方互換）
 async function _readVerified(path){
@@ -221,18 +226,28 @@ async function _readVerified(path){
   }
   return {obj,ok:true};
 }
-// 段B: リモートファイル更新時刻だけを軽く取得(中身は読まない)。compare-and-set用。
+// 段B: リモートファイル更新時刻だけを軽く取得(中身は読まない)。段3の変更チェック用。
 async function _getRemoteModTime(){
+  try{
+    const m = await _getRemoteMeta();
+    return m ? m.modifiedTime : null;
+  }catch(e){ return null; }
+}
+// 段B v4.58: リモートメタ(modifiedTime + etag)を取得。etagは原子的な compare-and-set 用。
+//   `?fields=modifiedTime` だけだとレスポンスからetagが取れないので、レスポンスヘッダーの ETag を使う。
+async function _getRemoteMeta(){
   try{
     if(!_pyodide) return null;
     window._sp=SYNC_FILE;
     const fileId=await _pyodide.runPythonAsync('await gdrive.resolve_path(js.window._sp)');
     const token=_pyodide.runPython('gdrive._token');
+    // ヘッダーから ETag を取るために fields は最小限。
     const resp=await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=modifiedTime`,
       {headers:{Authorization:`Bearer ${token}`}});
     if(!resp.ok) return null;
+    const etag = resp.headers.get('ETag') || resp.headers.get('etag') || null;
     const j=await resp.json();
-    return (j&&j.modifiedTime)||null;
+    return {fileId, modifiedTime: (j&&j.modifiedTime)||null, etag};
   }catch(e){ return null; }
 }
 // 段B: 衝突時の待ち時間を暗号乱数で選ぶ＝端末ごと・呼び出しごとに独立(Math.randomのseed問題を回避)。
@@ -249,17 +264,12 @@ function _pickConflictWaitMs(){
   }
 }
 // 上書き前に現行を退避(backup)→本体を書く→書いた直後に読み返して照合
-//   段B(v4.56): expectedMod を渡せば、書く直前にリモートmodifiedTimeを再確認し、
-//               不一致なら 'version-conflict' を投げる(=他端末が割り込んで書いた)。
-async function _commitRemote(data, prevRemote, expectedMod){
-  if(expectedMod){
-    const currentMod = await _getRemoteModTime();
-    if(currentMod && currentMod !== expectedMod){
-      throw new Error('version-conflict');
-    }
-  }
+//   段B(v4.58): expectedEtag を渡せば、Drive APIの If-Match ヘッダーで原子的 compare-and-set。
+//   サーバー側でetag不一致と判定されると 412 Precondition Failed → _gWriteText が
+//   'version-conflict' を投げる。アトミックなので2端末同時書込でも必ず一方が負ける。
+async function _commitRemote(data, prevRemote, expectedEtag){
   if(prevRemote){ try{ await _writeSync(SYNC_BAK, prevRemote); }catch(e){ console.warn('[MomoSync] backup failed', e); } }
-  await _writeSync(SYNC_FILE, data);
+  await _writeSync(SYNC_FILE, data, expectedEtag);   // 412 なら内部で 'version-conflict' throw
   const v=await _readVerified(SYNC_FILE);          // 書き込み後の確認
   if(!v.ok) throw new Error(_t('syncWriteVerifyFail'));
 }
@@ -552,18 +562,20 @@ async function runSync(mode){
         }
 
       }else{
-        // 通常マージ - 段B(v4.56): compare-and-set リトライループ
-        // 書く直前にリモート modifiedTime を再確認→不一致なら衝突として[1,1.5,2.5,3.5,5.5]分のランダム待ち→再読込→再マージ。最大3回。
+        // 通常マージ - 段B(v4.58): ETag-based原子的 compare-and-set リトライループ
+        //   読込直後に baseMeta を取得→ETag を書き込みのIf-Matchに渡す。
+        //   サーバー側で原子的に検知され、412なら衝突→[1,1.5,2.5,3.5,5.5]分のランダム待ち→再読込→再マージ。最大3回。
+        let baseMeta = await _getRemoteMeta();
         const MAX_RETRIES = 3;
         let attempt = 0;
         let currentRem = rem;
+        let expectedEtag = baseMeta ? baseMeta.etag : null;
         let mergedFinal;
         while(true){
           attempt++;
-          const expectedMod = await _getRemoteModTime();
           mergedFinal = _mergeData(loc, currentRem);
           try{
-            await _commitRemote(mergedFinal, currentRem, expectedMod);
+            await _commitRemote(mergedFinal, currentRem, expectedEtag);
             break;   // 成功
           }catch(e){
             if(e.message === 'version-conflict'){
@@ -572,11 +584,15 @@ async function runSync(mode){
                 throw new Error('version-conflict-giveup');
               }
               const waitMs = _pickConflictWaitMs();
-              _logSync('conflict', true, 'retry-'+attempt+' wait-'+(waitMs/60000)+'min');
+              _logSync('conflict', true, 'retry-'+attempt+' wait-'+(waitMs/60000)+'min etag');
               await new Promise(r=>setTimeout(r, waitMs));
-              // リモートを読み直して再マージ
+              // リモートを読み直して再マージ＋etagも更新
               const vv = await _readVerified(SYNC_FILE);
-              if(vv.ok) currentRem = vv.obj;
+              if(vv.ok){
+                currentRem = vv.obj;
+                const m = await _getRemoteMeta();
+                expectedEtag = m ? m.etag : null;
+              }
               else { _logSync('conflict', false, 'reread-corrupt'); throw new Error(_t('syncCorrupt')); }
               continue;
             }

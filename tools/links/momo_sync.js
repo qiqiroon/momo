@@ -221,8 +221,43 @@ async function _readVerified(path){
   }
   return {obj,ok:true};
 }
+// 段B: リモートファイル更新時刻だけを軽く取得(中身は読まない)。compare-and-set用。
+async function _getRemoteModTime(){
+  try{
+    if(!_pyodide) return null;
+    window._sp=SYNC_FILE;
+    const fileId=await _pyodide.runPythonAsync('await gdrive.resolve_path(js.window._sp)');
+    const token=_pyodide.runPython('gdrive._token');
+    const resp=await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=modifiedTime`,
+      {headers:{Authorization:`Bearer ${token}`}});
+    if(!resp.ok) return null;
+    const j=await resp.json();
+    return (j&&j.modifiedTime)||null;
+  }catch(e){ return null; }
+}
+// 段B: 衝突時の待ち時間を暗号乱数で選ぶ＝端末ごと・呼び出しごとに独立(Math.randomのseed問題を回避)。
+//   [1, 1.5, 2.5, 3.5, 5.5]分 から1つ。最悪3回再試行で約16.5分(実際は1〜2回で収束する想定)。
+const CONFLICT_WAIT_MIN = [1, 1.5, 2.5, 3.5, 5.5];   // 分
+function _pickConflictWaitMs(){
+  try{
+    const arr = new Uint32Array(1);
+    crypto.getRandomValues(arr);
+    return CONFLICT_WAIT_MIN[arr[0] % CONFLICT_WAIT_MIN.length] * 60 * 1000;
+  }catch(e){
+    // 万一 crypto が無い環境では Math.random() fallback
+    return CONFLICT_WAIT_MIN[Math.floor(Math.random()*CONFLICT_WAIT_MIN.length)] * 60 * 1000;
+  }
+}
 // 上書き前に現行を退避(backup)→本体を書く→書いた直後に読み返して照合
-async function _commitRemote(data, prevRemote){
+//   段B(v4.56): expectedMod を渡せば、書く直前にリモートmodifiedTimeを再確認し、
+//               不一致なら 'version-conflict' を投げる(=他端末が割り込んで書いた)。
+async function _commitRemote(data, prevRemote, expectedMod){
+  if(expectedMod){
+    const currentMod = await _getRemoteModTime();
+    if(currentMod && currentMod !== expectedMod){
+      throw new Error('version-conflict');
+    }
+  }
   if(prevRemote){ try{ await _writeSync(SYNC_BAK, prevRemote); }catch(e){ console.warn('[MomoSync] backup failed', e); } }
   await _writeSync(SYNC_FILE, data);
   const v=await _readVerified(SYNC_FILE);          // 書き込み後の確認
@@ -517,10 +552,38 @@ async function runSync(mode){
         }
 
       }else{
-        // 通常マージ
-        const merged=_mergeData(loc,rem);
-        _applyMerged(merged);
-        await _commitRemote(merged, rem);
+        // 通常マージ - 段B(v4.56): compare-and-set リトライループ
+        // 書く直前にリモート modifiedTime を再確認→不一致なら衝突として[1,1.5,2.5,3.5,5.5]分のランダム待ち→再読込→再マージ。最大3回。
+        const MAX_RETRIES = 3;
+        let attempt = 0;
+        let currentRem = rem;
+        let mergedFinal;
+        while(true){
+          attempt++;
+          const expectedMod = await _getRemoteModTime();
+          mergedFinal = _mergeData(loc, currentRem);
+          try{
+            await _commitRemote(mergedFinal, currentRem, expectedMod);
+            break;   // 成功
+          }catch(e){
+            if(e.message === 'version-conflict'){
+              if(attempt >= MAX_RETRIES){
+                _logSync('conflict', false, 'max-retries-'+attempt);
+                throw new Error('version-conflict-giveup');
+              }
+              const waitMs = _pickConflictWaitMs();
+              _logSync('conflict', true, 'retry-'+attempt+' wait-'+(waitMs/60000)+'min');
+              await new Promise(r=>setTimeout(r, waitMs));
+              // リモートを読み直して再マージ
+              const vv = await _readVerified(SYNC_FILE);
+              if(vv.ok) currentRem = vv.obj;
+              else { _logSync('conflict', false, 'reread-corrupt'); throw new Error(_t('syncCorrupt')); }
+              continue;
+            }
+            throw e;   // 他のエラーは上に伝える
+          }
+        }
+        _applyMerged(mergedFinal);
       }
     }
 

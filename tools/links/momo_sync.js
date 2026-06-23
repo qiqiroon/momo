@@ -570,20 +570,32 @@ let _gestureListenerActive=false;
 let _gestureHandler=null;
 function _armUserGestureSilentRetry(){
   if(_gestureListenerActive) return;
-  const now=Math.floor(Date.now()/1000);
-  if(_silentBackoffUntil && now<_silentBackoffUntil) return;   // バックオフ中は仕掛けない
+  // v4.52: バックオフ中でも仕掛けてOK。ユーザー操作直下のsilent試行はpopup_blockerが出ないので別扱い。
   if(!_savedHint() || !_everSigned()) return;                   // 試行条件を満たさない時は仕掛けない
   _gestureHandler=function(ev){
     if(!_syncNeeded || _syncing) return;
-    const n=Math.floor(Date.now()/1000);
-    if(_silentBackoffUntil && n<_silentBackoffUntil) return;
     _disarmUserGestureSilentRetry();
-    _autoSyncOrBadge('user-gesture');
+    _userGestureSilentRetry();   // バックオフを無視してsilent試行(ユーザー操作直下)
   };
   document.addEventListener('click', _gestureHandler, {capture:true});
   document.addEventListener('touchstart', _gestureHandler, {capture:true, passive:true});
   document.addEventListener('keydown', _gestureHandler, {capture:true});
   _gestureListenerActive=true;
+}
+// v4.52: ユーザー操作直下のsilent試行。バックオフ無視。手動更新ボタン押下と同じ扱い。
+function _userGestureSilentRetry(){
+  if(_syncing) return;
+  if(!_savedHint() || !_everSigned()) return;
+  if(typeof google==='undefined' || !google.accounts){ _loadScript(GSI_URL).catch(()=>{}); return; }
+  _requestToken('none',
+    ()=>{ _logSync('silent',true,'user-gesture'); _silentBackoffUntil=0; _doAutoCheck('user-gesture'); },
+    (err)=>{
+      _logSync('silent',false,'user-gesture:'+err);
+      _silentBackoffUntil = Math.floor(Date.now()/1000) + 15*60;
+      _syncNeeded=true; updateSyncStatus();
+      _armUserGestureSilentRetry();   // 次のユーザー操作で再試行を仕掛け直す
+    }
+  );
 }
 function _disarmUserGestureSilentRetry(){
   if(!_gestureListenerActive) return;

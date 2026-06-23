@@ -68,6 +68,13 @@
 @keyframes momospin{to{transform:rotate(-360deg)}}
 .sync-ic svg.spin{animation:momospin 1s linear infinite;transform-origin:50% 50%}
 @keyframes syncblink{0%,100%{opacity:1}50%{opacity:.35}}
+.sync-last{font-size:10px;color:var(--text-muted);margin-left:2px;font-weight:400;letter-spacing:.02em}
+.sync-log-list{max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;background:var(--surface2);font-size:11px;font-family:monospace;line-height:1.55}
+.sync-log-row{display:grid;grid-template-columns:90px 110px 1fr;gap:8px;padding:3px 8px;border-bottom:1px solid var(--border)}
+.sync-log-row:last-child{border-bottom:none}
+.sync-log-row.ok{color:var(--text)}
+.sync-log-row.ng{color:#fca5a5}
+.sync-log-empty{padding:14px;text-align:center;color:var(--text-muted);font-size:12px}
 .sync-status.sync-needed .sync-ic{color:#f59e0b;border-color:#f59e0b}
 .sync-status.sync-needed .sync-main{animation:syncblink 1.2s ease-in-out infinite}
 body{
@@ -795,7 +802,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.43</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.44</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -1078,6 +1085,13 @@ main{animation:fadeUp .25s .05s ease both;}
             <input type="checkbox" id="gdriveToggle" onchange="setSyncEnabled(this.checked)" style="width:18px;height:18px;cursor:pointer">
           </div>
           <div style="font-size:11px;color:var(--text-muted)" id="gdriveSyncStatus"></div>
+          <div id="gdriveLogBox" style="display:none">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+              <strong id="gdriveLogTitle" style="font-size:12px">同期ログ</strong>
+              <button class="btn" id="gdriveLogClearBtn" onclick="clearGdriveLog()" style="padding:2px 8px;font-size:11px">クリア</button>
+            </div>
+            <div class="sync-log-list" id="gdriveLogList"></div>
+          </div>
           <div id="gdriveWarnBox" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.6">
             <strong id="gdriveWarnTitle" style="display:block;margin-bottom:4px"></strong>
             <div id="gdriveWarnBody" style="color:var(--text-muted)"></div>
@@ -1087,6 +1101,7 @@ main{animation:fadeUp .25s .05s ease both;}
       <div class="modal-footer">
         <button class="btn primary" id="gdriveSyncNowBtn" onclick="runSyncManual()">今すぐ同期</button>
         <button class="btn" id="gdriveChangeAccountBtn" onclick="changeSyncAccount()">アカウントを変更</button>
+        <button class="btn" id="gdriveLogBtn" onclick="toggleGdriveLog()">ログを見る</button>
         <button class="btn" id="gdriveCloseBtn" onclick="closeDataModal()">閉じる</button>
       </div>
     </div>
@@ -2404,6 +2419,7 @@ function openDataModal(){
     document.getElementById('gdriveSyncStatus').textContent=ts?t('gdriveLastSync',new Date(ts*1000).toLocaleString()):t('gdriveNoSync');
   }
   const _wb=document.getElementById('gdriveWarnBox'); if(_wb) _wb.style.display='none';   // ②: 通常は警告枠を隠す(⚠経由のみ表示)
+  const _lb=document.getElementById('gdriveLogBox'); if(_lb) _lb.style.display='none';   // ②段2: ログ枠も初期は隠す(ボタンで開く)
   document.getElementById('dataModal').classList.add('open');
 }
 function closeDataModal(){document.getElementById('dataModal').classList.remove('open');}
@@ -2424,8 +2440,33 @@ function openSyncHelp(which){
     box.style.display='block';
   }
 }
-// 案件②: アカウントを変更（段1=暫定で手動サインインを起動。段2でアカウント選択を強制[select_account]に）
-function changeSyncAccount(){ if(typeof runSyncManual==='function') runSyncManual(); }
+// 案件②: アカウントを変更（段2: momo_sync.jsのchangeSyncAccount実装に委譲。未定義時は手動更新へ）
+//   (※同名関数がmomo_sync.jsで上書き定義される。ロード順により本定義が先勝ち→momo_sync.js側が後勝ち)
+// ─ 案件②段2: 同期ログ表示の開閉 ─
+function toggleGdriveLog(){
+  const box=document.getElementById('gdriveLogBox');
+  if(!box) return;
+  if(box.style.display==='none'){ renderGdriveLog(); box.style.display='block'; }
+  else box.style.display='none';
+}
+function clearGdriveLog(){
+  if(typeof clearSyncLog==='function') clearSyncLog();
+  renderGdriveLog();
+}
+function renderGdriveLog(){
+  const list=document.getElementById('gdriveLogList');
+  if(!list) return;
+  const log=(typeof getSyncLogForView==='function')?getSyncLogForView():[];
+  if(!log.length){ list.innerHTML=`<div class="sync-log-empty">${esc(t('syncLogEmpty'))}</div>`; return; }
+  const labelMap={sync:t('syncLogEvSync'), silent:t('syncLogEvSilent'), manual:t('syncLogEvManual'), 'account-change':t('syncLogEvAccount')};
+  const fmt=(ts)=>{ const d=new Date(ts*1000); let h=d.getHours(),m=d.getMinutes(); const ap=h>=12?'PM':'AM'; h=h%12; if(h===0)h=12; return (d.getMonth()+1)+'/'+d.getDate()+' '+h+':'+(m<10?'0'+m:m)+' '+ap; };
+  list.innerHTML=log.slice().reverse().map(e=>{
+    const cls=e.ok?'ok':'ng';
+    const tag=e.ok?'✓':'✗';
+    const lbl=labelMap[e.ev]||e.ev;
+    return `<div class="sync-log-row ${cls}"><span>${esc(fmt(e.ts))}</span><span>${tag} ${esc(lbl)}</span><span>${esc(e.msg||'')}</span></div>`;
+  }).join('');
+}
 function copyJson(){navigator.clipboard.writeText(document.getElementById('jsonExportArea').value);alert(t('copyJsonBtn')+' OK');}
 
 function downloadJson(){
@@ -2776,6 +2817,8 @@ const I18N={
     gdriveNoSync:'未同期',
     syncBusy:'☁ 同期中', syncNeeded:'更新が必要です', syncNeededHint:'クリックして今すぐ同期',
     syncManual:'手動更新', syncAuto:'自動更新', gdriveChangeAccount:'アカウントを変更',
+    syncLastPrefix:'前回', syncLogBtn:'ログを見る', syncLogTitle:'同期ログ', syncLogClear:'クリア', syncLogEmpty:'(まだログはありません)',
+    syncLogEvSync:'同期', syncLogEvSilent:'画面なしサインイン', syncLogEvManual:'手動更新', syncLogEvAccount:'アカウント変更',
     syncWarnTitleA:'サインインについて', syncWarnTitleB:'データのバックアップについて',
     syncWarnA:'同期するにはクラウド（オンラインの保存先）へのサインインが必要です。<br>・初めての場合：一度サインインすれば、次回からは自動で同期します（多くの場合サインイン画面は出ません）。<br>・毎回サインインを求められる場合：ブラウザが「終了時にクッキー（サインイン情報）を消す」設定だったり、プライベート／シークレットで開いていると、サインインが記憶されず毎回必要になります。→ このサイトを「クッキーを保持する例外」に加えると記憶されます。または毎回サインインしてお使いください。<br>・iPhoneの場合：約1週間使わないと忘れられることがあります。その時はもう一度サインインしてください。<br>※ ブックマークはクラウドに保存されているので、サインインをやり直してもデータは失われません。',
     syncWarnB:'同期がオフです。ブックマークはこの端末の中だけに保存されていて、控え（バックアップ）はありません。<br>・iPhone／iPadの場合：約1週間アプリを使わないと、保存したブックマークが消えることがあります。<br>・どの端末でも、ブラウザのデータを消したり不具合が起きると、ブックマークが失われる可能性があります。<br>おすすめ：「同期」をオンにするとクラウドに控えが保たれ、他の端末とも共有できます。同期を使わない場合は、ときどき「データ管理→エクスポート」で控えを保存してください。',
@@ -2870,6 +2913,8 @@ const I18N={
     gdriveNoSync:'Not synced yet',
     syncBusy:'☁ Syncing', syncNeeded:'Update needed', syncNeededHint:'Click to sync now',
     syncManual:'Manual update', syncAuto:'Auto update', gdriveChangeAccount:'Change account',
+    syncLastPrefix:'Last', syncLogBtn:'View log', syncLogTitle:'Sync log', syncLogClear:'Clear', syncLogEmpty:'(No log entries yet)',
+    syncLogEvSync:'Sync', syncLogEvSilent:'Silent sign-in', syncLogEvManual:'Manual update', syncLogEvAccount:'Account change',
     syncWarnTitleA:'About sign-in', syncWarnTitleB:'About backup',
     syncWarnA:'Syncing requires signing in to the cloud (your online storage).<br>• First time: sign in once and it syncs automatically next time (usually no sign-in screen appears).<br>• If asked every time: your browser may clear cookies (sign-in info) on exit, or you are in private/incognito mode, so the sign-in is not remembered. Add this site as a cookie exception to keep it, or just sign in each time.<br>• iPhone: if unused for about a week, the sign-in may be forgotten; just sign in again.<br>* Your bookmarks are saved in the cloud, so re-signing in never loses data.',
     syncWarnB:'Sync is off. Your bookmarks are stored only on this device, with no backup.<br>• iPhone/iPad: if the app is unused for about a week, saved bookmarks may be erased.<br>• On any device, clearing browser data or a glitch can lose your bookmarks.<br>Recommended: turn on Sync to keep a copy in the cloud and share across devices. If you do not use sync, occasionally save a copy via Data → Export.',
@@ -2964,6 +3009,8 @@ const I18N={
     gdriveNoSync:'尚未同步',
     syncBusy:'☁ 同步中', syncNeeded:'需要更新', syncNeededHint:'点击立即同步',
     syncManual:'手动更新', syncAuto:'自动更新', gdriveChangeAccount:'更改账号',
+    syncLastPrefix:'上次', syncLogBtn:'查看日志', syncLogTitle:'同步日志', syncLogClear:'清除', syncLogEmpty:'(暂无日志)',
+    syncLogEvSync:'同步', syncLogEvSilent:'静默登录', syncLogEvManual:'手动更新', syncLogEvAccount:'更改账号',
     syncWarnTitleA:'关于登录', syncWarnTitleB:'关于备份',
     syncWarnA:'同步需要登录到云端（在线保存位置）。<br>・首次：登录一次后，下次会自动同步（通常不会出现登录画面）。<br>・若每次都要求登录：可能是浏览器设置为「退出时清除Cookie（登录信息）」，或在隐私/无痕模式下打开，导致登录未被记住。可将本站加入Cookie保留例外，或每次登录使用。<br>・iPhone：约一周不使用可能会被忘记，届时请重新登录。<br>※ 书签保存在云端，重新登录不会丢失数据。',
     syncWarnB:'同步已关闭。书签仅保存在本设备，没有备份。<br>・iPhone/iPad：约一周不使用，已保存的书签可能被清除。<br>・任何设备上，清除浏览器数据或发生故障都可能丢失书签。<br>建议：开启「同步」可在云端保留副本并跨设备共享。若不使用同步，请不时通过「数据管理→导出」保存副本。',
@@ -3066,6 +3113,9 @@ function applyLang(){
   tx('gdriveAutoLabel',t('gdriveAutoLabel'));
   tx('gdriveSyncNowBtn',t('gdriveSyncNowBtn'));
   tx('gdriveChangeAccountBtn',t('gdriveChangeAccount'));
+  tx('gdriveLogBtn',t('syncLogBtn'));
+  tx('gdriveLogTitle',t('syncLogTitle'));
+  tx('gdriveLogClearBtn',t('syncLogClear'));
   tx('gdriveCloseBtn',t('closeBtn'));
   if(typeof updateSyncStatus==='function') updateSyncStatus();   // ②: 言語切替で状態表示の文言も更新
   ph('secretPinNew1',t('pinSetupPlaceholder1')); ph('secretPinNew2',t('pinSetupPlaceholder2'));
@@ -3105,7 +3155,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.43',
+      verDesc:'MOMO Links v4.44',
     },
     en:{
       basic:'## Basic Operations',
@@ -3120,7 +3170,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.43',
+      verDesc:'MOMO Links v4.44',
     },
     zh:{
       basic:'## 基本操作',
@@ -3135,7 +3185,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.43',
+      verDesc:'MOMO Links v4.44',
     },
   };
   const s=c[L]||c.ja;

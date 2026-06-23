@@ -13,6 +13,9 @@ const DAY_SEC     = 24 * 3600;
 
 const LS_ENABLED   = 'gdrive_sync_enabled';
 const LS_LAST_SYNC = 'gdrive_last_sync';
+const LS_SYNC_LOG  = 'gdrive_sync_log';        // 案件②段2: 同期ログ(JSON配列・最新50件)
+const SYNC_LOG_MAX = 50;
+const LS_EVER_SIGNED = 'gdrive_ever_signed';   // 一度でもサインインしたか(⚠表示判定)
 
 // ── 状態 ──
 let _pyodide  = null;
@@ -34,6 +37,22 @@ function setSyncEnabled(v){
 }
 function lastSyncTs(){ try{return parseInt(localStorage.getItem(LS_LAST_SYNC)||'0');}catch{return 0;} }
 function saveLastSync(){ try{localStorage.setItem(LS_LAST_SYNC,String(Math.floor(Date.now()/1000)));}catch{} }
+
+// ── 案件②段2: 同期ログ(端末内・最新SYNC_LOG_MAX件・FIFO) ──
+function _getSyncLog(){ try{return JSON.parse(localStorage.getItem(LS_SYNC_LOG)||'[]');}catch{return [];} }
+function _logSync(ev, ok, msg){
+  try{
+    const arr=_getSyncLog();
+    arr.push({ts:Math.floor(Date.now()/1000), ev, ok:!!ok, msg:msg||''});
+    while(arr.length>SYNC_LOG_MAX) arr.shift();
+    localStorage.setItem(LS_SYNC_LOG, JSON.stringify(arr));
+  }catch(e){}
+  if(typeof updateSyncStatus==='function') updateSyncStatus();
+}
+function getSyncLogForView(){ return _getSyncLog(); }   // index.html から参照
+function clearSyncLog(){ try{localStorage.removeItem(LS_SYNC_LOG);}catch{} if(typeof updateSyncStatus==='function') updateSyncStatus(); }
+function _everSigned(){ try{return localStorage.getItem(LS_EVER_SIGNED)==='1';}catch{return false;} }
+function _markEverSigned(){ try{localStorage.setItem(LS_EVER_SIGNED,'1');}catch{} }
 
 // ── スクリプト動的ロード ──
 function _loadScript(src){
@@ -153,6 +172,19 @@ async function _commitRemote(data, prevRemote){
   if(!v.ok) throw new Error(_t('syncWriteVerifyFail'));
 }
 
+// 案件②段2: AM/PM 12時間制(3言語統一)。今日なら時刻のみ、過去日なら "月/日 H:MM AM/PM"
+function _fmtTime12(unixSec){
+  try{
+    const d=new Date(unixSec*1000), now=new Date();
+    let h=d.getHours(); const m=d.getMinutes();
+    const ap=h>=12?'PM':'AM'; h=h%12; if(h===0) h=12;
+    const mm=(m<10?'0':'')+m;
+    const sameDay=d.toDateString()===now.toDateString();
+    if(sameDay) return h+':'+mm+' '+ap;
+    return (d.getMonth()+1)+'/'+d.getDate()+' '+h+':'+mm+' '+ap;
+  }catch(e){ return ''; }
+}
+
 // ── 状態表示 兼 手動更新ボタン（案件②）──
 //   状態: 'manual'/'auto'(=更新中・オレンジ＋回転) / 'idle'(=手動更新・通常) / 'needed'(=更新が必要・アンバー＋⚠A) / 'warnB'(=同期オフ・⚠B・iOSのみ) / 'hide'
 function _isIOS(){
@@ -185,6 +217,11 @@ function _renderStatus(state){
   let html='';
   if(state!=='warnB') html+=`<span class="sync-main"><span class="sync-ic">${svg}</span><span class="sync-tx">${text}</span></span>`;
   if(warn) html+=`<span class="sync-warn" title="${_t(warn==='A'?'syncWarnTitleA':'syncWarnTitleB')}">⚠️</span>`;
+  // 案件②段2: 安静/必要状態のときに「前回 HH:MM AM/PM」を小さく併記(更新中は出さない＝邪魔しない)
+  if(state==='idle'||state==='needed'){
+    const ts=lastSyncTs();
+    if(ts){ html+=`<span class="sync-last">${_t('syncLastPrefix')} ${_fmtTime12(ts)}</span>`; }
+  }
   el.innerHTML=html;
   el.className='sync-status sync-'+state;
   const main=el.querySelector('.sync-main');
@@ -264,6 +301,26 @@ function _localSnapshot(){
   };
 }
 
+// ── 案件②段2: 共通トークン取得 ──
+//   prompt='' = 画面なし(silent)サインイン試行。Googleのログインが生きていれば無音で取れる。
+//   prompt='select_account' = アカウント選択画面を強制(アカウント変更時)
+//   prompt=undefined = ブラウザ既定(通常はconsent or chooserが出る)
+function _requestToken(prompt, onSuccess, onFail){
+  if(typeof google==='undefined' || !google.accounts){ onFail&&onFail('gsi-not-loaded'); return; }
+  const opt={ client_id:CLIENT_ID, scope:GDRIVE_SCOPE,
+    callback:(resp)=>{
+      if(resp.error){ onFail&&onFail(resp.error); return; }
+      _gToken=resp.access_token;
+      _gTokenExp=Math.floor(Date.now()/1000)+(resp.expires_in||3600)-60;
+      _markEverSigned();
+      onSuccess&&onSuccess();
+    }
+  };
+  if(prompt!==undefined) opt.prompt=prompt;
+  const client=google.accounts.oauth2.initTokenClient(opt);
+  client.requestAccessToken();
+}
+
 // ── 手動同期トリガー（モバイル対応：ユーザー操作直後にGSIトークン取得）──
 // ボタンのonclickから直接呼ぶこと。awaitを挟む前にrequestAccessTokenを実行する。
 function runSyncManual(){
@@ -273,36 +330,46 @@ function runSyncManual(){
   //  準備中(GSI未ロード)では閉じない→目の前の「同期」ボタンをもう一度押すだけで済む。
   const _closeModal=()=>{ if(typeof closeDataModal==='function') closeDataModal(); };
 
-  const _doSync=()=>{
-    const now=Math.floor(Date.now()/1000);
-    if(_gToken&&now<_gTokenExp){
-      _closeModal(); runSync(); return;
+  const now=Math.floor(Date.now()/1000);
+  if(_gToken&&now<_gTokenExp){
+    _closeModal(); _logSync('manual',true,'token-cached'); runSync('manual'); return;
+  }
+  if(typeof google==='undefined' || !google.accounts){
+    // GSI未ロード→読み込み開始＋押し直し依頼(v4.32)
+    _loadScript(GSI_URL).catch(()=>{});
+    _logSync('manual',false,'gsi-not-ready');
+    alert(_t('syncPreparing'));
+    return;
+  }
+  // v4.44(②段2): silent優先→失敗時のみ通常プロンプト(アカウント選択)
+  _closeModal();
+  _requestToken('',
+    ()=>{ _logSync('silent',true,''); _logSync('manual',true,''); runSync('manual'); },
+    (err)=>{
+      _logSync('silent',false,err);
+      _requestToken(undefined,
+        ()=>{ _logSync('manual',true,'prompt'); runSync('manual'); },
+        (err2)=>{ _logSync('manual',false,err2); alert(_t('syncAuthError',err2)); }
+      );
     }
-    const doRequest=()=>{
-      const client=google.accounts.oauth2.initTokenClient({
-        client_id:CLIENT_ID,
-        scope:GDRIVE_SCOPE,
-        callback:(resp)=>{
-          if(resp.error){ alert(_t('syncAuthError',resp.error)); return; }
-          _gToken=resp.access_token;
-          _gTokenExp=Math.floor(Date.now()/1000)+(resp.expires_in||3600)-60;
-          runSync();
-        }
-      });
-      _closeModal();
-      client.requestAccessToken();
-    };
-    if(typeof google!=='undefined'&&google.accounts){
-      doRequest();
-    }else{
-      // v4.32: GSI未ロード時に「読込→then→requestAccessToken」とするとユーザー操作の文脈が切れ、
-      //  ブラウザがアカウント選択ポップアップをブロックし「無反応で空振り」になる(特にPWA初回)。
-      //  黙って失敗させず、準備を始めて「もう一度押して」と促す(2回目はロード済みで選択画面が出る)。
-      _loadScript(GSI_URL).catch(()=>{});
-      alert(_t('syncPreparing'));
-    }
-  };
-  _doSync();
+  );
+}
+
+// ── 案件②段2: アカウント変更（select_accountで強制的にアカウント選択画面を出す）──
+function changeSyncAccount(){
+  if(_syncing) return;
+  if(location.protocol==='file:') return;
+  if(typeof google==='undefined' || !google.accounts){
+    _loadScript(GSI_URL).catch(()=>{});
+    _logSync('account-change',false,'gsi-not-ready');
+    alert(_t('syncPreparing'));
+    return;
+  }
+  if(typeof closeDataModal==='function') closeDataModal();
+  _requestToken('select_account',
+    ()=>{ _logSync('account-change',true,''); runSync('manual'); },
+    (err)=>{ _logSync('account-change',false,err); alert(_t('syncAuthError',err)); }
+  );
 }
 
 // ── メイン同期処理 ──
@@ -377,9 +444,11 @@ async function runSync(mode){
 
     saveLastSync();
     _syncNeeded=false;
+    _logSync('sync',true,mode==='auto'?'auto-ok':'manual-ok');
 
   }catch(e){
     console.error('[MomoSync]',e);
+    _logSync('sync',false,(e.message||String(e)));
     alert(_t('syncErrorMsg',(e.message||String(e))));
     // lastSync は更新しない（次回再試行）
   }finally{
@@ -395,14 +464,26 @@ function shouldAutoSync(){
 }
 
 // ── 自動同期：トークンが有効な場合のみ実行、なければバッジ表示 ──
+// 案件②段2: 自動同期は silent優先。失敗時はpopupせず ⚠表示のみ(ユーザーを邪魔しない)。
 function _autoSyncOrBadge(){
   if(!shouldAutoSync()) return;
   const now=Math.floor(Date.now()/1000);
   if(_gToken&&now<_gTokenExp){
-    runSync('auto');
-  }else{
-    _syncNeeded=true; updateSyncStatus();
+    runSync('auto'); return;
   }
+  if(typeof google==='undefined' || !google.accounts){
+    // GSI未ロード→読み込みだけ走らせて次の自動同期チェックに任せる(ここで⚠は出さない)
+    _loadScript(GSI_URL).catch(()=>{});
+    return;
+  }
+  // silent試行(画面なし)
+  _requestToken('',
+    ()=>{ _logSync('silent',true,'auto'); runSync('auto'); },
+    (err)=>{
+      _logSync('silent',false,'auto:'+err);
+      _syncNeeded=true; updateSyncStatus();   // ⚠表示(背景ではpopupしない)
+    }
+  );
 }
 
 // ── 起動時：GSI先読み＋自動同期チェック＋状態表示 ──

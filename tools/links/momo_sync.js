@@ -642,7 +642,11 @@ function _armUserGestureSilentRetry(){
   // v4.52: バックオフ中でも仕掛けてOK。ユーザー操作直下のsilent試行はpopup_blockerが出ないので別扱い。
   if(!_savedHint() || !_everSigned()) return;                   // 試行条件を満たさない時は仕掛けない
   _gestureHandler=function(ev){
-    if(!_syncNeeded || _syncing) return;
+    // v4.57: _syncNeeded チェックを削除。リスナー仕掛け済み=再試行待ちの意味なので、
+    //   _syncNeeded(警告表示)とは独立して発火させる。
+    //   v4.55で popup系エラー時に警告無しにしたが、リスナー側が _syncNeeded を見ていて
+    //   発火しないバグがあった。
+    if(_syncing) return;
     // v4.54: リンク(<a>)クリックは除外。silent試行のpopupでフォーカスがLinksに戻る不便を回避。
     // v4.55: 同期ボタン(syncIndicator)上のクリックも除外＝ボタンのonclick=runSyncManualと二重起動するのを防ぐ。
     if(ev.type!=='keydown'){

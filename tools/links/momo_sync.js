@@ -403,18 +403,28 @@ function runSyncManual(){
     alert(_t('syncPreparing'));
     return;
   }
-  // v4.44(②段2): silent優先→失敗時のみ通常プロンプト(アカウント選択)
+  // v4.47(②段4修正): hint(メール記憶)があるときだけ silent試行。無いとき or 失敗時は直接 chooser。
+  //   理由: hint無しの silent試行で「枠だけ出てすぐ消える」popup attempt→user gesture消費→
+   //  続くフォールバックが popup blockerに引っかかり何も出ない事故が起きるため。
+  //   初回押下で確実に chooser→選択→メール保存。次回以降は silent成功(hint付き)。
   _closeModal();
-  _requestToken('none',
-    ()=>{ _logSync('silent',true,''); _logSync('manual',true,''); runSync('manual'); },
-    (err)=>{
-      _logSync('silent',false,err);
-      _requestToken(undefined,
-        ()=>{ _logSync('manual',true,'prompt'); runSync('manual'); },
-        (err2)=>{ _logSync('manual',false,err2); alert(_t('syncAuthError',err2)); }
-      );
-    }
-  );
+  const hint=_savedHint();
+  if(hint){
+    _requestToken('none',
+      ()=>{ _logSync('silent',true,''); _logSync('manual',true,''); runSync('manual'); },
+      (err)=>{
+        _logSync('silent',false,err);
+        // silent失敗時はもう一度押してもらう(user gesture消費済み対策)
+        alert(_t('syncPreparing'));
+      }
+    );
+  }else{
+    // hint無し→直接 chooser(初回・あるいはアカウント変更直後)
+    _requestToken(undefined,
+      ()=>{ _logSync('manual',true,'prompt'); runSync('manual'); },
+      (err)=>{ _logSync('manual',false,err); alert(_t('syncAuthError',err)); }
+    );
+  }
 }
 
 // ── 案件②段2: アカウント変更（select_accountで強制的にアカウント選択画面を出す）──

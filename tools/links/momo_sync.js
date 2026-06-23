@@ -375,6 +375,13 @@ function _requestToken(prompt, onSuccess, onFail){
       // 段4: hint未保存ならDriveから自分のメールを取得して保存(次回silent取得で複数アカウント勢でも通る)
       if(!_savedHint()) _fetchAndSaveHint();
       onSuccess&&onSuccess();
+    },
+    // v4.50(⑥段A修正): ポップアップ阻止/閉鎖等のGSI実装側エラーを確実に受ける受け口。
+    //  これが無いと自動経路の silent試行が popup_blocked された時に何も検知できず、
+    //  ログにも残らず・バックオフも掛からず・5分ごとに同じ失敗を繰り返す事故が出ていた。
+    error_callback:(err)=>{
+      const type=(err&&(err.type||err.message))||'popup-error';
+      onFail&&onFail(type);
     }
   };
   if(prompt!==undefined) opt.prompt=prompt;

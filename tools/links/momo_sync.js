@@ -589,16 +589,19 @@ async function runSync(mode){
         _applyMerged(rem);
 
       }else if(firstSync){
-        // 初回または長期未同期 → 3択
-        const ch=prompt(_t('syncChoiceAsk'),'1');
-        if(!ch) return;
-        if(ch==='1'){
+        // v4.67: 初回または長期未同期 → 3択 (HTMLモーダル・ボタン式)
+        //   旧 prompt('1/2/3') は操作しにくいためボタン式モーダルに置換。
+        const ch = (typeof showSyncChoiceModal==='function')
+          ? await showSyncChoiceModal()
+          : parseInt(prompt(_t('syncChoiceAsk'),'1')||'0');   // fallback
+        if(!ch) return;   // 0 (キャンセル)
+        if(ch===1){
           const merged=_mergeData(loc,rem);
           _applyMerged(merged);
           await _commitRemote(merged, rem);
-        }else if(ch==='2'){
+        }else if(ch===2){
           _applyMerged(rem);
-        }else if(ch==='3'){
+        }else if(ch===3){
           await _commitRemote(loc, rem);
         }else{
           alert(_t('syncInvalid'));
@@ -734,8 +737,11 @@ async function _injectRemoteTestBookmark(currentRem){
   const ss = String(d.getSeconds()).padStart(2,'0');
   const stamp = hh+mm+ss;
   const sec = Math.floor(now/1000);
+  // v4.67: IDはタイムスタンプ数値(既存ブックマークと同じ形式)。
+  //   v4.64-4.66で文字列ID `'test_remote_'+now` にしたところ、削除/編集ボタンの onclick で
+  //   `trashLink(test_remote_xxx)` の形で呼ばれて未定義参照エラーで削除できないバグが発生したため。
   const testBookmark = {
-    id: 'test_remote_' + now,
+    id: now,
     url: 'https://example.com/test-remote-' + stamp,
     title: 'TEST_REMOTE_' + stamp,
     tags: ['_test_'],

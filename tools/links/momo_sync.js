@@ -604,6 +604,17 @@ async function runSync(mode){
         //   読込直後に baseMeta を取得→ETag を書き込みのIf-Matchに渡す。
         //   サーバー側で原子的に検知され、412なら衝突→[1,1.5,2.5,3.5,5.5]分のランダム待ち→再読込→再マージ。最大3回。
         let baseMeta = await _getRemoteMeta();
+        // v4.64: テストモード2 - 裏で別端末を装ってリモートに目印を追加(古いETagで送ろうとする→必ず412)。
+        //   1回限り・このタイミングなら baseMeta.etag を更新せず古いまま保持できる。
+        if(_testConflict2Pending && baseMeta && baseMeta.etag){
+          _testConflict2Pending = false;
+          try{
+            await _injectRemoteTestBookmark(rem, baseMeta.etag);
+            _logSync('test2', true, 'remote injected');
+          }catch(e){
+            _logSync('test2', false, e.message||String(e));
+          }
+        }
         const MAX_RETRIES = 3;
         let attempt = 0;
         let currentRem = rem;
@@ -683,15 +694,55 @@ let _silentBackoffUntil=0;   // 段A: silent失敗時のバックオフ期限(Un
 // v4.63: 衝突テストモード(?testconflict=1)。起動時にフラグを立て、次の1回の書き込みで
 // わざと無効なETagを使って 412 を誘発→段Bのリトライ動作を観察可能にする。1回で自動クリア。
 let _testConflictPending = false;
+// v4.64: 衝突テストモード2(?testconflict=2)。起動時にフラグを立て、次の同期処理で
+// 「裏で別端末を装って」リモートに目印を追加→自分のローカル側は古いETagで送る→412→
+// 再読み込みで相手の目印を取得→ローカル目印と合体→新ETagで再送信。
+// → 結果として画面に **TEST_LOCAL_(ユーザー追加) と TEST_REMOTE_(裏で追加)** の
+//    両方が表示されれば、巻き戻し→合体→再書込が本当に動いた目視可能な証拠になる。
+let _testConflict2Pending = false;
 (function(){
   try{
     const params = new URLSearchParams(location.search||'');
     if(params.get('testconflict')==='1'){
       _testConflictPending = true;
-      console.log('[MomoSync] test conflict mode armed (next write will use bogus etag)');
+      console.log('[MomoSync] test conflict mode 1 armed (next write will use bogus etag)');
+    }
+    if(params.get('testconflict')==='2'){
+      _testConflict2Pending = true;
+      console.log('[MomoSync] test conflict mode 2 armed (will inject TEST_REMOTE_ bookmark to force real merge)');
     }
   }catch(e){}
 })();
+
+// v4.64: テストモード2用 - 裏でリモートに「別端末を装った」目印を追加する。
+//   現在のリモート内容に新しい目印を足して、正しいETagで先に書き込む。
+//   → 呼び出し側の保持している古いETagでの後続書込は必ず 412 → 衝突→再読み込みで
+//      この目印を取得→ローカル目印と合体→再送信。最終結果に両方残る。
+async function _injectRemoteTestBookmark(currentRem, currentEtag){
+  const now = Date.now();
+  const d = new Date(now);
+  const hh = String(d.getHours()).padStart(2,'0');
+  const mm = String(d.getMinutes()).padStart(2,'0');
+  const ss = String(d.getSeconds()).padStart(2,'0');
+  const stamp = hh+mm+ss;
+  const sec = Math.floor(now/1000);
+  const testBookmark = {
+    id: 'test_remote_' + now,
+    url: 'https://example.com/test-remote-' + stamp,
+    title: 'TEST_REMOTE_' + stamp,
+    tags: ['_test_'],
+    created_at: sec,
+    updated_at: sec
+  };
+  const injected = {
+    links: [...(currentRem.links||[]), testBookmark],
+    tags: [...new Set([...(currentRem.tags||[]), '_test_'])],
+    tagMeta: currentRem.tagMeta || {}
+  };
+  // 正しいETagで直接書き込み→リモートに反映される(=サーバーETag更新)
+  await _writeSync(SYNC_FILE, injected, currentEtag);
+  console.log('[MomoSync] test2: injected TEST_REMOTE_'+stamp+' to remote');
+}
 
 // v4.55: silentエラーが「回復見込みあり(popup系)」かを判定。回復見込みありなら警告を出さず、
 // 次のユーザー操作で再試行→たいてい成功する。本当のサインイン切れ等のときだけ警告。

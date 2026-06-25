@@ -769,6 +769,15 @@ async function _autoSyncOrBadge(autoTrigger){
       //  本当のサインイン切れ等(access_denied/invalid_grant等)の時だけ「更新が必要」表示。
       if(!_isRecoverableSilentError(err)){ _syncNeeded=true; updateSyncStatus(); }
       _armUserGestureSilentRetry();   // v4.51: 次のユーザー操作で再試行を仕掛ける
+      // v4.60: 起動時のpopup失敗時は明示的な確認ダイアログを出してユーザー操作を促す
+      //   confirm()のOK押下=user gesture直下→続くsilent試行はpopup抑止されない。
+      //   過去にサインインしたユーザーのみ(=arm条件と同じ)・popup系エラー時のみ。
+      if(autoTrigger==='startup' && _isRecoverableSilentError(err) && _everSigned() && _savedHint()){
+        if(confirm(_t('syncStartupAsk'))){
+          _disarmUserGestureSilentRetry();
+          _userGestureSilentRetry();
+        }
+      }
     }
   );
 }
@@ -792,10 +801,14 @@ function notifyLocalEdit(){
   _editDebounceTimer=setTimeout(()=>{ _editDebounceTimer=null; _autoSyncOrBadge('edit'); }, 30*1000);
 }
 
-// ── 起動時：GSI先読み＋軽いチェック＋状態表示（段3: 24時間判定無視で毎起動1回チェック）──
+// ── 起動時：GSI先読み＋Pyodide先読み＋軽いチェック＋状態表示 ──
+//   v4.60: Pyodideも並行で先読み(同期ONユーザーのみ・初回同期の体感時間を短縮)。
+//   Pyodide本体は数十MB・初回ロードに数十秒〜1分かかるが、ブラウザキャッシュで2回目以降は速い。
 window.addEventListener('load',()=>{
   if(syncEnabled()&&location.protocol!=='file:'){
     _loadScript(GSI_URL).then(()=>{ setTimeout(()=>_autoSyncOrBadge('startup'), 800); }).catch(()=>{});
+    // Pyodide先読みはバックグラウンド(エラーは無視・本同期時に再度ロードでも動く)
+    setTimeout(()=>{ loadDeps().catch(()=>{}); }, 1500);
   }
   updateSyncStatus();
 });

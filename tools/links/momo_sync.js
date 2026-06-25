@@ -247,8 +247,14 @@ async function _getRemoteMeta(){
     if(!resp.ok) return null;
     const etag = resp.headers.get('ETag') || resp.headers.get('etag') || null;
     const j=await resp.json();
+    // v4.65 デバッグ: ETag取得状況を可視化(CORS Expose-Headers でetagが露出されているか確認)
+    try{
+      const allHeaders={};
+      resp.headers.forEach((v,k)=>{allHeaders[k]=v;});
+      console.log('[MomoSync DEBUG] _getRemoteMeta:', {fileId, modifiedTime:(j&&j.modifiedTime)||null, etag, allHeaders});
+    }catch(e){}
     return {fileId, modifiedTime: (j&&j.modifiedTime)||null, etag};
-  }catch(e){ return null; }
+  }catch(e){ console.log('[MomoSync DEBUG] _getRemoteMeta error:', e.message||e); return null; }
 }
 // 段B: 衝突時の待ち時間を暗号乱数で選ぶ＝端末ごと・呼び出しごとに独立(Math.randomのseed問題を回避)。
 //   [1, 1.5, 2.5, 3.5, 5.5]分 から1つ。最悪3回再試行で約16.5分(実際は1〜2回で収束する想定)。
@@ -604,13 +610,22 @@ async function runSync(mode){
         //   読込直後に baseMeta を取得→ETag を書き込みのIf-Matchに渡す。
         //   サーバー側で原子的に検知され、412なら衝突→[1,1.5,2.5,3.5,5.5]分のランダム待ち→再読込→再マージ。最大3回。
         let baseMeta = await _getRemoteMeta();
+        // v4.65 デバッグ: inject判定3条件の状態を可視化
+        console.log('[MomoSync DEBUG] inject check:', {
+          testConflict2Pending: _testConflict2Pending,
+          baseMeta: baseMeta,
+          baseMetaHasEtag: !!(baseMeta && baseMeta.etag),
+          willInject: !!(_testConflict2Pending && baseMeta && baseMeta.etag)
+        });
         // v4.64: テストモード2 - 裏で別端末を装ってリモートに目印を追加(古いETagで送ろうとする→必ず412)。
         //   1回限り・このタイミングなら baseMeta.etag を更新せず古いまま保持できる。
-        if(_testConflict2Pending && baseMeta && baseMeta.etag){
+        // v4.65: etag取得が失敗していても inject 自体は試す(別の検証手段)→ ifMatch=null での書き込みが
+        //   段Bを実際にバイパスしていないかも確認できる。
+        if(_testConflict2Pending && baseMeta){
           _testConflict2Pending = false;
           try{
-            await _injectRemoteTestBookmark(rem, baseMeta.etag);
-            _logSync('test2', true, 'remote injected');
+            await _injectRemoteTestBookmark(rem, baseMeta.etag);   // etagがnullでも一応試す
+            _logSync('test2', true, 'remote injected etag='+(baseMeta.etag?'ok':'null'));
           }catch(e){
             _logSync('test2', false, e.message||String(e));
           }

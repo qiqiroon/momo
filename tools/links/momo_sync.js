@@ -769,14 +769,13 @@ async function _autoSyncOrBadge(autoTrigger){
       //  本当のサインイン切れ等(access_denied/invalid_grant等)の時だけ「更新が必要」表示。
       if(!_isRecoverableSilentError(err)){ _syncNeeded=true; updateSyncStatus(); }
       _armUserGestureSilentRetry();   // v4.51: 次のユーザー操作で再試行を仕掛ける
-      // v4.60: 起動時のpopup失敗時は明示的な確認ダイアログを出してユーザー操作を促す
-      //   confirm()のOK押下=user gesture直下→続くsilent試行はpopup抑止されない。
+      // v4.61: 起動時のpopup失敗時は明示的な確認ダイアログを出してユーザー操作を促す。
+      //   v4.60の `confirm()` は非同期コールバック内呼び出しでuser gestureが認識されず、
+      //   OK押下後のsilent試行が popup_failed_to_open になる事故が出た。
+      //   HTMLボタンのonclickなら確実にuser gesture直下で発火する。
       //   過去にサインインしたユーザーのみ(=arm条件と同じ)・popup系エラー時のみ。
       if(autoTrigger==='startup' && _isRecoverableSilentError(err) && _everSigned() && _savedHint()){
-        if(confirm(_t('syncStartupAsk'))){
-          _disarmUserGestureSilentRetry();
-          _userGestureSilentRetry();
-        }
+        if(typeof showSyncStartupModal==='function') showSyncStartupModal();
       }
     }
   );

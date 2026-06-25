@@ -802,7 +802,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.60</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.61</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -1109,6 +1109,17 @@ main{animation:fadeUp .25s .05s ease both;}
 </div>
 
 <!-- help modal -->
+<!-- v4.61: 起動時の同期開始確認ダイアログ。confirm()ではuser gestureが認識されないため、HTMLボタンで -->
+<div class="overlay" id="syncStartupModal">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-body" id="syncStartupBody" style="line-height:1.8;font-size:13px;text-align:center;padding:24px 18px"></div>
+    <div class="modal-footer" style="justify-content:center;gap:10px">
+      <button class="btn primary" id="syncStartupOkBtn" onclick="syncStartupOk()">OK</button>
+      <button class="btn" id="syncStartupCancelBtn" onclick="syncStartupCancel()">キャンセル</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="helpModal">
   <div class="modal" style="max-width:520px;max-height:80vh;overflow-y:auto">
     <div class="modal-header">
@@ -2442,6 +2453,23 @@ function openSyncHelp(which){
     box.style.display='block';
   }
 }
+// v4.61: 起動時の同期確認ダイアログ。confirm()ではuser gestureが認識されないため、HTMLボタンで明示的に。
+function showSyncStartupModal(){
+  document.getElementById('syncStartupBody').innerHTML = esc(t('syncStartupAsk')).replace(/\n/g,'<br>');
+  document.getElementById('syncStartupOkBtn').textContent = 'OK';
+  document.getElementById('syncStartupCancelBtn').textContent = (typeof t==='function')?t('closeBtn'):'閉じる';
+  document.getElementById('syncStartupModal').classList.add('open');
+}
+function syncStartupOk(){
+  document.getElementById('syncStartupModal').classList.remove('open');
+  // user gesture直下: ボタンonclickなので silent試行はpopup抑止されない
+  if(typeof _disarmUserGestureSilentRetry==='function') _disarmUserGestureSilentRetry();
+  if(typeof _userGestureSilentRetry==='function') _userGestureSilentRetry();
+}
+function syncStartupCancel(){
+  document.getElementById('syncStartupModal').classList.remove('open');
+  // キャンセル時は何もしない(裏で次の操作を待つ・arm されたまま)
+}
 // 案件②: アカウントを変更（段2: momo_sync.jsのchangeSyncAccount実装に委譲。未定義時は手動更新へ）
 //   (※同名関数がmomo_sync.jsで上書き定義される。ロード順により本定義が先勝ち→momo_sync.js側が後勝ち)
 // ─ 案件②段2: 同期ログ表示の開閉 ─
@@ -3163,7 +3191,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.60',
+      verDesc:'MOMO Links v4.61',
     },
     en:{
       basic:'## Basic Operations',
@@ -3178,7 +3206,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.60',
+      verDesc:'MOMO Links v4.61',
     },
     zh:{
       basic:'## 基本操作',
@@ -3193,7 +3221,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.60',
+      verDesc:'MOMO Links v4.61',
     },
   };
   const s=c[L]||c.ja;

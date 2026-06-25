@@ -905,21 +905,38 @@ function notifyLocalEdit(){
 // ── 起動時：GSI先読み＋Pyodide先読み＋軽いチェック＋状態表示 ──
 //   v4.60: Pyodideも並行で先読み(同期ONユーザーのみ・初回同期の体感時間を短縮)。
 //   Pyodide本体は数十MB・初回ロードに数十秒〜1分かかるが、ブラウザキャッシュで2回目以降は速い。
-window.addEventListener('load',()=>{
-  // v4.70 診断: 起動時 load イベントが発火しているかをログに残す(iPhone PWA で発火しない疑いの切り分け用)
-  try{ _logSync('boot',true,'load-event '+(syncEnabled()?'sync-on':'sync-off')); }catch(e){}
+// v4.71: 起動時実行を関数化＋readyState ベースに(iPhone PWA で load イベントが既に発火済みのケース対策)
+function _bootInit(){
+  try{ _logSync('boot',true,'init '+(syncEnabled()?'sync-on':'sync-off')+' ready='+document.readyState); }catch(e){}
   if(syncEnabled()&&location.protocol!=='file:'){
     _loadScript(GSI_URL).then(()=>{
       _logSync('gsi-load',true,'ok');
       setTimeout(()=>_autoSyncOrBadge('startup'), 800);
     }).catch(e=>{ _logSync('gsi-load',false,String(e&&e.message||e)); });
-    // Pyodide先読みはバックグラウンド(エラーは無視・本同期時に再度ロードでも動く)
     setTimeout(()=>{
       loadDeps().then(()=>{ _logSync('pyodide-preload',true,'ok'); })
                 .catch(e=>{ _logSync('pyodide-preload',false,String(e&&e.message||e)); });
     }, 1500);
   }
   updateSyncStatus();
+}
+// 既に load 完了済みなら即実行、それ以外は DOMContentLoaded か load の早い方で実行
+if(document.readyState === 'complete'){
+  _bootInit();
+}else{
+  let _booted = false;
+  const _bootOnce = ()=>{ if(_booted) return; _booted=true; _bootInit(); };
+  document.addEventListener('DOMContentLoaded', _bootOnce, {once:true});
+  window.addEventListener('load', _bootOnce, {once:true});
+}
+
+// v4.71: PWA がバックグラウンドから復帰した時に自動同期を促す。
+// iOS PWA は省電力で setInterval が停止するため、復帰時の手動キックが必要。
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'visible'){
+    try{ _logSync('foreground',true,'visibility-change'); }catch(e){}
+    _autoSyncOrBadge('foreground');
+  }
 });
 
 // ── 段A: 継続使用中の定期チェック（5分ごと・毎回 軽いチェック→必要なら同期）──

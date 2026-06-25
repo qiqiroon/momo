@@ -830,18 +830,30 @@ function _disarmUserGestureSilentRetry(){
   _gestureListenerActive=false;
 }
 async function _autoSyncOrBadge(autoTrigger){
-  if(location.protocol==='file:' || !syncEnabled()) return;
-  if(_syncing) return;
-  if(!_everSigned()) return;
-  if(typeof google==='undefined' || !google.accounts){ _loadScript(GSI_URL).catch(()=>{}); return; }
+  // v4.70 診断: 各 early return の理由をログに残す(iPhone PWA等で「自動同期が動かない」原因を可視化)
+  if(location.protocol==='file:'){ _logSync('auto-skip',true,(autoTrigger||'auto')+':file-protocol'); return; }
+  if(!syncEnabled()){ _logSync('auto-skip',true,(autoTrigger||'auto')+':disabled'); return; }
+  if(_syncing){ _logSync('auto-skip',true,(autoTrigger||'auto')+':already-syncing'); return; }
+  if(!_everSigned()){ _logSync('auto-skip',true,(autoTrigger||'auto')+':never-signed'); return; }
+  if(typeof google==='undefined' || !google.accounts){
+    _logSync('auto-skip',true,(autoTrigger||'auto')+':gsi-not-loaded');
+    _loadScript(GSI_URL).catch(e=>{ _logSync('gsi-load-fail',false,String(e&&e.message||e)); });
+    return;
+  }
   const now=Math.floor(Date.now()/1000);
   // token生存時はそのまま軽いチェックへ
   if(_gToken && now<_gTokenExp){ await _doAutoCheck(autoTrigger); return; }
   // バックオフ中は試行しない(⚠表示はそのまま維持)
-  if(_silentBackoffUntil && now<_silentBackoffUntil) return;
+  if(_silentBackoffUntil && now<_silentBackoffUntil){
+    _logSync('auto-skip',true,(autoTrigger||'auto')+':backoff('+Math.ceil((_silentBackoffUntil-now)/60)+'min)');
+    return;
+  }
   // hint無しはsilent試行できない→次の手動更新待ち
   const hint=_savedHint();
-  if(!hint){ _syncNeeded=true; updateSyncStatus(); _armUserGestureSilentRetry(); return; }
+  if(!hint){
+    _logSync('auto-skip',true,(autoTrigger||'auto')+':no-hint');
+    _syncNeeded=true; updateSyncStatus(); _armUserGestureSilentRetry(); return;
+  }
   // hint付きsilent試行
   _requestToken('none',
     ()=>{
@@ -894,10 +906,18 @@ function notifyLocalEdit(){
 //   v4.60: Pyodideも並行で先読み(同期ONユーザーのみ・初回同期の体感時間を短縮)。
 //   Pyodide本体は数十MB・初回ロードに数十秒〜1分かかるが、ブラウザキャッシュで2回目以降は速い。
 window.addEventListener('load',()=>{
+  // v4.70 診断: 起動時 load イベントが発火しているかをログに残す(iPhone PWA で発火しない疑いの切り分け用)
+  try{ _logSync('boot',true,'load-event '+(syncEnabled()?'sync-on':'sync-off')); }catch(e){}
   if(syncEnabled()&&location.protocol!=='file:'){
-    _loadScript(GSI_URL).then(()=>{ setTimeout(()=>_autoSyncOrBadge('startup'), 800); }).catch(()=>{});
+    _loadScript(GSI_URL).then(()=>{
+      _logSync('gsi-load',true,'ok');
+      setTimeout(()=>_autoSyncOrBadge('startup'), 800);
+    }).catch(e=>{ _logSync('gsi-load',false,String(e&&e.message||e)); });
     // Pyodide先読みはバックグラウンド(エラーは無視・本同期時に再度ロードでも動く)
-    setTimeout(()=>{ loadDeps().catch(()=>{}); }, 1500);
+    setTimeout(()=>{
+      loadDeps().then(()=>{ _logSync('pyodide-preload',true,'ok'); })
+                .catch(e=>{ _logSync('pyodide-preload',false,String(e&&e.message||e)); });
+    }, 1500);
   }
   updateSyncStatus();
 });

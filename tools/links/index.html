@@ -69,7 +69,7 @@
 .sync-ic svg.spin{animation:momospin 1s linear infinite;transform-origin:50% 50%}
 @keyframes syncblink{0%,100%{opacity:1}50%{opacity:.35}}
 .sync-last{font-size:10px;color:var(--text-muted);margin-left:2px;font-weight:400;letter-spacing:.02em}
-.sync-log-list{max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;background:var(--surface2);font-size:11px;font-family:monospace;line-height:1.55}
+.sync-log-list{max-height:420px;min-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;background:var(--surface2);font-size:11px;font-family:monospace;line-height:1.55}
 .sync-log-row{display:grid;grid-template-columns:90px 110px 1fr;gap:8px;padding:3px 8px;border-bottom:1px solid var(--border)}
 .sync-log-row:last-child{border-bottom:none}
 .sync-log-row.ok{color:var(--text)}
@@ -815,7 +815,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.69</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.70</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -823,6 +823,8 @@ main{animation:fadeUp .25s .05s ease both;}
     <span class="search-icon">🔍</span>
     <input class="search-input" id="searchInput" placeholder="タイトル・URL・タグで検索..." oninput="renderCards()" autocomplete="off">
   </div>
+  <!-- v4.70: 大画面でも右ボタン群が右端に寄るスペーサ。search-wrap が max-width で頭打ち後の余白を埋める。 -->
+  <div style="flex:1"></div>
   <span class="hdr-count" id="hdrCount"></span>
   <div class="view-toggle-wrap">
     <button class="view-toggle-btn active" id="vbtn-card" onclick="setViewMode('card')" title="カード表示">▤</button>
@@ -3380,7 +3382,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.69',
+      verDesc:'MOMO Links v4.70',
     },
     en:{
       basic:'## Basic Operations',
@@ -3395,7 +3397,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.69',
+      verDesc:'MOMO Links v4.70',
     },
     zh:{
       basic:'## 基本操作',
@@ -3410,7 +3412,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.69',
+      verDesc:'MOMO Links v4.70',
     },
   };
   const s=c[L]||c.ja;

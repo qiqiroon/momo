@@ -254,6 +254,8 @@ async function _getRemoteMeta(){
 //   [1, 1.5, 2.5, 3.5, 5.5]分 から1つ。最悪3回再試行で約16.5分(実際は1〜2回で収束する想定)。
 const CONFLICT_WAIT_MIN = [1, 1.5, 2.5, 3.5, 5.5];   // 分
 function _pickConflictWaitMs(){
+  // v4.63: テストモードでは1秒固定(検証の待ち時間短縮)
+  try{ const params=new URLSearchParams(location.search||''); if(params.get('testconflict')==='1') return 1000; }catch(e){}
   try{
     const arr = new Uint32Array(1);
     crypto.getRandomValues(arr);
@@ -268,7 +270,14 @@ function _pickConflictWaitMs(){
 //   段C(v4.59): 手動バックアップ(SYNC_BAK)処理を撤去。Driveの版履歴が自動で前世代を保持する。
 //             これで同時書込時の同名重複race(SYNC_BAK同時新規作成)の事故が構造的に消える。
 async function _commitRemote(data, prevRemote, expectedEtag){
-  await _writeSync(SYNC_FILE, data, expectedEtag);   // 412 なら内部で 'version-conflict' throw
+  // v4.63: テストモードが立っていれば、最初の書き込みでわざと無効ETagを使う→必ず412→衝突検知発動
+  let etagForWrite = expectedEtag;
+  if(_testConflictPending){
+    _testConflictPending = false;   // 1回限り
+    etagForWrite = '"momo-test-bogus-etag"';
+    console.log('[MomoSync] test conflict: using bogus etag to trigger 412');
+  }
+  await _writeSync(SYNC_FILE, data, etagForWrite);   // 412 なら内部で 'version-conflict' throw
   const v=await _readVerified(SYNC_FILE);          // 書き込み後の確認
   if(!v.ok) throw new Error(_t('syncWriteVerifyFail'));
 }
@@ -670,6 +679,19 @@ function shouldAutoSync(){
 //     3) silent成功→新tokenで同期。失敗→15分バックオフ＋⚠表示
 //     4) hint無し or 未サインインは何もしない（初回は手動更新ボタンから）
 let _silentBackoffUntil=0;   // 段A: silent失敗時のバックオフ期限(Unix秒)
+
+// v4.63: 衝突テストモード(?testconflict=1)。起動時にフラグを立て、次の1回の書き込みで
+// わざと無効なETagを使って 412 を誘発→段Bのリトライ動作を観察可能にする。1回で自動クリア。
+let _testConflictPending = false;
+(function(){
+  try{
+    const params = new URLSearchParams(location.search||'');
+    if(params.get('testconflict')==='1'){
+      _testConflictPending = true;
+      console.log('[MomoSync] test conflict mode armed (next write will use bogus etag)');
+    }
+  }catch(e){}
+})();
 
 // v4.55: silentエラーが「回復見込みあり(popup系)」かを判定。回復見込みありなら警告を出さず、
 // 次のユーザー操作で再試行→たいてい成功する。本当のサインイン切れ等のときだけ警告。

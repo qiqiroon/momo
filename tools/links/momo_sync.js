@@ -694,11 +694,13 @@ function _armUserGestureSilentRetry(){
     if(_syncing) return;
     // v4.54: リンク(<a>)クリックは除外。silent試行のpopupでフォーカスがLinksに戻る不便を回避。
     // v4.55: 同期ボタン(syncIndicator)上のクリックも除外＝ボタンのonclick=runSyncManualと二重起動するのを防ぐ。
+    // v4.62: 起動時確認モーダル(syncStartupModal)内のクリックも除外＝ボタンのonclick=syncStartupOkと二重起動するのを防ぐ。
     if(ev.type!=='keydown'){
       let el=ev.target;
       for(let i=0; el && i<10; i++){
         if(el.tagName==='A') return;
         if(el.id==='syncIndicator') return;
+        if(el.id==='syncStartupModal') return;
         el=el.parentElement;
       }
     }

@@ -595,7 +595,10 @@ header{animation:fadeDown .2s ease;}
 main{animation:fadeUp .25s .05s ease both;}
 
 /* ── LANG SWITCHER (PC) ── */
-#lang-switcher{position:fixed;top:8px;right:12px;display:flex;gap:4px;z-index:200;}
+/* v4.69: 言語切替を fixed から header 内の flex 子に変更。
+   時刻表示等で右側ボタン群が広がっても、絶対位置の lang-switcher と重ならないように。
+   モバイル時は別途 mobileSubBar 内の lang-switcher を使うため display:none(既存通り)。 */
+#lang-switcher{display:flex;gap:4px;align-items:center;flex-shrink:0;}
 .lang-select{background:var(--surface2);border:1px solid var(--border-strong);color:var(--text-muted);font-size:11px;padding:3px 6px;border-radius:4px;cursor:pointer;font-family:'Noto Sans JP',sans-serif;}
 .lang-select:hover,.lang-select:focus{border-color:var(--orange);color:var(--orange-light);outline:none;}
 
@@ -812,7 +815,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.68</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.69</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -830,21 +833,20 @@ main{animation:fadeUp .25s .05s ease both;}
   <button class="btn" id="btnAdd" onclick="toggleAdd()">＋ 追加</button>
   <button class="btn" id="btnData" onclick="openDataModal()">データ管理</button>
   <button class="btn" id="btnHelp" onclick="openHelp()" title="ヘルプ">？</button>
+  <!-- v4.69: 言語切替を header 内に移動(従来は position:fixed で重なる事故あり) -->
+  <div id="lang-switcher">
+    <select class="lang-select" onchange="onLangChange(this.value)">
+      <option value="auto">Auto</option>
+      <option value="ja">日本語</option>
+      <option value="en">EN</option>
+      <option value="zh">中文</option>
+      <option value="cat">CAT</option>
+    </select>
+  </div>
 </header>
 
 <!-- Nav overlay for mobile -->
 <div class="nav-overlay" id="navOverlay"></div>
-
-<!-- Lang Switcher (PC) -->
-<div id="lang-switcher">
-  <select class="lang-select" onchange="onLangChange(this.value)">
-    <option value="auto">Auto</option>
-    <option value="ja">日本語</option>
-    <option value="en">EN</option>
-    <option value="zh">中文</option>
-    <option value="cat">CAT</option>
-  </select>
-</div>
 
 <!-- Mobile sub-bar: nav toggle + lang switcher -->
 <div id="mobileSubBar">
@@ -3378,7 +3380,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.68',
+      verDesc:'MOMO Links v4.69',
     },
     en:{
       basic:'## Basic Operations',
@@ -3393,7 +3395,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.68',
+      verDesc:'MOMO Links v4.69',
     },
     zh:{
       basic:'## 基本操作',
@@ -3408,7 +3410,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.68',
+      verDesc:'MOMO Links v4.69',
     },
   };
   const s=c[L]||c.ja;

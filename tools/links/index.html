@@ -521,6 +521,16 @@ main{padding:20px 24px;}
 .dialog-msg strong{color:var(--orange-light);}
 .dialog-footer{display:flex;gap:8px;justify-content:flex-end;}
 
+/* v4.68: contenteditable div で PIN入力(パスワードマネージャに検出されない・claude.ai等への誤紐付け回避) */
+.pin-secure-input{ caret-color:var(--text); }
+.pin-secure-input:empty::before{
+  content:attr(data-placeholder);
+  color:var(--text-muted);
+  letter-spacing:normal;
+  opacity:.6;
+  pointer-events:none;
+}
+
 /* ── EMPTY ── */
 .empty{text-align:center;padding:80px 20px;color:var(--text-muted);font-size:13px;line-height:2.2;}
 .empty-icon{font-size:32px;margin-bottom:12px;}
@@ -802,7 +812,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.67</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.68</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -943,26 +953,27 @@ main{animation:fadeUp .25s .05s ease both;}
 </footer>
 
 <!-- PIN入力ダイアログ -->
-<!-- v4.67: <form>で囲んで「Password field is not contained in a form」警告を解消、
-     パスワードマネージャ向け除外属性を追加してclaude.ai等への誤関連付け/保存提案を抑制。 -->
+<!-- v4.68: contenteditable div に置換。input type="password" を使わないことでブラウザのパスワードマネージャの
+     検出対象から完全に外れる(claude.ai等への誤紐付け & 保存提案を完全に止める)。 -->
 <div class="dialog-overlay" id="pinDialog">
   <div class="dialog">
     <div class="dialog-title" id="pinDialogTitle">🔒 シークレットモード</div>
     <div class="dialog-msg" id="pinDialogMsg">PINを入力してください</div>
-    <form onsubmit="event.preventDefault();pinDialogOk();return false" autocomplete="off">
-    <input type="password" id="pinInput"
-      autocomplete="new-password"
-      name="momo-pin-nostore"
-      data-lpignore="true"
-      data-1p-ignore="true"
-      data-form-type="other"
-      data-bwignore="true"
+    <div id="pinInput"
+      contenteditable="true"
+      class="pin-secure-input"
       spellcheck="false"
+      autocorrect="off"
+      autocapitalize="off"
+      inputmode="text"
+      data-placeholder="••••••"
+      onkeydown="return pinSecureKeyDown(this, event)"
+      onbeforeinput="return pinSecureBeforeInput(this, event)"
+      onpaste="return pinSecurePaste(this, event)"
       style="width:100%;padding:8px 12px;font-size:16px;letter-spacing:.3em;text-align:center;
              background:var(--surface2);border:1px solid var(--border-strong);border-radius:7px;
-             color:var(--text);outline:none;margin-bottom:4px;font-family:inherit"
-      placeholder="••••••">
-    </form>
+             color:var(--text);outline:none;margin-bottom:4px;font-family:inherit;
+             min-height:20px;cursor:text;box-sizing:border-box;line-height:1.4"></div>
     <div id="pinError" style="font-size:11px;color:var(--red);min-height:16px;margin-bottom:8px"></div>
     <div class="dialog-footer">
       <button class="btn" id="pinCancelBtn" onclick="pinDialogCancel()">キャンセル</button>
@@ -976,32 +987,36 @@ main{animation:fadeUp .25s .05s ease both;}
   <div class="dialog">
     <div class="dialog-title" id="pinSetupTitle">🔒 PIN初期設定</div>
     <div class="dialog-msg" id="pinSetupMsg">シークレットモードのPINを設定してください。<br><span style="font-size:11px" id="pinSetupSub">英数字・記号・長さ制限なし</span></div>
-    <form onsubmit="event.preventDefault();pinSetupOk();return false" autocomplete="off">
-    <input type="password" id="pinSetupInput1"
-      autocomplete="new-password"
-      name="momo-pin-setup1-nostore"
-      data-lpignore="true"
-      data-1p-ignore="true"
-      data-form-type="other"
-      data-bwignore="true"
+    <div id="pinSetupInput1"
+      contenteditable="true"
+      class="pin-secure-input"
       spellcheck="false"
+      autocorrect="off"
+      autocapitalize="off"
+      inputmode="text"
+      data-placeholder="新しいPIN"
+      onkeydown="return pinSecureKeyDown(this, event)"
+      onbeforeinput="return pinSecureBeforeInput(this, event)"
+      onpaste="return pinSecurePaste(this, event)"
       style="width:100%;padding:8px 12px;font-size:16px;letter-spacing:.3em;text-align:center;
              background:var(--surface2);border:1px solid var(--border-strong);border-radius:7px;
-             color:var(--text);outline:none;margin-bottom:8px;font-family:inherit"
-      placeholder="新しいPIN">
-    <input type="password" id="pinSetupInput2"
-      autocomplete="new-password"
-      name="momo-pin-setup2-nostore"
-      data-lpignore="true"
-      data-1p-ignore="true"
-      data-form-type="other"
-      data-bwignore="true"
+             color:var(--text);outline:none;margin-bottom:8px;font-family:inherit;
+             min-height:20px;cursor:text;box-sizing:border-box;line-height:1.4"></div>
+    <div id="pinSetupInput2"
+      contenteditable="true"
+      class="pin-secure-input"
       spellcheck="false"
+      autocorrect="off"
+      autocapitalize="off"
+      inputmode="text"
+      data-placeholder="確認入力"
+      onkeydown="return pinSecureKeyDown(this, event)"
+      onbeforeinput="return pinSecureBeforeInput(this, event)"
+      onpaste="return pinSecurePaste(this, event)"
       style="width:100%;padding:8px 12px;font-size:16px;letter-spacing:.3em;text-align:center;
              background:var(--surface2);border:1px solid var(--border-strong);border-radius:7px;
-             color:var(--text);outline:none;margin-bottom:4px;font-family:inherit"
-      placeholder="確認入力">
-    </form>
+             color:var(--text);outline:none;margin-bottom:4px;font-family:inherit;
+             min-height:20px;cursor:text;box-sizing:border-box;line-height:1.4"></div>
     <div id="pinSetupError" style="font-size:11px;color:var(--red);min-height:16px;margin-bottom:8px"></div>
     <div class="dialog-footer">
       <button class="btn primary" id="pinSetupOkBtn" onclick="pinSetupOk()">設定</button>
@@ -1155,7 +1170,7 @@ main{animation:fadeUp .25s .05s ease both;}
     <div class="modal-body" style="line-height:1.6;font-size:13px;padding:18px">
       <div id="syncChoiceMsg" style="margin-bottom:14px"></div>
       <div style="display:flex;flex-direction:column;gap:10px">
-        <button class="btn primary" onclick="syncChoiceAnswer(1)" style="text-align:left;padding:12px 14px;flex-direction:column;align-items:flex-start;height:auto">
+        <button class="btn" onclick="syncChoiceAnswer(1)" style="text-align:left;padding:12px 14px;flex-direction:column;align-items:flex-start;height:auto">
           <span style="font-weight:600;font-size:14px" id="syncChoiceBtn1Label">マージ</span>
           <span style="font-size:11px;color:var(--text-muted);margin-top:2px" id="syncChoiceBtn1Sub">新しい方を採用 / 推奨</span>
         </button>
@@ -1612,6 +1627,78 @@ function exitSecretMode(){
   }
   displayedCount=0;renderAll();
 }
+
+// ─ v4.68: セキュアPIN入力 (contenteditable div + 実値別保持) ─
+//   <input type="password"> をやめてパスワードマネージャの検出対象から外す。
+//   既存コード互換のため、対象 div に value プロパティ(getter/setter)を Object.defineProperty で付与する。
+const _pinRealValues = {};   // {divId: '実値'}
+function _pinUpdateDisplay(divId){
+  const el = document.getElementById(divId);
+  if(!el) return;
+  const v = _pinRealValues[divId] || '';
+  el.textContent = '•'.repeat(v.length);
+}
+function pinSecureKeyDown(el, ev){
+  // Enter: 対象 div ごとに OK/次フィールド動作
+  if(ev.key === 'Enter'){
+    ev.preventDefault();
+    if(el.id === 'pinInput'){ pinDialogOk(); return false; }
+    if(el.id === 'pinSetupInput1'){
+      const next = document.getElementById('pinSetupInput2');
+      if(next) next.focus();
+      return false;
+    }
+    if(el.id === 'pinSetupInput2'){ pinSetupOk(); return false; }
+    return false;
+  }
+  if(ev.key === 'Backspace'){
+    ev.preventDefault();
+    const cur = _pinRealValues[el.id] || '';
+    _pinRealValues[el.id] = cur.slice(0, -1);
+    _pinUpdateDisplay(el.id);
+    return false;
+  }
+  if(ev.key === 'Delete'){ ev.preventDefault(); return false; }   // 中間編集は不可(簡略化)
+  // 通常文字
+  if(ev.key.length === 1 && !ev.ctrlKey && !ev.metaKey && !ev.altKey){
+    ev.preventDefault();
+    const cur = _pinRealValues[el.id] || '';
+    _pinRealValues[el.id] = cur + ev.key;
+    _pinUpdateDisplay(el.id);
+    return false;
+  }
+  // 矢印/Tab/Shift単独 等は素通り(ただし内部編集は beforeinput でブロック)
+}
+function pinSecureBeforeInput(el, ev){
+  // ブラウザの直接編集を完全ブロック→ 全文字は keydown/paste 経由で実値を更新する
+  ev.preventDefault();
+  return false;
+}
+function pinSecurePaste(el, ev){
+  ev.preventDefault();
+  const txt = (ev.clipboardData || window.clipboardData).getData('text');
+  if(txt){
+    const cur = _pinRealValues[el.id] || '';
+    _pinRealValues[el.id] = cur + txt;
+    _pinUpdateDisplay(el.id);
+  }
+  return false;
+}
+// 既存コード互換: el.value = '' / el.value で実値アクセスできるよう Object.defineProperty
+function _pinInstallValueProp(divId){
+  const el = document.getElementById(divId);
+  if(!el) return;
+  Object.defineProperty(el, 'value', {
+    get: function(){ return _pinRealValues[divId] || ''; },
+    set: function(v){ _pinRealValues[divId] = String(v||''); _pinUpdateDisplay(divId); },
+    configurable: true
+  });
+}
+window.addEventListener('DOMContentLoaded', ()=>{
+  _pinInstallValueProp('pinInput');
+  _pinInstallValueProp('pinSetupInput1');
+  _pinInstallValueProp('pinSetupInput2');
+});
 
 // ─ PIN ダイアログ ─
 function openPinDialog(){
@@ -2538,7 +2625,7 @@ function showSyncChoiceModal(){
   document.getElementById('syncChoiceBtn2Sub').textContent = t('syncChoiceBtn2Sub');
   document.getElementById('syncChoiceBtn3Label').textContent = t('syncChoiceBtn3Label');
   document.getElementById('syncChoiceBtn3Sub').textContent = t('syncChoiceBtn3Sub');
-  document.getElementById('syncChoiceCancelBtn').textContent = t('closeBtn')==='閉じる'?'キャンセル':(t('cancelBtn')||t('closeBtn'));
+  document.getElementById('syncChoiceCancelBtn').textContent = t('cancelBtn');
   document.getElementById('syncChoiceModal').classList.add('open');
   return new Promise(res=>{ _syncChoiceResolver = res; });
 }
@@ -2890,7 +2977,7 @@ const I18N={
     importModeLabel:'追記モード', importDropLabel:'📂 クリックして bookmark.json を選択',
     importDropSub:'またはここにドラッグ＆ドロップ',
     resetFavBtn:'🔄 アイコンの記憶をリセット',
-    clearAllBtn:'⚠️ すべて削除', closeBtn:'閉じる',
+    clearAllBtn:'⚠️ すべて削除', closeBtn:'閉じる', cancelBtn:'キャンセル',
     chromeDesc:'Chrome「ブックマークのインポート」用のHTMLを生成します。',
     copyChromeBtn:'コピー', dlChromeBtn:'HTMLダウンロード',
     secretSettingsDesc:'🔒 シークレットモード中のみ変更できます。',
@@ -2996,7 +3083,7 @@ const I18N={
     importModeLabel:'Append mode', importDropLabel:'📂 Click to select bookmark.json',
     importDropSub:'or drag & drop here',
     resetFavBtn:'🔄 Reset icon memory',
-    clearAllBtn:'⚠️ Delete all', closeBtn:'Close',
+    clearAllBtn:'⚠️ Delete all', closeBtn:'Close', cancelBtn:'Cancel',
     chromeDesc:'Generate HTML for Chrome bookmark import.',
     copyChromeBtn:'Copy', dlChromeBtn:'Download HTML',
     secretSettingsDesc:'🔒 Only editable in Secret Mode.',
@@ -3102,7 +3189,7 @@ const I18N={
     importModeLabel:'追加模式', importDropLabel:'📂 点击选择 bookmark.json',
     importDropSub:'或拖放到此处',
     resetFavBtn:'🔄 重置图标记忆',
-    clearAllBtn:'⚠️ 全部删除', closeBtn:'关闭',
+    clearAllBtn:'⚠️ 全部删除', closeBtn:'关闭', cancelBtn:'取消',
     chromeDesc:'生成用于Chrome书签导入的HTML文件。',
     copyChromeBtn:'复制', dlChromeBtn:'下载HTML',
     secretSettingsDesc:'🔒 仅在隐私模式下可更改。',
@@ -3190,7 +3277,7 @@ function applyLang(){
   const g=id=>document.getElementById(id);
   const tx=(id,v)=>{const e=g(id);if(e)e.textContent=v;};
   const ih=(id,v)=>{const e=g(id);if(e)e.innerHTML=v;};
-  const ph=(id,v)=>{const e=g(id);if(e)e.placeholder=v;};
+  const ph=(id,v)=>{const e=g(id);if(!e)return; if(e.placeholder!==undefined)e.placeholder=v; else e.setAttribute('data-placeholder',v);};
 
   // v4.06: ロゴ下サブタイトル (cat 時は catBase 言語)
   const subEl = g('logoSub');
@@ -3291,7 +3378,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.67',
+      verDesc:'MOMO Links v4.68',
     },
     en:{
       basic:'## Basic Operations',
@@ -3306,7 +3393,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.67',
+      verDesc:'MOMO Links v4.68',
     },
     zh:{
       basic:'## 基本操作',
@@ -3321,7 +3408,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.67',
+      verDesc:'MOMO Links v4.68',
     },
   };
   const s=c[L]||c.ja;

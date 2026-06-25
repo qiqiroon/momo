@@ -166,7 +166,8 @@ async function _gReadJson(path){
   return await resp.json();
 }
 
-async function _gWriteText(path,content,ifMatchEtag){
+// v4.66: ETag/If-Match は撤去。衝突検知は _commitRemote 側で headRevisionId 比較で行う。
+async function _gWriteText(path,content){
   const token=_pyodide.runPython('gdrive._token');
   const name=path.split('/').pop();
   const boundary='momo_boundary_xXx';
@@ -190,12 +191,9 @@ async function _gWriteText(path,content,ifMatchEtag){
   }
 
   const headers={'Authorization':`Bearer ${token}`,'Content-Type':`multipart/related; boundary=${boundary}`};
-  // v4.58(⑥段B): If-Match ヘッダーで原子的 compare-and-set。412 Precondition Failed なら他端末が割り込んだ。
-  if(ifMatchEtag && method==='PATCH') headers['If-Match']=ifMatchEtag;
 
   const body=`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: application/octet-stream\r\n\r\n${content}\r\n--${boundary}--`;
   const resp=await fetch(url,{method,headers,body});
-  if(resp.status===412) throw new Error('version-conflict');   // v4.58: サーバー側で原子的に検知された衝突
   if(!resp.ok) throw new Error(_t('syncDriveApiError',resp.status)+': '+await resp.text());
   await _pyodide.runPythonAsync('gdrive.cache.clear()');
 }
@@ -209,13 +207,13 @@ async function _sha256(str){
     return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
   }catch(e){ return null; }   // 安全でない環境等でハッシュ不可なら指紋なしで運用
 }
-// 指紋＋件数を同梱して書き込む。v4.58: ifMatchEtag を渡せば原子的 compare-and-set。
-async function _writeSync(path,data,ifMatchEtag){
+// 指紋＋件数を同梱して書き込む。v4.66: ETag/If-Match撤去・衝突検知は呼び出し側(_commitRemote)で行う。
+async function _writeSync(path,data){
   const obj={links:data.links||[],tags:data.tags||[],tagMeta:data.tagMeta||{}};
   const sum=await _sha256(_canonical(obj));
   if(sum) obj._checksum=sum;
   obj._count={links:obj.links.length,tags:obj.tags.length};
-  await _gWriteText(path, JSON.stringify(obj), ifMatchEtag);
+  await _gWriteText(path, JSON.stringify(obj));
 }
 // 読み込み＋指紋照合。指紋の無い旧式ファイルは ok 扱い（後方互換）
 async function _readVerified(path){
@@ -233,35 +231,29 @@ async function _getRemoteModTime(){
     return m ? m.modifiedTime : null;
   }catch(e){ return null; }
 }
-// 段B v4.58: リモートメタ(modifiedTime + etag)を取得。etagは原子的な compare-and-set 用。
-//   `?fields=modifiedTime` だけだとレスポンスからetagが取れないので、レスポンスヘッダーの ETag を使う。
+// 段B v4.66: リモートメタ(modifiedTime + headRevisionId)を取得。
+//   v4.58のETag方式はGoogle DriveがCORSでETagを露出していなかったため機能していなかった。
+//   v4.66からは headRevisionId(Drive側でファイル保存ごとに変わる版番号・レスポンス本文に必ず含まれる)
+//   を使った楽観的ロックに切替。CORSの影響を受けない。
 async function _getRemoteMeta(){
   try{
     if(!_pyodide) return null;
     window._sp=SYNC_FILE;
     const fileId=await _pyodide.runPythonAsync('await gdrive.resolve_path(js.window._sp)');
     const token=_pyodide.runPython('gdrive._token');
-    // ヘッダーから ETag を取るために fields は最小限。
-    const resp=await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=modifiedTime`,
+    const resp=await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=modifiedTime,headRevisionId`,
       {headers:{Authorization:`Bearer ${token}`}});
     if(!resp.ok) return null;
-    const etag = resp.headers.get('ETag') || resp.headers.get('etag') || null;
     const j=await resp.json();
-    // v4.65 デバッグ: ETag取得状況を可視化(CORS Expose-Headers でetagが露出されているか確認)
-    try{
-      const allHeaders={};
-      resp.headers.forEach((v,k)=>{allHeaders[k]=v;});
-      console.log('[MomoSync DEBUG] _getRemoteMeta:', {fileId, modifiedTime:(j&&j.modifiedTime)||null, etag, allHeaders});
-    }catch(e){}
-    return {fileId, modifiedTime: (j&&j.modifiedTime)||null, etag};
-  }catch(e){ console.log('[MomoSync DEBUG] _getRemoteMeta error:', e.message||e); return null; }
+    return {fileId, modifiedTime: (j&&j.modifiedTime)||null, headRevisionId: (j&&j.headRevisionId)||null};
+  }catch(e){ return null; }
 }
 // 段B: 衝突時の待ち時間を暗号乱数で選ぶ＝端末ごと・呼び出しごとに独立(Math.randomのseed問題を回避)。
 //   [1, 1.5, 2.5, 3.5, 5.5]分 から1つ。最悪3回再試行で約16.5分(実際は1〜2回で収束する想定)。
 const CONFLICT_WAIT_MIN = [1, 1.5, 2.5, 3.5, 5.5];   // 分
 function _pickConflictWaitMs(){
-  // v4.63: テストモードでは1秒固定(検証の待ち時間短縮)
-  try{ const params=new URLSearchParams(location.search||''); if(params.get('testconflict')==='1') return 1000; }catch(e){}
+  // v4.63/4.66: テストモード1/2では1秒固定(検証の待ち時間短縮)
+  try{ const params=new URLSearchParams(location.search||''); const tc=params.get('testconflict'); if(tc==='1'||tc==='2') return 1000; }catch(e){}
   try{
     const arr = new Uint32Array(1);
     crypto.getRandomValues(arr);
@@ -272,19 +264,27 @@ function _pickConflictWaitMs(){
   }
 }
 // 本体を書く→書いた直後に読み返して照合。
-//   段B(v4.58): expectedEtag を渡せば If-Match で原子的 compare-and-set。412 で 'version-conflict'。
+//   段B(v4.66): headRevisionId による楽観的ロック。
+//     書き込み直前にもう一度 headRevisionId を取得→呼出側が読んだ時の値と一致するなら書く・違えば衝突。
+//     ETag方式(v4.58)はDrive APIがCORSでETagを露出しておらず無効化されていた。
 //   段C(v4.59): 手動バックアップ(SYNC_BAK)処理を撤去。Driveの版履歴が自動で前世代を保持する。
-//             これで同時書込時の同名重複race(SYNC_BAK同時新規作成)の事故が構造的に消える。
-async function _commitRemote(data, prevRemote, expectedEtag){
-  // v4.63: テストモードが立っていれば、最初の書き込みでわざと無効ETagを使う→必ず412→衝突検知発動
-  let etagForWrite = expectedEtag;
-  if(_testConflictPending){
-    _testConflictPending = false;   // 1回限り
-    etagForWrite = '"momo-test-bogus-etag"';
-    console.log('[MomoSync] test conflict: using bogus etag to trigger 412');
+async function _commitRemote(data, prevRemote, expectedHeadRevId){
+  if(expectedHeadRevId){
+    // 書く直前にもう一度メタ取得して比較
+    const checkMeta = await _getRemoteMeta();
+    let actualId = checkMeta ? checkMeta.headRevisionId : null;
+    // v4.66: テストモード1 - わざと違う値で比較して必ず衝突を発動(検知＆再試行経路の動作確認用)
+    if(_testConflictPending){
+      _testConflictPending = false;   // 1回限り
+      actualId = 'momo-test-bogus-rev-' + Date.now();
+      console.log('[MomoSync] test1: forcing actualId mismatch to trigger version-conflict');
+    }
+    if(actualId !== expectedHeadRevId){
+      throw new Error('version-conflict');
+    }
   }
-  await _writeSync(SYNC_FILE, data, etagForWrite);   // 412 なら内部で 'version-conflict' throw
-  const v=await _readVerified(SYNC_FILE);          // 書き込み後の確認
+  await _writeSync(SYNC_FILE, data);
+  const v=await _readVerified(SYNC_FILE);   // 書き込み後の確認
   if(!v.ok) throw new Error(_t('syncWriteVerifyFail'));
 }
 // 段C(v4.59): Driveの版履歴から前の世代(2番目に新しいリビジョン)を取得して復旧用に返す。
@@ -606,26 +606,17 @@ async function runSync(mode){
         }
 
       }else{
-        // 通常マージ - 段B(v4.58): ETag-based原子的 compare-and-set リトライループ
-        //   読込直後に baseMeta を取得→ETag を書き込みのIf-Matchに渡す。
-        //   サーバー側で原子的に検知され、412なら衝突→[1,1.5,2.5,3.5,5.5]分のランダム待ち→再読込→再マージ。最大3回。
+        // 通常マージ - 段B(v4.66): headRevisionId-based 楽観的ロックのリトライループ
+        //   読込直後に baseMeta を取得→headRevisionId を _commitRemote に渡す。
+        //   書込直前に再取得して比較→違えば衝突→[1,1.5,2.5,3.5,5.5]分のランダム待ち→再読込→再マージ。最大3回。
         let baseMeta = await _getRemoteMeta();
-        // v4.65 デバッグ: inject判定3条件の状態を可視化
-        console.log('[MomoSync DEBUG] inject check:', {
-          testConflict2Pending: _testConflict2Pending,
-          baseMeta: baseMeta,
-          baseMetaHasEtag: !!(baseMeta && baseMeta.etag),
-          willInject: !!(_testConflict2Pending && baseMeta && baseMeta.etag)
-        });
-        // v4.64: テストモード2 - 裏で別端末を装ってリモートに目印を追加(古いETagで送ろうとする→必ず412)。
-        //   1回限り・このタイミングなら baseMeta.etag を更新せず古いまま保持できる。
-        // v4.65: etag取得が失敗していても inject 自体は試す(別の検証手段)→ ifMatch=null での書き込みが
-        //   段Bを実際にバイパスしていないかも確認できる。
-        if(_testConflict2Pending && baseMeta){
+        // v4.66: テストモード2 - 裏で別端末を装ってリモートに目印を追加(=Drive側のheadRevisionId更新)。
+        //   呼出側の baseMeta.headRevisionId は古いまま保持→次の_commitRemote事前チェックで必ず衝突発動。
+        if(_testConflict2Pending && baseMeta && baseMeta.headRevisionId){
           _testConflict2Pending = false;
           try{
-            await _injectRemoteTestBookmark(rem, baseMeta.etag);   // etagがnullでも一応試す
-            _logSync('test2', true, 'remote injected etag='+(baseMeta.etag?'ok':'null'));
+            await _injectRemoteTestBookmark(rem);
+            _logSync('test2', true, 'remote injected');
           }catch(e){
             _logSync('test2', false, e.message||String(e));
           }
@@ -633,13 +624,13 @@ async function runSync(mode){
         const MAX_RETRIES = 3;
         let attempt = 0;
         let currentRem = rem;
-        let expectedEtag = baseMeta ? baseMeta.etag : null;
+        let expectedHeadRevId = baseMeta ? baseMeta.headRevisionId : null;
         let mergedFinal;
         while(true){
           attempt++;
           mergedFinal = _mergeData(loc, currentRem);
           try{
-            await _commitRemote(mergedFinal, currentRem, expectedEtag);
+            await _commitRemote(mergedFinal, currentRem, expectedHeadRevId);
             break;   // 成功
           }catch(e){
             if(e.message === 'version-conflict'){
@@ -648,14 +639,14 @@ async function runSync(mode){
                 throw new Error('version-conflict-giveup');
               }
               const waitMs = _pickConflictWaitMs();
-              _logSync('conflict', true, 'retry-'+attempt+' wait-'+(waitMs/60000)+'min etag');
+              _logSync('conflict', true, 'retry-'+attempt+' wait-'+(waitMs/60000)+'min rev');
               await new Promise(r=>setTimeout(r, waitMs));
-              // リモートを読み直して再マージ＋etagも更新
+              // リモートを読み直して再マージ＋headRevisionIdも更新
               const vv = await _readVerified(SYNC_FILE);
               if(vv.ok){
                 currentRem = vv.obj;
                 const m = await _getRemoteMeta();
-                expectedEtag = m ? m.etag : null;
+                expectedHeadRevId = m ? m.headRevisionId : null;
               }
               else { _logSync('conflict', false, 'reread-corrupt'); throw new Error(_t('syncCorrupt')); }
               continue;
@@ -706,12 +697,13 @@ function shouldAutoSync(){
 //     4) hint無し or 未サインインは何もしない（初回は手動更新ボタンから）
 let _silentBackoffUntil=0;   // 段A: silent失敗時のバックオフ期限(Unix秒)
 
-// v4.63: 衝突テストモード(?testconflict=1)。起動時にフラグを立て、次の1回の書き込みで
-// わざと無効なETagを使って 412 を誘発→段Bのリトライ動作を観察可能にする。1回で自動クリア。
+// v4.66: 衝突テストモード(?testconflict=1)。起動時にフラグを立て、次の1回の書き込み事前チェックで
+// わざと違う headRevisionId を返して必ず version-conflict を発動→段Bのリトライ経路を確認可能。1回で自動クリア。
 let _testConflictPending = false;
-// v4.64: 衝突テストモード2(?testconflict=2)。起動時にフラグを立て、次の同期処理で
-// 「裏で別端末を装って」リモートに目印を追加→自分のローカル側は古いETagで送る→412→
-// 再読み込みで相手の目印を取得→ローカル目印と合体→新ETagで再送信。
+// v4.66: 衝突テストモード2(?testconflict=2)。起動時にフラグを立て、次の同期処理で
+// 「裏で別端末を装って」リモートに目印を追加→Drive側のheadRevisionIdが更新される→
+// 呼出側が保持している古いheadRevisionIdとの不一致でversion-conflict→
+// 再読み込みで相手の目印を取得→ローカル目印と合体→再書込。
 // → 結果として画面に **TEST_LOCAL_(ユーザー追加) と TEST_REMOTE_(裏で追加)** の
 //    両方が表示されれば、巻き戻し→合体→再書込が本当に動いた目視可能な証拠になる。
 let _testConflict2Pending = false;
@@ -720,7 +712,7 @@ let _testConflict2Pending = false;
     const params = new URLSearchParams(location.search||'');
     if(params.get('testconflict')==='1'){
       _testConflictPending = true;
-      console.log('[MomoSync] test conflict mode 1 armed (next write will use bogus etag)');
+      console.log('[MomoSync] test conflict mode 1 armed (next write will force headRevisionId mismatch)');
     }
     if(params.get('testconflict')==='2'){
       _testConflict2Pending = true;
@@ -729,11 +721,12 @@ let _testConflict2Pending = false;
   }catch(e){}
 })();
 
-// v4.64: テストモード2用 - 裏でリモートに「別端末を装った」目印を追加する。
-//   現在のリモート内容に新しい目印を足して、正しいETagで先に書き込む。
-//   → 呼び出し側の保持している古いETagでの後続書込は必ず 412 → 衝突→再読み込みで
-//      この目印を取得→ローカル目印と合体→再送信。最終結果に両方残る。
-async function _injectRemoteTestBookmark(currentRem, currentEtag){
+// v4.66: テストモード2用 - 裏でリモートに「別端末を装った」目印を追加する。
+//   現在のリモート内容に新しい目印を足して、無条件で先に書き込む(=Drive側のheadRevisionIdが更新される)。
+//   → 呼び出し側が保持している古い headRevisionId と一致しなくなる →
+//      _commitRemote の事前チェックで version-conflict → 再読み込みでこの目印を取得 →
+//      ローカル目印と合体 → 再送信。最終結果に両方残る。
+async function _injectRemoteTestBookmark(currentRem){
   const now = Date.now();
   const d = new Date(now);
   const hh = String(d.getHours()).padStart(2,'0');
@@ -754,8 +747,7 @@ async function _injectRemoteTestBookmark(currentRem, currentEtag){
     tags: [...new Set([...(currentRem.tags||[]), '_test_'])],
     tagMeta: currentRem.tagMeta || {}
   };
-  // 正しいETagで直接書き込み→リモートに反映される(=サーバーETag更新)
-  await _writeSync(SYNC_FILE, injected, currentEtag);
+  await _writeSync(SYNC_FILE, injected);
   console.log('[MomoSync] test2: injected TEST_REMOTE_'+stamp+' to remote');
 }
 
@@ -875,7 +867,9 @@ async function _doAutoCheck(autoTrigger){
   const remote=await _checkRemoteChanged();
   const localDirty=_hasLocalChanges();
   _logSync('check', remote!=='error', remote+(localDirty?' / local-dirty':' / local-clean'));
-  if(remote==='unchanged' && !localDirty){ _logSync('skip', true, autoTrigger||'auto'); return; }
+  // v4.66: テストモード1/2発動中はスキップ無効化(injectの機会を作る)
+  const testActive = _testConflictPending || _testConflict2Pending;
+  if(remote==='unchanged' && !localDirty && !testActive){ _logSync('skip', true, autoTrigger||'auto'); return; }
   if(remote==='error') return;
   runSync('auto');
 }

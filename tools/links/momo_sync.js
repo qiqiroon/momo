@@ -263,15 +263,42 @@ function _pickConflictWaitMs(){
     return CONFLICT_WAIT_MIN[Math.floor(Math.random()*CONFLICT_WAIT_MIN.length)] * 60 * 1000;
   }
 }
-// 上書き前に現行を退避(backup)→本体を書く→書いた直後に読み返して照合
-//   段B(v4.58): expectedEtag を渡せば、Drive APIの If-Match ヘッダーで原子的 compare-and-set。
-//   サーバー側でetag不一致と判定されると 412 Precondition Failed → _gWriteText が
-//   'version-conflict' を投げる。アトミックなので2端末同時書込でも必ず一方が負ける。
+// 本体を書く→書いた直後に読み返して照合。
+//   段B(v4.58): expectedEtag を渡せば If-Match で原子的 compare-and-set。412 で 'version-conflict'。
+//   段C(v4.59): 手動バックアップ(SYNC_BAK)処理を撤去。Driveの版履歴が自動で前世代を保持する。
+//             これで同時書込時の同名重複race(SYNC_BAK同時新規作成)の事故が構造的に消える。
 async function _commitRemote(data, prevRemote, expectedEtag){
-  if(prevRemote){ try{ await _writeSync(SYNC_BAK, prevRemote); }catch(e){ console.warn('[MomoSync] backup failed', e); } }
   await _writeSync(SYNC_FILE, data, expectedEtag);   // 412 なら内部で 'version-conflict' throw
   const v=await _readVerified(SYNC_FILE);          // 書き込み後の確認
   if(!v.ok) throw new Error(_t('syncWriteVerifyFail'));
+}
+// 段C(v4.59): Driveの版履歴から前の世代(2番目に新しいリビジョン)を取得して復旧用に返す。
+//   保存されているチェックサムも検証してから返す。失敗時は null。
+async function _gReadRevision(){
+  try{
+    const meta = await _getRemoteMeta();
+    if(!meta || !meta.fileId) return null;
+    const token = _pyodide.runPython('gdrive._token');
+    // リビジョン一覧(modifiedTime順)
+    const listResp = await fetch(`https://www.googleapis.com/drive/v3/files/${meta.fileId}/revisions?fields=revisions(id,modifiedTime)`,
+      {headers:{Authorization:`Bearer ${token}`}});
+    if(!listResp.ok) return null;
+    const list = await listResp.json();
+    const revs = (list.revisions||[]).slice().sort((a,b)=>new Date(b.modifiedTime)-new Date(a.modifiedTime));
+    if(revs.length < 2) return null;   // 1世代しかなければ復旧元なし
+    const prevRev = revs[1];
+    const dataResp = await fetch(`https://www.googleapis.com/drive/v3/files/${meta.fileId}/revisions/${prevRev.id}?alt=media`,
+      {headers:{Authorization:`Bearer ${token}`}});
+    if(!dataResp.ok) return null;
+    return await dataResp.json();
+  }catch(e){ return null; }
+}
+async function _verifyObj(obj){
+  if(obj && obj._checksum){
+    const got = await _sha256(_canonical(obj));
+    if(got && got !== obj._checksum) return false;
+  }
+  return true;
 }
 
 // 案件②段2: AM/PM 12時間制(3言語統一)。今日なら時刻のみ、過去日なら "月/日 H:MM AM/PM"
@@ -525,17 +552,19 @@ async function runSync(mode){
       await _writeSync(SYNC_FILE, loc);
 
     }else{
-      // 整合性チェック付きで読む。壊れていたらバックアップから復旧
+      // 整合性チェック付きで読む。壊れていたら Driveの版履歴から前世代を取って復旧(段C v4.59)。
       let rem;
       const v=await _readVerified(SYNC_FILE);
       if(v.ok){
         rem=v.obj;
-      }else if(await _gExists(SYNC_BAK)){
-        const vb=await _readVerified(SYNC_BAK);
-        if(vb.ok){ rem=vb.obj; alert(_t('syncRecovered')); }
-        else { throw new Error(_t('syncCorrupt')); }
       }else{
-        throw new Error(_t('syncCorrupt'));
+        const prevRev = await _gReadRevision();
+        if(prevRev && await _verifyObj(prevRev)){
+          rem = prevRev;
+          alert(_t('syncRecovered'));
+        }else{
+          throw new Error(_t('syncCorrupt'));
+        }
       }
       const hasRemote = (rem.links||[]).filter(l=>!l.deleted_at).length>0;
 

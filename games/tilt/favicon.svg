@@ -1,1 +1,51 @@
-<svg xmlns='http://www.w3.org/2000/svg' viewBox='-46 -50 100 110'><defs><radialGradient id='b' cx='35%' cy='30%' r='70%'><stop offset='0%' stop-color='#fca5a5'/><stop offset='40%' stop-color='#ef4444'/><stop offset='100%' stop-color='#7f1d1d'/></radialGradient></defs><rect x='-46' y='-50' width='100' height='110' rx='8' fill='#000000'/><g transform='rotate(-12,-12,8.3)'><path d='M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z' fill='#c2410c'/></g><g transform='rotate(12,12,8.3)'><path d='M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z' fill='#c2410c'/></g><ellipse cx='0' cy='1.3' rx='34' ry='26' fill='#c2410c'/><line x1='-14' y1='1.00' x2='-33.68' y2='-2.28' stroke='#000' stroke-width='1.8' stroke-linecap='round'/><line x1='-14' y1='6.0' x2='-33.44' y2='6.0' stroke='#000' stroke-width='1.8' stroke-linecap='round'/><line x1='-14' y1='10.59' x2='-29.58' y2='14.26' stroke='#000' stroke-width='1.8' stroke-linecap='round'/><line x1='14' y1='1.00' x2='33.68' y2='-2.28' stroke='#000' stroke-width='1.8' stroke-linecap='round'/><line x1='14' y1='6.0' x2='33.44' y2='6.0' stroke='#000' stroke-width='1.8' stroke-linecap='round'/><line x1='14' y1='10.59' x2='29.58' y2='14.26' stroke='#000' stroke-width='1.8' stroke-linecap='round'/><rect x='-1' y='-5' width='54' height='54' rx='3' fill='#0a0a0a' stroke='#1e40af' stroke-width='2.2' stroke-linejoin='round'/><g stroke='#1e40af' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' fill='none'><path d='M 6 -3 L 6 14 L 22 14'/><path d='M 30 -3 L 30 8 L 46 8'/><path d='M 12 22 L 12 30 L 26 30 L 26 42'/><path d='M 36 16 L 48 16 L 48 28 L 34 28 L 34 40'/><path d='M -2 36 L 6 36 L 6 44 L 18 44'/><path d='M 42 34 L 42 48'/></g><circle cx='32' cy='22' r='6' fill='url(#b)' stroke='#000' stroke-width='0.7'/><ellipse cx='30' cy='19' rx='1.8' ry='1.1' fill='#fff' opacity='0.85'/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-46 -50 100 110">
+  <rect x="-46" y="-50" width="100" height="110" rx="8" fill="#000000"/>
+  <defs>
+    <radialGradient id="tiltBallGrad" cx="35%" cy="30%" r="70%">
+      <stop offset="0%"  stop-color="#fca5a5"/>
+      <stop offset="40%" stop-color="#ef4444"/>
+      <stop offset="100%" stop-color="#7f1d1d"/>
+    </radialGradient>
+  </defs>
+  <!-- 猫本体 (MOMO Works 共通) -->
+  <g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/></g>
+  <g transform="rotate(12,12,8.3)"><path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/></g>
+  <ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/>
+  <line x1="-14" y1="1.00" x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="-14" y1="6.0"  x2="-33.44" y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="-33.68" y1="-2.28" x2="-38" y2="-3"  stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="-33.44" y1="6.0"   x2="-40" y2="6"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="-29.58" y1="14.26" x2="-37" y2="16"  stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="14" y1="1.00" x2="33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="14" y1="6.0"  x2="33.44" y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="14" y1="10.59" x2="29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="33.68" y1="-2.28" x2="38" y2="-3"  stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="33.44" y1="6.0"   x2="40" y2="6"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="29.58" y1="14.26" x2="37" y2="16"  stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+  <ellipse cx="-12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+  <ellipse cx="12"  cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+  <ellipse cx="-12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+  <ellipse cx="12"  cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+  <circle cx="-10.5" cy="-5.2" r="1.0" fill="#c2410c"/>
+  <circle cx="13.5"  cy="-5.2" r="1.0" fill="#c2410c"/>
+  <path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/>
+  <line x1="0" y1="11.3" x2="0" y2="13.3" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M0,13.3 Q5,17.3  8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- 迷路 (連続した長い壁、 非対称) + 球体状の数字つきボール (中心 26,22) -->
+  <g id="tilt-overlay">
+    <rect x="-1" y="-5" width="54" height="54" rx="3" fill="#0a0a0a" stroke="#1e40af" stroke-width="2.2" stroke-linejoin="round"/>
+    <g stroke="#1e40af" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M 6 -3 L 6 14 L 22 14"/>
+      <path d="M 30 -3 L 30 8 L 46 8"/>
+      <path d="M 12 22 L 12 30 L 26 30 L 26 42"/>
+      <path d="M 36 16 L 48 16 L 48 28 L 34 28 L 34 40"/>
+      <path d="M -2 36 L 6 36 L 6 44 L 18 44"/>
+      <path d="M 42 34 L 42 48"/>
+    </g>
+    <circle cx="32" cy="22" r="6" fill="url(#tiltBallGrad)" stroke="#000" stroke-width="0.7"/>
+    <ellipse cx="30" cy="19" rx="1.8" ry="1.1" fill="#fff" opacity="0.85"/>
+    <text x="32" y="24.6" font-family="Fredoka One,cursive" font-size="7" font-weight="700" fill="#fff" text-anchor="middle" stroke="#000" stroke-width="0.3" paint-order="stroke">1</text>
+  </g>
+</svg>

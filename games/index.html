@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MOMO Games v1.17 -->
+<!-- MOMO Games v1.18 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -85,6 +85,10 @@
   .card-subtitle { font-family:'Fredoka One',cursive; font-size:0.78rem; color:#888; letter-spacing:0.02em; margin-top:-4px; line-height:1.2; min-height:1em; }
   /* 中国語サブタイトルは Noto Sans JP を優先（猫語(zh base)時と同じグリフを使うため、<html lang> による中華フォント切替を回避） */
   .card-subtitle.zh-subtitle { letter-spacing:0; font-family:'Fredoka One','Noto Sans JP',sans-serif; }
+  /* アイコン横並びヘッダー（各アプリのヘッダー = アイコン + タイトル/サブタイトル に合わせる。MOMO Tools 流儀） */
+  .card-head { display:flex; align-items:center; gap:12px; }
+  .card-icon { width:46px; height:auto; flex-shrink:0; display:block; border-radius:9px; }
+  .card-headtext { display:flex; flex-direction:column; min-width:0; }
   .card-desc { font-size:0.85rem; color:var(--text-muted); line-height:1.65; flex:1; }
   .card-meta { display:flex; gap:12px; flex-wrap:wrap; font-size:0.75rem; color:var(--text-muted); border-top:1px solid var(--border); padding-top:12px; margin-top:4px; }
   .card-meta span { display:flex; align-items:center; gap:4px; }
@@ -171,9 +175,14 @@
 
   <div class="cards">
     <a class="card" href="tilt/">
+      <div class="card-head">
+        <img class="card-icon" src="tilt/favicon.svg" alt="" aria-hidden="true">
+        <div class="card-headtext">
+          <div class="card-title">MOMO <span>Tilt</span></div>
+          <div class="card-subtitle" id="tilt-subtitle">Tilt the World, Balance the Fate</div>
+        </div>
+      </div>
       <div class="card-badge" id="tilt-badge">📱 Mobile</div>
-      <div class="card-title">MOMO <span>Tilt</span></div>
-      <div class="card-subtitle" id="tilt-subtitle">Tilt the World, Balance the Fate</div>
       <div class="card-desc" id="tilt-desc">スマホを傾けてボールを転がし、同じ色のゴールへ同時に入れるパズル＆アクション。鍵を集めてゴールを解錠、敵をかわしながらクリアを目指せ！</div>
       <div class="card-meta" id="tilt-meta">
         <span>📐 迷路</span>
@@ -188,9 +197,14 @@
     </a>
 
     <a class="card" href="hanoi/">
+      <div class="card-head">
+        <img class="card-icon" src="hanoi/favicon.svg" alt="" aria-hidden="true">
+        <div class="card-headtext">
+          <div class="card-title">MOMO <span>Hanoi</span></div>
+          <div class="card-subtitle" id="hanoi-subtitle">Tower Defence of Hanoi</div>
+        </div>
+      </div>
       <div class="card-badge" id="hanoi-badge">🧩 Puzzle</div>
-      <div class="card-title">MOMO <span>Hanoi</span></div>
-      <div class="card-subtitle" id="hanoi-subtitle">Tower Defence of Hanoi</div>
       <div class="card-desc" id="hanoi-desc">ハノイの塔を解きながらUFOを迎撃するパズル×シューティング。円盤を移動させて砲弾を発射し、地面を守れ！</div>
       <div class="card-meta" id="hanoi-meta">
         <span>🧩 パズル</span>
@@ -206,9 +220,14 @@
     </a>
 
     <a class="card" href="javascript:void(0)" onclick="openReversi()">
+      <div class="card-head">
+        <img class="card-icon" src="reversi/favicon.svg" alt="" aria-hidden="true">
+        <div class="card-headtext">
+          <div class="card-title">MOMO <span>Reversi</span></div>
+          <div class="card-subtitle" id="reversi-subtitle">Flip the Board, Rewrite the Fate</div>
+        </div>
+      </div>
       <div class="card-badge" id="reversi-badge">🌐 Online</div>
-      <div class="card-title">MOMO <span>Reversi</span></div>
-      <div class="card-subtitle" id="reversi-subtitle">Flip the Board, Rewrite the Fate</div>
       <div class="card-desc" id="reversi-desc">世界中のプレイヤーとリアルタイムでリバーシ対決。部屋を作って友達を招待することも、公開部屋に飛び込むことも自由。チャットしながら白熱の盤上バトルを楽しもう。</div>
       <div class="card-meta" id="reversi-meta">
         <span>♟ ボードゲーム</span>
@@ -224,9 +243,14 @@
     </a>
 
     <a class="card" href="javascript:void(0)" onclick="openGomokuGo()">
-      <div class="card-badge" id="gomokugo-badge">🆕 New</div>
-      <div class="card-title">MOMO <span>Go</span></div>
-      <div class="card-subtitle" id="gomokugo-subtitle">Master the Stones, Rule the Realm</div>
+      <div class="card-head">
+        <img class="card-icon" src="gomoku-go/favicon.svg" alt="" aria-hidden="true">
+        <div class="card-headtext">
+          <div class="card-title">MOMO <span>Go</span></div>
+          <div class="card-subtitle" id="gomokugo-subtitle">Master the Stones, Rule the Realm</div>
+        </div>
+      </div>
+      <div class="card-badge" id="gomokugo-badge">🌐 Online</div>
       <div class="card-desc" id="gomokugo-desc">19路盤の五目並べでオンライン対戦。仮置きから確定の2段階で慎重に一手を選び、縦・横・斜めの5連を目指せ。チャットしながら静かな盤上の駆け引きを。</div>
       <div class="card-meta" id="gomokugo-meta">
         <span>♟ ボードゲーム</span>
@@ -242,9 +266,14 @@
     </a>
 
     <a class="card" href="javascript:void(0)" onclick="openDarts()">
-      <div class="card-badge" id="darts-badge">🆕 New</div>
-      <div class="card-title">MOMO <span>Darts</span></div>
-      <div class="card-subtitle" id="darts-subtitle">Concealed Edge, Single Touch</div>
+      <div class="card-head">
+        <img class="card-icon" src="darts/favicon.svg" alt="" aria-hidden="true">
+        <div class="card-headtext">
+          <div class="card-title">MOMO <span>Darts</span></div>
+          <div class="card-subtitle" id="darts-subtitle">Concealed Edge, Single Touch</div>
+        </div>
+      </div>
+      <div class="card-badge" id="darts-badge">🌐 Online</div>
       <div class="card-desc" id="darts-desc">スマホを傾けて仮想空間で的を狙って投げる対戦型ダーツ。世界中のプレイヤーと各種ルールでオンライン対戦か、1人で練習モードを。</div>
       <div class="card-meta" id="darts-meta">
         <span>🎯 ダーツ</span>
@@ -284,12 +313,12 @@ const I18N = {
     reversiDesc: '世界中のプレイヤーとリアルタイムでリバーシ対決。部屋を作って友達を招待することも、公開部屋に飛び込むことも自由。チャットしながら白熱の盤上バトルを楽しもう。',
     reversiMeta1: '♟ ボードゲーム', reversiMeta2: '🌐 オンライン対戦', reversiPlayers: '2人',
     reversiPlay: '今すぐプレイ',
-    gomokugoBadge: '🆕 NEW',
+    gomokugoBadge: '🌐 オンライン',
     gomokugoSubtitle: 'Master the Stones, Rule the Realm',
     gomokugoDesc: '19路盤で五目並べと囲碁のオンライン対戦。三手交換・待った・持ち時間+秒読み・地計算まで対応した本格派。チャットしながら静かな盤上の駆け引きを。',
     gomokugoMeta1: '♟ ボードゲーム', gomokugoMeta2: '🌐 オンライン対戦', gomokugoPlayers: '2人',
     gomokugoPlay: '今すぐプレイ',
-    dartsBadge: '🆕 NEW',
+    dartsBadge: '🌐 オンライン',
     dartsSubtitle: 'Concealed Edge, Single Touch',
     dartsDesc: 'スマホを傾けて仮想空間で的を狙って投げる対戦型ダーツ。世界中のプレイヤーと各種ルールでオンライン対戦か、1人で練習モードを。',
     dartsMeta1: '🎯 ダーツ', dartsMeta2: '📱 センサー操作', dartsPlayers: '1〜2人',
@@ -314,12 +343,12 @@ const I18N = {
     reversiDesc: 'Challenge players around the world to a real-time game of Reversi. Create a private room for friends or jump into a public match — the board is always ready. Chat, play, and flip your way to victory.',
     reversiMeta1: '♟ Board Game', reversiMeta2: '🌐 Online', reversiPlayers: '2 Players',
     reversiPlay: 'Play Now',
-    gomokugoBadge: '🆕 NEW',
+    gomokugoBadge: '🌐 Online',
     gomokugoSubtitle: 'Master the Stones, Rule the Realm',
     gomokugoDesc: 'Online Gomoku & Go on a 19×19 board. Full-featured: three-move swap opening, undo, time control with byoyomi, and territory scoring. Chat while you play.',
     gomokugoMeta1: '♟ Board Game', gomokugoMeta2: '🌐 Online', gomokugoPlayers: '2 Players',
     gomokugoPlay: 'Play Now',
-    dartsBadge: '🆕 NEW',
+    dartsBadge: '🌐 Online',
     dartsSubtitle: 'Concealed Edge, Single Touch',
     dartsDesc: 'A virtual 3D darts game using your phone\'s motion sensor. Tilt to aim and throw at the target. Battle online with various rules or practice solo.',
     dartsMeta1: '🎯 Darts', dartsMeta2: '📱 Motion Sensor', dartsPlayers: '1–2 Players',
@@ -344,12 +373,12 @@ const I18N = {
     reversiDesc: '与全球玩家实时对战黑白棋。可以创建房间邀请好友，也可以随时加入公开对局。边聊天边享受激烈的翻棋乐趣。',
     reversiMeta1: '♟ 棋盘游戏', reversiMeta2: '🌐 在线对战', reversiPlayers: '2人',
     reversiPlay: '立即游玩',
-    gomokugoBadge: '🆕 NEW',
+    gomokugoBadge: '🌐 在线',
     gomokugoSubtitle: '纵横黑白，棋弈天下',
     gomokugoDesc: '19路盘的五子棋与围棋在线对战。三手交换、悔棋、用时+读秒、数子计算全部支持。边聊边享受静谧的盘上博弈。',
     gomokugoMeta1: '♟ 棋盘游戏', gomokugoMeta2: '🌐 在线对战', gomokugoPlayers: '2人',
     gomokugoPlay: '立即游玩',
-    dartsBadge: '🆕 NEW',
+    dartsBadge: '🌐 在线',
     dartsSubtitle: '不露鋒心，一指乾坤',
     dartsDesc: '使用手机传感器在虚拟3D空间中瞄准靶心投掷的对战型飞镖游戏。可在多种规则下在线对战，也可单人练习。',
     dartsMeta1: '🎯 飞镖', dartsMeta2: '📱 传感器操作', dartsPlayers: '1〜2人',

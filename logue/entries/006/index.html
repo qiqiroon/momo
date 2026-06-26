@@ -10,8 +10,9 @@
   MOMO Logue — Entry 006
   タイトル: 法則型の独り言 / Soliloquy of a Hosoku-type / 法则型的独白
   日付: 2026-04-28
-  バージョン: v1.02
+  バージョン: v1.03
   変更履歴:
+    v1.03 - 言語選択を共通ライブラリ momo-lang 化（Auto＝端末言語の自動判定を追加、選択は記憶方式に統一、?lang= 受け渡しを廃止）
     v1.02 - 英語版「法則型」の訳語を Hosoku-type に統一（初出箇所で law of the world と意味を併記、以降は Hosoku-type で通す方式）。Law-type 表記から、日本固有の枠組みを示す原語ローマ字＋意味補完方式へ変更
     v1.01 - 注釈システムを仕様書 v1.08 §3.4 の AI ファクトチェック型として整備（fn-ref、footnotes セクション、Notes — Fact-checked by Claude 見出し、disclaimer 追加、注釈本文を常体に統一）
     v1.00 - 初版
@@ -243,12 +244,14 @@
     to   { opacity: 1; transform: translateY(0); }
   }
 </style>
+<script src="/momo/lib/momo-lang/momo-lang.js"></script>
 <script src="/momo/lib/momo-analytics.js" defer></script>
 </head>
 <body>
 
 <div id="lang-switcher">
-  <select id="lang-select" onchange="onLangChange(this.value)">
+  <select id="lang-select" class="lang-select" onchange="onLangChange(this.value)">
+    <option value="auto">Auto</option>
     <option value="ja">日本語</option>
     <option value="en">EN</option>
     <option value="zh">中文</option>
@@ -411,14 +414,19 @@ function renderNotes(notesArray) {
   list.innerHTML = notesArray.map(n => `<li>${n}</li>`).join('');
 }
 
-let currentLang = (() => {
-  try {
-    const p = new URLSearchParams(location.search).get('lang');
-    if (p && ['ja','en','zh','cat'].includes(p)) return p;
-    const v = localStorage.getItem('momoLang');
-    return ['ja','en','zh','cat'].includes(v) ? v : 'ja';
-  } catch(e) { return 'ja'; }
-})();
+const SUPPORTED_LANGS = ['ja','en','zh','cat'];
+const LANG_APP_ID = 'logue';
+function _langDetectFallback(){
+  try{ const list=(navigator.languages&&navigator.languages.length)?navigator.languages:[navigator.language||'en'];
+    for(let i=0;i<list.length;i++){ const l=(list[i]||'').toLowerCase();
+      if(l.indexOf('ja')===0)return'ja'; if(l.indexOf('zh')===0)return'zh'; if(l.indexOf('en')===0)return'en'; }
+    return'en';
+  }catch(e){return'ja';}
+}
+let langMode    = window.MomoLang ? MomoLang.getMode(LANG_APP_ID) : 'auto';
+let currentLang = window.MomoLang ? MomoLang.resolve(LANG_APP_ID)
+                : (langMode==='auto' ? _langDetectFallback()
+                   : (SUPPORTED_LANGS.includes(langMode) ? langMode : _langDetectFallback()));
 
 function applyLang() {
   if (currentLang === 'cat') {
@@ -443,20 +451,17 @@ function applyLang() {
     document.getElementById('footer-text').textContent  = '© MOMO Works';
   }
   const sel = document.getElementById('lang-select');
-  if (sel) sel.value = currentLang;
+  if (sel) sel.value = langMode;
   document.documentElement.lang = currentLang === 'zh' ? 'zh-Hans' : (currentLang === 'cat' ? catBase : currentLang);
 }
 
-function onLangChange(lang) {
-  if (lang === 'cat') catBase = currentLang;
-  currentLang = lang;
-  try { localStorage.setItem('momoLang', lang); } catch(e) {}
-  try {
-    const url = new URL(location.href);
-    if (lang === 'ja') url.searchParams.delete('lang');
-    else url.searchParams.set('lang', lang);
-    history.replaceState(null, '', url.toString());
-  } catch(e) {}
+function onLangChange(mode) {
+  if (mode === 'cat' && currentLang !== 'cat') catBase = currentLang;
+  langMode = mode;
+  currentLang = window.MomoLang ? MomoLang.setMode(LANG_APP_ID, mode)
+              : (mode === 'auto' ? _langDetectFallback()
+                 : (SUPPORTED_LANGS.includes(mode) ? mode : _langDetectFallback()));
+  document.querySelectorAll('.lang-select').forEach(s => s.value = mode);
   applyLang();
 }
 

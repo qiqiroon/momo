@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <title>MOMO Logue</title>
+<!-- ============================================================
+  MOMO Logue — トップ（エントリー一覧）
+  バージョン: v1.01
+  変更履歴:
+    v1.01 - 言語選択を共通ライブラリ momo-lang 化（Auto＝端末言語の自動判定を追加、選択は記憶方式に統一、エントリーリンクの ?lang= 受け渡しを廃止）
+    v1.00 - 初版
+  ============================================================ -->
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root { --bg: #0a0a0a; --surface: #111111; --orange: #c2410c; --text: #e5e5e5; --text-muted: #737373; --border: #2a2a2a; }
@@ -29,12 +36,14 @@
   #lang-select { background: var(--surface); color: var(--text); border: 1px solid var(--border); padding: 5px; border-radius: 4px; }
   footer { margin-top: auto; padding: 20px; font-size: 0.8rem; color: var(--text-muted); border-top: 1px solid var(--border); width: 100%; text-align: center; }
 </style>
+<script src="/momo/lib/momo-lang/momo-lang.js"></script>
 <script src="/momo/lib/momo-analytics.js" defer></script>
 </head>
 <body>
 
 <div id="lang-switcher">
-  <select id="lang-select" onchange="onLangChange(this.value)">
+  <select id="lang-select" class="lang-select" onchange="onLangChange(this.value)">
+    <option value="auto">Auto</option>
     <option value="ja">日本語</option>
     <option value="en">EN</option>
     <option value="zh">中文</option>
@@ -76,8 +85,19 @@ const I18N = {
   cat: { tagline: 'Nyaa?', back: 'Nyaa...', foot: 'Nyaa.' }
 };
 
-let currentLang = localStorage.getItem('momoLang') || 'ja';
-if (!['ja','en','zh','cat'].includes(currentLang)) currentLang = 'ja';
+const SUPPORTED_LANGS = ['ja','en','zh','cat'];
+const LANG_APP_ID = 'logue';
+function _langDetectFallback(){
+  try{ const list=(navigator.languages&&navigator.languages.length)?navigator.languages:[navigator.language||'en'];
+    for(let i=0;i<list.length;i++){ const l=(list[i]||'').toLowerCase();
+      if(l.indexOf('ja')===0)return'ja'; if(l.indexOf('zh')===0)return'zh'; if(l.indexOf('en')===0)return'en'; }
+    return'en';
+  }catch(e){return'ja';}
+}
+let langMode    = window.MomoLang ? MomoLang.getMode(LANG_APP_ID) : 'auto';
+let currentLang = window.MomoLang ? MomoLang.resolve(LANG_APP_ID)
+                : (langMode==='auto' ? _langDetectFallback()
+                   : (SUPPORTED_LANGS.includes(langMode) ? langMode : _langDetectFallback()));
 
 function render() {
   const d = I18N[currentLang] || I18N.ja;
@@ -97,18 +117,20 @@ function render() {
     const li = document.createElement('li');
     li.className = 'entry-item';
     let title = (currentLang === 'cat') ? 'にゃあ' : (e[currentLang] || e.ja);
-    const url = `./entries/${e.id}/` + (currentLang === 'ja' ? '' : `?lang=${currentLang}`);
+    const url = `./entries/${e.id}/`;
     li.innerHTML = `<a class="entry-link" href="${url}"><span class="entry-num">${e.id}</span><span class="entry-title">${title}</span><span class="entry-date">${e.date}</span></a>`;
     ul.appendChild(li);
   });
 
   const sel = document.getElementById('lang-select');
-  if (sel) sel.value = currentLang;
+  if (sel) sel.value = langMode;
 }
 
-function onLangChange(l) {
-  currentLang = l;
-  localStorage.setItem('momoLang', l);
+function onLangChange(mode) {
+  langMode = mode;
+  currentLang = window.MomoLang ? MomoLang.setMode(LANG_APP_ID, mode)
+              : (mode === 'auto' ? _langDetectFallback()
+                 : (SUPPORTED_LANGS.includes(mode) ? mode : _langDetectFallback()));
   render();
 }
 

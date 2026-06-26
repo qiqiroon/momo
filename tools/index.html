@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
-<!-- MOMO Tools 内部バージョン: v1.13
+<!-- MOMO Tools 内部バージョン: v1.14
      変更履歴:
        v1.11 - MOMO Lyrics カードを追加
        v1.12 - MOMO Explorer カードを追加、猫語(CAT)対応、言語切替をプルダウンに変更
-       v1.13 - MOMO Noise カードを追加、カードをカテゴリ別に分類、NEWバッジを削除、対象機種を追加 -->
+       v1.13 - MOMO Noise カードを追加、カードをカテゴリ別に分類、NEWバッジを削除、対象機種を追加
+       v1.14 - 言語切替を共通ライブラリ momo-lang(案件⑦)を呼ぶ形に書き換え。Auto(端末言語)モードを追加 -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -207,6 +208,24 @@
       min-height: 1em;
     }
     .card-subtitle.zh-subtitle { letter-spacing: 0; font-family: 'Fredoka One','Noto Sans JP',sans-serif; }
+    /* アイコン横並びヘッダー (各アプリのヘッダー = アイコン + タイトル/サブタイトル に合わせる) */
+    .card-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .card-icon {
+      width: 46px;
+      height: auto;
+      flex-shrink: 0;
+      display: block;
+      border-radius: 9px;
+    }
+    .card-headtext {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
     .card-desc {
       font-size: 13px;
       color: var(--text-muted);
@@ -302,16 +321,18 @@
       to   { opacity: 1; transform: translateY(0); }
     }
   </style>
+<script src="/momo/lib/momo-lang/momo-lang.js"></script>
 <script src="/momo/lib/momo-analytics.js" defer></script>
 </head>
 <body>
 
 <div id="lang-switcher">
-  <select id="lang-select" onchange="onLangChange(this.value)">
+  <select id="lang-select" class="lang-select" onchange="onLangChange(this.value)">
+    <option value="auto">Auto</option>
     <option value="ja">日本語</option>
     <option value="en">EN</option>
     <option value="zh">中文</option>
-    <option value="cat">CAT 🐱</option>
+    <option value="cat">CAT</option>
   </select>
 </div>
 
@@ -367,11 +388,13 @@
 
       <!-- MOMO Links card -->
       <a class="tool-card" href="links/" style="animation-delay:0.30s">
-        <div class="card-top">
-          <span class="badge">🔖</span>
+        <div class="card-head">
+          <img class="card-icon" src="links/favicon.svg" alt="" aria-hidden="true">
+          <div class="card-headtext">
+            <div class="card-title">MOMO <span style="color:var(--orange);">Links</span></div>
+            <div class="card-subtitle" id="links-subtitle">Tab-Based Bookmark Manager</div>
+          </div>
         </div>
-        <div class="card-title">MOMO <span style="color:var(--orange);">Links</span></div>
-        <div class="card-subtitle" id="links-subtitle">Tab-Based Bookmark Manager</div>
         <p class="card-desc" id="links-desc">タグで整理するブックマーク管理ツール。データはあなたのブラウザにのみ保存されます。</p>
         <div class="card-meta">
           <span class="meta-tag" id="links-meta1">🔖 ブックマーク</span>
@@ -387,11 +410,13 @@
 
       <!-- MOMO Explorer card -->
       <a class="tool-card" href="explorer/" style="animation-delay:0.38s">
-        <div class="card-top">
-          <span class="badge">📁</span>
+        <div class="card-head">
+          <img class="card-icon" src="explorer/favicon.svg" alt="" aria-hidden="true">
+          <div class="card-headtext">
+            <div class="card-title">MOMO <span style="color:var(--orange);">Explorer</span></div>
+            <div class="card-subtitle" id="explorer-subtitle">Unified Multi-Storage Explorer</div>
+          </div>
         </div>
-        <div class="card-title">MOMO <span style="color:var(--orange);">Explorer</span></div>
-        <div class="card-subtitle" id="explorer-subtitle">Unified Multi-Storage Explorer</div>
         <p class="card-desc" id="explorer-desc">GitHub・ローカルストレージ・Google Drive 間でファイルの移動・コピー・削除・サブフォルダ作成ができるファイルエクスプローラーです。</p>
         <div class="card-meta">
           <span class="meta-tag" id="explorer-meta1">📁 ファイル管理</span>
@@ -415,11 +440,13 @@
 
       <!-- MOMO Player card -->
       <a class="tool-card" href="player/" style="animation-delay:0.46s">
-        <div class="card-top">
-          <span class="badge">🎧</span>
+        <div class="card-head">
+          <img class="card-icon" src="player/favicon.svg" alt="" aria-hidden="true">
+          <div class="card-headtext">
+            <div class="card-title">MOMO <span style="color:var(--orange);">Player</span></div>
+            <div class="card-subtitle" id="player-subtitle">HDD-Bound Music Player</div>
+          </div>
         </div>
-        <div class="card-title">MOMO <span style="color:var(--orange);">Player</span></div>
-        <div class="card-subtitle" id="player-subtitle">HDD-Bound Music Player</div>
         <p class="card-desc" id="player-desc">ローカルの音楽ファイルをブラウザで再生できる高機能プレイヤー。NASやフォルダをライブラリ管理でき、アーティスト・アルバム・プレイリストに対応。</p>
         <div class="card-meta">
           <span class="meta-tag" id="player-meta1">🎧 音楽プレイヤー</span>
@@ -433,11 +460,13 @@
 
       <!-- MOMO Lyrics card -->
       <a class="tool-card" href="lyrics/" style="animation-delay:0.54s">
-        <div class="card-top">
-          <span class="badge">🎵</span>
+        <div class="card-head">
+          <img class="card-icon" src="lyrics/favicon.svg" alt="" aria-hidden="true">
+          <div class="card-headtext">
+            <div class="card-title">MOMO <span style="color:var(--orange);">Lyrics</span></div>
+            <div class="card-subtitle" id="lyrics-subtitle">Lyric Meta-Data Manager</div>
+          </div>
         </div>
-        <div class="card-title">MOMO <span style="color:var(--orange);">Lyrics</span></div>
-        <div class="card-subtitle" id="lyrics-subtitle">Lyric Meta-Data Manager</div>
         <p class="card-desc" id="lyrics-desc">音楽ファイルに合う歌詞を自動で保存するツールです。フォルダ内の曲をまとめて処理したり、好きな曲を検索して保存したりできます。</p>
         <div class="card-meta">
           <span class="meta-tag" id="lyrics-meta1">🎵 歌詞を見つける</span>
@@ -451,11 +480,13 @@
 
       <!-- MOMO Karaoke card (v2.18 で追加)。 工事中表示 (リンクは機能する) -->
       <a class="tool-card card-wip" href="karaoke/" style="animation-delay:0.58s">
-        <div class="card-top">
-          <span class="badge">🎤</span>
+        <div class="card-head">
+          <img class="card-icon" src="karaoke/favicon.svg" alt="" aria-hidden="true">
+          <div class="card-headtext">
+            <div class="card-title">MOMO <span style="color:var(--orange);">Karaoke</span></div>
+            <div class="card-subtitle" id="karaoke-subtitle">Sing With Lyrics</div>
+          </div>
         </div>
-        <div class="card-title">MOMO <span style="color:var(--orange);">Karaoke</span></div>
-        <div class="card-subtitle" id="karaoke-subtitle">Sing With Lyrics</div>
         <p class="card-desc" id="karaoke-desc">音楽ファイルと .lrc 歌詞を同期表示するブラウザカラオケ。 ローカルファイルをそのまま読み込み、 歌詞と一緒に歌える。</p>
         <div class="card-meta">
           <span class="meta-tag" id="karaoke-meta1">🎤 カラオケ</span>
@@ -477,11 +508,13 @@
 
       <!-- MOMO Noise card -->
       <a class="tool-card" href="./noise/" style="animation-delay:0.62s">
-        <div class="card-top">
-          <span class="badge">🔊</span>
+        <div class="card-head">
+          <img class="card-icon" src="./noise/favicon.svg" alt="" aria-hidden="true">
+          <div class="card-headtext">
+            <div class="card-title">MOMO <span style="color:var(--orange);">Noise</span></div>
+            <div class="card-subtitle" id="noise-subtitle">Recording & Clipping Noise Maker</div>
+          </div>
         </div>
-        <div class="card-title">MOMO <span style="color:var(--orange);">Noise</span></div>
-        <div class="card-subtitle" id="noise-subtitle">Recording & Clipping Noise Maker</div>
         <p class="card-desc" id="noise-desc">ボタンに音声をアサインして即座に再生できるサウンドパッド。複数音の同時再生、録音、リズムシンク機能付き。</p>
         <div class="card-meta">
           <span class="meta-tag" id="noise-meta1">🔊 サウンドパッド</span>
@@ -652,14 +685,22 @@
     },
   };
 
+  // 案件⑦: 言語の「判定 / モード取得 / 切替(保存ルール)」は共通ルーチン MomoLang(/momo/lib/momo-lang/momo-lang.js)に集約。
+  //  ここはその呼び出し側。MomoLang未ロード時(file://やネット不通)に備え最小限のfallbackだけ持つ。
+  const SUPPORTED_LANGS = ['ja','en','zh','cat'];
+  const LANG_APP_ID = 'tools-top';
+  function _langDetectFallback(){
+    try{ const list=(navigator.languages&&navigator.languages.length)?navigator.languages:[navigator.language||'en'];
+      for(let i=0;i<list.length;i++){ const l=(list[i]||'').toLowerCase();
+        if(l.indexOf('ja')===0)return'ja'; if(l.indexOf('zh')===0)return'zh'; if(l.indexOf('en')===0)return'en'; }
+      return'en';
+    }catch(e){return'ja';}
+  }
   let catBase = 'ja';
-
-  let currentLang = (() => {
-    try {
-      const v = localStorage.getItem('momoLang');
-      return ['ja','en','zh','cat'].includes(v) ? v : 'ja';
-    } catch(e) { return 'ja'; }
-  })();
+  let langMode    = window.MomoLang ? MomoLang.getMode(LANG_APP_ID) : 'auto';
+  let currentLang = window.MomoLang ? MomoLang.resolve(LANG_APP_ID)
+                  : (langMode==='auto' ? _langDetectFallback()
+                     : (SUPPORTED_LANGS.includes(langMode) ? langMode : _langDetectFallback()));
 
   function catSpeak(key) {
     const errorKeys = ['pwError','noRoomError','fullRoomError','kicked','createErrorEmpty','privateIdRequired'];
@@ -744,15 +785,19 @@
       el.classList.toggle('zh-subtitle', subtitleLang === 'zh');
     });
     document.getElementById('footer-back').textContent      = t('footerBack');
-    const sel = document.getElementById('lang-select');
-    if (sel) sel.value = currentLang;
+    document.querySelectorAll('.lang-select').forEach(s => s.value = langMode);
     document.documentElement.lang = currentLang === 'zh' ? 'zh-Hans' : (currentLang === 'cat' ? catBase : currentLang);
   }
 
-  function onLangChange(lang) {
-    if (lang === 'cat') catBase = currentLang === 'cat' ? catBase : currentLang;
-    currentLang = lang;
-    try { localStorage.setItem('momoLang', lang); } catch(e) {}
+  function onLangChange(mode) {
+    // 案件⑦: mode = auto/ja/en/zh/cat。保存ルール(ローカルモード+明示のみ共有momoLang)は共通ルーチンに委譲。
+    //  catBase / applyLang はアプリ固有なのでここで扱う。
+    if (mode === 'cat' && currentLang !== 'cat') catBase = currentLang;
+    langMode = mode;
+    currentLang = window.MomoLang ? MomoLang.setMode(LANG_APP_ID, mode)
+                : (mode==='auto' ? _langDetectFallback()
+                   : (SUPPORTED_LANGS.includes(mode) ? mode : _langDetectFallback()));
+    document.querySelectorAll('.lang-select').forEach(s => s.value = mode);
     applyLang();
   }
 

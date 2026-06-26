@@ -7,7 +7,7 @@
 <!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
 
 <!-- ============================================================
-  MOMO Works TOP  内部バージョン: v1.03
+  MOMO Works TOP  内部バージョン: v1.04
   変更履歴:
     v1.01 - 利用規約ページ（terms.html）へのリンクをCONTENTS上に追加
             リンク文言は3言語対応（I18N.tosNotice キー参照）
@@ -15,6 +15,10 @@
     v1.03 - MOMO Logue へのリンクをページ下部に追加（左寄せ・目立たない文字リンク）
             言語切り替えをボタン列からプルダウンに変更（cat-lang-spec v1.0 準拠）
             CAT（猫語）モード追加
+    v1.04 - 言語選択を共通ライブラリ momo-lang に移行（案件⑦）。
+            Auto モード追加（端末言語を自動判定）、起動の読み元を
+            アプリ別ローカルモードに、明示選択のみ共有 momoLang へ。
+            参考実装: tools/links/index.html
   ============================================================ -->
 
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
@@ -334,12 +338,14 @@
     to   { opacity: 1; transform: translateY(0); }
   }
 </style>
+<script src="/momo/lib/momo-lang/momo-lang.js"></script>
 <script src="/momo/lib/momo-analytics.js" defer></script>
 </head>
 <body>
 
 <div id="lang-switcher">
-  <select id="lang-select" onchange="onLangChange(this.value)">
+  <select id="lang-select" class="lang-select" onchange="onLangChange(this.value)">
+    <option value="auto">Auto</option>
     <option value="ja">日本語</option>
     <option value="en">EN</option>
     <option value="zh">中文</option>
@@ -428,7 +434,7 @@
 
 <script>
 /* ── 内部バージョン（表示なし・管理用） ── */
-const SITE_VERSION = 'v1.03';
+const SITE_VERSION = 'v1.04';
 
 const I18N = {
   ja: {
@@ -494,12 +500,21 @@ function t(key) {
   return (I18N[currentLang] || I18N.ja)[key] || I18N.ja[key] || key;
 }
 
-let currentLang = (() => {
-  try {
-    const v = localStorage.getItem('momoLang');
-    return ['ja','en','zh','cat'].includes(v) ? v : 'ja';
-  } catch(e) { return 'ja'; }
-})();
+// 案件⑦: 言語の「判定 / モード取得 / 切替(保存ルール)」は共通ルーチン MomoLang(/momo/lib/momo-lang/momo-lang.js)に集約。
+//  ここはその呼び出し側。MomoLang未ロード時(file://やネット不通)に備え最小限のfallbackだけ持つ。
+const SUPPORTED_LANGS = ['ja','en','zh','cat'];
+const LANG_APP_ID = 'works-top';
+function _langDetectFallback(){
+  try{ const list=(navigator.languages&&navigator.languages.length)?navigator.languages:[navigator.language||'en'];
+    for(let i=0;i<list.length;i++){ const l=(list[i]||'').toLowerCase();
+      if(l.indexOf('ja')===0)return'ja'; if(l.indexOf('zh')===0)return'zh'; if(l.indexOf('en')===0)return'en'; }
+    return'en';
+  }catch(e){return'ja';}
+}
+let langMode    = window.MomoLang ? MomoLang.getMode(LANG_APP_ID) : 'auto';
+let currentLang = window.MomoLang ? MomoLang.resolve(LANG_APP_ID)
+                : (langMode==='auto' ? _langDetectFallback()
+                   : (SUPPORTED_LANGS.includes(langMode) ? langMode : _langDetectFallback()));
 
 function applyLang() {
   const d = I18N[currentLang] || I18N.ja;
@@ -524,15 +539,17 @@ function applyLang() {
     document.getElementById('logue-link').textContent  = d.logueLink;
     document.getElementById('logue-sub').textContent   = d.logueSub;
   }
-  const sel = document.getElementById('lang-select');
-  if (sel) sel.value = currentLang;
+  document.querySelectorAll('.lang-select').forEach(s => s.value = langMode);  // ★langMode を表示（autoのときAuto）
   document.documentElement.lang = currentLang === 'zh' ? 'zh-Hans' : (currentLang === 'cat' ? catBase : currentLang);
 }
 
-function onLangChange(lang) {
-  if (lang === 'cat') catBase = currentLang;
-  currentLang = lang;
-  try { localStorage.setItem('momoLang', lang); } catch(e) {}
+function onLangChange(mode) {
+  // mode = auto/ja/en/zh/cat。保存ルール(ローカルモード+明示のみ共有)は共通ルーチンに委譲。
+  if (mode === 'cat' && currentLang !== 'cat') catBase = currentLang;   // catBaseはアプリ固有
+  langMode = mode;
+  currentLang = window.MomoLang ? MomoLang.setMode(LANG_APP_ID, mode)
+              : (mode === 'auto' ? _langDetectFallback()
+                 : (SUPPORTED_LANGS.includes(mode) ? mode : _langDetectFallback()));
   applyLang();
 }
 

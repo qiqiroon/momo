@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
-<!-- MOMO Explorer v1.11 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -9,6 +8,10 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>MOMO Explorer</title>
+<!-- ★バージョン正本（唯一）: 画面の版表示もこの値を読む -->
+<script>window.APP_VERSION = "2.01";</script>
+<!-- 共通言語ライブラリ momo-lang（読み込むだけ・変更しない / defer不可・本体スクリプトより前） -->
+<script src="/momo/lib/momo-lang/momo-lang.js"></script>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="icon" type="image/x-icon" href="favicon.ico">
@@ -30,7 +33,7 @@
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 /* =====================================================
-   MOMO Explorer v1.01 — スタイルシート
+   MOMO Explorer — スタイルシート
    テーマ: レトロOS風ユーティリティ × モダンクリーン
    ===================================================== */
 
@@ -785,7 +788,7 @@ html, body {
         </g>
       </svg>
       <span class="logo-text">
-        <span class="logo-title">MOMO <span class="brand-link">Explorer</span><span class="ver" id="ver-label">v2.00</span></span>
+        <span class="logo-title">MOMO <span class="brand-link">Explorer</span><span class="ver" id="ver-label"></span></span>
         <span class="logo-sub" id="logoSub">Unified Multi-Storage Explorer</span>
       </span>
     </span>
@@ -796,6 +799,7 @@ html, body {
     </div>
     <div id="lang-switcher">
       <select id="lang-select" onchange="onLangChange(this.value)">
+        <option value="auto">Auto</option>
         <option value="ja">日本語</option>
         <option value="en">EN</option>
         <option value="zh">中文</option>
@@ -896,10 +900,8 @@ html, body {
 
 <script>
 /* =====================================================
-   MOMO Explorer v1.01 — メインスクリプト
+   MOMO Explorer — メインスクリプト
    ===================================================== */
-
-const VERSION = "1.11";
 
 // ── FSA対応チェック（iOS判定） ────────────────────────
 const hasFSA = typeof window.showDirectoryPicker === 'function' ||
@@ -3080,15 +3082,23 @@ const I18N = {
 };
 
 // ── 猫語ステート ────────────────────────────────────
-let catBase = 'ja';
+let catBase = 'ja';   // CATの基準言語（cat選択直前の言語を覚える。アプリ固有）
 
-// ── 現在の言語 ──────────────────────────────────────
-let currentLang = (() => {
-  try {
-    const v = localStorage.getItem('momoLang');
-    return ['ja','en','zh','cat'].includes(v) ? v : 'ja';
-  } catch(e) { return 'ja'; }
-})();
+// ── 現在の言語（案件⑦: 判定/モード/保存は共通ルーチン MomoLang に委譲）──
+//  ここは呼び出し側。MomoLang 未ロード時(file://やネット不通)に備え最小fallbackのみ持つ。
+const SUPPORTED_LANGS = ['ja','en','zh','cat'];
+const LANG_APP_ID = 'explorer';
+function _langDetectFallback(){
+  try{ const list=(navigator.languages&&navigator.languages.length)?navigator.languages:[navigator.language||'en'];
+    for(let i=0;i<list.length;i++){ const l=(list[i]||'').toLowerCase();
+      if(l.indexOf('ja')===0)return'ja'; if(l.indexOf('zh')===0)return'zh'; if(l.indexOf('en')===0)return'en'; }
+    return'en';
+  }catch(e){return'ja';}
+}
+let langMode    = window.MomoLang ? MomoLang.getMode(LANG_APP_ID) : 'auto';
+let currentLang = window.MomoLang ? MomoLang.resolve(LANG_APP_ID)
+                : (langMode==='auto' ? _langDetectFallback()
+                   : (SUPPORTED_LANGS.includes(langMode) ? langMode : _langDetectFallback()));
 
 // ── 猫語生成 ────────────────────────────────────────
 function catSpeak(key) {
@@ -3124,9 +3134,9 @@ function t(key) {
 function applyLang() {
   // html lang属性
   document.documentElement.lang = currentLang === 'zh' ? 'zh-Hans' : (currentLang === 'cat' ? 'ja' : currentLang);
-  // select同期
+  // select同期（autoのとき「Auto」を表示するため langMode を反映）
   const sel = document.getElementById('lang-select');
-  if (sel) sel.value = currentLang;
+  if (sel) sel.value = langMode;
   // v2.00: ロゴ下サブタイトル (cat 時は catBase 言語)
   const subEl = document.getElementById('logoSub');
   if (subEl) {
@@ -3183,16 +3193,24 @@ function applyLang() {
   ['github', 'disk', 'gdrive'].forEach(id => updateTreeBadge(id));
 }
 
-// ── 言語切り替えハンドラ ─────────────────────────────
-function onLangChange(lang) {
-  if (lang === 'cat') catBase = currentLang === 'cat' ? catBase : currentLang;
-  currentLang = lang;
-  try { localStorage.setItem('momoLang', lang); } catch(e) {}
+// ── 言語切り替えハンドラ（保存ルールは共通ルーチン MomoLang に委譲）──
+function onLangChange(mode) {
+  // mode = auto/ja/en/zh/cat
+  if (mode === 'cat' && currentLang !== 'cat') catBase = currentLang;   // catBaseはアプリ固有
+  langMode = mode;
+  currentLang = window.MomoLang ? MomoLang.setMode(LANG_APP_ID, mode)
+              : (mode==='auto' ? _langDetectFallback()
+                 : (SUPPORTED_LANGS.includes(mode) ? mode : _langDetectFallback()));
+  const sel = document.getElementById('lang-select');
+  if (sel) sel.value = mode;
   applyLang();
 }
 
 // ── エントリポイント ──────────────────────────────────
 (async function main() {
+  // 版表示（唯一の正本 window.APP_VERSION を画面に反映）
+  const _verEl = document.getElementById('ver-label');
+  if (_verEl) _verEl.textContent = 'v' + (window.APP_VERSION || '');
   // 言語を即時適用
   applyLang();
   // Pyodide CDN スクリプトを動的ロード

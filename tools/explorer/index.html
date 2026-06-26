@@ -9,7 +9,7 @@
 <meta http-equiv="Expires" content="0">
 <title>MOMO Explorer</title>
 <!-- ★バージョン正本（唯一）: 画面の版表示もこの値を読む -->
-<script>window.APP_VERSION = "2.01";</script>
+<script>window.APP_VERSION = "2.02";</script>
 <!-- 共通言語ライブラリ momo-lang（読み込むだけ・変更しない / defer不可・本体スクリプトより前） -->
 <script src="/momo/lib/momo-lang/momo-lang.js"></script>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
@@ -118,7 +118,7 @@ html, body {
   display: grid;
   grid-template-rows: var(--header-h) var(--addr-h) max-content var(--toolbar-h) 1fr;
   height: 100vh;
-  width: 100vw;
+  width: 100%;   /* 100vw だと縦スクロールバーの下に右端が潜るため 100%(中身幅)にする */
 }
 
 /* ── ヘッダー ── */

@@ -242,15 +242,38 @@
         return vocab[Math.floor(Math.random() * vocab.length)];
     }
 
-    // 現在言語（初期値は localStorage から復元）
-    MOMO.state.curLang = (() => {
-        try {
-            const v = localStorage.getItem('momoLang');
-            return ['ja', 'en', 'zh', 'cat'].includes(v) ? v : 'ja';
-        } catch (e) { return 'ja'; }
-    })();
+    // 案件⑦: 言語の「判定 / モード取得 / 切替(保存ルール)」は共通ルーチン MomoLang
+    // (/momo/lib/momo-lang/momo-lang.js) に集約。ここはその呼び出し側。
+    // MomoLang 未ロード時(file:// やネット不通)に備えた最小限の fallback だけ持つ。
+    const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
+    const LANG_APP_ID = 'lyrics';
 
-    // CATモード選択前の言語を記憶（語彙切替のベースに使用）
+    function _langDetectFallback() {
+        try {
+            const list = (navigator.languages && navigator.languages.length)
+                ? navigator.languages
+                : [navigator.language || 'en'];
+            for (let i = 0; i < list.length; i++) {
+                const l = (list[i] || '').toLowerCase();
+                if (l.indexOf('ja') === 0) return 'ja';
+                if (l.indexOf('zh') === 0) return 'zh';
+                if (l.indexOf('en') === 0) return 'en';
+            }
+            return 'en';
+        } catch (e) { return 'ja'; }
+    }
+
+    // 言語モード(auto/ja/en/zh/cat) と 表示言語(ja/en/zh/cat) を分けて保持
+    MOMO.state.langMode = window.MomoLang
+        ? MomoLang.getMode(LANG_APP_ID)
+        : 'auto';
+    MOMO.state.curLang = window.MomoLang
+        ? MomoLang.resolve(LANG_APP_ID)
+        : (MOMO.state.langMode === 'auto'
+            ? _langDetectFallback()
+            : (SUPPORTED_LANGS.includes(MOMO.state.langMode) ? MOMO.state.langMode : _langDetectFallback()));
+
+    // CATモード選択前の言語を記憶（語彙切替のベースに使用） — アプリ固有
     MOMO.state.catBase = (() => {
         try {
             const b = localStorage.getItem('momoCatBase');
@@ -336,9 +359,10 @@
         setText('footGames', d.footGames);
         setText('footTools', d.footTools);
 
-        // select の value を現在言語に合わせる
-        const sel = document.getElementById('lang-select');
-        if (sel) sel.value = MOMO.state.curLang;
+        // 案件⑦: select の value は langMode (auto を含む) に合わせる
+        document.querySelectorAll('.lang-select').forEach(s => {
+            s.value = MOMO.state.langMode;
+        });
 
         // html lang 属性を更新（アクセシビリティ）
         document.documentElement.lang =
@@ -359,15 +383,22 @@
     }
 
     // 言語切替ハンドラ（<select> からも app.js からも使う想定）
-    function setLang(lang) {
-        if (!['ja', 'en', 'zh', 'cat'].includes(lang)) return;
+    // 案件⑦: mode = auto/ja/en/zh/cat。保存ルール(ローカルモード+明示のみ共有 momoLang)
+    // は共通ルーチン MomoLang に委譲。catBase / apply はアプリ固有なのでここで扱う。
+    function setLang(mode) {
+        const MODES = ['auto', 'ja', 'en', 'zh', 'cat'];
+        if (!MODES.includes(mode)) return;
         // CAT 選択時は直前言語を catBase に保存
-        if (lang === 'cat' && MOMO.state.curLang !== 'cat') {
+        if (mode === 'cat' && MOMO.state.curLang !== 'cat') {
             MOMO.state.catBase = MOMO.state.curLang;
             try { localStorage.setItem('momoCatBase', MOMO.state.catBase); } catch (e) {}
         }
-        MOMO.state.curLang = lang;
-        try { localStorage.setItem('momoLang', lang); } catch (e) {}
+        MOMO.state.langMode = mode;
+        MOMO.state.curLang = window.MomoLang
+            ? MomoLang.setMode(LANG_APP_ID, mode)
+            : (mode === 'auto'
+                ? _langDetectFallback()
+                : (SUPPORTED_LANGS.includes(mode) ? mode : _langDetectFallback()));
         apply();
     }
 

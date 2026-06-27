@@ -1,7 +1,11 @@
 <!DOCTYPE html>
 <!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
-<!-- MOMO Lyrics 内部バージョン: v2.00
+<!-- MOMO Lyrics 内部バージョン: v2.01
      変更履歴:
+       v2.01 - 案件⑦: 言語選択を共通ライブラリ momo-lang に切替
+               (auto/ja/en/zh/cat の auto を追加、appId=lyrics、langModeをローカル保存、
+                明示選択時のみ共有 momoLang に書き込み)
+       v2.00 - Phase 2/3 仕上げ (ヘッダー統一・サブタイトル・favicon更新)
        v1.01 - 待機メッセージ・初期メッセージの3言語対応、folderLabel/searchLabelの多言語化、バージョン表示追加
        v1.10 - プレイモード追加(要件4)、既存LRCスキップ(要件1)、0秒情報追加(要件2)、プレビュー(要件3)、
                オフセット調整と保存(要件5)、txt→TAP(要件6)、書き戻し(要件7)、4言語対応(ja/en/zh/cat)
@@ -89,11 +93,13 @@
     <link rel="stylesheet" href="css/momo_lyrics.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
 <script src="/momo/lib/momo-analytics.js" defer></script>
+<script src="/momo/lib/momo-lang/momo-lang.js"></script>
 </head>
 <body>
 
 <div id="lang-switcher">
-    <select id="lang-select">
+    <select id="lang-select" class="lang-select">
+        <option value="auto">Auto</option>
         <option value="ja">日本語</option>
         <option value="en">EN</option>
         <option value="zh">中文</option>
@@ -143,7 +149,7 @@
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="lyrics">Lyrics</span>
-                <span class="version-tag" id="version-tag">v2.00</span>
+                <span class="version-tag" id="version-tag">v2.01</span>
             </h1>
             <div class="subtitle" id="header-sub">Lyric Meta-Data Manager</div>
         </div>

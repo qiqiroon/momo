@@ -66,7 +66,8 @@ MOMO.app = (function () {
     function initLangSwitcher() {
         const sel = document.getElementById('lang-select');
         if (!sel) return;
-        sel.value = MOMO.state.curLang;
+        // 案件⑦: select は langMode (auto を含む) を表示
+        sel.value = MOMO.state.langMode;
         sel.addEventListener('change', (e) => {
             MOMO.i18n.setLang(e.target.value);
         });

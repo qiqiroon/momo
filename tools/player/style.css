@@ -232,7 +232,8 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 
 /* v8: 追加タグ表示 */
 .meta-extra-row { font-size: 11px; color: var(--text-secondary); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* v8: 言語ボタン — V9e: 文字色を明るく / v10: 縦並びで文字コードも収容 */
-#lang-switcher { position: fixed; top: 8px; right: 12px; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; z-index: 200; }
+/* v12.02: right を 28px に — 縦スクロールバー(~16px)に被らないよう余白確保 */
+#lang-switcher { position: fixed; top: 8px; right: 28px; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; z-index: 200; }
 #lang-select {
   background: var(--surface2, var(--bg-card));
   border: 1px solid var(--border-strong);

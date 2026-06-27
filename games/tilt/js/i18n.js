@@ -159,13 +159,23 @@ const I18N = {
   },
 };
 
+// 案件⑦: 言語の「判定 / モード取得 / 切替(保存ルール)」は共通ルーチン MomoLang(/momo/lib/momo-lang/momo-lang.js)に集約。
+//  ここはその呼び出し側。MomoLang未ロード時(file://やネット不通)に備え最小限のfallbackだけ持つ。
+//  catBase / applyLang はアプリ固有なのでここで保持。
+const SUPPORTED_LANGS = ['ja','en','zh','cat'];
+const LANG_APP_ID = 'tilt';
+function _langDetectFallback(){
+  try{ const list=(navigator.languages&&navigator.languages.length)?navigator.languages:[navigator.language||'en'];
+    for(let i=0;i<list.length;i++){ const l=(list[i]||'').toLowerCase();
+      if(l.indexOf('ja')===0)return'ja'; if(l.indexOf('zh')===0)return'zh'; if(l.indexOf('en')===0)return'en'; }
+    return'en';
+  }catch(e){return'ja';}
+}
 let catBase = 'ja';
-let currentLang = (() => {
-  try {
-    const v = localStorage.getItem('momoLang');
-    return ['ja','en','zh','cat'].includes(v) ? v : 'ja';
-  } catch(e) { return 'ja'; }
-})();
+let langMode    = window.MomoLang ? MomoLang.getMode(LANG_APP_ID) : 'auto';
+let currentLang = window.MomoLang ? MomoLang.resolve(LANG_APP_ID)
+                : (langMode==='auto' ? _langDetectFallback()
+                   : (SUPPORTED_LANGS.includes(langMode) ? langMode : _langDetectFallback()));
 
 function catSpeak(key) {
   const calmKeys = ['calibOk', 'kbdMode', 'clearMsg', 'overMsg'];
@@ -191,9 +201,14 @@ function t(key) {
   return (I18N[currentLang] || I18N.ja)[key] ?? I18N.ja[key] ?? key;
 }
 
-function onLangChange(lang) {
-  if (lang === 'cat') catBase = (currentLang !== 'cat') ? currentLang : catBase;
-  currentLang = lang;
-  try { localStorage.setItem('momoLang', lang); } catch(e) {}
+function onLangChange(mode){
+  // 案件⑦: mode = auto/ja/en/zh/cat。保存ルール(ローカルモード+明示のみ共有momoLang)は共通ルーチンに委譲。
+  //  catBase / applyLang はアプリ固有なのでここで扱う。
+  if (mode === 'cat' && currentLang !== 'cat') catBase = currentLang;
+  langMode = mode;
+  currentLang = window.MomoLang ? MomoLang.setMode(LANG_APP_ID, mode)
+              : (mode === 'auto' ? _langDetectFallback()
+                 : (SUPPORTED_LANGS.includes(mode) ? mode : _langDetectFallback()));
+  document.querySelectorAll('.lang-select, #lang-select').forEach(s => s.value = mode);
   if (typeof applyLang === 'function') applyLang();
 }

@@ -25,10 +25,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#0a0a0a;--surface:#111;--surface2:#1a1a1a;--orange:#c2410c;--orangeL:#ea580c;--orangeB:#fb923c;--orange-dim:#7c2d12;--orange-pale:#431407;--text:#e5e5e5;--text-muted:#737373;--border:#2a2a2a;--border-strong:#444;--bg-selected:rgba(194,65,12,0.15);}
-#lang-switcher{position:fixed;top:8px;right:12px;display:flex;gap:4px;z-index:200;}
-.lang-btn{background:transparent;border:0.5px solid var(--border-strong);color:var(--text-muted);font-size:10px;padding:3px 7px;border-radius:4px;cursor:pointer;font-family:'Noto Sans JP',sans-serif;}
-.lang-btn:hover{color:var(--orangeL);border-color:var(--orange);}
-.lang-btn.active{color:var(--orangeL);border-color:var(--orange);background:var(--bg-selected);}
+#lang-switcher{position:fixed;top:8px;right:12px;z-index:200;}
+#lang-select{background:var(--surface2);border:1px solid var(--border-strong);color:var(--text);font-size:12px;padding:4px 8px;border-radius:4px;cursor:pointer;font-family:'Noto Sans JP',sans-serif;outline:none;}
+#lang-select:focus{border-color:var(--orange);}
 *{margin:0;padding:0;box-sizing:border-box;}
 body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;overflow-x:hidden;}
 body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:48px 48px;opacity:0.2;pointer-events:none;z-index:0;}
@@ -110,14 +109,19 @@ body.in-game .site-header h1{font-size:1.25rem;text-shadow:0 1px 4px rgba(0,0,0,
 body.in-game .site-footer{display:none;}
 @media (max-width:640px){.site-footer{padding:22px 16px 32px;}}
 </style>
+<script src="/momo/lib/momo-lang/momo-lang.js"></script>
 <script src="/momo/lib/momo-analytics.js" defer></script>
 </head>
 <body>
 
 <div id="lang-switcher">
-  <button class="lang-btn" data-lang="ja">日本語</button>
-  <button class="lang-btn" data-lang="en">EN</button>
-  <button class="lang-btn" data-lang="zh">中文</button>
+  <select id="lang-select" class="lang-select" onchange="onLangChange(this.value)">
+    <option value="auto">Auto</option>
+    <option value="ja">日本語</option>
+    <option value="en">EN</option>
+    <option value="zh">中文</option>
+    <option value="cat">CAT</option>
+  </select>
 </div>
 
 <!-- ── 共通ヘッダー (app-card-design v1.0 / v2.00 で適用) ── -->
@@ -166,7 +170,7 @@ body.in-game .site-footer{display:none;}
     </g>
   </svg>
   <div class="title-block">
-    <h1><span class="momo">MOMO</span><span class="hanoi">Hanoi</span><span class="version-tag" id="version-tag">v2.00</span></h1>
+    <h1><span class="momo">MOMO</span><span class="hanoi">Hanoi</span><span class="version-tag" id="version-tag">v2.01</span></h1>
     <div class="subtitle" id="subtitle">Tower Defence of Hanoi</div>
   </div>
 </header>
@@ -347,7 +351,7 @@ function addRanking(name,sc,diff){
 }
 function renderRanking(el){
   const r=getRanking();
-  if(!r.length){el.innerHTML='<div class="ranking-header">🏆 Hall of Fame</div><div class="ranking-empty">まだ記録がありません</div>';return;}
+  if(!r.length){el.innerHTML='<div class="ranking-header">🏆 Hall of Fame</div><div class="ranking-empty">'+t('rankingEmpty')+'</div>';return;}
   let html='<div class="ranking-header">🏆 Hall of Fame</div>';
   r.slice(0,8).forEach((row,i)=>{
     const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1+'';
@@ -397,11 +401,11 @@ function updateHUD(){
 
 function updateHint(){
   const el=document.getElementById('moveHint');
-  if(selectedPole===-1){el.innerHTML='柱をクリックして<span>移動元</span>を選択';return;}
+  if(selectedPole===-1){el.innerHTML=t('moveHint');return;}
   const top=poles[selectedPole].at(-1);
   if(top!==undefined)
-    el.innerHTML=`柱${selectedPole+1}の円盤<span>${top}</span>を選択中 → <span>移動先の柱</span>をクリック`;
-  else{selectedPole=-1;el.innerHTML='柱をクリックして<span>移動元</span>を選択';}
+    el.innerHTML=t('moveHintSelected',{pole:selectedPole+1,disc:top});
+  else{selectedPole=-1;el.innerHTML=t('moveHint');}
 }
 
 // ── MOVE ──
@@ -411,7 +415,7 @@ function tryMove(fromPole, toPole){
 
   // RULE: swap禁止 A→B中にB→Aは不可
   if(isSwap(fromPole, toPole)){
-    flashHint('その方向はスワップ禁止です');
+    flashHint(t('swapBan'));
     selectedPole=-1; updateHint(); return;
   }
 
@@ -475,11 +479,17 @@ function endGame(won){
   const timeBonus=won?Math.round(Math.max(0,3000-Math.floor(elapsed/1000))*5*mult):0;
   const hpBonus=Math.round(Math.floor(hp)*20*mult);
   const finalScore=score+timeBonus+hpBonus;
-  document.getElementById('resultTitle').textContent=won?'CLEAR!':'GAME OVER';
+  document.getElementById('resultTitle').textContent=won?t('resultClear'):t('resultGameOver');
   document.getElementById('resultTitle').style.color=won?'#fb923c':'#737373';
-  document.getElementById('resultSub').textContent=won?'全円盤をゴール柱へ移動完了！':'HPが0になりました。';
+  document.getElementById('resultSub').textContent=won?t('endClearMsg'):t('endGameOverMsg');
   document.getElementById('resultScore').textContent=finalScore.toLocaleString();
-  document.getElementById('resultDetail').textContent=`撃墜 ${kills} × ${Math.round(cfg.discs*100*mult)} + HP残${Math.floor(hp)} × ${20*mult}`+(won?` + タイムボーナス ${timeBonus}`:'')+(mult>1?` [×${mult}倍]`:'');
+  const _per=Math.round(cfg.discs*100*mult);
+  const _hpLeft=Math.floor(hp);
+  const _hpMul=20*mult;
+  document.getElementById('resultDetail').textContent=
+    t('endKillsTpl',{kills:kills,per:_per})+' + '+t('endHpLeftTpl',{hp:_hpLeft,m:_hpMul})
+    +(won?t('endTimeBonusTpl',{n:timeBonus}):'')
+    +(mult>1?t('endMultiplierTpl',{n:mult}):'');
   score=finalScore;
   renderRanking(document.getElementById('resultRanking'));
   showScreen('result');
@@ -534,7 +544,7 @@ function draw(){
     ctx.fillStyle='#737373';ctx.beginPath();ctx.arc(px,ptop,POLE_W*0.8,0,Math.PI*2);ctx.fill();
     // label
     ctx.fillStyle='#a3a3a3';ctx.font='11px Noto Sans JP';ctx.textAlign='center';
-    ctx.fillText(`柱${i+1}`,px,py+20);
+    ctx.fillText(t('poleLabel',{n:i+1}),px,py+20);
     if(i===goalPole){
       ctx.fillStyle='#ea580c';
       ctx.font='bold 18px Fredoka One, cursive';
@@ -755,21 +765,18 @@ document.getElementById('startBtn').addEventListener('click',()=>{
 document.getElementById('retryBtn').addEventListener('click',()=>{
   showScreen('title');gameState='title';
   renderRanking(document.getElementById('titleRanking'));
-  document.getElementById('saveBtn').textContent='登録';
+  document.getElementById('saveBtn').textContent=t('saveBtn');
   document.getElementById('saveBtn').disabled=false;
 });
 document.getElementById('saveBtn').addEventListener('click',()=>{
-  const d = I18N_HANOI[currentLang]||I18N_HANOI.ja;
-  const name=document.getElementById('nameInput').value.trim()||(currentLang==='en'?'Anonymous':currentLang==='zh'?'无名':' 名無し');
+  const name=document.getElementById('nameInput').value.trim()||t('nameDefault');
   addRanking(name,score,cfg.label);
   renderRanking(document.getElementById('resultRanking'));
-  document.getElementById('saveBtn').textContent=d.saveBtnDone;
+  document.getElementById('saveBtn').textContent=t('saveBtnDone');
   document.getElementById('saveBtn').disabled=true;
 });
 
-renderRanking(document.getElementById('titleRanking'));
-
-// ── 多言語対応 ──
+// ── 多言語対応 (ja/en/zh/cat) + 共通ライブラリ momo-lang 連携 ──
 const I18N_HANOI = {
   ja: {
     subtitleText: 'Tower Defence of Hanoi',
@@ -784,7 +791,7 @@ const I18N_HANOI = {
     rule6: '・砲弾が移動中の円盤に当たると爆発、円盤は出発地点へ戻る',
     rule7: '・UFOの爆弾が地面HPを削る。0でゲームオーバー',
     rankingEmpty: 'まだ記録がありません',
-    moveHint: '柱をクリックして移動元を選択',
+    moveHint: '柱をクリックして<span>移動元</span>を選択',
     nameInputPlaceholder: '名前を入力してランキング登録',
     saveBtn: '登録', saveBtnDone: '登録済み',
     retryBtn: 'もう一度',
@@ -793,6 +800,18 @@ const I18N_HANOI = {
     footTop: 'MOMO Works トップ',
     footGames: 'ゲーム一覧',
     footTools: 'ツール一覧',
+    poleLabel: '柱{n}',
+    moveHintSelected: '柱{pole}の円盤<span>{disc}</span>を選択中 → <span>移動先の柱</span>をクリック',
+    swapBan: 'その方向はスワップ禁止です',
+    resultClear: 'CLEAR!',
+    resultGameOver: 'GAME OVER',
+    endClearMsg: '全円盤をゴール柱へ移動完了！',
+    endGameOverMsg: 'HPが0になりました。',
+    endKillsTpl: '撃墜 {kills} × {per}',
+    endHpLeftTpl: 'HP残{hp} × {m}',
+    endTimeBonusTpl: ' + タイムボーナス {n}',
+    endMultiplierTpl: ' [×{n}倍]',
+    nameDefault: '名無し',
   },
   en: {
     subtitleText: 'Tower Defence of Hanoi',
@@ -807,7 +826,7 @@ const I18N_HANOI = {
     rule6: '· If a shell hits a moving disc, it explodes and returns to origin',
     rule7: '· UFO bombs drain Ground HP. Game over at 0',
     rankingEmpty: 'No records yet',
-    moveHint: 'Click a pole to select source',
+    moveHint: 'Click a pole to select <span>source</span>',
     nameInputPlaceholder: 'Enter name to register score',
     saveBtn: 'Register', saveBtnDone: 'Registered',
     retryBtn: 'Play Again',
@@ -816,6 +835,18 @@ const I18N_HANOI = {
     footTop: 'MOMO Works Home',
     footGames: 'Games',
     footTools: 'Tools',
+    poleLabel: 'Pole {n}',
+    moveHintSelected: 'Pole {pole} disc <span>{disc}</span> selected → click <span>destination</span>',
+    swapBan: 'Swap in that direction is forbidden',
+    resultClear: 'CLEAR!',
+    resultGameOver: 'GAME OVER',
+    endClearMsg: 'All discs moved to the goal pole!',
+    endGameOverMsg: 'HP reached 0.',
+    endKillsTpl: 'Kills {kills} × {per}',
+    endHpLeftTpl: 'HP {hp} × {m}',
+    endTimeBonusTpl: ' + Time Bonus {n}',
+    endMultiplierTpl: ' [×{n}]',
+    nameDefault: 'Anonymous',
   },
   zh: {
     subtitleText: '汉诺塔防',
@@ -830,7 +861,7 @@ const I18N_HANOI = {
     rule6: '・炮弹击中移动中的圆盘会爆炸，圆盘返回出发地',
     rule7: '・UFO炸弹会削减地面HP，降到0则游戏结束',
     rankingEmpty: '暂无记录',
-    moveHint: '点击柱子选择出发地',
+    moveHint: '点击柱子选择<span>出发地</span>',
     nameInputPlaceholder: '输入名字以注册分数',
     saveBtn: '注册', saveBtnDone: '已注册',
     retryBtn: '再玩一次',
@@ -839,46 +870,113 @@ const I18N_HANOI = {
     footTop: 'MOMO Works 首页',
     footGames: '游戏列表',
     footTools: '工具列表',
+    poleLabel: '{n}号柱',
+    moveHintSelected: '柱{pole}的圆盘<span>{disc}</span>已选 → 点击<span>目标柱</span>',
+    swapBan: '该方向禁止换位',
+    resultClear: 'CLEAR!',
+    resultGameOver: 'GAME OVER',
+    endClearMsg: '所有圆盘已移至目标柱！',
+    endGameOverMsg: 'HP已降为0。',
+    endKillsTpl: '击落 {kills} × {per}',
+    endHpLeftTpl: '剩余HP{hp} × {m}',
+    endTimeBonusTpl: ' + 时间奖励 {n}',
+    endMultiplierTpl: ' [×{n}倍]',
+    nameDefault: '无名',
   },
 };
 
-let currentLang = (() => { try { return localStorage.getItem('momoLang') || 'ja'; } catch(e) { return 'ja'; } })();
+// 案件⑦: 言語の「判定 / モード取得 / 切替(保存ルール)」は共通ルーチン MomoLang(/momo/lib/momo-lang/momo-lang.js)に集約。
+//  ここはその呼び出し側。MomoLang未ロード時(file:// やネット不通)に備え最小限のfallbackだけ持つ。
+//  catBase / applyLangHanoi / catSpeak はアプリ固有なのでここで保持。
+const SUPPORTED_LANGS = ['ja','en','zh','cat'];
+const LANG_APP_ID = 'hanoi';
+function _langDetectFallback(){
+  try{ const list=(navigator.languages&&navigator.languages.length)?navigator.languages:[navigator.language||'en'];
+    for(let i=0;i<list.length;i++){ const l=(list[i]||'').toLowerCase();
+      if(l.indexOf('ja')===0)return'ja'; if(l.indexOf('zh')===0)return'zh'; if(l.indexOf('en')===0)return'en'; }
+    return'en';
+  }catch(e){return'ja';}
+}
+let catBase = 'ja';
+let langMode    = window.MomoLang ? MomoLang.getMode(LANG_APP_ID) : 'auto';
+let currentLang = window.MomoLang ? MomoLang.resolve(LANG_APP_ID)
+                : (langMode==='auto' ? _langDetectFallback()
+                   : (SUPPORTED_LANGS.includes(langMode) ? langMode : _langDetectFallback()));
 
-function applyLangHanoi() {
-  const d = I18N_HANOI[currentLang] || I18N_HANOI.ja;
-  const subEl = document.getElementById('subtitle');
-  if (subEl) {
-    subEl.textContent = d.subtitleText;
-    subEl.classList.toggle('zh', currentLang === 'zh');
+// CAT (猫語) - キー種別ごとに語彙を切り替え。catBase=直前の言語で語彙を選ぶ。
+function catSpeak(key) {
+  const errorKeys = ['swapBan','endGameOverMsg','resultGameOver'];
+  const calmKeys  = ['rankingEmpty','moveHint'];
+  let vocab;
+  if (catBase === 'en') {
+    if (errorKeys.includes(key)) vocab = ['HISS!','SPIT!','FSSST!'];
+    else if (calmKeys.includes(key)) vocab = ['purrrr...','mrrr...','prrr...'];
+    else vocab = ['MEOW','meow','mrrrow','mew','NYA!'];
+  } else if (catBase === 'zh') {
+    if (errorKeys.includes(key)) vocab = ['嘶！','呸！','嘶嘶！'];
+    else if (calmKeys.includes(key)) vocab = ['呼噜…','咕噜…','喵呼…'];
+    else vocab = ['喵','喵喵','喵！','喵喵喵'];
+  } else {
+    if (errorKeys.includes(key)) vocab = ['シャー！','フーッ！','シャシャシャ！'];
+    else if (calmKeys.includes(key)) vocab = ['ごろごろ…','にゃ…','むーにゃ…'];
+    else vocab = ['にゃ','にゃー','にゃ！','みゃ','にゃにゃ！'];
   }
-  document.getElementById('diff-label').textContent = d.diffLabel;
-  document.getElementById('startBtn').textContent = d.startBtn;
-  document.getElementById('rule-title').textContent = d.ruleTitle;
-  for (let i = 1; i <= 7; i++) document.getElementById('rule'+i).textContent = d['rule'+i];
-  document.querySelectorAll('.ranking-empty').forEach(el => el.textContent = d.rankingEmpty);
-  document.getElementById('moveHint').textContent = d.moveHint;
-  document.getElementById('nameInput').placeholder = d.nameInputPlaceholder;
-  const sb = document.getElementById('saveBtn');
-  if (!sb.disabled) sb.textContent = d.saveBtn;
-  document.getElementById('retryBtn').textContent = d.retryBtn;
-  const fA = document.getElementById('footAbout'); if (fA) fA.textContent = d.footAbout;
-  const fD = document.getElementById('footDesc'); if (fD) fD.innerHTML = d.footDesc;
-  const fTop = document.getElementById('footTop'); if (fTop) fTop.textContent = d.footTop;
-  const fG = document.getElementById('footGames'); if (fG) fG.textContent = d.footGames;
-  const fT = document.getElementById('footTools'); if (fT) fT.textContent = d.footTools;
-  document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('active', b.dataset.lang === currentLang));
-  document.documentElement.lang = currentLang === 'zh' ? 'zh-Hans' : currentLang;
+  return vocab[Math.floor(Math.random() * vocab.length)];
 }
 
-document.querySelectorAll('.lang-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    currentLang = btn.dataset.lang;
-    try { localStorage.setItem('momoLang', currentLang); } catch(e) {}
-    applyLangHanoi();
-  });
-});
+function t(key, params) {
+  let s;
+  if (currentLang === 'cat') s = catSpeak(key);
+  else s = (I18N_HANOI[currentLang] || I18N_HANOI.ja)[key] ?? I18N_HANOI.ja[key] ?? key;
+  if (params) s = s.replace(/\{(\w+)\}/g, (m, k) => params[k] !== undefined ? params[k] : m);
+  return s;
+}
+
+function applyLangHanoi() {
+  const subEl = document.getElementById('subtitle');
+  if (subEl) {
+    // subtitle はブランド表記なので CAT 時も catBase の本来テキストを出す (Tilt の実装パターンに合わせる)
+    const sLang = currentLang === 'cat' ? catBase : currentLang;
+    const subMap = { ja:'Tower Defence of Hanoi', en:'Tower Defence of Hanoi', zh:'汉诺塔防' };
+    subEl.textContent = subMap[sLang] || subMap.ja;
+    subEl.classList.toggle('zh', sLang === 'zh');
+  }
+  document.getElementById('diff-label').textContent = t('diffLabel');
+  document.getElementById('startBtn').textContent = t('startBtn');
+  document.getElementById('rule-title').textContent = t('ruleTitle');
+  for (let i = 1; i <= 7; i++) document.getElementById('rule'+i).textContent = t('rule'+i);
+  document.querySelectorAll('.ranking-empty').forEach(el => el.textContent = t('rankingEmpty'));
+  updateHint();
+  document.getElementById('nameInput').placeholder = t('nameInputPlaceholder');
+  const sb = document.getElementById('saveBtn');
+  if (!sb.disabled) sb.textContent = t('saveBtn');
+  document.getElementById('retryBtn').textContent = t('retryBtn');
+  const fA = document.getElementById('footAbout'); if (fA) fA.textContent = t('footAbout');
+  const fD = document.getElementById('footDesc'); if (fD) fD.innerHTML = t('footDesc');
+  const fTop = document.getElementById('footTop'); if (fTop) fTop.textContent = t('footTop');
+  const fG = document.getElementById('footGames'); if (fG) fG.textContent = t('footGames');
+  const fT = document.getElementById('footTools'); if (fT) fT.textContent = t('footTools');
+  // ドロップダウンは langMode を表示 (auto を「Auto」として見せる)
+  const sel = document.getElementById('lang-select');
+  if (sel) sel.value = langMode;
+  document.documentElement.lang = currentLang === 'zh' ? 'zh-Hans'
+    : (currentLang === 'cat' ? (catBase === 'zh' ? 'zh-Hans' : catBase) : currentLang);
+}
+
+function onLangChange(mode) {
+  if (mode === 'cat' && currentLang !== 'cat') catBase = currentLang;
+  langMode = mode;
+  currentLang = window.MomoLang ? MomoLang.setMode(LANG_APP_ID, mode)
+              : (mode === 'auto' ? _langDetectFallback()
+                 : (SUPPORTED_LANGS.includes(mode) ? mode : _langDetectFallback()));
+  const sel = document.getElementById('lang-select');
+  if (sel) sel.value = mode;
+  applyLangHanoi();
+}
 
 applyLangHanoi();
+// 初回ランキング描画は currentLang 初期化後に行う (renderRanking → t() → currentLang 参照のため)
+renderRanking(document.getElementById('titleRanking'));
 </script>
 </body>
 </html>

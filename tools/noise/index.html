@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>MOMO Noise</title>
-  <!-- index.html v0.05 (MOMO Noise v2.00 で app-card-design v1.0 準拠ヘッダー適用) -->
+  <!-- index.html v0.06 (MOMO Noise v2.01 で共通ライブラリ momo-lang を採用) -->
   <link rel="stylesheet" href="style.css">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
@@ -26,6 +26,8 @@
 <meta property="og:locale:alternate" content="zh_CN">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="/momo/lib/momo-analytics.js" defer></script>
+<!-- 案件⑦: 言語ルーチン共通ライブラリ (defer 不可・本体スクリプトより前) -->
+<script src="/momo/lib/momo-lang/momo-lang.js"></script>
 </head>
 <body>
 
@@ -132,7 +134,8 @@
         <div class="header-sub" id="header-sub">Recording &amp; Clipping Noise Maker</div>
       </div>
       <div id="lang-switcher">
-        <select id="lang-select" onchange="onLangChange(this.value)">
+        <select id="lang-select" class="lang-select" onchange="onLangChange(this.value)">
+          <option value="auto">Auto</option>
           <option value="ja">日本語</option>
           <option value="en">EN</option>
           <option value="zh">中文</option>

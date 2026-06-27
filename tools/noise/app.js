@@ -1,4 +1,4 @@
-// app.js - MOMO Noise Main Controller v0.15
+// app.js - MOMO Noise Main Controller v0.16
 'use strict';
 
 // ── I18N ──────────────────────────────────────────────────────────────────
@@ -158,24 +158,38 @@ function catSpeak(key) {
   return v[Math.floor(Math.random() * v.length)];
 }
 
-let currentLang = (() => {
-  try { const v = localStorage.getItem('momoLang'); return ['ja','en','zh','cat'].includes(v) ? v : 'ja'; }
-  catch(e) { return 'ja'; }
-})();
+// 案件⑦: 言語の「判定 / モード取得 / 切替(保存ルール)」は共通ルーチン MomoLang(/momo/lib/momo-lang/momo-lang.js)に集約。
+// ここはその呼び出し側。MomoLang 未ロード時(file:// やネット不通)に備え最小限のfallbackだけ持つ。
+const SUPPORTED_LANGS = ['ja','en','zh','cat'];
+const LANG_APP_ID = 'noise';
+function _langDetectFallback(){
+  try{ const list=(navigator.languages&&navigator.languages.length)?navigator.languages:[navigator.language||'en'];
+    for(let i=0;i<list.length;i++){ const l=(list[i]||'').toLowerCase();
+      if(l.indexOf('ja')===0)return'ja'; if(l.indexOf('zh')===0)return'zh'; if(l.indexOf('en')===0)return'en'; }
+    return'en';
+  }catch(e){return'ja';}
+}
+let langMode    = window.MomoLang ? MomoLang.getMode(LANG_APP_ID) : 'auto';
+let currentLang = window.MomoLang ? MomoLang.resolve(LANG_APP_ID)
+                : (langMode==='auto' ? _langDetectFallback()
+                   : (SUPPORTED_LANGS.includes(langMode) ? langMode : _langDetectFallback()));
 
 function t(key) {
   if (currentLang === 'cat') return catSpeak(key);
   return (I18N[currentLang] || I18N.ja)[key] || I18N.ja[key] || key;
 }
-function onLangChange(val) {
-  if (val === 'cat') catBase = currentLang === 'cat' ? catBase : currentLang;
-  currentLang = val;
-  try { localStorage.setItem('momoLang', val); } catch(e) {}
+function onLangChange(mode) {
+  // mode = auto/ja/en/zh/cat。保存ルール(ローカルモード+明示のみ共有)は共通ルーチンに委譲。
+  if (mode === 'cat' && currentLang !== 'cat') catBase = currentLang;
+  langMode = mode;
+  currentLang = window.MomoLang ? MomoLang.setMode(LANG_APP_ID, mode)
+              : (mode === 'auto' ? _langDetectFallback()
+                 : (SUPPORTED_LANGS.includes(mode) ? mode : _langDetectFallback()));
+  document.querySelectorAll('.lang-select').forEach(s => s.value = mode);
   applyLang();
 }
 function applyLang() {
-  const sel = document.getElementById('lang-select');
-  if (sel) sel.value = currentLang;
+  document.querySelectorAll('.lang-select').forEach(s => s.value = langMode);
   document.documentElement.lang = currentLang === 'zh' ? 'zh-Hans' : currentLang === 'cat' ? catBase : currentLang;
   // サブタイトル (§4.1): cat 時は catBase の実体言語を採用
   const sub = document.getElementById('header-sub');

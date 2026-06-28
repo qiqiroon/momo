@@ -196,6 +196,12 @@
     "game.tune.reset": "標準値",
     "game.tune.close": "閉じる",
 
+    "music.prompt.title": "BGM と効果音を再生してもよろしいですか",
+    "music.prompt.bgm.label": "BGM",
+    "music.prompt.sfx.label": "効果音",
+    "music.prompt.yes": "再生する",
+    "music.prompt.no": "再生しない",
+
     "settings.title": "設定",
     "settings.volume.label": "音量",
     "settings.sfxVolume.label": "効果音",
@@ -449,6 +455,12 @@
     "game.tune.reset": "Defaults",
     "game.tune.close": "Close",
 
+    "music.prompt.title": "Play BGM and sound effects?",
+    "music.prompt.bgm.label": "BGM",
+    "music.prompt.sfx.label": "SFX",
+    "music.prompt.yes": "Play",
+    "music.prompt.no": "Don't play",
+
     "settings.title": "Settings",
     "settings.volume.label": "Volume",
     "settings.sfxVolume.label": "SFX",
@@ -701,6 +713,12 @@
     "game.tune.smooth": "响应速度",
     "game.tune.reset": "默认值",
     "game.tune.close": "关闭",
+
+    "music.prompt.title": "播放 BGM 与音效吗？",
+    "music.prompt.bgm.label": "BGM",
+    "music.prompt.sfx.label": "音效",
+    "music.prompt.yes": "播放",
+    "music.prompt.no": "不播放",
 
     "settings.title": "设置",
     "settings.volume.label": "音量",

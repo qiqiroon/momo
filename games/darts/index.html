@@ -24,6 +24,8 @@
 <meta property="og:locale:alternate" content="en_US">
 <meta property="og:locale:alternate" content="zh_CN">
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<!-- v2.20 案件⑦: 言語切り替えの共通ルーチン(全アプリ共通・lib集約)。本体スクリプトより先に読む(defer不可) -->
+<script src="/momo/lib/momo-lang/momo-lang.js"></script>
 <style>
 /* ===== DESIGN SPEC v1.0 標準セット ===== */
 :root {
@@ -1670,6 +1672,65 @@ input.chat-preset-btn.editing-input:focus {
   color: var(--text);
 }
 
+/* ===== v2.20: 音楽再生確認モーダル（起動時 / 長期停止復帰時） =====
+   設定パネル(#settings-panel)と同じ見た目に揃え、ボタンと音量スライダーを併設。
+   z-index は退出確認 #modal-mask(300) より高い 400（同時表示の心配は無いが念のため） */
+#music-prompt-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 400;
+  padding: 20px;
+}
+#music-prompt-mask.active { display: flex; }
+.music-prompt-box {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  padding: 20px 18px 16px;
+  max-width: 340px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+.music-prompt-title {
+  font-family: 'Fredoka One', cursive;
+  font-size: 17px;
+  color: var(--orange-mid);
+  text-align: center;
+  line-height: 1.4;
+}
+.music-prompt-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.music-prompt-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text);
+}
+.music-prompt-row-head .row-label { color: var(--text-muted); }
+.music-prompt-row-value { font-size: 12px; color: var(--text-muted); }
+.music-prompt-box .settings-volume-slider {
+  width: 100%;
+  accent-color: var(--orange);
+}
+.music-prompt-box .btn-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+.music-prompt-box .btn-row .btn { flex: 1; }
+
 /* ===== 許可手順案内パネル（SPEC 14.4、z-index 200） ===== */
 #permission-panel {
   position: fixed;
@@ -1785,7 +1846,8 @@ body.in-game .site-footer{display:none;}
 
 <!-- ===== 言語切替（プルダウン、段階4 で完全実装） ===== -->
 <div id="lang-switcher">
-  <select id="lang-select">
+  <select id="lang-select" class="lang-select">
+    <option value="auto">Auto</option>
     <option value="ja">日本語</option>
     <option value="en">EN</option>
     <option value="zh">中文</option>
@@ -1839,7 +1901,7 @@ body.in-game .site-footer{display:none;}
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v2.19</span>
+      <span class="version-tag" id="version-tag">v2.20</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -2424,6 +2486,38 @@ body.in-game .site-footer{display:none;}
     </div>
     <div class="btn-row" id="modal-ok-row" style="display:none">
       <button class="btn btn-primary" id="modal-ok" data-i18n="modal.ok">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== v2.20: 音楽再生確認モーダル（起動時 / 長期停止(>=1h)復帰時に表示） =====
+     仕様:
+       - 起動時の最初の pointerdown/keydown で表示
+       - hidden→visible で 1 時間以上経過した場合は復帰時にも表示（プレイ中含む）
+       - 「再生する」→ resumeAudio + 現在画面の BGM カテゴリで再生開始
+       - 「再生しない」→ BGM/効果音の音量を 0 へアニメーションで下げて永続化し閉じる
+       - マスク外クリックでは閉じない（必ずどちらか選ばせる）
+       - スライダーは既存の momoDartsBgmVolume / momoDartsSfxVolume をリアルタイムに編集 -->
+<div id="music-prompt-mask" role="dialog" aria-modal="true" aria-labelledby="music-prompt-title">
+  <div class="music-prompt-box">
+    <div class="music-prompt-title" id="music-prompt-title" data-i18n="music.prompt.title">BGM と効果音を再生してもよろしいですか</div>
+    <div class="music-prompt-row">
+      <div class="music-prompt-row-head">
+        <span class="row-label" data-i18n="music.prompt.bgm.label">BGM</span>
+        <span class="music-prompt-row-value"><span id="music-prompt-bgm-value">40%</span></span>
+      </div>
+      <input type="range" class="settings-volume-slider" id="music-prompt-bgm-slider" min="0" max="100" value="40">
+    </div>
+    <div class="music-prompt-row">
+      <div class="music-prompt-row-head">
+        <span class="row-label" data-i18n="music.prompt.sfx.label">効果音</span>
+        <span class="music-prompt-row-value"><span id="music-prompt-sfx-value">50%</span></span>
+      </div>
+      <input type="range" class="settings-volume-slider" id="music-prompt-sfx-slider" min="0" max="100" value="50">
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="music-prompt-yes" data-i18n="music.prompt.yes">再生する</button>
+      <button class="btn btn-ghost" id="music-prompt-no" data-i18n="music.prompt.no">再生しない</button>
     </div>
   </div>
 </div>

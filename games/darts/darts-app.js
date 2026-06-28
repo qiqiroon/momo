@@ -333,51 +333,132 @@ $('btn-game-start').addEventListener('click', () => {
   }
 });
 
-// v2.09/v2.11 (v1.5): AudioContext のプリロードを起動時に開始し、最初の user
-//   gesture で resume + 現在画面に応じた BGM カテゴリで再生開始する。
-//   - DOMContentLoaded で Sound.init() を呼ぶと AudioContext は suspended 状態で
-//     作られ、mp3 の fetch+decode はバックグラウンドで進む。
-//   - 最初の pointerdown/keydown で Sound.resumeAudio() → BGM 開始。
-//     こうすることで「アプリ起動 → 最初のタップ → 即 BGM 再生」を最短で実現。
+// v2.20: AudioContext は起動時にプリロード開始のみ。実際の resume と BGM 再生は
+//   音楽再生確認モーダル(#music-prompt-mask) で「再生する」が押されたタイミングで
+//   行う。モーダルは最初の pointerdown/keydown を契機に表示する。
+//   - 「再生する」→ Sound.resumeAudio() + refreshBgmForScreen()
+//   - 「再生しない」→ BGM/効果音音量を 0 まで滑らかに下げて永続化し閉じる
+//   - 長期停止(>= 1 時間)からの hidden→visible 復帰時にも同じモーダルを表示
+//     (ゲーム中含む。BGM 音量 0 でも出す。マスク外クリックでは閉じない)
 Sound.init();  // ページロード直後に AudioContext 作成 + プリロード開始
 
-function initSoundOnFirstGesture() {
-  Sound.resumeAudio().then(() => {
-    refreshBgmForScreen();
-  });
-  document.removeEventListener('pointerdown', initSoundOnFirstGesture);
-  document.removeEventListener('keydown', initSoundOnFirstGesture);
-}
-document.addEventListener('pointerdown', initSoundOnFirstGesture, { once: true });
-document.addEventListener('keydown', initSoundOnFirstGesture, { once: true });
-
-// v2.11/v2.15/v2.16 (v1.5): バックグラウンド時の BGM 停止 + 長時間放置時の抑止
-//   Android Chrome は visibility hidden でも AudioContext が走り続けるため、
-//   アプリを閉じても BGM が鳴り続ける問題があった。明示的に AudioContext を
-//   suspend する。
-//   v2.16: 「ずっと前に閉じたアプリをいつか開いたら勝手に BGM が再生される」
-//   問題への対策として、 hidden 期間が 1 分以上なら復帰時 BGM を再開せず
-//   'none' のままにする。 ユーザーが画面遷移 (showScreen 内で refreshBgm) や
-//   音量変更などで「能動的に」操作した瞬間に BGM が再開する。
-const BGM_SUPPRESS_MS = 60 * 1000;  // 1 分以上閉じていたら復帰時に BGM を鳴らさない
+// 長期停止しきい値（旧 60 秒 → 1 時間に拡張）
+const BGM_SUPPRESS_MS = 60 * 60 * 1000;
 let _lastHiddenAt = 0;
+let _musicPromptOpen = false;
+
+// 起動 / 長期停止復帰の両方で同じ関数を使う。すでに開いていれば何もしない。
+function openMusicPrompt() {
+  if (_musicPromptOpen) return;
+  _musicPromptOpen = true;
+  const mask = $('music-prompt-mask');
+  if (!mask) return;
+  // スライダーを現在の永続化値で初期化
+  syncMusicPromptSliders();
+  mask.classList.add('active');
+}
+function closeMusicPrompt() {
+  _musicPromptOpen = false;
+  const mask = $('music-prompt-mask');
+  if (mask) mask.classList.remove('active');
+}
+function syncMusicPromptSliders() {
+  const bgmV = Sound.getBgmVolume();
+  const sfxV = Sound.getSfxVolume();
+  const bgmS = $('music-prompt-bgm-slider');
+  const sfxS = $('music-prompt-sfx-slider');
+  if (bgmS) bgmS.value = String(bgmV);
+  if (sfxS) sfxS.value = String(sfxV);
+  const bgmL = $('music-prompt-bgm-value');
+  const sfxL = $('music-prompt-sfx-value');
+  if (bgmL) bgmL.textContent = `${bgmV}%`;
+  if (sfxL) sfxL.textContent = `${sfxV}%`;
+}
+
+// スライダー操作は即時に永続化（既存設定と完全に同じ値を編集）
+const _mp_bgm = $('music-prompt-bgm-slider');
+const _mp_sfx = $('music-prompt-sfx-slider');
+if (_mp_bgm) _mp_bgm.addEventListener('input', (e) => {
+  const v = parseInt(e.target.value, 10) || 0;
+  Sound.setBgmVolume(v);
+  const lbl = $('music-prompt-bgm-value'); if (lbl) lbl.textContent = `${v}%`;
+  refreshBgmVolumeUI();
+});
+if (_mp_sfx) _mp_sfx.addEventListener('input', (e) => {
+  const v = parseInt(e.target.value, 10) || 0;
+  Sound.setSfxVolume(v);
+  const lbl = $('music-prompt-sfx-value'); if (lbl) lbl.textContent = `${v}%`;
+  refreshVolumeUI();
+});
+
+// 「再生する」
+$('music-prompt-yes').addEventListener('click', () => {
+  closeMusicPrompt();
+  Sound.resumeAudio().then(() => refreshBgmForScreen());
+});
+
+// 「再生しない」: 両スライダーを 0 まで約 500ms でアニメーション、永続化、閉じる
+$('music-prompt-no').addEventListener('click', () => {
+  const startBgm = Sound.getBgmVolume();
+  const startSfx = Sound.getSfxVolume();
+  const t0 = performance.now();
+  const DUR = 500;
+  function step(now) {
+    const k = Math.min(1, (now - t0) / DUR);
+    const bv = Math.round(startBgm * (1 - k));
+    const sv = Math.round(startSfx * (1 - k));
+    Sound.setBgmVolume(bv);
+    Sound.setSfxVolume(sv);
+    const bs = $('music-prompt-bgm-slider'); if (bs) bs.value = String(bv);
+    const ss = $('music-prompt-sfx-slider'); if (ss) ss.value = String(sv);
+    const bl = $('music-prompt-bgm-value'); if (bl) bl.textContent = `${bv}%`;
+    const sl = $('music-prompt-sfx-value'); if (sl) sl.textContent = `${sv}%`;
+    refreshBgmVolumeUI();
+    refreshVolumeUI();
+    if (k < 1) requestAnimationFrame(step);
+    else {
+      // 視覚的に 0 を見せてから 200ms 余韻を残して閉じる
+      setTimeout(() => {
+        Sound.setBgmCategory('none');
+        closeMusicPrompt();
+      }, 200);
+    }
+  }
+  requestAnimationFrame(step);
+});
+
+// マスク外クリックでは閉じない（必ずどちらかを選ばせる）
+$('music-prompt-mask').addEventListener('click', (e) => {
+  if (e.target.id === 'music-prompt-mask') {
+    // 何もしない（強制留まる）
+  }
+});
+
+// 起動時の最初の pointerdown/keydown でモーダル表示
+function _firstGestureShowMusicPrompt() {
+  document.removeEventListener('pointerdown', _firstGestureShowMusicPrompt);
+  document.removeEventListener('keydown', _firstGestureShowMusicPrompt);
+  openMusicPrompt();
+}
+document.addEventListener('pointerdown', _firstGestureShowMusicPrompt, { once: true });
+document.addEventListener('keydown', _firstGestureShowMusicPrompt, { once: true });
+
+// v2.20: バックグラウンド時は AudioContext を suspend。
+//   visible 復帰時、hidden 期間が 1 時間未満なら通常復帰、 1 時間以上なら
+//   モーダル再表示（ユーザーに再度聞く。プレイ中含む）。
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') {
     _lastHiddenAt = Date.now();
     Sound.suspendAudio();
   } else {
     const hiddenDur = _lastHiddenAt ? (Date.now() - _lastHiddenAt) : 0;
-    Sound.resumeAudio().then(() => {
-      if (hiddenDur < BGM_SUPPRESS_MS) {
-        // 1 分未満 → 通常復帰
-        refreshBgmForScreen();
-      } else {
-        // 1 分以上閉じていた → BGM を停止状態のまま維持
-        // (ユーザーが画面遷移や音量変更を行えば showScreen / 音量UI から
-        //  refreshBgmForScreen が呼ばれ、 BGM 再開)
-        Sound.setBgmCategory('none');
-      }
-    });
+    if (hiddenDur >= BGM_SUPPRESS_MS) {
+      // 1 時間以上 → 停止のままモーダルで再確認
+      Sound.setBgmCategory('none');
+      openMusicPrompt();
+    } else {
+      Sound.resumeAudio().then(() => refreshBgmForScreen());
+    }
   }
 });
 // pagehide でも明示的に止める (タブ閉じ / iOS の bfcache 退避)
@@ -1519,7 +1600,13 @@ $('settings-volume-slider').addEventListener('input', (e) => {
 $('settings-volume-slider').addEventListener('change', (e) => {
   // 離した瞬間にテスト音（SPEC 14.2）。ミュート時は鳴らさない
   const v = parseInt(e.target.value, 10) || 0;
-  if (v > 0 && Sound.isReady()) Sound.playThrow(0.7);
+  if (v > 0) {
+    // v2.20: 音楽再生確認モーダルで「再生しない」を選んだ後にここで音量を上げ直した
+    //         場合に AudioContext を resume してテスト音が鳴るようにする保険
+    Sound.resumeAudio().then(() => {
+      if (Sound.isReady()) Sound.playThrow(0.7);
+    });
+  }
 });
 
 // v2.09 (v1.5): BGM 音量スライダー配線
@@ -1544,7 +1631,11 @@ $('settings-bgm-volume-slider').addEventListener('input', (e) => {
   refreshBgmVolumeUI();
   // v2.16: 「1 分以上閉じていた」抑止後でも、 音量変更を「能動的な再開意思」
   //  と見なして refresh
-  if (v > 0) refreshBgmForScreen();
+  // v2.20: 音楽再生確認モーダルで「再生しない」を選んだ後に音量を上げ直した場合に
+  //         AudioContext を resume して鳴らせるようにする保険（既に running なら no-op）
+  if (v > 0) {
+    Sound.resumeAudio().then(() => refreshBgmForScreen());
+  }
 });
 
 $('gear-icon').addEventListener('click', (e) => {
@@ -1764,19 +1855,38 @@ document.querySelectorAll('.tune-btn').forEach((btn) => {
 //   - data-i18n / data-i18n-html / data-i18n-placeholder / data-i18n-title 属性で
 //     静的テキストを一括書き換え
 //   - 動的テキスト（agreement-hint / status 表示等）は t(key, params) を都度呼ぶ
-//   - 永続化キーは momoLang（MOMO Works 全体で共通、SPEC 14章）
 //   - CAT 選択時のみサブタイトルは前言語そのまま固定（SPEC 15章）
+// v2.20 案件⑦: 言語の「判定 / モード取得 / 切替(保存ルール)」は共通ルーチン MomoLang
+//               (/momo/lib/momo-lang/momo-lang.js)に集約。ここはその呼び出し側。
+//               MomoLang 未ロード時(file:// やネット不通)に備え最小限の fallback だけ持つ。
 const SUBTITLES = {
   ja: 'Concealed Edge, Single Touch',
   en: 'Concealed Edge, Single Touch',
   zh: '不露鋒心，一指乾坤',
 };
-const LANG_STORAGE_KEY = 'momoLang';
+const SUPPORTED_LANGS = ['ja','en','zh','cat'];
+const LANG_APP_ID = 'darts';
 const CAT_BASE_STORAGE_KEY = 'momoCatBase';
 const FALLBACK_LANG = 'ja';
 
+function _langDetectFallback(){
+  try {
+    const list = (navigator.languages && navigator.languages.length) ? navigator.languages : [navigator.language || 'en'];
+    for (let i = 0; i < list.length; i++) {
+      const l = (list[i] || '').toLowerCase();
+      if (l.indexOf('ja') === 0) return 'ja';
+      if (l.indexOf('zh') === 0) return 'zh';
+      if (l.indexOf('en') === 0) return 'en';
+    }
+    return 'en';
+  } catch (e) { return 'ja'; }
+}
+
 let _i18nDict = null;
-let _currentLang = FALLBACK_LANG;
+let _langMode = window.MomoLang ? MomoLang.getMode(LANG_APP_ID) : 'auto';
+let _currentLang = window.MomoLang ? MomoLang.resolve(LANG_APP_ID)
+                : (_langMode === 'auto' ? _langDetectFallback()
+                   : (SUPPORTED_LANGS.includes(_langMode) ? _langMode : _langDetectFallback()));
 let _catBaseLang = FALLBACK_LANG;  // CAT 選択直前の言語（ja/en/zh）
 
 // --- 猫語語彙テーブル（cat-lang-spec.docx v1.0 §3-4） ---
@@ -1894,24 +2004,33 @@ function applyI18nAttrs(root) {
   });
 }
 
-async function applyLang(lang) {
+// v2.20: 引数 mode は auto/ja/en/zh/cat。実際の表示言語は MomoLang.setMode が解決して返す。
+async function applyLang(mode) {
   await loadI18n();
+  // 実際の表示言語を解決（auto → ブラウザ判定。明示時は共有 momoLang にも書く）
+  const resolved = window.MomoLang
+    ? MomoLang.setMode(LANG_APP_ID, mode)
+    : (mode === 'auto' ? _langDetectFallback()
+       : (SUPPORTED_LANGS.includes(mode) ? mode : _langDetectFallback()));
   // v1.50: CAT 選択直前の言語を catBase として保存（docx §3-2）
-  if (lang === 'cat' && _currentLang !== 'cat') {
+  if (resolved === 'cat' && _currentLang !== 'cat') {
     _catBaseLang = _currentLang;
     try { localStorage.setItem(CAT_BASE_STORAGE_KEY, _catBaseLang); } catch {}
   }
-  _currentLang = lang;
-  try { localStorage.setItem(LANG_STORAGE_KEY, lang); } catch {}
+  _langMode = mode;
+  _currentLang = resolved;
   // html lang 属性: CAT は catBase の言語として扱う（フォント・改行ヒューリスティクスのため）
-  document.documentElement.lang = (lang === 'cat') ? (_catBaseLang || 'ja') : lang;
+  document.documentElement.lang = (resolved === 'cat') ? (_catBaseLang || 'ja') : resolved;
 
   // サブタイトル: CAT 選択時のみ前言語そのまま（SPEC 15章）
   const subtitleEl = $('subtitle');
-  if (subtitleEl && lang !== 'cat') {
-    subtitleEl.textContent = SUBTITLES[lang] || SUBTITLES.ja;
-    subtitleEl.classList.toggle('zh', lang === 'zh');
+  if (subtitleEl && resolved !== 'cat') {
+    subtitleEl.textContent = SUBTITLES[resolved] || SUBTITLES.ja;
+    subtitleEl.classList.toggle('zh', resolved === 'zh');
   }
+
+  // ドロップダウンの表示は langMode（autoのとき「Auto」と出すため）
+  document.querySelectorAll('.lang-select, #lang-select').forEach((s) => { s.value = mode; });
 
   // 静的テキストを一括反映
   applyI18nAttrs();
@@ -3264,18 +3383,17 @@ document.querySelectorAll('.lobby-chat-input').forEach(input => {
 });
 
 // ===== 起動時 =====
-// v1.49: momoLang を localStorage から復元（MOMO Works 共通キー、SPEC 14章）
+// v2.20: 言語モードは MomoLang.getMode('darts') から取得（未設定=auto）。
+//        共有キー momoLang は「明示選択時のみ書く」運用なので、起動の読み元には使わない。
 // v1.50: momoCatBase も復元（CAT モードで起動した時の鳴き声の系統）
 (async () => {
-  let savedLang = FALLBACK_LANG;
   let savedCatBase = FALLBACK_LANG;
-  try { savedLang = localStorage.getItem(LANG_STORAGE_KEY) || FALLBACK_LANG; } catch {}
   try { savedCatBase = localStorage.getItem(CAT_BASE_STORAGE_KEY) || FALLBACK_LANG; } catch {}
-  if (!['ja', 'en', 'zh', 'cat'].includes(savedLang)) savedLang = FALLBACK_LANG;
   if (!['ja', 'en', 'zh'].includes(savedCatBase)) savedCatBase = FALLBACK_LANG;
   _catBaseLang = savedCatBase;
-  if (langSelect) langSelect.value = savedLang;
-  await applyLang(savedLang);
+  const startMode = window.MomoLang ? MomoLang.getMode(LANG_APP_ID) : 'auto';
+  if (langSelect) langSelect.value = startMode;
+  await applyLang(startMode);
   // 言語ロード後の最終初期化
   // v1.88 (v1.3): ルール選択 UI のハンドラ登録（DOM は既に存在、i18n も applyLang 完了済み）
   setupRuleUIHandlers();

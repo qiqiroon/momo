@@ -101,7 +101,9 @@ body:not(.in-game)::before {
   position: fixed;
   top: 8px;
   right: 12px;
-  z-index: 250;
+  /* v2.21: 音楽再生確認モーダル(z-index 400) より前面に置き、モーダル表示中でも
+     言語切替を操作可能にする(CAT 選択時の読みづらさを切替で逃がす) */
+  z-index: 500;
 }
 #lang-select {
   background: var(--surface2);
@@ -1901,7 +1903,7 @@ body.in-game .site-footer{display:none;}
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v2.20</span>
+      <span class="version-tag" id="version-tag">v2.21</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -2391,14 +2393,7 @@ body.in-game .site-footer{display:none;}
   <div id="settings-panel">
     <div class="settings-title" id="settings-title-text" data-i18n="settings.title">設定</div>
 
-    <!-- 効果音 (v1.61: SPEC 13.10 / 14.2 / 14.5、v2.09: BGM と分離) -->
-    <div class="settings-row" id="settings-row-volume">
-      <div class="settings-row-head">
-        <span class="row-label" data-i18n="settings.sfxVolume.label">効果音</span>
-        <span style="font-size:12px; color:var(--text-muted); display:inline-flex; align-items:center; gap:4px;"><svg class="icon" id="volume-icon" aria-hidden="true" style="width:14px;height:14px"><use href="#icon-volume-up"/></svg><span id="volume-value">50%</span></span>
-      </div>
-      <input type="range" class="settings-volume-slider" id="settings-volume-slider" min="0" max="100" value="50">
-    </div>
+    <!-- v2.21: 音楽再生確認モーダルと並びを揃えて BGM を上・効果音を下に -->
     <!-- v2.09 (v1.5): BGM 音量。最小=ミュート、画面切替時にランダム選曲→ループ -->
     <div class="settings-row" id="settings-row-bgm-volume">
       <div class="settings-row-head">
@@ -2406,6 +2401,14 @@ body.in-game .site-footer{display:none;}
         <span style="font-size:12px; color:var(--text-muted); display:inline-flex; align-items:center; gap:4px;"><svg class="icon" id="bgm-volume-icon" aria-hidden="true" style="width:14px;height:14px"><use href="#icon-volume-up"/></svg><span id="bgm-volume-value">40%</span></span>
       </div>
       <input type="range" class="settings-volume-slider" id="settings-bgm-volume-slider" min="0" max="100" value="40">
+    </div>
+    <!-- 効果音 (v1.61: SPEC 13.10 / 14.2 / 14.5、v2.09: BGM と分離) -->
+    <div class="settings-row" id="settings-row-volume">
+      <div class="settings-row-head">
+        <span class="row-label" data-i18n="settings.sfxVolume.label">効果音</span>
+        <span style="font-size:12px; color:var(--text-muted); display:inline-flex; align-items:center; gap:4px;"><svg class="icon" id="volume-icon" aria-hidden="true" style="width:14px;height:14px"><use href="#icon-volume-up"/></svg><span id="volume-value">50%</span></span>
+      </div>
+      <input type="range" class="settings-volume-slider" id="settings-volume-slider" min="0" max="100" value="50">
     </div>
 
     <!-- 描画品質（v1.59 で 4-C-6 配線完了） -->

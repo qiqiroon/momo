@@ -24,6 +24,7 @@
 <meta property="og:locale:alternate" content="en_US">
 <meta property="og:locale:alternate" content="zh_CN">
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="/momo/lib/momo-lang/momo-lang.js"></script>
 <script src="../matchmaking/momo-matchmaking.js"></script>
 <script src="gomoku-rules.js"></script>
 <script src="go-rules.js"></script>
@@ -907,7 +908,8 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
 <body>
 
 <div id="lang-switcher">
-  <select id="lang-select" onchange="onLangChange(this.value)">
+  <select id="lang-select" class="lang-select" onchange="onLangChange(this.value)">
+    <option value="auto">Auto</option>
     <option value="ja">日本語</option>
     <option value="en">EN</option>
     <option value="zh">中文</option>
@@ -981,7 +983,7 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
     </g>
   </svg>
   <div class="title-block">
-    <h1><span class="momo">MOMO</span><span class="go">Go</span><span class="version-tag" id="version-tag">v2.00</span></h1>
+    <h1><span class="momo">MOMO</span><span class="go">Go</span><span class="version-tag" id="version-tag">v2.01</span></h1>
     <div class="subtitle" id="subtitle">Master the Stones, Rule the Realm</div>
   </div>
 </header>
@@ -4597,14 +4599,22 @@ const I18N = {
   }
 };
 
-let currentLang = (() => {
-  try {
-    const v = localStorage.getItem('momoLang');
-    return ['ja','en','zh','cat'].includes(v) ? v : 'ja';
-  } catch(e) { return 'ja'; }
-})();
-
+// 案件⑦: 言語の「判定 / モード取得 / 切替(保存ルール)」は共通ルーチン MomoLang(/momo/lib/momo-lang/momo-lang.js)に集約。
+//  ここはその呼び出し側。MomoLang未ロード時(file://やネット不通)に備え最小限のfallbackだけ持つ。
+const SUPPORTED_LANGS = ['ja','en','zh','cat'];
+const LANG_APP_ID = 'gomoku-go';
+function _langDetectFallback(){
+  try{ const list=(navigator.languages&&navigator.languages.length)?navigator.languages:[navigator.language||'en'];
+    for(let i=0;i<list.length;i++){ const l=(list[i]||'').toLowerCase();
+      if(l.indexOf('ja')===0)return'ja'; if(l.indexOf('zh')===0)return'zh'; if(l.indexOf('en')===0)return'en'; }
+    return'en';
+  }catch(e){return'ja';}
+}
 let catBase = 'ja';
+let langMode    = window.MomoLang ? MomoLang.getMode(LANG_APP_ID) : 'auto';
+let currentLang = window.MomoLang ? MomoLang.resolve(LANG_APP_ID)
+                : (langMode==='auto' ? _langDetectFallback()
+                   : (SUPPORTED_LANGS.includes(langMode) ? langMode : _langDetectFallback()));
 
 function catSpeak(key) {
   const errorKeys = ['pwError','noRoomError','fullRoomError','kicked','createErrorEmpty','privateIdRequired'];
@@ -4802,9 +4812,8 @@ function applyLang() {
     updateUndoUI();
   }
 
-  // Lang select sync
-  const sel = document.getElementById('lang-select');
-  if (sel) sel.value = currentLang;
+  // Lang select sync (案件⑦: ドロップダウンは langMode を表示。autoのとき"Auto"を見せるため)
+  document.querySelectorAll('.lang-select').forEach(s => s.value = langMode);
 
   // stone-preview: CATモード時は猫/鳥アイコンに切り替え
   const spb = document.getElementById('stone-preview-black');
@@ -4838,10 +4847,15 @@ function applyLang() {
   if (typeof updateScoringActions === 'function') updateScoringActions();
 }
 
-function onLangChange(lang) {
-  if (lang === 'cat') catBase = currentLang;
-  currentLang = lang;
-  try { localStorage.setItem('momoLang', lang); } catch(e) {}
+function onLangChange(mode) {
+  // 案件⑦: mode = auto/ja/en/zh/cat。保存ルール(ローカルモード + 明示のみ共有momoLang)は共通ルーチンに委譲。
+  //  catBase / applyLang はアプリ固有なのでここで扱う。
+  if (mode === 'cat' && currentLang !== 'cat') catBase = currentLang;
+  langMode = mode;
+  currentLang = window.MomoLang ? MomoLang.setMode(LANG_APP_ID, mode)
+              : (mode === 'auto' ? _langDetectFallback()
+                 : (SUPPORTED_LANGS.includes(mode) ? mode : _langDetectFallback()));
+  document.querySelectorAll('.lang-select').forEach(s => s.value = mode);
   applyLang();
 }
 

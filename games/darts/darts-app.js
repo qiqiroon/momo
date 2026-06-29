@@ -1650,7 +1650,7 @@ $('settings-mask').addEventListener('click', (e) => {
 
 // ===== ログ送信: Google Drive (Apps Script Web App 経由) =====
 // 失敗時は navigator.share → クリップボードへフォールバック
-const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzzauKNWW1D_uKy5gZZ9jDqzMpVgScOJWzxijTCXdP1RpbNyuQMdb29Flek-ffn87bf/exec';
+const DEBUG_LOG_URL = 'https://script.google.com/macros/s/AKfycbzS6zvqZ5dalqqPO7RccPodmbWCupocxN-XoBZFcZfTm1I5wgTm0H0_E0qmCHVl9p4A/exec';
 
 async function uploadLogToDrive(logObj, tag) {
   const payload = {

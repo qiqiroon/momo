@@ -1767,7 +1767,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v3.00</span>
+                <span class="version-tag" id="version-tag">v3.01</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2619,7 +2619,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v3.00';
+const APP_VERSION = 'v3.01';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -5520,8 +5520,13 @@ function pumpMicLevel(){
 
 // ============== TAKES PERSISTENCE ==============
 function takesKeyFor(entry){
-    // Stable key based on baseName + audioFileName
-    return 'takes:' + (entry.baseName || '') + '::' + (entry.audioFileName || '');
+    // v3.01 (段階5): 曲ごとに分離する。 カラオケタブの entry は baseName/audioFileName を
+    //   持たず、 従来は全曲が 'takes:::' に衝突して 1 つの棚を共有していた。 その場合は
+    //   一意な曲フォルダID(entry.id)で分ける (tombKeyFor と同じ方針)。
+    //   baseName/audioFileName を持つ entry は一意なので従来キーをそのまま維持。
+    if (entry && (entry.baseName || entry.audioFileName))
+        return 'takes:' + (entry.baseName || '') + '::' + (entry.audioFileName || '');
+    return 'takes:' + ((entry && entry.id) || '');
 }
 async function persistTakes(entry){
     if(!entry || !entry.takes) return;
@@ -5543,6 +5548,40 @@ async function loadTakesFor(entry){
         const data = await idbGet(STORE_TAKES, takesKeyFor(entry));
         return Array.isArray(data) ? data : [];
     } catch(e){ return []; }
+}
+
+// v3.01 (段階5): 旧・全曲共有キャッシュ 'takes:::' を曲ごとのキーへ一度だけ仕分け移行。
+//   各テイクが持つ songFolderId を宛先キー('takes:'+songFolderId)にして配り直し、
+//   完了後に旧共有キーを片付ける。 録音実体(STORE_TAKE_BLOBS)/Drive 正本には一切触れない。
+//   失敗時はフラグを立てず次回再試行 (再実行しても同IDは重複させずマージするので安全)。
+async function migrateSharedTakesKey(){
+    const FLAG = 'takesKeyMigratedV31';
+    try { if (localStorage.getItem(FLAG)) return; } catch(e){ /* localStorage 不可でも移行は試みる */ }
+    try {
+        const shared = await idbGet(STORE_TAKES, 'takes:::');
+        if (Array.isArray(shared) && shared.length){
+            const groups = {};   // songFolderId → takes[]
+            for (const t of shared){
+                const sid = t && t.songFolderId;
+                if (!sid) continue;   // 宛先不明(古いテイク)はスキップ → Drive 正本から復元される
+                (groups[sid] = groups[sid] || []).push(t);
+            }
+            for (const sid of Object.keys(groups)){
+                const key = 'takes:' + sid;
+                const existing = await idbGet(STORE_TAKES, key);
+                const base = Array.isArray(existing) ? existing : [];
+                const haveIds = new Set(base.map(x => x && x.id));   // 新キー側に既に在るものを優先
+                const merged = base.concat(groups[sid].filter(x => x && !haveIds.has(x.id)));
+                await idbPut(STORE_TAKES, key, merged);
+            }
+            await idbDelete(STORE_TAKES, 'takes:::');
+            DEBUG.ok('段階5: 旧共有テイクキャッシュを曲ごとに仕分け移行 (' + Object.keys(groups).length + ' 曲)');
+        }
+    } catch(e){
+        DEBUG.warn('段階5 テイクキー移行に失敗(無害・Drive正本から復元される): ' + (e.message || e));
+        return;   // フラグを立てず次回再試行
+    }
+    try { localStorage.setItem(FLAG, '1'); } catch(e){}
 }
 
 // ============== v2.64: 機種別 MIX オフセット — Load/Save (二段ストレージ) ==============
@@ -9285,6 +9324,7 @@ function applyBalance(){
     if(!window.AudioWorklet){ warnBox.classList.remove('hidden'); }
     updateVocalCutUI();
     applyBalance(); // initialize meter labels
+    await migrateSharedTakesKey();  // v3.01 (段階5): 旧共有テイクキャッシュを曲ごとに仕分け (一度だけ)
 
     // Install iOS-compatible HTMLAudioElement-based transport. This must happen
     // BEFORE any song is selected so that the buffer-based methods are

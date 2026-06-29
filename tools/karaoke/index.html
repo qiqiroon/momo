@@ -1767,7 +1767,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v3.05</span>
+                <span class="version-tag" id="version-tag">v3.06</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2648,7 +2648,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v3.05';
+const APP_VERSION = 'v3.06';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -10577,7 +10577,9 @@ async function _deleteMix(mix) {
 //   現在の曲のテイク・ミックスを保存先からすべて削除する。 孤児ファイル(meta未参照の
 //   take_*.webm / mix*.wav)も拾うため、 フォルダを実列挙して名前パターンで物理削除する。
 //   曲本体(mp3 / lrc / voicecut*.wav / meta.json / _app_settings.json)は対象外で残す。
-//   meta.json の takes / mixes / deletedTakeIds と、 端末内(メモリ + IDB blob + 控え)も空に。
+//   meta.json の takes / mixes は空に、 端末内(メモリ + IDB blob + 控え)も空に。
+//   v3.06: deletedTakeIds は「空クリア」ではなく消した全テイクIDを削除済み印として登録し、
+//   別端末でも幽霊テイクが残らないよう削除を伝播させる。
 function _showResetConfirm(){
     return new Promise((resolve) => {
         const modal = document.getElementById('reset-data-modal');
@@ -10644,18 +10646,29 @@ async function _resetRecordingData(){
     }
     DEBUG.ok('録音データ初期化: ファイル削除 ' + deleted + ' 件' + (failed ? (' / 失敗 ' + failed + ' 件') : ''));
 
-    // 2) meta.json をリセット (takes / mixes / deletedTakeIds を空に)
+    // 2) meta.json をリセット: takes / mixes は空に。 deletedTakeIds は「空クリア」ではなく、
+    //    v3.06: 消した全テイクIDを削除済み印(tombstone)として登録する。 これが無いと別端末が
+    //    曲を開いた時に「削除された」と判断できず、 手元のテイクを残し→push-back で Drive に
+    //    名前だけ復活(実体webm無し=幽霊)させてしまう。 1個ずつ削除(v2.90)と同じ作法に揃える。
+    let resetTombstones = [];
     try {
         let songMeta = (ctx.prov === 'drive')
             ? await META.Drive.loadSongMeta(ctx.songFolderName)
             : await META.Local.loadSongMeta(ctx.songHandle);
         if (!songMeta) songMeta = META.defaultSongMeta();
+        // 消した全テイクIDを集める: meta.takes ∪ 手元 entry.takes ∪ 削除した take_<id>.webm の id
+        const tombIds = new Set();
+        (songMeta.takes || []).forEach(t => { if (t && t.id) tombIds.add(t.id); });
+        (entry.takes || []).forEach(t => { if (t && t.id) tombIds.add(t.id); });
+        targets.forEach(n => { const m = /^take_(.+)\.webm$/i.exec(n); if (m) tombIds.add(m[1]); });
+        const newTombs = Array.from(tombIds).map(id => ({ id: id, deletedAt: Date.now() }));
+        resetTombstones = _mergeTombstones(songMeta.deletedTakeIds, newTombs);   // 既存印も保持
         songMeta.takes = [];
         songMeta.mixes = [];
-        songMeta.deletedTakeIds = [];
+        songMeta.deletedTakeIds = resetTombstones;
         if (ctx.prov === 'drive') await META.Drive.saveSongMeta(ctx.songFolderName, songMeta);
         else await META.Local.saveSongMeta(ctx.songHandle, songMeta);
-        DEBUG.ok('録音データ初期化: meta.json をリセット');
+        DEBUG.ok('録音データ初期化: meta.json をリセット (削除印 ' + resetTombstones.length + ' 件を登録)');
     } catch (e) { DEBUG.warn('録音データ初期化: meta リセット失敗: ' + (e.message || e)); }
 
     // 3) 端末内 (メモリ + IDB blob + ステップ4 控え) をリセット
@@ -10672,7 +10685,7 @@ async function _resetRecordingData(){
     } catch (e) {}
     entry.takes = [];
     entry.mixes = [];
-    entry.deletedTakeIds = [];
+    entry.deletedTakeIds = resetTombstones;   // v3.06: この端末も削除印を保持 (再オープンで復活させない)
     state.currentTake = null;
     try { state.selectedTakeIds && state.selectedTakeIds.clear(); } catch (e) {}
     state.selectedMixId = null;

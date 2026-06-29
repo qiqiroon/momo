@@ -1767,7 +1767,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v3.02</span>
+                <span class="version-tag" id="version-tag">v3.03</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2175,6 +2175,13 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
                     <button class="momo-btn" id="reset-data-yes" style="background:var(--rec-red,#f87171); color:#fff; border-color:var(--rec-red,#f87171);">はい</button>
                 </div>
             </div>
+        </div>
+
+        <!-- v3.03 (段階5#2): 処理中の砂時計オーバーレイ (全面・操作ブロック)。 z-index は他モーダル(1000)より上 -->
+        <style>@keyframes busySpin { to { transform: rotate(360deg); } }</style>
+        <div id="busy-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:2000; align-items:center; justify-content:center; flex-direction:column;">
+            <div style="font-size:52px; line-height:1; animation:busySpin 1.2s linear infinite;">⏳</div>
+            <div id="busy-overlay-text" style="margin-top:16px; color:#fff; font-size:14px; font-weight:700;">処理中…</div>
         </div>
 
         <!-- v2.75 (UI再編): マイク設定モーダルは廃止。 感度設定/録音モードはマイク枠のアコーディオンに表出。 -->
@@ -2641,7 +2648,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v3.02';
+const APP_VERSION = 'v3.03';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -9800,6 +9807,11 @@ async function openKaraokeSongPicker() {
     if (r && r.parentNode !== document.body) {
         document.body.appendChild(r);
     }
+    // v3.03: 処理中の砂時計オーバーレイも body 直下へ
+    const b = document.getElementById('busy-overlay');
+    if (b && b.parentNode !== document.body) {
+        document.body.appendChild(b);
+    }
 })();
 
 // v2.23: Phase 5c 初期化
@@ -10550,6 +10562,18 @@ function _showResetConfirm(){
     });
 }
 
+// v3.03: 処理中の砂時計オーバーレイ (全面・操作ブロック) 表示/非表示
+function _showBusy(text){
+    const o = document.getElementById('busy-overlay');
+    const t = document.getElementById('busy-overlay-text');
+    if (t && text) t.textContent = text;
+    if (o) o.style.display = 'flex';
+}
+function _hideBusy(){
+    const o = document.getElementById('busy-overlay');
+    if (o) o.style.display = 'none';
+}
+
 async function _resetRecordingData(){
     if (!state.currentEntry) { alert('曲を選択してください'); return; }
     const ok = await _showResetConfirm();
@@ -10559,7 +10583,9 @@ async function _resetRecordingData(){
     const ctx = await _mixStorageCtx();
     if (!META || !ctx) { alert('カラオケフォルダ未接続です。 メイクタブで接続してください'); return; }
     DEBUG.info('録音データ初期化: 開始 (曲=' + ctx.songFolderName + ')');
-    setStatus('録音データを初期化しています…', 'info');
+    // v3.03: 時間のかかる処理中は砂時計を出し操作不可に。 完了/失敗どちらでも必ず消す (finally)。
+    _showBusy('録音データを初期化しています…');
+    try {
 
     // 1) フォルダを実列挙して take_*.webm / mix*.(wav|webm) を物理削除 (孤児も拾う)。
     //    voicecut*.wav / *.mp3 / *.lrc / meta.json / _app_settings.json は対象外。
@@ -10621,6 +10647,10 @@ async function _resetRecordingData(){
     try { renderTakes(); renderMixes(); if (typeof renderBadges === 'function') renderBadges(); } catch (e) {}
     setStatus('録音データを初期化しました (テイク・ミックスを削除)', 'ok');
     DEBUG.ok('録音データ初期化: 完了');
+
+    } finally {
+        _hideBusy();   // v3.03: 完了/失敗どちらでも砂時計を消す
+    }
 }
 
 // ボタンバインド (DOM は _moveRenameModalToBody と同じく即時実行時点で準備済み)

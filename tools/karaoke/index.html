@@ -1767,7 +1767,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v3.01</span>
+                <span class="version-tag" id="version-tag">v3.02</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2165,6 +2165,18 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             </div>
         </div>
 
+        <!-- v3.02 (段階5#2): 録音データ初期化の確認モーダル (はい/いいえ) -->
+        <div id="reset-data-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1000; align-items:center; justify-content:center; padding:20px;">
+            <div style="background:var(--surface); border:1px solid var(--rec-red,#f87171); border-radius:12px; padding:20px; max-width:380px; width:100%;">
+                <div style="font-size:14px; font-weight:700; color:var(--rec-red,#f87171); margin-bottom:10px;">録音データ初期化</div>
+                <div style="font-size:13px; color:var(--text); line-height:1.6; margin-bottom:16px;">全テイク・ミックスを削除します</div>
+                <div style="display:flex; gap:8px; justify-content:flex-end;">
+                    <button class="momo-btn-small" id="reset-data-no">いいえ</button>
+                    <button class="momo-btn" id="reset-data-yes" style="background:var(--rec-red,#f87171); color:#fff; border-color:var(--rec-red,#f87171);">はい</button>
+                </div>
+            </div>
+        </div>
+
         <!-- v2.75 (UI再編): マイク設定モーダルは廃止。 感度設定/録音モードはマイク枠のアコーディオンに表出。 -->
 
         <!-- v2.20: 曲選択モーダル (仕様書 §8.1) -->
@@ -2357,6 +2369,16 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <button class="momo-btn" id="mix-preview-btn" style="width:100%; padding:12px; margin-bottom:8px;" disabled>▶ MIX プレビュー (生成して試聴、 保存はしない)</button>
             <button class="momo-btn" id="mix-create-btn" style="width:100%; padding:12px;" disabled>🎚 MIX を作成して保存 (テイクを 1 つ以上選択してください)</button>
             <div id="mix-create-progress" style="display:none; margin-top:10px; font-size:11px; color:var(--text-muted);"></div>
+        </div>
+
+        <!-- v3.02 (段階5#2): 録音データ初期化 — この曲のテイク・ミックスを保存先からすべて削除 (孤児ファイルも含む) -->
+        <div class="karaoke-panel" id="mix-reset-panel">
+            <div class="panel-head">
+                <div class="panel-title">録音データ初期化</div>
+                <div class="panel-tag" style="color:var(--rec-red,#f87171);">DANGER</div>
+            </div>
+            <p class="panel-desc">この曲の<strong>テイクとミックスを保存先 (Drive / ローカル) からすべて削除</strong>します。曲・歌詞・BGM・ボーカルカット音源は消えません。<strong>元に戻せません。</strong></p>
+            <button class="momo-btn" id="reset-takes-btn" style="width:100%; padding:12px; background:var(--rec-red,#f87171); color:#fff; border-color:var(--rec-red,#f87171);">🗑 録音データ初期化</button>
         </div>
     </div>
 
@@ -2619,7 +2641,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v3.01';
+const APP_VERSION = 'v3.02';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -9773,6 +9795,11 @@ async function openKaraokeSongPicker() {
     if (m && m.parentNode !== document.body) {
         document.body.appendChild(m);
     }
+    // v3.02 (段階5#2): 録音データ初期化の確認モーダルも body 直下へ (タブ非表示の親に隠れないよう)
+    const r = document.getElementById('reset-data-modal');
+    if (r && r.parentNode !== document.body) {
+        document.body.appendChild(r);
+    }
 })();
 
 // v2.23: Phase 5c 初期化
@@ -10497,6 +10524,110 @@ async function _deleteMix(mix) {
         alert(_friendlyErr(e, '削除に失敗しました'));
     }
 }
+
+// ============== v3.02 (段階5#2): 録音データ初期化 ==============
+//   現在の曲のテイク・ミックスを保存先からすべて削除する。 孤児ファイル(meta未参照の
+//   take_*.webm / mix*.wav)も拾うため、 フォルダを実列挙して名前パターンで物理削除する。
+//   曲本体(mp3 / lrc / voicecut*.wav / meta.json / _app_settings.json)は対象外で残す。
+//   meta.json の takes / mixes / deletedTakeIds と、 端末内(メモリ + IDB blob + 控え)も空に。
+function _showResetConfirm(){
+    return new Promise((resolve) => {
+        const modal = document.getElementById('reset-data-modal');
+        const yes = document.getElementById('reset-data-yes');
+        const no  = document.getElementById('reset-data-no');
+        if (!modal || !yes || !no) { resolve(window.confirm('全テイク・ミックスを削除します')); return; }
+        modal.style.display = 'flex';
+        const close = (v) => {
+            modal.style.display = 'none';
+            yes.removeEventListener('click', onYes);
+            no.removeEventListener('click', onNo);
+            resolve(v);
+        };
+        const onYes = () => close(true);
+        const onNo  = () => close(false);
+        yes.addEventListener('click', onYes);
+        no.addEventListener('click', onNo);
+    });
+}
+
+async function _resetRecordingData(){
+    if (!state.currentEntry) { alert('曲を選択してください'); return; }
+    const ok = await _showResetConfirm();
+    if (!ok) return;
+    const entry = state.currentEntry;
+    const META = window.MomoMeta;
+    const ctx = await _mixStorageCtx();
+    if (!META || !ctx) { alert('カラオケフォルダ未接続です。 メイクタブで接続してください'); return; }
+    DEBUG.info('録音データ初期化: 開始 (曲=' + ctx.songFolderName + ')');
+    setStatus('録音データを初期化しています…', 'info');
+
+    // 1) フォルダを実列挙して take_*.webm / mix*.(wav|webm) を物理削除 (孤児も拾う)。
+    //    voicecut*.wav / *.mp3 / *.lrc / meta.json / _app_settings.json は対象外。
+    let files = [];
+    try {
+        files = (ctx.prov === 'drive')
+            ? await META.Drive.listFiles(ctx.songFolderName)
+            : await META.Local.listFiles(ctx.songHandle);
+    } catch (e) { DEBUG.warn('録音データ初期化: ファイル列挙に失敗: ' + (e.message || e)); }
+    const isTakeFile = (n) => /^take_.*\.webm$/i.test(n);
+    const isMixFile  = (n) => /^mix.*\.(wav|webm)$/i.test(n);
+    const targets = (files || []).filter(n => isTakeFile(n) || isMixFile(n));
+    let deleted = 0, failed = 0;
+    for (const name of targets) {
+        try {
+            if (ctx.prov === 'drive') await META.Drive.deleteFile(ctx.songFolderName, name);
+            else await META.Local.deleteFile(ctx.songHandle, name);
+            deleted++;
+        } catch (e) { failed++; DEBUG.warn('録音データ初期化: 削除失敗 ' + name + ': ' + (e.message || e)); }
+    }
+    DEBUG.ok('録音データ初期化: ファイル削除 ' + deleted + ' 件' + (failed ? (' / 失敗 ' + failed + ' 件') : ''));
+
+    // 2) meta.json をリセット (takes / mixes / deletedTakeIds を空に)
+    try {
+        let songMeta = (ctx.prov === 'drive')
+            ? await META.Drive.loadSongMeta(ctx.songFolderName)
+            : await META.Local.loadSongMeta(ctx.songHandle);
+        if (!songMeta) songMeta = META.defaultSongMeta();
+        songMeta.takes = [];
+        songMeta.mixes = [];
+        songMeta.deletedTakeIds = [];
+        if (ctx.prov === 'drive') await META.Drive.saveSongMeta(ctx.songFolderName, songMeta);
+        else await META.Local.saveSongMeta(ctx.songHandle, songMeta);
+        DEBUG.ok('録音データ初期化: meta.json をリセット');
+    } catch (e) { DEBUG.warn('録音データ初期化: meta リセット失敗: ' + (e.message || e)); }
+
+    // 3) 端末内 (メモリ + IDB blob + ステップ4 控え) をリセット
+    try {
+        for (const t of (entry.takes || [])) {
+            try { await idbDelete(STORE_TAKE_BLOBS, t.id); } catch (e) {}
+            try { delete _takeBlobs[t.id]; } catch (e) {}
+            try { delete state.takeSyncStatus[t.id]; } catch (e) {}
+        }
+    } catch (e) {}
+    try {   // この曲の未保存テイク控え(registry)も除去 (ステップ4が後で再アップロードしないよう)
+        const list = await _loadPendingUploads();
+        await _savePendingUploads(list.filter(p => p.songFolderId !== entry.id));
+    } catch (e) {}
+    entry.takes = [];
+    entry.mixes = [];
+    entry.deletedTakeIds = [];
+    state.currentTake = null;
+    try { state.selectedTakeIds && state.selectedTakeIds.clear(); } catch (e) {}
+    state.selectedMixId = null;
+    try { stopTakePlayback(); } catch (e) {}
+    try { _stopStoredMixPlayback(); } catch (e) {}
+    try { await persistTakes(entry); } catch (e) {}
+    try { await persistTombstones(entry); } catch (e) {}
+    try { renderTakes(); renderMixes(); if (typeof renderBadges === 'function') renderBadges(); } catch (e) {}
+    setStatus('録音データを初期化しました (テイク・ミックスを削除)', 'ok');
+    DEBUG.ok('録音データ初期化: 完了');
+}
+
+// ボタンバインド (DOM は _moveRenameModalToBody と同じく即時実行時点で準備済み)
+(function _bindResetDataBtn(){
+    const btn = document.getElementById('reset-takes-btn');
+    if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); _resetRecordingData(); });
+})();
 
 // ============================================================================
 // v2.43 (Phase 6c/6d): MIX 範囲指定 UI + フェード (仕様書 §6.6 / §6.7)

@@ -825,7 +825,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.72</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.73</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -2960,7 +2960,10 @@ function _langDetectFallback(){
     return'en';
   }catch(e){return'ja';}
 }
-let catBase='ja';
+// 案件⑦ v1.11: 自分のセットを宣言（共有モードの未対応値を auto に倒す安全弁）
+if (window.MomoLang) MomoLang.bind(LANG_APP_ID, { supportedLangs: SUPPORTED_LANGS });
+// CAT 系統(にゃあ/meow/喵)の基準言語: v1.11 から共有 momoCatBase 経由で他アプリと揃う
+function _catBase(){ return window.MomoLang ? MomoLang.getCatBase(LANG_APP_ID) : _langDetectFallback(); }
 let langMode   = window.MomoLang ? MomoLang.getMode(LANG_APP_ID) : 'auto';
 let currentLang= window.MomoLang ? MomoLang.resolve(LANG_APP_ID)
                : (langMode==='auto'?_langDetectFallback():(SUPPORTED_LANGS.includes(langMode)?langMode:_langDetectFallback()));
@@ -3293,10 +3296,11 @@ const I18N={
 // t(key, ...args) : I18Nテキスト取得・%s/%d を引数で置換
 function catSpeak(key){
   const isError=/[Ee]rror|[Cc]onfirm|[Aa]lert|[Pp]in|[Ii]nvalid|[Dd]uplicate|[Pp]erm/.test(key);
-  if(catBase==='en'){
+  const cb=_catBase();
+  if(cb==='en'){
     if(isError)return['HISS!','SPIT!','FSSST!','HISSS!'][Math.floor(Math.random()*4)];
     return['MEOW','meow','mrrrow','mew','NYA!'][Math.floor(Math.random()*5)];
-  }else if(catBase==='zh'){
+  }else if(cb==='zh'){
     if(isError)return['唾！','喵喵！','！！'][Math.floor(Math.random()*3)];
     return['喵','喵喵','咪','喵～'][Math.floor(Math.random()*4)];
   }else{
@@ -3322,7 +3326,7 @@ function applyLang(){
   // v4.06: ロゴ下サブタイトル (cat 時は catBase 言語)
   const subEl = g('logoSub');
   if (subEl) {
-    const sLang = currentLang === 'cat' ? (typeof catBase !== 'undefined' ? catBase : 'ja') : currentLang;
+    const sLang = currentLang === 'cat' ? _catBase() : currentLang;
     const subMap = {
       ja: 'Tab-Based Bookmark Manager',
       en: 'Tab-Based Bookmark Manager',
@@ -3388,7 +3392,7 @@ function applyLang(){
 
   document.querySelectorAll('.lang-select').forEach(s=>s.value=langMode);
   const _hl=currentLang==='cat'
-    ?{ja:'にゃ？',en:'NYA?',zh:'喵～'}[catBase]||'にゃ？'
+    ?{ja:'にゃ？',en:'NYA?',zh:'喵～'}[_catBase()]||'にゃ？'
     :{ja:'ヘルプ',en:'Help',zh:'帮助'}[currentLang]||'ヘルプ';
   tx('helpModalTitle',_hl);
   renderAll();
@@ -3403,7 +3407,7 @@ function closeHelp(){
   document.getElementById('helpModal').classList.remove('open');
 }
 function renderHelpContent(){
-  const L=currentLang==='cat'?catBase:currentLang;
+  const L=currentLang==='cat'?_catBase():currentLang;
   const c={
     ja:{
       basic:'## 基本操作',
@@ -3418,7 +3422,7 @@ function renderHelpContent(){
         '検索欄で :secret と入力：シークレットモード切替',
       ],
       ver:'## バージョン情報',
-      verDesc:'MOMO Links v4.72',
+      verDesc:'MOMO Links v4.73',
     },
     en:{
       basic:'## Basic Operations',
@@ -3433,7 +3437,7 @@ function renderHelpContent(){
         'Type :secret in search box: Toggle secret mode',
       ],
       ver:'## Version',
-      verDesc:'MOMO Links v4.72',
+      verDesc:'MOMO Links v4.73',
     },
     zh:{
       basic:'## 基本操作',
@@ -3448,7 +3452,7 @@ function renderHelpContent(){
         '在搜索栏输入 :secret：切换隐私模式',
       ],
       ver:'## 版本信息',
-      verDesc:'MOMO Links v4.72',
+      verDesc:'MOMO Links v4.73',
     },
   };
   const s=c[L]||c.ja;
@@ -3472,9 +3476,8 @@ document.getElementById('helpModal').addEventListener('click',e=>{
 });
 
 function onLangChange(mode){
-  // 案件⑦: mode = auto/ja/en/zh/cat。保存ルール(ローカルモード+明示のみ共有momoLang)は共通ルーチンに委譲。
-  //  catBase / applyLang はアプリ固有なのでここで扱う。
-  if(mode==='cat'&&currentLang!=='cat') catBase=currentLang;
+  // 案件⑦ v1.11: mode = auto/ja/en/zh/cat。保存ルール（共有 momoLang_mode + 旧 per-app + karaoke 互換 momoLang、CAT 切替時の momoCatBase 反映）は共通ルーチンに委譲。
+  //  applyLang はアプリ固有なのでここで扱う。catBase は MomoLang.getCatBase 経由で取る（_catBase ヘルパー）。
   langMode=mode;
   currentLang = window.MomoLang ? MomoLang.setMode(LANG_APP_ID,mode)
               : (mode==='auto'?_langDetectFallback():(SUPPORTED_LANGS.includes(mode)?mode:_langDetectFallback()));

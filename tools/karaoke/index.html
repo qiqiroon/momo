@@ -1767,7 +1767,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v3.03</span>
+                <span class="version-tag" id="version-tag">v3.04</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2648,7 +2648,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v3.03';
+const APP_VERSION = 'v3.04';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -7223,26 +7223,51 @@ async function _generateTestSineTake() {
 async function _duplicateTake(srcTake) {
     if (!state.currentEntry || !srcTake) return;
     DEBUG.info('Take duplicate: ' + srcTake.name);
-    // 新 ID: 既存と被らないようにタイムスタンプ + ランダム
-    const newId = 'take_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
+    const entry = state.currentEntry;
+    // v3.04: ID は録音テイクと同じ方式 (uid() = プレフィックス無し)。 以前は 'take_…' 始まりで
+    //   ファイル名が take_take_….webm と二重化し、 削除が FileNotFound になっていたのを解消。
+    const newId = uid();
     const newTake = Object.assign({}, srcTake, {
         id: newId,
         name: srcTake.name + ' (コピー)',
         createdAt: Date.now(),        // v2.90 (段階2): 複製は新しいテイク扱い
         editedAt: Date.now(),         // v2.90 (段階2): 最終編集時刻
-        file: null,   // v2.79: 元の Drive ファイルを共有しない (この端末内のローカルコピー扱い)。
-                      //   共有すると元テイク削除で複製の音源も消える/別端末で取り違える恐れがある。
+        file: null,                   // アップロード成功で take_<newId>.webm が入る (下記)
+        songFolderId: entry.id || srcTake.songFolderId || null,   // この曲の目印
+        karaokeFolderId: srcTake.karaokeFolderId || null,
     });
-    // takes 配列に追加 → persistTakes で IDB に書き込まれる (audioBuffer 含むディープコピーは
-    //   srcTake を再代入する Object.assign で参照共有、 IDB write 時に IDB がディープコピー)
-    state.currentEntry.takes.push(newTake);
-    await persistTakes(state.currentEntry);
+    entry.takes.push(newTake);
+    await persistTakes(entry);
     state.currentTake = newTake;
     renderTakes();
     renderBadges();
-    // v2.79: 保存先 meta.json にも複製を反映 (file=null=ローカルコピー、 再読込で消えない)
-    try { await _syncTakesMetaToStore(); DEBUG.ok('duplicate: meta.json 反映'); }
-    catch (err) { DEBUG.warn('duplicate: meta.json 反映失敗: ' + (err.message || err)); setStatus(_friendlyErr(err, '複製の保存に失敗しました (再接続して再試行してください)'), 'warn'); }
+
+    // v3.04 (A方針): 複製は「元音声をコピーした“独立した別ファイル”」として保存する。
+    //   元テイクと file を共有しないので、 元を削除してもコピーは消えず、 別端末でも再生できる。
+    //   元の音声 blob を入手 → 複製の blob として登録 → 通常の同期パイプラインに乗せて
+    //   take_<newId>.webm を独立アップロード (オフライン時はステップ2/4で復帰時に自動保存)。
+    let srcBlob = _takeBlobs[srcTake.id];
+    if (!srcBlob) { try { srcBlob = await idbGet(STORE_TAKE_BLOBS, srcTake.id); } catch (e) {} }
+    if (!srcBlob && srcTake.file) {   // メモリ/IDB に無ければ保存先から取り寄せ
+        try {
+            const META = window.MomoMeta;
+            const ctx = await _mixStorageCtx();
+            if (META && ctx) srcBlob = (ctx.prov === 'drive')
+                ? await META.Drive.readFile(ctx.songFolderName, srcTake.file)
+                : await META.Local.readFile(ctx.songHandle, srcTake.file);
+        } catch (e) { DEBUG.warn('duplicate: 元音声の取り寄せ失敗: ' + (e.message || e)); }
+    }
+    if (srcBlob) {
+        _takeBlobs[newId] = srcBlob;
+        try { await idbPut(STORE_TAKE_BLOBS, newId, srcBlob); } catch (e) {}
+        enqueueTakeUpload(newId);   // → take_<newId>.webm を独立アップロード + meta 反映 (offline は 📱→ステップ4)
+        DEBUG.ok('duplicate: 元音声をコピーして独立ファイルとしてアップロード予約 (' + newId + ')');
+    } else {
+        // 元音声が取れない (オフライン+未キャッシュ等) → 従来どおり meta だけ反映 (📱 ローカルコピー)
+        DEBUG.warn('duplicate: 元音声が取得できずローカルコピーに留める (file=null)');
+        try { await _syncTakesMetaToStore(); DEBUG.ok('duplicate: meta.json 反映 (ローカルコピー)'); }
+        catch (err) { DEBUG.warn('duplicate: meta.json 反映失敗: ' + (err.message || err)); setStatus(_friendlyErr(err, '複製の保存に失敗しました (再接続して再試行してください)'), 'warn'); }
+    }
 }
 
 // v2.28: 新構造に合わせて更新。 active ボタン (.take-btn-mini.active) と

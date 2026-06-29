@@ -1767,7 +1767,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v3.06</span>
+                <span class="version-tag" id="version-tag">v3.07</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2648,7 +2648,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v3.06';
+const APP_VERSION = 'v3.07';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -6508,10 +6508,6 @@ async function _reconcileTakesInBackground(entry) {
     if (!Array.isArray(songMeta.deletedTakeIds)) songMeta.deletedTakeIds = [];
     if (state.currentEntry !== entry) return;  // 曲切替検知
     if (!Array.isArray(entry.deletedTakeIds)) entry.deletedTakeIds = [];
-    // v3.05 診断: Drive から今読めた meta の中身 (削除伝播が効かない件の切り分け用)
-    DEBUG.info('reconcile診断: Drive読込 → takes=' + songMeta.takes.length
-        + ' / deletedTakeIds=' + songMeta.deletedTakeIds.length
-        + ' [' + songMeta.deletedTakeIds.map(d => (d && d.id) || d).join(',') + ']');
 
     // ── 0. 孤児webm復旧 (v2.98): meta上 file=null だが曲フォルダに take_<id>.webm が実在する
     //       テイクは、 保存済みなのに目印だけ null へ巻き戻った「別件調査2」の被害。 実ファイルへ
@@ -6547,10 +6543,6 @@ async function _reconcileTakesInBackground(entry) {
     const tombSet = new Set(tombs.map(e => e.id));
     const mergedMeta = _mergeTakeLists(remoteMeta, localMeta, tombSet);
     const mergedById = new Map(mergedMeta.map(t => [t.id, t]));
-    // v3.05 診断: 突き合わせの材料と結果
-    DEBUG.info('reconcile診断: remote=' + remoteMeta.length + ' / local=' + localMeta.length
-        + ' / tombs=' + tombs.length + ' / merged=' + mergedMeta.length
-        + ' / 手元take=[' + (entry.takes || []).map(t => t.id).join(',') + ']');
 
     // ── 2. 手元(メモリ)を merged に合わせる: tombstone/非勝者を除去 + 生き残りは勝者の
     //       フィールド(名前/音量/編集時刻/file)を採用 (= 他端末の改名を表示へ取り込む field-pull) ──
@@ -6568,9 +6560,6 @@ async function _reconcileTakesInBackground(entry) {
         if (w.songFolderId) t.songFolderId = w.songFolderId;
         if (w.karaokeFolderId) t.karaokeFolderId = w.karaokeFolderId;
     }
-    // v3.05 診断: 手元から実際に除去したテイク (削除伝播が効いたか)
-    if (removed.length) DEBUG.ok('reconcile診断: 手元から除去 ' + removed.length + ' 件 [' + removed.join(',') + ']');
-    else DEBUG.info('reconcile診断: 手元からの除去なし');
     if (removed.length) {
         removed.forEach(id => { if (state.selectedTakeIds) state.selectedTakeIds.delete(id); });
         if (state.currentTake && removed.indexOf(state.currentTake.id) !== -1) {

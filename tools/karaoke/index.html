@@ -1767,7 +1767,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v3.07</span>
+                <span class="version-tag" id="version-tag">v3.08</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2648,7 +2648,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v3.07';
+const APP_VERSION = 'v3.08';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {
@@ -7224,7 +7224,43 @@ async function _duplicateTake(srcTake) {
     if (!state.currentEntry || !srcTake) return;
     DEBUG.info('Take duplicate: ' + srcTake.name);
     const entry = state.currentEntry;
-    // v3.04: ID は録音テイクと同じ方式 (uid() = プレフィックス無し)。 以前は 'take_…' 始まりで
+
+    // v3.08 (B方針): 複製は「元音声をコピーした“独立した別ファイル”」として保存する。
+    //   そのため まず元の録音そのもの(生データ blob)を手元で確保できるか確かめ、
+    //   確保できないときは複製を作らずに警告して中止する (= 中身の無い名前だけの複製を作らない)。
+    //   〔経緯〕 v3.04 ではここで file=null のローカルコピーを作っていたが、 クラウド由来のテイク
+    //   (再生のため取り寄せただけ=生データは端末に残っていない)をオフラインで複製すると、
+    //   生データ不在のまま名前だけのテイクができ、 後で📱保存も自動保存も「録音データが見つかりません」
+    //   になっていた。 そもそも元データを参照できない場合は複製できないのが正しい、 という整理 (予約はしない)。
+    //   元データの在りか: メモリ(_takeBlobs) → IDB(STORE_TAKE_BLOBS) → 保存先から取り寄せ の順。
+    //   Drive 宛でオフラインのときは取り寄せに行かない (届かない + iOS の未捕捉例外を避ける)。
+    //   ローカル(PC)保存先は端末内なのでオフラインでも取り寄せ可。
+    let srcBlob = _takeBlobs[srcTake.id];
+    if (!srcBlob) { try { srcBlob = await idbGet(STORE_TAKE_BLOBS, srcTake.id); } catch (e) {} }
+    if (!srcBlob && srcTake.file) {
+        try {
+            const META = window.MomoMeta;
+            const ctx = await _mixStorageCtx();
+            if (META && ctx) {
+                if (ctx.prov === 'drive') {
+                    if (typeof navigator === 'undefined' || navigator.onLine !== false) {   // オンライン時のみ Drive へ
+                        srcBlob = await META.Drive.readFile(ctx.songFolderName, srcTake.file);
+                    }
+                } else {
+                    srcBlob = await META.Local.readFile(ctx.songHandle, srcTake.file);   // 端末内=オフラインでも可
+                }
+            }
+        } catch (e) { DEBUG.warn('duplicate: 元音声の取り寄せ失敗: ' + (e.message || e)); }
+    }
+    if (!srcBlob) {
+        // B方針: 元の録音データが手元に無い → 複製しない (予約もしない)。 警告して中止。
+        DEBUG.warn('duplicate: 元の録音データが手元に無いため複製を中止 (src=' + srcTake.id + ')');
+        alert('元の録音データが手元にないため複製できません。\nオンラインに接続してから複製してください。');
+        return;
+    }
+
+    // ここまで来たら元の生データを確保できた → 独立した別ファイルとして複製を作成。
+    //   v3.04: ID は録音テイクと同じ方式 (uid() = プレフィックス無し)。 以前は 'take_…' 始まりで
     //   ファイル名が take_take_….webm と二重化し、 削除が FileNotFound になっていたのを解消。
     const newId = uid();
     const newTake = Object.assign({}, srcTake, {
@@ -7242,32 +7278,12 @@ async function _duplicateTake(srcTake) {
     renderTakes();
     renderBadges();
 
-    // v3.04 (A方針): 複製は「元音声をコピーした“独立した別ファイル”」として保存する。
-    //   元テイクと file を共有しないので、 元を削除してもコピーは消えず、 別端末でも再生できる。
-    //   元の音声 blob を入手 → 複製の blob として登録 → 通常の同期パイプラインに乗せて
-    //   take_<newId>.webm を独立アップロード (オフライン時はステップ2/4で復帰時に自動保存)。
-    let srcBlob = _takeBlobs[srcTake.id];
-    if (!srcBlob) { try { srcBlob = await idbGet(STORE_TAKE_BLOBS, srcTake.id); } catch (e) {} }
-    if (!srcBlob && srcTake.file) {   // メモリ/IDB に無ければ保存先から取り寄せ
-        try {
-            const META = window.MomoMeta;
-            const ctx = await _mixStorageCtx();
-            if (META && ctx) srcBlob = (ctx.prov === 'drive')
-                ? await META.Drive.readFile(ctx.songFolderName, srcTake.file)
-                : await META.Local.readFile(ctx.songHandle, srcTake.file);
-        } catch (e) { DEBUG.warn('duplicate: 元音声の取り寄せ失敗: ' + (e.message || e)); }
-    }
-    if (srcBlob) {
-        _takeBlobs[newId] = srcBlob;
-        try { await idbPut(STORE_TAKE_BLOBS, newId, srcBlob); } catch (e) {}
-        enqueueTakeUpload(newId);   // → take_<newId>.webm を独立アップロード + meta 反映 (offline は 📱→ステップ4)
-        DEBUG.ok('duplicate: 元音声をコピーして独立ファイルとしてアップロード予約 (' + newId + ')');
-    } else {
-        // 元音声が取れない (オフライン+未キャッシュ等) → 従来どおり meta だけ反映 (📱 ローカルコピー)
-        DEBUG.warn('duplicate: 元音声が取得できずローカルコピーに留める (file=null)');
-        try { await _syncTakesMetaToStore(); DEBUG.ok('duplicate: meta.json 反映 (ローカルコピー)'); }
-        catch (err) { DEBUG.warn('duplicate: meta.json 反映失敗: ' + (err.message || err)); setStatus(_friendlyErr(err, '複製の保存に失敗しました (再接続して再試行してください)'), 'warn'); }
-    }
+    // 元テイクと file を共有しない独立ファイルとして、 通常の同期パイプラインで
+    //   take_<newId>.webm をアップロード (オフライン時はステップ2/4で復帰時に自動保存)。
+    _takeBlobs[newId] = srcBlob;
+    try { await idbPut(STORE_TAKE_BLOBS, newId, srcBlob); } catch (e) {}
+    enqueueTakeUpload(newId);   // → take_<newId>.webm を独立アップロード + meta 反映 (offline は 📱→ステップ4)
+    DEBUG.ok('duplicate: 元音声をコピーして独立ファイルとしてアップロード予約 (' + newId + ')');
 }
 
 // v2.28: 新構造に合わせて更新。 active ボタン (.take-btn-mini.active) と

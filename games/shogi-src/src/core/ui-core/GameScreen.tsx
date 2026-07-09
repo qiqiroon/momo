@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useI18nStore, type LocaleMode } from '../store/i18n-store';
 import { useGameStore } from '../store/game-store';
+import { useRouteStore } from '../store/route-store';
+import { has as pluginHas } from '../plugin/registry';
 import { t as _t } from '../i18n';
 import type { LocaleCode } from '../i18n/types';
 import type { PieceInstance } from '../engine';
@@ -120,6 +122,15 @@ export function GameScreen({ variant }: GameScreenProps) {
             </div>
             <div className="header-spacer" />
             <div className="header-tools">
+              {pluginHas('screen:lobby') && (
+                <button
+                  className="reset-btn"
+                  type="button"
+                  onClick={() => useRouteStore.getState().setScreen('lobby')}
+                >
+                  オンライン対戦
+                </button>
+              )}
               <button className="reset-btn" type="button" onClick={reset}>
                 リセット
               </button>

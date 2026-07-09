@@ -406,3 +406,10 @@ const MomoMatchmaking = (() => {
   return { init, createRoom, joinRoom, send, leaveRoom, refreshRooms, kickGuest, getState, changeGameType };
 
 })();
+
+// ES module / bundler consumer (Vite 等) 用: window にも露出する。
+// 従来の <script src> 直接読込 (Reversi/Go/Darts/Control 等) では local const がスコープ内なので
+// この行は補助情報として扱われ、既存動作を一切変更しない。
+if (typeof window !== 'undefined') {
+  window.MomoMatchmaking = MomoMatchmaking;
+}

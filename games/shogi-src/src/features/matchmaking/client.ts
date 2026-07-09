@@ -28,11 +28,14 @@ export interface MomoMatchmakingInitOptions {
 }
 
 export interface MomoRoomInfo {
-  roomId: string;
+  /** サーバーの部屋 ID (signaling-server は `id` を返す) */
+  id: string;
   name: string;
   hostName: string;
   hasPassword: boolean;
   isPublic: boolean;
+  guestConnected?: boolean;
+  gameState?: string;
   rules?: unknown;
 }
 

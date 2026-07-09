@@ -176,7 +176,7 @@ export function LobbyScreen() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {rooms.map((r) => (
                   <div
-                    key={r.roomId}
+                    key={r.id}
                     style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'var(--surface2)', borderRadius: 8, fontSize: 13 }}
                   >
                     <div style={{ flex: 1 }}>
@@ -184,9 +184,10 @@ export function LobbyScreen() {
                       <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>
                         ホスト: {r.hostName}
                         {r.hasPassword && '  鍵付き'}
+                        {r.guestConnected && '  対戦中'}
                       </div>
                     </div>
-                    {joinRoomId === r.roomId && r.hasPassword ? (
+                    {joinRoomId === r.id && r.hasPassword ? (
                       <>
                         <input
                           type="password"
@@ -195,12 +196,12 @@ export function LobbyScreen() {
                           placeholder="パスワード"
                           style={{ background: 'var(--bg)', border: '1px solid var(--border-strong)', color: 'var(--text)', padding: '4px 8px', borderRadius: 6, fontSize: 12, width: 120 }}
                         />
-                        <button className="reset-btn" type="button" onClick={() => onJoin(r.roomId, r.hasPassword)}>
+                        <button className="reset-btn" type="button" onClick={() => onJoin(r.id, r.hasPassword)}>
                           入室
                         </button>
                       </>
                     ) : (
-                      <button className="reset-btn" type="button" onClick={() => onJoin(r.roomId, r.hasPassword)} disabled={connection !== 'connected'}>
+                      <button className="reset-btn" type="button" onClick={() => onJoin(r.id, r.hasPassword)} disabled={connection !== 'connected' || r.guestConnected}>
                         入室
                       </button>
                     )}

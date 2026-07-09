@@ -17,7 +17,8 @@
     "types": ["node", "vitest/globals", "@testing-library/jest-dom"],
     "baseUrl": ".",
     "paths": {
-      "@momo-lib/*": ["../../lib/*"]
+      "@momo-lib/*": ["../../lib/*"],
+      "@momo-mm/*": ["../matchmaking/*"]
     }
   },
   "include": ["src", "vite.config.ts"],

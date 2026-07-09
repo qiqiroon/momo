@@ -11,6 +11,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@momo-lib': resolve(__dirname, '..', '..', 'lib'),
+      '@momo-mm': resolve(__dirname, '..', 'matchmaking'),
     },
   },
   build: {

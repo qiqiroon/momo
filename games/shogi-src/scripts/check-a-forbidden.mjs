@@ -6,6 +6,7 @@ const ASSETS_DIR = 'dist/assets';
 const FORBIDDEN = [
   { feature: 'cat-lang', strings: ['i18n:cat', 'にゃんこ語', 'にゃにゃ将棋', 'ようこそにゃ'] },
   { feature: 'momo-lang', strings: ['momoLang_mode', 'momoCatBase', 'momolang_mode_'] },
+  { feature: 'matchmaking', strings: ['MomoMatchmaking', 'enter_lobby', 'create_room', 'signalingUrl'] },
 ];
 
 let files;

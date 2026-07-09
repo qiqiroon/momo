@@ -4,8 +4,7 @@ import { useGameStore } from '../store/game-store';
 import { t as _t } from '../i18n';
 import type { LocaleCode } from '../i18n/types';
 import type { PieceInstance } from '../engine';
-import { computeEnterZonePoints, countEnterZonePieces, isInCheck } from '../engine';
-import { findKing } from '../engine';
+import { isInCheck } from '../engine';
 import { pieceNameFor } from '../engine/kifu/format';
 import { CatIcon } from './CatIcon';
 
@@ -255,7 +254,6 @@ export function GameScreen({ variant }: GameScreenProps) {
             </button>
             <NyugyokuButton t={t} />
           </div>
-          <NyugyokuDebugPanel />
         </div>
 
         <div className="chat-col">
@@ -323,48 +321,6 @@ function NyugyokuButton({ t }: NyugyokuButtonProps) {
     <button type="button" className="act" onClick={() => declareNyugyoku()}>
       {t('cmd.nyugyoku')}
     </button>
-  );
-}
-
-/**
- * 入玉診断パネル (Phase 1 実装検証用・DoD 達成後に削除予定)。
- * 両プレイヤーの現在の入玉判定情報を数値で表示する。
- */
-function NyugyokuDebugPanel() {
-  const mgf = useGameStore((s) => s.mgf);
-  const position = useGameStore((s) => s.position);
-  const canP1 = useGameStore((s) => s.canNyugyokuP1);
-  const canP2 = useGameStore((s) => s.canNyugyokuP2);
-  const status = useGameStore((s) => s.status);
-  const pointsP1 = computeEnterZonePoints(mgf, position, 'player1');
-  const pointsP2 = computeEnterZonePoints(mgf, position, 'player2');
-  const piecesP1 = countEnterZonePieces(mgf, position, 'player1');
-  const piecesP2 = countEnterZonePieces(mgf, position, 'player2');
-  const kingP1 = findKing(mgf, position, 'player1');
-  const kingP2 = findKing(mgf, position, 'player2');
-  const inCheckP1 = isInCheck(mgf, position, 'player1');
-  const inCheckP2 = isInCheck(mgf, position, 'player2');
-  return (
-    <div
-      style={{
-        fontSize: 10,
-        color: 'var(--text-muted)',
-        fontFamily: 'monospace',
-        textAlign: 'left',
-        marginTop: 6,
-        padding: '4px 8px',
-        background: 'var(--surface2)',
-        border: '1px dashed var(--border)',
-        borderRadius: 6,
-        lineHeight: 1.4,
-      }}
-    >
-      DBG side={position.sideToMove} status={status}
-      <br />
-      P1: king=({kingP1 ? `${kingP1.row + 1}段` : 'なし'}) pcs={piecesP1}/10 pts={pointsP1}/24 check={inCheckP1 ? 'Y' : 'N'} nyugyoku={canP1 ? 'Y' : 'N'}
-      <br />
-      P2: king=({kingP2 ? `${kingP2.row + 1}段` : 'なし'}) pcs={piecesP2}/10 pts={pointsP2}/24 check={inCheckP2 ? 'Y' : 'N'} nyugyoku={canP2 ? 'Y' : 'N'}
-    </div>
   );
 }
 

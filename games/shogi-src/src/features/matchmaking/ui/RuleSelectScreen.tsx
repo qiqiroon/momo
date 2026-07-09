@@ -27,6 +27,9 @@ export function RuleSelectScreen() {
   const setConfig = useMatchmakingStore((s) => s.setPendingRoomConfig);
   const playerName = useMatchmakingStore((s) => s.playerName);
   const setError = useMatchmakingStore((s) => s.setError);
+  const setActiveRoomConfig = useMatchmakingStore((s) => s.setActiveRoomConfig);
+  const setCurrentRoom = useMatchmakingStore((s) => s.setCurrentRoom);
+  const setOpponentName = useMatchmakingStore((s) => s.setOpponentName);
 
   const onBack = () => setScreen('lobby');
 
@@ -38,6 +41,9 @@ export function RuleSelectScreen() {
     }
     const client = getMomoMatchmaking();
     if (!client) return;
+    setActiveRoomConfig({ ...config, roomName: config.roomName || '本将棋の部屋' });
+    setCurrentRoom({ roomId: null, roomName: config.roomName || '本将棋の部屋', isHost: true });
+    setOpponentName('');
     client.createRoom({
       hostName: playerName,
       name: config.roomName || '本将棋の部屋',
@@ -49,7 +55,6 @@ export function RuleSelectScreen() {
         time: config.timeControl,
       },
     });
-    // onRoomCreated コールバックで connection が 'in_room' になる → 待機画面へ (2-4)
     setScreen('waiting');
   };
 

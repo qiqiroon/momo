@@ -17,12 +17,20 @@ export interface MomoMatchmakingInitOptions {
   signalingUrl: string;
   gameType: string;
   onRoomList?: (rooms: MomoRoomInfo[]) => void;
-  onRoomCreated?: (roomId: string, hostName: string) => void;
-  onJoinedRoom?: (info: { roomId: string; roomName: string; hostName: string; guestName: string; rules?: unknown }) => void;
-  onGuestJoined?: (info: { guestName: string }) => void;
+  /** ホスト: 部屋作成成功 (server room_created) */
+  onRoomCreated?: (roomId: string, roomName: string, rules?: unknown) => void;
+  /** ゲスト: 入室成功 (server joined_room) */
+  onJoinedRoom?: (roomId: string, roomName: string, hostName: string, rules?: unknown) => void;
+  /** ホスト: ゲストが入室 (server guest_joined) */
+  onGuestJoined?: (guestName: string) => void;
+  /** ホスト: ゲストが退出 (server guest_left) */
+  onGuestLeft?: () => void;
+  /** 両者: P2P DataChannel open 完了 */
   onConnected?: () => void;
+  /** 切断・部屋閉鎖 */
   onDisconnected?: (reason?: string) => void;
-  onData?: (data: unknown) => void;
+  /** 対局メッセージ (DataChannel or WS 経由の非内部型) */
+  onMessage?: (data: unknown) => void;
   onError?: (msg: string) => void;
   onKicked?: () => void;
 }

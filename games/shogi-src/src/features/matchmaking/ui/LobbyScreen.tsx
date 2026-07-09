@@ -20,6 +20,9 @@ export function LobbyScreen() {
   const setRooms = useMatchmakingStore((s) => s.setRooms);
   const setError = useMatchmakingStore((s) => s.setError);
   const setPlayerName = useMatchmakingStore((s) => s.setPlayerName);
+  const setCurrentRoom = useMatchmakingStore((s) => s.setCurrentRoom);
+  const setOpponentName = useMatchmakingStore((s) => s.setOpponentName);
+  const setActiveRoomConfig = useMatchmakingStore((s) => s.setActiveRoomConfig);
 
   const [joinRoomId, setJoinRoomId] = useState<string | null>(null);
   const [joinPassword, setJoinPassword] = useState('');
@@ -38,14 +41,29 @@ export function LobbyScreen() {
       onRoomList: (list) => {
         setRooms(list);
       },
-      onRoomCreated: () => {
+      onRoomCreated: (roomId, roomName) => {
         setConnection('in_room');
+        setCurrentRoom({ roomId, roomName, isHost: true });
+        // 待機画面への遷移は RuleSelectScreen 側で先行実施済み
       },
-      onJoinedRoom: () => {
+      onJoinedRoom: (roomId, roomName, hostName, rules) => {
         setConnection('in_room');
+        setCurrentRoom({ roomId, roomName, isHost: false });
+        setOpponentName(hostName);
+        // 段階 2-4: signaling-server は rules を保存/中継しないため常に undefined。
+        // 段階 2-5 で DataChannel 経由 rule_sync により activeRoomConfig を復元する。
+        if (rules && typeof rules === 'object') {
+          setActiveRoomConfig(rules as never);
+        } else {
+          setActiveRoomConfig(null);
+        }
+        useRouteStore.getState().setScreen('waiting');
       },
-      onGuestJoined: () => {
-        setConnection('game_connected');
+      onGuestJoined: (guestName) => {
+        setOpponentName(guestName);
+      },
+      onGuestLeft: () => {
+        setOpponentName('');
       },
       onConnected: () => {
         setConnection('game_connected');
@@ -53,13 +71,13 @@ export function LobbyScreen() {
       onDisconnected: (reason) => {
         setConnection('disconnected');
         if (reason) setError(reason);
+        useRouteStore.getState().setScreen('lobby');
       },
       onError: (msg) => {
         setError(msg);
       },
     });
     // 接続 open 後に enter_lobby が送信されて onRoomList が呼ばれる。
-    // 現時点で「連結中」を示すため、少し待って connected に更新するよう UI 側で扱う。
     const timer = setTimeout(() => {
       if (useMatchmakingStore.getState().connection === 'connecting') {
         setConnection('connected');

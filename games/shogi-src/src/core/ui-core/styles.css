@@ -828,3 +828,11 @@ body::before {
   color: var(--text-muted);
   padding: 4px 7px;
 }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.25; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; }
+}

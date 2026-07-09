@@ -41,6 +41,10 @@ interface MatchmakingState {
   currentRoomId: string | null;
   currentRoomName: string;
   isHost: boolean;
+  /** 相手プレイヤー名 (ホスト側=ゲスト名、ゲスト側=ホスト名) */
+  opponentName: string;
+  /** 現在部屋のルール設定 (段階 2-4 では表示用) */
+  activeRoomConfig: RoomConfig | null;
   errorMessage: string | null;
   playerName: string;
   pendingRoomConfig: RoomConfig;
@@ -48,10 +52,13 @@ interface MatchmakingState {
   setConnection: (c: ConnectionStatus) => void;
   setRooms: (rooms: MomoRoomInfo[]) => void;
   setCurrentRoom: (info: { roomId: string | null; roomName: string; isHost: boolean }) => void;
+  setOpponentName: (name: string) => void;
+  setActiveRoomConfig: (config: RoomConfig | null) => void;
   setError: (msg: string | null) => void;
   setPlayerName: (name: string) => void;
   setPendingRoomConfig: (config: Partial<RoomConfig>) => void;
   resetPendingRoomConfig: () => void;
+  resetRoomState: () => void;
 }
 
 export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
@@ -60,6 +67,8 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
   currentRoomId: null,
   currentRoomName: '',
   isHost: false,
+  opponentName: '',
+  activeRoomConfig: null,
   errorMessage: null,
   playerName: '',
   pendingRoomConfig: { ...DEFAULT_ROOM_CONFIG },
@@ -67,8 +76,18 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
   setConnection: (c) => set({ connection: c }),
   setRooms: (rooms) => set({ rooms }),
   setCurrentRoom: ({ roomId, roomName, isHost }) => set({ currentRoomId: roomId, currentRoomName: roomName, isHost }),
+  setOpponentName: (opponentName) => set({ opponentName }),
+  setActiveRoomConfig: (activeRoomConfig) => set({ activeRoomConfig }),
   setError: (errorMessage) => set({ errorMessage }),
   setPlayerName: (playerName) => set({ playerName }),
   setPendingRoomConfig: (partial) => set({ pendingRoomConfig: { ...get().pendingRoomConfig, ...partial } }),
   resetPendingRoomConfig: () => set({ pendingRoomConfig: { ...DEFAULT_ROOM_CONFIG } }),
+  resetRoomState: () => set({
+    currentRoomId: null,
+    currentRoomName: '',
+    isHost: false,
+    opponentName: '',
+    activeRoomConfig: null,
+    connection: 'connected',
+  }),
 }));

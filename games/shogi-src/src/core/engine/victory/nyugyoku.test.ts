@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { hondou } from '../mgf/loader';
 import { initPosition } from '../position/init';
 import type { PieceInstance, Position } from '../position/types';
-import { canDeclareNyugyoku, computeEnterZonePoints } from './nyugyoku';
+import { canDeclareNyugyoku, computeEnterZonePoints, countEnterZonePieces } from './nyugyoku';
 
 function buildPos(pieces: Array<{ row: number; col: number; piece: PieceInstance }>, sideToMove: 'player1' | 'player2' = 'player1'): Position {
   const board: (PieceInstance | null)[][] = Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => null));
@@ -108,6 +108,50 @@ describe('canDeclareNyugyoku', () => {
       { row: 2, col: 5, piece: P('hi', 'player1') },
     ]);
     expect(canDeclareNyugyoku(hondou, pos, 'player1')).toBe(false);
+  });
+
+  it('4 大駒 + 11 小駒手駒 だが敵陣内自駒 4 枚のみ: 10 枚未満で宣言不可 (段階1-7 追加条件)', () => {
+    let pos = buildPos([
+      { row: 0, col: 4, piece: P('ou', 'player1') },
+      { row: 2, col: 0, piece: P('hi', 'player1') },
+      { row: 2, col: 2, piece: P('kaku', 'player1') },
+      { row: 2, col: 6, piece: P('hi', 'player1') },
+      { row: 2, col: 8, piece: P('kaku', 'player1') },
+    ]);
+    pos = {
+      ...pos,
+      hands: {
+        player1: Array.from({ length: 11 }, () => P('fu', 'player1', false)),
+        player2: [],
+      },
+    };
+    expect(computeEnterZonePoints(hondou, pos, 'player1')).toBeGreaterThanOrEqual(24);
+    expect(countEnterZonePieces(hondou, pos, 'player1')).toBe(4);
+    expect(canDeclareNyugyoku(hondou, pos, 'player1')).toBe(false);
+  });
+
+  it('敵陣内自駒 10 枚 + 24 点以上: 宣言可', () => {
+    let pos = buildPos([
+      { row: 0, col: 4, piece: P('ou', 'player1') },
+      { row: 2, col: 0, piece: P('hi', 'player1') },
+      { row: 2, col: 1, piece: P('kaku', 'player1') },
+      { row: 2, col: 2, piece: P('kin', 'player1') },
+      { row: 2, col: 3, piece: P('gin', 'player1') },
+      { row: 2, col: 5, piece: P('gin', 'player1') },
+      { row: 2, col: 6, piece: P('kin', 'player1') },
+      { row: 2, col: 7, piece: P('kei', 'player1') },
+      { row: 2, col: 8, piece: P('kyo', 'player1') },
+      { row: 1, col: 0, piece: P('fu', 'player1') },
+      { row: 1, col: 1, piece: P('fu', 'player1') },
+    ]);
+    expect(countEnterZonePieces(hondou, pos, 'player1')).toBe(10);
+    expect(computeEnterZonePoints(hondou, pos, 'player1')).toBeGreaterThanOrEqual(18);
+    pos = {
+      ...pos,
+      hands: { player1: [P('kaku', 'player1'), P('hi', 'player1')], player2: [] },
+    };
+    expect(computeEnterZonePoints(hondou, pos, 'player1')).toBeGreaterThanOrEqual(24);
+    expect(canDeclareNyugyoku(hondou, pos, 'player1')).toBe(true);
   });
 
   it('king in enemy zone + high points but in check: cannot declare', () => {

@@ -4,7 +4,7 @@ import { useGameStore } from '../store/game-store';
 import { t as _t } from '../i18n';
 import type { LocaleCode } from '../i18n/types';
 import type { PieceInstance } from '../engine';
-import { computeEnterZonePoints, isInCheck } from '../engine';
+import { computeEnterZonePoints, countEnterZonePieces, isInCheck } from '../engine';
 import { findKing } from '../engine';
 import { pieceNameFor } from '../engine/kifu/format';
 import { CatIcon } from './CatIcon';
@@ -338,6 +338,8 @@ function NyugyokuDebugPanel() {
   const status = useGameStore((s) => s.status);
   const pointsP1 = computeEnterZonePoints(mgf, position, 'player1');
   const pointsP2 = computeEnterZonePoints(mgf, position, 'player2');
+  const piecesP1 = countEnterZonePieces(mgf, position, 'player1');
+  const piecesP2 = countEnterZonePieces(mgf, position, 'player2');
   const kingP1 = findKing(mgf, position, 'player1');
   const kingP2 = findKing(mgf, position, 'player2');
   const inCheckP1 = isInCheck(mgf, position, 'player1');
@@ -359,9 +361,9 @@ function NyugyokuDebugPanel() {
     >
       DBG side={position.sideToMove} status={status}
       <br />
-      P1: king=({kingP1 ? `${kingP1.row + 1}段` : 'なし'}) pts={pointsP1}/24 check={inCheckP1 ? 'Y' : 'N'} nyugyoku={canP1 ? 'Y' : 'N'}
+      P1: king=({kingP1 ? `${kingP1.row + 1}段` : 'なし'}) pcs={piecesP1}/10 pts={pointsP1}/24 check={inCheckP1 ? 'Y' : 'N'} nyugyoku={canP1 ? 'Y' : 'N'}
       <br />
-      P2: king=({kingP2 ? `${kingP2.row + 1}段` : 'なし'}) pts={pointsP2}/24 check={inCheckP2 ? 'Y' : 'N'} nyugyoku={canP2 ? 'Y' : 'N'}
+      P2: king=({kingP2 ? `${kingP2.row + 1}段` : 'なし'}) pcs={piecesP2}/10 pts={pointsP2}/24 check={inCheckP2 ? 'Y' : 'N'} nyugyoku={canP2 ? 'Y' : 'N'}
     </div>
   );
 }

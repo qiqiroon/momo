@@ -21,10 +21,6 @@ export function LobbyScreen() {
   const setError = useMatchmakingStore((s) => s.setError);
   const setPlayerName = useMatchmakingStore((s) => s.setPlayerName);
 
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [roomName, setRoomName] = useState('');
-  const [password, setPassword] = useState('');
-  const [isPublic, setIsPublic] = useState(true);
   const [joinRoomId, setJoinRoomId] = useState<string | null>(null);
   const [joinPassword, setJoinPassword] = useState('');
 
@@ -73,21 +69,13 @@ export function LobbyScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const onCreate = () => {
-    const client = getMomoMatchmaking();
-    if (!client) return;
+  const onCreateNavigate = () => {
     if (!playerName.trim()) {
       setError('プレイヤー名を入力してください');
       return;
     }
-    client.createRoom({
-      hostName: playerName,
-      name: roomName || '名無しの部屋',
-      password: password,
-      isPublic: isPublic,
-      rules: { game: 'honshogi' },
-    });
-    setShowCreateForm(false);
+    setError(null);
+    setScreen('rule-select');
   };
 
   const onJoin = (roomId: string, needsPassword: boolean) => {
@@ -224,62 +212,19 @@ export function LobbyScreen() {
         </div>
 
         <div style={{ marginTop: 14 }}>
-          {!showCreateForm ? (
-            <button
-              className="act"
-              type="button"
-              onClick={() => setShowCreateForm(true)}
-              disabled={connection !== 'connected'}
-              style={{ width: '100%' }}
-            >
-              部屋を作成する
-            </button>
-          ) : (
-            <div style={{ padding: 14, background: 'var(--surface)', border: '1px solid var(--border-strong)', borderRadius: 10 }}>
-              <div className="panel-label">
-                <span>部屋作成</span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <label style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 13 }}>
-                  <span style={{ color: 'var(--text-muted)', minWidth: 90 }}>部屋名</span>
-                  <input
-                    type="text"
-                    value={roomName}
-                    onChange={(e) => setRoomName(e.target.value)}
-                    placeholder="名無しの部屋"
-                    maxLength={30}
-                    style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border-strong)', color: 'var(--text)', padding: '5px 10px', borderRadius: 6, fontSize: 13 }}
-                  />
-                </label>
-                <label style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 13 }}>
-                  <span style={{ color: 'var(--text-muted)', minWidth: 90 }}>パスワード</span>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="(任意)"
-                    style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border-strong)', color: 'var(--text)', padding: '5px 10px', borderRadius: 6, fontSize: 13 }}
-                  />
-                </label>
-                <label style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 13 }}>
-                  <input type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} />
-                  <span style={{ color: 'var(--text-muted)' }}>ロビー一覧に公開する</span>
-                </label>
-                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                  <button className="reset-btn" type="button" onClick={() => setShowCreateForm(false)}>
-                    キャンセル
-                  </button>
-                  <button className="act" type="button" onClick={onCreate}>
-                    作成
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          <button
+            className="act"
+            type="button"
+            onClick={onCreateNavigate}
+            disabled={connection !== 'connected'}
+            style={{ width: '100%' }}
+          >
+            部屋を作成する (ルール選択へ)
+          </button>
         </div>
 
         <div style={{ marginTop: 20, textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
-          ※ Phase 2-2 実装中: 接続確立後の対局遷移は 2-4/2-5 で実装予定
+          ※ 接続後の対局遷移は 2-4 / 2-5 で実装予定
         </div>
       </div>
     </div>

@@ -11,9 +11,11 @@ import { register } from '../../core/plugin/registry';
 import './vendor';
 import { getMomoMatchmaking, type MomoMatchmakingApi } from './client';
 import { LobbyScreen } from './ui/LobbyScreen';
+import { RuleSelectScreen } from './ui/RuleSelectScreen';
 
 const client = getMomoMatchmaking();
 if (client) {
   register<MomoMatchmakingApi>('matchmaking', client);
 }
 register('screen:lobby', LobbyScreen);
+register('screen:rule-select', RuleSelectScreen);

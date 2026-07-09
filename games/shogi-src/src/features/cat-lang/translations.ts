@@ -5,7 +5,7 @@ export const cat: LocaleData = {
   name: 'にゃんこ語',
   translations: {
     'app.title': 'にゃにゃ将棋',
-    'app.ver': 'v0.17',
+    'app.ver': 'v0.18',
     'app.sub': 'にゃにゃ にゃんにゃにゃ にゃ',
     'turn.mine': 'にゃ！',
     'turn.opp': 'にゃにゃ…',

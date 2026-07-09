@@ -5,7 +5,30 @@ import { t as _t } from '../../../core/i18n';
 import { CatIcon } from '../../../core/ui-core/CatIcon';
 import { getMomoMatchmaking } from '../client';
 import { SHOGI_GAME_TYPE, SIGNALING_URL } from '../config';
-import { useMatchmakingStore } from '../store';
+import { DEFAULT_ROOM_CONFIG, useMatchmakingStore, type RoomConfig } from '../store';
+
+/**
+ * サーバーが joined_room で中継してくる rules は
+ * ホストが createRoom に渡した `{game, side, time}` を素通ししたもの。
+ * これを WaitingScreen が扱う RoomConfig 形状に正規化する。
+ */
+function normalizeIncomingRules(rules: unknown, roomName: string): RoomConfig | null {
+  if (!rules || typeof rules !== 'object') return null;
+  const r = rules as { game?: string; side?: string; time?: unknown };
+  const time = (r.time && typeof r.time === 'object' ? r.time : {}) as Partial<RoomConfig['timeControl']>;
+  return {
+    roomName,
+    password: '',
+    isPublic: true,
+    sideSelection: (r.side as RoomConfig['sideSelection']) ?? DEFAULT_ROOM_CONFIG.sideSelection,
+    timeControl: {
+      mode: time.mode ?? DEFAULT_ROOM_CONFIG.timeControl.mode,
+      mainSeconds: time.mainSeconds ?? DEFAULT_ROOM_CONFIG.timeControl.mainSeconds,
+      byoyomiSeconds: time.byoyomiSeconds,
+      incrementSeconds: time.incrementSeconds,
+    },
+  };
+}
 
 export function LobbyScreen() {
   const locale = useI18nStore((s) => s.locale);
@@ -50,13 +73,7 @@ export function LobbyScreen() {
         setConnection('in_room');
         setCurrentRoom({ roomId, roomName, isHost: false });
         setOpponentName(hostName);
-        // 段階 2-4: signaling-server は rules を保存/中継しないため常に undefined。
-        // 段階 2-5 で DataChannel 経由 rule_sync により activeRoomConfig を復元する。
-        if (rules && typeof rules === 'object') {
-          setActiveRoomConfig(rules as never);
-        } else {
-          setActiveRoomConfig(null);
-        }
+        setActiveRoomConfig(normalizeIncomingRules(rules, roomName));
         useRouteStore.getState().setScreen('waiting');
       },
       onGuestJoined: (guestName) => {

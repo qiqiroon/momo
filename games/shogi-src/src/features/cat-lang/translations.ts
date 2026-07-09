@@ -1,0 +1,33 @@
+import type { LocaleData } from '../../core/i18n/types';
+
+export const cat: LocaleData = {
+  code: 'cat',
+  name: 'にゃんこ語',
+  translations: {
+    'app.title': 'にゃにゃ将棋',
+    'app.ver': 'v0.1',
+    'app.sub': 'にゃにゃ にゃんにゃにゃ にゃ',
+    'turn.mine': 'にゃ！',
+    'turn.opp': 'にゃにゃ…',
+    'player.opp': 'あいにゃんこ',
+    'player.you': 'にゃんこ',
+    'cmd.taunt': 'シャー！',
+    'cmd.undo': 'にゃ？',
+    'cmd.draw': 'にゃにゃ',
+    'cmd.pause': 'にゃむ',
+    'cmd.resign': 'にゃ〜ん',
+    'cmd.cancel': 'にゃっ',
+    'chat.title': 'にゃべり',
+    'chat.send': 'にゃ！',
+    'chat.placeholder': 'にゃにゃ…',
+    'chat.pSente': 'にゃ＞',
+    'chat.pGote': 'みゃ＞',
+    'spec.title': 'みる子',
+    'spec.kick': 'しっ！',
+    'spec.empty': 'にゃんこいないにゃ',
+    'qmode.cycle': 'にゃにゃ',
+    'qmode.stack': 'かさねにゃ',
+    'promote.decline': 'そのまま',
+    'promote.confirm': 'ばけるにゃ！',
+  },
+};

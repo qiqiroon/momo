@@ -1,0 +1,33 @@
+import type { LocaleData } from '../types';
+
+export const en: LocaleData = {
+  code: 'en',
+  name: 'English',
+  translations: {
+    'app.title': 'MOMO Shogi',
+    'app.ver': 'v0.1',
+    'app.sub': 'Capture the King, Bend the Rules',
+    'turn.mine': 'Your turn',
+    'turn.opp': "Opponent's turn",
+    'player.opp': 'Opponent',
+    'player.you': 'You',
+    'cmd.taunt': 'Taunt',
+    'cmd.undo': 'Undo',
+    'cmd.draw': 'Draw',
+    'cmd.pause': 'Pause',
+    'cmd.resign': 'Resign',
+    'cmd.cancel': 'Release',
+    'chat.title': 'Chat',
+    'chat.send': 'Send',
+    'chat.placeholder': 'message…',
+    'chat.pSente': '1P>',
+    'chat.pGote': '2P>',
+    'spec.title': 'Spectators',
+    'spec.kick': 'Kick',
+    'spec.empty': 'No spectators',
+    'qmode.cycle': 'Cycle',
+    'qmode.stack': 'Stack',
+    'promote.decline': "Don't Promote",
+    'promote.confirm': 'Promote',
+  },
+};

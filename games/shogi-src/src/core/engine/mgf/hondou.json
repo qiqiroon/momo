@@ -1,0 +1,250 @@
+{
+  "metadata": {
+    "game_name": "本将棋",
+    "game_id": "honshogi",
+    "version": "0.1.0",
+    "description": "本将棋 (standard Shogi)"
+  },
+  "board": {
+    "width": 9,
+    "height": 9,
+    "coordinate": "shogi",
+    "promotion_zone": {
+      "player1": { "min_rank": 1, "max_rank": 3 },
+      "player2": { "min_rank": 7, "max_rank": 9 }
+    },
+    "sfen_support": true
+  },
+  "compatible_modifiers": {
+    "torus": { "cylinder": true, "full_torus": true },
+    "quantum": { "enabled": true }
+  },
+  "constraints": {
+    "nifu": true,
+    "uchifu_tsume": true,
+    "suicide": true,
+    "dead_zone": "auto"
+  },
+  "victory": {
+    "royal_capture": true,
+    "enter_zone": {
+      "enabled": true,
+      "method": "points",
+      "points": { "player1": 24, "player2": 24 }
+    }
+  },
+  "repetition": {
+    "type": "sennichite",
+    "count": 4,
+    "action": "draw"
+  },
+  "pieces": [
+    {
+      "id": "fu",
+      "name": "歩",
+      "can_promote": true,
+      "promoted_id": "to",
+      "must_promote_at": 1,
+      "is_hand_piece": true,
+      "score": 1,
+      "move_logic": {
+        "abilities": [
+          { "type": "step", "direction": "forward", "range": 1 }
+        ]
+      }
+    },
+    {
+      "id": "kyo",
+      "name": "香",
+      "can_promote": true,
+      "promoted_id": "narikyo",
+      "must_promote_at": 1,
+      "is_hand_piece": true,
+      "score": 3,
+      "move_logic": {
+        "abilities": [
+          { "type": "slide", "direction": "forward", "range": -1 }
+        ]
+      }
+    },
+    {
+      "id": "kei",
+      "name": "桂",
+      "can_promote": true,
+      "promoted_id": "narikei",
+      "must_promote_at": 2,
+      "is_hand_piece": true,
+      "score": 4,
+      "move_logic": {
+        "abilities": [
+          { "type": "jump", "direction": "knight", "range": 1, "jump_over": true }
+        ]
+      }
+    },
+    {
+      "id": "gin",
+      "name": "銀",
+      "can_promote": true,
+      "promoted_id": "narigin",
+      "is_hand_piece": true,
+      "score": 5,
+      "move_logic": {
+        "abilities": [
+          { "type": "step", "direction": "forward", "range": 1 },
+          { "type": "step", "direction": "forward_diagonal", "range": 1 },
+          { "type": "step", "direction": "backward_diagonal", "range": 1 }
+        ]
+      }
+    },
+    {
+      "id": "kin",
+      "name": "金",
+      "can_promote": false,
+      "is_hand_piece": true,
+      "score": 6,
+      "move_logic": {
+        "abilities": [
+          { "type": "step", "direction": "forward", "range": 1 },
+          { "type": "step", "direction": "backward", "range": 1 },
+          { "type": "step", "direction": "sideways", "range": 1 },
+          { "type": "step", "direction": "forward_diagonal", "range": 1 }
+        ]
+      }
+    },
+    {
+      "id": "kaku",
+      "name": "角",
+      "can_promote": true,
+      "promoted_id": "uma",
+      "is_hand_piece": true,
+      "score": 8,
+      "move_logic": {
+        "abilities": [
+          { "type": "slide", "direction": "diagonal", "range": -1 }
+        ]
+      }
+    },
+    {
+      "id": "hi",
+      "name": "飛",
+      "can_promote": true,
+      "promoted_id": "ryu",
+      "is_hand_piece": true,
+      "score": 10,
+      "move_logic": {
+        "abilities": [
+          { "type": "slide", "direction": "forward", "range": -1 },
+          { "type": "slide", "direction": "backward", "range": -1 },
+          { "type": "slide", "direction": "sideways", "range": -1 }
+        ]
+      }
+    },
+    {
+      "id": "ou",
+      "name": "王",
+      "is_royal": true,
+      "can_promote": false,
+      "is_hand_piece": false,
+      "score": 0,
+      "move_logic": {
+        "abilities": [
+          { "type": "step", "direction": "all_8", "range": 1 }
+        ]
+      }
+    },
+    {
+      "id": "to",
+      "name": "と",
+      "can_promote": false,
+      "is_hand_piece": false,
+      "score": 6,
+      "move_logic": {
+        "abilities": [
+          { "type": "step", "direction": "forward", "range": 1 },
+          { "type": "step", "direction": "backward", "range": 1 },
+          { "type": "step", "direction": "sideways", "range": 1 },
+          { "type": "step", "direction": "forward_diagonal", "range": 1 }
+        ]
+      }
+    },
+    {
+      "id": "narikyo",
+      "name": "成香",
+      "can_promote": false,
+      "is_hand_piece": false,
+      "score": 6,
+      "move_logic": {
+        "abilities": [
+          { "type": "step", "direction": "forward", "range": 1 },
+          { "type": "step", "direction": "backward", "range": 1 },
+          { "type": "step", "direction": "sideways", "range": 1 },
+          { "type": "step", "direction": "forward_diagonal", "range": 1 }
+        ]
+      }
+    },
+    {
+      "id": "narikei",
+      "name": "成桂",
+      "can_promote": false,
+      "is_hand_piece": false,
+      "score": 6,
+      "move_logic": {
+        "abilities": [
+          { "type": "step", "direction": "forward", "range": 1 },
+          { "type": "step", "direction": "backward", "range": 1 },
+          { "type": "step", "direction": "sideways", "range": 1 },
+          { "type": "step", "direction": "forward_diagonal", "range": 1 }
+        ]
+      }
+    },
+    {
+      "id": "narigin",
+      "name": "成銀",
+      "can_promote": false,
+      "is_hand_piece": false,
+      "score": 6,
+      "move_logic": {
+        "abilities": [
+          { "type": "step", "direction": "forward", "range": 1 },
+          { "type": "step", "direction": "backward", "range": 1 },
+          { "type": "step", "direction": "sideways", "range": 1 },
+          { "type": "step", "direction": "forward_diagonal", "range": 1 }
+        ]
+      }
+    },
+    {
+      "id": "uma",
+      "name": "馬",
+      "can_promote": false,
+      "is_hand_piece": false,
+      "score": 10,
+      "move_logic": {
+        "abilities": [
+          { "type": "slide", "direction": "diagonal", "range": -1 },
+          { "type": "step", "direction": "forward", "range": 1 },
+          { "type": "step", "direction": "backward", "range": 1 },
+          { "type": "step", "direction": "sideways", "range": 1 }
+        ]
+      }
+    },
+    {
+      "id": "ryu",
+      "name": "龍",
+      "can_promote": false,
+      "is_hand_piece": false,
+      "score": 12,
+      "move_logic": {
+        "abilities": [
+          { "type": "slide", "direction": "forward", "range": -1 },
+          { "type": "slide", "direction": "backward", "range": -1 },
+          { "type": "slide", "direction": "sideways", "range": -1 },
+          { "type": "step", "direction": "diagonal", "range": 1 }
+        ]
+      }
+    }
+  ],
+  "initial_placement": {
+    "format": "sfen",
+    "sfen": "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1"
+  }
+}

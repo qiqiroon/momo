@@ -1,0 +1,46 @@
+name: shogi-ci
+
+on:
+  push:
+    paths:
+      - 'games/shogi-src/**'
+      - '.github/workflows/shogi-ci.yml'
+  pull_request:
+    paths:
+      - 'games/shogi-src/**'
+      - '.github/workflows/shogi-ci.yml'
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: games/shogi-src
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: games/shogi-src/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript typecheck
+        run: npm run typecheck
+
+      - name: Vitest tests
+        run: npm run test
+
+      - name: Vite build (both entries)
+        run: npm run build
+
+      - name: SPDX license check (block GPL family)
+        run: npm run check:licenses
+
+      - name: A build forbidden identifier check
+        run: npm run check:a-forbidden

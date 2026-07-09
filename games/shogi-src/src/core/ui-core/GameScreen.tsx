@@ -1,0 +1,432 @@
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useI18nStore, type LocaleMode } from '../store/i18n-store';
+import { useGameStore } from '../store/game-store';
+import { t as _t } from '../i18n';
+import type { LocaleCode } from '../i18n/types';
+import type { PieceInstance } from '../engine';
+import { isInCheck } from '../engine';
+import { pieceNameFor } from '../engine/kifu/format';
+import { CatIcon } from './CatIcon';
+
+interface GameScreenProps {
+  variant: 'a' | 'b';
+}
+
+const TWO_CHAR_KINDS = new Set(['narikyo', 'narikei', 'narigin']);
+
+function isTwoChar(kind: string): boolean {
+  return TWO_CHAR_KINDS.has(kind);
+}
+
+export function GameScreen({ variant }: GameScreenProps) {
+  const mode = useI18nStore((s) => s.mode);
+  const locale = useI18nStore((s) => s.locale);
+  const setMode = useI18nStore((s) => s.setMode);
+  const setLocale = useI18nStore((s) => s.setLocale);
+  const t = (key: string) => _t(key, locale);
+  const [qmode, setQmode] = useState<'cycle' | 'stack'>('cycle');
+
+  const mgf = useGameStore((s) => s.mgf);
+  const position = useGameStore((s) => s.position);
+  const selectedSquare = useGameStore((s) => s.selectedSquare);
+  const selectedHandPieceId = useGameStore((s) => s.selectedHandPieceId);
+  const legalDestinations = useGameStore((s) => s.legalDestinations);
+  const moveHistory = useGameStore((s) => s.moveHistory);
+  const status = useGameStore((s) => s.status);
+  const selectSquare = useGameStore((s) => s.selectSquare);
+  const selectHandPiece = useGameStore((s) => s.selectHandPiece);
+  const clearSelection = useGameStore((s) => s.clearSelection);
+  const tryMove = useGameStore((s) => s.tryMove);
+  const reset = useGameStore((s) => s.reset);
+
+  const hasMomoLang = typeof window !== 'undefined' && 'MomoLang' in window;
+
+  const subLocale: LocaleCode = locale === 'cat' ? 'ja' : locale;
+  const subtitle = subLocale === 'zh' ? '擒王为胜，破局无界' : 'Capture the King, Bend the Rules';
+
+  const langOptions: { value: LocaleMode; label: string }[] = [];
+  if (hasMomoLang) langOptions.push({ value: 'auto', label: 'Auto' });
+  langOptions.push({ value: 'ja', label: '日本語' });
+  langOptions.push({ value: 'en', label: 'EN' });
+  langOptions.push({ value: 'zh', label: '中文' });
+  if (variant === 'b') langOptions.push({ value: 'cat', label: 'CAT' });
+
+  const senteInCheck = isInCheck(mgf, position, 'player1');
+  const goteInCheck = isInCheck(mgf, position, 'player2');
+  const turnLabel =
+    status === 'checkmate'
+      ? position.sideToMove === 'player1'
+        ? '先手詰み'
+        : '後手詰み'
+      : position.sideToMove === 'player1'
+        ? '先手番' + (senteInCheck ? '（王手）' : '')
+        : '後手番' + (goteInCheck ? '（王手）' : '');
+
+  const isSelected = (row: number, col: number) => selectedSquare?.row === row && selectedSquare?.col === col;
+  const isHint = (row: number, col: number) => legalDestinations.some((d) => d.row === row && d.col === col);
+  const lastMoveTo = position.history.length > 0 ? position.history[position.history.length - 1].to : null;
+  const isLastMove = (row: number, col: number) => lastMoveTo?.row === row && lastMoveTo?.col === col;
+
+  const onSquareClick = (row: number, col: number) => {
+    if (status === 'checkmate') return;
+    if ((selectedSquare || selectedHandPieceId) && isHint(row, col)) {
+      tryMove({ row, col });
+      return;
+    }
+    const piece = position.board[row][col];
+    if (piece && piece.owner === position.sideToMove) {
+      selectSquare({ row, col });
+    } else {
+      clearSelection();
+    }
+  };
+
+  const onHandPieceClick = (owner: 'player1' | 'player2', pieceId: string) => {
+    if (status === 'checkmate') return;
+    if (owner !== position.sideToMove) return;
+    if (selectedHandPieceId === pieceId) {
+      clearSelection();
+      return;
+    }
+    selectHandPiece(pieceId);
+  };
+
+  const senteHandGrouped = groupHand(position.hands.player1);
+  const goteHandGrouped = groupHand(position.hands.player2);
+
+  const kifuScrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (kifuScrollRef.current) {
+      kifuScrollRef.current.scrollTop = kifuScrollRef.current.scrollHeight;
+    }
+  }, [moveHistory]);
+
+  return (
+    <div className="stage">
+      <div className="grid">
+        <div className="main-col">
+          <header className="match-header">
+            <CatIcon />
+            <div className="title-block">
+              <h1>
+                <span className="momo">MOMO</span> <span className="shogi">Shogi</span>{' '}
+                <span className="ver">{t('app.ver')}</span>
+              </h1>
+              <div className={`subtitle${subLocale === 'zh' ? ' zh' : ''}`}>{subtitle}</div>
+            </div>
+            <div className="header-spacer" />
+            <div className="header-tools">
+              <button className="reset-btn" type="button" onClick={reset}>
+                リセット
+              </button>
+              <div className="lang-select">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20" />
+                </svg>
+                <select
+                  id="lang-select"
+                  value={mode}
+                  onChange={(e) => {
+                    const m = e.target.value as LocaleMode;
+                    setMode(m);
+                    if (m !== 'auto') setLocale(m);
+                  }}
+                >
+                  {langOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </header>
+
+          <div className="turn-row">
+            <div className={`turn-banner${status === 'checkmate' ? ' opp' : ''}`}>{turnLabel}</div>
+            <div className="qmode-toggle">
+              <button
+                type="button"
+                className={`qm${qmode === 'cycle' ? ' active' : ''}`}
+                onClick={() => setQmode('cycle')}
+              >
+                {t('qmode.cycle')}
+              </button>
+              <button
+                type="button"
+                className={`qm${qmode === 'stack' ? ' active' : ''}`}
+                onClick={() => setQmode('stack')}
+              >
+                {t('qmode.stack')}
+              </button>
+            </div>
+          </div>
+
+          <div className="pinfo opp">
+            <span className="nm">{t('player.opp')}</span>
+            <span className="sub">後手</span>
+            <span className="clk">--:--</span>
+            <span className="byo">秒読み--</span>
+          </div>
+
+          <div className="broadcast">
+            <PieceStandView
+              side="opp"
+              pieces={goteHandGrouped}
+              onClick={(pid) => onHandPieceClick('player2', pid)}
+              selectedId={selectedHandPieceId}
+              activePlayer={position.sideToMove === 'player2'}
+              locale={locale}
+            />
+            <div className="board-outer">
+              <div className="board" aria-label="将棋盤 (9x9)">
+                <div className="stars">
+                  {[3, 6].flatMap((cx) =>
+                    [3, 6].map((cy) => (
+                      <div
+                        key={`${cx}-${cy}`}
+                        className="star"
+                        style={{ left: `${(cx / 9) * 100}%`, top: `${(cy / 9) * 100}%` }}
+                      />
+                    )),
+                  )}
+                </div>
+                {Array.from({ length: 81 }).map((_, i) => {
+                  const row = Math.floor(i / 9);
+                  const col = i % 9;
+                  const piece = position.board[row][col];
+                  const cls = [
+                    'sq',
+                    isSelected(row, col) ? 'selected' : '',
+                    isHint(row, col) ? 'hint' : '',
+                    isLastMove(row, col) ? 'lastmove' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ');
+                  return (
+                    <div key={i} className={cls} onClick={() => onSquareClick(row, col)}>
+                      {piece && <PieceView piece={piece} locale={locale} />}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <PieceStandView
+              side="you"
+              pieces={senteHandGrouped}
+              onClick={(pid) => onHandPieceClick('player1', pid)}
+              selectedId={selectedHandPieceId}
+              activePlayer={position.sideToMove === 'player1'}
+              locale={locale}
+            />
+          </div>
+
+          <div className="pinfo you">
+            <span className="nm">{t('player.you')}</span>
+            <span className="sub">先手</span>
+            <span className="clk running">--:--</span>
+            <span className="byo">秒読み--</span>
+          </div>
+
+          <div className="command-bar">
+            <button type="button" className="act taunt">
+              {t('cmd.taunt')} <span className="cnt">3</span>
+            </button>
+            <button type="button" className="act">
+              {t('cmd.undo')}
+            </button>
+            <button type="button" className="act">
+              {t('cmd.draw')}
+            </button>
+            <button type="button" className="act">
+              {t('cmd.pause')}
+            </button>
+            <button type="button" className="act danger">
+              {t('cmd.resign')}
+            </button>
+            <button type="button" className="act" onClick={clearSelection}>
+              {t('cmd.cancel')}
+            </button>
+          </div>
+        </div>
+
+        <div className="chat-col">
+          <div className="panel">
+            <div className="panel-label">
+              <span>{t('chat.title')}</span>
+            </div>
+            <div className="console">
+              <div className="chat-log" />
+              <div className="inputline">
+                <span className="prompt">{t('chat.pSente')}</span>
+                <input type="text" placeholder={t('chat.placeholder')} />
+                <button type="button" className="send">
+                  {t('chat.send')}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="panel spectators" style={{ marginTop: 12 }}>
+            <div className="panel-label">
+              <span>{t('spec.title')}</span>
+            </div>
+            <div className="spec-empty">{t('spec.empty')}</div>
+          </div>
+
+          <div className="panel" style={{ marginTop: 12 }}>
+            <div className="panel-label">
+              <span>棋譜</span>
+            </div>
+            <div className="console">
+              <div className="chat-log" ref={kifuScrollRef} style={{ maxHeight: 180 }}>
+                {moveHistory.length === 0 ? (
+                  <div className="spec-empty">まだ指し手がありません</div>
+                ) : (
+                  moveHistory.map((m, i) => (
+                    <div key={i} style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                      {i + 1}. {m}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <PromotionModal locale={locale} t={t} />
+    </div>
+  );
+}
+
+interface PromotionModalProps {
+  locale: LocaleCode;
+  t: (key: string) => string;
+}
+
+function PromotionModal({ locale, t }: PromotionModalProps) {
+  const pendingPromotion = useGameStore((s) => s.pendingPromotion);
+  const confirmPromotion = useGameStore((s) => s.confirmPromotion);
+  const cancelPromotion = useGameStore((s) => s.cancelPromotion);
+
+  useEffect(() => {
+    if (!pendingPromotion) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') cancelPromotion();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [pendingPromotion, cancelPromotion]);
+
+  if (!pendingPromotion) return null;
+
+  const nonPromotePiece: PieceInstance = {
+    pieceId: '__preview_non__',
+    kind: pendingPromotion.pieceKind,
+    owner: pendingPromotion.owner,
+    initialOwner: pendingPromotion.owner,
+    promoted: false,
+  };
+  const promotePiece: PieceInstance = {
+    pieceId: '__preview_promo__',
+    kind: pendingPromotion.promotedKind,
+    owner: pendingPromotion.owner,
+    initialOwner: pendingPromotion.owner,
+    promoted: true,
+  };
+
+  return (
+    <div className="promotion-modal-overlay" onClick={cancelPromotion}>
+      <div className="promotion-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="heading">{pendingPromotion.heading}</div>
+        <div className="cards">
+          <button type="button" className="promotion-card" onClick={() => confirmPromotion(false)}>
+            <div className="label">{t('promote.decline')}</div>
+            <div className="promotion-card-piece">
+              <PieceView piece={nonPromotePiece} locale={locale} />
+            </div>
+          </button>
+          <button type="button" className="promotion-card" onClick={() => confirmPromotion(true)}>
+            <div className="label">{t('promote.confirm')}</div>
+            <div className="promotion-card-piece">
+              <PieceView piece={promotePiece} locale={locale} />
+            </div>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface HandGroup {
+  kind: string;
+  pieceIds: string[];
+}
+
+function groupHand(hand: PieceInstance[]): HandGroup[] {
+  const groups = new Map<string, string[]>();
+  for (const p of hand) {
+    if (!groups.has(p.kind)) groups.set(p.kind, []);
+    groups.get(p.kind)!.push(p.pieceId);
+  }
+  return Array.from(groups.entries()).map(([kind, pieceIds]) => ({ kind, pieceIds }));
+}
+
+function PieceView({ piece, locale }: { piece: PieceInstance; locale: LocaleCode }) {
+  const name = pieceNameFor(piece.kind, locale);
+  const isEn = locale === 'en';
+  const isMulti = isEn && name.length > 1;
+  const cls = [
+    'pc',
+    piece.owner === 'player2' ? 'gote' : '',
+    piece.promoted ? 'promoted' : '',
+    !isEn && isTwoChar(piece.kind) ? 'two' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const jaCls = ['ja', isEn ? 'en' : '', isEn && isMulti ? 'multi' : ''].filter(Boolean).join(' ');
+  return (
+    <div className={cls}>
+      <span className={jaCls}>{name}</span>
+    </div>
+  );
+}
+
+interface PieceStandViewProps {
+  side: 'opp' | 'you';
+  pieces: HandGroup[];
+  onClick: (pieceId: string) => void;
+  selectedId: string | null;
+  activePlayer: boolean;
+  locale: LocaleCode;
+}
+
+function PieceStandView({ side, pieces, onClick, selectedId, activePlayer, locale }: PieceStandViewProps) {
+  const isEn = locale === 'en';
+  return (
+    <div className={`stand ${side}`}>
+      <div className="stand-h">{side === 'opp' ? 'Gote' : 'You'}</div>
+      <div className="caps">
+        {pieces.map((g) => {
+          const name = pieceNameFor(g.kind, locale);
+          const isMulti = isEn && name.length > 1;
+          const jaCls = ['ja', isEn ? 'en' : '', isEn && isMulti ? 'multi' : ''].filter(Boolean).join(' ');
+          return (
+            <div
+              key={g.kind}
+              className={`cap${selectedId && g.pieceIds.includes(selectedId) ? ' selected' : ''}`}
+              onClick={() => activePlayer && onClick(g.pieceIds[0])}
+              style={{ cursor: activePlayer ? 'pointer' : 'default' } as CSSProperties}
+            >
+              <div className="capface">
+                <span className={jaCls}>{name}</span>
+              </div>
+              {g.pieceIds.length >= 2 && <span className="ct">{g.pieceIds.length}</span>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,33 @@
+import type { LocaleData } from '../types';
+
+export const zh: LocaleData = {
+  code: 'zh',
+  name: '中文',
+  translations: {
+    'app.title': 'MOMO Shogi',
+    'app.ver': 'v0.1',
+    'app.sub': '擒王为胜，破局无界',
+    'turn.mine': '轮到你',
+    'turn.opp': '对手回合',
+    'player.opp': '对手',
+    'player.you': '你',
+    'cmd.taunt': '挑衅',
+    'cmd.undo': '悔棋',
+    'cmd.draw': '和棋',
+    'cmd.pause': '暂停',
+    'cmd.resign': '认输',
+    'cmd.cancel': '放回',
+    'chat.title': '聊天',
+    'chat.send': '发送',
+    'chat.placeholder': '消息…',
+    'chat.pSente': '先手＞',
+    'chat.pGote': '后手＞',
+    'spec.title': '观战者',
+    'spec.kick': '踢出',
+    'spec.empty': '暂无观战者',
+    'qmode.cycle': '轮显',
+    'qmode.stack': '叠加',
+    'promote.decline': '不成',
+    'promote.confirm': '升变',
+  },
+};

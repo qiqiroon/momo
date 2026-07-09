@@ -1,0 +1,33 @@
+import type { LocaleData } from '../types';
+
+export const ja: LocaleData = {
+  code: 'ja',
+  name: '日本語',
+  translations: {
+    'app.title': 'MOMO Shogi',
+    'app.ver': 'v0.1',
+    'app.sub': 'Capture the King, Bend the Rules',
+    'turn.mine': 'あなたの手番',
+    'turn.opp': '相手の手番',
+    'player.opp': '相手プレイヤー',
+    'player.you': 'あなた',
+    'cmd.taunt': '威嚇',
+    'cmd.undo': '待った',
+    'cmd.draw': '引分',
+    'cmd.pause': '中断',
+    'cmd.resign': '投了',
+    'cmd.cancel': '持ち直し',
+    'chat.title': 'チャット',
+    'chat.send': '送信',
+    'chat.placeholder': 'メッセージ…',
+    'chat.pSente': '先手＞',
+    'chat.pGote': '後手＞',
+    'spec.title': '観戦者',
+    'spec.kick': 'キック',
+    'spec.empty': '観戦者はいません',
+    'qmode.cycle': '巡回',
+    'qmode.stack': '重ね',
+    'promote.decline': '成らず',
+    'promote.confirm': '成る',
+  },
+};

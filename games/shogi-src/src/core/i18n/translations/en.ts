@@ -29,5 +29,11 @@ export const en: LocaleData = {
     'qmode.stack': 'Stack',
     'promote.decline': "Don't Promote",
     'promote.confirm': 'Promote',
+    'cmd.nyugyoku': 'Declare Nyugyoku',
+    'status.sennichite': 'Sennichite (Draw)',
+    'status.nyugyoku_win_p1': 'Sente wins by Nyugyoku',
+    'status.nyugyoku_win_p2': 'Gote wins by Nyugyoku',
+    'status.checkmate_p1': 'Sente checkmated',
+    'status.checkmate_p2': 'Gote checkmated',
   },
 };

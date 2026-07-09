@@ -1,5 +1,7 @@
 export { hondou, loadMgf } from './mgf/loader';
 export { formatMove, pieceNameJa } from './kifu/format';
+export { positionHash } from './position/hash';
+export { canDeclareNyugyoku, computeEnterZonePoints } from './victory/nyugyoku';
 export { initPosition } from './position/init';
 export { applyMove } from './position/apply';
 export {

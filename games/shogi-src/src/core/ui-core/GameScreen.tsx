@@ -55,12 +55,16 @@ export function GameScreen({ variant }: GameScreenProps) {
   const goteInCheck = isInCheck(mgf, position, 'player2');
   const turnLabel =
     status === 'checkmate'
-      ? position.sideToMove === 'player1'
-        ? '先手詰み'
-        : '後手詰み'
-      : position.sideToMove === 'player1'
-        ? '先手番' + (senteInCheck ? '（王手）' : '')
-        : '後手番' + (goteInCheck ? '（王手）' : '');
+      ? t(position.sideToMove === 'player1' ? 'status.checkmate_p1' : 'status.checkmate_p2')
+      : status === 'sennichite'
+        ? t('status.sennichite')
+        : status === 'nyugyoku_win_p1'
+          ? t('status.nyugyoku_win_p1')
+          : status === 'nyugyoku_win_p2'
+            ? t('status.nyugyoku_win_p2')
+            : position.sideToMove === 'player1'
+              ? '先手番' + (senteInCheck ? '（王手）' : '')
+              : '後手番' + (goteInCheck ? '（王手）' : '');
 
   const isSelected = (row: number, col: number) => selectedSquare?.row === row && selectedSquare?.col === col;
   const isHint = (row: number, col: number) => legalDestinations.some((d) => d.row === row && d.col === col);
@@ -68,7 +72,7 @@ export function GameScreen({ variant }: GameScreenProps) {
   const isLastMove = (row: number, col: number) => lastMoveTo?.row === row && lastMoveTo?.col === col;
 
   const onSquareClick = (row: number, col: number) => {
-    if (status === 'checkmate') return;
+    if (status !== 'playing') return;
     if ((selectedSquare || selectedHandPieceId) && isHint(row, col)) {
       tryMove({ row, col });
       return;
@@ -82,7 +86,7 @@ export function GameScreen({ variant }: GameScreenProps) {
   };
 
   const onHandPieceClick = (owner: 'player1' | 'player2', pieceId: string) => {
-    if (status === 'checkmate') return;
+    if (status !== 'playing') return;
     if (owner !== position.sideToMove) return;
     if (selectedHandPieceId === pieceId) {
       clearSelection();
@@ -248,6 +252,7 @@ export function GameScreen({ variant }: GameScreenProps) {
             <button type="button" className="act" onClick={clearSelection}>
               {t('cmd.cancel')}
             </button>
+            <NyugyokuButton t={t} />
           </div>
         </div>
 
@@ -297,6 +302,25 @@ export function GameScreen({ variant }: GameScreenProps) {
       </div>
       <PromotionModal locale={locale} t={t} />
     </div>
+  );
+}
+
+interface NyugyokuButtonProps {
+  t: (key: string) => string;
+}
+
+function NyugyokuButton({ t }: NyugyokuButtonProps) {
+  const position = useGameStore((s) => s.position);
+  const canP1 = useGameStore((s) => s.canNyugyokuP1);
+  const canP2 = useGameStore((s) => s.canNyugyokuP2);
+  const status = useGameStore((s) => s.status);
+  const declareNyugyoku = useGameStore((s) => s.declareNyugyoku);
+  const canNow = status === 'playing' && (position.sideToMove === 'player1' ? canP1 : canP2);
+  if (!canNow) return null;
+  return (
+    <button type="button" className="act" onClick={() => declareNyugyoku()}>
+      {t('cmd.nyugyoku')}
+    </button>
   );
 }
 

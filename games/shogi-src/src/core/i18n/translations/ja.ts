@@ -29,5 +29,11 @@ export const ja: LocaleData = {
     'qmode.stack': '重ね',
     'promote.decline': '成らず',
     'promote.confirm': '成る',
+    'cmd.nyugyoku': '入玉宣言',
+    'status.sennichite': '千日手（引分）',
+    'status.nyugyoku_win_p1': '先手入玉勝ち',
+    'status.nyugyoku_win_p2': '後手入玉勝ち',
+    'status.checkmate_p1': '先手詰み',
+    'status.checkmate_p2': '後手詰み',
   },
 };

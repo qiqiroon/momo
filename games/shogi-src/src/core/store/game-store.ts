@@ -1,11 +1,13 @@
 import { create } from 'zustand';
 import {
   applyMove,
+  canDeclareNyugyoku,
   generateLegalMoves,
   hondou,
   initPosition,
   isCheckmate,
   isInCheck,
+  positionHash,
 } from '../engine';
 import type { BoardMove, Mgf, Move, Player, Position, Square } from '../engine';
 import { formatMove } from '../engine/kifu/format';
@@ -19,6 +21,13 @@ export interface PendingPromotion {
   heading: string;
 }
 
+type GameStatus =
+  | 'playing'
+  | 'checkmate'
+  | 'sennichite'
+  | 'nyugyoku_win_p1'
+  | 'nyugyoku_win_p2';
+
 interface GameState {
   mgf: Mgf;
   position: Position;
@@ -26,8 +35,11 @@ interface GameState {
   selectedHandPieceId: string | null;
   legalDestinations: Square[];
   moveHistory: string[];
-  status: 'playing' | 'checkmate' | 'sennichite';
+  status: GameStatus;
   pendingPromotion: PendingPromotion | null;
+  positionCounts: Record<string, number>;
+  canNyugyokuP1: boolean;
+  canNyugyokuP2: boolean;
 
   selectSquare: (sq: Square) => void;
   selectHandPiece: (pieceId: string) => void;
@@ -35,6 +47,7 @@ interface GameState {
   tryMove: (to: Square) => boolean;
   confirmPromotion: (promote: boolean) => void;
   cancelPromotion: () => void;
+  declareNyugyoku: () => boolean;
   reset: () => void;
 }
 
@@ -68,9 +81,22 @@ function computeLegalDestinationsFromHand(mgf: Mgf, position: Position, pieceId:
   return dests;
 }
 
-function computeStatus(mgf: Mgf, position: Position): GameState['status'] {
-  if (isCheckmate(mgf, position)) return 'checkmate';
-  return 'playing';
+function computeStatusAfterMove(
+  mgf: Mgf,
+  position: Position,
+  positionCounts: Record<string, number>,
+): { status: GameStatus; positionCounts: Record<string, number> } {
+  if (isCheckmate(mgf, position)) {
+    return { status: 'checkmate', positionCounts };
+  }
+  const hash = positionHash(position);
+  const count = (positionCounts[hash] ?? 0) + 1;
+  const nextCounts = { ...positionCounts, [hash]: count };
+  const threshold = mgf.repetition?.detection_threshold ?? 4;
+  if (count >= threshold) {
+    return { status: 'sennichite', positionCounts: nextCounts };
+  }
+  return { status: 'playing', positionCounts: nextCounts };
 }
 
 function applyAndCommit(
@@ -78,9 +104,10 @@ function applyAndCommit(
   get: () => GameState,
   move: Move,
 ): void {
-  const { position, mgf, moveHistory } = get();
+  const { position, mgf, moveHistory, positionCounts } = get();
   const formatted = formatMove(mgf, position, move);
   const nextPos = applyMove(mgf, position, move);
+  const { status, positionCounts: nextCounts } = computeStatusAfterMove(mgf, nextPos, positionCounts);
   set({
     position: nextPos,
     selectedSquare: null,
@@ -88,12 +115,16 @@ function applyAndCommit(
     legalDestinations: [],
     pendingPromotion: null,
     moveHistory: [...moveHistory, formatted],
-    status: computeStatus(mgf, nextPos),
+    status,
+    positionCounts: nextCounts,
+    canNyugyokuP1: canDeclareNyugyoku(mgf, nextPos, 'player1'),
+    canNyugyokuP2: canDeclareNyugyoku(mgf, nextPos, 'player2'),
   });
 }
 
 const initialMgf: Mgf = hondou;
 const initialPos = initPosition(initialMgf);
+const initialHash = positionHash(initialPos);
 
 export const useGameStore = create<GameState>((set, get) => ({
   mgf: initialMgf,
@@ -104,9 +135,13 @@ export const useGameStore = create<GameState>((set, get) => ({
   moveHistory: [],
   status: 'playing',
   pendingPromotion: null,
+  positionCounts: { [initialHash]: 1 },
+  canNyugyokuP1: false,
+  canNyugyokuP2: false,
 
   selectSquare: (sq) => {
-    const { position, mgf } = get();
+    const { position, mgf, status } = get();
+    if (status !== 'playing') return;
     const piece = position.board[sq.row][sq.col];
     if (!piece || piece.owner !== position.sideToMove) {
       set({ selectedSquare: null, selectedHandPieceId: null, legalDestinations: [] });
@@ -120,7 +155,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   selectHandPiece: (pieceId) => {
-    const { position, mgf } = get();
+    const { position, mgf, status } = get();
+    if (status !== 'playing') return;
     const piece = position.hands[position.sideToMove].find((p) => p.pieceId === pieceId);
     if (!piece) return;
     set({
@@ -135,7 +171,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   tryMove: (to) => {
-    const { position, mgf, selectedSquare, selectedHandPieceId } = get();
+    const { position, mgf, selectedSquare, selectedHandPieceId, status } = get();
+    if (status !== 'playing') return false;
 
     if (selectedSquare) {
       const piece = position.board[selectedSquare.row][selectedSquare.col];
@@ -154,7 +191,6 @@ export const useGameStore = create<GameState>((set, get) => ({
         applyAndCommit(set, get, candidates[0]);
         return true;
       }
-      // 2 候補 → 成り選択モーダルを提示
       const nonPromote = candidates.find((m) => !m.promote);
       const promote = candidates.find((m) => m.promote);
       if (!nonPromote || !promote) {
@@ -208,15 +244,34 @@ export const useGameStore = create<GameState>((set, get) => ({
     });
   },
 
-  reset: () => {
+  declareNyugyoku: () => {
+    const { position, mgf, status } = get();
+    if (status !== 'playing') return false;
+    const player = position.sideToMove;
+    if (!canDeclareNyugyoku(mgf, position, player)) return false;
     set({
-      position: initPosition(get().mgf),
+      status: player === 'player1' ? 'nyugyoku_win_p1' : 'nyugyoku_win_p2',
+      selectedSquare: null,
+      selectedHandPieceId: null,
+      legalDestinations: [],
+      pendingPromotion: null,
+    });
+    return true;
+  },
+
+  reset: () => {
+    const pos = initPosition(get().mgf);
+    set({
+      position: pos,
       selectedSquare: null,
       selectedHandPieceId: null,
       legalDestinations: [],
       moveHistory: [],
       status: 'playing',
       pendingPromotion: null,
+      positionCounts: { [positionHash(pos)]: 1 },
+      canNyugyokuP1: false,
+      canNyugyokuP2: false,
     });
   },
 }));

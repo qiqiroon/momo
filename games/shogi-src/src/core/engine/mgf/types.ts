@@ -87,13 +87,26 @@ export interface MgfConstraints {
   dead_zone?: 'auto' | boolean;
 }
 
+export interface MgfEnteringKing {
+  enabled?: boolean;
+  zone?: 'enemy_promotion' | string;
+  point_threshold?: number;
+  count_method?: '24point' | '27point' | string;
+}
+
 export interface MgfVictory {
-  royal_capture?: boolean;
-  enter_zone?: {
-    enabled?: boolean;
-    method?: 'points' | 'entered';
-    points?: { player1?: number; player2?: number };
-  };
+  type?: 'capture_royalty' | 'bare_king' | 'points' | 'flag_capture' | 'annihilation' | 'check_wins';
+  royalty_ids?: string[];
+  entering_king?: MgfEnteringKing;
+  resign_allowed?: boolean;
+}
+
+export interface MgfRepetitionExtended {
+  type?: 'draw' | 'rematch_with_side_swap' | 'sennichite' | 'perpetual_check';
+  on_check_repetition?: 'loss' | 'none';
+  detection_threshold?: number;
+  count?: number;
+  action?: 'draw' | 'win_attacker' | 'no_repeat';
 }
 
 export interface MgfRepetition {
@@ -113,6 +126,6 @@ export interface Mgf {
   constraints?: MgfConstraints;
   capture_rules?: unknown;
   victory?: MgfVictory;
-  repetition?: MgfRepetition;
+  repetition?: MgfRepetitionExtended;
   initial_placement: MgfInitialPlacement;
 }

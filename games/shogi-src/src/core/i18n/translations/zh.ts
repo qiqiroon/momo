@@ -29,5 +29,11 @@ export const zh: LocaleData = {
     'qmode.stack': '叠加',
     'promote.decline': '不成',
     'promote.confirm': '升变',
+    'cmd.nyugyoku': '入玉宣布',
+    'status.sennichite': '千日手（和棋）',
+    'status.nyugyoku_win_p1': '先手入玉获胜',
+    'status.nyugyoku_win_p2': '后手入玉获胜',
+    'status.checkmate_p1': '先手被将死',
+    'status.checkmate_p2': '后手被将死',
   },
 };

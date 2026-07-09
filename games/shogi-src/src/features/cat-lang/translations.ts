@@ -29,5 +29,11 @@ export const cat: LocaleData = {
     'qmode.stack': 'かさねにゃ',
     'promote.decline': 'そのまま',
     'promote.confirm': 'ばけるにゃ！',
+    'cmd.nyugyoku': 'にゃんこ入玉',
+    'status.sennichite': 'にゃにゃ千日',
+    'status.nyugyoku_win_p1': 'にゃ！先手勝ち',
+    'status.nyugyoku_win_p2': 'にゃ！後手勝ち',
+    'status.checkmate_p1': 'にゃっ先手詰み',
+    'status.checkmate_p2': 'にゃっ後手詰み',
   },
 };

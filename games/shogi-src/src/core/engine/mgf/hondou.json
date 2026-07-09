@@ -26,17 +26,20 @@
     "dead_zone": "auto"
   },
   "victory": {
-    "royal_capture": true,
-    "enter_zone": {
+    "type": "capture_royalty",
+    "royalty_ids": ["ou"],
+    "entering_king": {
       "enabled": true,
-      "method": "points",
-      "points": { "player1": 24, "player2": 24 }
-    }
+      "zone": "enemy_promotion",
+      "point_threshold": 24,
+      "count_method": "24point"
+    },
+    "resign_allowed": true
   },
   "repetition": {
-    "type": "sennichite",
-    "count": 4,
-    "action": "draw"
+    "type": "draw",
+    "detection_threshold": 4,
+    "on_check_repetition": "loss"
   },
   "pieces": [
     {

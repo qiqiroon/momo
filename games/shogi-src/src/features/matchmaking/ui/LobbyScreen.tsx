@@ -9,6 +9,9 @@ import { SHOGI_GAME_TYPE, SIGNALING_URL } from '../config';
 import { DEFAULT_ROOM_CONFIG, useMatchmakingStore, type RoomConfig } from '../store';
 import { ScreenBand } from '../../../core/ui-core/ScreenBand';
 
+/** localStorage キー：前回のプレイヤー名 */
+const LS_LAST_PLAYER_NAME = 'shogi.lobby.lastPlayerName';
+
 /**
  * サーバーが joined_room で中継してくる rules は
  * ホストが createRoom に渡した `{game, time}` を素通ししたもの。
@@ -53,6 +56,29 @@ export function LobbyScreen() {
 
   const subLocale: LocaleCode = locale === 'cat' ? 'ja' : locale;
   const subtitle = subLocale === 'zh' ? '擒王为胜，破局无界' : 'Capture the King, Bend the Rules';
+
+  // 前回のプレイヤー名を localStorage から復元
+  useEffect(() => {
+    if (playerName) return;
+    try {
+      const saved = localStorage.getItem(LS_LAST_PLAYER_NAME);
+      if (saved) setPlayerName(saved);
+    } catch {
+      // localStorage 使えない環境は無視
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const onPlayerNameChange = (name: string) => {
+    setPlayerName(name);
+    try {
+      if (name.trim()) {
+        localStorage.setItem(LS_LAST_PLAYER_NAME, name);
+      }
+    } catch {
+      // localStorage 使えない環境は無視
+    }
+  };
 
   useEffect(() => {
     const client = getMomoMatchmaking();
@@ -205,7 +231,7 @@ export function LobbyScreen() {
             <input
               type="text"
               value={playerName}
-              onChange={(e) => setPlayerName(e.target.value)}
+              onChange={(e) => onPlayerNameChange(e.target.value)}
               placeholder="表示名を入力"
               maxLength={20}
               style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border-strong)', color: 'var(--text)', padding: '5px 10px', borderRadius: 6, fontSize: 13 }}

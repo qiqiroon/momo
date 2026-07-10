@@ -1,6 +1,6 @@
 /**
- * ヘッダー直下に表示する薄い帯。
- * 「S00 · メニュー」のような画面識別を控えめに表示する。
+ * ヘッダー直下に表示する画面識別ラベル。
+ * 枠なし・地に直接・左寄せの控えめな表示。
  */
 interface ScreenBandProps {
   code: string;
@@ -12,14 +12,11 @@ export function ScreenBand({ code, name }: ScreenBandProps) {
     <div
       style={{
         marginTop: 4,
-        padding: '3px 10px',
+        padding: '3px 2px',
         fontSize: 10,
         color: 'var(--text-muted)',
-        textAlign: 'center',
+        textAlign: 'left',
         letterSpacing: '0.06em',
-        background: 'var(--surface2)',
-        border: '1px solid var(--border)',
-        borderRadius: 4,
       }}
     >
       {code} · {name}

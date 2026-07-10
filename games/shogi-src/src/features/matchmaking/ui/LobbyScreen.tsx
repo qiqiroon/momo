@@ -90,6 +90,13 @@ export function LobbyScreen() {
         setConnection('game_connected');
       },
       onDisconnected: (reason) => {
+        // ユーザーが自分から退室した直後の room_closed 通知は
+        // サーバーが本人にも送り返す挙動によるもの。無視して 'connected' を維持。
+        const state = useMatchmakingStore.getState();
+        if (state.intentionallyLeft) {
+          useMatchmakingStore.setState({ intentionallyLeft: false, connection: 'connected' });
+          return;
+        }
         setConnection('disconnected');
         if (reason) setError(reason);
         useRouteStore.getState().setScreen('net-lobby');

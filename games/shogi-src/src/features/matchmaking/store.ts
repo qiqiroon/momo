@@ -50,6 +50,15 @@ interface MatchmakingState {
   errorMessage: string | null;
   playerName: string;
   pendingRoomConfig: RoomConfig;
+  /**
+   * ユーザーが自分から部屋を出た直後を表すフラグ。
+   * サーバーは host_leave / guest_leave を受け取ると本人にも
+   * room_closed を送り返してくる。これがクライアントの onDisconnected
+   * を発火し、ロビー画面が「未接続」表示に落ちるバグの原因になるため、
+   * このフラグが true の間に届いた onDisconnected は無視する。
+   * 一度消費したら false に戻す。
+   */
+  intentionallyLeft: boolean;
 
   setConnection: (c: ConnectionStatus) => void;
   setRooms: (rooms: MomoRoomInfo[]) => void;
@@ -61,6 +70,7 @@ interface MatchmakingState {
   setPendingRoomConfig: (config: Partial<RoomConfig>) => void;
   resetPendingRoomConfig: () => void;
   resetRoomState: () => void;
+  setIntentionallyLeft: (v: boolean) => void;
 }
 
 export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
@@ -74,6 +84,7 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
   errorMessage: null,
   playerName: '',
   pendingRoomConfig: { ...DEFAULT_ROOM_CONFIG },
+  intentionallyLeft: false,
 
   setConnection: (c) => set({ connection: c }),
   setRooms: (rooms) => set({ rooms }),
@@ -91,5 +102,7 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
     opponentName: '',
     activeRoomConfig: null,
     connection: 'connected',
+    intentionallyLeft: true,
   }),
+  setIntentionallyLeft: (intentionallyLeft) => set({ intentionallyLeft }),
 }));

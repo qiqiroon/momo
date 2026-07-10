@@ -8,23 +8,40 @@ import { getMomoMatchmaking } from '../client';
 import { SHOGI_GAME_TYPE, SIGNALING_URL } from '../config';
 import { DEFAULT_ROOM_CONFIG, useMatchmakingStore, type RoomConfig } from '../store';
 import { ScreenBand } from '../../../core/ui-core/ScreenBand';
+import { decodeRoomName } from '../roomNameCodec';
+import { RoomBadges } from './RoomBadges';
 
 /** localStorage キー：前回のプレイヤー名 */
 const LS_LAST_PLAYER_NAME = 'shogi.lobby.lastPlayerName';
 
 /**
  * サーバーが joined_room で中継してくる rules は
- * ホストが createRoom に渡した `{game, time}` を素通ししたもの。
- * これを RoomConfig 形状に正規化する（先後はルームで決めるので含めない）。
+ * ホストが createRoom に渡した `{game, torus, quantum, customRuleName, time}` を
+ * 素通ししたもの。これを RoomConfig 形状に正規化する
+ * （先後はルームで決めるので含めない）。
+ *
+ * roomName は encoded 状態のまま格納する。表示側で decode する。
  */
 function normalizeIncomingRules(rules: unknown, roomName: string): RoomConfig | null {
   if (!rules || typeof rules !== 'object') return null;
-  const r = rules as { game?: string; time?: unknown };
+  const r = rules as {
+    game?: string;
+    torus?: boolean;
+    quantum?: boolean;
+    customRuleName?: string;
+    time?: unknown;
+  };
   const time = (r.time && typeof r.time === 'object' ? r.time : {}) as Partial<RoomConfig['timeControl']>;
+  const gameType: RoomConfig['gameType'] =
+    r.game === 'hasami' ? 'hasami' : r.game === 'shogi-custom' ? 'shogi-custom' : 'shogi';
   return {
     roomName,
     password: '',
     isPublic: true,
+    gameType,
+    torus: !!r.torus,
+    quantum: !!r.quantum,
+    customRuleName: r.customRuleName,
     timeControl: {
       mode: time.mode ?? DEFAULT_ROOM_CONFIG.timeControl.mode,
       mainSeconds: time.mainSeconds ?? DEFAULT_ROOM_CONFIG.timeControl.mainSeconds,
@@ -248,14 +265,19 @@ export function LobbyScreen() {
               <div className="spec-empty">部屋がありません（作成できます）</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {rooms.map((r) => (
+                {rooms.map((r) => {
+                  const parts = decodeRoomName(r.name);
+                  return (
                   <div
                     key={r.id}
                     style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'var(--surface2)', borderRadius: 8, fontSize: 13 }}
                   >
                     <div style={{ flex: 1 }}>
-                      <div style={{ color: 'var(--text)' }}>{r.name}</div>
-                      <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <RoomBadges parts={parts} locale={locale} />
+                        <span style={{ color: 'var(--text)' }}>{parts.userRoomName || '(名前なし)'}</span>
+                      </div>
+                      <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>
                         ホスト: {r.hostName}
                         {r.hasPassword && '  鍵付き'}
                         {r.guestConnected && '  対戦中'}
@@ -280,7 +302,8 @@ export function LobbyScreen() {
                       </button>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

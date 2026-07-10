@@ -7,6 +7,8 @@ import { CatIcon } from '../../../core/ui-core/CatIcon';
 import { getMomoMatchmaking } from '../client';
 import { useMatchmakingStore } from '../store';
 import { ScreenBand } from '../../../core/ui-core/ScreenBand';
+import { decodeRoomName } from '../roomNameCodec';
+import { RoomBadges } from './RoomBadges';
 
 /**
  * 段階 2-4.2: S05 待機画面（ホスト単独待ち専用）
@@ -84,8 +86,19 @@ export function WaitingScreen() {
         <div style={{ marginTop: 10, padding: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
           <div className="panel-label"><span>部屋情報</span></div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--text)' }}>
-            <div>部屋名: {currentRoomName || '(未設定)'}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>本将棋 · {timeLabel}</div>
+            {(() => {
+              const parts = decodeRoomName(currentRoomName || '');
+              return (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span>部屋名:</span>
+                    <RoomBadges parts={parts} locale={locale} />
+                    <span>{parts.userRoomName || '(未設定)'}</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{timeLabel}</div>
+                </>
+              );
+            })()}
           </div>
         </div>
 

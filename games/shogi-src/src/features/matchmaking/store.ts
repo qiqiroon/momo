@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { MomoRoomInfo } from './client';
+import type { GameType } from './roomNameCodec';
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'in_room' | 'game_connected';
 
@@ -18,9 +19,18 @@ export interface TimeControl {
 }
 
 export interface RoomConfig {
+  /** ユーザーが入力した「素の」部屋名。encode 前・decode 後の状態を保持する。 */
   roomName: string;
   password: string;
   isPublic: boolean;
+  /** ゲーム種類 (Phase 2 時点では本将棋/はさみ将棋の 2 択、自由ルールは Phase 3 で MGF 対応時に追加) */
+  gameType: GameType;
+  /** トーラス盤面 ON/OFF (対局実装は Phase 3+、現状はラベル用途) */
+  torus: boolean;
+  /** 量子将棋 ON/OFF (対局実装は Phase 3+、現状はラベル用途) */
+  quantum: boolean;
+  /** 自由ルール将棋 (shogi-custom) の MGF ルール名 (Phase 3+ で利用) */
+  customRuleName?: string;
   timeControl: TimeControl;
 }
 
@@ -34,6 +44,9 @@ export const DEFAULT_ROOM_CONFIG: RoomConfig = {
   roomName: '',
   password: '',
   isPublic: true,
+  gameType: 'shogi',
+  torus: false,
+  quantum: false,
   timeControl: DEFAULT_TIME_CONTROL,
 };
 

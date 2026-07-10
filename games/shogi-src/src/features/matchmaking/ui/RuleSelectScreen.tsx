@@ -8,6 +8,12 @@ import { getMomoMatchmaking } from '../client';
 import type { TimeControlMode } from '../store';
 import { useMatchmakingStore } from '../store';
 import { ScreenBand } from '../../../core/ui-core/ScreenBand';
+import { encodeRoomName, getBadgeLabels, type GameType } from '../roomNameCodec';
+
+const GAME_OPTIONS: { value: GameType; disabled?: boolean; note?: string }[] = [
+  { value: 'shogi' },
+  { value: 'hasami', note: 'Phase 3 でエンジン実装予定 (現状は本将棋盤面にフォールバック)' },
+];
 
 const TIME_MODES: { value: TimeControlMode; label: string; desc: string }[] = [
   { value: 'byoyomi', label: '秒読み', desc: '本時間 + 一手ごとに秒読み' },
@@ -56,28 +62,43 @@ export function RuleSelectScreen() {
     }
     const client = getMomoMatchmaking();
     if (!client) return;
-    const finalRoomName = config.roomName || '本将棋の部屋';
-    // 次回のために部屋名だけ保存（パスワードは保存しない）
+    const userRoomName = config.roomName || '本将棋の部屋';
+    // encoding: [本+環+量:カスタム名] ユーザー部屋名 の形にして送信
+    const encodedName = encodeRoomName({
+      gameType: config.gameType,
+      torus: config.torus,
+      quantum: config.quantum,
+      customRuleName: config.customRuleName,
+      userRoomName,
+    });
+    // 次回のために「素の」部屋名だけ保存（パスワードは保存しない）
     try {
-      localStorage.setItem(LS_LAST_ROOM_NAME, finalRoomName);
+      localStorage.setItem(LS_LAST_ROOM_NAME, userRoomName);
     } catch {
       // localStorage 使えない環境は無視
     }
-    setActiveRoomConfig({ ...config, roomName: finalRoomName });
-    setCurrentRoom({ roomId: null, roomName: finalRoomName, isHost: true });
+    // activeRoomConfig / currentRoomName にはサーバー保管形の encoded を格納する
+    // (WaitingScreen/RoomScreen での表示はレンダリング時に decode する)
+    setActiveRoomConfig({ ...config, roomName: encodedName });
+    setCurrentRoom({ roomId: null, roomName: encodedName, isHost: true });
     setOpponentName('');
     client.createRoom({
       hostName: playerName,
-      name: finalRoomName,
+      name: encodedName,
       password: config.password,
       isPublic: config.isPublic,
       rules: {
-        game: 'honshogi',
+        game: config.gameType,
+        torus: config.torus,
+        quantum: config.quantum,
+        customRuleName: config.customRuleName,
         time: config.timeControl,
       },
     });
     setScreen('waiting');
   };
+
+  const badgeLabels = getBadgeLabels(locale);
 
   return (
     <div className="stage">
@@ -147,9 +168,44 @@ export function RuleSelectScreen() {
 
         <div style={{ marginTop: 14, padding: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
           <div className="panel-label"><span>ゲーム</span></div>
-          <div style={{ fontSize: 13, color: 'var(--text)' }}>本将棋 (Phase 2 では本将棋固定)</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {GAME_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                className="act"
+                onClick={() => setConfig({ gameType: opt.value })}
+                style={config.gameType === opt.value ? { borderColor: 'var(--orange)', color: 'var(--orange-light)', background: 'var(--bg-selected)' } : {}}
+                title={opt.note}
+              >
+                {badgeLabels.gameType[opt.value]}
+              </button>
+            ))}
+          </div>
+          {config.gameType === 'hasami' && (
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+              ※ はさみ将棋のエンジンは Phase 3 で実装予定（現状は本将棋盤面にフォールバック）
+            </div>
+          )}
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-            トーラス将棋・量子将棋・自由ルールは後の Phase で追加予定
+            ※ 自由ルール将棋（MGF）は Phase 3 で追加予定
+          </div>
+        </div>
+
+        <div style={{ marginTop: 14, padding: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
+          <div className="panel-label"><span>盤面ルール</span></div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
+            <label style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <input type="checkbox" checked={config.torus} onChange={(e) => setConfig({ torus: e.target.checked })} />
+              <span style={{ color: 'var(--text)' }}>トーラス盤面（端と端がつながる）</span>
+            </label>
+            <label style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <input type="checkbox" checked={config.quantum} onChange={(e) => setConfig({ quantum: e.target.checked })} />
+              <span style={{ color: 'var(--text)' }}>量子将棋</span>
+            </label>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+            ※ 実際の対局への反映は Phase 3+ で実装予定。現状は部屋のラベル表示のみ
           </div>
         </div>
 

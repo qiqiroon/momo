@@ -9,6 +9,8 @@ export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'in
  * 段階 2-4 時点では RoomConfig からは外し、部屋作成前には決めない。
  */
 export type SideSelection = 'sente' | 'gote';
+/** S06 対局準備画面での先後選択（振り駒待ちを含む） */
+export type SideChoice = 'sente' | 'gote' | 'random' | null;
 export type TimeControlMode = 'byoyomi' | 'sudden_death' | 'fischer' | 'no_limit';
 
 export interface TimeControl {
@@ -73,6 +75,17 @@ interface MatchmakingState {
    */
   intentionallyLeft: boolean;
 
+  /** 自分の先後選択（S06 で選ぶ） */
+  mySideChoice: SideChoice;
+  /** 相手の先後選択（S06 で相手から受信） */
+  oppSideChoice: SideChoice;
+  /** 自分の準備完了状態 */
+  myReady: boolean;
+  /** 相手の準備完了状態 */
+  oppReady: boolean;
+  /** 対局開始時にホストが確定した先後（S07 対局画面が使用予定・段階 2-5.2） */
+  gameStartInfo: { hostSide: SideSelection; guestSide: SideSelection } | null;
+
   setConnection: (c: ConnectionStatus) => void;
   setRooms: (rooms: MomoRoomInfo[]) => void;
   setCurrentRoom: (info: { roomId: string | null; roomName: string; isHost: boolean }) => void;
@@ -84,6 +97,12 @@ interface MatchmakingState {
   resetPendingRoomConfig: () => void;
   resetRoomState: () => void;
   setIntentionallyLeft: (v: boolean) => void;
+  setMySideChoice: (c: SideChoice) => void;
+  setOppSideChoice: (c: SideChoice) => void;
+  setMyReady: (b: boolean) => void;
+  setOppReady: (b: boolean) => void;
+  setGameStartInfo: (info: MatchmakingState['gameStartInfo']) => void;
+  resetHandshake: () => void;
 }
 
 export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
@@ -98,6 +117,11 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
   playerName: '',
   pendingRoomConfig: { ...DEFAULT_ROOM_CONFIG },
   intentionallyLeft: false,
+  mySideChoice: null,
+  oppSideChoice: null,
+  myReady: false,
+  oppReady: false,
+  gameStartInfo: null,
 
   setConnection: (c) => set({ connection: c }),
   setRooms: (rooms) => set({ rooms }),
@@ -116,6 +140,23 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
     activeRoomConfig: null,
     connection: 'connected',
     intentionallyLeft: true,
+    mySideChoice: null,
+    oppSideChoice: null,
+    myReady: false,
+    oppReady: false,
+    gameStartInfo: null,
   }),
   setIntentionallyLeft: (intentionallyLeft) => set({ intentionallyLeft }),
+  setMySideChoice: (mySideChoice) => set({ mySideChoice }),
+  setOppSideChoice: (oppSideChoice) => set({ oppSideChoice }),
+  setMyReady: (myReady) => set({ myReady }),
+  setOppReady: (oppReady) => set({ oppReady }),
+  setGameStartInfo: (gameStartInfo) => set({ gameStartInfo }),
+  resetHandshake: () => set({
+    mySideChoice: null,
+    oppSideChoice: null,
+    myReady: false,
+    oppReady: false,
+    gameStartInfo: null,
+  }),
 }));

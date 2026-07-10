@@ -95,7 +95,7 @@ export function RuleSelectScreen() {
         time: config.timeControl,
       },
     });
-    setScreen('waiting');
+    setScreen('room');
   };
 
   const badgeLabels = getBadgeLabels(locale);

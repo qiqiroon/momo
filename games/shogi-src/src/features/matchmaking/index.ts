@@ -13,7 +13,6 @@ import { getMomoMatchmaking, type MomoMatchmakingApi } from './client';
 import { MenuScreen } from './ui/MenuScreen';
 import { LobbyScreen } from './ui/LobbyScreen';
 import { RuleSelectScreen } from './ui/RuleSelectScreen';
-import { WaitingScreen } from './ui/WaitingScreen';
 import { RoomScreen } from './ui/RoomScreen';
 
 const client = getMomoMatchmaking();
@@ -25,5 +24,5 @@ register('screen:lobby', MenuScreen);
 // 'net-lobby' = 通信対戦のロビー（部屋一覧・作成）
 register('screen:net-lobby', LobbyScreen);
 register('screen:rule-select', RuleSelectScreen);
-register('screen:waiting', WaitingScreen);
+// 'room' = S06 対局準備画面（段階 2-5.1 で S05 ホスト待機と統合）
 register('screen:room', RoomScreen);

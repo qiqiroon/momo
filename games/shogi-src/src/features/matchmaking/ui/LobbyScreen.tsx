@@ -10,6 +10,7 @@ import { DEFAULT_ROOM_CONFIG, useMatchmakingStore, type RoomConfig } from '../st
 import { ScreenBand } from '../../../core/ui-core/ScreenBand';
 import { decodeRoomName } from '../roomNameCodec';
 import { RoomBadges } from './RoomBadges';
+import { handleShogiMessage } from '../messageDispatcher';
 
 /** localStorage キー：前回のプレイヤー名 */
 const LS_LAST_PLAYER_NAME = 'shogi.lobby.lastPlayerName';
@@ -146,6 +147,11 @@ export function LobbyScreen() {
       },
       onError: (msg) => {
         setError(msg);
+      },
+      onMessage: (data) => {
+        // P2P で届いたゲームメッセージ（先後選択・準備完了・対局開始 等）を
+        // 中央 dispatcher に転送。store 更新と副作用（画面遷移）はここで完結。
+        handleShogiMessage(data);
       },
     });
     // 接続 open 後に enter_lobby が送信されて onRoomList が呼ばれる。

@@ -5,6 +5,9 @@ import './momo-lang/init';
 import './features/cat-lang';
 import './features/matchmaking';
 import { App } from './App';
+import { useRouteStore } from './core/store/route-store';
+
+useRouteStore.getState().setScreen('lobby');
 
 const rootEl = document.getElementById('app');
 if (rootEl) {

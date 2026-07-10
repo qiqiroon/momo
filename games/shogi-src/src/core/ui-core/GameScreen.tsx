@@ -128,7 +128,7 @@ export function GameScreen({ variant }: GameScreenProps) {
                   type="button"
                   onClick={() => useRouteStore.getState().setScreen('lobby')}
                 >
-                  オンライン対戦
+                  ロビーへ戻る
                 </button>
               )}
               <button className="reset-btn" type="button" onClick={reset}>

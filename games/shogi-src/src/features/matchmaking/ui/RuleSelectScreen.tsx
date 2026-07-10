@@ -3,7 +3,7 @@ import { useRouteStore } from '../../../core/store/route-store';
 import { t as _t } from '../../../core/i18n';
 import { CatIcon } from '../../../core/ui-core/CatIcon';
 import { getMomoMatchmaking } from '../client';
-import type { SideSelection, TimeControlMode } from '../store';
+import type { TimeControlMode } from '../store';
 import { useMatchmakingStore } from '../store';
 
 const TIME_MODES: { value: TimeControlMode; label: string; desc: string }[] = [
@@ -11,12 +11,6 @@ const TIME_MODES: { value: TimeControlMode; label: string; desc: string }[] = [
   { value: 'sudden_death', label: '切れ負け', desc: '本時間のみ・切れたら負け' },
   { value: 'fischer', label: 'フィッシャー', desc: '本時間 + 一手ごとに加算' },
   { value: 'no_limit', label: '時間フリー', desc: '制限なし' },
-];
-
-const SIDE_OPTIONS: { value: SideSelection; label: string }[] = [
-  { value: 'host_sente', label: 'ホストが先手' },
-  { value: 'host_gote', label: 'ホストが後手' },
-  { value: 'random', label: 'ランダム' },
 ];
 
 export function RuleSelectScreen() {
@@ -31,12 +25,12 @@ export function RuleSelectScreen() {
   const setCurrentRoom = useMatchmakingStore((s) => s.setCurrentRoom);
   const setOpponentName = useMatchmakingStore((s) => s.setOpponentName);
 
-  const onBack = () => setScreen('lobby');
+  const onBack = () => setScreen('net-lobby');
 
   const onStart = () => {
     if (!playerName.trim()) {
       setError('ロビー画面でプレイヤー名を入力してください');
-      setScreen('lobby');
+      setScreen('net-lobby');
       return;
     }
     const client = getMomoMatchmaking();
@@ -51,7 +45,6 @@ export function RuleSelectScreen() {
       isPublic: config.isPublic,
       rules: {
         game: 'honshogi',
-        side: config.sideSelection,
         time: config.timeControl,
       },
     });
@@ -119,18 +112,8 @@ export function RuleSelectScreen() {
 
         <div style={{ marginTop: 14, padding: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
           <div className="panel-label"><span>先後</span></div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {SIDE_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                className="act"
-                onClick={() => setConfig({ sideSelection: opt.value })}
-                style={config.sideSelection === opt.value ? { borderColor: 'var(--orange)', color: 'var(--orange-light)', background: 'var(--bg-selected)' } : {}}
-              >
-                {opt.label}
-              </button>
-            ))}
+          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+            入室後の準備画面で両者がそれぞれ選択します
           </div>
         </div>
 

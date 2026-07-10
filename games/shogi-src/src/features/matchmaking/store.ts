@@ -3,7 +3,11 @@ import type { MomoRoomInfo } from './client';
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'in_room' | 'game_connected';
 
-export type SideSelection = 'host_sente' | 'host_gote' | 'random';
+/**
+ * 段階 2-5 で RoomScreen が両者の先後選択を扱う際に再利用する型。
+ * 段階 2-4 時点では RoomConfig からは外し、部屋作成前には決めない。
+ */
+export type SideSelection = 'sente' | 'gote';
 export type TimeControlMode = 'byoyomi' | 'sudden_death' | 'fischer' | 'no_limit';
 
 export interface TimeControl {
@@ -17,7 +21,6 @@ export interface RoomConfig {
   roomName: string;
   password: string;
   isPublic: boolean;
-  sideSelection: SideSelection;
   timeControl: TimeControl;
 }
 
@@ -31,7 +34,6 @@ export const DEFAULT_ROOM_CONFIG: RoomConfig = {
   roomName: '',
   password: '',
   isPublic: true,
-  sideSelection: 'host_sente',
   timeControl: DEFAULT_TIME_CONTROL,
 };
 

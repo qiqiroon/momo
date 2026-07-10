@@ -9,18 +9,17 @@ import { DEFAULT_ROOM_CONFIG, useMatchmakingStore, type RoomConfig } from '../st
 
 /**
  * サーバーが joined_room で中継してくる rules は
- * ホストが createRoom に渡した `{game, side, time}` を素通ししたもの。
- * これを WaitingScreen が扱う RoomConfig 形状に正規化する。
+ * ホストが createRoom に渡した `{game, time}` を素通ししたもの。
+ * これを RoomConfig 形状に正規化する（先後はルームで決めるので含めない）。
  */
 function normalizeIncomingRules(rules: unknown, roomName: string): RoomConfig | null {
   if (!rules || typeof rules !== 'object') return null;
-  const r = rules as { game?: string; side?: string; time?: unknown };
+  const r = rules as { game?: string; time?: unknown };
   const time = (r.time && typeof r.time === 'object' ? r.time : {}) as Partial<RoomConfig['timeControl']>;
   return {
     roomName,
     password: '',
     isPublic: true,
-    sideSelection: (r.side as RoomConfig['sideSelection']) ?? DEFAULT_ROOM_CONFIG.sideSelection,
     timeControl: {
       mode: time.mode ?? DEFAULT_ROOM_CONFIG.timeControl.mode,
       mainSeconds: time.mainSeconds ?? DEFAULT_ROOM_CONFIG.timeControl.mainSeconds,
@@ -74,7 +73,7 @@ export function LobbyScreen() {
         setCurrentRoom({ roomId, roomName, isHost: false });
         setOpponentName(hostName);
         setActiveRoomConfig(normalizeIncomingRules(rules, roomName));
-        useRouteStore.getState().setScreen('waiting');
+        useRouteStore.getState().setScreen('room');
       },
       onGuestJoined: (guestName) => {
         setOpponentName(guestName);
@@ -88,7 +87,7 @@ export function LobbyScreen() {
       onDisconnected: (reason) => {
         setConnection('disconnected');
         if (reason) setError(reason);
-        useRouteStore.getState().setScreen('lobby');
+        useRouteStore.getState().setScreen('net-lobby');
       },
       onError: (msg) => {
         setError(msg);
@@ -135,10 +134,10 @@ export function LobbyScreen() {
     if (client) client.refreshRooms();
   };
 
-  const onBackToLocal = () => {
+  const onBackToMenu = () => {
     const client = getMomoMatchmaking();
     if (client) client.leaveRoom();
-    setScreen('game');
+    setScreen('lobby');
   };
 
   const connLabel: Record<string, string> = {
@@ -163,8 +162,8 @@ export function LobbyScreen() {
           </div>
           <div className="header-spacer" />
           <div className="header-tools">
-            <button className="reset-btn" type="button" onClick={onBackToLocal}>
-              ローカル対局へ戻る
+            <button className="reset-btn" type="button" onClick={onBackToMenu}>
+              メニューへ戻る
             </button>
           </div>
         </header>

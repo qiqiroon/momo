@@ -1,10 +1,13 @@
+import { useEffect } from 'react';
 import { useI18nStore } from '../../../core/store/i18n-store';
 import { useRouteStore } from '../../../core/store/route-store';
 import { t as _t } from '../../../core/i18n';
+import type { LocaleCode } from '../../../core/i18n/types';
 import { CatIcon } from '../../../core/ui-core/CatIcon';
 import { getMomoMatchmaking } from '../client';
 import type { TimeControlMode } from '../store';
 import { useMatchmakingStore } from '../store';
+import { ScreenBand } from '../../../core/ui-core/ScreenBand';
 
 const TIME_MODES: { value: TimeControlMode; label: string; desc: string }[] = [
   { value: 'byoyomi', label: '秒読み', desc: '本時間 + 一手ごとに秒読み' },
@@ -12,6 +15,9 @@ const TIME_MODES: { value: TimeControlMode; label: string; desc: string }[] = [
   { value: 'fischer', label: 'フィッシャー', desc: '本時間 + 一手ごとに加算' },
   { value: 'no_limit', label: '時間フリー', desc: '制限なし' },
 ];
+
+/** localStorage キー：前回の部屋名を記憶（パスワードは保存しない） */
+const LS_LAST_ROOM_NAME = 'shogi.roomForm.lastRoomName';
 
 export function RuleSelectScreen() {
   const locale = useI18nStore((s) => s.locale);
@@ -25,6 +31,21 @@ export function RuleSelectScreen() {
   const setCurrentRoom = useMatchmakingStore((s) => s.setCurrentRoom);
   const setOpponentName = useMatchmakingStore((s) => s.setOpponentName);
 
+  const subLocale: LocaleCode = locale === 'cat' ? 'ja' : locale;
+  const subtitle = subLocale === 'zh' ? '擒王为胜，破局无界' : 'Capture the King, Bend the Rules';
+
+  // 画面表示時に前回使った部屋名を復元（パスワードは記憶しない）
+  useEffect(() => {
+    if (config.roomName) return;
+    try {
+      const saved = localStorage.getItem(LS_LAST_ROOM_NAME);
+      if (saved) setConfig({ roomName: saved });
+    } catch {
+      // localStorage 使えない環境は無視
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const onBack = () => setScreen('net-lobby');
 
   const onStart = () => {
@@ -35,12 +56,19 @@ export function RuleSelectScreen() {
     }
     const client = getMomoMatchmaking();
     if (!client) return;
-    setActiveRoomConfig({ ...config, roomName: config.roomName || '本将棋の部屋' });
-    setCurrentRoom({ roomId: null, roomName: config.roomName || '本将棋の部屋', isHost: true });
+    const finalRoomName = config.roomName || '本将棋の部屋';
+    // 次回のために部屋名だけ保存（パスワードは保存しない）
+    try {
+      localStorage.setItem(LS_LAST_ROOM_NAME, finalRoomName);
+    } catch {
+      // localStorage 使えない環境は無視
+    }
+    setActiveRoomConfig({ ...config, roomName: finalRoomName });
+    setCurrentRoom({ roomId: null, roomName: finalRoomName, isHost: true });
     setOpponentName('');
     client.createRoom({
       hostName: playerName,
-      name: config.roomName || '本将棋の部屋',
+      name: finalRoomName,
       password: config.password,
       isPublic: config.isPublic,
       rules: {
@@ -61,7 +89,7 @@ export function RuleSelectScreen() {
               <span className="momo">MOMO</span> <span className="shogi">Shogi</span>{' '}
               <span className="ver">{t('app.ver')}</span>
             </h1>
-            <div className="subtitle">部屋作成 - ルール選択</div>
+            <div className={`subtitle${subLocale === 'zh' ? ' zh' : ''}`}>{subtitle}</div>
           </div>
           <div className="header-spacer" />
           <div className="header-tools">
@@ -71,13 +99,25 @@ export function RuleSelectScreen() {
           </div>
         </header>
 
-        <div style={{ marginTop: 14, padding: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
+        <ScreenBand code="S02" name="ルール選択" />
+
+        {/*
+         * Chrome の自動 fill 対策:
+         * - 部屋名 input と パスワード input は WebAuthn / auto-login と関係ない用途
+         * - <form autoComplete="off"> で囲み、パスワードは autoComplete="new-password" にする
+         *   （既存パスワードマネージャの候補が出ないよう "new-password" を指定）
+         * - 適当な name 属性を付けると Chrome が推測しにくくなる
+         */}
+        <form autoComplete="off" onSubmit={(e) => e.preventDefault()}>
+        <div style={{ marginTop: 10, padding: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
           <div className="panel-label"><span>部屋情報</span></div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <label style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 13 }}>
               <span style={{ color: 'var(--text-muted)', minWidth: 90 }}>部屋名</span>
               <input
                 type="text"
+                name="shogi-room-label"
+                autoComplete="off"
                 value={config.roomName}
                 onChange={(e) => setConfig({ roomName: e.target.value })}
                 placeholder="本将棋の部屋"
@@ -89,6 +129,8 @@ export function RuleSelectScreen() {
               <span style={{ color: 'var(--text-muted)', minWidth: 90 }}>パスワード</span>
               <input
                 type="password"
+                name="shogi-room-key"
+                autoComplete="new-password"
                 value={config.password}
                 onChange={(e) => setConfig({ password: e.target.value })}
                 placeholder="(任意)"
@@ -101,6 +143,7 @@ export function RuleSelectScreen() {
             </label>
           </div>
         </div>
+        </form>
 
         <div style={{ marginTop: 14, padding: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
           <div className="panel-label"><span>ゲーム</span></div>

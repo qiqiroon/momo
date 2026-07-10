@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { useI18nStore } from '../../../core/store/i18n-store';
 import { useRouteStore } from '../../../core/store/route-store';
 import { t as _t } from '../../../core/i18n';
+import type { LocaleCode } from '../../../core/i18n/types';
 import { CatIcon } from '../../../core/ui-core/CatIcon';
 import { getMomoMatchmaking } from '../client';
 import { SHOGI_GAME_TYPE, SIGNALING_URL } from '../config';
 import { DEFAULT_ROOM_CONFIG, useMatchmakingStore, type RoomConfig } from '../store';
+import { ScreenBand } from '../../../core/ui-core/ScreenBand';
 
 /**
  * サーバーが joined_room で中継してくる rules は
@@ -48,6 +50,9 @@ export function LobbyScreen() {
 
   const [joinRoomId, setJoinRoomId] = useState<string | null>(null);
   const [joinPassword, setJoinPassword] = useState('');
+
+  const subLocale: LocaleCode = locale === 'cat' ? 'ja' : locale;
+  const subtitle = subLocale === 'zh' ? '擒王为胜，破局无界' : 'Capture the King, Bend the Rules';
 
   useEffect(() => {
     const client = getMomoMatchmaking();
@@ -158,7 +163,7 @@ export function LobbyScreen() {
               <span className="momo">MOMO</span> <span className="shogi">Shogi</span>{' '}
               <span className="ver">{t('app.ver')}</span>
             </h1>
-            <div className="subtitle">オンライン対戦 ロビー</div>
+            <div className={`subtitle${subLocale === 'zh' ? ' zh' : ''}`}>{subtitle}</div>
           </div>
           <div className="header-spacer" />
           <div className="header-tools">
@@ -168,7 +173,9 @@ export function LobbyScreen() {
           </div>
         </header>
 
-        <div style={{ marginTop: 14, padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
+        <ScreenBand code="S04" name="通信対戦ロビー" />
+
+        <div style={{ marginTop: 10, padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
               接続状態: <span style={{ color: connection === 'disconnected' || connection === 'connecting' ? 'var(--text-muted)' : 'var(--orange-light)' }}>{connLabel[connection]}</span>

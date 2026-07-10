@@ -2,9 +2,11 @@ import { useEffect } from 'react';
 import { useI18nStore } from '../../../core/store/i18n-store';
 import { useRouteStore } from '../../../core/store/route-store';
 import { t as _t } from '../../../core/i18n';
+import type { LocaleCode } from '../../../core/i18n/types';
 import { CatIcon } from '../../../core/ui-core/CatIcon';
 import { getMomoMatchmaking } from '../client';
 import { useMatchmakingStore } from '../store';
+import { ScreenBand } from '../../../core/ui-core/ScreenBand';
 
 /**
  * 段階 2-4.2: S05 待機画面（ホスト単独待ち専用）
@@ -28,6 +30,9 @@ export function WaitingScreen() {
   const activeRoomConfig = useMatchmakingStore((s) => s.activeRoomConfig);
   const errorMessage = useMatchmakingStore((s) => s.errorMessage);
   const resetRoomState = useMatchmakingStore((s) => s.resetRoomState);
+
+  const subLocale: LocaleCode = locale === 'cat' ? 'ja' : locale;
+  const subtitle = subLocale === 'zh' ? '擒王为胜，破局无界' : 'Capture the King, Bend the Rules';
 
   // ゲスト到着（= 相手名受信）で room 画面へ
   useEffect(() => {
@@ -69,17 +74,14 @@ export function WaitingScreen() {
               <span className="momo">MOMO</span> <span className="shogi">Shogi</span>{' '}
               <span className="ver">{t('app.ver')}</span>
             </h1>
-            <div className="subtitle">対局待機 - S05</div>
+            <div className={`subtitle${subLocale === 'zh' ? ' zh' : ''}`}>{subtitle}</div>
           </div>
           <div className="header-spacer" />
-          <div className="header-tools">
-            <button className="reset-btn" type="button" onClick={onLeave}>
-              退室
-            </button>
-          </div>
         </header>
 
-        <div style={{ marginTop: 14, padding: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
+        <ScreenBand code="S05" name="ホスト待機" />
+
+        <div style={{ marginTop: 10, padding: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
           <div className="panel-label"><span>部屋情報</span></div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--text)' }}>
             <div>部屋名: {currentRoomName || '(未設定)'}</div>
@@ -116,6 +118,17 @@ export function WaitingScreen() {
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
             ※ 両者で先後選択・準備完了・振り駒は段階 2-5〜2-7 で実装予定
           </div>
+        </div>
+
+        <div style={{ marginTop: 20, display: 'flex', justifyContent: 'center' }}>
+          <button
+            type="button"
+            className="reset-btn"
+            onClick={onLeave}
+            style={{ minWidth: 260, padding: '8px 18px', fontSize: 13 }}
+          >
+            退室（オンライン対戦ロビーに戻る）
+          </button>
         </div>
       </div>
     </div>

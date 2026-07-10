@@ -1,9 +1,12 @@
+import { useEffect } from 'react';
 import { useI18nStore } from '../../../core/store/i18n-store';
 import { useRouteStore } from '../../../core/store/route-store';
 import { t as _t } from '../../../core/i18n';
+import type { LocaleCode } from '../../../core/i18n/types';
 import { CatIcon } from '../../../core/ui-core/CatIcon';
 import { getMomoMatchmaking } from '../client';
 import { useMatchmakingStore } from '../store';
+import { ScreenBand } from '../../../core/ui-core/ScreenBand';
 
 /**
  * 段階 2-4.2: S06 準備画面（両者集合後）
@@ -13,6 +16,9 @@ import { useMatchmakingStore } from '../store';
  * - 両者の名前表示（= 名前交換 IF、両サイドとも同じ内容が見える）
  * - 部屋情報とルール要約
  * - 退室ボタン
+ *
+ * ゲストが離脱した場合（ホスト側で onGuestLeft により opponentName='' に
+ * なる）、ホストは自動で待機画面へ戻る。
  *
  * 段階 2-5 で以下を追加予定:
  * - 両者による先後選択（P2P メッセージ）
@@ -31,6 +37,16 @@ export function RoomScreen() {
   const activeRoomConfig = useMatchmakingStore((s) => s.activeRoomConfig);
   const errorMessage = useMatchmakingStore((s) => s.errorMessage);
   const resetRoomState = useMatchmakingStore((s) => s.resetRoomState);
+
+  const subLocale: LocaleCode = locale === 'cat' ? 'ja' : locale;
+  const subtitle = subLocale === 'zh' ? '擒王为胜，破局无界' : 'Capture the King, Bend the Rules';
+
+  // ゲスト離脱でホストは待機画面に戻る
+  useEffect(() => {
+    if (isHost && !opponentName) {
+      setScreen('waiting');
+    }
+  }, [isHost, opponentName, setScreen]);
 
   const onLeave = () => {
     const client = getMomoMatchmaking();
@@ -68,17 +84,14 @@ export function RoomScreen() {
               <span className="momo">MOMO</span> <span className="shogi">Shogi</span>{' '}
               <span className="ver">{t('app.ver')}</span>
             </h1>
-            <div className="subtitle">対局準備 - S06</div>
+            <div className={`subtitle${subLocale === 'zh' ? ' zh' : ''}`}>{subtitle}</div>
           </div>
           <div className="header-spacer" />
-          <div className="header-tools">
-            <button className="reset-btn" type="button" onClick={onLeave}>
-              退室
-            </button>
-          </div>
         </header>
 
-        <div style={{ marginTop: 14, padding: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
+        <ScreenBand code="S06" name="対局準備" />
+
+        <div style={{ marginTop: 10, padding: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
           <div className="panel-label"><span>部屋情報</span></div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--text)' }}>
             <div>部屋名: {currentRoomName || '(未設定)'}</div>
@@ -111,6 +124,17 @@ export function RoomScreen() {
           <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
             両者が集合しました。先後選択と対局開始は次の段階（2-5）で実装します。
           </div>
+        </div>
+
+        <div style={{ marginTop: 20, display: 'flex', justifyContent: 'center' }}>
+          <button
+            type="button"
+            className="reset-btn"
+            onClick={onLeave}
+            style={{ minWidth: 260, padding: '8px 18px', fontSize: 13 }}
+          >
+            退室（オンライン対戦ロビーに戻る）
+          </button>
         </div>
       </div>
     </div>

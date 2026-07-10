@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { useI18nStore, type LocaleMode } from '../../../core/store/i18n-store';
 import { useRouteStore } from '../../../core/store/route-store';
 import { t as _t } from '../../../core/i18n';
+import type { LocaleCode } from '../../../core/i18n/types';
 import { CatIcon } from '../../../core/ui-core/CatIcon';
+import { ScreenBand } from '../../../core/ui-core/ScreenBand';
 
 /**
  * 段階 2-4.1: トップメニュー（初期画面）
@@ -29,6 +31,9 @@ export function MenuScreen() {
   langOptions.push({ value: 'zh', label: '中文' });
   langOptions.push({ value: 'cat', label: 'CAT' });
 
+  const subLocale: LocaleCode = locale === 'cat' ? 'ja' : locale;
+  const subtitle = subLocale === 'zh' ? '擒王为胜，破局无界' : 'Capture the King, Bend the Rules';
+
   return (
     <div className="stage">
       <div style={{ maxWidth: 560, margin: '0 auto' }}>
@@ -39,7 +44,7 @@ export function MenuScreen() {
               <span className="momo">MOMO</span> <span className="shogi">Shogi</span>{' '}
               <span className="ver">{t('app.ver')}</span>
             </h1>
-            <div className="subtitle">Capture the King, Bend the Rules</div>
+            <div className={`subtitle${subLocale === 'zh' ? ' zh' : ''}`}>{subtitle}</div>
           </div>
           <div className="header-spacer" />
           <div className="header-tools">
@@ -67,7 +72,9 @@ export function MenuScreen() {
           </div>
         </header>
 
-        <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <ScreenBand code="S00" name="メニュー" />
+
+        <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
           <MenuButton
             title="vs AI"
             desc="コンピュータ相手に対局（Phase 3 で実装予定）"
@@ -75,7 +82,7 @@ export function MenuScreen() {
             onClick={() => setShowAiNote(true)}
           />
           <MenuButton
-            title="vs 人"
+            title="vs 人（オフライン）"
             desc="同じ端末で交互に指すデバッグ用モード（将来「感想戦モード」に統合予定）"
             onClick={() => setScreen('game')}
           />

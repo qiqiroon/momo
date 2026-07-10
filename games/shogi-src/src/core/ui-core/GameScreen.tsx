@@ -9,6 +9,7 @@ import type { PieceInstance } from '../engine';
 import { isInCheck } from '../engine';
 import { pieceNameFor } from '../engine/kifu/format';
 import { CatIcon } from './CatIcon';
+import { ScreenBand } from './ScreenBand';
 
 interface GameScreenProps {
   variant: 'a' | 'b';
@@ -128,7 +129,7 @@ export function GameScreen({ variant }: GameScreenProps) {
                   type="button"
                   onClick={() => useRouteStore.getState().setScreen('lobby')}
                 >
-                  ロビーへ戻る
+                  メニューへ戻る
                 </button>
               )}
               <button className="reset-btn" type="button" onClick={reset}>
@@ -157,6 +158,8 @@ export function GameScreen({ variant }: GameScreenProps) {
               </div>
             </div>
           </header>
+
+          <ScreenBand code="S07" name="対局" />
 
           <div className="turn-row">
             <div className={`turn-banner${status === 'checkmate' ? ' opp' : ''}`}>{turnLabel}</div>

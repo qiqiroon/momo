@@ -12,20 +12,18 @@ import { useMatchmakingStore, type SideChoice, type SideSelection } from '../sto
 import { PROTOCOL_VERSION } from '../protocol';
 
 /**
- * S06 対局準備画面（段階 2-5.1 で S05 ホスト待機と統合）。
+ * S06 対局準備画面（段階 2-5.1 で S05 ホスト待機と統合、
+ * 段階 2-5.1a で相手選択の可視化と振り駒同期を追加）。
  *
  * モック momo_shogi_S05_mock_v1.html の構造・スタイル・翻訳データを
  * verbatim にコピーして持ち込む。
  *
- * この画面が担当するもの:
- * - プレイヤー状態行（自分＋相手・接続ドット・ホスト/ゲストタグ）
- * - ルール同期の進捗（3 ステップ・段階 2-5.1 時点は「即座に全部完了」の見せかけ）
- * - 先後選択（先手/後手/おまかせ の駒モチーフ 3 カード＋振り駒アニメ）
- * - チャット枠（送受信は段階 2-5.2 以降で実装）
- * - 準備完了カード（両者ready で S07 対局へ遷移）
- *
- * ゲスト未入室状態（ホスト単独）でも同じ画面を表示し、相手行を「入室待ち」に
- * する（旧 S05 ホスト待機画面の役割を吸収）。
+ * 段階 2-5.1a の追加ロジック:
+ * - 各先後カードに「自分」「相手」の選択マーク（左上・右上）を独立表示
+ * - 両者「おまかせ」が揃った時のみ振り駒アニメを発動
+ *   （ホストが乱数計算 → furigoma_result 送信 → 両者に同じアニメ＋結果）
+ * - 準備完了ボタンは、両者おまかせ + 振り駒結果未確定なら無効
+ * - 選択変更で自分の準備完了は自動解除、相手の準備完了は受信時に解除
  */
 export function RoomScreen() {
   const locale = useI18nStore((s) => s.locale);
@@ -44,8 +42,10 @@ export function RoomScreen() {
   const oppSideChoice = useMatchmakingStore((s) => s.oppSideChoice);
   const myReady = useMatchmakingStore((s) => s.myReady);
   const oppReady = useMatchmakingStore((s) => s.oppReady);
+  const furigomaResult = useMatchmakingStore((s) => s.furigomaResult);
   const setMySideChoice = useMatchmakingStore((s) => s.setMySideChoice);
   const setMyReady = useMatchmakingStore((s) => s.setMyReady);
+  const setFurigomaResult = useMatchmakingStore((s) => s.setFurigomaResult);
   const resetHandshake = useMatchmakingStore((s) => s.resetHandshake);
 
   const subLocale: LocaleCode = locale === 'cat' ? 'ja' : locale;
@@ -53,9 +53,8 @@ export function RoomScreen() {
 
   const oppPresent = !!opponentName;
 
-  // 振り駒アニメ用の状態（先後選択で「おまかせ」を選んだときのみ動く）
+  // 振り駒アニメ再生中フラグ（結果が新しく確定した瞬間から 1 秒間）
   const [furigomaSpinning, setFurigomaSpinning] = useState(false);
-  const [furigomaResult, setFurigomaResult] = useState<{ isSente: boolean; count: number } | null>(null);
 
   // 送信ユーティリティ
   const sendMsg = (msg: unknown) => {
@@ -79,28 +78,65 @@ export function RoomScreen() {
     }
   }, [isHost, opponentName, resetHandshake]);
 
-  // 先後選択が両者そろい、コンフリクトがなければ準備完了ボタンを有効化
-  // conflict: 両者が明示的に同じ側を選んだ場合
-  const hasConflict = (() => {
-    if (!oppPresent) return true; // 相手不在なら準備不可
-    if (mySideChoice === null || oppSideChoice === null) return true; // どちらか未選択
-    if (mySideChoice === 'sente' && oppSideChoice === 'sente') return true;
-    if (mySideChoice === 'gote' && oppSideChoice === 'gote') return true;
-    return false;
-  })();
-  const readyDisabled = hasConflict && !myReady;
+  // 両者「おまかせ」が揃い、まだ振り駒結果がない場合、ホストが計算＆配信
+  useEffect(() => {
+    if (!isHost) return;
+    if (mySideChoice !== 'random' || oppSideChoice !== 'random') return;
+    if (furigomaResult) return;
+    // 5 コマを独立にランダム（true = 表 = 歩、false = 裏 = と）
+    const faceUps: boolean[] = Array.from({ length: 5 }, () => Math.random() < 0.5);
+    const faceUpCount = faceUps.filter((x) => x).length;
+    // 3 枚以上表ならホスト先手（奇数個なので同数はあり得ない）
+    const hostIsSente = faceUpCount >= 3;
+    const payload = { v: PROTOCOL_VERSION, type: 'furigoma_result' as const, faceUps, hostIsSente };
+    sendMsg(payload);
+    setFurigomaResult({ faceUps, hostIsSente });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHost, mySideChoice, oppSideChoice, furigomaResult]);
 
-  // 両者準備完了 → ホストが振り駒（必要なら）+ 先後確定 + game_start 送信
+  // 振り駒結果が新しく確定 → アニメを 1 秒間再生
+  useEffect(() => {
+    if (!furigomaResult) {
+      setFurigomaSpinning(false);
+      return;
+    }
+    setFurigomaSpinning(true);
+    const timer = setTimeout(() => setFurigomaSpinning(false), 1000);
+    return () => clearTimeout(timer);
+  }, [furigomaResult]);
+
+  // 選択が「両者おまかせ」以外に変化したら、古い振り駒結果を破棄
+  useEffect(() => {
+    if (!furigomaResult) return;
+    if (mySideChoice !== 'random' || oppSideChoice !== 'random') {
+      setFurigomaResult(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mySideChoice, oppSideChoice]);
+
+  // 先後選択の状態から準備完了ボタンの可否を判定
+  const canReady = (() => {
+    if (!oppPresent) return false;
+    if (mySideChoice === null || oppSideChoice === null) return false;
+    // 明示的コンフリクト（両者「先手」or 両者「後手」）
+    if (mySideChoice === 'sente' && oppSideChoice === 'sente') return false;
+    if (mySideChoice === 'gote' && oppSideChoice === 'gote') return false;
+    // 両者「おまかせ」で振り駒結果がまだ確定していないなら不可
+    if (mySideChoice === 'random' && oppSideChoice === 'random' && !furigomaResult) return false;
+    // 振り駒アニメ再生中は準備不可（結果を見せてから）
+    if (furigomaSpinning) return false;
+    return true;
+  })();
+  const readyDisabled = !canReady && !myReady;
+
+  // 両者準備完了 → ホストが先後を確定して game_start を送信
   useEffect(() => {
     if (!myReady || !oppReady) return;
-    if (!isHost) return; // 送信はホストのみ
-    // 両者の選択から先後を確定する
-    const { hostSide, guestSide } = resolveSides(
-      isHost ? mySideChoice : oppSideChoice,
-      isHost ? oppSideChoice : mySideChoice,
-    );
+    if (!isHost) return;
+    const hostChoice = mySideChoice;
+    const guestChoice = oppSideChoice;
+    const { hostSide, guestSide } = resolveSides(hostChoice, guestChoice, furigomaResult);
     sendMsg({ v: PROTOCOL_VERSION, type: 'game_start', hostSide, guestSide });
-    // ホスト自身も遷移
     useMatchmakingStore.setState({ gameStartInfo: { hostSide, guestSide } });
     setScreen('game');
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -114,25 +150,12 @@ export function RoomScreen() {
   };
 
   const onPickSide = (choice: SideChoice) => {
-    // 「おまかせ」→ 振り駒アニメ演出（段階 2-5.1 では見せかけのローカル演出）
-    if (choice === 'random') {
-      setMySideChoice('random');
-      sendMsg({ v: PROTOCOL_VERSION, type: 'side_select', choice: 'random' });
-      // アニメだけ再生。実際の先後は両者準備完了時にホストが確定する。
-      setFurigomaSpinning(true);
-      setFurigomaResult(null);
-      setTimeout(() => {
-        setFurigomaSpinning(false);
-        // 演出上のダミー結果（実際の割当は game_start 時）
-        const count = Math.floor(Math.random() * 4) + 1; // 1〜4 の歩
-        const isSente = Math.random() < 0.5;
-        setFurigomaResult({ isSente, count });
-      }, 1200);
-      return;
-    }
     setMySideChoice(choice);
-    setFurigomaSpinning(false);
-    setFurigomaResult(null);
+    // 選択変更で自分の準備完了は自動解除（もし押していた場合）
+    if (myReady) {
+      setMyReady(false);
+      sendMsg({ v: PROTOCOL_VERSION, type: 'ready', ready: false });
+    }
     sendMsg({ v: PROTOCOL_VERSION, type: 'side_select', choice });
   };
 
@@ -165,6 +188,26 @@ export function RoomScreen() {
   const myRoleLabel = isHost ? t('s06.roleHost') : t('s06.roleGuest');
   const oppRoleLabel = isHost ? t('s06.roleGuest') : t('s06.roleHost');
 
+  // 振り駒枠を表示するか（両者「おまかせ」時のみ）
+  const showFurigoma = mySideChoice === 'random' && oppSideChoice === 'random';
+
+  // 振り駒中のテキスト（誰が振っているか）
+  const rollingText = isHost ? t('s06.frRollingHost') : t('s06.frRollingGuest');
+
+  // 振り駒結果テキスト
+  const resultText = (() => {
+    if (!furigomaResult) return '';
+    const { faceUps, hostIsSente } = furigomaResult;
+    const faceUpCount = faceUps.filter((x) => x).length;
+    const faceDownCount = faceUps.length - faceUpCount;
+    if (hostIsSente) {
+      const key = isHost ? 's06.frFaceUpYou' : 's06.frFaceUpOpp';
+      return t(key).replace('{n}', String(faceUpCount));
+    }
+    const key = !isHost ? 's06.frFaceDownYou' : 's06.frFaceDownOpp';
+    return t(key).replace('{n}', String(faceDownCount));
+  })();
+
   return (
     <div className="stage">
       <div style={{ maxWidth: 600, margin: '0 auto' }}>
@@ -183,7 +226,7 @@ export function RoomScreen() {
 
         <ScreenBand code="S06" name="対局準備" />
 
-        {/* ===== 部屋情報（ルール表示） ===== */}
+        {/* ===== 部屋情報 ===== */}
         <div style={{ marginTop: 10, padding: '8px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 13, color: 'var(--text)' }}>部屋名:</span>
           <RoomBadges parts={parts} locale={locale} />
@@ -196,7 +239,6 @@ export function RoomScreen() {
         {/* ===== 対局者 ===== */}
         <div className="section-label">{t('s06.lblPlayers')}</div>
         <div className="s06-card">
-          {/* 自分 */}
           <div className="player-row">
             <span className="p-dot ok" />
             <span className="p-name">{playerName || t('s06.youName')}</span>
@@ -204,7 +246,6 @@ export function RoomScreen() {
             <span className="p-spacer" />
             <span className="p-status ok">{t('s06.stConnected')}</span>
           </div>
-          {/* 相手 */}
           <div className="player-row">
             <span className={`p-dot ${oppPresent ? 'ok' : 'wait'}`} />
             <span className={`p-name${oppPresent ? '' : ' muted'}`}>
@@ -257,49 +298,57 @@ export function RoomScreen() {
             label={t('s06.sideNameS')}
             desc={t('s06.sideDescS')}
             glyph="先"
-            selected={mySideChoice === 'sente'}
+            mine={mySideChoice === 'sente'}
+            opp={oppSideChoice === 'sente'}
             onClick={() => onPickSide('sente')}
           />
           <SideCard
             label={t('s06.sideNameG')}
             desc={t('s06.sideDescG')}
             glyph="後"
-            selected={mySideChoice === 'gote'}
+            mine={mySideChoice === 'gote'}
+            opp={oppSideChoice === 'gote'}
             onClick={() => onPickSide('gote')}
           />
           <SideCard
             label={t('s06.sideNameR')}
             desc={t('s06.sideDescR')}
             glyph="？"
-            selected={mySideChoice === 'random'}
+            mine={mySideChoice === 'random'}
+            opp={oppSideChoice === 'random'}
             onClick={() => onPickSide('random')}
           />
         </div>
 
-        {/* ===== 振り駒アニメ ===== */}
-        <div className={`furigoma${mySideChoice === 'random' ? ' show' : ''}`}>
+        {/* ===== 振り駒アニメ（両者おまかせ時のみ表示） ===== */}
+        <div className={`furigoma${showFurigoma ? ' show' : ''}`}>
           <div className="fg-row">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className={`fg-piece${furigomaSpinning ? ' spin' : ''}`}>
-                <div className="fg-inner" style={furigomaSpinning ? undefined : (furigomaResult && !furigomaResult.isSente ? { transform: 'rotateX(180deg)' } : undefined)}>
-                  <div className="fg-face">
-                    <span>歩</span>
-                  </div>
-                  <div className="fg-face back">
-                    <span>と</span>
+            {Array.from({ length: 5 }).map((_, i) => {
+              const finalFaceUp = furigomaResult ? furigomaResult.faceUps[i] : true;
+              const inlineStyle: React.CSSProperties | undefined =
+                !furigomaSpinning && furigomaResult && !finalFaceUp
+                  ? { transform: 'rotateX(180deg)' }
+                  : undefined;
+              return (
+                <div key={i} className={`fg-piece${furigomaSpinning ? ' spin' : ''}`}>
+                  <div className="fg-inner" style={inlineStyle}>
+                    <div className="fg-face">
+                      <span>歩</span>
+                    </div>
+                    <div className="fg-face back">
+                      <span>と</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
           <div className={`fg-result${furigomaResult && !furigomaSpinning ? ' win' : ''}`}>
             {furigomaSpinning
-              ? t('s06.frRolling')
+              ? rollingText
               : furigomaResult
-              ? furigomaResult.isSente
-                ? t('s06.frSente').replace('{n}', String(furigomaResult.count))
-                : t('s06.frGote').replace('{n}', String(furigomaResult.count))
-              : ''}
+              ? resultText
+              : rollingText}
           </div>
         </div>
         <div style={{ marginTop: 10, padding: '0 4px' }}>
@@ -370,28 +419,41 @@ export function RoomScreen() {
   );
 }
 
-/** 先後選択カード（駒モチーフ 3 枚のうちの 1 枚） */
+/** 先後選択カード（駒モチーフ 3 枚のうちの 1 枚）。自分と相手の選択マークを独立表示。 */
 function SideCard({
   label,
   desc,
   glyph,
-  selected,
+  mine,
+  opp,
   onClick,
 }: {
   label: string;
   desc: string;
   glyph: string;
-  selected: boolean;
+  mine: boolean;
+  opp: boolean;
   onClick: () => void;
 }) {
+  const cls = ['side-card'];
+  if (mine || opp) cls.push('on'); // ハイライト（枠色）は自分 or 相手のどちらかが選んだら
+  if (mine) cls.push('mine');
+  if (opp) cls.push('opp');
   return (
-    <button type="button" className={`side-card${selected ? ' on' : ''}`} onClick={onClick}>
+    <button type="button" className={cls.join(' ')} onClick={onClick}>
       <div className="side-glyph">
         <span>{glyph}</span>
       </div>
       <div className="sc-name">{label}</div>
       <div className="sc-desc">{desc}</div>
-      <span className="sc-check">
+      {/* 自分マーク（左上） */}
+      <span className="sc-mine">
+        <svg viewBox="0 0 24 24">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      </span>
+      {/* 相手マーク（右上） */}
+      <span className="sc-opp">
         <svg viewBox="0 0 24 24">
           <polyline points="20 6 9 17 4 12" />
         </svg>
@@ -403,41 +465,27 @@ function SideCard({
 /**
  * 両者の選択から先後を確定する（ホストが両者準備完了時に呼ぶ）。
  *
- * ルール:
- * - 両者「おまかせ」または「片方おまかせ + 片方おまかせでない」→ ローカルランダムで確定
- *   （公平乱数は段階 2-5.3+ で実装予定）
  * - 「先手」×「後手」→ そのまま確定
- * - conflict（両者「先手」or 両者「後手」）→ 到達しないはず（readyDisabled で防ぐ）が保険で
- *   ホスト側の選択を優先
+ * - 片方おまかせ → 明示側優先で確定
+ * - 両者おまかせ → furigomaResult に従う（呼び出し前に非 null になっているはず）
+ * - conflict（両者同じ明示）→ 到達しないはず（readyDisabled で防ぐ）が保険でホスト先手
  */
 function resolveSides(
   hostChoice: SideChoice,
   guestChoice: SideChoice,
+  furigomaResult: { hostIsSente: boolean } | null,
 ): { hostSide: SideSelection; guestSide: SideSelection } {
-  // 両者明示（かつ conflict なし）
-  if (hostChoice === 'sente' && guestChoice === 'gote') {
-    return { hostSide: 'sente', guestSide: 'gote' };
+  if (hostChoice === 'sente' && guestChoice === 'gote') return { hostSide: 'sente', guestSide: 'gote' };
+  if (hostChoice === 'gote' && guestChoice === 'sente') return { hostSide: 'gote', guestSide: 'sente' };
+  if (hostChoice === 'sente' && guestChoice === 'random') return { hostSide: 'sente', guestSide: 'gote' };
+  if (hostChoice === 'gote' && guestChoice === 'random') return { hostSide: 'gote', guestSide: 'sente' };
+  if (guestChoice === 'sente' && hostChoice === 'random') return { hostSide: 'gote', guestSide: 'sente' };
+  if (guestChoice === 'gote' && hostChoice === 'random') return { hostSide: 'sente', guestSide: 'gote' };
+  if (hostChoice === 'random' && guestChoice === 'random' && furigomaResult) {
+    return furigomaResult.hostIsSente
+      ? { hostSide: 'sente', guestSide: 'gote' }
+      : { hostSide: 'gote', guestSide: 'sente' };
   }
-  if (hostChoice === 'gote' && guestChoice === 'sente') {
-    return { hostSide: 'gote', guestSide: 'sente' };
-  }
-  // 片方おまかせ
-  if (hostChoice === 'sente' && guestChoice === 'random') {
-    return { hostSide: 'sente', guestSide: 'gote' };
-  }
-  if (hostChoice === 'gote' && guestChoice === 'random') {
-    return { hostSide: 'gote', guestSide: 'sente' };
-  }
-  if (guestChoice === 'sente' && hostChoice === 'random') {
-    return { hostSide: 'gote', guestSide: 'sente' };
-  }
-  if (guestChoice === 'gote' && hostChoice === 'random') {
-    return { hostSide: 'sente', guestSide: 'gote' };
-  }
-  // 両者おまかせ → ローカルランダム（公平乱数は 2-5.3+）
-  // ここに来る conflict ケース（両者同じ明示）はホスト先手優先で解決
-  const hostIsSente = Math.random() < 0.5;
-  return hostIsSente
-    ? { hostSide: 'sente', guestSide: 'gote' }
-    : { hostSide: 'gote', guestSide: 'sente' };
+  // 到達不能の保険：ホスト先手
+  return { hostSide: 'sente', guestSide: 'gote' };
 }

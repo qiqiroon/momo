@@ -22,7 +22,21 @@ export function handleShogiMessage(data: unknown): void {
   const msg = data as ShogiMessage;
   switch (msg.type) {
     case 'side_select': {
-      useMatchmakingStore.setState({ oppSideChoice: msg.choice });
+      // 相手の選択変更 → 相手の準備完了は解除
+      // 加えて、両者おまかせが崩れる変更なら振り駒結果もリセット
+      const state = useMatchmakingStore.getState();
+      const nextPatch: {
+        oppSideChoice: typeof msg.choice;
+        oppReady: boolean;
+        furigomaResult?: null;
+      } = {
+        oppSideChoice: msg.choice,
+        oppReady: false,
+      };
+      if (state.furigomaResult && (state.mySideChoice !== 'random' || msg.choice !== 'random')) {
+        nextPatch.furigomaResult = null;
+      }
+      useMatchmakingStore.setState(nextPatch);
       return;
     }
     case 'ready': {
@@ -31,6 +45,13 @@ export function handleShogiMessage(data: unknown): void {
     }
     case 'state_sync': {
       useMatchmakingStore.setState({ oppSideChoice: msg.choice, oppReady: msg.ready });
+      return;
+    }
+    case 'furigoma_result': {
+      // ホストから配信された振り駒結果。両者が同じ結果でアニメ表示。
+      useMatchmakingStore.setState({
+        furigomaResult: { faceUps: msg.faceUps, hostIsSente: msg.hostIsSente },
+      });
       return;
     }
     case 'game_start': {

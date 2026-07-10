@@ -52,6 +52,19 @@ export interface StateSyncMsg extends Envelope {
 }
 
 /**
+ * 両者「おまかせ」時にホストが乱数計算して送信する振り駒結果。
+ * 両者が同じ結果を受け取ってアニメを再生する。
+ *
+ * faceUps は 5 コマの各面（true = 表 = 歩、false = 裏 = と）。
+ * hostIsSente = 表の枚数が過半なら true（同数の場合はホストが再計算して送り直す）。
+ */
+export interface FurigomaResultMsg extends Envelope {
+  type: 'furigoma_result';
+  faceUps: boolean[];
+  hostIsSente: boolean;
+}
+
+/**
  * 両者準備完了でホストが送信。
  * 先後の最終確定を含む（振り駒があった場合はここで解決済み）。
  */
@@ -61,7 +74,7 @@ export interface GameStartMsg extends Envelope {
   guestSide: SideSelection;
 }
 
-export type ShogiMessage = SideSelectMsg | ReadyMsg | StateSyncMsg | GameStartMsg;
+export type ShogiMessage = SideSelectMsg | ReadyMsg | StateSyncMsg | FurigomaResultMsg | GameStartMsg;
 
 /** 型ガード：unknown をゲームメッセージとして扱えるか */
 export function isShogiMessage(data: unknown): data is ShogiMessage {

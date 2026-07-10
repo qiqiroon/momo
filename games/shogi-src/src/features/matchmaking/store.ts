@@ -83,6 +83,11 @@ interface MatchmakingState {
   myReady: boolean;
   /** 相手の準備完了状態 */
   oppReady: boolean;
+  /**
+   * 振り駒の結果（両者「おまかせ」時にホストが計算 → 両者に配信 → 両者で同じ表示）。
+   * null = 未実施 or リセット済み。faceUps は 5 コマの表裏。
+   */
+  furigomaResult: { faceUps: boolean[]; hostIsSente: boolean } | null;
   /** 対局開始時にホストが確定した先後（S07 対局画面が使用予定・段階 2-5.2） */
   gameStartInfo: { hostSide: SideSelection; guestSide: SideSelection } | null;
 
@@ -101,6 +106,7 @@ interface MatchmakingState {
   setOppSideChoice: (c: SideChoice) => void;
   setMyReady: (b: boolean) => void;
   setOppReady: (b: boolean) => void;
+  setFurigomaResult: (r: MatchmakingState['furigomaResult']) => void;
   setGameStartInfo: (info: MatchmakingState['gameStartInfo']) => void;
   resetHandshake: () => void;
 }
@@ -121,6 +127,7 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
   oppSideChoice: null,
   myReady: false,
   oppReady: false,
+  furigomaResult: null,
   gameStartInfo: null,
 
   setConnection: (c) => set({ connection: c }),
@@ -144,6 +151,7 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
     oppSideChoice: null,
     myReady: false,
     oppReady: false,
+    furigomaResult: null,
     gameStartInfo: null,
   }),
   setIntentionallyLeft: (intentionallyLeft) => set({ intentionallyLeft }),
@@ -151,12 +159,14 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
   setOppSideChoice: (oppSideChoice) => set({ oppSideChoice }),
   setMyReady: (myReady) => set({ myReady }),
   setOppReady: (oppReady) => set({ oppReady }),
+  setFurigomaResult: (furigomaResult) => set({ furigomaResult }),
   setGameStartInfo: (gameStartInfo) => set({ gameStartInfo }),
   resetHandshake: () => set({
     mySideChoice: null,
     oppSideChoice: null,
     myReady: false,
     oppReady: false,
+    furigomaResult: null,
     gameStartInfo: null,
   }),
 }));

@@ -9,6 +9,7 @@
 
 import { register } from '../../core/plugin/registry';
 import './vendor';
+import './gameConnector';
 import { getMomoMatchmaking, type MomoMatchmakingApi } from './client';
 import { MenuScreen } from './ui/MenuScreen';
 import { LobbyScreen } from './ui/LobbyScreen';

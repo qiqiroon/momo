@@ -74,7 +74,32 @@ export interface GameStartMsg extends Envelope {
   guestSide: SideSelection;
 }
 
-export type ShogiMessage = SideSelectMsg | ReadyMsg | StateSyncMsg | FurigomaResultMsg | GameStartMsg;
+/**
+ * 対局中の着手情報（段階 2-5.2）。
+ * 送信側は自分の局面で合法性を確認済み。受信側はそのまま局面に反映する
+ * （合法性の相互検証は段階 2-6 の局面ハッシュ検証で担保予定）。
+ *
+ * 盤上移動: kind='move' + pieceId + from + to + promote
+ * 駒の打ち込み: kind='drop' + pieceId + to
+ *
+ * pieceId は両側の初期化で決定的に生成されるので同一。
+ */
+export interface MoveMsg extends Envelope {
+  type: 'move';
+  kind: 'move' | 'drop';
+  pieceId: string;
+  from?: { row: number; col: number };
+  to: { row: number; col: number };
+  promote?: boolean;
+}
+
+export type ShogiMessage =
+  | SideSelectMsg
+  | ReadyMsg
+  | StateSyncMsg
+  | FurigomaResultMsg
+  | GameStartMsg
+  | MoveMsg;
 
 /** 型ガード：unknown をゲームメッセージとして扱えるか */
 export function isShogiMessage(data: unknown): data is ShogiMessage {

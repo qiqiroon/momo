@@ -5,15 +5,20 @@
  * 各ハンドラは store の setState と、必要なら画面遷移を行う。
  *
  * 段階 2-5.1（S06 対局準備画面のハンドシェイク）:
- * - side_select   → oppSideChoice を更新
- * - ready         → oppReady を更新
- * - state_sync    → oppSideChoice / oppReady をまとめて更新
- * - game_start    → gameStartInfo を確定して S07 対局画面へ遷移
+ * - side_select    → oppSideChoice を更新
+ * - ready          → oppReady を更新
+ * - state_sync     → oppSideChoice / oppReady をまとめて更新
+ * - furigoma_result → 振り駒結果を反映（両者同期）
+ * - game_start     → gameStartInfo を確定して S07 対局画面へ遷移
+ *
+ * 段階 2-5.2（S07 対局中の着手送受信）:
+ * - move           → 相手の着手を game-store に適用
  *
  * 知らない type や不正な形式は黙って無視（フォワード互換）。
  */
 
 import { useRouteStore } from '../../core/store/route-store';
+import { useGameStore } from '../../core/store/game-store';
 import { isShogiMessage, type ShogiMessage } from './protocol';
 import { useMatchmakingStore } from './store';
 
@@ -59,6 +64,17 @@ export function handleShogiMessage(data: unknown): void {
         gameStartInfo: { hostSide: msg.hostSide, guestSide: msg.guestSide },
       });
       useRouteStore.getState().setScreen('game');
+      return;
+    }
+    case 'move': {
+      // 相手の着手を盤面に反映（合法性の相互検証は段階 2-6 で追加予定）
+      useGameStore.getState().applyRemoteMove({
+        kind: msg.kind,
+        pieceId: msg.pieceId,
+        from: msg.from,
+        to: msg.to,
+        promote: msg.promote,
+      });
       return;
     }
     default: {

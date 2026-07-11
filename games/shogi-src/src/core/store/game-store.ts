@@ -28,6 +28,25 @@ type GameStatus =
   | 'nyugyoku_win_p1'
   | 'nyugyoku_win_p2';
 
+/**
+ * 着手発生元:
+ * - 'local'  : 自分の操作で盤面に反映（オンライン対戦では相手にも送る対象）
+ * - 'remote' : 相手からの受信で反映（送り返さない）
+ */
+export type MoveSource = 'local' | 'remote';
+
+/**
+ * 直近適用された着手の記録（対局画面が自分の手を検知して送信するのに使う）。
+ * オブジェクト参照が変わるだけで React が反応するように、apply の度に新しい
+ * オブジェクトを作る。
+ */
+export interface LastAppliedMove {
+  move: Move;
+  source: MoveSource;
+  /** 単調増加する連番。同じ move 値でも参照を変えて subscribe 側に通知するため */
+  seq: number;
+}
+
 interface GameState {
   mgf: Mgf;
   position: Position;
@@ -40,6 +59,8 @@ interface GameState {
   positionCounts: Record<string, number>;
   canNyugyokuP1: boolean;
   canNyugyokuP2: boolean;
+  /** 直近適用された着手（着手送信を検知したい画面が subscribe する） */
+  lastAppliedMove: LastAppliedMove | null;
 
   selectSquare: (sq: Square) => void;
   selectHandPiece: (pieceId: string) => void;
@@ -49,6 +70,18 @@ interface GameState {
   cancelPromotion: () => void;
   declareNyugyoku: () => boolean;
   reset: () => void;
+  /**
+   * 相手から受信した着手を盤面に反映する。
+   * pieceId / from / to / promote に完全一致する合法手を探して適用。
+   * 対応する合法手が見つからなければ false を返す（同期ずれ）。
+   */
+  applyRemoteMove: (msg: {
+    kind: 'move' | 'drop';
+    pieceId: string;
+    from?: Square;
+    to: Square;
+    promote?: boolean;
+  }) => boolean;
 }
 
 function computeLegalDestinationsFromBoard(mgf: Mgf, position: Position, from: Square): Square[] {
@@ -103,11 +136,13 @@ function applyAndCommit(
   set: (partial: Partial<GameState>) => void,
   get: () => GameState,
   move: Move,
+  source: MoveSource = 'local',
 ): void {
-  const { position, mgf, moveHistory, positionCounts } = get();
+  const { position, mgf, moveHistory, positionCounts, lastAppliedMove } = get();
   const formatted = formatMove(mgf, position, move);
   const nextPos = applyMove(mgf, position, move);
   const { status, positionCounts: nextCounts } = computeStatusAfterMove(mgf, nextPos, positionCounts);
+  const nextSeq = (lastAppliedMove?.seq ?? 0) + 1;
   set({
     position: nextPos,
     selectedSquare: null,
@@ -119,6 +154,7 @@ function applyAndCommit(
     positionCounts: nextCounts,
     canNyugyokuP1: canDeclareNyugyoku(mgf, nextPos, 'player1'),
     canNyugyokuP2: canDeclareNyugyoku(mgf, nextPos, 'player2'),
+    lastAppliedMove: { move, source, seq: nextSeq },
   });
 }
 
@@ -138,6 +174,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   positionCounts: { [initialHash]: 1 },
   canNyugyokuP1: false,
   canNyugyokuP2: false,
+  lastAppliedMove: null,
 
   selectSquare: (sq) => {
     const { position, mgf, status } = get();
@@ -272,7 +309,41 @@ export const useGameStore = create<GameState>((set, get) => ({
       positionCounts: { [positionHash(pos)]: 1 },
       canNyugyokuP1: false,
       canNyugyokuP2: false,
+      lastAppliedMove: null,
     });
+  },
+
+  applyRemoteMove: (msg) => {
+    const { position, mgf, status } = get();
+    if (status !== 'playing') return false;
+    const legal = generateLegalMoves(mgf, position);
+    let target: Move | null = null;
+    if (msg.kind === 'move') {
+      if (!msg.from) return false;
+      const found = legal.find(
+        (m): m is BoardMove =>
+          m.type === 'move' &&
+          m.pieceId === msg.pieceId &&
+          m.from.row === msg.from!.row &&
+          m.from.col === msg.from!.col &&
+          m.to.row === msg.to.row &&
+          m.to.col === msg.to.col &&
+          m.promote === (msg.promote ?? false),
+      );
+      if (found) target = found;
+    } else {
+      const found = legal.find(
+        (m) =>
+          m.type === 'drop' &&
+          m.pieceId === msg.pieceId &&
+          m.to.row === msg.to.row &&
+          m.to.col === msg.to.col,
+      );
+      if (found) target = found;
+    }
+    if (!target) return false;
+    applyAndCommit(set, get, target, 'remote');
+    return true;
   },
 }));
 

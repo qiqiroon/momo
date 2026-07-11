@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useI18nStore, type LocaleMode } from '../store/i18n-store';
 import { useGameStore } from '../store/game-store';
 import { useRouteStore } from '../store/route-store';
-import { has as pluginHas } from '../plugin/registry';
+import { get as pluginGet, has as pluginHas } from '../plugin/registry';
 import { t as _t } from '../i18n';
 import type { LocaleCode } from '../i18n/types';
 import type { PieceInstance } from '../engine';
@@ -10,6 +10,7 @@ import { isInCheck } from '../engine';
 import { pieceNameFor } from '../engine/kifu/format';
 import { CatIcon } from './CatIcon';
 import { ScreenBand } from './ScreenBand';
+import type { OnlineGameConnector } from '../plugin/gameConnector';
 
 interface GameScreenProps {
   variant: 'a' | 'b';
@@ -36,11 +37,56 @@ export function GameScreen({ variant }: GameScreenProps) {
   const legalDestinations = useGameStore((s) => s.legalDestinations);
   const moveHistory = useGameStore((s) => s.moveHistory);
   const status = useGameStore((s) => s.status);
+  const lastAppliedMove = useGameStore((s) => s.lastAppliedMove);
   const selectSquare = useGameStore((s) => s.selectSquare);
   const selectHandPiece = useGameStore((s) => s.selectHandPiece);
   const clearSelection = useGameStore((s) => s.clearSelection);
   const tryMove = useGameStore((s) => s.tryMove);
   const reset = useGameStore((s) => s.reset);
+
+  // オンライン対戦の接続点（features/matchmaking が登録・A ビルドでは undefined）
+  const [online, setOnline] = useState<{ isOnline: boolean; mySide: 'player1' | 'player2' | null }>(() => {
+    const c = pluginGet<OnlineGameConnector>('gameConnector');
+    return c ? { isOnline: c.isOnline(), mySide: c.getMySide() } : { isOnline: false, mySide: null };
+  });
+
+  useEffect(() => {
+    const c = pluginGet<OnlineGameConnector>('gameConnector');
+    if (!c) return;
+    const update = () => setOnline({ isOnline: c.isOnline(), mySide: c.getMySide() });
+    update();
+    return c.subscribe(update);
+  }, []);
+
+  // オンラインモード開始時に対局盤面を初期化（前回のゲームの残り状態を持ち越さない）
+  useEffect(() => {
+    if (online.isOnline) reset();
+  }, [online.isOnline, reset]);
+
+  // 自分の着手を相手に送信
+  useEffect(() => {
+    if (!online.isOnline) return;
+    if (!lastAppliedMove) return;
+    if (lastAppliedMove.source !== 'local') return;
+    const c = pluginGet<OnlineGameConnector>('gameConnector');
+    if (!c) return;
+    const move = lastAppliedMove.move;
+    if (move.type === 'move') {
+      c.sendMove({
+        kind: 'move',
+        pieceId: move.pieceId,
+        from: move.from,
+        to: move.to,
+        promote: move.promote,
+      });
+    } else {
+      c.sendMove({
+        kind: 'drop',
+        pieceId: move.pieceId,
+        to: move.to,
+      });
+    }
+  }, [lastAppliedMove, online.isOnline]);
 
   const hasMomoLang = typeof window !== 'undefined' && 'MomoLang' in window;
 
@@ -56,6 +102,8 @@ export function GameScreen({ variant }: GameScreenProps) {
 
   const senteInCheck = isInCheck(mgf, position, 'player1');
   const goteInCheck = isInCheck(mgf, position, 'player2');
+  // オンライン対戦時は自分の手番か相手の手番かを表示
+  const isMyTurnOnline = online.isOnline && online.mySide === position.sideToMove;
   const turnLabel =
     status === 'checkmate'
       ? t(position.sideToMove === 'player1' ? 'status.checkmate_p1' : 'status.checkmate_p2')
@@ -65,17 +113,24 @@ export function GameScreen({ variant }: GameScreenProps) {
           ? t('status.nyugyoku_win_p1')
           : status === 'nyugyoku_win_p2'
             ? t('status.nyugyoku_win_p2')
-            : position.sideToMove === 'player1'
-              ? '先手番' + (senteInCheck ? '（王手）' : '')
-              : '後手番' + (goteInCheck ? '（王手）' : '');
+            : online.isOnline
+              ? (isMyTurnOnline ? t('turn.mine') : t('turn.opp')) +
+                (position.sideToMove === 'player1' ? (senteInCheck ? '（王手）' : '') : goteInCheck ? '（王手）' : '')
+              : position.sideToMove === 'player1'
+                ? '先手番' + (senteInCheck ? '（王手）' : '')
+                : '後手番' + (goteInCheck ? '（王手）' : '');
 
   const isSelected = (row: number, col: number) => selectedSquare?.row === row && selectedSquare?.col === col;
   const isHint = (row: number, col: number) => legalDestinations.some((d) => d.row === row && d.col === col);
   const lastMoveTo = position.history.length > 0 ? position.history[position.history.length - 1].to : null;
   const isLastMove = (row: number, col: number) => lastMoveTo?.row === row && lastMoveTo?.col === col;
 
+  // オンライン対戦で自分の手番でないなら入力を受け付けない
+  const inputBlocked = online.isOnline && online.mySide !== null && position.sideToMove !== online.mySide;
+
   const onSquareClick = (row: number, col: number) => {
     if (status !== 'playing') return;
+    if (inputBlocked) return;
     if ((selectedSquare || selectedHandPieceId) && isHint(row, col)) {
       tryMove({ row, col });
       return;
@@ -90,6 +145,7 @@ export function GameScreen({ variant }: GameScreenProps) {
 
   const onHandPieceClick = (owner: 'player1' | 'player2', pieceId: string) => {
     if (status !== 'playing') return;
+    if (inputBlocked) return;
     if (owner !== position.sideToMove) return;
     if (selectedHandPieceId === pieceId) {
       clearSelection();
@@ -123,18 +179,33 @@ export function GameScreen({ variant }: GameScreenProps) {
             </div>
             <div className="header-spacer" />
             <div className="header-tools">
-              {pluginHas('screen:lobby') && (
+              {online.isOnline ? (
                 <button
                   className="reset-btn"
                   type="button"
-                  onClick={() => useRouteStore.getState().setScreen('lobby')}
+                  onClick={() => {
+                    const c = pluginGet<OnlineGameConnector>('gameConnector');
+                    if (c) c.leaveOnline();
+                  }}
                 >
-                  メニューへ戻る
+                  退室（対戦ロビーに戻る）
                 </button>
+              ) : (
+                <>
+                  {pluginHas('screen:lobby') && (
+                    <button
+                      className="reset-btn"
+                      type="button"
+                      onClick={() => useRouteStore.getState().setScreen('lobby')}
+                    >
+                      メニューへ戻る
+                    </button>
+                  )}
+                  <button className="reset-btn" type="button" onClick={reset}>
+                    リセット
+                  </button>
+                </>
               )}
-              <button className="reset-btn" type="button" onClick={reset}>
-                リセット
-              </button>
               <div className="lang-select">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <circle cx="12" cy="12" r="10" />

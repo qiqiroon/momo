@@ -268,37 +268,51 @@ export function GameScreen({ variant }: GameScreenProps) {
               activePlayer={position.sideToMove === 'player2'}
               locale={locale}
             />
-            <div className="board-outer">
-              <div className="board" aria-label="将棋盤 (9x9)">
-                <div className="stars">
-                  {[3, 6].flatMap((cx) =>
-                    [3, 6].map((cy) => (
-                      <div
-                        key={`${cx}-${cy}`}
-                        className="star"
-                        style={{ left: `${(cx / 9) * 100}%`, top: `${(cy / 9) * 100}%` }}
-                      />
-                    )),
-                  )}
+            <div className="board-with-coords">
+              {/* 上部の筋番号（将棋は右から 1〜9） */}
+              <div className="col-coords">
+                {[9, 8, 7, 6, 5, 4, 3, 2, 1].map((n) => (
+                  <span key={n}>{n}</span>
+                ))}
+              </div>
+              <div className={`board-outer${isMyTurnOnline ? ' myturn' : ''}`}>
+                <div className="board" aria-label="将棋盤 (9x9)">
+                  <div className="stars">
+                    {[3, 6].flatMap((cx) =>
+                      [3, 6].map((cy) => (
+                        <div
+                          key={`${cx}-${cy}`}
+                          className="star"
+                          style={{ left: `${(cx / 9) * 100}%`, top: `${(cy / 9) * 100}%` }}
+                        />
+                      )),
+                    )}
+                  </div>
+                  {Array.from({ length: 81 }).map((_, i) => {
+                    const row = Math.floor(i / 9);
+                    const col = i % 9;
+                    const piece = position.board[row][col];
+                    const cls = [
+                      'sq',
+                      isSelected(row, col) ? 'selected' : '',
+                      isHint(row, col) ? 'hint' : '',
+                      isLastMove(row, col) ? 'lastmove' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ');
+                    return (
+                      <div key={i} className={cls} onClick={() => onSquareClick(row, col)}>
+                        {piece && <PieceView piece={piece} locale={locale} />}
+                      </div>
+                    );
+                  })}
                 </div>
-                {Array.from({ length: 81 }).map((_, i) => {
-                  const row = Math.floor(i / 9);
-                  const col = i % 9;
-                  const piece = position.board[row][col];
-                  const cls = [
-                    'sq',
-                    isSelected(row, col) ? 'selected' : '',
-                    isHint(row, col) ? 'hint' : '',
-                    isLastMove(row, col) ? 'lastmove' : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ');
-                  return (
-                    <div key={i} className={cls} onClick={() => onSquareClick(row, col)}>
-                      {piece && <PieceView piece={piece} locale={locale} />}
-                    </div>
-                  );
-                })}
+              </div>
+              {/* 右辺の段番号（一〜九） */}
+              <div className="row-coords">
+                {['一', '二', '三', '四', '五', '六', '七', '八', '九'].map((s) => (
+                  <span key={s}>{s}</span>
+                ))}
               </div>
             </div>
             <PieceStandView
@@ -386,6 +400,43 @@ export function GameScreen({ variant }: GameScreenProps) {
         </div>
       </div>
       <PromotionModal locale={locale} t={t} />
+      <OpponentLeftModal t={t} />
+    </div>
+  );
+}
+
+/**
+ * オンライン対局中に相手が退室 or 通信が切断されたら表示するモーダル。
+ * 「対戦ロビーに戻る」ボタン以外の操作を封じ、ユーザーに退室を促す。
+ * A ビルドでは gameConnector が undefined なので何もしない。
+ */
+function OpponentLeftModal({ t }: { t: (key: string) => string }) {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const c = pluginGet<OnlineGameConnector>('gameConnector');
+    if (!c) return;
+    const update = () => setVisible(c.getOpponentLeftDuringGame());
+    update();
+    return c.subscribe(update);
+  }, []);
+
+  const onLeave = () => {
+    const c = pluginGet<OnlineGameConnector>('gameConnector');
+    if (c) c.leaveOnline();
+    setVisible(false);
+  };
+
+  if (!visible) return null;
+  return (
+    <div className="opp-left-overlay" role="dialog" aria-modal="true">
+      <div className="opp-left-modal">
+        <div className="title">{t('s07.oppLeftTitle')}</div>
+        <div className="body">{t('s07.oppLeftBody')}</div>
+        <button type="button" className="btn" onClick={onLeave}>
+          {t('s07.oppLeftBtn')}
+        </button>
+      </div>
     </div>
   );
 }

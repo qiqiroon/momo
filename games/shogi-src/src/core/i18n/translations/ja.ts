@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.26',
+    'app.ver': 'v0.27',
     'app.sub': 'Capture the King, Bend the Rules',
     'turn.mine': 'あなたの手番',
     'turn.opp': '相手の手番',
@@ -71,6 +71,12 @@ export const ja: LocaleData = {
     's06.frFaceDownOpp': 'と(裏)が{n}枚 → 相手が先手！',
     's06.frTie': '表と裏が同数 → 振り直しています…',
     's06.oppSelectionNote': '（相手選択）',
+    's06.mineLabel': '自分の選択',
+    's06.oppLabel': '相手の選択',
+    // S07 対局画面（v0.27 追加）
+    's07.oppLeftTitle': '相手が退室しました',
+    's07.oppLeftBody': '対局を中断します。退室して対戦ロビーに戻ってください。',
+    's07.oppLeftBtn': '退室（対戦ロビーに戻る）',
     's06.sideShareNote': '先後の設定は相手の画面にも同じ内容で表示されます。',
     's06.fairNote': '⚖ 対人の振り駒は、両者が結果を検証できる公平な乱数で行います（方式は親仕様§6で確定予定）。',
     's06.lblChatSec': 'チャット',

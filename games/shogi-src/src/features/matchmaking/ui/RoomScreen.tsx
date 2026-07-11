@@ -300,6 +300,8 @@ export function RoomScreen() {
             glyph="先"
             mine={mySideChoice === 'sente'}
             opp={oppSideChoice === 'sente'}
+            mineText={t('s06.mineLabel')}
+            oppText={t('s06.oppLabel')}
             onClick={() => onPickSide('sente')}
           />
           <SideCard
@@ -308,6 +310,8 @@ export function RoomScreen() {
             glyph="後"
             mine={mySideChoice === 'gote'}
             opp={oppSideChoice === 'gote'}
+            mineText={t('s06.mineLabel')}
+            oppText={t('s06.oppLabel')}
             onClick={() => onPickSide('gote')}
           />
           <SideCard
@@ -316,6 +320,8 @@ export function RoomScreen() {
             glyph="？"
             mine={mySideChoice === 'random'}
             opp={oppSideChoice === 'random'}
+            mineText={t('s06.mineLabel')}
+            oppText={t('s06.oppLabel')}
             onClick={() => onPickSide('random')}
           />
         </div>
@@ -419,13 +425,20 @@ export function RoomScreen() {
   );
 }
 
-/** 先後選択カード（駒モチーフ 3 枚のうちの 1 枚）。自分と相手の選択マークを独立表示。 */
+/**
+ * 先後選択カード（駒モチーフ 3 枚のうちの 1 枚）。
+ * v0.27: オレンジハイライトは自分の選択時のみ。相手の選択は緑チェック＋
+ * 「相手の選択」文言だけで示す（オレンジは付けない）ので、自分と相手の
+ * 選択を視覚的に区別しやすい。
+ */
 function SideCard({
   label,
   desc,
   glyph,
   mine,
   opp,
+  mineText,
+  oppText,
   onClick,
 }: {
   label: string;
@@ -433,11 +446,12 @@ function SideCard({
   glyph: string;
   mine: boolean;
   opp: boolean;
+  mineText: string;
+  oppText: string;
   onClick: () => void;
 }) {
   const cls = ['side-card'];
-  if (mine || opp) cls.push('on'); // ハイライト（枠色）は自分 or 相手のどちらかが選んだら
-  if (mine) cls.push('mine');
+  if (mine) cls.push('on', 'mine'); // 自分の選択のみオレンジハイライト
   if (opp) cls.push('opp');
   return (
     <button type="button" className={cls.join(' ')} onClick={onClick}>
@@ -446,13 +460,17 @@ function SideCard({
       </div>
       <div className="sc-name">{label}</div>
       <div className="sc-desc">{desc}</div>
-      {/* 自分マーク（左上） */}
+      {/* 自分の選択ラベル（オレンジ） */}
+      <span className="sc-label mine">{mineText}</span>
+      {/* 相手の選択ラベル（緑） */}
+      <span className="sc-label opp">{oppText}</span>
+      {/* 自分マーク（左上・オレンジ） */}
       <span className="sc-mine">
         <svg viewBox="0 0 24 24">
           <polyline points="20 6 9 17 4 12" />
         </svg>
       </span>
-      {/* 相手マーク（右上） */}
+      {/* 相手マーク（右上・緑） */}
       <span className="sc-opp">
         <svg viewBox="0 0 24 24">
           <polyline points="20 6 9 17 4 12" />

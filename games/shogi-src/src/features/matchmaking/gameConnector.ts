@@ -46,6 +46,10 @@ const connector: OnlineGameConnector = {
     useRouteStore.getState().setScreen('net-lobby');
   },
 
+  getOpponentLeftDuringGame() {
+    return useMatchmakingStore.getState().opponentLeftDuringGame;
+  },
+
   subscribe(cb) {
     return useMatchmakingStore.subscribe(cb);
   },

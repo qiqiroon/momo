@@ -28,8 +28,12 @@ export interface OnlineGameConnector {
    */
   leaveOnline(): void;
   /**
-   * isOnline / getMySide の返り値に影響する状態変化を購読する。
-   * 返り値は unsubscribe 関数。
+   * 対局中に相手が退室 or 通信が切断されたか。true なら対局画面が退室モーダルを表示する。
+   */
+  getOpponentLeftDuringGame(): boolean;
+  /**
+   * isOnline / getMySide / getOpponentLeftDuringGame の返り値に影響する
+   * 状態変化を購読する。返り値は unsubscribe 関数。
    */
   subscribe(cb: () => void): () => void;
 }

@@ -5,7 +5,7 @@ export const zh: LocaleData = {
   name: '中文',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.26',
+    'app.ver': 'v0.27',
     'app.sub': '擒王为胜，破局无界',
     'turn.mine': '轮到你',
     'turn.opp': '对手回合',
@@ -71,6 +71,12 @@ export const zh: LocaleData = {
     's06.frFaceDownOpp': '"と"(反面)朝上 {n} 枚 → 对方执先手！',
     's06.frTie': '正反相同 → 重新掷驹…',
     's06.oppSelectionNote': '（对方选择）',
+    's06.mineLabel': '你的选择',
+    's06.oppLabel': '对方的选择',
+    // S07 对局画面（v0.27）
+    's07.oppLeftTitle': '对方已退出',
+    's07.oppLeftBody': '对局中止。请退出返回大厅。',
+    's07.oppLeftBtn': '退出（返回大厅）',
     's06.sideShareNote': '先后手设置会同步显示在对方的屏幕上。',
     's06.fairNote': '⚖ 联机掷驹将使用双方均可验证的公平随机（方式将在规范§6确定）。',
     's06.lblChatSec': '聊天',

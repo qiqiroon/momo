@@ -5,7 +5,7 @@ export const en: LocaleData = {
   name: 'English',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.26',
+    'app.ver': 'v0.27',
     'app.sub': 'Capture the King, Bend the Rules',
     'turn.mine': 'Your turn',
     'turn.opp': "Opponent's turn",
@@ -71,6 +71,12 @@ export const en: LocaleData = {
     's06.frFaceDownOpp': '{n} promoted face up → your opponent plays first!',
     's06.frTie': 'Tie → tossing again…',
     's06.oppSelectionNote': '(opponent picked)',
+    's06.mineLabel': 'Your pick',
+    's06.oppLabel': "Opponent's pick",
+    // S07 game screen (v0.27)
+    's07.oppLeftTitle': 'Your opponent has left',
+    's07.oppLeftBody': 'The match is aborted. Please leave to return to the lobby.',
+    's07.oppLeftBtn': 'Leave (back to lobby)',
     's06.sideShareNote': 'Your side choice is shown identically on the opponent\'s screen.',
     's06.fairNote': '⚖ In online play the piece toss uses fair randomness both players can verify (method to be fixed in spec §6).',
     's06.lblChatSec': 'Chat',

@@ -90,6 +90,11 @@ interface MatchmakingState {
   furigomaResult: { faceUps: boolean[]; hostIsSente: boolean } | null;
   /** 対局開始時にホストが確定した先後（S07 対局画面が使用予定・段階 2-5.2） */
   gameStartInfo: { hostSide: SideSelection; guestSide: SideSelection } | null;
+  /**
+   * 対局中に相手が退室した／通信が切断された。v0.27 追加。
+   * 対局画面がこのフラグを見てモーダルを表示、ユーザーに退室を促す。
+   */
+  opponentLeftDuringGame: boolean;
 
   setConnection: (c: ConnectionStatus) => void;
   setRooms: (rooms: MomoRoomInfo[]) => void;
@@ -108,6 +113,7 @@ interface MatchmakingState {
   setOppReady: (b: boolean) => void;
   setFurigomaResult: (r: MatchmakingState['furigomaResult']) => void;
   setGameStartInfo: (info: MatchmakingState['gameStartInfo']) => void;
+  setOpponentLeftDuringGame: (b: boolean) => void;
   resetHandshake: () => void;
 }
 
@@ -129,6 +135,7 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
   oppReady: false,
   furigomaResult: null,
   gameStartInfo: null,
+  opponentLeftDuringGame: false,
 
   setConnection: (c) => set({ connection: c }),
   setRooms: (rooms) => set({ rooms }),
@@ -153,6 +160,7 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
     oppReady: false,
     furigomaResult: null,
     gameStartInfo: null,
+    opponentLeftDuringGame: false,
   }),
   setIntentionallyLeft: (intentionallyLeft) => set({ intentionallyLeft }),
   setMySideChoice: (mySideChoice) => set({ mySideChoice }),
@@ -161,6 +169,7 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
   setOppReady: (oppReady) => set({ oppReady }),
   setFurigomaResult: (furigomaResult) => set({ furigomaResult }),
   setGameStartInfo: (gameStartInfo) => set({ gameStartInfo }),
+  setOpponentLeftDuringGame: (opponentLeftDuringGame) => set({ opponentLeftDuringGame }),
   resetHandshake: () => set({
     mySideChoice: null,
     oppSideChoice: null,
@@ -168,5 +177,6 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
     oppReady: false,
     furigomaResult: null,
     gameStartInfo: null,
+    opponentLeftDuringGame: false,
   }),
 }));

@@ -128,6 +128,15 @@ export function LobbyScreen() {
         setOpponentName(guestName);
       },
       onGuestLeft: () => {
+        // 対局中のゲスト退室は画面遷移せずモーダル通知（GameScreen 側）
+        const state = useMatchmakingStore.getState();
+        if (state.gameStartInfo) {
+          useMatchmakingStore.setState({
+            opponentName: '',
+            opponentLeftDuringGame: true,
+          });
+          return;
+        }
         setOpponentName('');
       },
       onConnected: () => {
@@ -139,6 +148,12 @@ export function LobbyScreen() {
         const state = useMatchmakingStore.getState();
         if (state.intentionallyLeft) {
           useMatchmakingStore.setState({ intentionallyLeft: false, connection: 'connected' });
+          return;
+        }
+        // 対局中の切断は画面遷移せず、モーダル通知（GameScreen 側）
+        if (state.gameStartInfo) {
+          useMatchmakingStore.setState({ opponentLeftDuringGame: true });
+          if (reason) setError(reason);
           return;
         }
         setConnection('disconnected');

@@ -403,7 +403,13 @@ body::before {
   user-select: none;
 }
 
-.sq:nth-child(9n) {
+/*
+ * 盤の枠線調整:
+ * .board の子要素は先頭に .stars（絶対配置オーバーレイ）＋ 81 枚の .sq という
+ * 順序なので、nth-child は 1 ずれる。右端列（col=8 = 将棋の 1筋）の右辺、
+ * 下端行（row=8 = 一段）の下辺だけ内側罫線を消す。
+ */
+.board .sq:nth-child(9n + 1) {
   border-right: none;
 }
 
@@ -969,6 +975,94 @@ body::before {
   .side-glyph span { font-size: 21px; }
   .rule-display .rd-text { font-size: 16px; }
 }
+
+/* ===== 先後カードのラベル（自分／相手） =====
+ * v0.27: 相手選択のオレンジハイライトはやめ、代わりに文言「相手の選択」を出す。
+ * 自分選択は従来通りオレンジハイライト＋「自分の選択」文言。
+ */
+.side-card .sc-label { font-size: 9.5px; letter-spacing: .04em; padding: 1px 6px; border-radius: 10px; line-height: 1.4; margin-top: 2px; display: none; }
+.side-card .sc-label.mine { color: var(--orange-light); border: 1px solid var(--orange); background: var(--bg-selected); }
+.side-card .sc-label.opp { color: var(--ok); border: 1px solid var(--ok); background: rgba(63, 157, 90, 0.12); }
+.side-card.mine .sc-label.mine { display: inline-block; }
+.side-card.opp .sc-label.opp { display: inline-block; }
+
+/* ===== 対局画面：座標表示（v0.27 追加） =====
+ * 盤の上部に筋番号（9-8-7-...-1）、右辺に段番号（一-二-...-九）
+ */
+.board-with-coords { display: grid; grid-template-columns: auto auto; grid-template-rows: auto auto; gap: 0; align-items: start; }
+.board-with-coords .col-coords {
+  grid-column: 1;
+  grid-row: 1;
+  display: grid;
+  grid-template-columns: repeat(9, var(--cell));
+  padding: 0 12px; /* .board-outer の padding と合わせる */
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1;
+  margin-bottom: 2px;
+  letter-spacing: 0;
+}
+.board-with-coords .col-coords span { padding: 2px 0; }
+.board-with-coords .board-outer { grid-column: 1; grid-row: 2; }
+.board-with-coords .row-coords {
+  grid-column: 2;
+  grid-row: 2;
+  display: grid;
+  grid-template-rows: repeat(9, var(--cell));
+  padding: 12px 0; /* .board-outer の padding と合わせる */
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1;
+  margin-left: 3px;
+  font-family: 'Yuji Syuku', serif;
+}
+.board-with-coords .row-coords span { display: flex; align-items: center; justify-content: center; }
+
+/* ===== 対局画面：相手退室通知モーダル（v0.27 追加） ===== */
+.opp-left-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 20px;
+}
+.opp-left-modal {
+  background: var(--surface);
+  border: 1px solid var(--orange);
+  border-radius: 12px;
+  padding: 22px 24px;
+  max-width: 360px;
+  text-align: center;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.opp-left-modal .title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--orange-light);
+  margin-bottom: 8px;
+}
+.opp-left-modal .body {
+  font-size: 12.5px;
+  color: var(--text);
+  margin-bottom: 16px;
+  line-height: 1.55;
+}
+.opp-left-modal .btn {
+  background: var(--orange);
+  border: none;
+  color: #fff;
+  font-family: 'Fredoka One', cursive;
+  font-size: 14px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.opp-left-modal .btn:hover { background: var(--orange-mid); }
 
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; }

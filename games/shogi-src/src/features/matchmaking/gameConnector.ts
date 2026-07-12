@@ -25,6 +25,14 @@ const connector: OnlineGameConnector = {
     return mySelection === 'sente' ? 'player1' : 'player2';
   },
 
+  getMyName() {
+    return useMatchmakingStore.getState().playerName;
+  },
+
+  getOpponentName() {
+    return useMatchmakingStore.getState().opponentName;
+  },
+
   sendMove(payload: RemoteMovePayload) {
     const client = getMomoMatchmaking();
     if (!client) return;

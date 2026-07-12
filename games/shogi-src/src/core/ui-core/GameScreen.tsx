@@ -46,15 +46,33 @@ export function GameScreen({ variant }: GameScreenProps) {
   const reset = useGameStore((s) => s.reset);
 
   // オンライン対戦の接続点（features/matchmaking が登録・A ビルドでは undefined）
-  const [online, setOnline] = useState<{ isOnline: boolean; mySide: 'player1' | 'player2' | null }>(() => {
+  const [online, setOnline] = useState<{
+    isOnline: boolean;
+    mySide: 'player1' | 'player2' | null;
+    myName: string;
+    opponentName: string;
+  }>(() => {
     const c = pluginGet<OnlineGameConnector>('gameConnector');
-    return c ? { isOnline: c.isOnline(), mySide: c.getMySide() } : { isOnline: false, mySide: null };
+    return c
+      ? {
+          isOnline: c.isOnline(),
+          mySide: c.getMySide(),
+          myName: c.getMyName(),
+          opponentName: c.getOpponentName(),
+        }
+      : { isOnline: false, mySide: null, myName: '', opponentName: '' };
   });
 
   useEffect(() => {
     const c = pluginGet<OnlineGameConnector>('gameConnector');
     if (!c) return;
-    const update = () => setOnline({ isOnline: c.isOnline(), mySide: c.getMySide() });
+    const update = () =>
+      setOnline({
+        isOnline: c.isOnline(),
+        mySide: c.getMySide(),
+        myName: c.getMyName(),
+        opponentName: c.getOpponentName(),
+      });
     update();
     return c.subscribe(update);
   }, []);
@@ -402,16 +420,25 @@ export function GameScreen({ variant }: GameScreenProps) {
 }
 
 /**
- * 対局中のチャット（段階 2-7 v0.28）。
+ * 対局中のチャット（段階 2-7 v0.28 で新設・v0.29 で名前表示＋パースペクティブ色化）。
  * オンライン対局中のみ入力可能。オフライン時は入力欄を disabled で表示（モック沿いの受け皿）。
- * 履歴は chat-store 経由で両者に共有される。プロンプトは自分の側のものを表示。
+ *
+ * v0.29 変更:
+ * - プロンプトは先手＞/後手＞ ではなく双方の表示名（"Alice＞" 等）を出す
+ * - 履歴は「自分の発言＝白／相手の発言＝オレンジ」に統一（side ベースの色分けは廃止）
+ * - 名前が空文字（未取得）のときは先手/後手 プロンプトにフォールバック
  */
 function ChatConsole({
   t,
   online,
 }: {
   t: (key: string) => string;
-  online: { isOnline: boolean; mySide: 'player1' | 'player2' | null };
+  online: {
+    isOnline: boolean;
+    mySide: 'player1' | 'player2' | null;
+    myName: string;
+    opponentName: string;
+  };
 }) {
   const messages = useChatStore((s) => s.messages);
   const [draft, setDraft] = useState('');
@@ -424,7 +451,13 @@ function ChatConsole({
   }, [messages]);
 
   const canSend = online.isOnline && online.mySide !== null;
-  const myPrompt = t(online.mySide === 'player2' ? 'chat.pGote' : 'chat.pSente');
+  const sideFallback = (side: 'player1' | 'player2') =>
+    t(side === 'player1' ? 'chat.pSente' : 'chat.pGote');
+  const myPrompt = online.myName
+    ? `${online.myName}＞`
+    : online.mySide
+      ? sideFallback(online.mySide)
+      : sideFallback('player1');
 
   const send = () => {
     const text = draft.trim();
@@ -439,12 +472,17 @@ function ChatConsole({
   return (
     <div className="console">
       <div className="chat-log" ref={logRef}>
-        {messages.map((m, i) => (
-          <div key={i} className={`line ${m.side === 'player1' ? 'p-sente' : 'p-gote'}`}>
-            <span className="prompt">{t(m.side === 'player1' ? 'chat.pSente' : 'chat.pGote')}</span>
-            {m.text}
-          </div>
-        ))}
+        {messages.map((m, i) => {
+          const isMine = online.mySide !== null && m.side === online.mySide;
+          const nameForSide = isMine ? online.myName : online.opponentName;
+          const prompt = nameForSide ? `${nameForSide}＞` : sideFallback(m.side);
+          return (
+            <div key={i} className={`line ${isMine ? 'self' : 'other'}`}>
+              <span className="prompt">{prompt}</span>
+              {m.text}
+            </div>
+          );
+        })}
       </div>
       <div className="inputline">
         <span className="prompt">{myPrompt}</span>

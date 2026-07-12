@@ -21,6 +21,10 @@ export interface OnlineGameConnector {
   isOnline(): boolean;
   /** 自分の側（先手 = player1、後手 = player2）。オフライン時は null */
   getMySide(): 'player1' | 'player2' | null;
+  /** 自分の表示名（ロビーで入力したもの）。オフライン時／未設定時は空文字。段階 2-7 v0.29 追加。 */
+  getMyName(): string;
+  /** 相手の表示名。オフライン時／未取得時は空文字。段階 2-7 v0.29 追加。 */
+  getOpponentName(): string;
   /** 自分の着手を相手に送信 */
   sendMove(payload: RemoteMovePayload): void;
   /**

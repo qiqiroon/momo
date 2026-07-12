@@ -784,16 +784,19 @@ body::before {
   gap: 1px;
 }
 
-/* 対局中チャットの履歴行（段階 2-7 v0.28・モック momo_shogi_S06_mock_v7.html 由来） */
+/* 対局中チャットの履歴行（段階 2-7 v0.28 新設・v0.29 でパースペクティブ色化）
+ * self = 自分の発言（白）／other = 相手の発言（オレンジ）
+ * 旧 p-sente/p-gote は S06 対局準備画面のチャットで引き続き使われる。
+ */
 .console .line {
   white-space: pre-wrap;
   word-break: break-word;
 }
-.console .p-sente {
-  color: var(--orange-light);
-}
-.console .p-gote {
+.console .line.self {
   color: #e5e5e5;
+}
+.console .line.other {
+  color: var(--orange-light);
 }
 .console .line .prompt {
   opacity: 0.9;
@@ -815,7 +818,7 @@ body::before {
 }
 
 .console .inputline .prompt {
-  color: var(--orange-light);
+  color: #e5e5e5;
   flex: none;
 }
 
@@ -824,10 +827,10 @@ body::before {
   background: transparent;
   border: none;
   outline: none;
-  color: var(--orange-light);
+  color: #e5e5e5;
   font-family: inherit;
   font-size: 12px;
-  caret-color: var(--orange-light);
+  caret-color: #e5e5e5;
   padding: 0;
 }
 

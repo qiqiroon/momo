@@ -11,6 +11,7 @@ import {
 } from '../engine';
 import type { BoardMove, Mgf, Move, Player, Position, Square } from '../engine';
 import { formatMove } from '../engine/kifu/format';
+import { NO_LIMIT_TIME_CONTROL, initClockState, type ClockState, type TimeControl } from '../engine/time-control';
 
 export interface PendingPromotion {
   nonPromoteMove: BoardMove;
@@ -29,7 +30,10 @@ type GameStatus =
   | 'nyugyoku_win_p2'
   | 'resigned_p1'
   | 'resigned_p2'
-  | 'agreed_draw';
+  | 'agreed_draw'
+  /** v0.35: 持ち時間切れ。timeout_p1 = 先手が時間切れ(＝後手勝ち) */
+  | 'timeout_p1'
+  | 'timeout_p2';
 
 /**
  * 着手発生元:
@@ -68,6 +72,12 @@ interface GameState {
   positionHistory: Position[];
   /** positionCounts の履歴も同期して保持（千日手判定を巻き戻せるように） */
   positionCountsHistory: Record<string, number>[];
+  /** 持ち時間設定（v0.35）。オフラインの既定は no_limit、ルームでは activeRoomConfig の値。 */
+  timeControl: TimeControl;
+  /** 各プレイヤーの時計状態（v0.35） */
+  clocks: { player1: ClockState; player2: ClockState };
+  /** 現在時計を動かしている側（v0.35）。null なら停止（対局終了・no_limit・pause 予定）。 */
+  activeClockSide: 'player1' | 'player2' | null;
 
   selectSquare: (sq: Square) => void;
   selectHandPiece: (pieceId: string) => void;
@@ -82,6 +92,14 @@ interface GameState {
   agreeDraw: () => void;
   /** 最後の n 手を巻き戻す。実際に戻せた手数を返す。段階 2-7 v0.33。 */
   undoLastMove: (count?: number) => number;
+  /** 持ち時間設定を反映（オンライン game_start で呼ばれる）。clocks をこの設定で再初期化。v0.35。 */
+  setTimeControl: (tc: TimeControl) => void;
+  /** ticker 経由で active 側の残り時間を減らす。時間切れなら timeout 状態へ。v0.35。 */
+  tickClock: (deltaMs: number) => void;
+  /** 相手からの move メッセージで得た時計状態を反映（sync）。v0.35。 */
+  syncClock: (side: 'player1' | 'player2', clock: ClockState) => void;
+  /** 指定側を時間切れ負けにする（idempotent）。v0.35。 */
+  timeout: (side: 'player1' | 'player2') => void;
   reset: () => void;
   /**
    * 相手から受信した着手を盤面に反映する。
@@ -151,11 +169,22 @@ function applyAndCommit(
   move: Move,
   source: MoveSource = 'local',
 ): void {
-  const { position, mgf, moveHistory, positionCounts, lastAppliedMove, positionHistory, positionCountsHistory } = get();
+  const state = get();
+  const { position, mgf, moveHistory, positionCounts, lastAppliedMove, positionHistory, positionCountsHistory, timeControl, clocks } = state;
   const formatted = formatMove(mgf, position, move);
   const nextPos = applyMove(mgf, position, move);
   const { status, positionCounts: nextCounts } = computeStatusAfterMove(mgf, nextPos, positionCounts);
   const nextSeq = (lastAppliedMove?.seq ?? 0) + 1;
+  // v0.35: 時計の更新。指し終わった側は byoyomi なら秒読みリセット / fischer なら加算
+  const moverSide = position.sideToMove;
+  const nextClocks = updateClocksAfterMove(clocks, moverSide, timeControl);
+  const isTerminal = status !== 'playing';
+  const nextActiveSide =
+    isTerminal || timeControl.mode === 'no_limit'
+      ? null
+      : moverSide === 'player1'
+        ? 'player2'
+        : 'player1';
   set({
     position: nextPos,
     selectedSquare: null,
@@ -171,7 +200,30 @@ function applyAndCommit(
     // v0.33: 待ったの巻き戻し用に、着手前の局面と positionCounts を履歴に積む
     positionHistory: [...positionHistory, position],
     positionCountsHistory: [...positionCountsHistory, positionCounts],
+    clocks: nextClocks,
+    activeClockSide: nextActiveSide,
   });
+}
+
+/** v0.35: 指し終わった側の時計を、時間モードに応じて調整（byoyomi リセット / fischer 加算） */
+function updateClocksAfterMove(
+  clocks: { player1: ClockState; player2: ClockState },
+  moverSide: 'player1' | 'player2',
+  tc: TimeControl,
+): { player1: ClockState; player2: ClockState } {
+  const cur = clocks[moverSide];
+  let nextMover: ClockState = { ...cur };
+  if (tc.mode === 'byoyomi') {
+    if (cur.inByoyomi) {
+      // 秒読み中に指したので秒読みを満タンに戻す
+      nextMover.byoyomiMs = (tc.byoyomiSeconds ?? 0) * 1000;
+    }
+  } else if (tc.mode === 'fischer') {
+    // フィッシャー: 一手ごとに加算
+    nextMover.mainMs = cur.mainMs + (tc.incrementSeconds ?? 0) * 1000;
+  }
+  // sudden_death / no_limit は変化なし
+  return { ...clocks, [moverSide]: nextMover };
 }
 
 const initialMgf: Mgf = hondou;
@@ -193,6 +245,12 @@ export const useGameStore = create<GameState>((set, get) => ({
   lastAppliedMove: null,
   positionHistory: [],
   positionCountsHistory: [],
+  timeControl: NO_LIMIT_TIME_CONTROL,
+  clocks: {
+    player1: initClockState(NO_LIMIT_TIME_CONTROL),
+    player2: initClockState(NO_LIMIT_TIME_CONTROL),
+  },
+  activeClockSide: null,
 
   selectSquare: (sq) => {
     const { position, mgf, status } = get();
@@ -335,6 +393,89 @@ export const useGameStore = create<GameState>((set, get) => ({
       selectedHandPieceId: null,
       legalDestinations: [],
       pendingPromotion: null,
+      activeClockSide: null,
+    });
+  },
+
+  setTimeControl: (tc) => {
+    // 対局開始時（game_start）に呼ばれる。時計を初期化して先手の時計を動かす。
+    set({
+      timeControl: tc,
+      clocks: {
+        player1: initClockState(tc),
+        player2: initClockState(tc),
+      },
+      activeClockSide: tc.mode === 'no_limit' ? null : 'player1',
+    });
+  },
+
+  tickClock: (deltaMs) => {
+    const state = get();
+    if (state.status !== 'playing') return;
+    if (!state.activeClockSide) return;
+    if (state.timeControl.mode === 'no_limit') return;
+    const side = state.activeClockSide;
+    const cur = state.clocks[side];
+    const tc = state.timeControl;
+    let nextClock: ClockState = { ...cur };
+    if (cur.inByoyomi) {
+      // 秒読みフェーズ: byoyomiMs を減らす
+      nextClock.byoyomiMs = Math.max(0, cur.byoyomiMs - deltaMs);
+      if (nextClock.byoyomiMs <= 0) {
+        // 時間切れ負け
+        set({
+          clocks: { ...state.clocks, [side]: nextClock },
+          status: side === 'player1' ? 'timeout_p1' : 'timeout_p2',
+          activeClockSide: null,
+          selectedSquare: null,
+          selectedHandPieceId: null,
+          legalDestinations: [],
+          pendingPromotion: null,
+        });
+        return;
+      }
+    } else {
+      // 本時間フェーズ: mainMs を減らす
+      nextClock.mainMs = Math.max(0, cur.mainMs - deltaMs);
+      if (nextClock.mainMs <= 0) {
+        if (tc.mode === 'byoyomi') {
+          // 本時間切れ→秒読みフェーズへ移行
+          nextClock.mainMs = 0;
+          nextClock.inByoyomi = true;
+          nextClock.byoyomiMs = (tc.byoyomiSeconds ?? 0) * 1000;
+        } else {
+          // sudden_death or fischer: 時間切れ負け
+          set({
+            clocks: { ...state.clocks, [side]: nextClock },
+            status: side === 'player1' ? 'timeout_p1' : 'timeout_p2',
+            activeClockSide: null,
+            selectedSquare: null,
+            selectedHandPieceId: null,
+            legalDestinations: [],
+            pendingPromotion: null,
+          });
+          return;
+        }
+      }
+    }
+    set({ clocks: { ...state.clocks, [side]: nextClock } });
+  },
+
+  syncClock: (side, clock) => {
+    const state = get();
+    set({ clocks: { ...state.clocks, [side]: clock } });
+  },
+
+  timeout: (side) => {
+    const state = get();
+    if (state.status !== 'playing') return;
+    set({
+      status: side === 'player1' ? 'timeout_p1' : 'timeout_p2',
+      activeClockSide: null,
+      selectedSquare: null,
+      selectedHandPieceId: null,
+      legalDestinations: [],
+      pendingPromotion: null,
     });
   },
 
@@ -367,7 +508,9 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   reset: () => {
-    const pos = initPosition(get().mgf);
+    const state = get();
+    const pos = initPosition(state.mgf);
+    const tc = state.timeControl;
     set({
       position: pos,
       selectedSquare: null,
@@ -382,6 +525,12 @@ export const useGameStore = create<GameState>((set, get) => ({
       lastAppliedMove: null,
       positionHistory: [],
       positionCountsHistory: [],
+      // v0.35: timeControl は保持しつつ clocks を再初期化、先手の時計を動かす
+      clocks: {
+        player1: initClockState(tc),
+        player2: initClockState(tc),
+      },
+      activeClockSide: tc.mode === 'no_limit' ? null : 'player1',
     });
   },
 

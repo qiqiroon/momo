@@ -96,6 +96,16 @@ export interface MoveMsg extends Envelope {
   from?: { row: number; col: number };
   to: { row: number; col: number };
   promote?: boolean;
+  /**
+   * 送信側の時計状態（v0.35 追加）。指し終わった直後の指し手側の残り時間で、
+   * 受信側は自分の内部モデル（相手の時計）をこの値に上書きして時計をシンクさせる。
+   * 省略時は時計調整をしない（オフライン互換 / no_limit）。
+   */
+  time?: {
+    mainMs: number;
+    byoyomiMs: number;
+    inByoyomi: boolean;
+  };
 }
 
 /**
@@ -138,6 +148,12 @@ export interface UndoResponseMsg extends Envelope {
   count?: number;
 }
 
+/** 時間切れ通知（段階 2-8 v0.35）。side は時間切れになった側（＝負け）。両者検出の可能性がある idempotent 扱い。 */
+export interface TimeoutMsg extends Envelope {
+  type: 'timeout';
+  side: 'player1' | 'player2';
+}
+
 export type ShogiMessage =
   | SideSelectMsg
   | ReadyMsg
@@ -150,7 +166,8 @@ export type ShogiMessage =
   | DrawOfferMsg
   | DrawResponseMsg
   | UndoOfferMsg
-  | UndoResponseMsg;
+  | UndoResponseMsg
+  | TimeoutMsg;
 
 /** 型ガード：unknown をゲームメッセージとして扱えるか */
 export function isShogiMessage(data: unknown): data is ShogiMessage {

@@ -5,7 +5,7 @@ export const zh: LocaleData = {
   name: '中文',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.34',
+    'app.ver': 'v0.35',
     'app.sub': '擒王为胜，破局无界',
     'turn.mine': '轮到你',
     'turn.opp': '对手回合',
@@ -38,6 +38,9 @@ export const zh: LocaleData = {
     'status.resigned_p1': '先手认输',
     'status.resigned_p2': '后手认输',
     'status.agreed_draw': '和棋（同意）',
+    'status.timeout_p1': '先手超时',
+    'status.timeout_p2': '后手超时',
+    'clk.byoyomi': '秒读',
     // 认输确认与终局弹窗（阶段 2-7 v0.30）
     'resign.confirmTitle': '认输确认',
     'resign.confirmBody': '确定要认输吗？',
@@ -55,6 +58,7 @@ export const zh: LocaleData = {
     'result.reason.resign': '认输',
     'result.reason.resign.mine': '你认输了',
     'result.reason.resign.opp': '对手认输',
+    'result.reason.timeout': '超时',
     'result.backToLobby': '返回对战大厅',
     'result.backToMenu': '返回菜单',
     'result.rematch.online': '返回对局准备',

@@ -95,6 +95,11 @@ export function GameScreen({ variant }: GameScreenProps) {
     const c = pluginGet<OnlineGameConnector>('gameConnector');
     if (!c) return;
     const move = lastAppliedMove.move;
+    // v0.35: 送信直後の自分側の時計状態を添えて時計をシンク
+    const mySide = online.mySide;
+    const clocks = useGameStore.getState().clocks;
+    const myClock = mySide ? clocks[mySide] : null;
+    const timePayload = myClock ? { mainMs: myClock.mainMs, byoyomiMs: myClock.byoyomiMs, inByoyomi: myClock.inByoyomi } : undefined;
     if (move.type === 'move') {
       c.sendMove({
         kind: 'move',
@@ -102,15 +107,42 @@ export function GameScreen({ variant }: GameScreenProps) {
         from: move.from,
         to: move.to,
         promote: move.promote,
+        time: timePayload,
       });
     } else {
       c.sendMove({
         kind: 'drop',
         pieceId: move.pieceId,
         to: move.to,
+        time: timePayload,
       });
     }
-  }, [lastAppliedMove, online.isOnline]);
+  }, [lastAppliedMove, online.isOnline, online.mySide]);
+
+  // v0.35: 時計 ticker（100ms 間隔、Date.now で正確な delta 計算）
+  const activeClockSide = useGameStore((s) => s.activeClockSide);
+  const tickClock = useGameStore((s) => s.tickClock);
+  useEffect(() => {
+    if (!activeClockSide) return;
+    if (status !== 'playing') return;
+    let lastTick = Date.now();
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const delta = now - lastTick;
+      lastTick = now;
+      tickClock(delta);
+    }, 100);
+    return () => clearInterval(interval);
+  }, [activeClockSide, status, tickClock]);
+
+  // v0.35: 時間切れになったら相手に通知
+  useEffect(() => {
+    if (status !== 'timeout_p1' && status !== 'timeout_p2') return;
+    if (!online.isOnline) return;
+    const timedOutSide: 'player1' | 'player2' = status === 'timeout_p1' ? 'player1' : 'player2';
+    const c = pluginGet<OnlineGameConnector>('gameConnector');
+    if (c) c.sendTimeout(timedOutSide);
+  }, [status, online.isOnline]);
 
   const subLocale: LocaleCode = locale === 'cat' ? 'ja' : locale;
   const subtitle = subLocale === 'zh' ? '擒王为胜，破局无界' : 'Capture the King, Bend the Rules';
@@ -138,7 +170,11 @@ export function GameScreen({ variant }: GameScreenProps) {
                 ? t('status.resigned_p2')
                 : status === 'agreed_draw'
                   ? t('status.agreed_draw')
-                  : online.isOnline
+                  : status === 'timeout_p1'
+                    ? t('status.timeout_p1')
+                    : status === 'timeout_p2'
+                      ? t('status.timeout_p2')
+                      : online.isOnline
                   ? (isMyTurnOnline ? t('turn.mine') : t('turn.opp')) +
                     (position.sideToMove === 'player1' ? (senteInCheck ? '（王手）' : '') : goteInCheck ? '（王手）' : '')
                     : position.sideToMove === 'player1'
@@ -279,8 +315,7 @@ export function GameScreen({ variant }: GameScreenProps) {
           <div className="pinfo opp">
             <span className="nm">{online.opponentName || t('player.opp')}</span>
             <span className="sub">{oppSideLabel}</span>
-            <span className="clk">--:--</span>
-            <span className="byo">秒読み--</span>
+            <ClockDisplay side={oppSide} active={activeClockSide === oppSide} t={t} />
           </div>
 
           <div className="broadcast">
@@ -359,8 +394,7 @@ export function GameScreen({ variant }: GameScreenProps) {
           <div className="pinfo you">
             <span className="nm">{online.myName || t('player.you')}</span>
             <span className="sub">{mySideLabel}</span>
-            <span className="clk running">--:--</span>
-            <span className="byo">秒読み--</span>
+            <ClockDisplay side={viewerSide} active={activeClockSide === viewerSide} t={t} />
           </div>
 
           <div className="command-bar">
@@ -626,6 +660,51 @@ function OfferResponseToast({ t }: { t: (key: string) => string }) {
 }
 
 /**
+ * v0.35: 各プレイヤーの時計表示（本時間 + 秒読み / 制限なしは ∞）
+ * active=true のとき色を強調して「今動いている時計」を示す
+ */
+function ClockDisplay({
+  side,
+  active,
+  t,
+}: {
+  side: 'player1' | 'player2';
+  active: boolean;
+  t: (key: string) => string;
+}) {
+  const clock = useGameStore((s) => s.clocks[side]);
+  const tc = useGameStore((s) => s.timeControl);
+  if (tc.mode === 'no_limit') {
+    return (
+      <>
+        <span className={`clk${active ? ' running' : ''}`}>∞</span>
+        <span className="byo">&nbsp;</span>
+      </>
+    );
+  }
+  const mainStr = formatMainTime(clock.mainMs);
+  const showByoyomi = tc.mode === 'byoyomi';
+  const byoStr = showByoyomi
+    ? clock.inByoyomi || clock.mainMs === 0
+      ? `${t('clk.byoyomi')} ${Math.ceil(clock.byoyomiMs / 1000)}`
+      : `${t('clk.byoyomi')} ${tc.byoyomiSeconds ?? 0}`
+    : '';
+  return (
+    <>
+      <span className={`clk${active ? ' running' : ''}`}>{mainStr}</span>
+      <span className="byo">{byoStr}</span>
+    </>
+  );
+}
+
+function formatMainTime(ms: number): string {
+  const totalSec = Math.max(0, Math.ceil(ms / 1000));
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return `${min}:${sec.toString().padStart(2, '0')}`;
+}
+
+/**
  * 投了ボタン。オンライン対戦時は自分の側の投了、
  * オフライン時は現在の手番の側の投了として扱う。
  * 対局終了状態では disabled。段階 2-7 v0.30。
@@ -752,6 +831,14 @@ function GameEndModal({
     case 'agreed_draw':
       winnerSide = null;
       reasonKey = 'result.reason.agreed_draw';
+      break;
+    case 'timeout_p1':
+      winnerSide = 'player2';
+      reasonKey = 'result.reason.timeout';
+      break;
+    case 'timeout_p2':
+      winnerSide = 'player1';
+      reasonKey = 'result.reason.timeout';
       break;
     default:
       return null;

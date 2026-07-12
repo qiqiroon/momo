@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import type { MomoRoomInfo } from './client';
 import type { GameType } from './roomNameCodec';
+// v0.35: TimeControl 型は core に移動（game-store でも使うため）。ここでは re-export。
+import { DEFAULT_TIME_CONTROL, type TimeControl, type TimeControlMode } from '../../core/engine/time-control';
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'in_room' | 'game_connected';
 
@@ -11,14 +13,8 @@ export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'in
 export type SideSelection = 'sente' | 'gote';
 /** S06 対局準備画面での先後選択（振り駒待ちを含む） */
 export type SideChoice = 'sente' | 'gote' | 'random' | null;
-export type TimeControlMode = 'byoyomi' | 'sudden_death' | 'fischer' | 'no_limit';
-
-export interface TimeControl {
-  mode: TimeControlMode;
-  mainSeconds: number;
-  byoyomiSeconds?: number;
-  incrementSeconds?: number;
-}
+export { DEFAULT_TIME_CONTROL };
+export type { TimeControl, TimeControlMode };
 
 export interface RoomConfig {
   /** ユーザーが入力した「素の」部屋名。encode 前・decode 後の状態を保持する。 */
@@ -35,12 +31,6 @@ export interface RoomConfig {
   customRuleName?: string;
   timeControl: TimeControl;
 }
-
-export const DEFAULT_TIME_CONTROL: TimeControl = {
-  mode: 'byoyomi',
-  mainSeconds: 600,
-  byoyomiSeconds: 30,
-};
 
 export const DEFAULT_ROOM_CONFIG: RoomConfig = {
   roomName: '',

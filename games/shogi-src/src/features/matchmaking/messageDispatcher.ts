@@ -67,18 +67,38 @@ export function handleShogiMessage(data: unknown): void {
       useMatchmakingStore.setState({
         gameStartInfo: { hostSide: msg.hostSide, guestSide: msg.guestSide },
       });
+      // v0.35: 部屋の timeControl を game-store に反映（先手の時計が動き始める）
+      const tc = useMatchmakingStore.getState().activeRoomConfig?.timeControl;
+      if (tc) useGameStore.getState().setTimeControl(tc);
       useRouteStore.getState().setScreen('game');
       return;
     }
     case 'move': {
       // 相手の着手を盤面に反映（合法性の相互検証は段階 2-6 で追加予定）
-      useGameStore.getState().applyRemoteMove({
+      const applied = useGameStore.getState().applyRemoteMove({
         kind: msg.kind,
         pieceId: msg.pieceId,
         from: msg.from,
         to: msg.to,
         promote: msg.promote,
       });
+      // v0.35: 送信側の時計状態を反映（受信側は指し手側の残り時間をシンク）
+      if (applied && msg.time) {
+        // 指し手側 = 直前の position.sideToMove（applyRemoteMove 内で position が更新される前）
+        // applyAndCommit 後は position.sideToMove が入れ替わっているので、その反対が moverSide
+        const nextSide = useGameStore.getState().position.sideToMove;
+        const moverSide: 'player1' | 'player2' = nextSide === 'player1' ? 'player2' : 'player1';
+        useGameStore.getState().syncClock(moverSide, {
+          mainMs: msg.time.mainMs,
+          byoyomiMs: msg.time.byoyomiMs,
+          inByoyomi: msg.time.inByoyomi,
+        });
+      }
+      return;
+    }
+    case 'timeout': {
+      // 相手からの時間切れ通知（段階 2-8 v0.35）。既に対局が終わっていれば no-op。
+      useGameStore.getState().timeout(msg.side);
       return;
     }
     case 'chat': {

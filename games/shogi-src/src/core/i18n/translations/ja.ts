@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.34',
+    'app.ver': 'v0.35',
     'app.sub': 'Capture the King, Bend the Rules',
     'turn.mine': 'あなたの手番',
     'turn.opp': '相手の手番',
@@ -38,6 +38,9 @@ export const ja: LocaleData = {
     'status.resigned_p1': '先手投了',
     'status.resigned_p2': '後手投了',
     'status.agreed_draw': '引分（合意）',
+    'status.timeout_p1': '先手時間切れ',
+    'status.timeout_p2': '後手時間切れ',
+    'clk.byoyomi': '秒読み',
     // 投了確認と対局終了モーダル（段階 2-7 v0.30）
     'resign.confirmTitle': '投了確認',
     'resign.confirmBody': '本当に投了しますか？',
@@ -55,6 +58,7 @@ export const ja: LocaleData = {
     'result.reason.resign': '投了',
     'result.reason.resign.mine': '投了しました',
     'result.reason.resign.opp': '相手が投了',
+    'result.reason.timeout': '時間切れ',
     'result.backToLobby': '対戦ロビーに戻る',
     'result.backToMenu': 'メニューへ戻る',
     'result.rematch.online': '対局準備に戻る',

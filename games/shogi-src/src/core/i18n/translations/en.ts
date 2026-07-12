@@ -5,7 +5,7 @@ export const en: LocaleData = {
   name: 'English',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.34',
+    'app.ver': 'v0.35',
     'app.sub': 'Capture the King, Bend the Rules',
     'turn.mine': 'Your turn',
     'turn.opp': "Opponent's turn",
@@ -38,6 +38,9 @@ export const en: LocaleData = {
     'status.resigned_p1': 'Sente resigned',
     'status.resigned_p2': 'Gote resigned',
     'status.agreed_draw': 'Draw (agreed)',
+    'status.timeout_p1': 'Sente timed out',
+    'status.timeout_p2': 'Gote timed out',
+    'clk.byoyomi': 'Byoyomi',
     // Resign confirmation and game-end modal (Phase 2-7 v0.30)
     'resign.confirmTitle': 'Confirm Resignation',
     'resign.confirmBody': 'Are you sure you want to resign?',
@@ -55,6 +58,7 @@ export const en: LocaleData = {
     'result.reason.resign': 'Resignation',
     'result.reason.resign.mine': 'You resigned',
     'result.reason.resign.opp': 'Opponent resigned',
+    'result.reason.timeout': 'Timeout',
     'result.backToLobby': 'Back to Lobby',
     'result.backToMenu': 'Back to Menu',
     'result.rematch.online': 'Back to Prep',

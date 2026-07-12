@@ -14,6 +14,12 @@ export interface RemoteMovePayload {
   from?: { row: number; col: number };
   to: { row: number; col: number };
   promote?: boolean;
+  /** v0.35: 送信直後の自分側の時計状態（相手が時計をシンクするための値） */
+  time?: {
+    mainMs: number;
+    byoyomiMs: number;
+    inByoyomi: boolean;
+  };
 }
 
 export interface OnlineGameConnector {
@@ -51,6 +57,8 @@ export interface OnlineGameConnector {
   sendUndoOffer(count?: number): void;
   /** 待った申し出への応答（段階 2-7 v0.33）。accepted=true で両者 count 手戻す。 */
   sendUndoResponse(accepted: boolean, count?: number): void;
+  /** 自分側の時間切れを相手に通知（段階 2-8 v0.35）。 */
+  sendTimeout(side: 'player1' | 'player2'): void;
   /**
    * オンライン対局を離脱する。退室通知を送り、通信対戦ロビーに戻る。
    */

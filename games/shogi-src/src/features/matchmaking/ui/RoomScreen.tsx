@@ -12,6 +12,7 @@ import { decodeRoomName } from '../roomNameCodec';
 import { RoomBadges } from './RoomBadges';
 import { useMatchmakingStore, type SideChoice, type SideSelection } from '../store';
 import { PROTOCOL_VERSION } from '../protocol';
+import { handleShogiMessage } from '../messageDispatcher';
 
 /**
  * S06 対局準備画面（段階 2-5.1 で S05 ホスト待機と統合、
@@ -138,9 +139,11 @@ export function RoomScreen() {
     const hostChoice = mySideChoice;
     const guestChoice = oppSideChoice;
     const { hostSide, guestSide } = resolveSides(hostChoice, guestChoice, furigomaResult);
-    sendMsg({ v: PROTOCOL_VERSION, type: 'game_start', hostSide, guestSide });
-    useMatchmakingStore.setState({ gameStartInfo: { hostSide, guestSide } });
-    setScreen('game');
+    const msg = { v: PROTOCOL_VERSION, type: 'game_start' as const, hostSide, guestSide };
+    sendMsg(msg);
+    // v0.35: ホストも dispatcher 経由で処理してゲスト側と同じロジックを通す。
+    // これにより持ち時間 setTimeControl 等の副作用がホストにも適用される。
+    handleShogiMessage(msg);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myReady, oppReady, isHost]);
 

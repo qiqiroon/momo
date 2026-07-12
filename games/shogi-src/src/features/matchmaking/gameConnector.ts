@@ -59,6 +59,7 @@ const connector: OnlineGameConnector = {
       from: payload.from,
       to: payload.to,
       promote: payload.promote,
+      time: payload.time,
     });
   },
 
@@ -127,6 +128,13 @@ const connector: OnlineGameConnector = {
     if (accepted) {
       useGameStore.getState().undoLastMove(count);
     }
+  },
+
+  sendTimeout(side) {
+    // ローカル状態はすでに timeout に更新されている前提。相手にも通知する。
+    const client = getMomoMatchmaking();
+    if (!client) return;
+    client.send({ v: PROTOCOL_VERSION, type: 'timeout', side });
   },
 
   leaveOnline() {

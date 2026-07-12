@@ -469,9 +469,19 @@ export const useGameStore = create<GameState>((set, get) => ({
   timeout: (side) => {
     const state = get();
     if (state.status !== 'playing') return;
+    // v0.38: 敗者の時計を明示的に 0 にゼロクリア。
+    // 勝者側で相手時計が「1秒残る」ような drift 表示にならないよう、
+    // ローカルの tick と外部から受け取った timeout どちらの経路でも同じ最終状態を保つ。
+    const tc = state.timeControl;
+    const zeroed: ClockState = {
+      mainMs: 0,
+      byoyomiMs: 0,
+      inByoyomi: tc.mode === 'byoyomi',
+    };
     set({
       status: side === 'player1' ? 'timeout_p1' : 'timeout_p2',
       activeClockSide: null,
+      clocks: { ...state.clocks, [side]: zeroed },
       selectedSquare: null,
       selectedHandPieceId: null,
       legalDestinations: [],

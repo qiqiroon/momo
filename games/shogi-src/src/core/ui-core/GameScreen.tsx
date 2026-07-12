@@ -119,21 +119,68 @@ export function GameScreen({ variant }: GameScreenProps) {
     }
   }, [lastAppliedMove, online.isOnline, online.mySide]);
 
-  // v0.35: 時計 ticker（100ms 間隔、Date.now で正確な delta 計算）
+  // v0.35 ticker → v0.38: アンカー方式に置換。手番開始時の (時計値, Date.now()) を anchor に、
+  // 各 tick で elapsed = Date.now() - anchor.at をもとに絶対再計算する。
+  // 積算 delta 方式ではないため累積誤差ゼロ、Date.now() は OS 時計と同期するので長時間対局でも drift しない。
+  // 相手からの syncClock は「動いていない側」の時計を更新するので、この anchor には影響しない。
   const activeClockSide = useGameStore((s) => s.activeClockSide);
-  const tickClock = useGameStore((s) => s.tickClock);
   useEffect(() => {
     if (!activeClockSide) return;
     if (status !== 'playing') return;
-    let lastTick = Date.now();
-    const interval = setInterval(() => {
-      const now = Date.now();
-      const delta = now - lastTick;
-      lastTick = now;
-      tickClock(delta);
-    }, 100);
+    const anchorSide = activeClockSide;
+    const anchorAt = Date.now();
+    const s = useGameStore.getState();
+    const anchorClock = { ...s.clocks[anchorSide] };
+    const tc = s.timeControl;
+    if (tc.mode === 'no_limit') return;
+
+    const advance = () => {
+      const elapsed = Date.now() - anchorAt;
+      let next = { ...anchorClock };
+      let timedOut = false;
+      if (anchorClock.inByoyomi) {
+        const newByo = anchorClock.byoyomiMs - elapsed;
+        if (newByo <= 0) {
+          next.byoyomiMs = 0;
+          timedOut = true;
+        } else {
+          next.byoyomiMs = newByo;
+        }
+      } else {
+        const newMain = anchorClock.mainMs - elapsed;
+        if (newMain > 0) {
+          next.mainMs = newMain;
+        } else if (tc.mode === 'byoyomi') {
+          // 本時間切れ → 秒読み突入。elapsed のうち本時間ぶんを超えた分を秒読みから引く
+          const excess = -newMain;
+          const byoTotal = (tc.byoyomiSeconds ?? 0) * 1000;
+          const newByo = byoTotal - excess;
+          next.mainMs = 0;
+          next.inByoyomi = true;
+          if (newByo <= 0) {
+            next.byoyomiMs = 0;
+            timedOut = true;
+          } else {
+            next.byoyomiMs = newByo;
+          }
+        } else {
+          // sudden_death / fischer で本時間切れ → 即負け
+          next.mainMs = 0;
+          timedOut = true;
+        }
+      }
+      if (timedOut) {
+        useGameStore.getState().timeout(anchorSide);
+      } else {
+        useGameStore.getState().syncClock(anchorSide, next);
+      }
+    };
+
+    advance(); // 初回即時
+    const interval = setInterval(advance, 100);
     return () => clearInterval(interval);
-  }, [activeClockSide, status, tickClock]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeClockSide, status]);
 
   // v0.35: 時間切れになったら相手に通知
   useEffect(() => {

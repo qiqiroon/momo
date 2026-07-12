@@ -21,6 +21,12 @@ export interface OnlineGameConnector {
   isOnline(): boolean;
   /** 自分の側（先手 = player1、後手 = player2）。オフライン時は null */
   getMySide(): 'player1' | 'player2' | null;
+  /**
+   * チャット用の自分側識別子（段階 v0.32）。
+   * gameStartInfo があれば実 side、なければ入室中は isHost で暫定 side、
+   * 未接続時は null。S06 対局準備画面のチャットで use される。
+   */
+  getMyChatSide(): 'player1' | 'player2' | null;
   /** 自分の表示名（ロビーで入力したもの）。オフライン時／未設定時は空文字。段階 2-7 v0.29 追加。 */
   getMyName(): string;
   /** 相手の表示名。オフライン時／未取得時は空文字。段階 2-7 v0.29 追加。 */

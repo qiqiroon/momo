@@ -207,7 +207,8 @@ body::before {
   flex-shrink: 0;
 }
 
-#lang-select {
+/* v0.32: 全画面統一のため id ではなく class セレクタで全部拾う */
+.lang-select select {
   background: var(--surface2);
   border: 1px solid var(--border-strong);
   color: var(--text);
@@ -220,9 +221,14 @@ body::before {
   height: 30px;
 }
 
-#lang-select:hover,
-#lang-select:focus {
+.lang-select select:hover,
+.lang-select select:focus {
   border-color: var(--orange);
+}
+
+.lang-select select option {
+  background: var(--surface2);
+  color: var(--text);
 }
 
 /* ===== 手番バナー + 量子表示 ===== */
@@ -1012,45 +1018,64 @@ body::before {
 .side-card.mine .sc-label.mine { display: inline-block; }
 .side-card.opp .sc-label.opp { display: inline-block; }
 
-/* ===== 対局画面：座標表示（v0.27 追加、v0.31 で盤の枠に密着に） =====
+/* ===== 対局画面：座標表示（v0.27 追加・v0.31 で密着・v0.32 で盤の枠内・木目上に配置） =====
  * 盤の上部に筋番号（9-8-7-...-1）、右辺に段番号（一-二-...-九 / EN=1-2-...-9）
- * v0.31: 枠 (border+padding) の外側にピッタリ配置。gap を詰めて盤に密着させる。
+ * v0.32: 盤の外の暗い背景ではなく、枠 (border) の内側・木目色 (padding) の上に絶対配置。
+ * これにより盤の明るい色を背景にして数字が読みやすくなる。
  */
-.board-with-coords { display: grid; grid-template-columns: auto auto; grid-template-rows: auto auto; gap: 0; align-items: start; }
-.board-with-coords .col-coords {
-  grid-column: 1;
-  grid-row: 1;
-  display: grid;
-  grid-template-columns: repeat(9, var(--cell));
-  padding: 0 12px; /* .board-outer の padding+border(2px) と合わせて盤の升目と揃える */
-  font-size: 10px;
-  color: var(--text-muted);
-  text-align: center;
-  line-height: 1;
-  margin-bottom: 0; /* v0.31: 枠に密着 */
-  letter-spacing: 0;
+.board-with-coords {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
 }
-.board-with-coords .col-coords span { padding: 0 0 1px; }
-.board-with-coords .board-outer { grid-column: 1; grid-row: 2; }
-.board-with-coords .row-coords {
-  grid-column: 2;
-  grid-row: 2;
+.board-with-coords .board-outer { position: relative; }
+.board-with-coords .col-coords {
+  position: absolute;
+  top: 0;
+  left: 12px; /* .board の左端に合わせる（padding 10 + border 2） */
+  right: 12px;
+  height: 12px;
   display: grid;
-  grid-template-rows: repeat(9, var(--cell));
-  padding: 12px 0; /* .board-outer の padding+border(2px) と合わせて盤の升目と揃える */
+  grid-template-columns: repeat(9, 1fr);
+  font-size: 10px;
+  font-weight: 700;
+  color: #3a2a10;
+  text-align: center;
+  line-height: 12px;
+  letter-spacing: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+.board-with-coords .col-coords span {
+  align-self: center;
+}
+.board-with-coords .row-coords {
+  position: absolute;
+  top: 12px;
+  right: 0;
+  bottom: 12px;
+  width: 12px;
+  display: grid;
+  grid-template-rows: repeat(9, 1fr);
   font-size: 11px;
-  color: var(--text-muted);
+  font-weight: 700;
+  color: #3a2a10;
   text-align: center;
   line-height: 1;
-  margin-left: 0; /* v0.31: 枠に密着 */
   font-family: 'Yuji Syuku', serif;
+  pointer-events: none;
+  z-index: 3;
 }
 .board-with-coords .row-coords.en {
-  /* EN モードでは Arabic 数字なので Yuji Syuku を使わず英字フォントで表示 */
   font-family: 'Noto Sans JP', sans-serif;
   font-size: 10px;
+  font-weight: 700;
 }
-.board-with-coords .row-coords span { display: flex; align-items: center; justify-content: center; padding: 0 1px; }
+.board-with-coords .row-coords span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
 /* ===== 対局画面：相手退室通知モーダル（v0.27 追加） ===== */
 .opp-left-overlay {
@@ -1180,6 +1205,17 @@ body::before {
   cursor: not-allowed;
 }
 
+/* ヘッダの「対局準備に戻る」ボタン（v0.32 対局終了時のみ表示） */
+.reset-btn.primary {
+  background: var(--orange);
+  color: #fff;
+  border-color: var(--orange);
+}
+.reset-btn.primary:hover {
+  background: var(--orange-mid);
+  border-color: var(--orange-mid);
+}
+
 /* ===== 対局終了 フローティング結果パネル（v0.31 追加） =====
  * 半透明で盤面が透けて見え、タイトル部を掴んでドラッグで移動できる。
  * 背景オーバーレイなし = 盤面の駒配置を確認しながら結果を眺められる。
@@ -1189,7 +1225,8 @@ body::before {
   top: 20vh;
   left: 50%;
   transform: translate(-50%, 0);
-  background: rgba(20, 20, 20, 0.82);
+  /* v0.32: 半透明を薄めて下の盤面が読める濃度に */
+  background: rgba(20, 20, 20, 0.55);
   border: 1px solid var(--orange);
   border-radius: 12px;
   padding: 12px 20px 16px;
@@ -1198,8 +1235,8 @@ body::before {
   text-align: center;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
   z-index: 200;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
 }
 .floating-result-header {
   cursor: move;

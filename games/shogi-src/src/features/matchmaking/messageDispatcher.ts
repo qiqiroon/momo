@@ -61,8 +61,8 @@ export function handleShogiMessage(data: unknown): void {
       return;
     }
     case 'game_start': {
-      // 新規対局開始のたびにチャット履歴をリセット（前回対局の残留を持ち越さない）
-      useChatStore.getState().clearChat();
+      // v0.32: game_start では chat をクリアしない（S06 の対局前チャットが対局中も残る）
+      // 再対局時は returnToPreparation で明示的にクリアする
       useMatchmakingStore.setState({
         gameStartInfo: { hostSide: msg.hostSide, guestSide: msg.guestSide },
       });

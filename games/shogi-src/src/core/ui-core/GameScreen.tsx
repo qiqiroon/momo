@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type TouchEvent as ReactTouchEvent } from 'react';
-import { useI18nStore, type LocaleMode } from '../store/i18n-store';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useI18nStore } from '../store/i18n-store';
 import { useGameStore } from '../store/game-store';
 import { useChatStore } from '../store/chat-store';
+import { ChatConsole } from './ChatConsole';
 import { useRouteStore } from '../store/route-store';
 import { get as pluginGet, has as pluginHas } from '../plugin/registry';
 import { t as _t } from '../i18n';
@@ -10,6 +11,8 @@ import type { PieceInstance } from '../engine';
 import { isInCheck } from '../engine';
 import { pieceNameFor } from '../engine/kifu/format';
 import { CatIcon } from './CatIcon';
+import { FloatingPanel } from './FloatingPanel';
+import { LangSelect } from './LangSelect';
 import { ScreenBand } from './ScreenBand';
 import type { OnlineGameConnector } from '../plugin/gameConnector';
 
@@ -24,10 +27,7 @@ function isTwoChar(kind: string): boolean {
 }
 
 export function GameScreen({ variant }: GameScreenProps) {
-  const mode = useI18nStore((s) => s.mode);
   const locale = useI18nStore((s) => s.locale);
-  const setMode = useI18nStore((s) => s.setMode);
-  const setLocale = useI18nStore((s) => s.setLocale);
   const t = (key: string) => _t(key, locale);
   const [qmode, setQmode] = useState<'cycle' | 'stack'>('cycle');
 
@@ -111,17 +111,8 @@ export function GameScreen({ variant }: GameScreenProps) {
     }
   }, [lastAppliedMove, online.isOnline]);
 
-  const hasMomoLang = typeof window !== 'undefined' && 'MomoLang' in window;
-
   const subLocale: LocaleCode = locale === 'cat' ? 'ja' : locale;
   const subtitle = subLocale === 'zh' ? '擒王为胜，破局无界' : 'Capture the King, Bend the Rules';
-
-  const langOptions: { value: LocaleMode; label: string }[] = [];
-  if (hasMomoLang) langOptions.push({ value: 'auto', label: 'Auto' });
-  langOptions.push({ value: 'ja', label: '日本語' });
-  langOptions.push({ value: 'en', label: 'EN' });
-  langOptions.push({ value: 'zh', label: '中文' });
-  if (variant === 'b') langOptions.push({ value: 'cat', label: 'CAT' });
 
   const senteInCheck = isInCheck(mgf, position, 'player1');
   const goteInCheck = isInCheck(mgf, position, 'player2');
@@ -207,16 +198,30 @@ export function GameScreen({ variant }: GameScreenProps) {
             <div className="header-spacer" />
             <div className="header-tools">
               {online.isOnline ? (
-                <button
-                  className="reset-btn"
-                  type="button"
-                  onClick={() => {
-                    const c = pluginGet<OnlineGameConnector>('gameConnector');
-                    if (c) c.leaveOnline();
-                  }}
-                >
-                  退室（対戦ロビーに戻る）
-                </button>
+                <>
+                  {status !== 'playing' && (
+                    <button
+                      className="reset-btn primary"
+                      type="button"
+                      onClick={() => {
+                        const c = pluginGet<OnlineGameConnector>('gameConnector');
+                        if (c) c.returnToPreparation();
+                      }}
+                    >
+                      {t('result.rematch.online')}
+                    </button>
+                  )}
+                  <button
+                    className="reset-btn"
+                    type="button"
+                    onClick={() => {
+                      const c = pluginGet<OnlineGameConnector>('gameConnector');
+                      if (c) c.leaveOnline();
+                    }}
+                  >
+                    退室（対戦ロビーに戻る）
+                  </button>
+                </>
               ) : (
                 <>
                   {pluginHas('screen:lobby') && (
@@ -233,27 +238,7 @@ export function GameScreen({ variant }: GameScreenProps) {
                   </button>
                 </>
               )}
-              <div className="lang-select">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20" />
-                </svg>
-                <select
-                  id="lang-select"
-                  value={mode}
-                  onChange={(e) => {
-                    const m = e.target.value as LocaleMode;
-                    setMode(m);
-                    if (m !== 'auto') setLocale(m);
-                  }}
-                >
-                  {langOptions.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <LangSelect includeCat={variant === 'b'} />
             </div>
           </header>
 
@@ -296,13 +281,19 @@ export function GameScreen({ variant }: GameScreenProps) {
               locale={locale}
             />
             <div className="board-with-coords">
-              {/* 上部の筋番号（将棋は右から 1〜9） */}
-              <div className="col-coords">
-                {[9, 8, 7, 6, 5, 4, 3, 2, 1].map((n) => (
-                  <span key={n}>{n}</span>
-                ))}
-              </div>
               <div className={`board-outer${isMyTurnOnline ? ' myturn' : ''}`}>
+                {/* 上部の筋番号（将棋は右から 1〜9・v0.32 で盤の枠内に絶対配置） */}
+                <div className="col-coords">
+                  {[9, 8, 7, 6, 5, 4, 3, 2, 1].map((n) => (
+                    <span key={n}>{n}</span>
+                  ))}
+                </div>
+                {/* 右辺の段番号（EN=1〜9・他=一〜九、v0.32 で盤の枠内に絶対配置） */}
+                <div className={`row-coords${locale === 'en' ? ' en' : ''}`}>
+                  {(locale === 'en' ? ['1', '2', '3', '4', '5', '6', '7', '8', '9'] : ['一', '二', '三', '四', '五', '六', '七', '八', '九']).map((s) => (
+                    <span key={s}>{s}</span>
+                  ))}
+                </div>
                 <div className="board" aria-label="将棋盤 (9x9)">
                   <div className="stars">
                     {[3, 6].flatMap((cx) =>
@@ -334,12 +325,6 @@ export function GameScreen({ variant }: GameScreenProps) {
                     );
                   })}
                 </div>
-              </div>
-              {/* 右辺の段番号（EN=1〜9・他=一〜九、v0.31 でロケール依存に） */}
-              <div className={`row-coords${locale === 'en' ? ' en' : ''}`}>
-                {(locale === 'en' ? ['1', '2', '3', '4', '5', '6', '7', '8', '9'] : ['一', '二', '三', '四', '五', '六', '七', '八', '九']).map((s) => (
-                  <span key={s}>{s}</span>
-                ))}
               </div>
             </div>
             <PieceStandView
@@ -385,7 +370,7 @@ export function GameScreen({ variant }: GameScreenProps) {
             <div className="panel-label">
               <span>{t('chat.title')}</span>
             </div>
-            <ChatConsole t={t} online={online} />
+            <ChatConsole t={t} />
           </div>
 
           <div className="panel spectators" style={{ marginTop: 12 }}>
@@ -468,20 +453,17 @@ function ResignButton({
         {t('cmd.resign')}
       </button>
       {confirming && (
-        <div className="modal-overlay" role="dialog" aria-modal="true">
-          <div className="modal">
-            <div className="title">{t('resign.confirmTitle')}</div>
-            <div className="body">{t('resign.confirmBody')}</div>
-            <div className="btn-row">
-              <button type="button" className="btn ghost" onClick={() => setConfirming(false)}>
-                {t('resign.confirmNo')}
-              </button>
-              <button type="button" className="btn danger" onClick={doResign}>
-                {t('resign.confirmYes')}
-              </button>
-            </div>
+        <FloatingPanel className="floating-result floating-confirm" title={t('resign.confirmTitle')}>
+          <div className="body">{t('resign.confirmBody')}</div>
+          <div className="btn-row">
+            <button type="button" className="btn ghost" onClick={() => setConfirming(false)}>
+              {t('resign.confirmNo')}
+            </button>
+            <button type="button" className="btn danger" onClick={doResign}>
+              {t('resign.confirmYes')}
+            </button>
           </div>
-        </div>
+        </FloatingPanel>
       )}
     </>
   );
@@ -513,49 +495,10 @@ function GameEndModal({
   const position = useGameStore((s) => s.position);
   const reset = useGameStore((s) => s.reset);
   const [dismissed, setDismissed] = useState<string>('');
-  const [drag, setDrag] = useState({ x: 0, y: 0 });
-  const dragState = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
 
-  // ステータスが変わったら再表示＋ドラッグ位置をリセット
   useEffect(() => {
     setDismissed('');
-    setDrag({ x: 0, y: 0 });
   }, [status]);
-
-  const onDragStart = (e: ReactMouseEvent | ReactTouchEvent) => {
-    const point = 'touches' in e ? e.touches[0] : (e as ReactMouseEvent);
-    dragState.current = {
-      startX: point.clientX,
-      startY: point.clientY,
-      origX: drag.x,
-      origY: drag.y,
-    };
-    e.preventDefault();
-  };
-
-  useEffect(() => {
-    const onMove = (e: globalThis.MouseEvent | globalThis.TouchEvent) => {
-      if (!dragState.current) return;
-      const point = 'touches' in e ? e.touches[0] : (e as globalThis.MouseEvent);
-      setDrag({
-        x: dragState.current.origX + point.clientX - dragState.current.startX,
-        y: dragState.current.origY + point.clientY - dragState.current.startY,
-      });
-    };
-    const onEnd = () => {
-      dragState.current = null;
-    };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onEnd);
-    window.addEventListener('touchmove', onMove, { passive: false });
-    window.addEventListener('touchend', onEnd);
-    return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onEnd);
-      window.removeEventListener('touchmove', onMove);
-      window.removeEventListener('touchend', onEnd);
-    };
-  }, []);
 
   if (status === 'playing') return null;
   if (dismissed === status) return null;
@@ -629,20 +572,7 @@ function GameEndModal({
     winnerSide === null ? 'draw' : online.isOnline && online.mySide === winnerSide ? 'win' : online.isOnline ? 'lose' : '';
 
   return (
-    <div
-      className="floating-result"
-      role="dialog"
-      aria-modal="false"
-      style={{ transform: `translate(calc(-50% + ${drag.x}px), ${drag.y}px)` }}
-    >
-      <div
-        className="floating-result-header"
-        onMouseDown={onDragStart}
-        onTouchStart={onDragStart}
-      >
-        <span className="drag-hint">⇔</span>
-        <span className="title">{t('result.title')}</span>
-      </div>
+    <FloatingPanel key={status} className="floating-result" title={t('result.title')}>
       <div className={`verdict ${verdictClass}`}>{t(verdictKey)}</div>
       <div className="body">
         {t(reasonKey)}
@@ -656,95 +586,7 @@ function GameEndModal({
           {rematchLabel}
         </button>
       </div>
-    </div>
-  );
-}
-
-/**
- * 対局中のチャット（段階 2-7 v0.28 で新設・v0.29 で名前表示＋パースペクティブ色化）。
- * オンライン対局中のみ入力可能。オフライン時は入力欄を disabled で表示（モック沿いの受け皿）。
- *
- * v0.29 変更:
- * - プロンプトは先手＞/後手＞ ではなく双方の表示名（"Alice＞" 等）を出す
- * - 履歴は「自分の発言＝白／相手の発言＝オレンジ」に統一（side ベースの色分けは廃止）
- * - 名前が空文字（未取得）のときは先手/後手 プロンプトにフォールバック
- */
-function ChatConsole({
-  t,
-  online,
-}: {
-  t: (key: string) => string;
-  online: {
-    isOnline: boolean;
-    mySide: 'player1' | 'player2' | null;
-    myName: string;
-    opponentName: string;
-  };
-}) {
-  const messages = useChatStore((s) => s.messages);
-  const [draft, setDraft] = useState('');
-  const logRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (logRef.current) {
-      logRef.current.scrollTop = logRef.current.scrollHeight;
-    }
-  }, [messages]);
-
-  const canSend = online.isOnline && online.mySide !== null;
-  const sideFallback = (side: 'player1' | 'player2') =>
-    t(side === 'player1' ? 'chat.pSente' : 'chat.pGote');
-  const myPrompt = online.myName
-    ? `${online.myName}＞`
-    : online.mySide
-      ? sideFallback(online.mySide)
-      : sideFallback('player1');
-
-  const send = () => {
-    const text = draft.trim();
-    if (!text) return;
-    if (!canSend) return;
-    const c = pluginGet<OnlineGameConnector>('gameConnector');
-    if (!c) return;
-    c.sendChat(text);
-    setDraft('');
-  };
-
-  return (
-    <div className="console">
-      <div className="chat-log" ref={logRef}>
-        {messages.map((m, i) => {
-          const isMine = online.mySide !== null && m.side === online.mySide;
-          const nameForSide = isMine ? online.myName : online.opponentName;
-          const prompt = nameForSide ? `${nameForSide}＞` : sideFallback(m.side);
-          return (
-            <div key={i} className={`line ${isMine ? 'self' : 'other'}`}>
-              <span className="prompt">{prompt}</span>
-              {m.text}
-            </div>
-          );
-        })}
-      </div>
-      <div className="inputline">
-        <span className="prompt">{myPrompt}</span>
-        <input
-          type="text"
-          placeholder={t('chat.placeholder')}
-          value={draft}
-          disabled={!canSend}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              send();
-            }
-          }}
-        />
-        <button type="button" className="send" onClick={send} disabled={!canSend}>
-          {t('chat.send')}
-        </button>
-      </div>
-    </div>
+    </FloatingPanel>
   );
 }
 

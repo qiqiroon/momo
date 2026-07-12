@@ -26,6 +26,19 @@ const connector: OnlineGameConnector = {
     return mySelection === 'sente' ? 'player1' : 'player2';
   },
 
+  getMyChatSide() {
+    const state = useMatchmakingStore.getState();
+    if (state.gameStartInfo) {
+      const sel = state.isHost ? state.gameStartInfo.hostSide : state.gameStartInfo.guestSide;
+      return sel === 'sente' ? 'player1' : 'player2';
+    }
+    if (state.currentRoomId) {
+      // S06 対局準備中: 対局前で side が未確定なので host=player1, guest=player2 の暫定側
+      return state.isHost ? 'player1' : 'player2';
+    }
+    return null;
+  },
+
   getMyName() {
     return useMatchmakingStore.getState().playerName;
   },
@@ -51,12 +64,9 @@ const connector: OnlineGameConnector = {
   sendChat(text) {
     const trimmed = text.trim();
     if (!trimmed) return;
-    const state = useMatchmakingStore.getState();
-    if (!state.gameStartInfo) return;
-    const mySide: 'player1' | 'player2' =
-      (state.isHost ? state.gameStartInfo.hostSide : state.gameStartInfo.guestSide) === 'sente'
-        ? 'player1'
-        : 'player2';
+    // v0.32: getMyChatSide() は入室後なら暫定 side を返すため、対局前 (S06) でも動作
+    const mySide = this.getMyChatSide();
+    if (!mySide) return;
     const client = getMomoMatchmaking();
     if (!client) return;
     client.send({

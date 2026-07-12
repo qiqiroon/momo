@@ -4,6 +4,7 @@ import { useRouteStore } from '../../../core/store/route-store';
 import { t as _t } from '../../../core/i18n';
 import type { LocaleCode } from '../../../core/i18n/types';
 import { CatIcon } from '../../../core/ui-core/CatIcon';
+import { ChatConsole } from '../../../core/ui-core/ChatConsole';
 import { LangSelect } from '../../../core/ui-core/LangSelect';
 import { ScreenBand } from '../../../core/ui-core/ScreenBand';
 import { getMomoMatchmaking } from '../client';
@@ -370,17 +371,10 @@ export function RoomScreen() {
           </div>
         </div>
 
-        {/* ===== チャット（送受信は段階 2-5.2 以降で実装） ===== */}
+        {/* ===== チャット（v0.32 で S07 と同じ ChatConsole を使用） ===== */}
         <div className="section-label">{t('s06.lblChatSec')}</div>
         <div className="s06-card">
-          <div className="s06-console">
-            <div className="chat-log" />
-            <div className="inputline">
-              <span className="prompt">{isHost ? t('s06.pHost') : t('s06.pGuest')}</span>
-              <input type="text" autoComplete="off" />
-              <button type="button" className="send">{t('s06.lblSend')}</button>
-            </div>
-          </div>
+          <ChatConsole t={t} />
         </div>
 
         {errorMessage && (

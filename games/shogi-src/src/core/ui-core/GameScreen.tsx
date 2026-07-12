@@ -119,6 +119,10 @@ export function GameScreen({ variant }: GameScreenProps) {
   const goteInCheck = isInCheck(mgf, position, 'player2');
   // オンライン対戦時は自分の手番か相手の手番かを表示
   const isMyTurnOnline = online.isOnline && online.mySide === position.sideToMove;
+  // v0.34: 盤面の視点。mySide=player2 のとき盤を反転して「自分の駒を下側」に表示
+  const viewerSide: 'player1' | 'player2' = online.mySide ?? 'player1';
+  const oppSide: 'player1' | 'player2' = viewerSide === 'player1' ? 'player2' : 'player1';
+  const flipped = viewerSide === 'player2';
   const turnLabel =
     status === 'checkmate'
       ? t(position.sideToMove === 'player1' ? 'status.checkmate_p1' : 'status.checkmate_p2')
@@ -177,6 +181,11 @@ export function GameScreen({ variant }: GameScreenProps) {
 
   const senteHandGrouped = groupHand(position.hands.player1);
   const goteHandGrouped = groupHand(position.hands.player2);
+  // v0.34: 相手／自分 の持ち駒を viewer 基準で
+  const oppHandGrouped = viewerSide === 'player1' ? goteHandGrouped : senteHandGrouped;
+  const myHandGrouped = viewerSide === 'player1' ? senteHandGrouped : goteHandGrouped;
+  const oppSideLabel = oppSide === 'player1' ? '先手' : '後手';
+  const mySideLabel = viewerSide === 'player1' ? '先手' : '後手';
 
   const kifuScrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -268,8 +277,8 @@ export function GameScreen({ variant }: GameScreenProps) {
           </div>
 
           <div className="pinfo opp">
-            <span className="nm">{t('player.opp')}</span>
-            <span className="sub">後手</span>
+            <span className="nm">{online.opponentName || t('player.opp')}</span>
+            <span className="sub">{oppSideLabel}</span>
             <span className="clk">--:--</span>
             <span className="byo">秒読み--</span>
           </div>
@@ -277,23 +286,27 @@ export function GameScreen({ variant }: GameScreenProps) {
           <div className="broadcast">
             <PieceStandView
               side="opp"
-              pieces={goteHandGrouped}
-              onClick={(pid) => onHandPieceClick('player2', pid)}
+              pieces={oppHandGrouped}
+              onClick={(pid) => onHandPieceClick(oppSide, pid)}
               selectedId={selectedHandPieceId}
-              activePlayer={position.sideToMove === 'player2'}
+              activePlayer={position.sideToMove === oppSide}
               locale={locale}
             />
-            <div className="board-with-coords">
+            <div className={`board-with-coords${flipped ? ' flipped' : ''}`}>
               <div className={`board-outer${isMyTurnOnline ? ' myturn' : ''}`}>
-                {/* 上部の筋番号（将棋は右から 1〜9・v0.32 で盤の枠内に絶対配置） */}
+                {/* v0.34: 座標は viewer 基準。先手=上/右、後手=下/左 */}
                 <div className="col-coords">
-                  {[9, 8, 7, 6, 5, 4, 3, 2, 1].map((n) => (
+                  {(flipped ? [1, 2, 3, 4, 5, 6, 7, 8, 9] : [9, 8, 7, 6, 5, 4, 3, 2, 1]).map((n) => (
                     <span key={n}>{n}</span>
                   ))}
                 </div>
-                {/* 右辺の段番号（EN=1〜9・他=一〜九、v0.32 で盤の枠内に絶対配置） */}
                 <div className={`row-coords${locale === 'en' ? ' en' : ''}`}>
-                  {(locale === 'en' ? ['1', '2', '3', '4', '5', '6', '7', '8', '9'] : ['一', '二', '三', '四', '五', '六', '七', '八', '九']).map((s) => (
+                  {((): string[] => {
+                    const arabic = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
+                    const kanji = ['一', '二', '三', '四', '五', '六', '七', '八', '九'];
+                    const arr = locale === 'en' ? arabic : kanji;
+                    return flipped ? [...arr].reverse() : arr;
+                  })().map((s) => (
                     <span key={s}>{s}</span>
                   ))}
                 </div>
@@ -310,8 +323,11 @@ export function GameScreen({ variant }: GameScreenProps) {
                     )}
                   </div>
                   {Array.from({ length: 81 }).map((_, i) => {
-                    const row = Math.floor(i / 9);
-                    const col = i % 9;
+                    const visualRow = Math.floor(i / 9);
+                    const visualCol = i % 9;
+                    // v0.34: 後手視点なら盤を反転して描画（board データ自体は先手基準のまま）
+                    const row = flipped ? 8 - visualRow : visualRow;
+                    const col = flipped ? 8 - visualCol : visualCol;
                     const piece = position.board[row][col];
                     const cls = [
                       'sq',
@@ -323,7 +339,7 @@ export function GameScreen({ variant }: GameScreenProps) {
                       .join(' ');
                     return (
                       <div key={i} className={cls} onClick={() => onSquareClick(row, col)}>
-                        {piece && <PieceView piece={piece} locale={locale} />}
+                        {piece && <PieceView piece={piece} locale={locale} viewerSide={viewerSide} />}
                       </div>
                     );
                   })}
@@ -332,17 +348,17 @@ export function GameScreen({ variant }: GameScreenProps) {
             </div>
             <PieceStandView
               side="you"
-              pieces={senteHandGrouped}
-              onClick={(pid) => onHandPieceClick('player1', pid)}
+              pieces={myHandGrouped}
+              onClick={(pid) => onHandPieceClick(viewerSide, pid)}
               selectedId={selectedHandPieceId}
-              activePlayer={position.sideToMove === 'player1'}
+              activePlayer={position.sideToMove === viewerSide}
               locale={locale}
             />
           </div>
 
           <div className="pinfo you">
-            <span className="nm">{t('player.you')}</span>
-            <span className="sub">先手</span>
+            <span className="nm">{online.myName || t('player.you')}</span>
+            <span className="sub">{mySideLabel}</span>
             <span className="clk running">--:--</span>
             <span className="byo">秒読み--</span>
           </div>
@@ -924,13 +940,22 @@ function groupHand(hand: PieceInstance[]): HandGroup[] {
   return Array.from(groups.entries()).map(([kind, pieceIds]) => ({ kind, pieceIds }));
 }
 
-function PieceView({ piece, locale }: { piece: PieceInstance; locale: LocaleCode }) {
+function PieceView({
+  piece,
+  locale,
+  viewerSide = 'player1',
+}: {
+  piece: PieceInstance;
+  locale: LocaleCode;
+  viewerSide?: 'player1' | 'player2';
+}) {
   const name = pieceNameFor(piece.kind, locale);
   const isEn = locale === 'en';
   const isMulti = isEn && name.length > 1;
+  // v0.34: gote 反転は viewer 基準（相手の駒＝反転して viewer 側から見て逆向き）
   const cls = [
     'pc',
-    piece.owner === 'player2' ? 'gote' : '',
+    piece.owner !== viewerSide ? 'gote' : '',
     piece.promoted ? 'promoted' : '',
     !isEn && isTwoChar(piece.kind) ? 'two' : '',
   ]

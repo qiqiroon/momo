@@ -1077,6 +1077,16 @@ body::before {
   justify-content: center;
 }
 
+/* v0.34: 後手視点で盤を反転（自分下・相手上）したときの座標位置 */
+.board-with-coords.flipped .col-coords {
+  top: auto;
+  bottom: 0;
+}
+.board-with-coords.flipped .row-coords {
+  right: auto;
+  left: 0;
+}
+
 /* ===== 対局画面：相手退室通知モーダル（v0.27 追加） ===== */
 .opp-left-overlay {
   position: fixed;

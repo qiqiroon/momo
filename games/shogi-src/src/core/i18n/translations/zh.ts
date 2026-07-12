@@ -5,7 +5,7 @@ export const zh: LocaleData = {
   name: '中文',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.33',
+    'app.ver': 'v0.34',
     'app.sub': '擒王为胜，破局无界',
     'turn.mine': '轮到你',
     'turn.opp': '对手回合',

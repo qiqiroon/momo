@@ -108,6 +108,15 @@ export interface ChatMsg extends Envelope {
   text: string;
 }
 
+/**
+ * 投了メッセージ（段階 2-7 v0.30）。
+ * side は投了した側。受信側は対応するプレイヤーを負けにし、終局モーダルを表示する。
+ */
+export interface ResignMsg extends Envelope {
+  type: 'resign';
+  side: 'player1' | 'player2';
+}
+
 export type ShogiMessage =
   | SideSelectMsg
   | ReadyMsg
@@ -115,7 +124,8 @@ export type ShogiMessage =
   | FurigomaResultMsg
   | GameStartMsg
   | MoveMsg
-  | ChatMsg;
+  | ChatMsg
+  | ResignMsg;
 
 /** 型ガード：unknown をゲームメッセージとして扱えるか */
 export function isShogiMessage(data: unknown): data is ShogiMessage {

@@ -33,6 +33,11 @@ export interface OnlineGameConnector {
    */
   sendChat(text: string): void;
   /**
+   * 自分の投了を相手に送信し、ローカルの盤面状態も投了扱いにする。
+   * オフライン時（isOnline=false）は指定側をローカルに投了させるだけ。段階 2-7 v0.30。
+   */
+  sendResign(side: 'player1' | 'player2'): void;
+  /**
    * オンライン対局を離脱する。退室通知を送り、通信対戦ロビーに戻る。
    */
   leaveOnline(): void;

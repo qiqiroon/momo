@@ -85,6 +85,11 @@ export function handleShogiMessage(data: unknown): void {
       useChatStore.getState().addMessage(msg.side, msg.text);
       return;
     }
+    case 'resign': {
+      // 相手からの投了通知を盤面状態に反映（段階 2-7 v0.30）
+      useGameStore.getState().resign(msg.side);
+      return;
+    }
     default: {
       // 未知の type は無視（フォワード互換）
       return;

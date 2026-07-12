@@ -136,12 +136,16 @@ export function GameScreen({ variant }: GameScreenProps) {
           ? t('status.nyugyoku_win_p1')
           : status === 'nyugyoku_win_p2'
             ? t('status.nyugyoku_win_p2')
-            : online.isOnline
-              ? (isMyTurnOnline ? t('turn.mine') : t('turn.opp')) +
-                (position.sideToMove === 'player1' ? (senteInCheck ? '（王手）' : '') : goteInCheck ? '（王手）' : '')
-              : position.sideToMove === 'player1'
-                ? '先手番' + (senteInCheck ? '（王手）' : '')
-                : '後手番' + (goteInCheck ? '（王手）' : '');
+            : status === 'resigned_p1'
+              ? t('status.resigned_p1')
+              : status === 'resigned_p2'
+                ? t('status.resigned_p2')
+                : online.isOnline
+                  ? (isMyTurnOnline ? t('turn.mine') : t('turn.opp')) +
+                    (position.sideToMove === 'player1' ? (senteInCheck ? '（王手）' : '') : goteInCheck ? '（王手）' : '')
+                  : position.sideToMove === 'player1'
+                    ? '先手番' + (senteInCheck ? '（王手）' : '')
+                    : '後手番' + (goteInCheck ? '（王手）' : '');
 
   const isSelected = (row: number, col: number) => selectedSquare?.row === row && selectedSquare?.col === col;
   const isHint = (row: number, col: number) => legalDestinations.some((d) => d.row === row && d.col === col);
@@ -368,9 +372,7 @@ export function GameScreen({ variant }: GameScreenProps) {
             <button type="button" className="act">
               {t('cmd.pause')}
             </button>
-            <button type="button" className="act danger">
-              {t('cmd.resign')}
-            </button>
+            <ResignButton t={t} online={online} status={status} sideToMove={position.sideToMove} />
             <button type="button" className="act" onClick={clearSelection}>
               {t('cmd.cancel')}
             </button>
@@ -415,6 +417,199 @@ export function GameScreen({ variant }: GameScreenProps) {
       </div>
       <PromotionModal locale={locale} t={t} />
       <OpponentLeftModal t={t} />
+      <GameEndModal t={t} online={online} />
+    </div>
+  );
+}
+
+/**
+ * 投了ボタン。オンライン対戦時は自分の側の投了、
+ * オフライン時は現在の手番の側の投了として扱う。
+ * 対局終了状態では disabled。段階 2-7 v0.30。
+ */
+function ResignButton({
+  t,
+  online,
+  status,
+  sideToMove,
+}: {
+  t: (key: string) => string;
+  online: {
+    isOnline: boolean;
+    mySide: 'player1' | 'player2' | null;
+    myName: string;
+    opponentName: string;
+  };
+  status: string;
+  sideToMove: 'player1' | 'player2';
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const gameOver = status !== 'playing';
+  const doResign = () => {
+    // オンラインなら自分の側を投了、オフラインなら現在の手番の側を投了
+    const side: 'player1' | 'player2' = online.isOnline && online.mySide ? online.mySide : sideToMove;
+    const c = pluginGet<OnlineGameConnector>('gameConnector');
+    if (c) {
+      c.sendResign(side);
+    } else {
+      // A ビルド（オフライン）は connector がないので直接 store を叩く
+      useGameStore.getState().resign(side);
+    }
+    setConfirming(false);
+  };
+  return (
+    <>
+      <button
+        type="button"
+        className="act danger"
+        disabled={gameOver}
+        onClick={() => setConfirming(true)}
+      >
+        {t('cmd.resign')}
+      </button>
+      {confirming && (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal">
+            <div className="title">{t('resign.confirmTitle')}</div>
+            <div className="body">{t('resign.confirmBody')}</div>
+            <div className="btn-row">
+              <button type="button" className="btn ghost" onClick={() => setConfirming(false)}>
+                {t('resign.confirmNo')}
+              </button>
+              <button type="button" className="btn danger" onClick={doResign}>
+                {t('resign.confirmYes')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+/**
+ * 対局終了時のオーバーレイモーダル。
+ * status が終局状態（checkmate / sennichite / nyugyoku / resigned）で表示。
+ * 「勝ち／負け／引分」と理由、そして「対戦ロビーに戻る」ボタンを出す。
+ * 段階 2-7 v0.30 新設。
+ */
+function GameEndModal({
+  t,
+  online,
+}: {
+  t: (key: string) => string;
+  online: {
+    isOnline: boolean;
+    mySide: 'player1' | 'player2' | null;
+    myName: string;
+    opponentName: string;
+  };
+}) {
+  const status = useGameStore((s) => s.status);
+  const position = useGameStore((s) => s.position);
+  const reset = useGameStore((s) => s.reset);
+  const [dismissed, setDismissed] = useState<string>('');
+
+  // ステータスが変わったら再表示
+  useEffect(() => {
+    setDismissed('');
+  }, [status]);
+
+  if (status === 'playing') return null;
+  if (dismissed === status) return null;
+
+  // 誰が勝ちで誰が負けか（絶対 side ベース）
+  let winnerSide: 'player1' | 'player2' | null;
+  let reasonKey: string;
+  switch (status) {
+    case 'checkmate':
+      winnerSide = position.sideToMove === 'player1' ? 'player2' : 'player1';
+      reasonKey = 'result.reason.checkmate';
+      break;
+    case 'nyugyoku_win_p1':
+      winnerSide = 'player1';
+      reasonKey = 'result.reason.nyugyoku';
+      break;
+    case 'nyugyoku_win_p2':
+      winnerSide = 'player2';
+      reasonKey = 'result.reason.nyugyoku';
+      break;
+    case 'resigned_p1':
+      winnerSide = 'player2';
+      reasonKey = 'result.reason.resign';
+      break;
+    case 'resigned_p2':
+      winnerSide = 'player1';
+      reasonKey = 'result.reason.resign';
+      break;
+    case 'sennichite':
+      winnerSide = null;
+      reasonKey = 'result.reason.sennichite';
+      break;
+    default:
+      return null;
+  }
+
+  // 表示は「自分視点」を優先、なければ絶対 side（先手/後手）
+  let verdictKey: string;
+  let reasonSuffix = '';
+  if (winnerSide === null) {
+    verdictKey = 'result.verdict.draw';
+  } else if (online.isOnline && online.mySide) {
+    if (winnerSide === online.mySide) {
+      verdictKey = 'result.verdict.win';
+      // 投了時に「相手が投了しました」を強調
+      if (status === 'resigned_p1' || status === 'resigned_p2') {
+        reasonSuffix = ` (${t('result.reason.resign.opp')})`;
+      }
+    } else {
+      verdictKey = 'result.verdict.lose';
+      if (status === 'resigned_p1' || status === 'resigned_p2') {
+        reasonSuffix = ` (${t('result.reason.resign.mine')})`;
+      }
+    }
+  } else {
+    // オフラインなら勝った側を明示
+    verdictKey = winnerSide === 'player1' ? 'result.verdict.senteWin' : 'result.verdict.goteWin';
+  }
+
+  const backLabel = online.isOnline ? t('result.backToLobby') : t('result.backToMenu');
+  const onBack = () => {
+    const c = pluginGet<OnlineGameConnector>('gameConnector');
+    if (online.isOnline && c) {
+      c.leaveOnline();
+    } else {
+      reset();
+      if (pluginHas('screen:lobby')) {
+        useRouteStore.getState().setScreen('lobby');
+      }
+    }
+  };
+
+  return (
+    <div className="modal-overlay" role="dialog" aria-modal="true">
+      <div className="modal result">
+        <div className="title">{t('result.title')}</div>
+        <div className={`verdict ${winnerSide === null ? 'draw' : online.isOnline && online.mySide === winnerSide ? 'win' : online.isOnline ? 'lose' : ''}`}>
+          {t(verdictKey)}
+        </div>
+        <div className="body">
+          {t(reasonKey)}
+          {reasonSuffix}
+        </div>
+        <div className="btn-row">
+          <button
+            type="button"
+            className="btn ghost"
+            onClick={() => setDismissed(status)}
+          >
+            {t('result.close')}
+          </button>
+          <button type="button" className="btn" onClick={onBack}>
+            {backLabel}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

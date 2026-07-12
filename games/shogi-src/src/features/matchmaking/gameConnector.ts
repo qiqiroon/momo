@@ -5,6 +5,7 @@
 
 import { register } from '../../core/plugin/registry';
 import { useChatStore } from '../../core/store/chat-store';
+import { useGameStore } from '../../core/store/game-store';
 import { useRouteStore } from '../../core/store/route-store';
 import type { OnlineGameConnector, RemoteMovePayload } from '../../core/plugin/gameConnector';
 import { getMomoMatchmaking } from './client';
@@ -65,6 +66,21 @@ const connector: OnlineGameConnector = {
       text: trimmed,
     });
     useChatStore.getState().addMessage(mySide, trimmed);
+  },
+
+  sendResign(side) {
+    // ローカル盤面をまず投了扱いに（オンライン/オフライン共通）
+    useGameStore.getState().resign(side);
+    // オンラインなら相手にも投了を通知
+    const state = useMatchmakingStore.getState();
+    if (!state.gameStartInfo) return;
+    const client = getMomoMatchmaking();
+    if (!client) return;
+    client.send({
+      v: PROTOCOL_VERSION,
+      type: 'resign',
+      side,
+    });
   },
 
   leaveOnline() {

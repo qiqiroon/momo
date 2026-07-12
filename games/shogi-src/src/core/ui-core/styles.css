@@ -1090,6 +1090,90 @@ body::before {
 }
 .opp-left-modal .btn:hover { background: var(--orange-mid); }
 
+/* ===== 投了確認 / 対局終了モーダル（段階 2-7 v0.30 追加） ===== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 20px;
+}
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  padding: 22px 24px;
+  max-width: 360px;
+  text-align: center;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.modal.result {
+  border-color: var(--orange);
+}
+.modal .title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--orange-light);
+  margin-bottom: 10px;
+}
+.modal .verdict {
+  font-family: 'Fredoka One', cursive;
+  font-size: 34px;
+  letter-spacing: 0.05em;
+  margin: 6px 0 8px;
+}
+.modal .verdict.win { color: var(--orange-light); }
+.modal .verdict.lose { color: var(--lose-ink, #9a9a9a); }
+.modal .verdict.draw { color: var(--text); }
+.modal .body {
+  font-size: 12.5px;
+  color: var(--text);
+  margin-bottom: 16px;
+  line-height: 1.55;
+}
+.modal .btn-row {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.modal .btn {
+  background: var(--orange);
+  border: none;
+  color: #fff;
+  font-family: 'Fredoka One', cursive;
+  font-size: 14px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.modal .btn:hover { background: var(--orange-mid); }
+.modal .btn.ghost {
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text-muted);
+  font-family: 'Noto Sans JP', sans-serif;
+  font-weight: 500;
+}
+.modal .btn.ghost:hover {
+  border-color: var(--orange);
+  color: var(--text);
+}
+.modal .btn.danger {
+  background: #b3401a;
+}
+.modal .btn.danger:hover {
+  background: #ca4c22;
+}
+
+.command-bar .act.danger:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; }
 }

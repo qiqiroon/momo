@@ -26,7 +26,9 @@ type GameStatus =
   | 'checkmate'
   | 'sennichite'
   | 'nyugyoku_win_p1'
-  | 'nyugyoku_win_p2';
+  | 'nyugyoku_win_p2'
+  | 'resigned_p1'
+  | 'resigned_p2';
 
 /**
  * 着手発生元:
@@ -69,6 +71,8 @@ interface GameState {
   confirmPromotion: (promote: boolean) => void;
   cancelPromotion: () => void;
   declareNyugyoku: () => boolean;
+  /** 指定側を投了させる。既に対局が終わっているときは何もしない。段階 2-7 v0.30。 */
+  resign: (side: 'player1' | 'player2') => void;
   reset: () => void;
   /**
    * 相手から受信した着手を盤面に反映する。
@@ -294,6 +298,18 @@ export const useGameStore = create<GameState>((set, get) => ({
       pendingPromotion: null,
     });
     return true;
+  },
+
+  resign: (side) => {
+    const { status } = get();
+    if (status !== 'playing') return;
+    set({
+      status: side === 'player1' ? 'resigned_p1' : 'resigned_p2',
+      selectedSquare: null,
+      selectedHandPieceId: null,
+      legalDestinations: [],
+      pendingPromotion: null,
+    });
   },
 
   reset: () => {

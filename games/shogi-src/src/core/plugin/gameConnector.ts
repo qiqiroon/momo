@@ -42,6 +42,12 @@ export interface OnlineGameConnector {
    */
   leaveOnline(): void;
   /**
+   * 対局終了後に部屋を継続したまま S06 対局準備画面に戻す。段階 v0.31。
+   * ハンドシェイク（先後選択・準備完了・振り駒結果・gameStartInfo）と
+   * 盤面・チャットをリセットし、対戦相手との接続はそのまま。
+   */
+  returnToPreparation(): void;
+  /**
    * 対局中に相手が退室 or 通信が切断されたか。true なら対局画面が退室モーダルを表示する。
    */
   getOpponentLeftDuringGame(): boolean;

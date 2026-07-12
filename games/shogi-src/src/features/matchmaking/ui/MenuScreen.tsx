@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { useI18nStore, type LocaleMode } from '../../../core/store/i18n-store';
+import { useI18nStore } from '../../../core/store/i18n-store';
 import { useRouteStore } from '../../../core/store/route-store';
 import { t as _t } from '../../../core/i18n';
 import type { LocaleCode } from '../../../core/i18n/types';
 import { CatIcon } from '../../../core/ui-core/CatIcon';
+import { LangSelect } from '../../../core/ui-core/LangSelect';
 import { ScreenBand } from '../../../core/ui-core/ScreenBand';
 
 /**
@@ -15,21 +16,10 @@ import { ScreenBand } from '../../../core/ui-core/ScreenBand';
  * - 通信対戦     : 'net-lobby' へ（マッチメーキング）
  */
 export function MenuScreen() {
-  const mode = useI18nStore((s) => s.mode);
   const locale = useI18nStore((s) => s.locale);
-  const setMode = useI18nStore((s) => s.setMode);
-  const setLocale = useI18nStore((s) => s.setLocale);
   const t = (key: string) => _t(key, locale);
   const setScreen = useRouteStore((s) => s.setScreen);
   const [showAiNote, setShowAiNote] = useState(false);
-
-  const hasMomoLang = typeof window !== 'undefined' && 'MomoLang' in window;
-  const langOptions: { value: LocaleMode; label: string }[] = [];
-  if (hasMomoLang) langOptions.push({ value: 'auto', label: 'Auto' });
-  langOptions.push({ value: 'ja', label: '日本語' });
-  langOptions.push({ value: 'en', label: 'EN' });
-  langOptions.push({ value: 'zh', label: '中文' });
-  langOptions.push({ value: 'cat', label: 'CAT' });
 
   const subLocale: LocaleCode = locale === 'cat' ? 'ja' : locale;
   const subtitle = subLocale === 'zh' ? '擒王为胜，破局无界' : 'Capture the King, Bend the Rules';
@@ -48,27 +38,7 @@ export function MenuScreen() {
           </div>
           <div className="header-spacer" />
           <div className="header-tools">
-            <div className="lang-select">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20" />
-              </svg>
-              <select
-                id="lang-select"
-                value={mode}
-                onChange={(e) => {
-                  const m = e.target.value as LocaleMode;
-                  setMode(m);
-                  if (m !== 'auto') setLocale(m);
-                }}
-              >
-                {langOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <LangSelect includeCat />
           </div>
         </header>
 

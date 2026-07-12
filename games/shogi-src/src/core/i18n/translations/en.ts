@@ -5,7 +5,7 @@ export const en: LocaleData = {
   name: 'English',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.30',
+    'app.ver': 'v0.31',
     'app.sub': 'Capture the King, Bend the Rules',
     'turn.mine': 'Your turn',
     'turn.opp': "Opponent's turn",
@@ -56,6 +56,8 @@ export const en: LocaleData = {
     'result.reason.resign.opp': 'Opponent resigned',
     'result.backToLobby': 'Back to Lobby',
     'result.backToMenu': 'Back to Menu',
+    'result.rematch.online': 'Back to Prep',
+    'result.rematch.offline': 'Play Again',
     'result.close': 'Close',
 
     // S06 Match preparation (mock S05 origin, Phase 2-5.1)

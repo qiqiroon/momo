@@ -1012,8 +1012,9 @@ body::before {
 .side-card.mine .sc-label.mine { display: inline-block; }
 .side-card.opp .sc-label.opp { display: inline-block; }
 
-/* ===== 対局画面：座標表示（v0.27 追加） =====
- * 盤の上部に筋番号（9-8-7-...-1）、右辺に段番号（一-二-...-九）
+/* ===== 対局画面：座標表示（v0.27 追加、v0.31 で盤の枠に密着に） =====
+ * 盤の上部に筋番号（9-8-7-...-1）、右辺に段番号（一-二-...-九 / EN=1-2-...-9）
+ * v0.31: 枠 (border+padding) の外側にピッタリ配置。gap を詰めて盤に密着させる。
  */
 .board-with-coords { display: grid; grid-template-columns: auto auto; grid-template-rows: auto auto; gap: 0; align-items: start; }
 .board-with-coords .col-coords {
@@ -1021,30 +1022,35 @@ body::before {
   grid-row: 1;
   display: grid;
   grid-template-columns: repeat(9, var(--cell));
-  padding: 0 12px; /* .board-outer の padding と合わせる */
+  padding: 0 12px; /* .board-outer の padding+border(2px) と合わせて盤の升目と揃える */
   font-size: 10px;
   color: var(--text-muted);
   text-align: center;
   line-height: 1;
-  margin-bottom: 2px;
+  margin-bottom: 0; /* v0.31: 枠に密着 */
   letter-spacing: 0;
 }
-.board-with-coords .col-coords span { padding: 2px 0; }
+.board-with-coords .col-coords span { padding: 0 0 1px; }
 .board-with-coords .board-outer { grid-column: 1; grid-row: 2; }
 .board-with-coords .row-coords {
   grid-column: 2;
   grid-row: 2;
   display: grid;
   grid-template-rows: repeat(9, var(--cell));
-  padding: 12px 0; /* .board-outer の padding と合わせる */
+  padding: 12px 0; /* .board-outer の padding+border(2px) と合わせて盤の升目と揃える */
   font-size: 11px;
   color: var(--text-muted);
   text-align: center;
   line-height: 1;
-  margin-left: 3px;
+  margin-left: 0; /* v0.31: 枠に密着 */
   font-family: 'Yuji Syuku', serif;
 }
-.board-with-coords .row-coords span { display: flex; align-items: center; justify-content: center; }
+.board-with-coords .row-coords.en {
+  /* EN モードでは Arabic 数字なので Yuji Syuku を使わず英字フォントで表示 */
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 10px;
+}
+.board-with-coords .row-coords span { display: flex; align-items: center; justify-content: center; padding: 0 1px; }
 
 /* ===== 対局画面：相手退室通知モーダル（v0.27 追加） ===== */
 .opp-left-overlay {
@@ -1172,6 +1178,94 @@ body::before {
 .command-bar .act.danger:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* ===== 対局終了 フローティング結果パネル（v0.31 追加） =====
+ * 半透明で盤面が透けて見え、タイトル部を掴んでドラッグで移動できる。
+ * 背景オーバーレイなし = 盤面の駒配置を確認しながら結果を眺められる。
+ */
+.floating-result {
+  position: fixed;
+  top: 20vh;
+  left: 50%;
+  transform: translate(-50%, 0);
+  background: rgba(20, 20, 20, 0.82);
+  border: 1px solid var(--orange);
+  border-radius: 12px;
+  padding: 12px 20px 16px;
+  max-width: 340px;
+  min-width: 240px;
+  text-align: center;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+  z-index: 200;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.floating-result-header {
+  cursor: move;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 4px 0 8px;
+  border-bottom: 1px dashed var(--border);
+  margin-bottom: 8px;
+  user-select: none;
+  touch-action: none;
+}
+.floating-result .drag-hint {
+  color: var(--text-muted);
+  font-size: 12px;
+  opacity: 0.7;
+}
+.floating-result .title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--orange-light);
+  letter-spacing: 0.06em;
+}
+.floating-result .verdict {
+  font-family: 'Fredoka One', cursive;
+  font-size: 32px;
+  letter-spacing: 0.05em;
+  margin: 4px 0 6px;
+}
+.floating-result .verdict.win { color: var(--orange-light); }
+.floating-result .verdict.lose { color: var(--lose-ink, #9a9a9a); }
+.floating-result .verdict.draw { color: var(--text); }
+.floating-result .body {
+  font-size: 12.5px;
+  color: var(--text);
+  margin-bottom: 14px;
+  line-height: 1.55;
+}
+.floating-result .btn-row {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.floating-result .btn {
+  background: var(--orange);
+  border: none;
+  color: #fff;
+  font-family: 'Fredoka One', cursive;
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.floating-result .btn:hover { background: var(--orange-mid); }
+.floating-result .btn.ghost {
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text-muted);
+  font-family: 'Noto Sans JP', sans-serif;
+  font-weight: 500;
+}
+.floating-result .btn.ghost:hover {
+  border-color: var(--orange);
+  color: var(--text);
 }
 
 @media (prefers-reduced-motion: reduce) {

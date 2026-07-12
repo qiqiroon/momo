@@ -5,7 +5,7 @@ export const zh: LocaleData = {
   name: '中文',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.30',
+    'app.ver': 'v0.31',
     'app.sub': '擒王为胜，破局无界',
     'turn.mine': '轮到你',
     'turn.opp': '对手回合',
@@ -56,6 +56,8 @@ export const zh: LocaleData = {
     'result.reason.resign.opp': '对手认输',
     'result.backToLobby': '返回对战大厅',
     'result.backToMenu': '返回菜单',
+    'result.rematch.online': '返回对局准备',
+    'result.rematch.offline': '再来一局',
     'result.close': '关闭',
 
     // S06 对局准备（来自 mock S05，阶段 2-5.1）

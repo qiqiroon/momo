@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.30',
+    'app.ver': 'v0.31',
     'app.sub': 'Capture the King, Bend the Rules',
     'turn.mine': 'あなたの手番',
     'turn.opp': '相手の手番',
@@ -56,6 +56,8 @@ export const ja: LocaleData = {
     'result.reason.resign.opp': '相手が投了',
     'result.backToLobby': '対戦ロビーに戻る',
     'result.backToMenu': 'メニューへ戻る',
+    'result.rematch.online': '対局準備に戻る',
+    'result.rematch.offline': 'もう一度対局',
     'result.close': '閉じる',
 
     // S06 対局準備画面（モック S05 由来・段階 2-5.1）

@@ -4,6 +4,7 @@ import { useRouteStore } from '../../../core/store/route-store';
 import { t as _t } from '../../../core/i18n';
 import type { LocaleCode } from '../../../core/i18n/types';
 import { CatIcon } from '../../../core/ui-core/CatIcon';
+import { LangSelect } from '../../../core/ui-core/LangSelect';
 import { getMomoMatchmaking } from '../client';
 import { SHOGI_GAME_TYPE, SIGNALING_URL } from '../config';
 import { DEFAULT_ROOM_CONFIG, useMatchmakingStore, type RoomConfig } from '../store';
@@ -241,6 +242,7 @@ export function LobbyScreen() {
             <button className="reset-btn" type="button" onClick={onBackToMenu}>
               メニューへ戻る
             </button>
+            <LangSelect includeCat />
           </div>
         </header>
 

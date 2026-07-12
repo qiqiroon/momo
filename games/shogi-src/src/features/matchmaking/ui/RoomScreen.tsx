@@ -4,6 +4,7 @@ import { useRouteStore } from '../../../core/store/route-store';
 import { t as _t } from '../../../core/i18n';
 import type { LocaleCode } from '../../../core/i18n/types';
 import { CatIcon } from '../../../core/ui-core/CatIcon';
+import { LangSelect } from '../../../core/ui-core/LangSelect';
 import { ScreenBand } from '../../../core/ui-core/ScreenBand';
 import { getMomoMatchmaking } from '../client';
 import { decodeRoomName } from '../roomNameCodec';
@@ -222,6 +223,9 @@ export function RoomScreen() {
             <div className={`subtitle${subLocale === 'zh' ? ' zh' : ''}`}>{subtitle}</div>
           </div>
           <div className="header-spacer" />
+          <div className="header-tools">
+            <LangSelect includeCat />
+          </div>
         </header>
 
         <ScreenBand code="S06" name="対局準備" />

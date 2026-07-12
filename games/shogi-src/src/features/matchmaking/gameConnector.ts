@@ -91,6 +91,14 @@ const connector: OnlineGameConnector = {
     useRouteStore.getState().setScreen('net-lobby');
   },
 
+  returnToPreparation() {
+    // 部屋接続は維持したまま、ハンドシェイクと盤面をリセット
+    useMatchmakingStore.getState().resetHandshake();
+    useGameStore.getState().reset();
+    useChatStore.getState().clearChat();
+    useRouteStore.getState().setScreen('room');
+  },
+
   getOpponentLeftDuringGame() {
     return useMatchmakingStore.getState().opponentLeftDuringGame;
   },

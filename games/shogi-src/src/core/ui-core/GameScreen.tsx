@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type TouchEvent as ReactTouchEvent } from 'react';
 import { useI18nStore, type LocaleMode } from '../store/i18n-store';
 import { useGameStore } from '../store/game-store';
 import { useChatStore } from '../store/chat-store';
@@ -335,9 +335,9 @@ export function GameScreen({ variant }: GameScreenProps) {
                   })}
                 </div>
               </div>
-              {/* 右辺の段番号（一〜九） */}
-              <div className="row-coords">
-                {['一', '二', '三', '四', '五', '六', '七', '八', '九'].map((s) => (
+              {/* 右辺の段番号（EN=1〜9・他=一〜九、v0.31 でロケール依存に） */}
+              <div className={`row-coords${locale === 'en' ? ' en' : ''}`}>
+                {(locale === 'en' ? ['1', '2', '3', '4', '5', '6', '7', '8', '9'] : ['一', '二', '三', '四', '五', '六', '七', '八', '九']).map((s) => (
                   <span key={s}>{s}</span>
                 ))}
               </div>
@@ -488,10 +488,14 @@ function ResignButton({
 }
 
 /**
- * 対局終了時のオーバーレイモーダル。
- * status が終局状態（checkmate / sennichite / nyugyoku / resigned）で表示。
- * 「勝ち／負け／引分」と理由、そして「対戦ロビーに戻る」ボタンを出す。
- * 段階 2-7 v0.30 新設。
+ * 対局終了時のフローティング結果パネル（v0.30 新設・v0.31 で改造）。
+ *
+ * v0.31 変更:
+ * - 全画面オーバーレイを廃止し、盤面が見える半透明のパネルに
+ * - タイトル部を掴んでドラッグで移動可能
+ * - 「対戦ロビーに戻る」を「対局準備に戻る」に変更（部屋を継続、同じルールで再対局）
+ * - オフラインは「もう一度対局」で盤面をリセットして続行
+ * - 「閉じる」で一時的に隠せる（盤面を見返すため）。次に status が変わったら再表示
  */
 function GameEndModal({
   t,
@@ -509,11 +513,49 @@ function GameEndModal({
   const position = useGameStore((s) => s.position);
   const reset = useGameStore((s) => s.reset);
   const [dismissed, setDismissed] = useState<string>('');
+  const [drag, setDrag] = useState({ x: 0, y: 0 });
+  const dragState = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
 
-  // ステータスが変わったら再表示
+  // ステータスが変わったら再表示＋ドラッグ位置をリセット
   useEffect(() => {
     setDismissed('');
+    setDrag({ x: 0, y: 0 });
   }, [status]);
+
+  const onDragStart = (e: ReactMouseEvent | ReactTouchEvent) => {
+    const point = 'touches' in e ? e.touches[0] : (e as ReactMouseEvent);
+    dragState.current = {
+      startX: point.clientX,
+      startY: point.clientY,
+      origX: drag.x,
+      origY: drag.y,
+    };
+    e.preventDefault();
+  };
+
+  useEffect(() => {
+    const onMove = (e: globalThis.MouseEvent | globalThis.TouchEvent) => {
+      if (!dragState.current) return;
+      const point = 'touches' in e ? e.touches[0] : (e as globalThis.MouseEvent);
+      setDrag({
+        x: dragState.current.origX + point.clientX - dragState.current.startX,
+        y: dragState.current.origY + point.clientY - dragState.current.startY,
+      });
+    };
+    const onEnd = () => {
+      dragState.current = null;
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onEnd);
+    window.addEventListener('touchmove', onMove, { passive: false });
+    window.addEventListener('touchend', onEnd);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onEnd);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onEnd);
+    };
+  }, []);
 
   if (status === 'playing') return null;
   if (dismissed === status) return null;
@@ -558,7 +600,6 @@ function GameEndModal({
   } else if (online.isOnline && online.mySide) {
     if (winnerSide === online.mySide) {
       verdictKey = 'result.verdict.win';
-      // 投了時に「相手が投了しました」を強調
       if (status === 'resigned_p1' || status === 'resigned_p2') {
         reasonSuffix = ` (${t('result.reason.resign.opp')})`;
       }
@@ -569,46 +610,51 @@ function GameEndModal({
       }
     }
   } else {
-    // オフラインなら勝った側を明示
     verdictKey = winnerSide === 'player1' ? 'result.verdict.senteWin' : 'result.verdict.goteWin';
   }
 
-  const backLabel = online.isOnline ? t('result.backToLobby') : t('result.backToMenu');
-  const onBack = () => {
+  // 「対局準備に戻る」or「もう一度対局」— 同じ部屋で再対局を可能に
+  const rematchLabel = online.isOnline ? t('result.rematch.online') : t('result.rematch.offline');
+  const onRematch = () => {
     const c = pluginGet<OnlineGameConnector>('gameConnector');
     if (online.isOnline && c) {
-      c.leaveOnline();
+      c.returnToPreparation();
     } else {
       reset();
-      if (pluginHas('screen:lobby')) {
-        useRouteStore.getState().setScreen('lobby');
-      }
+      setDismissed(status);
     }
   };
 
+  const verdictClass =
+    winnerSide === null ? 'draw' : online.isOnline && online.mySide === winnerSide ? 'win' : online.isOnline ? 'lose' : '';
+
   return (
-    <div className="modal-overlay" role="dialog" aria-modal="true">
-      <div className="modal result">
-        <div className="title">{t('result.title')}</div>
-        <div className={`verdict ${winnerSide === null ? 'draw' : online.isOnline && online.mySide === winnerSide ? 'win' : online.isOnline ? 'lose' : ''}`}>
-          {t(verdictKey)}
-        </div>
-        <div className="body">
-          {t(reasonKey)}
-          {reasonSuffix}
-        </div>
-        <div className="btn-row">
-          <button
-            type="button"
-            className="btn ghost"
-            onClick={() => setDismissed(status)}
-          >
-            {t('result.close')}
-          </button>
-          <button type="button" className="btn" onClick={onBack}>
-            {backLabel}
-          </button>
-        </div>
+    <div
+      className="floating-result"
+      role="dialog"
+      aria-modal="false"
+      style={{ transform: `translate(calc(-50% + ${drag.x}px), ${drag.y}px)` }}
+    >
+      <div
+        className="floating-result-header"
+        onMouseDown={onDragStart}
+        onTouchStart={onDragStart}
+      >
+        <span className="drag-hint">⇔</span>
+        <span className="title">{t('result.title')}</span>
+      </div>
+      <div className={`verdict ${verdictClass}`}>{t(verdictKey)}</div>
+      <div className="body">
+        {t(reasonKey)}
+        {reasonSuffix}
+      </div>
+      <div className="btn-row">
+        <button type="button" className="btn ghost" onClick={() => setDismissed(status)}>
+          {t('result.close')}
+        </button>
+        <button type="button" className="btn" onClick={onRematch}>
+          {rematchLabel}
+        </button>
       </div>
     </div>
   );

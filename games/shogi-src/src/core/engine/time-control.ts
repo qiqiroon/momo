@@ -20,10 +20,10 @@ export interface TimeControl {
   incrementSeconds?: number;
 }
 
-/** ロビー既定値（部屋作成のデフォルト）：秒読み 10 分＋ 30 秒 */
+/** ロビー既定値（部屋作成のデフォルト）：秒読み 15 分＋ 30 秒（v0.36: D5 §7 の候補と揃える） */
 export const DEFAULT_TIME_CONTROL: TimeControl = {
   mode: 'byoyomi',
-  mainSeconds: 600,
+  mainSeconds: 15 * 60,
   byoyomiSeconds: 30,
 };
 

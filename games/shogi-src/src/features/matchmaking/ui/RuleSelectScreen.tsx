@@ -23,6 +23,27 @@ const TIME_MODES: { value: TimeControlMode; label: string; desc: string }[] = [
   { value: 'no_limit', label: '時間フリー', desc: '制限なし' },
 ];
 
+// v0.36 仕様書 D5 §7 の候補
+const MAIN_OPTIONS: { value: number; label: string }[] = [
+  { value: 0, label: '0（秒読みのみ）' },
+  { value: 5 * 60, label: '5分' },
+  { value: 15 * 60, label: '15分' },
+  { value: 30 * 60, label: '30分' },
+  { value: 60 * 60, label: '1時間' },
+];
+const BYO_OPTIONS: { value: number; label: string }[] = [
+  { value: 0, label: '0秒' },
+  { value: 5, label: '5秒' },
+  { value: 10, label: '10秒' },
+  { value: 30, label: '30秒' },
+  { value: 60, label: '60秒' },
+];
+function formatMain(sec: number): string {
+  if (sec === 0) return '0（秒読みのみ）';
+  if (sec >= 3600) return `${sec / 3600}時間`;
+  return `${sec / 60}分`;
+}
+
 /** localStorage キー：前回の部屋名を記憶（パスワードは保存しない） */
 const LS_LAST_ROOM_NAME = 'shogi.roomForm.lastRoomName';
 
@@ -219,14 +240,25 @@ export function RuleSelectScreen() {
         </div>
 
         <div style={{ marginTop: 14, padding: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
-          <div className="panel-label"><span>持ち時間</span></div>
+          <div className="panel-label"><span>持ち時間モード</span></div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {TIME_MODES.map((m) => (
               <button
                 key={m.value}
                 type="button"
                 className="act"
-                onClick={() => setConfig({ timeControl: { mode: m.value, mainSeconds: 600, byoyomiSeconds: m.value === 'byoyomi' ? 30 : undefined, incrementSeconds: m.value === 'fischer' ? 10 : undefined } })}
+                onClick={() => {
+                  // モード切替時は既存の秒数を保ちつつ、必要なフィールドを補う
+                  const cur = config.timeControl;
+                  setConfig({
+                    timeControl: {
+                      mode: m.value,
+                      mainSeconds: m.value === 'no_limit' ? 0 : cur.mainSeconds || 600,
+                      byoyomiSeconds: m.value === 'byoyomi' ? cur.byoyomiSeconds ?? 30 : undefined,
+                      incrementSeconds: m.value === 'fischer' ? cur.incrementSeconds ?? 10 : undefined,
+                    },
+                  });
+                }}
                 style={config.timeControl.mode === m.value ? { borderColor: 'var(--orange)', color: 'var(--orange-light)', background: 'var(--bg-selected)' } : {}}
                 title={m.desc}
               >
@@ -234,10 +266,67 @@ export function RuleSelectScreen() {
               </button>
             ))}
           </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
+
+          {/* v0.36: 本時間 / 秒読み / 加算 の秒数選択（仕様書 D5 §7 の候補） */}
+          {config.timeControl.mode !== 'no_limit' && (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>本時間</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {MAIN_OPTIONS.filter((o) => o.value > 0 || config.timeControl.mode === 'byoyomi').map((o) => (
+                  <button
+                    key={o.value}
+                    type="button"
+                    className="act"
+                    onClick={() => setConfig({ timeControl: { ...config.timeControl, mainSeconds: o.value } })}
+                    style={config.timeControl.mainSeconds === o.value ? { borderColor: 'var(--orange)', color: 'var(--orange-light)', background: 'var(--bg-selected)' } : {}}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {config.timeControl.mode === 'byoyomi' && (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>秒読み（1手ごとの時間）</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {BYO_OPTIONS.filter((o) => o.value > 0).map((o) => (
+                  <button
+                    key={o.value}
+                    type="button"
+                    className="act"
+                    onClick={() => setConfig({ timeControl: { ...config.timeControl, byoyomiSeconds: o.value } })}
+                    style={config.timeControl.byoyomiSeconds === o.value ? { borderColor: 'var(--orange)', color: 'var(--orange-light)', background: 'var(--bg-selected)' } : {}}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {config.timeControl.mode === 'fischer' && (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>加算（1手ごとに追加）</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {BYO_OPTIONS.map((o) => (
+                  <button
+                    key={o.value}
+                    type="button"
+                    className="act"
+                    onClick={() => setConfig({ timeControl: { ...config.timeControl, incrementSeconds: o.value } })}
+                    style={config.timeControl.incrementSeconds === o.value ? { borderColor: 'var(--orange)', color: 'var(--orange-light)', background: 'var(--bg-selected)' } : {}}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 10 }}>
             現在の設定: {TIME_MODES.find((m) => m.value === config.timeControl.mode)?.desc}
             {config.timeControl.mode !== 'no_limit' && (
-              <> (本時間 {Math.floor(config.timeControl.mainSeconds / 60)}分)</>
+              <> (本時間 {formatMain(config.timeControl.mainSeconds)})</>
             )}
             {config.timeControl.mode === 'byoyomi' && (
               <> + 秒読み {config.timeControl.byoyomiSeconds}秒</>
@@ -245,9 +334,6 @@ export function RuleSelectScreen() {
             {config.timeControl.mode === 'fischer' && (
               <> + 加算 {config.timeControl.incrementSeconds}秒</>
             )}
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-            ※ 詳細な時間調整 UI は段階 2-8 で追加予定
           </div>
         </div>
 

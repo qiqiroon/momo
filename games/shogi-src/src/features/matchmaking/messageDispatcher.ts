@@ -17,6 +17,7 @@
  * 知らない type や不正な形式は黙って無視（フォワード互換）。
  */
 
+import { useChatStore } from '../../core/store/chat-store';
 import { useRouteStore } from '../../core/store/route-store';
 import { useGameStore } from '../../core/store/game-store';
 import { isShogiMessage, type ShogiMessage } from './protocol';
@@ -60,6 +61,8 @@ export function handleShogiMessage(data: unknown): void {
       return;
     }
     case 'game_start': {
+      // 新規対局開始のたびにチャット履歴をリセット（前回対局の残留を持ち越さない）
+      useChatStore.getState().clearChat();
       useMatchmakingStore.setState({
         gameStartInfo: { hostSide: msg.hostSide, guestSide: msg.guestSide },
       });
@@ -75,6 +78,11 @@ export function handleShogiMessage(data: unknown): void {
         to: msg.to,
         promote: msg.promote,
       });
+      return;
+    }
+    case 'chat': {
+      // 相手からのチャット発言をローカル履歴に追加（段階 2-7 v0.28）
+      useChatStore.getState().addMessage(msg.side, msg.text);
       return;
     }
     default: {

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useI18nStore, type LocaleMode } from '../store/i18n-store';
 import { useGameStore } from '../store/game-store';
+import { useChatStore } from '../store/chat-store';
 import { useRouteStore } from '../store/route-store';
 import { get as pluginGet, has as pluginHas } from '../plugin/registry';
 import { t as _t } from '../i18n';
@@ -58,10 +59,14 @@ export function GameScreen({ variant }: GameScreenProps) {
     return c.subscribe(update);
   }, []);
 
-  // オンラインモード開始時に対局盤面を初期化（前回のゲームの残り状態を持ち越さない）
+  // オンラインモード開始時に対局盤面とチャット履歴を初期化（前回のゲームの残り状態を持ち越さない）
+  const clearChat = useChatStore((s) => s.clearChat);
   useEffect(() => {
-    if (online.isOnline) reset();
-  }, [online.isOnline, reset]);
+    if (online.isOnline) {
+      reset();
+      clearChat();
+    }
+  }, [online.isOnline, reset, clearChat]);
 
   // 自分の着手を相手に送信
   useEffect(() => {
@@ -360,16 +365,7 @@ export function GameScreen({ variant }: GameScreenProps) {
             <div className="panel-label">
               <span>{t('chat.title')}</span>
             </div>
-            <div className="console">
-              <div className="chat-log" />
-              <div className="inputline">
-                <span className="prompt">{t('chat.pSente')}</span>
-                <input type="text" placeholder={t('chat.placeholder')} />
-                <button type="button" className="send">
-                  {t('chat.send')}
-                </button>
-              </div>
-            </div>
+            <ChatConsole t={t} online={online} />
           </div>
 
           <div className="panel spectators" style={{ marginTop: 12 }}>
@@ -401,6 +397,74 @@ export function GameScreen({ variant }: GameScreenProps) {
       </div>
       <PromotionModal locale={locale} t={t} />
       <OpponentLeftModal t={t} />
+    </div>
+  );
+}
+
+/**
+ * 対局中のチャット（段階 2-7 v0.28）。
+ * オンライン対局中のみ入力可能。オフライン時は入力欄を disabled で表示（モック沿いの受け皿）。
+ * 履歴は chat-store 経由で両者に共有される。プロンプトは自分の側のものを表示。
+ */
+function ChatConsole({
+  t,
+  online,
+}: {
+  t: (key: string) => string;
+  online: { isOnline: boolean; mySide: 'player1' | 'player2' | null };
+}) {
+  const messages = useChatStore((s) => s.messages);
+  const [draft, setDraft] = useState('');
+  const logRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (logRef.current) {
+      logRef.current.scrollTop = logRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  const canSend = online.isOnline && online.mySide !== null;
+  const myPrompt = t(online.mySide === 'player2' ? 'chat.pGote' : 'chat.pSente');
+
+  const send = () => {
+    const text = draft.trim();
+    if (!text) return;
+    if (!canSend) return;
+    const c = pluginGet<OnlineGameConnector>('gameConnector');
+    if (!c) return;
+    c.sendChat(text);
+    setDraft('');
+  };
+
+  return (
+    <div className="console">
+      <div className="chat-log" ref={logRef}>
+        {messages.map((m, i) => (
+          <div key={i} className={`line ${m.side === 'player1' ? 'p-sente' : 'p-gote'}`}>
+            <span className="prompt">{t(m.side === 'player1' ? 'chat.pSente' : 'chat.pGote')}</span>
+            {m.text}
+          </div>
+        ))}
+      </div>
+      <div className="inputline">
+        <span className="prompt">{myPrompt}</span>
+        <input
+          type="text"
+          placeholder={t('chat.placeholder')}
+          value={draft}
+          disabled={!canSend}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              send();
+            }
+          }}
+        />
+        <button type="button" className="send" onClick={send} disabled={!canSend}>
+          {t('chat.send')}
+        </button>
+      </div>
     </div>
   );
 }

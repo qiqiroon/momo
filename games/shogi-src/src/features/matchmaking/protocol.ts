@@ -17,6 +17,11 @@
  *
  * 段階 2-5.2 以降:
  * - move / resign / undo / draw / chat / hash_check / …
+ *
+ * 段階 2-7 v0.28（チャット）:
+ * - chat : 対局中の会話メッセージ。発言者側と本文を含む。
+ *          両者の履歴表示は共通のため、発言者側（player1=先手 / player2=後手）を
+ *          相手側で描画するためにメッセージ本体に持たせる。
  */
 
 import type { SideChoice, SideSelection } from './store';
@@ -93,13 +98,24 @@ export interface MoveMsg extends Envelope {
   promote?: boolean;
 }
 
+/**
+ * 対局中のチャット発言（段階 2-7 v0.28）。
+ * side は発言者（player1=先手／player2=後手）で、両者の表示履歴を同一に保つ。
+ */
+export interface ChatMsg extends Envelope {
+  type: 'chat';
+  side: 'player1' | 'player2';
+  text: string;
+}
+
 export type ShogiMessage =
   | SideSelectMsg
   | ReadyMsg
   | StateSyncMsg
   | FurigomaResultMsg
   | GameStartMsg
-  | MoveMsg;
+  | MoveMsg
+  | ChatMsg;
 
 /** 型ガード：unknown をゲームメッセージとして扱えるか */
 export function isShogiMessage(data: unknown): data is ShogiMessage {

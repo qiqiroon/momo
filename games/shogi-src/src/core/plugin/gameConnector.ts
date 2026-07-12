@@ -24,6 +24,11 @@ export interface OnlineGameConnector {
   /** 自分の着手を相手に送信 */
   sendMove(payload: RemoteMovePayload): void;
   /**
+   * 自分のチャット発言を相手に送信し、ローカルの履歴にも追加する。
+   * 空文字や isOnline=false の場合は何もしない。段階 2-7 v0.28。
+   */
+  sendChat(text: string): void;
+  /**
    * オンライン対局を離脱する。退室通知を送り、通信対戦ロビーに戻る。
    */
   leaveOnline(): void;

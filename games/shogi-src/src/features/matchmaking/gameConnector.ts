@@ -4,6 +4,7 @@
  */
 
 import { register } from '../../core/plugin/registry';
+import { useChatStore } from '../../core/store/chat-store';
 import { useRouteStore } from '../../core/store/route-store';
 import type { OnlineGameConnector, RemoteMovePayload } from '../../core/plugin/gameConnector';
 import { getMomoMatchmaking } from './client';
@@ -36,6 +37,26 @@ const connector: OnlineGameConnector = {
       to: payload.to,
       promote: payload.promote,
     });
+  },
+
+  sendChat(text) {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    const state = useMatchmakingStore.getState();
+    if (!state.gameStartInfo) return;
+    const mySide: 'player1' | 'player2' =
+      (state.isHost ? state.gameStartInfo.hostSide : state.gameStartInfo.guestSide) === 'sente'
+        ? 'player1'
+        : 'player2';
+    const client = getMomoMatchmaking();
+    if (!client) return;
+    client.send({
+      v: PROTOCOL_VERSION,
+      type: 'chat',
+      side: mySide,
+      text: trimmed,
+    });
+    useChatStore.getState().addMessage(mySide, trimmed);
   },
 
   leaveOnline() {

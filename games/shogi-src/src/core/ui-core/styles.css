@@ -784,6 +784,29 @@ body::before {
   gap: 1px;
 }
 
+/* 対局中チャットの履歴行（段階 2-7 v0.28・モック momo_shogi_S06_mock_v7.html 由来） */
+.console .line {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.console .p-sente {
+  color: var(--orange-light);
+}
+.console .p-gote {
+  color: #e5e5e5;
+}
+.console .line .prompt {
+  opacity: 0.9;
+}
+.console .inputline input:disabled {
+  color: var(--text-muted);
+  caret-color: transparent;
+}
+.console .send:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .console .inputline {
   display: flex;
   align-items: baseline;

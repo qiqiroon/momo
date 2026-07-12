@@ -117,6 +117,27 @@ export interface ResignMsg extends Envelope {
   side: 'player1' | 'player2';
 }
 
+/** 引分の申し出（段階 2-7 v0.33）。応答は draw_response で返す。 */
+export interface DrawOfferMsg extends Envelope {
+  type: 'draw_offer';
+}
+/** 引分申し出への応答（段階 2-7 v0.33）。accepted=true で両者引分終局。 */
+export interface DrawResponseMsg extends Envelope {
+  type: 'draw_response';
+  accepted: boolean;
+}
+/** 待ったの申し出（段階 2-7 v0.33）。応答は undo_response で返す。count は巻き戻し手数（既定 1）。 */
+export interface UndoOfferMsg extends Envelope {
+  type: 'undo_offer';
+  count?: number;
+}
+/** 待った申し出への応答（段階 2-7 v0.33）。accepted=true で両者 count 手戻す。 */
+export interface UndoResponseMsg extends Envelope {
+  type: 'undo_response';
+  accepted: boolean;
+  count?: number;
+}
+
 export type ShogiMessage =
   | SideSelectMsg
   | ReadyMsg
@@ -125,7 +146,11 @@ export type ShogiMessage =
   | GameStartMsg
   | MoveMsg
   | ChatMsg
-  | ResignMsg;
+  | ResignMsg
+  | DrawOfferMsg
+  | DrawResponseMsg
+  | UndoOfferMsg
+  | UndoResponseMsg;
 
 /** 型ガード：unknown をゲームメッセージとして扱えるか */
 export function isShogiMessage(data: unknown): data is ShogiMessage {

@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.32',
+    'app.ver': 'v0.33',
     'app.sub': 'Capture the King, Bend the Rules',
     'turn.mine': 'あなたの手番',
     'turn.opp': '相手の手番',
@@ -37,6 +37,7 @@ export const ja: LocaleData = {
     'status.checkmate_p2': '後手詰み',
     'status.resigned_p1': '先手投了',
     'status.resigned_p2': '後手投了',
+    'status.agreed_draw': '引分（合意）',
     // 投了確認と対局終了モーダル（段階 2-7 v0.30）
     'resign.confirmTitle': '投了確認',
     'resign.confirmBody': '本当に投了しますか？',
@@ -59,6 +60,21 @@ export const ja: LocaleData = {
     'result.rematch.online': '対局準備に戻る',
     'result.rematch.offline': 'もう一度対局',
     'result.close': '閉じる',
+    'result.reason.agreed_draw': '合意による引分',
+    // 引分・待った 合意フロー (段階 2-7 v0.33)
+    'draw.confirmTitle': '引分にしますか？',
+    'draw.confirmBody': 'この対局を引分（和棋）として終了します。',
+    'draw.confirmYes': '引分にする',
+    'draw.receivedTitle': '引分の申し出',
+    'draw.receivedBody': '相手が引分を申し出ています。',
+    'draw.sentWaiting': '引分を申し出中… 相手の応答を待っています',
+    'draw.rejectedByOpp': '相手が引分を拒否しました',
+    'undo.receivedTitle': '待ったの申し出',
+    'undo.receivedBody': '相手が待った（1手戻す）を申し出ています。',
+    'undo.sentWaiting': '待ったを申し出中… 相手の応答を待っています',
+    'undo.rejectedByOpp': '相手が待ったを拒否しました',
+    'offer.accept': '承諾',
+    'offer.reject': '拒否',
 
     // S06 対局準備画面（モック S05 由来・段階 2-5.1）
     's06.back': '退室',

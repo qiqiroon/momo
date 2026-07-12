@@ -1216,6 +1216,45 @@ body::before {
   border-color: var(--orange-mid);
 }
 
+.command-bar .act:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* 引分・待った 申し出中トースト（v0.33 追加） */
+.offer-sent-toast {
+  position: fixed;
+  bottom: 18px;
+  right: 18px;
+  background: rgba(20, 20, 20, 0.7);
+  border: 1px solid var(--orange);
+  border-radius: 8px;
+  padding: 8px 14px;
+  color: var(--text);
+  font-size: 12.5px;
+  z-index: 190;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+/* 応答（拒否）トースト（v0.33 追加） */
+.offer-response-toast {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  background: rgba(60, 30, 20, 0.85);
+  border: 1px solid #b3401a;
+  border-radius: 8px;
+  padding: 8px 14px;
+  color: #e8836a;
+  font-size: 12.5px;
+  z-index: 195;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
 /* ===== 対局終了 フローティング結果パネル（v0.31 追加） =====
  * 半透明で盤面が透けて見え、タイトル部を掴んでドラッグで移動できる。
  * 背景オーバーレイなし = 盤面の駒配置を確認しながら結果を眺められる。

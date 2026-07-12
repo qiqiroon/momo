@@ -5,7 +5,7 @@ export const en: LocaleData = {
   name: 'English',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.32',
+    'app.ver': 'v0.33',
     'app.sub': 'Capture the King, Bend the Rules',
     'turn.mine': 'Your turn',
     'turn.opp': "Opponent's turn",
@@ -37,6 +37,7 @@ export const en: LocaleData = {
     'status.checkmate_p2': 'Gote checkmated',
     'status.resigned_p1': 'Sente resigned',
     'status.resigned_p2': 'Gote resigned',
+    'status.agreed_draw': 'Draw (agreed)',
     // Resign confirmation and game-end modal (Phase 2-7 v0.30)
     'resign.confirmTitle': 'Confirm Resignation',
     'resign.confirmBody': 'Are you sure you want to resign?',
@@ -59,6 +60,21 @@ export const en: LocaleData = {
     'result.rematch.online': 'Back to Prep',
     'result.rematch.offline': 'Play Again',
     'result.close': 'Close',
+    'result.reason.agreed_draw': 'Agreed Draw',
+    // Draw/Undo agreement flow (Phase 2-7 v0.33)
+    'draw.confirmTitle': 'Agree to Draw?',
+    'draw.confirmBody': 'End this game in a draw.',
+    'draw.confirmYes': 'Agree',
+    'draw.receivedTitle': 'Draw Offer',
+    'draw.receivedBody': 'Your opponent is offering a draw.',
+    'draw.sentWaiting': 'Draw offered — waiting for response',
+    'draw.rejectedByOpp': 'Opponent declined the draw',
+    'undo.receivedTitle': 'Undo Request',
+    'undo.receivedBody': 'Your opponent is requesting to take back 1 move.',
+    'undo.sentWaiting': 'Undo requested — waiting for response',
+    'undo.rejectedByOpp': 'Opponent declined the undo',
+    'offer.accept': 'Accept',
+    'offer.reject': 'Decline',
 
     // S06 Match preparation (mock S05 origin, Phase 2-5.1)
     's06.back': 'Leave',

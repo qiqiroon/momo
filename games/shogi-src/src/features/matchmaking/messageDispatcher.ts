@@ -20,6 +20,7 @@
 import { useChatStore } from '../../core/store/chat-store';
 import { useRouteStore } from '../../core/store/route-store';
 import { useGameStore } from '../../core/store/game-store';
+import { useOffersStore } from '../../core/store/offers-store';
 import { isShogiMessage, type ShogiMessage } from './protocol';
 import { useMatchmakingStore } from './store';
 
@@ -88,6 +89,34 @@ export function handleShogiMessage(data: unknown): void {
     case 'resign': {
       // 相手からの投了通知を盤面状態に反映（段階 2-7 v0.30）
       useGameStore.getState().resign(msg.side);
+      return;
+    }
+    case 'draw_offer': {
+      // 相手からの引分申し出（段階 2-7 v0.33）→ 自分側で「相手が申し出中」を立てる
+      useOffersStore.getState().setDrawOfferFrom('opp');
+      return;
+    }
+    case 'draw_response': {
+      // 自分が申し出た引分への相手の応答（段階 2-7 v0.33）
+      useOffersStore.getState().setDrawOfferFrom(null);
+      useOffersStore.getState().setLastResponse('draw', msg.accepted);
+      if (msg.accepted) {
+        useGameStore.getState().agreeDraw();
+      }
+      return;
+    }
+    case 'undo_offer': {
+      // 相手からの待った申し出（段階 2-7 v0.33）
+      useOffersStore.getState().setUndoOfferFrom('opp');
+      return;
+    }
+    case 'undo_response': {
+      // 自分が申し出た待ったへの相手の応答（段階 2-7 v0.33）
+      useOffersStore.getState().setUndoOfferFrom(null);
+      useOffersStore.getState().setLastResponse('undo', msg.accepted);
+      if (msg.accepted) {
+        useGameStore.getState().undoLastMove(msg.count ?? 1);
+      }
       return;
     }
     default: {

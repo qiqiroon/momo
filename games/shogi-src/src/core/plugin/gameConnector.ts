@@ -43,6 +43,14 @@ export interface OnlineGameConnector {
    * オフライン時（isOnline=false）は指定側をローカルに投了させるだけ。段階 2-7 v0.30。
    */
   sendResign(side: 'player1' | 'player2'): void;
+  /** 引分を相手に申し出る（段階 2-7 v0.33）。ローカルには offers-store で「me が申し出中」を立てる。 */
+  sendDrawOffer(): void;
+  /** 引分申し出への応答（段階 2-7 v0.33）。accepted=true で両者引分終局。 */
+  sendDrawResponse(accepted: boolean): void;
+  /** 待ったを相手に申し出る（段階 2-7 v0.33）。count は既定 1。 */
+  sendUndoOffer(count?: number): void;
+  /** 待った申し出への応答（段階 2-7 v0.33）。accepted=true で両者 count 手戻す。 */
+  sendUndoResponse(accepted: boolean, count?: number): void;
   /**
    * オンライン対局を離脱する。退室通知を送り、通信対戦ロビーに戻る。
    */

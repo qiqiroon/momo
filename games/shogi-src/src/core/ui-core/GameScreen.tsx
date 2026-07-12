@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useI18nStore } from '../store/i18n-store';
 import { useGameStore } from '../store/game-store';
 import { useChatStore } from '../store/chat-store';
+import { useOffersStore } from '../store/offers-store';
 import { ChatConsole } from './ChatConsole';
 import { useRouteStore } from '../store/route-store';
 import { get as pluginGet, has as pluginHas } from '../plugin/registry';
@@ -131,12 +132,14 @@ export function GameScreen({ variant }: GameScreenProps) {
               ? t('status.resigned_p1')
               : status === 'resigned_p2'
                 ? t('status.resigned_p2')
-                : online.isOnline
+                : status === 'agreed_draw'
+                  ? t('status.agreed_draw')
+                  : online.isOnline
                   ? (isMyTurnOnline ? t('turn.mine') : t('turn.opp')) +
                     (position.sideToMove === 'player1' ? (senteInCheck ? '（王手）' : '') : goteInCheck ? '（王手）' : '')
-                  : position.sideToMove === 'player1'
-                    ? '先手番' + (senteInCheck ? '（王手）' : '')
-                    : '後手番' + (goteInCheck ? '（王手）' : '');
+                    : position.sideToMove === 'player1'
+                      ? '先手番' + (senteInCheck ? '（王手）' : '')
+                      : '後手番' + (goteInCheck ? '（王手）' : '');
 
   const isSelected = (row: number, col: number) => selectedSquare?.row === row && selectedSquare?.col === col;
   const isHint = (row: number, col: number) => legalDestinations.some((d) => d.row === row && d.col === col);
@@ -348,12 +351,8 @@ export function GameScreen({ variant }: GameScreenProps) {
             <button type="button" className="act taunt">
               {t('cmd.taunt')} <span className="cnt">3</span>
             </button>
-            <button type="button" className="act">
-              {t('cmd.undo')}
-            </button>
-            <button type="button" className="act">
-              {t('cmd.draw')}
-            </button>
+            <UndoButton t={t} online={online} status={status} />
+            <DrawButton t={t} online={online} status={status} />
             <button type="button" className="act">
               {t('cmd.pause')}
             </button>
@@ -403,8 +402,211 @@ export function GameScreen({ variant }: GameScreenProps) {
       <PromotionModal locale={locale} t={t} />
       <OpponentLeftModal t={t} />
       <GameEndModal t={t} online={online} />
+      <OfferReceivedModal t={t} />
+      <OfferSentToast t={t} />
+      <OfferResponseToast t={t} />
     </div>
   );
+}
+
+/**
+ * 引分申し出ボタン（段階 2-7 v0.33）。
+ * オフライン: クリック→確認モーダル→即引分終局。
+ * オンライン: クリック→相手に申し出送信＋自分側「申し出中」表示。
+ * 対局終了 or 既に別の申し出待ちで disabled。
+ */
+function DrawButton({
+  t,
+  online,
+  status,
+}: {
+  t: (key: string) => string;
+  online: { isOnline: boolean; mySide: 'player1' | 'player2' | null };
+  status: string;
+}) {
+  const drawOfferFrom = useOffersStore((s) => s.drawOfferFrom);
+  const undoOfferFrom = useOffersStore((s) => s.undoOfferFrom);
+  const agreeDraw = useGameStore((s) => s.agreeDraw);
+  const [confirming, setConfirming] = useState(false);
+  const disabled = status !== 'playing' || drawOfferFrom !== null || undoOfferFrom !== null;
+
+  const onClick = () => {
+    if (online.isOnline) {
+      const c = pluginGet<OnlineGameConnector>('gameConnector');
+      if (c) c.sendDrawOffer();
+    } else {
+      setConfirming(true);
+    }
+  };
+  const confirmYes = () => {
+    agreeDraw();
+    setConfirming(false);
+  };
+
+  return (
+    <>
+      <button type="button" className="act" disabled={disabled} onClick={onClick}>
+        {t('cmd.draw')}
+      </button>
+      {confirming && (
+        <FloatingPanel className="floating-result floating-confirm" title={t('draw.confirmTitle')}>
+          <div className="body">{t('draw.confirmBody')}</div>
+          <div className="btn-row">
+            <button type="button" className="btn ghost" onClick={() => setConfirming(false)}>
+              {t('resign.confirmNo')}
+            </button>
+            <button type="button" className="btn" onClick={confirmYes}>
+              {t('draw.confirmYes')}
+            </button>
+          </div>
+        </FloatingPanel>
+      )}
+    </>
+  );
+}
+
+/**
+ * 待った申し出ボタン（段階 2-7 v0.33）。
+ * オフライン: クリック→即 1 手戻す（履歴があれば）。
+ * オンライン: クリック→相手に申し出送信＋自分側「申し出中」表示。
+ * 履歴が空 or 対局終了 or 既に別申し出待ちで disabled。
+ */
+function UndoButton({
+  t,
+  online,
+  status,
+}: {
+  t: (key: string) => string;
+  online: { isOnline: boolean; mySide: 'player1' | 'player2' | null };
+  status: string;
+}) {
+  const drawOfferFrom = useOffersStore((s) => s.drawOfferFrom);
+  const undoOfferFrom = useOffersStore((s) => s.undoOfferFrom);
+  const undoLastMove = useGameStore((s) => s.undoLastMove);
+  const historyLen = useGameStore((s) => s.positionHistory.length);
+  const disabled = status !== 'playing' || historyLen === 0 || drawOfferFrom !== null || undoOfferFrom !== null;
+
+  const onClick = () => {
+    if (online.isOnline) {
+      const c = pluginGet<OnlineGameConnector>('gameConnector');
+      if (c) c.sendUndoOffer(1);
+    } else {
+      undoLastMove(1);
+    }
+  };
+
+  return (
+    <button type="button" className="act" disabled={disabled} onClick={onClick}>
+      {t('cmd.undo')}
+    </button>
+  );
+}
+
+/**
+ * 相手からの引分/待った申し出を受けたときに表示する承諾/拒否モーダル（v0.33）。
+ * オンライン専用（相手からの申し出は connector 経由でしか届かない）。
+ */
+function OfferReceivedModal({ t }: { t: (key: string) => string }) {
+  const drawFrom = useOffersStore((s) => s.drawOfferFrom);
+  const undoFrom = useOffersStore((s) => s.undoOfferFrom);
+  const historyLen = useGameStore((s) => s.positionHistory.length);
+
+  if (drawFrom === 'opp') {
+    return (
+      <FloatingPanel className="floating-result floating-confirm" title={t('draw.receivedTitle')}>
+        <div className="body">{t('draw.receivedBody')}</div>
+        <div className="btn-row">
+          <button
+            type="button"
+            className="btn ghost"
+            onClick={() => {
+              const c = pluginGet<OnlineGameConnector>('gameConnector');
+              if (c) c.sendDrawResponse(false);
+            }}
+          >
+            {t('offer.reject')}
+          </button>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              const c = pluginGet<OnlineGameConnector>('gameConnector');
+              if (c) c.sendDrawResponse(true);
+            }}
+          >
+            {t('offer.accept')}
+          </button>
+        </div>
+      </FloatingPanel>
+    );
+  }
+  if (undoFrom === 'opp') {
+    // 履歴なしの場合 accept ボタンは disabled
+    const canAccept = historyLen > 0;
+    return (
+      <FloatingPanel className="floating-result floating-confirm" title={t('undo.receivedTitle')}>
+        <div className="body">{t('undo.receivedBody')}</div>
+        <div className="btn-row">
+          <button
+            type="button"
+            className="btn ghost"
+            onClick={() => {
+              const c = pluginGet<OnlineGameConnector>('gameConnector');
+              if (c) c.sendUndoResponse(false, 1);
+            }}
+          >
+            {t('offer.reject')}
+          </button>
+          <button
+            type="button"
+            className="btn"
+            disabled={!canAccept}
+            onClick={() => {
+              const c = pluginGet<OnlineGameConnector>('gameConnector');
+              if (c) c.sendUndoResponse(true, 1);
+            }}
+          >
+            {t('offer.accept')}
+          </button>
+        </div>
+      </FloatingPanel>
+    );
+  }
+  return null;
+}
+
+/**
+ * 自分が申し出中の間、待機表示を右下に出す（v0.33）。
+ * ドラッグはしない小さな受動的表示。
+ */
+function OfferSentToast({ t }: { t: (key: string) => string }) {
+  const drawFrom = useOffersStore((s) => s.drawOfferFrom);
+  const undoFrom = useOffersStore((s) => s.undoOfferFrom);
+  if (drawFrom !== 'me' && undoFrom !== 'me') return null;
+  const label = drawFrom === 'me' ? t('draw.sentWaiting') : t('undo.sentWaiting');
+  return <div className="offer-sent-toast">{label}</div>;
+}
+
+/**
+ * 直前の応答が拒否だった場合に短時間表示するトースト（v0.33）。
+ * 承諾は既に盤面反映されるので別途表示不要。
+ */
+function OfferResponseToast({ t }: { t: (key: string) => string }) {
+  const kind = useOffersStore((s) => s.lastResponseKind);
+  const accepted = useOffersStore((s) => s.lastResponseAccepted);
+  const setLastResponse = useOffersStore((s) => s.setLastResponse);
+
+  useEffect(() => {
+    if (kind === null) return;
+    // 4 秒後に自動でトーストを消す
+    const timer = setTimeout(() => setLastResponse(null, null), 4000);
+    return () => clearTimeout(timer);
+  }, [kind, accepted, setLastResponse]);
+
+  if (kind === null || accepted === null) return null;
+  if (accepted) return null; // 承諾は盤面反映で済み、明示表示は不要
+  const label = kind === 'draw' ? t('draw.rejectedByOpp') : t('undo.rejectedByOpp');
+  return <div className="offer-response-toast">{label}</div>;
 }
 
 /**
@@ -530,6 +732,10 @@ function GameEndModal({
     case 'sennichite':
       winnerSide = null;
       reasonKey = 'result.reason.sennichite';
+      break;
+    case 'agreed_draw':
+      winnerSide = null;
+      reasonKey = 'result.reason.agreed_draw';
       break;
     default:
       return null;

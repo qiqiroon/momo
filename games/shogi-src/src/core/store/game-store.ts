@@ -28,7 +28,8 @@ type GameStatus =
   | 'nyugyoku_win_p1'
   | 'nyugyoku_win_p2'
   | 'resigned_p1'
-  | 'resigned_p2';
+  | 'resigned_p2'
+  | 'agreed_draw';
 
 /**
  * 着手発生元:
@@ -63,6 +64,10 @@ interface GameState {
   canNyugyokuP2: boolean;
   /** 直近適用された着手（着手送信を検知したい画面が subscribe する） */
   lastAppliedMove: LastAppliedMove | null;
+  /** 待ったのための着手前局面スタック（v0.33 追加）。着手のたびに現在局面を push、undoLastMove で pop。 */
+  positionHistory: Position[];
+  /** positionCounts の履歴も同期して保持（千日手判定を巻き戻せるように） */
+  positionCountsHistory: Record<string, number>[];
 
   selectSquare: (sq: Square) => void;
   selectHandPiece: (pieceId: string) => void;
@@ -73,6 +78,10 @@ interface GameState {
   declareNyugyoku: () => boolean;
   /** 指定側を投了させる。既に対局が終わっているときは何もしない。段階 2-7 v0.30。 */
   resign: (side: 'player1' | 'player2') => void;
+  /** 引分に合意した状態にする。段階 2-7 v0.33。 */
+  agreeDraw: () => void;
+  /** 最後の n 手を巻き戻す。実際に戻せた手数を返す。段階 2-7 v0.33。 */
+  undoLastMove: (count?: number) => number;
   reset: () => void;
   /**
    * 相手から受信した着手を盤面に反映する。
@@ -142,7 +151,7 @@ function applyAndCommit(
   move: Move,
   source: MoveSource = 'local',
 ): void {
-  const { position, mgf, moveHistory, positionCounts, lastAppliedMove } = get();
+  const { position, mgf, moveHistory, positionCounts, lastAppliedMove, positionHistory, positionCountsHistory } = get();
   const formatted = formatMove(mgf, position, move);
   const nextPos = applyMove(mgf, position, move);
   const { status, positionCounts: nextCounts } = computeStatusAfterMove(mgf, nextPos, positionCounts);
@@ -159,6 +168,9 @@ function applyAndCommit(
     canNyugyokuP1: canDeclareNyugyoku(mgf, nextPos, 'player1'),
     canNyugyokuP2: canDeclareNyugyoku(mgf, nextPos, 'player2'),
     lastAppliedMove: { move, source, seq: nextSeq },
+    // v0.33: 待ったの巻き戻し用に、着手前の局面と positionCounts を履歴に積む
+    positionHistory: [...positionHistory, position],
+    positionCountsHistory: [...positionCountsHistory, positionCounts],
   });
 }
 
@@ -179,6 +191,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   canNyugyokuP1: false,
   canNyugyokuP2: false,
   lastAppliedMove: null,
+  positionHistory: [],
+  positionCountsHistory: [],
 
   selectSquare: (sq) => {
     const { position, mgf, status } = get();
@@ -312,6 +326,46 @@ export const useGameStore = create<GameState>((set, get) => ({
     });
   },
 
+  agreeDraw: () => {
+    const { status } = get();
+    if (status !== 'playing') return;
+    set({
+      status: 'agreed_draw',
+      selectedSquare: null,
+      selectedHandPieceId: null,
+      legalDestinations: [],
+      pendingPromotion: null,
+    });
+  },
+
+  undoLastMove: (count = 1) => {
+    const state = get();
+    const available = state.positionHistory.length;
+    const actual = Math.min(count, available);
+    if (actual <= 0) return 0;
+    const restoredPos = state.positionHistory[state.positionHistory.length - actual];
+    const restoredCounts = state.positionCountsHistory[state.positionCountsHistory.length - actual];
+    set({
+      position: restoredPos,
+      positionCounts: restoredCounts,
+      positionHistory: state.positionHistory.slice(0, state.positionHistory.length - actual),
+      positionCountsHistory: state.positionCountsHistory.slice(0, state.positionCountsHistory.length - actual),
+      moveHistory: state.moveHistory.slice(0, state.moveHistory.length - actual),
+      selectedSquare: null,
+      selectedHandPieceId: null,
+      legalDestinations: [],
+      pendingPromotion: null,
+      status: 'playing',
+      canNyugyokuP1: canDeclareNyugyoku(state.mgf, restoredPos, 'player1'),
+      canNyugyokuP2: canDeclareNyugyoku(state.mgf, restoredPos, 'player2'),
+      // v0.33 バグ修正: lastAppliedMove を触らない。触ると対局画面の
+      // 「自分の手を相手に送信」useEffect が発火して直前の着手が再送信されてしまい、
+      // 相手の巻き戻しが直後に上書きされる（両者 undo の再現バグ）。
+      // undo は subscribe しなくても状態変化で盤面が再描画されるので通知不要。
+    });
+    return actual;
+  },
+
   reset: () => {
     const pos = initPosition(get().mgf);
     set({
@@ -326,6 +380,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       canNyugyokuP1: false,
       canNyugyokuP2: false,
       lastAppliedMove: null,
+      positionHistory: [],
+      positionCountsHistory: [],
     });
   },
 

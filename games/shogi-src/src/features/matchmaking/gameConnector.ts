@@ -6,6 +6,7 @@
 import { register } from '../../core/plugin/registry';
 import { useChatStore } from '../../core/store/chat-store';
 import { useGameStore } from '../../core/store/game-store';
+import { useOffersStore } from '../../core/store/offers-store';
 import { useRouteStore } from '../../core/store/route-store';
 import type { OnlineGameConnector, RemoteMovePayload } from '../../core/plugin/gameConnector';
 import { getMomoMatchmaking } from './client';
@@ -93,6 +94,41 @@ const connector: OnlineGameConnector = {
     });
   },
 
+  sendDrawOffer() {
+    const client = getMomoMatchmaking();
+    if (!client) return;
+    useOffersStore.getState().setDrawOfferFrom('me');
+    client.send({ v: PROTOCOL_VERSION, type: 'draw_offer' });
+  },
+
+  sendDrawResponse(accepted) {
+    const client = getMomoMatchmaking();
+    if (!client) return;
+    // 応答したので自分側の「相手からの申し出」表示を消す
+    useOffersStore.getState().setDrawOfferFrom(null);
+    client.send({ v: PROTOCOL_VERSION, type: 'draw_response', accepted });
+    if (accepted) {
+      useGameStore.getState().agreeDraw();
+    }
+  },
+
+  sendUndoOffer(count = 1) {
+    const client = getMomoMatchmaking();
+    if (!client) return;
+    useOffersStore.getState().setUndoOfferFrom('me');
+    client.send({ v: PROTOCOL_VERSION, type: 'undo_offer', count });
+  },
+
+  sendUndoResponse(accepted, count = 1) {
+    const client = getMomoMatchmaking();
+    if (!client) return;
+    useOffersStore.getState().setUndoOfferFrom(null);
+    client.send({ v: PROTOCOL_VERSION, type: 'undo_response', accepted, count });
+    if (accepted) {
+      useGameStore.getState().undoLastMove(count);
+    }
+  },
+
   leaveOnline() {
     const client = getMomoMatchmaking();
     if (client) client.leaveRoom();
@@ -106,6 +142,7 @@ const connector: OnlineGameConnector = {
     useMatchmakingStore.getState().resetHandshake();
     useGameStore.getState().reset();
     useChatStore.getState().clearChat();
+    useOffersStore.getState().clearAll();
     useRouteStore.getState().setScreen('room');
   },
 

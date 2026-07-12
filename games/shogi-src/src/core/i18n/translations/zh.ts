@@ -5,7 +5,7 @@ export const zh: LocaleData = {
   name: '中文',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.32',
+    'app.ver': 'v0.33',
     'app.sub': '擒王为胜，破局无界',
     'turn.mine': '轮到你',
     'turn.opp': '对手回合',
@@ -37,6 +37,7 @@ export const zh: LocaleData = {
     'status.checkmate_p2': '后手被将死',
     'status.resigned_p1': '先手认输',
     'status.resigned_p2': '后手认输',
+    'status.agreed_draw': '和棋（同意）',
     // 认输确认与终局弹窗（阶段 2-7 v0.30）
     'resign.confirmTitle': '认输确认',
     'resign.confirmBody': '确定要认输吗？',
@@ -59,6 +60,21 @@ export const zh: LocaleData = {
     'result.rematch.online': '返回对局准备',
     'result.rematch.offline': '再来一局',
     'result.close': '关闭',
+    'result.reason.agreed_draw': '双方同意和棋',
+    // 和棋/悔棋 协商流程 (阶段 2-7 v0.33)
+    'draw.confirmTitle': '同意和棋？',
+    'draw.confirmBody': '将本局作为和棋结束。',
+    'draw.confirmYes': '同意和棋',
+    'draw.receivedTitle': '和棋提议',
+    'draw.receivedBody': '对手提议和棋。',
+    'draw.sentWaiting': '已提议和棋… 等待对方回应',
+    'draw.rejectedByOpp': '对手拒绝了和棋',
+    'undo.receivedTitle': '悔棋请求',
+    'undo.receivedBody': '对手请求悔棋（撤回 1 手）。',
+    'undo.sentWaiting': '已请求悔棋… 等待对方回应',
+    'undo.rejectedByOpp': '对手拒绝了悔棋',
+    'offer.accept': '同意',
+    'offer.reject': '拒绝',
 
     // S06 对局准备（来自 mock S05，阶段 2-5.1）
     's06.back': '退出',

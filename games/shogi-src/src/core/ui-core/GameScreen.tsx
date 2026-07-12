@@ -684,15 +684,17 @@ function ClockDisplay({
   }
   const mainStr = formatMainTime(clock.mainMs);
   const showByoyomi = tc.mode === 'byoyomi';
+  // v0.36: 秒読み突入時（inByoyomi=true or 本時間 0）は byo を大きくオレンジ表示
+  const byoyomiOn = showByoyomi && (clock.inByoyomi || clock.mainMs === 0);
   const byoStr = showByoyomi
-    ? clock.inByoyomi || clock.mainMs === 0
+    ? byoyomiOn
       ? `${t('clk.byoyomi')} ${Math.ceil(clock.byoyomiMs / 1000)}`
       : `${t('clk.byoyomi')} ${tc.byoyomiSeconds ?? 0}`
     : '';
   return (
     <>
       <span className={`clk${active ? ' running' : ''}`}>{mainStr}</span>
-      <span className="byo">{byoStr}</span>
+      <span className={`byo${byoyomiOn ? ' byoyomi-on' : ''}${byoyomiOn && active ? ' running' : ''}`}>{byoStr}</span>
     </>
   );
 }

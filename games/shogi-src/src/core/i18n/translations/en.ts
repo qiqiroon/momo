@@ -5,7 +5,7 @@ export const en: LocaleData = {
   name: 'English',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.36',
+    'app.ver': 'v0.37',
     'app.sub': 'Capture the King, Bend the Rules',
     'turn.mine': 'Your turn',
     'turn.opp': "Opponent's turn",

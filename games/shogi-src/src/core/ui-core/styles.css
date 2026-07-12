@@ -322,6 +322,17 @@ body::before {
   color: var(--text-muted);
 }
 
+/* v0.36: 秒読み突入時は本時間と同じ大きさ・オレンジで目立たせる */
+.pinfo .byo.byoyomi-on {
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.05rem;
+  margin-left: 6px;
+  color: var(--text-muted);
+}
+.pinfo .byo.byoyomi-on.running {
+  color: var(--orange-light);
+}
+
 .pinfo.you {
   justify-content: flex-end;
 }

@@ -634,7 +634,16 @@ function UndoButton({
   const paused = useGameStore((s) => s.paused);
   const undoLastMove = useGameStore((s) => s.undoLastMove);
   const historyLen = useGameStore((s) => s.positionHistory.length);
-  const disabled = status !== 'playing' || paused || historyLen === 0 || anyOffer;
+  // v0.44: 待ったで戻せるのは「自分の手」だけ。自分の手が 0 なら不可。
+  //   sente の自手数 = ceil(historyLen/2)、gote の自手数 = floor(historyLen/2)
+  //   オフラインは相手概念がないので全手を自分の手扱い（historyLen 直接）。
+  const myOwnMoveCount =
+    online.isOnline && online.mySide
+      ? online.mySide === 'player1'
+        ? Math.ceil(historyLen / 2)
+        : Math.floor(historyLen / 2)
+      : historyLen;
+  const disabled = status !== 'playing' || paused || myOwnMoveCount === 0 || anyOffer;
 
   const onClick = () => {
     if (online.isOnline) {
@@ -644,7 +653,8 @@ function UndoButton({
       if (!mySide) return;
       // 自分の手番 = 相手が直前に指した → 2 手戻す（相手＋自分）
       // 相手の手番 = 自分が指しただけ → 1 手戻す
-      const count = sideToMove === mySide ? Math.min(2, historyLen) : 1;
+      // どちらの場合も disabled チェックで自分の手が 1 手以上あることは保証済み。
+      const count = sideToMove === mySide ? 2 : 1;
       c.sendUndoOffer(count, mySide);
     } else {
       // オフラインは相手役もいないので単純に 1 手戻す（両側の時計も戻す）

@@ -26,21 +26,17 @@
   <line x1="0" y1="11.3" x2="0" y2="13.3" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
   <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
   <path d="M0,13.3 Q5,17.3  8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
-  <!-- MOMO Shogi 固有: 王将駒 (右下・木目色) -->
-  <g id="shogi-overlay">
-    <!-- 駒の五角形（上に尖った将棋駒・木目色） -->
-    <path d="M 26,-5 L 8,4 L 3,48 L 49,48 L 44,4 Z"
-          fill="#e9d3a3" stroke="#7a5a30" stroke-width="1.5" stroke-linejoin="round"/>
-    <!-- 「王」の文字を長方形の組み合わせで描画（favicon の小さいサイズでも識別可） -->
-    <g fill="#2a1c0c">
-      <!-- 上の横棒 -->
-      <rect x="16" y="12" width="20" height="3.5"/>
-      <!-- 中央の横棒（少し短め） -->
-      <rect x="19" y="24" width="14" height="3"/>
-      <!-- 縦棒（三本の横棒を貫通） -->
-      <rect x="24" y="11" width="4" height="32"/>
-      <!-- 下の横棒（一番長い） -->
-      <rect x="12" y="39" width="28" height="4"/>
-    </g>
+  <!-- MOMO Shogi 固有: 王将駒 (右下・木目色) — CatIcon.tsx と同じ実装 -->
+  <g transform="translate(26,22)">
+    <path d="M0,-22 L18,-10 L22,24 L-22,24 L-18,-10 Z" fill="#e9d3a3"/>
+    <text x="0" y="14"
+      text-anchor="middle"
+      font-family="'Yuji Syuku', 'Yu Mincho', 'Hiragino Mincho ProN', 'Noto Serif JP', 'MS Mincho', serif"
+      font-size="30"
+      fill="#0a0a0a"
+      stroke="#0a0a0a"
+      stroke-width="1.4"
+      paint-order="stroke"
+      stroke-linejoin="round">王</text>
   </g>
 </svg>

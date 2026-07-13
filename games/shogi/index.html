@@ -6,11 +6,21 @@
     <title>MOMO Shogi</title>
     <link rel="icon" type="image/svg+xml" href="/momo/games/shogi/favicon.svg" />
     <link
-      href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&family=Yuji+Syuku&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap"
       rel="stylesheet"
     />
-    <script type="module" crossorigin src="/momo/games/shogi/assets/b-c1wSqx2M.js"></script>
-    <link rel="modulepreload" crossorigin href="/momo/games/shogi/assets/App-9Ye0sySX.js">
+    <!-- v0.39: Yuji Syuku を自前ホスト化（中国から Google Fonts が読めないケースに備え、CSS で local() + url() で参照） -->
+    <style>
+      @font-face {
+        font-family: 'Yuji Syuku';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: local('Yuji Syuku'), url('fonts/YujiSyuku-Regular.woff2') format('woff2');
+      }
+    </style>
+    <script type="module" crossorigin src="/momo/games/shogi/assets/b-CRpGB4ll.js"></script>
+    <link rel="modulepreload" crossorigin href="/momo/games/shogi/assets/App-DAcDAUtz.js">
     <link rel="stylesheet" crossorigin href="/momo/games/shogi/assets/App-DR5Fmk9q.css">
   </head>
   <body>

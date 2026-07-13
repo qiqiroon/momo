@@ -207,6 +207,27 @@ const connector: OnlineGameConnector = {
     return useMatchmakingStore.getState().wsPendingReconnect;
   },
 
+  getLastPeerMessageAt() {
+    return useMatchmakingStore.getState().lastPeerMessageAt;
+  },
+
+  sendPing() {
+    const client = getMomoMatchmaking();
+    if (!client) return;
+    client.send({ v: PROTOCOL_VERSION, type: 'ping' });
+  },
+
+  markConnectionHealthy() {
+    useMatchmakingStore.getState().setWsPendingReconnect(false);
+  },
+
+  markConnectionDead() {
+    useMatchmakingStore.setState({
+      wsPendingReconnect: false,
+      opponentLeftDuringGame: true,
+    });
+  },
+
   subscribe(cb) {
     return useMatchmakingStore.subscribe(cb);
   },

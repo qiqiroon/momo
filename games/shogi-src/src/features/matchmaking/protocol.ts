@@ -160,6 +160,9 @@ export interface TimeoutMsg extends Envelope {
 
 /** 一時中断の通知（段階 2-8 v0.42）— 合意不要、相手に一方的に通知 */
 export interface PauseNotifyMsg extends Envelope { type: 'pause_notify'; }
+/** 生存確認 ping / pong（v0.48）— サーバー経路が瞬断した際に P2P 直通の生存確認に使う */
+export interface PingMsg extends Envelope { type: 'ping'; }
+export interface PongMsg extends Envelope { type: 'pong'; }
 /** 再開の申し出／応答（段階 2-8 v0.41）— 両者合意で中断を解除 */
 export interface ResumeOfferMsg extends Envelope { type: 'resume_offer'; }
 export interface ResumeResponseMsg extends Envelope { type: 'resume_response'; accepted: boolean; }
@@ -185,7 +188,9 @@ export type ShogiMessage =
   | ResumeOfferMsg
   | ResumeResponseMsg
   | UndoCancelMsg
-  | DrawCancelMsg;
+  | DrawCancelMsg
+  | PingMsg
+  | PongMsg;
 
 /** 型ガード：unknown をゲームメッセージとして扱えるか */
 export function isShogiMessage(data: unknown): data is ShogiMessage {

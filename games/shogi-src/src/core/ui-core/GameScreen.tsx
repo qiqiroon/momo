@@ -513,13 +513,22 @@ export function GameScreen({ variant }: GameScreenProps) {
 }
 
 /**
- * v0.47: サーバー経由の連絡経路 (WS) だけが瞬断した際に画面上部へ出すバナー。
- * 対局は基本続行 (P2P 直通は健在の想定)。20 秒経つと勝手に消える。
- * 実際に P2P も落ちれば OpponentLeftModal に escalate される (別コンポーネント担当)。
+ * v0.47-0.48: サーバー経由の連絡経路 (WS) だけが瞬断した際に画面上部へ出すバナー。
+ *
+ * v0.47 は「20 秒待って何もなければ OK と判定」だったが、これだと WebRTC の
+ * 「静かに死んだ状態」(UDP なので相手が黙り込んでもすぐには切断判定されない) を
+ * 検知できず、対局が凍りついた。
+ *
+ * v0.48 の判定:
+ *   1. バナー開始と同時に相手に ping を送る (以後 2 秒おきに継続)
+ *   2. 相手から何らかのメッセージ (pong 含む) が届けば P2P 直通は健在
+ *      → バナーを畳んで対局続行
+ *   3. 10 秒経っても届かなければ P2P も静かに死んだと判定
+ *      → wsPendingReconnect を降ろし、opponentLeftDuringGame を立てて退室モーダルへ
  */
 function ConnectionUncertainBanner({ t }: { t: (key: string) => string }) {
   const [pending, setPending] = useState(false);
-  const [remaining, setRemaining] = useState(20);
+  const [remaining, setRemaining] = useState(10);
 
   useEffect(() => {
     const c = pluginGet<OnlineGameConnector>('gameConnector');
@@ -531,16 +540,49 @@ function ConnectionUncertainBanner({ t }: { t: (key: string) => string }) {
 
   useEffect(() => {
     if (!pending) {
-      setRemaining(20);
+      setRemaining(10);
       return;
     }
-    setRemaining(20);
-    const t0 = Date.now();
-    const id = setInterval(() => {
-      const left = Math.max(0, 20 - Math.floor((Date.now() - t0) / 1000));
-      setRemaining(left);
+    const c = pluginGet<OnlineGameConnector>('gameConnector');
+    if (!c) return;
+    const startedAt = Date.now();
+    setRemaining(10);
+    // 相手が最近メッセージを送ってきていれば即 healthy とみなす。
+    // そうでなければバナー開始時点をカットオフに使う。
+    const cutoff = startedAt;
+
+    // 即 ping、以後 2 秒おきに送信
+    c.sendPing();
+    const pingId = setInterval(() => {
+      const stillPending = pluginGet<OnlineGameConnector>('gameConnector')?.getWsPendingReconnect();
+      if (stillPending) c.sendPing();
+    }, 2000);
+
+    const checkId = setInterval(() => {
+      const conn = pluginGet<OnlineGameConnector>('gameConnector');
+      if (!conn) return;
+      const last = conn.getLastPeerMessageAt();
+      const elapsed = Date.now() - startedAt;
+      setRemaining(Math.max(0, 10 - Math.floor(elapsed / 1000)));
+      if (last !== null && last >= cutoff) {
+        // 生存確認できた → バナーを畳んで対局続行
+        clearInterval(pingId);
+        clearInterval(checkId);
+        conn.markConnectionHealthy();
+        return;
+      }
+      if (elapsed >= 10_000) {
+        // 10 秒経過しても生存確認できず → 対局中断へ escalate
+        clearInterval(pingId);
+        clearInterval(checkId);
+        conn.markConnectionDead();
+      }
     }, 500);
-    return () => clearInterval(id);
+
+    return () => {
+      clearInterval(pingId);
+      clearInterval(checkId);
+    };
   }, [pending]);
 
   if (!pending) return null;

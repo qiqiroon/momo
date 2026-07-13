@@ -92,6 +92,11 @@ interface MatchmakingState {
    * escalate、切れなければ猶予期間終了で単にフラグを畳む (対局は続行)。
    */
   wsPendingReconnect: boolean;
+  /**
+   * v0.48 追加: 相手から最後に何らかのメッセージを受信した時刻 (Date.now())。
+   * 生存確認の判定に使う。ping/pong に限らず、move や chat も生存の証となる。
+   */
+  lastPeerMessageAt: number | null;
 
   setConnection: (c: ConnectionStatus) => void;
   setRooms: (rooms: MomoRoomInfo[]) => void;
@@ -112,6 +117,7 @@ interface MatchmakingState {
   setGameStartInfo: (info: MatchmakingState['gameStartInfo']) => void;
   setOpponentLeftDuringGame: (b: boolean) => void;
   setWsPendingReconnect: (b: boolean) => void;
+  setLastPeerMessageAt: (t: number | null) => void;
   resetHandshake: () => void;
 }
 
@@ -135,6 +141,7 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
   gameStartInfo: null,
   opponentLeftDuringGame: false,
   wsPendingReconnect: false,
+  lastPeerMessageAt: null,
 
   setConnection: (c) => set({ connection: c }),
   setRooms: (rooms) => set({ rooms }),
@@ -171,6 +178,7 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
   setGameStartInfo: (gameStartInfo) => set({ gameStartInfo }),
   setOpponentLeftDuringGame: (opponentLeftDuringGame) => set({ opponentLeftDuringGame }),
   setWsPendingReconnect: (wsPendingReconnect) => set({ wsPendingReconnect }),
+  setLastPeerMessageAt: (lastPeerMessageAt) => set({ lastPeerMessageAt }),
   resetHandshake: () => set({
     mySideChoice: null,
     oppSideChoice: null,

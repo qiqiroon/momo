@@ -94,6 +94,27 @@ export interface OnlineGameConnector {
    */
   getWsPendingReconnect(): boolean;
   /**
+   * v0.48: 相手から最後にメッセージを受信した時刻 (Date.now())。null なら未受信。
+   * 生存確認バナー中の判定に使う。
+   */
+  getLastPeerMessageAt(): number | null;
+  /**
+   * v0.48: 生存確認 ping を相手に送信。相手が生きていれば即 pong が返る。
+   * どちらのメッセージも lastPeerMessageAt を更新するので、生存判定は
+   * 「送信後 N 秒以内に lastPeerMessageAt が更新されたか」でよい。
+   */
+  sendPing(): void;
+  /**
+   * v0.48: 生存確認バナー中に P2P 直通の健在を確認できたときに呼ぶ。
+   * バナーを畳んで通常状態に戻す。
+   */
+  markConnectionHealthy(): void;
+  /**
+   * v0.48: 生存確認バナー中に相手からの返事が来なかった (静かに死んだ) ときに呼ぶ。
+   * 「相手退室」相当の終局モーダルへ遷移させる。
+   */
+  markConnectionDead(): void;
+  /**
    * isOnline / getMySide / getOpponentLeftDuringGame の返り値に影響する
    * 状態変化を購読する。返り値は unsubscribe 関数。
    */

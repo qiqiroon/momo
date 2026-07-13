@@ -21,12 +21,15 @@ import { useChatStore } from '../../core/store/chat-store';
 import { useRouteStore } from '../../core/store/route-store';
 import { useGameStore } from '../../core/store/game-store';
 import { useOffersStore } from '../../core/store/offers-store';
-import { isShogiMessage, type ShogiMessage } from './protocol';
+import { getMomoMatchmaking } from './client';
+import { isShogiMessage, PROTOCOL_VERSION, type ShogiMessage } from './protocol';
 import { useMatchmakingStore } from './store';
 
 export function handleShogiMessage(data: unknown): void {
   if (!isShogiMessage(data)) return;
   const msg = data as ShogiMessage;
+  // v0.48: 有効なメッセージが来た＝相手の P2P 直通が生きている証。生存タイムスタンプを更新。
+  useMatchmakingStore.getState().setLastPeerMessageAt(Date.now());
   switch (msg.type) {
     case 'side_select': {
       // 相手の選択変更 → 相手の準備完了は解除
@@ -157,6 +160,16 @@ export function handleShogiMessage(data: unknown): void {
       useOffersStore.getState().setResumeOfferFrom(null);
       useOffersStore.getState().setNotice('resume', msg.accepted ? null : 'rejected');
       if (msg.accepted) useGameStore.getState().resumeGame();
+      return;
+    }
+    case 'ping': {
+      // v0.48: 相手からの生存確認 ping。即 pong を返す。
+      const client = getMomoMatchmaking();
+      if (client) client.send({ v: PROTOCOL_VERSION, type: 'pong' });
+      return;
+    }
+    case 'pong': {
+      // 生存確認 pong の受信自体は lastPeerMessageAt の更新で完結。追加処理不要。
       return;
     }
     default: {

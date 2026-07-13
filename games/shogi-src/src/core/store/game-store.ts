@@ -72,6 +72,8 @@ interface GameState {
   positionHistory: Position[];
   /** positionCounts の履歴も同期して保持（千日手判定を巻き戻せるように） */
   positionCountsHistory: Record<string, number>[];
+  /** 時計の履歴 (v0.42 追加): 手を指す前の {clocks, activeClockSide} を保持。待ったの時計巻き戻しに使う */
+  clockHistory: { clocks: { player1: ClockState; player2: ClockState }; activeClockSide: 'player1' | 'player2' | null }[];
   /** 持ち時間設定（v0.35）。オフラインの既定は no_limit、ルームでは activeRoomConfig の値。 */
   timeControl: TimeControl;
   /** 各プレイヤーの時計状態（v0.35） */
@@ -92,8 +94,13 @@ interface GameState {
   resign: (side: 'player1' | 'player2') => void;
   /** 引分に合意した状態にする。段階 2-7 v0.33。 */
   agreeDraw: () => void;
-  /** 最後の n 手を巻き戻す。実際に戻せた手数を返す。段階 2-7 v0.33。 */
-  undoLastMove: (count?: number) => number;
+  /**
+   * 最後の n 手を巻き戻す。実際に戻せた手数を返す。段階 2-7 v0.33 / v0.42 で時計巻き戻し追加。
+   * opts.restoreClockForSide が指定されたら、その side の時計を「戻される最古の手を指す前」の値に戻す。
+   * 指定されなかった側の時計は現在値のまま（＝待った申し出者はペナルティで戻さない）。
+   * opts 未指定なら両側とも clockHistory から復元（オフラインの即 undo など）。
+   */
+  undoLastMove: (count?: number, opts?: { restoreClockForSide?: 'player1' | 'player2' }) => number;
   /** 持ち時間設定を反映（オンライン game_start で呼ばれる）。clocks をこの設定で再初期化。v0.35。 */
   setTimeControl: (tc: TimeControl) => void;
   /** ticker 経由で active 側の残り時間を減らす。時間切れなら timeout 状態へ。v0.35。 */
@@ -176,7 +183,7 @@ function applyAndCommit(
   source: MoveSource = 'local',
 ): void {
   const state = get();
-  const { position, mgf, moveHistory, positionCounts, lastAppliedMove, positionHistory, positionCountsHistory, timeControl, clocks } = state;
+  const { position, mgf, moveHistory, positionCounts, lastAppliedMove, positionHistory, positionCountsHistory, clockHistory, timeControl, clocks, activeClockSide } = state;
   const formatted = formatMove(mgf, position, move);
   const nextPos = applyMove(mgf, position, move);
   const { status, positionCounts: nextCounts } = computeStatusAfterMove(mgf, nextPos, positionCounts);
@@ -191,6 +198,11 @@ function applyAndCommit(
       : moverSide === 'player1'
         ? 'player2'
         : 'player1';
+  // v0.42: clockHistory に「指す前の {clocks, activeClockSide}」を積む
+  const preClockSnapshot = {
+    clocks: { player1: { ...clocks.player1 }, player2: { ...clocks.player2 } },
+    activeClockSide,
+  };
   set({
     position: nextPos,
     selectedSquare: null,
@@ -206,6 +218,7 @@ function applyAndCommit(
     // v0.33: 待ったの巻き戻し用に、着手前の局面と positionCounts を履歴に積む
     positionHistory: [...positionHistory, position],
     positionCountsHistory: [...positionCountsHistory, positionCounts],
+    clockHistory: [...clockHistory, preClockSnapshot],
     clocks: nextClocks,
     activeClockSide: nextActiveSide,
   });
@@ -251,6 +264,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   lastAppliedMove: null,
   positionHistory: [],
   positionCountsHistory: [],
+  clockHistory: [],
   timeControl: NO_LIMIT_TIME_CONTROL,
   clocks: {
     player1: initClockState(NO_LIMIT_TIME_CONTROL),
@@ -511,19 +525,38 @@ export const useGameStore = create<GameState>((set, get) => ({
     set({ paused: false });
   },
 
-  undoLastMove: (count = 1) => {
+  undoLastMove: (count = 1, opts) => {
     const state = get();
     const available = state.positionHistory.length;
     const actual = Math.min(count, available);
     if (actual <= 0) return 0;
     const restoredPos = state.positionHistory[state.positionHistory.length - actual];
     const restoredCounts = state.positionCountsHistory[state.positionCountsHistory.length - actual];
+    // v0.42: 時計履歴も同じ位置から取り出す。restoreClockForSide が指定されたら
+    // その side だけ復元、もう片方 (＝待った申し出者) は現在値のまま保持する。
+    // 未指定なら両側とも復元（オフラインで即 undo する場合など）。
+    const snapshotIdx = state.clockHistory.length - actual;
+    const snap = state.clockHistory[snapshotIdx];
+    let nextClocks = state.clocks;
+    let nextActiveClockSide = state.activeClockSide;
+    if (snap) {
+      const restoreSide = opts?.restoreClockForSide;
+      if (restoreSide) {
+        nextClocks = { ...state.clocks, [restoreSide]: snap.clocks[restoreSide] };
+      } else {
+        nextClocks = snap.clocks;
+      }
+      nextActiveClockSide = snap.activeClockSide;
+    }
     set({
       position: restoredPos,
       positionCounts: restoredCounts,
       positionHistory: state.positionHistory.slice(0, state.positionHistory.length - actual),
       positionCountsHistory: state.positionCountsHistory.slice(0, state.positionCountsHistory.length - actual),
+      clockHistory: state.clockHistory.slice(0, snapshotIdx),
       moveHistory: state.moveHistory.slice(0, state.moveHistory.length - actual),
+      clocks: nextClocks,
+      activeClockSide: nextActiveClockSide,
       selectedSquare: null,
       selectedHandPieceId: null,
       legalDestinations: [],
@@ -533,8 +566,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       canNyugyokuP2: canDeclareNyugyoku(state.mgf, restoredPos, 'player2'),
       // v0.33 バグ修正: lastAppliedMove を触らない。触ると対局画面の
       // 「自分の手を相手に送信」useEffect が発火して直前の着手が再送信されてしまい、
-      // 相手の巻き戻しが直後に上書きされる（両者 undo の再現バグ）。
-      // undo は subscribe しなくても状態変化で盤面が再描画されるので通知不要。
+      // 相手の巻き戻しが直後に上書きされる。
     });
     return actual;
   },
@@ -557,6 +589,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       lastAppliedMove: null,
       positionHistory: [],
       positionCountsHistory: [],
+      clockHistory: [],
       // v0.35: timeControl は保持しつつ clocks を再初期化、先手の時計を動かす
       clocks: {
         player1: initClockState(tc),

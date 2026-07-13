@@ -123,12 +123,15 @@ export function GameScreen({ variant }: GameScreenProps) {
   // 各 tick で elapsed = Date.now() - anchor.at をもとに絶対再計算する。
   // 積算 delta 方式ではないため累積誤差ゼロ、Date.now() は OS 時計と同期するので長時間対局でも drift しない。
   // 相手からの syncClock は「動いていない側」の時計を更新するので、この anchor には影響しない。
+  // v0.42: 待った申し出中は両者の時計を止める（申し出者・相手ともに）。中断中と合わせて undoOfferPending も deps に。
   const activeClockSide = useGameStore((s) => s.activeClockSide);
   const paused = useGameStore((s) => s.paused);
+  const undoOfferPending = useOffersStore((s) => s.undoOfferFrom) !== null;
   useEffect(() => {
     if (!activeClockSide) return;
     if (status !== 'playing') return;
-    if (paused) return; // v0.41: 中断中は tick しない。paused が false に戻ったら useEffect 再fire で新しい anchor
+    if (paused) return; // 一時中断中は tick しない
+    if (undoOfferPending) return; // v0.42: 待った申し出中は両者の時計を止める
     const anchorSide = activeClockSide;
     const anchorAt = Date.now();
     const s = useGameStore.getState();
@@ -182,7 +185,7 @@ export function GameScreen({ variant }: GameScreenProps) {
     const interval = setInterval(advance, 100);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeClockSide, status, paused]);
+  }, [activeClockSide, status, paused, undoOfferPending]);
 
   // v0.35: 時間切れになったら相手に通知
   useEffect(() => {
@@ -368,6 +371,7 @@ export function GameScreen({ variant }: GameScreenProps) {
           </div>
 
           <div className="broadcast">
+            <BoardBlocker />
             <PieceStandView
               side="opp"
               pieces={oppHandGrouped}
@@ -450,8 +454,8 @@ export function GameScreen({ variant }: GameScreenProps) {
             <button type="button" className="act taunt">
               {t('cmd.taunt')} <span className="cnt">3</span>
             </button>
-            <UndoButton t={t} online={online} status={status} />
-            <DrawButton t={t} online={online} status={status} />
+            <UndoButton t={t} online={online} status={status} sideToMove={position.sideToMove} />
+            <DrawButton t={t} online={online} status={status} sideToMove={position.sideToMove} />
             <PauseButton t={t} online={online} status={status} />
             <ResignButton t={t} online={online} status={status} sideToMove={position.sideToMove} />
             <button type="button" className="act" onClick={clearSelection}>
@@ -499,33 +503,60 @@ export function GameScreen({ variant }: GameScreenProps) {
       <PromotionModal locale={locale} t={t} />
       <OpponentLeftModal t={t} />
       <GameEndModal t={t} online={online} />
-      <OfferReceivedModal t={t} />
-      <OfferSentToast t={t} />
+      <OfferReceivedModal t={t} online={online} />
+      <OfferSentPanel t={t} />
+      <PauseCenterPanel t={t} />
       <OfferResponseToast t={t} />
     </div>
   );
 }
 
 /**
- * 引分申し出ボタン（段階 2-7 v0.33）。
+ * v0.42: 盤面と持ち駒を隠すフィルター。
+ * 待った申し出中（me/opp どちらも）と一時中断中（＝再開合意含む）で表示。
+ * 引分・投了確認では出さない。
+ */
+function BoardBlocker() {
+  const paused = useGameStore((s) => s.paused);
+  const undoOfferFrom = useOffersStore((s) => s.undoOfferFrom);
+  if (!paused && undoOfferFrom === null) return null;
+  return <div className="board-blocker" aria-hidden="true" />;
+}
+
+/**
+ * 引分申し出ボタン（段階 2-7 v0.33、v0.42 で制約追加）。
  * オフライン: クリック→確認モーダル→即引分終局。
- * オンライン: クリック→相手に申し出送信＋自分側「申し出中」表示。
- * 対局終了 or 既に別の申し出待ちで disabled。
+ * オンライン: クリック→相手に申し出送信＋盤面中央パネル＋キャンセル可。
+ *   - 自分の手番中のみ活性
+ *   - 秒読み残り 15 秒以下なら不可
+ *   - 申し出中も自分側の時計は動く（Q1B）
+ * 対局終了 or 一時中断中 or 別の申し出待ちで disabled。
  */
 function DrawButton({
   t,
   online,
   status,
+  sideToMove,
 }: {
   t: (key: string) => string;
   online: { isOnline: boolean; mySide: 'player1' | 'player2' | null };
   status: string;
+  sideToMove: 'player1' | 'player2';
 }) {
   const anyOffer = useAnyOfferPending();
   const paused = useGameStore((s) => s.paused);
+  const clocks = useGameStore((s) => s.clocks);
   const agreeDraw = useGameStore((s) => s.agreeDraw);
   const [confirming, setConfirming] = useState(false);
-  const disabled = status !== 'playing' || paused || anyOffer;
+
+  // v0.42 制約: 自分の手番中のみ、秒読み 15 秒以下は不可（オンライン時）
+  const mySide = online.mySide;
+  const notMyTurn = online.isOnline && mySide !== null && mySide !== sideToMove;
+  const myClock = online.isOnline && mySide ? clocks[mySide] : null;
+  const byoyomiTooLow =
+    !!myClock && myClock.inByoyomi && myClock.byoyomiMs <= 15_000;
+
+  const disabled = status !== 'playing' || paused || anyOffer || notMyTurn || byoyomiTooLow;
 
   const onClick = () => {
     if (online.isOnline) {
@@ -546,7 +577,15 @@ function DrawButton({
         {t('cmd.draw')}
       </button>
       {confirming && (
-        <FloatingPanel className="floating-result floating-confirm draw" title={`🤝 ${t('draw.confirmTitle')}`}>
+        <FloatingPanel
+          className="floating-result floating-confirm draw"
+          title={
+            <>
+              <span className="icon">🤝</span>
+              {t('draw.confirmTitle')}
+            </>
+          }
+        >
           <div className="body">{t('draw.confirmBody')}</div>
           <div className="body warn">{t('offer.notResignNote')}</div>
           <div className="btn-row">
@@ -563,29 +602,33 @@ function DrawButton({
   );
 }
 
-/** どの申し出が pending か（v0.41） */
+/** どの合意フロー申し出が pending か（v0.42：pause は合意不要なので除外） */
 function useAnyOfferPending(): boolean {
   const draw = useOffersStore((s) => s.drawOfferFrom);
   const undo = useOffersStore((s) => s.undoOfferFrom);
-  const pause = useOffersStore((s) => s.pauseOfferFrom);
   const resume = useOffersStore((s) => s.resumeOfferFrom);
-  return draw !== null || undo !== null || pause !== null || resume !== null;
+  return draw !== null || undo !== null || resume !== null;
 }
 
 /**
- * 待った申し出ボタン（段階 2-7 v0.33）。
- * オフライン: クリック→即 1 手戻す（履歴があれば）。
- * オンライン: クリック→相手に申し出送信＋自分側「申し出中」表示。
- * 履歴が空 or 対局終了 or 既に別申し出待ちで disabled。
+ * 待った申し出ボタン（v0.42 改装）。
+ * count 判定:
+ *   - 自分の手番 (＝相手が指した後) → 2手戻す（相手の直前手＋自分の1手）
+ *   - 相手の手番 (＝自分が指しただけ) → 1手戻す
+ * challengerSide は自分の side。承諾されると承諾者の時計だけ復元される。
+ * オフライン: 即実行（時計は両側巻き戻し）。
+ * オンライン: 相手に申し出＋盤面中央パネル＋キャンセル可＋両者時計停止。
  */
 function UndoButton({
   t,
   online,
   status,
+  sideToMove,
 }: {
   t: (key: string) => string;
   online: { isOnline: boolean; mySide: 'player1' | 'player2' | null };
   status: string;
+  sideToMove: 'player1' | 'player2';
 }) {
   const anyOffer = useAnyOfferPending();
   const paused = useGameStore((s) => s.paused);
@@ -596,8 +639,15 @@ function UndoButton({
   const onClick = () => {
     if (online.isOnline) {
       const c = pluginGet<OnlineGameConnector>('gameConnector');
-      if (c) c.sendUndoOffer(1);
+      if (!c) return;
+      const mySide = online.mySide;
+      if (!mySide) return;
+      // 自分の手番 = 相手が直前に指した → 2 手戻す（相手＋自分）
+      // 相手の手番 = 自分が指しただけ → 1 手戻す
+      const count = sideToMove === mySide ? Math.min(2, historyLen) : 1;
+      c.sendUndoOffer(count, mySide);
     } else {
+      // オフラインは相手役もいないので単純に 1 手戻す（両側の時計も戻す）
       undoLastMove(1);
     }
   };
@@ -610,8 +660,9 @@ function UndoButton({
 }
 
 /**
- * 中断／再開ボタン（v0.41）。paused=false のとき「中断」、paused=true のとき「再開」を表示。
- * オフライン: 即実行。オンライン: 合意フロー。
+ * 一時中断／再開ボタン（v0.42 改装）。paused=false のとき「一時中断」、paused=true のとき「再開」。
+ * 一時中断: 合意不要。即中断＋相手へ通知。
+ * 再開: 双方合意。相手に申し出→承諾で解除。
  */
 function PauseButton({
   t,
@@ -627,12 +678,11 @@ function PauseButton({
   const resumeGame = useGameStore((s) => s.resumeGame);
   const anyOffer = useAnyOfferPending();
   const gameOver = status !== 'playing';
-  // 中断ボタン自身は「対局終了 or 他の申し出待ち」で disabled。paused 中は自分自身が「再開ボタン」に変わるので paused では disabled しない
   const disabled = gameOver || anyOffer;
 
   const onClick = () => {
     if (paused) {
-      // 再開
+      // 再開は合意必要
       if (online.isOnline) {
         const c = pluginGet<OnlineGameConnector>('gameConnector');
         if (c) c.sendResumeOffer();
@@ -640,10 +690,10 @@ function PauseButton({
         resumeGame();
       }
     } else {
-      // 中断
+      // 一時中断は合意不要
       if (online.isOnline) {
         const c = pluginGet<OnlineGameConnector>('gameConnector');
-        if (c) c.sendPauseOffer();
+        if (c) c.sendPauseNotify();
       } else {
         pauseGame();
       }
@@ -659,13 +709,19 @@ function PauseButton({
 }
 
 /**
- * 相手からの引分/待った申し出を受けたときに表示する承諾/拒否モーダル（v0.33）。
- * オンライン専用（相手からの申し出は connector 経由でしか届かない）。
+ * 相手からの引分／待った／再開申し出を受けたときに表示する承諾/拒否モーダル。
+ * v0.42: 一時中断は合意不要のためここには出さない（PauseCenterPanel が担当）。
  */
-function OfferReceivedModal({ t }: { t: (key: string) => string }) {
+function OfferReceivedModal({
+  t,
+  online,
+}: {
+  t: (key: string) => string;
+  online: { isOnline: boolean; mySide: 'player1' | 'player2' | null };
+}) {
   const drawFrom = useOffersStore((s) => s.drawOfferFrom);
   const undoFrom = useOffersStore((s) => s.undoOfferFrom);
-  const pauseFrom = useOffersStore((s) => s.pauseOfferFrom);
+  const undoMeta = useOffersStore((s) => s.undoOfferMeta);
   const resumeFrom = useOffersStore((s) => s.resumeOfferFrom);
   const historyLen = useGameStore((s) => s.positionHistory.length);
 
@@ -676,7 +732,15 @@ function OfferReceivedModal({ t }: { t: (key: string) => string }) {
 
   if (drawFrom === 'opp') {
     return (
-      <FloatingPanel className="floating-result floating-confirm draw" title={`🤝 ${t('draw.receivedTitle')}`}>
+      <FloatingPanel
+        className="floating-result floating-confirm draw"
+        title={
+          <>
+            <span className="icon">🤝</span>
+            {t('draw.receivedTitle')}
+          </>
+        }
+      >
         <div className="body">{t('draw.receivedBody')}</div>
         <div className="body warn">{t('offer.notResignNote')}</div>
         <div className="btn-row">
@@ -691,31 +755,27 @@ function OfferReceivedModal({ t }: { t: (key: string) => string }) {
     );
   }
   if (undoFrom === 'opp') {
-    const canAccept = historyLen > 0;
+    const count = undoMeta?.count ?? 1;
+    const canAccept = historyLen >= count;
+    // v0.42: 説明文に「n 手戻す」を表示（受信側にとって count=2 なら「自分の直前手が消える」意味）
+    const bodyText = t('undo.receivedBody').replace('{n}', String(count));
     return (
-      <FloatingPanel className="floating-result floating-confirm undo" title={`🙏 ${t('undo.receivedTitle')}`}>
-        <div className="body">{t('undo.receivedBody')}</div>
+      <FloatingPanel
+        className="floating-result floating-confirm undo"
+        title={
+          <>
+            <span className="icon">🙏</span>
+            {t('undo.receivedTitle')}
+          </>
+        }
+      >
+        <div className="body">{bodyText}</div>
         <div className="btn-row">
-          <button type="button" className="btn ghost" onClick={() => send((c) => c.sendUndoResponse(false, 1))}>
+          <button type="button" className="btn ghost" onClick={() => send((c) => c.sendUndoResponse(false))}>
             {t('undo.rejectAction')}
           </button>
-          <button type="button" className="btn" disabled={!canAccept} onClick={() => send((c) => c.sendUndoResponse(true, 1))}>
+          <button type="button" className="btn" disabled={!canAccept} onClick={() => send((c) => c.sendUndoResponse(true))}>
             {t('undo.acceptAction')}
-          </button>
-        </div>
-      </FloatingPanel>
-    );
-  }
-  if (pauseFrom === 'opp') {
-    return (
-      <FloatingPanel className="floating-result floating-confirm pause" title={`⏸ ${t('pause.receivedTitle')}`}>
-        <div className="body">{t('pause.receivedBody')}</div>
-        <div className="btn-row">
-          <button type="button" className="btn ghost" onClick={() => send((c) => c.sendPauseResponse(false))}>
-            {t('pause.rejectAction')}
-          </button>
-          <button type="button" className="btn" onClick={() => send((c) => c.sendPauseResponse(true))}>
-            {t('pause.acceptAction')}
           </button>
         </div>
       </FloatingPanel>
@@ -723,7 +783,15 @@ function OfferReceivedModal({ t }: { t: (key: string) => string }) {
   }
   if (resumeFrom === 'opp') {
     return (
-      <FloatingPanel className="floating-result floating-confirm resume" title={`▶ ${t('resume.receivedTitle')}`}>
+      <FloatingPanel
+        className="floating-result floating-confirm resume"
+        title={
+          <>
+            <span className="icon">▶</span>
+            {t('resume.receivedTitle')}
+          </>
+        }
+      >
         <div className="body">{t('resume.receivedBody')}</div>
         <div className="btn-row">
           <button type="button" className="btn ghost" onClick={() => send((c) => c.sendResumeResponse(false))}>
@@ -736,51 +804,143 @@ function OfferReceivedModal({ t }: { t: (key: string) => string }) {
       </FloatingPanel>
     );
   }
+  // オフラインで online.isOnline=false のときは opp からの申し出は来ない。
+  void online;
   return null;
 }
 
 /**
- * 自分が申し出中の間、待機表示を右下に出す（v0.33）。
- * ドラッグはしない小さな受動的表示。
+ * v0.42: 自分が申し出中のとき盤面中央にパネル表示＋撤回ボタン。
+ * 引分・待った・再開の 3 種。
  */
-function OfferSentToast({ t }: { t: (key: string) => string }) {
+function OfferSentPanel({ t }: { t: (key: string) => string }) {
   const drawFrom = useOffersStore((s) => s.drawOfferFrom);
   const undoFrom = useOffersStore((s) => s.undoOfferFrom);
-  const pauseFrom = useOffersStore((s) => s.pauseOfferFrom);
   const resumeFrom = useOffersStore((s) => s.resumeOfferFrom);
-  let label: string | null = null;
-  if (drawFrom === 'me') label = t('draw.sentWaiting');
-  else if (undoFrom === 'me') label = t('undo.sentWaiting');
-  else if (pauseFrom === 'me') label = t('pause.sentWaiting');
-  else if (resumeFrom === 'me') label = t('resume.sentWaiting');
-  if (!label) return null;
-  return <div className="offer-sent-toast">{label}</div>;
+
+  const send = (fn: (c: OnlineGameConnector) => void) => {
+    const c = pluginGet<OnlineGameConnector>('gameConnector');
+    if (c) fn(c);
+  };
+
+  if (drawFrom === 'me') {
+    return (
+      <FloatingPanel
+        className="floating-result floating-confirm draw"
+        title={
+          <>
+            <span className="icon">🤝</span>
+            {t('draw.sentWaiting')}
+          </>
+        }
+      >
+        <div className="body">{t('offer.waitingBody')}</div>
+        <div className="btn-row">
+          <button type="button" className="btn ghost" onClick={() => send((c) => c.sendDrawCancel())}>
+            {t('offer.cancelAction')}
+          </button>
+        </div>
+      </FloatingPanel>
+    );
+  }
+  if (undoFrom === 'me') {
+    return (
+      <FloatingPanel
+        className="floating-result floating-confirm undo"
+        title={
+          <>
+            <span className="icon">🙏</span>
+            {t('undo.sentWaiting')}
+          </>
+        }
+      >
+        <div className="body">{t('offer.waitingBody')}</div>
+        <div className="btn-row">
+          <button type="button" className="btn ghost" onClick={() => send((c) => c.sendUndoCancel())}>
+            {t('offer.cancelAction')}
+          </button>
+        </div>
+      </FloatingPanel>
+    );
+  }
+  if (resumeFrom === 'me') {
+    return (
+      <FloatingPanel
+        className="floating-result floating-confirm resume"
+        title={
+          <>
+            <span className="icon">▶</span>
+            {t('resume.sentWaiting')}
+          </>
+        }
+      >
+        <div className="body">{t('offer.waitingBody')}</div>
+      </FloatingPanel>
+    );
+  }
+  return null;
 }
 
 /**
- * 直前の応答が拒否だった場合に短時間表示するトースト（v0.33）。
- * 承諾は既に盤面反映されるので別途表示不要。
+ * v0.42: 一時中断中の盤面中央パネル。
+ * paused=true かつ resume 合意フロー中でない・relayed from opp でもないときに、
+ * 「一時中断中」の告知を出す。両者共通。
+ * ここでは撤回ボタンは出さない（PauseButton が「再開」に切り替わる）。
+ */
+function PauseCenterPanel({ t }: { t: (key: string) => string }) {
+  const paused = useGameStore((s) => s.paused);
+  const resumeFrom = useOffersStore((s) => s.resumeOfferFrom);
+  if (!paused) return null;
+  if (resumeFrom !== null) return null; // 再開合意フロー中は OfferReceivedModal / OfferSentPanel が担当
+  return (
+    <FloatingPanel
+      className="floating-result floating-confirm pause"
+      title={
+        <>
+          <span className="icon">⏸</span>
+          {t('pause.title')}
+        </>
+      }
+    >
+      <div className="body">{t('pause.body')}</div>
+    </FloatingPanel>
+  );
+}
+
+/**
+ * v0.42: 拒否・撤回・中断通知を短時間トースト表示。
+ * 直前 4 秒以内の通知のみ表示、自動で消える。
  */
 function OfferResponseToast({ t }: { t: (key: string) => string }) {
-  const kind = useOffersStore((s) => s.lastResponseKind);
-  const accepted = useOffersStore((s) => s.lastResponseAccepted);
-  const setLastResponse = useOffersStore((s) => s.setLastResponse);
+  const kind = useOffersStore((s) => s.lastNoticeKind);
+  const type = useOffersStore((s) => s.lastNoticeType);
+  const setNotice = useOffersStore((s) => s.setNotice);
 
   useEffect(() => {
     if (kind === null) return;
-    // 4 秒後に自動でトーストを消す
-    const timer = setTimeout(() => setLastResponse(null, null), 4000);
+    const timer = setTimeout(() => setNotice(null, null), 4000);
     return () => clearTimeout(timer);
-  }, [kind, accepted, setLastResponse]);
+  }, [kind, type, setNotice]);
 
-  if (kind === null || accepted === null) return null;
-  if (accepted) return null; // 承諾は盤面反映で済み、明示表示は不要
-  const label =
-    kind === 'draw' ? t('draw.rejectedByOpp')
-    : kind === 'undo' ? t('undo.rejectedByOpp')
-    : kind === 'pause' ? t('pause.rejectedByOpp')
-    : t('resume.rejectedByOpp');
-  return <div className="offer-response-toast">{label}</div>;
+  if (kind === null || type === null) return null;
+  const key =
+    type === 'rejected'
+      ? kind === 'draw'
+        ? 'draw.rejectedByOpp'
+        : kind === 'undo'
+          ? 'undo.rejectedByOpp'
+          : kind === 'resume'
+            ? 'resume.rejectedByOpp'
+            : 'pause.rejectedByOpp'
+      : /* cancelled */
+        kind === 'draw'
+        ? 'draw.cancelledByOpp'
+        : kind === 'undo'
+          ? 'undo.cancelledByOpp'
+          : kind === 'pause'
+            ? 'pause.notifiedByOpp'
+            : 'resume.cancelledByOpp';
+  return <div className="offer-response-toast">{t(key)}</div>;
 }
 
 /**
@@ -876,7 +1036,15 @@ function ResignButton({
         {t('cmd.resign')}
       </button>
       {confirming && (
-        <FloatingPanel className="floating-result floating-confirm resign" title={`🙇 ${t('resign.confirmTitle')}`}>
+        <FloatingPanel
+          className="floating-result floating-confirm resign"
+          title={
+            <>
+              <span className="icon">🙇</span>
+              {t('resign.confirmTitle')}
+            </>
+          }
+        >
           <div className="body">{t('resign.confirmBody')}</div>
           <div className="btn-row">
             <button type="button" className="btn ghost" onClick={() => setConfirming(false)}>
@@ -971,20 +1139,20 @@ function GameEndModal({
   }
 
   // 表示は「自分視点」を優先、なければ絶対 side（先手/後手）
+  // v0.42: 投了の場合は「投了しました」「相手が投了」だけを reasonKey に上書きして冗長表示を避ける
   let verdictKey: string;
-  let reasonSuffix = '';
   if (winnerSide === null) {
     verdictKey = 'result.verdict.draw';
   } else if (online.isOnline && online.mySide) {
     if (winnerSide === online.mySide) {
       verdictKey = 'result.verdict.win';
       if (status === 'resigned_p1' || status === 'resigned_p2') {
-        reasonSuffix = ` (${t('result.reason.resign.opp')})`;
+        reasonKey = 'result.reason.resign.opp';
       }
     } else {
       verdictKey = 'result.verdict.lose';
       if (status === 'resigned_p1' || status === 'resigned_p2') {
-        reasonSuffix = ` (${t('result.reason.resign.mine')})`;
+        reasonKey = 'result.reason.resign.mine';
       }
     }
   } else {
@@ -1009,10 +1177,7 @@ function GameEndModal({
   return (
     <FloatingPanel key={status} className="floating-result" title={t('result.title')}>
       <div className={`verdict ${verdictClass}`}>{t(verdictKey)}</div>
-      <div className="body">
-        {t(reasonKey)}
-        {reasonSuffix}
-      </div>
+      <div className="body">{t(reasonKey)}</div>
       <div className="btn-row">
         <button type="button" className="btn ghost" onClick={() => setDismissed(status)}>
           {t('result.close')}

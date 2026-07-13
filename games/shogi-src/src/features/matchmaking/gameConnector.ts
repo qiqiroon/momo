@@ -113,45 +113,56 @@ const connector: OnlineGameConnector = {
     }
   },
 
-  sendUndoOffer(count = 1) {
+  sendDrawCancel() {
+    // 引分申し出を撤回（v0.42）
     const client = getMomoMatchmaking();
     if (!client) return;
-    useOffersStore.getState().setUndoOfferFrom('me');
-    client.send({ v: PROTOCOL_VERSION, type: 'undo_offer', count });
+    useOffersStore.getState().setDrawOfferFrom(null);
+    client.send({ v: PROTOCOL_VERSION, type: 'draw_cancel' });
   },
 
-  sendUndoResponse(accepted, count = 1) {
+  sendUndoOffer(count, challengerSide) {
     const client = getMomoMatchmaking();
     if (!client) return;
+    useOffersStore.getState().setUndoOfferFrom('me', { count, challengerSide });
+    client.send({ v: PROTOCOL_VERSION, type: 'undo_offer', count, challengerSide });
+  },
+
+  sendUndoResponse(accepted) {
+    // v0.42: 承諾時は「承諾者側 (＝自分) の時計だけ復元、count は保存済み meta から取り出す」
+    const client = getMomoMatchmaking();
+    if (!client) return;
+    const meta = useOffersStore.getState().undoOfferMeta;
     useOffersStore.getState().setUndoOfferFrom(null);
-    client.send({ v: PROTOCOL_VERSION, type: 'undo_response', accepted, count });
-    if (accepted) {
-      useGameStore.getState().undoLastMove(count);
+    client.send({ v: PROTOCOL_VERSION, type: 'undo_response', accepted });
+    if (accepted && meta) {
+      // 承諾者 side = challengerSide の反対 = mySide（＝this connector の getMySide()）。
+      // 待ったのペナルティで challengerSide の時計は戻さない。
+      const restoreSide: 'player1' | 'player2' =
+        meta.challengerSide === 'player1' ? 'player2' : 'player1';
+      useGameStore.getState().undoLastMove(meta.count, { restoreClockForSide: restoreSide });
     }
   },
 
+  sendUndoCancel() {
+    const client = getMomoMatchmaking();
+    if (!client) return;
+    useOffersStore.getState().setUndoOfferFrom(null);
+    client.send({ v: PROTOCOL_VERSION, type: 'undo_cancel' });
+  },
+
   sendTimeout(side) {
-    // ローカル状態はすでに timeout に更新されている前提。相手にも通知する。
     const client = getMomoMatchmaking();
     if (!client) return;
     client.send({ v: PROTOCOL_VERSION, type: 'timeout', side });
   },
 
-  sendPauseOffer() {
+  sendPauseNotify() {
+    // v0.42: 一時中断は合意不要 → ローカルは即中断＋相手へ通知
+    useGameStore.getState().pauseGame();
     const client = getMomoMatchmaking();
     if (!client) return;
-    useOffersStore.getState().setPauseOfferFrom('me');
-    client.send({ v: PROTOCOL_VERSION, type: 'pause_offer' });
-  },
-
-  sendPauseResponse(accepted) {
-    const client = getMomoMatchmaking();
-    if (!client) return;
-    useOffersStore.getState().setPauseOfferFrom(null);
-    client.send({ v: PROTOCOL_VERSION, type: 'pause_response', accepted });
-    if (accepted) {
-      useGameStore.getState().pauseGame();
-    }
+    client.send({ v: PROTOCOL_VERSION, type: 'pause_notify' });
   },
 
   sendResumeOffer() {

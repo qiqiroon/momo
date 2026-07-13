@@ -55,26 +55,21 @@ export function handleShogiMessage(data: unknown): void {
       return;
     }
     case 'furigoma_result': {
-      // ホストから配信された振り駒結果。両者が同じ結果でアニメ表示。
       useMatchmakingStore.setState({
         furigomaResult: { faceUps: msg.faceUps, hostIsSente: msg.hostIsSente },
       });
       return;
     }
     case 'game_start': {
-      // v0.32: game_start では chat をクリアしない（S06 の対局前チャットが対局中も残る）
-      // 再対局時は returnToPreparation で明示的にクリアする
       useMatchmakingStore.setState({
         gameStartInfo: { hostSide: msg.hostSide, guestSide: msg.guestSide },
       });
-      // v0.35: 部屋の timeControl を game-store に反映（先手の時計が動き始める）
       const tc = useMatchmakingStore.getState().activeRoomConfig?.timeControl;
       if (tc) useGameStore.getState().setTimeControl(tc);
       useRouteStore.getState().setScreen('game');
       return;
     }
     case 'move': {
-      // 相手の着手を盤面に反映（合法性の相互検証は段階 2-6 で追加予定）
       const applied = useGameStore.getState().applyRemoteMove({
         kind: msg.kind,
         pieceId: msg.pieceId,
@@ -82,10 +77,7 @@ export function handleShogiMessage(data: unknown): void {
         to: msg.to,
         promote: msg.promote,
       });
-      // v0.35: 送信側の時計状態を反映（受信側は指し手側の残り時間をシンク）
       if (applied && msg.time) {
-        // 指し手側 = 直前の position.sideToMove（applyRemoteMove 内で position が更新される前）
-        // applyAndCommit 後は position.sideToMove が入れ替わっているので、その反対が moverSide
         const nextSide = useGameStore.getState().position.sideToMove;
         const moverSide: 'player1' | 'player2' = nextSide === 'player1' ? 'player2' : 'player1';
         useGameStore.getState().syncClock(moverSide, {
@@ -97,56 +89,64 @@ export function handleShogiMessage(data: unknown): void {
       return;
     }
     case 'timeout': {
-      // 相手からの時間切れ通知（段階 2-8 v0.35）。既に対局が終わっていれば no-op。
       useGameStore.getState().timeout(msg.side);
       return;
     }
     case 'chat': {
-      // 相手からのチャット発言をローカル履歴に追加（段階 2-7 v0.28）
       useChatStore.getState().addMessage(msg.side, msg.text);
       return;
     }
     case 'resign': {
-      // 相手からの投了通知を盤面状態に反映（段階 2-7 v0.30）
       useGameStore.getState().resign(msg.side);
       return;
     }
     case 'draw_offer': {
-      // 相手からの引分申し出（段階 2-7 v0.33）→ 自分側で「相手が申し出中」を立てる
       useOffersStore.getState().setDrawOfferFrom('opp');
       return;
     }
     case 'draw_response': {
-      // 自分が申し出た引分への相手の応答（段階 2-7 v0.33）
       useOffersStore.getState().setDrawOfferFrom(null);
-      useOffersStore.getState().setLastResponse('draw', msg.accepted);
-      if (msg.accepted) {
-        useGameStore.getState().agreeDraw();
-      }
+      useOffersStore.getState().setNotice('draw', msg.accepted ? null : 'rejected');
+      if (msg.accepted) useGameStore.getState().agreeDraw();
+      return;
+    }
+    case 'draw_cancel': {
+      // 相手が引分申し出を撤回（v0.42）
+      useOffersStore.getState().setDrawOfferFrom(null);
+      useOffersStore.getState().setNotice('draw', 'cancelled');
       return;
     }
     case 'undo_offer': {
-      // 相手からの待った申し出（段階 2-7 v0.33）
-      useOffersStore.getState().setUndoOfferFrom('opp');
+      // 相手からの待った申し出（v0.42：count / challengerSide 付き）
+      useOffersStore.getState().setUndoOfferFrom('opp', {
+        count: msg.count,
+        challengerSide: msg.challengerSide,
+      });
       return;
     }
     case 'undo_response': {
-      // 自分が申し出た待ったへの相手の応答（段階 2-7 v0.33）
+      // 自分が申し出た待ったへの相手の応答（v0.42）
+      // 承諾時は「承諾者の時計だけ復元」＝申し出者側は penalty で保持
+      const meta = useOffersStore.getState().undoOfferMeta;
       useOffersStore.getState().setUndoOfferFrom(null);
-      useOffersStore.getState().setLastResponse('undo', msg.accepted);
-      if (msg.accepted) {
-        useGameStore.getState().undoLastMove(msg.count ?? 1);
+      useOffersStore.getState().setNotice('undo', msg.accepted ? null : 'rejected');
+      if (msg.accepted && meta) {
+        const restoreSide: 'player1' | 'player2' =
+          meta.challengerSide === 'player1' ? 'player2' : 'player1';
+        useGameStore.getState().undoLastMove(meta.count, { restoreClockForSide: restoreSide });
       }
       return;
     }
-    case 'pause_offer': {
-      useOffersStore.getState().setPauseOfferFrom('opp');
+    case 'undo_cancel': {
+      // 相手が待った申し出を撤回（v0.42）
+      useOffersStore.getState().setUndoOfferFrom(null);
+      useOffersStore.getState().setNotice('undo', 'cancelled');
       return;
     }
-    case 'pause_response': {
-      useOffersStore.getState().setPauseOfferFrom(null);
-      useOffersStore.getState().setLastResponse('pause', msg.accepted);
-      if (msg.accepted) useGameStore.getState().pauseGame();
+    case 'pause_notify': {
+      // 相手が一時中断（v0.42：合意不要）→ 自分側も即中断
+      useGameStore.getState().pauseGame();
+      useOffersStore.getState().setNotice('pause', 'cancelled'); // 「相手が中断」を告知
       return;
     }
     case 'resume_offer': {
@@ -155,12 +155,11 @@ export function handleShogiMessage(data: unknown): void {
     }
     case 'resume_response': {
       useOffersStore.getState().setResumeOfferFrom(null);
-      useOffersStore.getState().setLastResponse('resume', msg.accepted);
+      useOffersStore.getState().setNotice('resume', msg.accepted ? null : 'rejected');
       if (msg.accepted) useGameStore.getState().resumeGame();
       return;
     }
     default: {
-      // 未知の type は無視（フォワード互換）
       return;
     }
   }

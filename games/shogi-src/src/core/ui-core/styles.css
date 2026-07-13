@@ -1242,24 +1242,9 @@ body::before {
   cursor: not-allowed;
 }
 
-/* 引分・待った 申し出中トースト（v0.33 追加） */
-.offer-sent-toast {
-  position: fixed;
-  bottom: 18px;
-  right: 18px;
-  background: rgba(20, 20, 20, 0.7);
-  border: 1px solid var(--orange);
-  border-radius: 8px;
-  padding: 8px 14px;
-  color: var(--text);
-  font-size: 12.5px;
-  z-index: 190;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
-}
-
-/* 応答（拒否）トースト（v0.33 追加） */
+/* 応答（拒否・撤回）トースト（v0.42 位置調整）
+ * 通知系だけ盤面右下に控えめに置く。合意フローの本パネルは盤面中央で表示。
+ */
 .offer-response-toast {
   position: fixed;
   top: 18px;
@@ -1276,15 +1261,33 @@ body::before {
   -webkit-backdrop-filter: blur(3px);
 }
 
-/* ===== 対局終了 フローティング結果パネル（v0.31 追加） =====
+/* v0.42: 盤面と持ち駒に濃い半透明フィルターをかけて中身を見えなくする。
+ * 待った申し出中・一時中断中（＝再開合意含む）で有効。
+ * .broadcast にあわせて絶対配置。position:relative は .broadcast 側で付ける。
+ */
+.board-blocker {
+  position: absolute;
+  inset: -6px;
+  background: rgba(0, 0, 0, 0.72);
+  border-radius: 10px;
+  z-index: 10;
+  pointer-events: none;
+}
+.broadcast {
+  position: relative;
+}
+
+/* ===== 対局終了 フローティング結果パネル（v0.31 追加、v0.42 で盤面中央基準） =====
  * 半透明で盤面が透けて見え、タイトル部を掴んでドラッグで移動できる。
  * 背景オーバーレイなし = 盤面の駒配置を確認しながら結果を眺められる。
+ * v0.42: 位置を viewport 上部固定から中央に移し、確認モーダル・申し出モーダル・
+ * 結果モーダル・投了確認をすべて盤面中央基準に統一する。
  */
 .floating-result {
   position: fixed;
-  top: 20vh;
+  top: 50%;
   left: 50%;
-  transform: translate(-50%, 0);
+  transform: translate(-50%, -50%);
   /* v0.32: 半透明を薄めて下の盤面が読める濃度に */
   background: rgba(20, 20, 20, 0.55);
   border: 1px solid var(--orange);
@@ -1320,6 +1323,15 @@ body::before {
   font-weight: 700;
   color: var(--orange-light);
   letter-spacing: 0.06em;
+}
+/* v0.42: モーダルタイトルのアイコン（先頭絵文字）を 1.5 倍で強調。
+ * 文字サイズは 14px のまま、アイコンだけ 21px 相当。
+ */
+.floating-result .title .icon {
+  font-size: 1.5em;
+  vertical-align: middle;
+  line-height: 1;
+  margin-right: 6px;
 }
 .floating-result .verdict {
   font-family: 'Fredoka One', cursive;

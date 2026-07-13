@@ -69,7 +69,7 @@ export function FloatingPanel({
       className={className}
       role="dialog"
       aria-modal="false"
-      style={{ transform: `translate(calc(-50% + ${drag.x}px), ${drag.y}px)` }}
+      style={{ transform: `translate(calc(-50% + ${drag.x}px), calc(-50% + ${drag.y}px))` }}
     >
       <div className="floating-result-header" onMouseDown={onDragStart} onTouchStart={onDragStart}>
         <span className="drag-hint">⇔</span>

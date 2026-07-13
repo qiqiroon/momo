@@ -136,16 +136,20 @@ export interface DrawResponseMsg extends Envelope {
   type: 'draw_response';
   accepted: boolean;
 }
-/** 待ったの申し出（段階 2-7 v0.33）。応答は undo_response で返す。count は巻き戻し手数（既定 1）。 */
+/**
+ * 待ったの申し出（段階 2-7 v0.33、v0.42 改装）。応答は undo_response で返す。
+ * count は巻き戻し手数（1=自分の1手だけ／2=相手の直前手＋自分の1手）。
+ * challengerSide は申し出者の side（＝ペナルティで時計が戻らない側）。
+ */
 export interface UndoOfferMsg extends Envelope {
   type: 'undo_offer';
-  count?: number;
+  count: number;
+  challengerSide: 'player1' | 'player2';
 }
-/** 待った申し出への応答（段階 2-7 v0.33）。accepted=true で両者 count 手戻す。 */
+/** 待った申し出への応答（v0.42）。承諾者は count/challengerSide を保持済み。 */
 export interface UndoResponseMsg extends Envelope {
   type: 'undo_response';
   accepted: boolean;
-  count?: number;
 }
 
 /** 時間切れ通知（段階 2-8 v0.35）。side は時間切れになった側（＝負け）。両者検出の可能性がある idempotent 扱い。 */
@@ -154,12 +158,14 @@ export interface TimeoutMsg extends Envelope {
   side: 'player1' | 'player2';
 }
 
-/** 中断の申し出／応答（段階 2-8 v0.41）— 両者合意で対局を一時停止 */
-export interface PauseOfferMsg extends Envelope { type: 'pause_offer'; }
-export interface PauseResponseMsg extends Envelope { type: 'pause_response'; accepted: boolean; }
+/** 一時中断の通知（段階 2-8 v0.42）— 合意不要、相手に一方的に通知 */
+export interface PauseNotifyMsg extends Envelope { type: 'pause_notify'; }
 /** 再開の申し出／応答（段階 2-8 v0.41）— 両者合意で中断を解除 */
 export interface ResumeOfferMsg extends Envelope { type: 'resume_offer'; }
 export interface ResumeResponseMsg extends Envelope { type: 'resume_response'; accepted: boolean; }
+/** 申し出の撤回（段階 2-8 v0.42）— 待った/引分 を申し出た側が取り下げる */
+export interface UndoCancelMsg extends Envelope { type: 'undo_cancel'; }
+export interface DrawCancelMsg extends Envelope { type: 'draw_cancel'; }
 
 export type ShogiMessage =
   | SideSelectMsg
@@ -175,10 +181,11 @@ export type ShogiMessage =
   | UndoOfferMsg
   | UndoResponseMsg
   | TimeoutMsg
-  | PauseOfferMsg
-  | PauseResponseMsg
+  | PauseNotifyMsg
   | ResumeOfferMsg
-  | ResumeResponseMsg;
+  | ResumeResponseMsg
+  | UndoCancelMsg
+  | DrawCancelMsg;
 
 /** 型ガード：unknown をゲームメッセージとして扱えるか */
 export function isShogiMessage(data: unknown): data is ShogiMessage {

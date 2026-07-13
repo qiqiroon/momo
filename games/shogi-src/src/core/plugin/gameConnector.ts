@@ -53,16 +53,22 @@ export interface OnlineGameConnector {
   sendDrawOffer(): void;
   /** 引分申し出への応答（段階 2-7 v0.33）。accepted=true で両者引分終局。 */
   sendDrawResponse(accepted: boolean): void;
-  /** 待ったを相手に申し出る（段階 2-7 v0.33）。count は既定 1。 */
-  sendUndoOffer(count?: number): void;
-  /** 待った申し出への応答（段階 2-7 v0.33）。accepted=true で両者 count 手戻す。 */
-  sendUndoResponse(accepted: boolean, count?: number): void;
+  /**
+   * 待ったを相手に申し出る（v0.42 更新）。
+   * challengerSide = 申し出者の side（＝ペナルティで時計が戻らない側）。
+   * count = 巻き戻し手数（1=自分の1手／2=相手の直前手＋自分の1手）。
+   */
+  sendUndoOffer(count: number, challengerSide: 'player1' | 'player2'): void;
+  /** 待った申し出への応答（v0.42）。accepted=true で承諾側の時計だけ復元して count 手戻す。 */
+  sendUndoResponse(accepted: boolean): void;
+  /** 待った申し出を撤回する（v0.42）。 */
+  sendUndoCancel(): void;
+  /** 引分を申し出た側が撤回する（v0.42）。 */
+  sendDrawCancel(): void;
   /** 自分側の時間切れを相手に通知（段階 2-8 v0.35）。 */
   sendTimeout(side: 'player1' | 'player2'): void;
-  /** 中断を相手に申し出る（段階 2-8 v0.41）。 */
-  sendPauseOffer(): void;
-  /** 中断申し出への応答。accepted=true で両者中断状態に。 */
-  sendPauseResponse(accepted: boolean): void;
+  /** 一時中断を相手に通知（v0.42 で合意不要に変更）。 */
+  sendPauseNotify(): void;
   /** 再開を相手に申し出る。 */
   sendResumeOffer(): void;
   /** 再開申し出への応答。accepted=true で両者再開。 */

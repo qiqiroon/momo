@@ -20,18 +20,14 @@ export interface TimeControl {
   incrementSeconds?: number;
 }
 
-/** ロビー既定値（部屋作成のデフォルト）：秒読み 15 分＋ 30 秒（v0.36: D5 §7 の候補と揃える） */
+/** 全画面共通の既定値：時間管理なし（v0.45: オンライン/オフラインとも no_limit スタート） */
 export const DEFAULT_TIME_CONTROL: TimeControl = {
-  mode: 'byoyomi',
-  mainSeconds: 15 * 60,
-  byoyomiSeconds: 30,
-};
-
-/** オフライン既定値：時間管理なし（vs 人 / vs AI で使う） */
-export const NO_LIMIT_TIME_CONTROL: TimeControl = {
   mode: 'no_limit',
   mainSeconds: 0,
 };
+
+/** 別名：オフライン用に呼ぶ既存コード互換 */
+export const NO_LIMIT_TIME_CONTROL: TimeControl = DEFAULT_TIME_CONTROL;
 
 /** 各プレイヤーの時計状態 */
 export interface ClockState {

@@ -2,6 +2,7 @@ import type { ComponentType } from 'react';
 import { get as pluginGet } from '../plugin/registry';
 import { useRouteStore } from '../store/route-store';
 import { GameScreen } from './GameScreen';
+import { OfflineRuleScreen } from './OfflineRuleScreen';
 
 interface RootViewProps {
   variant: 'a' | 'b';
@@ -12,6 +13,9 @@ export function RootView({ variant }: RootViewProps) {
 
   if (screen === 'game') {
     return <GameScreen variant={variant} />;
+  }
+  if (screen === 'offline-rule') {
+    return <OfflineRuleScreen variant={variant} />;
   }
 
   // features 由来の画面は plugin registry から解決 (A ビルドには存在しない)

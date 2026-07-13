@@ -54,7 +54,7 @@ export function MenuScreen() {
           <MenuButton
             title="vs 人（オフライン）"
             desc="同じ端末で交互に指すデバッグ用モード（将来「感想戦モード」に統合予定）"
-            onClick={() => setScreen('game')}
+            onClick={() => setScreen('offline-rule')}
           />
           <MenuButton
             title="通信対戦"

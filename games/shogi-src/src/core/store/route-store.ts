@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type Screen = 'game' | 'lobby' | 'net-lobby' | 'rule-select' | 'room' | 'endgame';
+export type Screen = 'game' | 'lobby' | 'net-lobby' | 'rule-select' | 'room' | 'endgame' | 'offline-rule';
 
 interface RouteState {
   screen: Screen;

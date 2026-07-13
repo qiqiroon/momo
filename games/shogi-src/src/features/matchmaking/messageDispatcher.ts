@@ -139,6 +139,26 @@ export function handleShogiMessage(data: unknown): void {
       }
       return;
     }
+    case 'pause_offer': {
+      useOffersStore.getState().setPauseOfferFrom('opp');
+      return;
+    }
+    case 'pause_response': {
+      useOffersStore.getState().setPauseOfferFrom(null);
+      useOffersStore.getState().setLastResponse('pause', msg.accepted);
+      if (msg.accepted) useGameStore.getState().pauseGame();
+      return;
+    }
+    case 'resume_offer': {
+      useOffersStore.getState().setResumeOfferFrom('opp');
+      return;
+    }
+    case 'resume_response': {
+      useOffersStore.getState().setResumeOfferFrom(null);
+      useOffersStore.getState().setLastResponse('resume', msg.accepted);
+      if (msg.accepted) useGameStore.getState().resumeGame();
+      return;
+    }
     default: {
       // 未知の type は無視（フォワード互換）
       return;

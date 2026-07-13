@@ -154,6 +154,13 @@ export interface TimeoutMsg extends Envelope {
   side: 'player1' | 'player2';
 }
 
+/** 中断の申し出／応答（段階 2-8 v0.41）— 両者合意で対局を一時停止 */
+export interface PauseOfferMsg extends Envelope { type: 'pause_offer'; }
+export interface PauseResponseMsg extends Envelope { type: 'pause_response'; accepted: boolean; }
+/** 再開の申し出／応答（段階 2-8 v0.41）— 両者合意で中断を解除 */
+export interface ResumeOfferMsg extends Envelope { type: 'resume_offer'; }
+export interface ResumeResponseMsg extends Envelope { type: 'resume_response'; accepted: boolean; }
+
 export type ShogiMessage =
   | SideSelectMsg
   | ReadyMsg
@@ -167,7 +174,11 @@ export type ShogiMessage =
   | DrawResponseMsg
   | UndoOfferMsg
   | UndoResponseMsg
-  | TimeoutMsg;
+  | TimeoutMsg
+  | PauseOfferMsg
+  | PauseResponseMsg
+  | ResumeOfferMsg
+  | ResumeResponseMsg;
 
 /** 型ガード：unknown をゲームメッセージとして扱えるか */
 export function isShogiMessage(data: unknown): data is ShogiMessage {

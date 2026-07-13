@@ -59,6 +59,14 @@ export interface OnlineGameConnector {
   sendUndoResponse(accepted: boolean, count?: number): void;
   /** 自分側の時間切れを相手に通知（段階 2-8 v0.35）。 */
   sendTimeout(side: 'player1' | 'player2'): void;
+  /** 中断を相手に申し出る（段階 2-8 v0.41）。 */
+  sendPauseOffer(): void;
+  /** 中断申し出への応答。accepted=true で両者中断状態に。 */
+  sendPauseResponse(accepted: boolean): void;
+  /** 再開を相手に申し出る。 */
+  sendResumeOffer(): void;
+  /** 再開申し出への応答。accepted=true で両者再開。 */
+  sendResumeResponse(accepted: boolean): void;
   /**
    * オンライン対局を離脱する。退室通知を送り、通信対戦ロビーに戻る。
    */

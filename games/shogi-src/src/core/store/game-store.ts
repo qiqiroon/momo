@@ -76,8 +76,10 @@ interface GameState {
   timeControl: TimeControl;
   /** 各プレイヤーの時計状態（v0.35） */
   clocks: { player1: ClockState; player2: ClockState };
-  /** 現在時計を動かしている側（v0.35）。null なら停止（対局終了・no_limit・pause 予定）。 */
+  /** 現在時計を動かしている側（v0.35）。null なら停止（対局終了・no_limit）。 */
   activeClockSide: 'player1' | 'player2' | null;
+  /** 中断中フラグ（v0.41 追加）。true の間 ticker は tick しない。activeClockSide は保持されるため再開で継続 */
+  paused: boolean;
 
   selectSquare: (sq: Square) => void;
   selectHandPiece: (pieceId: string) => void;
@@ -100,6 +102,10 @@ interface GameState {
   syncClock: (side: 'player1' | 'player2', clock: ClockState) => void;
   /** 指定側を時間切れ負けにする（idempotent）。v0.35。 */
   timeout: (side: 'player1' | 'player2') => void;
+  /** 対局を中断状態にする（両者合意成立後に呼ばれる）。v0.41。 */
+  pauseGame: () => void;
+  /** 中断状態を解除して対局再開する（両者合意成立後に呼ばれる）。v0.41。 */
+  resumeGame: () => void;
   reset: () => void;
   /**
    * 相手から受信した着手を盤面に反映する。
@@ -251,6 +257,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     player2: initClockState(NO_LIMIT_TIME_CONTROL),
   },
   activeClockSide: null,
+  paused: false,
 
   selectSquare: (sq) => {
     const { position, mgf, status } = get();
@@ -406,6 +413,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         player2: initClockState(tc),
       },
       activeClockSide: tc.mode === 'no_limit' ? null : 'player1',
+      paused: false,
     });
   },
 
@@ -413,6 +421,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     const state = get();
     if (state.status !== 'playing') return;
     if (!state.activeClockSide) return;
+    if (state.paused) return; // v0.41: 中断中は tick しない
     if (state.timeControl.mode === 'no_limit') return;
     const side = state.activeClockSide;
     const cur = state.clocks[side];
@@ -489,6 +498,19 @@ export const useGameStore = create<GameState>((set, get) => ({
     });
   },
 
+  pauseGame: () => {
+    const state = get();
+    if (state.status !== 'playing') return;
+    if (state.paused) return;
+    set({ paused: true });
+  },
+
+  resumeGame: () => {
+    const state = get();
+    if (!state.paused) return;
+    set({ paused: false });
+  },
+
   undoLastMove: (count = 1) => {
     const state = get();
     const available = state.positionHistory.length;
@@ -541,6 +563,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         player2: initClockState(tc),
       },
       activeClockSide: tc.mode === 'no_limit' ? null : 'player1',
+      paused: false,
     });
   },
 

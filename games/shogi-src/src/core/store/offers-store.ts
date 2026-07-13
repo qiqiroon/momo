@@ -10,16 +10,22 @@ import { create } from 'zustand';
  * 対局のたびに clearAll() でリセット（game_start / returnToPreparation / reset）。
  */
 
-export type OfferKind = 'draw' | 'undo';
+export type OfferKind = 'draw' | 'undo' | 'pause' | 'resume';
 
 interface OffersState {
   drawOfferFrom: 'me' | 'opp' | null;
   undoOfferFrom: 'me' | 'opp' | null;
+  /** 中断の申し出（v0.41） */
+  pauseOfferFrom: 'me' | 'opp' | null;
+  /** 再開の申し出（v0.41） */
+  resumeOfferFrom: 'me' | 'opp' | null;
   lastResponseKind: OfferKind | null;
   lastResponseAccepted: boolean | null;
 
   setDrawOfferFrom: (from: 'me' | 'opp' | null) => void;
   setUndoOfferFrom: (from: 'me' | 'opp' | null) => void;
+  setPauseOfferFrom: (from: 'me' | 'opp' | null) => void;
+  setResumeOfferFrom: (from: 'me' | 'opp' | null) => void;
   setLastResponse: (kind: OfferKind | null, accepted: boolean | null) => void;
   clearAll: () => void;
 }
@@ -27,17 +33,23 @@ interface OffersState {
 export const useOffersStore = create<OffersState>((set) => ({
   drawOfferFrom: null,
   undoOfferFrom: null,
+  pauseOfferFrom: null,
+  resumeOfferFrom: null,
   lastResponseKind: null,
   lastResponseAccepted: null,
 
   setDrawOfferFrom: (drawOfferFrom) => set({ drawOfferFrom }),
   setUndoOfferFrom: (undoOfferFrom) => set({ undoOfferFrom }),
+  setPauseOfferFrom: (pauseOfferFrom) => set({ pauseOfferFrom }),
+  setResumeOfferFrom: (resumeOfferFrom) => set({ resumeOfferFrom }),
   setLastResponse: (lastResponseKind, lastResponseAccepted) =>
     set({ lastResponseKind, lastResponseAccepted }),
   clearAll: () =>
     set({
       drawOfferFrom: null,
       undoOfferFrom: null,
+      pauseOfferFrom: null,
+      resumeOfferFrom: null,
       lastResponseKind: null,
       lastResponseAccepted: null,
     }),

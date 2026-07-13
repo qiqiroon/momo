@@ -137,6 +137,40 @@ const connector: OnlineGameConnector = {
     client.send({ v: PROTOCOL_VERSION, type: 'timeout', side });
   },
 
+  sendPauseOffer() {
+    const client = getMomoMatchmaking();
+    if (!client) return;
+    useOffersStore.getState().setPauseOfferFrom('me');
+    client.send({ v: PROTOCOL_VERSION, type: 'pause_offer' });
+  },
+
+  sendPauseResponse(accepted) {
+    const client = getMomoMatchmaking();
+    if (!client) return;
+    useOffersStore.getState().setPauseOfferFrom(null);
+    client.send({ v: PROTOCOL_VERSION, type: 'pause_response', accepted });
+    if (accepted) {
+      useGameStore.getState().pauseGame();
+    }
+  },
+
+  sendResumeOffer() {
+    const client = getMomoMatchmaking();
+    if (!client) return;
+    useOffersStore.getState().setResumeOfferFrom('me');
+    client.send({ v: PROTOCOL_VERSION, type: 'resume_offer' });
+  },
+
+  sendResumeResponse(accepted) {
+    const client = getMomoMatchmaking();
+    if (!client) return;
+    useOffersStore.getState().setResumeOfferFrom(null);
+    client.send({ v: PROTOCOL_VERSION, type: 'resume_response', accepted });
+    if (accepted) {
+      useGameStore.getState().resumeGame();
+    }
+  },
+
   leaveOnline() {
     const client = getMomoMatchmaking();
     if (client) client.leaveRoom();

@@ -1365,6 +1365,39 @@ body::before {
   color: var(--text);
 }
 
+/* v0.41: モーダル種別ごとの色区別（誤認防止）
+ * draw=緑、undo=青、pause=灰、resume=橙、resign=赤（.danger と併用）
+ */
+.floating-result.draw { border-color: #6ab04c; }
+.floating-result.draw .title { color: #a5e893; }
+.floating-result.undo { border-color: #4a90e2; }
+.floating-result.undo .title { color: #7fbcff; }
+.floating-result.pause { border-color: var(--text-muted); }
+.floating-result.pause .title { color: #cccccc; }
+.floating-result.resume { border-color: var(--orange); }
+.floating-result.resume .title { color: var(--orange-light); }
+.floating-result.resign { border-color: #b3401a; }
+.floating-result.resign .title { color: #e8836a; }
+
+/* 引分モーダルの警告文（「投了ではありません」等） */
+.floating-result .body.warn {
+  color: #ffc857;
+  font-size: 11px;
+  margin-top: -8px;
+  margin-bottom: 12px;
+  font-weight: 700;
+}
+
+/* 中断中の再開ボタンをオレンジで強調（v0.41） */
+.command-bar .act.resume-active {
+  background: var(--orange);
+  color: #fff;
+  border-color: var(--orange);
+}
+.command-bar .act.resume-active:hover {
+  background: var(--orange-mid);
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; }
 }

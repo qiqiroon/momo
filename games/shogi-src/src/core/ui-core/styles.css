@@ -1261,17 +1261,20 @@ body::before {
   -webkit-backdrop-filter: blur(3px);
 }
 
-/* v0.42: 盤面と持ち駒に濃い半透明フィルターをかけて中身を見えなくする。
+/* v0.42: 盤面と持ち駒に半透明フィルターをかけて中身を見えなくする。
+ * v0.43: ぼかし (backdrop-filter blur 10px) ＋ 40% 暗幕。駒の文字まで滲ませて読めないようにする。
  * 待った申し出中・一時中断中（＝再開合意含む）で有効。
  * .broadcast にあわせて絶対配置。position:relative は .broadcast 側で付ける。
  */
 .board-blocker {
   position: absolute;
   inset: -6px;
-  background: rgba(0, 0, 0, 0.72);
+  background: rgba(0, 0, 0, 0.40);
   border-radius: 10px;
   z-index: 10;
   pointer-events: none;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 .broadcast {
   position: relative;

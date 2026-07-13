@@ -203,6 +203,10 @@ const connector: OnlineGameConnector = {
     return useMatchmakingStore.getState().opponentLeftDuringGame;
   },
 
+  getWsPendingReconnect() {
+    return useMatchmakingStore.getState().wsPendingReconnect;
+  },
+
   subscribe(cb) {
     return useMatchmakingStore.subscribe(cb);
   },

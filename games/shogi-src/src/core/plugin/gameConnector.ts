@@ -88,6 +88,12 @@ export interface OnlineGameConnector {
    */
   getOpponentLeftDuringGame(): boolean;
   /**
+   * v0.47: サーバー経由 (WS) の連絡経路だけが一時的に切れた状態。
+   * true の間、対局画面は「接続を確認中…」のバナーを表示するが、
+   * 実際の対局は継続する (P2P 直通が生きている前提)。
+   */
+  getWsPendingReconnect(): boolean;
+  /**
    * isOnline / getMySide / getOpponentLeftDuringGame の返り値に影響する
    * 状態変化を購読する。返り値は unsubscribe 関数。
    */

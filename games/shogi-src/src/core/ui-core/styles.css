@@ -1403,6 +1403,42 @@ body::before {
   font-weight: 700;
 }
 
+/* v0.47: サーバー経由の連絡経路 (WS) が瞬断した時のバナー。
+ * 対局は基本続行するので、画面上部の細帯で控えめに表示する。
+ * dismiss ボタンは無し (20 秒で自動消滅)。
+ */
+.connection-banner {
+  position: fixed;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: rgba(60, 40, 20, 0.9);
+  border: 1px solid #ffc857;
+  border-radius: 999px;
+  color: #ffc857;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  z-index: 210;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  max-width: calc(100vw - 24px);
+}
+.connection-banner .icon { font-size: 14px; }
+.connection-banner .msg { white-space: nowrap; }
+.connection-banner .cnt {
+  font-family: 'Fredoka One', cursive;
+  font-size: 13px;
+  color: #fff;
+  min-width: 2.4em;
+  text-align: right;
+}
+
 /* 中断中の再開ボタンをオレンジで強調（v0.41） */
 .command-bar .act.resume-active {
   background: var(--orange);

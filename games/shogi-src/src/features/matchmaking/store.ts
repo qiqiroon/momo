@@ -85,6 +85,13 @@ interface MatchmakingState {
    * 対局画面がこのフラグを見てモーダルを表示、ユーザーに退室を促す。
    */
   opponentLeftDuringGame: boolean;
+  /**
+   * v0.47 追加: サーバー経由の連絡経路 (WebSocket) だけが一時的に切れた状態。
+   * P2P DataChannel (相手との直通経路) は健在の可能性が高いので、20 秒間は
+   * 対局を殺さず様子見する。20 秒以内に P2P も切れれば opponentLeftDuringGame へ
+   * escalate、切れなければ猶予期間終了で単にフラグを畳む (対局は続行)。
+   */
+  wsPendingReconnect: boolean;
 
   setConnection: (c: ConnectionStatus) => void;
   setRooms: (rooms: MomoRoomInfo[]) => void;
@@ -104,6 +111,7 @@ interface MatchmakingState {
   setFurigomaResult: (r: MatchmakingState['furigomaResult']) => void;
   setGameStartInfo: (info: MatchmakingState['gameStartInfo']) => void;
   setOpponentLeftDuringGame: (b: boolean) => void;
+  setWsPendingReconnect: (b: boolean) => void;
   resetHandshake: () => void;
 }
 
@@ -126,6 +134,7 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
   furigomaResult: null,
   gameStartInfo: null,
   opponentLeftDuringGame: false,
+  wsPendingReconnect: false,
 
   setConnection: (c) => set({ connection: c }),
   setRooms: (rooms) => set({ rooms }),
@@ -151,6 +160,7 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
     furigomaResult: null,
     gameStartInfo: null,
     opponentLeftDuringGame: false,
+    wsPendingReconnect: false,
   }),
   setIntentionallyLeft: (intentionallyLeft) => set({ intentionallyLeft }),
   setMySideChoice: (mySideChoice) => set({ mySideChoice }),
@@ -160,6 +170,7 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
   setFurigomaResult: (furigomaResult) => set({ furigomaResult }),
   setGameStartInfo: (gameStartInfo) => set({ gameStartInfo }),
   setOpponentLeftDuringGame: (opponentLeftDuringGame) => set({ opponentLeftDuringGame }),
+  setWsPendingReconnect: (wsPendingReconnect) => set({ wsPendingReconnect }),
   resetHandshake: () => set({
     mySideChoice: null,
     oppSideChoice: null,
@@ -168,5 +179,6 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
     furigomaResult: null,
     gameStartInfo: null,
     opponentLeftDuringGame: false,
+    wsPendingReconnect: false,
   }),
 }));

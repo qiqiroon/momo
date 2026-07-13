@@ -5,7 +5,7 @@ export const en: LocaleData = {
   name: 'English',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.46',
+    'app.ver': 'v0.47',
     'app.sub': 'Capture the King, Bend the Rules',
     'turn.mine': 'Your turn',
     'turn.opp': "Opponent's turn",
@@ -100,6 +100,7 @@ export const en: LocaleData = {
     'offer.waitingBody': 'Waiting for opponent response…',
     'offer.cancelAction': 'Withdraw offer',
     'offer.notResignNote': '* This is NOT a resignation',
+    'conn.uncertain': 'Checking connection…',
 
     // S06 Match preparation (mock S05 origin, Phase 2-5.1)
     's06.back': 'Leave',

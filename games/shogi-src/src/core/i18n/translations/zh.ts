@@ -5,7 +5,7 @@ export const zh: LocaleData = {
   name: '中文',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.46',
+    'app.ver': 'v0.47',
     'app.sub': '擒王为胜，破局无界',
     'turn.mine': '轮到你',
     'turn.opp': '对手回合',
@@ -100,6 +100,7 @@ export const zh: LocaleData = {
     'offer.waitingBody': '正在等待对方回应…',
     'offer.cancelAction': '撤回提议',
     'offer.notResignNote': '※ 这不是认输',
+    'conn.uncertain': '正在检查连接…',
 
     // S06 对局准备（来自 mock S05，阶段 2-5.1）
     's06.back': '退出',

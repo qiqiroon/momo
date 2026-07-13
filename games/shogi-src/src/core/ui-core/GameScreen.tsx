@@ -507,6 +507,48 @@ export function GameScreen({ variant }: GameScreenProps) {
       <OfferSentPanel t={t} />
       <PauseCenterPanel t={t} />
       <OfferResponseToast t={t} />
+      <ConnectionUncertainBanner t={t} />
+    </div>
+  );
+}
+
+/**
+ * v0.47: サーバー経由の連絡経路 (WS) だけが瞬断した際に画面上部へ出すバナー。
+ * 対局は基本続行 (P2P 直通は健在の想定)。20 秒経つと勝手に消える。
+ * 実際に P2P も落ちれば OpponentLeftModal に escalate される (別コンポーネント担当)。
+ */
+function ConnectionUncertainBanner({ t }: { t: (key: string) => string }) {
+  const [pending, setPending] = useState(false);
+  const [remaining, setRemaining] = useState(20);
+
+  useEffect(() => {
+    const c = pluginGet<OnlineGameConnector>('gameConnector');
+    if (!c) return;
+    const update = () => setPending(c.getWsPendingReconnect());
+    update();
+    return c.subscribe(update);
+  }, []);
+
+  useEffect(() => {
+    if (!pending) {
+      setRemaining(20);
+      return;
+    }
+    setRemaining(20);
+    const t0 = Date.now();
+    const id = setInterval(() => {
+      const left = Math.max(0, 20 - Math.floor((Date.now() - t0) / 1000));
+      setRemaining(left);
+    }, 500);
+    return () => clearInterval(id);
+  }, [pending]);
+
+  if (!pending) return null;
+  return (
+    <div className="connection-banner" role="status" aria-live="polite">
+      <span className="icon">⚠</span>
+      <span className="msg">{t('conn.uncertain')}</span>
+      <span className="cnt">{remaining}s</span>
     </div>
   );
 }

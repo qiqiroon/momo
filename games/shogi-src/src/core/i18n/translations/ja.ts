@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.46',
+    'app.ver': 'v0.47',
     'app.sub': 'Capture the King, Bend the Rules',
     'turn.mine': 'あなたの手番',
     'turn.opp': '相手の手番',
@@ -101,6 +101,8 @@ export const ja: LocaleData = {
     'offer.cancelAction': '申し出を撤回',
     // 共通の警告文（引分モーダルで表示）
     'offer.notResignNote': '※これは投了ではありません',
+    // v0.47: 通信のサーバー経由経路が一時的に切れた時のバナー
+    'conn.uncertain': '接続を確認中…',
 
     // S06 対局準備画面（モック S05 由来・段階 2-5.1）
     's06.back': '退室',

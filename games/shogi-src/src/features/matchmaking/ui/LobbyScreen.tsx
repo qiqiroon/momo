@@ -151,9 +151,32 @@ export function LobbyScreen() {
           useMatchmakingStore.setState({ intentionallyLeft: false, connection: 'connected' });
           return;
         }
-        // 対局中の切断は画面遷移せず、モーダル通知（GameScreen 側）
+        // v0.47: 対局中の切断を「サーバー経由 (WS) だけの瞬断」と「相手との直通 (P2P) が
+        // 落ちた本物の切断」に区別する。ライブラリはメッセージ文字列で通知するため
+        // reason に「再接続中」が含まれるかを見る (momo-matchmaking v1.01)。
+        //
+        // - 「再接続中」: 対局を殺さず、20 秒間 wsPendingReconnect=true でバナー表示。
+        //   その間 P2P 直通が生きていれば手は普通に送受信でき、対局は続く。
+        //   20 秒以内に本物の切断が来れば escalate、来なければ猶予期間終了で畳む。
+        // - それ以外 (「対局を中断」など): 従来どおり即 opponentLeftDuringGame=true。
         if (state.gameStartInfo) {
-          useMatchmakingStore.setState({ opponentLeftDuringGame: true });
+          const isWsOnly = typeof reason === 'string' && reason.includes('再接続中');
+          if (isWsOnly && !state.wsPendingReconnect) {
+            useMatchmakingStore.setState({ wsPendingReconnect: true });
+            // 20 秒後、まだ本物の切断が来ていなければ猶予期間終了で無事続行
+            setTimeout(() => {
+              const s = useMatchmakingStore.getState();
+              if (s.wsPendingReconnect && !s.opponentLeftDuringGame) {
+                useMatchmakingStore.setState({ wsPendingReconnect: false });
+              }
+            }, 20_000);
+            return;
+          }
+          // 本物の切断 (or WS 猶予中に再度切断メッセージが来た) → escalate
+          useMatchmakingStore.setState({
+            wsPendingReconnect: false,
+            opponentLeftDuringGame: true,
+          });
           if (reason) setError(reason);
           return;
         }

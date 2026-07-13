@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MOMO Shogi</title>
     <link rel="icon" type="image/svg+xml" href="/momo/games/shogi/favicon.svg" />
+    <!-- v0.40: 駒フォント Yuji Syuku を HTML 解析と同時に先取り開始（対局画面到達までにロード完了しやすくする） -->
+    <link rel="preload" href="fonts/YujiSyuku-Regular.woff2" as="font" type="font/woff2" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap"
       rel="stylesheet"
@@ -19,8 +21,8 @@
         src: local('Yuji Syuku'), url('fonts/YujiSyuku-Regular.woff2') format('woff2');
       }
     </style>
-    <script type="module" crossorigin src="/momo/games/shogi/assets/b-CRpGB4ll.js"></script>
-    <link rel="modulepreload" crossorigin href="/momo/games/shogi/assets/App-DAcDAUtz.js">
+    <script type="module" crossorigin src="/momo/games/shogi/assets/b-CJtJ-cH3.js"></script>
+    <link rel="modulepreload" crossorigin href="/momo/games/shogi/assets/App-xzH29y3d.js">
     <link rel="stylesheet" crossorigin href="/momo/games/shogi/assets/App-DR5Fmk9q.css">
   </head>
   <body>

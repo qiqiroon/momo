@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.59',
+    'app.ver': 'v0.60',
     // S02 ルール選択画面 (モック S02_v2 追随・v0.57、v0.58 でレイアウト圧縮+時間設定移動)
     's02.screenTitle': 'ルール選択',
     's02.secRules': '対局ルール',
@@ -258,6 +258,10 @@ export const ja: LocaleData = {
     's06.readyHint': '相手の入室と同期の完了をお待ちください',
     's06.oppReadyNo': '相手：準備中…',
     's06.oppReadyYes': '相手：準備完了 ✓',
-    's06.startDest': '→ S07 対局へ',
+    's06.startDest': '→ 対局へ',
+    // v0.60: 先後選択の状態表示 (未選択オレンジ / 選択後は自分の側を表示)
+    's06.sidePromptChoose': '先手か後手を選んでください',
+    's06.sideYouSente': 'あなたは先手です',
+    's06.sideYouGote': 'あなたは後手です',
   },
 };

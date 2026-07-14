@@ -5,7 +5,7 @@ export const zh: LocaleData = {
   name: '中文',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.59',
+    'app.ver': 'v0.60',
     // S02 规则选择 (来自 mock S02_v2, v0.57; v0.58 布局压缩 + 用时移入)
     's02.screenTitle': '选择规则',
     's02.secRules': '对局规则',
@@ -253,6 +253,9 @@ export const zh: LocaleData = {
     's06.readyHint': '请等待对方加入并完成同步',
     's06.oppReadyNo': '对方：准备中…',
     's06.oppReadyYes': '对方：已准备 ✓',
-    's06.startDest': '→ S07 对局',
+    's06.startDest': '→ 对局',
+    's06.sidePromptChoose': '请选择先手或后手',
+    's06.sideYouSente': '你执先手',
+    's06.sideYouGote': '你执后手',
   },
 };

@@ -244,6 +244,30 @@ export function RoomScreen() {
   // 振り駒枠を表示するか（両者「おまかせ」時のみ）
   const showFurigoma = mySideChoice === 'random' && oppSideChoice === 'random';
 
+  // v0.60: 自分の先後がどちらに決まったか (未確定なら null)
+  // mySideChoice が明示 (sente/gote) ならその値、random なら相手の選択・振り駒結果から解決
+  const myEffectiveSide: 'sente' | 'gote' | null = (() => {
+    if (mySideChoice === null) return null;
+    if (mySideChoice === 'sente') return 'sente';
+    if (mySideChoice === 'gote') return 'gote';
+    // mySideChoice === 'random'
+    if (oppSideChoice === 'sente') return 'gote';
+    if (oppSideChoice === 'gote') return 'sente';
+    if (oppSideChoice === 'random' && furigomaResult) {
+      const iAmSente = isHost ? furigomaResult.hostIsSente : !furigomaResult.hostIsSente;
+      return iAmSente ? 'sente' : 'gote';
+    }
+    return null;
+  })();
+
+  // v0.60: ルール名の多言語表示 (準備完了カードの「本将棋」ハードコードを解消)
+  const ruleNameLabel = (() => {
+    const g = activeRoomConfig?.gameType ?? 'shogi';
+    if (g === 'hasami') return t('s02.ruleHasami.name');
+    if (g === 'shogi-custom') return t('s02.ruleCustom.name');
+    return t('s02.ruleHongi.name');
+  })();
+
   // 振り駒中のテキスト（誰が振っているか）
   const rollingText = isHost ? t('s06.frRollingHost') : t('s06.frRollingGuest');
 
@@ -413,11 +437,24 @@ export function RoomScreen() {
               : rollingText}
           </div>
         </div>
+
+        {/* v0.60: 先後選択の状態メッセージ (未選択オレンジ / 選択後は自分の側) */}
+        {mySideChoice === null ? (
+          <div style={{ marginTop: 10, padding: '8px 12px', textAlign: 'center', fontSize: 13, fontWeight: 700, color: 'var(--orange-light)', border: '1px solid var(--orange)', borderRadius: 8, background: 'var(--bg-selected)' }}>
+            {t('s06.sidePromptChoose')}
+          </div>
+        ) : myEffectiveSide ? (
+          <div style={{ marginTop: 10, padding: '8px 12px', textAlign: 'center', fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+            {myEffectiveSide === 'sente' ? t('s06.sideYouSente') : t('s06.sideYouGote')}
+          </div>
+        ) : null}
+
         <div style={{ marginTop: 10, padding: '0 4px' }}>
           <div style={{ fontSize: 10.5, color: 'var(--text-muted)', lineHeight: 1.55 }}>
             {t('s06.sideShareNote')}
           </div>
-          <div style={{ fontSize: 10.5, color: 'var(--orange-light)', lineHeight: 1.55, marginTop: 4 }}>
+          {/* v0.60: 振り駒の公平性説明はグレー (以前は orange-light だった) */}
+          <div style={{ fontSize: 10.5, color: 'var(--text-muted)', lineHeight: 1.55, marginTop: 4 }}>
             {t('s06.fairNote')}
           </div>
         </div>
@@ -438,7 +475,7 @@ export function RoomScreen() {
         <div className="start-card">
           <div className="st-line">{t('s06.stLead')}</div>
           <div className="st-rule">
-            <span>本将棋</span>
+            <span>{ruleNameLabel}</span>
           </div>
           <button
             type="button"

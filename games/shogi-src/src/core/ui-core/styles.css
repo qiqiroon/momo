@@ -1812,13 +1812,15 @@ body::before {
   .preview-col { order: 3; }
 }
 
+/* v0.60: S06 で「タイトルが上枠に近く下枠から離れる」問題を解消するため
+   margin を反転。総 gap は維持しつつタイトル位置を下に寄せる。 */
 .section-label {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--orange);
-  margin: 2px 0 10px;
+  margin: 10px 0 2px;
 }
 
 /* ── ルールカード群 (v0.58: 横 3 列グリッド。狭幅では縦積みに折り返す) ── */

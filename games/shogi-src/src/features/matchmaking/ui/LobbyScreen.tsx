@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useI18nStore } from '../../../core/store/i18n-store';
 import { useRouteStore } from '../../../core/store/route-store';
 import { t as _t } from '../../../core/i18n';
@@ -47,6 +47,11 @@ export function LobbyScreen() {
   // v0.58: 非公開部屋の表示切替 + そのパスワード欄 (入室時に自動使用)
   const [showPrivate, setShowPrivate] = useState(false);
   const [privatePw, setPrivatePw] = useState('');
+  // v0.58.1: Chrome の autofill でパスワード欄が勝手に埋まるのを防ぐため、
+  // 直後 + 200ms 後にパスワード欄の DOM 値を強制クリア (gomoku-go 方式)
+  const privatePwRef = useRef<HTMLInputElement | null>(null);
+  const createPwRef = useRef<HTMLInputElement | null>(null);
+  const joinPwRef = useRef<HTMLInputElement | null>(null);
 
   const subLocale: LocaleCode = locale === 'cat' ? 'ja' : locale;
   const subtitle = subLocale === 'zh' ? '擒王为胜，破局无界' : 'Capture the King, Bend the Rules';
@@ -78,6 +83,23 @@ export function LobbyScreen() {
 
   useEffect(() => {
     ensureMatchmakingInit();
+  }, []);
+
+  // v0.58.1: Chrome の autofill 対策。autocomplete="new-password" を Chrome は無視するので、
+  // マウント直後 + 少し遅延して 2 回、パスワード欄の DOM 値を強制的に空に戻す。
+  useEffect(() => {
+    const clearPw = () => {
+      if (privatePwRef.current) privatePwRef.current.value = '';
+      if (createPwRef.current) createPwRef.current.value = '';
+      if (joinPwRef.current) joinPwRef.current.value = '';
+    };
+    clearPw();
+    const t1 = setTimeout(clearPw, 0);
+    const t2 = setTimeout(clearPw, 200);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
   }, []);
 
   const onJoin = (roomId: string, needsPassword: boolean, autoPassword?: string) => {
@@ -183,13 +205,17 @@ export function LobbyScreen() {
   if (config.quantum) modChips.push(t('s04.summaryQuantum'));
   const timeSummary = formatTimeSummary(config.timeControl, t);
 
-  // v0.58: 部屋一覧を「公開」「非公開」に分離
+  // v0.58.1: 部屋リストは 1 つに統合。「非公開を表示」トグルで非公開部屋が
+  // 同じリストに増減する (パスワードの有無でリストが増える・減るだけ)。
+  // 公開 + パスワード有りの部屋は最初から表示 (パスワードは入室時のゲート)。
   const publicRooms = rooms.filter((r) => r.isPublic);
   const privateRooms = rooms.filter((r) => !r.isPublic);
+  const visibleRooms = showPrivate ? [...publicRooms, ...privateRooms] : publicRooms;
 
-  const renderRoomRow = (r: typeof rooms[number], useAutoPw: boolean) => {
+  const renderRoomRow = (r: typeof rooms[number]) => {
     const parts = decodeRoomName(r.name);
-    const autoPw = useAutoPw ? privatePw : undefined;
+    // 非公開 (privateRooms) の入室にはパスワード欄の値を自動送信する
+    const autoPw = !r.isPublic ? privatePw : undefined;
     return (
       <div
         key={r.id}
@@ -199,6 +225,7 @@ export function LobbyScreen() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <RoomBadges parts={parts} locale={locale} />
             <span style={{ color: 'var(--text)' }}>{parts.userRoomName || '(名前なし)'}</span>
+            {!r.isPublic && <span style={{ fontSize: 10, color: 'var(--orange-light)', border: '1px solid var(--orange)', padding: '1px 6px', borderRadius: 10 }}>非公開</span>}
           </div>
           <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>
             ホスト: {r.hostName}
@@ -209,7 +236,10 @@ export function LobbyScreen() {
         {joinRoomId === r.id && r.hasPassword && (autoPw === undefined || autoPw === '') ? (
           <>
             <input
+              ref={joinPwRef}
               type="password"
+              name="shogi-join-pw"
+              autoComplete="new-password"
               value={joinPassword}
               onChange={(e) => setJoinPassword(e.target.value)}
               placeholder="パスワード"
@@ -289,26 +319,29 @@ export function LobbyScreen() {
           </label>
         </div>
 
-        {/* ── カード B: 部屋に入る ── */}
+        {/* ── カード B: 部屋に入る (v0.58.1: 統合リスト。非公開切替でリストが増減) ── */}
         <div className="lobby-card">
           <div className="lc-title">{t('s04.cardJoin')}</div>
+
+          {/* 部屋一覧 (公開・パスワード有りも含む。非公開表示 ON で非公開部屋が追加される) */}
           <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: 10 }}>
-            {publicRooms.length === 0 ? (
+            {visibleRooms.length === 0 ? (
               <div className="spec-empty">部屋がありません（作成できます）</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {publicRooms.map((r) => renderRoomRow(r, false))}
+                {visibleRooms.map((r) => renderRoomRow(r))}
               </div>
             )}
           </div>
 
-          {/* 非公開部屋 表示切替 */}
+          {/* 非公開部屋を表示 (パスワードは入室時に自動送信) */}
           <div className="private-panel">
             <div className="pp-title">{t('s04.privateTitle')}</div>
             <form autoComplete="off" onSubmit={(e) => e.preventDefault()}>
               <div className="pp-row">
                 <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('s04.privatePwLabel')}</label>
                 <input
+                  ref={privatePwRef}
                   type="password"
                   name="shogi-priv-pw"
                   autoComplete="new-password"
@@ -326,15 +359,6 @@ export function LobbyScreen() {
               </div>
             </form>
             <div className="pp-note">{t('s04.privateNote')}</div>
-            {showPrivate && (
-              <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {privateRooms.length === 0 ? (
-                  <div className="spec-empty">非公開部屋はありません</div>
-                ) : (
-                  privateRooms.map((r) => renderRoomRow(r, true))
-                )}
-              </div>
-            )}
           </div>
         </div>
 
@@ -384,6 +408,7 @@ export function LobbyScreen() {
               <label style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 13 }}>
                 <span style={{ color: 'var(--text-muted)', minWidth: 90 }}>{t('s04.password')}</span>
                 <input
+                  ref={createPwRef}
                   type="password"
                   name="shogi-room-key"
                   autoComplete="new-password"

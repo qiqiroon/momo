@@ -2250,13 +2250,13 @@ body::before {
   padding: 14px;
   margin-top: 14px;
 }
+/* v0.58.1: カードタイトルを大きめに (10px uppercase → 15px 通常) */
 .lobby-card .lc-title {
-  font-size: 10px;
+  font-size: 15px;
   font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  letter-spacing: 0.03em;
   color: var(--orange);
-  margin: 0 0 10px;
+  margin: 0 0 12px;
 }
 /* 非公開チェック (v0.58: チェックを青→オレンジに) */
 .check-private {

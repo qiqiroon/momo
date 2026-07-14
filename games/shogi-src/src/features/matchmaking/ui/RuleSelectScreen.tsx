@@ -82,6 +82,15 @@ export function RuleSelectScreen() {
       setScreen('net-lobby');
       return;
     }
+    // v0.50: WS が本当に開いていない状態で「対局準備」を押されたら、無音で
+    // 失敗させずに戻ってエラーを出す。以前はここを素通りして setScreen('room')
+    // まで進んでしまい、サーバーに部屋が無いのに「相手入室待ち」画面を
+    // 見せていた (Tab A で「部屋作った」表示だが Tab B からは見えない症状)。
+    if (useMatchmakingStore.getState().connection !== 'connected') {
+      setError('サーバーに繋がっていません。少しお待ちください。');
+      setScreen('net-lobby');
+      return;
+    }
     const client = getMomoMatchmaking();
     if (!client) return;
     const userRoomName = config.roomName || '本将棋の部屋';

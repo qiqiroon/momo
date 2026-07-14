@@ -33,6 +33,10 @@ export interface MomoMatchmakingInitOptions {
   onMessage?: (data: unknown) => void;
   onError?: (msg: string) => void;
   onKicked?: () => void;
+  /** v0.50: WebSocket open (シグナリング接続確立)。1.5 秒嘘タイマーの代替 */
+  onWsOpen?: () => void;
+  /** v0.50: WebSocket close */
+  onWsClose?: () => void;
 }
 
 export interface MomoRoomInfo {

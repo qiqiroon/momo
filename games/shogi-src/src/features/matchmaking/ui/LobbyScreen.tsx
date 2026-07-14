@@ -189,14 +189,27 @@ export function LobbyScreen() {
         // 中央 dispatcher に転送。store 更新と副作用（画面遷移）はここで完結。
         handleShogiMessage(data);
       },
+      // v0.50: シグナリング接続が本当に開いたことを onWsOpen で確認してから
+      // 「接続済み (ロビー)」表示にする。従来は 1.5 秒経ったら実際の状態を
+      // 問わず「接続済み」を偽装していたため、Render スリープ復帰中でも
+      // 表示だけ緑色になり、部屋作成/入室ボタンを押しても無音失敗、あるいは
+      // 他タブから作った部屋が見えない等の不誠実な症状の原因になっていた。
+      onWsOpen: () => {
+        const state = useMatchmakingStore.getState();
+        if (state.connection === 'connecting' || state.connection === 'disconnected') {
+          setConnection('connected');
+        }
+      },
+      onWsClose: () => {
+        // 部屋に入っていない普通のロビー状態で WS が閉じた場合、
+        // ライブラリが 3 秒後に自動再接続を試みる。状態を「接続中」に戻して
+        // 「接続済み」の嘘表示を防ぐ。
+        const state = useMatchmakingStore.getState();
+        if (state.connection === 'connected' && !state.currentRoomId) {
+          setConnection('connecting');
+        }
+      },
     });
-    // 接続 open 後に enter_lobby が送信されて onRoomList が呼ばれる。
-    const timer = setTimeout(() => {
-      if (useMatchmakingStore.getState().connection === 'connecting') {
-        setConnection('connected');
-      }
-    }, 1500);
-    return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -214,6 +227,11 @@ export function LobbyScreen() {
     if (!client) return;
     if (!playerName.trim()) {
       setError('プレイヤー名を入力してください');
+      return;
+    }
+    // v0.50: サーバー未接続で押されたら黙って失敗させず、エラーを出す
+    if (useMatchmakingStore.getState().connection !== 'connected') {
+      setError('サーバーに繋がっていません。少しお待ちください。');
       return;
     }
     if (needsPassword && joinRoomId !== roomId) {

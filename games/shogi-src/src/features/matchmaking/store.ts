@@ -78,6 +78,18 @@ interface MatchmakingState {
    * null = 未実施 or リセット済み。faceUps は 5 コマの表裏。
    */
   furigomaResult: { faceUps: boolean[]; hostIsSente: boolean } | null;
+  /** v0.53 段階 2-5.3: 公平な振り駒。自分の乱数 nonce (未リビール時は隠しておく値) */
+  myFurigomaNonce: string | null;
+  /** 自分の nonce の SHA-256 ハッシュ (相手に先に送るコミット値) */
+  myFurigomaCommit: string | null;
+  /** 相手から受信したコミット (相手の nonce のハッシュ) */
+  oppFurigomaCommit: string | null;
+  /** 相手から受信した nonce (リビール値)。ハッシュ検証済み */
+  oppFurigomaNonce: string | null;
+  /** 自分のリビール送信済みフラグ (二重送信防止) */
+  myFurigomaRevealed: boolean;
+  /** 検証失敗時のエラーメッセージ (相手のリビールがコミットと不一致だった等) */
+  furigomaError: string | null;
   /** 対局開始時にホストが確定した先後（S07 対局画面が使用予定・段階 2-5.2） */
   gameStartInfo: { hostSide: SideSelection; guestSide: SideSelection } | null;
   /**
@@ -114,6 +126,12 @@ interface MatchmakingState {
   setMyReady: (b: boolean) => void;
   setOppReady: (b: boolean) => void;
   setFurigomaResult: (r: MatchmakingState['furigomaResult']) => void;
+  setMyFurigomaCommit: (nonce: string, commit: string) => void;
+  setOppFurigomaCommit: (commit: string) => void;
+  setOppFurigomaNonce: (nonce: string) => void;
+  setMyFurigomaRevealed: (v: boolean) => void;
+  setFurigomaError: (msg: string | null) => void;
+  resetFurigoma: () => void;
   setGameStartInfo: (info: MatchmakingState['gameStartInfo']) => void;
   setOpponentLeftDuringGame: (b: boolean) => void;
   setWsPendingReconnect: (b: boolean) => void;
@@ -138,6 +156,12 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
   myReady: false,
   oppReady: false,
   furigomaResult: null,
+  myFurigomaNonce: null,
+  myFurigomaCommit: null,
+  oppFurigomaCommit: null,
+  oppFurigomaNonce: null,
+  myFurigomaRevealed: false,
+  furigomaError: null,
   gameStartInfo: null,
   opponentLeftDuringGame: false,
   wsPendingReconnect: false,
@@ -165,6 +189,12 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
     myReady: false,
     oppReady: false,
     furigomaResult: null,
+    myFurigomaNonce: null,
+    myFurigomaCommit: null,
+    oppFurigomaCommit: null,
+    oppFurigomaNonce: null,
+    myFurigomaRevealed: false,
+    furigomaError: null,
     gameStartInfo: null,
     opponentLeftDuringGame: false,
     wsPendingReconnect: false,
@@ -175,6 +205,21 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
   setMyReady: (myReady) => set({ myReady }),
   setOppReady: (oppReady) => set({ oppReady }),
   setFurigomaResult: (furigomaResult) => set({ furigomaResult }),
+  setMyFurigomaCommit: (myFurigomaNonce, myFurigomaCommit) => set({ myFurigomaNonce, myFurigomaCommit }),
+  setOppFurigomaCommit: (oppFurigomaCommit) => set({ oppFurigomaCommit }),
+  setOppFurigomaNonce: (oppFurigomaNonce) => set({ oppFurigomaNonce }),
+  setMyFurigomaRevealed: (myFurigomaRevealed) => set({ myFurigomaRevealed }),
+  setFurigomaError: (furigomaError) => set({ furigomaError }),
+  resetFurigoma: () =>
+    set({
+      furigomaResult: null,
+      myFurigomaNonce: null,
+      myFurigomaCommit: null,
+      oppFurigomaCommit: null,
+      oppFurigomaNonce: null,
+      myFurigomaRevealed: false,
+      furigomaError: null,
+    }),
   setGameStartInfo: (gameStartInfo) => set({ gameStartInfo }),
   setOpponentLeftDuringGame: (opponentLeftDuringGame) => set({ opponentLeftDuringGame }),
   setWsPendingReconnect: (wsPendingReconnect) => set({ wsPendingReconnect }),
@@ -185,6 +230,12 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
     myReady: false,
     oppReady: false,
     furigomaResult: null,
+    myFurigomaNonce: null,
+    myFurigomaCommit: null,
+    oppFurigomaCommit: null,
+    oppFurigomaNonce: null,
+    myFurigomaRevealed: false,
+    furigomaError: null,
     gameStartInfo: null,
     opponentLeftDuringGame: false,
     wsPendingReconnect: false,

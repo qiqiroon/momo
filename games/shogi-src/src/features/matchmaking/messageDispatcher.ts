@@ -23,6 +23,7 @@ import { useGameStore } from '../../core/store/game-store';
 import { useOffersStore } from '../../core/store/offers-store';
 import { positionHash } from '../../core/engine';
 import { getMomoMatchmaking } from './client';
+import { sha256Hex } from './fairFlip';
 import { isShogiMessage, PROTOCOL_VERSION, type ShogiMessage } from './protocol';
 import { useMatchmakingStore } from './store';
 
@@ -59,8 +60,36 @@ export function handleShogiMessage(data: unknown): void {
       return;
     }
     case 'furigoma_result': {
+      // v0.53: 旧方式 (ホスト任せの振り駒結果)。互換のため受信は残置するが、
+      //   新クライアントは furigoma_commit + furigoma_reveal を優先する。
+      //   旧クライアントとの通信でここに来た場合は結果をそのまま採用する。
       useMatchmakingStore.setState({
         furigomaResult: { faceUps: msg.faceUps, hostIsSente: msg.hostIsSente },
+      });
+      return;
+    }
+    case 'furigoma_commit': {
+      // v0.53: 相手のコミットを受信 (相手の nonce のハッシュ)。まだ nonce は明かされていない。
+      useMatchmakingStore.getState().setOppFurigomaCommit(msg.commit);
+      return;
+    }
+    case 'furigoma_reveal': {
+      // v0.53: 相手のリビール (nonce 平文) 受信。ハッシュ検証してから採用する。
+      //   検証成功: oppFurigomaNonce を保存 → RoomScreen 側の useEffect が結果計算
+      //   検証失敗: furigomaError を立てる (両者のコミットが揃っていないケースはあり得ない)
+      const state = useMatchmakingStore.getState();
+      const oppCommit = state.oppFurigomaCommit;
+      if (!oppCommit) {
+        state.setFurigomaError('リビールがコミットより先に届きました (プロトコル違反)');
+        return;
+      }
+      sha256Hex(msg.nonce).then((computed) => {
+        const s = useMatchmakingStore.getState();
+        if (computed !== oppCommit) {
+          s.setFurigomaError('相手の乱数がコミットと不一致です (改ざんの疑い)');
+          return;
+        }
+        s.setOppFurigomaNonce(msg.nonce);
       });
       return;
     }

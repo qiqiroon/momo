@@ -57,8 +57,8 @@ export interface StateSyncMsg extends Envelope {
 }
 
 /**
- * 両者「おまかせ」時にホストが乱数計算して送信する振り駒結果。
- * 両者が同じ結果を受け取ってアニメを再生する。
+ * 両者「おまかせ」時にホストが乱数計算して送信する振り駒結果 (v0.25 の旧方式)。
+ * v0.53 で公平なコミット&リビール方式に置き換え済み。互換のためだけに残置。
  *
  * faceUps は 5 コマの各面（true = 表 = 歩、false = 裏 = と）。
  * hostIsSente = 表の枚数が過半なら true（同数の場合はホストが再計算して送り直す）。
@@ -67,6 +67,20 @@ export interface FurigomaResultMsg extends Envelope {
   type: 'furigoma_result';
   faceUps: boolean[];
   hostIsSente: boolean;
+}
+/**
+ * 公平な振り駒 (v0.53 段階 2-5.3)。
+ * commit = SHA-256(nonce) を先に交換し、相手のコミット受信後に nonce を明かす。
+ * 受信側は相手の nonce をハッシュしてコミットと一致するかを検証、
+ * 一致すれば両 nonce の XOR から結果を導出する。
+ */
+export interface FurigomaCommitMsg extends Envelope {
+  type: 'furigoma_commit';
+  commit: string;
+}
+export interface FurigomaRevealMsg extends Envelope {
+  type: 'furigoma_reveal';
+  nonce: string;
 }
 
 /**
@@ -182,6 +196,8 @@ export type ShogiMessage =
   | ReadyMsg
   | StateSyncMsg
   | FurigomaResultMsg
+  | FurigomaCommitMsg
+  | FurigomaRevealMsg
   | GameStartMsg
   | MoveMsg
   | ChatMsg

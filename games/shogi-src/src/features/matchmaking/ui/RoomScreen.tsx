@@ -13,6 +13,7 @@ import { RoomBadges } from './RoomBadges';
 import { useMatchmakingStore, type SideChoice, type SideSelection } from '../store';
 import { PROTOCOL_VERSION } from '../protocol';
 import { handleShogiMessage } from '../messageDispatcher';
+import { deriveFurigoma, generateNonce, sha256Hex } from '../fairFlip';
 
 /**
  * S06 対局準備画面（段階 2-5.1 で S05 ホスト待機と統合、
@@ -46,9 +47,18 @@ export function RoomScreen() {
   const myReady = useMatchmakingStore((s) => s.myReady);
   const oppReady = useMatchmakingStore((s) => s.oppReady);
   const furigomaResult = useMatchmakingStore((s) => s.furigomaResult);
+  const myFurigomaNonce = useMatchmakingStore((s) => s.myFurigomaNonce);
+  const myFurigomaCommit = useMatchmakingStore((s) => s.myFurigomaCommit);
+  const oppFurigomaCommit = useMatchmakingStore((s) => s.oppFurigomaCommit);
+  const oppFurigomaNonce = useMatchmakingStore((s) => s.oppFurigomaNonce);
+  const myFurigomaRevealed = useMatchmakingStore((s) => s.myFurigomaRevealed);
+  const furigomaError = useMatchmakingStore((s) => s.furigomaError);
   const setMySideChoice = useMatchmakingStore((s) => s.setMySideChoice);
   const setMyReady = useMatchmakingStore((s) => s.setMyReady);
   const setFurigomaResult = useMatchmakingStore((s) => s.setFurigomaResult);
+  const setMyFurigomaCommit = useMatchmakingStore((s) => s.setMyFurigomaCommit);
+  const setMyFurigomaRevealed = useMatchmakingStore((s) => s.setMyFurigomaRevealed);
+  const resetFurigoma = useMatchmakingStore((s) => s.resetFurigoma);
   const resetHandshake = useMatchmakingStore((s) => s.resetHandshake);
 
   const subLocale: LocaleCode = locale === 'cat' ? 'ja' : locale;
@@ -81,21 +91,56 @@ export function RoomScreen() {
     }
   }, [isHost, opponentName, resetHandshake]);
 
-  // 両者「おまかせ」が揃い、まだ振り駒結果がない場合、ホストが計算＆配信
+  // v0.53: 振り駒の検証エラーが起きたら errorMessage に流す (画面上部の帯に表示)
   useEffect(() => {
-    if (!isHost) return;
+    if (furigomaError) {
+      useMatchmakingStore.getState().setError(furigomaError);
+    }
+  }, [furigomaError]);
+
+  // v0.53 段階 2-5.3: 公平な振り駒 (コミット & リビール 3 段階)
+  //
+  // 段階 1: 両者「おまかせ」検知 → 各自 nonce を生成しコミット (SHA-256) を送信
+  useEffect(() => {
     if (mySideChoice !== 'random' || oppSideChoice !== 'random') return;
-    if (furigomaResult) return;
-    // 5 コマを独立にランダム（true = 表 = 歩、false = 裏 = と）
-    const faceUps: boolean[] = Array.from({ length: 5 }, () => Math.random() < 0.5);
-    const faceUpCount = faceUps.filter((x) => x).length;
-    // 3 枚以上表ならホスト先手（奇数個なので同数はあり得ない）
-    const hostIsSente = faceUpCount >= 3;
-    const payload = { v: PROTOCOL_VERSION, type: 'furigoma_result' as const, faceUps, hostIsSente };
-    sendMsg(payload);
-    setFurigomaResult({ faceUps, hostIsSente });
+    if (myFurigomaCommit) return; // 既にコミット済み
+    (async () => {
+      const nonce = generateNonce();
+      const commit = await sha256Hex(nonce);
+      setMyFurigomaCommit(nonce, commit);
+      sendMsg({ v: PROTOCOL_VERSION, type: 'furigoma_commit' as const, commit });
+    })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isHost, mySideChoice, oppSideChoice, furigomaResult]);
+  }, [mySideChoice, oppSideChoice, myFurigomaCommit]);
+
+  // 段階 2: 両者のコミットが揃った → 自分の nonce を平文で送信 (リビール)
+  useEffect(() => {
+    if (!myFurigomaCommit || !oppFurigomaCommit) return;
+    if (myFurigomaRevealed) return; // 二重送信防止
+    if (!myFurigomaNonce) return;
+    setMyFurigomaRevealed(true);
+    sendMsg({ v: PROTOCOL_VERSION, type: 'furigoma_reveal' as const, nonce: myFurigomaNonce });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myFurigomaCommit, oppFurigomaCommit, myFurigomaRevealed, myFurigomaNonce]);
+
+  // 段階 3: 両者の nonce (自分の＋検証済み相手) が揃った → 結果を導出
+  //   相手 nonce の検証 (SHA-256 一致) は messageDispatcher 側で済み。
+  //   ここでは XOR で合成し 5 コマの表裏と hostIsSente を決めるだけ。
+  useEffect(() => {
+    if (!myFurigomaNonce || !oppFurigomaNonce) return;
+    if (furigomaResult) return; // 既に導出済み
+    // 導出は決定的なので両者で同じ結果になる
+    const isHostVal = isHost;
+    // deriveFurigoma は「先に渡した nonce の持ち主が sente か」ではなく、
+    // 「両 nonce の合成の 5 bit で face-up 過半なら hostIsSente」を返す。
+    // 両側で「ホスト」の解釈を揃える必要があるので、順序ではなくホスト/ゲスト側で
+    // nonce の役割を統一する: 先の引数 = ホストの nonce にする。
+    const hostNonce = isHostVal ? myFurigomaNonce : oppFurigomaNonce;
+    const guestNonce = isHostVal ? oppFurigomaNonce : myFurigomaNonce;
+    const derived = deriveFurigoma(hostNonce, guestNonce);
+    setFurigomaResult(derived);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myFurigomaNonce, oppFurigomaNonce, furigomaResult, isHost]);
 
   // 振り駒結果が新しく確定 → アニメを 1 秒間再生
   useEffect(() => {
@@ -108,11 +153,12 @@ export function RoomScreen() {
     return () => clearTimeout(timer);
   }, [furigomaResult]);
 
-  // 選択が「両者おまかせ」以外に変化したら、古い振り駒結果を破棄
+  // 選択が「両者おまかせ」以外に変化したら、振り駒関連の一切をリセット
+  //   (旧振り駒結果だけでなく nonce/commit/reveal も含む。次回また両者おまかせに
+  //    戻ったら段階 1 からやり直し)
   useEffect(() => {
-    if (!furigomaResult) return;
     if (mySideChoice !== 'random' || oppSideChoice !== 'random') {
-      setFurigomaResult(null);
+      resetFurigoma();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mySideChoice, oppSideChoice]);

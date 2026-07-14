@@ -16,6 +16,22 @@ export type SideChoice = 'sente' | 'gote' | 'random' | null;
 export { DEFAULT_TIME_CONTROL };
 export type { TimeControl, TimeControlMode };
 
+/** v0.57 段階 2-4: トーラス盤の詳細モード (S02 モック追随)
+ *  - 'none'     : 平面盤 (通常)
+ *  - 'cylinder' : 円筒 (左右がつながる)
+ *  - 'full'     : 完全トーラス (上下左右すべてつながる)
+ *  部屋名にはブール (トーラス有無) しか載らないため、cylinder/full の別は
+ *  ルール同期チャネルで送る想定 (Phase 4 実装時)。
+ */
+export type TorusMode = 'none' | 'cylinder' | 'full';
+
+/** v0.57 段階 2-4: 量子将棋の未確定駒表示方式 (S02 モック追随)
+ *  - 'cycle' : 1秒ごとに候補を1つずつ表示 (巡回)
+ *  - 'stack' : 全候補を黒で重ねる (重ね)
+ *  設定者側 (ホスト) が選んだ方式を両プレイヤーに共通適用する。
+ */
+export type QuantumDisplayMode = 'cycle' | 'stack';
+
 export interface RoomConfig {
   /** ユーザーが入力した「素の」部屋名。encode 前・decode 後の状態を保持する。 */
   roomName: string;
@@ -25,8 +41,12 @@ export interface RoomConfig {
   gameType: GameType;
   /** トーラス盤面 ON/OFF (対局実装は Phase 3+、現状はラベル用途) */
   torus: boolean;
+  /** v0.57: トーラスの詳細モード (S02 の 3 択セグメント。torus と連動、torus=false のとき常に 'none') */
+  torusMode: TorusMode;
   /** 量子将棋 ON/OFF (対局実装は Phase 3+、現状はラベル用途) */
   quantum: boolean;
+  /** v0.57: 未確定駒の表示方式 (S02 の 2 択、両プレイヤー共通適用) */
+  quantumDisplayMode: QuantumDisplayMode;
   /** 自由ルール将棋 (shogi-custom) の MGF ルール名 (Phase 3+ で利用) */
   customRuleName?: string;
   timeControl: TimeControl;
@@ -38,7 +58,9 @@ export const DEFAULT_ROOM_CONFIG: RoomConfig = {
   isPublic: true,
   gameType: 'shogi',
   torus: false,
+  torusMode: 'none',
   quantum: false,
+  quantumDisplayMode: 'cycle',
   timeControl: DEFAULT_TIME_CONTROL,
 };
 

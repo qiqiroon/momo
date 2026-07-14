@@ -1,51 +1,41 @@
-import { useEffect } from 'react';
 import { useI18nStore } from '../../../core/store/i18n-store';
 import { useRouteStore } from '../../../core/store/route-store';
 import { t as _t } from '../../../core/i18n';
 import type { LocaleCode } from '../../../core/i18n/types';
 import { CatIcon } from '../../../core/ui-core/CatIcon';
 import { HeaderCommonRight } from '../../../core/ui-core/HeaderCommonRight';
-import { getMomoMatchmaking } from '../client';
-import type { TimeControlMode } from '../store';
-import { useMatchmakingStore } from '../store';
+import { useMatchmakingStore, type TorusMode, type QuantumDisplayMode } from '../store';
 import { ScreenBand } from '../../../core/ui-core/ScreenBand';
-import { encodeRoomName, getBadgeLabels, type GameType } from '../roomNameCodec';
+import type { GameType } from '../roomNameCodec';
+import { MiniBoardPreview } from './MiniBoardPreview';
 
-const GAME_OPTIONS: { value: GameType; disabled?: boolean; note?: string }[] = [
-  { value: 'shogi' },
-  { value: 'hasami', note: 'Phase 3 でエンジン実装予定 (現状は本将棋盤面にフォールバック)' },
-];
+/** v0.57 S02 ルール選択 (モック S02_v2 追随)。
+ *
+ *  役割 (v0.57 で純粋なルール選択画面に整理):
+ *  - ルール一覧 (本将棋 / はさみ将棋 / カスタム) から 1 つ選ぶ
+ *  - モディファイア (トーラス盤 / 量子将棋) を設定
+ *  - 選択結果は pendingRoomConfig に書き込むだけ。部屋作成は S04 側で行う
+ *
+ *  部屋名 / パスワード / 公開 / 持ち時間 は S04 (ロビー) に移動済み。
+ */
 
-const TIME_MODES: { value: TimeControlMode; label: string; desc: string }[] = [
-  { value: 'byoyomi', label: '秒読み', desc: '本時間 + 一手ごとに秒読み' },
-  { value: 'sudden_death', label: '切れ負け', desc: '本時間のみ・切れたら負け' },
-  { value: 'fischer', label: 'フィッシャー', desc: '本時間 + 一手ごとに加算' },
-  { value: 'no_limit', label: '時間フリー', desc: '制限なし' },
-];
-
-// v0.36 仕様書 D5 §7 の候補
-const MAIN_OPTIONS: { value: number; label: string }[] = [
-  { value: 0, label: '0（秒読みのみ）' },
-  { value: 5 * 60, label: '5分' },
-  { value: 15 * 60, label: '15分' },
-  { value: 30 * 60, label: '30分' },
-  { value: 60 * 60, label: '1時間' },
-];
-const BYO_OPTIONS: { value: number; label: string }[] = [
-  { value: 0, label: '0秒' },
-  { value: 5, label: '5秒' },
-  { value: 10, label: '10秒' },
-  { value: 30, label: '30秒' },
-  { value: 60, label: '60秒' },
-];
-function formatMain(sec: number): string {
-  if (sec === 0) return '0（秒読みのみ）';
-  if (sec >= 3600) return `${sec / 3600}時間`;
-  return `${sec / 60}分`;
+interface RuleDef {
+  id: GameType;
+  nameKey: string;
+  descKey: string;
+  torusOK: boolean;
+  quantumOK: boolean;
+  disabled?: boolean;
 }
 
-/** localStorage キー：前回の部屋名を記憶（パスワードは保存しない） */
-const LS_LAST_ROOM_NAME = 'shogi.roomForm.lastRoomName';
+// 現状 selectable な 3 ルール
+// 軍人将棋・チェスは今回対象外 (モックのユーザー要望による絞り込み)
+const RULES: RuleDef[] = [
+  { id: 'shogi', nameKey: 's02.ruleHongi.name', descKey: 's02.ruleHongi.desc', torusOK: true, quantumOK: true },
+  { id: 'hasami', nameKey: 's02.ruleHasami.name', descKey: 's02.ruleHasami.desc', torusOK: true, quantumOK: false },
+  // カスタムは Phase 8 実装予定・現状は disabled でモック追随のみ (見た目のみ)
+  { id: 'shogi-custom', nameKey: 's02.ruleCustom.name', descKey: 's02.ruleCustom.desc', torusOK: true, quantumOK: true, disabled: true },
+];
 
 export function RuleSelectScreen() {
   const locale = useI18nStore((s) => s.locale);
@@ -53,87 +43,99 @@ export function RuleSelectScreen() {
   const setScreen = useRouteStore((s) => s.setScreen);
   const config = useMatchmakingStore((s) => s.pendingRoomConfig);
   const setConfig = useMatchmakingStore((s) => s.setPendingRoomConfig);
-  const playerName = useMatchmakingStore((s) => s.playerName);
-  const setError = useMatchmakingStore((s) => s.setError);
-  const setActiveRoomConfig = useMatchmakingStore((s) => s.setActiveRoomConfig);
-  const setCurrentRoom = useMatchmakingStore((s) => s.setCurrentRoom);
-  const setOpponentName = useMatchmakingStore((s) => s.setOpponentName);
 
   const subLocale: LocaleCode = locale === 'cat' ? 'ja' : locale;
   const subtitle = subLocale === 'zh' ? '擒王为胜，破局无界' : 'Capture the King, Bend the Rules';
 
-  // 画面表示時に前回使った部屋名を復元（パスワードは記憶しない）
-  useEffect(() => {
-    if (config.roomName) return;
-    try {
-      const saved = localStorage.getItem(LS_LAST_ROOM_NAME);
-      if (saved) setConfig({ roomName: saved });
-    } catch {
-      // localStorage 使えない環境は無視
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const currentRule = RULES.find((r) => r.id === config.gameType) ?? RULES[0];
+  const torusUsable = currentRule.torusOK;
+  const quantumUsable = currentRule.quantumOK;
 
-  const onBack = () => setScreen('net-lobby');
-
-  const onStart = () => {
-    if (!playerName.trim()) {
-      setError('ロビー画面でプレイヤー名を入力してください');
-      setScreen('net-lobby');
-      return;
+  // ルール変更時、そのルールで非対応のモディファイアを自動的に OFF に落とす。
+  const onSelectRule = (rid: GameType) => {
+    const def = RULES.find((r) => r.id === rid);
+    if (!def || def.disabled) return;
+    const patch: Parameters<typeof setConfig>[0] = { gameType: rid };
+    if (!def.torusOK && config.torusMode !== 'none') {
+      patch.torusMode = 'none';
+      patch.torus = false;
     }
-    // v0.50: WS が本当に開いていない状態で「対局準備」を押されたら、無音で
-    // 失敗させずに戻ってエラーを出す。以前はここを素通りして setScreen('room')
-    // まで進んでしまい、サーバーに部屋が無いのに「相手入室待ち」画面を
-    // 見せていた (Tab A で「部屋作った」表示だが Tab B からは見えない症状)。
-    if (useMatchmakingStore.getState().connection !== 'connected') {
-      setError('サーバーに繋がっていません。少しお待ちください。');
-      setScreen('net-lobby');
-      return;
+    if (!def.quantumOK && config.quantum) {
+      patch.quantum = false;
     }
-    const client = getMomoMatchmaking();
-    if (!client) return;
-    const userRoomName = config.roomName || '本将棋の部屋';
-    // encoding: [本+環+量:カスタム名] ユーザー部屋名 の形にして送信
-    const encodedName = encodeRoomName({
-      gameType: config.gameType,
-      torus: config.torus,
-      quantum: config.quantum,
-      customRuleName: config.customRuleName,
-      userRoomName,
-    });
-    // 次回のために「素の」部屋名だけ保存（パスワードは保存しない）
-    try {
-      localStorage.setItem(LS_LAST_ROOM_NAME, userRoomName);
-    } catch {
-      // localStorage 使えない環境は無視
-    }
-    // activeRoomConfig / currentRoomName にはサーバー保管形の encoded を格納する
-    // (WaitingScreen/RoomScreen での表示はレンダリング時に decode する)
-    setActiveRoomConfig({ ...config, roomName: encodedName });
-    setCurrentRoom({ roomId: null, roomName: encodedName, isHost: true });
-    setOpponentName('');
-    client.createRoom({
-      hostName: playerName,
-      name: encodedName,
-      password: config.password,
-      isPublic: config.isPublic,
-      rules: {
-        game: config.gameType,
-        torus: config.torus,
-        quantum: config.quantum,
-        customRuleName: config.customRuleName,
-        time: config.timeControl,
-      },
-    });
-    setScreen('room');
+    setConfig(patch);
   };
 
-  const badgeLabels = getBadgeLabels(locale);
+  const onSetTorus = (mode: TorusMode) => {
+    if (!torusUsable) return;
+    setConfig({ torusMode: mode, torus: mode !== 'none' });
+  };
+  const onSetQuantum = (on: boolean) => {
+    if (!quantumUsable) return;
+    setConfig({ quantum: on });
+  };
+  const onSetQm = (m: QuantumDisplayMode) => setConfig({ quantumDisplayMode: m });
+
+  const onBack = () => setScreen('net-lobby');
+  const onCommit = () => setScreen('net-lobby');
+
+  // ── サマリ (右カラム / 携帯: 決定ボタンの下) ──
+  const modChips: string[] = [];
+  if (config.torusMode === 'cylinder') modChips.push(t('s04.summaryTorusCyl'));
+  else if (config.torusMode === 'full') modChips.push(t('s04.summaryTorusFull'));
+  if (config.quantum) modChips.push(t('s04.summaryQuantum'));
+
+  // 決定 + サマリ (右カラム上部 / 携帯: 設定パネルの直下)
+  const commitCard = (
+    <div className="commit-card">
+      <button className="go-btn" type="button" onClick={onCommit}>
+        {t('s02.commitGo')}
+      </button>
+      <div className="go-sub">{t('s02.commitGoBack')}</div>
+      <div className="commit-summary" style={{ marginTop: 12, marginBottom: 0 }}>
+        <b>{t('s02.commitSumRule')}</b>: {t(currentRule.nameKey)}
+        <br />
+        <b>{t('s02.commitSumMods')}</b>:{' '}
+        {modChips.length === 0 ? (
+          t('s02.commitSumNone')
+        ) : (
+          modChips.map((c, i) => (
+            <span key={i} className="mod-chip">
+              {c}
+            </span>
+          ))
+        )}
+      </div>
+    </div>
+  );
+
+  // プレビュー (右カラム下部 / 携帯: サマリの下)
+  const previewCard = (
+    <div className="preview-card">
+      <div className="pv-title">{t('s02.pvTitle')}</div>
+      <div className="pv-topo">
+        {config.torusMode === 'none'
+          ? t('s02.pvTopoPlane')
+          : config.torusMode === 'cylinder'
+          ? t('s02.pvTopoCyl')
+          : t('s02.pvTopoFull')}
+      </div>
+      <div className="pv-board-wrap">
+        <MiniBoardPreview rule={currentRule.id} torusMode={config.torusMode} />
+      </div>
+      {config.torusMode !== 'none' && (
+        <div style={{ textAlign: 'center' }}>
+          <span className="wrap-tag">
+            {config.torusMode === 'cylinder' ? t('s02.wrapCyl') : t('s02.wrapFull')}
+          </span>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="stage">
-      <div style={{ maxWidth: 640, margin: '0 auto' }}>
+      <div style={{ maxWidth: 940, margin: '0 auto' }}>
         <header className="match-header">
           <CatIcon />
           <div className="title-block">
@@ -146,210 +148,171 @@ export function RuleSelectScreen() {
           <div className="header-spacer" />
           <div className="header-tools">
             <button className="reset-btn" type="button" onClick={onBack}>
-              ロビーへ戻る
+              {t('s02.commitGoBack')}
             </button>
             <HeaderCommonRight />
           </div>
         </header>
 
-        <ScreenBand code="S02" name="ルール選択" />
+        <ScreenBand code="S02" name={t('s02.screenTitle')} />
 
-        {/*
-         * Chrome の自動 fill 対策:
-         * - 部屋名 input と パスワード input は WebAuthn / auto-login と関係ない用途
-         * - <form autoComplete="off"> で囲み、パスワードは autoComplete="new-password" にする
-         *   （既存パスワードマネージャの候補が出ないよう "new-password" を指定）
-         * - 適当な name 属性を付けると Chrome が推測しにくくなる
-         */}
-        <form autoComplete="off" onSubmit={(e) => e.preventDefault()}>
-        <div style={{ marginTop: 10, padding: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
-          <div className="panel-label"><span>部屋情報</span></div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <label style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 13 }}>
-              <span style={{ color: 'var(--text-muted)', minWidth: 90 }}>部屋名</span>
-              <input
-                type="text"
-                name="shogi-room-label"
-                autoComplete="off"
-                value={config.roomName}
-                onChange={(e) => setConfig({ roomName: e.target.value })}
-                placeholder="本将棋の部屋"
-                maxLength={30}
-                style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border-strong)', color: 'var(--text)', padding: '5px 10px', borderRadius: 6, fontSize: 13 }}
-              />
-            </label>
-            <label style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 13 }}>
-              <span style={{ color: 'var(--text-muted)', minWidth: 90 }}>パスワード</span>
-              <input
-                type="password"
-                name="shogi-room-key"
-                autoComplete="new-password"
-                value={config.password}
-                onChange={(e) => setConfig({ password: e.target.value })}
-                placeholder="(任意)"
-                style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border-strong)', color: 'var(--text)', padding: '5px 10px', borderRadius: 6, fontSize: 13 }}
-              />
-            </label>
-            <label style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 13 }}>
-              <input type="checkbox" checked={config.isPublic} onChange={(e) => setConfig({ isPublic: e.target.checked })} />
-              <span style={{ color: 'var(--text-muted)' }}>ロビー一覧に公開する</span>
-            </label>
-          </div>
-        </div>
-        </form>
-
-        <div style={{ marginTop: 14, padding: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
-          <div className="panel-label"><span>ゲーム</span></div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {GAME_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                className="act"
-                onClick={() => setConfig({ gameType: opt.value })}
-                style={config.gameType === opt.value ? { borderColor: 'var(--orange)', color: 'var(--orange-light)', background: 'var(--bg-selected)' } : {}}
-                title={opt.note}
-              >
-                {badgeLabels.gameType[opt.value]}
-              </button>
-            ))}
-          </div>
-          {config.gameType === 'hasami' && (
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
-              ※ はさみ将棋のエンジンは Phase 3 で実装予定（現状は本将棋盤面にフォールバック）
-            </div>
-          )}
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-            ※ 自由ルール将棋（MGF）は Phase 3 で追加予定
-          </div>
+        <div className="screen-head">
+          <h2>{t('s02.screenTitle')}</h2>
         </div>
 
-        <div style={{ marginTop: 14, padding: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
-          <div className="panel-label"><span>盤面ルール</span></div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
-            <label style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <input type="checkbox" checked={config.torus} onChange={(e) => setConfig({ torus: e.target.checked })} />
-              <span style={{ color: 'var(--text)' }}>トーラス盤面（端と端がつながる）</span>
-            </label>
-            <label style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <input type="checkbox" checked={config.quantum} onChange={(e) => setConfig({ quantum: e.target.checked })} />
-              <span style={{ color: 'var(--text)' }}>量子将棋</span>
-            </label>
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
-            ※ 実際の対局への反映は Phase 3+ で実装予定。現状は部屋のラベル表示のみ
-          </div>
-        </div>
-
-        <div style={{ marginTop: 14, padding: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
-          <div className="panel-label"><span>先後</span></div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-            入室後の準備画面で両者がそれぞれ選択します
-          </div>
-        </div>
-
-        <div style={{ marginTop: 14, padding: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
-          <div className="panel-label"><span>持ち時間モード</span></div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {TIME_MODES.map((m) => (
-              <button
-                key={m.value}
-                type="button"
-                className="act"
-                onClick={() => {
-                  // モード切替時は既存の秒数を保ちつつ、必要なフィールドを補う
-                  const cur = config.timeControl;
-                  setConfig({
-                    timeControl: {
-                      mode: m.value,
-                      mainSeconds: m.value === 'no_limit' ? 0 : cur.mainSeconds || 600,
-                      byoyomiSeconds: m.value === 'byoyomi' ? cur.byoyomiSeconds ?? 30 : undefined,
-                      incrementSeconds: m.value === 'fischer' ? cur.incrementSeconds ?? 10 : undefined,
-                    },
-                  });
-                }}
-                style={config.timeControl.mode === m.value ? { borderColor: 'var(--orange)', color: 'var(--orange-light)', background: 'var(--bg-selected)' } : {}}
-                title={m.desc}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
-
-          {/* v0.36: 本時間 / 秒読み / 加算 の秒数選択（仕様書 D5 §7 の候補） */}
-          {config.timeControl.mode !== 'no_limit' && (
-            <div style={{ marginTop: 12 }}>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>本時間</div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {MAIN_OPTIONS.filter((o) => o.value > 0 || config.timeControl.mode === 'byoyomi').map((o) => (
+        <div className="s02-grid">
+          {/* ─── 左カラム: 設定 (デスクトップ) / 一番上 (携帯) ─── */}
+          <div className="config-col">
+            <div className="section-label">{t('s02.secRules')}</div>
+            <div className="rule-list">
+              {RULES.map((r) => {
+                const selected = r.id === config.gameType;
+                return (
                   <button
-                    key={o.value}
+                    key={r.id}
                     type="button"
-                    className="act"
-                    onClick={() => setConfig({ timeControl: { ...config.timeControl, mainSeconds: o.value } })}
-                    style={config.timeControl.mainSeconds === o.value ? { borderColor: 'var(--orange)', color: 'var(--orange-light)', background: 'var(--bg-selected)' } : {}}
+                    className={`rule-card${selected ? ' selected' : ''}${r.disabled ? ' disabled' : ''}`}
+                    onClick={() => onSelectRule(r.id)}
+                    disabled={r.disabled}
                   >
-                    {o.label}
+                    <div className="rc-name">{t(r.nameKey)}</div>
+                    <div className="rc-desc">{t(r.descKey)}</div>
+                    {selected && (
+                      <div className="rc-check" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                          <path d="M5 12l5 5L20 7" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </div>
+                    )}
                   </button>
-                ))}
+                );
+              })}
+            </div>
+
+            <div className="mod-block">
+              <div className="section-label">{t('s02.secMods')}</div>
+
+              {/* ── トーラス ── */}
+              <div className="mod-group">
+                <h3>
+                  <span>{t('s02.torus')}</span>
+                  <span className="sell">{t('s02.sellBadge')}</span>
+                </h3>
+                <div className="mod-note">{t('s02.torusNote')}</div>
+                <div className="seg">
+                  <button
+                    type="button"
+                    className={config.torusMode === 'none' ? 'on' : ''}
+                    onClick={() => onSetTorus('none')}
+                    disabled={!torusUsable}
+                  >
+                    {t('s02.torusOff')}
+                  </button>
+                  <button
+                    type="button"
+                    className={config.torusMode === 'cylinder' ? 'on' : ''}
+                    onClick={() => onSetTorus('cylinder')}
+                    disabled={!torusUsable}
+                  >
+                    {t('s02.torusCyl')}
+                  </button>
+                  <button
+                    type="button"
+                    className={config.torusMode === 'full' ? 'on' : ''}
+                    onClick={() => onSetTorus('full')}
+                    disabled={!torusUsable}
+                  >
+                    {t('s02.torusFull')}
+                  </button>
+                  {config.torusMode !== 'none' && (
+                    <span className="neta-badge show">{t('s02.netaBadge')}</span>
+                  )}
+                </div>
+                {!torusUsable && <div className="incompat show">{t('s02.torusIncompat')}</div>}
+              </div>
+
+              {/* ── 量子将棋 ── */}
+              <div className="mod-group quantum">
+                <h3>
+                  <span>{t('s02.quantum')}</span>
+                </h3>
+                <div className="mod-note">{t('s02.quantumNote')}</div>
+                <div className="seg">
+                  <button
+                    type="button"
+                    className={!config.quantum ? 'on' : ''}
+                    onClick={() => onSetQuantum(false)}
+                    disabled={!quantumUsable}
+                  >
+                    {t('s02.quantumOff')}
+                  </button>
+                  <button
+                    type="button"
+                    className={config.quantum ? 'on' : ''}
+                    onClick={() => onSetQuantum(true)}
+                    disabled={!quantumUsable}
+                  >
+                    {t('s02.quantumOn')}
+                  </button>
+                </div>
+                {!quantumUsable && <div className="incompat show">{t('s02.quantumIncompat')}</div>}
+
+                {/* 量子表示方式サブパネル (量子 ON のとき出現) */}
+                {config.quantum && quantumUsable && (
+                  <div className="quantum-sub show">
+                    <div className="qh">{t('s02.qmTitle')}</div>
+                    <div className="fair">
+                      <b>{t('s02.qmFairBold')}</b>
+                      {t('s02.qmFairRest')}
+                    </div>
+                    <div className="seg">
+                      <button
+                        type="button"
+                        className={config.quantumDisplayMode === 'cycle' ? 'on' : ''}
+                        onClick={() => onSetQm('cycle')}
+                      >
+                        {t('qmode.cycle')}
+                      </button>
+                      <button
+                        type="button"
+                        className={config.quantumDisplayMode === 'stack' ? 'on' : ''}
+                        onClick={() => onSetQm('stack')}
+                      >
+                        {t('qmode.stack')}
+                      </button>
+                    </div>
+                    <div className="qpreview">
+                      <div className="qpv">
+                        <div className="qpv-cell">
+                          <span className="qmk">?</span>
+                          <span className="g">歩</span>
+                        </div>
+                        <div className="qpv-label">{t('s02.qmCycleDesc')}</div>
+                      </div>
+                      <div className="qpv">
+                        <div className="qpv-cell">
+                          <span className="qmk">?</span>
+                          <span className="stack">
+                            <span>歩</span>
+                            <span>桂</span>
+                            <span>銀</span>
+                          </span>
+                        </div>
+                        <div className="qpv-label">{t('s02.qmStackDesc')}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-          )}
-          {config.timeControl.mode === 'byoyomi' && (
-            <div style={{ marginTop: 12 }}>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>秒読み（1手ごとの時間）</div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {BYO_OPTIONS.filter((o) => o.value > 0).map((o) => (
-                  <button
-                    key={o.value}
-                    type="button"
-                    className="act"
-                    onClick={() => setConfig({ timeControl: { ...config.timeControl, byoyomiSeconds: o.value } })}
-                    style={config.timeControl.byoyomiSeconds === o.value ? { borderColor: 'var(--orange)', color: 'var(--orange-light)', background: 'var(--bg-selected)' } : {}}
-                  >
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          {config.timeControl.mode === 'fischer' && (
-            <div style={{ marginTop: 12 }}>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>加算（1手ごとに追加）</div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {BYO_OPTIONS.map((o) => (
-                  <button
-                    key={o.value}
-                    type="button"
-                    className="act"
-                    onClick={() => setConfig({ timeControl: { ...config.timeControl, incrementSeconds: o.value } })}
-                    style={config.timeControl.incrementSeconds === o.value ? { borderColor: 'var(--orange)', color: 'var(--orange-light)', background: 'var(--bg-selected)' } : {}}
-                  >
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 10 }}>
-            現在の設定: {TIME_MODES.find((m) => m.value === config.timeControl.mode)?.desc}
-            {config.timeControl.mode !== 'no_limit' && (
-              <> (本時間 {formatMain(config.timeControl.mainSeconds)})</>
-            )}
-            {config.timeControl.mode === 'byoyomi' && (
-              <> + 秒読み {config.timeControl.byoyomiSeconds}秒</>
-            )}
-            {config.timeControl.mode === 'fischer' && (
-              <> + 加算 {config.timeControl.incrementSeconds}秒</>
-            )}
           </div>
-        </div>
 
-        <div style={{ marginTop: 20, display: 'flex', justifyContent: 'center' }}>
-          <button className="act taunt" type="button" onClick={onStart} style={{ minWidth: 180 }}>
-            対局準備 (部屋作成)
-          </button>
+          {/* ─── 右カラム: 決定 → サマリ → プレビュー (デスクトップ)
+                携帯では設定の直下に 決定 → サマリ → プレビュー の順で縦積み ─── */}
+          <div className="preview-col">
+            {commitCard}
+            {previewCard}
+          </div>
         </div>
       </div>
     </div>

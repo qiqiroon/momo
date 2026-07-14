@@ -45,7 +45,11 @@ function normalizeIncomingRules(rules: unknown, roomName: string): RoomConfig | 
     isPublic: true,
     gameType,
     torus: !!r.torus,
+    // v0.57: ゲスト側は torus のブールしか受け取らないため、
+    // cylinder をデフォルトとして復元する (詳細モードはルール同期で送る予定)。
+    torusMode: r.torus ? 'cylinder' : 'none',
     quantum: !!r.quantum,
+    quantumDisplayMode: 'cycle',
     customRuleName: r.customRuleName,
     timeControl: {
       mode: time.mode ?? DEFAULT_ROOM_CONFIG.timeControl.mode,

@@ -144,7 +144,7 @@ export const en: LocaleData = {
     's07.oppLeftBody': 'The match is aborted. Please leave to return to the lobby.',
     's07.oppLeftBtn': 'Leave (back to lobby)',
     's06.sideShareNote': 'Your side choice is shown identically on the opponent\'s screen.',
-    's06.fairNote': '⚖ In online play the piece toss uses fair randomness both players can verify (method to be fixed in spec §6).',
+    's06.fairNote': '⚖ In online play the piece toss combines random numbers from both players. Neither can bias the outcome because each must commit to their number before seeing the other\'s.',
     's06.lblChatSec': 'Chat',
     's06.lblSend': 'Send',
     's06.pHost': 'HOST>',

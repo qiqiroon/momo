@@ -144,7 +144,7 @@ export const zh: LocaleData = {
     's07.oppLeftBody': '对局中止。请退出返回大厅。',
     's07.oppLeftBtn': '退出（返回大厅）',
     's06.sideShareNote': '先后手设置会同步显示在对方的屏幕上。',
-    's06.fairNote': '⚖ 联机掷驹将使用双方均可验证的公平随机（方式将在规范§6确定）。',
+    's06.fairNote': '⚖ 联机掷驹将合成双方各自的随机数。任何一方在看到对方的随机数之前必须先提交自己的随机数，因此谁都无法事后操纵结果。',
     's06.lblChatSec': '聊天',
     's06.lblSend': '发送',
     's06.pHost': '房主＞',

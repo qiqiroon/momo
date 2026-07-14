@@ -244,20 +244,50 @@ export function RoomScreen() {
   // 振り駒枠を表示するか（両者「おまかせ」時のみ）
   const showFurigoma = mySideChoice === 'random' && oppSideChoice === 'random';
 
-  // v0.60: 自分の先後がどちらに決まったか (未確定なら null)
-  // mySideChoice が明示 (sente/gote) ならその値、random なら相手の選択・振り駒結果から解決
+  // v0.61: 自分の先後がどちらに決まったか (未確定・矛盾・相手待ち・振り駒待ちなら null)
+  // 単に mySideChoice==='sente' で 'sente' を返してしまうと、相手も 'sente' の
+  // 矛盾状態でも決定済み扱いになるので、相手選択との突き合わせで判定する。
   const myEffectiveSide: 'sente' | 'gote' | null = (() => {
     if (mySideChoice === null) return null;
-    if (mySideChoice === 'sente') return 'sente';
-    if (mySideChoice === 'gote') return 'gote';
-    // mySideChoice === 'random'
-    if (oppSideChoice === 'sente') return 'gote';
-    if (oppSideChoice === 'gote') return 'sente';
-    if (oppSideChoice === 'random' && furigomaResult) {
+    if (oppSideChoice === null) return null; // 相手未選択
+    // 矛盾: 両者が同じ側を主張している
+    if (mySideChoice === 'sente' && oppSideChoice === 'sente') return null;
+    if (mySideChoice === 'gote' && oppSideChoice === 'gote') return null;
+    // 明示 × 明示 (sente/gote の非矛盾組合せ)
+    if (mySideChoice === 'sente' && oppSideChoice === 'gote') return 'sente';
+    if (mySideChoice === 'gote' && oppSideChoice === 'sente') return 'gote';
+    // 明示 × random
+    if (mySideChoice === 'sente' && oppSideChoice === 'random') return 'sente';
+    if (mySideChoice === 'gote' && oppSideChoice === 'random') return 'gote';
+    // random × 明示
+    if (mySideChoice === 'random' && oppSideChoice === 'sente') return 'gote';
+    if (mySideChoice === 'random' && oppSideChoice === 'gote') return 'sente';
+    // random × random: 振り駒結果があれば決定
+    if (mySideChoice === 'random' && oppSideChoice === 'random' && furigomaResult) {
       const iAmSente = isHost ? furigomaResult.hostIsSente : !furigomaResult.hostIsSente;
       return iAmSente ? 'sente' : 'gote';
     }
     return null;
+  })();
+
+  // v0.61: 先後選択の状態メッセージ (5 段階)
+  //   prompt   : mySide 未選択 → 「先手か後手を選んでください」オレンジ強調
+  //   waitOpp  : mySide 選択済み・相手未選択 → 「相手の選択待ちです」グレー
+  //   conflict : 両者が同じ側 → 「先手・後手の合意ができていません」オレンジ強調
+  //   furigoma : random × random 未確定 → 「振り駒で決定中です…」グレー
+  //   resolved : 決定済 → 「あなたは先手/後手です」通常色
+  type SideMsgKind = 'prompt' | 'waitOpp' | 'conflict' | 'furigoma' | 'resolved';
+  const sideMessage: { text: string; kind: SideMsgKind } = (() => {
+    if (mySideChoice === null) return { text: t('s06.sidePromptChoose'), kind: 'prompt' };
+    if (myEffectiveSide) {
+      return { text: myEffectiveSide === 'sente' ? t('s06.sideYouSente') : t('s06.sideYouGote'), kind: 'resolved' };
+    }
+    if (oppSideChoice === null) return { text: t('s06.sideWaitOpp'), kind: 'waitOpp' };
+    const conflict =
+      (mySideChoice === 'sente' && oppSideChoice === 'sente') ||
+      (mySideChoice === 'gote' && oppSideChoice === 'gote');
+    if (conflict) return { text: t('s06.sideConflict'), kind: 'conflict' };
+    return { text: t('s06.sideResolvingFurigoma'), kind: 'furigoma' };
   })();
 
   // v0.60: ルール名の多言語表示 (準備完了カードの「本将棋」ハードコードを解消)
@@ -438,16 +468,20 @@ export function RoomScreen() {
           </div>
         </div>
 
-        {/* v0.60: 先後選択の状態メッセージ (未選択オレンジ / 選択後は自分の側) */}
-        {mySideChoice === null ? (
+        {/* v0.61: 先後選択の状態メッセージ (5 段階) */}
+        {(sideMessage.kind === 'prompt' || sideMessage.kind === 'conflict') ? (
           <div style={{ marginTop: 10, padding: '8px 12px', textAlign: 'center', fontSize: 13, fontWeight: 700, color: 'var(--orange-light)', border: '1px solid var(--orange)', borderRadius: 8, background: 'var(--bg-selected)' }}>
-            {t('s06.sidePromptChoose')}
+            {sideMessage.text}
           </div>
-        ) : myEffectiveSide ? (
+        ) : (sideMessage.kind === 'waitOpp' || sideMessage.kind === 'furigoma') ? (
+          <div style={{ marginTop: 10, padding: '8px 12px', textAlign: 'center', fontSize: 13, color: 'var(--text-muted)' }}>
+            {sideMessage.text}
+          </div>
+        ) : (
           <div style={{ marginTop: 10, padding: '8px 12px', textAlign: 'center', fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
-            {myEffectiveSide === 'sente' ? t('s06.sideYouSente') : t('s06.sideYouGote')}
+            {sideMessage.text}
           </div>
-        ) : null}
+        )}
 
         <div style={{ marginTop: 10, padding: '0 4px' }}>
           <div style={{ fontSize: 10.5, color: 'var(--text-muted)', lineHeight: 1.55 }}>

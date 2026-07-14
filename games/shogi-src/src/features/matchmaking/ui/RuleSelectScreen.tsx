@@ -4,19 +4,23 @@ import { t as _t } from '../../../core/i18n';
 import type { LocaleCode } from '../../../core/i18n/types';
 import { CatIcon } from '../../../core/ui-core/CatIcon';
 import { HeaderCommonRight } from '../../../core/ui-core/HeaderCommonRight';
-import { useMatchmakingStore, type TorusMode, type QuantumDisplayMode } from '../store';
+import { useMatchmakingStore, type TorusMode, type QuantumDisplayMode, type TimeControlMode } from '../store';
 import { ScreenBand } from '../../../core/ui-core/ScreenBand';
 import type { GameType } from '../roomNameCodec';
 import { MiniBoardPreview } from './MiniBoardPreview';
 
-/** v0.57 S02 ルール選択 (モック S02_v2 追随)。
+/** v0.58 S02 ルール選択 (レイアウト圧縮 + 時間設定を S04 から移設)。
  *
- *  役割 (v0.57 で純粋なルール選択画面に整理):
- *  - ルール一覧 (本将棋 / はさみ将棋 / カスタム) から 1 つ選ぶ
- *  - モディファイア (トーラス盤 / 量子将棋) を設定
+ *  役割:
+ *  - ルール一覧 (本将棋 / はさみ将棋 / カスタム) から 1 つ選ぶ (横 3 列 grid)
+ *  - 変則条件 (トーラス盤 / 量子将棋) を設定 (横 2 列 grid)
+ *  - 持ち時間モード + 秒数を設定 (v0.58 で S04 から移設)
  *  - 選択結果は pendingRoomConfig に書き込むだけ。部屋作成は S04 側で行う
  *
- *  部屋名 / パスワード / 公開 / 持ち時間 は S04 (ロビー) に移動済み。
+ *  v0.57 までとの差分:
+ *  - 「モディファイア」→「変則条件」に名称変更 (i18n 側)
+ *  - ルール/変則条件を縦積み → 横並び grid に圧縮
+ *  - 持ち時間設定パネルをこの画面の変則条件の下に追加 (S04 から移動)
  */
 
 interface RuleDef {
@@ -29,13 +33,52 @@ interface RuleDef {
 }
 
 // 現状 selectable な 3 ルール
-// 軍人将棋・チェスは今回対象外 (モックのユーザー要望による絞り込み)
 const RULES: RuleDef[] = [
   { id: 'shogi', nameKey: 's02.ruleHongi.name', descKey: 's02.ruleHongi.desc', torusOK: true, quantumOK: true },
   { id: 'hasami', nameKey: 's02.ruleHasami.name', descKey: 's02.ruleHasami.desc', torusOK: true, quantumOK: false },
-  // カスタムは Phase 8 実装予定・現状は disabled でモック追随のみ (見た目のみ)
   { id: 'shogi-custom', nameKey: 's02.ruleCustom.name', descKey: 's02.ruleCustom.desc', torusOK: true, quantumOK: true, disabled: true },
 ];
+
+const MAIN_OPTIONS: { value: number; label: string }[] = [
+  { value: 0, label: '0（秒読みのみ）' },
+  { value: 5 * 60, label: '5分' },
+  { value: 15 * 60, label: '15分' },
+  { value: 30 * 60, label: '30分' },
+  { value: 60 * 60, label: '1時間' },
+];
+const BYO_OPTIONS: { value: number; label: string }[] = [
+  { value: 5, label: '5秒' },
+  { value: 10, label: '10秒' },
+  { value: 30, label: '30秒' },
+  { value: 60, label: '60秒' },
+];
+
+/** サマリ 1 行用: 現在の時間設定を短く表す ("時間フリー" / "秒読み・5分+30秒" 等) */
+export function formatTimeSummary(
+  time: { mode: TimeControlMode; mainSeconds: number; byoyomiSeconds?: number; incrementSeconds?: number },
+  tr: (k: string) => string,
+): string {
+  const fmt = (s: number) => {
+    if (s <= 0) return '0';
+    if (s % 60 === 0) return `${s / 60}分`;
+    return `${s}秒`;
+  };
+  const modeLabel =
+    time.mode === 'no_limit'
+      ? tr('s04.timeFree')
+      : time.mode === 'byoyomi'
+      ? tr('s04.timeByoyomi')
+      : time.mode === 'fischer'
+      ? tr('s04.timeIncrement')
+      : tr('s04.timeBoth');
+  const parts: string[] = [modeLabel];
+  if (time.mode !== 'no_limit') {
+    parts.push(fmt(time.mainSeconds));
+    if (time.mode === 'byoyomi' && time.byoyomiSeconds !== undefined) parts.push(`+${fmt(time.byoyomiSeconds)}`);
+    if (time.mode === 'fischer' && time.incrementSeconds !== undefined) parts.push(`+${fmt(time.incrementSeconds)}`);
+  }
+  return parts.join('・');
+}
 
 export function RuleSelectScreen() {
   const locale = useI18nStore((s) => s.locale);
@@ -51,7 +94,6 @@ export function RuleSelectScreen() {
   const torusUsable = currentRule.torusOK;
   const quantumUsable = currentRule.quantumOK;
 
-  // ルール変更時、そのルールで非対応のモディファイアを自動的に OFF に落とす。
   const onSelectRule = (rid: GameType) => {
     const def = RULES.find((r) => r.id === rid);
     if (!def || def.disabled) return;
@@ -76,16 +118,28 @@ export function RuleSelectScreen() {
   };
   const onSetQm = (m: QuantumDisplayMode) => setConfig({ quantumDisplayMode: m });
 
+  const setTimeMode = (m: TimeControlMode) => {
+    const cur = config.timeControl;
+    setConfig({
+      timeControl: {
+        mode: m,
+        mainSeconds: m === 'no_limit' ? 0 : cur.mainSeconds || 600,
+        byoyomiSeconds: m === 'byoyomi' ? cur.byoyomiSeconds ?? 30 : undefined,
+        incrementSeconds: m === 'fischer' ? cur.incrementSeconds ?? 10 : undefined,
+      },
+    });
+  };
+
   const onBack = () => setScreen('net-lobby');
   const onCommit = () => setScreen('net-lobby');
 
-  // ── サマリ (右カラム / 携帯: 決定ボタンの下) ──
   const modChips: string[] = [];
   if (config.torusMode === 'cylinder') modChips.push(t('s04.summaryTorusCyl'));
   else if (config.torusMode === 'full') modChips.push(t('s04.summaryTorusFull'));
   if (config.quantum) modChips.push(t('s04.summaryQuantum'));
 
-  // 決定 + サマリ (右カラム上部 / 携帯: 設定パネルの直下)
+  const timeSummary = formatTimeSummary(config.timeControl, t);
+
   const commitCard = (
     <div className="commit-card">
       <button className="go-btn" type="button" onClick={onCommit}>
@@ -105,11 +159,12 @@ export function RuleSelectScreen() {
             </span>
           ))
         )}
+        <br />
+        <b>{t('s02.commitSumTime')}</b>: {timeSummary}
       </div>
     </div>
   );
 
-  // プレビュー (右カラム下部 / 携帯: サマリの下)
   const previewCard = (
     <div className="preview-card">
       <div className="pv-title">{t('s02.pvTitle')}</div>
@@ -161,8 +216,8 @@ export function RuleSelectScreen() {
         </div>
 
         <div className="s02-grid">
-          {/* ─── 左カラム: 設定 (デスクトップ) / 一番上 (携帯) ─── */}
           <div className="config-col">
+            {/* ルール横 3 列 */}
             <div className="section-label">{t('s02.secRules')}</div>
             <div className="rule-list">
               {RULES.map((r) => {
@@ -189,126 +244,217 @@ export function RuleSelectScreen() {
               })}
             </div>
 
+            {/* 変則条件 横 2 列 */}
             <div className="mod-block">
               <div className="section-label">{t('s02.secMods')}</div>
+              <div className="mod-grid">
+                <div className="mod-group">
+                  <h3>
+                    <span>{t('s02.torus')}</span>
+                    <span className="sell">{t('s02.sellBadge')}</span>
+                  </h3>
+                  <div className="mod-note">{t('s02.torusNote')}</div>
+                  <div className="seg">
+                    <button
+                      type="button"
+                      className={config.torusMode === 'none' ? 'on' : ''}
+                      onClick={() => onSetTorus('none')}
+                      disabled={!torusUsable}
+                    >
+                      {t('s02.torusOff')}
+                    </button>
+                    <button
+                      type="button"
+                      className={config.torusMode === 'cylinder' ? 'on' : ''}
+                      onClick={() => onSetTorus('cylinder')}
+                      disabled={!torusUsable}
+                    >
+                      {t('s02.torusCyl')}
+                    </button>
+                    <button
+                      type="button"
+                      className={config.torusMode === 'full' ? 'on' : ''}
+                      onClick={() => onSetTorus('full')}
+                      disabled={!torusUsable}
+                    >
+                      {t('s02.torusFull')}
+                    </button>
+                    {config.torusMode !== 'none' && (
+                      <span className="neta-badge show">{t('s02.netaBadge')}</span>
+                    )}
+                  </div>
+                  {!torusUsable && <div className="incompat show">{t('s02.torusIncompat')}</div>}
+                </div>
 
-              {/* ── トーラス ── */}
-              <div className="mod-group">
-                <h3>
-                  <span>{t('s02.torus')}</span>
-                  <span className="sell">{t('s02.sellBadge')}</span>
-                </h3>
-                <div className="mod-note">{t('s02.torusNote')}</div>
-                <div className="seg">
-                  <button
-                    type="button"
-                    className={config.torusMode === 'none' ? 'on' : ''}
-                    onClick={() => onSetTorus('none')}
-                    disabled={!torusUsable}
-                  >
-                    {t('s02.torusOff')}
-                  </button>
-                  <button
-                    type="button"
-                    className={config.torusMode === 'cylinder' ? 'on' : ''}
-                    onClick={() => onSetTorus('cylinder')}
-                    disabled={!torusUsable}
-                  >
-                    {t('s02.torusCyl')}
-                  </button>
-                  <button
-                    type="button"
-                    className={config.torusMode === 'full' ? 'on' : ''}
-                    onClick={() => onSetTorus('full')}
-                    disabled={!torusUsable}
-                  >
-                    {t('s02.torusFull')}
-                  </button>
-                  {config.torusMode !== 'none' && (
-                    <span className="neta-badge show">{t('s02.netaBadge')}</span>
+                <div className="mod-group quantum">
+                  <h3>
+                    <span>{t('s02.quantum')}</span>
+                  </h3>
+                  <div className="mod-note">{t('s02.quantumNote')}</div>
+                  <div className="seg">
+                    <button
+                      type="button"
+                      className={!config.quantum ? 'on' : ''}
+                      onClick={() => onSetQuantum(false)}
+                      disabled={!quantumUsable}
+                    >
+                      {t('s02.quantumOff')}
+                    </button>
+                    <button
+                      type="button"
+                      className={config.quantum ? 'on' : ''}
+                      onClick={() => onSetQuantum(true)}
+                      disabled={!quantumUsable}
+                    >
+                      {t('s02.quantumOn')}
+                    </button>
+                  </div>
+                  {!quantumUsable && <div className="incompat show">{t('s02.quantumIncompat')}</div>}
+
+                  {config.quantum && quantumUsable && (
+                    <div className="quantum-sub show">
+                      <div className="qh">{t('s02.qmTitle')}</div>
+                      <div className="fair">
+                        <b>{t('s02.qmFairBold')}</b>
+                        {t('s02.qmFairRest')}
+                      </div>
+                      <div className="seg">
+                        <button
+                          type="button"
+                          className={config.quantumDisplayMode === 'cycle' ? 'on' : ''}
+                          onClick={() => onSetQm('cycle')}
+                        >
+                          {t('qmode.cycle')}
+                        </button>
+                        <button
+                          type="button"
+                          className={config.quantumDisplayMode === 'stack' ? 'on' : ''}
+                          onClick={() => onSetQm('stack')}
+                        >
+                          {t('qmode.stack')}
+                        </button>
+                      </div>
+                      <div className="qpreview">
+                        <div className="qpv">
+                          <div className="qpv-cell">
+                            <span className="qmk">?</span>
+                            <span className="g">歩</span>
+                          </div>
+                          <div className="qpv-label">{t('s02.qmCycleDesc')}</div>
+                        </div>
+                        <div className="qpv">
+                          <div className="qpv-cell">
+                            <span className="qmk">?</span>
+                            <span className="stack">
+                              <span>歩</span>
+                              <span>桂</span>
+                              <span>銀</span>
+                            </span>
+                          </div>
+                          <div className="qpv-label">{t('s02.qmStackDesc')}</div>
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
-                {!torusUsable && <div className="incompat show">{t('s02.torusIncompat')}</div>}
+              </div>
+            </div>
+
+            {/* 持ち時間パネル (v0.58: S04 から移設) */}
+            <div className="time-panel">
+              <div className="section-label">{t('s04.lblTime')}</div>
+              <div className="tp-modes">
+                <button
+                  type="button"
+                  className="act"
+                  onClick={() => setTimeMode('no_limit')}
+                  style={config.timeControl.mode === 'no_limit' ? { borderColor: 'var(--orange)', color: 'var(--orange-light)', background: 'var(--bg-selected)' } : {}}
+                >
+                  {t('s04.timeFree')}
+                </button>
+                <button
+                  type="button"
+                  className="act"
+                  onClick={() => setTimeMode('byoyomi')}
+                  style={config.timeControl.mode === 'byoyomi' ? { borderColor: 'var(--orange)', color: 'var(--orange-light)', background: 'var(--bg-selected)' } : {}}
+                >
+                  {t('s04.timeByoyomi')}
+                </button>
+                <button
+                  type="button"
+                  className="act"
+                  onClick={() => setTimeMode('fischer')}
+                  style={config.timeControl.mode === 'fischer' ? { borderColor: 'var(--orange)', color: 'var(--orange-light)', background: 'var(--bg-selected)' } : {}}
+                >
+                  {t('s04.timeIncrement')}
+                </button>
+                <button
+                  type="button"
+                  className="act"
+                  onClick={() => setTimeMode('sudden_death')}
+                  style={config.timeControl.mode === 'sudden_death' ? { borderColor: 'var(--orange)', color: 'var(--orange-light)', background: 'var(--bg-selected)' } : {}}
+                >
+                  {t('s04.timeBoth')}
+                </button>
               </div>
 
-              {/* ── 量子将棋 ── */}
-              <div className="mod-group quantum">
-                <h3>
-                  <span>{t('s02.quantum')}</span>
-                </h3>
-                <div className="mod-note">{t('s02.quantumNote')}</div>
-                <div className="seg">
-                  <button
-                    type="button"
-                    className={!config.quantum ? 'on' : ''}
-                    onClick={() => onSetQuantum(false)}
-                    disabled={!quantumUsable}
-                  >
-                    {t('s02.quantumOff')}
-                  </button>
-                  <button
-                    type="button"
-                    className={config.quantum ? 'on' : ''}
-                    onClick={() => onSetQuantum(true)}
-                    disabled={!quantumUsable}
-                  >
-                    {t('s02.quantumOn')}
-                  </button>
-                </div>
-                {!quantumUsable && <div className="incompat show">{t('s02.quantumIncompat')}</div>}
-
-                {/* 量子表示方式サブパネル (量子 ON のとき出現) */}
-                {config.quantum && quantumUsable && (
-                  <div className="quantum-sub show">
-                    <div className="qh">{t('s02.qmTitle')}</div>
-                    <div className="fair">
-                      <b>{t('s02.qmFairBold')}</b>
-                      {t('s02.qmFairRest')}
-                    </div>
-                    <div className="seg">
+              {config.timeControl.mode !== 'no_limit' && (
+                <div className="tp-sub">
+                  <div className="tp-sub-label">{t('s04.mainSec')}</div>
+                  <div className="tp-sub-opts">
+                    {MAIN_OPTIONS.filter((o) => o.value > 0 || config.timeControl.mode === 'byoyomi').map((o) => (
                       <button
+                        key={o.value}
                         type="button"
-                        className={config.quantumDisplayMode === 'cycle' ? 'on' : ''}
-                        onClick={() => onSetQm('cycle')}
+                        className="act"
+                        onClick={() => setConfig({ timeControl: { ...config.timeControl, mainSeconds: o.value } })}
+                        style={config.timeControl.mainSeconds === o.value ? { borderColor: 'var(--orange)', color: 'var(--orange-light)', background: 'var(--bg-selected)' } : {}}
                       >
-                        {t('qmode.cycle')}
+                        {o.label}
                       </button>
-                      <button
-                        type="button"
-                        className={config.quantumDisplayMode === 'stack' ? 'on' : ''}
-                        onClick={() => onSetQm('stack')}
-                      >
-                        {t('qmode.stack')}
-                      </button>
-                    </div>
-                    <div className="qpreview">
-                      <div className="qpv">
-                        <div className="qpv-cell">
-                          <span className="qmk">?</span>
-                          <span className="g">歩</span>
-                        </div>
-                        <div className="qpv-label">{t('s02.qmCycleDesc')}</div>
-                      </div>
-                      <div className="qpv">
-                        <div className="qpv-cell">
-                          <span className="qmk">?</span>
-                          <span className="stack">
-                            <span>歩</span>
-                            <span>桂</span>
-                            <span>銀</span>
-                          </span>
-                        </div>
-                        <div className="qpv-label">{t('s02.qmStackDesc')}</div>
-                      </div>
-                    </div>
+                    ))}
                   </div>
-                )}
-              </div>
+                </div>
+              )}
+              {config.timeControl.mode === 'byoyomi' && (
+                <div className="tp-sub">
+                  <div className="tp-sub-label">{t('s04.byoyomiSec')}</div>
+                  <div className="tp-sub-opts">
+                    {BYO_OPTIONS.map((o) => (
+                      <button
+                        key={o.value}
+                        type="button"
+                        className="act"
+                        onClick={() => setConfig({ timeControl: { ...config.timeControl, byoyomiSeconds: o.value } })}
+                        style={config.timeControl.byoyomiSeconds === o.value ? { borderColor: 'var(--orange)', color: 'var(--orange-light)', background: 'var(--bg-selected)' } : {}}
+                      >
+                        {o.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {config.timeControl.mode === 'fischer' && (
+                <div className="tp-sub">
+                  <div className="tp-sub-label">{t('s04.incrementSec')}</div>
+                  <div className="tp-sub-opts">
+                    {[0, ...BYO_OPTIONS.map((o) => o.value)].map((v) => (
+                      <button
+                        key={v}
+                        type="button"
+                        className="act"
+                        onClick={() => setConfig({ timeControl: { ...config.timeControl, incrementSeconds: v } })}
+                        style={config.timeControl.incrementSeconds === v ? { borderColor: 'var(--orange)', color: 'var(--orange-light)', background: 'var(--bg-selected)' } : {}}
+                      >
+                        {v === 0 ? '0秒' : `${v}秒`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* ─── 右カラム: 決定 → サマリ → プレビュー (デスクトップ)
-                携帯では設定の直下に 決定 → サマリ → プレビュー の順で縦積み ─── */}
           <div className="preview-col">
             {commitCard}
             {previewCard}

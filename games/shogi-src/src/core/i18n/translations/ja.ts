@@ -5,11 +5,11 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.57',
-    // S02 ルール選択画面 (モック S02_v2 追随・v0.57)
+    'app.ver': 'v0.58',
+    // S02 ルール選択画面 (モック S02_v2 追随・v0.57、v0.58 でレイアウト圧縮+時間設定移動)
     's02.screenTitle': 'ルール選択',
     's02.secRules': '対局ルール',
-    's02.secMods': 'モディファイア（重ねがけ）',
+    's02.secMods': '変則条件（重ねがけ）',
     's02.torus': 'トーラス盤',
     's02.torusNote': '盤の端をつなげて、駒が反対側へ回り込む。円筒＝左右をつなぐ／完全＝上下左右すべてつなぐ。',
     's02.torusOff': 'なし',
@@ -36,8 +36,9 @@ export const ja: LocaleData = {
     's02.wrapCyl': '左右ラップ',
     's02.wrapFull': '上下左右ラップ',
     's02.commitSumRule': 'ルール',
-    's02.commitSumMods': 'モディファイア',
+    's02.commitSumMods': '変則条件',
     's02.commitSumNone': 'なし',
+    's02.commitSumTime': '持ち時間',
     's02.commitGo': '決定',
     's02.commitGoBack': 'ロビーに戻る',
     // S02 ルール一覧 (3 種：本将棋・はさみ将棋・カスタム)
@@ -47,9 +48,14 @@ export const ja: LocaleData = {
     's02.ruleHasami.desc': '相手の駒を挟んで取る。',
     's02.ruleCustom.name': 'カスタム',
     's02.ruleCustom.desc': '自作ルール (Phase 8 で実装予定)。今は選択不可。',
-    // S04 ロビーの追加項目 (v0.57)
+    // S04 ロビーの項目 (v0.57 で S02 から移設 → v0.58 で 3 カード構成に大改造)
+    // カード A: 接続 + プレイヤー名 / カード B: 部屋に入る / カード C: 部屋を作る
+    's04.cardConn': '接続',
+    's04.cardJoin': '部屋に入る',
+    's04.cardCreate': '部屋を作る',
     's04.lblRule': '対局ルール',
     's04.btnEditRule': 'ルールを選択',
+    // v0.58: 時間設定は S02 に移動、S04 側はサマリ表示のみ
     's04.lblTime': '持ち時間',
     's04.timeFree': '時間フリー',
     's04.timeByoyomi': '秒読み',
@@ -62,14 +68,22 @@ export const ja: LocaleData = {
     's04.roomNamePh': '（未入力可）',
     's04.password': 'パスワード',
     's04.passwordPh': '（未入力可・公開部屋になります）',
-    's04.public': '一覧に載せる (公開)',
+    // v0.58: 「公開」を「非公開」に反転
+    's04.private': '非公開にする（一覧に載せない）',
     's04.createRoom': '部屋を作成',
-    's04.summaryMods': 'モディファイア',
+    's04.summaryMods': '変則条件',
     's04.summaryNone': 'なし',
     's04.summaryTorus': 'トーラス',
     's04.summaryTorusCyl': 'トーラス（円筒）',
     's04.summaryTorusFull': 'トーラス（完全）',
     's04.summaryQuantum': '量子',
+    's04.summaryTime': '持ち時間',
+    // v0.58: 非公開部屋の表示切替 + パスワード入力
+    's04.privateTitle': '非公開の部屋を表示',
+    's04.privatePwLabel': 'パスワード（なければ空欄）',
+    's04.privateBtnShow': '表示',
+    's04.privateBtnHide': '隠す',
+    's04.privateNote': '非公開部屋の一覧を表示します。パスワード付きの部屋は入室時にパスワードが必要です。',
     // S00 メニュー画面 (モック S01_v5 追随・v0.55、v0.56 で並び&文言調整)
     's00.connecting': 'サーバーに接続中...',
     's00.connected': 'サーバー接続済み',

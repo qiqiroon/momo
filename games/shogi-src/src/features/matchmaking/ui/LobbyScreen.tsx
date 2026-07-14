@@ -161,18 +161,15 @@ export function LobbyScreen() {
         // - それ以外 (「対局を中断」など): 従来どおり即 opponentLeftDuringGame=true。
         if (state.gameStartInfo) {
           const isWsOnly = typeof reason === 'string' && reason.includes('再接続中');
-          if (isWsOnly && !state.wsPendingReconnect) {
+          if (isWsOnly) {
+            // v0.49 修正: 猶予期間中に同じ「再接続中」通知が繰り返し届くことがある
+            //   (WS 再接続試行の失敗ごとに再発火)。既に wsPending なら二度目以降は
+            //   ただ無視する。生存判定は ConnectionUncertainBanner の ping/pong に任せる
+            if (state.wsPendingReconnect) return;
             useMatchmakingStore.setState({ wsPendingReconnect: true });
-            // 20 秒後、まだ本物の切断が来ていなければ猶予期間終了で無事続行
-            setTimeout(() => {
-              const s = useMatchmakingStore.getState();
-              if (s.wsPendingReconnect && !s.opponentLeftDuringGame) {
-                useMatchmakingStore.setState({ wsPendingReconnect: false });
-              }
-            }, 20_000);
             return;
           }
-          // 本物の切断 (or WS 猶予中に再度切断メッセージが来た) → escalate
+          // 本物の切断 (「対局を中断」など) → escalate
           useMatchmakingStore.setState({
             wsPendingReconnect: false,
             opponentLeftDuringGame: true,

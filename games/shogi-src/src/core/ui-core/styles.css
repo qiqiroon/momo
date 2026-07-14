@@ -1403,6 +1403,228 @@ body::before {
   font-weight: 700;
 }
 
+/* ===== S00 メニュー画面 モック追随 (v0.55) =====
+ * モック momo_shogi_S01_mock_v5 由来 (title=トップ (S01))。
+ * 対局トップの縦1列モードリスト・接続状態バー・フッター等。
+ */
+
+/* サーバー接続状態バー (タイトルすぐ下・幅いっぱい) */
+.status-bar {
+  margin-top: 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: border-color 0.2s, color 0.2s;
+}
+.status-bar .st-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  flex-shrink: 0;
+}
+.status-bar.connecting .st-dot {
+  background: var(--orange-light);
+  animation: pulse 1.1s ease-in-out infinite;
+}
+.status-bar.connected {
+  border-color: var(--orange);
+  color: var(--orange-light);
+}
+.status-bar.connected .st-dot {
+  background: var(--ok, #3f9d5a);
+  animation: none;
+}
+
+/* 見出し + リード (S00 メニュー・S01 オフライン設定等の共通体裁) */
+.screen-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 18px 0 4px;
+}
+.screen-head h2 {
+  font-family: 'Fredoka One', cursive;
+  font-weight: 400;
+  font-size: 1.35rem;
+  color: var(--text);
+  letter-spacing: 0.01em;
+}
+.lead {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0 0 14px;
+}
+
+/* モードリスト (S00 縦1列) */
+.mode-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.mode-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text);
+  position: relative;
+  transition: border-color 0.15s, background 0.15s, transform 0.1s;
+}
+.mode-row:hover:not(.disabled) {
+  border-color: var(--orange);
+  background: var(--bg-selected);
+  transform: translateY(-1px);
+}
+.mode-row:focus-visible {
+  outline: 2px solid var(--orange-light);
+  outline-offset: 2px;
+}
+.mode-row.primary {
+  border-color: var(--border-strong);
+}
+.mode-row.primary:hover:not(.disabled) {
+  border-color: var(--orange);
+}
+.mode-row.disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.mode-row.disabled .mode-glyph {
+  filter: grayscale(0.6);
+}
+
+/* 駒モチーフの五角形アイコン (木地・Yuji Syuku 一字・漢字固定) */
+.mode-glyph {
+  width: 44px;
+  height: 50px;
+  flex-shrink: 0;
+  position: relative;
+  background: linear-gradient(170deg, var(--piece), #dcc089);
+  border: 1px solid var(--piece-edge);
+  clip-path: polygon(50% 3%, 80% 20%, 92% 100%, 8% 100%, 20% 20%);
+  display: grid;
+  place-items: center;
+  box-shadow: inset 0 1px 0 #fff6;
+}
+.mode-glyph span {
+  font-family: 'Yuji Syuku', serif;
+  font-size: 26px;
+  color: var(--piece-ink);
+  line-height: 1;
+  margin-top: 3px;
+}
+.mode-row.primary .mode-glyph {
+  width: 48px;
+  height: 54px;
+}
+.mode-row.primary .mode-glyph span {
+  font-size: 29px;
+}
+
+.mode-body {
+  flex: 1;
+  min-width: 0;
+}
+.mode-name {
+  font-weight: 700;
+  font-size: 15.5px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.mode-row.primary .mode-name {
+  font-size: 17px;
+}
+.mode-desc {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin-top: 3px;
+  line-height: 1.5;
+}
+
+/* 進む矢印 */
+.mode-arrow {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  display: flex;
+}
+.mode-row:hover:not(.disabled) .mode-arrow {
+  color: var(--orange-light);
+}
+
+/* 未接続の理由 (ネット対戦が非活性のとき表示) */
+.mode-reason {
+  font-size: 11px;
+  color: var(--orange-light);
+  margin-top: 6px;
+  line-height: 1.45;
+}
+.mode-reason::before {
+  content: '⚠ ';
+}
+
+/* サイトフッター (アプリ紹介＋MOMO Works 内リンク) */
+.site-footer {
+  margin-top: 34px;
+  padding-top: 22px;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  text-align: left;
+}
+.site-footer h2 {
+  font-family: 'Fredoka One', cursive;
+  font-weight: 400;
+  font-size: 15px;
+  color: var(--text);
+  margin-bottom: 9px;
+  letter-spacing: 0.02em;
+}
+.site-footer p {
+  font-size: 12px;
+  line-height: 1.9;
+  margin-bottom: 14px;
+  color: var(--text-muted);
+}
+.foot-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  justify-content: flex-start;
+}
+.foot-links a {
+  font-size: 12px;
+  color: var(--orange-light);
+  text-decoration: none;
+}
+.foot-links a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 480px) {
+  .mode-dest {
+    display: none;
+  }
+}
+
 /* v0.47: サーバー経由の連絡経路 (WS) が瞬断した時のバナー。
  * 対局は基本続行するので、画面上部の細帯で控えめに表示する。
  * dismiss ボタンは無し (20 秒で自動消滅)。

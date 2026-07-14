@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useI18nStore } from '../../../core/store/i18n-store';
 import { useRouteStore } from '../../../core/store/route-store';
 import { t as _t } from '../../../core/i18n';
@@ -6,130 +6,203 @@ import type { LocaleCode } from '../../../core/i18n/types';
 import { CatIcon } from '../../../core/ui-core/CatIcon';
 import { HeaderCommonRight } from '../../../core/ui-core/HeaderCommonRight';
 import { ScreenBand } from '../../../core/ui-core/ScreenBand';
+import { useMatchmakingStore } from '../store';
+import { ensureMatchmakingInit } from '../bootstrap';
 
 /**
- * 段階 2-4.1: トップメニュー（初期画面）
+ * S00 トップメニュー (v0.55 でモック momo_shogi_S01_mock_v5 に追随)。
  *
- * 3択の入口:
- * - vs AI       : Phase 3 で実装予定（今は disabled + モーダル案内）
- * - vs 人（デバッグ）: 現行 GameScreen（ローカル対戦）へ。将来「感想戦モード」に統合予定
- * - 通信対戦     : 'net-lobby' へ（マッチメーキング）
+ * モックとの構成:
+ * - ヘッダ (共通・v0.54 で標準化済)
+ * - サーバー接続状態バー (「接続中...」「接続済み」)
+ * - ScreenBand「S00 · メニュー」(画面名なので維持)
+ * - モック由来の見出し h2「モード選択」+ 説明文
+ * - モードリスト (縦 1 列):
+ *   - 対 ネット対戦 (primary・要通信)
+ *   - 機 AI 対戦 (primary・Phase 3 で実装予定)
+ *   - 同 vs 人 (オフライン) — impl 追加 (モックには無いが残す)
+ *   - 観 ネット観戦 (未実装・見た目のみ)
+ *   - 作 カスタムルール作成 (未実装・見た目のみ)
+ *   - 棋 棋譜再生 (未実装・見た目のみ)
+ * - フッター (アプリ紹介 + MOMO Works 内リンク)
  */
 export function MenuScreen() {
   const locale = useI18nStore((s) => s.locale);
   const t = (key: string) => _t(key, locale);
   const setScreen = useRouteStore((s) => s.setScreen);
+  const connection = useMatchmakingStore((s) => s.connection);
   const [showAiNote, setShowAiNote] = useState(false);
+
+  // v0.55: S00 メニュー段階でシグナリング接続を先行して確立。
+  // これで接続状態バーが即座に「接続中→接続済み」を反映し、
+  // ネット対戦ボタンの非活性判定 (未接続時) も意味を持つ。
+  useEffect(() => {
+    ensureMatchmakingInit();
+  }, []);
 
   const subLocale: LocaleCode = locale === 'cat' ? 'ja' : locale;
   const subtitle = subLocale === 'zh' ? '擒王为胜，破局无界' : 'Capture the King, Bend the Rules';
 
+  const connected = connection === 'connected' || connection === 'in_room' || connection === 'game_connected';
+  const statusLabel = connected ? t('s00.connected') : t('s00.connecting');
+
   return (
-    <div className="stage">
-      <div style={{ maxWidth: 560, margin: '0 auto' }}>
-        <header className="match-header">
-          <CatIcon />
-          <div className="title-block">
-            <h1>
-              <span className="momo">MOMO</span> <span className="shogi">Shogi</span>{' '}
-              <span className="ver">{t('app.ver')}</span>
-            </h1>
-            <div className={`subtitle${subLocale === 'zh' ? ' zh' : ''}`}>{subtitle}</div>
-          </div>
-          <div className="header-spacer" />
-          <div className="header-tools">
-            <HeaderCommonRight />
-          </div>
-        </header>
-
-        <ScreenBand code="S00" name="メニュー" />
-
-        <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <MenuButton
-            title="vs AI"
-            desc="コンピュータ相手に対局（Phase 3 で実装予定）"
-            disabled
-            onClick={() => setShowAiNote(true)}
-          />
-          <MenuButton
-            title="vs 人（オフライン）"
-            desc="同じ端末で交互に指すデバッグ用モード（将来「感想戦モード」に統合予定）"
-            onClick={() => setScreen('offline-rule')}
-          />
-          <MenuButton
-            title="通信対戦"
-            desc="ネット越しに別の人と対局"
-            highlight
-            onClick={() => setScreen('net-lobby')}
-          />
+    <div className="stage" style={{ maxWidth: 600 }}>
+      <header className="match-header">
+        <CatIcon />
+        <div className="title-block">
+          <h1>
+            <span className="momo">MOMO</span> <span className="shogi">Shogi</span>{' '}
+            <span className="ver">{t('app.ver')}</span>
+          </h1>
+          <div className={`subtitle${subLocale === 'zh' ? ' zh' : ''}`}>{subtitle}</div>
         </div>
+        <div className="header-spacer" />
+        <div className="header-tools">
+          <HeaderCommonRight />
+        </div>
+      </header>
 
-        {showAiNote && (
-          <div
-            style={{
-              position: 'fixed',
-              inset: 0,
-              background: 'rgba(0,0,0,0.5)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: 100,
-            }}
-            onClick={() => setShowAiNote(false)}
-          >
-            <div
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                background: 'var(--surface)',
-                border: '1px solid var(--border-strong)',
-                borderRadius: 10,
-                padding: 20,
-                maxWidth: 360,
-                textAlign: 'center',
-              }}
-            >
-              <div style={{ fontSize: 14, color: 'var(--text)', marginBottom: 12 }}>
-                vs AI モードは Phase 3 で実装予定です
-              </div>
-              <button className="reset-btn" type="button" onClick={() => setShowAiNote(false)}>
-                閉じる
-              </button>
-            </div>
-          </div>
-        )}
+      <div className={`status-bar ${connected ? 'connected' : 'connecting'}`}>
+        <span className="st-dot" />
+        <span>{statusLabel}</span>
       </div>
+
+      <ScreenBand code="S00" name="メニュー" />
+
+      <div className="screen-head">
+        <h2>{t('s00.modeSelect')}</h2>
+      </div>
+      <p className="lead">{t('s00.lead')}</p>
+
+      <div className="mode-list">
+        <ModeRow
+          glyph="対"
+          primary
+          disabled={!connected}
+          name={t('s00.mPvp')}
+          desc={t('s00.mPvpD')}
+          reason={!connected ? t('s00.pvpReason') : undefined}
+          onClick={() => connected && setScreen('net-lobby')}
+        />
+        <ModeRow
+          glyph="機"
+          primary
+          disabled
+          name={t('s00.mAi')}
+          desc={t('s00.mAiD')}
+          onClick={() => setShowAiNote(true)}
+        />
+        <ModeRow
+          glyph="同"
+          name={t('s00.mOffline')}
+          desc={t('s00.mOfflineD')}
+          onClick={() => setScreen('offline-rule')}
+        />
+        <ModeRow
+          glyph="観"
+          name={t('s00.mWatch')}
+          desc={t('s00.mWatchD')}
+          onClick={() => {
+            /* 未実装・見た目のみ (Phase 6.8 予定) */
+          }}
+        />
+        <ModeRow
+          glyph="作"
+          name={t('s00.mBuild')}
+          desc={t('s00.mBuildD')}
+          onClick={() => {
+            /* 未実装・見た目のみ (Phase 8 予定) */
+          }}
+        />
+        <ModeRow
+          glyph="棋"
+          name={t('s00.mKifu')}
+          desc={t('s00.mKifuD')}
+          onClick={() => {
+            /* 未実装・見た目のみ (Phase 9 予定) */
+          }}
+        />
+      </div>
+
+      <footer className="site-footer">
+        <h2>{t('s00.footAbout')}</h2>
+        <p>{t('s00.footDesc')}</p>
+        <div className="foot-links">
+          <a href="../../">{t('s00.footTop')}</a>
+          <a href="../../games/">{t('s00.footGames')}</a>
+          <a href="../../tools/">{t('s00.footTools')}</a>
+        </div>
+      </footer>
+
+      {showAiNote && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+          }}
+          onClick={() => setShowAiNote(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: 'var(--surface)',
+              border: '1px solid var(--border-strong)',
+              borderRadius: 10,
+              padding: 20,
+              maxWidth: 360,
+              textAlign: 'center',
+            }}
+          >
+            <div style={{ fontSize: 14, color: 'var(--text)', marginBottom: 12 }}>
+              {t('s00.aiNotYet')}
+            </div>
+            <button className="reset-btn" type="button" onClick={() => setShowAiNote(false)}>
+              閉じる
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-interface MenuButtonProps {
-  title: string;
+interface ModeRowProps {
+  glyph: string;
+  name: string;
   desc: string;
-  onClick: () => void;
+  reason?: string;
+  primary?: boolean;
   disabled?: boolean;
-  highlight?: boolean;
+  onClick: () => void;
 }
 
-function MenuButton({ title, desc, onClick, disabled, highlight }: MenuButtonProps) {
+function ModeRow({ glyph, name, desc, reason, primary, disabled, onClick }: ModeRowProps) {
   return (
     <button
       type="button"
+      className={`mode-row${primary ? ' primary' : ''}${disabled ? ' disabled' : ''}`}
       onClick={onClick}
-      style={{
-        textAlign: 'left',
-        padding: '14px 18px',
-        background: highlight ? 'var(--bg-selected)' : 'var(--surface)',
-        border: `1px solid ${highlight ? 'var(--orange)' : 'var(--border-strong)'}`,
-        borderRadius: 10,
-        color: disabled ? 'var(--text-muted)' : 'var(--text)',
-        cursor: 'pointer',
-        opacity: disabled ? 0.55 : 1,
-      }}
+      disabled={disabled}
     >
-      <div style={{ fontSize: 16, fontWeight: 700, color: highlight ? 'var(--orange-light)' : undefined }}>
-        {title}
+      <div className="mode-glyph">
+        <span>{glyph}</span>
       </div>
-      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{desc}</div>
+      <div className="mode-body">
+        <div className="mode-name">{name}</div>
+        <div className="mode-desc">{desc}</div>
+        {reason && <div className="mode-reason">{reason}</div>}
+      </div>
+      <div className="mode-arrow" aria-hidden="true">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+          <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </div>
     </button>
   );
 }

@@ -6,52 +6,14 @@ import type { LocaleCode } from '../../../core/i18n/types';
 import { CatIcon } from '../../../core/ui-core/CatIcon';
 import { HeaderCommonRight } from '../../../core/ui-core/HeaderCommonRight';
 import { getMomoMatchmaking } from '../client';
-import { SHOGI_GAME_TYPE, SIGNALING_URL } from '../config';
-import { DEFAULT_ROOM_CONFIG, useMatchmakingStore, type RoomConfig } from '../store';
+import { useMatchmakingStore } from '../store';
 import { ScreenBand } from '../../../core/ui-core/ScreenBand';
 import { decodeRoomName } from '../roomNameCodec';
 import { RoomBadges } from './RoomBadges';
-import { handleShogiMessage } from '../messageDispatcher';
+import { ensureMatchmakingInit } from '../bootstrap';
 
 /** localStorage キー：前回のプレイヤー名 */
 const LS_LAST_PLAYER_NAME = 'shogi.lobby.lastPlayerName';
-
-/**
- * サーバーが joined_room で中継してくる rules は
- * ホストが createRoom に渡した `{game, torus, quantum, customRuleName, time}` を
- * 素通ししたもの。これを RoomConfig 形状に正規化する
- * （先後はルームで決めるので含めない）。
- *
- * roomName は encoded 状態のまま格納する。表示側で decode する。
- */
-function normalizeIncomingRules(rules: unknown, roomName: string): RoomConfig | null {
-  if (!rules || typeof rules !== 'object') return null;
-  const r = rules as {
-    game?: string;
-    torus?: boolean;
-    quantum?: boolean;
-    customRuleName?: string;
-    time?: unknown;
-  };
-  const time = (r.time && typeof r.time === 'object' ? r.time : {}) as Partial<RoomConfig['timeControl']>;
-  const gameType: RoomConfig['gameType'] =
-    r.game === 'hasami' ? 'hasami' : r.game === 'shogi-custom' ? 'shogi-custom' : 'shogi';
-  return {
-    roomName,
-    password: '',
-    isPublic: true,
-    gameType,
-    torus: !!r.torus,
-    quantum: !!r.quantum,
-    customRuleName: r.customRuleName,
-    timeControl: {
-      mode: time.mode ?? DEFAULT_ROOM_CONFIG.timeControl.mode,
-      mainSeconds: time.mainSeconds ?? DEFAULT_ROOM_CONFIG.timeControl.mainSeconds,
-      byoyomiSeconds: time.byoyomiSeconds,
-      incrementSeconds: time.incrementSeconds,
-    },
-  };
-}
 
 export function LobbyScreen() {
   const locale = useI18nStore((s) => s.locale);
@@ -62,13 +24,8 @@ export function LobbyScreen() {
   const rooms = useMatchmakingStore((s) => s.rooms);
   const errorMessage = useMatchmakingStore((s) => s.errorMessage);
   const playerName = useMatchmakingStore((s) => s.playerName);
-  const setConnection = useMatchmakingStore((s) => s.setConnection);
-  const setRooms = useMatchmakingStore((s) => s.setRooms);
   const setError = useMatchmakingStore((s) => s.setError);
   const setPlayerName = useMatchmakingStore((s) => s.setPlayerName);
-  const setCurrentRoom = useMatchmakingStore((s) => s.setCurrentRoom);
-  const setOpponentName = useMatchmakingStore((s) => s.setOpponentName);
-  const setActiveRoomConfig = useMatchmakingStore((s) => s.setActiveRoomConfig);
 
   const [joinRoomId, setJoinRoomId] = useState<string | null>(null);
   const [joinPassword, setJoinPassword] = useState('');
@@ -99,118 +56,9 @@ export function LobbyScreen() {
     }
   };
 
+  // v0.55: matchmaking 初期化は bootstrap 側に集約 (S00 メニューからも呼び出す)
   useEffect(() => {
-    const client = getMomoMatchmaking();
-    if (!client) {
-      setError('matchmaking module not available');
-      return;
-    }
-    setConnection('connecting');
-    setError(null);
-    client.init({
-      signalingUrl: SIGNALING_URL,
-      gameType: SHOGI_GAME_TYPE,
-      onRoomList: (list) => {
-        setRooms(list);
-      },
-      onRoomCreated: (roomId, roomName) => {
-        setConnection('in_room');
-        setCurrentRoom({ roomId, roomName, isHost: true });
-        // 待機画面への遷移は RuleSelectScreen 側で先行実施済み
-      },
-      onJoinedRoom: (roomId, roomName, hostName, rules) => {
-        setConnection('in_room');
-        setCurrentRoom({ roomId, roomName, isHost: false });
-        setOpponentName(hostName);
-        setActiveRoomConfig(normalizeIncomingRules(rules, roomName));
-        useRouteStore.getState().setScreen('room');
-      },
-      onGuestJoined: (guestName) => {
-        setOpponentName(guestName);
-      },
-      onGuestLeft: () => {
-        // 対局中のゲスト退室は画面遷移せずモーダル通知（GameScreen 側）
-        const state = useMatchmakingStore.getState();
-        if (state.gameStartInfo) {
-          useMatchmakingStore.setState({
-            opponentName: '',
-            opponentLeftDuringGame: true,
-          });
-          return;
-        }
-        setOpponentName('');
-      },
-      onConnected: () => {
-        setConnection('game_connected');
-      },
-      onDisconnected: (reason) => {
-        // ユーザーが自分から退室した直後の room_closed 通知は
-        // サーバーが本人にも送り返す挙動によるもの。無視して 'connected' を維持。
-        const state = useMatchmakingStore.getState();
-        if (state.intentionallyLeft) {
-          useMatchmakingStore.setState({ intentionallyLeft: false, connection: 'connected' });
-          return;
-        }
-        // v0.47: 対局中の切断を「サーバー経由 (WS) だけの瞬断」と「相手との直通 (P2P) が
-        // 落ちた本物の切断」に区別する。ライブラリはメッセージ文字列で通知するため
-        // reason に「再接続中」が含まれるかを見る (momo-matchmaking v1.01)。
-        //
-        // - 「再接続中」: 対局を殺さず、20 秒間 wsPendingReconnect=true でバナー表示。
-        //   その間 P2P 直通が生きていれば手は普通に送受信でき、対局は続く。
-        //   20 秒以内に本物の切断が来れば escalate、来なければ猶予期間終了で畳む。
-        // - それ以外 (「対局を中断」など): 従来どおり即 opponentLeftDuringGame=true。
-        if (state.gameStartInfo) {
-          const isWsOnly = typeof reason === 'string' && reason.includes('再接続中');
-          if (isWsOnly) {
-            // v0.49 修正: 猶予期間中に同じ「再接続中」通知が繰り返し届くことがある
-            //   (WS 再接続試行の失敗ごとに再発火)。既に wsPending なら二度目以降は
-            //   ただ無視する。生存判定は ConnectionUncertainBanner の ping/pong に任せる
-            if (state.wsPendingReconnect) return;
-            useMatchmakingStore.setState({ wsPendingReconnect: true });
-            return;
-          }
-          // 本物の切断 (「対局を中断」など) → escalate
-          useMatchmakingStore.setState({
-            wsPendingReconnect: false,
-            opponentLeftDuringGame: true,
-          });
-          if (reason) setError(reason);
-          return;
-        }
-        setConnection('disconnected');
-        if (reason) setError(reason);
-        useRouteStore.getState().setScreen('net-lobby');
-      },
-      onError: (msg) => {
-        setError(msg);
-      },
-      onMessage: (data) => {
-        // P2P で届いたゲームメッセージ（先後選択・準備完了・対局開始 等）を
-        // 中央 dispatcher に転送。store 更新と副作用（画面遷移）はここで完結。
-        handleShogiMessage(data);
-      },
-      // v0.50: シグナリング接続が本当に開いたことを onWsOpen で確認してから
-      // 「接続済み (ロビー)」表示にする。従来は 1.5 秒経ったら実際の状態を
-      // 問わず「接続済み」を偽装していたため、Render スリープ復帰中でも
-      // 表示だけ緑色になり、部屋作成/入室ボタンを押しても無音失敗、あるいは
-      // 他タブから作った部屋が見えない等の不誠実な症状の原因になっていた。
-      onWsOpen: () => {
-        const state = useMatchmakingStore.getState();
-        if (state.connection === 'connecting' || state.connection === 'disconnected') {
-          setConnection('connected');
-        }
-      },
-      onWsClose: () => {
-        // 部屋に入っていない普通のロビー状態で WS が閉じた場合、
-        // ライブラリが 3 秒後に自動再接続を試みる。状態を「接続中」に戻して
-        // 「接続済み」の嘘表示を防ぐ。
-        const state = useMatchmakingStore.getState();
-        if (state.connection === 'connected' && !state.currentRoomId) {
-          setConnection('connecting');
-        }
-      },
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    ensureMatchmakingInit();
   }, []);
 
   const onCreateNavigate = () => {

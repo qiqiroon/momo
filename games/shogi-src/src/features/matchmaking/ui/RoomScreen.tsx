@@ -165,18 +165,18 @@ export function RoomScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mySideChoice, oppSideChoice]);
 
-  // 先後選択の状態から準備完了ボタンの可否を判定
+  // v0.62: 明示的な合意 (sente+gote / gote+sente / random+random+結果) のみ Ready 可能。
+  // 混合パターン (sente+random 等) は「合意ができていない」ので Ready 不可。
   const canReady = (() => {
     if (!oppPresent) return false;
     if (mySideChoice === null || oppSideChoice === null) return false;
-    // 明示的コンフリクト（両者「先手」or 両者「後手」）
-    if (mySideChoice === 'sente' && oppSideChoice === 'sente') return false;
-    if (mySideChoice === 'gote' && oppSideChoice === 'gote') return false;
-    // 両者「おまかせ」で振り駒結果がまだ確定していないなら不可
-    if (mySideChoice === 'random' && oppSideChoice === 'random' && !furigomaResult) return false;
-    // 振り駒アニメ再生中は準備不可（結果を見せてから）
-    if (furigomaSpinning) return false;
-    return true;
+    // 明示的な相互合意
+    if (mySideChoice === 'sente' && oppSideChoice === 'gote') return !furigomaSpinning;
+    if (mySideChoice === 'gote' && oppSideChoice === 'sente') return !furigomaSpinning;
+    // 両者おまかせ (振り駒結果が出た後だけ Ready 可)
+    if (mySideChoice === 'random' && oppSideChoice === 'random' && furigomaResult && !furigomaSpinning) return true;
+    // 同側衝突 / 明示 × random の混合 / random+random 未決着 は合意なし
+    return false;
   })();
   const readyDisabled = !canReady && !myReady;
 
@@ -244,25 +244,17 @@ export function RoomScreen() {
   // 振り駒枠を表示するか（両者「おまかせ」時のみ）
   const showFurigoma = mySideChoice === 'random' && oppSideChoice === 'random';
 
-  // v0.61: 自分の先後がどちらに決まったか (未確定・矛盾・相手待ち・振り駒待ちなら null)
-  // 単に mySideChoice==='sente' で 'sente' を返してしまうと、相手も 'sente' の
-  // 矛盾状態でも決定済み扱いになるので、相手選択との突き合わせで判定する。
+  // v0.62: 明示的な合意のみ resolved と扱う。以下の 3 パターンだけ myEffectiveSide が確定:
+  //   - sente + gote / gote + sente (両者が異なる明示側を選択)
+  //   - random + random + 振り駒結果 (両者おまかせ + 決着済み)
+  // それ以外 (同側衝突・明示×random の混合・両random 未決着) は「合意成立せず」で null。
+  //
+  // 変更前 (v0.61): mySide=sente と oppSide=random でも即 sente resolved にしていたが、
+  // ユーザー指摘「片方が明示・もう片方が random は合意になっていない」を受けて厳格化した。
   const myEffectiveSide: 'sente' | 'gote' | null = (() => {
-    if (mySideChoice === null) return null;
-    if (oppSideChoice === null) return null; // 相手未選択
-    // 矛盾: 両者が同じ側を主張している
-    if (mySideChoice === 'sente' && oppSideChoice === 'sente') return null;
-    if (mySideChoice === 'gote' && oppSideChoice === 'gote') return null;
-    // 明示 × 明示 (sente/gote の非矛盾組合せ)
+    if (mySideChoice === null || oppSideChoice === null) return null;
     if (mySideChoice === 'sente' && oppSideChoice === 'gote') return 'sente';
     if (mySideChoice === 'gote' && oppSideChoice === 'sente') return 'gote';
-    // 明示 × random
-    if (mySideChoice === 'sente' && oppSideChoice === 'random') return 'sente';
-    if (mySideChoice === 'gote' && oppSideChoice === 'random') return 'gote';
-    // random × 明示
-    if (mySideChoice === 'random' && oppSideChoice === 'sente') return 'gote';
-    if (mySideChoice === 'random' && oppSideChoice === 'gote') return 'sente';
-    // random × random: 振り駒結果があれば決定
     if (mySideChoice === 'random' && oppSideChoice === 'random' && furigomaResult) {
       const iAmSente = isHost ? furigomaResult.hostIsSente : !furigomaResult.hostIsSente;
       return iAmSente ? 'sente' : 'gote';
@@ -283,11 +275,12 @@ export function RoomScreen() {
       return { text: myEffectiveSide === 'sente' ? t('s06.sideYouSente') : t('s06.sideYouGote'), kind: 'resolved' };
     }
     if (oppSideChoice === null) return { text: t('s06.sideWaitOpp'), kind: 'waitOpp' };
-    const conflict =
-      (mySideChoice === 'sente' && oppSideChoice === 'sente') ||
-      (mySideChoice === 'gote' && oppSideChoice === 'gote');
-    if (conflict) return { text: t('s06.sideConflict'), kind: 'conflict' };
-    return { text: t('s06.sideResolvingFurigoma'), kind: 'furigoma' };
+    // 両者おまかせ・振り駒結果未確定 (myEffectiveSide が null なのはここに来る前提)
+    if (mySideChoice === 'random' && oppSideChoice === 'random') {
+      return { text: t('s06.sideResolvingFurigoma'), kind: 'furigoma' };
+    }
+    // v0.62: 同側衝突 (sente+sente, gote+gote) だけでなく、明示×random の混合も conflict 扱い。
+    return { text: t('s06.sideConflict'), kind: 'conflict' };
   })();
 
   // v0.60: ルール名の多言語表示 (準備完了カードの「本将棋」ハードコードを解消)

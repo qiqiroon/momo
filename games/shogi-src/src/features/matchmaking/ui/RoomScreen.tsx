@@ -5,7 +5,7 @@ import { t as _t } from '../../../core/i18n';
 import type { LocaleCode } from '../../../core/i18n/types';
 import { CatIcon } from '../../../core/ui-core/CatIcon';
 import { ChatConsole } from '../../../core/ui-core/ChatConsole';
-import { LangSelect } from '../../../core/ui-core/LangSelect';
+import { HeaderCommonRight } from '../../../core/ui-core/HeaderCommonRight';
 import { ScreenBand } from '../../../core/ui-core/ScreenBand';
 import { getMomoMatchmaking } from '../client';
 import { decodeRoomName } from '../roomNameCodec';
@@ -276,7 +276,7 @@ export function RoomScreen() {
           </div>
           <div className="header-spacer" />
           <div className="header-tools">
-            <LangSelect includeCat />
+            <HeaderCommonRight />
           </div>
         </header>
 

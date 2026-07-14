@@ -4,7 +4,7 @@ import { useRouteStore } from '../../../core/store/route-store';
 import { t as _t } from '../../../core/i18n';
 import type { LocaleCode } from '../../../core/i18n/types';
 import { CatIcon } from '../../../core/ui-core/CatIcon';
-import { LangSelect } from '../../../core/ui-core/LangSelect';
+import { HeaderCommonRight } from '../../../core/ui-core/HeaderCommonRight';
 import { getMomoMatchmaking } from '../client';
 import type { TimeControlMode } from '../store';
 import { useMatchmakingStore } from '../store';
@@ -148,7 +148,7 @@ export function RuleSelectScreen() {
             <button className="reset-btn" type="button" onClick={onBack}>
               ロビーへ戻る
             </button>
-            <LangSelect includeCat />
+            <HeaderCommonRight />
           </div>
         </header>
 

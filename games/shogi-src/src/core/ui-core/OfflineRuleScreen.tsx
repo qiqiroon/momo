@@ -5,7 +5,7 @@ import { useGameStore } from '../store/game-store';
 import { t as _t } from '../i18n';
 import type { LocaleCode } from '../i18n/types';
 import { CatIcon } from './CatIcon';
-import { LangSelect } from './LangSelect';
+import { HeaderCommonRight } from './HeaderCommonRight';
 import { ScreenBand } from './ScreenBand';
 import {
   DEFAULT_TIME_CONTROL,
@@ -98,7 +98,7 @@ export function OfflineRuleScreen(_props: OfflineRuleScreenProps) {
             <button className="reset-btn" type="button" onClick={onBack}>
               メニューへ戻る
             </button>
-            <LangSelect includeCat />
+            <HeaderCommonRight />
           </div>
         </header>
 

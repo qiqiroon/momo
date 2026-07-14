@@ -13,7 +13,7 @@ import { isInCheck, positionHash } from '../engine';
 import { pieceNameFor } from '../engine/kifu/format';
 import { CatIcon } from './CatIcon';
 import { FloatingPanel } from './FloatingPanel';
-import { LangSelect } from './LangSelect';
+import { HeaderCommonRight } from './HeaderCommonRight';
 import { ScreenBand } from './ScreenBand';
 import type { OnlineGameConnector } from '../plugin/gameConnector';
 
@@ -343,18 +343,7 @@ export function GameScreen({ variant }: GameScreenProps) {
                   </button>
                 </>
               )}
-              {/*
-                モック S06_mock_v7 由来の設定歯車ボタン (v0.51 追加)。
-                押しても現状は無反応 (設定画面は別 Phase で実装予定)。
-                モック配置を尊重して見た目のみ用意する。
-              */}
-              <button className="gear-btn" type="button" title="設定" aria-label="設定">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="3" />
-                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H2a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 3.6 8a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H8a1.65 1.65 0 0 0 1-1.51V2a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V8a1.65 1.65 0 0 0 1.51 1H22a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-                </svg>
-              </button>
-              <LangSelect includeCat={variant === 'b'} />
+              <HeaderCommonRight includeCat={variant === 'b'} />
             </div>
           </header>
 

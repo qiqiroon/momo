@@ -5,17 +5,16 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.55',
-    // S00 メニュー画面 (モック S01_v5 追随・v0.55)
+    'app.ver': 'v0.56',
+    // S00 メニュー画面 (モック S01_v5 追随・v0.55、v0.56 で並び&文言調整)
     's00.connecting': 'サーバーに接続中...',
     's00.connected': 'サーバー接続済み',
     's00.modeSelect': 'モード選択',
-    's00.lead': '遊びかたを選んでください。ルールとモディファイアは次の画面で決めます。',
     's00.mPvp': 'ネット対戦',
     's00.mPvpD': 'ネット越しに相手と対局。ルールを選んでロビーへ。',
     's00.mAi': 'AI対戦',
     's00.mAiD': 'コンピュータと対局。強さと持ち時間を選べます。',
-    's00.mOffline': 'vs 人 (オフライン)',
+    's00.mOffline': 'vs 人 (オフライン対戦)',
     's00.mOfflineD': '同じ端末で交互に指すデバッグ用モード (将来「感想戦モード」に統合予定)。',
     's00.mWatch': 'ネット観戦',
     's00.mWatchD': 'ほかの人の対局を見る。',
@@ -26,11 +25,10 @@ export const ja: LocaleData = {
     's00.pvpReason': 'サーバーに接続できていないため、ネット対戦は選べません。',
     's00.aiNotYet': 'AI 対戦は Phase 3 で実装予定です',
     's00.footAbout': 'MOMO Shogi について',
-    's00.footDesc': 'MOMO Shogi は、ブラウザで遊べる無料の将棋ゲームです。本将棋のほか、盤の端がつながるトーラス盤や、駒の正体が確定しない量子将棋など、変わりダネのルールで遊べます。ネット越しの対人対戦と AI 対戦に対応。アカウント登録もインストールも不要で、ブラウザだけですぐに遊べます。',
+    's00.footDesc': 'MOMO Shogi は、ブラウザで遊べる将棋ゲームです。本将棋のほか、盤の端がつながるトーラス盤や、駒の正体が確定しない量子将棋など、変わりダネのルールで遊べます。ネット越しの対人対戦と AI 対戦に対応。アカウント登録もインストールも不要で、ブラウザだけですぐに遊べます。',
     's00.footTop': 'MOMO Works トップ',
     's00.footGames': 'ゲーム一覧',
     's00.footTools': 'ツール一覧',
-    // (旧) 'app.ver' — 参照カット
     'app.sub': 'Capture the King, Bend the Rules',
     'turn.mine': 'あなたの手番',
     'turn.opp': '相手の手番',

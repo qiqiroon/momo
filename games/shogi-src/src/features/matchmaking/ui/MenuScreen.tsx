@@ -63,19 +63,20 @@ export function MenuScreen() {
         </div>
       </header>
 
+      <ScreenBand code="S00" name="メニュー" />
+
       <div className={`status-bar ${connected ? 'connected' : 'connecting'}`}>
         <span className="st-dot" />
         <span>{statusLabel}</span>
       </div>
 
-      <ScreenBand code="S00" name="メニュー" />
-
       <div className="screen-head">
         <h2>{t('s00.modeSelect')}</h2>
       </div>
-      <p className="lead">{t('s00.lead')}</p>
 
       <div className="mode-list">
+        {/* v0.56 で並び順を「ネット対戦 → ネット観戦 → AI 対戦 → vs 人 (オフライン対戦) →
+            棋譜再生 → カスタムルール作成」に変更 */}
         <ModeRow
           glyph="対"
           primary
@@ -84,6 +85,14 @@ export function MenuScreen() {
           desc={t('s00.mPvpD')}
           reason={!connected ? t('s00.pvpReason') : undefined}
           onClick={() => connected && setScreen('net-lobby')}
+        />
+        <ModeRow
+          glyph="観"
+          name={t('s00.mWatch')}
+          desc={t('s00.mWatchD')}
+          onClick={() => {
+            /* 未実装・見た目のみ (Phase 6.8 予定) */
+          }}
         />
         <ModeRow
           glyph="機"
@@ -100,11 +109,11 @@ export function MenuScreen() {
           onClick={() => setScreen('offline-rule')}
         />
         <ModeRow
-          glyph="観"
-          name={t('s00.mWatch')}
-          desc={t('s00.mWatchD')}
+          glyph="棋"
+          name={t('s00.mKifu')}
+          desc={t('s00.mKifuD')}
           onClick={() => {
-            /* 未実装・見た目のみ (Phase 6.8 予定) */
+            /* 未実装・見た目のみ (Phase 9 予定) */
           }}
         />
         <ModeRow
@@ -113,14 +122,6 @@ export function MenuScreen() {
           desc={t('s00.mBuildD')}
           onClick={() => {
             /* 未実装・見た目のみ (Phase 8 予定) */
-          }}
-        />
-        <ModeRow
-          glyph="棋"
-          name={t('s00.mKifu')}
-          desc={t('s00.mKifuD')}
-          onClick={() => {
-            /* 未実装・見た目のみ (Phase 9 予定) */
           }}
         />
       </div>

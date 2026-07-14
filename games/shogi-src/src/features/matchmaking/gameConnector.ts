@@ -60,6 +60,7 @@ const connector: OnlineGameConnector = {
       to: payload.to,
       promote: payload.promote,
       time: payload.time,
+      hash: payload.hash,
     });
   },
 

@@ -20,6 +20,8 @@ export interface RemoteMovePayload {
     byoyomiMs: number;
     inByoyomi: boolean;
   };
+  /** v0.52 (段階 2-6): 送信直後の自分の局面ハッシュ。受信側の照合用 */
+  hash?: string;
 }
 
 export interface OnlineGameConnector {

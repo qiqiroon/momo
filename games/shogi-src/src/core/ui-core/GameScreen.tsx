@@ -9,7 +9,7 @@ import { get as pluginGet, has as pluginHas } from '../plugin/registry';
 import { t as _t } from '../i18n';
 import type { LocaleCode } from '../i18n/types';
 import type { PieceInstance } from '../engine';
-import { isInCheck } from '../engine';
+import { isInCheck, positionHash } from '../engine';
 import { pieceNameFor } from '../engine/kifu/format';
 import { CatIcon } from './CatIcon';
 import { FloatingPanel } from './FloatingPanel';
@@ -100,6 +100,9 @@ export function GameScreen({ variant }: GameScreenProps) {
     const clocks = useGameStore.getState().clocks;
     const myClock = mySide ? clocks[mySide] : null;
     const timePayload = myClock ? { mainMs: myClock.mainMs, byoyomiMs: myClock.byoyomiMs, inByoyomi: myClock.inByoyomi } : undefined;
+    // v0.52 (段階 2-6): 送信直後の自分の局面ハッシュを添える。受信側が着手適用後に
+    // 照合してズレを検知する。
+    const hashPayload = positionHash(useGameStore.getState().position);
     if (move.type === 'move') {
       c.sendMove({
         kind: 'move',
@@ -108,6 +111,7 @@ export function GameScreen({ variant }: GameScreenProps) {
         to: move.to,
         promote: move.promote,
         time: timePayload,
+        hash: hashPayload,
       });
     } else {
       c.sendMove({
@@ -115,6 +119,7 @@ export function GameScreen({ variant }: GameScreenProps) {
         pieceId: move.pieceId,
         to: move.to,
         time: timePayload,
+        hash: hashPayload,
       });
     }
   }, [lastAppliedMove, online.isOnline, online.mySide]);

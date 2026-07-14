@@ -21,6 +21,7 @@ import { useChatStore } from '../../core/store/chat-store';
 import { useRouteStore } from '../../core/store/route-store';
 import { useGameStore } from '../../core/store/game-store';
 import { useOffersStore } from '../../core/store/offers-store';
+import { positionHash } from '../../core/engine';
 import { getMomoMatchmaking } from './client';
 import { isShogiMessage, PROTOCOL_VERSION, type ShogiMessage } from './protocol';
 import { useMatchmakingStore } from './store';
@@ -88,6 +89,21 @@ export function handleShogiMessage(data: unknown): void {
           byoyomiMs: msg.time.byoyomiMs,
           inByoyomi: msg.time.inByoyomi,
         });
+      }
+      // v0.52 (段階 2-6): 局面ハッシュ相互検証。相手が送ってきたハッシュと
+      // 自分側が着手適用後に計算したハッシュを照合。一致しなければ両者の盤面が
+      // ズレている (バグや通信ミスの兆候) → 対局中止して警告モーダルへ。
+      // msg.hash が省略されている旧クライアント相手には照合をスキップする。
+      if (applied && typeof msg.hash === 'string') {
+        const myHash = positionHash(useGameStore.getState().position);
+        if (myHash !== msg.hash) {
+          // eslint-disable-next-line no-console
+          console.warn('[shogi] 局面ハッシュ不一致を検知:', { received: msg.hash, computed: myHash });
+          useMatchmakingStore.setState({
+            opponentLeftDuringGame: true,
+            errorMessage: '盤面同期がずれました。対局を中断します。',
+          });
+        }
       }
       return;
     }

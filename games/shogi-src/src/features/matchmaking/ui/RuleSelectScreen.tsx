@@ -345,9 +345,12 @@ export function RuleSelectScreen() {
                           onClick={() => onSetQm('cycle')}
                         >
                           <div className="qpv-head">{t('qmode.cycle')}</div>
-                          <div className="qpv-cell">
+                          {/* v0.65: qpv-cell-wrap で ? を clip 外に配置 */}
+                          <div className="qpv-cell-wrap">
+                            <div className="qpv-cell">
+                              <span className="g">{QUANTUM_PIECES[cycleIdx]}</span>
+                            </div>
                             <span className="qmk">?</span>
-                            <span className="g">{QUANTUM_PIECES[cycleIdx]}</span>
                           </div>
                           <div className="qpv-label">{t('s02.qmCycleDesc')}</div>
                         </button>
@@ -357,13 +360,15 @@ export function RuleSelectScreen() {
                           onClick={() => onSetQm('stack')}
                         >
                           <div className="qpv-head">{t('qmode.stack')}</div>
-                          <div className="qpv-cell">
+                          <div className="qpv-cell-wrap">
+                            <div className="qpv-cell">
+                              <span className="stack">
+                                {QUANTUM_PIECES.map((p) => (
+                                  <span key={p}>{p}</span>
+                                ))}
+                              </span>
+                            </div>
                             <span className="qmk">?</span>
-                            <span className="stack">
-                              {QUANTUM_PIECES.map((p) => (
-                                <span key={p}>{p}</span>
-                              ))}
-                            </span>
                           </div>
                           <div className="qpv-label">{t('s02.qmStackDesc')}</div>
                         </button>
@@ -453,15 +458,16 @@ export function RuleSelectScreen() {
                 <div className="tp-sub">
                   <div className="tp-sub-label">{t('s04.incrementSec')}</div>
                   <div className="tp-sub-opts">
-                    {[0, ...BYO_OPTIONS.map((o) => o.value)].map((v) => (
+                    {/* v0.65: fischer で 0 秒は加算方式として意味が無いので除外 */}
+                    {BYO_OPTIONS.map((o) => (
                       <button
-                        key={v}
+                        key={o.value}
                         type="button"
                         className="act"
-                        onClick={() => setConfig({ timeControl: { ...config.timeControl, incrementSeconds: v } })}
-                        style={config.timeControl.incrementSeconds === v ? { borderColor: 'var(--orange)', color: 'var(--orange-light)', background: 'var(--bg-selected)' } : {}}
+                        onClick={() => setConfig({ timeControl: { ...config.timeControl, incrementSeconds: o.value } })}
+                        style={config.timeControl.incrementSeconds === o.value ? { borderColor: 'var(--orange)', color: 'var(--orange-light)', background: 'var(--bg-selected)' } : {}}
                       >
-                        {v === 0 ? '0秒' : `${v}秒`}
+                        {o.label}
                       </button>
                     ))}
                   </div>

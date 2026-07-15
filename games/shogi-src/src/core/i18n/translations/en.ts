@@ -5,7 +5,7 @@ export const en: LocaleData = {
   name: 'English',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.64',
+    'app.ver': 'v0.65',
     // S02 rule selection (mock S02_v2 origin, v0.57; v0.58 layout compression + time moved here)
     's02.screenTitle': 'Choose Rule',
     's02.secRules': 'Game rule',
@@ -19,11 +19,11 @@ export const en: LocaleData = {
     's02.netaBadge': '🧪 Experimental',
     's02.torusIncompat': 'Torus is unavailable for this rule.',
     's02.quantum': 'Quantum Shogi',
-    's02.quantumNote': 'Pieces stay in superposition — several identities at once. Their true type is fixed when they move.',
+    's02.quantumNote': 'Every piece starts in a quantum state (its type is undetermined). Moving a piece observes it, and its identity is fixed one by one.',
     's02.quantumOff': 'Off',
     's02.quantumOn': 'On',
     's02.quantumIncompat': "Quantum is unavailable for this rule (hidden pieces and superposition can't coexist).",
-    's02.qmTitle': 'How undetermined pieces look',
+    's02.qmTitle': 'How quantum (undetermined) pieces look',
     's02.qmFairBold': 'The mode you pick applies to both players.',
     's02.qmFairRest': 'This prevents one side from getting to see all candidates.',
     's02.qmCycleDesc': 'Shows one candidate per second',

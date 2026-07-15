@@ -5,7 +5,7 @@ export const zh: LocaleData = {
   name: '中文',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.64',
+    'app.ver': 'v0.65',
     // S02 规则选择 (来自 mock S02_v2, v0.57; v0.58 布局压缩 + 用时移入)
     's02.screenTitle': '选择规则',
     's02.secRules': '对局规则',
@@ -19,11 +19,11 @@ export const zh: LocaleData = {
     's02.netaBadge': '🧪 实验 · 趣味模式',
     's02.torusIncompat': '此规则无法使用环面。',
     's02.quantum': '量子将棋',
-    's02.quantumNote': '棋子不先确定身份，多种可能叠加。落子之处决定其真身。',
+    's02.quantumNote': '所有棋子以量子状态（种类未定）开局，走动一子即观测并逐一确定其种类。',
     's02.quantumOff': '关',
     's02.quantumOn': '开',
     's02.quantumIncompat': '此规则无法使用量子（暗子与叠加无法并存）。',
-    's02.qmTitle': '未确定棋子的显示',
+    's02.qmTitle': '量子态（未确定）棋子的显示',
     's02.qmFairBold': '你选择的显示方式将对双方共同生效。',
     's02.qmFairRest': '以免一方能看到全部候选而占优。',
     's02.qmCycleDesc': '每秒显示一个候选',

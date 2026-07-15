@@ -119,7 +119,7 @@ export function MiniBoardPreview({ rule, torusMode, quantum = false, quantumDisp
     : 'mini-grid';
 
   return (
-    <div className="mini-board">
+    <div className={`mini-board${torusMode !== 'none' ? ' is-torus' : ''}`}>
       <div className={gridClass}>
         {cells.map((c, i) => (
           <div key={i} className="mini-sq">

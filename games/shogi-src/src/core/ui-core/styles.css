@@ -2047,10 +2047,16 @@ body::before {
   margin-bottom: 6px;
 }
 .qpv.selected .qpv-head { color: var(--orange-light); }
+/* v0.65: 駒 (clip-path 五角形) の外側に ? を置くための wrap 追加。
+   従来は .qpv-cell 内に配置していたため五角形にクリップされて見えなかった。 */
+.qpv .qpv-cell-wrap {
+  position: relative;
+  width: 46px;
+  margin: 0 auto 7px;
+}
 .qpv .qpv-cell {
   width: 46px;
   height: 52px;
-  margin: 0 auto 7px;
   position: relative;
   background: linear-gradient(170deg, var(--piece), #dcc089);
   border: 1px solid var(--piece-edge);
@@ -2058,13 +2064,18 @@ body::before {
   display: grid;
   place-items: center;
 }
-.qpv .qpv-cell .qmk {
+/* v0.65: プレビュー駒の ? は wrap 直下に置いて clip 外に。色はグレー (視認性優先) */
+.qpv .qpv-cell-wrap .qmk {
   position: absolute;
-  top: 1px;
-  right: 3px;
-  font-size: 12px;
+  top: -2px;
+  right: -2px;
+  font-size: 14px;
   font-weight: 700;
-  color: #000;
+  color: #999;
+  font-family: 'Noto Sans JP', sans-serif;
+  line-height: 1;
+  z-index: 5;
+  pointer-events: none;
 }
 .qpv .qpv-cell .g {
   font-family: 'Yuji Syuku', serif;
@@ -2203,6 +2214,14 @@ body::before {
   border: 2px solid var(--board-edge);
   box-shadow: inset 0 1px 0 #fff6;
 }
+/* v0.65: トーラス時は mini-board の木の背景・枠・パディングを消して、
+   .mini-grid の背景 (木色) がそのまま mask でフェードするようにする */
+.mini-board.is-torus {
+  background: transparent;
+  padding: 0;
+  border-color: transparent;
+  box-shadow: none;
+}
 .mini-grid {
   display: grid;
   grid-template-columns: repeat(9, var(--mc));
@@ -2308,6 +2327,8 @@ body::before {
   position: relative;
   display: grid;
   place-items: center;
+  /* v0.65: border-box で border が cell 幅内に収まり、::before の位置がグリッド線と揃う */
+  box-sizing: border-box;
 }
 .mini-sq:nth-child(9n) { border-right: none; }
 .mini-grid .mini-sq:nth-last-child(-n+9) { border-bottom: none; }

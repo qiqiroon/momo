@@ -13,7 +13,7 @@ import { useMatchmakingStore, type SideChoice, type SideSelection } from '../sto
 import { PROTOCOL_VERSION } from '../protocol';
 import { handleShogiMessage } from '../messageDispatcher';
 import { deriveFurigoma, generateNonce, sha256Hex } from '../fairFlip';
-import { seFurigoma } from '../../../core/audio/se-synth';
+import { seFurigoma, seButton } from '../../../core/audio/se-synth';
 
 /**
  * S06 対局準備画面（段階 2-5.1 で S05 ホスト待機と統合、
@@ -247,6 +247,7 @@ export function RoomScreen() {
   };
 
   const onToggleReady = () => {
+    seButton(); // v0.74
     if (readyDisabled) return;
     const next = !myReady;
     setMyReady(next);

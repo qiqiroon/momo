@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useChatStore } from '../store/chat-store';
 import { get as pluginGet } from '../plugin/registry';
 import type { OnlineGameConnector } from '../plugin/gameConnector';
+import { seChatRecv } from '../audio/se-synth';
 
 /**
  * 対局準備 / 対局中のチャット表示・送信 UI（段階 v0.32 で S06/S07 共通化）。
@@ -32,6 +33,15 @@ export function ChatConsole({ t }: { t: (key: string) => string }) {
       logRef.current.scrollTop = logRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // v0.74: メッセージが増えたら SE-chat-recv を鳴らす (S06/S07 両方で発火)。
+  // 従来 GameScreen 側だけに配線していたので S06 対局準備画面のチャットで
+  // 鳴らなかったのを、共通コンポーネントで一元発火するように移動。
+  const prevMsgCountRef = useRef(messages.length);
+  useEffect(() => {
+    if (messages.length > prevMsgCountRef.current) seChatRecv();
+    prevMsgCountRef.current = messages.length;
+  }, [messages.length]);
 
   const canSend = state.mySide !== null;
   const sideFallback = (side: 'player1' | 'player2') =>

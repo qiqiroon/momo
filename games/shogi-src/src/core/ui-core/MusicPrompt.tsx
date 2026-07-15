@@ -8,6 +8,7 @@ import {
   setSfxVolume,
   resumeAudio,
 } from '../audio/audio-engine';
+import { seButton } from '../audio/se-synth';
 
 /**
  * v0.72: 音楽再生確認モーダル (Darts v2.20 準拠)。
@@ -52,6 +53,7 @@ export function MusicPrompt({ open, onClose }: MusicPromptProps) {
 
   const onYes = async () => {
     await resumeAudio();
+    seButton();
     onClose();
   };
   const onNo = () => {

@@ -6,7 +6,7 @@ import { useOffersStore } from '../store/offers-store';
 import { ChatConsole } from './ChatConsole';
 import { useRouteStore } from '../store/route-store';
 import { get as pluginGet } from '../plugin/registry';
-import { seMove, seCheck, seFanfareWin, seGameLose, sePause, seResume, seChatRecv, seSelect, seCapture } from '../audio/se-synth';
+import { seMove, seCheck, seFanfareWin, seGameLose, sePause, seResume, seSelect, seCapture } from '../audio/se-synth';
 import { t as _t } from '../i18n';
 import type { LocaleCode } from '../i18n/types';
 import type { PieceInstance } from '../engine';
@@ -258,13 +258,7 @@ export function GameScreen({ variant }: GameScreenProps) {
     prevPausedRef.current = paused;
   }, [paused]);
 
-  // v0.72 音響: チャット新着音 (自分の送信も鳴らす=モックの SE-chat-recv 仕様)
-  const chatMsgCount = useChatStore((s) => s.messages.length);
-  const prevChatCountRef = useRef(chatMsgCount);
-  useEffect(() => {
-    if (chatMsgCount > prevChatCountRef.current) seChatRecv();
-    prevChatCountRef.current = chatMsgCount;
-  }, [chatMsgCount]);
+  // v0.74: チャット音の発火は ChatConsole 側に移動 (S06/S07 共通化)
   // オンライン対戦時は自分の手番か相手の手番かを表示
   const isMyTurnOnline = online.isOnline && online.mySide === position.sideToMove;
   // v0.34: 盤面の視点。mySide=player2 のとき盤を反転して「自分の駒を下側」に表示

@@ -11,6 +11,7 @@ import { decodeRoomName, encodeRoomName } from '../roomNameCodec';
 import { RoomBadges } from './RoomBadges';
 import { ensureMatchmakingInit } from '../bootstrap';
 import { formatTimeSummary } from './RuleSelectScreen';
+import { seButton } from '../../../core/audio/se-synth';
 
 /** localStorage キー：前回のプレイヤー名 */
 const LS_LAST_PLAYER_NAME = 'shogi.lobby.lastPlayerName';
@@ -147,6 +148,7 @@ export function LobbyScreen() {
   };
 
   const onCreateRoom = () => {
+    seButton(); // v0.74
     if (!playerName.trim()) {
       setError('プレイヤー名を入力してください');
       return;

@@ -8,6 +8,7 @@ import { HeaderCommonRight } from '../../../core/ui-core/HeaderCommonRight';
 import { useMatchmakingStore, type TorusMode, type QuantumDisplayMode, type TimeControlMode } from '../store';
 import type { GameType } from '../roomNameCodec';
 import { MiniBoardPreview, QUANTUM_PIECES } from './MiniBoardPreview';
+import { seButton } from '../../../core/audio/se-synth';
 
 /** v0.58 S02 ルール選択 (レイアウト圧縮 + 時間設定を S04 から移設)。
  *
@@ -144,7 +145,7 @@ export function RuleSelectScreen() {
   // v0.69: 戻る先は route.ruleSelectReturn を参照 (S04 経由=net-lobby / S01 経由=offline-rule)
   const returnDest = useRouteStore((s) => s.ruleSelectReturn);
   const onBack = () => setScreen(returnDest);
-  const onCommit = () => setScreen(returnDest);
+  const onCommit = () => { seButton(); setScreen(returnDest); };
 
   const modChips: string[] = [];
   if (config.torusMode === 'cylinder') modChips.push(t('s04.summaryTorusCyl'));

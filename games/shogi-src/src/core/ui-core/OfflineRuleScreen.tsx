@@ -8,6 +8,7 @@ import { CatIcon } from './CatIcon';
 import { HeaderCommonRight } from './HeaderCommonRight';
 import { get as pluginGet } from '../plugin/registry';
 import type { OnlineGameConnector } from '../plugin/gameConnector';
+import { seButton } from '../audio/se-synth';
 import {
   DEFAULT_TIME_CONTROL,
   type TimeControl,
@@ -81,6 +82,7 @@ export function OfflineRuleScreen(_props: OfflineRuleScreenProps) {
   };
 
   const onStart = () => {
+    seButton(); // v0.74
     // v0.69: pendingRoomConfig を activeRoomConfig に反映して S07 の getActiveRules() が
     // オフライン対局中も正しいルールを返せるようにする
     conn?.commitPendingToActive();

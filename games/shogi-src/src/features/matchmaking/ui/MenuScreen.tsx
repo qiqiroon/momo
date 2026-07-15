@@ -7,6 +7,7 @@ import { CatIcon } from '../../../core/ui-core/CatIcon';
 import { HeaderCommonRight } from '../../../core/ui-core/HeaderCommonRight';
 import { useMatchmakingStore } from '../store';
 import { ensureMatchmakingInit } from '../bootstrap';
+import { seButton } from '../../../core/audio/se-synth';
 
 /**
  * S00 トップメニュー (v0.55 でモック momo_shogi_S01_mock_v5 に追随)。
@@ -187,7 +188,7 @@ function ModeRow({ glyph, name, desc, reason, primary, disabled, onClick }: Mode
     <button
       type="button"
       className={`mode-row${primary ? ' primary' : ''}${disabled ? ' disabled' : ''}`}
-      onClick={onClick}
+      onClick={() => { seButton(); onClick(); }}
       disabled={disabled}
     >
       <div className="mode-glyph">

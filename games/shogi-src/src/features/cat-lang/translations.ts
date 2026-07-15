@@ -36,9 +36,27 @@ function tail(key: string): string {
   return i >= 0 ? key.slice(i + 1) : key;
 }
 
+/** v0.66: 同じ画面内では同じキーは同じ鳴き声を返すためのキャッシュ。
+ *  何もしないと 1 秒ごとの再レンダリング (例: 量子巡回) で画面全体の文言が
+ *  リロールされて読みにくい / 不快になる。世代 (gen) 番号を進めることで
+ *  「画面切替や locale/catBase 変更時にだけ再生成」を実現。 */
+type CachedMeow = { gen: number; base: CatBase; value: string };
+const catCache = new Map<string, CachedMeow>();
+let cacheGen = 0;
+
+/** 画面切替や言語切替のタイミングで呼ぶ。次回の catSpeak() から新しい鳴き声を採用。 */
+export function resetCatCache(): void {
+  cacheGen++;
+}
+
 /** キーの性質に応じたランダム鳴き声を返す (cat-lang-spec.txt §3-4)。
- *  catBase: 'ja' | 'en' | 'zh' — CAT 選択直前の言語。 */
+ *  catBase: 'ja' | 'en' | 'zh' — CAT 選択直前の言語。
+ *  v0.66: 同じ key + catBase + cacheGen の組では同じ鳴き声を返し、
+ *  再レンダリング時に文言が変わらないようにする。 */
 export function catSpeak(key: string, catBase: CatBase): string {
+  const cached = catCache.get(key);
+  if (cached && cached.gen === cacheGen && cached.base === catBase) return cached.value;
+
   const k = tail(key);
   let vocab: readonly string[];
   if (catBase === 'en') {
@@ -55,5 +73,7 @@ export function catSpeak(key: string, catBase: CatBase): string {
     else if (CALM_KEYS.has(k)) vocab = ['ごろごろ…', 'にゃ…', 'ぐるぐる…'];
     else vocab = ['にゃあ', 'にゃ', 'にゃーん', 'みゃお', 'ニャ！'];
   }
-  return vocab[Math.floor(Math.random() * vocab.length)];
+  const value = vocab[Math.floor(Math.random() * vocab.length)];
+  catCache.set(key, { gen: cacheGen, base: catBase, value });
+  return value;
 }

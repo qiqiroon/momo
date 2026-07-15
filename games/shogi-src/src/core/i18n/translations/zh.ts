@@ -5,7 +5,7 @@ export const zh: LocaleData = {
   name: '中文',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.69',
+    'app.ver': 'v0.70',
     // S02 规则选择 (来自 mock S02_v2, v0.57; v0.58 布局压缩 + 用时移入)
     's02.screenTitle': '选择规则',
     's02.secRules': '对局规则',
@@ -102,6 +102,7 @@ export const zh: LocaleData = {
     's00.mKifu': '棋谱回放',
     's00.mKifuD': '重放已保存的对局并复盘。',
     's00.pvpReason': '尚未连接服务器，无法进行联网对战。',
+    's00.watchReason': '尚未连接服务器，无法进行联网观战。',
     's00.aiNotYet': 'AI 对战预计在 Phase 3 实现。',
     's00.footAbout': '关于 MOMO Shogi',
     's00.footDesc': 'MOMO Shogi 是一款可在浏览器中畅玩的将棋游戏。除本将棋外，还能体验棋盘边缘相连的环面棋盘，以及棋子身份尚未确定的量子将棋等新奇规则。支持联网对战与 AI 对战。无需注册、无需安装，打开浏览器即可畅玩。',

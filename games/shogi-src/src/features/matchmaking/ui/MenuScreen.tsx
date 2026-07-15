@@ -88,10 +88,12 @@ export function MenuScreen() {
         />
         <ModeRow
           glyph="観"
+          disabled={!connected}
           name={t('s00.mWatch')}
           desc={t('s00.mWatchD')}
+          reason={!connected ? t('s00.watchReason') : undefined}
           onClick={() => {
-            /* 未実装・見た目のみ (Phase 6.8 予定) */
+            /* v0.70: 接続時はまだ実装なし (Phase 6.8 予定)。未接続は disabled で押せない */
           }}
         />
         <ModeRow
@@ -200,7 +202,8 @@ function ModeRow({ glyph, name, desc, reason, primary, disabled, onClick }: Mode
         {reason && <div className="mode-reason">{reason}</div>}
       </div>
       <div className="mode-arrow" aria-hidden="true">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+        {/* v0.70: モックの矢印サイズに合わせる (14→18px、stroke 2.4→2) */}
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </div>

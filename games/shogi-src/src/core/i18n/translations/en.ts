@@ -5,7 +5,7 @@ export const en: LocaleData = {
   name: 'English',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.69',
+    'app.ver': 'v0.70',
     // S02 rule selection (mock S02_v2 origin, v0.57; v0.58 layout compression + time moved here)
     's02.screenTitle': 'Choose Rule',
     's02.secRules': 'Game rule',
@@ -102,6 +102,7 @@ export const en: LocaleData = {
     's00.mKifu': 'Replay',
     's00.mKifuD': 'Step back through a saved match.',
     's00.pvpReason': "Online match is unavailable until you're connected to the server.",
+    's00.watchReason': "Online spectating is unavailable until you're connected to the server.",
     's00.aiNotYet': 'AI mode is planned for Phase 3.',
     's00.footAbout': 'About MOMO Shogi',
     's00.footDesc': 'MOMO Shogi is a Shogi game you can play in your browser. Beyond standard Shogi, play offbeat variants like the torus board — where the edges wrap around — and Quantum Shogi, where a piece\'s true identity stays undecided. It supports online matches against other players as well as games against the AI. No account or installation required — just play instantly in your browser.',

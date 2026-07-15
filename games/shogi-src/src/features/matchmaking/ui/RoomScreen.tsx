@@ -13,6 +13,7 @@ import { useMatchmakingStore, type SideChoice, type SideSelection } from '../sto
 import { PROTOCOL_VERSION } from '../protocol';
 import { handleShogiMessage } from '../messageDispatcher';
 import { deriveFurigoma, generateNonce, sha256Hex } from '../fairFlip';
+import { seFurigoma } from '../../../core/audio/se-synth';
 
 /**
  * S06 対局準備画面（段階 2-5.1 で S05 ホスト待機と統合、
@@ -69,6 +70,11 @@ export function RoomScreen() {
 
   // 振り駒アニメ再生中フラグ（結果が新しく確定した瞬間から 1 秒間）
   const [furigomaSpinning, setFurigomaSpinning] = useState(false);
+
+  // v0.72 音響: 振り駒アニメが始まった瞬間に振り駒音を鳴らす
+  useEffect(() => {
+    if (furigomaSpinning) seFurigoma();
+  }, [furigomaSpinning]);
 
   // 送信ユーティリティ
   const sendMsg = (msg: unknown) => {

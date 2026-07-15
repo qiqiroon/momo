@@ -6,6 +6,7 @@ import { useOffersStore } from '../store/offers-store';
 import { ChatConsole } from './ChatConsole';
 import { useRouteStore } from '../store/route-store';
 import { get as pluginGet } from '../plugin/registry';
+import { seMove, seCheck, seFanfareWin, seGameLose, sePause, seResume, seChatRecv } from '../audio/se-synth';
 import { t as _t } from '../i18n';
 import type { LocaleCode } from '../i18n/types';
 import type { PieceInstance } from '../engine';
@@ -205,6 +206,58 @@ export function GameScreen({ variant }: GameScreenProps) {
 
   const senteInCheck = isInCheck(mgf, position, 'player1');
   const goteInCheck = isInCheck(mgf, position, 'player2');
+
+  // v0.72 音響: 着手音 (自他問わず) と、その結果王手になった場合の王手音
+  useEffect(() => {
+    if (!lastAppliedMove) return;
+    seMove();
+    // 着手後、手番が回ってきた側 (position.sideToMove) が王手されているか判定
+    const inCheck = position.sideToMove === 'player1' ? senteInCheck : goteInCheck;
+    if (inCheck) setTimeout(seCheck, 90);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastAppliedMove]);
+
+  // v0.72 音響: 勝敗の効果音 (自分視点)
+  useEffect(() => {
+    if (status === 'playing' || status === 'sennichite' || status === 'agreed_draw') return;
+    // オンライン: 自分の勝ちなら fanfare、負けなら lose。オフラインでは負けた側視点で lose。
+    const winnerSide: 'player1' | 'player2' | null =
+      status === 'checkmate' ? (position.sideToMove === 'player1' ? 'player2' : 'player1')
+      : status === 'resigned_p1' ? 'player2'
+      : status === 'resigned_p2' ? 'player1'
+      : status === 'timeout_p1' ? 'player2'
+      : status === 'timeout_p2' ? 'player1'
+      : status === 'nyugyoku_win_p1' ? 'player1'
+      : status === 'nyugyoku_win_p2' ? 'player2'
+      : null;
+    if (!winnerSide) return;
+    if (online.isOnline) {
+      if (winnerSide === online.mySide) seFanfareWin();
+      else seGameLose();
+    } else {
+      // オフライン: 対局終了は「誰かの負け」体験として lose 音
+      seGameLose();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+
+  // v0.72 音響: 一時停止 / 再開音
+  const prevPausedRef = useRef(paused);
+  useEffect(() => {
+    if (prevPausedRef.current !== paused) {
+      if (paused) sePause();
+      else seResume();
+    }
+    prevPausedRef.current = paused;
+  }, [paused]);
+
+  // v0.72 音響: チャット新着音 (自分の送信も鳴らす=モックの SE-chat-recv 仕様)
+  const chatMsgCount = useChatStore((s) => s.messages.length);
+  const prevChatCountRef = useRef(chatMsgCount);
+  useEffect(() => {
+    if (chatMsgCount > prevChatCountRef.current) seChatRecv();
+    prevChatCountRef.current = chatMsgCount;
+  }, [chatMsgCount]);
   // オンライン対戦時は自分の手番か相手の手番かを表示
   const isMyTurnOnline = online.isOnline && online.mySide === position.sideToMove;
   // v0.34: 盤面の視点。mySide=player2 のとき盤を反転して「自分の駒を下側」に表示

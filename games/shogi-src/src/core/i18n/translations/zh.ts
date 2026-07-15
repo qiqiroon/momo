@@ -5,7 +5,7 @@ export const zh: LocaleData = {
   name: '中文',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.67',
+    'app.ver': 'v0.68',
     // S02 规则选择 (来自 mock S02_v2, v0.57; v0.58 布局压缩 + 用时移入)
     's02.screenTitle': '选择规则',
     's02.secRules': '对局规则',
@@ -242,6 +242,10 @@ export const zh: LocaleData = {
     's06.mineLabel': '你的选择',
     's06.oppLabel': '对方的选择',
     // S07 对局画面（v0.27）
+    's07.backToOfflineSetup': '返回离线设置',
+    's07.ruleShogi': '本将棋',
+    's07.ruleHasami': '夹将棋',
+    's07.ruleCustom': '自定义',
     's07.oppLeftTitle': '对方已退出',
     's07.oppLeftBody': '对局中止。请退出返回大厅。',
     's07.oppLeftBtn': '退出（返回大厅）',

@@ -5,7 +5,7 @@ export const en: LocaleData = {
   name: 'English',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.67',
+    'app.ver': 'v0.68',
     // S02 rule selection (mock S02_v2 origin, v0.57; v0.58 layout compression + time moved here)
     's02.screenTitle': 'Choose Rule',
     's02.secRules': 'Game rule',
@@ -242,6 +242,10 @@ export const en: LocaleData = {
     's06.mineLabel': 'Your pick',
     's06.oppLabel': "Opponent's pick",
     // S07 game screen (v0.27)
+    's07.backToOfflineSetup': 'Back to offline setup',
+    's07.ruleShogi': 'Standard Shogi',
+    's07.ruleHasami': 'Hasami Shogi',
+    's07.ruleCustom': 'Custom',
     's07.oppLeftTitle': 'Your opponent has left',
     's07.oppLeftBody': 'The match is aborted. Please leave to return to the lobby.',
     's07.oppLeftBtn': 'Leave (back to lobby)',

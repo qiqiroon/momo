@@ -8,6 +8,13 @@
  * 動作する。
  */
 
+/** v0.68: S07 のルール表示バンド用。オフライン時は null (=本将棋固定扱い)。 */
+export interface ActiveRulesInfo {
+  gameType: 'shogi' | 'hasami' | 'shogi-custom';
+  torusMode: 'none' | 'cylinder' | 'full';
+  quantum: boolean;
+}
+
 export interface RemoteMovePayload {
   kind: 'move' | 'drop';
   pieceId: string;
@@ -39,6 +46,8 @@ export interface OnlineGameConnector {
   getMyName(): string;
   /** 相手の表示名。オフライン時／未取得時は空文字。段階 2-7 v0.29 追加。 */
   getOpponentName(): string;
+  /** v0.68: S07 の上部ルール表示帯に使う。オフライン時は null (対局画面が本将棋固定扱い) */
+  getActiveRules(): ActiveRulesInfo | null;
   /** 自分の着手を相手に送信 */
   sendMove(payload: RemoteMovePayload): void;
   /**

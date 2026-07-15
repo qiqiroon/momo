@@ -760,6 +760,12 @@ body::before {
   border-radius: 14px;
   padding: 14px;
 }
+/* v0.68: オフライン対戦時にチャット・観戦者パネルを「使えない」と分かるようにする */
+.panel.offline-disabled {
+  opacity: 0.4;
+  pointer-events: none;
+  filter: grayscale(0.6);
+}
 
 .panel-label {
   display: flex;

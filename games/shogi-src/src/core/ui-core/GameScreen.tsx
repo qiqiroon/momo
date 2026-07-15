@@ -5,7 +5,7 @@ import { useChatStore } from '../store/chat-store';
 import { useOffersStore } from '../store/offers-store';
 import { ChatConsole } from './ChatConsole';
 import { useRouteStore } from '../store/route-store';
-import { get as pluginGet, has as pluginHas } from '../plugin/registry';
+import { get as pluginGet } from '../plugin/registry';
 import { t as _t } from '../i18n';
 import type { LocaleCode } from '../i18n/types';
 import type { PieceInstance } from '../engine';
@@ -14,7 +14,6 @@ import { pieceNameFor } from '../engine/kifu/format';
 import { CatIcon } from './CatIcon';
 import { FloatingPanel } from './FloatingPanel';
 import { HeaderCommonRight } from './HeaderCommonRight';
-import { ScreenBand } from './ScreenBand';
 import type { OnlineGameConnector } from '../plugin/gameConnector';
 
 interface GameScreenProps {
@@ -329,15 +328,15 @@ export function GameScreen({ variant }: GameScreenProps) {
                 </>
               ) : (
                 <>
-                  {pluginHas('screen:lobby') && (
-                    <button
-                      className="reset-btn"
-                      type="button"
-                      onClick={() => useRouteStore.getState().setScreen('lobby')}
-                    >
-                      メニューへ戻る
-                    </button>
-                  )}
+                  {/* v0.68: オフライン対局はオフライン設定から入るので、戻り先も
+                      オフライン設定にする (以前はメニューまで戻していた) */}
+                  <button
+                    className="reset-btn"
+                    type="button"
+                    onClick={() => useRouteStore.getState().setScreen('offline-rule')}
+                  >
+                    {t('s07.backToOfflineSetup')}
+                  </button>
                   <button className="reset-btn" type="button" onClick={reset}>
                     リセット
                   </button>
@@ -347,7 +346,28 @@ export function GameScreen({ variant }: GameScreenProps) {
             </div>
           </header>
 
-          <ScreenBand code="S07" name="対局" />
+          {/* v0.68: 従来の「S07 · 対局」バンドをルール表示に置換。
+              オフライン (rules===null) は本将棋のみ表示、オンラインは gameType +
+              トーラス/量子のチップ列。 */}
+          <div style={{ marginTop: 4, padding: '3px 2px', fontSize: 12, color: 'var(--text-muted)', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ color: 'var(--text)', fontWeight: 700 }}>
+              {(() => {
+                const g = pluginGet<OnlineGameConnector>('gameConnector')?.getActiveRules()?.gameType ?? 'shogi';
+                return g === 'hasami' ? t('s07.ruleHasami') : g === 'shogi-custom' ? t('s07.ruleCustom') : t('s07.ruleShogi');
+              })()}
+            </span>
+            {(() => {
+              const r = pluginGet<OnlineGameConnector>('gameConnector')?.getActiveRules();
+              if (!r) return null;
+              return (
+                <>
+                  {r.torusMode === 'cylinder' && <span className="chip mod">{t('s04.summaryTorusCyl')}</span>}
+                  {r.torusMode === 'full' && <span className="chip mod">{t('s04.summaryTorusFull')}</span>}
+                  {r.quantum && <span className="chip mod">{t('s04.summaryQuantum')}</span>}
+                </>
+              );
+            })()}
+          </div>
 
           <div className="turn-row">
             <div className={`turn-banner${status === 'checkmate' ? ' opp' : ''}`}>{turnLabel}</div>
@@ -388,6 +408,7 @@ export function GameScreen({ variant }: GameScreenProps) {
               selectedId={selectedHandPieceId}
               activePlayer={position.sideToMove === oppSide}
               locale={locale}
+              label={oppSideLabel}
             />
             <div className={`board-with-coords${flipped ? ' flipped' : ''}`}>
               <div className={`board-outer${isMyTurnOnline ? ' myturn' : ''}`}>
@@ -450,6 +471,7 @@ export function GameScreen({ variant }: GameScreenProps) {
               selectedId={selectedHandPieceId}
               activePlayer={position.sideToMove === viewerSide}
               locale={locale}
+              label={mySideLabel}
             />
           </div>
 
@@ -477,14 +499,16 @@ export function GameScreen({ variant }: GameScreenProps) {
         </div>
 
         <div className="chat-col">
-          <div className="panel">
+          {/* v0.68: オフライン対戦では相手不在なのでチャット・観戦者パネルを
+              視覚的に「使えない」と分かるようにグレーアウトする */}
+          <div className={`panel${!online.isOnline ? ' offline-disabled' : ''}`}>
             <div className="panel-label">
               <span>{t('chat.title')}</span>
             </div>
             <ChatConsole t={t} />
           </div>
 
-          <div className="panel spectators" style={{ marginTop: 12 }}>
+          <div className={`panel spectators${!online.isOnline ? ' offline-disabled' : ''}`} style={{ marginTop: 12 }}>
             <div className="panel-label">
               <span>{t('spec.title')}</span>
             </div>
@@ -1459,13 +1483,17 @@ interface PieceStandViewProps {
   selectedId: string | null;
   activePlayer: boolean;
   locale: LocaleCode;
+  /** v0.68 C4: 駒台ヘッダーに表示するラベル (先手/後手 等)。未指定なら従来通り Gote/You */
+  label?: string;
 }
 
-function PieceStandView({ side, pieces, onClick, selectedId, activePlayer, locale }: PieceStandViewProps) {
+function PieceStandView({ side, pieces, onClick, selectedId, activePlayer, locale, label }: PieceStandViewProps) {
   const isEn = locale === 'en';
   return (
     <div className={`stand ${side}`}>
-      <div className="stand-h">{side === 'opp' ? 'Gote' : 'You'}</div>
+      {/* v0.68 C4: 従来 'Gote'/'You' 固定で自分が後手のときも相手側が Gote になっていたのを、
+          呼び出し側から先手/後手ラベルを注入して viewer 基準に合わせる。 */}
+      <div className="stand-h">{label ?? (side === 'opp' ? 'Gote' : 'You')}</div>
       <div className="caps">
         {pieces.map((g) => {
           const name = pieceNameFor(g.kind, locale);

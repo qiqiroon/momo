@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.67',
+    'app.ver': 'v0.68',
     // S02 ルール選択画面 (モック S02_v2 追随・v0.57、v0.58 でレイアウト圧縮+時間設定移動)
     's02.screenTitle': 'ルール選択',
     's02.secRules': '対局ルール',
@@ -250,6 +250,11 @@ export const ja: LocaleData = {
     's06.mineLabel': '自分の選択',
     's06.oppLabel': '相手の選択',
     // S07 対局画面（v0.27 追加）
+    // v0.68 S07 対局画面
+    's07.backToOfflineSetup': 'オフライン設定に戻る',
+    's07.ruleShogi': '本将棋',
+    's07.ruleHasami': 'はさみ将棋',
+    's07.ruleCustom': 'カスタム',
     's07.oppLeftTitle': '相手が退室しました',
     's07.oppLeftBody': '対局を中断します。退室して対戦ロビーに戻ってください。',
     's07.oppLeftBtn': '退室（対戦ロビーに戻る）',

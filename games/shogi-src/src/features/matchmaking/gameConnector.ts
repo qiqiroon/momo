@@ -48,6 +48,12 @@ const connector: OnlineGameConnector = {
     return useMatchmakingStore.getState().opponentName;
   },
 
+  getActiveRules() {
+    const cfg = useMatchmakingStore.getState().activeRoomConfig;
+    if (!cfg) return null;
+    return { gameType: cfg.gameType, torusMode: cfg.torusMode, quantum: cfg.quantum };
+  },
+
   sendMove(payload: RemoteMovePayload) {
     const client = getMomoMatchmaking();
     if (!client) return;

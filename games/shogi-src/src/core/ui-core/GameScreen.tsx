@@ -6,7 +6,7 @@ import { useOffersStore } from '../store/offers-store';
 import { ChatConsole } from './ChatConsole';
 import { useRouteStore } from '../store/route-store';
 import { get as pluginGet } from '../plugin/registry';
-import { seMove, seCheck, seFanfareWin, seGameLose, sePause, seResume, seChatRecv } from '../audio/se-synth';
+import { seMove, seCheck, seFanfareWin, seGameLose, sePause, seResume, seChatRecv, seSelect, seCapture } from '../audio/se-synth';
 import { t as _t } from '../i18n';
 import type { LocaleCode } from '../i18n/types';
 import type { PieceInstance } from '../engine';
@@ -207,10 +207,17 @@ export function GameScreen({ variant }: GameScreenProps) {
   const senteInCheck = isInCheck(mgf, position, 'player1');
   const goteInCheck = isInCheck(mgf, position, 'player2');
 
-  // v0.72 音響: 着手音 (自他問わず) と、その結果王手になった場合の王手音
+  // v0.73 音響: 駒取り検出用に前回の持ち駒数を保持
+  const prevHandsRef = useRef({ p1: position.hands.player1.length, p2: position.hands.player2.length });
+  // v0.72/v0.73 音響: 着手音 (取ったなら capture、それ以外は move) と、王手音
   useEffect(() => {
     if (!lastAppliedMove) return;
-    seMove();
+    const curP1 = position.hands.player1.length;
+    const curP2 = position.hands.player2.length;
+    const wasCapture = curP1 > prevHandsRef.current.p1 || curP2 > prevHandsRef.current.p2;
+    prevHandsRef.current = { p1: curP1, p2: curP2 };
+    if (wasCapture) seCapture();
+    else seMove();
     // 着手後、手番が回ってきた側 (position.sideToMove) が王手されているか判定
     const inCheck = position.sideToMove === 'player1' ? senteInCheck : goteInCheck;
     if (inCheck) setTimeout(seCheck, 90);
@@ -308,6 +315,7 @@ export function GameScreen({ variant }: GameScreenProps) {
     const piece = position.board[row][col];
     if (piece && piece.owner === position.sideToMove) {
       selectSquare({ row, col });
+      seSelect(); // v0.73 音響: 駒選択音
     } else {
       clearSelection();
     }
@@ -322,6 +330,7 @@ export function GameScreen({ variant }: GameScreenProps) {
       return;
     }
     selectHandPiece(pieceId);
+    seSelect(); // v0.73 音響: 持ち駒選択音
   };
 
   const senteHandGrouped = groupHand(position.hands.player1);

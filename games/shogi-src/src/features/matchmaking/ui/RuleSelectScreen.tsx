@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useI18nStore } from '../../../core/store/i18n-store';
 import { useRouteStore } from '../../../core/store/route-store';
 import { t as _t } from '../../../core/i18n';
@@ -7,7 +8,7 @@ import { HeaderCommonRight } from '../../../core/ui-core/HeaderCommonRight';
 import { useMatchmakingStore, type TorusMode, type QuantumDisplayMode, type TimeControlMode } from '../store';
 import { ScreenBand } from '../../../core/ui-core/ScreenBand';
 import type { GameType } from '../roomNameCodec';
-import { MiniBoardPreview } from './MiniBoardPreview';
+import { MiniBoardPreview, QUANTUM_PIECES } from './MiniBoardPreview';
 
 /** v0.58 S02 ルール選択 (レイアウト圧縮 + 時間設定を S04 から移設)。
  *
@@ -86,6 +87,13 @@ export function RuleSelectScreen() {
   const setScreen = useRouteStore((s) => s.setScreen);
   const config = useMatchmakingStore((s) => s.pendingRoomConfig);
   const setConfig = useMatchmakingStore((s) => s.setPendingRoomConfig);
+
+  // v0.63: 量子「巡回」プレビューの現在表示駒 (1 秒ごとに強い順→弱い順に切替)
+  const [cycleIdx, setCycleIdx] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setCycleIdx((i) => (i + 1) % QUANTUM_PIECES.length), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const subLocale: LocaleCode = locale === 'cat' ? 'ja' : locale;
   const subtitle = subLocale === 'zh' ? '擒王为胜，破局无界' : 'Capture the King, Bend the Rules';
@@ -176,7 +184,12 @@ export function RuleSelectScreen() {
           : t('s02.pvTopoFull')}
       </div>
       <div className="pv-board-wrap">
-        <MiniBoardPreview rule={currentRule.id} torusMode={config.torusMode} />
+        <MiniBoardPreview
+          rule={currentRule.id}
+          torusMode={config.torusMode}
+          quantum={config.quantum && quantumUsable}
+          quantumDisplayMode={config.quantumDisplayMode}
+        />
       </div>
       {config.torusMode !== 'none' && (
         <div style={{ textAlign: 'center' }}>
@@ -248,10 +261,9 @@ export function RuleSelectScreen() {
             <div className="mod-block">
               <div className="section-label">{t('s02.secMods')}</div>
               <div className="mod-grid">
-                <div className="mod-group">
+                <div className={`mod-group${config.torusMode !== 'none' && torusUsable ? ' active' : ''}`}>
                   <h3>
                     <span>{t('s02.torus')}</span>
-                    <span className="sell">{t('s02.sellBadge')}</span>
                   </h3>
                   <div className="mod-note">{t('s02.torusNote')}</div>
                   <div className="seg">
@@ -286,7 +298,7 @@ export function RuleSelectScreen() {
                   {!torusUsable && <div className="incompat show">{t('s02.torusIncompat')}</div>}
                 </div>
 
-                <div className="mod-group quantum">
+                <div className={`mod-group${config.quantum && quantumUsable ? ' active' : ''}`}>
                   <h3>
                     <span>{t('s02.quantum')}</span>
                   </h3>
@@ -318,41 +330,37 @@ export function RuleSelectScreen() {
                         <b>{t('s02.qmFairBold')}</b>
                         {t('s02.qmFairRest')}
                       </div>
-                      <div className="seg">
+                      {/* v0.63: 巡回/重ねをスイッチではなくパネル選択に。パネル自体が選択ボタン。
+                          巡回は 1 秒ごとに強い駒→弱い駒へ、重ねは 8 種類を全て重ねる。 */}
+                      <div className="qpreview">
                         <button
                           type="button"
-                          className={config.quantumDisplayMode === 'cycle' ? 'on' : ''}
+                          className={`qpv${config.quantumDisplayMode === 'cycle' ? ' selected' : ''}`}
                           onClick={() => onSetQm('cycle')}
                         >
-                          {t('qmode.cycle')}
+                          <div className="qpv-head">{t('qmode.cycle')}</div>
+                          <div className="qpv-cell">
+                            <span className="qmk">?</span>
+                            <span className="g">{QUANTUM_PIECES[cycleIdx]}</span>
+                          </div>
+                          <div className="qpv-label">{t('s02.qmCycleDesc')}</div>
                         </button>
                         <button
                           type="button"
-                          className={config.quantumDisplayMode === 'stack' ? 'on' : ''}
+                          className={`qpv${config.quantumDisplayMode === 'stack' ? ' selected' : ''}`}
                           onClick={() => onSetQm('stack')}
                         >
-                          {t('qmode.stack')}
-                        </button>
-                      </div>
-                      <div className="qpreview">
-                        <div className="qpv">
-                          <div className="qpv-cell">
-                            <span className="qmk">?</span>
-                            <span className="g">歩</span>
-                          </div>
-                          <div className="qpv-label">{t('s02.qmCycleDesc')}</div>
-                        </div>
-                        <div className="qpv">
+                          <div className="qpv-head">{t('qmode.stack')}</div>
                           <div className="qpv-cell">
                             <span className="qmk">?</span>
                             <span className="stack">
-                              <span>歩</span>
-                              <span>桂</span>
-                              <span>銀</span>
+                              {QUANTUM_PIECES.map((p) => (
+                                <span key={p}>{p}</span>
+                              ))}
                             </span>
                           </div>
                           <div className="qpv-label">{t('s02.qmStackDesc')}</div>
-                        </div>
+                        </button>
                       </div>
                     </div>
                   )}
@@ -360,9 +368,10 @@ export function RuleSelectScreen() {
               </div>
             </div>
 
-            {/* 持ち時間パネル (v0.58: S04 から移設) */}
-            <div className="time-panel">
+            {/* 持ち時間パネル (v0.58: S04 から移設・v0.63: ラベルを外に + active 枠 + モード説明) */}
+            <div className="time-block">
               <div className="section-label">{t('s04.lblTime')}</div>
+              <div className={`time-panel${config.timeControl.mode !== 'no_limit' ? ' active' : ''}`}>
               <div className="tp-modes">
                 <button
                   type="button"
@@ -452,6 +461,15 @@ export function RuleSelectScreen() {
                   </div>
                 </div>
               )}
+
+              {/* v0.63: 選択中モードの説明文を最下段に */}
+              <div className="tp-desc">
+                {config.timeControl.mode === 'no_limit' && t('s04.timeFreeDesc')}
+                {config.timeControl.mode === 'byoyomi' && t('s04.timeByoyomiDesc')}
+                {config.timeControl.mode === 'fischer' && t('s04.timeIncrementDesc')}
+                {config.timeControl.mode === 'sudden_death' && t('s04.timeBothDesc')}
+              </div>
+              </div>
             </div>
           </div>
 

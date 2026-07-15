@@ -5,7 +5,7 @@ export const zh: LocaleData = {
   name: '中文',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.62',
+    'app.ver': 'v0.63',
     // S02 规则选择 (来自 mock S02_v2, v0.57; v0.58 布局压缩 + 用时移入)
     's02.screenTitle': '选择规则',
     's02.secRules': '对局规则',
@@ -58,7 +58,11 @@ export const zh: LocaleData = {
     's04.timeFree': '不限时',
     's04.timeByoyomi': '秒读',
     's04.timeIncrement': '加秒 (Fischer)',
-    's04.timeBoth': '本时间＋秒读',
+    's04.timeBoth': '切负',
+    's04.timeFreeDesc': '不限时。不会因时间用完而判负。',
+    's04.timeByoyomiDesc': '本时间 + 秒读。本时间用完后，每一手都会重置秒读时间。',
+    's04.timeIncrementDesc': '每走一手，按设定秒数加时 (Fischer 方式)。',
+    's04.timeBothDesc': '本时间一旦用完立即判负 (切负)。没有加时。',
     's04.mainSec': '本时间',
     's04.byoyomiSec': '秒读',
     's04.incrementSec': '加秒',

@@ -5,7 +5,7 @@ export const en: LocaleData = {
   name: 'English',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.62',
+    'app.ver': 'v0.63',
     // S02 rule selection (mock S02_v2 origin, v0.57; v0.58 layout compression + time moved here)
     's02.screenTitle': 'Choose Rule',
     's02.secRules': 'Game rule',
@@ -58,7 +58,11 @@ export const en: LocaleData = {
     's04.timeFree': 'No limit',
     's04.timeByoyomi': 'Byoyomi',
     's04.timeIncrement': 'Increment (Fischer)',
-    's04.timeBoth': 'Main + Byoyomi',
+    's04.timeBoth': 'Sudden death',
+    's04.timeFreeDesc': 'No time limit. Timeouts are disabled.',
+    's04.timeByoyomiDesc': 'Main time + byoyomi. After main time expires, a fresh byoyomi window is granted for each move.',
+    's04.timeIncrementDesc': 'Increment (Fischer) — each move adds the configured seconds to your remaining time.',
+    's04.timeBothDesc': 'Main time only. Running out of time is an instant loss (sudden death).',
     's04.mainSec': 'Main',
     's04.byoyomiSec': 'Byoyomi',
     's04.incrementSec': 'Increment',

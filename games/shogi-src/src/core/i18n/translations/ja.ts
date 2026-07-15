@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.62',
+    'app.ver': 'v0.63',
     // S02 ルール選択画面 (モック S02_v2 追随・v0.57、v0.58 でレイアウト圧縮+時間設定移動)
     's02.screenTitle': 'ルール選択',
     's02.secRules': '対局ルール',
@@ -60,7 +60,14 @@ export const ja: LocaleData = {
     's04.timeFree': '時間フリー',
     's04.timeByoyomi': '秒読み',
     's04.timeIncrement': '加算 (Fischer)',
-    's04.timeBoth': '本時間＋秒読み',
+    // v0.63: sudden_death モードは本時間のみ・切れたら負け。旧「本時間＋秒読み」は名前が
+    // 誤解を招くため「切れ負け」に改名 (byoyomi モードの方が本時間＋秒読みが可能)。
+    's04.timeBoth': '切れ負け',
+    // v0.63: 各モードの説明文 (時間パネル最下段に選択中モードだけ表示)
+    's04.timeFreeDesc': '時間制限なし。時間切れは発生しません。',
+    's04.timeByoyomiDesc': '本時間 + 秒読み。本時間を使い切っても、一手ごとに秒読み時間が復活します。',
+    's04.timeIncrementDesc': '一手指すごとに設定した秒数を持ち時間に加算 (フィッシャー方式)。',
+    's04.timeBothDesc': '本時間を使い切ると即負け (切れ負け)。追加時間はありません。',
     's04.mainSec': '本時間',
     's04.byoyomiSec': '秒読み',
     's04.incrementSec': '加算',

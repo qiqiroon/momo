@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useI18nStore } from '../../../core/store/i18n-store';
 import { useRouteStore } from '../../../core/store/route-store';
 import { t as _t } from '../../../core/i18n';
@@ -92,6 +92,35 @@ export function RoomScreen() {
       resetHandshake();
     }
   }, [isHost, opponentName, resetHandshake]);
+
+  // v0.67 A5: ルール同期の ack 結果 (null=未検査, true=対応OK, false=非対応)。
+  // ルール同期プロトコル実装時に置き換え予定。それまでは null で警告帯は非表示。
+  const [ruleSyncAckOk] = useState<boolean | null>(null);
+
+  // v0.67 A6: 相手が退室したときの警告帯 (部屋は維持)
+  // 一度でも相手が入室していた状態から相手不在に戻ったら oppLeftWarn を立てる。
+  // 新しい相手が入室したら自動でクリア。
+  const [oppLeftWarn, setOppLeftWarn] = useState(false);
+  const hadOpponentRef = useRef(false);
+  useEffect(() => {
+    if (opponentName) {
+      hadOpponentRef.current = true;
+      setOppLeftWarn(false);
+    } else if (hadOpponentRef.current) {
+      setOppLeftWarn(true);
+    }
+  }, [opponentName]);
+
+  // v0.67 A6: 入室タイムアウト警告 (60 秒経っても相手不在ならバナー表示)
+  const [oppTimeoutWarn, setOppTimeoutWarn] = useState(false);
+  useEffect(() => {
+    if (opponentName) {
+      setOppTimeoutWarn(false);
+      return;
+    }
+    const id = setTimeout(() => setOppTimeoutWarn(true), 60_000);
+    return () => clearTimeout(id);
+  }, [opponentName]);
 
   // v0.53: 振り駒の検証エラーが起きたら errorMessage に流す (画面上部の帯に表示)
   useEffect(() => {
@@ -360,6 +389,19 @@ export function RoomScreen() {
               {oppPresent ? t('s06.stConnected') : ''}
             </span>
           </div>
+          {/* v0.67 A6: 相手切断・入室タイムアウト警告帯 (部屋は維持) */}
+          {oppLeftWarn && (
+            <div className="block-note">
+              <span>⚠</span>
+              <span>{t('s06.oppLeftWarn')}</span>
+            </div>
+          )}
+          {!oppLeftWarn && oppTimeoutWarn && !oppPresent && (
+            <div className="block-note">
+              <span>⚠</span>
+              <span>{t('s06.oppTimeoutWarn')}</span>
+            </div>
+          )}
         </div>
 
         {/* ===== ルール同期の進捗（段階 2-5.1 では見せかけ全部完了） ===== */}
@@ -392,6 +434,15 @@ export function RoomScreen() {
             <span className="ss-spacer" />
             <span className="ss-state">{t('s06.stDone')}</span>
           </div>
+          {/* v0.67 A5: ルール非対応の警告帯 (プレースホルダ)
+             ルール同期プロトコル実装時に ackOk === false を検出して表示予定。
+             今は wiring 済みで表示条件が false のため常に非表示。 */}
+          {ruleSyncAckOk === false && (
+            <div className="block-note">
+              <span>⚠</span>
+              <span>{t('s06.ackFail')}</span>
+            </div>
+          )}
         </div>
 
         {/* ===== 先後選択 ===== */}
@@ -502,7 +553,29 @@ export function RoomScreen() {
         <div className="start-card">
           <div className="st-line">{t('s06.stLead')}</div>
           <div className="st-rule">
-            <span>{ruleNameLabel}</span>
+            {/* v0.67 A11: ルール名 + 盤サイズ表記 (現状の 3 ルールは全て 9×9) */}
+            <span>{ruleNameLabel} 9×9</span>
+          </div>
+          {/* v0.67 A10: 先後 + モディファイア のチップ列 (mock S05 の #stChips 追随) */}
+          <div className="chips">
+            {mySideChoice && (
+              <span className="chip">
+                {mySideChoice === 'sente'
+                  ? t('s06.sideNameS')
+                  : mySideChoice === 'gote'
+                  ? t('s06.sideNameG')
+                  : t('s06.sideNameR')}
+              </span>
+            )}
+            {activeRoomConfig?.torusMode === 'cylinder' && (
+              <span className="chip mod">{t('s04.summaryTorusCyl')}</span>
+            )}
+            {activeRoomConfig?.torusMode === 'full' && (
+              <span className="chip mod">{t('s04.summaryTorusFull')}</span>
+            )}
+            {activeRoomConfig?.quantum && (
+              <span className="chip mod">{t('s04.summaryQuantum')}</span>
+            )}
           </div>
           <button
             type="button"

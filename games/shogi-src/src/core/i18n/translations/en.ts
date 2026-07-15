@@ -5,7 +5,7 @@ export const en: LocaleData = {
   name: 'English',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.66',
+    'app.ver': 'v0.67',
     // S02 rule selection (mock S02_v2 origin, v0.57; v0.58 layout compression + time moved here)
     's02.screenTitle': 'Choose Rule',
     's02.secRules': 'Game rule',
@@ -258,6 +258,9 @@ export const en: LocaleData = {
     's06.oppReadyNo': 'Opponent: not ready yet…',
     's06.oppReadyYes': 'Opponent: ready ✓',
     's06.startDest': '→ Match',
+    's06.ackFail': "The opponent's engine does not support this rule / modifier, so the match cannot start.",
+    's06.oppLeftWarn': 'The opponent left. The room is still open — you can wait for a new opponent.',
+    's06.oppTimeoutWarn': 'No opponent has arrived for a while. Still waiting.',
     's06.sidePromptChoose': 'Please choose sente or gote',
     's06.sideWaitOpp': 'Waiting for the opponent to choose…',
     's06.sideConflict': "You and your opponent have not agreed on sides",

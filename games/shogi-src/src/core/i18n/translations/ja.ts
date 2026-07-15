@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.66',
+    'app.ver': 'v0.67',
     // S02 ルール選択画面 (モック S02_v2 追随・v0.57、v0.58 でレイアウト圧縮+時間設定移動)
     's02.screenTitle': 'ルール選択',
     's02.secRules': '対局ルール',
@@ -266,6 +266,10 @@ export const ja: LocaleData = {
     's06.oppReadyNo': '相手：準備中…',
     's06.oppReadyYes': '相手：準備完了 ✓',
     's06.startDest': '→ 対局へ',
+    // v0.67 A5/A6: 警告帯 (ルール同期失敗 / 相手切断 / 入室タイムアウト)
+    's06.ackFail': '相手のエンジンがこのルール／モディファイアに対応していないため、対局を開始できません。',
+    's06.oppLeftWarn': '相手が退室しました。部屋はそのまま残っています。新しい相手を待てます。',
+    's06.oppTimeoutWarn': '相手の入室待機が長引いています。しばらく反応がありません。',
     // v0.60/v0.61: 先後選択の状態表示 (5 段階)
     's06.sidePromptChoose': '先手か後手を選んでください',
     's06.sideWaitOpp': '相手の選択待ちです',

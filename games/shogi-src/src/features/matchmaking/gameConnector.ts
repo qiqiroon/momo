@@ -54,6 +54,16 @@ const connector: OnlineGameConnector = {
     return { gameType: cfg.gameType, torusMode: cfg.torusMode, quantum: cfg.quantum };
   },
 
+  getPendingRules() {
+    const cfg = useMatchmakingStore.getState().pendingRoomConfig;
+    return { gameType: cfg.gameType, torusMode: cfg.torusMode, quantum: cfg.quantum };
+  },
+
+  commitPendingToActive() {
+    const s = useMatchmakingStore.getState();
+    s.setActiveRoomConfig({ ...s.pendingRoomConfig });
+  },
+
   sendMove(payload: RemoteMovePayload) {
     const client = getMomoMatchmaking();
     if (!client) return;

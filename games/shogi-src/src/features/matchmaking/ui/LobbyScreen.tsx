@@ -141,7 +141,11 @@ export function LobbyScreen() {
     setScreen('lobby');
   };
 
-  const onEditRule = () => setScreen('rule-select');
+  // v0.69: S02 (ルール選択) から戻る際に S04 (net-lobby) に戻すよう指定
+  const onEditRule = () => {
+    useRouteStore.getState().setRuleSelectReturn('net-lobby');
+    setScreen('rule-select');
+  };
 
   const onCreateRoom = () => {
     if (!playerName.trim()) {

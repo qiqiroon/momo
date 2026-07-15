@@ -7,6 +7,8 @@ import type { LocaleCode } from '../i18n/types';
 import { CatIcon } from './CatIcon';
 import { HeaderCommonRight } from './HeaderCommonRight';
 import { ScreenBand } from './ScreenBand';
+import { get as pluginGet } from '../plugin/registry';
+import type { OnlineGameConnector } from '../plugin/gameConnector';
 import {
   DEFAULT_TIME_CONTROL,
   type TimeControl,
@@ -65,7 +67,24 @@ export function OfflineRuleScreen(_props: OfflineRuleScreenProps) {
 
   const onBack = () => setScreen('lobby');
 
+  // v0.69: features/matchmaking の pendingRoomConfig からルールサマリを取る (B ビルドのみ)
+  const conn = pluginGet<OnlineGameConnector>('gameConnector');
+  const pendingRules = conn?.getPendingRules() ?? null;
+  const ruleNameJa =
+    pendingRules?.gameType === 'hasami' ? 'はさみ将棋'
+    : pendingRules?.gameType === 'shogi-custom' ? 'カスタム'
+    : '本将棋';
+
+  // v0.69: S02 (rule-select) へ遷移して戻ってこられるようにする (return dest を 'offline-rule' に)
+  const onEditRule = () => {
+    useRouteStore.getState().setRuleSelectReturn('offline-rule');
+    setScreen('rule-select');
+  };
+
   const onStart = () => {
+    // v0.69: pendingRoomConfig を activeRoomConfig に反映して S07 の getActiveRules() が
+    // オフライン対局中も正しいルールを返せるようにする
+    conn?.commitPendingToActive();
     const gs = useGameStore.getState();
     gs.setTimeControl(tc);
     gs.reset();
@@ -103,6 +122,32 @@ export function OfflineRuleScreen(_props: OfflineRuleScreenProps) {
         </header>
 
         <ScreenBand code="S01" name="オフライン設定" />
+
+        {/* v0.69: 対局ルール選択 (S04 と同じ形式)。今は本将棋のみ機能するが、
+            将来のルール追加時のためにここで受け皿として設置 */}
+        <div style={{ marginTop: 14, padding: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
+          <div className="panel-label"><span>対局ルール</span></div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <div style={{ fontSize: 14, color: 'var(--text)', fontWeight: 700 }}>{ruleNameJa}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                変則条件:{' '}
+                {pendingRules && (pendingRules.torusMode !== 'none' || pendingRules.quantum) ? (
+                  <>
+                    {pendingRules.torusMode === 'cylinder' && <span className="chip mod">トーラス（円筒）</span>}
+                    {pendingRules.torusMode === 'full' && <span className="chip mod">トーラス（完全）</span>}
+                    {pendingRules.quantum && <span className="chip mod">量子</span>}
+                  </>
+                ) : (
+                  'なし'
+                )}
+              </div>
+            </div>
+            <button className="reset-btn" type="button" onClick={onEditRule}>
+              ルールを選択
+            </button>
+          </div>
+        </div>
 
         <div style={{ marginTop: 14, padding: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
           <div className="panel-label"><span>持ち時間モード</span></div>

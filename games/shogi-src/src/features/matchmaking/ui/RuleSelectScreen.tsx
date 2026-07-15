@@ -142,8 +142,10 @@ export function RuleSelectScreen() {
     });
   };
 
-  const onBack = () => setScreen('net-lobby');
-  const onCommit = () => setScreen('net-lobby');
+  // v0.69: 戻る先は route.ruleSelectReturn を参照 (S04 経由=net-lobby / S01 経由=offline-rule)
+  const returnDest = useRouteStore((s) => s.ruleSelectReturn);
+  const onBack = () => setScreen(returnDest);
+  const onCommit = () => setScreen(returnDest);
 
   const modChips: string[] = [];
   if (config.torusMode === 'cylinder') modChips.push(t('s04.summaryTorusCyl'));

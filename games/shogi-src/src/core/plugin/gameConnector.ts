@@ -48,6 +48,11 @@ export interface OnlineGameConnector {
   getOpponentName(): string;
   /** v0.68: S07 の上部ルール表示帯に使う。オフライン時は null (対局画面が本将棋固定扱い) */
   getActiveRules(): ActiveRulesInfo | null;
+  /** v0.69: S01 オフライン設定でルールサマリを表示するため、pendingRoomConfig を返す */
+  getPendingRules(): ActiveRulesInfo | null;
+  /** v0.69: オフライン対局開始時に pendingRoomConfig を activeRoomConfig に反映して
+   *  S07 の getActiveRules() が正しいルールを返せるようにする */
+  commitPendingToActive(): void;
   /** 自分の着手を相手に送信 */
   sendMove(payload: RemoteMovePayload): void;
   /**

@@ -5,7 +5,7 @@ export const zh: LocaleData = {
   name: '中文',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.63',
+    'app.ver': 'v0.64',
     // S02 规则选择 (来自 mock S02_v2, v0.57; v0.58 布局压缩 + 用时移入)
     's02.screenTitle': '选择规则',
     's02.secRules': '对局规则',

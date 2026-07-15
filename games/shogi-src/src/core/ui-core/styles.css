@@ -2211,29 +2211,94 @@ body::before {
   border: 1.4px solid var(--board-line);
   position: relative;
 }
-/* v0.63: トーラスプレビュー拡張。円筒は左右に 2 列、完全はさらに上下に 2 行、
-   反対側の列/行をコピーして「盤面がつながっている」ように見せる。境界の 2 列/行は
-   マスクでフェードアウト。 */
+/* v0.64: トーラスプレビュー拡張の刷新。
+   - 拡大時にプレビュー枠内に収まるよう --mc を小さく (24→16px)
+   - 元の 9x9 の外枠を太めに描いて元の盤の場所を分かりやすく (::before)
+   - 透明度は 100%→0% ではなく 50%→0% (元盤の外側は半分見えて自然に消える) */
+.mini-grid.torus-cyl,
+.mini-grid.torus-full {
+  --mc: 16px;
+}
 .mini-grid.torus-cyl {
   grid-template-columns: repeat(13, var(--mc));
-  -webkit-mask-image: linear-gradient(to right, transparent 0, black 15%, black 85%, transparent 100%);
-          mask-image: linear-gradient(to right, transparent 0, black 15%, black 85%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right,
+    transparent 0%,
+    rgba(0,0,0,0.5) calc(var(--mc) * 2),
+    black calc(var(--mc) * 2 + 3px),
+    black calc(var(--mc) * 11 - 3px),
+    rgba(0,0,0,0.5) calc(var(--mc) * 11),
+    transparent 100%);
+          mask-image: linear-gradient(to right,
+    transparent 0%,
+    rgba(0,0,0,0.5) calc(var(--mc) * 2),
+    black calc(var(--mc) * 2 + 3px),
+    black calc(var(--mc) * 11 - 3px),
+    rgba(0,0,0,0.5) calc(var(--mc) * 11),
+    transparent 100%);
 }
 .mini-grid.torus-full {
   grid-template-columns: repeat(13, var(--mc));
   grid-template-rows: repeat(13, var(--mc));
   -webkit-mask-image:
-    linear-gradient(to right, transparent 0, black 15%, black 85%, transparent 100%),
-    linear-gradient(to bottom, transparent 0, black 15%, black 85%, transparent 100%);
+    linear-gradient(to right,
+      transparent 0%,
+      rgba(0,0,0,0.5) calc(var(--mc) * 2),
+      black calc(var(--mc) * 2 + 3px),
+      black calc(var(--mc) * 11 - 3px),
+      rgba(0,0,0,0.5) calc(var(--mc) * 11),
+      transparent 100%),
+    linear-gradient(to bottom,
+      transparent 0%,
+      rgba(0,0,0,0.5) calc(var(--mc) * 2),
+      black calc(var(--mc) * 2 + 3px),
+      black calc(var(--mc) * 11 - 3px),
+      rgba(0,0,0,0.5) calc(var(--mc) * 11),
+      transparent 100%);
   -webkit-mask-composite: source-in;
           mask-image:
-    linear-gradient(to right, transparent 0, black 15%, black 85%, transparent 100%),
-    linear-gradient(to bottom, transparent 0, black 15%, black 85%, transparent 100%);
+    linear-gradient(to right,
+      transparent 0%,
+      rgba(0,0,0,0.5) calc(var(--mc) * 2),
+      black calc(var(--mc) * 2 + 3px),
+      black calc(var(--mc) * 11 - 3px),
+      rgba(0,0,0,0.5) calc(var(--mc) * 11),
+      transparent 100%),
+    linear-gradient(to bottom,
+      transparent 0%,
+      rgba(0,0,0,0.5) calc(var(--mc) * 2),
+      black calc(var(--mc) * 2 + 3px),
+      black calc(var(--mc) * 11 - 3px),
+      rgba(0,0,0,0.5) calc(var(--mc) * 11),
+      transparent 100%);
           mask-composite: intersect;
 }
-/* 拡張マスの右端/下端も無くす */
-.mini-grid.torus-cyl .mini-sq:nth-child(13n) { border-right: none; }
+/* v0.64: 元の 9x9 外枠を太めに描いて分かりやすく (拡張された盤の中央 9x9 が元) */
+.mini-grid.torus-cyl::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--mc) * 2);
+  width: calc(var(--mc) * 9);
+  border-left: 2px solid var(--board-line);
+  border-right: 2px solid var(--board-line);
+  pointer-events: none;
+  z-index: 2;
+}
+.mini-grid.torus-full::before {
+  content: '';
+  position: absolute;
+  top: calc(var(--mc) * 2);
+  left: calc(var(--mc) * 2);
+  width: calc(var(--mc) * 9);
+  height: calc(var(--mc) * 9);
+  border: 2px solid var(--board-line);
+  pointer-events: none;
+  z-index: 2;
+}
+/* 拡張マスの右端/下端の外枠は畳む */
 .mini-grid.torus-cyl .mini-sq { border-right: 1px solid var(--board-line); }
+.mini-grid.torus-cyl .mini-sq:nth-child(13n) { border-right: none; }
 .mini-grid.torus-full .mini-sq { border-right: 1px solid var(--board-line); border-bottom: 1px solid var(--board-line); }
 .mini-grid.torus-full .mini-sq:nth-child(13n) { border-right: none; }
 .mini-grid.torus-full .mini-sq:nth-last-child(-n+13) { border-bottom: none; }
@@ -2265,17 +2330,28 @@ body::before {
    v0.57 までは span (文字) のみ回転していたため、外形が反転していなかった。 */
 .mini-pc.g2 { transform: rotate(180deg); }
 
-/* v0.63: プレビューで量子将棋 ON のときに駒の右上に ? を表示 */
-.mini-pc { position: relative; }
-.mini-pc .mini-qmk {
+/* v0.63/v0.64: プレビュー量子 ON 時の ? マーク。駒 (mini-pc) の clip-path で
+   クリップされないよう、.mini-sq 直下に絶対配置する (モック S06 .qmark-b と同じ)。
+   後手駒 (.g2) は 180 度回転して左下側に置く。 */
+.mini-sq { overflow: visible; }
+.mini-sq .mini-qmk {
   position: absolute;
-  top: -2px;
-  right: 0px;
-  font-size: 7px;
+  top: 0;
+  right: 1px;
+  font-size: 8px;
   font-weight: 700;
   color: #000;
   line-height: 1;
-  font-family: inherit;
+  font-family: 'Noto Sans JP', sans-serif;
+  z-index: 6;
+  pointer-events: none;
+}
+.mini-sq .mini-qmk.g2 {
+  top: auto;
+  right: auto;
+  bottom: 0;
+  left: 1px;
+  transform: rotate(180deg);
 }
 /* v0.63: 量子「重ね」表示。8 駒種を一つのマスに重ねる。ミニ盤なので潰れて見えて良い。 */
 .mini-pc .mini-stack {

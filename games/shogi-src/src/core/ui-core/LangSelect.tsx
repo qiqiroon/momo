@@ -11,8 +11,10 @@ import { useI18nStore, type LocaleMode } from '../store/i18n-store';
  */
 export function LangSelect({ includeCat }: { includeCat: boolean }) {
   const mode = useI18nStore((s) => s.mode);
+  const locale = useI18nStore((s) => s.locale);
   const setMode = useI18nStore((s) => s.setMode);
   const setLocale = useI18nStore((s) => s.setLocale);
+  const setCatBase = useI18nStore((s) => s.setCatBase);
 
   const hasMomoLang = typeof window !== 'undefined' && 'MomoLang' in window;
   const options: { value: LocaleMode; label: string }[] = [];
@@ -32,6 +34,10 @@ export function LangSelect({ includeCat }: { includeCat: boolean }) {
         value={mode}
         onChange={(e) => {
           const m = e.target.value as LocaleMode;
+          // v0.64: CAT を選ぶ直前の locale を catBase に保存 (語彙の切替根拠)
+          if (m === 'cat' && locale !== 'cat') {
+            setCatBase(locale === 'en' || locale === 'zh' ? locale : 'ja');
+          }
           setMode(m);
           if (m !== 'auto') setLocale(m);
         }}

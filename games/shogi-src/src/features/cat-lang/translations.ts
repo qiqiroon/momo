@@ -1,39 +1,59 @@
 import type { LocaleData } from '../../core/i18n/types';
 
+/** v0.64: 猫語 (CAT) を動的ランダム生成方式に置き換え (cat-lang-spec.txt 準拠)。
+ *
+ *  従来は静的な翻訳表を持っていたが、仕様書の方針:
+ *    - 翻訳キー追加ゼロ・辞書ゼロ
+ *    - t() 呼び出しごとにキー分類に応じた語彙リストからランダム 1 語を返す
+ *    - catBase (CAT 選択直前の言語) により語彙 (ja/en/zh) を切替
+ *
+ *  この LocaleData は「code = 'cat' が登録されている」というマーカー役のみで、
+ *  translations は空。実際の文言生成は core/i18n/index.ts の t() が catSpeak を呼ぶ。
+ */
 export const cat: LocaleData = {
   code: 'cat',
   name: 'にゃんこ語',
-  translations: {
-    'app.title': 'にゃにゃ将棋',
-    'app.ver': 'v0.18',
-    'app.sub': 'にゃにゃ にゃんにゃにゃ にゃ',
-    'turn.mine': 'にゃ！',
-    'turn.opp': 'にゃにゃ…',
-    'player.opp': 'あいにゃんこ',
-    'player.you': 'にゃんこ',
-    'cmd.taunt': 'シャー！',
-    'cmd.undo': 'にゃ？',
-    'cmd.draw': 'にゃにゃ',
-    'cmd.pause': 'にゃむ',
-    'cmd.resign': 'にゃ〜ん',
-    'cmd.cancel': 'にゃっ',
-    'chat.title': 'にゃべり',
-    'chat.send': 'にゃ！',
-    'chat.placeholder': 'にゃにゃ…',
-    'chat.pSente': 'にゃ＞',
-    'chat.pGote': 'みゃ＞',
-    'spec.title': 'みる子',
-    'spec.kick': 'しっ！',
-    'spec.empty': 'にゃんこいないにゃ',
-    'qmode.cycle': 'にゃにゃ',
-    'qmode.stack': 'かさねにゃ',
-    'promote.decline': 'そのまま',
-    'promote.confirm': 'ばけるにゃ！',
-    'cmd.nyugyoku': 'にゃんこ入玉',
-    'status.sennichite': 'にゃにゃ千日',
-    'status.nyugyoku_win_p1': 'にゃ！先手勝ち',
-    'status.nyugyoku_win_p2': 'にゃ！後手勝ち',
-    'status.checkmate_p1': 'にゃっ先手詰み',
-    'status.checkmate_p2': 'にゃっ後手詰み',
-  },
+  translations: {},
 };
+
+/** 猫語モードでの語彙選択に使う「直前の言語」の型 (i18n-store と同じ) */
+export type CatBase = 'ja' | 'en' | 'zh';
+
+/** エラー系キー (末尾一致): シャー/HISS 系の攻撃的な鳴き声 */
+const ERROR_KEYS = new Set<string>([
+  'pwError', 'noRoomError', 'fullRoomError', 'kicked',
+  'createErrorEmpty', 'privateIdRequired',
+]);
+/** 待機・接続系キー (末尾一致): ごろごろ/purrrr 系の穏やかな鳴き声 */
+const CALM_KEYS = new Set<string>([
+  'connecting', 'reconnecting', 'waitingGuest', 'waitingStart',
+]);
+
+/** キーの最後の segment を取り出す。s06.frRolling → 'frRolling'。
+ *  仕様書のキー分類 (pwError 等) はドット無しで書かれているため、末尾一致で判定する。 */
+function tail(key: string): string {
+  const i = key.lastIndexOf('.');
+  return i >= 0 ? key.slice(i + 1) : key;
+}
+
+/** キーの性質に応じたランダム鳴き声を返す (cat-lang-spec.txt §3-4)。
+ *  catBase: 'ja' | 'en' | 'zh' — CAT 選択直前の言語。 */
+export function catSpeak(key: string, catBase: CatBase): string {
+  const k = tail(key);
+  let vocab: readonly string[];
+  if (catBase === 'en') {
+    if (ERROR_KEYS.has(k)) vocab = ['HISS!', 'SPIT!', 'FSSST!'];
+    else if (CALM_KEYS.has(k)) vocab = ['purrrr...', 'mrrr...', 'prrr...'];
+    else vocab = ['MEOW', 'meow', 'mrrrow', 'mew', 'NYA!'];
+  } else if (catBase === 'zh') {
+    if (ERROR_KEYS.has(k)) vocab = ['嘶！', '哈！', '嘶嘶！'];
+    else if (CALM_KEYS.has(k)) vocab = ['呼噜…', '喵…', '咕噜…'];
+    else vocab = ['喵', '喵喵', '喵呜', '喵！'];
+  } else {
+    // ja (default)
+    if (ERROR_KEYS.has(k)) vocab = ['シャー！', 'フーッ！', 'シャシャシャ！'];
+    else if (CALM_KEYS.has(k)) vocab = ['ごろごろ…', 'にゃ…', 'ぐるぐる…'];
+    else vocab = ['にゃあ', 'にゃ', 'にゃーん', 'みゃお', 'ニャ！'];
+  }
+  return vocab[Math.floor(Math.random() * vocab.length)];
+}

@@ -40,14 +40,17 @@ const RULES: RuleDef[] = [
   { id: 'shogi-custom', nameKey: 's02.ruleCustom.name', descKey: 's02.ruleCustom.desc', torusOK: true, quantumOK: true, disabled: true },
 ];
 
+// v0.64: 10 分と 3 秒を追加
 const MAIN_OPTIONS: { value: number; label: string }[] = [
   { value: 0, label: '0（秒読みのみ）' },
   { value: 5 * 60, label: '5分' },
+  { value: 10 * 60, label: '10分' },
   { value: 15 * 60, label: '15分' },
   { value: 30 * 60, label: '30分' },
   { value: 60 * 60, label: '1時間' },
 ];
 const BYO_OPTIONS: { value: number; label: string }[] = [
+  { value: 3, label: '3秒' },
   { value: 5, label: '5秒' },
   { value: 10, label: '10秒' },
   { value: 30, label: '30秒' },
@@ -126,6 +129,7 @@ export function RuleSelectScreen() {
   };
   const onSetQm = (m: QuantumDisplayMode) => setConfig({ quantumDisplayMode: m });
 
+  // v0.64: 時計あり (byoyomi/fischer/sudden_death) のデフォルトを 10 分 + 30 秒に統一
   const setTimeMode = (m: TimeControlMode) => {
     const cur = config.timeControl;
     setConfig({
@@ -133,7 +137,7 @@ export function RuleSelectScreen() {
         mode: m,
         mainSeconds: m === 'no_limit' ? 0 : cur.mainSeconds || 600,
         byoyomiSeconds: m === 'byoyomi' ? cur.byoyomiSeconds ?? 30 : undefined,
-        incrementSeconds: m === 'fischer' ? cur.incrementSeconds ?? 10 : undefined,
+        incrementSeconds: m === 'fischer' ? cur.incrementSeconds ?? 30 : undefined,
       },
     });
   };
@@ -291,7 +295,9 @@ export function RuleSelectScreen() {
                     >
                       {t('s02.torusFull')}
                     </button>
-                    {config.torusMode !== 'none' && (
+                    {/* v0.64: 実験・ネタバッジは完全トーラスのみ。円筒は将棋ルールとして
+                        現実的に成立するモード扱いなのでバッジ不要 (ユーザー指摘) */}
+                    {config.torusMode === 'full' && (
                       <span className="neta-badge show">{t('s02.netaBadge')}</span>
                     )}
                   </div>

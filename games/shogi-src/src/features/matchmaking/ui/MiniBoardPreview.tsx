@@ -124,22 +124,26 @@ export function MiniBoardPreview({ rule, torusMode, quantum = false, quantumDisp
         {cells.map((c, i) => (
           <div key={i} className="mini-sq">
             {c.ch && (
-              <div className={`mini-pc${c.gote ? ' g2' : ''}`}>
-                {quantum ? (
-                  quantumDisplayMode === 'stack' ? (
-                    <span className="mini-stack">
-                      {QUANTUM_PIECES.map((p) => (
-                        <span key={p}>{p}</span>
-                      ))}
-                    </span>
+              <>
+                <div className={`mini-pc${c.gote ? ' g2' : ''}`}>
+                  {quantum ? (
+                    quantumDisplayMode === 'stack' ? (
+                      <span className="mini-stack">
+                        {QUANTUM_PIECES.map((p) => (
+                          <span key={p}>{p}</span>
+                        ))}
+                      </span>
+                    ) : (
+                      <span>{QUANTUM_PIECES[qIdx]}</span>
+                    )
                   ) : (
-                    <span>{QUANTUM_PIECES[qIdx]}</span>
-                  )
-                ) : (
-                  <span>{c.ch}</span>
-                )}
-                {quantum && <span className="mini-qmk">?</span>}
-              </div>
+                    <span>{c.ch}</span>
+                  )}
+                </div>
+                {/* v0.64: ? は駒の外 (.mini-sq 直下) に置く。モック S06 の .qmark-b と同じ思想。
+                    駒 (clip-path) の外に出さないと ? がクリップされて見えないため。 */}
+                {quantum && <span className={`mini-qmk${c.gote ? ' g2' : ''}`}>?</span>}
+              </>
             )}
           </div>
         ))}

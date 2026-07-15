@@ -7,6 +7,7 @@ import {
   setBgmVolume,
   setSfxVolume,
   resumeAudio,
+  preloadAllSamples,
 } from '../audio/audio-engine';
 import { seButton } from '../audio/se-synth';
 
@@ -53,6 +54,8 @@ export function MusicPrompt({ open, onClose }: MusicPromptProps) {
 
   const onYes = async () => {
     await resumeAudio();
+    // v0.75: 音源サンプル (駒音等) を事前ロードしておく
+    preloadAllSamples();
     seButton();
     onClose();
   };

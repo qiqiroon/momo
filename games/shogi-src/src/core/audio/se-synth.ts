@@ -9,7 +9,7 @@
  * 全 SE は「AudioContext + sfxGain が用意されている」ことを前提とする。
  * ctx 未初期化 (最初のユーザー操作前) は無音で終了する。
  */
-import { getSfxSink } from './audio-engine';
+import { getSfxSink, playSample } from './audio-engine';
 
 function envGain(ctx: AudioContext, attackMs: number, decayMs: number, peak = 1.0): GainNode {
   const g = ctx.createGain();
@@ -29,53 +29,14 @@ function noiseBuffer(ctx: AudioContext, durMs: number): AudioBuffer {
   return buf;
 }
 
-/** SE-move: 駒を打つ。木のコツンという短い衝突音。 */
+/** SE-move: 駒を打つ。v0.75 で Taira Komori shogi4.mp3 に置換 (CC-BY 4.0)。 */
 export function seMove(): void {
-  const sink = getSfxSink();
-  if (!sink) return;
-  const { ctx, gain: dest } = sink;
-  // ノイズバースト (短い高域アタック)
-  const noise = ctx.createBufferSource();
-  noise.buffer = noiseBuffer(ctx, 30);
-  const hp = ctx.createBiquadFilter();
-  hp.type = 'highpass';
-  hp.frequency.value = 1800;
-  const nEnv = envGain(ctx, 3, 45, 0.5);
-  noise.connect(hp).connect(nEnv).connect(dest);
-  // 低域ボディ (コツン)
-  const osc = ctx.createOscillator();
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(220, ctx.currentTime);
-  osc.frequency.exponentialRampToValueAtTime(90, ctx.currentTime + 0.06);
-  const oEnv = envGain(ctx, 2, 70, 0.7);
-  osc.connect(oEnv).connect(dest);
-  osc.start();
-  noise.start();
-  osc.stop(ctx.currentTime + 0.09);
+  playSample('move');
 }
 
-/** SE-capture: 駒を取る。move より重くバンッ。 */
+/** SE-capture: 駒を取る。v0.75 で Taira Komori shogi3.mp3 に置換 (CC-BY 4.0)。 */
 export function seCapture(): void {
-  const sink = getSfxSink();
-  if (!sink) return;
-  const { ctx, gain: dest } = sink;
-  const noise = ctx.createBufferSource();
-  noise.buffer = noiseBuffer(ctx, 60);
-  const bp = ctx.createBiquadFilter();
-  bp.type = 'bandpass';
-  bp.frequency.value = 900;
-  bp.Q.value = 0.6;
-  const nEnv = envGain(ctx, 4, 100, 0.8);
-  noise.connect(bp).connect(nEnv).connect(dest);
-  const osc = ctx.createOscillator();
-  osc.type = 'triangle';
-  osc.frequency.setValueAtTime(140, ctx.currentTime);
-  osc.frequency.exponentialRampToValueAtTime(60, ctx.currentTime + 0.11);
-  const oEnv = envGain(ctx, 3, 120, 0.9);
-  osc.connect(oEnv).connect(dest);
-  osc.start();
-  noise.start();
-  osc.stop(ctx.currentTime + 0.14);
+  playSample('capture');
 }
 
 /** SE-select: 駒選択。軽いピッ (高めのシンプルなビープ)。 */

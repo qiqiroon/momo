@@ -5,13 +5,14 @@ export const en: LocaleData = {
   name: 'English',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.74',
+    'app.ver': 'v0.75',
     'sound.promptTitle': 'Enable BGM and sound effects?',
     'sound.bgmLabel': 'BGM volume',
     'sound.sfxLabel': 'SFX volume',
     'sound.yes': 'Enable',
     'sound.no': 'Not now',
     'sound.settingsTitle': 'Volume settings',
+    'sound.credit': 'Sound credit',
     // S02 rule selection (mock S02_v2 origin, v0.57; v0.58 layout compression + time moved here)
     's02.screenTitle': 'Choose Rule',
     's02.secRules': 'Game rule',

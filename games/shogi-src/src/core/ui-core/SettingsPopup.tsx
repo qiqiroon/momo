@@ -60,6 +60,14 @@ export function SettingsPopup({ open, onClose }: SettingsPopupProps) {
           <input type="range" min="0" max="100" value={sfxV} onChange={(e) => onSfx(Number(e.target.value))} style={{ flex: 1, accentColor: 'var(--orange)' }} />
           <span style={{ minWidth: 36, textAlign: 'right' }}>{sfxV}%</span>
         </label>
+        {/* v0.75: CC-BY 4.0 の音源クレジット表記 (必須) */}
+        <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px dashed var(--border-strong)', fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+          {t('sound.credit')}:{' '}
+          <a href="https://taira-komori.net/freesounden.html" target="_blank" rel="noopener" style={{ color: 'var(--text-muted)' }}>
+            Taira Komori
+          </a>
+          {' '}(CC-BY 4.0)
+        </div>
       </div>
     </>
   );

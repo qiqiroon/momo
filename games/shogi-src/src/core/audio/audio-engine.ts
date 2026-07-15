@@ -105,3 +105,77 @@ export function getBgmSink(): { ctx: AudioContext; gain: GainNode } | null {
   if (!ctx || !bgmGain) return null;
   return { ctx, gain: bgmGain };
 }
+
+// ─────────────────────────────────────────────
+// v0.75: 音源ファイル (MP3) の読み込み・再生
+// 合成音ではなく本物の駒音などを鳴らすため、fetch → decodeAudioData で
+// AudioBuffer にキャッシュしておき、playSample() でその場再生する。
+// ─────────────────────────────────────────────
+
+const sampleBufs = new Map<string, AudioBuffer>();
+const sampleFetching = new Map<string, Promise<AudioBuffer | null>>();
+
+/** 音源ファイルの URL 一覧。追加は自由。 */
+export const SAMPLE_URLS: Record<string, string> = {
+  move: 'sounds/se-move.mp3',
+  capture: 'sounds/se-capture.mp3',
+};
+
+/**
+ * 名前で登録された音源をロードしてキャッシュする。既に読み込み済みなら即座に返す。
+ * base ('/momo/games/shogi/' 等) は import.meta.env.BASE_URL から取れるが、
+ * 相対パス指定にしてブラウザ解決に任せる (相対 URL は index.html の位置から解決される)。
+ */
+export async function loadSample(name: string): Promise<AudioBuffer | null> {
+  if (sampleBufs.has(name)) return sampleBufs.get(name)!;
+  const inflight = sampleFetching.get(name);
+  if (inflight) return inflight;
+  ensureCtx();
+  if (!ctx) return null;
+  const url = SAMPLE_URLS[name];
+  if (!url) return null;
+  const p = (async (): Promise<AudioBuffer | null> => {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const bytes = await res.arrayBuffer();
+      const buf = await ctx!.decodeAudioData(bytes);
+      sampleBufs.set(name, buf);
+      return buf;
+    } catch {
+      return null;
+    } finally {
+      sampleFetching.delete(name);
+    }
+  })();
+  sampleFetching.set(name, p);
+  return p;
+}
+
+/** 登録済みの音源をその場で再生する。未ロードならこのタイミングで読み込む (少し遅れる)。 */
+export function playSample(name: string): void {
+  if (!ctx || !sfxGain) return;
+  const buf = sampleBufs.get(name);
+  if (buf) {
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(sfxGain);
+    src.start();
+    return;
+  }
+  // 未ロード → 非同期で読み込み終わったら再生
+  loadSample(name).then((b) => {
+    if (!b || !ctx || !sfxGain) return;
+    const src = ctx.createBufferSource();
+    src.buffer = b;
+    src.connect(sfxGain);
+    src.start();
+  });
+}
+
+/** すべての登録済み音源を事前ロード (音楽再生確認モーダルで「再生する」を選んだ直後などに呼ぶ) */
+export function preloadAllSamples(): void {
+  for (const name of Object.keys(SAMPLE_URLS)) {
+    loadSample(name);
+  }
+}

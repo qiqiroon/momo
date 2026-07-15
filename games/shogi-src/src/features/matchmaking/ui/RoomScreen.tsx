@@ -6,7 +6,6 @@ import type { LocaleCode } from '../../../core/i18n/types';
 import { CatIcon } from '../../../core/ui-core/CatIcon';
 import { ChatConsole } from '../../../core/ui-core/ChatConsole';
 import { HeaderCommonRight } from '../../../core/ui-core/HeaderCommonRight';
-import { ScreenBand } from '../../../core/ui-core/ScreenBand';
 import { getMomoMatchmaking } from '../client';
 import { decodeRoomName } from '../roomNameCodec';
 import { RoomBadges } from './RoomBadges';
@@ -355,8 +354,6 @@ export function RoomScreen() {
             <HeaderCommonRight />
           </div>
         </header>
-
-        <ScreenBand code="S06" name="対局準備" />
 
         {/* ===== 部屋情報 ===== */}
         <div style={{ marginTop: 10, padding: '8px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>

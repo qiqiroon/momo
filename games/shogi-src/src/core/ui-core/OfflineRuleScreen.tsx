@@ -6,7 +6,6 @@ import { t as _t } from '../i18n';
 import type { LocaleCode } from '../i18n/types';
 import { CatIcon } from './CatIcon';
 import { HeaderCommonRight } from './HeaderCommonRight';
-import { ScreenBand } from './ScreenBand';
 import { get as pluginGet } from '../plugin/registry';
 import type { OnlineGameConnector } from '../plugin/gameConnector';
 import {
@@ -114,14 +113,17 @@ export function OfflineRuleScreen(_props: OfflineRuleScreenProps) {
           </div>
           <div className="header-spacer" />
           <div className="header-tools">
-            <button className="reset-btn" type="button" onClick={onBack}>
-              メニューへ戻る
+            {/* v0.71: ScreenBand 撤去に伴い「メニュー」の呼称が消えたので、家アイコン
+                + 「モード選択」に統一 (メニュー画面 = モード選択画面と分かるように) */}
+            <button className="reset-btn" type="button" onClick={onBack} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M3 12l9-9 9 9M5 10v10h14V10" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              {t('s00.modeSelect')}
             </button>
             <HeaderCommonRight />
           </div>
         </header>
-
-        <ScreenBand code="S01" name="オフライン設定" />
 
         {/* v0.69: 対局ルール選択 (S04 と同じ形式)。今は本将棋のみ機能するが、
             将来のルール追加時のためにここで受け皿として設置 */}

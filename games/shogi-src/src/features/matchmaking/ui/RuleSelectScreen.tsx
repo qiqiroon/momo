@@ -6,7 +6,6 @@ import type { LocaleCode } from '../../../core/i18n/types';
 import { CatIcon } from '../../../core/ui-core/CatIcon';
 import { HeaderCommonRight } from '../../../core/ui-core/HeaderCommonRight';
 import { useMatchmakingStore, type TorusMode, type QuantumDisplayMode, type TimeControlMode } from '../store';
-import { ScreenBand } from '../../../core/ui-core/ScreenBand';
 import type { GameType } from '../roomNameCodec';
 import { MiniBoardPreview, QUANTUM_PIECES } from './MiniBoardPreview';
 
@@ -227,8 +226,6 @@ export function RuleSelectScreen() {
             <HeaderCommonRight />
           </div>
         </header>
-
-        <ScreenBand code="S02" name={t('s02.screenTitle')} />
 
         <div className="screen-head">
           <h2>{t('s02.screenTitle')}</h2>

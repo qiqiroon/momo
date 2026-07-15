@@ -7,7 +7,6 @@ import { CatIcon } from '../../../core/ui-core/CatIcon';
 import { HeaderCommonRight } from '../../../core/ui-core/HeaderCommonRight';
 import { getMomoMatchmaking } from '../client';
 import { useMatchmakingStore } from '../store';
-import { ScreenBand } from '../../../core/ui-core/ScreenBand';
 import { decodeRoomName, encodeRoomName } from '../roomNameCodec';
 import { RoomBadges } from './RoomBadges';
 import { ensureMatchmakingInit } from '../bootstrap';
@@ -281,14 +280,16 @@ export function LobbyScreen() {
           </div>
           <div className="header-spacer" />
           <div className="header-tools">
-            <button className="reset-btn" type="button" onClick={onBackToMenu}>
-              メニューへ戻る
+            {/* v0.71: 家アイコン + 「モード選択」に統一 */}
+            <button className="reset-btn" type="button" onClick={onBackToMenu} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M3 12l9-9 9 9M5 10v10h14V10" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              {t('s00.modeSelect')}
             </button>
             <HeaderCommonRight />
           </div>
         </header>
-
-        <ScreenBand code="S04" name="通信対戦ロビー" />
 
         {errorMessage && (
           <div style={{ marginTop: 10, padding: '8px 14px', background: 'rgba(179, 64, 26, 0.15)', border: '1px solid #b3401a', borderRadius: 8, color: '#e8836a', fontSize: 13 }}>

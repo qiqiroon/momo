@@ -5,7 +5,6 @@ import { t as _t } from '../../../core/i18n';
 import type { LocaleCode } from '../../../core/i18n/types';
 import { CatIcon } from '../../../core/ui-core/CatIcon';
 import { HeaderCommonRight } from '../../../core/ui-core/HeaderCommonRight';
-import { ScreenBand } from '../../../core/ui-core/ScreenBand';
 import { useMatchmakingStore } from '../store';
 import { ensureMatchmakingInit } from '../bootstrap';
 
@@ -62,8 +61,6 @@ export function MenuScreen() {
           <HeaderCommonRight />
         </div>
       </header>
-
-      <ScreenBand code="S00" name="メニュー" />
 
       <div className={`status-bar ${connected ? 'connected' : 'connecting'}`}>
         <span className="st-dot" />

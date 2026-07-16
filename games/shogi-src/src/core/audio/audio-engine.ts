@@ -222,6 +222,10 @@ const bgmBufs = new Map<string, AudioBuffer>();
 const bgmFetching = new Map<string, Promise<AudioBuffer | null>>();
 let currentBgmSource: AudioBufferSourceNode | null = null;
 let currentBgmPool: 'lobby' | 'game' | null = null;
+// v0.79: 二重再生防止のリクエスト世代カウンタ。
+// playRandomBgm / stopBgm が呼ばれるたびに +1 する。
+// 非同期の await loadBgm から復帰したときに自分の gen が最新でなければ諦める。
+let bgmRequestGen = 0;
 
 async function loadBgm(url: string): Promise<AudioBuffer | null> {
   if (bgmBufs.has(url)) return bgmBufs.get(url)!;
@@ -249,6 +253,7 @@ async function loadBgm(url: string): Promise<AudioBuffer | null> {
 
 /** 現在の BGM を停止 (次に playRandomBgm するまで無音) */
 export function stopBgm(): void {
+  bgmRequestGen++; // 進行中の playRandomBgm を無効化
   if (currentBgmSource) {
     try { currentBgmSource.stop(); } catch { /* ignore */ }
     currentBgmSource = null;
@@ -258,20 +263,28 @@ export function stopBgm(): void {
 
 /**
  * 指定プールからランダムに 1 曲選んでループ再生する。
- * 既に同じプールが鳴っていれば何もしない (画面遷移で曲が切れないように)。
+ * v0.79 修正: 世代カウンタで二重再生と重複ロードを防ぐ。
+ * - 既に同じプールが実際に鳴っている → 何もしない
+ * - 別プールへ切替 or まだ鳴っていない → gen を進めて新規ロード
+ * - await 中に別要求が入っていたら諦める (自分の gen が古ければ帰る)
  */
 export async function playRandomBgm(pool: 'lobby' | 'game'): Promise<void> {
   if (currentBgmPool === pool && currentBgmSource) return;
+  const myGen = ++bgmRequestGen;
   ensureCtx();
   if (!ctx || !bgmGain) return;
   const urls = BGM_POOLS[pool];
   if (!urls || urls.length === 0) return;
   const url = urls[Math.floor(Math.random() * urls.length)];
   const buf = await loadBgm(url);
+  // await 中に新しい要求 or stopBgm が入っていたら諦める (二重再生防止の要)
+  if (myGen !== bgmRequestGen) return;
   if (!buf || !ctx || !bgmGain) return;
-  // 途中で別プールに切り替わっていたら諦める
-  if (currentBgmPool && currentBgmPool !== pool) return;
-  stopBgm();
+  // 自分が勝者。stopBgm() は gen を進めてしまうのでインラインで既存 source を停止
+  if (currentBgmSource) {
+    try { currentBgmSource.stop(); } catch { /* ignore */ }
+    currentBgmSource = null;
+  }
   const src = ctx.createBufferSource();
   src.buffer = buf;
   src.loop = true;

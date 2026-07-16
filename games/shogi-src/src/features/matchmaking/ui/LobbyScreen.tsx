@@ -136,6 +136,7 @@ export function LobbyScreen() {
   };
 
   const onBackToMenu = () => {
+    seButton(); // v0.76
     const client = getMomoMatchmaking();
     if (client) client.leaveRoom();
     setScreen('lobby');

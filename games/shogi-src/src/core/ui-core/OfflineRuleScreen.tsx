@@ -65,7 +65,7 @@ export function OfflineRuleScreen(_props: OfflineRuleScreenProps) {
   const subLocale: LocaleCode = locale === 'cat' ? 'ja' : locale;
   const subtitle = subLocale === 'zh' ? '擒王为胜，破局无界' : 'Capture the King, Bend the Rules';
 
-  const onBack = () => setScreen('lobby');
+  const onBack = () => { seButton(); setScreen('lobby'); }; // v0.76: 家アイコンにも SE-button
 
   // v0.69: features/matchmaking の pendingRoomConfig からルールサマリを取る (B ビルドのみ)
   const conn = pluginGet<OnlineGameConnector>('gameConnector');

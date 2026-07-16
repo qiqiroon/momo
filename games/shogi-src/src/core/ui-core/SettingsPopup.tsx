@@ -5,7 +5,7 @@ import { getBgmVolume, getSfxVolume, setBgmVolume, setSfxVolume } from '../audio
 
 /**
  * v0.73: 歯車ボタンから開く設定ポップアップ (Darts 準拠)。
- *  現状は BGM/効果音の音量スライダのみ。将来項目が増えたらここに追加する。
+ *  v0.78: クレジットボタン + 別モーダルに変更 (CC-BY のみ表示、CC0 は義務なしで割愛)。
  */
 interface SettingsPopupProps {
   open: boolean;
@@ -17,11 +17,13 @@ export function SettingsPopup({ open, onClose }: SettingsPopupProps) {
   const t = (key: string) => _t(key, locale);
   const [bgmV, setBgmV] = useState<number>(getBgmVolume());
   const [sfxV, setSfxV] = useState<number>(getSfxVolume());
+  const [creditsOpen, setCreditsOpen] = useState(false);
 
   useEffect(() => {
     if (open) {
       setBgmV(getBgmVolume());
       setSfxV(getSfxVolume());
+      setCreditsOpen(false); // 開き直したときは初期状態に戻す
     }
   }, [open]);
 
@@ -60,24 +62,78 @@ export function SettingsPopup({ open, onClose }: SettingsPopupProps) {
           <input type="range" min="0" max="100" value={sfxV} onChange={(e) => onSfx(Number(e.target.value))} style={{ flex: 1, accentColor: 'var(--orange)' }} />
           <span style={{ minWidth: 36, textAlign: 'right' }}>{sfxV}%</span>
         </label>
-        {/* v0.75/v0.77: 素材クレジット表記 (CC-BY 系は必須) */}
-        <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px dashed var(--border-strong)', fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.55 }}>
-          <div>{t('sound.credit')}:</div>
-          <div>・{' '}
-            <a href="https://taira-komori.net/freesounden.html" target="_blank" rel="noopener" style={{ color: 'var(--text-muted)' }}>Taira Komori</a>
-            {' '}(CC-BY 4.0)
+        {/* v0.78: クレジット表示は別モーダルに退避 (CC-BY 系のみ) */}
+        <button
+          type="button"
+          onClick={() => setCreditsOpen(true)}
+          style={{
+            marginTop: 12, width: '100%', padding: '6px 10px',
+            background: 'transparent', border: '1px solid var(--border-strong)',
+            borderRadius: 6, color: 'var(--text-muted)', fontSize: 11,
+            cursor: 'pointer',
+          }}
+        >
+          {t('sound.creditsButton')}
+        </button>
+      </div>
+      {creditsOpen && <CreditsModal onClose={() => setCreditsOpen(false)} t={t} />}
+    </>
+  );
+}
+
+/**
+ * v0.78: クレジット別モーダル。CC-BY で表示義務のある提供者のみを掲載する
+ * (CC0 は法的義務なしのため割愛)。
+ */
+function CreditsModal({ onClose, t }: { onClose: () => void; t: (k: string) => string }) {
+  return (
+    <>
+      <div
+        onClick={onClose}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 500 }}
+      />
+      <div
+        style={{
+          position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+          zIndex: 501, background: 'var(--surface)', border: '1px solid var(--border-strong)',
+          borderRadius: 12, padding: '18px 20px', maxWidth: 380, width: '90vw',
+          maxHeight: '80vh', overflowY: 'auto', color: 'var(--text)',
+          boxShadow: '0 10px 30px rgba(0,0,0,0.6)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ fontSize: 13, color: 'var(--orange)', fontWeight: 700, letterSpacing: '0.06em', marginBottom: 12 }}>
+          {t('sound.creditsTitle')}
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.7 }}>
+          <div style={{ marginBottom: 6 }}>
+            <a href="https://taira-komori.net/freesounden.html" target="_blank" rel="noopener" style={{ color: 'var(--text)' }}>Taira Komori</a>
+            {' — CC-BY 4.0'}
           </div>
-          <div>・Freesound (CC-BY):{' '}
-            <a href="https://freesound.org/s/185846/" target="_blank" rel="noopener" style={{ color: 'var(--text-muted)' }}>LloydEvans09</a>{', '}
-            <a href="https://freesound.org/s/658431/" target="_blank" rel="noopener" style={{ color: 'var(--text-muted)' }}>deathbyfairydust</a>{', '}
-            <a href="https://freesound.org/s/270404/" target="_blank" rel="noopener" style={{ color: 'var(--text-muted)' }}>LittleRobotSoundFactory</a>
+          <div style={{ marginBottom: 6 }}>
+            <a href="https://freesound.org/s/185846/" target="_blank" rel="noopener" style={{ color: 'var(--text)' }}>LloydEvans09 (Freesound)</a>
+            {' — CC-BY'}
           </div>
-          <div>・Freesound (CC0):{' '}
-            <a href="https://freesound.org/s/320181/" target="_blank" rel="noopener" style={{ color: 'var(--text-muted)' }}>dland</a>{', '}
-            <a href="https://freesound.org/s/721502/" target="_blank" rel="noopener" style={{ color: 'var(--text-muted)' }}>BaggoNotes</a>{', '}
-            <a href="https://freesound.org/s/817568/" target="_blank" rel="noopener" style={{ color: 'var(--text-muted)' }}>SilverDubloons</a>
+          <div style={{ marginBottom: 6 }}>
+            <a href="https://freesound.org/s/658431/" target="_blank" rel="noopener" style={{ color: 'var(--text)' }}>deathbyfairydust (Freesound)</a>
+            {' — CC-BY'}
+          </div>
+          <div style={{ marginBottom: 6 }}>
+            <a href="https://freesound.org/s/270404/" target="_blank" rel="noopener" style={{ color: 'var(--text)' }}>LittleRobotSoundFactory (Freesound)</a>
+            {' — CC-BY'}
           </div>
         </div>
+        <button
+          type="button"
+          onClick={onClose}
+          style={{
+            marginTop: 14, width: '100%', padding: '8px 12px',
+            background: 'var(--orange)', border: 'none', borderRadius: 6,
+            color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+          }}
+        >
+          {t('sound.creditsClose')}
+        </button>
       </div>
     </>
   );

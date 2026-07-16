@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.77',
+    'app.ver': 'v0.78',
     // v0.72 音楽再生確認モーダル (Darts と同じ思想)
     'sound.promptTitle': 'BGM と効果音を再生してもよろしいですか？',
     'sound.bgmLabel': 'BGM 音量',
@@ -15,6 +15,10 @@ export const ja: LocaleData = {
     // v0.73 歯車ポップアップ
     'sound.settingsTitle': '音量設定',
     'sound.credit': '音源提供',
+    // v0.77 クレジットボタン + モーダル (CC-BY のみ表示)
+    'sound.creditsButton': 'クレジットを表示',
+    'sound.creditsTitle': '音源クレジット',
+    'sound.creditsClose': '閉じる',
     // S02 ルール選択画面 (モック S02_v2 追随・v0.57、v0.58 でレイアウト圧縮+時間設定移動)
     's02.screenTitle': 'ルール選択',
     's02.secRules': '対局ルール',

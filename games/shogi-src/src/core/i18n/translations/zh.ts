@@ -5,7 +5,7 @@ export const zh: LocaleData = {
   name: '中文',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.77',
+    'app.ver': 'v0.78',
     'sound.promptTitle': '是否播放 BGM 与音效？',
     'sound.bgmLabel': 'BGM 音量',
     'sound.sfxLabel': '音效音量',
@@ -13,6 +13,9 @@ export const zh: LocaleData = {
     'sound.no': '不播放',
     'sound.settingsTitle': '音量设置',
     'sound.credit': '音源提供',
+    'sound.creditsButton': '显示制作人员',
+    'sound.creditsTitle': '音源制作人员',
+    'sound.creditsClose': '关闭',
     // S02 规则选择 (来自 mock S02_v2, v0.57; v0.58 布局压缩 + 用时移入)
     's02.screenTitle': '选择规则',
     's02.secRules': '对局规则',

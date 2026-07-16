@@ -119,6 +119,16 @@ const sampleFetching = new Map<string, Promise<AudioBuffer | null>>();
 export const SAMPLE_URLS: Record<string, string> = {
   move: 'sounds/se-move.mp3',
   capture: 'sounds/se-capture.mp3',
+  // v0.77 追加 (合成音から素材ベースへ)
+  select: 'sounds/se-select.mp3',
+  check: 'sounds/se-check.mp3',
+  button: 'sounds/se-button.mp3',
+  pause: 'sounds/se-pause.mp3',
+  chatRecv: 'sounds/se-chat-recv.mp3',
+  furiPiece: 'sounds/se-furigoma-piece.mp3',
+  fanfareWin: 'sounds/se-fanfare-win.mp3',
+  fanfareWin2: 'sounds/se-fanfare-win-2.mp3',
+  gameLose: 'sounds/se-game-lose.mp3',
 };
 
 /**
@@ -152,25 +162,39 @@ export async function loadSample(name: string): Promise<AudioBuffer | null> {
   return p;
 }
 
-/** 登録済みの音源をその場で再生する。未ロードならこのタイミングで読み込む (少し遅れる)。 */
-export function playSample(name: string): void {
+/**
+ * 登録済みの音源をその場で再生する。未ロードならこのタイミングで読み込む (少し遅れる)。
+ * opts.at: AudioContext currentTime に対する相対秒 (デフォルト 0 = 即時)
+ * opts.trimSec: 指定秒でフェードアウト+停止 (SE-select の 75ms 切りなど)
+ */
+export function playSample(name: string, opts?: { at?: number; trimSec?: number }): void {
   if (!ctx || !sfxGain) return;
   const buf = sampleBufs.get(name);
-  if (buf) {
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-    src.connect(sfxGain);
-    src.start();
-    return;
-  }
-  // 未ロード → 非同期で読み込み終わったら再生
-  loadSample(name).then((b) => {
-    if (!b || !ctx || !sfxGain) return;
+  const at = opts?.at ?? 0;
+  const trimSec = opts?.trimSec;
+  const doPlay = (b: AudioBuffer) => {
+    if (!ctx || !sfxGain) return;
     const src = ctx.createBufferSource();
     src.buffer = b;
-    src.connect(sfxGain);
-    src.start();
-  });
+    const startAt = ctx.currentTime + at;
+    if (trimSec && trimSec > 0) {
+      // trim: 途中で自然にフェードアウトして止める
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(1.0, startAt);
+      const fadeStart = startAt + Math.max(0, trimSec - 0.02);
+      g.gain.setValueAtTime(1.0, fadeStart);
+      g.gain.exponentialRampToValueAtTime(0.0001, startAt + trimSec);
+      src.connect(g).connect(sfxGain);
+      src.start(startAt, 0, trimSec);
+      src.stop(startAt + trimSec + 0.03);
+    } else {
+      src.connect(sfxGain);
+      src.start(startAt);
+    }
+  };
+  if (buf) { doPlay(buf); return; }
+  // 未ロード → 非同期で読み込み終わったら再生
+  loadSample(name).then((b) => { if (b) doPlay(b); });
 }
 
 /** すべての登録済み音源を事前ロード (音楽再生確認モーダルで「再生する」を選んだ直後などに呼ぶ) */
@@ -178,4 +202,81 @@ export function preloadAllSamples(): void {
   for (const name of Object.keys(SAMPLE_URLS)) {
     loadSample(name);
   }
+}
+
+// ─────────────────────────────────────────────
+// v0.77: BGM 再生機構
+// - lobby / game の 2 プール、それぞれ複数曲からランダム
+// - ループ再生
+// - プールを切り替えると前の曲は停止して新プールから 1 曲選ぶ
+// - 同じプール中でも各画面遷移で「もう 1 曲」を選び直したくはないので、
+//   現在のプールと同じなら何もしない
+// ─────────────────────────────────────────────
+
+export const BGM_POOLS: Record<'lobby' | 'game', string[]> = {
+  lobby: ['sounds/bgm-lobby-1.mp3', 'sounds/bgm-lobby-2.mp3'],
+  game: ['sounds/bgm-game-1.mp3', 'sounds/bgm-game-2.mp3', 'sounds/bgm-game-3.mp3'],
+};
+
+const bgmBufs = new Map<string, AudioBuffer>();
+const bgmFetching = new Map<string, Promise<AudioBuffer | null>>();
+let currentBgmSource: AudioBufferSourceNode | null = null;
+let currentBgmPool: 'lobby' | 'game' | null = null;
+
+async function loadBgm(url: string): Promise<AudioBuffer | null> {
+  if (bgmBufs.has(url)) return bgmBufs.get(url)!;
+  const inflight = bgmFetching.get(url);
+  if (inflight) return inflight;
+  ensureCtx();
+  if (!ctx) return null;
+  const p = (async (): Promise<AudioBuffer | null> => {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const bytes = await res.arrayBuffer();
+      const buf = await ctx!.decodeAudioData(bytes);
+      bgmBufs.set(url, buf);
+      return buf;
+    } catch {
+      return null;
+    } finally {
+      bgmFetching.delete(url);
+    }
+  })();
+  bgmFetching.set(url, p);
+  return p;
+}
+
+/** 現在の BGM を停止 (次に playRandomBgm するまで無音) */
+export function stopBgm(): void {
+  if (currentBgmSource) {
+    try { currentBgmSource.stop(); } catch { /* ignore */ }
+    currentBgmSource = null;
+  }
+  currentBgmPool = null;
+}
+
+/**
+ * 指定プールからランダムに 1 曲選んでループ再生する。
+ * 既に同じプールが鳴っていれば何もしない (画面遷移で曲が切れないように)。
+ */
+export async function playRandomBgm(pool: 'lobby' | 'game'): Promise<void> {
+  if (currentBgmPool === pool && currentBgmSource) return;
+  ensureCtx();
+  if (!ctx || !bgmGain) return;
+  const urls = BGM_POOLS[pool];
+  if (!urls || urls.length === 0) return;
+  const url = urls[Math.floor(Math.random() * urls.length)];
+  const buf = await loadBgm(url);
+  if (!buf || !ctx || !bgmGain) return;
+  // 途中で別プールに切り替わっていたら諦める
+  if (currentBgmPool && currentBgmPool !== pool) return;
+  stopBgm();
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  src.loop = true;
+  src.connect(bgmGain);
+  src.start();
+  currentBgmSource = src;
+  currentBgmPool = pool;
 }

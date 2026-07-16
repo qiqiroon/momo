@@ -60,13 +60,23 @@ export function SettingsPopup({ open, onClose }: SettingsPopupProps) {
           <input type="range" min="0" max="100" value={sfxV} onChange={(e) => onSfx(Number(e.target.value))} style={{ flex: 1, accentColor: 'var(--orange)' }} />
           <span style={{ minWidth: 36, textAlign: 'right' }}>{sfxV}%</span>
         </label>
-        {/* v0.75: CC-BY 4.0 の音源クレジット表記 (必須) */}
-        <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px dashed var(--border-strong)', fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-          {t('sound.credit')}:{' '}
-          <a href="https://taira-komori.net/freesounden.html" target="_blank" rel="noopener" style={{ color: 'var(--text-muted)' }}>
-            Taira Komori
-          </a>
-          {' '}(CC-BY 4.0)
+        {/* v0.75/v0.77: 素材クレジット表記 (CC-BY 系は必須) */}
+        <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px dashed var(--border-strong)', fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.55 }}>
+          <div>{t('sound.credit')}:</div>
+          <div>・{' '}
+            <a href="https://taira-komori.net/freesounden.html" target="_blank" rel="noopener" style={{ color: 'var(--text-muted)' }}>Taira Komori</a>
+            {' '}(CC-BY 4.0)
+          </div>
+          <div>・Freesound (CC-BY):{' '}
+            <a href="https://freesound.org/s/185846/" target="_blank" rel="noopener" style={{ color: 'var(--text-muted)' }}>LloydEvans09</a>{', '}
+            <a href="https://freesound.org/s/658431/" target="_blank" rel="noopener" style={{ color: 'var(--text-muted)' }}>deathbyfairydust</a>{', '}
+            <a href="https://freesound.org/s/270404/" target="_blank" rel="noopener" style={{ color: 'var(--text-muted)' }}>LittleRobotSoundFactory</a>
+          </div>
+          <div>・Freesound (CC0):{' '}
+            <a href="https://freesound.org/s/320181/" target="_blank" rel="noopener" style={{ color: 'var(--text-muted)' }}>dland</a>{', '}
+            <a href="https://freesound.org/s/721502/" target="_blank" rel="noopener" style={{ color: 'var(--text-muted)' }}>BaggoNotes</a>{', '}
+            <a href="https://freesound.org/s/817568/" target="_blank" rel="noopener" style={{ color: 'var(--text-muted)' }}>SilverDubloons</a>
+          </div>
         </div>
       </div>
     </>

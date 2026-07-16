@@ -1,33 +1,9 @@
 /**
- * MOMO Shogi の効果音を Web Audio API で「その場合成」する (音源ファイル不使用)。
- *
- * 各 SE は短命なオシレーター + ノイズを組み合わせ、簡素な ADSR エンベロープを
- * かけて sfxGain に流す。音源ファイルを持たないので、ライセンス問題ゼロ・
- * ダウンロード無し・ネットワーク不要。合成音の質は限定的だが、ゲーム進行の
- * 情報伝達 (仕様書 §1 の設計方針) には十分。
- *
- * 全 SE は「AudioContext + sfxGain が用意されている」ことを前提とする。
- * ctx 未初期化 (最初のユーザー操作前) は無音で終了する。
+ * MOMO Shogi の効果音。v0.75 で SE-move / SE-capture を素材ベース化し、
+ * v0.77 で残り 9 種も全て素材ベースに置換 (SE-threat のみ未実装のため保留)。
+ * SAMPLE_URLS の中身は audio-engine.ts 側で定義。
  */
-import { getSfxSink, playSample } from './audio-engine';
-
-function envGain(ctx: AudioContext, attackMs: number, decayMs: number, peak = 1.0): GainNode {
-  const g = ctx.createGain();
-  const now = ctx.currentTime;
-  g.gain.setValueAtTime(0.0001, now);
-  g.gain.exponentialRampToValueAtTime(peak, now + attackMs / 1000);
-  g.gain.exponentialRampToValueAtTime(0.0001, now + (attackMs + decayMs) / 1000);
-  return g;
-}
-
-/** 白色ノイズバッファ (打撃系のアタック成分に混ぜる) */
-function noiseBuffer(ctx: AudioContext, durMs: number): AudioBuffer {
-  const len = Math.floor(ctx.sampleRate * durMs / 1000);
-  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
-  return buf;
-}
+import { playSample } from './audio-engine';
 
 /** SE-move: 駒を打つ。v0.75 で Taira Komori shogi4.mp3 に置換 (CC-BY 4.0)。 */
 export function seMove(): void {
@@ -39,135 +15,64 @@ export function seCapture(): void {
   playSample('capture');
 }
 
-/** SE-select: 駒選択。軽いピッ (高めのシンプルなビープ)。 */
+/** SE-select: 駒選択。v0.77 で Freesound LloydEvans09 「light_wood」を 75ms トリムで再生 (CC-BY)。 */
 export function seSelect(): void {
-  const sink = getSfxSink();
-  if (!sink) return;
-  const { ctx, gain: dest } = sink;
-  const osc = ctx.createOscillator();
-  osc.type = 'sine';
-  osc.frequency.value = 880;
-  const env = envGain(ctx, 3, 60, 0.3);
-  osc.connect(env).connect(dest);
-  osc.start();
-  osc.stop(ctx.currentTime + 0.09);
+  playSample('select', { trimSec: 0.075 });
 }
 
-/** SE-check: 王手。少し尖った上昇音で注意喚起。 */
+/** SE-check: 王手。v0.77 で Freesound dland「hint」に置換 (CC0)。 */
 export function seCheck(): void {
-  const sink = getSfxSink();
-  if (!sink) return;
-  const { ctx, gain: dest } = sink;
-  const osc = ctx.createOscillator();
-  osc.type = 'square';
-  osc.frequency.setValueAtTime(660, ctx.currentTime);
-  osc.frequency.exponentialRampToValueAtTime(990, ctx.currentTime + 0.12);
-  const env = envGain(ctx, 5, 220, 0.35);
-  osc.connect(env).connect(dest);
-  osc.start();
-  osc.stop(ctx.currentTime + 0.24);
+  playSample('check');
 }
 
-/** SE-button: UI 決定音 (ダイアログ Yes / 準備完了など)。柔らかいポン。 */
+/** SE-button: UI 決定音。v0.77 で Taira Komori「press_enter1」に置換 (CC-BY)。 */
 export function seButton(): void {
-  const sink = getSfxSink();
-  if (!sink) return;
-  const { ctx, gain: dest } = sink;
-  const osc = ctx.createOscillator();
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(520, ctx.currentTime);
-  osc.frequency.exponentialRampToValueAtTime(720, ctx.currentTime + 0.06);
-  const env = envGain(ctx, 3, 100, 0.35);
-  osc.connect(env).connect(dest);
-  osc.start();
-  osc.stop(ctx.currentTime + 0.12);
+  playSample('button');
 }
 
-/** 汎用: 音符を鳴らす小ヘルパー (ファンファーレ/勝敗音用) */
-function playNote(ctx: AudioContext, dest: AudioNode, freq: number, startOffsetSec: number, durMs: number, peak = 0.3, wave: OscillatorType = 'triangle'): void {
-  const osc = ctx.createOscillator();
-  osc.type = wave;
-  osc.frequency.value = freq;
-  const g = ctx.createGain();
-  const t0 = ctx.currentTime + startOffsetSec;
-  g.gain.setValueAtTime(0.0001, t0);
-  g.gain.exponentialRampToValueAtTime(peak, t0 + 0.01);
-  g.gain.exponentialRampToValueAtTime(0.0001, t0 + durMs / 1000);
-  osc.connect(g).connect(dest);
-  osc.start(t0);
-  osc.stop(t0 + durMs / 1000 + 0.02);
-}
-
-/** SE-fanfare-win: 勝利ファンファーレ (短い上昇アルペジオ)。 */
+/**
+ * SE-fanfare-win: v0.77 で 2 素材の合成に置換。
+ * (1) Freesound LittleRobotSoundFactory「Achievement Orchestral (uplifting)」CC-BY
+ * (2) MOMO Darts win.mp3 を 0.8 秒遅れて重ねる (ユーザー指定 V-A)
+ */
 export function seFanfareWin(): void {
-  const sink = getSfxSink();
-  if (!sink) return;
-  const { ctx, gain: dest } = sink;
-  const notes = [523.25, 659.25, 783.99, 1046.5]; // C5-E5-G5-C6
-  notes.forEach((f, i) => playNote(ctx, dest, f, i * 0.08, 200, 0.35, 'triangle'));
+  playSample('fanfareWin');
+  playSample('fanfareWin2', { at: 0.8 });
 }
 
-/** SE-game-lose: 負け音 (短い下降フレーズ)。 */
+/** SE-game-lose: v0.77 で TK temple_bell1 単独に置換 (CC-BY)。 */
 export function seGameLose(): void {
-  const sink = getSfxSink();
-  if (!sink) return;
-  const { ctx, gain: dest } = sink;
-  const notes = [523.25, 440.0, 349.23]; // C5-A4-F4
-  notes.forEach((f, i) => playNote(ctx, dest, f, i * 0.14, 260, 0.28, 'sine'));
+  playSample('gameLose');
 }
 
-/** SE-chat-recv: チャット送受信の通知音。控えめなポップ。 */
+/** SE-chat-recv: v0.77 で Freesound deathbyfairydust「pop.wav」に置換 (CC-BY)。 */
 export function seChatRecv(): void {
-  const sink = getSfxSink();
-  if (!sink) return;
-  const { ctx, gain: dest } = sink;
-  const osc = ctx.createOscillator();
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(1200, ctx.currentTime);
-  osc.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.05);
-  const env = envGain(ctx, 3, 70, 0.22);
-  osc.connect(env).connect(dest);
-  osc.start();
-  osc.stop(ctx.currentTime + 0.1);
+  playSample('chatRecv');
 }
 
-/** SE-pause: 一時停止 (時間が止まる印象の短い下降 2 音)。 */
+/** SE-pause: v0.77 で Freesound BaggoNotes「Button_Click1」に置換 (CC0)。 */
 export function sePause(): void {
-  const sink = getSfxSink();
-  if (!sink) return;
-  const { ctx, gain: dest } = sink;
-  const notes = [523.25, 392.0]; // C5-G4
-  notes.forEach((f, i) => playNote(ctx, dest, f, i * 0.09, 150, 0.28, 'sine'));
+  playSample('pause');
 }
 
-/** SE-resume: 再開 (pause の逆で短い上昇 2 音)。 */
+/** SE-resume: v0.77 で SE-pause を 120ms 間隔で 2 度鳴らす方式に (ユーザー指定 D-3)。 */
 export function seResume(): void {
-  const sink = getSfxSink();
-  if (!sink) return;
-  const { ctx, gain: dest } = sink;
-  const notes = [392.0, 523.25]; // G4-C5
-  notes.forEach((f, i) => playNote(ctx, dest, f, i * 0.08, 150, 0.28, 'sine'));
+  playSample('pause');
+  playSample('pause', { at: 0.12 });
 }
 
-/** SE-furigoma: 振り駒 (小さな駒がぶつかり合うようなノイズ連打)。 */
+/**
+ * SE-furigoma: v0.77 で素材ベースに置換 (ユーザー指定 M-2)。
+ * Freesound SilverDubloons「Scrabble piece on wood」CC0 を 5 発 +
+ * TK shogi4 (SE-move) を 2 発、0.4s の中にランダム配置。押すたびに異なる。
+ */
 export function seFurigoma(): void {
-  const sink = getSfxSink();
-  if (!sink) return;
-  const { ctx, gain: dest } = sink;
-  // 5 個の粒を短い間隔でランダムに散らす
-  for (let i = 0; i < 6; i++) {
-    const t0 = ctx.currentTime + i * 0.06 + Math.random() * 0.02;
-    const src = ctx.createBufferSource();
-    src.buffer = noiseBuffer(ctx, 40);
-    const bp = ctx.createBiquadFilter();
-    bp.type = 'bandpass';
-    bp.frequency.value = 1500 + Math.random() * 800;
-    bp.Q.value = 1.2;
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(0.4, t0 + 0.005);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.05);
-    src.connect(bp).connect(g).connect(dest);
-    src.start(t0);
-  }
+  const spanSec = 0.4;
+  const times: { key: string; t: number }[] = [];
+  for (let i = 0; i < 5; i++) times.push({ key: 'furiPiece', t: Math.random() * spanSec });
+  for (let i = 0; i < 2; i++) times.push({ key: 'move', t: Math.random() * spanSec });
+  // 先頭は 0 に固定
+  times.sort((a, b) => a.t - b.t);
+  if (times.length) times[0].t = 0;
+  for (const h of times) playSample(h.key, { at: h.t });
 }

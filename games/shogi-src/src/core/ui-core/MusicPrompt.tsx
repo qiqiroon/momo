@@ -8,8 +8,10 @@ import {
   setSfxVolume,
   resumeAudio,
   preloadAllSamples,
+  playRandomBgm,
 } from '../audio/audio-engine';
 import { seButton } from '../audio/se-synth';
+import { useRouteStore } from '../store/route-store';
 
 /**
  * v0.72: 音楽再生確認モーダル (Darts v2.20 準拠)。
@@ -57,6 +59,11 @@ export function MusicPrompt({ open, onClose }: MusicPromptProps) {
     // v0.75: 音源サンプル (駒音等) を事前ロードしておく
     preloadAllSamples();
     seButton();
+    // v0.77: 現在の画面に応じた BGM を開始 (RootView の useEffect は
+    // ctx が resume されていない段階では発火していないため、ここで手動キック)
+    const screen = useRouteStore.getState().screen;
+    const pool: 'lobby' | 'game' = screen === 'game' ? 'game' : 'lobby';
+    void playRandomBgm(pool);
     onClose();
   };
   const onNo = () => {

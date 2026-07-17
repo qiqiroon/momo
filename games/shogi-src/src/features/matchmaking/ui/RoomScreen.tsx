@@ -260,15 +260,17 @@ export function RoomScreen() {
     if (!activeRoomConfig) return '';
     const tc = activeRoomConfig.timeControl;
     const min = Math.floor(tc.mainSeconds / 60);
+    const minU = t('time.min');
+    const secU = t('time.sec');
     switch (tc.mode) {
       case 'byoyomi':
-        return `秒読み ${min}分 + ${tc.byoyomiSeconds}秒`;
+        return `${t('s04.timeByoyomi')} ${min}${minU} + ${tc.byoyomiSeconds}${secU}`;
       case 'sudden_death':
-        return `切れ負け ${min}分`;
+        return `${t('s04.timeBoth')} ${min}${minU}`;
       case 'fischer':
-        return `フィッシャー ${min}分 + ${tc.incrementSeconds}秒`;
+        return `${t('s04.timeIncrement')} ${min}${minU} + ${tc.incrementSeconds}${secU}`;
       case 'no_limit':
-        return '時間フリー';
+        return t('s04.timeFree');
     }
   })();
 
@@ -364,9 +366,9 @@ export function RoomScreen() {
 
         {/* ===== 部屋情報 ===== */}
         <div style={{ marginTop: 10, padding: '8px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 13, color: 'var(--text)' }}>部屋名:</span>
+          <span style={{ fontSize: 13, color: 'var(--text)' }}>{t('s04.roomName')}:</span>
           <RoomBadges parts={parts} locale={locale} />
-          <span style={{ fontSize: 13, color: 'var(--text)' }}>{parts.userRoomName || '(未設定)'}</span>
+          <span style={{ fontSize: 13, color: 'var(--text)' }}>{parts.userRoomName || `(${t('s04.roomNamePh')})`}</span>
           {timeLabel && (
             <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 'auto' }}>{timeLabel}</span>
           )}
@@ -607,7 +609,7 @@ export function RoomScreen() {
             onClick={onLeave}
             style={{ minWidth: 260, padding: '8px 18px', fontSize: 13 }}
           >
-            退室（オンライン対戦ロビーに戻る）
+            {t('s06.backToOnlineLobby')}
           </button>
         </div>
       </div>

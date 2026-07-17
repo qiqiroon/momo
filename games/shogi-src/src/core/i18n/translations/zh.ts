@@ -5,7 +5,7 @@ export const zh: LocaleData = {
   name: '中文',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.84',
+    'app.ver': 'v0.85',
     'sound.promptTitle': '是否播放 BGM 与音效？',
     'sound.bgmLabel': 'BGM 音量',
     'sound.sfxLabel': '音效音量',
@@ -282,5 +282,57 @@ export const zh: LocaleData = {
     's06.sideResolvingFurigoma': '正以掷驹决定先后手…',
     's06.sideYouSente': '你执先手',
     's06.sideYouGote': '你执后手',
+
+    // v0.85: 共用文案
+    'common.close': '关闭',
+    'common.settings': '设置',
+    // v0.85: 时间单位
+    'time.min': '分',
+    'time.sec': '秒',
+    'time.hour': '小时',
+    'time.zeroByo': '0（仅秒读）',
+    'time.subMain': '本时间',
+    'time.subByo': '秒读（每手）',
+    'time.subInc': '加秒（每手）',
+
+    // v0.85: S01 离线设置
+    's01.editRule': '更改规则',
+    's01.selectedRule': '当前规则',
+    's01.description': '可选择本将棋、夹将棋、自定义、环面、量子将棋等。',
+    's01.startGame': '开始对局',
+
+    // v0.85: S04 大厅追加
+    's04.errNoName': '请输入玩家名。',
+    's04.errNoServer': '尚未连接服务器，请稍候。',
+    's04.connState.disconnected': '未连接',
+    's04.connState.connecting': '连接中…',
+    's04.connState.connected': '已连接（大厅）',
+    's04.connState.inRoom': '已创建 / 加入房间',
+    's04.connState.gameConnected': '已与对手连接',
+    's04.privateFlag': '非公开',
+    's04.host': '房主',
+    's04.hasPassword': '有密码',
+    's04.inGame': '对战中',
+    's04.enterRoom': '进入',
+    's04.refresh': '刷新',
+    's04.connLabel': '连接状态',
+    's04.playerNameLbl': '玩家名',
+    's04.playerNamePh': '输入显示名',
+    's04.passwordPh2': '密码',
+    's04.noRooms': '尚无房间（可自行创建）。',
+    's04.defaultRoomName': '将棋房间',
+
+    // v0.85: S07 对局画面
+    's07.senteLbl': '先手',
+    's07.goteLbl': '后手',
+    's07.senteTurn': '先手回合',
+    's07.goteTurn': '后手回合',
+    's07.checkTag': '（将军）',
+    's07.leaveGame': '退出（返回大厅）',
+    's07.reset': '重置',
+    's07.kifuTitle': '棋谱',
+    's07.kifuEmpty': '尚无着子。',
+    's07.boardAria': '将棋棋盘 (9x9)',
+    's06.backToOnlineLobby': '退出（返回联机大厅）',
   },
 };

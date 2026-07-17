@@ -41,31 +41,30 @@ const RULES: RuleDef[] = [
 ];
 
 // v0.64: 10 分と 3 秒を追加
-const MAIN_OPTIONS: { value: number; label: string }[] = [
-  { value: 0, label: '0（秒読みのみ）' },
-  { value: 5 * 60, label: '5分' },
-  { value: 10 * 60, label: '10分' },
-  { value: 15 * 60, label: '15分' },
-  { value: 30 * 60, label: '30分' },
-  { value: 60 * 60, label: '1時間' },
-];
-const BYO_OPTIONS: { value: number; label: string }[] = [
-  { value: 3, label: '3秒' },
-  { value: 5, label: '5秒' },
-  { value: 10, label: '10秒' },
-  { value: 30, label: '30秒' },
-  { value: 60, label: '60秒' },
-];
+// v0.85: label を i18n 化 (formatMainOption / formatByoOption で locale 依存生成)
+const MAIN_OPTION_VALUES = [0, 5 * 60, 10 * 60, 15 * 60, 30 * 60, 60 * 60] as const;
+const BYO_OPTION_VALUES = [3, 5, 10, 30, 60] as const;
+
+function formatMainOption(value: number, tr: (k: string) => string): string {
+  if (value === 0) return tr('time.zeroByo');
+  if (value >= 3600) return `${value / 3600}${tr('time.hour')}`;
+  return `${value / 60}${tr('time.min')}`;
+}
+function formatByoOption(value: number, tr: (k: string) => string): string {
+  return `${value}${tr('time.sec')}`;
+}
 
 /** サマリ 1 行用: 現在の時間設定を短く表す ("時間フリー" / "秒読み・5分+30秒" 等) */
 export function formatTimeSummary(
   time: { mode: TimeControlMode; mainSeconds: number; byoyomiSeconds?: number; incrementSeconds?: number },
   tr: (k: string) => string,
 ): string {
+  const min = tr('time.min');
+  const sec = tr('time.sec');
   const fmt = (s: number) => {
     if (s <= 0) return '0';
-    if (s % 60 === 0) return `${s / 60}分`;
-    return `${s}秒`;
+    if (s % 60 === 0) return `${s / 60}${min}`;
+    return `${s}${sec}`;
   };
   const modeLabel =
     time.mode === 'no_limit'
@@ -422,15 +421,15 @@ export function RuleSelectScreen() {
                 <div className="tp-sub">
                   <div className="tp-sub-label">{t('s04.mainSec')}</div>
                   <div className="tp-sub-opts">
-                    {MAIN_OPTIONS.filter((o) => o.value > 0 || config.timeControl.mode === 'byoyomi').map((o) => (
+                    {MAIN_OPTION_VALUES.filter((v) => v > 0 || config.timeControl.mode === 'byoyomi').map((v) => (
                       <button
-                        key={o.value}
+                        key={v}
                         type="button"
                         className="act"
-                        onClick={() => setConfig({ timeControl: { ...config.timeControl, mainSeconds: o.value } })}
-                        style={config.timeControl.mainSeconds === o.value ? { borderColor: 'var(--orange)', color: 'var(--orange-light)', background: 'var(--bg-selected)' } : {}}
+                        onClick={() => setConfig({ timeControl: { ...config.timeControl, mainSeconds: v } })}
+                        style={config.timeControl.mainSeconds === v ? { borderColor: 'var(--orange)', color: 'var(--orange-light)', background: 'var(--bg-selected)' } : {}}
                       >
-                        {o.label}
+                        {formatMainOption(v, t)}
                       </button>
                     ))}
                   </div>
@@ -440,15 +439,15 @@ export function RuleSelectScreen() {
                 <div className="tp-sub">
                   <div className="tp-sub-label">{t('s04.byoyomiSec')}</div>
                   <div className="tp-sub-opts">
-                    {BYO_OPTIONS.map((o) => (
+                    {BYO_OPTION_VALUES.map((v) => (
                       <button
-                        key={o.value}
+                        key={v}
                         type="button"
                         className="act"
-                        onClick={() => setConfig({ timeControl: { ...config.timeControl, byoyomiSeconds: o.value } })}
-                        style={config.timeControl.byoyomiSeconds === o.value ? { borderColor: 'var(--orange)', color: 'var(--orange-light)', background: 'var(--bg-selected)' } : {}}
+                        onClick={() => setConfig({ timeControl: { ...config.timeControl, byoyomiSeconds: v } })}
+                        style={config.timeControl.byoyomiSeconds === v ? { borderColor: 'var(--orange)', color: 'var(--orange-light)', background: 'var(--bg-selected)' } : {}}
                       >
-                        {o.label}
+                        {formatByoOption(v, t)}
                       </button>
                     ))}
                   </div>
@@ -459,15 +458,15 @@ export function RuleSelectScreen() {
                   <div className="tp-sub-label">{t('s04.incrementSec')}</div>
                   <div className="tp-sub-opts">
                     {/* v0.65: fischer で 0 秒は加算方式として意味が無いので除外 */}
-                    {BYO_OPTIONS.map((o) => (
+                    {BYO_OPTION_VALUES.map((v) => (
                       <button
-                        key={o.value}
+                        key={v}
                         type="button"
                         className="act"
-                        onClick={() => setConfig({ timeControl: { ...config.timeControl, incrementSeconds: o.value } })}
-                        style={config.timeControl.incrementSeconds === o.value ? { borderColor: 'var(--orange)', color: 'var(--orange-light)', background: 'var(--bg-selected)' } : {}}
+                        onClick={() => setConfig({ timeControl: { ...config.timeControl, incrementSeconds: v } })}
+                        style={config.timeControl.incrementSeconds === v ? { borderColor: 'var(--orange)', color: 'var(--orange-light)', background: 'var(--bg-selected)' } : {}}
                       >
-                        {o.label}
+                        {formatByoOption(v, t)}
                       </button>
                     ))}
                   </div>

@@ -164,7 +164,7 @@ export function MenuScreen() {
               {t('s00.aiNotYet')}
             </div>
             <button className="reset-btn" type="button" onClick={() => setShowAiNote(false)}>
-              閉じる
+              {t('common.close')}
             </button>
           </div>
         </div>

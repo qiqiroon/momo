@@ -19,25 +19,28 @@ import { DEFAULT_TIME_CONTROL, type TimeControl } from '../engine/time-control';
  *
  * v0.84: 持ち時間モードパネルは S01 から撤去。ルール選択画面 (S02) で
  * 選ばれた pendingRoomConfig.timeControl をそのまま引き継ぐ。
- * これで「S01 で選ぶ / S02 で選ぶ」の二重管理を解消。
+ * v0.85: 全ハードコード日本語を i18n 化、オレンジタイトルを .lc-title 相当
+ * (15px オレンジ) に、持ち時間サマリを 2 行目「持ち時間：xxx」形式に。
  */
 
 interface OfflineRuleScreenProps {
   variant?: 'a' | 'b';
 }
 
-/** サマリ用: TimeControl を「時間フリー」「秒読み・15分+30秒」等の短い日本語に整形 */
-function formatTimeSummaryJa(tc: TimeControl): string {
+/** サマリ用: TimeControl を i18n 対応の短い文字列に整形 */
+function formatTimeSummary(tc: TimeControl, tr: (k: string) => string): string {
+  const min = tr('time.min');
+  const sec = tr('time.sec');
   const fmt = (s: number) => {
     if (s <= 0) return '0';
-    if (s % 60 === 0) return `${s / 60}分`;
-    return `${s}秒`;
+    if (s % 60 === 0) return `${s / 60}${min}`;
+    return `${s}${sec}`;
   };
   const modeLabel =
-    tc.mode === 'no_limit' ? '時間フリー'
-    : tc.mode === 'byoyomi' ? '秒読み'
-    : tc.mode === 'fischer' ? 'フィッシャー'
-    : '切れ負け';
+    tc.mode === 'no_limit' ? tr('s04.timeFree')
+    : tc.mode === 'byoyomi' ? tr('s04.timeByoyomi')
+    : tc.mode === 'fischer' ? tr('s04.timeIncrement')
+    : tr('s04.timeBoth');
   if (tc.mode === 'no_limit') return modeLabel;
   const parts = [modeLabel, fmt(tc.mainSeconds)];
   if (tc.mode === 'byoyomi' && tc.byoyomiSeconds !== undefined) parts.push(`+${fmt(tc.byoyomiSeconds)}`);
@@ -52,7 +55,7 @@ export function OfflineRuleScreen(_props: OfflineRuleScreenProps) {
   const setScreen = useRouteStore((s) => s.setScreen);
 
   const subLocale: LocaleCode = locale === 'cat' ? 'ja' : locale;
-  const subtitle = subLocale === 'zh' ? '擒王为胜，破局无界' : 'Capture the King, Bend the Rules';
+  const subtitle = subLocale === 'zh' ? _t('app.sub', 'zh') : _t('app.sub', 'en');
 
   const onBack = () => { seButton(); setScreen('lobby'); }; // v0.76: 家アイコンにも SE-button
 
@@ -60,11 +63,11 @@ export function OfflineRuleScreen(_props: OfflineRuleScreenProps) {
   const conn = pluginGet<OnlineGameConnector>('gameConnector');
   const pendingRules = conn?.getPendingRules() ?? null;
   const pendingTc = conn?.getPendingTimeControl() ?? DEFAULT_TIME_CONTROL;
-  const ruleNameJa =
-    pendingRules?.gameType === 'hasami' ? 'はさみ将棋'
-    : pendingRules?.gameType === 'shogi-custom' ? 'カスタム'
-    : '本将棋';
-  const timeSummary = formatTimeSummaryJa(pendingTc);
+  const ruleNameKey =
+    pendingRules?.gameType === 'hasami' ? 's02.ruleHasami.name'
+    : pendingRules?.gameType === 'shogi-custom' ? 's02.ruleCustom.name'
+    : 's02.ruleHongi.name';
+  const timeSummary = formatTimeSummary(pendingTc, t);
 
   // v0.69: S02 (rule-select) へ遷移して戻ってこられるようにする (return dest を 'offline-rule' に)
   const onEditRule = () => {
@@ -110,15 +113,9 @@ export function OfflineRuleScreen(_props: OfflineRuleScreenProps) {
           </div>
         </header>
 
-        {/* v0.69: 対局ルール選択 (S04 と同じ形式)。今は本将棋のみ機能するが、
-            将来のルール追加時のためにここで受け皿として設置。
-            v0.82: 5 種のバリアント合成画像を背景に敷く (横幅=カード幅、上下トリミング、
-            暗色オーバーレイで画像可視度を制御)
-            v0.83: 画像可視度 50%→30%、レイアウト刷新
-            (ボタン左寄せ「ルール変更」/ 右に「選択中のルール：...」を大きく /
-            その下に選択肢紹介文。すべて白文字で画像上に載せる)
-            v0.84: 対局ルールというオレンジタイトル復活 (視覚統一)、選択中のルールに
-            持ち時間サマリを追加、説明文を 2 行目 (ボタン下から) 左寄せ・font 11px に */}
+        {/* v0.82-v0.85: 5 種のバリアント合成画像を背景に敷いた対局ルールカード。
+            v0.85: オレンジタイトルは .lc-title 相当の 15px に (視覚統一)、
+            持ち時間サマリを 2 行目に「持ち時間：xxx」形式で追加、全ラベル i18n 化 */}
         <div style={{
           marginTop: 14,
           padding: 14,
@@ -127,32 +124,38 @@ export function OfflineRuleScreen(_props: OfflineRuleScreenProps) {
           borderRadius: 10,
           overflow: 'hidden',
         }}>
-          <div className="panel-label"><span>対局ルール</span></div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: '0.03em', color: 'var(--orange)', margin: '0 0 12px', textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}>
+            {t('s04.lblRule')}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, flexWrap: 'wrap' }}>
             <button
               className="reset-btn"
               type="button"
               onClick={onEditRule}
-              style={{ color: '#fff', flexShrink: 0 }}
+              style={{ color: '#fff', flexShrink: 0, marginTop: 2 }}
             >
-              ルール変更
+              {t('s01.editRule')}
             </button>
-            <div style={{ flex: 1, minWidth: 200, fontSize: 16, color: '#fff', fontWeight: 700, textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}>
-              選択中のルール：{ruleNameJa}
-              {pendingRules?.torusMode === 'cylinder' && <>＋トーラス（円筒）</>}
-              {pendingRules?.torusMode === 'full' && <>＋トーラス（完全）</>}
-              {pendingRules?.quantum && <>＋量子</>}
-              ・{timeSummary}
+            <div style={{ flex: 1, minWidth: 200, color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}>
+              <div style={{ fontSize: 16, fontWeight: 700 }}>
+                {t('s01.selectedRule')}：{t(ruleNameKey)}
+                {pendingRules?.torusMode === 'cylinder' && <>＋{t('s04.summaryTorusCyl')}</>}
+                {pendingRules?.torusMode === 'full' && <>＋{t('s04.summaryTorusFull')}</>}
+                {pendingRules?.quantum && <>＋{t('s04.summaryQuantum')}</>}
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 700, marginTop: 4 }}>
+                {t('s04.lblTime')}：{timeSummary}
+              </div>
             </div>
           </div>
           <div style={{ marginTop: 8, fontSize: 11, color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}>
-            本将棋・はさみ将棋・カスタム将棋・トーラス将棋・量子将棋などを選択できます
+            {t('s01.description')}
           </div>
         </div>
 
         <div style={{ marginTop: 20, display: 'flex', justifyContent: 'center' }}>
           <button className="act taunt" type="button" onClick={onStart} style={{ minWidth: 180 }}>
-            対局開始
+            {t('s01.startGame')}
           </button>
         </div>
       </div>

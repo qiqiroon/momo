@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.84',
+    'app.ver': 'v0.85',
     // v0.72 音楽再生確認モーダル (Darts と同じ思想)
     'sound.promptTitle': 'BGM と効果音を再生してもよろしいですか？',
     'sound.bgmLabel': 'BGM 音量',
@@ -297,5 +297,57 @@ export const ja: LocaleData = {
     's06.sideResolvingFurigoma': '振り駒で決定中です…',
     's06.sideYouSente': 'あなたは先手です',
     's06.sideYouGote': 'あなたは後手です',
+
+    // v0.85: 共通ラベル (複数画面で使い回す)
+    'common.close': '閉じる',
+    'common.settings': '設定',
+    // v0.85: 時間表記の単位 (formatTimeSummary / RuleSelectScreen 選択肢生成で使用)
+    'time.min': '分',
+    'time.sec': '秒',
+    'time.hour': '時間',
+    'time.zeroByo': '0（秒読みのみ）',
+    'time.subMain': '本時間',
+    'time.subByo': '秒読み（1手ごとの時間）',
+    'time.subInc': '加算（1手ごとに追加）',
+
+    // v0.85: S01 オフライン設定
+    's01.editRule': 'ルール変更',
+    's01.selectedRule': '選択中のルール',
+    's01.description': '本将棋・はさみ将棋・カスタム将棋・トーラス将棋・量子将棋などを選択できます',
+    's01.startGame': '対局開始',
+
+    // v0.85: S04 ロビー (追加)
+    's04.errNoName': 'プレイヤー名を入力してください',
+    's04.errNoServer': 'サーバーに繋がっていません。少しお待ちください。',
+    's04.connState.disconnected': '未接続',
+    's04.connState.connecting': '接続中…',
+    's04.connState.connected': '接続済み（ロビー）',
+    's04.connState.inRoom': '部屋作成/入室完了',
+    's04.connState.gameConnected': '相手と接続完了',
+    's04.privateFlag': '非公開',
+    's04.host': 'ホスト',
+    's04.hasPassword': '鍵付き',
+    's04.inGame': '対戦中',
+    's04.enterRoom': '入室',
+    's04.refresh': '一覧更新',
+    's04.connLabel': '接続状態',
+    's04.playerNameLbl': 'プレイヤー名',
+    's04.playerNamePh': '表示名を入力',
+    's04.passwordPh2': 'パスワード',
+    's04.noRooms': '部屋がありません（作成できます）',
+    's04.defaultRoomName': '本将棋の部屋',
+
+    // v0.85: S07 対局画面
+    's07.senteLbl': '先手',
+    's07.goteLbl': '後手',
+    's07.senteTurn': '先手番',
+    's07.goteTurn': '後手番',
+    's07.checkTag': '（王手）',
+    's07.leaveGame': '退室（対戦ロビーに戻る）',
+    's07.reset': 'リセット',
+    's07.kifuTitle': '棋譜',
+    's07.kifuEmpty': 'まだ指し手がありません',
+    's07.boardAria': '将棋盤 (9x9)',
+    's06.backToOnlineLobby': '退室（オンライン対戦ロビーに戻る）',
   },
 };

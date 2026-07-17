@@ -286,10 +286,10 @@ export function GameScreen({ variant }: GameScreenProps) {
                       ? t('status.timeout_p2')
                       : online.isOnline
                   ? (isMyTurnOnline ? t('turn.mine') : t('turn.opp')) +
-                    (position.sideToMove === 'player1' ? (senteInCheck ? '（王手）' : '') : goteInCheck ? '（王手）' : '')
+                    (position.sideToMove === 'player1' ? (senteInCheck ? t('s07.checkTag') : '') : goteInCheck ? t('s07.checkTag') : '')
                     : position.sideToMove === 'player1'
-                      ? '先手番' + (senteInCheck ? '（王手）' : '')
-                      : '後手番' + (goteInCheck ? '（王手）' : '');
+                      ? t('s07.senteTurn') + (senteInCheck ? t('s07.checkTag') : '')
+                      : t('s07.goteTurn') + (goteInCheck ? t('s07.checkTag') : '');
 
   const isSelected = (row: number, col: number) => selectedSquare?.row === row && selectedSquare?.col === col;
   const isHint = (row: number, col: number) => legalDestinations.some((d) => d.row === row && d.col === col);
@@ -332,8 +332,8 @@ export function GameScreen({ variant }: GameScreenProps) {
   // v0.34: 相手／自分 の持ち駒を viewer 基準で
   const oppHandGrouped = viewerSide === 'player1' ? goteHandGrouped : senteHandGrouped;
   const myHandGrouped = viewerSide === 'player1' ? senteHandGrouped : goteHandGrouped;
-  const oppSideLabel = oppSide === 'player1' ? '先手' : '後手';
-  const mySideLabel = viewerSide === 'player1' ? '先手' : '後手';
+  const oppSideLabel = oppSide === 'player1' ? t('s07.senteLbl') : t('s07.goteLbl');
+  const mySideLabel = viewerSide === 'player1' ? t('s07.senteLbl') : t('s07.goteLbl');
 
   const kifuScrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -379,7 +379,7 @@ export function GameScreen({ variant }: GameScreenProps) {
                       if (c) c.leaveOnline();
                     }}
                   >
-                    退室（対戦ロビーに戻る）
+                    {t('s07.leaveGame')}
                   </button>
                 </>
               ) : (
@@ -394,7 +394,7 @@ export function GameScreen({ variant }: GameScreenProps) {
                     {t('s07.backToOfflineSetup')}
                   </button>
                   <button className="reset-btn" type="button" onClick={reset}>
-                    リセット
+                    {t('s07.reset')}
                   </button>
                 </>
               )}
@@ -484,7 +484,7 @@ export function GameScreen({ variant }: GameScreenProps) {
                     <span key={s}>{s}</span>
                   ))}
                 </div>
-                <div className="board" aria-label="将棋盤 (9x9)">
+                <div className="board" aria-label={t('s07.boardAria')}>
                   <div className="stars">
                     {[3, 6].flatMap((cx) =>
                       [3, 6].map((cy) => (
@@ -573,12 +573,12 @@ export function GameScreen({ variant }: GameScreenProps) {
 
           <div className="panel" style={{ marginTop: 12 }}>
             <div className="panel-label">
-              <span>棋譜</span>
+              <span>{t('s07.kifuTitle')}</span>
             </div>
             <div className="console">
               <div className="chat-log" ref={kifuScrollRef} style={{ maxHeight: 180 }}>
                 {moveHistory.length === 0 ? (
-                  <div className="spec-empty">まだ指し手がありません</div>
+                  <div className="spec-empty">{t('s07.kifuEmpty')}</div>
                 ) : (
                   moveHistory.map((m, i) => (
                     <div key={i} style={{ color: 'var(--text-muted)', fontSize: 12 }}>

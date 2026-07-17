@@ -106,11 +106,11 @@ export function LobbyScreen() {
     const client = getMomoMatchmaking();
     if (!client) return;
     if (!playerName.trim()) {
-      setError('プレイヤー名を入力してください');
+      setError(t('s04.errNoName'));
       return;
     }
     if (useMatchmakingStore.getState().connection !== 'connected') {
-      setError('サーバーに繋がっていません。少しお待ちください。');
+      setError(t('s04.errNoServer'));
       return;
     }
     // 自動パスワード (非公開一覧のパスワード欄) が指定されていればそれを使う
@@ -151,17 +151,17 @@ export function LobbyScreen() {
   const onCreateRoom = () => {
     seButton(); // v0.74
     if (!playerName.trim()) {
-      setError('プレイヤー名を入力してください');
+      setError(t('s04.errNoName'));
       return;
     }
     if (useMatchmakingStore.getState().connection !== 'connected') {
-      setError('サーバーに繋がっていません。少しお待ちください。');
+      setError(t('s04.errNoServer'));
       return;
     }
     const client = getMomoMatchmaking();
     if (!client) return;
     setError(null);
-    const userRoomName = config.roomName || '本将棋の部屋';
+    const userRoomName = config.roomName || t('s04.defaultRoomName');
     const encodedName = encodeRoomName({
       gameType: config.gameType,
       torus: config.torus,
@@ -194,11 +194,11 @@ export function LobbyScreen() {
   };
 
   const connLabel: Record<string, string> = {
-    disconnected: '未接続',
-    connecting: '接続中…',
-    connected: '接続済み（ロビー）',
-    in_room: '部屋作成/入室完了',
-    game_connected: '相手と接続完了',
+    disconnected: t('s04.connState.disconnected'),
+    connecting: t('s04.connState.connecting'),
+    connected: t('s04.connState.connected'),
+    in_room: t('s04.connState.inRoom'),
+    game_connected: t('s04.connState.gameConnected'),
   };
 
   const ruleName =
@@ -230,13 +230,13 @@ export function LobbyScreen() {
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <RoomBadges parts={parts} locale={locale} />
-            <span style={{ color: 'var(--text)' }}>{parts.userRoomName || '(名前なし)'}</span>
-            {!r.isPublic && <span style={{ fontSize: 10, color: 'var(--orange-light)', border: '1px solid var(--orange)', padding: '1px 6px', borderRadius: 10 }}>非公開</span>}
+            <span style={{ color: 'var(--text)' }}>{parts.userRoomName || `(${t('s04.roomNamePh')})`}</span>
+            {!r.isPublic && <span style={{ fontSize: 10, color: 'var(--orange-light)', border: '1px solid var(--orange)', padding: '1px 6px', borderRadius: 10 }}>{t('s04.privateFlag')}</span>}
           </div>
           <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>
-            ホスト: {r.hostName}
-            {r.hasPassword && '  鍵付き'}
-            {r.guestConnected && '  対戦中'}
+            {t('s04.host')}: {r.hostName}
+            {r.hasPassword && `  ${t('s04.hasPassword')}`}
+            {r.guestConnected && `  ${t('s04.inGame')}`}
           </div>
         </div>
         {joinRoomId === r.id && r.hasPassword && (autoPw === undefined || autoPw === '') ? (
@@ -248,11 +248,11 @@ export function LobbyScreen() {
               autoComplete="new-password"
               value={joinPassword}
               onChange={(e) => setJoinPassword(e.target.value)}
-              placeholder="パスワード"
+              placeholder={t('s04.passwordPh2')}
               style={{ background: 'var(--bg)', border: '1px solid var(--border-strong)', color: 'var(--text)', padding: '4px 8px', borderRadius: 6, fontSize: 12, width: 120 }}
             />
             <button className="reset-btn" type="button" onClick={() => onJoin(r.id, r.hasPassword)}>
-              入室
+              {t('s04.enterRoom')}
             </button>
           </>
         ) : (
@@ -262,7 +262,7 @@ export function LobbyScreen() {
             onClick={() => onJoin(r.id, r.hasPassword, autoPw)}
             disabled={connection !== 'connected' || r.guestConnected}
           >
-            入室
+            {t('s04.enterRoom')}
           </button>
         )}
       </div>
@@ -305,22 +305,22 @@ export function LobbyScreen() {
           <div className="lc-title">{t('s04.cardConn')}</div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 10 }}>
             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-              接続状態:{' '}
+              {t('s04.connLabel')}:{' '}
               <span style={{ color: connection === 'disconnected' || connection === 'connecting' ? 'var(--text-muted)' : 'var(--orange-light)' }}>
                 {connLabel[connection]}
               </span>
             </div>
             <button className="reset-btn" type="button" onClick={onRefresh} disabled={connection === 'connecting' || connection === 'disconnected'}>
-              一覧更新
+              {t('s04.refresh')}
             </button>
           </div>
           <label style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 13 }}>
-            <span style={{ color: 'var(--text-muted)', minWidth: 90 }}>プレイヤー名</span>
+            <span style={{ color: 'var(--text-muted)', minWidth: 90 }}>{t('s04.playerNameLbl')}</span>
             <input
               type="text"
               value={playerName}
               onChange={(e) => onPlayerNameChange(e.target.value)}
-              placeholder="表示名を入力"
+              placeholder={t('s04.playerNamePh')}
               maxLength={20}
               style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border-strong)', color: 'var(--text)', padding: '5px 10px', borderRadius: 6, fontSize: 13 }}
             />
@@ -334,7 +334,7 @@ export function LobbyScreen() {
           {/* 部屋一覧 (公開・パスワード有りも含む。非公開表示 ON で非公開部屋が追加される) */}
           <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: 10 }}>
             {visibleRooms.length === 0 ? (
-              <div className="spec-empty">部屋がありません（作成できます）</div>
+              <div className="spec-empty">{t('s04.noRooms')}</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {visibleRooms.map((r) => renderRoomRow(r))}

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { LangSelect } from './LangSelect';
 import { SettingsPopup } from './SettingsPopup';
+import { useI18nStore } from '../store/i18n-store';
+import { t as _t } from '../i18n';
 
 /**
  * ヘッダー右端の共通ツール (v0.54 追加、v0.73 で歯車を機能化)。
@@ -13,13 +15,15 @@ import { SettingsPopup } from './SettingsPopup';
  */
 export function HeaderCommonRight({ includeCat = true }: { includeCat?: boolean }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const locale = useI18nStore((s) => s.locale);
+  const gearLabel = _t('common.settings', locale);
   return (
     <>
       <button
         className="gear-btn"
         type="button"
-        title="設定"
-        aria-label="設定"
+        title={gearLabel}
+        aria-label={gearLabel}
         onClick={() => setSettingsOpen((v) => !v)}
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

@@ -5,7 +5,7 @@ export const en: LocaleData = {
   name: 'English',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v0.84',
+    'app.ver': 'v0.85',
     'sound.promptTitle': 'Enable BGM and sound effects?',
     'sound.bgmLabel': 'BGM volume',
     'sound.sfxLabel': 'SFX volume',
@@ -282,5 +282,57 @@ export const en: LocaleData = {
     's06.sideResolvingFurigoma': 'Deciding sides by piece toss…',
     's06.sideYouSente': 'You play sente',
     's06.sideYouGote': 'You play gote',
+
+    // v0.85: Common labels reused across screens
+    'common.close': 'Close',
+    'common.settings': 'Settings',
+    // v0.85: Time formatting units
+    'time.min': 'min',
+    'time.sec': 's',
+    'time.hour': 'h',
+    'time.zeroByo': '0 (byoyomi only)',
+    'time.subMain': 'Main',
+    'time.subByo': 'Byoyomi (per move)',
+    'time.subInc': 'Increment (per move)',
+
+    // v0.85: S01 offline setup
+    's01.editRule': 'Change rule',
+    's01.selectedRule': 'Current rule',
+    's01.description': 'Choose from Standard Shogi, Hasami, Custom, Torus, Quantum Shogi and more.',
+    's01.startGame': 'Start match',
+
+    // v0.85: S04 lobby extras
+    's04.errNoName': 'Please enter a player name.',
+    's04.errNoServer': 'Not connected to the server. Please wait a moment.',
+    's04.connState.disconnected': 'Not connected',
+    's04.connState.connecting': 'Connecting…',
+    's04.connState.connected': 'Connected (lobby)',
+    's04.connState.inRoom': 'Room created / joined',
+    's04.connState.gameConnected': 'Connected to opponent',
+    's04.privateFlag': 'Private',
+    's04.host': 'Host',
+    's04.hasPassword': 'Locked',
+    's04.inGame': 'In game',
+    's04.enterRoom': 'Enter',
+    's04.refresh': 'Refresh',
+    's04.connLabel': 'Status',
+    's04.playerNameLbl': 'Player name',
+    's04.playerNamePh': 'Enter display name',
+    's04.passwordPh2': 'Password',
+    's04.noRooms': 'No rooms yet (feel free to create one).',
+    's04.defaultRoomName': 'Shogi room',
+
+    // v0.85: S07 game screen
+    's07.senteLbl': 'Sente',
+    's07.goteLbl': 'Gote',
+    's07.senteTurn': "Sente's turn",
+    's07.goteTurn': "Gote's turn",
+    's07.checkTag': '(check)',
+    's07.leaveGame': 'Leave (back to lobby)',
+    's07.reset': 'Reset',
+    's07.kifuTitle': 'Kifu',
+    's07.kifuEmpty': 'No moves yet.',
+    's07.boardAria': 'Shogi board (9x9)',
+    's06.backToOnlineLobby': 'Leave (back to online lobby)',
   },
 };

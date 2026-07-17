@@ -591,7 +591,7 @@ export function GameScreen({ variant }: GameScreenProps) {
           </div>
         </div>
       </div>
-      <PromotionModal locale={locale} t={t} />
+      <PromotionModal locale={locale} t={t} viewerSide={viewerSide} />
       <OpponentLeftModal t={t} />
       <GameEndModal t={t} online={online} />
       <OfferReceivedModal t={t} online={online} />
@@ -1433,9 +1433,13 @@ function NyugyokuButton({ t }: NyugyokuButtonProps) {
 interface PromotionModalProps {
   locale: LocaleCode;
   t: (key: string) => string;
+  /** v0.87: viewer 基準の駒反転バグ修正。後手視点でも駒が上下正しく表示されるよう
+   *  PieceView に viewer 情報を伝播する (既定値 'player1' へのフォールバックで
+   *  後手時に piece.owner !== viewerSide となり誤って gote クラスが付いていた) */
+  viewerSide: 'player1' | 'player2';
 }
 
-function PromotionModal({ locale, t }: PromotionModalProps) {
+function PromotionModal({ locale, t, viewerSide }: PromotionModalProps) {
   const pendingPromotion = useGameStore((s) => s.pendingPromotion);
   const confirmPromotion = useGameStore((s) => s.confirmPromotion);
   const cancelPromotion = useGameStore((s) => s.cancelPromotion);
@@ -1474,13 +1478,13 @@ function PromotionModal({ locale, t }: PromotionModalProps) {
           <button type="button" className="promotion-card" onClick={() => confirmPromotion(false)}>
             <div className="label">{t('promote.decline')}</div>
             <div className="promotion-card-piece">
-              <PieceView piece={nonPromotePiece} locale={locale} />
+              <PieceView piece={nonPromotePiece} locale={locale} viewerSide={viewerSide} />
             </div>
           </button>
           <button type="button" className="promotion-card" onClick={() => confirmPromotion(true)}>
             <div className="label">{t('promote.confirm')}</div>
             <div className="promotion-card-piece">
-              <PieceView piece={promotePiece} locale={locale} />
+              <PieceView piece={promotePiece} locale={locale} viewerSide={viewerSide} />
             </div>
           </button>
         </div>

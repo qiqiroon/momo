@@ -166,6 +166,8 @@ export function LobbyScreen() {
       gameType: config.gameType,
       torus: config.torus,
       quantum: config.quantum,
+      // v0.87: 持ち時間も部屋名に埋め込む (ロビー一覧のバッジで表示)
+      timeControl: config.timeControl,
       customRuleName: config.customRuleName,
       userRoomName,
     });

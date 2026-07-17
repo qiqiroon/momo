@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { RootView } from './core/ui-core/RootView';
 import { MusicPrompt } from './core/ui-core/MusicPrompt';
+import { DebugPanel } from './core/ui-core/DebugPanel';
 import { bindVisibility } from './core/audio/visibility';
 import { suspendAudio } from './core/audio/audio-engine';
 
@@ -38,6 +39,7 @@ export function App({ variant }: AppProps) {
     <>
       <RootView variant={variant} />
       <MusicPrompt open={promptOpen} onClose={() => setPromptOpen(false)} />
+      <DebugPanel />
     </>
   );
 }

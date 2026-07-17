@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useI18nStore } from '../store/i18n-store';
 import { t as _t } from '../i18n';
 import { getBgmVolume, getSfxVolume, setBgmVolume, setSfxVolume } from '../audio/audio-engine';
+import { useDebugStore } from '../store/debug-store';
 
 /**
  * v0.73: 歯車ボタンから開く設定ポップアップ (Darts 準拠)。
@@ -75,9 +76,34 @@ export function SettingsPopup({ open, onClose }: SettingsPopupProps) {
             {t('sound.creditsButton')}
           </a>
         </div>
+        <DebugPanelLink onOpen={onClose} />
       </div>
       {creditsOpen && <CreditsModal onClose={() => setCreditsOpen(false)} t={t} />}
     </>
+  );
+}
+
+/**
+ * v0.91: `?debug=1` が付いている時だけ現れる「デバッグパネル」リンク。
+ * クリックすると SettingsPopup を閉じて DebugPanel を開く。
+ */
+function DebugPanelLink({ onOpen }: { onOpen: () => void }) {
+  const enabled = useDebugStore((s) => s.enabled);
+  const setPanelOpen = useDebugStore((s) => s.setPanelOpen);
+  if (!enabled) return null;
+  return (
+    <div style={{ marginTop: 8, textAlign: 'right' }}>
+      <a
+        href="#debug"
+        onClick={(e) => { e.preventDefault(); setPanelOpen(true); onOpen(); }}
+        style={{
+          fontSize: 11, color: 'var(--orange)',
+          textDecoration: 'underline', cursor: 'pointer',
+        }}
+      >
+        デバッグパネル
+      </a>
+    </div>
   );
 }
 

@@ -17,6 +17,7 @@ import { CatIcon } from './CatIcon';
 import { FloatingPanel } from './FloatingPanel';
 import { HeaderCommonRight } from './HeaderCommonRight';
 import type { OnlineGameConnector } from '../plugin/gameConnector';
+import { useDebugStore } from '../store/debug-store';
 
 interface GameScreenProps {
   variant: 'a' | 'b';
@@ -46,6 +47,12 @@ export function GameScreen({ variant }: GameScreenProps) {
   const clearSelection = useGameStore((s) => s.clearSelection);
   const tryMove = useGameStore((s) => s.tryMove);
   const reset = useGameStore((s) => s.reset);
+
+  // v0.91: デバッグモード (?debug=1) 用の hooks。enabled が false なら
+  // 全て no-op と等価 (overlay 非表示・logClick 呼び出しても捨てられる)。
+  const debugEnabled = useDebugStore((s) => s.enabled);
+  const showPieceIds = useDebugStore((s) => s.showPieceIds);
+  const debugLogClick = useDebugStore((s) => s.logClick);
 
   // オンライン対戦の接続点（features/matchmaking が登録・A ビルドでは undefined）
   const [online, setOnline] = useState<{
@@ -302,6 +309,11 @@ export function GameScreen({ variant }: GameScreenProps) {
 
   const onSquareClick = (row: number, col: number) => {
     if (status !== 'playing') return;
+    // v0.91: デバッグ時は手番/side を問わず駒を選ぶ動作前にログ (相手駒も対象)。
+    if (debugEnabled) {
+      const clicked = position.board[row][col];
+      if (clicked) debugLogClick(clicked, 'board');
+    }
     if (inputBlocked) return;
     if ((selectedSquare || selectedHandPieceId) && isHint(row, col)) {
       tryMove({ row, col });
@@ -318,6 +330,11 @@ export function GameScreen({ variant }: GameScreenProps) {
 
   const onHandPieceClick = (owner: 'player1' | 'player2', pieceId: string) => {
     if (status !== 'playing') return;
+    // v0.91: デバッグ時は相手側/手番外の持ち駒クリックもログに拾う。
+    if (debugEnabled) {
+      const clicked = position.hands[owner].find((p) => p.pieceId === pieceId);
+      if (clicked) debugLogClick(clicked, 'hand');
+    }
     if (inputBlocked) return;
     if (owner !== position.sideToMove) return;
     if (selectedHandPieceId === pieceId) {
@@ -515,6 +532,9 @@ export function GameScreen({ variant }: GameScreenProps) {
                     return (
                       <div key={i} className={cls} onClick={() => onSquareClick(row, col)}>
                         {piece && <PieceView piece={piece} locale={locale} viewerSide={viewerSide} />}
+                        {debugEnabled && showPieceIds && piece && (
+                          <DebugIdBadge piece={piece} />
+                        )}
                       </div>
                     );
                   })}
@@ -1588,5 +1608,30 @@ function PieceStandView({ side, pieces, onClick, selectedId, activePlayer, local
         })}
       </div>
     </div>
+  );
+}
+
+/**
+ * v0.91: デバッグモードで盤マスの左上に出す小さい PieceID バッジ。
+ * 候補集合を持っていれば [size] を後ろに付けて Phase 5 の収縮状況を可視化する。
+ * 通常表示 (駒の kind 表示) に被らないよう左上に絶対配置、小さく淡色で描画。
+ */
+function DebugIdBadge({ piece }: { piece: PieceInstance }) {
+  const sizeLabel = piece.candidates !== undefined ? ` [${piece.candidates.size}]` : '';
+  return (
+    <span
+      style={{
+        position: 'absolute', top: 1, left: 2,
+        fontSize: 8, lineHeight: 1,
+        color: 'rgba(255, 255, 255, 0.65)',
+        textShadow: '0 0 2px rgba(0, 0, 0, 0.85)',
+        pointerEvents: 'none',
+        fontFamily: 'ui-monospace, Menlo, Consolas, monospace',
+        letterSpacing: '-0.02em',
+        userSelect: 'none',
+      }}
+    >
+      {piece.pieceId}{sizeLabel}
+    </span>
   );
 }

@@ -130,36 +130,38 @@ export function OfflineRuleScreen(_props: OfflineRuleScreenProps) {
         {/* v0.69: 対局ルール選択 (S04 と同じ形式)。今は本将棋のみ機能するが、
             将来のルール追加時のためにここで受け皿として設置 */}
         {/* v0.82: 5 種のバリアント合成画像を背景に敷く (横幅=カード幅、上下トリミング、
-            50% 相当の見え方は暗色オーバーレイで実現) */}
+            暗色オーバーレイで画像可視度を制御)
+            v0.83: 画像可視度 50%→30%、レイアウト刷新
+            (ボタン左寄せ「ルール変更」/ 右に「選択中のルール：...」を大きく /
+            その下に選択肢紹介文。すべて白文字で画像上に載せる) */}
         <div style={{
           marginTop: 14,
           padding: 14,
-          background: `linear-gradient(rgba(17,17,17,0.5), rgba(17,17,17,0.5)), url('${import.meta.env.BASE_URL}rule-card-bg.png') center/100% auto no-repeat #111111`,
+          background: `linear-gradient(rgba(17,17,17,0.7), rgba(17,17,17,0.7)), url('${import.meta.env.BASE_URL}rule-card-bg.png') center/100% auto no-repeat #111111`,
           border: '1px solid var(--border)',
           borderRadius: 10,
           overflow: 'hidden',
         }}>
-
-          <div className="panel-label"><span>対局ルール</span></div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+            <button
+              className="reset-btn"
+              type="button"
+              onClick={onEditRule}
+              style={{ color: '#fff', flexShrink: 0 }}
+            >
+              ルール変更
+            </button>
             <div style={{ flex: 1, minWidth: 200 }}>
-              <div style={{ fontSize: 14, color: 'var(--text)', fontWeight: 700 }}>{ruleNameJa}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                変則条件:{' '}
-                {pendingRules && (pendingRules.torusMode !== 'none' || pendingRules.quantum) ? (
-                  <>
-                    {pendingRules.torusMode === 'cylinder' && <span className="chip mod">トーラス（円筒）</span>}
-                    {pendingRules.torusMode === 'full' && <span className="chip mod">トーラス（完全）</span>}
-                    {pendingRules.quantum && <span className="chip mod">量子</span>}
-                  </>
-                ) : (
-                  'なし'
-                )}
+              <div style={{ fontSize: 16, color: '#fff', fontWeight: 700, textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}>
+                選択中のルール：{ruleNameJa}
+                {pendingRules?.torusMode === 'cylinder' && <>＋トーラス（円筒）</>}
+                {pendingRules?.torusMode === 'full' && <>＋トーラス（完全）</>}
+                {pendingRules?.quantum && <>＋量子</>}
+              </div>
+              <div style={{ fontSize: 12, color: '#fff', marginTop: 4, textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}>
+                本将棋・はさみ将棋・カスタム将棋・トーラス将棋・量子将棋などを選択できます
               </div>
             </div>
-            <button className="reset-btn" type="button" onClick={onEditRule}>
-              ルールを選択
-            </button>
           </div>
         </div>
 

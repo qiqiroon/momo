@@ -129,7 +129,17 @@ export function OfflineRuleScreen(_props: OfflineRuleScreenProps) {
 
         {/* v0.69: 対局ルール選択 (S04 と同じ形式)。今は本将棋のみ機能するが、
             将来のルール追加時のためにここで受け皿として設置 */}
-        <div style={{ marginTop: 14, padding: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
+        {/* v0.82: 5 種のバリアント合成画像を背景に敷く (横幅=カード幅、上下トリミング、
+            50% 相当の見え方は暗色オーバーレイで実現) */}
+        <div style={{
+          marginTop: 14,
+          padding: 14,
+          background: `linear-gradient(rgba(17,17,17,0.5), rgba(17,17,17,0.5)), url('${import.meta.env.BASE_URL}rule-card-bg.png') center/100% auto no-repeat #111111`,
+          border: '1px solid var(--border)',
+          borderRadius: 10,
+          overflow: 'hidden',
+        }}>
+
           <div className="panel-label"><span>対局ルール</span></div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: 200 }}>

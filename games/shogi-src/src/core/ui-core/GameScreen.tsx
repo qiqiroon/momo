@@ -12,6 +12,7 @@ import type { LocaleCode } from '../i18n/types';
 import type { PieceInstance } from '../engine';
 import { isInCheck, positionHash } from '../engine';
 import { pieceNameFor } from '../engine/kifu/format';
+import { strengthOf } from '../engine/piece-strength';
 import { CatIcon } from './CatIcon';
 import { FloatingPanel } from './FloatingPanel';
 import { HeaderCommonRight } from './HeaderCommonRight';
@@ -1504,7 +1505,15 @@ function groupHand(hand: PieceInstance[]): HandGroup[] {
     if (!groups.has(p.kind)) groups.set(p.kind, []);
     groups.get(p.kind)!.push(p.pieceId);
   }
-  return Array.from(groups.entries()).map(([kind, pieceIds]) => ({ kind, pieceIds }));
+  const arr = Array.from(groups.entries()).map(([kind, pieceIds]) => ({ kind, pieceIds }));
+  // v0.88: spec D1 §4.4 準拠で強さ降順にソート (大駒 上・小駒 下)。
+  // .stand.you の caps は justify-end で下寄せ、.stand.opp は justify-start で上寄せだが、
+  // どちらも DOM 順の先頭が視覚的な「上」なので、DESC ソートで大駒が上に来る。
+  // 量子将棋の未確定駒は candidates 集合中の最強で順位付け (spec D1 §4.4) — 現在
+  // PieceInstance に candidates フィールドは無いので kind ベース。将来の Phase 5 で
+  // groupHand を含むこの経路の再検討時に candidates 伝播を組み込む。
+  arr.sort((a, b) => strengthOf(b.kind) - strengthOf(a.kind));
+  return arr;
 }
 
 function PieceView({

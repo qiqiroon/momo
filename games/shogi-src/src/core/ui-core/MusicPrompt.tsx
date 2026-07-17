@@ -12,6 +12,7 @@ import {
 } from '../audio/audio-engine';
 import { seButton } from '../audio/se-synth';
 import { useRouteStore } from '../store/route-store';
+import { LangSelect } from './LangSelect';
 
 /**
  * v0.72: 音楽再生確認モーダル (Darts v2.20 準拠)。
@@ -97,10 +98,16 @@ export function MusicPrompt({ open, onClose }: MusicPromptProps) {
         style={{
           background: 'var(--surface)', border: '1px solid var(--border-strong)',
           borderRadius: 14, padding: '20px 22px', maxWidth: 360, width: '90%',
-          color: 'var(--text)', textAlign: 'center',
+          color: 'var(--text)', textAlign: 'center', position: 'relative',
         }}
       >
-        <div style={{ fontSize: 14, marginBottom: 14, lineHeight: 1.5 }}>
+        {/* v0.86: モーダル内でも言語切替できるように右上に LangSelect を配置。
+            .stage の z-index 1 スタッキング下に header の LangSelect が閉じ込められ
+            モーダル (z-index 500) より下に潜ってしまうため、モーダル自身に持たせる。 */}
+        <div style={{ position: 'absolute', top: 10, right: 10 }}>
+          <LangSelect includeCat={true} />
+        </div>
+        <div style={{ fontSize: 14, marginBottom: 14, lineHeight: 1.5, paddingRight: 60 }}>
           {t('sound.promptTitle')}
         </div>
 

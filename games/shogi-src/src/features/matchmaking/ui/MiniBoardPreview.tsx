@@ -1,9 +1,22 @@
 import { useEffect, useState } from 'react';
 import type { GameType } from '../roomNameCodec';
 import type { TorusMode, QuantumDisplayMode } from '../store';
+import type { LocaleCode } from '../../../core/i18n/types';
 
-/** v0.63: 量子将棋の巡回表示駒 (強い順)。RuleSelectScreen と共有できるよう export。 */
+/** v0.63: 量子将棋の巡回表示駒 (強い順)。RuleSelectScreen と共有できるよう export。
+ *  v0.86: 英語モード時の表記変換ヘルパも同居 (K/R/B/G/S/N/L/P)。 */
 export const QUANTUM_PIECES = ['王', '飛', '角', '金', '銀', '桂', '香', '歩'] as const;
+
+const KANJI_TO_EN: Record<string, string> = {
+  '王': 'K', '玉': 'K', '飛': 'R', '角': 'B',
+  '金': 'G', '銀': 'S', '桂': 'N', '香': 'L', '歩': 'P',
+};
+
+/** v0.86: 駒表記を locale に応じて変換 (英語モード時のみ英文字化) */
+export function pieceLabel(kanji: string, locale: LocaleCode): string {
+  if (locale === 'en') return KANJI_TO_EN[kanji] ?? kanji;
+  return kanji;
+}
 
 /** S02 プレビュー用の 9×9 ミニ盤面。初期配置とトポロジー標示を担当。
  *
@@ -96,9 +109,11 @@ interface Props {
   torusMode: TorusMode;
   quantum?: boolean;
   quantumDisplayMode?: QuantumDisplayMode;
+  /** v0.86: en 時のみ駒表記を英語化 (それ以外は漢字) */
+  locale?: LocaleCode;
 }
 
-export function MiniBoardPreview({ rule, torusMode, quantum = false, quantumDisplayMode = 'cycle' }: Props) {
+export function MiniBoardPreview({ rule, torusMode, quantum = false, quantumDisplayMode = 'cycle', locale = 'ja' }: Props) {
   const base = initialFor(rule);
   const cells =
     torusMode === 'full' ? extendFullTorus(base)
@@ -130,14 +145,14 @@ export function MiniBoardPreview({ rule, torusMode, quantum = false, quantumDisp
                     quantumDisplayMode === 'stack' ? (
                       <span className="mini-stack">
                         {QUANTUM_PIECES.map((p) => (
-                          <span key={p}>{p}</span>
+                          <span key={p}>{pieceLabel(p, locale)}</span>
                         ))}
                       </span>
                     ) : (
-                      <span>{QUANTUM_PIECES[qIdx]}</span>
+                      <span>{pieceLabel(QUANTUM_PIECES[qIdx], locale)}</span>
                     )
                   ) : (
-                    <span>{c.ch}</span>
+                    <span>{pieceLabel(c.ch, locale)}</span>
                   )}
                 </div>
                 {/* v0.64: ? は駒の外 (.mini-sq 直下) に置く。モック S06 の .qmark-b と同じ思想。

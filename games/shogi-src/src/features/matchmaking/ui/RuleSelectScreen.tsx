@@ -7,7 +7,7 @@ import { CatIcon } from '../../../core/ui-core/CatIcon';
 import { HeaderCommonRight } from '../../../core/ui-core/HeaderCommonRight';
 import { useMatchmakingStore, type TorusMode, type QuantumDisplayMode, type TimeControlMode } from '../store';
 import type { GameType } from '../roomNameCodec';
-import { MiniBoardPreview, QUANTUM_PIECES } from './MiniBoardPreview';
+import { MiniBoardPreview, QUANTUM_PIECES, pieceLabel } from './MiniBoardPreview';
 import { seButton } from '../../../core/audio/se-synth';
 
 /** v0.58 S02 ルール選択 (レイアウト圧縮 + 時間設定を S04 から移設)。
@@ -194,6 +194,7 @@ export function RuleSelectScreen() {
           torusMode={config.torusMode}
           quantum={config.quantum && quantumUsable}
           quantumDisplayMode={config.quantumDisplayMode}
+          locale={locale}
         />
       </div>
       {config.torusMode !== 'none' && (
@@ -347,7 +348,7 @@ export function RuleSelectScreen() {
                           {/* v0.65: qpv-cell-wrap で ? を clip 外に配置 */}
                           <div className="qpv-cell-wrap">
                             <div className="qpv-cell">
-                              <span className="g">{QUANTUM_PIECES[cycleIdx]}</span>
+                              <span className="g">{pieceLabel(QUANTUM_PIECES[cycleIdx], locale)}</span>
                             </div>
                             <span className="qmk">?</span>
                           </div>
@@ -363,7 +364,7 @@ export function RuleSelectScreen() {
                             <div className="qpv-cell">
                               <span className="stack">
                                 {QUANTUM_PIECES.map((p) => (
-                                  <span key={p}>{p}</span>
+                                  <span key={p}>{pieceLabel(p, locale)}</span>
                                 ))}
                               </span>
                             </div>

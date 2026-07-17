@@ -5,12 +5,12 @@ import { t as _t } from '../../../core/i18n';
 import type { LocaleCode } from '../../../core/i18n/types';
 import { CatIcon } from '../../../core/ui-core/CatIcon';
 import { HeaderCommonRight } from '../../../core/ui-core/HeaderCommonRight';
+import { RuleSelectionCard } from '../../../core/ui-core/RuleSelectionCard';
 import { getMomoMatchmaking } from '../client';
 import { useMatchmakingStore } from '../store';
 import { decodeRoomName, encodeRoomName } from '../roomNameCodec';
 import { RoomBadges } from './RoomBadges';
 import { ensureMatchmakingInit } from '../bootstrap';
-import { formatTimeSummary } from './RuleSelectScreen';
 import { seButton } from '../../../core/audio/se-synth';
 
 /** localStorage キー：前回のプレイヤー名 */
@@ -201,16 +201,6 @@ export function LobbyScreen() {
     game_connected: t('s04.connState.gameConnected'),
   };
 
-  const ruleName =
-    config.gameType === 'shogi' ? t('s02.ruleHongi.name')
-    : config.gameType === 'hasami' ? t('s02.ruleHasami.name')
-    : t('s02.ruleCustom.name');
-  const modChips: string[] = [];
-  if (config.torusMode === 'cylinder') modChips.push(t('s04.summaryTorusCyl'));
-  else if (config.torusMode === 'full') modChips.push(t('s04.summaryTorusFull'));
-  if (config.quantum) modChips.push(t('s04.summaryQuantum'));
-  const timeSummary = formatTimeSummary(config.timeControl, t);
-
   // v0.58.1: 部屋リストは 1 つに統合。「非公開を表示」トグルで非公開部屋が
   // 同じリストに増減する (パスワードの有無でリストが増える・減るだけ)。
   // 公開 + パスワード有りの部屋は最初から表示 (パスワードは入室時のゲート)。
@@ -374,27 +364,15 @@ export function LobbyScreen() {
         <div className="lobby-card">
           <div className="lc-title">{t('s04.cardCreate')}</div>
 
-          {/* ルールサマリ + 選択ボタン */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
-            <div style={{ flex: 1, minWidth: 200 }}>
-              <div style={{ fontSize: 14, color: 'var(--text)', fontWeight: 700 }}>{ruleName}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                {t('s04.summaryMods')}:{' '}
-                {modChips.length === 0 ? (
-                  t('s04.summaryNone')
-                ) : (
-                  modChips.map((c, i) => (
-                    <span key={i} className="mod-chip">{c}</span>
-                  ))
-                )}
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                {t('s04.summaryTime')}: {timeSummary}
-              </div>
-            </div>
-            <button className="reset-btn" type="button" onClick={onEditRule}>
-              {t('s04.btnEditRule')}
-            </button>
+          {/* v0.86: ルールサマリ + 選択ボタン → S01 と同一の RuleSelectionCard サブカードに置換 */}
+          <div style={{ marginBottom: 12 }}>
+            <RuleSelectionCard
+              gameType={config.gameType}
+              torusMode={config.torusMode}
+              quantum={config.quantum}
+              timeControl={config.timeControl}
+              onEditRule={onEditRule}
+            />
           </div>
 
           {/* 部屋情報 */}

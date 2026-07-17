@@ -97,8 +97,11 @@ export function handleShogiMessage(data: unknown): void {
       useMatchmakingStore.setState({
         gameStartInfo: { hostSide: msg.hostSide, guestSide: msg.guestSide },
       });
-      const tc = useMatchmakingStore.getState().activeRoomConfig?.timeControl;
-      if (tc) useGameStore.getState().setTimeControl(tc);
+      const cfg = useMatchmakingStore.getState().activeRoomConfig;
+      if (cfg?.timeControl) useGameStore.getState().setTimeControl(cfg.timeControl);
+      // v0.90: 量子 ON の部屋なら初期候補集合を割り当てる (Phase 5-2)。
+      // オフライン側と揃えるため、game_start を受けたタイミングで盤面を初期化する。
+      useGameStore.getState().reset({ quantum: cfg?.quantum ?? false });
       useRouteStore.getState().setScreen('game');
       return;
     }

@@ -394,7 +394,7 @@ export function GameScreen({ variant }: GameScreenProps) {
                   >
                     {t('s07.backToOfflineSetup')}
                   </button>
-                  <button className="reset-btn" type="button" onClick={reset}>
+                  <button className="reset-btn" type="button" onClick={() => reset()}>
                     {t('s07.reset')}
                   </button>
                 </>

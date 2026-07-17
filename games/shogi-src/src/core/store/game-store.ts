@@ -12,6 +12,17 @@ import {
 import type { BoardMove, Mgf, Move, Player, Position, Square } from '../engine';
 import { formatMove } from '../engine/kifu/format';
 import { NO_LIMIT_TIME_CONTROL, initClockState, type ClockState, type TimeControl } from '../engine/time-control';
+import { get as pluginGet } from '../plugin/registry';
+
+/**
+ * 対局開始オプション (Phase 5-2)。
+ * quantum=true かつ 'quantum:init' が登録されていれば初期候補集合を割り当てる。
+ * A ビルドでは quantum モジュール自体が tree-shake で除外されるため常に no-op となる。
+ */
+export interface ResetOptions {
+  quantum?: boolean;
+}
+type QuantumInitFn = (pos: Position) => Position;
 
 export interface PendingPromotion {
   nonPromoteMove: BoardMove;
@@ -113,7 +124,14 @@ interface GameState {
   pauseGame: () => void;
   /** 中断状態を解除して対局再開する（両者合意成立後に呼ばれる）。v0.41。 */
   resumeGame: () => void;
-  reset: () => void;
+  /**
+   * 対局盤面をリセットする。options.quantum を渡さなかった場合は
+   * currentQuantum (前回 reset で決まった値) を維持する。対局中の
+   * 「リセット」ボタンから引数なしで呼んでも同じルールで再初期化される。
+   */
+  reset: (options?: ResetOptions) => void;
+  /** 現局面が量子モードで初期化されたか。reset({quantum}) で更新される。v0.90 追加。 */
+  currentQuantum: boolean;
   /**
    * 相手から受信した着手を盤面に反映する。
    * pieceId / from / to / promote に完全一致する合法手を探して適用。
@@ -272,6 +290,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
   activeClockSide: null,
   paused: false,
+  currentQuantum: false,
 
   selectSquare: (sq) => {
     const { position, mgf, status } = get();
@@ -571,11 +590,18 @@ export const useGameStore = create<GameState>((set, get) => ({
     return actual;
   },
 
-  reset: () => {
+  reset: (options?: ResetOptions) => {
     const state = get();
-    const pos = initPosition(state.mgf);
+    // 明示指定があればそれを、なければ前回 reset の値を引き継ぐ (対局中「リセット」ボタン用)
+    const quantum = options?.quantum ?? state.currentQuantum;
+    let pos = initPosition(state.mgf);
+    if (quantum) {
+      const quantumInitFn = pluginGet<QuantumInitFn>('quantum:init');
+      if (quantumInitFn) pos = quantumInitFn(pos);
+    }
     const tc = state.timeControl;
     set({
+      currentQuantum: quantum,
       position: pos,
       selectedSquare: null,
       selectedHandPieceId: null,

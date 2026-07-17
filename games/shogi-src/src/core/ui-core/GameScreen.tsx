@@ -1558,13 +1558,17 @@ interface PieceStandViewProps {
 
 function PieceStandView({ side, pieces, onClick, selectedId, activePlayer, locale, label }: PieceStandViewProps) {
   const isEn = locale === 'en';
+  // v0.89: spec D1 §4.4 「相手の持ち駒は先手と点対称：並び順も先手を逆順にする」
+  // groupHand は DESC (大駒 上) で返すので、you 側はそのまま。opp 側は reverse して
+  // 「相手視点での大駒上 = 盤面上では opp 駒台の下側 (盤に近い側)」に配置する。
+  const orderedPieces = side === 'opp' ? [...pieces].reverse() : pieces;
   return (
     <div className={`stand ${side}`}>
       {/* v0.68 C4: 従来 'Gote'/'You' 固定で自分が後手のときも相手側が Gote になっていたのを、
           呼び出し側から先手/後手ラベルを注入して viewer 基準に合わせる。 */}
       <div className="stand-h">{label ?? (side === 'opp' ? 'Gote' : 'You')}</div>
       <div className="caps">
-        {pieces.map((g) => {
+        {orderedPieces.map((g) => {
           const name = pieceNameFor(g.kind, locale);
           const isMulti = isEn && name.length > 1;
           const jaCls = ['ja', isEn ? 'en' : '', isEn && isMulti ? 'multi' : ''].filter(Boolean).join(' ');

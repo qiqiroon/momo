@@ -59,6 +59,10 @@ const connector: OnlineGameConnector = {
     return { gameType: cfg.gameType, torusMode: cfg.torusMode, quantum: cfg.quantum };
   },
 
+  getPendingTimeControl() {
+    return useMatchmakingStore.getState().pendingRoomConfig.timeControl;
+  },
+
   commitPendingToActive() {
     const s = useMatchmakingStore.getState();
     s.setActiveRoomConfig({ ...s.pendingRoomConfig });

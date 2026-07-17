@@ -50,6 +50,9 @@ export interface OnlineGameConnector {
   getActiveRules(): ActiveRulesInfo | null;
   /** v0.69: S01 オフライン設定でルールサマリを表示するため、pendingRoomConfig を返す */
   getPendingRules(): ActiveRulesInfo | null;
+  /** v0.84: S01 オフライン設定でも持ち時間を S02 で選ばせるため、
+   *  pendingRoomConfig.timeControl を返す。オフラインでも同じ pendingRoomConfig を共有する */
+  getPendingTimeControl(): import('../engine/time-control').TimeControl | null;
   /** v0.69: オフライン対局開始時に pendingRoomConfig を activeRoomConfig に反映して
    *  S07 の getActiveRules() が正しいルールを返せるようにする */
   commitPendingToActive(): void;

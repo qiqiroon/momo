@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useI18nStore } from '../store/i18n-store';
 import { useRouteStore } from '../store/route-store';
 import { useGameStore } from '../store/game-store';
@@ -9,11 +8,7 @@ import { HeaderCommonRight } from './HeaderCommonRight';
 import { get as pluginGet } from '../plugin/registry';
 import type { OnlineGameConnector } from '../plugin/gameConnector';
 import { seButton } from '../audio/se-synth';
-import {
-  DEFAULT_TIME_CONTROL,
-  type TimeControl,
-  type TimeControlMode,
-} from '../engine/time-control';
+import { DEFAULT_TIME_CONTROL, type TimeControl } from '../engine/time-control';
 
 /**
  * オフライン対局のルール/持ち時間選択画面（v0.45 追加）。
@@ -21,37 +16,33 @@ import {
  * S00 メニューの「vs 人（オフライン）」から遷移する。
  * 対局開始時に game-store を reset() → setTimeControl() し、
  * 前回対局の残り状態（投了後の勝敗表示など）を持ち越さない。
+ *
+ * v0.84: 持ち時間モードパネルは S01 から撤去。ルール選択画面 (S02) で
+ * 選ばれた pendingRoomConfig.timeControl をそのまま引き継ぐ。
+ * これで「S01 で選ぶ / S02 で選ぶ」の二重管理を解消。
  */
 
 interface OfflineRuleScreenProps {
   variant?: 'a' | 'b';
 }
 
-const TIME_MODES: { value: TimeControlMode; label: string; desc: string }[] = [
-  { value: 'no_limit', label: '時間フリー', desc: '制限なし（既定）' },
-  { value: 'byoyomi', label: '秒読み', desc: '本時間 + 一手ごとに秒読み' },
-  { value: 'sudden_death', label: '切れ負け', desc: '本時間のみ・切れたら負け' },
-  { value: 'fischer', label: 'フィッシャー', desc: '本時間 + 一手ごとに加算' },
-];
-
-const MAIN_OPTIONS: { value: number; label: string }[] = [
-  { value: 0, label: '0（秒読みのみ）' },
-  { value: 5 * 60, label: '5分' },
-  { value: 15 * 60, label: '15分' },
-  { value: 30 * 60, label: '30分' },
-  { value: 60 * 60, label: '1時間' },
-];
-const SEC_OPTIONS: { value: number; label: string }[] = [
-  { value: 5, label: '5秒' },
-  { value: 10, label: '10秒' },
-  { value: 30, label: '30秒' },
-  { value: 60, label: '60秒' },
-];
-
-function formatMain(sec: number): string {
-  if (sec === 0) return '0（秒読みのみ）';
-  if (sec >= 3600) return `${sec / 3600}時間`;
-  return `${sec / 60}分`;
+/** サマリ用: TimeControl を「時間フリー」「秒読み・15分+30秒」等の短い日本語に整形 */
+function formatTimeSummaryJa(tc: TimeControl): string {
+  const fmt = (s: number) => {
+    if (s <= 0) return '0';
+    if (s % 60 === 0) return `${s / 60}分`;
+    return `${s}秒`;
+  };
+  const modeLabel =
+    tc.mode === 'no_limit' ? '時間フリー'
+    : tc.mode === 'byoyomi' ? '秒読み'
+    : tc.mode === 'fischer' ? 'フィッシャー'
+    : '切れ負け';
+  if (tc.mode === 'no_limit') return modeLabel;
+  const parts = [modeLabel, fmt(tc.mainSeconds)];
+  if (tc.mode === 'byoyomi' && tc.byoyomiSeconds !== undefined) parts.push(`+${fmt(tc.byoyomiSeconds)}`);
+  if (tc.mode === 'fischer' && tc.incrementSeconds !== undefined) parts.push(`+${fmt(tc.incrementSeconds)}`);
+  return parts.join('・');
 }
 
 export function OfflineRuleScreen(_props: OfflineRuleScreenProps) {
@@ -60,20 +51,20 @@ export function OfflineRuleScreen(_props: OfflineRuleScreenProps) {
   const t = (key: string) => _t(key, locale);
   const setScreen = useRouteStore((s) => s.setScreen);
 
-  const [tc, setTc] = useState<TimeControl>(DEFAULT_TIME_CONTROL);
-
   const subLocale: LocaleCode = locale === 'cat' ? 'ja' : locale;
   const subtitle = subLocale === 'zh' ? '擒王为胜，破局无界' : 'Capture the King, Bend the Rules';
 
   const onBack = () => { seButton(); setScreen('lobby'); }; // v0.76: 家アイコンにも SE-button
 
-  // v0.69: features/matchmaking の pendingRoomConfig からルールサマリを取る (B ビルドのみ)
+  // v0.69: features/matchmaking の pendingRoomConfig からルール/時間サマリを取る (B ビルドのみ)
   const conn = pluginGet<OnlineGameConnector>('gameConnector');
   const pendingRules = conn?.getPendingRules() ?? null;
+  const pendingTc = conn?.getPendingTimeControl() ?? DEFAULT_TIME_CONTROL;
   const ruleNameJa =
     pendingRules?.gameType === 'hasami' ? 'はさみ将棋'
     : pendingRules?.gameType === 'shogi-custom' ? 'カスタム'
     : '本将棋';
+  const timeSummary = formatTimeSummaryJa(pendingTc);
 
   // v0.69: S02 (rule-select) へ遷移して戻ってこられるようにする (return dest を 'offline-rule' に)
   const onEditRule = () => {
@@ -87,18 +78,10 @@ export function OfflineRuleScreen(_props: OfflineRuleScreenProps) {
     // オフライン対局中も正しいルールを返せるようにする
     conn?.commitPendingToActive();
     const gs = useGameStore.getState();
-    gs.setTimeControl(tc);
+    // v0.84: 持ち時間も pendingRoomConfig から引き継ぐ (S01 の local state は廃止)
+    gs.setTimeControl(pendingTc);
     gs.reset();
     setScreen('game');
-  };
-
-  const pickMode = (mode: TimeControlMode) => {
-    setTc((cur) => ({
-      mode,
-      mainSeconds: mode === 'no_limit' ? 0 : cur.mainSeconds || 15 * 60,
-      byoyomiSeconds: mode === 'byoyomi' ? cur.byoyomiSeconds ?? 30 : undefined,
-      incrementSeconds: mode === 'fischer' ? cur.incrementSeconds ?? 10 : undefined,
-    }));
   };
 
   return (
@@ -128,12 +111,14 @@ export function OfflineRuleScreen(_props: OfflineRuleScreenProps) {
         </header>
 
         {/* v0.69: 対局ルール選択 (S04 と同じ形式)。今は本将棋のみ機能するが、
-            将来のルール追加時のためにここで受け皿として設置 */}
-        {/* v0.82: 5 種のバリアント合成画像を背景に敷く (横幅=カード幅、上下トリミング、
+            将来のルール追加時のためにここで受け皿として設置。
+            v0.82: 5 種のバリアント合成画像を背景に敷く (横幅=カード幅、上下トリミング、
             暗色オーバーレイで画像可視度を制御)
             v0.83: 画像可視度 50%→30%、レイアウト刷新
             (ボタン左寄せ「ルール変更」/ 右に「選択中のルール：...」を大きく /
-            その下に選択肢紹介文。すべて白文字で画像上に載せる) */}
+            その下に選択肢紹介文。すべて白文字で画像上に載せる)
+            v0.84: 対局ルールというオレンジタイトル復活 (視覚統一)、選択中のルールに
+            持ち時間サマリを追加、説明文を 2 行目 (ボタン下から) 左寄せ・font 11px に */}
         <div style={{
           marginTop: 14,
           padding: 14,
@@ -142,6 +127,7 @@ export function OfflineRuleScreen(_props: OfflineRuleScreenProps) {
           borderRadius: 10,
           overflow: 'hidden',
         }}>
+          <div className="panel-label"><span>対局ルール</span></div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
             <button
               className="reset-btn"
@@ -151,97 +137,16 @@ export function OfflineRuleScreen(_props: OfflineRuleScreenProps) {
             >
               ルール変更
             </button>
-            <div style={{ flex: 1, minWidth: 200 }}>
-              <div style={{ fontSize: 16, color: '#fff', fontWeight: 700, textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}>
-                選択中のルール：{ruleNameJa}
-                {pendingRules?.torusMode === 'cylinder' && <>＋トーラス（円筒）</>}
-                {pendingRules?.torusMode === 'full' && <>＋トーラス（完全）</>}
-                {pendingRules?.quantum && <>＋量子</>}
-              </div>
-              <div style={{ fontSize: 12, color: '#fff', marginTop: 4, textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}>
-                本将棋・はさみ将棋・カスタム将棋・トーラス将棋・量子将棋などを選択できます
-              </div>
+            <div style={{ flex: 1, minWidth: 200, fontSize: 16, color: '#fff', fontWeight: 700, textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}>
+              選択中のルール：{ruleNameJa}
+              {pendingRules?.torusMode === 'cylinder' && <>＋トーラス（円筒）</>}
+              {pendingRules?.torusMode === 'full' && <>＋トーラス（完全）</>}
+              {pendingRules?.quantum && <>＋量子</>}
+              ・{timeSummary}
             </div>
           </div>
-        </div>
-
-        <div style={{ marginTop: 14, padding: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
-          <div className="panel-label"><span>持ち時間モード</span></div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {TIME_MODES.map((m) => (
-              <button
-                key={m.value}
-                type="button"
-                className="act"
-                onClick={() => pickMode(m.value)}
-                style={tc.mode === m.value ? { borderColor: 'var(--orange)', color: 'var(--orange-light)', background: 'var(--bg-selected)' } : {}}
-                title={m.desc}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
-
-          {tc.mode !== 'no_limit' && (
-            <div style={{ marginTop: 12 }}>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>本時間</div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {MAIN_OPTIONS.filter((o) => o.value > 0 || tc.mode === 'byoyomi').map((o) => (
-                  <button
-                    key={o.value}
-                    type="button"
-                    className="act"
-                    onClick={() => setTc({ ...tc, mainSeconds: o.value })}
-                    style={tc.mainSeconds === o.value ? { borderColor: 'var(--orange)', color: 'var(--orange-light)', background: 'var(--bg-selected)' } : {}}
-                  >
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          {tc.mode === 'byoyomi' && (
-            <div style={{ marginTop: 12 }}>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>秒読み（1手ごとの時間）</div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {SEC_OPTIONS.map((o) => (
-                  <button
-                    key={o.value}
-                    type="button"
-                    className="act"
-                    onClick={() => setTc({ ...tc, byoyomiSeconds: o.value })}
-                    style={tc.byoyomiSeconds === o.value ? { borderColor: 'var(--orange)', color: 'var(--orange-light)', background: 'var(--bg-selected)' } : {}}
-                  >
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          {tc.mode === 'fischer' && (
-            <div style={{ marginTop: 12 }}>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>加算（1手ごとに追加）</div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {SEC_OPTIONS.map((o) => (
-                  <button
-                    key={o.value}
-                    type="button"
-                    className="act"
-                    onClick={() => setTc({ ...tc, incrementSeconds: o.value })}
-                    style={tc.incrementSeconds === o.value ? { borderColor: 'var(--orange)', color: 'var(--orange-light)', background: 'var(--bg-selected)' } : {}}
-                  >
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 10 }}>
-            現在の設定: {TIME_MODES.find((m) => m.value === tc.mode)?.desc}
-            {tc.mode !== 'no_limit' && <> (本時間 {formatMain(tc.mainSeconds)})</>}
-            {tc.mode === 'byoyomi' && <> + 秒読み {tc.byoyomiSeconds}秒</>}
-            {tc.mode === 'fischer' && <> + 加算 {tc.incrementSeconds}秒</>}
+          <div style={{ marginTop: 8, fontSize: 11, color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}>
+            本将棋・はさみ将棋・カスタム将棋・トーラス将棋・量子将棋などを選択できます
           </div>
         </div>
 

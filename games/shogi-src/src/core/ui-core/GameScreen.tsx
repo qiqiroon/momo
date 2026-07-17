@@ -1621,14 +1621,17 @@ function DebugIdBadge({ piece }: { piece: PieceInstance }) {
   return (
     <span
       style={{
-        position: 'absolute', top: 1, left: 2,
-        fontSize: 8, lineHeight: 1,
-        color: 'rgba(255, 255, 255, 0.65)',
-        textShadow: '0 0 2px rgba(0, 0, 0, 0.85)',
+        // v0.92: 駒本体 (.pc) が transform で stacking context を作るため、
+        // z-index を明示指定して常に駒より前面に表示させる。
+        position: 'absolute', top: 1, left: 2, zIndex: 20,
+        fontSize: 9, lineHeight: 1,
+        color: 'rgba(255, 255, 0, 0.95)',
+        textShadow: '0 0 3px rgba(0, 0, 0, 1), 0 0 3px rgba(0, 0, 0, 1)',
         pointerEvents: 'none',
         fontFamily: 'ui-monospace, Menlo, Consolas, monospace',
         letterSpacing: '-0.02em',
         userSelect: 'none',
+        fontWeight: 700,
       }}
     >
       {piece.pieceId}{sizeLabel}

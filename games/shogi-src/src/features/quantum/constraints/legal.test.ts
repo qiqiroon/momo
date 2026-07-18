@@ -8,6 +8,7 @@ import {
   c103Nifu,
   c104DeadZone,
   c105ForcedPromotion,
+  c109UnpromotableExclusion,
 } from './legal';
 
 /**
@@ -363,5 +364,60 @@ describe('C-105 強制成り', () => {
     const ctx = makeQuantumContext(pos);
     const result = c105ForcedPromotion(piece, { kind: 'board', square: { row: 0, col: 4 } }, pos, hondou, ctx);
     expect(result.size).toBe(8);
+  });
+});
+
+describe('c109UnpromotableExclusion (Phase 5-10 追補・§Q8.4 拡張)', () => {
+  it('promoted=false なら候補変化なし', () => {
+    const piece = makeSentePiece();
+    const pos = makeQuantumPosWithRefs(piece, { row: 4, col: 4 });
+    const ctx = makeQuantumContext(pos);
+    const result = c109UnpromotableExclusion(piece, { kind: 'board', square: { row: 4, col: 4 } }, pos, hondou, ctx);
+    expect(result.size).toBe(8);
+    expect(result.has('P_ref_ou')).toBe(true);
+    expect(result.has('P_ref_kin')).toBe(true);
+  });
+
+  it('promoted=true なら ou と kin (can_promote=false な initialKind) を候補から除外', () => {
+    const piece = makeSentePiece({ kind: 'to', promoted: true });
+    const pos = makeQuantumPosWithRefs(piece, { row: 4, col: 4 });
+    const ctx = makeQuantumContext(pos);
+    const result = c109UnpromotableExclusion(piece, { kind: 'board', square: { row: 4, col: 4 } }, pos, hondou, ctx);
+    expect(result.has('P_ref_ou')).toBe(false);
+    expect(result.has('P_ref_kin')).toBe(false);
+    // 成れる駒種の候補は保持 (fu/kyo/kei/gin/kaku/hi の 6 個)
+    expect(result.has('P_ref_fu')).toBe(true);
+    expect(result.has('P_ref_kyo')).toBe(true);
+    expect(result.has('P_ref_kei')).toBe(true);
+    expect(result.has('P_ref_gin')).toBe(true);
+    expect(result.has('P_ref_kaku')).toBe(true);
+    expect(result.has('P_ref_hi')).toBe(true);
+    expect(result.size).toBe(6);
+  });
+
+  it('通常将棋モード (candidates=undefined) は空 Set を返す (縮退互換)', () => {
+    const piece: PieceInstance = {
+      pieceId: 'P', kind: 'to', owner: 'player1', initialOwner: 'player1',
+      initialKind: 'fu', initialSquare: { row: 6, col: 4 }, promoted: true,
+    };
+    const pos = makeQuantumPosWithRefs(piece, { row: 4, col: 4 });
+    const ctx = makeQuantumContext(pos);
+    const result = c109UnpromotableExclusion(piece, { kind: 'board', square: { row: 4, col: 4 } }, pos, hondou, ctx);
+    expect(result.size).toBe(0);
+  });
+
+  it('promoted=true でも候補に ou/kin が無ければ変化なし', () => {
+    const piece = makeSentePiece({
+      kind: 'to',
+      promoted: true,
+      candidates: new Set(['P_ref_fu', 'P_ref_kyo', 'P_ref_hi']),
+    });
+    const pos = makeQuantumPosWithRefs(piece, { row: 4, col: 4 });
+    const ctx = makeQuantumContext(pos);
+    const result = c109UnpromotableExclusion(piece, { kind: 'board', square: { row: 4, col: 4 } }, pos, hondou, ctx);
+    expect(result.size).toBe(3);
+    expect(result.has('P_ref_fu')).toBe(true);
+    expect(result.has('P_ref_kyo')).toBe(true);
+    expect(result.has('P_ref_hi')).toBe(true);
   });
 });

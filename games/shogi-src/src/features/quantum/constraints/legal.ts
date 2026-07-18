@@ -224,6 +224,33 @@ export const c105ForcedPromotion: QuantumConstraint = (piece, location, _pos, mg
 };
 
 /**
+ * C-109 不成駒種除外 (Phase 5-10 追補・§Q8.4 拡張): piece.promoted=true なら、
+ * その駒は「成れない初期駒種 (can_promote=false)」ではありえない。よって候補
+ * PieceID X の initialKind K が can_promote=false なら X を除外する。
+ *
+ * 通常将棋 (candidates undefined) では影響なし。C-107 (confirmed exclusion) や
+ * C-106 (hidden single) と組み合わさり、「成った駒が n 枚 → n 枚分の玉候補が消える
+ * → 残りの駒に玉が絞られる」の伝搬が実現される。
+ *
+ * K は「初期陣営の駒種」に固定 (対局開始時に成り駒は存在しない)。よって除外対象
+ * は initialKind ∈ {ou, kin} に限られる (両者とも can_promote=false)。
+ */
+export const c109UnpromotableExclusion: QuantumConstraint = (piece, _location, _pos, mgf, context) => {
+  if (piece.candidates === undefined) return new Set();
+  if (!piece.promoted) return new Set(piece.candidates);
+  const survivors = new Set<PieceId>();
+  for (const pid of piece.candidates) {
+    const info = context.infoMap.get(pid);
+    if (!info) { survivors.add(pid); continue; }
+    const def = mgf.pieces.find((p) => p.id === info.initialKind);
+    if (!def) { survivors.add(pid); continue; }
+    if (def.can_promote === false) continue;
+    survivors.add(pid);
+  }
+  return survivors;
+};
+
+/**
  * `register('quantum:constraints', [...basicConstraints, ...legalConstraints, ...propagationConstraints])`
  * として `index.ts` から結合登録される順序付き配列。
  */
@@ -233,6 +260,7 @@ export const legalConstraints: QuantumConstraint[] = [
   c103Nifu,
   c104DeadZone,
   c105ForcedPromotion,
+  c109UnpromotableExclusion,
 ];
 
 /** テスト用の型別名エクスポート (basic.ts と同型)。 */

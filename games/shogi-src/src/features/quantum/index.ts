@@ -11,6 +11,8 @@ import { candidateUpdate } from './candidate-update';
 import { basicConstraints } from './constraints/basic';
 import { legalConstraints } from './constraints/legal';
 import { propagationConstraints } from './constraints/propagation';
+import { applyC201, isConfirmedKing } from './capture-effects';
+import { buildInitialInfoMap } from './piece-lookup';
 
 register('quantum:init', quantumInit);
 register('quantum:candidateUpdate', candidateUpdate);
@@ -23,6 +25,18 @@ register('quantum:constraints', [
   ...legalConstraints,
   ...propagationConstraints,
 ]);
+// Phase 5-7 §Q8.5 捕獲制約群 (C-201/C-202/C-203)。propagation とは別のイベント系フック。
+// game-store の applyAndCommit から捕獲検知時に呼ばれる。
+register('quantum:onCapture', {
+  applyC201,
+  isConfirmedKing,
+  buildInitialInfoMap,
+});
 
 export type QuantumInitFn = typeof quantumInit;
 export type QuantumCandidateUpdateFn = typeof candidateUpdate;
+export type QuantumOnCaptureHook = {
+  applyC201: typeof applyC201;
+  isConfirmedKing: typeof isConfirmedKing;
+  buildInitialInfoMap: typeof buildInitialInfoMap;
+};

@@ -29,6 +29,20 @@ type QuantumCandidateUpdateFn = (
   mgf: Mgf,
   context?: { torusMode: 'none' | 'cylinder' | 'full' },
 ) => Position;
+/**
+ * Phase 5-7 (§Q8.5): 捕獲制約フック。features/quantum が register する。
+ * infoMap は buildInitialInfoMap の結果で、game-store は中身に触らず isConfirmedKing に
+ * 渡すだけの opaque な値として扱う (core/ → features/ 型依存を切るためのローカル型)。
+ */
+type QuantumOnCaptureHook = {
+  applyC201: (pos: Position, capturedPieceId: string, mgf: Mgf) => Position;
+  isConfirmedKing: (
+    piece: import('../engine/position/types').PieceInstance,
+    infoMap: ReadonlyMap<string, unknown>,
+    mgf: Mgf,
+  ) => boolean;
+  buildInitialInfoMap: (pos: Position) => ReadonlyMap<string, unknown>;
+};
 
 export interface PendingPromotion {
   nonPromoteMove: BoardMove;
@@ -216,10 +230,32 @@ function applyAndCommit(
   const { position, mgf, moveHistory, positionCounts, lastAppliedMove, positionHistory, positionCountsHistory, clockHistory, timeControl, clocks, activeClockSide, currentQuantum } = state;
   const formatted = formatMove(mgf, position, move);
   let nextPos = applyMove(mgf, position, move);
+  // v1.04 (Phase 5-7 §Q8.5): 捕獲制約 C-201/C-202/C-203。捕獲を検知して:
+  //   - 捕獲された駒が「王として確定」なら C-202 で即終局 (checkmate 相当)、候補更新は
+  //     スキップ (§Q8.5 C-202 の但し書き・親§4.4 の「王として確定した駒の合法捕獲」)。
+  //   - 未確定王候補持ちなら C-201 で王 (royal) 系候補を除外してから候補更新へ。
+  //   - C-203 (「捕獲を理由に候補を変えるのは C-201 だけ」) は apply.ts の継承がそのまま
+  //     守っているので追加処理不要。
+  let statusOverride: GameStatus | null = null;
+  if (currentQuantum && move.type === 'move') {
+    const capturedBefore = position.board[move.to.row][move.to.col];
+    if (capturedBefore) {
+      const capHook = pluginGet<QuantumOnCaptureHook>('quantum:onCapture');
+      if (capHook) {
+        const infoMapBefore = capHook.buildInitialInfoMap(position);
+        if (capHook.isConfirmedKing(capturedBefore, infoMapBefore, mgf)) {
+          statusOverride = 'checkmate';
+        } else {
+          nextPos = capHook.applyC201(nextPos, capturedBefore.pieceId, mgf);
+        }
+      }
+    }
+  }
   // v0.96 (Phase 5-4): 量子モードなら着手直後に候補集合を再評価する。
   // v0.98 (Phase 5-6): torus モード情報を context として渡す。torus 実装は Phase 4
   // で完成予定なので現状は 'none' を渡す (C-103/C-104 は非 torus 環境で有効化)。
-  if (currentQuantum) {
+  // v1.04 (Phase 5-7): C-202 発動時は候補更新をスキップ (§Q8.5)。
+  if (currentQuantum && !statusOverride) {
     const candidateUpdateFn = pluginGet<QuantumCandidateUpdateFn>('quantum:candidateUpdate');
     // Phase 5-6.5 移行後: context (infoMap 含む) は candidateUpdate 側で pos から自動生成。
     // torusMode 等の追加副次情報を渡したい場合はここで context を組み立てる。
@@ -232,11 +268,13 @@ function applyAndCommit(
     ? diffEntangledPieceIds(position, nextPos, move)
     : [];
   const { status, positionCounts: nextCounts } = computeStatusAfterMove(mgf, nextPos, positionCounts);
+  // v1.04 (Phase 5-7 §Q8.5 C-202): 確定王捕獲は checkmate に強制上書き (千日手・詰み判定より優先)。
+  const finalStatus = statusOverride ?? status;
   const nextSeq = (lastAppliedMove?.seq ?? 0) + 1;
   // v0.35: 時計の更新。指し終わった側は byoyomi なら秒読みリセット / fischer なら加算
   const moverSide = position.sideToMove;
   const nextClocks = updateClocksAfterMove(clocks, moverSide, timeControl);
-  const isTerminal = status !== 'playing';
+  const isTerminal = finalStatus !== 'playing';
   const nextActiveSide =
     isTerminal || timeControl.mode === 'no_limit'
       ? null
@@ -255,7 +293,7 @@ function applyAndCommit(
     legalDestinations: [],
     pendingPromotion: null,
     moveHistory: [...moveHistory, formatted],
-    status,
+    status: finalStatus,
     positionCounts: nextCounts,
     canNyugyokuP1: canDeclareNyugyoku(mgf, nextPos, 'player1'),
     canNyugyokuP2: canDeclareNyugyoku(mgf, nextPos, 'player2'),

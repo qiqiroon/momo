@@ -11,6 +11,7 @@ import { basicConstraints } from './basic';
 import { legalConstraints } from './legal';
 import {
   c106UniqueAssignment,
+  c107ConfirmedExclusion,
   c108FuFileConservation,
   propagationConstraints,
 } from './propagation';
@@ -141,6 +142,77 @@ describe('C-106 unique assignment (単体)', () => {
     // target.pieceId は target だけが担当 → {target.pieceId} に narrow
     expect(survivors.size).toBe(1);
     expect(survivors.has(target.pieceId)).toBe(true);
+  });
+});
+
+describe('C-107 confirmed exclusion (単体)', () => {
+  it('他の駒が X に確定していれば、自分の候補から X を除外', () => {
+    const pos = quantumInit(initPosition(hondou));
+    const infoMap = buildInitialInfoMap(pos);
+    const target = pos.board[6][0]!;
+    // 別の駒 (P10 相当) を {P10} に narrow して confirmed 相当にする
+    const other = pos.board[7][7]!; // sente 飛 = P10
+    const newBoard = pos.board.map((row) =>
+      row.map((cell) =>
+        cell && cell.pieceId === other.pieceId
+          ? { ...cell, candidates: new Set([other.pieceId]), confirmed: true }
+          : cell,
+      ),
+    );
+    const modifiedPos: Position = { ...pos, board: newBoard };
+    const survivors = c107ConfirmedExclusion(
+      target,
+      { kind: 'board', square: { row: 6, col: 0 } },
+      modifiedPos, hondou, { torusMode: 'none', infoMap },
+    );
+    // target.candidates は 20 だったが、確定した other.pieceId が除外されて 19 になるはず
+    expect(survivors.size).toBe(19);
+    expect(survivors.has(other.pieceId)).toBe(false);
+  });
+
+  it('確定した駒自身の candidates は変わらない (自分の {X} は自分に残す)', () => {
+    const pos = quantumInit(initPosition(hondou));
+    const infoMap = buildInitialInfoMap(pos);
+    const target = pos.board[7][7]!;
+    // target 自身を {target.pieceId} に narrow
+    const targetConfirmed: PieceInstance = { ...target, candidates: new Set([target.pieceId]), confirmed: true };
+    const newBoard = pos.board.map((row) =>
+      row.map((cell) => cell && cell.pieceId === target.pieceId ? targetConfirmed : cell),
+    );
+    const modifiedPos: Position = { ...pos, board: newBoard };
+    const survivors = c107ConfirmedExclusion(
+      targetConfirmed,
+      { kind: 'board', square: { row: 7, col: 7 } },
+      modifiedPos, hondou, { torusMode: 'none', infoMap },
+    );
+    // target 自身の候補は変わらない (自分の {X} を自分から除外しない)
+    expect(survivors.size).toBe(1);
+    expect(survivors.has(target.pieceId)).toBe(true);
+  });
+
+  it('複数駒が確定していれば、すべて自分の候補から除外', () => {
+    const pos = quantumInit(initPosition(hondou));
+    const infoMap = buildInitialInfoMap(pos);
+    const target = pos.board[6][0]!;
+    const other1 = pos.board[7][7]!; // P10 (hi)
+    const other2 = pos.board[7][1]!; // P9 (kaku)
+    const newBoard = pos.board.map((row) =>
+      row.map((cell) => {
+        if (!cell) return cell;
+        if (cell.pieceId === other1.pieceId) return { ...cell, candidates: new Set([other1.pieceId]), confirmed: true };
+        if (cell.pieceId === other2.pieceId) return { ...cell, candidates: new Set([other2.pieceId]), confirmed: true };
+        return cell;
+      }),
+    );
+    const modifiedPos: Position = { ...pos, board: newBoard };
+    const survivors = c107ConfirmedExclusion(
+      target,
+      { kind: 'board', square: { row: 6, col: 0 } },
+      modifiedPos, hondou, { torusMode: 'none', infoMap },
+    );
+    expect(survivors.size).toBe(18);
+    expect(survivors.has(other1.pieceId)).toBe(false);
+    expect(survivors.has(other2.pieceId)).toBe(false);
   });
 });
 

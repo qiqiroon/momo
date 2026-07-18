@@ -82,6 +82,44 @@ export const c106UniqueAssignment: QuantumConstraint = (piece, _location, pos, _
 };
 
 /**
+ * C-107 confirmed exclusion (identity conservation / Sudoku naked single elimination の相当).
+ *
+ * ある初期 PieceID X に対応する「実際の駒」は対局中を通して 1 個しか存在しない
+ * (identity conservation)。よって:
+ *   - piece A の candidates が {X} に確定 (size==1) しているなら、A は X-initial
+ *   - piece B (≠ A) は X-initial ではありえない → B の candidates から X を除外
+ *
+ * この制約は 1 個の駒 (piece B) を見て、他の駒で確定している PieceID を集めて除外する。
+ * これで「P10 が hi に確定 → 他のどの駒からも P10 (=hi の initial) を除外」の
+ * 伝搬が実現される。C-106 (hidden single) の逆向きの propagation。
+ *
+ * 実装ノート: 自分自身が {X} に確定していても、自分の candidates={X} からは除外しない
+ * (自分は X なので当然)。他の駒の確定情報だけを見る。
+ */
+export const c107ConfirmedExclusion: QuantumConstraint = (piece, _location, pos, _mgf, _context) => {
+  if (piece.candidates === undefined) return new Set();
+  // 他の駒 (piece.pieceId 以外) で candidates.size==1 (確定) のものを集めて、
+  // その確定 pid を集約。自分自身の確定 pid は除外セットに入れない。
+  const confirmedByOthers = new Set<PieceId>();
+  const allPieces = collectAllQuantumPieces(pos);
+  for (const p of allPieces) {
+    if (!p.candidates || p.pieceId === piece.pieceId) continue;
+    if (p.candidates.size !== 1) continue;
+    const only = Array.from(p.candidates)[0];
+    confirmedByOthers.add(only);
+  }
+  if (confirmedByOthers.size === 0) return new Set(piece.candidates);
+
+  // 自分の candidates から confirmedByOthers を除外
+  const narrowed = new Set<PieceId>();
+  for (const pid of piece.candidates) {
+    if (confirmedByOthers.has(pid)) continue;
+    narrowed.add(pid);
+  }
+  return narrowed;
+};
+
+/**
  * C-108 fu-筋保存 (静的空間制約)。
  *
  * 初期 fu (initialKind=='fu') の PieceID X は initialSquare.col = C に依存し、
@@ -134,5 +172,6 @@ function collectAllQuantumPieces(pos: Position): PieceInstance[] {
  */
 export const propagationConstraints: QuantumConstraint[] = [
   c108FuFileConservation,
+  c107ConfirmedExclusion,
   c106UniqueAssignment,
 ];

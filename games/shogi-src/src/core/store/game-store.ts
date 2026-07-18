@@ -23,6 +23,7 @@ export interface ResetOptions {
   quantum?: boolean;
 }
 type QuantumInitFn = (pos: Position) => Position;
+type QuantumCandidateUpdateFn = (pos: Position, mgf: Mgf) => Position;
 
 export interface PendingPromotion {
   nonPromoteMove: BoardMove;
@@ -201,9 +202,16 @@ function applyAndCommit(
   source: MoveSource = 'local',
 ): void {
   const state = get();
-  const { position, mgf, moveHistory, positionCounts, lastAppliedMove, positionHistory, positionCountsHistory, clockHistory, timeControl, clocks, activeClockSide } = state;
+  const { position, mgf, moveHistory, positionCounts, lastAppliedMove, positionHistory, positionCountsHistory, clockHistory, timeControl, clocks, activeClockSide, currentQuantum } = state;
   const formatted = formatMove(mgf, position, move);
-  const nextPos = applyMove(mgf, position, move);
+  let nextPos = applyMove(mgf, position, move);
+  // v0.96 (Phase 5-4): 量子モードなら着手直後に候補集合を再評価する。
+  // 5-4 段階では制約が 0 個なので実質 no-op。5-5 以降で C-001/C-002/C-003 等が
+  // register('quantum:constraints', [...]) で登録されると意味を持ち始める。
+  if (currentQuantum) {
+    const candidateUpdateFn = pluginGet<QuantumCandidateUpdateFn>('quantum:candidateUpdate');
+    if (candidateUpdateFn) nextPos = candidateUpdateFn(nextPos, mgf);
+  }
   const { status, positionCounts: nextCounts } = computeStatusAfterMove(mgf, nextPos, positionCounts);
   const nextSeq = (lastAppliedMove?.seq ?? 0) + 1;
   // v0.35: 時計の更新。指し終わった側は byoyomi なら秒読みリセット / fischer なら加算

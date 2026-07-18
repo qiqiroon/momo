@@ -7,7 +7,10 @@
 
 import { register } from '../../core/plugin/registry';
 import { quantumInit } from './init';
+import { candidateUpdate } from './candidate-update';
 
 register('quantum:init', quantumInit);
+register('quantum:candidateUpdate', candidateUpdate);
 
 export type QuantumInitFn = typeof quantumInit;
+export type QuantumCandidateUpdateFn = typeof candidateUpdate;

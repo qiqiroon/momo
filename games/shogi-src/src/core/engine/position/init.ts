@@ -59,6 +59,8 @@ export function initPosition(mgf: Mgf): Position {
         kind,
         owner,
         initialOwner: owner,
+        initialKind: kind,
+        initialSquare: { row, col },
         promoted,
       };
       board[row][col] = piece;

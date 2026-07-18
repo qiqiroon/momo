@@ -1,5 +1,5 @@
 import type { Mgf, MgfAbility, MgfPieceDef } from '../mgf/types';
-import type { BoardMove, PieceInstance, Position, Square } from '../position/types';
+import type { BoardMove, PieceId, PieceInstance, Position, Square } from '../position/types';
 import { directionOffsets } from './directions';
 
 /**
@@ -7,8 +7,10 @@ import { directionOffsets } from './directions';
  * 反則 (nifu, uchifu_tsume, suicide, dead_zone) の除外は段階1-4、
  * 自玉が王手状態になる手の除外は段階1-6 で行う。
  *
- * 量子モード (Phase 5-3): `piece.candidates` が定義されている場合、
- * 各候補駒種の abilities を union して合法先を返す (§Q5.3)。
+ * 量子モード (Phase 5-6.5 移行後): `piece.candidates` が定義されている場合、
+ * 各候補 PieceID を position 内でスキャンして initialKind を取り出し、
+ * その kind の abilities を union して合法先を返す (§Q5.3)。
+ * 現在成っている駒 (`piece.promoted`) は成り駒側の abilities を使う (成った駒は成り駒として動く)。
  * candidates 未定義なら従来通り `piece.kind` 単一で動作する (縮退互換)。
  */
 export function generatePieceMoves(mgf: Mgf, position: Position, from: Square): BoardMove[] {
@@ -16,7 +18,9 @@ export function generatePieceMoves(mgf: Mgf, position: Position, from: Square): 
   if (!piece) return [];
   if (piece.owner !== position.sideToMove) return [];
 
-  const candidateKinds = piece.candidates ? Array.from(piece.candidates) : [piece.kind];
+  const candidateKinds = piece.candidates
+    ? resolveCandidateKinds(position, mgf, piece.candidates, piece.promoted)
+    : [piece.kind];
 
   const moves: BoardMove[] = [];
   const seen = new Set<string>();
@@ -35,6 +39,49 @@ export function generatePieceMoves(mgf: Mgf, position: Position, from: Square): 
     }
   }
   return moves;
+}
+
+/**
+ * 候補 PieceID 集合を「実際に動きを問い合わせる kind の配列」に resolve する。
+ * PieceID → position 内スキャンで initialKind 取得 → 成っているならその kind の promoted_id に差し替え。
+ * 見つからない PieceID (テスト等での orphan 参照) は無視。
+ */
+function resolveCandidateKinds(
+  position: Position,
+  mgf: Mgf,
+  candidates: ReadonlySet<PieceId>,
+  promoted: boolean,
+): string[] {
+  const kinds = new Set<string>();
+  for (const pid of candidates) {
+    const info = findInitialKind(position, pid);
+    if (info === undefined) continue;
+    if (promoted) {
+      // 現在成っている駒 = そのまま成り駒として動く。initialKind の promoted_id を使う。
+      const def = mgf.pieces.find((p) => p.id === info);
+      if (def?.promoted_id) kinds.add(def.promoted_id);
+      // 成れない駒 (kin/ou 等) が候補にあれば実質不整合だが、ここでは静かに落とす。
+    } else {
+      kinds.add(info);
+    }
+  }
+  return Array.from(kinds);
+}
+
+/**
+ * position 内 (盤上・両手駒) で pieceId を検索し initialKind を返す。
+ * 内部の O(N) スキャン。generatePieceMoves は駒 1 枚あたり |candidates|≦40 回この関数を呼ぶが、
+ * 通常局面では O(40×40) = 1600 回程度で十分速い。将来ホットになったら infoMap 化で対応。
+ */
+function findInitialKind(position: Position, pieceId: PieceId): string | undefined {
+  for (const row of position.board) {
+    for (const cell of row) {
+      if (cell && cell.pieceId === pieceId) return cell.initialKind;
+    }
+  }
+  for (const p of position.hands.player1) if (p.pieceId === pieceId) return p.initialKind;
+  for (const p of position.hands.player2) if (p.pieceId === pieceId) return p.initialKind;
+  return undefined;
 }
 
 /**

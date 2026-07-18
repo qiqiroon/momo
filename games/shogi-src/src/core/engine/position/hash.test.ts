@@ -44,6 +44,8 @@ describe('positionHash', () => {
             kind: 'fu',
             owner: 'player1' as const,
             initialOwner: 'player2' as const,
+            initialKind: 'fu',
+            initialSquare: { row: -1, col: -1 },
             promoted: false,
           },
         ],

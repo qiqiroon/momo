@@ -26,7 +26,11 @@ export function applyMove(mgf: Mgf, position: Position, move: Move): Position {
         kind: captured.promoted ? getUnpromotedKind(mgf, captured.kind) : captured.kind,
         owner: piece.owner,
         initialOwner: captured.initialOwner,
+        initialKind: captured.initialKind,
+        initialSquare: captured.initialSquare,
         promoted: false,
+        ...(captured.candidates !== undefined ? { candidates: captured.candidates } : {}),
+        ...(captured.confirmed !== undefined ? { confirmed: captured.confirmed } : {}),
       };
       newHands[piece.owner].push(handPiece);
     }

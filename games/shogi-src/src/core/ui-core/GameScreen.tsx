@@ -1498,6 +1498,8 @@ function PromotionModal({ locale, t, viewerSide }: PromotionModalProps) {
     kind: pendingPromotion.pieceKind,
     owner: pendingPromotion.owner,
     initialOwner: pendingPromotion.owner,
+    initialKind: pendingPromotion.pieceKind,
+    initialSquare: { row: -1, col: -1 },
     promoted: false,
   };
   const promotePiece: PieceInstance = {
@@ -1505,6 +1507,8 @@ function PromotionModal({ locale, t, viewerSide }: PromotionModalProps) {
     kind: pendingPromotion.promotedKind,
     owner: pendingPromotion.owner,
     initialOwner: pendingPromotion.owner,
+    initialKind: pendingPromotion.pieceKind,
+    initialSquare: { row: -1, col: -1 },
     promoted: true,
   };
 

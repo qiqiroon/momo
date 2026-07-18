@@ -62,6 +62,8 @@ describe('formatMove', () => {
       kind: 'fu',
       owner: 'player1',
       initialOwner: 'player2',
+      initialKind: 'fu',
+      initialSquare: { row: -1, col: -1 },
       promoted: false,
     };
     pos = { ...pos, hands: { ...pos.hands, player1: [droppedFu] } };

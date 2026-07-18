@@ -1,37 +1,27 @@
 /**
- * 量子モード候補集合の AC-3 アーク整合ループ (Phase 5-4)。
+ * 量子モード候補集合の AC-3 アーク整合ループ (Phase 5-4 / Phase 5-6.5 移行後)。
  *
  * §Q7.4 candidate_update(board_state): 各駒の候補集合に対して制約群を反復適用し、
  * 安定状態 (どの候補集合も変化しない状態) に到達するまで繰り返す。
  *
- * ## Phase 5-4 (現在の骨組み)
+ * ## Phase 5-6.5 変更点
  *
- * このファイルは骨組みだけ。制約 (C-001/C-002/C-003, C-101〜C-105, C-201〜C-203,
- * C-301/C-302, C-901 など) は Phase 5-5 以降で `features/quantum/constraints/*.ts`
- * に実装され、plugin registry の `'quantum:constraints'` として集約登録される。
- *
- * 5-4 段階では registered 制約が 0 個なので、`candidateUpdate` は常に入力の
- * Position をそのまま返す (idempotent no-op)。DoD:
- *   - 空制約で呼んでも位置崩れが起きない
- *   - 反復回数のログを出せる (デバッグ用)
+ * candidates の中身は「駒種名の集合」→「初期 PieceID の集合」に変わった (§Q4.1)。
+ * QuantumContext に infoMap: Map<PieceId, CandidateInfo> を追加、反復開始時に
+ * buildInitialInfoMap で 1 回作って全制約に渡す。制約側は候補 PieceID を
+ * context.infoMap.get(pid) で「初期 kind / 初期位置 / 初期陣営」に resolve する。
  *
  * ## 反復上限 (§Q7.9.1)
  *
- * 目安は pieces × candidate_kinds。本将棋なら 40 駒 × 8 駒種 = 320。
- * 安全マージンを取って 512 で暫定。パラメータ化は 5-15 で対応予定。
- *
- * ## 制約インターフェース
- *
- * `QuantumConstraint = (piece, location, position, mgf) => ReadonlySet<string>`
- * を返り値として「その駒に許される駒種集合」を返す。
- * candidate_update 側で全制約の結果と現在の candidates を交わし (intersection) て
- * 更新する。返り値が現在の candidates と等しければ変化なし。
+ * 目安は pieces × pieceIds。本将棋なら 40 駒 × 40 PieceID = 1600 だが、
+ * 実際は各反復で複数駒が同時に狭まるため 512 で足りる想定。パラメータ化は 5-15 で対応。
  */
 
 import type { Mgf } from '../../core/engine/mgf/types';
 import type { PieceInstance, Position, Square } from '../../core/engine/position/types';
 import { get as pluginGet } from '../../core/plugin/registry';
 import { checkC001InitialOwnerPreserved, checkC002CandidatesMonotone } from './constraints/basic';
+import { buildInitialInfoMap, type CandidateInfo } from './piece-lookup';
 
 /** 制約が判定する駒がどこに居るかの情報 (盤上か持ち駒か)。 */
 export type QuantumPieceLocation =
@@ -40,19 +30,39 @@ export type QuantumPieceLocation =
 
 /**
  * candidate_update 呼び出し時の副次情報。Phase 4 のトーラスモード等、Position や Mgf
- * だけでは表現しにくい runtime 状態をここに集約する。制約は必要に応じてこの context を
- * 参照して発火/非発火を切り替える (例: torus ON 時は C-103/C-104 を無効化)。
+ * だけでは表現しにくい runtime 状態をここに集約する。
+ *
+ * ## infoMap (Phase 5-6.5)
+ * 候補 PieceID を「初期 kind / 初期位置 / 初期陣営」に resolve する map。
+ * candidate_update の反復開始時に 1 回作って全制約で共有する。制約側は
+ * context.infoMap.get(pid) で参照する (buildInitialInfoMap は毎反復ごとに
+ * 呼ぶ必要はない — 対局中 pieceId と初期属性は不変)。
  */
 export interface QuantumContext {
   torusMode: 'none' | 'cylinder' | 'full';
+  infoMap: Map<string, CandidateInfo>;
 }
 
-/** context を省略した時の既定値 (torus 非適用)。 */
-export const DEFAULT_QUANTUM_CONTEXT: QuantumContext = { torusMode: 'none' };
+/** context を省略した時の既定値 (torus 非適用・空 infoMap)。テスト向けフォールバック。 */
+export const DEFAULT_QUANTUM_CONTEXT: QuantumContext = {
+  torusMode: 'none',
+  infoMap: new Map(),
+};
+
+/**
+ * 呼び出し側で torusMode だけ渡したい時のヘルパ。infoMap は position から自動生成。
+ * 通常は candidate_update 内部で自前で作るのでこのヘルパは外部呼び出し向け。
+ */
+export function makeQuantumContext(
+  pos: Position,
+  torusMode: 'none' | 'cylinder' | 'full' = 'none',
+): QuantumContext {
+  return { torusMode, infoMap: buildInitialInfoMap(pos) };
+}
 
 /**
  * 単一の制約。piece の現在の候補集合を狭める判断を返す。
- * 返り値 = その駒に「現時点で許される駒種集合」。current candidates と交わって適用される。
+ * 返り値 = その駒に「現時点で許される候補 PieceID 集合」。current candidates と交わって適用される。
  */
 export type QuantumConstraint = (
   piece: PieceInstance,
@@ -76,10 +86,18 @@ const MAX_ITERATIONS = 512;
 export function candidateUpdate(
   pos: Position,
   mgf: Mgf,
-  context: QuantumContext = DEFAULT_QUANTUM_CONTEXT,
+  contextInput?: QuantumContext,
 ): Position {
   const constraints = pluginGet<QuantumConstraint[]>('quantum:constraints') ?? [];
   if (constraints.length === 0) return pos;
+
+  // context.infoMap は「対局中不変な初期属性の map」なので反復途中で作り直す必要はない。
+  // 呼び出し側で明示的に渡された context がある場合はそのまま尊重し (テスト向け)、
+  // 無ければ pos から生成する。
+  const context: QuantumContext = contextInput ?? {
+    torusMode: 'none',
+    infoMap: buildInitialInfoMap(pos),
+  };
 
   let current = pos;
   let final: Position | null = null;
@@ -99,8 +117,6 @@ export function candidateUpdate(
     final = current;
   }
   // §Q8.3 basic invariants (C-001 / C-002) を最後にまとめて検証。
-  // 違反時は throw して呼び出し側 (game-store.applyAndCommit 等) に問題を伝える。
-  // Phase 5-5: initialOwner 保持 + candidates 単調非増加のフレームワーク不変を強制。
   checkC001InitialOwnerPreserved(pos, final);
   checkC002CandidatesMonotone(pos, final);
   return final;
@@ -193,7 +209,7 @@ function applyConstraintsToPiece(
     }
   }
   if (next === null || next.size === piece.candidates.size) return piece;
-  // §Q7.5: 候補集合が 1 種に収縮したら確定 (C-301)。5-8 で正式実装するが
+  // §Q7.5: 候補集合が 1 個に収縮したら確定 (C-301)。5-8 で正式実装するが
   // ここでは confirmed=true への遷移だけは行う (安全な副作用)。
   const confirmed = next.size === 1;
   return { ...piece, candidates: next, confirmed };

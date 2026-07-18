@@ -6,7 +6,13 @@ import { generateLegalMoves, isCheckmate, isMoveLegal } from './legal';
 import { generateDropMoves } from './drops';
 
 function withPieceInHand(pos: Position, kind: string, owner: 'player1' | 'player2', pieceId = 'H1'): Position {
-  const piece: PieceInstance = { pieceId, kind, owner, initialOwner: owner === 'player1' ? 'player2' : 'player1', promoted: false };
+  const piece: PieceInstance = {
+    pieceId, kind, owner,
+    initialOwner: owner === 'player1' ? 'player2' : 'player1',
+    initialKind: kind,
+    initialSquare: { row: -1, col: -1 },
+    promoted: false,
+  };
   return { ...pos, hands: { ...pos.hands, [owner]: [...pos.hands[owner], piece] } };
 }
 
@@ -111,9 +117,9 @@ describe('suicide filter', () => {
       height: 9,
       board: (() => {
         const b: (PieceInstance | null)[][] = Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => null));
-        b[8][4] = { pieceId: kingId, kind: 'ou', owner: 'player1', initialOwner: 'player1', promoted: false };
-        b[5][4] = { pieceId: kinId, kind: 'kin', owner: 'player1', initialOwner: 'player1', promoted: false };
-        b[2][4] = { pieceId: hiId, kind: 'hi', owner: 'player2', initialOwner: 'player2', promoted: false };
+        b[8][4] = { pieceId: kingId, kind: 'ou', owner: 'player1', initialOwner: 'player1', initialKind: 'ou', initialSquare: { row: 8, col: 4 }, promoted: false };
+        b[5][4] = { pieceId: kinId, kind: 'kin', owner: 'player1', initialOwner: 'player1', initialKind: 'kin', initialSquare: { row: 5, col: 4 }, promoted: false };
+        b[2][4] = { pieceId: hiId, kind: 'hi', owner: 'player2', initialOwner: 'player2', initialKind: 'hi', initialSquare: { row: 2, col: 4 }, promoted: false };
         return b;
       })(),
       hands: { player1: [], player2: [] },
@@ -207,6 +213,8 @@ describe('isCheckmate', () => {
       kind,
       owner,
       initialOwner: owner,
+      initialKind: kind,
+      initialSquare: { row: -1, col: -1 },
       promoted,
     });
     const pos: Position = {

@@ -23,6 +23,8 @@ const P = (kind: string, owner: 'player1' | 'player2', promoted = false): PieceI
   kind,
   owner,
   initialOwner: owner,
+  initialKind: kind,
+  initialSquare: { row: -1, col: -1 },
   promoted,
 });
 

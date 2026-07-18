@@ -60,6 +60,8 @@ describe('applyMove (board move)', () => {
       kind: 'to',
       owner: 'player2',
       initialOwner: 'player2',
+      initialKind: 'fu',
+      initialSquare: { row: 2, col: 2 },
       promoted: true,
     };
     newBoard[2][2] = null;
@@ -112,6 +114,8 @@ describe('applyMove (drop)', () => {
             kind: 'fu',
             owner: 'player1' as const,
             initialOwner: 'player2' as const,
+            initialKind: 'fu',
+            initialSquare: { row: -1, col: -1 },
             promoted: false,
           },
         ],

@@ -115,11 +115,18 @@ describe('generatePieceMoves — quantum candidate union (Phase 5-3)', () => {
       kind: 'fu',
       owner: 'player1',
       initialOwner: 'player1',
+      initialKind: 'fu',
+      initialSquare: { row: 5, col: 4 },
       promoted: false,
-      candidates: new Set(['fu', 'gin']),
+      candidates: new Set(['Q1', 'Q_ref_gin']),
       confirmed: false,
     };
-    const pos = placePiece(emptyPos(), 5, 4, piece);
+    const refGin: PieceInstance = {
+      pieceId: 'Q_ref_gin', kind: 'gin', owner: 'player1', initialOwner: 'player1',
+      initialKind: 'gin', initialSquare: { row: -1, col: -1 }, promoted: false,
+    };
+    let pos = placePiece(emptyPos(), 5, 4, piece);
+    pos = { ...pos, hands: { ...pos.hands, player1: [refGin] } };
     const moves = generatePieceMoves(hondou, pos, { row: 5, col: 4 });
     const dests = moves.map((m) => `${m.to.row},${m.to.col},${m.promote ? 1 : 0}`).sort();
     expect(dests).toEqual([
@@ -138,11 +145,18 @@ describe('generatePieceMoves — quantum candidate union (Phase 5-3)', () => {
       kind: 'fu',
       owner: 'player1',
       initialOwner: 'player1',
+      initialKind: 'fu',
+      initialSquare: { row: 5, col: 4 },
       promoted: false,
-      candidates: new Set(['fu', 'ou']),
+      candidates: new Set(['Q2', 'Q_ref_ou']),
       confirmed: false,
     };
-    const pos = placePiece(emptyPos(), 5, 4, piece);
+    const refOu: PieceInstance = {
+      pieceId: 'Q_ref_ou', kind: 'ou', owner: 'player1', initialOwner: 'player1',
+      initialKind: 'ou', initialSquare: { row: -1, col: -1 }, promoted: false,
+    };
+    let pos = placePiece(emptyPos(), 5, 4, piece);
+    pos = { ...pos, hands: { ...pos.hands, player1: [refOu] } };
     const moves = generatePieceMoves(hondou, pos, { row: 5, col: 4 });
     const dests = new Set(moves.map((m) => `${m.to.row},${m.to.col},${m.promote ? 1 : 0}`));
     expect(dests.size).toBe(8);
@@ -160,11 +174,22 @@ describe('generatePieceMoves — quantum candidate union (Phase 5-3)', () => {
       kind: 'fu',
       owner: 'player1',
       initialOwner: 'player1',
+      initialKind: 'fu',
+      initialSquare: { row: 7, col: 4 },
       promoted: false,
-      candidates: new Set(['fu', 'gin', 'hi']),
+      candidates: new Set(['Q3', 'Q_ref_gin', 'Q_ref_hi']),
       confirmed: false,
     };
-    const pos = placePiece(emptyPos(), 7, 4, piece);
+    const refGin: PieceInstance = {
+      pieceId: 'Q_ref_gin', kind: 'gin', owner: 'player1', initialOwner: 'player1',
+      initialKind: 'gin', initialSquare: { row: -1, col: -1 }, promoted: false,
+    };
+    const refHi: PieceInstance = {
+      pieceId: 'Q_ref_hi', kind: 'hi', owner: 'player1', initialOwner: 'player1',
+      initialKind: 'hi', initialSquare: { row: -1, col: -1 }, promoted: false,
+    };
+    let pos = placePiece(emptyPos(), 7, 4, piece);
+    pos = { ...pos, hands: { ...pos.hands, player1: [refGin, refHi] } };
     const moves = generatePieceMoves(hondou, pos, { row: 7, col: 4 });
     const dests = new Set(moves.map((m) => `${m.to.row},${m.to.col}`));
     // 縦 (col=4 全 8 マス) + 横 (row=7 の col!=4 の 8 マス) + 斜め前 (6,3)(6,5) + 斜め後 (8,3)(8,5)
@@ -195,10 +220,11 @@ describe('generatePieceMoves — quantum candidate union (Phase 5-3)', () => {
   it('candidates == {fu} 単体は kind=fu と同じ結果 (単一集合の一貫性)', () => {
     // 空盤の (6, 4) に fu を 2 個並べて、片方は candidates 有・片方は無で結果を比較
     const pieceA: PieceInstance = {
-      pieceId: 'A', kind: 'fu', owner: 'player1', initialOwner: 'player1', promoted: false,
+      pieceId: 'A', kind: 'fu', owner: 'player1', initialOwner: 'player1',
+      initialKind: 'fu', initialSquare: { row: 6, col: 4 }, promoted: false,
     };
     const pieceB: PieceInstance = {
-      ...pieceA, pieceId: 'B', candidates: new Set(['fu']), confirmed: false,
+      ...pieceA, pieceId: 'B', candidates: new Set(['B']), confirmed: false,
     };
     const posA = placePiece(emptyPos(), 6, 4, pieceA);
     const posB = placePiece(emptyPos(), 6, 4, pieceB);

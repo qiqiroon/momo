@@ -13,7 +13,7 @@ import {
   C002Violation,
 } from './basic';
 
-describe('features/quantum/constraints/basic (Phase 5-5)', () => {
+describe('features/quantum/constraints/basic (Phase 5-5 / Phase 5-6.5 移行後)', () => {
   afterEach(() => {
     clear();
   });
@@ -21,15 +21,15 @@ describe('features/quantum/constraints/basic (Phase 5-5)', () => {
   describe('checkC001InitialOwnerPreserved', () => {
     it('initialOwner を変更しなければ throw しない', () => {
       const before = quantumInit(initPosition(hondou));
-      const after = before; // 参照そのまま
+      const after = before;
       expect(() => checkC001InitialOwnerPreserved(before, after)).not.toThrow();
     });
 
     it('駒の initialOwner を意図的に反転させると C001Violation で throw する', () => {
       const before = quantumInit(initPosition(hondou));
       const boardCopy = before.board.map((row) => row.slice());
-      const target = boardCopy[6][2]!; // sente 歩
-      boardCopy[6][2] = { ...target, initialOwner: 'player2' }; // 違反
+      const target = boardCopy[6][2]!;
+      boardCopy[6][2] = { ...target, initialOwner: 'player2' };
       const after: Position = { ...before, board: boardCopy };
       expect(() => checkC001InitialOwnerPreserved(before, after)).toThrow(C001Violation);
       expect(() => checkC001InitialOwnerPreserved(before, after)).toThrow(/initialOwner/);
@@ -37,11 +37,13 @@ describe('features/quantum/constraints/basic (Phase 5-5)', () => {
 
     it('持ち駒の initialOwner を反転させても検出する', () => {
       let before = quantumInit(initPosition(hondou));
-      // 持ち駒を 1 個追加
       const handPiece: PieceInstance = {
         pieceId: 'H_test', kind: 'fu', owner: 'player1',
-        initialOwner: 'player1', promoted: false,
-        candidates: new Set(['fu']), confirmed: true,
+        initialOwner: 'player1',
+        initialKind: 'fu',
+        initialSquare: { row: -1, col: -1 },
+        promoted: false,
+        candidates: new Set(['H_test']), confirmed: true,
       };
       before = { ...before, hands: { ...before.hands, player1: [...before.hands.player1, handPiece] } };
       const after: Position = {
@@ -63,7 +65,8 @@ describe('features/quantum/constraints/basic (Phase 5-5)', () => {
       const boardCopy = before.board.map((row) =>
         row.map((cell) => {
           if (!cell || cell.candidates === undefined) return cell;
-          const narrower = new Set(Array.from(cell.candidates).slice(0, 4)); // 半分に絞る
+          // 半分に絞る (単調非増加)
+          const narrower = new Set(Array.from(cell.candidates).slice(0, 10));
           return { ...cell, candidates: narrower };
         }),
       );
@@ -71,31 +74,21 @@ describe('features/quantum/constraints/basic (Phase 5-5)', () => {
       expect(() => checkC002CandidatesMonotone(before, after)).not.toThrow();
     });
 
-    it('元の候補集合に無い駒種を追加すると C002Violation で throw する', () => {
+    it('元の候補集合に無い要素を追加すると C002Violation で throw する', () => {
       const before = quantumInit(initPosition(hondou));
-      // 全駒に candidates={fu,gin} を人工的に付ける (縮退) → after で {fu,gin,narikin} に増やす
-      const setNarrow = (row: PieceInstance[][]): PieceInstance[][] =>
-        row.map((line) =>
-          line.map((cell) =>
-            cell ? { ...cell, candidates: new Set(['fu', 'gin']), confirmed: false } : cell,
-          ),
-        );
-      const beforeBoard = setNarrow(before.board as PieceInstance[][]);
-      const beforeNarrow: Position = { ...before, board: beforeBoard };
-      // after: 全駒に 'narikin' を追加 (元の {fu,gin} に無い → C-002 違反)
-      const afterBoard = beforeNarrow.board.map((row) =>
+      const afterBoard = before.board.map((row) =>
         row.map((cell) => {
-          if (!cell) return cell;
-          return { ...cell, candidates: new Set(['fu', 'gin', 'narikin']) };
+          if (!cell || cell.candidates === undefined) return cell;
+          return { ...cell, candidates: new Set([...cell.candidates, 'FAKE_ID']) };
         }),
       );
-      const after: Position = { ...beforeNarrow, board: afterBoard };
-      expect(() => checkC002CandidatesMonotone(beforeNarrow, after)).toThrow(C002Violation);
-      expect(() => checkC002CandidatesMonotone(beforeNarrow, after)).toThrow(/narikin/);
+      const after: Position = { ...before, board: afterBoard };
+      expect(() => checkC002CandidatesMonotone(before, after)).toThrow(C002Violation);
+      expect(() => checkC002CandidatesMonotone(before, after)).toThrow(/FAKE_ID/);
     });
 
     it('candidates=undefined (本将棋モード) の駒はチェック対象外', () => {
-      const before = initPosition(hondou); // 本将棋モード (candidates 無し)
+      const before = initPosition(hondou);
       const after = before;
       expect(() => checkC002CandidatesMonotone(before, after)).not.toThrow();
     });
@@ -106,7 +99,6 @@ describe('features/quantum/constraints/basic (Phase 5-5)', () => {
       register<QuantumConstraint[]>('quantum:constraints', basicConstraints);
       const pos = quantumInit(initPosition(hondou));
       const result = candidateUpdate(pos, hondou);
-      // basicConstraints は現状全て no-op なので pos そのまま
       expect(result).toBe(pos);
     });
 
@@ -116,21 +108,19 @@ describe('features/quantum/constraints/basic (Phase 5-5)', () => {
       expect(() => candidateUpdate(pos, hondou)).not.toThrow();
     });
 
-    it('basicConstraints + 追加の narrowing 制約を通した candidate_update: 狭めるのは OK', () => {
-      const shrinkToFu: QuantumConstraint = () => new Set(['fu']);
-      register<QuantumConstraint[]>('quantum:constraints', [...basicConstraints, shrinkToFu]);
+    it('basicConstraints + 追加の narrowing 制約: 各駒 candidates が自 pieceId に絞られる', () => {
+      const shrinkToSelf: QuantumConstraint = (piece) => new Set([piece.pieceId]);
+      register<QuantumConstraint[]>('quantum:constraints', [...basicConstraints, shrinkToSelf]);
       const pos = quantumInit(initPosition(hondou));
       const result = candidateUpdate(pos, hondou);
-      // 全駒 candidates={fu}, confirmed=true になる
       for (const row of result.board) {
         for (const cell of row) {
           if (!cell) continue;
           expect(cell.candidates!.size).toBe(1);
-          expect(cell.candidates!.has('fu')).toBe(true);
+          expect(cell.candidates!.has(cell.pieceId)).toBe(true);
           expect(cell.confirmed).toBe(true);
         }
       }
-      // C-001/C-002 チェックは throw しなかった (= 制約適用が invariant を守った)
     });
   });
 });

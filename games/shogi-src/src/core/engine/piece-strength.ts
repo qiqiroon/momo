@@ -7,10 +7,11 @@
  * 成駒: 捕獲時は基本駒に戻る (`と`→`歩` 等) ため、通常は基本駒側だけが持ち駒台に現れる。
  * ただし駒種ごとに独自エントリを持たせて、将来の変則ルール (成りの持続等) にも対応できる。
  *
- * 量子将棋: 候補集合を持つ駒については `pieceStrengthOf({ kind, candidates })` の
- * `candidates` に候補駒種の配列を渡すと、候補中の最強駒の強さで順位付け (spec D1 §4.4
- * 「未確定駒の強さは候補中の最強の駒」)。現在 PieceInstance に candidates フィールドは
- * 無いので、この関数は将来量子実装時のフックとして残してある。
+ * 量子将棋 (Phase 5-6.5 移行後): 候補集合は「初期 PieceID の集合」なので、
+ * pieceStrengthOf を PieceID 対応で使う場合は resolveInitialKind コールバックを渡す。
+ * 候補中の最強駒の強さで順位付け (spec D1 §4.4)。
+ * candidates が駒種名の配列 (旧形式) のときは resolveInitialKind 無しで直接評価する
+ * (縮退互換)。
  */
 
 export const PIECE_STRENGTH: Record<string, number> = {
@@ -32,12 +33,20 @@ export function strengthOf(kind: string): number {
 /**
  * 駒 (と候補集合 optional) の強さを返す。量子未確定駒に候補集合を渡すと、
  * 候補中の最強駒の強さを返す (spec D1 §4.4)。
+ *
+ * `resolveInitialKind` を渡した場合は candidates 要素を PieceID として resolve。
+ * 未指定の場合は candidates 要素を直接駒種名として扱う (縮退互換)。
  */
-export function pieceStrengthOf(input: { kind: string; candidates?: string[] }): number {
+export function pieceStrengthOf(input: {
+  kind: string;
+  candidates?: readonly string[];
+  resolveInitialKind?: (pieceId: string) => string | undefined;
+}): number {
   if (input.candidates && input.candidates.length > 0) {
     let max = 0;
     for (const c of input.candidates) {
-      const s = strengthOf(c);
+      const kind = input.resolveInitialKind ? (input.resolveInitialKind(c) ?? c) : c;
+      const s = strengthOf(kind);
       if (s > max) max = s;
     }
     return max;

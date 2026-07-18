@@ -221,7 +221,9 @@ function applyAndCommit(
   // で完成予定なので現状は 'none' を渡す (C-103/C-104 は非 torus 環境で有効化)。
   if (currentQuantum) {
     const candidateUpdateFn = pluginGet<QuantumCandidateUpdateFn>('quantum:candidateUpdate');
-    if (candidateUpdateFn) nextPos = candidateUpdateFn(nextPos, mgf, { torusMode: 'none' });
+    // Phase 5-6.5 移行後: context (infoMap 含む) は candidateUpdate 側で pos から自動生成。
+    // torusMode 等の追加副次情報を渡したい場合はここで context を組み立てる。
+    if (candidateUpdateFn) nextPos = candidateUpdateFn(nextPos, mgf);
   }
   // v0.99 (Phase 5-6 拡張): 動いた駒以外で candidates が変化した駒を「量子もつれ」として
   // 記録する。UI ハイライトと debug の候補変更履歴表示で使う。動いた駒 (move.pieceId) は

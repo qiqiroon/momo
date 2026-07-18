@@ -90,14 +90,19 @@ export const c101ActionPossibility: QuantumConstraint = (piece, location, pos, m
   if (!lastMove || lastMove.type !== 'move') return new Set(piece.candidates);
   if (lastMove.pieceId !== piece.pieceId) return new Set(piece.candidates);
 
+  // 「移動した駒が実際にどの姿で動いたか」を決める:
+  // - lastMove.promote === true: 移動そのものは未成の姿で行い、着手完了時に成る。
+  //   よって unpromoted kind で move を説明できるかを判定する。
+  // - lastMove.promote === false && piece.promoted === true: 前の手以前から既に成っていた
+  //   駒が動いた。promoted_id (成り駒) の abilities で判定。
+  // - lastMove.promote === false && piece.promoted === false: 未成のまま動いた。unpromoted。
+  const wasPromotedBeforeMove = piece.promoted && !lastMove.promote;
+
   const survivors = new Set<PieceId>();
   for (const pid of piece.candidates) {
     const initialKind = resolveInitialKind(context, pid);
     if (initialKind === undefined) continue;
-    // 現在 promoted なら promoted_id の abilities で判定する。C-105 は piece.promoted=false
-    // かつ dead_zone 圏内の case を別に処理するので、ここは piece.promoted=true の場合
-    // 「その pid の promoted 版」で説明可能かをチェック。
-    const testKind = piece.promoted
+    const testKind = wasPromotedBeforeMove
       ? (mgf.pieces.find((p) => p.id === initialKind)?.promoted_id ?? initialKind)
       : initialKind;
     if (canKindExplainMove(testKind, lastMove.from, lastMove.to, piece.owner, mgf)) {

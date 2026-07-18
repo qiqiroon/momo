@@ -176,6 +176,56 @@ describe('C-101 行動可能性 (§Q7 移動履歴依存)', () => {
     const result = c101ActionPossibility(piece, { kind: 'board', square: { row: 5, col: 4 } }, pos, hondou, ctx);
     expect(result.size).toBe(8);
   });
+
+  it('前 4 マススライドで成った駒: kyo と hi 両方残る (成る前の姿で移動 → unpromoted で判定)', () => {
+    // v1.01 バグ: piece.promoted のみで判定すると narikyo は 4 マススライド不可 → kyo 除外
+    // 正しくは lastMove.promote=true なら move 中は未成 → unpromoted kyo で判定 → 残る
+    const piece = makeSentePiece({
+      pieceId: 'P_prom',
+      kind: 'to', // 成って「と」になった (表示 kind は無関係だが仕様として)
+      promoted: true,
+    });
+    let pos = makeQuantumPosWithRefs(piece, { row: 2, col: 8 });
+    pos = {
+      ...pos,
+      history: [{ type: 'move', pieceId: 'P_prom', from: { row: 6, col: 8 }, to: { row: 2, col: 8 }, promote: true }],
+    };
+    const ctx = makeQuantumContext(pos);
+    const result = c101ActionPossibility(piece, { kind: 'board', square: { row: 2, col: 8 } }, pos, hondou, ctx);
+    // 未成の kyo と hi は前 4 マススライド可能 → 残る
+    expect(result.has('P_ref_kyo')).toBe(true);
+    expect(result.has('P_ref_hi')).toBe(true);
+    // 1 マスしか動けない駒は除外
+    expect(result.has('P_ref_fu')).toBe(false);
+    expect(result.has('P_ref_kei')).toBe(false);
+    expect(result.has('P_ref_gin')).toBe(false);
+    expect(result.has('P_ref_kin')).toBe(false);
+    expect(result.has('P_ref_kaku')).toBe(false);
+    expect(result.has('P_ref_ou')).toBe(false);
+  });
+
+  it('前 4 マススライドで既成の駒 (ryu が動いた): 未成 hi のみでなく、成 promoted_id 判定を通ることを確認', () => {
+    // move.promote=false かつ piece.promoted=true = 元から成り駒 → promoted_id (ryu) で判定
+    // ryu は前後左右 slide + 斜め 1 → 前 4 マススライドは説明可能 → hi 残る
+    // 一方 kyo は narikyo (成香) で 1 マスしか動けない → 除外されるべき
+    const piece = makeSentePiece({
+      pieceId: 'P_already',
+      kind: 'ryu',
+      promoted: true,
+    });
+    let pos = makeQuantumPosWithRefs(piece, { row: 2, col: 8 });
+    pos = {
+      ...pos,
+      history: [{ type: 'move', pieceId: 'P_already', from: { row: 6, col: 8 }, to: { row: 2, col: 8 }, promote: false }],
+    };
+    const ctx = makeQuantumContext(pos);
+    const result = c101ActionPossibility(piece, { kind: 'board', square: { row: 2, col: 8 } }, pos, hondou, ctx);
+    // 既に成っていた駒の move → promoted_id で判定
+    // ryu (hi の成り) は前 4 マススライド可 → hi 残る
+    expect(result.has('P_ref_hi')).toBe(true);
+    // narikyo (kyo の成り) は 1 マス step のみ → kyo 除外
+    expect(result.has('P_ref_kyo')).toBe(false);
+  });
 });
 
 describe('C-103 二歩', () => {

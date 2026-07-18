@@ -8,9 +8,11 @@
 import { register } from '../../core/plugin/registry';
 import { quantumInit } from './init';
 import { candidateUpdate } from './candidate-update';
+import { basicConstraints } from './constraints/basic';
 
 register('quantum:init', quantumInit);
 register('quantum:candidateUpdate', candidateUpdate);
+register('quantum:constraints', basicConstraints);
 
 export type QuantumInitFn = typeof quantumInit;
 export type QuantumCandidateUpdateFn = typeof candidateUpdate;

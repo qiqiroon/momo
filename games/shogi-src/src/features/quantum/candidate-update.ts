@@ -31,6 +31,7 @@
 import type { Mgf } from '../../core/engine/mgf/types';
 import type { PieceInstance, Position, Square } from '../../core/engine/position/types';
 import { get as pluginGet } from '../../core/plugin/registry';
+import { checkC001InitialOwnerPreserved, checkC002CandidatesMonotone } from './constraints/basic';
 
 /** 制約が判定する駒がどこに居るかの情報 (盤上か持ち駒か)。 */
 export type QuantumPieceLocation =
@@ -64,16 +65,28 @@ export function candidateUpdate(pos: Position, mgf: Mgf): Position {
   if (constraints.length === 0) return pos;
 
   let current = pos;
+  let final: Position | null = null;
   for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
     const { next, changed } = applyConstraintsOnce(current, mgf, constraints);
-    if (!changed) return current;
+    if (!changed) {
+      final = current;
+      break;
+    }
     current = next;
   }
-  console.warn(
-    `[quantum:candidateUpdate] hit MAX_ITERATIONS=${MAX_ITERATIONS} without stabilizing; ` +
-    `returning last computed state. Constraints may be non-monotone (C-002 violation).`,
-  );
-  return current;
+  if (final === null) {
+    console.warn(
+      `[quantum:candidateUpdate] hit MAX_ITERATIONS=${MAX_ITERATIONS} without stabilizing; ` +
+      `returning last computed state. Constraints may be non-monotone (C-002 violation).`,
+    );
+    final = current;
+  }
+  // §Q8.3 basic invariants (C-001 / C-002) を最後にまとめて検証。
+  // 違反時は throw して呼び出し側 (game-store.applyAndCommit 等) に問題を伝える。
+  // Phase 5-5: initialOwner 保持 + candidates 単調非増加のフレームワーク不変を強制。
+  checkC001InitialOwnerPreserved(pos, final);
+  checkC002CandidatesMonotone(pos, final);
+  return final;
 }
 
 /**

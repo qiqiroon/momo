@@ -1,8 +1,18 @@
 import type { Mgf, Player } from '../mgf/types';
 import type { Position, Square } from '../position/types';
+import { get as pluginGet } from '../../plugin/registry';
 import { generatePieceMoves } from './generator';
 
+type FindKingFn = (mgf: Mgf, position: Position, player: Player) => Square | null;
+
 export function findKing(mgf: Mgf, position: Position, player: Player): Square | null {
+  // Phase 5-10 §Q13.4: 量子モードでは「玉として確定した駒」だけを王とみなす。
+  // features/quantum が hook を登録している時のみ有効化 (量子モードでも玉未確定の
+  // 局面では null 返し → isInCheck が false になり、王手/詰み判定が発生しない)。
+  // 通常将棋モード (A ビルド) は hook 未登録なので下の kind ベース実装を使う。
+  const quantumFindKing = pluginGet<FindKingFn>('quantum:findKing');
+  if (quantumFindKing) return quantumFindKing(mgf, position, player);
+
   const royalKinds = new Set(mgf.pieces.filter((p) => p.is_royal).map((p) => p.id));
   for (let row = 0; row < position.height; row++) {
     for (let col = 0; col < position.width; col++) {

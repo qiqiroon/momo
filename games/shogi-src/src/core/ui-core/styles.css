@@ -29,6 +29,9 @@
 
   --hl: rgba(234, 88, 12, 0.30);
   --hl-last: rgba(234, 88, 12, 0.20);
+  /* v0.99: 量子もつれハイライト (動いた駒以外で candidates が変化した駒)。
+     lastmove オレンジと同濃度 (alpha 0.20) の薄い水色 (Tailwind sky-400 相当) */
+  --hl-entangled: rgba(56, 189, 248, 0.20);
 
   --cell: clamp(30px, 6.2vw, 54px);
   --hand-pc: calc(var(--cell) * 0.66);
@@ -508,6 +511,21 @@ body::before {
   inset: 0;
   background: var(--hl-last);
   pointer-events: none;
+}
+
+/* v0.99: 量子もつれハイライト。動いた駒以外で candidates が変化した駒のマスに
+   薄い水色半透明を敷く。lastmove とは別 layer なので重ねられない前提だが、
+   量子もつれ駒は動いた駒とは別マスにあるので実質的に共存する。 */
+.sq.entangled::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--hl-entangled);
+  pointer-events: none;
+}
+/* 持ち駒台側のハイライト (position: relative の .cap にも背景を敷ける) */
+.cap.entangled {
+  background: var(--hl-entangled);
 }
 
 /* 成り選択モーダル (D-1 v1.7 §4.5) */

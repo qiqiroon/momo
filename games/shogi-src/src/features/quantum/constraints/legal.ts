@@ -24,38 +24,60 @@
  * す」)。§Q8.4 の分類に忠実に別関数として提供し、テストで各観点を明示できるようにする。
  */
 
-import type { Mgf } from '../../../core/engine/mgf/types';
-import type { PieceInstance, Position } from '../../../core/engine/position/types';
-import { generatePieceMoves } from '../../../core/engine/moves/generator';
+import type { Mgf, Player } from '../../../core/engine/mgf/types';
+import type { Square } from '../../../core/engine/position/types';
+import { directionOffsets } from '../../../core/engine/moves/directions';
 import type {
   QuantumConstraint,
   QuantumPieceLocation,
 } from '../candidate-update';
 
 /**
- * 「piece が kind K の駒だったとして、盤上の現在位置から合法手 (擬合法) が
- * 1 つでも生成できるか」を判定するヘルパー。piece.candidates を一時的に {K} に
- * 差し替えた fake position を作り、既存の generatePieceMoves を借用する。
- *
- * 手番と関係なく確認したいので sideToMove も piece.owner に一時セットする。
+ * 「盤上を kind K の駒だったとみなして、(from, to) の移動を説明できるか」を判定する。
+ * §Q5/§Q7 の C-101 は「今の局面で説明可能な候補だけを残す」もので、実測ベースの
+ * narrowing 判定 (静的な "動けるか" 一般論ではない)。よって:
+ *   - direction × range の組合せに (dr, dc) が乗るか (方向マッチ)
+ *   - slide/step/jump のいずれかの型で許される移動長か
+ * だけをチェックする。実際にその move が成立したという事実により、途中の
+ * 経路が空いていた/居ても道が繋がっていたことは確定しているので、盤面走査は不要。
  */
-function hasAnyMovesAsKind(
+function canKindExplainMove(
   kind: string,
-  piece: PieceInstance,
-  square: { row: number; col: number },
-  pos: Position,
+  from: Square,
+  to: Square,
+  owner: Player,
   mgf: Mgf,
 ): boolean {
-  const fakePiece: PieceInstance = { ...piece, candidates: new Set([kind]) };
-  const fakeBoard = pos.board.map((row, r) =>
-    row.map((cell, c) => (r === square.row && c === square.col ? fakePiece : cell)),
-  );
-  const fakePos: Position = { ...pos, board: fakeBoard, sideToMove: piece.owner };
-  const moves = generatePieceMoves(mgf, fakePos, square);
-  return moves.length > 0;
+  const def = mgf.pieces.find((p) => p.id === kind);
+  if (!def || !def.move_logic) return false;
+
+  const dr = to.row - from.row;
+  const dc = to.col - from.col;
+
+  for (const ability of def.move_logic.abilities) {
+    const offsets = directionOffsets(ability.direction, owner);
+    const maxRange =
+      ability.range === -1 ? Math.max(mgf.board.width, mgf.board.height) : ability.range;
+    for (const { drow, dcol } of offsets) {
+      for (let s = 1; s <= maxRange; s++) {
+        if (drow * s === dr && dcol * s === dc) return true;
+        if (ability.type === 'step' || ability.type === 'jump') break;
+      }
+    }
+  }
+  return false;
 }
 
-/** C-101 行動可能性: 候補駒種 K として現在位置から動ける手があるか。 */
+/**
+ * C-101 行動可能性 (§Q7 の正しい意味論): 直近の指し手が候補駒種 K として説明できるか。
+ *
+ * candidate_update は applyMove の直後に呼ばれるので、pos.history の末尾は「今回
+ * 動いた piece の move」。その move の (from, to) 差分をとり、K の direction × range
+ * に一致するかを機械的にチェック。説明不能な K は候補から除外する。
+ *
+ * 動いていない駒 (piece.pieceId !== lastMove.pieceId) や持ち駒はこの制約で狭まらない。
+ * それらは C-103/C-104/C-105 と、5-8 以降の C-201/C-301 等が担当する。
+ */
 export const c101ActionPossibility: QuantumConstraint = (
   piece,
   location,
@@ -64,11 +86,18 @@ export const c101ActionPossibility: QuantumConstraint = (
   _context,
 ) => {
   if (piece.candidates === undefined) return new Set();
-  // 持ち駒は「動く」概念が無いので狭めない (打つ時の合法性は別途 legal.ts で扱う)。
+  // 持ち駒は現状の move による narrowing 対象外 (「打ち手」は将来 5-7 系で C-201 経由)。
   if (location.kind !== 'board') return new Set(piece.candidates);
+  const lastMove = pos.history[pos.history.length - 1];
+  if (!lastMove || lastMove.type !== 'move') return new Set(piece.candidates);
+  // 動いた駒だけを対象にする。他の駒は識別性が変わらないので触らない (§Q7 準拠)。
+  if (lastMove.pieceId !== piece.pieceId) return new Set(piece.candidates);
+
   const survivors = new Set<string>();
   for (const k of piece.candidates) {
-    if (hasAnyMovesAsKind(k, piece, location.square, pos, mgf)) survivors.add(k);
+    if (canKindExplainMove(k, lastMove.from, lastMove.to, piece.owner, mgf)) {
+      survivors.add(k);
+    }
   }
   return survivors;
 };

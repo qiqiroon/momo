@@ -42,37 +42,90 @@ function makeSentePiece(overrides: Partial<PieceInstance> = {}): PieceInstance {
   };
 }
 
-describe('C-101 行動可能性', () => {
-  it('空盤の中央 (row5,col4): 8 候補すべて動けるので全部残る', () => {
-    const piece = makeSentePiece();
-    const pos = withPieceAt(emptyPos(), 5, 4, piece);
-    const result = c101ActionPossibility(piece, { kind: 'board', square: { row: 5, col: 4 } }, pos, hondou, DEFAULT_QUANTUM_CONTEXT);
-    expect(result.size).toBe(8);
-  });
-
-  it('sente 歩を敵陣最奥 row=0 col=4 に置く: 前進不能な fu/kyo/kei は動きが変わって除外の対象', () => {
-    // player1 の fu は前進 (row-1) のみ。row=0 から (row-1)=(-1) は盤外なので fu は動けない → 除外
-    // kyo (香・スライド前) も row=0 から動けない → 除外
-    // kei (桂) は前 2 段でジャンプ → 盤外 → 除外
-    // gin/kin/kaku/hi/ou は横/斜め/後方に動ける
-    const piece = makeSentePiece({ pieceId: 'P_top' });
-    const pos = withPieceAt(emptyPos(), 0, 4, piece);
-    const result = c101ActionPossibility(piece, { kind: 'board', square: { row: 0, col: 4 } }, pos, hondou, DEFAULT_QUANTUM_CONTEXT);
+describe('C-101 行動可能性 (§Q7 移動履歴依存)', () => {
+  it('直近の指し手が斜め前 1: fu/kyo/kei/hi は説明不能で除外、gin/kin/kaku/ou は残る', () => {
+    // sente 駒が (6,7) → (5,6) に斜め前 1 移動 (v0.98 バグ再現ケース)
+    const piece = makeSentePiece({ pieceId: 'P_diag' });
+    const pos: Position = {
+      ...withPieceAt(emptyPos(), 5, 6, piece),
+      history: [{ type: 'move', pieceId: 'P_diag', from: { row: 6, col: 7 }, to: { row: 5, col: 6 }, promote: false }],
+    };
+    const result = c101ActionPossibility(piece, { kind: 'board', square: { row: 5, col: 6 } }, pos, hondou, DEFAULT_QUANTUM_CONTEXT);
     expect(result.has('fu')).toBe(false);
     expect(result.has('kyo')).toBe(false);
     expect(result.has('kei')).toBe(false);
+    expect(result.has('hi')).toBe(false);
     expect(result.has('gin')).toBe(true);
     expect(result.has('kin')).toBe(true);
     expect(result.has('kaku')).toBe(true);
+    expect(result.has('ou')).toBe(true);
+  });
+
+  it('直近の指し手が前 1 (真上): fu/kyo/gin/kin/hi/ou は残るが kei/kaku は除外', () => {
+    // 前進 1 段の move。fu(前1), kyo(前slide), gin(前1), kin(前1), hi(前slide), ou(前1) は説明可
+    // kei は knight jump (前2±1) 固定なので前 1 を説明不能。kaku は斜めなので前 1 も説明不能
+    const piece = makeSentePiece({ pieceId: 'P_fwd' });
+    const pos: Position = {
+      ...withPieceAt(emptyPos(), 5, 4, piece),
+      history: [{ type: 'move', pieceId: 'P_fwd', from: { row: 6, col: 4 }, to: { row: 5, col: 4 }, promote: false }],
+    };
+    const result = c101ActionPossibility(piece, { kind: 'board', square: { row: 5, col: 4 } }, pos, hondou, DEFAULT_QUANTUM_CONTEXT);
+    expect(result.has('fu')).toBe(true);
+    expect(result.has('kyo')).toBe(true);
+    expect(result.has('kei')).toBe(false);
+    expect(result.has('gin')).toBe(true);
+    expect(result.has('kin')).toBe(true);
+    expect(result.has('kaku')).toBe(false);
     expect(result.has('hi')).toBe(true);
     expect(result.has('ou')).toBe(true);
   });
 
-  it('持ち駒は「動く」対象外なので狭めない', () => {
+  it('直近の指し手が桂馬ジャンプ (前2 横1): kei と ou 系のみが残るはず (kei/ou/kaku は該当なし)', () => {
+    // 桂の move: (7,7) → (5,6) は dr=-2, dc=-1. 桂の offset は (前2, ±1) = (-2, ±1)。マッチ
+    // 他の駒種: fu(-1,0)不一致, kyo slide(-s,0)不一致, gin/kin/kaku/hi/ou 全て 1 マス系 or 直線 で不一致 (ou は 1 マスなので dr=-2 に届かない)
+    const piece = makeSentePiece({ pieceId: 'P_kei' });
+    const pos: Position = {
+      ...withPieceAt(emptyPos(), 5, 6, piece),
+      history: [{ type: 'move', pieceId: 'P_kei', from: { row: 7, col: 7 }, to: { row: 5, col: 6 }, promote: false }],
+    };
+    const result = c101ActionPossibility(piece, { kind: 'board', square: { row: 5, col: 6 } }, pos, hondou, DEFAULT_QUANTUM_CONTEXT);
+    expect(result.has('kei')).toBe(true);
+    expect(result.has('fu')).toBe(false);
+    expect(result.has('kyo')).toBe(false);
+    expect(result.has('gin')).toBe(false);
+    expect(result.has('kin')).toBe(false);
+    expect(result.has('kaku')).toBe(false);
+    expect(result.has('hi')).toBe(false);
+    expect(result.has('ou')).toBe(false);
+  });
+
+  it('動いていない駒は candidates を触らない (v0.98 バグの反対事例)', () => {
+    // 動いた駒は別 pieceId、この駒は静止中
+    const mover = makeSentePiece({ pieceId: 'P_mover' });
+    const still = makeSentePiece({ pieceId: 'P_still' });
+    const pos: Position = {
+      ...withPieceAt(withPieceAt(emptyPos(), 5, 6, mover), 8, 7, still),
+      history: [{ type: 'move', pieceId: 'P_mover', from: { row: 6, col: 7 }, to: { row: 5, col: 6 }, promote: false }],
+    };
+    const result = c101ActionPossibility(still, { kind: 'board', square: { row: 8, col: 7 } }, pos, hondou, DEFAULT_QUANTUM_CONTEXT);
+    // P_still は動いていないので 8 種そのまま
+    expect(result.size).toBe(8);
+  });
+
+  it('持ち駒はこの制約で狭まらない', () => {
     const piece = makeSentePiece({ pieceId: 'H1' });
-    const pos = emptyPos();
+    const pos: Position = {
+      ...emptyPos(),
+      history: [{ type: 'move', pieceId: 'H1', from: { row: 6, col: 7 }, to: { row: 5, col: 6 }, promote: false }],
+    };
     const result = c101ActionPossibility(piece, { kind: 'hand', owner: 'player1', index: 0 }, pos, hondou, DEFAULT_QUANTUM_CONTEXT);
-    // 持ち駒として渡されると狭めず現状の candidates を返す
+    expect(result.size).toBe(8);
+  });
+
+  it('history が空 (初手前): 全候補残る', () => {
+    const piece = makeSentePiece({ pieceId: 'P_new' });
+    const pos = withPieceAt(emptyPos(), 5, 4, piece);
+    const result = c101ActionPossibility(piece, { kind: 'board', square: { row: 5, col: 4 } }, pos, hondou, DEFAULT_QUANTUM_CONTEXT);
     expect(result.size).toBe(8);
   });
 });

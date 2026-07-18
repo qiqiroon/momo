@@ -43,6 +43,7 @@ export function GameScreen({ variant }: GameScreenProps) {
   const moveHistory = useGameStore((s) => s.moveHistory);
   const status = useGameStore((s) => s.status);
   const lastAppliedMove = useGameStore((s) => s.lastAppliedMove);
+  const entangledPieceIds = useGameStore((s) => s.entangledPieceIds);
   const selectSquare = useGameStore((s) => s.selectSquare);
   const selectHandPiece = useGameStore((s) => s.selectHandPiece);
   const clearSelection = useGameStore((s) => s.clearSelection);
@@ -304,6 +305,12 @@ export function GameScreen({ variant }: GameScreenProps) {
   const isHint = (row: number, col: number) => legalDestinations.some((d) => d.row === row && d.col === col);
   const lastMoveTo = position.history.length > 0 ? position.history[position.history.length - 1].to : null;
   const isLastMove = (row: number, col: number) => lastMoveTo?.row === row && lastMoveTo?.col === col;
+  // v0.99: 量子もつれハイライト用 Set (盤マス位置は駒の pieceId 経由で判定)
+  const entangledSet = new Set(entangledPieceIds);
+  const isEntangledBoard = (row: number, col: number) => {
+    const cell = position.board[row][col];
+    return !!cell && entangledSet.has(cell.pieceId);
+  };
 
   // オンライン対戦で自分の手番でないなら入力を受け付けない
   const inputBlocked = online.isOnline && online.mySide !== null && position.sideToMove !== online.mySide;
@@ -484,6 +491,7 @@ export function GameScreen({ variant }: GameScreenProps) {
               activePlayer={position.sideToMove === oppSide}
               locale={locale}
               label={oppSideLabel}
+              entangledPieceIds={entangledSet}
             />
             <div className={`board-with-coords${flipped ? ' flipped' : ''}`}>
               <div className={`board-outer${isMyTurnOnline ? ' myturn' : ''}`}>
@@ -527,6 +535,7 @@ export function GameScreen({ variant }: GameScreenProps) {
                       isSelected(row, col) ? 'selected' : '',
                       isHint(row, col) ? 'hint' : '',
                       isLastMove(row, col) ? 'lastmove' : '',
+                      isEntangledBoard(row, col) ? 'entangled' : '',
                     ]
                       .filter(Boolean)
                       .join(' ');
@@ -550,6 +559,7 @@ export function GameScreen({ variant }: GameScreenProps) {
               activePlayer={position.sideToMove === viewerSide}
               locale={locale}
               label={mySideLabel}
+              entangledPieceIds={entangledSet}
             />
           </div>
 
@@ -1581,9 +1591,12 @@ interface PieceStandViewProps {
   locale: LocaleCode;
   /** v0.68 C4: 駒台ヘッダーに表示するラベル (先手/後手 等)。未指定なら従来通り Gote/You */
   label?: string;
+  /** v0.99: 量子もつれで candidates が変化した pieceId 集合。持ち駒台側の当該駒にも
+   * 薄い水色ハイライトを付ける。 */
+  entangledPieceIds?: Set<string>;
 }
 
-function PieceStandView({ side, pieces, onClick, selectedId, activePlayer, locale, label }: PieceStandViewProps) {
+function PieceStandView({ side, pieces, onClick, selectedId, activePlayer, locale, label, entangledPieceIds }: PieceStandViewProps) {
   const isEn = locale === 'en';
   // v0.89: spec D1 §4.4 「相手の持ち駒は先手と点対称：並び順も先手を逆順にする」
   // groupHand は DESC (大駒 上) で返すので、you 側はそのまま。opp 側は reverse して
@@ -1599,10 +1612,16 @@ function PieceStandView({ side, pieces, onClick, selectedId, activePlayer, local
           const name = pieceNameFor(g.kind, locale);
           const isMulti = isEn && name.length > 1;
           const jaCls = ['ja', isEn ? 'en' : '', isEn && isMulti ? 'multi' : ''].filter(Boolean).join(' ');
+          const hasEntangled = !!entangledPieceIds && g.pieceIds.some((pid) => entangledPieceIds.has(pid));
+          const capCls = [
+            'cap',
+            selectedId && g.pieceIds.includes(selectedId) ? 'selected' : '',
+            hasEntangled ? 'entangled' : '',
+          ].filter(Boolean).join(' ');
           return (
             <div
               key={g.kind}
-              className={`cap${selectedId && g.pieceIds.includes(selectedId) ? ' selected' : ''}`}
+              className={capCls}
               onClick={() => activePlayer && onClick(g.pieceIds[0])}
               style={{ cursor: activePlayer ? 'pointer' : 'default' } as CSSProperties}
             >

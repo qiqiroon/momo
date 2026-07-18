@@ -13,6 +13,7 @@ import type { BoardMove, Mgf, Move, Player, Position, Square } from '../engine';
 import { formatMove } from '../engine/kifu/format';
 import { NO_LIMIT_TIME_CONTROL, initClockState, type ClockState, type TimeControl } from '../engine/time-control';
 import { get as pluginGet } from '../plugin/registry';
+import { useDebugStore, type DebugCandidateChangeEntry } from './debug-store';
 
 /**
  * 対局開始オプション (Phase 5-2)。
@@ -98,6 +99,12 @@ interface GameState {
   activeClockSide: 'player1' | 'player2' | null;
   /** 中断中フラグ（v0.41 追加）。true の間 ticker は tick しない。activeClockSide は保持されるため再開で継続 */
   paused: boolean;
+  /**
+   * v0.99 (Phase 5-6 拡張): 直近の候補集合更新で candidates が変化した駒の pieceId 一覧。
+   * 動いた駒 (lastMove の pieceId) は除外し、量子もつれで巻き添えを食った駒のみ。
+   * UI ハイライト (盤マス・持ち駒台に薄い水色半透明) の描画根拠として使う。
+   */
+  entangledPieceIds: string[];
 
   selectSquare: (sq: Square) => void;
   selectHandPiece: (pieceId: string) => void;
@@ -216,6 +223,12 @@ function applyAndCommit(
     const candidateUpdateFn = pluginGet<QuantumCandidateUpdateFn>('quantum:candidateUpdate');
     if (candidateUpdateFn) nextPos = candidateUpdateFn(nextPos, mgf, { torusMode: 'none' });
   }
+  // v0.99 (Phase 5-6 拡張): 動いた駒以外で candidates が変化した駒を「量子もつれ」として
+  // 記録する。UI ハイライトと debug の候補変更履歴表示で使う。動いた駒 (move.pieceId) は
+  // 除外し、その他で before/after の candidates が異なる駒のみ集める。
+  const entangledPieceIds = currentQuantum
+    ? diffEntangledPieceIds(position, nextPos, move)
+    : [];
   const { status, positionCounts: nextCounts } = computeStatusAfterMove(mgf, nextPos, positionCounts);
   const nextSeq = (lastAppliedMove?.seq ?? 0) + 1;
   // v0.35: 時計の更新。指し終わった側は byoyomi なら秒読みリセット / fischer なら加算
@@ -251,7 +264,106 @@ function applyAndCommit(
     clockHistory: [...clockHistory, preClockSnapshot],
     clocks: nextClocks,
     activeClockSide: nextActiveSide,
+    entangledPieceIds,
   });
+  // v0.99 (Phase 5-6 拡張): デバッグモード有効なら候補変更履歴を debug-store にも積む。
+  // 動いた駒自身の変化も含めて全部押し込む (UI ハイライトは動いた駒を除外するが、
+  // デバッグ情報は全変化を時系列で見たい)。debug-store は core/store 内で
+  // 直接 import する (プラグイン境界は不要・A ビルドでも enabled=false で自然に no-op)。
+  if (currentQuantum) {
+    const dbg = useDebugStore.getState();
+    if (dbg.enabled) {
+      const moveNumber = position.moveNumber;
+      const changes: DebugCandidateChangeEntry[] = diffAllCandidateChanges(position, nextPos).map((c) => ({
+        time: Date.now(),
+        moveNumber,
+        pieceId: c.pieceId,
+        before: c.before,
+        after: c.after,
+        removed: c.removed,
+        added: c.added,
+      }));
+      if (changes.length > 0) dbg.logCandidateChanges(changes);
+    }
+  }
+}
+
+/**
+ * v0.99: before → after で candidates が変化した駒の pieceId を集める (動いた駒を除外)。
+ * UI ハイライトで使う量子もつれ判定。
+ */
+function diffEntangledPieceIds(before: Position, after: Position, move: Move): string[] {
+  const beforeMap = collectPieceInstances(before);
+  const afterMap = collectPieceInstances(after);
+  const movedId = move.pieceId;
+  const ids: string[] = [];
+  for (const [pid, afterPiece] of afterMap) {
+    if (pid === movedId) continue;
+    const beforePiece = beforeMap.get(pid);
+    if (!beforePiece) continue; // 新規登場 (捕獲で hand に入った等) は対象外
+    if (!candidatesChanged(beforePiece.candidates, afterPiece.candidates)) continue;
+    ids.push(pid);
+  }
+  return ids;
+}
+
+/**
+ * v0.99: デバッグログ用 (動いた駒も含む全変化)。時系列で candidates before/after を表現。
+ */
+function diffAllCandidateChanges(before: Position, after: Position): {
+  pieceId: string;
+  before: string[];
+  after: string[];
+  removed: string[];
+  added: string[];
+}[] {
+  const beforeMap = collectPieceInstances(before);
+  const afterMap = collectPieceInstances(after);
+  const changes: {
+    pieceId: string;
+    before: string[];
+    after: string[];
+    removed: string[];
+    added: string[];
+  }[] = [];
+  for (const [pid, afterPiece] of afterMap) {
+    const beforePiece = beforeMap.get(pid);
+    if (!beforePiece) continue;
+    const beforeCands = beforePiece.candidates ? Array.from(beforePiece.candidates).sort() : [];
+    const afterCands = afterPiece.candidates ? Array.from(afterPiece.candidates).sort() : [];
+    if (!candidatesChanged(beforePiece.candidates, afterPiece.candidates)) continue;
+    const beforeSet = new Set(beforeCands);
+    const afterSet = new Set(afterCands);
+    const removed = beforeCands.filter((x) => !afterSet.has(x));
+    const added = afterCands.filter((x) => !beforeSet.has(x));
+    changes.push({ pieceId: pid, before: beforeCands, after: afterCands, removed, added });
+  }
+  return changes;
+}
+
+/** 位置全体から pieceId → PieceInstance の map を作る (盤上+持ち駒両方)。 */
+function collectPieceInstances(pos: Position): Map<string, import('../engine/position/types').PieceInstance> {
+  const map = new Map<string, import('../engine/position/types').PieceInstance>();
+  for (const row of pos.board) {
+    for (const cell of row) {
+      if (cell) map.set(cell.pieceId, cell);
+    }
+  }
+  for (const p of pos.hands.player1) map.set(p.pieceId, p);
+  for (const p of pos.hands.player2) map.set(p.pieceId, p);
+  return map;
+}
+
+/** 2 つの candidates 集合が実質的に異なるか (undefined 同士は同じ扱い)。 */
+function candidatesChanged(
+  a: ReadonlySet<string> | undefined,
+  b: ReadonlySet<string> | undefined,
+): boolean {
+  if (a === undefined && b === undefined) return false;
+  if (a === undefined || b === undefined) return true;
+  if (a.size !== b.size) return true;
+  for (const x of a) if (!b.has(x)) return true;
+  return false;
 }
 
 /** v0.35: 指し終わった側の時計を、時間モードに応じて調整（byoyomi リセット / fischer 加算） */
@@ -303,6 +415,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   activeClockSide: null,
   paused: false,
   currentQuantum: false,
+  entangledPieceIds: [],
 
   selectSquare: (sq) => {
     const { position, mgf, status } = get();
@@ -635,6 +748,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       },
       activeClockSide: tc.mode === 'no_limit' ? null : 'player1',
       paused: false,
+      entangledPieceIds: [],
     });
   },
 

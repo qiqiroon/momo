@@ -18,7 +18,7 @@ import { FloatingPanel } from './FloatingPanel';
 import { HeaderCommonRight } from './HeaderCommonRight';
 import type { OnlineGameConnector } from '../plugin/gameConnector';
 import { useDebugStore } from '../store/debug-store';
-import { DebugPanel } from './DebugPanel';
+import { DebugClickLog } from './DebugClickLog';
 
 interface GameScreenProps {
   variant: 'a' | 'b';
@@ -612,9 +612,11 @@ export function GameScreen({ variant }: GameScreenProps) {
             </div>
           </div>
 
-          {/* v0.94: ?debug=1 の時のみ棋譜パネル直下にデバッグパネルを常時表示。
+          {/* v0.94: ?debug=1 の時のみ棋譜パネル直下にクリック履歴枠を常時表示。
+              v0.95 で PieceID スイッチ等を持つフローティング DebugPanel (App.tsx で描画・
+              歯車内リンクから開く) と分離した。ここは対局中に垂れ流しで見るログ専用。
               内部で enabled ガードしているので、通常モードでは何もレンダリングしない。 */}
-          <DebugPanel />
+          <DebugClickLog />
         </div>
       </div>
       <PromotionModal locale={locale} t={t} viewerSide={viewerSide} />

@@ -6,22 +6,31 @@ import { directionOffsets } from './directions';
  * 盤上の指定マスの駒について、擬合法手 (pseudo-legal moves) を生成する。
  * 反則 (nifu, uchifu_tsume, suicide, dead_zone) の除外は段階1-4、
  * 自玉が王手状態になる手の除外は段階1-6 で行う。
+ *
+ * 量子モード (Phase 5-3): `piece.candidates` が定義されている場合、
+ * 各候補駒種の abilities を union して合法先を返す (§Q5.3)。
+ * candidates 未定義なら従来通り `piece.kind` 単一で動作する (縮退互換)。
  */
 export function generatePieceMoves(mgf: Mgf, position: Position, from: Square): BoardMove[] {
   const piece = position.board[from.row][from.col];
   if (!piece) return [];
   if (piece.owner !== position.sideToMove) return [];
 
-  const def = mgf.pieces.find((p) => p.id === piece.kind);
-  if (!def || !def.move_logic) return [];
+  const candidateKinds = piece.candidates ? Array.from(piece.candidates) : [piece.kind];
 
   const moves: BoardMove[] = [];
-  for (const ability of def.move_logic.abilities) {
-    const offsets = directionOffsets(ability.direction, piece.owner);
-    for (const { drow, dcol } of offsets) {
-      const destinations = collectDestinations(position, piece, from, drow, dcol, ability);
-      for (const to of destinations) {
-        pushMoves(mgf, def, piece, from, to, position, moves);
+  const seen = new Set<string>();
+
+  for (const kind of candidateKinds) {
+    const def = mgf.pieces.find((p) => p.id === kind);
+    if (!def || !def.move_logic) continue;
+    for (const ability of def.move_logic.abilities) {
+      const offsets = directionOffsets(ability.direction, piece.owner);
+      for (const { drow, dcol } of offsets) {
+        const destinations = collectDestinations(position, piece, from, drow, dcol, ability);
+        for (const to of destinations) {
+          pushMoves(mgf, def, piece, from, to, position, moves, seen);
+        }
       }
     }
   }
@@ -85,17 +94,24 @@ function pushMoves(
   to: Square,
   position: Position,
   out: BoardMove[],
+  seen: Set<string>,
 ): void {
   const capturedPieceId = position.board[to.row][to.col]?.pieceId;
   const canPromote = canPromoteMove(mgf, def, piece, from, to);
   const mustPromote = mustPromoteMove(mgf, def, piece, to);
+  const push = (promote: boolean) => {
+    const key = `${to.row},${to.col},${promote ? 1 : 0}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({ type: 'move', pieceId: piece.pieceId, from, to, promote, capturedPieceId });
+  };
   if (mustPromote) {
-    out.push({ type: 'move', pieceId: piece.pieceId, from, to, promote: true, capturedPieceId });
+    push(true);
   } else if (canPromote) {
-    out.push({ type: 'move', pieceId: piece.pieceId, from, to, promote: false, capturedPieceId });
-    out.push({ type: 'move', pieceId: piece.pieceId, from, to, promote: true, capturedPieceId });
+    push(false);
+    push(true);
   } else {
-    out.push({ type: 'move', pieceId: piece.pieceId, from, to, promote: false, capturedPieceId });
+    push(false);
   }
 }
 

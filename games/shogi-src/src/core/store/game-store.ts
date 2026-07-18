@@ -23,7 +23,11 @@ export interface ResetOptions {
   quantum?: boolean;
 }
 type QuantumInitFn = (pos: Position) => Position;
-type QuantumCandidateUpdateFn = (pos: Position, mgf: Mgf) => Position;
+type QuantumCandidateUpdateFn = (
+  pos: Position,
+  mgf: Mgf,
+  context?: { torusMode: 'none' | 'cylinder' | 'full' },
+) => Position;
 
 export interface PendingPromotion {
   nonPromoteMove: BoardMove;
@@ -206,11 +210,11 @@ function applyAndCommit(
   const formatted = formatMove(mgf, position, move);
   let nextPos = applyMove(mgf, position, move);
   // v0.96 (Phase 5-4): 量子モードなら着手直後に候補集合を再評価する。
-  // 5-4 段階では制約が 0 個なので実質 no-op。5-5 以降で C-001/C-002/C-003 等が
-  // register('quantum:constraints', [...]) で登録されると意味を持ち始める。
+  // v0.98 (Phase 5-6): torus モード情報を context として渡す。torus 実装は Phase 4
+  // で完成予定なので現状は 'none' を渡す (C-103/C-104 は非 torus 環境で有効化)。
   if (currentQuantum) {
     const candidateUpdateFn = pluginGet<QuantumCandidateUpdateFn>('quantum:candidateUpdate');
-    if (candidateUpdateFn) nextPos = candidateUpdateFn(nextPos, mgf);
+    if (candidateUpdateFn) nextPos = candidateUpdateFn(nextPos, mgf, { torusMode: 'none' });
   }
   const { status, positionCounts: nextCounts } = computeStatusAfterMove(mgf, nextPos, positionCounts);
   const nextSeq = (lastAppliedMove?.seq ?? 0) + 1;

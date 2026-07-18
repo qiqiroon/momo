@@ -39,6 +39,18 @@ export type QuantumPieceLocation =
   | { kind: 'hand'; owner: 'player1' | 'player2'; index: number };
 
 /**
+ * candidate_update 呼び出し時の副次情報。Phase 4 のトーラスモード等、Position や Mgf
+ * だけでは表現しにくい runtime 状態をここに集約する。制約は必要に応じてこの context を
+ * 参照して発火/非発火を切り替える (例: torus ON 時は C-103/C-104 を無効化)。
+ */
+export interface QuantumContext {
+  torusMode: 'none' | 'cylinder' | 'full';
+}
+
+/** context を省略した時の既定値 (torus 非適用)。 */
+export const DEFAULT_QUANTUM_CONTEXT: QuantumContext = { torusMode: 'none' };
+
+/**
  * 単一の制約。piece の現在の候補集合を狭める判断を返す。
  * 返り値 = その駒に「現時点で許される駒種集合」。current candidates と交わって適用される。
  */
@@ -47,6 +59,7 @@ export type QuantumConstraint = (
   location: QuantumPieceLocation,
   position: Position,
   mgf: Mgf,
+  context: QuantumContext,
 ) => ReadonlySet<string>;
 
 const MAX_ITERATIONS = 512;
@@ -60,14 +73,18 @@ const MAX_ITERATIONS = 512;
  *   memo/useMemo フックが余計に再計算されないようにする配慮)。
  * - MAX_ITERATIONS で強制打ち切り + console.warn ログ (安全弁)。
  */
-export function candidateUpdate(pos: Position, mgf: Mgf): Position {
+export function candidateUpdate(
+  pos: Position,
+  mgf: Mgf,
+  context: QuantumContext = DEFAULT_QUANTUM_CONTEXT,
+): Position {
   const constraints = pluginGet<QuantumConstraint[]>('quantum:constraints') ?? [];
   if (constraints.length === 0) return pos;
 
   let current = pos;
   let final: Position | null = null;
   for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
-    const { next, changed } = applyConstraintsOnce(current, mgf, constraints);
+    const { next, changed } = applyConstraintsOnce(current, mgf, constraints, context);
     if (!changed) {
       final = current;
       break;
@@ -97,6 +114,7 @@ function applyConstraintsOnce(
   pos: Position,
   mgf: Mgf,
   constraints: QuantumConstraint[],
+  context: QuantumContext,
 ): { next: Position; changed: boolean } {
   let changed = false;
 
@@ -109,6 +127,7 @@ function applyConstraintsOnce(
         pos,
         mgf,
         constraints,
+        context,
       );
       if (updated !== cell) changed = true;
       return updated;
@@ -123,6 +142,7 @@ function applyConstraintsOnce(
         pos,
         mgf,
         constraints,
+        context,
       );
       if (updated !== piece) changed = true;
       return updated;
@@ -134,6 +154,7 @@ function applyConstraintsOnce(
         pos,
         mgf,
         constraints,
+        context,
       );
       if (updated !== piece) changed = true;
       return updated;
@@ -155,11 +176,12 @@ function applyConstraintsToPiece(
   pos: Position,
   mgf: Mgf,
   constraints: QuantumConstraint[],
+  context: QuantumContext,
 ): PieceInstance {
   if (piece.candidates === undefined) return piece;
   let next: Set<string> | null = null;
   for (const c of constraints) {
-    const allowed = c(piece, location, pos, mgf);
+    const allowed = c(piece, location, pos, mgf, context);
     const base = next ?? piece.candidates;
     const intersected = intersect(base, allowed);
     if (intersected.size !== base.size) {

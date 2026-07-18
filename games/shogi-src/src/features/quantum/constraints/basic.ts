@@ -117,21 +117,21 @@ export function checkC002CandidatesMonotone(before: Position, after: Position): 
  * §Q8.3 C-001 に対応する per-piece 制約。現時点では狭めない (piece.candidates を
  * そのまま返す)。将来ここで initial 所属由来のチェックを追加する余地あり。
  */
-const c001Constraint: QuantumConstraint = (piece) => piece.candidates ?? new Set();
+const c001Constraint: QuantumConstraint = (piece, _location, _pos, _mgf, _context) => piece.candidates ?? new Set();
 
 /**
  * §Q8.3 C-002 に対応する per-piece 制約。現時点では狭めない。framework が intersect
  * で自動的に単調非増加を保つが、per-piece レベルで追加チェックを詰めたくなった時の
  * 受け枠として残す。
  */
-const c002Constraint: QuantumConstraint = (piece) => piece.candidates ?? new Set();
+const c002Constraint: QuantumConstraint = (piece, _location, _pos, _mgf, _context) => piece.candidates ?? new Set();
 
 /**
  * §Q8.3 C-003 に対応する per-piece 制約。framework の反復ループ (AC-3) 自体が
  * C-003 を実装しているので per-piece コードは不要。この Constraint は登録の
  * 一貫性を保つための no-op。
  */
-const c003Constraint: QuantumConstraint = (piece) => piece.candidates ?? new Set();
+const c003Constraint: QuantumConstraint = (piece, _location, _pos, _mgf, _context) => piece.candidates ?? new Set();
 
 /**
  * `register('quantum:constraints', basicConstraints)` に流し込む配列。

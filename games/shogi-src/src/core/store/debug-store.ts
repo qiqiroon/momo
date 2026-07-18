@@ -21,16 +21,13 @@ export interface DebugClickEntry {
 }
 
 interface DebugState {
-  /** URL に ?debug=1 が付いていたか。付いていなければ全機能非表示 (歯車内リンクも出ない)。 */
+  /** URL に ?debug=1 が付いていたか。付いていなければ全機能非表示 (GameScreen 内の DebugPanel も出ない)。 */
   enabled: boolean;
-  /** デバッグパネル自体の開閉状態。 */
-  panelOpen: boolean;
   /** 盤マスの左上に PieceID + [candidates.size] を出すか。 */
   showPieceIds: boolean;
   /** 直近 MAX_LOG 件の駒クリック履歴 (新しい方が末尾)。 */
   clickLog: DebugClickEntry[];
   enable: () => void;
-  setPanelOpen: (open: boolean) => void;
   toggleShowPieceIds: () => void;
   logClick: (piece: PieceInstance, source: 'board' | 'hand') => void;
   clearLog: () => void;
@@ -40,11 +37,9 @@ const MAX_LOG = 20;
 
 export const useDebugStore = create<DebugState>((set) => ({
   enabled: false,
-  panelOpen: false,
   showPieceIds: false,
   clickLog: [],
   enable: () => set({ enabled: true }),
-  setPanelOpen: (open) => set({ panelOpen: open }),
   toggleShowPieceIds: () => set((s) => ({ showPieceIds: !s.showPieceIds })),
   logClick: (piece, source) => set((s) => ({
     clickLog: [...s.clickLog, { time: Date.now(), source, piece }].slice(-MAX_LOG),

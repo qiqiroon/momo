@@ -18,6 +18,7 @@ import { FloatingPanel } from './FloatingPanel';
 import { HeaderCommonRight } from './HeaderCommonRight';
 import type { OnlineGameConnector } from '../plugin/gameConnector';
 import { useDebugStore } from '../store/debug-store';
+import { DebugPanel } from './DebugPanel';
 
 interface GameScreenProps {
   variant: 'a' | 'b';
@@ -610,6 +611,10 @@ export function GameScreen({ variant }: GameScreenProps) {
               </div>
             </div>
           </div>
+
+          {/* v0.94: ?debug=1 の時のみ棋譜パネル直下にデバッグパネルを常時表示。
+              内部で enabled ガードしているので、通常モードでは何もレンダリングしない。 */}
+          <DebugPanel />
         </div>
       </div>
       <PromotionModal locale={locale} t={t} viewerSide={viewerSide} />

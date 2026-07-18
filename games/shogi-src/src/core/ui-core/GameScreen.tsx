@@ -492,6 +492,7 @@ export function GameScreen({ variant }: GameScreenProps) {
               locale={locale}
               label={oppSideLabel}
               entangledPieceIds={entangledSet}
+              debugShowPieceIds={debugEnabled && showPieceIds}
             />
             <div className={`board-with-coords${flipped ? ' flipped' : ''}`}>
               <div className={`board-outer${isMyTurnOnline ? ' myturn' : ''}`}>
@@ -560,6 +561,7 @@ export function GameScreen({ variant }: GameScreenProps) {
               locale={locale}
               label={mySideLabel}
               entangledPieceIds={entangledSet}
+              debugShowPieceIds={debugEnabled && showPieceIds}
             />
           </div>
 
@@ -1538,15 +1540,21 @@ function PromotionModal({ locale, t, viewerSide }: PromotionModalProps) {
 interface HandGroup {
   kind: string;
   pieceIds: string[];
+  /** v1.03: debug 表示で持ち駒の PieceID + candidates.size を出すため、生 PieceInstance も保持。 */
+  pieces: PieceInstance[];
 }
 
 function groupHand(hand: PieceInstance[]): HandGroup[] {
-  const groups = new Map<string, string[]>();
+  const groups = new Map<string, PieceInstance[]>();
   for (const p of hand) {
     if (!groups.has(p.kind)) groups.set(p.kind, []);
-    groups.get(p.kind)!.push(p.pieceId);
+    groups.get(p.kind)!.push(p);
   }
-  const arr = Array.from(groups.entries()).map(([kind, pieceIds]) => ({ kind, pieceIds }));
+  const arr = Array.from(groups.entries()).map(([kind, pieces]) => ({
+    kind,
+    pieces,
+    pieceIds: pieces.map((p) => p.pieceId),
+  }));
   // v0.88: spec D1 §4.4 準拠で強さ降順にソート (大駒 上・小駒 下)。
   // .stand.you の caps は justify-end で下寄せ、.stand.opp は justify-start で上寄せだが、
   // どちらも DOM 順の先頭が視覚的な「上」なので、DESC ソートで大駒が上に来る。
@@ -1598,9 +1606,11 @@ interface PieceStandViewProps {
   /** v0.99: 量子もつれで candidates が変化した pieceId 集合。持ち駒台側の当該駒にも
    * 薄い水色ハイライトを付ける。 */
   entangledPieceIds?: Set<string>;
+  /** v1.03: ?debug=1 && showPieceIds ON で持ち駒カードにも PieceID + candidates.size を出す。 */
+  debugShowPieceIds?: boolean;
 }
 
-function PieceStandView({ side, pieces, onClick, selectedId, activePlayer, locale, label, entangledPieceIds }: PieceStandViewProps) {
+function PieceStandView({ side, pieces, onClick, selectedId, activePlayer, locale, label, entangledPieceIds, debugShowPieceIds }: PieceStandViewProps) {
   const isEn = locale === 'en';
   // v0.89: spec D1 §4.4 「相手の持ち駒は先手と点対称：並び順も先手を逆順にする」
   // groupHand は DESC (大駒 上) で返すので、you 側はそのまま。opp 側は reverse して
@@ -1627,12 +1637,13 @@ function PieceStandView({ side, pieces, onClick, selectedId, activePlayer, local
               key={g.kind}
               className={capCls}
               onClick={() => activePlayer && onClick(g.pieceIds[0])}
-              style={{ cursor: activePlayer ? 'pointer' : 'default' } as CSSProperties}
+              style={{ cursor: activePlayer ? 'pointer' : 'default', position: 'relative' } as CSSProperties}
             >
               <div className="capface">
                 <span className={jaCls}>{name}</span>
               </div>
               {g.pieceIds.length >= 2 && <span className="ct">{g.pieceIds.length}</span>}
+              {debugShowPieceIds && <HandDebugIdBadge pieces={g.pieces} />}
             </div>
           );
         })}
@@ -1665,6 +1676,35 @@ function DebugIdBadge({ piece }: { piece: PieceInstance }) {
       }}
     >
       {piece.pieceId}{sizeLabel}
+    </span>
+  );
+}
+
+/**
+ * v1.03: 持ち駒カード上に出す PieceID + candidates.size のデバッグバッジ。
+ * 同 kind 群の全 PieceID を縦に列挙 (P0[8]/P1[8]/... 形式)。カード左上に絶対配置。
+ */
+function HandDebugIdBadge({ pieces }: { pieces: PieceInstance[] }) {
+  return (
+    <span
+      style={{
+        position: 'absolute', top: 1, left: 2, zIndex: 20,
+        fontSize: 8, lineHeight: 1.05,
+        color: 'rgba(255, 255, 0, 0.95)',
+        textShadow: '0 0 3px rgba(0, 0, 0, 1), 0 0 3px rgba(0, 0, 0, 1)',
+        pointerEvents: 'none',
+        fontFamily: 'ui-monospace, Menlo, Consolas, monospace',
+        letterSpacing: '-0.02em',
+        userSelect: 'none',
+        fontWeight: 700,
+        display: 'flex', flexDirection: 'column', gap: 1,
+        maxWidth: '95%',
+      }}
+    >
+      {pieces.map((p) => {
+        const sizeLabel = p.candidates !== undefined ? `[${p.candidates.size}]` : '';
+        return <span key={p.pieceId}>{p.pieceId}{sizeLabel}</span>;
+      })}
     </span>
   );
 }

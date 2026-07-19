@@ -889,7 +889,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.02</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.03</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -944,7 +944,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.02</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.03</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -997,6 +997,12 @@
 
   <button class="btn btn-primary big-start" id="btn-start" disabled data-i18n="start.disabled">ゲームスタート（親を決めると押せます）</button>
   <p class="note" data-i18n="room.note">この画面はホスト・ゲスト共通です。ゲーム選択・設定変更・親決めはホスト操作、ゲストは同期表示になります。</p>
+  <!-- 接続状況のリアルタイム診断（v1.03: P2P 接続失敗の切り分け用） -->
+  <div class="diag-panel" id="diag-panel" style="margin-top:10px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:.66rem;color:var(--text-muted);line-height:1.6;font-family:monospace;">
+    <div><b style="color:var(--orange-mid);">接続診断</b> <span id="diag-time"></span></div>
+    <div id="diag-log">起動中...</div>
+    <button class="btn btn-ghost btn-sm" id="btn-solo-fallback" style="margin-top:6px;font-size:.65rem;padding:4px 10px;" data-i18n="diag.solo">1 人で試す（P2P が繋がらない場合の回避策）</button>
+  </div>
 </section>
 
 <!-- ============ SCREEN 3: IN-GAME (mock verbatim: placeholder data) ============ -->
@@ -1004,7 +1010,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.02</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.03</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1131,7 +1137,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.02';
+const APP_VERSION = 'v1.03';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -1212,7 +1218,8 @@ const I18N = {
     'game.leave': '← 中断',
     'game.placeholder.title': '対局画面（Phase 2で実装）',
     'game.placeholder.body': '対局画面のレイアウトはモック通りに配置されています。カードの配札・合わせ取り・役判定・こいこい/勝負・全12局進行は次のフェーズで実装します。',
-    'game.round1of1': '第1局 / v1.02 online 単局',
+    'game.round1of1': '第1局 / v1.03 online 単局',
+    'diag.solo': '1 人で試す（P2P が繋がらない場合の回避策）',
     'game.month.field': (n) => n + '月場',
     'game.drawn': 'めくり札',
     'game.turn.selectHand': (p) => (p && p.who ? p.who : '？') + ' の手番：手札を選んでください',
@@ -1330,7 +1337,8 @@ const I18N = {
     'game.leave': '← Quit',
     'game.placeholder.title': 'In-Game Screen (Phase 2)',
     'game.placeholder.body': 'The in-game layout is placed per the mock. Dealing, matching, yaku detection, koi-koi/shobu, and the 12-round flow will be wired in the next phase.',
-    'game.round1of1': 'Round 1 / v1.02 online single round',
+    'game.round1of1': 'Round 1 / v1.03 online single round',
+    'diag.solo': 'Play solo (fallback when P2P won\'t connect)',
     'game.month.field': (n) => (['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][n-1]) + ' Field',
     'game.drawn': 'Drawn',
     'game.turn.selectHand': (p) => (p && p.who ? p.who : '?') + "'s turn: pick a card from hand",
@@ -1448,7 +1456,8 @@ const I18N = {
     'game.leave': '← 中止',
     'game.placeholder.title': '对局画面（Phase 2 实作）',
     'game.placeholder.body': '对局画面的布局已按 mock 摆好。发牌 / 合牌 / 役判定 / 来来·胜负 / 全12局进行将在下一阶段实作。',
-    'game.round1of1': '第1局 / v1.02 联机单局',
+    'game.round1of1': '第1局 / v1.03 联机单局',
+    'diag.solo': '单人试玩（P2P 无法连接时的替代方案）',
     'game.month.field': (n) => n + '月场',
     'game.drawn': '翻出',
     'game.turn.selectHand': (p) => (p && p.who ? p.who : '？') + ' 的回合：选择手牌',
@@ -1784,17 +1793,51 @@ function renderOyaDraw() {
 // --------------------------------------------------------------------------
 const MMState = { wsOpen: false, wasClosed: false };
 
+// v1.03: P2P 接続失敗の切り分け用診断ログ
+// - console.log にも出す (F12 → Console でユーザーが読める)
+// - room 画面下部の #diag-log にも append 表示
+// - MomoMatchmaking のコールバック + WebRTC state 変化の両方をトレース
+const _diagBuf = [];
+function diagLog(kind, msg) {
+  const now = new Date();
+  const ts = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0') + ':' + String(now.getSeconds()).padStart(2,'0');
+  const line = '[' + ts + '] [' + kind + '] ' + msg;
+  _diagBuf.push(line);
+  if (_diagBuf.length > 30) _diagBuf.shift();
+  try { console.log('[hanafuda-diag]', line); } catch (e) {}
+  const el = document.getElementById('diag-log');
+  if (el) el.textContent = _diagBuf.join('\n');
+  const tel = document.getElementById('diag-time');
+  if (tel) tel.textContent = ts;
+}
+
+// WebRTC PeerConnection の内部状態を定期監視 (2 秒ごと)
+function startDiagPolling() {
+  setInterval(() => {
+    try {
+      const st = MomoMatchmaking.getState();
+      const inRoom = !!st.currentRoomId;
+      const wsOpenNow = MMState.wsOpen;
+      if (inRoom) {
+        diagLog('poll', 'WS=' + (wsOpenNow?'open':'closed') + ' room=' + st.currentRoomId + ' isHost=' + st.isHost + ' MMconnected=' + st.connected + ' stateConnected=' + state.connected);
+      }
+    } catch (e) { diagLog('poll-err', e && e.message || String(e)); }
+  }, 2000);
+}
+
 function initMatchmaking() {
+  diagLog('init', 'MomoMatchmaking.init gameType=hanafuda url=' + SIGNALING_URL);
   MomoMatchmaking.init({
     gameType: 'hanafuda',
     signalingUrl: SIGNALING_URL,
-    onWsOpen: () => { MMState.wsOpen = true; MMState.wasClosed = false; refreshServerStatus(); renderRoomList(); },
-    onWsClose: () => { MMState.wsOpen = false; MMState.wasClosed = true; refreshServerStatus(); renderRoomList(); },
+    onWsOpen: () => { diagLog('ws', 'open'); MMState.wsOpen = true; MMState.wasClosed = false; refreshServerStatus(); renderRoomList(); },
+    onWsClose: () => { diagLog('ws', 'close'); MMState.wsOpen = false; MMState.wasClosed = true; refreshServerStatus(); renderRoomList(); },
     onRoomList: (rooms) => {
       state.publicRooms = rooms || [];
       if (state.screen === 'lobby') renderRoomList();
     },
     onRoomCreated: (roomId, roomName, rules) => {
+      diagLog('room', 'created id=' + roomId + ' name=' + roomName);
       state.isHost = true;
       state.roomName = roomName || state.roomName;
       state.roomHasPw = !!(rules && rules.hasPassword);
@@ -1805,13 +1848,13 @@ function initMatchmaking() {
       refreshRoomView();
     },
     onJoinedRoom: (roomId, roomName, hostName, rules) => {
+      diagLog('room', 'joined id=' + roomId + ' name=' + roomName + ' host=' + hostName);
       state.isHost = false;
       state.roomName = roomName || state.roomName;
       state.hostName = hostName || state.hostName;
       state.roomHasPw = !!(rules && rules.hasPassword);
       state.connected = false;
       state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null;
-      // ホストのゲーム設定は connect 後に受信して上書き
       if (rules && rules.settings) state.settings = Object.assign({}, state.settings, rules.settings);
       applySettingsToUi();
       renderOyaDraw();
@@ -1819,10 +1862,12 @@ function initMatchmaking() {
       refreshRoomView();
     },
     onGuestJoined: (guestName) => {
+      diagLog('room', 'guest joined name=' + guestName);
       state.guestName = guestName || t('notice.guestname');
       refreshRoomView();
     },
     onGuestLeft: () => {
+      diagLog('room', 'guest left');
       state.guestName = '';
       state.connected = false;
       state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null;
@@ -1830,9 +1875,9 @@ function initMatchmaking() {
       refreshRoomView();
     },
     onConnected: () => {
+      diagLog('p2p', 'DC open (onConnected fired)');
       state.connected = true;
       refreshRoomView();
-      // Host: 現在の設定と参加者名をゲストに配信
       if (state.isHost) {
         MomoMatchmaking.send({ type: 'hello', name: state.hostName });
         MomoMatchmaking.send({ type: 'settings', settings: state.settings });
@@ -1841,6 +1886,7 @@ function initMatchmaking() {
       }
     },
     onDisconnected: (msg) => {
+      diagLog('p2p', 'disconnected: ' + (msg || ''));
       state.connected = false;
       state.guestName = '';
       state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null;
@@ -1849,9 +1895,11 @@ function initMatchmaking() {
       showNotice(t('notice.disconnect.title'), msg || t('notice.disconnect.body'));
     },
     onError: (msg) => {
+      diagLog('err', 'onError: ' + (msg || ''));
       showNotice(t('notice.disconnect.title'), msg || '');
     },
     onKicked: () => {
+      diagLog('room', 'kicked');
       state.connected = false;
       showScreen('lobby');
       renderRoomList();
@@ -2615,6 +2663,19 @@ function bindEvents() {
   document.getElementById('btn-draw-oya').addEventListener('click', drawOya);
   document.getElementById('btn-start').addEventListener('click', startGame);
   document.getElementById('btn-leave').addEventListener('click', leaveRoom);
+  // v1.03: solo フォールバック (P2P 接続に失敗した時の回避策)
+  const btnSoloFB = document.getElementById('btn-solo-fallback');
+  if (btnSoloFB) {
+    btnSoloFB.addEventListener('click', () => {
+      diagLog('solo', 'solo fallback button clicked');
+      state.solo = true;
+      state.isHost = true;
+      state.hostName = state.hostName || 'ホスト';
+      state.guestName = state.guestName || 'ゲスト';
+      state.oya = state.oya || 'host';
+      startRound();
+    });
+  }
 
   // Game screen
   document.getElementById('btn-leave-game').addEventListener('click', leaveRoom);
@@ -2683,6 +2744,7 @@ document.addEventListener('DOMContentLoaded', () => {
   bindEvents();
   showScreen('lobby');
   initMatchmaking();
+  startDiagPolling();
   // ?debug=1: solo test hook (scope A verification)
   if (new URLSearchParams(location.search).get('debug') === '1') {
     window.__hanafudaDebug = {

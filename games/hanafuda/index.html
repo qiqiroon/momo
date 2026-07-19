@@ -889,7 +889,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.01</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.02</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -944,7 +944,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.01</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.02</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1004,7 +1004,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.01</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.02</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1131,7 +1131,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.01';
+const APP_VERSION = 'v1.02';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -1212,7 +1212,7 @@ const I18N = {
     'game.leave': '← 中断',
     'game.placeholder.title': '対局画面（Phase 2で実装）',
     'game.placeholder.body': '対局画面のレイアウトはモック通りに配置されています。カードの配札・合わせ取り・役判定・こいこい/勝負・全12局進行は次のフェーズで実装します。',
-    'game.round1of1': '第1局 / v1.01 単局モード',
+    'game.round1of1': '第1局 / v1.02 online 単局',
     'game.month.field': (n) => n + '月場',
     'game.drawn': 'めくり札',
     'game.turn.selectHand': (p) => (p && p.who ? p.who : '？') + ' の手番：手札を選んでください',
@@ -1330,7 +1330,7 @@ const I18N = {
     'game.leave': '← Quit',
     'game.placeholder.title': 'In-Game Screen (Phase 2)',
     'game.placeholder.body': 'The in-game layout is placed per the mock. Dealing, matching, yaku detection, koi-koi/shobu, and the 12-round flow will be wired in the next phase.',
-    'game.round1of1': 'Round 1 / v1.01 single-round demo',
+    'game.round1of1': 'Round 1 / v1.02 online single round',
     'game.month.field': (n) => (['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][n-1]) + ' Field',
     'game.drawn': 'Drawn',
     'game.turn.selectHand': (p) => (p && p.who ? p.who : '?') + "'s turn: pick a card from hand",
@@ -1448,7 +1448,7 @@ const I18N = {
     'game.leave': '← 中止',
     'game.placeholder.title': '对局画面（Phase 2 实作）',
     'game.placeholder.body': '对局画面的布局已按 mock 摆好。发牌 / 合牌 / 役判定 / 来来·胜负 / 全12局进行将在下一阶段实作。',
-    'game.round1of1': '第1局 / v1.01 单局演示',
+    'game.round1of1': '第1局 / v1.02 联机单局',
     'game.month.field': (n) => n + '月场',
     'game.drawn': '翻出',
     'game.turn.selectHand': (p) => (p && p.who ? p.who : '？') + ' 的回合：选择手牌',
@@ -1611,7 +1611,8 @@ const state = {
   oya: null,            // 'host' | 'guest' | null
   oyaHostMonth: null,
   oyaGuestMonth: null,
-  game: null,           // scope A: 対局中のみ non-null (startRound で初期化)
+  game: null,           // 対局中のみ non-null (startRound で host が初期化 / guest は applyState で受信)
+  solo: false,          // ?debug=1 の startRoundSolo でホットシート挙動時のみ true
 };
 
 // --------------------------------------------------------------------------
@@ -1883,8 +1884,16 @@ function handleP2P(data) {
     return;
   }
   if (data.type === 'start') {
-    // Phase 1: 対局中モックをそのまま表示 (実データ配線は Phase 2)
-    startRound();
+    // v1.02: guest は 'deal' を待つ (host が startRound で送信)。host は既に startGame() で startRound 済み。
+    if (!state.isHost) showScreen('game');
+    return;
+  }
+  if (data.type === 'deal' || data.type === 'state') {
+    applyState(data);
+    return;
+  }
+  if (data.type === 'intent') {
+    handleIntent(data);
     return;
   }
 }
@@ -1896,15 +1905,14 @@ function applySettingsToUi() {
 }
 
 // --------------------------------------------------------------------------
-// 9) 対局中画面: ルール本体 (Phase 2A local single-round hot-seat)
+// 9) 対局中画面: ルール本体 + オンライン同期 (v1.02)
 // --------------------------------------------------------------------------
-// 【scope A / v1.01】1 ブラウザで両手番を操作するモード。次セッションで
-//   - オンライン同期 (host 権威 + メッセージ 9 種)
-//   - 全 12 局管理・親継承・累計スコア
-//   - 手四 / くっつき (配札時特別役)
-//   - 月替わり (1月場〜12月場)
-// を追加。座席 (host/guest) を毎ターン視点入替 = 現在手番プレイヤーの
-// 手札を下段 (my-hand) に face-up 表示、非手番側は上段 (opp-hand) に裏向き。
+// 【scope】ホスト権威モデルで online 対戦の 1 局完走までを実装。
+//   - 視点は mySide 固定: 下段 = 自分の手札 (face-up)、上段 = 相手 (裏向き)
+//   - host が全ルール処理を担当 → 各フェーズ遷移で syncState() を guest に送信
+//   - guest はクリック時に intent (play/pick/koikoi/shobu) を送信、state 受信で再描画
+//   - ?debug=1 の startRoundSolo は state.solo=true でホットシート挙動を維持
+// 次セッションで残: 全 12 局進行 / 親継承 / 手四くっつき / 月替わり
 
 const CARD_SPEC = {
   1:  ['hikari','tan','kasu1','kasu2'],
@@ -1997,6 +2005,8 @@ function otherPlayer(p) { return p === 'host' ? 'guest' : 'host'; }
 
 function startRound() {
   showScreen('game');
+  // ホスト権威: online は host だけがここに来る (guest は 'deal' 受信で state をセット)。
+  if (!state.solo && !state.isHost) return;
   const deck = shuffle(buildDeck());
   const g = {
     deck: deck,
@@ -2012,9 +2022,11 @@ function startRound() {
     pendingYaku: null,
     pendingGained: null,
     koikoiBy: null,
+    roundEnd: null,
   };
   state.game = g;
   renderGame();
+  syncState({ deal: true });
 }
 
 // --- 描画 ---
@@ -2025,11 +2037,19 @@ function svgBack() {
   return '<svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg>';
 }
 
+// mySide(): この端末のプレイヤー側 (host / guest)。solo デバッグ時は
+// currentPlayer に追従する = 従来のホットシート挙動 (?debug=1 経由のみ)。
+function mySide() {
+  if (state.solo) return state.game ? state.game.currentPlayer : 'host';
+  return state.isHost ? 'host' : 'guest';
+}
+
 function renderGame() {
   const g = state.game;
   if (!g) return;
-  const cur = g.currentPlayer;
-  const opp = otherPlayer(cur);
+  const me = mySide();
+  const opp = otherPlayer(me);
+  const isMyTurn = g.currentPlayer === me;
   // Status bar
   document.getElementById('st-month').textContent = t('game.month.field', 1);
   document.getElementById('st-round').textContent = t('game.round1of1');
@@ -2037,22 +2057,22 @@ function renderGame() {
   document.getElementById('st-op-score').textContent = '0';
   document.getElementById('st-turn').innerHTML = renderPhaseText();
   document.getElementById('deck-count').textContent = g.deck.length;
-  // My hand (= current player face-up, clickable when phase=select-hand)
+  // My hand (= mySide face-up, clickable only when my turn + phase=select-hand)
   const myH = document.getElementById('my-hand');
   myH.innerHTML = '';
-  g.hands[cur].forEach(c => {
+  (g.hands[me] || []).forEach(c => {
     const wrap = document.createElement('span');
-    wrap.innerHTML = svgCard(c.id, g.phase === 'select-hand' ? 'clickable' : '');
+    const clickable = isMyTurn && g.phase === 'select-hand';
+    wrap.innerHTML = svgCard(c.id, clickable ? 'clickable' : '');
     const el = wrap.firstChild;
-    if (g.phase === 'select-hand') {
-      el.addEventListener('click', () => onClickHand(c));
-    }
+    if (clickable) el.addEventListener('click', () => onClickHand(c));
     myH.appendChild(el);
   });
   // Opponent hand (backs)
   const oppH = document.getElementById('opp-hand');
   oppH.innerHTML = '';
-  for (let i = 0; i < g.hands[opp].length; i++) {
+  const oppHandLen = (g.hands[opp] || []).length;
+  for (let i = 0; i < oppHandLen; i++) {
     const wrap = document.createElement('span');
     wrap.innerHTML = svgBack();
     oppH.appendChild(wrap.firstChild);
@@ -2060,15 +2080,18 @@ function renderGame() {
   // Field
   const fld = document.getElementById('field-cards');
   fld.innerHTML = '';
-  const pickSet = (g.phase === 'pick-play' || g.phase === 'pick-draw') ? new Set(g.pickOptions) : null;
+  const pickActive = (g.phase === 'pick-play' || g.phase === 'pick-draw') && isMyTurn;
+  const pickSet = pickActive ? new Set(g.pickOptions) : null;
+  const dimSet = (g.phase === 'pick-play' || g.phase === 'pick-draw') && !isMyTurn ? new Set(g.pickOptions) : null;
   g.field.forEach(c => {
     const wrap = document.createElement('span');
-    const cls = pickSet && pickSet.has(c.id) ? 'match clickable' : (pickSet ? 'dim' : '');
+    let cls = '';
+    if (pickSet && pickSet.has(c.id)) cls = 'match clickable';
+    else if (pickSet) cls = 'dim';
+    else if (dimSet && dimSet.has(c.id)) cls = 'match';
     wrap.innerHTML = svgCard(c.id, cls);
     const el = wrap.firstChild;
-    if (pickSet && pickSet.has(c.id)) {
-      el.addEventListener('click', () => onClickFieldPick(c));
-    }
+    if (pickSet && pickSet.has(c.id)) el.addEventListener('click', () => onClickFieldPick(c));
     fld.appendChild(el);
   });
   // Drawn slot (山札からめくった札の一時表示)
@@ -2083,11 +2106,11 @@ function renderGame() {
     s.innerHTML = svgCard(g.drawnCard.id, 'drawn');
     ds.appendChild(s.firstChild);
   }
-  // Captures (my-side = current player, opp-side = other)
-  renderCap(cur, 'my-cap-top', 'my-cap-bot');
+  // Captures (my-side / opp-side は state.mySide 準拠で固定)
+  renderCap(me, 'my-cap-top', 'my-cap-bot');
   renderCap(opp, 'opp-cap-top', 'opp-cap-bot');
   // Near-yaku hints
-  renderNearYaku(cur, 'my-near');
+  renderNearYaku(me, 'my-near');
   renderNearYaku(opp, 'opp-near');
 }
 
@@ -2169,30 +2192,41 @@ function fitRows() {
 }
 
 // --- 合わせ取り (手札プレイ) ---
+// クリック handler = 側 (mySide) 判定 → 自分の手番なら local apply または intent 送信。
 function onClickHand(card) {
+  const g = state.game;
+  if (g.phase !== 'select-hand') return;
+  if (g.currentPlayer !== mySide()) return; // 相手の手番: 無反応
+  if (state.solo || state.isHost) {
+    applyPlayCard(card);
+  } else {
+    // guest: intent 送信 (host 権威で処理)
+    MomoMatchmaking.send({ type: 'intent', action: 'play', cardId: card.id });
+  }
+}
+
+function applyPlayCard(card) {
   const g = state.game;
   if (g.phase !== 'select-hand') return;
   const cur = g.currentPlayer;
   const hand = g.hands[cur];
-  const idx = hand.indexOf(card);
+  const idx = hand.findIndex(c => c.id === card.id);
   if (idx < 0) return;
-  hand.splice(idx, 1);
-  g.playedCard = card;
-  const matches = g.field.filter(c => c.month === card.month);
+  const played = hand.splice(idx, 1)[0];
+  g.playedCard = played;
+  const matches = g.field.filter(c => c.month === played.month);
   if (matches.length === 0) {
-    g.field.push(card);
+    g.field.push(played);
     proceedToDraw();
-  } else if (matches.length === 1) {
-    captureBothFromField(matches, card, cur);
-    proceedToDraw();
-  } else if (matches.length === 3) {
-    captureBothFromField(matches, card, cur);
+  } else if (matches.length === 1 || matches.length === 3) {
+    captureBothFromField(matches, played, cur);
     proceedToDraw();
   } else {
     // 2 枚: 選択待ち
     g.phase = 'pick-play';
     g.pickOptions = matches.map(c => c.id);
     renderGame();
+    syncState();
   }
 }
 
@@ -2208,12 +2242,24 @@ function captureBothFromField(fieldCards, played, player) {
 
 function onClickFieldPick(fieldCard) {
   const g = state.game;
+  if (g.currentPlayer !== mySide()) return;
+  if (state.solo || state.isHost) {
+    applyPick(fieldCard);
+  } else {
+    MomoMatchmaking.send({ type: 'intent', action: 'pick', cardId: fieldCard.id });
+  }
+}
+
+function applyPick(fieldCard) {
+  const g = state.game;
   const cur = g.currentPlayer;
+  const fc = g.field.find(c => c.id === fieldCard.id);
+  if (!fc) return;
   if (g.phase === 'pick-play') {
-    captureBothFromField([fieldCard], g.playedCard, cur);
+    captureBothFromField([fc], g.playedCard, cur);
     proceedToDraw();
   } else if (g.phase === 'pick-draw') {
-    captureBothFromField([fieldCard], g.drawnCard, cur);
+    captureBothFromField([fc], g.drawnCard, cur);
     g.drawnCard = null;
     proceedYakuCheck();
   }
@@ -2231,6 +2277,7 @@ function proceedToDraw() {
   const drawn = g.deck.shift();
   g.drawnCard = drawn;
   renderGame();
+  syncState(); // めくり札の見え方を先に guest に配る
   setTimeout(() => resolveDraw(drawn), 750);
 }
 
@@ -2243,11 +2290,7 @@ function resolveDraw(drawn) {
     g.field.push(drawn);
     g.drawnCard = null;
     proceedYakuCheck();
-  } else if (matches.length === 1) {
-    captureBothFromField(matches, drawn, cur);
-    g.drawnCard = null;
-    proceedYakuCheck();
-  } else if (matches.length === 3) {
+  } else if (matches.length === 1 || matches.length === 3) {
     captureBothFromField(matches, drawn, cur);
     g.drawnCard = null;
     proceedYakuCheck();
@@ -2255,6 +2298,7 @@ function resolveDraw(drawn) {
     g.phase = 'pick-draw';
     g.pickOptions = matches.map(c => c.id);
     renderGame();
+    syncState();
   }
 }
 
@@ -2270,6 +2314,7 @@ function proceedYakuCheck() {
     g.pendingGained = gained;
     renderGame();
     showYakuOverlay();
+    syncState();
     return;
   }
   endTurn();
@@ -2288,6 +2333,7 @@ function endTurn() {
   g.drawnCard = null;
   g.pickOptions = [];
   renderGame();
+  syncState();
 }
 
 // --- こいこい / 勝負 ---
@@ -2303,10 +2349,39 @@ function showYakuOverlay() {
     return '<li><span>' + label + '</span><span class="pt">' + y.mon + ' ' + t('game.mon') + '</span></li>';
   }).join('');
   document.getElementById('ov-yaku-pt').textContent = total;
+  // 自分の手番でない (= 相手が役成立) 時はボタンを disable にして見学モード
+  const isMyTurn = cur === mySide();
+  const bk = document.getElementById('btn-koikoi');
+  const bs = document.getElementById('btn-shobu');
+  bk.disabled = !isMyTurn;
+  bs.disabled = !isMyTurn;
+  bk.style.opacity = isMyTurn ? '1' : '.4';
+  bs.style.opacity = isMyTurn ? '1' : '.4';
   document.getElementById('ovYaku').classList.add('show');
 }
 
 function onKoikoi() {
+  const g = state.game;
+  if (g.phase !== 'yaku') return;
+  if (g.currentPlayer !== mySide()) return;
+  if (state.solo || state.isHost) {
+    applyKoikoi();
+  } else {
+    MomoMatchmaking.send({ type: 'intent', action: 'koikoi' });
+  }
+}
+function onShobu() {
+  const g = state.game;
+  if (g.phase !== 'yaku') return;
+  if (g.currentPlayer !== mySide()) return;
+  if (state.solo || state.isHost) {
+    applyShobu();
+  } else {
+    MomoMatchmaking.send({ type: 'intent', action: 'shobu' });
+  }
+}
+
+function applyKoikoi() {
   const g = state.game;
   if (g.phase !== 'yaku') return;
   const cur = g.currentPlayer;
@@ -2315,10 +2390,9 @@ function onKoikoi() {
   g.pendingYaku = null;
   g.pendingGained = null;
   document.getElementById('ovYaku').classList.remove('show');
-  endTurn();
+  endTurn(); // syncState は endTurn 内
 }
-
-function onShobu() {
+function applyShobu() {
   const g = state.game;
   if (g.phase !== 'yaku') return;
   const cur = g.currentPlayer;
@@ -2327,10 +2401,7 @@ function onShobu() {
   const doubled = (state.settings.double === 'on' && mon >= 7);
   if (doubled) mon *= 2;
   document.getElementById('ovYaku').classList.remove('show');
-  // こいこい後の相手勝負判定:
-  //   g.koikoiBy != null かつ g.koikoiBy !== cur なら「相手が総取り」
-  //   = こいこい宣言者は 0、勝負宣言者 cur が全獲得
-  //   (仕様§5-4: こいこい後に相手が先に上がると相手が総取り)
+  // こいこい後の相手勝負判定: こいこい宣言者 !== cur なら相手 (cur) が総取り
   if (g.koikoiBy && g.koikoiBy !== cur) {
     endRoundKoikoiLost(cur, g.koikoiBy, mon, doubled);
   } else {
@@ -2338,27 +2409,46 @@ function onShobu() {
   }
 }
 
-// --- 局終了 ---
+// --- 局終了 (roundEnd データを g に格納 → 両側で同じ描画関数を通す) ---
 function endRoundShobu(winner, mon, doubled) {
-  state.game.phase = 'end';
-  const msg = t('round.end.winner', { who: whoLabel(winner), mon, doubled });
-  showRoundEnd(msg, winner);
+  const g = state.game;
+  g.phase = 'end';
+  g.roundEnd = { kind: 'shobu', winner: winner, mon: mon, doubled: !!doubled };
+  renderRoundEndFromData();
+  renderGame();
+  syncState();
 }
 function endRoundKoikoiLost(winner, loser, mon, doubled) {
-  state.game.phase = 'end';
-  const msg = t('round.end.koikoi.lost', { who: whoLabel(loser), opp: whoLabel(winner), mon: mon, doubled });
-  showRoundEnd(msg, winner);
+  const g = state.game;
+  g.phase = 'end';
+  g.roundEnd = { kind: 'koikoi-lost', winner: winner, loser: loser, mon: mon, doubled: !!doubled };
+  renderRoundEndFromData();
+  renderGame();
+  syncState();
 }
 function endRoundDraw() {
-  state.game.phase = 'end';
-  showRoundEnd(t('round.end.draw'), null);
+  const g = state.game;
+  g.phase = 'end';
+  g.roundEnd = { kind: 'draw' };
+  renderRoundEndFromData();
+  renderGame();
+  syncState();
 }
-function showRoundEnd(msg, winner) {
+function renderRoundEndFromData() {
+  const rend = state.game.roundEnd;
+  if (!rend) return;
+  let msg;
+  if (rend.kind === 'shobu') {
+    msg = t('round.end.winner', { who: whoLabel(rend.winner), mon: rend.mon, doubled: rend.doubled });
+  } else if (rend.kind === 'koikoi-lost') {
+    msg = t('round.end.koikoi.lost', { who: whoLabel(rend.loser), opp: whoLabel(rend.winner), mon: rend.mon, doubled: rend.doubled });
+  } else {
+    msg = t('round.end.draw');
+  }
   document.getElementById('round-end-msg').innerHTML = msg;
-  // 勝者取り札の役内訳を列挙
   const ul = document.getElementById('round-end-yaku');
-  if (winner) {
-    const y = computeYaku(state.game.caps[winner]);
+  if (rend.winner) {
+    const y = computeYaku(state.game.caps[rend.winner]);
     ul.innerHTML = y.map(x => {
       const label = t(x.key) + (x.count ? ' (' + x.count + ')' : '');
       return '<li><span>' + label + '</span><span class="pt">' + x.mon + ' ' + t('game.mon') + '</span></li>';
@@ -2366,8 +2456,95 @@ function showRoundEnd(msg, winner) {
   } else {
     ul.innerHTML = '';
   }
-  renderGame(); // phase=end で clickable 解除
   document.getElementById('ovRound').classList.add('show');
+}
+
+// --- ホスト権威 state 同期 ---
+// syncState: host → guest。フェーズ遷移ごとに送る。solo デバッグ時は no-op。
+// applyState: guest 側で受信 → state.game を上書き → 再描画 + オーバーレイ制御。
+function syncState(opts) {
+  if (state.solo || !state.isHost || !state.connected) return;
+  const g = state.game;
+  if (!g) return;
+  const type = (opts && opts.deal) ? 'deal' : 'state';
+  MomoMatchmaking.send({
+    type: type,
+    settings: state.settings,
+    field: g.field,
+    // guest から見える情報のみ: 自分の手札実体 + 相手の手札は枚数のみ
+    hostHandCount: g.hands.host.length,
+    guestHand: g.hands.guest,
+    caps: g.caps,
+    currentPlayer: g.currentPlayer,
+    phase: g.phase,
+    playedCard: g.playedCard,
+    drawnCard: g.drawnCard,
+    pickOptions: g.pickOptions,
+    pendingYaku: g.pendingYaku,
+    pendingGained: g.pendingGained,
+    koikoiBy: g.koikoiBy,
+    yakuBaselineGuest: g.yakuBaseline ? g.yakuBaseline.guest : [],
+    deckCount: g.deck.length,
+    roundEnd: g.roundEnd || null,
+  });
+}
+
+function applyState(msg) {
+  if (state.isHost) return; // guest only
+  // 初回 'deal' で対局中画面へ遷移
+  if (state.screen !== 'game') showScreen('game');
+  const g = state.game || {};
+  g.field = msg.field || [];
+  g.hands = {
+    host: new Array(msg.hostHandCount || 0).fill({ id: '?' }), // 裏向き描画用のダミー
+    guest: msg.guestHand || [],
+  };
+  g.caps = msg.caps || { host: [], guest: [] };
+  g.currentPlayer = msg.currentPlayer;
+  g.phase = msg.phase;
+  g.playedCard = msg.playedCard || null;
+  g.drawnCard = msg.drawnCard || null;
+  g.pickOptions = msg.pickOptions || [];
+  g.pendingYaku = msg.pendingYaku || null;
+  g.pendingGained = msg.pendingGained || null;
+  g.koikoiBy = msg.koikoiBy || null;
+  g.yakuBaseline = { host: [], guest: msg.yakuBaselineGuest || [] };
+  g.deck = new Array(msg.deckCount || 0);
+  g.roundEnd = msg.roundEnd || null;
+  state.game = g;
+  if (msg.settings) state.settings = Object.assign({}, state.settings, msg.settings);
+  renderGame();
+  // オーバーレイ制御
+  const ovYaku = document.getElementById('ovYaku');
+  if (g.phase === 'yaku') showYakuOverlay();
+  else ovYaku.classList.remove('show');
+  if (g.phase === 'end' && g.roundEnd) {
+    renderRoundEndFromData();
+  } else if (g.phase !== 'end') {
+    document.getElementById('ovRound').classList.remove('show');
+  }
+}
+
+// host 側: guest からの intent 受信を処理
+function handleIntent(data) {
+  if (!state.isHost) return;
+  const g = state.game;
+  if (!g) return;
+  const senderSide = 'guest'; // このプロトタイプでは guest からのみ intent が来る
+  if (g.currentPlayer !== senderSide) return; // 手番じゃない相手の intent は破棄
+  if (data.action === 'play') {
+    if (g.phase !== 'select-hand') return;
+    const card = g.hands[senderSide].find(c => c.id === data.cardId);
+    if (card) applyPlayCard(card);
+  } else if (data.action === 'pick') {
+    if (g.phase !== 'pick-play' && g.phase !== 'pick-draw') return;
+    const fc = g.field.find(c => c.id === data.cardId);
+    if (fc) applyPick(fc);
+  } else if (data.action === 'koikoi') {
+    if (g.phase === 'yaku') applyKoikoi();
+  } else if (data.action === 'shobu') {
+    if (g.phase === 'yaku') applyShobu();
+  }
 }
 
 // --------------------------------------------------------------------------
@@ -2376,7 +2553,7 @@ function showRoundEnd(msg, winner) {
 function startGame() {
   if (!state.isHost || !state.connected || !state.oya) return;
   MomoMatchmaking.send({ type: 'start' });
-  startRound();
+  startRound(); // host が deck/deal 生成 → syncState({deal:true}) で guest に配信
 }
 
 function leaveRoom() {
@@ -2510,17 +2687,37 @@ document.addEventListener('DOMContentLoaded', () => {
   if (new URLSearchParams(location.search).get('debug') === '1') {
     window.__hanafudaDebug = {
       startRoundSolo(opts) {
+        state.solo = true; // ホットシート挙動 (mySide = currentPlayer 追従)
         state.isHost = true;
-        state.connected = true;
+        state.connected = false; // solo は通信しない (syncState no-op)
         state.hostName = (opts && opts.host) || 'ホスト';
         state.guestName = (opts && opts.guest) || 'ゲスト';
         state.oya = (opts && opts.oya) || 'host';
         state.settings = Object.assign({ rounds: '12', kiku: 'tane', double: 'on', deal: 'on', draw: 'keep' }, (opts && opts.settings) || {});
         startRound();
       },
+      applyPlayCard, applyPick, applyKoikoi, applyShobu,
       get state() { return state; },
       computeYaku, buildDeck, yakuTotal, shuffle,
       renderGame, endTurn,
+      // 直接注入 (2 端末シミュレータ用)
+      handleP2P, syncState, applyState, handleIntent, startGame, startRound,
+      interceptSend() {
+        window._outbox = [];
+        window._origSend = MomoMatchmaking.send;
+        MomoMatchmaking.send = (m) => { window._outbox.push(m); };
+      },
+      restoreSend() { if (window._origSend) MomoMatchmaking.send = window._origSend; },
+      setupOnline(opts) {
+        state.solo = false;
+        state.isHost = !!opts.isHost;
+        state.connected = true;
+        state.hostName = opts.hostName || 'H';
+        state.guestName = opts.guestName || 'G';
+        state.roomName = opts.roomName || 'テスト';
+        state.oya = opts.oya || 'host';
+        state.settings = Object.assign({ rounds:'12', kiku:'tane', double:'on', deal:'on', draw:'keep' }, opts.settings || {});
+      },
     };
   }
 });

@@ -889,7 +889,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.03</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.04</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -944,7 +944,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.03</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.04</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -997,8 +997,8 @@
 
   <button class="btn btn-primary big-start" id="btn-start" disabled data-i18n="start.disabled">ゲームスタート（親を決めると押せます）</button>
   <p class="note" data-i18n="room.note">この画面はホスト・ゲスト共通です。ゲーム選択・設定変更・親決めはホスト操作、ゲストは同期表示になります。</p>
-  <!-- 接続状況のリアルタイム診断（v1.03: P2P 接続失敗の切り分け用） -->
-  <div class="diag-panel" id="diag-panel" style="margin-top:10px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:.66rem;color:var(--text-muted);line-height:1.6;font-family:monospace;">
+  <!-- 接続診断パネル (v1.04: ?debug=1 の時だけ表示・通常ユーザーには見せない) -->
+  <div class="diag-panel hidden" id="diag-panel" style="margin-top:10px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:.66rem;color:var(--text-muted);line-height:1.6;font-family:monospace;">
     <div><b style="color:var(--orange-mid);">接続診断</b> <span id="diag-time"></span></div>
     <div id="diag-log">起動中...</div>
     <button class="btn btn-ghost btn-sm" id="btn-solo-fallback" style="margin-top:6px;font-size:.65rem;padding:4px 10px;" data-i18n="diag.solo">1 人で試す（P2P が繋がらない場合の回避策）</button>
@@ -1010,7 +1010,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.03</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.04</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1137,7 +1137,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.03';
+const APP_VERSION = 'v1.04';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -1720,23 +1720,27 @@ function refreshRoomView() {
   else { g.textContent = t('room.waiting'); g.classList.add('waiting-g'); }
   const conn = document.getElementById('conn-status');
   const lab = document.getElementById('conn-label');
-  if (state.connected) {
+  // v1.04: ゲートは「相手が入室 (WS 認識) 」 = state.guestName で判定。
+  // WebRTC DC (state.connected) はレイテンシ向上目的の付加機能で、
+  // MomoMatchmaking.send() が DC → WS の自動フォールバックを持つため
+  // DC 未確立でもゲームメッセージはやり取りできる。
+  const opponentIn = state.isHost ? !!state.guestName : !!state.hostName;
+  if (opponentIn) {
     conn.classList.remove('waiting');
     lab.textContent = t('room.conn.connected');
   } else {
     conn.classList.add('waiting');
     lab.textContent = t('room.conn.waiting');
   }
-  // Non-host は設定＆親決めを閲覧のみ
   document.querySelectorAll('#set-koikoi .seg').forEach(seg => seg.setAttribute('data-readonly', state.isHost ? '0' : '1'));
-  document.getElementById('btn-draw-oya').disabled = !state.isHost || !state.connected;
+  document.getElementById('btn-draw-oya').disabled = !state.isHost || !opponentIn;
   updateOyaLabels();
   updateStartBtn();
 }
 
 function updateStartBtn() {
   const b = document.getElementById('btn-start');
-  const canStart = state.isHost && state.connected && !!state.oya;
+  const canStart = state.isHost && !!state.guestName && !!state.oya;
   b.disabled = !canStart;
   b.textContent = canStart ? t('start.enabled') : t('start.disabled');
 }
@@ -1751,7 +1755,7 @@ function applySettingToggle(key, v) {
   state.settings[key] = v;
   const seg = document.querySelector('#set-koikoi .seg[data-key="' + key + '"]');
   if (seg) seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
-  if (state.isHost && state.connected) {
+  if (state.isHost && state.guestName) {
     MomoMatchmaking.send({ type: 'settings', settings: state.settings });
   }
 }
@@ -1766,7 +1770,7 @@ function drawOya() {
   state.oyaGuestMonth = g;
   state.oya = (h < g) ? 'host' : 'guest';
   renderOyaDraw();
-  if (state.connected) {
+  if (state.guestName) {
     MomoMatchmaking.send({ type: 'oya', host: h, guest: g, oya: state.oya });
   }
   updateStartBtn();
@@ -2511,7 +2515,9 @@ function renderRoundEndFromData() {
 // syncState: host → guest。フェーズ遷移ごとに送る。solo デバッグ時は no-op。
 // applyState: guest 側で受信 → state.game を上書き → 再描画 + オーバーレイ制御。
 function syncState(opts) {
-  if (state.solo || !state.isHost || !state.connected) return;
+  // MomoMatchmaking.send は DC 未確立時 WS フォールバックするので、
+  // 相手が居るなら (guestName 有り) 送信可能。
+  if (state.solo || !state.isHost || !state.guestName) return;
   const g = state.game;
   if (!g) return;
   const type = (opts && opts.deal) ? 'deal' : 'state';
@@ -2599,7 +2605,7 @@ function handleIntent(data) {
 // 10) ホスト操作 (ゲームスタート)
 // --------------------------------------------------------------------------
 function startGame() {
-  if (!state.isHost || !state.connected || !state.oya) return;
+  if (!state.isHost || !state.guestName || !state.oya) return;
   MomoMatchmaking.send({ type: 'start' });
   startRound(); // host が deck/deal 生成 → syncState({deal:true}) で guest に配信
 }
@@ -2745,8 +2751,10 @@ document.addEventListener('DOMContentLoaded', () => {
   showScreen('lobby');
   initMatchmaking();
   startDiagPolling();
-  // ?debug=1: solo test hook (scope A verification)
+  // ?debug=1: solo test hook (scope A verification) + 診断パネル表示
   if (new URLSearchParams(location.search).get('debug') === '1') {
+    const dp = document.getElementById('diag-panel');
+    if (dp) dp.classList.remove('hidden');
     window.__hanafudaDebug = {
       startRoundSolo(opts) {
         state.solo = true; // ホットシート挙動 (mySide = currentPlayer 追従)

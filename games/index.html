@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MOMO Games v1.20 -->
+<!-- MOMO Games v1.22 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -309,6 +309,29 @@
       </div>
       <div class="card-play" id="darts-play">今すぐプレイ</div>
     </a>
+
+    <a class="card" href="javascript:void(0)" onclick="openHanafuda()">
+      <div class="card-head">
+        <img class="card-icon" src="hanafuda/favicon.svg" alt="" aria-hidden="true">
+        <div class="card-headtext">
+          <div class="card-title">MOMO <span>Hanafuda</span></div>
+          <div class="card-subtitle" id="hanafuda-subtitle">Floral Deck, Subtle Hazard</div>
+        </div>
+      </div>
+      <div class="card-badge" id="hanafuda-badge">🌐 Online</div>
+      <div class="card-desc" id="hanafuda-desc">MOMO Hanafuda は花札をオンライン2人対戦で遊べるブラウザゲームです。4言語対応・PCとスマホの縦画面に対応。アカウント登録もインストールも不要です。</div>
+      <div class="card-meta" id="hanafuda-meta">
+        <span>🎴 花札</span>
+        <span>🌐 オンライン対戦</span>
+        <span id="hanafuda-players">2人</span>
+      </div>
+      <div class="platform-row">
+        <span class="platform-tag">🍎 iPhone</span>
+        <span class="platform-tag">🤖 Android</span>
+        <span class="platform-tag">💻 PC</span>
+      </div>
+      <div class="card-play" id="hanafuda-play">今すぐプレイ</div>
+    </a>
   </div>
 </div>
 
@@ -351,6 +374,11 @@ const I18N = {
     dartsDesc: 'スマホを傾けて仮想空間で的を狙って投げる対戦型ダーツ。世界中のプレイヤーと各種ルールでオンライン対戦か、1人で練習モードを。',
     dartsMeta1: '🎯 ダーツ', dartsMeta2: '📱 センサー操作', dartsPlayers: '1〜2人',
     dartsPlay: '今すぐプレイ',
+    hanafudaBadge: '🌐 オンライン',
+    hanafudaSubtitle: 'Floral Deck, Subtle Hazard',
+    hanafudaDesc: 'MOMO Hanafuda は花札をオンライン2人対戦で遊べるブラウザゲームです。4言語対応・PCとスマホの縦画面に対応。アカウント登録もインストールも不要です。',
+    hanafudaMeta1: '🎴 花札', hanafudaMeta2: '🌐 オンライン対戦', hanafudaPlayers: '2人',
+    hanafudaPlay: '今すぐプレイ',
     footerBack: '← MOMO Works に戻る',
   },
   en: {
@@ -386,6 +414,11 @@ const I18N = {
     dartsDesc: 'A virtual 3D darts game using your phone\'s motion sensor. Tilt to aim and throw at the target. Battle online with various rules or practice solo.',
     dartsMeta1: '🎯 Darts', dartsMeta2: '📱 Motion Sensor', dartsPlayers: '1–2 Players',
     dartsPlay: 'Play Now',
+    hanafudaBadge: '🌐 Online',
+    hanafudaSubtitle: 'Floral Deck, Subtle Hazard',
+    hanafudaDesc: 'MOMO Hanafuda lets you play the Japanese card game Hanafuda online against another player, in your browser. 4-language UI, works on PC and mobile portrait. No account, no install.',
+    hanafudaMeta1: '🎴 Hanafuda', hanafudaMeta2: '🌐 Online', hanafudaPlayers: '2 Players',
+    hanafudaPlay: 'Play Now',
     footerBack: '← Back to MOMO Works',
   },
   zh: {
@@ -421,6 +454,11 @@ const I18N = {
     dartsDesc: '使用手机传感器在虚拟3D空间中瞄准靶心投掷的对战型飞镖游戏。可在多种规则下在线对战，也可单人练习。',
     dartsMeta1: '🎯 飞镖', dartsMeta2: '📱 传感器操作', dartsPlayers: '1〜2人',
     dartsPlay: '立即游玩',
+    hanafudaBadge: '🌐 在线',
+    hanafudaSubtitle: '花牌雅局，暗藏玄機',
+    hanafudaDesc: 'MOMO Hanafuda 是一款可在浏览器中双人在线对战的花札游戏。支持 4 语言、可在 PC 与手机竖屏使用。无需注册、无需安装。',
+    hanafudaMeta1: '🎴 花札', hanafudaMeta2: '🌐 在线对战', hanafudaPlayers: '2人',
+    hanafudaPlay: '立即游玩',
     footerBack: '← 返回 MOMO Works',
   },
 };
@@ -479,6 +517,7 @@ function applyLang() {
   document.getElementById('gomokugo-badge').textContent = t('gomokugoBadge');
   document.getElementById('shogi-badge').textContent = t('shogiBadge');
   document.getElementById('darts-badge').textContent = t('dartsBadge');
+  document.getElementById('hanafuda-badge').textContent = t('hanafudaBadge');
   // Tilt
   document.getElementById('tilt-desc').textContent = t('tiltDesc');
   const tiltMetaSpans = document.querySelectorAll('#tilt-meta span');
@@ -521,6 +560,13 @@ function applyLang() {
   if (dartsMetaSpans[1]) dartsMetaSpans[1].textContent = t('dartsMeta2');
   document.getElementById('darts-players').textContent = t('dartsPlayers');
   document.getElementById('darts-play').textContent = t('dartsPlay');
+  // Hanafuda
+  document.getElementById('hanafuda-desc').textContent = t('hanafudaDesc');
+  const hanafudaMetaSpans = document.querySelectorAll('#hanafuda-meta span');
+  if (hanafudaMetaSpans[0]) hanafudaMetaSpans[0].textContent = t('hanafudaMeta1');
+  if (hanafudaMetaSpans[1]) hanafudaMetaSpans[1].textContent = t('hanafudaMeta2');
+  document.getElementById('hanafuda-players').textContent = t('hanafudaPlayers');
+  document.getElementById('hanafuda-play').textContent = t('hanafudaPlay');
   // 各サブタイトル: 猫語非対応のため、cat 選択時は catBase 言語のテキストを表示
   const subtitleLang = currentLang === 'cat' ? catBase : currentLang;
   const subtitleDict = I18N[subtitleLang] || I18N.ja;
@@ -531,6 +577,7 @@ function applyLang() {
     ['gomokugo-subtitle', subtitleDict.gomokugoSubtitle],
     ['shogi-subtitle',    subtitleDict.shogiSubtitle],
     ['darts-subtitle',    subtitleDict.dartsSubtitle],
+    ['hanafuda-subtitle', subtitleDict.hanafudaSubtitle],
   ].forEach(([id, text]) => {
     const el = document.getElementById(id);
     if (!el || !text) return;
@@ -575,6 +622,12 @@ function openGomokuGo() {
 function openDarts() {
   fetch('https://momo-server-reversi.onrender.com/ping').catch(() => {});
   window.location.href = 'darts/';
+}
+
+// MOMO Hanafuda（同じシグナリングサーバーを共用）
+function openHanafuda() {
+  fetch('https://momo-server-reversi.onrender.com/ping').catch(() => {});
+  window.location.href = 'hanafuda/';
 }
 
 applyLang();

@@ -1,0 +1,2011 @@
+<!DOCTYPE html>
+<!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>MOMO Hanafuda</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<meta name="description" content="花札「こいこい」をオンライン2人対戦で。48札は完全独自SVG。ダーク基調・4言語対応・スマホ縦1画面に対応。">
+<link rel="alternate" hreflang="ja" href="https://qiqiroon.github.io/momo/games/hanafuda/">
+<link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/games/hanafuda/">
+<link rel="alternate" hreflang="zh-Hans" href="https://qiqiroon.github.io/momo/games/hanafuda/">
+<link rel="alternate" hreflang="x-default" href="https://qiqiroon.github.io/momo/games/hanafuda/">
+<link rel="canonical" href="https://qiqiroon.github.io/momo/games/hanafuda/">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://qiqiroon.github.io/momo/games/hanafuda/">
+<meta property="og:title" content="MOMO Hanafuda — Floral Deck, Subtle Hazard">
+<meta property="og:description" content="花札「こいこい」をオンライン2人対戦で。48札は完全独自SVG。ダーク基調・4言語対応・スマホ縦1画面に対応。">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:locale:alternate" content="en_US">
+<meta property="og:locale:alternate" content="zh_CN">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<!-- 言語切り替えの共通ルーチン（全アプリ共通・lib集約）。本体スクリプトより先に読む（defer不可） -->
+<script src="/momo/lib/momo-lang/momo-lang.js"></script>
+<style>
+  :root{
+    --bg:#0a0a0a; --surface:#111111; --surface2:#1a1a1a;
+    --orange:#c2410c; --orange-mid:#ea580c; --orange-light:#fb923c;
+    --text:#e5e5e5; --text-muted:#737373;
+    --border:#2a2a2a; --border-strong:#444;
+    --bg-selected:rgba(194,65,12,0.15);
+    --gold:#d8a838; --aka:#cf2b28;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{min-height:100%;}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:"Noto Sans JP",system-ui,sans-serif; min-height:100vh;
+    background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);
+    background-size:48px 48px; background-attachment:fixed;
+  }
+  body::before{content:'';position:fixed;inset:0;background:var(--bg);opacity:.82;pointer-events:none;z-index:0;}
+  body.in-game{height:100vh;overflow:hidden;}
+
+  /* Top controls: 歯車 + 言語プルダウン。site-header の右端に inline 配置 */
+  #top-controls{display:flex;align-items:center;gap:8px;margin-left:auto;align-self:flex-start;padding-top:6px;}
+  #gear-icon{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;background:rgba(10,10,10,.85);border:.5px solid var(--border-strong);border-radius:50%;color:var(--text-muted);cursor:pointer;transition:.15s;padding:0;font-family:inherit;}
+  #gear-icon:hover{color:var(--orange-mid);border-color:var(--orange);background:rgba(40,40,40,.85);}
+  #gear-icon:active{transform:scale(0.92);}
+  #gear-icon svg{width:16px;height:16px;fill:currentColor;pointer-events:none;}
+  .lang-select{background:rgba(10,10,10,.85);border:.5px solid var(--border-strong);color:var(--text-muted);font-size:11px;padding:4px 22px 4px 10px;border-radius:6px;cursor:pointer;font-family:inherit;appearance:none;-webkit-appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--text-muted) 50%),linear-gradient(135deg,var(--text-muted) 50%,transparent 50%);background-position:calc(100% - 12px) 50%,calc(100% - 8px) 50%;background-size:4px 4px,4px 4px;background-repeat:no-repeat;}
+  .lang-select:hover{color:var(--orange-mid);border-color:var(--orange);}
+  .lang-select:focus{outline:none;color:var(--orange-mid);border-color:var(--orange);}
+  .lang-select option{background:#0a0a0a;color:var(--text);}
+  body.in-game #top-controls{padding-top:2px;gap:6px;}
+  body.in-game #gear-icon{width:24px;height:24px;}
+  body.in-game #gear-icon svg{width:13px;height:13px;}
+  body.in-game .lang-select{font-size:10px;padding:3px 20px 3px 8px;}
+
+  /* Settings panel (MOMO Darts 準拠：オーバーレイ + パネル + 行) */
+  .settings-row{display:flex;flex-direction:column;gap:8px;padding:12px 0;border-bottom:1px solid var(--border);}
+  .settings-row:last-of-type{border-bottom:none;}
+  .settings-row-head{display:flex;justify-content:space-between;align-items:center;}
+  .settings-row-head .row-label{color:var(--text);font-weight:700;font-size:.9rem;}
+  .settings-row-head .row-value{font-size:12px;color:var(--text-muted);display:inline-flex;align-items:center;gap:4px;}
+  .settings-volume-slider{width:100%;-webkit-appearance:none;appearance:none;height:6px;background:var(--surface2);border:1px solid var(--border-strong);border-radius:3px;outline:none;}
+  .settings-volume-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:18px;height:18px;background:var(--orange-mid);border-radius:50%;cursor:pointer;border:2px solid #fff;}
+  .settings-volume-slider::-moz-range-thumb{width:18px;height:18px;background:var(--orange-mid);border-radius:50%;cursor:pointer;border:2px solid #fff;}
+  .settings-row-hint{font-size:11px;color:var(--text-muted);font-style:italic;}
+
+  /* Common containers — page-wrap の上余白を詰めてタイトルを画面最上部に */
+  .page-wrap{position:relative;z-index:1;max-width:900px;margin:0 auto;padding:16px 24px 40px;}
+  .wrap{position:relative;z-index:1;max-width:460px;height:100vh;margin:0 auto;padding:8px 12px;display:flex;flex-direction:column;gap:6px;}
+  .hidden{display:none!important;}
+
+  /* Header (lobby/room) — MOMO Darts 準拠：icon の右に title-block（h1 + subtitle 縦積み） */
+  .page-wrap .site-header{display:flex;align-items:flex-start;gap:16px;}
+  .page-wrap .app-icon{width:64px;height:64px;flex:0 0 auto;}
+  .page-wrap .title-block{display:flex;flex-direction:column;align-items:flex-start;line-height:1;}
+  .page-wrap .site-header h1{font-family:"Fredoka One",sans-serif;font-weight:400;font-size:clamp(2rem,6vw,2.6rem);line-height:1;color:#fff;letter-spacing:.02em;display:flex;align-items:baseline;gap:.3em;}
+  .page-wrap .site-header h1 .svc{color:var(--orange-mid);}
+  .page-wrap .version-tag{font-size:.28em;color:var(--text-muted);letter-spacing:.04em;align-self:flex-end;padding-bottom:.2em;}
+  .page-wrap .header-sub{font-family:"Fredoka One",sans-serif;font-size:clamp(14px,3.2vw,20px);color:#888;letter-spacing:0;margin-top:2px;line-height:1.15;min-height:1.2em;text-align:left;}
+  .page-wrap .header-sub.zh{font-family:"Fredoka One","Noto Sans SC","Noto Sans JP",sans-serif;}
+
+  /* Header (ingame) */
+  .wrap .titleblock{display:flex;flex-direction:column;}
+  .wrap .site-header{display:flex;align-items:center;gap:8px;}
+  .wrap .app-icon{width:34px;height:34px;flex:0 0 auto;}
+  .wrap .site-header h1{font-family:"Fredoka One",sans-serif;font-weight:400;font-size:1.2rem;color:#fff;display:flex;align-items:baseline;gap:.25rem;}
+  .wrap .site-header h1 .svc{color:var(--orange-mid);}
+  .wrap .version-tag{font-size:.58rem;color:var(--text-muted);align-self:flex-end;padding-bottom:.12rem;}
+  .wrap .header-sub{font-size:10.5px;color:var(--text-muted);font-style:italic;margin-left:42px;}
+
+  /* サーバー接続状態バー（タイトルブロック直下・ロビー/対戦準備で表示） */
+  .server-status{display:flex;align-items:center;gap:8px;margin:14px 0 6px;padding:6px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:.78rem;color:var(--text-muted);}
+  .server-status .dot{width:9px;height:9px;border-radius:50%;background:var(--text-muted);flex:0 0 auto;transition:.2s;}
+  .server-status.online .dot{background:#3fae5a;box-shadow:0 0 8px rgba(63,174,90,.6);}
+  .server-status.online{color:var(--text);}
+  .server-status.offline .dot{background:#c94848;}
+  .server-status.offline{color:#c94848;border-color:rgba(201,72,72,.4);}
+
+  /* Section labels */
+  .section-label{display:flex;align-items:center;gap:12px;margin:30px 0 16px;}
+  .section-label span{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--orange);}
+  .section-label::after{content:'';flex:1;height:1px;background:var(--border);}
+
+  /* Lobby: 2-column */
+  .lobby-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  @media(max-width:720px){.lobby-grid{grid-template-columns:1fr;}}
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;display:flex;flex-direction:column;gap:12px;}
+  .panel h2{font-family:"Fredoka One",sans-serif;font-weight:400;font-size:1.25rem;color:#fff;display:flex;align-items:center;gap:8px;}
+  .panel .desc{font-size:12px;color:var(--text-muted);line-height:1.6;margin-top:-4px;}
+
+  label.fld{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--text-muted);}
+  .fld input{background:#0c0c0c;border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-size:14px;font-family:inherit;}
+  .fld input:focus{outline:none;border-color:var(--orange);}
+  .toggle-row{display:flex;align-items:center;justify-content:space-between;font-size:13px;color:var(--text);padding:2px 0;}
+  .switch{position:relative;width:42px;height:23px;flex:0 0 auto;}
+  .switch input{opacity:0;width:0;height:0;}
+  .slider{position:absolute;inset:0;background:var(--surface2);border:1px solid var(--border-strong);border-radius:20px;transition:.2s;cursor:pointer;}
+  .slider::before{content:'';position:absolute;width:17px;height:17px;left:2px;top:2px;background:var(--text-muted);border-radius:50%;transition:.2s;}
+  .switch input:checked + .slider{background:var(--bg-selected);border-color:var(--orange);}
+  .switch input:checked + .slider::before{transform:translateX(19px);background:var(--orange-mid);}
+
+  .btn{border:none;border-radius:9px;padding:12px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:inherit;transition:.15s;}
+  .btn:disabled{opacity:.5;cursor:not-allowed;}
+  .btn-primary{background:var(--orange);color:#fff;}
+  .btn-primary:hover:not(:disabled){background:var(--orange-mid);}
+  .btn-ghost{background:var(--surface2);color:var(--text);border:1px solid var(--border-strong);}
+  .btn-ghost:hover:not(:disabled){border-color:var(--orange);color:var(--orange-mid);}
+  .btn-sm{padding:7px 14px;font-size:.8rem;border-radius:7px;}
+
+  .join-head{display:flex;align-items:center;justify-content:space-between;}
+  .roomlist{list-style:none;display:flex;flex-direction:column;gap:8px;max-height:250px;overflow:auto;}
+  .roomlist li{display:flex;align-items:center;gap:10px;background:#0c0c0c;border:1px solid var(--border);border-radius:9px;padding:10px 12px;transition:.15s;}
+  .roomlist li:hover{border-color:var(--orange);background:var(--surface2);}
+  .roomlist .rn{flex:1;font-size:.9rem;color:var(--text);}
+  .roomlist .rn small{display:block;color:var(--text-muted);font-size:.66rem;margin-top:2px;}
+  .roomlist .empty{color:var(--text-muted);font-size:.85rem;padding:12px;text-align:center;font-style:italic;}
+  .status-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;}
+  .st-wait{background:var(--orange);color:#fff;}
+  .st-full{background:var(--surface2);color:var(--text-muted);border:1px solid var(--border);}
+  .check-row{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-muted);}
+  .check-row input{accent-color:var(--orange);}
+  .pw-row{display:flex;gap:8px;}
+  .pw-row input{flex:1;background:#0c0c0c;border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-size:14px;font-family:inherit;}
+
+  /* Room prep */
+  .room-head{gap:16px;}
+  .conn{display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--text-muted);}
+  .conn .dot{width:9px;height:9px;border-radius:50%;background:#3fae5a;box-shadow:0 0 8px #3fae5a;}
+  .conn.waiting .dot{background:var(--text-muted);box-shadow:none;}
+  .room-name{font-size:1.05rem;color:var(--text);}
+  .room-name b{color:#fff;}
+  .players{display:flex;align-items:center;gap:14px;margin-top:2px;}
+  .pl{flex:1;background:#0c0c0c;border:1px solid var(--border);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:3px;}
+  .pl small{font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--orange);font-weight:700;}
+  .pl span{font-size:1.05rem;color:#fff;}
+  .pl.host{border-left:3px solid var(--orange);}
+  .pl .waiting-g{color:var(--text-muted);font-size:.9rem;font-style:italic;}
+  .vs{font-family:"Fredoka One",sans-serif;color:var(--text-muted);font-size:.9rem;}
+
+  .game-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+  @media(max-width:560px){.game-tabs{grid-template-columns:repeat(2,1fr);}}
+  .gtab{background:var(--surface);border:1px solid var(--border);color:var(--text-muted);border-radius:10px;padding:14px 8px;font-size:.9rem;font-weight:700;cursor:pointer;font-family:inherit;transition:.15s;display:flex;flex-direction:column;gap:4px;align-items:center;}
+  .gtab .em{font-size:1.3rem;}
+  .gtab:hover{border-color:var(--orange);color:var(--text);}
+  .gtab.active{border-color:var(--orange);background:var(--bg-selected);color:#fff;}
+  .gtab .soon{font-size:.58rem;color:var(--text-muted);font-weight:400;}
+  .gtab[disabled]{cursor:not-allowed;opacity:.7;}
+  .gtab[disabled]:hover{border-color:var(--border);color:var(--text-muted);}
+
+  .gset{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-top:12px;display:flex;flex-direction:column;gap:12px;}
+  .gset h3{font-size:.9rem;color:var(--orange-mid);font-weight:700;letter-spacing:.04em;}
+  .set-row{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:.86rem;color:var(--text);}
+  .seg{display:inline-flex;background:#0c0c0c;border:1px solid var(--border);border-radius:8px;padding:2px;gap:2px;}
+  .seg button{background:transparent;border:none;color:var(--text-muted);font-size:.76rem;padding:6px 12px;border-radius:6px;cursor:pointer;font-family:inherit;}
+  .seg button.on{background:var(--orange);color:#fff;font-weight:700;}
+  .seg[data-readonly="1"] button{cursor:default;}
+  .soon-note{font-size:.82rem;color:var(--text-muted);line-height:1.6;}
+
+  .oya{gap:14px;}
+  .oya .lead{font-size:.86rem;color:var(--text-muted);line-height:1.6;}
+  .draw-area{display:flex;gap:18px;justify-content:center;}
+  .draw-slot{display:flex;flex-direction:column;align-items:center;gap:7px;}
+  .draw-slot small{font-size:.72rem;color:var(--text-muted);}
+  .mini{width:58px;height:92px;border-radius:8px;border:1px solid #e7ddc4;display:flex;align-items:center;justify-content:center;flex-direction:column;font-size:.7rem;color:#333;background:#f1e6c6;box-shadow:0 3px 8px rgba(0,0,0,.4);}
+  .mini.back{background:repeating-linear-gradient(45deg,#3a2418,#3a2418 6px,#4a3020 6px,#4a3020 12px);color:transparent;border-color:#20130c;}
+  .mini .mon{font-weight:700;font-size:1.1rem;color:#7d1512;}
+  .mini .pl-n{font-size:.62rem;color:#555;margin-top:3px;}
+  .oya-result{text-align:center;font-size:1rem;color:var(--text);min-height:1.4em;}
+  .oya-result b{color:var(--orange-mid);}
+  .big-start{width:100%;margin-top:8px;padding:16px;font-size:1.05rem;letter-spacing:.03em;}
+  .leave-btn{background:transparent;border:1px solid var(--border-strong);color:var(--text-muted);font-size:.75rem;padding:6px 12px;border-radius:6px;cursor:pointer;font-family:inherit;margin-top:8px;align-self:flex-start;}
+  .leave-btn:hover{border-color:var(--aka);color:var(--aka);}
+
+  .note{font-size:11px;color:var(--text-muted);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;line-height:1.6;margin-top:8px;}
+
+  /* Ingame */
+  .statusbar{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:4px 8px;font-size:.66rem;}
+  .statusbar b{color:var(--orange-mid);}
+  .card{width:42px;height:67px;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,.5);display:block;flex:0 0 auto;background:#f1e6c6;}
+  .card.cap{width:32px;height:51px;}
+  .card.match{outline:2px solid var(--gold);box-shadow:0 0 8px var(--gold);border-radius:5px;}
+  .card.sel{outline:2px solid var(--gold);transform:translateY(-6px);}
+  .play{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:space-between;gap:6px;}
+  .seg-row{display:flex;flex-direction:column;gap:2px;align-items:center;}
+  .seg-row .zl{font-size:.6rem;color:var(--text-muted);align-self:flex-start;}
+  .cardrow{display:flex;gap:3px;flex-wrap:nowrap;justify-content:center;}
+  .nearcap{font-size:.62rem;color:var(--text-muted);}
+  .nearcap b{color:var(--gold);}
+  .nearcap .who{color:var(--orange-mid);font-weight:700;}
+  .deckfield{display:flex;gap:8px;align-items:flex-start;justify-content:center;}
+  .deck{display:flex;flex-direction:column;align-items:center;gap:2px;}
+  .deck .count{font-size:.56rem;color:var(--text-muted);}
+  .field{display:grid;grid-template-columns:repeat(4,auto);gap:3px;}
+  .capblock{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:5px 8px;display:flex;flex-direction:column;gap:3px;}
+  .capblock .ct{font-size:.58rem;color:var(--orange);font-weight:700;letter-spacing:.08em;}
+  .caprow{display:flex;align-items:center;gap:5px;overflow:hidden;}
+  .caprow .gl{font-size:.58rem;color:var(--text-muted);flex:0 0 auto;}
+  .caprow .cards{display:flex;}
+  .caprow .cards+.gl{margin-left:5px;padding-left:5px;border-left:1px solid var(--border);}
+
+  /* Overlays */
+  .overlay{position:fixed;inset:0;background:rgba(3,10,6,.72);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:60;padding:16px;}
+  .overlay.show{display:flex;}
+  .opanel{background:linear-gradient(180deg,var(--surface2),var(--surface));border:1px solid var(--border-strong);border-radius:16px;max-width:380px;width:100%;padding:18px;box-shadow:0 18px 50px rgba(0,0,0,.6);}
+  .opanel h2{font-family:"Fredoka One",sans-serif;font-weight:400;font-size:1.05rem;color:#fff;display:flex;gap:8px;align-items:center;margin-bottom:10px;}
+  .opanel h2 .tag{font-size:.58rem;background:var(--orange);color:#fff;border-radius:5px;padding:2px 7px;}
+  .opanel p{font-size:.85rem;color:var(--text);line-height:1.55;margin:6px 0;}
+  .yaku-list{list-style:none;display:flex;flex-direction:column;gap:5px;margin-bottom:10px;}
+  .yaku-list li{display:flex;justify-content:space-between;background:#0c0c0c;border:1px solid var(--border);border-radius:7px;padding:7px 10px;font-size:.8rem;}
+  .yaku-list li .pt{color:var(--gold);font-weight:700;}
+  .total-line{display:flex;justify-content:space-between;font-weight:700;border-top:1px solid var(--border);padding-top:7px;font-size:.85rem;color:var(--text);}
+  .btn-row{display:flex;gap:8px;margin-top:12px;}
+  .btn-row .btn{flex:1;padding:11px;font-size:.9rem;}
+  .btn-koikoi{background:#b8342b;color:#fff;}
+  .btn-shobu{background:var(--orange);color:#fff;}
+  .hint{font-size:.72rem;color:var(--text-muted);margin-top:8px;line-height:1.55;}
+
+  /* SEO footer (MOMO Go 準拠：surface 背景・上罫線なし。テキストは text-muted より明るめ) */
+  .site-footer{position:relative;z-index:1;width:100%;max-width:900px;margin:24px auto 0;padding:26px 24px 38px;text-align:left;}
+  body.in-game .site-footer{display:none;}
+  .site-footer-inner{margin:0 auto;color:#a3a3a3;font-size:12px;line-height:1.9;}
+  .site-footer h2{font-family:"Fredoka One",sans-serif;font-weight:400;font-size:15px;color:var(--text);margin-bottom:9px;letter-spacing:.02em;}
+  .site-footer p{margin-bottom:14px;color:#a3a3a3;}
+  .foot-links{display:flex;flex-wrap:wrap;gap:8px 16px;justify-content:flex-start;}
+  .foot-links a{font-size:13px;color:var(--orange-light);text-decoration:none;font-weight:700;}
+  .foot-links a:hover{text-decoration:underline;}
+  @media (max-width:640px){.site-footer{padding:22px 16px 32px;}}
+</style>
+</head>
+<body>
+
+<!-- ===== SVG defs（共通部品 + 48札 + 裏面）：モック verbatim ===== -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <g id="momoHana">
+    <g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/></g>
+    <g transform="rotate(12,12,8.3)"><path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/></g>
+    <ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/>
+    <line x1="-14" y1="1.00" x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="-14" y1="6.0" x2="-33.44" y2="6.0" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="-33.68" y1="-2.28" x2="-38" y2="-3" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="-33.44" y1="6.0" x2="-40" y2="6" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="-29.58" y1="14.26" x2="-37" y2="16" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="14" y1="1.00" x2="33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="14" y1="6.0" x2="33.44" y2="6.0" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="14" y1="10.59" x2="29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="33.68" y1="-2.28" x2="38" y2="-3" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="33.44" y1="6.0" x2="40" y2="6" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="29.58" y1="14.26" x2="37" y2="16" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+    <ellipse cx="-12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/><ellipse cx="12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+    <ellipse cx="-12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/><ellipse cx="12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+    <circle cx="-10.5" cy="-5.2" r="1.0" fill="#c2410c"/><circle cx="13.5" cy="-5.2" r="1.0" fill="#c2410c"/>
+    <path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/>
+    <line x1="0" y1="11.3" x2="0" y2="13.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M0,13.3 Q5,17.3 8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+    <g transform="translate(25,12) rotate(10)">
+      <rect x="-13" y="-17" width="26" height="34" rx="4.5" fill="#f1e6c6" stroke="#20201c" stroke-width="2.2"/>
+      <rect x="-11" y="-15.5" width="22" height="5" rx="1.6" fill="#d8a838"/>
+      <rect x="-11" y="10.5" width="22" height="5" rx="1.6" fill="#d8a838"/>
+      <circle cx="-2" cy="-2.5" r="5.6" fill="#cf2b28" stroke="#7d1512" stroke-width="1"/>
+      <ellipse cx="5.5" cy="6.5" rx="6" ry="4" fill="#2f6b2e" stroke="#153311" stroke-width="1"/>
+    </g>
+  </g>
+  <g id="kasumi">
+    <path d="M3 3 h214 v38 q-24 13 -50 5 q-30 -9 -58 4 q-26 11 -54 2 q-28 -9 -52 6 Z" fill="#d8a838" stroke="#a97e22" stroke-width="1.4"/>
+    <path d="M3 347 h214 v-44 q-26 -13 -52 -3 q-30 11 -58 -2 q-26 -11 -52 2 q-26 11 -52 -2 Z" fill="#d8a838" stroke="#a97e22" stroke-width="1.4"/>
+  </g>
+  <g id="tanRed">
+    <rect x="-20" y="-75" width="40" height="150" rx="8" fill="#cf2b28" stroke="#7d1512" stroke-width="2"/>
+    <g stroke="#f4ead0" stroke-width="2.2" fill="none" stroke-linecap="round" opacity=".95">
+      <path d="M-8 -58 C 3 -54 -5 -46 6 -44"/><path d="M-9 -32 C 3 -28 -5 -20 7 -18"/>
+      <path d="M-8 -6 C 4 -2 -6 6 6 8"/><path d="M-9 20 C 3 24 -5 32 7 34"/><path d="M-7 46 C 5 50 -3 56 6 58"/>
+    </g>
+  </g>
+  <g id="tanBlue">
+    <rect x="-20" y="-75" width="40" height="150" rx="8" fill="#2f5aa8" stroke="#173463" stroke-width="2"/>
+    <g stroke="#eaf0f8" stroke-width="2.2" fill="none" stroke-linecap="round" opacity=".95">
+      <path d="M-8 -58 C 3 -54 -5 -46 6 -44"/><path d="M-9 -32 C 3 -28 -5 -20 7 -18"/>
+      <path d="M-8 -6 C 4 -2 -6 6 6 8"/><path d="M-9 20 C 3 24 -5 32 7 34"/><path d="M-7 46 C 5 50 -3 56 6 58"/>
+    </g>
+  </g>
+  <g id="pineTuft">
+    <ellipse cx="0" cy="0" rx="26" ry="17" fill="#2f6b2e" stroke="#153311" stroke-width="1.6"/>
+    <g stroke="#4f9a45" stroke-width="1.2" stroke-linecap="round">
+      <line x1="0" y1="0" x2="-22" y2="-8"/><line x1="0" y1="0" x2="-24" y2="3"/><line x1="0" y1="0" x2="-15" y2="12"/>
+      <line x1="0" y1="0" x2="-3" y2="15"/><line x1="0" y1="0" x2="9" y2="13"/><line x1="0" y1="0" x2="19" y2="8"/><line x1="0" y1="0" x2="24" y2="-2"/>
+    </g>
+  </g>
+  <g id="umeBloom">
+    <g fill="#db2d3f" stroke="#921f2b" stroke-width="1">
+      <circle cx="0" cy="-10" r="6.2"/><circle cx="9.5" cy="-3.1" r="6.2"/><circle cx="5.9" cy="8.1" r="6.2"/>
+      <circle cx="-5.9" cy="8.1" r="6.2"/><circle cx="-9.5" cy="-3.1" r="6.2"/>
+    </g>
+    <g stroke="#1a1a1a" stroke-width="0.8" stroke-linecap="round">
+      <line x1="-0.5" y1="2.6" x2="-1.1" y2="6.4"/>
+      <line x1="1.3" y1="2.25" x2="3.25" y2="5.6"/>
+      <line x1="2.5" y1="0.7" x2="6.3" y2="1.7"/>
+      <line x1="2.25" y1="-1.3" x2="5.6" y2="-3.25"/>
+      <line x1="0.9" y1="-2.44" x2="2.2" y2="-6.1"/>
+      <line x1="-2.25" y1="1.3" x2="-5.6" y2="3.25"/>
+      <line x1="-2.44" y1="-0.9" x2="-6.1" y2="-2.2"/>
+    </g>
+    <circle cx="0" cy="0" r="2.4" fill="#f6d24a"/>
+  </g>
+  <g id="sakuraBloom">
+    <g fill="#f4a9c0" stroke="#d06a92" stroke-width=".9">
+      <path d="M0 -2 C -4 -4 -5 -9 -3.5 -13.5 L 0 -11.5 L 3.5 -13.5 C 5 -9 4 -4 0 -2 Z"/>
+      <path d="M0 -2 C -4 -4 -5 -9 -3.5 -13.5 L 0 -11.5 L 3.5 -13.5 C 5 -9 4 -4 0 -2 Z" transform="rotate(72)"/>
+      <path d="M0 -2 C -4 -4 -5 -9 -3.5 -13.5 L 0 -11.5 L 3.5 -13.5 C 5 -9 4 -4 0 -2 Z" transform="rotate(144)"/>
+      <path d="M0 -2 C -4 -4 -5 -9 -3.5 -13.5 L 0 -11.5 L 3.5 -13.5 C 5 -9 4 -4 0 -2 Z" transform="rotate(216)"/>
+      <path d="M0 -2 C -4 -4 -5 -9 -3.5 -13.5 L 0 -11.5 L 3.5 -13.5 C 5 -9 4 -4 0 -2 Z" transform="rotate(288)"/>
+    </g>
+    <circle cx="0" cy="0" r="1.8" fill="#b02a5b"/>
+  </g>
+  <g id="fujiCluster">
+    <path d="M0 -2 C -9 28 9 66 1 104 C -5 130 6 144 2 156" fill="none" stroke="#5f7d34" stroke-width="1.4" stroke-linecap="round"/>
+    <g fill="#7a4fb0" stroke="#4e3080" stroke-width=".7">
+      <ellipse cx="-6.6" cy="5" rx="5.3" ry="3.3" transform="rotate(-30 -6.6 5)"/><ellipse cx="6.6" cy="9" rx="5.3" ry="3.3" transform="rotate(30 6.6 9)"/>
+      <ellipse cx="-6.8" cy="16" rx="5.1" ry="3.2" transform="rotate(-30 -6.8 16)"/><ellipse cx="6.8" cy="20" rx="5.1" ry="3.2" transform="rotate(30 6.8 20)"/>
+      <ellipse cx="-6.6" cy="27" rx="4.9" ry="3.0" transform="rotate(-29 -6.6 27)"/><ellipse cx="6.6" cy="31" rx="4.9" ry="3.0" transform="rotate(29 6.6 31)"/>
+      <ellipse cx="-6.2" cy="38" rx="4.6" ry="2.9" transform="rotate(-28 -6.2 38)"/><ellipse cx="6.2" cy="42" rx="4.6" ry="2.9" transform="rotate(28 6.2 42)"/>
+      <ellipse cx="-5.8" cy="50" rx="4.3" ry="2.7" transform="rotate(-27 -5.8 50)"/><ellipse cx="5.8" cy="54" rx="4.3" ry="2.7" transform="rotate(27 5.8 54)"/>
+      <ellipse cx="-5.4" cy="62" rx="4.1" ry="2.5" transform="rotate(-26 -5.4 62)"/><ellipse cx="5.4" cy="66" rx="4.1" ry="2.5" transform="rotate(26 5.4 66)"/>
+      <ellipse cx="-5.0" cy="74" rx="3.8" ry="2.4" transform="rotate(-25 -5.0 74)"/><ellipse cx="5.0" cy="78" rx="3.8" ry="2.4" transform="rotate(25 5.0 78)"/>
+      <ellipse cx="-4.5" cy="86" rx="3.5" ry="2.2" transform="rotate(-24 -4.5 86)"/><ellipse cx="4.5" cy="90" rx="3.5" ry="2.2" transform="rotate(24 4.5 90)"/>
+      <ellipse cx="-4.0" cy="99" rx="3.2" ry="2.0" transform="rotate(-23 -4.0 99)"/><ellipse cx="4.0" cy="103" rx="3.2" ry="2.0" transform="rotate(23 4.0 103)"/>
+      <ellipse cx="-3.5" cy="112" rx="2.9" ry="1.8" transform="rotate(-22 -3.5 112)"/><ellipse cx="3.5" cy="116" rx="2.9" ry="1.8" transform="rotate(22 3.5 116)"/>
+      <ellipse cx="-3.0" cy="126" rx="2.6" ry="1.6" transform="rotate(-20 -3.0 126)"/><ellipse cx="3.0" cy="130" rx="2.6" ry="1.6" transform="rotate(20 3.0 130)"/>
+      <ellipse cx="-2.4" cy="140" rx="2.3" ry="1.4" transform="rotate(-18 -2.4 140)"/><ellipse cx="2.4" cy="144" rx="2.3" ry="1.4" transform="rotate(18 2.4 144)"/>
+      <ellipse cx="1" cy="154" rx="2.0" ry="1.3"/>
+    </g>
+  </g>
+  <g id="ayameBloom">
+    <g fill="#6f45ad" stroke="#43276e" stroke-width="1">
+      <path d="M0 -2 C -3 -16 -12 -18 -14 -12 C -10 -6 -6 -4 0 -2 Z"/>
+      <path d="M0 -2 C 3 -16 12 -18 14 -12 C 10 -6 6 -4 0 -2 Z"/>
+      <path d="M0 -2 C 0 -18 0 -20 0 -22"/>
+      <path d="M0 0 C -8 6 -12 14 -8 18 C -3 12 -1 6 0 0 Z"/>
+      <path d="M0 0 C 8 6 12 14 8 18 C 3 12 1 6 0 0 Z"/>
+    </g>
+    <path d="M0 -2 C 0 4 0 8 0 12" stroke="#f0d24a" stroke-width="2.2" fill="none"/>
+  </g>
+  <g id="sasaClump" fill="#20301a" stroke="#16220f" stroke-width=".5">
+    <path d="M-2.6 0 C -3.6 -32 -2.4 -66 0 -96 C 2.4 -66 3.6 -32 2.6 0 Z" transform="rotate(-30) scale(.95)"/>
+    <path d="M-2.6 0 C -3.6 -32 -2.4 -66 0 -96 C 2.4 -66 3.6 -32 2.6 0 Z" transform="rotate(-11) scale(1.05)"/>
+    <path d="M-2.6 0 C -3.6 -32 -2.4 -66 0 -96 C 2.4 -66 3.6 -32 2.6 0 Z" transform="rotate(12)"/>
+    <path d="M-2.6 0 C -3.6 -32 -2.4 -66 0 -96 C 2.4 -66 3.6 -32 2.6 0 Z" transform="rotate(30) scale(.92)"/>
+  </g>
+  <g id="botanBloom">
+    <g transform="scale(2)">
+      <g fill="#d23f7a" stroke="#8f2450" stroke-width=".5">
+        <circle cx="0" cy="0" r="13"/>
+      </g>
+      <g fill="#e874a2" stroke="#8f2450" stroke-width=".35">
+        <ellipse cx="0" cy="-8" rx="5" ry="6"/><ellipse cx="0" cy="-8" rx="5" ry="6" transform="rotate(60)"/>
+        <ellipse cx="0" cy="-8" rx="5" ry="6" transform="rotate(120)"/><ellipse cx="0" cy="-8" rx="5" ry="6" transform="rotate(180)"/>
+        <ellipse cx="0" cy="-8" rx="5" ry="6" transform="rotate(240)"/><ellipse cx="0" cy="-8" rx="5" ry="6" transform="rotate(300)"/>
+      </g>
+      <circle cx="0" cy="0" r="3.4" fill="#f6d24a"/>
+    </g>
+  </g>
+  <g id="hagiSprig">
+    <g fill="#3f7a35" stroke="#245019" stroke-width=".7">
+      <ellipse cx="0" cy="0" rx="3.4" ry="6" /><ellipse cx="-6" cy="3" rx="3.4" ry="6" transform="rotate(-35 -6 3)"/>
+      <ellipse cx="6" cy="3" rx="3.4" ry="6" transform="rotate(35 6 3)"/>
+    </g>
+    <circle cx="-2" cy="10" r="2.4" fill="#c34d86" stroke="#8f2450" stroke-width=".6"/>
+    <circle cx="4" cy="12" r="2.2" fill="#c34d86" stroke="#8f2450" stroke-width=".6"/>
+  </g>
+  <g id="susukiPlume">
+    <g stroke="#e5d49c" stroke-width="1.4" fill="none" stroke-linecap="round">
+      <line x1="0" y1="0" x2="-10" y2="-14"/><line x1="0" y1="0" x2="-2" y2="-18"/><line x1="0" y1="0" x2="6" y2="-15"/><line x1="0" y1="0" x2="12" y2="-9"/>
+    </g>
+  </g>
+  <g id="kikuBloom">
+    <g fill="#f0a93a" stroke="#b06a10" stroke-width=".8">
+      <g id="kikuPetal8">
+        <ellipse cx="0" cy="-11" rx="3.4" ry="7"/>
+      </g>
+      <use href="#kikuPetal8"/><use href="#kikuPetal8" transform="rotate(45)"/><use href="#kikuPetal8" transform="rotate(90)"/>
+      <use href="#kikuPetal8" transform="rotate(135)"/><use href="#kikuPetal8" transform="rotate(180)"/><use href="#kikuPetal8" transform="rotate(225)"/>
+      <use href="#kikuPetal8" transform="rotate(270)"/><use href="#kikuPetal8" transform="rotate(315)"/>
+    </g>
+    <g fill="#f0a93a" stroke="#b06a10" stroke-width=".8">
+      <use href="#kikuPetal8" transform="rotate(22) scale(.7)"/><use href="#kikuPetal8" transform="rotate(67) scale(.7)"/>
+      <use href="#kikuPetal8" transform="rotate(112) scale(.7)"/><use href="#kikuPetal8" transform="rotate(157) scale(.7)"/>
+      <use href="#kikuPetal8" transform="rotate(202) scale(.7)"/><use href="#kikuPetal8" transform="rotate(247) scale(.7)"/>
+      <use href="#kikuPetal8" transform="rotate(292) scale(.7)"/><use href="#kikuPetal8" transform="rotate(337) scale(.7)"/>
+    </g>
+    <circle cx="0" cy="0" r="3.6" fill="#c86a12"/>
+  </g>
+  <g id="momijiLeaf">
+    <path d="M0 -13 L4 -5 L11 -6 L6 1 L10 9 L2 6 L0 13 L-2 6 L-10 9 L-6 1 L-11 -6 L-4 -5 Z"
+          fill="#cf4a2a" stroke="#8a2c14" stroke-width="1"/>
+    <line x1="0" y1="8" x2="0" y2="16" stroke="#8a2c14" stroke-width="1.4"/>
+  </g>
+  <g id="yanagiLeaf">
+    <ellipse cx="0" cy="0" rx="2.6" ry="7.5" fill="#3f7a35" stroke="#245019" stroke-width=".6"/>
+  </g>
+  <g id="kiriLeaf">
+    <path d="M0 20 C -18 -6 -12 -34 0 -36 C 12 -34 18 -6 0 20 Z" fill="#2f7d6b" stroke="#154238" stroke-width="1.1"/>
+    <path d="M0 16 C -2 -6 -1 -22 0 -32" stroke="#7fc4b0" stroke-width="1" fill="none" opacity=".6"/>
+  </g>
+  <g id="backFace"><rect x="3" y="3" width="214" height="344" rx="14" fill="#3a2418" stroke="#20130c" stroke-width="2.5"/></g>
+
+  <!-- Gear icon (settings panel trigger) -->
+  <symbol id="icon-settings" viewBox="0 0 24 24">
+    <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94 0 .31.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 0 1 8.4 12 3.6 3.6 0 0 1 12 8.4a3.6 3.6 0 0 1 3.6 3.6 3.6 3.6 0 0 1-3.6 3.6z"/>
+  </symbol>
+
+  <!-- ---- 1月 松 ---- -->
+  <symbol id="m01_hikari" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <circle cx="70" cy="94" r="31" fill="#cf2b28" stroke="#7d1512" stroke-width="2"/>
+    <g fill="none" stroke="#3d2a12" stroke-width="7" stroke-linecap="round">
+      <path d="M206 46 C 188 66 176 78 150 84"/><path d="M176 78 C 172 100 158 108 138 108"/><path d="M150 84 C 140 70 122 68 106 74"/>
+    </g>
+    <use href="#pineTuft" transform="translate(150,84) rotate(10)"/><use href="#pineTuft" transform="translate(112,74) rotate(-18) scale(.82)"/><use href="#pineTuft" transform="translate(140,116) rotate(30) scale(.8)"/>
+    <g transform="translate(110,232)">
+      <g stroke="#2a2a2a" stroke-width="3" stroke-linecap="round" fill="none"><path d="M-6 40 L -8 78 M -8 78 l -8 4 M -8 78 l 6 6"/><path d="M10 42 L 12 80 M 12 80 l -6 6 M 12 80 l 8 4"/></g>
+      <path d="M34 6 C 62 4 78 22 74 46 C 66 40 60 46 52 40 C 58 30 46 30 44 22 C 40 16 36 14 30 16 Z" fill="#1a1a1a" stroke="#000" stroke-width="1"/>
+      <path d="M-48 6 C -46 -20 -8 -30 26 -22 C 44 -18 50 -2 44 14 C 34 34 -8 40 -34 30 C -46 25 -50 16 -48 6 Z" fill="#f7f4ea" stroke="#2a2a2a" stroke-width="2"/>
+      <path d="M-30 -8 C -6 -20 20 -16 34 -2 C 20 2 -2 4 -22 8 C -30 4 -32 -2 -30 -8 Z" fill="none" stroke="#8f8a7e" stroke-width="1.6"/>
+      <path d="M-40 -2 C -54 -18 -50 -46 -34 -60 C -26 -68 -22 -74 -24 -82" fill="none" stroke="#f7f4ea" stroke-width="10" stroke-linecap="round"/>
+      <path d="M-42 -4 C -50 -16 -49 -30 -40 -42" fill="none" stroke="#1a1a1a" stroke-width="6" stroke-linecap="round"/>
+      <circle cx="-25" cy="-85" r="9" fill="#f7f4ea" stroke="#2a2a2a" stroke-width="2"/>
+      <path d="M-31 -90 C -29 -98 -19 -98 -18 -89 C -22 -87 -27 -87 -31 -90 Z" fill="#cf2b28" stroke="#7d1512" stroke-width="1"/>
+      <circle cx="-28" cy="-86" r="1.4" fill="#111"/><path d="M-34 -85 L -50 -83 L -34 -80 Z" fill="#d99a1e" stroke="#8a5f10" stroke-width="1"/>
+    </g>
+  </symbol>
+  <symbol id="m01_tan" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <g fill="none" stroke="#3d2a12" stroke-width="7" stroke-linecap="round"><path d="M206 50 C 188 70 176 82 150 88"/><path d="M150 88 C 140 74 122 72 104 80"/></g>
+    <use href="#pineTuft" transform="translate(152,88) rotate(12)"/><use href="#pineTuft" transform="translate(110,80) rotate(-16) scale(.82)"/>
+    <use href="#tanRed" transform="translate(100,214) rotate(-8)"/>
+  </symbol>
+  <symbol id="m01_kasu1" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <g fill="none" stroke="#3d2a12" stroke-width="7" stroke-linecap="round"><path d="M150 320 C 148 250 158 200 138 160 C 128 138 140 118 130 96"/><path d="M144 210 C 120 202 104 208 86 200"/><path d="M140 150 C 152 138 158 120 150 104"/></g>
+    <use href="#pineTuft" transform="translate(86,200) rotate(-14)"/><use href="#pineTuft" transform="translate(150,104) rotate(20) scale(.86)"/><use href="#pineTuft" transform="translate(118,150) rotate(-4) scale(.82)"/><use href="#pineTuft" transform="translate(158,150) rotate(40) scale(.72)"/>
+  </symbol>
+  <symbol id="m01_kasu2" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <g fill="none" stroke="#3d2a12" stroke-width="7" stroke-linecap="round"><path d="M70 320 C 74 250 62 200 84 160 C 96 138 82 118 92 96"/><path d="M78 208 C 102 200 118 206 136 198"/><path d="M82 150 C 70 138 64 120 72 104"/></g>
+    <use href="#pineTuft" transform="translate(136,198) rotate(14)"/><use href="#pineTuft" transform="translate(72,104) rotate(-20) scale(.86)"/><use href="#pineTuft" transform="translate(104,150) rotate(6) scale(.82)"/><use href="#pineTuft" transform="translate(64,150) rotate(-40) scale(.72)"/>
+  </symbol>
+
+  <!-- ---- 2月 梅 ---- -->
+  <symbol id="m02_tane" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <g fill="none" stroke="#4a2f16" stroke-linecap="round">
+      <path d="M44 320 C 66 262 44 214 82 178" stroke-width="11"/>
+      <path d="M64 232 C 96 224 120 232 150 214" stroke-width="6"/>
+      <path d="M70 196 C 100 190 120 196 146 182" stroke-width="6"/>
+      <path d="M82 178 C 100 160 128 154 158 150" stroke-width="6"/>
+    </g>
+    <use href="#umeBloom" transform="translate(150,214) scale(1.15)"/><use href="#umeBloom" transform="translate(146,182)"/><use href="#umeBloom" transform="translate(112,206) scale(.9)"/><use href="#umeBloom" transform="translate(84,188) scale(.85)"/><use href="#umeBloom" transform="translate(152,150) scale(.78)"/>
+    <g transform="translate(112,134)">
+      <path d="M-24 0 C -24 -14 -6 -20 10 -14 C 20 -10 20 2 8 8 C -8 14 -24 12 -24 0 Z" fill="#7a8a3a" stroke="#4a5320" stroke-width="1.4"/>
+      <path d="M-24 0 C -24 8 -18 12 -8 12 C -14 6 -16 2 -18 -2 Z" fill="#c7cf9a" stroke="#4a5320" stroke-width="1"/>
+      <circle cx="10" cy="-10" r="7" fill="#7a8a3a" stroke="#4a5320" stroke-width="1.4"/>
+      <path d="M16 -10 L 26 -8 L 16 -6 Z" fill="#3a3320"/><circle cx="12" cy="-11" r="1.2" fill="#111"/>
+      <path d="M-22 2 C -30 6 -34 4 -38 8" stroke="#4a5320" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <line x1="0" y1="10" x2="-2" y2="20" stroke="#3a3320" stroke-width="1.6"/><line x1="6" y1="10" x2="6" y2="20" stroke="#3a3320" stroke-width="1.6"/>
+    </g>
+  </symbol>
+  <symbol id="m02_tan" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <g fill="none" stroke="#4a2f16" stroke-width="6.5" stroke-linecap="round"><path d="M206 54 C 186 74 172 86 148 92"/><path d="M148 92 C 136 78 120 78 104 86"/></g>
+    <use href="#umeBloom" transform="translate(150,92) scale(1.1)"/><use href="#umeBloom" transform="translate(112,84) scale(.9)"/>
+    <use href="#tanRed" transform="translate(100,214) rotate(-8)"/>
+  </symbol>
+  <symbol id="m02_kasu1" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <g fill="none" stroke="#4a2f16" stroke-width="6.5" stroke-linecap="round"><path d="M150 318 C 150 250 160 206 138 166 C 128 146 140 122 130 100"/><path d="M142 210 C 116 202 100 208 84 200"/><path d="M140 150 C 152 138 156 120 148 104"/></g>
+    <use href="#umeBloom" transform="translate(84,200)"/><use href="#umeBloom" transform="translate(148,104) scale(.95)"/><use href="#umeBloom" transform="translate(120,150) scale(.9)"/><use href="#umeBloom" transform="translate(150,150) scale(.8)"/>
+  </symbol>
+  <symbol id="m02_kasu2" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <g fill="none" stroke="#4a2f16" stroke-width="6.5" stroke-linecap="round"><path d="M70 318 C 70 250 60 206 82 166 C 92 146 80 122 90 100"/><path d="M78 210 C 104 202 120 208 136 200"/><path d="M80 150 C 68 138 64 120 72 104"/></g>
+    <use href="#umeBloom" transform="translate(136,200)"/><use href="#umeBloom" transform="translate(72,104) scale(.95)"/><use href="#umeBloom" transform="translate(102,150) scale(.9)"/><use href="#umeBloom" transform="translate(70,150) scale(.8)"/>
+  </symbol>
+
+  <!-- ---- 3月 桜 ---- -->
+  <symbol id="m03_hikari" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <g fill="none" stroke="#5a3a20" stroke-width="6.5" stroke-linecap="round"><path d="M10 56 C 64 66 112 58 176 92"/><path d="M120 62 C 132 92 128 120 134 146"/><path d="M60 61 C 66 84 60 108 64 130"/></g>
+    <use href="#sakuraBloom" transform="translate(28,54) scale(1.05)"/><use href="#sakuraBloom" transform="translate(70,60) scale(1.1)"/><use href="#sakuraBloom" transform="translate(112,56)"/><use href="#sakuraBloom" transform="translate(152,74) scale(.95)"/><use href="#sakuraBloom" transform="translate(176,92) scale(.9)"/><use href="#sakuraBloom" transform="translate(130,110) scale(.9)"/><use href="#sakuraBloom" transform="translate(64,128) scale(.85)"/>
+    <path d="M8 186 L212 150 L212 330 q -14.6 18 -29.1 0 q -14.6 18 -29.1 0 q -14.6 18 -29.1 0 q -14.6 18 -29.1 0 q -14.6 18 -29.1 0 q -14.6 18 -29.1 0 q -14.6 18 -29.1 0 Z" fill="#b52a55" stroke="#7a1637" stroke-width="1.6"/>
+    <polygon points="8,186 212,150 212,168 8,204" fill="#9a2348" stroke="#7a1637" stroke-width="1.2"/>
+    <line x1="6" y1="184" x2="214" y2="148" stroke="#6b4a24" stroke-width="5" stroke-linecap="round"/>
+    <g stroke="#f1e6c6" stroke-width="1.8" opacity=".85"><line x1="44" y1="179" x2="44" y2="316"/><line x1="86" y1="172" x2="86" y2="318"/><line x1="128" y1="164" x2="128" y2="318"/><line x1="170" y1="157" x2="170" y2="316"/></g>
+  </symbol>
+  <symbol id="m03_tan" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <g fill="none" stroke="#5a3a20" stroke-width="6.5" stroke-linecap="round"><path d="M206 54 C 186 74 172 86 148 92"/><path d="M148 92 C 136 80 120 80 104 88"/></g>
+    <use href="#sakuraBloom" transform="translate(150,92) scale(1.1)"/><use href="#sakuraBloom" transform="translate(112,86) scale(.9)"/>
+    <use href="#tanRed" transform="translate(100,214) rotate(-8)"/>
+  </symbol>
+  <symbol id="m03_kasu1" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <g fill="none" stroke="#5a3a20" stroke-width="6.5" stroke-linecap="round"><path d="M150 318 C 150 250 160 206 138 166 C 128 146 140 122 130 100"/><path d="M142 210 C 116 202 100 208 84 200"/><path d="M140 150 C 152 138 156 120 148 104"/></g>
+    <use href="#sakuraBloom" transform="translate(84,200)"/><use href="#sakuraBloom" transform="translate(148,104) scale(.95)"/><use href="#sakuraBloom" transform="translate(120,150) scale(.9)"/><use href="#sakuraBloom" transform="translate(150,150) scale(.8)"/>
+  </symbol>
+  <symbol id="m03_kasu2" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <g fill="none" stroke="#5a3a20" stroke-width="6.5" stroke-linecap="round"><path d="M70 318 C 70 250 60 206 82 166 C 92 146 80 122 90 100"/><path d="M78 210 C 104 202 120 208 136 200"/><path d="M80 150 C 68 138 64 120 72 104"/></g>
+    <use href="#sakuraBloom" transform="translate(136,200)"/><use href="#sakuraBloom" transform="translate(72,104) scale(.95)"/><use href="#sakuraBloom" transform="translate(102,150) scale(.9)"/><use href="#sakuraBloom" transform="translate(70,150) scale(.8)"/>
+  </symbol>
+
+  <!-- ---- 4月 藤 ---- -->
+  <symbol id="m04_tane" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <g fill="none" stroke="#5a3a20" stroke-width="6" stroke-linecap="round"><path d="M20 60 C 70 84 130 78 196 96"/></g>
+    <use href="#fujiCluster" transform="translate(58,74)"/><use href="#fujiCluster" transform="translate(96,80) scale(1.1)"/><use href="#fujiCluster" transform="translate(150,86)"/>
+    <g transform="translate(110,208) scale(2)" fill="#ec7a1c" stroke="#b85a10" stroke-width="0.6">
+      <path d="M-28 2 C -18 -13 -7 -13 0 -1 C 7 -13 18 -13 28 2 C 17 -3 8 -1 0 6 C -8 -1 -17 -3 -28 2 Z"/>
+    </g>
+  </symbol>
+  <symbol id="m04_tan" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <g fill="none" stroke="#5a3a20" stroke-width="6" stroke-linecap="round"><path d="M40 60 C 90 78 140 74 190 88"/></g>
+    <use href="#fujiCluster" transform="translate(70,72)"/><use href="#fujiCluster" transform="translate(150,80) scale(1.05)"/>
+    <use href="#tanRed" transform="translate(104,216) rotate(-6)"/>
+  </symbol>
+  <symbol id="m04_kasu1" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <g fill="none" stroke="#5a3a20" stroke-width="6" stroke-linecap="round"><path d="M24 56 C 80 82 140 76 200 100"/></g>
+    <use href="#fujiCluster" transform="translate(56,72)"/><use href="#fujiCluster" transform="translate(104,82) scale(1.05)"/><use href="#fujiCluster" transform="translate(158,90)"/>
+  </symbol>
+  <symbol id="m04_kasu2" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <g fill="none" stroke="#5a3a20" stroke-width="6" stroke-linecap="round"><path d="M200 56 C 144 82 84 76 24 100"/></g>
+    <use href="#fujiCluster" transform="translate(60,90)"/><use href="#fujiCluster" transform="translate(112,82) scale(1.05)"/><use href="#fujiCluster" transform="translate(164,72)"/>
+  </symbol>
+
+  <!-- ---- 5月 菖蒲 ---- -->
+  <symbol id="m05_tane" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <g stroke="#5a86c0" stroke-width="1.6" fill="none" opacity=".8"><path d="M20 300 q30 -8 60 0 t60 0 t60 0"/><path d="M20 314 q30 -8 60 0 t60 0 t60 0"/></g>
+    <g fill="#e6c229" stroke="#a07d12" stroke-width="1.8" stroke-linejoin="round">
+      <polygon points="3.7,331 143.7,233 156.3,251 16.3,349"/>
+      <polygon points="88.5,284.1 32.5,215.1 15.5,228.9 71.5,297.9"/>
+    </g>
+    <use href="#sasaClump" transform="translate(64,252)"/>
+    <use href="#sasaClump" transform="translate(150,250) scale(.9)"/>
+    <g stroke="#3f7a35" stroke-width="3.5" fill="none" stroke-linecap="round"><path d="M60 250 C 58 200 66 168 60 130"/><path d="M76 252 C 78 206 88 176 86 146"/><path d="M150 250 C 148 202 156 172 150 138"/></g>
+    <use href="#ayameBloom" transform="translate(60,130) scale(1.15)"/><use href="#ayameBloom" transform="translate(150,138)"/><use href="#ayameBloom" transform="translate(86,146) scale(.85)"/>
+  </symbol>
+  <symbol id="m05_tan" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <use href="#sasaClump" transform="translate(154,250)"/>
+    <g stroke="#3f7a35" stroke-width="3.5" fill="none" stroke-linecap="round"><path d="M150 250 C 148 196 158 150 150 96"/><path d="M166 252 C 168 206 176 160 172 120"/></g>
+    <use href="#ayameBloom" transform="translate(150,96) scale(1.1)"/>
+    <use href="#tanRed" transform="translate(96,214) rotate(-8)"/>
+  </symbol>
+  <symbol id="m05_kasu1" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <use href="#sasaClump" transform="translate(104,302)"/>
+    <g stroke="#3f7a35" stroke-width="3.5" fill="none" stroke-linecap="round"><path d="M90 300 C 86 240 96 190 88 120"/><path d="M110 302 C 114 246 124 196 120 140"/><path d="M132 300 C 130 244 138 200 132 150"/></g>
+    <use href="#ayameBloom" transform="translate(88,120) scale(1.1)"/><use href="#ayameBloom" transform="translate(132,150) scale(.9)"/>
+  </symbol>
+  <symbol id="m05_kasu2" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <use href="#sasaClump" transform="translate(108,302)"/>
+    <g stroke="#3f7a35" stroke-width="3.5" fill="none" stroke-linecap="round"><path d="M130 300 C 134 240 124 190 132 120"/><path d="M110 302 C 106 246 96 196 100 140"/><path d="M88 300 C 90 244 82 200 88 150"/></g>
+    <use href="#ayameBloom" transform="translate(132,120) scale(1.1)"/><use href="#ayameBloom" transform="translate(88,150) scale(.9)"/>
+  </symbol>
+
+  <!-- ---- 6月 牡丹 ---- -->
+  <symbol id="m06_tane" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <g fill="#2f6b2e" stroke="#153311" stroke-width="1.2"><ellipse cx="66" cy="250" rx="16" ry="10" transform="rotate(-20 66 250)"/><ellipse cx="150" cy="252" rx="16" ry="10" transform="rotate(20 150 252)"/><ellipse cx="108" cy="266" rx="16" ry="10"/></g>
+    <use href="#botanBloom" transform="translate(80,214) scale(1.15)"/><use href="#botanBloom" transform="translate(140,224) scale(1)"/>
+    <g transform="translate(122,104) scale(2)">
+      <g fill="#e8b93a" stroke="#8a5f10" stroke-width=".5"><ellipse cx="-7" cy="-4" rx="7" ry="9"/><ellipse cx="7" cy="-4" rx="7" ry="9"/><ellipse cx="-6" cy="7" rx="5" ry="6"/><ellipse cx="6" cy="7" rx="5" ry="6"/></g>
+      <line x1="0" y1="-8" x2="0" y2="10" stroke="#3a2a10" stroke-width="1"/><path d="M0 -8 l -4 -6 M0 -8 l 4 -6" stroke="#3a2a10" stroke-width=".6"/>
+    </g>
+    <g transform="translate(70,150) scale(1.6)">
+      <g fill="#e8843a" stroke="#8a3f10" stroke-width=".6"><ellipse cx="-7" cy="-4" rx="7" ry="9"/><ellipse cx="7" cy="-4" rx="7" ry="9"/><ellipse cx="-6" cy="7" rx="5" ry="6"/><ellipse cx="6" cy="7" rx="5" ry="6"/></g>
+      <line x1="0" y1="-8" x2="0" y2="10" stroke="#3a2a10" stroke-width="1.2"/>
+    </g>
+  </symbol>
+  <symbol id="m06_tan" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <g fill="#2f6b2e" stroke="#153311" stroke-width="1.2"><ellipse cx="150" cy="118" rx="15" ry="9" transform="rotate(18 150 118)"/><ellipse cx="150" cy="150" rx="15" ry="9" transform="rotate(-14 150 150)"/></g>
+    <use href="#botanBloom" transform="translate(150,120) scale(1.1)"/>
+    <use href="#tanBlue" transform="translate(96,216) rotate(-8)"/>
+  </symbol>
+  <symbol id="m06_kasu1" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <g fill="#2f6b2e" stroke="#153311" stroke-width="1.2"><ellipse cx="80" cy="210" rx="17" ry="11" transform="rotate(-24 80 210)"/><ellipse cx="140" cy="200" rx="17" ry="11" transform="rotate(24 140 200)"/><ellipse cx="110" cy="240" rx="17" ry="11"/></g>
+    <use href="#botanBloom" transform="translate(110,175) scale(1.3)"/>
+  </symbol>
+  <symbol id="m06_kasu2" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <g fill="#2f6b2e" stroke="#153311" stroke-width="1.2"><ellipse cx="140" cy="210" rx="17" ry="11" transform="rotate(24 140 210)"/><ellipse cx="80" cy="200" rx="17" ry="11" transform="rotate(-24 80 200)"/><ellipse cx="110" cy="240" rx="17" ry="11"/></g>
+    <use href="#botanBloom" transform="translate(110,175) scale(1.3)"/>
+  </symbol>
+
+  <!-- ---- 7月 萩 ---- -->
+  <symbol id="m07_tane" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <g fill="none" stroke="#4f7a30" stroke-width="2.4" stroke-linecap="round"><path d="M40 120 C 60 150 66 190 58 240"/><path d="M70 116 C 92 150 98 196 92 244"/><path d="M104 120 C 120 152 124 190 120 232"/></g>
+    <use href="#hagiSprig" transform="translate(58,180)"/><use href="#hagiSprig" transform="translate(92,196)"/><use href="#hagiSprig" transform="translate(50,150) scale(.9)"/><use href="#hagiSprig" transform="translate(120,180) scale(.9)"/>
+    <g transform="translate(140,262)">
+      <path d="M-34 6 C -40 -14 -18 -26 6 -22 C 28 -18 36 -2 30 12 C 22 24 -24 24 -34 6 Z" fill="#5a4636" stroke="#2f2418" stroke-width="1.6"/>
+      <path d="M-20 -18 C -14 -26 -8 -26 -4 -20" fill="none" stroke="#3a2c1e" stroke-width="2"/>
+      <path d="M30 -2 C 42 -6 46 2 42 8 C 38 4 34 6 30 6 Z" fill="#5a4636" stroke="#2f2418" stroke-width="1.4"/>
+      <path d="M40 2 L 48 0 L 42 6 Z" fill="#efe0c0"/>
+      <circle cx="30" cy="-2" r="1.4" fill="#111"/>
+      <g stroke="#2f2418" stroke-width="3" stroke-linecap="round"><line x1="-20" y1="16" x2="-22" y2="30"/><line x1="-6" y1="18" x2="-8" y2="32"/><line x1="12" y1="18" x2="12" y2="32"/><line x1="24" y1="14" x2="26" y2="28"/></g>
+    </g>
+  </symbol>
+  <symbol id="m07_tan" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <g fill="none" stroke="#4f7a30" stroke-width="2.4" stroke-linecap="round"><path d="M150 110 C 168 146 172 190 166 240"/><path d="M132 116 C 148 150 150 194 146 240"/></g>
+    <use href="#hagiSprig" transform="translate(166,180)"/><use href="#hagiSprig" transform="translate(146,200)"/><use href="#hagiSprig" transform="translate(158,150) scale(.9)"/>
+    <use href="#tanRed" transform="translate(96,214) rotate(-8)"/>
+  </symbol>
+  <symbol id="m07_kasu1" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <g fill="none" stroke="#4f7a30" stroke-width="2.4" stroke-linecap="round"><path d="M70 110 C 92 150 98 200 90 260"/><path d="M108 112 C 128 152 132 202 126 262"/><path d="M140 118 C 156 154 158 200 152 250"/></g>
+    <use href="#hagiSprig" transform="translate(90,190)"/><use href="#hagiSprig" transform="translate(126,206)"/><use href="#hagiSprig" transform="translate(152,186)"/><use href="#hagiSprig" transform="translate(80,150) scale(.9)"/>
+  </symbol>
+  <symbol id="m07_kasu2" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <g fill="none" stroke="#4f7a30" stroke-width="2.4" stroke-linecap="round"><path d="M150 110 C 128 150 122 200 130 260"/><path d="M112 112 C 92 152 88 202 94 262"/><path d="M80 118 C 64 154 62 200 68 250"/></g>
+    <use href="#hagiSprig" transform="translate(130,190)"/><use href="#hagiSprig" transform="translate(94,206)"/><use href="#hagiSprig" transform="translate(68,186)"/><use href="#hagiSprig" transform="translate(140,150) scale(.9)"/>
+  </symbol>
+
+  <!-- ---- 8月 芒 ---- -->
+  <symbol id="m08_hikari" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <circle cx="130" cy="96" r="33" fill="#cf2b28" stroke="#7d1512" stroke-width="2"/>
+    <path d="M8 268 C 54 220 96 218 132 240 C 164 258 188 252 214 244 L214 306 L8 306 Z" fill="#242019" stroke="#11100c" stroke-width="1.6"/>
+    <g fill="none" stroke="#7a5f28" stroke-width="2" stroke-linecap="round"><path d="M50 268 C 44 218 48 178 38 140"/><path d="M66 270 C 64 222 72 184 66 148"/><path d="M82 268 C 84 224 94 192 92 160"/><path d="M100 270 C 104 228 112 204 116 176"/></g>
+    <use href="#susukiPlume" transform="translate(38,140)"/><use href="#susukiPlume" transform="translate(66,148)"/><use href="#susukiPlume" transform="translate(92,160)"/><use href="#susukiPlume" transform="translate(116,176) scale(.9)"/>
+  </symbol>
+  <symbol id="m08_tane" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <path d="M8 268 C 54 220 96 218 132 240 C 164 258 188 252 214 244 L214 306 L8 306 Z" fill="#242019" stroke="#11100c" stroke-width="1.6"/>
+    <g fill="#2a2620" stroke="#000" stroke-width=".6">
+      <path d="M96 96 c 10 -8 14 -8 22 0 c -8 -3 -14 -3 -22 0 Z"/>
+      <path d="M130 118 c 9 -7 13 -7 20 0 c -7 -3 -13 -3 -20 0 Z"/>
+      <path d="M78 130 c 8 -6 12 -6 18 0 c -6 -3 -12 -3 -18 0 Z"/>
+    </g>
+    <g fill="none" stroke="#7a5f28" stroke-width="2" stroke-linecap="round"><path d="M50 268 C 44 218 48 178 38 140"/><path d="M66 270 C 64 222 72 184 66 148"/><path d="M100 270 C 104 228 112 204 116 176"/></g>
+    <use href="#susukiPlume" transform="translate(38,140)"/><use href="#susukiPlume" transform="translate(66,148)"/><use href="#susukiPlume" transform="translate(116,176) scale(.9)"/>
+  </symbol>
+  <symbol id="m08_kasu1" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <path d="M8 262 C 54 214 96 212 132 234 C 164 252 188 246 214 238 L214 306 L8 306 Z" fill="#242019" stroke="#11100c" stroke-width="1.6"/>
+    <g fill="none" stroke="#7a5f28" stroke-width="2" stroke-linecap="round"><path d="M56 262 C 50 212 54 172 44 134"/><path d="M74 264 C 72 216 80 178 74 142"/><path d="M92 262 C 94 218 104 186 102 154"/><path d="M112 264 C 116 222 124 198 128 170"/><path d="M134 266 C 138 226 144 206 148 182"/></g>
+    <use href="#susukiPlume" transform="translate(44,134)"/><use href="#susukiPlume" transform="translate(74,142)"/><use href="#susukiPlume" transform="translate(102,154)"/><use href="#susukiPlume" transform="translate(128,170) scale(.9)"/><use href="#susukiPlume" transform="translate(148,182) scale(.85)"/>
+  </symbol>
+  <symbol id="m08_kasu2" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <path d="M8 244 C 40 252 70 250 110 236 C 150 222 184 224 214 262 L214 306 L8 306 Z" fill="#242019" stroke="#11100c" stroke-width="1.6"/>
+    <g fill="none" stroke="#7a5f28" stroke-width="2" stroke-linecap="round"><path d="M64 250 C 58 200 62 160 52 122"/><path d="M84 250 C 82 202 90 164 84 128"/><path d="M104 246 C 106 202 116 170 114 138"/><path d="M126 250 C 130 208 136 188 140 160"/></g>
+    <use href="#susukiPlume" transform="translate(52,122)"/><use href="#susukiPlume" transform="translate(84,128)"/><use href="#susukiPlume" transform="translate(114,138)"/><use href="#susukiPlume" transform="translate(140,160) scale(.9)"/>
+  </symbol>
+
+  <!-- ---- 9月 菊 ---- -->
+  <symbol id="m09_tane" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <g fill="#2f6b2e" stroke="#153311" stroke-width="1.2"><ellipse cx="66" cy="150" rx="13" ry="8" transform="rotate(-24 66 150)"/><ellipse cx="150" cy="150" rx="13" ry="8" transform="rotate(24 150 150)"/></g>
+    <use href="#kikuBloom" transform="translate(66,120) scale(1.1)"/><use href="#kikuBloom" transform="translate(150,122)"/>
+    <g transform="translate(108,244)">
+      <path d="M-30 -8 C -30 12 30 12 30 -8 Z" fill="#c1401f" stroke="#7a2410" stroke-width="1.8"/>
+      <ellipse cx="0" cy="-8" rx="30" ry="7" fill="#d9552e" stroke="#7a2410" stroke-width="1.6"/>
+      <ellipse cx="0" cy="-8" rx="22" ry="5" fill="#8f2c12"/>
+      <rect x="-4" y="10" width="8" height="8" fill="#7a2410"/>
+      <ellipse cx="0" cy="20" rx="16" ry="5" fill="#c1401f" stroke="#7a2410" stroke-width="1.6"/>
+      <text x="0" y="-6" text-anchor="middle" font-size="9" fill="#f0d24a" font-family="serif">寿</text>
+    </g>
+  </symbol>
+  <symbol id="m09_tan" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <g fill="#2f6b2e" stroke="#153311" stroke-width="1.2"><ellipse cx="150" cy="150" rx="13" ry="8" transform="rotate(20 150 150)"/></g>
+    <use href="#kikuBloom" transform="translate(150,120) scale(1.1)"/>
+    <use href="#tanBlue" transform="translate(96,216) rotate(-8)"/>
+  </symbol>
+  <symbol id="m09_kasu1" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <g fill="#2f6b2e" stroke="#153311" stroke-width="1.2"><ellipse cx="82" cy="210" rx="14" ry="9" transform="rotate(-20 82 210)"/><ellipse cx="140" cy="212" rx="14" ry="9" transform="rotate(20 140 212)"/></g>
+    <use href="#kikuBloom" transform="translate(84,176) scale(1.2)"/><use href="#kikuBloom" transform="translate(140,186)"/>
+  </symbol>
+  <symbol id="m09_kasu2" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <g fill="#2f6b2e" stroke="#153311" stroke-width="1.2"><ellipse cx="140" cy="210" rx="14" ry="9" transform="rotate(20 140 210)"/><ellipse cx="82" cy="212" rx="14" ry="9" transform="rotate(-20 82 212)"/></g>
+    <use href="#kikuBloom" transform="translate(138,176) scale(1.2)"/><use href="#kikuBloom" transform="translate(82,186)"/>
+  </symbol>
+
+  <!-- ---- 10月 紅葉 ---- -->
+  <symbol id="m10_tane" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <g fill="none" stroke="#6a4a24" stroke-width="4" stroke-linecap="round"><path d="M40 120 C 56 150 60 180 54 210"/></g>
+    <use href="#momijiLeaf" transform="translate(50,110) scale(1.1)"/><use href="#momijiLeaf" transform="translate(70,140) rotate(30) scale(.9)"/><use href="#momijiLeaf" transform="translate(40,160) rotate(-20) scale(.85)"/>
+    <g transform="translate(135,250)">
+      <path d="M-28 4 C -30 -14 -10 -22 12 -18 C 30 -14 32 0 26 12 C 18 22 -20 22 -28 4 Z" fill="#a5713a" stroke="#5c3d18" stroke-width="1.6"/>
+      <path d="M18 -14 C 24 -30 22 -42 18 -52" fill="none" stroke="#8a5f2a" stroke-width="5" stroke-linecap="round"/>
+      <circle cx="18" cy="-56" r="7" fill="#b7854a" stroke="#5c3d18" stroke-width="1.4"/>
+      <path d="M14 -60 C 10 -70 8 -72 6 -78 M22 -60 C 26 -70 28 -72 30 -78 M14 -64 l -6 -4 M28 -66 l 6 -4" fill="none" stroke="#5c3d18" stroke-width="1.6" stroke-linecap="round"/>
+      <path d="M24 -56 L 34 -55 L 24 -53 Z" fill="#3a2a14"/><circle cx="16" cy="-57" r="1.2" fill="#111"/>
+      <g fill="#f0e6cc"><circle cx="-8" cy="-4" r="1.6"/><circle cx="0" cy="2" r="1.6"/><circle cx="8" cy="-2" r="1.6"/></g>
+      <g stroke="#5c3d18" stroke-width="3" stroke-linecap="round"><line x1="-18" y1="14" x2="-20" y2="30"/><line x1="-4" y1="16" x2="-6" y2="32"/><line x1="12" y1="16" x2="12" y2="32"/><line x1="22" y1="12" x2="24" y2="28"/></g>
+    </g>
+  </symbol>
+  <symbol id="m10_tan" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <g fill="none" stroke="#6a4a24" stroke-width="4" stroke-linecap="round"><path d="M160 116 C 150 148 148 186 152 220"/></g>
+    <use href="#momijiLeaf" transform="translate(156,108) scale(1.1)"/><use href="#momijiLeaf" transform="translate(140,140) rotate(-24) scale(.9)"/><use href="#momijiLeaf" transform="translate(166,150) rotate(20) scale(.85)"/>
+    <use href="#tanBlue" transform="translate(96,214) rotate(-8)"/>
+  </symbol>
+  <symbol id="m10_kasu1" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <use href="#momijiLeaf" transform="translate(90,150) scale(1.5)"/><use href="#momijiLeaf" transform="translate(140,200) rotate(30) scale(1.2)"/><use href="#momijiLeaf" transform="translate(80,220) rotate(-24) scale(1.1)"/><use href="#momijiLeaf" transform="translate(140,120) rotate(16) scale(1)"/>
+  </symbol>
+  <symbol id="m10_kasu2" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <use href="#momijiLeaf" transform="translate(130,150) scale(1.5)"/><use href="#momijiLeaf" transform="translate(80,200) rotate(-30) scale(1.2)"/><use href="#momijiLeaf" transform="translate(140,220) rotate(24) scale(1.1)"/><use href="#momijiLeaf" transform="translate(80,120) rotate(-16) scale(1)"/>
+  </symbol>
+
+  <!-- ---- 11月 柳 ---- -->
+  <symbol id="m11_hikari" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="9" y="9" width="202" height="332" rx="9" fill="none" stroke="#b52a2a" stroke-width="3.5"/>
+    <g stroke="#3f5f8a" stroke-width="1.8" stroke-linecap="round"><line x1="34" y1="24" x2="20" y2="72"/><line x1="58" y1="24" x2="44" y2="74"/><line x1="82" y1="26" x2="68" y2="76"/><line x1="164" y1="26" x2="150" y2="74"/></g>
+    <path d="M158 320 C 154 250 168 196 146 154 C 134 132 148 108 138 84" fill="none" stroke="#3d2a12" stroke-width="7" stroke-linecap="round"/>
+    <g fill="none" stroke="#3f7a35" stroke-width="2.2" stroke-linecap="round"><path d="M138 88 C 114 102 100 134 96 178"/><path d="M142 96 C 126 114 118 154 116 202"/><path d="M146 104 C 138 132 140 172 142 216"/><path d="M139 92 C 158 110 164 144 160 188"/></g>
+    <use href="#yanagiLeaf" transform="translate(96,178) rotate(18)"/><use href="#yanagiLeaf" transform="translate(116,202) rotate(8)"/><use href="#yanagiLeaf" transform="translate(142,216) rotate(-8)"/><use href="#yanagiLeaf" transform="translate(160,188) rotate(-20)"/>
+    <path d="M64 96 L 52 132 L 66 130 L 50 172" fill="none" stroke="#e0a92a" stroke-width="3" stroke-linejoin="round"/>
+    <g transform="translate(62,224)">
+      <path d="M-26 -6 C -26 -26 26 -26 26 -6 Z" fill="#a8531f" stroke="#6a2f10" stroke-width="1.5"/>
+      <line x1="0" y1="-16" x2="0" y2="6" stroke="#3d2a12" stroke-width="1.6"/>
+      <path d="M-12 6 C -14 24 -12 40 -8 52 L 8 52 C 12 40 14 24 12 6 Z" fill="#2b3646" stroke="#171f29" stroke-width="1.3"/>
+      <circle cx="0" cy="0" r="6" fill="#e8cfa8" stroke="#a1875e" stroke-width="1.1"/><path d="M-7 -2 C -6 -8 6 -8 7 -2 Z" fill="#1a1a1a"/>
+    </g>
+    <g transform="translate(120,278)">
+      <ellipse cx="0" cy="0" rx="10" ry="7" fill="#4b8b3b" stroke="#2f5a24" stroke-width="1.2"/>
+      <circle cx="-5" cy="-5" r="2.6" fill="#4b8b3b" stroke="#2f5a24" stroke-width="1"/><circle cx="5" cy="-5" r="2.6" fill="#4b8b3b" stroke="#2f5a24" stroke-width="1"/>
+      <circle cx="-5" cy="-5" r="1" fill="#111"/><circle cx="5" cy="-5" r="1" fill="#111"/>
+    </g>
+  </symbol>
+  <symbol id="m11_tane" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <path d="M150 320 C 146 250 160 196 138 150 C 128 130 142 108 132 84" fill="none" stroke="#3d2a12" stroke-width="7" stroke-linecap="round"/>
+    <g fill="none" stroke="#3f7a35" stroke-width="2.2" stroke-linecap="round"><path d="M132 88 C 108 102 94 134 90 178"/><path d="M136 96 C 120 114 112 154 110 202"/><path d="M140 104 C 132 132 134 172 136 216"/></g>
+    <use href="#yanagiLeaf" transform="translate(90,178) rotate(18)"/><use href="#yanagiLeaf" transform="translate(110,202) rotate(8)"/><use href="#yanagiLeaf" transform="translate(136,216) rotate(-8)"/>
+    <g transform="translate(78,180)">
+      <path d="M0 0 C -18 -10 -34 -8 -44 0 C -30 0 -16 4 -4 6 Z" fill="#1e2228" stroke="#000" stroke-width=".8"/>
+      <path d="M0 0 C 12 -8 22 -6 30 2 C 20 0 10 2 2 4 Z" fill="#1e2228" stroke="#000" stroke-width=".8"/>
+      <ellipse cx="-2" cy="3" rx="8" ry="5" fill="#1e2228"/>
+      <path d="M-10 6 L -20 16 M -10 6 L -14 18" stroke="#1e2228" stroke-width="2.4" stroke-linecap="round"/>
+      <circle cx="-6" cy="-1" r="4" fill="#1e2228"/><path d="M-9 0 L -16 1 L -9 3 Z" fill="#3a3320"/>
+      <circle cx="-4" cy="0" r="1.6" fill="#b53030"/>
+    </g>
+  </symbol>
+  <symbol id="m11_tan" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kasumi"/>
+    <path d="M150 320 C 146 250 160 196 138 150 C 128 130 142 108 132 84" fill="none" stroke="#3d2a12" stroke-width="7" stroke-linecap="round"/>
+    <g fill="none" stroke="#3f7a35" stroke-width="2.2" stroke-linecap="round"><path d="M132 88 C 108 102 94 134 90 178"/><path d="M140 104 C 132 132 134 172 136 216"/><path d="M137 92 C 156 110 162 144 158 188"/></g>
+    <use href="#yanagiLeaf" transform="translate(90,178) rotate(18)"/><use href="#yanagiLeaf" transform="translate(136,216) rotate(-8)"/><use href="#yanagiLeaf" transform="translate(158,188) rotate(-20)"/>
+    <use href="#tanRed" transform="translate(84,214) rotate(-8)"/>
+  </symbol>
+  <symbol id="m11_kasu" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <path d="M8 210 C 40 196 70 200 110 214 C 150 228 184 224 212 214 L212 340 a6 6 0 0 1 -6 6 L14 346 a6 6 0 0 1 -6 -6 Z" fill="#b83a1f" stroke="#7a2410" stroke-width="1.8"/>
+    <g fill="none" stroke="#f0d24a" stroke-width="2.4" stroke-linejoin="round">
+      <path d="M40 250 h20 v14 h-14 v14 h20"/><path d="M150 250 h20 v14 h-14 v14 h20"/>
+      <path d="M96 244 L 86 276 L 100 274 L 88 306" stroke="#f0d24a" stroke-width="3"/>
+    </g>
+    <path d="M158 210 C 154 176 166 150 146 120 C 136 104 148 86 138 70" fill="none" stroke="#3d2a12" stroke-width="6.5" stroke-linecap="round"/>
+    <g fill="none" stroke="#3f7a35" stroke-width="2" stroke-linecap="round"><path d="M138 74 C 118 88 106 114 102 150"/><path d="M144 92 C 136 116 138 150 140 186"/></g>
+    <use href="#yanagiLeaf" transform="translate(102,150) rotate(18) scale(.9)"/><use href="#yanagiLeaf" transform="translate(140,186) rotate(-8) scale(.9)"/>
+  </symbol>
+
+  <!-- ---- 12月 桐 ---- -->
+  <symbol id="m12_hikari" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#efe0a6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kiriLeaf" transform="translate(46,320) scale(1.1)"/><use href="#kiriLeaf" transform="translate(110,326) scale(1.25)"/><use href="#kiriLeaf" transform="translate(174,320) scale(1.1)"/>
+    <g fill="#8267bd" stroke="#5b3f8f" stroke-width=".9"><ellipse cx="74" cy="250" rx="4" ry="7" transform="rotate(-15 74 250)"/><ellipse cx="146" cy="248" rx="4" ry="7" transform="rotate(12 146 248)"/></g>
+    <g transform="translate(112,140)" stroke="#5a2410" stroke-width="1.2">
+      <g fill="none" stroke-linecap="round" stroke-width="4">
+        <path d="M6 32 C -20 62 -34 102 -30 152" stroke="#2f7d6b"/><path d="M14 32 C 0 68 -4 110 6 156" stroke="#cf2b28"/>
+        <path d="M22 32 C 22 72 34 110 40 152" stroke="#e0a92a"/><path d="M18 32 C 12 70 18 108 24 152" stroke="#6f4aa0"/>
+      </g>
+      <g stroke="#5a2410" stroke-width="1"><circle cx="-30" cy="152" r="4.5" fill="#2f7d6b"/><circle cx="6" cy="156" r="4.5" fill="#cf2b28"/><circle cx="40" cy="152" r="4.5" fill="#e0a92a"/><circle cx="24" cy="152" r="3.5" fill="#6f4aa0"/></g>
+      <path d="M-4 22 C -22 8 -20 -16 0 -24 C 20 -16 22 8 8 24 C 4 32 0 32 -4 22 Z" fill="#cf2b28"/>
+      <path d="M-2 -4 C -28 -12 -40 0 -34 14 C -22 8 -8 10 0 6 Z" fill="#e0a92a"/><path d="M2 -4 C 28 -12 40 0 34 14 C 22 8 8 10 0 6 Z" fill="#a8471f"/>
+      <circle cx="0" cy="-28" r="7" fill="#f0cf46"/><path d="M-3 -34 C -2 -42 4 -42 5 -35" fill="none" stroke="#cf2b28" stroke-width="2.4" stroke-linecap="round"/>
+      <path d="M6 -28 L 16 -26 L 6 -24 Z" fill="#d99a1e"/><circle cx="1" cy="-29" r="1.3" fill="#1a1a1a"/>
+    </g>
+  </symbol>
+  <symbol id="m12_kasu1" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#efe0a6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kiriLeaf" transform="translate(70,250) scale(1.5)"/><use href="#kiriLeaf" transform="translate(140,240) scale(1.3)"/><use href="#kiriLeaf" transform="translate(110,300) scale(1.2)"/>
+    <g fill="#8267bd" stroke="#5b3f8f" stroke-width=".9"><ellipse cx="100" cy="150" rx="4.6" ry="8" transform="rotate(-12 100 150)"/><ellipse cx="120" cy="160" rx="4.6" ry="8" transform="rotate(12 120 160)"/><ellipse cx="110" cy="140" rx="4.6" ry="8"/></g>
+  </symbol>
+  <symbol id="m12_kasu2" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#efe0a6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kiriLeaf" transform="translate(140,250) scale(1.5)"/><use href="#kiriLeaf" transform="translate(72,240) scale(1.3)"/><use href="#kiriLeaf" transform="translate(108,300) scale(1.2)"/>
+    <g fill="#8267bd" stroke="#5b3f8f" stroke-width=".9"><ellipse cx="118" cy="150" rx="4.6" ry="8" transform="rotate(12 118 150)"/><ellipse cx="98" cy="160" rx="4.6" ry="8" transform="rotate(-12 98 160)"/><ellipse cx="108" cy="140" rx="4.6" ry="8"/></g>
+  </symbol>
+  <symbol id="m12_kasu3" viewBox="0 0 220 350">
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#efe0a6" stroke="#20201c" stroke-width="2.5"/>
+    <use href="#kiriLeaf" transform="translate(108,258) scale(1.7)"/><use href="#kiriLeaf" transform="translate(58,236) scale(1.15)"/><use href="#kiriLeaf" transform="translate(160,236) scale(1.15)"/>
+    <g fill="#8267bd" stroke="#5b3f8f" stroke-width=".9"><ellipse cx="90" cy="150" rx="4.6" ry="8" transform="rotate(-14 90 150)"/><ellipse cx="128" cy="150" rx="4.6" ry="8" transform="rotate(14 128 150)"/><ellipse cx="109" cy="138" rx="4.6" ry="8"/></g>
+  </symbol>
+</defs></svg>
+
+<!-- ============ SCREEN 1: LOBBY ============ -->
+<section id="screen-lobby" class="page-wrap">
+  <header class="site-header">
+    <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
+    <div class="title-block">
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.00</span></h1>
+      <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
+    </div>
+    <div id="top-controls">
+      <button id="gear-icon" type="button" aria-label="設定" title="設定"><svg><use href="#icon-settings"/></svg></button>
+      <select class="lang-select" id="lang-select" aria-label="Language">
+        <option value="auto">Auto</option>
+        <option value="ja">日本語</option>
+        <option value="en">EN</option>
+        <option value="zh">中文</option>
+        <option value="cat">CAT</option>
+      </select>
+    </div>
+  </header>
+  <div class="server-status" id="srv-status-lobby"><span class="dot"></span><span class="lbl" data-i18n="srv.connecting">サーバー接続中…</span></div>
+
+  <div class="section-label"><span data-i18n="lobby.lobby">Lobby</span></div>
+  <div class="lobby-grid">
+    <!-- 部屋を作る -->
+    <div class="panel">
+      <h2>🎴 <span data-i18n="lobby.create.title">部屋を作る</span></h2>
+      <p class="desc" data-i18n="lobby.create.desc">部屋を作成して相手の参加を待ちます。「非公開にする」をオンにすると一覧に表示されません。</p>
+      <label class="fld"><span data-i18n="lobby.name">あなたの名前</span><input id="in-hostname" type="text" placeholder="例：ゆうき" maxlength="16"></label>
+      <label class="fld"><span data-i18n="lobby.roomname">部屋の名前</span><input id="in-roomname" type="text" placeholder="例：花見部屋" maxlength="24"></label>
+      <label class="fld"><span data-i18n="lobby.password">パスワード</span><input id="in-pw" type="password" placeholder="任意" maxlength="16"></label>
+      <div class="toggle-row"><span data-i18n="lobby.private">非公開にする</span>
+        <span class="switch"><input type="checkbox" id="in-private"><span class="slider"></span></span>
+      </div>
+      <button class="btn btn-primary" id="btn-create" data-i18n="lobby.create.btn">部屋を作成</button>
+    </div>
+    <!-- 部屋に入る -->
+    <div class="panel">
+      <div class="join-head">
+        <h2>🚪 <span data-i18n="lobby.join.title">部屋に入る</span></h2>
+        <button class="btn btn-ghost btn-sm" id="btn-refresh" data-i18n="lobby.refresh">↻ 更新</button>
+      </div>
+      <p class="desc" data-i18n="lobby.join.desc">公開中の部屋の一覧です。参加を押すと対戦準備画面に進みます。</p>
+      <label class="fld"><span data-i18n="lobby.myname">あなたの名前</span><input id="in-guestname" type="text" placeholder="例：さくら" maxlength="16"></label>
+      <ul class="roomlist" id="roomlist">
+        <li class="empty" data-i18n="lobby.list.loading">接続中...</li>
+      </ul>
+      <div class="check-row"><input type="checkbox" id="pv"><label for="pv" data-i18n="lobby.showpriv">非公開の部屋を表示</label></div>
+      <div class="pw-row">
+        <input id="in-joinpw" type="password" placeholder="パスワード" maxlength="16">
+        <button class="btn btn-ghost btn-sm" id="btn-show-priv" data-i18n="lobby.show">表示</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SCREEN 2: ROOM PREP (host/guest 共通) ============ -->
+<section id="screen-room" class="page-wrap hidden">
+  <header class="site-header">
+    <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
+    <div class="title-block">
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.00</span></h1>
+      <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
+    </div>
+  </header>
+  <div class="server-status" id="srv-status-room"><span class="dot"></span><span class="lbl" data-i18n="srv.connecting">サーバー接続中…</span></div>
+
+  <div class="section-label"><span data-i18n="room.header">Room — ホスト・ゲスト共通画面</span></div>
+
+  <!-- 接続・参加者 -->
+  <div class="panel room-head">
+    <div class="conn" id="conn-status"><span class="dot"></span><span id="conn-label" data-i18n="room.conn.waiting">相手を待っています</span></div>
+    <div class="room-name"><span data-i18n="room.room">部屋</span>：<b id="room-name-disp">—</b> <span id="room-pw-disp" class="hidden" style="color:var(--text-muted);font-size:.8rem">🔒 <span data-i18n="room.hasPw">パスワードあり</span></span></div>
+    <div class="players">
+      <div class="pl host"><small data-i18n="room.host">ホスト</small><span id="host-name">—</span></div>
+      <div class="vs">VS</div>
+      <div class="pl guest"><small data-i18n="room.guest">ゲスト</small><span id="guest-name" class="waiting-g" data-i18n="room.waiting">参加待ち…</span></div>
+    </div>
+    <button class="leave-btn" id="btn-leave" data-i18n="room.leave">← ロビーに戻る</button>
+  </div>
+
+  <!-- ゲーム選択 -->
+  <div class="section-label"><span data-i18n="room.pick">ゲームを選ぶ</span></div>
+  <div class="game-tabs">
+    <button class="gtab active" data-g="koikoi"><span class="em">🎴</span><span data-i18n="room.g.koikoi">こいこい</span></button>
+    <button class="gtab" data-g="hachi" disabled><span class="em">🎴</span><span data-i18n="room.g.hachi">八八</span><span class="soon" data-i18n="room.soon">近日</span></button>
+    <button class="gtab" data-g="awase" disabled><span class="em">🌸</span><span data-i18n="room.g.awase">花合わせ</span><span class="soon" data-i18n="room.soon">近日</span></button>
+    <button class="gtab" data-g="oicho" disabled><span class="em">🎲</span><span data-i18n="room.g.oicho">おいちょかぶ</span><span class="soon" data-i18n="room.soon">近日</span></button>
+  </div>
+
+  <!-- 設定パネル -->
+  <div class="gset" id="set-koikoi">
+    <h3 data-i18n="set.koikoi.title">こいこい 設定</h3>
+    <div class="set-row"><span data-i18n="set.rounds">局数</span><span class="seg" data-key="rounds"><button data-v="6" data-i18n="set.6">6局</button><button class="on" data-v="12" data-i18n="set.12">12局</button></span></div>
+    <div class="set-row"><span data-i18n="set.kiku">菊の盃</span><span class="seg" data-key="kiku"><button class="on" data-v="tane" data-i18n="set.kiku.tane">種＋花見月見</button><button data-v="kasu2" data-i18n="set.kiku.kasu2">カス2枚</button></span></div>
+    <div class="set-row"><span data-i18n="set.double">7文以上2倍</span><span class="seg" data-key="double"><button class="on" data-v="on" data-i18n="set.on">あり</button><button data-v="off" data-i18n="set.off">なし</button></span></div>
+    <div class="set-row"><span data-i18n="set.deal">手四・くっつき</span><span class="seg" data-key="deal"><button class="on" data-v="on" data-i18n="set.enabled">有効</button><button data-v="off" data-i18n="set.disabled">無効</button></span></div>
+    <div class="set-row"><span data-i18n="set.draw">引き分けの親</span><span class="seg" data-key="draw"><button class="on" data-v="keep" data-i18n="set.draw.keep">親継続</button><button data-v="flow" data-i18n="set.draw.flow">親流れ</button></span></div>
+  </div>
+
+  <!-- 先手・親決め -->
+  <div class="section-label"><span data-i18n="oya.title">先手（親）を決める</span></div>
+  <div class="panel oya">
+    <p class="lead" data-i18n="oya.lead">1枚ずつ札を引き、早い月を引いた方が「親（先手）」になります。ホスト・ゲストどちらの画面からでも実行できます。</p>
+    <div class="draw-area">
+      <div class="draw-slot"><small id="oya-host-lbl">ホスト</small><div class="mini back" id="slotHost"></div></div>
+      <div class="draw-slot"><small id="oya-guest-lbl">ゲスト</small><div class="mini back" id="slotGuest"></div></div>
+    </div>
+    <div class="oya-result" id="oyaResult" data-i18n="oya.notyet">まだ引いていません</div>
+    <button class="btn btn-ghost" id="btn-draw-oya" data-i18n="oya.draw">カードを引く</button>
+  </div>
+
+  <button class="btn btn-primary big-start" id="btn-start" disabled data-i18n="start.disabled">ゲームスタート（親を決めると押せます）</button>
+  <p class="note" data-i18n="room.note">この画面はホスト・ゲスト共通です。ゲーム選択・設定変更・親決めはホスト操作、ゲストは同期表示になります。</p>
+</section>
+
+<!-- ============ SCREEN 3: IN-GAME (mock verbatim: placeholder data) ============ -->
+<section id="screen-game" class="wrap hidden">
+  <div class="titleblock">
+    <div class="site-header">
+      <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.00</span></h1>
+    </div>
+    <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
+  </div>
+  <div class="statusbar" id="game-status">
+    <span><b id="st-month">3月場</b>（<span id="st-round">第1局/全12局</span>）</span>
+    <span><span data-i18n="game.you">あなた</span><b id="st-my-score">0</b><span data-i18n="game.mon">文</span>・<span data-i18n="game.opp">あいて</span><b id="st-op-score">0</b><span data-i18n="game.mon">文</span></span>
+    <span id="st-turn" data-i18n="game.wait">対局準備中</span>
+  </div>
+  <div class="play">
+    <!-- 相手手札 -->
+    <div class="seg-row">
+      <div class="zl" data-i18n="game.opp.hand">相手の手札</div>
+      <div class="cardrow" id="opp-hand">
+        <svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg><svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg><svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg><svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg><svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg><svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg><svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg><svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg>
+      </div>
+      <div class="nearcap" id="opp-near"></div>
+    </div>
+    <!-- 相手取り札 -->
+    <div class="capblock">
+      <div class="ct" data-i18n="game.opp.cap">相手の取り札</div>
+      <div class="caprow" id="opp-cap-top"><span class="gl" data-i18n="game.g.hikari">光</span><div class="cards"></div><span class="gl" data-i18n="game.g.tane">種</span><div class="cards"></div><span class="gl" data-i18n="game.g.tan">短</span><div class="cards"></div></div>
+      <div class="caprow" id="opp-cap-bot"><span class="gl" data-i18n="game.g.kasu">カス</span><div class="cards"></div></div>
+    </div>
+    <!-- 山札・場 -->
+    <div class="seg-row">
+      <div class="deckfield">
+        <div class="deck">
+          <svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg>
+          <div class="count"><span data-i18n="game.deck">山</span><span id="deck-count">24</span></div>
+        </div>
+        <div class="field" id="field-cards"></div>
+      </div>
+    </div>
+    <!-- 自分取り札 -->
+    <div class="capblock">
+      <div class="ct" data-i18n="game.my.cap">自分の取り札</div>
+      <div class="caprow" id="my-cap-top"><span class="gl" data-i18n="game.g.hikari">光</span><div class="cards"></div><span class="gl" data-i18n="game.g.tane">種</span><div class="cards"></div><span class="gl" data-i18n="game.g.tan">短</span><div class="cards"></div></div>
+      <div class="caprow" id="my-cap-bot"><span class="gl" data-i18n="game.g.kasu">カス</span><div class="cards"></div></div>
+    </div>
+    <!-- 自分手札 -->
+    <div class="seg-row">
+      <div class="nearcap" id="my-near"></div>
+      <div class="cardrow" id="my-hand"></div>
+      <div class="zl" data-i18n="game.my.hand">あなたの手札</div>
+    </div>
+  </div>
+  <button class="leave-btn" id="btn-leave-game" style="position:absolute;top:8px;left:12px;z-index:150" data-i18n="game.leave">← 中断</button>
+</section>
+
+<!-- ============ OVERLAYS ============ -->
+<div class="overlay" id="ovNotice"><div class="opanel">
+  <h2 id="ov-title">お知らせ</h2>
+  <p id="ov-body"></p>
+  <div class="btn-row"><button class="btn btn-primary" id="ov-ok" data-i18n="ov.ok">OK</button></div>
+</div></div>
+
+<div class="overlay" id="ovSettings"><div class="opanel">
+  <h2><span data-i18n="settings.title">設定</span></h2>
+  <div class="settings-row" id="settings-row-bgm">
+    <div class="settings-row-head">
+      <span class="row-label" data-i18n="settings.bgm.label">BGM</span>
+      <span class="row-value"><span id="bgm-volume-value">40%</span></span>
+    </div>
+    <input type="range" class="settings-volume-slider" id="bgm-volume-slider" min="0" max="100" value="40">
+    <div class="settings-row-hint" data-i18n="settings.bgm.hint">BGM の音量（v1.00 は UI のみ・音源は Phase 2 で搭載）</div>
+  </div>
+  <div class="settings-row" id="settings-row-sfx">
+    <div class="settings-row-head">
+      <span class="row-label" data-i18n="settings.sfx.label">効果音</span>
+      <span class="row-value"><span id="sfx-volume-value">50%</span></span>
+    </div>
+    <input type="range" class="settings-volume-slider" id="sfx-volume-slider" min="0" max="100" value="50">
+    <div class="settings-row-hint" data-i18n="settings.sfx.hint">効果音の音量（v1.00 は UI のみ・音源は Phase 2 で搭載）</div>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-primary" id="btn-settings-close" data-i18n="settings.close">閉じる</button>
+  </div>
+</div></div>
+
+<div class="overlay" id="ovYaku"><div class="opanel">
+  <h2><span data-i18n="ov.yaku.title">役が成立！</span><span class="tag" id="ov-yaku-who">あなた</span></h2>
+  <ul class="yaku-list" id="ov-yaku-list"></ul>
+  <div class="total-line"><span data-i18n="ov.yaku.total">現在の役得点</span><span><b id="ov-yaku-pt">0</b> <span data-i18n="game.mon">文</span></span></div>
+  <p class="hint" data-i18n="ov.yaku.hint">「こいこい」で続けると得点上乗せ。相手に先に上がられると相手が総取り。</p>
+  <div class="btn-row">
+    <button class="btn btn-koikoi" id="btn-koikoi" data-i18n="ov.koikoi">こいこい</button>
+    <button class="btn btn-shobu" id="btn-shobu" data-i18n="ov.shobu">勝負</button>
+  </div>
+</div></div>
+
+<!-- ============ SEO FOOTER ============ -->
+<footer class="site-footer">
+  <div class="site-footer-inner">
+    <h2 data-i18n="foot.about">MOMO Hanafuda について</h2>
+    <p data-i18n="foot.desc">MOMO Hanafuda は花札をオンライン2人対戦で遊べるブラウザゲームです。4言語対応・PCとスマホの縦画面に対応。アカウント登録もインストールも不要です。</p>
+    <div class="foot-links">
+      <a href="../../" data-i18n="foot.top">MOMO Works トップ</a>
+      <a href="../../games/" data-i18n="foot.games">ゲーム一覧</a>
+      <a href="../../tools/" data-i18n="foot.tools">ツール一覧</a>
+    </div>
+  </div>
+</footer>
+
+<!-- ===== 共通マッチングモジュール（WS シグナリング + WebRTC P2P） ===== -->
+<script src="../matchmaking/momo-matchmaking.js"></script>
+
+<script>
+// ==========================================================================
+// MOMO Hanafuda v1.00 — Phase 1: skeleton (lobby/room online + 対局中モック表示)
+// ==========================================================================
+(() => {
+'use strict';
+
+// --------------------------------------------------------------------------
+// 1) 定数
+// --------------------------------------------------------------------------
+const APP_VERSION = 'v1.00';
+const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
+const LANG_APP_ID = 'hanafuda';
+const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
+
+// サブタイトル（言語別・仕様書§4.1）
+const SUBTITLE = {
+  ja:  'Floral Deck, Subtle Hazard',
+  en:  'Floral Deck, Subtle Hazard',
+  zh:  '花牌雅局，暗藏玄機',
+};
+
+// --------------------------------------------------------------------------
+// 2) I18N 辞書（ja / en / zh）+ CAT
+// --------------------------------------------------------------------------
+const I18N = {
+  ja: {
+    'lobby.lobby': 'Lobby',
+    'lobby.create.title': '部屋を作る',
+    'lobby.create.desc': '部屋を作成して相手の参加を待ちます。「非公開にする」をオンにすると一覧に表示されません。',
+    'lobby.name': 'あなたの名前',
+    'lobby.roomname': '部屋の名前',
+    'lobby.password': 'パスワード',
+    'lobby.private': '非公開にする',
+    'lobby.create.btn': '部屋を作成',
+    'lobby.join.title': '部屋に入る',
+    'lobby.refresh': '↻ 更新',
+    'lobby.join.desc': '公開中の部屋の一覧です。参加を押すと対戦準備画面に進みます。',
+    'lobby.myname': 'あなたの名前',
+    'lobby.showpriv': '非公開の部屋を表示',
+    'lobby.show': '表示',
+    'lobby.list.loading': '接続中...',
+    'lobby.list.empty': '公開中の部屋はありません',
+    'lobby.list.disconnected': 'サーバー未接続',
+    'lobby.state.wait': '待機中',
+    'lobby.state.full': '満室',
+    'lobby.join': '参加',
+    'lobby.pw.tag': 'パスワードつき',
+    'lobby.err.noname': 'あなたの名前を入力してください',
+    'lobby.err.noroom': '部屋の名前を入力してください',
+    'lobby.err.noguestname': 'あなたの名前を入力してください',
+    'room.crumb': '対戦準備',
+    'room.header': 'Room — ホスト・ゲスト共通画面',
+    'room.conn.waiting': '相手を待っています',
+    'room.conn.connected': '接続済み（P2P）',
+    'room.room': '部屋',
+    'room.hasPw': 'パスワードあり',
+    'room.host': 'ホスト',
+    'room.guest': 'ゲスト',
+    'room.waiting': '参加待ち…',
+    'room.leave': '← ロビーに戻る',
+    'room.pick': 'ゲームを選ぶ',
+    'room.g.koikoi': 'こいこい',
+    'room.g.hachi': '八八',
+    'room.g.awase': '花合わせ',
+    'room.g.oicho': 'おいちょかぶ',
+    'room.soon': '近日',
+    'set.koikoi.title': 'こいこい 設定',
+    'set.rounds': '局数', 'set.6': '6局', 'set.12': '12局',
+    'set.kiku': '菊の盃', 'set.kiku.tane': '種＋花見月見', 'set.kiku.kasu2': 'カス2枚',
+    'set.double': '7文以上2倍', 'set.on': 'あり', 'set.off': 'なし',
+    'set.deal': '手四・くっつき', 'set.enabled': '有効', 'set.disabled': '無効',
+    'set.draw': '引き分けの親', 'set.draw.keep': '親継続', 'set.draw.flow': '親流れ',
+    'oya.title': '先手（親）を決める',
+    'oya.lead': '1枚ずつ札を引き、早い月を引いた方が「親（先手）」になります。ホスト・ゲストどちらの画面からでも実行できます。',
+    'oya.notyet': 'まだ引いていません',
+    'oya.draw': 'カードを引く',
+    'oya.result': '早い月を引いた <b>{who}</b> が親（先手）です',
+    'start.disabled': 'ゲームスタート（親を決めると押せます）',
+    'start.enabled': 'ゲームスタート',
+    'room.note': 'この画面はホスト・ゲスト共通です。ゲーム選択・設定変更・親決めはホスト操作、ゲストは同期表示になります。',
+    'room.month': (n) => n + '月',
+    'game.you': 'あなた', 'game.opp': 'あいて', 'game.mon': '文',
+    'game.wait': '対局準備中',
+    'game.opp.hand': '相手の手札', 'game.opp.cap': '相手の取り札',
+    'game.my.hand': 'あなたの手札', 'game.my.cap': '自分の取り札',
+    'game.g.hikari': '光', 'game.g.tane': '種', 'game.g.tan': '短', 'game.g.kasu': 'カス',
+    'game.deck': '山',
+    'game.leave': '← 中断',
+    'game.placeholder.title': '対局画面（Phase 2で実装）',
+    'game.placeholder.body': '対局画面のレイアウトはモック通りに配置されています。カードの配札・合わせ取り・役判定・こいこい/勝負・全12局進行は次のフェーズで実装します。',
+    'ov.ok': 'OK',
+    'ov.yaku.title': '役が成立！',
+    'ov.yaku.total': '現在の役得点',
+    'ov.yaku.hint': '「こいこい」で続けると得点上乗せ。相手に先に上がられると相手が総取り。',
+    'ov.koikoi': 'こいこい',
+    'ov.shobu': '勝負',
+    'foot.about': 'MOMO Hanafuda について',
+    'foot.desc': 'MOMO Hanafuda は花札をオンライン2人対戦で遊べるブラウザゲームです。4言語対応・PCとスマホの縦画面に対応。アカウント登録もインストールも不要です。',
+    'foot.top': 'MOMO Works トップ',
+    'foot.games': 'ゲーム一覧',
+    'foot.tools': 'ツール一覧',
+    'notice.disconnect.title': '通信が切断されました',
+    'notice.disconnect.body': '相手との接続が切れました。ロビーに戻ります。',
+    'notice.hostname': 'ホスト',
+    'notice.guestname': 'ゲスト',
+    'settings.title': '設定',
+    'settings.bgm.label': 'BGM',
+    'settings.bgm.hint': 'BGM の音量（v1.00 は UI のみ・音源は Phase 2 で搭載）',
+    'settings.sfx.label': '効果音',
+    'settings.sfx.hint': '効果音の音量（v1.00 は UI のみ・音源は Phase 2 で搭載）',
+    'settings.close': '閉じる',
+    'gear.title': '設定',
+    'srv.connecting': 'サーバー接続中…',
+    'srv.online': 'サーバー接続済み',
+    'srv.offline': 'サーバー未接続',
+  },
+  en: {
+    'lobby.lobby': 'Lobby',
+    'lobby.create.title': 'Create Room',
+    'lobby.create.desc': 'Create a room and wait for an opponent to join. Toggle "Private" to hide it from the list.',
+    'lobby.name': 'Your name',
+    'lobby.roomname': 'Room name',
+    'lobby.password': 'Password',
+    'lobby.private': 'Private',
+    'lobby.create.btn': 'Create Room',
+    'lobby.join.title': 'Join Room',
+    'lobby.refresh': '↻ Refresh',
+    'lobby.join.desc': 'Public rooms currently open. Click Join to enter the match-prep screen.',
+    'lobby.myname': 'Your name',
+    'lobby.showpriv': 'Show private rooms',
+    'lobby.show': 'Show',
+    'lobby.list.loading': 'Connecting...',
+    'lobby.list.empty': 'No public rooms available',
+    'lobby.list.disconnected': 'Server not connected',
+    'lobby.state.wait': 'Waiting',
+    'lobby.state.full': 'Full',
+    'lobby.join': 'Join',
+    'lobby.pw.tag': 'Password required',
+    'lobby.err.noname': 'Please enter your name',
+    'lobby.err.noroom': 'Please enter a room name',
+    'lobby.err.noguestname': 'Please enter your name',
+    'room.crumb': 'Prep',
+    'room.header': 'Room — Shared host / guest view',
+    'room.conn.waiting': 'Waiting for opponent',
+    'room.conn.connected': 'Connected (P2P)',
+    'room.room': 'Room',
+    'room.hasPw': 'password protected',
+    'room.host': 'Host',
+    'room.guest': 'Guest',
+    'room.waiting': 'Waiting for guest…',
+    'room.leave': '← Back to Lobby',
+    'room.pick': 'Choose Game',
+    'room.g.koikoi': 'Koi-Koi',
+    'room.g.hachi': 'Hachi-Hachi',
+    'room.g.awase': 'Hana-Awase',
+    'room.g.oicho': 'Oicho-Kabu',
+    'room.soon': 'Coming soon',
+    'set.koikoi.title': 'Koi-Koi Settings',
+    'set.rounds': 'Rounds', 'set.6': '6', 'set.12': '12',
+    'set.kiku': 'Kiku no Sakazuki', 'set.kiku.tane': 'Tane (+Hanami/Tsukimi)', 'set.kiku.kasu2': 'Kasu ×2',
+    'set.double': '7+ Points ×2', 'set.on': 'On', 'set.off': 'Off',
+    'set.deal': 'Teshi / Kuttsuki', 'set.enabled': 'On', 'set.disabled': 'Off',
+    'set.draw': 'Dealer on Draw', 'set.draw.keep': 'Keep', 'set.draw.flow': 'Rotate',
+    'oya.title': 'Decide the Dealer',
+    'oya.lead': 'Each player draws one card; the earlier month becomes the dealer (first player). Either host or guest can trigger the draw.',
+    'oya.notyet': 'Not drawn yet',
+    'oya.draw': 'Draw a Card',
+    'oya.result': '<b>{who}</b> drew the earlier month and is the dealer',
+    'start.disabled': 'Start Game (available after dealer is decided)',
+    'start.enabled': 'Start Game',
+    'room.note': 'This screen is shared by host and guest. Game/settings/dealer are host-driven; the guest view mirrors them.',
+    'room.month': (n) => (['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][n-1]),
+    'game.you': 'You', 'game.opp': 'Opp.', 'game.mon': 'mon',
+    'game.wait': 'Preparing…',
+    'game.opp.hand': "Opponent's hand", 'game.opp.cap': "Opponent's captures",
+    'game.my.hand': 'Your hand', 'game.my.cap': 'Your captures',
+    'game.g.hikari': 'Hikari', 'game.g.tane': 'Tane', 'game.g.tan': 'Tan', 'game.g.kasu': 'Kasu',
+    'game.deck': 'Deck',
+    'game.leave': '← Quit',
+    'game.placeholder.title': 'In-Game Screen (Phase 2)',
+    'game.placeholder.body': 'The in-game layout is placed per the mock. Dealing, matching, yaku detection, koi-koi/shobu, and the 12-round flow will be wired in the next phase.',
+    'ov.ok': 'OK',
+    'ov.yaku.title': 'Yaku!',
+    'ov.yaku.total': 'Current Yaku Score',
+    'ov.yaku.hint': 'Call Koi-Koi to keep going for more points. If the opponent calls Shobu first, they take everything.',
+    'ov.koikoi': 'Koi-Koi',
+    'ov.shobu': 'Shobu',
+    'foot.about': 'About MOMO Hanafuda',
+    'foot.desc': 'MOMO Hanafuda lets you play the Japanese card game Hanafuda online against another player, in your browser. 4-language UI, works on PC and mobile portrait. No account, no install.',
+    'foot.top': 'MOMO Works Top',
+    'foot.games': 'All Games',
+    'foot.tools': 'All Tools',
+    'notice.disconnect.title': 'Connection Lost',
+    'notice.disconnect.body': 'The connection to your opponent has dropped. Returning to lobby.',
+    'notice.hostname': 'Host',
+    'notice.guestname': 'Guest',
+    'settings.title': 'Settings',
+    'settings.bgm.label': 'BGM',
+    'settings.bgm.hint': 'BGM volume (v1.00 is UI only — audio arrives in Phase 2)',
+    'settings.sfx.label': 'SFX',
+    'settings.sfx.hint': 'Sound-effect volume (v1.00 is UI only — audio arrives in Phase 2)',
+    'settings.close': 'Close',
+    'gear.title': 'Settings',
+    'srv.connecting': 'Connecting to server…',
+    'srv.online': 'Server connected',
+    'srv.offline': 'Server offline',
+  },
+  zh: {
+    'lobby.lobby': '大厅',
+    'lobby.create.title': '创建房间',
+    'lobby.create.desc': '创建房间并等待对手加入。开启「私密房间」后不会显示在列表中。',
+    'lobby.name': '你的名字',
+    'lobby.roomname': '房间名',
+    'lobby.password': '密码',
+    'lobby.private': '私密房间',
+    'lobby.create.btn': '创建房间',
+    'lobby.join.title': '加入房间',
+    'lobby.refresh': '↻ 刷新',
+    'lobby.join.desc': '当前公开的房间列表。点击「加入」进入对战准备画面。',
+    'lobby.myname': '你的名字',
+    'lobby.showpriv': '显示私密房间',
+    'lobby.show': '显示',
+    'lobby.list.loading': '连接中...',
+    'lobby.list.empty': '目前没有公开房间',
+    'lobby.list.disconnected': '服务器未连接',
+    'lobby.state.wait': '等待中',
+    'lobby.state.full': '已满',
+    'lobby.join': '加入',
+    'lobby.pw.tag': '需要密码',
+    'lobby.err.noname': '请输入你的名字',
+    'lobby.err.noroom': '请输入房间名',
+    'lobby.err.noguestname': '请输入你的名字',
+    'room.crumb': '对战准备',
+    'room.header': '房间 — 主机 / 客人共用画面',
+    'room.conn.waiting': '等待对手',
+    'room.conn.connected': '已连接（P2P）',
+    'room.room': '房间',
+    'room.hasPw': '有密码',
+    'room.host': '主机',
+    'room.guest': '客人',
+    'room.waiting': '等待加入…',
+    'room.leave': '← 返回大厅',
+    'room.pick': '选择游戏',
+    'room.g.koikoi': '来来',
+    'room.g.hachi': '八八',
+    'room.g.awase': '花合',
+    'room.g.oicho': '押丁株',
+    'room.soon': '即将推出',
+    'set.koikoi.title': '来来 设定',
+    'set.rounds': '局数', 'set.6': '6局', 'set.12': '12局',
+    'set.kiku': '菊之杯', 'set.kiku.tane': '种＋花见月见', 'set.kiku.kasu2': '算作2张滓',
+    'set.double': '7文以上×2', 'set.on': '开启', 'set.off': '关闭',
+    'set.deal': '手四・粘', 'set.enabled': '开启', 'set.disabled': '关闭',
+    'set.draw': '平局时的庄家', 'set.draw.keep': '继续', 'set.draw.flow': '轮替',
+    'oya.title': '决定先手（庄家）',
+    'oya.lead': '每人抽一张牌，抽到较早月份的一方成为庄家（先手）。主机 / 客人任一方都可发起。',
+    'oya.notyet': '尚未抽牌',
+    'oya.draw': '抽牌',
+    'oya.result': '抽到较早月份的 <b>{who}</b> 成为庄家（先手）',
+    'start.disabled': '开始游戏（决定庄家后可点）',
+    'start.enabled': '开始游戏',
+    'room.note': '此画面主机 / 客人共用。游戏、设定、决定庄家由主机操作，客人为同步显示。',
+    'room.month': (n) => n + '月',
+    'game.you': '你', 'game.opp': '对方', 'game.mon': '文',
+    'game.wait': '准备中…',
+    'game.opp.hand': '对方的手牌', 'game.opp.cap': '对方的取牌',
+    'game.my.hand': '你的手牌', 'game.my.cap': '你的取牌',
+    'game.g.hikari': '光', 'game.g.tane': '种', 'game.g.tan': '短', 'game.g.kasu': '滓',
+    'game.deck': '牌堆',
+    'game.leave': '← 中止',
+    'game.placeholder.title': '对局画面（Phase 2 实作）',
+    'game.placeholder.body': '对局画面的布局已按 mock 摆好。发牌 / 合牌 / 役判定 / 来来·胜负 / 全12局进行将在下一阶段实作。',
+    'ov.ok': '确定',
+    'ov.yaku.title': '成役！',
+    'ov.yaku.total': '目前得分',
+    'ov.yaku.hint': '按「来来」继续加分。若对方先按「胜负」，则对方通吃。',
+    'ov.koikoi': '来来',
+    'ov.shobu': '胜负',
+    'foot.about': '关于 MOMO Hanafuda',
+    'foot.desc': 'MOMO Hanafuda 是一款可在浏览器中双人在线对战的花札游戏。支持 4 语言、可在 PC 与手机竖屏使用。无需注册、无需安装。',
+    'foot.top': 'MOMO Works 首页',
+    'foot.games': '全部游戏',
+    'foot.tools': '全部工具',
+    'notice.disconnect.title': '连接已断开',
+    'notice.disconnect.body': '与对手的连接中断。返回大厅。',
+    'notice.hostname': '主机',
+    'notice.guestname': '客人',
+    'settings.title': '设置',
+    'settings.bgm.label': 'BGM',
+    'settings.bgm.hint': 'BGM 音量（v1.00 仅 UI 展示，音源将在 Phase 2 加入）',
+    'settings.sfx.label': '音效',
+    'settings.sfx.hint': '音效音量（v1.00 仅 UI 展示，音源将在 Phase 2 加入）',
+    'settings.close': '关闭',
+    'gear.title': '设置',
+    'srv.connecting': '正在连接服务器…',
+    'srv.online': '服务器已连接',
+    'srv.offline': '服务器未连接',
+  },
+};
+
+// CAT: 猫語。key の種類でランダム鳴き声を返す。系統言語は MomoLang.getCatBase から取得。
+const CAT_MEOWS = {
+  ja:  ['にゃあ','にゃにゃ','にゃーん','にゃっ','ふにゃ','ごろごろ'],
+  en:  ['meow','mew','mrow','purr','meoww','nya'],
+  zh:  ['喵','喵喵','喵嗷','咕噜','喵～','喵呜'],
+};
+function catSpeak(key) {
+  const base = (window.MomoLang && MomoLang.getCatBase) ? MomoLang.getCatBase(LANG_APP_ID) : 'ja';
+  const pool = CAT_MEOWS[base] || CAT_MEOWS.ja;
+  const n = 1 + (key ? key.length % 3 : 0);
+  const out = [];
+  for (let i = 0; i < n; i++) out.push(pool[(key.charCodeAt(i % key.length) + i) % pool.length]);
+  return out.join(' ');
+}
+
+let _langMode = 'auto';
+let _currentLang = 'ja';
+
+function _langDetectFallback() {
+  try {
+    const list = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || 'en'];
+    for (const raw of list) {
+      const l = (raw || '').toLowerCase();
+      if (l.indexOf('ja') === 0) return 'ja';
+      if (l.indexOf('zh') === 0) return 'zh';
+      if (l.indexOf('en') === 0) return 'en';
+    }
+  } catch (e) {}
+  return 'en';
+}
+
+function t(key, params) {
+  if (_currentLang === 'cat') return catSpeak(key);
+  const dict = I18N[_currentLang] || I18N.ja;
+  let v = dict[key];
+  if (v == null) v = (I18N.ja[key] != null ? I18N.ja[key] : key);
+  if (typeof v === 'function') return v(params);
+  if (params) {
+    v = v.replace(/\{(\w+)\}/g, (_, k) => (params[k] != null ? params[k] : '{' + k + '}'));
+  }
+  return v;
+}
+
+function applyLang() {
+  document.documentElement.setAttribute('lang', _currentLang === 'cat' ? 'ja' : _currentLang);
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.dataset.i18n;
+    const txt = t(key);
+    // Skip button label refresh for the game-select buttons where children carry span-level data-i18n
+    el.textContent = txt;
+  });
+  // Subtitle per language
+  const sub = _currentLang === 'cat' ? catSpeak('subtitle') : (SUBTITLE[_currentLang] || SUBTITLE.en);
+  ['subtitle-lobby','subtitle-room','subtitle-game'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = sub;
+    el.classList.toggle('zh', _currentLang === 'zh');
+  });
+  // サーバー接続状態バーのラベル
+  refreshServerStatus();
+  // Language dropdown sync — 選択中表示は langMode（auto の時に "Auto" を出すため）
+  const langSel = document.getElementById('lang-select');
+  if (langSel && langSel.value !== _langMode) langSel.value = _langMode;
+  // Gear tooltip
+  const gear = document.getElementById('gear-icon');
+  if (gear) { const g = t('gear.title'); gear.title = g; gear.setAttribute('aria-label', g); }
+  // Room-prep dynamic labels
+  updateOyaLabels();
+  updateStatusI18n();
+}
+
+function updateOyaLabels() {
+  const oh = document.getElementById('oya-host-lbl');
+  const og = document.getElementById('oya-guest-lbl');
+  if (oh) oh.textContent = (state.hostName || t('room.host')) + '（' + t('room.host') + '）';
+  if (og) og.textContent = (state.guestName || t('room.guest')) + '（' + t('room.guest') + '）';
+}
+function updateStatusI18n() {
+  // status bar refresh (labels only; values are ephemeral)
+  const st = document.getElementById('st-turn');
+  if (st && state.screen === 'game') st.textContent = t('game.wait');
+}
+
+// --------------------------------------------------------------------------
+// 3) 状態管理
+// --------------------------------------------------------------------------
+const state = {
+  screen: 'lobby',      // 'lobby' | 'room' | 'game'
+  isHost: false,
+  connected: false,      // P2P DC が open
+  hostName: '',
+  guestName: '',
+  roomName: '',
+  roomHasPw: false,
+  publicRooms: [],
+  showPrivate: false,
+  gameSel: 'koikoi',
+  settings: {           // ホスト権威。ゲストは受信して反映のみ
+    rounds: '12',
+    kiku: 'tane',
+    double: 'on',
+    deal: 'on',
+    draw: 'keep',
+  },
+  oya: null,            // 'host' | 'guest' | null
+  oyaHostMonth: null,
+  oyaGuestMonth: null,
+};
+
+// --------------------------------------------------------------------------
+// 4) 画面遷移
+// --------------------------------------------------------------------------
+function showScreen(s) {
+  state.screen = s;
+  document.getElementById('screen-lobby').classList.toggle('hidden', s !== 'lobby');
+  document.getElementById('screen-room').classList.toggle('hidden', s !== 'room');
+  document.getElementById('screen-game').classList.toggle('hidden', s !== 'game');
+  document.body.classList.toggle('in-game', s === 'game');
+  // Move #top-controls into the current screen's site-header（歯車と言語ドロップダウンを常に表示中の画面のヘッダ右端に）
+  const tc = document.getElementById('top-controls');
+  const targetHeader = document.querySelector('#screen-' + s + ' .site-header');
+  if (tc && targetHeader && tc.parentElement !== targetHeader) targetHeader.appendChild(tc);
+  window.scrollTo(0, 0);
+}
+
+// --------------------------------------------------------------------------
+// 5) 汎用オーバーレイ
+// --------------------------------------------------------------------------
+function showNotice(title, body, onOk) {
+  document.getElementById('ov-title').textContent = title;
+  document.getElementById('ov-body').textContent = body;
+  const ov = document.getElementById('ovNotice');
+  const btn = document.getElementById('ov-ok');
+  ov.classList.add('show');
+  const handler = () => { ov.classList.remove('show'); btn.removeEventListener('click', handler); if (onOk) onOk(); };
+  btn.addEventListener('click', handler);
+}
+
+// --------------------------------------------------------------------------
+// 6) ロビー UI
+// --------------------------------------------------------------------------
+function renderRoomList() {
+  const ul = document.getElementById('roomlist');
+  ul.innerHTML = '';
+  if (!MMState.wsOpen) {
+    const li = document.createElement('li');
+    li.className = 'empty';
+    li.textContent = t('lobby.list.disconnected');
+    ul.appendChild(li);
+    return;
+  }
+  const rooms = state.publicRooms.filter(r => state.showPrivate || r.isPublic !== false);
+  if (rooms.length === 0) {
+    const li = document.createElement('li');
+    li.className = 'empty';
+    li.textContent = t('lobby.list.empty');
+    ul.appendChild(li);
+    return;
+  }
+  rooms.forEach(r => {
+    const li = document.createElement('li');
+    const lock = r.hasPassword ? '🔒 ' : '';
+    const sub = document.createElement('small');
+    sub.textContent = r.hasPassword ? t('lobby.pw.tag') : t('lobby.state.wait');
+    const rn = document.createElement('span');
+    rn.className = 'rn';
+    rn.textContent = lock + (r.name || '(no name)');
+    rn.appendChild(sub);
+    const badge = document.createElement('span');
+    const full = r.playerCount >= 2 || r.status === 'full';
+    badge.className = 'status-badge ' + (full ? 'st-full' : 'st-wait');
+    badge.textContent = full ? t('lobby.state.full') : t('lobby.state.wait');
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-ghost btn-sm';
+    btn.textContent = full ? t('lobby.state.full') : t('lobby.join');
+    if (full) { btn.disabled = true; btn.style.opacity = '.45'; }
+    else btn.addEventListener('click', () => tryJoin(r));
+    li.appendChild(rn); li.appendChild(badge); li.appendChild(btn);
+    ul.appendChild(li);
+  });
+}
+
+function tryJoin(room) {
+  const name = document.getElementById('in-guestname').value.trim();
+  if (!name) { alert(t('lobby.err.noguestname')); return; }
+  const pw = room.hasPassword ? (document.getElementById('in-joinpw').value || '') : '';
+  state.hostName = room.hostName || t('notice.hostname');
+  state.guestName = name;
+  state.roomName = room.name || '';
+  state.roomHasPw = !!room.hasPassword;
+  MomoMatchmaking.joinRoom(room.id, pw, name);
+}
+
+// --------------------------------------------------------------------------
+// 7) 部屋 (対戦準備) UI
+// --------------------------------------------------------------------------
+function refreshRoomView() {
+  document.getElementById('room-name-disp').textContent = state.roomName || '—';
+  document.getElementById('room-pw-disp').classList.toggle('hidden', !state.roomHasPw);
+  document.getElementById('host-name').textContent = state.hostName || '—';
+  const g = document.getElementById('guest-name');
+  if (state.guestName) { g.textContent = state.guestName; g.classList.remove('waiting-g'); }
+  else { g.textContent = t('room.waiting'); g.classList.add('waiting-g'); }
+  const conn = document.getElementById('conn-status');
+  const lab = document.getElementById('conn-label');
+  if (state.connected) {
+    conn.classList.remove('waiting');
+    lab.textContent = t('room.conn.connected');
+  } else {
+    conn.classList.add('waiting');
+    lab.textContent = t('room.conn.waiting');
+  }
+  // Non-host は設定＆親決めを閲覧のみ
+  document.querySelectorAll('#set-koikoi .seg').forEach(seg => seg.setAttribute('data-readonly', state.isHost ? '0' : '1'));
+  document.getElementById('btn-draw-oya').disabled = !state.isHost || !state.connected;
+  updateOyaLabels();
+  updateStartBtn();
+}
+
+function updateStartBtn() {
+  const b = document.getElementById('btn-start');
+  const canStart = state.isHost && state.connected && !!state.oya;
+  b.disabled = !canStart;
+  b.textContent = canStart ? t('start.enabled') : t('start.disabled');
+}
+
+function pickGame(g) {
+  state.gameSel = g;
+  document.querySelectorAll('.gtab').forEach(t => t.classList.toggle('active', t.dataset.g === g));
+  // 「近日」のゲームは disabled 属性で選択不可 (現在は koikoi のみ)
+  document.getElementById('set-koikoi').classList.toggle('hidden', g !== 'koikoi');
+}
+function applySettingToggle(key, v) {
+  state.settings[key] = v;
+  const seg = document.querySelector('#set-koikoi .seg[data-key="' + key + '"]');
+  if (seg) seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  if (state.isHost && state.connected) {
+    MomoMatchmaking.send({ type: 'settings', settings: state.settings });
+  }
+}
+
+const MONTH_NAMES = ['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
+function drawOya() {
+  if (!state.isHost) return;
+  let h = 1 + Math.floor(Math.random() * 12);
+  let g = 1 + Math.floor(Math.random() * 12);
+  while (g === h) g = 1 + Math.floor(Math.random() * 12);
+  state.oyaHostMonth = h;
+  state.oyaGuestMonth = g;
+  state.oya = (h < g) ? 'host' : 'guest';
+  renderOyaDraw();
+  if (state.connected) {
+    MomoMatchmaking.send({ type: 'oya', host: h, guest: g, oya: state.oya });
+  }
+  updateStartBtn();
+}
+function renderOyaDraw() {
+  const sh = document.getElementById('slotHost'), sg = document.getElementById('slotGuest');
+  if (state.oyaHostMonth == null) { sh.className = 'mini back'; sh.innerHTML = ''; }
+  else { sh.className = 'mini'; sh.innerHTML = '<span class="mon">' + MONTH_NAMES[state.oyaHostMonth-1] + '</span><span class="pl-n">' + (state.hostName || t('room.host')) + '</span>'; }
+  if (state.oyaGuestMonth == null) { sg.className = 'mini back'; sg.innerHTML = ''; }
+  else { sg.className = 'mini'; sg.innerHTML = '<span class="mon">' + MONTH_NAMES[state.oyaGuestMonth-1] + '</span><span class="pl-n">' + (state.guestName || t('room.guest')) + '</span>'; }
+  const res = document.getElementById('oyaResult');
+  if (state.oya) {
+    const who = state.oya === 'host'
+      ? (state.hostName || t('room.host')) + '（' + t('room.host') + '）'
+      : (state.guestName || t('room.guest')) + '（' + t('room.guest') + '）';
+    res.innerHTML = t('oya.result', { who: who });
+  } else {
+    res.textContent = t('oya.notyet');
+  }
+}
+
+// --------------------------------------------------------------------------
+// 8) MomoMatchmaking
+// --------------------------------------------------------------------------
+const MMState = { wsOpen: false, wasClosed: false };
+
+function initMatchmaking() {
+  MomoMatchmaking.init({
+    gameType: 'hanafuda',
+    signalingUrl: SIGNALING_URL,
+    onWsOpen: () => { MMState.wsOpen = true; MMState.wasClosed = false; refreshServerStatus(); renderRoomList(); },
+    onWsClose: () => { MMState.wsOpen = false; MMState.wasClosed = true; refreshServerStatus(); renderRoomList(); },
+    onRoomList: (rooms) => {
+      state.publicRooms = rooms || [];
+      if (state.screen === 'lobby') renderRoomList();
+    },
+    onRoomCreated: (roomId, roomName, rules) => {
+      state.isHost = true;
+      state.roomName = roomName || state.roomName;
+      state.roomHasPw = !!(rules && rules.hasPassword);
+      state.connected = false;
+      state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null;
+      renderOyaDraw();
+      showScreen('room');
+      refreshRoomView();
+    },
+    onJoinedRoom: (roomId, roomName, hostName, rules) => {
+      state.isHost = false;
+      state.roomName = roomName || state.roomName;
+      state.hostName = hostName || state.hostName;
+      state.roomHasPw = !!(rules && rules.hasPassword);
+      state.connected = false;
+      state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null;
+      // ホストのゲーム設定は connect 後に受信して上書き
+      if (rules && rules.settings) state.settings = Object.assign({}, state.settings, rules.settings);
+      applySettingsToUi();
+      renderOyaDraw();
+      showScreen('room');
+      refreshRoomView();
+    },
+    onGuestJoined: (guestName) => {
+      state.guestName = guestName || t('notice.guestname');
+      refreshRoomView();
+    },
+    onGuestLeft: () => {
+      state.guestName = '';
+      state.connected = false;
+      state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null;
+      renderOyaDraw();
+      refreshRoomView();
+    },
+    onConnected: () => {
+      state.connected = true;
+      refreshRoomView();
+      // Host: 現在の設定と参加者名をゲストに配信
+      if (state.isHost) {
+        MomoMatchmaking.send({ type: 'hello', name: state.hostName });
+        MomoMatchmaking.send({ type: 'settings', settings: state.settings });
+      } else {
+        MomoMatchmaking.send({ type: 'hello', name: state.guestName });
+      }
+    },
+    onDisconnected: (msg) => {
+      state.connected = false;
+      state.guestName = '';
+      state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null;
+      showScreen('lobby');
+      renderRoomList();
+      showNotice(t('notice.disconnect.title'), msg || t('notice.disconnect.body'));
+    },
+    onError: (msg) => {
+      showNotice(t('notice.disconnect.title'), msg || '');
+    },
+    onKicked: () => {
+      state.connected = false;
+      showScreen('lobby');
+      renderRoomList();
+    },
+    onMessage: (data) => handleP2P(data),
+  });
+}
+
+function handleP2P(data) {
+  if (!data || !data.type) return;
+  if (data.type === 'hello') {
+    if (state.isHost) { state.guestName = data.name || state.guestName; }
+    else { state.hostName = data.name || state.hostName; }
+    refreshRoomView();
+    return;
+  }
+  if (data.type === 'settings') {
+    if (!state.isHost && data.settings) {
+      state.settings = Object.assign({}, state.settings, data.settings);
+      applySettingsToUi();
+    }
+    return;
+  }
+  if (data.type === 'oya') {
+    state.oyaHostMonth = data.host;
+    state.oyaGuestMonth = data.guest;
+    state.oya = data.oya;
+    renderOyaDraw();
+    updateStartBtn();
+    return;
+  }
+  if (data.type === 'start') {
+    // Phase 1: 対局中モックをそのまま表示 (実データ配線は Phase 2)
+    enterGamePlaceholder();
+    return;
+  }
+}
+function applySettingsToUi() {
+  Object.entries(state.settings).forEach(([k, v]) => {
+    const seg = document.querySelector('#set-koikoi .seg[data-key="' + k + '"]');
+    if (seg) seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  });
+}
+
+// --------------------------------------------------------------------------
+// 9) 対局中画面 (Phase 1 はモック配置のまま + プレースホルダ通知)
+// --------------------------------------------------------------------------
+function enterGamePlaceholder() {
+  showScreen('game');
+  // ステータスを初期値に
+  document.getElementById('st-month').textContent = MONTH_NAMES[0] + '場';
+  document.getElementById('st-round').textContent = '第1局/全' + state.settings.rounds + '局';
+  document.getElementById('st-my-score').textContent = '0';
+  document.getElementById('st-op-score').textContent = '0';
+  document.getElementById('st-turn').textContent = t('game.wait');
+  document.getElementById('deck-count').textContent = '24';
+  // 場札を 8 枚のダミーで埋める (モック相当)
+  const fld = document.getElementById('field-cards');
+  fld.innerHTML = '';
+  ['m01_hikari','m03_tan','m05_tan','m09_tane','m11_kasu','m04_kasu1','m07_tane','m12_kasu1'].forEach(id => {
+    const wrap = document.createElement('span');
+    wrap.innerHTML = '<svg class="card" viewBox="0 0 220 350"><use href="#' + id + '"/></svg>';
+    fld.appendChild(wrap.firstChild);
+  });
+  // 自分の手札 8 枚 (ダミー)
+  const my = document.getElementById('my-hand');
+  my.innerHTML = '';
+  ['m03_hikari','m02_tane','m06_tan','m10_tan','m08_tane','m09_tan','m10_kasu1','m12_kasu2'].forEach((id, i) => {
+    const wrap = document.createElement('span');
+    wrap.innerHTML = '<svg class="card' + (i === 0 ? ' sel' : '') + '" viewBox="0 0 220 350"><use href="#' + id + '"/></svg>';
+    my.appendChild(wrap.firstChild);
+  });
+  // 取り札 (両者ダミー) は Phase 2 で置き換え
+  fillCapTop('opp-cap-top', [['m08_hikari'], ['m06_tane','m10_tane'], ['m06_tan']]);
+  fillCapBot('opp-cap-bot', ['m01_kasu1','m01_kasu2','m09_kasu1']);
+  fillCapTop('my-cap-top', [['m11_hikari','m12_hikari'], ['m04_tane','m07_tane'], ['m01_tan','m02_tan','m11_tan']]);
+  fillCapBot('my-cap-bot', ['m04_kasu2','m05_kasu1','m06_kasu1','m07_kasu1','m03_kasu1']);
+  // Phase 1: 通知
+  showNotice(t('game.placeholder.title'), t('game.placeholder.body'));
+}
+function fillCapTop(rowId, groups) {
+  const row = document.getElementById(rowId);
+  const containers = row.querySelectorAll('.cards');
+  groups.forEach((ids, i) => {
+    if (!containers[i]) return;
+    containers[i].innerHTML = '';
+    ids.forEach(id => {
+      const s = document.createElement('span');
+      s.innerHTML = '<svg class="card cap" viewBox="0 0 220 350"><use href="#' + id + '"/></svg>';
+      containers[i].appendChild(s.firstChild);
+    });
+  });
+  fitRows();
+}
+function fillCapBot(rowId, ids) {
+  const row = document.getElementById(rowId);
+  const container = row.querySelector('.cards');
+  container.innerHTML = '';
+  ids.forEach(id => {
+    const s = document.createElement('span');
+    s.innerHTML = '<svg class="card cap" viewBox="0 0 220 350"><use href="#' + id + '"/></svg>';
+    container.appendChild(s.firstChild);
+  });
+  fitRows();
+}
+function fitRows() {
+  document.querySelectorAll('.caprow .cards').forEach(row => {
+    const cs = Array.from(row.children);
+    cs.forEach(c => c.style.marginLeft = '0px');
+    if (cs.length < 2) return;
+    let ov = 0;
+    while (row.scrollWidth > row.clientWidth + 1 && ov < 22) {
+      ov += 1;
+      cs.forEach((c, i) => { if (i) c.style.marginLeft = (-ov) + 'px'; });
+    }
+  });
+}
+
+// --------------------------------------------------------------------------
+// 10) ホスト操作 (ゲームスタート)
+// --------------------------------------------------------------------------
+function startGame() {
+  if (!state.isHost || !state.connected || !state.oya) return;
+  MomoMatchmaking.send({ type: 'start' });
+  enterGamePlaceholder();
+}
+
+function leaveRoom() {
+  try { MomoMatchmaking.leaveRoom(); } catch (e) {}
+  state.connected = false;
+  state.guestName = '';
+  state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null;
+  showScreen('lobby');
+  setTimeout(() => MomoMatchmaking.refreshRooms(), 200);
+  renderRoomList();
+}
+
+// --------------------------------------------------------------------------
+// 11) 起動
+// --------------------------------------------------------------------------
+function bindEvents() {
+  // Language (dropdown)
+  const langSel = document.getElementById('lang-select');
+  langSel.addEventListener('change', () => {
+    const mode = langSel.value;
+    _langMode = mode;
+    _currentLang = window.MomoLang ? MomoLang.setMode(LANG_APP_ID, mode)
+                 : (mode === 'auto' ? _langDetectFallback() : (SUPPORTED_LANGS.includes(mode) ? mode : _langDetectFallback()));
+    applyLang();
+  });
+  // Lobby
+  document.getElementById('btn-refresh').addEventListener('click', () => MomoMatchmaking.refreshRooms());
+  document.getElementById('btn-create').addEventListener('click', () => {
+    const hostName = document.getElementById('in-hostname').value.trim();
+    const roomName = document.getElementById('in-roomname').value.trim();
+    const pw = document.getElementById('in-pw').value || '';
+    const isPublic = !document.getElementById('in-private').checked;
+    if (!hostName) { alert(t('lobby.err.noname')); return; }
+    if (!roomName) { alert(t('lobby.err.noroom')); return; }
+    state.hostName = hostName;
+    state.roomName = roomName;
+    state.roomHasPw = pw.length > 0;
+    MomoMatchmaking.createRoom({
+      hostName: hostName,
+      name: roomName,
+      password: pw,
+      isPublic: isPublic,
+      rules: { settings: state.settings, hasPassword: pw.length > 0 },
+    });
+  });
+  document.getElementById('pv').addEventListener('change', (e) => { state.showPrivate = e.target.checked; renderRoomList(); });
+
+  // Room prep
+  document.querySelectorAll('.gtab').forEach(b => b.addEventListener('click', () => {
+    if (b.disabled) return;
+    if (!state.isHost) return;
+    pickGame(b.dataset.g);
+  }));
+  document.querySelectorAll('#set-koikoi .seg button').forEach(btn => btn.addEventListener('click', () => {
+    const seg = btn.closest('.seg');
+    if (seg.getAttribute('data-readonly') === '1') return;
+    applySettingToggle(seg.dataset.key, btn.dataset.v);
+  }));
+  document.getElementById('btn-draw-oya').addEventListener('click', drawOya);
+  document.getElementById('btn-start').addEventListener('click', startGame);
+  document.getElementById('btn-leave').addEventListener('click', leaveRoom);
+
+  // Game screen
+  document.getElementById('btn-leave-game').addEventListener('click', leaveRoom);
+
+  // Overlay yaku (Phase 1: モックの見せかけとして「勝負」で閉じるのみ)
+  document.getElementById('btn-shobu').addEventListener('click', () => document.getElementById('ovYaku').classList.remove('show'));
+  document.getElementById('btn-koikoi').addEventListener('click', () => document.getElementById('ovYaku').classList.remove('show'));
+
+  // Settings panel (gear icon → overlay)
+  document.getElementById('gear-icon').addEventListener('click', openSettings);
+  document.getElementById('btn-settings-close').addEventListener('click', () => document.getElementById('ovSettings').classList.remove('show'));
+  const bgmSlider = document.getElementById('bgm-volume-slider');
+  const sfxSlider = document.getElementById('sfx-volume-slider');
+  const bgmLbl = document.getElementById('bgm-volume-value');
+  const sfxLbl = document.getElementById('sfx-volume-value');
+  // Load persisted values
+  try {
+    const b = localStorage.getItem('hanafuda_bgm_vol');
+    const s = localStorage.getItem('hanafuda_sfx_vol');
+    if (b != null) { bgmSlider.value = b; bgmLbl.textContent = b + '%'; }
+    if (s != null) { sfxSlider.value = s; sfxLbl.textContent = s + '%'; }
+  } catch (e) {}
+  bgmSlider.addEventListener('input', () => { bgmLbl.textContent = bgmSlider.value + '%'; try { localStorage.setItem('hanafuda_bgm_vol', bgmSlider.value); } catch (e) {} });
+  sfxSlider.addEventListener('input', () => { sfxLbl.textContent = sfxSlider.value + '%'; try { localStorage.setItem('hanafuda_sfx_vol', sfxSlider.value); } catch (e) {} });
+
+  window.addEventListener('resize', fitRows);
+}
+
+function openSettings() {
+  document.getElementById('ovSettings').classList.add('show');
+}
+
+function refreshServerStatus() {
+  const online = !!MMState.wsOpen;
+  const lblKey = online ? 'srv.online' : (MMState.wsOpen === false && MMState.wasClosed ? 'srv.offline' : 'srv.connecting');
+  const label = t(lblKey);
+  ['srv-status-lobby','srv-status-room'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.toggle('online', online);
+    el.classList.toggle('offline', !online && MMState.wasClosed);
+    const lbl = el.querySelector('.lbl');
+    if (lbl) lbl.textContent = label;
+  });
+}
+
+function initLang() {
+  if (window.MomoLang) {
+    MomoLang.bind(LANG_APP_ID, { supportedLangs: SUPPORTED_LANGS });
+    _langMode = MomoLang.getMode(LANG_APP_ID);
+    _currentLang = MomoLang.resolve(LANG_APP_ID);
+  } else {
+    _langMode = 'auto';
+    _currentLang = _langDetectFallback();
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initLang();
+  applyLang();
+  bindEvents();
+  showScreen('lobby');
+  initMatchmaking();
+});
+})();
+</script>
+
+<!-- ===== 共通アクセス解析 (Phase 1 のうちに全アプリと同型で入れておく) ===== -->
+<script src="/momo/lib/momo-analytics.js" defer></script>
+</body>
+</html>

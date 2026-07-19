@@ -889,7 +889,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.04</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.05</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -944,7 +944,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.04</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.05</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -995,12 +995,21 @@
     <button class="btn btn-ghost" id="btn-draw-oya" data-i18n="oya.draw">カードを引く</button>
   </div>
 
+  <div class="ready-panel" style="display:flex;gap:14px;align-items:center;justify-content:center;flex-wrap:wrap;font-size:.72rem;color:var(--text-muted);margin-top:8px;">
+    <span>ホスト: <b id="ready-host-lbl" style="color:var(--text-muted);">—</b></span>
+    <span>ゲスト: <b id="ready-guest-lbl" style="color:var(--text-muted);">—</b></span>
+  </div>
   <button class="btn btn-primary big-start" id="btn-start" disabled data-i18n="start.disabled">ゲームスタート（親を決めると押せます）</button>
   <p class="note" data-i18n="room.note">この画面はホスト・ゲスト共通です。ゲーム選択・設定変更・親決めはホスト操作、ゲストは同期表示になります。</p>
-  <!-- 接続診断パネル (v1.04: ?debug=1 の時だけ表示・通常ユーザーには見せない) -->
+  <!-- 接続診断パネル (?debug=1 の時だけ表示・通常ユーザーには見せない) -->
   <div class="diag-panel hidden" id="diag-panel" style="margin-top:10px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:.66rem;color:var(--text-muted);line-height:1.6;font-family:monospace;">
-    <div><b style="color:var(--orange-mid);">接続診断</b> <span id="diag-time"></span></div>
-    <div id="diag-log">起動中...</div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <b style="color:var(--orange-mid);">接続診断</b>
+      <span id="diag-time"></span>
+      <button class="btn btn-ghost btn-sm" id="btn-diag-copy" style="font-size:.6rem;padding:2px 8px;">コピー</button>
+      <button class="btn btn-ghost btn-sm" id="btn-diag-pause" style="font-size:.6rem;padding:2px 8px;">一時停止</button>
+    </div>
+    <div id="diag-log" style="white-space:pre;overflow:auto;max-height:180px;">起動中...</div>
     <button class="btn btn-ghost btn-sm" id="btn-solo-fallback" style="margin-top:6px;font-size:.65rem;padding:4px 10px;" data-i18n="diag.solo">1 人で試す（P2P が繋がらない場合の回避策）</button>
   </div>
 </section>
@@ -1010,7 +1019,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.04</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.05</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1137,7 +1146,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.04';
+const APP_VERSION = 'v1.05';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -1201,13 +1210,19 @@ const I18N = {
     'set.deal': '手四・くっつき', 'set.enabled': '有効', 'set.disabled': '無効',
     'set.draw': '引き分けの親', 'set.draw.keep': '親継続', 'set.draw.flow': '親流れ',
     'oya.title': '先手（親）を決める',
-    'oya.lead': '1枚ずつ札を引き、早い月を引いた方が「親（先手）」になります。ホスト・ゲストどちらの画面からでも実行できます。',
+    'oya.lead': '各自 1 枚ずつ札を引き、早い月を引いた方が「親（先手）」になります。自分側の札は自分でボタンを押して引きます。',
     'oya.notyet': 'まだ引いていません',
     'oya.draw': 'カードを引く',
     'oya.result': '早い月を引いた <b>{who}</b> が親（先手）です',
     'start.disabled': 'ゲームスタート（親を決めると押せます）',
     'start.enabled': 'ゲームスタート',
-    'room.note': 'この画面はホスト・ゲスト共通です。ゲーム選択・設定変更・親決めはホスト操作、ゲストは同期表示になります。',
+    'start.ready': '準備完了',
+    'start.waitOpp': '準備完了（相手を待っています…）',
+    'start.bothReady': '両者準備完了',
+    'ready.done': '準備完了',
+    'ready.wait': '準備中…',
+    'ready.notyet': '親決め待ち',
+    'room.note': 'この画面はホスト・ゲスト共通です。ゲーム選択・設定変更はホスト操作、親決めは各自 1 枚ずつ、スタートは双方が押した時に開始します。',
     'room.month': (n) => n + '月',
     'game.you': 'あなた', 'game.opp': 'あいて', 'game.mon': '文',
     'game.wait': '対局準備中',
@@ -1320,13 +1335,19 @@ const I18N = {
     'set.deal': 'Teshi / Kuttsuki', 'set.enabled': 'On', 'set.disabled': 'Off',
     'set.draw': 'Dealer on Draw', 'set.draw.keep': 'Keep', 'set.draw.flow': 'Rotate',
     'oya.title': 'Decide the Dealer',
-    'oya.lead': 'Each player draws one card; the earlier month becomes the dealer (first player). Either host or guest can trigger the draw.',
+    'oya.lead': 'Each player draws one card of their own; the earlier month becomes the dealer (first player). Press the button on your own side.',
     'oya.notyet': 'Not drawn yet',
     'oya.draw': 'Draw a Card',
     'oya.result': '<b>{who}</b> drew the earlier month and is the dealer',
     'start.disabled': 'Start Game (available after dealer is decided)',
     'start.enabled': 'Start Game',
-    'room.note': 'This screen is shared by host and guest. Game/settings/dealer are host-driven; the guest view mirrors them.',
+    'start.ready': 'Ready',
+    'start.waitOpp': 'Ready (waiting for opponent…)',
+    'start.bothReady': 'Both Ready',
+    'ready.done': 'Ready',
+    'ready.wait': 'Not ready',
+    'ready.notyet': 'Waiting for dealer',
+    'room.note': 'Shared by host and guest. Game selection and settings are host-only; each player draws their own dealer card; the round starts when both press Ready.',
     'room.month': (n) => (['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][n-1]),
     'game.you': 'You', 'game.opp': 'Opp.', 'game.mon': 'mon',
     'game.wait': 'Preparing…',
@@ -1439,13 +1460,19 @@ const I18N = {
     'set.deal': '手四・粘', 'set.enabled': '开启', 'set.disabled': '关闭',
     'set.draw': '平局时的庄家', 'set.draw.keep': '继续', 'set.draw.flow': '轮替',
     'oya.title': '决定先手（庄家）',
-    'oya.lead': '每人抽一张牌，抽到较早月份的一方成为庄家（先手）。主机 / 客人任一方都可发起。',
+    'oya.lead': '每人抽一张自己的牌，抽到较早月份的一方成为庄家（先手）。按下自己一侧的按钮抽自己的牌。',
     'oya.notyet': '尚未抽牌',
     'oya.draw': '抽牌',
     'oya.result': '抽到较早月份的 <b>{who}</b> 成为庄家（先手）',
     'start.disabled': '开始游戏（决定庄家后可点）',
     'start.enabled': '开始游戏',
-    'room.note': '此画面主机 / 客人共用。游戏、设定、决定庄家由主机操作，客人为同步显示。',
+    'start.ready': '准备完成',
+    'start.waitOpp': '准备完成（等待对手…）',
+    'start.bothReady': '双方准备完成',
+    'ready.done': '准备完成',
+    'ready.wait': '未准备',
+    'ready.notyet': '等待决定庄家',
+    'room.note': '此画面主机 / 客人共用。游戏选择与设定由主机操作，庄家由双方各抽 1 张，双方按下"准备完成"后开始对局。',
     'room.month': (n) => n + '月',
     'game.you': '你', 'game.opp': '对方', 'game.mon': '文',
     'game.wait': '准备中…',
@@ -1620,6 +1647,8 @@ const state = {
   oya: null,            // 'host' | 'guest' | null
   oyaHostMonth: null,
   oyaGuestMonth: null,
+  readyHost: false,     // v1.05: 両者が「準備完了」を押したら開始
+  readyGuest: false,
   game: null,           // 対局中のみ non-null (startRound で host が初期化 / guest は applyState で受信)
   solo: false,          // ?debug=1 の startRoundSolo でホットシート挙動時のみ true
 };
@@ -1733,16 +1762,42 @@ function refreshRoomView() {
     lab.textContent = t('room.conn.waiting');
   }
   document.querySelectorAll('#set-koikoi .seg').forEach(seg => seg.setAttribute('data-readonly', state.isHost ? '0' : '1'));
-  document.getElementById('btn-draw-oya').disabled = !state.isHost || !opponentIn;
+  // v1.05: 親決めは両者それぞれ自分の 1 枚を引く方式。自分の側がまだ引いてない & 相手が入室してれば enable。
+  const myMonth = state.isHost ? state.oyaHostMonth : state.oyaGuestMonth;
+  document.getElementById('btn-draw-oya').disabled = (myMonth != null) || !opponentIn;
   updateOyaLabels();
   updateStartBtn();
 }
 
 function updateStartBtn() {
   const b = document.getElementById('btn-start');
-  const canStart = state.isHost && !!state.guestName && !!state.oya;
-  b.disabled = !canStart;
-  b.textContent = canStart ? t('start.enabled') : t('start.disabled');
+  const me = state.isHost ? 'host' : 'guest';
+  const myReady = me === 'host' ? state.readyHost : state.readyGuest;
+  const oppReady = me === 'host' ? state.readyGuest : state.readyHost;
+  const opponentIn = state.isHost ? !!state.guestName : !!state.hostName;
+  // 押せる条件: 相手が居る + 親が決まった + 自分がまだ押していない
+  const canPress = opponentIn && !!state.oya && !myReady;
+  b.disabled = !canPress;
+  if (!state.oya) {
+    b.textContent = t('start.disabled');
+  } else if (myReady && oppReady) {
+    b.textContent = t('start.bothReady');
+  } else if (myReady && !oppReady) {
+    b.textContent = t('start.waitOpp');
+  } else {
+    b.textContent = t('start.ready');
+  }
+  // 両者の準備状態表示
+  const hl = document.getElementById('ready-host-lbl');
+  const gl = document.getElementById('ready-guest-lbl');
+  if (hl) {
+    hl.textContent = state.readyHost ? t('ready.done') : (state.oya ? t('ready.wait') : t('ready.notyet'));
+    hl.style.color = state.readyHost ? 'var(--gold)' : 'var(--text-muted)';
+  }
+  if (gl) {
+    gl.textContent = state.readyGuest ? t('ready.done') : (state.oya ? t('ready.wait') : t('ready.notyet'));
+    gl.style.color = state.readyGuest ? 'var(--gold)' : 'var(--text-muted)';
+  }
 }
 
 function pickGame(g) {
@@ -1761,19 +1816,32 @@ function applySettingToggle(key, v) {
 }
 
 const MONTH_NAMES = ['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
+// v1.05: 自分の 1 枚だけ引く。相手も引いていて同月なら自分の月だけ引き直す (相手の月は動かさない)。
 function drawOya() {
-  if (!state.isHost) return;
-  let h = 1 + Math.floor(Math.random() * 12);
-  let g = 1 + Math.floor(Math.random() * 12);
-  while (g === h) g = 1 + Math.floor(Math.random() * 12);
-  state.oyaHostMonth = h;
-  state.oyaGuestMonth = g;
-  state.oya = (h < g) ? 'host' : 'guest';
+  const me = state.isHost ? 'host' : 'guest';
+  const myKey = me === 'host' ? 'oyaHostMonth' : 'oyaGuestMonth';
+  if (state[myKey] != null) return; // 既に引き済み
+  let n;
+  const oppMonth = me === 'host' ? state.oyaGuestMonth : state.oyaHostMonth;
+  do { n = 1 + Math.floor(Math.random() * 12); } while (oppMonth != null && n === oppMonth);
+  state[myKey] = n;
+  updateOyaResult();
   renderOyaDraw();
-  if (state.guestName) {
-    MomoMatchmaking.send({ type: 'oya', host: h, guest: g, oya: state.oya });
-  }
+  MomoMatchmaking.send({ type: 'oya_draw', side: me, month: n });
   updateStartBtn();
+  refreshRoomView();
+}
+function updateOyaResult() {
+  if (state.oyaHostMonth != null && state.oyaGuestMonth != null) {
+    if (state.oyaHostMonth === state.oyaGuestMonth) {
+      // 同月 → 両方 null に戻して引き直し (通常は片方 draw 時に回避してるので理論上ここには来ない)
+      state.oyaHostMonth = null; state.oyaGuestMonth = null; state.oya = null;
+    } else {
+      state.oya = (state.oyaHostMonth < state.oyaGuestMonth) ? 'host' : 'guest';
+    }
+  } else {
+    state.oya = null;
+  }
 }
 function renderOyaDraw() {
   const sh = document.getElementById('slotHost'), sg = document.getElementById('slotGuest');
@@ -1801,29 +1869,89 @@ const MMState = { wsOpen: false, wasClosed: false };
 // - console.log にも出す (F12 → Console でユーザーが読める)
 // - room 画面下部の #diag-log にも append 表示
 // - MomoMatchmaking のコールバック + WebRTC state 変化の両方をトレース
+// v1.05: diag ログを 120 行 + 選択中は表示更新を止めてコピー可能に + コピーボタン
 const _diagBuf = [];
+let _diagPaused = false; // 一時停止フラグ (手動 or 選択中は自動停止)
+function _hasSelectionInDiag() {
+  try {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return false;
+    const s = String(sel);
+    if (!s) return false;
+    const el = document.getElementById('diag-log');
+    return el && el.contains(sel.anchorNode);
+  } catch (e) { return false; }
+}
 function diagLog(kind, msg) {
   const now = new Date();
   const ts = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0') + ':' + String(now.getSeconds()).padStart(2,'0');
   const line = '[' + ts + '] [' + kind + '] ' + msg;
   _diagBuf.push(line);
-  if (_diagBuf.length > 30) _diagBuf.shift();
+  if (_diagBuf.length > 120) _diagBuf.shift();
   try { console.log('[hanafuda-diag]', line); } catch (e) {}
+  // 選択中 or 一時停止中は表示更新しない (ユーザーが選択中の範囲が消えないように)
+  if (_diagPaused || _hasSelectionInDiag()) return;
   const el = document.getElementById('diag-log');
-  if (el) el.textContent = _diagBuf.join('\n');
+  if (el) el.textContent = _diagBuf.slice(-80).join('\n');
   const tel = document.getElementById('diag-time');
   if (tel) tel.textContent = ts;
 }
+function diagCopyToClipboard() {
+  const text = _diagBuf.join('\n');
+  const btn = document.getElementById('btn-diag-copy');
+  const origLabel = btn ? btn.textContent : '';
+  const done = () => {
+    if (!btn) return;
+    btn.textContent = 'コピー済';
+    setTimeout(() => { btn.textContent = origLabel || 'コピー'; }, 1200);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done, () => {
+      // Fallback
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+        document.body.appendChild(ta); ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        done();
+      } catch (e) { if (btn) btn.textContent = 'コピー失敗'; }
+    });
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) { if (btn) btn.textContent = 'コピー失敗'; }
+    document.body.removeChild(ta);
+  }
+}
+function diagTogglePause() {
+  _diagPaused = !_diagPaused;
+  const btn = document.getElementById('btn-diag-pause');
+  if (btn) btn.textContent = _diagPaused ? '再開' : '一時停止';
+  // 再開時は最新表示に追いつく
+  if (!_diagPaused) {
+    const el = document.getElementById('diag-log');
+    if (el) el.textContent = _diagBuf.slice(-80).join('\n');
+  }
+}
 
-// WebRTC PeerConnection の内部状態を定期監視 (2 秒ごと)
 function startDiagPolling() {
+  // Wrap MomoMatchmaking.send once to log every outgoing message
+  if (!window._sendWrapped && MomoMatchmaking && MomoMatchmaking.send) {
+    const orig = MomoMatchmaking.send;
+    MomoMatchmaking.send = function(data) {
+      try { diagLog('send', 'type=' + (data && data.type) + ' via ' + (window.__hf_dcOpen ? 'DC' : 'WS-fallback')); } catch (e) {}
+      return orig.call(this, data);
+    };
+    window._sendWrapped = true;
+  }
   setInterval(() => {
     try {
       const st = MomoMatchmaking.getState();
       const inRoom = !!st.currentRoomId;
-      const wsOpenNow = MMState.wsOpen;
       if (inRoom) {
-        diagLog('poll', 'WS=' + (wsOpenNow?'open':'closed') + ' room=' + st.currentRoomId + ' isHost=' + st.isHost + ' MMconnected=' + st.connected + ' stateConnected=' + state.connected);
+        diagLog('poll', 'room=' + st.currentRoomId + ' isHost=' + st.isHost + ' MMconn=' + st.connected + ' stConn=' + state.connected + ' hostN=' + JSON.stringify(state.hostName) + ' guestN=' + JSON.stringify(state.guestName) + ' oya=' + state.oya + ' scr=' + state.screen);
       }
     } catch (e) { diagLog('poll-err', e && e.message || String(e)); }
   }, 2000);
@@ -1847,6 +1975,7 @@ function initMatchmaking() {
       state.roomHasPw = !!(rules && rules.hasPassword);
       state.connected = false;
       state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null;
+      state.readyHost = false; state.readyGuest = false;
       renderOyaDraw();
       showScreen('room');
       refreshRoomView();
@@ -1859,6 +1988,7 @@ function initMatchmaking() {
       state.roomHasPw = !!(rules && rules.hasPassword);
       state.connected = false;
       state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null;
+      state.readyHost = false; state.readyGuest = false;
       if (rules && rules.settings) state.settings = Object.assign({}, state.settings, rules.settings);
       applySettingsToUi();
       renderOyaDraw();
@@ -1875,6 +2005,7 @@ function initMatchmaking() {
       state.guestName = '';
       state.connected = false;
       state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null;
+      state.readyHost = false; state.readyGuest = false;
       renderOyaDraw();
       refreshRoomView();
     },
@@ -1894,6 +2025,7 @@ function initMatchmaking() {
       state.connected = false;
       state.guestName = '';
       state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null;
+      state.readyHost = false; state.readyGuest = false;
       showScreen('lobby');
       renderRoomList();
       showNotice(t('notice.disconnect.title'), msg || t('notice.disconnect.body'));
@@ -1927,12 +2059,32 @@ function handleP2P(data) {
     }
     return;
   }
+  if (data.type === 'oya_draw') {
+    // v1.05: 相手が自分側の 1 枚を引いた通知
+    if (data.side === 'host') state.oyaHostMonth = data.month;
+    else if (data.side === 'guest') state.oyaGuestMonth = data.month;
+    updateOyaResult();
+    renderOyaDraw();
+    updateStartBtn();
+    refreshRoomView();
+    return;
+  }
+  if (data.type === 'ready') {
+    // v1.05: 相手が「準備完了」を押した通知
+    if (data.side === 'host') state.readyHost = true;
+    else if (data.side === 'guest') state.readyGuest = true;
+    updateStartBtn();
+    tryLaunchGame();
+    return;
+  }
   if (data.type === 'oya') {
+    // Legacy v1.04 以前: host が両方引く方式。互換のため残す。
     state.oyaHostMonth = data.host;
     state.oyaGuestMonth = data.guest;
     state.oya = data.oya;
     renderOyaDraw();
     updateStartBtn();
+    refreshRoomView();
     return;
   }
   if (data.type === 'start') {
@@ -2605,9 +2757,24 @@ function handleIntent(data) {
 // 10) ホスト操作 (ゲームスタート)
 // --------------------------------------------------------------------------
 function startGame() {
-  if (!state.isHost || !state.guestName || !state.oya) return;
-  MomoMatchmaking.send({ type: 'start' });
-  startRound(); // host が deck/deal 生成 → syncState({deal:true}) で guest に配信
+  // v1.05: 両者押し方式 = クリック時は「準備完了」フラグを立てるだけ。
+  // 相手側フラグも立っている場合 (= 両者押した) にホストが実対局を開始する。
+  if (!state.oya) return;
+  const me = state.isHost ? 'host' : 'guest';
+  const myKey = me === 'host' ? 'readyHost' : 'readyGuest';
+  if (state[myKey]) return; // 既に押し済み
+  state[myKey] = true;
+  MomoMatchmaking.send({ type: 'ready', side: me });
+  updateStartBtn();
+  tryLaunchGame();
+}
+
+function tryLaunchGame() {
+  // 両者 ready なら host が対局開始
+  if (state.readyHost && state.readyGuest && state.isHost) {
+    MomoMatchmaking.send({ type: 'start' });
+    startRound();
+  }
 }
 
 function leaveRoom() {
@@ -2615,6 +2782,8 @@ function leaveRoom() {
   state.connected = false;
   state.guestName = '';
   state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null;
+  state.readyHost = false; state.readyGuest = false;
+  state.game = null;
   showScreen('lobby');
   setTimeout(() => MomoMatchmaking.refreshRooms(), 200);
   renderRoomList();
@@ -2751,10 +2920,14 @@ document.addEventListener('DOMContentLoaded', () => {
   showScreen('lobby');
   initMatchmaking();
   startDiagPolling();
-  // ?debug=1: solo test hook (scope A verification) + 診断パネル表示
+  // ?debug=1: solo test hook + 診断パネル表示
   if (new URLSearchParams(location.search).get('debug') === '1') {
     const dp = document.getElementById('diag-panel');
     if (dp) dp.classList.remove('hidden');
+    const bc = document.getElementById('btn-diag-copy');
+    if (bc) bc.addEventListener('click', diagCopyToClipboard);
+    const bp = document.getElementById('btn-diag-pause');
+    if (bp) bp.addEventListener('click', diagTogglePause);
     window.__hanafudaDebug = {
       startRoundSolo(opts) {
         state.solo = true; // ホットシート挙動 (mySide = currentPlayer 追従)

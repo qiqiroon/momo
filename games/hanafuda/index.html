@@ -204,6 +204,10 @@
   .card.cap{width:32px;height:51px;}
   .card.match{outline:2px solid var(--gold);box-shadow:0 0 8px var(--gold);border-radius:5px;}
   .card.sel{outline:2px solid var(--gold);transform:translateY(-6px);}
+  .card.clickable{cursor:pointer;}
+  .card.clickable:hover{transform:translateY(-3px);}
+  .card.dim{opacity:.55;}
+  .card.drawn{outline:2px solid var(--orange-mid);box-shadow:0 0 8px var(--orange);border-radius:5px;}
   .play{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:space-between;gap:6px;}
   .seg-row{display:flex;flex-direction:column;gap:2px;align-items:center;}
   .seg-row .zl{font-size:.6rem;color:var(--text-muted);align-self:flex-start;}
@@ -214,6 +218,9 @@
   .deckfield{display:flex;gap:8px;align-items:flex-start;justify-content:center;}
   .deck{display:flex;flex-direction:column;align-items:center;gap:2px;}
   .deck .count{font-size:.56rem;color:var(--text-muted);}
+  .drawn-slot{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:42px;}
+  .drawn-slot .lbl{font-size:.56rem;color:var(--orange-mid);}
+  .drawn-slot:empty{display:none;}
   .field{display:grid;grid-template-columns:repeat(4,auto);gap:3px;}
   .capblock{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:5px 8px;display:flex;flex-direction:column;gap:3px;}
   .capblock .ct{font-size:.58rem;color:var(--orange);font-weight:700;letter-spacing:.08em;}
@@ -882,7 +889,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.00</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.01</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -937,7 +944,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.00</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.01</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -997,7 +1004,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.00</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.01</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1028,6 +1035,7 @@
           <svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg>
           <div class="count"><span data-i18n="game.deck">山</span><span id="deck-count">24</span></div>
         </div>
+        <div class="drawn-slot" id="drawn-slot"></div>
         <div class="field" id="field-cards"></div>
       </div>
     </div>
@@ -1088,6 +1096,15 @@
   </div>
 </div></div>
 
+<div class="overlay" id="ovRound"><div class="opanel">
+  <h2 data-i18n="round.end.title">局終了</h2>
+  <p id="round-end-msg"></p>
+  <ul class="yaku-list" id="round-end-yaku"></ul>
+  <div class="btn-row">
+    <button class="btn btn-primary" id="btn-round-close" data-i18n="round.end.back">ロビーに戻る</button>
+  </div>
+</div></div>
+
 <!-- ============ SEO FOOTER ============ -->
 <footer class="site-footer">
   <div class="site-footer-inner">
@@ -1114,7 +1131,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.00';
+const APP_VERSION = 'v1.01';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -1195,12 +1212,39 @@ const I18N = {
     'game.leave': '← 中断',
     'game.placeholder.title': '対局画面（Phase 2で実装）',
     'game.placeholder.body': '対局画面のレイアウトはモック通りに配置されています。カードの配札・合わせ取り・役判定・こいこい/勝負・全12局進行は次のフェーズで実装します。',
+    'game.round1of1': '第1局 / v1.01 単局モード',
+    'game.month.field': (n) => n + '月場',
+    'game.drawn': 'めくり札',
+    'game.turn.selectHand': (p) => (p && p.who ? p.who : '？') + ' の手番：手札を選んでください',
+    'game.turn.pickPlay': (p) => (p && p.who ? p.who : '？') + ' の手番：合わせる場札を選んでください',
+    'game.turn.draw': (p) => (p && p.who ? p.who : '？') + ' の手番：山札をめくります…',
+    'game.turn.pickDraw': (p) => (p && p.who ? p.who : '？') + ' の手番：めくり札と合わせる場札を選んでください',
+    'game.turn.yaku': (p) => (p && p.who ? p.who : '？') + ' に役が成立！',
+    'game.turn.end': '対局終了',
+    'game.near.prefix': 'あと1枚で',
+    'yaku.gokou': '五光',
+    'yaku.shikou': '四光',
+    'yaku.amenoshikou': '雨四光',
+    'yaku.sankou': '三光',
+    'yaku.inoshikachou': '猪鹿蝶',
+    'yaku.akatan': '赤短',
+    'yaku.aotan': '青短',
+    'yaku.tan': '短冊',
+    'yaku.tane': 'タネ',
+    'yaku.kasu': 'カス',
+    'yaku.hanami': '花見で一杯',
+    'yaku.tsukimi': '月見で一杯',
     'ov.ok': 'OK',
     'ov.yaku.title': '役が成立！',
     'ov.yaku.total': '現在の役得点',
     'ov.yaku.hint': '「こいこい」で続けると得点上乗せ。相手に先に上がられると相手が総取り。',
     'ov.koikoi': 'こいこい',
     'ov.shobu': '勝負',
+    'round.end.title': '局終了',
+    'round.end.back': 'ロビーに戻る',
+    'round.end.winner': (p) => '<b>' + p.who + '</b> の勝ち！<br>獲得：<b>' + p.mon + ' 文</b>' + (p.doubled ? '（7文以上で2倍）' : ''),
+    'round.end.draw': '双方の手札が尽きました。<br>この局は<b>引き分け</b>です。',
+    'round.end.koikoi.lost': (p) => '<b>' + p.who + '</b> がこいこい後に相手に上がられたため、こいこい側は0文、<b>' + p.opp + '</b>が総取りで<b>' + p.mon + ' 文</b>獲得。',
     'foot.about': 'MOMO Hanafuda について',
     'foot.desc': 'MOMO Hanafuda は花札をオンライン2人対戦で遊べるブラウザゲームです。4言語対応・PCとスマホの縦画面に対応。アカウント登録もインストールも不要です。',
     'foot.top': 'MOMO Works トップ',
@@ -1286,12 +1330,39 @@ const I18N = {
     'game.leave': '← Quit',
     'game.placeholder.title': 'In-Game Screen (Phase 2)',
     'game.placeholder.body': 'The in-game layout is placed per the mock. Dealing, matching, yaku detection, koi-koi/shobu, and the 12-round flow will be wired in the next phase.',
+    'game.round1of1': 'Round 1 / v1.01 single-round demo',
+    'game.month.field': (n) => (['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][n-1]) + ' Field',
+    'game.drawn': 'Drawn',
+    'game.turn.selectHand': (p) => (p && p.who ? p.who : '?') + "'s turn: pick a card from hand",
+    'game.turn.pickPlay': (p) => (p && p.who ? p.who : '?') + "'s turn: pick a field card to match",
+    'game.turn.draw': (p) => (p && p.who ? p.who : '?') + "'s turn: drawing from deck...",
+    'game.turn.pickDraw': (p) => (p && p.who ? p.who : '?') + "'s turn: pick a field card to match the drawn card",
+    'game.turn.yaku': (p) => (p && p.who ? p.who : '?') + ' scored a yaku!',
+    'game.turn.end': 'Round over',
+    'game.near.prefix': 'One away from',
+    'yaku.gokou': 'Gokou (5 Lights)',
+    'yaku.shikou': 'Shikou (4 Lights)',
+    'yaku.amenoshikou': 'Ame-Shikou (Rainy 4)',
+    'yaku.sankou': 'Sankou (3 Lights)',
+    'yaku.inoshikachou': 'Ino-Shika-Chou',
+    'yaku.akatan': 'Aka-Tan (Red Ribbons)',
+    'yaku.aotan': 'Ao-Tan (Blue Ribbons)',
+    'yaku.tan': 'Tan (Ribbons)',
+    'yaku.tane': 'Tane (Animals)',
+    'yaku.kasu': 'Kasu (Plain)',
+    'yaku.hanami': 'Hanami-Zake',
+    'yaku.tsukimi': 'Tsukimi-Zake',
     'ov.ok': 'OK',
     'ov.yaku.title': 'Yaku!',
     'ov.yaku.total': 'Current Yaku Score',
     'ov.yaku.hint': 'Call Koi-Koi to keep going for more points. If the opponent calls Shobu first, they take everything.',
     'ov.koikoi': 'Koi-Koi',
     'ov.shobu': 'Shobu',
+    'round.end.title': 'Round Over',
+    'round.end.back': 'Back to Lobby',
+    'round.end.winner': (p) => '<b>' + p.who + '</b> wins!<br>Earned: <b>' + p.mon + ' mon</b>' + (p.doubled ? ' (doubled ≥7)' : ''),
+    'round.end.draw': 'Both hands are empty.<br>This round is a <b>draw</b>.',
+    'round.end.koikoi.lost': (p) => '<b>' + p.who + "</b> called Koi-Koi but the opponent finished first: Koi-Koi caller gets 0, <b>" + p.opp + '</b> takes all — <b>' + p.mon + ' mon</b>.',
     'foot.about': 'About MOMO Hanafuda',
     'foot.desc': 'MOMO Hanafuda lets you play the Japanese card game Hanafuda online against another player, in your browser. 4-language UI, works on PC and mobile portrait. No account, no install.',
     'foot.top': 'MOMO Works Top',
@@ -1377,12 +1448,39 @@ const I18N = {
     'game.leave': '← 中止',
     'game.placeholder.title': '对局画面（Phase 2 实作）',
     'game.placeholder.body': '对局画面的布局已按 mock 摆好。发牌 / 合牌 / 役判定 / 来来·胜负 / 全12局进行将在下一阶段实作。',
+    'game.round1of1': '第1局 / v1.01 单局演示',
+    'game.month.field': (n) => n + '月场',
+    'game.drawn': '翻出',
+    'game.turn.selectHand': (p) => (p && p.who ? p.who : '？') + ' 的回合：选择手牌',
+    'game.turn.pickPlay': (p) => (p && p.who ? p.who : '？') + ' 的回合：选择要合的场牌',
+    'game.turn.draw': (p) => (p && p.who ? p.who : '？') + ' 的回合：正从牌堆翻牌…',
+    'game.turn.pickDraw': (p) => (p && p.who ? p.who : '？') + ' 的回合：选择要与翻出牌合的场牌',
+    'game.turn.yaku': (p) => (p && p.who ? p.who : '？') + ' 成役！',
+    'game.turn.end': '对局结束',
+    'game.near.prefix': '还差1张成为',
+    'yaku.gokou': '五光',
+    'yaku.shikou': '四光',
+    'yaku.amenoshikou': '雨四光',
+    'yaku.sankou': '三光',
+    'yaku.inoshikachou': '猪鹿蝶',
+    'yaku.akatan': '赤短',
+    'yaku.aotan': '青短',
+    'yaku.tan': '短册',
+    'yaku.tane': '种',
+    'yaku.kasu': '滓',
+    'yaku.hanami': '花见饮酒',
+    'yaku.tsukimi': '月见饮酒',
     'ov.ok': '确定',
     'ov.yaku.title': '成役！',
     'ov.yaku.total': '目前得分',
     'ov.yaku.hint': '按「来来」继续加分。若对方先按「胜负」，则对方通吃。',
     'ov.koikoi': '来来',
     'ov.shobu': '胜负',
+    'round.end.title': '对局结束',
+    'round.end.back': '返回大厅',
+    'round.end.winner': (p) => '<b>' + p.who + '</b> 获胜！<br>获得：<b>' + p.mon + ' 文</b>' + (p.doubled ? '（7文以上×2）' : ''),
+    'round.end.draw': '双方手牌都用尽。<br>本局<b>平局</b>。',
+    'round.end.koikoi.lost': (p) => '<b>' + p.who + '</b> 宣布「来来」后被对方先胜。宣布方0文，<b>' + p.opp + '</b>通吃<b>' + p.mon + ' 文</b>。',
     'foot.about': '关于 MOMO Hanafuda',
     'foot.desc': 'MOMO Hanafuda 是一款可在浏览器中双人在线对战的花札游戏。支持 4 语言、可在 PC 与手机竖屏使用。无需注册、无需安装。',
     'foot.top': 'MOMO Works 首页',
@@ -1513,6 +1611,7 @@ const state = {
   oya: null,            // 'host' | 'guest' | null
   oyaHostMonth: null,
   oyaGuestMonth: null,
+  game: null,           // scope A: 対局中のみ non-null (startRound で初期化)
 };
 
 // --------------------------------------------------------------------------
@@ -1785,7 +1884,7 @@ function handleP2P(data) {
   }
   if (data.type === 'start') {
     // Phase 1: 対局中モックをそのまま表示 (実データ配線は Phase 2)
-    enterGamePlaceholder();
+    startRound();
     return;
   }
 }
@@ -1797,66 +1896,265 @@ function applySettingsToUi() {
 }
 
 // --------------------------------------------------------------------------
-// 9) 対局中画面 (Phase 1 はモック配置のまま + プレースホルダ通知)
+// 9) 対局中画面: ルール本体 (Phase 2A local single-round hot-seat)
 // --------------------------------------------------------------------------
-function enterGamePlaceholder() {
-  showScreen('game');
-  // ステータスを初期値に
-  document.getElementById('st-month').textContent = MONTH_NAMES[0] + '場';
-  document.getElementById('st-round').textContent = '第1局/全' + state.settings.rounds + '局';
-  document.getElementById('st-my-score').textContent = '0';
-  document.getElementById('st-op-score').textContent = '0';
-  document.getElementById('st-turn').textContent = t('game.wait');
-  document.getElementById('deck-count').textContent = '24';
-  // 場札を 8 枚のダミーで埋める (モック相当)
-  const fld = document.getElementById('field-cards');
-  fld.innerHTML = '';
-  ['m01_hikari','m03_tan','m05_tan','m09_tane','m11_kasu','m04_kasu1','m07_tane','m12_kasu1'].forEach(id => {
-    const wrap = document.createElement('span');
-    wrap.innerHTML = '<svg class="card" viewBox="0 0 220 350"><use href="#' + id + '"/></svg>';
-    fld.appendChild(wrap.firstChild);
-  });
-  // 自分の手札 8 枚 (ダミー)
-  const my = document.getElementById('my-hand');
-  my.innerHTML = '';
-  ['m03_hikari','m02_tane','m06_tan','m10_tan','m08_tane','m09_tan','m10_kasu1','m12_kasu2'].forEach((id, i) => {
-    const wrap = document.createElement('span');
-    wrap.innerHTML = '<svg class="card' + (i === 0 ? ' sel' : '') + '" viewBox="0 0 220 350"><use href="#' + id + '"/></svg>';
-    my.appendChild(wrap.firstChild);
-  });
-  // 取り札 (両者ダミー) は Phase 2 で置き換え
-  fillCapTop('opp-cap-top', [['m08_hikari'], ['m06_tane','m10_tane'], ['m06_tan']]);
-  fillCapBot('opp-cap-bot', ['m01_kasu1','m01_kasu2','m09_kasu1']);
-  fillCapTop('my-cap-top', [['m11_hikari','m12_hikari'], ['m04_tane','m07_tane'], ['m01_tan','m02_tan','m11_tan']]);
-  fillCapBot('my-cap-bot', ['m04_kasu2','m05_kasu1','m06_kasu1','m07_kasu1','m03_kasu1']);
-  // Phase 1: 通知
-  showNotice(t('game.placeholder.title'), t('game.placeholder.body'));
-}
-function fillCapTop(rowId, groups) {
-  const row = document.getElementById(rowId);
-  const containers = row.querySelectorAll('.cards');
-  groups.forEach((ids, i) => {
-    if (!containers[i]) return;
-    containers[i].innerHTML = '';
-    ids.forEach(id => {
-      const s = document.createElement('span');
-      s.innerHTML = '<svg class="card cap" viewBox="0 0 220 350"><use href="#' + id + '"/></svg>';
-      containers[i].appendChild(s.firstChild);
+// 【scope A / v1.01】1 ブラウザで両手番を操作するモード。次セッションで
+//   - オンライン同期 (host 権威 + メッセージ 9 種)
+//   - 全 12 局管理・親継承・累計スコア
+//   - 手四 / くっつき (配札時特別役)
+//   - 月替わり (1月場〜12月場)
+// を追加。座席 (host/guest) を毎ターン視点入替 = 現在手番プレイヤーの
+// 手札を下段 (my-hand) に face-up 表示、非手番側は上段 (opp-hand) に裏向き。
+
+const CARD_SPEC = {
+  1:  ['hikari','tan','kasu1','kasu2'],
+  2:  ['tane','tan','kasu1','kasu2'],
+  3:  ['hikari','tan','kasu1','kasu2'],
+  4:  ['tane','tan','kasu1','kasu2'],
+  5:  ['tane','tan','kasu1','kasu2'],
+  6:  ['tane','tan','kasu1','kasu2'],
+  7:  ['tane','tan','kasu1','kasu2'],
+  8:  ['hikari','tane','kasu1','kasu2'],
+  9:  ['tane','tan','kasu1','kasu2'],
+  10: ['tane','tan','kasu1','kasu2'],
+  11: ['hikari','tane','tan','kasu'],
+  12: ['hikari','kasu1','kasu2','kasu3'],
+};
+function buildDeck() {
+  const cards = [];
+  Object.keys(CARD_SPEC).forEach(m => {
+    const mm = parseInt(m, 10);
+    CARD_SPEC[m].forEach(sub => {
+      const type = sub.replace(/\d+$/, '');
+      cards.push({ id: 'm' + String(mm).padStart(2,'0') + '_' + sub, month: mm, type: type });
     });
   });
-  fitRows();
+  return cards;
 }
-function fillCapBot(rowId, ids) {
-  const row = document.getElementById(rowId);
-  const container = row.querySelector('.cards');
-  container.innerHTML = '';
-  ids.forEach(id => {
-    const s = document.createElement('span');
-    s.innerHTML = '<svg class="card cap" viewBox="0 0 220 350"><use href="#' + id + '"/></svg>';
-    container.appendChild(s.firstChild);
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+  }
+  return arr;
+}
+
+// 役判定用 special-card ID
+const RED_TAN_IDS = ['m01_tan','m02_tan','m03_tan'];
+const BLUE_TAN_IDS = ['m06_tan','m09_tan','m10_tan'];
+const IKS_IDS = ['m06_tane','m07_tane','m10_tane']; // 蝶・猪・鹿
+const HANAMI_HIKARI_ID = 'm03_hikari';
+const TSUKIMI_HIKARI_ID = 'm08_hikari';
+const SAKE_ID = 'm09_tane';
+const RAIN_HIKARI_ID = 'm11_hikari';
+
+// captured (取り札の配列) → [{key, mon, count?}]
+// - 光系は最大 1 つのみ (五光 → 雨四光 → 四光 → 三光 の順)
+// - 花見・月見は独立してスタック
+// - 猪鹿蝶・赤短・青短は独立してスタック
+// - 短冊 / タネ / カスは閾値超で +1 / 枚
+function computeYaku(captured) {
+  const ids = {};
+  captured.forEach(c => { ids[c.id] = true; });
+  const hikari = captured.filter(c => c.type === 'hikari');
+  const tane = captured.filter(c => c.type === 'tane');
+  const tan = captured.filter(c => c.type === 'tan');
+  const kasu = captured.filter(c => c.type === 'kasu');
+  const hasRain = !!ids[RAIN_HIKARI_ID];
+  const y = [];
+  if (hikari.length >= 5) y.push({ key: 'yaku.gokou', mon: 10 });
+  else if (hikari.length === 4 && !hasRain) y.push({ key: 'yaku.shikou', mon: 8 });
+  else if (hikari.length === 4 && hasRain) y.push({ key: 'yaku.amenoshikou', mon: 7 });
+  else if (hikari.length === 3 && !hasRain) y.push({ key: 'yaku.sankou', mon: 5 });
+  const iksHave = IKS_IDS.filter(id => ids[id]).length;
+  if (iksHave === 3) y.push({ key: 'yaku.inoshikachou', mon: 5 });
+  const redHave = RED_TAN_IDS.filter(id => ids[id]).length;
+  if (redHave === 3) y.push({ key: 'yaku.akatan', mon: 5 });
+  const blueHave = BLUE_TAN_IDS.filter(id => ids[id]).length;
+  if (blueHave === 3) y.push({ key: 'yaku.aotan', mon: 5 });
+  if (ids[HANAMI_HIKARI_ID] && ids[SAKE_ID]) y.push({ key: 'yaku.hanami', mon: 5 });
+  if (ids[TSUKIMI_HIKARI_ID] && ids[SAKE_ID]) y.push({ key: 'yaku.tsukimi', mon: 5 });
+  if (tan.length >= 5) y.push({ key: 'yaku.tan', mon: 1 + (tan.length - 5), count: tan.length });
+  if (tane.length >= 5) y.push({ key: 'yaku.tane', mon: 1 + (tane.length - 5), count: tane.length });
+  if (kasu.length >= 10) y.push({ key: 'yaku.kasu', mon: 1 + (kasu.length - 10), count: kasu.length });
+  return y;
+}
+function yakuTotal(y) { return y.reduce((s, x) => s + x.mon, 0); }
+// 役の差分検出 (key + mon の同一性)。key 同じで mon が増えたら "improved" 扱い
+function yakuGained(before, after) {
+  const bSig = {};
+  before.forEach(x => { bSig[x.key] = x.mon; });
+  return after.filter(x => bSig[x.key] == null || x.mon > bSig[x.key]);
+}
+
+// --- ゲーム状態 ---
+function whoLabel(player) {
+  if (player === 'host') return state.hostName || t('room.host');
+  if (player === 'guest') return state.guestName || t('room.guest');
+  return '';
+}
+function otherPlayer(p) { return p === 'host' ? 'guest' : 'host'; }
+
+function startRound() {
+  showScreen('game');
+  const deck = shuffle(buildDeck());
+  const g = {
+    deck: deck,
+    field: deck.splice(0, 8),
+    hands: { host: deck.splice(0, 8), guest: deck.splice(0, 8) },
+    caps: { host: [], guest: [] },
+    currentPlayer: state.oya === 'guest' ? 'guest' : 'host',
+    phase: 'select-hand',
+    playedCard: null,
+    drawnCard: null,
+    pickOptions: [],
+    yakuBaseline: { host: [], guest: [] },
+    pendingYaku: null,
+    pendingGained: null,
+    koikoiBy: null,
+  };
+  state.game = g;
+  renderGame();
+}
+
+// --- 描画 ---
+function svgCard(id, extraClass) {
+  return '<svg class="card' + (extraClass ? ' ' + extraClass : '') + '" viewBox="0 0 220 350" data-id="' + id + '"><use href="#' + id + '"/></svg>';
+}
+function svgBack() {
+  return '<svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg>';
+}
+
+function renderGame() {
+  const g = state.game;
+  if (!g) return;
+  const cur = g.currentPlayer;
+  const opp = otherPlayer(cur);
+  // Status bar
+  document.getElementById('st-month').textContent = t('game.month.field', 1);
+  document.getElementById('st-round').textContent = t('game.round1of1');
+  document.getElementById('st-my-score').textContent = '0';
+  document.getElementById('st-op-score').textContent = '0';
+  document.getElementById('st-turn').innerHTML = renderPhaseText();
+  document.getElementById('deck-count').textContent = g.deck.length;
+  // My hand (= current player face-up, clickable when phase=select-hand)
+  const myH = document.getElementById('my-hand');
+  myH.innerHTML = '';
+  g.hands[cur].forEach(c => {
+    const wrap = document.createElement('span');
+    wrap.innerHTML = svgCard(c.id, g.phase === 'select-hand' ? 'clickable' : '');
+    const el = wrap.firstChild;
+    if (g.phase === 'select-hand') {
+      el.addEventListener('click', () => onClickHand(c));
+    }
+    myH.appendChild(el);
   });
+  // Opponent hand (backs)
+  const oppH = document.getElementById('opp-hand');
+  oppH.innerHTML = '';
+  for (let i = 0; i < g.hands[opp].length; i++) {
+    const wrap = document.createElement('span');
+    wrap.innerHTML = svgBack();
+    oppH.appendChild(wrap.firstChild);
+  }
+  // Field
+  const fld = document.getElementById('field-cards');
+  fld.innerHTML = '';
+  const pickSet = (g.phase === 'pick-play' || g.phase === 'pick-draw') ? new Set(g.pickOptions) : null;
+  g.field.forEach(c => {
+    const wrap = document.createElement('span');
+    const cls = pickSet && pickSet.has(c.id) ? 'match clickable' : (pickSet ? 'dim' : '');
+    wrap.innerHTML = svgCard(c.id, cls);
+    const el = wrap.firstChild;
+    if (pickSet && pickSet.has(c.id)) {
+      el.addEventListener('click', () => onClickFieldPick(c));
+    }
+    fld.appendChild(el);
+  });
+  // Drawn slot (山札からめくった札の一時表示)
+  const ds = document.getElementById('drawn-slot');
+  ds.innerHTML = '';
+  if (g.drawnCard) {
+    const lbl = document.createElement('div');
+    lbl.className = 'lbl';
+    lbl.textContent = t('game.drawn');
+    ds.appendChild(lbl);
+    const s = document.createElement('span');
+    s.innerHTML = svgCard(g.drawnCard.id, 'drawn');
+    ds.appendChild(s.firstChild);
+  }
+  // Captures (my-side = current player, opp-side = other)
+  renderCap(cur, 'my-cap-top', 'my-cap-bot');
+  renderCap(opp, 'opp-cap-top', 'opp-cap-bot');
+  // Near-yaku hints
+  renderNearYaku(cur, 'my-near');
+  renderNearYaku(opp, 'opp-near');
+}
+
+function renderPhaseText() {
+  const g = state.game;
+  const who = whoLabel(g.currentPlayer);
+  switch (g.phase) {
+    case 'select-hand': return t('game.turn.selectHand', { who });
+    case 'pick-play':   return t('game.turn.pickPlay',   { who });
+    case 'draw':        return t('game.turn.draw',       { who });
+    case 'pick-draw':   return t('game.turn.pickDraw',   { who });
+    case 'yaku':        return t('game.turn.yaku',       { who });
+    case 'end':         return t('game.turn.end');
+    default:            return '';
+  }
+}
+
+function renderCap(player, topRowId, botRowId) {
+  const cards = state.game.caps[player] || [];
+  const groups = { hikari: [], tane: [], tan: [], kasu: [] };
+  cards.forEach(c => groups[c.type].push(c));
+  const top = document.getElementById(topRowId);
+  const cs = top.querySelectorAll('.cards');
+  const list = [groups.hikari, groups.tane, groups.tan];
+  list.forEach((arr, i) => {
+    if (!cs[i]) return;
+    cs[i].innerHTML = arr.map(c => svgCard(c.id, 'cap')).join('');
+  });
+  const bot = document.getElementById(botRowId);
+  const bcs = bot.querySelectorAll('.cards');
+  if (bcs[0]) bcs[0].innerHTML = groups.kasu.map(c => svgCard(c.id, 'cap')).join('');
   fitRows();
 }
+
+function renderNearYaku(player, elId) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const cards = state.game.caps[player] || [];
+  const ids = {};
+  cards.forEach(c => { ids[c.id] = true; });
+  const hikariN = cards.filter(c => c.type === 'hikari').length;
+  const taneN = cards.filter(c => c.type === 'tane').length;
+  const tanN = cards.filter(c => c.type === 'tan').length;
+  const kasuN = cards.filter(c => c.type === 'kasu').length;
+  const hasRain = !!ids[RAIN_HIKARI_ID];
+  const hints = [];
+  // 光系
+  if (hikariN === 4) hints.push(t('yaku.gokou'));
+  else if (hikariN === 3 && !hasRain) hints.push(t('yaku.shikou'));
+  else if (hikariN === 3 && hasRain) hints.push(t('yaku.amenoshikou'));
+  else if (hikariN === 2 && !hasRain) hints.push(t('yaku.sankou'));
+  // 猪鹿蝶
+  if (IKS_IDS.filter(id => ids[id]).length === 2) hints.push(t('yaku.inoshikachou'));
+  // 赤短 / 青短
+  if (RED_TAN_IDS.filter(id => ids[id]).length === 2) hints.push(t('yaku.akatan'));
+  if (BLUE_TAN_IDS.filter(id => ids[id]).length === 2) hints.push(t('yaku.aotan'));
+  // 花見 / 月見: 片方だけ揃っている
+  if (ids[HANAMI_HIKARI_ID] !== ids[SAKE_ID] && (ids[HANAMI_HIKARI_ID] || ids[SAKE_ID])) hints.push(t('yaku.hanami'));
+  if (ids[TSUKIMI_HIKARI_ID] !== ids[SAKE_ID] && (ids[TSUKIMI_HIKARI_ID] || ids[SAKE_ID])) hints.push(t('yaku.tsukimi'));
+  // Count-based
+  if (tanN === 4) hints.push(t('yaku.tan'));
+  if (taneN === 4) hints.push(t('yaku.tane'));
+  if (kasuN === 9) hints.push(t('yaku.kasu'));
+  if (hints.length === 0) { el.textContent = ''; return; }
+  el.innerHTML = t('game.near.prefix') + ' ' + hints.map(h => '<b>' + h + '</b>').join('、');
+}
+
 function fitRows() {
   document.querySelectorAll('.caprow .cards').forEach(row => {
     const cs = Array.from(row.children);
@@ -1870,13 +2168,215 @@ function fitRows() {
   });
 }
 
+// --- 合わせ取り (手札プレイ) ---
+function onClickHand(card) {
+  const g = state.game;
+  if (g.phase !== 'select-hand') return;
+  const cur = g.currentPlayer;
+  const hand = g.hands[cur];
+  const idx = hand.indexOf(card);
+  if (idx < 0) return;
+  hand.splice(idx, 1);
+  g.playedCard = card;
+  const matches = g.field.filter(c => c.month === card.month);
+  if (matches.length === 0) {
+    g.field.push(card);
+    proceedToDraw();
+  } else if (matches.length === 1) {
+    captureBothFromField(matches, card, cur);
+    proceedToDraw();
+  } else if (matches.length === 3) {
+    captureBothFromField(matches, card, cur);
+    proceedToDraw();
+  } else {
+    // 2 枚: 選択待ち
+    g.phase = 'pick-play';
+    g.pickOptions = matches.map(c => c.id);
+    renderGame();
+  }
+}
+
+function captureBothFromField(fieldCards, played, player) {
+  const g = state.game;
+  fieldCards.forEach(c => {
+    const i = g.field.indexOf(c);
+    if (i >= 0) g.field.splice(i, 1);
+    g.caps[player].push(c);
+  });
+  g.caps[player].push(played);
+}
+
+function onClickFieldPick(fieldCard) {
+  const g = state.game;
+  const cur = g.currentPlayer;
+  if (g.phase === 'pick-play') {
+    captureBothFromField([fieldCard], g.playedCard, cur);
+    proceedToDraw();
+  } else if (g.phase === 'pick-draw') {
+    captureBothFromField([fieldCard], g.drawnCard, cur);
+    g.drawnCard = null;
+    proceedYakuCheck();
+  }
+}
+
+function proceedToDraw() {
+  const g = state.game;
+  g.playedCard = null;
+  g.pickOptions = [];
+  if (g.deck.length === 0) {
+    proceedYakuCheck();
+    return;
+  }
+  g.phase = 'draw';
+  const drawn = g.deck.shift();
+  g.drawnCard = drawn;
+  renderGame();
+  setTimeout(() => resolveDraw(drawn), 750);
+}
+
+function resolveDraw(drawn) {
+  const g = state.game;
+  if (g.drawnCard !== drawn) return; // 既に処理済み
+  const cur = g.currentPlayer;
+  const matches = g.field.filter(c => c.month === drawn.month);
+  if (matches.length === 0) {
+    g.field.push(drawn);
+    g.drawnCard = null;
+    proceedYakuCheck();
+  } else if (matches.length === 1) {
+    captureBothFromField(matches, drawn, cur);
+    g.drawnCard = null;
+    proceedYakuCheck();
+  } else if (matches.length === 3) {
+    captureBothFromField(matches, drawn, cur);
+    g.drawnCard = null;
+    proceedYakuCheck();
+  } else {
+    g.phase = 'pick-draw';
+    g.pickOptions = matches.map(c => c.id);
+    renderGame();
+  }
+}
+
+function proceedYakuCheck() {
+  const g = state.game;
+  const cur = g.currentPlayer;
+  const before = g.yakuBaseline[cur] || [];
+  const after = computeYaku(g.caps[cur]);
+  const gained = yakuGained(before, after);
+  if (gained.length > 0) {
+    g.phase = 'yaku';
+    g.pendingYaku = after;
+    g.pendingGained = gained;
+    renderGame();
+    showYakuOverlay();
+    return;
+  }
+  endTurn();
+}
+
+function endTurn() {
+  const g = state.game;
+  // 両者手札切れ = 引き分け (親流れ / 継続の判定は次セッション)
+  if (g.hands.host.length === 0 && g.hands.guest.length === 0) {
+    endRoundDraw();
+    return;
+  }
+  g.currentPlayer = otherPlayer(g.currentPlayer);
+  g.phase = 'select-hand';
+  g.playedCard = null;
+  g.drawnCard = null;
+  g.pickOptions = [];
+  renderGame();
+}
+
+// --- こいこい / 勝負 ---
+function showYakuOverlay() {
+  const g = state.game;
+  const cur = g.currentPlayer;
+  const yaku = g.pendingYaku || [];
+  const total = yakuTotal(yaku);
+  document.getElementById('ov-yaku-who').textContent = whoLabel(cur);
+  const ul = document.getElementById('ov-yaku-list');
+  ul.innerHTML = yaku.map(y => {
+    const label = t(y.key) + (y.count ? ' (' + y.count + ')' : '');
+    return '<li><span>' + label + '</span><span class="pt">' + y.mon + ' ' + t('game.mon') + '</span></li>';
+  }).join('');
+  document.getElementById('ov-yaku-pt').textContent = total;
+  document.getElementById('ovYaku').classList.add('show');
+}
+
+function onKoikoi() {
+  const g = state.game;
+  if (g.phase !== 'yaku') return;
+  const cur = g.currentPlayer;
+  g.koikoiBy = cur;
+  g.yakuBaseline[cur] = g.pendingYaku;
+  g.pendingYaku = null;
+  g.pendingGained = null;
+  document.getElementById('ovYaku').classList.remove('show');
+  endTurn();
+}
+
+function onShobu() {
+  const g = state.game;
+  if (g.phase !== 'yaku') return;
+  const cur = g.currentPlayer;
+  const yaku = g.pendingYaku || [];
+  let mon = yakuTotal(yaku);
+  const doubled = (state.settings.double === 'on' && mon >= 7);
+  if (doubled) mon *= 2;
+  document.getElementById('ovYaku').classList.remove('show');
+  // こいこい後の相手勝負判定:
+  //   g.koikoiBy != null かつ g.koikoiBy !== cur なら「相手が総取り」
+  //   = こいこい宣言者は 0、勝負宣言者 cur が全獲得
+  //   (仕様§5-4: こいこい後に相手が先に上がると相手が総取り)
+  if (g.koikoiBy && g.koikoiBy !== cur) {
+    endRoundKoikoiLost(cur, g.koikoiBy, mon, doubled);
+  } else {
+    endRoundShobu(cur, mon, doubled);
+  }
+}
+
+// --- 局終了 ---
+function endRoundShobu(winner, mon, doubled) {
+  state.game.phase = 'end';
+  const msg = t('round.end.winner', { who: whoLabel(winner), mon, doubled });
+  showRoundEnd(msg, winner);
+}
+function endRoundKoikoiLost(winner, loser, mon, doubled) {
+  state.game.phase = 'end';
+  const msg = t('round.end.koikoi.lost', { who: whoLabel(loser), opp: whoLabel(winner), mon: mon, doubled });
+  showRoundEnd(msg, winner);
+}
+function endRoundDraw() {
+  state.game.phase = 'end';
+  showRoundEnd(t('round.end.draw'), null);
+}
+function showRoundEnd(msg, winner) {
+  document.getElementById('round-end-msg').innerHTML = msg;
+  // 勝者取り札の役内訳を列挙
+  const ul = document.getElementById('round-end-yaku');
+  if (winner) {
+    const y = computeYaku(state.game.caps[winner]);
+    ul.innerHTML = y.map(x => {
+      const label = t(x.key) + (x.count ? ' (' + x.count + ')' : '');
+      return '<li><span>' + label + '</span><span class="pt">' + x.mon + ' ' + t('game.mon') + '</span></li>';
+    }).join('');
+  } else {
+    ul.innerHTML = '';
+  }
+  renderGame(); // phase=end で clickable 解除
+  document.getElementById('ovRound').classList.add('show');
+}
+
 // --------------------------------------------------------------------------
 // 10) ホスト操作 (ゲームスタート)
 // --------------------------------------------------------------------------
 function startGame() {
   if (!state.isHost || !state.connected || !state.oya) return;
   MomoMatchmaking.send({ type: 'start' });
-  enterGamePlaceholder();
+  startRound();
 }
 
 function leaveRoom() {
@@ -1942,9 +2442,14 @@ function bindEvents() {
   // Game screen
   document.getElementById('btn-leave-game').addEventListener('click', leaveRoom);
 
-  // Overlay yaku (Phase 1: モックの見せかけとして「勝負」で閉じるのみ)
-  document.getElementById('btn-shobu').addEventListener('click', () => document.getElementById('ovYaku').classList.remove('show'));
-  document.getElementById('btn-koikoi').addEventListener('click', () => document.getElementById('ovYaku').classList.remove('show'));
+  // Overlay yaku (Phase 2A: 実挙動)
+  document.getElementById('btn-koikoi').addEventListener('click', onKoikoi);
+  document.getElementById('btn-shobu').addEventListener('click', onShobu);
+  // Overlay round-end
+  document.getElementById('btn-round-close').addEventListener('click', () => {
+    document.getElementById('ovRound').classList.remove('show');
+    leaveRoom();
+  });
 
   // Settings panel (gear icon → overlay)
   document.getElementById('gear-icon').addEventListener('click', openSettings);
@@ -2001,6 +2506,23 @@ document.addEventListener('DOMContentLoaded', () => {
   bindEvents();
   showScreen('lobby');
   initMatchmaking();
+  // ?debug=1: solo test hook (scope A verification)
+  if (new URLSearchParams(location.search).get('debug') === '1') {
+    window.__hanafudaDebug = {
+      startRoundSolo(opts) {
+        state.isHost = true;
+        state.connected = true;
+        state.hostName = (opts && opts.host) || 'ホスト';
+        state.guestName = (opts && opts.guest) || 'ゲスト';
+        state.oya = (opts && opts.oya) || 'host';
+        state.settings = Object.assign({ rounds: '12', kiku: 'tane', double: 'on', deal: 'on', draw: 'keep' }, (opts && opts.settings) || {});
+        startRound();
+      },
+      get state() { return state; },
+      computeYaku, buildDeck, yakuTotal, shuffle,
+      renderGame, endTurn,
+    };
+  }
 });
 })();
 </script>

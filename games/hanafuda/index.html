@@ -107,7 +107,9 @@
   .wrap .site-header h1{font-family:"Fredoka One",sans-serif;font-weight:400;font-size:1.2rem;color:#fff;display:flex;align-items:baseline;gap:.25rem;}
   .wrap .site-header h1 .svc{color:var(--orange-mid);}
   .wrap .version-tag{font-size:.58rem;color:var(--text-muted);align-self:flex-end;padding-bottom:.12rem;}
-  .wrap .header-sub{font-size:10.5px;color:var(--text-muted);font-style:italic;margin-left:42px;}
+  /* 対戦画面のサブタイトルも他画面と統一（Fredoka One・非イタリック・#888） */
+  .wrap .header-sub{font-family:"Fredoka One",sans-serif;font-size:13px;color:#888;font-style:normal;margin-left:42px;line-height:1.15;}
+  .wrap .header-sub.zh{font-family:"Fredoka One","Noto Sans SC","Noto Sans JP",sans-serif;}
 
   /* サーバー接続状態バー（タイトルブロック直下・ロビー/対戦準備で表示） */
   .server-status{display:flex;align-items:center;gap:8px;margin:14px 0 6px;padding:6px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:.78rem;color:var(--text-muted);}
@@ -910,7 +912,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.08</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.09</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -965,7 +967,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.08</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.09</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1040,7 +1042,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.08</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.09</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1174,7 +1176,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.08';
+const APP_VERSION = 'v1.09';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -2665,18 +2667,18 @@ function fitHeader() {
   });
 }
 
-// 対局中の「中断」ボタンを、タイトルアイコンに被らないよう歯車/言語コントロールの真下・
-// 左端そろえに配置する（top-controls は screen 遷移で移動するので、その実位置を基準にする）。
+// 対局中の「中断」ボタンを、ステータス行（1月場…の行）の直下・左寄せに配置する。
+// 相手の手札に重なってよい（相手手札は操作しないため）。専用スペースは設けない（絶対配置）。
 function positionLeaveBtn() {
   const btn = document.getElementById('btn-leave-game');
   const sg = document.getElementById('screen-game');
-  const tc = document.getElementById('top-controls');
+  const status = document.getElementById('game-status');
   if (!btn || !sg || state.screen !== 'game') return;
-  if (!tc || tc.offsetParent === null) return;
+  if (!status || status.offsetParent === null) return;
   const base = sg.getBoundingClientRect();
-  const r = tc.getBoundingClientRect();
-  btn.style.top = (r.bottom - base.top + 6) + 'px';
-  btn.style.left = (r.left - base.left) + 'px';
+  const r = status.getBoundingClientRect();
+  btn.style.top = (r.bottom - base.top + 4) + 'px';
+  btn.style.left = '12px';
   btn.style.right = 'auto';
 }
 
@@ -3235,6 +3237,17 @@ function openSettings() {
   document.getElementById('ovSettings').classList.add('show');
 }
 
+// 起動時の拡大リセット：別ページ(MOMO Works/Games)からリンクで来ると、そこでのピンチ拡大が
+// 引き継がれて拡大表示のまま始まることがある。一瞬だけ maximum-scale=1 を入れて拡大を 1.0 に戻し、
+// すぐ外してピンチ操作は可能なままにする。
+function resetPageZoom() {
+  const vp = document.querySelector('meta[name="viewport"]');
+  if (!vp) return;
+  const pinchable = 'width=device-width, initial-scale=1.0, viewport-fit=cover';
+  vp.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover');
+  setTimeout(() => vp.setAttribute('content', pinchable), 400);
+}
+
 function refreshServerStatus() {
   const online = !!MMState.wsOpen;
   const lblKey = online ? 'srv.online' : (MMState.wsOpen === false && MMState.wasClosed ? 'srv.offline' : 'srv.connecting');
@@ -3260,7 +3273,9 @@ function initLang() {
   }
 }
 
+window.addEventListener('pageshow', resetPageZoom); // bfcache 復帰時も拡大をリセット
 document.addEventListener('DOMContentLoaded', () => {
+  resetPageZoom();       // 他ページから引き継いだ拡大を起動時にリセット（ピンチは可のまま）
   initLang();
   applyLang();
   bindEvents();

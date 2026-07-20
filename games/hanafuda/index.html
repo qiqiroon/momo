@@ -309,6 +309,7 @@
   .scoreboard .sc-name{color:var(--text);}
   .scoreboard .sc-val{font-weight:700;color:var(--gold);}
   .scoreboard .sc-val .delta{color:var(--orange-mid);font-weight:700;font-size:.78rem;margin-left:6px;}
+  .ge-choice-note{text-align:center;font-size:.8rem;color:var(--orange-mid);min-height:1em;margin:6px 0 2px;}
   .next-oya{text-align:center;font-size:.82rem;color:var(--text-muted);margin-bottom:8px;}
   .next-oya b{color:var(--orange-mid);}
   .ready-row{display:flex;justify-content:space-around;gap:10px;font-size:.78rem;margin-bottom:10px;}
@@ -1007,7 +1008,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.21</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.22</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1062,7 +1063,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.21</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.22</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1137,7 +1138,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.21</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.22</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1273,6 +1274,7 @@
   <h2 id="game-end-title" class="ge-title"></h2>
   <p id="game-end-msg"></p>
   <div class="scoreboard" id="game-scoreboard"></div>
+  <div class="ge-choice-note" id="game-choice-note"></div>
   <div class="btn-row">
     <button class="btn btn-primary" id="btn-rematch" data-i18n="game.rematch">もう一度対戦</button>
   </div>
@@ -1307,7 +1309,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.21';
+const APP_VERSION = 'v1.22';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -1467,6 +1469,7 @@ const I18N = {
     'game.end.msg': (p) => '<b>' + p.who + '</b> の勝利！<br>' + p.hi + ' 文 対 ' + p.lo + ' 文',
     'game.end.msg.draw': (p) => '同点（' + p.hi + ' 文）で引き分けでした。',
     'game.rematch': 'もう一度対戦',
+    'game.choice.wait': (p) => '「' + p.choice + '」を選択 ・ 相手の選択を待っています…',
     'game.tolobby': 'ロビーに戻る',
     'foot.about': 'MOMO Hanafuda について',
     'foot.desc': 'MOMO Hanafuda は花札をオンライン2人対戦で遊べるブラウザゲームです。4言語対応・PCとスマホの縦画面に対応。アカウント登録もインストールも不要です。',
@@ -1638,6 +1641,7 @@ const I18N = {
     'game.end.msg': (p) => '<b>' + p.who + '</b> wins!<br>' + p.hi + ' mon to ' + p.lo + ' mon',
     'game.end.msg.draw': (p) => 'Tied at ' + p.hi + ' mon — a draw.',
     'game.rematch': 'Rematch',
+    'game.choice.wait': (p) => 'Chose "' + p.choice + '" · waiting for opponent…',
     'game.tolobby': 'Back to Lobby',
     'foot.about': 'About MOMO Hanafuda',
     'foot.desc': 'MOMO Hanafuda lets you play the Japanese card game Hanafuda online against another player, in your browser. 4-language UI, works on PC and mobile portrait. No account, no install.',
@@ -1809,6 +1813,7 @@ const I18N = {
     'game.end.msg': (p) => '<b>' + p.who + '</b> 获胜！<br>' + p.hi + ' 文 对 ' + p.lo + ' 文',
     'game.end.msg.draw': (p) => '同分（' + p.hi + ' 文）平局。',
     'game.rematch': '再来一局',
+    'game.choice.wait': (p) => '已选「' + p.choice + '」· 等待对方选择…',
     'game.tolobby': '返回大厅',
     'foot.about': '关于 MOMO Hanafuda',
     'foot.desc': 'MOMO Hanafuda 是一款可在浏览器中双人在线对战的花札游戏。支持 4 语言、可在 PC 与手机竖屏使用。无需注册、无需安装。',
@@ -1965,6 +1970,8 @@ const state = {
   matchOver: false,     // 全局終了 = 総結果画面表示
   selHand: null,        // v1.16: 2タッチ操作で1回目に選んだ手札の id（この端末のみ・非同期）
   showTag: true,        // v1.17: 左上の番号ラベル表示（設定でON/OFF・この端末のみ・既定ON）
+  gameEndChoice: { host: null, guest: null }, // v1.22: 総結果の再戦/ロビー両者選択（host が集計）
+  gameChoiceMade: false, // v1.22: この端末が総結果で選択済みか（UI待機表示用）
 };
 
 // --------------------------------------------------------------------------
@@ -2586,9 +2593,9 @@ function handleP2P(data) {
     handleIntent(data);
     return;
   }
-  if (data.type === 'rematch') {
-    // v1.13: 相手が「もう一度対戦」→ 双方 親決めからやり直し（部屋は維持）
-    resetToRoom();
+  if (data.type === 'go-lobby') {
+    // v1.22: 総結果でロビー確定（片方でもロビーを選んだ）→ 自分もロビーへ
+    leaveRoom();
     return;
   }
 }
@@ -2755,8 +2762,11 @@ function centerFlash(type, by) {
   if (type === 'koikoi') { cls = 'kf-koikoi big'; txt = t('flash.koikoi'); big = ' big'; }
   else if (type === 'koikoi-ok') { cls = 'kf-ok'; txt = who + '：' + t('flash.koikoi.ok'); }
   else if (type === 'koikoi-ng') { cls = 'kf-ng'; txt = who + '：' + t('flash.koikoi.ng'); }
-  el.className = 'koikoi-flash show ' + cls;
   el.textContent = txt;
+  // v1.22: 同じクラス名の再設定ではアニメが再生されない → 一度戻して強制リフローで必ず再生
+  el.className = 'koikoi-flash';
+  void el.offsetWidth;
+  el.className = 'koikoi-flash show ' + cls;
   if (_flashTimer) clearTimeout(_flashTimer);
   _flashTimer = setTimeout(() => { el.className = 'koikoi-flash'; }, 1600);
 }
@@ -2804,6 +2814,8 @@ function beginMatch() {
   state.roundNo = 1;
   state.scores = { host: 0, guest: 0 };
   state.matchOver = false;
+  state.gameEndChoice = { host: null, guest: null }; // v1.22: 総結果の選択リセット
+  state.gameChoiceMade = false;
   startRound();
 }
 function startRound() {
@@ -2889,6 +2901,7 @@ function mySide() {
 function renderGame() {
   const g = state.game;
   if (!g) return;
+  if (!state.matchOver) state.gameChoiceMade = false; // v1.22: 対局中は総結果の選択フラグをリセット
   const me = mySide();
   const opp = otherPlayer(me);
   const isMyTurn = g.currentPlayer === me;
@@ -3676,57 +3689,84 @@ function renderGameEndFromData() {
   // v1.18: くす玉画像＋紙吹雪は「勝った側だけ」表示（負け・引き分けは非表示）
   const panel = document.querySelector('#ovGame .opanel');
   if (panel) panel.classList.toggle('win', iWin);
+  // v1.22: 再戦/ロビー選択ボタンを初期状態に（未選択なら有効・注記クリア）
+  if (!state.gameChoiceMade) {
+    const br = document.getElementById('btn-rematch'), bl = document.getElementById('btn-game-lobby'), note = document.getElementById('game-choice-note');
+    if (br) br.disabled = false; if (bl) bl.disabled = false; if (note) note.textContent = '';
+  }
   document.getElementById('ovGame').classList.add('show');
   if (iWin) { launchKusudama(); playSfx('fanfare'); setBgm('fanfare'); }
 }
 // 勝利時：くす玉画像を出し直し＋紙吹雪を降らせる（見た目のみ）
+let _confettiTimer = null;
 function launchKusudama() {
   const art = document.getElementById('win-art');
   const conf = document.getElementById('confetti');
   if (art) { art.style.animation = 'none'; void art.offsetWidth; art.style.animation = ''; }
   if (!conf) return;
-  conf.innerHTML = '';
-  const colors = ['#d8a838', '#ea580c', '#cf2b28', '#33aa99', '#5599ff', '#ffffff'];
-  const n = 64;
-  for (let i = 0; i < n; i++) {
-    const p = document.createElement('span');
-    p.className = 'cf';
-    p.style.left = ((i * 37) % 100) + '%';
-    p.style.background = colors[i % colors.length];
-    p.style.animationDelay = ((i % 12) * 0.11).toFixed(2) + 's';
-    p.style.animationDuration = (1.9 + (i % 6) * 0.28).toFixed(2) + 's';
-    if (i % 2) p.style.borderRadius = '50%';
-    conf.appendChild(p);
-  }
+  conf.innerHTML = ''; // まず紙吹雪を消す（くす玉画像が先に出る）
+  if (_confettiTimer) clearTimeout(_confettiTimer);
+  // v1.22: くす玉画像が出てから紙吹雪を後追いで降らせる
+  _confettiTimer = setTimeout(() => {
+    if (!document.querySelector('#ovGame .opanel.win')) return; // 総結果が閉じていたら出さない
+    conf.innerHTML = '';
+    const colors = ['#d8a838', '#ea580c', '#cf2b28', '#33aa99', '#5599ff', '#ffffff'];
+    const n = 64;
+    for (let i = 0; i < n; i++) {
+      const p = document.createElement('span');
+      p.className = 'cf';
+      p.style.left = ((i * 37) % 100) + '%';
+      p.style.background = colors[i % colors.length];
+      p.style.animationDelay = ((i % 12) * 0.11).toFixed(2) + 's';
+      p.style.animationDuration = (1.9 + (i % 6) * 0.28).toFixed(2) + 's';
+      if (i % 2) p.style.borderRadius = '50%';
+      conf.appendChild(p);
+    }
+  }, 650);
 }
-// 再戦: 親決めからやり直し（部屋は維持したまま対戦準備画面へ）
-function resetToRoom() {
-  document.getElementById('ovGame').classList.remove('show');
-  document.getElementById('ovRound').classList.remove('show');
-  state.game = null;
-  state.matchOver = false;
-  state.roundNo = 1;
-  state.scores = { host: 0, guest: 0 };
-  state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null; state.oyaHostCard = null; state.oyaGuestCard = null;
-  state.readyHost = false; state.readyGuest = false;
-  showScreen('room');
-  renderOyaDraw();
-  refreshRoomView();
-  saveSession();
-}
-function onRematch() {
+// v1.22: 総結果の「再戦 / ロビー」両者選択ゲート。
+//  両方が再戦 → 再戦（対戦画面のまま同じルールで第1局）。それ以外（片方でもロビー）→ ロビー。
+function onGameChoice(choice) { // choice = 'rematch' | 'lobby'
   if (state.solo) {
-    document.getElementById('ovGame').classList.remove('show');
-    state.oya = state.oya || 'host';
-    beginMatch();
+    if (choice === 'rematch') { document.getElementById('ovGame').classList.remove('show'); state.oya = state.oya || 'host'; beginMatch(); }
+    else leaveRoom();
     return;
   }
+  if (state.gameChoiceMade) return; // 既に選択済み
+  state.gameChoiceMade = true;
+  renderGameChoiceWait(choice);
   if (state.isHost) {
-    MomoMatchmaking.send({ type: 'rematch' });
-    resetToRoom();
+    state.gameEndChoice.host = choice;
+    tryResolveGameEnd();
   } else {
-    MomoMatchmaking.send({ type: 'intent', action: 'rematch' });
+    MomoMatchmaking.send({ type: 'intent', action: 'game-choice', choice: choice });
   }
+}
+function renderGameChoiceWait(choice) {
+  const note = document.getElementById('game-choice-note');
+  const br = document.getElementById('btn-rematch'), bl = document.getElementById('btn-game-lobby');
+  if (br) br.disabled = true;
+  if (bl) bl.disabled = true;
+  if (note) note.textContent = t('game.choice.wait', { choice: t(choice === 'rematch' ? 'game.rematch' : 'game.tolobby') });
+}
+// host: 両者の選択がそろったら確定
+function tryResolveGameEnd() {
+  const c = state.gameEndChoice;
+  if (c.host == null || c.guest == null) return;
+  if (c.host === 'rematch' && c.guest === 'rematch') {
+    rematchStart();
+  } else {
+    MomoMatchmaking.send({ type: 'go-lobby' });
+    leaveRoom();
+  }
+}
+// host: 再戦を開始（対戦画面のまま・同じルール・第1局）。親は前対戦の勝者（引分けは現状維持）。
+function rematchStart() {
+  const w = (state.scores.host === state.scores.guest) ? (state.oya || 'host')
+    : (state.scores.host > state.scores.guest ? 'host' : 'guest');
+  state.oya = w;
+  document.getElementById('ovGame').classList.remove('show');
+  beginMatch(); // roundNo/scores/gameEndChoice をリセット → 第1局を配って同期（ゲストは deal で追従）
 }
 
 // --- ホスト権威 state 同期 ---
@@ -3834,9 +3874,10 @@ function handleIntent(data) {
     syncState();
     return;
   }
-  if (data.action === 'rematch') {
-    MomoMatchmaking.send({ type: 'rematch' });
-    resetToRoom();
+  if (data.action === 'game-choice') {
+    // v1.22: ゲストの総結果選択（再戦/ロビー）→ host が集計して確定
+    state.gameEndChoice.guest = data.choice;
+    tryResolveGameEnd();
     return;
   }
   if (g.currentPlayer !== senderSide) return; // 手番じゃない相手の intent は破棄
@@ -4008,12 +4049,9 @@ function bindEvents() {
     document.getElementById('ovRound').classList.remove('show');
     leaveRoom();
   });
-  // Overlay game-end（総結果: 再戦 / ロビー）
-  document.getElementById('btn-rematch').addEventListener('click', onRematch);
-  document.getElementById('btn-game-lobby').addEventListener('click', () => {
-    document.getElementById('ovGame').classList.remove('show');
-    leaveRoom();
-  });
+  // Overlay game-end（総結果: 再戦 / ロビー・両者選択ゲート v1.22）
+  document.getElementById('btn-rematch').addEventListener('click', () => onGameChoice('rematch'));
+  document.getElementById('btn-game-lobby').addEventListener('click', () => onGameChoice('lobby'));
 
   // Settings panel (gear icon → overlay)
   document.getElementById('gear-icon').addEventListener('click', openSettings);

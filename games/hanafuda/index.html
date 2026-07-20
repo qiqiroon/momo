@@ -206,10 +206,14 @@
   .draw-area{display:flex;gap:18px;justify-content:center;}
   .draw-slot{display:flex;flex-direction:column;align-items:center;gap:7px;}
   .draw-slot small{font-size:.72rem;color:var(--text-muted);}
-  .mini{width:58px;height:92px;border-radius:8px;border:1px solid #e7ddc4;display:flex;align-items:center;justify-content:center;flex-direction:column;font-size:.7rem;color:#333;background:#f1e6c6;box-shadow:0 3px 8px rgba(0,0,0,.4);}
+  .mini{width:58px;height:92px;border-radius:8px;border:1px solid #e7ddc4;display:flex;align-items:center;justify-content:center;flex-direction:column;font-size:.7rem;color:#333;background:#f1e6c6;box-shadow:0 3px 8px rgba(0,0,0,.4);overflow:hidden;}
   .mini.back{background:repeating-linear-gradient(45deg,#3a2418,#3a2418 6px,#4a3020 6px,#4a3020 12px);color:transparent;border-color:#20130c;}
-  .mini .mon{font-weight:700;font-size:1.1rem;color:#7d1512;}
-  .mini .pl-n{font-size:.62rem;color:#555;margin-top:3px;}
+  .mini .card{width:58px;height:auto;}
+  /* v1.21: 親決めの月・強さ表示（札の外側）＋名前 */
+  .oya-meta{margin-top:5px;text-align:center;font-size:.62rem;color:var(--text-muted);line-height:1.3;}
+  .oya-meta .om-month{display:block;font-family:"Fredoka One",sans-serif;font-size:1rem;color:var(--orange-mid);}
+  .oya-meta .om-str{color:var(--gold);font-weight:700;}
+  .oya-meta .om-name{display:block;color:#888;}
   .oya-result{text-align:center;font-size:1rem;color:var(--text);min-height:1.4em;}
   .oya-result b{color:var(--orange-mid);}
   .big-start{width:100%;margin-top:8px;padding:16px;font-size:1.05rem;letter-spacing:.03em;}
@@ -222,9 +226,8 @@
 
   /* Ingame */
   .statusbar{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:4px 8px;font-size:.66rem;}
-  /* v1.18: ゲームルール名（こいこい）を一行目左端に常時・大きめ表示 */
-  .rulebar{display:flex;justify-content:flex-start;margin-bottom:3px;}
-  .rulename{font-family:"Fredoka One",sans-serif;font-size:1.05rem;color:var(--orange-mid);letter-spacing:.02em;line-height:1;}
+  /* v1.18/1.21: ゲームルール名（こいこい）をステータスバー左端に常時・白字・大きめ */
+  .statusbar .rulename{font-family:"Fredoka One",sans-serif;font-size:1rem;color:#fff;letter-spacing:.02em;line-height:1;margin-right:auto;}
   .statusbar b{color:var(--orange-mid);}
   /* カードは幅を CSS 変数で可変にし、高さは縦横比から自動算出（機種ごとに JS が --card-w を実測セット） */
   .card{width:var(--card-w,42px);aspect-ratio:42/67;height:auto;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,.5);display:block;flex:0 0 auto;background:#f1e6c6;}
@@ -248,12 +251,15 @@
   .turnrail.bot{bottom:2px;}
   .oyako{font-family:"Fredoka One",sans-serif;font-size:.7rem;line-height:1;padding:2px 7px;border-radius:5px;background:rgba(10,10,10,.82);border:1px solid var(--border-strong);color:var(--text-muted);}
   .oyako.is-oya{color:var(--gold);border-color:var(--gold);}
-  .turn-lit{font-size:.6rem;line-height:1;padding:2px 7px;border-radius:5px;opacity:.3;color:var(--text-muted);background:rgba(10,10,10,.7);white-space:nowrap;}
-  #turn-me.active{opacity:1;color:#fff;background:var(--orange);}
-  #turn-opp.active{opacity:1;color:#fff;background:#5a5a5a;}
+  /* v1.21: 手番でない側の「〜の番」は完全に消す（active のみ表示） */
+  .turn-lit{display:none;font-size:.6rem;line-height:1;padding:2px 7px;border-radius:5px;color:#fff;white-space:nowrap;}
+  .turn-lit.active{display:inline-block;}
+  #turn-me.active{background:var(--orange);}
+  #turn-opp.active{background:#5a5a5a;}
   .seg-row{display:flex;flex-direction:column;gap:2px;align-items:center;}
   .seg-row .zl{font-size:.6rem;color:var(--text-muted);align-self:flex-start;}
   .cardrow{display:flex;gap:3px;flex-wrap:nowrap;justify-content:center;}
+  .ct-row{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;}
   .nearcap{font-size:.62rem;color:var(--text-muted);}
   .nearcap b{color:var(--gold);}
   .nearcap .who{color:var(--orange-mid);font-weight:700;}
@@ -275,6 +281,14 @@
   /* Overlays */
   .overlay{position:fixed;inset:0;background:rgba(3,10,6,.72);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:60;padding:16px;}
   .overlay.show{display:flex;}
+  /* v1.21: 役成立ポップアップは背景を曇らせない・クリックは背後に透過・パネルは半透明で移動可能 */
+  .overlay.clear-ov{background:transparent;backdrop-filter:none;pointer-events:none;}
+  .overlay.clear-ov .opanel{pointer-events:auto;position:relative;background:rgba(20,20,20,.86);backdrop-filter:blur(2px);}
+  #ovYaku-drag{cursor:move;touch-action:none;}
+  .opanel.watching{filter:grayscale(1) brightness(.8);}
+  .opanel.watching .btn{background:#3a3a3a !important;color:var(--text-muted) !important;cursor:default;}
+  .watch-note{display:none;text-align:center;color:var(--text-muted);font-size:.82rem;margin:4px 0;}
+  .opanel.watching .watch-note{display:block;}
   .opanel{background:linear-gradient(180deg,var(--surface2),var(--surface));border:1px solid var(--border-strong);border-radius:16px;max-width:380px;width:100%;padding:18px;box-shadow:0 18px 50px rgba(0,0,0,.6);}
   .opanel h2{font-family:"Fredoka One",sans-serif;font-weight:400;font-size:1.05rem;color:#fff;display:flex;gap:8px;align-items:center;margin-bottom:10px;}
   .opanel h2 .tag{font-size:.58rem;background:var(--orange);color:#fff;border-radius:5px;padding:2px 7px;}
@@ -311,7 +325,7 @@
   .ye-cards{display:flex;flex-wrap:wrap;gap:3px;}
   .ye-cards .card.ye-card{width:26px;height:auto;aspect-ratio:42/67;border-radius:3px;}
   /* v1.14: こいこい演出バナー */
-  .koikoi-flash{position:fixed;left:50%;top:34%;transform:translate(-50%,-50%) scale(.7);z-index:80;pointer-events:none;opacity:0;font-family:"Fredoka One",sans-serif;font-size:1.5rem;padding:10px 22px;border-radius:14px;white-space:nowrap;box-shadow:0 10px 34px rgba(0,0,0,.5);}
+  .koikoi-flash{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%) scale(.7);z-index:95;pointer-events:none;opacity:0;font-family:"Fredoka One",sans-serif;font-size:1.5rem;padding:10px 22px;border-radius:14px;white-space:nowrap;box-shadow:0 10px 34px rgba(0,0,0,.5);}
   .koikoi-flash.show{animation:kflash 1.6s ease forwards;}
   .koikoi-flash.kf-koikoi{background:linear-gradient(180deg,var(--orange-mid),var(--orange));color:#fff;}
   .koikoi-flash.kf-ok{background:linear-gradient(180deg,#e9c14a,var(--gold));color:#3a2a00;}
@@ -324,6 +338,10 @@
   @keyframes kkSlide{0%{opacity:0;transform:translateX(-70vw);}18%{opacity:1;}82%{opacity:1;}100%{opacity:.15;transform:translateX(95vw);}}
   /* v1.18: こいこい宣言中の手番バッジ（宣言者側に常時） */
   .kk-badge{display:none;font-size:.6rem;line-height:1;padding:2px 7px;border-radius:5px;background:var(--orange);color:#fff;white-space:nowrap;box-shadow:0 0 8px rgba(234,88,12,.5);}
+  /* v1.21: 札名バブル（マウスオーバー/1クリックで正式名称を上方に） */
+  .card-bubble{position:fixed;z-index:96;pointer-events:none;display:none;transform:translateX(-50%);background:#111;color:#fff;border:1px solid var(--gold);border-radius:8px;padding:4px 10px;font-size:.8rem;white-space:nowrap;box-shadow:0 6px 16px rgba(0,0,0,.5);}
+  .card-bubble::after{content:"";position:absolute;left:50%;top:100%;transform:translateX(-50%);border:5px solid transparent;border-top-color:var(--gold);}
+  .card-bubble.show{display:block;}
   /* v1.14: 総結果の勝利表示・くす玉・紙吹雪 */
   .ge-panel{position:relative;overflow:hidden;text-align:center;}
   .ge-title{font-family:"Fredoka One",sans-serif;font-weight:400;font-size:1.5rem;justify-content:center;}
@@ -989,7 +1007,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.20</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.21</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1044,7 +1062,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.20</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.21</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1088,8 +1106,8 @@
   <div class="panel oya">
     <p class="lead" data-i18n="oya.lead">1枚ずつ札を引き、早い月を引いた方が「親（先手）」になります。ホスト・ゲストどちらの画面からでも実行できます。</p>
     <div class="draw-area">
-      <div class="draw-slot"><small id="oya-host-lbl">ホスト</small><div class="mini back" id="slotHost"></div></div>
-      <div class="draw-slot"><small id="oya-guest-lbl">ゲスト</small><div class="mini back" id="slotGuest"></div></div>
+      <div class="draw-slot"><small id="oya-host-lbl">ホスト</small><div class="mini back" id="slotHost"></div><div class="oya-meta" id="metaHost"></div></div>
+      <div class="draw-slot"><small id="oya-guest-lbl">ゲスト</small><div class="mini back" id="slotGuest"></div><div class="oya-meta" id="metaGuest"></div></div>
     </div>
     <div class="oya-result" id="oyaResult" data-i18n="oya.notyet">まだ引いていません</div>
     <button class="btn btn-ghost" id="btn-draw-oya" data-i18n="oya.draw">カードを引く</button>
@@ -1119,12 +1137,12 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.20</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.21</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
-  <div class="rulebar"><span class="rulename" id="rule-name" data-i18n="rule.koikoi">こいこい</span></div>
   <div class="statusbar" id="game-status">
+    <span class="rulename" id="rule-name" data-i18n="rule.koikoi">こいこい</span>
     <span><b id="st-month">3月場</b>（<span id="st-round">第1局/全12局</span>）</span>
     <span><span data-i18n="game.you">あなた</span><b id="st-my-score">0</b><span data-i18n="game.mon">文</span>・<span data-i18n="game.opp">あいて</span><b id="st-op-score">0</b><span data-i18n="game.mon">文</span></span>
     <span id="st-turn" data-i18n="game.wait">対局準備中</span>
@@ -1136,11 +1154,10 @@
       <div class="cardrow" id="opp-hand">
         <svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg><svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg><svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg><svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg><svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg><svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg><svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg><svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg>
       </div>
-      <div class="nearcap" id="opp-near"></div>
     </div>
     <!-- 相手取り札 -->
     <div class="capblock">
-      <div class="ct" data-i18n="game.opp.cap">相手の取り札</div>
+      <div class="ct-row"><span class="ct" data-i18n="game.opp.cap">相手の取り札</span><span class="nearcap" id="opp-near"></span></div>
       <div class="caprow" id="opp-cap-top"><span class="gl" data-i18n="game.g.hikari">光</span><div class="cards"></div><span class="gl" data-i18n="game.g.tane">種</span><div class="cards"></div><span class="gl" data-i18n="game.g.tan">短</span><div class="cards"></div></div>
       <div class="caprow" id="opp-cap-bot"><span class="gl" data-i18n="game.g.kasu">カス</span><div class="cards"></div></div>
     </div>
@@ -1160,13 +1177,12 @@
     </div>
     <!-- 自分取り札 -->
     <div class="capblock">
-      <div class="ct" data-i18n="game.my.cap">自分の取り札</div>
+      <div class="ct-row"><span class="ct" data-i18n="game.my.cap">自分の取り札</span><span class="nearcap" id="my-near"></span></div>
       <div class="caprow" id="my-cap-top"><span class="gl" data-i18n="game.g.hikari">光</span><div class="cards"></div><span class="gl" data-i18n="game.g.tane">種</span><div class="cards"></div><span class="gl" data-i18n="game.g.tan">短</span><div class="cards"></div></div>
       <div class="caprow" id="my-cap-bot"><span class="gl" data-i18n="game.g.kasu">カス</span><div class="cards"></div></div>
     </div>
     <!-- 自分手札 -->
     <div class="seg-row">
-      <div class="nearcap" id="my-near"></div>
       <div class="cardrow" id="my-hand"></div>
       <div class="zl" data-i18n="game.my.hand">あなたの手札</div>
     </div>
@@ -1215,11 +1231,12 @@
   </div>
 </div></div>
 
-<div class="overlay" id="ovYaku"><div class="opanel">
-  <h2><span id="ov-yaku-title">役が成立！</span><span class="tag" id="ov-yaku-who">あなた</span></h2>
+<div class="overlay clear-ov" id="ovYaku"><div class="opanel" id="ovYaku-panel">
+  <h2 id="ovYaku-drag"><span id="ov-yaku-title">役が成立！</span><span class="tag" id="ov-yaku-who">あなた</span></h2>
   <ul class="yaku-list" id="ov-yaku-list"></ul>
   <div class="total-line"><span data-i18n="ov.yaku.total">現在の役得点</span><span><b id="ov-yaku-pt">0</b> <span data-i18n="game.mon">文</span></span></div>
   <p class="hint" data-i18n="ov.yaku.hint">「こいこい」で続けると得点上乗せ。相手に先に上がられると相手が総取り。</p>
+  <div class="watch-note" id="ov-yaku-watch"></div>
   <div class="btn-row">
     <button class="btn btn-koikoi" id="btn-koikoi" data-i18n="ov.koikoi">こいこい</button>
     <button class="btn btn-shobu" id="btn-shobu" data-i18n="ov.shobu">勝負</button>
@@ -1247,6 +1264,7 @@
 <!-- v1.14: こいこい演出の一瞬バナー -->
 <div class="koikoi-flash" id="koikoi-flash"></div>
 <div class="koikoi-slide" id="koikoi-slide"></div>
+<div class="card-bubble" id="card-bubble"></div>
 
 <div class="overlay" id="ovGame"><div class="opanel ge-panel">
   <!-- v1.18: 勝利時のみ表示するくす玉画像（負け・引き分けは非表示）。画像=games/hanafuda/kusudama.png -->
@@ -1289,7 +1307,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.20';
+const APP_VERSION = 'v1.21';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -1405,6 +1423,7 @@ const I18N = {
     'ov.yaku.title': '役が成立！',
     'ov.yaku.total': '現在の役得点',
     'ov.yaku.hint': '「こいこい」で続けると得点上乗せ。相手に先に上がられると相手が総取り。',
+    'ov.yaku.oppchoosing': '相手選択中…',
     'ov.koikoi': 'こいこい',
     'ov.shobu': '勝負',
     'round.end.title': '局終了',
@@ -1575,6 +1594,7 @@ const I18N = {
     'ov.yaku.title': 'Yaku!',
     'ov.yaku.total': 'Current Yaku Score',
     'ov.yaku.hint': 'Call Koi-Koi to keep going for more points. If the opponent calls Shobu first, they take everything.',
+    'ov.yaku.oppchoosing': 'Opponent is choosing…',
     'ov.koikoi': 'Koi-Koi',
     'ov.shobu': 'Shobu',
     'round.end.title': 'Round Over',
@@ -1745,6 +1765,7 @@ const I18N = {
     'ov.yaku.title': '成役！',
     'ov.yaku.total': '目前得分',
     'ov.yaku.hint': '按「来来」继续加分。若对方先按「胜负」，则对方通吃。',
+    'ov.yaku.oppchoosing': '对方选择中…',
     'ov.koikoi': '来来',
     'ov.shobu': '胜负',
     'round.end.title': '对局结束',
@@ -1932,6 +1953,8 @@ const state = {
   oya: null,            // 'host' | 'guest' | null
   oyaHostMonth: null,
   oyaGuestMonth: null,
+  oyaHostCard: null,    // v1.21: 親決めで引いた実カード id
+  oyaGuestCard: null,
   readyHost: false,     // v1.05: 両者が「準備完了」を押したら開始
   readyGuest: false,
   game: null,           // 対局中のみ non-null (startRound で host が初期化 / guest は applyState で受信)
@@ -2117,38 +2140,57 @@ function applySettingToggle(key, v) {
 
 const MONTH_NAMES = ['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
 // v1.05: 自分の 1 枚だけ引く。相手も引いていて同月なら自分の月だけ引き直す (相手の月は動かさない)。
+// v1.21: 親決めで「実際の札」を1枚引く。相手と同一札は避ける（同月は可・同月は強さで判定）。
 function drawOya() {
   const me = state.isHost ? 'host' : 'guest';
-  const myKey = me === 'host' ? 'oyaHostMonth' : 'oyaGuestMonth';
-  if (state[myKey] != null) return; // 既に引き済み
-  let n;
-  const oppMonth = me === 'host' ? state.oyaGuestMonth : state.oyaHostMonth;
-  do { n = 1 + Math.floor(Math.random() * 12); } while (oppMonth != null && n === oppMonth);
-  state[myKey] = n;
+  const myCardKey = me === 'host' ? 'oyaHostCard' : 'oyaGuestCard';
+  const myMonthKey = me === 'host' ? 'oyaHostMonth' : 'oyaGuestMonth';
+  if (state[myCardKey] != null) return; // 既に引き済み
+  const oppCard = me === 'host' ? state.oyaGuestCard : state.oyaHostCard;
+  const deck = buildDeck();
+  let card;
+  do { card = deck[Math.floor(Math.random() * deck.length)]; } while (oppCard != null && card.id === oppCard);
+  state[myCardKey] = card.id;
+  state[myMonthKey] = card.month;
   updateOyaResult();
   renderOyaDraw();
-  MomoMatchmaking.send({ type: 'oya_draw', side: me, month: n });
+  MomoMatchmaking.send({ type: 'oya_draw', side: me, month: card.month, card: card.id });
   updateStartBtn();
   refreshRoomView();
 }
 function updateOyaResult() {
-  if (state.oyaHostMonth != null && state.oyaGuestMonth != null) {
-    if (state.oyaHostMonth === state.oyaGuestMonth) {
-      // 同月 → 両方 null に戻して引き直し (通常は片方 draw 時に回避してるので理論上ここには来ない)
-      state.oyaHostMonth = null; state.oyaGuestMonth = null; state.oya = null;
-    } else {
-      state.oya = (state.oyaHostMonth < state.oyaGuestMonth) ? 'host' : 'guest';
+  const hm = state.oyaHostMonth, gm = state.oyaGuestMonth;
+  if (hm != null && gm != null) {
+    if (hm < gm) state.oya = 'host';
+    else if (gm < hm) state.oya = 'guest';
+    else {
+      // 同月 → 札の強さ（光>種>短冊>カス）で決める
+      const hs = TYPE_STRENGTH[cardTypeOf(state.oyaHostCard)] || 0;
+      const gs = TYPE_STRENGTH[cardTypeOf(state.oyaGuestCard)] || 0;
+      if (hs > gs) state.oya = 'host';
+      else if (gs > hs) state.oya = 'guest';
+      else { // 同月同強度（カス同士など）→ 引き直し
+        state.oyaHostMonth = state.oyaGuestMonth = null;
+        state.oyaHostCard = state.oyaGuestCard = null;
+        state.oya = null;
+      }
     }
-  } else {
-    state.oya = null;
+  } else state.oya = null;
+}
+function renderOyaSlot(slotId, metaId, cardId, month, name) {
+  const slot = document.getElementById(slotId), meta = document.getElementById(metaId);
+  if (!slot) return;
+  if (cardId == null) { slot.className = 'mini back'; slot.innerHTML = ''; if (meta) meta.innerHTML = ''; return; }
+  slot.className = 'mini'; slot.innerHTML = svgCard(cardId);
+  if (meta) {
+    const sameMonth = (state.oyaHostMonth != null && state.oyaGuestMonth != null && state.oyaHostMonth === state.oyaGuestMonth);
+    const str = sameMonth ? ' <span class="om-str">' + TYPE_LABEL[cardTypeOf(cardId)] + '</span>' : '';
+    meta.innerHTML = '<span class="om-month">' + t('room.month', month) + '</span>' + str + '<span class="om-name">' + name + '</span>';
   }
 }
 function renderOyaDraw() {
-  const sh = document.getElementById('slotHost'), sg = document.getElementById('slotGuest');
-  if (state.oyaHostMonth == null) { sh.className = 'mini back'; sh.innerHTML = ''; }
-  else { sh.className = 'mini'; sh.innerHTML = '<span class="mon">' + MONTH_NAMES[state.oyaHostMonth-1] + '</span><span class="pl-n">' + (state.hostName || t('room.host')) + '</span>'; }
-  if (state.oyaGuestMonth == null) { sg.className = 'mini back'; sg.innerHTML = ''; }
-  else { sg.className = 'mini'; sg.innerHTML = '<span class="mon">' + MONTH_NAMES[state.oyaGuestMonth-1] + '</span><span class="pl-n">' + (state.guestName || t('room.guest')) + '</span>'; }
+  renderOyaSlot('slotHost', 'metaHost', state.oyaHostCard, state.oyaHostMonth, state.hostName || t('room.host'));
+  renderOyaSlot('slotGuest', 'metaGuest', state.oyaGuestCard, state.oyaGuestMonth, state.guestName || t('room.guest'));
   const res = document.getElementById('oyaResult');
   if (state.oya) {
     const who = state.oya === 'host'
@@ -2198,7 +2240,7 @@ function clearSession() { try { sessionStorage.removeItem('hf_session'); } catch
 function backToLobby(msg) {
   state.reconnecting = false; state.oppAway = false; state.intentionalLeave = false;
   state.connected = false; state.guestName = ''; state.game = null; state.roomId = null;
-  state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null;
+  state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null; state.oyaHostCard = null; state.oyaGuestCard = null;
   state.readyHost = false; state.readyGuest = false;
   state.roundNo = 1; state.scores = { host: 0, guest: 0 }; state.matchOver = false;
   document.getElementById('ovRound').classList.remove('show');
@@ -2364,7 +2406,7 @@ function initMatchmaking() {
       state.roomHasPw = !!(rules && rules.hasPassword);
       state.connected = false;
       state.intentionalLeave = false;
-      state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null;
+      state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null; state.oyaHostCard = null; state.oyaGuestCard = null;
       state.readyHost = false; state.readyGuest = false;
       clearSession(); // ホストは復帰保存しない
       renderOyaDraw();
@@ -2393,7 +2435,7 @@ function initMatchmaking() {
       // 通常入室
       state.connected = false;
       state.intentionalLeave = false;
-      state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null;
+      state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null; state.oyaHostCard = null; state.oyaGuestCard = null;
       state.readyHost = false; state.readyGuest = false;
       applySettingsToUi();
       renderOyaDraw();
@@ -2416,7 +2458,7 @@ function initMatchmaking() {
         syncState({ deal: true });
       } else {
         // 対戦前：親決め済みの情報があれば送る（整合のため）
-        if (state.oyaHostMonth != null) MomoMatchmaking.send({ type: 'oya_draw', side: 'host', month: state.oyaHostMonth });
+        if (state.oyaHostMonth != null) MomoMatchmaking.send({ type: 'oya_draw', side: 'host', month: state.oyaHostMonth, card: state.oyaHostCard });
       }
     },
     onGuestLeft: () => {
@@ -2432,7 +2474,7 @@ function initMatchmaking() {
       // 対戦前：席を空きに戻す。部屋は維持。
       state.guestName = '';
       state.connected = false;
-      state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null;
+      state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null; state.oyaHostCard = null; state.oyaGuestCard = null;
       state.readyHost = false; state.readyGuest = false;
       renderOyaDraw();
       refreshRoomView();
@@ -2504,9 +2546,9 @@ function handleP2P(data) {
     return;
   }
   if (data.type === 'oya_draw') {
-    // v1.05: 相手が自分側の 1 枚を引いた通知
-    if (data.side === 'host') state.oyaHostMonth = data.month;
-    else if (data.side === 'guest') state.oyaGuestMonth = data.month;
+    // v1.05/1.21: 相手が自分側の 1 枚を引いた通知（実カード id も同送）
+    if (data.side === 'host') { state.oyaHostMonth = data.month; state.oyaHostCard = data.card || null; }
+    else if (data.side === 'guest') { state.oyaGuestMonth = data.month; state.oyaGuestCard = data.card || null; }
     updateOyaResult();
     renderOyaDraw();
     updateStartBtn();
@@ -2727,8 +2769,12 @@ function koikoiDeclareAnim(by) {
     slide.textContent = t('flash.koikoi');
     slide.style.top = (r.top + r.height / 2) + 'px';
     slide.className = 'koikoi-slide'; void slide.offsetWidth; slide.className = 'koikoi-slide show';
+    // v1.21: 中央フラッシュを animationend で確実に発火（タイマーはフォールバック）。PC横長で出ない対策
+    let done = false;
+    const fire = () => { if (done) return; done = true; slide.className = 'koikoi-slide'; centerFlash('koikoi', by); };
+    slide.addEventListener('animationend', fire, { once: true });
     if (_slideTimer) clearTimeout(_slideTimer);
-    _slideTimer = setTimeout(() => { slide.className = 'koikoi-slide'; centerFlash('koikoi', by); }, 2100);
+    _slideTimer = setTimeout(fire, 2300);
   } else {
     centerFlash('koikoi', by);
   }
@@ -2798,6 +2844,26 @@ function startRound() {
 // v1.16/1.17: 左上のトランプ風ラベル（季節番号＋種別記号 光=L/種=A/短冊=R/カス=無）。
 // v1.17: 縦書き（数字→記号）・枠なし・白塗りなし・札に直接・倍サイズ。設定で表示ON/OFF。
 const TYPE_LETTER = { hikari: 'L', tane: 'A', tan: 'R', kasu: '' };
+// v1.21: 札の正式名称（バブル表示用）
+const CARD_NAMES = {
+  m01_hikari:'松に鶴', m01_tan:'松の赤短', m01_kasu1:'松のカス', m01_kasu2:'松のカス',
+  m02_tane:'梅に鶯', m02_tan:'梅の赤短', m02_kasu1:'梅のカス', m02_kasu2:'梅のカス',
+  m03_hikari:'桜に幕', m03_tan:'桜の赤短', m03_kasu1:'桜のカス', m03_kasu2:'桜のカス',
+  m04_tane:'藤に不如帰', m04_tan:'藤の短冊', m04_kasu1:'藤のカス', m04_kasu2:'藤のカス',
+  m05_tane:'菖蒲に八橋', m05_tan:'菖蒲の短冊', m05_kasu1:'菖蒲のカス', m05_kasu2:'菖蒲のカス',
+  m06_tane:'牡丹に蝶', m06_tan:'牡丹の青短', m06_kasu1:'牡丹のカス', m06_kasu2:'牡丹のカス',
+  m07_tane:'萩に猪', m07_tan:'萩の短冊', m07_kasu1:'萩のカス', m07_kasu2:'萩のカス',
+  m08_hikari:'芒に月', m08_tane:'芒に雁', m08_kasu1:'芒のカス', m08_kasu2:'芒のカス',
+  m09_tane:'菊に盃', m09_tan:'菊の青短', m09_kasu1:'菊のカス', m09_kasu2:'菊のカス',
+  m10_tane:'紅葉に鹿', m10_tan:'紅葉の青短', m10_kasu1:'紅葉のカス', m10_kasu2:'紅葉のカス',
+  m11_hikari:'柳に小野道風', m11_tane:'柳に燕', m11_tan:'柳の短冊', m11_kasu:'柳のカス（鬼札）',
+  m12_hikari:'桐に鳳凰', m12_kasu1:'桐のカス', m12_kasu2:'桐のカス', m12_kasu3:'桐のカス',
+};
+function cardName(id) { return CARD_NAMES[id] || id; }
+// 札の強さ（親決めの同月タイブレーク：光>種>短冊>カス）
+const TYPE_STRENGTH = { hikari: 4, tane: 3, tan: 2, kasu: 1 };
+const TYPE_LABEL = { hikari: '光', tane: '種', tan: '短冊', kasu: 'カス' };
+function cardTypeOf(id) { return id.slice(4).replace(/[0-9]+$/, ''); }
 function svgCard(id, extraClass) {
   let tg = '';
   if (state.showTag) {
@@ -2854,6 +2920,7 @@ function renderGame() {
   // My hand (= mySide face-up, clickable only when my turn + phase=select-hand)
   const myH = document.getElementById('my-hand');
   myH.innerHTML = '';
+  let selEl = null;
   (g.hands[me] || []).forEach(c => {
     const wrap = document.createElement('span');
     const clickable = isMyTurn && g.phase === 'select-hand';
@@ -2866,8 +2933,11 @@ function renderGame() {
       el.addEventListener('mouseenter', () => { if (state.selHand !== c.id) previewLift(c.month, true); });
       el.addEventListener('mouseleave', () => previewLift(c.month, false));
     }
+    if (sel) selEl = el;
     myH.appendChild(el);
   });
+  // v1.21: 選択中（1クリック）の札は名前バブルを出す。未選択なら消す（ホバーは別途 delegation）
+  if (selEl) showCardBubble(selEl); else hideCardBubble();
   // Opponent hand (backs)
   const oppH = document.getElementById('opp-hand');
   oppH.innerHTML = '';
@@ -3098,6 +3168,21 @@ function fitRows() {
 
 // --- 合わせ取り (手札プレイ) ---
 // クリック handler = 側 (mySide) 判定 → 自分の手番なら local apply または intent 送信。
+// v1.21: 札名バブル（正式名称を札の上方に表示）
+function showCardBubble(el) {
+  if (!el || !el.dataset || !el.dataset.id) return;
+  const b = document.getElementById('card-bubble');
+  if (!b) return;
+  b.textContent = cardName(el.dataset.id);
+  const r = el.getBoundingClientRect();
+  b.style.left = (r.left + r.width / 2) + 'px';
+  b.className = 'card-bubble show';
+  b.style.top = (r.top - b.offsetHeight - 8) + 'px';
+}
+function hideCardBubble() {
+  const b = document.getElementById('card-bubble');
+  if (b) b.className = 'card-bubble';
+}
 // v1.16: 場のとれる札を少し上げる（ホバー時のプレビュー・on/off）
 function previewLift(month, on) {
   document.querySelectorAll('#field-cards .card').forEach(el => {
@@ -3277,15 +3362,43 @@ function showYakuOverlay() {
     return '<li><span>' + label + '</span><span class="pt">' + y.mon + ' ' + t('game.mon') + '</span></li>';
   }).join('');
   document.getElementById('ov-yaku-pt').textContent = total;
-  // 自分の手番でない (= 相手が役成立) 時はボタンを disable にして見学モード
+  // 自分の手番でない (= 相手が役成立) = 見学モード：パネルをグレー＋「相手選択中」、ボタン無効
   const isMyTurn = cur === mySide();
+  const panel = document.getElementById('ovYaku-panel');
+  panel.classList.toggle('watching', !isMyTurn);
+  document.getElementById('ov-yaku-watch').textContent = isMyTurn ? '' : t('ov.yaku.oppchoosing');
   const bk = document.getElementById('btn-koikoi');
   const bs = document.getElementById('btn-shobu');
   bk.disabled = !isMyTurn;
   bs.disabled = !isMyTurn;
-  bk.style.opacity = isMyTurn ? '1' : '.4';
-  bs.style.opacity = isMyTurn ? '1' : '.4';
+  makeDraggable(panel, document.getElementById('ovYaku-drag')); // v1.21: 手を見たいので移動可能に
   document.getElementById('ovYaku').classList.add('show');
+}
+// v1.21: パネルをドラッグ移動可能に（handle でつかむ）。一度だけ初期化。
+function makeDraggable(panel, handle) {
+  if (!panel || !handle || panel._dragInit) return;
+  panel._dragInit = true;
+  let sx = 0, sy = 0, ox = 0, oy = 0, dragging = false;
+  const start = (e) => {
+    dragging = true;
+    const p = e.touches ? e.touches[0] : e;
+    sx = p.clientX; sy = p.clientY;
+    const cur = panel.style.transform.match(/translate\(([-\d.]+)px,\s*([-\d.]+)px\)/);
+    ox = cur ? parseFloat(cur[1]) : 0; oy = cur ? parseFloat(cur[2]) : 0;
+    e.preventDefault();
+  };
+  const move = (e) => {
+    if (!dragging) return;
+    const p = e.touches ? e.touches[0] : e;
+    panel.style.transform = 'translate(' + (ox + p.clientX - sx) + 'px,' + (oy + p.clientY - sy) + 'px)';
+  };
+  const end = () => { dragging = false; };
+  handle.addEventListener('mousedown', start);
+  handle.addEventListener('touchstart', start, { passive: false });
+  window.addEventListener('mousemove', move);
+  window.addEventListener('touchmove', move, { passive: false });
+  window.addEventListener('mouseup', end);
+  window.addEventListener('touchend', end);
 }
 
 function onKoikoi() {
@@ -3594,7 +3707,7 @@ function resetToRoom() {
   state.matchOver = false;
   state.roundNo = 1;
   state.scores = { host: 0, guest: 0 };
-  state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null;
+  state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null; state.oyaHostCard = null; state.oyaGuestCard = null;
   state.readyHost = false; state.readyGuest = false;
   showScreen('room');
   renderOyaDraw();
@@ -3773,7 +3886,7 @@ function leaveRoom() {
   state.guestName = '';
   state.roomId = null; state.joinPw = '';
   state.reconnecting = false; state.oppAway = false;
-  state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null;
+  state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null; state.oyaHostCard = null; state.oyaGuestCard = null;
   state.readyHost = false; state.readyGuest = false;
   state.game = null;
   state.roundNo = 1; state.scores = { host: 0, guest: 0 }; state.matchOver = false;
@@ -3875,6 +3988,16 @@ function bindEvents() {
 
   // Game screen
   document.getElementById('btn-leave-game').addEventListener('click', leaveRoom);
+  // v1.21: 札のマウスオーバーで正式名称バブル（表向きの札のみ）
+  const sgEl = document.getElementById('screen-game');
+  sgEl.addEventListener('mouseover', (e) => {
+    const card = e.target.closest('.card');
+    if (card && card.dataset.id && !card.classList.contains('back')) showCardBubble(card);
+  });
+  sgEl.addEventListener('mouseout', (e) => {
+    const card = e.target.closest('.card');
+    if (card && !state.selHand) hideCardBubble();
+  });
 
   // Overlay yaku (Phase 2A: 実挙動)
   document.getElementById('btn-koikoi').addEventListener('click', onKoikoi);

@@ -39,7 +39,7 @@
     --gold:#d8a838; --aka:#cf2b28;
   }
   *{box-sizing:border-box;margin:0;padding:0;}
-  html,body{min-height:100%;}
+  html,body{min-height:100%;overflow-x:hidden;} /* 横はみ出しでのピンチ強要を防ぐ安全網 */
   body{
     background:var(--bg); color:var(--text);
     font-family:"Noto Sans JP",system-ui,sans-serif; min-height:100vh;
@@ -90,13 +90,14 @@
   .page-wrap .version-tag{font-size:.28em;color:var(--text-muted);letter-spacing:.04em;align-self:flex-end;padding-bottom:.2em;}
   .page-wrap .header-sub{font-family:"Fredoka One",sans-serif;font-size:clamp(14px,3.2vw,20px);color:#888;letter-spacing:0;margin-top:2px;line-height:1.15;min-height:1.2em;text-align:left;}
   .page-wrap .header-sub.zh{font-family:"Fredoka One","Noto Sans SC","Noto Sans JP",sans-serif;}
+  .page-wrap .site-header{flex-wrap:nowrap;}       /* 折り返さず1行。タイトルは JS(fitHeader) が実測で縮小して収める */
   .page-wrap .title-block{min-width:0;}
-  /* 狭い画面（スマホ縦）：アイコン・タイトルを詰めてヘッダーの横はみ出しを防ぐ。歯車/言語は収まらなければ折り返す */
+  .page-wrap .site-header h1{white-space:nowrap;}
+  /* 狭い画面（スマホ縦）：アイコンを詰めてタイトル用の幅を確保 */
   @media(max-width:430px){
     .page-wrap{padding:14px 14px 32px;}
-    .page-wrap .site-header{gap:10px;flex-wrap:wrap;}
+    .page-wrap .site-header{gap:10px;}
     .page-wrap .app-icon{width:46px;height:46px;}
-    .page-wrap .site-header h1{font-size:clamp(1.4rem,6.2vw,2rem);}
   }
 
   /* Header (ingame) */
@@ -909,7 +910,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.07</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.08</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -964,7 +965,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.07</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.08</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1039,7 +1040,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.07</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.08</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1087,7 +1088,7 @@
       <div class="zl" data-i18n="game.my.hand">あなたの手札</div>
     </div>
   </div>
-  <button class="leave-btn" id="btn-leave-game" style="position:absolute;top:8px;left:12px;z-index:150" data-i18n="game.leave">← 中断</button>
+  <button class="leave-btn" id="btn-leave-game" style="position:absolute;top:44px;right:12px;z-index:150" data-i18n="game.leave">← 中断</button>
 </section>
 
 <!-- ============ OVERLAYS ============ -->
@@ -1173,7 +1174,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.07';
+const APP_VERSION = 'v1.08';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -1651,6 +1652,8 @@ function applyLang() {
   // Room-prep dynamic labels
   updateOyaLabels();
   updateStatusI18n();
+  // 言語切替でラベル幅が変わるのでヘッダーを測り直す（fitHeader は関数巻き上げで参照可）
+  if (typeof fitHeader === 'function') fitHeader();
 }
 
 function updateOyaLabels() {
@@ -1716,8 +1719,10 @@ function showScreen(s) {
   window.scrollTo(0, 0);
   // 画面が変わるたびに Wake Lock を取り直す/解放する
   refreshWakeLock();
-  // 対局中に入ったらカード寸法を実測フィット（レイアウト確定後に一度）
-  if (s === 'game') requestAnimationFrame(fitBoard);
+  // タイトルを1行に収める（コントロール移動後に測る）
+  requestAnimationFrame(fitHeader);
+  // 対局中に入ったらカード寸法を実測フィット + 中断ボタン再配置（レイアウト確定後に一度）
+  if (s === 'game') requestAnimationFrame(() => { fitBoard(); positionLeaveBtn(); });
 }
 
 // --------------------------------------------------------------------------
@@ -2513,6 +2518,7 @@ function renderGame() {
   renderNearYaku(opp, 'opp-near');
   // 機種ごとに 1 画面に収まるようカード寸法を実測フィット
   fitBoard();
+  positionLeaveBtn(); // 中断ボタンをコントロール直下・左端そろえに配置
 }
 
 function renderPhaseText() {
@@ -2628,6 +2634,50 @@ function refreshWakeLock() {
   // 部屋 or 対局中なら取得、それ以外は解放
   if (state.screen === 'room' || state.screen === 'game') acquireWakeLock();
   else releaseWakeLock();
+}
+
+// ヘッダー（タイトル + 歯車/言語）を1行に収める。タイトルの実描画幅を測り、
+// アイコン・コントロールを差し引いた残り幅に収まるまでタイトルのフォントを縮める。
+// Web フォント(Fredoka One)読込後に実幅が変わるので fonts.ready でも呼ぶ。
+function fitHeader() {
+  document.querySelectorAll('section:not(.hidden) .site-header').forEach(hdr => {
+    const h1 = hdr.querySelector('h1');
+    if (!h1) return;
+    const icon = hdr.querySelector('.app-icon');
+    const controls = hdr.querySelector('#top-controls');
+    h1.style.fontSize = '';                 // CSS 既定値から測り直す
+    const cs = getComputedStyle(hdr);
+    const gap = parseFloat(cs.columnGap || cs.gap || '0') || 0;
+    // SVG 要素には offsetWidth が無いため getBoundingClientRect で測る
+    const rectW = el => (el && el.getClientRects().length) ? el.getBoundingClientRect().width : 0;
+    const iconW = rectW(icon);
+    const ctrlW = rectW(controls);
+    const nItems = (iconW ? 1 : 0) + 1 + (ctrlW ? 1 : 0);
+    const avail = hdr.clientWidth - iconW - ctrlW - gap * Math.max(0, nItems - 1) - 2;
+    let guard = 0;
+    while (h1.scrollWidth > avail && guard < 60) {
+      guard++;
+      const cur = parseFloat(getComputedStyle(h1).fontSize);
+      const next = Math.max(13, cur - 1);
+      h1.style.fontSize = next + 'px';
+      if (next <= 13) break;
+    }
+  });
+}
+
+// 対局中の「中断」ボタンを、タイトルアイコンに被らないよう歯車/言語コントロールの真下・
+// 左端そろえに配置する（top-controls は screen 遷移で移動するので、その実位置を基準にする）。
+function positionLeaveBtn() {
+  const btn = document.getElementById('btn-leave-game');
+  const sg = document.getElementById('screen-game');
+  const tc = document.getElementById('top-controls');
+  if (!btn || !sg || state.screen !== 'game') return;
+  if (!tc || tc.offsetParent === null) return;
+  const base = sg.getBoundingClientRect();
+  const r = tc.getBoundingClientRect();
+  btn.style.top = (r.bottom - base.top + 6) + 'px';
+  btn.style.left = (r.left - base.left) + 'px';
+  btn.style.right = 'auto';
 }
 
 function fitRows() {
@@ -3160,14 +3210,17 @@ function bindEvents() {
   bgmSlider.addEventListener('input', () => { bgmLbl.textContent = bgmSlider.value + '%'; try { localStorage.setItem('hanafuda_bgm_vol', bgmSlider.value); } catch (e) {} });
   sfxSlider.addEventListener('input', () => { sfxLbl.textContent = sfxSlider.value + '%'; try { localStorage.setItem('hanafuda_sfx_vol', sfxSlider.value); } catch (e) {} });
 
-  window.addEventListener('resize', fitBoard);
-  window.addEventListener('orientationchange', () => setTimeout(fitBoard, 250));
+  window.addEventListener('resize', () => { fitHeader(); fitBoard(); positionLeaveBtn(); });
+  window.addEventListener('orientationchange', () => setTimeout(() => { fitHeader(); fitBoard(); positionLeaveBtn(); }, 250));
+  // Web フォント読込後はタイトルの実幅が変わるので測り直す
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { fitHeader(); positionLeaveBtn(); });
   // 画面復帰時：Wake Lock を取り直し、対局中ならカード寸法を再フィット、
   // ゲストで接続が切れていたら同じ部屋へ復帰を試みる
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       refreshWakeLock();
-      if (state.screen === 'game') fitBoard();
+      fitHeader();
+      if (state.screen === 'game') { fitBoard(); positionLeaveBtn(); }
       if (!state.isHost && !state.intentionalLeave && !state.reconnecting &&
           (state.screen === 'room' || state.screen === 'game')) {
         let alive = false;

@@ -265,6 +265,24 @@
   .yaku-list{list-style:none;display:flex;flex-direction:column;gap:5px;margin-bottom:10px;}
   .yaku-list li{display:flex;justify-content:space-between;background:#0c0c0c;border:1px solid var(--border);border-radius:7px;padding:7px 10px;font-size:.8rem;}
   .yaku-list li .pt{color:var(--gold);font-weight:700;}
+  /* v1.13: 局終了 / 総結果パネル */
+  .fanfare{text-align:center;font-family:"Fredoka One",sans-serif;font-size:1.5rem;line-height:1.1;margin:2px 0 6px;letter-spacing:.02em;animation:fanpop .5s cubic-bezier(.2,1.3,.5,1);}
+  .fanfare.win{color:var(--gold);text-shadow:0 0 14px rgba(216,168,56,.5);}
+  .fanfare.lose{color:var(--text-muted);}
+  .fanfare.draw{color:var(--orange-mid);}
+  .fanfare.big{font-size:2rem;margin:6px 0 10px;}
+  @keyframes fanpop{0%{transform:scale(.6);opacity:0;}60%{transform:scale(1.12);opacity:1;}100%{transform:scale(1);}}
+  .scoreboard{display:flex;flex-direction:column;gap:6px;margin:4px 0 10px;}
+  .scoreboard .sc-row{display:flex;justify-content:space-between;align-items:baseline;background:#0c0c0c;border:1px solid var(--border);border-radius:7px;padding:7px 11px;font-size:.82rem;}
+  .scoreboard .sc-row.lead{border-color:var(--gold);}
+  .scoreboard .sc-name{color:var(--text);}
+  .scoreboard .sc-val{font-weight:700;color:var(--gold);}
+  .scoreboard .sc-val .delta{color:var(--orange-mid);font-weight:700;font-size:.78rem;margin-left:6px;}
+  .next-oya{text-align:center;font-size:.82rem;color:var(--text-muted);margin-bottom:8px;}
+  .next-oya b{color:var(--orange-mid);}
+  .ready-row{display:flex;justify-content:space-around;gap:10px;font-size:.78rem;margin-bottom:10px;}
+  .ready-row span{color:var(--text-muted);}
+  .btn.small{font-size:.78rem;padding:7px 12px;}
   .total-line{display:flex;justify-content:space-between;font-weight:700;border-top:1px solid var(--border);padding-top:7px;font-size:.85rem;color:var(--text);}
   .btn-row{display:flex;gap:8px;margin-top:12px;}
   .btn-row .btn{flex:1;padding:11px;font-size:.9rem;}
@@ -915,7 +933,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.12</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.13</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -970,7 +988,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.12</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.13</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1045,7 +1063,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.12</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.13</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1145,11 +1163,33 @@
 </div></div>
 
 <div class="overlay" id="ovRound"><div class="opanel">
+  <div class="fanfare" id="round-fanfare"></div>
   <h2 data-i18n="round.end.title">局終了</h2>
   <p id="round-end-msg"></p>
   <ul class="yaku-list" id="round-end-yaku"></ul>
+  <div class="scoreboard" id="round-scoreboard"></div>
+  <div class="next-oya" id="round-next-oya"></div>
+  <div class="ready-row" id="round-ready-row">
+    <span id="rn-me-lbl"></span><span id="rn-opp-lbl"></span>
+  </div>
   <div class="btn-row">
-    <button class="btn btn-primary" id="btn-round-close" data-i18n="round.end.back">ロビーに戻る</button>
+    <button class="btn btn-primary" id="btn-round-next" data-i18n="round.next">次の局へ</button>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-ghost small" id="btn-round-leave" data-i18n="round.leave">中断してロビーへ</button>
+  </div>
+</div></div>
+
+<div class="overlay" id="ovGame"><div class="opanel">
+  <div class="fanfare big" id="game-fanfare"></div>
+  <h2 id="game-end-title"></h2>
+  <p id="game-end-msg"></p>
+  <div class="scoreboard" id="game-scoreboard"></div>
+  <div class="btn-row">
+    <button class="btn btn-primary" id="btn-rematch" data-i18n="game.rematch">もう一度対戦</button>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-ghost small" id="btn-game-lobby" data-i18n="game.tolobby">ロビーに戻る</button>
   </div>
 </div></div>
 
@@ -1179,7 +1219,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.12';
+const APP_VERSION = 'v1.13';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -1300,6 +1340,29 @@ const I18N = {
     'round.end.winner': (p) => '<b>' + p.who + '</b> の勝ち！<br>獲得：<b>' + p.mon + ' 文</b>' + (p.doubled ? '（7文以上で2倍）' : ''),
     'round.end.draw': '双方の手札が尽きました。<br>この局は<b>引き分け</b>です。',
     'round.end.koikoi.lost': (p) => '<b>' + p.who + '</b> がこいこい後に相手に上がられたため、こいこい側は0文、<b>' + p.opp + '</b>が総取りで<b>' + p.mon + ' 文</b>獲得。',
+    'round.end.teshi': (p) => '<b>' + p.who + '</b> の手四（配札で同月4枚）！<br>この局は即決着で <b>6 文</b>獲得。',
+    'round.end.kuttsuki': (p) => '<b>' + p.who + '</b> のくっつき（配札で2枚ずつ4組）！<br>この局は即決着で <b>6 文</b>獲得。',
+    'round.end.specialdraw': '双方が手四・くっつきで即決着。<br>この局は<b>引き分け</b>（相殺）です。',
+    'round.fanfare.win': '勝ち',
+    'round.fanfare.lose': '惜しい',
+    'round.fanfare.draw': '引き分け',
+    'round.thisround': 'この局',
+    'round.next': '次の局へ',
+    'round.result': '結果を見る',
+    'round.leave': '中断してロビーへ',
+    'round.pressed': '次へ待機中 ✓',
+    'round.waiting': '相手の「次へ」を待っています…',
+    'round.notpressed': '「次の局へ」を押してください',
+    'round.oppwaiting': '相手待ち…',
+    'round.nextoya': (p) => '次の親：<b>' + p.who + '</b>' + (p.change ? '（交代）' : '（継続）'),
+    'game.round': (p) => '第' + p.n + '局 / 全' + p.total + '局',
+    'game.end.title.win': '🎉 勝利！',
+    'game.end.title.lose': '惜敗…',
+    'game.end.title.draw': '引き分け',
+    'game.end.msg': (p) => '<b>' + p.who + '</b> の勝ち！<br>' + p.hi + ' 文 対 ' + p.lo + ' 文',
+    'game.end.msg.draw': (p) => '同点（' + p.hi + ' 文）で引き分けでした。',
+    'game.rematch': 'もう一度対戦',
+    'game.tolobby': 'ロビーに戻る',
     'foot.about': 'MOMO Hanafuda について',
     'foot.desc': 'MOMO Hanafuda は花札をオンライン2人対戦で遊べるブラウザゲームです。4言語対応・PCとスマホの縦画面に対応。アカウント登録もインストールも不要です。',
     'foot.top': 'MOMO Works トップ',
@@ -1430,6 +1493,29 @@ const I18N = {
     'round.end.winner': (p) => '<b>' + p.who + '</b> wins!<br>Earned: <b>' + p.mon + ' mon</b>' + (p.doubled ? ' (doubled ≥7)' : ''),
     'round.end.draw': 'Both hands are empty.<br>This round is a <b>draw</b>.',
     'round.end.koikoi.lost': (p) => '<b>' + p.who + "</b> called Koi-Koi but the opponent finished first: Koi-Koi caller gets 0, <b>" + p.opp + '</b> takes all — <b>' + p.mon + ' mon</b>.',
+    'round.end.teshi': (p) => '<b>' + p.who + '</b> has Teshi (four of one month in hand)!<br>Instant win — <b>6 mon</b>.',
+    'round.end.kuttsuki': (p) => '<b>' + p.who + '</b> has Kuttsuki (four pairs in hand)!<br>Instant win — <b>6 mon</b>.',
+    'round.end.specialdraw': 'Both players had Teshi/Kuttsuki.<br>This round is a <b>draw</b> (cancelled out).',
+    'round.fanfare.win': 'You Win',
+    'round.fanfare.lose': 'You Lose',
+    'round.fanfare.draw': 'Draw',
+    'round.thisround': 'This round',
+    'round.next': 'Next Round',
+    'round.result': 'See Result',
+    'round.leave': 'Quit to Lobby',
+    'round.pressed': 'Ready ✓',
+    'round.waiting': 'Waiting for opponent to continue…',
+    'round.notpressed': 'Press "Next Round"',
+    'round.oppwaiting': 'Waiting for opponent…',
+    'round.nextoya': (p) => 'Next dealer: <b>' + p.who + '</b>' + (p.change ? ' (changed)' : ' (continues)'),
+    'game.round': (p) => 'Round ' + p.n + ' / ' + p.total,
+    'game.end.title.win': '🎉 Victory!',
+    'game.end.title.lose': 'Defeated…',
+    'game.end.title.draw': 'Draw',
+    'game.end.msg': (p) => '<b>' + p.who + '</b> wins!<br>' + p.hi + ' mon to ' + p.lo + ' mon',
+    'game.end.msg.draw': (p) => 'Tied at ' + p.hi + ' mon — a draw.',
+    'game.rematch': 'Rematch',
+    'game.tolobby': 'Back to Lobby',
     'foot.about': 'About MOMO Hanafuda',
     'foot.desc': 'MOMO Hanafuda lets you play the Japanese card game Hanafuda online against another player, in your browser. 4-language UI, works on PC and mobile portrait. No account, no install.',
     'foot.top': 'MOMO Works Top',
@@ -1560,6 +1646,29 @@ const I18N = {
     'round.end.winner': (p) => '<b>' + p.who + '</b> 获胜！<br>获得：<b>' + p.mon + ' 文</b>' + (p.doubled ? '（7文以上×2）' : ''),
     'round.end.draw': '双方手牌都用尽。<br>本局<b>平局</b>。',
     'round.end.koikoi.lost': (p) => '<b>' + p.who + '</b> 宣布「来来」后被对方先胜。宣布方0文，<b>' + p.opp + '</b>通吃<b>' + p.mon + ' 文</b>。',
+    'round.end.teshi': (p) => '<b>' + p.who + '</b> 手四（发牌即同月4张）！<br>本局即时决胜，获得 <b>6 文</b>。',
+    'round.end.kuttsuki': (p) => '<b>' + p.who + '</b> 粘（发牌即2张×4组）！<br>本局即时决胜，获得 <b>6 文</b>。',
+    'round.end.specialdraw': '双方都成立手四・粘，即时决胜。<br>本局<b>平局</b>（相抵）。',
+    'round.fanfare.win': '胜',
+    'round.fanfare.lose': '惜败',
+    'round.fanfare.draw': '平局',
+    'round.thisround': '本局',
+    'round.next': '下一局',
+    'round.result': '查看结果',
+    'round.leave': '中断返回大厅',
+    'round.pressed': '已确认，等待中 ✓',
+    'round.waiting': '等待对方点击「下一局」…',
+    'round.notpressed': '请点击「下一局」',
+    'round.oppwaiting': '等待对方…',
+    'round.nextoya': (p) => '下一局庄家：<b>' + p.who + '</b>' + (p.change ? '（交替）' : '（继续）'),
+    'game.round': (p) => '第' + p.n + '局 / 全' + p.total + '局',
+    'game.end.title.win': '🎉 胜利！',
+    'game.end.title.lose': '惜败…',
+    'game.end.title.draw': '平局',
+    'game.end.msg': (p) => '<b>' + p.who + '</b> 获胜！<br>' + p.hi + ' 文 对 ' + p.lo + ' 文',
+    'game.end.msg.draw': (p) => '同分（' + p.hi + ' 文）平局。',
+    'game.rematch': '再来一局',
+    'game.tolobby': '返回大厅',
     'foot.about': '关于 MOMO Hanafuda',
     'foot.desc': 'MOMO Hanafuda 是一款可在浏览器中双人在线对战的花札游戏。支持 4 语言、可在 PC 与手机竖屏使用。无需注册、无需安装。',
     'foot.top': 'MOMO Works 首页',
@@ -1706,6 +1815,10 @@ const state = {
   readyGuest: false,
   game: null,           // 対局中のみ non-null (startRound で host が初期化 / guest は applyState で受信)
   solo: false,          // ?debug=1 の startRoundSolo でホットシート挙動時のみ true
+  // v1.13: 全12局進行 / 親継承 / 累計スコア
+  roundNo: 1,           // 現在の局番号 (1..rounds)。月替わり = n月場
+  scores: { host: 0, guest: 0 }, // 累計文 (局ごとに加算)
+  matchOver: false,     // 全局終了 = 総結果画面表示
 };
 
 // --------------------------------------------------------------------------
@@ -1964,6 +2077,9 @@ function backToLobby(msg) {
   state.connected = false; state.guestName = ''; state.game = null; state.roomId = null;
   state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null;
   state.readyHost = false; state.readyGuest = false;
+  state.roundNo = 1; state.scores = { host: 0, guest: 0 }; state.matchOver = false;
+  document.getElementById('ovRound').classList.remove('show');
+  document.getElementById('ovGame').classList.remove('show');
   hideConnOverlay();
   clearSession();
   try { MomoMatchmaking.leaveRoom(); } catch (e) {}   // WS をロビーへ繋ぎ直す
@@ -2305,6 +2421,11 @@ function handleP2P(data) {
     handleIntent(data);
     return;
   }
+  if (data.type === 'rematch') {
+    // v1.13: 相手が「もう一度対戦」→ 双方 親決めからやり直し（部屋は維持）
+    resetToRoom();
+    return;
+  }
 }
 function applySettingsToUi() {
   Object.entries(state.settings).forEach(([k, v]) => {
@@ -2321,7 +2442,30 @@ function applySettingsToUi() {
 //   - host が全ルール処理を担当 → 各フェーズ遷移で syncState() を guest に送信
 //   - guest はクリック時に intent (play/pick/koikoi/shobu) を送信、state 受信で再描画
 //   - ?debug=1 の startRoundSolo は state.solo=true でホットシート挙動を維持
-// 次セッションで残: 全 12 局進行 / 親継承 / 手四くっつき / 月替わり
+// v1.13 実装: 全 12 局進行 / 月替わり / 親継承 / 累計スコア / 手四くっつき
+
+// 配札時の特別役（手四=同月4枚 / くっつき=2枚ずつ4組）を手札から判定。
+// 設定「手四・くっつき」が off なら常に null。
+function detectDealSpecial(hand) {
+  const cnt = {};
+  hand.forEach(c => { cnt[c.month] = (cnt[c.month] || 0) + 1; });
+  const vals = Object.values(cnt);
+  if (vals.some(v => v === 4)) return 'teshi';       // 手四: 同月4枚
+  const months = Object.keys(cnt);
+  if (months.length === 4 && vals.every(v => v === 2)) return 'kuttsuki'; // くっつき: 2枚ずつ4組
+  return null;
+}
+// 両者の手札を見て、この局が配札で即決着するかを返す。
+//  { kind:'teshi'|'kuttsuki', winner } / { kind:'special-draw' } / null
+function checkDealSpecials(g) {
+  if (state.settings.deal !== 'on') return null;
+  const h = detectDealSpecial(g.hands.host);
+  const gu = detectDealSpecial(g.hands.guest);
+  if (h && gu) return { kind: 'special-draw' };
+  if (h) return { kind: h, winner: 'host' };
+  if (gu) return { kind: gu, winner: 'guest' };
+  return null;
+}
 
 const CARD_SPEC = {
   1:  ['hikari','tan','kasu1','kasu2'],
@@ -2412,6 +2556,13 @@ function whoLabel(player) {
 }
 function otherPlayer(p) { return p === 'host' ? 'guest' : 'host'; }
 
+// 新しい対戦（第1局）を始める前に累計・局番号をリセット。host のみ。
+function beginMatch() {
+  state.roundNo = 1;
+  state.scores = { host: 0, guest: 0 };
+  state.matchOver = false;
+  startRound();
+}
 function startRound() {
   showScreen('game');
   // ホスト権威: online は host だけがここに来る (guest は 'deal' 受信で state をセット)。
@@ -2432,8 +2583,15 @@ function startRound() {
     pendingGained: null,
     koikoiBy: null,
     roundEnd: null,
+    nextReady: { host: false, guest: false }, // v1.13: 局終了画面「次の局へ」の両者押下ゲート
   };
   state.game = g;
+  // v1.13: 配札時の手四・くっつき（有効時のみ）を判定 → 成立なら即決着
+  const sp = checkDealSpecials(g);
+  if (sp) {
+    if (sp.kind === 'special-draw') { endRoundSpecialDraw(); return; }
+    endRoundDealSpecial(sp.kind, sp.winner); return;
+  }
   renderGame();
   syncState({ deal: true });
 }
@@ -2459,11 +2617,12 @@ function renderGame() {
   const me = mySide();
   const opp = otherPlayer(me);
   const isMyTurn = g.currentPlayer === me;
-  // Status bar
-  document.getElementById('st-month').textContent = t('game.month.field', 1);
-  document.getElementById('st-round').textContent = t('game.round1of1');
-  document.getElementById('st-my-score').textContent = '0';
-  document.getElementById('st-op-score').textContent = '0';
+  // Status bar（v1.13: 月替わり・局番号・累計文をリアルタイム表示）
+  const total = parseInt(state.settings.rounds, 10) || 12;
+  document.getElementById('st-month').textContent = t('game.month.field', state.roundNo);
+  document.getElementById('st-round').textContent = t('game.round', { n: state.roundNo, total: total });
+  document.getElementById('st-my-score').textContent = state.scores[me] || 0;
+  document.getElementById('st-op-score').textContent = state.scores[opp] || 0;
   document.getElementById('st-turn').innerHTML = renderPhaseText();
   document.getElementById('deck-count').textContent = g.deck.length;
   // My hand (= mySide face-up, clickable only when my turn + phase=select-hand)
@@ -2917,53 +3076,216 @@ function applyShobu() {
 }
 
 // --- 局終了 (roundEnd データを g に格納 → 両側で同じ描画関数を通す) ---
-function endRoundShobu(winner, mon, doubled) {
+// host 権威: 加点・次の親・累計スナップショットを roundEnd に確定してから同期。
+function finalizeRoundEnd() {
+  const g = state.game;
+  const rend = g.roundEnd;
+  if (!rend) return;
+  const total = parseInt(state.settings.rounds, 10) || 12;
+  const delta = (rend.winner && rend.mon) ? rend.mon : 0;
+  if (rend.winner && delta) state.scores[rend.winner] = (state.scores[rend.winner] || 0) + delta;
+  rend.delta = delta;
+  // 次の親: 勝者が親 / 引き分け（手札切れ・手四くっつき相殺）は親継続
+  let nextOya;
+  if (rend.kind === 'draw' || rend.kind === 'special-draw') nextOya = state.oya;
+  else if (rend.winner) nextOya = rend.winner;
+  else nextOya = state.oya;
+  rend.nextOya = nextOya;
+  rend.oyaChange = (nextOya !== state.oya);
+  rend.scores = { host: state.scores.host, guest: state.scores.guest };
+  rend.roundNo = state.roundNo;
+  rend.total = total;
+  rend.isFinal = (state.roundNo >= total);
+}
+function commitRoundEnd(rend) {
   const g = state.game;
   g.phase = 'end';
-  g.roundEnd = { kind: 'shobu', winner: winner, mon: mon, doubled: !!doubled };
+  g.nextReady = { host: false, guest: false };
+  g.roundEnd = rend;
+  finalizeRoundEnd();
   renderRoundEndFromData();
   renderGame();
   syncState();
+}
+function endRoundShobu(winner, mon, doubled) {
+  commitRoundEnd({ kind: 'shobu', winner: winner, mon: mon, doubled: !!doubled });
 }
 function endRoundKoikoiLost(winner, loser, mon, doubled) {
-  const g = state.game;
-  g.phase = 'end';
-  g.roundEnd = { kind: 'koikoi-lost', winner: winner, loser: loser, mon: mon, doubled: !!doubled };
-  renderRoundEndFromData();
-  renderGame();
-  syncState();
+  commitRoundEnd({ kind: 'koikoi-lost', winner: winner, loser: loser, mon: mon, doubled: !!doubled });
 }
 function endRoundDraw() {
-  const g = state.game;
-  g.phase = 'end';
-  g.roundEnd = { kind: 'draw' };
-  renderRoundEndFromData();
-  renderGame();
-  syncState();
+  commitRoundEnd({ kind: 'draw' });
+}
+// v1.13: 配札時の手四・くっつき即決着（6文）
+function endRoundDealSpecial(kind, winner) {
+  commitRoundEnd({ kind: kind, winner: winner, mon: 6 });
+}
+function endRoundSpecialDraw() {
+  commitRoundEnd({ kind: 'special-draw' });
+}
+// 両者の累計を表示（自分→相手の順・リードに枠色・勝者行に +delta）
+function buildScoreboard(el, scores, deltaWinner) {
+  if (!el) return;
+  const me = mySide(), opp = otherPlayer(me);
+  const sMe = scores[me] || 0, sOpp = scores[opp] || 0;
+  const lead = (sMe === sOpp) ? null : (sMe > sOpp ? me : opp);
+  const rows = [
+    { side: me, name: whoLabel(me) + '（' + t('game.you') + '）' },
+    { side: opp, name: whoLabel(opp) + '（' + t('game.opp') + '）' },
+  ];
+  el.innerHTML = rows.map(r => {
+    const isLead = lead === r.side;
+    const dl = (deltaWinner && deltaWinner.side === r.side && deltaWinner.mon)
+      ? ' <span class="delta">+' + deltaWinner.mon + '</span>' : '';
+    return '<div class="sc-row' + (isLead ? ' lead' : '') + '">' +
+      '<span class="sc-name">' + r.name + '</span>' +
+      '<span class="sc-val">' + (scores[r.side] || 0) + ' ' + t('game.mon') + dl + '</span></div>';
+  }).join('');
 }
 function renderRoundEndFromData() {
   const rend = state.game.roundEnd;
   if (!rend) return;
+  // ファンファーレ（この端末視点で 勝ち/惜しい/引き分け）
+  const fan = document.getElementById('round-fanfare');
+  const isDraw = (rend.kind === 'draw' || rend.kind === 'special-draw');
+  if (isDraw) { fan.className = 'fanfare draw'; fan.textContent = t('round.fanfare.draw'); }
+  else if (rend.winner === mySide()) { fan.className = 'fanfare win'; fan.textContent = t('round.fanfare.win'); }
+  else { fan.className = 'fanfare lose'; fan.textContent = t('round.fanfare.lose'); }
+  // 理由メッセージ
   let msg;
-  if (rend.kind === 'shobu') {
-    msg = t('round.end.winner', { who: whoLabel(rend.winner), mon: rend.mon, doubled: rend.doubled });
-  } else if (rend.kind === 'koikoi-lost') {
-    msg = t('round.end.koikoi.lost', { who: whoLabel(rend.loser), opp: whoLabel(rend.winner), mon: rend.mon, doubled: rend.doubled });
-  } else {
-    msg = t('round.end.draw');
-  }
+  if (rend.kind === 'shobu') msg = t('round.end.winner', { who: whoLabel(rend.winner), mon: rend.mon, doubled: rend.doubled });
+  else if (rend.kind === 'koikoi-lost') msg = t('round.end.koikoi.lost', { who: whoLabel(rend.loser), opp: whoLabel(rend.winner), mon: rend.mon, doubled: rend.doubled });
+  else if (rend.kind === 'teshi') msg = t('round.end.teshi', { who: whoLabel(rend.winner) });
+  else if (rend.kind === 'kuttsuki') msg = t('round.end.kuttsuki', { who: whoLabel(rend.winner) });
+  else if (rend.kind === 'special-draw') msg = t('round.end.specialdraw');
+  else msg = t('round.end.draw');
   document.getElementById('round-end-msg').innerHTML = msg;
+  // 今回の役（役成立で勝った局のみ・手四くっつきは手札特別役なので一覧なし）
   const ul = document.getElementById('round-end-yaku');
-  if (rend.winner) {
+  if ((rend.kind === 'shobu' || rend.kind === 'koikoi-lost') && rend.winner) {
     const y = computeYaku(state.game.caps[rend.winner]);
     ul.innerHTML = y.map(x => {
       const label = t(x.key) + (x.count ? ' (' + x.count + ')' : '');
       return '<li><span>' + label + '</span><span class="pt">' + x.mon + ' ' + t('game.mon') + '</span></li>';
     }).join('');
-  } else {
-    ul.innerHTML = '';
-  }
+  } else { ul.innerHTML = ''; }
+  // 累計スコア
+  const dw = rend.winner ? { side: rend.winner, mon: rend.delta } : null;
+  buildScoreboard(document.getElementById('round-scoreboard'), rend.scores || state.scores, dw);
+  // 次の親（最終局では非表示 = このあと総結果へ）
+  const noEl = document.getElementById('round-next-oya');
+  if (rend.isFinal) { noEl.innerHTML = ''; noEl.style.display = 'none'; }
+  else { noEl.style.display = ''; noEl.innerHTML = t('round.nextoya', { who: whoLabel(rend.nextOya), change: !!rend.oyaChange }); }
+  renderRoundReady();
   document.getElementById('ovRound').classList.add('show');
+}
+// 「次の局へ」両者押下ゲートの表示更新
+function renderRoundReady() {
+  const g = state.game;
+  if (!g || !g.roundEnd) return;
+  const me = mySide(), opp = otherPlayer(me);
+  const nr = g.nextReady || { host: false, guest: false };
+  const meReady = !!nr[me], oppReady = !!nr[opp];
+  const btn = document.getElementById('btn-round-next');
+  btn.textContent = g.roundEnd.isFinal ? t('round.result') : t('round.next');
+  btn.disabled = meReady && !state.solo;
+  const meLbl = document.getElementById('rn-me-lbl');
+  const oppLbl = document.getElementById('rn-opp-lbl');
+  if (meLbl) {
+    meLbl.textContent = t('game.you') + '：' + (meReady ? t('round.pressed') : t('round.notpressed'));
+    meLbl.style.color = meReady ? 'var(--gold)' : 'var(--text-muted)';
+  }
+  if (oppLbl) {
+    oppLbl.textContent = t('game.opp') + '：' + (oppReady ? t('round.pressed') : t('round.oppwaiting'));
+    oppLbl.style.color = oppReady ? 'var(--gold)' : 'var(--text-muted)';
+  }
+  // solo（デバッグ）は相手が居ないので相手行を隠す
+  if (state.solo && oppLbl) oppLbl.textContent = '';
+}
+// 「次の局へ」押下 → 両者そろったら次局。片方だけなら相手待ち。
+function onRoundNext() {
+  const g = state.game;
+  if (!g || g.phase !== 'end' || !g.roundEnd) return;
+  if (state.solo) { advanceRound(); return; }
+  const me = mySide();
+  if (g.nextReady[me]) return;
+  g.nextReady[me] = true;
+  if (state.isHost) {
+    if (g.nextReady.host && g.nextReady.guest) { advanceRound(); return; }
+    renderRoundReady();
+    syncState();
+  } else {
+    MomoMatchmaking.send({ type: 'intent', action: 'next' });
+    renderRoundReady();
+  }
+}
+// 次局へ（host/solo）: 最終局なら総結果へ。
+function advanceRound() {
+  const g = state.game;
+  const rend = g.roundEnd || {};
+  const total = parseInt(state.settings.rounds, 10) || 12;
+  document.getElementById('ovRound').classList.remove('show');
+  if (state.roundNo >= total) { endMatch(); return; }
+  state.oya = rend.nextOya || state.oya;
+  state.roundNo += 1;
+  startRound();
+}
+// 全局終了 → 総結果（host/solo）
+function endMatch() {
+  state.matchOver = true;
+  renderGameEndFromData();
+  syncState();
+}
+function renderGameEndFromData() {
+  const me = mySide(), opp = otherPlayer(me);
+  const sMe = state.scores[me] || 0, sOpp = state.scores[opp] || 0;
+  const fan = document.getElementById('game-fanfare');
+  const title = document.getElementById('game-end-title');
+  const msgEl = document.getElementById('game-end-msg');
+  document.getElementById('ovRound').classList.remove('show');
+  if (sMe === sOpp) {
+    fan.className = 'fanfare big draw'; fan.textContent = t('round.fanfare.draw');
+    title.textContent = t('game.end.title.draw');
+    msgEl.innerHTML = t('game.end.msg.draw', { hi: sMe });
+  } else {
+    const iWin = sMe > sOpp;
+    fan.className = 'fanfare big ' + (iWin ? 'win' : 'lose');
+    fan.textContent = t(iWin ? 'round.fanfare.win' : 'round.fanfare.lose');
+    title.textContent = t(iWin ? 'game.end.title.win' : 'game.end.title.lose');
+    const winner = iWin ? me : opp;
+    msgEl.innerHTML = t('game.end.msg', { who: whoLabel(winner), hi: Math.max(sMe, sOpp), lo: Math.min(sMe, sOpp) });
+  }
+  buildScoreboard(document.getElementById('game-scoreboard'), state.scores, null);
+  document.getElementById('ovGame').classList.add('show');
+}
+// 再戦: 親決めからやり直し（部屋は維持したまま対戦準備画面へ）
+function resetToRoom() {
+  document.getElementById('ovGame').classList.remove('show');
+  document.getElementById('ovRound').classList.remove('show');
+  state.game = null;
+  state.matchOver = false;
+  state.roundNo = 1;
+  state.scores = { host: 0, guest: 0 };
+  state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null;
+  state.readyHost = false; state.readyGuest = false;
+  showScreen('room');
+  renderOyaDraw();
+  refreshRoomView();
+  saveSession();
+}
+function onRematch() {
+  if (state.solo) {
+    document.getElementById('ovGame').classList.remove('show');
+    state.oya = state.oya || 'host';
+    beginMatch();
+    return;
+  }
+  if (state.isHost) {
+    MomoMatchmaking.send({ type: 'rematch' });
+    resetToRoom();
+  } else {
+    MomoMatchmaking.send({ type: 'intent', action: 'rematch' });
+  }
 }
 
 // --- ホスト権威 state 同期 ---
@@ -2995,6 +3317,12 @@ function syncState(opts) {
     yakuBaselineGuest: g.yakuBaseline ? g.yakuBaseline.guest : [],
     deckCount: g.deck.length,
     roundEnd: g.roundEnd || null,
+    // v1.13: 対戦（複数局）レベルの状態
+    roundNo: state.roundNo,
+    scores: state.scores,
+    oya: state.oya,
+    matchOver: state.matchOver,
+    nextReady: g.nextReady || { host: false, guest: false },
   });
 }
 
@@ -3021,18 +3349,30 @@ function applyState(msg) {
   g.yakuBaseline = { host: [], guest: msg.yakuBaselineGuest || [] };
   g.deck = new Array(msg.deckCount || 0);
   g.roundEnd = msg.roundEnd || null;
+  g.nextReady = msg.nextReady || { host: false, guest: false };
   state.game = g;
   if (msg.settings) state.settings = Object.assign({}, state.settings, msg.settings);
+  // v1.13: 対戦レベルの状態を反映（局番号・累計・親・総結果）
+  if (typeof msg.roundNo === 'number') state.roundNo = msg.roundNo;
+  if (msg.scores) state.scores = msg.scores;
+  if (msg.oya) state.oya = msg.oya;
+  state.matchOver = !!msg.matchOver;
   if (enteringGame) saveSession(); // 対局入りを復帰用に保存（state.game 確定後なので inGame=true になる）
   renderGame();
   // オーバーレイ制御
   const ovYaku = document.getElementById('ovYaku');
   if (g.phase === 'yaku') showYakuOverlay();
   else ovYaku.classList.remove('show');
-  if (g.phase === 'end' && g.roundEnd) {
+  if (state.matchOver) {
+    // 総結果（12局終了）
+    document.getElementById('ovRound').classList.remove('show');
+    renderGameEndFromData();
+  } else if (g.phase === 'end' && g.roundEnd) {
+    document.getElementById('ovGame').classList.remove('show');
     renderRoundEndFromData();
   } else if (g.phase !== 'end') {
     document.getElementById('ovRound').classList.remove('show');
+    document.getElementById('ovGame').classList.remove('show');
   }
 }
 
@@ -3042,6 +3382,20 @@ function handleIntent(data) {
   const g = state.game;
   if (!g) return;
   const senderSide = 'guest'; // このプロトタイプでは guest からのみ intent が来る
+  // v1.13: 手番に依らない intent（局間の「次へ」・総結果からの再戦）は手番ガードより前で処理
+  if (data.action === 'next') {
+    if (g.phase !== 'end' || !g.roundEnd) return;
+    g.nextReady.guest = true;
+    if (g.nextReady.host && g.nextReady.guest) { advanceRound(); return; }
+    renderRoundReady();
+    syncState();
+    return;
+  }
+  if (data.action === 'rematch') {
+    MomoMatchmaking.send({ type: 'rematch' });
+    resetToRoom();
+    return;
+  }
   if (g.currentPlayer !== senderSide) return; // 手番じゃない相手の intent は破棄
   if (data.action === 'play') {
     if (g.phase !== 'select-hand') return;
@@ -3075,10 +3429,10 @@ function startGame() {
 }
 
 function tryLaunchGame() {
-  // 両者 ready なら host が対局開始
+  // 両者 ready なら host が対局開始（第1局 = 累計/局番号リセット）
   if (state.readyHost && state.readyGuest && state.isHost) {
     MomoMatchmaking.send({ type: 'start' });
-    startRound();
+    beginMatch();
   }
 }
 
@@ -3092,6 +3446,9 @@ function leaveRoom() {
   state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null;
   state.readyHost = false; state.readyGuest = false;
   state.game = null;
+  state.roundNo = 1; state.scores = { host: 0, guest: 0 }; state.matchOver = false;
+  document.getElementById('ovRound').classList.remove('show');
+  document.getElementById('ovGame').classList.remove('show');
   hideConnOverlay();
   clearSession();
   showScreen('lobby');
@@ -3182,7 +3539,7 @@ function bindEvents() {
       state.hostName = state.hostName || 'ホスト';
       state.guestName = state.guestName || 'ゲスト';
       state.oya = state.oya || 'host';
-      startRound();
+      beginMatch();
     });
   }
 
@@ -3192,9 +3549,16 @@ function bindEvents() {
   // Overlay yaku (Phase 2A: 実挙動)
   document.getElementById('btn-koikoi').addEventListener('click', onKoikoi);
   document.getElementById('btn-shobu').addEventListener('click', onShobu);
-  // Overlay round-end
-  document.getElementById('btn-round-close').addEventListener('click', () => {
+  // Overlay round-end（v1.13: 両者押下で次局へ / 中断でロビー）
+  document.getElementById('btn-round-next').addEventListener('click', onRoundNext);
+  document.getElementById('btn-round-leave').addEventListener('click', () => {
     document.getElementById('ovRound').classList.remove('show');
+    leaveRoom();
+  });
+  // Overlay game-end（総結果: 再戦 / ロビー）
+  document.getElementById('btn-rematch').addEventListener('click', onRematch);
+  document.getElementById('btn-game-lobby').addEventListener('click', () => {
+    document.getElementById('ovGame').classList.remove('show');
     leaveRoom();
   });
 
@@ -3303,7 +3667,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state.guestName = (opts && opts.guest) || 'ゲスト';
         state.oya = (opts && opts.oya) || 'host';
         state.settings = Object.assign({ rounds: '12', kiku: 'tane', double: 'on', deal: 'on', draw: 'keep' }, (opts && opts.settings) || {});
-        startRound();
+        beginMatch();
       },
       applyPlayCard, applyPick, applyKoikoi, applyShobu,
       get state() { return state; },
@@ -3311,6 +3675,8 @@ document.addEventListener('DOMContentLoaded', () => {
       renderGame, endTurn,
       // 直接注入 (2 端末シミュレータ用)
       handleP2P, syncState, applyState, handleIntent, startGame, startRound,
+      // v1.13: 全12局進行のテスト用
+      beginMatch, advanceRound, onRoundNext, endMatch, detectDealSpecial, checkDealSpecials, finalizeRoundEnd,
       interceptSend() {
         window._outbox = [];
         window._origSend = MomoMatchmaking.send;

@@ -980,7 +980,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.14</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.15</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1035,7 +1035,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.14</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.15</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1067,7 +1067,7 @@
   <!-- 設定パネル -->
   <div class="gset" id="set-koikoi">
     <h3 data-i18n="set.koikoi.title">こいこい 設定</h3>
-    <div class="set-row"><span data-i18n="set.rounds">局数</span><span class="seg" data-key="rounds"><button data-v="6" data-i18n="set.6">6局</button><button class="on" data-v="12" data-i18n="set.12">12局</button></span></div>
+    <div class="set-row"><span data-i18n="set.rounds">局数</span><span class="seg" data-key="rounds"><button data-v="1" data-i18n="set.1">1局</button><button data-v="3" data-i18n="set.3">3局</button><button data-v="6" data-i18n="set.6">6局</button><button class="on" data-v="12" data-i18n="set.12">12局</button></span></div>
     <div class="set-row"><span data-i18n="set.kiku">菊の盃</span><span class="seg" data-key="kiku"><button class="on" data-v="tane" data-i18n="set.kiku.tane">種＋花見月見</button><button data-v="kasu2" data-i18n="set.kiku.kasu2">カス2枚</button></span></div>
     <div class="set-row"><span data-i18n="set.double">7文以上2倍</span><span class="seg" data-key="double"><button class="on" data-v="on" data-i18n="set.on">あり</button><button data-v="off" data-i18n="set.off">なし</button></span></div>
     <div class="set-row"><span data-i18n="set.deal">手四・くっつき</span><span class="seg" data-key="deal"><button class="on" data-v="on" data-i18n="set.enabled">有効</button><button data-v="off" data-i18n="set.disabled">無効</button></span></div>
@@ -1110,7 +1110,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.14</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.15</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1275,7 +1275,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.14';
+const APP_VERSION = 'v1.15';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -1333,7 +1333,7 @@ const I18N = {
     'room.g.oicho': 'おいちょかぶ',
     'room.soon': '近日',
     'set.koikoi.title': 'こいこい 設定',
-    'set.rounds': '局数', 'set.6': '6局', 'set.12': '12局',
+    'set.rounds': '局数', 'set.1': '1局', 'set.3': '3局', 'set.6': '6局', 'set.12': '12局',
     'set.kiku': '菊の盃', 'set.kiku.tane': '種＋花見月見', 'set.kiku.kasu2': 'カス2枚',
     'set.double': '7文以上2倍', 'set.on': 'あり', 'set.off': 'なし',
     'set.deal': '手四・くっつき', 'set.enabled': '有効', 'set.disabled': '無効',
@@ -1500,7 +1500,7 @@ const I18N = {
     'room.g.oicho': 'Oicho-Kabu',
     'room.soon': 'Coming soon',
     'set.koikoi.title': 'Koi-Koi Settings',
-    'set.rounds': 'Rounds', 'set.6': '6', 'set.12': '12',
+    'set.rounds': 'Rounds', 'set.1': '1', 'set.3': '3', 'set.6': '6', 'set.12': '12',
     'set.kiku': 'Kiku no Sakazuki', 'set.kiku.tane': 'Tane (+Hanami/Tsukimi)', 'set.kiku.kasu2': 'Kasu ×2',
     'set.double': '7+ Points ×2', 'set.on': 'On', 'set.off': 'Off',
     'set.deal': 'Teshi / Kuttsuki', 'set.enabled': 'On', 'set.disabled': 'Off',
@@ -1667,7 +1667,7 @@ const I18N = {
     'room.g.oicho': '押丁株',
     'room.soon': '即将推出',
     'set.koikoi.title': '来来 设定',
-    'set.rounds': '局数', 'set.6': '6局', 'set.12': '12局',
+    'set.rounds': '局数', 'set.1': '1局', 'set.3': '3局', 'set.6': '6局', 'set.12': '12局',
     'set.kiku': '菊之杯', 'set.kiku.tane': '种＋花见月见', 'set.kiku.kasu2': '算作2张滓',
     'set.double': '7文以上×2', 'set.on': '开启', 'set.off': '关闭',
     'set.deal': '手四・粘', 'set.enabled': '开启', 'set.disabled': '关闭',

@@ -94,7 +94,7 @@
   .page-wrap .title-block{min-width:0;}
   .page-wrap .site-header h1{white-space:nowrap;}
   /* 狭い画面（スマホ縦）：アイコンを詰めてタイトル用の幅を確保 */
-  @media(max-width:430px){
+  @media (max-width:430px){
     .page-wrap{padding:14px 14px 32px;}
     .page-wrap .site-header{gap:10px;}
     .page-wrap .app-icon{width:46px;height:46px;}
@@ -125,9 +125,10 @@
   .section-label::after{content:'';flex:1;height:1px;background:var(--border);}
 
   /* Lobby: 2-column */
-  .lobby-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
-  @media(max-width:720px){.lobby-grid{grid-template-columns:1fr;}}
-  .panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;display:flex;flex-direction:column;gap:12px;}
+  /* auto-fit + min(100%,…) で、狭い画面は自動で1列・広い画面は2列。メディアクエリに依存しない
+     （iOS Safari のメディアクエリ解釈差でも横はみ出ししないように） */
+  .lobby-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:18px;}
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;display:flex;flex-direction:column;gap:12px;min-width:0;}
   .panel h2{font-family:"Fredoka One",sans-serif;font-weight:400;font-size:1.25rem;color:#fff;display:flex;align-items:center;gap:8px;}
   .panel .desc{font-size:12px;color:var(--text-muted);line-height:1.6;margin-top:-4px;}
 
@@ -182,7 +183,7 @@
   .vs{font-family:"Fredoka One",sans-serif;color:var(--text-muted);font-size:.9rem;}
 
   .game-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
-  @media(max-width:560px){.game-tabs{grid-template-columns:repeat(2,1fr);}}
+  @media (max-width:560px){.game-tabs{grid-template-columns:repeat(2,1fr);}}
   .gtab{background:var(--surface);border:1px solid var(--border);color:var(--text-muted);border-radius:10px;padding:14px 8px;font-size:.9rem;font-weight:700;cursor:pointer;font-family:inherit;transition:.15s;display:flex;flex-direction:column;gap:4px;align-items:center;}
   .gtab .em{font-size:1.3rem;}
   .gtab:hover{border-color:var(--orange);color:var(--text);}
@@ -912,7 +913,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.10</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.11</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -967,7 +968,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.10</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.11</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1042,7 +1043,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.10</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.11</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1176,7 +1177,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.10';
+const APP_VERSION = 'v1.11';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];

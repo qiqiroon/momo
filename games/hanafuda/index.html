@@ -357,7 +357,9 @@
   .ge-panel.win .confetti{display:block;}
   .confetti .cf{position:absolute;top:-12px;width:8px;height:12px;opacity:.95;animation-name:cfFall;animation-timing-function:linear;animation-iteration-count:1;}
   @keyframes cfFall{0%{transform:translateY(-12px) rotate(0);opacity:1;}100%{transform:translateY(520px) rotate(540deg);opacity:0;}}
-  @media (prefers-reduced-motion: reduce){.koikoi-flash.show,.win-art,.confetti .cf{animation-duration:.01ms;animation-iteration-count:1;}}
+  /* v1.23: prefers-reduced-motion クエリを撤去。旧実装はアニメを 0.01ms にして最終フレーム
+     （中央フラッシュ=透明）へ飛ばし、PC等で「こいこい！」中央表示が常に見えなかった真因。
+     本アプリの演出（こいこい/くす玉/紙吹雪）は意図した表示なので常に再生する。 */
   .total-line{display:flex;justify-content:space-between;font-weight:700;border-top:1px solid var(--border);padding-top:7px;font-size:.85rem;color:var(--text);}
   .btn-row{display:flex;gap:8px;margin-top:12px;}
   .btn-row .btn{flex:1;padding:11px;font-size:.9rem;}
@@ -1008,7 +1010,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.22</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.23</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1063,7 +1065,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.22</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.23</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1138,7 +1140,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.22</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.23</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1309,7 +1311,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.22';
+const APP_VERSION = 'v1.23';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];

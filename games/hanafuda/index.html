@@ -6,6 +6,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>MOMO Hanafuda</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
+<!-- スマホでフルスクリーン相当（ホーム画面に追加した時に URL バー等が消える）。非 PWA でも通常表示で動く。ピンチズームは抑止しない -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Hanafuda">
+<meta name="theme-color" content="#0a0a0a">
+<link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22MOMO%20Hanafuda%22%2C%22short_name%22%3A%22Hanafuda%22%2C%22display%22%3A%22standalone%22%2C%22orientation%22%3A%22portrait%22%2C%22background_color%22%3A%22%230a0a0a%22%2C%22theme_color%22%3A%22%230a0a0a%22%2C%22start_url%22%3A%22.%22%2C%22scope%22%3A%22.%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22favicon.svg%22%2C%22sizes%22%3A%22any%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%7D">
 <meta name="description" content="MOMO Hanafuda は花札をオンライン2人対戦で遊べるブラウザゲームです。4言語対応・PCとスマホの縦画面に対応。アカウント登録もインストールも不要です。">
 <link rel="alternate" hreflang="ja" href="https://qiqiroon.github.io/momo/games/hanafuda/">
 <link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/games/hanafuda/">
@@ -40,7 +47,8 @@
     background-size:48px 48px; background-attachment:fixed;
   }
   body::before{content:'';position:fixed;inset:0;background:var(--bg);opacity:.82;pointer-events:none;z-index:0;}
-  body.in-game{height:100vh;overflow:hidden;}
+  /* 対局中は URL バーの縮退に追従して 1 画面固定（dvh 対応ブラウザは dvh、非対応は vh フォールバック） */
+  body.in-game{height:100vh;height:100dvh;overflow:hidden;}
 
   /* Top controls: 歯車 + 言語プルダウン。site-header の右端に inline 配置 */
   #top-controls{display:flex;align-items:center;gap:8px;margin-left:auto;align-self:flex-start;padding-top:6px;}
@@ -70,7 +78,7 @@
 
   /* Common containers — page-wrap の上余白を詰めてタイトルを画面最上部に */
   .page-wrap{position:relative;z-index:1;max-width:900px;margin:0 auto;padding:16px 24px 40px;}
-  .wrap{position:relative;z-index:1;max-width:460px;height:100vh;margin:0 auto;padding:8px 12px;display:flex;flex-direction:column;gap:6px;}
+  .wrap{position:relative;z-index:1;max-width:460px;height:100vh;height:100dvh;margin:0 auto;padding:8px 12px;display:flex;flex-direction:column;gap:6px;}
   .hidden{display:none!important;}
 
   /* Header (lobby/room) — MOMO Darts 準拠：icon の右に title-block（h1 + subtitle 縦積み） */
@@ -200,15 +208,18 @@
   /* Ingame */
   .statusbar{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:4px 8px;font-size:.66rem;}
   .statusbar b{color:var(--orange-mid);}
-  .card{width:42px;height:67px;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,.5);display:block;flex:0 0 auto;background:#f1e6c6;}
-  .card.cap{width:32px;height:51px;}
+  /* カードは幅を CSS 変数で可変にし、高さは縦横比から自動算出（機種ごとに JS が --card-w を実測セット） */
+  .card{width:var(--card-w,42px);aspect-ratio:42/67;height:auto;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,.5);display:block;flex:0 0 auto;background:#f1e6c6;}
+  .card.cap{width:var(--cap-w,32px);aspect-ratio:32/51;height:auto;}
   .card.match{outline:2px solid var(--gold);box-shadow:0 0 8px var(--gold);border-radius:5px;}
   .card.sel{outline:2px solid var(--gold);transform:translateY(-6px);}
   .card.clickable{cursor:pointer;}
   .card.clickable:hover{transform:translateY(-3px);}
   .card.dim{opacity:.55;}
   .card.drawn{outline:2px solid var(--orange-mid);box-shadow:0 0 8px var(--orange);border-radius:5px;}
-  .play{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:space-between;gap:6px;}
+  /* 縦5段：余白を上下・段間で均等配分（space-evenly）。背の高い機種でも間延びせず、隙間も不均一にならない。
+     窮屈な機種は JS(fitBoard) が --card-w を縮めて 1 画面に収める */
+  .play{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:space-evenly;gap:var(--row-gap,4px);}
   .seg-row{display:flex;flex-direction:column;gap:2px;align-items:center;}
   .seg-row .zl{font-size:.6rem;color:var(--text-muted);align-self:flex-start;}
   .cardrow{display:flex;gap:3px;flex-wrap:nowrap;justify-content:center;}
@@ -889,7 +900,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.05</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.06</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -944,7 +955,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.05</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.06</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1019,7 +1030,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.05</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.06</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1075,6 +1086,13 @@
   <h2 id="ov-title">お知らせ</h2>
   <p id="ov-body"></p>
   <div class="btn-row"><button class="btn btn-primary" id="ov-ok" data-i18n="ov.ok">OK</button></div>
+</div></div>
+
+<!-- 接続状態オーバーレイ（再接続中／相手の復帰待ち。ボタンは動的） -->
+<div class="overlay" id="ovConn"><div class="opanel">
+  <h2 id="ov-conn-title"></h2>
+  <p id="ov-conn-body"></p>
+  <div class="btn-row" id="ov-conn-actions"></div>
 </div></div>
 
 <div class="overlay" id="ovSettings"><div class="opanel">
@@ -1146,7 +1164,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.05';
+const APP_VERSION = 'v1.06';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -1274,8 +1292,13 @@ const I18N = {
     'foot.tools': 'ツール一覧',
     'notice.disconnect.title': '通信が切断されました',
     'notice.disconnect.body': '相手との接続が切れました。ロビーに戻ります。',
+    'notice.disconnect.host': 'ホストの接続が切れました。ロビーに戻ります。',
     'notice.hostname': 'ホスト',
     'notice.guestname': 'ゲスト',
+    'reconnect.trying': '接続が切れました。再接続しています…',
+    'reconnect.failed': '再接続できませんでした。ロビーに戻ります。',
+    'game.oppaway.title': '相手が離れました',
+    'game.oppaway.body': '相手の接続が切れました。復帰を待っています…',
     'settings.title': '設定',
     'settings.bgm.label': 'BGM',
     'settings.bgm.hint': 'BGM の音量（v1.00 は UI のみ・音源は Phase 2 で搭載）',
@@ -1399,8 +1422,13 @@ const I18N = {
     'foot.tools': 'All Tools',
     'notice.disconnect.title': 'Connection Lost',
     'notice.disconnect.body': 'The connection to your opponent has dropped. Returning to lobby.',
+    'notice.disconnect.host': 'The host disconnected. Returning to lobby.',
     'notice.hostname': 'Host',
     'notice.guestname': 'Guest',
+    'reconnect.trying': 'Connection lost. Reconnecting…',
+    'reconnect.failed': 'Could not reconnect. Returning to lobby.',
+    'game.oppaway.title': 'Opponent Disconnected',
+    'game.oppaway.body': 'Waiting for your opponent to reconnect…',
     'settings.title': 'Settings',
     'settings.bgm.label': 'BGM',
     'settings.bgm.hint': 'BGM volume (v1.00 is UI only — audio arrives in Phase 2)',
@@ -1524,8 +1552,13 @@ const I18N = {
     'foot.tools': '全部工具',
     'notice.disconnect.title': '连接已断开',
     'notice.disconnect.body': '与对手的连接中断。返回大厅。',
+    'notice.disconnect.host': '主机连接已断开。返回大厅。',
     'notice.hostname': '主机',
     'notice.guestname': '客人',
+    'reconnect.trying': '连接中断。正在重新连接…',
+    'reconnect.failed': '无法重新连接。返回大厅。',
+    'game.oppaway.title': '对手已离线',
+    'game.oppaway.body': '正在等待对手重新连接…',
     'settings.title': '设置',
     'settings.bgm.label': 'BGM',
     'settings.bgm.hint': 'BGM 音量（v1.00 仅 UI 展示，音源将在 Phase 2 加入）',
@@ -1633,7 +1666,12 @@ const state = {
   hostName: '',
   guestName: '',
   roomName: '',
+  roomId: null,          // 復帰用に部屋番号を保持
+  joinPw: '',            // 復帰用に入室パスワードを保持（ゲスト）
   roomHasPw: false,
+  reconnecting: false,   // ゲストが同じ部屋へ復帰を試行中
+  oppAway: false,        // ホスト側：対局中に相手が落ちて復帰待ち
+  intentionalLeave: false, // 中断ボタン等での意図的退出（自動復帰を抑止）
   publicRooms: [],
   showPrivate: false,
   gameSel: 'koikoi',
@@ -1667,6 +1705,10 @@ function showScreen(s) {
   const targetHeader = document.querySelector('#screen-' + s + ' .site-header');
   if (tc && targetHeader && tc.parentElement !== targetHeader) targetHeader.appendChild(tc);
   window.scrollTo(0, 0);
+  // 画面が変わるたびに Wake Lock を取り直す/解放する
+  refreshWakeLock();
+  // 対局中に入ったらカード寸法を実測フィット（レイアウト確定後に一度）
+  if (s === 'game') requestAnimationFrame(fitBoard);
 }
 
 // --------------------------------------------------------------------------
@@ -1734,6 +1776,9 @@ function tryJoin(room) {
   state.guestName = name;
   state.roomName = room.name || '';
   state.roomHasPw = !!room.hasPassword;
+  state.roomId = room.id;
+  state.joinPw = pw;              // 復帰用に保持
+  state.intentionalLeave = false;
   MomoMatchmaking.joinRoom(room.id, pw, name);
 }
 
@@ -1861,6 +1906,91 @@ function renderOyaDraw() {
 }
 
 // --------------------------------------------------------------------------
+// 7.5) 接続の粘り（生き残り側の整理 + ゲスト復帰）
+// --------------------------------------------------------------------------
+// 接続オーバーレイ（再接続中／相手の復帰待ち）。actionLabel を渡すとボタン 1 個を出す。
+function showConnOverlay(title, body, actionLabel, actionFn) {
+  document.getElementById('ov-conn-title').textContent = title || '';
+  document.getElementById('ov-conn-body').textContent = body || '';
+  const acts = document.getElementById('ov-conn-actions');
+  acts.innerHTML = '';
+  if (actionLabel) {
+    const b = document.createElement('button');
+    b.className = 'btn btn-primary';
+    b.textContent = actionLabel;
+    b.addEventListener('click', actionFn);
+    acts.appendChild(b);
+  }
+  document.getElementById('ovConn').classList.add('show');
+}
+function hideConnOverlay() { document.getElementById('ovConn').classList.remove('show'); }
+
+// ゲスト復帰用に部屋情報を sessionStorage に保存（タブが再読込されても復帰できるように）。
+// ホストは部屋がサーバー側で消えるため復帰不可 → 保存しない。
+function saveSession() {
+  try {
+    if (state.isHost || !state.roomId) { sessionStorage.removeItem('hf_session'); return; }
+    sessionStorage.setItem('hf_session', JSON.stringify({
+      roomId: state.roomId, joinPw: state.joinPw || '', guestName: state.guestName,
+      hostName: state.hostName, roomName: state.roomName, inGame: !!state.game, ts: Date.now(),
+    }));
+  } catch (e) {}
+}
+function clearSession() { try { sessionStorage.removeItem('hf_session'); } catch (e) {} }
+
+// ロビーへ強制的に戻す（意図しない切断時）。ライブラリを reset して WS をロビーへ繋ぎ直し、
+// 「切断表示で固まる」状態を塞ぐ。msg があれば通知を出す。
+function backToLobby(msg) {
+  state.reconnecting = false; state.oppAway = false; state.intentionalLeave = false;
+  state.connected = false; state.guestName = ''; state.game = null; state.roomId = null;
+  state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null;
+  state.readyHost = false; state.readyGuest = false;
+  hideConnOverlay();
+  clearSession();
+  try { MomoMatchmaking.leaveRoom(); } catch (e) {}   // WS をロビーへ繋ぎ直す
+  showScreen('lobby');
+  setTimeout(() => { try { MomoMatchmaking.refreshRooms(); } catch (e) {} }, 400);
+  renderRoomList();
+  if (msg) showNotice(t('notice.disconnect.title'), msg);
+}
+
+// ゲストが同じ部屋番号で復帰を試みる。約 10 秒の空席待ち（満員エラー）を再試行で吸収する。
+function attemptReconnect() {
+  if (state.isHost) return;               // ホストは部屋が消えるので復帰不可
+  if (state.intentionalLeave) return;
+  if (!state.roomId) return;
+  if (state.reconnecting) return;
+  if (state.screen !== 'room' && state.screen !== 'game') return;
+  state.reconnecting = true;
+  showConnOverlay(t('reconnect.trying'), '', null);
+  // ライブラリの接続をリセットして WS をロビーに繋ぎ直す（席がまだ生きていれば guest_leave で即解放）
+  try { MomoMatchmaking.leaveRoom(); } catch (e) {}
+  reconnectJoinLoop(0);
+}
+function reconnectJoinLoop(attempt) {
+  if (!state.reconnecting) return;              // 成功 or 中止で停止
+  if (attempt > 15) { state.reconnecting = false; backToLobby(t('reconnect.failed')); return; }
+  if (!MMState.wsOpen) { setTimeout(() => reconnectJoinLoop(attempt), 500); return; }
+  try { MomoMatchmaking.joinRoom(state.roomId, state.joinPw || '', state.guestName || t('notice.guestname')); } catch (e) {}
+  // 3.5 秒後に再試行（onJoinedRoom 成功で state.reconnecting=false になり停止）
+  setTimeout(() => reconnectJoinLoop(attempt + 1), 3500);
+}
+
+// 起動時：sessionStorage に新しめの部屋情報があればゲストとして自動復帰を試みる。
+function tryAutoRejoin() {
+  let s = null;
+  try { s = JSON.parse(sessionStorage.getItem('hf_session') || 'null'); } catch (e) { s = null; }
+  if (!s || !s.roomId) return;
+  if (Date.now() - (s.ts || 0) > 3 * 60 * 1000) { clearSession(); return; } // 3 分超は無視
+  state.isHost = false;
+  state.roomId = s.roomId; state.joinPw = s.joinPw || '';
+  state.guestName = s.guestName || ''; state.hostName = s.hostName || ''; state.roomName = s.roomName || '';
+  state.reconnecting = true;
+  showConnOverlay(t('reconnect.trying'), '', null);
+  reconnectJoinLoop(0);
+}
+
+// --------------------------------------------------------------------------
 // 8) MomoMatchmaking
 // --------------------------------------------------------------------------
 const MMState = { wsOpen: false, wasClosed: false };
@@ -1971,11 +2101,14 @@ function initMatchmaking() {
     onRoomCreated: (roomId, roomName, rules) => {
       diagLog('room', 'created id=' + roomId + ' name=' + roomName);
       state.isHost = true;
+      state.roomId = roomId;
       state.roomName = roomName || state.roomName;
       state.roomHasPw = !!(rules && rules.hasPassword);
       state.connected = false;
+      state.intentionalLeave = false;
       state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null;
       state.readyHost = false; state.readyGuest = false;
+      clearSession(); // ホストは復帰保存しない
       renderOyaDraw();
       showScreen('room');
       refreshRoomView();
@@ -1983,25 +2116,62 @@ function initMatchmaking() {
     onJoinedRoom: (roomId, roomName, hostName, rules) => {
       diagLog('room', 'joined id=' + roomId + ' name=' + roomName + ' host=' + hostName);
       state.isHost = false;
+      state.roomId = roomId;
       state.roomName = roomName || state.roomName;
       state.hostName = hostName || state.hostName;
       state.roomHasPw = !!(rules && rules.hasPassword);
+      if (rules && rules.settings) state.settings = Object.assign({}, state.settings, rules.settings);
+      if (state.reconnecting) {
+        // 復帰成功：ゲーム状態は温存（ホストが盤面を送り直す）。画面は現状維持。
+        diagLog('room', 'REJOIN success');
+        state.reconnecting = false;
+        hideConnOverlay();
+        applySettingsToUi();
+        saveSession();
+        if (state.game) { showScreen('game'); renderGame(); } // ホストの state 再送を待つ
+        else { renderOyaDraw(); showScreen('room'); refreshRoomView(); }
+        return;
+      }
+      // 通常入室
       state.connected = false;
+      state.intentionalLeave = false;
       state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null;
       state.readyHost = false; state.readyGuest = false;
-      if (rules && rules.settings) state.settings = Object.assign({}, state.settings, rules.settings);
       applySettingsToUi();
       renderOyaDraw();
       showScreen('room');
       refreshRoomView();
+      saveSession();
     },
     onGuestJoined: (guestName) => {
       diagLog('room', 'guest joined name=' + guestName);
       state.guestName = guestName || t('notice.guestname');
+      state.oppAway = false;
+      hideConnOverlay();
       refreshRoomView();
+      // DC 未確立でも設定が届くよう明示送信（フォールバック）
+      MomoMatchmaking.send({ type: 'hello', name: state.hostName });
+      MomoMatchmaking.send({ type: 'settings', settings: state.settings });
+      if (state.game) {
+        // 対局中に相手が (再)入室 = 復帰。盤面を丸ごと送り直す（deal 型でゲストを対局画面へ）。
+        diagLog('room', 'guest REJOINED mid-game → resync full state');
+        syncState({ deal: true });
+      } else {
+        // 対戦前：親決め済みの情報があれば送る（整合のため）
+        if (state.oyaHostMonth != null) MomoMatchmaking.send({ type: 'oya_draw', side: 'host', month: state.oyaHostMonth });
+      }
     },
     onGuestLeft: () => {
       diagLog('room', 'guest left');
+      if (state.game) {
+        // 対局中に相手が落ちた：部屋は維持（サーバーはホスト側の部屋を保持する）。
+        // 盤面は温存し、復帰を待つ。ホストは「中断」でロビーへ抜けられる。
+        state.oppAway = true;
+        showConnOverlay(t('game.oppaway.title'), t('game.oppaway.body'), t('game.leave'),
+          () => { hideConnOverlay(); leaveRoom(); });
+        return;
+      }
+      // 対戦前：席を空きに戻す。部屋は維持。
       state.guestName = '';
       state.connected = false;
       state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null;
@@ -2023,22 +2193,38 @@ function initMatchmaking() {
     onDisconnected: (msg) => {
       diagLog('p2p', 'disconnected: ' + (msg || ''));
       state.connected = false;
-      state.guestName = '';
-      state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null;
-      state.readyHost = false; state.readyGuest = false;
-      showScreen('lobby');
-      renderRoomList();
-      showNotice(t('notice.disconnect.title'), msg || t('notice.disconnect.body'));
+      // getState().currentRoomId で切断の種類を判別:
+      //  null  = サーバーが部屋を閉じた（ホスト落ち／キック等）→ ロビーへ追い出し
+      //  残存  = 自分のソケットが切れた（画面オフ等）→ ゲストは同じ部屋へ復帰を試みる
+      let roomStillMine = false;
+      try { roomStillMine = !!MomoMatchmaking.getState().currentRoomId; } catch (e) {}
+      if (!roomStillMine) {
+        backToLobby(state.isHost ? (msg || t('notice.disconnect.body')) : t('notice.disconnect.host'));
+        return;
+      }
+      if (!state.isHost && !state.intentionalLeave && (state.screen === 'room' || state.screen === 'game')) {
+        attemptReconnect(); // ゲスト：復帰トライ
+        return;
+      }
+      // ホスト自身の切断（部屋は消える）等 → ロビーへ
+      backToLobby(msg || t('notice.disconnect.body'));
     },
     onError: (msg) => {
       diagLog('err', 'onError: ' + (msg || ''));
+      if (state.reconnecting) {
+        // 復帰試行中のエラー: 「満員」= 席がまだ空いていない → ループが再試行するので黙認。
+        // それ以外（部屋消滅など）= 復帰不可 → ロビーへ。
+        const m = String(msg || '');
+        if (m.indexOf('満員') >= 0 || /full/i.test(m)) return;
+        state.reconnecting = false;
+        backToLobby(t('reconnect.failed'));
+        return;
+      }
       showNotice(t('notice.disconnect.title'), msg || '');
     },
     onKicked: () => {
       diagLog('room', 'kicked');
-      state.connected = false;
-      showScreen('lobby');
-      renderRoomList();
+      backToLobby();
     },
     onMessage: (data) => handleP2P(data),
   });
@@ -2316,6 +2502,8 @@ function renderGame() {
   // Near-yaku hints
   renderNearYaku(me, 'my-near');
   renderNearYaku(opp, 'opp-near');
+  // 機種ごとに 1 画面に収まるようカード寸法を実測フィット
+  fitBoard();
 }
 
 function renderPhaseText() {
@@ -2380,6 +2568,57 @@ function renderNearYaku(player, elId) {
   if (kasuN === 9) hints.push(t('yaku.kasu'));
   if (hints.length === 0) { el.textContent = ''; return; }
   el.innerHTML = t('game.near.prefix') + ' ' + hints.map(h => '<b>' + h + '</b>').join('、');
+}
+
+// 縦画面フィット：手札 8 枚の横幅と 5 段の縦高さの両制約から最大カード幅を実測して決める。
+// --card-w / --cap-w を #screen-game にセット（ロビー/対戦準備の札には影響しない）。
+function fitBoard() {
+  const sg = document.getElementById('screen-game');
+  if (!sg || sg.classList.contains('hidden')) return;
+  const play = sg.querySelector('.play');
+  if (!play) return;
+  const HAND_GAP = 3; // .cardrow の gap
+  const setW = (w) => {
+    sg.style.setProperty('--card-w', w + 'px');
+    sg.style.setProperty('--cap-w', Math.round(w * 0.76) + 'px');
+  };
+  // 横制約：手札 8 枚 + 7 gap が play 幅に収まる最大幅（上限 52 / 下限 28）
+  const availW = play.clientWidth || sg.clientWidth || 360;
+  let cardW = Math.floor((availW - 7 * HAND_GAP) / 8);
+  cardW = Math.max(28, Math.min(cardW, 52));
+  setW(cardW);
+  // 縦制約：5 段の自然高さ合計が play の高さを超えるなら比率で縮める（最大 2 パス）
+  const rows = Array.from(play.children);
+  const rowGap = parseFloat(getComputedStyle(play).rowGap) || 6;
+  const measure = () => rows.reduce((s, el) => s + el.offsetHeight, 0) + rowGap * Math.max(0, rows.length - 1);
+  const avail = play.clientHeight;
+  for (let pass = 0; pass < 2; pass++) {
+    const content = measure();
+    if (content <= avail || content <= 0) break;
+    cardW = Math.max(22, Math.floor(cardW * (avail / content)));
+    setW(cardW);
+  }
+  fitRows();
+}
+
+// ===== Wake Lock（スクリーンセーバー抑止）=====
+// 対戦準備（部屋入室）〜対局中の間だけ画面を消させない。iOS Safari 16.4+ / Android Chrome 対応。
+let _wakeLock = null;
+async function acquireWakeLock() {
+  try {
+    if ('wakeLock' in navigator && !_wakeLock) {
+      _wakeLock = await navigator.wakeLock.request('screen');
+      _wakeLock.addEventListener('release', () => { _wakeLock = null; });
+    }
+  } catch (e) { /* 非対応・非可視時などは黙って諦める */ }
+}
+function releaseWakeLock() {
+  try { if (_wakeLock) { _wakeLock.release(); _wakeLock = null; } } catch (e) {}
+}
+function refreshWakeLock() {
+  // 部屋 or 対局中なら取得、それ以外は解放
+  if (state.screen === 'room' || state.screen === 'game') acquireWakeLock();
+  else releaseWakeLock();
 }
 
 function fitRows() {
@@ -2698,7 +2937,8 @@ function syncState(opts) {
 function applyState(msg) {
   if (state.isHost) return; // guest only
   // 初回 'deal' で対局中画面へ遷移
-  if (state.screen !== 'game') showScreen('game');
+  const enteringGame = state.screen !== 'game';
+  if (enteringGame) showScreen('game');
   const g = state.game || {};
   g.field = msg.field || [];
   g.hands = {
@@ -2719,6 +2959,7 @@ function applyState(msg) {
   g.roundEnd = msg.roundEnd || null;
   state.game = g;
   if (msg.settings) state.settings = Object.assign({}, state.settings, msg.settings);
+  if (enteringGame) saveSession(); // 対局入りを復帰用に保存（state.game 確定後なので inGame=true になる）
   renderGame();
   // オーバーレイ制御
   const ovYaku = document.getElementById('ovYaku');
@@ -2778,14 +3019,19 @@ function tryLaunchGame() {
 }
 
 function leaveRoom() {
+  state.intentionalLeave = true;        // 意図的退出 → 自動復帰を抑止
   try { MomoMatchmaking.leaveRoom(); } catch (e) {}
   state.connected = false;
   state.guestName = '';
+  state.roomId = null; state.joinPw = '';
+  state.reconnecting = false; state.oppAway = false;
   state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null;
   state.readyHost = false; state.readyGuest = false;
   state.game = null;
+  hideConnOverlay();
+  clearSession();
   showScreen('lobby');
-  setTimeout(() => MomoMatchmaking.refreshRooms(), 200);
+  setTimeout(() => { state.intentionalLeave = false; try { MomoMatchmaking.refreshRooms(); } catch (e) {} }, 300);
   renderRoomList();
 }
 
@@ -2881,7 +3127,22 @@ function bindEvents() {
   bgmSlider.addEventListener('input', () => { bgmLbl.textContent = bgmSlider.value + '%'; try { localStorage.setItem('hanafuda_bgm_vol', bgmSlider.value); } catch (e) {} });
   sfxSlider.addEventListener('input', () => { sfxLbl.textContent = sfxSlider.value + '%'; try { localStorage.setItem('hanafuda_sfx_vol', sfxSlider.value); } catch (e) {} });
 
-  window.addEventListener('resize', fitRows);
+  window.addEventListener('resize', fitBoard);
+  window.addEventListener('orientationchange', () => setTimeout(fitBoard, 250));
+  // 画面復帰時：Wake Lock を取り直し、対局中ならカード寸法を再フィット、
+  // ゲストで接続が切れていたら同じ部屋へ復帰を試みる
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      refreshWakeLock();
+      if (state.screen === 'game') fitBoard();
+      if (!state.isHost && !state.intentionalLeave && !state.reconnecting &&
+          (state.screen === 'room' || state.screen === 'game')) {
+        let alive = false;
+        try { alive = !!MomoMatchmaking.getState().currentRoomId && MMState.wsOpen; } catch (e) {}
+        if (!alive) attemptReconnect();
+      }
+    }
+  });
 }
 
 function openSettings() {
@@ -2919,6 +3180,7 @@ document.addEventListener('DOMContentLoaded', () => {
   bindEvents();
   showScreen('lobby');
   initMatchmaking();
+  tryAutoRejoin();       // 再読込直後にゲスト復帰（sessionStorage に新しめの部屋があれば）
   startDiagPolling();
   // ?debug=1: solo test hook + 診断パネル表示
   if (new URLSearchParams(location.search).get('debug') === '1') {

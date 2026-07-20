@@ -222,6 +222,9 @@
 
   /* Ingame */
   .statusbar{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:4px 8px;font-size:.66rem;}
+  /* v1.18: ゲームルール名（こいこい）を一行目左端に常時・大きめ表示 */
+  .rulebar{display:flex;justify-content:flex-start;margin-bottom:3px;}
+  .rulename{font-family:"Fredoka One",sans-serif;font-size:1.05rem;color:var(--orange-mid);letter-spacing:.02em;line-height:1;}
   .statusbar b{color:var(--orange-mid);}
   /* カードは幅を CSS 変数で可変にし、高さは縦横比から自動算出（機種ごとに JS が --card-w を実測セット） */
   .card{width:var(--card-w,42px);aspect-ratio:42/67;height:auto;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,.5);display:block;flex:0 0 auto;background:#f1e6c6;}
@@ -254,7 +257,8 @@
   .nearcap{font-size:.62rem;color:var(--text-muted);}
   .nearcap b{color:var(--gold);}
   .nearcap .who{color:var(--orange-mid);font-weight:700;}
-  .deckfield{display:flex;gap:8px;align-items:flex-start;justify-content:center;position:relative;}
+  .deckfield{display:flex;gap:8px;align-items:flex-start;justify-content:center;}
+  #field-row{position:relative;}
   .deck{display:flex;flex-direction:column;align-items:center;gap:2px;}
   .deck .count{font-size:.56rem;color:var(--text-muted);}
   .drawn-slot{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:42px;}
@@ -313,36 +317,28 @@
   .koikoi-flash.kf-ok{background:linear-gradient(180deg,#e9c14a,var(--gold));color:#3a2a00;}
   .koikoi-flash.kf-ng{background:#1a1a1a;border:1px solid var(--border-strong);color:var(--text-muted);}
   @keyframes kflash{0%{opacity:0;transform:translate(-50%,-50%) scale(.6);}15%{opacity:1;transform:translate(-50%,-50%) scale(1.08);}30%{transform:translate(-50%,-50%) scale(1);}80%{opacity:1;}100%{opacity:0;transform:translate(-50%,-58%) scale(1);}}
+  .koikoi-flash.big{font-size:2.4rem;padding:14px 34px;}
+  /* v1.18: こいこい宣言＝手札の上を左→右にスライド */
+  .koikoi-slide{position:fixed;left:0;transform:translateX(-70vw);z-index:82;pointer-events:none;opacity:0;font-family:"Fredoka One",sans-serif;font-size:1.5rem;color:#fff;background:linear-gradient(180deg,var(--orange-mid),var(--orange));padding:6px 22px;border-radius:12px;white-space:nowrap;box-shadow:0 6px 20px rgba(0,0,0,.5);}
+  .koikoi-slide.show{animation:kkSlide .7s ease-in forwards;}
+  @keyframes kkSlide{0%{opacity:0;transform:translateX(-70vw);}18%{opacity:1;}82%{opacity:1;}100%{opacity:.15;transform:translateX(95vw);}}
+  /* v1.18: こいこい宣言中の手番バッジ（宣言者側に常時） */
+  .kk-badge{display:none;font-size:.6rem;line-height:1;padding:2px 7px;border-radius:5px;background:var(--orange);color:#fff;white-space:nowrap;box-shadow:0 0 8px rgba(234,88,12,.5);}
   /* v1.14: 総結果の勝利表示・くす玉・紙吹雪 */
   .ge-panel{position:relative;overflow:hidden;text-align:center;}
   .ge-title{font-family:"Fredoka One",sans-serif;font-weight:400;font-size:1.5rem;justify-content:center;}
   .ge-title.win{color:var(--gold);text-shadow:0 0 16px rgba(216,168,56,.5);}
   .ge-title.lose{color:var(--text-muted);}
   .ge-title.draw{color:var(--orange-mid);}
-  .kusudama{position:relative;width:96px;height:96px;margin:2px auto 8px;}
-  .kusudama .kd-core{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:"Fredoka One",sans-serif;font-size:2rem;color:var(--aka);background:radial-gradient(circle at 50% 40%,#fff6e0,#f0d9a0);border-radius:50%;border:3px solid var(--gold);transform:scale(.2);opacity:0;}
-  .kusudama .kd-half{position:absolute;top:0;width:50%;height:100%;background:linear-gradient(120deg,var(--aka),var(--orange));}
-  .kusudama .kd-left{left:0;border-radius:48px 0 0 48px;transform-origin:right center;}
-  .kusudama .kd-right{right:0;border-radius:0 48px 48px 0;transform-origin:left center;}
-  .kusudama .kd-streamers{position:absolute;left:50%;top:46%;width:0;height:0;opacity:0;}
-  .kusudama .kd-streamers i{position:absolute;width:3px;height:26px;border-radius:2px;transform-origin:top center;}
-  .kusudama .kd-streamers i:nth-child(1){background:var(--gold);transform:rotate(-40deg);}
-  .kusudama .kd-streamers i:nth-child(2){background:var(--orange-mid);transform:rotate(-15deg);}
-  .kusudama .kd-streamers i:nth-child(3){background:#5599ff;transform:rotate(10deg);}
-  .kusudama .kd-streamers i:nth-child(4){background:#33aa99;transform:rotate(30deg);}
-  .kusudama .kd-streamers i:nth-child(5){background:#fff;transform:rotate(50deg);}
-  .kusudama.open .kd-left{animation:kdOpenL .6s cubic-bezier(.3,1.4,.5,1) forwards;}
-  .kusudama.open .kd-right{animation:kdOpenR .6s cubic-bezier(.3,1.4,.5,1) forwards;}
-  .kusudama.open .kd-core{animation:kdCore .5s .28s ease forwards;}
-  .kusudama.open .kd-streamers{animation:kdStream .6s .3s ease forwards;}
-  @keyframes kdOpenL{to{transform:rotate(-118deg) translateX(-6px);opacity:.9;}}
-  @keyframes kdOpenR{to{transform:rotate(118deg) translateX(6px);opacity:.9;}}
-  @keyframes kdCore{to{transform:scale(1);opacity:1;}}
-  @keyframes kdStream{0%{opacity:1;}100%{opacity:1;transform:scale(1.5);}}
-  .confetti{position:absolute;inset:0;pointer-events:none;overflow:hidden;}
+  /* v1.18: 勝利くす玉は添付画像（games/hanafuda/kusudama.jpg）を使用。勝利時のみ表示 */
+  .win-art{width:180px;height:200px;margin:2px auto 8px;background-image:url("kusudama.jpg");background-size:contain;background-position:center;background-repeat:no-repeat;display:none;animation:winPop .5s cubic-bezier(.2,1.3,.5,1);}
+  .ge-panel.win .win-art{display:block;}
+  @keyframes winPop{0%{transform:scale(.6);opacity:0;}60%{transform:scale(1.08);opacity:1;}100%{transform:scale(1);}}
+  .confetti{position:absolute;inset:0;pointer-events:none;overflow:hidden;display:none;}
+  .ge-panel.win .confetti{display:block;}
   .confetti .cf{position:absolute;top:-12px;width:8px;height:12px;opacity:.95;animation-name:cfFall;animation-timing-function:linear;animation-iteration-count:1;}
-  @keyframes cfFall{0%{transform:translateY(-12px) rotate(0);opacity:1;}100%{transform:translateY(440px) rotate(540deg);opacity:0;}}
-  @media (prefers-reduced-motion: reduce){.koikoi-flash.show,.kusudama.open .kd-left,.kusudama.open .kd-right,.kusudama.open .kd-core,.kusudama.open .kd-streamers,.confetti .cf{animation-duration:.01ms;animation-iteration-count:1;}}
+  @keyframes cfFall{0%{transform:translateY(-12px) rotate(0);opacity:1;}100%{transform:translateY(520px) rotate(540deg);opacity:0;}}
+  @media (prefers-reduced-motion: reduce){.koikoi-flash.show,.win-art,.confetti .cf{animation-duration:.01ms;animation-iteration-count:1;}}
   .total-line{display:flex;justify-content:space-between;font-weight:700;border-top:1px solid var(--border);padding-top:7px;font-size:.85rem;color:var(--text);}
   .btn-row{display:flex;gap:8px;margin-top:12px;}
   .btn-row .btn{flex:1;padding:11px;font-size:.9rem;}
@@ -993,7 +989,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.17</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.18</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1048,7 +1044,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.17</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.18</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1123,10 +1119,11 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.17</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.18</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
+  <div class="rulebar"><span class="rulename" id="rule-name" data-i18n="rule.koikoi">こいこい</span></div>
   <div class="statusbar" id="game-status">
     <span><b id="st-month">3月場</b>（<span id="st-round">第1局/全12局</span>）</span>
     <span><span data-i18n="game.you">あなた</span><b id="st-my-score">0</b><span data-i18n="game.mon">文</span>・<span data-i18n="game.opp">あいて</span><b id="st-op-score">0</b><span data-i18n="game.mon">文</span></span>
@@ -1148,11 +1145,11 @@
       <div class="caprow" id="opp-cap-bot"><span class="gl" data-i18n="game.g.kasu">カス</span><div class="cards"></div></div>
     </div>
     <!-- 山札・場 -->
-    <div class="seg-row">
+    <div class="seg-row" id="field-row">
+      <!-- v1.17/1.18: 場エリアの左端 上=相手の親子/手番、下=自分の親子/手番 -->
+      <div class="turnrail top" id="rail-opp"><span class="kk-badge" id="kk-opp"></span><span class="turn-lit" id="turn-opp"></span><span class="oyako" id="oya-opp"></span></div>
+      <div class="turnrail bot" id="rail-me"><span class="oyako" id="oya-me"></span><span class="turn-lit" id="turn-me"></span><span class="kk-badge" id="kk-me"></span></div>
       <div class="deckfield">
-        <!-- v1.17: 場の左上=相手の親子/手番、左下=自分の親子/手番 -->
-        <div class="turnrail top" id="rail-opp"><span class="turn-lit" id="turn-opp"></span><span class="oyako" id="oya-opp"></span></div>
-        <div class="turnrail bot" id="rail-me"><span class="oyako" id="oya-me"></span><span class="turn-lit" id="turn-me"></span></div>
         <div class="deck">
           <svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg>
           <div class="count"><span data-i18n="game.deck">山</span><span id="deck-count">24</span></div>
@@ -1249,15 +1246,12 @@
 
 <!-- v1.14: こいこい演出の一瞬バナー -->
 <div class="koikoi-flash" id="koikoi-flash"></div>
+<div class="koikoi-slide" id="koikoi-slide"></div>
 
 <div class="overlay" id="ovGame"><div class="opanel ge-panel">
+  <!-- v1.18: 勝利時のみ表示するくす玉画像（負け・引き分けは非表示）。画像=games/hanafuda/kusudama.jpg -->
+  <div class="win-art" id="win-art"></div>
   <div class="confetti" id="confetti"></div>
-  <div class="kusudama" id="kusudama">
-    <div class="kd-half kd-left"></div>
-    <div class="kd-half kd-right"></div>
-    <div class="kd-streamers"><i></i><i></i><i></i><i></i><i></i></div>
-    <div class="kd-core">祝</div>
-  </div>
   <h2 id="game-end-title" class="ge-title"></h2>
   <p id="game-end-msg"></p>
   <div class="scoreboard" id="game-scoreboard"></div>
@@ -1295,7 +1289,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.17';
+const APP_VERSION = 'v1.18';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -1375,6 +1369,7 @@ const I18N = {
     'room.month': (n) => n + '月',
     'game.you': 'あなた', 'game.opp': 'あいて', 'game.mon': '文',
     'tag.you': 'あなた', 'tag.opp': '相手', 'oyako.oya': '親', 'oyako.ko': '子', 'turn.you': 'あなたの番', 'turn.opp': '相手の番',
+    'rule.koikoi': 'こいこい', 'koikoi.badge': 'こいこい',
     'game.wait': '対局準備中',
     'game.opp.hand': '相手の手札', 'game.opp.cap': '相手の取り札',
     'game.my.hand': 'あなたの手札', 'game.my.cap': '自分の取り札',
@@ -1544,6 +1539,7 @@ const I18N = {
     'room.month': (n) => (['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][n-1]),
     'game.you': 'You', 'game.opp': 'Opp.', 'game.mon': 'mon',
     'tag.you': 'You', 'tag.opp': 'Opponent', 'oyako.oya': 'Dealer', 'oyako.ko': 'Non-dealer', 'turn.you': 'Your turn', 'turn.opp': "Opponent's turn",
+    'rule.koikoi': 'Koi-Koi', 'koikoi.badge': 'Koi-Koi',
     'game.wait': 'Preparing…',
     'game.opp.hand': "Opponent's hand", 'game.opp.cap': "Opponent's captures",
     'game.my.hand': 'Your hand', 'game.my.cap': 'Your captures',
@@ -1713,6 +1709,7 @@ const I18N = {
     'room.month': (n) => n + '月',
     'game.you': '你', 'game.opp': '对方', 'game.mon': '文',
     'tag.you': '你', 'tag.opp': '对手', 'oyako.oya': '庄', 'oyako.ko': '闲', 'turn.you': '你的回合', 'turn.opp': '对手的回合',
+    'rule.koikoi': '来来', 'koikoi.badge': '来来',
     'game.wait': '准备中…',
     'game.opp.hand': '对方的手牌', 'game.opp.cap': '对方的取牌',
     'game.my.hand': '你的手牌', 'game.my.cap': '你的取牌',
@@ -2702,19 +2699,39 @@ function maybeShowKoikoiFlash() {
   _lastFlashTs = g.event.ts;
   showKoikoiFlash(g.event.type, g.event.by);
 }
-let _flashTimer = null;
+let _flashTimer = null, _slideTimer = null;
 function showKoikoiFlash(type, by) {
+  // v1.18: こいこい宣言は「宣言者の手札の上を左→右にスライド → 中央に大きくこいこい！」
+  if (type === 'koikoi') { koikoiDeclareAnim(by); return; }
+  centerFlash(type, by);
+}
+function centerFlash(type, by) {
   const el = document.getElementById('koikoi-flash');
   if (!el) return;
   const who = whoLabel(by);
-  let cls = 'kf-koikoi', txt = '';
-  if (type === 'koikoi') { cls = 'kf-koikoi'; txt = who + '：' + t('flash.koikoi'); }
+  let cls = 'kf-koikoi', txt = '', big = '';
+  if (type === 'koikoi') { cls = 'kf-koikoi big'; txt = t('flash.koikoi'); big = ' big'; }
   else if (type === 'koikoi-ok') { cls = 'kf-ok'; txt = who + '：' + t('flash.koikoi.ok'); }
   else if (type === 'koikoi-ng') { cls = 'kf-ng'; txt = who + '：' + t('flash.koikoi.ng'); }
   el.className = 'koikoi-flash show ' + cls;
   el.textContent = txt;
   if (_flashTimer) clearTimeout(_flashTimer);
   _flashTimer = setTimeout(() => { el.className = 'koikoi-flash'; }, 1600);
+}
+// 宣言者の手札の上を「こいこい！」が左→右に高速移動 → 700ms後に中央へ大きく
+function koikoiDeclareAnim(by) {
+  const handRow = (by === mySide()) ? document.getElementById('my-hand') : document.getElementById('opp-hand');
+  const slide = document.getElementById('koikoi-slide');
+  if (slide && handRow) {
+    const r = handRow.getBoundingClientRect();
+    slide.textContent = t('flash.koikoi');
+    slide.style.top = (r.top + r.height / 2) + 'px';
+    slide.className = 'koikoi-slide'; void slide.offsetWidth; slide.className = 'koikoi-slide show';
+    if (_slideTimer) clearTimeout(_slideTimer);
+    _slideTimer = setTimeout(() => { slide.className = 'koikoi-slide'; centerFlash('koikoi', by); }, 700);
+  } else {
+    centerFlash('koikoi', by);
+  }
 }
 
 // 成立した役を構成する札の ID 群を返す（役終了画面に札を並べるため）。
@@ -2824,6 +2841,12 @@ function renderGame() {
   if (oyaOpp) { oyaOpp.textContent = (state.oya === opp) ? t('oyako.oya') : t('oyako.ko'); oyaOpp.classList.toggle('is-oya', state.oya === opp); }
   if (turnMe) { turnMe.textContent = t('turn.you'); turnMe.classList.toggle('active', g.currentPlayer === me && g.phase !== 'end'); }
   if (turnOpp) { turnOpp.textContent = t('turn.opp'); turnOpp.classList.toggle('active', g.currentPlayer === opp && g.phase !== 'end'); }
+  // v1.18: こいこい宣言者側にこいこいバッジを常時表示
+  const kkMe = document.getElementById('kk-me'), kkOpp = document.getElementById('kk-opp');
+  if (kkMe) { kkMe.textContent = t('koikoi.badge'); kkMe.style.display = (g.koikoiBy === me) ? 'inline-block' : 'none'; }
+  if (kkOpp) { kkOpp.textContent = t('koikoi.badge'); kkOpp.style.display = (g.koikoiBy === opp) ? 'inline-block' : 'none'; }
+  // v1.18: ゲームルール名（こいこい）を一行目左端に常時表示
+  const rn = document.getElementById('rule-name'); if (rn) rn.textContent = t('rule.koikoi');
   // v1.16: 自分の手番/選択フェーズでなければ手札選択を解除
   if (!(isMyTurn && g.phase === 'select-hand')) state.selHand = null;
   const selCard = (g.hands[me] || []).find(c => c.id === state.selHand);
@@ -3530,20 +3553,21 @@ function renderGameEndFromData() {
     msgEl.innerHTML = t('game.end.msg', { who: whoLabel(winner), hi: Math.max(sMe, sOpp), lo: Math.min(sMe, sOpp) });
   }
   buildScoreboard(document.getElementById('game-scoreboard'), state.scores, null);
+  // v1.18: くす玉画像＋紙吹雪は「勝った側だけ」表示（負け・引き分けは非表示）
+  const panel = document.querySelector('#ovGame .opanel');
+  if (panel) panel.classList.toggle('win', iWin);
   document.getElementById('ovGame').classList.add('show');
-  // v1.14: くす玉＋紙吹雪（見た目のファンファーレ）。音は後日 setBgm/playSfx で。
-  launchKusudama(!draw);
-  playSfx('fanfare'); setBgm('fanfare');
+  if (iWin) { launchKusudama(); playSfx('fanfare'); setBgm('fanfare'); }
 }
-// くす玉を割って紙吹雪を降らせる（見た目のみ）
-function launchKusudama(celebrate) {
-  const ball = document.getElementById('kusudama');
+// 勝利時：くす玉画像を出し直し＋紙吹雪を降らせる（見た目のみ）
+function launchKusudama() {
+  const art = document.getElementById('win-art');
   const conf = document.getElementById('confetti');
-  if (ball) { ball.classList.remove('open'); void ball.offsetWidth; ball.classList.add('open'); }
+  if (art) { art.style.animation = 'none'; void art.offsetWidth; art.style.animation = ''; }
   if (!conf) return;
   conf.innerHTML = '';
   const colors = ['#d8a838', '#ea580c', '#cf2b28', '#33aa99', '#5599ff', '#ffffff'];
-  const n = celebrate ? 64 : 28;
+  const n = 64;
   for (let i = 0; i < n; i++) {
     const p = document.createElement('span');
     p.className = 'cf';

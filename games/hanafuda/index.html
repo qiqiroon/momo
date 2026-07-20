@@ -232,21 +232,29 @@
   .card.clickable:hover{transform:translateY(-3px);}
   .card.dim{opacity:.55;}
   .card.drawn{outline:2px solid var(--orange-mid);box-shadow:0 0 8px var(--orange);border-radius:5px;}
-  /* v1.16: 左上のトランプ風ラベル */
-  .card .ctag rect{fill:#fff;opacity:.9;stroke:#222;stroke-width:1.5;}
-  .card .ctag text{font-family:"Fredoka One","Noto Sans JP",sans-serif;font-weight:700;font-size:27px;fill:#1a1a1a;}
+  /* v1.17: 左上ラベル＝縦書き・倍サイズ・枠/白塗りなし・札に直接 */
+  .card .ctnum,.card .ctlet{font-family:"Fredoka One","Noto Sans JP",sans-serif;font-weight:700;font-size:56px;fill:#1a1a1a;}
   /* v1.16: 場札のリフト（選択中/ホバーで取れる場札を少し上げる） */
   #field-cards .card.lift-sel,#field-cards .card.lift-hover{transform:translateY(-9px);box-shadow:0 6px 12px rgba(0,0,0,.45);outline:2px solid var(--gold);border-radius:5px;transition:transform .12s ease;}
   /* 縦5段：余白を上下・段間で均等配分（space-evenly）。背の高い機種でも間延びせず、隙間も不均一にならない。
      窮屈な機種は JS(fitBoard) が --card-w を縮めて 1 画面に収める */
-  .play{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:space-evenly;gap:var(--row-gap,4px);}
+  .play{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:space-evenly;gap:var(--row-gap,4px);position:relative;}
+  /* v1.17: 親子＋手番インジケータ（場の左上=相手・左下=自分） */
+  .turnrail{position:absolute;left:2px;z-index:40;display:flex;flex-direction:column;align-items:flex-start;gap:3px;pointer-events:none;}
+  .turnrail.top{top:2px;}
+  .turnrail.bot{bottom:2px;}
+  .oyako{font-family:"Fredoka One",sans-serif;font-size:.7rem;line-height:1;padding:2px 7px;border-radius:5px;background:rgba(10,10,10,.82);border:1px solid var(--border-strong);color:var(--text-muted);}
+  .oyako.is-oya{color:var(--gold);border-color:var(--gold);}
+  .turn-lit{font-size:.6rem;line-height:1;padding:2px 7px;border-radius:5px;opacity:.3;color:var(--text-muted);background:rgba(10,10,10,.7);white-space:nowrap;}
+  #turn-me.active{opacity:1;color:#fff;background:var(--orange);}
+  #turn-opp.active{opacity:1;color:#fff;background:#5a5a5a;}
   .seg-row{display:flex;flex-direction:column;gap:2px;align-items:center;}
   .seg-row .zl{font-size:.6rem;color:var(--text-muted);align-self:flex-start;}
   .cardrow{display:flex;gap:3px;flex-wrap:nowrap;justify-content:center;}
   .nearcap{font-size:.62rem;color:var(--text-muted);}
   .nearcap b{color:var(--gold);}
   .nearcap .who{color:var(--orange-mid);font-weight:700;}
-  .deckfield{display:flex;gap:8px;align-items:flex-start;justify-content:center;}
+  .deckfield{display:flex;gap:8px;align-items:flex-start;justify-content:center;position:relative;}
   .deck{display:flex;flex-direction:column;align-items:center;gap:2px;}
   .deck .count{font-size:.56rem;color:var(--text-muted);}
   .drawn-slot{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:42px;}
@@ -985,7 +993,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.16</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.17</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1040,7 +1048,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.16</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.17</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1115,7 +1123,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.16</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.17</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1142,6 +1150,9 @@
     <!-- 山札・場 -->
     <div class="seg-row">
       <div class="deckfield">
+        <!-- v1.17: 場の左上=相手の親子/手番、左下=自分の親子/手番 -->
+        <div class="turnrail top" id="rail-opp"><span class="turn-lit" id="turn-opp"></span><span class="oyako" id="oya-opp"></span></div>
+        <div class="turnrail bot" id="rail-me"><span class="oyako" id="oya-me"></span><span class="turn-lit" id="turn-me"></span></div>
         <div class="deck">
           <svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg>
           <div class="count"><span data-i18n="game.deck">山</span><span id="deck-count">24</span></div>
@@ -1197,6 +1208,10 @@
     </div>
     <input type="range" class="settings-volume-slider" id="sfx-volume-slider" min="0" max="100" value="50">
     <div class="settings-row-hint" data-i18n="settings.sfx.hint">効果音の音量（v1.00 は UI のみ・音源は Phase 2 で搭載）</div>
+  </div>
+  <div class="settings-row" id="settings-row-tag">
+    <div class="set-row"><span data-i18n="settings.tag.label">札の番号表示</span><span class="seg" id="seg-showtag"><button class="on" data-v="on" data-i18n="set.on">あり</button><button data-v="off" data-i18n="set.off">なし</button></span></div>
+    <div class="settings-row-hint" data-i18n="settings.tag.hint">札の左上に季節番号＋種別（光L/種A/短冊R/カス無）を表示</div>
   </div>
   <div class="btn-row">
     <button class="btn btn-primary" id="btn-settings-close" data-i18n="settings.close">閉じる</button>
@@ -1280,7 +1295,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.16';
+const APP_VERSION = 'v1.17';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -1359,6 +1374,7 @@ const I18N = {
     'room.note': 'この画面はホスト・ゲスト共通です。ゲーム選択・設定変更はホスト操作、親決めは各自 1 枚ずつ、スタートは双方が押した時に開始します。',
     'room.month': (n) => n + '月',
     'game.you': 'あなた', 'game.opp': 'あいて', 'game.mon': '文',
+    'tag.you': 'あなた', 'tag.opp': '相手', 'oyako.oya': '親', 'oyako.ko': '子', 'turn.you': 'あなたの番', 'turn.opp': '相手の番',
     'game.wait': '対局準備中',
     'game.opp.hand': '相手の手札', 'game.opp.cap': '相手の取り札',
     'game.my.hand': 'あなたの手札', 'game.my.cap': '自分の取り札',
@@ -1371,10 +1387,10 @@ const I18N = {
     'diag.solo': '1 人で試す（P2P が繋がらない場合の回避策）',
     'game.month.field': (n) => n + '月場',
     'game.drawn': 'めくり札',
-    'game.turn.selectHand': (p) => (p && p.who ? p.who : '？') + ' の手番：手札を選んでください',
-    'game.turn.pickPlay': (p) => (p && p.who ? p.who : '？') + ' の手番：合わせる場札を選んでください',
-    'game.turn.draw': (p) => (p && p.who ? p.who : '？') + ' の手番：山札をめくります…',
-    'game.turn.pickDraw': (p) => (p && p.who ? p.who : '？') + ' の手番：めくり札と合わせる場札を選んでください',
+    'game.turn.selectHand': (p) => (p && p.who ? p.who : '？') + ' の番：手札を選んでください',
+    'game.turn.pickPlay': (p) => (p && p.who ? p.who : '？') + ' の番：合わせる場札を選んでください',
+    'game.turn.draw': (p) => (p && p.who ? p.who : '？') + ' の番：山札をめくります…',
+    'game.turn.pickDraw': (p) => (p && p.who ? p.who : '？') + ' の番：めくり札と合わせる場札を選んでください',
     'game.turn.yaku': (p) => (p && p.who ? p.who : '？') + ' に役が成立！',
     'game.turn.end': '対局終了',
     'game.near.prefix': 'あと1枚で',
@@ -1458,6 +1474,7 @@ const I18N = {
     'settings.sfx.label': '効果音',
     'settings.sfx.hint': '効果音の音量（v1.00 は UI のみ・音源は Phase 2 で搭載）',
     'settings.close': '閉じる',
+    'settings.tag.label': '札の番号表示', 'settings.tag.hint': '札の左上に季節番号＋種別（光L/種A/短冊R/カス無）を表示',
     'gear.title': '設定',
     'srv.connecting': 'サーバー接続中…',
     'srv.online': 'サーバー接続済み',
@@ -1526,6 +1543,7 @@ const I18N = {
     'room.note': 'Shared by host and guest. Game selection and settings are host-only; each player draws their own dealer card; the round starts when both press Ready.',
     'room.month': (n) => (['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][n-1]),
     'game.you': 'You', 'game.opp': 'Opp.', 'game.mon': 'mon',
+    'tag.you': 'You', 'tag.opp': 'Opponent', 'oyako.oya': 'Dealer', 'oyako.ko': 'Non-dealer', 'turn.you': 'Your turn', 'turn.opp': "Opponent's turn",
     'game.wait': 'Preparing…',
     'game.opp.hand': "Opponent's hand", 'game.opp.cap': "Opponent's captures",
     'game.my.hand': 'Your hand', 'game.my.cap': 'Your captures',
@@ -1625,6 +1643,7 @@ const I18N = {
     'settings.sfx.label': 'SFX',
     'settings.sfx.hint': 'Sound-effect volume (v1.00 is UI only — audio arrives in Phase 2)',
     'settings.close': 'Close',
+    'settings.tag.label': 'Card labels', 'settings.tag.hint': 'Show month number + type (L/A/R, none for kasu) at each card top-left',
     'gear.title': 'Settings',
     'srv.connecting': 'Connecting to server…',
     'srv.online': 'Server connected',
@@ -1693,6 +1712,7 @@ const I18N = {
     'room.note': '此画面主机 / 客人共用。游戏选择与设定由主机操作，庄家由双方各抽 1 张，双方按下"准备完成"后开始对局。',
     'room.month': (n) => n + '月',
     'game.you': '你', 'game.opp': '对方', 'game.mon': '文',
+    'tag.you': '你', 'tag.opp': '对手', 'oyako.oya': '庄', 'oyako.ko': '闲', 'turn.you': '你的回合', 'turn.opp': '对手的回合',
     'game.wait': '准备中…',
     'game.opp.hand': '对方的手牌', 'game.opp.cap': '对方的取牌',
     'game.my.hand': '你的手牌', 'game.my.cap': '你的取牌',
@@ -1792,6 +1812,7 @@ const I18N = {
     'settings.sfx.label': '音效',
     'settings.sfx.hint': '音效音量（v1.00 仅 UI 展示，音源将在 Phase 2 加入）',
     'settings.close': '关闭',
+    'settings.tag.label': '牌面编号', 'settings.tag.hint': '在每张牌左上角显示月份数字＋种类（光L/种A/短冊R/カス无）',
     'gear.title': '设置',
     'srv.connecting': '正在连接服务器…',
     'srv.online': '服务器已连接',
@@ -1923,6 +1944,7 @@ const state = {
   scores: { host: 0, guest: 0 }, // 累計文 (局ごとに加算)
   matchOver: false,     // 全局終了 = 総結果画面表示
   selHand: null,        // v1.16: 2タッチ操作で1回目に選んだ手札の id（この端末のみ・非同期）
+  showTag: true,        // v1.17: 左上の番号ラベル表示（設定でON/OFF・この端末のみ・既定ON）
 };
 
 // --------------------------------------------------------------------------
@@ -2756,18 +2778,18 @@ function startRound() {
 }
 
 // --- 描画 ---
-// v1.16: 左上のトランプ風ラベル（季節番号＋種別記号 光=L/種=A/短冊=R/カス=無）
+// v1.16/1.17: 左上のトランプ風ラベル（季節番号＋種別記号 光=L/種=A/短冊=R/カス=無）。
+// v1.17: 縦書き（数字→記号）・枠なし・白塗りなし・札に直接・倍サイズ。設定で表示ON/OFF。
 const TYPE_LETTER = { hikari: 'L', tane: 'A', tan: 'R', kasu: '' };
-function cardTag(id) {
-  const m = parseInt(id.slice(1, 3), 10);
-  const type = id.slice(4).replace(/[0-9]+$/, '');
-  return m + (TYPE_LETTER[type] || '');
-}
 function svgCard(id, extraClass) {
-  const tag = cardTag(id);
-  const w = 20 + tag.length * 17;
-  const tg = '<g class="ctag"><rect x="8" y="8" width="' + w + '" height="34" rx="7"/>' +
-    '<text x="' + (8 + w / 2) + '" y="33" text-anchor="middle">' + tag + '</text></g>';
+  let tg = '';
+  if (state.showTag) {
+    const m = parseInt(id.slice(1, 3), 10);
+    const type = id.slice(4).replace(/[0-9]+$/, '');
+    const letter = TYPE_LETTER[type] || '';
+    tg = '<g class="ctag"><text class="ctnum" x="18" y="58">' + m + '</text>' +
+      (letter ? '<text class="ctlet" x="20" y="118">' + letter + '</text>' : '') + '</g>';
+  }
   return '<svg class="card' + (extraClass ? ' ' + extraClass : '') + '" viewBox="0 0 220 350" data-id="' + id + '"><use href="#' + id + '"/>' + tg + '</svg>';
 }
 function svgBack() {
@@ -2795,6 +2817,13 @@ function renderGame() {
   document.getElementById('st-op-score').textContent = state.scores[opp] || 0;
   document.getElementById('st-turn').innerHTML = renderPhaseText();
   document.getElementById('deck-count').textContent = g.deck.length;
+  // v1.17: 親子＋手番インジケータ（左上=相手／左下=自分）
+  const oyaMe = document.getElementById('oya-me'), oyaOpp = document.getElementById('oya-opp');
+  const turnMe = document.getElementById('turn-me'), turnOpp = document.getElementById('turn-opp');
+  if (oyaMe) { oyaMe.textContent = (state.oya === me) ? t('oyako.oya') : t('oyako.ko'); oyaMe.classList.toggle('is-oya', state.oya === me); }
+  if (oyaOpp) { oyaOpp.textContent = (state.oya === opp) ? t('oyako.oya') : t('oyako.ko'); oyaOpp.classList.toggle('is-oya', state.oya === opp); }
+  if (turnMe) { turnMe.textContent = t('turn.you'); turnMe.classList.toggle('active', g.currentPlayer === me && g.phase !== 'end'); }
+  if (turnOpp) { turnOpp.textContent = t('turn.opp'); turnOpp.classList.toggle('active', g.currentPlayer === opp && g.phase !== 'end'); }
   // v1.16: 自分の手番/選択フェーズでなければ手札選択を解除
   if (!(isMyTurn && g.phase === 'select-hand')) state.selHand = null;
   const selCard = (g.hands[me] || []).find(c => c.id === state.selHand);
@@ -2868,9 +2897,13 @@ function renderGame() {
   maybeShowKoikoiFlash(); // v1.14: 未表示のこいこいイベントがあれば一瞬バナー表示
 }
 
+// v1.17: 手番の主体を「＜名前＞（あなた/相手）」で表す
+function whoTurnLabel(player) {
+  return whoLabel(player) + '（' + (player === mySide() ? t('tag.you') : t('tag.opp')) + '）';
+}
 function renderPhaseText() {
   const g = state.game;
-  const who = whoLabel(g.currentPlayer);
+  const who = whoTurnLabel(g.currentPlayer);
   switch (g.phase) {
     case 'select-hand': return t('game.turn.selectHand', { who });
     case 'pick-play':   return t('game.turn.pickPlay',   { who });
@@ -3844,6 +3877,17 @@ function bindEvents() {
   } catch (e) {}
   bgmSlider.addEventListener('input', () => { bgmLbl.textContent = bgmSlider.value + '%'; try { localStorage.setItem('hanafuda_bgm_vol', bgmSlider.value); } catch (e) {} });
   sfxSlider.addEventListener('input', () => { sfxLbl.textContent = sfxSlider.value + '%'; try { localStorage.setItem('hanafuda_sfx_vol', sfxSlider.value); } catch (e) {} });
+  // v1.17: 札の番号表示 ON/OFF（この端末のみ・既定 ON・localStorage 記憶）
+  const tagSeg = document.getElementById('seg-showtag');
+  try { const v = localStorage.getItem('hanafuda_showtag'); if (v != null) state.showTag = (v !== 'off'); } catch (e) {}
+  const syncTagSeg = () => tagSeg.querySelectorAll('button').forEach(b => b.classList.toggle('on', (b.dataset.v === 'on') === !!state.showTag));
+  syncTagSeg();
+  tagSeg.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
+    state.showTag = (btn.dataset.v === 'on');
+    try { localStorage.setItem('hanafuda_showtag', state.showTag ? 'on' : 'off'); } catch (e) {}
+    syncTagSeg();
+    if (state.game && state.screen === 'game') renderGame();
+  }));
 
   window.addEventListener('resize', () => { fitHeader(); fitBoard(); positionLeaveBtn(); });
   window.addEventListener('orientationchange', () => setTimeout(() => { fitHeader(); fitBoard(); positionLeaveBtn(); }, 250));

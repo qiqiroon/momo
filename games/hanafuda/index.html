@@ -320,7 +320,7 @@
   .koikoi-flash.big{font-size:2.4rem;padding:14px 34px;}
   /* v1.18: こいこい宣言＝手札の上を左→右にスライド */
   .koikoi-slide{position:fixed;left:0;transform:translateX(-70vw);z-index:82;pointer-events:none;opacity:0;font-family:"Fredoka One",sans-serif;font-size:1.5rem;color:#fff;background:linear-gradient(180deg,var(--orange-mid),var(--orange));padding:6px 22px;border-radius:12px;white-space:nowrap;box-shadow:0 6px 20px rgba(0,0,0,.5);}
-  .koikoi-slide.show{animation:kkSlide .7s ease-in forwards;}
+  .koikoi-slide.show{animation:kkSlide 2.1s ease-in forwards;}
   @keyframes kkSlide{0%{opacity:0;transform:translateX(-70vw);}18%{opacity:1;}82%{opacity:1;}100%{opacity:.15;transform:translateX(95vw);}}
   /* v1.18: こいこい宣言中の手番バッジ（宣言者側に常時） */
   .kk-badge{display:none;font-size:.6rem;line-height:1;padding:2px 7px;border-radius:5px;background:var(--orange);color:#fff;white-space:nowrap;box-shadow:0 0 8px rgba(234,88,12,.5);}
@@ -989,7 +989,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.19</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.20</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1044,7 +1044,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.19</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.20</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1119,7 +1119,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.19</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.20</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1289,7 +1289,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.19';
+const APP_VERSION = 'v1.20';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -2728,7 +2728,7 @@ function koikoiDeclareAnim(by) {
     slide.style.top = (r.top + r.height / 2) + 'px';
     slide.className = 'koikoi-slide'; void slide.offsetWidth; slide.className = 'koikoi-slide show';
     if (_slideTimer) clearTimeout(_slideTimer);
-    _slideTimer = setTimeout(() => { slide.className = 'koikoi-slide'; centerFlash('koikoi', by); }, 700);
+    _slideTimer = setTimeout(() => { slide.className = 'koikoi-slide'; centerFlash('koikoi', by); }, 2100);
   } else {
     centerFlash('koikoi', by);
   }
@@ -3503,6 +3503,13 @@ function renderRoundReady() {
 function onRoundNext() {
   const g = state.game;
   if (!g || g.phase !== 'end' || !g.roundEnd) return;
+  // v1.19: 最終局は両者ゲート不要。押した側が即・勝敗表示（スコアは両者同期済み・待たない）
+  if (g.roundEnd.isFinal) {
+    state.matchOver = true;
+    document.getElementById('ovRound').classList.remove('show');
+    renderGameEndFromData();
+    return;
+  }
   if (state.solo) { advanceRound(); return; }
   const me = mySide();
   if (g.nextReady[me]) return;

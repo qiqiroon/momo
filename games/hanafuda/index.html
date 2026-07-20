@@ -1010,7 +1010,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.23</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.24</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1065,7 +1065,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.23</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.24</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1140,7 +1140,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.23</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.24</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1311,7 +1311,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.23';
+const APP_VERSION = 'v1.24';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -1379,6 +1379,7 @@ const I18N = {
     'oya.notyet': 'まだ引いていません',
     'oya.draw': 'カードを引く',
     'oya.result': '早い月を引いた <b>{who}</b> が親（先手）です',
+    'oya.result.strong': '強い札を引いた <b>{who}</b> が親（先手）です',
     'start.disabled': 'ゲームスタート（親を決めると押せます）',
     'start.enabled': 'ゲームスタート',
     'start.ready': '準備完了',
@@ -1390,7 +1391,7 @@ const I18N = {
     'room.note': 'この画面はホスト・ゲスト共通です。ゲーム選択・設定変更はホスト操作、親決めは各自 1 枚ずつ、スタートは双方が押した時に開始します。',
     'room.month': (n) => n + '月',
     'game.you': 'あなた', 'game.opp': 'あいて', 'game.mon': '文',
-    'tag.you': 'あなた', 'tag.opp': '相手', 'oyako.oya': '親', 'oyako.ko': '子', 'turn.you': 'あなたの番', 'turn.opp': '相手の番',
+    'tag.you': 'あなた', 'tag.opp': '相手', 'oyako.oya': '親', 'oyako.ko': '子', 'turn.you': 'あなたの番', 'turn.opp': '相手の番', 'turn.suffix': 'の番',
     'rule.koikoi': 'こいこい', 'koikoi.badge': 'こいこい',
     'game.wait': '対局準備中',
     'game.opp.hand': '相手の手札', 'game.opp.cap': '相手の取り札',
@@ -1551,6 +1552,7 @@ const I18N = {
     'oya.notyet': 'Not drawn yet',
     'oya.draw': 'Draw a Card',
     'oya.result': '<b>{who}</b> drew the earlier month and is the dealer',
+    'oya.result.strong': '<b>{who}</b> drew the stronger card and is the dealer',
     'start.disabled': 'Start Game (available after dealer is decided)',
     'start.enabled': 'Start Game',
     'start.ready': 'Ready',
@@ -1562,7 +1564,7 @@ const I18N = {
     'room.note': 'Shared by host and guest. Game selection and settings are host-only; each player draws their own dealer card; the round starts when both press Ready.',
     'room.month': (n) => (['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][n-1]),
     'game.you': 'You', 'game.opp': 'Opp.', 'game.mon': 'mon',
-    'tag.you': 'You', 'tag.opp': 'Opponent', 'oyako.oya': 'Dealer', 'oyako.ko': 'Non-dealer', 'turn.you': 'Your turn', 'turn.opp': "Opponent's turn",
+    'tag.you': 'You', 'tag.opp': 'Opponent', 'oyako.oya': 'Dealer', 'oyako.ko': 'Non-dealer', 'turn.you': 'Your turn', 'turn.opp': "Opponent's turn", 'turn.suffix': "'s turn",
     'rule.koikoi': 'Koi-Koi', 'koikoi.badge': 'Koi-Koi',
     'game.wait': 'Preparing…',
     'game.opp.hand': "Opponent's hand", 'game.opp.cap': "Opponent's captures",
@@ -1723,6 +1725,7 @@ const I18N = {
     'oya.notyet': '尚未抽牌',
     'oya.draw': '抽牌',
     'oya.result': '抽到较早月份的 <b>{who}</b> 成为庄家（先手）',
+    'oya.result.strong': '抽到较强牌的 <b>{who}</b> 成为庄家（先手）',
     'start.disabled': '开始游戏（决定庄家后可点）',
     'start.enabled': '开始游戏',
     'start.ready': '准备完成',
@@ -1734,7 +1737,7 @@ const I18N = {
     'room.note': '此画面主机 / 客人共用。游戏选择与设定由主机操作，庄家由双方各抽 1 张，双方按下"准备完成"后开始对局。',
     'room.month': (n) => n + '月',
     'game.you': '你', 'game.opp': '对方', 'game.mon': '文',
-    'tag.you': '你', 'tag.opp': '对手', 'oyako.oya': '庄', 'oyako.ko': '闲', 'turn.you': '你的回合', 'turn.opp': '对手的回合',
+    'tag.you': '你', 'tag.opp': '对手', 'oyako.oya': '庄', 'oyako.ko': '闲', 'turn.you': '你的回合', 'turn.opp': '对手的回合', 'turn.suffix': '的回合',
     'rule.koikoi': '来来', 'koikoi.badge': '来来',
     'game.wait': '准备中…',
     'game.opp.hand': '对方的手牌', 'game.opp.cap': '对方的取牌',
@@ -2205,7 +2208,9 @@ function renderOyaDraw() {
     const who = state.oya === 'host'
       ? (state.hostName || t('room.host')) + '（' + t('room.host') + '）'
       : (state.guestName || t('room.guest')) + '（' + t('room.guest') + '）';
-    res.innerHTML = t('oya.result', { who: who });
+    // v1.24: 同月で決着したときは「強い札を引いた」に
+    const sameMonth = (state.oyaHostMonth != null && state.oyaGuestMonth != null && state.oyaHostMonth === state.oyaGuestMonth);
+    res.innerHTML = t(sameMonth ? 'oya.result.strong' : 'oya.result', { who: who });
   } else {
     res.textContent = t('oya.notyet');
   }
@@ -3012,13 +3017,15 @@ function whoTurnLabel(player) {
 function renderPhaseText() {
   const g = state.game;
   const who = whoTurnLabel(g.currentPlayer);
+  if (g.phase === 'end') return t('game.turn.end');
+  // v1.24: 相手の手番のときは行動指示を出さず「＜名前＞（相手）の番」まで
+  if (g.currentPlayer !== mySide()) return who + t('turn.suffix');
   switch (g.phase) {
     case 'select-hand': return t('game.turn.selectHand', { who });
     case 'pick-play':   return t('game.turn.pickPlay',   { who });
     case 'draw':        return t('game.turn.draw',       { who });
     case 'pick-draw':   return t('game.turn.pickDraw',   { who });
     case 'yaku':        return t('game.turn.yaku',       { who });
-    case 'end':         return t('game.turn.end');
     default:            return '';
   }
 }

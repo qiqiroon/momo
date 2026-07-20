@@ -283,6 +283,53 @@
   .ready-row{display:flex;justify-content:space-around;gap:10px;font-size:.78rem;margin-bottom:10px;}
   .ready-row span{color:var(--text-muted);}
   .btn.small{font-size:.78rem;padding:7px 12px;}
+  /* v1.14: 局終了の新見出し・取られた側のグレー・成立役の札 */
+  .fanfare.achieve{color:var(--gold);text-shadow:0 0 12px rgba(216,168,56,.45);}
+  .fanfare.koikoi-ng{color:var(--text-muted);text-shadow:none;}
+  .opanel.result-dim{filter:grayscale(1) brightness(.72);}
+  .opanel.result-dim .fanfare{text-shadow:none;}
+  .yaku-list .ye-li{display:block;background:#0c0c0c;border:1px solid var(--border);border-radius:7px;padding:7px 10px;}
+  .ye-head{display:flex;justify-content:space-between;font-size:.8rem;margin-bottom:5px;}
+  .ye-head .pt{color:var(--gold);font-weight:700;}
+  .ye-cards{display:flex;flex-wrap:wrap;gap:3px;}
+  .ye-cards .card.ye-card{width:26px;height:auto;aspect-ratio:42/67;border-radius:3px;}
+  /* v1.14: こいこい演出バナー */
+  .koikoi-flash{position:fixed;left:50%;top:34%;transform:translate(-50%,-50%) scale(.7);z-index:80;pointer-events:none;opacity:0;font-family:"Fredoka One",sans-serif;font-size:1.5rem;padding:10px 22px;border-radius:14px;white-space:nowrap;box-shadow:0 10px 34px rgba(0,0,0,.5);}
+  .koikoi-flash.show{animation:kflash 1.6s ease forwards;}
+  .koikoi-flash.kf-koikoi{background:linear-gradient(180deg,var(--orange-mid),var(--orange));color:#fff;}
+  .koikoi-flash.kf-ok{background:linear-gradient(180deg,#e9c14a,var(--gold));color:#3a2a00;}
+  .koikoi-flash.kf-ng{background:#1a1a1a;border:1px solid var(--border-strong);color:var(--text-muted);}
+  @keyframes kflash{0%{opacity:0;transform:translate(-50%,-50%) scale(.6);}15%{opacity:1;transform:translate(-50%,-50%) scale(1.08);}30%{transform:translate(-50%,-50%) scale(1);}80%{opacity:1;}100%{opacity:0;transform:translate(-50%,-58%) scale(1);}}
+  /* v1.14: 総結果の勝利表示・くす玉・紙吹雪 */
+  .ge-panel{position:relative;overflow:hidden;text-align:center;}
+  .ge-title{font-family:"Fredoka One",sans-serif;font-weight:400;font-size:1.5rem;justify-content:center;}
+  .ge-title.win{color:var(--gold);text-shadow:0 0 16px rgba(216,168,56,.5);}
+  .ge-title.lose{color:var(--text-muted);}
+  .ge-title.draw{color:var(--orange-mid);}
+  .kusudama{position:relative;width:96px;height:96px;margin:2px auto 8px;}
+  .kusudama .kd-core{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:"Fredoka One",sans-serif;font-size:2rem;color:var(--aka);background:radial-gradient(circle at 50% 40%,#fff6e0,#f0d9a0);border-radius:50%;border:3px solid var(--gold);transform:scale(.2);opacity:0;}
+  .kusudama .kd-half{position:absolute;top:0;width:50%;height:100%;background:linear-gradient(120deg,var(--aka),var(--orange));}
+  .kusudama .kd-left{left:0;border-radius:48px 0 0 48px;transform-origin:right center;}
+  .kusudama .kd-right{right:0;border-radius:0 48px 48px 0;transform-origin:left center;}
+  .kusudama .kd-streamers{position:absolute;left:50%;top:46%;width:0;height:0;opacity:0;}
+  .kusudama .kd-streamers i{position:absolute;width:3px;height:26px;border-radius:2px;transform-origin:top center;}
+  .kusudama .kd-streamers i:nth-child(1){background:var(--gold);transform:rotate(-40deg);}
+  .kusudama .kd-streamers i:nth-child(2){background:var(--orange-mid);transform:rotate(-15deg);}
+  .kusudama .kd-streamers i:nth-child(3){background:#5599ff;transform:rotate(10deg);}
+  .kusudama .kd-streamers i:nth-child(4){background:#33aa99;transform:rotate(30deg);}
+  .kusudama .kd-streamers i:nth-child(5){background:#fff;transform:rotate(50deg);}
+  .kusudama.open .kd-left{animation:kdOpenL .6s cubic-bezier(.3,1.4,.5,1) forwards;}
+  .kusudama.open .kd-right{animation:kdOpenR .6s cubic-bezier(.3,1.4,.5,1) forwards;}
+  .kusudama.open .kd-core{animation:kdCore .5s .28s ease forwards;}
+  .kusudama.open .kd-streamers{animation:kdStream .6s .3s ease forwards;}
+  @keyframes kdOpenL{to{transform:rotate(-118deg) translateX(-6px);opacity:.9;}}
+  @keyframes kdOpenR{to{transform:rotate(118deg) translateX(6px);opacity:.9;}}
+  @keyframes kdCore{to{transform:scale(1);opacity:1;}}
+  @keyframes kdStream{0%{opacity:1;}100%{opacity:1;transform:scale(1.5);}}
+  .confetti{position:absolute;inset:0;pointer-events:none;overflow:hidden;}
+  .confetti .cf{position:absolute;top:-12px;width:8px;height:12px;opacity:.95;animation-name:cfFall;animation-timing-function:linear;animation-iteration-count:1;}
+  @keyframes cfFall{0%{transform:translateY(-12px) rotate(0);opacity:1;}100%{transform:translateY(440px) rotate(540deg);opacity:0;}}
+  @media (prefers-reduced-motion: reduce){.koikoi-flash.show,.kusudama.open .kd-left,.kusudama.open .kd-right,.kusudama.open .kd-core,.kusudama.open .kd-streamers,.confetti .cf{animation-duration:.01ms;animation-iteration-count:1;}}
   .total-line{display:flex;justify-content:space-between;font-weight:700;border-top:1px solid var(--border);padding-top:7px;font-size:.85rem;color:var(--text);}
   .btn-row{display:flex;gap:8px;margin-top:12px;}
   .btn-row .btn{flex:1;padding:11px;font-size:.9rem;}
@@ -933,7 +980,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.13</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.14</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -988,7 +1035,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.13</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.14</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1063,7 +1110,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.13</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.14</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1152,7 +1199,7 @@
 </div></div>
 
 <div class="overlay" id="ovYaku"><div class="opanel">
-  <h2><span data-i18n="ov.yaku.title">役が成立！</span><span class="tag" id="ov-yaku-who">あなた</span></h2>
+  <h2><span id="ov-yaku-title">役が成立！</span><span class="tag" id="ov-yaku-who">あなた</span></h2>
   <ul class="yaku-list" id="ov-yaku-list"></ul>
   <div class="total-line"><span data-i18n="ov.yaku.total">現在の役得点</span><span><b id="ov-yaku-pt">0</b> <span data-i18n="game.mon">文</span></span></div>
   <p class="hint" data-i18n="ov.yaku.hint">「こいこい」で続けると得点上乗せ。相手に先に上がられると相手が総取り。</p>
@@ -1180,9 +1227,18 @@
   </div>
 </div></div>
 
-<div class="overlay" id="ovGame"><div class="opanel">
-  <div class="fanfare big" id="game-fanfare"></div>
-  <h2 id="game-end-title"></h2>
+<!-- v1.14: こいこい演出の一瞬バナー -->
+<div class="koikoi-flash" id="koikoi-flash"></div>
+
+<div class="overlay" id="ovGame"><div class="opanel ge-panel">
+  <div class="confetti" id="confetti"></div>
+  <div class="kusudama" id="kusudama">
+    <div class="kd-half kd-left"></div>
+    <div class="kd-half kd-right"></div>
+    <div class="kd-streamers"><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="kd-core">祝</div>
+  </div>
+  <h2 id="game-end-title" class="ge-title"></h2>
   <p id="game-end-msg"></p>
   <div class="scoreboard" id="game-scoreboard"></div>
   <div class="btn-row">
@@ -1219,7 +1275,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.13';
+const APP_VERSION = 'v1.14';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -1350,6 +1406,20 @@ const I18N = {
     'round.next': '次の局へ',
     'round.result': '結果を見る',
     'round.leave': '中断してロビーへ',
+    'ov.yaku.formed': (p) => p.yaku + ' 成立！',
+    'flash.koikoi': 'こいこい！',
+    'flash.koikoi.ok': 'こいこい成立！',
+    'flash.koikoi.ng': 'こいこい不成立',
+    'achieve.shobu': (p) => '勝負成立　' + p.yaku,
+    'achieve.koikoi.done': (p) => 'こいこい達成　' + p.yaku,
+    'achieve.koikoi.ng': 'こいこい不成立',
+    'achieve.teshi': '手四！',
+    'achieve.kuttsuki': 'くっつき！',
+    'achieve.draw': '引き分け',
+    'round.earned': (p) => '<b>' + p.who + '</b>（' + p.tag + '）は <b>' + p.mon + ' 文</b>獲得',
+    'round.noearn': 'この局は加点なし',
+    'yaku.teshi': '手四（同月4枚）',
+    'yaku.kuttsuki': 'くっつき（2枚ずつ4組）',
     'round.pressed': '次へ待機中 ✓',
     'round.waiting': '相手の「次へ」を待っています…',
     'round.notpressed': '「次の局へ」を押してください',
@@ -1357,9 +1427,9 @@ const I18N = {
     'round.nextoya': (p) => '次の親：<b>' + p.who + '</b>' + (p.change ? '（交代）' : '（継続）'),
     'game.round': (p) => '第' + p.n + '局 / 全' + p.total + '局',
     'game.end.title.win': '🎉 勝利！',
-    'game.end.title.lose': '惜敗…',
+    'game.end.title.lose': '敗北…',
     'game.end.title.draw': '引き分け',
-    'game.end.msg': (p) => '<b>' + p.who + '</b> の勝ち！<br>' + p.hi + ' 文 対 ' + p.lo + ' 文',
+    'game.end.msg': (p) => '<b>' + p.who + '</b> の勝利！<br>' + p.hi + ' 文 対 ' + p.lo + ' 文',
     'game.end.msg.draw': (p) => '同点（' + p.hi + ' 文）で引き分けでした。',
     'game.rematch': 'もう一度対戦',
     'game.tolobby': 'ロビーに戻る',
@@ -1503,6 +1573,20 @@ const I18N = {
     'round.next': 'Next Round',
     'round.result': 'See Result',
     'round.leave': 'Quit to Lobby',
+    'ov.yaku.formed': (p) => p.yaku + ' formed!',
+    'flash.koikoi': 'Koi-Koi!',
+    'flash.koikoi.ok': 'Koi-Koi paid off!',
+    'flash.koikoi.ng': 'Koi-Koi not met',
+    'achieve.shobu': (p) => 'Shobu — ' + p.yaku,
+    'achieve.koikoi.done': (p) => 'Koi-Koi win — ' + p.yaku,
+    'achieve.koikoi.ng': 'Koi-Koi not met',
+    'achieve.teshi': 'Teshi!',
+    'achieve.kuttsuki': 'Kuttsuki!',
+    'achieve.draw': 'Draw',
+    'round.earned': (p) => '<b>' + p.who + '</b> (' + p.tag + ') earned <b>' + p.mon + ' mon</b>',
+    'round.noearn': 'No points this round',
+    'yaku.teshi': 'Teshi (four of a month)',
+    'yaku.kuttsuki': 'Kuttsuki (four pairs)',
     'round.pressed': 'Ready ✓',
     'round.waiting': 'Waiting for opponent to continue…',
     'round.notpressed': 'Press "Next Round"',
@@ -1656,6 +1740,20 @@ const I18N = {
     'round.next': '下一局',
     'round.result': '查看结果',
     'round.leave': '中断返回大厅',
+    'ov.yaku.formed': (p) => p.yaku + ' 成立！',
+    'flash.koikoi': '来来！',
+    'flash.koikoi.ok': '来来成立！',
+    'flash.koikoi.ng': '来来不成立',
+    'achieve.shobu': (p) => '胜负成立　' + p.yaku,
+    'achieve.koikoi.done': (p) => '来来达成　' + p.yaku,
+    'achieve.koikoi.ng': '来来不成立',
+    'achieve.teshi': '手四！',
+    'achieve.kuttsuki': '粘！',
+    'achieve.draw': '平局',
+    'round.earned': (p) => '<b>' + p.who + '</b>（' + p.tag + '）获得 <b>' + p.mon + ' 文</b>',
+    'round.noearn': '本局无得分',
+    'yaku.teshi': '手四（同月4张）',
+    'yaku.kuttsuki': '粘（2张×4组）',
     'round.pressed': '已确认，等待中 ✓',
     'round.waiting': '等待对方点击「下一局」…',
     'round.notpressed': '请点击「下一局」',
@@ -1663,7 +1761,7 @@ const I18N = {
     'round.nextoya': (p) => '下一局庄家：<b>' + p.who + '</b>' + (p.change ? '（交替）' : '（继续）'),
     'game.round': (p) => '第' + p.n + '局 / 全' + p.total + '局',
     'game.end.title.win': '🎉 胜利！',
-    'game.end.title.lose': '惜败…',
+    'game.end.title.lose': '败北…',
     'game.end.title.draw': '平局',
     'game.end.msg': (p) => '<b>' + p.who + '</b> 获胜！<br>' + p.hi + ' 文 对 ' + p.lo + ' 文',
     'game.end.msg.draw': (p) => '同分（' + p.hi + ' 文）平局。',
@@ -2556,6 +2654,60 @@ function whoLabel(player) {
 }
 function otherPlayer(p) { return p === 'host' ? 'guest' : 'host'; }
 
+// --- 効果音・BGM（v1.14 は見た目のみ。音は後日ここに実装する差し込み口） ---
+// TODO(音): playSfx('koikoi') = こいこい効果音 / setBgm('koikoi'|'normal'|'fanfare')
+function playSfx(name) { /* TODO: 効果音を鳴らす（今は無音） */ }
+function setBgm(mode) { /* TODO: BGM 切替（koikoi / normal / fanfare。今は無音） */ }
+
+// --- こいこい演出イベント（一瞬のバナー。ホスト権威で発火し両者に同期） ---
+// g.event = { ts, type, by } を立てると renderGame が未表示分をバナー表示する。
+// type: 'koikoi'（宣言）/ 'koikoi-ok'（次手番で新役=成立）/ 'koikoi-ng'（新役できず=不成立）
+let _lastFlashTs = 0;
+function emitKoikoiEvent(type, by) {
+  const g = state.game; if (!g) return;
+  g.event = { ts: Date.now(), type: type, by: by };
+}
+// renderGame から呼ばれ、未表示イベントがあればバナーを出す（host/guest 共通）
+function maybeShowKoikoiFlash() {
+  const g = state.game; if (!g || !g.event) return;
+  if (g.event.ts <= _lastFlashTs) return;
+  _lastFlashTs = g.event.ts;
+  showKoikoiFlash(g.event.type, g.event.by);
+}
+let _flashTimer = null;
+function showKoikoiFlash(type, by) {
+  const el = document.getElementById('koikoi-flash');
+  if (!el) return;
+  const who = whoLabel(by);
+  let cls = 'kf-koikoi', txt = '';
+  if (type === 'koikoi') { cls = 'kf-koikoi'; txt = who + '：' + t('flash.koikoi'); }
+  else if (type === 'koikoi-ok') { cls = 'kf-ok'; txt = who + '：' + t('flash.koikoi.ok'); }
+  else if (type === 'koikoi-ng') { cls = 'kf-ng'; txt = who + '：' + t('flash.koikoi.ng'); }
+  el.className = 'koikoi-flash show ' + cls;
+  el.textContent = txt;
+  if (_flashTimer) clearTimeout(_flashTimer);
+  _flashTimer = setTimeout(() => { el.className = 'koikoi-flash'; }, 1600);
+}
+
+// 成立した役を構成する札の ID 群を返す（役終了画面に札を並べるため）。
+function yakuCardIds(yakuKey, captured) {
+  const ids = {}; captured.forEach(c => { ids[c.id] = true; });
+  const has = (arr) => arr.filter(id => ids[id]);
+  switch (yakuKey) {
+    case 'yaku.gokou': case 'yaku.shikou': case 'yaku.amenoshikou': case 'yaku.sankou':
+      return captured.filter(c => c.type === 'hikari').map(c => c.id);
+    case 'yaku.inoshikachou': return has(IKS_IDS);
+    case 'yaku.akatan': return has(RED_TAN_IDS);
+    case 'yaku.aotan': return has(BLUE_TAN_IDS);
+    case 'yaku.hanami': return has([HANAMI_HIKARI_ID, SAKE_ID]);
+    case 'yaku.tsukimi': return has([TSUKIMI_HIKARI_ID, SAKE_ID]);
+    case 'yaku.tan': return captured.filter(c => c.type === 'tan').map(c => c.id);
+    case 'yaku.tane': return captured.filter(c => c.type === 'tane').map(c => c.id);
+    case 'yaku.kasu': return captured.filter(c => c.type === 'kasu').map(c => c.id);
+    default: return [];
+  }
+}
+
 // 新しい対戦（第1局）を始める前に累計・局番号をリセット。host のみ。
 function beginMatch() {
   state.roundNo = 1;
@@ -2584,6 +2736,7 @@ function startRound() {
     koikoiBy: null,
     roundEnd: null,
     nextReady: { host: false, guest: false }, // v1.13: 局終了画面「次の局へ」の両者押下ゲート
+    event: null,        // v1.14: こいこい演出イベント（一瞬のバナー）
   };
   state.game = g;
   // v1.13: 配札時の手四・くっつき（有効時のみ）を判定 → 成立なら即決着
@@ -2683,6 +2836,7 @@ function renderGame() {
   // 機種ごとに 1 画面に収まるようカード寸法を実測フィット
   fitBoard();
   positionLeaveBtn(); // 中断ボタンをコントロール直下・左端そろえに配置
+  maybeShowKoikoiFlash(); // v1.14: 未表示のこいこいイベントがあれば一瞬バナー表示
 }
 
 function renderPhaseText() {
@@ -2975,6 +3129,8 @@ function proceedYakuCheck() {
   const after = computeYaku(g.caps[cur]);
   const gained = yakuGained(before, after);
   if (gained.length > 0) {
+    // v1.14: こいこい宣言者が次の自分の手番で新役を作った = こいこい成立
+    if (cur === g.koikoiBy) { emitKoikoiEvent('koikoi-ok', cur); playSfx('koikoi'); setBgm('koikoi'); }
     g.phase = 'yaku';
     g.pendingYaku = after;
     g.pendingGained = gained;
@@ -2983,6 +3139,8 @@ function proceedYakuCheck() {
     syncState();
     return;
   }
+  // v1.14: こいこい宣言者が新役を作れず手番を終えた = こいこい不成立（確認不要・局は続行）
+  if (cur === g.koikoiBy) { emitKoikoiEvent('koikoi-ng', cur); setBgm('normal'); }
   endTurn();
 }
 
@@ -3009,6 +3167,9 @@ function showYakuOverlay() {
   const yaku = g.pendingYaku || [];
   const total = yakuTotal(yaku);
   document.getElementById('ov-yaku-who').textContent = whoLabel(cur);
+  // v1.14: 見出しを「＜今できた役名＞ 成立」に（複数なら「・」区切り）
+  const gainedNames = (g.pendingGained || []).map(y => yakuName(y)).join('・');
+  document.getElementById('ov-yaku-title').textContent = gainedNames ? t('ov.yaku.formed', { yaku: gainedNames }) : t('ov.yaku.title');
   const ul = document.getElementById('ov-yaku-list');
   ul.innerHTML = yaku.map(y => {
     const label = t(y.key) + (y.count ? ' (' + y.count + ')' : '');
@@ -3056,7 +3217,11 @@ function applyKoikoi() {
   g.pendingYaku = null;
   g.pendingGained = null;
   document.getElementById('ovYaku').classList.remove('show');
-  endTurn(); // syncState は endTurn 内
+  // v1.14: こいこい宣言 → 一瞬「こいこい」表示（確認不要）＋こいこい BGM へ
+  emitKoikoiEvent('koikoi', cur);
+  playSfx('koikoi');
+  setBgm('koikoi');
+  endTurn(); // syncState は endTurn 内（event も同送される）
 }
 function applyShobu() {
   const g = state.game;
@@ -3101,8 +3266,10 @@ function commitRoundEnd(rend) {
   const g = state.game;
   g.phase = 'end';
   g.nextReady = { host: false, guest: false };
+  rend.koikoiBy = g.koikoiBy || null; // v1.14: 局終了画面の「こいこい達成／不成立」判定用
   g.roundEnd = rend;
   finalizeRoundEnd();
+  setBgm('normal'); // v1.14: 局が終わったら（こいこいBGM中でも）通常BGMへ
   renderRoundEndFromData();
   renderGame();
   syncState();
@@ -3142,37 +3309,66 @@ function buildScoreboard(el, scores, deltaWinner) {
       '<span class="sc-val">' + (scores[r.side] || 0) + ' ' + t('game.mon') + dl + '</span></div>';
   }).join('');
 }
+function yakuName(y) { return t(y.key) + (y.count ? ' (' + y.count + ')' : ''); }
+// 勝者の成立役名（見出し用・「・」区切り）
+function winnerYakuLabel(rend) {
+  const caps = (state.game.caps[rend.winner]) || [];
+  return computeYaku(caps).map(y => yakuName(y)).join('・');
+}
+// 成立役の行（役名・文・構成札ID）
+function roundEndYakuList(rend) {
+  const g = state.game;
+  if (rend.kind === 'teshi' || rend.kind === 'kuttsuki') {
+    const hand = (g.hands && g.hands[rend.winner]) || [];
+    return [{ label: t(rend.kind === 'teshi' ? 'yaku.teshi' : 'yaku.kuttsuki'), mon: rend.mon, cards: hand.map(c => c.id) }];
+  }
+  if ((rend.kind === 'shobu' || rend.kind === 'koikoi-lost') && rend.winner) {
+    const caps = g.caps[rend.winner] || [];
+    return computeYaku(caps).map(y => ({ label: yakuName(y), mon: y.mon, cards: yakuCardIds(y.key, caps) }));
+  }
+  return [];
+}
 function renderRoundEndFromData() {
   const rend = state.game.roundEnd;
   if (!rend) return;
-  // ファンファーレ（この端末視点で 勝ち/惜しい/引き分け）
-  const fan = document.getElementById('round-fanfare');
+  const me = mySide();
+  const hasWinner = !!rend.winner;
+  const iAmWinner = hasWinner && me === rend.winner;
   const isDraw = (rend.kind === 'draw' || rend.kind === 'special-draw');
-  if (isDraw) { fan.className = 'fanfare draw'; fan.textContent = t('round.fanfare.draw'); }
-  else if (rend.winner === mySide()) { fan.className = 'fanfare win'; fan.textContent = t('round.fanfare.win'); }
-  else { fan.className = 'fanfare lose'; fan.textContent = t('round.fanfare.lose'); }
-  // 理由メッセージ
-  let msg;
-  if (rend.kind === 'shobu') msg = t('round.end.winner', { who: whoLabel(rend.winner), mon: rend.mon, doubled: rend.doubled });
-  else if (rend.kind === 'koikoi-lost') msg = t('round.end.koikoi.lost', { who: whoLabel(rend.loser), opp: whoLabel(rend.winner), mon: rend.mon, doubled: rend.doubled });
-  else if (rend.kind === 'teshi') msg = t('round.end.teshi', { who: whoLabel(rend.winner) });
-  else if (rend.kind === 'kuttsuki') msg = t('round.end.kuttsuki', { who: whoLabel(rend.winner) });
-  else if (rend.kind === 'special-draw') msg = t('round.end.specialdraw');
-  else msg = t('round.end.draw');
-  document.getElementById('round-end-msg').innerHTML = msg;
-  // 今回の役（役成立で勝った局のみ・手四くっつきは手札特別役なので一覧なし）
+  // 取られた側（勝者でない側）はパネル全体をグレーに。引き分けは中立。
+  const panel = document.querySelector('#ovRound .opanel');
+  if (panel) panel.classList.toggle('result-dim', hasWinner && !iAmWinner);
+  // 見出し（「勝ち／勝利／惜しい」は使わない。勝利は全局終了時のみ）
+  const fan = document.getElementById('round-fanfare');
+  let headCls = 'fanfare achieve', headTxt = '';
+  if (isDraw) { headCls = 'fanfare draw'; headTxt = t('achieve.draw'); }
+  else if (rend.kind === 'teshi') { headTxt = t('achieve.teshi'); }
+  else if (rend.kind === 'kuttsuki') { headTxt = t('achieve.kuttsuki'); }
+  else if (rend.kind === 'koikoi-lost' && me === rend.loser) { headCls = 'fanfare koikoi-ng'; headTxt = t('achieve.koikoi.ng'); }
+  else {
+    const yakuStr = winnerYakuLabel(rend);
+    headTxt = (rend.winner === rend.koikoiBy) ? t('achieve.koikoi.done', { yaku: yakuStr }) : t('achieve.shobu', { yaku: yakuStr });
+  }
+  fan.className = headCls; fan.textContent = headTxt;
+  // 獲得文の一行（＜名前＞（あなた/相手）は n文獲得）
+  const msgEl = document.getElementById('round-end-msg');
+  if (hasWinner) {
+    const tag = (rend.winner === me) ? t('game.you') : t('game.opp');
+    msgEl.innerHTML = t('round.earned', { who: whoLabel(rend.winner), tag: tag, mon: rend.delta });
+  } else {
+    msgEl.innerHTML = isDraw ? t('round.noearn') : '';
+  }
+  // 成立役 + 構成札
   const ul = document.getElementById('round-end-yaku');
-  if ((rend.kind === 'shobu' || rend.kind === 'koikoi-lost') && rend.winner) {
-    const y = computeYaku(state.game.caps[rend.winner]);
-    ul.innerHTML = y.map(x => {
-      const label = t(x.key) + (x.count ? ' (' + x.count + ')' : '');
-      return '<li><span>' + label + '</span><span class="pt">' + x.mon + ' ' + t('game.mon') + '</span></li>';
-    }).join('');
-  } else { ul.innerHTML = ''; }
-  // 累計スコア
+  const rows = roundEndYakuList(rend);
+  ul.innerHTML = rows.map(r => {
+    const cards = (r.cards || []).map(id => svgCard(id, 'ye-card')).join('');
+    return '<li class="ye-li"><div class="ye-head"><span>' + r.label + '</span><span class="pt">' + r.mon + ' ' + t('game.mon') + '</span></div>' +
+      (cards ? '<div class="ye-cards">' + cards + '</div>' : '') + '</li>';
+  }).join('');
+  // 累計スコア・次の親・「次の局へ」ゲート
   const dw = rend.winner ? { side: rend.winner, mon: rend.delta } : null;
   buildScoreboard(document.getElementById('round-scoreboard'), rend.scores || state.scores, dw);
-  // 次の親（最終局では非表示 = このあと総結果へ）
   const noEl = document.getElementById('round-next-oya');
   if (rend.isFinal) { noEl.innerHTML = ''; noEl.style.display = 'none'; }
   else { noEl.style.display = ''; noEl.innerHTML = t('round.nextoya', { who: whoLabel(rend.nextOya), change: !!rend.oyaChange }); }
@@ -3239,24 +3435,47 @@ function endMatch() {
 function renderGameEndFromData() {
   const me = mySide(), opp = otherPlayer(me);
   const sMe = state.scores[me] || 0, sOpp = state.scores[opp] || 0;
-  const fan = document.getElementById('game-fanfare');
   const title = document.getElementById('game-end-title');
   const msgEl = document.getElementById('game-end-msg');
   document.getElementById('ovRound').classList.remove('show');
-  if (sMe === sOpp) {
-    fan.className = 'fanfare big draw'; fan.textContent = t('round.fanfare.draw');
+  const draw = (sMe === sOpp);
+  let iWin = false;
+  if (draw) {
+    title.className = 'ge-title draw';
     title.textContent = t('game.end.title.draw');
     msgEl.innerHTML = t('game.end.msg.draw', { hi: sMe });
   } else {
-    const iWin = sMe > sOpp;
-    fan.className = 'fanfare big ' + (iWin ? 'win' : 'lose');
-    fan.textContent = t(iWin ? 'round.fanfare.win' : 'round.fanfare.lose');
-    title.textContent = t(iWin ? 'game.end.title.win' : 'game.end.title.lose');
+    iWin = sMe > sOpp;
+    title.className = 'ge-title ' + (iWin ? 'win' : 'lose');
+    title.textContent = t(iWin ? 'game.end.title.win' : 'game.end.title.lose'); // 勝利 / 敗北（勝利はここだけ）
     const winner = iWin ? me : opp;
     msgEl.innerHTML = t('game.end.msg', { who: whoLabel(winner), hi: Math.max(sMe, sOpp), lo: Math.min(sMe, sOpp) });
   }
   buildScoreboard(document.getElementById('game-scoreboard'), state.scores, null);
   document.getElementById('ovGame').classList.add('show');
+  // v1.14: くす玉＋紙吹雪（見た目のファンファーレ）。音は後日 setBgm/playSfx で。
+  launchKusudama(!draw);
+  playSfx('fanfare'); setBgm('fanfare');
+}
+// くす玉を割って紙吹雪を降らせる（見た目のみ）
+function launchKusudama(celebrate) {
+  const ball = document.getElementById('kusudama');
+  const conf = document.getElementById('confetti');
+  if (ball) { ball.classList.remove('open'); void ball.offsetWidth; ball.classList.add('open'); }
+  if (!conf) return;
+  conf.innerHTML = '';
+  const colors = ['#d8a838', '#ea580c', '#cf2b28', '#33aa99', '#5599ff', '#ffffff'];
+  const n = celebrate ? 64 : 28;
+  for (let i = 0; i < n; i++) {
+    const p = document.createElement('span');
+    p.className = 'cf';
+    p.style.left = ((i * 37) % 100) + '%';
+    p.style.background = colors[i % colors.length];
+    p.style.animationDelay = ((i % 12) * 0.11).toFixed(2) + 's';
+    p.style.animationDuration = (1.9 + (i % 6) * 0.28).toFixed(2) + 's';
+    if (i % 2) p.style.borderRadius = '50%';
+    conf.appendChild(p);
+  }
 }
 // 再戦: 親決めからやり直し（部屋は維持したまま対戦準備画面へ）
 function resetToRoom() {
@@ -3323,6 +3542,7 @@ function syncState(opts) {
     oya: state.oya,
     matchOver: state.matchOver,
     nextReady: g.nextReady || { host: false, guest: false },
+    event: g.event || null, // v1.14: こいこい演出イベント
   });
 }
 
@@ -3350,6 +3570,7 @@ function applyState(msg) {
   g.deck = new Array(msg.deckCount || 0);
   g.roundEnd = msg.roundEnd || null;
   g.nextReady = msg.nextReady || { host: false, guest: false };
+  g.event = msg.event || null; // v1.14: こいこい演出イベント（renderGame でバナー表示）
   state.game = g;
   if (msg.settings) state.settings = Object.assign({}, state.settings, msg.settings);
   // v1.13: 対戦レベルの状態を反映（局番号・累計・親・総結果）

@@ -232,6 +232,11 @@
   .card.clickable:hover{transform:translateY(-3px);}
   .card.dim{opacity:.55;}
   .card.drawn{outline:2px solid var(--orange-mid);box-shadow:0 0 8px var(--orange);border-radius:5px;}
+  /* v1.16: 左上のトランプ風ラベル */
+  .card .ctag rect{fill:#fff;opacity:.9;stroke:#222;stroke-width:1.5;}
+  .card .ctag text{font-family:"Fredoka One","Noto Sans JP",sans-serif;font-weight:700;font-size:27px;fill:#1a1a1a;}
+  /* v1.16: 場札のリフト（選択中/ホバーで取れる場札を少し上げる） */
+  #field-cards .card.lift-sel,#field-cards .card.lift-hover{transform:translateY(-9px);box-shadow:0 6px 12px rgba(0,0,0,.45);outline:2px solid var(--gold);border-radius:5px;transition:transform .12s ease;}
   /* 縦5段：余白を上下・段間で均等配分（space-evenly）。背の高い機種でも間延びせず、隙間も不均一にならない。
      窮屈な機種は JS(fitBoard) が --card-w を縮めて 1 画面に収める */
   .play{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:space-evenly;gap:var(--row-gap,4px);}
@@ -980,7 +985,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.15</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.16</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1035,7 +1040,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.15</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.16</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1110,7 +1115,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.15</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.16</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1275,7 +1280,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.15';
+const APP_VERSION = 'v1.16';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -1917,6 +1922,7 @@ const state = {
   roundNo: 1,           // 現在の局番号 (1..rounds)。月替わり = n月場
   scores: { host: 0, guest: 0 }, // 累計文 (局ごとに加算)
   matchOver: false,     // 全局終了 = 総結果画面表示
+  selHand: null,        // v1.16: 2タッチ操作で1回目に選んだ手札の id（この端末のみ・非同期）
 };
 
 // --------------------------------------------------------------------------
@@ -2750,8 +2756,19 @@ function startRound() {
 }
 
 // --- 描画 ---
+// v1.16: 左上のトランプ風ラベル（季節番号＋種別記号 光=L/種=A/短冊=R/カス=無）
+const TYPE_LETTER = { hikari: 'L', tane: 'A', tan: 'R', kasu: '' };
+function cardTag(id) {
+  const m = parseInt(id.slice(1, 3), 10);
+  const type = id.slice(4).replace(/[0-9]+$/, '');
+  return m + (TYPE_LETTER[type] || '');
+}
 function svgCard(id, extraClass) {
-  return '<svg class="card' + (extraClass ? ' ' + extraClass : '') + '" viewBox="0 0 220 350" data-id="' + id + '"><use href="#' + id + '"/></svg>';
+  const tag = cardTag(id);
+  const w = 20 + tag.length * 17;
+  const tg = '<g class="ctag"><rect x="8" y="8" width="' + w + '" height="34" rx="7"/>' +
+    '<text x="' + (8 + w / 2) + '" y="33" text-anchor="middle">' + tag + '</text></g>';
+  return '<svg class="card' + (extraClass ? ' ' + extraClass : '') + '" viewBox="0 0 220 350" data-id="' + id + '"><use href="#' + id + '"/>' + tg + '</svg>';
 }
 function svgBack() {
   return '<svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg>';
@@ -2778,15 +2795,25 @@ function renderGame() {
   document.getElementById('st-op-score').textContent = state.scores[opp] || 0;
   document.getElementById('st-turn').innerHTML = renderPhaseText();
   document.getElementById('deck-count').textContent = g.deck.length;
+  // v1.16: 自分の手番/選択フェーズでなければ手札選択を解除
+  if (!(isMyTurn && g.phase === 'select-hand')) state.selHand = null;
+  const selCard = (g.hands[me] || []).find(c => c.id === state.selHand);
+  const selMonth = selCard ? selCard.month : 0;
   // My hand (= mySide face-up, clickable only when my turn + phase=select-hand)
   const myH = document.getElementById('my-hand');
   myH.innerHTML = '';
   (g.hands[me] || []).forEach(c => {
     const wrap = document.createElement('span');
     const clickable = isMyTurn && g.phase === 'select-hand';
-    wrap.innerHTML = svgCard(c.id, clickable ? 'clickable' : '');
+    const sel = clickable && c.id === state.selHand;
+    wrap.innerHTML = svgCard(c.id, (clickable ? 'clickable' : '') + (sel ? ' sel' : ''));
     const el = wrap.firstChild;
-    if (clickable) el.addEventListener('click', () => onClickHand(c));
+    if (clickable) {
+      el.addEventListener('click', () => onClickHand(c));
+      // v1.16: ホバーで取れる場札をプレビュー（選択中の札はレンダーで上がるので触らない）
+      el.addEventListener('mouseenter', () => { if (state.selHand !== c.id) previewLift(c.month, true); });
+      el.addEventListener('mouseleave', () => previewLift(c.month, false));
+    }
     myH.appendChild(el);
   });
   // Opponent hand (backs)
@@ -2810,6 +2837,8 @@ function renderGame() {
     if (pickSet && pickSet.has(c.id)) cls = 'match clickable';
     else if (pickSet) cls = 'dim';
     else if (dimSet && dimSet.has(c.id)) cls = 'match';
+    // v1.16: 選択中の手札で取れる場札を上げる
+    else if (selMonth && c.month === selMonth) cls = 'lift-sel';
     wrap.innerHTML = svgCard(c.id, cls);
     const el = wrap.firstChild;
     if (pickSet && pickSet.has(c.id)) el.addEventListener('click', () => onClickFieldPick(c));
@@ -3013,10 +3042,26 @@ function fitRows() {
 
 // --- 合わせ取り (手札プレイ) ---
 // クリック handler = 側 (mySide) 判定 → 自分の手番なら local apply または intent 送信。
+// v1.16: 場のとれる札を少し上げる（ホバー時のプレビュー・on/off）
+function previewLift(month, on) {
+  document.querySelectorAll('#field-cards .card').forEach(el => {
+    const id = el.getAttribute('data-id');
+    const m = id ? parseInt(id.slice(1, 3), 10) : 0;
+    el.classList.toggle('lift-hover', !!on && m === month);
+  });
+}
+// v1.16: 2タッチ操作。1回目=選択（＝取れる場札を上げてプレビュー）、2回目（同じ札）=場に出す。
 function onClickHand(card) {
   const g = state.game;
   if (g.phase !== 'select-hand') return;
   if (g.currentPlayer !== mySide()) return; // 相手の手番: 無反応
+  if (state.selHand !== card.id) {
+    state.selHand = card.id; // 1回目 = 選択（renderGame が選択札を上げ・取れる場札を上げる）
+    renderGame();
+    return;
+  }
+  // 2回目 = 場に出す
+  state.selHand = null;
   if (state.solo || state.isHost) {
     applyPlayCard(card);
   } else {

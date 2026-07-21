@@ -1018,7 +1018,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.35</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.36</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1073,7 +1073,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.35</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.36</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1148,7 +1148,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.35</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.36</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1328,7 +1328,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.35';
+const APP_VERSION = 'v1.36';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -2890,8 +2890,8 @@ function startRound() {
     if (sp.kind === 'special-draw') { endRoundSpecialDraw(); return; }
     endRoundDealSpecial(sp.kind, sp.winner); return;
   }
-  renderGame();
-  syncState({ deal: true });
+  syncState({ deal: true }); // 先に配って（guest も同時に配りアニメを開始できる）
+  runDeal(); // v1.36: 局開始の配りアニメ（無効時は通常描画）
 }
 
 // --- 描画 ---
@@ -2951,6 +2951,8 @@ const ANIM = {
   beat: 380,      // v1.27: 手札を場に置いてから山をめくるまでの“間”(ms)
   flipDur: 220,   // v1.34: めくり回転の所要時間(ms)。めくりだけ従来(440)の2倍速に（他は据え置き）
   hold: 280,      // v1.27: めくった札を場へ動かすまでの余韻(ms)
+  dealFly: 300,   // v1.36: 配りで4枚が親側の画面外から所定位置へ飛ぶ時間(ms)
+  dealGap: 180,   // v1.36: 配りの4枚グループの間隔(ms)
   _lastDrawnId: null, // めくり札が新規に出た瞬間を検出するための直前ID
   _pendingFlip: false,
   _skipFlip: null,    // v1.31: この id 群は FLIP しない（別演出で動かすため・現状未使用）
@@ -3112,8 +3114,12 @@ function renderGame() {
   const myH = document.getElementById('my-hand');
   myH.innerHTML = '';
   let selEl = null;
+  // v1.36: 配りアニメ中は自分の手札も裏向き＋山札は「束を置く」段まで隠す（配り終わりに一斉に表返す）
+  const deckBox = document.querySelector('.deck');
+  if (deckBox) deckBox.style.visibility = g._dealing ? 'hidden' : '';
   (g.hands[me] || []).forEach(c => {
     const wrap = document.createElement('span');
+    if (g._dealing) { wrap.innerHTML = svgBack(); myH.appendChild(wrap.firstChild); return; }
     const clickable = isMyTurn && g.phase === 'select-hand';
     // v1.30: 2枚候補の選択中は、出す札を手札の中で浮かせたまま維持（場札選択後に飛ぶ）
     const isPick = g.playPick && g.playPick.player === me && g.playPick.id === c.id;
@@ -3206,6 +3212,82 @@ function renderGame() {
   animOpponentPlay(); // v1.35: 相手が手札から出した札を相手手札の位置から場へ滑らせる
   if (ANIM._pendingFlip) { ANIM._pendingFlip = false; flipReveal(); } // v1.27: めくり回転演出
   maybeShowKoikoiFlash(); // v1.14: 未表示のこいこいイベントがあれば一瞬バナー表示
+}
+
+// v1.36: 局開始の配りアニメ。親側の画面外中央から、親4裏→場4表→子4裏→親4裏→場4表→子4裏の
+// 順に4枚ずつ同時に飛ばし、山の束を置いてから、自分の手札8枚を一斉に横回転で表返す。
+// 本物の札要素を動かす（クローンは使わない＝確実に描画）。相手手札は裏のまま。
+function runDeal() {
+  const g = state.game;
+  if (!g) return;
+  const me = mySide();
+  if (!animEnabled()) { g._dealing = false; renderGame(); return; }
+  g._dealing = true;
+  renderGame(); // 配り前の配置（両手札=裏・場=表・山=隠す）→ 到達位置の実測に使う
+  const myHandEls = Array.from(document.querySelectorAll('#my-hand .card'));
+  const oppHandEls = Array.from(document.querySelectorAll('#opp-hand .card'));
+  const fieldEls = Array.from(document.querySelectorAll('#field-cards .card[data-id]'));
+  const deckBack = document.querySelector('.deck .card');
+  const deckBox = document.querySelector('.deck');
+  if (myHandEls.length < 8 || oppHandEls.length < 8 || fieldEls.length < 8) { g._dealing = false; renderGame(); return; }
+  const dealerIsMe = (state.oya === me);
+  const dealerHand = dealerIsMe ? myHandEls : oppHandEls;
+  const childHand = dealerIsMe ? oppHandEls : myHandEls;
+  const dealerAtTop = !dealerIsMe; // 相手が親なら上側から配る
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const startX = vw / 2, startY = dealerAtTop ? -140 : vh + 140; // 親側の画面外中央
+  // まず配る札と山を隠す
+  const allDealt = dealerHand.concat(childHand, fieldEls);
+  allDealt.forEach(el => { el.style.visibility = 'hidden'; });
+  const fly = aMs(ANIM.dealFly), gap = aMs(ANIM.dealGap);
+  const flyIn = (els) => els.forEach(el => {
+    const r = el.getBoundingClientRect();
+    if (!r.width) { el.style.visibility = ''; return; }
+    const dx = startX - r.left, dy = startY - r.top;
+    el.style.visibility = '';
+    el.animate([
+      { transformOrigin: 'top left', transform: 'translate(' + dx + 'px,' + dy + 'px)' },
+      { transformOrigin: 'top left', transform: 'translate(0,0)' },
+    ], { duration: fly, easing: ANIM.ease, fill: 'backwards' });
+  });
+  // 4枚ずつのグループ順：親→場→子→親→場→子
+  const groups = [
+    dealerHand.slice(0, 4), fieldEls.slice(0, 4), childHand.slice(0, 4),
+    dealerHand.slice(4, 8), fieldEls.slice(4, 8), childHand.slice(4, 8),
+  ];
+  let t = 0;
+  groups.forEach(grp => { setTimeout(() => flyIn(grp), t); t += gap; });
+  // 山に束を置く
+  setTimeout(() => {
+    if (deckBox) deckBox.style.visibility = '';
+    if (deckBack) {
+      const r = deckBack.getBoundingClientRect();
+      if (r.width) {
+        const dx = startX - r.left, dy = startY - r.top;
+        deckBack.animate([
+          { transformOrigin: 'top left', transform: 'translate(' + dx + 'px,' + dy + 'px)' },
+          { transformOrigin: 'top left', transform: 'translate(0,0)' },
+        ], { duration: fly, easing: ANIM.ease, fill: 'backwards' });
+      }
+    }
+  }, t);
+  t += fly + gap;
+  // 自分の手札8枚を一斉に横回転で表返す
+  setTimeout(() => {
+    const half = Math.round(aMs(ANIM.flipDur) / 2);
+    Array.from(document.querySelectorAll('#my-hand .card')).forEach(b => {
+      b.style.transformOrigin = 'center center';
+      b.animate([{ transform: 'scaleX(1)' }, { transform: 'scaleX(0.02)' }], { duration: half, easing: 'ease-in', fill: 'forwards' });
+    });
+    setTimeout(() => {
+      g._dealing = false;
+      renderGame(); // 自分の手札を表向きに（操作可能に）
+      Array.from(document.querySelectorAll('#my-hand .card')).forEach(f => {
+        f.style.transformOrigin = 'center center';
+        f.animate([{ transform: 'scaleX(0.02)' }, { transform: 'scaleX(1)' }], { duration: half, easing: 'ease-out' });
+      });
+    }, half);
+  }, t);
 }
 
 // v1.28: pending（合わせ取り待ち）の札を、対象の場札の上にずらして重ねて描く。
@@ -3456,6 +3538,7 @@ function previewLift(month, on) {
 // v1.16: 2タッチ操作。1回目=選択（＝取れる場札を上げてプレビュー）、2回目（同じ札）=場に出す。
 function onClickHand(card) {
   const g = state.game;
+  if (g._dealing) return; // v1.36: 配りアニメ中は操作不可
   if (g.phase !== 'select-hand') return;
   if (g.currentPlayer !== mySide()) return; // 相手の手番: 無反応
   if (state.selHand !== card.id) {
@@ -4231,7 +4314,9 @@ function applyState(msg) {
   if (msg.oya) state.oya = msg.oya;
   state.matchOver = !!msg.matchOver;
   if (enteringGame) saveSession(); // 対局入りを復帰用に保存（state.game 確定後なので inGame=true になる）
-  renderGame();
+  // v1.36: 初回の配り（'deal'）で対局に入るときは配りアニメ。再接続('state')や以降は通常描画。
+  if (enteringGame && msg.type === 'deal' && animEnabled()) runDeal();
+  else renderGame();
   // オーバーレイ制御
   const ovYaku = document.getElementById('ovYaku');
   if (g.phase === 'yaku') showYakuOverlay();

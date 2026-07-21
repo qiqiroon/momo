@@ -265,6 +265,7 @@
   .ct-row{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;}
   .nearcap{font-size:.62rem;color:var(--text-muted);}
   .nearcap b{color:var(--gold);}
+  .nearcap b.dead{color:var(--text-muted);text-decoration:line-through;opacity:.6;} /* v1.40: 成立不可＝見え消し */
   .nearcap .who{color:var(--orange-mid);font-weight:700;}
   .deckfield{display:flex;gap:8px;align-items:flex-start;justify-content:center;}
   #field-row{position:relative;}
@@ -326,7 +327,7 @@
   /* v1.14: 局終了の新見出し・取られた側のグレー・成立役の札 */
   .fanfare.achieve{color:var(--gold);text-shadow:0 0 12px rgba(216,168,56,.45);}
   .fanfare.koikoi-ng{color:var(--text-muted);text-shadow:none;}
-  .opanel.result-dim{filter:grayscale(1) brightness(.72);}
+  .opanel.result-dim > *:not(.btn-row){filter:grayscale(1) brightness(.72);} /* v1.40: 次の局へボタンはグレーにせずオレンジのまま */
   .opanel.result-dim .fanfare{text-shadow:none;}
   .yaku-list .ye-li{display:block;background:#0c0c0c;border:1px solid var(--border);border-radius:7px;padding:7px 10px;}
   .ye-head{display:flex;justify-content:space-between;font-size:.8rem;margin-bottom:5px;}
@@ -1018,7 +1019,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.39</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.40</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1073,7 +1074,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.39</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.40</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1121,7 +1122,7 @@
       <div class="draw-slot"><small id="oya-guest-lbl">ゲスト</small><div class="mini back" id="slotGuest"></div><div class="oya-meta" id="metaGuest"></div></div>
     </div>
     <div class="oya-result" id="oyaResult" data-i18n="oya.notyet">まだ引いていません</div>
-    <button class="btn btn-ghost" id="btn-draw-oya" data-i18n="oya.draw">カードを引く</button>
+    <button class="btn btn-ghost" id="btn-draw-oya" data-i18n="oya.draw">札を引く</button>
   </div>
 
   <div class="ready-panel" style="display:flex;gap:14px;align-items:center;justify-content:center;flex-wrap:wrap;font-size:.72rem;color:var(--text-muted);margin-top:8px;">
@@ -1148,7 +1149,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.39</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.40</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1352,7 +1353,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.39';
+const APP_VERSION = 'v1.40';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -1418,7 +1419,7 @@ const I18N = {
     'oya.title': '先手（親）を決める',
     'oya.lead': '各自 1 枚ずつ札を引き、早い月を引いた方が「親（先手）」になります。自分側の札は自分でボタンを押して引きます。',
     'oya.notyet': 'まだ引いていません',
-    'oya.draw': 'カードを引く',
+    'oya.draw': '札を引く',
     'oya.result': '早い月を引いた <b>{who}</b> が親（先手）です',
     'oya.result.strong': '強い札を引いた <b>{who}</b> が親（先手）です',
     'start.disabled': 'ゲームスタート（親を決めると押せます）',
@@ -2226,6 +2227,7 @@ function drawOya() {
   do { card = deck[Math.floor(Math.random() * deck.length)]; } while (oppCard != null && card.id === oppCard);
   state[myCardKey] = card.id;
   state[myMonthKey] = card.month;
+  playSfx('pero'); // v1.40: 親決めで札を引く＝めくり音
   updateOyaResult();
   renderOyaDraw();
   MomoMatchmaking.send({ type: 'oya_draw', side: me, month: card.month, card: card.id });
@@ -2901,7 +2903,7 @@ const AUDIO = (function () {
   // 素材=効果音ラボ(無料・商用OK・クレジット不要)／将棋流用。合成=しゅっ/ちゃりん/ぷっ。
   const SFX_URLS = {
     bishi:'sounds/se-bishi.mp3', pa:'sounds/se-pa.mp3', pero:'sounds/se-pero.mp3',
-    deal:'sounds/se-deal.mp3', koikoi:'sounds/se-koikoi.mp3',
+    deal:'sounds/se-deal.mp3', koikoi:'sounds/se-koikoi.mp3', gyun:'sounds/se-gyun.mp3',
     fanfareWin:'sounds/se-fanfare-win.mp3', fanfareWin2:'sounds/se-fanfare-win-2.mp3',
     gameLose:'sounds/se-game-lose.mp3', button:'sounds/se-button.mp3',
   };
@@ -2955,26 +2957,33 @@ const AUDIO = (function () {
     charin() { const t = ctx.currentTime + 0.01;
       [[1976,0,0.08],[2638,0.06,0.4]].forEach(a => { const f=a[0],dt=a[1],dur=a[2],tt=t+dt;
         const o=ctx.createOscillator(); o.type='square'; o.frequency.value=f;
-        const g=ctx.createGain(); envg(g,tt,0.003,0.24,dur);
+        const g=ctx.createGain(); envg(g,tt,0.003,0.4,dur); // v1.40: 音量アップ（0.24→0.4・実機で聞こえるように）
         const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=11000;
         o.connect(g).connect(lp).connect(sfxGain); o.start(tt); o.stop(tt+dur+0.02); });
       [5274,7040,8372].forEach(f => { const o=ctx.createOscillator(); o.type='sine'; o.frequency.value=f;
-        const g=ctx.createGain(); envg(g,t+0.06,0.002,0.05,0.5); o.connect(g).connect(sfxGain); o.start(t+0.06); o.stop(t+0.56); });
+        const g=ctx.createGain(); envg(g,t+0.06,0.002,0.09,0.5); o.connect(g).connect(sfxGain); o.start(t+0.06); o.stop(t+0.56); });
     },
     pu() { const t = ctx.currentTime + 0.01;
       const o=ctx.createOscillator(); o.type='square'; o.frequency.setValueAtTime(330,t); o.frequency.exponentialRampToValueAtTime(150,t+0.16);
       const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=1400;
       const g=ctx.createGain(); envg(g,t,0.006,0.3,0.18); o.connect(lp).connect(g).connect(sfxGain); o.start(t); o.stop(t+0.19);
     },
+    // ぴろっ：自分の手番の合図（軽い2音の上がり）
+    piro() { const t = ctx.currentTime + 0.01;
+      [[880,0,0.09],[1318,0.075,0.14]].forEach(a => { const f=a[0],dt=a[1],dur=a[2],tt=t+dt;
+        const o=ctx.createOscillator(); o.type='triangle'; o.frequency.value=f;
+        const g=ctx.createGain(); envg(g,tt,0.004,0.28,dur); o.connect(g).connect(sfxGain); o.start(tt); o.stop(tt+dur+0.02); });
+    },
   };
   // 効果音の統一入口。論理名 → 素材 or 合成へ振り分け。
   function sfx(name) {
     if (!audioOn || !ctx || !sfxGain) return;
     switch (name) {
-      case 'shu': case 'charin': case 'pu': if (SYNTH[name]) SYNTH[name](); break;
+      case 'shu': case 'charin': case 'pu': case 'piro': if (SYNTH[name]) SYNTH[name](); break;
       case 'fanfare': playBuf('fanfareWin'); playBuf('fanfareWin2', { at: 0.8 }); break; // 将棋と同じ0.8秒差の重ね
       case 'lose':   playBuf('gameLose'); break;
       case 'koikoi': playBuf('koikoi'); break;
+      case 'gyun':   playBuf('gyun'); break; // こいこい横流しの「ぎゅーん」
       case 'bishi':  playBuf('bishi'); break;
       case 'pa':     playBuf('pa'); break;
       case 'pero':   playBuf('pero'); break;
@@ -3000,8 +3009,10 @@ function playSoundCues(g) {
   if (g._dealing) {
     SC.lastPlayTs = g.lastPlay ? g.lastPlay.ts : null;
     SC.drawnId = g.drawnCard ? g.drawnCard.id : null;
-    SC.capKey = capSig(g); SC.yaku = (g.phase === 'yaku'); return;
+    SC.capKey = capSig(g); SC.yaku = (g.phase === 'yaku'); SC.myTurn = false; return;
   }
+  // v1.40: 「カードを置く音」を約0.5秒早める（着地音の遅延を短縮）
+  const landMs = Math.max(0, aMs(ANIM.dur) - 500);
   // ① 手札を出す：しゅっ（手札から出発）→ 着地（場札に重なる=びし / 単独=ぱっ）
   const lpTs = g.lastPlay ? g.lastPlay.ts : null;
   if (lpTs && lpTs !== SC.lastPlayTs) {
@@ -3009,14 +3020,14 @@ function playSoundCues(g) {
     const id = g.lastPlay.id;
     playSfx('shu');
     const overlapped = (g.pending || []).some(p => p.incoming && p.incoming.id === id);
-    setTimeout(() => playSfx(overlapped ? 'bishi' : 'pa'), aMs(ANIM.dur));
+    setTimeout(() => playSfx(overlapped ? 'bishi' : 'pa'), landMs);
   }
   // ② めくり札の着地：場札に重なる=びし / 単独=ぱっ（めくり回転音は flipReveal 側の「ぺろ」）
   const dId = g.drawnCard ? g.drawnCard.id : null;
   if (SC.drawnId && SC.drawnId !== dId) {
     const prev = SC.drawnId;
-    if ((g.pending || []).some(p => p.incoming && p.incoming.id === prev)) setTimeout(() => playSfx('bishi'), aMs(ANIM.dur));
-    else if (g.field.some(c => c.id === prev)) setTimeout(() => playSfx('pa'), aMs(ANIM.dur));
+    if ((g.pending || []).some(p => p.incoming && p.incoming.id === prev)) setTimeout(() => playSfx('bishi'), landMs);
+    else if (g.field.some(c => c.id === prev)) setTimeout(() => playSfx('pa'), landMs);
     // 取り札へ直行した場合は ③ で鳴る
   }
   SC.drawnId = dId;
@@ -3032,6 +3043,10 @@ function playSoundCues(g) {
   const inYaku = (g.phase === 'yaku');
   if (inYaku && !SC.yaku) playSfx(g.currentPlayer === mySide() ? 'charin' : 'pu');
   SC.yaku = inYaku;
+  // ⑤ v1.40: 自分の手番（select-hand）になった瞬間：ぴろっ
+  const myTurnNow = (g.currentPlayer === mySide() && g.phase === 'select-hand');
+  if (myTurnNow && !SC.myTurn) playSfx('piro');
+  SC.myTurn = myTurnNow;
 }
 
 // v1.38: 音量 UI（設定パネル＋音楽モーダルの2組のスライダー/ラベル）を AUDIO 値へ反映
@@ -3073,8 +3088,7 @@ function maybeShowKoikoiFlash() {
   const g = state.game; if (!g || !g.event) return;
   if (g.event.ts <= _lastFlashTs) return;
   _lastFlashTs = g.event.ts;
-  if (g.event.type === 'koikoi') playSfx('koikoi'); // v1.39: こいこい宣言音（両クライアント）
-  showKoikoiFlash(g.event.type, g.event.by);
+  showKoikoiFlash(g.event.type, g.event.by); // 宣言音(こいこい)は centerFlash、横流しの「ぎゅーん」は koikoiDeclareAnim で鳴る
 }
 let _flashTimer = null, _slideTimer = null;
 function showKoikoiFlash(type, by) {
@@ -3087,7 +3101,7 @@ function centerFlash(type, by) {
   if (!el) return;
   const who = whoLabel(by);
   let cls = 'kf-koikoi', txt = '', big = '';
-  if (type === 'koikoi') { cls = 'kf-koikoi big'; txt = t('flash.koikoi'); big = ' big'; }
+  if (type === 'koikoi') { cls = 'kf-koikoi big'; txt = t('flash.koikoi'); big = ' big'; playSfx('koikoi'); } // v1.40: 中央「こいこい」表示のタイミングで鳴らす
   else if (type === 'koikoi-ok') { cls = 'kf-ok'; txt = who + '：' + t('flash.koikoi.ok'); }
   else if (type === 'koikoi-ng') { cls = 'kf-ng'; txt = who + '：' + t('flash.koikoi.ng'); }
   el.textContent = txt;
@@ -3106,14 +3120,15 @@ function koikoiDeclareAnim(by) {
     const r = handRow.getBoundingClientRect();
     slide.textContent = t('flash.koikoi');
     slide.style.top = (r.top + r.height / 2) + 'px';
-    slide.style.animationDuration = aMs(2100) + 'ms'; // v1.30: 速度倍率でスクロール時間を調整
+    slide.style.animationDuration = aMs(1000) + 'ms'; // v1.40: 横流しを速く（2100→1000ms）
     slide.className = 'koikoi-slide'; void slide.offsetWidth; slide.className = 'koikoi-slide show';
+    playSfx('gyun'); // v1.40: 横流しのタイミングで「ぎゅーん」
     // v1.21: 中央フラッシュを animationend で確実に発火（タイマーはフォールバック）。PC横長で出ない対策
     let done = false;
     const fire = () => { if (done) return; done = true; slide.className = 'koikoi-slide'; centerFlash('koikoi', by); };
     slide.addEventListener('animationend', fire, { once: true });
     if (_slideTimer) clearTimeout(_slideTimer);
-    _slideTimer = setTimeout(fire, aMs(2300));
+    _slideTimer = setTimeout(fire, aMs(1200));
   } else {
     centerFlash('koikoi', by);
   }
@@ -3242,7 +3257,7 @@ const ANIM = {
   enabled: true,
   dur: 340,       // 1移動の所要時間(ms)
   ease: 'cubic-bezier(.22,.61,.36,1)',
-  beat: 380,      // v1.27: 手札を場に置いてから山をめくるまでの“間”(ms)
+  beat: 880,      // v1.27: 手札を場に置いてから山をめくるまでの“間”(ms)（v1.40: +500ms 長く）
   flipDur: 220,   // v1.34: めくり回転の所要時間(ms)。めくりだけ従来(440)の2倍速に（他は据え置き）
   hold: 280,      // v1.27: めくった札を場へ動かすまでの余韻(ms)
   dealFly: 300,   // v1.36: 配りで4枚が親側の画面外から所定位置へ飛ぶ時間(ms)
@@ -3678,26 +3693,35 @@ function renderNearYaku(player, elId) {
   const tanN = cards.filter(c => c.type === 'tan').length;
   const kasuN = cards.filter(c => c.type === 'kasu').length;
   const hasRain = !!ids[RAIN_HIKARI_ID];
+  // v1.40: 成立不可の見え消し用。必要札（まだ持っていない完成札）が全部「相手の取り札」にある＝到達不能なら打ち消し線。
+  //        相手の手札は見えないので考慮しない（取り札のみで判定）。
+  const all = buildDeck();
+  const byType = ty => all.filter(c => c.type === ty).map(c => c.id);
+  const HIKARI = byType('hikari'), TANE = byType('tane'), TAN = byType('tan'), KASU = byType('kasu');
+  const nonRainHikari = HIKARI.filter(id => id !== RAIN_HIKARI_ID);
+  const oppIds = new Set((state.game.caps[otherPlayer(player)] || []).map(c => c.id));
+  const impossible = (cands) => { const need = cands.filter(id => !ids[id]); return need.length > 0 && need.every(id => oppIds.has(id)); };
   const hints = [];
+  const add = (name, cands) => hints.push({ name: name, dead: impossible(cands) });
   // 光系
-  if (hikariN === 4) hints.push(t('yaku.gokou'));
-  else if (hikariN === 3 && !hasRain) hints.push(t('yaku.shikou'));
-  else if (hikariN === 3 && hasRain) hints.push(t('yaku.amenoshikou'));
-  else if (hikariN === 2 && !hasRain) hints.push(t('yaku.sankou'));
+  if (hikariN === 4) add(t('yaku.gokou'), HIKARI);
+  else if (hikariN === 3 && !hasRain) add(t('yaku.shikou'), nonRainHikari);
+  else if (hikariN === 3 && hasRain) add(t('yaku.amenoshikou'), HIKARI);
+  else if (hikariN === 2 && !hasRain) add(t('yaku.sankou'), nonRainHikari);
   // 猪鹿蝶
-  if (IKS_IDS.filter(id => ids[id]).length === 2) hints.push(t('yaku.inoshikachou'));
+  if (IKS_IDS.filter(id => ids[id]).length === 2) add(t('yaku.inoshikachou'), IKS_IDS);
   // 赤短 / 青短
-  if (RED_TAN_IDS.filter(id => ids[id]).length === 2) hints.push(t('yaku.akatan'));
-  if (BLUE_TAN_IDS.filter(id => ids[id]).length === 2) hints.push(t('yaku.aotan'));
+  if (RED_TAN_IDS.filter(id => ids[id]).length === 2) add(t('yaku.akatan'), RED_TAN_IDS);
+  if (BLUE_TAN_IDS.filter(id => ids[id]).length === 2) add(t('yaku.aotan'), BLUE_TAN_IDS);
   // 花見 / 月見: 片方だけ揃っている
-  if (ids[HANAMI_HIKARI_ID] !== ids[SAKE_ID] && (ids[HANAMI_HIKARI_ID] || ids[SAKE_ID])) hints.push(t('yaku.hanami'));
-  if (ids[TSUKIMI_HIKARI_ID] !== ids[SAKE_ID] && (ids[TSUKIMI_HIKARI_ID] || ids[SAKE_ID])) hints.push(t('yaku.tsukimi'));
+  if (ids[HANAMI_HIKARI_ID] !== ids[SAKE_ID] && (ids[HANAMI_HIKARI_ID] || ids[SAKE_ID])) add(t('yaku.hanami'), [HANAMI_HIKARI_ID, SAKE_ID]);
+  if (ids[TSUKIMI_HIKARI_ID] !== ids[SAKE_ID] && (ids[TSUKIMI_HIKARI_ID] || ids[SAKE_ID])) add(t('yaku.tsukimi'), [TSUKIMI_HIKARI_ID, SAKE_ID]);
   // Count-based
-  if (tanN === 4) hints.push(t('yaku.tan'));
-  if (taneN === 4) hints.push(t('yaku.tane'));
-  if (kasuN === 9) hints.push(t('yaku.kasu'));
+  if (tanN === 4) add(t('yaku.tan'), TAN);
+  if (taneN === 4) add(t('yaku.tane'), TANE);
+  if (kasuN === 9) add(t('yaku.kasu'), KASU);
   if (hints.length === 0) { el.textContent = ''; return; }
-  el.innerHTML = t('game.near.prefix') + ' ' + hints.map(h => '<b>' + h + '</b>').join('、');
+  el.innerHTML = t('game.near.prefix') + ' ' + hints.map(h => '<b' + (h.dead ? ' class="dead"' : '') + '>' + h.name + '</b>').join('、');
 }
 
 // 縦画面フィット：手札 8 枚の横幅と 5 段の縦高さの両制約から最大カード幅を実測して決める。
@@ -4356,7 +4380,13 @@ function renderRoundEndFromData() {
   if (rend.isFinal) { noEl.innerHTML = ''; noEl.style.display = 'none'; }
   else { noEl.style.display = ''; noEl.innerHTML = t('round.nextoya', { who: whoLabel(rend.nextOya), change: !!rend.oyaChange }); }
   renderRoundReady();
+  const roundShown = document.getElementById('ovRound').classList.contains('show');
   document.getElementById('ovRound').classList.add('show');
+  // v1.40: 局終了の効果音（再描画での二重再生を防ぐ）
+  if (!roundShown) {
+    if (iAmWinner && rend.delta > 0) { for (let i = 0; i < rend.delta; i++) setTimeout(() => playSfx('charin'), i * 90); } // 得た文の数だけ高速チャリン
+    else if (isDraw) playSfx('pu'); // 引き分け＝相手に役が出た時と同じ音
+  }
 }
 // 「次の局へ」両者押下ゲートの表示更新
 function renderRoundReady() {
@@ -4456,7 +4486,8 @@ function renderGameEndFromData() {
   // v1.39: 総合結果の効果音（勝利=ファンファーレ / 敗北=lose / 引分=無音）。再描画での二重再生を防ぐ
   if (!alreadyShown) {
     if (iWin) playSfx('fanfare');
-    else if (!draw) playSfx('lose');
+    else if (draw) playSfx('pu'); // v1.40: 引き分け＝相手に役が出た時と同じ音
+    else playSfx('lose');
     setBgm('fanfare'); // BGM 停止
   }
 }

@@ -1019,7 +1019,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.40</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.41</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1074,7 +1074,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.40</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.41</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1149,7 +1149,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.40</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.41</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1353,7 +1353,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.40';
+const APP_VERSION = 'v1.41';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -3886,6 +3886,7 @@ function applyPlayCard(card) {
   const idx = hand.findIndex(c => c.id === card.id);
   if (idx < 0) return;
   const matches = g.field.filter(c => c.month === card.month);
+  diagLog('play', cur + ' が手札 ' + card.id + '(m' + card.month + ') を出す→ 場の同月=' + matches.length + '枚' + (matches.length === 2 ? ' ⇒【選択待ち pick-play】' : matches.length ? ' ⇒ ' + matches.length + '枚と合わせ取り' : ' ⇒ 場に置く'));
   if (matches.length === 2) {
     // v1.30: 2枚候補＝手札から抜かず「浮かせたまま」維持し、場札の選択後に飛ばす
     g.playPick = { player: cur, id: card.id, index: idx };
@@ -3921,6 +3922,7 @@ function stagePending(incoming, targetCards) {
 function collectPending() {
   const g = state.game;
   const cur = g.currentPlayer;
+  if (g.pending && g.pending.length) diagLog('collect', cur + ' が取り札へ回収: ' + g.pending.map(p => '[出' + p.incoming.id + '＋場' + p.targetIds.join('・') + ']').join(' '));
   (g.pending || []).forEach(p => {
     p.targetIds.forEach(tid => {
       const i = g.field.findIndex(c => c.id === tid);
@@ -3956,6 +3958,7 @@ function applyPick(fieldCard) {
   const cur = g.currentPlayer;
   const fc = g.field.find(c => c.id === fieldCard.id);
   if (!fc) return;
+  diagLog('pick', cur + ' が場札 ' + fc.id + ' を選択 (phase=' + g.phase + ')');
   if (g.phase === 'pick-play') {
     // v1.30: ここで初めて手札から抜く＝浮かせていた札が選んだ場札へ飛ぶ
     const pp = g.playPick;
@@ -4010,6 +4013,7 @@ function resolveDraw(drawn) {
   const claimed = new Set();
   (g.pending || []).forEach(p => p.targetIds.forEach(id => claimed.add(id)));
   const matches = g.field.filter(c => c.month === drawn.month && !claimed.has(c.id));
+  diagLog('draw', 'めくり札 ' + drawn.id + '(m' + drawn.month + ')→ 場の同月(予約除く)=' + matches.length + '枚 予約=' + claimed.size + (matches.length === 2 ? ' ⇒【選択待ち pick-draw】' : matches.length ? ' ⇒ ' + matches.length + '枚と合わせ取り' : ' ⇒ 場に置く'));
   if (matches.length === 0) {
     g.field.push(drawn);            // 合う札なし＝単独で場に残す
     g.drawnCard = null;

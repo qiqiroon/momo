@@ -265,7 +265,7 @@
   .ct-row{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;}
   .nearcap{font-size:.62rem;color:var(--text-muted);}
   .nearcap b{color:var(--gold);}
-  .nearcap b.dead{color:var(--text-muted);text-decoration:line-through;opacity:.6;} /* v1.40: 成立不可＝見え消し */
+  .nearcap b.dead{color:var(--gold);text-decoration:line-through;opacity:.75;} /* v1.42: 成立不可＝金色のまま見え消し */
   .nearcap .who{color:var(--orange-mid);font-weight:700;}
   .deckfield{display:flex;gap:8px;align-items:flex-start;justify-content:center;}
   #field-row{position:relative;}
@@ -345,7 +345,7 @@
   /* v1.18: こいこい宣言＝手札の上を左→右にスライド */
   .koikoi-slide{position:fixed;left:0;transform:translateX(-70vw);z-index:82;pointer-events:none;opacity:0;font-family:"Fredoka One",sans-serif;font-size:1.5rem;color:#fff;background:linear-gradient(180deg,var(--orange-mid),var(--orange));padding:6px 22px;border-radius:12px;white-space:nowrap;box-shadow:0 6px 20px rgba(0,0,0,.5);}
   .koikoi-slide.show{animation:kkSlide 2.1s ease-in forwards;}
-  @keyframes kkSlide{0%{opacity:0;transform:translateX(-70vw);}18%{opacity:1;}82%{opacity:1;}100%{opacity:.15;transform:translateX(95vw);}}
+  @keyframes kkSlide{0%{opacity:0;transform:translateX(-50vw);}6%{opacity:1;}78%{opacity:1;}100%{opacity:.1;transform:translateX(75vw);}} /* v1.42: すぐ表示（-50vwから・6%で不透明） */
   /* v1.18: こいこい宣言中の手番バッジ（宣言者側に常時） */
   .kk-badge{display:none;font-size:.6rem;line-height:1;padding:2px 7px;border-radius:5px;background:var(--orange);color:#fff;white-space:nowrap;box-shadow:0 0 8px rgba(234,88,12,.5);}
   /* v1.21: 札名バブル（マウスオーバー/1クリックで正式名称を上方に） */
@@ -1019,7 +1019,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.41</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.42</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1074,7 +1074,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.41</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.42</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1111,6 +1111,7 @@
     <div class="set-row"><span data-i18n="set.double">7文以上2倍</span><span class="seg" data-key="double"><button class="on" data-v="on" data-i18n="set.on">あり</button><button data-v="off" data-i18n="set.off">なし</button></span></div>
     <div class="set-row"><span data-i18n="set.deal">手四・くっつき</span><span class="seg" data-key="deal"><button class="on" data-v="on" data-i18n="set.enabled">有効</button><button data-v="off" data-i18n="set.disabled">無効</button></span></div>
     <div class="set-row"><span data-i18n="set.draw">引き分けの親</span><span class="seg" data-key="draw"><button class="on" data-v="keep" data-i18n="set.draw.keep">親継続</button><button data-v="flow" data-i18n="set.draw.flow">親流れ</button></span></div>
+    <div class="set-row"><span data-i18n="set.hint">ヒント表示（あと1枚で役）</span><span class="seg" data-key="hint"><button class="on" data-v="on" data-i18n="set.on">あり</button><button data-v="off" data-i18n="set.off">なし</button></span></div>
   </div>
 
   <!-- 先手・親決め -->
@@ -1149,7 +1150,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.41</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.42</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1353,7 +1354,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.41';
+const APP_VERSION = 'v1.42';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -1416,6 +1417,7 @@ const I18N = {
     'set.double': '7文以上2倍', 'set.on': 'あり', 'set.off': 'なし',
     'set.deal': '手四・くっつき', 'set.enabled': '有効', 'set.disabled': '無効',
     'set.draw': '引き分けの親', 'set.draw.keep': '親継続', 'set.draw.flow': '親流れ',
+    'set.hint': 'ヒント表示（あと1枚で役）',
     'oya.title': '先手（親）を決める',
     'oya.lead': '各自 1 枚ずつ札を引き、早い月を引いた方が「親（先手）」になります。自分側の札は自分でボタンを押して引きます。',
     'oya.notyet': 'まだ引いていません',
@@ -1595,6 +1597,7 @@ const I18N = {
     'set.double': '7+ Points ×2', 'set.on': 'On', 'set.off': 'Off',
     'set.deal': 'Teshi / Kuttsuki', 'set.enabled': 'On', 'set.disabled': 'Off',
     'set.draw': 'Dealer on Draw', 'set.draw.keep': 'Keep', 'set.draw.flow': 'Rotate',
+    'set.hint': 'Hints (one card away)',
     'oya.title': 'Decide the Dealer',
     'oya.lead': 'Each player draws one card of their own; the earlier month becomes the dealer (first player). Press the button on your own side.',
     'oya.notyet': 'Not drawn yet',
@@ -1774,6 +1777,7 @@ const I18N = {
     'set.double': '7文以上×2', 'set.on': '开启', 'set.off': '关闭',
     'set.deal': '手四・粘', 'set.enabled': '开启', 'set.disabled': '关闭',
     'set.draw': '平局时的庄家', 'set.draw.keep': '继续', 'set.draw.flow': '轮替',
+    'set.hint': '提示（差一张成役）',
     'oya.title': '决定先手（庄家）',
     'oya.lead': '每人抽一张自己的牌，抽到较早月份的一方成为庄家（先手）。按下自己一侧的按钮抽自己的牌。',
     'oya.notyet': '尚未抽牌',
@@ -2019,6 +2023,7 @@ const state = {
     double: 'on',
     deal: 'on',
     draw: 'keep',
+    hint: 'on', // v1.42: あと1枚で役のヒント表示（既定オン）
   },
   oya: null,            // 'host' | 'guest' | null
   oyaHostMonth: null,
@@ -3011,8 +3016,9 @@ function playSoundCues(g) {
     SC.drawnId = g.drawnCard ? g.drawnCard.id : null;
     SC.capKey = capSig(g); SC.yaku = (g.phase === 'yaku'); SC.myTurn = false; return;
   }
-  // v1.40: 「カードを置く音」を約0.5秒早める（着地音の遅延を短縮）
-  const landMs = Math.max(0, aMs(ANIM.dur) - 500);
+  // 着地音の遅延：ぱっ(単独置き)は約0.5秒前、びし(重なる)は約0.2秒前（v1.42で分離）
+  const placeMs = Math.max(0, aMs(ANIM.dur) - 500);   // ぱっ
+  const overlapMs = Math.max(0, aMs(ANIM.dur) - 200); // びし
   // ① 手札を出す：しゅっ（手札から出発）→ 着地（場札に重なる=びし / 単独=ぱっ）
   const lpTs = g.lastPlay ? g.lastPlay.ts : null;
   if (lpTs && lpTs !== SC.lastPlayTs) {
@@ -3020,14 +3026,14 @@ function playSoundCues(g) {
     const id = g.lastPlay.id;
     playSfx('shu');
     const overlapped = (g.pending || []).some(p => p.incoming && p.incoming.id === id);
-    setTimeout(() => playSfx(overlapped ? 'bishi' : 'pa'), landMs);
+    setTimeout(() => playSfx(overlapped ? 'bishi' : 'pa'), overlapped ? overlapMs : placeMs);
   }
   // ② めくり札の着地：場札に重なる=びし / 単独=ぱっ（めくり回転音は flipReveal 側の「ぺろ」）
   const dId = g.drawnCard ? g.drawnCard.id : null;
   if (SC.drawnId && SC.drawnId !== dId) {
     const prev = SC.drawnId;
-    if ((g.pending || []).some(p => p.incoming && p.incoming.id === prev)) setTimeout(() => playSfx('bishi'), landMs);
-    else if (g.field.some(c => c.id === prev)) setTimeout(() => playSfx('pa'), landMs);
+    if ((g.pending || []).some(p => p.incoming && p.incoming.id === prev)) setTimeout(() => playSfx('bishi'), overlapMs);
+    else if (g.field.some(c => c.id === prev)) setTimeout(() => playSfx('pa'), placeMs);
     // 取り札へ直行した場合は ③ で鳴る
   }
   SC.drawnId = dId;
@@ -3122,7 +3128,7 @@ function koikoiDeclareAnim(by) {
     slide.style.top = (r.top + r.height / 2) + 'px';
     slide.style.animationDuration = aMs(1000) + 'ms'; // v1.40: 横流しを速く（2100→1000ms）
     slide.className = 'koikoi-slide'; void slide.offsetWidth; slide.className = 'koikoi-slide show';
-    playSfx('gyun'); // v1.40: 横流しのタイミングで「ぎゅーん」
+    setTimeout(() => playSfx('gyun'), aMs(60)); // v1.42: 流し表示が見え始めるタイミングに合わせて「ぎゅーん」
     // v1.21: 中央フラッシュを animationend で確実に発火（タイマーはフォールバック）。PC横長で出ない対策
     let done = false;
     const fire = () => { if (done) return; done = true; slide.className = 'koikoi-slide'; centerFlash('koikoi', by); };
@@ -3685,6 +3691,7 @@ function renderCap(player, topRowId, botRowId) {
 function renderNearYaku(player, elId) {
   const el = document.getElementById(elId);
   if (!el) return;
+  if (state.settings.hint === 'off') { el.textContent = ''; return; } // v1.42: ヒント表示OFF
   const cards = state.game.caps[player] || [];
   const ids = {};
   cards.forEach(c => { ids[c.id] = true; });

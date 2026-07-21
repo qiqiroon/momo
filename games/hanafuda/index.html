@@ -267,7 +267,10 @@
   .nearcap b{color:var(--gold);}
   .nearcap b.dead{color:var(--gold);text-decoration:line-through;opacity:.75;} /* v1.42: 成立不可＝金色のまま見え消し */
   .mult-badge{display:inline-block;margin-left:6px;font-size:.78rem;font-weight:800;color:var(--gold-ink,#1a1206);background:var(--gold);border-radius:6px;padding:1px 7px;} /* v1.44: 倍率表示 */
-  .diag-panel.debug-fixed{position:fixed;left:6px;right:6px;bottom:6px;z-index:9999;max-height:40vh;overflow:auto;margin:0;box-shadow:0 4px 20px rgba(0,0,0,.65);} /* v1.45: ?debug=1で常時表示（終了時もログをコピー可能に） */
+  /* v1.46: ?debug=1で常時表示。対局を隠さないよう右上のコンパクト折りたたみ式（既定は畳んでヘッダのみ・コピーは畳んだままでも可） */
+  .diag-panel.debug-fixed{position:fixed;top:6px;right:6px;left:auto;z-index:9999;width:min(74vw,360px);max-height:46vh;overflow:auto;margin:0;box-shadow:0 4px 20px rgba(0,0,0,.65);opacity:.96;}
+  .diag-panel.debug-fixed.debug-collapsed{width:auto;max-height:none;overflow:visible;}
+  .diag-panel.debug-fixed.debug-collapsed #diag-log{display:none;}
   .nearcap .who{color:var(--orange-mid);font-weight:700;}
   .deckfield{display:flex;gap:8px;align-items:flex-start;justify-content:center;}
   #field-row{position:relative;}
@@ -1030,7 +1033,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.45</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.46</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1085,7 +1088,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.45</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.46</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1164,7 +1167,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.45</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.46</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1368,7 +1371,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.45';
+const APP_VERSION = 'v1.46';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -5093,7 +5096,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // ?debug=1: solo test hook + 診断パネル表示
   if (new URLSearchParams(location.search).get('debug') === '1') {
     const dp = document.getElementById('diag-panel');
-    if (dp) { dp.classList.remove('hidden'); document.body.appendChild(dp); dp.classList.add('debug-fixed'); } // v1.45: body直下へ移し画面固定＝どの画面/終了時も常時表示・コピー可
+    if (dp) {
+      dp.classList.remove('hidden'); document.body.appendChild(dp); dp.classList.add('debug-fixed', 'debug-collapsed'); // v1.46: 既定は畳む（対局を隠さない）
+      // 開閉トグル（畳んでもコピーは可能）
+      const tg = document.createElement('button');
+      tg.className = 'btn btn-ghost btn-sm'; tg.style.cssText = 'font-size:.6rem;padding:2px 8px;';
+      const setLbl = () => tg.textContent = dp.classList.contains('debug-collapsed') ? '▼ログ' : '▲畳む';
+      setLbl();
+      tg.addEventListener('click', () => { dp.classList.toggle('debug-collapsed'); setLbl(); });
+      const hdr = dp.querySelector('div'); if (hdr) hdr.appendChild(tg);
+    }
     const bc = document.getElementById('btn-diag-copy');
     if (bc) bc.addEventListener('click', diagCopyToClipboard);
     const bp = document.getElementById('btn-diag-pause');

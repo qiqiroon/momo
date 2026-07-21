@@ -317,8 +317,9 @@
   .scoreboard .sc-val{font-weight:700;color:var(--gold);}
   .scoreboard .sc-val .delta{color:var(--orange-mid);font-weight:700;font-size:.78rem;margin-left:6px;}
   .ge-choice-note{text-align:center;font-size:.8rem;color:var(--orange-mid);min-height:1em;margin:6px 0 2px;}
-  .next-oya{text-align:center;font-size:.82rem;color:var(--text-muted);margin-bottom:8px;}
+  .next-oya{text-align:center;font-size:.86rem;color:var(--text);margin:2px 0 10px;padding:6px 10px;background:rgba(40,40,40,.5);border:1px solid var(--border);border-radius:8px;}
   .next-oya b{color:var(--orange-mid);}
+  .next-oya .oya-chg{color:var(--gold);font-weight:700;}
   .ready-row{display:flex;justify-content:space-around;gap:10px;font-size:.78rem;margin-bottom:10px;}
   .ready-row span{color:var(--text-muted);}
   .btn.small{font-size:.78rem;padding:7px 12px;}
@@ -1017,7 +1018,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.34</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.35</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1072,7 +1073,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.34</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.35</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1147,7 +1148,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.34</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.35</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1327,7 +1328,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.34';
+const APP_VERSION = 'v1.35';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -1480,7 +1481,9 @@ const I18N = {
     'round.waiting': '相手の「次へ」を待っています…',
     'round.notpressed': '「次の局へ」を押してください',
     'round.oppwaiting': '相手待ち…',
-    'round.nextoya': (p) => '次の親：<b>' + p.who + '</b>' + (p.change ? '（交代）' : '（継続）'),
+    'round.nextoya': (p) => p.change
+      ? '親が<span class="oya-chg">交代</span> → 次の局の親は <b>' + p.who + '</b>'
+      : '親は<span class="oya-chg">そのまま</span> → 次の局も <b>' + p.who + '</b> が親',
     'game.round': (p) => '第' + p.n + '局 / 全' + p.total + '局',
     'game.end.title.win': '🎉 勝利！',
     'game.end.title.lose': '敗北…',
@@ -1654,7 +1657,9 @@ const I18N = {
     'round.waiting': 'Waiting for opponent to continue…',
     'round.notpressed': 'Press "Next Round"',
     'round.oppwaiting': 'Waiting for opponent…',
-    'round.nextoya': (p) => 'Next dealer: <b>' + p.who + '</b>' + (p.change ? ' (changed)' : ' (continues)'),
+    'round.nextoya': (p) => p.change
+      ? 'Dealer <span class="oya-chg">changes</span> → next round dealer is <b>' + p.who + '</b>'
+      : 'Dealer <span class="oya-chg">stays</span> → <b>' + p.who + '</b> deals again next round',
     'game.round': (p) => 'Round ' + p.n + ' / ' + p.total,
     'game.end.title.win': '🎉 Victory!',
     'game.end.title.lose': 'Defeated…',
@@ -1828,7 +1833,9 @@ const I18N = {
     'round.waiting': '等待对方点击「下一局」…',
     'round.notpressed': '请点击「下一局」',
     'round.oppwaiting': '等待对方…',
-    'round.nextoya': (p) => '下一局庄家：<b>' + p.who + '</b>' + (p.change ? '（交替）' : '（继续）'),
+    'round.nextoya': (p) => p.change
+      ? '庄家<span class="oya-chg">交替</span> → 下一局庄家是 <b>' + p.who + '</b>'
+      : '庄家<span class="oya-chg">不变</span> → 下一局仍由 <b>' + p.who + '</b> 坐庄',
     'game.round': (p) => '第' + p.n + '局 / 全' + p.total + '局',
     'game.end.title.win': '🎉 胜利！',
     'game.end.title.lose': '败北…',
@@ -2866,6 +2873,7 @@ function startRound() {
     playPick: null,     // v1.30: 2枚候補選択中に浮かせる手札
     fieldOrder: null,   // v1.33: 回収跡の空きを保持する場の並び
     fieldGhostIds: null,
+    lastPlay: null,     // v1.35: 相手側の手札→場演出用
     pickOptions: [],
     yakuBaseline: { host: [], guest: [] },
     pendingYaku: null,
@@ -2947,7 +2955,37 @@ const ANIM = {
   _pendingFlip: false,
   _skipFlip: null,    // v1.31: この id 群は FLIP しない（別演出で動かすため・現状未使用）
   _collectIds: null,  // v1.34: 回収中の札は移動中に前面へ浮かせる（取り札枠の外でも他札に隠れない）
+  _lastPlayTs: 0,     // v1.35: 相手の手札→場の演出を一度だけ出すための直前タイムスタンプ
 };
+// v1.35: 相手が手札から出した札を、相手手札の位置から場へ滑らせる（本物カードを動かす＝確実に描画）。
+// 伏せ札をめくる演出は無し。何枚目だったかは問わず、相手手札の左端の位置から出す。
+function animOpponentPlay() {
+  const g = state.game;
+  if (!g || !g.lastPlay || !animEnabled()) return;
+  if (g.lastPlay.ts <= ANIM._lastPlayTs) return;
+  const isOpp = g.lastPlay.player !== mySide();
+  ANIM._lastPlayTs = g.lastPlay.ts;
+  if (!isOpp) return; // 自分の手は通常の FLIP で処理済み（手札→場が滑る）
+  const el = document.querySelector('#field-cards .card[data-id="' + g.lastPlay.id + '"]');
+  if (!el) return;
+  const oppHand = document.getElementById('opp-hand');
+  const back = oppHand && oppHand.querySelector('.card');
+  const fromRect = back ? back.getBoundingClientRect() : (oppHand ? oppHand.getBoundingClientRect() : null);
+  if (!fromRect || !fromRect.width) return;
+  const r = el.getBoundingClientRect();
+  if (!r.width) return;
+  const dx = fromRect.left - r.left, dy = fromRect.top - r.top;
+  const sc = fromRect.width / r.width;
+  const prevPos = el.style.position, prevZ = el.style.zIndex;
+  if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
+  el.style.zIndex = '500';
+  el.animate([
+    { transformOrigin: 'top left', transform: 'translate(' + dx + 'px,' + dy + 'px) scale(' + sc + ')' },
+    { transformOrigin: 'top left', transform: 'translate(0,0) scale(1)' },
+  ], { duration: aMs(ANIM.dur), easing: ANIM.ease });
+  const restore = () => { el.style.position = prevPos; el.style.zIndex = prevZ; };
+  setTimeout(restore, aMs(ANIM.dur) + 140);
+}
 // v1.30: 速度倍率。x2=速い＝時間は半分、x0.5=遅い＝時間は倍。対象＝札の移動/その場待機/こいこいスクロール。
 function animScale() { const s = parseFloat(state.animSpeed); return (s > 0) ? s : 1; }
 function aMs(base) { return Math.round(base / animScale()); }
@@ -3165,6 +3203,7 @@ function renderGame() {
   positionLeaveBtn(); // 中断ボタンをコントロール直下・左端そろえに配置
   renderPendingOverlays(); // v1.28: 合わせ取り待ちの札を対象の場札の上に重ねて描く（fitBoard 後の実寸で）
   animPlay(_animPrev); // FLIP: 位置の変わった札を元→新へ滑らせる（fitBoard 後の最終位置で計算）
+  animOpponentPlay(); // v1.35: 相手が手札から出した札を相手手札の位置から場へ滑らせる
   if (ANIM._pendingFlip) { ANIM._pendingFlip = false; flipReveal(); } // v1.27: めくり回転演出
   maybeShowKoikoiFlash(); // v1.14: 未表示のこいこいイベントがあれば一瞬バナー表示
 }
@@ -3456,6 +3495,7 @@ function applyPlayCard(card) {
   // v1.29: 手札の隙間は「取り札を種類別に整列する段」まで詰めない（そこまで元の位置に空きを残す）
   g.playedFromHand = { player: cur, index: idx };
   g.playedCard = played;
+  g.lastPlay = { player: cur, id: played.id, ts: Date.now() }; // v1.35: 相手側の手札→場演出用
   if (matches.length === 0) {
     g.field.push(played);          // 合う札なし＝単独で場に残す
     proceedToDraw();
@@ -3520,6 +3560,7 @@ function applyPick(fieldCard) {
       const played = (hi >= 0) ? hand.splice(hi, 1)[0] : { id: pp.id };
       g.playedFromHand = { player: pp.player, index: pp.index };
       g.playedCard = played;
+      g.lastPlay = { player: pp.player, id: played.id, ts: Date.now() }; // v1.35: 相手側の手札→場演出用
       g.playPick = null;
       stagePending(played, [fc]);
     }
@@ -3672,8 +3713,8 @@ function proceedYakuCheck() {
     syncState();
     return;
   }
-  // v1.14: こいこい宣言者が新役を作れず手番を終えた = こいこい不成立（確認不要・局は続行）
-  if (cur === g.koikoiBy) { emitKoikoiEvent('koikoi-ng', cur); setBgm('normal'); }
+  // v1.35: こいこいの不成立は「局終了までに追加の役を作れなかった」ときに局終了画面で判定する。
+  //        宣言直後（次の手番）に役が無いだけでは不成立ではないので、ここでは何もしない（局は続行）。
   endTurn();
 }
 
@@ -4132,6 +4173,7 @@ function syncState(opts) {
     playPick: g.playPick || null,           // v1.30: 2枚候補選択中に浮かせる手札
     fieldOrder: g.fieldOrder || null,       // v1.33: 回収跡の空き保持（online 同挙動）
     fieldGhostIds: g.fieldGhostIds || null,
+    lastPlay: g.lastPlay || null,           // v1.35: 相手側の手札→場演出用
     pickOptions: g.pickOptions,
     pendingYaku: g.pendingYaku,
     pendingGained: g.pendingGained,
@@ -4171,6 +4213,7 @@ function applyState(msg) {
   g.playPick = msg.playPick || null;             // v1.30
   g.fieldOrder = msg.fieldOrder || null;         // v1.33
   g.fieldGhostIds = msg.fieldGhostIds || null;
+  g.lastPlay = msg.lastPlay || null;             // v1.35
   g.pickOptions = msg.pickOptions || [];
   g.pendingYaku = msg.pendingYaku || null;
   g.pendingGained = msg.pendingGained || null;

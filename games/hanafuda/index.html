@@ -1019,7 +1019,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.42</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.43</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1074,7 +1074,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.42</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.43</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1150,7 +1150,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.42</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.43</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1354,7 +1354,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.42';
+const APP_VERSION = 'v1.43';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -2265,7 +2265,7 @@ function renderOyaSlot(slotId, metaId, cardId, month, name) {
   slot.className = 'mini'; slot.innerHTML = svgCard(cardId);
   if (meta) {
     const sameMonth = (state.oyaHostMonth != null && state.oyaGuestMonth != null && state.oyaHostMonth === state.oyaGuestMonth);
-    const str = sameMonth ? ' <span class="om-str">' + TYPE_LABEL[cardTypeOf(cardId)] + '</span>' : '';
+    const str = sameMonth ? ' <span class="om-str">' + typeLabel(cardTypeOf(cardId)) + '</span>' : '';
     meta.innerHTML = '<span class="om-month">' + t('room.month', month) + '</span>' + str + '<span class="om-name">' + name + '</span>';
   }
 }
@@ -3228,10 +3228,50 @@ const CARD_NAMES = {
   m11_hikari:'柳に小野道風', m11_tane:'柳に燕', m11_tan:'柳の短冊', m11_kasu:'柳のカス（鬼札）',
   m12_hikari:'桐に鳳凰', m12_kasu1:'桐のカス', m12_kasu2:'桐のカス', m12_kasu3:'桐のカス',
 };
-function cardName(id) { return CARD_NAMES[id] || id; }
+// v1.43: 札名の EN / ZH（CAT は猫語＝catSpeak）
+const CARD_NAMES_EN = {
+  m01_hikari:'Crane & Pine', m01_tan:'Pine Red Ribbon', m01_kasu1:'Pine Chaff', m01_kasu2:'Pine Chaff',
+  m02_tane:'Warbler & Plum', m02_tan:'Plum Red Ribbon', m02_kasu1:'Plum Chaff', m02_kasu2:'Plum Chaff',
+  m03_hikari:'Curtain & Cherry', m03_tan:'Cherry Red Ribbon', m03_kasu1:'Cherry Chaff', m03_kasu2:'Cherry Chaff',
+  m04_tane:'Cuckoo & Wisteria', m04_tan:'Wisteria Ribbon', m04_kasu1:'Wisteria Chaff', m04_kasu2:'Wisteria Chaff',
+  m05_tane:'Bridge & Iris', m05_tan:'Iris Ribbon', m05_kasu1:'Iris Chaff', m05_kasu2:'Iris Chaff',
+  m06_tane:'Butterflies & Peony', m06_tan:'Peony Blue Ribbon', m06_kasu1:'Peony Chaff', m06_kasu2:'Peony Chaff',
+  m07_tane:'Boar & Bush Clover', m07_tan:'Bush Clover Ribbon', m07_kasu1:'Bush Clover Chaff', m07_kasu2:'Bush Clover Chaff',
+  m08_hikari:'Moon & Pampas', m08_tane:'Geese & Pampas', m08_kasu1:'Pampas Chaff', m08_kasu2:'Pampas Chaff',
+  m09_tane:'Sake Cup & Chrysanthemum', m09_tan:'Chrysanthemum Blue Ribbon', m09_kasu1:'Chrysanthemum Chaff', m09_kasu2:'Chrysanthemum Chaff',
+  m10_tane:'Deer & Maple', m10_tan:'Maple Blue Ribbon', m10_kasu1:'Maple Chaff', m10_kasu2:'Maple Chaff',
+  m11_hikari:'Ono no Michikaze & Willow', m11_tane:'Swallow & Willow', m11_tan:'Willow Ribbon', m11_kasu:'Willow Chaff (Lightning)',
+  m12_hikari:'Phoenix & Paulownia', m12_kasu1:'Paulownia Chaff', m12_kasu2:'Paulownia Chaff', m12_kasu3:'Paulownia Chaff',
+};
+const CARD_NAMES_ZH = {
+  m01_hikari:'松上鹤', m01_tan:'松红短册', m01_kasu1:'松粕', m01_kasu2:'松粕',
+  m02_tane:'梅上莺', m02_tan:'梅红短册', m02_kasu1:'梅粕', m02_kasu2:'梅粕',
+  m03_hikari:'樱上幕帘', m03_tan:'樱红短册', m03_kasu1:'樱粕', m03_kasu2:'樱粕',
+  m04_tane:'藤上杜鹃', m04_tan:'藤短册', m04_kasu1:'藤粕', m04_kasu2:'藤粕',
+  m05_tane:'菖蒲上八桥', m05_tan:'菖蒲短册', m05_kasu1:'菖蒲粕', m05_kasu2:'菖蒲粕',
+  m06_tane:'牡丹上蝶', m06_tan:'牡丹蓝短册', m06_kasu1:'牡丹粕', m06_kasu2:'牡丹粕',
+  m07_tane:'萩上猪', m07_tan:'萩短册', m07_kasu1:'萩粕', m07_kasu2:'萩粕',
+  m08_hikari:'芒上月', m08_tane:'芒上雁', m08_kasu1:'芒粕', m08_kasu2:'芒粕',
+  m09_tane:'菊上酒杯', m09_tan:'菊蓝短册', m09_kasu1:'菊粕', m09_kasu2:'菊粕',
+  m10_tane:'枫上鹿', m10_tan:'枫蓝短册', m10_kasu1:'枫粕', m10_kasu2:'枫粕',
+  m11_hikari:'柳上小野道风', m11_tane:'柳上燕', m11_tan:'柳短册', m11_kasu:'柳粕（鬼札）',
+  m12_hikari:'桐上凤凰', m12_kasu1:'桐粕', m12_kasu2:'桐粕', m12_kasu3:'桐粕',
+};
+function cardName(id) {
+  if (_currentLang === 'cat') return catSpeak(id);
+  const dict = _currentLang === 'en' ? CARD_NAMES_EN : _currentLang === 'zh' ? CARD_NAMES_ZH : CARD_NAMES;
+  return dict[id] || CARD_NAMES[id] || id;
+}
 // 札の強さ（親決めの同月タイブレーク：光>種>短冊>カス）
 const TYPE_STRENGTH = { hikari: 4, tane: 3, tan: 2, kasu: 1 };
 const TYPE_LABEL = { hikari: '光', tane: '種', tan: '短冊', kasu: 'カス' };
+const TYPE_LABEL_EN = { hikari: 'Bright', tane: 'Animal', tan: 'Ribbon', kasu: 'Chaff' };
+const TYPE_LABEL_ZH = { hikari: '光', tane: '种', tan: '短册', kasu: '粕' };
+function typeLabel(type) { // v1.43: 種別ラベルの多言語（CAT は猫語）
+  if (_currentLang === 'cat') return catSpeak(type);
+  const d = _currentLang === 'en' ? TYPE_LABEL_EN : _currentLang === 'zh' ? TYPE_LABEL_ZH : TYPE_LABEL;
+  return d[type] || TYPE_LABEL[type] || type;
+}
 function cardTypeOf(id) { return id.slice(4).replace(/[0-9]+$/, ''); }
 function svgCard(id, extraClass) {
   let tg = '';

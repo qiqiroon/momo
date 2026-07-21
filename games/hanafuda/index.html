@@ -1010,7 +1010,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.24</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.25</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1065,7 +1065,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.24</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.25</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1140,7 +1140,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.24</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.25</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1311,7 +1311,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.24';
+const APP_VERSION = 'v1.25';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -2905,9 +2905,62 @@ function mySide() {
   return state.isHost ? 'host' : 'guest';
 }
 
+// ===== カード移動アニメ（FLIP方式）=====
+// 描き直しの前後で「同じ札（data-id）」の画面位置を比べ、元→新へ滑らせるだけの見た目の層。
+// ルール処理・通信プロトコルには一切手を入れない。renderGame の入口でスナップショット、
+// 出口で animPlay。位置が変わった札だけ、いったん元位置に見せてから新位置へトランジションする。
+const ANIM = {
+  enabled: true,
+  dur: 340,   // 1移動の所要時間(ms)
+  ease: 'cubic-bezier(.22,.61,.36,1)',
+};
+function animEnabled() {
+  return ANIM.enabled &&
+    !document.getElementById('screen-game').classList.contains('hidden');
+}
+// 現在表示中の全札の画面位置を記録（id -> {x,y,w}）
+function animSnapshot() {
+  const m = new Map();
+  document.querySelectorAll('#screen-game .card[data-id]').forEach(el => {
+    const r = el.getBoundingClientRect();
+    if (r.width) m.set(el.dataset.id, { x: r.left, y: r.top, w: r.width });
+  });
+  return m;
+}
+// 再描画後：位置の変わった札を prev の位置から現在位置へ滑らせる。
+// Web Animations API を使う（手動 rAF/transition よりバックグラウンドや取りこぼしに強い・後始末不要）。
+function animPlay(prev, opts) {
+  if (!prev || !prev.size) return [];
+  const dur = (opts && opts.dur) || ANIM.dur;
+  const anims = [];
+  document.querySelectorAll('#screen-game .card[data-id]').forEach(el => {
+    // 選択中/リフト中の札は CSS transform を使うため触らない（アニメと競合させない）
+    if (el.classList.contains('sel') || el.classList.contains('lift-sel') || el.classList.contains('lift-hover')) return;
+    const old = prev.get(el.dataset.id);
+    if (!old) return; // 新規出現（めくり札など）はここでは動かさない → 別段で演出
+    const r = el.getBoundingClientRect();
+    if (!r.width) return;
+    const dx = old.x - r.left, dy = old.y - r.top;
+    const sc = old.w / r.width;
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && Math.abs(sc - 1) < 0.02) return; // 動いてない
+    const a = el.animate([
+      { transformOrigin: 'top left', transform: 'translate(' + dx + 'px,' + dy + 'px) scale(' + sc + ')', zIndex: 60 },
+      { transformOrigin: 'top left', transform: 'translate(0,0) scale(1)', zIndex: 60 },
+    ], { duration: dur, easing: ANIM.ease, fill: 'none' });
+    anims.push(a);
+  });
+  return anims;
+}
+// 走っているアニメがすべて終わるのを待つ（choreography から使う）
+function animWait(anims) {
+  if (!anims || !anims.length) return Promise.resolve();
+  return Promise.all(anims.map(a => a.finished.catch(() => {})));
+}
+
 function renderGame() {
   const g = state.game;
   if (!g) return;
+  const _animPrev = animEnabled() ? animSnapshot() : null; // FLIP: 再描画前の位置を控える
   if (!state.matchOver) state.gameChoiceMade = false; // v1.22: 対局中は総結果の選択フラグをリセット
   const me = mySide();
   const opp = otherPlayer(me);
@@ -3007,6 +3060,7 @@ function renderGame() {
   // 機種ごとに 1 画面に収まるようカード寸法を実測フィット
   fitBoard();
   positionLeaveBtn(); // 中断ボタンをコントロール直下・左端そろえに配置
+  animPlay(_animPrev); // FLIP: 位置の変わった札を元→新へ滑らせる（fitBoard 後の最終位置で計算）
   maybeShowKoikoiFlash(); // v1.14: 未表示のこいこいイベントがあれば一瞬バナー表示
 }
 

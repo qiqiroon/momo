@@ -225,7 +225,10 @@
   .note{font-size:11px;color:var(--text-muted);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;line-height:1.6;margin-top:8px;}
 
   /* Ingame */
-  .statusbar{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:4px 8px;font-size:.66rem;}
+  .statusbar{display:flex;align-items:center;align-content:center;justify-content:center;gap:10px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:4px 8px;font-size:.66rem;}
+  /* v1.34: 手番表示の文字量（自分＝行動指示つき／相手＝短い）で高さが変わると、場のサイズが
+     手番交代のたびに伸縮してしまう。2行ぶんの高さを常に確保して手番交代では変わらないようにする。 */
+  #game-status{min-height:54px;box-sizing:border-box;}
   /* v1.18/1.21: ゲームルール名（こいこい）をステータスバー左端に常時・白字・大きめ */
   .statusbar .rulename{font-family:"Fredoka One",sans-serif;font-size:1rem;color:#fff;letter-spacing:.02em;line-height:1;margin-right:auto;}
   .statusbar b{color:var(--orange-mid);}
@@ -277,7 +280,7 @@
   .field .card.pending-target{outline:2px solid var(--gold);border-radius:5px;box-shadow:0 0 8px var(--gold);}
   .capblock{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:5px 8px;display:flex;flex-direction:column;gap:3px;}
   .capblock .ct{font-size:.58rem;color:var(--orange);font-weight:700;letter-spacing:.08em;}
-  .caprow{display:flex;align-items:center;gap:5px;overflow:hidden;}
+  .caprow{display:flex;align-items:center;gap:5px;overflow:visible;}
   .caprow .gl{font-size:.58rem;color:var(--text-muted);flex:0 0 auto;}
   .caprow .cards{display:flex;}
   .caprow .cards+.gl{margin-left:5px;padding-left:5px;border-left:1px solid var(--border);}
@@ -1014,7 +1017,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.33</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.34</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1069,7 +1072,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.33</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.34</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1144,7 +1147,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.33</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.34</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1239,7 +1242,7 @@
       <span class="row-label" data-i18n="settings.anim.label">アニメの速さ</span>
       <span class="row-value"><span id="anim-speed-value">x1</span></span>
     </div>
-    <input type="range" class="settings-volume-slider" id="anim-speed-slider" min="0" max="4" step="1" value="4">
+    <input type="range" class="settings-volume-slider" id="anim-speed-slider" min="0" max="4" step="1" value="2">
     <div class="settings-row-hint" data-i18n="settings.anim.hint">札の移動・待ち・こいこいの流れる速さ（x0.5〜x2.0）</div>
   </div>
   <div class="btn-row">
@@ -1324,7 +1327,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.33';
+const APP_VERSION = 'v1.34';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -1991,7 +1994,7 @@ const state = {
   matchOver: false,     // 全局終了 = 総結果画面表示
   selHand: null,        // v1.16: 2タッチ操作で1回目に選んだ手札の id（この端末のみ・非同期）
   showTag: true,        // v1.17: 左上の番号ラベル表示（設定でON/OFF・この端末のみ・既定ON）
-  animSpeed: 2,         // v1.32: アニメ速度倍率（0.5/0.75/1/1.5/2）この端末のみ・非同期・既定2（x1のめくりが遅く感じるため）
+  animSpeed: 1,         // v1.34: アニメ速度倍率（0.5/0.75/1/1.5/2）この端末のみ・非同期・既定1（全体の既定はx1に戻す）
   gameEndChoice: { host: null, guest: null }, // v1.22: 総結果の再戦/ロビー両者選択（host が集計）
   gameChoiceMade: false, // v1.22: この端末が総結果で選択済みか（UI待機表示用）
 };
@@ -2938,11 +2941,12 @@ const ANIM = {
   dur: 340,       // 1移動の所要時間(ms)
   ease: 'cubic-bezier(.22,.61,.36,1)',
   beat: 380,      // v1.27: 手札を場に置いてから山をめくるまでの“間”(ms)
-  flipDur: 440,   // v1.27: めくり回転の所要時間(ms)
+  flipDur: 220,   // v1.34: めくり回転の所要時間(ms)。めくりだけ従来(440)の2倍速に（他は据え置き）
   hold: 280,      // v1.27: めくった札を場へ動かすまでの余韻(ms)
   _lastDrawnId: null, // めくり札が新規に出た瞬間を検出するための直前ID
   _pendingFlip: false,
-  _skipFlip: null,    // v1.31: この id 群は FLIP しない（別演出＝飛行クローンで動かすため）
+  _skipFlip: null,    // v1.31: この id 群は FLIP しない（別演出で動かすため・現状未使用）
+  _collectIds: null,  // v1.34: 回収中の札は移動中に前面へ浮かせる（取り札枠の外でも他札に隠れない）
 };
 // v1.30: 速度倍率。x2=速い＝時間は半分、x0.5=遅い＝時間は倍。対象＝札の移動/その場待機/こいこいスクロール。
 function animScale() { const s = parseFloat(state.animSpeed); return (s > 0) ? s : 1; }
@@ -3005,10 +3009,24 @@ function animPlay(prev, opts) {
     const dx = old.x - r.left, dy = old.y - r.top;
     const sc = old.w / r.width;
     if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && Math.abs(sc - 1) < 0.02) return; // 動いてない
+    // v1.34: 回収中の札は移動のあいだ前面へ浮かせる（場札や取り札枠の縁に隠れないように）。
+    //   位置指定（絶対配置の重ね札）なら zIndex だけ、静的なら relative を足して zIndex を効かせる。
+    const promote = ANIM._collectIds && ANIM._collectIds.has(el.dataset.id);
+    let prevPos, prevZ;
+    if (promote) {
+      prevPos = el.style.position; prevZ = el.style.zIndex;
+      if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
+      el.style.zIndex = '500';
+    }
     const a = el.animate([
-      { transformOrigin: 'top left', transform: 'translate(' + dx + 'px,' + dy + 'px) scale(' + sc + ')', zIndex: 60 },
-      { transformOrigin: 'top left', transform: 'translate(0,0) scale(1)', zIndex: 60 },
+      { transformOrigin: 'top left', transform: 'translate(' + dx + 'px,' + dy + 'px) scale(' + sc + ')' },
+      { transformOrigin: 'top left', transform: 'translate(0,0) scale(1)' },
     ], { duration: dur, easing: ANIM.ease, fill: 'none' });
+    if (promote) {
+      const restore = () => { el.style.position = prevPos; el.style.zIndex = prevZ; };
+      a.finished.then(restore).catch(restore);
+      setTimeout(restore, dur + 140); // タイムライン停止環境でも確実に戻す
+    }
     anims.push(a);
   });
   return anims;
@@ -3571,35 +3589,21 @@ function collectAndYaku() {
   syncState();
   const hasPending = g.pending && g.pending.length;
   const flashIds = (g.pending || []).reduce((a, p) => a.concat(p.targetIds, p.incoming.id), []);
-  // ④回収：まず種別を無視して取り札の行末へ飛ばす（場→取り札は画面レイヤーのクローンで飛ばし枠のクリップを回避）
+  // ④回収：本物のカードをそのまま場→取り札の行末へ滑らせる（.caprow は overflow:visible なので
+  //   枠でクリップされず、盤面全体で移動が見える。クローンは使わない＝環境依存の描画問題を避ける）
   const stepCollect = () => {
     if (!state.game || state.game !== g) return;
-    // 場にある回収対象の現在位置を控える
-    const fromRects = {};
-    flashIds.forEach(id => {
-      const el = document.querySelector('#field-cards .card[data-id="' + id + '"]');
-      if (el) fromRects[id] = el.getBoundingClientRect();
-    });
     g.capFlash = { player: g.currentPlayer, ids: flashIds };
-    ANIM._skipFlip = new Set(flashIds); // v1.31: 回収する札は本物カードを FLIP させない（枠でクリップされる動きを出さない）
     // v1.33: 回収跡の場の空きは、整列（左寄せ）段まで詰めずに保持する（今の並びを控える）
     g.fieldOrder = g.field.map(c => c.id);
     g.fieldGhostIds = g.field.filter(c => flashIds.indexOf(c.id) >= 0).map(c => c.id);
+    ANIM._collectIds = new Set(flashIds); // 回収中の札は前面に浮かせる（z-index）
     collectPending();
-    renderGame();   // 場は跡地を空きのまま保持（詰めない）／取り札の行末に実カードが並ぶ
-    ANIM._skipFlip = null;
+    renderGame();   // 本物カードが場→取り札の行末へ滑る／場の跡地は空きのまま保持
+    ANIM._collectIds = null;
     syncState();
-    if (animEnabled()) {
-      // 行末の実カードは隠し、場→行末をクローンで飛ばす（縮小しながら・画面全体に見える）
-      const flyers = [];
-      flashIds.forEach(id => {
-        const real = document.querySelector('.caprow .card[data-id="' + id + '"]');
-        const from = fromRects[id];
-        if (real && from) { flyers.push({ id, from, to: real.getBoundingClientRect(), real }); real.style.visibility = 'hidden'; }
-      });
-      flyOverlayCards(flyers);
-      setTimeout(() => { flyers.forEach(f => { try { f.real.style.visibility = ''; } catch (e) {} }); stepSort(); }, aMs(ANIM.dur) + 60);
-    } else stepSort();
+    if (animEnabled()) setTimeout(stepSort, aMs(ANIM.dur) + 60);
+    else stepSort();
   };
   // ⑤整列：種類別の位置へ移動＋場と手札の左寄せ（隙間詰め）を同時に
   const stepSort = () => {
@@ -4429,7 +4433,7 @@ function bindEvents() {
   const speedLbl = document.getElementById('anim-speed-value');
   if (speedSlider) {
     try { const v = parseFloat(localStorage.getItem('hanafuda_animspeed')); if (v > 0) state.animSpeed = v; } catch (e) {}
-    let si = SPEED_STEPS.indexOf(state.animSpeed); if (si < 0) si = 4; // 既定 x2
+    let si = SPEED_STEPS.indexOf(state.animSpeed); if (si < 0) si = 2; // 既定 x1
     speedSlider.value = String(si);
     speedLbl.textContent = 'x' + SPEED_STEPS[si];
     speedSlider.addEventListener('input', () => {

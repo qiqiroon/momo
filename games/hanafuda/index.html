@@ -266,6 +266,7 @@
   .nearcap{font-size:.62rem;color:var(--text-muted);}
   .nearcap b{color:var(--gold);}
   .nearcap b.dead{color:var(--gold);text-decoration:line-through;opacity:.75;} /* v1.42: 成立不可＝金色のまま見え消し */
+  .mult-badge{display:inline-block;margin-left:6px;font-size:.78rem;font-weight:800;color:var(--gold-ink,#1a1206);background:var(--gold);border-radius:6px;padding:1px 7px;} /* v1.44: 倍率表示 */
   .nearcap .who{color:var(--orange-mid);font-weight:700;}
   .deckfield{display:flex;gap:8px;align-items:flex-start;justify-content:center;}
   #field-row{position:relative;}
@@ -1019,7 +1020,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.43</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.44</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1074,7 +1075,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.43</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.44</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1112,6 +1113,8 @@
     <div class="set-row"><span data-i18n="set.deal">手四・くっつき</span><span class="seg" data-key="deal"><button class="on" data-v="on" data-i18n="set.enabled">有効</button><button data-v="off" data-i18n="set.disabled">無効</button></span></div>
     <div class="set-row"><span data-i18n="set.draw">引き分けの親</span><span class="seg" data-key="draw"><button class="on" data-v="keep" data-i18n="set.draw.keep">親継続</button><button data-v="flow" data-i18n="set.draw.flow">親流れ</button></span></div>
     <div class="set-row"><span data-i18n="set.hint">ヒント表示（あと1枚で役）</span><span class="seg" data-key="hint"><button class="on" data-v="on" data-i18n="set.on">あり</button><button data-v="off" data-i18n="set.off">なし</button></span></div>
+    <div class="set-row"><span data-i18n="set.koikoiMul">こいこい多重掛け（回数で×2/×3/×4）</span><span class="seg" data-key="koikoiMul"><button class="on" data-v="on" data-i18n="set.on">あり</button><button data-v="off" data-i18n="set.off">なし</button></span></div>
+    <div class="set-row"><span data-i18n="set.baigaeshi">倍返し（相手のこいこいを潰すと2倍）</span><span class="seg" data-key="baigaeshi"><button class="on" data-v="on" data-i18n="set.on">あり</button><button data-v="off" data-i18n="set.off">なし</button></span></div>
   </div>
 
   <!-- 先手・親決め -->
@@ -1150,7 +1153,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.43</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.44</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1354,7 +1357,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.43';
+const APP_VERSION = 'v1.44';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -1418,6 +1421,8 @@ const I18N = {
     'set.deal': '手四・くっつき', 'set.enabled': '有効', 'set.disabled': '無効',
     'set.draw': '引き分けの親', 'set.draw.keep': '親継続', 'set.draw.flow': '親流れ',
     'set.hint': 'ヒント表示（あと1枚で役）',
+    'set.koikoiMul': 'こいこい多重掛け（回数で×2/×3/×4）',
+    'set.baigaeshi': '倍返し（相手のこいこいを潰すと2倍）',
     'oya.title': '先手（親）を決める',
     'oya.lead': '各自 1 枚ずつ札を引き、早い月を引いた方が「親（先手）」になります。自分側の札は自分でボタンを押して引きます。',
     'oya.notyet': 'まだ引いていません',
@@ -1598,6 +1603,8 @@ const I18N = {
     'set.deal': 'Teshi / Kuttsuki', 'set.enabled': 'On', 'set.disabled': 'Off',
     'set.draw': 'Dealer on Draw', 'set.draw.keep': 'Keep', 'set.draw.flow': 'Rotate',
     'set.hint': 'Hints (one card away)',
+    'set.koikoiMul': 'Koi-Koi stacking (×2/×3/×4 by count)',
+    'set.baigaeshi': 'Counter-double (beat their Koi-Koi = ×2)',
     'oya.title': 'Decide the Dealer',
     'oya.lead': 'Each player draws one card of their own; the earlier month becomes the dealer (first player). Press the button on your own side.',
     'oya.notyet': 'Not drawn yet',
@@ -1778,6 +1785,8 @@ const I18N = {
     'set.deal': '手四・粘', 'set.enabled': '开启', 'set.disabled': '关闭',
     'set.draw': '平局时的庄家', 'set.draw.keep': '继续', 'set.draw.flow': '轮替',
     'set.hint': '提示（差一张成役）',
+    'set.koikoiMul': '来来叠加（按次数×2/×3/×4）',
+    'set.baigaeshi': '反倍（破对方来来则×2）',
     'oya.title': '决定先手（庄家）',
     'oya.lead': '每人抽一张自己的牌，抽到较早月份的一方成为庄家（先手）。按下自己一侧的按钮抽自己的牌。',
     'oya.notyet': '尚未抽牌',
@@ -2024,6 +2033,8 @@ const state = {
     deal: 'on',
     draw: 'keep',
     hint: 'on', // v1.42: あと1枚で役のヒント表示（既定オン）
+    koikoiMul: 'on', // v1.44: こいこい多重掛け（1回×2/2回×3/3回×4）。OFFはフラット×2
+    baigaeshi: 'on', // v1.44: 倍返し（相手のこいこいを潰して上がると×2）
   },
   oya: null,            // 'host' | 'guest' | null
   oyaHostMonth: null,
@@ -3194,6 +3205,7 @@ function startRound() {
     pendingYaku: null,
     pendingGained: null,
     koikoiBy: null,
+    koikoiCount: { host: 0, guest: 0 }, // v1.44: 各プレイヤーのこいこい宣言回数（倍率計算用）
     roundEnd: null,
     nextReady: { host: false, guest: false }, // v1.13: 局終了画面「次の局へ」の両者押下ゲート
     event: null,        // v1.14: こいこい演出イベント（一瞬のバナー）
@@ -4271,6 +4283,8 @@ function applyKoikoi() {
   if (g.phase !== 'yaku') return;
   const cur = g.currentPlayer;
   g.koikoiBy = cur;
+  if (!g.koikoiCount) g.koikoiCount = { host: 0, guest: 0 };
+  g.koikoiCount[cur] = (g.koikoiCount[cur] || 0) + 1; // v1.44: こいこい回数
   g.yakuBaseline[cur] = g.pendingYaku;
   g.pendingYaku = null;
   g.pendingGained = null;
@@ -4285,16 +4299,24 @@ function applyShobu() {
   const g = state.game;
   if (g.phase !== 'yaku') return;
   const cur = g.currentPlayer;
+  const opp = otherPlayer(cur);
   const yaku = g.pendingYaku || [];
-  let mon = yakuTotal(yaku);
-  const doubled = (state.settings.double === 'on' && mon >= 7);
-  if (doubled) mon *= 2;
+  const base = yakuTotal(yaku);
+  const kc = g.koikoiCount || { host: 0, guest: 0 };
+  // v1.44: 倍率は掛け算で累積。7文2倍／こいこい倍化（自分）／倍返し（相手のこいこい）
+  let mult = 1;
+  if (state.settings.double === 'on' && base >= 7) mult *= 2;                 // 7文以上2倍
+  const wc = kc[cur] || 0;                                                    // 勝者自身のこいこい回数
+  if (wc >= 1) mult *= (state.settings.koikoiMul === 'on') ? (wc + 1) : 2;    // 多重掛け×(回数+1) / OFFはフラット×2
+  const lc = kc[opp] || 0;                                                    // 敗者（相手）のこいこい回数
+  if (state.settings.baigaeshi === 'on' && lc >= 1) mult *= 2;               // 倍返し
+  const mon = base * mult;
   document.getElementById('ovYaku').classList.remove('show');
   // こいこい後の相手勝負判定: こいこい宣言者 !== cur なら相手 (cur) が総取り
   if (g.koikoiBy && g.koikoiBy !== cur) {
-    endRoundKoikoiLost(cur, g.koikoiBy, mon, doubled);
+    endRoundKoikoiLost(cur, g.koikoiBy, mon, mult);
   } else {
-    endRoundShobu(cur, mon, doubled);
+    endRoundShobu(cur, mon, mult);
   }
 }
 
@@ -4332,11 +4354,11 @@ function commitRoundEnd(rend) {
   renderGame();
   syncState();
 }
-function endRoundShobu(winner, mon, doubled) {
-  commitRoundEnd({ kind: 'shobu', winner: winner, mon: mon, doubled: !!doubled });
+function endRoundShobu(winner, mon, mult) {
+  commitRoundEnd({ kind: 'shobu', winner: winner, mon: mon, mult: mult || 1 });
 }
-function endRoundKoikoiLost(winner, loser, mon, doubled) {
-  commitRoundEnd({ kind: 'koikoi-lost', winner: winner, loser: loser, mon: mon, doubled: !!doubled });
+function endRoundKoikoiLost(winner, loser, mon, mult) {
+  commitRoundEnd({ kind: 'koikoi-lost', winner: winner, loser: loser, mon: mon, mult: mult || 1 });
 }
 function endRoundDraw() {
   commitRoundEnd({ kind: 'draw' });
@@ -4412,7 +4434,13 @@ function renderRoundEndFromData() {
   const msgEl = document.getElementById('round-end-msg');
   if (hasWinner) {
     const tag = (rend.winner === me) ? t('game.you') : t('game.opp');
-    msgEl.innerHTML = t('round.earned', { who: whoLabel(rend.winner), tag: tag, mon: rend.delta });
+    let earned = t('round.earned', { who: whoLabel(rend.winner), tag: tag, mon: rend.delta });
+    // v1.44: 倍率がかかっていれば「役n文 ×倍率」を表示
+    if (rend.mult && rend.mult > 1) {
+      const base = Math.round(rend.delta / rend.mult);
+      earned += ' <span class="mult-badge">' + base + '文 ×' + rend.mult + '</span>';
+    }
+    msgEl.innerHTML = earned;
   } else {
     msgEl.innerHTML = isDraw ? t('round.noearn') : '';
   }
@@ -4647,6 +4675,7 @@ function syncState(opts) {
     pendingYaku: g.pendingYaku,
     pendingGained: g.pendingGained,
     koikoiBy: g.koikoiBy,
+    koikoiCount: g.koikoiCount || { host: 0, guest: 0 }, // v1.44: こいこい回数（倍率計算用）
     yakuBaselineGuest: g.yakuBaseline ? g.yakuBaseline.guest : [],
     deckCount: g.deck.length,
     roundEnd: g.roundEnd || null,
@@ -4687,6 +4716,7 @@ function applyState(msg) {
   g.pendingYaku = msg.pendingYaku || null;
   g.pendingGained = msg.pendingGained || null;
   g.koikoiBy = msg.koikoiBy || null;
+  g.koikoiCount = msg.koikoiCount || { host: 0, guest: 0 }; // v1.44
   g.yakuBaseline = { host: [], guest: msg.yakuBaselineGuest || [] };
   g.deck = new Array(msg.deckCount || 0);
   g.roundEnd = msg.roundEnd || null;
@@ -5048,7 +5078,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state.hostName = (opts && opts.host) || 'ホスト';
         state.guestName = (opts && opts.guest) || 'ゲスト';
         state.oya = (opts && opts.oya) || 'host';
-        state.settings = Object.assign({ rounds: '12', kiku: 'tane', double: 'on', deal: 'on', draw: 'keep' }, (opts && opts.settings) || {});
+        state.settings = Object.assign({ rounds: '12', kiku: 'tane', double: 'on', deal: 'on', draw: 'keep', hint: 'on', koikoiMul: 'on', baigaeshi: 'on' }, (opts && opts.settings) || {});
         beginMatch();
       },
       applyPlayCard, applyPick, applyKoikoi, applyShobu,
@@ -5073,7 +5103,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state.guestName = opts.guestName || 'G';
         state.roomName = opts.roomName || 'テスト';
         state.oya = opts.oya || 'host';
-        state.settings = Object.assign({ rounds:'12', kiku:'tane', double:'on', deal:'on', draw:'keep' }, opts.settings || {});
+        state.settings = Object.assign({ rounds:'12', kiku:'tane', double:'on', deal:'on', draw:'keep', hint:'on', koikoiMul:'on', baigaeshi:'on' }, opts.settings || {});
       },
     };
   }

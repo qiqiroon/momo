@@ -265,11 +265,12 @@
   .nearcap .who{color:var(--orange-mid);font-weight:700;}
   .deckfield{display:flex;gap:8px;align-items:flex-start;justify-content:center;}
   #field-row{position:relative;}
-  .deck{display:flex;flex-direction:column;align-items:center;gap:2px;}
+  .deck{display:flex;flex-direction:column;align-items:center;gap:2px;position:relative;}
   .deck .count{font-size:.56rem;color:var(--text-muted);}
-  .drawn-slot{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:42px;}
-  .drawn-slot .lbl{font-size:.56rem;color:var(--orange-mid);}
-  .drawn-slot:empty{display:none;}
+  /* v1.26: めくった札は山札の頂上（同じ位置）に重ねて出す。そこから場へ滑る */
+  .deck-drawn{position:absolute;top:0;left:0;z-index:16;}
+  .deck-drawn:empty{display:none;}
+  .drawn-slot{display:none;}
   .field{display:grid;grid-template-columns:repeat(4,auto);gap:3px;}
   .capblock{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:5px 8px;display:flex;flex-direction:column;gap:3px;}
   .capblock .ct{font-size:.58rem;color:var(--orange);font-weight:700;letter-spacing:.08em;}
@@ -1010,7 +1011,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.25</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.26</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1065,7 +1066,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.25</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.26</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1140,7 +1141,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.25</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.26</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1173,6 +1174,7 @@
         <div class="deck">
           <svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg>
           <div class="count"><span data-i18n="game.deck">山</span><span id="deck-count">24</span></div>
+          <div class="deck-drawn" id="deck-drawn"></div>
         </div>
         <div class="drawn-slot" id="drawn-slot"></div>
         <div class="field" id="field-cards"></div>
@@ -1311,7 +1313,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.25';
+const APP_VERSION = 'v1.26';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -3039,17 +3041,13 @@ function renderGame() {
     if (pickSet && pickSet.has(c.id)) el.addEventListener('click', () => onClickFieldPick(c));
     fld.appendChild(el);
   });
-  // Drawn slot (山札からめくった札の一時表示)
-  const ds = document.getElementById('drawn-slot');
-  ds.innerHTML = '';
+  // v1.26: めくった札は山札の頂上（同じ位置）に重ねて表示。ここから場へ滑って移動する
+  const dd = document.getElementById('deck-drawn');
+  dd.innerHTML = '';
   if (g.drawnCard) {
-    const lbl = document.createElement('div');
-    lbl.className = 'lbl';
-    lbl.textContent = t('game.drawn');
-    ds.appendChild(lbl);
     const s = document.createElement('span');
     s.innerHTML = svgCard(g.drawnCard.id, 'drawn');
-    ds.appendChild(s.firstChild);
+    dd.appendChild(s.firstChild);
   }
   // Captures (my-side / opp-side は state.mySide 準拠で固定)
   renderCap(me, 'my-cap-top', 'my-cap-bot');

@@ -267,6 +267,7 @@
   .nearcap b{color:var(--gold);}
   .nearcap b.dead{color:var(--gold);text-decoration:line-through;opacity:.75;} /* v1.42: 成立不可＝金色のまま見え消し */
   .mult-badge{display:inline-block;margin-left:6px;font-size:.78rem;font-weight:800;color:var(--gold-ink,#1a1206);background:var(--gold);border-radius:6px;padding:1px 7px;} /* v1.44: 倍率表示 */
+  .diag-panel.debug-fixed{position:fixed;left:6px;right:6px;bottom:6px;z-index:9999;max-height:40vh;overflow:auto;margin:0;box-shadow:0 4px 20px rgba(0,0,0,.65);} /* v1.45: ?debug=1で常時表示（終了時もログをコピー可能に） */
   .nearcap .who{color:var(--orange-mid);font-weight:700;}
   .deckfield{display:flex;gap:8px;align-items:flex-start;justify-content:center;}
   #field-row{position:relative;}
@@ -599,11 +600,20 @@
     <use href="#pineTuft" transform="translate(152,88) rotate(12)"/><use href="#pineTuft" transform="translate(110,80) rotate(-16) scale(.82)"/>
     <use href="#tanRed" transform="translate(100,214) rotate(-8)"/>
   </symbol>
+  <!-- v1.45: 松のカスをユーザー手描きPNGに差し替え（縁付き＋縁下部にMOMO/猫マーク）。試験的に1枚のみ -->
   <symbol id="m01_kasu1" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
-    <use href="#kasumi"/>
-    <g fill="none" stroke="#3d2a12" stroke-width="7" stroke-linecap="round"><path d="M150 320 C 148 250 158 200 138 160 C 128 138 140 118 130 96"/><path d="M144 210 C 120 202 104 208 86 200"/><path d="M140 150 C 152 138 158 120 150 104"/></g>
-    <use href="#pineTuft" transform="translate(86,200) rotate(-14)"/><use href="#pineTuft" transform="translate(150,104) rotate(20) scale(.86)"/><use href="#pineTuft" transform="translate(118,150) rotate(-4) scale(.82)"/><use href="#pineTuft" transform="translate(158,150) rotate(40) scale(.72)"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
+    <image href="cards/m01_kasu1.png" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
+    <g transform="translate(110,330)">
+      <rect x="-37" y="-11" width="74" height="21" rx="10.5" fill="#20201c" opacity="0.66"/>
+      <g transform="translate(-28,0)">
+        <path d="M-4.6 -3 L -6.9 -8.8 L -1.4 -4.6 Z" fill="#f1e6c6"/><path d="M4.6 -3 L 6.9 -8.8 L 1.4 -4.6 Z" fill="#f1e6c6"/>
+        <circle cx="0" cy="0.6" r="5.4" fill="#f1e6c6"/>
+        <circle cx="-2" cy="0" r="0.95" fill="#20201c"/><circle cx="2" cy="0" r="0.95" fill="#20201c"/>
+      </g>
+      <text x="7" y="4.3" font-family="'Fredoka One',sans-serif" font-size="12.5" font-weight="700" fill="#f1e6c6" text-anchor="middle" letter-spacing="0.3">MOMO</text>
+    </g>
   </symbol>
   <symbol id="m01_kasu2" viewBox="0 0 220 350">
     <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
@@ -1020,7 +1030,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.44</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.45</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1042,9 +1052,9 @@
     <div class="panel">
       <h2>🎴 <span data-i18n="lobby.create.title">部屋を作る</span></h2>
       <p class="desc" data-i18n="lobby.create.desc">部屋を作成して相手の参加を待ちます。「非公開にする」をオンにすると一覧に表示されません。</p>
-      <label class="fld"><span data-i18n="lobby.name">あなたの名前</span><input id="in-hostname" type="text" placeholder="例：ゆうき" maxlength="16" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true"></label>
-      <label class="fld"><span data-i18n="lobby.roomname">部屋の名前</span><input id="in-roomname" type="text" placeholder="例：花見部屋" maxlength="24" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true"></label>
-      <label class="fld"><span data-i18n="lobby.password">パスワード</span><input id="in-pw" type="password" placeholder="任意" maxlength="16" autocomplete="new-password" data-1p-ignore="true" data-lpignore="true" data-form-type="other"></label>
+      <label class="fld"><span data-i18n="lobby.name">あなたの名前</span><input id="in-hostname" type="text" placeholder="例：ゆうき" data-i18n-ph="lobby.name.ph" maxlength="16" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true"></label>
+      <label class="fld"><span data-i18n="lobby.roomname">部屋の名前</span><input id="in-roomname" type="text" placeholder="例：花見部屋" data-i18n-ph="lobby.roomname.ph" maxlength="24" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true"></label>
+      <label class="fld"><span data-i18n="lobby.password">パスワード</span><input id="in-pw" type="password" placeholder="任意" data-i18n-ph="lobby.pw.ph" maxlength="16" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-form-type="other" name="hf-nopw-1"></label>
       <div class="toggle-row"><span data-i18n="lobby.private">非公開にする</span>
         <span class="switch"><input type="checkbox" id="in-private"><span class="slider"></span></span>
       </div>
@@ -1057,13 +1067,13 @@
         <button class="btn btn-ghost btn-sm" id="btn-refresh" data-i18n="lobby.refresh">↻ 更新</button>
       </div>
       <p class="desc" data-i18n="lobby.join.desc">公開中の部屋の一覧です。参加を押すと対戦準備画面に進みます。</p>
-      <label class="fld"><span data-i18n="lobby.myname">あなたの名前</span><input id="in-guestname" type="text" placeholder="例：さくら" maxlength="16" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true"></label>
+      <label class="fld"><span data-i18n="lobby.myname">あなたの名前</span><input id="in-guestname" type="text" placeholder="例：さくら" data-i18n-ph="lobby.myname.ph" maxlength="16" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true"></label>
       <ul class="roomlist" id="roomlist">
         <li class="empty" data-i18n="lobby.list.loading">接続中...</li>
       </ul>
       <div class="check-row"><input type="checkbox" id="pv"><label for="pv" data-i18n="lobby.showpriv">非公開の部屋を表示</label></div>
       <div class="pw-row">
-        <input id="in-joinpw" type="password" placeholder="パスワード" maxlength="16" autocomplete="new-password" data-1p-ignore="true" data-lpignore="true" data-form-type="other">
+        <input id="in-joinpw" type="password" placeholder="パスワード" data-i18n-ph="lobby.joinpw.ph" maxlength="16" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-form-type="other" name="hf-nopw-2">
         <button class="btn btn-ghost btn-sm" id="btn-show-priv" data-i18n="lobby.show">表示</button>
       </div>
     </div>
@@ -1075,7 +1085,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.44</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.45</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1112,9 +1122,10 @@
     <div class="set-row"><span data-i18n="set.double">7文以上2倍</span><span class="seg" data-key="double"><button class="on" data-v="on" data-i18n="set.on">あり</button><button data-v="off" data-i18n="set.off">なし</button></span></div>
     <div class="set-row"><span data-i18n="set.deal">手四・くっつき</span><span class="seg" data-key="deal"><button class="on" data-v="on" data-i18n="set.enabled">有効</button><button data-v="off" data-i18n="set.disabled">無効</button></span></div>
     <div class="set-row"><span data-i18n="set.draw">引き分けの親</span><span class="seg" data-key="draw"><button class="on" data-v="keep" data-i18n="set.draw.keep">親継続</button><button data-v="flow" data-i18n="set.draw.flow">親流れ</button></span></div>
-    <div class="set-row"><span data-i18n="set.hint">ヒント表示（あと1枚で役）</span><span class="seg" data-key="hint"><button class="on" data-v="on" data-i18n="set.on">あり</button><button data-v="off" data-i18n="set.off">なし</button></span></div>
     <div class="set-row"><span data-i18n="set.koikoiMul">こいこい多重掛け（回数で×2/×3/×4）</span><span class="seg" data-key="koikoiMul"><button class="on" data-v="on" data-i18n="set.on">あり</button><button data-v="off" data-i18n="set.off">なし</button></span></div>
     <div class="set-row"><span data-i18n="set.baigaeshi">倍返し（相手のこいこいを潰すと2倍）</span><span class="seg" data-key="baigaeshi"><button class="on" data-v="on" data-i18n="set.on">あり</button><button data-v="off" data-i18n="set.off">なし</button></span></div>
+    <div class="set-row"><span data-i18n="set.noKoiSecond">後攻（子）のこいこい禁止</span><span class="seg" data-key="noKoiSecond"><button data-v="on" data-i18n="set.on">あり</button><button class="on" data-v="off" data-i18n="set.off">なし</button></span></div>
+    <div class="set-row"><span data-i18n="set.hint">ヒント表示（あと1枚で役）</span><span class="seg" data-key="hint"><button class="on" data-v="on" data-i18n="set.on">あり</button><button data-v="off" data-i18n="set.off">なし</button></span></div>
   </div>
 
   <!-- 先手・親決め -->
@@ -1153,7 +1164,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.44</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.45</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1357,7 +1368,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.44';
+const APP_VERSION = 'v1.45';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -1380,6 +1391,7 @@ const I18N = {
     'lobby.name': 'あなたの名前',
     'lobby.roomname': '部屋の名前',
     'lobby.password': 'パスワード',
+    'lobby.name.ph': '例：ゆうき', 'lobby.roomname.ph': '例：花見部屋', 'lobby.pw.ph': '任意', 'lobby.myname.ph': '例：さくら', 'lobby.joinpw.ph': 'パスワード',
     'lobby.private': '非公開にする',
     'lobby.create.btn': '部屋を作成',
     'lobby.join.title': '部屋に入る',
@@ -1423,6 +1435,7 @@ const I18N = {
     'set.hint': 'ヒント表示（あと1枚で役）',
     'set.koikoiMul': 'こいこい多重掛け（回数で×2/×3/×4）',
     'set.baigaeshi': '倍返し（相手のこいこいを潰すと2倍）',
+    'set.noKoiSecond': '後攻（子）のこいこい禁止',
     'oya.title': '先手（親）を決める',
     'oya.lead': '各自 1 枚ずつ札を引き、早い月を引いた方が「親（先手）」になります。自分側の札は自分でボタンを押して引きます。',
     'oya.notyet': 'まだ引いていません',
@@ -1562,6 +1575,7 @@ const I18N = {
     'lobby.name': 'Your name',
     'lobby.roomname': 'Room name',
     'lobby.password': 'Password',
+    'lobby.name.ph': 'e.g. Yuki', 'lobby.roomname.ph': 'e.g. Hanami Room', 'lobby.pw.ph': 'optional', 'lobby.myname.ph': 'e.g. Sakura', 'lobby.joinpw.ph': 'Password',
     'lobby.private': 'Private',
     'lobby.create.btn': 'Create Room',
     'lobby.join.title': 'Join Room',
@@ -1605,6 +1619,7 @@ const I18N = {
     'set.hint': 'Hints (one card away)',
     'set.koikoiMul': 'Koi-Koi stacking (×2/×3/×4 by count)',
     'set.baigaeshi': 'Counter-double (beat their Koi-Koi = ×2)',
+    'set.noKoiSecond': 'Forbid Koi-Koi for 2nd player',
     'oya.title': 'Decide the Dealer',
     'oya.lead': 'Each player draws one card of their own; the earlier month becomes the dealer (first player). Press the button on your own side.',
     'oya.notyet': 'Not drawn yet',
@@ -1744,6 +1759,7 @@ const I18N = {
     'lobby.name': '你的名字',
     'lobby.roomname': '房间名',
     'lobby.password': '密码',
+    'lobby.name.ph': '例：小勇', 'lobby.roomname.ph': '例：赏花房', 'lobby.pw.ph': '可选', 'lobby.myname.ph': '例：小樱', 'lobby.joinpw.ph': '密码',
     'lobby.private': '私密房间',
     'lobby.create.btn': '创建房间',
     'lobby.join.title': '加入房间',
@@ -1787,6 +1803,7 @@ const I18N = {
     'set.hint': '提示（差一张成役）',
     'set.koikoiMul': '来来叠加（按次数×2/×3/×4）',
     'set.baigaeshi': '反倍（破对方来来则×2）',
+    'set.noKoiSecond': '禁止后手（子）来来',
     'oya.title': '决定先手（庄家）',
     'oya.lead': '每人抽一张自己的牌，抽到较早月份的一方成为庄家（先手）。按下自己一侧的按钮抽自己的牌。',
     'oya.notyet': '尚未抽牌',
@@ -1972,6 +1989,8 @@ function applyLang() {
     // Skip button label refresh for the game-select buttons where children carry span-level data-i18n
     el.textContent = txt;
   });
+  // v1.45: 入力欄のプレースホルダも多言語化
+  document.querySelectorAll('[data-i18n-ph]').forEach(el => { el.setAttribute('placeholder', t(el.dataset.i18nPh)); });
   // Subtitle per language
   const sub = _currentLang === 'cat' ? catSpeak('subtitle') : (SUBTITLE[_currentLang] || SUBTITLE.en);
   ['subtitle-lobby','subtitle-room','subtitle-game'].forEach(id => {
@@ -2032,9 +2051,10 @@ const state = {
     double: 'on',
     deal: 'on',
     draw: 'keep',
-    hint: 'on', // v1.42: あと1枚で役のヒント表示（既定オン）
     koikoiMul: 'on', // v1.44: こいこい多重掛け（1回×2/2回×3/3回×4）。OFFはフラット×2
     baigaeshi: 'on', // v1.44: 倍返し（相手のこいこいを潰して上がると×2）
+    noKoiSecond: 'off', // v1.45: 後攻（子）のこいこい禁止（既定オフ）
+    hint: 'on', // v1.42: あと1枚で役のヒント表示（既定オン）
   },
   oya: null,            // 'host' | 'guest' | null
   oyaHostMonth: null,
@@ -3469,9 +3489,12 @@ function renderGame() {
   if (turnMe) { turnMe.textContent = t('turn.you'); turnMe.classList.toggle('active', g.currentPlayer === me && g.phase !== 'end'); }
   if (turnOpp) { turnOpp.textContent = t('turn.opp'); turnOpp.classList.toggle('active', g.currentPlayer === opp && g.phase !== 'end'); }
   // v1.18: こいこい宣言者側にこいこいバッジを常時表示
+  // v1.45: こいこいバッジは各プレイヤー個別に表示（双方宣言なら両方）＋多重掛け時は「こいこい×N」
   const kkMe = document.getElementById('kk-me'), kkOpp = document.getElementById('kk-opp');
-  if (kkMe) { kkMe.textContent = t('koikoi.badge'); kkMe.style.display = (g.koikoiBy === me) ? 'inline-block' : 'none'; }
-  if (kkOpp) { kkOpp.textContent = t('koikoi.badge'); kkOpp.style.display = (g.koikoiBy === opp) ? 'inline-block' : 'none'; }
+  const kc = g.koikoiCount || { host: 0, guest: 0 };
+  const kkLabel = (n) => (n >= 2 && state.settings.koikoiMul === 'on') ? (t('koikoi.badge') + '×' + (n + 1)) : t('koikoi.badge');
+  if (kkMe) { kkMe.textContent = kkLabel(kc[me] || 0); kkMe.style.display = (kc[me] || 0) >= 1 ? 'inline-block' : 'none'; }
+  if (kkOpp) { kkOpp.textContent = kkLabel(kc[opp] || 0); kkOpp.style.display = (kc[opp] || 0) >= 1 ? 'inline-block' : 'none'; }
   // v1.18: ゲームルール名（こいこい）を一行目左端に常時表示
   const rn = document.getElementById('rule-name'); if (rn) rn.textContent = t('rule.koikoi');
   // v1.16: 自分の手番/選択フェーズでなければ手札選択を解除
@@ -4225,7 +4248,10 @@ function showYakuOverlay() {
   document.getElementById('ov-yaku-watch').textContent = isMyTurn ? '' : t('ov.yaku.oppchoosing');
   const bk = document.getElementById('btn-koikoi');
   const bs = document.getElementById('btn-shobu');
-  bk.disabled = !isMyTurn;
+  // v1.45: 後攻（親でない側=子）のこいこい禁止（設定オン時）＝勝負のみ可
+  const koikoiForbidden = (state.settings.noKoiSecond === 'on' && cur === otherPlayer(state.oya));
+  bk.disabled = !isMyTurn || koikoiForbidden;
+  bk.style.display = koikoiForbidden ? 'none' : '';
   bs.disabled = !isMyTurn;
   makeDraggable(panel, document.getElementById('ovYaku-drag')); // v1.21: 手を見たいので移動可能に
   document.getElementById('ovYaku').classList.add('show');
@@ -4282,6 +4308,8 @@ function applyKoikoi() {
   const g = state.game;
   if (g.phase !== 'yaku') return;
   const cur = g.currentPlayer;
+  // v1.45: 後攻こいこい禁止（設定オン）＝子はこいこい不可（不正クリック/intentも拒否）
+  if (state.settings.noKoiSecond === 'on' && cur === otherPlayer(state.oya)) return;
   g.koikoiBy = cur;
   if (!g.koikoiCount) g.koikoiCount = { host: 0, guest: 0 };
   g.koikoiCount[cur] = (g.koikoiCount[cur] || 0) + 1; // v1.44: こいこい回数
@@ -5065,7 +5093,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ?debug=1: solo test hook + 診断パネル表示
   if (new URLSearchParams(location.search).get('debug') === '1') {
     const dp = document.getElementById('diag-panel');
-    if (dp) dp.classList.remove('hidden');
+    if (dp) { dp.classList.remove('hidden'); document.body.appendChild(dp); dp.classList.add('debug-fixed'); } // v1.45: body直下へ移し画面固定＝どの画面/終了時も常時表示・コピー可
     const bc = document.getElementById('btn-diag-copy');
     if (bc) bc.addEventListener('click', diagCopyToClipboard);
     const bp = document.getElementById('btn-diag-pause');

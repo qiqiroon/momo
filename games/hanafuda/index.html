@@ -1014,7 +1014,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.29</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.30</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1069,7 +1069,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.29</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.30</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1144,7 +1144,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.29</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.30</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1234,6 +1234,14 @@
     <div class="set-row"><span data-i18n="settings.tag.label">札の番号表示</span><span class="seg" id="seg-showtag"><button class="on" data-v="on" data-i18n="set.on">あり</button><button data-v="off" data-i18n="set.off">なし</button></span></div>
     <div class="settings-row-hint" data-i18n="settings.tag.hint">札の左上に季節番号＋種別（光L/種A/短冊R/カス無）を表示</div>
   </div>
+  <div class="settings-row" id="settings-row-animspeed">
+    <div class="settings-row-head">
+      <span class="row-label" data-i18n="settings.anim.label">アニメの速さ</span>
+      <span class="row-value"><span id="anim-speed-value">x1</span></span>
+    </div>
+    <input type="range" class="settings-volume-slider" id="anim-speed-slider" min="0" max="4" step="1" value="2">
+    <div class="settings-row-hint" data-i18n="settings.anim.hint">札の移動・待ち・こいこいの流れる速さ（x0.5〜x2.0）</div>
+  </div>
   <div class="btn-row">
     <button class="btn btn-primary" id="btn-settings-close" data-i18n="settings.close">閉じる</button>
   </div>
@@ -1316,7 +1324,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.29';
+const APP_VERSION = 'v1.30';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -1500,6 +1508,7 @@ const I18N = {
     'settings.sfx.hint': '効果音の音量（v1.00 は UI のみ・音源は Phase 2 で搭載）',
     'settings.close': '閉じる',
     'settings.tag.label': '札の番号表示', 'settings.tag.hint': '札の左上に季節番号＋種別（光L/種A/短冊R/カス無）を表示',
+    'settings.anim.label': 'アニメの速さ', 'settings.anim.hint': '札の移動・待ち・こいこいの流れる速さ（x0.5〜x2.0）',
     'gear.title': '設定',
     'srv.connecting': 'サーバー接続中…',
     'srv.online': 'サーバー接続済み',
@@ -1673,6 +1682,7 @@ const I18N = {
     'settings.sfx.hint': 'Sound-effect volume (v1.00 is UI only — audio arrives in Phase 2)',
     'settings.close': 'Close',
     'settings.tag.label': 'Card labels', 'settings.tag.hint': 'Show month number + type (L/A/R, none for kasu) at each card top-left',
+    'settings.anim.label': 'Animation speed', 'settings.anim.hint': 'Speed of card moves / pauses / koikoi scroll (x0.5–x2.0)',
     'gear.title': 'Settings',
     'srv.connecting': 'Connecting to server…',
     'srv.online': 'Server connected',
@@ -1846,6 +1856,7 @@ const I18N = {
     'settings.sfx.hint': '音效音量（v1.00 仅 UI 展示，音源将在 Phase 2 加入）',
     'settings.close': '关闭',
     'settings.tag.label': '牌面编号', 'settings.tag.hint': '在每张牌左上角显示月份数字＋种类（光L/种A/短冊R/カス无）',
+    'settings.anim.label': '动画速度', 'settings.anim.hint': '牌的移动・停顿・こいこい滚动的速度（x0.5〜x2.0）',
     'gear.title': '设置',
     'srv.connecting': '正在连接服务器…',
     'srv.online': '服务器已连接',
@@ -1980,6 +1991,7 @@ const state = {
   matchOver: false,     // 全局終了 = 総結果画面表示
   selHand: null,        // v1.16: 2タッチ操作で1回目に選んだ手札の id（この端末のみ・非同期）
   showTag: true,        // v1.17: 左上の番号ラベル表示（設定でON/OFF・この端末のみ・既定ON）
+  animSpeed: 1,         // v1.30: アニメ速度倍率（0.5/0.75/1/1.5/2）この端末のみ・非同期・既定1
   gameEndChoice: { host: null, guest: null }, // v1.22: 総結果の再戦/ロビー両者選択（host が集計）
   gameChoiceMade: false, // v1.22: この端末が総結果で選択済みか（UI待機表示用）
 };
@@ -2790,13 +2802,14 @@ function koikoiDeclareAnim(by) {
     const r = handRow.getBoundingClientRect();
     slide.textContent = t('flash.koikoi');
     slide.style.top = (r.top + r.height / 2) + 'px';
+    slide.style.animationDuration = aMs(2100) + 'ms'; // v1.30: 速度倍率でスクロール時間を調整
     slide.className = 'koikoi-slide'; void slide.offsetWidth; slide.className = 'koikoi-slide show';
     // v1.21: 中央フラッシュを animationend で確実に発火（タイマーはフォールバック）。PC横長で出ない対策
     let done = false;
     const fire = () => { if (done) return; done = true; slide.className = 'koikoi-slide'; centerFlash('koikoi', by); };
     slide.addEventListener('animationend', fire, { once: true });
     if (_slideTimer) clearTimeout(_slideTimer);
-    _slideTimer = setTimeout(fire, 2300);
+    _slideTimer = setTimeout(fire, aMs(2300));
   } else {
     centerFlash('koikoi', by);
   }
@@ -2847,6 +2860,7 @@ function startRound() {
     pending: [],        // v1.28: 合わせ取り待ち（場に重ねた札）
     capFlash: null,     // v1.29: 回収直後（種別無視で行末）表示
     playedFromHand: null, // v1.29: 手札の隙間
+    playPick: null,     // v1.30: 2枚候補選択中に浮かせる手札
     pickOptions: [],
     yakuBaseline: { host: [], guest: [] },
     pendingYaku: null,
@@ -2927,6 +2941,9 @@ const ANIM = {
   _lastDrawnId: null, // めくり札が新規に出た瞬間を検出するための直前ID
   _pendingFlip: false,
 };
+// v1.30: 速度倍率。x2=速い＝時間は半分、x0.5=遅い＝時間は倍。対象＝札の移動/その場待機/こいこいスクロール。
+function animScale() { const s = parseFloat(state.animSpeed); return (s > 0) ? s : 1; }
+function aMs(base) { return Math.round(base / animScale()); }
 // v1.27: めくり回転演出。山の頂上で「裏が縦中心線に向かって横に縮む → 中心で入れ替わり →
 // 表が中心から横に広がる」。scaleX の変形なので中身が SVG でも PNG でも同じように効く。
 function flipReveal() {
@@ -2934,7 +2951,7 @@ function flipReveal() {
   if (!container) return;
   const front = container.querySelector('.card[data-id]');
   if (!front) return;
-  const half = Math.round(ANIM.flipDur / 2);
+  const half = Math.round(aMs(ANIM.flipDur) / 2);
   // 表を隠し、裏（同サイズ）を上に重ねて縮める
   const backWrap = document.createElement('span');
   backWrap.innerHTML = svgBack();
@@ -2972,7 +2989,7 @@ function animSnapshot() {
 // Web Animations API を使う（手動 rAF/transition よりバックグラウンドや取りこぼしに強い・後始末不要）。
 function animPlay(prev, opts) {
   if (!prev || !prev.size) return [];
-  const dur = (opts && opts.dur) || ANIM.dur;
+  const dur = aMs((opts && opts.dur) || ANIM.dur);
   const anims = [];
   document.querySelectorAll('#screen-game .card[data-id]').forEach(el => {
     // 選択中/リフト中の札は CSS transform を使うため触らない（アニメと競合させない）
@@ -3038,7 +3055,9 @@ function renderGame() {
   (g.hands[me] || []).forEach(c => {
     const wrap = document.createElement('span');
     const clickable = isMyTurn && g.phase === 'select-hand';
-    const sel = clickable && c.id === state.selHand;
+    // v1.30: 2枚候補の選択中は、出す札を手札の中で浮かせたまま維持（場札選択後に飛ぶ）
+    const isPick = g.playPick && g.playPick.player === me && g.playPick.id === c.id;
+    const sel = (clickable && c.id === state.selHand) || isPick;
     wrap.innerHTML = svgCard(c.id, (clickable ? 'clickable' : '') + (sel ? ' sel' : ''));
     const el = wrap.firstChild;
     if (clickable) {
@@ -3387,23 +3406,27 @@ function applyPlayCard(card) {
   const hand = g.hands[cur];
   const idx = hand.findIndex(c => c.id === card.id);
   if (idx < 0) return;
-  const played = hand.splice(idx, 1)[0];
-  // v1.29: 手札の隙間は「取り札を種類別に整列する段」まで詰めない（そこまで元の位置に空きを残す）
-  g.playedFromHand = { player: cur, index: idx };
-  g.playedCard = played;
-  const matches = g.field.filter(c => c.month === played.month);
-  if (matches.length === 0) {
-    g.field.push(played);          // 合う札なし＝単独で場に残す
-    proceedToDraw();
-  } else if (matches.length === 1 || matches.length === 3) {
-    stagePending(played, matches); // v1.28: まだ取らず、対象の場札の上に重ねて置く
-    proceedToDraw();
-  } else {
-    // 2 枚: 選択待ち
+  const matches = g.field.filter(c => c.month === card.month);
+  if (matches.length === 2) {
+    // v1.30: 2枚候補＝手札から抜かず「浮かせたまま」維持し、場札の選択後に飛ばす
+    g.playPick = { player: cur, id: card.id, index: idx };
     g.phase = 'pick-play';
     g.pickOptions = matches.map(c => c.id);
     renderGame();
     syncState();
+    return;
+  }
+  // 0/1/3枚＝ここで手札から抜いて出す
+  const played = hand.splice(idx, 1)[0];
+  // v1.29: 手札の隙間は「取り札を種類別に整列する段」まで詰めない（そこまで元の位置に空きを残す）
+  g.playedFromHand = { player: cur, index: idx };
+  g.playedCard = played;
+  if (matches.length === 0) {
+    g.field.push(played);          // 合う札なし＝単独で場に残す
+    proceedToDraw();
+  } else {
+    stagePending(played, matches); // v1.28: まだ取らず、対象の場札の上に重ねて置く
+    proceedToDraw();
   }
 }
 
@@ -3454,7 +3477,17 @@ function applyPick(fieldCard) {
   const fc = g.field.find(c => c.id === fieldCard.id);
   if (!fc) return;
   if (g.phase === 'pick-play') {
-    stagePending(g.playedCard, [fc]); // v1.28: まだ取らず重ねて置く
+    // v1.30: ここで初めて手札から抜く＝浮かせていた札が選んだ場札へ飛ぶ
+    const pp = g.playPick;
+    if (pp) {
+      const hand = g.hands[pp.player];
+      const hi = hand.findIndex(c => c.id === pp.id);
+      const played = (hi >= 0) ? hand.splice(hi, 1)[0] : { id: pp.id };
+      g.playedFromHand = { player: pp.player, index: pp.index };
+      g.playedCard = played;
+      g.playPick = null;
+      stagePending(played, [fc]);
+    }
     proceedToDraw();
   } else if (g.phase === 'pick-draw') {
     stagePending(g.drawnCard, [fc]);
@@ -3482,9 +3515,9 @@ function proceedToDraw() {
     g.drawnCard = drawn;
     renderGame();      // 山の頂上にめくり札が出る → flipReveal 発火
     syncState();       // めくり札の見え方を guest に配る（online も遅れて届く＝間が保たれる）
-    setTimeout(() => resolveDraw(drawn), ANIM.flipDur + ANIM.hold);
+    setTimeout(() => resolveDraw(drawn), aMs(ANIM.flipDur + ANIM.hold));
   };
-  if (animEnabled()) setTimeout(doFlip, ANIM.beat);
+  if (animEnabled()) setTimeout(doFlip, aMs(ANIM.beat));
   else doFlip();
 }
 
@@ -3517,15 +3550,30 @@ function collectAndYaku() {
   syncState();
   const hasPending = g.pending && g.pending.length;
   const flashIds = (g.pending || []).reduce((a, p) => a.concat(p.targetIds, p.incoming.id), []);
-  // ④回収：まず種別を無視して取り札の行末へ飛ばす
+  // ④回収：まず種別を無視して取り札の行末へ飛ばす（場→取り札は画面レイヤーのクローンで飛ばし枠のクリップを回避）
   const stepCollect = () => {
     if (!state.game || state.game !== g) return;
+    // 場にある回収対象の現在位置を控える
+    const fromRects = {};
+    flashIds.forEach(id => {
+      const el = document.querySelector('#field-cards .card[data-id="' + id + '"]');
+      if (el) fromRects[id] = el.getBoundingClientRect();
+    });
     g.capFlash = { player: g.currentPlayer, ids: flashIds };
     collectPending();
-    renderGame();   // FLIP: 重なり（場）→取り札の行末へ
+    renderGame();   // 取り札の行末に実カードが並ぶ（field reflow はここで滑る）
     syncState();
-    if (animEnabled()) setTimeout(stepSort, ANIM.dur + 140);
-    else stepSort();
+    if (animEnabled()) {
+      // 行末の実カードは隠し、場→行末をクローンで飛ばす（縮小しながら・画面全体に見える）
+      const flyers = [];
+      flashIds.forEach(id => {
+        const real = document.querySelector('.caprow .card[data-id="' + id + '"]');
+        const from = fromRects[id];
+        if (real && from) { flyers.push({ id, from, to: real.getBoundingClientRect(), real }); real.style.visibility = 'hidden'; }
+      });
+      flyOverlayCards(flyers);
+      setTimeout(() => { flyers.forEach(f => { try { f.real.style.visibility = ''; } catch (e) {} }); stepSort(); }, aMs(ANIM.dur) + 60);
+    } else stepSort();
   };
   // ⑤整列：種類別の位置へ移動＋手札の左寄せを同時に
   const stepSort = () => {
@@ -3534,15 +3582,43 @@ function collectAndYaku() {
     g.playedFromHand = null;
     renderGame();   // FLIP: 行末→種類別位置へ＋手札詰め（同時）
     syncState();
-    setTimeout(() => proceedYakuCheck(), ANIM.dur + 80);
+    setTimeout(() => proceedYakuCheck(), aMs(ANIM.dur + 80));
   };
-  if (hasPending && animEnabled()) setTimeout(stepCollect, ANIM.hold + 240);
+  if (hasPending && animEnabled()) setTimeout(stepCollect, aMs(ANIM.hold + 240));
   else {
     collectPending();
     g.capFlash = null; g.playedFromHand = null;
     renderGame(); syncState();
     proceedYakuCheck();
   }
+}
+// v1.30: 場→取り札の「飛ぶ」演出。画面レイヤー(screen-game)に fixed でクローンを置き、
+// 場の位置(大)から取り札の位置(小)へ縮小しながら移動。取り札の枠のクリップを受けない。
+function flyOverlayCards(flyers) {
+  const layer = document.getElementById('screen-game');
+  if (!layer) return;
+  flyers.forEach(f => {
+    const wrap = document.createElement('span');
+    wrap.innerHTML = svgCard(f.id, '');
+    const el = wrap.firstChild;
+    el.style.position = 'fixed';
+    el.style.left = f.from.left + 'px';
+    el.style.top = f.from.top + 'px';
+    el.style.width = f.from.width + 'px';
+    el.style.height = f.from.height + 'px';
+    el.style.margin = '0';
+    el.style.zIndex = '200';
+    el.style.pointerEvents = 'none';
+    el.style.transformOrigin = 'top left';
+    layer.appendChild(el);
+    const dx = f.to.left - f.from.left, dy = f.to.top - f.from.top;
+    const sc = f.from.width ? (f.to.width / f.from.width) : 1;
+    el.animate([
+      { transform: 'translate(0,0) scale(1)' },
+      { transform: 'translate(' + dx + 'px,' + dy + 'px) scale(' + sc + ')' },
+    ], { duration: aMs(ANIM.dur), easing: ANIM.ease, fill: 'forwards' });
+    setTimeout(() => { try { el.remove(); } catch (e) {} }, aMs(ANIM.dur) + 80);
+  });
 }
 
 function proceedYakuCheck() {
@@ -4018,6 +4094,7 @@ function syncState(opts) {
     pending: g.pending || [], // v1.28: 合わせ取り待ち（場に重ねた札）を guest にも配る
     capFlash: g.capFlash || null,           // v1.29: 回収直後（種別無視で行末）表示
     playedFromHand: g.playedFromHand || null, // v1.29: 手札の隙間（整列段まで詰めない）
+    playPick: g.playPick || null,           // v1.30: 2枚候補選択中に浮かせる手札
     pickOptions: g.pickOptions,
     pendingYaku: g.pendingYaku,
     pendingGained: g.pendingGained,
@@ -4054,6 +4131,7 @@ function applyState(msg) {
   g.pending = msg.pending || []; // v1.28: 合わせ取り待ちの重ね札
   g.capFlash = msg.capFlash || null;            // v1.29
   g.playedFromHand = msg.playedFromHand || null; // v1.29
+  g.playPick = msg.playPick || null;             // v1.30
   g.pickOptions = msg.pickOptions || [];
   g.pendingYaku = msg.pendingYaku || null;
   g.pendingGained = msg.pendingGained || null;
@@ -4310,6 +4388,22 @@ function bindEvents() {
     syncTagSeg();
     if (state.game && state.screen === 'game') renderGame();
   }));
+  // v1.30: アニメの速さ（この端末のみ・既定 x1・localStorage 記憶）
+  const SPEED_STEPS = [0.5, 0.75, 1, 1.5, 2];
+  const speedSlider = document.getElementById('anim-speed-slider');
+  const speedLbl = document.getElementById('anim-speed-value');
+  if (speedSlider) {
+    try { const v = parseFloat(localStorage.getItem('hanafuda_animspeed')); if (v > 0) state.animSpeed = v; } catch (e) {}
+    let si = SPEED_STEPS.indexOf(state.animSpeed); if (si < 0) si = 2;
+    speedSlider.value = String(si);
+    speedLbl.textContent = 'x' + SPEED_STEPS[si];
+    speedSlider.addEventListener('input', () => {
+      const sp = SPEED_STEPS[parseInt(speedSlider.value, 10)] || 1;
+      state.animSpeed = sp;
+      speedLbl.textContent = 'x' + sp;
+      try { localStorage.setItem('hanafuda_animspeed', String(sp)); } catch (e) {}
+    });
+  }
 
   window.addEventListener('resize', () => { fitHeader(); fitBoard(); positionLeaveBtn(); });
   window.addEventListener('orientationchange', () => setTimeout(() => { fitHeader(); fitBoard(); positionLeaveBtn(); }, 250));

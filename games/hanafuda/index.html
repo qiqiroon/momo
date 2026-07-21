@@ -1014,7 +1014,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.31</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.32</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1069,7 +1069,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.31</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.32</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1144,7 +1144,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.31</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.32</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1239,7 +1239,7 @@
       <span class="row-label" data-i18n="settings.anim.label">アニメの速さ</span>
       <span class="row-value"><span id="anim-speed-value">x1</span></span>
     </div>
-    <input type="range" class="settings-volume-slider" id="anim-speed-slider" min="0" max="4" step="1" value="2">
+    <input type="range" class="settings-volume-slider" id="anim-speed-slider" min="0" max="4" step="1" value="4">
     <div class="settings-row-hint" data-i18n="settings.anim.hint">札の移動・待ち・こいこいの流れる速さ（x0.5〜x2.0）</div>
   </div>
   <div class="btn-row">
@@ -1324,7 +1324,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.31';
+const APP_VERSION = 'v1.32';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -1991,7 +1991,7 @@ const state = {
   matchOver: false,     // 全局終了 = 総結果画面表示
   selHand: null,        // v1.16: 2タッチ操作で1回目に選んだ手札の id（この端末のみ・非同期）
   showTag: true,        // v1.17: 左上の番号ラベル表示（設定でON/OFF・この端末のみ・既定ON）
-  animSpeed: 1,         // v1.30: アニメ速度倍率（0.5/0.75/1/1.5/2）この端末のみ・非同期・既定1
+  animSpeed: 2,         // v1.32: アニメ速度倍率（0.5/0.75/1/1.5/2）この端末のみ・非同期・既定2（x1のめくりが遅く感じるため）
   gameEndChoice: { host: null, guest: null }, // v1.22: 総結果の再戦/ロビー両者選択（host が集計）
   gameChoiceMade: false, // v1.22: この端末が総結果で選択済みか（UI待機表示用）
 };
@@ -3526,7 +3526,11 @@ function proceedToDraw() {
 function resolveDraw(drawn) {
   const g = state.game;
   if (g.drawnCard !== drawn) return; // 既に処理済み
-  const matches = g.field.filter(c => c.month === drawn.month);
+  // v1.32: すでに「重ね置き待ち（手札の合わせ取り予定）」の相方は、まだ場に残っていても取り対象外。
+  //        これを除外しないと、めくり札が同月の“予約済み”場札に重なって3枚取りの誤りになる。
+  const claimed = new Set();
+  (g.pending || []).forEach(p => p.targetIds.forEach(id => claimed.add(id)));
+  const matches = g.field.filter(c => c.month === drawn.month && !claimed.has(c.id));
   if (matches.length === 0) {
     g.field.push(drawn);            // 合う札なし＝単独で場に残す
     g.drawnCard = null;
@@ -3754,6 +3758,7 @@ function applyKoikoi() {
   emitKoikoiEvent('koikoi', cur);
   playSfx('koikoi');
   setBgm('koikoi');
+  maybeShowKoikoiFlash(); // v1.32: こいこい選択と同時に即スクロールを流す（endTurn の再描画を待たない）
   endTurn(); // syncState は endTurn 内（event も同送される）
 }
 function applyShobu() {
@@ -4400,7 +4405,7 @@ function bindEvents() {
   const speedLbl = document.getElementById('anim-speed-value');
   if (speedSlider) {
     try { const v = parseFloat(localStorage.getItem('hanafuda_animspeed')); if (v > 0) state.animSpeed = v; } catch (e) {}
-    let si = SPEED_STEPS.indexOf(state.animSpeed); if (si < 0) si = 2;
+    let si = SPEED_STEPS.indexOf(state.animSpeed); if (si < 0) si = 4; // 既定 x2
     speedSlider.value = String(si);
     speedLbl.textContent = 'x' + SPEED_STEPS[si];
     speedSlider.addEventListener('input', () => {

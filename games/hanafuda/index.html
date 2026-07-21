@@ -1014,7 +1014,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.32</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.33</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1069,7 +1069,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.32</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.33</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1144,7 +1144,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.32</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.33</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1324,7 +1324,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.32';
+const APP_VERSION = 'v1.33';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -2861,6 +2861,8 @@ function startRound() {
     capFlash: null,     // v1.29: 回収直後（種別無視で行末）表示
     playedFromHand: null, // v1.29: 手札の隙間
     playPick: null,     // v1.30: 2枚候補選択中に浮かせる手札
+    fieldOrder: null,   // v1.33: 回収跡の空きを保持する場の並び
+    fieldGhostIds: null,
     pickOptions: [],
     yakuBaseline: { host: [], guest: [] },
     pendingYaku: null,
@@ -3096,7 +3098,20 @@ function renderGame() {
   const pickActive = (g.phase === 'pick-play' || g.phase === 'pick-draw') && isMyTurn;
   const pickSet = pickActive ? new Set(g.pickOptions) : null;
   const dimSet = (g.phase === 'pick-play' || g.phase === 'pick-draw') && !isMyTurn ? new Set(g.pickOptions) : null;
-  g.field.forEach(c => {
+  // v1.33: 回収した札の跡地は「整列（左寄せ）段」まで空きのまま保持する。
+  //        fieldOrder（回収前の並び）を使い、回収済み id は見えない空きとして描く。
+  const ghostSet = (g.fieldOrder && g.fieldGhostIds) ? new Set(g.fieldGhostIds) : null;
+  const fieldSeq = ghostSet
+    ? g.fieldOrder.map(id => ghostSet.has(id) ? { ghost: true } : g.field.find(c => c.id === id)).filter(Boolean)
+    : g.field;
+  fieldSeq.forEach(c => {
+    if (c.ghost) { // 回収跡の空き（左寄せ段で詰める）
+      const sp = document.createElement('span');
+      sp.className = 'card field-gap';
+      sp.style.visibility = 'hidden';
+      fld.appendChild(sp);
+      return;
+    }
     const wrap = document.createElement('span');
     let cls = '';
     if (pickSet && pickSet.has(c.id)) cls = 'match clickable';
@@ -3567,8 +3582,11 @@ function collectAndYaku() {
     });
     g.capFlash = { player: g.currentPlayer, ids: flashIds };
     ANIM._skipFlip = new Set(flashIds); // v1.31: 回収する札は本物カードを FLIP させない（枠でクリップされる動きを出さない）
+    // v1.33: 回収跡の場の空きは、整列（左寄せ）段まで詰めずに保持する（今の並びを控える）
+    g.fieldOrder = g.field.map(c => c.id);
+    g.fieldGhostIds = g.field.filter(c => flashIds.indexOf(c.id) >= 0).map(c => c.id);
     collectPending();
-    renderGame();   // 取り札の行末に実カードが並ぶ（field reflow はここで滑る）
+    renderGame();   // 場は跡地を空きのまま保持（詰めない）／取り札の行末に実カードが並ぶ
     ANIM._skipFlip = null;
     syncState();
     if (animEnabled()) {
@@ -3583,12 +3601,13 @@ function collectAndYaku() {
       setTimeout(() => { flyers.forEach(f => { try { f.real.style.visibility = ''; } catch (e) {} }); stepSort(); }, aMs(ANIM.dur) + 60);
     } else stepSort();
   };
-  // ⑤整列：種類別の位置へ移動＋手札の左寄せを同時に
+  // ⑤整列：種類別の位置へ移動＋場と手札の左寄せ（隙間詰め）を同時に
   const stepSort = () => {
     if (!state.game || state.game !== g) return;
     g.capFlash = null;
     g.playedFromHand = null;
-    renderGame();   // FLIP: 行末→種類別位置へ＋手札詰め（同時）
+    g.fieldOrder = null; g.fieldGhostIds = null; // v1.33: 場の空きを詰める（ここで左寄せ）
+    renderGame();   // FLIP: 行末→種類別位置へ＋場詰め＋手札詰め（同時）
     syncState();
     setTimeout(() => proceedYakuCheck(), aMs(ANIM.dur + 80));
   };
@@ -3596,6 +3615,7 @@ function collectAndYaku() {
   else {
     collectPending();
     g.capFlash = null; g.playedFromHand = null;
+    g.fieldOrder = null; g.fieldGhostIds = null;
     renderGame(); syncState();
     proceedYakuCheck();
   }
@@ -4106,6 +4126,8 @@ function syncState(opts) {
     capFlash: g.capFlash || null,           // v1.29: 回収直後（種別無視で行末）表示
     playedFromHand: g.playedFromHand || null, // v1.29: 手札の隙間（整列段まで詰めない）
     playPick: g.playPick || null,           // v1.30: 2枚候補選択中に浮かせる手札
+    fieldOrder: g.fieldOrder || null,       // v1.33: 回収跡の空き保持（online 同挙動）
+    fieldGhostIds: g.fieldGhostIds || null,
     pickOptions: g.pickOptions,
     pendingYaku: g.pendingYaku,
     pendingGained: g.pendingGained,
@@ -4143,6 +4165,8 @@ function applyState(msg) {
   g.capFlash = msg.capFlash || null;            // v1.29
   g.playedFromHand = msg.playedFromHand || null; // v1.29
   g.playPick = msg.playPick || null;             // v1.30
+  g.fieldOrder = msg.fieldOrder || null;         // v1.33
+  g.fieldGhostIds = msg.fieldGhostIds || null;
   g.pickOptions = msg.pickOptions || [];
   g.pendingYaku = msg.pendingYaku || null;
   g.pendingGained = msg.pendingGained || null;

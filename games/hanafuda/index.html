@@ -271,7 +271,10 @@
   .deck-drawn{position:absolute;top:0;left:0;z-index:16;}
   .deck-drawn:empty{display:none;}
   .drawn-slot{display:none;}
-  .field{display:grid;grid-template-columns:repeat(4,auto);gap:3px;}
+  .field{display:grid;grid-template-columns:repeat(4,auto);gap:3px;position:relative;}
+  /* v1.28: 合わせ取り待ち＝出した札/めくり札を対象の場札の上に少しずらして重ねる */
+  .field .card.pending{box-shadow:0 3px 9px rgba(0,0,0,.55);}
+  .field .card.pending-target{outline:2px solid var(--gold);border-radius:5px;box-shadow:0 0 8px var(--gold);}
   .capblock{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:5px 8px;display:flex;flex-direction:column;gap:3px;}
   .capblock .ct{font-size:.58rem;color:var(--orange);font-weight:700;letter-spacing:.08em;}
   .caprow{display:flex;align-items:center;gap:5px;overflow:hidden;}
@@ -1011,7 +1014,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.27</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.28</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1066,7 +1069,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.27</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.28</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1141,7 +1144,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.27</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.28</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1313,7 +1316,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.27';
+const APP_VERSION = 'v1.28';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -2841,6 +2844,7 @@ function startRound() {
     phase: 'select-hand',
     playedCard: null,
     drawnCard: null,
+    pending: [],        // v1.28: 合わせ取り待ち（場に重ねた札）
     pickOptions: [],
     yakuBaseline: { host: [], guest: [] },
     pendingYaku: null,
@@ -3095,9 +3099,39 @@ function renderGame() {
   // 機種ごとに 1 画面に収まるようカード寸法を実測フィット
   fitBoard();
   positionLeaveBtn(); // 中断ボタンをコントロール直下・左端そろえに配置
+  renderPendingOverlays(); // v1.28: 合わせ取り待ちの札を対象の場札の上に重ねて描く（fitBoard 後の実寸で）
   animPlay(_animPrev); // FLIP: 位置の変わった札を元→新へ滑らせる（fitBoard 後の最終位置で計算）
   if (ANIM._pendingFlip) { ANIM._pendingFlip = false; flipReveal(); } // v1.27: めくり回転演出
   maybeShowKoikoiFlash(); // v1.14: 未表示のこいこいイベントがあれば一瞬バナー表示
+}
+
+// v1.28: pending（合わせ取り待ち）の札を、対象の場札の上にずらして重ねて描く。
+// これらは g.field には入れず絶対配置のオーバーレイ。data-id を持つので FLIP で
+// 手札／めくり位置から重ね位置へ滑り、collect 時は重ね位置から取り札へ滑る。
+function renderPendingOverlays() {
+  const g = state.game;
+  const fld = document.getElementById('field-cards');
+  if (!fld) return;
+  fld.querySelectorAll('.card.pending').forEach(el => el.remove()); // 保険
+  const cw = parseFloat(getComputedStyle(document.getElementById('screen-game')).getPropertyValue('--card-w')) || 42;
+  const off = Math.round(cw * 0.26); // 重なりのずらし量
+  (g.pending || []).forEach(p => {
+    const targetEl = fld.querySelector('.card[data-id="' + p.targetIds[0] + '"]:not(.pending)');
+    const s = document.createElement('span');
+    s.innerHTML = svgCard(p.incoming.id, 'pending');
+    const el = s.firstChild;
+    el.style.position = 'absolute';
+    el.style.zIndex = '8';
+    if (targetEl) {
+      el.style.left = (targetEl.offsetLeft + off) + 'px';
+      el.style.top = (targetEl.offsetTop + off) + 'px';
+    } else { el.style.left = '0px'; el.style.top = '0px'; }
+    fld.appendChild(el);
+    p.targetIds.forEach(tid => {
+      const t = fld.querySelector('.card[data-id="' + tid + '"]:not(.pending)');
+      if (t) t.classList.add('pending-target');
+    });
+  });
 }
 
 // v1.17: 手番の主体を「＜名前＞（あなた/相手）」で表す
@@ -3334,10 +3368,10 @@ function applyPlayCard(card) {
   g.playedCard = played;
   const matches = g.field.filter(c => c.month === played.month);
   if (matches.length === 0) {
-    g.field.push(played);
+    g.field.push(played);          // 合う札なし＝単独で場に残す
     proceedToDraw();
   } else if (matches.length === 1 || matches.length === 3) {
-    captureBothFromField(matches, played, cur);
+    stagePending(played, matches); // v1.28: まだ取らず、対象の場札の上に重ねて置く
     proceedToDraw();
   } else {
     // 2 枚: 選択待ち
@@ -3348,6 +3382,27 @@ function applyPlayCard(card) {
   }
 }
 
+// v1.28: 合わせ取りは「即取る」をやめ、まず場札の上に重ねて置く（pending）。
+// 手札／めくり札の両方を場に置いてから、最後に collectPending でまとめて取り札へ。
+function stagePending(incoming, targetCards) {
+  const g = state.game;
+  if (!g.pending) g.pending = [];
+  g.pending.push({ incoming: incoming, targetIds: targetCards.map(c => c.id) });
+}
+// pending をまとめて取り札へ移す（対象の場札＋重ねた札を現在手番の取り札へ）
+function collectPending() {
+  const g = state.game;
+  const cur = g.currentPlayer;
+  (g.pending || []).forEach(p => {
+    p.targetIds.forEach(tid => {
+      const i = g.field.findIndex(c => c.id === tid);
+      if (i >= 0) g.caps[cur].push(g.field.splice(i, 1)[0]);
+    });
+    g.caps[cur].push(p.incoming);
+  });
+  g.pending = [];
+}
+// 旧・即時取り（未使用化）。手四・くっつき以外では使わない。
 function captureBothFromField(fieldCards, played, player) {
   const g = state.game;
   fieldCards.forEach(c => {
@@ -3374,12 +3429,12 @@ function applyPick(fieldCard) {
   const fc = g.field.find(c => c.id === fieldCard.id);
   if (!fc) return;
   if (g.phase === 'pick-play') {
-    captureBothFromField([fc], g.playedCard, cur);
+    stagePending(g.playedCard, [fc]); // v1.28: まだ取らず重ねて置く
     proceedToDraw();
   } else if (g.phase === 'pick-draw') {
-    captureBothFromField([fc], g.drawnCard, cur);
+    stagePending(g.drawnCard, [fc]);
     g.drawnCard = null;
-    proceedYakuCheck();
+    collectAndYaku();
   }
 }
 
@@ -3388,7 +3443,7 @@ function proceedToDraw() {
   g.playedCard = null;
   g.pickOptions = [];
   if (g.deck.length === 0) {
-    proceedYakuCheck();
+    collectAndYaku(); // v1.28: 山切れ＝めくらず、手札ぶんの重なりを回収して役判定へ
     return;
   }
   g.phase = 'draw';
@@ -3411,22 +3466,39 @@ function proceedToDraw() {
 function resolveDraw(drawn) {
   const g = state.game;
   if (g.drawnCard !== drawn) return; // 既に処理済み
-  const cur = g.currentPlayer;
   const matches = g.field.filter(c => c.month === drawn.month);
   if (matches.length === 0) {
-    g.field.push(drawn);
+    g.field.push(drawn);            // 合う札なし＝単独で場に残す
     g.drawnCard = null;
-    proceedYakuCheck();
+    collectAndYaku();
   } else if (matches.length === 1 || matches.length === 3) {
-    captureBothFromField(matches, drawn, cur);
+    stagePending(drawn, matches);   // v1.28: まだ取らず、場札の上に重ねて置く
     g.drawnCard = null;
-    proceedYakuCheck();
+    collectAndYaku();
   } else {
     g.phase = 'pick-draw';
     g.pickOptions = matches.map(c => c.id);
     renderGame();
     syncState();
   }
+}
+
+// v1.28: 手番の締め。まず「手札もめくり札も場に置いた状態」を見せ、少し余韻をおいてから
+// 重なりをまとめて取り札へ回収（＋場詰め・取り札ソート）→ 役判定へ。
+function collectAndYaku() {
+  const g = state.game;
+  renderGame();  // ③まで（手札・めくり札を場に重ねて置いた状態）を見せる
+  syncState();
+  const hasPending = g.pending && g.pending.length;
+  const finish = () => {
+    if (!state.game || state.game !== g) return;
+    collectPending(); // ④重なりをまとめて取り札へ
+    renderGame();     // FLIP: 重なり→取り札へ飛ぶ＋⑤場詰め・ソート・手札詰め
+    syncState();
+    setTimeout(() => proceedYakuCheck(), ANIM.dur + 80);
+  };
+  if (hasPending && animEnabled()) setTimeout(finish, ANIM.hold + 240);
+  else finish();
 }
 
 function proceedYakuCheck() {
@@ -3899,6 +3971,7 @@ function syncState(opts) {
     phase: g.phase,
     playedCard: g.playedCard,
     drawnCard: g.drawnCard,
+    pending: g.pending || [], // v1.28: 合わせ取り待ち（場に重ねた札）を guest にも配る
     pickOptions: g.pickOptions,
     pendingYaku: g.pendingYaku,
     pendingGained: g.pendingGained,
@@ -3932,6 +4005,7 @@ function applyState(msg) {
   g.phase = msg.phase;
   g.playedCard = msg.playedCard || null;
   g.drawnCard = msg.drawnCard || null;
+  g.pending = msg.pending || []; // v1.28: 合わせ取り待ちの重ね札
   g.pickOptions = msg.pickOptions || [];
   g.pendingYaku = msg.pendingYaku || null;
   g.pendingGained = msg.pendingGained || null;

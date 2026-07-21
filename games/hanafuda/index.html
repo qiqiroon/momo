@@ -1011,7 +1011,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.26</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.27</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1066,7 +1066,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.26</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.27</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1141,7 +1141,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.26</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.27</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1313,7 +1313,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.26';
+const APP_VERSION = 'v1.27';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -2913,9 +2913,42 @@ function mySide() {
 // 出口で animPlay。位置が変わった札だけ、いったん元位置に見せてから新位置へトランジションする。
 const ANIM = {
   enabled: true,
-  dur: 340,   // 1移動の所要時間(ms)
+  dur: 340,       // 1移動の所要時間(ms)
   ease: 'cubic-bezier(.22,.61,.36,1)',
+  beat: 380,      // v1.27: 手札を場に置いてから山をめくるまでの“間”(ms)
+  flipDur: 440,   // v1.27: めくり回転の所要時間(ms)
+  hold: 280,      // v1.27: めくった札を場へ動かすまでの余韻(ms)
+  _lastDrawnId: null, // めくり札が新規に出た瞬間を検出するための直前ID
+  _pendingFlip: false,
 };
+// v1.27: めくり回転演出。山の頂上で「裏が縦中心線に向かって横に縮む → 中心で入れ替わり →
+// 表が中心から横に広がる」。scaleX の変形なので中身が SVG でも PNG でも同じように効く。
+function flipReveal() {
+  const container = document.getElementById('deck-drawn');
+  if (!container) return;
+  const front = container.querySelector('.card[data-id]');
+  if (!front) return;
+  const half = Math.round(ANIM.flipDur / 2);
+  // 表を隠し、裏（同サイズ）を上に重ねて縮める
+  const backWrap = document.createElement('span');
+  backWrap.innerHTML = svgBack();
+  const back = backWrap.firstChild;
+  back.style.position = 'absolute';
+  back.style.top = '0'; back.style.left = '0';
+  back.style.transformOrigin = 'center center';
+  front.style.transformOrigin = 'center center';
+  front.style.visibility = 'hidden';
+  container.appendChild(back);
+  back.animate([{ transform: 'scaleX(1)' }, { transform: 'scaleX(0.02)' }],
+    { duration: half, easing: 'ease-in', fill: 'forwards' });
+  // 中心で入れ替え（setTimeout はタイムライン停止環境でも進むので finished より堅い）
+  setTimeout(() => {
+    try { back.remove(); } catch (e) {}
+    front.style.visibility = '';
+    front.animate([{ transform: 'scaleX(0.02)' }, { transform: 'scaleX(1)' }],
+      { duration: half, easing: 'ease-out' });
+  }, half);
+}
 function animEnabled() {
   return ANIM.enabled &&
     !document.getElementById('screen-game').classList.contains('hidden');
@@ -3049,6 +3082,10 @@ function renderGame() {
     s.innerHTML = svgCard(g.drawnCard.id, 'drawn');
     dd.appendChild(s.firstChild);
   }
+  // v1.27: めくり札が新規に出た瞬間だけ回転演出を予約（描画末尾で発火）
+  const curDrawnId = g.drawnCard ? g.drawnCard.id : null;
+  ANIM._pendingFlip = animEnabled() && !!curDrawnId && curDrawnId !== ANIM._lastDrawnId;
+  ANIM._lastDrawnId = curDrawnId;
   // Captures (my-side / opp-side は state.mySide 準拠で固定)
   renderCap(me, 'my-cap-top', 'my-cap-bot');
   renderCap(opp, 'opp-cap-top', 'opp-cap-bot');
@@ -3059,6 +3096,7 @@ function renderGame() {
   fitBoard();
   positionLeaveBtn(); // 中断ボタンをコントロール直下・左端そろえに配置
   animPlay(_animPrev); // FLIP: 位置の変わった札を元→新へ滑らせる（fitBoard 後の最終位置で計算）
+  if (ANIM._pendingFlip) { ANIM._pendingFlip = false; flipReveal(); } // v1.27: めくり回転演出
   maybeShowKoikoiFlash(); // v1.14: 未表示のこいこいイベントがあれば一瞬バナー表示
 }
 
@@ -3354,11 +3392,20 @@ function proceedToDraw() {
     return;
   }
   g.phase = 'draw';
-  const drawn = g.deck.shift();
-  g.drawnCard = drawn;
+  // v1.27: まず「出した札が場へ移動する様子」を見せ、山はまだめくらない。
+  //        1テンポおいてから山の頂上でめくり回転 → さらに余韻をおいて場へ移動。
   renderGame();
-  syncState(); // めくり札の見え方を先に guest に配る
-  setTimeout(() => resolveDraw(drawn), 750);
+  syncState();
+  const doFlip = () => {
+    if (!state.game || state.game !== g) return; // 局が変わっていたら中断
+    const drawn = g.deck.shift();
+    g.drawnCard = drawn;
+    renderGame();      // 山の頂上にめくり札が出る → flipReveal 発火
+    syncState();       // めくり札の見え方を guest に配る（online も遅れて届く＝間が保たれる）
+    setTimeout(() => resolveDraw(drawn), ANIM.flipDur + ANIM.hold);
+  };
+  if (animEnabled()) setTimeout(doFlip, ANIM.beat);
+  else doFlip();
 }
 
 function resolveDraw(drawn) {

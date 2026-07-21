@@ -1018,7 +1018,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.38</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.39</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1073,7 +1073,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.38</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.39</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1148,7 +1148,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.38</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.39</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1352,7 +1352,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.38';
+const APP_VERSION = 'v1.39';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -2880,7 +2880,7 @@ const AUDIO = (function () {
   }
   async function resumeCtx() { ensureCtx(); if (!ctx) return; if (ctx.state === 'suspended') { try { await ctx.resume(); } catch (e) {} } }
   async function suspendCtx() { if (!ctx) return; if (ctx.state === 'running') { try { await ctx.suspend(); } catch (e) {} } }
-  async function enable() { loadPersisted(); audioOn = true; await resumeCtx(); playRandomBgm(desiredPool); } // モーダル「再生する」
+  async function enable() { loadPersisted(); audioOn = true; await resumeCtx(); playRandomBgm(desiredPool); preloadSfx(); } // モーダル「再生する」
   function isOn() { return audioOn; }
   // 可視性: 隠れたら suspend、1時間以上ぶりの復帰はモーダル再表示（Darts/Shogi 準拠）
   const LONG_MS = 60 * 60 * 1000;
@@ -2897,13 +2897,142 @@ const AUDIO = (function () {
       }
     });
   }
+  // ───────── 効果音（SFX）：mp3 素材＋合成音 ─────────
+  // 素材=効果音ラボ(無料・商用OK・クレジット不要)／将棋流用。合成=しゅっ/ちゃりん/ぷっ。
+  const SFX_URLS = {
+    bishi:'sounds/se-bishi.mp3', pa:'sounds/se-pa.mp3', pero:'sounds/se-pero.mp3',
+    deal:'sounds/se-deal.mp3', koikoi:'sounds/se-koikoi.mp3',
+    fanfareWin:'sounds/se-fanfare-win.mp3', fanfareWin2:'sounds/se-fanfare-win-2.mp3',
+    gameLose:'sounds/se-game-lose.mp3', button:'sounds/se-button.mp3',
+  };
+  const sfxBufs = new Map(), sfxFetching = new Map();
+  function loadSfx(name) {
+    const url = SFX_URLS[name]; if (!url) return Promise.resolve(null);
+    if (sfxBufs.has(name)) return Promise.resolve(sfxBufs.get(name));
+    if (sfxFetching.has(name)) return sfxFetching.get(name);
+    ensureCtx(); if (!ctx) return Promise.resolve(null);
+    const p = fetch(url).then(r => r.ok ? r.arrayBuffer() : null).then(b => b ? ctx.decodeAudioData(b) : null)
+      .then(buf => { if (buf) sfxBufs.set(name, buf); return buf; }).catch(() => null).finally(() => sfxFetching.delete(name));
+    sfxFetching.set(name, p); return p;
+  }
+  function preloadSfx() { Object.keys(SFX_URLS).forEach(loadSfx); }
+  // 単発再生（opts.at=遅延秒 / opts.gain=個別音量倍率）
+  function playBuf(name, opts) {
+    if (!audioOn || !ctx || !sfxGain) return; opts = opts || {};
+    const doPlay = (buf) => {
+      if (!buf || !ctx || !sfxGain) return;
+      const src = ctx.createBufferSource(); src.buffer = buf;
+      const at = ctx.currentTime + (opts.at || 0);
+      if (opts.gain != null) { const g = ctx.createGain(); g.gain.value = opts.gain; src.connect(g).connect(sfxGain); }
+      else src.connect(sfxGain);
+      src.start(at);
+    };
+    const cached = sfxBufs.get(name);
+    if (cached) doPlay(cached); else loadSfx(name).then(doPlay);
+  }
+  // 配りループ（配りアニメ中だけ鳴らし続ける・アニメと同期不要）
+  let dealSrc = null;
+  function startDealLoop() {
+    if (!audioOn || !ctx || !sfxGain) return; stopDealLoop();
+    loadSfx('deal').then(buf => {
+      if (!buf || !ctx || !sfxGain || !audioOn) return;
+      if (dealSrc) { try { dealSrc.stop(); } catch (e) {} }
+      const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true; src.connect(sfxGain); src.start(); dealSrc = src;
+    });
+  }
+  function stopDealLoop() { if (dealSrc) { try { dealSrc.stop(); } catch (e) {} dealSrc = null; } }
+  // 合成音（Web Audio）：しゅっ / ちゃりん / ぷっ
+  function noiseBuf(dur) { const n = ctx.sampleRate * dur | 0, b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0); for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1; return b; }
+  function envg(g, t0, a, peak, dur) { g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(peak, t0 + a); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur); }
+  const SYNTH = {
+    shu() { const t = ctx.currentTime + 0.01;
+      const s = ctx.createBufferSource(); s.buffer = noiseBuf(0.08);
+      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.4;
+      bp.frequency.setValueAtTime(700, t); bp.frequency.exponentialRampToValueAtTime(3200, t + 0.06);
+      const g = ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.5, t + 0.02); g.gain.linearRampToValueAtTime(0.0001, t + 0.067);
+      s.connect(bp).connect(g).connect(sfxGain); s.start(t); s.stop(t + 0.08);
+    },
+    charin() { const t = ctx.currentTime + 0.01;
+      [[1976,0,0.08],[2638,0.06,0.4]].forEach(a => { const f=a[0],dt=a[1],dur=a[2],tt=t+dt;
+        const o=ctx.createOscillator(); o.type='square'; o.frequency.value=f;
+        const g=ctx.createGain(); envg(g,tt,0.003,0.24,dur);
+        const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=11000;
+        o.connect(g).connect(lp).connect(sfxGain); o.start(tt); o.stop(tt+dur+0.02); });
+      [5274,7040,8372].forEach(f => { const o=ctx.createOscillator(); o.type='sine'; o.frequency.value=f;
+        const g=ctx.createGain(); envg(g,t+0.06,0.002,0.05,0.5); o.connect(g).connect(sfxGain); o.start(t+0.06); o.stop(t+0.56); });
+    },
+    pu() { const t = ctx.currentTime + 0.01;
+      const o=ctx.createOscillator(); o.type='square'; o.frequency.setValueAtTime(330,t); o.frequency.exponentialRampToValueAtTime(150,t+0.16);
+      const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=1400;
+      const g=ctx.createGain(); envg(g,t,0.006,0.3,0.18); o.connect(lp).connect(g).connect(sfxGain); o.start(t); o.stop(t+0.19);
+    },
+  };
+  // 効果音の統一入口。論理名 → 素材 or 合成へ振り分け。
+  function sfx(name) {
+    if (!audioOn || !ctx || !sfxGain) return;
+    switch (name) {
+      case 'shu': case 'charin': case 'pu': if (SYNTH[name]) SYNTH[name](); break;
+      case 'fanfare': playBuf('fanfareWin'); playBuf('fanfareWin2', { at: 0.8 }); break; // 将棋と同じ0.8秒差の重ね
+      case 'lose':   playBuf('gameLose'); break;
+      case 'koikoi': playBuf('koikoi'); break;
+      case 'bishi':  playBuf('bishi'); break;
+      case 'pa':     playBuf('pa'); break;
+      case 'pero':   playBuf('pero'); break;
+      case 'button': playBuf('button', { gain: 0.85 }); break;
+    }
+  }
+
   return { getBgmVolume, getSfxVolume, setBgmVolume, setSfxVolume,
-           setBgm, playRandomBgm, stopBgm, enable, isOn, bindVisibility };
+           setBgm, playRandomBgm, stopBgm, enable, isOn, bindVisibility,
+           sfx, startDealLoop, stopDealLoop, preloadSfx };
 })();
 
 // 既存の呼び出し口を AUDIO に橋渡し
 function setBgm(mode) { AUDIO.setBgm(mode); }
-function playSfx(name) { /* ②効果音フェーズで実装（今は無音） */ }
+function playSfx(name) { AUDIO.sfx(name); }
+
+// v1.39: 効果音キュー。renderGame の末尾で同期信号の変化を見て、ホスト/ゲスト両方で効果音を鳴らす。
+// （ゲームロジックは手番側のみ実行されるため、両者で走る描画層で発火させる）
+function capSig(g) { return g.capFlash ? (g.capFlash.player + ':' + (g.capFlash.ids || []).join(',')) : null; }
+function playSoundCues(g) {
+  const SC = ANIM.sfx || (ANIM.sfx = {});
+  // 配りアニメ中は個別キューを止め、キーだけ現在値に合わせる（配り後の誤発火防止）
+  if (g._dealing) {
+    SC.lastPlayTs = g.lastPlay ? g.lastPlay.ts : null;
+    SC.drawnId = g.drawnCard ? g.drawnCard.id : null;
+    SC.capKey = capSig(g); SC.yaku = (g.phase === 'yaku'); return;
+  }
+  // ① 手札を出す：しゅっ（手札から出発）→ 着地（場札に重なる=びし / 単独=ぱっ）
+  const lpTs = g.lastPlay ? g.lastPlay.ts : null;
+  if (lpTs && lpTs !== SC.lastPlayTs) {
+    SC.lastPlayTs = lpTs;
+    const id = g.lastPlay.id;
+    playSfx('shu');
+    const overlapped = (g.pending || []).some(p => p.incoming && p.incoming.id === id);
+    setTimeout(() => playSfx(overlapped ? 'bishi' : 'pa'), aMs(ANIM.dur));
+  }
+  // ② めくり札の着地：場札に重なる=びし / 単独=ぱっ（めくり回転音は flipReveal 側の「ぺろ」）
+  const dId = g.drawnCard ? g.drawnCard.id : null;
+  if (SC.drawnId && SC.drawnId !== dId) {
+    const prev = SC.drawnId;
+    if ((g.pending || []).some(p => p.incoming && p.incoming.id === prev)) setTimeout(() => playSfx('bishi'), aMs(ANIM.dur));
+    else if (g.field.some(c => c.id === prev)) setTimeout(() => playSfx('pa'), aMs(ANIM.dur));
+    // 取り札へ直行した場合は ③ で鳴る
+  }
+  SC.drawnId = dId;
+  // ③ 回収：しゅっ（取り札へ引き取る）→ 到着（ぱっ×枚数分）
+  const ck = capSig(g);
+  if (ck && ck !== SC.capKey) {
+    SC.capKey = ck;
+    const n = g.capFlash ? g.capFlash.ids.length : 0;
+    playSfx('shu');
+    for (let i = 0; i < n; i++) setTimeout(() => playSfx('pa'), aMs(ANIM.dur) + i * 55);
+  } else if (!ck) SC.capKey = null;
+  // ④ 役成立：作った側=ちゃりん / 取られる側=ぷっ（自分視点で鳴らし分け）
+  const inYaku = (g.phase === 'yaku');
+  if (inYaku && !SC.yaku) playSfx(g.currentPlayer === mySide() ? 'charin' : 'pu');
+  SC.yaku = inYaku;
+}
 
 // v1.38: 音量 UI（設定パネル＋音楽モーダルの2組のスライダー/ラベル）を AUDIO 値へ反映
 function reflectVolumeUI() {
@@ -2944,6 +3073,7 @@ function maybeShowKoikoiFlash() {
   const g = state.game; if (!g || !g.event) return;
   if (g.event.ts <= _lastFlashTs) return;
   _lastFlashTs = g.event.ts;
+  if (g.event.type === 'koikoi') playSfx('koikoi'); // v1.39: こいこい宣言音（両クライアント）
   showKoikoiFlash(g.event.type, g.event.by);
 }
 let _flashTimer = null, _slideTimer = null;
@@ -3162,6 +3292,7 @@ function flipReveal() {
   if (!container) return;
   const front = container.querySelector('.card[data-id]');
   if (!front) return;
+  playSfx('pero'); // v1.39: 山札をめくる音
   const half = Math.round(aMs(ANIM.flipDur) / 2);
   // 表を隠し、裏（同サイズ）を上に重ねて縮める
   const backWrap = document.createElement('span');
@@ -3376,6 +3507,7 @@ function renderGame() {
   animOpponentPlay(); // v1.35: 相手が手札から出した札を相手手札の位置から場へ滑らせる
   if (ANIM._pendingFlip) { ANIM._pendingFlip = false; flipReveal(); } // v1.27: めくり回転演出
   maybeShowKoikoiFlash(); // v1.14: 未表示のこいこいイベントがあれば一瞬バナー表示
+  playSoundCues(g); // v1.39: 同期信号の変化に応じて効果音を鳴らす（両クライアント）
 }
 
 // v1.36: 局開始の配りアニメ。親側の画面外中央から、親4裏→場4表→子4裏→親4裏→場4表→子4裏の
@@ -3387,13 +3519,14 @@ function runDeal() {
   const me = mySide();
   if (!animEnabled()) { g._dealing = false; renderGame(); return; }
   g._dealing = true;
+  AUDIO.startDealLoop(); // v1.39: 配り中は「カードを配る」を鳴らし続ける（同期不要）
   renderGame(); // 配り前の配置（両手札=裏・場=表・山=隠す）→ 到達位置の実測に使う
   const myHandEls = Array.from(document.querySelectorAll('#my-hand .card'));
   const oppHandEls = Array.from(document.querySelectorAll('#opp-hand .card'));
   const fieldEls = Array.from(document.querySelectorAll('#field-cards .card[data-id]'));
   const deckBack = document.querySelector('.deck .card');
   const deckBox = document.querySelector('.deck');
-  if (myHandEls.length < 8 || oppHandEls.length < 8 || fieldEls.length < 8) { g._dealing = false; renderGame(); return; }
+  if (myHandEls.length < 8 || oppHandEls.length < 8 || fieldEls.length < 8) { g._dealing = false; AUDIO.stopDealLoop(); renderGame(); return; }
   const dealerIsMe = (state.oya === me);
   const dealerHand = dealerIsMe ? myHandEls : oppHandEls;
   const childHand = dealerIsMe ? oppHandEls : myHandEls;
@@ -3445,6 +3578,7 @@ function runDeal() {
     });
     setTimeout(() => {
       g._dealing = false;
+      AUDIO.stopDealLoop(); // v1.39: 配り終わり＝配り音を止める
       renderGame(); // 自分の手札を表向きに（操作可能に）
       Array.from(document.querySelectorAll('#my-hand .card')).forEach(f => {
         f.style.transformOrigin = 'center center';
@@ -3951,7 +4085,7 @@ function proceedYakuCheck() {
   const gained = yakuGained(before, after);
   if (gained.length > 0) {
     // v1.14: こいこい宣言者が次の自分の手番で新役を作った = こいこい成立
-    if (cur === g.koikoiBy) { emitKoikoiEvent('koikoi-ok', cur); playSfx('koikoi'); setBgm('koikoi'); }
+    if (cur === g.koikoiBy) { emitKoikoiEvent('koikoi-ok', cur); setBgm('koikoi'); } // 音は playSoundCues の役成立（ちゃりん）で鳴る
     g.phase = 'yaku';
     g.pendingYaku = after;
     g.pendingGained = gained;
@@ -4067,8 +4201,7 @@ function applyKoikoi() {
   g.pendingGained = null;
   document.getElementById('ovYaku').classList.remove('show');
   // v1.14: こいこい宣言 → 一瞬「こいこい」表示（確認不要）＋こいこい BGM へ
-  emitKoikoiEvent('koikoi', cur);
-  playSfx('koikoi');
+  emitKoikoiEvent('koikoi', cur); // 宣言音は maybeShowKoikoiFlash（両クライアント）で鳴る
   setBgm('koikoi');
   maybeShowKoikoiFlash(); // v1.32: こいこい選択と同時に即スクロールを流す（endTurn の再描画を待たない）
   endTurn(); // syncState は endTurn 内（event も同送される）
@@ -4317,8 +4450,15 @@ function renderGameEndFromData() {
     const br = document.getElementById('btn-rematch'), bl = document.getElementById('btn-game-lobby'), note = document.getElementById('game-choice-note');
     if (br) br.disabled = false; if (bl) bl.disabled = false; if (note) note.textContent = '';
   }
+  const alreadyShown = document.getElementById('ovGame').classList.contains('show');
   document.getElementById('ovGame').classList.add('show');
-  if (iWin) { launchKusudama(); playSfx('fanfare'); setBgm('fanfare'); }
+  if (iWin) launchKusudama();
+  // v1.39: 総合結果の効果音（勝利=ファンファーレ / 敗北=lose / 引分=無音）。再描画での二重再生を防ぐ
+  if (!alreadyShown) {
+    if (iWin) playSfx('fanfare');
+    else if (!draw) playSfx('lose');
+    setBgm('fanfare'); // BGM 停止
+  }
 }
 // 勝利時：くす玉画像を出し直し＋紙吹雪を降らせる（見た目のみ）
 let _confettiTimer = null;
@@ -4606,6 +4746,8 @@ function setupNameFields() {
 }
 
 function bindEvents() {
+  // v1.39: 各種ボタンの決定音（将棋流用 se-button）。委譲で全 .btn に付与
+  document.addEventListener('click', (e) => { if (e.target.closest('.btn')) playSfx('button'); });
   // Language (dropdown)
   const langSel = document.getElementById('lang-select');
   langSel.addEventListener('change', () => {

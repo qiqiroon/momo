@@ -1014,7 +1014,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.30</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.31</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1069,7 +1069,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.30</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.31</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1144,7 +1144,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.30</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.31</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1324,7 +1324,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.30';
+const APP_VERSION = 'v1.31';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -2940,6 +2940,7 @@ const ANIM = {
   hold: 280,      // v1.27: めくった札を場へ動かすまでの余韻(ms)
   _lastDrawnId: null, // めくり札が新規に出た瞬間を検出するための直前ID
   _pendingFlip: false,
+  _skipFlip: null,    // v1.31: この id 群は FLIP しない（別演出＝飛行クローンで動かすため）
 };
 // v1.30: 速度倍率。x2=速い＝時間は半分、x0.5=遅い＝時間は倍。対象＝札の移動/その場待機/こいこいスクロール。
 function animScale() { const s = parseFloat(state.animSpeed); return (s > 0) ? s : 1; }
@@ -2994,6 +2995,7 @@ function animPlay(prev, opts) {
   document.querySelectorAll('#screen-game .card[data-id]').forEach(el => {
     // 選択中/リフト中の札は CSS transform を使うため触らない（アニメと競合させない）
     if (el.classList.contains('sel') || el.classList.contains('lift-sel') || el.classList.contains('lift-hover')) return;
+    if (ANIM._skipFlip && ANIM._skipFlip.has(el.dataset.id)) return; // v1.31: 飛行クローンで動かす札は FLIP しない
     const old = prev.get(el.dataset.id);
     if (!old) return; // 新規出現（めくり札など）はここでは動かさない → 別段で演出
     const r = el.getBoundingClientRect();
@@ -3560,8 +3562,10 @@ function collectAndYaku() {
       if (el) fromRects[id] = el.getBoundingClientRect();
     });
     g.capFlash = { player: g.currentPlayer, ids: flashIds };
+    ANIM._skipFlip = new Set(flashIds); // v1.31: 回収する札は本物カードを FLIP させない（枠でクリップされる動きを出さない）
     collectPending();
     renderGame();   // 取り札の行末に実カードが並ぶ（field reflow はここで滑る）
+    ANIM._skipFlip = null;
     syncState();
     if (animEnabled()) {
       // 行末の実カードは隠し、場→行末をクローンで飛ばす（縮小しながら・画面全体に見える）
@@ -3595,19 +3599,21 @@ function collectAndYaku() {
 // v1.30: 場→取り札の「飛ぶ」演出。画面レイヤー(screen-game)に fixed でクローンを置き、
 // 場の位置(大)から取り札の位置(小)へ縮小しながら移動。取り札の枠のクリップを受けない。
 function flyOverlayCards(flyers) {
-  const layer = document.getElementById('screen-game');
+  const layer = document.body; // v1.31: 最外層に置き、どの overflow:hidden にも切られないようにする
   if (!layer) return;
+  document.querySelectorAll('.fly-clone').forEach(el => el.remove()); // 前回の飛行残骸を掃除
   flyers.forEach(f => {
     const wrap = document.createElement('span');
     wrap.innerHTML = svgCard(f.id, '');
     const el = wrap.firstChild;
+    el.classList.add('fly-clone');
     el.style.position = 'fixed';
     el.style.left = f.from.left + 'px';
     el.style.top = f.from.top + 'px';
     el.style.width = f.from.width + 'px';
     el.style.height = f.from.height + 'px';
     el.style.margin = '0';
-    el.style.zIndex = '200';
+    el.style.zIndex = '99999';
     el.style.pointerEvents = 'none';
     el.style.transformOrigin = 'top left';
     layer.appendChild(el);

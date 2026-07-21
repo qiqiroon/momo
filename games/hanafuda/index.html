@@ -603,20 +603,11 @@
     <use href="#pineTuft" transform="translate(152,88) rotate(12)"/><use href="#pineTuft" transform="translate(110,80) rotate(-16) scale(.82)"/>
     <use href="#tanRed" transform="translate(100,214) rotate(-8)"/>
   </symbol>
-  <!-- v1.45: 松のカスをユーザー手描きPNGに差し替え（縁付き＋縁下部にMOMO/猫マーク）。試験的に1枚のみ -->
+  <!-- v1.46: 松のカスをユーザー手描きPNGに差し替え（縁付き）。MOMO/猫マークは不採用。試験的に1枚のみ -->
   <symbol id="m01_kasu1" viewBox="0 0 220 350">
     <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
     <image href="cards/m01_kasu1.png" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
     <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
-    <g transform="translate(110,330)">
-      <rect x="-37" y="-11" width="74" height="21" rx="10.5" fill="#20201c" opacity="0.66"/>
-      <g transform="translate(-28,0)">
-        <path d="M-4.6 -3 L -6.9 -8.8 L -1.4 -4.6 Z" fill="#f1e6c6"/><path d="M4.6 -3 L 6.9 -8.8 L 1.4 -4.6 Z" fill="#f1e6c6"/>
-        <circle cx="0" cy="0.6" r="5.4" fill="#f1e6c6"/>
-        <circle cx="-2" cy="0" r="0.95" fill="#20201c"/><circle cx="2" cy="0" r="0.95" fill="#20201c"/>
-      </g>
-      <text x="7" y="4.3" font-family="'Fredoka One',sans-serif" font-size="12.5" font-weight="700" fill="#f1e6c6" text-anchor="middle" letter-spacing="0.3">MOMO</text>
-    </g>
   </symbol>
   <symbol id="m01_kasu2" viewBox="0 0 220 350">
     <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
@@ -1033,7 +1024,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.46</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.47</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1088,7 +1079,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.46</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.47</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1167,7 +1158,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.46</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.47</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1371,7 +1362,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.46';
+const APP_VERSION = 'v1.47';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];

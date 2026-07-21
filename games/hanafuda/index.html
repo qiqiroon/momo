@@ -1014,7 +1014,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.28</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.29</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1069,7 +1069,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.28</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.29</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1144,7 +1144,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.28</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.29</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1316,7 +1316,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.28';
+const APP_VERSION = 'v1.29';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -2845,6 +2845,8 @@ function startRound() {
     playedCard: null,
     drawnCard: null,
     pending: [],        // v1.28: 合わせ取り待ち（場に重ねた札）
+    capFlash: null,     // v1.29: 回収直後（種別無視で行末）表示
+    playedFromHand: null, // v1.29: 手札の隙間
     pickOptions: [],
     yakuBaseline: { host: [], guest: [] },
     pendingYaku: null,
@@ -3048,6 +3050,14 @@ function renderGame() {
     if (sel) selEl = el;
     myH.appendChild(el);
   });
+  // v1.29: 出した札の跡地に見えない空きを残す（取り札の整列段で詰めるまで手札を左寄せしない）
+  if (g.playedFromHand && g.playedFromHand.player === me) {
+    const sp = document.createElement('span');
+    sp.className = 'card hand-gap';
+    sp.style.visibility = 'hidden';
+    const ref = myH.children[g.playedFromHand.index] || null;
+    myH.insertBefore(sp, ref);
+  }
   // v1.21: 選択中（1クリック）の札は名前バブルを出す。未選択なら消す（ホバーは別途 delegation）
   if (selEl) showCardBubble(selEl); else hideCardBubble();
   // Opponent hand (backs)
@@ -3115,6 +3125,7 @@ function renderPendingOverlays() {
   fld.querySelectorAll('.card.pending').forEach(el => el.remove()); // 保険
   const cw = parseFloat(getComputedStyle(document.getElementById('screen-game')).getPropertyValue('--card-w')) || 42;
   const off = Math.round(cw * 0.26); // 重なりのずらし量
+  const fldRect = fld.getBoundingClientRect();
   (g.pending || []).forEach(p => {
     const targetEl = fld.querySelector('.card[data-id="' + p.targetIds[0] + '"]:not(.pending)');
     const s = document.createElement('span');
@@ -3123,8 +3134,10 @@ function renderPendingOverlays() {
     el.style.position = 'absolute';
     el.style.zIndex = '8';
     if (targetEl) {
-      el.style.left = (targetEl.offsetLeft + off) + 'px';
-      el.style.top = (targetEl.offsetTop + off) + 'px';
+      // svg 要素は offsetLeft を持たないため getBoundingClientRect で field 相対位置を出す
+      const tr = targetEl.getBoundingClientRect();
+      el.style.left = (tr.left - fldRect.left + off) + 'px';
+      el.style.top = (tr.top - fldRect.top + off) + 'px';
     } else { el.style.left = '0px'; el.style.top = '0px'; }
     fld.appendChild(el);
     p.targetIds.forEach(tid => {
@@ -3155,9 +3168,16 @@ function renderPhaseText() {
 }
 
 function renderCap(player, topRowId, botRowId) {
-  const cards = state.game.caps[player] || [];
+  const g = state.game;
+  const cards = g.caps[player] || [];
+  // v1.29: capFlash＝回収直後の札。まず「種別無視で1段目末尾／カス欄末尾」に置く（次段で種類別へ整列）
+  const flash = (g.capFlash && g.capFlash.player === player) ? new Set(g.capFlash.ids) : null;
   const groups = { hikari: [], tane: [], tan: [], kasu: [] };
-  cards.forEach(c => groups[c.type].push(c));
+  const flashTop = [], flashKasu = [];
+  cards.forEach(c => {
+    if (flash && flash.has(c.id)) { (c.type === 'kasu' ? flashKasu : flashTop).push(c); }
+    else groups[c.type].push(c);
+  });
   const top = document.getElementById(topRowId);
   const cs = top.querySelectorAll('.cards');
   const list = [groups.hikari, groups.tane, groups.tan];
@@ -3165,9 +3185,12 @@ function renderCap(player, topRowId, botRowId) {
     if (!cs[i]) return;
     cs[i].innerHTML = arr.map(c => svgCard(c.id, 'cap')).join('');
   });
+  // 回収直後の光・種・短冊は 1 段目の末尾（＝短の器の後ろ）にまとめて置く
+  if (cs[2] && flashTop.length) cs[2].innerHTML += flashTop.map(c => svgCard(c.id, 'cap')).join('');
   const bot = document.getElementById(botRowId);
   const bcs = bot.querySelectorAll('.cards');
-  if (bcs[0]) bcs[0].innerHTML = groups.kasu.map(c => svgCard(c.id, 'cap')).join('');
+  if (bcs[0]) bcs[0].innerHTML = groups.kasu.map(c => svgCard(c.id, 'cap')).join('') +
+    flashKasu.map(c => svgCard(c.id, 'cap')).join('');
   fitRows();
 }
 
@@ -3365,6 +3388,8 @@ function applyPlayCard(card) {
   const idx = hand.findIndex(c => c.id === card.id);
   if (idx < 0) return;
   const played = hand.splice(idx, 1)[0];
+  // v1.29: 手札の隙間は「取り札を種類別に整列する段」まで詰めない（そこまで元の位置に空きを残す）
+  g.playedFromHand = { player: cur, index: idx };
   g.playedCard = played;
   const matches = g.field.filter(c => c.month === played.month);
   if (matches.length === 0) {
@@ -3483,22 +3508,41 @@ function resolveDraw(drawn) {
   }
 }
 
-// v1.28: 手番の締め。まず「手札もめくり札も場に置いた状態」を見せ、少し余韻をおいてから
-// 重なりをまとめて取り札へ回収（＋場詰め・取り札ソート）→ 役判定へ。
+// v1.29: 手番の締め。①場に重ねて置いた状態を見せ→（余韻）→
+// ④取り札へ回収（種別無視で1段目末尾／カス欄へ飛ばす）→（間）→
+// ⑤種類別へ整列＋手札の隙間詰めを同時に → 役判定へ。
 function collectAndYaku() {
   const g = state.game;
   renderGame();  // ③まで（手札・めくり札を場に重ねて置いた状態）を見せる
   syncState();
   const hasPending = g.pending && g.pending.length;
-  const finish = () => {
+  const flashIds = (g.pending || []).reduce((a, p) => a.concat(p.targetIds, p.incoming.id), []);
+  // ④回収：まず種別を無視して取り札の行末へ飛ばす
+  const stepCollect = () => {
     if (!state.game || state.game !== g) return;
-    collectPending(); // ④重なりをまとめて取り札へ
-    renderGame();     // FLIP: 重なり→取り札へ飛ぶ＋⑤場詰め・ソート・手札詰め
+    g.capFlash = { player: g.currentPlayer, ids: flashIds };
+    collectPending();
+    renderGame();   // FLIP: 重なり（場）→取り札の行末へ
+    syncState();
+    if (animEnabled()) setTimeout(stepSort, ANIM.dur + 140);
+    else stepSort();
+  };
+  // ⑤整列：種類別の位置へ移動＋手札の左寄せを同時に
+  const stepSort = () => {
+    if (!state.game || state.game !== g) return;
+    g.capFlash = null;
+    g.playedFromHand = null;
+    renderGame();   // FLIP: 行末→種類別位置へ＋手札詰め（同時）
     syncState();
     setTimeout(() => proceedYakuCheck(), ANIM.dur + 80);
   };
-  if (hasPending && animEnabled()) setTimeout(finish, ANIM.hold + 240);
-  else finish();
+  if (hasPending && animEnabled()) setTimeout(stepCollect, ANIM.hold + 240);
+  else {
+    collectPending();
+    g.capFlash = null; g.playedFromHand = null;
+    renderGame(); syncState();
+    proceedYakuCheck();
+  }
 }
 
 function proceedYakuCheck() {
@@ -3972,6 +4016,8 @@ function syncState(opts) {
     playedCard: g.playedCard,
     drawnCard: g.drawnCard,
     pending: g.pending || [], // v1.28: 合わせ取り待ち（場に重ねた札）を guest にも配る
+    capFlash: g.capFlash || null,           // v1.29: 回収直後（種別無視で行末）表示
+    playedFromHand: g.playedFromHand || null, // v1.29: 手札の隙間（整列段まで詰めない）
     pickOptions: g.pickOptions,
     pendingYaku: g.pendingYaku,
     pendingGained: g.pendingGained,
@@ -4006,6 +4052,8 @@ function applyState(msg) {
   g.playedCard = msg.playedCard || null;
   g.drawnCard = msg.drawnCard || null;
   g.pending = msg.pending || []; // v1.28: 合わせ取り待ちの重ね札
+  g.capFlash = msg.capFlash || null;            // v1.29
+  g.playedFromHand = msg.playedFromHand || null; // v1.29
   g.pickOptions = msg.pickOptions || [];
   g.pendingYaku = msg.pendingYaku || null;
   g.pendingGained = msg.pendingGained || null;

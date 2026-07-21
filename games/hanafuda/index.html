@@ -1018,7 +1018,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.36</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.37</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1073,7 +1073,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.36</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.37</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1148,7 +1148,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.36</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.37</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1328,7 +1328,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.36';
+const APP_VERSION = 'v1.37';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -4314,8 +4314,9 @@ function applyState(msg) {
   if (msg.oya) state.oya = msg.oya;
   state.matchOver = !!msg.matchOver;
   if (enteringGame) saveSession(); // 対局入りを復帰用に保存（state.game 確定後なので inGame=true になる）
-  // v1.36: 初回の配り（'deal'）で対局に入るときは配りアニメ。再接続('state')や以降は通常描画。
-  if (enteringGame && msg.type === 'deal' && animEnabled()) runDeal();
+  // v1.36: 局ごとの配り（'deal'）は必ず配りアニメ。再接続や通常更新('state')は通常描画。
+  //   ※ゲストは 'start' 受信で先に game 画面へ入る（enteringGame が偽になる）ため、画面遷移では判定しない。
+  if (msg.type === 'deal' && animEnabled()) runDeal();
   else renderGame();
   // オーバーレイ制御
   const ovYaku = document.getElementById('ovYaku');

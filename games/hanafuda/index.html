@@ -75,6 +75,12 @@
   .settings-volume-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:18px;height:18px;background:var(--orange-mid);border-radius:50%;cursor:pointer;border:2px solid #fff;}
   .settings-volume-slider::-moz-range-thumb{width:18px;height:18px;background:var(--orange-mid);border-radius:50%;cursor:pointer;border:2px solid #fff;}
   .settings-row-hint{font-size:11px;color:var(--text-muted);font-style:italic;}
+  /* v1.61: 音源クレジット（将棋準拠・地味に） */
+  #settings-row-credits{align-items:flex-start;border-bottom:none;padding-top:10px;}
+  .credit-link{font-size:11px;color:var(--text-muted);text-decoration:underline;cursor:pointer;}
+  .credit-link:hover{color:var(--text);}
+  .credit-body{font-size:11px;color:var(--text-muted);line-height:1.7;}
+  .credit-body a{color:var(--text-muted);}
   /* v1.59: 音量スライダー＋右のミュートチェック */
   .vol-line{display:flex;align-items:center;gap:12px;}
   .vol-line .settings-volume-slider{flex:1;width:auto;}
@@ -184,6 +190,11 @@
   .room-name{font-size:1.05rem;color:var(--text);}
   .room-name b{color:#fff;}
   .players{display:flex;align-items:center;gap:14px;margin-top:2px;}
+  /* v1.61: 縦並び（将来3人対応）。ホスト箱→ゲスト箱を縦に積む。 */
+  .players-col{flex-direction:column;align-items:stretch;gap:10px;}
+  .players-col .guest-row{display:flex;align-items:center;gap:10px;}
+  .players-col .guest-row .pl{flex:1;}
+  .players-col .guest-row .ai-level-select{width:auto;min-width:130px;margin-top:0;flex:0 0 auto;}
   .pl{flex:1;background:#0c0c0c;border:1px solid var(--border);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:3px;}
   .pl small{font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--orange);font-weight:700;}
   .pl span{font-size:1.05rem;color:#fff;}
@@ -272,7 +283,10 @@
   #turn-me.active{background:var(--orange);}
   #turn-opp.active{background:#5a5a5a;}
   .seg-row{display:flex;flex-direction:column;gap:2px;align-items:center;}
-  .seg-row .zl{font-size:.6rem;color:var(--text-muted);align-self:flex-start;}
+  .seg-row .zl{font-size:.6rem;color:var(--text-muted);}
+  /* v1.61: 手札ラベルの右にプレイヤー名 */
+  .seg-row .zl-row{align-self:flex-start;display:flex;align-items:baseline;gap:8px;}
+  .seg-row .zl-name{font-size:.72rem;color:var(--text);font-weight:700;max-width:40vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .cardrow{display:flex;gap:3px;flex-wrap:nowrap;justify-content:center;}
   .ct-row{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;}
   .nearcap{font-size:.62rem;color:var(--text-muted);}
@@ -1046,7 +1060,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.60</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.61</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1068,14 +1082,14 @@
   <div class="panel name-card">
     <h2>🐱 <span data-i18n="lobby.name">あなたの名前</span></h2>
     <p class="desc" data-i18n="lobby.namecard.desc">対戦相手やコンピュータ戦の画面に表示される名前です。ここで一度だけ入力します。</p>
-    <label class="fld"><input id="in-playername" type="text" placeholder="例：ゆうき" data-i18n-ph="lobby.name.ph" maxlength="16" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true"></label>
+    <label class="fld"><input id="in-playername" type="text" placeholder="例：モモタロウ" data-i18n-ph="lobby.name.ph" maxlength="16" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true"></label>
   </div>
   <div class="lobby-grid">
     <!-- 部屋を作る -->
     <div class="panel">
       <h2>🎴 <span data-i18n="lobby.create.title">部屋を作る</span></h2>
       <p class="desc" data-i18n="lobby.create.desc">部屋を作成して相手の参加を待ちます。「非公開にする」をオンにすると一覧に表示されません。</p>
-      <label class="fld"><span data-i18n="lobby.roomname">部屋の名前</span><input id="in-roomname" type="text" placeholder="例：花見部屋" data-i18n-ph="lobby.roomname.ph" maxlength="24" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true"></label>
+      <label class="fld"><span data-i18n="lobby.roomname">部屋の名前</span><input id="in-roomname" type="text" placeholder="例：モモタロウの遊戯室" data-i18n-ph="lobby.roomname.ph" maxlength="24" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true"></label>
       <label class="fld"><span data-i18n="lobby.password">パスワード</span><input id="in-pw" type="password" placeholder="任意" data-i18n-ph="lobby.pw.ph" maxlength="16" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-form-type="other" name="hf-nopw-1"></label>
       <div class="toggle-row"><span data-i18n="lobby.private">非公開にする</span>
         <span class="switch"><input type="checkbox" id="in-private"><span class="slider"></span></span>
@@ -1112,7 +1126,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.60</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.61</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1124,11 +1138,12 @@
   <div class="panel room-head">
     <div class="conn" id="conn-status"><span class="dot"></span><span id="conn-label" data-i18n="room.conn.waiting">相手を待っています</span></div>
     <div class="room-name"><span data-i18n="room.room">部屋</span>：<b id="room-name-disp">—</b> <span id="room-pw-disp" class="hidden" style="color:var(--text-muted);font-size:.8rem">🔒 <span data-i18n="room.hasPw">パスワードあり</span></span></div>
-    <div class="players">
+    <!-- v1.61: プレイヤーを縦並びに（将来3人対応）。ホスト箱→ゲスト箱の順。 -->
+    <div class="players players-col">
       <div class="pl host"><small data-i18n="room.host">ホスト</small><span id="host-name">—</span></div>
-      <div class="vs">VS</div>
-      <div class="pl guest"><small data-i18n="room.guest">ゲスト</small><span id="guest-name" class="waiting-g" data-i18n="room.waiting">参加待ち…</span>
-        <!-- v1.60: 対コンピュータ戦のときだけ、この場所で強さを変更できる -->
+      <div class="guest-row">
+        <div class="pl guest"><small data-i18n="room.guest">ゲスト</small><span id="guest-name" class="waiting-g" data-i18n="room.waiting">参加待ち…</span></div>
+        <!-- v1.61: 対コンピュータ戦のときだけ、ゲスト箱の外・右側で強さを変更できる -->
         <select id="ai-level-prep" class="ai-level-select hidden" aria-label="コンピュータの強さ">
           <option value="EASY">EASY</option>
           <option value="HARD" selected>HARD</option>
@@ -1198,7 +1213,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.60</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.61</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1211,7 +1226,7 @@
   <div class="play">
     <!-- 相手手札 -->
     <div class="seg-row">
-      <div class="zl" data-i18n="game.opp.hand">相手の手札</div>
+      <div class="zl-row"><span class="zl" data-i18n="game.opp.hand">相手の手札</span><span class="zl-name" id="opp-hand-name"></span></div>
       <div class="cardrow" id="opp-hand">
         <svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg><svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg><svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg><svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg><svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg><svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg><svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg><svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg>
       </div>
@@ -1246,7 +1261,7 @@
     <!-- 自分手札 -->
     <div class="seg-row">
       <div class="cardrow" id="my-hand"></div>
-      <div class="zl" data-i18n="game.my.hand">あなたの手札</div>
+      <div class="zl-row"><span class="zl" data-i18n="game.my.hand">あなたの手札</span><span class="zl-name" id="my-hand-name"></span></div>
     </div>
   </div>
   <button class="leave-btn" id="btn-leave-game" style="position:absolute;top:44px;right:12px;z-index:150" data-i18n="game.leave">← 中断</button>
@@ -1296,8 +1311,23 @@
     <input type="range" class="settings-volume-slider" id="anim-speed-slider" min="0" max="4" step="1" value="2">
     <div class="settings-row-hint" data-i18n="settings.anim.hint">札の移動・待ち・こいこいの流れる速さ（x0.5〜x2.0）</div>
   </div>
+  <!-- v1.61: 音源クレジット（将棋準拠・CC-BY のみ掲載。CC0/効果音ラボ/SUNO は義務なしで割愛） -->
+  <div class="settings-row" id="settings-row-credits">
+    <a href="#credits" id="link-credits" class="credit-link" data-i18n="sound.creditsButton">クレジット</a>
+  </div>
   <div class="btn-row">
     <button class="btn btn-primary" id="btn-settings-close" data-i18n="settings.close">閉じる</button>
+  </div>
+</div></div>
+
+<!-- v1.61: 音源クレジットモーダル（将棋準拠・CC-BY 提供者のみ） -->
+<div class="overlay" id="ovCredits"><div class="opanel">
+  <div class="credit-body">
+    CC-BY 4.0: <a href="https://taira-komori.net/freesounden.html" target="_blank" rel="noopener">Taira Komori</a>
+    &nbsp;/&nbsp; CC-BY (Freesound): <a href="https://freesound.org/s/270404/" target="_blank" rel="noopener">LittleRobotSoundFactory</a>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-ghost btn-sm" id="btn-credits-close" data-i18n="sound.creditsClose">閉じる</button>
   </div>
 </div></div>
 
@@ -1403,7 +1433,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.60';
+const APP_VERSION = 'v1.61';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -1431,7 +1461,7 @@ const I18N = {
     'lobby.namecard.desc': '対戦相手やコンピュータ戦の画面に表示される名前です。ここで一度だけ入力します。',
     'lobby.roomname': '部屋の名前',
     'lobby.password': 'パスワード',
-    'lobby.name.ph': '例：ゆうき', 'lobby.roomname.ph': '例：花見部屋', 'lobby.pw.ph': '任意', 'lobby.myname.ph': '例：さくら', 'lobby.joinpw.ph': 'パスワード',
+    'lobby.name.ph': '例：モモタロウ', 'lobby.roomname.ph': '例：モモタロウの遊戯室', 'lobby.pw.ph': '任意', 'lobby.myname.ph': '例：モモタロウ', 'lobby.joinpw.ph': 'パスワード',
     'lobby.private': '非公開にする',
     'lobby.create.btn': '部屋を作成',
     'lobby.join.title': '部屋に入る',
@@ -1601,6 +1631,7 @@ const I18N = {
     'settings.sfx.hint': '効果音の音量',
     'settings.mute': 'ミュート',
     'settings.close': '閉じる',
+    'sound.creditsButton': '音源クレジット', 'sound.creditsClose': '閉じる',
     'music.title': '音楽を再生しますか？',
     'music.body': 'BGM と効果音を再生してもよろしいですか？（あとで歯車の設定から変えられます）',
     'music.yes': '再生する', 'music.no': '再生しない',
@@ -1623,7 +1654,7 @@ const I18N = {
     'lobby.namecard.desc': 'The name shown to your opponent and in games vs the computer. Enter it once here.',
     'lobby.roomname': 'Room name',
     'lobby.password': 'Password',
-    'lobby.name.ph': 'e.g. Yuki', 'lobby.roomname.ph': 'e.g. Hanami Room', 'lobby.pw.ph': 'optional', 'lobby.myname.ph': 'e.g. Sakura', 'lobby.joinpw.ph': 'Password',
+    'lobby.name.ph': 'e.g. Momotaro', 'lobby.roomname.ph': "e.g. Momotaro's Game Room", 'lobby.pw.ph': 'optional', 'lobby.myname.ph': 'e.g. Momotaro', 'lobby.joinpw.ph': 'Password',
     'lobby.private': 'Private',
     'lobby.create.btn': 'Create Room',
     'lobby.join.title': 'Join Room',
@@ -1793,6 +1824,7 @@ const I18N = {
     'settings.sfx.hint': 'Sound-effect volume',
     'settings.mute': 'Mute',
     'settings.close': 'Close',
+    'sound.creditsButton': 'Sound credits', 'sound.creditsClose': 'Close',
     'music.title': 'Play music?',
     'music.body': 'May we play BGM and sound effects? (You can change this later from the gear settings.)',
     'music.yes': 'Play', 'music.no': "Don't play",
@@ -1815,7 +1847,7 @@ const I18N = {
     'lobby.namecard.desc': '这是对手和对电脑时显示的名字。在此输入一次即可。',
     'lobby.roomname': '房间名',
     'lobby.password': '密码',
-    'lobby.name.ph': '例：小勇', 'lobby.roomname.ph': '例：赏花房', 'lobby.pw.ph': '可选', 'lobby.myname.ph': '例：小樱', 'lobby.joinpw.ph': '密码',
+    'lobby.name.ph': '例：桃太郎', 'lobby.roomname.ph': '例：桃太郎的游戏室', 'lobby.pw.ph': '可选', 'lobby.myname.ph': '例：桃太郎', 'lobby.joinpw.ph': '密码',
     'lobby.private': '私密房间',
     'lobby.create.btn': '创建房间',
     'lobby.join.title': '加入房间',
@@ -1988,6 +2020,7 @@ const I18N = {
     'music.body': '可以播放 BGM 和音效吗？（之后可在齿轮设置中更改。）',
     'music.yes': '播放', 'music.no': '不播放',
     'settings.close': '关闭',
+    'sound.creditsButton': '音源版权', 'sound.creditsClose': '关闭',
     'settings.tag.label': '牌面编号', 'settings.tag.hint': '在每张牌左上角显示月份数字＋种类（光L/种A/短冊R/カス无）',
     'settings.anim.label': '动画速度', 'settings.anim.hint': '牌的移动・停顿・こいこい滚动的速度（x0.5〜x2.0）',
     'gear.title': '设置',
@@ -2076,8 +2109,9 @@ function applyLang() {
 function updateOyaLabels() {
   const oh = document.getElementById('oya-host-lbl');
   const og = document.getElementById('oya-guest-lbl');
-  if (oh) oh.textContent = (state.hostName || t('room.host')) + '（' + t('room.host') + '）';
-  if (og) og.textContent = (state.guestName || t('room.guest')) + '（' + t('room.guest') + '）';
+  // v1.61: 「ロール：名前」形式（例「ホスト：ゆうき」「ゲスト：コンピュータ」）
+  if (oh) oh.textContent = t('room.host') + '：' + (state.hostName || t('room.host'));
+  if (og) og.textContent = t('room.guest') + '：' + (state.guestName || t('room.guest'));
 }
 function updateStatusI18n() {
   // status bar refresh (labels only; values are ephemeral)
@@ -3027,6 +3061,9 @@ const AUDIO = (function () {
   async function enable() { loadPersisted(); audioOn = true; bgmMuted = false; sfxMuted = false; persistMute(); applyGains(); await resumeCtx(); playRandomBgm(desiredPool); preloadSfx(); } // モーダル「再生する」＝ミュート解除して再生
   // v1.59 モーダル「鳴らさない」＝音量は保持したままミュートON。再生可能状態(audioOn)にはするので、後で設定パネルのミュートを外せば鳴る
   async function enableMuted() { loadPersisted(); audioOn = true; bgmMuted = true; sfxMuted = true; persistMute(); applyGains(); await resumeCtx(); preloadSfx(); }
+  // v1.61: B案＝起動時モーダルを出さず、最初の操作で自動解禁。保存済みのミュート状態を尊重する
+  //（前回ミュートしていたら鳴らさない／していなければ保存音量で再生）。
+  async function enableAuto() { loadPersisted(); audioOn = true; applyGains(); await resumeCtx(); if (!bgmMuted) playRandomBgm(desiredPool); preloadSfx(); }
   function isOn() { return audioOn; }
   // 可視性: 隠れたら suspend、1時間以上ぶりの復帰はモーダル再表示（Darts/Shogi 準拠）
   const LONG_MS = 60 * 60 * 1000;
@@ -3156,7 +3193,7 @@ const AUDIO = (function () {
   }
 
   return { getBgmVolume, getSfxVolume, setBgmVolume, setSfxVolume,
-           getMuted, setMuted, enable, enableMuted,
+           getMuted, setMuted, enable, enableMuted, enableAuto,
            setBgm, playRandomBgm, stopBgm, isOn, bindVisibility,
            sfx, startDealLoop, stopDealLoop, preloadSfx };
 })();
@@ -3249,6 +3286,20 @@ function bindVolumeSliders() {
 function showMusicModal() {
   reflectVolumeUI();
   document.getElementById('ovMusic').classList.add('show');
+}
+// v1.61: B案＝起動時モーダルは出さず、最初のユーザー操作で音声を解禁する。
+// ★キャプチャ段階で listen し preventDefault/stopPropagation しない＝そのクリックは
+//   本来のボタン動作もそのまま実行される（クリックを1回食う・遅延させることがない）。
+function armFirstGestureAudio() {
+  if (AUDIO.isOn()) return;
+  const h = () => {
+    document.removeEventListener('pointerdown', h, true);
+    document.removeEventListener('keydown', h, true);
+    AUDIO.enableAuto();
+    reflectVolumeUI();
+  };
+  document.addEventListener('pointerdown', h, true);
+  document.addEventListener('keydown', h, true);
 }
 
 // --- こいこい演出イベント（一瞬のバナー。ホスト権威で発火し両者に同期） ---
@@ -3620,6 +3671,9 @@ function renderGame() {
   document.getElementById('st-round').textContent = t('game.round', { n: state.roundNo, total: total });
   document.getElementById('st-my-score').textContent = state.scores[me] || 0;
   document.getElementById('st-op-score').textContent = state.scores[opp] || 0;
+  // v1.61: 手札ラベルの右に対局者名（自分＝me / 相手＝opp）
+  const _mhn = document.getElementById('my-hand-name'); if (_mhn) _mhn.textContent = whoLabel(me);
+  const _ohn = document.getElementById('opp-hand-name'); if (_ohn) _ohn.textContent = whoLabel(opp);
   document.getElementById('st-turn').innerHTML = renderPhaseText();
   document.getElementById('deck-count').textContent = g.deck.length;
   // v1.17: 親子＋手番インジケータ（左上=相手／左下=自分）
@@ -5334,6 +5388,13 @@ function bindEvents() {
   // Settings panel (gear icon → overlay)
   document.getElementById('gear-icon').addEventListener('click', openSettings);
   document.getElementById('btn-settings-close').addEventListener('click', () => document.getElementById('ovSettings').classList.remove('show'));
+  // v1.61: 音源クレジット（将棋準拠）
+  const linkCredits = document.getElementById('link-credits');
+  if (linkCredits) linkCredits.addEventListener('click', (e) => { e.preventDefault(); document.getElementById('ovCredits').classList.add('show'); });
+  const btnCredClose = document.getElementById('btn-credits-close');
+  if (btnCredClose) btnCredClose.addEventListener('click', () => document.getElementById('ovCredits').classList.remove('show'));
+  const ovCred = document.getElementById('ovCredits');
+  if (ovCred) ovCred.addEventListener('click', (e) => { if (e.target === ovCred) ovCred.classList.remove('show'); });
   // v1.38: 音量スライダー（設定パネル＋音楽モーダルの2組）を AUDIO と連動・相互に同期
   bindVolumeSliders();
   // v1.38: 音楽再生の確認モーダル（起動時に表示・「再生する」で BGM 開始）
@@ -5444,9 +5505,10 @@ document.addEventListener('DOMContentLoaded', () => {
   initMatchmaking();
   tryAutoRejoin();       // 再読込直後にゲスト復帰（sessionStorage に新しめの部屋があれば）
   startDiagPolling();
-  // v1.38: 起動時に音楽再生の確認モーダルを表示（1時間以上ぶりの復帰時も再表示）
-  AUDIO.bindVisibility(showMusicModal);
-  showMusicModal();
+  // v1.61: B案＝起動時モーダルは廃止。最初の操作で音声解禁（1時間以上ぶりの復帰時も再武装）。
+  //   再開はトップ画面からとは限らないため、モーダルではなく「次の操作で解禁」に統一。
+  AUDIO.bindVisibility(armFirstGestureAudio);
+  armFirstGestureAudio();
   // ?debug=1: solo test hook + 診断パネル表示
   if (new URLSearchParams(location.search).get('debug') === '1') {
     const dp = document.getElementById('diag-panel');

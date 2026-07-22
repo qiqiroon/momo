@@ -291,6 +291,24 @@
   .caprow .cards{display:flex;}
   .caprow .cards+.gl{margin-left:5px;padding-left:5px;border-left:1px solid var(--border);}
 
+  /* v1.50: 横画面（PC/横向き）＝A案レイアウト。縦画面は従来どおり。
+     左列＝相手手札→場→自分手札（縦の流れ維持）、右列＝取り札を上下（種別分けのまま）。 */
+  @media (orientation:landscape){
+    /* 対局画面（#screen-game 自身が .wrap）だけ外枠を広げる。他画面の狭い .wrap は影響なし */
+    #screen-game.wrap{max-width:min(1200px,97vw);}
+    #screen-game .play{display:grid;grid-template-columns:1fr 1fr;
+      grid-template-rows:auto minmax(0,1fr) minmax(0,1fr) auto;
+      column-gap:10px;row-gap:4px;justify-items:center;align-content:stretch;}
+    #screen-game .play>*{min-width:0;max-width:100%;}
+    #screen-game .play>:nth-child(1){grid-area:1 / 1 / 2 / 2;}          /* 相手手札 */
+    #screen-game .play>:nth-child(2){grid-area:1 / 2 / 3 / 3;width:100%;align-self:stretch;}  /* 相手取り札（右上） */
+    #screen-game .play>:nth-child(3){grid-area:2 / 1 / 4 / 2;align-self:center;}               /* 場（左中央） */
+    #screen-game .play>:nth-child(4){grid-area:3 / 2 / 5 / 3;width:100%;align-self:stretch;}  /* 自分取り札（右下） */
+    #screen-game .play>:nth-child(5){grid-area:4 / 1 / 5 / 2;}          /* 自分手札 */
+    #screen-game .capblock{height:100%;justify-content:center;}
+    #screen-game .caprow{flex-wrap:wrap;row-gap:3px;}                   /* 狭い右列では種別ごとに折り返し */
+  }
+
   /* Overlays */
   .overlay{position:fixed;inset:0;background:rgba(3,10,6,.72);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:60;padding:16px;}
   .overlay.show{display:flex;}
@@ -569,6 +587,8 @@
     <path d="M0 16 C -2 -6 -1 -22 0 -32" stroke="#7fc4b0" stroke-width="1" fill="none" opacity=".6"/>
   </g>
   <g id="backFace"><rect x="3" y="3" width="214" height="344" rx="14" fill="#3a2418" stroke="#20130c" stroke-width="2.5"/></g>
+  <!-- v1.50: 札の地紋（MOMO猫＋MOMO Works・反転クリーム・生成り地）。build: emit_card_pattern.py --><defs><g id="ct_cat"><g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#fcf8ea"/></g><g transform="rotate(12,12,8.3)"><path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#fcf8ea"/></g><ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#fcf8ea"/><g stroke="#f2ead1" stroke-width="1.8" stroke-linecap="round"><line x1="-14" y1="1.00" x2="-33.68" y2="-2.28"/><line x1="-14" y1="6.0" x2="-33.44" y2="6.0"/><line x1="-14" y1="10.59" x2="-29.58" y2="14.26"/><line x1="14" y1="1.00" x2="33.68" y2="-2.28"/><line x1="14" y1="6.0" x2="33.44" y2="6.0"/><line x1="14" y1="10.59" x2="29.58" y2="14.26"/></g><ellipse cx="-12" cy="-3.7" rx="3.4" ry="4.8" fill="#ece2c4"/><ellipse cx="12" cy="-3.7" rx="3.4" ry="4.8" fill="#ece2c4"/><path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#ece2c4"/><path d="M0,11.3 L0,13.3 M0,13.3 Q-5,17.3 -8,15.3 M0,13.3 Q5,17.3 8,15.3" fill="none" stroke="#ece2c4" stroke-width="2.2" stroke-linecap="round"/></g><g id="ct_unit"><use href="#ct_cat" transform="translate(26.667,28.400) scale(0.66667)"/><path d="M819.0 705Q827.0 690 828.5 678.0Q830.0 666 830.0 643V88Q830.0 19 792.0 7Q773.0 1 744.0 1.0Q715.0 1 698.0 6.0Q681.0 11 672.0 18.0Q663.0 25 658.0 38Q653.0 55 653.0 90V425Q628.0 394 580.0 326.5Q532.0 259 519.0 242.0Q506.0 225 501.0 218.5Q496.0 212 476.5 200.5Q457.0 189 434.5 189.0Q412.0 189 393.5 199.5Q375.0 210 367.0 220L359.0 231Q339.0 256 280.0 337.5Q221.0 419 216.0 425V88Q216.0 65 214.5 53.5Q213.0 42 205.0 28Q190.0 1 127.0 1Q66.0 1 51.0 28Q43.0 42 41.5 54.0Q40.0 66 40.0 90V645Q40.0 668 41.5 679.5Q43.0 691 51.0 706Q66.0 732 129.0 732Q156.0 732 175.5 725.5Q195.0 719 201.0 712L207.0 706L434.0 408Q604.0 633 661.0 705Q678.0 732 741.5 732.0Q805.0 732 819.0 705ZM1254.0 742Q1402.0 742 1511.0 635.0Q1620.0 528 1620.0 369.5Q1620.0 211 1516.0 99.5Q1412.0 -12 1260.0 -12.0Q1108.0 -12 1001.5 98.0Q895.0 208 895.0 360Q895.0 443 925.0 515.5Q955.0 588 1005.0 637.0Q1055.0 686 1120.0 714.0Q1185.0 742 1254.0 742ZM1072.0 365.0Q1072.0 276 1129.5 220.5Q1187.0 165 1258.0 165.0Q1329.0 165 1386.0 219.0Q1443.0 273 1443.0 364.0Q1443.0 455 1385.5 510.0Q1328.0 565 1257.0 565.0Q1186.0 565 1129.0 509.5Q1072.0 454 1072.0 365.0ZM2464.0 705Q2472.0 690 2473.5 678.0Q2475.0 666 2475.0 643V88Q2475.0 19 2437.0 7Q2418.0 1 2389.0 1.0Q2360.0 1 2343.0 6.0Q2326.0 11 2317.0 18.0Q2308.0 25 2303.0 38Q2298.0 55 2298.0 90V425Q2273.0 394 2225.0 326.5Q2177.0 259 2164.0 242.0Q2151.0 225 2146.0 218.5Q2141.0 212 2121.5 200.5Q2102.0 189 2079.5 189.0Q2057.0 189 2038.5 199.5Q2020.0 210 2012.0 220L2004.0 231Q1984.0 256 1925.0 337.5Q1866.0 419 1861.0 425V88Q1861.0 65 1859.5 53.5Q1858.0 42 1850.0 28Q1835.0 1 1772.0 1Q1711.0 1 1696.0 28Q1688.0 42 1686.5 54.0Q1685.0 66 1685.0 90V645Q1685.0 668 1686.5 679.5Q1688.0 691 1696.0 706Q1711.0 732 1774.0 732Q1801.0 732 1820.5 725.5Q1840.0 719 1846.0 712L1852.0 706L2079.0 408Q2249.0 633 2306.0 705Q2323.0 732 2386.5 732.0Q2450.0 732 2464.0 705ZM2899.0 742Q3047.0 742 3156.0 635.0Q3265.0 528 3265.0 369.5Q3265.0 211 3161.0 99.5Q3057.0 -12 2905.0 -12.0Q2753.0 -12 2646.5 98.0Q2540.0 208 2540.0 360Q2540.0 443 2570.0 515.5Q2600.0 588 2650.0 637.0Q2700.0 686 2765.0 714.0Q2830.0 742 2899.0 742ZM2717.0 365.0Q2717.0 276 2774.5 220.5Q2832.0 165 2903.0 165.0Q2974.0 165 3031.0 219.0Q3088.0 273 3088.0 364.0Q3088.0 455 3030.5 510.0Q2973.0 565 2902.0 565.0Q2831.0 565 2774.0 509.5Q2717.0 454 2717.0 365.0Z" transform="translate(49.709,19.800) scale(0.020000,-0.020000)" fill="#f7f0dd"/><path d="M917.0 729Q984.0 705 984.0 665Q984.0 652 972.0 616L780.0 61Q778.0 54 773.0 44.0Q768.0 34 746.5 17.5Q725.0 1 695.5 1.0Q666.0 1 644.5 17.5Q623.0 34 616.0 50L499.0 395Q388.0 67 386.0 61.0Q384.0 55 377.0 44.0Q370.0 33 361.0 24Q338.0 1 306.0 1.0Q274.0 1 253.5 16.0Q233.0 31 226.0 46L219.0 61L26.0 616Q15.0 649 15.0 665Q15.0 705 82.0 728Q111.0 738 134.5 738.0Q158.0 738 170.5 722.0Q183.0 706 193.0 673L303.0 339L412.0 668Q426.0 710 463.0 726Q479.0 733 504.5 733.0Q530.0 733 552.0 716.5Q574.0 700 580.0 684L695.0 337L805.0 673Q813.0 696 818.0 707.0Q823.0 718 836.5 728.5Q850.0 739 870.0 739.0Q890.0 739 917.0 729ZM1574.0 264Q1574.0 181 1531.0 116.5Q1488.0 52 1426.5 21.5Q1365.0 -9 1299.0 -9.0Q1233.0 -9 1171.0 23.5Q1109.0 56 1066.5 119.5Q1024.0 183 1024.0 263Q1024.0 383 1108.0 461.0Q1192.0 539 1300.0 539.0Q1408.0 539 1491.0 461.5Q1574.0 384 1574.0 264ZM1233.0 191.5Q1265.0 167 1298.0 167.0Q1331.0 167 1364.0 192.0Q1397.0 217 1397.0 266.0Q1397.0 315 1366.0 339.0Q1335.0 363 1299.0 363.0Q1263.0 363 1232.0 338.0Q1201.0 313 1201.0 264.5Q1201.0 216 1233.0 191.5ZM1967.0 346Q1949.0 346 1932.5 354.0Q1916.0 362 1889.0 362.0Q1862.0 362 1838.5 343.0Q1815.0 324 1815.0 297V87Q1815.0 64 1813.5 52.5Q1812.0 41 1804.0 26Q1789.0 0 1726.0 0Q1678.0 0 1657.0 17Q1641.0 31 1639.0 60Q1639.0 70 1639.0 89V440Q1639.0 463 1640.5 474.5Q1642.0 486 1649.0 500Q1663.0 527 1727.0 527Q1787.0 527 1802.0 504Q1813.0 488 1813.0 471Q1818.0 478 1827.5 488.0Q1837.0 498 1868.0 515.0Q1899.0 532 1922.5 532.0Q1946.0 532 1962.0 529.5Q1978.0 527 1997.0 521.0Q2016.0 515 2028.5 500.5Q2041.0 486 2041.0 454.0Q2041.0 422 2022.0 384.0Q2003.0 346 1967.0 346ZM2406.0 264 2539.0 154Q2564.0 133 2570.5 122.0Q2577.0 111 2577.0 101Q2577.0 77 2546.0 36Q2512.0 -6 2486.0 -6Q2464.0 -6 2425.0 23L2415.0 30Q2392.0 49 2344.0 96.5Q2296.0 144 2271.0 164V87Q2271.0 64 2269.5 52.5Q2268.0 41 2260.0 26Q2247.0 0 2183.0 0Q2120.0 0 2106.0 27Q2099.0 42 2097.5 53.5Q2096.0 65 2096.0 88V687Q2096.0 710 2097.5 721.5Q2099.0 733 2106.0 748Q2120.0 775 2184.0 775Q2232.0 775 2252.0 758Q2269.0 744 2270.0 714Q2271.0 705 2271.0 686V369Q2289.0 384 2325.5 420.0Q2362.0 456 2380.0 471L2392.0 479Q2427.0 506 2452.0 506.0Q2477.0 506 2509.5 465.5Q2542.0 425 2542.0 402.0Q2542.0 379 2505.0 348ZM2636.0 47Q2617.0 59 2617.0 85.0Q2617.0 111 2655.0 164Q2666.0 181 2690.5 181.0Q2715.0 181 2757.0 156.5Q2799.0 132 2833.0 132Q2894.0 132 2894.0 156Q2894.0 175 2827.0 184Q2764.0 193 2702.0 231Q2673.0 249 2654.0 287.5Q2635.0 326 2635.0 379Q2635.0 537 2852.0 537Q2923.0 537 2998.0 503Q3033.0 487 3033.0 463.0Q3033.0 439 3011.0 404.0Q2989.0 369 2966.0 369Q2954.0 369 2921.5 384.0Q2889.0 399 2851.0 399Q2792.0 399 2792.0 377Q2792.0 347 2860.0 338Q2926.0 331 2988.0 300Q3017.0 286 3036.5 251.5Q3056.0 217 3056.0 165.0Q3056.0 113 3036.5 76.5Q3017.0 40 2982.0 22Q2918.0 -9 2821.5 -9.0Q2725.0 -9 2636.0 47Z" transform="translate(56.333,39.400) scale(0.020000,-0.020000)" fill="#f7f0dd"/></g><pattern id="cardTile" width="118.509" height="230.000" patternUnits="userSpaceOnUse" patternTransform="rotate(-24)"><rect width="118.509" height="230.000" fill="#f1e6c6"/><g fill-opacity="0.85" stroke-opacity="0.85"><use href="#ct_unit" transform="translate(47.404,-46.000)"/><use href="#ct_unit" transform="translate(-71.106,-46.000)"/><use href="#ct_unit" transform="translate(0.000,0.000)"/><use href="#ct_unit" transform="translate(-118.509,0.000)"/><use href="#ct_unit" transform="translate(71.106,46.000)"/><use href="#ct_unit" transform="translate(-47.404,46.000)"/><use href="#ct_unit" transform="translate(23.702,92.000)"/><use href="#ct_unit" transform="translate(-94.807,92.000)"/><use href="#ct_unit" transform="translate(94.807,138.000)"/><use href="#ct_unit" transform="translate(-23.702,138.000)"/><use href="#ct_unit" transform="translate(47.404,184.000)"/><use href="#ct_unit" transform="translate(-71.106,184.000)"/><use href="#ct_unit" transform="translate(0.000,230.000)"/><use href="#ct_unit" transform="translate(-118.509,230.000)"/></g></pattern></defs>
+  <!-- v1.50: 札の地紋（MOMO猫＋MOMO Works・反転クリーム・地色#efe0a6）。build: emit_card_pattern.py --><defs><g id="ct_catKiri"><g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#fcf8ea"/></g><g transform="rotate(12,12,8.3)"><path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#fcf8ea"/></g><ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#fcf8ea"/><g stroke="#f2ead1" stroke-width="1.8" stroke-linecap="round"><line x1="-14" y1="1.00" x2="-33.68" y2="-2.28"/><line x1="-14" y1="6.0" x2="-33.44" y2="6.0"/><line x1="-14" y1="10.59" x2="-29.58" y2="14.26"/><line x1="14" y1="1.00" x2="33.68" y2="-2.28"/><line x1="14" y1="6.0" x2="33.44" y2="6.0"/><line x1="14" y1="10.59" x2="29.58" y2="14.26"/></g><ellipse cx="-12" cy="-3.7" rx="3.4" ry="4.8" fill="#ece2c4"/><ellipse cx="12" cy="-3.7" rx="3.4" ry="4.8" fill="#ece2c4"/><path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#ece2c4"/><path d="M0,11.3 L0,13.3 M0,13.3 Q-5,17.3 -8,15.3 M0,13.3 Q5,17.3 8,15.3" fill="none" stroke="#ece2c4" stroke-width="2.2" stroke-linecap="round"/></g><g id="ct_unitKiri"><use href="#ct_catKiri" transform="translate(26.667,28.400) scale(0.66667)"/><path d="M819.0 705Q827.0 690 828.5 678.0Q830.0 666 830.0 643V88Q830.0 19 792.0 7Q773.0 1 744.0 1.0Q715.0 1 698.0 6.0Q681.0 11 672.0 18.0Q663.0 25 658.0 38Q653.0 55 653.0 90V425Q628.0 394 580.0 326.5Q532.0 259 519.0 242.0Q506.0 225 501.0 218.5Q496.0 212 476.5 200.5Q457.0 189 434.5 189.0Q412.0 189 393.5 199.5Q375.0 210 367.0 220L359.0 231Q339.0 256 280.0 337.5Q221.0 419 216.0 425V88Q216.0 65 214.5 53.5Q213.0 42 205.0 28Q190.0 1 127.0 1Q66.0 1 51.0 28Q43.0 42 41.5 54.0Q40.0 66 40.0 90V645Q40.0 668 41.5 679.5Q43.0 691 51.0 706Q66.0 732 129.0 732Q156.0 732 175.5 725.5Q195.0 719 201.0 712L207.0 706L434.0 408Q604.0 633 661.0 705Q678.0 732 741.5 732.0Q805.0 732 819.0 705ZM1254.0 742Q1402.0 742 1511.0 635.0Q1620.0 528 1620.0 369.5Q1620.0 211 1516.0 99.5Q1412.0 -12 1260.0 -12.0Q1108.0 -12 1001.5 98.0Q895.0 208 895.0 360Q895.0 443 925.0 515.5Q955.0 588 1005.0 637.0Q1055.0 686 1120.0 714.0Q1185.0 742 1254.0 742ZM1072.0 365.0Q1072.0 276 1129.5 220.5Q1187.0 165 1258.0 165.0Q1329.0 165 1386.0 219.0Q1443.0 273 1443.0 364.0Q1443.0 455 1385.5 510.0Q1328.0 565 1257.0 565.0Q1186.0 565 1129.0 509.5Q1072.0 454 1072.0 365.0ZM2464.0 705Q2472.0 690 2473.5 678.0Q2475.0 666 2475.0 643V88Q2475.0 19 2437.0 7Q2418.0 1 2389.0 1.0Q2360.0 1 2343.0 6.0Q2326.0 11 2317.0 18.0Q2308.0 25 2303.0 38Q2298.0 55 2298.0 90V425Q2273.0 394 2225.0 326.5Q2177.0 259 2164.0 242.0Q2151.0 225 2146.0 218.5Q2141.0 212 2121.5 200.5Q2102.0 189 2079.5 189.0Q2057.0 189 2038.5 199.5Q2020.0 210 2012.0 220L2004.0 231Q1984.0 256 1925.0 337.5Q1866.0 419 1861.0 425V88Q1861.0 65 1859.5 53.5Q1858.0 42 1850.0 28Q1835.0 1 1772.0 1Q1711.0 1 1696.0 28Q1688.0 42 1686.5 54.0Q1685.0 66 1685.0 90V645Q1685.0 668 1686.5 679.5Q1688.0 691 1696.0 706Q1711.0 732 1774.0 732Q1801.0 732 1820.5 725.5Q1840.0 719 1846.0 712L1852.0 706L2079.0 408Q2249.0 633 2306.0 705Q2323.0 732 2386.5 732.0Q2450.0 732 2464.0 705ZM2899.0 742Q3047.0 742 3156.0 635.0Q3265.0 528 3265.0 369.5Q3265.0 211 3161.0 99.5Q3057.0 -12 2905.0 -12.0Q2753.0 -12 2646.5 98.0Q2540.0 208 2540.0 360Q2540.0 443 2570.0 515.5Q2600.0 588 2650.0 637.0Q2700.0 686 2765.0 714.0Q2830.0 742 2899.0 742ZM2717.0 365.0Q2717.0 276 2774.5 220.5Q2832.0 165 2903.0 165.0Q2974.0 165 3031.0 219.0Q3088.0 273 3088.0 364.0Q3088.0 455 3030.5 510.0Q2973.0 565 2902.0 565.0Q2831.0 565 2774.0 509.5Q2717.0 454 2717.0 365.0Z" transform="translate(49.709,19.800) scale(0.020000,-0.020000)" fill="#f7f0dd"/><path d="M917.0 729Q984.0 705 984.0 665Q984.0 652 972.0 616L780.0 61Q778.0 54 773.0 44.0Q768.0 34 746.5 17.5Q725.0 1 695.5 1.0Q666.0 1 644.5 17.5Q623.0 34 616.0 50L499.0 395Q388.0 67 386.0 61.0Q384.0 55 377.0 44.0Q370.0 33 361.0 24Q338.0 1 306.0 1.0Q274.0 1 253.5 16.0Q233.0 31 226.0 46L219.0 61L26.0 616Q15.0 649 15.0 665Q15.0 705 82.0 728Q111.0 738 134.5 738.0Q158.0 738 170.5 722.0Q183.0 706 193.0 673L303.0 339L412.0 668Q426.0 710 463.0 726Q479.0 733 504.5 733.0Q530.0 733 552.0 716.5Q574.0 700 580.0 684L695.0 337L805.0 673Q813.0 696 818.0 707.0Q823.0 718 836.5 728.5Q850.0 739 870.0 739.0Q890.0 739 917.0 729ZM1574.0 264Q1574.0 181 1531.0 116.5Q1488.0 52 1426.5 21.5Q1365.0 -9 1299.0 -9.0Q1233.0 -9 1171.0 23.5Q1109.0 56 1066.5 119.5Q1024.0 183 1024.0 263Q1024.0 383 1108.0 461.0Q1192.0 539 1300.0 539.0Q1408.0 539 1491.0 461.5Q1574.0 384 1574.0 264ZM1233.0 191.5Q1265.0 167 1298.0 167.0Q1331.0 167 1364.0 192.0Q1397.0 217 1397.0 266.0Q1397.0 315 1366.0 339.0Q1335.0 363 1299.0 363.0Q1263.0 363 1232.0 338.0Q1201.0 313 1201.0 264.5Q1201.0 216 1233.0 191.5ZM1967.0 346Q1949.0 346 1932.5 354.0Q1916.0 362 1889.0 362.0Q1862.0 362 1838.5 343.0Q1815.0 324 1815.0 297V87Q1815.0 64 1813.5 52.5Q1812.0 41 1804.0 26Q1789.0 0 1726.0 0Q1678.0 0 1657.0 17Q1641.0 31 1639.0 60Q1639.0 70 1639.0 89V440Q1639.0 463 1640.5 474.5Q1642.0 486 1649.0 500Q1663.0 527 1727.0 527Q1787.0 527 1802.0 504Q1813.0 488 1813.0 471Q1818.0 478 1827.5 488.0Q1837.0 498 1868.0 515.0Q1899.0 532 1922.5 532.0Q1946.0 532 1962.0 529.5Q1978.0 527 1997.0 521.0Q2016.0 515 2028.5 500.5Q2041.0 486 2041.0 454.0Q2041.0 422 2022.0 384.0Q2003.0 346 1967.0 346ZM2406.0 264 2539.0 154Q2564.0 133 2570.5 122.0Q2577.0 111 2577.0 101Q2577.0 77 2546.0 36Q2512.0 -6 2486.0 -6Q2464.0 -6 2425.0 23L2415.0 30Q2392.0 49 2344.0 96.5Q2296.0 144 2271.0 164V87Q2271.0 64 2269.5 52.5Q2268.0 41 2260.0 26Q2247.0 0 2183.0 0Q2120.0 0 2106.0 27Q2099.0 42 2097.5 53.5Q2096.0 65 2096.0 88V687Q2096.0 710 2097.5 721.5Q2099.0 733 2106.0 748Q2120.0 775 2184.0 775Q2232.0 775 2252.0 758Q2269.0 744 2270.0 714Q2271.0 705 2271.0 686V369Q2289.0 384 2325.5 420.0Q2362.0 456 2380.0 471L2392.0 479Q2427.0 506 2452.0 506.0Q2477.0 506 2509.5 465.5Q2542.0 425 2542.0 402.0Q2542.0 379 2505.0 348ZM2636.0 47Q2617.0 59 2617.0 85.0Q2617.0 111 2655.0 164Q2666.0 181 2690.5 181.0Q2715.0 181 2757.0 156.5Q2799.0 132 2833.0 132Q2894.0 132 2894.0 156Q2894.0 175 2827.0 184Q2764.0 193 2702.0 231Q2673.0 249 2654.0 287.5Q2635.0 326 2635.0 379Q2635.0 537 2852.0 537Q2923.0 537 2998.0 503Q3033.0 487 3033.0 463.0Q3033.0 439 3011.0 404.0Q2989.0 369 2966.0 369Q2954.0 369 2921.5 384.0Q2889.0 399 2851.0 399Q2792.0 399 2792.0 377Q2792.0 347 2860.0 338Q2926.0 331 2988.0 300Q3017.0 286 3036.5 251.5Q3056.0 217 3056.0 165.0Q3056.0 113 3036.5 76.5Q3017.0 40 2982.0 22Q2918.0 -9 2821.5 -9.0Q2725.0 -9 2636.0 47Z" transform="translate(56.333,39.400) scale(0.020000,-0.020000)" fill="#f7f0dd"/></g><pattern id="cardTileKiri" width="118.509" height="230.000" patternUnits="userSpaceOnUse" patternTransform="rotate(-24)"><rect width="118.509" height="230.000" fill="#efe0a6"/><g fill-opacity="0.85" stroke-opacity="0.85"><use href="#ct_unitKiri" transform="translate(47.404,-46.000)"/><use href="#ct_unitKiri" transform="translate(-71.106,-46.000)"/><use href="#ct_unitKiri" transform="translate(0.000,0.000)"/><use href="#ct_unitKiri" transform="translate(-118.509,0.000)"/><use href="#ct_unitKiri" transform="translate(71.106,46.000)"/><use href="#ct_unitKiri" transform="translate(-47.404,46.000)"/><use href="#ct_unitKiri" transform="translate(23.702,92.000)"/><use href="#ct_unitKiri" transform="translate(-94.807,92.000)"/><use href="#ct_unitKiri" transform="translate(94.807,138.000)"/><use href="#ct_unitKiri" transform="translate(-23.702,138.000)"/><use href="#ct_unitKiri" transform="translate(47.404,184.000)"/><use href="#ct_unitKiri" transform="translate(-71.106,184.000)"/><use href="#ct_unitKiri" transform="translate(0.000,230.000)"/><use href="#ct_unitKiri" transform="translate(-118.509,230.000)"/></g></pattern></defs>
 
   <!-- Gear icon (settings panel trigger) -->
   <symbol id="icon-settings" viewBox="0 0 24 24">
@@ -577,7 +597,7 @@
 
   <!-- ---- 1月 松 ---- -->
   <symbol id="m01_hikari" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <circle cx="70" cy="94" r="31" fill="#cf2b28" stroke="#7d1512" stroke-width="2"/>
     <g fill="none" stroke="#3d2a12" stroke-width="7" stroke-linecap="round">
@@ -597,7 +617,7 @@
     </g>
   </symbol>
   <symbol id="m01_tan" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <g fill="none" stroke="#3d2a12" stroke-width="7" stroke-linecap="round"><path d="M206 50 C 188 70 176 82 150 88"/><path d="M150 88 C 140 74 122 72 104 80"/></g>
     <use href="#pineTuft" transform="translate(152,88) rotate(12)"/><use href="#pineTuft" transform="translate(110,80) rotate(-16) scale(.82)"/>
@@ -610,7 +630,7 @@
     <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
   <symbol id="m01_kasu2" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <g fill="none" stroke="#3d2a12" stroke-width="7" stroke-linecap="round"><path d="M70 320 C 74 250 62 200 84 160 C 96 138 82 118 92 96"/><path d="M78 208 C 102 200 118 206 136 198"/><path d="M82 150 C 70 138 64 120 72 104"/></g>
     <use href="#pineTuft" transform="translate(136,198) rotate(14)"/><use href="#pineTuft" transform="translate(72,104) rotate(-20) scale(.86)"/><use href="#pineTuft" transform="translate(104,150) rotate(6) scale(.82)"/><use href="#pineTuft" transform="translate(64,150) rotate(-40) scale(.72)"/>
@@ -618,7 +638,7 @@
 
   <!-- ---- 2月 梅 ---- -->
   <symbol id="m02_tane" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <g fill="none" stroke="#4a2f16" stroke-linecap="round">
       <path d="M44 320 C 66 262 44 214 82 178" stroke-width="11"/>
@@ -637,20 +657,20 @@
     </g>
   </symbol>
   <symbol id="m02_tan" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <g fill="none" stroke="#4a2f16" stroke-width="6.5" stroke-linecap="round"><path d="M206 54 C 186 74 172 86 148 92"/><path d="M148 92 C 136 78 120 78 104 86"/></g>
     <use href="#umeBloom" transform="translate(150,92) scale(1.1)"/><use href="#umeBloom" transform="translate(112,84) scale(.9)"/>
     <use href="#tanRed" transform="translate(100,214) rotate(-8)"/>
   </symbol>
   <symbol id="m02_kasu1" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <g fill="none" stroke="#4a2f16" stroke-width="6.5" stroke-linecap="round"><path d="M150 318 C 150 250 160 206 138 166 C 128 146 140 122 130 100"/><path d="M142 210 C 116 202 100 208 84 200"/><path d="M140 150 C 152 138 156 120 148 104"/></g>
     <use href="#umeBloom" transform="translate(84,200)"/><use href="#umeBloom" transform="translate(148,104) scale(.95)"/><use href="#umeBloom" transform="translate(120,150) scale(.9)"/><use href="#umeBloom" transform="translate(150,150) scale(.8)"/>
   </symbol>
   <symbol id="m02_kasu2" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <g fill="none" stroke="#4a2f16" stroke-width="6.5" stroke-linecap="round"><path d="M70 318 C 70 250 60 206 82 166 C 92 146 80 122 90 100"/><path d="M78 210 C 104 202 120 208 136 200"/><path d="M80 150 C 68 138 64 120 72 104"/></g>
     <use href="#umeBloom" transform="translate(136,200)"/><use href="#umeBloom" transform="translate(72,104) scale(.95)"/><use href="#umeBloom" transform="translate(102,150) scale(.9)"/><use href="#umeBloom" transform="translate(70,150) scale(.8)"/>
@@ -658,7 +678,7 @@
 
   <!-- ---- 3月 桜 ---- -->
   <symbol id="m03_hikari" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <g fill="none" stroke="#5a3a20" stroke-width="6.5" stroke-linecap="round"><path d="M10 56 C 64 66 112 58 176 92"/><path d="M120 62 C 132 92 128 120 134 146"/><path d="M60 61 C 66 84 60 108 64 130"/></g>
     <use href="#sakuraBloom" transform="translate(28,54) scale(1.05)"/><use href="#sakuraBloom" transform="translate(70,60) scale(1.1)"/><use href="#sakuraBloom" transform="translate(112,56)"/><use href="#sakuraBloom" transform="translate(152,74) scale(.95)"/><use href="#sakuraBloom" transform="translate(176,92) scale(.9)"/><use href="#sakuraBloom" transform="translate(130,110) scale(.9)"/><use href="#sakuraBloom" transform="translate(64,128) scale(.85)"/>
@@ -668,20 +688,20 @@
     <g stroke="#f1e6c6" stroke-width="1.8" opacity=".85"><line x1="44" y1="179" x2="44" y2="316"/><line x1="86" y1="172" x2="86" y2="318"/><line x1="128" y1="164" x2="128" y2="318"/><line x1="170" y1="157" x2="170" y2="316"/></g>
   </symbol>
   <symbol id="m03_tan" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <g fill="none" stroke="#5a3a20" stroke-width="6.5" stroke-linecap="round"><path d="M206 54 C 186 74 172 86 148 92"/><path d="M148 92 C 136 80 120 80 104 88"/></g>
     <use href="#sakuraBloom" transform="translate(150,92) scale(1.1)"/><use href="#sakuraBloom" transform="translate(112,86) scale(.9)"/>
     <use href="#tanRed" transform="translate(100,214) rotate(-8)"/>
   </symbol>
   <symbol id="m03_kasu1" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <g fill="none" stroke="#5a3a20" stroke-width="6.5" stroke-linecap="round"><path d="M150 318 C 150 250 160 206 138 166 C 128 146 140 122 130 100"/><path d="M142 210 C 116 202 100 208 84 200"/><path d="M140 150 C 152 138 156 120 148 104"/></g>
     <use href="#sakuraBloom" transform="translate(84,200)"/><use href="#sakuraBloom" transform="translate(148,104) scale(.95)"/><use href="#sakuraBloom" transform="translate(120,150) scale(.9)"/><use href="#sakuraBloom" transform="translate(150,150) scale(.8)"/>
   </symbol>
   <symbol id="m03_kasu2" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <g fill="none" stroke="#5a3a20" stroke-width="6.5" stroke-linecap="round"><path d="M70 318 C 70 250 60 206 82 166 C 92 146 80 122 90 100"/><path d="M78 210 C 104 202 120 208 136 200"/><path d="M80 150 C 68 138 64 120 72 104"/></g>
     <use href="#sakuraBloom" transform="translate(136,200)"/><use href="#sakuraBloom" transform="translate(72,104) scale(.95)"/><use href="#sakuraBloom" transform="translate(102,150) scale(.9)"/><use href="#sakuraBloom" transform="translate(70,150) scale(.8)"/>
@@ -689,7 +709,7 @@
 
   <!-- ---- 4月 藤 ---- -->
   <symbol id="m04_tane" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <g fill="none" stroke="#5a3a20" stroke-width="6" stroke-linecap="round"><path d="M20 60 C 70 84 130 78 196 96"/></g>
     <use href="#fujiCluster" transform="translate(58,74)"/><use href="#fujiCluster" transform="translate(96,80) scale(1.1)"/><use href="#fujiCluster" transform="translate(150,86)"/>
@@ -698,20 +718,20 @@
     </g>
   </symbol>
   <symbol id="m04_tan" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <g fill="none" stroke="#5a3a20" stroke-width="6" stroke-linecap="round"><path d="M40 60 C 90 78 140 74 190 88"/></g>
     <use href="#fujiCluster" transform="translate(70,72)"/><use href="#fujiCluster" transform="translate(150,80) scale(1.05)"/>
     <use href="#tanRed" transform="translate(104,216) rotate(-6)"/>
   </symbol>
   <symbol id="m04_kasu1" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <g fill="none" stroke="#5a3a20" stroke-width="6" stroke-linecap="round"><path d="M24 56 C 80 82 140 76 200 100"/></g>
     <use href="#fujiCluster" transform="translate(56,72)"/><use href="#fujiCluster" transform="translate(104,82) scale(1.05)"/><use href="#fujiCluster" transform="translate(158,90)"/>
   </symbol>
   <symbol id="m04_kasu2" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <g fill="none" stroke="#5a3a20" stroke-width="6" stroke-linecap="round"><path d="M200 56 C 144 82 84 76 24 100"/></g>
     <use href="#fujiCluster" transform="translate(60,90)"/><use href="#fujiCluster" transform="translate(112,82) scale(1.05)"/><use href="#fujiCluster" transform="translate(164,72)"/>
@@ -719,7 +739,7 @@
 
   <!-- ---- 5月 菖蒲 ---- -->
   <symbol id="m05_tane" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <g stroke="#5a86c0" stroke-width="1.6" fill="none" opacity=".8"><path d="M20 300 q30 -8 60 0 t60 0 t60 0"/><path d="M20 314 q30 -8 60 0 t60 0 t60 0"/></g>
     <g fill="#e6c229" stroke="#a07d12" stroke-width="1.8" stroke-linejoin="round">
@@ -732,7 +752,7 @@
     <use href="#ayameBloom" transform="translate(60,130) scale(1.15)"/><use href="#ayameBloom" transform="translate(150,138)"/><use href="#ayameBloom" transform="translate(86,146) scale(.85)"/>
   </symbol>
   <symbol id="m05_tan" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <use href="#sasaClump" transform="translate(154,250)"/>
     <g stroke="#3f7a35" stroke-width="3.5" fill="none" stroke-linecap="round"><path d="M150 250 C 148 196 158 150 150 96"/><path d="M166 252 C 168 206 176 160 172 120"/></g>
@@ -740,14 +760,14 @@
     <use href="#tanRed" transform="translate(96,214) rotate(-8)"/>
   </symbol>
   <symbol id="m05_kasu1" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <use href="#sasaClump" transform="translate(104,302)"/>
     <g stroke="#3f7a35" stroke-width="3.5" fill="none" stroke-linecap="round"><path d="M90 300 C 86 240 96 190 88 120"/><path d="M110 302 C 114 246 124 196 120 140"/><path d="M132 300 C 130 244 138 200 132 150"/></g>
     <use href="#ayameBloom" transform="translate(88,120) scale(1.1)"/><use href="#ayameBloom" transform="translate(132,150) scale(.9)"/>
   </symbol>
   <symbol id="m05_kasu2" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <use href="#sasaClump" transform="translate(108,302)"/>
     <g stroke="#3f7a35" stroke-width="3.5" fill="none" stroke-linecap="round"><path d="M130 300 C 134 240 124 190 132 120"/><path d="M110 302 C 106 246 96 196 100 140"/><path d="M88 300 C 90 244 82 200 88 150"/></g>
@@ -756,7 +776,7 @@
 
   <!-- ---- 6月 牡丹 ---- -->
   <symbol id="m06_tane" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <g fill="#2f6b2e" stroke="#153311" stroke-width="1.2"><ellipse cx="66" cy="250" rx="16" ry="10" transform="rotate(-20 66 250)"/><ellipse cx="150" cy="252" rx="16" ry="10" transform="rotate(20 150 252)"/><ellipse cx="108" cy="266" rx="16" ry="10"/></g>
     <use href="#botanBloom" transform="translate(80,214) scale(1.15)"/><use href="#botanBloom" transform="translate(140,224) scale(1)"/>
@@ -770,20 +790,20 @@
     </g>
   </symbol>
   <symbol id="m06_tan" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <g fill="#2f6b2e" stroke="#153311" stroke-width="1.2"><ellipse cx="150" cy="118" rx="15" ry="9" transform="rotate(18 150 118)"/><ellipse cx="150" cy="150" rx="15" ry="9" transform="rotate(-14 150 150)"/></g>
     <use href="#botanBloom" transform="translate(150,120) scale(1.1)"/>
     <use href="#tanBlue" transform="translate(96,216) rotate(-8)"/>
   </symbol>
   <symbol id="m06_kasu1" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <g fill="#2f6b2e" stroke="#153311" stroke-width="1.2"><ellipse cx="80" cy="210" rx="17" ry="11" transform="rotate(-24 80 210)"/><ellipse cx="140" cy="200" rx="17" ry="11" transform="rotate(24 140 200)"/><ellipse cx="110" cy="240" rx="17" ry="11"/></g>
     <use href="#botanBloom" transform="translate(110,175) scale(1.3)"/>
   </symbol>
   <symbol id="m06_kasu2" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <g fill="#2f6b2e" stroke="#153311" stroke-width="1.2"><ellipse cx="140" cy="210" rx="17" ry="11" transform="rotate(24 140 210)"/><ellipse cx="80" cy="200" rx="17" ry="11" transform="rotate(-24 80 200)"/><ellipse cx="110" cy="240" rx="17" ry="11"/></g>
     <use href="#botanBloom" transform="translate(110,175) scale(1.3)"/>
@@ -791,7 +811,7 @@
 
   <!-- ---- 7月 萩 ---- -->
   <symbol id="m07_tane" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <g fill="none" stroke="#4f7a30" stroke-width="2.4" stroke-linecap="round"><path d="M40 120 C 60 150 66 190 58 240"/><path d="M70 116 C 92 150 98 196 92 244"/><path d="M104 120 C 120 152 124 190 120 232"/></g>
     <use href="#hagiSprig" transform="translate(58,180)"/><use href="#hagiSprig" transform="translate(92,196)"/><use href="#hagiSprig" transform="translate(50,150) scale(.9)"/><use href="#hagiSprig" transform="translate(120,180) scale(.9)"/>
@@ -805,20 +825,20 @@
     </g>
   </symbol>
   <symbol id="m07_tan" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <g fill="none" stroke="#4f7a30" stroke-width="2.4" stroke-linecap="round"><path d="M150 110 C 168 146 172 190 166 240"/><path d="M132 116 C 148 150 150 194 146 240"/></g>
     <use href="#hagiSprig" transform="translate(166,180)"/><use href="#hagiSprig" transform="translate(146,200)"/><use href="#hagiSprig" transform="translate(158,150) scale(.9)"/>
     <use href="#tanRed" transform="translate(96,214) rotate(-8)"/>
   </symbol>
   <symbol id="m07_kasu1" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <g fill="none" stroke="#4f7a30" stroke-width="2.4" stroke-linecap="round"><path d="M70 110 C 92 150 98 200 90 260"/><path d="M108 112 C 128 152 132 202 126 262"/><path d="M140 118 C 156 154 158 200 152 250"/></g>
     <use href="#hagiSprig" transform="translate(90,190)"/><use href="#hagiSprig" transform="translate(126,206)"/><use href="#hagiSprig" transform="translate(152,186)"/><use href="#hagiSprig" transform="translate(80,150) scale(.9)"/>
   </symbol>
   <symbol id="m07_kasu2" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <g fill="none" stroke="#4f7a30" stroke-width="2.4" stroke-linecap="round"><path d="M150 110 C 128 150 122 200 130 260"/><path d="M112 112 C 92 152 88 202 94 262"/><path d="M80 118 C 64 154 62 200 68 250"/></g>
     <use href="#hagiSprig" transform="translate(130,190)"/><use href="#hagiSprig" transform="translate(94,206)"/><use href="#hagiSprig" transform="translate(68,186)"/><use href="#hagiSprig" transform="translate(140,150) scale(.9)"/>
@@ -826,7 +846,7 @@
 
   <!-- ---- 8月 芒 ---- -->
   <symbol id="m08_hikari" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <circle cx="130" cy="96" r="33" fill="#cf2b28" stroke="#7d1512" stroke-width="2"/>
     <path d="M8 268 C 54 220 96 218 132 240 C 164 258 188 252 214 244 L214 306 L8 306 Z" fill="#242019" stroke="#11100c" stroke-width="1.6"/>
@@ -834,7 +854,7 @@
     <use href="#susukiPlume" transform="translate(38,140)"/><use href="#susukiPlume" transform="translate(66,148)"/><use href="#susukiPlume" transform="translate(92,160)"/><use href="#susukiPlume" transform="translate(116,176) scale(.9)"/>
   </symbol>
   <symbol id="m08_tane" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <path d="M8 268 C 54 220 96 218 132 240 C 164 258 188 252 214 244 L214 306 L8 306 Z" fill="#242019" stroke="#11100c" stroke-width="1.6"/>
     <g fill="#2a2620" stroke="#000" stroke-width=".6">
@@ -846,14 +866,14 @@
     <use href="#susukiPlume" transform="translate(38,140)"/><use href="#susukiPlume" transform="translate(66,148)"/><use href="#susukiPlume" transform="translate(116,176) scale(.9)"/>
   </symbol>
   <symbol id="m08_kasu1" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <path d="M8 262 C 54 214 96 212 132 234 C 164 252 188 246 214 238 L214 306 L8 306 Z" fill="#242019" stroke="#11100c" stroke-width="1.6"/>
     <g fill="none" stroke="#7a5f28" stroke-width="2" stroke-linecap="round"><path d="M56 262 C 50 212 54 172 44 134"/><path d="M74 264 C 72 216 80 178 74 142"/><path d="M92 262 C 94 218 104 186 102 154"/><path d="M112 264 C 116 222 124 198 128 170"/><path d="M134 266 C 138 226 144 206 148 182"/></g>
     <use href="#susukiPlume" transform="translate(44,134)"/><use href="#susukiPlume" transform="translate(74,142)"/><use href="#susukiPlume" transform="translate(102,154)"/><use href="#susukiPlume" transform="translate(128,170) scale(.9)"/><use href="#susukiPlume" transform="translate(148,182) scale(.85)"/>
   </symbol>
   <symbol id="m08_kasu2" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <path d="M8 244 C 40 252 70 250 110 236 C 150 222 184 224 214 262 L214 306 L8 306 Z" fill="#242019" stroke="#11100c" stroke-width="1.6"/>
     <g fill="none" stroke="#7a5f28" stroke-width="2" stroke-linecap="round"><path d="M64 250 C 58 200 62 160 52 122"/><path d="M84 250 C 82 202 90 164 84 128"/><path d="M104 246 C 106 202 116 170 114 138"/><path d="M126 250 C 130 208 136 188 140 160"/></g>
@@ -862,7 +882,7 @@
 
   <!-- ---- 9月 菊 ---- -->
   <symbol id="m09_tane" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <g fill="#2f6b2e" stroke="#153311" stroke-width="1.2"><ellipse cx="66" cy="150" rx="13" ry="8" transform="rotate(-24 66 150)"/><ellipse cx="150" cy="150" rx="13" ry="8" transform="rotate(24 150 150)"/></g>
     <use href="#kikuBloom" transform="translate(66,120) scale(1.1)"/><use href="#kikuBloom" transform="translate(150,122)"/>
@@ -876,20 +896,20 @@
     </g>
   </symbol>
   <symbol id="m09_tan" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <g fill="#2f6b2e" stroke="#153311" stroke-width="1.2"><ellipse cx="150" cy="150" rx="13" ry="8" transform="rotate(20 150 150)"/></g>
     <use href="#kikuBloom" transform="translate(150,120) scale(1.1)"/>
     <use href="#tanBlue" transform="translate(96,216) rotate(-8)"/>
   </symbol>
   <symbol id="m09_kasu1" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <g fill="#2f6b2e" stroke="#153311" stroke-width="1.2"><ellipse cx="82" cy="210" rx="14" ry="9" transform="rotate(-20 82 210)"/><ellipse cx="140" cy="212" rx="14" ry="9" transform="rotate(20 140 212)"/></g>
     <use href="#kikuBloom" transform="translate(84,176) scale(1.2)"/><use href="#kikuBloom" transform="translate(140,186)"/>
   </symbol>
   <symbol id="m09_kasu2" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <g fill="#2f6b2e" stroke="#153311" stroke-width="1.2"><ellipse cx="140" cy="210" rx="14" ry="9" transform="rotate(20 140 210)"/><ellipse cx="82" cy="212" rx="14" ry="9" transform="rotate(-20 82 212)"/></g>
     <use href="#kikuBloom" transform="translate(138,176) scale(1.2)"/><use href="#kikuBloom" transform="translate(82,186)"/>
@@ -897,7 +917,7 @@
 
   <!-- ---- 10月 紅葉 ---- -->
   <symbol id="m10_tane" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <g fill="none" stroke="#6a4a24" stroke-width="4" stroke-linecap="round"><path d="M40 120 C 56 150 60 180 54 210"/></g>
     <use href="#momijiLeaf" transform="translate(50,110) scale(1.1)"/><use href="#momijiLeaf" transform="translate(70,140) rotate(30) scale(.9)"/><use href="#momijiLeaf" transform="translate(40,160) rotate(-20) scale(.85)"/>
@@ -912,26 +932,26 @@
     </g>
   </symbol>
   <symbol id="m10_tan" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <g fill="none" stroke="#6a4a24" stroke-width="4" stroke-linecap="round"><path d="M160 116 C 150 148 148 186 152 220"/></g>
     <use href="#momijiLeaf" transform="translate(156,108) scale(1.1)"/><use href="#momijiLeaf" transform="translate(140,140) rotate(-24) scale(.9)"/><use href="#momijiLeaf" transform="translate(166,150) rotate(20) scale(.85)"/>
     <use href="#tanBlue" transform="translate(96,214) rotate(-8)"/>
   </symbol>
   <symbol id="m10_kasu1" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <use href="#momijiLeaf" transform="translate(90,150) scale(1.5)"/><use href="#momijiLeaf" transform="translate(140,200) rotate(30) scale(1.2)"/><use href="#momijiLeaf" transform="translate(80,220) rotate(-24) scale(1.1)"/><use href="#momijiLeaf" transform="translate(140,120) rotate(16) scale(1)"/>
   </symbol>
   <symbol id="m10_kasu2" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <use href="#momijiLeaf" transform="translate(130,150) scale(1.5)"/><use href="#momijiLeaf" transform="translate(80,200) rotate(-30) scale(1.2)"/><use href="#momijiLeaf" transform="translate(140,220) rotate(24) scale(1.1)"/><use href="#momijiLeaf" transform="translate(80,120) rotate(-16) scale(1)"/>
   </symbol>
 
   <!-- ---- 11月 柳 ---- -->
   <symbol id="m11_hikari" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <rect x="9" y="9" width="202" height="332" rx="9" fill="none" stroke="#b52a2a" stroke-width="3.5"/>
     <g stroke="#3f5f8a" stroke-width="1.8" stroke-linecap="round"><line x1="34" y1="24" x2="20" y2="72"/><line x1="58" y1="24" x2="44" y2="74"/><line x1="82" y1="26" x2="68" y2="76"/><line x1="164" y1="26" x2="150" y2="74"/></g>
     <path d="M158 320 C 154 250 168 196 146 154 C 134 132 148 108 138 84" fill="none" stroke="#3d2a12" stroke-width="7" stroke-linecap="round"/>
@@ -951,7 +971,7 @@
     </g>
   </symbol>
   <symbol id="m11_tane" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <path d="M150 320 C 146 250 160 196 138 150 C 128 130 142 108 132 84" fill="none" stroke="#3d2a12" stroke-width="7" stroke-linecap="round"/>
     <g fill="none" stroke="#3f7a35" stroke-width="2.2" stroke-linecap="round"><path d="M132 88 C 108 102 94 134 90 178"/><path d="M136 96 C 120 114 112 154 110 202"/><path d="M140 104 C 132 132 134 172 136 216"/></g>
@@ -966,7 +986,7 @@
     </g>
   </symbol>
   <symbol id="m11_tan" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kasumi"/>
     <path d="M150 320 C 146 250 160 196 138 150 C 128 130 142 108 132 84" fill="none" stroke="#3d2a12" stroke-width="7" stroke-linecap="round"/>
     <g fill="none" stroke="#3f7a35" stroke-width="2.2" stroke-linecap="round"><path d="M132 88 C 108 102 94 134 90 178"/><path d="M140 104 C 132 132 134 172 136 216"/><path d="M137 92 C 156 110 162 144 158 188"/></g>
@@ -974,7 +994,7 @@
     <use href="#tanRed" transform="translate(84,214) rotate(-8)"/>
   </symbol>
   <symbol id="m11_kasu" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
     <path d="M8 210 C 40 196 70 200 110 214 C 150 228 184 224 212 214 L212 340 a6 6 0 0 1 -6 6 L14 346 a6 6 0 0 1 -6 -6 Z" fill="#b83a1f" stroke="#7a2410" stroke-width="1.8"/>
     <g fill="none" stroke="#f0d24a" stroke-width="2.4" stroke-linejoin="round">
       <path d="M40 250 h20 v14 h-14 v14 h20"/><path d="M150 250 h20 v14 h-14 v14 h20"/>
@@ -987,7 +1007,7 @@
 
   <!-- ---- 12月 桐 ---- -->
   <symbol id="m12_hikari" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#efe0a6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTileKiri)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kiriLeaf" transform="translate(46,320) scale(1.1)"/><use href="#kiriLeaf" transform="translate(110,326) scale(1.25)"/><use href="#kiriLeaf" transform="translate(174,320) scale(1.1)"/>
     <g fill="#8267bd" stroke="#5b3f8f" stroke-width=".9"><ellipse cx="74" cy="250" rx="4" ry="7" transform="rotate(-15 74 250)"/><ellipse cx="146" cy="248" rx="4" ry="7" transform="rotate(12 146 248)"/></g>
     <g transform="translate(112,140)" stroke="#5a2410" stroke-width="1.2">
@@ -1003,17 +1023,17 @@
     </g>
   </symbol>
   <symbol id="m12_kasu1" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#efe0a6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTileKiri)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kiriLeaf" transform="translate(70,250) scale(1.5)"/><use href="#kiriLeaf" transform="translate(140,240) scale(1.3)"/><use href="#kiriLeaf" transform="translate(110,300) scale(1.2)"/>
     <g fill="#8267bd" stroke="#5b3f8f" stroke-width=".9"><ellipse cx="100" cy="150" rx="4.6" ry="8" transform="rotate(-12 100 150)"/><ellipse cx="120" cy="160" rx="4.6" ry="8" transform="rotate(12 120 160)"/><ellipse cx="110" cy="140" rx="4.6" ry="8"/></g>
   </symbol>
   <symbol id="m12_kasu2" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#efe0a6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTileKiri)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kiriLeaf" transform="translate(140,250) scale(1.5)"/><use href="#kiriLeaf" transform="translate(72,240) scale(1.3)"/><use href="#kiriLeaf" transform="translate(108,300) scale(1.2)"/>
     <g fill="#8267bd" stroke="#5b3f8f" stroke-width=".9"><ellipse cx="118" cy="150" rx="4.6" ry="8" transform="rotate(12 118 150)"/><ellipse cx="98" cy="160" rx="4.6" ry="8" transform="rotate(-12 98 160)"/><ellipse cx="108" cy="140" rx="4.6" ry="8"/></g>
   </symbol>
   <symbol id="m12_kasu3" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="#efe0a6" stroke="#20201c" stroke-width="2.5"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTileKiri)" stroke="#20201c" stroke-width="2.5"/>
     <use href="#kiriLeaf" transform="translate(108,258) scale(1.7)"/><use href="#kiriLeaf" transform="translate(58,236) scale(1.15)"/><use href="#kiriLeaf" transform="translate(160,236) scale(1.15)"/>
     <g fill="#8267bd" stroke="#5b3f8f" stroke-width=".9"><ellipse cx="90" cy="150" rx="4.6" ry="8" transform="rotate(-14 90 150)"/><ellipse cx="128" cy="150" rx="4.6" ry="8" transform="rotate(14 128 150)"/><ellipse cx="109" cy="138" rx="4.6" ry="8"/></g>
   </symbol>
@@ -1024,7 +1044,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.47</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.50</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1079,7 +1099,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.47</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.50</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1118,7 +1138,7 @@
     <div class="set-row"><span data-i18n="set.draw">引き分けの親</span><span class="seg" data-key="draw"><button class="on" data-v="keep" data-i18n="set.draw.keep">親継続</button><button data-v="flow" data-i18n="set.draw.flow">親流れ</button></span></div>
     <div class="set-row"><span data-i18n="set.koikoiMul">こいこい多重掛け（回数で×2/×3/×4）</span><span class="seg" data-key="koikoiMul"><button class="on" data-v="on" data-i18n="set.on">あり</button><button data-v="off" data-i18n="set.off">なし</button></span></div>
     <div class="set-row"><span data-i18n="set.baigaeshi">倍返し（相手のこいこいを潰すと2倍）</span><span class="seg" data-key="baigaeshi"><button class="on" data-v="on" data-i18n="set.on">あり</button><button data-v="off" data-i18n="set.off">なし</button></span></div>
-    <div class="set-row"><span data-i18n="set.noKoiSecond">後攻（子）のこいこい禁止</span><span class="seg" data-key="noKoiSecond"><button data-v="on" data-i18n="set.on">あり</button><button class="on" data-v="off" data-i18n="set.off">なし</button></span></div>
+    <div class="set-row"><span data-i18n="set.koiOnce">こいこいは1局1人だけ</span><span class="seg" data-key="koiOnce"><button data-v="on" data-i18n="set.on">あり</button><button class="on" data-v="off" data-i18n="set.off">なし</button></span></div>
     <div class="set-row"><span data-i18n="set.hint">ヒント表示（あと1枚で役）</span><span class="seg" data-key="hint"><button class="on" data-v="on" data-i18n="set.on">あり</button><button data-v="off" data-i18n="set.off">なし</button></span></div>
   </div>
 
@@ -1158,7 +1178,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.47</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.50</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1362,7 +1382,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.47';
+const APP_VERSION = 'v1.50';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -1429,7 +1449,7 @@ const I18N = {
     'set.hint': 'ヒント表示（あと1枚で役）',
     'set.koikoiMul': 'こいこい多重掛け（回数で×2/×3/×4）',
     'set.baigaeshi': '倍返し（相手のこいこいを潰すと2倍）',
-    'set.noKoiSecond': '後攻（子）のこいこい禁止',
+    'set.koiOnce': 'こいこいは1局1人だけ',
     'oya.title': '先手（親）を決める',
     'oya.lead': '各自 1 枚ずつ札を引き、早い月を引いた方が「親（先手）」になります。自分側の札は自分でボタンを押して引きます。',
     'oya.notyet': 'まだ引いていません',
@@ -1613,7 +1633,7 @@ const I18N = {
     'set.hint': 'Hints (one card away)',
     'set.koikoiMul': 'Koi-Koi stacking (×2/×3/×4 by count)',
     'set.baigaeshi': 'Counter-double (beat their Koi-Koi = ×2)',
-    'set.noKoiSecond': 'Forbid Koi-Koi for 2nd player',
+    'set.koiOnce': 'Only one Koi-Koi per round',
     'oya.title': 'Decide the Dealer',
     'oya.lead': 'Each player draws one card of their own; the earlier month becomes the dealer (first player). Press the button on your own side.',
     'oya.notyet': 'Not drawn yet',
@@ -1797,7 +1817,7 @@ const I18N = {
     'set.hint': '提示（差一张成役）',
     'set.koikoiMul': '来来叠加（按次数×2/×3/×4）',
     'set.baigaeshi': '反倍（破对方来来则×2）',
-    'set.noKoiSecond': '禁止后手（子）来来',
+    'set.koiOnce': '每局仅限一次来来',
     'oya.title': '决定先手（庄家）',
     'oya.lead': '每人抽一张自己的牌，抽到较早月份的一方成为庄家（先手）。按下自己一侧的按钮抽自己的牌。',
     'oya.notyet': '尚未抽牌',
@@ -2047,7 +2067,7 @@ const state = {
     draw: 'keep',
     koikoiMul: 'on', // v1.44: こいこい多重掛け（1回×2/2回×3/3回×4）。OFFはフラット×2
     baigaeshi: 'on', // v1.44: 倍返し（相手のこいこいを潰して上がると×2）
-    noKoiSecond: 'off', // v1.45: 後攻（子）のこいこい禁止（既定オフ）
+    koiOnce: 'off', // v1.50: こいこいは1局1人だけ（既定オフ）。ON時は koikoiMul を自動OFF
     hint: 'on', // v1.42: あと1枚で役のヒント表示（既定オン）
   },
   oya: null,            // 'host' | 'guest' | null
@@ -2238,8 +2258,25 @@ function applySettingToggle(key, v) {
   state.settings[key] = v;
   const seg = document.querySelector('#set-koikoi .seg[data-key="' + key + '"]');
   if (seg) seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  // v1.50: 「こいこいは1局1人だけ」ON時は多重掛けを自動OFF（1回しか出せないので倍率は無意味）
+  if (key === 'koiOnce' && v === 'on' && state.settings.koikoiMul !== 'off') {
+    state.settings.koikoiMul = 'off';
+    const ms = document.querySelector('#set-koikoi .seg[data-key="koikoiMul"]');
+    if (ms) ms.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === 'off'));
+  }
+  updateKoiOnceLock();
   if (state.isHost && state.guestName) {
     MomoMatchmaking.send({ type: 'settings', settings: state.settings });
+  }
+}
+// v1.50: koiOnce ON の間は多重掛けトグルを操作不可＋淡色に（自動OFF済みを明示）
+function updateKoiOnceLock() {
+  const on = state.settings.koiOnce === 'on';
+  const ms = document.querySelector('#set-koikoi .seg[data-key="koikoiMul"]');
+  if (ms) {
+    ms.querySelectorAll('button').forEach(b => { b.disabled = on; });
+    ms.style.opacity = on ? '0.45' : '';
+    ms.style.pointerEvents = on ? 'none' : '';
   }
 }
 
@@ -2705,6 +2742,7 @@ function applySettingsToUi() {
     const seg = document.querySelector('#set-koikoi .seg[data-key="' + k + '"]');
     if (seg) seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
   });
+  updateKoiOnceLock(); // v1.50
 }
 
 // --------------------------------------------------------------------------
@@ -2928,6 +2966,14 @@ const AUDIO = (function () {
         else if (audioOn) resumeCtx();
       }
     });
+    // v1.50: Android の PWA（ホーム画面のMOMO Worksアイコン等・同一スコープ）対策。
+    //   他アプリへ切替でこのページが bfcache へ退避される時に BGM を完全停止し、
+    //   復帰時に「MOMO Hanafuda を開いていないのに BGM が鳴り続ける（止められない）」を防ぐ。
+    //   通常の画面オフ/オンは visibilitychange のみで pagehide は発火しないため従来どおり再開する。
+    window.addEventListener('pagehide', () => { stopBgm(); suspendCtx(); });
+    // bfcache から復帰した時（他アプリから戻った等）は自動再生せず沈黙を保つ。
+    //   本当に Hanafuda に戻ったなら次の局面遷移/操作で鳴り直す（勝手には鳴らさない）。
+    window.addEventListener('pageshow', (e) => { if (e.persisted) { stopBgm(); } });
   }
   // ───────── 効果音（SFX）：mp3 素材＋合成音 ─────────
   // 素材=効果音ラボ(無料・商用OK・クレジット不要)／将棋流用。合成=しゅっ/ちゃりん/ぷっ。
@@ -3812,6 +3858,28 @@ function fitBoard() {
     sg.style.setProperty('--card-w', w + 'px');
     sg.style.setProperty('--cap-w', Math.round(w * 0.76) + 'px');
   };
+  // v1.50: 横画面（A案）は左右2列。手札は左列＝半幅に8枚が収まる幅、取り札は右列で折り返し。
+  if (window.matchMedia && window.matchMedia('(orientation:landscape)').matches) {
+    const colW = (play.clientWidth - 10) / 2;
+    let w = Math.max(26, Math.min(Math.floor((colW - 7 * HAND_GAP) / 8), 66));
+    const setLW = (cw) => {
+      sg.style.setProperty('--card-w', cw + 'px');
+      sg.style.setProperty('--cap-w', Math.max(22, Math.min(Math.round(cw * 0.72), 44)) + 'px');
+    };
+    setLW(w);
+    const kids = Array.from(play.children);
+    const leftKids = [kids[0], kids[2], kids[4]].filter(Boolean); // 相手手札・場・自分手札
+    const rowGapL = parseFloat(getComputedStyle(play).rowGap) || 4;
+    const availHL = play.clientHeight;
+    for (let pass = 0; pass < 3; pass++) {
+      const content = leftKids.reduce((s, el) => s + el.offsetHeight, 0) + rowGapL * 2;
+      if (content <= availHL || content <= 0) break;
+      w = Math.max(20, Math.floor(w * (availHL / content)));
+      setLW(w);
+    }
+    fitRows();
+    return;
+  }
   // 横制約：手札 8 枚 + 7 gap が play 幅に収まる最大幅（上限 52 / 下限 28）
   const availW = play.clientWidth || sg.clientWidth || 360;
   let cardW = Math.floor((availW - 7 * HAND_GAP) / 8);
@@ -4242,8 +4310,8 @@ function showYakuOverlay() {
   document.getElementById('ov-yaku-watch').textContent = isMyTurn ? '' : t('ov.yaku.oppchoosing');
   const bk = document.getElementById('btn-koikoi');
   const bs = document.getElementById('btn-shobu');
-  // v1.45: 後攻（親でない側=子）のこいこい禁止（設定オン時）＝勝負のみ可
-  const koikoiForbidden = (state.settings.noKoiSecond === 'on' && cur === otherPlayer(state.oya));
+  // v1.50: こいこいは1局1人だけ（設定オン時）＝その局で既に誰かがこいこい済みなら両者とも勝負のみ可
+  const koikoiForbidden = (state.settings.koiOnce === 'on' && g.koikoiBy != null);
   bk.disabled = !isMyTurn || koikoiForbidden;
   bk.style.display = koikoiForbidden ? 'none' : '';
   bs.disabled = !isMyTurn;
@@ -4302,8 +4370,8 @@ function applyKoikoi() {
   const g = state.game;
   if (g.phase !== 'yaku') return;
   const cur = g.currentPlayer;
-  // v1.45: 後攻こいこい禁止（設定オン）＝子はこいこい不可（不正クリック/intentも拒否）
-  if (state.settings.noKoiSecond === 'on' && cur === otherPlayer(state.oya)) return;
+  // v1.50: こいこいは1局1人だけ（設定オン）＝既に誰かがこいこい済みなら不可（不正クリック/intentも拒否）
+  if (state.settings.koiOnce === 'on' && g.koikoiBy != null) return;
   g.koikoiBy = cur;
   if (!g.koikoiCount) g.koikoiCount = { host: 0, guest: 0 };
   g.koikoiCount[cur] = (g.koikoiCount[cur] || 0) + 1; // v1.44: こいこい回数

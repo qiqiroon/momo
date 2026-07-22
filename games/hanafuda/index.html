@@ -198,7 +198,10 @@
   .gtab:hover{border-color:var(--orange);color:var(--text);}
   .gtab.active{border-color:var(--orange);background:var(--bg-selected);color:#fff;}
   .gtab .soon{font-size:.58rem;color:var(--text-muted);font-weight:400;}
+  /* v1.60: こいこい・八八以外は「工事中」を明示（近日より一段強い表示） */
+  .gtab .wip{font-size:.58rem;color:#c9760f;font-weight:700;background:rgba(201,118,15,.14);border:1px solid rgba(201,118,15,.4);border-radius:6px;padding:1px 6px;}
   .gtab[disabled]{cursor:not-allowed;opacity:.7;}
+  .gtab.wip-tab[disabled]{opacity:.55;}
   .gtab[disabled]:hover{border-color:var(--border);color:var(--text-muted);}
 
   .gset{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-top:12px;display:flex;flex-direction:column;gap:12px;}
@@ -610,25 +613,11 @@
   </symbol>
 
   <!-- ---- 1月 松 ---- -->
+  <!-- 松に鶴（光札）をユーザー手描きPNGに差し替え（縁付き・地紋焼込み） -->
   <symbol id="m01_hikari" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
-    <use href="#kasumi"/>
-    <circle cx="70" cy="94" r="31" fill="#cf2b28" stroke="#7d1512" stroke-width="2"/>
-    <g fill="none" stroke="#3d2a12" stroke-width="7" stroke-linecap="round">
-      <path d="M206 46 C 188 66 176 78 150 84"/><path d="M176 78 C 172 100 158 108 138 108"/><path d="M150 84 C 140 70 122 68 106 74"/>
-    </g>
-    <use href="#pineTuft" transform="translate(150,84) rotate(10)"/><use href="#pineTuft" transform="translate(112,74) rotate(-18) scale(.82)"/><use href="#pineTuft" transform="translate(140,116) rotate(30) scale(.8)"/>
-    <g transform="translate(110,232)">
-      <g stroke="#2a2a2a" stroke-width="3" stroke-linecap="round" fill="none"><path d="M-6 40 L -8 78 M -8 78 l -8 4 M -8 78 l 6 6"/><path d="M10 42 L 12 80 M 12 80 l -6 6 M 12 80 l 8 4"/></g>
-      <path d="M34 6 C 62 4 78 22 74 46 C 66 40 60 46 52 40 C 58 30 46 30 44 22 C 40 16 36 14 30 16 Z" fill="#1a1a1a" stroke="#000" stroke-width="1"/>
-      <path d="M-48 6 C -46 -20 -8 -30 26 -22 C 44 -18 50 -2 44 14 C 34 34 -8 40 -34 30 C -46 25 -50 16 -48 6 Z" fill="#f7f4ea" stroke="#2a2a2a" stroke-width="2"/>
-      <path d="M-30 -8 C -6 -20 20 -16 34 -2 C 20 2 -2 4 -22 8 C -30 4 -32 -2 -30 -8 Z" fill="none" stroke="#8f8a7e" stroke-width="1.6"/>
-      <path d="M-40 -2 C -54 -18 -50 -46 -34 -60 C -26 -68 -22 -74 -24 -82" fill="none" stroke="#f7f4ea" stroke-width="10" stroke-linecap="round"/>
-      <path d="M-42 -4 C -50 -16 -49 -30 -40 -42" fill="none" stroke="#1a1a1a" stroke-width="6" stroke-linecap="round"/>
-      <circle cx="-25" cy="-85" r="9" fill="#f7f4ea" stroke="#2a2a2a" stroke-width="2"/>
-      <path d="M-31 -90 C -29 -98 -19 -98 -18 -89 C -22 -87 -27 -87 -31 -90 Z" fill="#cf2b28" stroke="#7d1512" stroke-width="1"/>
-      <circle cx="-28" cy="-86" r="1.4" fill="#111"/><path d="M-34 -85 L -50 -83 L -34 -80 Z" fill="#d99a1e" stroke="#8a5f10" stroke-width="1"/>
-    </g>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
+    <image href="cards/m01_hikari.png" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
   <!-- v1.59: 松の赤短をユーザー手描きPNGに差し替え（縁付き・地紋焼込み） -->
   <symbol id="m01_tan" viewBox="0 0 220 350">
@@ -1057,7 +1046,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.59</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.60</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1075,12 +1064,17 @@
   <div class="server-status" id="srv-status-lobby"><span class="dot"></span><span class="lbl" data-i18n="srv.connecting">サーバー接続中…</span></div>
 
   <div class="section-label"><span data-i18n="lobby.lobby">Lobby</span></div>
+  <!-- v1.60: あなたの名前は一番上の専用カードで1回だけ入力（3つのカード共通） -->
+  <div class="panel name-card">
+    <h2>🐱 <span data-i18n="lobby.name">あなたの名前</span></h2>
+    <p class="desc" data-i18n="lobby.namecard.desc">対戦相手やコンピュータ戦の画面に表示される名前です。ここで一度だけ入力します。</p>
+    <label class="fld"><input id="in-playername" type="text" placeholder="例：ゆうき" data-i18n-ph="lobby.name.ph" maxlength="16" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true"></label>
+  </div>
   <div class="lobby-grid">
     <!-- 部屋を作る -->
     <div class="panel">
       <h2>🎴 <span data-i18n="lobby.create.title">部屋を作る</span></h2>
       <p class="desc" data-i18n="lobby.create.desc">部屋を作成して相手の参加を待ちます。「非公開にする」をオンにすると一覧に表示されません。</p>
-      <label class="fld"><span data-i18n="lobby.name">あなたの名前</span><input id="in-hostname" type="text" placeholder="例：ゆうき" data-i18n-ph="lobby.name.ph" maxlength="16" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true"></label>
       <label class="fld"><span data-i18n="lobby.roomname">部屋の名前</span><input id="in-roomname" type="text" placeholder="例：花見部屋" data-i18n-ph="lobby.roomname.ph" maxlength="24" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true"></label>
       <label class="fld"><span data-i18n="lobby.password">パスワード</span><input id="in-pw" type="password" placeholder="任意" data-i18n-ph="lobby.pw.ph" maxlength="16" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-form-type="other" name="hf-nopw-1"></label>
       <div class="toggle-row"><span data-i18n="lobby.private">非公開にする</span>
@@ -1095,7 +1089,6 @@
         <button class="btn btn-ghost btn-sm" id="btn-refresh" data-i18n="lobby.refresh">↻ 更新</button>
       </div>
       <p class="desc" data-i18n="lobby.join.desc">公開中の部屋の一覧です。参加を押すと対戦準備画面に進みます。</p>
-      <label class="fld"><span data-i18n="lobby.myname">あなたの名前</span><input id="in-guestname" type="text" placeholder="例：さくら" data-i18n-ph="lobby.myname.ph" maxlength="16" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true"></label>
       <ul class="roomlist" id="roomlist">
         <li class="empty" data-i18n="lobby.list.loading">接続中...</li>
       </ul>
@@ -1108,15 +1101,7 @@
     <!-- 対コンピュータ戦 -->
     <div class="panel">
       <h2>🤖 <span data-i18n="vsai.title">対コンピュータ戦</span></h2>
-      <p class="desc" data-i18n="vsai.desc">コンピュータと1対1で対戦します。強さを選んで「対局準備へ」を押してください（ルールは次の画面で設定）。</p>
-      <label class="fld"><span data-i18n="lobby.name">あなたの名前</span><input id="in-ainame" type="text" placeholder="例：ゆうき" data-i18n-ph="lobby.name.ph" maxlength="16" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true"></label>
-      <label class="fld"><span data-i18n="vsai.level">コンピュータの強さ</span>
-        <select id="ai-level-select" class="ai-level-select">
-          <option value="EASY">EASY</option>
-          <option value="HARD" selected>HARD</option>
-          <option value="APOCALYPSE">APOCALYPSE</option>
-        </select>
-      </label>
+      <p class="desc" data-i18n="vsai.desc">コンピュータと1対1で対戦します。「対局準備へ」を押してください（強さとルールは次の画面で設定）。</p>
       <button class="btn btn-primary" id="btn-vsai" data-i18n="vsai.start">対局準備へ</button>
     </div>
   </div>
@@ -1127,7 +1112,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.59</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.60</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1142,7 +1127,14 @@
     <div class="players">
       <div class="pl host"><small data-i18n="room.host">ホスト</small><span id="host-name">—</span></div>
       <div class="vs">VS</div>
-      <div class="pl guest"><small data-i18n="room.guest">ゲスト</small><span id="guest-name" class="waiting-g" data-i18n="room.waiting">参加待ち…</span></div>
+      <div class="pl guest"><small data-i18n="room.guest">ゲスト</small><span id="guest-name" class="waiting-g" data-i18n="room.waiting">参加待ち…</span>
+        <!-- v1.60: 対コンピュータ戦のときだけ、この場所で強さを変更できる -->
+        <select id="ai-level-prep" class="ai-level-select hidden" aria-label="コンピュータの強さ">
+          <option value="EASY">EASY</option>
+          <option value="HARD" selected>HARD</option>
+          <option value="APOCALYPSE">APOCALYPSE</option>
+        </select>
+      </div>
     </div>
     <button class="leave-btn" id="btn-leave" data-i18n="room.leave">← ロビーに戻る</button>
   </div>
@@ -1152,8 +1144,8 @@
   <div class="game-tabs">
     <button class="gtab active" data-g="koikoi"><span class="em">🎴</span><span data-i18n="room.g.koikoi">こいこい</span></button>
     <button class="gtab" data-g="hachi" disabled><span class="em">🎴</span><span data-i18n="room.g.hachi">八八</span><span class="soon" data-i18n="room.soon">近日</span></button>
-    <button class="gtab" data-g="awase" disabled><span class="em">🌸</span><span data-i18n="room.g.awase">花合わせ</span><span class="soon" data-i18n="room.soon">近日</span></button>
-    <button class="gtab" data-g="oicho" disabled><span class="em">🎲</span><span data-i18n="room.g.oicho">おいちょかぶ</span><span class="soon" data-i18n="room.soon">近日</span></button>
+    <button class="gtab wip-tab" data-g="awase" disabled><span class="em">🌸</span><span data-i18n="room.g.awase">花合わせ</span><span class="wip" data-i18n="room.wip">工事中</span></button>
+    <button class="gtab wip-tab" data-g="oicho" disabled><span class="em">🎲</span><span data-i18n="room.g.oicho">おいちょかぶ</span><span class="wip" data-i18n="room.wip">工事中</span></button>
   </div>
 
   <!-- 設定パネル -->
@@ -1206,7 +1198,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.59</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.60</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1411,7 +1403,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.59';
+const APP_VERSION = 'v1.60';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -1430,12 +1422,13 @@ const I18N = {
   ja: {
     'lobby.lobby': 'Lobby',
     'art.disclaimer': '札の絵柄はAI生成による仮版のため、多少の不自然さや稚拙さがございますがご了承ください。',
-    'vsai.title': '対コンピュータ戦', 'vsai.desc': 'コンピュータと1対1で対戦します。強さを選んで「対局準備へ」を押してください（ルールは次の画面で設定）。',
+    'vsai.title': '対コンピュータ戦', 'vsai.desc': 'コンピュータと1対1で対戦します。「対局準備へ」を押してください（強さとルールは次の画面で設定）。',
     'vsai.level': 'コンピュータの強さ', 'vsai.easy': 'EASY', 'vsai.hard': 'HARD', 'vsai.apoc': 'APOCALYPSE',
     'vsai.start': '対局準備へ', 'vsai.you': 'あなた', 'vsai.cpu': 'コンピュータ',
     'lobby.create.title': '部屋を作る',
     'lobby.create.desc': '部屋を作成して相手の参加を待ちます。「非公開にする」をオンにすると一覧に表示されません。',
     'lobby.name': 'あなたの名前',
+    'lobby.namecard.desc': '対戦相手やコンピュータ戦の画面に表示される名前です。ここで一度だけ入力します。',
     'lobby.roomname': '部屋の名前',
     'lobby.password': 'パスワード',
     'lobby.name.ph': '例：ゆうき', 'lobby.roomname.ph': '例：花見部屋', 'lobby.pw.ph': '任意', 'lobby.myname.ph': '例：さくら', 'lobby.joinpw.ph': 'パスワード',
@@ -1473,6 +1466,7 @@ const I18N = {
     'room.g.awase': '花合わせ',
     'room.g.oicho': 'おいちょかぶ',
     'room.soon': '近日',
+    'room.wip': '工事中',
     'set.koikoi.title': 'こいこい 設定',
     'set.rounds': '局数', 'set.1': '1局', 'set.3': '3局', 'set.6': '6局', 'set.12': '12局',
     'set.kiku': '菊の盃', 'set.kiku.tane': '種＋花見月見', 'set.kiku.kasu2': 'カス2枚',
@@ -1620,12 +1614,13 @@ const I18N = {
   en: {
     'lobby.lobby': 'Lobby',
     'art.disclaimer': 'Card artwork is a provisional AI-generated version, so please excuse any awkwardness or roughness.',
-    'vsai.title': 'vs Computer', 'vsai.desc': 'Play 1-on-1 against the computer. Pick a difficulty and tap “Set up game” (rules on the next screen).',
+    'vsai.title': 'vs Computer', 'vsai.desc': 'Play 1-on-1 against the computer. Tap “Set up game” (difficulty and rules on the next screen).',
     'vsai.level': 'Difficulty', 'vsai.easy': 'EASY', 'vsai.hard': 'HARD', 'vsai.apoc': 'APOCALYPSE',
     'vsai.start': 'Set up game', 'vsai.you': 'You', 'vsai.cpu': 'Computer',
     'lobby.create.title': 'Create Room',
     'lobby.create.desc': 'Create a room and wait for an opponent to join. Toggle "Private" to hide it from the list.',
     'lobby.name': 'Your name',
+    'lobby.namecard.desc': 'The name shown to your opponent and in games vs the computer. Enter it once here.',
     'lobby.roomname': 'Room name',
     'lobby.password': 'Password',
     'lobby.name.ph': 'e.g. Yuki', 'lobby.roomname.ph': 'e.g. Hanami Room', 'lobby.pw.ph': 'optional', 'lobby.myname.ph': 'e.g. Sakura', 'lobby.joinpw.ph': 'Password',
@@ -1663,6 +1658,7 @@ const I18N = {
     'room.g.awase': 'Hana-Awase',
     'room.g.oicho': 'Oicho-Kabu',
     'room.soon': 'Coming soon',
+    'room.wip': 'Under construction',
     'set.koikoi.title': 'Koi-Koi Settings',
     'set.rounds': 'Rounds', 'set.1': '1', 'set.3': '3', 'set.6': '6', 'set.12': '12',
     'set.kiku': 'Kiku no Sakazuki', 'set.kiku.tane': 'Tane (+Hanami/Tsukimi)', 'set.kiku.kasu2': 'Kasu ×2',
@@ -1810,12 +1806,13 @@ const I18N = {
   zh: {
     'lobby.lobby': '大厅',
     'art.disclaimer': '卡牌图案为AI生成的临时版本，若有不自然或粗糙之处敬请谅解。',
-    'vsai.title': '对电脑', 'vsai.desc': '与电脑一对一对战。选择强度后点“进入准备”（规则在下一画面设置）。',
+    'vsai.title': '对电脑', 'vsai.desc': '与电脑一对一对战。点“进入准备”（强度和规则在下一画面设置）。',
     'vsai.level': '电脑强度', 'vsai.easy': 'EASY', 'vsai.hard': 'HARD', 'vsai.apoc': 'APOCALYPSE',
     'vsai.start': '进入准备', 'vsai.you': '你', 'vsai.cpu': '电脑',
     'lobby.create.title': '创建房间',
     'lobby.create.desc': '创建房间并等待对手加入。开启「私密房间」后不会显示在列表中。',
     'lobby.name': '你的名字',
+    'lobby.namecard.desc': '这是对手和对电脑时显示的名字。在此输入一次即可。',
     'lobby.roomname': '房间名',
     'lobby.password': '密码',
     'lobby.name.ph': '例：小勇', 'lobby.roomname.ph': '例：赏花房', 'lobby.pw.ph': '可选', 'lobby.myname.ph': '例：小樱', 'lobby.joinpw.ph': '密码',
@@ -1853,6 +1850,7 @@ const I18N = {
     'room.g.awase': '花合',
     'room.g.oicho': '押丁株',
     'room.soon': '即将推出',
+    'room.wip': '施工中',
     'set.koikoi.title': '来来 设定',
     'set.rounds': '局数', 'set.1': '1局', 'set.3': '3局', 'set.6': '6局', 'set.12': '12局',
     'set.kiku': '菊之杯', 'set.kiku.tane': '种＋花见月见', 'set.kiku.kasu2': '算作2张滓',
@@ -2219,7 +2217,7 @@ function renderRoomList() {
 }
 
 function tryJoin(room) {
-  const name = document.getElementById('in-guestname').value.trim();
+  const name = document.getElementById('in-playername').value.trim();
   if (!name) { alert(t('lobby.err.noguestname')); return; }
   const pw = room.hasPassword ? (document.getElementById('in-joinpw').value || '') : '';
   state.hostName = room.hostName || t('notice.hostname');
@@ -2242,6 +2240,12 @@ function refreshRoomView() {
   const g = document.getElementById('guest-name');
   if (state.guestName) { g.textContent = state.guestName; g.classList.remove('waiting-g'); }
   else { g.textContent = t('room.waiting'); g.classList.add('waiting-g'); }
+  // v1.60: 対コンピュータ戦のときだけ、コンピュータの下に強さプルダウンを出す
+  const aiSel = document.getElementById('ai-level-prep');
+  if (aiSel) {
+    aiSel.classList.toggle('hidden', !state.vsAI);
+    if (state.vsAI) aiSel.value = state.aiLevel || 'HARD';
+  }
   const conn = document.getElementById('conn-status');
   const lab = document.getElementById('conn-label');
   // v1.04: ゲートは「相手が入室 (WS 認識) 」 = state.guestName で判定。
@@ -4601,15 +4605,23 @@ function aiDrawOya() {
 }
 // ロビー「対コンピュータ戦」→ 対戦準備画面（人間=host固定・AIがguest）
 function startVsAI() {
-  const name = (document.getElementById('in-ainame').value || '').trim();
-  const sel = document.getElementById('ai-level-select');
-  const lv = sel ? sel.value : 'HARD';
+  const name = (document.getElementById('in-playername').value || '').trim();
+  // v1.60: 強さは準備画面（ユーザー×コンピュータの並び）で選ぶ。ここは既定HARDで開始。
+  const lv = state.aiLevel || 'HARD';
   state.vsAI = true; state.solo = true; state.isHost = true; state.aiSide = 'guest';
   state.aiLevel = lv;
   state.hostName = name || t('vsai.you');
   state.guestName = t('vsai.cpu') + '（' + lv + '）';
   state.roomName = t('vsai.title');
   vsAiToPrep();
+}
+// v1.60: 準備画面のプルダウンで強さを変更（対コンピュータ戦のときだけ表示）
+function applyAiLevelPrep(lv) {
+  state.aiLevel = lv;
+  state.guestName = t('vsai.cpu') + '（' + lv + '）';
+  const g = document.getElementById('guest-name');
+  if (g) { g.textContent = state.guestName; g.classList.remove('waiting-g'); }
+  const conn = document.getElementById('conn-label'); if (conn) conn.textContent = state.guestName;
 }
 // 対戦準備画面へ（親決めを毎回リセット＝札は閉じた状態から）。新規開始・再戦の両方で使う。
 function vsAiToPrep() {
@@ -5203,8 +5215,8 @@ function leaveRoom() {
 // あなたの名前（ホスト作成欄・ゲスト入室欄で共通）と部屋名を localStorage に記憶し復元する。
 // ホスト名欄とゲスト名欄は同一の「あなたの名前」として双方向に同期する（片方に入力すると両方に入る）。
 function setupNameFields() {
-  // v1.59: あなたの名前は「部屋を作る／部屋に入る／対コンピュータ戦」の3か所で共通
-  const nameFields = ['in-hostname', 'in-guestname', 'in-ainame'].map(id => document.getElementById(id)).filter(Boolean);
+  // v1.60: あなたの名前は一番上の専用カード（in-playername）で1回だけ入力する
+  const nameFields = ['in-playername'].map(id => document.getElementById(id)).filter(Boolean);
   const room = document.getElementById('in-roomname');
   let savedName = '', savedRoom = '';
   try { savedName = localStorage.getItem('hf_playername') || ''; } catch (e) {}
@@ -5238,7 +5250,7 @@ function bindEvents() {
   // Lobby
   document.getElementById('btn-refresh').addEventListener('click', () => MomoMatchmaking.refreshRooms());
   document.getElementById('btn-create').addEventListener('click', () => {
-    const hostName = document.getElementById('in-hostname').value.trim();
+    const hostName = document.getElementById('in-playername').value.trim();
     const roomName = document.getElementById('in-roomname').value.trim();
     const pw = document.getElementById('in-pw').value || '';
     const isPublic = !document.getElementById('in-private').checked;
@@ -5272,9 +5284,12 @@ function bindEvents() {
   document.getElementById('btn-draw-oya').addEventListener('click', drawOya);
   document.getElementById('btn-start').addEventListener('click', startGame);
   document.getElementById('btn-leave').addEventListener('click', leaveRoom);
-  // v1.59/58: 対コンピュータ戦（開始）。強さはプルダウン(ai-level-select)。
+  // v1.60: 対コンピュータ戦（開始）。強さは準備画面のプルダウン(ai-level-prep)で選ぶ。
   const btnVsai = document.getElementById('btn-vsai');
   if (btnVsai) btnVsai.addEventListener('click', startVsAI);
+  // v1.60: 準備画面のコンピュータ強さプルダウン
+  const aiPrepSel = document.getElementById('ai-level-prep');
+  if (aiPrepSel) aiPrepSel.addEventListener('change', () => applyAiLevelPrep(aiPrepSel.value));
   // v1.03: solo フォールバック (P2P 接続に失敗した時の回避策)
   const btnSoloFB = document.getElementById('btn-solo-fallback');
   if (btnSoloFB) {

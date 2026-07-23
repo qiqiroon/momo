@@ -91,25 +91,29 @@
   .h88-seat{flex:1;min-width:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:6px 8px;}
   .h88-seat.turn{border-color:var(--orange);box-shadow:inset 0 0 0 1px var(--orange);}
   .h88-seat .h88-name{font-size:.72rem;color:#fff;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .h88-mini-hand{display:flex;gap:2px;margin-top:4px;flex-wrap:wrap;}
-  .h88-mini-hand .card{width:16px;border-radius:2px;}
+  .h88-mini-hand{display:flex;gap:3px;margin-top:4px;flex-wrap:wrap;}
+  /* v1.64 C6: 縦画面は相手1人だけ表示。相手の札を自分の手札と同じ大きさに（対等）。 */
+  .h88-mini-hand .card{width:min(11.5vw,58px);border-radius:4px;}
   .h88-seat .h88-caps{display:flex;flex-wrap:wrap;gap:1px;margin-top:4px;}
-  .h88-seat .h88-caps .card{width:15px;border-radius:2px;}
-  .h88-field-row{display:flex;gap:10px;align-items:center;justify-content:center;}
-  .h88-deck{text-align:center;flex:0 0 auto;}
-  .h88-deck-back{font-size:2rem;line-height:1;}
-  .h88-deck-count{font-size:.68rem;color:var(--text-muted);}
-  .h88-field{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;flex:1;max-width:66%;}
-  .h88-field .h88-field-card{display:block;transition:.12s;}
+  .h88-seat .h88-caps .card{width:min(6.5vw,30px);border-radius:2px;}
+  /* v1.63 C11/C12: 山札は裏向き・場札と同じ大きさ。C9: 合う場札は浮かせる。 */
+  .h88-field-row{display:flex;gap:8px;align-items:flex-start;justify-content:center;}
+  .h88-deck{text-align:center;flex:0 0 auto;padding-top:11px;}
+  .h88-deck .card{width:min(15.5vw,66px);}
+  .h88-deck-count{font-size:.66rem;color:var(--text-muted);margin-top:2px;}
+  .h88-field{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;align-content:flex-start;flex:1;padding-top:11px;}
+  .h88-field .h88-field-card{width:min(15.5vw,66px);transition:transform .12s;}
   .h88-field .card{width:100%;}
-  /* v1.63 B6: ヒント＝選択中の手札と合う場札(match=金枠)／2枚から選ぶ候補(pick=橙枠・点滅) */
+  /* v1.63 B6/C9: ヒント＝選択中の手札と合う場札(match=浮かせる+金枠)／2枚から選ぶ候補(pick=橙枠・点滅) */
+  .h88-field .h88-field-card.match{transform:translateY(-10px);}
   .h88-field .h88-field-card.match .card{outline:2px solid var(--gold,#d8a838);outline-offset:-2px;border-radius:6px;}
-  .h88-field .h88-field-card.pick{cursor:pointer;}
+  .h88-field .h88-field-card.pick{cursor:pointer;transform:translateY(-6px);}
   .h88-field .h88-field-card.pick .card{outline:3px solid var(--orange);outline-offset:-2px;border-radius:6px;animation:h88pulse 1s infinite;}
   @keyframes h88pulse{0%,100%{opacity:1}50%{opacity:.55}}
   .h88-self-caps{display:flex;flex-wrap:wrap;gap:1px;justify-content:center;margin-bottom:5px;min-height:22px;}
   .h88-self-caps .card{width:20px;border-radius:2px;}
-  .h88-hand{display:flex;gap:3px;justify-content:center;flex-wrap:wrap;}
+  /* v1.63 C7: ホバー/選択で浮いた札の上端が切れないよう上に余白 */
+  .h88-hand{display:flex;gap:3px;justify-content:center;flex-wrap:wrap;padding-top:14px;}
   .h88-hand .h88-hand-card{cursor:pointer;transition:transform .12s;}
   .h88-hand .h88-hand-card .card{width:min(11.5vw,58px);}
   .h88-hand .h88-hand-card:hover{transform:translateY(-5px);}
@@ -129,23 +133,31 @@
   .h88-opps.swap-hint .h88-seat{outline:1px dashed var(--orange);outline-offset:-2px;}
   /* v1.62 A5: 横画面＝3段（相手2人／場／自分）を画面高さに収める。カードは高さ基準でサイズ。 */
   @media (orientation:landscape){
-    #screen-hachi .h88-board{max-width:none;height:calc(100vh - 92px);gap:5px;padding:4px 12px 6px;}
-    #screen-hachi .h88-opps{flex:0 0 auto;}
-    /* v1.63 B4: 横画面は相手2人を並べ、切替行は隠す（三人対等寄り） */
+    #screen-hachi .h88-board{max-width:none;height:calc(100vh - 88px);gap:4px;padding:4px 14px 6px;}
+    #screen-hachi .h88-opps{flex:0 0 auto;gap:12px;}
+    /* v1.63 B4/C5: 横画面は相手2人を並べ、切替行は隠す。横幅を使い相手も大きく（三人対等寄り）。 */
     #screen-hachi #h88-oppR{display:block;}
     #screen-hachi .h88-opp-switch{display:none;}
-    #screen-hachi .h88-opps .h88-seat{flex:1 1 0;}
-    #screen-hachi .h88-mini-hand .card{width:auto;height:min(4.6vh,26px);}
-    #screen-hachi .h88-seat .h88-caps .card{width:auto;height:min(3.6vh,20px);}
-    #screen-hachi .h88-field-row{flex:1;min-height:0;align-items:center;}
-    #screen-hachi .h88-field{max-width:56%;grid-template-columns:repeat(6,1fr);gap:5px;}
-    #screen-hachi .h88-field .card{width:auto;height:min(15vh,108px);margin:0 auto;}
+    /* v1.64 C5: 相手2人を左右に並べ、相手の手札も自分と同じ大きさに（対等）。横幅を使うので収まる。 */
+    #screen-hachi .h88-opps .h88-seat{flex:1 1 0;padding:3px 8px;min-width:0;}
+    #screen-hachi .h88-seat .h88-name{font-size:.76rem;}
+    #screen-hachi .h88-mini-hand{gap:3px;margin-top:2px;flex-wrap:nowrap;overflow-x:auto;}
+    #screen-hachi .h88-mini-hand .card{width:auto;height:min(13.5vh,82px);flex:0 0 auto;}
+    #screen-hachi .h88-seat .h88-caps{margin-top:2px;max-height:min(5vh,28px);overflow:hidden;flex-wrap:nowrap;}
+    #screen-hachi .h88-seat .h88-caps .card{width:auto;height:min(4.6vh,26px);flex:0 0 auto;}
+    #screen-hachi .h88-field-row{flex:1;min-height:0;align-items:center;justify-content:center;}
+    #screen-hachi .h88-field{max-width:none;padding-top:6px;align-content:center;}
+    #screen-hachi .h88-field .h88-field-card{width:auto;}
+    #screen-hachi .h88-field .card{width:auto;height:min(13.5vh,82px);margin:0 auto;}
+    #screen-hachi .h88-deck{padding-top:6px;}
+    #screen-hachi .h88-deck .card{width:auto;height:min(13.5vh,82px);}
     #screen-hachi .h88-self{flex:0 0 auto;}
-    #screen-hachi .h88-self-caps{min-height:0;margin-bottom:3px;}
-    #screen-hachi .h88-self-caps .card{width:auto;height:min(4vh,24px);}
-    #screen-hachi .h88-hand{flex-wrap:nowrap;overflow-x:auto;max-width:100%;padding-bottom:2px;}
+    #screen-hachi .h88-self-caps{min-height:0;margin-bottom:2px;max-height:min(5vh,28px);overflow:hidden;}
+    #screen-hachi .h88-self-caps .card{width:auto;height:min(4.6vh,26px);}
+    #screen-hachi .h88-self-name{margin-top:2px;font-size:.7rem;}
+    #screen-hachi .h88-hand{flex-wrap:nowrap;overflow-x:auto;max-width:100%;padding:10px 0 2px;}
     #screen-hachi .h88-hand .h88-hand-card{flex:0 0 auto;}
-    #screen-hachi .h88-hand .h88-hand-card .card{width:auto;height:min(16vh,116px);}
+    #screen-hachi .h88-hand .h88-hand-card .card{width:auto;height:min(13.5vh,82px);}
   }
   /* v1.59: 音量スライダー＋右のミュートチェック */
   .vol-line{display:flex;align-items:center;gap:12px;}
@@ -249,7 +261,9 @@
   .pw-row input{flex:1;background:#0c0c0c;border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-size:16px;font-family:inherit;}
 
   /* Room prep */
-  .room-head{gap:16px;}
+  .room-head{gap:16px;position:relative;}
+  /* v1.63: 準備室のロビー戻るを箱の右上へ */
+  .room-home{position:absolute;top:10px;right:10px;margin-top:0;z-index:2;}
   .conn{display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--text-muted);}
   .conn .dot{width:9px;height:9px;border-radius:50%;background:#3fae5a;box-shadow:0 0 8px #3fae5a;}
   .conn.waiting .dot{background:var(--text-muted);box-shadow:none;}
@@ -1133,7 +1147,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.63</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.64</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1163,7 +1177,7 @@
       <h2>🎴 <span data-i18n="lobby.create.title">部屋を作る</span></h2>
       <p class="desc" data-i18n="lobby.create.desc">部屋を作成して相手の参加を待ちます。「非公開にする」をオンにすると一覧に表示されません。</p>
       <label class="fld"><span data-i18n="lobby.roomname">部屋の名前</span><input id="in-roomname" type="text" placeholder="例：モモタロウの遊戯室" data-i18n-ph="lobby.roomname.ph" maxlength="24" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true"></label>
-      <label class="fld"><span data-i18n="lobby.password">パスワード</span><input id="in-pw" type="password" placeholder="任意" data-i18n-ph="lobby.pw.ph" maxlength="16" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-form-type="other" name="hf-nopw-1"></label>
+      <label class="fld"><span data-i18n="lobby.password">パスワード</span><input id="in-pw" type="password" placeholder="任意" data-i18n-ph="lobby.pw.ph" maxlength="16" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-form-type="other" name="hf-nopw-1" readonly onfocus="this.removeAttribute('readonly')"></label>
       <div class="toggle-row"><span data-i18n="lobby.private">非公開にする</span>
         <span class="switch"><input type="checkbox" id="in-private"><span class="slider"></span></span>
       </div>
@@ -1199,7 +1213,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.63</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.64</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1209,6 +1223,7 @@
 
   <!-- 接続・参加者 -->
   <div class="panel room-head">
+    <button class="leave-btn room-home" id="btn-leave" data-i18n="room.leave">← ロビーに戻る</button>
     <div class="conn" id="conn-status"><span class="dot"></span><span id="conn-label" data-i18n="room.conn.waiting">相手を待っています</span></div>
     <div class="room-name"><span data-i18n="room.room">部屋</span>：<b id="room-name-disp">—</b> <span id="room-pw-disp" class="hidden" style="color:var(--text-muted);font-size:.8rem">🔒 <span data-i18n="room.hasPw">パスワードあり</span></span></div>
     <!-- v1.61: プレイヤーを縦並びに（将来3人対応）。ホスト箱→ゲスト箱の順。 -->
@@ -1296,7 +1311,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.63</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.64</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1356,7 +1371,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.63</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.64</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1379,7 +1394,7 @@
     </div>
     <div class="h88-field-row">
       <div class="h88-deck">
-        <div class="h88-deck-back">🎴</div>
+        <div class="h88-deck-back" id="h88-deck-back"></div>
         <div class="h88-deck-count"><span data-i18n="game.deck">山</span> <span id="h88-deck-count">21</span></div>
       </div>
       <div class="h88-field" id="h88-field"></div>
@@ -1571,7 +1586,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.63';
+const APP_VERSION = 'v1.64';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -3354,6 +3369,7 @@ function renderH88() {
     return '<span class="' + cls + '" data-id="' + c.id + '">' + svgCard(c.id) + '</span>';
   }).join('');
   document.getElementById('h88-deck-count').textContent = g.deck.length;
+  const db = document.getElementById('h88-deck-back'); if (db) db.innerHTML = g.deck.length ? svgBack() : ''; // v1.63 C11: 山札は裏向き
   document.getElementById('h88-self-name').innerHTML = (st.roundOya === 'p0' ? '<span class="h88-oya-badge">親</span>' : '') + st.names['p0'];
   document.getElementById('h88-self-caps').innerHTML = g.caps['p0'].map(c => svgCard(c.id)).join('');
   const myTurn = (g.currentPlayer === 'p0' && !g.winner && !st.pending);
@@ -3366,19 +3382,25 @@ function h88OnClickHand(idx) {
   const st = state.h88; if (!st || !st.game) return;
   const g = st.game;
   if (g.currentPlayer !== 'p0' || g.winner || st.pending) return; // ピック中は手札操作不可
-  if (st.sel === idx) { st.sel = null; h88HumanPlayHand(idx); }      // 2度目＝出す
-  else { st.sel = idx; renderH88(); }                                // 1度目＝選択＋ヒント
+  if (st.sel === idx) { hideCardBubble(); st.sel = null; h88HumanPlayHand(idx); } // 2度目＝出す
+  else {                                                             // 1度目＝選択＋ヒント＋札名
+    st.sel = idx; renderH88();
+    const el = document.querySelector('#h88-self-hand .h88-hand-card.sel .card');
+    if (el) showCardBubble(el);
+  }
 }
 function h88HumanPlayHand(idx) {
   const st = state.h88, g = st.game;
   const card = g.hands['p0'].splice(idx, 1)[0];
   if (!card) return;
+  playSfx('shu'); // v1.63 C13: 手札を出す
   const matches = h88MonthMatches(g.field, card.month);
   if (matches.length === 2) { // 手動で取る札を選ぶ
     st.pending = { stage: 'pick-hand', card: card, matches: matches.map(c => c.id) };
     renderH88(); return;
   }
-  h88Capture(g, 'p0', card, null); // 0=場に置く / 1=取る / 3=全取り
+  const took = h88Capture(g, 'p0', card, null); // 0=場に置く / 1=取る / 3=全取り
+  playSfx(took.length ? 'bishi' : 'pa');
   h88HumanDrawStep();
 }
 // 場札クリック（2枚合致のとき、どちらを取るか選ぶ）
@@ -3387,6 +3409,7 @@ function h88OnClickField(id) {
   const g = st.game, p = st.pending;
   if (p.matches.indexOf(id) < 0) return; // 候補以外は無視
   h88Capture(g, 'p0', p.card, id);
+  playSfx('bishi');
   const stage = p.stage; st.pending = null;
   renderH88();
   if (stage === 'pick-hand') h88HumanDrawStep();
@@ -3396,13 +3419,15 @@ function h88HumanDrawStep() {
   const st = state.h88, g = st.game;
   if (!g.deck.length) { h88HumanEndTurn(); return; }
   const dc = g.deck.shift();
+  playSfx('pero'); // v1.63 C13: 山をめくる
   const matches = h88MonthMatches(g.field, dc.month);
   if (matches.length === 2) {
     st.drawn = dc; // 表示用
     st.pending = { stage: 'pick-draw', card: dc, matches: matches.map(c => c.id) };
     renderH88(); return;
   }
-  h88Capture(g, 'p0', dc, null);
+  const took = h88Capture(g, 'p0', dc, null);
+  setTimeout(() => playSfx(took.length ? 'bishi' : 'pa'), 120);
   h88HumanEndTurn();
 }
 function h88HumanEndTurn() {
@@ -3425,7 +3450,9 @@ function h88MaybeAi() {
   const tok = ++st.aiToken;
   setTimeout(() => {
     if (!state.h88 || state.h88 !== st || tok !== st.aiToken || g.winner) return;
+    playSfx('shu'); // v1.63 C13: AIの着手音
     const r = h88Turn(g, g.currentPlayer);
+    setTimeout(() => playSfx('pa'), 140);
     renderH88();
     if (r === 'win' || r === 'draw') { h88RoundOver(r); return; }
     g.currentPlayer = h88NextSeat(g, g.currentPlayer);
@@ -3437,6 +3464,9 @@ function h88MaybeAi() {
 function h88RoundOver(result) {
   const st = state.h88, g = st.game;
   let msg;
+  // v1.63 C13: 上がり＝自分ならファンファーレ／相手なら「ぷっ」、流れも「ぷっ」
+  if (result === 'win') playSfx(g.winner === 'p0' ? 'fanfare' : 'pu');
+  else playSfx('pu');
   if (result === 'win') {
     h88Settle(g, st.scores);
     const yy = g.roundEnd.yaku.map(y => t(y.key) + (y.count ? '×' + y.count : '')).join('・');
@@ -5926,6 +5956,18 @@ function bindEvents() {
     const card = e.target.closest('.card');
     if (card && !state.selHand) hideCardBubble();
   });
+  // v1.63 C8: 八八でも札名バブル（表向きの札のホバー/タップ）
+  const shEl = document.getElementById('screen-hachi');
+  if (shEl) {
+    shEl.addEventListener('mouseover', (e) => {
+      const card = e.target.closest('.card');
+      if (card && card.dataset.id && !card.classList.contains('back')) showCardBubble(card);
+    });
+    shEl.addEventListener('mouseout', (e) => {
+      const card = e.target.closest('.card');
+      if (card && !(state.h88 && state.h88.sel != null)) hideCardBubble();
+    });
+  }
 
   // Overlay yaku (Phase 2A: 実挙動)
   document.getElementById('btn-koikoi').addEventListener('click', onKoikoi);

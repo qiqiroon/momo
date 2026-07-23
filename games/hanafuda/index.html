@@ -83,6 +83,13 @@
   .credit-body a{color:var(--text-muted);}
   /* v1.62: 八八（3人）盤面。上=相手2人／中=山・場／下=自分。縦横共通の縦積み（横は比率で広がる）。 */
   .h88-board{display:flex;flex-direction:column;gap:8px;padding:6px 8px 10px;max-width:760px;margin:0 auto;}
+  /* v1.80: 縦画面では中央ブロックは素通し（board 直下に status/場/自分が並ぶ）。順序で status を先頭に。 */
+  .h88-center{display:contents;}
+  #screen-hachi #h88-status{order:0;}
+  #screen-hachi .h88-opps{order:1;}
+  #screen-hachi .h88-opp-switch{order:2;}
+  #screen-hachi .h88-field-row{order:3;}
+  #screen-hachi .h88-self{order:4;}
   .h88-opps{display:flex;gap:8px;}
   /* v1.66: 縦画面は focusSeat の1人だけ表示（位置は席順で固定・入れ替えない）。横画面は両方表示（landscape で上書き）。 */
   .h88-opps .h88-seat{display:none;}
@@ -171,48 +178,46 @@
      （場の左右の空きを活用）。自分は下段＝手札を画面中央・取り札をその右横（こいこいの
      「取り札は右列」と同じ思想）。カードサイズは全て --card-w/--cap-w（fitH88Board が実測で最大化）。 */
   @media (orientation:landscape){
-    /* v1.74: 相手2人の手札を中央・上に隣り合わせ、場はその下、取り札は左右の外端に。
-       盤は4列 [取り札L｜手札L｜手札R｜取り札R] ×3段。手札=中央上／場=中央中／自分=下段。 */
-    /* ★v1.77: 横幅が狭かった根本原因の修正のみ＝.wrap が flex なので盤を全幅に伸ばす（width:100%）。
-       これが無いと盤が中身幅までしか広がらず左右が空く。レイアウト構成は v1.75 のまま変更しない。 */
-    #screen-hachi .h88-board{width:100%;max-width:none;margin:0;align-self:stretch;box-sizing:border-box;height:calc(100vh - 84px);
-      display:grid;
-      grid-template-columns:minmax(44px,7vw) minmax(0,1fr) minmax(0,1fr) minmax(44px,7vw);
-      grid-template-rows:auto minmax(0,1fr) auto;
-      column-gap:8px;row-gap:4px;padding:4px 10px 6px;align-items:start;}
-    /* 相手セル・その親を display:contents にして、名前+手札(seat-main)と取り札(caps)を盤グリッドへ直接配置 */
+    /* v1.80 大改造: 横画面を縦3分割。左右=相手プレイヤーを内向きに90°回転（左=右が上／右=左が上）、
+       中央ブロック=ステータス・山と場・自分の取り札2列＋手札1列。左右の相手は盤の外辺に絶対配置。 */
+    #screen-hachi .h88-board{position:relative;width:100%;max-width:none;margin:0;align-self:stretch;box-sizing:border-box;
+      height:calc(100vh - 74px);padding:0 var(--side-w,128px);display:block;--side-w:128px;}
     #screen-hachi .h88-opps{display:contents;}
-    #screen-hachi .h88-opps .h88-seat{display:contents;}
     #screen-hachi .h88-opp-switch{display:none;}
-    /* v1.75: 取り札は4段で幅を狭く。手札の下・場の横の空き（row1+2）まで縦に使う＝カードを大きく。 */
-    #screen-hachi #h88-oppL .h88-caps{grid-column:1;grid-row:1 / 3;justify-self:stretch;width:100%;margin:0;align-self:start;}
-    #screen-hachi #h88-oppL .h88-seat-main{grid-column:2;grid-row:1;}
-    #screen-hachi #h88-oppR .h88-seat-main{grid-column:3;grid-row:1;}
-    #screen-hachi #h88-oppR .h88-caps{grid-column:4;grid-row:1 / 3;justify-self:stretch;width:100%;margin:0;align-self:start;}
-    /* v1.75: 場は上寄せでなく縦中央に（align-self:center）。 */
-    #screen-hachi .h88-field-row{grid-column:2 / 4;grid-row:2;align-self:center;align-items:center;justify-content:center;min-height:0;gap:8px;}
-    /* v1.78: 自分は「相手の手札の真下(col2-3)」に置き、右端の相手取り札(col4)と干渉させない。 */
-    #screen-hachi .h88-self{grid-column:2 / 4;grid-row:3;}
-    /* 相手の名前＋手札（中央上）。手番ハイライトは seat-main に。 */
-    #screen-hachi .h88-seat-main{min-width:0;}
-    #screen-hachi .h88-seat.turn .h88-seat-main{outline:1px solid var(--orange);outline-offset:2px;border-radius:8px;}
-    #screen-hachi .h88-seat .h88-name{font-size:.74rem;text-align:center;}
-    /* v1.78: 相手の伏せ札は小さい固定サイズ（表向きの札=--card-w とは切り離す）。1行でコンパクト。 */
-    #screen-hachi .h88-mini-hand{gap:2px;margin-top:3px;flex-wrap:nowrap;justify-content:center;overflow:visible;}
-    #screen-hachi .h88-mini-hand .card{flex:0 0 auto;width:auto;height:min(4.6vh,32px);max-width:none;}
-    /* 相手取り札は横画面で縦積み4段（幅を狭く）。各段は左詰め・折り返さず（fitRows が幅超過時に重ねる） */
-    #screen-hachi .h88-opps .h88-caps{display:block;}
-    #screen-hachi .h88-opps .h88-caps .caprow{flex-wrap:nowrap;justify-content:flex-start;}
-    /* 場：中央列。横長なので6列で詰める（こいこいの4列グリッドの横長版）。 */
+    /* 相手セル＝盤の左右の外辺に全高で絶対配置。回転は内側 .h88-seat-rot で。
+       （縦画面用の .h88-seat{display:none} を id 指定で上書きして両方表示） */
+    #screen-hachi #h88-oppL,#screen-hachi #h88-oppR{display:block;position:absolute;top:0;bottom:0;width:var(--side-w,128px);
+      overflow:hidden;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:0;}
+    #screen-hachi #h88-oppL{left:0;}
+    #screen-hachi #h88-oppR{right:0;}
+    #screen-hachi #h88-oppL.turn,#screen-hachi #h88-oppR.turn{border-color:var(--orange);box-shadow:inset 0 0 0 1px var(--orange);}
+    /* 回転する内箱＝幅(=盤高 --rot-len)×高さ(=帯幅 --side-w)。中央基準で回転。 */
+    #screen-hachi .h88-seat-rot{position:absolute;top:50%;left:50%;
+      width:var(--rot-len,360px);height:var(--side-w,128px);
+      display:flex;flex-direction:column;justify-content:flex-end;gap:3px;padding:5px 12px;box-sizing:border-box;}
+    #screen-hachi #h88-oppL .h88-seat-rot{transform:translate(-50%,-50%) rotate(90deg);}   /* 左=右が上（内向き） */
+    #screen-hachi #h88-oppR .h88-seat-rot{transform:translate(-50%,-50%) rotate(-90deg);}  /* 右=左が上（内向き） */
+    /* プレイヤー内：名前(上)→取り札2列(中)→伏せ手札1列(下)。 */
+    #screen-hachi .h88-seat-rot .h88-name{flex:0 0 auto;text-align:center;font-size:.72rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #screen-hachi .h88-seat-rot .h88-caps{flex:0 0 auto;display:flex;flex-direction:column;gap:2px;margin:0;align-items:center;}
+    #screen-hachi .h88-seat-rot .h88-caps .caprow{flex-wrap:nowrap;justify-content:center;}
+    #screen-hachi .h88-seat-rot .h88-caps .card{width:auto;height:min(3.4vh,24px);}
+    #screen-hachi .h88-seat-rot .h88-mini-hand{flex:0 0 auto;display:flex;flex-direction:row;flex-wrap:nowrap;justify-content:center;gap:3px;margin-top:2px;overflow:visible;}
+    #screen-hachi .h88-seat-rot .h88-mini-hand .card{flex:0 0 auto;width:auto;height:min(5vh,34px);max-width:none;}
+    /* 中央ブロック＝状態(上)・山と場(中・可変)・自分(下)。左右のパディング内に縦積み。 */
+    #screen-hachi .h88-center{display:flex;flex-direction:column;height:100%;gap:4px;padding:4px 6px 6px;min-height:0;box-sizing:border-box;}
+    #screen-hachi #h88-status{flex:0 0 auto;}
+    /* 場は上寄せ（ステータス直下）。余った縦の隙間は自分の上に集めて自分を最下部に。 */
+    #screen-hachi .h88-field-row{flex:0 1 auto;align-items:flex-start;justify-content:center;min-height:0;gap:10px;}
     #screen-hachi .h88-deck{padding-top:0;}
-    #screen-hachi .h88-field{padding-top:0;grid-template-columns:repeat(6,auto);align-content:center;}
-    /* v1.78: 内側グリッド(auto 1fr)＝手札を左(相手Lの手札の真下)、取り札をその右に。 */
-    #screen-hachi .h88-self{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:12px;align-items:end;min-height:0;}
-    #screen-hachi .h88-self-turn{grid-column:1;grid-row:1;margin:0 0 2px;}
-    #screen-hachi .h88-hand{grid-column:1;grid-row:2;width:auto;max-width:none;min-height:0;padding:10px 0 2px;margin:0;justify-content:flex-start;}
-    #screen-hachi .h88-self-name{grid-column:1;grid-row:3;margin-top:2px;font-size:.7rem;text-align:center;}
-    #screen-hachi .h88-self-caps{grid-column:2;grid-row:1 / span 3;margin:0;min-height:0;align-self:center;justify-content:flex-start;align-content:center;gap:4px 12px;}
-    #screen-hachi .h88-self-caps .caprow{flex-wrap:wrap;row-gap:3px;}
+    #screen-hachi .h88-field{padding-top:0;grid-template-columns:repeat(8,auto);align-content:flex-start;justify-content:center;}
+    /* 自分＝取り札2列(上)＋手札1列(下)。下寄せ（margin-top:auto で最下部へ）。 */
+    #screen-hachi .h88-self{flex:0 0 auto;margin-top:auto;display:flex;flex-direction:column;align-items:center;gap:2px;min-height:0;}
+    #screen-hachi .h88-self-caps{margin:0;display:flex;flex-flow:row wrap;justify-content:center;align-content:center;gap:2px 12px;}
+    #screen-hachi .h88-self-caps .caprow{flex-wrap:wrap;row-gap:2px;}
+    #screen-hachi .h88-self-turn{margin:0 auto 2px;}
+    #screen-hachi .h88-hand{width:auto;max-width:100%;min-height:0;padding:4px 0 0;margin:0;flex-wrap:nowrap;overflow-x:auto;}
+    #screen-hachi .h88-self-name{margin-top:0;font-size:.7rem;text-align:center;}
   }
   /* v1.59: 音量スライダー＋右のミュートチェック */
   .vol-line{display:flex;align-items:center;gap:12px;}
@@ -1203,7 +1208,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.79</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.81</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1269,7 +1274,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.79</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.81</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1375,7 +1380,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.79</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.81</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1435,41 +1440,45 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.79</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.81</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
-  <div class="statusbar" id="h88-status">
-    <span class="rulename">八八</span>
-    <span id="h88-round">第1局</span>
-    <span id="h88-scores"></span>
-    <span id="h88-turn"></span>
-    <button class="h88-log-btn" id="btn-h88-log" type="button">📜 <span data-i18n="hachi.log">記録</span></button>
-    <!-- v1.68: 右上（ステータス右端）に「対戦準備に戻る」。浮遊配置をやめてかぶり解消 -->
-    <button class="h88-log-btn h88-back" id="btn-home-hachi" type="button">← <span data-i18n="hachi.back">準備室</span></button>
-  </div>
+  <!-- v1.80 大改造: 横画面は縦3分割（左右=相手を内向き90°回転／中央=状態・山場・自分）。
+       縦画面は従来どおり縦積み。左右の相手セルは中央ブロックの外側に置く。 -->
   <div class="h88-board" id="h88-board">
     <div class="h88-opps" id="h88-opps">
       <div class="h88-seat" id="h88-oppL"></div>
       <div class="h88-seat" id="h88-oppR"></div>
     </div>
-    <!-- v1.63 B4: 縦画面は相手1人だけ表示。この行で相手を切替（横画面では非表示＝2人並べる） -->
-    <div class="h88-opp-switch" id="h88-opp-switch">
-      <button class="btn btn-ghost btn-sm" id="btn-h88-switch" type="button">⇄ <span data-i18n="hachi.switch">相手を切替</span></button>
-      <span id="h88-opp-switch-label"></span>
-    </div>
-    <div class="h88-field-row">
-      <div class="h88-deck">
-        <div class="h88-deck-back" id="h88-deck-back"></div>
-        <div class="h88-deck-count"><span data-i18n="game.deck">山</span> <span id="h88-deck-count">21</span></div>
+    <!-- 中央ブロック：ステータス・山と場・自分の取り札と手札 -->
+    <div class="h88-center" id="h88-center">
+      <div class="statusbar" id="h88-status">
+        <span class="rulename">八八</span>
+        <span id="h88-round">第1局</span>
+        <span id="h88-scores"></span>
+        <span id="h88-turn"></span>
+        <button class="h88-log-btn" id="btn-h88-log" type="button">📜 <span data-i18n="hachi.log">記録</span></button>
+        <button class="h88-log-btn h88-back" id="btn-home-hachi" type="button">← <span data-i18n="hachi.back">準備室</span></button>
       </div>
-      <div class="h88-field" id="h88-field"></div>
-    </div>
-    <div class="h88-self">
-      <div class="h88-self-caps" id="h88-self-caps"></div>
-      <div class="h88-self-turn hidden" id="h88-self-turn">▶ あなたの番です</div>
-      <div class="h88-hand" id="h88-self-hand"></div>
-      <div class="h88-self-name"><span data-i18n="game.you">あなた</span>：<span id="h88-self-name"></span></div>
+      <!-- v1.63 B4: 縦画面は相手1人だけ表示。この行で相手を切替（横画面では非表示） -->
+      <div class="h88-opp-switch" id="h88-opp-switch">
+        <button class="btn btn-ghost btn-sm" id="btn-h88-switch" type="button">⇄ <span data-i18n="hachi.switch">相手を切替</span></button>
+        <span id="h88-opp-switch-label"></span>
+      </div>
+      <div class="h88-field-row">
+        <div class="h88-deck">
+          <div class="h88-deck-back" id="h88-deck-back"></div>
+          <div class="h88-deck-count"><span data-i18n="game.deck">山</span> <span id="h88-deck-count">21</span></div>
+        </div>
+        <div class="h88-field" id="h88-field"></div>
+      </div>
+      <div class="h88-self">
+        <div class="h88-self-caps" id="h88-self-caps"></div>
+        <div class="h88-self-turn hidden" id="h88-self-turn">▶ あなたの番です</div>
+        <div class="h88-hand" id="h88-self-hand"></div>
+        <div class="h88-self-name"><span data-i18n="game.you">あなた</span>：<span id="h88-self-name"></span></div>
+      </div>
     </div>
   </div>
   <button class="leave-btn" id="btn-leave-hachi" style="display:none" data-i18n="game.leave">← 中断</button>
@@ -3565,15 +3574,17 @@ function renderH88Seat(elId, seat) {
   const st = state.h88, g = st.game;
   const el = document.getElementById(elId); if (!el) return;
   const backs = g.hands[seat].map(() => svgBack()).join('');
-  const caps = h88CapGroupedHTML(g.caps[seat], 'stack4'); // v1.75: 相手の取り札は4段（外端で幅狭・高さ活用）
+  const caps = h88CapGroupedHTML(g.caps[seat], 'self2'); // v1.80: 取り札は2列（光種短／カス）
   const isOya = (seat === st.roundOya);      // v1.63: 親マーク
   const isTurn = (g.currentPlayer === seat && !g.winner);
-  // v1.74: 名前＋手札を .h88-seat-main にまとめ、取り札 .h88-caps と分離。
-  //   横画面は「手札=中央上／取り札=左右外側」に別々配置するための下ごしらえ（縦は従来通り縦積み）。
-  el.innerHTML = '<div class="h88-seat-main"><div class="h88-name">' + (isOya ? '<span class="h88-oya-badge">親</span>' : '')
+  // v1.80 大改造: 相手はプレイヤー単位で90°回転させるため .h88-seat-rot でまとめる。
+  //   プレイヤー内は「名前(上)→取り札2列→伏せ手札1列(下)」。横画面はこの箱を回転、縦画面は素の縦積み。
+  el.innerHTML = '<div class="h88-seat-rot">'
+    + '<div class="h88-name">' + (isOya ? '<span class="h88-oya-badge">親</span>' : '')
     + st.names[seat] + (isTurn ? '<span class="h88-turn-badge">手番</span>' : '') + '</div>'
-    + '<div class="h88-mini-hand">' + backs + '</div></div>'
-    + '<div class="h88-caps">' + caps + '</div>';
+    + '<div class="h88-caps">' + caps + '</div>'
+    + '<div class="h88-mini-hand">' + backs + '</div>'
+    + '</div>';
   el.classList.toggle('turn', isTurn);
 }
 function renderH88() {
@@ -4902,13 +4913,22 @@ function fitH88Board() {
     sh.style.setProperty('--cap-w', Math.max(20, Math.min(Math.round(w * 0.72), 44)) + 'px');
   };
   if (window.matchMedia && window.matchMedia('(orientation:landscape)').matches) {
-    // v1.78: 表向きの札(--card-w/--cap-w=場・自分の手札・取り札)を最大化。相手の伏せ札はCSSで小さい
-    //   固定サイズ(--card-w非依存)なので幅を食わない。盤が縦にも横にもはみ出さない最大の --card-w を、
-    //   大きめ(84px)から始めて、はみ出すぶんの比率で縮めて求める（fitRows で取り札は幅超過時に重ねる）。
-    let w = 84; setW(w); fitRows();
+    // v1.80 大改造: 左右の相手は90°回転帯（相手カードはCSS固定サイズ）。回転帯の長さ=盤の高さを --rot-len に。
+    //   中央ブロックの表向きの札(--card-w/--cap-w=場・自分手札・取り札)を、盤がはみ出さない範囲で最大化する。
+    sh.style.setProperty('--rot-len', board.clientHeight + 'px');
+    const center = document.getElementById('h88-center');
+    const overflow = () => {
+      let ov = 0;
+      if (center) { ov = Math.max(ov, center.scrollHeight - center.clientHeight, center.scrollWidth - center.clientWidth); }
+      ov = Math.max(ov, board.scrollHeight - board.clientHeight, board.scrollWidth - board.clientWidth);
+      return ov;
+    };
+    let w = 78; setW(w); fitRows();
     for (let pass = 0; pass < 10; pass++) {
-      const oh = board.scrollHeight, ow = board.scrollWidth;
-      const ch = board.clientHeight, cwd = board.clientWidth;
+      const ch = (center ? center.clientHeight : board.clientHeight);
+      const cwd = (center ? center.clientWidth : board.clientWidth);
+      const oh = (center ? center.scrollHeight : board.scrollHeight);
+      const ow = (center ? center.scrollWidth : board.scrollWidth);
       if ((oh <= ch + 1 && ow <= cwd + 1) || w <= 20) break;
       const r = Math.min(ch / (oh || 1), cwd / (ow || 1));
       if (r >= 0.999) break;

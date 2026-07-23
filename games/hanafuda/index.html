@@ -115,8 +115,9 @@
   .h88-self-caps{display:flex;flex-wrap:wrap;gap:1px;justify-content:center;margin-bottom:5px;min-height:22px;}
   .h88-self-caps .card{width:20px;border-radius:2px;}
   /* v1.63 C7: ホバー/選択で浮いた札の上端が切れないよう上に余白 */
-  .h88-hand{display:flex;gap:3px;justify-content:center;flex-wrap:wrap;padding-top:14px;}
-  .h88-hand .h88-hand-card{cursor:pointer;transition:transform .12s;}
+  /* v1.68: 手札は最初に7枚分の幅・高さを確保して固定（伸縮で画面がぶれない）。札サイズも固定。 */
+  .h88-hand{display:flex;gap:3px;justify-content:center;flex-wrap:nowrap;padding-top:14px;width:calc(7 * min(11.5vw,58px) + 6 * 3px);max-width:100%;margin:0 auto;min-height:calc(min(11.5vw,58px) * 350 / 220 + 14px);}
+  .h88-hand .h88-hand-card{cursor:pointer;transition:transform .12s;flex:0 0 auto;}
   .h88-hand .h88-hand-card .card{width:min(11.5vw,58px);}
   .h88-hand .h88-hand-card:hover{transform:translateY(-5px);}
   /* v1.63 B6: 選択中の手札は浮かせて強調 */
@@ -128,11 +129,12 @@
   /* v1.66: プレイ記録ボタン＋パネル */
   .h88-log-btn{background:var(--surface2,#2a2a2a);color:var(--text);border:1px solid var(--border-strong);border-radius:6px;font-family:inherit;font-weight:700;font-size:.72rem;padding:4px 9px;cursor:pointer;white-space:nowrap;line-height:1;margin-left:auto;}
   .h88-log-btn:hover{border-color:var(--orange);}
-  /* v1.66: 八八の「対戦準備に戻る」＝右上・はっきり見える。八八ステータスは1行・八八を左に。 */
-  .h88-back{position:absolute;top:42px;right:10px;z-index:150;margin:0;background:var(--surface);border:1px solid var(--orange);color:var(--orange);font-weight:700;font-size:.72rem;padding:5px 10px;}
+  /* v1.68: 八八ステータスは1行・八八を左・記録/準備室ボタンを右端に。 */
+  .h88-back{border-color:var(--orange);color:var(--orange);margin-left:6px;}
   #h88-status{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;gap:8px;}
-  #h88-status .rulename{margin-right:2px;flex:0 0 auto;}
-  #h88-status span{white-space:nowrap;}
+  #h88-status .rulename{flex:0 0 auto;}
+  #h88-status span{white-space:nowrap;flex:0 0 auto;}
+  #h88-status #h88-scores{flex:0 1 auto;overflow:hidden;text-overflow:ellipsis;}
   .h88-log-panel{position:fixed;top:0;right:0;bottom:0;width:min(90vw,360px);z-index:400;background:var(--surface);border-left:1px solid var(--border-strong);box-shadow:-4px 0 20px rgba(0,0,0,.5);display:flex;flex-direction:column;}
   .h88-log-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border);font-size:.8rem;color:#fff;}
   .h88-log-body{flex:1;overflow-y:auto;padding:8px 12px;font-size:.72rem;line-height:1.7;color:var(--text);font-family:inherit;}
@@ -141,7 +143,11 @@
   .h88-oya-badge{display:inline-block;background:var(--gold,#d8a838);color:#1a1a1a;font-size:.62rem;font-weight:700;border-radius:4px;padding:0 4px;margin-right:4px;vertical-align:middle;}
   .h88-turn-badge{display:inline-block;background:var(--orange);color:#1a1a1a;font-size:.6rem;font-weight:700;border-radius:4px;padding:0 4px;margin-left:4px;vertical-align:middle;}
   #h88-turn{font-weight:700;}
-  .h88-oya-draws{display:flex;gap:10px;justify-content:center;}
+  /* v1.68 C4: 準備室の3人の顔ぶれ */
+  .h88-prep-players{display:flex;flex-direction:column;gap:6px;margin:10px 0;}
+  .h88-prep-players .pl{flex:0 0 auto;flex-direction:row;align-items:baseline;gap:4px;width:fit-content;padding:6px 12px;}
+  .h88-prep-players .pl small::after{content:'：';}
+  .h88-oya-draws{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
   .h88-oya-draws .h88-oya-draw{text-align:center;font-size:.68rem;color:var(--text-muted);}
   .h88-oya-draws .h88-oya-draw .card{width:52px;margin:3px 0;}
   /* v1.62: ドラッグ入替中の見た目 */
@@ -427,6 +433,7 @@
   @media (orientation:landscape){
     /* 対局画面（#screen-game 自身が .wrap）だけ外枠を広げる。他画面の狭い .wrap は影響なし */
     #screen-game.wrap{max-width:min(1200px,97vw);}
+    #screen-hachi.wrap{max-width:min(1200px,97vw);}
     #screen-game .play{display:grid;grid-template-columns:1fr 1fr;
       grid-template-rows:auto minmax(0,1fr) minmax(0,1fr) auto;
       column-gap:10px;row-gap:4px;justify-items:center;align-content:stretch;}
@@ -1163,7 +1170,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.67</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.68</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1229,7 +1236,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.67</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.68</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1281,11 +1288,20 @@
     <div class="set-row"><span data-i18n="set.hint">ヒント表示（あと1枚で役）</span><span class="seg" data-key="hint"><button class="on" data-v="on" data-i18n="set.on">あり</button><button data-v="off" data-i18n="set.off">なし</button></span></div>
   </div>
 
-  <!-- v1.63: 八八（3人）設定パネル。vsコンピュータで八八を選んだ時だけ表示 -->
+  <!-- v1.63/68: 八八（3人）設定パネル。vsコンピュータで八八を選んだ時だけ表示 -->
   <div class="gset hidden" id="set-hachi">
     <h3 data-i18n="set.hachi.title">八八（3人）設定</h3>
-    <p class="desc" style="font-size:12px;color:var(--text-muted);line-height:1.6;" data-i18n="set.hachi.desc">あなた＋コンピュータ2体の3人で対戦します（相手2人ともコンピュータ）。強さは上のプルダウン、局数は下で選べます。「八八を開始」で親決めに進みます。</p>
+    <p class="desc" style="font-size:12px;color:var(--text-muted);line-height:1.6;" data-i18n="set.hachi.desc">あなた＋コンピュータ2体の3人で対戦します（相手2人ともコンピュータ）。</p>
+    <div class="set-row"><span data-i18n="vsai.level">コンピュータの強さ</span><span class="seg" id="h88-level-seg"><button data-v="EASY">EASY</button><button class="on" data-v="HARD">HARD</button><button data-v="APOCALYPSE">APOCALYPSE</button></span></div>
     <div class="set-row"><span data-i18n="set.rounds">局数</span><span class="seg" id="h88-rounds-seg"><button class="on" data-v="3" data-i18n="set.3">3局</button><button data-v="6" data-i18n="set.6">6局</button><button data-v="12" data-i18n="set.12">12局</button></span></div>
+    <!-- v1.68 C4: 3人の顔ぶれ -->
+    <div class="h88-prep-players" id="h88-prep-players"></div>
+    <!-- v1.68 C3: 3人で親決め（準備室で引く） -->
+    <div class="section-label" style="margin:14px 0 8px;"><span data-i18n="oya.title">先手（親）を決める</span></div>
+    <p class="desc" style="font-size:12px;color:var(--text-muted);margin:-2px 0 6px;" data-i18n="hachi.oya.lead">3人で1枚ずつ引き、早い月＝親、以下反時計回りに着席します。</p>
+    <div class="h88-oya-draws" id="h88-prep-oya-draws"></div>
+    <div class="h88-oya-result" id="h88-prep-oya-result" style="margin:8px 0;color:var(--gold);font-weight:700;"></div>
+    <button class="btn btn-ghost" id="btn-h88-prep-drawoya" data-i18n="oya.draw">親決めの札を引く</button>
   </div>
 
   <!-- こいこい用の親決めブロック（八八では隠す） -->
@@ -1327,7 +1343,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.67</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.68</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1387,18 +1403,18 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.67</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.68</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
-  <!-- v1.66: 右上に「対戦準備に戻る」（ホームではなく準備画面へ） -->
-  <button class="leave-btn h88-back" id="btn-home-hachi" type="button">← <span data-i18n="hachi.back">対戦準備に戻る</span></button>
   <div class="statusbar" id="h88-status">
     <span class="rulename">八八</span>
     <span id="h88-round">第1局</span>
     <span id="h88-scores"></span>
     <span id="h88-turn"></span>
     <button class="h88-log-btn" id="btn-h88-log" type="button">📜 <span data-i18n="hachi.log">記録</span></button>
+    <!-- v1.68: 右上（ステータス右端）に「対戦準備に戻る」。浮遊配置をやめてかぶり解消 -->
+    <button class="h88-log-btn h88-back" id="btn-home-hachi" type="button">← <span data-i18n="hachi.back">準備室</span></button>
   </div>
   <div class="h88-board" id="h88-board">
     <div class="h88-opps" id="h88-opps">
@@ -1611,7 +1627,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.67';
+const APP_VERSION = 'v1.68';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -1676,7 +1692,7 @@ const I18N = {
     'room.soon': '近日',
     'room.wip': '工事中',
     'set.koikoi.title': 'こいこい 設定',
-    'hachi.start': '八八を開始', 'hachi.switch': '相手を切替', 'hachi.log': '記録', 'hachi.log.title': 'プレイ記録（誰が何をしたか）', 'hachi.back': '対戦準備に戻る', 'set.hachi.title': '八八（3人）設定', 'set.hachi.desc': 'あなた＋コンピュータ2体の3人で対戦します（相手2人ともコンピュータ）。強さは上のプルダウン、局数は下で選べます。「八八を開始」で親決めに進みます。',
+    'hachi.start': '八八を開始', 'hachi.switch': '相手を切替', 'hachi.log': '記録', 'hachi.log.title': 'プレイ記録（誰が何をしたか）', 'hachi.back': '対戦準備に戻る', 'hachi.needoya': '先に親を決めてください', 'hachi.oya.lead': '3人で1枚ずつ引き、早い月＝親、以下反時計回りに着席します。', 'set.hachi.title': '八八（3人）設定', 'set.hachi.desc': 'あなた＋コンピュータ2体の3人で対戦します（相手2人ともコンピュータ）。強さは上のプルダウン、局数は下で選べます。「八八を開始」で親決めに進みます。',
     'set.rounds': '局数', 'set.1': '1局', 'set.3': '3局', 'set.6': '6局', 'set.12': '12局',
     'set.kiku': '菊の盃', 'set.kiku.tane': '種＋花見月見', 'set.kiku.kasu2': 'カス2枚',
     'set.double': '7文以上2倍', 'set.on': 'あり', 'set.off': 'なし',
@@ -1870,7 +1886,7 @@ const I18N = {
     'room.soon': 'Coming soon',
     'room.wip': 'Under construction',
     'set.koikoi.title': 'Koi-Koi Settings',
-    'hachi.start': 'Start Hachi-Hachi', 'hachi.switch': 'Switch opponent', 'hachi.log': 'Log', 'hachi.log.title': 'Play log (who did what)', 'hachi.back': 'Back to setup', 'set.hachi.title': 'Hachi-Hachi (3P) Settings', 'set.hachi.desc': 'You plus two computers (both opponents are AI). Set difficulty in the pulldown above and rounds below. Tap “Start Hachi-Hachi” to draw for dealer.',
+    'hachi.start': 'Start Hachi-Hachi', 'hachi.switch': 'Switch opponent', 'hachi.log': 'Log', 'hachi.log.title': 'Play log (who did what)', 'hachi.back': 'Back to setup', 'hachi.needoya': 'Draw for dealer first', 'hachi.oya.lead': 'Each of the 3 draws one card; earliest month is dealer, others seated counterclockwise.', 'set.hachi.title': 'Hachi-Hachi (3P) Settings', 'set.hachi.desc': 'You plus two computers (both opponents are AI). Set difficulty in the pulldown above and rounds below. Tap “Start Hachi-Hachi” to draw for dealer.',
     'set.rounds': 'Rounds', 'set.1': '1', 'set.3': '3', 'set.6': '6', 'set.12': '12',
     'set.kiku': 'Kiku no Sakazuki', 'set.kiku.tane': 'Tane (+Hanami/Tsukimi)', 'set.kiku.kasu2': 'Kasu ×2',
     'set.double': '7+ Points ×2', 'set.on': 'On', 'set.off': 'Off',
@@ -2064,7 +2080,7 @@ const I18N = {
     'room.soon': '即将推出',
     'room.wip': '施工中',
     'set.koikoi.title': '来来 设定',
-    'hachi.start': '开始八八', 'hachi.switch': '切换对手', 'hachi.log': '记录', 'hachi.log.title': '对局记录（谁做了什么）', 'hachi.back': '返回准备', 'set.hachi.title': '八八（3人）设定', 'set.hachi.desc': '你＋两台电脑三人对战（两位对手均为电脑）。强度在上方下拉选择，局数在下方选择。点“开始八八”进入定庄。',
+    'hachi.start': '开始八八', 'hachi.switch': '切换对手', 'hachi.log': '记录', 'hachi.log.title': '对局记录（谁做了什么）', 'hachi.back': '返回准备', 'hachi.needoya': '请先定庄', 'hachi.oya.lead': '三人各抽一张，月份早者为庄，其余逆时针就座。', 'set.hachi.title': '八八（3人）设定', 'set.hachi.desc': '你＋两台电脑三人对战（两位对手均为电脑）。强度在上方下拉选择，局数在下方选择。点“开始八八”进入定庄。',
     'set.rounds': '局数', 'set.1': '1局', 'set.3': '3局', 'set.6': '6局', 'set.12': '12局',
     'set.kiku': '菊之杯', 'set.kiku.tane': '种＋花见月见', 'set.kiku.kasu2': '算作2张滓',
     'set.double': '7文以上×2', 'set.on': '开启', 'set.off': '关闭',
@@ -2494,9 +2510,10 @@ function refreshRoomView() {
 
 function updateStartBtn() {
   const b = document.getElementById('btn-start');
-  if (state.gameSel === 'hachi') { // v1.63: 八八は準備待ち/親決め不要（親決めは八八画面で）
-    b.disabled = false;
-    b.textContent = t('hachi.start');
+  if (state.gameSel === 'hachi') { // v1.68: 八八は準備室で3人親決め → 済んだら開始可
+    const ready = !!state.h88prep;
+    b.disabled = !ready;
+    b.textContent = ready ? t('hachi.start') : t('hachi.needoya');
     return;
   }
   const me = state.isHost ? 'host' : 'guest';
@@ -2536,6 +2553,9 @@ function pickGame(g) {
   document.getElementById('set-koikoi').classList.toggle('hidden', g !== 'koikoi');
   const sh = document.getElementById('set-hachi'); if (sh) sh.classList.toggle('hidden', !isHachi);
   const kb = document.getElementById('koikoi-prep-block'); if (kb) kb.classList.toggle('hidden', isHachi);
+  // v1.68 C4: 八八は準備室の2人表示を隠す（八八パネルに3人の顔ぶれを出す）
+  const pls = document.querySelector('#screen-room .players'); if (pls) pls.classList.toggle('hidden', isHachi);
+  if (isHachi) h88PrepReset(); // v1.68 C3/C4: 八八の顔ぶれ・親決めを準備室で
   updateStartBtn();
 }
 function applySettingToggle(key, v) {
@@ -3263,6 +3283,53 @@ window.__h88 = { build: h88Build, turn: h88Turn, sim: h88SimRound, nextSeat: h88
 // ─────────── 八八 UI（vsコンピュータ・3人。こいこいとは独立） ───────────
 // state.h88 = { names, scores, roundNo, rounds, seatCycle, game, aiToken, oyaDraws }
 // 席は固定id p0(自分=手前)/p1/p2。seatCycle=親決めで決めた反時計回りの席順（=手番順）。
+
+// v1.68 C3/C4: 準備室で3人の顔ぶれ表示＋3人親決め。開始時は席順を持って直接対局へ。
+function h88PrepNames() {
+  const name = (document.getElementById('in-playername').value || '').trim() || t('vsai.you');
+  const lv = state.aiLevel || 'HARD';
+  return { p0: name, p1: t('vsai.cpu') + '1（' + lv + '）', p2: t('vsai.cpu') + '2（' + lv + '）' };
+}
+function h88PrepRenderPlayers() {
+  const el = document.getElementById('h88-prep-players'); if (!el) return;
+  const names = h88PrepNames();
+  el.innerHTML = ['p0', 'p1', 'p2'].map(s =>
+    '<div class="pl' + (s === 'p0' ? ' host' : '') + '"><small>' + (s === 'p0' ? t('room.host') : t('room.guest')) + '</small><span>' + names[s] + '</span></div>').join('');
+}
+function h88PrepReset() {
+  state.h88prep = null;
+  const d = document.getElementById('h88-prep-oya-draws'); if (d) d.innerHTML = '';
+  const r = document.getElementById('h88-prep-oya-result'); if (r) r.textContent = '';
+  const b = document.getElementById('btn-h88-prep-drawoya'); if (b) b.classList.remove('hidden');
+  h88PrepRenderPlayers();
+  updateStartBtn();
+}
+function h88PrepDrawOya() {
+  const names = h88PrepNames();
+  const deck = shuffle(buildDeck());
+  const seats = ['p0', 'p1', 'p2'];
+  const draws = {}, usedMonth = {};
+  seats.forEach(s => { let c; do { c = deck.pop(); } while (c && usedMonth[c.month]); usedMonth[c.month] = true; draws[s] = { month: c.month, id: c.id }; });
+  document.getElementById('h88-prep-oya-draws').innerHTML = seats.map(s =>
+    '<div class="h88-oya-draw"><div>' + names[s] + '</div>' + svgCard(draws[s].id) + '<div>' + t('room.month', draws[s].month) + '</div></div>').join('');
+  const order = h88SeatOrder(draws); // [親, 2位, 3位]（反時計回り）
+  state.h88prep = { names: names, oyaDraws: draws, seatCycle: order };
+  document.getElementById('h88-prep-oya-result').textContent = names[order[0]] + ' が親（先手）です';
+  document.getElementById('btn-h88-prep-drawoya').classList.add('hidden');
+  updateStartBtn();
+}
+// 準備室から八八を開始（親決め済みの席順で直接開始・八八画面のオーバーレイは使わない）
+function startHachiFromPrep(rounds) {
+  const p = state.h88prep; if (!p) return;
+  state.aiLevel = state.aiLevel || 'HARD';
+  state.h88 = {
+    names: p.names, scores: { p0: 0, p1: 0, p2: 0 },
+    roundNo: 1, rounds: rounds || 3, seatCycle: p.seatCycle, game: null, aiToken: 0, oyaDraws: p.oyaDraws, focusSeat: null, log: [],
+  };
+  showScreen('hachi');
+  h88SetupOppDrag();
+  h88StartRound(p.seatCycle[0]);
+}
 function startHachiVsAI(rounds) {
   const name = (document.getElementById('in-playername').value || '').trim() || t('vsai.you');
   const lv = state.aiLevel || 'HARD';
@@ -5296,6 +5363,7 @@ function applyAiLevelPrep(lv) {
   const g = document.getElementById('guest-name');
   if (g) { g.textContent = state.guestName; g.classList.remove('waiting-g'); }
   const conn = document.getElementById('conn-label'); if (conn) conn.textContent = state.guestName;
+  if (state.gameSel === 'hachi') h88PrepReset(); // v1.68: 強さ変更で八八の顔ぶれ/親決めをやり直し
 }
 // 対戦準備画面へ（親決めを毎回リセット＝札は閉じた状態から）。新規開始・再戦の両方で使う。
 function vsAiToPrep() {
@@ -5840,9 +5908,10 @@ function handleIntent(data) {
 function startGame() {
   // v1.63: 八八(3人)を選んでいれば八八へ（vsコンピュータのみ）
   if (state.gameSel === 'hachi' && state.vsAI) {
+    if (!state.h88prep) return; // 親決め未実施なら開始しない
     const seg = document.getElementById('h88-rounds-seg');
     const on = seg && seg.querySelector('button.on');
-    startHachiVsAI(on ? parseInt(on.dataset.v, 10) : 3);
+    startHachiFromPrep(on ? parseInt(on.dataset.v, 10) : 3);
     return;
   }
   // v1.05: 両者押し方式 = クリック時は「準備完了」フラグを立てるだけ。
@@ -5973,6 +6042,16 @@ function bindEvents() {
   const h88RoundsSeg = document.getElementById('h88-rounds-seg');
   if (h88RoundsSeg) h88RoundsSeg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
     h88RoundsSeg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+  }));
+  // v1.68 C3: 準備室の八八・親決め
+  const bPrepOya = document.getElementById('btn-h88-prep-drawoya');
+  if (bPrepOya) bPrepOya.addEventListener('click', h88PrepDrawOya);
+  // v1.68: 八八パネルのコンピュータ強さ選択
+  const h88LevelSeg = document.getElementById('h88-level-seg');
+  if (h88LevelSeg) h88LevelSeg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    h88LevelSeg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+    state.aiLevel = b.dataset.v;
+    h88PrepReset(); // 強さが変わったら顔ぶれ・親決めをやり直し
   }));
   // v1.60: 準備画面のコンピュータ強さプルダウン
   const aiPrepSel = document.getElementById('ai-level-prep');

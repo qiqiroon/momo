@@ -92,9 +92,9 @@
   .h88-seat{flex:1;min-width:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:6px 8px;}
   .h88-seat.turn{border-color:var(--orange);box-shadow:inset 0 0 0 1px var(--orange);}
   .h88-seat .h88-name{font-size:.72rem;color:#fff;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .h88-mini-hand{display:flex;gap:3px;margin-top:4px;flex-wrap:wrap;}
-  /* v1.64 C6: 縦画面は相手1人だけ表示。相手の札を自分の手札と同じ大きさに（対等）。 */
-  .h88-mini-hand .card{width:min(11.5vw,58px);border-radius:4px;}
+  /* v1.66: 相手手札は7枚が枠内に必ず収まるよう縮小方式（はみ出し・スクロールバー防止）。 */
+  .h88-mini-hand{display:flex;gap:3px;margin-top:4px;flex-wrap:nowrap;justify-content:center;overflow:hidden;}
+  .h88-mini-hand .card{flex:1 1 0;min-width:0;max-width:58px;height:auto;border-radius:4px;}
   .h88-seat .h88-caps{display:flex;flex-wrap:wrap;gap:1px;margin-top:4px;}
   .h88-seat .h88-caps .card{width:min(6.5vw,30px);border-radius:2px;}
   /* v1.63 C11/C12: 山札は裏向き・場札と同じ大きさ。C9: 合う場札は浮かせる。 */
@@ -102,7 +102,8 @@
   .h88-deck{text-align:center;flex:0 0 auto;padding-top:11px;}
   .h88-deck .card{width:min(15.5vw,66px);}
   .h88-deck-count{font-size:.66rem;color:var(--text-muted);margin-top:2px;}
-  .h88-field{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;align-content:flex-start;flex:1;padding-top:11px;}
+  /* v1.66: 山札は場札のすぐ横（field-row を中央寄せ・場は伸ばさない） */
+  .h88-field{display:flex;flex-wrap:wrap;gap:5px;justify-content:flex-start;align-content:flex-start;flex:0 1 auto;padding-top:11px;max-width:78%;}
   .h88-field .h88-field-card{width:min(15.5vw,66px);transition:transform .12s;}
   .h88-field .card{width:100%;}
   /* v1.63 B6/C9: ヒント＝選択中の手札と合う場札(match=浮かせる+金枠)／2枚から選ぶ候補(pick=橙枠・点滅) */
@@ -125,8 +126,13 @@
   /* v1.65: 自分の近くの「あなたの番」表示 */
   .h88-self-turn{text-align:center;font-size:.82rem;font-weight:700;color:#1a1a1a;background:var(--orange);border-radius:8px;padding:3px 10px;margin:0 auto 4px;width:fit-content;}
   /* v1.66: プレイ記録ボタン＋パネル */
-  .h88-log-btn{background:var(--surface2,#2a2a2a);color:var(--text);border:1px solid var(--border-strong);border-radius:6px;font-family:inherit;font-weight:700;font-size:.72rem;padding:5px 10px;cursor:pointer;white-space:nowrap;line-height:1;}
+  .h88-log-btn{background:var(--surface2,#2a2a2a);color:var(--text);border:1px solid var(--border-strong);border-radius:6px;font-family:inherit;font-weight:700;font-size:.72rem;padding:4px 9px;cursor:pointer;white-space:nowrap;line-height:1;margin-left:auto;}
   .h88-log-btn:hover{border-color:var(--orange);}
+  /* v1.66: 八八の「対戦準備に戻る」＝右上・はっきり見える。八八ステータスは1行・八八を左に。 */
+  .h88-back{position:absolute;top:42px;right:10px;z-index:150;margin:0;background:var(--surface);border:1px solid var(--orange);color:var(--orange);font-weight:700;font-size:.72rem;padding:5px 10px;}
+  #h88-status{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;gap:8px;}
+  #h88-status .rulename{margin-right:2px;flex:0 0 auto;}
+  #h88-status span{white-space:nowrap;}
   .h88-log-panel{position:fixed;top:0;right:0;bottom:0;width:min(90vw,360px);z-index:400;background:var(--surface);border-left:1px solid var(--border-strong);box-shadow:-4px 0 20px rgba(0,0,0,.5);display:flex;flex-direction:column;}
   .h88-log-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border);font-size:.8rem;color:#fff;}
   .h88-log-body{flex:1;overflow-y:auto;padding:8px 12px;font-size:.72rem;line-height:1.7;color:var(--text);font-family:inherit;}
@@ -151,8 +157,8 @@
     /* v1.64 C5: 相手2人を左右に並べ、相手の手札も自分と同じ大きさに（対等）。横幅を使うので収まる。 */
     #screen-hachi .h88-opps .h88-seat{flex:1 1 0;padding:3px 8px;min-width:0;}
     #screen-hachi .h88-seat .h88-name{font-size:.76rem;}
-    #screen-hachi .h88-mini-hand{gap:3px;margin-top:2px;flex-wrap:nowrap;overflow-x:auto;}
-    #screen-hachi .h88-mini-hand .card{width:auto;height:min(13.5vh,82px);flex:0 0 auto;}
+    #screen-hachi .h88-mini-hand{gap:3px;margin-top:2px;flex-wrap:nowrap;overflow:hidden;}
+    #screen-hachi .h88-mini-hand .card{flex:1 1 0;min-width:0;max-width:min(9vh,56px);height:auto;}
     #screen-hachi .h88-seat .h88-caps{margin-top:2px;max-height:min(5vh,28px);overflow:hidden;flex-wrap:nowrap;}
     #screen-hachi .h88-seat .h88-caps .card{width:auto;height:min(4.6vh,26px);flex:0 0 auto;}
     #screen-hachi .h88-field-row{flex:1;min-height:0;align-items:center;justify-content:center;}
@@ -1157,7 +1163,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.66</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.67</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1223,7 +1229,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.66</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.67</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1321,7 +1327,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.66</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.67</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1381,17 +1387,18 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.66</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.67</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
+  <!-- v1.66: 右上に「対戦準備に戻る」（ホームではなく準備画面へ） -->
+  <button class="leave-btn h88-back" id="btn-home-hachi" type="button">← <span data-i18n="hachi.back">対戦準備に戻る</span></button>
   <div class="statusbar" id="h88-status">
-    <button class="home-btn" id="btn-home-hachi" type="button">🏠 <span data-i18n="game.home">ホーム</span></button>
-    <button class="h88-log-btn" id="btn-h88-log" type="button">📜 <span data-i18n="hachi.log">記録</span></button>
     <span class="rulename">八八</span>
     <span id="h88-round">第1局</span>
     <span id="h88-scores"></span>
     <span id="h88-turn"></span>
+    <button class="h88-log-btn" id="btn-h88-log" type="button">📜 <span data-i18n="hachi.log">記録</span></button>
   </div>
   <div class="h88-board" id="h88-board">
     <div class="h88-opps" id="h88-opps">
@@ -1604,7 +1611,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.66';
+const APP_VERSION = 'v1.67';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -1669,7 +1676,7 @@ const I18N = {
     'room.soon': '近日',
     'room.wip': '工事中',
     'set.koikoi.title': 'こいこい 設定',
-    'hachi.start': '八八を開始', 'hachi.switch': '相手を切替', 'hachi.log': '記録', 'hachi.log.title': 'プレイ記録（誰が何をしたか）', 'set.hachi.title': '八八（3人）設定', 'set.hachi.desc': 'あなた＋コンピュータ2体の3人で対戦します（相手2人ともコンピュータ）。強さは上のプルダウン、局数は下で選べます。「八八を開始」で親決めに進みます。',
+    'hachi.start': '八八を開始', 'hachi.switch': '相手を切替', 'hachi.log': '記録', 'hachi.log.title': 'プレイ記録（誰が何をしたか）', 'hachi.back': '対戦準備に戻る', 'set.hachi.title': '八八（3人）設定', 'set.hachi.desc': 'あなた＋コンピュータ2体の3人で対戦します（相手2人ともコンピュータ）。強さは上のプルダウン、局数は下で選べます。「八八を開始」で親決めに進みます。',
     'set.rounds': '局数', 'set.1': '1局', 'set.3': '3局', 'set.6': '6局', 'set.12': '12局',
     'set.kiku': '菊の盃', 'set.kiku.tane': '種＋花見月見', 'set.kiku.kasu2': 'カス2枚',
     'set.double': '7文以上2倍', 'set.on': 'あり', 'set.off': 'なし',
@@ -1863,7 +1870,7 @@ const I18N = {
     'room.soon': 'Coming soon',
     'room.wip': 'Under construction',
     'set.koikoi.title': 'Koi-Koi Settings',
-    'hachi.start': 'Start Hachi-Hachi', 'hachi.switch': 'Switch opponent', 'hachi.log': 'Log', 'hachi.log.title': 'Play log (who did what)', 'set.hachi.title': 'Hachi-Hachi (3P) Settings', 'set.hachi.desc': 'You plus two computers (both opponents are AI). Set difficulty in the pulldown above and rounds below. Tap “Start Hachi-Hachi” to draw for dealer.',
+    'hachi.start': 'Start Hachi-Hachi', 'hachi.switch': 'Switch opponent', 'hachi.log': 'Log', 'hachi.log.title': 'Play log (who did what)', 'hachi.back': 'Back to setup', 'set.hachi.title': 'Hachi-Hachi (3P) Settings', 'set.hachi.desc': 'You plus two computers (both opponents are AI). Set difficulty in the pulldown above and rounds below. Tap “Start Hachi-Hachi” to draw for dealer.',
     'set.rounds': 'Rounds', 'set.1': '1', 'set.3': '3', 'set.6': '6', 'set.12': '12',
     'set.kiku': 'Kiku no Sakazuki', 'set.kiku.tane': 'Tane (+Hanami/Tsukimi)', 'set.kiku.kasu2': 'Kasu ×2',
     'set.double': '7+ Points ×2', 'set.on': 'On', 'set.off': 'Off',
@@ -2057,7 +2064,7 @@ const I18N = {
     'room.soon': '即将推出',
     'room.wip': '施工中',
     'set.koikoi.title': '来来 设定',
-    'hachi.start': '开始八八', 'hachi.switch': '切换对手', 'hachi.log': '记录', 'hachi.log.title': '对局记录（谁做了什么）', 'set.hachi.title': '八八（3人）设定', 'set.hachi.desc': '你＋两台电脑三人对战（两位对手均为电脑）。强度在上方下拉选择，局数在下方选择。点“开始八八”进入定庄。',
+    'hachi.start': '开始八八', 'hachi.switch': '切换对手', 'hachi.log': '记录', 'hachi.log.title': '对局记录（谁做了什么）', 'hachi.back': '返回准备', 'set.hachi.title': '八八（3人）设定', 'set.hachi.desc': '你＋两台电脑三人对战（两位对手均为电脑）。强度在上方下拉选择，局数在下方选择。点“开始八八”进入定庄。',
     'set.rounds': '局数', 'set.1': '1局', 'set.3': '3局', 'set.6': '6局', 'set.12': '12局',
     'set.kiku': '菊之杯', 'set.kiku.tane': '种＋花见月见', 'set.kiku.kasu2': '算作2张滓',
     'set.double': '7文以上×2', 'set.on': '开启', 'set.off': '关闭',
@@ -3391,7 +3398,9 @@ function renderH88() {
   const st = state.h88; if (!st || !st.game) return;
   const g = st.game;
   document.getElementById('h88-round').textContent = '第' + st.roundNo + '局/全' + st.rounds + '局';
-  document.getElementById('h88-scores').textContent = g.seats.map(s => st.names[s] + ' ' + (st.scores[s] || 0)).join(' ／ ');
+  // v1.66: スコアはコンパクトに（1行に収める）。あなた/CPU1/CPU2 の短縮表記。
+  const shortNm = (s) => s === 'p0' ? 'あなた' : (s === 'p1' ? 'CPU1' : 'CPU2');
+  document.getElementById('h88-scores').textContent = g.seats.map(s => shortNm(s) + ' ' + (st.scores[s] || 0) + '文').join(' ／ ');
   document.getElementById('h88-turn').textContent = g.winner ? ''
     : st.pending ? '取る札を選んでください（同じ月が2枚）'
     : (g.currentPlayer === 'p0'
@@ -5976,8 +5985,14 @@ function bindEvents() {
   const bLeaveH = document.getElementById('btn-leave-hachi');
   if (bLeaveH) bLeaveH.addEventListener('click', () => { state.h88 = null; showScreen('lobby'); });
   // v1.63: 各対局画面の「ホーム」ボタン（行き先＝ロビー＝アプリのトップ画面）
+  // v1.66: 八八の「対戦準備に戻る」＝準備画面(screen-room)へ（ロビーではない）
   const bHomeH = document.getElementById('btn-home-hachi');
-  if (bHomeH) bHomeH.addEventListener('click', () => { state.h88 = null; showScreen('lobby'); });
+  if (bHomeH) bHomeH.addEventListener('click', () => {
+    state.h88 = null;
+    showScreen('room');
+    refreshRoomView();
+    pickGame('hachi'); // 八八の準備を再表示
+  });
   // v1.66: プレイ記録パネルの開閉
   const bLog = document.getElementById('btn-h88-log');
   if (bLog) bLog.addEventListener('click', () => {

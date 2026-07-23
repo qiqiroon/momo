@@ -121,6 +121,8 @@
   .h88-hand .h88-hand-card.sel{transform:translateY(-11px);}
   .h88-hand .h88-hand-card.sel .card{outline:3px solid var(--orange);outline-offset:-2px;border-radius:6px;filter:drop-shadow(0 3px 6px rgba(0,0,0,.5));}
   .h88-self-name{text-align:center;font-size:.75rem;color:#fff;margin-top:5px;}
+  /* v1.65: 自分の近くの「あなたの番」表示 */
+  .h88-self-turn{text-align:center;font-size:.82rem;font-weight:700;color:#1a1a1a;background:var(--orange);border-radius:8px;padding:3px 10px;margin:0 auto 4px;width:fit-content;}
   /* v1.63: 親バッジ・手番バッジ */
   .h88-oya-badge{display:inline-block;background:var(--gold,#d8a838);color:#1a1a1a;font-size:.62rem;font-weight:700;border-radius:4px;padding:0 4px;margin-right:4px;vertical-align:middle;}
   .h88-turn-badge{display:inline-block;background:var(--orange);color:#1a1a1a;font-size:.6rem;font-weight:700;border-radius:4px;padding:0 4px;margin-left:4px;vertical-align:middle;}
@@ -1147,7 +1149,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.64</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.65</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1213,7 +1215,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.64</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.65</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1311,7 +1313,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.64</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.65</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1371,7 +1373,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.64</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.65</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1401,6 +1403,7 @@
     </div>
     <div class="h88-self">
       <div class="h88-self-caps" id="h88-self-caps"></div>
+      <div class="h88-self-turn hidden" id="h88-self-turn">▶ あなたの番です</div>
       <div class="h88-hand" id="h88-self-hand"></div>
       <div class="h88-self-name"><span data-i18n="game.you">あなた</span>：<span id="h88-self-name"></span></div>
     </div>
@@ -1586,7 +1589,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.64';
+const APP_VERSION = 'v1.65';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -2903,6 +2906,8 @@ function initMatchmaking() {
     onDisconnected: (msg) => {
       diagLog('p2p', 'disconnected: ' + (msg || ''));
       state.connected = false;
+      // v1.65: 対コンピュータ／八八（solo）は通信に依存しないので、切断でロビーへ追い出さない
+      if (state.solo || state.vsAI || state.screen === 'hachi') return;
       // getState().currentRoomId で切断の種類を判別:
       //  null  = サーバーが部屋を閉じた（ホスト落ち／キック等）→ ロビーへ追い出し
       //  残存  = 自分のソケットが切れた（画面オフ等）→ ゲストは同じ部屋へ復帰を試みる
@@ -3372,9 +3377,20 @@ function renderH88() {
   const db = document.getElementById('h88-deck-back'); if (db) db.innerHTML = g.deck.length ? svgBack() : ''; // v1.63 C11: 山札は裏向き
   document.getElementById('h88-self-name').innerHTML = (st.roundOya === 'p0' ? '<span class="h88-oya-badge">親</span>' : '') + st.names['p0'];
   document.getElementById('h88-self-caps').innerHTML = g.caps['p0'].map(c => svgCard(c.id)).join('');
-  const myTurn = (g.currentPlayer === 'p0' && !g.winner && !st.pending);
+  const myTurn = (g.currentPlayer === 'p0' && !g.winner);
+  const handOn = myTurn && !st.pending; // ピック中は手札操作不可
+  const stEl = document.getElementById('h88-self-turn'); // v1.65: 自分の近くにも「あなたの番」
+  if (stEl) stEl.classList.toggle('hidden', !myTurn);
   document.getElementById('h88-self-hand').innerHTML = g.hands['p0'].map((c, i) =>
-    '<span class="h88-hand-card' + (st.sel === i ? ' sel' : '') + '" data-idx="' + i + '"' + (myTurn ? '' : ' style="cursor:default;opacity:.85"') + '>' + svgCard(c.id) + '</span>').join('');
+    '<span class="h88-hand-card' + (st.sel === i ? ' sel' : '') + '" data-idx="' + i + '"' + (handOn ? '' : ' style="cursor:default;opacity:.85"') + '>' + svgCard(c.id) + '</span>').join('');
+}
+// v1.65 item1: こいこい同様、手札ホバーで合う場札を浮かせるプレビュー（クリック不要）
+function h88PreviewField(month, on) {
+  document.querySelectorAll('#h88-field .h88-field-card').forEach(el => {
+    const id = el.dataset.id; if (!id) return;
+    const m = parseInt(id.slice(1, 3), 10);
+    el.classList.toggle('match', !!on && m === month);
+  });
 }
 // v1.63 B6: こいこい式2タップ。1タップ＝選択（浮かせる＋合う場札をヒント）、
 //   同じ札をもう1タップ＝出す。2枚合致は場札を手動選択。山めくりも同様。
@@ -5913,10 +5929,24 @@ function bindEvents() {
   const bHomeH = document.getElementById('btn-home-hachi');
   if (bHomeH) bHomeH.addEventListener('click', () => { state.h88 = null; showScreen('lobby'); });
   const h88Hand = document.getElementById('h88-self-hand');
-  if (h88Hand) h88Hand.addEventListener('click', (e) => {
-    const card = e.target.closest('.h88-hand-card');
-    if (card) h88OnClickHand(parseInt(card.dataset.idx, 10));
-  });
+  if (h88Hand) {
+    h88Hand.addEventListener('click', (e) => {
+      const card = e.target.closest('.h88-hand-card');
+      if (card) h88OnClickHand(parseInt(card.dataset.idx, 10));
+    });
+    // v1.65 item1: 手札ホバーで合う場札を浮かせる（クリック前のプレビュー・こいこい同様）
+    h88Hand.addEventListener('mouseover', (e) => {
+      const card = e.target.closest('.h88-hand-card'); if (!card) return;
+      const st = state.h88; if (!st || !st.game) return;
+      if (st.game.currentPlayer !== 'p0' || st.game.winner || st.pending || st.sel != null) return;
+      const c = st.game.hands['p0'][parseInt(card.dataset.idx, 10)];
+      if (c) h88PreviewField(c.month, true);
+    });
+    h88Hand.addEventListener('mouseout', (e) => {
+      const card = e.target.closest('.h88-hand-card'); if (!card) return;
+      const st = state.h88; if (st && st.sel == null) h88PreviewField(null, false);
+    });
+  }
   // v1.63 B6: 場札クリック（2枚合致の手動選択）
   const h88Field = document.getElementById('h88-field');
   if (h88Field) h88Field.addEventListener('click', (e) => {
@@ -6014,6 +6044,7 @@ function bindEvents() {
     try { localStorage.setItem('hanafuda_showtag', state.showTag ? 'on' : 'off'); } catch (e) {}
     syncTagSeg();
     if (state.game && state.screen === 'game') renderGame();
+    if (state.h88 && state.screen === 'hachi') renderH88(); // v1.65 C10: 八八も即再描画
   }));
   // v1.30: アニメの速さ（この端末のみ・既定 x1・localStorage 記憶）
   const SPEED_STEPS = [0.5, 0.75, 1, 1.5, 2];

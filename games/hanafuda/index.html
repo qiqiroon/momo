@@ -181,7 +181,7 @@
     /* v1.80 大改造: 横画面を縦3分割。左右=相手プレイヤーを内向きに90°回転（左=右が上／右=左が上）、
        中央ブロック=ステータス・山と場・自分の取り札2列＋手札1列。左右の相手は盤の外辺に絶対配置。 */
     #screen-hachi .h88-board{position:relative;width:100%;max-width:none;margin:0;align-self:stretch;box-sizing:border-box;
-      height:calc(100vh - 74px);padding:0 var(--side-w,128px);display:block;--side-w:128px;}
+      height:calc(100vh - 74px);padding:0 var(--side-w,128px);display:block;}
     #screen-hachi .h88-opps{display:contents;}
     #screen-hachi .h88-opp-switch{display:none;}
     /* 相手セル＝盤の左右の外辺に全高で絶対配置。回転は内側 .h88-seat-rot で。
@@ -201,9 +201,10 @@
     #screen-hachi .h88-seat-rot .h88-name{flex:0 0 auto;text-align:center;font-size:.72rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
     #screen-hachi .h88-seat-rot .h88-caps{flex:0 0 auto;display:flex;flex-direction:column;gap:2px;margin:0;align-items:center;}
     #screen-hachi .h88-seat-rot .h88-caps .caprow{flex-wrap:nowrap;justify-content:center;}
-    #screen-hachi .h88-seat-rot .h88-caps .card{width:auto;height:min(3.4vh,24px);}
+    /* v1.82: 相手の取り札・手札も中央と同じ --cap-w/--card-w（全プレイヤー均等サイズ）。帯幅は fit が自動計算。 */
+    #screen-hachi .h88-seat-rot .h88-caps .card{width:var(--cap-w);height:auto;}
     #screen-hachi .h88-seat-rot .h88-mini-hand{flex:0 0 auto;display:flex;flex-direction:row;flex-wrap:nowrap;justify-content:center;gap:3px;margin-top:2px;overflow:visible;}
-    #screen-hachi .h88-seat-rot .h88-mini-hand .card{flex:0 0 auto;width:auto;height:min(5vh,34px);max-width:none;}
+    #screen-hachi .h88-seat-rot .h88-mini-hand .card{flex:0 0 auto;width:var(--card-w);height:auto;max-width:none;}
     /* 中央ブロック＝状態(上)・山と場(中・可変)・自分(下)。左右のパディング内に縦積み。 */
     #screen-hachi .h88-center{display:flex;flex-direction:column;height:100%;gap:4px;padding:4px 6px 6px;min-height:0;box-sizing:border-box;}
     #screen-hachi #h88-status{flex:0 0 auto;}
@@ -1208,7 +1209,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.81</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.82</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1274,7 +1275,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.81</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.82</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1380,7 +1381,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.81</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.82</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1440,7 +1441,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.81</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.82</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -4913,27 +4914,30 @@ function fitH88Board() {
     sh.style.setProperty('--cap-w', Math.max(20, Math.min(Math.round(w * 0.72), 44)) + 'px');
   };
   if (window.matchMedia && window.matchMedia('(orientation:landscape)').matches) {
-    // v1.80 大改造: 左右の相手は90°回転帯（相手カードはCSS固定サイズ）。回転帯の長さ=盤の高さを --rot-len に。
-    //   中央ブロックの表向きの札(--card-w/--cap-w=場・自分手札・取り札)を、盤がはみ出さない範囲で最大化する。
-    sh.style.setProperty('--rot-len', board.clientHeight + 'px');
+    // v1.82 大改造: 全プレイヤー均等サイズ。1つの --card-w を全員（相手手札/取り札・中央の場/自分）で共有。
+    //   制約: (1)相手手札7枚が盤の高さに沿って収まる (2)自分手札7枚が中央幅に収まる (3)左右の帯幅(相手の
+    //   内容高＝名前+取り札2列+手札1列)を確保しても中央が足りる (4)中央の縦がはみ出さない。大きめから縮める。
+    const R = 67 / 42;                 // カードの縦横比（高さ/幅）
+    const availW = board.clientWidth, boardH = board.clientHeight;
+    sh.style.setProperty('--rot-len', boardH + 'px');
     const center = document.getElementById('h88-center');
-    const overflow = () => {
-      let ov = 0;
-      if (center) { ov = Math.max(ov, center.scrollHeight - center.clientHeight, center.scrollWidth - center.clientWidth); }
-      ov = Math.max(ov, board.scrollHeight - board.clientHeight, board.scrollWidth - board.clientWidth);
-      return ov;
-    };
-    let w = 78; setW(w); fitRows();
-    for (let pass = 0; pass < 10; pass++) {
-      const ch = (center ? center.clientHeight : board.clientHeight);
-      const cwd = (center ? center.clientWidth : board.clientWidth);
-      const oh = (center ? center.scrollHeight : board.scrollHeight);
-      const ow = (center ? center.scrollWidth : board.scrollWidth);
-      if ((oh <= ch + 1 && ow <= cwd + 1) || w <= 20) break;
-      const r = Math.min(ch / (oh || 1), cwd / (ow || 1));
-      if (r >= 0.999) break;
-      w = Math.max(20, Math.floor(w * r * 0.97));
-      setW(w); fitRows();
+    let W = 72;
+    for (let pass = 0; pass < 20; pass++) {
+      const capW = Math.max(16, Math.min(Math.round(W * 0.72), 40));
+      const cardH = W * R, capH = capW * R;
+      // 相手帯の内容高＝名前(≈18) + 取り札2段(2*capH) + 手札1段(cardH) + 余白
+      const sideW = Math.round(18 + 2 * capH + 10 + cardH + 16);
+      sh.style.setProperty('--side-w', sideW + 'px');
+      sh.style.setProperty('--card-w', W + 'px');
+      sh.style.setProperty('--cap-w', capW + 'px');
+      fitRows();
+      const centerW = availW - 2 * sideW - 12;
+      const handLen = 7 * W + 6 * 3;                    // 手札7枚＋隙間
+      const oppFits = handLen <= boardH;                // 相手手札は盤高に沿う
+      const selfFits = handLen <= centerW;              // 自分手札は中央幅に
+      const vFits = center ? (center.scrollHeight <= center.clientHeight + 1) : true;
+      if ((oppFits && selfFits && vFits) || W <= 20) break;
+      W -= 2;
     }
     fitRows();
     return;

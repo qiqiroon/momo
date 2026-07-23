@@ -84,6 +84,10 @@
   /* v1.62: 八八（3人）盤面。上=相手2人／中=山・場／下=自分。縦横共通の縦積み（横は比率で広がる）。 */
   .h88-board{display:flex;flex-direction:column;gap:8px;padding:6px 8px 10px;max-width:760px;margin:0 auto;}
   .h88-opps{display:flex;gap:8px;}
+  /* v1.63 B4: 縦画面は相手1人だけ（2人目は隠す）＋切替行を出す。横画面では逆（下の landscape で上書き）。 */
+  #h88-oppR{display:none;}
+  .h88-opp-switch{display:flex;align-items:center;gap:10px;justify-content:center;font-size:.68rem;color:var(--text-muted);flex-wrap:wrap;}
+  .h88-opp-switch #h88-opp-switch-label{font-size:.66rem;}
   .h88-seat{flex:1;min-width:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:6px 8px;}
   .h88-seat.turn{border-color:var(--orange);box-shadow:inset 0 0 0 1px var(--orange);}
   .h88-seat .h88-name{font-size:.72rem;color:#fff;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -96,14 +100,27 @@
   .h88-deck-back{font-size:2rem;line-height:1;}
   .h88-deck-count{font-size:.68rem;color:var(--text-muted);}
   .h88-field{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;flex:1;max-width:66%;}
+  .h88-field .h88-field-card{display:block;transition:.12s;}
   .h88-field .card{width:100%;}
+  /* v1.63 B6: ヒント＝選択中の手札と合う場札(match=金枠)／2枚から選ぶ候補(pick=橙枠・点滅) */
+  .h88-field .h88-field-card.match .card{outline:2px solid var(--gold,#d8a838);outline-offset:-2px;border-radius:6px;}
+  .h88-field .h88-field-card.pick{cursor:pointer;}
+  .h88-field .h88-field-card.pick .card{outline:3px solid var(--orange);outline-offset:-2px;border-radius:6px;animation:h88pulse 1s infinite;}
+  @keyframes h88pulse{0%,100%{opacity:1}50%{opacity:.55}}
   .h88-self-caps{display:flex;flex-wrap:wrap;gap:1px;justify-content:center;margin-bottom:5px;min-height:22px;}
   .h88-self-caps .card{width:20px;border-radius:2px;}
   .h88-hand{display:flex;gap:3px;justify-content:center;flex-wrap:wrap;}
   .h88-hand .h88-hand-card{cursor:pointer;transition:transform .12s;}
   .h88-hand .h88-hand-card .card{width:min(11.5vw,58px);}
   .h88-hand .h88-hand-card:hover{transform:translateY(-5px);}
+  /* v1.63 B6: 選択中の手札は浮かせて強調 */
+  .h88-hand .h88-hand-card.sel{transform:translateY(-11px);}
+  .h88-hand .h88-hand-card.sel .card{outline:3px solid var(--orange);outline-offset:-2px;border-radius:6px;filter:drop-shadow(0 3px 6px rgba(0,0,0,.5));}
   .h88-self-name{text-align:center;font-size:.75rem;color:#fff;margin-top:5px;}
+  /* v1.63: 親バッジ・手番バッジ */
+  .h88-oya-badge{display:inline-block;background:var(--gold,#d8a838);color:#1a1a1a;font-size:.62rem;font-weight:700;border-radius:4px;padding:0 4px;margin-right:4px;vertical-align:middle;}
+  .h88-turn-badge{display:inline-block;background:var(--orange);color:#1a1a1a;font-size:.6rem;font-weight:700;border-radius:4px;padding:0 4px;margin-left:4px;vertical-align:middle;}
+  #h88-turn{font-weight:700;}
   .h88-oya-draws{display:flex;gap:10px;justify-content:center;}
   .h88-oya-draws .h88-oya-draw{text-align:center;font-size:.68rem;color:var(--text-muted);}
   .h88-oya-draws .h88-oya-draw .card{width:52px;margin:3px 0;}
@@ -114,6 +131,10 @@
   @media (orientation:landscape){
     #screen-hachi .h88-board{max-width:none;height:calc(100vh - 92px);gap:5px;padding:4px 12px 6px;}
     #screen-hachi .h88-opps{flex:0 0 auto;}
+    /* v1.63 B4: 横画面は相手2人を並べ、切替行は隠す（三人対等寄り） */
+    #screen-hachi #h88-oppR{display:block;}
+    #screen-hachi .h88-opp-switch{display:none;}
+    #screen-hachi .h88-opps .h88-seat{flex:1 1 0;}
     #screen-hachi .h88-mini-hand .card{width:auto;height:min(4.6vh,26px);}
     #screen-hachi .h88-seat .h88-caps .card{width:auto;height:min(3.6vh,20px);}
     #screen-hachi .h88-field-row{flex:1;min-height:0;align-items:center;}
@@ -122,6 +143,8 @@
     #screen-hachi .h88-self{flex:0 0 auto;}
     #screen-hachi .h88-self-caps{min-height:0;margin-bottom:3px;}
     #screen-hachi .h88-self-caps .card{width:auto;height:min(4vh,24px);}
+    #screen-hachi .h88-hand{flex-wrap:nowrap;overflow-x:auto;max-width:100%;padding-bottom:2px;}
+    #screen-hachi .h88-hand .h88-hand-card{flex:0 0 auto;}
     #screen-hachi .h88-hand .h88-hand-card .card{width:auto;height:min(16vh,116px);}
   }
   /* v1.59: 音量スライダー＋右のミュートチェック */
@@ -299,7 +322,11 @@
      手番交代のたびに伸縮してしまう。2行ぶんの高さを常に確保して手番交代では変わらないようにする。 */
   #game-status{min-height:54px;box-sizing:border-box;}
   /* v1.18/1.21: ゲームルール名（こいこい）をステータスバー左端に常時・白字・大きめ */
-  .statusbar .rulename{font-family:"Fredoka One",sans-serif;font-size:1rem;color:#fff;letter-spacing:.02em;line-height:1;margin-right:auto;}
+  .statusbar .rulename{font-family:"Fredoka One",sans-serif;font-size:1rem;color:#fff;letter-spacing:.02em;line-height:1;}
+  /* v1.63: 対局画面の「ホーム」ボタン（はっきり見える・ステータスバー左端） */
+  .home-btn{background:var(--orange);color:#1a1a1a;border:none;border-radius:6px;font-family:inherit;font-weight:700;font-size:.72rem;padding:5px 10px;cursor:pointer;white-space:nowrap;line-height:1;}
+  .home-btn:hover{filter:brightness(1.08);}
+  .home-btn + .rulename{margin-left:6px;margin-right:auto;}
   .statusbar b{color:var(--orange-mid);}
   /* カードは幅を CSS 変数で可変にし、高さは縦横比から自動算出（機種ごとに JS が --card-w を実測セット） */
   .card{width:var(--card-w,42px);aspect-ratio:42/67;height:auto;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,.5);display:block;flex:0 0 auto;background:#f1e6c6;}
@@ -725,11 +752,11 @@
     <use href="#umeBloom" transform="translate(150,92) scale(1.1)"/><use href="#umeBloom" transform="translate(112,84) scale(.9)"/>
     <use href="#tanRed" transform="translate(100,214) rotate(-8)"/>
   </symbol>
+  <!-- 梅のカス（2月）をユーザー手描きPNGに差し替え（縁付き・地紋焼込み） -->
   <symbol id="m02_kasu1" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
-    <use href="#kasumi"/>
-    <g fill="none" stroke="#4a2f16" stroke-width="6.5" stroke-linecap="round"><path d="M150 318 C 150 250 160 206 138 166 C 128 146 140 122 130 100"/><path d="M142 210 C 116 202 100 208 84 200"/><path d="M140 150 C 152 138 156 120 148 104"/></g>
-    <use href="#umeBloom" transform="translate(84,200)"/><use href="#umeBloom" transform="translate(148,104) scale(.95)"/><use href="#umeBloom" transform="translate(120,150) scale(.9)"/><use href="#umeBloom" transform="translate(150,150) scale(.8)"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
+    <image href="cards/m02_kasu1.png" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
   <symbol id="m02_kasu2" viewBox="0 0 220 350">
     <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
@@ -1106,7 +1133,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.62</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.63</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1161,9 +1188,7 @@
     <!-- 対コンピュータ戦 -->
     <div class="panel">
       <h2>🤖 <span data-i18n="vsai.title">対コンピュータ戦</span></h2>
-      <p class="desc" data-i18n="vsai.desc">コンピュータと対戦します。「対局準備へ」を押してください（強さとルールは次の画面で設定）。</p>
-      <!-- v1.62: 対戦ゲーム選択（こいこい=2人 / 八八=3人・相手2人ともAI） -->
-      <div class="set-row" style="margin-bottom:4px;"><span data-i18n="vsai.game">ゲーム</span><span class="seg" id="seg-vsgame"><button class="on" data-v="koikoi" data-i18n="room.g.koikoi">こいこい</button><button data-v="hachi"><span data-i18n="room.g.hachi">八八</span>（3人）</button></span></div>
+      <p class="desc" data-i18n="vsai.desc">コンピュータと対戦します。「対局準備へ」を押してください（ゲーム・強さ・ルールは次の画面で選びます）。</p>
       <button class="btn btn-primary" id="btn-vsai" data-i18n="vsai.start">対局準備へ</button>
     </div>
   </div>
@@ -1174,7 +1199,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.62</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.63</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1225,6 +1250,15 @@
     <div class="set-row"><span data-i18n="set.hint">ヒント表示（あと1枚で役）</span><span class="seg" data-key="hint"><button class="on" data-v="on" data-i18n="set.on">あり</button><button data-v="off" data-i18n="set.off">なし</button></span></div>
   </div>
 
+  <!-- v1.63: 八八（3人）設定パネル。vsコンピュータで八八を選んだ時だけ表示 -->
+  <div class="gset hidden" id="set-hachi">
+    <h3 data-i18n="set.hachi.title">八八（3人）設定</h3>
+    <p class="desc" style="font-size:12px;color:var(--text-muted);line-height:1.6;" data-i18n="set.hachi.desc">あなた＋コンピュータ2体の3人で対戦します（相手2人ともコンピュータ）。強さは上のプルダウン、局数は下で選べます。「八八を開始」で親決めに進みます。</p>
+    <div class="set-row"><span data-i18n="set.rounds">局数</span><span class="seg" id="h88-rounds-seg"><button class="on" data-v="3" data-i18n="set.3">3局</button><button data-v="6" data-i18n="set.6">6局</button><button data-v="12" data-i18n="set.12">12局</button></span></div>
+  </div>
+
+  <!-- こいこい用の親決めブロック（八八では隠す） -->
+  <div id="koikoi-prep-block">
   <!-- 先手・親決め -->
   <div class="section-label"><span data-i18n="oya.title">先手（親）を決める</span></div>
   <div class="panel oya">
@@ -1241,6 +1275,7 @@
     <span>ホスト: <b id="ready-host-lbl" style="color:var(--text-muted);">—</b></span>
     <span>ゲスト: <b id="ready-guest-lbl" style="color:var(--text-muted);">—</b></span>
   </div>
+  </div><!-- /koikoi-prep-block -->
   <button class="btn btn-primary big-start" id="btn-start" disabled data-i18n="start.disabled">ゲームスタート（親を決めると押せます）</button>
   <p class="note" data-i18n="room.note">この画面はホスト・ゲスト共通です。ゲーム選択・設定変更・親決めはホスト操作、ゲストは同期表示になります。</p>
   <!-- 接続診断パネル (?debug=1 の時だけ表示・通常ユーザーには見せない) -->
@@ -1261,11 +1296,12 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.62</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.63</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
   <div class="statusbar" id="game-status">
+    <button class="home-btn" id="btn-home-game" type="button">🏠 <span data-i18n="game.home">ホーム</span></button>
     <span class="rulename" id="rule-name" data-i18n="rule.koikoi">こいこい</span>
     <span><b id="st-month">3月場</b>（<span id="st-round">第1局/全12局</span>）</span>
     <span><span data-i18n="game.you">あなた</span><b id="st-my-score">0</b><span data-i18n="game.mon">文</span>・<span data-i18n="game.opp">あいて</span><b id="st-op-score">0</b><span data-i18n="game.mon">文</span></span>
@@ -1312,7 +1348,7 @@
       <div class="zl-row"><span class="zl" data-i18n="game.my.hand">あなたの手札</span><span class="zl-name" id="my-hand-name"></span></div>
     </div>
   </div>
-  <button class="leave-btn" id="btn-leave-game" style="position:absolute;top:44px;right:12px;z-index:150" data-i18n="game.leave">← 中断</button>
+  <button class="leave-btn" id="btn-leave-game" style="display:none" data-i18n="game.leave">← 中断</button>
 </section>
 
 <!-- ============ SCREEN: 八八（3人・vsコンピュータ） v1.62 フェーズA ============ -->
@@ -1320,11 +1356,12 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.62</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.63</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
   <div class="statusbar" id="h88-status">
+    <button class="home-btn" id="btn-home-hachi" type="button">🏠 <span data-i18n="game.home">ホーム</span></button>
     <span class="rulename">八八</span>
     <span id="h88-round">第1局</span>
     <span id="h88-scores"></span>
@@ -1334,6 +1371,11 @@
     <div class="h88-opps" id="h88-opps">
       <div class="h88-seat" id="h88-oppL"></div>
       <div class="h88-seat" id="h88-oppR"></div>
+    </div>
+    <!-- v1.63 B4: 縦画面は相手1人だけ表示。この行で相手を切替（横画面では非表示＝2人並べる） -->
+    <div class="h88-opp-switch" id="h88-opp-switch">
+      <button class="btn btn-ghost btn-sm" id="btn-h88-switch" type="button">⇄ <span data-i18n="hachi.switch">相手を切替</span></button>
+      <span id="h88-opp-switch-label"></span>
     </div>
     <div class="h88-field-row">
       <div class="h88-deck">
@@ -1348,7 +1390,7 @@
       <div class="h88-self-name"><span data-i18n="game.you">あなた</span>：<span id="h88-self-name"></span></div>
     </div>
   </div>
-  <button class="leave-btn" id="btn-leave-hachi" style="position:absolute;top:44px;right:12px;z-index:150" data-i18n="game.leave">← 中断</button>
+  <button class="leave-btn" id="btn-leave-hachi" style="display:none" data-i18n="game.leave">← 中断</button>
 
   <!-- 親決めオーバーレイ -->
   <div class="overlay" id="ovH88Oya"><div class="opanel">
@@ -1529,7 +1571,7 @@
 // --------------------------------------------------------------------------
 // 1) 定数
 // --------------------------------------------------------------------------
-const APP_VERSION = 'v1.62';
+const APP_VERSION = 'v1.63';
 const SIGNALING_URL = 'wss://momo-server-reversi.onrender.com';
 const LANG_APP_ID = 'hanafuda';
 const SUPPORTED_LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -1594,6 +1636,7 @@ const I18N = {
     'room.soon': '近日',
     'room.wip': '工事中',
     'set.koikoi.title': 'こいこい 設定',
+    'hachi.start': '八八を開始', 'hachi.switch': '相手を切替', 'set.hachi.title': '八八（3人）設定', 'set.hachi.desc': 'あなた＋コンピュータ2体の3人で対戦します（相手2人ともコンピュータ）。強さは上のプルダウン、局数は下で選べます。「八八を開始」で親決めに進みます。',
     'set.rounds': '局数', 'set.1': '1局', 'set.3': '3局', 'set.6': '6局', 'set.12': '12局',
     'set.kiku': '菊の盃', 'set.kiku.tane': '種＋花見月見', 'set.kiku.kasu2': 'カス2枚',
     'set.double': '7文以上2倍', 'set.on': 'あり', 'set.off': 'なし',
@@ -1627,7 +1670,7 @@ const I18N = {
     'game.my.hand': 'あなたの手札', 'game.my.cap': '自分の取り札',
     'game.g.hikari': '光', 'game.g.tane': '種', 'game.g.tan': '短', 'game.g.kasu': 'カス',
     'game.deck': '山',
-    'game.leave': '← 中断',
+    'game.leave': '← 中断', 'game.home': 'ホーム',
     'game.placeholder.title': '対局画面（Phase 2で実装）',
     'game.placeholder.body': '対局画面のレイアウトはモック通りに配置されています。カードの配札・合わせ取り・役判定・こいこい/勝負・全12局進行は次のフェーズで実装します。',
     'game.round1of1': '第1局 / v1.03 online 単局',
@@ -1787,6 +1830,7 @@ const I18N = {
     'room.soon': 'Coming soon',
     'room.wip': 'Under construction',
     'set.koikoi.title': 'Koi-Koi Settings',
+    'hachi.start': 'Start Hachi-Hachi', 'hachi.switch': 'Switch opponent', 'set.hachi.title': 'Hachi-Hachi (3P) Settings', 'set.hachi.desc': 'You plus two computers (both opponents are AI). Set difficulty in the pulldown above and rounds below. Tap “Start Hachi-Hachi” to draw for dealer.',
     'set.rounds': 'Rounds', 'set.1': '1', 'set.3': '3', 'set.6': '6', 'set.12': '12',
     'set.kiku': 'Kiku no Sakazuki', 'set.kiku.tane': 'Tane (+Hanami/Tsukimi)', 'set.kiku.kasu2': 'Kasu ×2',
     'set.double': '7+ Points ×2', 'set.on': 'On', 'set.off': 'Off',
@@ -1820,7 +1864,7 @@ const I18N = {
     'game.my.hand': 'Your hand', 'game.my.cap': 'Your captures',
     'game.g.hikari': 'Hikari', 'game.g.tane': 'Tane', 'game.g.tan': 'Tan', 'game.g.kasu': 'Kasu',
     'game.deck': 'Deck',
-    'game.leave': '← Quit',
+    'game.leave': '← Quit', 'game.home': 'Home',
     'game.placeholder.title': 'In-Game Screen (Phase 2)',
     'game.placeholder.body': 'The in-game layout is placed per the mock. Dealing, matching, yaku detection, koi-koi/shobu, and the 12-round flow will be wired in the next phase.',
     'game.round1of1': 'Round 1 / v1.03 online single round',
@@ -1980,6 +2024,7 @@ const I18N = {
     'room.soon': '即将推出',
     'room.wip': '施工中',
     'set.koikoi.title': '来来 设定',
+    'hachi.start': '开始八八', 'hachi.switch': '切换对手', 'set.hachi.title': '八八（3人）设定', 'set.hachi.desc': '你＋两台电脑三人对战（两位对手均为电脑）。强度在上方下拉选择，局数在下方选择。点“开始八八”进入定庄。',
     'set.rounds': '局数', 'set.1': '1局', 'set.3': '3局', 'set.6': '6局', 'set.12': '12局',
     'set.kiku': '菊之杯', 'set.kiku.tane': '种＋花见月见', 'set.kiku.kasu2': '算作2张滓',
     'set.double': '7文以上×2', 'set.on': '开启', 'set.off': '关闭',
@@ -2013,7 +2058,7 @@ const I18N = {
     'game.my.hand': '你的手牌', 'game.my.cap': '你的取牌',
     'game.g.hikari': '光', 'game.g.tane': '种', 'game.g.tan': '短', 'game.g.kasu': '滓',
     'game.deck': '牌堆',
-    'game.leave': '← 中止',
+    'game.leave': '← 中止', 'game.home': '主页',
     'game.placeholder.title': '对局画面（Phase 2 实作）',
     'game.placeholder.body': '对局画面的布局已按 mock 摆好。发牌 / 合牌 / 役判定 / 来来·胜负 / 全12局进行将在下一阶段实作。',
     'game.round1of1': '第1局 / v1.03 联机单局',
@@ -2366,6 +2411,13 @@ function tryJoin(room) {
 // 7) 部屋 (対戦準備) UI
 // --------------------------------------------------------------------------
 function refreshRoomView() {
+  // v1.63: 八八タブは vsコンピュータのときだけ選択可（オンラインは2人なので不可）
+  const hachiTab = document.querySelector('.gtab[data-g="hachi"]');
+  if (hachiTab) {
+    hachiTab.disabled = !state.vsAI;
+    const soon = hachiTab.querySelector('.soon'); if (soon) soon.style.display = state.vsAI ? 'none' : '';
+    if (!state.vsAI && state.gameSel === 'hachi') pickGame('koikoi'); // オンラインに戻ったら八八解除
+  }
   document.getElementById('room-name-disp').textContent = state.roomName || '—';
   document.getElementById('room-pw-disp').classList.toggle('hidden', !state.roomHasPw);
   document.getElementById('host-name').textContent = state.hostName || '—';
@@ -2402,6 +2454,11 @@ function refreshRoomView() {
 
 function updateStartBtn() {
   const b = document.getElementById('btn-start');
+  if (state.gameSel === 'hachi') { // v1.63: 八八は準備待ち/親決め不要（親決めは八八画面で）
+    b.disabled = false;
+    b.textContent = t('hachi.start');
+    return;
+  }
   const me = state.isHost ? 'host' : 'guest';
   const myReady = me === 'host' ? state.readyHost : state.readyGuest;
   const oppReady = me === 'host' ? state.readyGuest : state.readyHost;
@@ -2434,8 +2491,12 @@ function updateStartBtn() {
 function pickGame(g) {
   state.gameSel = g;
   document.querySelectorAll('.gtab').forEach(t => t.classList.toggle('active', t.dataset.g === g));
-  // 「近日」のゲームは disabled 属性で選択不可 (現在は koikoi のみ)
+  const isHachi = (g === 'hachi');
+  // v1.63: こいこい設定 / 八八設定 / こいこい親決めブロック の出し分け
   document.getElementById('set-koikoi').classList.toggle('hidden', g !== 'koikoi');
+  const sh = document.getElementById('set-hachi'); if (sh) sh.classList.toggle('hidden', !isHachi);
+  const kb = document.getElementById('koikoi-prep-block'); if (kb) kb.classList.toggle('hidden', isHachi);
+  updateStartBtn();
 }
 function applySettingToggle(key, v) {
   state.settings[key] = v;
@@ -3158,14 +3219,14 @@ window.__h88 = { build: h88Build, turn: h88Turn, sim: h88SimRound, nextSeat: h88
 // ─────────── 八八 UI（vsコンピュータ・3人。こいこいとは独立） ───────────
 // state.h88 = { names, scores, roundNo, rounds, seatCycle, game, aiToken, oyaDraws }
 // 席は固定id p0(自分=手前)/p1/p2。seatCycle=親決めで決めた反時計回りの席順（=手番順）。
-function startHachiVsAI() {
+function startHachiVsAI(rounds) {
   const name = (document.getElementById('in-playername').value || '').trim() || t('vsai.you');
   const lv = state.aiLevel || 'HARD';
   state.aiLevel = lv;
   state.h88 = {
     names: { p0: name, p1: t('vsai.cpu') + '1（' + lv + '）', p2: t('vsai.cpu') + '2（' + lv + '）' },
     scores: { p0: 0, p1: 0, p2: 0 },
-    roundNo: 1, rounds: 3, seatCycle: null, game: null, aiToken: 0, oyaDraws: {}, swapOpps: false,
+    roundNo: 1, rounds: rounds || 3, seatCycle: null, game: null, aiToken: 0, oyaDraws: {}, focusIdx: 0,
   };
   showScreen('hachi');
   h88SetupOppDrag();
@@ -3205,7 +3266,9 @@ function h88StartFromOya() {
 function h88StartRound(oyaId) {
   const st = state.h88;
   st.game = h88Build(st.seatCycle, oyaId); // seats=seatCycle（手番順）, currentPlayer=oya
+  st.roundOya = oyaId; // v1.63: この局の親（表示用）
   st.aiToken = 0;
+  h88AutoFocus(); // v1.63 B4: 開始時、親が相手ならその相手を主表示に
   renderH88();
   h88MaybeAi();
 }
@@ -3230,57 +3293,126 @@ function h88SetupOppDrag() {
     const dx = target ? (e.clientX - startX) : 0;
     if (target) { target.classList.remove('dragging'); target.style.transform = ''; }
     dragging = false;
-    if (moved && Math.abs(dx) > 36 && state.h88) { state.h88.swapOpps = !state.h88.swapOpps; renderH88(); }
+    if (moved && Math.abs(dx) > 36 && state.h88) { state.h88.focusIdx = 1 - state.h88.focusIdx; renderH88(); } // v1.63: 横=左右入替／縦=表示相手切替
     target = null;
   };
   opps.addEventListener('pointerup', end);
   opps.addEventListener('pointercancel', end);
 }
-// 自分から見た相手2席の割当：反時計回りで自分の次＝右上、その次＝左上
-function h88SlotSeats() {
+// 相手の席（p0以外）を反時計回り順で。stable order。
+function h88OppSeats() {
   const g = state.h88.game;
-  const si = g.seats.indexOf('p0');
-  return { oppR: g.seats[(si + 1) % 3], oppL: g.seats[(si + 2) % 3] };
+  return g.seats.filter(s => s !== 'p0');
+}
+// 現手番が相手なら、その相手を主表示(focusIdx)に自動で合わせる（縦=1人表示の既定）
+function h88AutoFocus() {
+  const st = state.h88, g = st.game;
+  if (!g || g.winner) return;
+  const opps = h88OppSeats();
+  const ci = opps.indexOf(g.currentPlayer);
+  if (ci >= 0) st.focusIdx = ci;
 }
 function renderH88Seat(elId, seat) {
   const st = state.h88, g = st.game;
   const el = document.getElementById(elId); if (!el) return;
   const backs = g.hands[seat].map(() => svgBack()).join('');
   const caps = g.caps[seat].map(c => svgCard(c.id)).join('');
-  el.innerHTML = '<div class="h88-name">' + st.names[seat] + '</div>'
+  const isOya = (seat === st.roundOya);      // v1.63: 親マーク
+  const isTurn = (g.currentPlayer === seat && !g.winner);
+  el.innerHTML = '<div class="h88-name">' + (isOya ? '<span class="h88-oya-badge">親</span>' : '')
+    + st.names[seat] + (isTurn ? '<span class="h88-turn-badge">手番</span>' : '') + '</div>'
     + '<div class="h88-mini-hand">' + backs + '</div>'
     + '<div class="h88-caps">' + caps + '</div>';
-  el.classList.toggle('turn', g.currentPlayer === seat && !g.winner);
+  el.classList.toggle('turn', isTurn);
 }
 function renderH88() {
   const st = state.h88; if (!st || !st.game) return;
   const g = st.game;
-  const slots = h88SlotSeats();
+  const opps = h88OppSeats();
+  if (st.focusIdx > 1 || st.focusIdx < 0) st.focusIdx = 0;
   document.getElementById('h88-round').textContent = '第' + st.roundNo + '局/全' + st.rounds + '局';
   document.getElementById('h88-scores').textContent = g.seats.map(s => st.names[s] + ' ' + (st.scores[s] || 0)).join(' ／ ');
-  document.getElementById('h88-turn').textContent = g.winner ? '' : (st.names[g.currentPlayer] + ' の手番');
-  // v1.62 A6: 既定は自動配置（自分の次＝右上）。手動ドラッグで左右入替（st.swapOpps）。
-  const leftSeat = st.swapOpps ? slots.oppR : slots.oppL;
-  const rightSeat = st.swapOpps ? slots.oppL : slots.oppR;
-  renderH88Seat('h88-oppL', leftSeat);
-  renderH88Seat('h88-oppR', rightSeat);
-  document.getElementById('h88-field').innerHTML = g.field.map(c => svgCard(c.id)).join('');
+  document.getElementById('h88-turn').textContent = g.winner ? ''
+    : st.pending ? '取る札を選んでください（同じ月が2枚）'
+    : (g.currentPlayer === 'p0'
+        ? (st.sel != null ? 'もう一度タップで出す（別の札で選び直しも可）' : '▶ あなたの番です（札をタップ→もう一度で出す）')
+        : st.names[g.currentPlayer] + ' の番');
+  // v1.63 B4: 主表示(focusIdx)の相手を oppL に、もう1人を oppR に。
+  //   縦画面=oppL だけ表示（現手番の相手が既定、切替で他方へ）。横画面=両方表示。
+  const primary = opps[st.focusIdx] || opps[0];
+  const secondary = opps[1 - st.focusIdx] || opps[1];
+  renderH88Seat('h88-oppL', primary);
+  renderH88Seat('h88-oppR', secondary);
+  const swLabel = document.getElementById('h88-opp-switch-label');
+  if (swLabel) swLabel.textContent = st.names[primary] + ' を表示中（他：' + st.names[secondary] + '）';
+  // v1.63 B6: 場札にヒント（選択中の手札と合う月＝match／2枚選択待ち＝pick）。data-id でクリック可。
+  const selCard = (st.sel != null) ? g.hands['p0'][st.sel] : null;
+  document.getElementById('h88-field').innerHTML = g.field.map(c => {
+    let cls = 'h88-field-card';
+    if (st.pending && st.pending.matches.indexOf(c.id) >= 0) cls += ' pick';
+    else if (selCard && selCard.month === c.month) cls += ' match';
+    return '<span class="' + cls + '" data-id="' + c.id + '">' + svgCard(c.id) + '</span>';
+  }).join('');
   document.getElementById('h88-deck-count').textContent = g.deck.length;
-  document.getElementById('h88-self-name').textContent = st.names['p0'];
+  document.getElementById('h88-self-name').innerHTML = (st.roundOya === 'p0' ? '<span class="h88-oya-badge">親</span>' : '') + st.names['p0'];
   document.getElementById('h88-self-caps').innerHTML = g.caps['p0'].map(c => svgCard(c.id)).join('');
-  const myTurn = (g.currentPlayer === 'p0' && !g.winner);
+  const myTurn = (g.currentPlayer === 'p0' && !g.winner && !st.pending);
   document.getElementById('h88-self-hand').innerHTML = g.hands['p0'].map((c, i) =>
-    '<span class="h88-hand-card" data-idx="' + i + '"' + (myTurn ? '' : ' style="cursor:default;opacity:.85"') + '>' + svgCard(c.id) + '</span>').join('');
+    '<span class="h88-hand-card' + (st.sel === i ? ' sel' : '') + '" data-idx="' + i + '"' + (myTurn ? '' : ' style="cursor:default;opacity:.85"') + '>' + svgCard(c.id) + '</span>').join('');
 }
-// 自分の手番：手札クリック
+// v1.63 B6: こいこい式2タップ。1タップ＝選択（浮かせる＋合う場札をヒント）、
+//   同じ札をもう1タップ＝出す。2枚合致は場札を手動選択。山めくりも同様。
 function h88OnClickHand(idx) {
   const st = state.h88; if (!st || !st.game) return;
   const g = st.game;
-  if (g.currentPlayer !== 'p0' || g.winner) return;
-  const r = h88Turn(g, 'p0', { handIdx: idx }); // ※2枚合致時は当面 価値高い方を自動取り
+  if (g.currentPlayer !== 'p0' || g.winner || st.pending) return; // ピック中は手札操作不可
+  if (st.sel === idx) { st.sel = null; h88HumanPlayHand(idx); }      // 2度目＝出す
+  else { st.sel = idx; renderH88(); }                                // 1度目＝選択＋ヒント
+}
+function h88HumanPlayHand(idx) {
+  const st = state.h88, g = st.game;
+  const card = g.hands['p0'].splice(idx, 1)[0];
+  if (!card) return;
+  const matches = h88MonthMatches(g.field, card.month);
+  if (matches.length === 2) { // 手動で取る札を選ぶ
+    st.pending = { stage: 'pick-hand', card: card, matches: matches.map(c => c.id) };
+    renderH88(); return;
+  }
+  h88Capture(g, 'p0', card, null); // 0=場に置く / 1=取る / 3=全取り
+  h88HumanDrawStep();
+}
+// 場札クリック（2枚合致のとき、どちらを取るか選ぶ）
+function h88OnClickField(id) {
+  const st = state.h88; if (!st || !st.game || !st.pending) return;
+  const g = st.game, p = st.pending;
+  if (p.matches.indexOf(id) < 0) return; // 候補以外は無視
+  h88Capture(g, 'p0', p.card, id);
+  const stage = p.stage; st.pending = null;
   renderH88();
-  if (r === 'win' || r === 'draw') { h88RoundOver(r); return; }
+  if (stage === 'pick-hand') h88HumanDrawStep();
+  else h88HumanEndTurn();
+}
+function h88HumanDrawStep() {
+  const st = state.h88, g = st.game;
+  if (!g.deck.length) { h88HumanEndTurn(); return; }
+  const dc = g.deck.shift();
+  const matches = h88MonthMatches(g.field, dc.month);
+  if (matches.length === 2) {
+    st.drawn = dc; // 表示用
+    st.pending = { stage: 'pick-draw', card: dc, matches: matches.map(c => c.id) };
+    renderH88(); return;
+  }
+  h88Capture(g, 'p0', dc, null);
+  h88HumanEndTurn();
+}
+function h88HumanEndTurn() {
+  const st = state.h88, g = st.game;
+  st.sel = null; st.drawn = null;
+  const y = computeYaku(g.caps['p0']);
+  if (yakuTotal(y) > 0) { g.winner = 'p0'; g.roundEnd = { winner: 'p0', yaku: y, total: yakuTotal(y) }; renderH88(); h88RoundOver('win'); return; }
+  if (g.hands['p0'].length === 0 && g.deck.length === 0) { renderH88(); h88RoundOver('draw'); return; }
   g.currentPlayer = h88NextSeat(g, 'p0');
+  h88AutoFocus();
   renderH88();
   h88MaybeAi();
 }
@@ -3289,6 +3421,7 @@ function h88MaybeAi() {
   const st = state.h88; if (!st || !st.game) return;
   const g = st.game;
   if (g.winner || g.currentPlayer === 'p0') return;
+  h88AutoFocus(); renderH88(); // v1.63 B4: 現手番のAIを主表示に
   const tok = ++st.aiToken;
   setTimeout(() => {
     if (!state.h88 || state.h88 !== st || tok !== st.aiToken || g.winner) return;
@@ -3296,6 +3429,7 @@ function h88MaybeAi() {
     renderH88();
     if (r === 'win' || r === 'draw') { h88RoundOver(r); return; }
     g.currentPlayer = h88NextSeat(g, g.currentPlayer);
+    h88AutoFocus();
     renderH88();
     h88MaybeAi();
   }, 750);
@@ -4456,8 +4590,8 @@ function releaseWakeLock() {
   try { if (_wakeLock) { _wakeLock.release(); _wakeLock = null; } } catch (e) {}
 }
 function refreshWakeLock() {
-  // 部屋 or 対局中なら取得、それ以外は解放
-  if (state.screen === 'room' || state.screen === 'game') acquireWakeLock();
+  // 部屋 or 対局中(こいこい/八八)なら取得、それ以外は解放
+  if (state.screen === 'room' || state.screen === 'game' || state.screen === 'hachi') acquireWakeLock();
   else releaseWakeLock();
 }
 
@@ -5064,7 +5198,8 @@ function vsAiToPrep() {
   state.readyHost = false; state.readyGuest = false; state.game = null;
   state.gameEndChoice = { host: null, guest: null }; state.gameChoiceMade = false;
   showScreen('room');
-  refreshRoomView();
+  refreshRoomView();       // v1.63: 八八タブの可否はここで設定（vsAIなら選択可）
+  pickGame('koikoi');      // 毎回こいこいから始める
   renderOyaDraw(); // v1.59: スロットを毎回閉じる（前回の札を残さない）
   const conn = document.getElementById('conn-label'); if (conn) conn.textContent = state.guestName;
 }
@@ -5598,6 +5733,13 @@ function handleIntent(data) {
 // 10) ホスト操作 (ゲームスタート)
 // --------------------------------------------------------------------------
 function startGame() {
+  // v1.63: 八八(3人)を選んでいれば八八へ（vsコンピュータのみ）
+  if (state.gameSel === 'hachi' && state.vsAI) {
+    const seg = document.getElementById('h88-rounds-seg');
+    const on = seg && seg.querySelector('button.on');
+    startHachiVsAI(on ? parseInt(on.dataset.v, 10) : 3);
+    return;
+  }
   // v1.05: 両者押し方式 = クリック時は「準備完了」フラグを立てるだけ。
   // 相手側フラグも立っている場合 (= 両者押した) にホストが実対局を開始する。
   if (!state.oya) return;
@@ -5721,15 +5863,11 @@ function bindEvents() {
   document.getElementById('btn-leave').addEventListener('click', leaveRoom);
   // v1.60: 対コンピュータ戦（開始）。強さは準備画面のプルダウン(ai-level-prep)で選ぶ。
   const btnVsai = document.getElementById('btn-vsai');
-  if (btnVsai) btnVsai.addEventListener('click', () => {
-    if (state.vsGame === 'hachi') startHachiVsAI();   // v1.62: 八八(3人)へ
-    else startVsAI();
-  });
-  // v1.62: 対戦ゲーム選択（こいこい/八八）
-  const segVsGame = document.getElementById('seg-vsgame');
-  if (segVsGame) segVsGame.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
-    state.vsGame = b.dataset.v;
-    segVsGame.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+  if (btnVsai) btnVsai.addEventListener('click', startVsAI); // v1.63: 準備画面でゲーム選択
+  // v1.63: 八八の局数セグ
+  const h88RoundsSeg = document.getElementById('h88-rounds-seg');
+  if (h88RoundsSeg) h88RoundsSeg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    h88RoundsSeg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
   }));
   // v1.60: 準備画面のコンピュータ強さプルダウン
   const aiPrepSel = document.getElementById('ai-level-prep');
@@ -5741,10 +5879,24 @@ function bindEvents() {
   if (bH88Start) bH88Start.addEventListener('click', h88StartFromOya);
   const bLeaveH = document.getElementById('btn-leave-hachi');
   if (bLeaveH) bLeaveH.addEventListener('click', () => { state.h88 = null; showScreen('lobby'); });
+  // v1.63: 各対局画面の「ホーム」ボタン（行き先＝ロビー＝アプリのトップ画面）
+  const bHomeH = document.getElementById('btn-home-hachi');
+  if (bHomeH) bHomeH.addEventListener('click', () => { state.h88 = null; showScreen('lobby'); });
   const h88Hand = document.getElementById('h88-self-hand');
   if (h88Hand) h88Hand.addEventListener('click', (e) => {
     const card = e.target.closest('.h88-hand-card');
     if (card) h88OnClickHand(parseInt(card.dataset.idx, 10));
+  });
+  // v1.63 B6: 場札クリック（2枚合致の手動選択）
+  const h88Field = document.getElementById('h88-field');
+  if (h88Field) h88Field.addEventListener('click', (e) => {
+    const fc = e.target.closest('.h88-field-card');
+    if (fc && fc.dataset.id) h88OnClickField(fc.dataset.id);
+  });
+  // v1.63 B4: 縦画面の相手切替ボタン
+  const bSwitch = document.getElementById('btn-h88-switch');
+  if (bSwitch) bSwitch.addEventListener('click', () => {
+    if (state.h88) { state.h88.focusIdx = 1 - state.h88.focusIdx; renderH88(); }
   });
   // v1.03: solo フォールバック (P2P 接続に失敗した時の回避策)
   const btnSoloFB = document.getElementById('btn-solo-fallback');
@@ -5762,6 +5914,8 @@ function bindEvents() {
 
   // Game screen
   document.getElementById('btn-leave-game').addEventListener('click', leaveRoom);
+  const bHomeG = document.getElementById('btn-home-game');
+  if (bHomeG) bHomeG.addEventListener('click', leaveRoom);  // v1.63: ホーム＝ロビーへ（オンラインは leaveRoom で退室通知）
   // v1.21: 札のマウスオーバーで正式名称バブル（表向きの札のみ）
   const sgEl = document.getElementById('screen-game');
   sgEl.addEventListener('mouseover', (e) => {

@@ -92,24 +92,24 @@
   .h88-seat{flex:1;min-width:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:6px 8px;}
   .h88-seat.turn{border-color:var(--orange);box-shadow:inset 0 0 0 1px var(--orange);}
   .h88-seat .h88-name{font-size:.72rem;color:#fff;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  /* v1.66: 相手手札は7枚が枠内に必ず収まるよう縮小方式（はみ出し・スクロールバー防止）。 */
+  /* v1.66: 相手手札は7枚が枠内に必ず収まるよう縮小方式（はみ出し・スクロールバー防止）。
+     v1.72 D4: サイズはこいこいと同じ --card-w 変数（fitH88Board が実測セット）。 */
   .h88-mini-hand{display:flex;gap:3px;margin-top:4px;flex-wrap:nowrap;justify-content:center;overflow:hidden;}
-  .h88-mini-hand .card{flex:1 1 0;min-width:0;max-width:58px;height:auto;border-radius:4px;}
+  .h88-mini-hand .card{flex:1 1 0;min-width:0;max-width:var(--card-w,58px);height:auto;border-radius:4px;}
   /* v1.70: 取り札は種別（光/種/短/カス）ごとにラベル付きで並べる（こいこいと同等配置）。相手はコンパクト1行。 */
   .h88-seat .h88-caps{margin-top:4px;}
   .h88-seat .h88-caps .caprow{display:flex;flex-wrap:wrap;align-items:center;gap:2px;row-gap:2px;}
   .h88-seat .h88-caps .gl{font-size:.5rem;color:var(--text-muted);flex:0 0 auto;}
   .h88-seat .h88-caps .cards{display:flex;flex-wrap:wrap;gap:1px;}
   .h88-seat .h88-caps .cards+.gl{margin-left:3px;padding-left:3px;border-left:1px solid var(--border);}
-  .h88-seat .h88-caps .card{width:min(6.5vw,30px);border-radius:2px;}
+  .h88-seat .h88-caps .card{border-radius:2px;} /* v1.72 D4: サイズは .card.cap の --cap-w（こいこいと同じ） */
   /* v1.63 C11/C12: 山札は裏向き・場札と同じ大きさ。C9: 合う場札は浮かせる。 */
   .h88-field-row{display:flex;gap:8px;align-items:flex-start;justify-content:center;}
   .h88-deck{text-align:center;flex:0 0 auto;padding-top:11px;}
-  .h88-deck .card{width:min(15.5vw,66px);}
   .h88-deck-count{font-size:.66rem;color:var(--text-muted);margin-top:2px;}
-  /* v1.66: 山札は場札のすぐ横（field-row を中央寄せ・場は伸ばさない） */
-  .h88-field{display:flex;flex-wrap:wrap;gap:5px;justify-content:flex-start;align-content:flex-start;flex:0 1 auto;padding-top:11px;max-width:78%;}
-  .h88-field .h88-field-card{width:min(15.5vw,66px);transition:transform .12s;}
+  /* v1.72 D4: 場はこいこい(.field)と同じ「隙間なく詰めるグリッド」。サイズは --card-w。 */
+  .h88-field{display:grid;grid-template-columns:repeat(4,auto);gap:3px;justify-content:center;align-content:flex-start;padding-top:11px;}
+  .h88-field .h88-field-card{width:var(--card-w,42px);transition:transform .12s;}
   .h88-field .card{width:100%;}
   /* v1.63 B6/C9: ヒント＝選択中の手札と合う場札(match=浮かせる+金枠)／2枚から選ぶ候補(pick=橙枠・点滅) */
   .h88-field .h88-field-card.match{transform:translateY(-10px);}
@@ -123,12 +123,12 @@
   .h88-self-caps .gl{font-size:.56rem;color:var(--text-muted);flex:0 0 auto;}
   .h88-self-caps .cards{display:flex;flex-wrap:wrap;gap:1px;}
   .h88-self-caps .cards+.gl{margin-left:4px;padding-left:4px;border-left:1px solid var(--border);}
-  .h88-self-caps .card{width:24px;border-radius:2px;}
+  .h88-self-caps .card{border-radius:2px;} /* v1.72 D4: サイズは .card.cap の --cap-w（こいこいと同じ） */
   /* v1.63 C7: ホバー/選択で浮いた札の上端が切れないよう上に余白 */
-  /* v1.68: 手札は最初に7枚分の幅・高さを確保して固定（伸縮で画面がぶれない）。札サイズも固定。 */
-  .h88-hand{display:flex;gap:3px;justify-content:center;flex-wrap:nowrap;padding-top:14px;width:calc(7 * min(11.5vw,58px) + 6 * 3px);max-width:100%;margin:0 auto;min-height:calc(min(11.5vw,58px) * 350 / 220 + 14px);}
+  /* v1.68: 手札は最初に7枚分の幅・高さを確保して固定（伸縮で画面がぶれない）。
+     v1.72 D4: サイズは --card-w（fitH88Board が実測セット・こいこいと同じ仕組み）。 */
+  .h88-hand{display:flex;gap:3px;justify-content:center;flex-wrap:nowrap;padding-top:14px;width:calc(7 * var(--card-w,52px) + 6 * 3px);max-width:100%;margin:0 auto;min-height:calc(var(--card-w,52px) * 350 / 220 + 14px);}
   .h88-hand .h88-hand-card{cursor:pointer;transition:transform .12s;flex:0 0 auto;}
-  .h88-hand .h88-hand-card .card{width:min(11.5vw,58px);}
   .h88-hand .h88-hand-card:hover{transform:translateY(-5px);}
   /* v1.63 B6: 選択中の手札は浮かせて強調 */
   .h88-hand .h88-hand-card.sel{transform:translateY(-11px);}
@@ -158,18 +158,21 @@
   .h88-prep-players{display:flex;flex-direction:column;gap:6px;margin:10px 0;}
   .h88-prep-players .pl{flex:0 0 auto;flex-direction:row;align-items:baseline;gap:4px;width:fit-content;padding:6px 12px;}
   .h88-prep-players .pl small::after{content:'：';}
+  /* v1.72 D1: こいこいの guest-row と同じ＝コンピュータ名の箱の右に強さプルダウン */
+  .h88-prep-players .guest-row{display:flex;align-items:center;gap:10px;}
+  .h88-prep-players .guest-row .ai-level-select{width:auto;min-width:130px;margin-top:0;flex:0 0 auto;}
   .h88-oya-draws{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
-  .h88-oya-draws .h88-oya-draw{text-align:center;font-size:.68rem;color:var(--text-muted);}
-  .h88-oya-draws .h88-oya-draw .card{width:52px;margin:3px 0;}
+  /* v1.72 D2: 親決めスロットはこいこいと同じ .draw-slot/.mini(back)/.oya-meta を使う */
   /* v1.62: ドラッグ入替中の見た目 */
   .h88-seat.dragging{opacity:.75;z-index:5;transition:none;}
   .h88-opps.swap-hint .h88-seat{outline:1px dashed var(--orange);outline-offset:-2px;}
-  /* v1.71: 横画面＝場を中央に置き、左に左プレイヤー・右に右プレイヤー（場の左右の空きを活用）。
-            自分は下段いっぱいで、取り札もこいこい参考で大きく（横一列の種別グループ）。 */
+  /* v1.72 D3: 横画面＝こいこいの考え方で統一。場を中央、左に左プレイヤー・右に右プレイヤー
+     （場の左右の空きを活用）。自分は下段＝手札を画面中央・取り札をその右横（こいこいの
+     「取り札は右列」と同じ思想）。カードサイズは全て --card-w/--cap-w（fitH88Board が実測で最大化）。 */
   @media (orientation:landscape){
     #screen-hachi .h88-board{max-width:none;height:calc(100vh - 84px);
       display:grid;
-      grid-template-columns:minmax(160px,1fr) minmax(0,1.7fr) minmax(160px,1fr);
+      grid-template-columns:minmax(150px,1fr) minmax(0,2fr) minmax(150px,1fr);
       grid-template-rows:minmax(0,1fr) auto;
       column-gap:10px;row-gap:4px;padding:4px 12px 6px;align-items:stretch;}
     /* 相手2人を独立セルにして場の左右へ */
@@ -177,33 +180,24 @@
     #screen-hachi .h88-opp-switch{display:none;}
     #screen-hachi #h88-oppL{grid-column:1;grid-row:1;align-self:start;}
     #screen-hachi #h88-oppR{grid-column:3;grid-row:1;align-self:start;}
-    #screen-hachi .h88-field-row{grid-column:2;grid-row:1;align-items:center;justify-content:center;min-height:0;}
-    #screen-hachi .h88-self{grid-column:1 / span 3;grid-row:2;}
-    /* 相手セル（縦長）：名前・手札・取り札を縦に。取り札は種別で折り返し。 */
+    #screen-hachi .h88-field-row{grid-column:2;grid-row:1;align-items:center;justify-content:center;min-height:0;gap:8px;}
+    /* 相手セル：名前・手札・取り札を縦に。手札は幅に応じて折り返し（カードは縮めない）。 */
     #screen-hachi .h88-opps .h88-seat{display:block;padding:5px 8px;min-width:0;}
     #screen-hachi .h88-seat .h88-name{font-size:.74rem;}
     #screen-hachi .h88-mini-hand{gap:2px;margin-top:3px;flex-wrap:wrap;justify-content:center;overflow:visible;}
-    #screen-hachi .h88-mini-hand .card{flex:0 0 auto;width:auto;height:min(6.5vh,40px);max-width:none;}
-    #screen-hachi .h88-seat .h88-caps{margin-top:5px;max-height:none;overflow:visible;}
+    #screen-hachi .h88-mini-hand .card{flex:0 0 auto;max-width:none;}
+    #screen-hachi .h88-seat .h88-caps{margin-top:5px;}
     #screen-hachi .h88-seat .h88-caps .caprow{flex-wrap:wrap;row-gap:2px;}
-    #screen-hachi .h88-seat .h88-caps .card{width:auto;height:min(5vh,30px);flex:0 0 auto;}
-    /* 場：中央列。山札＋場札（横幅に合わせて折り返し）。 */
-    #screen-hachi .h88-field-row{gap:8px;}
+    /* 場：中央列。横長なので6列で詰める（こいこいの4列グリッドの横長版）。 */
     #screen-hachi .h88-deck{padding-top:0;}
-    #screen-hachi .h88-deck .card{width:auto;height:min(11vh,64px);}
-    #screen-hachi .h88-field{max-width:none;padding-top:0;align-content:center;justify-content:center;}
-    #screen-hachi .h88-field .h88-field-card{width:auto;}
-    #screen-hachi .h88-field .card{width:auto;height:min(11vh,64px);margin:0 auto;}
-    /* 自分：下段いっぱい。取り札を横一列の種別グループで大きく（上）、手札（下）。 */
-    #screen-hachi .h88-self{display:flex;flex-direction:column;gap:2px;min-height:0;}
-    #screen-hachi .h88-self-caps{flex-direction:row;flex-wrap:wrap;justify-content:center;align-items:center;gap:4px 18px;max-height:none;overflow:visible;margin:0 0 2px;}
+    #screen-hachi .h88-field{padding-top:0;grid-template-columns:repeat(6,auto);align-content:center;}
+    /* 自分＝下段いっぱい。内側グリッド(1fr auto 1fr)で手札を画面中央・取り札をその右横に。 */
+    #screen-hachi .h88-self{grid-column:1 / span 3;grid-row:2;display:grid;grid-template-columns:1fr auto 1fr;column-gap:10px;align-items:start;min-height:0;}
+    #screen-hachi .h88-self-turn{grid-column:2;grid-row:1;margin:0 auto 2px;}
+    #screen-hachi .h88-hand{grid-column:2;grid-row:2;width:auto;max-width:none;min-height:0;padding:10px 0 2px;margin:0;}
+    #screen-hachi .h88-self-name{grid-column:2;grid-row:3;margin-top:2px;font-size:.7rem;text-align:center;}
+    #screen-hachi .h88-self-caps{grid-column:3;grid-row:1 / span 3;margin:0;min-height:0;align-self:stretch;justify-content:center;gap:4px;}
     #screen-hachi .h88-self-caps .caprow{flex-wrap:wrap;row-gap:3px;}
-    #screen-hachi .h88-self-caps .card{width:auto;height:min(9vh,54px);}
-    #screen-hachi .h88-self-turn{align-self:center;}
-    #screen-hachi .h88-hand{flex-wrap:nowrap;overflow-x:auto;max-width:100%;width:auto;min-height:0;padding:2px 0;margin:0 auto;}
-    #screen-hachi .h88-hand .h88-hand-card{flex:0 0 auto;}
-    #screen-hachi .h88-hand .h88-hand-card .card{width:auto;height:min(12vh,72px);}
-    #screen-hachi .h88-self-name{margin-top:0;font-size:.7rem;text-align:center;}
   }
   /* v1.59: 音量スライダー＋右のミュートチェック */
   .vol-line{display:flex;align-items:center;gap:12px;}
@@ -1194,7 +1188,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.71</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.72</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1260,7 +1254,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.71</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.72</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1316,9 +1310,8 @@
   <div class="gset hidden" id="set-hachi">
     <h3 data-i18n="set.hachi.title">八八（3人）設定</h3>
     <p class="desc" style="font-size:12px;color:var(--text-muted);line-height:1.6;" data-i18n="set.hachi.desc">あなた＋コンピュータ2体の3人で対戦します（相手2人ともコンピュータ）。</p>
-    <div class="set-row"><span data-i18n="vsai.level">コンピュータの強さ</span><span class="seg" id="h88-level-seg"><button data-v="EASY">EASY</button><button class="on" data-v="HARD">HARD</button><button data-v="APOCALYPSE">APOCALYPSE</button></span></div>
     <div class="set-row"><span data-i18n="set.rounds">局数</span><span class="seg" id="h88-rounds-seg"><button class="on" data-v="3" data-i18n="set.3">3局</button><button data-v="6" data-i18n="set.6">6局</button><button data-v="12" data-i18n="set.12">12局</button></span></div>
-    <!-- v1.68 C4: 3人の顔ぶれ -->
+    <!-- v1.68 C4: 3人の顔ぶれ。v1.72: こいこいのオンライン準備と同じ作り＝各コンピュータ行の右に強さプルダウン -->
     <div class="h88-prep-players" id="h88-prep-players"></div>
     <!-- v1.68 C3: 3人で親決め（準備室で引く） -->
     <div class="section-label" style="margin:14px 0 8px;"><span data-i18n="oya.title">先手（親）を決める</span></div>
@@ -1367,7 +1360,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.71</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.72</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1427,7 +1420,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.71</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.72</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -2427,6 +2420,7 @@ function showScreen(s) {
   requestAnimationFrame(fitHeader);
   // 対局中に入ったらカード寸法を実測フィット + 中断ボタン再配置（レイアウト確定後に一度）
   if (s === 'game') requestAnimationFrame(() => { fitBoard(); positionLeaveBtn(); });
+  if (s === 'hachi') requestAnimationFrame(() => { fitH88Board(); }); // v1.72 D4
   // v1.38: 画面に応じて BGM プールを切替（ロビー/準備＝ロビー曲、対局＝対局中曲）
   setBgm((s === 'game' || s === 'hachi') ? 'game' : 'lobby');
 }
@@ -3258,34 +3252,60 @@ function h88Capture(g, player, card, pickId) {
   g.caps[player].push(card, ...taken);
   return [card, ...taken];
 }
-// AI：2枚合致のときどちらを取るか（価値の高い方）
-function h88AiPickField(matches) { return matches.slice().sort((a, b) => h88CardVal(b) - h88CardVal(a))[0].id; }
-// AI：どの手札を出すか（取れて価値が高い札を優先、取れないなら安い札を捨てる）
-function h88AiChooseHand(g, player) {
+// v1.72 D1: AIの強さを本当に効かせる（こいこいの aiCardScore/aiPlayHand の考え方を移植）。
+//   基礎値=文数価値＋自分の役進行ボーナス。EASY以外は相手（2人のうち進んでいる方）の役妨害も加点。
+//   EASY は大きな揺らぎでわざと粗い手を打つ。
+function h88AiCardScore(card, g, player, level) {
+  let v = h88CardVal(card);
+  v += aiSetBonus(card, g.caps[player]); // 自分の役進行（こいこいと共通の純関数）
+  if (level !== 'EASY') {
+    const factor = (level === 'APOCALYPSE') ? 0.85 : 0.6; // 防御（相手の役を奪う）
+    const others = g.seats.filter(s => s !== player);
+    v += factor * Math.max.apply(null, others.map(o => aiSetBonus(card, g.caps[o])));
+  }
+  return v;
+}
+// AI：2枚合致のときどちらを取るか（強さ考慮）
+function h88AiPickField(matches, g, player, level) {
+  level = level || 'HARD';
+  let best = matches[0], bs = -Infinity;
+  matches.forEach(c => {
+    let s = (g && player) ? h88AiCardScore(c, g, player, level) : h88CardVal(c);
+    if (level === 'EASY') s += (Math.random() - 0.5) * 6;
+    if (s > bs) { bs = s; best = c; }
+  });
+  return best.id;
+}
+// AI：どの手札を出すか（取れて価値が高い札を優先、取れないなら渡すと損な札を避けて捨てる）
+function h88AiChooseHand(g, player, level) {
+  level = level || 'HARD';
   const hand = g.hands[player];
   let best = 0, bestScore = -Infinity;
   hand.forEach((c, i) => {
     const ms = h88MonthMatches(g.field, c.month);
-    const score = ms.length === 0 ? -h88CardVal(c) * 0.1
-                : Math.max.apply(null, ms.map(h88CardVal)) + (ms.length >= 3 ? 8 : 0);
+    let score;
+    if (ms.length === 0) score = -h88AiCardScore(c, g, player, level) * 0.5; // 捨て札は相手に渡すリスク
+    else score = Math.max.apply(null, ms.map(m => h88AiCardScore(m, g, player, level))) + 2 + (ms.length >= 3 ? 8 : 0);
+    if (level === 'EASY') score += (Math.random() - 0.5) * 10; // 緩い揺らぎ
     if (score > bestScore) { bestScore = score; best = i; }
   });
   return best;
 }
 // 1人ぶんの手番（手札を出す→山をめくる→役チェック）。AIも人も同じ手順。
-// handIdx / playPickId / drawPickId を渡す（AIは自動決定）。戻り: 'win' | 'next' | 'draw'
+// handIdx / playPickId / drawPickId / level を渡す（AIは自動決定）。戻り: 'win' | 'next' | 'draw'
 function h88Turn(g, player, opts) {
   opts = opts || {};
-  const hi = (opts.handIdx != null) ? opts.handIdx : h88AiChooseHand(g, player);
+  const lv = opts.level || 'HARD';
+  const hi = (opts.handIdx != null) ? opts.handIdx : h88AiChooseHand(g, player, lv);
   const card = g.hands[player].splice(hi, 1)[0];
   if (!card) return 'next';
   const ms1 = h88MonthMatches(g.field, card.month);
-  const took1 = h88Capture(g, player, card, ms1.length === 2 ? (opts.playPickId || h88AiPickField(ms1)) : null);
+  const took1 = h88Capture(g, player, card, ms1.length === 2 ? (opts.playPickId || h88AiPickField(ms1, g, player, lv)) : null);
   h88LogPlayer(g, player, h88DescribeTake(card, took1, false));
   if (g.deck.length) {
     const dc = g.deck.shift();
     const ms2 = h88MonthMatches(g.field, dc.month);
-    const took2 = h88Capture(g, player, dc, ms2.length === 2 ? (opts.drawPickId || h88AiPickField(ms2)) : null);
+    const took2 = h88Capture(g, player, dc, ms2.length === 2 ? (opts.drawPickId || h88AiPickField(ms2, g, player, lv)) : null);
     h88LogPlayer(g, player, h88DescribeTake(dc, took2, true));
   }
   const y = computeYaku(g.caps[player]);
@@ -3324,20 +3344,43 @@ window.__h88 = { build: h88Build, turn: h88Turn, sim: h88SimRound, nextSeat: h88
 // 席は固定id p0(自分=手前)/p1/p2。seatCycle=親決めで決めた反時計回りの席順（=手番順）。
 
 // v1.68 C3/C4: 準備室で3人の顔ぶれ表示＋3人親決め。開始時は席順を持って直接対局へ。
+// v1.72 D1: コンピュータの強さは1体ずつ（state.h88Levels）。表示・操作はこいこいの
+//   オンライン準備の guest-row と同じ作り＝名前箱の右に強さプルダウン。
+function h88Levels() {
+  if (!state.h88Levels) state.h88Levels = { p1: 'HARD', p2: 'HARD' };
+  return state.h88Levels;
+}
 function h88PrepNames() {
   const name = (document.getElementById('in-playername').value || '').trim() || t('vsai.you');
-  const lv = state.aiLevel || 'HARD';
-  return { p0: name, p1: t('vsai.cpu') + '1（' + lv + '）', p2: t('vsai.cpu') + '2（' + lv + '）' };
+  const lv = h88Levels();
+  return { p0: name, p1: t('vsai.cpu') + '1（' + lv.p1 + '）', p2: t('vsai.cpu') + '2（' + lv.p2 + '）' };
 }
 function h88PrepRenderPlayers() {
   const el = document.getElementById('h88-prep-players'); if (!el) return;
-  const names = h88PrepNames();
-  el.innerHTML = ['p0', 'p1', 'p2'].map(s =>
-    '<div class="pl' + (s === 'p0' ? ' host' : '') + '"><small>' + (s === 'p0' ? t('room.host') : t('room.guest')) + '</small><span>' + names[s] + '</span></div>').join('');
+  const name = (document.getElementById('in-playername').value || '').trim() || t('vsai.you');
+  const lv = h88Levels();
+  const levelSel = (seat) => '<select class="ai-level-select h88-cpu-level" data-seat="' + seat + '" aria-label="コンピュータの強さ">'
+    + ['EASY', 'HARD', 'APOCALYPSE'].map(v => '<option value="' + v + '"' + (lv[seat] === v ? ' selected' : '') + '>' + v + '</option>').join('')
+    + '</select>';
+  el.innerHTML =
+    '<div class="pl host"><small>' + t('room.host') + '</small><span>' + name + '</span></div>'
+    + ['p1', 'p2'].map((s, i) =>
+      '<div class="guest-row"><div class="pl guest"><small>' + t('room.guest') + '</small><span>' + t('vsai.cpu') + (i + 1) + '</span></div>' + levelSel(s) + '</div>').join('');
+}
+// v1.72 D2: 親決めスロット＝こいこいと同じ作り（draw-slot＋伏せ札 mini back＋oya-meta）。
+//   draws が無い席は伏せ札のまま。引いたら表になり月を表示。
+function h88OyaSlotsHTML(names, draws) {
+  return ['p0', 'p1', 'p2'].map(s => {
+    const d = draws && draws[s];
+    return '<div class="draw-slot"><small>' + names[s] + '</small>'
+      + (d ? '<div class="mini">' + svgCard(d.id) + '</div><div class="oya-meta"><span class="om-month">' + t('room.month', d.month) + '</span></div>'
+           : '<div class="mini back"></div><div class="oya-meta"></div>')
+      + '</div>';
+  }).join('');
 }
 function h88PrepReset() {
   state.h88prep = null;
-  const d = document.getElementById('h88-prep-oya-draws'); if (d) d.innerHTML = '';
+  const d = document.getElementById('h88-prep-oya-draws'); if (d) d.innerHTML = h88OyaSlotsHTML(h88PrepNames(), null); // v1.72 D2: 伏せ札を最初に置く
   const r = document.getElementById('h88-prep-oya-result'); if (r) r.textContent = '';
   const b = document.getElementById('btn-h88-prep-drawoya'); if (b) b.classList.remove('hidden');
   h88PrepRenderPlayers();
@@ -3349,8 +3392,7 @@ function h88PrepDrawOya() {
   const seats = ['p0', 'p1', 'p2'];
   const draws = {}, usedMonth = {};
   seats.forEach(s => { let c; do { c = deck.pop(); } while (c && usedMonth[c.month]); usedMonth[c.month] = true; draws[s] = { month: c.month, id: c.id }; });
-  document.getElementById('h88-prep-oya-draws').innerHTML = seats.map(s =>
-    '<div class="h88-oya-draw"><div>' + names[s] + '</div>' + svgCard(draws[s].id) + '<div>' + t('room.month', draws[s].month) + '</div></div>').join('');
+  document.getElementById('h88-prep-oya-draws').innerHTML = h88OyaSlotsHTML(names, draws);
   const order = h88SeatOrder(draws); // [親, 2位, 3位]（反時計回り）
   state.h88prep = { names: names, oyaDraws: draws, seatCycle: order };
   // v1.69: 親だけでなく2位・3位も示す＋反時計回りに座る旨
@@ -3363,9 +3405,9 @@ function h88PrepDrawOya() {
 // 準備室から八八を開始（親決め済みの席順で直接開始・八八画面のオーバーレイは使わない）
 function startHachiFromPrep(rounds) {
   const p = state.h88prep; if (!p) return;
-  state.aiLevel = state.aiLevel || 'HARD';
+  const lv = h88Levels(); // v1.72 D1: CPU別強さ
   state.h88 = {
-    names: p.names, scores: { p0: 0, p1: 0, p2: 0 },
+    names: p.names, scores: { p0: 0, p1: 0, p2: 0 }, levels: { p1: lv.p1, p2: lv.p2 },
     roundNo: 1, rounds: rounds || 3, seatCycle: p.seatCycle, game: null, aiToken: 0, oyaDraws: p.oyaDraws, focusSeat: null, log: [],
   };
   showScreen('hachi');
@@ -3373,18 +3415,16 @@ function startHachiFromPrep(rounds) {
   h88StartRound(p.seatCycle[0]);
 }
 function startHachiVsAI(rounds) {
-  const name = (document.getElementById('in-playername').value || '').trim() || t('vsai.you');
-  const lv = state.aiLevel || 'HARD';
-  state.aiLevel = lv;
+  const lv = h88Levels(); // v1.72 D1: CPU別強さ
   state.h88 = {
-    names: { p0: name, p1: t('vsai.cpu') + '1（' + lv + '）', p2: t('vsai.cpu') + '2（' + lv + '）' },
-    scores: { p0: 0, p1: 0, p2: 0 },
+    names: h88PrepNames(),
+    scores: { p0: 0, p1: 0, p2: 0 }, levels: { p1: lv.p1, p2: lv.p2 },
     roundNo: 1, rounds: rounds || 3, seatCycle: null, game: null, aiToken: 0, oyaDraws: {}, focusSeat: null, log: [],
   };
   showScreen('hachi');
   h88SetupOppDrag();
-  // 親決めオーバーレイを初期化して表示
-  document.getElementById('h88-oya-draws').innerHTML = '';
+  // 親決めオーバーレイを初期化して表示（v1.72 D2: こいこい同様、伏せ札を最初に置く）
+  document.getElementById('h88-oya-draws').innerHTML = h88OyaSlotsHTML(state.h88.names, null);
   document.getElementById('h88-oya-result').textContent = '';
   document.getElementById('btn-h88-drawoya').classList.remove('hidden');
   document.getElementById('btn-h88-start').classList.add('hidden');
@@ -3401,9 +3441,7 @@ function h88DrawOya() {
     let c; do { c = deck.pop(); } while (c && usedMonth[c.month]);
     usedMonth[c.month] = true; st.oyaDraws[s] = { month: c.month, id: c.id };
   });
-  document.getElementById('h88-oya-draws').innerHTML = seats.map(s =>
-    '<div class="h88-oya-draw"><div>' + st.names[s] + '</div>' + svgCard(st.oyaDraws[s].id) +
-    '<div>' + t('room.month', st.oyaDraws[s].month) + '</div></div>').join('');
+  document.getElementById('h88-oya-draws').innerHTML = h88OyaSlotsHTML(st.names, st.oyaDraws); // v1.72 D2: こいこい同様の表返し
   const order = h88SeatOrder(st.oyaDraws); // [親, 2位, 3位]（反時計回り＝手番順）
   st.seatCycle = order;
   document.getElementById('h88-oya-result').textContent = st.names[order[0]] + ' が親（先手）です';
@@ -3561,6 +3599,7 @@ function renderH88() {
   if (stEl) stEl.classList.toggle('hidden', !myTurn);
   document.getElementById('h88-self-hand').innerHTML = g.hands['p0'].map((c, i) =>
     '<span class="h88-hand-card' + (st.sel === i ? ' sel' : '') + '" data-idx="' + i + '"' + (handOn ? '' : ' style="cursor:default;opacity:.85"') + '>' + svgCard(c.id) + '</span>').join('');
+  fitH88Board(); // v1.72 D4: 描画のたびに実測フィット（こいこいの renderGame→fitBoard と同じ同期呼び）
 }
 // v1.65 item1: こいこい同様、手札ホバーで合う場札を浮かせるプレビュー（クリック不要）
 function h88PreviewField(month, on) {
@@ -3648,7 +3687,7 @@ function h88MaybeAi() {
   setTimeout(() => {
     if (!state.h88 || state.h88 !== st || tok !== st.aiToken || g.winner) return;
     playSfx('shu'); // v1.63 C13: AIの着手音
-    const r = h88Turn(g, g.currentPlayer);
+    const r = h88Turn(g, g.currentPlayer, { level: (st.levels && st.levels[g.currentPlayer]) || 'HARD' }); // v1.72 D1: CPU別強さ
     setTimeout(() => playSfx('pa'), 140);
     renderH88();
     if (r === 'win' || r === 'draw') { h88RoundOver(r); return; }
@@ -4828,6 +4867,46 @@ function fitBoard() {
     cardW = Math.max(22, Math.floor(cardW * (avail / content)));
     setW(cardW);
   }
+  fitRows();
+}
+
+// v1.72 D4: 八八にもこいこいと同じ「実測フィット」。--card-w/--cap-w を #screen-hachi にセットし、
+//   手札7枚が幅に収まる最大から始めて、はみ出すぶんだけ縮める（fitBoard と同じ考え方）。
+function fitH88Board() {
+  const sh = document.getElementById('screen-hachi');
+  if (!sh || sh.classList.contains('hidden')) return;
+  const board = document.getElementById('h88-board');
+  if (!board) return;
+  const GAP = 3;
+  const setW = (w) => {
+    sh.style.setProperty('--card-w', w + 'px');
+    sh.style.setProperty('--cap-w', Math.max(20, Math.min(Math.round(w * 0.72), 44)) + 'px');
+  };
+  if (window.matchMedia && window.matchMedia('(orientation:landscape)').matches) {
+    // 横：中央列（手札7枚／場6列）が収まる幅を初期値に、上段＋自分段が高さに収まるまで縮める
+    const centerW = board.clientWidth * 0.48;
+    let w = Math.floor(Math.min((centerW - 6 * GAP) / 7, (centerW - 5 * GAP) / 6));
+    w = Math.max(26, Math.min(w, 80));
+    setW(w);
+    const opps = [document.getElementById('h88-oppL'), document.getElementById('h88-oppR')].filter(Boolean);
+    const fieldRow = sh.querySelector('.h88-field-row');
+    const selfRow = sh.querySelector('.h88-self');
+    const availH = board.clientHeight;
+    for (let pass = 0; pass < 3; pass++) {
+      const topH = Math.max.apply(null, opps.map(e => e.offsetHeight).concat([fieldRow ? fieldRow.offsetHeight : 0]));
+      const content = topH + (selfRow ? selfRow.offsetHeight : 0) + 8;
+      if (content <= availH || content <= 0) break;
+      w = Math.max(22, Math.floor(w * (availH / content)));
+      setW(w);
+    }
+    fitRows();
+    return;
+  }
+  // 縦：手札7枚が board 幅に収まる最大（こいこいの8枚と同じ考え方・上限58）
+  const availW = board.clientWidth || sh.clientWidth || 360;
+  let w = Math.floor((availW - 6 * GAP) / 7);
+  w = Math.max(28, Math.min(w, 58));
+  setW(w);
   fitRows();
 }
 
@@ -6141,13 +6220,13 @@ function bindEvents() {
     document.getElementById('ovH88End').classList.remove('show');
     state.h88 = null; showScreen('lobby');
   });
-  // v1.68: 八八パネルのコンピュータ強さ選択
-  const h88LevelSeg = document.getElementById('h88-level-seg');
-  if (h88LevelSeg) h88LevelSeg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
-    h88LevelSeg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
-    state.aiLevel = b.dataset.v;
-    h88PrepReset(); // 強さが変わったら顔ぶれ・親決めをやり直し
-  }));
+  // v1.72 D1: 八八のコンピュータ強さ＝各CPU行のプルダウン（こいこいの ai-level-prep と同じ作り・委譲）
+  const h88Players = document.getElementById('h88-prep-players');
+  if (h88Players) h88Players.addEventListener('change', (e) => {
+    const sel = e.target.closest('.h88-cpu-level'); if (!sel) return;
+    h88Levels()[sel.dataset.seat] = sel.value;
+    h88PrepReset(); // 強さが変わったら顔ぶれ・親決めをやり直し（名前の（強さ）表記も更新）
+  });
   // v1.60: 準備画面のコンピュータ強さプルダウン
   const aiPrepSel = document.getElementById('ai-level-prep');
   if (aiPrepSel) aiPrepSel.addEventListener('change', () => applyAiLevelPrep(aiPrepSel.value));
@@ -6309,8 +6388,8 @@ function bindEvents() {
     });
   }
 
-  window.addEventListener('resize', () => { fitHeader(); fitBoard(); positionLeaveBtn(); });
-  window.addEventListener('orientationchange', () => setTimeout(() => { fitHeader(); fitBoard(); positionLeaveBtn(); }, 250));
+  window.addEventListener('resize', () => { fitHeader(); fitBoard(); fitH88Board(); positionLeaveBtn(); });
+  window.addEventListener('orientationchange', () => setTimeout(() => { fitHeader(); fitBoard(); fitH88Board(); positionLeaveBtn(); }, 250));
   // Web フォント読込後はタイトルの実幅が変わるので測り直す
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { fitHeader(); positionLeaveBtn(); });
   // 画面復帰時：Wake Lock を取り直し、対局中ならカード寸法を再フィット、
@@ -6320,6 +6399,7 @@ function bindEvents() {
       refreshWakeLock();
       fitHeader();
       if (state.screen === 'game') { fitBoard(); positionLeaveBtn(); }
+      if (state.screen === 'hachi') fitH88Board(); // v1.72 D4
       if (!state.isHost && !state.intentionalLeave && !state.reconnecting &&
           (state.screen === 'room' || state.screen === 'game')) {
         let alive = false;

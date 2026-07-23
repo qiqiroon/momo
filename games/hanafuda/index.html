@@ -96,8 +96,9 @@
      v1.72 D4: サイズはこいこいと同じ --card-w 変数（fitH88Board が実測セット）。 */
   .h88-mini-hand{display:flex;gap:3px;margin-top:4px;flex-wrap:nowrap;justify-content:center;overflow:hidden;}
   .h88-mini-hand .card{flex:1 1 0;min-width:0;max-width:var(--card-w,58px);height:auto;border-radius:4px;}
-  /* v1.70: 取り札は種別（光/種/短/カス）ごとにラベル付きで並べる（こいこいと同等配置）。相手はコンパクト1行。 */
-  .h88-seat .h88-caps{margin-top:4px;}
+  /* v1.70/75: 取り札は種別ごとにラベル付き。相手取り札のHTMLは4段(光/種/短/カス各行)。
+     縦画面は4段を横に並べてコンパクト（display:flex row）／横画面は縦積み4段（後段でblock上書き）。 */
+  .h88-seat .h88-caps{margin-top:4px;display:flex;flex-flow:row wrap;align-items:flex-start;column-gap:6px;row-gap:2px;}
   .h88-seat .h88-caps .caprow{display:flex;flex-wrap:wrap;align-items:center;gap:2px;row-gap:2px;}
   .h88-seat .h88-caps .gl{font-size:.5rem;color:var(--text-muted);flex:0 0 auto;}
   .h88-seat .h88-caps .cards{display:flex;flex-wrap:wrap;gap:1px;}
@@ -174,18 +175,20 @@
        盤は4列 [取り札L｜手札L｜手札R｜取り札R] ×3段。手札=中央上／場=中央中／自分=下段。 */
     #screen-hachi .h88-board{max-width:none;height:calc(100vh - 84px);
       display:grid;
-      grid-template-columns:minmax(52px,14vw) minmax(0,1fr) minmax(0,1fr) minmax(52px,14vw);
+      grid-template-columns:minmax(44px,7vw) minmax(0,1fr) minmax(0,1fr) minmax(44px,7vw);
       grid-template-rows:auto minmax(0,1fr) auto;
       column-gap:8px;row-gap:4px;padding:4px 10px 6px;align-items:start;}
     /* 相手セル・その親を display:contents にして、名前+手札(seat-main)と取り札(caps)を盤グリッドへ直接配置 */
     #screen-hachi .h88-opps{display:contents;}
     #screen-hachi .h88-opps .h88-seat{display:contents;}
     #screen-hachi .h88-opp-switch{display:none;}
-    #screen-hachi #h88-oppL .h88-caps{grid-column:1;grid-row:1;justify-self:stretch;width:100%;margin:0;}
+    /* v1.75: 取り札は4段で幅を狭く。手札の下・場の横の空き（row1+2）まで縦に使う＝カードを大きく。 */
+    #screen-hachi #h88-oppL .h88-caps{grid-column:1;grid-row:1 / 3;justify-self:stretch;width:100%;margin:0;align-self:start;}
     #screen-hachi #h88-oppL .h88-seat-main{grid-column:2;grid-row:1;}
     #screen-hachi #h88-oppR .h88-seat-main{grid-column:3;grid-row:1;}
-    #screen-hachi #h88-oppR .h88-caps{grid-column:4;grid-row:1;justify-self:stretch;width:100%;margin:0;}
-    #screen-hachi .h88-field-row{grid-column:2 / 4;grid-row:2;align-items:center;justify-content:center;min-height:0;gap:8px;}
+    #screen-hachi #h88-oppR .h88-caps{grid-column:4;grid-row:1 / 3;justify-self:stretch;width:100%;margin:0;align-self:start;}
+    /* v1.75: 場は上寄せでなく縦中央に（align-self:center）。 */
+    #screen-hachi .h88-field-row{grid-column:2 / 4;grid-row:2;align-self:center;align-items:center;justify-content:center;min-height:0;gap:8px;}
     #screen-hachi .h88-self{grid-column:1 / 5;grid-row:3;}
     /* 相手の名前＋手札（中央上）。手番ハイライトは seat-main に。 */
     #screen-hachi .h88-seat-main{min-width:0;}
@@ -193,7 +196,9 @@
     #screen-hachi .h88-seat .h88-name{font-size:.74rem;text-align:center;}
     #screen-hachi .h88-mini-hand{gap:2px;margin-top:3px;flex-wrap:wrap;justify-content:center;overflow:visible;align-content:start;}
     #screen-hachi .h88-mini-hand .card{flex:0 0 auto;max-width:none;}
-    #screen-hachi .h88-seat .h88-caps .caprow{flex-wrap:wrap;row-gap:2px;}
+    /* 相手取り札は横画面で縦積み4段（幅を狭く）。各段は左詰め・折り返さず（fitRows が幅超過時に重ねる） */
+    #screen-hachi .h88-opps .h88-caps{display:block;}
+    #screen-hachi .h88-opps .h88-caps .caprow{flex-wrap:nowrap;justify-content:flex-start;}
     /* 場：中央列。横長なので6列で詰める（こいこいの4列グリッドの横長版）。 */
     #screen-hachi .h88-deck{padding-top:0;}
     #screen-hachi .h88-field{padding-top:0;grid-template-columns:repeat(6,auto);align-content:center;}
@@ -1194,7 +1199,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.74</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.75</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1260,7 +1265,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.74</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.75</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1366,7 +1371,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.74</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.75</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1426,7 +1431,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.74</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.75</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -3536,25 +3541,27 @@ function h88LogPlayer(g, player, action) {
 }
 // v1.70: 取り札をこいこい同様に種別（光/種/短/カス）ごとにラベル付きで並べる。
 //   八八は本格版の得点も文数（光20/種10/短5/カス1）＝種別基準なので、こいこい以上に種別分けが有効。
-//   compact=true → 1行（相手パネル用）／false → 2段（自分用・こいこい配置と同じ 光種短＋カス）。
-function h88CapGroupedHTML(cards, compact) {
+//   mode: 'stack4'→4段（光/種/短/カス 各1行・相手の外端用＝幅を狭く高さを使う）
+//         'self2'→2段（自分用・こいこい配置と同じ 光種短＋カス）／'compact'→1行。
+function h88CapGroupedHTML(cards, mode) {
   const groups = { hikari: [], tane: [], tan: [], kasu: [] };
   (cards || []).forEach(c => { (groups[c.type] || groups.kasu).push(c); });
   const cell = (label, arr) => '<span class="gl">' + label + '</span><div class="cards">'
     + arr.map(c => svgCard(c.id, 'cap')).join('') + '</div>';
-  if (compact) {
-    return '<div class="caprow h88-caprow">' + cell('光', groups.hikari) + cell('種', groups.tane)
-      + cell('短', groups.tan) + cell('カス', groups.kasu) + '</div>';
-  }
-  return '<div class="caprow h88-caprow">' + cell('光', groups.hikari) + cell('種', groups.tane)
-      + cell('短', groups.tan) + '</div>'
-    + '<div class="caprow h88-caprow">' + cell('カス', groups.kasu) + '</div>';
+  const row = (inner) => '<div class="caprow h88-caprow">' + inner + '</div>';
+  if (mode === 'stack4') return row(cell('光', groups.hikari)) + row(cell('種', groups.tane))
+    + row(cell('短', groups.tan)) + row(cell('カス', groups.kasu));
+  if (mode === 'compact') return row(cell('光', groups.hikari) + cell('種', groups.tane)
+    + cell('短', groups.tan) + cell('カス', groups.kasu));
+  // 'self2'（既定）
+  return row(cell('光', groups.hikari) + cell('種', groups.tane) + cell('短', groups.tan))
+    + row(cell('カス', groups.kasu));
 }
 function renderH88Seat(elId, seat) {
   const st = state.h88, g = st.game;
   const el = document.getElementById(elId); if (!el) return;
   const backs = g.hands[seat].map(() => svgBack()).join('');
-  const caps = h88CapGroupedHTML(g.caps[seat], true);
+  const caps = h88CapGroupedHTML(g.caps[seat], 'stack4'); // v1.75: 相手の取り札は4段（外端で幅狭・高さ活用）
   const isOya = (seat === st.roundOya);      // v1.63: 親マーク
   const isTurn = (g.currentPlayer === seat && !g.winner);
   // v1.74: 名前＋手札を .h88-seat-main にまとめ、取り札 .h88-caps と分離。
@@ -3600,7 +3607,7 @@ function renderH88() {
   document.getElementById('h88-deck-count').textContent = g.deck.length;
   const db = document.getElementById('h88-deck-back'); if (db) db.innerHTML = g.deck.length ? svgBack() : ''; // v1.63 C11: 山札は裏向き
   document.getElementById('h88-self-name').innerHTML = (st.roundOya === 'p0' ? '<span class="h88-oya-badge">親</span>' : '') + st.names['p0'];
-  document.getElementById('h88-self-caps').innerHTML = h88CapGroupedHTML(g.caps['p0'], false);
+  document.getElementById('h88-self-caps').innerHTML = h88CapGroupedHTML(g.caps['p0'], 'self2');
   const myTurn = (g.currentPlayer === 'p0' && !g.winner);
   const handOn = myTurn && !st.pending; // ピック中は手札操作不可
   const stEl = document.getElementById('h88-self-turn'); // v1.65: 自分の近くにも「あなたの番」
@@ -4895,22 +4902,24 @@ function fitH88Board() {
     //   相手セルは display:contents なので #h88-oppL の高さは0。実際の .h88-seat-main / .h88-caps /
     //   .h88-field-row / .h88-self を測って、3段の合計が盤高に収まるまでカードを縮める。
     const availH = board.clientHeight, availW = board.clientWidth;
-    // 相手の手札列は概ね盤幅の36%（両端の取り札列14vw×2を除いた残りの半分）。7枚が1行に収まる幅から。
-    let w = Math.floor((availW * 0.36 - 6 * GAP) / 7);
-    w = Math.max(22, Math.min(w, 74));
-    setW(w);
+    // v1.75: まず暫定幅で描画→実際の手札列幅を測り、7枚が1行に収まる最大幅を採用（列幅いっぱいまで大きく）。
+    //   その後、3段が高さに収まるまで縮める（縦に余りがあれば列幅いっぱいのまま＝最大）。
+    let w = 44; setW(w);
     const smL = sh.querySelector('#h88-oppL .h88-seat-main');
-    // 実際の手札列幅でも7枚が1行に収まるよう補正（取り札列の実幅を反映）
-    if (smL) { const cw = smL.clientWidth; if (cw > 0) { w = Math.max(20, Math.min(w, Math.floor((cw - 6 * GAP) / 7))); setW(w); } }
+    if (smL) { const cw = smL.clientWidth; if (cw > 0) w = Math.floor((cw - 6 * GAP) / 7); }
+    w = Math.max(22, Math.min(w, 80));
+    setW(w);
     const seatMains = ['#h88-oppL .h88-seat-main', '#h88-oppR .h88-seat-main'].map(s => sh.querySelector(s)).filter(Boolean);
     const capsEls = ['#h88-oppL .h88-caps', '#h88-oppR .h88-caps'].map(s => sh.querySelector(s)).filter(Boolean);
-    const fieldRow = sh.querySelector('.h88-field-row');
+    const fieldInner = sh.querySelector('.h88-field');     // 場カードの実高（1fr セルではなく中身）
     const selfRow = sh.querySelector('.h88-self');
     for (let pass = 0; pass < 5; pass++) {
-      const r1 = Math.max.apply(null, seatMains.map(e => e.offsetHeight).concat(capsEls.map(e => e.offsetHeight)).concat([0]));
-      const r2 = fieldRow ? fieldRow.offsetHeight : 0;
+      // v1.75: 相手取り札は row1+2 を縦に使う（4段）。上部の必要高＝max(手札+場, 取り札4段)。＋自分段。
+      const r1 = Math.max.apply(null, seatMains.map(e => e.offsetHeight).concat([0]));
+      const rField = fieldInner ? fieldInner.offsetHeight : 0;
+      const rCaps = Math.max.apply(null, capsEls.map(e => e.offsetHeight).concat([0]));
       const r3 = selfRow ? selfRow.offsetHeight : 0;
-      const content = r1 + r2 + r3 + 16; // 3段＋行間
+      const content = Math.max(r1 + rField + 8, rCaps) + r3 + 16; // 上部（手札+場 か 取り札4段の高い方）＋自分＋余白
       if (content <= availH || content <= 0) break;
       w = Math.max(18, Math.floor(w * (availH / content)));
       setW(w);

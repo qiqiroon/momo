@@ -182,6 +182,12 @@
        中央ブロック=ステータス・山と場・自分の取り札2列＋手札1列。左右の相手は盤の外辺に絶対配置。 */
     #screen-hachi .h88-board{position:relative;width:100%;max-width:none;margin:0;align-self:stretch;box-sizing:border-box;
       height:calc(100vh - 74px);padding:0 var(--side-w,128px);display:block;}
+    /* v1.83: 横画面はヘッダーを圧縮して縦を稼ぐ（サブタイトル非表示・上下余白詰め）。タイトル外出しの縦を相殺。 */
+    #screen-hachi .site-header{margin-bottom:0;gap:6px;}
+    #screen-hachi .site-header h1{font-size:1.15rem;}
+    #screen-hachi .site-header .app-icon{height:30px;width:auto;}
+    #screen-hachi .header-sub{display:none;}
+    #screen-hachi #h88-status{margin:1px 0;}
     #screen-hachi .h88-opps{display:contents;}
     #screen-hachi .h88-opp-switch{display:none;}
     /* 相手セル＝盤の左右の外辺に全高で絶対配置。回転は内側 .h88-seat-rot で。
@@ -207,7 +213,9 @@
     #screen-hachi .h88-seat-rot .h88-mini-hand .card{flex:0 0 auto;width:var(--card-w);height:auto;max-width:none;}
     /* 中央ブロック＝状態(上)・山と場(中・可変)・自分(下)。左右のパディング内に縦積み。 */
     #screen-hachi .h88-center{display:flex;flex-direction:column;height:100%;gap:4px;padding:4px 6px 6px;min-height:0;box-sizing:border-box;}
-    #screen-hachi #h88-status{flex:0 0 auto;}
+    /* v1.83: ステータス/タイトルは盤の外(上)で全幅。横画面は行を細く（縦を稼ぐ）。 */
+    #screen-hachi #h88-status{width:100%;align-self:stretch;flex:0 0 auto;box-sizing:border-box;margin:1px 0;padding:1px 6px;min-height:0;font-size:.66rem;gap:8px;line-height:1.15;}
+    #screen-hachi #h88-status .h88-log-btn{padding:2px 7px;font-size:.66rem;line-height:1.1;}
     /* 場は上寄せ（ステータス直下）。余った縦の隙間は自分の上に集めて自分を最下部に。 */
     #screen-hachi .h88-field-row{flex:0 1 auto;align-items:flex-start;justify-content:center;min-height:0;gap:10px;}
     #screen-hachi .h88-deck{padding-top:0;}
@@ -1209,7 +1217,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.82</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.83</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1275,7 +1283,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.82</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.83</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1381,7 +1389,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.82</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.83</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1441,27 +1449,28 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.82</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.83</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
   <!-- v1.80 大改造: 横画面は縦3分割（左右=相手を内向き90°回転／中央=状態・山場・自分）。
        縦画面は従来どおり縦積み。左右の相手セルは中央ブロックの外側に置く。 -->
+  <!-- v1.83: タイトル/ステータスは中央ブロックの外＝盤の上に全幅で出す（中央が狭くて収まらない対策）。 -->
+  <div class="statusbar" id="h88-status">
+    <span class="rulename">八八</span>
+    <span id="h88-round">第1局</span>
+    <span id="h88-scores"></span>
+    <span id="h88-turn"></span>
+    <button class="h88-log-btn" id="btn-h88-log" type="button">📜 <span data-i18n="hachi.log">記録</span></button>
+    <button class="h88-log-btn h88-back" id="btn-home-hachi" type="button">← <span data-i18n="hachi.back">準備室</span></button>
+  </div>
   <div class="h88-board" id="h88-board">
     <div class="h88-opps" id="h88-opps">
       <div class="h88-seat" id="h88-oppL"></div>
       <div class="h88-seat" id="h88-oppR"></div>
     </div>
-    <!-- 中央ブロック：ステータス・山と場・自分の取り札と手札 -->
+    <!-- 中央ブロック：山と場・自分の取り札と手札（ステータスは外へ出した） -->
     <div class="h88-center" id="h88-center">
-      <div class="statusbar" id="h88-status">
-        <span class="rulename">八八</span>
-        <span id="h88-round">第1局</span>
-        <span id="h88-scores"></span>
-        <span id="h88-turn"></span>
-        <button class="h88-log-btn" id="btn-h88-log" type="button">📜 <span data-i18n="hachi.log">記録</span></button>
-        <button class="h88-log-btn h88-back" id="btn-home-hachi" type="button">← <span data-i18n="hachi.back">準備室</span></button>
-      </div>
       <!-- v1.63 B4: 縦画面は相手1人だけ表示。この行で相手を切替（横画面では非表示） -->
       <div class="h88-opp-switch" id="h88-opp-switch">
         <button class="btn btn-ghost btn-sm" id="btn-h88-switch" type="button">⇄ <span data-i18n="hachi.switch">相手を切替</span></button>
@@ -4918,6 +4927,8 @@ function fitH88Board() {
     //   制約: (1)相手手札7枚が盤の高さに沿って収まる (2)自分手札7枚が中央幅に収まる (3)左右の帯幅(相手の
     //   内容高＝名前+取り札2列+手札1列)を確保しても中央が足りる (4)中央の縦がはみ出さない。大きめから縮める。
     const R = 67 / 42;                 // カードの縦横比（高さ/幅）
+    // v1.83: タイトルを盤の外(上)に出したので、盤は「自分の上端〜画面下」いっぱいに合わせる。
+    board.style.height = Math.max(200, (window.innerHeight - board.getBoundingClientRect().top - 1)) + 'px';
     const availW = board.clientWidth, boardH = board.clientHeight;
     sh.style.setProperty('--rot-len', boardH + 'px');
     const center = document.getElementById('h88-center');
@@ -4943,6 +4954,7 @@ function fitH88Board() {
     return;
   }
   // 縦：手札7枚が board 幅に収まる最大（こいこいの8枚と同じ考え方・上限58）
+  board.style.height = ''; // v1.83: 横画面で入れた inline 高さを縦画面では解除（残ると縦スクロール）
   const availW = board.clientWidth || sh.clientWidth || 360;
   let w = Math.floor((availW - 6 * GAP) / 7);
   w = Math.max(28, Math.min(w, 58));

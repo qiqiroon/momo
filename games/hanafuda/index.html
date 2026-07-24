@@ -1246,7 +1246,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.90</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.91</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1312,7 +1312,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.90</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.91</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1360,6 +1360,7 @@
     <div class="set-row"><span data-i18n="set.draw">引き分けの親</span><span class="seg" data-key="draw"><button class="on" data-v="keep" data-i18n="set.draw.keep">親継続</button><button data-v="flow" data-i18n="set.draw.flow">親流れ</button></span></div>
     <div class="set-row"><span data-i18n="set.koikoiMul">こいこい多重掛け（回数で×2/×3/×4）</span><span class="seg" data-key="koikoiMul"><button class="on" data-v="on" data-i18n="set.on">あり</button><button data-v="off" data-i18n="set.off">なし</button></span></div>
     <div class="set-row"><span data-i18n="set.baigaeshi">倍返し（相手のこいこいを潰すと2倍）</span><span class="seg" data-key="baigaeshi"><button class="on" data-v="on" data-i18n="set.on">あり</button><button data-v="off" data-i18n="set.off">なし</button></span></div>
+    <div class="set-row"><span data-i18n="set.yakuScope">役の対象範囲（＋7判定はこいこい前の役も含む）</span><span class="seg" data-key="yakuScope"><button class="on" data-v="all" data-i18n="set.yakuScope.all">全て</button><button data-v="multPost" data-i18n="set.yakuScope.multPost">以降を倍率</button><button data-v="pointPost" data-i18n="set.yakuScope.pointPost">以降を対象</button></span></div>
     <div class="set-row"><span data-i18n="set.koiOnce">こいこいは1局1人だけ</span><span class="seg" data-key="koiOnce"><button data-v="on" data-i18n="set.on">あり</button><button class="on" data-v="off" data-i18n="set.off">なし</button></span></div>
     <div class="set-row"><span data-i18n="set.hint">ヒント表示（あと1枚で役）</span><span class="seg" data-key="hint"><button class="on" data-v="on" data-i18n="set.on">あり</button><button data-v="off" data-i18n="set.off">なし</button></span></div>
   </div>
@@ -1422,7 +1423,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.90</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.91</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1482,7 +1483,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.90</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.91</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1812,6 +1813,7 @@ const I18N = {
     'set.hint': 'ヒント表示（あと1枚で役）',
     'set.koikoiMul': 'こいこい多重掛け（回数で×2/×3/×4）',
     'set.baigaeshi': '倍返し（相手のこいこいを潰すと2倍）',
+    'set.yakuScope': '役の対象範囲（＋7判定はこいこい前の役も含む）', 'set.yakuScope.all': '全て', 'set.yakuScope.multPost': '以降を倍率', 'set.yakuScope.pointPost': '以降を対象',
     'set.koiOnce': 'こいこいは1局1人だけ',
     'oya.title': '先手（親）を決める',
     'oya.lead': '各自 1 枚ずつ札を引き、早い月を引いた方が「親（先手）」になります。自分側の札は自分でボタンを押して引きます。',
@@ -2006,6 +2008,7 @@ const I18N = {
     'set.hint': 'Hints (one card away)',
     'set.koikoiMul': 'Koi-Koi stacking (×2/×3/×4 by count)',
     'set.baigaeshi': 'Counter-double (beat their Koi-Koi = ×2)',
+    'set.yakuScope': 'Yaku scope (7+ check includes pre-koikoi)', 'set.yakuScope.all': 'All', 'set.yakuScope.multPost': 'Mult: post', 'set.yakuScope.pointPost': 'Points: post',
     'set.koiOnce': 'Only one Koi-Koi per round',
     'oya.title': 'Decide the Dealer',
     'oya.lead': 'Each player draws one card of their own; the earlier month becomes the dealer (first player). Press the button on your own side.',
@@ -2200,6 +2203,7 @@ const I18N = {
     'set.hint': '提示（差一张成役）',
     'set.koikoiMul': '来来叠加（按次数×2/×3/×4）',
     'set.baigaeshi': '反倍（破对方来来则×2）',
+    'set.yakuScope': '役的计分范围（+7判定含来来前的役）', 'set.yakuScope.all': '全部', 'set.yakuScope.multPost': '倍率:之后', 'set.yakuScope.pointPost': '计分:之后',
     'set.koiOnce': '每局仅限一次来来',
     'oya.title': '决定先手（庄家）',
     'oya.lead': '每人抽一张自己的牌，抽到较早月份的一方成为庄家（先手）。按下自己一侧的按钮抽自己的牌。',
@@ -2456,6 +2460,7 @@ const state = {
     baigaeshi: 'on', // v1.44: 倍返し（相手のこいこいを潰して上がると×2）
     koiOnce: 'off', // v1.59: こいこいは1局1人だけ（既定オフ）。ON時は koikoiMul を自動OFF
     hint: 'on', // v1.42: あと1枚で役のヒント表示（既定オン）
+    yakuScope: 'all', // v1.91: 役の対象範囲。all=全て / multPost=こいこい以降を倍率対象 / pointPost=こいこい以降を点数対象
   },
   oya: null,            // 'host' | 'guest' | null
   oyaHostMonth: null,
@@ -4326,6 +4331,7 @@ function startRound() {
     lastPlay: null,     // v1.35: 相手側の手札→場演出用
     pickOptions: [],
     yakuBaseline: { host: [], guest: [] },
+    yakuFirstKoi: { host: null, guest: null }, // v1.91: 各プレイヤーの「最初のこいこい宣言時点」の役（PRE）。yakuScope 計算用
     pendingYaku: null,
     pendingGained: null,
     koikoiBy: null,
@@ -5769,6 +5775,9 @@ function applyKoikoi() {
   g.koikoiBy = cur;
   if (!g.koikoiCount) g.koikoiCount = { host: 0, guest: 0 };
   g.koikoiCount[cur] = (g.koikoiCount[cur] || 0) + 1; // v1.44: こいこい回数
+  // v1.91: 最初のこいこい宣言時点の役（PRE）を保持（以後のこいこいでは上書きしない）。yakuScope 計算用。
+  if (!g.yakuFirstKoi) g.yakuFirstKoi = { host: null, guest: null };
+  if (g.koikoiCount[cur] === 1) g.yakuFirstKoi[cur] = g.pendingYaku;
   g.yakuBaseline[cur] = g.pendingYaku;
   g.pendingYaku = null;
   g.pendingGained = null;
@@ -5785,22 +5794,35 @@ function applyShobu() {
   const cur = g.currentPlayer;
   const opp = otherPlayer(cur);
   const yaku = g.pendingYaku || [];
-  const base = yakuTotal(yaku);
+  const allTotal = yakuTotal(yaku);                                             // ALL＝全成立役の合計
+  const preTotal = yakuTotal((g.yakuFirstKoi && g.yakuFirstKoi[cur]) || []);    // PRE＝最初のこいこい時点の役
+  const postTotal = Math.max(0, allTotal - preTotal);                           // POST＝こいこい以降ぶん
+  const scope = state.settings.yakuScope || 'all';                             // v1.91: 役の対象範囲
   const kc = g.koikoiCount || { host: 0, guest: 0 };
   // v1.44: 倍率は掛け算で累積。7文2倍／こいこい倍化（自分）／倍返し（相手のこいこい）
   let mult = 1; const factors = []; // v1.59: 計算根拠（各倍率の理由）
-  if (state.settings.double === 'on' && base >= 7) { mult *= 2; factors.push({ key: 'mult.seven', x: 2 }); }   // 7文以上2倍
+  // v1.91: ★7文以上の判定は「こいこい以前の役も含めた全合計(allTotal)」で行う（後で変える可能性あり）
+  if (state.settings.double === 'on' && allTotal >= 7) { mult *= 2; factors.push({ key: 'mult.seven', x: 2 }); }   // 7文以上2倍
   const wc = kc[cur] || 0;                                                    // 勝者自身のこいこい回数
   if (wc >= 1) { const kx = (state.settings.koikoiMul === 'on') ? (wc + 1) : 2; mult *= kx; factors.push({ key: 'mult.koikoi', x: kx }); } // こいこい倍化
   const lc = kc[opp] || 0;                                                    // 敗者（相手）のこいこい回数
   if (state.settings.baigaeshi === 'on' && lc >= 1) { mult *= 2; factors.push({ key: 'mult.baigaeshi', x: 2 }); } // 倍返し
-  const mon = base * mult;
+  // v1.91: 役の対象範囲で得点を決める。base は得点内訳表示用（×倍率される額）。
+  let base, mon, scopePre = 0, scopePost = 0;
+  if (scope === 'pointPost') {          // こいこい以降に成立した役のみを点数対象
+    base = postTotal; mon = postTotal * mult;
+  } else if (scope === 'multPost') {    // こいこい以降のみを倍率対象（以前ぶんは×1で加算）
+    base = allTotal; mon = preTotal + postTotal * mult; scopePre = preTotal; scopePost = postTotal;
+  } else {                              // all＝全ての役を対象（既定）
+    base = allTotal; mon = allTotal * mult;
+  }
+  const scopeMeta = { scope: scope, scopePre: scopePre, scopePost: scopePost };
   document.getElementById('ovYaku').classList.remove('show');
   // こいこい後の相手勝負判定: こいこい宣言者 !== cur なら相手 (cur) が総取り
   if (g.koikoiBy && g.koikoiBy !== cur) {
-    endRoundKoikoiLost(cur, g.koikoiBy, mon, mult, base, factors);
+    endRoundKoikoiLost(cur, g.koikoiBy, mon, mult, base, factors, scopeMeta);
   } else {
-    endRoundShobu(cur, mon, mult, base, factors);
+    endRoundShobu(cur, mon, mult, base, factors, scopeMeta);
   }
 }
 
@@ -5838,11 +5860,11 @@ function commitRoundEnd(rend) {
   renderGame();
   syncState();
 }
-function endRoundShobu(winner, mon, mult, base, factors) {
-  commitRoundEnd({ kind: 'shobu', winner: winner, mon: mon, mult: mult || 1, base: base, factors: factors || [] });
+function endRoundShobu(winner, mon, mult, base, factors, meta) {
+  commitRoundEnd(Object.assign({ kind: 'shobu', winner: winner, mon: mon, mult: mult || 1, base: base, factors: factors || [] }, meta || {}));
 }
-function endRoundKoikoiLost(winner, loser, mon, mult, base, factors) {
-  commitRoundEnd({ kind: 'koikoi-lost', winner: winner, loser: loser, mon: mon, mult: mult || 1, base: base, factors: factors || [] });
+function endRoundKoikoiLost(winner, loser, mon, mult, base, factors, meta) {
+  commitRoundEnd(Object.assign({ kind: 'koikoi-lost', winner: winner, loser: loser, mon: mon, mult: mult || 1, base: base, factors: factors || [] }, meta || {}));
 }
 function endRoundDraw() {
   commitRoundEnd({ kind: 'draw' });
@@ -5923,7 +5945,12 @@ function renderRoundEndFromData() {
     if (rend.mult && rend.mult > 1) {
       const base = (rend.base != null) ? rend.base : Math.round(rend.delta / rend.mult);
       // v1.59: 上の行＝計算式（役の点 ×倍率 ＝ 獲得文）／下の行＝倍率の理由だけ
-      earned += ' <span class="mult-badge">' + base + '文 ×' + rend.mult + ' ＝ ' + rend.delta + '文</span>';
+      // v1.91: 「以降を倍率」モードで以前ぶんがある場合は「以前 ＋ 以降×倍率 ＝ 獲得」で表示
+      if (rend.scope === 'multPost' && rend.scopePre > 0) {
+        earned += ' <span class="mult-badge">' + rend.scopePre + '文 ＋ ' + rend.scopePost + '文×' + rend.mult + ' ＝ ' + rend.delta + '文</span>';
+      } else {
+        earned += ' <span class="mult-badge">' + base + '文 ×' + rend.mult + ' ＝ ' + rend.delta + '文</span>';
+      }
       if (rend.factors && rend.factors.length) {
         const parts = rend.factors.map(f => t(f.key) + '×' + f.x);
         earned += '<span class="mult-note">' + parts.join('、') + '</span>';
@@ -6724,7 +6751,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state.hostName = (opts && opts.host) || 'ホスト';
         state.guestName = (opts && opts.guest) || 'ゲスト';
         state.oya = (opts && opts.oya) || 'host';
-        state.settings = Object.assign({ rounds: '12', kiku: 'tane', double: 'on', deal: 'on', draw: 'keep', hint: 'on', koikoiMul: 'on', baigaeshi: 'on' }, (opts && opts.settings) || {});
+        state.settings = Object.assign({ rounds: '12', kiku: 'tane', double: 'on', deal: 'on', draw: 'keep', hint: 'on', koikoiMul: 'on', baigaeshi: 'on', yakuScope: 'all' }, (opts && opts.settings) || {});
         beginMatch();
       },
       applyPlayCard, applyPick, applyKoikoi, applyShobu,
@@ -6749,7 +6776,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state.guestName = opts.guestName || 'G';
         state.roomName = opts.roomName || 'テスト';
         state.oya = opts.oya || 'host';
-        state.settings = Object.assign({ rounds:'12', kiku:'tane', double:'on', deal:'on', draw:'keep', hint:'on', koikoiMul:'on', baigaeshi:'on' }, opts.settings || {});
+        state.settings = Object.assign({ rounds:'12', kiku:'tane', double:'on', deal:'on', draw:'keep', hint:'on', koikoiMul:'on', baigaeshi:'on', yakuScope:'all' }, opts.settings || {});
       },
     };
   }

@@ -1246,7 +1246,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.92</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.93</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1312,7 +1312,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.92</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.93</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1423,7 +1423,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.92</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.93</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1483,7 +1483,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.92</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.93</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -5797,9 +5797,15 @@ function applyShobu() {
   const cur = g.currentPlayer;
   const opp = otherPlayer(cur);
   const yaku = g.pendingYaku || [];
-  const allTotal = yakuTotal(yaku);                                             // ALL＝全成立役の合計
-  const preTotal = yakuTotal((g.yakuFirstKoi && g.yakuFirstKoi[cur]) || []);    // PRE＝最初のこいこい時点の役
-  const postTotal = Math.max(0, allTotal - preTotal);                           // POST＝こいこい以降ぶん
+  // v1.93: 前/後は「役の種類＋文数が最初のこいこい時点と完全一致か」で判定。
+  //   完全一致＝「前」、少しでも違えば（光の格上げ・カス等の枚数増）「旧役が消えて新役が成立」とみなし丸ごと「後」。
+  //   これで光もカス/タネ/短冊も同じルールになり、役ごとの注記と加点が完全一致する。
+  const firstKoi = (g.yakuFirstKoi && g.yakuFirstKoi[cur]) || [];
+  const preSig = firstKoi.map(y => y.key + '|' + y.mon);                        // 最初のこいこい時点の役の署名（種類+文数）
+  const isPreY = (y) => preSig.indexOf(y.key + '|' + y.mon) >= 0;
+  let preTotal = 0, postTotal = 0;
+  yaku.forEach(y => { if (isPreY(y)) preTotal += y.mon; else postTotal += y.mon; });
+  const allTotal = preTotal + postTotal;                                        // ALL＝全成立役の合計（= yakuTotal）
   const scope = state.settings.yakuScope || 'all';                             // v1.91: 役の対象範囲
   const kc = g.koikoiCount || { host: 0, guest: 0 };
   // v1.44: 倍率は掛け算で累積。7文2倍／こいこい倍化（自分）／倍返し（相手のこいこい）
@@ -5819,9 +5825,8 @@ function applyShobu() {
   } else {                              // all＝全ての役を対象（既定）
     base = allTotal; mon = allTotal * mult;
   }
-  // v1.92: 役ごと表示用に「こいこい前(最初のこいこい時点)の役キー」を同期（相手側でも判定するため）
-  const preKeys = (g.yakuFirstKoi && g.yakuFirstKoi[cur]) ? g.yakuFirstKoi[cur].map(y => y.key) : [];
-  const scopeMeta = { scope: scope, scopePre: scopePre, scopePost: scopePost, preKeys: preKeys };
+  // v1.93: 役ごと表示用に「最初のこいこい時点の役の署名(種類+文数)」を同期（相手側でも同一判定するため）
+  const scopeMeta = { scope: scope, scopePre: scopePre, scopePost: scopePost, preSig: preSig };
   document.getElementById('ovYaku').classList.remove('show');
   // こいこい後の相手勝負判定: こいこい宣言者 !== cur なら相手 (cur) が総取り
   if (g.koikoiBy && g.koikoiBy !== cur) {
@@ -5915,16 +5920,17 @@ function roundEndYakuList(rend) {
   }
   if ((rend.kind === 'shobu' || rend.kind === 'koikoi-lost') && rend.winner) {
     const caps = g.caps[rend.winner] || [];
-    // v1.92: 「こいこい後の役の対象範囲」設定が all 以外で、勝者がこいこいしていれば役ごとに前/後・倍率を注記。
+    // v1.92/93: 「こいこい後の役の対象範囲」設定が all 以外で、勝者がこいこいしていれば役ごとに前/後・倍率を注記。
+    //   前/後は「種類+文数の署名」が最初のこいこい時点と一致するかで判定（加点と同じ基準）。
     const scope = rend.scope || 'all';
-    const preKeys = rend.preKeys || [];
-    const annotate = (scope === 'multPost' || scope === 'pointPost') && preKeys.length > 0;
+    const preSig = rend.preSig || [];
+    const annotate = (scope === 'multPost' || scope === 'pointPost') && preSig.length > 0;
     const mult = rend.mult || 1;
     const monU = t('game.mon');
     return computeYaku(caps).map(y => {
       const row = { label: yakuName(y), mon: y.mon, cards: yakuCardIds(y.key, caps) };
       if (annotate) {
-        const isPre = preKeys.indexOf(y.key) >= 0;
+        const isPre = preSig.indexOf(y.key + '|' + y.mon) >= 0;
         if (isPre && scope === 'pointPost') {
           row.disp = '（' + t('round.pre') + '）0' + monU;                         // こいこい前は対象外＝0文
         } else if (isPre && scope === 'multPost') {

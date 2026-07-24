@@ -87,8 +87,10 @@
   .h88-center{display:contents;}
   /* v1.87: 縦画面は盤を高さいっぱいに広げ、4行(相手/切替/山場/自分)を均等配置＝下の死にスペースを解消。
      こいこいの .play(flex:1;justify-content:space-evenly) に合わせる。横画面は @media landscape が別途上書き。 */
+  /* v1.88: 盤は margin:0 auto（左右オート余白）のため、フレックス仕様で幅が"内容の最大幅"まで膨らみ、
+     画面幅を超えて右がクリップされていた（ピンチでも出せない真因）。width:100% で wrap 幅に固定して解消。 */
   @media (orientation:portrait){
-    #screen-hachi .h88-board{flex:1 1 auto;min-height:0;justify-content:space-evenly;}
+    #screen-hachi .h88-board{flex:1 1 auto;min-height:0;justify-content:space-evenly;width:100%;max-width:none;box-sizing:border-box;}
   }
   #screen-hachi #h88-status{order:0;}
   #screen-hachi .h88-opps{order:1;}
@@ -1244,7 +1246,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.87</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.88</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1310,7 +1312,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.87</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.88</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1416,7 +1418,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.87</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.88</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1476,7 +1478,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.87</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.88</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -4994,11 +4996,14 @@ function fitH88Board() {
   }
   // 縦：手札7枚が board 幅に収まる最大（こいこいの8枚と同じ考え方・上限58）
   board.style.height = ''; // v1.83: 横画面で入れた inline 高さを縦画面では解除（残ると縦スクロール）
-  // v1.87: board.clientWidth は左右パディングを含む＝手札の実効幅を過大評価し右に1枚弱はみ出していた。
-  //   盤の左右パディングを差し引いた"内容幅"で計算し、はみ出しを解消する。
+  // v1.88: 基準を「盤の実測幅」ではなく「画面枠(wrap=#screen-hachi)の幅」にする。
+  //   盤は margin:auto の影響で内容最大幅まで膨らみ得るため、盤を測ると過大評価してはみ出す。
+  //   wrap 幅から wrap と盤の左右パディングを引いた"手札に使える実幅"で算出＝常に視界内に収める。
+  const scs = getComputedStyle(sh);
   const bcs = getComputedStyle(board);
-  const padX = (parseFloat(bcs.paddingLeft) || 0) + (parseFloat(bcs.paddingRight) || 0);
-  const availW = Math.max(0, (board.clientWidth - padX)) || sh.clientWidth || 360;
+  const wrapPadX = (parseFloat(scs.paddingLeft) || 0) + (parseFloat(scs.paddingRight) || 0);
+  const boardPadX = (parseFloat(bcs.paddingLeft) || 0) + (parseFloat(bcs.paddingRight) || 0);
+  const availW = Math.max(0, (sh.clientWidth - wrapPadX - boardPadX)) || 360;
   let w = Math.floor((availW - 6 * GAP) / 7);
   w = Math.max(24, Math.min(w, 58));
   setW(w);

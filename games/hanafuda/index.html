@@ -1246,7 +1246,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.89</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.90</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1312,7 +1312,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.89</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.90</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1403,13 +1403,17 @@
   <!-- 接続診断パネル (?debug=1 の時だけ表示・通常ユーザーには見せない) -->
   <div class="diag-panel hidden" id="diag-panel" style="margin-top:10px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:.66rem;color:var(--text-muted);line-height:1.6;font-family:monospace;">
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-      <b style="color:var(--orange-mid);">接続診断</b>
+      <b style="color:var(--orange-mid);">デバッグパネル</b>
       <span id="diag-time"></span>
       <button class="btn btn-ghost btn-sm" id="btn-diag-copy" style="font-size:.6rem;padding:2px 8px;">コピー</button>
       <button class="btn btn-ghost btn-sm" id="btn-diag-pause" style="font-size:.6rem;padding:2px 8px;">一時停止</button>
+      <button class="btn btn-ghost btn-sm" id="btn-diag-close" style="font-size:.6rem;padding:2px 8px;">✕ 閉じる</button>
     </div>
     <div id="diag-log" style="white-space:pre;overflow:auto;max-height:180px;">起動中...</div>
-    <button class="btn btn-ghost btn-sm" id="btn-solo-fallback" style="margin-top:6px;font-size:.65rem;padding:4px 10px;" data-i18n="diag.solo">1 人で試す（P2P が繋がらない場合の回避策）</button>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
+      <button class="btn btn-ghost btn-sm" id="btn-solo-fallback" style="font-size:.65rem;padding:4px 10px;" data-i18n="diag.solo">1 人で試す（P2P が繋がらない場合の回避策）</button>
+      <button class="btn btn-ghost btn-sm" id="btn-diag-h88log" style="font-size:.65rem;padding:4px 10px;">📜 八八の記録を開く</button>
+    </div>
   </div>
 </section>
 
@@ -1418,7 +1422,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.89</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.90</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1478,7 +1482,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.89</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.90</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1491,7 +1495,6 @@
     <span id="h88-scores"></span>
     <span id="h88-turn"></span>
     <button class="h88-log-btn" id="btn-h88-fs" type="button" hidden>⛶ <span data-i18n="hachi.fs.enter">全画面</span></button>
-    <button class="h88-log-btn" id="btn-h88-log" type="button">📜 <span data-i18n="hachi.log">記録</span></button>
     <button class="h88-log-btn h88-back" id="btn-home-hachi" type="button">← <span data-i18n="hachi.back">準備室</span></button>
   </div>
   <div class="h88-board" id="h88-board">
@@ -1597,6 +1600,10 @@
   <!-- v1.61: 音源クレジット（将棋準拠・CC-BY のみ掲載。CC0/効果音ラボ/SUNO は義務なしで割愛） -->
   <div class="settings-row" id="settings-row-credits">
     <a href="#credits" id="link-credits" class="credit-link" data-i18n="sound.creditsButton">クレジット</a>
+  </div>
+  <!-- v1.90: デバッグパネル入口（?debug=1 のときだけ表示・通常ユーザーには見せない） -->
+  <div class="settings-row hidden" id="settings-row-debug">
+    <button class="btn btn-ghost" id="btn-open-debug" style="width:100%;">🛠 デバッグパネル</button>
   </div>
   <div class="btn-row">
     <button class="btn btn-primary" id="btn-settings-close" data-i18n="settings.close">閉じる</button>
@@ -4178,19 +4185,35 @@ function showMusicModal() {
   reflectVolumeUI();
   document.getElementById('ovMusic').classList.add('show');
 }
-// v1.61: B案＝起動時モーダルは出さず、最初のユーザー操作で音声を解禁する。
-// ★キャプチャ段階で listen し preventDefault/stopPropagation しない＝そのクリックは
-//   本来のボタン動作もそのまま実行される（クリックを1回食う・遅延させることがない）。
-function armFirstGestureAudio() {
-  if (AUDIO.isOn()) return;
-  const h = () => {
-    document.removeEventListener('pointerdown', h, true);
-    document.removeEventListener('keydown', h, true);
-    AUDIO.enableAuto();
-    reflectVolumeUI();
+// v1.90: Q2＝最初の操作でまず音楽モーダルを出す。ただしその操作（ボタン押し等）は捨てず、
+//   モーダルを閉じたあとで自動的に実行する（ユーザーが押し直さなくてよい）。
+//   → v1.61 で問題視した「モーダルがクリックを1回食う」を解消しつつ、確認モーダルを復活。
+// 仕組み: 最初の click をキャプチャ段階で横取りして抑止（preventDefault+stopPropagation）、
+//   対象要素を覚えてモーダル表示。はい/いいえの後にその要素を .click() で再実行する。
+let _musicGatePending = null; // 抑止した操作の対象（モーダルを閉じたら再実行）
+let _musicGateArmed = false;
+function armMusicGate() {
+  if (AUDIO.isOn() || _musicGateArmed) return;
+  _musicGateArmed = true;
+  const onFirst = (e) => {
+    if (!_musicGateArmed) return;
+    if (e.target.closest('#ovMusic')) return; // モーダル自身は対象外（通常ここには来ない）
+    _musicGateArmed = false;
+    document.removeEventListener('click', onFirst, true);
+    _musicGatePending = e.target; // 押された最深要素（.click() は上位ハンドラまでバブルする）
+    e.preventDefault();
+    e.stopPropagation();
+    showMusicModal();
   };
-  document.addEventListener('pointerdown', h, true);
-  document.addEventListener('keydown', h, true);
+  document.addEventListener('click', onFirst, true);
+}
+// モーダルの はい(play=true)/いいえ(play=false) 共通処理：音声を有効化/ミュートし、抑止した操作を再実行。
+function closeMusicModal(play) {
+  document.getElementById('ovMusic').classList.remove('show');
+  if (play) AUDIO.enable(); else AUDIO.enableMuted();
+  reflectVolumeUI();
+  const p = _musicGatePending; _musicGatePending = null;
+  if (p && p.isConnected) setTimeout(() => { try { p.click(); } catch (e) {} }, 0);
 }
 
 // --- こいこい演出イベント（一瞬のバナー。ホスト権威で発火し両者に同期） ---
@@ -6547,15 +6570,9 @@ function bindEvents() {
   if (ovCred) ovCred.addEventListener('click', (e) => { if (e.target === ovCred) ovCred.classList.remove('show'); });
   // v1.38: 音量スライダー（設定パネル＋音楽モーダルの2組）を AUDIO と連動・相互に同期
   bindVolumeSliders();
-  // v1.38: 音楽再生の確認モーダル（起動時に表示・「再生する」で BGM 開始）
-  document.getElementById('btn-music-yes').addEventListener('click', () => {
-    document.getElementById('ovMusic').classList.remove('show');
-    AUDIO.enable(); reflectVolumeUI();          // 再生する＝ミュート解除して再生
-  });
-  document.getElementById('btn-music-no').addEventListener('click', () => {
-    document.getElementById('ovMusic').classList.remove('show');
-    AUDIO.enableMuted(); reflectVolumeUI();      // v1.59 鳴らさない＝音量は保持しミュートON（後で設定で解除可）
-  });
+  // v1.90: 音楽確認モーダル。はい＝再生／いいえ＝ミュート。どちらも「抑止していた最初の操作」を再実行。
+  document.getElementById('btn-music-yes').addEventListener('click', () => closeMusicModal(true));
+  document.getElementById('btn-music-no').addEventListener('click', () => closeMusicModal(false));
   // v1.17: 札の番号表示 ON/OFF（この端末のみ・既定 ON・localStorage 記憶）
   const tagSeg = document.getElementById('seg-showtag');
   try { const v = localStorage.getItem('hanafuda_showtag'); if (v != null) state.showTag = (v !== 'off'); } catch (e) {}
@@ -6667,27 +6684,38 @@ document.addEventListener('DOMContentLoaded', () => {
   initMatchmaking();
   tryAutoRejoin();       // 再読込直後にゲスト復帰（sessionStorage に新しめの部屋があれば）
   startDiagPolling();
-  // v1.61: B案＝起動時モーダルは廃止。最初の操作で音声解禁（1時間以上ぶりの復帰時も再武装）。
-  //   再開はトップ画面からとは限らないため、モーダルではなく「次の操作で解禁」に統一。
-  AUDIO.bindVisibility(armFirstGestureAudio);
-  armFirstGestureAudio();
-  // ?debug=1: solo test hook + 診断パネル表示
+  // v1.90: Q2＝最初の操作でまず音楽モーダルを出し、その操作は捨てず、閉じたら自動実行（押し直し不要）。
+  //   1時間以上ぶりの復帰時も同じゲートを再武装。
+  AUDIO.bindVisibility(armMusicGate);
+  armMusicGate();
+  // ?debug=1: solo test hook + デバッグパネル（v1.90: 右上固定の自動表示をやめ、設定から呼び出す）
   if (new URLSearchParams(location.search).get('debug') === '1') {
     const dp = document.getElementById('diag-panel');
     if (dp) {
-      dp.classList.remove('hidden'); document.body.appendChild(dp); dp.classList.add('debug-fixed', 'debug-collapsed'); // v1.46: 既定は畳む（対局を隠さない）
-      // 開閉トグル（畳んでもコピーは可能）
-      const tg = document.createElement('button');
-      tg.className = 'btn btn-ghost btn-sm'; tg.style.cssText = 'font-size:.6rem;padding:2px 8px;';
-      const setLbl = () => tg.textContent = dp.classList.contains('debug-collapsed') ? '▼ログ' : '▲畳む';
-      setLbl();
-      tg.addEventListener('click', () => { dp.classList.toggle('debug-collapsed'); setLbl(); });
-      const hdr = dp.querySelector('div'); if (hdr) hdr.appendChild(tg);
+      // body 直下へ移して固定パネル化。既定は非表示（設定の「デバッグパネル」から開く）。
+      document.body.appendChild(dp); dp.classList.add('debug-fixed', 'hidden');
     }
     const bc = document.getElementById('btn-diag-copy');
     if (bc) bc.addEventListener('click', diagCopyToClipboard);
     const bp = document.getElementById('btn-diag-pause');
     if (bp) bp.addEventListener('click', diagTogglePause);
+    // 閉じる＝パネルを隠す
+    const bdc = document.getElementById('btn-diag-close');
+    if (bdc) bdc.addEventListener('click', () => dp && dp.classList.add('hidden'));
+    // 八八の記録を開く（記録ボタンは対局バーから撤去し、ここへ集約）
+    const bdl = document.getElementById('btn-diag-h88log');
+    if (bdl) bdl.addEventListener('click', () => {
+      const p = document.getElementById('h88-log-panel');
+      if (p) { p.classList.remove('hidden'); const el = document.getElementById('h88-log'); if (el) el.scrollTop = el.scrollHeight; }
+    });
+    // 設定内の「デバッグパネル」入口を表示＆パネルを開く配線
+    const dbgRow = document.getElementById('settings-row-debug');
+    if (dbgRow) dbgRow.classList.remove('hidden');
+    const bod = document.getElementById('btn-open-debug');
+    if (bod) bod.addEventListener('click', () => {
+      if (dp) dp.classList.remove('hidden');
+      document.getElementById('ovSettings').classList.remove('show');
+    });
     window.__hanafudaDebug = {
       startRoundSolo(opts) {
         state.solo = true; // ホットシート挙動 (mySide = currentPlayer 追従)

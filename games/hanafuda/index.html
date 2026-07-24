@@ -1246,7 +1246,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.91</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.92</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1312,7 +1312,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.91</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.92</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1423,7 +1423,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.91</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.92</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1483,7 +1483,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.91</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.92</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1813,7 +1813,8 @@ const I18N = {
     'set.hint': 'ヒント表示（あと1枚で役）',
     'set.koikoiMul': 'こいこい多重掛け（回数で×2/×3/×4）',
     'set.baigaeshi': '倍返し（相手のこいこいを潰すと2倍）',
-    'set.yakuScope': '役の対象範囲（＋7判定はこいこい前の役も含む）', 'set.yakuScope.all': '全て', 'set.yakuScope.multPost': '以降を倍率', 'set.yakuScope.pointPost': '以降を対象',
+    'set.yakuScope': 'こいこい後の役の対象範囲（＋7判定はこいこい前の役も含む）', 'set.yakuScope.all': '全て', 'set.yakuScope.multPost': '以降を倍率', 'set.yakuScope.pointPost': '以降を対象',
+    'round.pre': 'こいこい前', 'round.post': 'こいこい後',
     'set.koiOnce': 'こいこいは1局1人だけ',
     'oya.title': '先手（親）を決める',
     'oya.lead': '各自 1 枚ずつ札を引き、早い月を引いた方が「親（先手）」になります。自分側の札は自分でボタンを押して引きます。',
@@ -2008,7 +2009,8 @@ const I18N = {
     'set.hint': 'Hints (one card away)',
     'set.koikoiMul': 'Koi-Koi stacking (×2/×3/×4 by count)',
     'set.baigaeshi': 'Counter-double (beat their Koi-Koi = ×2)',
-    'set.yakuScope': 'Yaku scope (7+ check includes pre-koikoi)', 'set.yakuScope.all': 'All', 'set.yakuScope.multPost': 'Mult: post', 'set.yakuScope.pointPost': 'Points: post',
+    'set.yakuScope': 'Post-koikoi yaku scope (7+ check includes pre-koikoi)', 'set.yakuScope.all': 'All', 'set.yakuScope.multPost': 'Mult: post', 'set.yakuScope.pointPost': 'Points: post',
+    'round.pre': 'Pre-koikoi', 'round.post': 'Post-koikoi',
     'set.koiOnce': 'Only one Koi-Koi per round',
     'oya.title': 'Decide the Dealer',
     'oya.lead': 'Each player draws one card of their own; the earlier month becomes the dealer (first player). Press the button on your own side.',
@@ -2203,7 +2205,8 @@ const I18N = {
     'set.hint': '提示（差一张成役）',
     'set.koikoiMul': '来来叠加（按次数×2/×3/×4）',
     'set.baigaeshi': '反倍（破对方来来则×2）',
-    'set.yakuScope': '役的计分范围（+7判定含来来前的役）', 'set.yakuScope.all': '全部', 'set.yakuScope.multPost': '倍率:之后', 'set.yakuScope.pointPost': '计分:之后',
+    'set.yakuScope': '来来后役的计分范围（+7判定含来来前的役）', 'set.yakuScope.all': '全部', 'set.yakuScope.multPost': '倍率:之后', 'set.yakuScope.pointPost': '计分:之后',
+    'round.pre': '来来前', 'round.post': '来来后',
     'set.koiOnce': '每局仅限一次来来',
     'oya.title': '决定先手（庄家）',
     'oya.lead': '每人抽一张自己的牌，抽到较早月份的一方成为庄家（先手）。按下自己一侧的按钮抽自己的牌。',
@@ -5816,7 +5819,9 @@ function applyShobu() {
   } else {                              // all＝全ての役を対象（既定）
     base = allTotal; mon = allTotal * mult;
   }
-  const scopeMeta = { scope: scope, scopePre: scopePre, scopePost: scopePost };
+  // v1.92: 役ごと表示用に「こいこい前(最初のこいこい時点)の役キー」を同期（相手側でも判定するため）
+  const preKeys = (g.yakuFirstKoi && g.yakuFirstKoi[cur]) ? g.yakuFirstKoi[cur].map(y => y.key) : [];
+  const scopeMeta = { scope: scope, scopePre: scopePre, scopePost: scopePost, preKeys: preKeys };
   document.getElementById('ovYaku').classList.remove('show');
   // こいこい後の相手勝負判定: こいこい宣言者 !== cur なら相手 (cur) が総取り
   if (g.koikoiBy && g.koikoiBy !== cur) {
@@ -5910,7 +5915,26 @@ function roundEndYakuList(rend) {
   }
   if ((rend.kind === 'shobu' || rend.kind === 'koikoi-lost') && rend.winner) {
     const caps = g.caps[rend.winner] || [];
-    return computeYaku(caps).map(y => ({ label: yakuName(y), mon: y.mon, cards: yakuCardIds(y.key, caps) }));
+    // v1.92: 「こいこい後の役の対象範囲」設定が all 以外で、勝者がこいこいしていれば役ごとに前/後・倍率を注記。
+    const scope = rend.scope || 'all';
+    const preKeys = rend.preKeys || [];
+    const annotate = (scope === 'multPost' || scope === 'pointPost') && preKeys.length > 0;
+    const mult = rend.mult || 1;
+    const monU = t('game.mon');
+    return computeYaku(caps).map(y => {
+      const row = { label: yakuName(y), mon: y.mon, cards: yakuCardIds(y.key, caps) };
+      if (annotate) {
+        const isPre = preKeys.indexOf(y.key) >= 0;
+        if (isPre && scope === 'pointPost') {
+          row.disp = '（' + t('round.pre') + '）0' + monU;                         // こいこい前は対象外＝0文
+        } else if (isPre && scope === 'multPost') {
+          row.disp = '（' + t('round.pre') + '×1）' + y.mon + monU;                // こいこい前は×1
+        } else {
+          row.disp = '（' + t('round.post') + '×' + mult + '）' + y.mon + monU;    // こいこい後は×倍率
+        }
+      }
+      return row;
+    });
   }
   return [];
 }
@@ -5965,7 +5989,8 @@ function renderRoundEndFromData() {
   const rows = roundEndYakuList(rend);
   ul.innerHTML = rows.map(r => {
     const cards = (r.cards || []).map(id => svgCard(id, 'ye-card')).join('');
-    return '<li class="ye-li"><div class="ye-head"><span>' + r.label + '</span><span class="pt">' + r.mon + ' ' + t('game.mon') + '</span></div>' +
+    const ptText = (r.disp != null) ? r.disp : (r.mon + ' ' + t('game.mon')); // v1.92: 前/後注記があればそれを表示
+    return '<li class="ye-li"><div class="ye-head"><span>' + r.label + '</span><span class="pt">' + ptText + '</span></div>' +
       (cards ? '<div class="ye-cards">' + cards + '</div>' : '') + '</li>';
   }).join('');
   // 累計スコア・次の親・「次の局へ」ゲート

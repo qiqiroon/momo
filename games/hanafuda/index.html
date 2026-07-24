@@ -1246,7 +1246,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.88</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.89</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1312,7 +1312,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.88</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.89</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1418,7 +1418,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.88</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.89</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1478,7 +1478,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.88</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.89</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -5008,6 +5008,15 @@ function fitH88Board() {
   w = Math.max(24, Math.min(w, 58));
   setW(w);
   fitRows();
+  // v1.89: 縦の高さ収まり（こいこいの fitBoard と同じ考え方）。v1.87 で盤を flex:1＋均等配置にしたが、
+  //   内容が画面高を超えると下にはみ出す（特に Android ブラウザ非全画面＝アドレスバーで高さが減る場面）。
+  //   盤の内容が割当高を超えている間だけカードを縮めて、下はみ出しを解消する。
+  for (let pass = 0; pass < 3; pass++) {
+    if (board.scrollHeight <= board.clientHeight + 1 || w <= 22) break;
+    w = Math.max(22, Math.floor(w * board.clientHeight / board.scrollHeight));
+    setW(w);
+    fitRows();
+  }
 }
 
 // ===== v1.85: 八八の向き案内（縦横×環境の検知） =====

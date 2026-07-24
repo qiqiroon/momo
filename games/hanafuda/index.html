@@ -174,6 +174,25 @@
   /* v1.62: ドラッグ入替中の見た目 */
   .h88-seat.dragging{opacity:.75;z-index:5;transition:none;}
   .h88-opps.swap-hint .h88-seat{outline:1px dashed var(--orange);outline-offset:-2px;}
+  /* v1.85: 向き案内トースト（縦向き＋"広くできる環境"のときだけ画面下に軽く出す。強制はしない）。
+     全画面ボタン（Android/iPadのブラウザ＝全画面APIが使える環境だけ status に出す）。 */
+  .h88-rotate-toast{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:9000;
+    display:flex;align-items:center;gap:10px;max-width:calc(100vw - 24px);
+    background:rgba(20,20,20,.94);border:1px solid var(--border-strong);border-radius:12px;
+    padding:9px 12px;box-shadow:0 6px 22px rgba(0,0,0,.5);color:var(--text);font-size:.8rem;line-height:1.3;}
+  .h88-rotate-toast .rt-ico{font-size:1.15rem;flex:0 0 auto;animation:h88rotate 2.2s ease-in-out infinite;}
+  @keyframes h88rotate{0%,60%,100%{transform:rotate(0)}75%,90%{transform:rotate(-90deg)}}
+  .h88-rotate-toast .rt-msg{flex:1 1 auto;min-width:0;}
+  .h88-rotate-toast .rt-fs{flex:0 0 auto;background:var(--orange);color:#1a1a1a;border:none;border-radius:7px;
+    font-family:inherit;font-weight:700;font-size:.76rem;padding:5px 10px;cursor:pointer;white-space:nowrap;}
+  .h88-rotate-toast .rt-fs:hover{filter:brightness(1.08);}
+  .h88-rotate-toast .rt-close{flex:0 0 auto;background:transparent;border:none;color:var(--text-muted);
+    font-size:1.1rem;line-height:1;cursor:pointer;padding:2px 4px;}
+  .h88-rotate-toast .rt-close:hover{color:#fff;}
+  /* status バーの全画面ボタン（h88-log-btn と同じ見た目・普段は隠す） */
+  #btn-h88-fs{background:transparent;color:var(--orange);border:1px solid var(--orange);}
+  #btn-h88-fs:hover{background:rgba(216,168,56,.12);}
+
   /* v1.72 D3: 横画面＝こいこいの考え方で統一。場を中央、左に左プレイヤー・右に右プレイヤー
      （場の左右の空きを活用）。自分は下段＝手札を画面中央・取り札をその右横（こいこいの
      「取り札は右列」と同じ思想）。カードサイズは全て --card-w/--cap-w（fitH88Board が実測で最大化）。 */
@@ -1220,7 +1239,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.84</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.85</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1286,7 +1305,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.84</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.85</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1392,7 +1411,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.84</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.85</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1452,7 +1471,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.84</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.85</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1464,6 +1483,7 @@
     <span id="h88-round">第1局</span>
     <span id="h88-scores"></span>
     <span id="h88-turn"></span>
+    <button class="h88-log-btn" id="btn-h88-fs" type="button" hidden>⛶ <span data-i18n="hachi.fs.enter">全画面</span></button>
     <button class="h88-log-btn" id="btn-h88-log" type="button">📜 <span data-i18n="hachi.log">記録</span></button>
     <button class="h88-log-btn h88-back" id="btn-home-hachi" type="button">← <span data-i18n="hachi.back">準備室</span></button>
   </div>
@@ -1495,6 +1515,14 @@
     </div>
   </div>
   <button class="leave-btn" id="btn-leave-hachi" style="display:none" data-i18n="game.leave">← 中断</button>
+
+  <!-- v1.85: 向き案内トースト（縦向き＋"広くできる環境"のときだけ。強制せず軽く案内） -->
+  <div class="h88-rotate-toast hidden" id="h88-rotate-toast">
+    <span class="rt-ico">📱</span>
+    <span class="rt-msg" data-i18n="hachi.rotate.hint">横向きにすると全員が見やすく表示されます</span>
+    <button class="rt-fs hidden" id="btn-h88-toast-fs" type="button" data-i18n="hachi.fs.enter">全画面</button>
+    <button class="rt-close" id="btn-h88-toast-close" type="button" aria-label="close">×</button>
+  </div>
 
   <!-- v1.66: プレイ記録（誰が何をしたか・ルール検証用。手が早くて目で追えない対策） -->
   <div class="h88-log-panel hidden" id="h88-log-panel">
@@ -1761,7 +1789,7 @@ const I18N = {
     'room.soon': '近日',
     'room.wip': '工事中',
     'set.koikoi.title': 'こいこい 設定',
-    'hachi.start': '八八を開始', 'hachi.switch': '相手を切替', 'hachi.log': '記録', 'hachi.log.title': 'プレイ記録（誰が何をしたか）', 'hachi.back': '対戦準備に戻る', 'hachi.needoya': '先に親を決めてください', 'hachi.oya.lead': '3人で1枚ずつ引き、早い月＝親、以下反時計回りに着席します。', 'set.hachi.title': '八八（3人）設定', 'set.hachi.desc': 'あなた＋コンピュータ2体の3人で対戦します（相手2人ともコンピュータ）。強さは上のプルダウン、局数は下で選べます。「八八を開始」で親決めに進みます。',
+    'hachi.start': '八八を開始', 'hachi.switch': '相手を切替', 'hachi.log': '記録', 'hachi.log.title': 'プレイ記録（誰が何をしたか）', 'hachi.back': '対戦準備に戻る', 'hachi.rotate.hint': '横向きにすると全員が見やすく表示されます', 'hachi.fs.enter': '全画面', 'hachi.fs.exit': '全画面解除', 'hachi.needoya': '先に親を決めてください', 'hachi.oya.lead': '3人で1枚ずつ引き、早い月＝親、以下反時計回りに着席します。', 'set.hachi.title': '八八（3人）設定', 'set.hachi.desc': 'あなた＋コンピュータ2体の3人で対戦します（相手2人ともコンピュータ）。強さは上のプルダウン、局数は下で選べます。「八八を開始」で親決めに進みます。',
     'set.rounds': '局数', 'set.1': '1局', 'set.3': '3局', 'set.6': '6局', 'set.12': '12局',
     'set.kiku': '菊の盃', 'set.kiku.tane': '種＋花見月見', 'set.kiku.kasu2': 'カス2枚',
     'set.double': '7文以上2倍', 'set.on': 'あり', 'set.off': 'なし',
@@ -1955,7 +1983,7 @@ const I18N = {
     'room.soon': 'Coming soon',
     'room.wip': 'Under construction',
     'set.koikoi.title': 'Koi-Koi Settings',
-    'hachi.start': 'Start Hachi-Hachi', 'hachi.switch': 'Switch opponent', 'hachi.log': 'Log', 'hachi.log.title': 'Play log (who did what)', 'hachi.back': 'Back to setup', 'hachi.needoya': 'Draw for dealer first', 'hachi.oya.lead': 'Each of the 3 draws one card; earliest month is dealer, others seated counterclockwise.', 'set.hachi.title': 'Hachi-Hachi (3P) Settings', 'set.hachi.desc': 'You plus two computers (both opponents are AI). Set difficulty in the pulldown above and rounds below. Tap “Start Hachi-Hachi” to draw for dealer.',
+    'hachi.start': 'Start Hachi-Hachi', 'hachi.switch': 'Switch opponent', 'hachi.log': 'Log', 'hachi.log.title': 'Play log (who did what)', 'hachi.back': 'Back to setup', 'hachi.rotate.hint': 'Rotate to landscape to see all players clearly', 'hachi.fs.enter': 'Fullscreen', 'hachi.fs.exit': 'Exit full screen', 'hachi.needoya': 'Draw for dealer first', 'hachi.oya.lead': 'Each of the 3 draws one card; earliest month is dealer, others seated counterclockwise.', 'set.hachi.title': 'Hachi-Hachi (3P) Settings', 'set.hachi.desc': 'You plus two computers (both opponents are AI). Set difficulty in the pulldown above and rounds below. Tap “Start Hachi-Hachi” to draw for dealer.',
     'set.rounds': 'Rounds', 'set.1': '1', 'set.3': '3', 'set.6': '6', 'set.12': '12',
     'set.kiku': 'Kiku no Sakazuki', 'set.kiku.tane': 'Tane (+Hanami/Tsukimi)', 'set.kiku.kasu2': 'Kasu ×2',
     'set.double': '7+ Points ×2', 'set.on': 'On', 'set.off': 'Off',
@@ -2149,7 +2177,7 @@ const I18N = {
     'room.soon': '即将推出',
     'room.wip': '施工中',
     'set.koikoi.title': '来来 设定',
-    'hachi.start': '开始八八', 'hachi.switch': '切换对手', 'hachi.log': '记录', 'hachi.log.title': '对局记录（谁做了什么）', 'hachi.back': '返回准备', 'hachi.needoya': '请先定庄', 'hachi.oya.lead': '三人各抽一张，月份早者为庄，其余逆时针就座。', 'set.hachi.title': '八八（3人）设定', 'set.hachi.desc': '你＋两台电脑三人对战（两位对手均为电脑）。强度在上方下拉选择，局数在下方选择。点“开始八八”进入定庄。',
+    'hachi.start': '开始八八', 'hachi.switch': '切换对手', 'hachi.log': '记录', 'hachi.log.title': '对局记录（谁做了什么）', 'hachi.back': '返回准备', 'hachi.rotate.hint': '横屏可更清楚地显示所有玩家', 'hachi.fs.enter': '全屏', 'hachi.fs.exit': '退出全屏', 'hachi.needoya': '请先定庄', 'hachi.oya.lead': '三人各抽一张，月份早者为庄，其余逆时针就座。', 'set.hachi.title': '八八（3人）设定', 'set.hachi.desc': '你＋两台电脑三人对战（两位对手均为电脑）。强度在上方下拉选择，局数在下方选择。点“开始八八”进入定庄。',
     'set.rounds': '局数', 'set.1': '1局', 'set.3': '3局', 'set.6': '6局', 'set.12': '12局',
     'set.kiku': '菊之杯', 'set.kiku.tane': '种＋花见月见', 'set.kiku.kasu2': '算作2张滓',
     'set.double': '7文以上×2', 'set.on': '开启', 'set.off': '关闭',
@@ -2458,6 +2486,7 @@ function showScreen(s) {
   // 対局中に入ったらカード寸法を実測フィット + 中断ボタン再配置（レイアウト確定後に一度）
   if (s === 'game') requestAnimationFrame(() => { fitBoard(); positionLeaveBtn(); });
   if (s === 'hachi') requestAnimationFrame(() => { fitH88Board(); }); // v1.72 D4
+  updateH88OrientationUI(); // v1.85: 八八入場で向き案内/全画面ボタンを判定（他画面では自動で隠す）
   // v1.38: 画面に応じて BGM プールを切替（ロビー/準備＝ロビー曲、対局＝対局中曲）
   setBgm((s === 'game' || s === 'hachi') ? 'game' : 'lobby');
 }
@@ -4965,6 +4994,70 @@ function fitH88Board() {
   fitRows();
 }
 
+// ===== v1.85: 八八の向き案内（縦横×環境の検知） =====
+// 判定の要は「今、横向きが"広く"使えるか」。式は【PWAで起動中 ＝ もう広い】OR
+// 【全画面APIが使える ＝ 広くできる】。iPhoneのブラウザ(Safari/Chrome=中身WebKit)はどちらも×。
+function h88IsStandalone() {
+  try {
+    if (navigator.standalone === true) return true; // iOS ホーム追加アプリ
+    if (window.matchMedia && (matchMedia('(display-mode: standalone)').matches ||
+        matchMedia('(display-mode: fullscreen)').matches)) return true; // Android/デスクトップPWA
+  } catch (e) {}
+  return false;
+}
+function h88CanFullscreen() {
+  // 標準 or webkit の「document 全画面が可能か」。iPhoneは両方 false（要素の全画面不可）。
+  return !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+}
+function h88IsFullscreenNow() {
+  return !!(document.fullscreenElement || document.webkitFullscreenElement);
+}
+function h88IsPortrait() {
+  if (window.matchMedia) return !matchMedia('(orientation:landscape)').matches;
+  return window.innerHeight >= window.innerWidth;
+}
+function h88ToggleFullscreen() {
+  try {
+    if (h88IsFullscreenNow()) {
+      (document.exitFullscreen || document.webkitExitFullscreen || function () {}).call(document);
+    } else {
+      const el = document.documentElement;
+      (el.requestFullscreen || el.webkitRequestFullscreen || function () {}).call(el);
+    }
+  } catch (e) {}
+}
+let _h88ToastDismissedPortrait = false; // 縦向きセッション中に×で閉じたら、その向きの間は再表示しない
+// 八八画面の「全画面ボタン」と「向き案内トースト」を状況に合わせて出し入れする。
+function updateH88OrientationUI() {
+  const fsBtn = document.getElementById('btn-h88-fs');
+  const toast = document.getElementById('h88-rotate-toast');
+  if (!toast || !fsBtn) return;
+  const onHachi = state.screen === 'hachi';
+  const canFs = h88CanFullscreen();
+  const standalone = h88IsStandalone();
+  const viable = standalone || canFs;      // 横向きが"広く"使える環境か
+  const portrait = h88IsPortrait();
+
+  // 全画面ボタン：ブラウザで全画面APIが使える環境（Android/iPadブラウザ）だけ。PWAは元から広いので不要。
+  const showFsBtn = onHachi && canFs && !standalone;
+  fsBtn.hidden = !showFsBtn;
+  if (showFsBtn) {
+    const inFs = h88IsFullscreenNow();
+    fsBtn.querySelector('span').setAttribute('data-i18n', inFs ? 'hachi.fs.exit' : 'hachi.fs.enter');
+    fsBtn.querySelector('span').textContent = t(inFs ? 'hachi.fs.exit' : 'hachi.fs.enter');
+  }
+
+  // 向き案内トースト：八八・縦向き・"広くできる環境"のときだけ（強制せず軽く）。
+  // iPhoneブラウザ(=viable false)では横にしても窮屈なので出さない＝縦のまま遊んでもらう。
+  const showToast = onHachi && portrait && viable && !_h88ToastDismissedPortrait;
+  toast.classList.toggle('hidden', !showToast);
+  if (showToast) {
+    // Androidブラウザ等（全画面で更に広い）はトースト内にも全画面ボタンを出す
+    const toastFs = document.getElementById('btn-h88-toast-fs');
+    if (toastFs) toastFs.classList.toggle('hidden', !(canFs && !standalone));
+  }
+}
+
 // ===== Wake Lock（スクリーンセーバー抑止）=====
 // 対戦準備（部屋入室）〜対局中の間だけ画面を消させない。iOS Safari 16.4+ / Android Chrome 対応。
 let _wakeLock = null;
@@ -6443,8 +6536,18 @@ function bindEvents() {
     });
   }
 
-  window.addEventListener('resize', () => { fitHeader(); fitBoard(); fitH88Board(); positionLeaveBtn(); });
-  window.addEventListener('orientationchange', () => setTimeout(() => { fitHeader(); fitBoard(); fitH88Board(); positionLeaveBtn(); }, 250));
+  window.addEventListener('resize', () => { fitHeader(); fitBoard(); fitH88Board(); positionLeaveBtn(); updateH88OrientationUI(); });
+  window.addEventListener('orientationchange', () => { _h88ToastDismissedPortrait = false; setTimeout(() => { fitHeader(); fitBoard(); fitH88Board(); positionLeaveBtn(); updateH88OrientationUI(); }, 250); });
+  // v1.85: 全画面の出入りでボタン表記（全画面⇄解除）とトーストを更新
+  document.addEventListener('fullscreenchange', updateH88OrientationUI);
+  document.addEventListener('webkitfullscreenchange', updateH88OrientationUI);
+  // v1.85: 向き案内トースト/全画面ボタンの操作
+  const _fsBtn = document.getElementById('btn-h88-fs');
+  if (_fsBtn) _fsBtn.addEventListener('click', h88ToggleFullscreen);
+  const _toastFs = document.getElementById('btn-h88-toast-fs');
+  if (_toastFs) _toastFs.addEventListener('click', h88ToggleFullscreen);
+  const _toastClose = document.getElementById('btn-h88-toast-close');
+  if (_toastClose) _toastClose.addEventListener('click', () => { _h88ToastDismissedPortrait = true; updateH88OrientationUI(); });
   // Web フォント読込後はタイトルの実幅が変わるので測り直す
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { fitHeader(); positionLeaveBtn(); });
   // 画面復帰時：Wake Lock を取り直し、対局中ならカード寸法を再フィット、
@@ -6454,7 +6557,7 @@ function bindEvents() {
       refreshWakeLock();
       fitHeader();
       if (state.screen === 'game') { fitBoard(); positionLeaveBtn(); }
-      if (state.screen === 'hachi') fitH88Board(); // v1.72 D4
+      if (state.screen === 'hachi') { fitH88Board(); updateH88OrientationUI(); } // v1.72 D4 / v1.85
       if (!state.isHost && !state.intentionalLeave && !state.reconnecting &&
           (state.screen === 'room' || state.screen === 'game')) {
         let alive = false;

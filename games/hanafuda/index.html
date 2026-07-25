@@ -538,9 +538,10 @@
   /* めくった山札の札を表向きで強調（2枚合致の選択時も見えるように） */
   .h88-drawn{display:inline-block;border-radius:7px;box-shadow:0 0 0 2px var(--orange),0 0 12px 3px rgba(255,150,40,.75);animation:h88flip .28s ease;}
   @keyframes h88flip{from{transform:rotateY(75deg);opacity:.3;}to{transform:rotateY(0);opacity:1;}}
-  /* 手役の対象札を太いオレンジ実線で囲う（配札直後の手役表示中） */
-  .h88-tmark,.h88-hand-card.tmark{position:relative;border-radius:7px;outline:3px solid var(--orange);outline-offset:-1px;z-index:2;}
-  .h88-tmark{display:inline-block;}
+  /* 手役の対象札：浮かせて太いオレンジ実線で囲う（配札直後の手役表示中） */
+  .h88-hand-card.tmark{position:relative;border-radius:7px;outline:4px solid var(--orange);outline-offset:1px;box-shadow:0 9px 18px rgba(0,0,0,.6);transform:translateY(-16px) scale(1.05);z-index:5;}
+  .h88-tmark{position:relative;display:inline-block;border-radius:6px;outline:4px solid var(--orange);outline-offset:1px;box-shadow:0 0 0 1px rgba(0,0,0,.45),0 5px 11px rgba(0,0,0,.55);transform:translateY(-9px) scale(1.05);z-index:4;}
+  .h88-te-legend{font-size:.62rem;color:var(--text-muted);text-align:right;margin:9px 2px 3px;}
   /* 手役の結果パネル（こいこいの局終了に準拠） */
   #ov-body{font-size:.85rem;color:var(--text);line-height:1.55;margin:6px 0;text-align:left;}
   .h88-te-note{font-size:.66rem;color:var(--text-muted);margin:0 0 8px;line-height:1.5;}
@@ -1262,7 +1263,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.04</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.05</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1328,7 +1329,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.04</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.05</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1442,7 +1443,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.04</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.05</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1502,7 +1503,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.04</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.05</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -3735,8 +3736,7 @@ function h88Levels() {
 }
 function h88PrepNames() {
   const name = (document.getElementById('in-playername').value || '').trim() || t('vsai.you');
-  const lv = h88Levels();
-  return { p0: name, p1: t('vsai.cpu') + '1（' + lv.p1 + '）', p2: t('vsai.cpu') + '2（' + lv.p2 + '）' };
+  return { p0: name, p1: t('vsai.cpu') + '1', p2: t('vsai.cpu') + '2' }; // 名称に強さ(HARD等)は含めない
 }
 function h88PrepRenderPlayers() {
   const el = document.getElementById('h88-prep-players'); if (!el) return;
@@ -3880,8 +3880,8 @@ function h88StartRound(oyaId) {
       return '<div class="sc-row' + (d > 0 ? ' lead' : '') + '"><span class="sc-name">' + nm(s) + '</span>'
         + '<span class="sc-val">' + (st.scores[s] || 0) + ' ' + unit + deltaHtml + '</span></div>';
     }).join('');
-    const bodyHtml = '<div class="h88-te-note">対象の札をオレンジ枠で表示中（相手の手札も公開）／右の数字＝累計、バッジ＝この手役の増減（＋受取・−支払い）</div>'
-      + '<ul class="yaku-list">' + yakuLis + '</ul>'
+    const bodyHtml = '<ul class="yaku-list">' + yakuLis + '</ul>'
+      + '<div class="h88-te-legend">数字＝累計、バッジ＝増減</div>'
       + '<div class="scoreboard">' + scoreboard + '</div>';
     // ログ（テキスト）
     const deltaLine = g.seats.map(s => { const d = (st.scores[s] || 0) - before[s]; return st.names[s] + ' ' + (d >= 0 ? '+' : '') + d + unit; }).join(' ／ ');
@@ -4194,7 +4194,7 @@ function h88RoundOver(result) {
     h88Log('― 札点で決着 ' + bTag + '：' + g.seats.map(s => st.names[s] + ' ' + pts[s] + '点').join(' ／ ') + (specials.length ? '／特殊役 ' + specials.map(sp => st.names[sp.seat] + ' ' + sp.jp).join('・') : ''));
   }
   // スコアボード＝こいこいと同形（名前｜累計 ＋この局の増減バッジ。支払い=赤）
-  const scoreboard = '<div class="scoreboard">' + g.seats.map(s => {
+  const scoreboard = '<div class="h88-te-legend">数字＝累計、バッジ＝増減</div><div class="scoreboard">' + g.seats.map(s => {
     const d = (st.scores[s] || 0) - before[s];
     const deltaHtml = d !== 0 ? ' <span class="delta' + (d < 0 ? ' neg' : '') + '">' + (d > 0 ? '+' : '') + d + '</span>' : '';
     return '<div class="sc-row' + (d > 0 ? ' lead' : '') + '"><span class="sc-name">' + nm(s) + '</span>'
@@ -6140,14 +6140,14 @@ function startVsAI() {
   state.vsAI = true; state.solo = true; state.isHost = true; state.aiSide = 'guest';
   state.aiLevel = lv;
   state.hostName = name || t('vsai.you');
-  state.guestName = t('vsai.cpu') + '（' + lv + '）';
+  state.guestName = t('vsai.cpu'); // 名称に強さ(HARD等)は含めない
   state.roomName = t('vsai.title');
   vsAiToPrep();
 }
 // v1.60: 準備画面のプルダウンで強さを変更（対コンピュータ戦のときだけ表示）
 function applyAiLevelPrep(lv) {
   state.aiLevel = lv;
-  state.guestName = t('vsai.cpu') + '（' + lv + '）';
+  state.guestName = t('vsai.cpu'); // 名称に強さ(HARD等)は含めない
   const g = document.getElementById('guest-name');
   if (g) { g.textContent = state.guestName; g.classList.remove('waiting-g'); }
   const conn = document.getElementById('conn-label'); if (conn) conn.textContent = state.guestName;

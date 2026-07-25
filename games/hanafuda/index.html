@@ -535,6 +535,9 @@
   .overlay.see-through{background:transparent;backdrop-filter:none;}
   .opanel.draggable{cursor:move;touch-action:none;}
   .opanel.draggable h2::after{content:"⠿ ドラッグで移動";font-size:.56rem;color:var(--text-muted);margin-left:auto;font-family:inherit;font-weight:400;}
+  /* めくった山札の札を表向きで強調（2枚合致の選択時も見えるように） */
+  .h88-drawn{display:inline-block;border-radius:7px;box-shadow:0 0 0 2px var(--orange),0 0 12px 3px rgba(255,150,40,.75);animation:h88flip .28s ease;}
+  @keyframes h88flip{from{transform:rotateY(75deg);opacity:.3;}to{transform:rotateY(0);opacity:1;}}
   #ovYaku-drag{cursor:move;touch-action:none;}
   .opanel.watching{filter:grayscale(1) brightness(.8);}
   .opanel.watching .btn{background:#3a3a3a !important;color:var(--text-muted) !important;cursor:default;}
@@ -1250,7 +1253,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.98</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.99</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1316,7 +1319,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.98</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.99</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1430,7 +1433,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.98</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.99</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1490,7 +1493,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.98</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.99</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -3906,7 +3909,9 @@ function renderH88() {
   const shortNm = (s) => s === 'p0' ? 'あなた' : (s === 'p1' ? 'CPU1' : 'CPU2');
   document.getElementById('h88-scores').textContent = g.seats.map(s => shortNm(s) + ' ' + (st.scores[s] || 0) + '文').join(' ／ ');
   document.getElementById('h88-turn').textContent = g.winner ? ''
-    : st.pending ? '取る札を選んでください（同じ月が2枚）'
+    : st.pending ? (st.pending.stage === 'pick-draw'
+        ? '▶ めくった札（山の右に表示中）に合う場札を選んでください（同じ月が2枚）'
+        : '▶ 出した札に合う場札を選んでください（同じ月が2枚）')
     : (g.currentPlayer === 'p0'
         ? (st.sel != null ? 'もう一度タップで出す（別の札で選び直しも可）' : '▶ あなたの番です（札をタップ→もう一度で出す）')
         : st.names[g.currentPlayer] + ' の番');
@@ -3931,7 +3936,10 @@ function renderH88() {
     return '<span class="' + cls + '" data-id="' + c.id + '">' + svgCard(c.id) + '</span>';
   }).join('');
   document.getElementById('h88-deck-count').textContent = g.deck.length;
-  const db = document.getElementById('h88-deck-back'); if (db) db.innerHTML = g.deck.length ? svgBack() : ''; // v1.63 C11: 山札は裏向き
+  // 山札は裏向き。ただし今めくった札（st.drawn）があれば、その場に表向きで光らせて見せる（2枚合致の選択時も見える）。
+  const db = document.getElementById('h88-deck-back');
+  if (db) db.innerHTML = st.drawn ? ('<span class="h88-drawn">' + svgCard(st.drawn.id) + '</span>')
+                                  : (g.deck.length ? svgBack() : '');
   document.getElementById('h88-self-name').innerHTML = (st.roundOya === 'p0' ? '<span class="h88-oya-badge">親</span>' : '') + st.names['p0'];
   document.getElementById('h88-self-caps').innerHTML = h88CapGroupedHTML(g.caps['p0'], 'self2');
   const myTurn = (g.currentPlayer === 'p0' && !g.winner);
@@ -3955,7 +3963,7 @@ function h88PreviewField(month, on) {
 function h88OnClickHand(idx) {
   const st = state.h88; if (!st || !st.game) return;
   const g = st.game;
-  if (g.currentPlayer !== 'p0' || g.winner || st.pending) return; // ピック中は手札操作不可
+  if (g.currentPlayer !== 'p0' || g.winner || st.pending || st.drawn) return; // ピック中・めくり札表示中は手札操作不可
   if (st.sel === idx) { hideCardBubble(); st.sel = null; h88HumanPlayHand(idx); } // 2度目＝出す
   else {                                                             // 1度目＝選択＋ヒント＋札名
     st.sel = idx; renderH88();
@@ -3986,7 +3994,7 @@ function h88OnClickField(id) {
   const took = h88Capture(g, 'p0', p.card, id);
   playSfx('bishi');
   h88LogPlayer(g, 'p0', h88DescribeTake(p.card, took, p.stage === 'pick-draw'));
-  const stage = p.stage; st.pending = null;
+  const stage = p.stage; st.pending = null; st.drawn = null; // めくり札の表示を消す
   renderH88();
   if (stage === 'pick-hand') h88HumanDrawStep();
   else h88HumanEndTurn();
@@ -3996,16 +4004,21 @@ function h88HumanDrawStep() {
   if (!g.deck.length) { h88HumanEndTurn(); return; }
   const dc = g.deck.shift();
   playSfx('pero'); // v1.63 C13: 山をめくる
+  st.drawn = dc; // めくった札を山の右に表向きで見せる
   const matches = h88MonthMatches(g.field, dc.month);
-  if (matches.length === 2) {
-    st.drawn = dc; // 表示用
+  if (matches.length === 2) { // 2枚合致は手動選択（めくり札を見せたまま選ばせる）
     st.pending = { stage: 'pick-draw', card: dc, matches: matches.map(c => c.id) };
     renderH88(); return;
   }
-  const took = h88Capture(g, 'p0', dc, null);
-  setTimeout(() => playSfx(took.length ? 'bishi' : 'pa'), 120);
-  h88LogPlayer(g, 'p0', h88DescribeTake(dc, took, true));
-  h88HumanEndTurn();
+  renderH88(); // まずめくり札を見せる
+  setTimeout(() => {
+    if (!state.h88 || state.h88 !== st || !st.game) return;
+    const took = h88Capture(g, 'p0', dc, null);
+    playSfx(took.length ? 'bishi' : 'pa');
+    h88LogPlayer(g, 'p0', h88DescribeTake(dc, took, true));
+    st.drawn = null;
+    h88HumanEndTurn();
+  }, 700); // めくり札が見えるよう少し待ってから取る／場に置く
 }
 function h88HumanEndTurn() {
   const st = state.h88, g = st.game;

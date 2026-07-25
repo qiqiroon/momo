@@ -144,7 +144,8 @@
   /* v1.63 C7: ホバー/選択で浮いた札の上端が切れないよう上に余白 */
   /* v1.68: 手札は最初に7枚分の幅・高さを確保して固定（伸縮で画面がぶれない）。
      v1.72 D4: サイズは --card-w（fitH88Board が実測セット・こいこいと同じ仕組み）。 */
-  .h88-hand{display:flex;gap:3px;justify-content:center;flex-wrap:nowrap;padding-top:16px;width:calc(7 * var(--card-w,52px) + 6 * 3px);max-width:100%;margin:0 auto;min-height:calc(var(--card-w,52px) * 350 / 220 + 16px);}
+  /* padding-top と同じだけ margin-top をマイナスにして相殺＝浮きの余白を作りつつ測定高さは元のまま（カードが縮まない） */
+  .h88-hand{display:flex;gap:3px;justify-content:center;flex-wrap:nowrap;padding-top:20px;margin:-20px auto 0;width:calc(7 * var(--card-w,52px) + 6 * 3px);max-width:100%;min-height:calc(var(--card-w,52px) * 350 / 220);}
   .h88-hand .h88-hand-card{cursor:pointer;transition:transform .12s;flex:0 0 auto;}
   .h88-hand .h88-hand-card:hover{transform:translateY(-5px);}
   /* v1.63 B6: 選択中の手札は浮かせて強調 */
@@ -259,8 +260,8 @@
     #screen-hachi .h88-self-nameline{grid-row:1;margin:0;font-size:.72rem;}
     #screen-hachi .h88-self-caps{grid-row:2;margin:0;display:flex;flex-flow:row wrap;justify-content:center;align-content:center;gap:2px 12px;}
     #screen-hachi .h88-self-caps .caprow{flex-wrap:wrap;row-gap:2px;}
-    #screen-hachi .h88-hand{grid-row:3;width:auto;max-width:100%;min-height:0;padding:16px 0 0;margin:0;flex-wrap:nowrap;overflow-x:auto;}
-    #screen-hachi .h88-hand.teyaku-reveal{overflow:visible;padding-top:24px;}
+    /* padding-top を margin-top のマイナスで相殺＝浮きの余白を確保しつつ占有高さは元のまま（カードが縮まない） */
+    #screen-hachi .h88-hand{grid-row:3;width:auto;max-width:100%;min-height:0;padding:20px 0 0;margin:-16px 0 0;flex-wrap:nowrap;overflow-x:auto;}
   }
   /* v1.59: 音量スライダー＋右のミュートチェック */
   .vol-line{display:flex;align-items:center;gap:12px;}
@@ -546,8 +547,6 @@
   /* 手役の対象札：自分の手札は浮かせて太いオレンジ実線で囲う（相手の小さな手札は浮かせず枠のみ＝欠け防止） */
   .h88-hand-card.tmark{position:relative;border-radius:7px;outline:4px solid var(--orange);outline-offset:1px;box-shadow:0 9px 18px rgba(0,0,0,.6);transform:translateY(-16px) scale(1.05);z-index:5;}
   .h88-tmark{position:relative;display:inline-block;border-radius:6px;outline:4px solid var(--orange);outline-offset:1px;box-shadow:0 0 0 1px rgba(0,0,0,.45),0 4px 9px rgba(0,0,0,.5);z-index:4;}
-  /* 手役表示中は自分の手札の上に余白を作り、浮いた札の上部が欠けないようにする */
-  .h88-hand.teyaku-reveal{overflow:visible;padding-top:30px;}
   .h88-te-legend{font-size:.62rem;color:var(--text-muted);text-align:right;margin:9px 2px 3px;}
   /* 手役の結果パネル（こいこいの局終了に準拠） */
   #ov-body{font-size:.85rem;color:var(--text);line-height:1.55;margin:6px 0;text-align:left;}
@@ -1270,7 +1269,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.07</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.08</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1336,7 +1335,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.07</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.08</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1450,7 +1449,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.07</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.08</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1510,7 +1509,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.07</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.08</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -3862,8 +3861,10 @@ function h88StartRound(oyaId) {
   // フェーズ3: 手役（配札直後・全員から即時精算）。成立があればモーダルで知らせてから対局へ。
   const g = st.game;
   const before = {}; g.seats.forEach(s => before[s] = st.scores[s] || 0); // 手役前のスコア
+  st.roundTeyaku = null; // この局の手役分（局終了で「累計に加算済」と明示する用）
   const teyaku = h88SettleTeyaku(g, st.scores);
   if (teyaku) {
+    st.roundTeyaku = {}; g.seats.forEach(s => { const d = (st.scores[s] || 0) - before[s]; if (d !== 0) st.roundTeyaku[s] = d; });
     // 手役を宣言した人だけ手札を公開（他は伏せ）。seat→対象IDの集合。
     st.teyakuMarks = {}; Object.keys(teyaku).forEach(s => { st.teyakuMarks[s] = teyaku[s].ids || []; });
     renderH88(); // スコア反映＋宣言者の手札公開＋対象札をオレンジ枠で強調
@@ -4058,7 +4059,6 @@ function renderH88() {
   document.getElementById('h88-self-caps').innerHTML = h88CapGroupedHTML(g.caps['p0'], 'self2');
   const selfMarks = (st.teyakuMarks && st.teyakuMarks['p0']) || [];
   const selfHandEl = document.getElementById('h88-self-hand');
-  selfHandEl.classList.toggle('teyaku-reveal', selfMarks.length > 0); // 浮いた札の上部が欠けないよう余白
   selfHandEl.innerHTML = g.hands['p0'].map((c, i) =>
     '<span class="h88-hand-card' + (st.sel === i ? ' sel' : '') + (selfMarks.indexOf(c.id) >= 0 ? ' tmark' : '') + '" data-idx="' + i + '"' + (handOn ? '' : ' style="cursor:default;opacity:.85"') + '>' + svgCard(c.id) + '</span>').join('');
   fitH88Board(); // v1.72 D4: 描画のたびに実測フィット（こいこいの renderGame→fitBoard と同じ同期呼び）
@@ -4212,11 +4212,18 @@ function h88RoundOver(result) {
     return '<div class="sc-row' + (d > 0 ? ' lead' : '') + '"><span class="sc-name">' + nm(s) + '</span>'
       + '<span class="sc-val">' + (st.scores[s] || 0) + ' ' + unit + deltaHtml + '</span></div>';
   }).join('') + '</div>';
+  // この局に手役があれば「累計に加算済」であることを明示（手役分が無視されていないと分かるように）
+  let teyakuNote = '';
+  if (st.roundTeyaku && Object.keys(st.roundTeyaku).length) {
+    teyakuNote = '<div class="h88-te-sub">この局の手役分（すでに下の累計に加算済）</div><div class="scoreboard">'
+      + Object.keys(st.roundTeyaku).map(s => '<div class="sc-row"><span class="sc-name">' + nm(s) + '</span>'
+        + '<span class="sc-val"><span class="delta' + (st.roundTeyaku[s] < 0 ? ' neg' : '') + '">' + (st.roundTeyaku[s] > 0 ? '+' : '') + st.roundTeyaku[s] + ' ' + unit + '</span></span></div>').join('') + '</div>';
+  }
   h88Log('　合計 ' + g.seats.map(s => st.names[s] + ' ' + st.scores[s]).join(' ／ '));
   renderH88();
   const isLast = st.roundNo >= st.rounds;
   const title = isLast ? '対局終了' : '局終了（第' + st.roundNo + '局）';
-  showNotice(title, head + listHtml + scoreboard, () => {
+  showNotice(title, head + listHtml + teyakuNote + scoreboard, () => {
     if (isLast) {
       h88ShowMatchEnd(); // v1.69: 総合結果はこいこい風パネル(#ovH88End)
     } else {

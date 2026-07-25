@@ -1261,7 +1261,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.02</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.03</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1327,7 +1327,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.02</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.03</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1441,7 +1441,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.02</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.03</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1501,7 +1501,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.02</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.03</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -3503,6 +3503,21 @@ function h88ComputeTeyaku(hand, defs) {
   best.ids = h88TeyakuCards(hand, best.key); // 表示用：この手役を作っている対象札
   return best;
 }
+// 出来役を構成している取り札のID配列（局終了パネルの構成札表示用）。
+function h88YakuCards(caps, key) {
+  const ids = {}; caps.forEach(c => { ids[c.id] = true; });
+  const ofType = (ty) => caps.filter(c => c.type === ty).map(c => c.id);
+  switch (key) {
+    case 'yaku.gokou': return ofType('hikari');
+    case 'yaku.shikou': return caps.filter(c => c.type === 'hikari' && c.id !== RAIN_HIKARI_ID).map(c => c.id);
+    case 'yaku.shichitan': return caps.filter(c => c.type === 'tan' && c.id !== 'm11_tan').map(c => c.id);
+    case 'yaku.akatan': return RED_TAN_IDS.filter(id => ids[id]);
+    case 'yaku.aotan': return BLUE_TAN_IDS.filter(id => ids[id]);
+    case 'yaku.inoshikachou': return IKS_IDS.filter(id => ids[id]);
+    case 'yaku.sujuuroku': return ofType('kasu');
+    default: return [];
+  }
+}
 // 手役を構成している札のID配列（手札を光らせる用）。
 function h88TeyakuCards(hand, key) {
   const byMonth = {}; hand.forEach(c => { (byMonth[c.month] = byMonth[c.month] || []).push(c); });
@@ -4115,46 +4130,58 @@ function h88MaybeAi() {
 }
 function h88RoundOver(result) {
   const st = state.h88, g = st.game;
-  let msg;
   const m = g.bonus || 1;
   const unit = h88PresetUnit(); // 任天堂=点／関東・関西=貫
   const bTag = (m === 4 ? '絶場' : m === 2 ? '大場' : '小場') + '（×' + m + '）';
-  const totals = () => g.seats.map(s => st.names[s] + ' ' + st.scores[s]).join(' ／ ');
+  const nm = (s) => (s === 'p0' && st.names[s] !== 'あなた') ? st.names[s] + '（あなた）' : st.names[s];
+  const before = {}; g.seats.forEach(s => before[s] = st.scores[s] || 0);
+  let head = '', listHtml = '';
   if (result === 'win') {
-    // v1.63 C13: 上がり＝自分ならファンファーレ／相手なら「ぷっ」
-    playSfx(g.winner === 'p0' ? 'fanfare' : 'pu');
+    playSfx(g.winner === 'p0' ? 'fanfare' : 'pu'); // 上がり＝自分ならファンファーレ／相手なら「ぷっ」
     h88Settle(g, st.scores);
-    const yy = g.roundEnd.yaku.map(y => (y.jp || t(y.key)) + (y.count ? '×' + y.count : '')).join('・');
     const gain = g.roundEnd.total * m;
-    h88Log('★ ' + st.names[g.winner] + ' が出来役で上がり：' + yy + '＝' + g.roundEnd.total + unit + ' ' + bTag + '＝各' + gain + unit);
-    h88Log('　合計 ' + totals());
-    msg = st.names[g.winner] + ' が出来役で上がり！\n（' + yy + '＝' + g.roundEnd.total + unit + ' ' + bTag + '）\n'
-        + '他の2人からそれぞれ ' + gain + unit + ' 受け取り。\n［合計］' + totals();
+    // 出来役（構成札つき）＝こいこいの成立役リストと同形
+    listHtml = '<ul class="yaku-list">' + g.roundEnd.yaku.map(y => {
+      const cards = h88YakuCards(g.caps[g.winner], y.key).map(id => svgCard(id, 'ye-card')).join('');
+      return '<li class="ye-li"><div class="ye-head"><span>' + (y.jp || t(y.key)) + (y.count ? '×' + y.count : '') + '</span>'
+        + '<span class="pt">' + y.mon + ' ' + unit + '</span></div>' + (cards ? '<div class="ye-cards">' + cards + '</div>' : '') + '</li>';
+    }).join('') + '</ul>';
+    head = '<div class="h88-te-note"><b>' + nm(g.winner) + '</b> が出来役で上がり（' + bTag + '）。合計 '
+      + g.roundEnd.total + ' ' + unit + (m > 1 ? ' ×' + m + ' ＝ ' + gain + ' ' + unit : '') + ' を他の2人から受け取り。</div>';
+    h88Log('★ ' + st.names[g.winner] + ' が出来役で上がり：' + g.roundEnd.yaku.map(y => (y.jp || t(y.key))).join('・') + '＝' + g.roundEnd.total + unit + ' ' + bTag + '＝各' + gain + unit);
   } else {
-    // 出来役なし → 札点（88基準）で決着
-    playSfx('pu');
+    playSfx('pu'); // 出来役なし → 札点（88基準）で決着
     h88Settle(g, st.scores);
     const pts = g.roundEnd.points;
-    const detail = g.seats.map(s => {
-      const d = (pts[s] - 88) * m;
-      return '　' + st.names[s] + '：' + pts[s] + '点（' + (d >= 0 ? '+' : '') + d + '点）';
-    }).join('\n');
+    // 各人の札点（88基準との差）を一覧で
+    listHtml = '<ul class="yaku-list">' + g.seats.map(s => {
+      const diff = pts[s] - 88;
+      return '<li class="ye-li"><div class="ye-head"><span>' + nm(s) + ' の札点</span>'
+        + '<span class="pt">' + pts[s] + ' 点 <span style="color:var(--text-muted);font-weight:400;">（' + (diff >= 0 ? '+' : '') + diff + '）</span></span></div></li>';
+    }).join('') + '</ul>';
+    head = '<div class="h88-te-note">出来役なし → 札点（1人 88点 が基準）で決着（' + bTag + '）。88点との差' + (m > 1 ? ' ×' + m : '') + ' をやり取り。</div>';
     h88Log('― 札点で決着 ' + bTag + '：' + g.seats.map(s => st.names[s] + ' ' + pts[s] + '点').join(' ／ '));
-    h88Log('　合計 ' + totals());
-    msg = '出来役なし → 札点（1人88点が基準）で決着 ' + bTag + '\n' + detail + '\n［合計］' + totals();
   }
+  // スコアボード＝こいこいと同形（名前｜累計 ＋この局の増減バッジ。支払い=赤）
+  const scoreboard = '<div class="scoreboard">' + g.seats.map(s => {
+    const d = (st.scores[s] || 0) - before[s];
+    const deltaHtml = d !== 0 ? ' <span class="delta' + (d < 0 ? ' neg' : '') + '">' + (d > 0 ? '+' : '') + d + '</span>' : '';
+    return '<div class="sc-row' + (d > 0 ? ' lead' : '') + '"><span class="sc-name">' + nm(s) + '</span>'
+      + '<span class="sc-val">' + (st.scores[s] || 0) + ' ' + unit + deltaHtml + '</span></div>';
+  }).join('') + '</div>';
+  h88Log('　合計 ' + g.seats.map(s => st.names[s] + ' ' + st.scores[s]).join(' ／ '));
   renderH88();
   const isLast = st.roundNo >= st.rounds;
   const title = isLast ? '対局終了' : '局終了（第' + st.roundNo + '局）';
-  showNotice(title, msg, () => {
+  showNotice(title, head + listHtml + scoreboard, () => {
     if (isLast) {
       h88ShowMatchEnd(); // v1.69: 総合結果はこいこい風パネル(#ovH88End)
     } else {
       st.roundNo += 1;
-      const nextOya = g.winner; // 出来役上がり＝勝者／札点決着＝札点最大（h88FinishByPointsでg.winner設定済）
+      const nextOya = g.winner; // 出来役上がり＝勝者／札点決着＝札点最大（h88FinishByPointsで設定済）
       h88StartRound(nextOya);
     }
-  }, { clear: true, draggable: true }); // 点数パネルを移動可＋盤面（取り札）を隠さない
+  }, { clear: true, draggable: true, html: true }); // こいこい様式パネル・盤面（取り札）を隠さない・移動可
 }
 // v1.69: 八八の総合結果（こいこいと同じ ge-panel スタイル・くす玉/スコアボード）
 function h88ShowMatchEnd() {

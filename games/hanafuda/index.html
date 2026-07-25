@@ -531,6 +531,10 @@
   /* v1.21: 役成立ポップアップは背景を曇らせない・クリックは背後に透過・パネルは半透明で移動可能 */
   .overlay.clear-ov{background:transparent;backdrop-filter:none;pointer-events:none;}
   .overlay.clear-ov .opanel{pointer-events:auto;position:relative;background:rgba(20,20,20,.86);backdrop-filter:blur(2px);}
+  /* 手役など：盤面を隠さない（ぼかし・暗幕なし）。ただしクリックは盤に透けさせない＝誤操作防止。パネルはドラッグ移動可 */
+  .overlay.see-through{background:transparent;backdrop-filter:none;}
+  .opanel.draggable{cursor:move;touch-action:none;}
+  .opanel.draggable h2::after{content:"⠿ ドラッグで移動";font-size:.56rem;color:var(--text-muted);margin-left:auto;font-family:inherit;font-weight:400;}
   #ovYaku-drag{cursor:move;touch-action:none;}
   .opanel.watching{filter:grayscale(1) brightness(.8);}
   .opanel.watching .btn{background:#3a3a3a !important;color:var(--text-muted) !important;cursor:default;}
@@ -1246,7 +1250,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.97</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.98</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1312,7 +1316,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.97</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.98</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1426,7 +1430,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.97</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.98</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1486,7 +1490,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.97</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.98</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -2525,14 +2529,50 @@ function showScreen(s) {
 // --------------------------------------------------------------------------
 // 5) 汎用オーバーレイ
 // --------------------------------------------------------------------------
-function showNotice(title, body, onOk) {
+function showNotice(title, body, onOk, opts) {
+  opts = opts || {};
   document.getElementById('ov-title').textContent = title;
   document.getElementById('ov-body').textContent = body;
   const ov = document.getElementById('ovNotice');
   const btn = document.getElementById('ov-ok');
+  const panel = ov.querySelector('.opanel');
+  ov.classList.toggle('see-through', !!opts.clear);      // 盤面を隠さない（手役の配牌確認用）
+  panel.classList.toggle('draggable', !!opts.draggable); // 点数パネルをドラッグ移動可能に
+  panel.style.transform = '';                            // 位置リセット
+  if (opts.draggable) makePanelDraggable(panel);
   ov.classList.add('show');
-  const handler = () => { ov.classList.remove('show'); btn.removeEventListener('click', handler); if (onOk) onOk(); };
+  const handler = () => {
+    ov.classList.remove('show'); ov.classList.remove('see-through');
+    btn.removeEventListener('click', handler); if (onOk) onOk();
+  };
   btn.addEventListener('click', handler);
+}
+// モーダル（点数パネル等）をドラッグで移動可能にする。ボタン上のクリックは通常動作。マウス＆タッチ対応。
+function makePanelDraggable(panel) {
+  if (panel.__dragBound) return; panel.__dragBound = true;
+  let sx = 0, sy = 0, ox = 0, oy = 0, dragging = false;
+  const start = (e) => {
+    if (e.target.closest('button')) return; // OK等のボタンは通常クリック
+    dragging = true;
+    const p = e.touches ? e.touches[0] : e;
+    sx = p.clientX; sy = p.clientY;
+    const m = /translate\(([-\d.]+)px,\s*([-\d.]+)px\)/.exec(panel.style.transform);
+    ox = m ? parseFloat(m[1]) : 0; oy = m ? parseFloat(m[2]) : 0;
+    e.preventDefault();
+  };
+  const move = (e) => {
+    if (!dragging) return;
+    const p = e.touches ? e.touches[0] : e;
+    panel.style.transform = 'translate(' + (ox + p.clientX - sx) + 'px,' + (oy + p.clientY - sy) + 'px)';
+    e.preventDefault();
+  };
+  const end = () => { dragging = false; };
+  panel.addEventListener('mousedown', start);
+  panel.addEventListener('touchstart', start, { passive: false });
+  window.addEventListener('mousemove', move);
+  window.addEventListener('touchmove', move, { passive: false });
+  window.addEventListener('mouseup', end);
+  window.addEventListener('touchend', end);
 }
 
 // --------------------------------------------------------------------------
@@ -3742,15 +3782,18 @@ function h88StartRound(oyaId) {
   // フェーズ3: 手役（配札直後・全員から即時精算）。成立があればモーダルで知らせてから対局へ。
   const g = st.game, teyaku = h88SettleTeyaku(g, st.scores);
   if (teyaku) {
-    renderH88(); // スコア反映
+    st.revealHands = true; // 配牌を確認できるよう相手手札も表向きに
+    renderH88(); // スコア反映＋手札表向き
     const m = g.bonus || 1, unit = h88PresetUnit();
     const lines = Object.keys(teyaku).map(s => '　' + st.names[s] + '：' + teyaku[s].jp + '（' + teyaku[s].mon + unit + '）');
     h88Log('◆ 手役 ' + (m > 1 ? '（場倍率×' + m + '）' : '') + '：' + Object.keys(teyaku).map(s => st.names[s] + ' ' + teyaku[s].jp).join(' ／ '));
     h88Log('　合計 ' + g.seats.map(s => st.names[s] + ' ' + st.scores[s]).join(' ／ '));
     playSfx('charin');
-    showNotice('手役', '配られた手札で手役が成立しました。\n' + lines.join('\n')
+    showNotice('手役', '配られた手札で手役が成立しました（相手の手札も表示中）。\n' + lines.join('\n')
       + '\n他の人からそれぞれ受け取り' + (m > 1 ? '（場倍率×' + m + '込み）' : '') + '。\n［合計］'
-      + g.seats.map(s => st.names[s] + ' ' + st.scores[s]).join(' ／ '), () => { h88MaybeAi(); });
+      + g.seats.map(s => st.names[s] + ' ' + st.scores[s]).join(' ／ '),
+      () => { st.revealHands = false; renderH88(); h88MaybeAi(); },
+      { clear: true, draggable: true });
   } else {
     h88MaybeAi();
   }
@@ -3840,7 +3883,8 @@ function h88CapGroupedHTML(cards, mode) {
 function renderH88Seat(elId, seat) {
   const st = state.h88, g = st.game;
   const el = document.getElementById(elId); if (!el) return;
-  const backs = g.hands[seat].map(() => svgBack()).join('');
+  // 手役の確認中（st.revealHands）は相手の配牌も表向きに（普段は伏せ）
+  const backs = g.hands[seat].map(c => (st.revealHands ? svgCard(c.id) : svgBack())).join('');
   const caps = h88CapGroupedHTML(g.caps[seat], 'self2'); // v1.80: 取り札は2列（光種短／カス）
   const isOya = (seat === st.roundOya);      // v1.63: 親マーク
   const isTurn = (g.currentPlayer === seat && !g.winner);
@@ -4035,7 +4079,7 @@ function h88RoundOver(result) {
       const nextOya = g.winner; // 出来役上がり＝勝者／札点決着＝札点最大（h88FinishByPointsでg.winner設定済）
       h88StartRound(nextOya);
     }
-  });
+  }, { clear: true, draggable: true }); // 点数パネルを移動可＋盤面（取り札）を隠さない
 }
 // v1.69: 八八の総合結果（こいこいと同じ ge-panel スタイル・くす玉/スコアボード）
 function h88ShowMatchEnd() {

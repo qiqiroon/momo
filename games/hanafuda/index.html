@@ -1246,7 +1246,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.94</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.95</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1312,7 +1312,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.94</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.95</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1371,6 +1371,8 @@
     <h3 data-i18n="set.hachi.title">八八（3人）設定</h3>
     <p class="desc" style="font-size:12px;color:var(--text-muted);line-height:1.6;" data-i18n="set.hachi.desc">あなた＋コンピュータ2体の3人で対戦します（相手2人ともコンピュータ）。</p>
     <div class="set-row"><span data-i18n="set.rounds">局数</span><span class="seg" id="h88-rounds-seg"><button class="on" data-v="3" data-i18n="set.3">3局</button><button data-v="6" data-i18n="set.6">6局</button><button data-v="12" data-i18n="set.12">12局</button></span></div>
+    <!-- 八八 本格化フェーズ1: ルールセット(プリセット)。既定=任天堂公式。個別設定の上書きはフェーズ2以降 -->
+    <div class="set-row"><span data-i18n="set.hachi.preset">ルールセット</span><span class="seg" id="h88-preset-seg"><button class="on" data-v="nintendo">任天堂公式</button><button data-v="kanto">関東式</button><button data-v="kansai">関西式</button></span></div>
     <!-- v1.68 C4: 3人の顔ぶれ。v1.72: こいこいのオンライン準備と同じ作り＝各コンピュータ行の右に強さプルダウン -->
     <div class="h88-prep-players" id="h88-prep-players"></div>
     <!-- v1.68 C3: 3人で親決め（準備室で引く） -->
@@ -1424,7 +1426,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.94</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.95</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1484,7 +1486,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.94</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.95</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -3313,6 +3315,28 @@ function h88CardVal(c) {
   if (c.id === HANAMI_HIKARI_ID || c.id === TSUKIMI_HIKARI_ID) v += 6;
   return v;
 }
+// ── 八八 本格化フェーズ1：札点(88基準)＋場倍率＋プリセット骨組み ──
+// 平坦な札点：光20/種10/短5/カス1（48枚=264点、3人で1人あたり88点が損益ゼロ基準＝「八八」の由来）。
+// ※ h88CardVal はAIの手の評価用（赤短等に加点した重み）なので精算には使わない。
+const H88_POINT = { hikari: 20, tane: 10, tan: 5, kasu: 1 };
+function h88CardPoints(c) { return H88_POINT[c.type] || 0; }
+function h88SumPoints(cards) { return cards.reduce((s, c) => s + h88CardPoints(c), 0); }
+// 場倍率：配った時点の場札の光で確定。絶場(柳道風/桐鳳凰)=×4 ＞ 大場(松鶴/桜幕/芒月)=×2 ＞ 小場=×1。
+const H88_ZETSU_IDS = [RAIN_HIKARI_ID, 'm12_hikari'];                     // 柳(小野道風)・桐(鳳凰)
+const H88_DAI_IDS = ['m01_hikari', HANAMI_HIKARI_ID, TSUKIMI_HIKARI_ID];  // 松に鶴・桜に幕・芒に月
+function h88FieldMultiplier(field) {
+  const ids = field.map(c => c.id);
+  if (ids.some(id => H88_ZETSU_IDS.includes(id))) return 4;
+  if (ids.some(id => H88_DAI_IDS.includes(id))) return 2;
+  return 1;
+}
+// プリセット骨組み（フェーズ1では精算は3種共通。出来役/手役の差はフェーズ2以降で効かせる）。
+const H88_PRESETS = {
+  nintendo: { label: '任天堂公式', unit: '点' },
+  kanto:    { label: '関東式（なかよし村）', unit: '文' },
+  kansai:   { label: '関西式', unit: '文' },
+};
+function h88PresetId() { return (state.h88 && state.h88.preset) || 'nintendo'; }
 function h88MonthMatches(field, month) { return field.filter(c => c.month === month); }
 function h88NextSeat(g, p) { const i = g.seats.indexOf(p); return g.seats[(i + 1) % g.seats.length]; }
 // 席順の割り当て：親→2位→3位を反時計回り。draws={seatId: {month, id}} から順位を決め seats を並べる。
@@ -3332,7 +3356,7 @@ function h88Build(seatIds, oyaId) {
   const field = deck.splice(0, 6);
   return { mode: 'hachi', seats: seatIds.slice(), deck: deck, field: field,
            hands: hands, caps: caps, currentPlayer: oyaId, phase: 'select-hand',
-           winner: null, roundEnd: null };
+           winner: null, roundEnd: null, bonus: h88FieldMultiplier(field) };
 }
 // 場から札 card(=手札 or めくり) を同月合わせで取る。pickId は 2枚合致時の選択。
 // 0枚→場に置く / 1枚→取る / 2枚→pick / 3枚→全取り。取った札は caps[player] へ。
@@ -3404,16 +3428,31 @@ function h88Turn(g, player, opts) {
     h88LogPlayer(g, player, h88DescribeTake(dc, took2, true));
   }
   const y = computeYaku(g.caps[player]);
-  if (yakuTotal(y) > 0) { g.winner = player; g.roundEnd = { winner: player, yaku: y, total: yakuTotal(y) }; return 'win'; }
-  if (g.hands[player].length === 0 && g.deck.length === 0) return 'draw';
+  if (yakuTotal(y) > 0) { g.winner = player; g.roundEnd = { kind: 'yaku', winner: player, yaku: y, total: yakuTotal(y) }; return 'win'; }
+  if (g.hands[player].length === 0 && g.deck.length === 0) { h88FinishByPoints(g); return 'draw'; }
   return 'next';
 }
-// 精算：上がった人が合計文を他プレイヤーそれぞれから満額もらう（差し引きゼロ）。
+// 打ち切り（誰も出来役を作れず手札が尽きる）：札点(88基準)で決着させ roundEnd を作る。
+function h88FinishByPoints(g) {
+  const points = {};
+  g.seats.forEach(s => { points[s] = h88SumPoints(g.caps[s]); });
+  let top = g.seats[0];
+  g.seats.forEach(s => { if (points[s] > points[top]) top = s; });
+  g.roundEnd = { kind: 'points', winner: top, points: points };
+  g.winner = top; // 表示・次局の親決め用（札点最大＝この局の勝者）
+}
+// 精算（モデルA・排他）。場倍率×〔出来役上がり＝勝者が出来役文を他2人から徴収／打ち切り＝各自(札点−88)〕。
+// どちらもゼロサム。将来モデルB（札点＋出来役の合算）へ差し替えられるよう独立関数にしてある。
 function h88Settle(g, scores) {
   if (!g.roundEnd) return scores;
-  const w = g.roundEnd.winner, tot = g.roundEnd.total, others = g.seats.filter(s => s !== w);
-  scores[w] = (scores[w] || 0) + tot * others.length;
-  others.forEach(o => { scores[o] = (scores[o] || 0) - tot; });
+  const m = g.bonus || 1, re = g.roundEnd;
+  if (re.kind === 'points') {
+    g.seats.forEach(s => { scores[s] = (scores[s] || 0) + (re.points[s] - 88) * m; });
+  } else { // 'yaku'（出来役上がり）
+    const w = re.winner, gain = re.total * m, others = g.seats.filter(s => s !== w);
+    scores[w] = (scores[w] || 0) + gain * others.length;
+    others.forEach(o => { scores[o] = (scores[o] || 0) - gain; });
+  }
   return scores;
 }
 // ヘッドレス検証用：3席AIで1局を最後まで自動進行し結果を返す。
@@ -3432,7 +3471,8 @@ function h88SimRound(seatIds, oyaId) {
            fieldLeft: g.field.length, capCounts: g.seats.map(s => g.caps[s].length) };
 }
 // テスト用フック（開発中のみ）
-window.__h88 = { build: h88Build, turn: h88Turn, sim: h88SimRound, nextSeat: h88NextSeat, seatOrder: h88SeatOrder };
+window.__h88 = { build: h88Build, turn: h88Turn, sim: h88SimRound, nextSeat: h88NextSeat, seatOrder: h88SeatOrder,
+  cardPoints: h88CardPoints, sumPoints: h88SumPoints, fieldMul: h88FieldMultiplier, settle: h88Settle, buildDeck: buildDeck };
 
 // ─────────── 八八 UI（vsコンピュータ・3人。こいこいとは独立） ───────────
 // state.h88 = { names, scores, roundNo, rounds, seatCycle, game, aiToken, oyaDraws }
@@ -3497,12 +3537,19 @@ function h88PrepDrawOya() {
   document.getElementById('btn-h88-prep-drawoya').classList.add('hidden');
   updateStartBtn();
 }
+// 準備画面で選んだルールセット(プリセット)を読む。既定=任天堂公式。
+function h88SelectedPreset() {
+  const seg = document.getElementById('h88-preset-seg');
+  const on = seg && seg.querySelector('button.on');
+  return (on && on.dataset.v) || 'nintendo';
+}
 // 準備室から八八を開始（親決め済みの席順で直接開始・八八画面のオーバーレイは使わない）
 function startHachiFromPrep(rounds) {
   const p = state.h88prep; if (!p) return;
   const lv = h88Levels(); // v1.72 D1: CPU別強さ
   state.h88 = {
     names: p.names, scores: { p0: 0, p1: 0, p2: 0 }, levels: { p1: lv.p1, p2: lv.p2 },
+    preset: h88SelectedPreset(),
     roundNo: 1, rounds: rounds || 3, seatCycle: p.seatCycle, game: null, aiToken: 0, oyaDraws: p.oyaDraws, focusSeat: null, log: [],
   };
   showScreen('hachi');
@@ -3514,6 +3561,7 @@ function startHachiVsAI(rounds) {
   state.h88 = {
     names: h88PrepNames(),
     scores: { p0: 0, p1: 0, p2: 0 }, levels: { p1: lv.p1, p2: lv.p2 },
+    preset: h88SelectedPreset(),
     roundNo: 1, rounds: rounds || 3, seatCycle: null, game: null, aiToken: 0, oyaDraws: {}, focusSeat: null, log: [],
   };
   showScreen('hachi');
@@ -3771,8 +3819,8 @@ function h88HumanEndTurn() {
   const st = state.h88, g = st.game;
   st.sel = null; st.drawn = null;
   const y = computeYaku(g.caps['p0']);
-  if (yakuTotal(y) > 0) { g.winner = 'p0'; g.roundEnd = { winner: 'p0', yaku: y, total: yakuTotal(y) }; renderH88(); h88RoundOver('win'); return; }
-  if (g.hands['p0'].length === 0 && g.deck.length === 0) { renderH88(); h88RoundOver('draw'); return; }
+  if (yakuTotal(y) > 0) { g.winner = 'p0'; g.roundEnd = { kind: 'yaku', winner: 'p0', yaku: y, total: yakuTotal(y) }; renderH88(); h88RoundOver('win'); return; }
+  if (g.hands['p0'].length === 0 && g.deck.length === 0) { h88FinishByPoints(g); renderH88(); h88RoundOver('draw'); return; }
   g.currentPlayer = h88NextSeat(g, 'p0');
   h88AutoFocus();
   renderH88();
@@ -3801,20 +3849,31 @@ function h88MaybeAi() {
 function h88RoundOver(result) {
   const st = state.h88, g = st.game;
   let msg;
-  // v1.63 C13: 上がり＝自分ならファンファーレ／相手なら「ぷっ」、流れも「ぷっ」
-  if (result === 'win') playSfx(g.winner === 'p0' ? 'fanfare' : 'pu');
-  else playSfx('pu');
+  const m = g.bonus || 1;
+  const bTag = (m === 4 ? '絶場' : m === 2 ? '大場' : '小場') + '（×' + m + '）';
+  const totals = () => g.seats.map(s => st.names[s] + ' ' + st.scores[s]).join(' ／ ');
   if (result === 'win') {
+    // v1.63 C13: 上がり＝自分ならファンファーレ／相手なら「ぷっ」
+    playSfx(g.winner === 'p0' ? 'fanfare' : 'pu');
     h88Settle(g, st.scores);
     const yy = g.roundEnd.yaku.map(y => t(y.key) + (y.count ? '×' + y.count : '')).join('・');
-    h88Log('★ ' + st.names[g.winner] + ' が上がり：' + yy + '＝' + g.roundEnd.total + '文（他プレイヤーから各' + g.roundEnd.total + '文）');
-    h88Log('　合計 ' + g.seats.map(s => st.names[s] + ' ' + st.scores[s]).join(' ／ '));
-    msg = st.names[g.winner] + ' が上がり！（' + yy + '＝' + g.roundEnd.total + '文）\n'
-        + '各プレイヤーから' + g.roundEnd.total + '文ずつ受け取り。\n'
-        + '［合計］' + g.seats.map(s => st.names[s] + ' ' + st.scores[s]).join(' ／ ');
+    const gain = g.roundEnd.total * m;
+    h88Log('★ ' + st.names[g.winner] + ' が出来役で上がり：' + yy + '＝' + g.roundEnd.total + '文 ' + bTag + '＝各' + gain + '文');
+    h88Log('　合計 ' + totals());
+    msg = st.names[g.winner] + ' が出来役で上がり！\n（' + yy + '＝' + g.roundEnd.total + '文 ' + bTag + '）\n'
+        + '他の2人からそれぞれ ' + gain + '文 受け取り。\n［合計］' + totals();
   } else {
-    h88Log('― 流れ（引き分け）　合計 ' + g.seats.map(s => st.names[s] + ' ' + st.scores[s]).join(' ／ '));
-    msg = 'この局は流れ（引き分け）です。\n［合計］' + g.seats.map(s => st.names[s] + ' ' + st.scores[s]).join(' ／ ');
+    // 出来役なし → 札点（88基準）で決着
+    playSfx('pu');
+    h88Settle(g, st.scores);
+    const pts = g.roundEnd.points;
+    const detail = g.seats.map(s => {
+      const d = (pts[s] - 88) * m;
+      return '　' + st.names[s] + '：' + pts[s] + '点（' + (d >= 0 ? '+' : '') + d + '文）';
+    }).join('\n');
+    h88Log('― 札点で決着 ' + bTag + '：' + g.seats.map(s => st.names[s] + ' ' + pts[s] + '点').join(' ／ '));
+    h88Log('　合計 ' + totals());
+    msg = '出来役なし → 札点（1人88点が基準）で決着 ' + bTag + '\n' + detail + '\n［合計］' + totals();
   }
   renderH88();
   const isLast = st.roundNo >= st.rounds;
@@ -3824,8 +3883,7 @@ function h88RoundOver(result) {
       h88ShowMatchEnd(); // v1.69: 総合結果はこいこい風パネル(#ovH88End)
     } else {
       st.roundNo += 1;
-      // 次局の親：上がった人（流れは同じ親のまま）
-      const nextOya = (result === 'win') ? g.winner : g.currentPlayer;
+      const nextOya = g.winner; // 出来役上がり＝勝者／札点決着＝札点最大（h88FinishByPointsでg.winner設定済）
       h88StartRound(nextOya);
     }
   });
@@ -6495,6 +6553,11 @@ function bindEvents() {
   const h88RoundsSeg = document.getElementById('h88-rounds-seg');
   if (h88RoundsSeg) h88RoundsSeg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
     h88RoundsSeg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+  }));
+  // 八八 本格化フェーズ1: ルールセット(プリセット)セグ
+  const h88PresetSeg = document.getElementById('h88-preset-seg');
+  if (h88PresetSeg) h88PresetSeg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    h88PresetSeg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
   }));
   // v1.68 C3: 準備室の八八・親決め
   const bPrepOya = document.getElementById('btn-h88-prep-drawoya');

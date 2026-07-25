@@ -543,10 +543,8 @@
   .h88-tmark{display:inline-block;}
   /* 手役の結果パネル（こいこいの局終了に準拠） */
   #ov-body{font-size:.85rem;color:var(--text);line-height:1.55;margin:6px 0;text-align:left;}
-  .h88-te-note{font-size:.66rem;color:var(--text-muted);margin:0 0 8px;}
-  .h88-te-sub{font-size:.66rem;color:var(--text-muted);margin:11px 0 4px;letter-spacing:.03em;}
-  .h88-amt.plus{color:#5fd08a;font-weight:800;}
-  .h88-amt.minus{color:#ff8a8a;font-weight:800;}
+  .h88-te-note{font-size:.66rem;color:var(--text-muted);margin:0 0 8px;line-height:1.5;}
+  .scoreboard .sc-val .delta.neg{color:#ff8a8a;} /* 八八: 支払い（マイナス増減）は赤 */
   .yaku-list li .ye-head .who-b{color:#fff;font-weight:800;}
   #ovYaku-drag{cursor:move;touch-action:none;}
   .opanel.watching{filter:grayscale(1) brightness(.8);}
@@ -1263,7 +1261,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.01</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.02</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1329,7 +1327,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.01</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.02</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1443,7 +1441,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.01</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.02</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1503,7 +1501,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.01</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.02</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -3827,28 +3825,25 @@ function h88StartRound(oyaId) {
     renderH88(); // スコア反映＋手札表向き＋対象札をオレンジ枠で強調
     const m = g.bonus || 1, unit = h88PresetUnit();
     const nm = (s) => (s === 'p0' && st.names[s] !== 'あなた') ? st.names[s] + '（あなた）' : st.names[s];
-    // ① 誰が何の手役か（構成札を画像で・こいこいの成立役スタイル）
+    // ① 成立した手役（構成札つき）＝こいこいの局終了 yaku-list と同形
     const yakuLis = Object.keys(teyaku).map(s => {
       const ty = teyaku[s];
       const cards = (ty.ids || []).map(id => svgCard(id, 'ye-card')).join('');
       return '<li class="ye-li"><div class="ye-head">'
         + '<span><span class="who-b">' + nm(s) + '</span>：' + ty.jp + '</span>'
-        + '<span class="pt">' + ty.mon + unit + (m > 1 ? ' ×場' + m : '') + '</span></div>'
+        + '<span class="pt">' + ty.mon + ' ' + unit + (m > 1 ? ' ×場' + m : '') + '</span></div>'
         + '<div class="ye-cards">' + cards + '</div></li>';
     }).join('');
-    // ② 誰が受け取り／誰が支払うか（増減）
-    const settleRows = g.seats.map(s => {
+    // ② スコアボード＝こいこいと同形（名前｜累計 ＋ この手役での増減バッジ）。受取=オレンジ＋／支払い=赤−。
+    const scoreboard = g.seats.map(s => {
       const d = (st.scores[s] || 0) - before[s];
-      const label = d > 0 ? ('受取 +' + d + unit) : (d < 0 ? ('支払い ' + d + unit) : '±0');
-      const cls = d > 0 ? 'plus' : (d < 0 ? 'minus' : '');
-      return '<div class="sc-row' + (d > 0 ? ' lead' : '') + '"><span>' + nm(s) + '</span><span class="h88-amt ' + cls + '">' + label + '</span></div>';
+      const deltaHtml = d !== 0 ? ' <span class="delta' + (d < 0 ? ' neg' : '') + '">' + (d > 0 ? '+' : '') + d + '</span>' : '';
+      return '<div class="sc-row' + (d > 0 ? ' lead' : '') + '"><span class="sc-name">' + nm(s) + '</span>'
+        + '<span class="sc-val">' + (st.scores[s] || 0) + ' ' + unit + deltaHtml + '</span></div>';
     }).join('');
-    // ③ 結果（累計）
-    const totalRows = g.seats.map(s => '<div class="sc-row"><span>' + nm(s) + '</span><b>' + (st.scores[s] || 0) + unit + '</b></div>').join('');
-    const bodyHtml = '<div class="h88-te-note">対象の札をオレンジ枠で表示中（相手の手札も公開）</div>'
+    const bodyHtml = '<div class="h88-te-note">対象の札をオレンジ枠で表示中（相手の手札も公開）／右の数字＝累計、バッジ＝この手役の増減（＋受取・−支払い）</div>'
       + '<ul class="yaku-list">' + yakuLis + '</ul>'
-      + '<div class="h88-te-sub">精算（この手役でのやり取り）</div><div class="scoreboard">' + settleRows + '</div>'
-      + '<div class="h88-te-sub">結果（累計）</div><div class="scoreboard">' + totalRows + '</div>';
+      + '<div class="scoreboard">' + scoreboard + '</div>';
     // ログ（テキスト）
     const deltaLine = g.seats.map(s => { const d = (st.scores[s] || 0) - before[s]; return st.names[s] + ' ' + (d >= 0 ? '+' : '') + d + unit; }).join(' ／ ');
     h88Log('◆ 手役 ' + (m > 1 ? '（場倍率×' + m + '）' : '') + '：' + Object.keys(teyaku).map(s => st.names[s] + ' ' + teyaku[s].jp).join(' ／ '));

@@ -148,9 +148,9 @@
   /* v1.63 B6: 選択中の手札は浮かせて強調 */
   .h88-hand .h88-hand-card.sel{transform:translateY(-11px);}
   .h88-hand .h88-hand-card.sel .card{outline:3px solid var(--orange);outline-offset:-2px;border-radius:6px;filter:drop-shadow(0 3px 6px rgba(0,0,0,.5));}
-  .h88-self-name{text-align:center;font-size:.75rem;color:#fff;margin-top:5px;}
-  /* v1.65: 自分の近くの「あなたの番」表示 */
-  .h88-self-turn{text-align:center;font-size:.82rem;font-weight:700;color:#1a1a1a;background:var(--orange);border-radius:8px;padding:3px 10px;margin:0 auto 4px;width:fit-content;}
+  /* 自分の名前・親・手番を取り札の1番上に（相手と同じ形） */
+  .h88-self-nameline{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;text-align:center;font-size:.78rem;color:#fff;font-weight:700;margin-bottom:5px;white-space:nowrap;}
+  .h88-self-nameline .h88-turn-badge{background:var(--orange);color:#1a1a1a;border-radius:8px;padding:2px 10px;font-size:.74rem;}
   /* v1.66: プレイ記録ボタン＋パネル */
   .h88-log-btn{background:var(--orange);color:#1a1a1a;border:none;border-radius:6px;font-family:inherit;font-weight:700;font-size:.72rem;padding:4px 9px;cursor:pointer;white-space:nowrap;line-height:1;margin-left:auto;flex:0 0 auto;}
   .h88-log-btn:hover{filter:brightness(1.08);}
@@ -248,14 +248,14 @@
     #screen-hachi .h88-field{padding-top:0;grid-template-columns:repeat(8,auto);align-content:flex-start;justify-content:center;}
     /* v1.84: 自分＝取り札2列(上)→手札1列(中)→[あなたの番(左)＋名前(中央)]の1行(下)。グリッドで最下行に
        「あなたの番」を左寄せで置く（縦の高さを増やさない＝取り札が場に被らない）。下寄せ(margin-top:auto)。 */
-    #screen-hachi .h88-self{flex:0 0 auto;margin-top:auto;display:grid;grid-template-columns:1fr auto 1fr;
-      justify-items:center;align-content:end;column-gap:8px;row-gap:2px;min-height:0;
+    #screen-hachi .h88-self{flex:0 0 auto;margin-top:auto;display:grid;grid-template-columns:1fr;
+      justify-items:center;align-content:end;row-gap:2px;min-height:0;
       background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:4px 8px;box-sizing:border-box;}
-    #screen-hachi .h88-self-caps{grid-column:1/-1;grid-row:1;margin:0;display:flex;flex-flow:row wrap;justify-content:center;align-content:center;gap:2px 12px;}
+    #screen-hachi .h88-self-nameline{grid-row:1;margin:0;font-size:.72rem;}
+    #screen-hachi .h88-self-caps{grid-row:2;margin:0;display:flex;flex-flow:row wrap;justify-content:center;align-content:center;gap:2px 12px;}
     #screen-hachi .h88-self-caps .caprow{flex-wrap:wrap;row-gap:2px;}
-    #screen-hachi .h88-hand{grid-column:1/-1;grid-row:2;width:auto;max-width:100%;min-height:0;padding:4px 0 0;margin:0;flex-wrap:nowrap;overflow-x:auto;}
-    #screen-hachi .h88-self-turn{grid-column:1;grid-row:3;justify-self:start;align-self:center;margin:0;font-size:.72rem;padding:1px 8px;}
-    #screen-hachi .h88-self-name{grid-column:2;grid-row:3;margin:0;font-size:.7rem;text-align:center;}
+    #screen-hachi .h88-hand{grid-row:3;width:auto;max-width:100%;min-height:0;padding:4px 0 0;margin:0;flex-wrap:nowrap;overflow-x:auto;}
+    #screen-hachi .h88-hand.teyaku-reveal{overflow:visible;padding-top:24px;}
   }
   /* v1.59: 音量スライダー＋右のミュートチェック */
   .vol-line{display:flex;align-items:center;gap:12px;}
@@ -538,9 +538,11 @@
   /* めくった山札の札を表向きで強調（2枚合致の選択時も見えるように） */
   .h88-drawn{display:inline-block;border-radius:7px;box-shadow:0 0 0 2px var(--orange),0 0 12px 3px rgba(255,150,40,.75);animation:h88flip .28s ease;}
   @keyframes h88flip{from{transform:rotateY(75deg);opacity:.3;}to{transform:rotateY(0);opacity:1;}}
-  /* 手役の対象札：浮かせて太いオレンジ実線で囲う（配札直後の手役表示中） */
+  /* 手役の対象札：自分の手札は浮かせて太いオレンジ実線で囲う（相手の小さな手札は浮かせず枠のみ＝欠け防止） */
   .h88-hand-card.tmark{position:relative;border-radius:7px;outline:4px solid var(--orange);outline-offset:1px;box-shadow:0 9px 18px rgba(0,0,0,.6);transform:translateY(-16px) scale(1.05);z-index:5;}
-  .h88-tmark{position:relative;display:inline-block;border-radius:6px;outline:4px solid var(--orange);outline-offset:1px;box-shadow:0 0 0 1px rgba(0,0,0,.45),0 5px 11px rgba(0,0,0,.55);transform:translateY(-9px) scale(1.05);z-index:4;}
+  .h88-tmark{position:relative;display:inline-block;border-radius:6px;outline:4px solid var(--orange);outline-offset:1px;box-shadow:0 0 0 1px rgba(0,0,0,.45),0 4px 9px rgba(0,0,0,.5);z-index:4;}
+  /* 手役表示中は自分の手札の上に余白を作り、浮いた札の上部が欠けないようにする */
+  .h88-hand.teyaku-reveal{overflow:visible;padding-top:30px;}
   .h88-te-legend{font-size:.62rem;color:var(--text-muted);text-align:right;margin:9px 2px 3px;}
   /* 手役の結果パネル（こいこいの局終了に準拠） */
   #ov-body{font-size:.85rem;color:var(--text);line-height:1.55;margin:6px 0;text-align:left;}
@@ -1263,7 +1265,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.05</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.06</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1329,7 +1331,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.05</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.06</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1443,7 +1445,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.05</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.06</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1503,7 +1505,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.05</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.06</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1538,10 +1540,9 @@
         <div class="h88-field" id="h88-field"></div>
       </div>
       <div class="h88-self">
+        <div class="h88-name h88-self-nameline" id="h88-self-nameline"></div>
         <div class="h88-self-caps" id="h88-self-caps"></div>
-        <div class="h88-self-turn hidden" id="h88-self-turn">▶ あなたの番です</div>
         <div class="h88-hand" id="h88-self-hand"></div>
-        <div class="h88-self-name"><span data-i18n="game.you">あなた</span>：<span id="h88-self-name"></span></div>
       </div>
     </div>
   </div>
@@ -3392,7 +3393,7 @@ const H88_PRESETS = {
   kansai:   { label: '関西式', unit: '貫' },
 };
 function h88PresetId() { return (state.h88 && state.h88.preset) || 'nintendo'; }
-function h88PresetUnit() { return (H88_PRESETS[h88PresetId()] || {}).unit || '文'; }
+function h88PresetUnit() { return '文'; } // このアプリでは単位を「文」に統一（点/貫は使わない）
 // ── 八八 本格化フェーズ2：本物の出来役（プリセット別の採否・点数）──
 // 上がり出来役＝対局中に完成すると即上がり（decision7=即上がり固定）。プリセットに載っていない役は非採用。
 // 値の単位はプリセット依存（任天堂=点／関東・関西=貫）。※札点(点)との単位統一（忠実な貫⇔点換算）は将来。
@@ -3858,10 +3859,9 @@ function h88StartRound(oyaId) {
   const before = {}; g.seats.forEach(s => before[s] = st.scores[s] || 0); // 手役前のスコア
   const teyaku = h88SettleTeyaku(g, st.scores);
   if (teyaku) {
-    st.revealHands = true; // 配牌を確認できるよう相手手札も表向きに
-    // 対象札を光らせるための印（seat→対象IDの集合）
+    // 手役を宣言した人だけ手札を公開（他は伏せ）。seat→対象IDの集合。
     st.teyakuMarks = {}; Object.keys(teyaku).forEach(s => { st.teyakuMarks[s] = teyaku[s].ids || []; });
-    renderH88(); // スコア反映＋手札表向き＋対象札をオレンジ枠で強調
+    renderH88(); // スコア反映＋宣言者の手札公開＋対象札をオレンジ枠で強調
     const m = g.bonus || 1, unit = h88PresetUnit();
     const nm = (s) => (s === 'p0' && st.names[s] !== 'あなた') ? st.names[s] + '（あなた）' : st.names[s];
     // ① 成立した手役（構成札つき）＝こいこいの局終了 yaku-list と同形
@@ -3889,7 +3889,7 @@ function h88StartRound(oyaId) {
     h88Log('　増減 ' + deltaLine + '　→ 累計 ' + g.seats.map(s => st.names[s] + ' ' + (st.scores[s] || 0) + unit).join(' ／ '));
     playSfx('charin');
     showNotice('手役が成立', bodyHtml,
-      () => { st.revealHands = false; st.teyakuMarks = null; renderH88(); h88MaybeAi(); },
+      () => { st.teyakuMarks = null; renderH88(); h88MaybeAi(); },
       { clear: true, draggable: true, html: true });
   } else {
     h88MaybeAi();
@@ -3980,16 +3980,16 @@ function h88CapGroupedHTML(cards, mode) {
 function renderH88Seat(elId, seat) {
   const st = state.h88, g = st.game;
   const el = document.getElementById(elId); if (!el) return;
-  // 手役の確認中（st.revealHands）は相手の配牌も表向きに（普段は伏せ）。対象札は金色で強調。
-  const marks = (st.teyakuMarks && st.teyakuMarks[seat]) || [];
+  // 八八ルール：手役は宣言した本人だけが手札を公開（他は伏せたまま）。対象札はオレンジで強調。
+  const marks = (st.teyakuMarks && st.teyakuMarks[seat]) || null;
   const backs = g.hands[seat].map(c => {
-    if (!st.revealHands) return svgBack();
+    if (!marks) return svgBack(); // この人は手役なし＝伏せたまま
     const face = svgCard(c.id);
     return marks.indexOf(c.id) >= 0 ? '<span class="h88-tmark">' + face + '</span>' : face;
   }).join('');
   const caps = h88CapGroupedHTML(g.caps[seat], 'self2'); // v1.80: 取り札は2列（光種短／カス）
   const isOya = (seat === st.roundOya);      // v1.63: 親マーク
-  const isTurn = (g.currentPlayer === seat && !g.winner);
+  const isTurn = (g.currentPlayer === seat && !g.winner) && !st.teyakuMarks; // 手役表示中は手番枠を出さない
   // v1.80 大改造: 相手はプレイヤー単位で90°回転させるため .h88-seat-rot でまとめる。
   //   プレイヤー内は「名前(上)→取り札2列→伏せ手札1列(下)」。横画面はこの箱を回転、縦画面は素の縦積み。
   el.innerHTML = '<div class="h88-seat-rot">'
@@ -4040,14 +4040,19 @@ function renderH88() {
   const db = document.getElementById('h88-deck-back');
   if (db) db.innerHTML = st.drawn ? ('<span class="h88-drawn">' + svgCard(st.drawn.id) + '</span>')
                                   : (g.deck.length ? svgBack() : '');
-  document.getElementById('h88-self-name').innerHTML = (st.roundOya === 'p0' ? '<span class="h88-oya-badge">親</span>' : '') + st.names['p0'];
-  document.getElementById('h88-self-caps').innerHTML = h88CapGroupedHTML(g.caps['p0'], 'self2');
   const myTurn = (g.currentPlayer === 'p0' && !g.winner);
   const handOn = myTurn && !st.pending; // ピック中は手札操作不可
-  const stEl = document.getElementById('h88-self-turn'); // v1.65: 自分の近くにも「あなたの番」
-  if (stEl) stEl.classList.toggle('hidden', !myTurn);
+  // 自分の名前・親・手番を取り札の1番上に（相手と同じ形で表示）。手役表示中は手番バッジを出さない。
+  const youL = t('game.you');
+  document.getElementById('h88-self-nameline').innerHTML =
+    (st.roundOya === 'p0' ? '<span class="h88-oya-badge">親</span>' : '')
+    + youL + (st.names['p0'] !== youL ? '：' + st.names['p0'] : '')
+    + ((myTurn && !st.teyakuMarks) ? '<span class="h88-turn-badge">あなたの番です</span>' : '');
+  document.getElementById('h88-self-caps').innerHTML = h88CapGroupedHTML(g.caps['p0'], 'self2');
   const selfMarks = (st.teyakuMarks && st.teyakuMarks['p0']) || [];
-  document.getElementById('h88-self-hand').innerHTML = g.hands['p0'].map((c, i) =>
+  const selfHandEl = document.getElementById('h88-self-hand');
+  selfHandEl.classList.toggle('teyaku-reveal', selfMarks.length > 0); // 浮いた札の上部が欠けないよう余白
+  selfHandEl.innerHTML = g.hands['p0'].map((c, i) =>
     '<span class="h88-hand-card' + (st.sel === i ? ' sel' : '') + (selfMarks.indexOf(c.id) >= 0 ? ' tmark' : '') + '" data-idx="' + i + '"' + (handOn ? '' : ' style="cursor:default;opacity:.85"') + '>' + svgCard(c.id) + '</span>').join('');
   fitH88Board(); // v1.72 D4: 描画のたびに実測フィット（こいこいの renderGame→fitBoard と同じ同期呼び）
 }
@@ -4181,7 +4186,7 @@ function h88RoundOver(result) {
     listHtml = '<ul class="yaku-list">' + g.seats.map(s => {
       const diff = pts[s] - 88;
       return '<li class="ye-li"><div class="ye-head"><span>' + nm(s) + ' の札点</span>'
-        + '<span class="pt">' + pts[s] + ' 点 <span style="color:var(--text-muted);font-weight:400;">（' + (diff >= 0 ? '+' : '') + diff + '）</span></span></div></li>';
+        + '<span class="pt">' + pts[s] + ' 文 <span style="color:var(--text-muted);font-weight:400;">（' + (diff >= 0 ? '+' : '') + diff + '）</span></span></div></li>';
     }).join('') + '</ul>';
     // 双八/総八（特殊役・関東関西のみ）が成立していれば表示
     const specials = g.roundEnd.specials || [];
@@ -4190,8 +4195,8 @@ function h88RoundOver(result) {
         '<li class="ye-li"><div class="ye-head"><span><span class="who-b">' + nm(sp.seat) + '</span>：' + sp.jp + '</span>'
         + '<span class="pt">' + sp.mon + ' ' + unit + (m > 1 ? ' ×場' + m : '') + '</span></div></li>').join('') + '</ul>';
     }
-    head = '<div class="h88-te-note">出来役なし → 札点（1人 88点 が基準）で決着（' + bTag + '）。88点との差' + (m > 1 ? ' ×' + m : '') + ' をやり取り。' + (specials.length ? '（双八/総八の特殊役あり）' : '') + '</div>';
-    h88Log('― 札点で決着 ' + bTag + '：' + g.seats.map(s => st.names[s] + ' ' + pts[s] + '点').join(' ／ ') + (specials.length ? '／特殊役 ' + specials.map(sp => st.names[sp.seat] + ' ' + sp.jp).join('・') : ''));
+    head = '<div class="h88-te-note">出来役なし → 札点（1人 88文 が基準）で決着（' + bTag + '）。88文との差' + (m > 1 ? ' ×' + m : '') + ' をやり取り。' + (specials.length ? '（双八/総八の特殊役あり）' : '') + '</div>';
+    h88Log('― 札点で決着 ' + bTag + '：' + g.seats.map(s => st.names[s] + ' ' + pts[s] + '文').join(' ／ ') + (specials.length ? '／特殊役 ' + specials.map(sp => st.names[sp.seat] + ' ' + sp.jp).join('・') : ''));
   }
   // スコアボード＝こいこいと同形（名前｜累計 ＋この局の増減バッジ。支払い=赤）
   const scoreboard = '<div class="h88-te-legend">数字＝累計、バッジ＝増減</div><div class="scoreboard">' + g.seats.map(s => {

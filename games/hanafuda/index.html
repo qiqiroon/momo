@@ -105,6 +105,8 @@
   .h88-opp-switch #h88-opp-switch-label{font-size:.66rem;}
   .h88-seat{flex:1;min-width:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:6px 8px;}
   .h88-seat.turn{border-color:var(--orange);box-shadow:inset 0 0 0 1px var(--orange);}
+  /* 自分の手番のとき、自分の箱も相手と同じくオレンジ枠で強調 */
+  .h88-self.turn{border-radius:10px;box-shadow:inset 0 0 0 2px var(--orange);}
   .h88-seat .h88-name{font-size:.72rem;color:#fff;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   /* v1.66: 相手手札は7枚が枠内に必ず収まるよう縮小方式（はみ出し・スクロールバー防止）。
      v1.72 D4: サイズはこいこいと同じ --card-w 変数（fitH88Board が実測セット）。 */
@@ -142,7 +144,7 @@
   /* v1.63 C7: ホバー/選択で浮いた札の上端が切れないよう上に余白 */
   /* v1.68: 手札は最初に7枚分の幅・高さを確保して固定（伸縮で画面がぶれない）。
      v1.72 D4: サイズは --card-w（fitH88Board が実測セット・こいこいと同じ仕組み）。 */
-  .h88-hand{display:flex;gap:3px;justify-content:center;flex-wrap:nowrap;padding-top:14px;width:calc(7 * var(--card-w,52px) + 6 * 3px);max-width:100%;margin:0 auto;min-height:calc(var(--card-w,52px) * 350 / 220 + 14px);}
+  .h88-hand{display:flex;gap:3px;justify-content:center;flex-wrap:nowrap;padding-top:16px;width:calc(7 * var(--card-w,52px) + 6 * 3px);max-width:100%;margin:0 auto;min-height:calc(var(--card-w,52px) * 350 / 220 + 16px);}
   .h88-hand .h88-hand-card{cursor:pointer;transition:transform .12s;flex:0 0 auto;}
   .h88-hand .h88-hand-card:hover{transform:translateY(-5px);}
   /* v1.63 B6: 選択中の手札は浮かせて強調 */
@@ -155,7 +157,9 @@
   .h88-log-btn{background:var(--orange);color:#1a1a1a;border:none;border-radius:6px;font-family:inherit;font-weight:700;font-size:.72rem;padding:4px 9px;cursor:pointer;white-space:nowrap;line-height:1;margin-left:auto;flex:0 0 auto;}
   .h88-log-btn:hover{filter:brightness(1.08);}
   /* v1.68: 八八ステータスは1行・八八を左・記録/準備室ボタンを右端に。 */
-  .h88-back{border-color:var(--orange);color:var(--orange);margin-left:6px;}
+  /* 戻るボタンは背景を透明に（オレンジ地＋オレンジ文字で読めなかったのを修正） */
+  .h88-back{background:transparent;border:1px solid var(--orange);color:var(--orange);margin-left:6px;}
+  .h88-back:hover{background:rgba(255,150,40,.14);}
   #h88-status{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;gap:8px;}
   #h88-status .rulename{flex:0 0 auto;}
   #h88-status span{white-space:nowrap;flex:0 0 auto;}
@@ -223,6 +227,7 @@
     #screen-hachi #h88-oppL{left:0;}
     #screen-hachi #h88-oppR{right:0;}
     #screen-hachi #h88-oppL.turn,#screen-hachi #h88-oppR.turn{border-color:var(--orange);box-shadow:inset 0 0 0 1px var(--orange);}
+    #screen-hachi .h88-self.turn{border-color:var(--orange);box-shadow:inset 0 0 0 2px var(--orange);}
     /* 回転する内箱＝幅(=盤高 --rot-len)×高さ(=帯幅 --side-w)。中央基準で回転。 */
     #screen-hachi .h88-seat-rot{position:absolute;top:50%;left:50%;
       width:var(--rot-len,360px);height:var(--side-w,128px);
@@ -254,7 +259,7 @@
     #screen-hachi .h88-self-nameline{grid-row:1;margin:0;font-size:.72rem;}
     #screen-hachi .h88-self-caps{grid-row:2;margin:0;display:flex;flex-flow:row wrap;justify-content:center;align-content:center;gap:2px 12px;}
     #screen-hachi .h88-self-caps .caprow{flex-wrap:wrap;row-gap:2px;}
-    #screen-hachi .h88-hand{grid-row:3;width:auto;max-width:100%;min-height:0;padding:4px 0 0;margin:0;flex-wrap:nowrap;overflow-x:auto;}
+    #screen-hachi .h88-hand{grid-row:3;width:auto;max-width:100%;min-height:0;padding:16px 0 0;margin:0;flex-wrap:nowrap;overflow-x:auto;}
     #screen-hachi .h88-hand.teyaku-reveal{overflow:visible;padding-top:24px;}
   }
   /* v1.59: 音量スライダー＋右のミュートチェック */
@@ -1265,7 +1270,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.06</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.07</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1331,7 +1336,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.06</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.07</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1445,7 +1450,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.06</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.07</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1505,7 +1510,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.06</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.07</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -4042,6 +4047,8 @@ function renderH88() {
                                   : (g.deck.length ? svgBack() : '');
   const myTurn = (g.currentPlayer === 'p0' && !g.winner);
   const handOn = myTurn && !st.pending; // ピック中は手札操作不可
+  const selfBox = document.querySelector('.h88-self'); // 自分の手番は相手と同じくオレンジ枠で強調（手役中は出さない）
+  if (selfBox) selfBox.classList.toggle('turn', myTurn && !st.teyakuMarks);
   // 自分の名前・親・手番を取り札の1番上に（相手と同じ形で表示）。手役表示中は手番バッジを出さない。
   const youL = t('game.you');
   document.getElementById('h88-self-nameline').innerHTML =

@@ -1246,7 +1246,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.95</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.96</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1312,7 +1312,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.95</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.96</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1426,7 +1426,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.95</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.96</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1486,7 +1486,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.95</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v1.96</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -3333,10 +3333,62 @@ function h88FieldMultiplier(field) {
 // プリセット骨組み（フェーズ1では精算は3種共通。出来役/手役の差はフェーズ2以降で効かせる）。
 const H88_PRESETS = {
   nintendo: { label: '任天堂公式', unit: '点' },
-  kanto:    { label: '関東式（なかよし村）', unit: '文' },
-  kansai:   { label: '関西式', unit: '文' },
+  kanto:    { label: '関東式（なかよし村）', unit: '貫' },
+  kansai:   { label: '関西式', unit: '貫' },
 };
 function h88PresetId() { return (state.h88 && state.h88.preset) || 'nintendo'; }
+function h88PresetUnit() { return (H88_PRESETS[h88PresetId()] || {}).unit || '文'; }
+// ── 八八 本格化フェーズ2：本物の出来役（プリセット別の採否・点数）──
+// 上がり出来役＝対局中に完成すると即上がり（decision7=即上がり固定）。プリセットに載っていない役は非採用。
+// 値の単位はプリセット依存（任天堂=点／関東・関西=貫）。※札点(点)との単位統一（忠実な貫⇔点換算）は将来。
+// 双八・総八（取り札点の集計役）は「打ち切り時の集計」であり上がり役ではないためこの段では未搭載。
+const H88_YAKU_DEFS = {
+  nintendo: {
+    gokou:       { jp: '五光', mon: 75 },
+    shikou:      { jp: '四光', mon: 50 },   // 柳を除く光4枚
+    shichitan:   { jp: '七短', mon: 50 },   // 柳の短冊を除く短冊7枚
+    akatan:      { jp: '赤短', mon: 35 },
+    aotan:       { jp: '青短', mon: 35 },
+    inoshikachou:{ jp: '猪鹿蝶', mon: 35 },
+  },
+  kanto: {
+    gokou:     { jp: '五光', mon: 12 },
+    shikou:    { jp: '四光', mon: 10 },
+    shichitan: { jp: '七短', mon: 10 },
+    akatan:    { jp: '赤短', mon: 7 },
+    aotan:     { jp: '青短', mon: 7 },
+    sujuuroku: { jp: '素十六', mon: 12 },   // カス16枚
+  },
+  kansai: {
+    gokou:     { jp: '五光', mon: 15 },
+    shikou:    { jp: '四光', mon: 12 },
+    shichitan: { jp: '七短', mon: 12 },
+    akatan:    { jp: '赤短', mon: 10 },
+    aotan:     { jp: '青短', mon: 10 },
+    sujuuroku: { jp: '素十六', mon: 10 },
+  },
+};
+function h88YakuDefs() { return H88_YAKU_DEFS[h88PresetId()] || H88_YAKU_DEFS.nintendo; }
+// 八八の出来役判定。defs に載っている役だけを採用（採否＝プリセット依存）。
+function h88ComputeYaku(captured, defs) {
+  defs = defs || h88YakuDefs();
+  const ids = {}; captured.forEach(c => { ids[c.id] = true; });
+  const hikari = captured.filter(c => c.type === 'hikari');
+  const tan = captured.filter(c => c.type === 'tan');
+  const kasu = captured.filter(c => c.type === 'kasu');
+  const hasRain = !!ids[RAIN_HIKARI_ID];
+  const y = [];
+  const add = (k) => { const d = defs[k]; if (d) y.push({ key: 'yaku.' + k, jp: d.jp, mon: d.mon }); };
+  if (hikari.length >= 5) add('gokou');
+  else if (hikari.length === 4 && !hasRain) add('shikou'); // 雨（柳光）入りは四光にしない＝八八標準
+  const tanNonYanagi = tan.filter(c => c.id !== 'm11_tan').length;
+  if (tanNonYanagi >= 7) add('shichitan');
+  if (RED_TAN_IDS.every(id => ids[id])) add('akatan');
+  if (BLUE_TAN_IDS.every(id => ids[id])) add('aotan');
+  if (IKS_IDS.every(id => ids[id])) add('inoshikachou');
+  if (kasu.length >= 16) add('sujuuroku');
+  return y;
+}
 function h88MonthMatches(field, month) { return field.filter(c => c.month === month); }
 function h88NextSeat(g, p) { const i = g.seats.indexOf(p); return g.seats[(i + 1) % g.seats.length]; }
 // 席順の割り当て：親→2位→3位を反時計回り。draws={seatId: {month, id}} から順位を決め seats を並べる。
@@ -3355,7 +3407,7 @@ function h88Build(seatIds, oyaId) {
   seatIds.forEach(id => { hands[id] = deck.splice(0, 7); caps[id] = []; });
   const field = deck.splice(0, 6);
   return { mode: 'hachi', seats: seatIds.slice(), deck: deck, field: field,
-           hands: hands, caps: caps, currentPlayer: oyaId, phase: 'select-hand',
+           hands: hands, caps: caps, currentPlayer: oyaId, oya: oyaId, phase: 'select-hand',
            winner: null, roundEnd: null, bonus: h88FieldMultiplier(field) };
 }
 // 場から札 card(=手札 or めくり) を同月合わせで取る。pickId は 2枚合致時の選択。
@@ -3427,13 +3479,19 @@ function h88Turn(g, player, opts) {
     const took2 = h88Capture(g, player, dc, ms2.length === 2 ? (opts.drawPickId || h88AiPickField(ms2, g, player, lv)) : null);
     h88LogPlayer(g, player, h88DescribeTake(dc, took2, true));
   }
-  const y = computeYaku(g.caps[player]);
+  const y = h88ComputeYaku(g.caps[player]);
   if (yakuTotal(y) > 0) { g.winner = player; g.roundEnd = { kind: 'yaku', winner: player, yaku: y, total: yakuTotal(y) }; return 'win'; }
   if (g.hands[player].length === 0 && g.deck.length === 0) { h88FinishByPoints(g); return 'draw'; }
   return 'next';
 }
 // 打ち切り（誰も出来役を作れず手札が尽きる）：札点(88基準)で決着させ roundEnd を作る。
 function h88FinishByPoints(g) {
+  // 残った場札は親が取る（伝統慣習）。これで取り札合計＝264になり88基準がゼロサムに揃う。
+  if (g.field.length) {
+    const oya = g.oya || g.seats[0];
+    g.caps[oya].push.apply(g.caps[oya], g.field.splice(0));
+    g.fieldSweptTo = oya; // 表示用
+  }
   const points = {};
   g.seats.forEach(s => { points[s] = h88SumPoints(g.caps[s]); });
   let top = g.seats[0];
@@ -3472,7 +3530,8 @@ function h88SimRound(seatIds, oyaId) {
 }
 // テスト用フック（開発中のみ）
 window.__h88 = { build: h88Build, turn: h88Turn, sim: h88SimRound, nextSeat: h88NextSeat, seatOrder: h88SeatOrder,
-  cardPoints: h88CardPoints, sumPoints: h88SumPoints, fieldMul: h88FieldMultiplier, settle: h88Settle, buildDeck: buildDeck };
+  cardPoints: h88CardPoints, sumPoints: h88SumPoints, fieldMul: h88FieldMultiplier, settle: h88Settle, buildDeck: buildDeck,
+  computeYaku: h88ComputeYaku, yakuDefs: H88_YAKU_DEFS };
 
 // ─────────── 八八 UI（vsコンピュータ・3人。こいこいとは独立） ───────────
 // state.h88 = { names, scores, roundNo, rounds, seatCycle, game, aiToken, oyaDraws }
@@ -3818,7 +3877,7 @@ function h88HumanDrawStep() {
 function h88HumanEndTurn() {
   const st = state.h88, g = st.game;
   st.sel = null; st.drawn = null;
-  const y = computeYaku(g.caps['p0']);
+  const y = h88ComputeYaku(g.caps['p0']);
   if (yakuTotal(y) > 0) { g.winner = 'p0'; g.roundEnd = { kind: 'yaku', winner: 'p0', yaku: y, total: yakuTotal(y) }; renderH88(); h88RoundOver('win'); return; }
   if (g.hands['p0'].length === 0 && g.deck.length === 0) { h88FinishByPoints(g); renderH88(); h88RoundOver('draw'); return; }
   g.currentPlayer = h88NextSeat(g, 'p0');
@@ -3850,18 +3909,19 @@ function h88RoundOver(result) {
   const st = state.h88, g = st.game;
   let msg;
   const m = g.bonus || 1;
+  const unit = h88PresetUnit(); // 任天堂=点／関東・関西=貫
   const bTag = (m === 4 ? '絶場' : m === 2 ? '大場' : '小場') + '（×' + m + '）';
   const totals = () => g.seats.map(s => st.names[s] + ' ' + st.scores[s]).join(' ／ ');
   if (result === 'win') {
     // v1.63 C13: 上がり＝自分ならファンファーレ／相手なら「ぷっ」
     playSfx(g.winner === 'p0' ? 'fanfare' : 'pu');
     h88Settle(g, st.scores);
-    const yy = g.roundEnd.yaku.map(y => t(y.key) + (y.count ? '×' + y.count : '')).join('・');
+    const yy = g.roundEnd.yaku.map(y => (y.jp || t(y.key)) + (y.count ? '×' + y.count : '')).join('・');
     const gain = g.roundEnd.total * m;
-    h88Log('★ ' + st.names[g.winner] + ' が出来役で上がり：' + yy + '＝' + g.roundEnd.total + '文 ' + bTag + '＝各' + gain + '文');
+    h88Log('★ ' + st.names[g.winner] + ' が出来役で上がり：' + yy + '＝' + g.roundEnd.total + unit + ' ' + bTag + '＝各' + gain + unit);
     h88Log('　合計 ' + totals());
-    msg = st.names[g.winner] + ' が出来役で上がり！\n（' + yy + '＝' + g.roundEnd.total + '文 ' + bTag + '）\n'
-        + '他の2人からそれぞれ ' + gain + '文 受け取り。\n［合計］' + totals();
+    msg = st.names[g.winner] + ' が出来役で上がり！\n（' + yy + '＝' + g.roundEnd.total + unit + ' ' + bTag + '）\n'
+        + '他の2人からそれぞれ ' + gain + unit + ' 受け取り。\n［合計］' + totals();
   } else {
     // 出来役なし → 札点（88基準）で決着
     playSfx('pu');
@@ -3869,7 +3929,7 @@ function h88RoundOver(result) {
     const pts = g.roundEnd.points;
     const detail = g.seats.map(s => {
       const d = (pts[s] - 88) * m;
-      return '　' + st.names[s] + '：' + pts[s] + '点（' + (d >= 0 ? '+' : '') + d + '文）';
+      return '　' + st.names[s] + '：' + pts[s] + '点（' + (d >= 0 ? '+' : '') + d + '点）';
     }).join('\n');
     h88Log('― 札点で決着 ' + bTag + '：' + g.seats.map(s => st.names[s] + ' ' + pts[s] + '点').join(' ／ '));
     h88Log('　合計 ' + totals());

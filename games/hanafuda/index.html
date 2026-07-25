@@ -1269,7 +1269,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.08</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.09</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1335,7 +1335,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.08</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.09</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1449,7 +1449,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.08</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.09</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1509,7 +1509,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.08</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.09</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -3861,10 +3861,8 @@ function h88StartRound(oyaId) {
   // フェーズ3: 手役（配札直後・全員から即時精算）。成立があればモーダルで知らせてから対局へ。
   const g = st.game;
   const before = {}; g.seats.forEach(s => before[s] = st.scores[s] || 0); // 手役前のスコア
-  st.roundTeyaku = null; // この局の手役分（局終了で「累計に加算済」と明示する用）
   const teyaku = h88SettleTeyaku(g, st.scores);
   if (teyaku) {
-    st.roundTeyaku = {}; g.seats.forEach(s => { const d = (st.scores[s] || 0) - before[s]; if (d !== 0) st.roundTeyaku[s] = d; });
     // 手役を宣言した人だけ手札を公開（他は伏せ）。seat→対象IDの集合。
     st.teyakuMarks = {}; Object.keys(teyaku).forEach(s => { st.teyakuMarks[s] = teyaku[s].ids || []; });
     renderH88(); // スコア反映＋宣言者の手札公開＋対象札をオレンジ枠で強調
@@ -3879,15 +3877,15 @@ function h88StartRound(oyaId) {
         + '<span class="pt">' + ty.mon + ' ' + unit + (m > 1 ? ' ×場' + m : '') + '</span></div>'
         + '<div class="ye-cards">' + cards + '</div></li>';
     }).join('');
-    // ② スコアボード＝こいこいと同形（名前｜累計 ＋ この手役での増減バッジ）。受取=オレンジ＋／支払い=赤−。
+    // ② スコアボード＝「＋増減バッジ → 累計」の順（増減はすでに累計に含まれる＝加算済を明確に）。受取=オレンジ＋／支払い=赤−。
     const scoreboard = g.seats.map(s => {
       const d = (st.scores[s] || 0) - before[s];
-      const deltaHtml = d !== 0 ? ' <span class="delta' + (d < 0 ? ' neg' : '') + '">' + (d > 0 ? '+' : '') + d + '</span>' : '';
+      const deltaHtml = d !== 0 ? '<span class="delta' + (d < 0 ? ' neg' : '') + '">' + (d > 0 ? '+' : '') + d + '</span> ' : '';
       return '<div class="sc-row' + (d > 0 ? ' lead' : '') + '"><span class="sc-name">' + nm(s) + '</span>'
-        + '<span class="sc-val">' + (st.scores[s] || 0) + ' ' + unit + deltaHtml + '</span></div>';
+        + '<span class="sc-val">' + deltaHtml + (st.scores[s] || 0) + ' ' + unit + '</span></div>';
     }).join('');
     const bodyHtml = '<ul class="yaku-list">' + yakuLis + '</ul>'
-      + '<div class="h88-te-legend">数字＝累計、バッジ＝増減</div>'
+      + '<div class="h88-te-legend">バッジ＝この手役の増減 → 数字＝加算後の累計</div>'
       + '<div class="scoreboard">' + scoreboard + '</div>';
     // ログ（テキスト）
     const deltaLine = g.seats.map(s => { const d = (st.scores[s] || 0) - before[s]; return st.names[s] + ' ' + (d >= 0 ? '+' : '') + d + unit; }).join(' ／ ');
@@ -4205,25 +4203,18 @@ function h88RoundOver(result) {
     head = '<div class="h88-te-note">出来役なし → 札点（1人 88文 が基準）で決着（' + bTag + '）。88文との差' + (m > 1 ? ' ×' + m : '') + ' をやり取り。' + (specials.length ? '（双八/総八の特殊役あり）' : '') + '</div>';
     h88Log('― 札点で決着 ' + bTag + '：' + g.seats.map(s => st.names[s] + ' ' + pts[s] + '文').join(' ／ ') + (specials.length ? '／特殊役 ' + specials.map(sp => st.names[sp.seat] + ' ' + sp.jp).join('・') : ''));
   }
-  // スコアボード＝こいこいと同形（名前｜累計 ＋この局の増減バッジ。支払い=赤）
-  const scoreboard = '<div class="h88-te-legend">数字＝累計、バッジ＝増減</div><div class="scoreboard">' + g.seats.map(s => {
+  // スコアボード＝「＋この局の増減バッジ → 累計」の順（手役は別表示せず＝累計にすでに含まれる）。支払い=赤。
+  const scoreboard = '<div class="h88-te-legend">バッジ＝この局の増減 → 数字＝加算後の累計</div><div class="scoreboard">' + g.seats.map(s => {
     const d = (st.scores[s] || 0) - before[s];
-    const deltaHtml = d !== 0 ? ' <span class="delta' + (d < 0 ? ' neg' : '') + '">' + (d > 0 ? '+' : '') + d + '</span>' : '';
+    const deltaHtml = d !== 0 ? '<span class="delta' + (d < 0 ? ' neg' : '') + '">' + (d > 0 ? '+' : '') + d + '</span> ' : '';
     return '<div class="sc-row' + (d > 0 ? ' lead' : '') + '"><span class="sc-name">' + nm(s) + '</span>'
-      + '<span class="sc-val">' + (st.scores[s] || 0) + ' ' + unit + deltaHtml + '</span></div>';
+      + '<span class="sc-val">' + deltaHtml + (st.scores[s] || 0) + ' ' + unit + '</span></div>';
   }).join('') + '</div>';
-  // この局に手役があれば「累計に加算済」であることを明示（手役分が無視されていないと分かるように）
-  let teyakuNote = '';
-  if (st.roundTeyaku && Object.keys(st.roundTeyaku).length) {
-    teyakuNote = '<div class="h88-te-sub">この局の手役分（すでに下の累計に加算済）</div><div class="scoreboard">'
-      + Object.keys(st.roundTeyaku).map(s => '<div class="sc-row"><span class="sc-name">' + nm(s) + '</span>'
-        + '<span class="sc-val"><span class="delta' + (st.roundTeyaku[s] < 0 ? ' neg' : '') + '">' + (st.roundTeyaku[s] > 0 ? '+' : '') + st.roundTeyaku[s] + ' ' + unit + '</span></span></div>').join('') + '</div>';
-  }
   h88Log('　合計 ' + g.seats.map(s => st.names[s] + ' ' + st.scores[s]).join(' ／ '));
   renderH88();
   const isLast = st.roundNo >= st.rounds;
   const title = isLast ? '対局終了' : '局終了（第' + st.roundNo + '局）';
-  showNotice(title, head + listHtml + teyakuNote + scoreboard, () => {
+  showNotice(title, head + listHtml + scoreboard, () => {
     if (isLast) {
       h88ShowMatchEnd(); // v1.69: 総合結果はこいこい風パネル(#ovH88End)
     } else {

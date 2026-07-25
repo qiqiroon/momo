@@ -544,6 +544,7 @@
   /* 手役の結果パネル（こいこいの局終了に準拠） */
   #ov-body{font-size:.85rem;color:var(--text);line-height:1.55;margin:6px 0;text-align:left;}
   .h88-te-note{font-size:.66rem;color:var(--text-muted);margin:0 0 8px;line-height:1.5;}
+  .h88-te-sub{font-size:.66rem;color:var(--text-muted);margin:10px 0 4px;letter-spacing:.03em;}
   .scoreboard .sc-val .delta.neg{color:#ff8a8a;} /* 八八: 支払い（マイナス増減）は赤 */
   .yaku-list li .ye-head .who-b{color:#fff;font-weight:800;}
   #ovYaku-drag{cursor:move;touch-action:none;}
@@ -1261,7 +1262,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.03</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.04</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1327,7 +1328,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.03</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.04</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1441,7 +1442,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.03</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.04</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1501,7 +1502,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.03</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.04</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -3411,6 +3412,8 @@ const H88_YAKU_DEFS = {
     akatan:    { jp: '赤短', mon: 7 },
     aotan:     { jp: '青短', mon: 7 },
     sujuuroku: { jp: '素十六', mon: 12 },   // カス16枚
+    souhachi:  { jp: '双八', mon: 10, tally: true },   // 打ち切り時：取り札80点以上
+    souya:     { jp: '総八', mon: 10, tally: true, oya: true }, // 打ち切り時：全員88点ちょうど（親）
   },
   kansai: {
     gokou:     { jp: '五光', mon: 15 },
@@ -3419,6 +3422,8 @@ const H88_YAKU_DEFS = {
     akatan:    { jp: '赤短', mon: 10 },
     aotan:     { jp: '青短', mon: 10 },
     sujuuroku: { jp: '素十六', mon: 10 },
+    souhachi:  { jp: '双八', mon: 10, tally: true },
+    souya:     { jp: '総八', mon: 8, tally: true, oya: true },
   },
 };
 function h88YakuDefs() { return H88_YAKU_DEFS[h88PresetId()] || H88_YAKU_DEFS.nintendo; }
@@ -3659,8 +3664,21 @@ function h88FinishByPoints(g) {
   g.seats.forEach(s => { points[s] = h88SumPoints(g.caps[s]); });
   let top = g.seats[0];
   g.seats.forEach(s => { if (points[s] > points[top]) top = s; });
-  g.roundEnd = { kind: 'points', winner: top, points: points };
+  g.roundEnd = { kind: 'points', winner: top, points: points, specials: h88SpecialYaku(g) };
   g.winner = top; // 表示・次局の親決め用（札点最大＝この局の勝者）
+}
+// 双八/総八（打ち切り時の集計特殊役・関東関西のみ／任天堂は非採用）。取り札点(場札→親の回収後)で判定。
+// 総八＝全員88点ちょうど→親。双八＝80点以上の人（複数可）。返り: [{seat,jp,mon}]
+function h88SpecialYaku(g, defs) {
+  defs = defs || h88YakuDefs();
+  const out = [];
+  const pts = {}; g.seats.forEach(s => pts[s] = h88SumPoints(g.caps[s]));
+  if (defs.souya && g.seats.every(s => pts[s] === 88)) {
+    out.push({ seat: g.oya || g.seats[0], jp: defs.souya.jp, mon: defs.souya.mon });
+  } else if (defs.souhachi) {
+    g.seats.forEach(s => { if (pts[s] >= 80) out.push({ seat: s, jp: defs.souhachi.jp, mon: defs.souhachi.mon }); });
+  }
+  return out;
 }
 // 精算（モデルA・排他）。場倍率×〔出来役上がり＝勝者が出来役文を他2人から徴収／打ち切り＝各自(札点−88)〕。
 // どちらもゼロサム。将来モデルB（札点＋出来役の合算）へ差し替えられるよう独立関数にしてある。
@@ -3669,6 +3687,12 @@ function h88Settle(g, scores) {
   const m = g.bonus || 1, re = g.roundEnd;
   if (re.kind === 'points') {
     g.seats.forEach(s => { scores[s] = (scores[s] || 0) + (re.points[s] - 88) * m; });
+    // 双八/総八（特殊役）を札点に上乗せ：該当者が mon×場倍率 を他の全員から受け取る（ゼロサム）
+    (re.specials || []).forEach(sp => {
+      const gain = sp.mon * m, others = g.seats.filter(x => x !== sp.seat);
+      scores[sp.seat] = (scores[sp.seat] || 0) + gain * others.length;
+      others.forEach(o => { scores[o] = (scores[o] || 0) - gain; });
+    });
   } else { // 'yaku'（出来役上がり）
     const w = re.winner, gain = re.total * m, others = g.seats.filter(s => s !== w);
     scores[w] = (scores[w] || 0) + gain * others.length;
@@ -3695,7 +3719,7 @@ function h88SimRound(seatIds, oyaId) {
 // テスト用フック（開発中のみ）
 window.__h88 = { build: h88Build, turn: h88Turn, sim: h88SimRound, nextSeat: h88NextSeat, seatOrder: h88SeatOrder,
   cardPoints: h88CardPoints, sumPoints: h88SumPoints, fieldMul: h88FieldMultiplier, settle: h88Settle, buildDeck: buildDeck,
-  computeYaku: h88ComputeYaku, yakuDefs: H88_YAKU_DEFS,
+  computeYaku: h88ComputeYaku, yakuDefs: H88_YAKU_DEFS, specialYaku: h88SpecialYaku,
   computeTeyaku: h88ComputeTeyaku, settleTeyaku: h88SettleTeyaku, teyakuDefs: H88_TEYAKU_DEFS };
 
 // ─────────── 八八 UI（vsコンピュータ・3人。こいこいとは独立） ───────────
@@ -4159,8 +4183,15 @@ function h88RoundOver(result) {
       return '<li class="ye-li"><div class="ye-head"><span>' + nm(s) + ' の札点</span>'
         + '<span class="pt">' + pts[s] + ' 点 <span style="color:var(--text-muted);font-weight:400;">（' + (diff >= 0 ? '+' : '') + diff + '）</span></span></div></li>';
     }).join('') + '</ul>';
-    head = '<div class="h88-te-note">出来役なし → 札点（1人 88点 が基準）で決着（' + bTag + '）。88点との差' + (m > 1 ? ' ×' + m : '') + ' をやり取り。</div>';
-    h88Log('― 札点で決着 ' + bTag + '：' + g.seats.map(s => st.names[s] + ' ' + pts[s] + '点').join(' ／ '));
+    // 双八/総八（特殊役・関東関西のみ）が成立していれば表示
+    const specials = g.roundEnd.specials || [];
+    if (specials.length) {
+      listHtml += '<div class="h88-te-sub">特殊役（札点に上乗せ）</div><ul class="yaku-list">' + specials.map(sp =>
+        '<li class="ye-li"><div class="ye-head"><span><span class="who-b">' + nm(sp.seat) + '</span>：' + sp.jp + '</span>'
+        + '<span class="pt">' + sp.mon + ' ' + unit + (m > 1 ? ' ×場' + m : '') + '</span></div></li>').join('') + '</ul>';
+    }
+    head = '<div class="h88-te-note">出来役なし → 札点（1人 88点 が基準）で決着（' + bTag + '）。88点との差' + (m > 1 ? ' ×' + m : '') + ' をやり取り。' + (specials.length ? '（双八/総八の特殊役あり）' : '') + '</div>';
+    h88Log('― 札点で決着 ' + bTag + '：' + g.seats.map(s => st.names[s] + ' ' + pts[s] + '点').join(' ／ ') + (specials.length ? '／特殊役 ' + specials.map(sp => st.names[sp.seat] + ' ' + sp.jp).join('・') : ''));
   }
   // スコアボード＝こいこいと同形（名前｜累計 ＋この局の増減バッジ。支払い=赤）
   const scoreboard = '<div class="scoreboard">' + g.seats.map(s => {

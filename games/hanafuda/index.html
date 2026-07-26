@@ -1291,7 +1291,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.11</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.12</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1357,7 +1357,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.11</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.12</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1383,6 +1383,8 @@
         </select>
       </div>
     </div>
+    <!-- v2.11: 八八(3人)の顔ぶれ＋強さは、こいこいのプレイヤー表示と同じ上部位置に出す（設定箱から移動） -->
+    <div class="players players-col h88-prep-players hidden" id="h88-prep-players"></div>
     <button class="leave-btn" id="btn-leave" data-i18n="room.leave">← ロビーに戻る</button>
   </div>
 
@@ -1429,8 +1431,6 @@
     <div class="set-row"><span>⑥手役×場倍率</span><span class="seg" id="h88-b-teyakumul"><button data-v="on">ON</button><button data-v="off">OFF</button></span></div>
     <div class="set-row h88-reserved"><span>⑧上級ルール（下げ・出降り・丸め）</span><span class="seg"><button disabled>準備中</button></span></div>
     <div id="h88-tip-bubble" class="h88-tip-bubble" hidden></div>
-    <!-- v1.68 C4: 3人の顔ぶれ。v1.72: こいこいのオンライン準備と同じ作り＝各コンピュータ行の右に強さプルダウン -->
-    <div class="h88-prep-players" id="h88-prep-players"></div>
     <!-- v1.68 C3: 3人で親決め（準備室で引く） -->
     <div class="section-label" style="margin:14px 0 8px;"><span data-i18n="oya.title">先手（親）を決める</span></div>
     <p class="desc" style="font-size:12px;color:var(--text-muted);margin:-2px 0 6px;" data-i18n="hachi.oya.lead">3人で1枚ずつ引き、早い月＝親、以下反時計回りに着席します。</p>
@@ -1482,7 +1482,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.11</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.12</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1542,7 +1542,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.11</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.12</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -2776,8 +2776,10 @@ function pickGame(g) {
   document.getElementById('set-koikoi').classList.toggle('hidden', g !== 'koikoi');
   const sh = document.getElementById('set-hachi'); if (sh) sh.classList.toggle('hidden', !isHachi);
   const kb = document.getElementById('koikoi-prep-block'); if (kb) kb.classList.toggle('hidden', isHachi);
-  // v1.68 C4: 八八は準備室の2人表示を隠す（八八パネルに3人の顔ぶれを出す）
-  const pls = document.querySelector('#screen-room .players'); if (pls) pls.classList.toggle('hidden', isHachi);
+  // v2.11: 上部プレイヤー表示の出し分け（こいこい=ホスト/ゲスト／八八=3人の顔ぶれ・同じ上部位置）
+  const plsKoi = document.querySelector('#screen-room .room-head .players:not(#h88-prep-players)');
+  if (plsKoi) plsKoi.classList.toggle('hidden', isHachi);
+  const h88pl = document.getElementById('h88-prep-players'); if (h88pl) h88pl.classList.toggle('hidden', !isHachi);
   if (isHachi) h88PrepReset(); // v1.68 C3/C4: 八八の顔ぶれ・親決めを準備室で
   updateStartBtn();
 }
@@ -3956,7 +3958,6 @@ function h88TipContent(spec) {
   }
   return '';
 }
-let h88TipPinned = false;
 function h88ShowTip(btn) {
   const bub = document.getElementById('h88-tip-bubble'); if (!bub) return;
   bub.innerHTML = h88TipContent(btn.dataset.tip); bub.hidden = false;
@@ -3967,7 +3968,7 @@ function h88ShowTip(btn) {
   let top = Math.min(Math.max(8, r.top), Math.max(8, window.innerHeight - h - 8)); // 縦は読めるようクランプ
   bub.style.left = left + 'px'; bub.style.top = top + 'px';
 }
-function h88HideTip() { const bub = document.getElementById('h88-tip-bubble'); if (bub && !h88TipPinned) bub.hidden = true; }
+function h88HideTip() { const bub = document.getElementById('h88-tip-bubble'); if (bub) bub.hidden = true; }
 // 準備室から八八を開始（親決め済みの席順で直接開始・八八画面のオーバーレイは使わない）
 function startHachiFromPrep(rounds) {
   const p = state.h88prep; if (!p) return;
@@ -7128,13 +7129,16 @@ function bindEvents() {
   H88_BUNDLE_SEGS.forEach(id => { const seg = document.getElementById(id); if (!seg) return;
     seg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
       seg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); h88SyncPresetLabel(); })); });
-  // 吹き出し（ホバー＋クリックで採用役・点数を表示）
+  // 吹き出し：ホバー/タッチしている間だけ表示、離すと消す（固定しない）。
+  // 携帯：短いタップ＝押した(選択)／長押し(>300ms)＝触れただけ=プレビューのみ（選択は抑止）。
+  let h88TipHoldStart = 0;
   document.querySelectorAll('#set-hachi .h88-tip').forEach(btn => {
-    btn.addEventListener('mouseenter', () => { if (!h88TipPinned) h88ShowTip(btn); });
+    btn.addEventListener('mouseenter', () => h88ShowTip(btn));
     btn.addEventListener('mouseleave', () => h88HideTip());
-    btn.addEventListener('click', (e) => { e.stopPropagation(); h88TipPinned = true; h88ShowTip(btn); });
+    btn.addEventListener('touchstart', () => { h88TipHoldStart = performance.now(); h88ShowTip(btn); }, { passive: true });
+    btn.addEventListener('touchend', (e) => { h88HideTip(); if (performance.now() - h88TipHoldStart > 300) e.preventDefault(); });
+    btn.addEventListener('touchcancel', () => h88HideTip());
   });
-  document.addEventListener('click', () => { h88TipPinned = false; const bub = document.getElementById('h88-tip-bubble'); if (bub) bub.hidden = true; });
   h88ApplyPreset('nintendo'); // 既定値をバンドルへ初期セット
   // v1.68 C3: 準備室の八八・親決め
   const bPrepOya = document.getElementById('btn-h88-prep-drawoya');

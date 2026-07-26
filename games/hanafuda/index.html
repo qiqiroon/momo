@@ -438,6 +438,9 @@
   .h88-ruleinfo-body li{margin-bottom:6px;word-break:break-all;}
   .h88-ruleinfo-body a{color:var(--gold);}
   .h88-ruleinfo-note{font-size:.7rem;color:var(--text-muted);margin-top:10px;}
+  /* 下げ宣言トースト（中央に一瞬） */
+  .h88-sage-toast{position:fixed;top:32%;left:50%;transform:translateX(-50%);background:#8a5a00;color:#ffe9c2;padding:11px 22px;border-radius:12px;font-weight:700;font-size:1.05rem;z-index:450;box-shadow:0 6px 20px rgba(0,0,0,.55);pointer-events:none;animation:h88SageToast 1.8s ease forwards;}
+  @keyframes h88SageToast{0%{opacity:0;transform:translateX(-50%) scale(.7);}12%{opacity:1;transform:translateX(-50%) scale(1.08);}22%{transform:translateX(-50%) scale(1);}80%{opacity:1;}100%{opacity:0;}}
 
   .oya{gap:14px;}
   .oya .lead{font-size:.86rem;color:var(--text-muted);line-height:1.6;}
@@ -1300,7 +1303,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.19</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.20</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1366,7 +1369,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.19</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.20</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1438,7 +1441,8 @@
     <div class="set-row"><span>④場四（同月4枚で配り直し）</span><span class="seg" id="h88-b-redeal"><button data-v="on">あり</button><button data-v="off">なし</button></span></div>
     <div class="set-row"><span>⑤場三（同月4枚目で総取り）</span><span class="seg" id="h88-b-sweep3"><button data-v="on">あり</button><button data-v="off">なし</button></span></div>
     <div class="set-row"><span>⑥手役×場倍率</span><span class="seg" id="h88-b-teyakumul"><button data-v="on">ON</button><button data-v="off">OFF</button></span></div>
-    <div class="set-row h88-reserved"><span>⑧上級ルール（下げ・出降り・丸め）</span><span class="seg"><button disabled>準備中</button></span></div>
+    <div class="set-row"><span>⑧下げ（継続宣言）</span><span class="seg" id="h88-b-sage"><button class="on h88-tip" data-v="off" data-tip="sage:off">なし</button><button class="h88-tip" data-v="nintendo" data-tip="sage:nintendo">任天堂式</button><button class="h88-tip" data-v="kanto" data-tip="sage:kanto">関東式</button><button class="h88-tip" data-v="kansai" data-tip="sage:kansai">関西式</button></span></div>
+    <div class="set-row h88-reserved"><span>⑨上級ルール（出降り・丸め）</span><span class="seg"><button disabled>準備中</button></span></div>
     <div id="h88-tip-bubble" class="h88-tip-bubble" hidden></div>
     <!-- v1.68 C3: 3人で親決め（準備室で引く） -->
     <div class="section-label" style="margin:14px 0 8px;"><span data-i18n="oya.title">先手（親）を決める</span></div>
@@ -1491,7 +1495,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.19</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.20</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1551,7 +1555,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.19</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.20</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -3476,11 +3480,12 @@ const H88_PRESETS = {
 function h88PresetId() { return h88Rules().pointStyle; }
 function h88PresetUnit() { return '文'; } // このアプリでは単位を「文」に統一（点/貫は使わない）
 // ── 八八 ルール設定モデル（プリセット＝バンドルの一括セット／個別変更でカスタム化）──
-// ①点数(pointStyle) ②採用役(yakuSet) ③場倍率(fieldMul) ④場四=配り直し(redeal) ⑤場三=総取り(sweep3) ⑥手役×場倍率(teyakuFieldMul)。
+// ①点数(pointStyle) ②採用役(yakuSet) ③場倍率(fieldMul) ④場四=配り直し(redeal) ⑤場三=総取り(sweep3) ⑥手役×場倍率(teyakuFieldMul) ⑧下げ(sage)。
+// sage: 'off' | 'nintendo' | 'kanto' | 'kansai'（下げの流派＝主に失敗時ペナルティが違う。下げは全プリセットで使えるが既定はOFF＝即上がり）。
 function h88PresetRules(preset) {
   const p = (preset === 'kanto' || preset === 'kansai') ? preset : 'nintendo';
   return { pointStyle: p, yakuSet: (p === 'nintendo' ? 'nintendo' : 'classic'),
-           fieldMul: true, redeal: true, sweep3: true, teyakuFieldMul: true };
+           fieldMul: true, redeal: true, sweep3: true, teyakuFieldMul: true, sage: 'off' };
 }
 const H88_DEFAULT_RULES = h88PresetRules('nintendo');
 // 現在の有効ルール。state.h88.rules があればそれ、無ければ旧 state.h88.preset から導出、最後に既定。
@@ -3715,7 +3720,7 @@ function h88Build(seatIds, oyaId) {
   } while (h88Rules().redeal && h88HasQuad(field) && tries < 50);
   return { mode: 'hachi', seats: seatIds.slice(), deck: deck, field: field,
            hands: hands, caps: caps, currentPlayer: oyaId, oya: oyaId, phase: 'select-hand',
-           winner: null, roundEnd: null, bonus: h88FieldMultiplier(field) };
+           winner: null, roundEnd: null, sage: null, bonus: h88FieldMultiplier(field) };
 }
 // 場から札 card(=手札 or めくり) を同月合わせで取る。pickId は 2枚合致時の選択。
 // 0枚→場に置く / 1枚→取る / 2枚→pick / 3枚→全取り。取った札は caps[player] へ。
@@ -3784,6 +3789,35 @@ function h88AiChooseHand(g, player, level) {
   });
   return best;
 }
+// ── 下げ（継続宣言・⑧上級ルール）─────────────────────────────
+// 下げのAI判断（Q2-A 簡易戦略）：大きい役に近い時だけ下げる。届きそうもなければ堅く上がる。
+function h88AiSageDecide(g, player, level) {
+  if (g.hands[player].length + g.deck.length < 5) return false; // 残りが少なければ上がる
+  const caps = g.caps[player];
+  const tan = caps.filter(c => c.type === 'tan' && c.id !== 'm11_tan').length; // 七短に向けた短(柳短除く)
+  const aka = caps.filter(c => RED_TAN_IDS.includes(c.id)).length;
+  const ao = caps.filter(c => BLUE_TAN_IDS.includes(c.id)).length;
+  return tan >= 5 || (aka >= 2 && ao >= 1) || (ao >= 2 && aka >= 1); // 七短が近い／もう一方の短も狙える
+}
+// 出来役ができた瞬間の処理（下げ対応）。戻り: 'win'（上がり確定）／'sage'（下げて続行）／'ask'（人間へ上がる/下げるを尋ねる）／null（下げ中で役が伸びていない＝通常継続）。
+function h88OnYakuFormed(g, player, y, yt, level, human) {
+  if (h88Rules().sage === 'off') { g.winner = player; g.roundEnd = { kind: 'yaku', winner: player, yaku: y, total: yt }; return 'win'; }
+  if (g.sage && g.sage.seat !== player) { // 他家が下げ中に別人が上がった＝法度
+    g.winner = player; g.roundEnd = { kind: 'yaku', winner: player, yaku: y, total: yt, hatto: { seat: g.sage.seat, total: g.sage.total } }; return 'win';
+  }
+  const prev = (g.sage && g.sage.seat === player) ? g.sage.total : 0;
+  if (yt <= prev) return null; // 下げ中で役が伸びていない→再トリガしない（通常継続）
+  if (human) return 'ask'; // 人間は上がる/下げるをモーダルで尋ねる
+  if (h88AiSageDecide(g, player, level)) { g.sage = { seat: player, total: yt }; return 'sage'; }
+  g.winner = player; g.roundEnd = { kind: 'yaku', winner: player, yaku: y, total: yt }; return 'win';
+}
+// 局の終了（手札が尽きた）。下げ中なら下げ失敗、なければ札点で決着。
+function h88FinishRound(g) {
+  if (g.sage) {
+    if (h88Rules().sage === 'kansai') { h88FinishByPoints(g); return; } // 関西：下げ無効→札点
+    g.winner = g.sage.seat; g.roundEnd = { kind: 'sageFail', winner: g.sage.seat, total: g.sage.total }; // 関東/任天堂：下げた役の半分
+  } else h88FinishByPoints(g);
+}
 // 1人ぶんの手番（手札を出す→山をめくる→役チェック）。AIも人も同じ手順。
 // handIdx / playPickId / drawPickId / level を渡す（AIは自動決定）。戻り: 'win' | 'next' | 'draw'
 function h88Turn(g, player, opts) {
@@ -3802,8 +3836,14 @@ function h88Turn(g, player, opts) {
     h88LogPlayer(g, player, h88DescribeTake(dc, took2, true));
   }
   const y = h88ComputeYaku(g.caps[player]);
-  if (yakuTotal(y) > 0) { g.winner = player; g.roundEnd = { kind: 'yaku', winner: player, yaku: y, total: yakuTotal(y) }; return 'win'; }
-  if (g.hands[player].length === 0 && g.deck.length === 0) { h88FinishByPoints(g); return 'draw'; }
+  const yt = yakuTotal(y);
+  if (yt > 0) {
+    const r = h88OnYakuFormed(g, player, y, yt, lv, false); // AI/シミュレーションは human=false
+    if (r === 'win') return 'win';
+    if (r === 'sage') return 'next'; // 下げて手番終了
+    // r === null（下げ中で役が伸びていない）→ 通常継続
+  }
+  if (g.hands[player].length === 0 && g.deck.length === 0) { h88FinishRound(g); return 'draw'; }
   return 'next';
 }
 // 打ち切り（誰も出来役を作れず手札が尽きる）：札点(88基準)で決着させ roundEnd を作る。
@@ -3854,10 +3894,21 @@ function h88Settle(g, scores) {
       // 通常：札点(88基準)の点差でやり取り
       g.seats.forEach(s => { scores[s] = (scores[s] || 0) + (re.points[s] - 88) * m; });
     }
+  } else if (re.kind === 'sageFail') { // 下げ失敗（関東/任天堂）：下げた役の半分を下げ者が受け取る
+    const w = re.winner, half = Math.floor(re.total / 2) * m, others = g.seats.filter(s => s !== w);
+    scores[w] = (scores[w] || 0) + half * others.length;
+    others.forEach(o => { scores[o] = (scores[o] || 0) - half; });
   } else { // 'yaku'（出来役上がり）
     const w = re.winner, gain = re.total * m, others = g.seats.filter(s => s !== w);
-    scores[w] = (scores[w] || 0) + gain * others.length;
-    others.forEach(o => { scores[o] = (scores[o] || 0) - gain; });
+    if (re.hatto) { // 法度：下げ中に他家が上がった。下げ者(S)が勝者の役代2人分を単独負担＋自役半分を他2人へ
+      const S = re.hatto.seat, half = Math.floor(re.hatto.total / 2) * m;
+      scores[w] = (scores[w] || 0) + gain * others.length;   // 勝者：役代×2
+      scores[S] = (scores[S] || 0) - gain * others.length;   // 下げ者：役代×2を単独で払う（もう1人は払わない）
+      g.seats.forEach(o => { if (o !== S) { scores[o] = (scores[o] || 0) + half; scores[S] = (scores[S] || 0) - half; } }); // 自役半分：S→他2人へ各
+    } else {
+      scores[w] = (scores[w] || 0) + gain * others.length;
+      others.forEach(o => { scores[o] = (scores[o] || 0) - gain; });
+    }
   }
   return scores;
 }
@@ -3958,7 +4009,7 @@ function h88SelectedPreset() {
   return (on && on.dataset.v) || 'nintendo';
 }
 // ── 設定UI: プリセット大ボタン／個別バンドル／カスタム表示／吹き出し ──
-const H88_BUNDLE_SEGS = ['h88-b-points','h88-b-yakuset','h88-b-fieldmul','h88-b-redeal','h88-b-sweep3','h88-b-teyakumul'];
+const H88_BUNDLE_SEGS = ['h88-b-points','h88-b-yakuset','h88-b-fieldmul','h88-b-redeal','h88-b-sweep3','h88-b-teyakumul','h88-b-sage'];
 function h88SegVal(id) { const s = document.getElementById(id); const on = s && s.querySelector('button.on'); return on ? on.dataset.v : null; }
 function h88SetSeg(id, v) { const s = document.getElementById(id); if (s) s.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === v)); }
 // 6つのバンドルセグ → rules オブジェクト（h88PresetRules と同じ形）
@@ -3968,7 +4019,8 @@ function h88ReadBundleRules() {
            fieldMul:   h88SegVal('h88-b-fieldmul') !== 'off',
            redeal:     h88SegVal('h88-b-redeal') !== 'off',
            sweep3:     h88SegVal('h88-b-sweep3') !== 'off',
-           teyakuFieldMul: h88SegVal('h88-b-teyakumul') !== 'off' };
+           teyakuFieldMul: h88SegVal('h88-b-teyakumul') !== 'off',
+           sage:       h88SegVal('h88-b-sage') || 'off' };
 }
 // プリセット大ボタン → 6バンドルを一括セット（⑥はONに戻る）
 function h88ApplyPreset(preset) {
@@ -3976,6 +4028,7 @@ function h88ApplyPreset(preset) {
   h88SetSeg('h88-b-points', r.pointStyle); h88SetSeg('h88-b-yakuset', r.yakuSet);
   h88SetSeg('h88-b-fieldmul', r.fieldMul ? 'on' : 'off'); h88SetSeg('h88-b-redeal', r.redeal ? 'on' : 'off');
   h88SetSeg('h88-b-sweep3', r.sweep3 ? 'on' : 'off'); h88SetSeg('h88-b-teyakumul', r.teyakuFieldMul ? 'on' : 'off');
+  h88SetSeg('h88-b-sage', r.sage || 'off');
   h88SyncPresetLabel();
 }
 // 現状のバンドル → プリセット名 or カスタム を大ボタンに反映
@@ -4017,6 +4070,17 @@ function h88TipContent(spec) {
       + row('場倍率・場四・場三', 'すべてあり')
       + row('手役×場倍率', 'ON')
       + '<div class="tsub">点数の一覧は①、採用役の一覧は②の吹き出しで。</div>';
+  }
+  if (kind === 'sage') {
+    // 下げ（継続宣言）の流派差。共通＝出来役完成時に上がらず続行／成功で下げた役＋追加役を合算して上がる。
+    if (val === 'off') return '<h5>下げ なし</h5><div class="tsub">出来役ができたら即上がり（下げ＝継続宣言はできません）。</div>';
+    const failJp = (val === 'kansai') ? '下げた役は<span class="no">無効(0)</span>→札点で決着' : '下げた役の<span class="ye">半分</span>を受け取る' + (val === 'nintendo' ? '（※任天堂は明文なし・関東式で補完）' : '');
+    return '<h5>下げ ' + (val === 'nintendo' ? '任天堂式' : val === 'kanto' ? '関東式' : '関西式') + '</h5>'
+      + row('宣言', '自分の取りで出来役が完成した瞬間に「下げる」')
+      + row('成功', '下げた役＋追加役を<b>合算</b>して上がる')
+      + row('失敗（追加役なく局終了）', failJp)
+      + row('先を越された（法度）', '下げた役は無効。自役の半分を他2人に各支払い＋勝者の役代を2人分ぶん肩代わり')
+      + '<div class="tsub">四光→五光狙いの下げ禁止は将来対応。1局の下げ人数制限は設けません。</div>';
   }
   return '';
 }
@@ -4091,6 +4155,7 @@ function h88StartRound(oyaId) {
   st.roundOya = oyaId; // v1.63: この局の親（表示用）
   st.aiToken = 0;
   st.awaitP0 = false; // v2.13: 新局。あなたが親なら最初の手番で「ぴろっ」を鳴らせるようにリセット
+  st.sageShown = null; // 下げトーストの重複防止フラグを新局でリセット
   h88Log('──── 第' + st.roundNo + '局 開始（親：' + st.names[oyaId] + '／手番順 ' + st.seatCycle.map(s => st.names[s]).join('→') + '）');
   h88AutoFocus(); // v1.63 B4: 開始時、親が相手ならその相手を主表示に
   renderH88();
@@ -4375,12 +4440,41 @@ function h88HumanEndTurn() {
   const st = state.h88, g = st.game;
   st.sel = null; st.drawn = null;
   const y = h88ComputeYaku(g.caps['p0']);
-  if (yakuTotal(y) > 0) { g.winner = 'p0'; g.roundEnd = { kind: 'yaku', winner: 'p0', yaku: y, total: yakuTotal(y) }; renderH88(); h88RoundOver('win'); return; }
-  if (g.hands['p0'].length === 0 && g.deck.length === 0) { h88FinishByPoints(g); renderH88(); h88RoundOver('draw'); return; }
+  const yt = yakuTotal(y);
+  if (yt > 0) {
+    const r = h88OnYakuFormed(g, 'p0', y, yt, 'HARD', true); // human=true
+    if (r === 'win') { renderH88(); h88RoundOver('win'); return; }
+    if (r === 'ask') { renderH88(); h88AskSage(g, y, yt); return; } // 上がる/下げるをモーダルで
+    // r === null（下げ中で役が伸びていない）→ 通常継続
+  }
+  if (g.hands['p0'].length === 0 && g.deck.length === 0) { h88FinishRound(g); renderH88(); h88RoundOver('draw'); return; }
   g.currentPlayer = h88NextSeat(g, 'p0');
   h88AutoFocus();
   renderH88();
   h88MaybeAi();
+}
+// 下げ有効時、あなたが出来役を完成したら「上がる／下げる（続行）」を選ぶ。
+function h88AskSage(g, y, yt) {
+  const st = state.h88, unit = h88PresetUnit();
+  const yakuNames = y.map(yy => (yy.jp || t(yy.key))).join('・');
+  document.getElementById('ov-title').textContent = '上がる？ 下げる？';
+  const bodyEl = document.getElementById('ov-body'); bodyEl.style.whiteSpace = 'normal';
+  bodyEl.innerHTML = '<div class="h88-te-note">出来役が完成：<b>' + yakuNames + '</b>（' + yt + ' ' + unit + '）。<br>このまま上がるか、もっと大きい役を狙って続行（下げる）か。<br><span style="color:var(--text-muted);font-size:.9em">※続行して追加役なく局が終わると、下げた役は' + (h88Rules().sage === 'kansai' ? '無効' : '半分') + '。他家に先を越されると法度ペナルティ。</span></div>';
+  const ov = document.getElementById('ovNotice'), okBtn = document.getElementById('ov-ok');
+  okBtn.style.display = 'none';
+  const row = ov.querySelector('.btn-row');
+  const box = document.createElement('span'); box.id = 'h88-sage-btns';
+  box.innerHTML = '<button class="btn btn-primary" id="h88-sage-agari">上がる</button> <button class="btn btn-ghost" id="h88-sage-sageru">下げる（続行）</button>';
+  row.appendChild(box);
+  ov.classList.add('show', 'see-through');
+  const cleanup = () => { ov.classList.remove('show', 'see-through'); okBtn.style.display = ''; box.remove(); };
+  document.getElementById('h88-sage-agari').onclick = () => { playSfx('button'); cleanup(); g.winner = 'p0'; g.roundEnd = { kind: 'yaku', winner: 'p0', yaku: y, total: yt }; renderH88(); h88RoundOver('win'); };
+  document.getElementById('h88-sage-sageru').onclick = () => { cleanup(); g.sage = { seat: 'p0', total: yt }; st.sageShown = 'p0:' + yt; h88SageToast(st.names['p0']); playSfx('koikoi'); h88Log('◇ ' + st.names['p0'] + ' 下げ（続行）：' + yakuNames + ' ' + yt + unit); g.currentPlayer = h88NextSeat(g, 'p0'); h88AutoFocus(); renderH88(); h88MaybeAi(); };
+}
+// 下げ宣言を中央に一瞬表示（AI/人間共通）。
+function h88SageToast(name) {
+  const d = document.createElement('div'); d.className = 'h88-sage-toast'; d.textContent = name + ' が下げ！（続行）';
+  document.body.appendChild(d); setTimeout(() => d.remove(), 1900);
 }
 // AIの手番なら少し待って自動着手（人はクリック待ち）
 function h88MaybeAi() {
@@ -4397,9 +4491,14 @@ function h88MaybeAi() {
   setTimeout(() => {
     if (!state.h88 || state.h88 !== st || tok !== st.aiToken || g.winner) return;
     playSfx('shu'); // v1.63 C13: AIの着手音
-    const r = h88Turn(g, g.currentPlayer, { level: (st.levels && st.levels[g.currentPlayer]) || 'HARD' }); // v1.72 D1: CPU別強さ
+    const actor = g.currentPlayer;
+    const r = h88Turn(g, actor, { level: (st.levels && st.levels[actor]) || 'HARD' }); // v1.72 D1: CPU別強さ
     setTimeout(() => playSfx('pa'), 140);
     renderH88();
+    if (g.sage && g.sage.seat === actor) { // このAIが下げた（新規）ならトーストで知らせる
+      const key = g.sage.seat + ':' + g.sage.total;
+      if (st.sageShown !== key) { st.sageShown = key; h88SageToast(st.names[actor]); playSfx('koikoi'); h88Log('◇ ' + st.names[actor] + ' 下げ（続行）'); }
+    }
     if (r === 'win' || r === 'draw') { h88RoundOver(r); return; }
     g.currentPlayer = h88NextSeat(g, g.currentPlayer);
     h88AutoFocus();
@@ -4414,10 +4513,20 @@ function h88Breakdown(g, teyaku) {
   const mt = h88Rules().teyakuFieldMul ? m : 1, re = g.roundEnd;
   const terms = {}; g.seats.forEach(s => terms[s] = []);
   const addT = (s, sign, nums, factors) => terms[s].push({ sign: sign, nums: nums, factors: factors });
-  if (re && re.kind === 'yaku') {                       // 出来役上がり：勝者は役合計×倍率×人数を受取、他は×倍率を支払い
+  if (re && re.kind === 'yaku') {                       // 出来役上がり
     const w = re.winner, yn = re.yaku.map(y => y.mon);
-    addT(w, 1, yn, [m, others]);
-    g.seats.forEach(s => { if (s !== w) addT(s, -1, yn, [m]); });
+    if (re.hatto) {                                     // 法度：下げ者Sが勝者役代2人分を単独負担＋自役半分を他2人へ
+      const S = re.hatto.seat, half = Math.floor(re.hatto.total / 2);
+      addT(w, 1, yn, [m, others]); addT(S, -1, yn, [m, others]);
+      g.seats.forEach(o => { if (o !== S) { addT(o, 1, [half], [m]); addT(S, -1, [half], [m]); } });
+    } else {                                            // 通常：勝者は役合計×倍率×人数を受取、他は×倍率を支払い
+      addT(w, 1, yn, [m, others]);
+      g.seats.forEach(s => { if (s !== w) addT(s, -1, yn, [m]); });
+    }
+  } else if (re && re.kind === 'sageFail') {            // 下げ失敗（関東/任天堂）：下げた役の半分を下げ者が受取
+    const w = re.winner, half = Math.floor(re.total / 2);
+    addT(w, 1, [half], [m, others]);
+    g.seats.forEach(s => { if (s !== w) addT(s, -1, [half], [m]); });
   } else if (re && re.kind === 'points') {
     const specials = re.specials || [];
     if (specials.length) {                              // 双八/総八（置換）：該当者×倍率×人数を受取
@@ -4478,7 +4587,18 @@ function h88RoundOver(result) {
     }).join('') + '</ul>';
     head = '<div class="h88-te-note"><b>' + nm(g.winner) + '</b> が出来役で上がり（' + bTag + '）。合計 '
       + g.roundEnd.total + ' ' + unit + (m > 1 ? ' ×' + m + ' ＝ ' + gain + ' ' + unit : '') + ' を他の2人から受け取り。</div>';
-    h88Log('★ ' + st.names[g.winner] + ' が出来役で上がり：' + g.roundEnd.yaku.map(y => (y.jp || t(y.key))).join('・') + '＝' + g.roundEnd.total + unit + ' ' + bTag + '＝各' + gain + unit);
+    if (g.roundEnd.hatto) { // 法度：下げ中に他家が上がった
+      const S = g.roundEnd.hatto.seat, half = Math.floor(g.roundEnd.hatto.total / 2) * m;
+      head += '<div class="h88-te-note" style="color:#ff8a8a"><b>法度</b>：<b>' + nm(S) + '</b> が下げ中に先を越されました。' + nm(S) + ' は勝者の役代を2人分ぶん単独で負担し、さらに下げた役の半分（各 ' + half + ' ' + unit + '）を他の2人に支払います。</div>';
+    }
+    h88Log('★ ' + st.names[g.winner] + ' が出来役で上がり：' + g.roundEnd.yaku.map(y => (y.jp || t(y.key))).join('・') + '＝' + g.roundEnd.total + unit + ' ' + bTag + '＝各' + gain + unit + (g.roundEnd.hatto ? '／法度：' + st.names[g.roundEnd.hatto.seat] : ''));
+  } else if (g.roundEnd.kind === 'sageFail') { // 下げ失敗（関東/任天堂）：下げた役の半分を下げ者が受け取る
+    h88Settle(g, st.scores);
+    const w = g.roundEnd.winner, halfBase = Math.floor(g.roundEnd.total / 2), half = halfBase * m;
+    listHtml = '<ul class="yaku-list"><li class="ye-li"><div class="ye-head"><span><b>' + nm(w) + '</b> の下げた役（追加役できず失敗）</span>'
+      + '<span class="pt">' + g.roundEnd.total + ' → 半分 ' + halfBase + ' ' + unit + (m > 1 ? ' ×' + m + ' ＝ ' + half : '') + '</span></div></li></ul>';
+    head = '<div class="h88-te-note"><b>' + nm(w) + '</b> が下げて続行しましたが、追加の出来役ができないまま局終了。下げた役は<b>半分</b>（各 ' + half + ' ' + unit + '）を他の2人から受け取り（' + bTag + '）。</div>';
+    h88Log('― 下げ失敗：' + st.names[w] + ' 下げた役' + g.roundEnd.total + unit + 'の半分＝各' + half + unit);
   } else {
     // v2.13: 局の音は下で取得文数ぶんのちゃりん／損なら「ぷっ」
     h88Settle(g, st.scores);

@@ -1300,7 +1300,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.17</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.18</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1366,7 +1366,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.17</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.18</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1491,7 +1491,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.17</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.18</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1551,7 +1551,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.17</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.18</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -4096,7 +4096,13 @@ function h88StartRound(oyaId) {
     // 成立した手役（構成札つき）＝発生ポイントの"提示"のみ（累計には局終了で加算）
     const yakuLis = Object.keys(teyaku).map(s => {
       const ty = teyaku[s];
-      const cards = (ty.ids || []).map(id => svgCard(id, 'ye-card')).join('');
+      // パネルも手札のオープン状態と同じに：公開札は表向き／非公開は伏せ。役にかかわる札はオレンジ枠（表でも伏せでも）。
+      const reveal = (st.teyakuReveal && st.teyakuReveal[s]) || [], marks = ty.ids || [];
+      const cards = g.hands[s].map(c => {
+        const isMark = marks.indexOf(c.id) >= 0;
+        const inner = (reveal.indexOf(c.id) >= 0) ? svgCard(c.id, 'ye-card') : svgBack('ye-card');
+        return isMark ? '<span class="h88-tmark">' + inner + '</span>' : inner;
+      }).join('');
       return '<li class="ye-li"><div class="ye-head">'
         + '<span><span class="who-b">' + nm(s) + '</span>：' + ty.jp + '</span>'
         + '<span class="pt">' + ty.mon + ' ' + unit + '</span></div>'
@@ -4202,9 +4208,10 @@ function renderH88Seat(elId, seat) {
   const reveal = (st.teyakuReveal && st.teyakuReveal[seat]) || null;
   const marks = (st.teyakuMarks && st.teyakuMarks[seat]) || [];
   const backs = g.hands[seat].map(c => {
-    if (!reveal || reveal.indexOf(c.id) < 0) return svgBack(); // 手役なし or 公開対象外の札は伏せる
+    const isMark = marks.indexOf(c.id) >= 0;
+    if (!reveal || reveal.indexOf(c.id) < 0) return isMark ? '<span class="h88-tmark">' + svgBack() + '</span>' : svgBack(); // 伏せ札。役にかかわる札ならオレンジ枠
     const face = svgCard(c.id);
-    return marks.indexOf(c.id) >= 0 ? '<span class="h88-tmark">' + face + '</span>' : face;
+    return isMark ? '<span class="h88-tmark">' + face + '</span>' : face;
   }).join('');
   const caps = h88CapGroupedHTML(g.caps[seat], 'self2'); // v1.80: 取り札は2列（光種短／カス）
   const isOya = (seat === st.roundOya);      // v1.63: 親マーク
@@ -4271,9 +4278,14 @@ function renderH88() {
     + ((myTurn && !st.teyakuMarks) ? '<span class="h88-turn-badge">あなたの番です</span>' : '');
   document.getElementById('h88-self-caps').innerHTML = h88CapGroupedHTML(g.caps['p0'], 'self2');
   const selfMarks = (st.teyakuMarks && st.teyakuMarks['p0']) || [];
+  const selfReveal = (st.teyakuReveal && st.teyakuReveal['p0']) || null; // 手役表示中のみ。公開対象外は伏せる
   const selfHandEl = document.getElementById('h88-self-hand');
-  selfHandEl.innerHTML = g.hands['p0'].map((c, i) =>
-    '<span class="h88-hand-card' + (st.sel === i ? ' sel' : '') + (selfMarks.indexOf(c.id) >= 0 ? ' tmark' : '') + '" data-idx="' + i + '"' + (handOn ? '' : ' style="cursor:default;opacity:.85"') + '>' + svgCard(c.id) + '</span>').join('');
+  selfHandEl.innerHTML = g.hands['p0'].map((c, i) => {
+    const isMark = selfMarks.indexOf(c.id) >= 0;
+    const faceDown = selfReveal && selfReveal.indexOf(c.id) < 0; // 手役の公開状態＝非公開札は伏せて役札はオレンジ枠
+    const inner = faceDown ? svgBack() : svgCard(c.id);
+    return '<span class="h88-hand-card' + (st.sel === i ? ' sel' : '') + (isMark ? ' tmark' : '') + '" data-idx="' + i + '"' + (handOn ? '' : ' style="cursor:default;opacity:.85"') + '>' + inner + '</span>';
+  }).join('');
   fitH88Board(); // v1.72 D4: 描画のたびに実測フィット（こいこいの renderGame→fitBoard と同じ同期呼び）
 }
 // v1.65 item1: こいこい同様、手札ホバーで合う場札を浮かせるプレビュー（クリック不要）
@@ -5126,8 +5138,8 @@ function svgCard(id, extraClass) {
   }
   return '<svg class="card' + (extraClass ? ' ' + extraClass : '') + '" viewBox="0 0 220 350" data-id="' + id + '"><use href="#' + id + '"/>' + tg + '</svg>';
 }
-function svgBack() {
-  return '<svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg>';
+function svgBack(extraClass) {
+  return '<svg class="card back' + (extraClass ? ' ' + extraClass : '') + '" viewBox="0 0 220 350"><use href="#backFace"/></svg>';
 }
 
 // mySide(): この端末のプレイヤー側 (host / guest)。solo デバッグ時は

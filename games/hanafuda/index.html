@@ -429,6 +429,15 @@
   .h88-tip-bubble .tgrid{display:grid;grid-template-columns:auto auto;column-gap:16px;row-gap:1px;}
   .h88-tip-bubble .tgrid .trow{justify-content:space-between;gap:6px;}
   .h88-tip-bubble .tgrid .trow span:last-child{color:var(--gold);}
+  /* ルール設定について（出典モーダル） */
+  .h88-ruleinfo-link{font-size:.62rem;color:var(--orange-mid);text-decoration:underline;font-weight:400;margin-left:8px;cursor:pointer;white-space:nowrap;}
+  .h88-ruleinfo-panel{max-width:min(92vw,520px);text-align:left;}
+  .h88-ruleinfo-body{max-height:60vh;overflow:auto;font-size:.8rem;line-height:1.65;color:var(--text);text-align:left;}
+  .h88-ruleinfo-body h4{color:var(--orange-mid);font-size:.82rem;margin:12px 0 4px;}
+  .h88-ruleinfo-body ul{margin:0 0 4px;padding-left:1.2em;}
+  .h88-ruleinfo-body li{margin-bottom:6px;word-break:break-all;}
+  .h88-ruleinfo-body a{color:var(--gold);}
+  .h88-ruleinfo-note{font-size:.7rem;color:var(--text-muted);margin-top:10px;}
 
   .oya{gap:14px;}
   .oya .lead{font-size:.86rem;color:var(--text-muted);line-height:1.6;}
@@ -1291,7 +1300,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.12</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.15</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1357,7 +1366,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.12</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.15</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1416,7 +1425,7 @@
   <!-- v1.63/68: 八八（3人）設定パネル。vsコンピュータで八八を選んだ時だけ表示 -->
   <div class="gset hidden" id="set-hachi">
     <h3 data-i18n="set.hachi.title">八八（3人）設定</h3>
-    <p class="desc" style="font-size:12px;color:var(--text-muted);line-height:1.6;" data-i18n="set.hachi.desc">あなた＋コンピュータ2体の3人で対戦します（相手2人ともコンピュータ）。</p>
+    <p class="desc" style="font-size:12px;color:var(--text-muted);line-height:1.6;"><span data-i18n="set.hachi.desc">あなた＋コンピュータ2体の3人で対戦します（相手2人ともコンピュータ）。</span> <a href="#" id="h88-ruleinfo-link" class="h88-ruleinfo-link">ⓘ ルール設定について</a></p>
     <div class="set-row"><span data-i18n="set.rounds">局数</span><span class="seg" id="h88-rounds-seg"><button class="on" data-v="3" data-i18n="set.3">3局</button><button data-v="6" data-i18n="set.6">6局</button><button data-v="12" data-i18n="set.12">12局</button></span></div>
     <!-- 八八 本格化: プリセット（大ボタン＝①〜⑥を一括セット）＋個別バンドル（変えるとカスタム） -->
     <div class="set-row"><span>プリセット</span><span class="seg" id="h88-preset-seg">
@@ -1482,7 +1491,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.12</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.15</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1542,7 +1551,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.12</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.15</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1617,6 +1626,33 @@
   <h2 id="ov-title">お知らせ</h2>
   <div id="ov-body"></div>
   <div class="btn-row"><button class="btn btn-primary" id="ov-ok" data-i18n="ov.ok">OK</button></div>
+</div></div>
+
+<!-- 八八：ルール設定の参考資料（出典）を表示するモーダル -->
+<div class="overlay" id="ovRuleInfo"><div class="opanel h88-ruleinfo-panel">
+  <h2>ルール設定について</h2>
+  <div class="h88-ruleinfo-body">
+    <p>本ゲームの八八（はちはち）のルール設定は、下記の資料を参考にしています。八八は地方や流派によって細部が異なり、解釈にも幅があります。本ゲームでの解釈が資料と食い違う場合がありますが、どうかご容赦ください。</p>
+    <h4>任天堂公式</h4>
+    <ul>
+      <li>任天堂「花札・株札の遊び方 ― 八八（はちはち）」（公式サイト）<br>
+        <a href="https://www.nintendo.com/jp/others/hanafuda_kabufuda/howtoplay/88/index.html" target="_blank" rel="noopener noreferrer">https://www.nintendo.com/jp/others/hanafuda_kabufuda/howtoplay/88/index.html</a></li>
+    </ul>
+    <h4>関東式（なかよし村）</h4>
+    <ul>
+      <li>草場純・健部伸明『八八の遊び方』（萬印堂）</li>
+      <li>なかよし村 八八ルール（konnok3）<br>
+        <a href="https://konnok3.sakura.ne.jp/hachihachi_88_rule_ja.html" target="_blank" rel="noopener noreferrer">https://konnok3.sakura.ne.jp/hachihachi_88_rule_ja.html</a></li>
+    </ul>
+    <h4>関西式・全般</h4>
+    <ul>
+      <li>淡路まもる 編『花札の遊び方』（文進堂）</li>
+      <li>Wikipedia「八八」<br>
+        <a href="https://ja.wikipedia.org/wiki/八八" target="_blank" rel="noopener noreferrer">https://ja.wikipedia.org/wiki/八八</a></li>
+    </ul>
+    <p class="h88-ruleinfo-note">※ 上記のほか、各解説サイト（サザノノ／とまとくんブログ 等）も参考にしています。</p>
+  </div>
+  <div class="btn-row"><button class="btn btn-primary" id="h88-ruleinfo-close">閉じる</button></div>
 </div></div>
 
 <!-- 接続状態オーバーレイ（再接続中／相手の復帰待ち。ボタンは動的） -->
@@ -3614,6 +3650,17 @@ function h88TeyakuCards(hand, key) {
     default: return [];
   }
 }
+// 手役の申告で「公開する札」＝役を証明する札だけ（残りは伏せる／konnok3・とまとくん準拠）。
+// ・全体構成型(空巣/素無/四三/一二四/はねけん)＝7枚すべて公開
+// ・カス提示型(光一/十一/短一/赤)＝カス札だけ公開（konnok3「カス札を公開」。光/種/短の1枚は伏せる）
+// ・位置/枚数型(手四/三本/立三本/くっつき/双三本)＝その構成札だけ
+const H88_TEYAKU_REVEAL_ALL = ['teyaku.karasu','teyaku.sunashi','teyaku.shisou','teyaku.ichinishi','teyaku.haneken'];
+const H88_TEYAKU_REVEAL_KASU = ['teyaku.pikaichi','teyaku.toichi','teyaku.tanichi','teyaku.aka'];
+function h88TeyakuRevealIds(hand, ty) {
+  if (H88_TEYAKU_REVEAL_ALL.indexOf(ty.key) >= 0) return hand.map(c => c.id);
+  if (H88_TEYAKU_REVEAL_KASU.indexOf(ty.key) >= 0) return hand.filter(c => c.type === 'kasu').map(c => c.id);
+  return ty.ids || [];
+}
 // 手役の即時精算。各手役者は自分の手役×場倍率を他の全員から受け取る。scores を書き換え、成立表 {seat:{jp,mon}} を返す。
 function h88SettleTeyaku(g, scores, defs) {
   defs = defs || h88TeyakuDefs();
@@ -3821,7 +3868,7 @@ function h88SimRound(seatIds, oyaId) {
 window.__h88 = { build: h88Build, turn: h88Turn, sim: h88SimRound, nextSeat: h88NextSeat, seatOrder: h88SeatOrder,
   cardPoints: h88CardPoints, sumPoints: h88SumPoints, fieldMul: h88FieldMultiplier, settle: h88Settle, buildDeck: buildDeck,
   computeYaku: h88ComputeYaku, yakuDefs: h88YakuDefs, specialYaku: h88SpecialYaku,
-  computeTeyaku: h88ComputeTeyaku, settleTeyaku: h88SettleTeyaku, teyakuDefs: h88TeyakuDefs,
+  computeTeyaku: h88ComputeTeyaku, settleTeyaku: h88SettleTeyaku, teyakuDefs: h88TeyakuDefs, teyakuReveal: h88TeyakuRevealIds,
   rules: h88Rules, presetRules: h88PresetRules, presetLabelOf: h88PresetLabelOf,
   capture: h88Capture, needPick: h88NeedPick, hasQuad: h88HasQuad,
   setRules: function (r) { if (!state.h88) state.h88 = {}; state.h88.rules = r; },
@@ -4028,6 +4075,7 @@ function h88StartRound(oyaId) {
   st.game = h88Build(st.seatCycle, oyaId); // seats=seatCycle（手番順）, currentPlayer=oya
   st.roundOya = oyaId; // v1.63: この局の親（表示用）
   st.aiToken = 0;
+  st.awaitP0 = false; // v2.13: 新局。あなたが親なら最初の手番で「ぴろっ」を鳴らせるようにリセット
   h88Log('──── 第' + st.roundNo + '局 開始（親：' + st.names[oyaId] + '／手番順 ' + st.seatCycle.map(s => st.names[s]).join('→') + '）');
   h88AutoFocus(); // v1.63 B4: 開始時、親が相手ならその相手を主表示に
   renderH88();
@@ -4037,7 +4085,11 @@ function h88StartRound(oyaId) {
   st.pendingTeyaku = teyaku; // 局終了でまとめて精算するため保持（この時点では累計に加えない）
   if (teyaku) {
     // 手役を宣言した人だけ手札を公開（他は伏せ）。seat→対象IDの集合。
-    st.teyakuMarks = {}; Object.keys(teyaku).forEach(s => { st.teyakuMarks[s] = teyaku[s].ids || []; });
+    st.teyakuMarks = {}; st.teyakuReveal = {};
+    Object.keys(teyaku).forEach(s => {
+      st.teyakuMarks[s] = teyaku[s].ids || [];                          // オレンジ強調＝役の構成札
+      st.teyakuReveal[s] = h88TeyakuRevealIds(g.hands[s], teyaku[s]);   // 表向き公開＝役を証明する札だけ
+    });
     renderH88(); // 宣言者の手札公開＋対象札をオレンジ枠で強調（スコアはまだ動かさない）
     const unit = h88PresetUnit();
     const nm = (s) => (s === 'p0' && st.names[s] !== 'あなた') ? st.names[s] + '（あなた）' : st.names[s];
@@ -4055,7 +4107,7 @@ function h88StartRound(oyaId) {
     h88Log('◆ 手役（提示・精算は局終了）：' + Object.keys(teyaku).map(s => st.names[s] + ' ' + teyaku[s].jp + ' ' + teyaku[s].mon + unit).join(' ／ '));
     playSfx('charin');
     showNotice('手役が成立', bodyHtml,
-      () => { st.teyakuMarks = null; renderH88(); h88MaybeAi(); },
+      () => { st.teyakuMarks = null; st.teyakuReveal = null; renderH88(); h88MaybeAi(); },
       { clear: true, draggable: true, html: true });
   } else {
     h88MaybeAi();
@@ -4146,10 +4198,11 @@ function h88CapGroupedHTML(cards, mode) {
 function renderH88Seat(elId, seat) {
   const st = state.h88, g = st.game;
   const el = document.getElementById(elId); if (!el) return;
-  // 八八ルール：手役は宣言した本人だけが手札を公開（他は伏せたまま）。対象札はオレンジで強調。
-  const marks = (st.teyakuMarks && st.teyakuMarks[seat]) || null;
+  // 八八ルール：手役は宣言者だけが、役を証明する札「だけ」を公開（残りと非宣言者は伏せたまま）。役の構成札はオレンジ強調。
+  const reveal = (st.teyakuReveal && st.teyakuReveal[seat]) || null;
+  const marks = (st.teyakuMarks && st.teyakuMarks[seat]) || [];
   const backs = g.hands[seat].map(c => {
-    if (!marks) return svgBack(); // この人は手役なし＝伏せたまま
+    if (!reveal || reveal.indexOf(c.id) < 0) return svgBack(); // 手役なし or 公開対象外の札は伏せる
     const face = svgCard(c.id);
     return marks.indexOf(c.id) >= 0 ? '<span class="h88-tmark">' + face + '</span>' : face;
   }).join('');
@@ -4308,7 +4361,12 @@ function h88HumanEndTurn() {
 function h88MaybeAi() {
   const st = state.h88; if (!st || !st.game) return;
   const g = st.game;
-  if (g.winner || g.currentPlayer === 'p0') return;
+  if (g.winner) return;
+  if (g.currentPlayer === 'p0') { // v2.13: あなたの手番になったら こいこい同様「ぴろっ」を1回だけ鳴らす
+    if (!st.awaitP0) { playSfx('piro'); st.awaitP0 = true; }
+    return;
+  }
+  st.awaitP0 = false; // AIの手番＝次にあなたの番が来たら再び鳴らせるようリセット
   h88AutoFocus(); renderH88(); // v1.63 B4: 現手番のAIを主表示に
   const tok = ++st.aiToken;
   setTimeout(() => {
@@ -4384,7 +4442,7 @@ function h88RoundOver(result) {
   const teyaku0 = st.pendingTeyaku; // 式表示用に手役結果を控える（下で精算後に null される）
   let head = '', listHtml = '';
   if (result === 'win') {
-    playSfx(g.winner === 'p0' ? 'fanfare' : 'pu'); // 上がり＝自分ならファンファーレ／相手なら「ぷっ」
+    // v2.13: 局勝利の音は下で「取得した文数ぶんのちゃりん」で鳴らす（ファンファーレは終局のみ）
     h88Settle(g, st.scores);
     const gain = g.roundEnd.total * m;
     // 出来役（構成札つき）＝こいこいの成立役リストと同形
@@ -4397,7 +4455,7 @@ function h88RoundOver(result) {
       + g.roundEnd.total + ' ' + unit + (m > 1 ? ' ×' + m + ' ＝ ' + gain + ' ' + unit : '') + ' を他の2人から受け取り。</div>';
     h88Log('★ ' + st.names[g.winner] + ' が出来役で上がり：' + g.roundEnd.yaku.map(y => (y.jp || t(y.key))).join('・') + '＝' + g.roundEnd.total + unit + ' ' + bTag + '＝各' + gain + unit);
   } else {
-    playSfx('pu'); // 出来役なし → 札点（88基準）で決着
+    // v2.13: 局の音は下で取得文数ぶんのちゃりん／損なら「ぷっ」
     h88Settle(g, st.scores);
     const pts = g.roundEnd.points;
     // 各人の札点（88基準との差）を一覧で
@@ -4442,6 +4500,10 @@ function h88RoundOver(result) {
       + '<span class="sc-val sc-formula' + (d < 0 ? ' neg' : '') + '">' + h88FormulaStr(before[s], st.scores[s] || 0, bd[s], unit) + '</span></div>';
   }).join('') + '</div>';
   h88Log('　合計 ' + g.seats.map(s => st.names[s] + ' ' + st.scores[s]).join(' ／ '));
+  // v2.13: 局の音＝あなたが取得した文数ぶんの高速ちゃりん（こいこいの局勝利と同じ考え／大勝は30回で頭打ち）。損・無なら「ぷっ」。
+  const p0Delta = (st.scores['p0'] || 0) - before['p0'];
+  if (p0Delta > 0) { const n = Math.min(p0Delta, 30); for (let i = 0; i < n; i++) setTimeout(() => playSfx('charin'), i * 65); }
+  else playSfx('pu');
   renderH88();
   const isLast = st.roundNo >= st.rounds;
   const title = isLast ? '対局終了' : '局終了（第' + st.roundNo + '局）';
@@ -4480,6 +4542,10 @@ function h88ShowMatchEnd() {
   }).join('');
   document.getElementById('ovH88End').classList.add('show');
   if (iWin) launchKusudama88();
+  // v2.13: 勝利のファンファーレは「終局＝総合得点勝ち」でくす玉と一緒に鳴らす（こいこい準拠）
+  if (iWin) playSfx('fanfare');
+  else if (allTie) playSfx('pu');
+  else playSfx('lose');
 }
 function launchKusudama88() {
   const art = document.getElementById('h88-win-art');
@@ -7140,6 +7206,13 @@ function bindEvents() {
     btn.addEventListener('touchcancel', () => h88HideTip());
   });
   h88ApplyPreset('nintendo'); // 既定値をバンドルへ初期セット
+  // ルール設定について（出典モーダル）の開閉
+  const riLink = document.getElementById('h88-ruleinfo-link');
+  if (riLink) riLink.addEventListener('click', (e) => { e.preventDefault(); document.getElementById('ovRuleInfo').classList.add('show'); });
+  const riClose = document.getElementById('h88-ruleinfo-close');
+  if (riClose) riClose.addEventListener('click', () => document.getElementById('ovRuleInfo').classList.remove('show'));
+  const riOv = document.getElementById('ovRuleInfo');
+  if (riOv) riOv.addEventListener('click', (e) => { if (e.target === riOv) riOv.classList.remove('show'); }); // 背景クリックでも閉じる
   // v1.68 C3: 準備室の八八・親決め
   const bPrepOya = document.getElementById('btn-h88-prep-drawoya');
   if (bPrepOya) bPrepOya.addEventListener('click', h88PrepDrawOya);

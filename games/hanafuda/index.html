@@ -125,7 +125,7 @@
   .h88-deck{text-align:center;flex:0 0 auto;padding-top:11px;}
   .h88-deck-count{font-size:.66rem;color:var(--text-muted);margin-top:2px;}
   /* v1.72 D4: 場はこいこい(.field)と同じ「隙間なく詰めるグリッド」。サイズは --card-w。 */
-  .h88-field{display:grid;grid-template-columns:repeat(4,auto);gap:3px;justify-content:center;align-content:flex-start;padding-top:11px;}
+  .h88-field{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;align-content:flex-start;padding-top:11px;}
   .h88-field .h88-field-card{width:var(--card-w,42px);transition:transform .12s;}
   .h88-field .card{width:100%;}
   /* v1.63 B6/C9: ヒント＝選択中の手札と合う場札(match=浮かせる+金枠)／2枚から選ぶ候補(pick=橙枠・点滅) */
@@ -251,7 +251,7 @@
     /* 場は上寄せ（ステータス直下）。余った縦の隙間は自分の上に集めて自分を最下部に。 */
     #screen-hachi .h88-field-row{flex:0 1 auto;align-items:flex-start;justify-content:center;min-height:0;gap:10px;}
     #screen-hachi .h88-deck{padding-top:0;}
-    #screen-hachi .h88-field{padding-top:0;grid-template-columns:repeat(8,auto);align-content:flex-start;justify-content:center;}
+    #screen-hachi .h88-field{padding-top:0;align-content:flex-start;justify-content:center;}
     /* v1.84: 自分＝取り札2列(上)→手札1列(中)→[あなたの番(左)＋名前(中央)]の1行(下)。グリッドで最下行に
        「あなたの番」を左寄せで置く（縦の高さを増やさない＝取り札が場に被らない）。下寄せ(margin-top:auto)。 */
     #screen-hachi .h88-self{flex:0 0 auto;margin-top:auto;display:grid;grid-template-columns:1fr;
@@ -418,13 +418,17 @@
   .h88-reserved .seg button{cursor:default;}
   .h88-tip{position:relative;}
   .h88-tip::after{content:"ⓘ";font-size:.6em;vertical-align:super;margin-left:2px;opacity:.55;}
-  .h88-tip-bubble{position:fixed;z-index:600;min-width:212px;max-width:min(88vw,340px);max-height:78vh;overflow:auto;background:#141414;border:1px solid var(--orange);border-radius:10px;padding:10px 12px;font-size:.68rem;line-height:1.5;color:var(--text);box-shadow:0 8px 24px rgba(0,0,0,.55);}
+  .h88-tip-bubble{position:fixed;z-index:600;max-width:min(88vw,360px);background:#141414;border:1px solid var(--orange);border-radius:10px;padding:9px 11px;font-size:.66rem;line-height:1.4;color:var(--text);box-shadow:0 8px 24px rgba(0,0,0,.55);pointer-events:none;}
   .h88-tip-bubble h5{color:var(--orange-mid);font-size:.7rem;margin-bottom:4px;font-weight:700;}
   .h88-tip-bubble .trow{display:flex;justify-content:space-between;gap:10px;}
   .h88-tip-bubble .trow .nm{color:var(--text-muted);}
   .h88-tip-bubble .tsub{margin-top:6px;color:var(--text-muted);font-size:.62rem;}
   .h88-tip-bubble .no{color:#c66;}
   .h88-tip-bubble .ye{color:var(--gold);}
+  /* 点数吹き出しはコンパクトに（2列・役と点を詰める） */
+  .h88-tip-bubble .tgrid{display:grid;grid-template-columns:auto auto;column-gap:16px;row-gap:1px;}
+  .h88-tip-bubble .tgrid .trow{justify-content:space-between;gap:6px;}
+  .h88-tip-bubble .tgrid .trow span:last-child{color:var(--gold);}
 
   .oya{gap:14px;}
   .oya .lead{font-size:.86rem;color:var(--text-muted);line-height:1.6;}
@@ -594,6 +598,10 @@
   .scoreboard .sc-name{color:var(--text);}
   .scoreboard .sc-val{font-weight:700;color:var(--gold);}
   .scoreboard .sc-val .delta{color:var(--orange-mid);font-weight:700;font-size:.78rem;margin-left:6px;}
+  /* 累計の式表示：元累計 ＋ (…)×倍率×人数 ＝ 新累計。長い時は右側で折返し */
+  .scoreboard .sc-formula{font-weight:400;font-size:.72rem;color:var(--text-muted);text-align:right;line-height:1.55;flex:1 1 auto;min-width:0;overflow-wrap:anywhere;margin-left:10px;}
+  .scoreboard .sc-formula b{font-weight:700;color:var(--gold);font-size:.9rem;}
+  .scoreboard .sc-row.lead .sc-formula b{color:var(--gold);}
   .ge-choice-note{text-align:center;font-size:.8rem;color:var(--orange-mid);min-height:1em;margin:6px 0 2px;}
   .next-oya{text-align:center;font-size:.86rem;color:var(--text);margin:2px 0 10px;padding:6px 10px;background:rgba(40,40,40,.5);border:1px solid var(--border);border-radius:8px;}
   .next-oya b{color:var(--orange-mid);}
@@ -1283,7 +1291,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.10</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.11</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1349,7 +1357,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.10</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.11</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1409,7 +1417,7 @@
     <p class="desc" style="font-size:12px;color:var(--text-muted);line-height:1.6;" data-i18n="set.hachi.desc">あなた＋コンピュータ2体の3人で対戦します（相手2人ともコンピュータ）。</p>
     <div class="set-row"><span data-i18n="set.rounds">局数</span><span class="seg" id="h88-rounds-seg"><button class="on" data-v="3" data-i18n="set.3">3局</button><button data-v="6" data-i18n="set.6">6局</button><button data-v="12" data-i18n="set.12">12局</button></span></div>
     <!-- 八八 本格化: プリセット（大ボタン＝①〜⑥を一括セット）＋個別バンドル（変えるとカスタム） -->
-    <div class="set-row"><span data-i18n="set.hachi.preset">ルールセット</span><span class="seg" id="h88-preset-seg">
+    <div class="set-row"><span>プリセット</span><span class="seg" id="h88-preset-seg">
       <button class="on h88-tip" data-v="nintendo" data-tip="preset:nintendo">任天堂公式</button><button class="h88-tip" data-v="kanto" data-tip="preset:kanto">関東式</button><button class="h88-tip" data-v="kansai" data-tip="preset:kansai">関西式</button>
       <button class="h88-custom-chip" data-v="custom" disabled>カスタム</button></span></div>
     <div class="h88-indiv-head">個別設定（どれか変えると「カスタム」に・大ボタンで一括に戻る）</div>
@@ -1474,7 +1482,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.10</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.11</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1534,7 +1542,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.10</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.11</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -3801,8 +3809,9 @@ function h88SimRound(seatIds, oyaId) {
     g.currentPlayer = h88NextSeat(g, g.currentPlayer);
   }
   h88Settle(g, scores);
+  const breakdown = h88Breakdown(g, teyaku); // 検証用：式の内訳（精算適用前に確定）
   h88ApplyTeyakuSettle(g, scores, teyaku); // 局終了で手役をまとめて精算（実プレイと同じ順序）
-  return { winner: g.winner, roundEnd: g.roundEnd, scores: scores, teyaku: teyaku,
+  return { winner: g.winner, roundEnd: g.roundEnd, scores: scores, teyaku: teyaku, breakdown: breakdown, bonus: g.bonus,
            handsLeft: g.seats.map(s => g.hands[s].length), deckLeft: g.deck.length,
            fieldLeft: g.field.length, capCounts: g.seats.map(s => g.caps[s].length) };
 }
@@ -3920,9 +3929,9 @@ function h88TipContent(spec) {
   const row = (nm, r) => '<div class="trow"><span class="nm">' + nm + '</span><span>' + r + '</span></div>';
   if (kind === 'points') {
     const yp = H88_YAKU_POINTS[val], tp = H88_TEYAKU_POINTS[val];
-    const yl = H88_YAKU_ORDER.map(k => row(H88_YAKU_META[k].jp, yp[k] + ' 文')).join('');
-    const tl = H88_TEYAKU_ORDER.map(k => row(H88_TEYAKU_META[k].jp, tp[k] + ' 文')).join('');
-    return '<h5>' + H88_STYLE_JP[val] + ' の点数（全役）</h5><div class="tsub">出来役</div>' + yl + '<div class="tsub">手役</div>' + tl + '<div class="tsub">＊この流派に無い役は混在用の補完値</div>';
+    const yl = H88_YAKU_ORDER.map(k => row(H88_YAKU_META[k].jp, yp[k])).join('');
+    const tl = H88_TEYAKU_ORDER.map(k => row(H88_TEYAKU_META[k].jp, tp[k])).join('');
+    return '<h5>' + H88_STYLE_JP[val] + ' の点数（単位=文）</h5><div class="tsub">出来役</div><div class="tgrid">' + yl + '</div><div class="tsub">手役</div><div class="tgrid">' + tl + '</div><div class="tsub">＊他流派の役は混在用の補完値</div>';
   }
   if (kind === 'yakuset') {
     const ys = H88_YAKU_SET[val], ts = H88_TEYAKU_SET[val];
@@ -3932,11 +3941,18 @@ function h88TipContent(spec) {
     return '<h5>' + (val === 'nintendo' ? '任天堂型' : '古典型') + ' の顔ぶれ</h5><div class="tsub">出来役</div>' + yl + '<div class="tsub">手役（流派差のみ）</div>' + tl;
   }
   if (kind === 'preset') {
-    const r = h88PresetRules(val), yp = H88_YAKU_POINTS[r.pointStyle], tp = H88_TEYAKU_POINTS[r.pointStyle];
-    const yl = H88_YAKU_SET[r.yakuSet].map(k => row(H88_YAKU_META[k].jp, yp[k] + ' 文')).join('');
-    const tl = H88_TEYAKU_SET[r.yakuSet].map(k => row(H88_TEYAKU_META[k].jp, tp[k] + ' 文')).join('');
+    // Q2-A: プリセット固有の情報だけ（単位・既定値・①②の指し先）。点数一覧は①、採用役一覧は②へ。
+    const r = h88PresetRules(val);
     const nm = val === 'nintendo' ? '任天堂公式' : val === 'kanto' ? '関東式' : '関西式';
-    return '<h5>' + nm + '（採用役と点数）</h5><div class="tsub">出来役</div>' + yl + '<div class="tsub">手役</div>' + tl;
+    const unitJp = val === 'nintendo' ? '点' : ('貫・文（1貫=' + (val === 'kanto' ? 12 : 10) + '文）');
+    const yakuJp = r.yakuSet === 'nintendo' ? '任天堂型（猪鹿蝶あり）' : '古典型（素十六・双八・総八あり）';
+    return '<h5>' + nm + '</h5>'
+      + row('本来の単位', unitJp + ' ※本アプリは文で統一')
+      + row('点数', '①＝' + H88_STYLE_JP[r.pointStyle])
+      + row('採用役', '②＝' + yakuJp)
+      + row('場倍率・場四・場三', 'すべてあり')
+      + row('手役×場倍率', 'ON')
+      + '<div class="tsub">点数の一覧は①、採用役の一覧は②の吹き出しで。</div>';
   }
   return '';
 }
@@ -3944,10 +3960,11 @@ let h88TipPinned = false;
 function h88ShowTip(btn) {
   const bub = document.getElementById('h88-tip-bubble'); if (!bub) return;
   bub.innerHTML = h88TipContent(btn.dataset.tip); bub.hidden = false;
-  const r = btn.getBoundingClientRect();
-  let left = Math.max(8, Math.min(r.left, window.innerWidth - bub.offsetWidth - 8));
-  let top = r.bottom + 6;
-  if (top + bub.offsetHeight > window.innerHeight - 8) top = Math.max(8, r.top - bub.offsetHeight - 6);
+  const r = btn.getBoundingClientRect(), w = bub.offsetWidth, h = bub.offsetHeight;
+  // 吹き出しはボタンの「外（横）」に出す＝ボタンに重ねない。右に入らなければ左。画面外へはみ出てもよい。
+  let left = r.right + 8;
+  if (left + w > window.innerWidth - 4 && r.left - 8 - w > 4) left = r.left - 8 - w;
+  let top = Math.min(Math.max(8, r.top), Math.max(8, window.innerHeight - h - 8)); // 縦は読めるようクランプ
   bub.style.left = left + 'px'; bub.style.top = top + 'px';
 }
 function h88HideTip() { const bub = document.getElementById('h88-tip-bubble'); if (bub && !h88TipPinned) bub.hidden = true; }
@@ -4306,6 +4323,56 @@ function h88MaybeAi() {
     h88MaybeAi();
   }, 750);
 }
+// 局終了の各席の増減を「見える数字だけの式」に分解（Q1-A: 掛け算・倍率・人数も全部式に出す）。
+// 返り: {seat:[{sign,nums,factors} | {sign,sub:[a,b],factors}]}。nums=和にする素点／sub=札点差(a-b)。
+function h88Breakdown(g, teyaku) {
+  const others = g.seats.length - 1, m = g.bonus || 1;
+  const mt = h88Rules().teyakuFieldMul ? m : 1, re = g.roundEnd;
+  const terms = {}; g.seats.forEach(s => terms[s] = []);
+  const addT = (s, sign, nums, factors) => terms[s].push({ sign: sign, nums: nums, factors: factors });
+  if (re && re.kind === 'yaku') {                       // 出来役上がり：勝者は役合計×倍率×人数を受取、他は×倍率を支払い
+    const w = re.winner, yn = re.yaku.map(y => y.mon);
+    addT(w, 1, yn, [m, others]);
+    g.seats.forEach(s => { if (s !== w) addT(s, -1, yn, [m]); });
+  } else if (re && re.kind === 'points') {
+    const specials = re.specials || [];
+    if (specials.length) {                              // 双八/総八（置換）：該当者×倍率×人数を受取
+      specials.forEach(sp => { addT(sp.seat, 1, [sp.mon], [m, others]);
+        g.seats.forEach(s => { if (s !== sp.seat) addT(s, -1, [sp.mon], [m]); }); });
+    } else {                                            // 札点決着：各自(札点−88)×倍率
+      g.seats.forEach(s => { const diff = (re.points[s] || 0) - 88;
+        terms[s].push({ sign: diff >= 0 ? 1 : -1, sub: diff >= 0 ? [re.points[s], 88] : [88, re.points[s]], factors: [m] }); });
+    }
+  }
+  if (teyaku) Object.keys(teyaku).forEach(w => {        // 手役：成立者×手役倍率×人数を受取、他は×手役倍率を支払い
+    addT(w, 1, [teyaku[w].mon], [mt, others]);
+    g.seats.forEach(s => { if (s !== w) addT(s, -1, [teyaku[w].mon], [mt]); });
+  });
+  return terms;
+}
+// 同符号・同倍率の和項をまとめる（札点差=subは独立のまま）。
+function h88GroupTerms(list) {
+  const groups = [];
+  list.forEach(t => {
+    if (t.sub) { groups.push({ sign: t.sign, sub: t.sub, factors: t.factors }); return; }
+    const key = t.sign + '|' + t.factors.join(',');
+    const g = groups.find(x => !x.sub && (x.sign + '|' + x.factors.join(',')) === key);
+    if (g) g.nums = g.nums.concat(t.nums); else groups.push({ sign: t.sign, nums: t.nums.slice(), factors: t.factors.slice() });
+  });
+  return groups;
+}
+function h88TermStr(gp) {
+  const sign = gp.sign < 0 ? ' − ' : ' ＋ ';
+  const facs = gp.factors.filter(f => f !== 1).map(f => '×' + f).join('');
+  const inner = gp.sub ? '(' + gp.sub[0] + '−' + gp.sub[1] + ')' : (gp.nums.length > 1 ? '(' + gp.nums.join('＋') + ')' : '' + gp.nums[0]);
+  return sign + inner + facs;
+}
+// 「元累計 ＋ … ＝ 新累計」。増減0なら 新累計のみ。
+function h88FormulaStr(before, after, list, unit) {
+  const groups = h88GroupTerms(list);
+  if (!groups.length || after === before) return '<b>' + after + '</b> ' + unit + '（±0）';
+  return before + groups.map(h88TermStr).join('') + ' ＝ <b>' + after + '</b> ' + unit;
+}
 function h88RoundOver(result) {
   const st = state.h88, g = st.game;
   const m = g.bonus || 1;
@@ -4313,6 +4380,7 @@ function h88RoundOver(result) {
   const bTag = (m === 4 ? '絶場' : m === 2 ? '大場' : '小場') + '（×' + m + '）';
   const nm = (s) => (s === 'p0' && st.names[s] !== 'あなた') ? st.names[s] + '（あなた）' : st.names[s];
   const before = {}; g.seats.forEach(s => before[s] = st.scores[s] || 0);
+  const teyaku0 = st.pendingTeyaku; // 式表示用に手役結果を控える（下で精算後に null される）
   let head = '', listHtml = '';
   if (result === 'win') {
     playSfx(g.winner === 'p0' ? 'fanfare' : 'pu'); // 上がり＝自分ならファンファーレ／相手なら「ぷっ」
@@ -4365,12 +4433,12 @@ function h88RoundOver(result) {
     h88Log('◆ 手役を精算' + (mulOn && tM > 1 ? '（×場' + tM + '）' : '') + '：' + Object.keys(st.pendingTeyaku).map(s => st.names[s] + ' ' + st.pendingTeyaku[s].jp).join(' ／ '));
     st.pendingTeyaku = null;
   }
-  // スコアボード＝「＋この局の増減バッジ → 累計」（増減＝出来役/札点＋手役をまとめた額）。支払い=赤。
-  const scoreboard = '<div class="h88-te-legend">バッジ＝この局の増減（役／札点＋手役） → 数字＝加算後の累計</div><div class="scoreboard">' + g.seats.map(s => {
+  // スコアボード＝「元累計 ＋ この局の増減（見える数字の式）＝ 新累計」。増減の内訳は上の役／札点／手役リストの数字と一致。
+  const bd = h88Breakdown(g, teyaku0);
+  const scoreboard = '<div class="h88-te-legend">元の累計 ＋ この局の増減（役×倍率×人数 など） ＝ 新しい累計</div><div class="scoreboard">' + g.seats.map(s => {
     const d = (st.scores[s] || 0) - before[s];
-    const deltaHtml = d !== 0 ? '<span class="delta' + (d < 0 ? ' neg' : '') + '">' + (d > 0 ? '+' : '') + d + '</span> ' : '';
     return '<div class="sc-row' + (d > 0 ? ' lead' : '') + '"><span class="sc-name">' + nm(s) + '</span>'
-      + '<span class="sc-val">' + deltaHtml + (st.scores[s] || 0) + ' ' + unit + '</span></div>';
+      + '<span class="sc-val sc-formula' + (d < 0 ? ' neg' : '') + '">' + h88FormulaStr(before[s], st.scores[s] || 0, bd[s], unit) + '</span></div>';
   }).join('') + '</div>';
   h88Log('　合計 ' + g.seats.map(s => st.names[s] + ' ' + st.scores[s]).join(' ／ '));
   renderH88();

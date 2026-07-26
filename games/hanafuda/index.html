@@ -1300,7 +1300,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.15</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.16</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1366,7 +1366,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.15</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.16</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1491,7 +1491,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.15</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.16</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1551,7 +1551,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.15</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.16</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1632,7 +1632,7 @@
 <div class="overlay" id="ovRuleInfo"><div class="opanel h88-ruleinfo-panel">
   <h2>ルール設定について</h2>
   <div class="h88-ruleinfo-body">
-    <p>本ゲームの八八（はちはち）のルール設定は、下記の資料を参考にしています。八八は地方や流派によって細部が異なり、解釈にも幅があります。本ゲームでの解釈が資料と食い違う場合がありますが、どうかご容赦ください。</p>
+    <p>下記の資料を参考にしていますが、解釈違いなどがある場合はご容赦ください。</p>
     <h4>任天堂公式</h4>
     <ul>
       <li>任天堂「花札・株札の遊び方 ― 八八（はちはち）」（公式サイト）<br>
@@ -4105,7 +4105,7 @@ function h88StartRound(oyaId) {
     const bodyHtml = '<ul class="yaku-list">' + yakuLis + '</ul>'
       + '<div class="h88-te-legend">この手役分は、局の終了時に場倍率を掛けてまとめて精算します（今はまだ累計に入りません）。</div>';
     h88Log('◆ 手役（提示・精算は局終了）：' + Object.keys(teyaku).map(s => st.names[s] + ' ' + teyaku[s].jp + ' ' + teyaku[s].mon + unit).join(' ／ '));
-    playSfx('charin');
+    playSfx(teyaku['p0'] ? 'charin' : 'pu'); // コイン音はあなたに手役があるときだけ。相手だけの手役は「ぷっ」
     showNotice('手役が成立', bodyHtml,
       () => { st.teyakuMarks = null; st.teyakuReveal = null; renderH88(); h88MaybeAi(); },
       { clear: true, draggable: true, html: true });

@@ -1315,7 +1315,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.31</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.32</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1381,7 +1381,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.31</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.32</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1508,7 +1508,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.31</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.32</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1568,7 +1568,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.31</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.32</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -6066,6 +6066,9 @@ function h88AnimPlay(prev) {
   const dur = aMs(ANIM.dur), anims = [];
   document.querySelectorAll('#screen-hachi .card[data-id]').forEach(el => {
     if (el.classList.contains('sel') || el.classList.contains('tmark')) return; // 選択/手役強調はCSS変形なので触らない
+    // ★重ね置きの「待機札」は場の詰め直しで位置がずれても FLIP しない（h88RenderPendingOverlays が即座に置き直す静止札）。
+    //   これを動かすと、飛んでいる主役の札(めくり札)と競合して下に潜る原因になる。主役の札(=st._activeFlyId)だけは動かす。
+    if (el.classList.contains('pending') && el.dataset.id !== st._activeFlyId) return;
     const old = prev.get(el.dataset.id);
     if (!old) return; // 新規出現（めくり札など）はここでは動かさない
     const r = el.getBoundingClientRect();

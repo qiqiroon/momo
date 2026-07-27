@@ -430,6 +430,12 @@
   .h88-tip-bubble .tsub{margin-top:6px;color:var(--text-muted);font-size:.62rem;}
   .h88-tip-bubble .no{color:#c66;}
   .h88-tip-bubble .ye{color:var(--gold);}
+  /* ⑩出降りの説明：白いラベル＋グレーの説明を縦ブロックで（2列だと長文が変な改行になるため） */
+  .h88-tip-bubble .drow{margin-top:7px;}
+  .h88-tip-bubble .drow:first-of-type{margin-top:2px;}
+  .h88-tip-bubble .drow .dlabel{color:#fff;font-weight:700;font-size:.66rem;}
+  .h88-tip-bubble .drow .ddesc{color:var(--text-muted);font-size:.63rem;line-height:1.5;margin-top:1px;}
+  .h88-tip-bubble .drow .ddesc b{color:var(--gold);font-weight:700;}
   /* 点数吹き出しはコンパクトに（2列・役と点を詰める） */
   .h88-tip-bubble .tgrid{display:grid;grid-template-columns:auto auto;column-gap:16px;row-gap:1px;}
   .h88-tip-bubble .tgrid .trow{justify-content:space-between;gap:6px;}
@@ -587,6 +593,12 @@
   /* 手役の結果パネル（こいこいの局終了に準拠） */
   #ov-body{font-size:.85rem;color:var(--text);line-height:1.55;margin:6px 0;text-align:left;}
   .h88-te-note{font-size:.66rem;color:var(--text-muted);margin:0 0 8px;line-height:1.5;}
+  /* ⑩出降りモーダル：すでに降りた人の表示・降りる確認 */
+  .h88-deiori-status{font-size:.7rem;color:#fff;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:8px;padding:6px 10px;margin:0 0 8px;text-align:center;}
+  .h88-deiori-status .sub{color:var(--text-muted);font-size:.64rem;margin-left:6px;}
+  .h88-deiori-confirm{font-size:.72rem;color:#fff;line-height:1.5;margin:0 0 8px;text-align:center;}
+  .h88-deiori-confirm b{color:var(--gold);}
+  .btn.h88-deiori-danger{color:#ff9a9a;border-color:rgba(255,120,120,.5);}
   .h88-te-sub{font-size:.66rem;color:var(--text-muted);margin:10px 0 4px;letter-spacing:.03em;}
   .scoreboard .sc-val .delta.neg{color:#ff8a8a;} /* 八八: 支払い（マイナス増減）は赤 */
   .yaku-list li .ye-head .who-b{color:#fff;font-weight:800;}
@@ -4204,14 +4216,15 @@ function h88TipContent(spec) {
       + '<div class="tsub">出来役・手役は元々貫なので丸め不要。丸めで生じる合計のズレは最大額の人に寄せてゼロサムを保ちます。任天堂（点）は丸めなし。</div>';
   }
   if (kind === 'deiori') {
-    if (val === 'off') return '<h5>出降り なし</h5><div class="tsub">全員参加で固定（配札後に降りる選択はできません）。</div>';
+    if (val === 'off') return '<h5>出降り なし</h5><div class="tsub">全員参加で固定します（配札後に「降りる」を選ぶ画面は出ません）。</div>';
+    const drow = (label, desc) => '<div class="drow"><div class="dlabel">' + label + '</div><div class="ddesc">' + desc + '</div></div>';
     return '<h5>出降り あり（関西式・縛りなし）</h5>'
-      + row('宣言', '配札後、親から反時計回りに「出る／降りる」（心理戦）')
-      + row('下り賃（席次）', '親席1貫／第二席1貫半／第三席2貫（大場×2・絶場×4）。勝者が総取り')
-      + row('2人になったら', '基準点88なし・点差でやり取り。あつかい＝29点以下は点差どおり／30↑3貫／40↑4貫／50↑5貫。出来役・空巣は1貫増し（当事者間は場倍率なし）')
-      + row('1人になったら', '不戦勝。下り賃を総取りして次局へ（押し付け）')
-      + row('全員降り', '配り直し')
-      + '<div class="tsub">一次資料『新しい花札入門』準拠。場倍率が掛かるのは下り賃のみ。関東式（縛りあり）は3人固定では実質降りられないため省略。</div>';
+      + drow('宣言', '配札のあと、親から反時計回りに1人ずつ「出る／降りる」を選ぶ心理戦。')
+      + drow('下り賃', '席で決まり、勝者が総取り。親席 <b>1貫</b>／第二席 <b>1貫半</b>／第三席 <b>2貫</b>。大場は×2・絶場は×4。')
+      + drow('2人になったら', '基準点88は使わず、2人の点差をやり取り。あつかい（上限）は 29点以下＝点差どおり／30点〜＝<b>3貫</b>／40点〜＝<b>4貫</b>／50点〜＝<b>5貫</b>。出来役と空巣は1貫増し。')
+      + drow('1人になったら', '不戦勝。下り賃をすべて受け取って次の局へ（押し付け）。')
+      + drow('全員降り', '配り直し。')
+      + '<div class="tsub">一次資料『新しい花札入門』準拠。場倍率が掛かるのは下り賃だけ（当事者間の精算には掛けません）。関東式の縛りは3人では実質使えないため省略。</div>';
   }
   return '';
 }
@@ -4351,6 +4364,7 @@ function h88DeioriStep(g, oyaId, count) {
   const proceed = (drop) => {
     if (drop) { g.dropped.push(seat); h88DeioriToast(st.names[seat] + ' 降り'); h88Log('　' + st.names[seat] + '：降り'); }
     else { h88Log('　' + st.names[seat] + '：出る'); }
+    renderH88(); // 降りた表示を1人ずつ盤に反映（次の人が決める前に、誰が降りたか分かるように）
     setTimeout(() => h88DeioriStep(g, oyaId, count + 1), drop ? 750 : 450);
   };
   if (seat === 'p0') { h88AskDeiori(g, seat, proceed); }
@@ -4373,27 +4387,41 @@ function h88DeioriResolve(g, oyaId) {
   if (g.dropped.indexOf(g.currentPlayer) >= 0) g.currentPlayer = h88NextSeat(g, oyaId);
   h88ShowTeyakuAndPlay(g);
 }
-// 人間(p0)の出降りモーダル：自分の手札・場・ここまでの降り人数を見て「出る／降りる」を選ぶ。
+// 人間(p0)の出降りモーダル：自分の手札・場・すでに降りた人を見て「出る／降りる」を選ぶ。降りるは確認をはさむ（誤タップ防止）。
 function h88AskDeiori(g, seat, proceed) {
   const st = state.h88, m = g.bonus || 1;
-  const bTag = (m === 4 ? '絶場' : m === 2 ? '大場' : '小場') + '（下り賃×' + m + '）';
-  const droppedN = g.dropped.length, fee = h88DeioriFeeFumi(g, seat) * m;
+  const bTag = (m === 4 ? '絶場' : m === 2 ? '大場' : '小場');
+  const fee = h88DeioriFeeFumi(g, seat) * m;
+  const droppedNames = g.dropped.map(s => st.names[s]);
   document.getElementById('ov-title').textContent = '出る？ 降りる？（出降り）';
   const bodyEl = document.getElementById('ov-body'); bodyEl.style.whiteSpace = 'normal';
   const handHtml = g.hands[seat].map(c => svgCard(c.id, 'ye-card')).join('');
-  bodyEl.innerHTML = '<div class="h88-te-note">あなたの手札（' + bTag + '）。降りると下り賃 <b>' + h88FormatFumi(fee) + '</b> を勝者へ。ここまでに降りた人：' + droppedN + '人。'
-    + (droppedN >= 1 ? '<br>（もう1人降りればあなたの不戦勝で下り賃を総取り）' : '') + '</div>'
+  const statusLine = droppedNames.length
+    ? '<div class="h88-deiori-status">すでに降りた人：<b>' + droppedNames.join('・') + '</b>' + (droppedNames.length >= 1 ? '<span class="sub">（あと1人降りればあなたの不戦勝）</span>' : '') + '</div>'
+    : '<div class="h88-deiori-status">まだ誰も降りていません</div>';
+  bodyEl.innerHTML = '<div class="h88-te-note">あなたの手札（' + bTag + '）。降りると下り賃 <b>' + h88FormatFumi(fee) + '</b> を勝者へ払います。</div>'
+    + statusLine
     + '<div class="ye-cards" style="flex-wrap:wrap;justify-content:center">' + handHtml + '</div>';
   const ov = document.getElementById('ovNotice'), okBtn = document.getElementById('ov-ok');
   okBtn.style.display = 'none';
-  const row = ov.querySelector('.btn-row');
+  const rowEl = ov.querySelector('.btn-row');
   const box = document.createElement('span'); box.id = 'h88-deiori-btns';
-  box.innerHTML = '<button class="btn btn-primary" id="h88-deiori-deru">出る</button> <button class="btn btn-ghost" id="h88-deiori-oriru">降りる</button>';
-  row.appendChild(box);
+  rowEl.appendChild(box);
   ov.classList.add('show', 'see-through');
   const cleanup = () => { ov.classList.remove('show', 'see-through'); okBtn.style.display = ''; box.remove(); };
-  document.getElementById('h88-deiori-deru').onclick = () => { playSfx('button'); cleanup(); proceed(false); };
-  document.getElementById('h88-deiori-oriru').onclick = () => { playSfx('button'); cleanup(); proceed(true); };
+  const showChoice = () => {
+    box.innerHTML = '<button class="btn btn-primary" id="h88-deiori-deru">出る</button> <button class="btn btn-ghost" id="h88-deiori-oriru">降りる…</button>';
+    document.getElementById('h88-deiori-deru').onclick = () => { playSfx('button'); cleanup(); proceed(false); };
+    document.getElementById('h88-deiori-oriru').onclick = () => { playSfx('button'); showConfirm(); };
+  };
+  // 誤タップ防止：降りるは確認をはさむ。安全側（やめる）を目立つ主ボタンに、実行（降りる）は控えめに。
+  const showConfirm = () => {
+    box.innerHTML = '<div class="h88-deiori-confirm">本当に降りますか？ 下り賃 <b>' + h88FormatFumi(fee) + '</b> を払って、この局は不参加になります。</div>'
+      + '<button class="btn btn-primary" id="h88-deiori-cancel">やめる</button> <button class="btn btn-ghost h88-deiori-danger" id="h88-deiori-yes">降りる</button>';
+    document.getElementById('h88-deiori-cancel').onclick = () => { playSfx('button'); showChoice(); };
+    document.getElementById('h88-deiori-yes').onclick = () => { playSfx('button'); cleanup(); proceed(true); };
+  };
+  showChoice();
 }
 function h88DeioriToast(text) { const d = document.createElement('div'); d.className = 'h88-sage-toast'; d.textContent = text; document.body.appendChild(d); setTimeout(() => d.remove(), 1500); }
 // v1.62 A6: 上の相手2人を手で左右にドラッグして入替（いつでも）。既定は自動配置。

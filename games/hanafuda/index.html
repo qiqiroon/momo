@@ -173,6 +173,11 @@
   /* v1.63: 親バッジ・手番バッジ */
   .h88-oya-badge{display:inline-block;background:var(--gold,#d8a838);color:#1a1a1a;font-size:.62rem;font-weight:700;border-radius:4px;padding:0 4px;margin-right:4px;vertical-align:middle;}
   .h88-turn-badge{display:inline-block;background:var(--orange);color:#1a1a1a;font-size:.6rem;font-weight:700;border-radius:4px;padding:0 4px;margin-left:4px;vertical-align:middle;}
+  /* ⑩出降り：降りた席は「降り」バッジ＋札エリアだけ薄く（不参加が一目で分かる・手札は伏せたまま・名前は読める） */
+  .h88-drop-badge{display:inline-block;background:#6b6b6b;color:#f2f2f2;font-size:.6rem;font-weight:700;border-radius:4px;padding:0 5px;margin-left:4px;vertical-align:middle;letter-spacing:.05em;}
+  .h88-self-nameline .h88-drop-badge{font-size:.74rem;padding:2px 10px;border-radius:8px;}
+  .h88-dropped .h88-caps, .h88-dropped .h88-mini-hand{opacity:.4;filter:grayscale(.7);}
+  .h88-self.h88-dropped #h88-self-caps, .h88-self.h88-dropped #h88-self-hand{opacity:.4;filter:grayscale(.7);}
   #h88-turn{font-weight:700;}
   /* v1.68 C4: 準備室の3人の顔ぶれ */
   .h88-prep-players{display:flex;flex-direction:column;gap:6px;margin:10px 0;}
@@ -3503,7 +3508,7 @@ function h88PresetRules(preset) {
   return { pointStyle: p, yakuSet: (p === 'nintendo' ? 'nintendo' : 'classic'),
            fieldMul: true, redeal: true, sweep3: true, teyakuFieldMul: true, sage: p, // 下げは標準ルール＝プリセット流派に連動（「なし」はカスタム）
            marume: false, // ⑨丸め（札点差→貫の端数を丸める）。既定なし＝端数の文もそのまま精算
-           deiori: false }; // ⑩出降り（関西式・縛りなし）。既定なし＝全員参加固定（有効化すると出降りフェーズを挿入）
+           deiori: (p === 'kansai') }; // ⑩出降り（関西式・縛りなし）。関西式は既定あり／任天堂・関東は既定なし。変えるとカスタム表示
 }
 const H88_DEFAULT_RULES = h88PresetRules('nintendo');
 // 現在の有効ルール。state.h88.rules があればそれ、無ければ旧 state.h88.preset から導出、最後に既定。
@@ -4487,12 +4492,14 @@ function renderH88Seat(elId, seat) {
   }).join('');
   const caps = h88CapGroupedHTML(g.caps[seat], 'self2'); // v1.80: 取り札は2列（光種短／カス）
   const isOya = (seat === st.roundOya);      // v1.63: 親マーク
-  const isTurn = (g.currentPlayer === seat && !g.winner) && !st.teyakuMarks; // 手役表示中は手番枠を出さない
+  const dropped = !!(g.dropped && g.dropped.indexOf(seat) >= 0); // ⑩出降り：この席は降りた（手札は伏せたまま・不参加）
+  const isTurn = (g.currentPlayer === seat && !g.winner) && !st.teyakuMarks && !dropped; // 手役表示中・降りた席は手番枠を出さない
   // v1.80 大改造: 相手はプレイヤー単位で90°回転させるため .h88-seat-rot でまとめる。
   //   プレイヤー内は「名前(上)→取り札2列→伏せ手札1列(下)」。横画面はこの箱を回転、縦画面は素の縦積み。
-  el.innerHTML = '<div class="h88-seat-rot">'
+  el.innerHTML = '<div class="h88-seat-rot' + (dropped ? ' h88-dropped' : '') + '">'
     + '<div class="h88-name">' + (isOya ? '<span class="h88-oya-badge">親</span>' : '')
-    + st.names[seat] + (isTurn ? '<span class="h88-turn-badge">手番</span>' : '') + '</div>'
+    + st.names[seat]
+    + (dropped ? '<span class="h88-drop-badge">降り</span>' : (isTurn ? '<span class="h88-turn-badge">手番</span>' : '')) + '</div>'
     + '<div class="h88-caps">' + caps + '</div>'
     + '<div class="h88-mini-hand">' + backs + '</div>'
     + '</div>';
@@ -4537,16 +4544,17 @@ function renderH88() {
   const db = document.getElementById('h88-deck-back');
   if (db) db.innerHTML = st.drawn ? ('<span class="h88-drawn">' + svgCard(st.drawn.id) + '</span>')
                                   : (g.deck.length ? svgBack() : '');
-  const myTurn = (g.currentPlayer === 'p0' && !g.winner);
+  const p0Dropped = !!(g.dropped && g.dropped.indexOf('p0') >= 0); // ⑩出降り：あなたが降りた
+  const myTurn = (g.currentPlayer === 'p0' && !g.winner && !p0Dropped);
   const handOn = myTurn && !st.pending; // ピック中は手札操作不可
   const selfBox = document.querySelector('.h88-self'); // 自分の手番は相手と同じくオレンジ枠で強調（手役中は出さない）
-  if (selfBox) selfBox.classList.toggle('turn', myTurn && !st.teyakuMarks);
-  // 自分の名前・親・手番を取り札の1番上に（相手と同じ形で表示）。手役表示中は手番バッジを出さない。
+  if (selfBox) { selfBox.classList.toggle('turn', myTurn && !st.teyakuMarks); selfBox.classList.toggle('h88-dropped', p0Dropped); }
+  // 自分の名前・親・手番を取り札の1番上に（相手と同じ形で表示）。手役表示中は手番バッジを出さない。降りたら「降り」。
   const youL = t('game.you');
   document.getElementById('h88-self-nameline').innerHTML =
     (st.roundOya === 'p0' ? '<span class="h88-oya-badge">親</span>' : '')
     + youL + (st.names['p0'] !== youL ? '：' + st.names['p0'] : '')
-    + ((myTurn && !st.teyakuMarks) ? '<span class="h88-turn-badge">あなたの番です</span>' : '');
+    + (p0Dropped ? '<span class="h88-drop-badge">降り</span>' : ((myTurn && !st.teyakuMarks) ? '<span class="h88-turn-badge">あなたの番です</span>' : ''));
   document.getElementById('h88-self-caps').innerHTML = h88CapGroupedHTML(g.caps['p0'], 'self2');
   // 自分の手札は自分には常に全部見える（伏せない）。役にかかわる札はオレンジ枠。※パネルと相手手札は伏せる。
   const selfMarks = (st.teyakuMarks && st.teyakuMarks['p0']) || [];

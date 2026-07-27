@@ -1310,7 +1310,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.23</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.24</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1376,7 +1376,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.23</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.24</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1503,7 +1503,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.23</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.24</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1563,7 +1563,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.23</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.24</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -4300,8 +4300,12 @@ function h88StartRound(oyaId) {
   h88Log('──── 第' + st.roundNo + '局 開始（親：' + st.names[oyaId] + '／手番順 ' + st.seatCycle.map(s => st.names[s]).join('→') + '）');
   h88AutoFocus(); // v1.63 B4: 開始時、親が相手ならその相手を主表示に
   renderH88();
-  if (h88Rules().deiori) { h88BeginDeiori(st.game, oyaId); return; } // ⑩出降りON＝配札後に出る/降りるフェーズ→そのあと手役
-  h88ShowTeyakuAndPlay(st.game);
+  const proceed = () => { // 配り後：⑩出降りON＝出る/降りるフェーズ→手役、OFF＝手役
+    if (!state.h88 || state.h88 !== st) return;
+    if (h88Rules().deiori) { h88BeginDeiori(st.game, oyaId); return; }
+    h88ShowTeyakuAndPlay(st.game);
+  };
+  if (h88AnimEnabled()) h88RunDeal(proceed); else proceed(); // 配りアニメ→その後に進行
 }
 // フェーズ3: 手役（配札直後に判定して"提示"のみ。精算は局終了で場倍率を掛けてまとめて＝倍率が見えるように）。⑩出降り時は出ている席のみで判定。
 function h88ShowTeyakuAndPlay(g) {
@@ -4532,6 +4536,7 @@ function renderH88Seat(elId, seat) {
 function renderH88() {
   const st = state.h88; if (!st || !st.game) return;
   const g = st.game;
+  const _h88animPrev = h88AnimEnabled() ? h88AnimSnapshot() : null; // FLIP: 描画前の全札位置を記録
   document.getElementById('h88-round').textContent = '第' + st.roundNo + '局/全' + st.rounds + '局';
   // v1.66: スコアはコンパクトに（1行に収める）。あなた/CPU1/CPU2 の短縮表記。
   const shortNm = (s) => s === 'p0' ? 'あなた' : (s === 'p1' ? 'CPU1' : 'CPU2');
@@ -4586,6 +4591,10 @@ function renderH88() {
   selfHandEl.innerHTML = g.hands['p0'].map((c, i) =>
     '<span class="h88-hand-card' + (st.sel === i ? ' sel' : '') + (selfMarks.indexOf(c.id) >= 0 ? ' tmark' : '') + '" data-idx="' + i + '"' + (handOn ? '' : ' style="cursor:default;opacity:.85"') + '>' + svgCard(c.id) + '</span>').join('');
   fitH88Board(); // v1.72 D4: 描画のたびに実測フィット（こいこいの renderGame→fitBoard と同じ同期呼び）
+  if (_h88animPrev) h88AnimPlay(_h88animPrev); // FLIP: 位置の変わった札を旧位置→新位置へ滑らせる（実測フィット後の最終位置で計算）
+  const curDrawn = st.drawn ? st.drawn.id : null; // めくり札が新規に出た瞬間だけ回転演出
+  if (h88AnimEnabled() && curDrawn && curDrawn !== st._lastDrawnId) h88FlipReveal();
+  st._lastDrawnId = curDrawn;
 }
 // v1.65 item1: こいこい同様、手札ホバーで合う場札を浮かせるプレビュー（クリック不要）
 function h88PreviewField(month, on) {
@@ -4619,9 +4628,11 @@ function h88HumanPlayHand(idx) {
     renderH88(); return;
   }
   const took = h88Capture(g, 'p0', card, null); // 0=場に置く / 1=取る / 3=全取り
-  playSfx(took.length ? 'bishi' : 'pa');
   h88LogPlayer(g, 'p0', h88DescribeTake(card, took, false));
-  h88HumanDrawStep();
+  renderH88(); // 出した札→（取り札 or 場）へ FLIP
+  setTimeout(() => playSfx(took.length ? 'bishi' : 'pa'), 140);
+  if (h88AnimEnabled()) setTimeout(() => { if (state.h88 === st && st.game === g && !g.winner) h88HumanDrawStep(); }, aMs(ANIM.beat)); // 間をおいて山めくり
+  else h88HumanDrawStep();
 }
 // 場札クリック（2枚合致のとき、どちらを取るか選ぶ）
 function h88OnClickField(id) {
@@ -4709,6 +4720,8 @@ function h88MaybeAi() {
   st.awaitP0 = false; // AIの手番＝次にあなたの番が来たら再び鳴らせるようリセット
   h88AutoFocus(); renderH88(); // v1.63 B4: 現手番のAIを主表示に
   const tok = ++st.aiToken;
+  if (h88AnimEnabled()) { setTimeout(() => h88AiTurnAnimated(g, tok), aMs(ANIM.beat)); return; } // アニメON＝段階化して見せる
+  // アニメOFF（従来）：一括処理
   setTimeout(() => {
     if (!state.h88 || state.h88 !== st || tok !== st.aiToken || g.winner) return;
     playSfx('shu'); // v1.63 C13: AIの着手音
@@ -4726,6 +4739,55 @@ function h88MaybeAi() {
     renderH88();
     h88MaybeAi();
   }, 750);
+}
+// AIの手番をこいこい風に段階化して見せる（ロジックは h88Turn と同順：手札を出す→取る→間→山めくり回転→取る→役判定）。
+function h88AiTurnAnimated(g, tok) {
+  const st = state.h88;
+  const alive = () => state.h88 === st && st.game === g && tok === st.aiToken && !g.winner;
+  if (!alive()) return;
+  const actor = g.currentPlayer, level = (st.levels && st.levels[actor]) || 'HARD';
+  const hi = h88AiChooseHand(g, actor, level);
+  const card = g.hands[actor].splice(hi, 1)[0];
+  if (!card) { g.currentPlayer = h88NextSeat(g, actor); h88AutoFocus(); renderH88(); h88MaybeAi(); return; }
+  playSfx('shu');
+  const ms1 = h88MonthMatches(g.field, card.month);
+  const took1 = h88Capture(g, actor, card, h88NeedPick(ms1) ? h88AiPickField(ms1, g, actor, level) : null);
+  h88LogPlayer(g, actor, h88DescribeTake(card, took1, false));
+  renderH88(); // 出した札→（取り札 or 場）へ FLIP
+  setTimeout(() => playSfx(took1.length ? 'bishi' : 'pa'), 140);
+  setTimeout(() => { // 間をおいて山めくり
+    if (!alive()) return;
+    if (!g.deck.length) { h88AiTurnFinish(g, tok, actor); return; }
+    const dc = g.deck.shift();
+    st.drawn = dc; renderH88(); // めくり札を山の右に表向き＋回転演出
+    setTimeout(() => {
+      if (!alive()) return;
+      const ms2 = h88MonthMatches(g.field, dc.month);
+      const took2 = h88Capture(g, actor, dc, h88NeedPick(ms2) ? h88AiPickField(ms2, g, actor, level) : null);
+      h88LogPlayer(g, actor, h88DescribeTake(dc, took2, true));
+      st.drawn = null; renderH88(); // めくり札→（取り札 or 場）へ FLIP
+      setTimeout(() => playSfx(took2.length ? 'bishi' : 'pa'), 140);
+      setTimeout(() => h88AiTurnFinish(g, tok, actor), aMs(ANIM.dur) + 80);
+    }, aMs(ANIM.flipDur + ANIM.hold));
+  }, aMs(ANIM.beat));
+}
+function h88AiTurnFinish(g, tok, actor) {
+  const st = state.h88;
+  if (!(state.h88 === st && st.game === g && tok === st.aiToken && !g.winner)) return;
+  const level = (st.levels && st.levels[actor]) || 'HARD';
+  let r = 'next';
+  const y = h88ComputeYaku(g.caps[actor]), yt = yakuTotal(y);
+  if (yt > 0) { const rr = h88OnYakuFormed(g, actor, y, yt, level, false); if (rr === 'win') r = 'win'; } // 'sage'/null は継続
+  if (r !== 'win' && g.hands[actor].length === 0 && (g.active || g.seats).every(s => g.hands[s].length === 0)) { h88FinishRound(g); r = 'draw'; }
+  renderH88();
+  if (g.sage && g.sage.seat === actor) { // 下げトースト
+    const key = g.sage.seat + ':' + g.sage.total;
+    if (st.sageShown !== key) { st.sageShown = key; h88SageToast(st.names[actor]); playSfx('koikoi'); h88Log('◇ ' + st.names[actor] + ' 下げ（続行）'); }
+  }
+  if (r === 'win' || r === 'draw') { h88RoundOver(r); return; }
+  g.currentPlayer = h88NextSeat(g, actor);
+  h88AutoFocus(); renderH88();
+  h88MaybeAi();
 }
 // 局終了の各席の増減を「見える数字だけの式」に分解（Q1-A: 掛け算・倍率・人数も全部式に出す）。
 // 返り: {seat:[{sign,nums,factors} | {sign,sub:[a,b],factors}]}。nums=和にする素点／sub=札点差(a-b)。
@@ -5696,6 +5758,99 @@ function animPlay(prev, opts) {
 function animWait(anims) {
   if (!anims || !anims.length) return Promise.resolve();
   return Promise.all(anims.map(a => a.finished.catch(() => {})));
+}
+// ── 八八のカード移動アニメ（こいこいのFLIPを #screen-hachi へ移植。ANIM定数・速度は共有）──
+// 八八はローカル完結。renderH88 の入口でスナップショット、出口で位置の変わった札を旧位置→新位置へ滑らせる。
+function h88AnimEnabled() {
+  const s = document.getElementById('screen-hachi');
+  return ANIM.enabled && s && !s.classList.contains('hidden') && s.offsetParent !== null;
+}
+function h88AnimSnapshot() {
+  const m = new Map();
+  document.querySelectorAll('#screen-hachi .card[data-id]').forEach(el => {
+    const r = el.getBoundingClientRect();
+    if (r.width) m.set(el.dataset.id, { x: r.left, y: r.top, w: r.width, rot: !!el.closest('.h88-seat-rot') });
+  });
+  return m;
+}
+function h88AnimPlay(prev) {
+  if (!prev || !prev.size) return [];
+  const dur = aMs(ANIM.dur), anims = [];
+  document.querySelectorAll('#screen-hachi .card[data-id]').forEach(el => {
+    if (el.classList.contains('sel') || el.classList.contains('tmark')) return; // 選択/手役強調はCSS変形なので触らない
+    const old = prev.get(el.dataset.id);
+    if (!old) return; // 新規出現（めくり札など）はここでは動かさない
+    const r = el.getBoundingClientRect();
+    if (!r.width) return;
+    const nowRot = !!el.closest('.h88-seat-rot');
+    const dx = old.x - r.left, dy = old.y - r.top;
+    let sc = old.w / r.width;
+    if (old.rot !== nowRot) sc = 1; // 回転の有無が変わる移動（中央⇄相手席）は拡大率が当てにならないので等倍で滑らす
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && Math.abs(sc - 1) < 0.02) return; // 動いてない
+    // 移動中は前面へ浮かせる（取り札枠や場の縁に隠れないように・終わったら戻す）
+    const prevPos = el.style.position, prevZ = el.style.zIndex;
+    if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
+    el.style.zIndex = '500';
+    const a = el.animate([
+      { transformOrigin: 'top left', transform: 'translate(' + dx + 'px,' + dy + 'px) scale(' + sc + ')' },
+      { transformOrigin: 'top left', transform: 'translate(0,0) scale(1)' },
+    ], { duration: dur, easing: ANIM.ease, fill: 'none' });
+    const restore = () => { el.style.position = prevPos; el.style.zIndex = prevZ; };
+    a.finished.then(restore).catch(restore);
+    setTimeout(restore, dur + 140); // タイムライン停止環境でも確実に戻す
+    anims.push(a);
+  });
+  return anims;
+}
+// 局開始の配りアニメ（八八・こいこいの runDeal 相当）。各札を伏せ→配り順に飛び出し表示。回転席にも安全な scale+rise。done は配り終了後に呼ぶ。
+function h88RunDeal(done) {
+  const st = state.h88;
+  if (!h88AnimEnabled()) { if (done) done(); return; }
+  const order = [];
+  document.querySelectorAll('#h88-self-hand .card').forEach(el => order.push(el));
+  document.querySelectorAll('#h88-field .card').forEach(el => order.push(el));
+  document.querySelectorAll('.h88-seat .h88-mini-hand .card').forEach(el => order.push(el));
+  if (order.length < 10) { if (done) done(); return; } // 配り札が揃ってなければアニメ省略
+  const dur = aMs(ANIM.dealFly), gap = Math.max(30, Math.round(aMs(ANIM.dealGap) / 4));
+  const tok = (st.dealToken = (st.dealToken || 0) + 1); // 配り中の中断検出
+  order.forEach(el => { el.style.visibility = 'hidden'; });
+  let last = 0;
+  order.forEach((el, i) => {
+    const d = i * gap; last = d;
+    setTimeout(() => {
+      if (!state.h88 || state.h88 !== st || tok !== st.dealToken) return;
+      el.style.visibility = '';
+      try { el.animate([{ transform: 'scale(.25) translateY(-28px)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: dur, easing: ANIM.ease, fill: 'none' }); } catch (e) {}
+      if (i % 4 === 0) { try { playSfx('pa'); } catch (e) {} } // 配りのパタパタ音（4枚ごと）
+    }, d);
+  });
+  setTimeout(() => {
+    if (!state.h88 || state.h88 !== st || tok !== st.dealToken) return;
+    order.forEach(el => { el.style.visibility = ''; }); // 念のため全表示に戻す
+    if (done) done();
+  }, last + dur + 40);
+}
+// めくり札の回転演出（八八・山の右に出るめくり札に対して）。こいこいの flipReveal と同じ scaleX 手法。
+function h88FlipReveal() {
+  const container = document.getElementById('h88-deck-back');
+  if (!container) return;
+  const front = container.querySelector('.h88-drawn .card[data-id]');
+  if (!front) return;
+  const half = Math.round(aMs(ANIM.flipDur) / 2);
+  const backWrap = document.createElement('span');
+  backWrap.innerHTML = svgBack();
+  const back = backWrap.firstChild;
+  back.style.position = 'absolute'; back.style.left = '0'; back.style.top = '0';
+  back.style.width = '100%'; back.style.height = '100%';
+  const host = front.parentElement; // .h88-drawn
+  if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+  host.appendChild(back);
+  front.style.visibility = 'hidden';
+  const shrink = back.animate([{ transform: 'scaleX(1)' }, { transform: 'scaleX(0.02)' }], { duration: half, easing: 'ease-in', fill: 'forwards' });
+  shrink.finished.then(() => {
+    back.remove(); front.style.visibility = '';
+    front.animate([{ transform: 'scaleX(0.02)' }, { transform: 'scaleX(1)' }], { duration: half, easing: 'ease-out', fill: 'none' });
+  }).catch(() => { back.remove(); front.style.visibility = ''; });
 }
 
 function renderGame() {

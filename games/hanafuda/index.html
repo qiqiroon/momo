@@ -129,9 +129,8 @@
   .h88-field .h88-field-card{width:var(--card-w,42px);transition:transform .12s;}
   .h88-field .card{width:100%;}
   /* v2.24: こいこい同様の「合わせ取り待ち（pending）」の重ね置き。対象の場札の上にずらして重ねる。 */
-  .h88-field .h88-pending{position:absolute;z-index:40;width:var(--card-w,42px);}
-  .h88-field .h88-pending .card{width:100%;box-shadow:0 3px 9px rgba(0,0,0,.55);border-radius:5px;position:relative;z-index:40;}
-  .h88-field .h88-field-card{position:relative;z-index:1;} /* 場札は基準z=1・保留(重ね置き)札を必ずその上に */
+  .h88-field .card.pending{width:var(--card-w,42px);box-shadow:0 3px 9px rgba(0,0,0,.55);border-radius:5px;} /* 重ね置き札＝こいこいと同じくカード自体をabsolute z-8(JSで付与) */
+  .h88-field .h88-field-card{position:relative;z-index:1;} /* 場札は基準z=1・重ね置き札(z8)を必ずその上に */
   .h88-field .h88-field-card.pending-target .card{outline:2px solid var(--gold,#d8a838);outline-offset:-2px;border-radius:6px;box-shadow:0 0 8px var(--gold,#d8a838);}
   /* v1.63 B6/C9: ヒント＝選択中の手札と合う場札(match=浮かせる+金枠)／2枚から選ぶ候補(pick=橙枠・点滅) */
   .h88-field .h88-field-card.match{transform:translateY(-10px);}
@@ -1316,7 +1315,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.29</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.30</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1382,7 +1381,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.29</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.30</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1509,7 +1508,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.29</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.30</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1569,7 +1568,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.29</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.30</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -4269,6 +4268,7 @@ function h88TipContent(spec) {
   }
   return '';
 }
+let h88TipTimer = null, h88TipTouchedAt = 0;
 function h88ShowTip(btn) {
   const bub = document.getElementById('h88-tip-bubble'); if (!bub) return;
   bub.innerHTML = h88TipContent(btn.dataset.tip); bub.hidden = false;
@@ -4278,8 +4278,10 @@ function h88ShowTip(btn) {
   if (left + w > window.innerWidth - 4 && r.left - 8 - w > 4) left = r.left - 8 - w;
   let top = Math.min(Math.max(8, r.top), Math.max(8, window.innerHeight - h - 8)); // 縦は読めるようクランプ
   bub.style.left = left + 'px'; bub.style.top = top + 'px';
+  // 携帯対策：touchend で消しても直後に合成 mouseenter が再表示して残るので、一定時間で必ず自動的に閉じる保険。
+  clearTimeout(h88TipTimer); h88TipTimer = setTimeout(h88HideTip, 2600);
 }
-function h88HideTip() { const bub = document.getElementById('h88-tip-bubble'); if (bub) bub.hidden = true; }
+function h88HideTip() { const bub = document.getElementById('h88-tip-bubble'); if (bub) bub.hidden = true; clearTimeout(h88TipTimer); }
 // 準備室から八八を開始（親決め済みの席順で直接開始・八八画面のオーバーレイは使わない）
 function startHachiFromPrep(rounds) {
   const p = state.h88prep; if (!p) return;
@@ -4844,27 +4846,30 @@ function h88CollectPending(g, player) {
   });
   g.pending = [];
 }
-// pending の札を対象の場札の上にずらして重ねて描く（こいこい renderPendingOverlays 同型・fitH88Board 後の実寸で）。
+// pending の札を対象の場札の上にずらして重ねて描く（こいこい renderPendingOverlays を そのまま写す：カード自体を absolute z-8 で描く・別ラッパーは使わない）。
 function h88RenderPendingOverlays() {
   const g = state.h88 && state.h88.game;
   const fld = document.getElementById('h88-field');
-  if (!g || !fld) return;
-  fld.querySelectorAll('.h88-pending').forEach(el => el.remove()); // 保険
-  if (!g.pending || !g.pending.length) return;
+  if (!fld) return;
+  fld.querySelectorAll('.card.pending').forEach(el => el.remove()); // 保険
+  if (!g || !g.pending || !g.pending.length) return;
   const cw = parseFloat(getComputedStyle(document.getElementById('screen-hachi')).getPropertyValue('--card-w')) || 42;
-  const off = Math.round(cw * 0.26);
+  const off = Math.round(cw * 0.26); // 重なりのずらし量
   const fldRect = fld.getBoundingClientRect();
   g.pending.forEach(p => {
+    const targetEl = fld.querySelector('.card[data-id="' + p.targetIds[0] + '"]:not(.pending)');
     const s = document.createElement('span');
-    s.className = 'h88-pending';
     s.innerHTML = svgCard(p.incoming.id, 'pending');
-    const targetEl = fld.querySelector('.h88-field-card[data-id="' + p.targetIds[0] + '"]');
+    const el = s.firstChild;
+    el.style.position = 'absolute';
+    el.style.zIndex = '8';
     if (targetEl) {
       const tr = targetEl.getBoundingClientRect();
-      s.style.left = (tr.left - fldRect.left + off) + 'px';
-      s.style.top = (tr.top - fldRect.top + off) + 'px';
-    } else { s.style.left = '0px'; s.style.top = '0px'; }
-    fld.appendChild(s);
+      el.style.left = (tr.left - fldRect.left + off) + 'px';
+      el.style.top = (tr.top - fldRect.top + off) + 'px';
+    } else { el.style.left = '0px'; el.style.top = '0px'; }
+    fld.appendChild(el);
+    p.targetIds.forEach(tid => { const t = fld.querySelector('.card[data-id="' + tid + '"]:not(.pending)'); if (t) t.classList.add('pending-target'); });
   });
 }
 // 相手が手札から出した札を、相手席の手札位置から場へ滑らせる（こいこい animOpponentPlay 相当・回転席は等倍スライド）。
@@ -6072,13 +6077,11 @@ function h88AnimPlay(prev) {
     const prevPos = el.style.position, prevZ = el.style.zIndex;
     if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
     el.style.zIndex = '999';
-    const pend = el.closest('.h88-pending'); const prevPendZ = pend ? pend.style.zIndex : null; // 保留の重ね置き札は親のzで決まるので親も上げる
-    if (pend) pend.style.zIndex = '999';
     const a = el.animate([
       { transformOrigin: 'top left', transform: 'translate(' + dx + 'px,' + dy + 'px) scale(' + sc + ')' },
       { transformOrigin: 'top left', transform: 'translate(0,0) scale(1)' },
     ], { duration: dur, easing: ANIM.ease, fill: 'none' });
-    const restore = () => { el.style.position = prevPos; el.style.zIndex = prevZ; if (pend) pend.style.zIndex = prevPendZ; };
+    const restore = () => { el.style.position = prevPos; el.style.zIndex = prevZ; };
     a.finished.then(restore).catch(restore);
     setTimeout(restore, dur + 140); // タイムライン停止環境でも確実に戻す
     anims.push(a);
@@ -6155,13 +6158,12 @@ function h88RunDeal(done) {
   const startY = (oR && oR.height) ? (oR.top + oR.height / 2) : (g.oya !== 'p0' ? -140 : window.innerHeight + 140);
   const flyIn = (els) => els.forEach(el => {
     el.style.visibility = '';
-    if (el.closest('.h88-seat-rot')) { // 相手席（回転しうる）＝その場で scale+rise（screen translate は回転で狂うため）
-      try { el.animate([{ transform: 'scale(.28) translateY(-22px)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: dur, easing: ANIM.ease, fill: 'none' }); } catch (e) {}
-      return;
-    }
     const r = el.getBoundingClientRect();
-    if (!r.width) return;
-    const dx = startX - r.left, dy = startY - r.top;
+    if (!r.width) return; // 縦画面の非表示側の相手席など＝起点/終点が測れない
+    let dx = startX - r.left, dy = startY - r.top; // 親の位置から飛ぶ（画面デルタ）
+    const rotDeg = h88SeatRotDeg(el); // 回転席（横画面の相手席）は画面デルタを逆回転してローカル平行移動に＝裏札も親から飛ぶ
+    if (rotDeg === 90) { const t = dx; dx = dy; dy = -t; }
+    else if (rotDeg === -90) { const t = dx; dx = -dy; dy = t; }
     try {
       el.animate([
         { transformOrigin: 'top left', transform: 'translate(' + dx + 'px,' + dy + 'px)' },
@@ -8127,11 +8129,11 @@ function bindEvents() {
   // 携帯：短いタップ＝押した(選択)／長押し(>300ms)＝触れただけ=プレビューのみ（選択は抑止）。
   let h88TipHoldStart = 0;
   document.querySelectorAll('#set-hachi .h88-tip').forEach(btn => {
-    btn.addEventListener('mouseenter', () => h88ShowTip(btn));
+    btn.addEventListener('mouseenter', () => { if (performance.now() - h88TipTouchedAt < 700) return; h88ShowTip(btn); }); // 触った直後の合成mouseenterは無視
     btn.addEventListener('mouseleave', () => h88HideTip());
-    btn.addEventListener('touchstart', () => { h88TipHoldStart = performance.now(); h88ShowTip(btn); }, { passive: true });
-    btn.addEventListener('touchend', (e) => { h88HideTip(); if (performance.now() - h88TipHoldStart > 300) e.preventDefault(); });
-    btn.addEventListener('touchcancel', () => h88HideTip());
+    btn.addEventListener('touchstart', () => { h88TipTouchedAt = performance.now(); h88TipHoldStart = performance.now(); h88ShowTip(btn); }, { passive: true });
+    btn.addEventListener('touchend', (e) => { h88TipTouchedAt = performance.now(); h88HideTip(); if (performance.now() - h88TipHoldStart > 300) e.preventDefault(); });
+    btn.addEventListener('touchcancel', () => { h88TipTouchedAt = performance.now(); h88HideTip(); });
   });
   h88ApplyPreset('nintendo'); // 既定値をバンドルへ初期セット
   // ルール設定について（出典モーダル）の開閉

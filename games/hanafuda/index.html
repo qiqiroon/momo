@@ -599,6 +599,9 @@
   .h88-deiori-confirm{font-size:.72rem;color:#fff;line-height:1.5;margin:0 0 8px;text-align:center;}
   .h88-deiori-confirm b{color:var(--gold);}
   .btn.h88-deiori-danger{color:#ff9a9a;border-color:rgba(255,120,120,.5);}
+  /* ⑨丸め：貫でないとき無効化（点＝任天堂ではONにできない） */
+  .set-row .seg button[disabled]{opacity:.35;cursor:not-allowed;}
+  .set-row .seg.h88-seg-off{opacity:.6;}
   .h88-te-sub{font-size:.66rem;color:var(--text-muted);margin:10px 0 4px;letter-spacing:.03em;}
   .scoreboard .sc-val .delta.neg{color:#ff8a8a;} /* 八八: 支払い（マイナス増減）は赤 */
   .yaku-list li .ye-head .who-b{color:#fff;font-weight:800;}
@@ -1459,7 +1462,7 @@
     <div class="set-row"><span>⑤場三（同月4枚目で総取り）</span><span class="seg" id="h88-b-sweep3"><button data-v="on">あり</button><button data-v="off">なし</button></span></div>
     <div class="set-row"><span>⑥手役×場倍率</span><span class="seg" id="h88-b-teyakumul"><button data-v="on">ON</button><button data-v="off">OFF</button></span></div>
     <div class="set-row"><span>⑧下げ（継続宣言）</span><span class="seg" id="h88-b-sage"><button class="on h88-tip" data-v="off" data-tip="sage:off">なし</button><button class="h88-tip" data-v="nintendo" data-tip="sage:nintendo">任天堂式</button><button class="h88-tip" data-v="kanto" data-tip="sage:kanto">関東式</button><button class="h88-tip" data-v="kansai" data-tip="sage:kansai">関西式</button></span></div>
-    <div class="set-row"><span>⑨丸め（札点差→貫の端数）</span><span class="seg" id="h88-b-marume"><button class="on h88-tip" data-v="off" data-tip="marume:off">なし</button><button class="h88-tip" data-v="on" data-tip="marume:on">あり</button></span></div>
+    <div class="set-row"><span>⑨丸め（最終集計で貫に）<span id="h88-marume-note" style="display:none;font-size:.6rem;color:var(--text-muted);margin-left:4px;">※貫（関東/関西）のときのみ</span></span><span class="seg" id="h88-b-marume"><button class="on h88-tip" data-v="off" data-tip="marume:off">なし</button><button class="h88-tip" data-v="on" data-tip="marume:on">あり</button></span></div>
     <div class="set-row"><span>⑩出降り（関西式・縛りなし）</span><span class="seg" id="h88-b-deiori"><button class="on h88-tip" data-v="off" data-tip="deiori:off">なし</button><button class="h88-tip" data-v="on" data-tip="deiori:on">あり</button></span></div>
     <div id="h88-tip-bubble" class="h88-tip-bubble" hidden></div>
     <!-- v1.68 C3: 3人で親決め（準備室で引く） -->
@@ -3519,7 +3522,7 @@ function h88PresetRules(preset) {
   const p = (preset === 'kanto' || preset === 'kansai') ? preset : 'nintendo';
   return { pointStyle: p, yakuSet: (p === 'nintendo' ? 'nintendo' : 'classic'),
            fieldMul: true, redeal: true, sweep3: true, teyakuFieldMul: true, sage: p, // 下げは標準ルール＝プリセット流派に連動（「なし」はカスタム）
-           marume: false, // ⑨丸め（札点差→貫の端数を丸める）。既定なし＝端数の文もそのまま精算
+           marume: (p === 'kanto' || p === 'kansai'), // ⑨丸め＝最終集計で累計を貫へ丸める（関東=五捨六入/関西=四捨五入）。貫流派(関東関西)は既定あり・任天堂(点)は無関係でOFF
            deiori: (p === 'kansai') }; // ⑩出降り（関西式・縛りなし）。関西式は既定あり／任天堂・関東は既定なし。変えるとカスタム表示
 }
 const H88_DEFAULT_RULES = h88PresetRules('nintendo');
@@ -3969,11 +3972,7 @@ function h88RoundToKan(fumi, f) {
 // 各自の札点差(点=文)。丸めON(貫流派)なら貫に丸め、丸め誤差を絶対値最大の人へ寄せて合計0を保つ。
 function h88SettlePointDiffs(g, points) {
   const diffs = {}; g.seats.forEach(s => diffs[s] = (points[s] || 0) - 88);
-  const f = h88KanFumi();
-  if (!f || !h88Rules().marume) return diffs; // 丸めOFF or 任天堂＝端数の文もそのまま
-  let total = 0; g.seats.forEach(s => { diffs[s] = h88RoundToKan(diffs[s], f); total += diffs[s]; });
-  if (total !== 0) { let big = g.seats[0]; g.seats.forEach(s => { if (Math.abs(diffs[s]) > Math.abs(diffs[big])) big = s; }); diffs[big] -= total; }
-  return diffs;
+  return diffs; // ⑨丸めは毎局ではなく最終集計(h88ShowMatchEnd)で行う。毎局の札点差は常に文で正確（資料=対局中は文・吟味で貫へ丸め）
 }
 // 精算（モデルA・排他）。場倍率×〔出来役上がり＝勝者が出来役文を他2人から徴収／打ち切り＝各自(札点−88)〕。
 // 値は文で統一（出来役/手役は h88MonToFumi で貫→文換算・札点は点=文）。どちらもゼロサム。
@@ -4154,6 +4153,7 @@ function h88ApplyPreset(preset) {
   h88SetSeg('h88-b-sage', r.sage || 'off');
   h88SetSeg('h88-b-marume', r.marume ? 'on' : 'off');
   h88SetSeg('h88-b-deiori', r.deiori ? 'on' : 'off');
+  h88UpdateMarumeAvailability();
   h88SyncPresetLabel();
 }
 // 現状のバンドル → プリセット名 or カスタム を大ボタンに反映
@@ -4161,6 +4161,15 @@ function h88SyncPresetLabel() {
   const seg = document.getElementById('h88-preset-seg'); if (!seg) return;
   const label = h88PresetLabelOf(h88ReadBundleRules());
   seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === label));
+}
+// ⑨丸めは貫を使うとき(①点数＝関東/関西)だけ有効。任天堂(点)では貫が無いので丸め不可＝OFF固定・ボタン無効化。
+function h88UpdateMarumeAvailability() {
+  const seg = document.getElementById('h88-b-marume'); if (!seg) return;
+  const isKan = h88SegVal('h88-b-points') !== 'nintendo'; // 貫流派(関東/関西)か
+  if (!isKan) h88SetSeg('h88-b-marume', 'off'); // 点のときは丸め不可→OFFに固定
+  seg.querySelectorAll('button').forEach(b => { b.disabled = !isKan; });
+  seg.classList.toggle('h88-seg-off', !isKan);
+  const note = document.getElementById('h88-marume-note'); if (note) note.style.display = isKan ? 'none' : '';
 }
 // 吹き出しの中身（採用役と点数）。spec = "points:kanto" / "yakuset:classic" / "preset:nintendo"
 const H88_YAKU_ORDER = ['gokou','shikou','shichitan','akatan','aotan','inoshikachou','sujuuroku','souhachi','souya'];
@@ -4208,12 +4217,12 @@ function h88TipContent(spec) {
       + '<div class="tsub">四光→五光狙いの下げ禁止は将来対応。1局の下げ人数制限は設けません。</div>';
   }
   if (kind === 'marume') {
-    if (val === 'off') return '<h5>丸め なし</h5><div class="tsub">札点差を貫に丸めず、端数の文もそのまま精算します（任天堂は元々点で丸め無関係）。</div>';
-    return '<h5>丸め あり</h5>'
-      + row('内容', '札点差（点）を貫に丸める')
-      + row('関東（1貫=12文）', '6文以上は切り上げ／5文以下は切り捨て')
-      + row('関西（1貫=10文）', '5文以上は切り上げ／4文以下は切り捨て')
-      + '<div class="tsub">出来役・手役は元々貫なので丸め不要。丸めで生じる合計のズレは最大額の人に寄せてゼロサムを保ちます。任天堂（点）は丸めなし。</div>';
+    if (val === 'off') return '<h5>丸め なし</h5><div class="tsub">最終集計でも貫に丸めず、累計は文のまま（端数の文も残す）。任天堂（点）は貫が無いので無関係です。</div>';
+    return '<h5>丸め あり（最終集計）</h5>'
+      + row('いつ', '対局中は文で正確／総合結果で累計を貫へ')
+      + row('関東（1貫=12文）', '五捨六入（6文↑切上・5文↓切捨）')
+      + row('関西（1貫=10文）', '四捨五入（5文↑切上・4文↓切捨）')
+      + '<div class="tsub">一次資料『新しい花札入門』の吟味に準拠（毎局は丸めず、最後に累計を貫へ）。丸め誤差はトップに寄せてゼロサム維持。貫を使わない任天堂（点）ではONにできません。</div>';
   }
   if (kind === 'deiori') {
     if (val === 'off') return '<h5>出降り なし</h5><div class="tsub">全員参加で固定します（配札後に「降りる」を選ぶ画面は出ません）。</div>';
@@ -4759,11 +4768,10 @@ function h88Breakdown(g, teyaku) {
     if (specials.length) {                              // 双八/総八（置換）：該当者×倍率×人数を受取
       specials.forEach(sp => { addT(sp.seat, 1, [F(sp.mon)], [m, others]);
         g.seats.forEach(s => { if (s !== sp.seat) addT(s, -1, [F(sp.mon)], [m]); }); });
-    } else {                                            // 札点決着：各自(札点−88)×倍率（丸めONなら貫へ丸めた値）
-      const diffs = h88SettlePointDiffs(g, re.points), marume = h88KanFumi() && h88Rules().marume;
+    } else {                                            // 札点決着：各自(札点−88)×倍率（毎局は文で正確。丸めは最終集計で別途）
+      const diffs = h88SettlePointDiffs(g, re.points);
       g.seats.forEach(s => { const d = diffs[s];
-        if (marume) terms[s].push({ sign: d >= 0 ? 1 : -1, nums: [Math.abs(d)], factors: [m] });
-        else terms[s].push({ sign: d >= 0 ? 1 : -1, sub: d >= 0 ? [re.points[s], 88] : [88, re.points[s]], factors: [m] }); });
+        terms[s].push({ sign: d >= 0 ? 1 : -1, sub: d >= 0 ? [re.points[s], 88] : [88, re.points[s]], factors: [m] }); });
     }
   }
   if (teyaku) Object.keys(teyaku).forEach(w => {        // 手役：成立者×手役倍率×人数を受取、他は×手役倍率を支払い
@@ -4938,6 +4946,14 @@ function h88RoundOver(result) {
 // v1.69: 八八の総合結果（こいこいと同じ ge-panel スタイル・くす玉/スコアボード）
 function h88ShowMatchEnd() {
   const st = state.h88, g = st.game;
+  // ⑨最終集計の丸め（吟味）：貫流派で丸めONなら、累計を貫へ丸め（関東=五捨六入/関西=四捨五入）、誤差はトップに寄せてゼロサム維持。
+  const kf = h88KanFumi();
+  st.marumeApplied = false;
+  if (kf && h88Rules().marume) {
+    let total = 0; g.seats.forEach(s => { st.scores[s] = h88RoundToKan(st.scores[s] || 0, kf); total += st.scores[s]; });
+    if (total !== 0) { let top = g.seats[0]; g.seats.forEach(s => { if ((st.scores[s] || 0) > (st.scores[top] || 0)) top = s; }); st.scores[top] -= total; }
+    st.marumeApplied = true;
+  }
   // 順位（点の高い順）
   const ranked = g.seats.slice().sort((a, b) => (st.scores[b] || 0) - (st.scores[a] || 0));
   const topScore = st.scores[ranked[0]] || 0;
@@ -4949,7 +4965,8 @@ function h88ShowMatchEnd() {
   else if (iWin) { title.className = 'ge-title win'; title.textContent = '🎉 あなたの勝ち！'; }
   else { title.className = 'ge-title lose'; title.textContent = '優勝：' + st.names[ranked[0]]; }
   if (panel) panel.classList.toggle('win', iWin); // 勝ったときだけ くす玉
-  document.getElementById('h88-end-msg').textContent = allTie ? '全員同点でした' : (iWin ? 'おめでとうございます！' : 'また挑戦してください');
+  document.getElementById('h88-end-msg').textContent = (allTie ? '全員同点でした' : (iWin ? 'おめでとうございます！' : 'また挑戦してください'))
+    + (st.marumeApplied ? '（最終集計で累計を貫に丸めました）' : '');
   // スコアボード（順位順・首位は lead）
   const sb = document.getElementById('h88-end-scoreboard');
   sb.innerHTML = ranked.map((s, i) => {
@@ -7612,7 +7629,10 @@ function bindEvents() {
   // 個別バンドルセグ（変えるとカスタムになる）
   H88_BUNDLE_SEGS.forEach(id => { const seg = document.getElementById(id); if (!seg) return;
     seg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
-      seg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); h88SyncPresetLabel(); })); });
+      if (b.disabled) return; // 無効ボタン（貫でないときの⑨丸め等）は反応しない
+      seg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+      h88UpdateMarumeAvailability(); // ①点数を変えたら⑨丸めの可否を更新
+      h88SyncPresetLabel(); })); });
   // 吹き出し：ホバー/タッチしている間だけ表示、離すと消す（固定しない）。
   // 携帯：短いタップ＝押した(選択)／長押し(>300ms)＝触れただけ=プレビューのみ（選択は抑止）。
   let h88TipHoldStart = 0;

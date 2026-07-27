@@ -125,7 +125,7 @@
   .h88-deck{text-align:center;flex:0 0 auto;padding-top:11px;}
   .h88-deck-count{font-size:.66rem;color:var(--text-muted);margin-top:2px;}
   /* v1.72 D4: 場はこいこい(.field)と同じ「隙間なく詰めるグリッド」。サイズは --card-w。 */
-  .h88-field{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;align-content:flex-start;padding-top:11px;position:relative;}
+  .h88-field{display:flex;flex-wrap:wrap;gap:3px;justify-content:flex-start;align-content:flex-start;padding-top:11px;position:relative;}
   .h88-field .h88-field-card{width:var(--card-w,42px);transition:transform .12s;}
   .h88-field .card{width:100%;}
   /* v2.24: こいこい同様の「合わせ取り待ち（pending）」の重ね置き。対象の場札の上にずらして重ねる。 */
@@ -261,7 +261,7 @@
     /* 場は上寄せ（ステータス直下）。余った縦の隙間は自分の上に集めて自分を最下部に。 */
     #screen-hachi .h88-field-row{flex:0 1 auto;align-items:flex-start;justify-content:center;min-height:0;gap:10px;}
     #screen-hachi .h88-deck{padding-top:0;}
-    #screen-hachi .h88-field{padding-top:0;align-content:flex-start;justify-content:center;}
+    #screen-hachi .h88-field{padding-top:0;align-content:flex-start;justify-content:flex-start;}
     /* v1.84: 自分＝取り札2列(上)→手札1列(中)→[あなたの番(左)＋名前(中央)]の1行(下)。グリッドで最下行に
        「あなたの番」を左寄せで置く（縦の高さを増やさない＝取り札が場に被らない）。下寄せ(margin-top:auto)。 */
     #screen-hachi .h88-self{flex:0 0 auto;margin-top:auto;display:grid;grid-template-columns:1fr;
@@ -1315,7 +1315,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.34</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.35</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1381,7 +1381,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.34</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.35</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1508,7 +1508,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.34</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.35</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1568,7 +1568,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.34</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.35</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -4683,6 +4683,9 @@ function renderH88() {
 }
 // v1.65 item1: こいこい同様、手札ホバーで合う場札を浮かせるプレビュー（クリック不要）
 function h88PreviewField(month, on) {
+  const st = state.h88;
+  // ★自分の番（かつ所作中でない）以外は絶対に浮かせない。手番切替の瞬間に合成イベントで浮くのを抑止。
+  if (on && (!st || !st.game || st.game.currentPlayer !== 'p0' || st.game.winner || st.pending || st.drawn || st.turnBusy)) on = false;
   document.querySelectorAll('#h88-field .h88-field-card').forEach(el => {
     const id = el.dataset.id; if (!id) return;
     const m = parseInt(id.slice(1, 3), 10);

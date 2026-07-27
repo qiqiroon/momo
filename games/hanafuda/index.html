@@ -271,7 +271,7 @@
     #screen-hachi .h88-self-caps{grid-row:2;margin:0;display:flex;flex-flow:row wrap;justify-content:center;align-content:center;gap:2px 12px;}
     #screen-hachi .h88-self-caps .caprow{flex-wrap:wrap;row-gap:2px;}
     /* padding-top を margin-top のマイナスで相殺＝浮きの余白を確保しつつ占有高さは元のまま（カードが縮まない） */
-    #screen-hachi .h88-hand{grid-row:3;width:auto;max-width:100%;min-height:0;padding:20px 0 0;margin:-16px 0 0;flex-wrap:nowrap;overflow-x:auto;}
+    #screen-hachi .h88-hand{grid-row:3;width:auto;max-width:100%;min-height:0;padding:20px 0 0;margin:-16px 0 0;flex-wrap:nowrap;overflow:visible;}
   }
   /* v1.59: 音量スライダー＋右のミュートチェック */
   .vol-line{display:flex;align-items:center;gap:12px;}
@@ -1315,7 +1315,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.26</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.27</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1381,7 +1381,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.26</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.27</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1508,7 +1508,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.26</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.27</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1568,7 +1568,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.26</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.27</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -4877,10 +4877,12 @@ function h88AnimOpponentPlay() {
   const rightSeat = h88NextSeat(g, 'p0'), leftSeat = h88NextSeat(g, rightSeat);
   const seatElId = (g.lastPlay.player === rightSeat) ? 'h88-oppR' : (g.lastPlay.player === leftSeat ? 'h88-oppL' : null);
   const seatEl = seatElId && document.getElementById(seatElId);
-  // 出発点＝相手の伏せ手札の1枚（どれでもよい）。コンテナ矩形だと札の位置とずれるため実際の裏札を起点にする。
+  // 出発点＝相手の伏せ手札の1枚（どれでもよい）。最後の1枚を出した直後は裏札が0枚になるので、手札枠→席全体の順にフォールバック（ワープ防止）。
   const backCard = seatEl && seatEl.querySelector('.h88-mini-hand .card');
-  const src = backCard && backCard.getBoundingClientRect();
-  if (!src || !src.width) return; // 隠れている相手席（縦画面の非表示側）は起点が測れない＝スライド省略
+  let src = backCard && backCard.getBoundingClientRect();
+  if (!src || !src.width) { const hand = seatEl && seatEl.querySelector('.h88-mini-hand'); src = hand && hand.getBoundingClientRect(); }
+  if (!src || !src.width) { src = seatEl && seatEl.getBoundingClientRect(); }
+  if (!src || !src.width) return; // 席そのものが隠れている（縦画面の非表示側）＝起点が測れずスライド省略
   const r = el.getBoundingClientRect(); if (!r.width) return;
   const dx = src.left - r.left, dy = src.top - r.top;
   const prevPos = el.style.position, prevZ = el.style.zIndex;
@@ -4994,7 +4996,9 @@ function h88StageCollect(actor, tok) {
     g.fieldOrder = g.field.map(c => c.id);                                     // 回収跡の並びを控える
     g.fieldGhostIds = g.field.filter(c => flashIds.indexOf(c.id) >= 0).map(c => c.id); // 回収する場札＝跡地の空き
     h88CollectPending(g, actor);
+    playSfx('shu'); // 回収（場→取り札）が滑り出す音
     renderH88(); // 本物カードが場/重ね位置→取り札の行末へ滑る（跡地は空きのまま保持）
+    setTimeout(() => playSfx('pa'), Math.max(0, aMs(ANIM.dur) - 80)); // 取り札に着地する音
     setTimeout(stepSort, aMs(ANIM.dur) + 60);
   };
   const stepSort = () => {
@@ -6061,15 +6065,17 @@ function h88AnimPlay(prev) {
       if (el.closest('#h88-oppL')) { const t = dx; dx = dy; dy = -t; }       // rotate(90deg): local=(dy,-dx)
       else if (el.closest('#h88-oppR')) { const t = dx; dx = -dy; dy = t; }  // rotate(-90deg): local=(-dy,dx)
     }
-    // 移動中は前面へ浮かせる（取り札枠や場の縁に隠れないように・終わったら戻す）
+    // 移動中は最前面へ（取り札枠や場の縁・置いてある重ね札に隠れないように・空中の札は常に一番上・終わったら戻す）
     const prevPos = el.style.position, prevZ = el.style.zIndex;
     if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
-    el.style.zIndex = '500';
+    el.style.zIndex = '999';
+    const pend = el.closest('.h88-pending'); const prevPendZ = pend ? pend.style.zIndex : null; // 保留の重ね置き札は親のzで決まるので親も上げる
+    if (pend) pend.style.zIndex = '999';
     const a = el.animate([
       { transformOrigin: 'top left', transform: 'translate(' + dx + 'px,' + dy + 'px) scale(' + sc + ')' },
       { transformOrigin: 'top left', transform: 'translate(0,0) scale(1)' },
     ], { duration: dur, easing: ANIM.ease, fill: 'none' });
-    const restore = () => { el.style.position = prevPos; el.style.zIndex = prevZ; };
+    const restore = () => { el.style.position = prevPos; el.style.zIndex = prevZ; if (pend) pend.style.zIndex = prevPendZ; };
     a.finished.then(restore).catch(restore);
     setTimeout(restore, dur + 140); // タイムライン停止環境でも確実に戻す
     anims.push(a);

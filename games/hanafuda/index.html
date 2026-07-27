@@ -1315,7 +1315,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.30</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.31</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1381,7 +1381,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.30</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.31</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1508,7 +1508,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.30</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.31</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1568,7 +1568,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.30</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.31</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -4916,6 +4916,7 @@ function h88AnimPlayFromHand(idx) {
   g.hands['p0'].splice(idx, 1);
   g.playedFromHand = { player: 'p0', index: idx };
   g.lastPlay = { player: 'p0', id: card.id, ts: Date.now() }; // 音キュー用（しゅっ→着地音）
+  st._activeFlyId = card.id; // 飛んでいる主役の札＝最上位で通す
   st.turnBusy = true; // v2.24: この手番の所作が終わる（次の自分の手番）まで手札入力を止める
   if (matches.length === 0) { g.field.push(card); h88LogPlayer(g, 'p0', h88DescribeTake(card, [], false)); }
   else { h88StagePending(g, card, matches); h88LogPlayer(g, 'p0', h88DescribeTake(card, [card].concat(matches), false)); }
@@ -4932,6 +4933,7 @@ function h88AnimPickField(id) {
     const card = (hi >= 0) ? g.hands['p0'].splice(hi, 1)[0] : { id: pp.id };
     g.playedFromHand = { player: 'p0', index: pp.index };
     g.lastPlay = { player: 'p0', id: card.id, ts: Date.now() }; // 音キュー用
+    st._activeFlyId = card.id; // 飛んでいる主役の札＝最上位で通す
     g.playPick = null; st.pending = null; st.turnBusy = true; // v2.24: 所作中は手札入力を止める
     h88StagePending(g, card, chosen);
     h88LogPlayer(g, 'p0', h88DescribeTake(card, [card].concat(chosen), false));
@@ -4940,6 +4942,7 @@ function h88AnimPickField(id) {
   } else { // pick-draw
     const drawn = st.drawn;
     st.pending = null; st.drawn = null;
+    st._activeFlyId = drawn.id; // 飛んでいる主役の札＝最上位で通す
     h88StagePending(g, drawn, chosen);
     h88LogPlayer(g, 'p0', h88DescribeTake(drawn, [drawn].concat(chosen), true));
     renderH88(); // めくり札→選んだ場札の上へ FLIP。音は h88PlaySoundCues（めくり札の着地）
@@ -4963,6 +4966,7 @@ function h88StageDraw(actor, tok) {
 function h88ResolveDraw(actor, tok, drawn) {
   const st = state.h88, g = st.game;
   if (st.drawn !== drawn) return; // 既に処理済み
+  st._activeFlyId = drawn.id; // 飛んでいる主役の札＝最上位で通す（行先が場に単体でも通る間は一番上）
   const level = (st.levels && st.levels[actor]) || 'HARD';
   const claimed = new Set(); (g.pending || []).forEach(p => p.targetIds.forEach(idd => claimed.add(idd)));
   const matches = g.field.filter(c => c.month === drawn.month && !claimed.has(c.id)); // 予約済みの場札は除外
@@ -4996,6 +5000,7 @@ function h88StageCollect(actor, tok) {
   const flashIds = (g.pending || []).reduce((a, p) => a.concat(p.targetIds, p.incoming.id), []);
   const stepCollect = () => {
     if (!h88StageAlive(st, g, tok)) return;
+    st._activeFlyId = null; // 回収は全札を同等に（主役指定を解除）
     g.capFlash = { player: actor, ids: flashIds };
     g.fieldOrder = g.field.map(c => c.id);                                     // 回収跡の並びを控える
     g.fieldGhostIds = g.field.filter(c => flashIds.indexOf(c.id) >= 0).map(c => c.id); // 回収する場札＝跡地の空き
@@ -5048,6 +5053,7 @@ function h88AiStagedTurn(g, tok) {
   g.hands[actor].splice(hi, 1);
   g.playedFromHand = { player: actor, index: hi };
   g.lastPlay = { player: actor, id: card.id, ts: Date.now() }; // 相手手札→場のスライド演出用
+  st._activeFlyId = card.id; // 飛んでいる主役の札＝最上位で通す
   let took;
   if (matches.length === 0) { g.field.push(card); took = []; }
   else {
@@ -6056,6 +6062,7 @@ function h88AnimSnapshot() {
 }
 function h88AnimPlay(prev) {
   if (!prev || !prev.size) return [];
+  const st = state.h88 || {};
   const dur = aMs(ANIM.dur), anims = [];
   document.querySelectorAll('#screen-hachi .card[data-id]').forEach(el => {
     if (el.classList.contains('sel') || el.classList.contains('tmark')) return; // 選択/手役強調はCSS変形なので触らない
@@ -6073,10 +6080,12 @@ function h88AnimPlay(prev) {
     // これをしないと translate が回転座標で効いて「箱の中を横移動」に見える（場→取り札が場から飛ばない）。縦画面は rotDeg=0 で逆回転しない。
     if (rotDeg === 90) { const t = dx; dx = dy; dy = -t; }        // local=(dy,-dx)
     else if (rotDeg === -90) { const t = dx; dx = -dy; dy = t; } // local=(-dy,dx)
-    // 移動中は最前面へ（取り札枠や場の縁・置いてある重ね札に隠れないように・空中の札は常に一番上・終わったら戻す）
+    // 移動中は最前面へ（取り札枠や場の縁・置いてある重ね札に隠れないように・空中の札は常に一番上・終わったら戻す）。
+    // ★いま飛んでいる「主役の札」(出した/めくった札)は最上位(9999)にして、同時に位置がずれる重ね札(999)より必ず上を通す
+    //   ＝最終の行先が場に単体(札の下)でも、通っている間は必ず一番上を通る。
     const prevPos = el.style.position, prevZ = el.style.zIndex;
     if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
-    el.style.zIndex = '999';
+    el.style.zIndex = (st._activeFlyId && el.dataset.id === st._activeFlyId) ? '9999' : '999';
     const a = el.animate([
       { transformOrigin: 'top left', transform: 'translate(' + dx + 'px,' + dy + 'px) scale(' + sc + ')' },
       { transformOrigin: 'top left', transform: 'translate(0,0) scale(1)' },

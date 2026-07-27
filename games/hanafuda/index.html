@@ -125,9 +125,13 @@
   .h88-deck{text-align:center;flex:0 0 auto;padding-top:11px;}
   .h88-deck-count{font-size:.66rem;color:var(--text-muted);margin-top:2px;}
   /* v1.72 D4: 場はこいこい(.field)と同じ「隙間なく詰めるグリッド」。サイズは --card-w。 */
-  .h88-field{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;align-content:flex-start;padding-top:11px;}
+  .h88-field{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;align-content:flex-start;padding-top:11px;position:relative;}
   .h88-field .h88-field-card{width:var(--card-w,42px);transition:transform .12s;}
   .h88-field .card{width:100%;}
+  /* v2.24: こいこい同様の「合わせ取り待ち（pending）」の重ね置き。対象の場札の上にずらして重ねる。 */
+  .h88-field .h88-pending{position:absolute;z-index:9;width:var(--card-w,42px);}
+  .h88-field .h88-pending .card{width:100%;box-shadow:0 3px 9px rgba(0,0,0,.55);border-radius:5px;}
+  .h88-field .h88-field-card.pending-target .card{outline:2px solid var(--gold,#d8a838);outline-offset:-2px;border-radius:6px;box-shadow:0 0 8px var(--gold,#d8a838);}
   /* v1.63 B6/C9: ヒント＝選択中の手札と合う場札(match=浮かせる+金枠)／2枚から選ぶ候補(pick=橙枠・点滅) */
   .h88-field .h88-field-card.match{transform:translateY(-10px);}
   .h88-field .h88-field-card.match .card{outline:2px solid var(--gold,#d8a838);outline-offset:-2px;border-radius:6px;}
@@ -1310,7 +1314,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.24</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.25</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1376,7 +1380,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.24</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.25</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1503,7 +1507,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.24</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.25</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1563,7 +1567,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.24</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.25</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -3753,7 +3757,9 @@ function h88Build(seatIds, oyaId) {
   return { mode: 'hachi', seats: seatIds.slice(), deck: deck, field: field,
            hands: hands, caps: caps, currentPlayer: oyaId, oya: oyaId, phase: 'select-hand',
            winner: null, roundEnd: null, sage: null, bonus: h88FieldMultiplier(field),
-           dropped: [], active: null }; // ⑩出降り：dropped=降りた席・active=出た席（null＝全員参加）
+           dropped: [], active: null, // ⑩出降り：dropped=降りた席・active=出た席（null＝全員参加）
+           // v2.24: こいこい同様のアニメ用ステージ状態（headless/atomic の h88Turn は参照しない）。
+           pending: [], playPick: null, playedFromHand: null, capFlash: null, fieldOrder: null, fieldGhostIds: null };
 }
 // 場から札 card(=手札 or めくり) を同月合わせで取る。pickId は 2枚合致時の選択。
 // 0枚→場に置く / 1枚→取る / 2枚→pick / 3枚→全取り。取った札は caps[player] へ。
@@ -4074,6 +4080,38 @@ function h88PrepRenderPlayers() {
     + ['p1', 'p2'].map((s, i) =>
       '<div class="guest-row"><div class="pl guest"><small>' + t('room.guest') + '</small><span>' + t('vsai.cpu') + (i + 1) + '</span></div>' + levelSel(s) + '</div>').join('');
 }
+// v2.24: 親決めのめくり演出。3人ぶんの引き札を一人ずつ順に横回転で表返す（こいこいの flipReveal と同じ scaleX 手法）。
+//   人間が引くと他家の札も続けてめくれる（同期しためくり）。ANIM.enabled OFF なら演出せず即表向き。
+//   戻り: 全員めくり終わるまでの推定所要 ms（結果テキスト/ボタンの遅延表示に使う）。
+function h88OyaFlipReveal(containerId) {
+  const cont = document.getElementById(containerId);
+  if (!cont || !ANIM.enabled) return 0;
+  const half = Math.round(aMs(ANIM.flipDur) / 2), stagger = aMs(360);
+  const minis = Array.from(cont.querySelectorAll('.draw-slot .mini')).filter(m => m.querySelector('.card'));
+  if (!minis.length) return 0;
+  // 同期的に：全スロットの表を隠して裏を重ねる（最初の描画は全部“裏”に見える＝表のちらつき防止）
+  const items = minis.map(mini => {
+    const front = mini.querySelector('.card');
+    front.style.visibility = 'hidden';
+    const backWrap = document.createElement('span'); backWrap.innerHTML = svgBack();
+    const back = backWrap.firstChild;
+    back.style.position = 'absolute'; back.style.left = '0'; back.style.top = '0'; back.style.width = '100%'; back.style.height = '100%';
+    if (getComputedStyle(mini).position === 'static') mini.style.position = 'relative';
+    mini.appendChild(back);
+    return { front, back };
+  });
+  // 一人ずつ順に横回転で表返す
+  items.forEach((it, i) => {
+    setTimeout(() => {
+      try { playSfx('pero'); } catch (e) {}
+      const shrink = it.back.animate([{ transform: 'scaleX(1)' }, { transform: 'scaleX(0.02)' }], { duration: half, easing: 'ease-in', fill: 'forwards' });
+      const reveal = () => { try { it.back.remove(); } catch (e) {} it.front.style.visibility = ''; try { it.front.animate([{ transform: 'scaleX(0.02)' }, { transform: 'scaleX(1)' }], { duration: half, easing: 'ease-out', fill: 'none' }); } catch (e) {} };
+      shrink.finished.then(reveal).catch(reveal);
+      setTimeout(reveal, half + 80); // タイムライン停止環境でも確実に表へ
+    }, i * stagger);
+  });
+  return (items.length - 1) * stagger + aMs(ANIM.flipDur) + 40;
+}
 // v1.72 D2: 親決めスロット＝こいこいと同じ作り（draw-slot＋伏せ札 mini back＋oya-meta）。
 //   draws が無い席は伏せ札のまま。引いたら表になり月を表示。
 function h88OyaSlotsHTML(names, draws) {
@@ -4100,13 +4138,18 @@ function h88PrepDrawOya() {
   const draws = {}, usedMonth = {};
   seats.forEach(s => { let c; do { c = deck.pop(); } while (c && usedMonth[c.month]); usedMonth[c.month] = true; draws[s] = { month: c.month, id: c.id }; });
   document.getElementById('h88-prep-oya-draws').innerHTML = h88OyaSlotsHTML(names, draws);
+  const delay = h88OyaFlipReveal('h88-prep-oya-draws'); // v2.24: 3人ぶんを順にめくる
   const order = h88SeatOrder(draws); // [親, 2位, 3位]（反時計回り）
   state.h88prep = { names: names, oyaDraws: draws, seatCycle: order };
-  // v1.69: 親だけでなく2位・3位も示す＋反時計回りに座る旨
-  document.getElementById('h88-prep-oya-result').innerHTML =
-    '親：' + names[order[0]] + '<br>2位：' + names[order[1]] + '<br>3位：' + names[order[2]]
-    + '<br><span style="color:var(--text-muted);font-weight:400;">この順で反時計回りに座ります</span>';
   document.getElementById('btn-h88-prep-drawoya').classList.add('hidden');
+  const showResult = () => {
+    // v1.69: 親だけでなく2位・3位も示す＋反時計回りに座る旨
+    document.getElementById('h88-prep-oya-result').innerHTML =
+      '親：' + names[order[0]] + '<br>2位：' + names[order[1]] + '<br>3位：' + names[order[2]]
+      + '<br><span style="color:var(--text-muted);font-weight:400;">この順で反時計回りに座ります</span>';
+    updateStartBtn();
+  };
+  if (delay) setTimeout(showResult, delay); else showResult(); // v2.24: めくり終わってから結果表示
   updateStartBtn();
 }
 // 準備画面で選んだルールセット(プリセット)を読む。既定=任天堂公式。
@@ -4277,11 +4320,15 @@ function h88DrawOya() {
     usedMonth[c.month] = true; st.oyaDraws[s] = { month: c.month, id: c.id };
   });
   document.getElementById('h88-oya-draws').innerHTML = h88OyaSlotsHTML(st.names, st.oyaDraws); // v1.72 D2: こいこい同様の表返し
+  const delay = h88OyaFlipReveal('h88-oya-draws'); // v2.24: 3人ぶんを一人ずつ順にめくる
   const order = h88SeatOrder(st.oyaDraws); // [親, 2位, 3位]（反時計回り＝手番順）
   st.seatCycle = order;
-  document.getElementById('h88-oya-result').textContent = st.names[order[0]] + ' が親（先手）です';
   document.getElementById('btn-h88-drawoya').classList.add('hidden');
-  document.getElementById('btn-h88-start').classList.remove('hidden');
+  const showResult = () => {
+    document.getElementById('h88-oya-result').textContent = st.names[order[0]] + ' が親（先手）です';
+    document.getElementById('btn-h88-start').classList.remove('hidden');
+  };
+  if (delay) setTimeout(showResult, delay); else showResult(); // v2.24: めくり終わってから結果表示
 }
 function h88StartFromOya() {
   document.getElementById('ovH88Oya').classList.remove('show');
@@ -4297,6 +4344,7 @@ function h88StartRound(oyaId) {
   st.awaitP0 = false; // v2.13: 新局。あなたが親なら最初の手番で「ぴろっ」を鳴らせるようにリセット
   st.sageShown = null; // 下げトーストの重複防止フラグを新局でリセット
   st.pendingTeyaku = null;
+  st.turnBusy = false; // v2.24: 自分の一手の所作が進行中かどうか（進行中は手札を出せない）
   h88Log('──── 第' + st.roundNo + '局 開始（親：' + st.names[oyaId] + '／手番順 ' + st.seatCycle.map(s => st.names[s]).join('→') + '）');
   h88AutoFocus(); // v1.63 B4: 開始時、親が相手ならその相手を主表示に
   renderH88();
@@ -4492,19 +4540,26 @@ function h88LogPlayer(g, player, action) {
 //   八八は本格版の得点も文数（光20/種10/短5/カス1）＝種別基準なので、こいこい以上に種別分けが有効。
 //   mode: 'stack4'→4段（光/種/短/カス 各1行・相手の外端用＝幅を狭く高さを使う）
 //         'self2'→2段（自分用・こいこい配置と同じ 光種短＋カス）／'compact'→1行。
-function h88CapGroupedHTML(cards, mode) {
+function h88CapGroupedHTML(cards, mode, flashSet) {
   const groups = { hikari: [], tane: [], tan: [], kasu: [] };
-  (cards || []).forEach(c => { (groups[c.type] || groups.kasu).push(c); });
-  const cell = (label, arr) => '<span class="gl">' + label + '</span><div class="cards">'
-    + arr.map(c => svgCard(c.id, 'cap')).join('') + '</div>';
+  // v2.24: capFlash＝回収直後の札。種別無視でまず「短の器の末尾／カス欄末尾」に置き、次段で種類別へ整列（こいこい renderCap 準拠）
+  const flashTop = [], flashKasu = [];
+  (cards || []).forEach(c => {
+    if (flashSet && flashSet.has(c.id)) { (c.type === 'kasu' ? flashKasu : flashTop).push(c); }
+    else (groups[c.type] || groups.kasu).push(c);
+  });
+  const cardsHtml = arr => arr.map(c => svgCard(c.id, 'cap')).join('');
+  const cell = (label, arr, extra) => '<span class="gl">' + label + '</span><div class="cards">'
+    + cardsHtml(arr) + (extra || '') + '</div>';
   const row = (inner) => '<div class="caprow h88-caprow">' + inner + '</div>';
+  const tanX = cardsHtml(flashTop), kasuX = cardsHtml(flashKasu);
   if (mode === 'stack4') return row(cell('光', groups.hikari)) + row(cell('種', groups.tane))
-    + row(cell('短', groups.tan)) + row(cell('カス', groups.kasu));
+    + row(cell('短', groups.tan, tanX)) + row(cell('カス', groups.kasu, kasuX));
   if (mode === 'compact') return row(cell('光', groups.hikari) + cell('種', groups.tane)
-    + cell('短', groups.tan) + cell('カス', groups.kasu));
+    + cell('短', groups.tan, tanX) + cell('カス', groups.kasu, kasuX));
   // 'self2'（既定）
-  return row(cell('光', groups.hikari) + cell('種', groups.tane) + cell('短', groups.tan))
-    + row(cell('カス', groups.kasu));
+  return row(cell('光', groups.hikari) + cell('種', groups.tane) + cell('短', groups.tan, tanX))
+    + row(cell('カス', groups.kasu, kasuX));
 }
 function renderH88Seat(elId, seat) {
   const st = state.h88, g = st.game;
@@ -4518,7 +4573,8 @@ function renderH88Seat(elId, seat) {
     const face = svgCard(c.id);
     return isMark ? '<span class="h88-tmark">' + face + '</span>' : face;
   }).join('');
-  const caps = h88CapGroupedHTML(g.caps[seat], 'self2'); // v1.80: 取り札は2列（光種短／カス）
+  const capFlash = (g.capFlash && g.capFlash.player === seat) ? new Set(g.capFlash.ids) : null; // v2.24: 回収直後の札
+  const caps = h88CapGroupedHTML(g.caps[seat], 'self2', capFlash); // v1.80: 取り札は2列（光種短／カス）
   const isOya = (seat === st.roundOya);      // v1.63: 親マーク
   const dropped = !!(g.dropped && g.dropped.indexOf(seat) >= 0); // ⑩出降り：この席は降りた（手札は伏せたまま・不参加）
   const isTurn = (g.currentPlayer === seat && !g.winner) && !st.teyakuMarks && !dropped; // 手役表示中・降りた席は手番枠を出さない
@@ -4562,10 +4618,19 @@ function renderH88() {
   if (swLabel) { const other = (st.focusSeat === leftSeat) ? rightSeat : leftSeat; swLabel.textContent = st.names[st.focusSeat] + ' を表示中（他：' + st.names[other] + '）'; }
   // v1.63 B6: 場札にヒント（選択中の手札と合う月＝match／2枚選択待ち＝pick）。data-id でクリック可。
   const selCard = (st.sel != null) ? g.hands['p0'][st.sel] : null;
-  document.getElementById('h88-field').innerHTML = g.field.map(c => {
+  // v2.24: 回収した札の跡地は「整列（左寄せ）段」まで空きのまま保持（こいこい fieldOrder/fieldGhostIds 準拠）
+  const ghostSet = (g.fieldOrder && g.fieldGhostIds) ? new Set(g.fieldGhostIds) : null;
+  const fieldSeq = ghostSet
+    ? g.fieldOrder.map(id => ghostSet.has(id) ? { ghost: true } : g.field.find(c => c.id === id)).filter(Boolean)
+    : g.field;
+  // v2.24: pending（合わせ取り待ち）の対象になっている場札は金枠で強調
+  const pendTargets = new Set(); (g.pending || []).forEach(p => p.targetIds.forEach(id => pendTargets.add(id)));
+  document.getElementById('h88-field').innerHTML = fieldSeq.map(c => {
+    if (c.ghost) return '<span class="h88-field-card h88-field-gap" style="visibility:hidden">' + svgBack() + '</span>';
     let cls = 'h88-field-card';
     if (st.pending && st.pending.matches.indexOf(c.id) >= 0) cls += ' pick';
     else if (selCard && selCard.month === c.month) cls += ' match';
+    if (pendTargets.has(c.id)) cls += ' pending-target';
     return '<span class="' + cls + '" data-id="' + c.id + '">' + svgCard(c.id) + '</span>';
   }).join('');
   document.getElementById('h88-deck-count').textContent = g.deck.length;
@@ -4575,7 +4640,9 @@ function renderH88() {
                                   : (g.deck.length ? svgBack() : '');
   const p0Dropped = !!(g.dropped && g.dropped.indexOf('p0') >= 0); // ⑩出降り：あなたが降りた
   const myTurn = (g.currentPlayer === 'p0' && !g.winner && !p0Dropped);
-  const handOn = myTurn && !st.pending; // ピック中は手札操作不可
+  // v2.24: ピック中・めくり札表示中・自分の一手が進行中（出した→回収の所作の途中）は手札操作を止める
+  const p0Playing = !!(g.playedFromHand && g.playedFromHand.player === 'p0'); // 自分の staged 進行中
+  const handOn = myTurn && !st.pending && !st.drawn && !p0Playing && !st.turnBusy;
   const selfBox = document.querySelector('.h88-self'); // 自分の手番は相手と同じくオレンジ枠で強調（手役中は出さない）
   if (selfBox) { selfBox.classList.toggle('turn', myTurn && !st.teyakuMarks); selfBox.classList.toggle('h88-dropped', p0Dropped); }
   // 自分の名前・親・手番を取り札の1番上に（相手と同じ形で表示）。手役表示中は手番バッジを出さない。降りたら「降り」。
@@ -4584,14 +4651,27 @@ function renderH88() {
     (st.roundOya === 'p0' ? '<span class="h88-oya-badge">親</span>' : '')
     + youL + (st.names['p0'] !== youL ? '：' + st.names['p0'] : '')
     + (p0Dropped ? '<span class="h88-drop-badge">降り</span>' : ((myTurn && !st.teyakuMarks) ? '<span class="h88-turn-badge">あなたの番です</span>' : ''));
-  document.getElementById('h88-self-caps').innerHTML = h88CapGroupedHTML(g.caps['p0'], 'self2');
+  const p0Flash = (g.capFlash && g.capFlash.player === 'p0') ? new Set(g.capFlash.ids) : null; // v2.24: 回収直後の札
+  document.getElementById('h88-self-caps').innerHTML = h88CapGroupedHTML(g.caps['p0'], 'self2', p0Flash);
   // 自分の手札は自分には常に全部見える（伏せない）。役にかかわる札はオレンジ枠。※パネルと相手手札は伏せる。
   const selfMarks = (st.teyakuMarks && st.teyakuMarks['p0']) || [];
   const selfHandEl = document.getElementById('h88-self-hand');
-  selfHandEl.innerHTML = g.hands['p0'].map((c, i) =>
-    '<span class="h88-hand-card' + (st.sel === i ? ' sel' : '') + (selfMarks.indexOf(c.id) >= 0 ? ' tmark' : '') + '" data-idx="' + i + '"' + (handOn ? '' : ' style="cursor:default;opacity:.85"') + '>' + svgCard(c.id) + '</span>').join('');
+  selfHandEl.innerHTML = g.hands['p0'].map((c, i) => {
+    // v2.24: 2枚合致の選択待ちで浮かせている手札（playPick）は sel と同じく上げたままに
+    const lifted = st.sel === i || (g.playPick && g.playPick.player === 'p0' && g.playPick.id === c.id);
+    return '<span class="h88-hand-card' + (lifted ? ' sel' : '') + (selfMarks.indexOf(c.id) >= 0 ? ' tmark' : '') + '" data-idx="' + i + '"' + (handOn ? '' : ' style="cursor:default;opacity:.85"') + '>' + svgCard(c.id) + '</span>';
+  }).join('');
+  // v2.24: 出した札の跡地に見えない空きを残す（取り札の整列段まで手札を左寄せしない・こいこい準拠）
+  if (g.playedFromHand && g.playedFromHand.player === 'p0') {
+    const sp = document.createElement('span');
+    sp.className = 'h88-hand-card'; sp.style.visibility = 'hidden';
+    const ref = selfHandEl.children[g.playedFromHand.index] || null;
+    selfHandEl.insertBefore(sp, ref);
+  }
   fitH88Board(); // v1.72 D4: 描画のたびに実測フィット（こいこいの renderGame→fitBoard と同じ同期呼び）
+  h88RenderPendingOverlays(); // v2.24: 合わせ取り待ちの札を対象の場札の上に重ねて描く（実測フィット後の実寸で）
   if (_h88animPrev) h88AnimPlay(_h88animPrev); // FLIP: 位置の変わった札を旧位置→新位置へ滑らせる（実測フィット後の最終位置で計算）
+  h88AnimOpponentPlay(); // v2.24: 相手が手札から出した札を相手席から場へ滑らせる（新規出現＝FLIP対象外のため別演出）
   const curDrawn = st.drawn ? st.drawn.id : null; // めくり札が新規に出た瞬間だけ回転演出
   if (h88AnimEnabled() && curDrawn && curDrawn !== st._lastDrawnId) h88FlipReveal();
   st._lastDrawnId = curDrawn;
@@ -4610,6 +4690,7 @@ function h88OnClickHand(idx) {
   const st = state.h88; if (!st || !st.game) return;
   const g = st.game;
   if (g.currentPlayer !== 'p0' || g.winner || st.pending || st.drawn) return; // ピック中・めくり札表示中は手札操作不可
+  if (st.turnBusy || (g.playedFromHand && g.playedFromHand.player === 'p0')) return; // v2.24: 自分の一手の所作が進行中は次の札を出せない
   if (st.sel === idx) { hideCardBubble(); st.sel = null; h88HumanPlayHand(idx); } // 2度目＝出す
   else {                                                             // 1度目＝選択＋ヒント＋札名
     st.sel = idx; renderH88();
@@ -4619,6 +4700,8 @@ function h88OnClickHand(idx) {
 }
 function h88HumanPlayHand(idx) {
   const st = state.h88, g = st.game;
+  if (h88AnimEnabled()) { h88AnimPlayFromHand(idx); return; } // v2.24: アニメON＝こいこいと同じ pending 所作
+  // ---- 従来（アニメOFF）：即取り ----
   const card = g.hands['p0'].splice(idx, 1)[0];
   if (!card) return;
   playSfx('shu'); // v1.63 C13: 手札を出す
@@ -4631,14 +4714,15 @@ function h88HumanPlayHand(idx) {
   h88LogPlayer(g, 'p0', h88DescribeTake(card, took, false));
   renderH88(); // 出した札→（取り札 or 場）へ FLIP
   setTimeout(() => playSfx(took.length ? 'bishi' : 'pa'), 140);
-  if (h88AnimEnabled()) setTimeout(() => { if (state.h88 === st && st.game === g && !g.winner) h88HumanDrawStep(); }, aMs(ANIM.beat)); // 間をおいて山めくり
-  else h88HumanDrawStep();
+  h88HumanDrawStep();
 }
 // 場札クリック（2枚合致のとき、どちらを取るか選ぶ）
 function h88OnClickField(id) {
   const st = state.h88; if (!st || !st.game || !st.pending) return;
   const g = st.game, p = st.pending;
   if (p.matches.indexOf(id) < 0) return; // 候補以外は無視
+  if (h88AnimEnabled()) { h88AnimPickField(id); return; } // v2.24: アニメON＝pending 所作で続行
+  // ---- 従来（アニメOFF）：即取り ----
   const took = h88Capture(g, 'p0', p.card, id);
   playSfx('bishi');
   h88LogPlayer(g, 'p0', h88DescribeTake(p.card, took, p.stage === 'pick-draw'));
@@ -4714,13 +4798,14 @@ function h88MaybeAi() {
   const g = st.game;
   if (g.winner) return;
   if (g.currentPlayer === 'p0') { // v2.13: あなたの手番になったら こいこい同様「ぴろっ」を1回だけ鳴らす
+    st.turnBusy = false; // v2.24: 新しい自分の手番＝入力受付を再開（前の一手の所作は完了済み）
     if (!st.awaitP0) { playSfx('piro'); st.awaitP0 = true; }
     return;
   }
   st.awaitP0 = false; // AIの手番＝次にあなたの番が来たら再び鳴らせるようリセット
   h88AutoFocus(); renderH88(); // v1.63 B4: 現手番のAIを主表示に
   const tok = ++st.aiToken;
-  if (h88AnimEnabled()) { setTimeout(() => h88AiTurnAnimated(g, tok), aMs(ANIM.beat)); return; } // アニメON＝段階化して見せる
+  if (h88AnimEnabled()) { setTimeout(() => h88AiStagedTurn(g, tok), aMs(ANIM.beat)); return; } // アニメON＝段階化して見せる（こいこい同型の pending 所作）
   // アニメOFF（従来）：一括処理
   setTimeout(() => {
     if (!state.h88 || state.h88 !== st || tok !== st.aiToken || g.winner) return;
@@ -4740,54 +4825,234 @@ function h88MaybeAi() {
     h88MaybeAi();
   }, 750);
 }
-// AIの手番をこいこい風に段階化して見せる（ロジックは h88Turn と同順：手札を出す→取る→間→山めくり回転→取る→役判定）。
-function h88AiTurnAnimated(g, tok) {
-  const st = state.h88;
-  const alive = () => state.h88 === st && st.game === g && tok === st.aiToken && !g.winner;
-  if (!alive()) return;
-  const actor = g.currentPlayer, level = (st.levels && st.levels[actor]) || 'HARD';
-  const hi = h88AiChooseHand(g, actor, level);
-  const card = g.hands[actor].splice(hi, 1)[0];
-  if (!card) { g.currentPlayer = h88NextSeat(g, actor); h88AutoFocus(); renderH88(); h88MaybeAi(); return; }
-  playSfx('shu');
-  const ms1 = h88MonthMatches(g.field, card.month);
-  const took1 = h88Capture(g, actor, card, h88NeedPick(ms1) ? h88AiPickField(ms1, g, actor, level) : null);
-  h88LogPlayer(g, actor, h88DescribeTake(card, took1, false));
-  renderH88(); // 出した札→（取り札 or 場）へ FLIP
-  setTimeout(() => playSfx(took1.length ? 'bishi' : 'pa'), 140);
-  setTimeout(() => { // 間をおいて山めくり
-    if (!alive()) return;
-    if (!g.deck.length) { h88AiTurnFinish(g, tok, actor); return; }
-    const dc = g.deck.shift();
-    st.drawn = dc; renderH88(); // めくり札を山の右に表向き＋回転演出
-    setTimeout(() => {
-      if (!alive()) return;
-      const ms2 = h88MonthMatches(g.field, dc.month);
-      const took2 = h88Capture(g, actor, dc, h88NeedPick(ms2) ? h88AiPickField(ms2, g, actor, level) : null);
-      h88LogPlayer(g, actor, h88DescribeTake(dc, took2, true));
-      st.drawn = null; renderH88(); // めくり札→（取り札 or 場）へ FLIP
-      setTimeout(() => playSfx(took2.length ? 'bishi' : 'pa'), 140);
-      setTimeout(() => h88AiTurnFinish(g, tok, actor), aMs(ANIM.dur) + 80);
-    }, aMs(ANIM.flipDur + ANIM.hold));
-  }, aMs(ANIM.beat));
+// ── v2.24: 八八の一手をこいこい(applyPlayCard〜collectAndYaku)と同じ所作で見せる pending モデル ──
+// 手札→場に重ね置き(pending)→間→山めくり回転→めくり札を場に重ね置き→まとめて取り札へ(最後に)→種類別整列。
+// ロジック(取る札・役・精算)は不変。演出の段取りだけをこいこいに揃える。ローカル完結（オンライン同期コードは足さない）。
+function h88StageAlive(st, g, tok) { return state.h88 === st && st.game === g && tok === st.aiToken && !g.winner; }
+function h88StagePending(g, incoming, targetCards) {
+  if (!g.pending) g.pending = [];
+  g.pending.push({ incoming: incoming, targetIds: targetCards.map(c => c.id) });
 }
-function h88AiTurnFinish(g, tok, actor) {
-  const st = state.h88;
-  if (!(state.h88 === st && st.game === g && tok === st.aiToken && !g.winner)) return;
+// pending をまとめて取り札へ移す（対象の場札＋重ねた札を player の取り札へ）。こいこい collectPending 同型。
+function h88CollectPending(g, player) {
+  (g.pending || []).forEach(p => {
+    p.targetIds.forEach(tid => { const i = g.field.findIndex(c => c.id === tid); if (i >= 0) g.caps[player].push(g.field.splice(i, 1)[0]); });
+    g.caps[player].push(p.incoming);
+  });
+  g.pending = [];
+}
+// pending の札を対象の場札の上にずらして重ねて描く（こいこい renderPendingOverlays 同型・fitH88Board 後の実寸で）。
+function h88RenderPendingOverlays() {
+  const g = state.h88 && state.h88.game;
+  const fld = document.getElementById('h88-field');
+  if (!g || !fld) return;
+  fld.querySelectorAll('.h88-pending').forEach(el => el.remove()); // 保険
+  if (!g.pending || !g.pending.length) return;
+  const cw = parseFloat(getComputedStyle(document.getElementById('screen-hachi')).getPropertyValue('--card-w')) || 42;
+  const off = Math.round(cw * 0.26);
+  const fldRect = fld.getBoundingClientRect();
+  g.pending.forEach(p => {
+    const s = document.createElement('span');
+    s.className = 'h88-pending';
+    s.innerHTML = svgCard(p.incoming.id, 'pending');
+    const targetEl = fld.querySelector('.h88-field-card[data-id="' + p.targetIds[0] + '"]');
+    if (targetEl) {
+      const tr = targetEl.getBoundingClientRect();
+      s.style.left = (tr.left - fldRect.left + off) + 'px';
+      s.style.top = (tr.top - fldRect.top + off) + 'px';
+    } else { s.style.left = '0px'; s.style.top = '0px'; }
+    fld.appendChild(s);
+  });
+}
+// 相手が手札から出した札を、相手席の手札位置から場へ滑らせる（こいこい animOpponentPlay 相当・回転席は等倍スライド）。
+function h88AnimOpponentPlay() {
+  const st = state.h88; if (!st || !st.game || !h88AnimEnabled()) return;
+  const g = st.game;
+  if (!g.lastPlay || g.lastPlay.player === 'p0') return;
+  if (g.lastPlay.ts <= (ANIM._h88LastPlayTs || 0)) return;
+  ANIM._h88LastPlayTs = g.lastPlay.ts;
+  const el = document.querySelector('#h88-field .card[data-id="' + g.lastPlay.id + '"]');
+  if (!el) return;
+  const rightSeat = h88NextSeat(g, 'p0'), leftSeat = h88NextSeat(g, rightSeat);
+  const seatElId = (g.lastPlay.player === rightSeat) ? 'h88-oppR' : (g.lastPlay.player === leftSeat ? 'h88-oppL' : null);
+  const seatEl = seatElId && document.getElementById(seatElId);
+  const hand = seatEl && seatEl.querySelector('.h88-mini-hand');
+  const src = hand && hand.getBoundingClientRect();
+  if (!src || !src.width) return; // 隠れている相手席（縦画面の非表示側）は起点が測れない＝スライド省略
+  const r = el.getBoundingClientRect(); if (!r.width) return;
+  const dx = src.left - r.left, dy = src.top - r.top;
+  const prevPos = el.style.position, prevZ = el.style.zIndex;
+  if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
+  el.style.zIndex = '500';
+  el.animate([
+    { transformOrigin: 'top left', transform: 'translate(' + dx + 'px,' + dy + 'px)' },
+    { transformOrigin: 'top left', transform: 'translate(0,0)' },
+  ], { duration: aMs(ANIM.dur), easing: ANIM.ease });
+  const restore = () => { el.style.position = prevPos; el.style.zIndex = prevZ; };
+  setTimeout(restore, aMs(ANIM.dur) + 140);
+}
+// 人間 p0 が手札を出す（アニメON）。2枚合致は場札クリック待ちへ（こいこい applyPlayCard 同型）。
+function h88AnimPlayFromHand(idx) {
+  const st = state.h88, g = st.game, tok = st.aiToken;
+  const card = g.hands['p0'][idx];
+  if (!card) return;
+  playSfx('shu');
+  const matches = h88MonthMatches(g.field, card.month);
+  if (h88NeedPick(matches)) { // 手札に残して浮かせたまま、場札の選択を待つ（こいこい playPick）
+    g.playPick = { player: 'p0', id: card.id, index: idx };
+    st.pending = { stage: 'pick-hand', matches: matches.map(c => c.id) };
+    renderH88(); return;
+  }
+  g.hands['p0'].splice(idx, 1);
+  g.playedFromHand = { player: 'p0', index: idx };
+  st.turnBusy = true; // v2.24: この手番の所作が終わる（次の自分の手番）まで手札入力を止める
+  if (matches.length === 0) { g.field.push(card); h88LogPlayer(g, 'p0', h88DescribeTake(card, [], false)); }
+  else { h88StagePending(g, card, matches); h88LogPlayer(g, 'p0', h88DescribeTake(card, [card].concat(matches), false)); }
+  renderH88(); // 出した札→場（重ね置き or 単独）へ FLIP
+  setTimeout(() => playSfx(matches.length ? 'bishi' : 'pa'), 140);
+  h88StageDraw('p0', tok);
+}
+// 2枚合致の場札選択後の続行（アニメON）。pick-hand は続けて山めくりへ、pick-draw は回収へ。
+function h88AnimPickField(id) {
+  const st = state.h88, g = st.game, p = st.pending, tok = st.aiToken;
+  const chosen = g.field.filter(c => c.id === id); // 選んだ場札（1枚）
+  if (p.stage === 'pick-hand') {
+    const pp = g.playPick;
+    const hi = g.hands['p0'].findIndex(c => c.id === pp.id);
+    const card = (hi >= 0) ? g.hands['p0'].splice(hi, 1)[0] : { id: pp.id };
+    g.playedFromHand = { player: 'p0', index: pp.index };
+    g.playPick = null; st.pending = null; st.turnBusy = true; // v2.24: 所作中は手札入力を止める
+    h88StagePending(g, card, chosen);
+    h88LogPlayer(g, 'p0', h88DescribeTake(card, [card].concat(chosen), false));
+    playSfx('bishi');
+    renderH88(); // 浮かせていた手札→選んだ場札の上へ FLIP
+    h88StageDraw('p0', tok);
+  } else { // pick-draw
+    const drawn = st.drawn;
+    st.pending = null; st.drawn = null;
+    h88StagePending(g, drawn, chosen);
+    h88LogPlayer(g, 'p0', h88DescribeTake(drawn, [drawn].concat(chosen), true));
+    playSfx('bishi');
+    renderH88(); // めくり札→選んだ場札の上へ FLIP
+    h88StageCollect('p0', tok);
+  }
+}
+// 手札を場に置いてから間をおいて山をめくる（こいこい proceedToDraw 同型）。
+function h88StageDraw(actor, tok) {
+  const st = state.h88, g = st.game;
+  const doFlip = () => {
+    if (!h88StageAlive(st, g, tok)) return;
+    if (!g.deck.length) { h88StageCollect(actor, tok); return; } // 山切れ＝めくらず回収へ
+    const dc = g.deck.shift();
+    st.drawn = dc;
+    playSfx('pero'); // 山をめくる
+    renderH88(); // 山の頂上にめくり札 → h88FlipReveal（横回転）
+    setTimeout(() => h88ResolveDraw(actor, tok, dc), aMs(ANIM.flipDur + ANIM.hold));
+  };
+  setTimeout(doFlip, aMs(ANIM.beat));
+}
+// めくり札の帰結（こいこい resolveDraw 同型）。合致なし＝場へ／合致＝重ね置き（2枚は選択待ち）。
+function h88ResolveDraw(actor, tok, drawn) {
+  const st = state.h88, g = st.game;
+  if (st.drawn !== drawn) return; // 既に処理済み
   const level = (st.levels && st.levels[actor]) || 'HARD';
-  let r = 'next';
+  const claimed = new Set(); (g.pending || []).forEach(p => p.targetIds.forEach(idd => claimed.add(idd)));
+  const matches = g.field.filter(c => c.month === drawn.month && !claimed.has(c.id)); // 予約済みの場札は除外
+  const needPick = h88NeedPick(matches);
+  if (matches.length === 0) {
+    g.field.push(drawn); st.drawn = null;
+    h88LogPlayer(g, actor, h88DescribeTake(drawn, [], true));
+    renderH88(); playSfx('pa');
+    h88StageCollect(actor, tok);
+  } else if (!needPick) { // 1枚合致 or 場三ONの3枚総取り
+    h88StagePending(g, drawn, matches); st.drawn = null;
+    h88LogPlayer(g, actor, h88DescribeTake(drawn, [drawn].concat(matches), true));
+    renderH88(); playSfx('bishi');
+    h88StageCollect(actor, tok);
+  } else if (actor === 'p0') { // 2枚合致＝人間は場札クリック待ち（めくり札は表示継続）
+    st.pending = { stage: 'pick-draw', matches: matches.map(c => c.id) };
+    renderH88(); return;
+  } else { // AI は自動選択
+    const pid = h88AiPickField(matches, g, actor, level);
+    const chosen = matches.filter(c => c.id === pid);
+    h88StagePending(g, drawn, chosen); st.drawn = null;
+    h88LogPlayer(g, actor, h88DescribeTake(drawn, [drawn].concat(chosen), true));
+    renderH88(); playSfx('bishi');
+    h88StageCollect(actor, tok);
+  }
+}
+// 手番の締め＝重ね置きを見せ→回収（種別無視で行末へ）→種類別整列＋場詰め＋手札詰め→役判定（こいこい collectAndYaku 同型）。
+function h88StageCollect(actor, tok) {
+  const st = state.h88, g = st.game;
+  const hasPending = g.pending && g.pending.length;
+  const flashIds = (g.pending || []).reduce((a, p) => a.concat(p.targetIds, p.incoming.id), []);
+  const stepCollect = () => {
+    if (!h88StageAlive(st, g, tok)) return;
+    g.capFlash = { player: actor, ids: flashIds };
+    g.fieldOrder = g.field.map(c => c.id);                                     // 回収跡の並びを控える
+    g.fieldGhostIds = g.field.filter(c => flashIds.indexOf(c.id) >= 0).map(c => c.id); // 回収する場札＝跡地の空き
+    h88CollectPending(g, actor);
+    renderH88(); // 本物カードが場/重ね位置→取り札の行末へ滑る（跡地は空きのまま保持）
+    setTimeout(stepSort, aMs(ANIM.dur) + 60);
+  };
+  const stepSort = () => {
+    if (!h88StageAlive(st, g, tok)) return;
+    g.capFlash = null; g.playedFromHand = null; g.fieldOrder = null; g.fieldGhostIds = null;
+    renderH88(); // FLIP: 行末→種類別＋場の左寄せ＋手札の左寄せ（同時）
+    setTimeout(() => h88AfterTurn(actor, tok), aMs(ANIM.dur + 80));
+  };
+  if (hasPending) setTimeout(stepCollect, aMs(ANIM.hold + 240));
+  else { g.playedFromHand = null; renderH88(); h88AfterTurn(actor, tok); } // 取りなし＝手札詰めだけして次へ
+}
+// 役判定＋手番の受け渡し（こいこい proceedYakuCheck/endTurn 同型・八八の下げ/局終了に対応）。
+function h88AfterTurn(actor, tok) {
+  const st = state.h88, g = st.game;
+  if (!h88StageAlive(st, g, tok)) return;
+  const level = (st.levels && st.levels[actor]) || 'HARD';
+  const human = (actor === 'p0');
   const y = h88ComputeYaku(g.caps[actor]), yt = yakuTotal(y);
-  if (yt > 0) { const rr = h88OnYakuFormed(g, actor, y, yt, level, false); if (rr === 'win') r = 'win'; } // 'sage'/null は継続
-  if (r !== 'win' && g.hands[actor].length === 0 && (g.active || g.seats).every(s => g.hands[s].length === 0)) { h88FinishRound(g); r = 'draw'; }
-  renderH88();
-  if (g.sage && g.sage.seat === actor) { // 下げトースト
+  if (yt > 0) {
+    const r = h88OnYakuFormed(g, actor, y, yt, level, human);
+    if (r === 'win') { renderH88(); h88RoundOver('win'); return; }
+    if (r === 'ask') { renderH88(); h88AskSage(g, y, yt); return; } // 人間：上がる/下げるをモーダルで
+    // 'sage' / null → 継続
+  }
+  if (g.sage && g.sage.seat === actor) { // このプレイヤーが下げた（新規）ならトースト
     const key = g.sage.seat + ':' + g.sage.total;
     if (st.sageShown !== key) { st.sageShown = key; h88SageToast(st.names[actor]); playSfx('koikoi'); h88Log('◇ ' + st.names[actor] + ' 下げ（続行）'); }
   }
-  if (r === 'win' || r === 'draw') { h88RoundOver(r); return; }
+  const act = g.active || g.seats;
+  if (g.hands[actor].length === 0 && act.every(s => g.hands[s].length === 0)) { h88FinishRound(g); renderH88(); h88RoundOver('draw'); return; }
+  st.sel = null;
   g.currentPlayer = h88NextSeat(g, actor);
   h88AutoFocus(); renderH88();
   h88MaybeAi();
+}
+// AIの手番（アニメON）：手札を1枚選んで出し、以降の所作(めくり→回収→整列)は人間と共通。
+function h88AiStagedTurn(g, tok) {
+  const st = state.h88;
+  if (!h88StageAlive(st, g, tok)) return;
+  const actor = g.currentPlayer, level = (st.levels && st.levels[actor]) || 'HARD';
+  const hi = h88AiChooseHand(g, actor, level);
+  const card = g.hands[actor][hi];
+  if (!card) { g.currentPlayer = h88NextSeat(g, actor); h88AutoFocus(); renderH88(); h88MaybeAi(); return; }
+  playSfx('shu');
+  const matches = h88MonthMatches(g.field, card.month);
+  g.hands[actor].splice(hi, 1);
+  g.playedFromHand = { player: actor, index: hi };
+  g.lastPlay = { player: actor, id: card.id, ts: Date.now() }; // 相手手札→場のスライド演出用
+  let took;
+  if (matches.length === 0) { g.field.push(card); took = []; }
+  else {
+    let chosen;
+    if (h88NeedPick(matches)) { const pid = h88AiPickField(matches, g, actor, level); chosen = matches.filter(c => c.id === pid); }
+    else chosen = matches.slice();
+    h88StagePending(g, card, chosen); took = [card].concat(chosen);
+  }
+  h88LogPlayer(g, actor, h88DescribeTake(card, took, false));
+  renderH88(); // 出した札→場（重ね置き or 単独）へ（相手席からのスライドは h88AnimOpponentPlay）
+  setTimeout(() => playSfx(took.length ? 'bishi' : 'pa'), 140);
+  h88StageDraw(actor, tok);
 }
 // 局終了の各席の増減を「見える数字だけの式」に分解（Q1-A: 掛け算・倍率・人数も全部式に出す）。
 // 返り: {seat:[{sign,nums,factors} | {sign,sub:[a,b],factors}]}。nums=和にする素点／sub=札点差(a-b)。
@@ -5640,6 +5905,7 @@ const ANIM = {
   _skipFlip: null,    // v1.31: この id 群は FLIP しない（別演出で動かすため・現状未使用）
   _collectIds: null,  // v1.34: 回収中の札は移動中に前面へ浮かせる（取り札枠の外でも他札に隠れない）
   _lastPlayTs: 0,     // v1.35: 相手の手札→場の演出を一度だけ出すための直前タイムスタンプ
+  _h88LastPlayTs: 0,  // v2.24: 八八の相手手札→場スライドを一度だけ出すための直前タイムスタンプ
 };
 // v1.35: 相手が手札から出した札を、相手手札の位置から場へ滑らせる（本物カードを動かす＝確実に描画）。
 // 伏せ札をめくる演出は無し。何枚目だったかは問わず、相手手札の左端の位置から出す。
@@ -5802,33 +6068,59 @@ function h88AnimPlay(prev) {
   });
   return anims;
 }
-// 局開始の配りアニメ（八八・こいこいの runDeal 相当）。各札を伏せ→配り順に飛び出し表示。回転席にも安全な scale+rise。done は配り終了後に呼ぶ。
+// 局開始の配りアニメ（八八・こいこいの runDeal 相当）。八八の配り順を再現：
+//   1回目＝親3枚→(反時計回りに)各家3枚→場3枚。2回目＝親から各家4枚→場3枚（手札7・場6）。
+//   親側の画面外中央から札束をグループごとに飛ばす（p0手札・場は screen 空間でスライド）。
+//   相手席は横画面で90°回転しており screen 空間の translate が効かないため、その場で scale+rise（回転に安全）。
 function h88RunDeal(done) {
-  const st = state.h88;
-  if (!h88AnimEnabled()) { if (done) done(); return; }
-  const order = [];
-  document.querySelectorAll('#h88-self-hand .card').forEach(el => order.push(el));
-  document.querySelectorAll('#h88-field .card').forEach(el => order.push(el));
-  document.querySelectorAll('.h88-seat .h88-mini-hand .card').forEach(el => order.push(el));
-  if (order.length < 10) { if (done) done(); return; } // 配り札が揃ってなければアニメ省略
-  const dur = aMs(ANIM.dealFly), gap = Math.max(30, Math.round(aMs(ANIM.dealGap) / 4));
+  const st = state.h88, g = st && st.game;
+  if (!g || !h88AnimEnabled()) { if (done) done(); return; }
+  const rightSeat = h88NextSeat(g, 'p0'), leftSeat = h88NextSeat(g, rightSeat);
+  const seatHandEls = (seat) => {
+    if (seat === 'p0') return Array.from(document.querySelectorAll('#h88-self-hand .h88-hand-card'));
+    const id = (seat === rightSeat) ? 'h88-oppR' : (seat === leftSeat ? 'h88-oppL' : null);
+    const el = id && document.getElementById(id);
+    return el ? Array.from(el.querySelectorAll('.h88-mini-hand .card')) : [];
+  };
+  const order = g.seats; // seatCycle = 親→2位→3位（反時計回り＝手番順）
+  const handEls = {}; order.forEach(s => handEls[s] = seatHandEls(s));
+  const fieldEls = Array.from(document.querySelectorAll('#h88-field .h88-field-card'));
+  if (order.some(s => handEls[s].length < 7) || fieldEls.length < 6) { if (done) done(); return; } // 揃ってなければ省略
+  // 配りグループ：R1(親3→2位3→3位3→場3) → R2(親4→2位4→3位4→場3)
+  const groups = [];
+  order.forEach(s => groups.push(handEls[s].slice(0, 3)));
+  groups.push(fieldEls.slice(0, 3));
+  order.forEach(s => groups.push(handEls[s].slice(3, 7)));
+  groups.push(fieldEls.slice(3, 6));
+  const all = []; groups.forEach(gr => gr.forEach(el => all.push(el)));
+  all.forEach(el => { el.style.visibility = 'hidden'; });
+  const dur = aMs(ANIM.dealFly), gap = aMs(ANIM.dealGap);
   const tok = (st.dealToken = (st.dealToken || 0) + 1); // 配り中の中断検出
-  order.forEach(el => { el.style.visibility = 'hidden'; });
-  let last = 0;
-  order.forEach((el, i) => {
-    const d = i * gap; last = d;
-    setTimeout(() => {
-      if (!state.h88 || state.h88 !== st || tok !== st.dealToken) return;
-      el.style.visibility = '';
-      try { el.animate([{ transform: 'scale(.25) translateY(-28px)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: dur, easing: ANIM.ease, fill: 'none' }); } catch (e) {}
-      if (i % 4 === 0) { try { playSfx('pa'); } catch (e) {} } // 配りのパタパタ音（4枚ごと）
-    }, d);
+  const dealerAtTop = (g.oya !== 'p0'); // 相手が親なら上側から、あなたが親なら下側から配る
+  const startX = window.innerWidth / 2, startY = dealerAtTop ? -140 : window.innerHeight + 140;
+  const flyIn = (els) => els.forEach(el => {
+    el.style.visibility = '';
+    if (el.closest('.h88-seat-rot')) { // 相手席（回転しうる）＝その場で scale+rise（screen translate は回転で狂うため）
+      try { el.animate([{ transform: 'scale(.28) translateY(-22px)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: dur, easing: ANIM.ease, fill: 'none' }); } catch (e) {}
+      return;
+    }
+    const r = el.getBoundingClientRect();
+    if (!r.width) return;
+    const dx = startX - r.left, dy = startY - r.top;
+    try {
+      el.animate([
+        { transformOrigin: 'top left', transform: 'translate(' + dx + 'px,' + dy + 'px)' },
+        { transformOrigin: 'top left', transform: 'translate(0,0)' },
+      ], { duration: dur, easing: ANIM.ease, fill: 'backwards' });
+    } catch (e) {}
   });
+  let tAcc = 0;
+  groups.forEach((grp) => { setTimeout(() => { if (!(state.h88 === st && st.game === g && tok === st.dealToken)) return; flyIn(grp); try { playSfx('pa'); } catch (e) {} }, tAcc); tAcc += gap; });
   setTimeout(() => {
-    if (!state.h88 || state.h88 !== st || tok !== st.dealToken) return;
-    order.forEach(el => { el.style.visibility = ''; }); // 念のため全表示に戻す
+    if (!(state.h88 === st && st.game === g && tok === st.dealToken)) return;
+    all.forEach(el => { el.style.visibility = ''; }); // 念のため全表示に戻す
     if (done) done();
-  }, last + dur + 40);
+  }, tAcc + dur + 40);
 }
 // めくり札の回転演出（八八・山の右に出るめくり札に対して）。こいこいの flipReveal と同じ scaleX 手法。
 function h88FlipReveal() {

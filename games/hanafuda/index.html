@@ -234,7 +234,8 @@
     /* 相手セル＝盤の左右の外辺に全高で絶対配置。回転は内側 .h88-seat-rot で。
        （縦画面用の .h88-seat{display:none} を id 指定で上書きして両方表示） */
     #screen-hachi #h88-oppL,#screen-hachi #h88-oppR{display:block;position:absolute;top:0;bottom:0;width:var(--side-w,128px);
-      overflow:hidden;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:0;}
+      overflow:visible;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:0;}
+      /* v2.28: 取り札枠を切らない（こいこいと同じ方法）。場→取り札へ飛ぶ札が枠の外を通る間もクリップされないように */
     #screen-hachi #h88-oppL{left:0;}
     #screen-hachi #h88-oppR{right:0;}
     #screen-hachi #h88-oppL.turn,#screen-hachi #h88-oppR.turn{border-color:var(--orange);box-shadow:inset 0 0 0 1px var(--orange);}
@@ -1315,7 +1316,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.27</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.28</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1381,7 +1382,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.27</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.28</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1508,7 +1509,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.27</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.28</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1568,7 +1569,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.27</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.28</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>

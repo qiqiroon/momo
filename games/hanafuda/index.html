@@ -1303,7 +1303,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.22</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.23</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1369,7 +1369,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.22</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.23</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1443,7 +1443,7 @@
     <div class="set-row"><span>⑥手役×場倍率</span><span class="seg" id="h88-b-teyakumul"><button data-v="on">ON</button><button data-v="off">OFF</button></span></div>
     <div class="set-row"><span>⑧下げ（継続宣言）</span><span class="seg" id="h88-b-sage"><button class="on h88-tip" data-v="off" data-tip="sage:off">なし</button><button class="h88-tip" data-v="nintendo" data-tip="sage:nintendo">任天堂式</button><button class="h88-tip" data-v="kanto" data-tip="sage:kanto">関東式</button><button class="h88-tip" data-v="kansai" data-tip="sage:kansai">関西式</button></span></div>
     <div class="set-row"><span>⑨丸め（札点差→貫の端数）</span><span class="seg" id="h88-b-marume"><button class="on h88-tip" data-v="off" data-tip="marume:off">なし</button><button class="h88-tip" data-v="on" data-tip="marume:on">あり</button></span></div>
-    <div class="set-row h88-reserved"><span>⑩出降り（関西式・縛りなし）</span><span class="seg"><button disabled>準備中</button></span></div>
+    <div class="set-row"><span>⑩出降り（関西式・縛りなし）</span><span class="seg" id="h88-b-deiori"><button class="on h88-tip" data-v="off" data-tip="deiori:off">なし</button><button class="h88-tip" data-v="on" data-tip="deiori:on">あり</button></span></div>
     <div id="h88-tip-bubble" class="h88-tip-bubble" hidden></div>
     <!-- v1.68 C3: 3人で親決め（準備室で引く） -->
     <div class="section-label" style="margin:14px 0 8px;"><span data-i18n="oya.title">先手（親）を決める</span></div>
@@ -1496,7 +1496,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.22</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.23</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1556,7 +1556,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.22</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.23</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -3502,7 +3502,8 @@ function h88PresetRules(preset) {
   const p = (preset === 'kanto' || preset === 'kansai') ? preset : 'nintendo';
   return { pointStyle: p, yakuSet: (p === 'nintendo' ? 'nintendo' : 'classic'),
            fieldMul: true, redeal: true, sweep3: true, teyakuFieldMul: true, sage: p, // 下げは標準ルール＝プリセット流派に連動（「なし」はカスタム）
-           marume: false }; // ⑨丸め（札点差→貫の端数を丸める）。既定なし＝端数の文もそのまま精算
+           marume: false, // ⑨丸め（札点差→貫の端数を丸める）。既定なし＝端数の文もそのまま精算
+           deiori: false }; // ⑩出降り（関西式・縛りなし）。既定なし＝全員参加固定（有効化すると出降りフェーズを挿入）
 }
 const H88_DEFAULT_RULES = h88PresetRules('nintendo');
 // 現在の有効ルール。state.h88.rules があればそれ、無ければ旧 state.h88.preset から導出、最後に既定。
@@ -3701,21 +3702,28 @@ function h88SettleTeyaku(g, scores, defs) {
 function h88ComputeTeyakuResults(g, defs) {
   defs = defs || h88TeyakuDefs();
   const results = {};
-  g.seats.forEach(s => { const ty = h88ComputeTeyaku(g.hands[s], defs); if (ty) results[s] = ty; });
+  (g.active || g.seats).forEach(s => { const ty = h88ComputeTeyaku(g.hands[s], defs); if (ty) results[s] = ty; }); // ⑩出降り時は出ている席のみ
   return Object.keys(results).length ? results : null;
 }
 // 保持していた手役結果を局終了で scores に適用（⑥に従い場倍率を掛ける）。使った倍率を返す。
 function h88ApplyTeyakuSettle(g, scores, results) {
-  const m = h88Rules().teyakuFieldMul ? (g.bonus || 1) : 1;
+  const ninin = !!(g.active && g.active.length === 2), kf = h88DeioriKanFumi();
+  const m = ninin ? 1 : (h88Rules().teyakuFieldMul ? (g.bonus || 1) : 1); // ⑩二人勝負の当事者間は場倍率なし（原文どおり固定の貫）
   if (!results) return m;
+  const act = g.active || g.seats;
   Object.keys(results).forEach(w => {
-    const gain = h88MonToFumi(results[w].mon) * m; // 手役の値を文へ換算（貫流派は×1貫の文数）
-    g.seats.forEach(o => { if (o !== w) { scores[w] = (scores[w] || 0) + gain; scores[o] = (scores[o] || 0) - gain; } });
+    if (act.indexOf(w) < 0) return; // 降りた人の手役は無効
+    let base = h88MonToFumi(results[w].mon); // 手役の値を文へ換算（貫流派は×1貫の文数）
+    if (ninin && results[w].key === 'teyaku.karasu') base += kf; // ⑩二人勝負＝空巣は1貫増し（収入半減の補償）
+    const gain = base * m;
+    act.forEach(o => { if (o !== w) { scores[w] = (scores[w] || 0) + gain; scores[o] = (scores[o] || 0) - gain; } });
   });
   return m;
 }
 function h88MonthMatches(field, month) { return field.filter(c => c.month === month); }
-function h88NextSeat(g, p) { const i = g.seats.indexOf(p); return g.seats[(i + 1) % g.seats.length]; }
+function h88NextSeat(g, p) { const n = g.seats.length; let i = g.seats.indexOf(p);
+  for (let k = 0; k < n; k++) { i = (i + 1) % n; const s = g.seats[i]; if (!g.dropped || g.dropped.indexOf(s) < 0) return s; } // ⑩降りた席は飛ばす
+  return g.seats[(g.seats.indexOf(p) + 1) % n]; }
 // 席順の割り当て：親→2位→3位を反時計回り。draws={seatId: {month, id}} から順位を決め seats を並べる。
 function h88SeatOrder(draws) {
   // 月が早い＝上位。同月は札の強さ（光>種>短>カス）。
@@ -3737,7 +3745,8 @@ function h88Build(seatIds, oyaId) {
   } while (h88Rules().redeal && h88HasQuad(field) && tries < 50);
   return { mode: 'hachi', seats: seatIds.slice(), deck: deck, field: field,
            hands: hands, caps: caps, currentPlayer: oyaId, oya: oyaId, phase: 'select-hand',
-           winner: null, roundEnd: null, sage: null, bonus: h88FieldMultiplier(field) };
+           winner: null, roundEnd: null, sage: null, bonus: h88FieldMultiplier(field),
+           dropped: [], active: null }; // ⑩出降り：dropped=降りた席・active=出た席（null＝全員参加）
 }
 // 場から札 card(=手札 or めくり) を同月合わせで取る。pickId は 2枚合致時の選択。
 // 0枚→場に置く / 1枚→取る / 2枚→pick / 3枚→全取り。取った札は caps[player] へ。
@@ -3818,6 +3827,7 @@ function h88AiSageDecide(g, player, level) {
 }
 // 出来役ができた瞬間の処理（下げ対応）。戻り: 'win'（上がり確定）／'sage'（下げて続行）／'ask'（人間へ上がる/下げるを尋ねる）／null（下げ中で役が伸びていない＝通常継続）。
 function h88OnYakuFormed(g, player, y, yt, level, human) {
+  if (g.active && g.active.length === 2) { g.winner = player; g.roundEnd = { kind: 'yaku', winner: player, yaku: y, total: yt }; return 'win'; } // ⑩二人勝負＝即上がり（下げ・法度なし）
   if (h88Rules().sage === 'off') { g.winner = player; g.roundEnd = { kind: 'yaku', winner: player, yaku: y, total: yt }; return 'win'; }
   if (g.sage && g.sage.seat !== player) { // 他家が下げ中に別人が上がった＝法度
     g.winner = player; g.roundEnd = { kind: 'yaku', winner: player, yaku: y, total: yt, hatto: { seat: g.sage.seat, total: g.sage.total } }; return 'win';
@@ -3828,12 +3838,51 @@ function h88OnYakuFormed(g, player, y, yt, level, human) {
   if (h88AiSageDecide(g, player, level)) { g.sage = { seat: player, total: yt }; return 'sage'; }
   g.winner = player; g.roundEnd = { kind: 'yaku', winner: player, yaku: y, total: yt }; return 'win';
 }
-// 局の終了（手札が尽きた）。下げ中なら下げ失敗、なければ札点で決着。
+// 局の終了（手札が尽きた）。二人勝負なら点差決着、下げ中なら下げ失敗、なければ札点で決着。
 function h88FinishRound(g) {
+  if (g.active && g.active.length === 2) { h88FinishTwoPlayer(g); return; } // ⑩出降りで2人になった局＝点差決着
   if (g.sage) {
     if (h88Rules().sage === 'kansai') { h88FinishByPoints(g); return; } // 関西：下げ無効→札点
     g.winner = g.sage.seat; g.roundEnd = { kind: 'sageFail', winner: g.sage.seat, total: g.sage.total }; // 関東/任天堂：下げた役の半分
   } else h88FinishByPoints(g);
+}
+// ── ⑩出降り（でおり・関西式縛りなし）─────────────────────────────
+// 出降りは一次資料『新しい花札入門』（一ノ瀬武志）準拠。下り賃は席次（親からの反時計回り順）で決まり勝者が総取り。
+// 二人勝負は基準点88を使わず点差でやり取り（あつかい＝点差の上限）。出来役・空巣は収入半減の補償で1貫増し。
+function h88DeioriKanFumi() { return h88KanFumi() || 12; } // 出降りの1貫の文数（任天堂＝点で貫概念が無いので関東の12文で代用）
+function h88SeatRank(g, seat) { const n = g.seats.length, oi = g.seats.indexOf(g.oya); return (((g.seats.indexOf(seat) - oi) % n) + n) % n; } // 0=親席/1=第二席/2=第三席
+function h88DeioriFeeFumi(g, seat) { return Math.round([1, 1.5, 2][h88SeatRank(g, seat)] * h88DeioriKanFumi()); } // 下り賃（文・場倍率は未適用）
+// あつかい：二人勝負の点差上限。29点以下＝点差どおり／30↑=3貫／40↑=4貫／50↑=5貫（頭打ち）。返り＝文（場倍率未適用）。
+function h88Atsukai(pointDiff) { const kf = h88DeioriKanFumi(), d = Math.abs(pointDiff); if (d <= 29) return d; if (d <= 39) return 3 * kf; if (d <= 49) return 4 * kf; return 5 * kf; }
+// 二人勝負の点差決着（出来役が出ていれば既に roundEnd(kind:yaku) が立っているのでそのまま）。
+function h88FinishTwoPlayer(g) {
+  if (g.roundEnd && g.roundEnd.kind === 'yaku') return; // 出来役上がり済
+  const a = g.active[0], b = g.active[1];
+  const pa = h88SumPoints(g.caps[a]), pb = h88SumPoints(g.caps[b]);
+  const winner = pa >= pb ? a : b; // 同点は席の早い方（active[0]）
+  g.winner = winner;
+  g.roundEnd = { kind: 'nininDiff', winner: winner, a: a, b: b, pa: pa, pb: pb, diff: Math.abs(pa - pb) };
+}
+// AIの出降り判断：自分の手札の強さで「出る／降りる」。弱ければ降りる（全レベル共通の堅実判断）。
+function h88AiDeioriDecide(g, seat) {
+  const hand = g.hands[seat];
+  const hikari = hand.filter(c => c.type === 'hikari').length, tane = hand.filter(c => c.type === 'tane').length, tan = hand.filter(c => c.type === 'tan').length;
+  const monthCount = {}; hand.forEach(c => monthCount[c.month] = (monthCount[c.month] || 0) + 1);
+  const pairs = Object.keys(monthCount).filter(mn => monthCount[mn] >= 2).length;
+  let strength = hikari * 3 + tane * 2 + tan * 1 + pairs;
+  if (h88ComputeTeyaku(hand)) strength += 4; // 手役があれば強い
+  return strength < 5; // しきい値（経験則）を下回れば降りる
+}
+// 出降り精算：下り賃（席次×場倍率）は勝者が総取り／二人勝負は点差(あつかい)×場倍率 or 出来役(1人分・1貫増し)×場倍率／不戦勝は下り賃のみ。ゼロサム。
+function h88SettleDeiori(g, scores) {
+  const m = g.bonus || 1, re = g.roundEnd, kf = h88DeioriKanFumi(), winner = re.winner;
+  g.dropped.forEach(d => { const fee = h88DeioriFeeFumi(g, d) * m; scores[d] = (scores[d] || 0) - fee; scores[winner] = (scores[winner] || 0) + fee; });
+  if (re.kind === 'fusen') return scores; // 不戦勝：下り賃のみ
+  const loser = g.active.find(s => s !== winner);
+  // 二人勝負の当事者間は原文どおり固定の貫（場倍率なし）。出来役＝出来役文+1貫／点差＝あつかい。場倍率が掛かるのは下り賃のみ。
+  const gain = (re.kind === 'yaku') ? (h88MonToFumi(re.total) + kf) : h88Atsukai(re.diff);
+  scores[winner] = (scores[winner] || 0) + gain; scores[loser] = (scores[loser] || 0) - gain;
+  return scores;
 }
 // 1人ぶんの手番（手札を出す→山をめくる→役チェック）。AIも人も同じ手順。
 // handIdx / playPickId / drawPickId / level を渡す（AIは自動決定）。戻り: 'win' | 'next' | 'draw'
@@ -3860,7 +3909,9 @@ function h88Turn(g, player, opts) {
     if (r === 'sage') return 'next'; // 下げて手番終了
     // r === null（下げ中で役が伸びていない）→ 通常継続
   }
-  if (g.hands[player].length === 0 && g.deck.length === 0) { h88FinishRound(g); return 'draw'; }
+  // 局終了＝出ている全員の手札が尽きたら（二人勝負は山札が残ることがあるので active 基準で判定）
+  const act = g.active || g.seats;
+  if (g.hands[player].length === 0 && act.every(s => g.hands[s].length === 0)) { h88FinishRound(g); return 'draw'; }
   return 'next';
 }
 // 打ち切り（誰も出来役を作れず手札が尽きる）：札点(88基準)で決着させ roundEnd を作る。
@@ -3911,6 +3962,7 @@ function h88SettlePointDiffs(g, points) {
 // 値は文で統一（出来役/手役は h88MonToFumi で貫→文換算・札点は点=文）。どちらもゼロサム。
 function h88Settle(g, scores) {
   if (!g.roundEnd) return scores;
+  if (g.dropped && g.dropped.length > 0) return h88SettleDeiori(g, scores); // ⑩出降りで誰か降りた局は専用精算
   const m = g.bonus || 1, re = g.roundEnd;
   if (re.kind === 'points') {
     const specials = re.specials || [];
@@ -3945,10 +3997,27 @@ function h88Settle(g, scores) {
   }
   return scores;
 }
-// ヘッドレス検証用：3席AIで1局を最後まで自動進行し結果を返す。
+// ヘッドレス検証用：3席AIで1局を最後まで自動進行し結果を返す。⑩出降りONのときはAIで宣言→不戦勝/二人勝負も再現。
 function h88SimRound(seatIds, oyaId) {
-  const g = h88Build(seatIds, oyaId || seatIds[0]);
+  oyaId = oyaId || seatIds[0];
+  const g = h88Build(seatIds, oyaId);
   const scores = {}; seatIds.forEach(s => scores[s] = 0);
+  if (h88Rules().deiori) { // 出降り：親から反時計回りにAI宣言
+    g.dropped = [];
+    for (let c = 0; c < g.seats.length; c++) { const oi = g.seats.indexOf(oyaId), seat = g.seats[(oi + c) % g.seats.length]; if (h88AiDeioriDecide(g, seat)) g.dropped.push(seat); }
+    const active = g.seats.filter(s => g.dropped.indexOf(s) < 0);
+    if (active.length === 0) { g.dropped = []; g.active = null; } // 全員降り＝配り直し扱い（検証では通常局として続行）
+    else {
+      g.active = active;
+      if (active.length === 1) { // 不戦勝：下り賃のみ
+        g.winner = active[0]; g.roundEnd = { kind: 'fusen', winner: active[0] };
+        h88Settle(g, scores);
+        return { winner: g.winner, roundEnd: g.roundEnd, scores: scores, teyaku: null, breakdown: h88BreakdownDeiori(g, null), bonus: g.bonus, dropped: g.dropped.slice(),
+                 handsLeft: g.seats.map(s => g.hands[s].length), deckLeft: g.deck.length, fieldLeft: g.field.length, capCounts: g.seats.map(s => g.caps[s].length) };
+      }
+      if (g.dropped.indexOf(g.currentPlayer) >= 0) g.currentPlayer = h88NextSeat(g, oyaId);
+    }
+  }
   const teyaku = h88ComputeTeyakuResults(g); // 配札直後（手札が全枚）に手役を判定（精算は局終了でまとめて）
   let guard = 0;
   while (guard++ < 200) {
@@ -3959,7 +4028,7 @@ function h88SimRound(seatIds, oyaId) {
   h88Settle(g, scores);
   const breakdown = h88Breakdown(g, teyaku); // 検証用：式の内訳（精算適用前に確定）
   h88ApplyTeyakuSettle(g, scores, teyaku); // 局終了で手役をまとめて精算（実プレイと同じ順序）
-  return { winner: g.winner, roundEnd: g.roundEnd, scores: scores, teyaku: teyaku, breakdown: breakdown, bonus: g.bonus,
+  return { winner: g.winner, roundEnd: g.roundEnd, scores: scores, teyaku: teyaku, breakdown: breakdown, bonus: g.bonus, dropped: (g.dropped || []).slice(),
            handsLeft: g.seats.map(s => g.hands[s].length), deckLeft: g.deck.length,
            fieldLeft: g.field.length, capCounts: g.seats.map(s => g.caps[s].length) };
 }
@@ -3971,6 +4040,7 @@ window.__h88 = { build: h88Build, turn: h88Turn, sim: h88SimRound, nextSeat: h88
   rules: h88Rules, presetRules: h88PresetRules, presetLabelOf: h88PresetLabelOf,
   capture: h88Capture, needPick: h88NeedPick, hasQuad: h88HasQuad, knownOpp: h88KnownOppCards,
   monToFumi: h88MonToFumi, formatFumi: h88FormatFumi, kanFumi: h88KanFumi, roundToKan: h88RoundToKan,
+  deioriFee: h88DeioriFeeFumi, atsukai: h88Atsukai, aiDeiori: h88AiDeioriDecide, seatRank: h88SeatRank, // ⑩出降り検証用
   setRules: function (r) { if (!state.h88) state.h88 = {}; state.h88.rules = r; },
   yakuPoints: H88_YAKU_POINTS, yakuSetTable: H88_YAKU_SET, teyakuPoints: H88_TEYAKU_POINTS, teyakuSetTable: H88_TEYAKU_SET };
 
@@ -4043,7 +4113,7 @@ function h88SelectedPreset() {
   return (on && on.dataset.v) || 'nintendo';
 }
 // ── 設定UI: プリセット大ボタン／個別バンドル／カスタム表示／吹き出し ──
-const H88_BUNDLE_SEGS = ['h88-b-points','h88-b-yakuset','h88-b-fieldmul','h88-b-redeal','h88-b-sweep3','h88-b-teyakumul','h88-b-sage','h88-b-marume'];
+const H88_BUNDLE_SEGS = ['h88-b-points','h88-b-yakuset','h88-b-fieldmul','h88-b-redeal','h88-b-sweep3','h88-b-teyakumul','h88-b-sage','h88-b-marume','h88-b-deiori'];
 function h88SegVal(id) { const s = document.getElementById(id); const on = s && s.querySelector('button.on'); return on ? on.dataset.v : null; }
 function h88SetSeg(id, v) { const s = document.getElementById(id); if (s) s.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === v)); }
 // 6つのバンドルセグ → rules オブジェクト（h88PresetRules と同じ形）
@@ -4055,7 +4125,8 @@ function h88ReadBundleRules() {
            sweep3:     h88SegVal('h88-b-sweep3') !== 'off',
            teyakuFieldMul: h88SegVal('h88-b-teyakumul') !== 'off',
            sage:       h88SegVal('h88-b-sage') || 'off',
-           marume:     h88SegVal('h88-b-marume') === 'on' };
+           marume:     h88SegVal('h88-b-marume') === 'on',
+           deiori:     h88SegVal('h88-b-deiori') === 'on' };
 }
 // プリセット大ボタン → 6バンドルを一括セット（⑥はONに戻る）
 function h88ApplyPreset(preset) {
@@ -4065,6 +4136,7 @@ function h88ApplyPreset(preset) {
   h88SetSeg('h88-b-sweep3', r.sweep3 ? 'on' : 'off'); h88SetSeg('h88-b-teyakumul', r.teyakuFieldMul ? 'on' : 'off');
   h88SetSeg('h88-b-sage', r.sage || 'off');
   h88SetSeg('h88-b-marume', r.marume ? 'on' : 'off');
+  h88SetSeg('h88-b-deiori', r.deiori ? 'on' : 'off');
   h88SyncPresetLabel();
 }
 // 現状のバンドル → プリセット名 or カスタム を大ボタンに反映
@@ -4125,6 +4197,16 @@ function h88TipContent(spec) {
       + row('関東（1貫=12文）', '6文以上は切り上げ／5文以下は切り捨て')
       + row('関西（1貫=10文）', '5文以上は切り上げ／4文以下は切り捨て')
       + '<div class="tsub">出来役・手役は元々貫なので丸め不要。丸めで生じる合計のズレは最大額の人に寄せてゼロサムを保ちます。任天堂（点）は丸めなし。</div>';
+  }
+  if (kind === 'deiori') {
+    if (val === 'off') return '<h5>出降り なし</h5><div class="tsub">全員参加で固定（配札後に降りる選択はできません）。</div>';
+    return '<h5>出降り あり（関西式・縛りなし）</h5>'
+      + row('宣言', '配札後、親から反時計回りに「出る／降りる」（心理戦）')
+      + row('下り賃（席次）', '親席1貫／第二席1貫半／第三席2貫（大場×2・絶場×4）。勝者が総取り')
+      + row('2人になったら', '基準点88なし・点差でやり取り。あつかい＝29点以下は点差どおり／30↑3貫／40↑4貫／50↑5貫。出来役・空巣は1貫増し（当事者間は場倍率なし）')
+      + row('1人になったら', '不戦勝。下り賃を総取りして次局へ（押し付け）')
+      + row('全員降り', '配り直し')
+      + '<div class="tsub">一次資料『新しい花札入門』準拠。場倍率が掛かるのは下り賃のみ。関東式（縛りあり）は3人固定では実質降りられないため省略。</div>';
   }
   return '';
 }
@@ -4200,11 +4282,16 @@ function h88StartRound(oyaId) {
   st.aiToken = 0;
   st.awaitP0 = false; // v2.13: 新局。あなたが親なら最初の手番で「ぴろっ」を鳴らせるようにリセット
   st.sageShown = null; // 下げトーストの重複防止フラグを新局でリセット
+  st.pendingTeyaku = null;
   h88Log('──── 第' + st.roundNo + '局 開始（親：' + st.names[oyaId] + '／手番順 ' + st.seatCycle.map(s => st.names[s]).join('→') + '）');
   h88AutoFocus(); // v1.63 B4: 開始時、親が相手ならその相手を主表示に
   renderH88();
-  // フェーズ3: 手役（配札直後に判定して"提示"のみ。精算は局終了で場倍率を掛けてまとめて＝倍率が見えるように）。
-  const g = st.game;
+  if (h88Rules().deiori) { h88BeginDeiori(st.game, oyaId); return; } // ⑩出降りON＝配札後に出る/降りるフェーズ→そのあと手役
+  h88ShowTeyakuAndPlay(st.game);
+}
+// フェーズ3: 手役（配札直後に判定して"提示"のみ。精算は局終了で場倍率を掛けてまとめて＝倍率が見えるように）。⑩出降り時は出ている席のみで判定。
+function h88ShowTeyakuAndPlay(g) {
+  const st = state.h88;
   const teyaku = h88ComputeTeyakuResults(g);
   st.pendingTeyaku = teyaku; // 局終了でまとめて精算するため保持（この時点では累計に加えない）
   if (teyaku) {
@@ -4245,6 +4332,65 @@ function h88StartRound(oyaId) {
     h88MaybeAi();
   }
 }
+// ── ⑩出降りフェーズ（配札後・手役の前）。親から反時計回りに1人ずつ「出る／降りる」を宣言 ──
+function h88BeginDeiori(g, oyaId) {
+  const st = state.h88;
+  g.dropped = [];
+  h88Log('◇ 出降り：親から順に「出る／降りる」を宣言');
+  h88DeioriStep(g, oyaId, 0);
+}
+function h88DeioriStep(g, oyaId, count) {
+  const st = state.h88;
+  if (count >= g.seats.length) { h88DeioriResolve(g, oyaId); return; }
+  const oi = g.seats.indexOf(oyaId), seat = g.seats[(oi + count) % g.seats.length];
+  const proceed = (drop) => {
+    if (drop) { g.dropped.push(seat); h88DeioriToast(st.names[seat] + ' 降り'); h88Log('　' + st.names[seat] + '：降り'); }
+    else { h88Log('　' + st.names[seat] + '：出る'); }
+    setTimeout(() => h88DeioriStep(g, oyaId, count + 1), drop ? 750 : 450);
+  };
+  if (seat === 'p0') { h88AskDeiori(g, seat, proceed); }
+  else { const drop = h88AiDeioriDecide(g, seat); setTimeout(() => proceed(drop), 550); }
+}
+function h88DeioriResolve(g, oyaId) {
+  const st = state.h88;
+  const active = g.seats.filter(s => g.dropped.indexOf(s) < 0);
+  if (active.length === 0) { // 全員降り＝配り直し（同じ親）
+    h88Log('◇ 全員降り → 配り直し'); h88DeioriToast('全員降り・配り直し');
+    setTimeout(() => h88StartRound(oyaId), 950); return;
+  }
+  g.active = active;
+  if (active.length === 1) { // 不戦勝（押し付け）：下り賃を総取りして次局へ
+    g.winner = active[0]; g.roundEnd = { kind: 'fusen', winner: active[0] }; st.pendingTeyaku = null;
+    h88Log('★ ' + st.names[active[0]] + ' の不戦勝（下り賃を総取り）');
+    setTimeout(() => h88RoundOver('draw'), 750); return;
+  }
+  // 2人（または全員参加の3人）：親が降りていたら手番開始席を最初のactiveに
+  if (g.dropped.indexOf(g.currentPlayer) >= 0) g.currentPlayer = h88NextSeat(g, oyaId);
+  h88ShowTeyakuAndPlay(g);
+}
+// 人間(p0)の出降りモーダル：自分の手札・場・ここまでの降り人数を見て「出る／降りる」を選ぶ。
+function h88AskDeiori(g, seat, proceed) {
+  const st = state.h88, m = g.bonus || 1;
+  const bTag = (m === 4 ? '絶場' : m === 2 ? '大場' : '小場') + '（下り賃×' + m + '）';
+  const droppedN = g.dropped.length, fee = h88DeioriFeeFumi(g, seat) * m;
+  document.getElementById('ov-title').textContent = '出る？ 降りる？（出降り）';
+  const bodyEl = document.getElementById('ov-body'); bodyEl.style.whiteSpace = 'normal';
+  const handHtml = g.hands[seat].map(c => svgCard(c.id, 'ye-card')).join('');
+  bodyEl.innerHTML = '<div class="h88-te-note">あなたの手札（' + bTag + '）。降りると下り賃 <b>' + h88FormatFumi(fee) + '</b> を勝者へ。ここまでに降りた人：' + droppedN + '人。'
+    + (droppedN >= 1 ? '<br>（もう1人降りればあなたの不戦勝で下り賃を総取り）' : '') + '</div>'
+    + '<div class="ye-cards" style="flex-wrap:wrap;justify-content:center">' + handHtml + '</div>';
+  const ov = document.getElementById('ovNotice'), okBtn = document.getElementById('ov-ok');
+  okBtn.style.display = 'none';
+  const row = ov.querySelector('.btn-row');
+  const box = document.createElement('span'); box.id = 'h88-deiori-btns';
+  box.innerHTML = '<button class="btn btn-primary" id="h88-deiori-deru">出る</button> <button class="btn btn-ghost" id="h88-deiori-oriru">降りる</button>';
+  row.appendChild(box);
+  ov.classList.add('show', 'see-through');
+  const cleanup = () => { ov.classList.remove('show', 'see-through'); okBtn.style.display = ''; box.remove(); };
+  document.getElementById('h88-deiori-deru').onclick = () => { playSfx('button'); cleanup(); proceed(false); };
+  document.getElementById('h88-deiori-oriru').onclick = () => { playSfx('button'); cleanup(); proceed(true); };
+}
+function h88DeioriToast(text) { const d = document.createElement('div'); d.className = 'h88-sage-toast'; d.textContent = text; document.body.appendChild(d); setTimeout(() => d.remove(), 1500); }
 // v1.62 A6: 上の相手2人を手で左右にドラッグして入替（いつでも）。既定は自動配置。
 function h88SetupOppDrag() {
   const opps = document.getElementById('h88-opps');
@@ -4552,6 +4698,7 @@ function h88MaybeAi() {
 // 局終了の各席の増減を「見える数字だけの式」に分解（Q1-A: 掛け算・倍率・人数も全部式に出す）。
 // 返り: {seat:[{sign,nums,factors} | {sign,sub:[a,b],factors}]}。nums=和にする素点／sub=札点差(a-b)。
 function h88Breakdown(g, teyaku) {
+  if (g.dropped && g.dropped.length > 0) return h88BreakdownDeiori(g, teyaku); // ⑩出降り局は専用の式
   const others = g.seats.length - 1, m = g.bonus || 1;
   const mt = h88Rules().teyakuFieldMul ? m : 1, re = g.roundEnd;
   const terms = {}; g.seats.forEach(s => terms[s] = []);
@@ -4589,6 +4736,24 @@ function h88Breakdown(g, teyaku) {
   });
   return terms;
 }
+// ⑩出降り局の式（下り賃＝勝者総取り／二人勝負＝点差or出来役＋手役）。scores の実増減と一致させる。
+function h88BreakdownDeiori(g, teyaku) {
+  const m = g.bonus || 1, kf = h88DeioriKanFumi(), re = g.roundEnd, winner = re.winner;
+  const terms = {}; g.seats.forEach(s => terms[s] = []);
+  g.dropped.forEach(d => { const fee = h88DeioriFeeFumi(g, d);
+    terms[d].push({ sign: -1, nums: [fee], factors: [m] }); terms[winner].push({ sign: 1, nums: [fee], factors: [m] }); });
+  if (re.kind !== 'fusen') {
+    const loser = g.active.find(s => s !== winner);
+    const base = (re.kind === 'yaku') ? (h88MonToFumi(re.total) + kf) : h88Atsukai(re.diff); // 場倍率なし（原文どおり固定の貫）
+    terms[winner].push({ sign: 1, nums: [base], factors: [] }); terms[loser].push({ sign: -1, nums: [base], factors: [] });
+  }
+  const ninin = !!(g.active && g.active.length === 2), act = g.active || [];
+  const mt = ninin ? 1 : (h88Rules().teyakuFieldMul ? m : 1); // ⑩二人勝負の手役も場倍率なし
+  if (teyaku) Object.keys(teyaku).forEach(w => { if (act.indexOf(w) < 0) return;
+    let base = h88MonToFumi(teyaku[w].mon); if (ninin && teyaku[w].key === 'teyaku.karasu') base += kf;
+    act.forEach(o => { if (o !== w) { terms[w].push({ sign: 1, nums: [base], factors: [mt] }); terms[o].push({ sign: -1, nums: [base], factors: [mt] }); } }); });
+  return terms;
+}
 // 同符号・同倍率の和項をまとめる（札点差=subは独立のまま）。
 function h88GroupTerms(list) {
   const groups = [];
@@ -4623,7 +4788,31 @@ function h88RoundOver(result) {
   const before = {}; g.seats.forEach(s => before[s] = st.scores[s] || 0);
   const teyaku0 = st.pendingTeyaku; // 式表示用に手役結果を控える（下で精算後に null される）
   let head = '', listHtml = '';
-  if (result === 'win') {
+  const deiori = g.dropped && g.dropped.length > 0; // ⑩出降りで誰か降りた局
+  if (deiori) {
+    h88Settle(g, st.scores);
+    const re = g.roundEnd;
+    const feeLines = g.dropped.map(d => nm(d) + '（' + ['親席', '第二席', '第三席'][h88SeatRank(g, d)] + '）下り賃 ' + h88FormatFumi(h88DeioriFeeFumi(g, d) * m)).join('／');
+    if (re.kind === 'fusen') {
+      head = '<div class="h88-te-note"><b>' + nm(re.winner) + '</b> 以外の2人が降りたので<b>不戦勝</b>（' + bTag + '）。下り賃を総取りして次局へ（押し付け）。<br>' + feeLines + '</div>';
+      h88Log('★ 不戦勝：' + st.names[re.winner] + '（' + feeLines + '）');
+    } else {
+      if (re.kind === 'yaku') {
+        listHtml = '<ul class="yaku-list">' + re.yaku.map(y => {
+          const cards = h88YakuCards(g.caps[re.winner], y.key).map(id => svgCard(id, 'ye-card')).join('');
+          return '<li class="ye-li"><div class="ye-head"><span>' + (y.jp || t(y.key)) + (y.count ? '×' + y.count : '') + '</span><span class="pt">' + y.mon + ' ' + unit + '</span></div>' + (cards ? '<div class="ye-cards">' + cards + '</div>' : '') + '</li>';
+        }).join('') + '</ul>';
+        head = '<div class="h88-te-note">1人降りて<b>二人勝負</b>（' + bTag + '）。<b>' + nm(re.winner) + '</b> が出来役で上がり、出来役 ' + re.total + unit + ' ＋1貫（二人勝負の割増）＝ ' + h88FormatFumi(h88MonToFumi(re.total) + h88DeioriKanFumi()) + ' を相手1人から受け取り（当事者間は場倍率なし）。<br>' + feeLines + '（下り賃は場倍率つき・勝者へ）</div>';
+        h88Log('★ 二人勝負・出来役上がり：' + st.names[re.winner] + '／' + feeLines);
+      } else {
+        const capNote = re.diff <= 29 ? '点差どおり' : ('あつかい ' + (re.diff <= 39 ? 3 : re.diff <= 49 ? 4 : 5) + '貫'), ex = h88Atsukai(re.diff);
+        listHtml = '<ul class="yaku-list"><li class="ye-li"><div class="ye-head"><span>' + nm(re.a) + ' の札点</span><span class="pt">' + re.pa + ' 文</span></div></li>'
+          + '<li class="ye-li"><div class="ye-head"><span>' + nm(re.b) + ' の札点</span><span class="pt">' + re.pb + ' 文</span></div></li></ul>';
+        head = '<div class="h88-te-note">1人降りて<b>二人勝負</b>（' + bTag + '）・出来役なし。<b>' + nm(re.winner) + '</b> が点差 ' + re.diff + '（' + capNote + '）で勝ち、' + h88FormatFumi(ex) + ' を相手から受け取り（基準点88は使わず・当事者間は場倍率なし）。<br>' + feeLines + '（下り賃は場倍率つき・勝者へ）</div>';
+        h88Log('★ 二人勝負・点差決着：' + st.names[re.winner] + ' 点差' + re.diff + '／' + feeLines);
+      }
+    }
+  } else if (result === 'win') {
     // v2.13: 局勝利の音は下で「取得した文数ぶんのちゃりん」で鳴らす（ファンファーレは終局のみ）
     h88Settle(g, st.scores);
     const gain = g.roundEnd.total * m;

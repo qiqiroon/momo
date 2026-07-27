@@ -1315,7 +1315,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.32</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.33</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1381,7 +1381,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.32</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.33</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1508,7 +1508,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.32</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.33</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1568,7 +1568,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.32</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.33</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -6084,16 +6084,18 @@ function h88AnimPlay(prev) {
     if (rotDeg === 90) { const t = dx; dx = dy; dy = -t; }        // local=(dy,-dx)
     else if (rotDeg === -90) { const t = dx; dx = -dy; dy = t; } // local=(-dy,dx)
     // 移動中は最前面へ（取り札枠や場の縁・置いてある重ね札に隠れないように・空中の札は常に一番上・終わったら戻す）。
-    // ★いま飛んでいる「主役の札」(出した/めくった札)は最上位(9999)にして、同時に位置がずれる重ね札(999)より必ず上を通す
-    //   ＝最終の行先が場に単体(札の下)でも、通っている間は必ず一番上を通る。
-    const prevPos = el.style.position, prevZ = el.style.zIndex;
-    if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
-    el.style.zIndex = (st._activeFlyId && el.dataset.id === st._activeFlyId) ? '9999' : '999';
+    // ★z は「位置決めをしている要素」に付ける：場札は .h88-field-card(span,z1) の中に .card(svg) が入る二重構造で、
+    //   svg に z を付けても span:z1 の文脈に閉じ込められて待機札(z8)に負ける。span 側に付けて初めて効く（計測で確定）。
+    // ★主役の札(出した/めくった札)は最上位(9999)にして、同時に位置がずれる重ね札(999)より必ず上を通す＝行先が場に単体でも通る間は一番上。
+    const zHost = el.closest('.h88-field-card') || el;
+    const prevPos = zHost.style.position, prevZ = zHost.style.zIndex;
+    if (getComputedStyle(zHost).position === 'static') zHost.style.position = 'relative';
+    zHost.style.zIndex = (st._activeFlyId && el.dataset.id === st._activeFlyId) ? '9999' : '999';
     const a = el.animate([
       { transformOrigin: 'top left', transform: 'translate(' + dx + 'px,' + dy + 'px) scale(' + sc + ')' },
       { transformOrigin: 'top left', transform: 'translate(0,0) scale(1)' },
     ], { duration: dur, easing: ANIM.ease, fill: 'none' });
-    const restore = () => { el.style.position = prevPos; el.style.zIndex = prevZ; };
+    const restore = () => { zHost.style.position = prevPos; zHost.style.zIndex = prevZ; };
     a.finished.then(restore).catch(restore);
     setTimeout(restore, dur + 140); // タイムライン停止環境でも確実に戻す
     anims.push(a);

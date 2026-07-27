@@ -129,8 +129,9 @@
   .h88-field .h88-field-card{width:var(--card-w,42px);transition:transform .12s;}
   .h88-field .card{width:100%;}
   /* v2.24: こいこい同様の「合わせ取り待ち（pending）」の重ね置き。対象の場札の上にずらして重ねる。 */
-  .h88-field .h88-pending{position:absolute;z-index:9;width:var(--card-w,42px);}
-  .h88-field .h88-pending .card{width:100%;box-shadow:0 3px 9px rgba(0,0,0,.55);border-radius:5px;}
+  .h88-field .h88-pending{position:absolute;z-index:40;width:var(--card-w,42px);}
+  .h88-field .h88-pending .card{width:100%;box-shadow:0 3px 9px rgba(0,0,0,.55);border-radius:5px;position:relative;z-index:40;}
+  .h88-field .h88-field-card{position:relative;z-index:1;} /* 場札は基準z=1・保留(重ね置き)札を必ずその上に */
   .h88-field .h88-field-card.pending-target .card{outline:2px solid var(--gold,#d8a838);outline-offset:-2px;border-radius:6px;box-shadow:0 0 8px var(--gold,#d8a838);}
   /* v1.63 B6/C9: ヒント＝選択中の手札と合う場札(match=浮かせる+金枠)／2枚から選ぶ候補(pick=橙枠・点滅) */
   .h88-field .h88-field-card.match{transform:translateY(-10px);}
@@ -1314,7 +1315,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.25</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.26</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1380,7 +1381,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.25</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.26</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1507,7 +1508,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.25</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.26</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1567,7 +1568,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.25</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.26</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -4876,8 +4877,9 @@ function h88AnimOpponentPlay() {
   const rightSeat = h88NextSeat(g, 'p0'), leftSeat = h88NextSeat(g, rightSeat);
   const seatElId = (g.lastPlay.player === rightSeat) ? 'h88-oppR' : (g.lastPlay.player === leftSeat ? 'h88-oppL' : null);
   const seatEl = seatElId && document.getElementById(seatElId);
-  const hand = seatEl && seatEl.querySelector('.h88-mini-hand');
-  const src = hand && hand.getBoundingClientRect();
+  // 出発点＝相手の伏せ手札の1枚（どれでもよい）。コンテナ矩形だと札の位置とずれるため実際の裏札を起点にする。
+  const backCard = seatEl && seatEl.querySelector('.h88-mini-hand .card');
+  const src = backCard && backCard.getBoundingClientRect();
   if (!src || !src.width) return; // 隠れている相手席（縦画面の非表示側）は起点が測れない＝スライド省略
   const r = el.getBoundingClientRect(); if (!r.width) return;
   const dx = src.left - r.left, dy = src.top - r.top;
@@ -6049,10 +6051,16 @@ function h88AnimPlay(prev) {
     const r = el.getBoundingClientRect();
     if (!r.width) return;
     const nowRot = !!el.closest('.h88-seat-rot');
-    const dx = old.x - r.left, dy = old.y - r.top;
+    let dx = old.x - r.left, dy = old.y - r.top;
     let sc = old.w / r.width;
     if (old.rot !== nowRot) sc = 1; // 回転の有無が変わる移動（中央⇄相手席）は拡大率が当てにならないので等倍で滑らす
     if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && Math.abs(sc - 1) < 0.02) return; // 動いてない
+    // 回転席（左=90°/右=−90°）に着地する札は、画面上のデルタを席の回転で逆回転してローカル平行移動にする。
+    // これをしないと translate が回転座標で効いて「箱の中を横移動」に見える（場→取り札が場から飛ばない）。
+    if (nowRot) {
+      if (el.closest('#h88-oppL')) { const t = dx; dx = dy; dy = -t; }       // rotate(90deg): local=(dy,-dx)
+      else if (el.closest('#h88-oppR')) { const t = dx; dx = -dy; dy = t; }  // rotate(-90deg): local=(-dy,dx)
+    }
     // 移動中は前面へ浮かせる（取り札枠や場の縁に隠れないように・終わったら戻す）
     const prevPos = el.style.position, prevZ = el.style.zIndex;
     if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
@@ -6096,8 +6104,12 @@ function h88RunDeal(done) {
   all.forEach(el => { el.style.visibility = 'hidden'; });
   const dur = aMs(ANIM.dealFly), gap = aMs(ANIM.dealGap);
   const tok = (st.dealToken = (st.dealToken || 0) + 1); // 配り中の中断検出
-  const dealerAtTop = (g.oya !== 'p0'); // 相手が親なら上側から、あなたが親なら下側から配る
-  const startX = window.innerWidth / 2, startY = dealerAtTop ? -140 : window.innerHeight + 140;
+  // 出発点＝実際の親の席の中心（親から配られて飛ぶように）。p0=自分の手札側／相手=その席の位置。
+  const oyaElId = (g.oya === 'p0') ? 'h88-self' : (g.oya === rightSeat ? 'h88-oppR' : (g.oya === leftSeat ? 'h88-oppL' : null));
+  const oyaEl = oyaElId && document.getElementById(oyaElId);
+  const oR = oyaEl && oyaEl.getBoundingClientRect();
+  const startX = (oR && oR.width) ? (oR.left + oR.width / 2) : window.innerWidth / 2;
+  const startY = (oR && oR.height) ? (oR.top + oR.height / 2) : (g.oya !== 'p0' ? -140 : window.innerHeight + 140);
   const flyIn = (els) => els.forEach(el => {
     el.style.visibility = '';
     if (el.closest('.h88-seat-rot')) { // 相手席（回転しうる）＝その場で scale+rise（screen translate は回転で狂うため）

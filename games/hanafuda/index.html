@@ -1326,7 +1326,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.47</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.48</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1392,7 +1392,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.47</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.48</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1519,7 +1519,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.47</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.48</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1579,7 +1579,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.47</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.48</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -2796,18 +2796,21 @@ function refreshRoomView() {
   document.getElementById('btn-draw-oya').disabled = (myMonth != null) || !opponentIn;
   updateOyaLabels();
   // v2.45-段3: 八八の役BOX（ホスト/ゲスト/コンピュータ）はゲスト参加・名前変化で再描画（「参加待ち…」→実名）
-  if (state.gameSel === 'hachi') h88PrepRenderPlayers();
+  if (state.gameSel === 'hachi') { h88PrepRenderPlayers(); if (!state.vsAI) h88OnlineOyaRender(); }
   updateStartBtn();
 }
 
 function updateStartBtn() {
   const b = document.getElementById('btn-start');
   if (state.gameSel === 'hachi') { // v1.68: 八八は準備室で3人親決め → 済んだら開始可
-    // v2.45-段3: オンライン八八＝ホストがゲスト参加後に開始（親決めはホストが引く・段5で各自引くに）。ゲストはホスト開始待ち。
+    // v2.48-段5: オンライン八八＝準備室で各自が親札を引く→3枚そろったらホストが開始。ゲストはホスト開始待ち。
     if (!state.vsAI) {
-      const canStart = state.isHost && !!state.guestName;
-      b.disabled = !canStart;
-      b.textContent = state.isHost ? (state.guestName ? '八八を開始' : 'ゲストの参加を待っています') : 'ホストの開始を待っています';
+      if (!state.isHost) { b.disabled = true; b.textContent = 'ホストの開始を待っています'; return; }
+      if (!state.guestName) { b.disabled = true; b.textContent = 'ゲストの参加を待っています'; return; }
+      const o = state.h88OnlineOya;
+      const oyaDone = !!(o && o.p0 && o.p1 && o.p2);
+      b.disabled = !oyaDone;
+      b.textContent = oyaDone ? '八八を開始' : '全員の親決めを待っています';
       return;
     }
     // v2.36: 親決めのめくりアニメが終わって親を表示してから（revealed）でないと開始不可
@@ -3233,6 +3236,7 @@ function initMatchmaking() {
       state.connected = false;
       state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null; state.oyaHostCard = null; state.oyaGuestCard = null;
       state.readyHost = false; state.readyGuest = false;
+      state.h88OnlineOya = { p0: null, p1: null, p2: null }; state.h88prep = null; // v2.48-段5: 八八オンライン親決めもリセット
       renderOyaDraw();
       refreshRoomView();
     },
@@ -3295,6 +3299,8 @@ function handleP2P(data) {
   if (data.type === 'h88-start') { h88ApplyStart(data); return; }   // ゲスト：開始情報を受けて盤面を用意
   if (data.type === 'h88-state') { h88ApplyState(data); return; }   // ゲスト：状態同期を適用して描画
   if (data.type === 'h88-intent') { h88HandleIntent(data); return; } // ホスト：ゲストの手を実行
+  if (data.type === 'h88-oya-req') { h88OnlineHostOyaReq(data.seat || 'p1'); return; } // v2.48-段5: ホスト：ゲストの親決め依頼で1枚引く
+  if (data.type === 'h88-oya-state') { h88OnlineOyaApplyRemote(data.draws); return; } // v2.48-段5: ゲスト：親札状態を反映
   if (data.type === 'hello') {
     if (state.isHost) { state.guestName = data.name || state.guestName; }
     else { state.hostName = data.name || state.hostName; }
@@ -4181,10 +4187,10 @@ function h88PrepReset() {
   const r = document.getElementById('h88-prep-oya-result'); if (r) r.textContent = '';
   const b = document.getElementById('btn-h88-prep-drawoya');
   if (b) {
-    // v2.45-段3: オンライン八八は「八八を開始」で親決め→対局が始まる（親決めはホストが引く・段5で各自引くに）。準備室の親決めボタンは隠す。
+    // v2.48-段5: オンライン八八＝準備室で各自が自分の親札を引く（ホスト=p0/ゲスト=p1、CPU=p2は人間2人が引き終えたら自動）。
     if (!state.vsAI) {
-      b.classList.add('hidden');
-      if (r) r.innerHTML = '<span style="color:var(--text-muted);font-weight:400;">ホストが「八八を開始」を押すと親決め→対局が始まります。</span>';
+      state.h88OnlineOya = { p0: null, p1: null, p2: null };
+      h88OnlineOyaRender();
     } else {
       b.classList.remove('hidden'); b.disabled = false; b.textContent = t('oya.draw');
     }
@@ -4198,6 +4204,7 @@ function h88PrepReset() {
   updateStartBtn();
 }
 function h88PrepDrawOya() {
+  if (!state.vsAI) { h88OnlineDrawMyOya(); return; } // v2.48-段5: オンラインは自分の1枚だけ引く（同じ準備室ボタンを流用）
   const names = h88PrepNames();
   const deck = shuffle(buildDeck());
   const seats = ['p0', 'p1', 'p2'];
@@ -4367,13 +4374,12 @@ function startHachiFromPrep(rounds) {
 //   ゲストはクリックを h88-intent で送るだけ（h88OnClickHand/Field）。CPU はホスト内で動く（st.cpuSeats=['p2']）。
 const H88_GUEST_SEAT = 'p1';
 function h88OnlineRoundsSel() { const seg = document.getElementById('h88-rounds-seg'); const on = seg && seg.querySelector('button.on'); return on ? parseInt(on.dataset.v, 10) : 3; }
-// ホスト：オンライン八八を開始（親決めはホストが3席ぶん引く＝段3暫定。段5で各自引く方式に）。
+// v2.48-段5: ホスト：オンライン八八を開始。親決めは準備室で各自引いた結果（state.h88OnlineOya）をそのまま使う。
 function h88StartOnlineHost() {
   if (!state.isHost || !state.guestName) return;
+  const draws = state.h88OnlineOya;
+  if (!(draws && draws.p0 && draws.p1 && draws.p2)) return; // 親決め未完了なら開始しない
   const names = h88OnlineRoleNames();               // {p0:host, p1:guest, p2:CPU}
-  const deck = shuffle(buildDeck());                 // 親決め：別々の月を3席ぶん
-  const draws = {}, usedMonth = {};
-  ['p0', 'p1', 'p2'].forEach(s => { let c; do { c = deck.pop(); } while (c && usedMonth[c.month]); usedMonth[c.month] = true; draws[s] = { month: c.month, id: c.id }; });
   const order = h88SeatOrder(draws);                 // [親, 2位, 3位]（反時計回り＝手番順）
   const lv = h88Levels();
   const rounds = h88OnlineRoundsSel();
@@ -4381,12 +4387,85 @@ function h88StartOnlineHost() {
     names: names, scores: { p0: 0, p1: 0, p2: 0 }, levels: { p1: lv.p1, p2: lv.p2 },
     preset: h88SelectedPreset(), rules: h88ReadBundleRules(),
     roundNo: 1, rounds: rounds, seatCycle: order, game: null, aiToken: 0, oyaDraws: draws, focusSeat: null, log: [],
-    online: true, mySeat: 'p0', cpuSeats: ['p2'],    // 段3: ホスト視点＝p0／CPU席=p2
+    online: true, mySeat: 'p0', cpuSeats: ['p2'],    // ホスト視点＝p0／CPU席=p2
   };
   MomoMatchmaking.send({ type: 'h88-start', names: names, seatCycle: order, rounds: rounds, rules: state.h88.rules, preset: state.h88.preset, scores: state.h88.scores, oyaDraws: draws });
   showScreen('hachi');
   h88SetupOppDrag();
   h88StartRound(order[0]);
+}
+// ── v2.48-段5: オンライン八八の親決め（準備室で各自が引く・ホスト権威）──
+//   ホスト=p0 / ゲスト=p1 / コンピュータ=p2。実際の札選び（月の重複回避）はホストが計算して配信する。
+//   人間2人が引き終えたら CPU(p2) を自動で最後にめくる。
+function h88OnlineOyaRender() {
+  if (state.vsAI) return;
+  const o = state.h88OnlineOya || (state.h88OnlineOya = { p0: null, p1: null, p2: null });
+  const names = h88OnlineRoleNames();
+  const d = document.getElementById('h88-prep-oya-draws'); if (d) d.innerHTML = h88OyaSlotsHTML(names, o);
+  const mySeat = state.isHost ? 'p0' : 'p1';
+  const oppIn = state.isHost ? !!state.guestName : !!state.hostName;
+  const btn = document.getElementById('btn-h88-prep-drawoya');
+  if (btn) {
+    if (o[mySeat]) { btn.classList.add('hidden'); }
+    else {
+      btn.classList.remove('hidden');
+      btn.disabled = !oppIn;
+      btn.textContent = oppIn ? t('oya.draw') : '相手の参加を待っています';
+    }
+  }
+  const r = document.getElementById('h88-prep-oya-result');
+  if (r) {
+    if (o.p0 && o.p1 && o.p2) {
+      const order = h88SeatOrder(o);
+      r.innerHTML = '親：' + names[order[0]] + '<br>2位：' + names[order[1]] + '<br>3位：' + names[order[2]]
+        + '<br><span style="color:var(--text-muted);font-weight:400;">この順で反時計回りに座ります</span>';
+    } else r.textContent = '';
+  }
+}
+// 自分の「引く」ボタン押下：ホストは自席p0を即引く／ゲストはホストへ依頼。
+function h88OnlineDrawMyOya() {
+  const o = state.h88OnlineOya || (state.h88OnlineOya = { p0: null, p1: null, p2: null });
+  if (state.isHost) {
+    if (o.p0) return;
+    h88OnlineHostDrawSeat('p0');
+  } else {
+    if (o.p1) return;
+    // 依頼を送るだけ（ホストが p1 を引いて配信）。ボタンは無効化しない＝接続直後に依頼が届かなくても押し直せる。
+    // ホスト側 h88OnlineHostDrawSeat は「その席が既に引かれていれば無視」する冪等処理なので二重依頼は安全。
+    MomoMatchmaking.send({ type: 'h88-oya-req', seat: 'p1' });
+  }
+}
+// ホスト：指定席の親札を1枚引く（既出の月は避ける）→ 配信・進行。
+function h88OnlineHostDrawSeat(seat) {
+  if (!state.isHost) return;
+  const o = state.h88OnlineOya || (state.h88OnlineOya = { p0: null, p1: null, p2: null });
+  if (o[seat]) return;
+  const used = {}; ['p0', 'p1', 'p2'].forEach(s => { if (o[s]) used[o[s].month] = true; });
+  const deck = shuffle(buildDeck());
+  let c; do { c = deck.pop(); } while (c && used[c.month]);
+  if (!c) return;
+  o[seat] = { month: c.month, id: c.id };
+  MomoMatchmaking.send({ type: 'h88-oya-state', draws: o });
+  playSfx('pero');
+  if (o.p0 && o.p1 && o.p2) state.h88prep = { names: h88OnlineRoleNames(), oyaDraws: o, seatCycle: h88SeatOrder(o), revealed: true };
+  h88OnlineOyaRender();
+  updateStartBtn();
+  if (o.p0 && o.p1 && !o.p2) { // 人間2人が引き終えたら CPU を最後に自動でめくる
+    setTimeout(() => { const oo = state.h88OnlineOya; if (state.isHost && oo && oo.p0 && oo.p1 && !oo.p2) h88OnlineHostDrawSeat('p2'); }, 650);
+  }
+}
+// ホスト：ゲストからの親決め依頼を受けて p1 を引く。
+function h88OnlineHostOyaReq(seat) {
+  if (!state.isHost) return;
+  h88OnlineHostDrawSeat(seat === 'p1' ? 'p1' : seat);
+}
+// ゲスト：ホストからの親札状態を反映（描画のみ）。
+function h88OnlineOyaApplyRemote(draws) {
+  if (state.isHost || !draws) return;
+  state.h88OnlineOya = { p0: draws.p0 || null, p1: draws.p1 || null, p2: draws.p2 || null };
+  playSfx('pero');
+  h88OnlineOyaRender();
+  updateStartBtn();
 }
 // ゲスト：'h88-start' 受信＝自席 p1 として盤面を用意（実体は h88-state 同期で来る）。
 function h88ApplyStart(msg) {

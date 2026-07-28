@@ -1326,7 +1326,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.42</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.43</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1392,7 +1392,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.42</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.43</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1519,7 +1519,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.42</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.43</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1579,7 +1579,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.42</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.43</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -4168,7 +4168,15 @@ function h88PrepReset() {
   state.h88prep = null;
   const d = document.getElementById('h88-prep-oya-draws'); if (d) d.innerHTML = h88OyaSlotsHTML(h88PrepNames(), null); // v1.72 D2: 伏せ札を最初に置く
   const r = document.getElementById('h88-prep-oya-result'); if (r) r.textContent = '';
-  const b = document.getElementById('btn-h88-prep-drawoya'); if (b) b.classList.remove('hidden');
+  const b = document.getElementById('btn-h88-prep-drawoya');
+  if (b) {
+    b.classList.remove('hidden');
+    // v2.43: オンライン八八は親決めの同期が未実装（段5予定）。各自がローカルで引くと揃わないため当面は無効化。
+    const onlineWip = !state.vsAI;
+    b.disabled = onlineWip;
+    b.textContent = onlineWip ? 'オンライン親決めは準備中' : t('oya.draw');
+    if (onlineWip && r) r.innerHTML = '<span style="color:var(--text-muted);font-weight:400;">オンライン八八の親決め・対局は現在実装中です（順次対応）。</span>';
+  }
   // v2.42: 説明文を編成に合わせる（vsコンピュータ＝あなた＋CPU2体／オンライン＝ホスト＋ゲスト＋CPU1体）
   const descSpan = document.querySelector('#set-hachi .desc span[data-i18n="set.hachi.desc"]');
   if (descSpan) descSpan.textContent = state.vsAI

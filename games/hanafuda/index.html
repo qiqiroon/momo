@@ -979,11 +979,11 @@
     <image href="cards/m03_kasu1.png" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
     <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
+  <!-- 桜のカス2（3月）をユーザー手描きPNGに差し替え（縁付き・m03_kasu1と同型） -->
   <symbol id="m03_kasu2" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
-    <use href="#kasumi"/>
-    <g fill="none" stroke="#5a3a20" stroke-width="6.5" stroke-linecap="round"><path d="M70 318 C 70 250 60 206 82 166 C 92 146 80 122 90 100"/><path d="M78 210 C 104 202 120 208 136 200"/><path d="M80 150 C 68 138 64 120 72 104"/></g>
-    <use href="#sakuraBloom" transform="translate(136,200)"/><use href="#sakuraBloom" transform="translate(72,104) scale(.95)"/><use href="#sakuraBloom" transform="translate(102,150) scale(.9)"/><use href="#sakuraBloom" transform="translate(70,150) scale(.8)"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
+    <image href="cards/m03_kasu2.png" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
 
   <!-- ---- 4月 藤 ---- -->
@@ -1323,7 +1323,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.38</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.39</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1389,7 +1389,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.38</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.39</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1516,7 +1516,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.38</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.39</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1576,7 +1576,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.38</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.39</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -4623,6 +4623,7 @@ function h88NearYakuHTML(seat) {
 function renderH88Seat(elId, seat) {
   const st = state.h88, g = st.game;
   const el = document.getElementById(elId); if (!el) return;
+  el.dataset.h88seat = seat; // v2.38: 下げスライドがこの席の手札行(.h88-mini-hand)を見つけるための目印
   // 八八ルール：手役は宣言者だけが、役を証明する札「だけ」を公開（残りと非宣言者は伏せたまま）。役の構成札はオレンジ強調。
   const reveal = (st.teyakuReveal && st.teyakuReveal[seat]) || null;
   const marks = (st.teyakuMarks && st.teyakuMarks[seat]) || [];
@@ -4856,19 +4857,44 @@ function h88AskSage(g, y, yt) {
   ov.classList.add('show', 'see-through');
   const cleanup = () => { ov.classList.remove('show', 'see-through'); okBtn.style.display = ''; box.remove(); };
   document.getElementById('h88-sage-agari').onclick = () => { playSfx('button'); cleanup(); g.winner = 'p0'; g.roundEnd = { kind: 'yaku', winner: 'p0', yaku: y, total: yt }; renderH88(); h88RoundOver('win'); };
-  document.getElementById('h88-sage-sageru').onclick = () => { cleanup(); g.sage = { seat: 'p0', total: yt }; st.sageShown = 'p0:' + yt; h88SageToast(st.names['p0']); playSfx('koikoi'); h88Log('◇ ' + st.names['p0'] + ' 下げ（続行）：' + yakuNames + ' ' + yt + unit); g.currentPlayer = h88NextSeat(g, 'p0'); h88AutoFocus(); renderH88(); h88MaybeAi(); };
+  document.getElementById('h88-sage-sageru').onclick = () => { cleanup(); g.sage = { seat: 'p0', total: yt }; st.sageShown = 'p0:' + yt; h88SageToast('p0'); h88Log('◇ ' + st.names['p0'] + ' 下げ（続行）：' + yakuNames + ' ' + yt + unit); g.currentPlayer = h88NextSeat(g, 'p0'); h88AutoFocus(); renderH88(); h88MaybeAi(); };
 }
-// v2.37: 下げ宣言はこいこいの「こいこい宣言」と同じ中央フラッシュ演出で見せる（オレンジの大バナー）。
-//   #koikoi-flash は position:fixed なので screen-hachi でもそのまま表示される。centerFlash と同型（強制リフロー→kflash アニメ）。
-//   効果音（koikoi）は呼び出し側で鳴らすため、ここでは鳴らさない（二重防止）。
+// v2.38: 下げ宣言はこいこいの「こいこい宣言」と完全に同型の2段演出に。
+//   ①宣言者の手札の上を「下げ！」が左→右へ高速スライド（スライド音ぎゅーん）→ ②中央に大きく「○○ 下げ！」（こいこい音）。
+//   #koikoi-slide / #koikoi-flash は position:fixed なので screen-hachi でもそのまま出る（こいこいの koikoiDeclareAnim と同型）。
+//   引数は席id（seat）。手札行＝自分は #h88-self-hand／相手はその席スロットの .h88-mini-hand。
 let _h88SageFlashTimer = null;
-function h88SageToast(name) {
+function h88SageToast(seat) {
+  const st = state.h88; if (!st) return;
+  const name = (st.names && st.names[seat]) || '';
+  const label = name + ' 下げ！（続行）';
+  const handRow = (seat === 'p0') ? document.getElementById('h88-self-hand')
+    : (function () { const slot = document.querySelector('[data-h88seat="' + seat + '"]'); return slot ? slot.querySelector('.h88-mini-hand') : null; })();
+  const slide = document.getElementById('koikoi-slide');
+  const rect = handRow ? handRow.getBoundingClientRect() : null;
+  const centerY = (rect && rect.height) ? (rect.top + rect.height / 2) : (window.innerHeight * 0.4);
+  if (slide) {
+    slide.textContent = '下げ！';
+    slide.style.top = centerY + 'px';
+    slide.style.animationDuration = aMs(1000) + 'ms';
+    slide.className = 'koikoi-slide'; void slide.offsetWidth; slide.className = 'koikoi-slide show'; // 強制リフローで必ず再生
+    setTimeout(() => playSfx('gyun'), aMs(60)); // スライドが見え始める頃に「ぎゅーん」
+    let done = false;
+    const fire = () => { if (done) return; done = true; slide.className = 'koikoi-slide'; h88SageCenterFlash(label); };
+    slide.addEventListener('animationend', fire, { once: true });
+    setTimeout(fire, aMs(1100)); // タイムライン停止環境のフォールバック
+  } else {
+    h88SageCenterFlash(label);
+  }
+}
+// 中央フラッシュ（こいこい宣言の centerFlash と同型・オレンジ大バナー）。こいこい音はスライドの後＝ここで鳴らす。
+function h88SageCenterFlash(label) {
   const el = document.getElementById('koikoi-flash');
   if (!el) return;
-  el.textContent = name + ' 下げ！（続行）';
-  el.className = 'koikoi-flash';        // v1.22 同手法: 同名クラス再設定ではアニメ再生されない→一度戻す
-  void el.offsetWidth;                   // 強制リフローで必ず再生
+  el.textContent = label;
+  el.className = 'koikoi-flash'; void el.offsetWidth; // 同名クラス再設定ではアニメ再生されない→一度戻す＋強制リフロー
   el.className = 'koikoi-flash show kf-koikoi big';
+  playSfx('koikoi');
   if (_h88SageFlashTimer) clearTimeout(_h88SageFlashTimer);
   _h88SageFlashTimer = setTimeout(() => { el.className = 'koikoi-flash'; }, 1600);
 }
@@ -4896,7 +4922,7 @@ function h88MaybeAi() {
     renderH88();
     if (g.sage && g.sage.seat === actor) { // このAIが下げた（新規）ならトーストで知らせる
       const key = g.sage.seat + ':' + g.sage.total;
-      if (st.sageShown !== key) { st.sageShown = key; h88SageToast(st.names[actor]); playSfx('koikoi'); h88Log('◇ ' + st.names[actor] + ' 下げ（続行）'); }
+      if (st.sageShown !== key) { st.sageShown = key; h88SageToast(actor); h88Log('◇ ' + st.names[actor] + ' 下げ（続行）'); }
     }
     if (r === 'win' || r === 'draw') { h88RoundOver(r); return; }
     g.currentPlayer = h88NextSeat(g, g.currentPlayer);
@@ -5107,7 +5133,7 @@ function h88AfterTurn(actor, tok) {
   }
   if (g.sage && g.sage.seat === actor) { // このプレイヤーが下げた（新規）ならトースト
     const key = g.sage.seat + ':' + g.sage.total;
-    if (st.sageShown !== key) { st.sageShown = key; h88SageToast(st.names[actor]); playSfx('koikoi'); h88Log('◇ ' + st.names[actor] + ' 下げ（続行）'); }
+    if (st.sageShown !== key) { st.sageShown = key; h88SageToast(actor); h88Log('◇ ' + st.names[actor] + ' 下げ（続行）'); }
   }
   const act = g.active || g.seats;
   if (g.hands[actor].length === 0 && act.every(s => g.hands[s].length === 0)) { h88FinishRound(g); renderH88(); h88RoundOver('draw'); return; }

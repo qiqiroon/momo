@@ -121,7 +121,9 @@
   .h88-seat .h88-caps .cards+.gl{margin-left:3px;padding-left:3px;border-left:1px solid var(--border);}
   .h88-seat .h88-caps .card{border-radius:2px;} /* v1.72 D4: サイズは .card.cap の --cap-w（こいこいと同じ） */
   /* v1.63 C11/C12: 山札は裏向き・場札と同じ大きさ。C9: 合う場札は浮かせる。 */
-  .h88-field-row{display:flex;gap:8px;align-items:flex-start;justify-content:center;}
+  /* v2.36: 場ブロックは左寄せ。中央そろえだと場札が1枚増えるたびブロック全体が再センタリングされ、
+     既存の場札まで左へ滑って（FLIPで動いて）ぎこちない。左寄せなら新しい札は右へ足されるだけで既存札は動かない。 */
+  .h88-field-row{display:flex;gap:8px;align-items:flex-start;justify-content:flex-start;}
   .h88-deck{text-align:center;flex:0 0 auto;padding-top:11px;}
   .h88-deck-count{font-size:.66rem;color:var(--text-muted);margin-top:2px;}
   /* v1.72 D4: 場はこいこい(.field)と同じ「隙間なく詰めるグリッド」。サイズは --card-w。 */
@@ -259,7 +261,7 @@
     #screen-hachi #h88-status{width:100%;align-self:stretch;flex:0 0 auto;box-sizing:border-box;margin:1px 0;padding:1px 6px;min-height:0;font-size:.66rem;gap:8px;line-height:1.15;}
     #screen-hachi #h88-status .h88-log-btn{padding:2px 7px;font-size:.66rem;line-height:1.1;}
     /* 場は上寄せ（ステータス直下）。余った縦の隙間は自分の上に集めて自分を最下部に。 */
-    #screen-hachi .h88-field-row{flex:0 1 auto;align-items:flex-start;justify-content:center;min-height:0;gap:10px;}
+    #screen-hachi .h88-field-row{flex:0 1 auto;align-items:flex-start;justify-content:flex-start;min-height:0;gap:10px;}
     #screen-hachi .h88-deck{padding-top:0;}
     #screen-hachi .h88-field{padding-top:0;align-content:flex-start;justify-content:flex-start;}
     /* v1.84: 自分＝取り札2列(上)→手札1列(中)→[あなたの番(左)＋名前(中央)]の1行(下)。グリッドで最下行に
@@ -1315,7 +1317,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.35</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.36</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1381,7 +1383,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.35</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.36</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1508,7 +1510,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.35</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.36</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1568,7 +1570,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.35</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.36</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -2787,7 +2789,8 @@ function refreshRoomView() {
 function updateStartBtn() {
   const b = document.getElementById('btn-start');
   if (state.gameSel === 'hachi') { // v1.68: 八八は準備室で3人親決め → 済んだら開始可
-    const ready = !!state.h88prep;
+    // v2.36: 親決めのめくりアニメが終わって親を表示してから（revealed）でないと開始不可
+    const ready = !!(state.h88prep && state.h88prep.revealed);
     b.disabled = !ready;
     b.textContent = ready ? t('hachi.start') : t('hachi.needoya');
     return;
@@ -4141,17 +4144,19 @@ function h88PrepDrawOya() {
   document.getElementById('h88-prep-oya-draws').innerHTML = h88OyaSlotsHTML(names, draws);
   const delay = h88OyaFlipReveal('h88-prep-oya-draws'); // v2.24: 3人ぶんを順にめくる
   const order = h88SeatOrder(draws); // [親, 2位, 3位]（反時計回り）
-  state.h88prep = { names: names, oyaDraws: draws, seatCycle: order };
+  // v2.36: 親決めのめくりアニメが画面上で終わる前に開始できないようゲート。revealed=false のうちは開始ボタンを出さない。
+  state.h88prep = { names: names, oyaDraws: draws, seatCycle: order, revealed: false };
   document.getElementById('btn-h88-prep-drawoya').classList.add('hidden');
   const showResult = () => {
     // v1.69: 親だけでなく2位・3位も示す＋反時計回りに座る旨
     document.getElementById('h88-prep-oya-result').innerHTML =
       '親：' + names[order[0]] + '<br>2位：' + names[order[1]] + '<br>3位：' + names[order[2]]
       + '<br><span style="color:var(--text-muted);font-weight:400;">この順で反時計回りに座ります</span>';
+    if (state.h88prep) state.h88prep.revealed = true; // v2.36: めくり終了＝ここで初めて開始可に
     updateStartBtn();
   };
   if (delay) setTimeout(showResult, delay); else showResult(); // v2.24: めくり終わってから結果表示
-  updateStartBtn();
+  updateStartBtn(); // v2.36: この時点では revealed=false ＝開始ボタンは無効のまま（親表示前に始められない）
 }
 // 準備画面で選んだルールセット(プリセット)を読む。既定=任天堂公式。
 function h88SelectedPreset() {
@@ -6001,6 +6006,7 @@ function animSnapshot() {
 function animPlay(prev, opts) {
   if (!prev || !prev.size) return [];
   const dur = aMs((opts && opts.dur) || ANIM.dur);
+  const g = state.game || {};
   const anims = [];
   document.querySelectorAll('#screen-game .card[data-id]').forEach(el => {
     // 選択中/リフト中の札は CSS transform を使うため触らない（アニメと競合させない）
@@ -6015,12 +6021,16 @@ function animPlay(prev, opts) {
     if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && Math.abs(sc - 1) < 0.02) return; // 動いてない
     // v1.34: 回収中の札は移動のあいだ前面へ浮かせる（場札や取り札枠の縁に隠れないように）。
     //   位置指定（絶対配置の重ね札）なら zIndex だけ、静的なら relative を足して zIndex を効かせる。
-    const promote = ANIM._collectIds && ANIM._collectIds.has(el.dataset.id);
+    // v2.36: いま飛んでいる主役の札（出した/めくった札）は場の重ね札(絶対配置 z8)の下にくぐらせない＝最前面(z9999)で通す。
+    //   八八の h88AnimPlay と同じ「主役札だけ持ち上げ、着地後に必ず戻す」方式（オンライン/CPU共通の animPlay で両方直る）。
+    //   こいこいの場札は .card 自体が位置決め要素なので z は el に付ける（八八は span 二重構造なので span 側）。
+    const isActive = !!(g.activeFlyId && el.dataset.id === g.activeFlyId);
+    const promote = isActive || (ANIM._collectIds && ANIM._collectIds.has(el.dataset.id));
     let prevPos, prevZ;
     if (promote) {
       prevPos = el.style.position; prevZ = el.style.zIndex;
       if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
-      el.style.zIndex = '500';
+      el.style.zIndex = isActive ? '9999' : '500';
     }
     const a = el.animate([
       { transformOrigin: 'top left', transform: 'translate(' + dx + 'px,' + dy + 'px) scale(' + sc + ')' },
@@ -6932,6 +6942,7 @@ function applyPlayCard(card) {
   g.playedFromHand = { player: cur, index: idx };
   g.playedCard = played;
   g.lastPlay = { player: cur, id: played.id, ts: Date.now() }; // v1.35: 相手側の手札→場演出用
+  g.activeFlyId = played.id; // v2.36: 飛んでいる主役の札＝最前面で通す（下くぐり防止）
   if (matches.length === 0) {
     g.field.push(played);          // 合う札なし＝単独で場に残す
     proceedToDraw();
@@ -6999,11 +7010,13 @@ function applyPick(fieldCard) {
       g.playedFromHand = { player: pp.player, index: pp.index };
       g.playedCard = played;
       g.lastPlay = { player: pp.player, id: played.id, ts: Date.now() }; // v1.35: 相手側の手札→場演出用
+      g.activeFlyId = played.id; // v2.36: 飛んでいる主役の札＝最前面で通す（下くぐり防止）
       g.playPick = null;
       stagePending(played, [fc]);
     }
     proceedToDraw();
   } else if (g.phase === 'pick-draw') {
+    g.activeFlyId = g.drawnCard ? g.drawnCard.id : null; // v2.36: めくり札＝最前面で通す（下くぐり防止）
     stagePending(g.drawnCard, [fc]);
     g.drawnCard = null;
     collectAndYaku();
@@ -7038,6 +7051,7 @@ function proceedToDraw() {
 function resolveDraw(drawn) {
   const g = state.game;
   if (g.drawnCard !== drawn) return; // 既に処理済み
+  g.activeFlyId = drawn.id; // v2.36: 飛んでいる主役の札（めくり札）＝最前面で通す（下くぐり防止）。回収の stepCollect で解除。
   // v1.32: すでに「重ね置き待ち（手札の合わせ取り予定）」の相方は、まだ場に残っていても取り対象外。
   //        これを除外しないと、めくり札が同月の“予約済み”場札に重なって3枚取りの誤りになる。
   const claimed = new Set();
@@ -7078,6 +7092,7 @@ function collectAndYaku() {
   //   枠でクリップされず、盤面全体で移動が見える。クローンは使わない＝環境依存の描画問題を避ける）
   const stepCollect = () => {
     if (!state.game || state.game !== g) return;
+    g.activeFlyId = null; // v2.36: 回収は全札を同等に（主役指定を解除）＝八八 stepCollect と同じ
     g.capFlash = { player: g.currentPlayer, ids: flashIds };
     // v1.33: 回収跡の場の空きは、整列（左寄せ）段まで詰めずに保持する（今の並びを控える）
     g.fieldOrder = g.field.map(c => c.id);
@@ -7102,6 +7117,7 @@ function collectAndYaku() {
   };
   if (hasPending && animEnabled()) setTimeout(stepCollect, aMs(ANIM.hold + 240));
   else {
+    g.activeFlyId = null; // v2.36: 主役指定を解除
     collectPending();
     g.capFlash = null; g.playedFromHand = null;
     g.fieldOrder = null; g.fieldGhostIds = null;
@@ -7873,6 +7889,7 @@ function syncState(opts) {
     fieldOrder: g.fieldOrder || null,       // v1.33: 回収跡の空き保持（online 同挙動）
     fieldGhostIds: g.fieldGhostIds || null,
     lastPlay: g.lastPlay || null,           // v1.35: 相手側の手札→場演出用
+    activeFlyId: g.activeFlyId || null,     // v2.36: 飛んでいる主役札（ゲスト側でも最前面で通す＝下くぐり防止）
     pickOptions: g.pickOptions,
     pendingYaku: g.pendingYaku,
     pendingGained: g.pendingGained,
@@ -7914,6 +7931,7 @@ function applyState(msg) {
   g.fieldOrder = msg.fieldOrder || null;         // v1.33
   g.fieldGhostIds = msg.fieldGhostIds || null;
   g.lastPlay = msg.lastPlay || null;             // v1.35
+  g.activeFlyId = msg.activeFlyId || null;        // v2.36: 主役札（下くぐり防止のz上げ用）
   g.pickOptions = msg.pickOptions || [];
   g.pendingYaku = msg.pendingYaku || null;
   g.pendingGained = msg.pendingGained || null;

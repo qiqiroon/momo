@@ -1326,7 +1326,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.45</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.46</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1392,7 +1392,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.45</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.46</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1519,7 +1519,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.45</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.46</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1579,7 +1579,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.45</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.46</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -2795,14 +2795,21 @@ function refreshRoomView() {
   const myMonth = state.isHost ? state.oyaHostMonth : state.oyaGuestMonth;
   document.getElementById('btn-draw-oya').disabled = (myMonth != null) || !opponentIn;
   updateOyaLabels();
+  // v2.45-段3: 八八の役BOX（ホスト/ゲスト/コンピュータ）はゲスト参加・名前変化で再描画（「参加待ち…」→実名）
+  if (state.gameSel === 'hachi') h88PrepRenderPlayers();
   updateStartBtn();
 }
 
 function updateStartBtn() {
   const b = document.getElementById('btn-start');
   if (state.gameSel === 'hachi') { // v1.68: 八八は準備室で3人親決め → 済んだら開始可
-    // v2.42: オンライン八八（vsコンピュータでない）は対局エンジン（同期/視点描画）が実装途中のため当面は開始不可表示。
-    if (!state.vsAI) { b.disabled = true; b.textContent = 'オンライン八八は準備中'; return; }
+    // v2.45-段3: オンライン八八＝ホストがゲスト参加後に開始（親決めはホストが引く・段5で各自引くに）。ゲストはホスト開始待ち。
+    if (!state.vsAI) {
+      const canStart = state.isHost && !!state.guestName;
+      b.disabled = !canStart;
+      b.textContent = state.isHost ? (state.guestName ? '八八を開始' : 'ゲストの参加を待っています') : 'ホストの開始を待っています';
+      return;
+    }
     // v2.36: 親決めのめくりアニメが終わって親を表示してから（revealed）でないと開始不可
     const ready = !!(state.h88prep && state.h88prep.revealed);
     b.disabled = !ready;
@@ -3284,6 +3291,10 @@ function initMatchmaking() {
 
 function handleP2P(data) {
   if (!data || !data.type) return;
+  // v2.45-段3: 八八オンラインのメッセージ経路
+  if (data.type === 'h88-start') { h88ApplyStart(data); return; }   // ゲスト：開始情報を受けて盤面を用意
+  if (data.type === 'h88-state') { h88ApplyState(data); return; }   // ゲスト：状態同期を適用して描画
+  if (data.type === 'h88-intent') { h88HandleIntent(data); return; } // ホスト：ゲストの手を実行
   if (data.type === 'hello') {
     if (state.isHost) { state.guestName = data.name || state.guestName; }
     else { state.hostName = data.name || state.hostName; }
@@ -4170,12 +4181,13 @@ function h88PrepReset() {
   const r = document.getElementById('h88-prep-oya-result'); if (r) r.textContent = '';
   const b = document.getElementById('btn-h88-prep-drawoya');
   if (b) {
-    b.classList.remove('hidden');
-    // v2.43: オンライン八八は親決めの同期が未実装（段5予定）。各自がローカルで引くと揃わないため当面は無効化。
-    const onlineWip = !state.vsAI;
-    b.disabled = onlineWip;
-    b.textContent = onlineWip ? 'オンライン親決めは準備中' : t('oya.draw');
-    if (onlineWip && r) r.innerHTML = '<span style="color:var(--text-muted);font-weight:400;">オンライン八八の親決め・対局は現在実装中です（順次対応）。</span>';
+    // v2.45-段3: オンライン八八は「八八を開始」で親決め→対局が始まる（親決めはホストが引く・段5で各自引くに）。準備室の親決めボタンは隠す。
+    if (!state.vsAI) {
+      b.classList.add('hidden');
+      if (r) r.innerHTML = '<span style="color:var(--text-muted);font-weight:400;">ホストが「八八を開始」を押すと親決め→対局が始まります。</span>';
+    } else {
+      b.classList.remove('hidden'); b.disabled = false; b.textContent = t('oya.draw');
+    }
   }
   // v2.42: 説明文を編成に合わせる（vsコンピュータ＝あなた＋CPU2体／オンライン＝ホスト＋ゲスト＋CPU1体）
   const descSpan = document.querySelector('#set-hachi .desc span[data-i18n="set.hachi.desc"]');
@@ -4349,6 +4361,95 @@ function startHachiFromPrep(rounds) {
   showScreen('hachi');
   h88SetupOppDrag();
   h88StartRound(p.seatCycle[0]);
+}
+// ── v2.45-段3: 八八オンライン対人戦（ホスト権威）。役割 p0=ホスト(人間)/p1=ゲスト(人間)/p2=コンピュータ(ホスト側)──
+//   通信は既存 host↔guest のまま。ホストが全ルールを実行し、renderH88 のたびに全状態をゲストへ同期。
+//   ゲストはクリックを h88-intent で送るだけ（h88OnClickHand/Field）。CPU はホスト内で動く（st.cpuSeats=['p2']）。
+const H88_GUEST_SEAT = 'p1';
+function h88OnlineRoundsSel() { const seg = document.getElementById('h88-rounds-seg'); const on = seg && seg.querySelector('button.on'); return on ? parseInt(on.dataset.v, 10) : 3; }
+// ホスト：オンライン八八を開始（親決めはホストが3席ぶん引く＝段3暫定。段5で各自引く方式に）。
+function h88StartOnlineHost() {
+  if (!state.isHost || !state.guestName) return;
+  const names = h88OnlineRoleNames();               // {p0:host, p1:guest, p2:CPU}
+  const deck = shuffle(buildDeck());                 // 親決め：別々の月を3席ぶん
+  const draws = {}, usedMonth = {};
+  ['p0', 'p1', 'p2'].forEach(s => { let c; do { c = deck.pop(); } while (c && usedMonth[c.month]); usedMonth[c.month] = true; draws[s] = { month: c.month, id: c.id }; });
+  const order = h88SeatOrder(draws);                 // [親, 2位, 3位]（反時計回り＝手番順）
+  const lv = h88Levels();
+  const rounds = h88OnlineRoundsSel();
+  state.h88 = {
+    names: names, scores: { p0: 0, p1: 0, p2: 0 }, levels: { p1: lv.p1, p2: lv.p2 },
+    preset: h88SelectedPreset(), rules: h88ReadBundleRules(),
+    roundNo: 1, rounds: rounds, seatCycle: order, game: null, aiToken: 0, oyaDraws: draws, focusSeat: null, log: [],
+    online: true, mySeat: 'p0', cpuSeats: ['p2'],    // 段3: ホスト視点＝p0／CPU席=p2
+  };
+  MomoMatchmaking.send({ type: 'h88-start', names: names, seatCycle: order, rounds: rounds, rules: state.h88.rules, preset: state.h88.preset, scores: state.h88.scores, oyaDraws: draws });
+  showScreen('hachi');
+  h88SetupOppDrag();
+  h88StartRound(order[0]);
+}
+// ゲスト：'h88-start' 受信＝自席 p1 として盤面を用意（実体は h88-state 同期で来る）。
+function h88ApplyStart(msg) {
+  state.h88 = {
+    names: msg.names, scores: msg.scores || { p0: 0, p1: 0, p2: 0 }, levels: { p1: 'HARD', p2: 'HARD' },
+    preset: msg.preset, rules: msg.rules,
+    roundNo: 1, rounds: msg.rounds, seatCycle: msg.seatCycle, game: null, aiToken: 0, oyaDraws: msg.oyaDraws || null, focusSeat: null, log: [],
+    online: true, mySeat: H88_GUEST_SEAT, cpuSeats: [], // ゲストはCPUを回さない（描画のみ）
+  };
+  showScreen('hachi');
+  h88SetupOppDrag();
+}
+// ホスト：全状態をゲストへ同期。ゲストの手札は実体、他席は枚数のみ。renderH88 の末尾から呼ぶ。
+function h88SyncState() {
+  const st = state.h88; if (!st || !st.online || !state.isHost || !st.game) return;
+  const g = st.game;
+  const handsOut = {}; g.seats.forEach(s => { handsOut[s] = (s === H88_GUEST_SEAT) ? g.hands[s] : g.hands[s].length; });
+  MomoMatchmaking.send({
+    type: 'h88-state',
+    seats: g.seats, currentPlayer: g.currentPlayer, winner: g.winner || null, oya: g.oya, bonus: g.bonus || 1,
+    field: g.field, deckCount: g.deck.length, caps: g.caps, hands: handsOut,
+    pending: g.pending || [], playPick: g.playPick || null, playedFromHand: g.playedFromHand || null,
+    capFlash: g.capFlash || null, fieldOrder: g.fieldOrder || null, fieldGhostIds: g.fieldGhostIds || null,
+    lastPlay: g.lastPlay || null, dropped: g.dropped || [], active: g.active || null, sage: g.sage || null, roundEnd: g.roundEnd || null,
+    drawn: st.drawn || null, pendingUi: st.pending || null, activeFlyId: st._activeFlyId || null,
+    roundOya: st.roundOya, roundNo: st.roundNo, rounds: st.rounds, scores: st.scores, names: st.names,
+    teyakuMarks: st.teyakuMarks || null, teyakuReveal: st.teyakuReveal || null,
+  });
+}
+// ゲスト：'h88-state' 受信＝自席視点で盤面を再構成して描画（エンジンは回さない）。
+function h88ApplyState(msg) {
+  const st = state.h88; if (!st || state.isHost) return;
+  const mySeat = st.mySeat || H88_GUEST_SEAT;
+  const g = st.game || {};
+  g.seats = msg.seats; g.currentPlayer = msg.currentPlayer; g.winner = msg.winner || null; g.oya = msg.oya; g.bonus = msg.bonus || 1;
+  g.field = msg.field || []; g.caps = msg.caps || {};
+  g.hands = {}; msg.seats.forEach(s => { g.hands[s] = (typeof msg.hands[s] === 'number') ? new Array(msg.hands[s]).fill({ id: '?' }) : (msg.hands[s] || []); });
+  g.deck = new Array(msg.deckCount || 0);
+  g.pending = msg.pending || []; g.playPick = msg.playPick || null; g.playedFromHand = msg.playedFromHand || null;
+  g.capFlash = msg.capFlash || null; g.fieldOrder = msg.fieldOrder || null; g.fieldGhostIds = msg.fieldGhostIds || null;
+  g.lastPlay = msg.lastPlay || null; g.dropped = msg.dropped || []; g.active = msg.active || null; g.sage = msg.sage || null; g.roundEnd = msg.roundEnd || null;
+  st.game = g;
+  st.drawn = msg.drawn || null; st.pending = msg.pendingUi || null; st._activeFlyId = msg.activeFlyId || null;
+  st.roundOya = msg.roundOya; st.roundNo = msg.roundNo; st.rounds = msg.rounds; st.scores = msg.scores; st.names = msg.names;
+  st.teyakuMarks = msg.teyakuMarks || null; st.teyakuReveal = msg.teyakuReveal || null;
+  st.turnBusy = false;
+  if (g.currentPlayer !== mySeat) st.sel = null; // 自分の手番でなければ選択解除
+  renderH88(); // ゲストは描画のみ（入力可否は同期状態＝currentPlayer/pending/drawn/playedFromHand で判定）
+}
+// ホスト：ゲストからの intent を実行（ゲストの手番のみ）。
+function h88HandleIntent(data) {
+  const st = state.h88; if (!st || !st.online || !state.isHost || !st.game) return;
+  const g = st.game;
+  if (g.currentPlayer !== H88_GUEST_SEAT || g.winner) return; // ゲストの手番でなければ無視
+  if (data.action === 'play') {
+    // ★st.turnBusy はホスト自身の入力ロック用でここでは見ない（ゲストの手の進行中判定は g.playedFromHand/st.pending/st.drawn）。
+    if (st.pending || st.drawn || (g.playedFromHand && g.playedFromHand.player === H88_GUEST_SEAT)) return; // 所作中は無視
+    if (typeof data.idx !== 'number' || !g.hands[H88_GUEST_SEAT][data.idx]) return;
+    h88AnimPlayFromHand(data.idx, H88_GUEST_SEAT);
+  } else if (data.action === 'pick') {
+    if (!st.pending || st.pending.matches.indexOf(data.id) < 0) return;
+    h88AnimPickField(data.id, H88_GUEST_SEAT);
+  }
 }
 function startHachiVsAI(rounds) {
   const lv = h88Levels(); // v1.72 D1: CPU別強さ
@@ -4796,6 +4897,7 @@ function renderH88() {
   if (h88AnimEnabled() && curDrawn && curDrawn !== st._lastDrawnId) h88FlipReveal();
   st._lastDrawnId = curDrawn;
   if (h88AnimEnabled()) h88PlaySoundCues(g); // 効果音はこいこいと同じキュー一本で（到着に合わせて鳴らす）
+  if (st.online && state.isHost) h88SyncState(); // v2.45-段3: ホストは所作ごとに全状態をゲストへ同期（こいこいのrenderGame→syncState同型）
 }
 // v1.65 item1: こいこい同様、手札ホバーで合う場札を浮かせるプレビュー（クリック不要）
 function h88PreviewField(month, on) {
@@ -4813,20 +4915,26 @@ function h88PreviewField(month, on) {
 function h88OnClickHand(idx) {
   const st = state.h88; if (!st || !st.game) return;
   const g = st.game;
-  if (g.currentPlayer !== 'p0' || g.winner || st.pending || st.drawn) return; // ピック中・めくり札表示中は手札操作不可
-  if (st.turnBusy || (g.playedFromHand && g.playedFromHand.player === 'p0')) return; // v2.24: 自分の一手の所作が進行中は次の札を出せない
-  if (st.sel === idx) { hideCardBubble(); st.sel = null; h88HumanPlayHand(idx); } // 2度目＝出す
-  else {                                                             // 1度目＝選択＋ヒント＋札名
+  const me = h88MySeat();
+  if (g.currentPlayer !== me || g.winner || st.pending || st.drawn) return; // ピック中・めくり札表示中は手札操作不可
+  if (st.turnBusy || (g.playedFromHand && g.playedFromHand.player === me)) return; // v2.24: 自分の一手の所作が進行中は次の札を出せない
+  if (st.sel === idx) { // 2度目＝出す
+    hideCardBubble(); st.sel = null;
+    // v2.45-段3: オンラインのゲストは intent をホストへ送る（ホストが実行して同期）。それ以外はローカル実行。
+    if (st.online && !state.isHost) { st.turnBusy = true; renderH88(); MomoMatchmaking.send({ type: 'h88-intent', action: 'play', idx: idx }); }
+    else h88HumanPlayHand(idx, me);
+  } else {                                                             // 1度目＝選択＋ヒント＋札名
     st.sel = idx; renderH88();
     const el = document.querySelector('#h88-self-hand .h88-hand-card.sel .card');
     if (el) showCardBubble(el);
   }
 }
-function h88HumanPlayHand(idx) {
+function h88HumanPlayHand(idx, actor) {
   const st = state.h88, g = st.game;
-  if (h88AnimEnabled()) { h88AnimPlayFromHand(idx); return; } // v2.24: アニメON＝こいこいと同じ pending 所作
-  // ---- 従来（アニメOFF）：即取り ----
-  const card = g.hands['p0'].splice(idx, 1)[0];
+  actor = actor || h88MySeat();
+  if (h88AnimEnabled()) { h88AnimPlayFromHand(idx, actor); return; } // v2.24: アニメON＝こいこいと同じ pending 所作
+  // ---- 従来（アニメOFF）：即取り（ローカルのみ・actor=自席） ----
+  const card = g.hands[actor].splice(idx, 1)[0];
   if (!card) return;
   playSfx('shu'); // v1.63 C13: 手札を出す
   const matches = h88MonthMatches(g.field, card.month);
@@ -4844,8 +4952,11 @@ function h88HumanPlayHand(idx) {
 function h88OnClickField(id) {
   const st = state.h88; if (!st || !st.game || !st.pending) return;
   const g = st.game, p = st.pending;
+  if (g.currentPlayer !== h88MySeat()) return; // v2.45-段3: 自分の手番のpickのみ（ホストがゲストのpick中に押すのを防止）
   if (p.matches.indexOf(id) < 0) return; // 候補以外は無視
-  if (h88AnimEnabled()) { h88AnimPickField(id); return; } // v2.24: アニメON＝pending 所作で続行
+  // v2.45-段3: オンラインのゲストは pick を intent でホストへ。それ以外はローカル実行。
+  if (st.online && !state.isHost) { MomoMatchmaking.send({ type: 'h88-intent', action: 'pick', id: id }); return; }
+  if (h88AnimEnabled()) { h88AnimPickField(id, h88MySeat()); return; } // v2.24: アニメON＝pending 所作で続行
   // ---- 従来（アニメOFF）：即取り ----
   const took = h88Capture(g, 'p0', p.card, id);
   playSfx('bishi');
@@ -5070,50 +5181,53 @@ function h88AnimOpponentPlay() {
   setTimeout(restore, aMs(ANIM.dur) + 140);
 }
 // 人間 p0 が手札を出す（アニメON）。2枚合致は場札クリック待ちへ（こいこい applyPlayCard 同型）。
-function h88AnimPlayFromHand(idx) {
+// v2.45-段3: actor 引数化（既定＝視点席。ホストがゲストの intent を実行するときは actor='p1'）。
+function h88AnimPlayFromHand(idx, actor) {
   const st = state.h88, g = st.game, tok = st.aiToken;
-  const card = g.hands['p0'][idx];
+  actor = actor || h88MySeat();
+  const card = g.hands[actor][idx];
   if (!card) return;
   const matches = h88MonthMatches(g.field, card.month);
   if (h88NeedPick(matches)) { // 手札に残して浮かせたまま、場札の選択を待つ（こいこい playPick）
-    g.playPick = { player: 'p0', id: card.id, index: idx };
+    g.playPick = { player: actor, id: card.id, index: idx };
     st.pending = { stage: 'pick-hand', matches: matches.map(c => c.id) };
     renderH88(); return;
   }
-  g.hands['p0'].splice(idx, 1);
-  g.playedFromHand = { player: 'p0', index: idx };
-  g.lastPlay = { player: 'p0', id: card.id, ts: Date.now() }; // 音キュー用（しゅっ→着地音）
+  g.hands[actor].splice(idx, 1);
+  g.playedFromHand = { player: actor, index: idx };
+  g.lastPlay = { player: actor, id: card.id, ts: Date.now() }; // 音キュー用（しゅっ→着地音）
   st._activeFlyId = card.id; // 飛んでいる主役の札＝最上位で通す
   st.turnBusy = true; // v2.24: この手番の所作が終わる（次の自分の手番）まで手札入力を止める
-  if (matches.length === 0) { g.field.push(card); h88LogPlayer(g, 'p0', h88DescribeTake(card, [], false)); }
-  else { h88StagePending(g, card, matches); h88LogPlayer(g, 'p0', h88DescribeTake(card, [card].concat(matches), false)); }
+  if (matches.length === 0) { g.field.push(card); h88LogPlayer(g, actor, h88DescribeTake(card, [], false)); }
+  else { h88StagePending(g, card, matches); h88LogPlayer(g, actor, h88DescribeTake(card, [card].concat(matches), false)); }
   renderH88(); // 出した札→場（重ね置き or 単独）へ FLIP。音は h88PlaySoundCues（着地に合わせて）
-  h88StageDraw('p0', tok);
+  h88StageDraw(actor, tok);
 }
 // 2枚合致の場札選択後の続行（アニメON）。pick-hand は続けて山めくりへ、pick-draw は回収へ。
-function h88AnimPickField(id) {
+function h88AnimPickField(id, actor) {
   const st = state.h88, g = st.game, p = st.pending, tok = st.aiToken;
+  actor = actor || h88MySeat();
   const chosen = g.field.filter(c => c.id === id); // 選んだ場札（1枚）
   if (p.stage === 'pick-hand') {
     const pp = g.playPick;
-    const hi = g.hands['p0'].findIndex(c => c.id === pp.id);
-    const card = (hi >= 0) ? g.hands['p0'].splice(hi, 1)[0] : { id: pp.id };
-    g.playedFromHand = { player: 'p0', index: pp.index };
-    g.lastPlay = { player: 'p0', id: card.id, ts: Date.now() }; // 音キュー用
+    const hi = g.hands[actor].findIndex(c => c.id === pp.id);
+    const card = (hi >= 0) ? g.hands[actor].splice(hi, 1)[0] : { id: pp.id };
+    g.playedFromHand = { player: actor, index: pp.index };
+    g.lastPlay = { player: actor, id: card.id, ts: Date.now() }; // 音キュー用
     st._activeFlyId = card.id; // 飛んでいる主役の札＝最上位で通す
     g.playPick = null; st.pending = null; st.turnBusy = true; // v2.24: 所作中は手札入力を止める
     h88StagePending(g, card, chosen);
-    h88LogPlayer(g, 'p0', h88DescribeTake(card, [card].concat(chosen), false));
+    h88LogPlayer(g, actor, h88DescribeTake(card, [card].concat(chosen), false));
     renderH88(); // 浮かせていた手札→選んだ場札の上へ FLIP。音は h88PlaySoundCues
-    h88StageDraw('p0', tok);
+    h88StageDraw(actor, tok);
   } else { // pick-draw
     const drawn = st.drawn;
     st.pending = null; st.drawn = null;
     st._activeFlyId = drawn.id; // 飛んでいる主役の札＝最上位で通す
     h88StagePending(g, drawn, chosen);
-    h88LogPlayer(g, 'p0', h88DescribeTake(drawn, [drawn].concat(chosen), true));
+    h88LogPlayer(g, actor, h88DescribeTake(drawn, [drawn].concat(chosen), true));
     renderH88(); // めくり札→選んだ場札の上へ FLIP。音は h88PlaySoundCues（めくり札の着地）
-    h88StageCollect('p0', tok);
+    h88StageCollect(actor, tok);
   }
 }
 // 手札を場に置いてから間をおいて山をめくる（こいこい proceedToDraw 同型）。
@@ -8177,6 +8291,10 @@ function handleIntent(data) {
 // --------------------------------------------------------------------------
 function startGame() {
   // v1.63: 八八(3人)を選んでいれば八八へ（vsコンピュータのみ）
+  if (state.gameSel === 'hachi' && !state.vsAI) { // v2.45-段3: オンライン八八（ホストが開始・親決めはホストが引く）
+    h88StartOnlineHost();
+    return;
+  }
   if (state.gameSel === 'hachi' && state.vsAI) {
     if (!state.h88prep) return; // 親決め未実施なら開始しない
     const seg = document.getElementById('h88-rounds-seg');

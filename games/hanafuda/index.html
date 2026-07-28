@@ -1326,7 +1326,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.41</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.42</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1392,7 +1392,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.41</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.42</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1519,7 +1519,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.41</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.42</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1579,7 +1579,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.41</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.42</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -2755,12 +2755,14 @@ function tryJoin(room) {
 // 7) 部屋 (対戦準備) UI
 // --------------------------------------------------------------------------
 function refreshRoomView() {
-  // v1.63: 八八タブは vsコンピュータのときだけ選択可（オンラインは2人なので不可）
+  // v2.42: 八八は「vsコンピュータ」または「オンライン部屋のホスト」で選択可。
+  //   オンライン八八＝ホスト人間＋ゲスト人間＋ホスト側CPU1体（通信は host↔guest のまま／CPUはホスト内）。
+  //   ゲストはホストの選択に従う（自分では変えられない）＝タブは無効表示のまま active だけ同期される。
   const hachiTab = document.querySelector('.gtab[data-g="hachi"]');
   if (hachiTab) {
-    hachiTab.disabled = !state.vsAI;
-    const soon = hachiTab.querySelector('.soon'); if (soon) soon.style.display = state.vsAI ? 'none' : '';
-    if (!state.vsAI && state.gameSel === 'hachi') pickGame('koikoi'); // オンラインに戻ったら八八解除
+    const canPickHachi = state.vsAI || state.isHost;
+    hachiTab.disabled = !canPickHachi;
+    const soon = hachiTab.querySelector('.soon'); if (soon) soon.style.display = canPickHachi ? 'none' : '';
   }
   document.getElementById('room-name-disp').textContent = state.roomName || '—';
   document.getElementById('room-pw-disp').classList.toggle('hidden', !state.roomHasPw);
@@ -2799,6 +2801,8 @@ function refreshRoomView() {
 function updateStartBtn() {
   const b = document.getElementById('btn-start');
   if (state.gameSel === 'hachi') { // v1.68: 八八は準備室で3人親決め → 済んだら開始可
+    // v2.42: オンライン八八（vsコンピュータでない）は対局エンジン（同期/視点描画）が実装途中のため当面は開始不可表示。
+    if (!state.vsAI) { b.disabled = true; b.textContent = 'オンライン八八は準備中'; return; }
     // v2.36: 親決めのめくりアニメが終わって親を表示してから（revealed）でないと開始不可
     const ready = !!(state.h88prep && state.h88prep.revealed);
     b.disabled = !ready;
@@ -2861,7 +2865,7 @@ function applySettingToggle(key, v) {
   }
   updateKoiOnceLock();
   if (state.isHost && state.guestName) {
-    MomoMatchmaking.send({ type: 'settings', settings: state.settings });
+    MomoMatchmaking.send({ type: 'settings', settings: state.settings, gameSel: state.gameSel }); // v2.42: ゲーム選択も同送
   }
 }
 // v1.59: koiOnce ON の間は多重掛けトグルを操作不可＋淡色に（自動OFF済みを明示）
@@ -3197,7 +3201,7 @@ function initMatchmaking() {
       refreshRoomView();
       // DC 未確立でも設定が届くよう明示送信（フォールバック）
       MomoMatchmaking.send({ type: 'hello', name: state.hostName });
-      MomoMatchmaking.send({ type: 'settings', settings: state.settings });
+      MomoMatchmaking.send({ type: 'settings', settings: state.settings, gameSel: state.gameSel }); // v2.42: ゲーム選択も同送
       if (state.game) {
         // 対局中に相手が (再)入室 = 復帰。盤面を丸ごと送り直す（deal 型でゲストを対局画面へ）。
         diagLog('room', 'guest REJOINED mid-game → resync full state');
@@ -3231,7 +3235,7 @@ function initMatchmaking() {
       refreshRoomView();
       if (state.isHost) {
         MomoMatchmaking.send({ type: 'hello', name: state.hostName });
-        MomoMatchmaking.send({ type: 'settings', settings: state.settings });
+        MomoMatchmaking.send({ type: 'settings', settings: state.settings, gameSel: state.gameSel }); // v2.42: ゲーム選択も同送
       } else {
         MomoMatchmaking.send({ type: 'hello', name: state.guestName });
       }
@@ -3287,9 +3291,12 @@ function handleP2P(data) {
     return;
   }
   if (data.type === 'settings') {
-    if (!state.isHost && data.settings) {
-      state.settings = Object.assign({}, state.settings, data.settings);
-      applySettingsToUi();
+    if (!state.isHost) {
+      if (data.settings) {
+        state.settings = Object.assign({}, state.settings, data.settings);
+        applySettingsToUi();
+      }
+      if (data.gameSel && data.gameSel !== state.gameSel) pickGame(data.gameSel); // v2.42: ゲーム選択をホストに追従（八八/こいこい）
     }
     return;
   }
@@ -4078,17 +4085,37 @@ function h88Levels() {
   if (!state.h88Levels) state.h88Levels = { p1: 'HARD', p2: 'HARD' };
   return state.h88Levels;
 }
+// v2.42: 役BOXの識別＝p0:ホスト（プレイヤー）/ p1:ゲスト（プレイヤー）/ p2:コンピュータ（今は固定・将来3人目のプレイヤー/CPU選択可）。
+//   オンライン八八のときは実名（ホスト名・ゲスト名）を、vsコンピュータのときは従来どおり あなた＋CPU1/CPU2。
+//   ※ここでの p0/p1/p2 は「役の識別」。対局中の席順(seatCycle)は親決めで別に決まる。
+function h88OnlineRoleNames() {
+  const myName = (document.getElementById('in-playername').value || '').trim() || t('vsai.you');
+  const hostName = state.isHost ? myName : (state.hostName || t('room.host'));
+  const guestName = state.isHost ? (state.guestName || t('room.waiting')) : myName;
+  return { p0: hostName, p1: guestName, p2: t('vsai.cpu') };
+}
 function h88PrepNames() {
+  if (!state.vsAI) return h88OnlineRoleNames(); // オンライン八八＝ホスト/ゲスト/コンピュータ
   const name = (document.getElementById('in-playername').value || '').trim() || t('vsai.you');
   return { p0: name, p1: t('vsai.cpu') + '1', p2: t('vsai.cpu') + '2' }; // 名称に強さ(HARD等)は含めない
 }
 function h88PrepRenderPlayers() {
   const el = document.getElementById('h88-prep-players'); if (!el) return;
-  const name = (document.getElementById('in-playername').value || '').trim() || t('vsai.you');
   const lv = h88Levels();
-  const levelSel = (seat) => '<select class="ai-level-select h88-cpu-level" data-seat="' + seat + '" aria-label="コンピュータの強さ">'
+  const levelSel = (seat) => '<select class="ai-level-select h88-cpu-level" data-seat="' + seat + '" aria-label="コンピュータの強さ"' + (state.isHost || state.vsAI ? '' : ' disabled') + '>'
     + ['EASY', 'HARD', 'APOCALYPSE'].map(v => '<option value="' + v + '"' + (lv[seat] === v ? ' selected' : '') + '>' + v + '</option>').join('')
     + '</select>';
+  if (!state.vsAI) {
+    // v2.42: オンライン八八の役BOX。1:ホスト(プレイヤー) / 2:ゲスト(プレイヤー) / 3:コンピュータ(固定・将来3人目選択可)。
+    const nm = h88OnlineRoleNames();
+    const guestWaiting = !state.guestName && state.isHost;
+    el.innerHTML =
+      '<div class="pl host"><small>' + t('room.host') + '</small><span>' + nm.p0 + '</span></div>'
+      + '<div class="guest-row"><div class="pl guest"><small>' + t('room.guest') + '</small><span' + (guestWaiting ? ' class="waiting-g"' : '') + '>' + nm.p1 + '</span></div></div>'
+      + '<div class="guest-row"><div class="pl guest"><small>コンピュータ</small><span>' + nm.p2 + '</span></div>' + levelSel('p2') + '</div>';
+    return;
+  }
+  const name = (document.getElementById('in-playername').value || '').trim() || t('vsai.you');
   el.innerHTML =
     '<div class="pl host"><small>' + t('room.host') + '</small><span>' + name + '</span></div>'
     + ['p1', 'p2'].map((s, i) =>
@@ -4142,6 +4169,11 @@ function h88PrepReset() {
   const d = document.getElementById('h88-prep-oya-draws'); if (d) d.innerHTML = h88OyaSlotsHTML(h88PrepNames(), null); // v1.72 D2: 伏せ札を最初に置く
   const r = document.getElementById('h88-prep-oya-result'); if (r) r.textContent = '';
   const b = document.getElementById('btn-h88-prep-drawoya'); if (b) b.classList.remove('hidden');
+  // v2.42: 説明文を編成に合わせる（vsコンピュータ＝あなた＋CPU2体／オンライン＝ホスト＋ゲスト＋CPU1体）
+  const descSpan = document.querySelector('#set-hachi .desc span[data-i18n="set.hachi.desc"]');
+  if (descSpan) descSpan.textContent = state.vsAI
+    ? 'あなた＋コンピュータ2体の3人で対戦します（相手2人ともコンピュータ）。'
+    : 'ホスト＋ゲスト＋コンピュータ1体の3人で対戦します（3人目は当面コンピュータ・将来プレイヤー選択可）。';
   h88PrepRenderPlayers();
   updateStartBtn();
 }
@@ -8236,6 +8268,7 @@ function bindEvents() {
     if (b.disabled) return;
     if (!state.isHost) return;
     pickGame(b.dataset.g);
+    if (state.guestName) MomoMatchmaking.send({ type: 'settings', settings: state.settings, gameSel: state.gameSel }); // v2.42: ゲーム選択をゲストへ即同期
   }));
   document.querySelectorAll('#set-koikoi .seg button').forEach(btn => btn.addEventListener('click', () => {
     const seg = btn.closest('.seg');

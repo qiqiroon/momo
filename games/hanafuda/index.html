@@ -1323,7 +1323,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.37</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.38</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1389,7 +1389,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.37</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.38</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1516,7 +1516,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.37</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.38</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1576,7 +1576,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.37</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.38</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -4666,8 +4666,13 @@ function renderH88() {
         : st.names[g.currentPlayer] + ' の番');
   // v1.66: 席順（親決めの反時計回り）で固定配置。自分の次に打つ人＝右上、その次＝左上。
   //   横画面=両方表示。縦画面= focusSeat の1人だけ表示（.h88-shown）＝切替でもう一方へ。
-  const rightSeat = h88NextSeat(g, 'p0');          // 自分の次に打つ相手 → 右上
-  const leftSeat = h88NextSeat(g, rightSeat);      // その次（＝自分の前に打つ相手）→ 左上
+  // v2.38: 相手2席の表示位置は「席の並び(seatCycle)」で固定する。手番送りの h88NextSeat は⑩出降りで
+  //   降りた席を飛ばすため、これで表示席を算出すると2人局で一周して p0(自分)に戻り、左の相手枠に自分の
+  //   名前・手札が描画され二重表示・二重動作になっていた（出降りでCPUが降りたときのバグ）。降りた席も表示位置は
+  //   固定のまま renderH88Seat 側で「降り」表示にする。
+  const _n = g.seats.length, _i0 = g.seats.indexOf('p0');
+  const rightSeat = g.seats[(_i0 + 1) % _n];       // 自分の次の席 → 右上（降りていても位置は固定）
+  const leftSeat = g.seats[(_i0 + 2) % _n];        // その次の席 → 左上
   if (st.focusSeat !== leftSeat && st.focusSeat !== rightSeat) st.focusSeat = rightSeat;
   renderH88Seat('h88-oppL', leftSeat);
   renderH88Seat('h88-oppR', rightSeat);

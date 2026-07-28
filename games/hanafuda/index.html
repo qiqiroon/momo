@@ -1326,7 +1326,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.44</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.45</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1392,7 +1392,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.44</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.45</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1519,7 +1519,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.44</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.45</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1579,7 +1579,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.44</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.45</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -4950,18 +4950,27 @@ function h88SageCenterFlash(label) {
   if (_h88SageFlashTimer) clearTimeout(_h88SageFlashTimer);
   _h88SageFlashTimer = setTimeout(() => { el.className = 'koikoi-flash'; }, 1600);
 }
-// AIの手番なら少し待って自動着手（人はクリック待ち）
+// v2.44-段3: 手番の駆動。CPU席(st.cpuSeats)だけ自動着手／自分(視点席)はローカル入力待ち／
+//   オンラインの相手人間席は intent 待ち（何もしない）。ゲスト側はエンジンを回さない（ホスト権威・描画のみ）。
+//   ローカル(vsコンピュータ)は st.cpuSeats 未設定→既定['p1','p2']で従来と同一挙動。
+function h88CpuSeats() { const st = state.h88; return (st && st.cpuSeats) || ['p1', 'p2']; }
+function h88IsCpuSeat(seat) { return h88CpuSeats().indexOf(seat) >= 0; }
 function h88MaybeAi() {
   const st = state.h88; if (!st || !st.game) return;
   const g = st.game;
   if (g.winner) return;
-  if (g.currentPlayer === 'p0') { // v2.13: あなたの手番になったら こいこい同様「ぴろっ」を1回だけ鳴らす
+  const cur = g.currentPlayer;
+  if (cur === h88MySeat()) { // v2.13: 自分の手番＝入力待ち。こいこい同様「ぴろっ」を1回だけ
     st.turnBusy = false; // v2.24: 新しい自分の手番＝入力受付を再開（前の一手の所作は完了済み）
     if (!st.awaitP0) { playSfx('piro'); st.awaitP0 = true; }
     return;
   }
-  st.awaitP0 = false; // AIの手番＝次にあなたの番が来たら再び鳴らせるようリセット
-  h88AutoFocus(); renderH88(); // v1.63 B4: 現手番のAIを主表示に
+  st.awaitP0 = false; // 相手の手番＝次に自分の番が来たら再び鳴らせるようリセット
+  // オンラインのゲスト側はエンジンを回さない（ホストが進めて同期する＝描画だけ）
+  if (st.online && !state.isHost) { h88AutoFocus(); renderH88(); return; }
+  // オンラインで相手が人間の席（CPUでない）＝その相手クライアントの intent 待ち。ここでは自動着手しない。
+  if (!h88IsCpuSeat(cur)) { h88AutoFocus(); renderH88(); return; }
+  h88AutoFocus(); renderH88(); // v1.63 B4: 現手番のCPUを主表示に
   const tok = ++st.aiToken;
   if (h88AnimEnabled()) { setTimeout(() => h88AiStagedTurn(g, tok), aMs(ANIM.beat)); return; } // アニメON＝段階化して見せる（こいこい同型の pending 所作）
   // アニメOFF（従来）：一括処理

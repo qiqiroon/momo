@@ -1326,7 +1326,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.43</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.44</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1392,7 +1392,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.43</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.44</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1519,7 +1519,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.43</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.44</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1579,7 +1579,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.43</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.44</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -4693,19 +4693,28 @@ function renderH88Seat(elId, seat) {
     + '</div>';
   el.classList.toggle('turn', isTurn);
 }
+// v2.43-段2: 視点相対の「自分の席」。ローカル(vsコンピュータ/solo)は常に p0。オンラインは割り当て済み席(ホスト=p0/ゲスト=p1)。
+//   各クライアントは h88MySeat() を自分として下段に描く（相手2席は seatCycle 上の残り2席を右/左に）。ローカルは p0 固定＝挙動不変。
+function h88MySeat() {
+  const st = state.h88;
+  if (typeof window !== 'undefined' && window.__h88MySeat) return window.__h88MySeat; // 段2検証/デバッグ用の視点上書き（本番は未設定）
+  return (st && st.mySeat) || 'p0';
+}
 function renderH88() {
   const st = state.h88; if (!st || !st.game) return;
   const g = st.game;
+  const mySeat = h88MySeat(); // v2.43-段2: 視点＝自分の席（ローカルは常にp0）
   const _h88animPrev = h88AnimEnabled() ? h88AnimSnapshot() : null; // FLIP: 描画前の全札位置を記録
   document.getElementById('h88-round').textContent = '第' + st.roundNo + '局/全' + st.rounds + '局';
-  // v1.66: スコアはコンパクトに（1行に収める）。あなた/CPU1/CPU2 の短縮表記。
-  const shortNm = (s) => s === 'p0' ? 'あなた' : (s === 'p1' ? 'CPU1' : 'CPU2');
+  // v1.66/段2: スコアはコンパクトに（1行に収める）。自分=あなた／vsコンピュータは相手をCPU1/CPU2、オンラインは実名。
+  const shortNm = (s) => (s === mySeat) ? t('game.you')
+    : (state.vsAI ? (s === 'p1' ? 'CPU1' : 'CPU2') : st.names[s]);
   document.getElementById('h88-scores').textContent = g.seats.map(s => shortNm(s) + ' ' + h88FormatFumi(st.scores[s] || 0)).join(' ／ ');
   document.getElementById('h88-turn').textContent = g.winner ? ''
     : st.pending ? (st.pending.stage === 'pick-draw'
         ? '▶ めくった札（山の右に表示中）に合う場札を選んでください（同じ月が2枚）'
         : '▶ 出した札に合う場札を選んでください（同じ月が2枚）')
-    : (g.currentPlayer === 'p0'
+    : (g.currentPlayer === mySeat
         ? (st.sel != null ? 'もう一度タップで出す（別の札で選び直しも可）' : '▶ あなたの番です（札をタップ→もう一度で出す）')
         : st.names[g.currentPlayer] + ' の番');
   // v1.66: 席順（親決めの反時計回り）で固定配置。自分の次に打つ人＝右上、その次＝左上。
@@ -4714,8 +4723,8 @@ function renderH88() {
   //   降りた席を飛ばすため、これで表示席を算出すると2人局で一周して p0(自分)に戻り、左の相手枠に自分の
   //   名前・手札が描画され二重表示・二重動作になっていた（出降りでCPUが降りたときのバグ）。降りた席も表示位置は
   //   固定のまま renderH88Seat 側で「降り」表示にする。
-  const _n = g.seats.length, _i0 = g.seats.indexOf('p0');
-  const rightSeat = g.seats[(_i0 + 1) % _n];       // 自分の次の席 → 右上（降りていても位置は固定）
+  const _n = g.seats.length, _i0 = g.seats.indexOf(mySeat); // 段2: 自分の席を起点に（親から左回り＝視点相対）
+  const rightSeat = g.seats[(_i0 + 1) % _n];       // 自分の次に打つ席 → 右上（降りていても位置は固定）
   const leftSeat = g.seats[(_i0 + 2) % _n];        // その次の席 → 左上
   if (st.focusSeat !== leftSeat && st.focusSeat !== rightSeat) st.focusSeat = rightSeat;
   renderH88Seat('h88-oppL', leftSeat);
@@ -4726,7 +4735,7 @@ function renderH88() {
   const swLabel = document.getElementById('h88-opp-switch-label');
   if (swLabel) { const other = (st.focusSeat === leftSeat) ? rightSeat : leftSeat; swLabel.textContent = st.names[st.focusSeat] + ' を表示中（他：' + st.names[other] + '）'; }
   // v1.63 B6: 場札にヒント（選択中の手札と合う月＝match／2枚選択待ち＝pick）。data-id でクリック可。
-  const selCard = (st.sel != null) ? g.hands['p0'][st.sel] : null;
+  const selCard = (st.sel != null) ? g.hands[mySeat][st.sel] : null;
   // v2.24: 回収した札の跡地は「整列（左寄せ）段」まで空きのまま保持（こいこい fieldOrder/fieldGhostIds 準拠）
   const ghostSet = (g.fieldOrder && g.fieldGhostIds) ? new Set(g.fieldGhostIds) : null;
   const fieldSeq = ghostSet
@@ -4747,33 +4756,33 @@ function renderH88() {
   const db = document.getElementById('h88-deck-back');
   if (db) db.innerHTML = st.drawn ? ('<span class="h88-drawn">' + svgCard(st.drawn.id) + '</span>')
                                   : (g.deck.length ? svgBack() : '');
-  const p0Dropped = !!(g.dropped && g.dropped.indexOf('p0') >= 0); // ⑩出降り：あなたが降りた
-  const myTurn = (g.currentPlayer === 'p0' && !g.winner && !p0Dropped);
+  const p0Dropped = !!(g.dropped && g.dropped.indexOf(mySeat) >= 0); // ⑩出降り：自分（視点席）が降りた
+  const myTurn = (g.currentPlayer === mySeat && !g.winner && !p0Dropped);
   // v2.24: ピック中・めくり札表示中・自分の一手が進行中（出した→回収の所作の途中）は手札操作を止める
-  const p0Playing = !!(g.playedFromHand && g.playedFromHand.player === 'p0'); // 自分の staged 進行中
+  const p0Playing = !!(g.playedFromHand && g.playedFromHand.player === mySeat); // 自分の staged 進行中
   const handOn = myTurn && !st.pending && !st.drawn && !p0Playing && !st.turnBusy;
   const selfBox = document.querySelector('.h88-self'); // 自分の手番は相手と同じくオレンジ枠で強調（手役中は出さない）
   if (selfBox) { selfBox.classList.toggle('turn', myTurn && !st.teyakuMarks); selfBox.classList.toggle('h88-dropped', p0Dropped); }
   // 自分の名前・親・手番を取り札の1番上に（相手と同じ形で表示）。手役表示中は手番バッジを出さない。降りたら「降り」。
   const youL = t('game.you');
   document.getElementById('h88-self-nameline').innerHTML =
-    (st.roundOya === 'p0' ? '<span class="h88-oya-badge">親</span>' : '')
-    + youL + (st.names['p0'] !== youL ? '：' + st.names['p0'] : '')
+    (st.roundOya === mySeat ? '<span class="h88-oya-badge">親</span>' : '')
+    + youL + (st.names[mySeat] !== youL ? '：' + st.names[mySeat] : '')
     + (p0Dropped ? '<span class="h88-drop-badge">降り</span>' : ((myTurn && !st.teyakuMarks) ? '<span class="h88-turn-badge">あなたの番です</span>' : ''));
-  const p0Flash = (g.capFlash && g.capFlash.player === 'p0') ? new Set(g.capFlash.ids) : null; // v2.24: 回収直後の札
-  document.getElementById('h88-self-caps').innerHTML = h88CapGroupedHTML(g.caps['p0'], 'self2', p0Flash);
+  const p0Flash = (g.capFlash && g.capFlash.player === mySeat) ? new Set(g.capFlash.ids) : null; // v2.24: 回収直後の札
+  document.getElementById('h88-self-caps').innerHTML = h88CapGroupedHTML(g.caps[mySeat], 'self2', p0Flash);
   const selfNearEl = document.getElementById('h88-self-near'); // v2.37: 達成役／あと1枚（自分）
-  if (selfNearEl) selfNearEl.innerHTML = h88NearYakuHTML('p0');
+  if (selfNearEl) selfNearEl.innerHTML = h88NearYakuHTML(mySeat);
   // 自分の手札は自分には常に全部見える（伏せない）。役にかかわる札はオレンジ枠。※パネルと相手手札は伏せる。
-  const selfMarks = (st.teyakuMarks && st.teyakuMarks['p0']) || [];
+  const selfMarks = (st.teyakuMarks && st.teyakuMarks[mySeat]) || [];
   const selfHandEl = document.getElementById('h88-self-hand');
-  selfHandEl.innerHTML = g.hands['p0'].map((c, i) => {
+  selfHandEl.innerHTML = g.hands[mySeat].map((c, i) => {
     // v2.24: 2枚合致の選択待ちで浮かせている手札（playPick）は sel と同じく上げたままに
-    const lifted = st.sel === i || (g.playPick && g.playPick.player === 'p0' && g.playPick.id === c.id);
+    const lifted = st.sel === i || (g.playPick && g.playPick.player === mySeat && g.playPick.id === c.id);
     return '<span class="h88-hand-card' + (lifted ? ' sel' : '') + (selfMarks.indexOf(c.id) >= 0 ? ' tmark' : '') + '" data-idx="' + i + '"' + (handOn ? '' : ' style="cursor:default;opacity:.85"') + '>' + svgCard(c.id) + '</span>';
   }).join('');
   // v2.24: 出した札の跡地に見えない空きを残す（取り札の整列段まで手札を左寄せしない・こいこい準拠）
-  if (g.playedFromHand && g.playedFromHand.player === 'p0') {
+  if (g.playedFromHand && g.playedFromHand.player === mySeat) {
     const sp = document.createElement('span');
     sp.className = 'h88-hand-card'; sp.style.visibility = 'hidden';
     const ref = selfHandEl.children[g.playedFromHand.index] || null;
@@ -5020,15 +5029,16 @@ function h88RenderPendingOverlays() {
 function h88AnimOpponentPlay() {
   const st = state.h88; if (!st || !st.game || !h88AnimEnabled()) return;
   const g = st.game;
-  if (!g.lastPlay || g.lastPlay.player === 'p0') return;
+  const mySeat = h88MySeat();
+  if (!g.lastPlay || g.lastPlay.player === mySeat) return; // 自分（視点席）の play は FLIP で描く＝このスライドは相手のみ
   if (g.lastPlay.ts <= (ANIM._h88LastPlayTs || 0)) return;
   ANIM._h88LastPlayTs = g.lastPlay.ts;
   const el = document.querySelector('#h88-field .card[data-id="' + g.lastPlay.id + '"]');
   if (!el) return;
-  // v2.41: スロット対応は renderH88 と同じ「席の並び(seatCycle)」で固定算出する。手番送りの h88NextSeat は
-  //   ⑩出降りで降りた席を飛ばすため、これで割り当てると出す席とスロットがずれ、札が降りた席（別スロット）から
-  //   飛ぶ絵になっていた（v2.38 で renderH88 は直したがこの演出は直し漏れ）。
-  const _n = g.seats.length, _i0 = g.seats.indexOf('p0');
+  // v2.41/段2: スロット対応は renderH88 と同じ「席の並び(seatCycle)」を自分の席起点で固定算出する。手番送りの
+  //   h88NextSeat は⑩出降りで降りた席を飛ばすため、これで割り当てると出す席とスロットがずれ、札が降りた席
+  //   （別スロット）から飛ぶ絵になっていた（v2.38 で renderH88 は直したがこの演出は直し漏れ）。
+  const _n = g.seats.length, _i0 = g.seats.indexOf(mySeat);
   const rightSeat = g.seats[(_i0 + 1) % _n], leftSeat = g.seats[(_i0 + 2) % _n];
   const seatElId = (g.lastPlay.player === rightSeat) ? 'h88-oppR' : (g.lastPlay.player === leftSeat ? 'h88-oppL' : null);
   const seatEl = seatElId && document.getElementById(seatElId);
@@ -6298,11 +6308,12 @@ function h88PlaySoundCues(g) {
 function h88RunDeal(done) {
   const st = state.h88, g = st && st.game;
   if (!g || !h88AnimEnabled()) { if (done) done(); return; }
-  // v2.41: スロット対応は renderH88 と同じ「席の並び(seatCycle)」で固定（配り時は降り無しだが手番送りh88NextSeatと統一しない）。
-  const _n = g.seats.length, _i0 = g.seats.indexOf('p0');
+  // v2.41/段2: スロット対応は renderH88 と同じ「席の並び(seatCycle)」を自分の席起点で固定（配り時は降り無し）。
+  const mySeat = h88MySeat();
+  const _n = g.seats.length, _i0 = g.seats.indexOf(mySeat);
   const rightSeat = g.seats[(_i0 + 1) % _n], leftSeat = g.seats[(_i0 + 2) % _n];
   const seatHandEls = (seat) => {
-    if (seat === 'p0') return Array.from(document.querySelectorAll('#h88-self-hand .h88-hand-card'));
+    if (seat === mySeat) return Array.from(document.querySelectorAll('#h88-self-hand .h88-hand-card'));
     const id = (seat === rightSeat) ? 'h88-oppR' : (seat === leftSeat ? 'h88-oppL' : null);
     const el = id && document.getElementById(id);
     return el ? Array.from(el.querySelectorAll('.h88-mini-hand .card')) : [];
@@ -6321,12 +6332,12 @@ function h88RunDeal(done) {
   all.forEach(el => { el.style.visibility = 'hidden'; });
   const dur = aMs(ANIM.dealFly), gap = aMs(ANIM.dealGap);
   const tok = (st.dealToken = (st.dealToken || 0) + 1); // 配り中の中断検出
-  // 出発点＝実際の親の席の中心（親から配られて飛ぶように）。p0=自分の手札側／相手=その席の位置。
-  const oyaElId = (g.oya === 'p0') ? 'h88-self' : (g.oya === rightSeat ? 'h88-oppR' : (g.oya === leftSeat ? 'h88-oppL' : null));
+  // 出発点＝実際の親の席の中心（親から配られて飛ぶように）。自分(視点席)=自分の手札側／相手=その席の位置。
+  const oyaElId = (g.oya === mySeat) ? 'h88-self' : (g.oya === rightSeat ? 'h88-oppR' : (g.oya === leftSeat ? 'h88-oppL' : null));
   const oyaEl = oyaElId && document.getElementById(oyaElId);
   const oR = oyaEl && oyaEl.getBoundingClientRect();
   const startX = (oR && oR.width) ? (oR.left + oR.width / 2) : window.innerWidth / 2;
-  const startY = (oR && oR.height) ? (oR.top + oR.height / 2) : (g.oya !== 'p0' ? -140 : window.innerHeight + 140);
+  const startY = (oR && oR.height) ? (oR.top + oR.height / 2) : (g.oya !== mySeat ? -140 : window.innerHeight + 140);
   const flyIn = (els) => els.forEach(el => {
     el.style.visibility = '';
     const r = el.getBoundingClientRect();

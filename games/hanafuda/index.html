@@ -147,6 +147,12 @@
   .h88-self-caps .cards{display:flex;flex-wrap:wrap;gap:1px;}
   .h88-self-caps .cards+.gl{margin-left:4px;padding-left:4px;border-left:1px solid var(--border);}
   .h88-self-caps .card{border-radius:2px;} /* v1.72 D4: サイズは .card.cap の --cap-w（こいこいと同じ） */
+  /* v2.37: 八八の「達成した役／あと1枚で成立」表示（こいこいの .nearcap と同型の配色・各席内に置くので回転/サイズは席と一緒） */
+  .h88-near{font-size:.58rem;line-height:1.25;text-align:center;color:var(--text-muted);margin:2px 0;overflow-wrap:anywhere;}
+  .h88-near b{color:var(--gold);font-weight:700;}
+  .h88-near b.done{color:var(--orange);}       /* すでに成立している役＝オレンジ */
+  .h88-near b.dead{color:var(--gold);text-decoration:line-through;opacity:.75;} /* 到達不能＝見え消し */
+  .h88-near:empty{display:none;}
   /* v1.63 C7: ホバー/選択で浮いた札の上端が切れないよう上に余白 */
   /* v1.68: 手札は最初に7枚分の幅・高さを確保して固定（伸縮で画面がぶれない）。
      v1.72 D4: サイズは --card-w（fitH88Board が実測セット・こいこいと同じ仕組み）。 */
@@ -1317,7 +1323,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.36</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.37</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1383,7 +1389,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.36</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.37</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1510,7 +1516,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.36</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.37</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1570,7 +1576,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.36</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.37</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1607,6 +1613,7 @@
       <div class="h88-self">
         <div class="h88-name h88-self-nameline" id="h88-self-nameline"></div>
         <div class="h88-self-caps" id="h88-self-caps"></div>
+        <div class="h88-near" id="h88-self-near"></div>
         <div class="h88-hand" id="h88-self-hand"></div>
       </div>
     </div>
@@ -4570,6 +4577,49 @@ function h88CapGroupedHTML(cards, mode, flashSet) {
   return row(cell('光', groups.hikari) + cell('種', groups.tane) + cell('短', groups.tan, tanX))
     + row(cell('カス', groups.kasu, kasuX));
 }
+// v2.37: 八八の「達成した役／あと1枚で成立」表示（こいこいの renderNearYaku と同型）。
+//   採用役はプリセット②に連動（h88YakuDefs）。到達不能（必要札が全部“他家の取り札”にある）は打ち消し線。
+//   各席の .h88-seat-rot 内・自分は取り札の下に置くので、回転もサイズも席と一緒（横画面は相手席と一緒に回る）。
+//   souhachi/souya は打ち切り集計役なので「あと1枚」対象外。取り札は公開情報なので相手席にも出せる（隠し情報の漏れ無し）。
+function h88NearYakuHTML(seat) {
+  const st = state.h88, g = st.game;
+  if (!g) return '';
+  if (state.settings && state.settings.hint === 'off') return ''; // こいこいのヒント設定を共有（明示OFFなら隠す）
+  const defs = h88YakuDefs();                       // 有効な出来役（プリセット②に連動）
+  const cards = g.caps[seat] || [];
+  const done = h88ComputeYaku(cards, defs);         // 成立済み出来役
+  const ids = {}; cards.forEach(c => { ids[c.id] = true; });
+  const hikariN = cards.filter(c => c.type === 'hikari').length;
+  const tanNonYanagi = cards.filter(c => c.type === 'tan' && c.id !== 'm11_tan').length;
+  const kasuN = cards.filter(c => c.type === 'kasu').length;
+  const hasRain = !!ids[RAIN_HIKARI_ID];
+  // 到達不能＝必要札（まだ持っていない完成札）が全部「他の2席の取り札」にある（手札は見えないので取り札のみで判定）。
+  const takenElsewhere = new Set();
+  g.seats.filter(s => s !== seat).forEach(s => (g.caps[s] || []).forEach(c => takenElsewhere.add(c.id)));
+  const all = buildDeck();
+  const byType = ty => all.filter(c => c.type === ty).map(c => c.id);
+  const HIKARI = byType('hikari'), TAN = byType('tan'), KASU = byType('kasu');
+  const nonRainHikari = HIKARI.filter(id => id !== RAIN_HIKARI_ID);
+  const nonYanagiTan = TAN.filter(id => id !== 'm11_tan');
+  const impossible = (cands) => { const need = cands.filter(id => !ids[id]); return need.length > 0 && need.every(id => takenElsewhere.has(id)); };
+  const hints = [];
+  const add = (k, cands) => { if (!defs[k]) return; hints.push({ name: (defs[k].jp || t('yaku.' + k)), dead: impossible(cands) }); };
+  // 光系：五光＝あと1（4枚）／四光＝あと1（3枚・雨なし。八八は雨入りを四光にしない）
+  if (hikariN === 4) add('gokou', HIKARI);
+  else if (hikariN === 3 && !hasRain) add('shikou', nonRainHikari);
+  // 七短（柳短除く）＝あと1（6枚）
+  if (tanNonYanagi === 6) add('shichitan', nonYanagiTan);
+  // 赤短／青短／猪鹿蝶＝3枚中2枚揃い
+  if (RED_TAN_IDS.filter(id => ids[id]).length === 2) add('akatan', RED_TAN_IDS);
+  if (BLUE_TAN_IDS.filter(id => ids[id]).length === 2) add('aotan', BLUE_TAN_IDS);
+  if (IKS_IDS.filter(id => ids[id]).length === 2) add('inoshikachou', IKS_IDS);
+  // 素十六＝あと1（カス15枚）
+  if (kasuN === 15) add('sujuuroku', KASU);
+  const doneHtml = done.length ? (t('game.done.prefix') + done.map(y => '<b class="done">' + (y.jp || t(y.key)) + '</b>').join('、')) : '';
+  const nearHtml = hints.length ? (t('game.near.prefix') + ' ' + hints.map(h => '<b' + (h.dead ? ' class="dead"' : '') + '>' + h.name + '</b>').join('、')) : '';
+  const parts = []; if (doneHtml) parts.push(doneHtml); if (nearHtml) parts.push(nearHtml);
+  return parts.join('　');
+}
 function renderH88Seat(elId, seat) {
   const st = state.h88, g = st.game;
   const el = document.getElementById(elId); if (!el) return;
@@ -4594,6 +4644,7 @@ function renderH88Seat(elId, seat) {
     + st.names[seat]
     + (dropped ? '<span class="h88-drop-badge">降り</span>' : (isTurn ? '<span class="h88-turn-badge">手番</span>' : '')) + '</div>'
     + '<div class="h88-caps">' + caps + '</div>'
+    + '<div class="h88-near">' + h88NearYakuHTML(seat) + '</div>' // v2.37: 達成役／あと1枚（席と一緒に回転・同サイズ）
     + '<div class="h88-mini-hand">' + backs + '</div>'
     + '</div>';
   el.classList.toggle('turn', isTurn);
@@ -4662,6 +4713,8 @@ function renderH88() {
     + (p0Dropped ? '<span class="h88-drop-badge">降り</span>' : ((myTurn && !st.teyakuMarks) ? '<span class="h88-turn-badge">あなたの番です</span>' : ''));
   const p0Flash = (g.capFlash && g.capFlash.player === 'p0') ? new Set(g.capFlash.ids) : null; // v2.24: 回収直後の札
   document.getElementById('h88-self-caps').innerHTML = h88CapGroupedHTML(g.caps['p0'], 'self2', p0Flash);
+  const selfNearEl = document.getElementById('h88-self-near'); // v2.37: 達成役／あと1枚（自分）
+  if (selfNearEl) selfNearEl.innerHTML = h88NearYakuHTML('p0');
   // 自分の手札は自分には常に全部見える（伏せない）。役にかかわる札はオレンジ枠。※パネルと相手手札は伏せる。
   const selfMarks = (st.teyakuMarks && st.teyakuMarks['p0']) || [];
   const selfHandEl = document.getElementById('h88-self-hand');
@@ -4800,10 +4853,19 @@ function h88AskSage(g, y, yt) {
   document.getElementById('h88-sage-agari').onclick = () => { playSfx('button'); cleanup(); g.winner = 'p0'; g.roundEnd = { kind: 'yaku', winner: 'p0', yaku: y, total: yt }; renderH88(); h88RoundOver('win'); };
   document.getElementById('h88-sage-sageru').onclick = () => { cleanup(); g.sage = { seat: 'p0', total: yt }; st.sageShown = 'p0:' + yt; h88SageToast(st.names['p0']); playSfx('koikoi'); h88Log('◇ ' + st.names['p0'] + ' 下げ（続行）：' + yakuNames + ' ' + yt + unit); g.currentPlayer = h88NextSeat(g, 'p0'); h88AutoFocus(); renderH88(); h88MaybeAi(); };
 }
-// 下げ宣言を中央に一瞬表示（AI/人間共通）。
+// v2.37: 下げ宣言はこいこいの「こいこい宣言」と同じ中央フラッシュ演出で見せる（オレンジの大バナー）。
+//   #koikoi-flash は position:fixed なので screen-hachi でもそのまま表示される。centerFlash と同型（強制リフロー→kflash アニメ）。
+//   効果音（koikoi）は呼び出し側で鳴らすため、ここでは鳴らさない（二重防止）。
+let _h88SageFlashTimer = null;
 function h88SageToast(name) {
-  const d = document.createElement('div'); d.className = 'h88-sage-toast'; d.textContent = name + ' が下げ！（続行）';
-  document.body.appendChild(d); setTimeout(() => d.remove(), 1900);
+  const el = document.getElementById('koikoi-flash');
+  if (!el) return;
+  el.textContent = name + ' 下げ！（続行）';
+  el.className = 'koikoi-flash';        // v1.22 同手法: 同名クラス再設定ではアニメ再生されない→一度戻す
+  void el.offsetWidth;                   // 強制リフローで必ず再生
+  el.className = 'koikoi-flash show kf-koikoi big';
+  if (_h88SageFlashTimer) clearTimeout(_h88SageFlashTimer);
+  _h88SageFlashTimer = setTimeout(() => { el.className = 'koikoi-flash'; }, 1600);
 }
 // AIの手番なら少し待って自動着手（人はクリック待ち）
 function h88MaybeAi() {

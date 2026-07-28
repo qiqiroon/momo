@@ -1326,7 +1326,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.40</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.41</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1392,7 +1392,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.40</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.41</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1519,7 +1519,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.40</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.41</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1579,7 +1579,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.40</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.41</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -4985,7 +4985,11 @@ function h88AnimOpponentPlay() {
   ANIM._h88LastPlayTs = g.lastPlay.ts;
   const el = document.querySelector('#h88-field .card[data-id="' + g.lastPlay.id + '"]');
   if (!el) return;
-  const rightSeat = h88NextSeat(g, 'p0'), leftSeat = h88NextSeat(g, rightSeat);
+  // v2.41: スロット対応は renderH88 と同じ「席の並び(seatCycle)」で固定算出する。手番送りの h88NextSeat は
+  //   ⑩出降りで降りた席を飛ばすため、これで割り当てると出す席とスロットがずれ、札が降りた席（別スロット）から
+  //   飛ぶ絵になっていた（v2.38 で renderH88 は直したがこの演出は直し漏れ）。
+  const _n = g.seats.length, _i0 = g.seats.indexOf('p0');
+  const rightSeat = g.seats[(_i0 + 1) % _n], leftSeat = g.seats[(_i0 + 2) % _n];
   const seatElId = (g.lastPlay.player === rightSeat) ? 'h88-oppR' : (g.lastPlay.player === leftSeat ? 'h88-oppL' : null);
   const seatEl = seatElId && document.getElementById(seatElId);
   // 出発点＝相手の伏せ手札の1枚（どれでもよい）。最後の1枚を出した直後は裏札が0枚になるので、手札枠→席全体の順にフォールバック（ワープ防止）。
@@ -6254,7 +6258,9 @@ function h88PlaySoundCues(g) {
 function h88RunDeal(done) {
   const st = state.h88, g = st && st.game;
   if (!g || !h88AnimEnabled()) { if (done) done(); return; }
-  const rightSeat = h88NextSeat(g, 'p0'), leftSeat = h88NextSeat(g, rightSeat);
+  // v2.41: スロット対応は renderH88 と同じ「席の並び(seatCycle)」で固定（配り時は降り無しだが手番送りh88NextSeatと統一しない）。
+  const _n = g.seats.length, _i0 = g.seats.indexOf('p0');
+  const rightSeat = g.seats[(_i0 + 1) % _n], leftSeat = g.seats[(_i0 + 2) % _n];
   const seatHandEls = (seat) => {
     if (seat === 'p0') return Array.from(document.querySelectorAll('#h88-self-hand .h88-hand-card'));
     const id = (seat === rightSeat) ? 'h88-oppR' : (seat === leftSeat ? 'h88-oppL' : null);

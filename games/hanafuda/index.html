@@ -1326,7 +1326,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.50</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.51</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1392,7 +1392,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.50</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.51</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1519,7 +1519,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.50</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.51</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1579,7 +1579,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.50</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.51</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -2804,14 +2804,17 @@ function refreshRoomView() {
 function updateStartBtn() {
   const b = document.getElementById('btn-start');
   if (state.gameSel === 'hachi') { // v1.68: 八八は準備室で3人親決め → 済んだら開始可
-    // v2.48-段5: オンライン八八＝準備室で各自が親札を引く→3枚そろったらホストが開始。ゲストはホスト開始待ち。
+    // v2.51: オンライン八八＝親決めが3枚そろったら、ホストもゲストも「準備完了」を押す。両者が押したら開始（こいこい同様）。
     if (!state.vsAI) {
-      if (!state.isHost) { b.disabled = true; b.textContent = 'ホストの開始を待っています'; return; }
-      if (!state.guestName) { b.disabled = true; b.textContent = 'ゲストの参加を待っています'; return; }
+      if (state.isHost && !state.guestName) { b.disabled = true; b.textContent = 'ゲストの参加を待っています'; return; }
       const o = state.h88OnlineOya;
       const oyaDone = !!(o && o.p0 && o.p1 && o.p2);
-      b.disabled = !oyaDone;
-      b.textContent = oyaDone ? '八八を開始' : '全員の親決めを待っています';
+      if (!oyaDone) { b.disabled = true; b.textContent = '全員の親決めを待っています'; return; }
+      const me = state.isHost ? 'host' : 'guest';
+      const myReady = me === 'host' ? state.readyHost : state.readyGuest;
+      const oppReady = me === 'host' ? state.readyGuest : state.readyHost;
+      b.disabled = myReady;
+      b.textContent = (myReady && oppReady) ? '開始します…' : myReady ? '相手の準備を待っています' : '準備完了（八八を開始）';
       return;
     }
     // v2.36: 親決めのめくりアニメが終わって親を表示してから（revealed）でないと開始不可
@@ -3367,7 +3370,7 @@ function handleP2P(data) {
     if (data.side === 'host') state.readyHost = true;
     else if (data.side === 'guest') state.readyGuest = true;
     updateStartBtn();
-    tryLaunchGame();
+    if (state.gameSel === 'hachi') h88TryStart(); else tryLaunchGame(); // v2.51: 八八は八八の開始処理へ
     return;
   }
   if (data.type === 'oya') {
@@ -4225,6 +4228,7 @@ function h88PrepReset() {
     // v2.48-段5: オンライン八八＝準備室で各自が自分の親札を引く（ホスト=p0/ゲスト=p1、CPU=p2は人間2人が引き終えたら自動）。
     if (!state.vsAI) {
       state.h88OnlineOya = { p0: null, p1: null, p2: null };
+      state.readyHost = false; state.readyGuest = false; // v2.51: 両者押し方式＝準備室に来たら未準備に戻す
       h88OnlineOyaRender();
     } else {
       b.classList.remove('hidden'); b.disabled = false; b.textContent = t('oya.draw');
@@ -4409,6 +4413,8 @@ function startHachiFromPrep(rounds) {
 //   ゲストはクリックを h88-intent で送るだけ（h88OnClickHand/Field）。CPU はホスト内で動く（st.cpuSeats=['p2']）。
 const H88_GUEST_SEAT = 'p1';
 function h88OnlineRoundsSel() { const seg = document.getElementById('h88-rounds-seg'); const on = seg && seg.querySelector('button.on'); return on ? parseInt(on.dataset.v, 10) : 3; }
+// v2.51: 両者が「準備完了」を押したらホストが対局開始（こいこいの tryLaunchGame 相当）。
+function h88TryStart() { if (state.readyHost && state.readyGuest && state.isHost) h88StartOnlineHost(); }
 // v2.48-段5: ホスト：オンライン八八を開始。親決めは準備室で各自引いた結果（state.h88OnlineOya）をそのまま使う。
 function h88StartOnlineHost() {
   if (!state.isHost || !state.guestName) return;
@@ -4517,7 +4523,12 @@ function h88ApplyStart(msg) {
 function h88SyncState() {
   const st = state.h88; if (!st || !st.online || !state.isHost || !st.game) return;
   const g = st.game;
-  const handsOut = {}; g.seats.forEach(s => { handsOut[s] = (s === H88_GUEST_SEAT) ? g.hands[s] : g.hands[s].length; });
+  // v2.51: 相手席の手札は通常は枚数のみ。手役の公開中だけ「公開札は実id・伏せ札は?」でマスクして送る（ゲストも盤面で公開札を開示できる／伏せ札は漏らさない）。
+  const handsOut = {}; g.seats.forEach(s => {
+    if (s === H88_GUEST_SEAT) { handsOut[s] = g.hands[s]; return; }
+    const rev = (st.teyakuReveal && st.teyakuReveal[s]) || null;
+    handsOut[s] = (rev && rev.length) ? g.hands[s].map(c => (rev.indexOf(c.id) >= 0 ? { id: c.id } : { id: '?' })) : g.hands[s].length;
+  });
   MomoMatchmaking.send({
     type: 'h88-state',
     seats: g.seats, currentPlayer: g.currentPlayer, winner: g.winner || null, oya: g.oya, bonus: g.bonus || 1,
@@ -8610,8 +8621,16 @@ function handleIntent(data) {
 // --------------------------------------------------------------------------
 function startGame() {
   // v1.63: 八八(3人)を選んでいれば八八へ（vsコンピュータのみ）
-  if (state.gameSel === 'hachi' && !state.vsAI) { // v2.45-段3: オンライン八八（ホストが開始・親決めはホストが引く）
-    h88StartOnlineHost();
+  if (state.gameSel === 'hachi' && !state.vsAI) { // v2.51: オンライン八八＝両者押し方式（こいこい同様）。親決め完了後、両者が「準備完了」を押したらホストが開始。
+    const o = state.h88OnlineOya;
+    if (!(o && o.p0 && o.p1 && o.p2)) return; // 親決め未完了なら押せない
+    const me = state.isHost ? 'host' : 'guest';
+    const myKey = me === 'host' ? 'readyHost' : 'readyGuest';
+    if (state[myKey]) return; // 既に押し済み
+    state[myKey] = true;
+    MomoMatchmaking.send({ type: 'ready', side: me });
+    updateStartBtn();
+    h88TryStart();
     return;
   }
   if (state.gameSel === 'hachi' && state.vsAI) {

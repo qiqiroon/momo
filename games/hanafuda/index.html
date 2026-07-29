@@ -1986,6 +1986,8 @@ const I18N = {
     'h88.gate.pressed': '押しました', 'h88.gate.notyet': 'まだ', 'h88.gate.waiting': '待っています',
     'h88.end.draw': '引き分け', 'h88.end.win': 'あなたの勝ち！', 'h88.end.champ': '優勝：{who}',
     'h88.end.msg.draw': '全員同点でした', 'h88.end.msg.win': 'おめでとうございます！', 'h88.end.msg.lose': 'また挑戦してください', 'h88.end.marume': '（最終集計で累計を貫に丸めました）',
+    'yaku.shichitan': '七短', 'yaku.sujuuroku': '素十六', 'yaku.souhachi': '双八', 'yaku.souya': '総八',
+    'teyaku.shisou': '四三', 'teyaku.ichinishi': '一二四', 'teyaku.teshi': '手四', 'teyaku.haneken': 'はねけん', 'teyaku.karasu': '空巣', 'teyaku.kuttsuki': 'くっつき', 'teyaku.pikaichi': '光一', 'teyaku.toichi': '十一', 'teyaku.tanichi': '短一', 'teyaku.aka': '赤', 'teyaku.tatesanbon': '立三本', 'teyaku.sanbon': '三本', 'teyaku.sousanbon': '双三本', 'teyaku.sunashi': '素無',
     'set.rounds': '局数', 'set.1': '1局', 'set.3': '3局', 'set.6': '6局', 'set.12': '12局',
     'set.kiku': '菊の盃', 'set.kiku.tane': '種＋花見月見', 'set.kiku.kasu2': 'カス2枚',
     'set.double': '7文以上2倍', 'set.on': 'あり', 'set.off': 'なし',
@@ -2218,6 +2220,8 @@ const I18N = {
     'h88.gate.pressed': 'Ready', 'h88.gate.notyet': 'Not yet', 'h88.gate.waiting': 'Waiting',
     'h88.end.draw': 'Draw', 'h88.end.win': 'You win!', 'h88.end.champ': 'Winner: {who}',
     'h88.end.msg.draw': 'Everyone tied.', 'h88.end.msg.win': 'Congratulations!', 'h88.end.msg.lose': 'Try again next time.', 'h88.end.marume': ' (totals rounded to kan at final tally)',
+    'yaku.shichitan': 'Shichitan (7 Ribbons)', 'yaku.sujuuroku': 'Sujūroku (Plain 16)', 'yaku.souhachi': 'Sōhachi (Double 8)', 'yaku.souya': 'Sōya (All 8s)',
+    'teyaku.shisou': 'Shisou (4+3)', 'teyaku.ichinishi': 'Ichinishi (1-2-4)', 'teyaku.teshi': 'Teshi (Four same month)', 'teyaku.haneken': 'Haneken', 'teyaku.karasu': 'Karasu (Empty nest)', 'teyaku.kuttsuki': 'Kuttsuki (Pairs)', 'teyaku.pikaichi': 'Pikaichi (1 Light)', 'teyaku.toichi': 'Toichi (1 Tane)', 'teyaku.tanichi': 'Tanichi (1 Ribbon)', 'teyaku.aka': 'Aka (Red)', 'teyaku.tatesanbon': 'Tatesanbon (Standing 3)', 'teyaku.sanbon': 'Sanbon (Three)', 'teyaku.sousanbon': 'Sōsanbon (Double 3)', 'teyaku.sunashi': 'Sunashi (Plain none)',
     'set.rounds': 'Rounds', 'set.1': '1', 'set.3': '3', 'set.6': '6', 'set.12': '12',
     'set.kiku': 'Kiku no Sakazuki', 'set.kiku.tane': 'Tane (+Hanami/Tsukimi)', 'set.kiku.kasu2': 'Kasu ×2',
     'set.double': '7+ Points ×2', 'set.on': 'On', 'set.off': 'Off',
@@ -2450,6 +2454,8 @@ const I18N = {
     'h88.gate.pressed': '已按', 'h88.gate.notyet': '未按', 'h88.gate.waiting': '等待中',
     'h88.end.draw': '平局', 'h88.end.win': '你赢了！', 'h88.end.champ': '冠军：{who}',
     'h88.end.msg.draw': '全员同分。', 'h88.end.msg.win': '恭喜！', 'h88.end.msg.lose': '下次再来挑战。', 'h88.end.marume': '（最终结算已将累计舍入为贯）',
+    'yaku.shichitan': '七短', 'yaku.sujuuroku': '素十六', 'yaku.souhachi': '双八', 'yaku.souya': '总八',
+    'teyaku.shisou': '四三', 'teyaku.ichinishi': '一二四', 'teyaku.teshi': '手四', 'teyaku.haneken': '跳拳', 'teyaku.karasu': '空巢', 'teyaku.kuttsuki': '成对', 'teyaku.pikaichi': '光一', 'teyaku.toichi': '十一', 'teyaku.tanichi': '短一', 'teyaku.aka': '赤', 'teyaku.tatesanbon': '立三本', 'teyaku.sanbon': '三本', 'teyaku.sousanbon': '双三本', 'teyaku.sunashi': '素无',
     'set.rounds': '局数', 'set.1': '1局', 'set.3': '3局', 'set.6': '6局', 'set.12': '12局',
     'set.kiku': '菊之杯', 'set.kiku.tane': '种＋花见月见', 'set.kiku.kasu2': '算作2张滓',
     'set.double': '7文以上×2', 'set.on': '开启', 'set.off': '关闭',
@@ -4191,9 +4197,9 @@ function h88SpecialYaku(g, defs) {
   const out = [];
   const pts = {}; g.seats.forEach(s => pts[s] = h88SumPoints(g.caps[s]));
   if (defs.souya && g.seats.every(s => pts[s] === 88)) {
-    out.push({ seat: g.oya || g.seats[0], jp: defs.souya.jp, mon: defs.souya.mon });
+    out.push({ seat: g.oya || g.seats[0], key: 'yaku.souya', jp: defs.souya.jp, mon: defs.souya.mon });
   } else if (defs.souhachi) {
-    g.seats.forEach(s => { if (pts[s] >= 168) out.push({ seat: s, jp: defs.souhachi.jp, mon: defs.souhachi.mon }); });
+    g.seats.forEach(s => { if (pts[s] >= 168) out.push({ seat: s, key: 'yaku.souhachi', jp: defs.souhachi.jp, mon: defs.souhachi.mon }); });
   }
   return out;
 }
@@ -4486,15 +4492,15 @@ function h88TipContent(spec) {
   const row = (nm, r) => '<div class="trow"><span class="nm">' + nm + '</span><span>' + r + '</span></div>';
   if (kind === 'points') {
     const yp = H88_YAKU_POINTS[val], tp = H88_TEYAKU_POINTS[val];
-    const yl = H88_YAKU_ORDER.map(k => row(H88_YAKU_META[k].jp, yp[k])).join('');
-    const tl = H88_TEYAKU_ORDER.map(k => row(H88_TEYAKU_META[k].jp, tp[k])).join('');
+    const yl = H88_YAKU_ORDER.map(k => row(t('yaku.'+k), yp[k])).join('');
+    const tl = H88_TEYAKU_ORDER.map(k => row(t('teyaku.'+k), tp[k])).join('');
     return '<h5>' + H88_STYLE_JP[val] + ' の点数（単位=文）</h5><div class="tsub">出来役</div><div class="tgrid">' + yl + '</div><div class="tsub">手役</div><div class="tgrid">' + tl + '</div><div class="tsub">＊他流派の役は混在用の補完値</div>';
   }
   if (kind === 'yakuset') {
     const ys = H88_YAKU_SET[val], ts = H88_TEYAKU_SET[val];
     const mark = ok => '<span class="' + (ok ? 'ye">採用' : 'no">なし') + '</span>';
-    const yl = H88_YAKU_ORDER.map(k => row(H88_YAKU_META[k].jp, mark(ys.indexOf(k) >= 0))).join('');
-    const tl = ['sousanbon','sunashi'].map(k => row(H88_TEYAKU_META[k].jp, mark(ts.indexOf(k) >= 0))).join('');
+    const yl = H88_YAKU_ORDER.map(k => row(t('yaku.'+k), mark(ys.indexOf(k) >= 0))).join('');
+    const tl = ['sousanbon','sunashi'].map(k => row(t('teyaku.'+k), mark(ts.indexOf(k) >= 0))).join('');
     return '<h5>' + (val === 'nintendo' ? '任天堂型' : '古典型') + ' の顔ぶれ</h5><div class="tsub">出来役</div>' + yl + '<div class="tsub">手役（流派差のみ）</div>' + tl;
   }
   if (kind === 'preset') {
@@ -4875,7 +4881,7 @@ function h88TeyakuPanelHtml(g, teyaku, viewerSeat) {
       return isMark ? '<span class="h88-tmark">' + inner + '</span>' : inner;
     }).join('');
     return '<li class="ye-li"><div class="ye-head">'
-      + '<span><span class="who-b">' + nm(s) + '</span>：' + ty.jp + '</span>'
+      + '<span><span class="who-b">' + nm(s) + '</span>：' + t(ty.key) + '</span>'
       + '<span class="pt">' + ty.mon + ' ' + unit + '</span></div>'
       + '<div class="ye-cards">' + cards + '</div></li>';
   }).join('');
@@ -5122,7 +5128,7 @@ function h88NearYakuHTML(seat) {
   if (IKS_IDS.filter(id => ids[id]).length === 2) add('inoshikachou', IKS_IDS);
   // 素十六＝あと1（カス15枚）
   if (kasuN === 15) add('sujuuroku', KASU);
-  const doneHtml = done.length ? (t('game.done.prefix') + done.map(y => '<b class="done">' + (y.jp || t(y.key)) + '</b>').join('、')) : '';
+  const doneHtml = done.length ? (t('game.done.prefix') + done.map(y => '<b class="done">' + t(y.key) + '</b>').join('、')) : '';
   const nearHtml = hints.length ? (t('game.near.prefix') + ' ' + hints.map(h => '<b' + (h.dead ? ' class="dead"' : '') + '>' + h.name + '</b>').join('、')) : '';
   const parts = []; if (doneHtml) parts.push(doneHtml); if (nearHtml) parts.push(nearHtml);
   return parts.join('　');
@@ -5374,7 +5380,7 @@ function h88AskSageRouted(g, actor, y, yt) {
     // ゲスト席＝ゲストへ問い合わせ。返事（h88-choice）が来るまでホストは進行を止める（h88AfterTurn は return 済み）。
     st.h88PendingAsk = { kind: 'sage', actor: actor, y: y, yt: yt };
     MomoMatchmaking.send({ type: 'h88-ask', kind: 'sage', actor: actor,
-      yaku: y.map(yy => ({ key: yy.key, jp: (yy.jp || t(yy.key)), mon: yy.mon })), total: yt });
+      yaku: y.map(yy => ({ key: yy.key, jp: t(yy.key), mon: yy.mon })), total: yt });
     h88DeioriToast(t('h88.choosing', { name: st.names[actor] })); // 待ちの気配（軽いトースト）
     return;
   }
@@ -5383,7 +5389,7 @@ function h88AskSageRouted(g, actor, y, yt) {
 // 下げ有効時、出来役を完成したら「上がる／下げる（続行）」を選ぶ。actor＝この判断をする席。
 function h88AskSage(g, actor, y, yt) {
   const st = state.h88, unit = h88PresetUnit();
-  const yakuNames = y.map(yy => (yy.jp || t(yy.key))).join('・');
+  const yakuNames = y.map(yy => t(yy.key)).join('・');
   document.getElementById('ov-title').textContent = t('h88.sage.title');
   const bodyEl = document.getElementById('ov-body'); bodyEl.style.whiteSpace = 'normal';
   bodyEl.innerHTML = t('h88.sage.body', { names: yakuNames, yt: yt, unit: unit, fail: t(h88Rules().sage === 'kansai' ? 'h88.sage.failInvalid' : 'h88.sage.failHalf') });
@@ -5406,7 +5412,7 @@ function h88ApplySageAgari(actor, y, yt) {
 }
 function h88ApplySageSageru(actor, y, yt) {
   const st = state.h88, g = st.game; if (!g) return;
-  const unit = h88PresetUnit(), yakuNames = y.map(yy => (yy.jp || t(yy.key))).join('・');
+  const unit = h88PresetUnit(), yakuNames = y.map(yy => t(yy.key)).join('・');
   g.sage = { seat: actor, total: yt }; st.sageShown = actor + ':' + yt; h88SageToast(actor);
   h88Log('◇ ' + st.names[actor] + ' 下げ（続行）：' + yakuNames + ' ' + yt + unit);
   g.currentPlayer = h88NextSeat(g, actor); h88AutoFocus(); renderH88(); h88MaybeAi();
@@ -5415,7 +5421,7 @@ function h88ApplySageSageru(actor, y, yt) {
 function h88ShowAskSageGuest(msg) {
   const st = state.h88; if (!st) return;
   const unit = h88PresetUnit();
-  const yakuNames = (msg.yaku || []).map(yy => yy.jp).join('・'), yt = msg.total;
+  const yakuNames = (msg.yaku || []).map(yy => t(yy.key)).join('・'), yt = msg.total;
   document.getElementById('ov-title').textContent = t('h88.sage.title');
   const bodyEl = document.getElementById('ov-body'); bodyEl.style.whiteSpace = 'normal';
   bodyEl.innerHTML = t('h88.sage.body', { names: yakuNames, yt: yt, unit: unit, fail: t(h88Rules().sage === 'kansai' ? 'h88.sage.failInvalid' : 'h88.sage.failHalf') });
@@ -5898,7 +5904,7 @@ function h88RoundPanelHtml(g, result, before, teyaku0, tM, viewer, doLog) {
       if (re.kind === 'yaku') {
         listHtml = '<ul class="yaku-list">' + re.yaku.map(y => {
           const cards = h88YakuCards(g.caps[re.winner], y.key).map(id => svgCard(id, 'ye-card')).join('');
-          return '<li class="ye-li"><div class="ye-head"><span>' + (y.jp || t(y.key)) + (y.count ? '×' + y.count : '') + '</span><span class="pt">' + y.mon + ' ' + unit + '</span></div>' + (cards ? '<div class="ye-cards">' + cards + '</div>' : '') + '</li>';
+          return '<li class="ye-li"><div class="ye-head"><span>' + t(y.key) + (y.count ? '×' + y.count : '') + '</span><span class="pt">' + y.mon + ' ' + unit + '</span></div>' + (cards ? '<div class="ye-cards">' + cards + '</div>' : '') + '</li>';
         }).join('') + '</ul>';
         head = '<div class="h88-te-note">1人降りて<b>二人勝負</b>（' + bTag + '）。<b>' + nm(re.winner) + '</b> が出来役で上がり、出来役 ' + re.total + unit + ' ＋1貫（二人勝負の割増）＝ ' + h88FormatFumi(h88MonToFumi(re.total) + h88DeioriKanFumi()) + ' を相手1人から受け取り（当事者間は場倍率なし）。<br>' + feeLines + '（下り賃は場倍率つき・勝者へ）</div>';
         if (doLog) h88Log('★ 二人勝負・出来役上がり：' + st.names[re.winner] + '／' + feeLines);
@@ -5914,7 +5920,7 @@ function h88RoundPanelHtml(g, result, before, teyaku0, tM, viewer, doLog) {
     const gain = g.roundEnd.total * m;
     listHtml = '<ul class="yaku-list">' + g.roundEnd.yaku.map(y => {
       const cards = h88YakuCards(g.caps[g.winner], y.key).map(id => svgCard(id, 'ye-card')).join('');
-      return '<li class="ye-li"><div class="ye-head"><span>' + (y.jp || t(y.key)) + (y.count ? '×' + y.count : '') + '</span>'
+      return '<li class="ye-li"><div class="ye-head"><span>' + t(y.key) + (y.count ? '×' + y.count : '') + '</span>'
         + '<span class="pt">' + y.mon + ' ' + unit + '</span></div>' + (cards ? '<div class="ye-cards">' + cards + '</div>' : '') + '</li>';
     }).join('') + '</ul>';
     head = '<div class="h88-te-note"><b>' + nm(g.winner) + '</b> が出来役で上がり（' + bTag + '）。合計 '
@@ -5923,7 +5929,7 @@ function h88RoundPanelHtml(g, result, before, teyaku0, tM, viewer, doLog) {
       const S = g.roundEnd.hatto.seat, half = Math.floor(h88MonToFumi(g.roundEnd.hatto.total) / 2) * m;
       head += '<div class="h88-te-note" style="color:#ff8a8a"><b>法度</b>：<b>' + nm(S) + '</b> が下げ中に先を越されました。' + nm(S) + ' は勝者の役代を2人分ぶん単独で負担し、さらに下げた役の半分（各 ' + h88FormatFumi(half) + '）を他の2人に支払います。</div>';
     }
-    if (doLog) h88Log('★ ' + st.names[g.winner] + ' が出来役で上がり：' + g.roundEnd.yaku.map(y => (y.jp || t(y.key))).join('・') + '＝' + g.roundEnd.total + unit + ' ' + bTag + '＝各' + gain + unit + (g.roundEnd.hatto ? '／法度：' + st.names[g.roundEnd.hatto.seat] : ''));
+    if (doLog) h88Log('★ ' + st.names[g.winner] + ' が出来役で上がり：' + g.roundEnd.yaku.map(y => t(y.key)).join('・') + '＝' + g.roundEnd.total + unit + ' ' + bTag + '＝各' + gain + unit + (g.roundEnd.hatto ? '／法度：' + st.names[g.roundEnd.hatto.seat] : ''));
   } else if (g.roundEnd.kind === 'sageFail') {
     const w = g.roundEnd.winner, halfBase = Math.floor(h88MonToFumi(g.roundEnd.total) / 2), half = halfBase * m;
     listHtml = '<ul class="yaku-list"><li class="ye-li"><div class="ye-head"><span><b>' + nm(w) + '</b> の下げた役（追加役できず失敗）</span>'
@@ -5940,7 +5946,7 @@ function h88RoundPanelHtml(g, result, before, teyaku0, tM, viewer, doLog) {
     const specials = g.roundEnd.specials || [];
     if (specials.length) {
       listHtml += '<div class="h88-te-sub">双八/総八で決着（札点の点差はやり取りしません）</div><ul class="yaku-list">' + specials.map(sp =>
-        '<li class="ye-li"><div class="ye-head"><span><span class="who-b">' + nm(sp.seat) + '</span>：' + sp.jp + '</span>'
+        '<li class="ye-li"><div class="ye-head"><span><span class="who-b">' + nm(sp.seat) + '</span>：' + t(sp.key) + '</span>'
         + '<span class="pt">' + sp.mon + ' ' + unit + (m > 1 ? ' ×場' + m : '') + '</span></div></li>').join('') + '</ul>';
     }
     head = specials.length
@@ -5955,7 +5961,7 @@ function h88RoundPanelHtml(g, result, before, teyaku0, tM, viewer, doLog) {
       + Object.keys(teyaku0).map(s => {
         const ty = teyaku0[s];
         const cards = (ty.ids || []).map(id => svgCard(id, 'ye-card')).join('');
-        return '<li class="ye-li"><div class="ye-head"><span><span class="who-b">' + nm(s) + '</span>：' + ty.jp + '</span>'
+        return '<li class="ye-li"><div class="ye-head"><span><span class="who-b">' + nm(s) + '</span>：' + t(ty.key) + '</span>'
           + '<span class="pt">' + ty.mon + ' ' + unit + (mulOn && tM > 1 ? ' ×場' + tM + ' ＝ ' + (ty.mon * tM) + ' ' + unit : '') + '</span></div>'
           + '<div class="ye-cards">' + cards + '</div></li>';
       }).join('') + '</ul>';

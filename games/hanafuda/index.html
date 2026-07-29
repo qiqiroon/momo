@@ -1326,7 +1326,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.52</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.53</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1392,7 +1392,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.52</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.53</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1435,6 +1435,7 @@
   <!-- 設定パネル -->
   <div class="gset" id="set-koikoi">
     <h3 data-i18n="set.koikoi.title">こいこい 設定</h3>
+    <p class="desc" style="font-size:12px;color:var(--text-muted);margin:-4px 0 8px;"><a href="#" id="koi-ruleinfo-link" class="h88-ruleinfo-link" style="margin-left:0;">ⓘ ルール設定について</a></p>
     <div class="set-row"><span data-i18n="set.preset">プリセット</span><span class="seg" id="koi-preset-seg"><button data-v="ikeike" data-i18n="preset.ikeike">イケイケ</button><button data-v="stoic" data-i18n="preset.stoic">ストイック</button><button data-v="custom" disabled data-i18n="preset.custom">カスタム</button></span></div>
     <div class="set-row"><span data-i18n="set.rounds">局数</span><span class="seg" data-key="rounds"><button data-v="1" data-i18n="set.1">1局</button><button data-v="3" data-i18n="set.3">3局</button><button data-v="6" data-i18n="set.6">6局</button><button class="on" data-v="12" data-i18n="set.12">12局</button></span></div>
     <div class="set-row"><span data-i18n="set.kiku">菊の盃</span><span class="seg" data-key="kiku"><button class="on" data-v="tane" data-i18n="set.kiku.tane">種＋花見月見</button><button data-v="kasu2" data-i18n="set.kiku.kasu2">カス2枚</button></span></div>
@@ -1521,7 +1522,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.52</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.53</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1581,7 +1582,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.52</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.53</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1684,6 +1685,26 @@
     <p class="h88-ruleinfo-note">※ 上記のほか、各解説サイト（サザノノ／とまとくんブログ 等）も参考にしています。</p>
   </div>
   <div class="btn-row"><button class="btn btn-primary" id="h88-ruleinfo-close">閉じる</button></div>
+</div></div>
+
+<!-- v2.53: こいこいのルール出典モーダル（八八の ovRuleInfo と同型） -->
+<div class="overlay" id="ovKoiRuleInfo"><div class="opanel h88-ruleinfo-panel">
+  <h2>ルール設定について</h2>
+  <div class="h88-ruleinfo-body">
+    <p>下記の資料を参考にしていますが、解釈違いなどがある場合はご容赦ください。</p>
+    <h4>任天堂公式</h4>
+    <ul>
+      <li>任天堂「花札・株札の遊び方 ― こいこい」（公式サイト）<br>
+        <a href="https://www.nintendo.com/jp/others/hanafuda_kabufuda/howtoplay/koikoi/index.html" target="_blank" rel="noopener noreferrer">https://www.nintendo.com/jp/others/hanafuda_kabufuda/howtoplay/koikoi/index.html</a></li>
+    </ul>
+    <h4>全般</h4>
+    <ul>
+      <li>Wikipedia「こいこい」<br>
+        <a href="https://ja.wikipedia.org/wiki/こいこい" target="_blank" rel="noopener noreferrer">https://ja.wikipedia.org/wiki/こいこい</a></li>
+    </ul>
+    <p class="h88-ruleinfo-note">※ こいこい多重掛け・倍返し・場四総取り・雨三光・「こいこい以降の役」・菊の盃 などのローカルルールは、上記や各解説サイトで紹介されている変種を参考に、設定（プリセット／個別）で切り替えられるようにしています。</p>
+  </div>
+  <div class="btn-row"><button class="btn btn-primary" id="koi-ruleinfo-close">閉じる</button></div>
 </div></div>
 
 <!-- 接続状態オーバーレイ（再接続中／相手の復帰待ち。ボタンは動的） -->
@@ -8840,6 +8861,13 @@ function bindEvents() {
   if (riClose) riClose.addEventListener('click', () => document.getElementById('ovRuleInfo').classList.remove('show'));
   const riOv = document.getElementById('ovRuleInfo');
   if (riOv) riOv.addEventListener('click', (e) => { if (e.target === riOv) riOv.classList.remove('show'); }); // 背景クリックでも閉じる
+  // v2.53: こいこいのルール出典モーダル（八八と同型）
+  const koiRiLink = document.getElementById('koi-ruleinfo-link');
+  if (koiRiLink) koiRiLink.addEventListener('click', (e) => { e.preventDefault(); document.getElementById('ovKoiRuleInfo').classList.add('show'); });
+  const koiRiClose = document.getElementById('koi-ruleinfo-close');
+  if (koiRiClose) koiRiClose.addEventListener('click', () => document.getElementById('ovKoiRuleInfo').classList.remove('show'));
+  const koiRiOv = document.getElementById('ovKoiRuleInfo');
+  if (koiRiOv) koiRiOv.addEventListener('click', (e) => { if (e.target === koiRiOv) koiRiOv.classList.remove('show'); }); // 背景クリックでも閉じる
   // v1.68 C3: 準備室の八八・親決め
   const bPrepOya = document.getElementById('btn-h88-prep-drawoya');
   if (bPrepOya) bPrepOya.addEventListener('click', h88PrepDrawOya);

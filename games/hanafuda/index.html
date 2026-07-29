@@ -1328,7 +1328,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.56</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.57</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1394,7 +1394,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.56</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.57</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1524,7 +1524,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.56</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.57</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1584,7 +1584,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.56</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.57</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -5207,13 +5207,14 @@ function h88CapGroupedHTML(cards, mode, flashSet) {
     + cardsHtml(arr) + (extra || '') + '</div>';
   const row = (inner) => '<div class="caprow h88-caprow">' + inner + '</div>';
   const tanX = cardsHtml(flashTop), kasuX = cardsHtml(flashKasu);
-  if (mode === 'stack4') return row(cell('光', groups.hikari)) + row(cell('種', groups.tane))
-    + row(cell('短', groups.tan, tanX)) + row(cell('カス', groups.kasu, kasuX));
-  if (mode === 'compact') return row(cell('光', groups.hikari) + cell('種', groups.tane)
-    + cell('短', groups.tan, tanX) + cell('カス', groups.kasu, kasuX));
+  const L = { hikari: t('game.g.hikari'), tane: t('game.g.tane'), tan: t('game.g.tan'), kasu: t('game.g.kasu') };
+  if (mode === 'stack4') return row(cell(L.hikari, groups.hikari)) + row(cell(L.tane, groups.tane))
+    + row(cell(L.tan, groups.tan, tanX)) + row(cell(L.kasu, groups.kasu, kasuX));
+  if (mode === 'compact') return row(cell(L.hikari, groups.hikari) + cell(L.tane, groups.tane)
+    + cell(L.tan, groups.tan, tanX) + cell(L.kasu, groups.kasu, kasuX));
   // 'self2'（既定）
-  return row(cell('光', groups.hikari) + cell('種', groups.tane) + cell('短', groups.tan, tanX))
-    + row(cell('カス', groups.kasu, kasuX));
+  return row(cell(L.hikari, groups.hikari) + cell(L.tane, groups.tane) + cell(L.tan, groups.tan, tanX))
+    + row(cell(L.kasu, groups.kasu, kasuX));
 }
 // v2.37: 八八の「達成した役／あと1枚で成立」表示（こいこいの renderNearYaku と同型）。
 //   採用役はプリセット②に連動（h88YakuDefs）。到達不能（必要札が全部“他家の取り札”にある）は打ち消し線。

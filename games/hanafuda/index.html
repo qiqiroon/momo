@@ -1590,7 +1590,7 @@
        縦画面は従来どおり縦積み。左右の相手セルは中央ブロックの外側に置く。 -->
   <!-- v1.83: タイトル/ステータスは中央ブロックの外＝盤の上に全幅で出す（中央が狭くて収まらない対策）。 -->
   <div class="statusbar" id="h88-status">
-    <span class="rulename">八八</span>
+    <span class="rulename" data-i18n="hachi.rulename">八八</span>
     <span id="h88-round">第1局</span>
     <span id="h88-scores"></span>
     <span id="h88-turn"></span>
@@ -1643,19 +1643,19 @@
   <!-- 親決めオーバーレイ -->
   <div class="overlay" id="ovH88Oya"><div class="opanel">
     <h2 data-i18n="oya.title">先手（親）を決める</h2>
-    <p class="desc" style="font-size:.8rem;color:var(--text-muted);margin:-4px 0 8px;">3人で1枚ずつ引き、早い月＝親、以下反時計回りに着席します。</p>
+    <p class="desc" style="font-size:.8rem;color:var(--text-muted);margin:-4px 0 8px;" data-i18n="hachi.oya.lead">3人で1枚ずつ引き、早い月＝親、以下反時計回りに着席します。</p>
     <div class="h88-oya-draws" id="h88-oya-draws"></div>
     <div class="h88-oya-result" id="h88-oya-result" style="margin:8px 0;color:var(--gold);font-weight:700;"></div>
     <div class="btn-row">
       <button class="btn btn-primary" id="btn-h88-drawoya" data-i18n="oya.draw">札を引く</button>
-      <button class="btn btn-primary hidden" id="btn-h88-start">対局開始</button>
+      <button class="btn btn-primary hidden" id="btn-h88-start" data-i18n="hachi.startgame">対局開始</button>
     </div>
   </div></div>
 </section>
 
 <!-- ============ OVERLAYS ============ -->
 <div class="overlay" id="ovNotice"><div class="opanel">
-  <h2 id="ov-title">お知らせ</h2>
+  <h2 id="ov-title" data-i18n="notice.title">お知らせ</h2>
   <div id="ov-body"></div>
   <div class="btn-row"><button class="btn btn-primary" id="ov-ok" data-i18n="ov.ok">OK</button></div>
 </div></div>
@@ -1967,6 +1967,13 @@ const I18N = {
     'h88.desc.online': 'ホスト＋ゲスト＋コンピュータ1体の3人で対戦します（3人目は当面コンピュータ・将来プレイヤー選択可）。',
     'h88.oya.result3': '親：{p1}<br>2位：{p2}<br>3位：{p3}<br><span style="color:var(--text-muted);font-weight:400;">この順で反時計回りに座ります</span>',
     'h88.oya.dealerIs': '{who} が親（先手）です',
+    'hachi.rulename': '八八', 'hachi.startgame': '対局開始', 'notice.title': 'お知らせ',
+    'h88.turn.pickDraw': '▶ めくった札（山の右に表示中）に合う場札を選んでください（同じ月が2枚）',
+    'h88.turn.pickHand': '▶ 出した札に合う場札を選んでください（同じ月が2枚）',
+    'h88.turn.confirm': 'もう一度タップで出す（別の札で選び直しも可）',
+    'h88.turn.you': '▶ あなたの番です（札をタップ→もう一度で出す）',
+    'h88.showing': '{who} を表示中（他：{other}）',
+    'h88.badge.drop': '降り', 'h88.badge.turn': '手番', 'h88.badge.youturn': 'あなたの番です',
     'set.rounds': '局数', 'set.1': '1局', 'set.3': '3局', 'set.6': '6局', 'set.12': '12局',
     'set.kiku': '菊の盃', 'set.kiku.tane': '種＋花見月見', 'set.kiku.kasu2': 'カス2枚',
     'set.double': '7文以上2倍', 'set.on': 'あり', 'set.off': 'なし',
@@ -2180,6 +2187,13 @@ const I18N = {
     'h88.desc.online': 'Host + guest + one computer play a 3-player game (the third is a computer for now; player choice planned later).',
     'h88.oya.result3': 'Dealer: {p1}<br>2nd: {p2}<br>3rd: {p3}<br><span style="color:var(--text-muted);font-weight:400;">Seated counterclockwise in this order</span>',
     'h88.oya.dealerIs': '{who} is the dealer (first player)',
+    'hachi.rulename': 'Hachi-Hachi', 'hachi.startgame': 'Start game', 'notice.title': 'Notice',
+    'h88.turn.pickDraw': '▶ Pick a field card matching the drawn card (shown right of the deck) — two of the same month',
+    'h88.turn.pickHand': '▶ Pick a field card matching the card you played — two of the same month',
+    'h88.turn.confirm': 'Tap again to play (or pick a different card)',
+    'h88.turn.you': '▶ Your turn (tap a card, then tap again to play)',
+    'h88.showing': 'Showing {who} (other: {other})',
+    'h88.badge.drop': 'Folded', 'h88.badge.turn': 'Turn', 'h88.badge.youturn': 'Your turn',
     'set.rounds': 'Rounds', 'set.1': '1', 'set.3': '3', 'set.6': '6', 'set.12': '12',
     'set.kiku': 'Kiku no Sakazuki', 'set.kiku.tane': 'Tane (+Hanami/Tsukimi)', 'set.kiku.kasu2': 'Kasu ×2',
     'set.double': '7+ Points ×2', 'set.on': 'On', 'set.off': 'Off',
@@ -2393,6 +2407,13 @@ const I18N = {
     'h88.desc.online': '房主＋客人＋一台电脑三人对战（第三人暂为电脑，将来可选玩家）。',
     'h88.oya.result3': '庄：{p1}<br>2位：{p2}<br>3位：{p3}<br><span style="color:var(--text-muted);font-weight:400;">按此顺序逆时针就座</span>',
     'h88.oya.dealerIs': '{who} 为庄（先手）',
+    'hachi.rulename': '八八', 'hachi.startgame': '开始对局', 'notice.title': '通知',
+    'h88.turn.pickDraw': '▶ 请选择与翻出的牌（显示在牌堆右侧）同月的场牌（同月两张）',
+    'h88.turn.pickHand': '▶ 请选择与你打出的牌同月的场牌（同月两张）',
+    'h88.turn.confirm': '再点一次即打出（也可改选其他牌）',
+    'h88.turn.you': '▶ 轮到你了（点牌→再点一次打出）',
+    'h88.showing': '正在显示 {who}（其他：{other}）',
+    'h88.badge.drop': '弃权', 'h88.badge.turn': '轮到', 'h88.badge.youturn': '轮到你了',
     'set.rounds': '局数', 'set.1': '1局', 'set.3': '3局', 'set.6': '6局', 'set.12': '12局',
     'set.kiku': '菊之杯', 'set.kiku.tane': '种＋花见月见', 'set.kiku.kasu2': '算作2张滓',
     'set.double': '7文以上×2', 'set.on': '开启', 'set.off': '关闭',
@@ -4265,7 +4286,7 @@ function h88PrepNames() {
 function h88PrepRenderPlayers() {
   const el = document.getElementById('h88-prep-players'); if (!el) return;
   const lv = h88Levels();
-  const levelSel = (seat) => '<select class="ai-level-select h88-cpu-level" data-seat="' + seat + '" aria-label="コンピュータの強さ"' + (state.isHost || state.vsAI ? '' : ' disabled') + '>'
+  const levelSel = (seat) => '<select class="ai-level-select h88-cpu-level" data-seat="' + seat + '" aria-label="' + t('vsai.level') + '"' + (state.isHost || state.vsAI ? '' : ' disabled') + '>'
     + ['EASY', 'HARD', 'APOCALYPSE'].map(v => '<option value="' + v + '"' + (lv[seat] === v ? ' selected' : '') + '>' + v + '</option>').join('')
     + '</select>';
   if (!state.vsAI) {
@@ -4275,7 +4296,7 @@ function h88PrepRenderPlayers() {
     el.innerHTML =
       '<div class="pl host"><small>' + t('room.host') + '</small><span>' + nm.p0 + '</span></div>'
       + '<div class="guest-row"><div class="pl guest"><small>' + t('room.guest') + '</small><span' + (guestWaiting ? ' class="waiting-g"' : '') + '>' + nm.p1 + '</span></div></div>'
-      + '<div class="guest-row"><div class="pl guest"><small>コンピュータ</small><span>' + nm.p2 + '</span></div>' + levelSel('p2') + '</div>';
+      + '<div class="guest-row"><div class="pl guest"><small>' + t('vsai.cpu') + '</small><span>' + nm.p2 + '</span></div>' + levelSel('p2') + '</div>';
     return;
   }
   const name = (document.getElementById('in-playername').value || '').trim() || t('vsai.you');
@@ -5089,9 +5110,9 @@ function renderH88Seat(elId, seat) {
   // v1.80 大改造: 相手はプレイヤー単位で90°回転させるため .h88-seat-rot でまとめる。
   //   プレイヤー内は「名前(上)→取り札2列→伏せ手札1列(下)」。横画面はこの箱を回転、縦画面は素の縦積み。
   el.innerHTML = '<div class="h88-seat-rot' + (dropped ? ' h88-dropped' : '') + '">'
-    + '<div class="h88-name">' + (isOya ? '<span class="h88-oya-badge">親</span>' : '')
+    + '<div class="h88-name">' + (isOya ? '<span class="h88-oya-badge">' + t('oyako.oya') + '</span>' : '')
     + st.names[seat]
-    + (dropped ? '<span class="h88-drop-badge">降り</span>' : (isTurn ? '<span class="h88-turn-badge">手番</span>' : '')) + '</div>'
+    + (dropped ? '<span class="h88-drop-badge">' + t('h88.badge.drop') + '</span>' : (isTurn ? '<span class="h88-turn-badge">' + t('h88.badge.turn') + '</span>' : '')) + '</div>'
     + '<div class="h88-caps">' + caps + '</div>'
     + '<div class="h88-near">' + h88NearYakuHTML(seat) + '</div>' // v2.37: 達成役／あと1枚（席と一緒に回転・同サイズ）
     + '<div class="h88-mini-hand">' + backs + '</div>'
@@ -5110,18 +5131,16 @@ function renderH88() {
   const g = st.game;
   const mySeat = h88MySeat(); // v2.43-段2: 視点＝自分の席（ローカルは常にp0）
   const _h88animPrev = h88AnimEnabled() ? h88AnimSnapshot() : null; // FLIP: 描画前の全札位置を記録
-  document.getElementById('h88-round').textContent = '第' + st.roundNo + '局/全' + st.rounds + '局';
+  document.getElementById('h88-round').textContent = t('game.round', { n: st.roundNo, total: st.rounds });
   // v1.66/段2: スコアはコンパクトに（1行に収める）。自分=あなた／vsコンピュータは相手をCPU1/CPU2、オンラインは実名。
   const shortNm = (s) => (s === mySeat) ? t('game.you')
     : (state.vsAI ? (s === 'p1' ? 'CPU1' : 'CPU2') : st.names[s]);
   document.getElementById('h88-scores').textContent = g.seats.map(s => shortNm(s) + ' ' + h88FormatFumi(st.scores[s] || 0)).join(' ／ ');
   document.getElementById('h88-turn').textContent = g.winner ? ''
-    : st.pending ? (st.pending.stage === 'pick-draw'
-        ? '▶ めくった札（山の右に表示中）に合う場札を選んでください（同じ月が2枚）'
-        : '▶ 出した札に合う場札を選んでください（同じ月が2枚）')
+    : st.pending ? (st.pending.stage === 'pick-draw' ? t('h88.turn.pickDraw') : t('h88.turn.pickHand'))
     : (g.currentPlayer === mySeat
-        ? (st.sel != null ? 'もう一度タップで出す（別の札で選び直しも可）' : '▶ あなたの番です（札をタップ→もう一度で出す）')
-        : st.names[g.currentPlayer] + ' の番');
+        ? (st.sel != null ? t('h88.turn.confirm') : t('h88.turn.you'))
+        : st.names[g.currentPlayer] + t('turn.suffix'));
   // v1.66: 席順（親決めの反時計回り）で固定配置。自分の次に打つ人＝右上、その次＝左上。
   //   横画面=両方表示。縦画面= focusSeat の1人だけ表示（.h88-shown）＝切替でもう一方へ。
   // v2.38: 相手2席の表示位置は「席の並び(seatCycle)」で固定する。手番送りの h88NextSeat は⑩出降りで
@@ -5138,7 +5157,7 @@ function renderH88() {
   if (oppLel) oppLel.classList.toggle('h88-shown', st.focusSeat === leftSeat);
   if (oppRel) oppRel.classList.toggle('h88-shown', st.focusSeat === rightSeat);
   const swLabel = document.getElementById('h88-opp-switch-label');
-  if (swLabel) { const other = (st.focusSeat === leftSeat) ? rightSeat : leftSeat; swLabel.textContent = st.names[st.focusSeat] + ' を表示中（他：' + st.names[other] + '）'; }
+  if (swLabel) { const other = (st.focusSeat === leftSeat) ? rightSeat : leftSeat; swLabel.textContent = t('h88.showing', { who: st.names[st.focusSeat], other: st.names[other] }); }
   // v1.63 B6: 場札にヒント（選択中の手札と合う月＝match／2枚選択待ち＝pick）。data-id でクリック可。
   const selCard = (st.sel != null) ? g.hands[mySeat][st.sel] : null;
   // v2.24: 回収した札の跡地は「整列（左寄せ）段」まで空きのまま保持（こいこい fieldOrder/fieldGhostIds 準拠）
@@ -5171,9 +5190,9 @@ function renderH88() {
   // 自分の名前・親・手番を取り札の1番上に（相手と同じ形で表示）。手役表示中は手番バッジを出さない。降りたら「降り」。
   const youL = t('game.you');
   document.getElementById('h88-self-nameline').innerHTML =
-    (st.roundOya === mySeat ? '<span class="h88-oya-badge">親</span>' : '')
+    (st.roundOya === mySeat ? '<span class="h88-oya-badge">' + t('oyako.oya') + '</span>' : '')
     + youL + (st.names[mySeat] !== youL ? '：' + st.names[mySeat] : '')
-    + (p0Dropped ? '<span class="h88-drop-badge">降り</span>' : ((myTurn && !st.teyakuMarks) ? '<span class="h88-turn-badge">あなたの番です</span>' : ''));
+    + (p0Dropped ? '<span class="h88-drop-badge">' + t('h88.badge.drop') + '</span>' : ((myTurn && !st.teyakuMarks) ? '<span class="h88-turn-badge">' + t('h88.badge.youturn') + '</span>' : ''));
   const p0Flash = (g.capFlash && g.capFlash.player === mySeat) ? new Set(g.capFlash.ids) : null; // v2.24: 回収直後の札
   document.getElementById('h88-self-caps').innerHTML = h88CapGroupedHTML(g.caps[mySeat], 'self2', p0Flash);
   const selfNearEl = document.getElementById('h88-self-near'); // v2.37: 達成役／あと1枚（自分）

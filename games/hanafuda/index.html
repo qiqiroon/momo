@@ -1962,6 +1962,11 @@ const I18N = {
     'h88.b.sage': '⑧下げ（継続宣言）', 'h88.sage.nintendo': '任天堂式', 'h88.sage.kanto': '関東式', 'h88.sage.kansai': '関西式',
     'h88.b.marume': '⑨丸め（最終集計で貫に）', 'h88.marume.note': '※貫（関東/関西）のときのみ',
     'h88.b.deiori': '⑩出降り（関西式・縛りなし）',
+    'h88.wait.guest': 'ゲストの参加を待っています', 'h88.wait.oya': '全員の親決めを待っています', 'h88.wait.ready': '相手の準備を待っています', 'h88.wait.opp': '相手の参加を待っています', 'h88.starting': '開始します…', 'h88.ready.btn': '準備完了（八八を開始）',
+    'h88.desc.vsai': 'あなた＋コンピュータ2体の3人で対戦します（相手2人ともコンピュータ）。',
+    'h88.desc.online': 'ホスト＋ゲスト＋コンピュータ1体の3人で対戦します（3人目は当面コンピュータ・将来プレイヤー選択可）。',
+    'h88.oya.result3': '親：{p1}<br>2位：{p2}<br>3位：{p3}<br><span style="color:var(--text-muted);font-weight:400;">この順で反時計回りに座ります</span>',
+    'h88.oya.dealerIs': '{who} が親（先手）です',
     'set.rounds': '局数', 'set.1': '1局', 'set.3': '3局', 'set.6': '6局', 'set.12': '12局',
     'set.kiku': '菊の盃', 'set.kiku.tane': '種＋花見月見', 'set.kiku.kasu2': 'カス2枚',
     'set.double': '7文以上2倍', 'set.on': 'あり', 'set.off': 'なし',
@@ -2170,6 +2175,11 @@ const I18N = {
     'h88.b.sage': '⑧ Sage (continue declaration)', 'h88.sage.nintendo': 'Nintendo', 'h88.sage.kanto': 'Kanto', 'h88.sage.kansai': 'Kansai',
     'h88.b.marume': '⑨ Rounding (to kan at final tally)', 'h88.marume.note': '※ Only when using kan (Kanto/Kansai)',
     'h88.b.deiori': '⑩ Deiori (Kansai, no restriction)',
+    'h88.wait.guest': 'Waiting for a guest to join', 'h88.wait.oya': 'Waiting for everyone to draw for dealer', 'h88.wait.ready': 'Waiting for the other player', 'h88.wait.opp': 'Waiting for the other player to join', 'h88.starting': 'Starting…', 'h88.ready.btn': 'Ready (Start Hachi-Hachi)',
+    'h88.desc.vsai': 'You and two computers play a 3-player game (both opponents are AI).',
+    'h88.desc.online': 'Host + guest + one computer play a 3-player game (the third is a computer for now; player choice planned later).',
+    'h88.oya.result3': 'Dealer: {p1}<br>2nd: {p2}<br>3rd: {p3}<br><span style="color:var(--text-muted);font-weight:400;">Seated counterclockwise in this order</span>',
+    'h88.oya.dealerIs': '{who} is the dealer (first player)',
     'set.rounds': 'Rounds', 'set.1': '1', 'set.3': '3', 'set.6': '6', 'set.12': '12',
     'set.kiku': 'Kiku no Sakazuki', 'set.kiku.tane': 'Tane (+Hanami/Tsukimi)', 'set.kiku.kasu2': 'Kasu ×2',
     'set.double': '7+ Points ×2', 'set.on': 'On', 'set.off': 'Off',
@@ -2378,6 +2388,11 @@ const I18N = {
     'h88.b.sage': '⑧下げ（继续宣言）', 'h88.sage.nintendo': '任天堂式', 'h88.sage.kanto': '关东式', 'h88.sage.kansai': '关西式',
     'h88.b.marume': '⑨舍入（最终结算换算为贯）', 'h88.marume.note': '※仅使用贯（关东/关西）时',
     'h88.b.deiori': '⑩出降り（关西式·无约束）',
+    'h88.wait.guest': '正在等待客人加入', 'h88.wait.oya': '正在等待所有人定庄', 'h88.wait.ready': '正在等待对手准备', 'h88.wait.opp': '正在等待对手加入', 'h88.starting': '正在开始…', 'h88.ready.btn': '准备完成（开始八八）',
+    'h88.desc.vsai': '你＋两台电脑三人对战（两位对手均为电脑）。',
+    'h88.desc.online': '房主＋客人＋一台电脑三人对战（第三人暂为电脑，将来可选玩家）。',
+    'h88.oya.result3': '庄：{p1}<br>2位：{p2}<br>3位：{p3}<br><span style="color:var(--text-muted);font-weight:400;">按此顺序逆时针就座</span>',
+    'h88.oya.dealerIs': '{who} 为庄（先手）',
     'set.rounds': '局数', 'set.1': '1局', 'set.3': '3局', 'set.6': '6局', 'set.12': '12局',
     'set.kiku': '菊之杯', 'set.kiku.tane': '种＋花见月见', 'set.kiku.kasu2': '算作2张滓',
     'set.double': '7文以上×2', 'set.on': '开启', 'set.off': '关闭',
@@ -2599,6 +2614,17 @@ function applyLang() {
   // Room-prep dynamic labels
   updateOyaLabels();
   updateStatusI18n();
+  // v2.54: 言語切替で八八の動的画面（準備室の役BOX/説明/親決め結果・対局画面）も更新する
+  try {
+    if (state.gameSel === 'hachi') {
+      if (typeof h88PrepRenderPlayers === 'function') h88PrepRenderPlayers();
+      const dsp = document.querySelector('#set-hachi .desc span[data-i18n="set.hachi.desc"]');
+      if (dsp) dsp.textContent = state.vsAI ? t('h88.desc.vsai') : t('h88.desc.online');
+      if (!state.vsAI && typeof h88OnlineOyaRender === 'function') h88OnlineOyaRender();
+    }
+    if (typeof updateStartBtn === 'function') updateStartBtn();
+    if (state.h88 && state.h88.game && typeof renderH88 === 'function') renderH88();
+  } catch (e) {}
   // 言語切替でラベル幅が変わるのでヘッダーを測り直す（fitHeader は関数巻き上げで参照可）
   if (typeof fitHeader === 'function') fitHeader();
 }
@@ -2863,15 +2889,15 @@ function updateStartBtn() {
   if (state.gameSel === 'hachi') { // v1.68: 八八は準備室で3人親決め → 済んだら開始可
     // v2.51: オンライン八八＝親決めが3枚そろったら、ホストもゲストも「準備完了」を押す。両者が押したら開始（こいこい同様）。
     if (!state.vsAI) {
-      if (state.isHost && !state.guestName) { b.disabled = true; b.textContent = 'ゲストの参加を待っています'; return; }
+      if (state.isHost && !state.guestName) { b.disabled = true; b.textContent = t('h88.wait.guest'); return; }
       const o = state.h88OnlineOya;
       const oyaDone = !!(o && o.p0 && o.p1 && o.p2);
-      if (!oyaDone) { b.disabled = true; b.textContent = '全員の親決めを待っています'; return; }
+      if (!oyaDone) { b.disabled = true; b.textContent = t('h88.wait.oya'); return; }
       const me = state.isHost ? 'host' : 'guest';
       const myReady = me === 'host' ? state.readyHost : state.readyGuest;
       const oppReady = me === 'host' ? state.readyGuest : state.readyHost;
       b.disabled = myReady;
-      b.textContent = (myReady && oppReady) ? '開始します…' : myReady ? '相手の準備を待っています' : '準備完了（八八を開始）';
+      b.textContent = (myReady && oppReady) ? t('h88.starting') : myReady ? t('h88.wait.ready') : t('h88.ready.btn');
       return;
     }
     // v2.36: 親決めのめくりアニメが終わって親を表示してから（revealed）でないと開始不可
@@ -4318,9 +4344,7 @@ function h88PrepReset() {
   }
   // v2.42: 説明文を編成に合わせる（vsコンピュータ＝あなた＋CPU2体／オンライン＝ホスト＋ゲスト＋CPU1体）
   const descSpan = document.querySelector('#set-hachi .desc span[data-i18n="set.hachi.desc"]');
-  if (descSpan) descSpan.textContent = state.vsAI
-    ? 'あなた＋コンピュータ2体の3人で対戦します（相手2人ともコンピュータ）。'
-    : 'ホスト＋ゲスト＋コンピュータ1体の3人で対戦します（3人目は当面コンピュータ・将来プレイヤー選択可）。';
+  if (descSpan) descSpan.textContent = state.vsAI ? t('h88.desc.vsai') : t('h88.desc.online');
   h88PrepRenderPlayers();
   updateStartBtn();
 }
@@ -4340,8 +4364,7 @@ function h88PrepDrawOya() {
   const showResult = () => {
     // v1.69: 親だけでなく2位・3位も示す＋反時計回りに座る旨
     document.getElementById('h88-prep-oya-result').innerHTML =
-      '親：' + names[order[0]] + '<br>2位：' + names[order[1]] + '<br>3位：' + names[order[2]]
-      + '<br><span style="color:var(--text-muted);font-weight:400;">この順で反時計回りに座ります</span>';
+      t('h88.oya.result3', { p1: names[order[0]], p2: names[order[1]], p3: names[order[2]] });
     if (state.h88prep) state.h88prep.revealed = true; // v2.36: めくり終了＝ここで初めて開始可に
     updateStartBtn();
   };
@@ -4533,15 +4556,14 @@ function h88OnlineOyaRender() {
     else {
       btn.classList.remove('hidden');
       btn.disabled = !oppIn;
-      btn.textContent = oppIn ? t('oya.draw') : '相手の参加を待っています';
+      btn.textContent = oppIn ? t('oya.draw') : t('h88.wait.opp');
     }
   }
   const r = document.getElementById('h88-prep-oya-result');
   if (r) {
     if (o.p0 && o.p1 && o.p2) {
       const order = h88SeatOrder(o);
-      r.innerHTML = '親：' + names[order[0]] + '<br>2位：' + names[order[1]] + '<br>3位：' + names[order[2]]
-        + '<br><span style="color:var(--text-muted);font-weight:400;">この順で反時計回りに座ります</span>';
+      r.innerHTML = t('h88.oya.result3', { p1: names[order[0]], p2: names[order[1]], p3: names[order[2]] });
     } else r.textContent = '';
   }
 }
@@ -4721,7 +4743,7 @@ function h88DrawOya() {
   st.seatCycle = order;
   document.getElementById('btn-h88-drawoya').classList.add('hidden');
   const showResult = () => {
-    document.getElementById('h88-oya-result').textContent = st.names[order[0]] + ' が親（先手）です';
+    document.getElementById('h88-oya-result').textContent = t('h88.oya.dealerIs', { who: st.names[order[0]] });
     document.getElementById('btn-h88-start').classList.remove('hidden');
   };
   if (delay) setTimeout(showResult, delay); else showResult(); // v2.24: めくり終わってから結果表示

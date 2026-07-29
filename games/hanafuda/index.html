@@ -1326,7 +1326,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.49</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.50</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1392,7 +1392,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.49</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.50</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1519,7 +1519,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.49</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.50</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1579,7 +1579,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.49</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.50</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -2791,6 +2791,7 @@ function refreshRoomView() {
     lab.textContent = t('room.conn.waiting');
   }
   document.querySelectorAll('#set-koikoi .seg').forEach(seg => seg.setAttribute('data-readonly', state.isHost ? '0' : '1'));
+  document.querySelectorAll('#set-hachi .seg').forEach(seg => seg.setAttribute('data-readonly', (state.isHost || state.vsAI) ? '0' : '1')); // v2.50: 八八もゲストは操作不可の見た目に
   // v1.05: 親決めは両者それぞれ自分の 1 枚を引く方式。自分の側がまだ引いてない & 相手が入室してれば enable。
   const myMonth = state.isHost ? state.oyaHostMonth : state.oyaGuestMonth;
   document.getElementById('btn-draw-oya').disabled = (myMonth != null) || !opponentIn;
@@ -2861,6 +2862,7 @@ function pickGame(g) {
   if (plsKoi) plsKoi.classList.toggle('hidden', isHachi);
   const h88pl = document.getElementById('h88-prep-players'); if (h88pl) h88pl.classList.toggle('hidden', !isHachi);
   if (isHachi) h88PrepReset(); // v1.68 C3/C4: 八八の顔ぶれ・親決めを準備室で
+  if (isHachi && state.isHost && !state.vsAI && state.guestName) h88SendRules(); // v2.50: 八八選択時に現在のルールをゲストへ
   updateStartBtn();
 }
 function applySettingToggle(key, v) {
@@ -3212,6 +3214,7 @@ function initMatchmaking() {
       // DC 未確立でも設定が届くよう明示送信（フォールバック）
       MomoMatchmaking.send({ type: 'hello', name: state.hostName });
       MomoMatchmaking.send({ type: 'settings', settings: state.settings, gameSel: state.gameSel }); // v2.42: ゲーム選択も同送
+      h88SendRules(); // v2.50: ①八八のルールもゲスト参加時に送る（gameSel=hachiのときだけ実行）
       if (state.game) {
         // 対局中に相手が (再)入室 = 復帰。盤面を丸ごと送り直す（deal 型でゲストを対局画面へ）。
         diagLog('room', 'guest REJOINED mid-game → resync full state');
@@ -3330,6 +3333,9 @@ function handleP2P(data) {
     const st = state.h88; if (st && st._h88GateCleanup) st._h88GateCleanup();
     return;
   }
+  if (data.type === 'h88-deal') { h88GuestRunDeal(); return; } // v2.50: ゲスト：配りアニメを再生
+  if (data.type === 'h88-rules') { h88ApplyRulesRemote(data); return; } // v2.50: ゲスト：八八ルール表示を同期
+  if (data.type === 'h88-rematch') { h88GuestRematch(); return; } // v2.50: ゲスト：総合結果「もう一度」に追従（準備室へ）
   if (data.type === 'hello') {
     if (state.isHost) { state.guestName = data.name || state.guestName; }
     else { state.hostName = data.name || state.hostName; }
@@ -4543,6 +4549,9 @@ function h88ApplyState(msg) {
   st.turnBusy = false;
   if (g.currentPlayer !== mySeat) st.sel = null; // 自分の手番でなければ選択解除
   renderH88(); // ゲストは描画のみ（入力可否は同期状態＝currentPlayer/pending/drawn/playedFromHand で判定）
+  // v2.50: ゲストも下げ演出を出す（同期で新しい下げが立ったら「下げ！」バナー）。
+  if (g.sage) { const key = g.sage.seat + ':' + g.sage.total; if (st.sageShown !== key) { st.sageShown = key; h88SageToast(g.sage.seat); } }
+  else st.sageShown = null;
 }
 // ホスト：ゲストからの intent を実行（ゲストの手番のみ）。
 function h88HandleIntent(data) {
@@ -4558,6 +4567,32 @@ function h88HandleIntent(data) {
     if (!st.pending || st.pending.matches.indexOf(data.id) < 0) return;
     h88AnimPickField(data.id, H88_GUEST_SEAT);
   }
+}
+// v2.50: ① ホスト：八八ルール（個別バンドル＋局数）をゲストへ送る。プリセットのラベルはゲスト側が再計算する。
+function h88SendRules() {
+  if (!state.isHost || state.vsAI || state.gameSel !== 'hachi' || !state.guestName) return;
+  const segs = {};
+  H88_BUNDLE_SEGS.forEach(id => { const v = h88SegVal(id); if (v != null) segs[id] = v; });
+  const rseg = document.getElementById('h88-rounds-seg'); const ron = rseg && rseg.querySelector('button.on');
+  MomoMatchmaking.send({ type: 'h88-rules', segs: segs, rounds: ron ? ron.dataset.v : null });
+}
+// v2.50: ① ゲスト：受け取った八八ルールを自分の表示に反映（操作は不可）。
+function h88ApplyRulesRemote(msg) {
+  if (state.isHost) return;
+  if (msg.segs) Object.keys(msg.segs).forEach(id => h88SetSeg(id, msg.segs[id]));
+  h88UpdateMarumeAvailability();
+  h88SyncPresetLabel();
+  if (msg.rounds != null) { const rseg = document.getElementById('h88-rounds-seg'); if (rseg) rseg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === msg.rounds)); }
+}
+// v2.50: ② ゲスト：配りアニメを再生（表示専用・進行はホスト権威）。
+function h88GuestRunDeal() {
+  const st = state.h88; if (!st || state.isHost || !st.game) return;
+  h88RunDeal(function () {});
+}
+// v2.50: ⑤ ゲスト：総合結果「もう一度対戦」に追従＝準備室（八八）へ戻る。
+function h88GuestRematch() {
+  const ov = document.getElementById('ovH88End'); if (ov) ov.classList.remove('show');
+  state.h88 = null; showScreen('room'); refreshRoomView(); pickGame('hachi');
 }
 function startHachiVsAI(rounds) {
   const lv = h88Levels(); // v1.72 D1: CPU別強さ
@@ -4616,6 +4651,7 @@ function h88StartRound(oyaId) {
   h88Log('──── 第' + st.roundNo + '局 開始（親：' + st.names[oyaId] + '／手番順 ' + st.seatCycle.map(s => st.names[s]).join('→') + '）');
   h88AutoFocus(); // v1.63 B4: 開始時、親が相手ならその相手を主表示に
   renderH88();
+  if (st.online && state.isHost) MomoMatchmaking.send({ type: 'h88-deal' }); // v2.50: ゲストにも配りアニメを再生させる合図（盤面同期の直後）
   const proceed = () => { // 配り後：⑩出降りON＝出る/降りるフェーズ→手役、OFF＝手役
     if (!state.h88 || state.h88 !== st) return;
     if (h88Rules().deiori) { h88BeginDeiori(st.game, oyaId); return; }
@@ -4812,16 +4848,16 @@ function h88SetupOppDrag() {
   opps.addEventListener('pointerup', end);
   opps.addEventListener('pointercancel', end);
 }
-// 相手の席（p0以外）を反時計回り順で。stable order。
+// 相手の席（自席以外）を反時計回り順で。stable order。v2.50: 自席基準（ゲストは p1 が自分）。
 function h88OppSeats() {
   const g = state.h88.game;
-  return g.seats.filter(s => s !== 'p0');
+  return g.seats.filter(s => s !== h88MySeat());
 }
-// 現手番が相手なら、その相手を主表示(focusSeat)に自動で合わせる（縦=1人表示の既定）
+// 現手番が相手なら、その相手を主表示(focusSeat)に自動で合わせる（縦=1人表示の既定）。v2.50: 自席基準。
 function h88AutoFocus() {
   const st = state.h88, g = st.game;
   if (!g || g.winner) return;
-  if (g.currentPlayer !== 'p0') st.focusSeat = g.currentPlayer;
+  if (g.currentPlayer !== h88MySeat()) st.focusSeat = g.currentPlayer;
 }
 // 縦画面の表示相手を手動で切替（もう一方の相手へ）
 function h88ToggleFocus() {
@@ -5239,7 +5275,7 @@ function h88SageToast(seat) {
   const st = state.h88; if (!st) return;
   const name = (st.names && st.names[seat]) || '';
   const label = name + ' 下げ！（続行）';
-  const handRow = (seat === 'p0') ? document.getElementById('h88-self-hand')
+  const handRow = (seat === h88MySeat()) ? document.getElementById('h88-self-hand') // v2.50: 自席基準（ゲストは p1 が自分の手札行）
     : (function () { const slot = document.querySelector('[data-h88seat="' + seat + '"]'); return slot ? slot.querySelector('.h88-mini-hand') : null; })();
   const slide = document.getElementById('koikoi-slide');
   const rect = handRow ? handRow.getBoundingClientRect() : null;
@@ -5470,7 +5506,7 @@ function h88ResolveDraw(actor, tok, drawn) {
     h88LogPlayer(g, actor, h88DescribeTake(drawn, [drawn].concat(matches), true));
     renderH88(); // 音は h88PlaySoundCues（めくり札が場札に重なる=びし）
     h88StageCollect(actor, tok);
-  } else if (actor === 'p0') { // 2枚合致＝人間は場札クリック待ち（めくり札は表示継続）
+  } else if (!h88IsCpuSeat(actor)) { // v2.50: 2枚合致＝人間は場札クリック待ち（ホスト自席もゲスト席も本人が選ぶ・ゲストは同期pendingで場札をクリック→intent）
     st.pending = { stage: 'pick-draw', matches: matches.map(c => c.id) };
     renderH88(); return;
   } else { // AI は自動選択
@@ -8713,19 +8749,23 @@ function bindEvents() {
   // v1.63: 八八の局数セグ
   const h88RoundsSeg = document.getElementById('h88-rounds-seg');
   if (h88RoundsSeg) h88RoundsSeg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    if (!state.isHost && !state.vsAI) return; // v2.50: オンラインのゲストは操作不可（ホスト設定に従う）
     h88RoundsSeg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+    h88SendRules(); // v2.50: ①ルール（局数）をゲストへ同期
   }));
   // 八八 本格化: プリセット大ボタン（①〜⑥を一括セット）
   const h88PresetSeg = document.getElementById('h88-preset-seg');
   if (h88PresetSeg) h88PresetSeg.querySelectorAll('button[data-v]').forEach(b => { if (b.disabled || b.dataset.v === 'custom') return;
-    b.addEventListener('click', () => h88ApplyPreset(b.dataset.v)); });
+    b.addEventListener('click', () => { if (!state.isHost && !state.vsAI) return; h88ApplyPreset(b.dataset.v); h88SendRules(); }); }); // v2.50: ゲストロック＋同期
   // 個別バンドルセグ（変えるとカスタムになる）
   H88_BUNDLE_SEGS.forEach(id => { const seg = document.getElementById(id); if (!seg) return;
     seg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
       if (b.disabled) return; // 無効ボタン（貫でないときの⑨丸め等）は反応しない
+      if (!state.isHost && !state.vsAI) return; // v2.50: オンラインのゲストは操作不可
       seg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
       h88UpdateMarumeAvailability(); // ①点数を変えたら⑨丸めの可否を更新
-      h88SyncPresetLabel(); })); });
+      h88SyncPresetLabel();
+      h88SendRules(); })); }); // v2.50: ①ルールをゲストへ同期
   // 吹き出し：ホバー/タッチしている間だけ表示、離すと消す（固定しない）。
   // 携帯：短いタップ＝押した(選択)／長押し(>300ms)＝触れただけ=プレビューのみ（選択は抑止）。
   let h88TipHoldStart = 0;
@@ -8750,12 +8790,14 @@ function bindEvents() {
   // v1.69: 八八 総合結果パネルのボタン
   const bH88Rematch = document.getElementById('btn-h88-rematch');
   if (bH88Rematch) bH88Rematch.addEventListener('click', () => {
+    if (!state.vsAI) { try { MomoMatchmaking.send({ type: 'h88-rematch' }); } catch (e) {} } // v2.50: 相手も準備室へ
     document.getElementById('ovH88End').classList.remove('show');
     state.h88 = null; showScreen('room'); refreshRoomView(); pickGame('hachi'); // 準備室で再度親決めから
   });
   const bH88Lobby = document.getElementById('btn-h88-tolobby');
   if (bH88Lobby) bH88Lobby.addEventListener('click', () => {
     document.getElementById('ovH88End').classList.remove('show');
+    if (!state.vsAI) { try { MomoMatchmaking.send({ type: 'go-lobby' }); } catch (e) {} state.h88 = null; leaveRoom(); return; } // v2.50: 片方でも両者ロビー
     state.h88 = null; showScreen('lobby');
   });
   // v1.72 D1: 八八のコンピュータ強さ＝各CPU行のプルダウン（こいこいの ai-level-prep と同じ作り・委譲）

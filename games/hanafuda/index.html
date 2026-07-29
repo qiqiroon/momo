@@ -1326,7 +1326,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.53</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.54</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1358,7 +1358,7 @@
       <label class="fld"><span data-i18n="lobby.roomname">部屋の名前</span><input id="in-roomname" type="text" placeholder="例：モモタロウの遊戯室" data-i18n-ph="lobby.roomname.ph" maxlength="24" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true"></label>
       <label class="fld"><span data-i18n="lobby.password">パスワード</span><input id="in-pw" type="password" placeholder="任意" data-i18n-ph="lobby.pw.ph" maxlength="16" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-form-type="other" name="hf-nopw-1" readonly onfocus="this.removeAttribute('readonly')"></label>
       <div class="toggle-row"><span data-i18n="lobby.private">非公開にする</span>
-        <span class="switch"><input type="checkbox" id="in-private"><span class="slider"></span></span>
+        <label class="switch"><input type="checkbox" id="in-private"><span class="slider"></span></label>
       </div>
       <button class="btn btn-primary" id="btn-create" data-i18n="lobby.create.btn">部屋を作成</button>
     </div>
@@ -1392,7 +1392,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.53</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.54</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1435,7 +1435,7 @@
   <!-- 設定パネル -->
   <div class="gset" id="set-koikoi">
     <h3 data-i18n="set.koikoi.title">こいこい 設定</h3>
-    <p class="desc" style="font-size:12px;color:var(--text-muted);margin:-4px 0 8px;"><a href="#" id="koi-ruleinfo-link" class="h88-ruleinfo-link" style="margin-left:0;">ⓘ ルール設定について</a></p>
+    <p class="desc" style="font-size:12px;color:var(--text-muted);margin:-4px 0 8px;"><a href="#" id="koi-ruleinfo-link" class="h88-ruleinfo-link" style="margin-left:0;" data-i18n="ruleinfo.link">ⓘ ルール設定について</a></p>
     <div class="set-row"><span data-i18n="set.preset">プリセット</span><span class="seg" id="koi-preset-seg"><button data-v="ikeike" data-i18n="preset.ikeike">イケイケ</button><button data-v="stoic" data-i18n="preset.stoic">ストイック</button><button data-v="custom" disabled data-i18n="preset.custom">カスタム</button></span></div>
     <div class="set-row"><span data-i18n="set.rounds">局数</span><span class="seg" data-key="rounds"><button data-v="1" data-i18n="set.1">1局</button><button data-v="3" data-i18n="set.3">3局</button><button data-v="6" data-i18n="set.6">6局</button><button class="on" data-v="12" data-i18n="set.12">12局</button></span></div>
     <div class="set-row"><span data-i18n="set.kiku">菊の盃</span><span class="seg" data-key="kiku"><button class="on" data-v="tane" data-i18n="set.kiku.tane">種＋花見月見</button><button data-v="kasu2" data-i18n="set.kiku.kasu2">カス2枚</button></span></div>
@@ -1454,22 +1454,22 @@
   <!-- v1.63/68: 八八（3人）設定パネル。vsコンピュータで八八を選んだ時だけ表示 -->
   <div class="gset hidden" id="set-hachi">
     <h3 data-i18n="set.hachi.title">八八（3人）設定</h3>
-    <p class="desc" style="font-size:12px;color:var(--text-muted);line-height:1.6;"><span data-i18n="set.hachi.desc">あなた＋コンピュータ2体の3人で対戦します（相手2人ともコンピュータ）。</span> <a href="#" id="h88-ruleinfo-link" class="h88-ruleinfo-link">ⓘ ルール設定について</a></p>
+    <p class="desc" style="font-size:12px;color:var(--text-muted);line-height:1.6;"><span data-i18n="set.hachi.desc">あなた＋コンピュータ2体の3人で対戦します（相手2人ともコンピュータ）。</span> <a href="#" id="h88-ruleinfo-link" class="h88-ruleinfo-link" data-i18n="ruleinfo.link">ⓘ ルール設定について</a></p>
     <div class="set-row"><span data-i18n="set.rounds">局数</span><span class="seg" id="h88-rounds-seg"><button class="on" data-v="3" data-i18n="set.3">3局</button><button data-v="6" data-i18n="set.6">6局</button><button data-v="12" data-i18n="set.12">12局</button></span></div>
     <!-- 八八 本格化: プリセット（大ボタン＝①〜⑥を一括セット）＋個別バンドル（変えるとカスタム） -->
-    <div class="set-row"><span>プリセット</span><span class="seg" id="h88-preset-seg">
-      <button class="on h88-tip" data-v="nintendo" data-tip="preset:nintendo">任天堂公式</button><button class="h88-tip" data-v="kanto" data-tip="preset:kanto">関東式</button><button class="h88-tip" data-v="kansai" data-tip="preset:kansai">関西式</button>
-      <button class="h88-custom-chip" data-v="custom" disabled>カスタム</button></span></div>
-    <div class="h88-indiv-head">個別設定（どれか変えると「カスタム」に・大ボタンで一括に戻る）</div>
-    <div class="set-row"><span>①点数・単位</span><span class="seg" id="h88-b-points"><button class="h88-tip" data-v="nintendo" data-tip="points:nintendo">任天堂</button><button class="h88-tip" data-v="kanto" data-tip="points:kanto">関東</button><button class="h88-tip" data-v="kansai" data-tip="points:kansai">関西</button></span></div>
-    <div class="set-row"><span>②採用役（顔ぶれ）</span><span class="seg" id="h88-b-yakuset"><button class="h88-tip" data-v="nintendo" data-tip="yakuset:nintendo">任天堂型</button><button class="h88-tip" data-v="classic" data-tip="yakuset:classic">古典型</button></span></div>
-    <div class="set-row"><span>③場倍率（大場×2・絶場×4）</span><span class="seg" id="h88-b-fieldmul"><button data-v="on">あり</button><button data-v="off">なし</button></span></div>
-    <div class="set-row"><span>④場四（同月4枚で配り直し）</span><span class="seg" id="h88-b-redeal"><button data-v="on">あり</button><button data-v="off">なし</button></span></div>
-    <div class="set-row"><span>⑤場三（同月4枚目で総取り）</span><span class="seg" id="h88-b-sweep3"><button data-v="on">あり</button><button data-v="off">なし</button></span></div>
-    <div class="set-row"><span>⑥手役×場倍率</span><span class="seg" id="h88-b-teyakumul"><button data-v="on">ON</button><button data-v="off">OFF</button></span></div>
-    <div class="set-row"><span>⑧下げ（継続宣言）</span><span class="seg" id="h88-b-sage"><button class="on h88-tip" data-v="off" data-tip="sage:off">なし</button><button class="h88-tip" data-v="nintendo" data-tip="sage:nintendo">任天堂式</button><button class="h88-tip" data-v="kanto" data-tip="sage:kanto">関東式</button><button class="h88-tip" data-v="kansai" data-tip="sage:kansai">関西式</button></span></div>
-    <div class="set-row"><span>⑨丸め（最終集計で貫に）<span id="h88-marume-note" style="display:none;font-size:.6rem;color:var(--text-muted);margin-left:4px;">※貫（関東/関西）のときのみ</span></span><span class="seg" id="h88-b-marume"><button class="on h88-tip" data-v="off" data-tip="marume:off">なし</button><button class="h88-tip" data-v="on" data-tip="marume:on">あり</button></span></div>
-    <div class="set-row"><span>⑩出降り（関西式・縛りなし）</span><span class="seg" id="h88-b-deiori"><button class="on h88-tip" data-v="off" data-tip="deiori:off">なし</button><button class="h88-tip" data-v="on" data-tip="deiori:on">あり</button></span></div>
+    <div class="set-row"><span data-i18n="h88.preset">プリセット</span><span class="seg" id="h88-preset-seg">
+      <button class="on h88-tip" data-v="nintendo" data-tip="preset:nintendo" data-i18n="h88.preset.nintendo">任天堂公式</button><button class="h88-tip" data-v="kanto" data-tip="preset:kanto" data-i18n="h88.preset.kanto">関東式</button><button class="h88-tip" data-v="kansai" data-tip="preset:kansai" data-i18n="h88.preset.kansai">関西式</button>
+      <button class="h88-custom-chip" data-v="custom" disabled data-i18n="h88.preset.custom">カスタム</button></span></div>
+    <div class="h88-indiv-head" data-i18n="h88.indiv.head">個別設定（どれか変えると「カスタム」に・大ボタンで一括に戻る）</div>
+    <div class="set-row"><span data-i18n="h88.b.points">①点数・単位</span><span class="seg" id="h88-b-points"><button class="h88-tip" data-v="nintendo" data-tip="points:nintendo" data-i18n="h88.v.nintendo">任天堂</button><button class="h88-tip" data-v="kanto" data-tip="points:kanto" data-i18n="h88.v.kanto">関東</button><button class="h88-tip" data-v="kansai" data-tip="points:kansai" data-i18n="h88.v.kansai">関西</button></span></div>
+    <div class="set-row"><span data-i18n="h88.b.yakuset">②採用役（顔ぶれ）</span><span class="seg" id="h88-b-yakuset"><button class="h88-tip" data-v="nintendo" data-tip="yakuset:nintendo" data-i18n="h88.ys.nintendo">任天堂型</button><button class="h88-tip" data-v="classic" data-tip="yakuset:classic" data-i18n="h88.ys.classic">古典型</button></span></div>
+    <div class="set-row"><span data-i18n="h88.b.fieldmul">③場倍率（大場×2・絶場×4）</span><span class="seg" id="h88-b-fieldmul"><button data-v="on" data-i18n="set.on">あり</button><button data-v="off" data-i18n="set.off">なし</button></span></div>
+    <div class="set-row"><span data-i18n="h88.b.redeal">④場四（同月4枚で配り直し）</span><span class="seg" id="h88-b-redeal"><button data-v="on" data-i18n="set.on">あり</button><button data-v="off" data-i18n="set.off">なし</button></span></div>
+    <div class="set-row"><span data-i18n="h88.b.sweep3">⑤場三（同月4枚目で総取り）</span><span class="seg" id="h88-b-sweep3"><button data-v="on" data-i18n="set.on">あり</button><button data-v="off" data-i18n="set.off">なし</button></span></div>
+    <div class="set-row"><span data-i18n="h88.b.teyakumul">⑥手役×場倍率</span><span class="seg" id="h88-b-teyakumul"><button data-v="on">ON</button><button data-v="off">OFF</button></span></div>
+    <div class="set-row"><span data-i18n="h88.b.sage">⑧下げ（継続宣言）</span><span class="seg" id="h88-b-sage"><button class="on h88-tip" data-v="off" data-tip="sage:off" data-i18n="set.off">なし</button><button class="h88-tip" data-v="nintendo" data-tip="sage:nintendo" data-i18n="h88.sage.nintendo">任天堂式</button><button class="h88-tip" data-v="kanto" data-tip="sage:kanto" data-i18n="h88.sage.kanto">関東式</button><button class="h88-tip" data-v="kansai" data-tip="sage:kansai" data-i18n="h88.sage.kansai">関西式</button></span></div>
+    <div class="set-row"><span><span data-i18n="h88.b.marume">⑨丸め（最終集計で貫に）</span><span id="h88-marume-note" style="display:none;font-size:.6rem;color:var(--text-muted);margin-left:4px;" data-i18n="h88.marume.note">※貫（関東/関西）のときのみ</span></span><span class="seg" id="h88-b-marume"><button class="on h88-tip" data-v="off" data-tip="marume:off" data-i18n="set.off">なし</button><button class="h88-tip" data-v="on" data-tip="marume:on" data-i18n="set.on">あり</button></span></div>
+    <div class="set-row"><span data-i18n="h88.b.deiori">⑩出降り（関西式・縛りなし）</span><span class="seg" id="h88-b-deiori"><button class="on h88-tip" data-v="off" data-tip="deiori:off" data-i18n="set.off">なし</button><button class="h88-tip" data-v="on" data-tip="deiori:on" data-i18n="set.on">あり</button></span></div>
     <div id="h88-tip-bubble" class="h88-tip-bubble" hidden></div>
     <!-- v1.68 C3: 3人で親決め（準備室で引く） -->
     <div class="section-label" style="margin:14px 0 8px;"><span data-i18n="oya.title">先手（親）を決める</span></div>
@@ -1522,7 +1522,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.53</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.54</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1582,7 +1582,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.53</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.54</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1953,6 +1953,15 @@ const I18N = {
     'set.preset': 'プリセット', 'preset.ikeike': 'イケイケ', 'preset.stoic': 'ストイック', 'preset.custom': 'カスタム',
     'set.ameSanko': '雨三光（雨を含む光3枚も三光＝5文）',
     'hachi.start': '八八を開始', 'hachi.switch': '相手を切替', 'hachi.log': '記録', 'hachi.log.title': 'プレイ記録（誰が何をしたか）', 'hachi.back': '対戦準備に戻る', 'hachi.rotate.hint': '横向きにすると全員が見やすく表示されます', 'hachi.fs.enter': '横全画面', 'hachi.fs.exit': '全画面解除', 'hachi.needoya': '先に親を決めてください', 'hachi.oya.lead': '3人で1枚ずつ引き、早い月＝親、以下反時計回りに着席します。', 'set.hachi.title': '八八（3人）設定', 'set.hachi.desc': 'あなた＋コンピュータ2体の3人で対戦します（相手2人ともコンピュータ）。強さは上のプルダウン、局数は下で選べます。「八八を開始」で親決めに進みます。',
+    'ruleinfo.link': 'ⓘ ルール設定について',
+    'h88.preset': 'プリセット', 'h88.preset.nintendo': '任天堂公式', 'h88.preset.kanto': '関東式', 'h88.preset.kansai': '関西式', 'h88.preset.custom': 'カスタム',
+    'h88.indiv.head': '個別設定（どれか変えると「カスタム」に・大ボタンで一括に戻る）',
+    'h88.b.points': '①点数・単位', 'h88.v.nintendo': '任天堂', 'h88.v.kanto': '関東', 'h88.v.kansai': '関西',
+    'h88.b.yakuset': '②採用役（顔ぶれ）', 'h88.ys.nintendo': '任天堂型', 'h88.ys.classic': '古典型',
+    'h88.b.fieldmul': '③場倍率（大場×2・絶場×4）', 'h88.b.redeal': '④場四（同月4枚で配り直し）', 'h88.b.sweep3': '⑤場三（同月4枚目で総取り）', 'h88.b.teyakumul': '⑥手役×場倍率',
+    'h88.b.sage': '⑧下げ（継続宣言）', 'h88.sage.nintendo': '任天堂式', 'h88.sage.kanto': '関東式', 'h88.sage.kansai': '関西式',
+    'h88.b.marume': '⑨丸め（最終集計で貫に）', 'h88.marume.note': '※貫（関東/関西）のときのみ',
+    'h88.b.deiori': '⑩出降り（関西式・縛りなし）',
     'set.rounds': '局数', 'set.1': '1局', 'set.3': '3局', 'set.6': '6局', 'set.12': '12局',
     'set.kiku': '菊の盃', 'set.kiku.tane': '種＋花見月見', 'set.kiku.kasu2': 'カス2枚',
     'set.double': '7文以上2倍', 'set.on': 'あり', 'set.off': 'なし',
@@ -2152,6 +2161,15 @@ const I18N = {
     'set.preset': 'Preset', 'preset.ikeike': 'Aggressive', 'preset.stoic': 'Stoic', 'preset.custom': 'Custom',
     'set.ameSanko': 'Rainy Sankou (3 lights incl. rain = 5 pts)',
     'hachi.start': 'Start Hachi-Hachi', 'hachi.switch': 'Switch opponent', 'hachi.log': 'Log', 'hachi.log.title': 'Play log (who did what)', 'hachi.back': 'Back to setup', 'hachi.rotate.hint': 'Rotate to landscape to see all players clearly', 'hachi.fs.enter': 'Landscape', 'hachi.fs.exit': 'Exit full screen', 'hachi.needoya': 'Draw for dealer first', 'hachi.oya.lead': 'Each of the 3 draws one card; earliest month is dealer, others seated counterclockwise.', 'set.hachi.title': 'Hachi-Hachi (3P) Settings', 'set.hachi.desc': 'You plus two computers (both opponents are AI). Set difficulty in the pulldown above and rounds below. Tap “Start Hachi-Hachi” to draw for dealer.',
+    'ruleinfo.link': 'ⓘ About these rules',
+    'h88.preset': 'Preset', 'h88.preset.nintendo': 'Nintendo', 'h88.preset.kanto': 'Kanto', 'h88.preset.kansai': 'Kansai', 'h88.preset.custom': 'Custom',
+    'h88.indiv.head': 'Individual settings (changing any switches to “Custom”; a preset button resets them all)',
+    'h88.b.points': '① Points / unit', 'h88.v.nintendo': 'Nintendo', 'h88.v.kanto': 'Kanto', 'h88.v.kansai': 'Kansai',
+    'h88.b.yakuset': '② Yaku set (lineup)', 'h88.ys.nintendo': 'Nintendo type', 'h88.ys.classic': 'Classic type',
+    'h88.b.fieldmul': '③ Field multiplier (Ōba ×2 / Zetsuba ×4)', 'h88.b.redeal': '④ Ba-shi (4 same-month on field → redeal)', 'h88.b.sweep3': '⑤ Ba-san (4th of a same-month → take all)', 'h88.b.teyakumul': '⑥ Hand-yaku × field multiplier',
+    'h88.b.sage': '⑧ Sage (continue declaration)', 'h88.sage.nintendo': 'Nintendo', 'h88.sage.kanto': 'Kanto', 'h88.sage.kansai': 'Kansai',
+    'h88.b.marume': '⑨ Rounding (to kan at final tally)', 'h88.marume.note': '※ Only when using kan (Kanto/Kansai)',
+    'h88.b.deiori': '⑩ Deiori (Kansai, no restriction)',
     'set.rounds': 'Rounds', 'set.1': '1', 'set.3': '3', 'set.6': '6', 'set.12': '12',
     'set.kiku': 'Kiku no Sakazuki', 'set.kiku.tane': 'Tane (+Hanami/Tsukimi)', 'set.kiku.kasu2': 'Kasu ×2',
     'set.double': '7+ Points ×2', 'set.on': 'On', 'set.off': 'Off',
@@ -2351,6 +2369,15 @@ const I18N = {
     'set.preset': '预设', 'preset.ikeike': '激进', 'preset.stoic': '克制', 'preset.custom': '自定义',
     'set.ameSanko': '雨三光（含雨的3张光也算三光＝5文）',
     'hachi.start': '开始八八', 'hachi.switch': '切换对手', 'hachi.log': '记录', 'hachi.log.title': '对局记录（谁做了什么）', 'hachi.back': '返回准备', 'hachi.rotate.hint': '横屏可更清楚地显示所有玩家', 'hachi.fs.enter': '横向全屏', 'hachi.fs.exit': '退出全屏', 'hachi.needoya': '请先定庄', 'hachi.oya.lead': '三人各抽一张，月份早者为庄，其余逆时针就座。', 'set.hachi.title': '八八（3人）设定', 'set.hachi.desc': '你＋两台电脑三人对战（两位对手均为电脑）。强度在上方下拉选择，局数在下方选择。点“开始八八”进入定庄。',
+    'ruleinfo.link': 'ⓘ 关于规则设定',
+    'h88.preset': '预设', 'h88.preset.nintendo': '任天堂官方', 'h88.preset.kanto': '关东式', 'h88.preset.kansai': '关西式', 'h88.preset.custom': '自定义',
+    'h88.indiv.head': '单项设定（改动任一项即变为“自定义”，用大按钮可一键还原）',
+    'h88.b.points': '①点数·单位', 'h88.v.nintendo': '任天堂', 'h88.v.kanto': '关东', 'h88.v.kansai': '关西',
+    'h88.b.yakuset': '②采用役（阵容）', 'h88.ys.nintendo': '任天堂型', 'h88.ys.classic': '古典型',
+    'h88.b.fieldmul': '③场倍率（大场×2·绝场×4）', 'h88.b.redeal': '④场四（同月4张则重发）', 'h88.b.sweep3': '⑤场三（同月第4张则通吃）', 'h88.b.teyakumul': '⑥手役×场倍率',
+    'h88.b.sage': '⑧下げ（继续宣言）', 'h88.sage.nintendo': '任天堂式', 'h88.sage.kanto': '关东式', 'h88.sage.kansai': '关西式',
+    'h88.b.marume': '⑨舍入（最终结算换算为贯）', 'h88.marume.note': '※仅使用贯（关东/关西）时',
+    'h88.b.deiori': '⑩出降り（关西式·无约束）',
     'set.rounds': '局数', 'set.1': '1局', 'set.3': '3局', 'set.6': '6局', 'set.12': '12局',
     'set.kiku': '菊之杯', 'set.kiku.tane': '种＋花见月见', 'set.kiku.kasu2': '算作2张滓',
     'set.double': '7文以上×2', 'set.on': '开启', 'set.off': '关闭',

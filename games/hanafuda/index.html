@@ -1326,7 +1326,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.48</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.49</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1392,7 +1392,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.48</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.49</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1519,7 +1519,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.48</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.49</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1579,7 +1579,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.48</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.49</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -3301,6 +3301,35 @@ function handleP2P(data) {
   if (data.type === 'h88-intent') { h88HandleIntent(data); return; } // ホスト：ゲストの手を実行
   if (data.type === 'h88-oya-req') { h88OnlineHostOyaReq(data.seat || 'p1'); return; } // v2.48-段5: ホスト：ゲストの親決め依頼で1枚引く
   if (data.type === 'h88-oya-state') { h88OnlineOyaApplyRemote(data.draws); return; } // v2.48-段5: ゲスト：親札状態を反映
+  if (data.type === 'h88-ask') { // v2.49-段4: ホスト→ゲスト 選択問い合わせ（上がる/下げる・出降り）
+    if (data.kind === 'sage') h88ShowAskSageGuest(data);
+    else if (data.kind === 'deiori') h88ShowAskDeioriGuest(data);
+    return;
+  }
+  if (data.type === 'h88-choice') { // v2.49-段4: ゲスト→ホスト 選択返答
+    if (data.kind === 'sage') h88OnSageChoice(data.choice);
+    else if (data.kind === 'deiori') h88OnDeioriChoice(data.choice);
+    return;
+  }
+  if (data.type === 'h88-teyaku') { h88ShowTeyakuGuest(data); return; } // v2.49-段4: ゲスト：手役パネル表示
+  if (data.type === 'h88-roundover') { h88ShowRoundOverGuest(data); return; } // v2.49-段4: ゲスト：局終了パネル
+  if (data.type === 'h88-nextready') { // v2.49-段4: ゲスト：次局ゲートの押下状況を更新
+    const st = state.h88; if (st) { st.h88NextReady = data.ready || st.h88NextReady; if (st._h88GateRender) st._h88GateRender(); }
+    return;
+  }
+  if (data.type === 'h88-next') { // v2.49-段4: ホスト：ゲストが「次の局へ」を押した
+    const st = state.h88;
+    if (st && state.isHost && st.h88NextReady) {
+      st.h88NextReady.p1 = true;
+      if (st.h88NextReady.p0 && st.h88NextReady.p1) { if (st._h88GateCleanup) st._h88GateCleanup(); h88AdvanceRoundOnline(); }
+      else { MomoMatchmaking.send({ type: 'h88-nextready', ready: st.h88NextReady }); if (st._h88GateRender) st._h88GateRender(); }
+    }
+    return;
+  }
+  if (data.type === 'h88-next-go') { // v2.49-段4: ゲスト：ホストが次局へ進めた＝パネルを閉じる（新しい盤面は同期で届く）
+    const st = state.h88; if (st && st._h88GateCleanup) st._h88GateCleanup();
+    return;
+  }
   if (data.type === 'hello') {
     if (state.isHost) { state.guestName = data.name || state.guestName; }
     else { state.hostName = data.name || state.hostName; }
@@ -4610,32 +4639,47 @@ function h88ShowTeyakuAndPlay(g) {
     });
     renderH88(); // 宣言者の手札公開＋対象札をオレンジ枠で強調（スコアはまだ動かさない）
     const unit = h88PresetUnit();
-    const nm = (s) => (s === 'p0' && st.names[s] !== 'あなた') ? st.names[s] + '（あなた）' : st.names[s];
-    // 成立した手役（構成札つき）＝発生ポイントの"提示"のみ（累計には局終了で加算）
-    const yakuLis = Object.keys(teyaku).map(s => {
-      const ty = teyaku[s];
-      // パネルも手札のオープン状態と同じに：公開札は表向き／非公開は伏せ。役にかかわる札はオレンジ枠（表でも伏せでも）。
-      const reveal = (st.teyakuReveal && st.teyakuReveal[s]) || [], marks = ty.ids || [];
-      const cards = g.hands[s].map(c => {
-        const isMark = marks.indexOf(c.id) >= 0;
-        const inner = (reveal.indexOf(c.id) >= 0) ? svgCard(c.id, 'ye-card') : svgBack('ye-card');
-        return isMark ? '<span class="h88-tmark">' + inner + '</span>' : inner;
-      }).join('');
-      return '<li class="ye-li"><div class="ye-head">'
-        + '<span><span class="who-b">' + nm(s) + '</span>：' + ty.jp + '</span>'
-        + '<span class="pt">' + ty.mon + ' ' + unit + '</span></div>'
-        + '<div class="ye-cards">' + cards + '</div></li>';
-    }).join('');
-    const bodyHtml = '<ul class="yaku-list">' + yakuLis + '</ul>'
-      + '<div class="h88-te-legend">この手役分は、局の終了時に場倍率を掛けてまとめて精算します（今はまだ累計に入りません）。</div>';
+    const bodyHtml = h88TeyakuPanelHtml(g, teyaku, h88MySeat()); // v2.49-段4: 自分の視点で「あなた」表示
     h88Log('◆ 手役（提示・精算は局終了）：' + Object.keys(teyaku).map(s => st.names[s] + ' ' + teyaku[s].jp + ' ' + teyaku[s].mon + unit).join(' ／ '));
-    playSfx(teyaku['p0'] ? 'charin' : 'pu'); // コイン音はあなたに手役があるときだけ。相手だけの手役は「ぷっ」
+    playSfx(teyaku[h88MySeat()] ? 'charin' : 'pu'); // v2.49-段4: コイン音は自分に手役があるときだけ（視点対応）
+    if (st.online && state.isHost) { // v2.49-段4: ゲストにも手役パネルを出す（ゲスト視点で生成して送る）
+      MomoMatchmaking.send({ type: 'h88-teyaku', html: h88TeyakuPanelHtml(g, teyaku, H88_GUEST_SEAT), hasMine: !!teyaku[H88_GUEST_SEAT] });
+    }
     showNotice('手役が成立', bodyHtml,
       () => { st.teyakuMarks = null; st.teyakuReveal = null; renderH88(); h88MaybeAi(); },
       { clear: true, draggable: true, html: true });
   } else {
+    if (st.online && state.isHost) MomoMatchmaking.send({ type: 'h88-teyaku', clear: true }); // 手役なし＝ゲスト側の残り表示を消す保険
     h88MaybeAi();
   }
+}
+// v2.49-段4: 手役パネルの本文を作る（viewerSeat＝「あなた」表示にする席）。ゲストへ送る用にも使う。
+//   パネルは公開札のみ表向き・非公開は伏せ（konnok3準拠）＝ホストが全席の実札を持つのでゲスト用も正しく生成できる。
+function h88TeyakuPanelHtml(g, teyaku, viewerSeat) {
+  const st = state.h88, unit = h88PresetUnit();
+  const nm = (s) => (s === viewerSeat && st.names[s] !== 'あなた') ? st.names[s] + '（あなた）' : st.names[s];
+  const yakuLis = Object.keys(teyaku).map(s => {
+    const ty = teyaku[s];
+    const reveal = (st.teyakuReveal && st.teyakuReveal[s]) || [], marks = ty.ids || [];
+    const cards = g.hands[s].map(c => {
+      const isMark = marks.indexOf(c.id) >= 0;
+      const inner = (reveal.indexOf(c.id) >= 0) ? svgCard(c.id, 'ye-card') : svgBack('ye-card');
+      return isMark ? '<span class="h88-tmark">' + inner + '</span>' : inner;
+    }).join('');
+    return '<li class="ye-li"><div class="ye-head">'
+      + '<span><span class="who-b">' + nm(s) + '</span>：' + ty.jp + '</span>'
+      + '<span class="pt">' + ty.mon + ' ' + unit + '</span></div>'
+      + '<div class="ye-cards">' + cards + '</div></li>';
+  }).join('');
+  return '<ul class="yaku-list">' + yakuLis + '</ul>'
+    + '<div class="h88-te-legend">この手役分は、局の終了時に場倍率を掛けてまとめて精算します（今はまだ累計に入りません）。</div>';
+}
+// ゲスト側：手役パネルを表示（表示専用・ホストが視点対応で作ったHTMLをそのまま出す）。
+function h88ShowTeyakuGuest(msg) {
+  const st = state.h88; if (!st) return;
+  if (msg.clear) { return; } // 手役なしの保険（特に出すものはない）
+  playSfx(msg.hasMine ? 'charin' : 'pu');
+  showNotice('手役が成立', msg.html || '', () => {}, { clear: true, draggable: true, html: true });
 }
 // ── ⑩出降りフェーズ（配札後・手役の前）。親から反時計回りに1人ずつ「出る／降りる」を宣言 ──
 function h88BeginDeiori(g, oyaId) {
@@ -4654,8 +4698,10 @@ function h88DeioriStep(g, oyaId, count) {
     renderH88(); // 降りた表示を1人ずつ盤に反映（次の人が決める前に、誰が降りたか分かるように）
     setTimeout(() => h88DeioriStep(g, oyaId, count + 1), drop ? 750 : 450);
   };
-  if (seat === 'p0') { h88AskDeiori(g, seat, proceed); }
-  else { const drop = h88AiDeioriDecide(g, seat); setTimeout(() => proceed(drop), 550); }
+  if (!h88IsCpuSeat(seat)) { // v2.49-段4: 人間席＝本人に「出る／降りる」を尋ねる
+    if (st.online && state.isHost && seat !== 'p0') h88AskDeioriGuestRoute(g, seat, proceed); // ゲスト席へ問い合わせ
+    else h88AskDeiori(g, seat, proceed); // 自席（ホストp0／ローカルp0）
+  } else { const drop = h88AiDeioriDecide(g, seat); setTimeout(() => proceed(drop), 550); }
 }
 function h88DeioriResolve(g, oyaId) {
   const st = state.h88;
@@ -4674,19 +4720,19 @@ function h88DeioriResolve(g, oyaId) {
   if (g.dropped.indexOf(g.currentPlayer) >= 0) g.currentPlayer = h88NextSeat(g, oyaId);
   h88ShowTeyakuAndPlay(g);
 }
-// 人間(p0)の出降りモーダル：自分の手札・場・すでに降りた人を見て「出る／降りる」を選ぶ。降りるは確認をはさむ（誤タップ防止）。
-function h88AskDeiori(g, seat, proceed) {
-  const st = state.h88, m = g.bonus || 1;
+// v2.49-段4: 出降りモーダルの共通ビルダー（ホストの自席／ゲストの表示専用の両方で使う）。
+//   opts = { fee(文・場倍率込み), bonus(m), droppedNames[], handIds[], onDeru(), onOriru() }
+function h88BuildDeioriModal(opts) {
+  const m = opts.bonus || 1;
   const bTag = (m === 4 ? '絶場' : m === 2 ? '大場' : '小場');
-  const fee = h88DeioriFeeFumi(g, seat) * m;
-  const droppedNames = g.dropped.map(s => st.names[s]);
+  const droppedNames = opts.droppedNames || [];
   document.getElementById('ov-title').textContent = '出る？ 降りる？（出降り）';
   const bodyEl = document.getElementById('ov-body'); bodyEl.style.whiteSpace = 'normal';
-  const handHtml = g.hands[seat].map(c => svgCard(c.id, 'ye-card')).join('');
+  const handHtml = (opts.handIds || []).map(id => svgCard(id, 'ye-card')).join('');
   const statusLine = droppedNames.length
-    ? '<div class="h88-deiori-status">すでに降りた人：<b>' + droppedNames.join('・') + '</b>' + (droppedNames.length >= 1 ? '<span class="sub">（あと1人降りればあなたの不戦勝）</span>' : '') + '</div>'
+    ? '<div class="h88-deiori-status">すでに降りた人：<b>' + droppedNames.join('・') + '</b><span class="sub">（あと1人降りればあなたの不戦勝）</span></div>'
     : '<div class="h88-deiori-status">まだ誰も降りていません</div>';
-  bodyEl.innerHTML = '<div class="h88-te-note">あなたの手札（' + bTag + '）。降りると下り賃 <b>' + h88FormatFumi(fee) + '</b> を勝者へ払います。</div>'
+  bodyEl.innerHTML = '<div class="h88-te-note">あなたの手札（' + bTag + '）。降りると下り賃 <b>' + h88FormatFumi(opts.fee) + '</b> を勝者へ払います。</div>'
     + statusLine
     + '<div class="ye-cards" style="flex-wrap:wrap;justify-content:center">' + handHtml + '</div>';
   const ov = document.getElementById('ovNotice'), okBtn = document.getElementById('ov-ok');
@@ -4698,17 +4744,45 @@ function h88AskDeiori(g, seat, proceed) {
   const cleanup = () => { ov.classList.remove('show', 'see-through'); okBtn.style.display = ''; box.remove(); };
   const showChoice = () => {
     box.innerHTML = '<button class="btn btn-primary" id="h88-deiori-deru">出る</button> <button class="btn btn-ghost" id="h88-deiori-oriru">降りる…</button>';
-    document.getElementById('h88-deiori-deru').onclick = () => { playSfx('button'); cleanup(); proceed(false); };
+    document.getElementById('h88-deiori-deru').onclick = () => { playSfx('button'); cleanup(); opts.onDeru(); };
     document.getElementById('h88-deiori-oriru').onclick = () => { playSfx('button'); showConfirm(); };
   };
   // 誤タップ防止：降りるは確認をはさむ。安全側（やめる）を目立つ主ボタンに、実行（降りる）は控えめに。
   const showConfirm = () => {
-    box.innerHTML = '<div class="h88-deiori-confirm">本当に降りますか？ 下り賃 <b>' + h88FormatFumi(fee) + '</b> を払って、この局は不参加になります。</div>'
+    box.innerHTML = '<div class="h88-deiori-confirm">本当に降りますか？ 下り賃 <b>' + h88FormatFumi(opts.fee) + '</b> を払って、この局は不参加になります。</div>'
       + '<button class="btn btn-primary" id="h88-deiori-cancel">やめる</button> <button class="btn btn-ghost h88-deiori-danger" id="h88-deiori-yes">降りる</button>';
     document.getElementById('h88-deiori-cancel').onclick = () => { playSfx('button'); showChoice(); };
-    document.getElementById('h88-deiori-yes').onclick = () => { playSfx('button'); cleanup(); proceed(true); };
+    document.getElementById('h88-deiori-yes').onclick = () => { playSfx('button'); cleanup(); opts.onOriru(); };
   };
   showChoice();
+}
+// 自席（ホストp0／ローカルp0）の出降りモーダル。
+function h88AskDeiori(g, seat, proceed) {
+  const m = g.bonus || 1;
+  h88BuildDeioriModal({ fee: h88DeioriFeeFumi(g, seat) * m, bonus: m,
+    droppedNames: g.dropped.map(s => state.h88.names[s]), handIds: g.hands[seat].map(c => c.id),
+    onDeru: () => proceed(false), onOriru: () => proceed(true) });
+}
+// オンライン：ゲスト席の出降りをゲストへ問い合わせ、返答（h88-choice）が来るまで proceed を保留。
+function h88AskDeioriGuestRoute(g, seat, proceed) {
+  const st = state.h88, m = g.bonus || 1;
+  st.h88PendingAsk = { kind: 'deiori', seat: seat, proceed: proceed };
+  MomoMatchmaking.send({ type: 'h88-ask', kind: 'deiori', seat: seat, fee: h88DeioriFeeFumi(g, seat) * m,
+    bonus: m, droppedNames: g.dropped.map(s => st.names[s]), hand: g.hands[seat].map(c => c.id) });
+  h88DeioriToast(st.names[seat] + ' が選択中…');
+}
+// ゲスト側：出降りの問い合わせを表示（表示専用・選択をホストへ返す）。
+function h88ShowAskDeioriGuest(msg) {
+  h88BuildDeioriModal({ fee: msg.fee, bonus: msg.bonus, droppedNames: msg.droppedNames || [], handIds: msg.hand || [],
+    onDeru: () => MomoMatchmaking.send({ type: 'h88-choice', kind: 'deiori', choice: 'deru' }),
+    onOriru: () => MomoMatchmaking.send({ type: 'h88-choice', kind: 'deiori', choice: 'oriru' }) });
+}
+// ホスト側：ゲストの出降り返答を受けて保留していた proceed を実行。
+function h88OnDeioriChoice(choice) {
+  const st = state.h88; if (!st || !state.isHost) return;
+  const pend = st.h88PendingAsk; if (!pend || pend.kind !== 'deiori') return;
+  st.h88PendingAsk = null;
+  if (typeof pend.proceed === 'function') pend.proceed(choice === 'oriru');
 }
 function h88DeioriToast(text) { const d = document.createElement('div'); d.className = 'h88-sage-toast'; d.textContent = text; document.body.appendChild(d); setTimeout(() => d.remove(), 1500); }
 // v1.62 A6: 上の相手2人を手で左右にドラッグして入替（いつでも）。既定は自動配置。
@@ -5075,7 +5149,7 @@ function h88HumanEndTurn() {
   if (yt > 0) {
     const r = h88OnYakuFormed(g, 'p0', y, yt, 'HARD', true); // human=true
     if (r === 'win') { renderH88(); h88RoundOver('win'); return; }
-    if (r === 'ask') { renderH88(); h88AskSage(g, y, yt); return; } // 上がる/下げるをモーダルで
+    if (r === 'ask') { renderH88(); h88AskSageRouted(g, 'p0', y, yt); return; } // 上がる/下げるをモーダルで
     // r === null（下げ中で役が伸びていない）→ 通常継続
   }
   if (g.hands['p0'].length === 0 && g.deck.length === 0) { h88FinishRound(g); renderH88(); h88RoundOver('draw'); return; }
@@ -5084,8 +5158,22 @@ function h88HumanEndTurn() {
   renderH88();
   h88MaybeAi();
 }
-// 下げ有効時、あなたが出来役を完成したら「上がる／下げる（続行）」を選ぶ。
-function h88AskSage(g, y, yt) {
+// v2.49-段4: 上がる/下げるの判断を「席の持ち主のクライアント」に出す。
+//   ローカル＝自席p0のみ人間。オンライン＝ホストの自席p0は手元に表示／ゲスト席p1はゲストへ問い合わせ（ホストはエンジンを止めて選択待ち）。
+function h88AskSageRouted(g, actor, y, yt) {
+  const st = state.h88;
+  if (st.online && state.isHost && actor !== 'p0') {
+    // ゲスト席＝ゲストへ問い合わせ。返事（h88-choice）が来るまでホストは進行を止める（h88AfterTurn は return 済み）。
+    st.h88PendingAsk = { kind: 'sage', actor: actor, y: y, yt: yt };
+    MomoMatchmaking.send({ type: 'h88-ask', kind: 'sage', actor: actor,
+      yaku: y.map(yy => ({ key: yy.key, jp: (yy.jp || t(yy.key)), mon: yy.mon })), total: yt });
+    h88DeioriToast(st.names[actor] + ' が選択中…'); // 待ちの気配（軽いトースト）
+    return;
+  }
+  h88AskSage(g, actor, y, yt); // 自席（ホストp0 or ローカルp0）＝手元にモーダル
+}
+// 下げ有効時、出来役を完成したら「上がる／下げる（続行）」を選ぶ。actor＝この判断をする席。
+function h88AskSage(g, actor, y, yt) {
   const st = state.h88, unit = h88PresetUnit();
   const yakuNames = y.map(yy => (yy.jp || t(yy.key))).join('・');
   document.getElementById('ov-title').textContent = '上がる？ 下げる？';
@@ -5099,8 +5187,48 @@ function h88AskSage(g, y, yt) {
   row.appendChild(box);
   ov.classList.add('show', 'see-through');
   const cleanup = () => { ov.classList.remove('show', 'see-through'); okBtn.style.display = ''; box.remove(); };
-  document.getElementById('h88-sage-agari').onclick = () => { playSfx('button'); cleanup(); g.winner = 'p0'; g.roundEnd = { kind: 'yaku', winner: 'p0', yaku: y, total: yt }; renderH88(); h88RoundOver('win'); };
-  document.getElementById('h88-sage-sageru').onclick = () => { cleanup(); g.sage = { seat: 'p0', total: yt }; st.sageShown = 'p0:' + yt; h88SageToast('p0'); h88Log('◇ ' + st.names['p0'] + ' 下げ（続行）：' + yakuNames + ' ' + yt + unit); g.currentPlayer = h88NextSeat(g, 'p0'); h88AutoFocus(); renderH88(); h88MaybeAi(); };
+  document.getElementById('h88-sage-agari').onclick = () => { playSfx('button'); cleanup(); h88ApplySageAgari(actor, y, yt); };
+  document.getElementById('h88-sage-sageru').onclick = () => { playSfx('button'); cleanup(); h88ApplySageSageru(actor, y, yt); };
+}
+// 上がる／下げるの結果適用（ホストのエンジン上で実行。ゲストの選択が返ってきたときもこれを呼ぶ）。
+function h88ApplySageAgari(actor, y, yt) {
+  const st = state.h88, g = st.game; if (!g) return;
+  g.winner = actor; g.roundEnd = { kind: 'yaku', winner: actor, yaku: y, total: yt };
+  renderH88(); h88RoundOver('win');
+}
+function h88ApplySageSageru(actor, y, yt) {
+  const st = state.h88, g = st.game; if (!g) return;
+  const unit = h88PresetUnit(), yakuNames = y.map(yy => (yy.jp || t(yy.key))).join('・');
+  g.sage = { seat: actor, total: yt }; st.sageShown = actor + ':' + yt; h88SageToast(actor);
+  h88Log('◇ ' + st.names[actor] + ' 下げ（続行）：' + yakuNames + ' ' + yt + unit);
+  g.currentPlayer = h88NextSeat(g, actor); h88AutoFocus(); renderH88(); h88MaybeAi();
+}
+// ゲスト側：ホストからの「上がる／下げる」問い合わせを表示（表示専用・選択をホストへ返す）。
+function h88ShowAskSageGuest(msg) {
+  const st = state.h88; if (!st) return;
+  const unit = h88PresetUnit();
+  const yakuNames = (msg.yaku || []).map(yy => yy.jp).join('・'), yt = msg.total;
+  document.getElementById('ov-title').textContent = '上がる？ 下げる？';
+  const bodyEl = document.getElementById('ov-body'); bodyEl.style.whiteSpace = 'normal';
+  bodyEl.innerHTML = '<div class="h88-te-note">出来役が完成：<b>' + yakuNames + '</b>（' + yt + ' ' + unit + '）。<br>このまま上がるか、もっと大きい役を狙って続行（下げる）か。<br><span style="color:var(--text-muted);font-size:.9em">※続行して追加役なく局が終わると、下げた役は' + (h88Rules().sage === 'kansai' ? '無効' : '半分') + '。他家に先を越されると法度ペナルティ。</span></div>';
+  const ov = document.getElementById('ovNotice'), okBtn = document.getElementById('ov-ok');
+  okBtn.style.display = 'none';
+  const row = ov.querySelector('.btn-row');
+  const box = document.createElement('span'); box.id = 'h88-sage-btns';
+  box.innerHTML = '<button class="btn btn-primary" id="h88-sage-agari">上がる</button> <button class="btn btn-ghost" id="h88-sage-sageru">下げる（続行）</button>';
+  row.appendChild(box);
+  ov.classList.add('show', 'see-through');
+  const cleanup = () => { ov.classList.remove('show', 'see-through'); okBtn.style.display = ''; box.remove(); };
+  document.getElementById('h88-sage-agari').onclick = () => { playSfx('button'); cleanup(); MomoMatchmaking.send({ type: 'h88-choice', kind: 'sage', choice: 'agari' }); };
+  document.getElementById('h88-sage-sageru').onclick = () => { playSfx('button'); cleanup(); MomoMatchmaking.send({ type: 'h88-choice', kind: 'sage', choice: 'sageru' }); };
+}
+// ホスト側：ゲストの「上がる／下げる」返答を受けてエンジンを再開。
+function h88OnSageChoice(choice) {
+  const st = state.h88; if (!st || !state.isHost) return;
+  const pend = st.h88PendingAsk; if (!pend || pend.kind !== 'sage') return;
+  st.h88PendingAsk = null;
+  if (choice === 'agari') h88ApplySageAgari(pend.actor, pend.y, pend.yt);
+  else h88ApplySageSageru(pend.actor, pend.y, pend.yt);
 }
 // v2.38: 下げ宣言はこいこいの「こいこい宣言」と完全に同型の2段演出に。
 //   ①宣言者の手札の上を「下げ！」が左→右へ高速スライド（スライド音ぎゅーん）→ ②中央に大きく「○○ 下げ！」（こいこい音）。
@@ -5383,12 +5511,12 @@ function h88AfterTurn(actor, tok) {
   const st = state.h88, g = st.game;
   if (!h88StageAlive(st, g, tok)) return;
   const level = (st.levels && st.levels[actor]) || 'HARD';
-  const human = (actor === 'p0');
+  const human = !h88IsCpuSeat(actor); // v2.49-段4: 非CPU席（ローカルp0／オンラインp0・p1）は人間の判断＝上がる/下げるを尋ねる
   const y = h88ComputeYaku(g.caps[actor]), yt = yakuTotal(y);
   if (yt > 0) {
     const r = h88OnYakuFormed(g, actor, y, yt, level, human);
     if (r === 'win') { renderH88(); h88RoundOver('win'); return; }
-    if (r === 'ask') { renderH88(); h88AskSage(g, y, yt); return; } // 人間：上がる/下げるをモーダルで
+    if (r === 'ask') { renderH88(); h88AskSageRouted(g, actor, y, yt); return; } // 人間：上がる/下げるをモーダルで（席の持ち主へ）
     // 'sage' / null → 継続
   }
   if (g.sage && g.sage.seat === actor) { // このプレイヤーが下げた（新規）ならトースト
@@ -5512,21 +5640,52 @@ function h88FormulaStr(before, after, list, unit) {
 }
 function h88RoundOver(result) {
   const st = state.h88, g = st.game;
-  const m = g.bonus || 1;
-  const unit = h88PresetUnit(); // 任天堂=点／関東・関西=貫
-  const bTag = (m === 4 ? '絶場' : m === 2 ? '大場' : '小場') + '（×' + m + '）';
-  const nm = (s) => (s === 'p0' && st.names[s] !== 'あなた') ? st.names[s] + '（あなた）' : st.names[s];
   const before = {}; g.seats.forEach(s => before[s] = st.scores[s] || 0);
-  const teyaku0 = st.pendingTeyaku; // 式表示用に手役結果を控える（下で精算後に null される）
+  const teyaku0 = st.pendingTeyaku; // 手役結果の控え（下で精算後に null）
+  // ── 精算は1回だけ（ホスト権威）。表示は下の純粋関数で視点別に組み立てる。 ──
+  h88Settle(g, st.scores);
+  let tM = 1;
+  if (teyaku0) { tM = h88ApplyTeyakuSettle(g, st.scores, teyaku0); st.pendingTeyaku = null; }
+  const isLast = st.roundNo >= st.rounds;
+  const title = isLast ? '対局終了' : '局終了（第' + st.roundNo + '局）';
+  const nextOya = g.winner; // 出来役上がり＝勝者／札点決着＝札点最大（h88FinishByPointsで設定済）
+  // 局の音＝自分が取得した文数ぶんの高速ちゃりん（視点対応）。損・無なら「ぷっ」。
+  const myDelta = (st.scores[h88MySeat()] || 0) - before[h88MySeat()];
+  if (myDelta > 0) { const n = Math.min(myDelta, 30); for (let i = 0; i < n; i++) setTimeout(() => playSfx('charin'), i * 65); }
+  else playSfx('pu');
+  const localHtml = h88RoundPanelHtml(g, result, before, teyaku0, tM, h88MySeat(), true); // ホストのみ詳細ログ
+  renderH88();
+  if (st.online) {
+    // v2.49-段4: 局終了は両者ゲート（次の局へ＝両者押下／中断＝片方でも両者ロビー）。
+    st.h88NextReady = { p0: false, p1: false };
+    st.h88RoundCtx = { isLast: isLast, nextOya: nextOya };
+    if (state.isHost) {
+      const guestHtml = h88RoundPanelHtml(g, result, before, teyaku0, tM, H88_GUEST_SEAT, false); // ゲスト視点で生成して送る
+      MomoMatchmaking.send({ type: 'h88-roundover', html: guestHtml, isLast: isLast,
+        myDelta: (st.scores[H88_GUEST_SEAT] || 0) - before[H88_GUEST_SEAT] });
+    }
+    h88ShowRoundGate(title, localHtml, isLast);
+  } else {
+    showNotice(title, localHtml, () => {
+      if (isLast) h88ShowMatchEnd();
+      else { st.roundNo += 1; h88StartRound(nextOya); }
+    }, { clear: true, draggable: true, html: true });
+  }
+}
+// v2.49-段4: 局終了パネルの本文を組み立てる純粋関数（精算はしない・viewer＝「あなた」表示にする席）。
+//   ホストが自分用（viewer=自席）とゲスト用（viewer=ゲスト席）の2通りを作れる＝ゲストは受け取ったHTMLを出すだけ。
+function h88RoundPanelHtml(g, result, before, teyaku0, tM, viewer, doLog) {
+  const st = state.h88, m = g.bonus || 1, unit = h88PresetUnit();
+  const bTag = (m === 4 ? '絶場' : m === 2 ? '大場' : '小場') + '（×' + m + '）';
+  const nm = (s) => (s === viewer && st.names[s] !== 'あなた') ? st.names[s] + '（あなた）' : st.names[s];
   let head = '', listHtml = '';
-  const deiori = g.dropped && g.dropped.length > 0; // ⑩出降りで誰か降りた局
+  const deiori = g.dropped && g.dropped.length > 0;
   if (deiori) {
-    h88Settle(g, st.scores);
     const re = g.roundEnd;
     const feeLines = g.dropped.map(d => nm(d) + '（' + ['親席', '第二席', '第三席'][h88SeatRank(g, d)] + '）下り賃 ' + h88FormatFumi(h88DeioriFeeFumi(g, d) * m)).join('／');
     if (re.kind === 'fusen') {
       head = '<div class="h88-te-note"><b>' + nm(re.winner) + '</b> 以外の2人が降りたので<b>不戦勝</b>（' + bTag + '）。下り賃を総取りして次局へ（押し付け）。<br>' + feeLines + '</div>';
-      h88Log('★ 不戦勝：' + st.names[re.winner] + '（' + feeLines + '）');
+      if (doLog) h88Log('★ 不戦勝：' + st.names[re.winner] + '（' + feeLines + '）');
     } else {
       if (re.kind === 'yaku') {
         listHtml = '<ul class="yaku-list">' + re.yaku.map(y => {
@@ -5534,20 +5693,17 @@ function h88RoundOver(result) {
           return '<li class="ye-li"><div class="ye-head"><span>' + (y.jp || t(y.key)) + (y.count ? '×' + y.count : '') + '</span><span class="pt">' + y.mon + ' ' + unit + '</span></div>' + (cards ? '<div class="ye-cards">' + cards + '</div>' : '') + '</li>';
         }).join('') + '</ul>';
         head = '<div class="h88-te-note">1人降りて<b>二人勝負</b>（' + bTag + '）。<b>' + nm(re.winner) + '</b> が出来役で上がり、出来役 ' + re.total + unit + ' ＋1貫（二人勝負の割増）＝ ' + h88FormatFumi(h88MonToFumi(re.total) + h88DeioriKanFumi()) + ' を相手1人から受け取り（当事者間は場倍率なし）。<br>' + feeLines + '（下り賃は場倍率つき・勝者へ）</div>';
-        h88Log('★ 二人勝負・出来役上がり：' + st.names[re.winner] + '／' + feeLines);
+        if (doLog) h88Log('★ 二人勝負・出来役上がり：' + st.names[re.winner] + '／' + feeLines);
       } else {
         const capNote = re.diff <= 29 ? '点差どおり' : ('あつかい ' + (re.diff <= 39 ? 3 : re.diff <= 49 ? 4 : 5) + '貫'), ex = h88Atsukai(re.diff);
         listHtml = '<ul class="yaku-list"><li class="ye-li"><div class="ye-head"><span>' + nm(re.a) + ' の札点</span><span class="pt">' + re.pa + ' 文</span></div></li>'
           + '<li class="ye-li"><div class="ye-head"><span>' + nm(re.b) + ' の札点</span><span class="pt">' + re.pb + ' 文</span></div></li></ul>';
         head = '<div class="h88-te-note">1人降りて<b>二人勝負</b>（' + bTag + '）・出来役なし。<b>' + nm(re.winner) + '</b> が点差 ' + re.diff + '（' + capNote + '）で勝ち、' + h88FormatFumi(ex) + ' を相手から受け取り（基準点88は使わず・当事者間は場倍率なし）。<br>' + feeLines + '（下り賃は場倍率つき・勝者へ）</div>';
-        h88Log('★ 二人勝負・点差決着：' + st.names[re.winner] + ' 点差' + re.diff + '／' + feeLines);
+        if (doLog) h88Log('★ 二人勝負・点差決着：' + st.names[re.winner] + ' 点差' + re.diff + '／' + feeLines);
       }
     }
   } else if (result === 'win') {
-    // v2.13: 局勝利の音は下で「取得した文数ぶんのちゃりん」で鳴らす（ファンファーレは終局のみ）
-    h88Settle(g, st.scores);
     const gain = g.roundEnd.total * m;
-    // 出来役（構成札つき）＝こいこいの成立役リストと同形
     listHtml = '<ul class="yaku-list">' + g.roundEnd.yaku.map(y => {
       const cards = h88YakuCards(g.caps[g.winner], y.key).map(id => svgCard(id, 'ye-card')).join('');
       return '<li class="ye-li"><div class="ye-head"><span>' + (y.jp || t(y.key)) + (y.count ? '×' + y.count : '') + '</span>'
@@ -5555,29 +5711,24 @@ function h88RoundOver(result) {
     }).join('') + '</ul>';
     head = '<div class="h88-te-note"><b>' + nm(g.winner) + '</b> が出来役で上がり（' + bTag + '）。合計 '
       + g.roundEnd.total + ' ' + unit + (m > 1 ? ' ×' + m + ' ＝ ' + gain + ' ' + unit : '') + ' を他の2人から受け取り。</div>';
-    if (g.roundEnd.hatto) { // 法度：下げ中に他家が上がった
+    if (g.roundEnd.hatto) {
       const S = g.roundEnd.hatto.seat, half = Math.floor(h88MonToFumi(g.roundEnd.hatto.total) / 2) * m;
       head += '<div class="h88-te-note" style="color:#ff8a8a"><b>法度</b>：<b>' + nm(S) + '</b> が下げ中に先を越されました。' + nm(S) + ' は勝者の役代を2人分ぶん単独で負担し、さらに下げた役の半分（各 ' + h88FormatFumi(half) + '）を他の2人に支払います。</div>';
     }
-    h88Log('★ ' + st.names[g.winner] + ' が出来役で上がり：' + g.roundEnd.yaku.map(y => (y.jp || t(y.key))).join('・') + '＝' + g.roundEnd.total + unit + ' ' + bTag + '＝各' + gain + unit + (g.roundEnd.hatto ? '／法度：' + st.names[g.roundEnd.hatto.seat] : ''));
-  } else if (g.roundEnd.kind === 'sageFail') { // 下げ失敗（関東/任天堂）：下げた役の半分を下げ者が受け取る
-    h88Settle(g, st.scores);
+    if (doLog) h88Log('★ ' + st.names[g.winner] + ' が出来役で上がり：' + g.roundEnd.yaku.map(y => (y.jp || t(y.key))).join('・') + '＝' + g.roundEnd.total + unit + ' ' + bTag + '＝各' + gain + unit + (g.roundEnd.hatto ? '／法度：' + st.names[g.roundEnd.hatto.seat] : ''));
+  } else if (g.roundEnd.kind === 'sageFail') {
     const w = g.roundEnd.winner, halfBase = Math.floor(h88MonToFumi(g.roundEnd.total) / 2), half = halfBase * m;
     listHtml = '<ul class="yaku-list"><li class="ye-li"><div class="ye-head"><span><b>' + nm(w) + '</b> の下げた役（追加役できず失敗）</span>'
       + '<span class="pt">' + g.roundEnd.total + ' ' + unit + ' → 半分 ' + h88FormatFumi(halfBase) + (m > 1 ? ' ×' + m + ' ＝ ' + h88FormatFumi(half) : '') + '</span></div></li></ul>';
     head = '<div class="h88-te-note"><b>' + nm(w) + '</b> が下げて続行しましたが、追加の出来役ができないまま局終了。下げた役は<b>半分</b>（各 ' + h88FormatFumi(half) + '）を他の2人から受け取り（' + bTag + '）。</div>';
-    h88Log('― 下げ失敗：' + st.names[w] + ' 下げた役' + g.roundEnd.total + unit + 'の半分＝各' + half + unit);
+    if (doLog) h88Log('― 下げ失敗：' + st.names[w] + ' 下げた役' + g.roundEnd.total + unit + 'の半分＝各' + half + unit);
   } else {
-    // v2.13: 局の音は下で取得文数ぶんのちゃりん／損なら「ぷっ」
-    h88Settle(g, st.scores);
     const pts = g.roundEnd.points;
-    // 各人の札点（88基準との差）を一覧で
     listHtml = '<ul class="yaku-list">' + g.seats.map(s => {
       const diff = pts[s] - 88;
       return '<li class="ye-li"><div class="ye-head"><span>' + nm(s) + ' の札点</span>'
         + '<span class="pt">' + pts[s] + ' 文 <span style="color:var(--text-muted);font-weight:400;">（' + (diff >= 0 ? '+' : '') + diff + '）</span></span></div></li>';
     }).join('') + '</ul>';
-    // 双八/総八（特殊役・関東関西のみ）が成立していれば表示。成立時は札点の点差はやり取りせず特殊役で決着（置換）。
     const specials = g.roundEnd.specials || [];
     if (specials.length) {
       listHtml += '<div class="h88-te-sub">双八/総八で決着（札点の点差はやり取りしません）</div><ul class="yaku-list">' + specials.map(sp =>
@@ -5587,48 +5738,99 @@ function h88RoundOver(result) {
     head = specials.length
       ? '<div class="h88-te-note">出来役なし。<b>双八/総八</b>が成立したので、札点の点差はやり取りせず特殊役で決着（' + bTag + '）。該当者が ' + (m > 1 ? '文×' + m : '文') + ' を他の2人から受け取り。</div>'
       : '<div class="h88-te-note">出来役なし → 札点（1人 88文 が基準）で決着（' + bTag + '）。88文との差' + (m > 1 ? ' ×' + m : '') + ' をやり取り。</div>';
-    h88Log('― ' + (specials.length ? '双八/総八で決着 ' : '札点で決着 ') + bTag + '：' + g.seats.map(s => st.names[s] + ' ' + pts[s] + '文').join(' ／ ') + (specials.length ? '／特殊役 ' + specials.map(sp => st.names[sp.seat] + ' ' + sp.jp).join('・') : ''));
+    if (doLog) h88Log('― ' + (specials.length ? '双八/総八で決着 ' : '札点で決着 ') + bTag + '：' + g.seats.map(s => st.names[s] + ' ' + pts[s] + '文').join(' ／ ') + (specials.length ? '／特殊役 ' + specials.map(sp => st.names[sp.seat] + ' ' + sp.jp).join('・') : ''));
   }
-  // 手役（配札時に提示済み）を、ここで場倍率を掛けてまとめて精算＋表示（＝倍率が効くのが見える）。
   let teyakuHtml = '';
-  if (st.pendingTeyaku) {
-    const tM = h88ApplyTeyakuSettle(g, st.scores, st.pendingTeyaku);
+  if (teyaku0) {
     const mulOn = h88Rules().teyakuFieldMul;
     teyakuHtml = '<div class="h88-te-sub">手役（配札時に成立' + (mulOn ? (tM > 1 ? '・場倍率×' + tM : '') : '・場倍率は掛けない設定') + '）</div><ul class="yaku-list">'
-      + Object.keys(st.pendingTeyaku).map(s => {
-        const ty = st.pendingTeyaku[s];
+      + Object.keys(teyaku0).map(s => {
+        const ty = teyaku0[s];
         const cards = (ty.ids || []).map(id => svgCard(id, 'ye-card')).join('');
         return '<li class="ye-li"><div class="ye-head"><span><span class="who-b">' + nm(s) + '</span>：' + ty.jp + '</span>'
           + '<span class="pt">' + ty.mon + ' ' + unit + (mulOn && tM > 1 ? ' ×場' + tM + ' ＝ ' + (ty.mon * tM) + ' ' + unit : '') + '</span></div>'
           + '<div class="ye-cards">' + cards + '</div></li>';
       }).join('') + '</ul>';
-    h88Log('◆ 手役を精算' + (mulOn && tM > 1 ? '（×場' + tM + '）' : '') + '：' + Object.keys(st.pendingTeyaku).map(s => st.names[s] + ' ' + st.pendingTeyaku[s].jp).join(' ／ '));
-    st.pendingTeyaku = null;
+    if (doLog) h88Log('◆ 手役を精算' + (mulOn && tM > 1 ? '（×場' + tM + '）' : '') + '：' + Object.keys(teyaku0).map(s => st.names[s] + ' ' + teyaku0[s].jp).join(' ／ '));
   }
-  // スコアボード＝「元累計 ＋ この局の増減（見える数字の式）＝ 新累計」。増減の内訳は上の役／札点／手役リストの数字と一致。
   const bd = h88Breakdown(g, teyaku0);
   const scoreboard = '<div class="h88-te-legend">元の累計 ＋ この局の増減（役×倍率×人数 など） ＝ 新しい累計</div><div class="scoreboard">' + g.seats.map(s => {
     const d = (st.scores[s] || 0) - before[s];
     return '<div class="sc-row' + (d > 0 ? ' lead' : '') + '"><span class="sc-name">' + nm(s) + '</span>'
       + '<span class="sc-val sc-formula' + (d < 0 ? ' neg' : '') + '">' + h88FormulaStr(before[s], st.scores[s] || 0, bd[s], unit) + '</span></div>';
   }).join('') + '</div>';
-  h88Log('　合計 ' + g.seats.map(s => st.names[s] + ' ' + st.scores[s]).join(' ／ '));
-  // v2.13: 局の音＝あなたが取得した文数ぶんの高速ちゃりん（こいこいの局勝利と同じ考え／大勝は30回で頭打ち）。損・無なら「ぷっ」。
-  const p0Delta = (st.scores['p0'] || 0) - before['p0'];
-  if (p0Delta > 0) { const n = Math.min(p0Delta, 30); for (let i = 0; i < n; i++) setTimeout(() => playSfx('charin'), i * 65); }
+  if (doLog) h88Log('　合計 ' + g.seats.map(s => st.names[s] + ' ' + st.scores[s]).join(' ／ '));
+  return head + listHtml + teyakuHtml + scoreboard;
+}
+// v2.49-段4: オンライン局終了の両者ゲート。次の局へ＝両者押下で進行／中断＝片方でも両者ロビー。最終局は押した側が即・総合結果。
+function h88ShowRoundGate(title, html, isLast) {
+  const st = state.h88;
+  showNotice(title, html, () => {}, { clear: true, draggable: true, html: true });
+  const ov = document.getElementById('ovNotice'), okBtn = document.getElementById('ov-ok');
+  okBtn.style.display = 'none';
+  const row = ov.querySelector('.btn-row');
+  const box = document.createElement('span'); box.id = 'h88-roundgate-btns'; row.appendChild(box);
+  const readyRow = document.createElement('div'); readyRow.id = 'h88-roundgate-ready';
+  readyRow.style.cssText = 'display:flex;gap:14px;justify-content:center;font-size:.72rem;color:var(--text-muted);margin-top:6px;';
+  row.parentNode.insertBefore(readyRow, row.nextSibling);
+  const cleanup = () => { ov.classList.remove('show', 'see-through'); okBtn.style.display = ''; box.remove(); readyRow.remove(); st._h88GateRender = null; st._h88GateCleanup = null; };
+  st._h88GateCleanup = cleanup;
+  const me = h88MySeat();
+  const render = () => {
+    const nr = st.h88NextReady || { p0: false, p1: false };
+    const meReady = !!nr[me];
+    const nextLbl = isLast ? '結果を見る' : '次の局へ';
+    box.innerHTML = '<button class="btn btn-primary" id="h88-rg-next"' + ((meReady && !isLast) ? ' disabled' : '') + '>' + nextLbl + '</button>'
+      + ' <button class="btn btn-ghost small" id="h88-rg-leave">中断してロビーへ</button>';
+    document.getElementById('h88-rg-next').onclick = () => { playSfx('button'); h88RoundGateNext(isLast, cleanup); };
+    document.getElementById('h88-rg-leave').onclick = () => { playSfx('button'); h88RoundGateLeave(); };
+    if (isLast) { readyRow.textContent = ''; return; }
+    // 相手＝ready状態のキー（人間2席 p0/p1）のうち自分以外。CPUは含めない（ゲスト側はcpuSeats未知のためkeysから算出）。
+    const oppSeats = Object.keys(nr).filter(s => s !== me);
+    readyRow.innerHTML = '<span>あなた：' + (meReady ? '押しました' : 'まだ') + '</span>'
+      + oppSeats.map(s => '<span>' + (st.names[s] || s) + '：' + (nr[s] ? '押しました' : '待っています') + '</span>').join('');
+  };
+  st._h88GateRender = render;
+  render();
+}
+// 「次の局へ／結果を見る」押下。
+function h88RoundGateNext(isLast, cleanup) {
+  const st = state.h88;
+  if (isLast) { cleanup(); h88ShowMatchEnd(); return; } // 最終局は両者ゲート不要・押した側が即・総合結果
+  const me = h88MySeat();
+  if (st.h88NextReady && st.h88NextReady[me]) return; // 二重押し防止
+  if (state.isHost) {
+    st.h88NextReady.p0 = true;
+    if (st.h88NextReady.p0 && st.h88NextReady.p1) { cleanup(); h88AdvanceRoundOnline(); return; }
+    MomoMatchmaking.send({ type: 'h88-nextready', ready: st.h88NextReady });
+    if (st._h88GateRender) st._h88GateRender();
+  } else {
+    st.h88NextReady[me] = true; // 表示用（本体はホストが集計）
+    MomoMatchmaking.send({ type: 'h88-next' });
+    if (st._h88GateRender) st._h88GateRender();
+  }
+}
+// 中断＝自分がロビーへ戻り、相手にも go-lobby を送って両者中断。
+function h88RoundGateLeave() {
+  try { MomoMatchmaking.send({ type: 'go-lobby' }); } catch (e) {}
+  leaveRoom();
+}
+// ホスト：両者が「次の局へ」を押したので次局を開始（もしくは総合結果へ）。
+function h88AdvanceRoundOnline() {
+  const st = state.h88, g = st.game, ctx = st.h88RoundCtx || {};
+  MomoMatchmaking.send({ type: 'h88-next-go', isLast: ctx.isLast }); // ゲストのパネルを閉じさせる
+  st.h88NextReady = null;
+  if (ctx.isLast) { h88ShowMatchEnd(); return; }
+  st.roundNo += 1;
+  h88StartRound(ctx.nextOya);
+}
+// ゲスト側：ホストからの局終了パネル（ゲスト視点HTML）を表示。
+function h88ShowRoundOverGuest(msg) {
+  const st = state.h88; if (!st || state.isHost) return;
+  st.h88NextReady = { p0: false, p1: false };
+  if (msg.myDelta > 0) { const n = Math.min(msg.myDelta, 30); for (let i = 0; i < n; i++) setTimeout(() => playSfx('charin'), i * 65); }
   else playSfx('pu');
-  renderH88();
-  const isLast = st.roundNo >= st.rounds;
-  const title = isLast ? '対局終了' : '局終了（第' + st.roundNo + '局）';
-  showNotice(title, head + listHtml + teyakuHtml + scoreboard, () => {
-    if (isLast) {
-      h88ShowMatchEnd(); // v1.69: 総合結果はこいこい風パネル(#ovH88End)
-    } else {
-      st.roundNo += 1;
-      const nextOya = g.winner; // 出来役上がり＝勝者／札点決着＝札点最大（h88FinishByPointsで設定済）
-      h88StartRound(nextOya);
-    }
-  }, { clear: true, draggable: true, html: true }); // こいこい様式パネル・盤面（取り札）を隠さない・移動可
+  h88ShowRoundGate(msg.isLast ? '対局終了' : '局終了', msg.html || '', !!msg.isLast);
 }
 // v1.69: 八八の総合結果（こいこいと同じ ge-panel スタイル・くす玉/スコアボード）
 function h88ShowMatchEnd() {
@@ -5644,7 +5846,8 @@ function h88ShowMatchEnd() {
   // 順位（点の高い順）
   const ranked = g.seats.slice().sort((a, b) => (st.scores[b] || 0) - (st.scores[a] || 0));
   const topScore = st.scores[ranked[0]] || 0;
-  const iWin = (ranked[0] === 'p0') && (st.scores['p0'] || 0) === topScore && !g.seats.every(s => (st.scores[s] || 0) === (st.scores['p0'] || 0));
+  const my = h88MySeat(); // v2.49-段4: 総合結果も自席視点（オンラインのゲストは p1 が「あなた」）
+  const iWin = (ranked[0] === my) && (st.scores[my] || 0) === topScore && !g.seats.every(s => (st.scores[s] || 0) === (st.scores[my] || 0));
   const allTie = g.seats.every(s => (st.scores[s] || 0) === topScore);
   const panel = document.querySelector('#ovH88End .ge-panel');
   const title = document.getElementById('h88-end-title');
@@ -5659,7 +5862,7 @@ function h88ShowMatchEnd() {
   sb.innerHTML = ranked.map((s, i) => {
     const isLead = (st.scores[s] || 0) === topScore && !allTie;
     return '<div class="sc-row' + (isLead ? ' lead' : '') + '">'
-      + '<span class="sc-name">' + (i + 1) + '位　' + st.names[s] + (s === 'p0' ? '（あなた）' : '') + '</span>'
+      + '<span class="sc-name">' + (i + 1) + '位　' + st.names[s] + (s === my ? '（あなた）' : '') + '</span>'
       + '<span class="sc-val">' + h88FormatFumi(st.scores[s] || 0) + '</span></div>';
   }).join('');
   document.getElementById('ovH88End').classList.add('show');

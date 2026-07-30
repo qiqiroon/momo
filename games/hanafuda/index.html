@@ -1323,7 +1323,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.66</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.67</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1389,7 +1389,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.66</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.67</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1526,7 +1526,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.66</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.67</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1588,7 +1588,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.66</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.67</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -3675,6 +3675,10 @@ function initMatchmaking() {
       if (!state.isHost) { updateSpectatorCount(); return; } // 観戦者・ゲスト側は名簿更新のみ
       // D3: 観戦者、または既にゲストが居る状態での追加プレイヤー入室 → 観戦者として受け入れる。
       if (role === 'spectator' || state.playerPid) {
+        // ★重要: サーバー上「プレイヤー」役で入ったが席が埋まっていて観戦扱いにする人には、
+        //   本人のクライアントを観戦へ合わせる role-assign を必ず送る（送らないと本人の画面はプレイヤーのままで役がズレる）。
+        //   これは部屋一覧の人数が更新される前に2人目が入ると起きる（同一PCの別タブ等で顕著）。
+        if (role === 'player') MomoMatchmaking.send({ type: 'role-assign', role: 'spectator' }, pid);
         updateSpectatorCount();
         renderParticipantMgmt(); // D3c: 役変更パネルを更新
         koiBootstrapSpectator(pid); // 対局中なら現在の公開ビューを送って画面に載せる
@@ -9084,15 +9088,13 @@ function koiSpectatorPayload(base) {
   return p;
 }
 
-// D3: 現在のゲスト（プレイヤー席の人間）の pid を確実に特定する。
-//   降格中(noGuest)は「ゲスト無し」。playerPid未設定でも roster の player 役から補完する
-//   （★これをしないと playerPid が空のとき specTargetPids にゲストが混じり、ゲストが観戦ビュー[伏せ札]も
-//     受け取って上書きされ「自分の札が閉じて出せない」回帰になる）。
+// D3: 現在のゲスト（プレイヤー席の人間）の pid。ゲーム側の指名(playerPid)だけを正とする。
+//   ★transport role='player' を当てにしない：席が埋まっていて観戦扱いにした2人目も server 上は 'player' のままなので、
+//     role で補完するとその人を誤ってゲスト判定し、退出タイミングで実手札を送って漏らす恐れがある。
+//   playerPid は最初のプレイヤー入室で必ずセットされるため補完は不要。降格中(noGuest)は「ゲスト無し」。
 function currentGuestPid() {
   if (state.noGuest) return null;
-  if (state.playerPid) return state.playerPid;
-  const p = (state.roster || []).find(x => x && x.role === 'player' && x.pid !== state.myPid);
-  return p ? p.pid : null;
+  return state.playerPid || null;
 }
 // D3: 観戦者（＝ホストでもゲストでもない参加者）の pid 一覧。ゲストは currentGuestPid で確実に除外。
 function specTargetPids() {
@@ -9187,11 +9189,16 @@ function renderParticipantMgmt() {
   el.classList.remove('hidden');
   el.innerHTML = '';
   const head = document.createElement('div'); head.style.cssText = 'font-weight:600;margin-bottom:.3em'; head.textContent = t('pm.head'); el.appendChild(head);
+  // 同名を区別できるよう、重複する名前には番号を付ける（同一PCの別タブで既定名が同じになりがちなため）
+  const nameCounts = {}; others.forEach(x => { const nm0 = x.name || '?'; nameCounts[nm0] = (nameCounts[nm0] || 0) + 1; });
+  const seenIdx = {};
   others.forEach(x => {
     const isPlayer = (x.pid === state.playerPid);
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;align-items:center;gap:.5em;margin:.15em 0';
-    const nm = document.createElement('span'); nm.style.flex = '1'; nm.textContent = (x.name || '?') + '（' + t(isPlayer ? 'pm.role.player' : 'pm.role.spectator') + '）';
+    let dispName = x.name || '?';
+    if (nameCounts[dispName] > 1) { seenIdx[dispName] = (seenIdx[dispName] || 0) + 1; dispName += ' #' + seenIdx[dispName]; }
+    const nm = document.createElement('span'); nm.style.flex = '1'; nm.textContent = dispName + '（' + t(isPlayer ? 'pm.role.player' : 'pm.role.spectator') + '）';
     const btn = document.createElement('button'); btn.className = 'btn btn-ghost btn-sm';
     btn.textContent = isPlayer ? t('pm.demote') : t('pm.promote');
     btn.addEventListener('click', () => hostSetRole(x.pid, isPlayer ? 'spectator' : 'player'));

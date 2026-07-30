@@ -1323,7 +1323,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.64</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.65</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1389,7 +1389,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.64</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.65</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1402,6 +1402,11 @@
     <button class="leave-btn room-home" id="btn-leave" data-i18n="room.leave">← ロビーに戻る</button>
     <div class="conn" id="conn-status"><span class="dot"></span><span id="conn-label" data-i18n="room.conn.waiting">相手を待っています</span></div>
     <div class="room-name"><span data-i18n="room.room">部屋</span>：<b id="room-name-disp">—</b> <span id="room-pw-disp" class="hidden" style="color:var(--text-muted);font-size:.8rem">🔒 <span data-i18n="room.hasPw">パスワードあり</span></span></div>
+    <!-- D3: 観戦者向けの表示（観戦中バッジ・観戦者数） -->
+    <div class="spectating-badge hidden" style="margin:.3em 0;padding:.25em .6em;background:var(--accent,#e08a2b);color:#fff;border-radius:.5em;display:inline-block;font-size:.85rem" data-i18n="spectator.badge">観戦中</div>
+    <div class="spec-count hidden" style="color:var(--text-muted);font-size:.8rem;margin:.15em 0"></div>
+    <!-- D3c: ホストの役変更パネル（準備画面のみ・対局中は非表示） -->
+    <div id="participant-mgmt" class="hidden" style="margin:.4em 0;padding:.4em .6em;border:1px solid var(--border,#4443);border-radius:.5em;font-size:.85rem"></div>
     <!-- v1.61: プレイヤーを縦並びに（将来3人対応）。ホスト箱→ゲスト箱の順。 -->
     <div class="players players-col">
       <div class="pl host"><small data-i18n="room.host">ホスト</small><span id="host-name">—</span></div>
@@ -1519,7 +1524,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.64</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.65</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1529,6 +1534,8 @@
     <span><b id="st-month">3月場</b>（<span id="st-round">第1局/全12局</span>）</span>
     <span><span data-i18n="game.you">あなた</span><b id="st-my-score">0</b><span data-i18n="game.mon">文</span>・<span data-i18n="game.opp">あいて</span><b id="st-op-score">0</b><span data-i18n="game.mon">文</span></span>
     <span id="st-turn" data-i18n="game.wait">対局準備中</span>
+    <span class="spectating-badge hidden" style="padding:.1em .5em;background:var(--accent,#e08a2b);color:#fff;border-radius:.4em;font-size:.8rem" data-i18n="spectator.badge">観戦中</span>
+    <span class="spec-count hidden" style="color:var(--text-muted);font-size:.8rem"></span>
   </div>
   <div class="play">
     <!-- 相手手札 -->
@@ -1579,7 +1586,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.64</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.65</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -2157,6 +2164,15 @@ const I18N = {
     'notice.oppleft.title': '相手が退出しました',
     'notice.oppleft.stay': '対戦相手の参加を待っています。',
     'notice.oppleft.lobby': 'ロビーに戻ります。',
+    'spectator.badge': '観戦中',
+    'spectator.wait': '対局の開始をお待ちください…',
+    'lobby.spectate': '観戦',
+    'spectators.count': '観戦 {n}人',
+    'pm.head': '参加者（役の変更）',
+    'pm.role.player': 'プレイヤー',
+    'pm.role.spectator': '観戦',
+    'pm.promote': 'プレイヤーにする',
+    'pm.demote': '観戦にする',
     'settings.title': '設定',
     'settings.bgm.label': 'BGM',
     'settings.bgm.hint': 'BGM の音量',
@@ -2434,6 +2450,15 @@ const I18N = {
     'notice.oppleft.title': 'Opponent Left',
     'notice.oppleft.stay': 'Waiting for a new opponent to join.',
     'notice.oppleft.lobby': 'Returning to lobby.',
+    'spectator.badge': 'Spectating',
+    'spectator.wait': 'Waiting for the game to start…',
+    'lobby.spectate': 'Watch',
+    'spectators.count': 'Spectators: {n}',
+    'pm.head': 'Participants (change role)',
+    'pm.role.player': 'Player',
+    'pm.role.spectator': 'Spectator',
+    'pm.promote': 'Make player',
+    'pm.demote': 'Make spectator',
     'settings.title': 'Settings',
     'settings.bgm.label': 'BGM',
     'settings.bgm.hint': 'BGM volume (v1.00 is UI only — audio arrives in Phase 2)',
@@ -2711,6 +2736,15 @@ const I18N = {
     'notice.oppleft.title': '对手已退出',
     'notice.oppleft.stay': '正在等待新的对手加入。',
     'notice.oppleft.lobby': '返回大厅。',
+    'spectator.badge': '观战中',
+    'spectator.wait': '请等待对局开始…',
+    'lobby.spectate': '观战',
+    'spectators.count': '观战 {n}人',
+    'pm.head': '参加者（变更身份）',
+    'pm.role.player': '玩家',
+    'pm.role.spectator': '观战',
+    'pm.promote': '设为玩家',
+    'pm.demote': '设为观战',
     'settings.title': '设置',
     'settings.bgm.label': 'BGM',
     'settings.bgm.hint': 'BGM 音量',
@@ -3000,13 +3034,19 @@ function renderRoomList() {
     rn.textContent = lock + (r.name || '(no name)');
     rn.appendChild(sub);
     const badge = document.createElement('span');
-    const full = r.playerCount >= 2 || r.status === 'full';
-    badge.className = 'status-badge ' + (full ? 'st-full' : 'st-wait');
-    badge.textContent = full ? t('lobby.state.full') : t('lobby.state.wait');
+    // D3: プレイヤー席の満席判定。満室でも観戦で入れる。
+    const playersFull = (r.playerCount || 0) >= 2 || r.status === 'full';
+    const specCount = r.spectatorCount || 0;
+    const specMax = r.maxSpectators || 8;
+    const specFull = specCount >= specMax; // 観戦席まで満席なら入室不可
+    badge.className = 'status-badge ' + (playersFull ? 'st-full' : 'st-wait');
+    badge.textContent = playersFull ? t('lobby.state.full') : t('lobby.state.wait');
+    if (specCount > 0) badge.textContent += ' ・ ' + t('spectators.count', { n: specCount });
     const btn = document.createElement('button');
     btn.className = 'btn btn-ghost btn-sm';
-    btn.textContent = full ? t('lobby.state.full') : t('lobby.join');
-    if (full) { btn.disabled = true; btn.style.opacity = '.45'; }
+    // 空きがあれば「参加」、プレイヤー満席なら「観戦」。観戦席も満席なら無効。
+    btn.textContent = playersFull ? t('lobby.spectate') : t('lobby.join');
+    if (playersFull && specFull) { btn.disabled = true; btn.style.opacity = '.45'; }
     else btn.addEventListener('click', () => tryJoin(r));
     li.appendChild(rn); li.appendChild(badge); li.appendChild(btn);
     ul.appendChild(li);
@@ -3024,7 +3064,10 @@ function tryJoin(room) {
   state.roomId = room.id;
   state.joinPw = pw;              // 復帰用に保持
   state.intentionalLeave = false;
-  MomoMatchmaking.joinRoom(room.id, pw, name, 'player'); // D0: 多人数トランスポート＝プレイヤーとして入室
+  // D3: 入室順で自動役割。プレイヤー席（2人）が埋まっていれば観戦者として入室。
+  const asSpectator = (room.playerCount || 0) >= 2;
+  state.isSpectator = asSpectator; // onJoinedRoom の multi.role で最終確定
+  MomoMatchmaking.joinRoom(room.id, pw, name, asSpectator ? 'spectator' : 'player');
 }
 
 // --------------------------------------------------------------------------
@@ -3070,8 +3113,12 @@ function refreshRoomView() {
   document.querySelectorAll('#set-hachi .seg').forEach(seg => seg.setAttribute('data-readonly', (state.isHost || state.vsAI) ? '0' : '1')); // v2.50: 八八もゲストは操作不可の見た目に
   // v1.05: 親決めは両者それぞれ自分の 1 枚を引く方式。自分の側がまだ引いてない & 相手が入室してれば enable。
   const myMonth = state.isHost ? state.oyaHostMonth : state.oyaGuestMonth;
-  document.getElementById('btn-draw-oya').disabled = (myMonth != null) || !opponentIn;
+  document.getElementById('btn-draw-oya').disabled = (myMonth != null) || !opponentIn || state.isSpectator; // D3: 観戦者は親決め不可
   updateOyaLabels();
+  // D3: 観戦中バッジ＋観戦者数の表示
+  document.querySelectorAll('.spectating-badge').forEach(el => el.classList.toggle('hidden', !state.isSpectator));
+  updateSpectatorCount();
+  renderParticipantMgmt(); // D3c: ホストの役変更パネル
   // v2.45-段3: 八八の役BOX（ホスト/ゲスト/コンピュータ）はゲスト参加・名前変化で再描画（「参加待ち…」→実名）
   if (state.gameSel === 'hachi') { h88PrepRenderPlayers(); if (!state.vsAI) h88OnlineOyaRender(); }
   updateStartBtn();
@@ -3079,6 +3126,7 @@ function refreshRoomView() {
 
 function updateStartBtn() {
   const b = document.getElementById('btn-start');
+  if (state.isSpectator) { b.disabled = true; b.textContent = t('spectator.wait'); return; } // D3: 観戦者は開始不可
   if (state.gameSel === 'hachi') { // v1.68: 八八は準備室で3人親決め → 済んだら開始可
     // v2.51: オンライン八八＝親決めが3枚そろったら、ホストもゲストも「準備完了」を押す。両者が押したら開始（こいこい同様）。
     if (!state.vsAI) {
@@ -3198,6 +3246,7 @@ const MONTH_NAMES = ['一月','二月','三月','四月','五月','六月','七�
 // v1.05: 自分の 1 枚だけ引く。相手も引いていて同月なら自分の月だけ引き直す (相手の月は動かさない)。
 // v1.21: 親決めで「実際の札」を1枚引く。相手と同一札は避ける（同月は可・同月は強さで判定）。
 function drawOya() {
+  if (state.isSpectator) return; // D3: 観戦者は親決めに参加しない
   const me = state.isHost ? 'host' : 'guest';
   const myCardKey = me === 'host' ? 'oyaHostCard' : 'oyaGuestCard';
   const myMonthKey = me === 'host' ? 'oyaHostMonth' : 'oyaGuestMonth';
@@ -3304,6 +3353,7 @@ function clearSession() { try { sessionStorage.removeItem('hf_session'); } catch
 function backToLobby(msg) {
   state.reconnecting = false; state.oppAway = false; state.intentionalLeave = false;
   state.oppLeftAtEnd = false; state.myEndChoice = null; // v2.62
+  state.isSpectator = false; state.playerPid = null; // D3: 観戦フラグをロビーで解除
   state.vsAI = false; state.solo = false; // v1.59: 対コンピュータ戦フラグをロビーで解除
   state.connected = false; state.guestName = ''; state.game = null; state.roomId = null;
   state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null; state.oyaHostCard = null; state.oyaGuestCard = null;
@@ -3557,6 +3607,8 @@ function initMatchmaking() {
     onRoomCreated: (roomId, roomName, rules, multi) => {
       diagLog('room', 'created id=' + roomId + ' name=' + roomName + ' pid=' + (multi && multi.pid));
       state.isHost = true;
+      state.isSpectator = false;   // D3: ホストは常にプレイヤー
+      state.playerPid = null;      // D3: 指名するゲスト（プレイヤー）のpid。最初の player 入室で確定
       state.myPid = (multi && multi.pid) || 'p0'; // D0: 自分の席（ホスト=p0）
       state.roster = (multi && multi.roster) || [];
       state.roomId = roomId;
@@ -3575,6 +3627,9 @@ function initMatchmaking() {
     onJoinedRoom: (roomId, roomName, hostName, rules, multi) => {
       diagLog('room', 'joined id=' + roomId + ' name=' + roomName + ' host=' + hostName + ' pid=' + (multi && multi.pid));
       state.isHost = false;
+      // D3: サーバーが割り当てた役割で観戦か否かを最終確定（tryJoin の事前判定を上書き）
+      state.isSpectator = !!(multi && multi.role === 'spectator');
+      state.playerPid = null;
       state.myPid = (multi && multi.pid) || 'p1'; // D0: 自分の席（最初のゲスト=p1）
       state.roster = (multi && multi.roster) || [];
       state.roomId = roomId;
@@ -3606,17 +3661,34 @@ function initMatchmaking() {
     },
     onGuestJoined: (guestName) => handleGuestJoined(guestName), // 従来1対1用（多人数では発火しない）
     onGuestLeft: () => handleGuestLeft(),
-    // D0: 多人数トランスポートの参加者イベント。2人前提で最初のプレイヤーを従来ゲストとして扱う。
+    // D0/D3: 多人数トランスポートの参加者イベント。最初のプレイヤーを従来ゲストとして扱い、以降は観戦者。
     onParticipantJoined: (pid, role, name, roster) => {
       state.roster = roster || state.roster;
       diagLog('room', 'participant joined pid=' + pid + ' role=' + role + ' name=' + name);
-      if (role === 'spectator') return; // 観戦は D3 で対応
-      if (state.isHost) { state.connected = true; handleGuestJoined(name); }
+      if (!state.isHost) { updateSpectatorCount(); return; } // 観戦者・ゲスト側は名簿更新のみ
+      // D3: 観戦者、または既にゲストが居る状態での追加プレイヤー入室 → 観戦者として受け入れる。
+      if (role === 'spectator' || state.playerPid) {
+        updateSpectatorCount();
+        renderParticipantMgmt(); // D3c: 役変更パネルを更新
+        koiBootstrapSpectator(pid); // 対局中なら現在の公開ビューを送って画面に載せる
+        return;
+      }
+      // 最初のプレイヤー = 従来ゲスト
+      state.playerPid = pid;
+      state.connected = true;
+      handleGuestJoined(name);
     },
     onParticipantLeft: (pid, roster) => {
       state.roster = roster || state.roster;
       diagLog('room', 'participant left pid=' + pid);
-      if (state.isHost) handleGuestLeft();
+      if (!state.isHost) { updateSpectatorCount(); return; }
+      if (pid === state.playerPid) { // ゲスト（プレイヤー）が退出
+        state.playerPid = null;
+        handleGuestLeft();
+      } else { // 観戦者が退出 → 対局には影響させない
+        updateSpectatorCount();
+        renderParticipantMgmt(); // D3c: 役変更パネルを更新
+      }
     },
     onConnected: () => {
       diagLog('p2p', 'onConnected fired');
@@ -3625,9 +3697,12 @@ function initMatchmaking() {
         // 多人数：接続確立は参加者イベント（onParticipantJoined）で扱う。
         // ホストは相手待ち（部屋作成直後にもここへ来る）ため何もしない。
         // ゲストは自分の入室完了＝ホストと接続済み。hello で名前を通知。
-        if (!state.isHost) {
+        // D3: 観戦者は hello を送らない（ホスト側の guestName を上書きしないため）。名前は roster で届く。
+        if (!state.isHost && !state.isSpectator) {
           state.connected = true;
           MomoMatchmaking.send({ type: 'hello', name: state.guestName });
+          refreshRoomView();
+        } else if (state.isSpectator) {
           refreshRoomView();
         }
         return;
@@ -3700,8 +3775,28 @@ function initMatchmaking() {
   });
 }
 
+// D3: 観戦者が処理してよいメッセージだけを扱う（公開ビュー＋画面遷移＋ゲーム選択追従）。
+function handleSpectatorMsg(data) {
+  if (data.type === 'settings') {
+    if (data.settings) { state.settings = Object.assign({}, state.settings, data.settings); applySettingsToUi(); }
+    if (data.gameSel && data.gameSel !== state.gameSel) pickGame(data.gameSel); // 観戦するゲームに追従
+    refreshRoomView();
+    return;
+  }
+  if (data.type === 'deal' || data.type === 'state') { applyState(data); return; } // こいこい公開ビュー
+  if (data.type === 'h88-start') { h88ApplyStart(data); return; } // 八八：観戦者の盤面をセットアップ
+  if (data.type === 'h88-state') { h88ApplyState(data); return; } // 八八公開ビュー
+  if (data.type === 'hello') { state.hostName = data.name || state.hostName; refreshRoomView(); return; }
+  if (data.type === 'start') { showScreen('game'); return; }
+  if (data.type === 'go-lobby') { leaveRoom(); return; }
+  if (data.type === 'role-assign') { applyRoleAssign(data); return; } // D3c: 観戦→プレイヤー昇格など
+  // それ以外（oya_draw/ready/oya/intent/h88-* の合図系）は観戦者では無視。
+}
+
 function handleP2P(data) {
   if (!data || !data.type) return;
+  // D3: 観戦者は公開ビュー系のみ処理。親決め・準備完了・intent などプレイヤー宛の合図は一切踏まない。
+  if (state.isSpectator) { handleSpectatorMsg(data); return; }
   // v2.45-段3: 八八オンラインのメッセージ経路
   if (data.type === 'h88-start') { h88ApplyStart(data); return; }   // ゲスト：開始情報を受けて盤面を用意
   if (data.type === 'h88-state') { h88ApplyState(data); return; }   // ゲスト：状態同期を適用して描画
@@ -3802,6 +3897,7 @@ function handleP2P(data) {
     leaveRoom();
     return;
   }
+  if (data.type === 'role-assign') { applyRoleAssign(data); return; } // D3c: プレイヤー→観戦への降格など
 }
 function applySettingsToUi() {
   Object.entries(state.settings).forEach(([k, v]) => {
@@ -4913,32 +5009,53 @@ function h88ApplyStart(msg) {
     names: msg.names, scores: msg.scores || { p0: 0, p1: 0, p2: 0 }, levels: { p1: 'HARD', p2: 'HARD' },
     preset: msg.preset, rules: msg.rules,
     roundNo: 1, rounds: msg.rounds, seatCycle: msg.seatCycle, game: null, aiToken: 0, oyaDraws: msg.oyaDraws || null, focusSeat: null, log: [],
-    online: true, mySeat: H88_GUEST_SEAT, cpuSeats: [], // ゲストはCPUを回さない（描画のみ）
+    // D3: 観戦者は親席p0を視点にして描画（全席伏せなので実手札は見えない）。ゲストは自席p1。どちらもエンジンは回さない。
+    online: true, mySeat: state.isSpectator ? 'p0' : H88_GUEST_SEAT, cpuSeats: [],
   };
   showScreen('hachi');
   h88SetupOppDrag();
 }
-// ホスト：全状態をゲストへ同期。ゲストの手札は実体、他席は枚数のみ。renderH88 の末尾から呼ぶ。
-function h88SyncState() {
-  const st = state.h88; if (!st || !st.online || !state.isHost || !st.game) return;
-  const g = st.game;
-  // v2.51: 相手席の手札は通常は枚数のみ。手役の公開中だけ「公開札は実id・伏せ札は?」でマスクして送る（ゲストも盤面で公開札を開示できる／伏せ札は漏らさない）。
-  const handsOut = {}; g.seats.forEach(s => {
-    if (s === H88_GUEST_SEAT) { handsOut[s] = g.hands[s]; return; }
+// D3: 席別の手札マスクを組み立てる。selfSeat の手札だけ実体、他席は枚数のみ（手役公開中は公開札を実id）。
+//   selfSeat=null（観戦者向け）＝どの席も実体を渡さない＝全席伏せの公開ビュー。
+function h88HandsOut(selfSeat) {
+  const st = state.h88, g = st.game, out = {};
+  g.seats.forEach(s => {
+    if (s === selfSeat) { out[s] = g.hands[s]; return; }
     const rev = (st.teyakuReveal && st.teyakuReveal[s]) || null;
-    handsOut[s] = (rev && rev.length) ? g.hands[s].map(c => (rev.indexOf(c.id) >= 0 ? { id: c.id } : { id: '?' })) : g.hands[s].length;
+    out[s] = (rev && rev.length) ? g.hands[s].map(c => (rev.indexOf(c.id) >= 0 ? { id: c.id } : { id: '?' })) : g.hands[s].length;
   });
-  MomoMatchmaking.send({
+  return out;
+}
+// D3: 手札以外の共通盤面（公開情報）を組み立てる。
+function h88StateBody() {
+  const st = state.h88, g = st.game;
+  return {
     type: 'h88-state',
     seats: g.seats, currentPlayer: g.currentPlayer, winner: g.winner || null, oya: g.oya, bonus: g.bonus || 1,
-    field: g.field, deckCount: g.deck.length, caps: g.caps, hands: handsOut,
+    field: g.field, deckCount: g.deck.length, caps: g.caps,
     pending: g.pending || [], playPick: g.playPick || null, playedFromHand: g.playedFromHand || null,
     capFlash: g.capFlash || null, fieldOrder: g.fieldOrder || null, fieldGhostIds: g.fieldGhostIds || null,
     lastPlay: g.lastPlay || null, dropped: g.dropped || [], active: g.active || null, sage: g.sage || null, roundEnd: g.roundEnd || null,
     drawn: st.drawn || null, pendingUi: st.pending || null, activeFlyId: st._activeFlyId || null,
     roundOya: st.roundOya, roundNo: st.roundNo, rounds: st.rounds, scores: st.scores, names: st.names,
     teyakuMarks: st.teyakuMarks || null, teyakuReveal: st.teyakuReveal || null,
-  }, 'all'); // D2: 盤面状態は全員宛（※各席の手札は handsOut で席別にマスク済み。D3で観戦ビューを追加）
+  };
+}
+// ホスト：全状態をゲスト（＋観戦者）へ同期。ゲストは自席実体・他席枚数、観戦者は全席枚数。renderH88 の末尾から呼ぶ。
+function h88SyncState() {
+  const st = state.h88; if (!st || !st.online || !state.isHost || !st.game) return;
+  const body = h88StateBody();
+  const specs = specTargetPids();
+  const guestView = Object.assign({}, body, { hands: h88HandsOut(H88_GUEST_SEAT) });
+  if (specs.length === 0) {
+    // 観戦者なし＝従来どおり全員宛（2人対局は完全に挙動不変）
+    MomoMatchmaking.send(guestView, 'all');
+    return;
+  }
+  // 観戦者あり：ゲストにはゲスト視点、観戦者には全席伏せの公開ビュー。
+  MomoMatchmaking.send(guestView, state.playerPid || 'all');
+  const specView = Object.assign({}, body, { hands: h88HandsOut(null) });
+  specs.forEach(pid => MomoMatchmaking.send(specView, pid));
 }
 // ゲスト：'h88-state' 受信＝自席視点で盤面を再構成して描画（エンジンは回さない）。
 function h88ApplyState(msg) {
@@ -5458,7 +5575,7 @@ function renderH88() {
   if (db) db.innerHTML = st.drawn ? ('<span class="h88-drawn">' + svgCard(st.drawn.id) + '</span>')
                                   : (g.deck.length ? svgBack() : '');
   const p0Dropped = !!(g.dropped && g.dropped.indexOf(mySeat) >= 0); // ⑩出降り：自分（視点席）が降りた
-  const myTurn = (g.currentPlayer === mySeat && !g.winner && !p0Dropped);
+  const myTurn = (g.currentPlayer === mySeat && !g.winner && !p0Dropped && !state.isSpectator); // D3: 観戦者は操作不可
   // v2.24: ピック中・めくり札表示中・自分の一手が進行中（出した→回収の所作の途中）は手札操作を止める
   const p0Playing = !!(g.playedFromHand && g.playedFromHand.player === mySeat); // 自分の staged 進行中
   const handOn = myTurn && !st.pending && !st.drawn && !p0Playing && !st.turnBusy;
@@ -5514,6 +5631,7 @@ function h88PreviewField(month, on) {
 // v1.63 B6: こいこい式2タップ。1タップ＝選択（浮かせる＋合う場札をヒント）、
 //   同じ札をもう1タップ＝出す。2枚合致は場札を手動選択。山めくりも同様。
 function h88OnClickHand(idx) {
+  if (state.isSpectator) return; // D3: 観戦者は操作不可
   const st = state.h88; if (!st || !st.game) return;
   const g = st.game;
   const me = h88MySeat();
@@ -5551,6 +5669,7 @@ function h88HumanPlayHand(idx, actor) {
 }
 // 場札クリック（2枚合致のとき、どちらを取るか選ぶ）
 function h88OnClickField(id) {
+  if (state.isSpectator) return; // D3: 観戦者は操作不可
   const st = state.h88; if (!st || !st.game || !st.pending) return;
   const g = st.game, p = st.pending;
   if (g.currentPlayer !== h88MySeat()) return; // v2.45-段3: 自分の手番のpickのみ（ホストがゲストのpick中に押すのを防止）
@@ -7246,11 +7365,14 @@ function h88FlipReveal() {
 function renderGame() {
   const g = state.game;
   if (!g) return;
+  // D3: 観戦中バッジ・観戦者数を対局画面にも反映
+  document.querySelectorAll('#screen-game .spectating-badge').forEach(el => el.classList.toggle('hidden', !state.isSpectator));
+  updateSpectatorCount();
   const _animPrev = animEnabled() ? animSnapshot() : null; // FLIP: 再描画前の位置を控える
   if (!state.matchOver) state.gameChoiceMade = false; // v1.22: 対局中は総結果の選択フラグをリセット
   const me = mySide();
   const opp = otherPlayer(me);
-  const isMyTurn = g.currentPlayer === me;
+  const isMyTurn = g.currentPlayer === me && !state.isSpectator; // D3: 観戦者は操作不可
   // Status bar（v1.13: 月替わり・局番号・累計文をリアルタイム表示）
   const total = parseInt(state.settings.rounds, 10) || 12;
   document.getElementById('st-month').textContent = t('game.month.field', state.roundNo);
@@ -7295,6 +7417,7 @@ function renderGame() {
   (g.hands[me] || []).forEach(c => {
     const wrap = document.createElement('span');
     if (g._dealing) { wrap.innerHTML = svgBack(); myH.appendChild(wrap.firstChild); return; }
+    if (c.id === '?') { wrap.innerHTML = svgBack(); myH.appendChild(wrap.firstChild); return; } // D3: 観戦者は自席手札も伏せ札
     const clickable = isMyTurn && g.phase === 'select-hand';
     // v1.30: 2枚候補の選択中は、出す札を手札の中で浮かせたまま維持（場札選択後に飛ぶ）
     const isPick = g.playPick && g.playPick.player === me && g.playPick.id === c.id;
@@ -7909,6 +8032,7 @@ function previewLift(month, on) {
 }
 // v1.16: 2タッチ操作。1回目=選択（＝取れる場札を上げてプレビュー）、2回目（同じ札）=場に出す。
 function onClickHand(card) {
+  if (state.isSpectator) return; // D3: 観戦者は操作不可
   const g = state.game;
   if (g._dealing) return; // v1.36: 配りアニメ中は操作不可
   if (g.phase !== 'select-hand') return;
@@ -7999,6 +8123,7 @@ function captureBothFromField(fieldCards, played, player) {
 }
 
 function onClickFieldPick(fieldCard) {
+  if (state.isSpectator) return; // D3: 観戦者は操作不可
   const g = state.game;
   if (g.currentPlayer !== mySide()) return;
   if (state.solo || state.isHost) {
@@ -8227,7 +8352,7 @@ function showYakuOverlay() {
   }).join('');
   document.getElementById('ov-yaku-pt').textContent = total;
   // 自分の手番でない (= 相手が役成立) = 見学モード：パネルをグレー＋「相手選択中」、ボタン無効
-  const isMyTurn = cur === mySide();
+  const isMyTurn = cur === mySide() && !state.isSpectator; // D3: 観戦者は操作不可
   const panel = document.getElementById('ovYaku-panel');
   panel.classList.toggle('watching', !isMyTurn);
   document.getElementById('ov-yaku-watch').textContent = isMyTurn ? '' : t('ov.yaku.oppchoosing');
@@ -8271,6 +8396,7 @@ function makeDraggable(panel, handle) {
 }
 
 function onKoikoi() {
+  if (state.isSpectator) return; // D3: 観戦者は操作不可
   const g = state.game;
   if (g.phase !== 'yaku') return;
   if (g.currentPlayer !== mySide()) return;
@@ -8281,6 +8407,7 @@ function onKoikoi() {
   }
 }
 function onShobu() {
+  if (state.isSpectator) return; // D3: 観戦者は操作不可
   const g = state.game;
   if (g.phase !== 'yaku') return;
   if (g.currentPlayer !== mySide()) return;
@@ -8294,6 +8421,7 @@ function onShobu() {
 //        役は baseline に保持されるので、次に新しい役が出るまでパネルは出ない。
 //        最終的に勝負したとき pendingYaku（見送った役を含む全成立役）が normal 倍率で入る。
 function onMinooshi() {
+  if (state.isSpectator) return; // D3: 観戦者は操作不可
   const g = state.game;
   if (g.phase !== 'yaku') return;
   if (g.currentPlayer !== mySide()) return;
@@ -8718,6 +8846,7 @@ function renderRoundReady() {
 }
 // 「次の局へ」押下 → 両者そろったら次局。片方だけなら相手待ち。
 function onRoundNext() {
+  if (state.isSpectator) return; // D3: 観戦者は操作不可（新しい局は公開ビューで届く）
   const g = state.game;
   if (!g || g.phase !== 'end' || !g.roundEnd) return;
   // v1.19: 最終局は両者ゲート不要。押した側が即・勝敗表示（スコアは両者同期済み・待たない）
@@ -8826,6 +8955,7 @@ function launchKusudama() {
 // v1.22: 総結果の「再戦 / ロビー」両者選択ゲート。
 //  両方が再戦 → 再戦（対戦画面のまま同じルールで第1局）。それ以外（片方でもロビー）→ ロビー。
 function onGameChoice(choice) { // choice = 'rematch' | 'lobby'
+  if (state.isSpectator) { if (choice === 'lobby') leaveRoom(); return; } // D3: 観戦者は再戦投票に加われない（ロビーで退出のみ・再戦は観戦継続）
   if (state.vsAI) { // v1.59: 対コンピュータ戦は再戦も親決めからやり直す（札は閉じた状態に）
     document.getElementById('ovGame').classList.remove('show');
     if (choice === 'rematch') vsAiToPrep();
@@ -8882,17 +9012,13 @@ function rematchStart() {
 }
 
 // --- ホスト権威 state 同期 ---
-// syncState: host → guest。フェーズ遷移ごとに送る。solo デバッグ時は no-op。
-// applyState: guest 側で受信 → state.game を上書き → 再描画 + オーバーレイ制御。
-function syncState(opts) {
-  // MomoMatchmaking.send は DC 未確立時 WS フォールバックするので、
-  // 相手が居るなら (guestName 有り) 送信可能。
-  if (state.solo || !state.isHost || !state.guestName) return;
+// syncState: host → guest（＋観戦者）。フェーズ遷移ごとに送る。solo デバッグ時は no-op。
+// applyState: guest／観戦者 側で受信 → state.game を上書き → 再描画 + オーバーレイ制御。
+
+// D3: ゲスト視点のペイロード（自分の手札は実体・相手は枚数）を組み立てる。
+function koiStatePayload(type) {
   const g = state.game;
-  if (!g) return;
-  const type = (opts && opts.deal) ? 'deal' : 'state';
-  // D1: 盤面状態は全員宛（to:'all'）。※D3で観戦者用のマスク済みビューを別途配る。
-  MomoMatchmaking.send({
+  return {
     type: type,
     settings: state.settings,
     field: g.field,
@@ -8927,7 +9053,149 @@ function syncState(opts) {
     matchOver: state.matchOver,
     nextReady: g.nextReady || { host: false, guest: false },
     event: g.event || null, // v1.14: こいこい演出イベント
-  }, 'all'); // D1: 全員宛
+    pnames: { host: state.hostName || '', guest: state.guestName || '' }, // D3: 観戦者に対局者名を伝える
+  };
+}
+
+// D3: 観戦者向け公開ペイロード。両者の手札を枚数のみに落として情報漏れを防ぐ。
+function koiSpectatorPayload(base) {
+  const p = Object.assign({}, base);
+  delete p.guestHand;
+  p.guestHandCount = (state.game && state.game.hands.guest.length) || 0;
+  p.yakuBaselineGuest = []; // 観戦者は役選択をしないので不要
+  return p;
+}
+
+// D3: 観戦者（＝ホストでもゲスト（playerPid）でもない参加者）の pid 一覧。
+function specTargetPids() {
+  return (state.roster || [])
+    .filter(x => x && x.pid && x.pid !== state.myPid && x.pid !== state.playerPid)
+    .map(x => x.pid);
+}
+
+function syncState(opts) {
+  // MomoMatchmaking.send は DC 未確立時 WS フォールバックするので、
+  // 相手が居るなら (guestName 有り) 送信可能。
+  if (state.solo || !state.isHost || !state.guestName) return;
+  const g = state.game;
+  if (!g) return;
+  const type = (opts && opts.deal) ? 'deal' : 'state';
+  const playerPayload = koiStatePayload(type);
+  const specs = specTargetPids();
+  if (specs.length === 0) {
+    // 観戦者なし＝従来どおり全員宛（2人対局は完全に挙動不変）
+    MomoMatchmaking.send(playerPayload, 'all');
+    return;
+  }
+  // 観戦者あり：ゲストにはゲスト視点、観戦者には公開ビューを配り分ける。
+  MomoMatchmaking.send(playerPayload, state.playerPid || 'all');
+  const specPayload = koiSpectatorPayload(playerPayload);
+  specs.forEach(pid => MomoMatchmaking.send(specPayload, pid));
+}
+
+// D3: 観戦者が入室したら現在の状態を送って画面に載せる（対局中なら公開ビューを、準備中なら設定を）。
+function koiBootstrapSpectator(pid) {
+  if (state.solo || !state.isHost) return;
+  // ゲーム選択（こいこい/八八）を同期して観戦者の画面を合わせる
+  MomoMatchmaking.send({ type: 'settings', settings: state.settings, gameSel: state.gameSel }, pid);
+  if (state.gameSel === 'hachi') {
+    // 八八：対局中なら開始情報＋全席伏せの公開ビューを送って盤面に載せる。準備中なら開始時に届く。
+    const st = state.h88;
+    if (st && st.online && st.game) {
+      MomoMatchmaking.send({ type: 'h88-start', names: st.names, seatCycle: st.seatCycle, rounds: st.rounds, rules: st.rules, preset: st.preset, scores: st.scores, oyaDraws: st.oyaDraws }, pid);
+      MomoMatchmaking.send(Object.assign({}, h88StateBody(), { hands: h88HandsOut(null) }), pid);
+    }
+    return;
+  }
+  const g = state.game;
+  if (!g) return; // まだ対局前＝準備画面のまま。開始時の deal で載る。
+  MomoMatchmaking.send(koiSpectatorPayload(koiStatePayload('state')), pid); // 途中参加は state で即スナップ（配りアニメは再生しない）
+}
+
+// D3: 準備画面・対局画面に観戦者数を表示。
+function updateSpectatorCount() {
+  const n = specTargetPidsSafeCount();
+  document.querySelectorAll('.spec-count').forEach(el => {
+    if (n > 0) { el.textContent = t('spectators.count', { n: n }); el.classList.remove('hidden'); }
+    else { el.textContent = ''; el.classList.add('hidden'); }
+  });
+}
+// roster から観戦者数を数える（ホストは playerPid 以外、ゲスト/観戦者は role で数える）。
+function specTargetPidsSafeCount() {
+  const r = state.roster || [];
+  if (state.isHost) return r.filter(x => x && x.pid && x.pid !== state.myPid && x.pid !== state.playerPid).length;
+  return r.filter(x => x && x.role === 'spectator').length;
+}
+
+// D3c: 対局が動いているか（準備画面のみ役変更を許すため）。
+function h88InGameNow() { return !!(state.h88 && state.h88.game); }
+function inGameNow() { return !!state.game || h88InGameNow(); }
+
+// D3c: ホストの役変更パネル（準備画面のみ・対局中は非表示・ホストのみ）。
+function renderParticipantMgmt() {
+  const el = document.getElementById('participant-mgmt');
+  if (!el) return;
+  if (!state.isHost || inGameNow()) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+  const others = (state.roster || []).filter(x => x && x.pid && x.pid !== state.myPid);
+  if (others.length === 0) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+  el.classList.remove('hidden');
+  el.innerHTML = '';
+  const head = document.createElement('div'); head.style.cssText = 'font-weight:600;margin-bottom:.3em'; head.textContent = t('pm.head'); el.appendChild(head);
+  others.forEach(x => {
+    const isPlayer = (x.pid === state.playerPid);
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:.5em;margin:.15em 0';
+    const nm = document.createElement('span'); nm.style.flex = '1'; nm.textContent = (x.name || '?') + '（' + t(isPlayer ? 'pm.role.player' : 'pm.role.spectator') + '）';
+    const btn = document.createElement('button'); btn.className = 'btn btn-ghost btn-sm';
+    btn.textContent = isPlayer ? t('pm.demote') : t('pm.promote');
+    btn.addEventListener('click', () => hostSetRole(x.pid, isPlayer ? 'spectator' : 'player'));
+    row.appendChild(nm); row.appendChild(btn); el.appendChild(row);
+  });
+}
+
+// D3c: ホストが参加者の役を変更（プレイヤー↔観戦）。花札側だけで実現（サーバーの役は変えない）。
+function hostSetRole(pid, role) {
+  if (!state.isHost || inGameNow()) return; // Q2A: 対局中は変更不可
+  if (role === 'player') {
+    if (state.playerPid === pid) return;
+    const old = state.playerPid;
+    state.playerPid = pid;
+    const entry = (state.roster || []).find(x => x.pid === pid);
+    state.guestName = (entry && entry.name) || state.guestName;
+    state.connected = true;
+    if (old) MomoMatchmaking.send({ type: 'role-assign', role: 'spectator' }, old);
+    MomoMatchmaking.send({ type: 'role-assign', role: 'player', hostName: state.hostName }, pid);
+  } else { // demote
+    if (state.playerPid !== pid) return;
+    state.playerPid = null;
+    state.guestName = '';
+    state.connected = false;
+    MomoMatchmaking.send({ type: 'role-assign', role: 'spectator' }, pid);
+  }
+  hostResetPrepHandshake();
+  refreshRoomView();
+}
+
+// D3c: 役が変わったら親決め・準備完了をリセットして新しい顔ぶれで仕切り直す（ホスト側）。
+function hostResetPrepHandshake() {
+  state.oyaHostMonth = null; state.oyaHostCard = null; state.oyaGuestMonth = null; state.oyaGuestCard = null; state.oya = null;
+  state.readyHost = false; state.readyGuest = false;
+  state.h88OnlineOya = { p0: null, p1: null, p2: null };
+  renderOyaDraw();
+  MomoMatchmaking.send({ type: 'settings', settings: state.settings, gameSel: state.gameSel }, 'all'); // 顔ぶれに設定を配り直す
+  if (state.gameSel === 'hachi') h88SendRules();
+}
+
+// D3c: 役変更の通知を受けた側（プレイヤー↔観戦）。準備画面をリセットして表示更新。
+function applyRoleAssign(data) {
+  state.isSpectator = (data.role === 'spectator');
+  if (data.hostName) state.hostName = data.hostName;
+  state.oyaHostMonth = null; state.oyaHostCard = null; state.oyaGuestMonth = null; state.oyaGuestCard = null; state.oya = null;
+  state.readyHost = false; state.readyGuest = false;
+  state.h88OnlineOya = { p0: null, p1: null, p2: null };
+  if (state.screen !== 'room') showScreen('room'); // 役変更は準備画面のみ＝準備室へ
+  renderOyaDraw();
+  refreshRoomView();
 }
 
 function applyState(msg) {
@@ -8939,7 +9207,8 @@ function applyState(msg) {
   g.field = msg.field || [];
   g.hands = {
     host: new Array(msg.hostHandCount || 0).fill({ id: '?' }), // 裏向き描画用のダミー
-    guest: msg.guestHand || [],
+    // D3: ゲストは自分の手札実体を受け取る。観戦者は公開ビュー（guestHandCount）＝枚数だけを伏せ札で描画。
+    guest: msg.guestHand || new Array(msg.guestHandCount || 0).fill({ id: '?' }),
   };
   g.caps = msg.caps || { host: [], guest: [] };
   g.currentPlayer = msg.currentPlayer;
@@ -8965,13 +9234,15 @@ function applyState(msg) {
   g.nextReady = msg.nextReady || { host: false, guest: false };
   g.event = msg.event || null; // v1.14: こいこい演出イベント（renderGame でバナー表示）
   state.game = g;
+  // D3: 観戦者は対局者名を公開ビューから受け取り、盤面の氏名表示を実プレイヤーに合わせる
+  if (state.isSpectator && msg.pnames) { state.hostName = msg.pnames.host || state.hostName; state.guestName = msg.pnames.guest || state.guestName; }
   if (msg.settings) state.settings = Object.assign({}, state.settings, msg.settings);
   // v1.13: 対戦レベルの状態を反映（局番号・累計・親・総結果）
   if (typeof msg.roundNo === 'number') state.roundNo = msg.roundNo;
   if (msg.scores) state.scores = msg.scores;
   if (msg.oya) state.oya = msg.oya;
   state.matchOver = !!msg.matchOver;
-  if (enteringGame) saveSession(); // 対局入りを復帰用に保存（state.game 確定後なので inGame=true になる）
+  if (enteringGame && !state.isSpectator) saveSession(); // 対局入りを復帰用に保存（観戦者は復帰対象外）
   // v1.36: 局ごとの配り（'deal'）は必ず配りアニメ。再接続や通常更新('state')は通常描画。
   //   ※ゲストは 'start' 受信で先に game 画面へ入る（enteringGame が偽になる）ため、画面遷移では判定しない。
   if (msg.type === 'deal' && animEnabled()) runDeal();
@@ -9036,6 +9307,7 @@ function handleIntent(data) {
 // 10) ホスト操作 (ゲームスタート)
 // --------------------------------------------------------------------------
 function startGame() {
+  if (state.isSpectator) return; // D3: 観戦者は開始操作をしない
   // v1.63: 八八(3人)を選んでいれば八八へ（vsコンピュータのみ）
   if (state.gameSel === 'hachi' && !state.vsAI) { // v2.51: オンライン八八＝両者押し方式（こいこい同様）。親決め完了後、両者が「準備完了」を押したらホストが開始。
     const o = state.h88OnlineOya;
@@ -9084,6 +9356,7 @@ function tryLaunchGame() {
 function leaveRoom() {
   state.intentionalLeave = true;        // 意図的退出 → 自動復帰を抑止
   state.vsAI = false; state.solo = false; // v1.59: 対コンピュータ戦フラグ解除
+  state.isSpectator = false; state.playerPid = null; // D3: 観戦フラグを解除
   try { MomoMatchmaking.leaveRoom(); } catch (e) {}
   state.connected = false;
   state.guestName = '';

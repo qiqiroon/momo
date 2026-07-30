@@ -1323,7 +1323,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.63</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.64</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1389,7 +1389,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.63</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.64</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1519,7 +1519,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.63</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.64</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1579,7 +1579,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.63</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.64</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -3729,7 +3729,7 @@ function handleP2P(data) {
     if (st && state.isHost && st.h88NextReady) {
       st.h88NextReady.p1 = true;
       if (st.h88NextReady.p0 && st.h88NextReady.p1) { if (st._h88GateCleanup) st._h88GateCleanup(); h88AdvanceRoundOnline(); }
-      else { MomoMatchmaking.send({ type: 'h88-nextready', ready: st.h88NextReady }); if (st._h88GateRender) st._h88GateRender(); }
+      else { MomoMatchmaking.send({ type: 'h88-nextready', ready: st.h88NextReady }, 'all'); if (st._h88GateRender) st._h88GateRender(); }
     }
     return;
   }
@@ -4830,7 +4830,7 @@ function h88StartOnlineHost() {
     roundNo: 1, rounds: rounds, seatCycle: order, game: null, aiToken: 0, oyaDraws: draws, focusSeat: null, log: [],
     online: true, mySeat: 'p0', cpuSeats: ['p2'],    // ホスト視点＝p0／CPU席=p2
   };
-  MomoMatchmaking.send({ type: 'h88-start', names: names, seatCycle: order, rounds: rounds, rules: state.h88.rules, preset: state.h88.preset, scores: state.h88.scores, oyaDraws: draws });
+  MomoMatchmaking.send({ type: 'h88-start', names: names, seatCycle: order, rounds: rounds, rules: state.h88.rules, preset: state.h88.preset, scores: state.h88.scores, oyaDraws: draws }, 'all'); // D2: 全員宛
   showScreen('hachi');
   h88SetupOppDrag();
   h88StartRound(order[0]);
@@ -4872,7 +4872,7 @@ function h88OnlineDrawMyOya() {
     if (o.p1) return;
     // 依頼を送るだけ（ホストが p1 を引いて配信）。ボタンは無効化しない＝接続直後に依頼が届かなくても押し直せる。
     // ホスト側 h88OnlineHostDrawSeat は「その席が既に引かれていれば無視」する冪等処理なので二重依頼は安全。
-    MomoMatchmaking.send({ type: 'h88-oya-req', seat: 'p1' });
+    MomoMatchmaking.send({ type: 'h88-oya-req', seat: 'p1' }, 'host'); // D2: 依頼はホスト宛
   }
 }
 // ホスト：指定席の親札を1枚引く（既出の月は避ける）→ 配信・進行。
@@ -4885,7 +4885,7 @@ function h88OnlineHostDrawSeat(seat) {
   let c; do { c = deck.pop(); } while (c && used[c.month]);
   if (!c) return;
   o[seat] = { month: c.month, id: c.id };
-  MomoMatchmaking.send({ type: 'h88-oya-state', draws: o });
+  MomoMatchmaking.send({ type: 'h88-oya-state', draws: o }, 'all'); // D2: 全員宛
   playSfx('pero');
   if (o.p0 && o.p1 && o.p2) state.h88prep = { names: h88OnlineRoleNames(), oyaDraws: o, seatCycle: h88SeatOrder(o), revealed: true };
   h88OnlineOyaRender();
@@ -4938,7 +4938,7 @@ function h88SyncState() {
     drawn: st.drawn || null, pendingUi: st.pending || null, activeFlyId: st._activeFlyId || null,
     roundOya: st.roundOya, roundNo: st.roundNo, rounds: st.rounds, scores: st.scores, names: st.names,
     teyakuMarks: st.teyakuMarks || null, teyakuReveal: st.teyakuReveal || null,
-  });
+  }, 'all'); // D2: 盤面状態は全員宛（※各席の手札は handsOut で席別にマスク済み。D3で観戦ビューを追加）
 }
 // ゲスト：'h88-state' 受信＝自席視点で盤面を再構成して描画（エンジンは回さない）。
 function h88ApplyState(msg) {
@@ -4984,7 +4984,7 @@ function h88SendRules() {
   const segs = {};
   H88_BUNDLE_SEGS.forEach(id => { const v = h88SegVal(id); if (v != null) segs[id] = v; });
   const rseg = document.getElementById('h88-rounds-seg'); const ron = rseg && rseg.querySelector('button.on');
-  MomoMatchmaking.send({ type: 'h88-rules', segs: segs, rounds: ron ? ron.dataset.v : null });
+  MomoMatchmaking.send({ type: 'h88-rules', segs: segs, rounds: ron ? ron.dataset.v : null }, 'all'); // D2: 全員宛
 }
 // v2.50: ① ゲスト：受け取った八八ルールを自分の表示に反映（操作は不可）。
 function h88ApplyRulesRemote(msg) {
@@ -5061,7 +5061,7 @@ function h88StartRound(oyaId) {
   h88Log('──── 第' + st.roundNo + '局 開始（親：' + st.names[oyaId] + '／手番順 ' + st.seatCycle.map(s => st.names[s]).join('→') + '）');
   h88AutoFocus(); // v1.63 B4: 開始時、親が相手ならその相手を主表示に
   renderH88();
-  if (st.online && state.isHost) MomoMatchmaking.send({ type: 'h88-deal' }); // v2.50: ゲストにも配りアニメを再生させる合図（盤面同期の直後）
+  if (st.online && state.isHost) MomoMatchmaking.send({ type: 'h88-deal' }, 'all'); // v2.50: ゲストにも配りアニメを再生させる合図（盤面同期の直後）／D2: 全員宛
   const proceed = () => { // 配り後：⑩出降りON＝出る/降りるフェーズ→手役、OFF＝手役
     if (!state.h88 || state.h88 !== st) return;
     if (h88Rules().deiori) { h88BeginDeiori(st.game, oyaId); return; }
@@ -5089,13 +5089,13 @@ function h88ShowTeyakuAndPlay(g) {
     h88Log('◆ 手役（提示・精算は局終了）：' + Object.keys(teyaku).map(s => st.names[s] + ' ' + teyaku[s].jp + ' ' + teyaku[s].mon + unit).join(' ／ '));
     playSfx(teyaku[h88MySeat()] ? 'charin' : 'pu'); // v2.49-段4: コイン音は自分に手役があるときだけ（視点対応）
     if (st.online && state.isHost) { // v2.49-段4: ゲストにも手役パネルを出す（ゲスト視点で生成して送る）
-      MomoMatchmaking.send({ type: 'h88-teyaku', html: h88TeyakuPanelHtml(g, teyaku, H88_GUEST_SEAT), hasMine: !!teyaku[H88_GUEST_SEAT] });
+      MomoMatchmaking.send({ type: 'h88-teyaku', html: h88TeyakuPanelHtml(g, teyaku, H88_GUEST_SEAT), hasMine: !!teyaku[H88_GUEST_SEAT] }, H88_GUEST_SEAT); // D2: その席宛
     }
     showNotice(t('h88.teyaku.title'),bodyHtml,
       () => { st.teyakuMarks = null; st.teyakuReveal = null; renderH88(); h88MaybeAi(); },
       { clear: true, draggable: true, html: true });
   } else {
-    if (st.online && state.isHost) MomoMatchmaking.send({ type: 'h88-teyaku', clear: true }); // 手役なし＝ゲスト側の残り表示を消す保険
+    if (st.online && state.isHost) MomoMatchmaking.send({ type: 'h88-teyaku', clear: true }, H88_GUEST_SEAT); // 手役なし＝ゲスト側の残り表示を消す保険／D2: その席宛
     h88MaybeAi();
   }
 }
@@ -5216,14 +5216,14 @@ function h88AskDeioriGuestRoute(g, seat, proceed) {
   const st = state.h88, m = g.bonus || 1;
   st.h88PendingAsk = { kind: 'deiori', seat: seat, proceed: proceed };
   MomoMatchmaking.send({ type: 'h88-ask', kind: 'deiori', seat: seat, fee: h88DeioriFeeFumi(g, seat) * m,
-    bonus: m, droppedNames: g.dropped.map(s => st.names[s]), hand: g.hands[seat].map(c => c.id) });
+    bonus: m, droppedNames: g.dropped.map(s => st.names[s]), hand: g.hands[seat].map(c => c.id) }, seat); // D2: その席宛
   h88DeioriToast(t('h88.choosing', { name: st.names[seat] }));
 }
 // ゲスト側：出降りの問い合わせを表示（表示専用・選択をホストへ返す）。
 function h88ShowAskDeioriGuest(msg) {
   h88BuildDeioriModal({ fee: msg.fee, bonus: msg.bonus, droppedNames: msg.droppedNames || [], handIds: msg.hand || [],
-    onDeru: () => MomoMatchmaking.send({ type: 'h88-choice', kind: 'deiori', choice: 'deru' }),
-    onOriru: () => MomoMatchmaking.send({ type: 'h88-choice', kind: 'deiori', choice: 'oriru' }) });
+    onDeru: () => MomoMatchmaking.send({ type: 'h88-choice', kind: 'deiori', choice: 'deru' }, 'host'), // D2: 返答はホスト宛
+    onOriru: () => MomoMatchmaking.send({ type: 'h88-choice', kind: 'deiori', choice: 'oriru' }, 'host') });
 }
 // ホスト側：ゲストの出降り返答を受けて保留していた proceed を実行。
 function h88OnDeioriChoice(choice) {
@@ -5522,7 +5522,7 @@ function h88OnClickHand(idx) {
   if (st.sel === idx) { // 2度目＝出す
     hideCardBubble(); st.sel = null;
     // v2.45-段3: オンラインのゲストは intent をホストへ送る（ホストが実行して同期）。それ以外はローカル実行。
-    if (st.online && !state.isHost) { st.turnBusy = true; renderH88(); MomoMatchmaking.send({ type: 'h88-intent', action: 'play', idx: idx }); }
+    if (st.online && !state.isHost) { st.turnBusy = true; renderH88(); MomoMatchmaking.send({ type: 'h88-intent', action: 'play', idx: idx }, 'host'); } // D2: 操作はホスト宛
     else h88HumanPlayHand(idx, me);
   } else {                                                             // 1度目＝選択＋ヒント＋札名
     st.sel = idx; renderH88();
@@ -5556,7 +5556,7 @@ function h88OnClickField(id) {
   if (g.currentPlayer !== h88MySeat()) return; // v2.45-段3: 自分の手番のpickのみ（ホストがゲストのpick中に押すのを防止）
   if (p.matches.indexOf(id) < 0) return; // 候補以外は無視
   // v2.45-段3: オンラインのゲストは pick を intent でホストへ。それ以外はローカル実行。
-  if (st.online && !state.isHost) { MomoMatchmaking.send({ type: 'h88-intent', action: 'pick', id: id }); return; }
+  if (st.online && !state.isHost) { MomoMatchmaking.send({ type: 'h88-intent', action: 'pick', id: id }, 'host'); return; } // D2: 操作はホスト宛
   if (h88AnimEnabled()) { h88AnimPickField(id, h88MySeat()); return; } // v2.24: アニメON＝pending 所作で続行
   // ---- 従来（アニメOFF）：即取り ----
   const took = h88Capture(g, 'p0', p.card, id);
@@ -5613,7 +5613,7 @@ function h88AskSageRouted(g, actor, y, yt) {
     // ゲスト席＝ゲストへ問い合わせ。返事（h88-choice）が来るまでホストは進行を止める（h88AfterTurn は return 済み）。
     st.h88PendingAsk = { kind: 'sage', actor: actor, y: y, yt: yt };
     MomoMatchmaking.send({ type: 'h88-ask', kind: 'sage', actor: actor,
-      yaku: y.map(yy => ({ key: yy.key, jp: t(yy.key), mon: yy.mon })), total: yt });
+      yaku: y.map(yy => ({ key: yy.key, jp: t(yy.key), mon: yy.mon })), total: yt }, actor); // D2: その席宛
     h88DeioriToast(t('h88.choosing', { name: st.names[actor] })); // 待ちの気配（軽いトースト）
     return;
   }
@@ -5666,8 +5666,8 @@ function h88ShowAskSageGuest(msg) {
   row.appendChild(box);
   ov.classList.add('show', 'see-through');
   const cleanup = () => { ov.classList.remove('show', 'see-through'); okBtn.style.display = ''; box.remove(); };
-  document.getElementById('h88-sage-agari').onclick = () => { playSfx('button'); cleanup(); MomoMatchmaking.send({ type: 'h88-choice', kind: 'sage', choice: 'agari' }); };
-  document.getElementById('h88-sage-sageru').onclick = () => { playSfx('button'); cleanup(); MomoMatchmaking.send({ type: 'h88-choice', kind: 'sage', choice: 'sageru' }); };
+  document.getElementById('h88-sage-agari').onclick = () => { playSfx('button'); cleanup(); MomoMatchmaking.send({ type: 'h88-choice', kind: 'sage', choice: 'agari' }, 'host'); }; // D2: 返答はホスト宛
+  document.getElementById('h88-sage-sageru').onclick = () => { playSfx('button'); cleanup(); MomoMatchmaking.send({ type: 'h88-choice', kind: 'sage', choice: 'sageru' }, 'host'); };
 }
 // ホスト側：ゲストの「上がる／下げる」返答を受けてエンジンを再開。
 function h88OnSageChoice(choice) {
@@ -6109,7 +6109,7 @@ function h88RoundOver(result) {
     if (state.isHost) {
       const guestHtml = h88RoundPanelHtml(g, result, before, teyaku0, tM, H88_GUEST_SEAT, false); // ゲスト視点で生成して送る
       MomoMatchmaking.send({ type: 'h88-roundover', html: guestHtml, isLast: isLast, roundNo: st.roundNo,
-        myDelta: (st.scores[H88_GUEST_SEAT] || 0) - before[H88_GUEST_SEAT] });
+        myDelta: (st.scores[H88_GUEST_SEAT] || 0) - before[H88_GUEST_SEAT] }, H88_GUEST_SEAT); // D2: その席宛
     }
     h88ShowRoundGate(title, localHtml, isLast);
   } else {
@@ -6253,11 +6253,11 @@ function h88RoundGateNext(isLast, cleanup) {
   if (state.isHost) {
     st.h88NextReady.p0 = true;
     if (st.h88NextReady.p0 && st.h88NextReady.p1) { cleanup(); h88AdvanceRoundOnline(); return; }
-    MomoMatchmaking.send({ type: 'h88-nextready', ready: st.h88NextReady });
+    MomoMatchmaking.send({ type: 'h88-nextready', ready: st.h88NextReady }, 'all');
     if (st._h88GateRender) st._h88GateRender();
   } else {
     st.h88NextReady[me] = true; // 表示用（本体はホストが集計）
-    MomoMatchmaking.send({ type: 'h88-next' });
+    MomoMatchmaking.send({ type: 'h88-next' }, 'host'); // D2: 「次の局へ」はホスト宛
     if (st._h88GateRender) st._h88GateRender();
   }
 }
@@ -6269,7 +6269,7 @@ function h88RoundGateLeave() {
 // ホスト：両者が「次の局へ」を押したので次局を開始（もしくは総合結果へ）。
 function h88AdvanceRoundOnline() {
   const st = state.h88, g = st.game, ctx = st.h88RoundCtx || {};
-  MomoMatchmaking.send({ type: 'h88-next-go', isLast: ctx.isLast }); // ゲストのパネルを閉じさせる
+  MomoMatchmaking.send({ type: 'h88-next-go', isLast: ctx.isLast }, 'all'); // ゲストのパネルを閉じさせる／D2: 全員宛
   st.h88NextReady = null;
   if (ctx.isLast) { h88ShowMatchEnd(); return; }
   st.roundNo += 1;
@@ -9237,7 +9237,7 @@ function bindEvents() {
   // v1.69: 八八 総合結果パネルのボタン
   const bH88Rematch = document.getElementById('btn-h88-rematch');
   if (bH88Rematch) bH88Rematch.addEventListener('click', () => {
-    if (!state.vsAI) { try { MomoMatchmaking.send({ type: 'h88-rematch' }); } catch (e) {} } // v2.50: 相手も準備室へ
+    if (!state.vsAI) { try { MomoMatchmaking.send({ type: 'h88-rematch' }, 'all'); } catch (e) {} } // v2.50: 相手も準備室へ／D2: 全員宛
     document.getElementById('ovH88End').classList.remove('show');
     state.h88 = null; showScreen('room'); refreshRoomView(); pickGame('hachi'); // 準備室で再度親決めから
   });

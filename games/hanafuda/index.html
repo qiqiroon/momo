@@ -1323,7 +1323,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.68</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.69</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1389,7 +1389,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.68</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.69</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1526,7 +1526,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.68</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.69</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1588,7 +1588,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.68</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.69</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -2129,7 +2129,7 @@ const I18N = {
     'achieve.teshi': '手四！',
     'achieve.kuttsuki': 'くっつき！',
     'achieve.draw': '引き分け',
-    'round.earned': (p) => '<b>' + p.who + '</b>（' + p.tag + '）は <b>' + p.mon + ' 文</b>獲得',
+    'round.earned': (p) => '<b>' + p.who + '</b>' + (p.tag ? '（' + p.tag + '）' : '') + 'は <b>' + p.mon + ' 文</b>獲得',
     'round.noearn': 'この局は加点なし',
     'yaku.teshi': '手四（同月4枚）',
     'yaku.kuttsuki': 'くっつき（2枚ずつ4組）',
@@ -2144,6 +2144,7 @@ const I18N = {
     'game.end.title.win': '🎉 勝利！',
     'game.end.title.lose': '敗北…',
     'game.end.title.draw': '引き分け',
+    'game.end.title.spec': '対局終了',
     'game.end.msg': (p) => '<b>' + p.who + '</b> の勝利！<br>' + p.hi + ' 文 対 ' + p.lo + ' 文',
     'game.end.msg.draw': (p) => '同点（' + p.hi + ' 文）で引き分けでした。',
     'game.rematch': 'もう一度対戦',
@@ -2415,7 +2416,7 @@ const I18N = {
     'achieve.teshi': 'Teshi!',
     'achieve.kuttsuki': 'Kuttsuki!',
     'achieve.draw': 'Draw',
-    'round.earned': (p) => '<b>' + p.who + '</b> (' + p.tag + ') earned <b>' + p.mon + ' mon</b>',
+    'round.earned': (p) => '<b>' + p.who + '</b>' + (p.tag ? ' (' + p.tag + ')' : '') + ' earned <b>' + p.mon + ' mon</b>',
     'round.noearn': 'No points this round',
     'yaku.teshi': 'Teshi (four of a month)',
     'yaku.kuttsuki': 'Kuttsuki (four pairs)',
@@ -2427,6 +2428,7 @@ const I18N = {
       ? 'Dealer <span class="oya-chg">changes</span> → next round dealer is <b>' + p.who + '</b>'
       : 'Dealer <span class="oya-chg">stays</span> → <b>' + p.who + '</b> deals again next round',
     'game.round': (p) => 'Round ' + p.n + ' / ' + p.total,
+    'game.end.title.spec': 'Game over',
     'game.end.title.win': '🎉 Victory!',
     'game.end.title.lose': 'Defeated…',
     'game.end.title.draw': 'Draw',
@@ -2701,7 +2703,7 @@ const I18N = {
     'achieve.teshi': '手四！',
     'achieve.kuttsuki': '粘！',
     'achieve.draw': '平局',
-    'round.earned': (p) => '<b>' + p.who + '</b>（' + p.tag + '）获得 <b>' + p.mon + ' 文</b>',
+    'round.earned': (p) => '<b>' + p.who + '</b>' + (p.tag ? '（' + p.tag + '）' : '') + '获得 <b>' + p.mon + ' 文</b>',
     'round.noearn': '本局无得分',
     'yaku.teshi': '手四（同月4张）',
     'yaku.kuttsuki': '粘（2张×4组）',
@@ -2713,6 +2715,7 @@ const I18N = {
       ? '庄家<span class="oya-chg">交替</span> → 下一局庄家是 <b>' + p.who + '</b>'
       : '庄家<span class="oya-chg">不变</span> → 下一局仍由 <b>' + p.who + '</b> 坐庄',
     'game.round': (p) => '第' + p.n + '局 / 全' + p.total + '局',
+    'game.end.title.spec': '对局结束',
     'game.end.title.win': '🎉 胜利！',
     'game.end.title.lose': '败北…',
     'game.end.title.draw': '平局',
@@ -3799,6 +3802,8 @@ function handleSpectatorMsg(data) {
   if (data.type === 'deal' || data.type === 'state') { applyState(data); return; } // こいこい公開ビュー
   if (data.type === 'h88-start') { h88ApplyStart(data); return; } // 八八：観戦者の盤面をセットアップ
   if (data.type === 'h88-state') { h88ApplyState(data); return; } // 八八公開ビュー
+  if (data.type === 'h88-oya-state') { h88OnlineOyaApplyRemote(data.draws); return; } // 八八：準備室の親決めを観戦者にも反映
+  if (data.type === 'h88-rules') { h88ApplyRulesRemote(data); return; } // 八八：ルール表示を観戦者にも同期
   if (data.type === 'hello') { state.hostName = data.name || state.hostName; refreshRoomView(); return; }
   if (data.type === 'start') { showScreen('game'); return; }
   if (data.type === 'go-lobby') { leaveRoom(); return; }
@@ -5111,12 +5116,12 @@ function h88HandleIntent(data) {
   }
 }
 // v2.50: ① ホスト：八八ルール（個別バンドル＋局数）をゲストへ送る。プリセットのラベルはゲスト側が再計算する。
-function h88SendRules() {
+function h88SendRules(to) {
   if (!state.isHost || state.vsAI || state.gameSel !== 'hachi' || !state.guestName) return;
   const segs = {};
   H88_BUNDLE_SEGS.forEach(id => { const v = h88SegVal(id); if (v != null) segs[id] = v; });
   const rseg = document.getElementById('h88-rounds-seg'); const ron = rseg && rseg.querySelector('button.on');
-  MomoMatchmaking.send({ type: 'h88-rules', segs: segs, rounds: ron ? ron.dataset.v : null }, 'all'); // D2: 全員宛
+  MomoMatchmaking.send({ type: 'h88-rules', segs: segs, rounds: ron ? ron.dataset.v : null }, to || 'all'); // D2: 既定は全員宛（D3: 観戦者ブートストラップは宛先指定）
 }
 // v2.50: ① ゲスト：受け取った八八ルールを自分の表示に反映（操作は不可）。
 function h88ApplyRulesRemote(msg) {
@@ -5613,7 +5618,8 @@ function renderH88() {
   selfHandEl.innerHTML = g.hands[mySeat].map((c, i) => {
     // v2.24: 2枚合致の選択待ちで浮かせている手札（playPick）は sel と同じく上げたままに
     const lifted = st.sel === i || (g.playPick && g.playPick.player === mySeat && g.playPick.id === c.id);
-    return '<span class="h88-hand-card' + (lifted ? ' sel' : '') + (selfMarks.indexOf(c.id) >= 0 ? ' tmark' : '') + '" data-idx="' + i + '"' + (handOn ? '' : ' style="cursor:default;opacity:.85"') + '>' + svgCard(c.id) + '</span>';
+    const face = (c.id === '?') ? svgBack() : svgCard(c.id); // D3: 観戦者は視点席(p0)の手札もマスク='?'→伏せ札で描く（NaN空札を出さない）
+    return '<span class="h88-hand-card' + (lifted ? ' sel' : '') + (selfMarks.indexOf(c.id) >= 0 ? ' tmark' : '') + '" data-idx="' + i + '"' + (handOn ? '' : ' style="cursor:default;opacity:.85"') + '>' + face + '</span>';
   }).join('');
   // v2.24: 出した札の跡地に見えない空きを残す（取り札の整列段まで手札を左寄せしない・こいこい準拠）
   if (g.playedFromHand && g.playedFromHand.player === mySeat) {
@@ -7082,12 +7088,15 @@ function animOpponentPlay() {
   if (g.lastPlay.ts <= ANIM._lastPlayTs) return;
   const isOpp = g.lastPlay.player !== mySide();
   ANIM._lastPlayTs = g.lastPlay.ts;
-  if (!isOpp) return; // 自分の手は通常の FLIP で処理済み（手札→場が滑る）
+  // 自分の手は通常の FLIP で処理済み（手札→場が滑る）。ただし観戦者は自席(=ゲスト)の手札も伏せ札で
+  // data-id が無く FLIP で追えないため、自席側の手出しもここで手札エリアから滑らせる。
+  if (!isOpp && !state.isSpectator) return;
   const el = document.querySelector('#field-cards .card[data-id="' + g.lastPlay.id + '"]');
   if (!el) return;
-  const oppHand = document.getElementById('opp-hand');
-  const back = oppHand && oppHand.querySelector('.card');
-  const fromRect = back ? back.getBoundingClientRect() : (oppHand ? oppHand.getBoundingClientRect() : null);
+  // スライド元＝出した席の手札エリア（自席=下 my-hand / 相手=上 opp-hand）
+  const fromHand = document.getElementById((g.lastPlay.player === mySide()) ? 'my-hand' : 'opp-hand');
+  const back = fromHand && fromHand.querySelector('.card');
+  const fromRect = back ? back.getBoundingClientRect() : (fromHand ? fromHand.getBoundingClientRect() : null);
   if (!fromRect || !fromRect.width) return;
   const r = el.getBoundingClientRect();
   if (!r.width) return;
@@ -8798,7 +8807,7 @@ function renderRoundEndFromData() {
   // 獲得文の一行（＜名前＞（あなた/相手）は n文獲得）
   const msgEl = document.getElementById('round-end-msg');
   if (hasWinner) {
-    const tag = (rend.winner === me) ? t('game.you') : t('game.opp');
+    const tag = state.isSpectator ? '' : ((rend.winner === me) ? t('game.you') : t('game.opp')); // D3: 観戦者は（あなた/相手）を付けず名前だけ
     let earned = t('round.earned', { who: whoLabel(rend.winner), tag: tag, mon: rend.delta });
     // v1.44: 倍率がかかっていれば「役n文 ×倍率」を表示
     if (rend.mult && rend.mult > 1) {
@@ -8852,9 +8861,15 @@ function renderRoundReady() {
   const meReady = !!nr[me], oppReady = !!nr[opp];
   const btn = document.getElementById('btn-round-next');
   btn.textContent = g.roundEnd.isFinal ? t('round.result') : t('round.next');
-  btn.disabled = meReady && !state.solo;
+  btn.disabled = state.isSpectator || (meReady && !state.solo); // D3: 観戦者は押せない（局は自動で進む）
   const meLbl = document.getElementById('rn-me-lbl');
   const oppLbl = document.getElementById('rn-opp-lbl');
+  if (state.isSpectator) {
+    // D3: 観戦者は「あなた/あいて」でなく両対局者の名前＋押下状況を表示
+    if (meLbl) { meLbl.textContent = whoLabel(me) + '：' + (meReady ? t('round.pressed') : t('round.oppwaiting')); meLbl.style.color = meReady ? 'var(--gold)' : 'var(--text-muted)'; }
+    if (oppLbl) { oppLbl.textContent = whoLabel(opp) + '：' + (oppReady ? t('round.pressed') : t('round.oppwaiting')); oppLbl.style.color = oppReady ? 'var(--gold)' : 'var(--text-muted)'; }
+    return;
+  }
   if (meLbl) {
     meLbl.textContent = t('game.you') + '：' + (meReady ? t('round.pressed') : t('round.notpressed'));
     meLbl.style.color = meReady ? 'var(--gold)' : 'var(--text-muted)';
@@ -8916,7 +8931,15 @@ function renderGameEndFromData() {
   document.getElementById('ovRound').classList.remove('show');
   const draw = (sMe === sOpp);
   let iWin = false;
-  if (draw) {
+  if (state.isSpectator) {
+    // D3: 観戦者は勝敗（勝利/敗北）でなく中立の「対局終了」＋勝者名で表示
+    const winnerSide = draw ? null : (sMe > sOpp ? me : opp);
+    title.className = 'ge-title ' + (winnerSide ? 'win' : 'draw');
+    title.textContent = t('game.end.title.spec');
+    msgEl.innerHTML = winnerSide
+      ? t('game.end.msg', { who: whoLabel(winnerSide), hi: Math.max(sMe, sOpp), lo: Math.min(sMe, sOpp) })
+      : t('game.end.msg.draw', { hi: sMe });
+  } else if (draw) {
     title.className = 'ge-title draw';
     title.textContent = t('game.end.title.draw');
     msgEl.innerHTML = t('game.end.msg.draw', { hi: sMe });
@@ -8932,9 +8955,18 @@ function renderGameEndFromData() {
   const panel = document.querySelector('#ovGame .opanel');
   if (panel) panel.classList.toggle('win', iWin);
   // v1.22: 再戦/ロビー選択ボタンを初期状態に（未選択なら有効・注記クリア）
-  if (!state.gameChoiceMade) {
+  {
     const br = document.getElementById('btn-rematch'), bl = document.getElementById('btn-game-lobby'), note = document.getElementById('game-choice-note');
-    if (br) br.disabled = false; if (bl) bl.disabled = false; if (note) note.textContent = '';
+    if (state.isSpectator) {
+      // D3: 観戦者は再戦投票に加われない＝再戦ボタンを隠し、ロビー（退出）のみ
+      if (br) br.style.display = 'none';
+      if (bl) { bl.disabled = false; bl.style.display = ''; }
+      if (note) note.textContent = '';
+    } else if (!state.gameChoiceMade) {
+      if (br) { br.style.display = ''; br.disabled = false; }
+      if (bl) bl.disabled = false;
+      if (note) note.textContent = '';
+    }
   }
   const alreadyShown = document.getElementById('ovGame').classList.contains('show');
   document.getElementById('ovGame').classList.add('show');
@@ -9131,7 +9163,10 @@ function koiBootstrapSpectator(pid) {
   // ゲーム選択（こいこい/八八）＋実プレイヤー名を同期して観戦者の画面を合わせる
   MomoMatchmaking.send({ type: 'settings', settings: state.settings, gameSel: state.gameSel, guestName: state.guestName }, pid);
   if (state.gameSel === 'hachi') {
-    // 八八：対局中なら開始情報＋全席伏せの公開ビューを送って盤面に載せる。準備中なら開始時に届く。
+    // 八八：準備室で既に進んだ親決め・ルールを新しい観戦者にも送る（入室前の分を反映）。
+    if (state.h88OnlineOya) MomoMatchmaking.send({ type: 'h88-oya-state', draws: state.h88OnlineOya }, pid);
+    h88SendRules(pid); // ルール表示を同期（宛先指定）
+    // 対局中なら開始情報＋全席伏せの公開ビューを送って盤面に載せる。準備中なら開始時に届く。
     const st = state.h88;
     if (st && st.online && st.game) {
       MomoMatchmaking.send({ type: 'h88-start', names: st.names, seatCycle: st.seatCycle, rounds: st.rounds, rules: st.rules, preset: st.preset, scores: st.scores, oyaDraws: st.oyaDraws }, pid);

@@ -1323,7 +1323,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.67</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.68</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1389,7 +1389,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.67</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.68</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1526,7 +1526,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.67</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.68</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1588,7 +1588,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.67</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.68</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1879,7 +1879,7 @@
 </footer>
 
 <!-- ===== 共通マッチングモジュール（WS シグナリング + WebRTC P2P） ===== -->
-<script src="../matchmaking/momo-matchmaking.js"></script>
+<script src="../matchmaking/momo-matchmaking.js?v=1.02"></script>
 
 <script>
 // ==========================================================================
@@ -3491,9 +3491,9 @@ function startDiagPolling() {
   // Wrap MomoMatchmaking.send once to log every outgoing message
   if (!window._sendWrapped && MomoMatchmaking && MomoMatchmaking.send) {
     const orig = MomoMatchmaking.send;
-    MomoMatchmaking.send = function(data) {
-      try { diagLog('send', 'type=' + (data && data.type) + ' via ' + (window.__hf_dcOpen ? 'DC' : 'WS-fallback')); } catch (e) {}
-      return orig.call(this, data);
+    MomoMatchmaking.send = function(data, to) { // ★D3: 第2引数(宛先 to)を必ず転送する。以前は data だけ渡して to を捨てており、多人数の宛先ルーティングが全部 'all' に化けていた（ゲストが観戦ビューを受け取り札が閉じる原因）。
+      try { diagLog('send', 'type=' + (data && data.type) + ' to=' + to + ' via ' + (window.__hf_dcOpen ? 'DC' : 'WS-fallback')); } catch (e) {}
+      return orig.call(this, data, to);
     };
     window._sendWrapped = true;
   }

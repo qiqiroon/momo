@@ -1,5 +1,5 @@
 /**
- * momo-matchmaking.js  v1.01
+ * momo-matchmaking.js  v1.02
  * MOMO Works 共通マッチング・通信モジュール
  * WebSocket（シグナリング）と WebRTC（P2P通信）を内包する。
  * ゲーム側は MomoMatchmaking.init() でコールバックを登録するだけで対戦相手との通信を確立できる。
@@ -11,6 +11,14 @@
  * v1.01 (2026-05-15): _resetConnection() 内で WS が CLOSED/CLOSING の場合
  *   自動再接続を発火するよう変更。これにより「対戦中切断 → ロビー戻り → 新部屋作成/参加」
  *   が再起動なしで成立する（Darts の対戦中止フロー / 他ゲームの切断後動作で必要）。
+ *
+ * v1.02 (2026-07-30): 多人数（mode:'multi'）対応を追加（従来1対1は完全温存）。
+ *   多人数ではWebRTCを張らず、サーバー中継（WebSocket）で送受信する。
+ *   - createRoom に mode/maxPlayers/maxSpectators、joinRoom に role（第4引数）
+ *   - send(data, to) に宛先を追加（'all'|'host'|pid）。従来の send(data) は挙動不変
+ *   - onRoomCreated/onJoinedRoom の末尾に多人数情報 {mode,pid,role,roster} を追加引数で通知
+ *   - 新コールバック onParticipantJoined / onParticipantLeft
+ *   多人数の送受信は _sendMulti に集約（将来の直結経路へ差し替え可能な出入口）。
  */
 
 const MomoMatchmaking = (() => {
@@ -28,6 +36,12 @@ const MomoMatchmaking = (() => {
 
   let _keepaliveTimer = null;
   let _sleepGuardTimer = null;
+
+  // 多人数（mode:'multi'）用の状態。従来1対1では未使用（_mode='classic'のまま）。
+  let _mode = 'classic';   // 'classic'(従来1対1・WebRTC) | 'multi'(多人数・サーバー中継)
+  let _pid = null;         // 多人数：自分の参加者ID
+  let _pRole = null;       // 多人数：'host' | 'player' | 'spectator'
+  let _roster = [];        // 多人数：参加者名簿 [{pid, role, name}]
 
   // ===== WebSocket 接続 =====
   function _connectWS() {
@@ -89,8 +103,20 @@ const MomoMatchmaking = (() => {
       _currentRoomId = d.roomId;
       _currentRoomName = d.roomName;
       _isHost = true;
-      _initRTC(true);
-      if (_options.onRoomCreated) _options.onRoomCreated(d.roomId, d.roomName, d.rules);
+      if (d.mode === 'multi') {
+        // 多人数：WebRTCは張らずWS中継で送受信。この時点で送受信可能。
+        _mode = 'multi';
+        _pid = d.yourPid || 'p0';
+        _pRole = 'host';
+        _roster = d.roster || [];
+        _connected = true;
+        if (_options.onRoomCreated) _options.onRoomCreated(d.roomId, d.roomName, d.rules, { mode: 'multi', pid: _pid, role: 'host', roster: _roster });
+        if (_options.onConnected) _options.onConnected();
+      } else {
+        _mode = 'classic';
+        _initRTC(true);
+        if (_options.onRoomCreated) _options.onRoomCreated(d.roomId, d.roomName, d.rules);
+      }
       return;
     }
 
@@ -99,8 +125,19 @@ const MomoMatchmaking = (() => {
       _currentRoomId = d.roomId;
       _currentRoomName = d.roomName;
       _isHost = false;
-      _initRTC(false);
-      if (_options.onJoinedRoom) _options.onJoinedRoom(d.roomId, d.roomName, d.hostName, d.rules);
+      if (d.mode === 'multi') {
+        _mode = 'multi';
+        _pid = d.yourPid || null;
+        _pRole = d.role || 'player';
+        _roster = d.roster || [];
+        _connected = true;
+        if (_options.onJoinedRoom) _options.onJoinedRoom(d.roomId, d.roomName, d.hostName, d.rules, { mode: 'multi', pid: _pid, role: _pRole, roster: _roster });
+        if (_options.onConnected) _options.onConnected();
+      } else {
+        _mode = 'classic';
+        _initRTC(false);
+        if (_options.onJoinedRoom) _options.onJoinedRoom(d.roomId, d.roomName, d.hostName, d.rules);
+      }
       return;
     }
 
@@ -113,6 +150,20 @@ const MomoMatchmaking = (() => {
     // ゲストが退出した（ホスト側に通知）
     if (d.type === 'guest_left') {
       if (_options.onGuestLeft) _options.onGuestLeft();
+      return;
+    }
+
+    // 多人数：参加者が入った
+    if (d.type === 'participant_joined') {
+      _roster = d.roster || _roster;
+      if (_options.onParticipantJoined) _options.onParticipantJoined(d.pid, d.role, d.name, _roster);
+      return;
+    }
+
+    // 多人数：参加者が抜けた
+    if (d.type === 'participant_left') {
+      _roster = d.roster || _roster;
+      if (_options.onParticipantLeft) _options.onParticipantLeft(d.pid, _roster);
       return;
     }
 
@@ -257,6 +308,7 @@ const MomoMatchmaking = (() => {
     _currentRoomName = '';
     _isHost = false;
     _connected = false;
+    _mode = 'classic'; _pid = null; _pRole = null; _roster = [];
     if (_dc) { try { _dc.close(); } catch {} _dc = null; }
     if (_pc) { try { _pc.close(); } catch {} _pc = null; }
     if (!_ws || _ws.readyState === WebSocket.CLOSED || _ws.readyState === WebSocket.CLOSING) {
@@ -299,7 +351,7 @@ const MomoMatchmaking = (() => {
    */
   function createRoom(options) {
     if (!_ws || _ws.readyState !== WebSocket.OPEN) return;
-    _ws.send(JSON.stringify({
+    const msg = {
       type: 'create_room',
       gameType: _options.gameType,
       hostName: options.hostName || 'ホスト',
@@ -307,7 +359,14 @@ const MomoMatchmaking = (() => {
       password: options.password || '',
       isPublic: options.isPublic !== false,
       rules: options.rules
-    }));
+    };
+    // 多人数モード（指定時のみ）。未指定なら従来1対1。
+    if (options.mode === 'multi') {
+      msg.mode = 'multi';
+      msg.maxPlayers = options.maxPlayers || 2;
+      msg.maxSpectators = options.maxSpectators || 0;
+    }
+    _ws.send(JSON.stringify(msg));
   }
 
   /**
@@ -316,14 +375,16 @@ const MomoMatchmaking = (() => {
    * @param {string} password
    * @param {string} guestName
    */
-  function joinRoom(roomId, password, guestName) {
+  function joinRoom(roomId, password, guestName, role) {
     if (!_ws || _ws.readyState !== WebSocket.OPEN) return;
-    _ws.send(JSON.stringify({
+    const msg = {
       type: 'join_room',
       roomId,
       password: password || '',
       guestName: guestName || 'ゲスト'
-    }));
+    };
+    if (role) msg.role = role; // 多人数：'player' | 'spectator'
+    _ws.send(JSON.stringify(msg));
   }
 
   /**
@@ -331,12 +392,21 @@ const MomoMatchmaking = (() => {
    * DataChannel確立済みならP2P送信、未確立ならWS経由でフォールバック。
    * @param {object} data
    */
-  function send(data) {
+  function send(data, to) {
+    if (_mode === 'multi') { _sendMulti(data, to); return; }
     if (_dc && _dc.readyState === 'open') {
       _dc.send(JSON.stringify(data));
     } else if (_ws && _ws.readyState === WebSocket.OPEN) {
       _ws.send(JSON.stringify(data));
     }
+  }
+
+  // 多人数の送信はこの1関数に集約（将来、直結の速い経路へ差し替え可能な"出入口"）。
+  // 宛先 to は 'all'（既定・自分以外の全員） / 'host' / 参加者ID(pid)。
+  function _sendMulti(data, to) {
+    if (!_ws || _ws.readyState !== WebSocket.OPEN) return;
+    const msg = Object.assign({}, data, { to: to || 'all' });
+    _ws.send(JSON.stringify(msg));
   }
 
   /**
@@ -345,7 +415,9 @@ const MomoMatchmaking = (() => {
    */
   function leaveRoom() {
     if (_currentRoomId && _ws && _ws.readyState === WebSocket.OPEN) {
-      if (_isHost) {
+      if (_mode === 'multi') {
+        _ws.send(JSON.stringify({ type: 'leave' }));
+      } else if (_isHost) {
         _ws.send(JSON.stringify({ type: 'host_leave' }));
       } else {
         _ws.send(JSON.stringify({ type: 'guest_leave' }));
@@ -382,7 +454,11 @@ const MomoMatchmaking = (() => {
       isHost: _isHost,
       connected: _connected,
       currentRoomId: _currentRoomId,
-      currentRoomName: _currentRoomName
+      currentRoomName: _currentRoomName,
+      mode: _mode,
+      pid: _pid,
+      role: _pRole,
+      roster: _roster
     };
   }
 

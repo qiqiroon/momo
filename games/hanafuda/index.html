@@ -1323,7 +1323,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.59</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.60</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1389,7 +1389,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.59</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.60</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1519,7 +1519,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.59</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.60</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1579,7 +1579,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.59</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.60</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -5996,7 +5996,7 @@ function h88RoundOver(result) {
     st.h88RoundCtx = { isLast: isLast, nextOya: nextOya };
     if (state.isHost) {
       const guestHtml = h88RoundPanelHtml(g, result, before, teyaku0, tM, H88_GUEST_SEAT, false); // ゲスト視点で生成して送る
-      MomoMatchmaking.send({ type: 'h88-roundover', html: guestHtml, isLast: isLast,
+      MomoMatchmaking.send({ type: 'h88-roundover', html: guestHtml, isLast: isLast, roundNo: st.roundNo,
         myDelta: (st.scores[H88_GUEST_SEAT] || 0) - before[H88_GUEST_SEAT] });
     }
     h88ShowRoundGate(title, localHtml, isLast);
@@ -6169,7 +6169,7 @@ function h88ShowRoundOverGuest(msg) {
   st.h88NextReady = { p0: false, p1: false };
   if (msg.myDelta > 0) { const n = Math.min(msg.myDelta, 30); for (let i = 0; i < n; i++) setTimeout(() => playSfx('charin'), i * 65); }
   else playSfx('pu');
-  h88ShowRoundGate(msg.isLast ? t('game.turn.end') : t('round.end.title'), msg.html || '', !!msg.isLast);
+  h88ShowRoundGate(msg.isLast ? t('game.turn.end') : t('h88.roundend.title', { n: msg.roundNo }), msg.html || '', !!msg.isLast);
 }
 // v1.69: 八八の総合結果（こいこいと同じ ge-panel スタイル・くす玉/スコアボード）
 function h88ShowMatchEnd() {

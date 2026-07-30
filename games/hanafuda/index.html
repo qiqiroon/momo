@@ -1323,7 +1323,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.65</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.66</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1389,7 +1389,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.65</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.66</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1402,6 +1402,8 @@
     <button class="leave-btn room-home" id="btn-leave" data-i18n="room.leave">← ロビーに戻る</button>
     <div class="conn" id="conn-status"><span class="dot"></span><span id="conn-label" data-i18n="room.conn.waiting">相手を待っています</span></div>
     <div class="room-name"><span data-i18n="room.room">部屋</span>：<b id="room-name-disp">—</b> <span id="room-pw-disp" class="hidden" style="color:var(--text-muted);font-size:.8rem">🔒 <span data-i18n="room.hasPw">パスワードあり</span></span></div>
+    <!-- D3: 自分の名前と役割（ホスト／プレイヤー／観戦）を常時表示・ホストの役変更で即反映 -->
+    <div id="self-identity" style="margin:.35em 0;padding:.35em .6em;border:1px solid var(--border,#4443);border-radius:.5em;font-size:.9rem"></div>
     <!-- D3: 観戦者向けの表示（観戦中バッジ・観戦者数） -->
     <div class="spectating-badge hidden" style="margin:.3em 0;padding:.25em .6em;background:var(--accent,#e08a2b);color:#fff;border-radius:.5em;display:inline-block;font-size:.85rem" data-i18n="spectator.badge">観戦中</div>
     <div class="spec-count hidden" style="color:var(--text-muted);font-size:.8rem;margin:.15em 0"></div>
@@ -1524,7 +1526,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.65</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.66</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1586,7 +1588,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.65</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.66</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -3087,7 +3089,9 @@ function refreshRoomView() {
   document.getElementById('room-pw-disp').classList.toggle('hidden', !state.roomHasPw);
   document.getElementById('host-name').textContent = state.hostName || '—';
   const g = document.getElementById('guest-name');
-  if (state.guestName) { g.textContent = state.guestName; g.classList.remove('waiting-g'); }
+  // D3: 観戦者はゲスト枠に「実プレイヤー名」を出す（自分の名前は self-identity 側に出す＝混同防止）
+  const guestBoxName = state.isSpectator ? (state.viewNames && state.viewNames.guest) : state.guestName;
+  if (guestBoxName) { g.textContent = guestBoxName; g.classList.remove('waiting-g'); }
   else { g.textContent = t('room.waiting'); g.classList.add('waiting-g'); }
   // v1.60: 対コンピュータ戦のときだけ、コンピュータの下に強さプルダウンを出す
   const aiSel = document.getElementById('ai-level-prep');
@@ -3119,6 +3123,7 @@ function refreshRoomView() {
   document.querySelectorAll('.spectating-badge').forEach(el => el.classList.toggle('hidden', !state.isSpectator));
   updateSpectatorCount();
   renderParticipantMgmt(); // D3c: ホストの役変更パネル
+  updateSelfIdentity();     // D3: 自分の名前＋役割（プレイヤー/観戦/ホスト）
   // v2.45-段3: 八八の役BOX（ホスト/ゲスト/コンピュータ）はゲスト参加・名前変化で再描画（「参加待ち…」→実名）
   if (state.gameSel === 'hachi') { h88PrepRenderPlayers(); if (!state.vsAI) h88OnlineOyaRender(); }
   updateStartBtn();
@@ -3353,7 +3358,7 @@ function clearSession() { try { sessionStorage.removeItem('hf_session'); } catch
 function backToLobby(msg) {
   state.reconnecting = false; state.oppAway = false; state.intentionalLeave = false;
   state.oppLeftAtEnd = false; state.myEndChoice = null; // v2.62
-  state.isSpectator = false; state.playerPid = null; // D3: 観戦フラグをロビーで解除
+  state.isSpectator = false; state.playerPid = null; state.noGuest = false; state.viewNames = null; // D3: 観戦フラグをロビーで解除
   state.vsAI = false; state.solo = false; // v1.59: 対コンピュータ戦フラグをロビーで解除
   state.connected = false; state.guestName = ''; state.game = null; state.roomId = null;
   state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null; state.oyaHostCard = null; state.oyaGuestCard = null;
@@ -3514,7 +3519,7 @@ function handleGuestJoined(guestName) {
   refreshRoomView();
   // DC 未確立でも設定が届くよう明示送信（フォールバック）
   MomoMatchmaking.send({ type: 'hello', name: state.hostName });
-  MomoMatchmaking.send({ type: 'settings', settings: state.settings, gameSel: state.gameSel }); // v2.42: ゲーム選択も同送
+  MomoMatchmaking.send({ type: 'settings', settings: state.settings, gameSel: state.gameSel, guestName: state.guestName }); // v2.42: ゲーム選択も同送／D3: 実プレイヤー名も（観戦者のゲスト枠表示用）
   h88SendRules(); // v2.50: ①八八のルールもゲスト参加時に送る（gameSel=hachiのときだけ実行）
   if (state.game) {
     // 対局中に相手が (再)入室 = 復帰。盤面を丸ごと送り直す（deal 型でゲストを対局画面へ）。
@@ -3609,6 +3614,7 @@ function initMatchmaking() {
       state.isHost = true;
       state.isSpectator = false;   // D3: ホストは常にプレイヤー
       state.playerPid = null;      // D3: 指名するゲスト（プレイヤー）のpid。最初の player 入室で確定
+      state.noGuest = false;       // D3: 明示降格（ゲスト無し）フラグ
       state.myPid = (multi && multi.pid) || 'p0'; // D0: 自分の席（ホスト=p0）
       state.roster = (multi && multi.roster) || [];
       state.roomId = roomId;
@@ -3630,6 +3636,7 @@ function initMatchmaking() {
       // D3: サーバーが割り当てた役割で観戦か否かを最終確定（tryJoin の事前判定を上書き）
       state.isSpectator = !!(multi && multi.role === 'spectator');
       state.playerPid = null;
+      state.noGuest = false;
       state.myPid = (multi && multi.pid) || 'p1'; // D0: 自分の席（最初のゲスト=p1）
       state.roster = (multi && multi.roster) || [];
       state.roomId = roomId;
@@ -3675,6 +3682,7 @@ function initMatchmaking() {
       }
       // 最初のプレイヤー = 従来ゲスト
       state.playerPid = pid;
+      state.noGuest = false;
       state.connected = true;
       handleGuestJoined(name);
     },
@@ -3780,6 +3788,7 @@ function handleSpectatorMsg(data) {
   if (data.type === 'settings') {
     if (data.settings) { state.settings = Object.assign({}, state.settings, data.settings); applySettingsToUi(); }
     if (data.gameSel && data.gameSel !== state.gameSel) pickGame(data.gameSel); // 観戦するゲームに追従
+    if (data.guestName !== undefined) state.viewNames = { host: state.hostName, guest: data.guestName }; // 実プレイヤー名を保持
     refreshRoomView();
     return;
   }
@@ -4943,7 +4952,7 @@ function h88OnlineOyaRender() {
   const oppIn = state.isHost ? !!state.guestName : !!state.hostName;
   const btn = document.getElementById('btn-h88-prep-drawoya');
   if (btn) {
-    if (o[mySeat]) { btn.classList.add('hidden'); }
+    if (state.isSpectator || o[mySeat]) { btn.classList.add('hidden'); } // D3: 観戦者は親決めボタンを出さない
     else {
       btn.classList.remove('hidden');
       btn.disabled = !oppIn;
@@ -4960,6 +4969,7 @@ function h88OnlineOyaRender() {
 }
 // 自分の「引く」ボタン押下：ホストは自席p0を即引く／ゲストはホストへ依頼。
 function h88OnlineDrawMyOya() {
+  if (state.isSpectator) return; // D3: 観戦者は親決めに参加しない
   const o = state.h88OnlineOya || (state.h88OnlineOya = { p0: null, p1: null, p2: null });
   if (state.isHost) {
     if (o.p0) return;
@@ -5052,8 +5062,9 @@ function h88SyncState() {
     MomoMatchmaking.send(guestView, 'all');
     return;
   }
-  // 観戦者あり：ゲストにはゲスト視点、観戦者には全席伏せの公開ビュー。
-  MomoMatchmaking.send(guestView, state.playerPid || 'all');
+  // 観戦者あり：ゲストにはゲスト視点だけを宛先指定で（'all'にすると観戦者へ実手札が漏れる）。観戦者には全席伏せ。
+  const guest = currentGuestPid();
+  if (guest) MomoMatchmaking.send(guestView, guest);
   const specView = Object.assign({}, body, { hands: h88HandsOut(null) });
   specs.forEach(pid => MomoMatchmaking.send(specView, pid));
 }
@@ -5527,10 +5538,11 @@ function renderH88() {
   const _h88animPrev = h88AnimEnabled() ? h88AnimSnapshot() : null; // FLIP: 描画前の全札位置を記録
   document.getElementById('h88-round').textContent = t('game.round', { n: st.roundNo, total: st.rounds });
   // v1.66/段2: スコアはコンパクトに（1行に収める）。自分=あなた／vsコンピュータは相手をCPU1/CPU2、オンラインは実名。
-  const shortNm = (s) => (s === mySeat) ? t('game.you')
+  const shortNm = (s) => (!state.isSpectator && s === mySeat) ? t('game.you') // D3: 観戦者は「あなた」を出さず名前で
     : (state.vsAI ? (s === 'p1' ? 'CPU1' : 'CPU2') : st.names[s]);
   document.getElementById('h88-scores').textContent = g.seats.map(s => shortNm(s) + ' ' + h88FormatFumi(st.scores[s] || 0)).join(' ／ ');
   document.getElementById('h88-turn').textContent = g.winner ? ''
+    : state.isSpectator ? (st.names[g.currentPlayer] + t('turn.suffix')) // D3: 観戦者は「〈名前〉の番」（行動指示は出さない）
     : st.pending ? (st.pending.stage === 'pick-draw' ? t('h88.turn.pickDraw') : t('h88.turn.pickHand'))
     : (g.currentPlayer === mySeat
         ? (st.sel != null ? t('h88.turn.confirm') : t('h88.turn.you'))
@@ -5582,10 +5594,10 @@ function renderH88() {
   const selfBox = document.querySelector('.h88-self'); // 自分の手番は相手と同じくオレンジ枠で強調（手役中は出さない）
   if (selfBox) { selfBox.classList.toggle('turn', myTurn && !st.teyakuMarks); selfBox.classList.toggle('h88-dropped', p0Dropped); }
   // 自分の名前・親・手番を取り札の1番上に（相手と同じ形で表示）。手役表示中は手番バッジを出さない。降りたら「降り」。
-  const youL = t('game.you');
+  const youL = state.isSpectator ? (st.names[mySeat] || '') : t('game.you'); // D3: 観戦者は視点席を名前で表示（「あなた」を出さない）
   document.getElementById('h88-self-nameline').innerHTML =
     (st.roundOya === mySeat ? '<span class="h88-oya-badge">' + t('oyako.oya') + '</span>' : '')
-    + youL + (st.names[mySeat] !== youL ? '：' + st.names[mySeat] : '')
+    + youL + (!state.isSpectator && st.names[mySeat] !== youL ? '：' + st.names[mySeat] : '')
     + (p0Dropped ? '<span class="h88-drop-badge">' + t('h88.badge.drop') + '</span>' : ((myTurn && !st.teyakuMarks) ? '<span class="h88-turn-badge">' + t('h88.badge.youturn') + '</span>' : ''));
   const p0Flash = (g.capFlash && g.capFlash.player === mySeat) ? new Set(g.capFlash.ids) : null; // v2.24: 回収直後の札
   document.getElementById('h88-self-caps').innerHTML = h88CapGroupedHTML(g.caps[mySeat], 'self2', p0Flash);
@@ -6449,6 +6461,10 @@ function launchKusudama88() {
 
 // --- ゲーム状態 ---
 function whoLabel(player) {
+  // D3: 観戦者は viewNames（実プレイヤー名）を使う。自分の名前(state.guestName)を対局者名に出さない。
+  if (state.isSpectator && state.viewNames) {
+    return state.viewNames[player] || (player === 'host' ? t('room.host') : t('room.guest'));
+  }
   if (player === 'host') return state.hostName || t('room.host');
   if (player === 'guest') return state.guestName || t('room.guest');
   return '';
@@ -7389,8 +7405,8 @@ function renderGame() {
   const turnMe = document.getElementById('turn-me'), turnOpp = document.getElementById('turn-opp');
   if (oyaMe) { oyaMe.textContent = (state.oya === me) ? t('oyako.oya') : t('oyako.ko'); oyaMe.classList.toggle('is-oya', state.oya === me); }
   if (oyaOpp) { oyaOpp.textContent = (state.oya === opp) ? t('oyako.oya') : t('oyako.ko'); oyaOpp.classList.toggle('is-oya', state.oya === opp); }
-  if (turnMe) { turnMe.textContent = t('turn.you'); turnMe.classList.toggle('active', g.currentPlayer === me && g.phase !== 'end'); }
-  if (turnOpp) { turnOpp.textContent = t('turn.opp'); turnOpp.classList.toggle('active', g.currentPlayer === opp && g.phase !== 'end'); }
+  if (turnMe) { turnMe.textContent = state.isSpectator ? whoLabel(me) : t('turn.you'); turnMe.classList.toggle('active', g.currentPlayer === me && g.phase !== 'end'); }
+  if (turnOpp) { turnOpp.textContent = state.isSpectator ? whoLabel(opp) : t('turn.opp'); turnOpp.classList.toggle('active', g.currentPlayer === opp && g.phase !== 'end'); }
   // v1.18: こいこい宣言者側にこいこいバッジを常時表示
   // v1.45: こいこいバッジは各プレイヤー個別に表示（双方宣言なら両方）＋多重掛け時は「こいこい×N」
   const kkMe = document.getElementById('kk-me'), kkOpp = document.getElementById('kk-opp');
@@ -7625,12 +7641,14 @@ function renderPendingOverlays() {
 
 // v1.17: 手番の主体を「＜名前＞（あなた/相手）」で表す
 function whoTurnLabel(player) {
+  if (state.isSpectator) return whoLabel(player); // D3: 観戦者は「あなた/あいて」を付けず名前だけ
   return whoLabel(player) + '（' + (player === mySide() ? t('tag.you') : t('tag.opp')) + '）';
 }
 function renderPhaseText() {
   const g = state.game;
   const who = whoTurnLabel(g.currentPlayer);
   if (g.phase === 'end') return t('game.turn.end');
+  if (state.isSpectator) return who + t('turn.suffix'); // D3: 観戦者は常に「〈名前〉の番」（行動指示は出さない）
   // v1.24: 相手の手番のときは行動指示を出さず「＜名前＞（相手）の番」まで
   if (g.currentPlayer !== mySide()) return who + t('turn.suffix');
   switch (g.phase) {
@@ -9066,10 +9084,21 @@ function koiSpectatorPayload(base) {
   return p;
 }
 
-// D3: 観戦者（＝ホストでもゲスト（playerPid）でもない参加者）の pid 一覧。
+// D3: 現在のゲスト（プレイヤー席の人間）の pid を確実に特定する。
+//   降格中(noGuest)は「ゲスト無し」。playerPid未設定でも roster の player 役から補完する
+//   （★これをしないと playerPid が空のとき specTargetPids にゲストが混じり、ゲストが観戦ビュー[伏せ札]も
+//     受け取って上書きされ「自分の札が閉じて出せない」回帰になる）。
+function currentGuestPid() {
+  if (state.noGuest) return null;
+  if (state.playerPid) return state.playerPid;
+  const p = (state.roster || []).find(x => x && x.role === 'player' && x.pid !== state.myPid);
+  return p ? p.pid : null;
+}
+// D3: 観戦者（＝ホストでもゲストでもない参加者）の pid 一覧。ゲストは currentGuestPid で確実に除外。
 function specTargetPids() {
+  const guest = currentGuestPid();
   return (state.roster || [])
-    .filter(x => x && x.pid && x.pid !== state.myPid && x.pid !== state.playerPid)
+    .filter(x => x && x.pid && x.pid !== state.myPid && x.pid !== guest)
     .map(x => x.pid);
 }
 
@@ -9087,8 +9116,9 @@ function syncState(opts) {
     MomoMatchmaking.send(playerPayload, 'all');
     return;
   }
-  // 観戦者あり：ゲストにはゲスト視点、観戦者には公開ビューを配り分ける。
-  MomoMatchmaking.send(playerPayload, state.playerPid || 'all');
+  // 観戦者あり：ゲストにはゲスト視点だけを宛先指定で送る（'all'にすると観戦者へ実手札が漏れる）。
+  const guest = currentGuestPid();
+  if (guest) MomoMatchmaking.send(playerPayload, guest);
   const specPayload = koiSpectatorPayload(playerPayload);
   specs.forEach(pid => MomoMatchmaking.send(specPayload, pid));
 }
@@ -9096,8 +9126,8 @@ function syncState(opts) {
 // D3: 観戦者が入室したら現在の状態を送って画面に載せる（対局中なら公開ビューを、準備中なら設定を）。
 function koiBootstrapSpectator(pid) {
   if (state.solo || !state.isHost) return;
-  // ゲーム選択（こいこい/八八）を同期して観戦者の画面を合わせる
-  MomoMatchmaking.send({ type: 'settings', settings: state.settings, gameSel: state.gameSel }, pid);
+  // ゲーム選択（こいこい/八八）＋実プレイヤー名を同期して観戦者の画面を合わせる
+  MomoMatchmaking.send({ type: 'settings', settings: state.settings, gameSel: state.gameSel, guestName: state.guestName }, pid);
   if (state.gameSel === 'hachi') {
     // 八八：対局中なら開始情報＋全席伏せの公開ビューを送って盤面に載せる。準備中なら開始時に届く。
     const st = state.h88;
@@ -9112,6 +9142,22 @@ function koiBootstrapSpectator(pid) {
   MomoMatchmaking.send(koiSpectatorPayload(koiStatePayload('state')), pid); // 途中参加は state で即スナップ（配りアニメは再生しない）
 }
 
+// D3: 準備画面に「あなた：〈名前〉（ホスト/プレイヤー/観戦）」を表示。役割チップは色分けして混同を防ぐ。
+function updateSelfIdentity() {
+  const el = document.getElementById('self-identity');
+  if (!el) return;
+  const myName = state.isHost ? state.hostName : state.guestName;
+  const isSpec = !state.isHost && state.isSpectator;
+  const roleLabel = state.isHost ? t('room.host') : (isSpec ? t('pm.role.spectator') : t('pm.role.player'));
+  const chipColor = isSpec ? '#7a7f87' : (state.isHost ? '#2a9d5b' : '#e08a2b'); // 観戦=灰/ホスト=緑/プレイヤー=橙
+  el.textContent = '';
+  const lbl = document.createElement('span'); lbl.textContent = t('game.you') + '：';
+  const nm = document.createElement('b'); nm.textContent = myName || t(state.isHost ? 'room.host' : 'room.guest');
+  const chip = document.createElement('span'); chip.textContent = roleLabel;
+  chip.style.cssText = 'margin-left:.45em;padding:.12em .55em;border-radius:.5em;color:#fff;font-size:.78rem;background:' + chipColor;
+  el.appendChild(lbl); el.appendChild(nm); el.appendChild(document.createTextNode(' ')); el.appendChild(chip);
+}
+
 // D3: 準備画面・対局画面に観戦者数を表示。
 function updateSpectatorCount() {
   const n = specTargetPidsSafeCount();
@@ -9120,10 +9166,10 @@ function updateSpectatorCount() {
     else { el.textContent = ''; el.classList.add('hidden'); }
   });
 }
-// roster から観戦者数を数える（ホストは playerPid 以外、ゲスト/観戦者は role で数える）。
+// roster から観戦者数を数える（ホストは currentGuestPid 以外、ゲスト/観戦者は role で数える）。
 function specTargetPidsSafeCount() {
   const r = state.roster || [];
-  if (state.isHost) return r.filter(x => x && x.pid && x.pid !== state.myPid && x.pid !== state.playerPid).length;
+  if (state.isHost) return specTargetPids().length;
   return r.filter(x => x && x.role === 'spectator').length;
 }
 
@@ -9162,12 +9208,14 @@ function hostSetRole(pid, role) {
     state.playerPid = pid;
     const entry = (state.roster || []).find(x => x.pid === pid);
     state.guestName = (entry && entry.name) || state.guestName;
+    state.noGuest = false;
     state.connected = true;
     if (old) MomoMatchmaking.send({ type: 'role-assign', role: 'spectator' }, old);
     MomoMatchmaking.send({ type: 'role-assign', role: 'player', hostName: state.hostName }, pid);
   } else { // demote
     if (state.playerPid !== pid) return;
     state.playerPid = null;
+    state.noGuest = true; // D3: 明示的にゲスト無し（roster補完で拾わないように）
     state.guestName = '';
     state.connected = false;
     MomoMatchmaking.send({ type: 'role-assign', role: 'spectator' }, pid);
@@ -9182,7 +9230,7 @@ function hostResetPrepHandshake() {
   state.readyHost = false; state.readyGuest = false;
   state.h88OnlineOya = { p0: null, p1: null, p2: null };
   renderOyaDraw();
-  MomoMatchmaking.send({ type: 'settings', settings: state.settings, gameSel: state.gameSel }, 'all'); // 顔ぶれに設定を配り直す
+  MomoMatchmaking.send({ type: 'settings', settings: state.settings, gameSel: state.gameSel, guestName: state.guestName }, 'all'); // 顔ぶれに設定＋実プレイヤー名を配り直す
   if (state.gameSel === 'hachi') h88SendRules();
 }
 
@@ -9234,8 +9282,8 @@ function applyState(msg) {
   g.nextReady = msg.nextReady || { host: false, guest: false };
   g.event = msg.event || null; // v1.14: こいこい演出イベント（renderGame でバナー表示）
   state.game = g;
-  // D3: 観戦者は対局者名を公開ビューから受け取り、盤面の氏名表示を実プレイヤーに合わせる
-  if (state.isSpectator && msg.pnames) { state.hostName = msg.pnames.host || state.hostName; state.guestName = msg.pnames.guest || state.guestName; }
+  // D3: 観戦者は対局者名を公開ビューから受け取り viewNames に保持（自分の名前 state.guestName とは別に管理）
+  if (state.isSpectator && msg.pnames) state.viewNames = { host: msg.pnames.host || state.hostName, guest: msg.pnames.guest || '' };
   if (msg.settings) state.settings = Object.assign({}, state.settings, msg.settings);
   // v1.13: 対戦レベルの状態を反映（局番号・累計・親・総結果）
   if (typeof msg.roundNo === 'number') state.roundNo = msg.roundNo;
@@ -9356,7 +9404,7 @@ function tryLaunchGame() {
 function leaveRoom() {
   state.intentionalLeave = true;        // 意図的退出 → 自動復帰を抑止
   state.vsAI = false; state.solo = false; // v1.59: 対コンピュータ戦フラグ解除
-  state.isSpectator = false; state.playerPid = null; // D3: 観戦フラグを解除
+  state.isSpectator = false; state.playerPid = null; state.noGuest = false; state.viewNames = null; // D3: 観戦フラグを解除
   try { MomoMatchmaking.leaveRoom(); } catch (e) {}
   state.connected = false;
   state.guestName = '';

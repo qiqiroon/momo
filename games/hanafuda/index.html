@@ -1323,7 +1323,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.61</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.62</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1389,7 +1389,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.61</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.62</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1519,7 +1519,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.61</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.62</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1579,7 +1579,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.61</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.62</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -2154,6 +2154,9 @@ const I18N = {
     'reconnect.failed': '再接続できませんでした。ロビーに戻ります。',
     'game.oppaway.title': '相手が離れました',
     'game.oppaway.body': '相手の接続が切れました。復帰を待っています…',
+    'notice.oppleft.title': '相手が退出しました',
+    'notice.oppleft.stay': '対戦相手の参加を待っています。',
+    'notice.oppleft.lobby': 'ロビーに戻ります。',
     'settings.title': '設定',
     'settings.bgm.label': 'BGM',
     'settings.bgm.hint': 'BGM の音量',
@@ -2428,6 +2431,9 @@ const I18N = {
     'reconnect.failed': 'Could not reconnect. Returning to lobby.',
     'game.oppaway.title': 'Opponent Disconnected',
     'game.oppaway.body': 'Waiting for your opponent to reconnect…',
+    'notice.oppleft.title': 'Opponent Left',
+    'notice.oppleft.stay': 'Waiting for a new opponent to join.',
+    'notice.oppleft.lobby': 'Returning to lobby.',
     'settings.title': 'Settings',
     'settings.bgm.label': 'BGM',
     'settings.bgm.hint': 'BGM volume (v1.00 is UI only — audio arrives in Phase 2)',
@@ -2702,6 +2708,9 @@ const I18N = {
     'reconnect.failed': '无法重新连接。返回大厅。',
     'game.oppaway.title': '对手已离线',
     'game.oppaway.body': '正在等待对手重新连接…',
+    'notice.oppleft.title': '对手已退出',
+    'notice.oppleft.stay': '正在等待新的对手加入。',
+    'notice.oppleft.lobby': '返回大厅。',
     'settings.title': '设置',
     'settings.bgm.label': 'BGM',
     'settings.bgm.hint': 'BGM 音量',
@@ -2875,6 +2884,8 @@ const state = {
   animSpeed: 1,         // v1.34: アニメ速度倍率（0.5/0.75/1/1.5/2）この端末のみ・非同期・既定1（全体の既定はx1に戻す）
   gameEndChoice: { host: null, guest: null }, // v1.22: 総結果の再戦/ロビー両者選択（host が集計）
   gameChoiceMade: false, // v1.22: この端末が総結果で選択済みか（UI待機表示用）
+  oppLeftAtEnd: false,   // v2.62: 終局オーバーレイ表示中に相手が退出したことを記録（選択時に反映・エラー表示しない）
+  myEndChoice: null,     // v2.62: 自分が総結果で選んだ内容（'rematch'|'lobby'）＝相手退出時の行き先判定用
 };
 
 // --------------------------------------------------------------------------
@@ -3292,6 +3303,7 @@ function clearSession() { try { sessionStorage.removeItem('hf_session'); } catch
 // 「切断表示で固まる」状態を塞ぐ。msg があれば通知を出す。
 function backToLobby(msg) {
   state.reconnecting = false; state.oppAway = false; state.intentionalLeave = false;
+  state.oppLeftAtEnd = false; state.myEndChoice = null; // v2.62
   state.vsAI = false; state.solo = false; // v1.59: 対コンピュータ戦フラグをロビーで解除
   state.connected = false; state.guestName = ''; state.game = null; state.roomId = null;
   state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null; state.oyaHostCard = null; state.oyaGuestCard = null;
@@ -3447,6 +3459,7 @@ function handleGuestJoined(guestName) {
   diagLog('room', 'guest joined name=' + guestName);
   state.guestName = guestName || t('notice.guestname');
   state.oppAway = false;
+  state.oppLeftAtEnd = false; state.myEndChoice = null; // v2.62: 新しい相手が入った＝退出記録をクリア
   hideConnOverlay();
   refreshRoomView();
   // DC 未確立でも設定が届くよう明示送信（フォールバック）
@@ -3463,17 +3476,64 @@ function handleGuestJoined(guestName) {
   }
 }
 
+// v2.62: こいこいの対局が実際に進行中（終局より前）か。相手の切断を「中断/復帰」として
+// 扱うべき状態だけ true。終局オーバーレイ表示中・総結果後・準備室・ロビーは false。
+// （八八は独自の切断経路のため、ここでは koikoi の state.game のみを見る）
+function inActivePlay() {
+  if (document.getElementById('ovGame').classList.contains('show')) return false; // 終局表示中
+  if (state.matchOver) return false;                                              // 総結果後
+  return !!state.game && state.screen === 'game';                                 // こいこい対局中
+}
+
+// v2.62: 相手が退出した（終局後 or 準備室）ときの後始末。エラーではなく「相手が退出しました」を表示。
+//   ホスト＝自分の部屋にとどまり相手待ち／ゲスト＝部屋が無いのでロビーへ。
+function handleOpponentGone() {
+  document.getElementById('ovGame').classList.remove('show');
+  document.getElementById('ovRound').classList.remove('show');
+  hideConnOverlay();
+  state.oppLeftAtEnd = false; state.myEndChoice = null;
+  showNotice(t('notice.oppleft.title'), t(state.isHost ? 'notice.oppleft.stay' : 'notice.oppleft.lobby'));
+  if (state.isHost) {
+    // 自分が作った部屋にとどまり、対局前の状態に戻して相手待ちへ
+    state.guestName = ''; state.connected = false;
+    state.game = null; state.h88 = null; state.matchOver = false;
+    state.roundNo = 1; state.scores = { host: 0, guest: 0 };
+    state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null; state.oyaHostCard = null; state.oyaGuestCard = null;
+    state.readyHost = false; state.readyGuest = false;
+    state.gameEndChoice = { host: null, guest: null }; state.gameChoiceMade = false;
+    state.h88OnlineOya = { p0: null, p1: null, p2: null }; state.h88prep = null;
+    renderOyaDraw();
+    showScreen('room');
+    refreshRoomView();
+  } else {
+    leaveRoom(); // ゲスト：静かにロビーへ（文言は上の showNotice で既出）
+  }
+}
+
 function handleGuestLeft() {
   diagLog('room', 'guest left');
-  if (state.game) {
-    // 対局中に相手が落ちた：部屋は維持（サーバーはホスト側の部屋を保持する）。
-    // 盤面は温存し、復帰を待つ。ホストは「中断」でロビーへ抜けられる。
+  const endOverlay = document.getElementById('ovGame').classList.contains('show');
+  // こいこい対局進行中（終局前）＝復帰待ちオーバーレイ（従来）
+  if (inActivePlay()) {
     state.oppAway = true;
     showConnOverlay(t('game.oppaway.title'), t('game.oppaway.body'), t('game.leave'),
       () => { hideConnOverlay(); leaveRoom(); });
     return;
   }
-  // 対戦前：席を空きに戻す。部屋は維持。
+  // 終局オーバーレイ表示中：エラーも「相手が退出しました」も出さず退出を記録。
+  //   既に自分が選択済みなら、その選択で確定（rematch→相手退出表示/席残留・lobby→静かにロビー）。
+  if (endOverlay) {
+    if (state.gameChoiceMade) {
+      if (state.myEndChoice === 'lobby') { document.getElementById('ovGame').classList.remove('show'); leaveRoom(); }
+      else handleOpponentGone();
+    } else {
+      state.oppLeftAtEnd = true; state.guestName = ''; state.connected = false;
+    }
+    return;
+  }
+  // 準備室（終局後の再戦準備・対戦前）：相手が退出しました → 席を空けて自分の部屋にとどまる
+  if (state.screen === 'room') { handleOpponentGone(); return; }
+  // それ以外（八八対局画面中など）：従来どおり席を戻すだけ（オーバーレイは出さない）
   state.guestName = '';
   state.connected = false;
   state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null; state.oyaHostCard = null; state.oyaGuestCard = null;
@@ -3506,6 +3566,7 @@ function initMatchmaking() {
       state.intentionalLeave = false;
       state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null; state.oyaHostCard = null; state.oyaGuestCard = null;
       state.readyHost = false; state.readyGuest = false;
+      state.oppLeftAtEnd = false; state.myEndChoice = null; state.gameChoiceMade = false; state.matchOver = false; // v2.62
       clearSession(); // ホストは復帰保存しない
       renderOyaDraw();
       showScreen('room');
@@ -3591,7 +3652,24 @@ function initMatchmaking() {
       let roomStillMine = false;
       try { roomStillMine = !!MomoMatchmaking.getState().currentRoomId; } catch (e) {}
       if (!roomStillMine) {
-        backToLobby(state.isHost ? (msg || t('notice.disconnect.body')) : t('notice.disconnect.host'));
+        // 部屋が閉じた（相手＝ホストが退出／キック／サーバー閉鎖）。
+        if (inActivePlay()) { // 対局進行中の本当の中断 → 従来どおり
+          backToLobby(state.isHost ? (msg || t('notice.disconnect.body')) : t('notice.disconnect.host'));
+          return;
+        }
+        // 終局中／準備室／ロビー移行中：エラー（通信切断）は出さない。v2.62
+        if (state.screen === 'lobby' || state.intentionalLeave) return; // 既にロビー／自分で退出中
+        if (document.getElementById('ovGame').classList.contains('show')) {
+          // 終局オーバーレイ表示中：退出を記録（選択時に反映）／既に選択済みなら確定
+          if (state.gameChoiceMade) {
+            if (state.myEndChoice === 'lobby') { document.getElementById('ovGame').classList.remove('show'); leaveRoom(); }
+            else handleOpponentGone();
+          } else {
+            state.oppLeftAtEnd = true;
+          }
+          return;
+        }
+        handleOpponentGone(); // 準備室など（終局後）→ 相手が退出しました表示（ゲストはロビーへ）
         return;
       }
       if (!state.isHost && !state.intentionalLeave && (state.screen === 'room' || state.screen === 'game')) {
@@ -6703,6 +6781,7 @@ function beginMatch() {
   state.matchOver = false;
   state.gameEndChoice = { host: null, guest: null }; // v1.22: 総結果の選択リセット
   state.gameChoiceMade = false;
+  state.oppLeftAtEnd = false; state.myEndChoice = null; // v2.62
   startRound();
 }
 function startRound() {
@@ -8760,6 +8839,13 @@ function onGameChoice(choice) { // choice = 'rematch' | 'lobby'
   }
   if (state.gameChoiceMade) return; // 既に選択済み
   state.gameChoiceMade = true;
+  state.myEndChoice = choice; // v2.62: 自分の選択を記憶（相手退出時の行き先判定用）
+  // v2.62: 相手が既に退出済み（終局表示中に抜けた）→ 相手を待たずに反映
+  if (state.oppLeftAtEnd) {
+    if (choice === 'lobby') { document.getElementById('ovGame').classList.remove('show'); leaveRoom(); } // 静かにロビー
+    else handleOpponentGone(); // 再戦不可 → 相手が退出しました表示（ホスト残留／ゲストはロビー）
+    return;
+  }
   renderGameChoiceWait(choice);
   if (state.isHost) {
     state.gameEndChoice.host = choice;
@@ -9006,6 +9092,7 @@ function leaveRoom() {
   state.readyHost = false; state.readyGuest = false;
   state.game = null;
   state.roundNo = 1; state.scores = { host: 0, guest: 0 }; state.matchOver = false;
+  state.oppLeftAtEnd = false; state.myEndChoice = null; state.gameChoiceMade = false; state.gameEndChoice = { host: null, guest: null }; // v2.62
   document.getElementById('ovRound').classList.remove('show');
   document.getElementById('ovGame').classList.remove('show');
   hideConnOverlay();

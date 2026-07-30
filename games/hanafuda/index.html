@@ -1323,7 +1323,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.62</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.63</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1389,7 +1389,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.62</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.63</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1519,7 +1519,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.62</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.63</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1579,7 +1579,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.62</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.63</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -7924,7 +7924,7 @@ function onClickHand(card) {
     applyPlayCard(card);
   } else {
     // guest: intent 送信 (host 権威で処理)
-    MomoMatchmaking.send({ type: 'intent', action: 'play', cardId: card.id });
+    MomoMatchmaking.send({ type: 'intent', action: 'play', cardId: card.id }, 'host'); // D1: 操作はホスト宛
   }
 }
 
@@ -8004,7 +8004,7 @@ function onClickFieldPick(fieldCard) {
   if (state.solo || state.isHost) {
     applyPick(fieldCard);
   } else {
-    MomoMatchmaking.send({ type: 'intent', action: 'pick', cardId: fieldCard.id });
+    MomoMatchmaking.send({ type: 'intent', action: 'pick', cardId: fieldCard.id }, 'host'); // D1: 操作はホスト宛
   }
 }
 
@@ -8277,7 +8277,7 @@ function onKoikoi() {
   if (state.solo || state.isHost) {
     applyKoikoi();
   } else {
-    MomoMatchmaking.send({ type: 'intent', action: 'koikoi' });
+    MomoMatchmaking.send({ type: 'intent', action: 'koikoi' }, 'host'); // D1: 操作はホスト宛
   }
 }
 function onShobu() {
@@ -8287,7 +8287,7 @@ function onShobu() {
   if (state.solo || state.isHost) {
     applyShobu();
   } else {
-    MomoMatchmaking.send({ type: 'intent', action: 'shobu' });
+    MomoMatchmaking.send({ type: 'intent', action: 'shobu' }, 'host'); // D1: 操作はホスト宛
   }
 }
 // v1.59: 見送り＝役を取らず勝負を継続。こいこい宣言はしない（倍化なし）。
@@ -8300,7 +8300,7 @@ function onMinooshi() {
   if (state.solo || state.isHost) {
     applyMinooshi();
   } else {
-    MomoMatchmaking.send({ type: 'intent', action: 'minooshi' });
+    MomoMatchmaking.send({ type: 'intent', action: 'minooshi' }, 'host'); // D1: 操作はホスト宛
   }
 }
 function applyMinooshi() {
@@ -8736,7 +8736,7 @@ function onRoundNext() {
     renderRoundReady();
     syncState();
   } else {
-    MomoMatchmaking.send({ type: 'intent', action: 'next' });
+    MomoMatchmaking.send({ type: 'intent', action: 'next' }, 'host'); // D1: 操作はホスト宛
     renderRoundReady();
   }
 }
@@ -8851,7 +8851,7 @@ function onGameChoice(choice) { // choice = 'rematch' | 'lobby'
     state.gameEndChoice.host = choice;
     tryResolveGameEnd();
   } else {
-    MomoMatchmaking.send({ type: 'intent', action: 'game-choice', choice: choice });
+    MomoMatchmaking.send({ type: 'intent', action: 'game-choice', choice: choice }, 'host'); // D1: 操作はホスト宛
   }
 }
 function renderGameChoiceWait(choice) {
@@ -8891,6 +8891,7 @@ function syncState(opts) {
   const g = state.game;
   if (!g) return;
   const type = (opts && opts.deal) ? 'deal' : 'state';
+  // D1: 盤面状態は全員宛（to:'all'）。※D3で観戦者用のマスク済みビューを別途配る。
   MomoMatchmaking.send({
     type: type,
     settings: state.settings,
@@ -8926,7 +8927,7 @@ function syncState(opts) {
     matchOver: state.matchOver,
     nextReady: g.nextReady || { host: false, guest: false },
     event: g.event || null, // v1.14: こいこい演出イベント
-  });
+  }, 'all'); // D1: 全員宛
 }
 
 function applyState(msg) {

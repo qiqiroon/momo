@@ -1323,7 +1323,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.60</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.61</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1389,7 +1389,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.60</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.61</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1519,7 +1519,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.60</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.61</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1579,7 +1579,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.60</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.61</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -3013,7 +3013,7 @@ function tryJoin(room) {
   state.roomId = room.id;
   state.joinPw = pw;              // 復帰用に保持
   state.intentionalLeave = false;
-  MomoMatchmaking.joinRoom(room.id, pw, name);
+  MomoMatchmaking.joinRoom(room.id, pw, name, 'player'); // D0: 多人数トランスポート＝プレイヤーとして入室
 }
 
 // --------------------------------------------------------------------------
@@ -3325,7 +3325,7 @@ function reconnectJoinLoop(attempt) {
   if (!state.reconnecting) return;              // 成功 or 中止で停止
   if (attempt > 15) { state.reconnecting = false; backToLobby(t('reconnect.failed')); return; }
   if (!MMState.wsOpen) { setTimeout(() => reconnectJoinLoop(attempt), 500); return; }
-  try { MomoMatchmaking.joinRoom(state.roomId, state.joinPw || '', state.guestName || t('notice.guestname')); } catch (e) {}
+  try { MomoMatchmaking.joinRoom(state.roomId, state.joinPw || '', state.guestName || t('notice.guestname'), 'player'); } catch (e) {} // D0: 多人数＝プレイヤー入室（再接続は素の入り直し・後回し）
   // 3.5 秒後に再試行（onJoinedRoom 成功で state.reconnecting=false になり停止）
   setTimeout(() => reconnectJoinLoop(attempt + 1), 3500);
 }
@@ -3441,6 +3441,48 @@ function startDiagPolling() {
   }, 2000);
 }
 
+// D0(多人数トランスポート): 従来の「ゲスト入室/退出」処理を関数化し、
+// 多人数の participant_joined/left からも同じ処理を呼べるようにする（2人では挙動不変）。
+function handleGuestJoined(guestName) {
+  diagLog('room', 'guest joined name=' + guestName);
+  state.guestName = guestName || t('notice.guestname');
+  state.oppAway = false;
+  hideConnOverlay();
+  refreshRoomView();
+  // DC 未確立でも設定が届くよう明示送信（フォールバック）
+  MomoMatchmaking.send({ type: 'hello', name: state.hostName });
+  MomoMatchmaking.send({ type: 'settings', settings: state.settings, gameSel: state.gameSel }); // v2.42: ゲーム選択も同送
+  h88SendRules(); // v2.50: ①八八のルールもゲスト参加時に送る（gameSel=hachiのときだけ実行）
+  if (state.game) {
+    // 対局中に相手が (再)入室 = 復帰。盤面を丸ごと送り直す（deal 型でゲストを対局画面へ）。
+    diagLog('room', 'guest REJOINED mid-game → resync full state');
+    syncState({ deal: true });
+  } else {
+    // 対戦前：親決め済みの情報があれば送る（整合のため）
+    if (state.oyaHostMonth != null) MomoMatchmaking.send({ type: 'oya_draw', side: 'host', month: state.oyaHostMonth, card: state.oyaHostCard });
+  }
+}
+
+function handleGuestLeft() {
+  diagLog('room', 'guest left');
+  if (state.game) {
+    // 対局中に相手が落ちた：部屋は維持（サーバーはホスト側の部屋を保持する）。
+    // 盤面は温存し、復帰を待つ。ホストは「中断」でロビーへ抜けられる。
+    state.oppAway = true;
+    showConnOverlay(t('game.oppaway.title'), t('game.oppaway.body'), t('game.leave'),
+      () => { hideConnOverlay(); leaveRoom(); });
+    return;
+  }
+  // 対戦前：席を空きに戻す。部屋は維持。
+  state.guestName = '';
+  state.connected = false;
+  state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null; state.oyaHostCard = null; state.oyaGuestCard = null;
+  state.readyHost = false; state.readyGuest = false;
+  state.h88OnlineOya = { p0: null, p1: null, p2: null }; state.h88prep = null; // v2.48-段5: 八八オンライン親決めもリセット
+  renderOyaDraw();
+  refreshRoomView();
+}
+
 function initMatchmaking() {
   diagLog('init', 'MomoMatchmaking.init gameType=hanafuda url=' + SIGNALING_URL);
   MomoMatchmaking.init({
@@ -3452,9 +3494,11 @@ function initMatchmaking() {
       state.publicRooms = rooms || [];
       if (state.screen === 'lobby') renderRoomList();
     },
-    onRoomCreated: (roomId, roomName, rules) => {
-      diagLog('room', 'created id=' + roomId + ' name=' + roomName);
+    onRoomCreated: (roomId, roomName, rules, multi) => {
+      diagLog('room', 'created id=' + roomId + ' name=' + roomName + ' pid=' + (multi && multi.pid));
       state.isHost = true;
+      state.myPid = (multi && multi.pid) || 'p0'; // D0: 自分の席（ホスト=p0）
+      state.roster = (multi && multi.roster) || [];
       state.roomId = roomId;
       state.roomName = roomName || state.roomName;
       state.roomHasPw = !!(rules && rules.hasPassword);
@@ -3467,9 +3511,11 @@ function initMatchmaking() {
       showScreen('room');
       refreshRoomView();
     },
-    onJoinedRoom: (roomId, roomName, hostName, rules) => {
-      diagLog('room', 'joined id=' + roomId + ' name=' + roomName + ' host=' + hostName);
+    onJoinedRoom: (roomId, roomName, hostName, rules, multi) => {
+      diagLog('room', 'joined id=' + roomId + ' name=' + roomName + ' host=' + hostName + ' pid=' + (multi && multi.pid));
       state.isHost = false;
+      state.myPid = (multi && multi.pid) || 'p1'; // D0: 自分の席（最初のゲスト=p1）
+      state.roster = (multi && multi.roster) || [];
       state.roomId = roomId;
       state.roomName = roomName || state.roomName;
       state.hostName = hostName || state.hostName;
@@ -3497,46 +3543,34 @@ function initMatchmaking() {
       refreshRoomView();
       saveSession();
     },
-    onGuestJoined: (guestName) => {
-      diagLog('room', 'guest joined name=' + guestName);
-      state.guestName = guestName || t('notice.guestname');
-      state.oppAway = false;
-      hideConnOverlay();
-      refreshRoomView();
-      // DC 未確立でも設定が届くよう明示送信（フォールバック）
-      MomoMatchmaking.send({ type: 'hello', name: state.hostName });
-      MomoMatchmaking.send({ type: 'settings', settings: state.settings, gameSel: state.gameSel }); // v2.42: ゲーム選択も同送
-      h88SendRules(); // v2.50: ①八八のルールもゲスト参加時に送る（gameSel=hachiのときだけ実行）
-      if (state.game) {
-        // 対局中に相手が (再)入室 = 復帰。盤面を丸ごと送り直す（deal 型でゲストを対局画面へ）。
-        diagLog('room', 'guest REJOINED mid-game → resync full state');
-        syncState({ deal: true });
-      } else {
-        // 対戦前：親決め済みの情報があれば送る（整合のため）
-        if (state.oyaHostMonth != null) MomoMatchmaking.send({ type: 'oya_draw', side: 'host', month: state.oyaHostMonth, card: state.oyaHostCard });
-      }
+    onGuestJoined: (guestName) => handleGuestJoined(guestName), // 従来1対1用（多人数では発火しない）
+    onGuestLeft: () => handleGuestLeft(),
+    // D0: 多人数トランスポートの参加者イベント。2人前提で最初のプレイヤーを従来ゲストとして扱う。
+    onParticipantJoined: (pid, role, name, roster) => {
+      state.roster = roster || state.roster;
+      diagLog('room', 'participant joined pid=' + pid + ' role=' + role + ' name=' + name);
+      if (role === 'spectator') return; // 観戦は D3 で対応
+      if (state.isHost) { state.connected = true; handleGuestJoined(name); }
     },
-    onGuestLeft: () => {
-      diagLog('room', 'guest left');
-      if (state.game) {
-        // 対局中に相手が落ちた：部屋は維持（サーバーはホスト側の部屋を保持する）。
-        // 盤面は温存し、復帰を待つ。ホストは「中断」でロビーへ抜けられる。
-        state.oppAway = true;
-        showConnOverlay(t('game.oppaway.title'), t('game.oppaway.body'), t('game.leave'),
-          () => { hideConnOverlay(); leaveRoom(); });
-        return;
-      }
-      // 対戦前：席を空きに戻す。部屋は維持。
-      state.guestName = '';
-      state.connected = false;
-      state.oya = null; state.oyaHostMonth = null; state.oyaGuestMonth = null; state.oyaHostCard = null; state.oyaGuestCard = null;
-      state.readyHost = false; state.readyGuest = false;
-      state.h88OnlineOya = { p0: null, p1: null, p2: null }; state.h88prep = null; // v2.48-段5: 八八オンライン親決めもリセット
-      renderOyaDraw();
-      refreshRoomView();
+    onParticipantLeft: (pid, roster) => {
+      state.roster = roster || state.roster;
+      diagLog('room', 'participant left pid=' + pid);
+      if (state.isHost) handleGuestLeft();
     },
     onConnected: () => {
-      diagLog('p2p', 'DC open (onConnected fired)');
+      diagLog('p2p', 'onConnected fired');
+      const ms = MomoMatchmaking.getState();
+      if (ms.mode === 'multi') {
+        // 多人数：接続確立は参加者イベント（onParticipantJoined）で扱う。
+        // ホストは相手待ち（部屋作成直後にもここへ来る）ため何もしない。
+        // ゲストは自分の入室完了＝ホストと接続済み。hello で名前を通知。
+        if (!state.isHost) {
+          state.connected = true;
+          MomoMatchmaking.send({ type: 'hello', name: state.guestName });
+          refreshRoomView();
+        }
+        return;
+      }
       state.connected = true;
       refreshRoomView();
       if (state.isHost) {
@@ -9038,6 +9072,7 @@ function bindEvents() {
       password: pw,
       isPublic: isPublic,
       rules: { settings: state.settings, hasPassword: pw.length > 0 },
+      mode: 'multi', maxPlayers: 3, maxSpectators: 8, // D0: 多人数トランスポート（3人化・観戦の土台）
     });
   });
   document.getElementById('pv').addEventListener('change', (e) => { state.showPrivate = e.target.checked; renderRoomList(); });

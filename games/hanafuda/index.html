@@ -1327,7 +1327,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.77</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.78</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1393,7 +1393,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.77</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.78</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1428,7 +1428,6 @@
     </div>
     <!-- v2.11: 八八(3人)の顔ぶれ＋強さは、こいこいのプレイヤー表示と同じ上部位置に出す（設定箱から移動） -->
     <div class="players players-col h88-prep-players hidden" id="h88-prep-players"></div>
-    <button class="leave-btn" id="btn-leave" data-i18n="room.leave">← ロビーに戻る</button>
   </div>
 
   <!-- ゲーム選択 -->
@@ -1530,7 +1529,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.77</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.78</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1592,7 +1591,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.77</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.78</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -2000,6 +1999,7 @@ const I18N = {
     'h88.deiori.body': 'あなたの手札（{tag}）。降りると下り賃 <b>{fee}</b> を勝者へ払います。',
     'h88.deiori.confirm': '本当に降りますか？ 下り賃 <b>{fee}</b> を払って、この局は不参加になります。',
     'h88.teyaku.title': '手役が成立', 'h88.teyaku.legend': 'この手役分は、局の終了時に場倍率を掛けてまとめて精算します（今はまだ累計に入りません）。',
+    'h88.teyaku.ok': '確認', 'h88.teyaku.waiting': '対戦者の確認を待っています…',
     'h88.roundend.title': '局終了（第{n}局）', 'h88.rank': '{n}位',
     'h88.gate.pressed': '押しました', 'h88.gate.notyet': 'まだ', 'h88.gate.waiting': '待っています',
     'h88.end.draw': '引き分け', 'h88.end.win': 'あなたの勝ち！', 'h88.end.champ': '優勝：{who}',
@@ -2186,7 +2186,7 @@ const I18N = {
     'pm.promote': 'プレイヤーにする',
     'pm.demote': '観戦にする',
     'pm.kick': 'キック',
-    'notice.kicked': 'ホストにより退室しました',
+    'notice.kicked': 'ホストにより退室しました', 'notice.kicked.title': '退室しました',
     'pm.allowspec': '観戦を許可する',
     'spec.list.title': '観戦者',
     'spec.none': '観戦者はいません',
@@ -2295,6 +2295,7 @@ const I18N = {
     'h88.deiori.body': 'Your hand ({tag}). If you fold you pay the fold fee <b>{fee}</b> to the winner.',
     'h88.deiori.confirm': 'Really fold? You pay the fold fee <b>{fee}</b> and sit out this round.',
     'h88.teyaku.title': 'Hand-yaku formed', 'h88.teyaku.legend': 'This hand-yaku is settled together at the end of the round with the field multiplier applied (not added to totals yet).',
+    'h88.teyaku.ok': 'OK', 'h88.teyaku.waiting': 'Waiting for the other player…',
     'h88.roundend.title': 'Round over (Round {n})', 'h88.rank': 'No.{n}',
     'h88.gate.pressed': 'Ready', 'h88.gate.notyet': 'Not yet', 'h88.gate.waiting': 'Waiting',
     'h88.end.draw': 'Draw', 'h88.end.win': 'You win!', 'h88.end.champ': 'Winner: {who}',
@@ -2481,7 +2482,7 @@ const I18N = {
     'pm.promote': 'Make player',
     'pm.demote': 'Make spectator',
     'pm.kick': 'Kick',
-    'notice.kicked': 'You were removed by the host',
+    'notice.kicked': 'You were removed by the host', 'notice.kicked.title': 'Removed from room',
     'pm.allowspec': 'Allow spectators',
     'spec.list.title': 'Spectators',
     'spec.none': 'No spectators',
@@ -2590,6 +2591,7 @@ const I18N = {
     'h88.deiori.body': '你的手牌（{tag}）。弃权则向胜者支付下降费 <b>{fee}</b>。',
     'h88.deiori.confirm': '确定弃权？支付下降费 <b>{fee}</b>，本局不参加。',
     'h88.teyaku.title': '手役成立', 'h88.teyaku.legend': '此手役将在本局结束时统一乘以场倍率结算（现在尚未计入累计）。',
+    'h88.teyaku.ok': '确认', 'h88.teyaku.waiting': '等待其他玩家确认…',
     'h88.roundend.title': '本局结束（第{n}局）', 'h88.rank': '第{n}名',
     'h88.gate.pressed': '已按', 'h88.gate.notyet': '未按', 'h88.gate.waiting': '等待中',
     'h88.end.draw': '平局', 'h88.end.win': '你赢了！', 'h88.end.champ': '冠军：{who}',
@@ -2776,7 +2778,7 @@ const I18N = {
     'pm.promote': '设为玩家',
     'pm.demote': '设为观战',
     'pm.kick': '踢出',
-    'notice.kicked': '你已被房主移出',
+    'notice.kicked': '你已被房主移出', 'notice.kicked.title': '已被移出房间',
     'pm.allowspec': '允许观战',
     'spec.list.title': '观战者',
     'spec.none': '没有观战者',
@@ -3830,8 +3832,10 @@ function initMatchmaking() {
     },
     onKicked: () => {
       diagLog('room', 'kicked');
-      try { alert(t('notice.kicked')); } catch (e) {} // v2.76: キックされた側に通知してからロビーへ
+      // v2.78 #2: ネイティブ alert はブロッキングで、端末によってはオーディオを停止させ BGM が復帰しなくなる。
+      //   （裏タブと同じく suspend 中に鳴らそうとして無音固定になる。）アプリ内オーバーレイに置換。
       backToLobby();
+      try { showNotice(t('notice.kicked.title'), t('notice.kicked')); } catch (e) {}
     },
     onMessage: (data) => handleP2P(data),
   });
@@ -3862,10 +3866,13 @@ function handleSpectatorMsg(data) {
   if (data.type === 'h88-state') { h88ApplyState(data); return; } // 八八公開ビュー
   if (data.type === 'h88-oya-state') { h88OnlineOyaApplyRemote(data.draws); return; } // 八八：準備室の親決めを観戦者にも反映
   if (data.type === 'h88-rules') { h88ApplyRulesRemote(data); return; } // 八八：ルール表示を観戦者にも同期
+  if (data.type === 'h88-deal') { h88GuestRunDeal(); return; } // v2.78 #1: 観戦者にも局開始の配りアニメを再生
   if (data.type === 'h88-teyaku') { h88ShowTeyakuGuest(data); return; } // #1(v2.77): 八八の手役パネルを観戦者にも
+  if (data.type === 'h88-teyaku-go') { if (state.h88 && state.h88._h88TeyakuGateCleanup) state.h88._h88TeyakuGateCleanup(); return; } // v2.78 #4: 対局開始で観戦者の手役パネルを閉じる
   if (data.type === 'h88-roundover') { h88ShowRoundOverGuest(data); return; } // #2(v2.77): 八八の局終了パネルを観戦者にも（表示のみ）
   if (data.type === 'h88-next-go') { if (state.h88 && state.h88._h88GateCleanup) state.h88._h88GateCleanup(); return; } // #2: 次局で観戦者の局終了パネルを閉じる
   if (data.type === 'h88-matchend') { if (state.h88 && state.h88._h88GateCleanup) state.h88._h88GateCleanup(); h88ShowMatchEnd(); return; } // #2(v2.77): 八八総合結果を観戦者にも（同期済みスコアから中立表示）
+  if (data.type === 'h88-rematch') { h88SpectatorToPrep(); return; } // v2.78 #5/#7: 対局者が「もう一度／中断」で準備室へ戻ったら観戦者も準備室へ追従
   if (data.type === 'hello') { state.hostName = data.name || state.hostName; refreshRoomView(); return; }
   if (data.type === 'start') { showScreen('game'); return; }
   if (data.type === 'go-lobby') { leaveRoom(); return; }
@@ -3895,6 +3902,23 @@ function handleP2P(data) {
     return;
   }
   if (data.type === 'h88-teyaku') { h88ShowTeyakuGuest(data); return; } // v2.49-段4: ゲスト：手役パネル表示
+  if (data.type === 'h88-teyaku-ack') { // v2.78 #4: ホスト：ゲストが手役パネルを確認した
+    const st = state.h88;
+    if (st && state.isHost && st.h88TeyakuAck) {
+      st.h88TeyakuAck.p1 = true;
+      if (st.h88TeyakuAck.p0 && st.h88TeyakuAck.p1) { h88TeyakuGateProceed(st._h88TeyakuGateCleanup); }
+      else { MomoMatchmaking.send({ type: 'h88-teyaku-ready', ready: st.h88TeyakuAck }, 'all'); if (st._h88TeyakuGateRender) st._h88TeyakuGateRender(); }
+    }
+    return;
+  }
+  if (data.type === 'h88-teyaku-ready') { // v2.78 #4: ゲスト：手役パネルの確認状況を更新
+    const st = state.h88; if (st) { st.h88TeyakuAck = data.ready || st.h88TeyakuAck; if (st._h88TeyakuGateRender) st._h88TeyakuGateRender(); }
+    return;
+  }
+  if (data.type === 'h88-teyaku-go') { // v2.78 #4: ゲスト：両者確認済み＝手役パネルを閉じる（対局は同期で始まる）
+    const st = state.h88; if (st && st._h88TeyakuGateCleanup) st._h88TeyakuGateCleanup();
+    return;
+  }
   if (data.type === 'h88-roundover') { h88ShowRoundOverGuest(data); return; } // v2.49-段4: ゲスト：局終了パネル
   if (data.type === 'h88-nextready') { // v2.49-段4: ゲスト：次局ゲートの押下状況を更新
     const st = state.h88; if (st) { st.h88NextReady = data.ready || st.h88NextReady; if (st._h88GateRender) st._h88GateRender(); }
@@ -5204,6 +5228,12 @@ function h88GuestRematch() {
   const ov = document.getElementById('ovH88End'); if (ov) ov.classList.remove('show');
   state.h88 = null; showScreen('room'); refreshRoomView(); pickGame('hachi');
 }
+// v2.78 #5/#7: 観戦者は対局者の「もう一度／中断」に追従して準備室へ戻る（観戦継続・pickGame等の操作系は踏まない）。
+function h88SpectatorToPrep() {
+  const ov = document.getElementById('ovH88End'); if (ov) ov.classList.remove('show');
+  if (state.h88 && state.h88._h88GateCleanup) state.h88._h88GateCleanup();
+  state.h88 = null; showScreen('room'); refreshRoomView();
+}
 function startHachiVsAI(rounds) {
   const lv = h88Levels(); // v1.72 D1: CPU別強さ
   state.h88 = {
@@ -5288,14 +5318,18 @@ function h88ShowTeyakuAndPlay(g) {
     const bodyHtml = h88TeyakuPanelHtml(g, teyaku, h88MySeat()); // v2.49-段4: 自分の視点で「あなた」表示
     h88Log('◆ 手役（提示・精算は局終了）：' + Object.keys(teyaku).map(s => st.names[s] + ' ' + teyaku[s].jp + ' ' + teyaku[s].mon + unit).join(' ／ '));
     playSfx(teyaku[h88MySeat()] ? 'charin' : 'pu'); // v2.49-段4: コイン音は自分に手役があるときだけ（視点対応）
+    const proceed = () => { st.teyakuMarks = null; st.teyakuReveal = null; renderH88(); h88MaybeAi(); };
     if (st.online && state.isHost) { // v2.49-段4: ゲストにも手役パネルを出す（ゲスト視点で生成して送る）
       MomoMatchmaking.send({ type: 'h88-teyaku', html: h88TeyakuPanelHtml(g, teyaku, H88_GUEST_SEAT), hasMine: !!teyaku[H88_GUEST_SEAT] }, H88_GUEST_SEAT); // D2: その席宛
       // #1(v2.77): 観戦者にも手役パネルを出す（中立視点＝誰も「あなた」にしない・公開情報のみ）
       specTargetPids().forEach(pid => MomoMatchmaking.send({ type: 'h88-teyaku', html: h88TeyakuPanelHtml(g, teyaku, null), hasMine: false, spectator: true }, pid));
+      // v2.78 #4(A案): オンラインは両対局者がパネルを閉じるまで対局を始めない（押し待ちはボタン内に表示・ホスト権威で集計）。
+      st.h88TeyakuAck = { p0: false, p1: false };
+      h88ShowTeyakuGate(bodyHtml, proceed);
+    } else {
+      // ローカル（対コンピュータ／ソロ）＝従来どおり、自分が閉じたら即進行。
+      showNotice(t('h88.teyaku.title'), bodyHtml, proceed, { clear: true, draggable: true, html: true });
     }
-    showNotice(t('h88.teyaku.title'),bodyHtml,
-      () => { st.teyakuMarks = null; st.teyakuReveal = null; renderH88(); h88MaybeAi(); },
-      { clear: true, draggable: true, html: true });
   } else {
     if (st.online && state.isHost) { MomoMatchmaking.send({ type: 'h88-teyaku', clear: true }, H88_GUEST_SEAT); // 手役なし＝ゲスト側の残り表示を消す保険／D2: その席宛
       specTargetPids().forEach(pid => MomoMatchmaking.send({ type: 'h88-teyaku', clear: true }, pid)); } // #1(v2.77): 観戦者側の保険も
@@ -5323,12 +5357,73 @@ function h88TeyakuPanelHtml(g, teyaku, viewerSeat) {
   return '<ul class="yaku-list">' + yakuLis + '</ul>'
     + '<div class="h88-te-legend">' + t('h88.teyaku.legend') + '</div>';
 }
-// ゲスト側：手役パネルを表示（表示専用・ホストが視点対応で作ったHTMLをそのまま出す）。
+// ゲスト側：手役パネルを表示（ホストが視点対応で作ったHTMLをそのまま出す）。
+//   v2.78 #4: ゲスト（対局者）は「確認」ゲートに参加。観戦者は h88ShowTeyakuGate 内で表示専用になる。
 function h88ShowTeyakuGuest(msg) {
   const st = state.h88; if (!st) return;
-  if (msg.clear) { return; } // 手役なしの保険（特に出すものはない）
+  if (msg.clear) { if (st._h88TeyakuGateCleanup) st._h88TeyakuGateCleanup(); return; } // 手役なし＝残っていれば閉じる
   playSfx(msg.hasMine ? 'charin' : 'pu');
-  showNotice(t('h88.teyaku.title'),msg.html || '', () => {}, { clear: true, draggable: true, html: true });
+  st.h88TeyakuAck = { p0: false, p1: false };
+  h88ShowTeyakuGate(msg.html || '', null); // ゲスト/観戦者は進行権を持たない（ホスト権威）
+}
+// v2.78 #4(A案): 手役パネルを「両対局者の確認待ちゲート」として出す（局終了の h88ShowRoundGate と同型）。
+//   自分が確認したらボタンを「対戦者の確認を待っています…」に変え、全員そろったらホストが対局を開始する。
+function h88ShowTeyakuGate(html, proceedFn) {
+  const st = state.h88;
+  showNotice(t('h88.teyaku.title'), html, () => {}, { clear: true, draggable: true, html: true });
+  const ov = document.getElementById('ovNotice'), okBtn = document.getElementById('ov-ok');
+  okBtn.style.display = 'none';
+  st._h88TeyakuProceed = proceedFn || null; // ホストのみ：全員確認で対局開始
+  // 観戦者は表示専用（確認ボタンなし）。teyaku-go か次の同期で閉じる。
+  if (state.isSpectator) {
+    st._h88TeyakuGateCleanup = () => { ov.classList.remove('show', 'see-through'); okBtn.style.display = ''; st._h88TeyakuGateCleanup = null; st._h88TeyakuGateRender = null; st._h88TeyakuProceed = null; };
+    return;
+  }
+  const row = ov.querySelector('.btn-row');
+  const box = document.createElement('span'); box.id = 'h88-teyakugate-btns'; row.appendChild(box);
+  const readyRow = document.createElement('div'); readyRow.id = 'h88-teyakugate-ready';
+  readyRow.style.cssText = 'display:flex;gap:14px;justify-content:center;font-size:.72rem;color:var(--text-muted);margin-top:6px;';
+  row.parentNode.insertBefore(readyRow, row.nextSibling);
+  const cleanup = () => { ov.classList.remove('show', 'see-through'); okBtn.style.display = ''; box.remove(); readyRow.remove(); st._h88TeyakuGateRender = null; st._h88TeyakuGateCleanup = null; st._h88TeyakuProceed = null; };
+  st._h88TeyakuGateCleanup = cleanup;
+  const me = h88MySeat();
+  const render = () => {
+    const nr = st.h88TeyakuAck || { p0: false, p1: false };
+    const meReady = !!nr[me];
+    box.innerHTML = meReady
+      ? '<button class="btn btn-primary" id="h88-tg-ok" disabled>' + t('h88.teyaku.waiting') + '</button>' // 押し待ちはボタン内に表示
+      : '<button class="btn btn-primary" id="h88-tg-ok">' + t('h88.teyaku.ok') + '</button>';
+    if (!meReady) { const okb = document.getElementById('h88-tg-ok'); if (okb) okb.onclick = () => { playSfx('button'); h88TeyakuGatePress(cleanup); }; }
+    const oppSeats = Object.keys(nr).filter(s => s !== me); // 人間2席のうち自分以外（CPUは含めない）
+    readyRow.innerHTML = '<span>' + t('game.you') + '：' + (meReady ? t('h88.gate.pressed') : t('h88.gate.notyet')) + '</span>'
+      + oppSeats.map(s => '<span>' + (st.names[s] || s) + '：' + (nr[s] ? t('h88.gate.pressed') : t('h88.gate.waiting')) + '</span>').join('');
+  };
+  st._h88TeyakuGateRender = render;
+  render();
+}
+// 手役ゲートの「確認」押下。ホスト＝自席を確認済みにして集計、ゲスト＝ホストへ確認を送る。
+function h88TeyakuGatePress(cleanup) {
+  const st = state.h88; const me = h88MySeat();
+  if (!st.h88TeyakuAck || st.h88TeyakuAck[me]) return; // 二重押し防止
+  if (state.isHost) {
+    st.h88TeyakuAck.p0 = true;
+    if (st.h88TeyakuAck.p0 && st.h88TeyakuAck.p1) { h88TeyakuGateProceed(cleanup); return; }
+    MomoMatchmaking.send({ type: 'h88-teyaku-ready', ready: st.h88TeyakuAck }, 'all'); // 押下状況を全員へ
+    if (st._h88TeyakuGateRender) st._h88TeyakuGateRender();
+  } else {
+    st.h88TeyakuAck[me] = true; // 表示用（本体はホストが集計）
+    MomoMatchmaking.send({ type: 'h88-teyaku-ack' }, 'host'); // D2: 確認はホスト宛
+    if (st._h88TeyakuGateRender) st._h88TeyakuGateRender();
+  }
+}
+// ホスト：両対局者が確認したので、全員のパネルを閉じて対局を開始する。
+function h88TeyakuGateProceed(cleanup) {
+  const st = state.h88;
+  try { MomoMatchmaking.send({ type: 'h88-teyaku-go' }, 'all'); } catch (e) {} // ゲスト/観戦者のパネルを閉じる
+  st.h88TeyakuAck = null;
+  const proceed = st._h88TeyakuProceed; st._h88TeyakuProceed = null;
+  if (cleanup) cleanup(); else if (st._h88TeyakuGateCleanup) st._h88TeyakuGateCleanup();
+  if (proceed) proceed(); // 手役ハイライトを消し→対局開始（h88MaybeAi）
 }
 // ── ⑩出降りフェーズ（配札後・手役の前）。親から反時計回りに1人ずつ「出る／降りる」を宣言 ──
 function h88BeginDeiori(g, oyaId) {
@@ -5666,17 +5761,19 @@ function renderH88() {
                                   : (g.deck.length ? svgBack() : '');
   const p0Dropped = !!(g.dropped && g.dropped.indexOf(mySeat) >= 0); // ⑩出降り：自分（視点席）が降りた
   const myTurn = (g.currentPlayer === mySeat && !g.winner && !p0Dropped && !state.isSpectator); // D3: 観戦者は操作不可
+  // v2.78 #3: 下段席のオレンジ枠は「その席が手番か」で判定（相手席の renderH88Seat と同じ基準）。myTurn は観戦者を除外するため枠専用にこれを使う。
+  const selfSeatTurn = (g.currentPlayer === mySeat && !g.winner && !p0Dropped && !st.teyakuMarks);
   // v2.24: ピック中・めくり札表示中・自分の一手が進行中（出した→回収の所作の途中）は手札操作を止める
   const p0Playing = !!(g.playedFromHand && g.playedFromHand.player === mySeat); // 自分の staged 進行中
   const handOn = myTurn && !st.pending && !st.drawn && !p0Playing && !st.turnBusy;
   const selfBox = document.querySelector('.h88-self'); // 自分の手番は相手と同じくオレンジ枠で強調（手役中は出さない）
-  if (selfBox) { selfBox.classList.toggle('turn', myTurn && !st.teyakuMarks); selfBox.classList.toggle('h88-dropped', p0Dropped); }
+  if (selfBox) { selfBox.classList.toggle('turn', selfSeatTurn); selfBox.classList.toggle('h88-dropped', p0Dropped); }
   // 自分の名前・親・手番を取り札の1番上に（相手と同じ形で表示）。手役表示中は手番バッジを出さない。降りたら「降り」。
   const youL = state.isSpectator ? (st.names[mySeat] || '') : t('game.you'); // D3: 観戦者は視点席を名前で表示（「あなた」を出さない）
   document.getElementById('h88-self-nameline').innerHTML =
     (st.roundOya === mySeat ? '<span class="h88-oya-badge">' + t('oyako.oya') + '</span>' : '')
     + youL + (!state.isSpectator && st.names[mySeat] !== youL ? '：' + st.names[mySeat] : '')
-    + (p0Dropped ? '<span class="h88-drop-badge">' + t('h88.badge.drop') + '</span>' : ((myTurn && !st.teyakuMarks) ? '<span class="h88-turn-badge">' + t('h88.badge.youturn') + '</span>' : ''));
+    + (p0Dropped ? '<span class="h88-drop-badge">' + t('h88.badge.drop') + '</span>' : (selfSeatTurn ? '<span class="h88-turn-badge">' + t(state.isSpectator ? 'h88.badge.turn' : 'h88.badge.youturn') + '</span>' : '')); // v2.78 #3: 観戦者は「あなたの番」でなく中立の手番バッジ
   const p0Flash = (g.capFlash && g.capFlash.player === mySeat) ? new Set(g.capFlash.ids) : null; // v2.24: 回収直後の札
   document.getElementById('h88-self-caps').innerHTML = h88CapGroupedHTML(g.caps[mySeat], 'self2', p0Flash);
   const selfNearEl = document.getElementById('h88-self-near'); // v2.37: 達成役／あと1枚（自分）
@@ -6536,6 +6633,8 @@ function h88ShowMatchEnd() {
       + '<span class="sc-name">' + t('h88.rank', { n: i + 1 }) + '　' + st.names[s] + (s === my ? t('h88.youSuffix') : '') + '</span>'
       + '<span class="sc-val">' + h88FormatFumi(st.scores[s] || 0) + '</span></div>';
   }).join('');
+  // v2.78 #7: 観戦者は「もう一度対戦」を出さない（押すと閉じた準備室に居座ってしまうため）。「ロビーに戻る」だけ。
+  const bReMatch = document.getElementById('btn-h88-rematch'); if (bReMatch) bReMatch.style.display = state.isSpectator ? 'none' : '';
   document.getElementById('ovH88End').classList.add('show');
   if (iWin) launchKusudama88();
   // v2.13: 勝利のファンファーレは「終局＝総合得点勝ち」でくす玉と一緒に鳴らす（こいこい準拠）
@@ -6637,13 +6736,23 @@ const AUDIO = (function () {
   }
   async function playRandomBgm(pool) {
     if (curPool === pool && curSource) return; // 既に同じプールが鳴っていれば何もしない
+    // v2.78 #2: 隠れている間は鳴らし始めない。ここで start すると、suspend 中の「聞こえないのに登録された」ソースが
+    //   curPool/curSource を埋め、復帰後も先頭の guard に弾かれて二度と鳴らなくなる（キック→ロビー/観戦に戻っても無音の恒久化）。
+    //   desiredPool は setBgm が保持しているので、タブ復帰後の最初の操作（armResume）で改めてきれいに鳴る。
+    if (typeof document !== 'undefined' && document.hidden) return;
     const myGen = ++reqGen;
     ensureCtx(); if (!ctx || !bgmGain) return;
+    // v2.78 #2: 何らかの理由でコンテキストが停止していたら、まず起こす（キック通知/画面遷移などで suspend されうる）。
+    //   起こしてから鳴らすことで「聞こえない無音ソースを作って再生状態を汚す」恒久無音を防ぐ。
+    if (ctx.state !== 'running') { try { await ctx.resume(); } catch (e) {} }
+    if (myGen !== reqGen) return;
     const urls = BGM_POOLS[pool]; if (!urls || !urls.length) return;
     const url = urls[Math.floor(Math.random() * urls.length)];
     const buf = await loadBgm(url);
     if (myGen !== reqGen) return; // await 中に別要求/stop が入ったら諦める（二重再生防止）
     if (!buf || !ctx || !bgmGain) return;
+    // まだ起きていない/隠れたなら、ここでソースを作らない（無音ソースで再生状態を埋めない）。desiredPool は保持され次の機会に鳴る。
+    if ((typeof document !== 'undefined' && document.hidden) || ctx.state !== 'running') return;
     if (curSource) { try { curSource.stop(); } catch (e) {} curSource = null; }
     const src = ctx.createBufferSource();
     src.buffer = buf; src.loop = true; src.connect(bgmGain); src.start();
@@ -9828,10 +9937,13 @@ function bindEvents() {
   // v1.66: 八八の「対戦準備に戻る」＝準備画面(screen-room)へ（ロビーではない）
   const bHomeH = document.getElementById('btn-home-hachi');
   if (bHomeH) bHomeH.addEventListener('click', () => {
+    // v2.78 #5: 対局中の中断＝そのゲームを流して全員（ホスト・ゲスト・観戦者）を準備室へ戻す。
+    //   押した本人だけが抜けると相手が「ゲスト待ち」で取り残され、親決めめくりの半端な状態になっていた。
+    if (!state.vsAI) { try { MomoMatchmaking.send({ type: 'h88-rematch' }, 'all'); } catch (e) {} }
     state.h88 = null;
     showScreen('room');
     refreshRoomView();
-    pickGame('hachi'); // 八八の準備を再表示
+    pickGame('hachi'); // 八八の準備を再表示（親決めもリセット）
   });
   // v1.66: プレイ記録パネルの開閉
   const bLog = document.getElementById('btn-h88-log');

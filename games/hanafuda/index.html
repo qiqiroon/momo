@@ -47,8 +47,10 @@
     background-size:48px 48px; background-attachment:fixed;
   }
   body::before{content:'';position:fixed;inset:0;background:var(--bg);opacity:.82;pointer-events:none;z-index:0;}
-  /* 対局中は URL バーの縮退に追従して 1 画面固定（dvh 対応ブラウザは dvh、非対応は vh フォールバック） */
-  body.in-game{height:100vh;height:100dvh;overflow:hidden;}
+  /* 対局中は URL バーの縮退に追従して 1 画面固定（dvh 対応ブラウザは dvh、非対応は vh フォールバック）
+     ④(v2.76): さらに JS 実測の可視ビューポート高さ --app-h を最優先に（iPad Chrome/Safari で
+     dvh がツールバー変動を反映しきれず盤が縦にあふれる対策。--app-h 未設定時は dvh にフォールバック＝無回帰）。 */
+  body.in-game{height:100vh;height:100dvh;height:var(--app-h,100dvh);overflow:hidden;}
 
   /* Top controls: 歯車 + 言語プルダウン。site-header の右端に inline 配置 */
   #top-controls{display:flex;align-items:center;gap:8px;margin-left:auto;align-self:flex-start;padding-top:6px;}
@@ -289,7 +291,7 @@
 
   /* Common containers — page-wrap の上余白を詰めてタイトルを画面最上部に */
   .page-wrap{position:relative;z-index:1;max-width:900px;margin:0 auto;padding:16px 24px 40px;}
-  .wrap{position:relative;z-index:1;max-width:460px;height:100vh;height:100dvh;margin:0 auto;padding:8px 12px;display:flex;flex-direction:column;gap:6px;}
+  .wrap{position:relative;z-index:1;max-width:460px;height:100vh;height:100dvh;height:var(--app-h,100dvh);margin:0 auto;padding:8px 12px;display:flex;flex-direction:column;gap:6px;}
   .hidden{display:none!important;}
 
   /* Header (lobby/room) — MOMO Darts 準拠：icon の右に title-block（h1 + subtitle 縦積み） */
@@ -1325,7 +1327,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.75</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.76</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1391,7 +1393,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.75</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.76</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1528,7 +1530,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.75</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.76</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1590,7 +1592,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.75</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.76</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -3713,9 +3715,9 @@ function initMatchmaking() {
       if (!state.isHost) { updateSpectatorCount(); return; } // 観戦者・ゲスト側は名簿更新のみ
       // D3: 観戦者、または既にゲストが居る状態での追加プレイヤー入室 → 観戦者として受け入れる。
       if (role === 'spectator' || state.playerPid) {
-        // ⑦(v2.74): 観戦を禁止しているなら、入ってきた観戦者を即キック（自分で退室してもらう）
+        // ⑦(v2.74/76): 観戦を禁止しているなら、入ってきた観戦者を即キック（サーバーが対象へ 'kicked' を送る）
         if (state.allowSpectators === false) {
-          MomoMatchmaking.send({ type: 'kick' }, pid);
+          MomoMatchmaking.send({ type: 'kick', pid: pid });
           state.roster = (state.roster || []).filter(x => x && x.pid !== pid);
           updateSpectatorCount(); renderParticipantMgmt();
           return;
@@ -3826,6 +3828,7 @@ function initMatchmaking() {
     },
     onKicked: () => {
       diagLog('room', 'kicked');
+      try { alert(t('notice.kicked')); } catch (e) {} // v2.76: キックされた側に通知してからロビーへ
       backToLobby();
     },
     onMessage: (data) => handleP2P(data),
@@ -3866,7 +3869,7 @@ function handleSpectatorMsg(data) {
 
 function handleP2P(data) {
   if (!data || !data.type) return;
-  if (data.type === 'kick') { hostKickedMe(); return; } // ⑤⑥(v2.74): ホストにキックされた側（プレイヤー・観戦者とも）は自分で退室
+  // v2.76: キックはサーバーが横取りして対象へ 'kicked' を送るため、対象は onKicked で退室する（ここには 'kick' は来ない）。
   // D3: 観戦者は公開ビュー系のみ処理。親決め・準備完了・intent などプレイヤー宛の合図は一切踏まない。
   if (state.isSpectator) { handleSpectatorMsg(data); return; }
   // v2.45-段3: 八八オンラインのメッセージ経路
@@ -7832,6 +7835,13 @@ function renderNearYaku(player, elId) {
 }
 
 // 縦画面フィット：手札 8 枚の横幅と 5 段の縦高さの両制約から最大カード幅を実測して決める。
+// ④(v2.76): 可視ビューポート高さを実測して CSS 変数 --app-h に反映（iPad のツールバー変動対策）。
+function setAppHeight() {
+  try {
+    const h = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight;
+    if (h && h > 0) document.documentElement.style.setProperty('--app-h', Math.round(h) + 'px');
+  } catch (e) {}
+}
 // --card-w / --cap-w を #screen-game にセット（ロビー/対戦準備の札には影響しない）。
 function fitBoard() {
   const sg = document.getElementById('screen-game');
@@ -9264,6 +9274,9 @@ function koiBootstrapSpectator(pid) {
     }
     return;
   }
+  // #1(v2.76): こいこいも準備室で既に引いた親決めを新しい観戦者へ送る（八八の h88-oya-state と同じ発想。入室前の分を反映）。
+  if (state.oyaHostMonth != null) MomoMatchmaking.send({ type: 'oya_draw', side: 'host', month: state.oyaHostMonth, card: state.oyaHostCard }, pid);
+  if (state.oyaGuestMonth != null) MomoMatchmaking.send({ type: 'oya_draw', side: 'guest', month: state.oyaGuestMonth, card: state.oyaGuestCard }, pid);
   const g = state.game;
   if (!g) return; // まだ対局前＝準備画面のまま。開始時の deal で載る。
   MomoMatchmaking.send(koiSpectatorPayload(koiStatePayload('state')), pid); // 途中参加は state で即スナップ（配りアニメは再生しない）
@@ -9396,16 +9409,17 @@ function applyRoleAssign(data) {
 // ホストのみキック可。再入室は禁止しない。
 function hostKick(pid) {
   if (!state.isHost || !pid || pid === state.myPid) return;
-  MomoMatchmaking.send({ type: 'kick' }, pid);           // 対象クライアントへ「自分で出て」の合図
-  state.roster = (state.roster || []).filter(x => x && x.pid !== pid); // ローカル名簿から即除去（実退出は onParticipantLeft でも届く）
+  // v2.76: サーバーの多人数kickは data.pid を要求（type:'kick', pid）。サーバーが対象へ 'kicked' を送り、
+  //   対象クライアントのライブラリが onKicked（backToLobby）で退室する＋全員へ participant_left が届く。
+  //   （旧v2.74は宛先 to で送り data.pid が無く、サーバーに弾かれていた＝キックが届かない不具合）
+  MomoMatchmaking.send({ type: 'kick', pid: pid });
+  state.roster = (state.roster || []).filter(x => x && x.pid !== pid); // ローカル名簿を即更新（server の participant_left でも届く）
   if (pid === state.playerPid) { state.playerPid = null; handleGuestLeft(); } // プレイヤーをキック＝ゲスト不在に戻す
   updateSpectatorCount();
   renderParticipantMgmt();
   renderSpectatorFloat();
   refreshRoomView();
 }
-// キックされた側（プレイヤー・観戦者とも）＝通知して自分で退室
-function hostKickedMe() { try { alert(t('notice.kicked')); } catch (e) {} leaveRoom(); }
 // ⑦: 観戦禁止にしたら現在の観戦者を全員キック
 function kickAllSpectators() { if (!state.isHost) return; specTargetPids().slice().forEach(pid => hostKick(pid)); }
 
@@ -9932,16 +9946,18 @@ function bindEvents() {
     });
   }
 
-  window.addEventListener('resize', () => { fitHeader(); fitBoard(); fitH88Board(); positionLeaveBtn(); updateH88OrientationUI(); });
-  window.addEventListener('orientationchange', () => { _h88ToastDismissedPortrait = false; setTimeout(() => { fitHeader(); fitBoard(); fitH88Board(); positionLeaveBtn(); updateH88OrientationUI(); }, 250); });
-  // ④(v2.73): iOS/iPad の Chrome/Safari はツールバー（タブ/アドレスバー）の出入りで
+  window.addEventListener('resize', () => { setAppHeight(); fitHeader(); fitBoard(); fitH88Board(); positionLeaveBtn(); updateH88OrientationUI(); });
+  window.addEventListener('orientationchange', () => { _h88ToastDismissedPortrait = false; setTimeout(() => { setAppHeight(); fitHeader(); fitBoard(); fitH88Board(); positionLeaveBtn(); updateH88OrientationUI(); }, 250); });
+  // ④(v2.73/76): iOS/iPad の Chrome/Safari はツールバー（タブ/アドレスバー）の出入りで
   //   window 'resize' が発火しないことがあり、見える高さが減っても盤が再フィットされず
-  //   縦スクロールが要る状態になる。visualViewport の resize/scroll で盤を測り直す。
+  //   縦スクロールが要る状態になる。可視ビューポート高さを JS 実測して --app-h に入れ、
+  //   さらに盤を測り直す。visualViewport が使えない環境では dvh のまま。
   if (window.visualViewport) {
-    const reflow = () => { if (state.screen === 'game') fitBoard(); else if (state.screen === 'hachi') fitH88Board(); positionLeaveBtn(); };
+    const reflow = () => { setAppHeight(); if (state.screen === 'game') fitBoard(); else if (state.screen === 'hachi') fitH88Board(); positionLeaveBtn(); };
     window.visualViewport.addEventListener('resize', reflow);
     window.visualViewport.addEventListener('scroll', reflow);
   }
+  setAppHeight();
   // v1.85/86: 全画面の出入りで、横向きロック/解除・ボタン表記（全画面⇄解除）・トーストを更新
   document.addEventListener('fullscreenchange', h88OnFullscreenChange);
   document.addEventListener('webkitfullscreenchange', h88OnFullscreenChange);
@@ -10073,7 +10089,7 @@ document.addEventListener('DOMContentLoaded', () => {
       handleP2P, syncState, applyState, handleIntent, startGame, startRound,
       // v1.13: 全12局進行のテスト用
       beginMatch, advanceRound, onRoundNext, endMatch, detectDealSpecial, checkDealSpecials, finalizeRoundEnd, renderRoundEndFromData, renderGameEndFromData,
-      hostKick, hostKickedMe, kickAllSpectators, renderParticipantMgmt, renderSpectatorFloat, toggleSpectatorFloat, specTargetPids, updateSpectatorCount,
+      hostKick, kickAllSpectators, renderParticipantMgmt, renderSpectatorFloat, toggleSpectatorFloat, specTargetPids, updateSpectatorCount,
       interceptSend() {
         window._outbox = [];
         window._origSend = MomoMatchmaking.send;

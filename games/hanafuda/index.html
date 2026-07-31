@@ -535,7 +535,9 @@
   .seg-row .zl-name{font-size:.72rem;color:var(--text);font-weight:700;max-width:40vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   /* v2.56: こいこい 自分のターンを目立たせる（手札＋ラベルをオレンジのBOXで囲む）。相手の番では外す。 */
   .seg-row.my-turn-glow{border:2px solid var(--orange);border-radius:14px;padding:8px 12px;box-shadow:0 0 14px 2px rgba(232,140,42,.45);background:rgba(232,140,42,.06);transition:border-color .2s,box-shadow .2s,background .2s;}
-  .cardrow{display:flex;gap:3px;flex-wrap:nowrap;justify-content:center;}
+  /* v2.70: justify-content を safe center に。中身が収まる時は中央寄せのまま、
+     はみ出す時だけ左端揃えに逃がす（WebKit/iPad で中央寄せの先頭カードの左端が切れるのを防ぐ）。 */
+  .cardrow{display:flex;gap:3px;flex-wrap:nowrap;justify-content:safe center;}
   .ct-row{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;}
   .nearcap{font-size:.62rem;color:var(--text-muted);}
   .nearcap b{color:var(--gold);}
@@ -548,7 +550,7 @@
   .diag-panel.debug-fixed.debug-collapsed{width:auto;max-height:none;overflow:visible;}
   .diag-panel.debug-fixed.debug-collapsed #diag-log{display:none;}
   .nearcap .who{color:var(--orange-mid);font-weight:700;}
-  .deckfield{display:flex;gap:8px;align-items:flex-start;justify-content:center;}
+  .deckfield{display:flex;gap:8px;align-items:flex-start;justify-content:safe center;} /* v2.70: safe center（はみ出し時に山札の左端が切れるのを防ぐ） */
   #field-row{position:relative;}
   .deck{display:flex;flex-direction:column;align-items:center;gap:2px;position:relative;}
   .deck .count{font-size:.56rem;color:var(--text-muted);}
@@ -1323,7 +1325,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.69</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.70</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1389,7 +1391,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.69</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.70</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1526,7 +1528,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.69</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.70</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1534,7 +1536,7 @@
     <button class="home-btn" id="btn-home-game" type="button">🏠 <span data-i18n="game.home">ホーム</span></button>
     <span class="rulename" id="rule-name" data-i18n="rule.koikoi">こいこい</span>
     <span><b id="st-month">3月場</b>（<span id="st-round">第1局/全12局</span>）</span>
-    <span><span data-i18n="game.you">あなた</span><b id="st-my-score">0</b><span data-i18n="game.mon">文</span>・<span data-i18n="game.opp">あいて</span><b id="st-op-score">0</b><span data-i18n="game.mon">文</span></span>
+    <span><span id="st-my-label" data-i18n="game.you">あなた</span><b id="st-my-score">0</b><span data-i18n="game.mon">文</span>・<span id="st-op-label" data-i18n="game.opp">あいて</span><b id="st-op-score">0</b><span data-i18n="game.mon">文</span></span>
     <span id="st-turn" data-i18n="game.wait">対局準備中</span>
     <span class="spectating-badge hidden" style="padding:.1em .5em;background:var(--accent,#e08a2b);color:#fff;border-radius:.4em;font-size:.8rem" data-i18n="spectator.badge">観戦中</span>
     <span class="spec-count hidden" style="color:var(--text-muted);font-size:.8rem"></span>
@@ -1542,14 +1544,14 @@
   <div class="play">
     <!-- 相手手札 -->
     <div class="seg-row">
-      <div class="zl-row"><span class="zl" data-i18n="game.opp.hand">相手の手札</span><span class="zl-name" id="opp-hand-name"></span></div>
+      <div class="zl-row"><span class="zl" id="opp-hand-lbl" data-i18n="game.opp.hand">相手の手札</span><span class="zl-name" id="opp-hand-name"></span></div>
       <div class="cardrow" id="opp-hand">
         <svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg><svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg><svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg><svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg><svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg><svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg><svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg><svg class="card back" viewBox="0 0 220 350"><use href="#backFace"/></svg>
       </div>
     </div>
     <!-- 相手取り札 -->
     <div class="capblock">
-      <div class="ct-row"><span class="ct" data-i18n="game.opp.cap">相手の取り札</span><span class="nearcap" id="opp-near"></span></div>
+      <div class="ct-row"><span class="ct" id="opp-cap-lbl" data-i18n="game.opp.cap">相手の取り札</span><span class="nearcap" id="opp-near"></span></div>
       <div class="caprow" id="opp-cap-top"><span class="gl" data-i18n="game.g.hikari">光</span><div class="cards"></div><span class="gl" data-i18n="game.g.tane">種</span><div class="cards"></div><span class="gl" data-i18n="game.g.tan">短</span><div class="cards"></div></div>
       <div class="caprow" id="opp-cap-bot"><span class="gl" data-i18n="game.g.kasu">カス</span><div class="cards"></div></div>
     </div>
@@ -1570,14 +1572,14 @@
     </div>
     <!-- 自分取り札 -->
     <div class="capblock">
-      <div class="ct-row"><span class="ct" data-i18n="game.my.cap">自分の取り札</span><span class="nearcap" id="my-near"></span></div>
+      <div class="ct-row"><span class="ct" id="my-cap-lbl" data-i18n="game.my.cap">自分の取り札</span><span class="nearcap" id="my-near"></span></div>
       <div class="caprow" id="my-cap-top"><span class="gl" data-i18n="game.g.hikari">光</span><div class="cards"></div><span class="gl" data-i18n="game.g.tane">種</span><div class="cards"></div><span class="gl" data-i18n="game.g.tan">短</span><div class="cards"></div></div>
       <div class="caprow" id="my-cap-bot"><span class="gl" data-i18n="game.g.kasu">カス</span><div class="cards"></div></div>
     </div>
     <!-- 自分手札 -->
     <div class="seg-row">
       <div class="cardrow" id="my-hand"></div>
-      <div class="zl-row"><span class="zl" data-i18n="game.my.hand">あなたの手札</span><span class="zl-name" id="my-hand-name"></span></div>
+      <div class="zl-row"><span class="zl" id="my-hand-lbl" data-i18n="game.my.hand">あなたの手札</span><span class="zl-name" id="my-hand-name"></span></div>
     </div>
   </div>
   <button class="leave-btn" id="btn-leave-game" style="display:none" data-i18n="game.leave">← 中断</button>
@@ -1588,7 +1590,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.69</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.70</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -2068,6 +2070,7 @@ const I18N = {
     'game.wait': '対局準備中',
     'game.opp.hand': '相手の手札', 'game.opp.cap': '相手の取り札',
     'game.my.hand': 'あなたの手札', 'game.my.cap': '自分の取り札',
+    'game.hand.suffix': 'の手札', 'game.cap.suffix': 'の取り札',
     'game.g.hikari': '光', 'game.g.tane': '種', 'game.g.tan': '短', 'game.g.kasu': 'カス',
     'game.deck': '山',
     'game.leave': '← 中断', 'game.home': 'ホーム',
@@ -2355,6 +2358,7 @@ const I18N = {
     'game.wait': 'Preparing…',
     'game.opp.hand': "Opponent's hand", 'game.opp.cap': "Opponent's captures",
     'game.my.hand': 'Your hand', 'game.my.cap': 'Your captures',
+    'game.hand.suffix': "'s hand", 'game.cap.suffix': "'s captures",
     'game.g.hikari': 'Hikari', 'game.g.tane': 'Tane', 'game.g.tan': 'Tan', 'game.g.kasu': 'Kasu',
     'game.deck': 'Deck',
     'game.leave': '← Quit', 'game.home': 'Home',
@@ -2642,6 +2646,7 @@ const I18N = {
     'game.wait': '准备中…',
     'game.opp.hand': '对方的手牌', 'game.opp.cap': '对方的取牌',
     'game.my.hand': '你的手牌', 'game.my.cap': '你的取牌',
+    'game.hand.suffix': '的手牌', 'game.cap.suffix': '的取牌',
     'game.g.hikari': '光', 'game.g.tane': '种', 'game.g.tan': '短', 'game.g.kasu': '滓',
     'game.deck': '牌堆',
     'game.leave': '← 中止', 'game.home': '主页',
@@ -2854,6 +2859,8 @@ function applyLang() {
     }
     if (typeof updateStartBtn === 'function') updateStartBtn();
     if (state.h88 && state.h88.game && typeof renderH88 === 'function') renderH88();
+    // v2.70: こいこい対局中の言語切替でも動的ラベル（観戦者の実名見出し等）を貼り直す
+    if (state.game && state.screen === 'game' && typeof renderGame === 'function') renderGame();
   } catch (e) {}
   // 言語切替でラベル幅が変わるのでヘッダーを測り直す（fitHeader は関数巻き上げで参照可）
   if (typeof fitHeader === 'function') fitHeader();
@@ -7409,8 +7416,35 @@ function renderGame() {
   document.getElementById('st-my-score').textContent = state.scores[me] || 0;
   document.getElementById('st-op-score').textContent = state.scores[opp] || 0;
   // v1.61: 手札ラベルの右に対局者名（自分＝me / 相手＝opp）
-  const _mhn = document.getElementById('my-hand-name'); if (_mhn) _mhn.textContent = whoLabel(me);
-  const _ohn = document.getElementById('opp-hand-name'); if (_ohn) _ohn.textContent = whoLabel(opp);
+  const _mhn = document.getElementById('my-hand-name');
+  const _ohn = document.getElementById('opp-hand-name');
+  // D3(v2.70): 観戦者は「あなた/あいて/自分/相手」の主観表現を全て実プレイヤー名に置換する
+  //（手札・取り札の見出し／ステータスバーの得点ラベル）。名前 span は接頭ラベルに名前が入るので空にして重複を避ける。
+  const _myHandLbl = document.getElementById('my-hand-lbl');
+  const _opHandLbl = document.getElementById('opp-hand-lbl');
+  const _myCapLbl = document.getElementById('my-cap-lbl');
+  const _opCapLbl = document.getElementById('opp-cap-lbl');
+  const _myScLbl = document.getElementById('st-my-label');
+  const _opScLbl = document.getElementById('st-op-label');
+  if (state.isSpectator) {
+    if (_myHandLbl) _myHandLbl.textContent = whoLabel(me) + t('game.hand.suffix');
+    if (_opHandLbl) _opHandLbl.textContent = whoLabel(opp) + t('game.hand.suffix');
+    if (_myCapLbl) _myCapLbl.textContent = whoLabel(me) + t('game.cap.suffix');
+    if (_opCapLbl) _opCapLbl.textContent = whoLabel(opp) + t('game.cap.suffix');
+    if (_myScLbl) _myScLbl.textContent = whoLabel(me) + ' ';
+    if (_opScLbl) _opScLbl.textContent = whoLabel(opp) + ' ';
+    if (_mhn) _mhn.textContent = '';
+    if (_ohn) _ohn.textContent = '';
+  } else {
+    if (_myHandLbl) _myHandLbl.textContent = t('game.my.hand');
+    if (_opHandLbl) _opHandLbl.textContent = t('game.opp.hand');
+    if (_myCapLbl) _myCapLbl.textContent = t('game.my.cap');
+    if (_opCapLbl) _opCapLbl.textContent = t('game.opp.cap');
+    if (_myScLbl) _myScLbl.textContent = t('game.you');
+    if (_opScLbl) _opScLbl.textContent = t('game.opp');
+    if (_mhn) _mhn.textContent = whoLabel(me);
+    if (_ohn) _ohn.textContent = whoLabel(opp);
+  }
   document.getElementById('st-turn').innerHTML = renderPhaseText();
   document.getElementById('deck-count').textContent = g.deck.length;
   // v1.17: 親子＋手番インジケータ（左上=相手／左下=自分）
@@ -8790,15 +8824,17 @@ function renderRoundEndFromData() {
   const iAmWinner = hasWinner && me === rend.winner;
   const isDraw = (rend.kind === 'draw' || rend.kind === 'special-draw');
   // 取られた側（勝者でない側）はパネル全体をグレーに。引き分けは中立。
+  // D3(v2.70): 観戦者は「下側＝自分」の主観がないので、負け側視点のグレーアウトを付けない
+  //（＝いつでも勝った側の表示にする）。
   const panel = document.querySelector('#ovRound .opanel');
-  if (panel) panel.classList.toggle('result-dim', hasWinner && !iAmWinner);
+  if (panel) panel.classList.toggle('result-dim', !state.isSpectator && hasWinner && !iAmWinner);
   // 見出し（「勝ち／勝利／惜しい」は使わない。勝利は全局終了時のみ）
   const fan = document.getElementById('round-fanfare');
   let headCls = 'fanfare achieve', headTxt = '';
   if (isDraw) { headCls = 'fanfare draw'; headTxt = t('achieve.draw'); }
   else if (rend.kind === 'teshi') { headTxt = t('achieve.teshi'); }
   else if (rend.kind === 'kuttsuki') { headTxt = t('achieve.kuttsuki'); }
-  else if (rend.kind === 'koikoi-lost' && me === rend.loser) { headCls = 'fanfare koikoi-ng'; headTxt = t('achieve.koikoi.ng'); }
+  else if (!state.isSpectator && rend.kind === 'koikoi-lost' && me === rend.loser) { headCls = 'fanfare koikoi-ng'; headTxt = t('achieve.koikoi.ng'); } // D3(v2.70): 観戦者は敗者視点の「こいこいNG」を出さず、勝者の役成立見出しにする
   else {
     const yakuStr = winnerYakuLabel(rend);
     headTxt = (rend.winner === rend.koikoiBy) ? t('achieve.koikoi.done', { yaku: yakuStr }) : t('achieve.shobu', { yaku: yakuStr });
@@ -9905,7 +9941,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // 直接注入 (2 端末シミュレータ用)
       handleP2P, syncState, applyState, handleIntent, startGame, startRound,
       // v1.13: 全12局進行のテスト用
-      beginMatch, advanceRound, onRoundNext, endMatch, detectDealSpecial, checkDealSpecials, finalizeRoundEnd,
+      beginMatch, advanceRound, onRoundNext, endMatch, detectDealSpecial, checkDealSpecials, finalizeRoundEnd, renderRoundEndFromData, renderGameEndFromData,
       interceptSend() {
         window._outbox = [];
         window._origSend = MomoMatchmaking.send;

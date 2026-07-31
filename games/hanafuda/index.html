@@ -110,7 +110,7 @@
   .h88-seat .h88-name{font-size:.72rem;color:#fff;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   /* v1.66: 相手手札は7枚が枠内に必ず収まるよう縮小方式（はみ出し・スクロールバー防止）。
      v1.72 D4: サイズはこいこいと同じ --card-w 変数（fitH88Board が実測セット）。 */
-  .h88-mini-hand{display:flex;gap:3px;margin-top:4px;flex-wrap:nowrap;justify-content:center;overflow:hidden;}
+  .h88-mini-hand{display:flex;gap:3px;margin-top:4px;flex-wrap:nowrap;justify-content:safe center;overflow:hidden;} /* v2.70: safe center（相手ミニ手札の先頭カード左端がoverflow:hiddenで切れるのを防ぐ） */
   .h88-mini-hand .card{flex:1 1 0;min-width:0;max-width:var(--card-w,58px);height:auto;border-radius:4px;}
   /* v1.70/75: 取り札は種別ごとにラベル付き。相手取り札のHTMLは4段(光/種/短/カス各行)。
      縦画面は4段を横に並べてコンパクト（display:flex row）／横画面は縦積み4段（後段でblock上書き）。 */
@@ -157,7 +157,7 @@
   /* v1.68: 手札は最初に7枚分の幅・高さを確保して固定（伸縮で画面がぶれない）。
      v1.72 D4: サイズは --card-w（fitH88Board が実測セット・こいこいと同じ仕組み）。 */
   /* padding-top と同じだけ margin-top をマイナスにして相殺＝浮きの余白を作りつつ測定高さは元のまま（カードが縮まない） */
-  .h88-hand{display:flex;gap:3px;justify-content:center;flex-wrap:nowrap;padding-top:20px;margin:-20px auto 0;width:calc(7 * var(--card-w,52px) + 6 * 3px);max-width:100%;min-height:calc(var(--card-w,52px) * 350 / 220);}
+  .h88-hand{display:flex;gap:3px;justify-content:safe center;flex-wrap:nowrap;padding-top:20px;margin:-20px auto 0;width:calc(7 * var(--card-w,52px) + 6 * 3px);max-width:100%;min-height:calc(var(--card-w,52px) * 350 / 220);} /* v2.70: safe center */
   .h88-hand .h88-hand-card{cursor:pointer;transition:transform .12s;flex:0 0 auto;}
   .h88-hand .h88-hand-card:hover{transform:translateY(-5px);}
   /* v1.63 B6: 選択中の手札は浮かせて強調 */
@@ -256,10 +256,10 @@
     /* プレイヤー内：名前(上)→取り札2列(中)→伏せ手札1列(下)。 */
     #screen-hachi .h88-seat-rot .h88-name{flex:0 0 auto;text-align:center;font-size:.72rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
     #screen-hachi .h88-seat-rot .h88-caps{flex:0 0 auto;display:flex;flex-direction:column;gap:2px;margin:0;align-items:center;}
-    #screen-hachi .h88-seat-rot .h88-caps .caprow{flex-wrap:nowrap;justify-content:center;}
+    #screen-hachi .h88-seat-rot .h88-caps .caprow{flex-wrap:nowrap;justify-content:safe center;} /* v2.70: safe center */
     /* v1.82: 相手の取り札・手札も中央と同じ --cap-w/--card-w（全プレイヤー均等サイズ）。帯幅は fit が自動計算。 */
     #screen-hachi .h88-seat-rot .h88-caps .card{width:var(--cap-w);height:auto;}
-    #screen-hachi .h88-seat-rot .h88-mini-hand{flex:0 0 auto;display:flex;flex-direction:row;flex-wrap:nowrap;justify-content:center;gap:3px;margin-top:2px;overflow:visible;}
+    #screen-hachi .h88-seat-rot .h88-mini-hand{flex:0 0 auto;display:flex;flex-direction:row;flex-wrap:nowrap;justify-content:safe center;gap:3px;margin-top:2px;overflow:visible;} /* v2.70: safe center */
     #screen-hachi .h88-seat-rot .h88-mini-hand .card{flex:0 0 auto;width:var(--card-w);height:auto;max-width:none;}
     /* 中央ブロック＝状態(上)・山と場(中・可変)・自分(下)。左右のパディング内に縦積み。 */
     #screen-hachi .h88-center{display:flex;flex-direction:column;height:100%;gap:4px;padding:4px 6px 6px;min-height:0;box-sizing:border-box;}
@@ -1325,7 +1325,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.70</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.71</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1391,7 +1391,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.70</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.71</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1528,7 +1528,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.70</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.71</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1590,7 +1590,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.70</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.71</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>

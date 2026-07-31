@@ -1325,7 +1325,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.71</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.72</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1373,7 +1373,7 @@
       </ul>
       <div class="check-row"><input type="checkbox" id="pv"><label for="pv" data-i18n="lobby.showpriv">非公開の部屋を表示</label></div>
       <div class="pw-row">
-        <input id="in-joinpw" type="password" placeholder="パスワード" data-i18n-ph="lobby.joinpw.ph" maxlength="16" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-form-type="other" name="hf-nopw-2">
+        <input id="in-joinpw" type="password" placeholder="パスワード" data-i18n-ph="lobby.joinpw.ph" maxlength="16" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-form-type="other" name="hf-nopw-2" readonly onfocus="this.removeAttribute('readonly')">
         <button class="btn btn-ghost btn-sm" id="btn-show-priv" data-i18n="lobby.show">表示</button>
       </div>
     </div>
@@ -1391,7 +1391,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.71</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.72</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1528,7 +1528,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.71</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.72</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1590,7 +1590,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.71</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.72</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -3315,13 +3315,14 @@ function renderOyaSlot(slotId, metaId, cardId, month, name) {
   }
 }
 function renderOyaDraw() {
-  renderOyaSlot('slotHost', 'metaHost', state.oyaHostCard, state.oyaHostMonth, state.hostName || t('room.host'));
-  renderOyaSlot('slotGuest', 'metaGuest', state.oyaGuestCard, state.oyaGuestMonth, state.guestName || t('room.guest'));
+  // v2.72(③): 名前は whoLabel（観戦者は viewNames の実プレイヤー名・自分の名前を出さない／プレイヤーは従来通り）
+  renderOyaSlot('slotHost', 'metaHost', state.oyaHostCard, state.oyaHostMonth, whoLabel('host') || t('room.host'));
+  renderOyaSlot('slotGuest', 'metaGuest', state.oyaGuestCard, state.oyaGuestMonth, whoLabel('guest') || t('room.guest'));
   const res = document.getElementById('oyaResult');
   if (state.oya) {
     const who = state.oya === 'host'
-      ? (state.hostName || t('room.host')) + '（' + t('room.host') + '）'
-      : (state.guestName || t('room.guest')) + '（' + t('room.guest') + '）';
+      ? (whoLabel('host') || t('room.host')) + '（' + t('room.host') + '）'
+      : (whoLabel('guest') || t('room.guest')) + '（' + t('room.guest') + '）';
     // v1.24: 同月で決着したときは「強い札を引いた」に
     const sameMonth = (state.oyaHostMonth != null && state.oyaGuestMonth != null && state.oyaHostMonth === state.oyaGuestMonth);
     res.innerHTML = t(sameMonth ? 'oya.result.strong' : 'oya.result', { who: who });
@@ -3807,6 +3808,17 @@ function handleSpectatorMsg(data) {
     return;
   }
   if (data.type === 'deal' || data.type === 'state') { applyState(data); return; } // こいこい公開ビュー
+  if (data.type === 'oya_draw') { // v2.72(③): こいこいの親決め（親札引き）結果を観戦者にも反映
+    if (data.side === 'host') { state.oyaHostMonth = data.month; state.oyaHostCard = data.card || null; }
+    else if (data.side === 'guest') { state.oyaGuestMonth = data.month; state.oyaGuestCard = data.card || null; }
+    updateOyaResult(); renderOyaDraw(); refreshRoomView();
+    return;
+  }
+  if (data.type === 'oya') { // legacy（host が両方引く方式）も観戦者へ反映
+    state.oyaHostMonth = data.host; state.oyaGuestMonth = data.guest; state.oya = data.oya;
+    renderOyaDraw(); refreshRoomView();
+    return;
+  }
   if (data.type === 'h88-start') { h88ApplyStart(data); return; } // 八八：観戦者の盤面をセットアップ
   if (data.type === 'h88-state') { h88ApplyState(data); return; } // 八八公開ビュー
   if (data.type === 'h88-oya-state') { h88OnlineOyaApplyRemote(data.draws); return; } // 八八：準備室の親決めを観戦者にも反映
@@ -8881,7 +8893,12 @@ function renderRoundEndFromData() {
   else { noEl.style.display = ''; noEl.innerHTML = t('round.nextoya', { who: whoLabel(rend.nextOya), change: !!rend.oyaChange }); }
   renderRoundReady();
   const roundShown = document.getElementById('ovRound').classList.contains('show');
-  document.getElementById('ovRound').classList.add('show');
+  // v2.72(⑩⑪): 局終了パネルは背景をぼかさず（see-through）盤面をそのまま見せる＋パネルをドラッグ移動可能に
+  //（見えている札を隠さない・パネルを退かして盤と突き合わせられる）。
+  const _ovR = document.getElementById('ovRound');
+  _ovR.classList.add('see-through');
+  if (panel) { panel.classList.add('draggable'); if (!roundShown) panel.style.transform = ''; makePanelDraggable(panel); }
+  _ovR.classList.add('show');
   // v1.40: 局終了の効果音（再描画での二重再生を防ぐ）
   if (!roundShown) {
     if (iAmWinner && rend.delta > 0) { for (let i = 0; i < rend.delta; i++) setTimeout(() => playSfx('charin'), i * 90); } // 得た文の数だけ高速チャリン
@@ -9368,6 +9385,13 @@ function applyState(msg) {
   if (msg.scores) state.scores = msg.scores;
   if (msg.oya) state.oya = msg.oya;
   state.matchOver = !!msg.matchOver;
+  // v2.72(⑧): ゲスト・観戦者もこいこいBGMに追従（ホストは applyKoikoi で切替済）。
+  //   進行中はこいこい宣言中(g.koikoiBy)なら「こいこい」曲・それ以外は通常曲。局終了で通常へ。
+  //   総合結果(matchOver)の音は renderGameEndFromData 側に任せる。playRandomBgm は同プールを無視＝連呼安全。
+  if (!state.matchOver) {
+    if (g.phase === 'end') setBgm('normal');
+    else setBgm(g.koikoiBy ? 'koikoi' : 'normal');
+  }
   if (enteringGame && !state.isSpectator) saveSession(); // 対局入りを復帰用に保存（観戦者は復帰対象外）
   // v1.36: 局ごとの配り（'deal'）は必ず配りアニメ。再接続や通常更新('state')は通常描画。
   //   ※ゲストは 'start' 受信で先に game 画面へ入る（enteringGame が偽になる）ため、画面遷移では判定しない。

@@ -1325,7 +1325,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.73</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.74</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1391,7 +1391,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.73</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.74</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1528,7 +1528,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.73</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.74</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1590,7 +1590,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.73</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.74</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -2180,6 +2180,11 @@ const I18N = {
     'pm.role.spectator': '観戦',
     'pm.promote': 'プレイヤーにする',
     'pm.demote': '観戦にする',
+    'pm.kick': 'キック',
+    'notice.kicked': 'ホストにより退室しました',
+    'pm.allowspec': '観戦を許可する',
+    'spec.list.title': '観戦者',
+    'spec.none': '観戦者はいません',
     'settings.title': '設定',
     'settings.bgm.label': 'BGM',
     'settings.bgm.hint': 'BGM の音量',
@@ -2469,6 +2474,11 @@ const I18N = {
     'pm.role.spectator': 'Spectator',
     'pm.promote': 'Make player',
     'pm.demote': 'Make spectator',
+    'pm.kick': 'Kick',
+    'notice.kicked': 'You were removed by the host',
+    'pm.allowspec': 'Allow spectators',
+    'spec.list.title': 'Spectators',
+    'spec.none': 'No spectators',
     'settings.title': 'Settings',
     'settings.bgm.label': 'BGM',
     'settings.bgm.hint': 'BGM volume (v1.00 is UI only — audio arrives in Phase 2)',
@@ -2758,6 +2768,11 @@ const I18N = {
     'pm.role.spectator': '观战',
     'pm.promote': '设为玩家',
     'pm.demote': '设为观战',
+    'pm.kick': '踢出',
+    'notice.kicked': '你已被房主移出',
+    'pm.allowspec': '允许观战',
+    'spec.list.title': '观战者',
+    'spec.none': '没有观战者',
     'settings.title': '设置',
     'settings.bgm.label': 'BGM',
     'settings.bgm.hint': 'BGM 音量',
@@ -3693,6 +3708,13 @@ function initMatchmaking() {
       if (!state.isHost) { updateSpectatorCount(); return; } // 観戦者・ゲスト側は名簿更新のみ
       // D3: 観戦者、または既にゲストが居る状態での追加プレイヤー入室 → 観戦者として受け入れる。
       if (role === 'spectator' || state.playerPid) {
+        // ⑦(v2.74): 観戦を禁止しているなら、入ってきた観戦者を即キック（自分で退室してもらう）
+        if (state.allowSpectators === false) {
+          MomoMatchmaking.send({ type: 'kick' }, pid);
+          state.roster = (state.roster || []).filter(x => x && x.pid !== pid);
+          updateSpectatorCount(); renderParticipantMgmt();
+          return;
+        }
         // ★重要: サーバー上「プレイヤー」役で入ったが席が埋まっていて観戦扱いにする人には、
         //   本人のクライアントを観戦へ合わせる role-assign を必ず送る（送らないと本人の画面はプレイヤーのままで役がズレる）。
         //   これは部屋一覧の人数が更新される前に2人目が入ると起きる（同一PCの別タブ等で顕著）。
@@ -3839,6 +3861,7 @@ function handleSpectatorMsg(data) {
 
 function handleP2P(data) {
   if (!data || !data.type) return;
+  if (data.type === 'kick') { hostKickedMe(); return; } // ⑤⑥(v2.74): ホストにキックされた側（プレイヤー・観戦者とも）は自分で退室
   // D3: 観戦者は公開ビュー系のみ処理。親決め・準備完了・intent などプレイヤー宛の合図は一切踏まない。
   if (state.isSpectator) { handleSpectatorMsg(data); return; }
   // v2.45-段3: 八八オンラインのメッセージ経路
@@ -9261,7 +9284,12 @@ function updateSpectatorCount() {
   document.querySelectorAll('.spec-count').forEach(el => {
     if (n > 0) { el.textContent = t('spectators.count', { n: n }); el.classList.remove('hidden'); }
     else { el.textContent = ''; el.classList.add('hidden'); }
+    // ⑤(v2.74): ホストは「観戦N人」をクリックで観戦者リスト（×でキック）を開閉できる
+    el.style.cursor = state.isHost ? 'pointer' : '';
+    el.title = state.isHost ? t('spec.list.title') : '';
+    if (state.isHost && !el.__specClick) { el.__specClick = true; el.addEventListener('click', toggleSpectatorFloat); }
   });
+  renderSpectatorFloat(); // 開いていれば人数変化に追従
 }
 // roster から観戦者数を数える（ホストは currentGuestPid 以外、ゲスト/観戦者は role で数える）。
 function specTargetPidsSafeCount() {
@@ -9280,10 +9308,15 @@ function renderParticipantMgmt() {
   if (!el) return;
   if (!state.isHost || inGameNow()) { el.classList.add('hidden'); el.innerHTML = ''; return; }
   const others = (state.roster || []).filter(x => x && x.pid && x.pid !== state.myPid);
-  if (others.length === 0) { el.classList.add('hidden'); el.innerHTML = ''; return; }
-  el.classList.remove('hidden');
+  el.classList.remove('hidden'); // ⑦: 参加者が居なくても観戦許可チェックは常に出す（ホスト・準備画面）
   el.innerHTML = '';
   const head = document.createElement('div'); head.style.cssText = 'font-weight:600;margin-bottom:.3em'; head.textContent = t('pm.head'); el.appendChild(head);
+  // ⑦: 観戦許可チェックボックス（外すと以後の観戦入室を即キック＋現在の観戦者も全員キック）
+  const specRow = document.createElement('label'); specRow.style.cssText = 'display:flex;align-items:center;gap:.4em;margin-bottom:.45em;cursor:pointer';
+  const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = (state.allowSpectators !== false);
+  cb.addEventListener('change', () => { state.allowSpectators = cb.checked; if (!cb.checked) kickAllSpectators(); });
+  const cbl = document.createElement('span'); cbl.textContent = t('pm.allowspec');
+  specRow.appendChild(cb); specRow.appendChild(cbl); el.appendChild(specRow);
   // 同名を区別できるよう、重複する名前には番号を付ける（同一PCの別タブで既定名が同じになりがちなため）
   const nameCounts = {}; others.forEach(x => { const nm0 = x.name || '?'; nameCounts[nm0] = (nameCounts[nm0] || 0) + 1; });
   const seenIdx = {};
@@ -9297,7 +9330,11 @@ function renderParticipantMgmt() {
     const btn = document.createElement('button'); btn.className = 'btn btn-ghost btn-sm';
     btn.textContent = isPlayer ? t('pm.demote') : t('pm.promote');
     btn.addEventListener('click', () => hostSetRole(x.pid, isPlayer ? 'spectator' : 'player'));
-    row.appendChild(nm); row.appendChild(btn); el.appendChild(row);
+    // ⑥: キックボタン（プレイヤー・観戦者とも。再入室は禁止しない）
+    const kbtn = document.createElement('button'); kbtn.className = 'btn btn-ghost btn-sm';
+    kbtn.textContent = t('pm.kick'); kbtn.style.color = '#e06b5a';
+    kbtn.addEventListener('click', () => hostKick(x.pid));
+    row.appendChild(nm); row.appendChild(btn); row.appendChild(kbtn); el.appendChild(row);
   });
 }
 
@@ -9346,6 +9383,51 @@ function applyRoleAssign(data) {
   if (state.screen !== 'room') showScreen('room'); // 役変更は準備画面のみ＝準備室へ
   renderOyaDraw();
   refreshRoomView();
+}
+
+// ⑤⑥⑦(v2.74): キック・観戦許可。サーバーは介さず、ホストが対象クライアントに kick を送り本人に退室させる（ユーザー承認方式）。
+// ホストのみキック可。再入室は禁止しない。
+function hostKick(pid) {
+  if (!state.isHost || !pid || pid === state.myPid) return;
+  MomoMatchmaking.send({ type: 'kick' }, pid);           // 対象クライアントへ「自分で出て」の合図
+  state.roster = (state.roster || []).filter(x => x && x.pid !== pid); // ローカル名簿から即除去（実退出は onParticipantLeft でも届く）
+  if (pid === state.playerPid) { state.playerPid = null; handleGuestLeft(); } // プレイヤーをキック＝ゲスト不在に戻す
+  updateSpectatorCount();
+  renderParticipantMgmt();
+  renderSpectatorFloat();
+  refreshRoomView();
+}
+// キックされた側（プレイヤー・観戦者とも）＝通知して自分で退室
+function hostKickedMe() { try { alert(t('notice.kicked')); } catch (e) {} leaveRoom(); }
+// ⑦: 観戦禁止にしたら現在の観戦者を全員キック
+function kickAllSpectators() { if (!state.isHost) return; specTargetPids().slice().forEach(pid => hostKick(pid)); }
+
+// ⑤: 右上「観戦N人」クリックで観戦者名フロート＋各名に×（キック）。ホストのみ。
+let _specFloatOpen = false;
+function toggleSpectatorFloat() { if (!state.isHost) return; _specFloatOpen = !_specFloatOpen; renderSpectatorFloat(); }
+function renderSpectatorFloat() {
+  let fl = document.getElementById('spec-float');
+  if (!_specFloatOpen || !state.isHost) { if (fl) fl.remove(); return; }
+  if (!fl) {
+    fl = document.createElement('div'); fl.id = 'spec-float';
+    fl.style.cssText = 'position:fixed;top:52px;right:8px;z-index:120;background:var(--surface,#20242a);border:1px solid var(--border,#4443);border-radius:.5em;padding:.5em .6em;min-width:150px;max-width:72vw;box-shadow:0 6px 18px rgba(0,0,0,.55);font-size:.85rem;';
+    document.body.appendChild(fl);
+  }
+  fl.innerHTML = '';
+  const head = document.createElement('div'); head.style.cssText = 'font-weight:600;margin-bottom:.35em'; head.textContent = t('spec.list.title'); fl.appendChild(head);
+  const specs = specTargetPids();
+  if (!specs.length) { const e = document.createElement('div'); e.style.color = 'var(--text-muted)'; e.textContent = t('spec.none'); fl.appendChild(e); return; }
+  const nameOf = (pid) => { const r = (state.roster || []).find(x => x.pid === pid); return (r && r.name) || pid; };
+  const counts = {}; specs.forEach(pid => { const n = nameOf(pid); counts[n] = (counts[n] || 0) + 1; }); const seen = {};
+  specs.forEach(pid => {
+    let dn = nameOf(pid); if (counts[dn] > 1) { seen[dn] = (seen[dn] || 0) + 1; dn += ' #' + seen[dn]; }
+    const row = document.createElement('div'); row.style.cssText = 'display:flex;align-items:center;gap:.5em;margin:.2em 0';
+    const nm = document.createElement('span'); nm.style.cssText = 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'; nm.textContent = dn;
+    const x = document.createElement('button'); x.textContent = '×'; x.title = t('pm.kick');
+    x.style.cssText = 'border:none;background:#c0392b;color:#fff;border-radius:50%;width:1.6em;height:1.6em;line-height:1;cursor:pointer;font-weight:700;flex:0 0 auto';
+    x.addEventListener('click', () => hostKick(pid));
+    row.appendChild(nm); row.appendChild(x); fl.appendChild(row);
+  });
 }
 
 function applyState(msg) {
@@ -9527,6 +9609,9 @@ function leaveRoom() {
   document.getElementById('ovRound').classList.remove('show');
   document.getElementById('ovGame').classList.remove('show');
   hideConnOverlay();
+  // ⑤⑦(v2.74): 観戦者フロートを閉じ、観戦許可を既定（許可）に戻す
+  _specFloatOpen = false; { const _sf = document.getElementById('spec-float'); if (_sf) _sf.remove(); }
+  state.allowSpectators = true;
   clearSession();
   showScreen('lobby');
   setTimeout(() => { state.intentionalLeave = false; try { MomoMatchmaking.refreshRooms(); } catch (e) {} }, 300);
@@ -9981,6 +10066,7 @@ document.addEventListener('DOMContentLoaded', () => {
       handleP2P, syncState, applyState, handleIntent, startGame, startRound,
       // v1.13: 全12局進行のテスト用
       beginMatch, advanceRound, onRoundNext, endMatch, detectDealSpecial, checkDealSpecials, finalizeRoundEnd, renderRoundEndFromData, renderGameEndFromData,
+      hostKick, hostKickedMe, kickAllSpectators, renderParticipantMgmt, renderSpectatorFloat, toggleSpectatorFloat, specTargetPids, updateSpectatorCount,
       interceptSend() {
         window._outbox = [];
         window._origSend = MomoMatchmaking.send;

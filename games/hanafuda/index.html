@@ -1325,7 +1325,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.72</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.73</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1391,7 +1391,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.72</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.73</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1528,7 +1528,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.72</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.73</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1590,7 +1590,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.72</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.73</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1940,6 +1940,7 @@ const I18N = {
     'lobby.err.noname': 'あなたの名前を入力してください',
     'lobby.err.noroom': '部屋の名前を入力してください',
     'lobby.err.noguestname': 'あなたの名前を入力してください',
+    'lobby.err.wrongpw': 'パスワードが違います',
     'room.crumb': '対戦準備',
     'room.header': 'Room — ホスト・ゲスト共通画面',
     'room.conn.waiting': '相手を待っています',
@@ -2228,6 +2229,7 @@ const I18N = {
     'lobby.err.noname': 'Please enter your name',
     'lobby.err.noroom': 'Please enter a room name',
     'lobby.err.noguestname': 'Please enter your name',
+    'lobby.err.wrongpw': 'Incorrect password',
     'room.crumb': 'Prep',
     'room.header': 'Room — Shared host / guest view',
     'room.conn.waiting': 'Waiting for opponent',
@@ -2516,6 +2518,7 @@ const I18N = {
     'lobby.err.noname': '请输入你的名字',
     'lobby.err.noroom': '请输入房间名',
     'lobby.err.noguestname': '请输入你的名字',
+    'lobby.err.wrongpw': '密码错误',
     'room.crumb': '对战准备',
     'room.header': '房间 — 主机 / 客人共用画面',
     'room.conn.waiting': '等待对手',
@@ -3068,7 +3071,11 @@ function renderRoomList() {
 function tryJoin(room) {
   const name = document.getElementById('in-playername').value.trim();
   if (!name) { alert(t('lobby.err.noguestname')); return; }
-  const pw = room.hasPassword ? (document.getElementById('in-joinpw').value || '') : '';
+  const typedPw = (document.getElementById('in-joinpw').value || '');
+  // ①(v2.73): パスワード無しの部屋に（非空の）パスワードを入れて入室しようとしたら「パスワード誤り」として弾く
+  //（従来は room.hasPassword が偽だと入力を捨てて素通ししていた）。
+  if (!room.hasPassword && typedPw !== '') { alert(t('lobby.err.wrongpw')); return; }
+  const pw = room.hasPassword ? typedPw : '';
   state.hostName = room.hostName || t('notice.hostname');
   state.guestName = name;
   state.roomName = room.name || '';
@@ -9835,6 +9842,14 @@ function bindEvents() {
 
   window.addEventListener('resize', () => { fitHeader(); fitBoard(); fitH88Board(); positionLeaveBtn(); updateH88OrientationUI(); });
   window.addEventListener('orientationchange', () => { _h88ToastDismissedPortrait = false; setTimeout(() => { fitHeader(); fitBoard(); fitH88Board(); positionLeaveBtn(); updateH88OrientationUI(); }, 250); });
+  // ④(v2.73): iOS/iPad の Chrome/Safari はツールバー（タブ/アドレスバー）の出入りで
+  //   window 'resize' が発火しないことがあり、見える高さが減っても盤が再フィットされず
+  //   縦スクロールが要る状態になる。visualViewport の resize/scroll で盤を測り直す。
+  if (window.visualViewport) {
+    const reflow = () => { if (state.screen === 'game') fitBoard(); else if (state.screen === 'hachi') fitH88Board(); positionLeaveBtn(); };
+    window.visualViewport.addEventListener('resize', reflow);
+    window.visualViewport.addEventListener('scroll', reflow);
+  }
   // v1.85/86: 全画面の出入りで、横向きロック/解除・ボタン表記（全画面⇄解除）・トーストを更新
   document.addEventListener('fullscreenchange', h88OnFullscreenChange);
   document.addEventListener('webkitfullscreenchange', h88OnFullscreenChange);

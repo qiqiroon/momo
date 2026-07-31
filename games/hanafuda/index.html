@@ -1325,7 +1325,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.74</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.75</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1391,7 +1391,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.74</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.75</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1528,7 +1528,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.74</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.75</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1590,7 +1590,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.74</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.75</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1804,7 +1804,7 @@
   <h2 id="ovYaku-drag"><span id="ov-yaku-title">役が成立！</span><span class="tag" id="ov-yaku-who">あなた</span></h2>
   <ul class="yaku-list" id="ov-yaku-list"></ul>
   <div class="total-line"><span data-i18n="ov.yaku.total">現在の役得点</span><span><b id="ov-yaku-pt">0</b> <span data-i18n="game.mon">文</span></span></div>
-  <p class="hint" data-i18n="ov.yaku.hint">「こいこい」で続けると得点上乗せ。相手に先に上がられると相手が総取り。</p>
+  <p class="hint" id="ov-yaku-hint">「こいこい」で続けると得点上乗せ。相手に先に上がられると相手が総取り。</p>
   <div class="watch-note" id="ov-yaku-watch"></div>
   <div class="btn-row">
     <button class="btn btn-koikoi" id="btn-koikoi" data-i18n="ov.koikoi">こいこい</button>
@@ -2105,6 +2105,7 @@ const I18N = {
     'ov.yaku.title': '役が成立！',
     'ov.yaku.total': '現在の役得点',
     'ov.yaku.hint': '「こいこい」で続けると得点上乗せ。相手に先に上がられると相手が総取り。',
+    'ov.yaku.hint.post': '「こいこい」で続けると、今の役は無効になり、こいこい後にできた役だけが得点。相手に先に上がられると相手が総取り。',
     'ov.yaku.oppchoosing': '相手選択中…',
     'ov.koikoi': 'こいこい',
     'ov.shobu': '勝負', 'ov.minooshi': '見送り',
@@ -2399,6 +2400,7 @@ const I18N = {
     'ov.yaku.title': 'Yaku!',
     'ov.yaku.total': 'Current Yaku Score',
     'ov.yaku.hint': 'Call Koi-Koi to keep going for more points. If the opponent calls Shobu first, they take everything.',
+    'ov.yaku.hint.post': 'Call Koi-Koi to keep going: your current yaku are discarded and only yaku formed after Koi-Koi count. If the opponent calls Shobu first, they take everything.',
     'ov.yaku.oppchoosing': 'Opponent is choosing…',
     'ov.koikoi': 'Koi-Koi',
     'ov.shobu': 'Shobu (Stop)', 'ov.minooshi': 'Pass',
@@ -2693,6 +2695,7 @@ const I18N = {
     'ov.yaku.title': '成役！',
     'ov.yaku.total': '目前得分',
     'ov.yaku.hint': '按「来来」继续加分。若对方先按「胜负」，则对方通吃。',
+    'ov.yaku.hint.post': '按「来来」继续：当前的役将失效，仅计来来之后新成立的役。若对方先按「胜负」，则对方通吃。',
     'ov.yaku.oppchoosing': '对方选择中…',
     'ov.koikoi': '来来',
     'ov.shobu': '胜负', 'ov.minooshi': '过牌',
@@ -2879,6 +2882,8 @@ function applyLang() {
     if (state.h88 && state.h88.game && typeof renderH88 === 'function') renderH88();
     // v2.70: こいこい対局中の言語切替でも動的ラベル（観戦者の実名見出し等）を貼り直す
     if (state.game && state.screen === 'game' && typeof renderGame === 'function') renderGame();
+    // ⑨(v2.75): こいこい選択ヒントは data-i18n を外して設定連動にしたので、言語切替時にここで貼り直す
+    { const yh = document.getElementById('ov-yaku-hint'); if (yh) yh.textContent = t((state.settings && state.settings.yakuScope === 'pointPost') ? 'ov.yaku.hint.post' : 'ov.yaku.hint'); }
   } catch (e) {}
   // 言語切替でラベル幅が変わるのでヘッダーを測り直す（fitHeader は関数巻き上げで参照可）
   if (typeof fitHeader === 'function') fitHeader();
@@ -8458,6 +8463,8 @@ function showYakuOverlay() {
     return '<li><span>' + label + '</span><span class="pt">' + y.mon + ' ' + t('game.mon') + '</span></li>';
   }).join('');
   document.getElementById('ov-yaku-pt').textContent = total;
+  // ⑨(v2.75): こいこい選択の説明を yakuScope に合わせて切替（「以降のみ」は上乗せでなく前の役が無効になる）
+  { const yh = document.getElementById('ov-yaku-hint'); if (yh) yh.textContent = t(state.settings.yakuScope === 'pointPost' ? 'ov.yaku.hint.post' : 'ov.yaku.hint'); }
   // 自分の手番でない (= 相手が役成立) = 見学モード：パネルをグレー＋「相手選択中」、ボタン無効
   const isMyTurn = cur === mySide() && !state.isSpectator; // D3: 観戦者は操作不可
   const panel = document.getElementById('ovYaku-panel');

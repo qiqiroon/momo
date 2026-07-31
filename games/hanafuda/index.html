@@ -1327,7 +1327,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.76</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.77</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1393,7 +1393,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.76</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.77</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1530,7 +1530,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.76</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.77</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1592,7 +1592,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.76</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.77</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1604,6 +1604,8 @@
     <span id="h88-round">第1局</span>
     <span id="h88-scores"></span>
     <span id="h88-turn"></span>
+    <span class="spectating-badge hidden" style="padding:.1em .5em;background:var(--accent,#e08a2b);color:#fff;border-radius:.4em;font-size:.8rem" data-i18n="spectator.badge">観戦中</span>
+    <span class="spec-count hidden" style="color:var(--text-muted);font-size:.8rem"></span>
     <button class="h88-log-btn" id="btn-h88-fs" type="button" hidden>⛶ <span data-i18n="hachi.fs.enter">全画面</span></button>
     <button class="h88-log-btn h88-back" id="btn-home-hachi" type="button">← <span data-i18n="hachi.back">準備室</span></button>
   </div>
@@ -3860,6 +3862,10 @@ function handleSpectatorMsg(data) {
   if (data.type === 'h88-state') { h88ApplyState(data); return; } // 八八公開ビュー
   if (data.type === 'h88-oya-state') { h88OnlineOyaApplyRemote(data.draws); return; } // 八八：準備室の親決めを観戦者にも反映
   if (data.type === 'h88-rules') { h88ApplyRulesRemote(data); return; } // 八八：ルール表示を観戦者にも同期
+  if (data.type === 'h88-teyaku') { h88ShowTeyakuGuest(data); return; } // #1(v2.77): 八八の手役パネルを観戦者にも
+  if (data.type === 'h88-roundover') { h88ShowRoundOverGuest(data); return; } // #2(v2.77): 八八の局終了パネルを観戦者にも（表示のみ）
+  if (data.type === 'h88-next-go') { if (state.h88 && state.h88._h88GateCleanup) state.h88._h88GateCleanup(); return; } // #2: 次局で観戦者の局終了パネルを閉じる
+  if (data.type === 'h88-matchend') { if (state.h88 && state.h88._h88GateCleanup) state.h88._h88GateCleanup(); h88ShowMatchEnd(); return; } // #2(v2.77): 八八総合結果を観戦者にも（同期済みスコアから中立表示）
   if (data.type === 'hello') { state.hostName = data.name || state.hostName; refreshRoomView(); return; }
   if (data.type === 'start') { showScreen('game'); return; }
   if (data.type === 'go-lobby') { leaveRoom(); return; }
@@ -5284,12 +5290,15 @@ function h88ShowTeyakuAndPlay(g) {
     playSfx(teyaku[h88MySeat()] ? 'charin' : 'pu'); // v2.49-段4: コイン音は自分に手役があるときだけ（視点対応）
     if (st.online && state.isHost) { // v2.49-段4: ゲストにも手役パネルを出す（ゲスト視点で生成して送る）
       MomoMatchmaking.send({ type: 'h88-teyaku', html: h88TeyakuPanelHtml(g, teyaku, H88_GUEST_SEAT), hasMine: !!teyaku[H88_GUEST_SEAT] }, H88_GUEST_SEAT); // D2: その席宛
+      // #1(v2.77): 観戦者にも手役パネルを出す（中立視点＝誰も「あなた」にしない・公開情報のみ）
+      specTargetPids().forEach(pid => MomoMatchmaking.send({ type: 'h88-teyaku', html: h88TeyakuPanelHtml(g, teyaku, null), hasMine: false, spectator: true }, pid));
     }
     showNotice(t('h88.teyaku.title'),bodyHtml,
       () => { st.teyakuMarks = null; st.teyakuReveal = null; renderH88(); h88MaybeAi(); },
       { clear: true, draggable: true, html: true });
   } else {
-    if (st.online && state.isHost) MomoMatchmaking.send({ type: 'h88-teyaku', clear: true }, H88_GUEST_SEAT); // 手役なし＝ゲスト側の残り表示を消す保険／D2: その席宛
+    if (st.online && state.isHost) { MomoMatchmaking.send({ type: 'h88-teyaku', clear: true }, H88_GUEST_SEAT); // 手役なし＝ゲスト側の残り表示を消す保険／D2: その席宛
+      specTargetPids().forEach(pid => MomoMatchmaking.send({ type: 'h88-teyaku', clear: true }, pid)); } // #1(v2.77): 観戦者側の保険も
     h88MaybeAi();
   }
 }
@@ -5601,6 +5610,9 @@ function renderH88() {
   const st = state.h88; if (!st || !st.game) return;
   const g = st.game;
   const mySeat = h88MySeat(); // v2.43-段2: 視点＝自分の席（ローカルは常にp0）
+  // #3(v2.77): 八八の対局画面でも観戦中バッジ＋観戦者数（クリックでキック）をこいこい同様に出す
+  document.querySelectorAll('#screen-hachi .spectating-badge').forEach(el => el.classList.toggle('hidden', !state.isSpectator));
+  updateSpectatorCount();
   const _h88animPrev = h88AnimEnabled() ? h88AnimSnapshot() : null; // FLIP: 描画前の全札位置を記録
   document.getElementById('h88-round').textContent = t('game.round', { n: st.roundNo, total: st.rounds });
   // v1.66/段2: スコアはコンパクトに（1行に収める）。自分=あなた／vsコンピュータは相手をCPU1/CPU2、オンラインは実名。
@@ -6308,6 +6320,8 @@ function h88RoundOver(result) {
       const guestHtml = h88RoundPanelHtml(g, result, before, teyaku0, tM, H88_GUEST_SEAT, false); // ゲスト視点で生成して送る
       MomoMatchmaking.send({ type: 'h88-roundover', html: guestHtml, isLast: isLast, roundNo: st.roundNo,
         myDelta: (st.scores[H88_GUEST_SEAT] || 0) - before[H88_GUEST_SEAT] }, H88_GUEST_SEAT); // D2: その席宛
+      // #2(v2.77): 観戦者にも局終了パネルを出す（中立視点＝誰も「あなた」にしない・表示のみ・ゲート操作なし）
+      specTargetPids().forEach(pid => MomoMatchmaking.send({ type: 'h88-roundover', html: h88RoundPanelHtml(g, result, before, teyaku0, tM, null, false), isLast: isLast, roundNo: st.roundNo, myDelta: 0, spectator: true }, pid));
     }
     h88ShowRoundGate(title, localHtml, isLast);
   } else {
@@ -6417,6 +6431,11 @@ function h88ShowRoundGate(title, html, isLast) {
   showNotice(title, html, () => {}, { clear: true, draggable: true, html: true });
   const ov = document.getElementById('ovNotice'), okBtn = document.getElementById('ov-ok');
   okBtn.style.display = 'none';
+  // #2(v2.77): 観戦者は表示のみ（「次の局へ／中断」ボタンや準備状況は出さない）。次局開始か h88-next-go で閉じる。
+  if (state.isSpectator) {
+    st._h88GateCleanup = () => { ov.classList.remove('show', 'see-through'); okBtn.style.display = ''; st._h88GateCleanup = null; st._h88GateRender = null; };
+    return;
+  }
   const row = ov.querySelector('.btn-row');
   const box = document.createElement('span'); box.id = 'h88-roundgate-btns'; row.appendChild(box);
   const readyRow = document.createElement('div'); readyRow.id = 'h88-roundgate-ready';
@@ -6495,16 +6514,19 @@ function h88ShowMatchEnd() {
   // 順位（点の高い順）
   const ranked = g.seats.slice().sort((a, b) => (st.scores[b] || 0) - (st.scores[a] || 0));
   const topScore = st.scores[ranked[0]] || 0;
-  const my = h88MySeat(); // v2.49-段4: 総合結果も自席視点（オンラインのゲストは p1 が「あなた」）
-  const iWin = (ranked[0] === my) && (st.scores[my] || 0) === topScore && !g.seats.every(s => (st.scores[s] || 0) === (st.scores[my] || 0));
+  const my = state.isSpectator ? null : h88MySeat(); // v2.49-段4: 総合結果も自席視点／#2(v2.77): 観戦者は「あなた」なし
+  const iWin = !state.isSpectator && (ranked[0] === my) && (st.scores[my] || 0) === topScore && !g.seats.every(s => (st.scores[s] || 0) === (st.scores[my] || 0));
   const allTie = g.seats.every(s => (st.scores[s] || 0) === topScore);
   const panel = document.querySelector('#ovH88End .ge-panel');
   const title = document.getElementById('h88-end-title');
   if (allTie) { title.className = 'ge-title draw'; title.textContent = '🎌 ' + t('h88.end.draw'); }
+  else if (state.isSpectator) { title.className = 'ge-title win'; title.textContent = t('h88.end.champ', { who: st.names[ranked[0]] }); } // #2(v2.77): 観戦者は中立（優勝者名・敗北スタイルにしない）
   else if (iWin) { title.className = 'ge-title win'; title.textContent = '🎉 ' + t('h88.end.win'); }
   else { title.className = 'ge-title lose'; title.textContent = t('h88.end.champ', { who: st.names[ranked[0]] }); }
+  // #2(v2.77): ホストは総合結果を観戦者にも通知（観戦者はゲートボタンが無いので自力で進めない）。同期済みスコアから中立表示。
+  if (st.online && state.isHost) { try { specTargetPids().forEach(pid => MomoMatchmaking.send({ type: 'h88-matchend' }, pid)); } catch (e) {} }
   if (panel) panel.classList.toggle('win', iWin); // 勝ったときだけ くす玉
-  document.getElementById('h88-end-msg').textContent = (allTie ? t('h88.end.msg.draw') : (iWin ? t('h88.end.msg.win') : t('h88.end.msg.lose')))
+  document.getElementById('h88-end-msg').textContent = (state.isSpectator ? '' : (allTie ? t('h88.end.msg.draw') : (iWin ? t('h88.end.msg.win') : t('h88.end.msg.lose')))) // #2(v2.77): 観戦者は勝敗メッセージなし
     + (st.marumeApplied ? t('h88.end.marume') : '');
   // スコアボード（順位順・首位は lead）
   const sb = document.getElementById('h88-end-scoreboard');
@@ -6517,7 +6539,9 @@ function h88ShowMatchEnd() {
   document.getElementById('ovH88End').classList.add('show');
   if (iWin) launchKusudama88();
   // v2.13: 勝利のファンファーレは「終局＝総合得点勝ち」でくす玉と一緒に鳴らす（こいこい準拠）
-  if (iWin) playSfx('fanfare');
+  // #2(v2.77): 観戦者は勝敗の音を鳴らさない（中立）
+  if (state.isSpectator) { /* 観戦者は無音 */ }
+  else if (iWin) playSfx('fanfare');
   else if (allTie) playSfx('pu');
   else playSfx('lose');
 }
@@ -10090,6 +10114,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // v1.13: 全12局進行のテスト用
       beginMatch, advanceRound, onRoundNext, endMatch, detectDealSpecial, checkDealSpecials, finalizeRoundEnd, renderRoundEndFromData, renderGameEndFromData,
       hostKick, kickAllSpectators, renderParticipantMgmt, renderSpectatorFloat, toggleSpectatorFloat, specTargetPids, updateSpectatorCount,
+      h88ShowMatchEnd, h88ShowTeyakuGuest, h88ShowRoundOverGuest,
       interceptSend() {
         window._outbox = [];
         window._origSend = MomoMatchmaking.send;

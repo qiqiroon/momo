@@ -1327,7 +1327,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.83</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.84</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1393,7 +1393,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.83</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.84</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1529,7 +1529,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.83</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.84</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1591,7 +1591,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.83</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.84</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -5951,6 +5951,15 @@ function renderH88() {
   document.querySelectorAll('#screen-hachi .spectating-badge').forEach(el => el.classList.toggle('hidden', !state.isSpectator));
   updateSpectatorCount();
   const _h88animPrev = h88AnimEnabled() ? h88AnimSnapshot() : null; // FLIP: 描画前の全札位置を記録
+  // v2.84: iPhone(WebKit)は、これから作り直しで捨てる札にアニメが実行中のまま残っていると、
+  //   離脱後もそのアニメが札のSVGを掴んで解放されない。局を重ねるほど掴まれっぱなしの札が積もり、
+  //   描画の重い瞬間にメモリ上限を超えてタブが強制終了される（PCは自動解放されるため無害＝落ちない）。
+  //   位置スナップショットを取った直後・作り直しの直前に、八八画面に残る全アニメを止めて解放する。
+  //   対象は「まだ画面に付いている＝これから捨てる札」なので見た目に影響なし。
+  try {
+    const _hs = document.getElementById('screen-hachi');
+    if (_hs && _hs.getAnimations) _hs.getAnimations({ subtree: true }).forEach(a => { try { a.cancel(); } catch (e) {} });
+  } catch (e) {}
   document.getElementById('h88-round').textContent = t('game.round', { n: st.roundNo, total: st.rounds });
   // v1.66/段2: スコアはコンパクトに（1行に収める）。自分=あなた／vsコンピュータは相手をCPU1/CPU2、オンラインは実名。
   const shortNm = (s) => (!state.isSpectator && s === mySeat) ? t('game.you') // D3: 観戦者は「あなた」を出さず名前で
@@ -7718,6 +7727,7 @@ function h88AnimPlay(prev) {
       { transformOrigin: 'top left', transform: 'translate(0,0) scale(1)' },
     ], { duration: dur, easing: ANIM.ease, fill: 'none' });
     if (restore) { a.finished.then(restore).catch(restore); setTimeout(restore, dur + 140); } // タイムライン停止環境でも確実に戻す
+    a.finished.then(() => { try { a.cancel(); } catch (e) {} }).catch(() => {}); // v2.84: 終わったら即解放（iPhoneでSVGを掴み続けさせない）
     anims.push(a);
   });
   return anims;

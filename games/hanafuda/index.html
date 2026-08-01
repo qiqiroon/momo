@@ -1327,7 +1327,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.81</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.82</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1393,7 +1393,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.81</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.82</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1529,7 +1529,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.81</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.82</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1591,7 +1591,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.81</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.82</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -3427,7 +3427,7 @@ function attemptReconnect() {
   if (state.intentionalLeave) return;
   if (!state.roomId) return;
   if (state.reconnecting) return;
-  if (state.screen !== 'room' && state.screen !== 'game') return;
+  if (state.screen !== 'room' && state.screen !== 'game' && state.screen !== 'hachi') return; // D4: 八八(screen=hachi)も復帰対象
   state.reconnecting = true;
   showConnOverlay(t('reconnect.trying'), '', null);
   // ライブラリの接続をリセットして WS をロビーに繋ぎ直す（席がまだ生きていれば guest_leave で即解放）
@@ -3789,8 +3789,9 @@ function initMatchmaking() {
     onDisconnected: (msg) => {
       diagLog('p2p', 'disconnected: ' + (msg || ''));
       state.connected = false;
-      // v1.65: 対コンピュータ／八八（solo）は通信に依存しないので、切断でロビーへ追い出さない
-      if (state.solo || state.vsAI || state.screen === 'hachi') return;
+      // v1.65: 対コンピュータ／オフライン八八は通信に依存しないので、切断でロビーへ追い出さない。
+      // ★D4: オンライン八八(state.h88.online)は通信するので切断処理を通す（従来はscreen=hachiで一律return＝再接続が全く動かなかった）。
+      if (state.solo || state.vsAI || (state.screen === 'hachi' && !(state.h88 && state.h88.online))) return;
       // getState().currentRoomId で切断の種類を判別:
       //  null  = サーバーが部屋を閉じた（ホスト落ち／キック等）→ ロビーへ追い出し
       //  残存  = 自分のソケットが切れた（画面オフ等）→ ゲストは同じ部屋へ復帰を試みる
@@ -3817,7 +3818,7 @@ function initMatchmaking() {
         handleOpponentGone(); // 準備室など（終局後）→ 相手が退出しました表示（ゲストはロビーへ）
         return;
       }
-      if (!state.isHost && !state.intentionalLeave && (state.screen === 'room' || state.screen === 'game')) {
+      if (!state.isHost && !state.intentionalLeave && (state.screen === 'room' || state.screen === 'game' || state.screen === 'hachi')) { // D4: 八八(screen=hachi)も復帰トライ
         attemptReconnect(); // ゲスト：復帰トライ
         return;
       }
@@ -3961,7 +3962,11 @@ function handleP2P(data) {
         if (!state.h88PidUid) state.h88PidUid = {};
         state.h88PidUid[data.from] = data.uid;
         const st = state.h88;
-        if (st && st.h88Disc) { const seat = Object.keys(st.h88Disc).find(s => st.h88Disc[s].uid && st.h88Disc[s].uid === data.uid); if (seat) h88HostResumeSeat(seat, data.from, data.name); }
+        if (st && st.h88Disc) {
+          let seat = Object.keys(st.h88Disc).find(s => st.h88Disc[s].uid && st.h88Disc[s].uid === data.uid);
+          if (!seat && data.name) { const byName = Object.keys(st.h88Disc).filter(s => st.h88Disc[s].name === data.name); if (byName.length === 1) seat = byName[0]; } // 端末IDが消えても名前が一意一致なら復帰
+          if (seat) h88HostResumeSeat(seat, data.from, data.name);
+        }
       }
     }
     else { state.hostName = data.name || state.hostName; }
@@ -5143,7 +5148,8 @@ function h88HostOnParticipantJoined(pid, role, name) {
   }
   koiBootstrapSpectator(pid); // 設定・親決め・ルール（対局中は公開ビュー）を新参加者へ
   h88ApplyCompChange(prev);   // 編成配信＋role-assign(着席者へplayer)＋親決め無効化＋再描画
-  hideConnOverlay(); updateSpectatorCount(); refreshRoomView();
+  updateSpectatorCount(); refreshRoomView();
+  if (h88IsPaused()) h88HostBroadcastPause(); else hideConnOverlay(); // ★切断待ち中に別入室があってもホストの待機画面を消さない
 }
 // D4: ホスト：八八に切り替えた等で、まだ席に居ない人間を空きCPU席へ座らせる（既に座っている人は動かさない）。
 function h88HostReseatFromRoster() {
@@ -5168,7 +5174,9 @@ function h88HostOnParticipantLeft(pid) {
 // ── D4 Option B: 対局中の切断・再接続（一時停止→同一端末で元席に復帰／時間切れでCPU交代）──
 var H88_DISC_TIMEOUT_MS = 90000; // 切断待ちの上限。過ぎたらCPU交代して続行
 function h88MyUid() {
-  try { let u = sessionStorage.getItem('hf_uid'); if (!u) { u = 'u' + Math.floor(Math.random() * 1e9).toString(36) + Math.floor(Math.random() * 1e9).toString(36); sessionStorage.setItem('hf_uid', u); } return u; }
+  // ★localStorage を使う（iOS Safari が裏タブを破棄しても端末IDが残る＝入り直しで元席に復帰できる）。
+  //   sessionStorage はタブ破棄で消えるため復帰に使えなかった（v2.81の不具合）。
+  try { let u = localStorage.getItem('hf_uid'); if (!u) { u = 'u' + Math.floor(Math.random() * 1e9).toString(36) + Math.floor(Math.random() * 1e9).toString(36); localStorage.setItem('hf_uid', u); } return u; }
   catch (e) { if (!window.__hfUid) window.__hfUid = 'u' + Math.floor(Math.random() * 1e9).toString(36); return window.__hfUid; }
 }
 function h88IsPaused() { const st = state.h88; return !!(st && st.h88Disc && Object.keys(st.h88Disc).length); }
@@ -5364,6 +5372,7 @@ function h88StateBody() {
     drawn: st.drawn || null, pendingUi: st.pending || null, activeFlyId: st._activeFlyId || null,
     roundOya: st.roundOya, roundNo: st.roundNo, rounds: st.rounds, scores: st.scores, names: st.names,
     teyakuMarks: st.teyakuMarks || null, teyakuReveal: st.teyakuReveal || null,
+    deioriPhase: g.deioriPhase || false, deioriDeciding: g.deioriDeciding || null, // D4: 出降り中＝手出しブロック＆「選択中」表示
   };
 }
 // ホスト：全状態をゲスト（＋観戦者）へ同期。ゲストは自席実体・他席枚数、観戦者は全席枚数。renderH88 の末尾から呼ぶ。
@@ -5395,6 +5404,7 @@ function h88ApplyState(msg) {
   g.pending = msg.pending || []; g.playPick = msg.playPick || null; g.playedFromHand = msg.playedFromHand || null;
   g.capFlash = msg.capFlash || null; g.fieldOrder = msg.fieldOrder || null; g.fieldGhostIds = msg.fieldGhostIds || null;
   g.lastPlay = msg.lastPlay || null; g.dropped = msg.dropped || []; g.active = msg.active || null; g.sage = msg.sage || null; g.roundEnd = msg.roundEnd || null;
+  g.deioriPhase = msg.deioriPhase || false; g.deioriDeciding = msg.deioriDeciding || null; // D4: 出降り中の同期
   st.game = g;
   st.drawn = msg.drawn || null; st.pending = msg.pendingUi || null; st._activeFlyId = msg.activeFlyId || null;
   st.roundOya = msg.roundOya; st.roundNo = msg.roundNo; st.rounds = msg.rounds; st.scores = msg.scores; st.names = msg.names;
@@ -5411,6 +5421,7 @@ function h88HandleIntent(data) {
   const st = state.h88; if (!st || !st.online || !state.isHost || !st.game) return;
   if (h88IsPaused()) return; // D4 Option B: 切断待ちで一時停止中は手を処理しない
   const g = st.game;
+  if (g.deioriPhase) return; // D4: 出降り中は手出しを受け付けない（全員の出降りが決まるまで対局を始めない）
   // D4: 送信者 pid → engine席。現在手番の席の担い手からの手だけ受理（観戦者や他席からの手は無視＝改ざん防止）。
   const seat = data.from ? h88SeatOfPid(data.from) : H88_GUEST_SEAT; // from欠落時のみ従来ゲスト席（後方互換）
   if (!seat || g.currentPlayer !== seat || g.winner) return;
@@ -5652,6 +5663,7 @@ function h88TeyakuGateProceed(cleanup) {
 function h88BeginDeiori(g, oyaId) {
   const st = state.h88;
   g.dropped = [];
+  g.deioriPhase = true; g.deioriDeciding = null; // D4: 出降り中フラグ（同期して手出しを止める＆「選択中」表示）
   h88Log('◇ 出降り：親から順に「出る／降りる」を宣言');
   h88DeioriStep(g, oyaId, 0);
 }
@@ -5659,6 +5671,8 @@ function h88DeioriStep(g, oyaId, count) {
   const st = state.h88;
   if (count >= g.seats.length) { h88DeioriResolve(g, oyaId); return; }
   const oi = g.seats.indexOf(oyaId), seat = g.seats[(oi + count) % g.seats.length];
+  g.deioriDeciding = seat; // 今この席が出降りを選択中（同期して他家に「○○が選択中」を出す）
+  if (st.online && state.isHost) renderH88(); // 「選択中」を先に全員へ同期（手出しはこの間ブロック）
   const proceed = (drop) => {
     if (drop) { g.dropped.push(seat); h88DeioriToast(t('h88.deiori.foldToast', { name: st.names[seat] })); h88Log('　' + st.names[seat] + '：降り'); }
     else { h88Log('　' + st.names[seat] + '：出る'); }
@@ -5672,6 +5686,7 @@ function h88DeioriStep(g, oyaId, count) {
 }
 function h88DeioriResolve(g, oyaId) {
   const st = state.h88;
+  g.deioriPhase = false; g.deioriDeciding = null; // 出降り完了＝手出しブロック解除
   const active = g.seats.filter(s => g.dropped.indexOf(s) < 0);
   if (active.length === 0) { // 全員降り＝配り直し（同じ親）
     h88Log('◇ 全員降り → 配り直し'); h88DeioriToast(t('h88.deiori.allFold'));
@@ -6025,7 +6040,22 @@ function renderH88() {
   if (h88AnimEnabled() && curDrawn && curDrawn !== st._lastDrawnId) h88FlipReveal();
   st._lastDrawnId = curDrawn;
   if (h88AnimEnabled()) h88PlaySoundCues(g); // 効果音はこいこいと同じキュー一本で（到着に合わせて鳴らす）
+  h88UpdateDeioriBanner(); // D4: 出降り中「○○が選択中」バナー（選択中の本人以外に表示）
   if (st.online && state.isHost) h88SyncState(); // v2.45-段3: ホストは所作ごとに全状態をゲストへ同期（こいこいのrenderGame→syncState同型）
+}
+// D4: 出降り中、いま選択している席の本人以外に「○○が出降りを選択中…」の帯を出す。
+function h88UpdateDeioriBanner() {
+  const st = state.h88, g = st && st.game;
+  let el = document.getElementById('h88-deiori-banner');
+  const show = !!(g && g.deioriPhase && g.deioriDeciding && g.deioriDeciding !== h88MySeat());
+  if (!show) { if (el) el.remove(); return; }
+  if (!el) {
+    el = document.createElement('div'); el.id = 'h88-deiori-banner';
+    el.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:70;background:rgba(20,24,30,.92);color:#ffd27a;border:1px solid rgba(255,210,122,.5);border-radius:.6em;padding:.4em .8em;font-size:.85rem;box-shadow:0 4px 14px rgba(0,0,0,.5);pointer-events:none;max-width:90vw;text-align:center;';
+    document.body.appendChild(el);
+  }
+  const nm = (st.names && st.names[g.deioriDeciding]) || g.deioriDeciding;
+  el.textContent = t('h88.choosing', { name: nm });
 }
 // v1.65 item1: こいこい同様、手札ホバーで合う場札を浮かせるプレビュー（クリック不要）
 function h88PreviewField(month, on) {
@@ -6046,6 +6076,7 @@ function h88OnClickHand(idx) {
   const st = state.h88; if (!st || !st.game) return;
   const g = st.game;
   const me = h88MySeat();
+  if (g.deioriPhase) return; // D4: 出降り中は手札を出せない（全員の出降りが決まるまで）
   if (g.currentPlayer !== me || g.winner || st.pending || st.drawn) return; // ピック中・めくり札表示中は手札操作不可
   if (st.turnBusy || (g.playedFromHand && g.playedFromHand.player === me)) return; // v2.24: 自分の一手の所作が進行中は次の札を出せない
   if (st.sel === idx) { // 2度目＝出す
@@ -10358,7 +10389,7 @@ function bindEvents() {
       if (state.screen === 'game') { fitBoard(); positionLeaveBtn(); }
       if (state.screen === 'hachi') { fitH88Board(); updateH88OrientationUI(); } // v1.72 D4 / v1.85
       if (!state.isHost && !state.intentionalLeave && !state.reconnecting &&
-          (state.screen === 'room' || state.screen === 'game')) {
+          (state.screen === 'room' || state.screen === 'game' || state.screen === 'hachi')) { // D4: 八八(screen=hachi)も対象
         let alive = false;
         try { alive = !!MomoMatchmaking.getState().currentRoomId && MMState.wsOpen; } catch (e) {}
         if (!alive) attemptReconnect();

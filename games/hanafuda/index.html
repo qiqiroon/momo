@@ -1327,7 +1327,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.82</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.83</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1393,7 +1393,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.82</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.83</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1529,7 +1529,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.82</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.83</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1591,7 +1591,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.82</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.83</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -3390,14 +3390,16 @@ function hideConnOverlay() { document.getElementById('ovConn').classList.remove(
 // ホストは部屋がサーバー側で消えるため復帰不可 → 保存しない。
 function saveSession() {
   try {
-    if (state.isHost || !state.roomId) { sessionStorage.removeItem('hf_session'); return; }
-    sessionStorage.setItem('hf_session', JSON.stringify({
+    if (state.isHost || !state.roomId) { sessionStorage.removeItem('hf_session'); try { localStorage.removeItem('hf_session'); } catch (e) {} return; }
+    const s = JSON.stringify({
       roomId: state.roomId, joinPw: state.joinPw || '', guestName: state.guestName,
-      hostName: state.hostName, roomName: state.roomName, inGame: !!state.game, ts: Date.now(),
-    }));
+      hostName: state.hostName, roomName: state.roomName, inGame: !!(state.game || (state.h88 && state.h88.game)), ts: Date.now(),
+    });
+    sessionStorage.setItem('hf_session', s);
+    try { localStorage.setItem('hf_session', s); } catch (e) {} // ★タブごと破棄されても復帰できるよう永続側にも控える（iOSのタブ破棄対策）
   } catch (e) {}
 }
-function clearSession() { try { sessionStorage.removeItem('hf_session'); } catch (e) {} }
+function clearSession() { try { sessionStorage.removeItem('hf_session'); } catch (e) {} try { localStorage.removeItem('hf_session'); } catch (e) {} }
 
 // ロビーへ強制的に戻す（意図しない切断時）。ライブラリを reset して WS をロビーへ繋ぎ直し、
 // 「切断表示で固まる」状態を塞ぐ。msg があれば通知を出す。
@@ -3443,12 +3445,14 @@ function reconnectJoinLoop(attempt) {
   setTimeout(() => reconnectJoinLoop(attempt + 1), 3500);
 }
 
-// 起動時：sessionStorage に新しめの部屋情報があればゲストとして自動復帰を試みる。
+// 起動時：新しめの部屋情報があればゲストとして自動復帰を試みる。
+//   まず sessionStorage（同一タブのF5再読込＝タブ別で正しい）、無ければ localStorage（★タブごと破棄されても永続側から復帰）。
 function tryAutoRejoin() {
   let s = null;
   try { s = JSON.parse(sessionStorage.getItem('hf_session') || 'null'); } catch (e) { s = null; }
+  if (!s) { try { s = JSON.parse(localStorage.getItem('hf_session') || 'null'); } catch (e) { s = null; } }
   if (!s || !s.roomId) return;
-  if (Date.now() - (s.ts || 0) > 3 * 60 * 1000) { clearSession(); return; } // 3 分超は無視
+  if (Date.now() - (s.ts || 0) > 5 * 60 * 1000) { clearSession(); return; } // 5 分超は無視
   state.isHost = false;
   state.roomId = s.roomId; state.joinPw = s.joinPw || '';
   state.guestName = s.guestName || ''; state.hostName = s.hostName || ''; state.roomName = s.roomName || '';

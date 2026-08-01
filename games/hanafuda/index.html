@@ -1007,17 +1007,17 @@
     <use href="#fujiCluster" transform="translate(70,72)"/><use href="#fujiCluster" transform="translate(150,80) scale(1.05)"/>
     <use href="#tanRed" transform="translate(104,216) rotate(-6)"/>
   </symbol>
+  <!-- 藤のカス1（4月）をユーザー手描きPNGに差し替え（縁付き・m03_kasu1と同型） -->
   <symbol id="m04_kasu1" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
-    <use href="#kasumi"/>
-    <g fill="none" stroke="#5a3a20" stroke-width="6" stroke-linecap="round"><path d="M24 56 C 80 82 140 76 200 100"/></g>
-    <use href="#fujiCluster" transform="translate(56,72)"/><use href="#fujiCluster" transform="translate(104,82) scale(1.05)"/><use href="#fujiCluster" transform="translate(158,90)"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
+    <image href="cards/m04_kasu1.png" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
+  <!-- 藤のカス2（4月）をユーザー手描きPNGに差し替え（縁付き・m03_kasu1と同型） -->
   <symbol id="m04_kasu2" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
-    <use href="#kasumi"/>
-    <g fill="none" stroke="#5a3a20" stroke-width="6" stroke-linecap="round"><path d="M200 56 C 144 82 84 76 24 100"/></g>
-    <use href="#fujiCluster" transform="translate(60,90)"/><use href="#fujiCluster" transform="translate(112,82) scale(1.05)"/><use href="#fujiCluster" transform="translate(164,72)"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
+    <image href="cards/m04_kasu2.png" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
 
   <!-- ---- 5月 菖蒲 ---- -->
@@ -1327,7 +1327,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.84</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.85</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1393,7 +1393,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.84</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.85</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1529,7 +1529,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.84</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.85</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1591,7 +1591,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.84</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.85</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1865,6 +1865,7 @@
   <div class="btn-row">
     <button class="btn btn-primary" id="btn-h88-rematch" data-i18n="game.rematch">もう一度対戦</button>
   </div>
+  <div id="h88-end-wait" style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;font-size:.72rem;color:var(--text-muted);margin:4px 2px 2px;"></div>
   <div class="btn-row">
     <button class="btn btn-ghost small" id="btn-h88-tolobby" data-i18n="game.tolobby">ロビーに戻る</button>
   </div>
@@ -3956,6 +3957,19 @@ function handleP2P(data) {
     const st = state.h88; if (st && st._h88GateCleanup) st._h88GateCleanup();
     return;
   }
+  if (data.type === 'h88-end-rematch') { // v2.85 A: ホスト：ゲストが総合結果「もう一度対戦」を押した
+    const st = state.h88;
+    if (st && state.isHost && st.h88MatchOver) {
+      st.h88EndReady = st.h88EndReady || h88SeatAckInit();
+      const seat = h88SeatOfPid(data.from); if (seat) st.h88EndReady[seat] = true;
+      h88CheckEndRematch();
+    }
+    return;
+  }
+  if (data.type === 'h88-endready') { // v2.85 A: ゲスト：総合結果の「もう一度」押下状況を更新（表示用）
+    const st = state.h88; if (st) { st.h88EndReady = data.ready || st.h88EndReady; st.h88EndLeft = data.left || st.h88EndLeft; h88RenderEndWait(); }
+    return;
+  }
   if (data.type === 'h88-deal') { h88GuestRunDeal(); return; } // v2.50: ゲスト：配りアニメを再生
   if (data.type === 'h88-rules') { h88ApplyRulesRemote(data); return; } // v2.50: ゲスト：八八ルール表示を同期
   if (data.type === 'h88-rematch') { h88GuestRematch(); return; } // v2.50: ゲスト：総合結果「もう一度」に追従（準備室へ）
@@ -5171,6 +5185,13 @@ function h88HostOnParticipantLeft(pid) {
   if (!state.isHost) return;
   if (state.h88ReadyPids) delete state.h88ReadyPids[pid];
   const seat = h88SeatOfPid(pid);
+  const st = state.h88;
+  if (st && st.h88MatchOver) { // v2.85 A: 試合終了後の退出＝一時停止も再prepもしない（各自が結果を見て自分だけ抜ける）
+    if (seat) { st.h88EndLeft = st.h88EndLeft || {}; st.h88EndLeft[seat] = true; if (st.h88EndReady) delete st.h88EndReady[seat]; }
+    updateSpectatorCount();
+    h88CheckEndRematch(); // 残った人間席が全員「もう一度」を押していれば再戦へ
+    return;
+  }
   if (seat && h88InGameNow()) { h88HostPauseForDisconnect(seat, pid); updateSpectatorCount(); return; } // 対局中の着席者切断＝一時停止
   if (seat && !h88InGameNow()) { const prev = h88CompSnapshot(); h88SeatToCpu(seat); h88ApplyCompChange(prev); } // 準備中は席を空けてCPUに（親決め引き直し）
   updateSpectatorCount(); renderParticipantMgmt();
@@ -5464,6 +5485,45 @@ function h88GuestRunDeal() {
 function h88GuestRematch() {
   const ov = document.getElementById('ovH88End'); if (ov) ov.classList.remove('show');
   state.h88 = null; showScreen('room'); refreshRoomView(); pickGame('hachi');
+}
+// v2.85 A: 総合結果「もう一度対戦」は全員（残っている人間席）がそろって初めて再戦へ進むゲート。
+//   押した人は待機表示になり、他人を勝手に動かさない。全員そろったらホストが h88-rematch を配って一斉に準備室へ。
+function h88EndRematchPress() {
+  const st = state.h88; if (!st) return;
+  const me = h88MySeatOnline(); if (!me) return; // 観戦者（席なし）は対象外
+  st.h88EndReady = st.h88EndReady || h88SeatAckInit();
+  if (st.h88EndReady[me]) return; // 二重押し防止
+  st.h88EndReady[me] = true;
+  const b = document.getElementById('btn-h88-rematch'); if (b) { b.disabled = true; b.textContent = t('h88.gate.waiting'); } // 自分のボタン＝待機表示
+  if (state.isHost) h88CheckEndRematch();
+  else { MomoMatchmaking.send({ type: 'h88-end-rematch' }, 'host'); h88RenderEndWait(); }
+}
+// ホスト権威：残っている人間席が全員「もう一度」を押していれば再戦、まだなら状況を配って待機表示を更新。
+function h88CheckEndRematch() {
+  const st = state.h88; if (!st || !state.isHost || !st.h88MatchOver) return;
+  const seats = h88HumanSeats().filter(s => !(st.h88EndLeft && st.h88EndLeft[s]));
+  if (seats.length && seats.every(s => st.h88EndReady && st.h88EndReady[s])) {
+    MomoMatchmaking.send({ type: 'h88-rematch' }, 'all'); // 全員そろった → 一斉に準備室へ
+    h88DoRematch();
+  } else {
+    MomoMatchmaking.send({ type: 'h88-endready', ready: st.h88EndReady || {}, left: st.h88EndLeft || {} }, 'all');
+    h88RenderEndWait();
+  }
+}
+// ホスト自身も準備室へ（対CPUの「もう一度」と同じ入り口）。
+function h88DoRematch() {
+  const ov = document.getElementById('ovH88End'); if (ov) ov.classList.remove('show');
+  state.h88 = null; showScreen('room'); refreshRoomView(); pickGame('hachi');
+}
+// 総合結果の「誰が押した／待っています」表示を更新。
+function h88RenderEndWait() {
+  const st = state.h88; if (!st) return;
+  const el = document.getElementById('h88-end-wait'); if (!el) return;
+  if (!st.online || !st.h88EndReady) { el.textContent = ''; return; }
+  const me = h88MySeatOnline();
+  const seats = h88HumanSeats().filter(s => !(st.h88EndLeft && st.h88EndLeft[s]));
+  el.innerHTML = seats.map(s => '<span>' + (s === me ? t('game.you') : (st.names[s] || s)) + '：'
+    + ((st.h88EndReady && st.h88EndReady[s]) ? t('h88.gate.pressed') : t('h88.gate.waiting')) + '</span>').join('　');
 }
 // v2.78 #5/#7: 観戦者は対局者の「もう一度／中断」に追従して準備室へ戻る（観戦継続・pickGame等の操作系は踏まない）。
 function h88SpectatorToPrep() {
@@ -6670,6 +6730,7 @@ function h88RoundOver(result) {
   let tM = 1;
   if (teyaku0) { tM = h88ApplyTeyakuSettle(g, st.scores, teyaku0); st.pendingTeyaku = null; }
   const isLast = st.roundNo >= st.rounds;
+  if (isLast) { st.h88MatchOver = true; st.h88EndReady = null; st.h88EndLeft = {}; } // v2.85 A: 試合終了。以後の退出は一時停止せず／「もう一度」は全員そろってゲート
   const title = isLast ? t('game.turn.end') : t('h88.roundend.title', { n: st.roundNo });
   const nextOya = g.winner; // 出来役上がり＝勝者／札点決着＝札点最大（h88FinishByPointsで設定済）
   // 局の音＝自分が取得した文数ぶんの高速ちゃりん（視点対応）。損・無なら「ぷっ」。
@@ -6845,7 +6906,8 @@ function h88RoundGateNext(isLast, cleanup) {
 }
 // 中断＝自分がロビーへ戻り、相手にも go-lobby を送って両者中断。
 function h88RoundGateLeave() {
-  try { MomoMatchmaking.send({ type: 'go-lobby' }); } catch (e) {}
+  // v2.85 A: 試合終了後（最終局）は自分だけロビーへ＝他の人を巻き込まない。対局途中の「中断」は従来どおり全員ロビー。
+  if (!(state.h88 && state.h88.h88MatchOver)) { try { MomoMatchmaking.send({ type: 'go-lobby' }); } catch (e) {} }
   leaveRoom();
 }
 // ホスト：両者が「次の局へ」を押したので次局を開始（もしくは総合結果へ）。
@@ -6860,6 +6922,7 @@ function h88AdvanceRoundOnline() {
 // ゲスト側：ホストからの局終了パネル（ゲスト視点HTML）を表示。
 function h88ShowRoundOverGuest(msg) {
   const st = state.h88; if (!st || state.isHost) return;
+  if (msg.isLast) { st.h88MatchOver = true; st.h88EndReady = null; st.h88EndLeft = {}; } // v2.85 A: ゲストも試合終了フラグ（最終局ゲートで「ロビーに戻る」を自分だけにする）
   st.h88NextReady = h88SeatAckInit();
   if (msg.myDelta > 0) { const n = Math.min(msg.myDelta, 30); for (let i = 0; i < n; i++) setTimeout(() => playSfx('charin'), i * 65); }
   else playSfx('pu');
@@ -6902,8 +6965,20 @@ function h88ShowMatchEnd() {
       + '<span class="sc-val">' + h88FormatFumi(st.scores[s] || 0) + '</span></div>';
   }).join('');
   // v2.78 #7: 観戦者は「もう一度対戦」を出さない（押すと閉じた準備室に居座ってしまうため）。「ロビーに戻る」だけ。
-  const bReMatch = document.getElementById('btn-h88-rematch'); if (bReMatch) bReMatch.style.display = state.isSpectator ? 'none' : '';
+  const bReMatch = document.getElementById('btn-h88-rematch');
+  if (bReMatch) {
+    bReMatch.style.display = state.isSpectator ? 'none' : '';
+    // v2.85 A: オンラインは「もう一度」を全員ゲート化。ボタンを既定に戻し、既に自分が押していれば待機表示のまま。
+    if (st.online && !state.vsAI) {
+      st.h88EndReady = st.h88EndReady || h88SeatAckInit();
+      const meSeat = h88MySeatOnline();
+      const iPressed = !!(meSeat && st.h88EndReady[meSeat]);
+      bReMatch.disabled = iPressed;
+      bReMatch.textContent = iPressed ? t('h88.gate.waiting') : t('game.rematch');
+    } else { bReMatch.disabled = false; bReMatch.textContent = t('game.rematch'); }
+  }
   document.getElementById('ovH88End').classList.add('show');
+  if (st.online && !state.vsAI) h88RenderEndWait(); else { const _w = document.getElementById('h88-end-wait'); if (_w) _w.textContent = ''; }
   if (iWin) launchKusudama88();
   // v2.13: 勝利のファンファーレは「終局＝総合得点勝ち」でくす玉と一緒に鳴らす（こいこい準拠）
   // #2(v2.77): 観戦者は勝敗の音を鳴らさない（中立）
@@ -10179,14 +10254,14 @@ function bindEvents() {
   // v1.69: 八八 総合結果パネルのボタン
   const bH88Rematch = document.getElementById('btn-h88-rematch');
   if (bH88Rematch) bH88Rematch.addEventListener('click', () => {
-    if (!state.vsAI) { try { MomoMatchmaking.send({ type: 'h88-rematch' }, 'all'); } catch (e) {} } // v2.50: 相手も準備室へ／D2: 全員宛
+    if (!state.vsAI) { h88EndRematchPress(); return; } // v2.85 A: オンラインは全員が押すまで待つゲート（即・全員移動しない）
     document.getElementById('ovH88End').classList.remove('show');
-    state.h88 = null; showScreen('room'); refreshRoomView(); pickGame('hachi'); // 準備室で再度親決めから
+    state.h88 = null; showScreen('room'); refreshRoomView(); pickGame('hachi'); // 対CPU：即・準備室で再度親決めから
   });
   const bH88Lobby = document.getElementById('btn-h88-tolobby');
   if (bH88Lobby) bH88Lobby.addEventListener('click', () => {
     document.getElementById('ovH88End').classList.remove('show');
-    if (!state.vsAI) { try { MomoMatchmaking.send({ type: 'go-lobby' }); } catch (e) {} state.h88 = null; leaveRoom(); return; } // v2.50: 片方でも両者ロビー
+    if (!state.vsAI) { state.h88 = null; leaveRoom(); return; } // v2.85 A: 自分だけロビーへ（go-lobbyを送らず他者を巻き込まない）
     state.h88 = null; showScreen('lobby');
   });
   // v1.72 D1: 八八のコンピュータ強さ＝各CPU行のプルダウン（こいこいの ai-level-prep と同じ作り・委譲）

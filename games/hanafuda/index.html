@@ -1358,7 +1358,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.93</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.95</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1424,7 +1424,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.93</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.95</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1560,7 +1560,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.93</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.95</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1623,7 +1623,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.93</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.95</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -6797,23 +6797,37 @@ function h88AnimOpponentPlay() {
   const st = state.h88; if (!st || !st.game || !h88AnimEnabled()) return;
   const g = st.game;
   const mySeat = h88MySeat();
-  if (!g.lastPlay || g.lastPlay.player === mySeat) return; // 自分（視点席）の play は FLIP で描く＝このスライドは相手のみ
+  if (!g.lastPlay) return;
+  const isSelfSeat = (g.lastPlay.player === mySeat);
+  // v2.93: 自席（下側）の play は通常 FLIP で描く（本物の手札を追跡できる）。
+  //   ただし観戦者・席なしホストは自席の手札も伏せ札で data-id を持たず FLIP で追えないため、
+  //   相手席と同じく「手札エリア→場」へ滑らせる（これをしないと自席の手出しがワープしていた）。
+  if (isSelfSeat && !h88ViewSpec()) return;
   if (g.lastPlay.ts <= (ANIM._h88LastPlayTs || 0)) return;
   ANIM._h88LastPlayTs = g.lastPlay.ts;
   const el = document.querySelector('#h88-field .card[data-id="' + g.lastPlay.id + '"]');
   if (!el) return;
-  // v2.41/段2: スロット対応は renderH88 と同じ「席の並び(seatCycle)」を自分の席起点で固定算出する。手番送りの
-  //   h88NextSeat は⑩出降りで降りた席を飛ばすため、これで割り当てると出す席とスロットがずれ、札が降りた席
-  //   （別スロット）から飛ぶ絵になっていた（v2.38 で renderH88 は直したがこの演出は直し漏れ）。
-  const _n = g.seats.length, _i0 = g.seats.indexOf(mySeat);
-  const rightSeat = g.seats[(_i0 + 1) % _n], leftSeat = g.seats[(_i0 + 2) % _n];
-  const seatElId = (g.lastPlay.player === rightSeat) ? 'h88-oppR' : (g.lastPlay.player === leftSeat ? 'h88-oppL' : null);
-  const seatEl = seatElId && document.getElementById(seatElId);
-  // 出発点＝相手の伏せ手札の1枚（どれでもよい）。最後の1枚を出した直後は裏札が0枚になるので、手札枠→席全体の順にフォールバック（ワープ防止）。
-  const backCard = seatEl && seatEl.querySelector('.h88-mini-hand .card');
-  let src = backCard && backCard.getBoundingClientRect();
-  if (!src || !src.width) { const hand = seatEl && seatEl.querySelector('.h88-mini-hand'); src = hand && hand.getBoundingClientRect(); }
-  if (!src || !src.width) { src = seatEl && seatEl.getBoundingClientRect(); }
+  let src;
+  if (isSelfSeat) {
+    // 観戦時の自席＝画面下の自分の手札エリアが起点（伏せ札の1枚→手札枠→の順にフォールバック）。
+    const selfHand = document.getElementById('h88-self-hand');
+    const backCard = selfHand && selfHand.querySelector('.card');
+    src = backCard && backCard.getBoundingClientRect();
+    if (!src || !src.width) { src = selfHand && selfHand.getBoundingClientRect(); }
+  } else {
+    // v2.41/段2: スロット対応は renderH88 と同じ「席の並び(seatCycle)」を自分の席起点で固定算出する。手番送りの
+    //   h88NextSeat は⑩出降りで降りた席を飛ばすため、これで割り当てると出す席とスロットがずれ、札が降りた席
+    //   （別スロット）から飛ぶ絵になっていた（v2.38 で renderH88 は直したがこの演出は直し漏れ）。
+    const _n = g.seats.length, _i0 = g.seats.indexOf(mySeat);
+    const rightSeat = g.seats[(_i0 + 1) % _n], leftSeat = g.seats[(_i0 + 2) % _n];
+    const seatElId = (g.lastPlay.player === rightSeat) ? 'h88-oppR' : (g.lastPlay.player === leftSeat ? 'h88-oppL' : null);
+    const seatEl = seatElId && document.getElementById(seatElId);
+    // 出発点＝相手の伏せ手札の1枚（どれでもよい）。最後の1枚を出した直後は裏札が0枚になるので、手札枠→席全体の順にフォールバック（ワープ防止）。
+    const backCard = seatEl && seatEl.querySelector('.h88-mini-hand .card');
+    src = backCard && backCard.getBoundingClientRect();
+    if (!src || !src.width) { const hand = seatEl && seatEl.querySelector('.h88-mini-hand'); src = hand && hand.getBoundingClientRect(); }
+    if (!src || !src.width) { src = seatEl && seatEl.getBoundingClientRect(); }
+  }
   if (!src || !src.width) return; // 席そのものが隠れている（縦画面の非表示側）＝起点が測れずスライド省略
   const r = el.getBoundingClientRect(); if (!r.width) return;
   const dx = src.left - r.left, dy = src.top - r.top;
@@ -7148,8 +7162,9 @@ function h88RoundPanelHtml(g, result, before, teyaku0, tM, viewer, doLog) {
     const gain = g.roundEnd.total * m;
     listHtml = '<ul class="yaku-list">' + g.roundEnd.yaku.map(y => {
       const cards = h88YakuCards(g.caps[g.winner], y.key).map(id => svgCard(id, 'ye-card')).join('');
+      // v2.94: 出来役の各行にも地場倍率(×場m)を明示（手役行と表記をそろえる。下の計算式も倍率込みで一致）。
       return '<li class="ye-li"><div class="ye-head"><span>' + t(y.key) + (y.count ? '×' + y.count : '') + '</span>'
-        + '<span class="pt">' + y.mon + ' ' + unit + '</span></div>' + (cards ? '<div class="ye-cards">' + cards + '</div>' : '') + '</li>';
+        + '<span class="pt">' + y.mon + ' ' + unit + (m > 1 ? t('h88.round.teyakuValMul', { m: m, v: (y.mon * m), unit: unit }) : '') + '</span></div>' + (cards ? '<div class="ye-cards">' + cards + '</div>' : '') + '</li>';
     }).join('') + '</ul>';
     const winMult = m > 1 ? t('h88.round.winMult', { m: m, gain: gain, unit: unit }) : '';
     head = '<div class="h88-te-note">' + t('h88.round.win', { winner: nm(g.winner), btag: bTag, total: g.roundEnd.total, unit: unit, mult: winMult }) + '</div>';

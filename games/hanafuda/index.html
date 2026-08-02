@@ -1359,7 +1359,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.88</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.89</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1425,7 +1425,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.88</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.89</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1561,7 +1561,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.88</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.89</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1624,7 +1624,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.88</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.89</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1638,6 +1638,7 @@
     <span id="h88-turn"></span>
     <span class="spectating-badge hidden" style="padding:.1em .5em;background:var(--accent,#e08a2b);color:#fff;border-radius:.4em;font-size:.8rem" data-i18n="spectator.badge">観戦中</span>
     <span class="spec-count hidden" style="color:var(--text-muted);font-size:.8rem"></span>
+    <button class="h88-log-btn" id="btn-h88-yakulist" type="button">🎴 <span data-i18n="yakulist.btn">役一覧</span></button>
     <button class="h88-log-btn" id="btn-h88-fs" type="button" hidden>⛶ <span data-i18n="hachi.fs.enter">全画面</span></button>
     <button class="h88-log-btn h88-back" id="btn-home-hachi" type="button">← <span data-i18n="hachi.back">準備室</span></button>
   </div>
@@ -2113,6 +2114,15 @@ const I18N = {
     'yakulist.rule.kikuTane': 'タネ札として扱う（花見・月見が成立）', 'yakulist.rule.kikuKasu': 'カス札として扱う（花見・月見なし）',
     'yakulist.rlabel.deal': '手四・くっつき', 'yakulist.rule.deal': '配札時の手四・くっつきで即決着（上の手役）',
     'yakulist.foot': '※ 文数は基本点です。こいこい・多重掛け・倍返し・7文以上などで最終得点は変わります。灰色は現在の設定で使えない役・ルールです。',
+    'h88yl.sec.yaku': '得点になる役（出来役）',
+    'h88yl.cond.shikou': '光のうち雨（柳）以外の4枚', 'h88yl.cond.shichitan': '短冊のうち柳（11月）以外を7枚',
+    'h88yl.cond.sujuuroku': 'カス16枚以上', 'h88yl.cond.souhachi': '取り札の合計が168点以上（基準88点＋80点）', 'h88yl.cond.souya': '全員が取り札ちょうど88点＝親に成立',
+    'h88yl.cond.shisou': '同じ月が4枚と、別の月が3枚', 'h88yl.cond.ichinishi': '同じ月が4枚・2枚・1枚', 'h88yl.cond.teshi': '同じ月が4枚（残り3枚はバラ）',
+    'h88yl.cond.haneken': '同じ月が3枚と、2枚が2組', 'h88yl.cond.karasu': '手札7枚すべてカス', 'h88yl.cond.kuttsuki': '同じ月2枚が3組',
+    'h88yl.cond.pikaichi': '光1枚＋残りすべてカス', 'h88yl.cond.toichi': 'タネ1枚＋残りすべてカス', 'h88yl.cond.tanichi': '短冊1枚＋残りすべてカス',
+    'h88yl.cond.aka': '短冊2枚以上＋残りすべてカス', 'h88yl.cond.tatesanbon': '藤・菖蒲・萩・桐のいずれか同じ月3枚', 'h88yl.cond.sanbon': '同じ月が3枚',
+    'h88yl.cond.sousanbon': '同じ月3枚が2組', 'h88yl.cond.sunashi': 'カスなし（7枚すべて得点札）',
+    'h88yl.foot': '※ 点数は基本点（単位は流派で点／貫）。場倍率・手役×場倍率・下げ・丸めなどで最終得点は変わります。灰色は現在の設定で使えない役・ルールです。',
     'round.pre': 'こいこい前', 'round.post': 'こいこい後',
     'set.koiOnce': 'こいこいは1局1人だけ',
     'oya.title': '先手（親）を決める',
@@ -2429,6 +2439,15 @@ const I18N = {
     'yakulist.rule.kikuTane': 'Treated as an animal card (Hanami/Tsukimi valid)', 'yakulist.rule.kikuKasu': 'Treated as chaff (no Hanami/Tsukimi)',
     'yakulist.rlabel.deal': 'Teshi / Kuttsuki', 'yakulist.rule.deal': 'Teshi/Kuttsuki at deal end the round instantly (see above)',
     'yakulist.foot': '※ Mon shown are base points. Koi-Koi, stacking, payback and the 7+ rule change the final score. Greyed items are unavailable under the current settings.',
+    'h88yl.sec.yaku': 'Scoring yaku (dekiyaku)',
+    'h88yl.cond.shikou': '4 lights, excluding the rain (willow)', 'h88yl.cond.shichitan': '7 ribbons, excluding the willow (Nov.)',
+    'h88yl.cond.sujuuroku': '16+ chaff', 'h88yl.cond.souhachi': 'Captured total 168+ points (base 88 + 80)', 'h88yl.cond.souya': 'Everyone captures exactly 88 — goes to the dealer',
+    'h88yl.cond.shisou': 'Four of one month + three of another', 'h88yl.cond.ichinishi': 'Four / two / one of a month each', 'h88yl.cond.teshi': 'Four of the same month (other 3 loose)',
+    'h88yl.cond.haneken': 'Three of one month + two pairs', 'h88yl.cond.karasu': 'All 7 hand cards are chaff', 'h88yl.cond.kuttsuki': 'Three same-month pairs',
+    'h88yl.cond.pikaichi': 'One light + rest all chaff', 'h88yl.cond.toichi': 'One animal + rest all chaff', 'h88yl.cond.tanichi': 'One ribbon + rest all chaff',
+    'h88yl.cond.aka': 'Two+ ribbons + rest all chaff', 'h88yl.cond.tatesanbon': 'Three of Wisteria / Iris / Bush clover / Paulownia', 'h88yl.cond.sanbon': 'Three of the same month',
+    'h88yl.cond.sousanbon': 'Two triplets (three of a month, twice)', 'h88yl.cond.sunashi': 'No chaff (all 7 are scoring cards)',
+    'h88yl.foot': '※ Points are base values (unit is ten/kan by style). Field multiplier, hand-yaku × field, sage and rounding change the final score. Greyed items are unavailable under the current settings.',
     'round.pre': 'Pre-koikoi', 'round.post': 'Post-koikoi',
     'set.koiOnce': 'Only one Koi-Koi per round',
     'oya.title': 'Decide the Dealer',
@@ -2745,6 +2764,15 @@ const I18N = {
     'yakulist.rule.kikuTane': '作为种牌处理（花见·月见成立）', 'yakulist.rule.kikuKasu': '作为粕牌处理（无花见·月见）',
     'yakulist.rlabel.deal': '手四·粘', 'yakulist.rule.deal': '发牌时手四·粘即时决胜（见上方手役）',
     'yakulist.foot': '※ 文数为基本分。来来·叠加·倍返·7文以上等会改变最终得分。灰色项目在当前设定下不可用。',
+    'h88yl.sec.yaku': '得分役（出来役）',
+    'h88yl.cond.shikou': '光中除雨（柳）的4张', 'h88yl.cond.shichitan': '短册中除柳（11月）的7张',
+    'h88yl.cond.sujuuroku': '粕16张以上', 'h88yl.cond.souhachi': '取牌合计168点以上（基准88点＋80点）', 'h88yl.cond.souya': '全员取牌恰好88点＝归庄家',
+    'h88yl.cond.shisou': '同月4张，另一月3张', 'h88yl.cond.ichinishi': '同月4张·2张·1张', 'h88yl.cond.teshi': '同月4张（其余3张散牌）',
+    'h88yl.cond.haneken': '同月3张，另有2张×2组', 'h88yl.cond.karasu': '手牌7张全为粕', 'h88yl.cond.kuttsuki': '同月2张×3组',
+    'h88yl.cond.pikaichi': '光1张＋其余全粕', 'h88yl.cond.toichi': '种1张＋其余全粕', 'h88yl.cond.tanichi': '短册1张＋其余全粕',
+    'h88yl.cond.aka': '短册2张以上＋其余全粕', 'h88yl.cond.tatesanbon': '藤·菖蒲·萩·桐其一，同月3张', 'h88yl.cond.sanbon': '同月3张',
+    'h88yl.cond.sousanbon': '同月3张×2组', 'h88yl.cond.sunashi': '无粕（7张全为得分牌）',
+    'h88yl.foot': '※ 分数为基本分（单位随流派为点／贯）。场倍率·手役×场倍率·下げ·舍入等会改变最终得分。灰色项目在当前设定下不可用。',
     'round.pre': '来来前', 'round.post': '来来后',
     'set.koiOnce': '每局仅限一次来来',
     'oya.title': '决定先手（庄家）',
@@ -3448,6 +3476,90 @@ function renderKoiYakuList() {
 }
 function openKoiYakuList() {
   renderKoiYakuList();
+  const panel = document.querySelector('#ovYakuList .yakulist-panel');
+  if (panel) panel.style.transform = ''; // 開くたび中央にリセット
+  document.getElementById('ovYakuList').classList.add('show');
+  if (panel) makeDraggable(panel, document.getElementById('yakulist-drag')); // 見出しをつかんで移動（背景は隠さない＝clear-ov）
+}
+// v2.89: 八八「役一覧」パネル。現在の八八ルール（点数流派・採用役・特殊ルール）に追従してグレー表示。
+// こいこいと同じ #ovYakuList / #yl-body を再利用（本物の札・番号タグ/札名バブル・ドラッグ移動も共通）。
+function renderH88YakuList() {
+  const body = document.getElementById('yl-body'); if (!body) return;
+  const r = h88Rules();
+  const unit = h88PresetUnit();                                            // '点'（任天堂）/'貫'（関東・関西）
+  const yPts = H88_YAKU_POINTS[r.pointStyle] || H88_YAKU_POINTS.nintendo;
+  const tPts = H88_TEYAKU_POINTS[r.pointStyle] || H88_TEYAKU_POINTS.nintendo;
+  const yakuSet = H88_YAKU_SET[r.yakuSet] || H88_YAKU_SET.nintendo;
+  const teySet = H88_TEYAKU_SET[r.yakuSet] || H88_TEYAKU_SET.nintendo;
+  const inY = (k) => yakuSet.includes(k);                                  // 現在の採用役に含まれるか（含まれなければ0点・グレー）
+  const inT = (k) => teySet.includes(k);
+  const deck = buildDeck();
+  const idsOf = (ty) => deck.filter(c => c.type === ty).map(c => c.id);
+  const LIGHTS = idsOf('hikari');
+  const NONRAIN = LIGHTS.filter(id => id !== RAIN_HIKARI_ID);             // 雨（柳光）以外の4光
+  const TAN_NY = idsOf('tan').filter(id => id !== 'm11_tan');             // 柳（11月）以外の短冊
+  const KASUS = idsOf('kasu');
+  const card = (id) => svgCard(id, 'ye-card');
+  const etcTag = '<span class="yl-etc">' + t('yakulist.etc') + '</span>';
+  const cards = (ids, etc) => '<div class="yl-cards">' + ids.map(card).join('') + (etc ? etcTag : '') + '</div>';
+  const yrow = (nameKey, cond, pt, cardsHtml, dim) =>
+    '<div class="yl-row' + (dim ? ' dim' : '') + '">'
+    + '<div class="yl-head"><span class="yl-name">' + t(nameKey) + '</span>'
+    + '<span class="yl-pt">' + (dim ? '0' : pt) + '<small>' + unit + '</small></span></div>'
+    + (cond ? '<div class="yl-cond">' + cond + '</div>' : '')
+    + (cardsHtml || '') + '</div>';
+  let h = '';
+  // ① 得点になる役（出来役）。点数は現在の流派。採用役に無いものは0点・グレー。
+  h += '<div class="yl-sec">' + t('h88yl.sec.yaku') + '</div>';
+  h += yrow('yaku.gokou', t('yakulist.cond.gokou'), yPts.gokou, cards(LIGHTS), !inY('gokou'));
+  h += yrow('yaku.shikou', t('h88yl.cond.shikou'), yPts.shikou, cards(NONRAIN), !inY('shikou'));
+  h += yrow('yaku.shichitan', t('h88yl.cond.shichitan'), yPts.shichitan, cards(TAN_NY, true), !inY('shichitan'));
+  h += yrow('yaku.akatan', t('yakulist.cond.set3'), yPts.akatan, cards(RED_TAN_IDS), !inY('akatan'));
+  h += yrow('yaku.aotan', t('yakulist.cond.set3'), yPts.aotan, cards(BLUE_TAN_IDS), !inY('aotan'));
+  h += yrow('yaku.inoshikachou', t('yakulist.cond.set3'), yPts.inoshikachou, cards(IKS_IDS), !inY('inoshikachou'));
+  h += yrow('yaku.sujuuroku', t('h88yl.cond.sujuuroku'), yPts.sujuuroku, cards(KASUS.slice(0, 6), true), !inY('sujuuroku'));
+  h += yrow('yaku.souhachi', t('h88yl.cond.souhachi'), yPts.souhachi, '', !inY('souhachi'));
+  h += yrow('yaku.souya', t('h88yl.cond.souya'), yPts.souya, '', !inY('souya'));
+  // ② 配札時の役（手役）。同月の枚数・種別で成立。採用役に無いものは0点・グレー。
+  h += '<div class="yl-sec">' + t('yakulist.sec.teyaku') + '</div>';
+  const trow = (k, cond) => (h += yrow('teyaku.' + k, cond, tPts[k], '', !inT(k)));
+  trow('shisou', t('h88yl.cond.shisou'));
+  trow('ichinishi', t('h88yl.cond.ichinishi'));
+  trow('teshi', t('h88yl.cond.teshi'));
+  trow('haneken', t('h88yl.cond.haneken'));
+  trow('karasu', t('h88yl.cond.karasu'));
+  trow('kuttsuki', t('h88yl.cond.kuttsuki'));
+  trow('pikaichi', t('h88yl.cond.pikaichi'));
+  trow('toichi', t('h88yl.cond.toichi'));
+  trow('tanichi', t('h88yl.cond.tanichi'));
+  trow('aka', t('h88yl.cond.aka'));
+  trow('tatesanbon', t('h88yl.cond.tatesanbon'));
+  trow('sanbon', t('h88yl.cond.sanbon'));
+  trow('sousanbon', t('h88yl.cond.sousanbon'));
+  trow('sunashi', t('h88yl.cond.sunashi'));
+  // ③ 特殊ルール（現在の設定）。ON/OFF・流派を右のバッジで表示。
+  h += '<div class="yl-sec">' + t('yakulist.sec.rules') + '</div>';
+  const rrow = (on, labelKey, badge) => '<div class="yl-rule ' + (on ? 'on' : 'off') + '">'
+    + '<span class="st">' + badge + '</span>'
+    + '<span><span class="rn">' + t(labelKey) + '</span></span></div>';
+  const oo = (v) => v ? t('set.on') : t('set.off');
+  h += rrow(true, 'h88.b.points', t('h88.v.' + r.pointStyle));            // ①点数流派
+  h += rrow(true, 'h88.b.yakuset', t('h88.ys.' + r.yakuSet));            // ②採用役
+  h += rrow(r.fieldMul, 'h88.b.fieldmul', oo(r.fieldMul));               // ③場倍率
+  h += rrow(r.redeal, 'h88.b.redeal', oo(r.redeal));                     // ④場四＝配り直し
+  h += rrow(r.sweep3, 'h88.b.sweep3', oo(r.sweep3));                     // ⑤場三＝総取り
+  h += rrow(r.teyakuFieldMul, 'h88.b.teyakumul', r.teyakuFieldMul ? 'ON' : 'OFF'); // ⑥手役×場倍率
+  const sageOn = r.sage !== 'off';
+  h += rrow(sageOn, 'h88.b.sage', sageOn ? t('h88.sage.' + r.sage) : t('set.off')); // ⑧下げ
+  h += rrow(r.marume, 'h88.b.marume', oo(r.marume));                     // ⑨丸め
+  h += rrow(r.deiori, 'h88.b.deiori', oo(r.deiori));                     // ⑩出降り
+  h += '<p class="yl-foot">' + t('h88yl.foot') + '</p>';
+  body.innerHTML = h;
+  const cur = document.getElementById('yl-cur');
+  if (cur) cur.innerHTML = t('yakulist.cur') + '：<b>' + t('h88.preset.' + h88PresetLabelOf()) + '</b>';
+}
+function openH88YakuList() {
+  renderH88YakuList();
   const panel = document.querySelector('#ovYakuList .yakulist-panel');
   if (panel) panel.style.transform = ''; // 開くたび中央にリセット
   document.getElementById('ovYakuList').classList.add('show');
@@ -10422,6 +10534,8 @@ function bindEvents() {
   // v2.87: こいこい「役一覧」パネル
   const ylBtn = document.getElementById('btn-yakulist-game');
   if (ylBtn) ylBtn.addEventListener('click', openKoiYakuList);
+  const ylBtnH = document.getElementById('btn-h88-yakulist'); // v2.89: 八八の役一覧
+  if (ylBtnH) ylBtnH.addEventListener('click', openH88YakuList);
   const ylClose = document.getElementById('yakulist-close');
   if (ylClose) ylClose.addEventListener('click', () => document.getElementById('ovYakuList').classList.remove('show'));
   const ylOv = document.getElementById('ovYakuList');

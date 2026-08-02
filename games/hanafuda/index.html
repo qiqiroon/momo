@@ -1359,7 +1359,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.90</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.91</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1425,7 +1425,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.90</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.91</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1562,7 +1562,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.90</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.91</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1625,7 +1625,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.90</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.91</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1762,14 +1762,15 @@
 </div></div>
 
 <!-- v2.90: デバッグパネルのパスコード認証（?debug=1 のときのみ経路が有効） -->
-<div class="overlay" id="ovDbgAuth"><div class="opanel" style="max-width:320px">
+<div class="overlay" id="ovDbgAuth" style="z-index:10002"><div class="opanel" style="max-width:320px">
   <h2>🛠 <span>デバッグパネル</span></h2>
   <p style="font-size:.8rem;color:var(--text-muted);margin:-4px 0 10px;">パスコードを入力してください。</p>
-  <input type="password" id="dbg-auth-input" inputmode="numeric" autocomplete="off" maxlength="12" style="width:100%;box-sizing:border-box;padding:10px;font-size:1.1rem;text-align:center;letter-spacing:.35em;background:#0c0c0c;border:1px solid var(--border-strong);border-radius:8px;color:var(--text);">
+  <!-- ブラウザの自動補完/パスワード候補を出さないため type=text＋CSSマスク（-webkit-text-security）で伏せ字化 -->
+  <form autocomplete="off" onsubmit="return false"><input type="text" id="dbg-auth-input" name="dbg-pin" inputmode="numeric" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" maxlength="12" style="-webkit-text-security:disc;text-security:disc;width:100%;box-sizing:border-box;padding:10px;font-size:1.1rem;text-align:center;letter-spacing:.35em;background:#0c0c0c;border:1px solid var(--border-strong);border-radius:8px;color:var(--text);"></form>
   <p id="dbg-auth-err" style="font-size:.74rem;color:#e0554e;min-height:1.1em;margin:6px 2px;"></p>
   <div class="btn-row">
-    <button class="btn btn-ghost" id="dbg-auth-cancel">キャンセル</button>
-    <button class="btn btn-primary" id="dbg-auth-ok">開く</button>
+    <button class="btn btn-ghost" id="dbg-auth-cancel" type="button">キャンセル</button>
+    <button class="btn btn-primary" id="dbg-auth-ok" type="button">開く</button>
   </div>
 </div></div>
 
@@ -4433,21 +4434,23 @@ const SAKE_ID = 'm09_tane';
 const RAIN_HIKARI_ID = 'm11_hikari';
 
 // v2.90: ?debug=1 の手札構成オプション。pool（配札前の残り札）から size 枚を取り出して1席分を組む。
-// 種/短冊を1〜2枚＋残りをカス、同月は2枚まで、光は入れない。取れなければ null（通常配札にフォールバック）。
+// 種/短冊を2枚＋残りをカス、同月は2枚まで、光は入れない。取れなければ null（通常配札にフォールバック）。
 function composeSeatHand(pool, size) {
-  const mc = {}, out = [];
+  const mc = {}, out = [], used = {};
   const room = (c) => (mc[c.month] || 0) < 2;
-  const take = (c) => { out.push(c); mc[c.month] = (mc[c.month] || 0) + 1; };
+  const take = (c) => { out.push(c); used[c.id] = true; mc[c.month] = (mc[c.month] || 0) + 1; };
+  const tanes = shuffle(pool.filter(c => c.type === 'tane'));
   const others = shuffle(pool.filter(c => c.type === 'tane' || c.type === 'tan'));
   const plain = shuffle(pool.filter(c => c.type === 'kasu'));
-  const want = 1 + (Math.random() < 0.5 ? 1 : 0); // 1〜2枚
-  let n = 0;
-  for (const c of others) { if (n >= want) break; if (room(c)) { take(c); n++; } }
-  if (n === 0) return null; // 種/短冊が入らない＝条件を満たせない
+  const want = 2; // 種/短冊を必ず2枚（1枚だと短一等が成立してしまうため）
+  // うち1枚は必ず種にする（短冊種別への偏りが通常より大きく増えるのを避ける）
+  for (const c of tanes) { if (out.length >= 1) break; if (room(c)) take(c); }
+  if (out.length < 1) return null;
+  for (const c of others) { if (out.length >= want) break; if (!used[c.id] && room(c)) take(c); }
+  if (out.length < want) return null;
   for (const c of plain) { if (out.length >= size) break; if (room(c)) take(c); }
-  for (const c of others) { if (out.length >= size) break; if (out.indexOf(c) < 0 && room(c)) take(c); }
+  for (const c of others) { if (out.length >= size) break; if (!used[c.id] && room(c)) take(c); }
   if (out.length < size) return null;
-  const used = {}; out.forEach(c => used[c.id] = true);
   return { hand: out, rest: pool.filter(c => !used[c.id]) };
 }
 // こいこい：この配札でオプション適用する側（host/guest）。
@@ -10944,6 +10947,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     const bod = document.getElementById('btn-open-debug');
     if (bod) bod.addEventListener('click', () => {
+      document.getElementById('ovSettings').classList.remove('show'); // 認証窓を設定パネルの裏に隠さない
       if (dbgUnlocked) { openPanel(); return; }
       if (ovAuth) { ovAuth.classList.add('show'); if (authIn) { authIn.value = ''; setTimeout(() => authIn.focus(), 30); } if (authErr) authErr.textContent = ''; }
     });

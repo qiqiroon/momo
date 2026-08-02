@@ -319,6 +319,7 @@ h1 span { color: var(--orange-mid); }
 .badge-playing  { background: #3b2800; color: #fbbf24; }
 .badge-lobby    { background: #1a1a2e; color: #818cf8; }
 .badge-locked   { background: #2d2500; color: #fde68a; }
+.badge-multi    { background: #2a1a4a; color: #c084fc; }
 
 .room-card-mid {
   display: flex;
@@ -338,6 +339,73 @@ h1 span { color: var(--orange-mid); }
   color: var(--text-dim);
 }
 .room-id { font-family: monospace; letter-spacing: 0.5px; }
+
+/* ===== サーバー上限（管理）===== */
+.limits-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.limit-stat {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+.limit-stat .label { font-size: 11px; color: var(--text-muted); }
+.limit-stat .value { font-size: 18px; font-weight: 700; color: var(--text); font-family: monospace; }
+.limit-stat .value small { font-size: 11px; color: var(--text-dim); font-weight: 400; }
+
+.admin-key-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.admin-key-row input[type="password"],
+.admin-key-row input[type="text"] {
+  flex: 1;
+  min-width: 140px;
+  background: var(--surface2);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 13px;
+  padding: 7px 10px;
+  outline: none;
+}
+.admin-key-row input:focus { border-color: var(--orange); }
+.remember-row { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 5px; }
+
+.limit-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.limit-edit-row label { flex: 1; }
+.limit-edit-row input[type="number"] {
+  width: 90px;
+  background: var(--surface2);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: monospace;
+  font-size: 13px;
+  padding: 6px 8px;
+  outline: none;
+}
+.limit-edit-row input:focus { border-color: var(--orange); }
+#admin-status { font-size: 12px; min-height: 16px; }
+#admin-status.ok  { color: var(--success); }
+#admin-status.err { color: var(--danger); }
+#admin-status.info { color: var(--text-muted); }
+
+.sound-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.sound-row label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
 
 /* ===== ログ ===== */
 .log-box {
@@ -425,7 +493,7 @@ h1 span { color: var(--orange-mid); }
     </svg>
     MOMO <span>control</span>
   </h1>
-  <div class="version">v2.00</div>
+  <div class="version">v2.01</div>
 </div>
 
 <div class="container">
@@ -462,7 +530,63 @@ h1 span { color: var(--orange-mid); }
     <div class="room-list" id="room-list">
       <div class="room-empty">部屋データを取得中...</div>
     </div>
+    <div class="sound-row">
+      <label><input type="checkbox" id="sound-toggle" checked> 🔔 部屋作成時に通知音</label>
+      <button class="btn btn-outline btn-sm" onclick="testRoomSound()">音をテスト</button>
+    </div>
     <button class="btn btn-outline btn-sm" id="btn-refresh" onclick="manualRefresh()" style="width:100%">今すぐ更新</button>
+  </div>
+
+  <!-- サーバー上限（管理）-->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">サーバー上限（管理）</div>
+      <div class="panel-badge">🔑</div>
+    </div>
+    <div class="panel-desc">
+      部屋数・総接続数の上限を確認／変更します。<br>
+      ※ 変更は<strong>一時的</strong>で、サーバー再起動・スリープ復帰で初期値に戻ります。<br>
+      ※ 管理キー（合言葉）が必要です。サーバーに未設定の場合は操作できません。<br>
+      ※ プレイヤー／観戦の1部屋上限はハード上限のため変更不可（表示のみ）。
+    </div>
+
+    <div class="admin-key-row">
+      <input type="password" id="admin-key" placeholder="管理キー" autocomplete="off">
+      <button class="btn btn-outline btn-sm" onclick="getLimits()">上限を取得</button>
+    </div>
+    <div class="remember-row">
+      <input type="checkbox" id="admin-key-remember"> <label for="admin-key-remember">この端末だけに管理キーを記憶</label>
+    </div>
+
+    <div class="limits-grid">
+      <div class="limit-stat">
+        <div class="label">現在の部屋数</div>
+        <div class="value" id="stat-current-rooms">—<small> / <span id="stat-max-rooms">—</span></small></div>
+      </div>
+      <div class="limit-stat">
+        <div class="label">現在の総接続数</div>
+        <div class="value" id="stat-current-conn">—<small> / <span id="stat-max-conn">—</span></small></div>
+      </div>
+      <div class="limit-stat">
+        <div class="label">プレイヤー上限/部屋</div>
+        <div class="value" id="stat-max-players">—<small>（ハード）</small></div>
+      </div>
+      <div class="limit-stat">
+        <div class="label">観戦上限/部屋</div>
+        <div class="value" id="stat-max-spectators">—<small>（ハード）</small></div>
+      </div>
+    </div>
+
+    <div class="limit-edit-row">
+      <label>部屋数上限（1〜200）</label>
+      <input type="number" id="edit-max-rooms" min="1" max="200" placeholder="—">
+    </div>
+    <div class="limit-edit-row">
+      <label>総接続数の安全弁（1〜5000）</label>
+      <input type="number" id="edit-max-conn" min="1" max="5000" placeholder="—">
+    </div>
+    <button class="btn btn-outline btn-sm" id="btn-apply-limits" onclick="applyLimits()" style="width:100%" disabled>変更を適用</button>
+    <div id="admin-status" class="info"></div>
   </div>
 
   <!-- ログ出力 -->
@@ -677,16 +801,23 @@ function renderRooms() {
     const visLabel = r.isPublic ? '公開' : '非公開';
     const visCls   = r.isPublic ? 'badge-public' : 'badge-private';
 
-    const pwLabel = r.hasPassword ? '🔒' : '';
-
     const firstSeenStr = r.firstSeen instanceof Date
       ? r.firstSeen.toLocaleTimeString('ja-JP')
       : new Date(r.firstSeen).toLocaleTimeString('ja-JP');
+
+    const isMulti = r.mode === 'multi';
+
+    // 中段：多人数は「プレイヤー数/観戦数」、従来（1対1）はゲストの有無
+    const midRight = isMulti
+      ? `<span>👥 ${r.playerCount ?? 0}/${r.maxPlayers ?? '?'}</span>
+         <span>👁 ${r.spectatorCount ?? 0}/${r.maxSpectators ?? '?'}</span>`
+      : `<span>${r.guestConnected ? '👥 ' + escHtml(r.guestName || 'ゲスト') : '👤 待機中'}</span>`;
 
     card.innerHTML = `
       <div class="room-card-top">
         <span class="room-name">${escHtml(r.name)}</span>
         <span class="badge badge-gametype">${escHtml(r.gameType)}</span>
+        ${isMulti ? '<span class="badge badge-multi">多人数</span>' : ''}
         <span class="badge ${visCls}">${visLabel}</span>
         <span class="badge ${stateCls}">${stateLabel}</span>
         ${r.hasPassword ? '<span class="badge badge-locked">🔒PW</span>' : ''}
@@ -699,7 +830,7 @@ function renderRooms() {
           </svg>
           ${escHtml(r.hostName)}
         </span>
-        <span>${r.guestConnected ? '👥 ' + escHtml(r.guestName || 'ゲスト') : '👤 待機中'}</span>
+        ${midRight}
       </div>
       <div class="room-card-bot">
         <span class="room-id">ID: ${escHtml(r.id)}</span>
@@ -1132,6 +1263,9 @@ function detectAndLogEvents(currentRooms) {
     }
   }
   prevRoomsByKey = newMap;
+  // 新規部屋の作成を音で通知
+  const createCount = events.filter(e => e.type === 'CREATE').length;
+  if (createCount > 0) notifyRoomCreated(createCount);
   if (events.length > 0) appendLogEvents(events);
 }
 
@@ -1175,12 +1309,175 @@ async function appendLogEvents(events) {
 }
 
 // ===================================================
+// 通知音（Web Audio・外部ファイル不要）
+// ===================================================
+const STORAGE_KEY_SOUND = 'momoControl_soundOn';
+let audioCtx = null;
+
+function ensureAudioCtx() {
+  if (!audioCtx) {
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch { return null; }
+  }
+  if (audioCtx.state === 'suspended') { audioCtx.resume().catch(() => {}); }
+  return audioCtx;
+}
+
+// 「ピロン♪」という2音のやわらかい通知音
+function playRoomSound() {
+  const ctx = ensureAudioCtx();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  const notes = [ { f: 880, t: 0 }, { f: 1318.5, t: 0.11 } ]; // A5 → E6
+  notes.forEach(n => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = n.f;
+    const start = now + n.t;
+    gain.gain.setValueAtTime(0, start);
+    gain.gain.linearRampToValueAtTime(0.25, start + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, start + 0.22);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(start);
+    osc.stop(start + 0.24);
+  });
+}
+
+function isSoundOn() {
+  const el = document.getElementById('sound-toggle');
+  return el ? el.checked : true;
+}
+
+function notifyRoomCreated(count) {
+  if (!isSoundOn()) return;
+  playRoomSound();
+  log(`新しい部屋を検知しました（${count}件）`, 'ok');
+}
+
+function testRoomSound() {
+  ensureAudioCtx(); // ユーザー操作でオーディオを解錠
+  playRoomSound();
+}
+
+function initSoundToggle() {
+  const el = document.getElementById('sound-toggle');
+  if (!el) return;
+  const saved = localStorage.getItem(STORAGE_KEY_SOUND);
+  if (saved !== null) el.checked = (saved === '1');
+  el.addEventListener('change', () => {
+    localStorage.setItem(STORAGE_KEY_SOUND, el.checked ? '1' : '0');
+    if (el.checked) ensureAudioCtx(); // ONにした操作でオーディオを解錠
+  });
+}
+
+// 最初のユーザー操作でオーディオを解錠（自動再生ポリシー対策）
+document.addEventListener('click', () => ensureAudioCtx(), { once: true });
+
+// ===================================================
+// サーバー上限（管理・admin_get_limits / admin_set_limits）
+// ===================================================
+// 管理コマンドは管理キーが必須。管理キーは Control のソースには埋め込まず、
+// 希望時のみ「この端末だけ記憶」(localStorage) に留める（設計書 §9）。
+const STORAGE_KEY_ADMIN = 'momoControl_adminKey';
+
+function setAdminStatus(msg, type) {
+  const el = document.getElementById('admin-status');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = type || 'info';
+}
+
+function saveAdminKeyIfWanted() {
+  const remember = document.getElementById('admin-key-remember').checked;
+  const key = document.getElementById('admin-key').value.trim();
+  if (remember && key) localStorage.setItem(STORAGE_KEY_ADMIN, key);
+  else localStorage.removeItem(STORAGE_KEY_ADMIN);
+}
+
+function loadAdminKey() {
+  const saved = localStorage.getItem(STORAGE_KEY_ADMIN);
+  if (saved) {
+    document.getElementById('admin-key').value = saved;
+    document.getElementById('admin-key-remember').checked = true;
+  }
+}
+
+// 管理コマンド専用の一時WSで問い合わせる（監視・削除と同じ方式）
+function adminSend(payload, onLimits) {
+  const key = document.getElementById('admin-key').value.trim();
+  if (!key) { setAdminStatus('管理キーを入力してください', 'err'); return; }
+  saveAdminKeyIfWanted();
+  setAdminStatus('サーバーに問い合わせ中...', 'info');
+
+  const ws = new WebSocket(SIGNALING_URL);
+  let done = false;
+  const timer = setTimeout(() => {
+    if (!done) { done = true; try { ws.close(); } catch {} setAdminStatus('タイムアウト', 'err'); }
+  }, 8000);
+
+  ws.onopen = () => { ws.send(JSON.stringify({ ...payload, key })); };
+  ws.onmessage = e => {
+    let d;
+    try { d = JSON.parse(e.data); } catch { return; }
+    if (d.type === 'admin_limits') {
+      done = true; clearTimeout(timer); ws.close();
+      onLimits(d);
+    } else if (d.type === 'error') {
+      done = true; clearTimeout(timer); ws.close();
+      setAdminStatus(d.message || '管理コマンドが拒否されました', 'err');
+    }
+  };
+  ws.onerror = () => { if (!done) { done = true; clearTimeout(timer); setAdminStatus('接続エラー', 'err'); } };
+  ws.onclose = () => { if (!done) { done = true; clearTimeout(timer); setAdminStatus('応答がありません', 'err'); } };
+}
+
+function renderLimits(d) {
+  document.getElementById('stat-current-rooms').innerHTML =
+    `${d.currentRooms}<small> / <span id="stat-max-rooms">${d.maxRooms}</span></small>`;
+  document.getElementById('stat-current-conn').innerHTML =
+    `${d.currentConnections}<small> / <span id="stat-max-conn">${d.maxTotalConnections}</span></small>`;
+  document.getElementById('stat-max-players').innerHTML =
+    `${d.maxPlayers}<small>（ハード）</small>`;
+  document.getElementById('stat-max-spectators').innerHTML =
+    `${d.maxSpectators}<small>（ハード）</small>`;
+  document.getElementById('edit-max-rooms').value = d.maxRooms;
+  document.getElementById('edit-max-conn').value = d.maxTotalConnections;
+  document.getElementById('btn-apply-limits').disabled = false;
+}
+
+function getLimits() {
+  adminSend({ type: 'admin_get_limits' }, d => {
+    renderLimits(d);
+    setAdminStatus('現在の上限を取得しました', 'ok');
+  });
+}
+
+function applyLimits() {
+  const mr = parseInt(document.getElementById('edit-max-rooms').value, 10);
+  const mc = parseInt(document.getElementById('edit-max-conn').value, 10);
+  const payload = { type: 'admin_set_limits' };
+  if (!isNaN(mr)) payload.maxRooms = mr;
+  if (!isNaN(mc)) payload.maxTotalConnections = mc;
+  if (payload.maxRooms === undefined && payload.maxTotalConnections === undefined) {
+    setAdminStatus('変更する値を入力してください', 'err');
+    return;
+  }
+  adminSend(payload, d => {
+    renderLimits(d);
+    setAdminStatus('変更を適用しました（再起動・スリープ復帰で初期値に戻ります）', 'ok');
+  });
+}
+
+// ===================================================
 // 起動
 // ===================================================
 loadGameTypes();
 renderGameTypes();
 initMatchmaking();
 loadSavedLogFolder();
+initSoundToggle();
+loadAdminKey();
 
 </script>
 </body>

@@ -102,6 +102,12 @@
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
+  <url>
+    <loc>https://qiqiroon.github.io/momo/tools/kjcards/</loc>
+    <lastmod>2026-08-02</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
 
   <!-- ── Other ──
        MOMO Logue (/logue/) は意図的に sitemap 非掲載。

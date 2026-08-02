@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 92 92">
+  <rect width="92" height="92" rx="12" fill="#000000"/>
+  <!-- 散らばったカード（KJ法の付箋） -->
+  <g stroke="#000" stroke-width="1.4">
+    <rect x="20" y="30" width="30" height="22" rx="4" fill="#7c2d12" transform="rotate(-14 35 41)"/>
+    <rect x="42" y="40" width="30" height="22" rx="4" fill="#c2410c" transform="rotate(10 57 51)"/>
+    <rect x="30" y="46" width="32" height="24" rx="4" fill="#ea580c" transform="rotate(-4 46 58)"/>
+  </g>
+  <!-- 関係線 -->
+  <path d="M34 40 Q44 34 56 48" fill="none" stroke="#fb923c" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 4"/>
+  <!-- MOMO の猫耳（オレンジ・上部） -->
+  <g fill="#fb923c">
+    <path d="M26 26 L23 14 Q26 9 29 14 L33 24 Z"/>
+    <path d="M66 26 L69 14 Q66 9 63 14 L59 24 Z"/>
+  </g>
+  <circle cx="34" cy="22" r="2" fill="#1a0800"/>
+  <circle cx="58" cy="22" r="2" fill="#1a0800"/>
+</svg>

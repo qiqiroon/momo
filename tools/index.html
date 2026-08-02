@@ -1,11 +1,12 @@
 <!DOCTYPE html>
 <!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
-<!-- MOMO Tools 内部バージョン: v1.14
+<!-- MOMO Tools 内部バージョン: v1.15
      変更履歴:
        v1.11 - MOMO Lyrics カードを追加
        v1.12 - MOMO Explorer カードを追加、猫語(CAT)対応、言語切替をプルダウンに変更
        v1.13 - MOMO Noise カードを追加、カードをカテゴリ別に分類、NEWバッジを削除、対象機種を追加
-       v1.14 - 言語切替を共通ライブラリ momo-lang(案件⑦)を呼ぶ形に書き換え。Auto(端末言語)モードを追加 -->
+       v1.14 - 言語切替を共通ライブラリ momo-lang(案件⑦)を呼ぶ形に書き換え。Auto(端末言語)モードを追加
+       v1.15 - MOMO KJCards カードを Management Tools に追加 -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -430,6 +431,26 @@
         <div class="card-btn" id="explorer-open">今すぐ使う</div>
       </a>
 
+      <!-- MOMO KJCards card (v1.15 で追加) -->
+      <a class="tool-card" href="kjcards/" style="animation-delay:0.42s">
+        <div class="card-head">
+          <img class="card-icon" src="kjcards/favicon.svg" alt="" aria-hidden="true">
+          <div class="card-headtext">
+            <div class="card-title">MOMO <span style="color:var(--orange);">KJCards</span></div>
+            <div class="card-subtitle" id="kjcards-subtitle">Shape Your Writing with Your Own AI</div>
+          </div>
+        </div>
+        <p class="card-desc" id="kjcards-desc">KJ法の要領で考えをカードにして並べ替え、関係線で結んで構成を練るツール。組み上げた構造はそのままお使いのAIに渡せて、順番の提案から文章化まで任せられます（AIは組み込まず、コピペで橋渡し）。</p>
+        <div class="card-meta">
+          <span class="meta-tag" id="kjcards-meta1">🗂️ KJ法カード</span>
+          <span class="meta-tag" id="kjcards-meta2">🤖 自前AIへ橋渡し</span>
+        </div>
+        <div class="platform-row">
+          <span class="platform-tag" id="kjcards-pc">💻 PC</span>
+        </div>
+        <div class="card-btn" id="kjcards-open">今すぐ使う</div>
+      </a>
+
     </div>
   </div>
 
@@ -578,6 +599,12 @@
       explorerPc:      '💻 PC',
       explorerIphone:  '🍎 iPhone',
       explorerAndroid: '🤖 Android',
+      kjcardsSubtitle: 'Shape Your Writing with Your Own AI',
+      kjcardsDesc:     'KJ法の要領で考えをカードにして並べ替え、関係線で結んで構成を練るツール。組み上げた構造はそのままお使いのAIに渡せて、順番の提案から文章化まで任せられます（AIは組み込まず、コピペで橋渡し）。',
+      kjcardsMeta1:    '🗂️ KJ法カード',
+      kjcardsMeta2:    '🤖 自前AIへ橋渡し',
+      kjcardsOpen:     '今すぐ使う',
+      kjcardsPc:       '💻 PC',
       noiseSubtitle:   'Recording & Clipping Noise Maker',
       noiseDesc:       'ボタンに音声をアサインして即座に再生できるサウンドパッド。複数音の同時再生、録音、リズムシンク機能付き。',
       noiseMeta1:      '🔊 サウンドパッド',
@@ -626,6 +653,12 @@
       explorerPc:      '💻 PC',
       explorerIphone:  '🍎 iPhone',
       explorerAndroid: '🤖 Android',
+      kjcardsSubtitle: 'Shape Your Writing with Your Own AI',
+      kjcardsDesc:     'Turn scattered thoughts into cards, arrange them KJ-method style, and link them with relations to shape your structure. Hand the whole board to your own AI for ordering suggestions and even a written draft (no AI built in — you bridge it by copy/paste).',
+      kjcardsMeta1:    '🗂️ KJ Cards',
+      kjcardsMeta2:    '🤖 Bridge to Your AI',
+      kjcardsOpen:     'Open Now',
+      kjcardsPc:       '💻 PC',
       noiseSubtitle:   'Recording & Clipping Noise Maker',
       noiseDesc:       'A sound pad that assigns audio to buttons for instant playback. Supports polyphonic playback, recording, and rhythm sync.',
       noiseMeta1:      '🔊 Sound Pad',
@@ -674,6 +707,12 @@
       explorerPc:      '💻 PC',
       explorerIphone:  '🍎 iPhone',
       explorerAndroid: '🤖 Android',
+      kjcardsSubtitle: '用你自己的 AI 塑造你的文章',
+      kjcardsDesc:     '以 KJ 法的方式把零散的想法做成卡片自由排列，用关系线连接来梳理结构。整理好的结构可直接交给你自己的 AI，从顺序建议到成文都能交给它（AI 不内置，用复制粘贴来桥接）。',
+      kjcardsMeta1:    '🗂️ KJ法卡片',
+      kjcardsMeta2:    '🤖 桥接自有AI',
+      kjcardsOpen:     '立即使用',
+      kjcardsPc:       '💻 PC',
       noiseSubtitle:   '録製与剪輯雑音製造機',
       noiseDesc:       '可将音频分配到按钮并即时播放的音效板。支持多音同时播放、录音及节奏同步功能。',
       noiseMeta1:      '🔊 音效板',
@@ -756,6 +795,11 @@
     document.getElementById('explorer-pc').textContent      = t('explorerPc');
     document.getElementById('explorer-iphone').textContent  = t('explorerIphone');
     document.getElementById('explorer-android').textContent = t('explorerAndroid');
+    document.getElementById('kjcards-desc').textContent     = t('kjcardsDesc');
+    document.getElementById('kjcards-meta1').textContent    = t('kjcardsMeta1');
+    document.getElementById('kjcards-meta2').textContent    = t('kjcardsMeta2');
+    document.getElementById('kjcards-open').textContent     = t('kjcardsOpen');
+    document.getElementById('kjcards-pc').textContent       = t('kjcardsPc');
     document.getElementById('noise-desc').textContent       = t('noiseDesc');
     document.getElementById('noise-meta1').textContent      = t('noiseMeta1');
     document.getElementById('noise-meta2').textContent      = t('noiseMeta2');
@@ -774,6 +818,7 @@
     [
       ['links-subtitle',    subtitleDict.linksSubtitle],
       ['explorer-subtitle', subtitleDict.explorerSubtitle],
+      ['kjcards-subtitle',  subtitleDict.kjcardsSubtitle],
       ['player-subtitle',   subtitleDict.playerSubtitle],
       ['lyrics-subtitle',   subtitleDict.lyricsSubtitle],
       ['karaoke-subtitle',  subtitleDict.karaokeSubtitle],

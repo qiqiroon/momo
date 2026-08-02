@@ -371,6 +371,8 @@ h1 span { color: var(--orange-mid); }
   outline: none;
 }
 .admin-key-row input:focus { border-color: var(--orange); }
+/* type=text のまま伏せ字表示（Chrome のパスワード管理・候補を出さないため） */
+#admin-key { -webkit-text-security: disc; text-security: disc; }
 .remember-row { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 5px; }
 
 .limit-edit-row {
@@ -514,7 +516,7 @@ h1 span { color: var(--orange-mid); }
     <div class="panel-desc">部屋一覧はgameTypeごとにサーバーが絞り込みます。監視したいゲームをすべて登録してください。<br>「<code>*</code>」を登録すると全タイプを一括取得します。</div>
     <div class="gametype-list" id="gametype-list"></div>
     <div class="gametype-input-row">
-      <input type="text" id="gametype-input" placeholder="例: shogi" maxlength="30">
+      <input type="text" id="gametype-input" placeholder="例: shogi" maxlength="30" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
       <button class="btn btn-outline btn-sm" onclick="addGameType()">追加</button>
     </div>
   </div>
@@ -551,7 +553,7 @@ h1 span { color: var(--orange-mid); }
     </div>
 
     <div class="admin-key-row">
-      <input type="password" id="admin-key" placeholder="管理キー" autocomplete="off">
+      <input type="text" id="admin-key" placeholder="管理キー" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
       <button class="btn btn-outline btn-sm" onclick="getLimits()">上限を取得</button>
     </div>
     <div class="remember-row">

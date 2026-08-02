@@ -1359,7 +1359,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.89</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.90</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1425,7 +1425,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.89</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.90</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1552,6 +1552,7 @@
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
       <button class="btn btn-ghost btn-sm" id="btn-solo-fallback" style="font-size:.65rem;padding:4px 10px;" data-i18n="diag.solo">1 人で試す（P2P が繋がらない場合の回避策）</button>
       <button class="btn btn-ghost btn-sm" id="btn-diag-h88log" style="font-size:.65rem;padding:4px 10px;">📜 八八の記録を開く</button>
+      <button class="btn btn-ghost btn-sm" id="btn-diag-toku" style="font-size:.65rem;padding:4px 10px;" aria-pressed="false">特：OFF</button>
     </div>
   </div>
 </section>
@@ -1561,7 +1562,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.89</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.90</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1624,7 +1625,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.89</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.90</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1758,6 +1759,18 @@
   <p class="yl-cur" id="yl-cur"></p>
   <div class="yl-body" id="yl-body"></div>
   <div class="btn-row"><button class="btn btn-primary" id="yakulist-close" data-i18n="ruleinfo.close">閉じる</button></div>
+</div></div>
+
+<!-- v2.90: デバッグパネルのパスコード認証（?debug=1 のときのみ経路が有効） -->
+<div class="overlay" id="ovDbgAuth"><div class="opanel" style="max-width:320px">
+  <h2>🛠 <span>デバッグパネル</span></h2>
+  <p style="font-size:.8rem;color:var(--text-muted);margin:-4px 0 10px;">パスコードを入力してください。</p>
+  <input type="password" id="dbg-auth-input" inputmode="numeric" autocomplete="off" maxlength="12" style="width:100%;box-sizing:border-box;padding:10px;font-size:1.1rem;text-align:center;letter-spacing:.35em;background:#0c0c0c;border:1px solid var(--border-strong);border-radius:8px;color:var(--text);">
+  <p id="dbg-auth-err" style="font-size:.74rem;color:#e0554e;min-height:1.1em;margin:6px 2px;"></p>
+  <div class="btn-row">
+    <button class="btn btn-ghost" id="dbg-auth-cancel">キャンセル</button>
+    <button class="btn btn-primary" id="dbg-auth-ok">開く</button>
+  </div>
 </div></div>
 
 <!-- 接続状態オーバーレイ（再接続中／相手の復帰待ち。ボタンは動的） -->
@@ -3080,6 +3093,8 @@ const state = {
   readyGuest: false,
   game: null,           // 対局中のみ non-null (startRound で host が初期化 / guest は applyState で受信)
   solo: false,          // ?debug=1 の startRoundSolo でホットシート挙動時のみ true
+  altHand: false,       // v2.90: ?debug=1 の手札構成オプション（この端末の席に適用）
+  altHandPids: {},      // v2.90: 他端末から受け取った同オプションの状態（pid→bool・ホストが集約）
   // v1.13: 全12局進行 / 親継承 / 累計スコア
   roundNo: 1,           // 現在の局番号 (1..rounds)。月替わり = n月場
   scores: { host: 0, guest: 0 }, // 累計文 (局ごとに加算)
@@ -4184,6 +4199,7 @@ function handleP2P(data) {
   // v2.76: キックはサーバーが横取りして対象へ 'kicked' を送るため、対象は onKicked で退室する（ここには 'kick' は来ない）。
   // D3: 観戦者は公開ビュー系のみ処理。親決め・準備完了・intent などプレイヤー宛の合図は一切踏まない。
   if (state.isSpectator) { handleSpectatorMsg(data); return; }
+  if (data.type === 'opt') { if (state.isHost && data.from) { state.altHandPids[data.from] = !!data.on; } return; } // v2.90: 端末別オプションの集約（ホスト）
   // v2.45-段3: 八八オンラインのメッセージ経路
   if (data.type === 'h88-start') { h88ApplyStart(data); return; }   // ゲスト：開始情報を受けて盤面を用意
   if (data.type === 'h88-state') { h88ApplyState(data); return; }   // ゲスト：状態同期を適用して描画
@@ -4415,6 +4431,39 @@ const HANAMI_HIKARI_ID = 'm03_hikari';
 const TSUKIMI_HIKARI_ID = 'm08_hikari';
 const SAKE_ID = 'm09_tane';
 const RAIN_HIKARI_ID = 'm11_hikari';
+
+// v2.90: ?debug=1 の手札構成オプション。pool（配札前の残り札）から size 枚を取り出して1席分を組む。
+// 種/短冊を1〜2枚＋残りをカス、同月は2枚まで、光は入れない。取れなければ null（通常配札にフォールバック）。
+function composeSeatHand(pool, size) {
+  const mc = {}, out = [];
+  const room = (c) => (mc[c.month] || 0) < 2;
+  const take = (c) => { out.push(c); mc[c.month] = (mc[c.month] || 0) + 1; };
+  const others = shuffle(pool.filter(c => c.type === 'tane' || c.type === 'tan'));
+  const plain = shuffle(pool.filter(c => c.type === 'kasu'));
+  const want = 1 + (Math.random() < 0.5 ? 1 : 0); // 1〜2枚
+  let n = 0;
+  for (const c of others) { if (n >= want) break; if (room(c)) { take(c); n++; } }
+  if (n === 0) return null; // 種/短冊が入らない＝条件を満たせない
+  for (const c of plain) { if (out.length >= size) break; if (room(c)) take(c); }
+  for (const c of others) { if (out.length >= size) break; if (out.indexOf(c) < 0 && room(c)) take(c); }
+  if (out.length < size) return null;
+  const used = {}; out.forEach(c => used[c.id] = true);
+  return { hand: out, rest: pool.filter(c => !used[c.id]) };
+}
+// こいこい：この配札でオプション適用する側（host/guest）。
+function altHandSidesKoi() {
+  const r = { host: false, guest: false };
+  if (state.altHand) r[mySide()] = true;
+  if (state.altHandPids) Object.keys(state.altHandPids).forEach(pid => { if (state.altHandPids[pid]) r.guest = true; });
+  return r;
+}
+// 八八：この配札でオプション適用する席の集合。
+function altHandSeats88(seatIds) {
+  const set = {};
+  if (state.altHand) set[h88MySeat()] = true;
+  if (state.altHandPids) seatIds.forEach(s => { const pid = (typeof h88SeatPid === 'function') ? h88SeatPid(s) : null; if (pid && state.altHandPids[pid]) set[s] = true; });
+  return set;
+}
 
 // captured (取り札の配列) → [{key, mon, count?}]
 // - 光系は最大 1 つのみ (五光 → 雨四光 → 四光 → 三光 の順)
@@ -4754,11 +4803,14 @@ function h88SeatOrder(draws) {
 }
 function h88Build(seatIds, oyaId) {
   let deck, hands, caps, field, tries = 0;
+  const pref = altHandSeats88(seatIds);
   do {                                    // ④場四：配った場に同月4枚なら配り直し（トグルON時）
-    deck = shuffle(buildDeck());
+    let pool = shuffle(buildDeck());
     hands = {}; caps = {};
-    seatIds.forEach(id => { hands[id] = deck.splice(0, 7); caps[id] = []; });
-    field = deck.splice(0, 6);
+    seatIds.forEach(id => { caps[id] = []; if (pref[id]) { const r = composeSeatHand(pool, 7); if (r) { hands[id] = r.hand; pool = r.rest; } } });
+    seatIds.forEach(id => { if (!hands[id]) hands[id] = pool.splice(0, 7); });
+    field = pool.splice(0, 6);
+    deck = pool;
     tries++;
   } while (h88Rules().redeal && h88HasQuad(field) && tries < 50);
   return { mode: 'hachi', seats: seatIds.slice(), deck: deck, field: field,
@@ -7749,11 +7801,19 @@ function startRound() {
   showScreen('game');
   // ホスト権威: online は host だけがここに来る (guest は 'deal' 受信で state をセット)。
   if (!state.solo && !state.isHost) return;
-  const deck = shuffle(buildDeck());
+  let pool = shuffle(buildDeck());
+  const hands = { host: null, guest: null };
+  const pref = altHandSidesKoi();
+  ['host', 'guest'].forEach(side => {
+    if (pref[side]) { const r = composeSeatHand(pool, 8); if (r) { hands[side] = r.hand; pool = r.rest; } }
+  });
+  const field = pool.splice(0, 8);
+  if (!hands.host) hands.host = pool.splice(0, 8);
+  if (!hands.guest) hands.guest = pool.splice(0, 8);
   const g = {
-    deck: deck,
-    field: deck.splice(0, 8),
-    hands: { host: deck.splice(0, 8), guest: deck.splice(0, 8) },
+    deck: pool,
+    field: field,
+    hands: hands,
     caps: { host: [], guest: [] },
     currentPlayer: state.oya === 'guest' ? 'guest' : 'host',
     phase: 'select-hand',
@@ -10858,14 +10918,41 @@ document.addEventListener('DOMContentLoaded', () => {
       const p = document.getElementById('h88-log-panel');
       if (p) { p.classList.remove('hidden'); const el = document.getElementById('h88-log'); if (el) el.scrollTop = el.scrollHeight; }
     });
-    // 設定内の「デバッグパネル」入口を表示＆パネルを開く配線
+    // v2.90: 特オプションのトグル（この端末の席に適用・ホストへは状態のみ通知）
+    const btok = document.getElementById('btn-diag-toku');
+    const syncToku = () => { if (btok) { btok.textContent = '特：' + (state.altHand ? 'ON' : 'OFF'); btok.setAttribute('aria-pressed', state.altHand ? 'true' : 'false'); btok.style.color = state.altHand ? 'var(--gold)' : ''; } };
+    if (btok) btok.addEventListener('click', () => {
+      state.altHand = !state.altHand;
+      syncToku();
+      if (!state.isHost && typeof MomoMatchmaking !== 'undefined' && (state.connected || (state.h88 && state.h88.online))) MomoMatchmaking.send({ type: 'opt', on: state.altHand }, 'host');
+    });
+    syncToku();
+    // 設定内の「デバッグパネル」入口＝パスコード認証を経て開く
     const dbgRow = document.getElementById('settings-row-debug');
     if (dbgRow) dbgRow.classList.remove('hidden');
+    const DBG_CODE_H = 2085705153; // 照合用ハッシュ（コード自体は埋め込まない）
+    const codeHash = (s) => { let h = 5381; for (let i = 0; i < s.length; i++) h = (((h << 5) + h) ^ s.charCodeAt(i)) >>> 0; return h; };
+    let dbgUnlocked = false;
+    const ovAuth = document.getElementById('ovDbgAuth');
+    const authIn = document.getElementById('dbg-auth-input');
+    const authErr = document.getElementById('dbg-auth-err');
+    const openPanel = () => { if (dp) dp.classList.remove('hidden'); document.getElementById('ovSettings').classList.remove('show'); };
+    const closeAuth = () => { if (ovAuth) ovAuth.classList.remove('show'); if (authIn) authIn.value = ''; if (authErr) authErr.textContent = ''; };
+    const submitAuth = () => {
+      if (authIn && codeHash(authIn.value) === DBG_CODE_H) { dbgUnlocked = true; closeAuth(); openPanel(); }
+      else { if (authErr) authErr.textContent = 'パスコードが違います。'; if (authIn) { authIn.value = ''; authIn.focus(); } }
+    };
     const bod = document.getElementById('btn-open-debug');
     if (bod) bod.addEventListener('click', () => {
-      if (dp) dp.classList.remove('hidden');
-      document.getElementById('ovSettings').classList.remove('show');
+      if (dbgUnlocked) { openPanel(); return; }
+      if (ovAuth) { ovAuth.classList.add('show'); if (authIn) { authIn.value = ''; setTimeout(() => authIn.focus(), 30); } if (authErr) authErr.textContent = ''; }
     });
+    const bAuthOk = document.getElementById('dbg-auth-ok');
+    if (bAuthOk) bAuthOk.addEventListener('click', submitAuth);
+    const bAuthCancel = document.getElementById('dbg-auth-cancel');
+    if (bAuthCancel) bAuthCancel.addEventListener('click', closeAuth);
+    if (authIn) authIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitAuth(); });
+    if (ovAuth) ovAuth.addEventListener('click', (e) => { if (e.target === ovAuth) closeAuth(); });
     window.__hanafudaDebug = {
       startRoundSolo(opts) {
         state.solo = true; // ホットシート挙動 (mySide = currentPlayer 追従)

@@ -197,9 +197,10 @@
   .h88-prep-players{display:flex;flex-direction:column;gap:6px;margin:10px 0;}
   .h88-prep-players .pl{flex:0 0 auto;flex-direction:row;align-items:baseline;gap:4px;width:fit-content;padding:6px 12px;}
   .h88-prep-players .pl small::after{content:'：';}
-  /* v1.72 D1: こいこいの guest-row と同じ＝コンピュータ名の箱の右に強さプルダウン */
+  /* v2.92: 強さプルダウンはコンピュータ席の枠(.pl)の"中"に入れる（人間の担い手選択と混同しないように） */
   .h88-prep-players .guest-row{display:flex;align-items:center;gap:10px;}
-  .h88-prep-players .guest-row .ai-level-select{width:auto;min-width:130px;margin-top:0;flex:0 0 auto;}
+  .h88-prep-players .pl{align-items:center;}
+  .h88-prep-players .pl .ai-level-select{width:auto;min-width:118px;margin:0 0 0 8px;flex:0 0 auto;padding:5px 8px;font-size:.82rem;}
   .h88-oya-draws{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
   /* v1.72 D2: 親決めスロットはこいこいと同じ .draw-slot/.mini(back)/.oya-meta を使う */
   /* v1.62: ドラッグ入替中の見た目 */
@@ -401,7 +402,9 @@
   .players-col .pl small::after{content:'：';}
   .players-col .pl span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60vw;}
   .players-col .guest-row{display:flex;align-items:center;gap:10px;}
-  .players-col .guest-row .ai-level-select{width:auto;min-width:130px;margin-top:0;flex:0 0 auto;}
+  /* v2.92: 強さプルダウンはコンピュータ枠(.pl)の"中"（人間の設定に見えないように）。箱内は縦位置を中央そろえに。 */
+  .players-col .pl.guest{align-items:center;}
+  .players-col .pl .ai-level-select{width:auto;min-width:118px;margin:0 0 0 8px;flex:0 0 auto;padding:5px 8px;font-size:.82rem;}
   .pl{flex:1;background:#0c0c0c;border:1px solid var(--border);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:3px;}
   .pl small{font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--orange);font-weight:700;}
   .pl span{font-size:1.05rem;color:#fff;}
@@ -1023,21 +1026,17 @@
   </symbol>
 
   <!-- ---- 4月 藤 ---- -->
+  <!-- 藤に不如帰（4月・種）をユーザー手描きPNGに差し替え（縁付き・m03_tanと同型） -->
   <symbol id="m04_tane" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
-    <use href="#kasumi"/>
-    <g fill="none" stroke="#5a3a20" stroke-width="6" stroke-linecap="round"><path d="M20 60 C 70 84 130 78 196 96"/></g>
-    <use href="#fujiCluster" transform="translate(58,74)"/><use href="#fujiCluster" transform="translate(96,80) scale(1.1)"/><use href="#fujiCluster" transform="translate(150,86)"/>
-    <g transform="translate(110,208) scale(2)" fill="#ec7a1c" stroke="#b85a10" stroke-width="0.6">
-      <path d="M-28 2 C -18 -13 -7 -13 0 -1 C 7 -13 18 -13 28 2 C 17 -3 8 -1 0 6 C -8 -1 -17 -3 -28 2 Z"/>
-    </g>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
+    <image href="cards/m04_tane.png" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
+  <!-- 藤の短冊（4月）をユーザー手描きPNGに差し替え（縁付き・m03_tanと同型） -->
   <symbol id="m04_tan" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
-    <use href="#kasumi"/>
-    <g fill="none" stroke="#5a3a20" stroke-width="6" stroke-linecap="round"><path d="M40 60 C 90 78 140 74 190 88"/></g>
-    <use href="#fujiCluster" transform="translate(70,72)"/><use href="#fujiCluster" transform="translate(150,80) scale(1.05)"/>
-    <use href="#tanRed" transform="translate(104,216) rotate(-6)"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
+    <image href="cards/m04_tan.png" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
   <!-- 藤のカス1（4月）をユーザー手描きPNGに差し替え（縁付き・m03_kasu1と同型） -->
   <symbol id="m04_kasu1" viewBox="0 0 220 350">
@@ -1359,7 +1358,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.91</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.92</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1425,7 +1424,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.91</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.92</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1449,13 +1448,12 @@
     <div class="players players-col">
       <div class="pl host"><small data-i18n="room.host">ホスト</small><span id="host-name">—</span></div>
       <div class="guest-row">
-        <div class="pl guest"><small data-i18n="room.guest">ゲスト</small><span id="guest-name" class="waiting-g" data-i18n="room.waiting">参加待ち…</span></div>
-        <!-- v1.61: 対コンピュータ戦のときだけ、ゲスト箱の外・右側で強さを変更できる -->
-        <select id="ai-level-prep" class="ai-level-select hidden" aria-label="コンピュータの強さ">
+        <!-- v2.92: 対コンピュータ戦の強さプルダウンはコンピュータ（ゲスト）の枠の"中"に入れる（人間の設定と誤解されないように） -->
+        <div class="pl guest"><small data-i18n="room.guest">ゲスト</small><span id="guest-name" class="waiting-g" data-i18n="room.waiting">参加待ち…</span><select id="ai-level-prep" class="ai-level-select hidden" aria-label="コンピュータの強さ">
           <option value="EASY">EASY</option>
           <option value="HARD" selected>HARD</option>
           <option value="APOCALYPSE">APOCALYPSE</option>
-        </select>
+        </select></div>
       </div>
     </div>
     <!-- v2.11: 八八(3人)の顔ぶれ＋強さは、こいこいのプレイヤー表示と同じ上部位置に出す（設定箱から移動） -->
@@ -1562,7 +1560,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.91</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.92</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1625,7 +1623,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.91</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.92</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -3018,6 +3016,12 @@ function applyLang() {
   // Room-prep dynamic labels
   updateOyaLabels();
   updateStatusI18n();
+  // v2.92: JS描画パネル（自分の役割・観戦者数・参加者管理）は data-i18n を持たないので言語切替で貼り直す
+  try {
+    if (typeof updateSelfIdentity === 'function') updateSelfIdentity();
+    if (typeof updateSpectatorCount === 'function') updateSpectatorCount();
+    if (typeof renderParticipantMgmt === 'function') renderParticipantMgmt();
+  } catch (e) {}
   // v2.56: ドラッグ移動ヒント（.opanel.draggable h2::after の CSS content）を多言語化
   document.documentElement.style.setProperty('--draghint', '"' + t('drag.move') + '"');
   // v2.54: 言語切替で八八の動的画面（準備室の役BOX/説明/親決め結果・対局画面）も更新する
@@ -5161,10 +5165,11 @@ function h88PrepRenderPlayers() {
     el.innerHTML = H88_SEATS.map(s => {
       const occ = c[s] || { t: 'cpu' }, isHuman = occ.t === 'human';
       const badge = isHuman ? '<span style="margin-left:.4em;color:' + (rdy[occ.pid] ? 'var(--gold,gold)' : 'var(--text-muted,#888)') + '">' + (rdy[occ.pid] ? '✓' : '…') + '</span>' : '';
+      // v2.92: 強さプルダウンはCPU席の枠(.pl)の"中"に入れる（人間の担い手選択と混同しないように）
       const left = state.isHost
-        ? '<div class="pl"><small>' + t('pm.role.player') + '</small>' + occSel(s) + badge + '</div>'
+        ? '<div class="pl"><small>' + t('pm.role.player') + '</small>' + occSel(s) + badge + (!isHuman ? lvSel(s) : '') + '</div>'
         : '<div class="pl"><small>' + t('pm.role.player') + '</small><span>' + names[s] + badge + '</span></div>';
-      return '<div class="guest-row">' + left + (state.isHost && !isHuman ? lvSel(s) : '') + '</div>';
+      return '<div class="guest-row">' + left + '</div>';
     }).join('');
     return;
   }
@@ -5172,7 +5177,7 @@ function h88PrepRenderPlayers() {
   el.innerHTML =
     '<div class="pl host"><small>' + t('room.host') + '</small><span>' + name + '</span></div>'
     + ['p1', 'p2'].map((s, i) =>
-      '<div class="guest-row"><div class="pl guest"><small>' + t('room.guest') + '</small><span>' + t('vsai.cpu') + (i + 1) + '</span></div>' + levelSel(s) + '</div>').join('');
+      '<div class="guest-row"><div class="pl guest"><small>' + t('room.guest') + '</small><span>' + t('vsai.cpu') + (i + 1) + '</span>' + levelSel(s) + '</div></div>').join('');
 }
 // v2.24: 親決めのめくり演出。3人ぶんの引き札を一人ずつ順に横回転で表返す（こいこいの flipReveal と同じ scaleX 手法）。
 //   人間が引くと他家の札も続けてめくれる（同期しためくり）。ANIM.enabled OFF なら演出せず即表向き。
@@ -5483,6 +5488,11 @@ function h88SeatAckInit() { const o = {}; h88HumanSeats().forEach(s => o[s] = fa
 function h88SeatAckAll(ack) { const hs = h88HumanSeats(); return hs.length > 0 && hs.every(s => ack && ack[s]); }
 // このクライアントが席ゲートに参加するか（着席人間のみ。観戦者・席なしホストは表示専用）。
 function h88GateDisplayOnly() { return state.isSpectator || !h88MySeatOnline(); }
+// v2.92: ホストが席に居ない（全席CPU等）＝観戦者と同じ「表示専用ビュー」。エンジンはホストが回すが、
+//   自分の手番・実手札・入力は持たない（＝「あなたの番」を出さず、人間に手番を回さない）。offline(vsAI)では常にfalse。
+function h88HostObserver() { return !!(state.h88 && state.h88.online && state.isHost && !h88MySeatOnline()); }
+// 表示上「観戦者として扱う」か（本物の観戦者 or 席なしホスト）。VIEW判定にのみ使う（authorityはisHostのまま）。
+function h88ViewSpec() { return state.isSpectator || h88HostObserver(); }
 // D4: ホスト：八八オンラインで参加者が入ったとき、空きCPU席へ自動着席（満席/対局中は観戦）。
 function h88HostOnParticipantJoined(pid, role, name) {
   if (!state.isHost) return;
@@ -6346,7 +6356,7 @@ function renderH88() {
   const g = st.game;
   const mySeat = h88MySeat(); // v2.43-段2: 視点＝自分の席（ローカルは常にp0）
   // #3(v2.77): 八八の対局画面でも観戦中バッジ＋観戦者数（クリックでキック）をこいこい同様に出す
-  document.querySelectorAll('#screen-hachi .spectating-badge').forEach(el => el.classList.toggle('hidden', !state.isSpectator));
+  document.querySelectorAll('#screen-hachi .spectating-badge').forEach(el => el.classList.toggle('hidden', !h88ViewSpec())); // v2.92: 席なしホストも観戦ビュー
   updateSpectatorCount();
   const _h88animPrev = h88AnimEnabled() ? h88AnimSnapshot() : null; // FLIP: 描画前の全札位置を記録
   // v2.84: iPhone(WebKit)は、これから作り直しで捨てる札にアニメが実行中のまま残っていると、
@@ -6360,11 +6370,11 @@ function renderH88() {
   } catch (e) {}
   document.getElementById('h88-round').textContent = t('game.round', { n: st.roundNo, total: st.rounds });
   // v1.66/段2: スコアはコンパクトに（1行に収める）。自分=あなた／vsコンピュータは相手をCPU1/CPU2、オンラインは実名。
-  const shortNm = (s) => (!state.isSpectator && s === mySeat) ? t('game.you') // D3: 観戦者は「あなた」を出さず名前で
+  const shortNm = (s) => (!h88ViewSpec() && s === mySeat) ? t('game.you') // D3: 観戦者/席なしホストは「あなた」を出さず名前で
     : (state.vsAI ? (s === 'p1' ? 'CPU1' : 'CPU2') : st.names[s]);
   document.getElementById('h88-scores').textContent = g.seats.map(s => shortNm(s) + ' ' + h88FormatFumi(st.scores[s] || 0)).join(' ／ ');
   document.getElementById('h88-turn').textContent = g.winner ? ''
-    : state.isSpectator ? (st.names[g.currentPlayer] + t('turn.suffix')) // D3: 観戦者は「〈名前〉の番」（行動指示は出さない）
+    : h88ViewSpec() ? (st.names[g.currentPlayer] + t('turn.suffix')) // D3: 観戦者/席なしホストは「〈名前〉の番」（行動指示は出さない）
     : st.pending ? (st.pending.stage === 'pick-draw' ? t('h88.turn.pickDraw') : t('h88.turn.pickHand'))
     : (g.currentPlayer === mySeat
         ? (st.sel != null ? t('h88.turn.confirm') : t('h88.turn.you'))
@@ -6409,7 +6419,7 @@ function renderH88() {
   if (db) db.innerHTML = st.drawn ? ('<span class="h88-drawn">' + svgCard(st.drawn.id) + '</span>')
                                   : (g.deck.length ? svgBack() : '');
   const p0Dropped = !!(g.dropped && g.dropped.indexOf(mySeat) >= 0); // ⑩出降り：自分（視点席）が降りた
-  const myTurn = (g.currentPlayer === mySeat && !g.winner && !p0Dropped && !state.isSpectator); // D3: 観戦者は操作不可
+  const myTurn = (g.currentPlayer === mySeat && !g.winner && !p0Dropped && !h88ViewSpec()); // D3/v2.92: 観戦者・席なしホストは操作不可
   // v2.78 #3: 下段席のオレンジ枠は「その席が手番か」で判定（相手席の renderH88Seat と同じ基準）。myTurn は観戦者を除外するため枠専用にこれを使う。
   const selfSeatTurn = (g.currentPlayer === mySeat && !g.winner && !p0Dropped && !st.teyakuMarks);
   // v2.24: ピック中・めくり札表示中・自分の一手が進行中（出した→回収の所作の途中）は手札操作を止める
@@ -6418,22 +6428,22 @@ function renderH88() {
   const selfBox = document.querySelector('.h88-self'); // 自分の手番は相手と同じくオレンジ枠で強調（手役中は出さない）
   if (selfBox) { selfBox.classList.toggle('turn', selfSeatTurn); selfBox.classList.toggle('h88-dropped', p0Dropped); }
   // 自分の名前・親・手番を取り札の1番上に（相手と同じ形で表示）。手役表示中は手番バッジを出さない。降りたら「降り」。
-  const youL = state.isSpectator ? (st.names[mySeat] || '') : t('game.you'); // D3: 観戦者は視点席を名前で表示（「あなた」を出さない）
+  const youL = h88ViewSpec() ? (st.names[mySeat] || '') : t('game.you'); // D3/v2.92: 観戦者・席なしホストは視点席を名前で表示（「あなた」を出さない）
   document.getElementById('h88-self-nameline').innerHTML =
     (st.roundOya === mySeat ? '<span class="h88-oya-badge">' + t('oyako.oya') + '</span>' : '')
-    + youL + (!state.isSpectator && st.names[mySeat] !== youL ? '：' + st.names[mySeat] : '')
-    + (p0Dropped ? '<span class="h88-drop-badge">' + t('h88.badge.drop') + '</span>' : (selfSeatTurn ? '<span class="h88-turn-badge">' + t(state.isSpectator ? 'h88.badge.turn' : 'h88.badge.youturn') + '</span>' : '')); // v2.78 #3: 観戦者は「あなたの番」でなく中立の手番バッジ
+    + youL + (!h88ViewSpec() && st.names[mySeat] !== youL ? '：' + st.names[mySeat] : '')
+    + (p0Dropped ? '<span class="h88-drop-badge">' + t('h88.badge.drop') + '</span>' : (selfSeatTurn ? '<span class="h88-turn-badge">' + t(h88ViewSpec() ? 'h88.badge.turn' : 'h88.badge.youturn') + '</span>' : '')); // v2.78/v2.92: 観戦者・席なしホストは「あなたの番」でなく中立の手番バッジ
   const p0Flash = (g.capFlash && g.capFlash.player === mySeat) ? new Set(g.capFlash.ids) : null; // v2.24: 回収直後の札
   document.getElementById('h88-self-caps').innerHTML = h88CapGroupedHTML(g.caps[mySeat], 'self2', p0Flash);
   const selfNearEl = document.getElementById('h88-self-near'); // v2.37: 達成役／あと1枚（自分）
-  if (selfNearEl) selfNearEl.innerHTML = h88NearYakuHTML(mySeat);
+  if (selfNearEl) selfNearEl.innerHTML = h88HostObserver() ? '' : h88NearYakuHTML(mySeat); // v2.92: 席なしホスト（観戦）は自席の役ヒントを出さない
   // 自分の手札は自分には常に全部見える（伏せない）。役にかかわる札はオレンジ枠。※パネルと相手手札は伏せる。
   const selfMarks = (st.teyakuMarks && st.teyakuMarks[mySeat]) || [];
   const selfHandEl = document.getElementById('h88-self-hand');
   selfHandEl.innerHTML = g.hands[mySeat].map((c, i) => {
     // v2.24: 2枚合致の選択待ちで浮かせている手札（playPick）は sel と同じく上げたままに
     const lifted = st.sel === i || (g.playPick && g.playPick.player === mySeat && g.playPick.id === c.id);
-    const face = (c.id === '?') ? svgBack() : svgCard(c.id); // D3: 観戦者は視点席(p0)の手札もマスク='?'→伏せ札で描く（NaN空札を出さない）
+    const face = (c.id === '?' || h88HostObserver()) ? svgBack() : svgCard(c.id); // D3/v2.92: 観戦者は視点席(p0)の手札もマスク='?'→伏せ札で描く。席なしホスト（全席CPU観戦）も実手札を持つので伏せる。
     return '<span class="h88-hand-card' + (lifted ? ' sel' : '') + (selfMarks.indexOf(c.id) >= 0 ? ' tmark' : '') + '" data-idx="' + i + '"' + (handOn ? '' : ' style="cursor:default;opacity:.85"') + '>' + face + '</span>';
   }).join('');
   // v2.24: 出した札の跡地に見えない空きを残す（取り札の整列段まで手札を左寄せしない・こいこい準拠）
@@ -6483,7 +6493,7 @@ function h88PreviewField(month, on) {
 // v1.63 B6: こいこい式2タップ。1タップ＝選択（浮かせる＋合う場札をヒント）、
 //   同じ札をもう1タップ＝出す。2枚合致は場札を手動選択。山めくりも同様。
 function h88OnClickHand(idx) {
-  if (state.isSpectator) return; // D3: 観戦者は操作不可
+  if (h88ViewSpec()) return; // D3/v2.92: 観戦者・席なしホストは操作不可
   const st = state.h88; if (!st || !st.game) return;
   const g = st.game;
   const me = h88MySeat();
@@ -6522,7 +6532,7 @@ function h88HumanPlayHand(idx, actor) {
 }
 // 場札クリック（2枚合致のとき、どちらを取るか選ぶ）
 function h88OnClickField(id) {
-  if (state.isSpectator) return; // D3: 観戦者は操作不可
+  if (h88ViewSpec()) return; // D3/v2.92: 観戦者・席なしホストは操作不可
   const st = state.h88; if (!st || !st.game || !st.pending) return;
   const g = st.game, p = st.pending;
   if (g.currentPlayer !== h88MySeat()) return; // v2.45-段3: 自分の手番のpickのみ（ホストがゲストのpick中に押すのを防止）
@@ -6700,7 +6710,9 @@ function h88MaybeAi() {
   const g = st.game;
   if (g.winner) return;
   const cur = g.currentPlayer;
-  if (cur === h88MySeat()) { // v2.13: 自分の手番＝入力待ち。こいこい同様「ぴろっ」を1回だけ
+  // v2.92: 「自分の席」でも、その席がCPU（＝ホストが席に居らず全席CPU等）なら入力待ちにせずCPUとして駆動する。
+  //   これをしないと全席CPUのとき p0 で「あなたの番」のまま停止した。
+  if (cur === h88MySeat() && !h88IsCpuSeat(cur)) { // v2.13: 自分の手番＝入力待ち。こいこい同様「ぴろっ」を1回だけ
     st.turnBusy = false; // v2.24: 新しい自分の手番＝入力受付を再開（前の一手の所作は完了済み）
     if (!st.awaitP0) { playSfx('piro'); st.awaitP0 = true; }
     return;
@@ -7233,7 +7245,8 @@ function h88RoundGateNext(isLast, cleanup) {
   if (st.h88NextReady && st.h88NextReady[me]) return; // 二重押し防止
   if (state.isHost) {
     st.h88NextReady[me] = true; // 自席を確認
-    if (h88SeatAckAll(st.h88NextReady)) { cleanup(); h88AdvanceRoundOnline(); return; }
+    // v2.92: 人間席が居ない（全席CPU＝ホストは観戦）ときは待つ相手が居ないので、ホストの操作で即次局へ。
+    if (h88HumanSeats().length === 0 || h88SeatAckAll(st.h88NextReady)) { cleanup(); h88AdvanceRoundOnline(); return; }
     MomoMatchmaking.send({ type: 'h88-nextready', ready: st.h88NextReady }, 'all');
     if (st._h88GateRender) st._h88GateRender();
   } else {

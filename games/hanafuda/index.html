@@ -1358,7 +1358,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.95</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.96</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1424,7 +1424,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.95</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.96</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1560,7 +1560,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.95</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.96</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1623,7 +1623,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.95</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.96</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -5540,6 +5540,12 @@ function h88HostOnParticipantLeft(pid) {
   if (st && st.h88MatchOver) { // v2.85 A: 試合終了後の退出＝一時停止も再prepもしない（各自が結果を見て自分だけ抜ける）
     if (seat) { st.h88EndLeft = st.h88EndLeft || {}; st.h88EndLeft[seat] = true; if (st.h88EndReady) delete st.h88EndReady[seat]; }
     updateSpectatorCount();
+    // v2.95: 観戦しているホスト（席なし）で、残る人間プレイヤーが居なくなったら、見る対象が無いので自分もロビーへ移す
+    //   （プレイヤーが結果画面から「ロビーに戻る」で抜けたとき、観戦ホストが結果画面のまま取り残されるのを防ぐ）。
+    if (!h88MySeatOnline() && h88HumanSeats().filter(s => !(st.h88EndLeft && st.h88EndLeft[s])).length === 0) {
+      const ov = document.getElementById('ovH88End'); if (ov) ov.classList.remove('show');
+      state.h88 = null; leaveRoom(); return;
+    }
     h88CheckEndRematch(); // 残った人間席が全員「もう一度」を押していれば再戦へ
     return;
   }

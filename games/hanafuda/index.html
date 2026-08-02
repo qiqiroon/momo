@@ -674,7 +674,9 @@
   .ye-cards{display:flex;flex-wrap:wrap;gap:3px;}
   .ye-cards .card.ye-card{width:26px;height:auto;aspect-ratio:42/67;border-radius:3px;}
   /* v2.87: こいこい「役一覧」パネル */
-  .yakulist-panel{max-width:min(94vw,540px);text-align:left;}
+  .yakulist-panel{max-width:min(94vw,384px);text-align:left;}
+  #yakulist-drag{cursor:move;touch-action:none;justify-content:space-between;}
+  #yakulist-drag .yl-grip{font-size:.7rem;color:var(--text-muted);font-weight:400;letter-spacing:2px;}
   .yl-cur{font-size:.74rem;color:var(--text-muted);margin:-2px 2px 8px;}
   .yl-cur b{color:var(--orange-light);}
   .yl-body{max-height:66vh;overflow:auto;padding-right:4px;}
@@ -685,15 +687,16 @@
   .yl-sec::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--border-strong),transparent);}
   .yl-row{border:1px solid var(--border);border-radius:8px;background:#0c0c0c;padding:8px 10px;margin-bottom:7px;}
   .yl-row.dim{opacity:.42;filter:grayscale(.75);}
-  .yl-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;}
+  .yl-head{display:flex;align-items:baseline;gap:8px;}
   .yl-name{font-size:.98rem;font-weight:700;color:var(--text);letter-spacing:.02em;}
-  .yl-cond{font-size:.68rem;color:var(--text-muted);}
+  .yl-cond{font-size:.68rem;color:var(--text-muted);margin-top:3px;line-height:1.5;}
   .yl-pt{margin-left:auto;color:var(--gold);font-weight:700;font-size:1.08rem;white-space:nowrap;font-variant-numeric:tabular-nums;}
   .yl-pt small{font-size:.62rem;color:var(--text-muted);font-weight:400;margin-left:1px;}
   .yl-row.dim .yl-pt{color:var(--text-muted);}
   .yl-cards{display:flex;flex-wrap:wrap;align-items:center;gap:3px;margin-top:7px;}
   .yl-cards .card.ye-card{width:29px;cursor:pointer;}
   .yl-cards .pairsep{width:9px;flex:0 0 auto;}
+  .yl-etc{align-self:center;color:var(--text-muted);font-size:.78rem;padding-left:3px;}
   .yl-rule{display:flex;align-items:flex-start;gap:9px;border:1px solid var(--border);border-radius:8px;background:#0c0c0c;padding:7px 10px;margin-bottom:6px;font-size:.8rem;line-height:1.45;}
   .yl-rule.off{opacity:.4;}
   .yl-rule .st{flex:0 0 auto;font-size:.62rem;font-weight:700;padding:2px 7px;border-radius:6px;border:1px solid;margin-top:1px;white-space:nowrap;}
@@ -1356,7 +1359,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.87</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.88</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1422,7 +1425,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.87</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.88</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1558,7 +1561,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.87</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.88</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1621,7 +1624,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.87</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.88</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1749,8 +1752,8 @@
 </div></div>
 
 <!-- v2.87: こいこい「役一覧」（現在のルールに基づく早見表・本物の札） -->
-<div class="overlay" id="ovYakuList"><div class="opanel yakulist-panel">
-  <h2 data-i18n="yakulist.title">役一覧</h2>
+<div class="overlay clear-ov" id="ovYakuList"><div class="opanel yakulist-panel">
+  <h2 id="yakulist-drag"><span data-i18n="yakulist.title">役一覧</span><span class="yl-grip" aria-hidden="true">⠿</span></h2>
   <p class="yl-cur" id="yl-cur"></p>
   <div class="yl-body" id="yl-body"></div>
   <div class="btn-row"><button class="btn btn-primary" id="yakulist-close" data-i18n="ruleinfo.close">閉じる</button></div>
@@ -2090,7 +2093,7 @@ const I18N = {
     'set.baigaeshi': '倍返し（相手のこいこいを潰すと2倍）',
     'set.yakuScope': 'こいこい以降の役のみ有効（＋7判定はこいこい前の役も含む）', 'set.yakuScope.all': '全部有効', 'set.yakuScope.pointPost': '以降のみ',
     'set.basanAll': '場三・総取り（場に同月3枚あって残り1枚を出すと4枚総取り）',
-    'yakulist.btn': '役一覧', 'yakulist.title': '役一覧', 'yakulist.cur': '現在のルール',
+    'yakulist.btn': '役一覧', 'yakulist.title': '役一覧', 'yakulist.cur': '現在のルール', 'yakulist.etc': '等',
     'yakulist.sec.yaku': '得点になる役', 'yakulist.sec.teyaku': '配札時の役（手役）', 'yakulist.sec.rules': '特殊ルール（現在の設定）',
     'yaku.amesanko': '雨三光',
     'yakulist.cond.gokou': '光5枚すべて', 'yakulist.cond.shikou': '上の光のうち雨以外の4枚', 'yakulist.cond.ameshikou': '上の光のうち雨を含む4枚',
@@ -2406,7 +2409,7 @@ const I18N = {
     'set.baigaeshi': 'Counter-double (beat their Koi-Koi = ×2)',
     'set.yakuScope': 'Only post-koikoi yaku count (7+ check includes pre-koikoi)', 'set.yakuScope.all': 'All count', 'set.yakuScope.pointPost': 'Post only',
     'set.basanAll': 'Field-3 sweep (3 same-month on field + the 4th = take all 4)',
-    'yakulist.btn': 'Yaku List', 'yakulist.title': 'Yaku List', 'yakulist.cur': 'Current rules',
+    'yakulist.btn': 'Yaku List', 'yakulist.title': 'Yaku List', 'yakulist.cur': 'Current rules', 'yakulist.etc': 'etc.',
     'yakulist.sec.yaku': 'Scoring yaku', 'yakulist.sec.teyaku': 'Hand yaku (at deal)', 'yakulist.sec.rules': 'Special rules (current settings)',
     'yaku.amesanko': 'Ame-Sankou (Rainy 3 Lights)',
     'yakulist.cond.gokou': 'All 5 lights', 'yakulist.cond.shikou': '4 of the lights above, no rain', 'yakulist.cond.ameshikou': '4 of the lights above, incl. rain',
@@ -2722,7 +2725,7 @@ const I18N = {
     'set.baigaeshi': '反倍（破对方来来则×2）',
     'set.yakuScope': '仅来来后的役有效（+7判定含来来前的役）', 'set.yakuScope.all': '全部有效', 'set.yakuScope.pointPost': '仅之后',
     'set.basanAll': '场三·通吃（场上同月3张时出第4张则4张全取）',
-    'yakulist.btn': '役一览', 'yakulist.title': '役一览', 'yakulist.cur': '当前规则',
+    'yakulist.btn': '役一览', 'yakulist.title': '役一览', 'yakulist.cur': '当前规则', 'yakulist.etc': '等',
     'yakulist.sec.yaku': '得分役', 'yakulist.sec.teyaku': '发牌时的役（手役）', 'yakulist.sec.rules': '特殊规则（当前设定）',
     'yaku.amesanko': '雨三光',
     'yakulist.cond.gokou': '全部5张光', 'yakulist.cond.shikou': '上方光中除雨的4张', 'yakulist.cond.ameshikou': '上方光中含雨的4张',
@@ -3392,12 +3395,13 @@ function renderKoiYakuList() {
   const LIGHTS = idsOf('hikari'), TANS = idsOf('tan'), TANES = idsOf('tane'), KASUS = idsOf('kasu');
   const mon = t('game.mon');
   const card = (id) => svgCard(id, 'ye-card');
-  const cards = (ids) => '<div class="yl-cards">' + ids.map(card).join('') + '</div>';
+  const etcTag = '<span class="yl-etc">' + t('yakulist.etc') + '</span>';
+  const cards = (ids, etc) => '<div class="yl-cards">' + ids.map(card).join('') + (etc ? etcTag : '') + '</div>';
   const yrow = (nameKey, cond, pt, cardsHtml, dim, plus) =>
     '<div class="yl-row' + (dim ? ' dim' : '') + '">'
     + '<div class="yl-head"><span class="yl-name">' + t(nameKey) + '</span>'
-    + (cond ? '<span class="yl-cond">' + cond + '</span>' : '')
     + '<span class="yl-pt">' + (dim ? '0' : pt) + '<small>' + mon + (plus ? '〜' : '') + '</small></span></div>'
+    + (cond ? '<div class="yl-cond">' + cond + '</div>' : '')
     + (cardsHtml || '') + '</div>';
   let h = '';
   h += '<div class="yl-sec">' + t('yakulist.sec.yaku') + '</div>';
@@ -3413,14 +3417,14 @@ function renderKoiYakuList() {
   h += yrow('yaku.tsukimi', t('yakulist.cond.set2'), 5, cards([TSUKIMI_HIKARI_ID, SAKE_ID]), kikuKasu);
   h += yrow('yaku.tan', t('yakulist.cond.tan'), 1, cards(TANS), false, true);
   h += yrow('yaku.tane', t('yakulist.cond.tane'), 1, cards(TANES), false, true);
-  h += yrow('yaku.kasu', t('yakulist.cond.kasu'), 1, cards(KASUS.slice(0, 6)), false, true);
+  h += yrow('yaku.kasu', t('yakulist.cond.kasu'), 1, cards(KASUS.slice(0, 6), true), false, true);
   h += '<div class="yl-sec">' + t('yakulist.sec.teyaku') + '</div>';
-  h += yrow('teyaku.teshi', t('yakulist.cond.teshi'), 6, cards(['m01_hikari', 'm01_tan', 'm01_kasu1', 'm01_kasu2']), !dealOn);
+  h += yrow('teyaku.teshi', t('yakulist.cond.teshi'), 6, cards(['m01_hikari', 'm01_tan', 'm01_kasu1', 'm01_kasu2'], true), !dealOn);
   h += yrow('teyaku.kuttsuki', t('yakulist.cond.kuttsuki'), 6,
     '<div class="yl-cards">' + card('m04_kasu1') + card('m04_kasu2') + '<span class="pairsep"></span>'
     + card('m05_kasu1') + card('m05_kasu2') + '<span class="pairsep"></span>'
     + card('m06_kasu1') + card('m06_kasu2') + '<span class="pairsep"></span>'
-    + card('m07_kasu1') + card('m07_kasu2') + '</div>', !dealOn);
+    + card('m07_kasu1') + card('m07_kasu2') + etcTag + '</div>', !dealOn);
   h += '<div class="yl-sec">' + t('yakulist.sec.rules') + '</div>';
   const rule = (on, label, desc) => '<div class="yl-rule ' + (on ? 'on' : 'off') + '">'
     + '<span class="st">' + (on ? t('set.on') : t('set.off')) + '</span>'
@@ -3444,7 +3448,10 @@ function renderKoiYakuList() {
 }
 function openKoiYakuList() {
   renderKoiYakuList();
+  const panel = document.querySelector('#ovYakuList .yakulist-panel');
+  if (panel) panel.style.transform = ''; // 開くたび中央にリセット
   document.getElementById('ovYakuList').classList.add('show');
+  if (panel) makeDraggable(panel, document.getElementById('yakulist-drag')); // 見出しをつかんで移動（背景は隠さない＝clear-ov）
 }
 // v1.59: koiOnce ON の間は多重掛けトグルを操作不可＋淡色に（自動OFF済みを明示）
 function updateKoiOnceLock() {

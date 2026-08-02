@@ -1358,7 +1358,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.92</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.93</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1424,7 +1424,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.92</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.93</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1560,7 +1560,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.92</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.93</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1623,7 +1623,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.92</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.93</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -5486,8 +5486,11 @@ function h88CanPressReady() { // このクライアントが準備完了を押�
 // D4: 席ゲート用（手役確認・次の局へ）。人間席ごとの確認フラグ。
 function h88SeatAckInit() { const o = {}; h88HumanSeats().forEach(s => o[s] = false); return o; }
 function h88SeatAckAll(ack) { const hs = h88HumanSeats(); return hs.length > 0 && hs.every(s => ack && ack[s]); }
+// v2.93: 全席CPU（人間ゼロ）＝ホストが唯一の進行役。手役/局終了/結果ゲートをホストが押して進める。
+function h88AllCpuHost() { return !!(state.h88 && state.h88.online && state.isHost && h88HumanSeats().length === 0); }
 // このクライアントが席ゲートに参加するか（着席人間のみ。観戦者・席なしホストは表示専用）。
-function h88GateDisplayOnly() { return state.isSpectator || !h88MySeatOnline(); }
+// ただし全席CPUのときはホストが進行役として押せる（＝表示専用にしない）。
+function h88GateDisplayOnly() { return !h88AllCpuHost() && (state.isSpectator || !h88MySeatOnline()); }
 // v2.92: ホストが席に居ない（全席CPU等）＝観戦者と同じ「表示専用ビュー」。エンジンはホストが回すが、
 //   自分の手番・実手札・入力は持たない（＝「あなたの番」を出さず、人間に手番を回さない）。offline(vsAI)では常にfalse。
 function h88HostObserver() { return !!(state.h88 && state.h88.online && state.isHost && !h88MySeatOnline()); }
@@ -5838,6 +5841,8 @@ function h88GuestRematch() {
 //   押した人は待機表示になり、他人を勝手に動かさない。全員そろったらホストが h88-rematch を配って一斉に準備室へ。
 function h88EndRematchPress() {
   const st = state.h88; if (!st) return;
+  // v2.93: 全席CPU（人間ゼロ）＝ホストが唯一の進行役。待つ相手が居ないので即再戦（準備室へ）。
+  if (h88AllCpuHost()) { try { MomoMatchmaking.send({ type: 'h88-rematch' }, 'all'); } catch (e) {} h88DoRematch(); return; }
   const me = h88MySeatOnline(); if (!me) return; // 観戦者（席なし）は対象外
   st.h88EndReady = st.h88EndReady || h88SeatAckInit();
   if (st.h88EndReady[me]) return; // 二重押し防止
@@ -6053,7 +6058,8 @@ function h88TeyakuGatePress(cleanup) {
   if (!st.h88TeyakuAck || st.h88TeyakuAck[me]) return; // 二重押し防止
   if (state.isHost) {
     st.h88TeyakuAck[me] = true; // 自席を確認
-    if (h88SeatAckAll(st.h88TeyakuAck)) { h88TeyakuGateProceed(cleanup); return; }
+    // v2.93: 人間席が居ない（全席CPU＝ホストは観戦）ときは待つ相手が居ないので、ホストの確認で即進行。
+    if (h88HumanSeats().length === 0 || h88SeatAckAll(st.h88TeyakuAck)) { h88TeyakuGateProceed(cleanup); return; }
     MomoMatchmaking.send({ type: 'h88-teyaku-ready', ready: st.h88TeyakuAck }, 'all'); // 押下状況を全員へ
     if (st._h88TeyakuGateRender) st._h88TeyakuGateRender();
   } else {

@@ -1,28 +1,22 @@
 /**
  * 段階3（変換エンジン）の受入条件 3-1 〜 3-5 と、検証事項 V-10（変換の正当性・全サイズ）。
  *
- * 在庫のある5サイズは**実物の配信データ**を読む。36×36 と 49×49 は在庫が空のため、
- * 合成の完成盤で代用する（`fixtures.syntheticPuzzle`）。在庫を貯めたら実物へ置き換える。
+ * **全7サイズとも実物の配信データを読む**（第17セッションで 36×36 / 49×49 の在庫が揃った）。
+ * 合成の完成盤は、変換そのものの性質を確かめる箇所だけで使う。
  */
 
 import { describe, expect, it } from 'vitest';
 
 import type { BoardSize, Grid, Puzzle } from '../data/types';
-import {
-  RELEASED_SIZES,
-  UNRELEASED_SIZES,
-  firstChunkPuzzles,
-  syntheticPuzzle,
-} from '../test/fixtures';
+import { LARGE_SIZES, RELEASED_SIZES, firstChunkPuzzles, syntheticPuzzle } from '../test/fixtures';
 import { ROTATIONS, identityParams, randomParams, validateParams } from './params';
 import { apply, createTransform } from './transformer';
 
-const ALL_SIZES: readonly BoardSize[] = [...RELEASED_SIZES, ...UNRELEASED_SIZES];
+const ALL_SIZES: readonly BoardSize[] = RELEASED_SIZES;
 
-/** 各サイズの検査対象。実物があれば実物、無ければ合成 */
+/** 各サイズの検査対象。実物の配信データの先頭2問 */
 function samplesOf(n: BoardSize): Puzzle[] {
-  if (RELEASED_SIZES.includes(n)) return firstChunkPuzzles(n).slice(0, 2);
-  return [syntheticPuzzle(n, Math.round(Math.sqrt(n)))];
+  return firstChunkPuzzles(n).slice(0, 2);
 }
 
 /** 行・列・ブロックに同じ値が2つ無いこと。0（空）は数えない */
@@ -182,9 +176,9 @@ describe('V-10 変換の正当性（受入条件 3-1 / 3-2）', () => {
 });
 
 describe('受入条件 3-4: 回転・鏡映とブロック構造の整合（N=36 / 49）', () => {
-  it.each(UNRELEASED_SIZES)('%i×%i: 回転4通り×鏡映2通りのすべてでブロック構造が保たれる', (n) => {
+  it.each(LARGE_SIZES)('%i×%i: 回転4通り×鏡映2通りのすべてでブロック構造が保たれる', (n) => {
     const b = Math.round(Math.sqrt(n));
-    const source = syntheticPuzzle(n, b);
+    const source = firstChunkPuzzles(n)[0];
     for (const rotation of ROTATIONS) {
       for (const mirror of [false, true]) {
         // 幾何変換だけを効かせ、並べ替えとシンボル置換は恒等にする

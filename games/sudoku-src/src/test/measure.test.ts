@@ -15,7 +15,7 @@
 import { gzipSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { RECENT_BUFFER_SIZE, STORAGE_VERSION } from '../data/config';
-import { BOARD_SIZES, type BoardSize, type StatsEntry, type StatsKey } from '../data/types';
+import { BOARD_SIZES, type BoardSize, type Puzzle, type StatsEntry, type StatsKey } from '../data/types';
 import * as board from '../game/board';
 import type { BoardState } from '../game/board';
 import * as notes from '../game/notes';
@@ -37,7 +37,7 @@ import {
   LOD_FULL_PX,
   MIN_TOUCH_PX,
 } from '../ui/config';
-import { readDataText, sizeDirName, syntheticPuzzle } from './fixtures';
+import { firstChunkPuzzles, readDataText, sizeDirName } from './fixtures';
 
 const KB = 1024;
 
@@ -46,45 +46,36 @@ function bytesOf(text: string): number {
 }
 
 describe('V-01 チャンク容量（3.3.4 / 5.2）', () => {
-  it('在庫のある5サイズの1チャンクの大きさを測る', () => {
+  it('全7サイズの1チャンクの大きさを測る', () => {
     const rows: string[] = [];
-    let perPuzzle25 = 0;
+    let raw49 = 0;
 
-    for (const n of [1, 4, 9, 16, 25] as BoardSize[]) {
+    // 第17セッションで 36 / 49 の在庫が揃ったため、**見積りではなく実測**になった
+    for (const n of BOARD_SIZES) {
       const text = readDataText(`${sizeDirName(n)}/c0000.json`);
       const raw = bytesOf(text);
       const gz = gzipSync(Buffer.from(text, 'utf-8')).length;
       const count = (JSON.parse(text) as { count: number }).count;
-      const each = raw / count;
-      if (n === 25) perPuzzle25 = each;
+      if (n === 49) raw49 = raw;
 
       rows.push(
         `  ${String(n).padStart(2)}×${String(n).padEnd(2)} ` +
           `1チャンク ${(raw / KB).toFixed(1)}KB（gzip ${(gz / KB).toFixed(1)}KB・${((gz / raw) * 100).toFixed(0)}%）` +
-          ` / ${count}問 → 1問 ${(each / KB).toFixed(2)}KB`,
-      );
-    }
-
-    // 在庫の無い 36 / 49 は、1セルあたりの大きさから見積もる
-    const perCell25 = perPuzzle25 / (25 * 25);
-    for (const n of [36, 49] as BoardSize[]) {
-      const est = perCell25 * n * n * 25;
-      rows.push(
-        `  ${n}×${n} 1チャンク（見積り）${(est / KB).toFixed(1)}KB ＝ ${(est / KB / KB).toFixed(2)}MB`,
+          ` / ${count}問 → 1問 ${(raw / count / KB).toFixed(2)}KB`,
       );
     }
 
     console.log('\n[V-01] チャンク容量（非圧縮 / gzip）\n' + rows.join('\n'));
 
-    // 49×49 の見積りが仕様書 5.2 の約0.34MB と桁で食い違っていないこと
-    const est49 = perCell25 * 49 * 49 * 25;
-    expect(est49 / KB / KB).toBeGreaterThan(0.15);
-    expect(est49 / KB / KB).toBeLessThan(0.7);
+    // 49×49 の実測が仕様書 5.2 の約0.34MB と桁で食い違っていないこと
+    expect(raw49 / KB / KB).toBeGreaterThan(0.15);
+    expect(raw49 / KB / KB).toBeLessThan(0.7);
   });
 
   it('在庫を取りきるまでの取得回数と総通信量を出す', () => {
     const rows: string[] = [];
-    for (const n of [1, 4, 9, 16, 25] as BoardSize[]) {
+    let grandTotal = 0;
+    for (const n of BOARD_SIZES) {
       const index = JSON.parse(readDataText(`${sizeDirName(n)}/index.json`)) as {
         chunks: { file: string }[];
       };
@@ -95,13 +86,15 @@ describe('V-01 チャンク容量（3.3.4 / 5.2）', () => {
         total += bytesOf(text);
         gzTotal += gzipSync(Buffer.from(text, 'utf-8')).length;
       }
+      grandTotal += total;
       rows.push(
         `  ${String(n).padStart(2)}×${String(n).padEnd(2)} ${index.chunks.length}回で全部 ` +
           `→ ${(total / KB).toFixed(1)}KB（gzip ${(gzTotal / KB).toFixed(1)}KB）`,
       );
     }
+    rows.push(`  ── 配信データ全体 ${(grandTotal / KB / KB).toFixed(2)}MB`);
     console.log('\n[V-01] 熱心な利用者が在庫を取りきる場合\n' + rows.join('\n'));
-    expect(rows).toHaveLength(5);
+    expect(rows).toHaveLength(BOARD_SIZES.length + 1);
   });
 });
 
@@ -183,10 +176,20 @@ describe('V-02 localStorage 容量（5.2）', () => {
 const N49 = 49 as BoardSize;
 const B49 = 7;
 
-/** 49×49 の盤面を作る。**在庫が空のサイズなので合成の完成盤を使う**（貯まったら実物へ） */
+/**
+ * 49×49 の盤面を作る。**実物の配信データを使う**（第17セッションで在庫が揃った）。
+ *
+ * 合成の盤はヒントを3マスに1つしか置かないため、実物（残す数字が半分以上）より軽く出る。
+ * 重さを測るのが目的なので、ここは実物でなければ意味がない。
+ */
+function puzzle49(difficulty: 'Easy' | 'Apocalypse'): Puzzle {
+  const found = firstChunkPuzzles(N49).find((p) => p.difficulty === difficulty);
+  return found ?? { ...firstChunkPuzzles(N49)[0], difficulty };
+}
+
 function board49(difficulty: 'Easy' | 'Apocalypse'): BoardState {
   const created = board.create({
-    puzzle: { ...syntheticPuzzle(N49, B49), difficulty },
+    puzzle: puzzle49(difficulty),
     params: identityParams(N49, B49),
     difficulty,
   });
@@ -214,7 +217,7 @@ describe('V-03 / V-07 中断保存と候補の相互変換（49×49）', () => {
     const state = board49('Apocalypse');
     fillAllNotes(state);
     const play = session.begin({
-      puzzle: { ...syntheticPuzzle(N49, B49), difficulty: 'Apocalypse' },
+      puzzle: puzzle49('Apocalypse'),
       difficulty: 'Apocalypse',
       params: identityParams(N49, B49),
     });
@@ -357,11 +360,12 @@ describe('V-14 数値パレットの実寸（8.4 / 7-1）', () => {
         '[V-14] 数値パレットの実寸（ボタン44px・間隔6px・左右余白16px）',
         ...rows,
         `  幅375px・高さ667px の 49×49 では パレット ${paletteHeight}px、盤面に残る高さ ${boardHeight667}px`,
-        '  ※ 49×49 は在庫が空でまだ遊べない。実機での確認は在庫を貯めてから',
+        '  ※ 36 / 49 はボタン44pxのままだと狭い画面で盤面が潰れる。利用者が大きさを下げられる（C-190）',
       ].join('\n'),
     );
 
-    // 在庫のある5サイズは、狭い画面でも盤面に十分な高さが残ることを確かめる
+    // 25×25 までは、ボタンを既定の 44px にしたままでも盤面に十分な高さが残る。
+    // 36 / 49 は既定のままでは残らないため、ここでは見張らない（下げる手立てがある＝C-190）
     for (const n of [1, 4, 9, 16, 25] as BoardSize[]) {
       const b = Math.round(Math.sqrt(n));
       const columns = Math.min(columnsFor(n, b), fit375);

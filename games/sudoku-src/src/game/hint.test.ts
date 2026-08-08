@@ -8,16 +8,14 @@
 import { describe, expect, it } from 'vitest';
 
 import type { BoardSize, Difficulty, Puzzle } from '../data/types';
-import { RELEASED_SIZES, firstChunkPuzzles, syntheticPuzzle } from '../test/fixtures';
+import { firstChunkPuzzles } from '../test/fixtures';
 import { identityParams } from '../transform/params';
 import * as board from './board';
 import type { BoardState } from './board';
 import * as hint from './hint';
 
 function sourceOf(n: BoardSize): Puzzle {
-  const b = Math.round(Math.sqrt(n));
-  if (RELEASED_SIZES.includes(n)) return firstChunkPuzzles(n)[0];
-  return syntheticPuzzle(n, b);
+  return firstChunkPuzzles(n)[0];
 }
 
 function makeBoard(n: BoardSize, difficulty: Difficulty = 'Hard'): BoardState {

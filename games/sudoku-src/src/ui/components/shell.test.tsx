@@ -12,6 +12,7 @@ import { readData } from '../../test/fixtures';
 import { answerSoundAsk } from '../../test/settle';
 import { resetInFlight } from '../../data/fetchJson';
 import { STORAGE_VERSION } from '../../data/config';
+import type { Manifest } from '../../data/types';
 import { setLocale } from '../../i18n/locale';
 import { AppShell } from './AppShell';
 
@@ -70,23 +71,34 @@ describe('段階6 前半: 共通ヘッダーとタイトルビュー', () => {
 
   // ---------------------------------------------------------------- 6-4
 
-  it('6-4: 36 / 49 は選べない状態で表示され、他の5サイズは選べる', async () => {
+  it('6-4: 配る予定の全7サイズが選べる', async () => {
     await renderShell();
 
-    for (const n of ['1', '4', '9', '16', '25']) {
+    for (const n of ['1', '4', '9', '16', '25', '36', '49']) {
       expect(screen.getByRole('button', { name: new RegExp(`^${n}$`) })).toBeEnabled();
-    }
-    for (const n of ['36', '49']) {
-      const button = screen.getByRole('button', { name: new RegExp(`^${n}` ) });
-      expect(button).toBeDisabled();
-      // 存在自体は示す（2.6）
-      expect(button).toBeInTheDocument();
     }
   });
 
-  it('6-4: 未解放のサイズには理由が添えられる', async () => {
+  /**
+   * **「準備中」の見せ方そのものは、実物とは別に見張る。**
+   * 第17セッションで 36 / 49 の在庫を貯めて解放したため、実物からは未解放が消えた。
+   * 作り物の目次に差し替えて、非活性と理由の表示が生きていることを確かめる。
+   */
+  it('6-4: 未解放のサイズは選べない状態で表示され、理由が添えられる', async () => {
+    const partial = {
+      ...(REAL_MANIFEST as Manifest),
+      sizes: (REAL_MANIFEST as Manifest).sizes.map((s) =>
+        s.n === 49 ? { ...s, released: false, count: 0 } : s,
+      ),
+    };
+    stubFetchOk(partial);
     await renderShell();
-    expect(screen.getByRole('button', { name: /^36/ })).toHaveTextContent('準備中');
+
+    const button = screen.getByRole('button', { name: /^49/ });
+    expect(button).toBeDisabled();
+    // 存在自体は示す（2.6）
+    expect(button).toBeInTheDocument();
+    expect(button).toHaveTextContent('準備中');
   });
 
   it('選んだサイズと難易度は即時に保存される（3.6.3）', async () => {

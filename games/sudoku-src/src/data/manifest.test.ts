@@ -41,23 +41,47 @@ describe('マニフェスト（3.3.2 / 4.2）', () => {
     expect(parsed.ok).toBe(true);
   });
 
-  it('2-1: released が true の5サイズだけが選択肢として返る（36 / 49 が外れる）', async () => {
+  it('2-1: 配る予定の全7サイズが選択肢として返る', async () => {
     stubFetchOk(REAL_MANIFEST);
 
     const result = await load();
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
-    expect(releasedSizes(result.value)).toEqual([1, 4, 9, 16, 25]);
-    expect(releasedSizes(result.value)).not.toContain(36);
-    expect(releasedSizes(result.value)).not.toContain(49);
+    expect(releasedSizes(result.value)).toEqual([1, 4, 9, 16, 25, 36, 49]);
   });
 
-  it('2-1: 未解放サイズもエントリとしては引ける（在庫0・未解放として扱うため）', async () => {
+  it('2-1: 在庫のあるサイズは件数も入っている', async () => {
     stubFetchOk(REAL_MANIFEST);
     const result = await load();
     if (!result.ok) throw new Error('取得に失敗した');
 
+    for (const n of [4, 9, 16, 25, 36, 49] as const) {
+      const entry = sizeEntry(result.value, n);
+      expect(entry, `${n}×${n} のエントリが無い`).not.toBeNull();
+      expect(entry?.released, `${n}×${n} が未解放`).toBe(true);
+      expect(entry?.count, `${n}×${n} の件数`).toBe(100);
+    }
+  });
+
+  /**
+   * **絞り込みの働きそのものは、実物とは別に見張る。**
+   * 全サイズを解放したことで実物からは未解放が消えたが、絞り込みが壊れても気づけないと困る
+   * （第17セッション。在庫を貯めて 36 / 49 を解放したときに、この検査だけ作り物へ移した）。
+   */
+  it('2-1: 未解放のサイズは選択肢から外れ、エントリとしては引ける', async () => {
+    const partial = {
+      ...(REAL_MANIFEST as Manifest),
+      sizes: (REAL_MANIFEST as Manifest).sizes.map((s) =>
+        s.n === 49 ? { ...s, released: false, count: 0 } : s,
+      ),
+    };
+    stubFetchOk(partial);
+
+    const result = await load();
+    if (!result.ok) throw new Error('取得に失敗した');
+
+    expect(releasedSizes(result.value)).not.toContain(49);
     const n49 = sizeEntry(result.value, 49);
     expect(n49).not.toBeNull();
     expect(n49?.released).toBe(false);
@@ -70,7 +94,7 @@ describe('マニフェスト（3.3.2 / 4.2）', () => {
 
     const cached = loadCached();
     expect(cached).not.toBeNull();
-    expect(releasedSizes(cached as Manifest)).toEqual([1, 4, 9, 16, 25]);
+    expect(releasedSizes(cached as Manifest)).toEqual([1, 4, 9, 16, 25, 36, 49]);
   });
 
   it('退避したものが対応しない版なら、破棄して未取得と同じ扱いにする', () => {

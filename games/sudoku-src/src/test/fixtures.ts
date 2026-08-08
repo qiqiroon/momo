@@ -26,11 +26,16 @@ export function sizeDirName(n: number): string {
   return `n${String(n).padStart(2, '0')}`;
 }
 
-/** 在庫があり、実物を読めるサイズ（`manifest.json` の `released` と一致する） */
-export const RELEASED_SIZES: readonly BoardSize[] = [1, 4, 9, 16, 25];
+/**
+ * 在庫があり、実物を読めるサイズ（`manifest.json` の `released` と一致する）。
+ *
+ * **第17セッションで 36×36 / 49×49 の在庫を貯めたため、全7サイズが実物になった。**
+ * 合成盤面での代用は不要になっている（`syntheticPuzzle` は変換の性質を見る検査だけで使う）。
+ */
+export const RELEASED_SIZES: readonly BoardSize[] = [1, 4, 9, 16, 25, 36, 49];
 
-/** 在庫が空で、実物を読めないサイズ。検査では合成盤面で代用する */
-export const UNRELEASED_SIZES: readonly BoardSize[] = [36, 49];
+/** 大型サイズ。ブロック構造の検査を大きい盤で個別に回すために分けてある */
+export const LARGE_SIZES: readonly BoardSize[] = [36, 49];
 
 /** 実物の先頭チャンクを読み、検証を通した問題を返す */
 export function firstChunkPuzzles(n: BoardSize): Puzzle[] {
@@ -40,10 +45,10 @@ export function firstChunkPuzzles(n: BoardSize): Puzzle[] {
 }
 
 /**
- * 合成の完成盤。**36×36 と 49×49 は在庫が空で実物が無い**ため、検査ではこれを使う。
+ * 合成の完成盤。**配る問題の代用ではなく、変換の性質だけを見たいときに使う**。
  *
  * `value(r, c) = ((b·(r mod b) + ⌊r/b⌋ + c) mod N) + 1` は任意の `N = b²` で数独制約を満たす。
- * **サイズごとの場合分けは無い**（全サイズで同じ式が通る）。在庫を貯めたら実物へ置き換える。
+ * **サイズごとの場合分けは無い**（全サイズで同じ式が通る）。
  */
 export function syntheticSolution(n: BoardSize, b: number): number[] {
   const grid = new Array<number>(n * n);

@@ -2,14 +2,87 @@
   "schemaVersion": "1.04",
   "n": 49,
   "b": 7,
-  "released": false,
-  "count": 0,
+  "released": true,
+  "count": 100,
   "chunkSize": 25,
-  "updatedAt": "2026-08-05T14:51:26.742Z",
+  "updatedAt": "2026-08-08T17:32:09.919Z",
   "difficultyCount": {
-    "Easy": 0,
-    "Hard": 0,
-    "Apocalypse": 0
+    "Easy": 50,
+    "Hard": 25,
+    "Apocalypse": 25
   },
-  "chunks": []
+  "chunks": [
+    {
+      "file": "c0000.json",
+      "count": 25,
+      "idRange": [
+        "N49-000001",
+        "N49-000025"
+      ],
+      "difficultyCount": {
+        "Easy": 0,
+        "Hard": 18,
+        "Apocalypse": 7
+      },
+      "clueRatioRange": [
+        0.549771,
+        0.583507
+      ],
+      "truncatedCount": 0
+    },
+    {
+      "file": "c0001.json",
+      "count": 25,
+      "idRange": [
+        "N49-000026",
+        "N49-000050"
+      ],
+      "difficultyCount": {
+        "Easy": 0,
+        "Hard": 7,
+        "Apocalypse": 18
+      },
+      "clueRatioRange": [
+        0.549771,
+        0.566014
+      ],
+      "truncatedCount": 0
+    },
+    {
+      "file": "c0002.json",
+      "count": 25,
+      "idRange": [
+        "N49-000051",
+        "N49-000075"
+      ],
+      "difficultyCount": {
+        "Easy": 25,
+        "Hard": 0,
+        "Apocalypse": 0
+      },
+      "clueRatioRange": [
+        0.699292,
+        0.699292
+      ],
+      "truncatedCount": 0
+    },
+    {
+      "file": "c0003.json",
+      "count": 25,
+      "idRange": [
+        "N49-000076",
+        "N49-000100"
+      ],
+      "difficultyCount": {
+        "Easy": 25,
+        "Hard": 0,
+        "Apocalypse": 0
+      },
+      "clueRatioRange": [
+        0.699292,
+        0.699292
+      ],
+      "truncatedCount": 0
+    }
+  ]
 }

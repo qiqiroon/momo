@@ -14,6 +14,13 @@ CLAUDE.md
 # Sudoku: generator-side ledger, developer PC only (server spec 3.3)
 .recorded.json
 
+# Sudoku: puzzle data is committed once, as the built output under games/sudoku/data.
+# The source-side copy is byte-identical, so tracking both would double the repo cost
+# (~2MB of JSON per copy). To restore it after a fresh clone:
+#   cp -r games/sudoku/data/* games/sudoku-src/public/data/
+# Without it, `npm run build` produces an app with no puzzles.
+games/sudoku-src/public/data/
+
 # Windows thumbnail cache (never publish)
 Thumbs.db
 **/Thumbs.db

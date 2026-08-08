@@ -12,15 +12,13 @@ import type { BoardState } from './../game/board';
 import { UNDO_LIMIT_DEFAULT } from '../game/config';
 import * as notes from '../game/notes';
 import { isComplete } from '../game/validate';
-import { RELEASED_SIZES, firstChunkPuzzles, syntheticPuzzle } from '../test/fixtures';
+import { firstChunkPuzzles } from '../test/fixtures';
 import { identityParams } from '../transform/params';
 import * as undoStack from './undoStack';
 import type { HistoryEntry } from './undoStack';
 
 function sourceOf(n: BoardSize): Puzzle {
-  const b = Math.round(Math.sqrt(n));
-  if (RELEASED_SIZES.includes(n)) return firstChunkPuzzles(n)[0];
-  return syntheticPuzzle(n, b);
+  return firstChunkPuzzles(n)[0];
 }
 
 function makeBoard(n: BoardSize, difficulty: Difficulty = 'Hard'): BoardState {

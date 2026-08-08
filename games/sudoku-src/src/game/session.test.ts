@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { BoardSize, Difficulty, Puzzle, SuspendedSession } from '../data/types';
 import * as undoStack from '../history/undoStack';
 import { statsStore } from '../storage/statsStore';
-import { RELEASED_SIZES, UNRELEASED_SIZES, firstChunkPuzzles, syntheticPuzzle } from '../test/fixtures';
+import { RELEASED_SIZES, firstChunkPuzzles } from '../test/fixtures';
 import { identityParams, randomParams } from '../transform/params';
 import * as board from './board';
 import * as hint from './hint';
@@ -20,12 +20,10 @@ import * as session from './session';
 import type { SessionState } from './session';
 import * as timer from './timer';
 
-const ALL_SIZES: readonly BoardSize[] = [...RELEASED_SIZES, ...UNRELEASED_SIZES];
+const ALL_SIZES: readonly BoardSize[] = RELEASED_SIZES;
 
 function sourceOf(n: BoardSize): Puzzle {
-  const b = Math.round(Math.sqrt(n));
-  if (RELEASED_SIZES.includes(n)) return firstChunkPuzzles(n)[0];
-  return syntheticPuzzle(n, b);
+  return firstChunkPuzzles(n)[0];
 }
 
 /** 手で進める時計。経過時間を実時間に依存させない（9.3） */

@@ -354,6 +354,9 @@
   /* font-size は 16px 以上必須（iOS Safari は 16px 未満の入力欄タップで自動ズームインし戻らないため） */
   .fld input{background:#0c0c0c;border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-size:16px;font-family:inherit;}
   .fld input:focus{outline:none;border-color:var(--orange);}
+  /* v2.98 パスワード欄：Chrome のパスワード候補（保存済みパスワードの吹き出し）を出させないため、
+     入力欄の種類は「ふつうの文字」にして、見た目だけを伏せ字にする。?debug=1 のパスコード欄と同じ手。 */
+  .pw-mask{-webkit-text-security:disc;text-security:disc;letter-spacing:.08em;}
   .toggle-row{display:flex;align-items:center;justify-content:space-between;font-size:13px;color:var(--text);padding:2px 0;}
   .switch{position:relative;width:42px;height:23px;flex:0 0 auto;}
   .switch input{opacity:0;width:0;height:0;}
@@ -951,25 +954,25 @@
   <!-- 松に鶴（光札）をユーザー手描きPNGに差し替え（縁付き・地紋焼込み） -->
   <symbol id="m01_hikari" viewBox="0 0 220 350">
     <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
-    <image href="cards/m01_hikari.png" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <image href="cards/m01_hikari.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
     <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
   <!-- v1.59: 松の赤短をユーザー手描きPNGに差し替え（縁付き・地紋焼込み） -->
   <symbol id="m01_tan" viewBox="0 0 220 350">
     <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
-    <image href="cards/m01_tan.png" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <image href="cards/m01_tan.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
     <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
   <!-- v1.46: 松のカスをユーザー手描きPNGに差し替え（縁付き）。MOMO/猫マークは不採用。試験的に1枚のみ -->
   <symbol id="m01_kasu1" viewBox="0 0 220 350">
     <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
-    <image href="cards/m01_kasu1.png" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <image href="cards/m01_kasu1.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
     <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
   <!-- v1.59: 松のカス2をユーザー手描きPNGに差し替え（新規・縁付き）。地紋は画像に焼き込み済み -->
   <symbol id="m01_kasu2" viewBox="0 0 220 350">
     <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
-    <image href="cards/m01_kasu2.png" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <image href="cards/m01_kasu2.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
     <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
 
@@ -977,25 +980,25 @@
   <!-- 梅に鶯（2月・種札）をユーザー手描きPNGに差し替え（縁付き・地紋焼込み） -->
   <symbol id="m02_tane" viewBox="0 0 220 350">
     <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
-    <image href="cards/m02_tane.png" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <image href="cards/m02_tane.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
     <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
   <!-- 梅の赤短（2月）をユーザー手描きPNGに差し替え（縁付き・地紋焼込み） -->
   <symbol id="m02_tan" viewBox="0 0 220 350">
     <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
-    <image href="cards/m02_tan.png" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <image href="cards/m02_tan.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
     <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
   <!-- 梅のカス（2月）をユーザー手描きPNGに差し替え（縁付き・地紋焼込み） -->
   <symbol id="m02_kasu1" viewBox="0 0 220 350">
     <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
-    <image href="cards/m02_kasu1.png" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <image href="cards/m02_kasu1.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
     <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
   <!-- 梅のカス2（2月）をユーザー手描きPNGに差し替え（縁付き・地紋焼込み） -->
   <symbol id="m02_kasu2" viewBox="0 0 220 350">
     <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
-    <image href="cards/m02_kasu2.png" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <image href="cards/m02_kasu2.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
     <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
 
@@ -1003,25 +1006,25 @@
   <!-- 桜に幕（3月・光）をユーザー手描きPNGに差し替え（縁付き・m03_kasu1と同型） -->
   <symbol id="m03_hikari" viewBox="0 0 220 350">
     <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
-    <image href="cards/m03_hikari.png" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <image href="cards/m03_hikari.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
     <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
   <!-- 桜の赤短（3月・赤）をユーザー手描きPNGに差し替え（縁付き・m03_kasu1と同型） -->
   <symbol id="m03_tan" viewBox="0 0 220 350">
     <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
-    <image href="cards/m03_tan.png" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <image href="cards/m03_tan.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
     <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
   <!-- 桜のカス（3月）をユーザー手描きPNGに差し替え（縁付き・地紋焼込み） -->
   <symbol id="m03_kasu1" viewBox="0 0 220 350">
     <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
-    <image href="cards/m03_kasu1.png" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <image href="cards/m03_kasu1.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
     <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
   <!-- 桜のカス2（3月）をユーザー手描きPNGに差し替え（縁付き・m03_kasu1と同型） -->
   <symbol id="m03_kasu2" viewBox="0 0 220 350">
     <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
-    <image href="cards/m03_kasu2.png" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <image href="cards/m03_kasu2.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
     <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
 
@@ -1029,25 +1032,25 @@
   <!-- 藤に不如帰（4月・種）をユーザー手描きPNGに差し替え（縁付き・m03_tanと同型） -->
   <symbol id="m04_tane" viewBox="0 0 220 350">
     <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
-    <image href="cards/m04_tane.png" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <image href="cards/m04_tane.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
     <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
   <!-- 藤の短冊（4月）をユーザー手描きPNGに差し替え（縁付き・m03_tanと同型） -->
   <symbol id="m04_tan" viewBox="0 0 220 350">
     <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
-    <image href="cards/m04_tan.png" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <image href="cards/m04_tan.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
     <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
   <!-- 藤のカス1（4月）をユーザー手描きPNGに差し替え（縁付き・m03_kasu1と同型） -->
   <symbol id="m04_kasu1" viewBox="0 0 220 350">
     <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
-    <image href="cards/m04_kasu1.png" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <image href="cards/m04_kasu1.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
     <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
   <!-- 藤のカス2（4月）をユーザー手描きPNGに差し替え（縁付き・m03_kasu1と同型） -->
   <symbol id="m04_kasu2" viewBox="0 0 220 350">
     <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
-    <image href="cards/m04_kasu2.png" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <image href="cards/m04_kasu2.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
     <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
 
@@ -1055,61 +1058,52 @@
   <!-- 菖蒲に八橋（5月・種）をユーザー手描きPNGに差し替え（縁付き・m04_taneと同型） -->
   <symbol id="m05_tane" viewBox="0 0 220 350">
     <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
-    <image href="cards/m05_tane.png" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <image href="cards/m05_tane.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
     <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
   <!-- 菖蒲の短冊（5月）をユーザー手描きPNGに差し替え（縁付き・m04_tanと同型） -->
   <symbol id="m05_tan" viewBox="0 0 220 350">
     <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
-    <image href="cards/m05_tan.png" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <image href="cards/m05_tan.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
     <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
   <!-- 菖蒲のカス1（5月）をユーザー手描きPNGに差し替え（縁付き・m04_kasu1と同型） -->
   <symbol id="m05_kasu1" viewBox="0 0 220 350">
     <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
-    <image href="cards/m05_kasu1.png" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <image href="cards/m05_kasu1.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
     <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
   <!-- 菖蒲のカス2（5月）をユーザー手描きPNGに差し替え（縁付き・m04_kasu1と同型） -->
   <symbol id="m05_kasu2" viewBox="0 0 220 350">
     <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
-    <image href="cards/m05_kasu2.png" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <image href="cards/m05_kasu2.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
     <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
 
   <!-- ---- 6月 牡丹 ---- -->
+  <!-- 牡丹に蝶（6月・種）をユーザー手描きPNGに差し替え（縁付き・m05_taneと同型） -->
   <symbol id="m06_tane" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
-    <use href="#kasumi"/>
-    <g fill="#2f6b2e" stroke="#153311" stroke-width="1.2"><ellipse cx="66" cy="250" rx="16" ry="10" transform="rotate(-20 66 250)"/><ellipse cx="150" cy="252" rx="16" ry="10" transform="rotate(20 150 252)"/><ellipse cx="108" cy="266" rx="16" ry="10"/></g>
-    <use href="#botanBloom" transform="translate(80,214) scale(1.15)"/><use href="#botanBloom" transform="translate(140,224) scale(1)"/>
-    <g transform="translate(122,104) scale(2)">
-      <g fill="#e8b93a" stroke="#8a5f10" stroke-width=".5"><ellipse cx="-7" cy="-4" rx="7" ry="9"/><ellipse cx="7" cy="-4" rx="7" ry="9"/><ellipse cx="-6" cy="7" rx="5" ry="6"/><ellipse cx="6" cy="7" rx="5" ry="6"/></g>
-      <line x1="0" y1="-8" x2="0" y2="10" stroke="#3a2a10" stroke-width="1"/><path d="M0 -8 l -4 -6 M0 -8 l 4 -6" stroke="#3a2a10" stroke-width=".6"/>
-    </g>
-    <g transform="translate(70,150) scale(1.6)">
-      <g fill="#e8843a" stroke="#8a3f10" stroke-width=".6"><ellipse cx="-7" cy="-4" rx="7" ry="9"/><ellipse cx="7" cy="-4" rx="7" ry="9"/><ellipse cx="-6" cy="7" rx="5" ry="6"/><ellipse cx="6" cy="7" rx="5" ry="6"/></g>
-      <line x1="0" y1="-8" x2="0" y2="10" stroke="#3a2a10" stroke-width="1.2"/>
-    </g>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
+    <image href="cards/m06_tane.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
+  <!-- 牡丹の青短（6月）をユーザー手描きPNGに差し替え（縁付き・m05_tanと同型） -->
   <symbol id="m06_tan" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
-    <use href="#kasumi"/>
-    <g fill="#2f6b2e" stroke="#153311" stroke-width="1.2"><ellipse cx="150" cy="118" rx="15" ry="9" transform="rotate(18 150 118)"/><ellipse cx="150" cy="150" rx="15" ry="9" transform="rotate(-14 150 150)"/></g>
-    <use href="#botanBloom" transform="translate(150,120) scale(1.1)"/>
-    <use href="#tanBlue" transform="translate(96,216) rotate(-8)"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
+    <image href="cards/m06_tan.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
+  <!-- 牡丹のカス1（6月）をユーザー手描きPNGに差し替え（縁付き・m05_kasu1と同型） -->
   <symbol id="m06_kasu1" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
-    <use href="#kasumi"/>
-    <g fill="#2f6b2e" stroke="#153311" stroke-width="1.2"><ellipse cx="80" cy="210" rx="17" ry="11" transform="rotate(-24 80 210)"/><ellipse cx="140" cy="200" rx="17" ry="11" transform="rotate(24 140 200)"/><ellipse cx="110" cy="240" rx="17" ry="11"/></g>
-    <use href="#botanBloom" transform="translate(110,175) scale(1.3)"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
+    <image href="cards/m06_kasu1.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
+  <!-- 牡丹のカス2（6月）をユーザー手描きPNGに差し替え（縁付き・m05_kasu2と同型） -->
   <symbol id="m06_kasu2" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
-    <use href="#kasumi"/>
-    <g fill="#2f6b2e" stroke="#153311" stroke-width="1.2"><ellipse cx="140" cy="210" rx="17" ry="11" transform="rotate(24 140 210)"/><ellipse cx="80" cy="200" rx="17" ry="11" transform="rotate(-24 80 200)"/><ellipse cx="110" cy="240" rx="17" ry="11"/></g>
-    <use href="#botanBloom" transform="translate(110,175) scale(1.3)"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
+    <image href="cards/m06_kasu2.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
 
   <!-- ---- 7月 萩 ---- -->
@@ -1347,7 +1341,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.97</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.98</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1377,7 +1371,7 @@
       <h2>🎴 <span data-i18n="lobby.create.title">部屋を作る</span></h2>
       <p class="desc" data-i18n="lobby.create.desc">部屋を作成して相手の参加を待ちます。「非公開にする」をオンにすると一覧に表示されません。</p>
       <label class="fld"><span data-i18n="lobby.roomname">部屋の名前</span><input id="in-roomname" type="text" placeholder="例：モモタロウの遊戯室" data-i18n-ph="lobby.roomname.ph" maxlength="24" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true"></label>
-      <label class="fld"><span data-i18n="lobby.password">パスワード</span><input id="in-pw" type="password" placeholder="任意" data-i18n-ph="lobby.pw.ph" maxlength="16" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-form-type="other" name="hf-nopw-1" readonly onfocus="this.removeAttribute('readonly')"></label>
+      <label class="fld"><span data-i18n="lobby.password">パスワード</span><input id="in-pw" class="pw-mask" type="text" inputmode="text" placeholder="任意" data-i18n-ph="lobby.pw.ph" maxlength="16" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-form-type="other" name="hf-nopw-1" readonly onfocus="this.removeAttribute('readonly')"></label>
       <div class="toggle-row"><span data-i18n="lobby.private">非公開にする</span>
         <label class="switch"><input type="checkbox" id="in-private"><span class="slider"></span></label>
       </div>
@@ -1395,7 +1389,7 @@
       </ul>
       <div class="check-row"><input type="checkbox" id="pv"><label for="pv" data-i18n="lobby.showpriv">非公開の部屋を表示</label></div>
       <div class="pw-row">
-        <input id="in-joinpw" type="password" placeholder="パスワード" data-i18n-ph="lobby.joinpw.ph" maxlength="16" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-form-type="other" name="hf-nopw-2" readonly onfocus="this.removeAttribute('readonly')">
+        <input id="in-joinpw" class="pw-mask" type="text" inputmode="text" placeholder="パスワード" data-i18n-ph="lobby.joinpw.ph" maxlength="16" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-form-type="other" name="hf-nopw-2" readonly onfocus="this.removeAttribute('readonly')">
         <button class="btn btn-ghost btn-sm" id="btn-show-priv" data-i18n="lobby.show">表示</button>
       </div>
     </div>
@@ -1413,7 +1407,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.97</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.98</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1549,7 +1543,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.97</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.98</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1612,7 +1606,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.97</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.98</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -4018,6 +4012,9 @@ function initMatchmaking() {
     onParticipantJoined: (pid, role, name, roster) => {
       state.roster = roster || state.roster;
       diagLog('room', 'participant joined pid=' + pid + ' role=' + role + ' name=' + name);
+      // v2.98: 誰かが入ってきたら入室音。ホスト（相手待ち）だけでなく、先に入っているゲスト・観戦者にも鳴らす。
+      //   プレイヤー／観戦者の区別なく鳴らす。自分自身の入室では鳴らさない。
+      if (state.myPid && pid !== state.myPid) playSfx('join');
       if (!state.isHost) { updateSpectatorCount(); return; } // 観戦者・ゲスト側は名簿更新のみ
       if (state.gameSel === 'hachi' && !state.vsAI) { h88HostOnParticipantJoined(pid, role, name); return; } // D4: 八八は席編成モデルへ
       // D3: 観戦者、または既にゲストが居る状態での追加プレイヤー入室 → 観戦者として受け入れる。
@@ -5708,6 +5705,9 @@ function h88OnlineOyaApplyRemote(draws) {
 // ゲスト：'h88-start' 受信＝自席 p1 として盤面を用意（実体は h88-state 同期で来る）。
 function h88ApplyStart(msg) {
   if (msg.comp) state.h88Comp = msg.comp; // D4: 受信した席編成を保存（自席算出に使う）
+  // v2.98: 再戦＝総合結果パネルを閉じて、そのまま新しい対戦へ（ゲスト・観戦者とも準備室を経ない）。
+  try { if (state.h88 && state.h88._h88GateCleanup) state.h88._h88GateCleanup(); } catch (e) {}
+  const ovEnd = document.getElementById('ovH88End'); if (ovEnd) ovEnd.classList.remove('show');
   const seat = state.isSpectator ? null : h88MySeatOnline(); // 自分の着席席（無ければ観戦視点）
   state.h88 = {
     names: msg.names, scores: msg.scores || { p0: 0, p1: 0, p2: 0 }, levels: {},
@@ -5836,8 +5836,8 @@ function h88GuestRematch() {
 //   押した人は待機表示になり、他人を勝手に動かさない。全員そろったらホストが h88-rematch を配って一斉に準備室へ。
 function h88EndRematchPress() {
   const st = state.h88; if (!st) return;
-  // v2.93: 全席CPU（人間ゼロ）＝ホストが唯一の進行役。待つ相手が居ないので即再戦（準備室へ）。
-  if (h88AllCpuHost()) { try { MomoMatchmaking.send({ type: 'h88-rematch' }, 'all'); } catch (e) {} h88DoRematch(); return; }
+  // v2.93: 全席CPU（人間ゼロ）＝ホストが唯一の進行役。待つ相手が居ないので即再戦。
+  if (h88AllCpuHost()) { h88RematchGo(); return; }
   const me = h88MySeatOnline(); if (!me) return; // 観戦者（席なし）は対象外
   st.h88EndReady = st.h88EndReady || h88SeatAckInit();
   if (st.h88EndReady[me]) return; // 二重押し防止
@@ -5851,8 +5851,7 @@ function h88CheckEndRematch() {
   const st = state.h88; if (!st || !state.isHost || !st.h88MatchOver) return;
   const seats = h88HumanSeats().filter(s => !(st.h88EndLeft && st.h88EndLeft[s]));
   if (seats.length && seats.every(s => st.h88EndReady && st.h88EndReady[s])) {
-    MomoMatchmaking.send({ type: 'h88-rematch' }, 'all'); // 全員そろった → 一斉に準備室へ
-    h88DoRematch();
+    h88RematchGo(); // 全員そろった → 再戦へ
   } else {
     MomoMatchmaking.send({ type: 'h88-endready', ready: st.h88EndReady || {}, left: st.h88EndLeft || {} }, 'all');
     h88RenderEndWait();
@@ -5862,6 +5861,45 @@ function h88CheckEndRematch() {
 function h88DoRematch() {
   const ov = document.getElementById('ovH88End'); if (ov) ov.classList.remove('show');
   state.h88 = null; showScreen('room'); refreshRoomView(); pickGame('hachi');
+}
+// v2.98: 再戦の実行（ホスト）。オンラインは こいこい と同じく「準備室（親決め）を経ずに、その場で新しい対戦の第1局」へ。
+//   対コンピュータは従来どおり準備室に戻る（こいこいの対コンピュータも準備室に戻るため、そろえてある）。
+function h88RematchGo() {
+  if (state.h88 && state.h88.online && !state.vsAI && state.isHost) { h88RematchStartOnline(); return; }
+  try { MomoMatchmaking.send({ type: 'h88-rematch' }, 'all'); } catch (e) {} // 従来：全員を準備室へ
+  h88DoRematch();
+}
+// v2.98: 前の対戦の勝者＝新しい対戦の親。首位が複数（引分け）なら前の対戦の親をそのまま引き継ぐ（こいこいと同じ考え方）。
+function h88RematchOyaSeat() {
+  const st = state.h88;
+  const seats = (st.game && st.game.seats) || st.seatCycle || H88_SEATS;
+  let top = null, tied = false;
+  seats.forEach(s => {
+    const v = st.scores[s] || 0;
+    if (top === null || v > (st.scores[top] || 0)) { top = s; tied = false; }
+    else if (v === (st.scores[top] || 0)) tied = true;
+  });
+  if (!top || tied) return st.roundOya || seats[0];
+  return top;
+}
+// v2.98: オンラインの再戦をその場で開始（ホスト権威）。席の並び・ルール・局数はそのまま＝座り直さない。
+//   結果画面のまま抜けた人の席はコンピュータに置き換える（居ない人の手番で止まらないように）。
+//   ゲスト・観戦者へは開始情報（h88-start）を配るだけでよい＝受け取った側が総合結果を閉じて新しい盤面に切り替わる。
+function h88RematchStartOnline() {
+  const st = state.h88; if (!st || !state.isHost) return;
+  if (st.h88EndLeft) Object.keys(st.h88EndLeft).forEach(s => { if (st.h88EndLeft[s]) h88SeatToCpu(s); });
+  const comp = h88Comp(), names = h88CompNames();
+  const oya = h88RematchOyaSeat();
+  const ov = document.getElementById('ovH88End'); if (ov) ov.classList.remove('show');
+  st.names = names; st.comp = comp; st.cpuSeats = h88CpuSeatsComp(); st.levels = h88CompLevels();
+  st.mySeat = h88MySeatOnline() || 'p0';
+  st.scores = { p0: 0, p1: 0, p2: 0 };
+  st.roundNo = 1;
+  st.h88MatchOver = false; st.h88EndReady = null; st.h88EndLeft = {}; st.h88NextReady = null; st.h88RoundCtx = null;
+  st.marumeApplied = false;
+  MomoMatchmaking.send({ type: 'h88-start', names: names, seatCycle: st.seatCycle, rounds: st.rounds, rules: st.rules, preset: st.preset, scores: st.scores, oyaDraws: st.oyaDraws, comp: comp }, 'all');
+  showScreen('hachi'); // 総合結果を閉じたら対局画面（すでに表示中でも念のため）
+  h88StartRound(oya);
 }
 // 総合結果の「誰が押した／待っています」表示を更新。
 function h88RenderEndWait() {
@@ -7598,12 +7636,19 @@ const AUDIO = (function () {
         const o=ctx.createOscillator(); o.type='triangle'; o.frequency.value=f;
         const g=ctx.createGain(); envg(g,tt,0.004,0.28,dur); o.connect(g).connect(sfxGain); o.start(tt); o.stop(tt+dur+0.02); });
     },
+    // v2.98 ぴんぽーん：誰かが部屋に入ってきた合図（玄関チャイム風の下がる2音・sineでやわらかく／
+    //   自分の手番の「ぴろっ」(triangleの上がる2音)とは向きも音色も変えて紛れないように）
+    join() { const t = ctx.currentTime + 0.01;
+      [[988,0,0.42],[659,0.16,0.62]].forEach(a => { const f=a[0],dt=a[1],dur=a[2],tt=t+dt;
+        const o=ctx.createOscillator(); o.type='sine'; o.frequency.value=f;
+        const g=ctx.createGain(); envg(g,tt,0.008,0.3,dur); o.connect(g).connect(sfxGain); o.start(tt); o.stop(tt+dur+0.02); });
+    },
   };
   // 効果音の統一入口。論理名 → 素材 or 合成へ振り分け。
   function sfx(name) {
     if (!audioOn || !ctx || !sfxGain) return;
     switch (name) {
-      case 'shu': case 'charin': case 'pu': case 'piro': if (SYNTH[name]) SYNTH[name](); break;
+      case 'shu': case 'charin': case 'pu': case 'piro': case 'join': if (SYNTH[name]) SYNTH[name](); break;
       case 'fanfare': playBuf('fanfareWin'); playBuf('fanfareWin2', { at: 0.8 }); break; // 将棋と同じ0.8秒差の重ね
       case 'lose':   playBuf('gameLose'); break;
       case 'koikoi': playBuf('koikoi'); break;

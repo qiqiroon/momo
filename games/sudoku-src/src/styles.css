@@ -1,0 +1,1103 @@
+/* MOMO Sudoku — 画面の意匠（第3分冊 2章 / app-card-design v1.0 準拠）
+   配色は MOMO Works の既存アプリに合わせる（U-13 / A-5）。 */
+
+:root {
+  --bg: #0a0a0a;
+  --surface: #111111;
+  --surface2: #1a1a1a;
+  --orange: #c2410c;
+  --orange-mid: #ea580c;
+  --orange-light: #fb923c;
+  --text: #e5e5e5;
+  --text-muted: #737373;
+  --border: #2a2a2a;
+  --border-strong: #444444;
+  --bg-selected: rgba(194, 65, 12, 0.15);
+  --danger: #c0392b;
+  /** 盤面のスクロールバーの太さ（C-165）。指でも掴める幅にする */
+  --scrollbar-size: 12px;
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* 窓の高さをそのまま器の高さとし、**ページ自身は絶対にスクロールさせない**（C-164）。
+   スクロールが要る部分（タイトル画面の説明・拡大したパレット）は、その中だけで送る。 */
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Noto Sans JP', system-ui, sans-serif;
+  font-size: 14px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* `dvh` は携帯の住所欄が伸縮しても実際に見えている高さを指す。
+   対応しない環境のために `vh` を先に置いて上書きさせる。 */
+.app {
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ------------------------------------------------------------------ 共通ヘッダー（2.3） */
+
+.app-header {
+  flex-shrink: 0;
+  z-index: 100;
+  /* 何も下を通り抜けなくなったので、半透明とぼかしをやめて素直な面にする（C-164）。
+     ぼかしは position:fixed の子（ダイアログ・通知）の基準を奪うため、置いておくと害になる */
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 16px;
+}
+
+.header-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* タイトルと状態表示をまとめる箱（⑪）。**幅が足りなければ状態表示だけが次の行へ落ちる。**
+   落ちた姿が、以前の「状態バー1行」と同じ見え方になる。歯車と言語は右端に残る */
+.header-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+}
+
+.header-status {
+  min-width: 0;
+}
+
+.header-cat {
+  width: 34px;
+  height: 37px;
+  flex-shrink: 0;
+}
+
+/* app-card-design v1.0 §3 準拠: 3 span を baseline 揃え */
+.header-title {
+  font-family: 'Fredoka One', system-ui, sans-serif;
+  font-size: 1.4rem;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3em;
+}
+
+.header-title .momo {
+  color: #ffffff;
+}
+
+/* アプリ名の span。土台の `.app` と同じ名前にすると、土台側の指定（縦いっぱいに広げる）を
+   受け取ってヘッダーが数百px に伸びる。名前は必ず分ける。 */
+.header-title .sudoku {
+  color: var(--orange-mid);
+}
+
+.header-title .version-tag {
+  color: var(--text-muted);
+  font-family: 'Fredoka One', system-ui, sans-serif;
+  font-size: 0.28em;
+  letter-spacing: 0.04em;
+  align-self: flex-end;
+  padding-bottom: 0.2em;
+}
+
+/* サブタイトル。猫語では中身を描かないが、高さは確保する（2.3 / 受入条件 6-3） */
+.header-sub {
+  font-family: 'Fredoka One', system-ui, sans-serif;
+  font-size: 16px;
+  color: #888888;
+  margin-top: 1px;
+  /* 高さは固定値で確保する。em にすると、中国語だけ文字を小さくする下の指定に引きずられて
+     ヘッダーが縮み、言語切替で高さが動く（2.3 が避けたい状態）。 */
+  min-height: 19.2px;
+  line-height: 1.2;
+}
+
+/* 中国語は字面が詰まって見えるため、以前は13pxに落としていた。**他の言語と同じ大きさにし、
+   太字で起こす**（⑱）。高さは `.header-sub` の min-height で固定してあるので言語切替で動かない */
+.header-sub.zh {
+  font-family: 'Fredoka One', 'Noto Sans SC', 'Noto Sans JP', system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.header-right {
+  margin-left: auto;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  background: var(--surface2);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.lang-select {
+  background: var(--surface2);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: 'Noto Sans JP', system-ui, sans-serif;
+}
+
+/* ------------------------------------------------------------------ 音・触覚の設定（2.10） */
+
+.settings-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 240px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 200;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.settings-row input[type='range'] {
+  flex: 1;
+  accent-color: var(--orange-mid);
+}
+
+/* 取り込み記録の控え（C-168）。`?debug=1` のときだけ現れる開発者向けの区画 */
+.settings-diag {
+  border-top: 1px solid var(--border-strong);
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.settings-diag-head {
+  color: var(--text-muted);
+}
+
+.settings-diag-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.settings-diag-actions button {
+  flex: 1;
+  background: var(--surface2);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: 'Noto Sans JP', system-ui, sans-serif;
+}
+
+/* 記録は長い。歯車の中に閉じ込めたまま読めるよう、この枠の中だけで送る */
+.settings-diag-body {
+  width: 100%;
+  height: 150px;
+  background: var(--surface2);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 6px;
+  font-size: 11px;
+  line-height: 1.5;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  white-space: pre;
+  overflow: auto;
+  resize: none;
+}
+
+/* ------------------------------------------------------------------ タイトルビュー（2.6） */
+
+/* 説明が長いので、タイトル画面は**この中だけで**縦に送る（C-164）。
+   ページ自身がスクロールしないため、ここで受けないと下が読めなくなる。
+
+   幅の上限は置かない（C-176）。上限を付けると、窓がそれより広いときに
+   **枠が画面の中央に取り残され、縦のスクロールバーが窓の右端ではなく途中に出る**。
+   横画面ではこれが顕著だった。内側の見出しや説明文が横に伸びることは許容する
+   （フッターだけは自前の幅を持っており、そのまま中央に収まる）。 */
+.title-view {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  width: 100%;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.panel-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.panel-heading {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  min-width: 52px;
+  min-height: 44px;
+  padding: 4px 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 15px;
+  cursor: pointer;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.chip-wide {
+  min-width: 104px;
+}
+
+.chip-on {
+  border-color: var(--orange);
+  background: var(--bg-selected);
+  color: var(--orange-light);
+}
+
+.chip:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.chip-note {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.btn {
+  min-height: 44px;
+  padding: 8px 16px;
+  background: var(--surface2);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: 'Noto Sans JP', system-ui, sans-serif;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  border-color: var(--orange);
+  background: var(--bg-selected);
+  color: var(--orange-light);
+}
+
+.btn-danger {
+  border-color: var(--danger);
+}
+
+.btn-lg {
+  font-size: 15px;
+}
+
+.start-block,
+.transfer-block {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.start-block .btn,
+.transfer-block .btn {
+  flex: 1 1 200px;
+}
+
+.disclosure {
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 14px;
+  text-align: left;
+  padding: 6px 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.disclosure-mark {
+  color: var(--orange-mid);
+}
+
+.muted {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* 成績の表は列が7つあり、狭い画面では必ず横にはみ出す（実測：幅375pxで108px ぶん）。
+   既定の横スクロールバーは**場所を取らない薄い重ね表示**で、指でもマウスでも掴めない。
+   盤面のスクロールバーと同じ 12px の帯を常に見せて、掴んで送れるようにする（C-177）。
+
+   **`scrollbar-color` / `scrollbar-width` は書かない。** 標準側の指定があると
+   Chromium は以下の指定を丸ごと無視し、薄い重ね表示のままになる（実測で確認）。 */
+.table-scroll {
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.table-scroll::-webkit-scrollbar {
+  height: var(--scrollbar-size);
+}
+
+.table-scroll::-webkit-scrollbar-track {
+  background: var(--surface2);
+  border-radius: 6px;
+}
+
+.table-scroll::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 6px;
+}
+
+.table-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--orange-mid);
+}
+
+.stats-table {
+  border-collapse: collapse;
+  font-size: 13px;
+  min-width: 100%;
+}
+
+.stats-table th,
+.stats-table td {
+  border: 1px solid var(--border);
+  padding: 4px 10px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.stats-table th {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.guide {
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+  gap: 12px;
+}
+
+.guide-section h3 {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--orange-light);
+  margin-bottom: 3px;
+}
+
+.guide-section p {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-muted);
+}
+
+.notice {
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.notice-error {
+  border-color: var(--danger);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ プレイビュー（2.9） */
+
+/* 縦画面は「状態バー → 盤面 → 操作パネル」の縦積み。
+   横画面は操作パネルを右へ回す（C-166）。横で下に置くと高さの取り合いになって盤面が消える
+   （667×375 の 16×16 で盤面 13px という実測がある）。並びは操作パネル側が姿を決め、
+   ここは受け取った置き場所どおりに枠を組むだけである。 */
+.play-view {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  /* 中身は盤面と操作パネルの2つ。状態表示はヘッダーへ移した（⑪） */
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+/* 置き場所を知っているのは操作パネル自身なので、枠組みはそれを見て組み替える。
+   こうすると PlayView は「受け取ったものを配るだけ」のままでいられる（15.6） */
+.play-view:has(> .control-panel[data-placement='RIGHT']) {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.play-view:has(> .control-panel[data-placement='RIGHT']) .board-host {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+/* 状態表示はヘッダーの中へ移した（⑪）。**独立した帯ではなくなった**ので、
+   枠線と背景を持たない。以前は盤面と一緒にスクロールして画面の外へ出ていた */
+.status-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.status-mode {
+  color: var(--orange-light);
+}
+
+.status-failed {
+  color: var(--danger);
+  border: 1px solid var(--danger);
+  border-radius: 4px;
+  padding: 0 6px;
+}
+
+.status-time {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 盤面領域はヘッダー・状態バー・操作パネルを除いた残余をすべて占める（2.9）。
+   右下に帯のぶんを空け、盤面そのものは左上の枠に収める（C-165） */
+.board-host {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--scrollbar-size);
+  grid-template-rows: minmax(0, 1fr) var(--scrollbar-size);
+}
+
+.board-frame {
+  grid-column: 1;
+  grid-row: 1;
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+
+.board {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+/* 盤面のスクロールバー（C-165）。掴んで動かせる。盤面が収まっているあいだは
+   つまみが帯いっぱいになり、動かしても何も起きない */
+.board-scroll {
+  position: relative;
+  background: rgb(255 255 255 / 4%);
+}
+
+.board-scroll-v {
+  grid-column: 2;
+  grid-row: 1;
+  border-left: 1px solid var(--border);
+}
+
+.board-scroll-h {
+  grid-column: 1;
+  grid-row: 2;
+  border-top: 1px solid var(--border);
+}
+
+.board-scroll-corner {
+  grid-column: 2;
+  grid-row: 2;
+  background: rgb(255 255 255 / 4%);
+}
+
+.board-scroll-thumb {
+  position: absolute;
+  background: var(--border-strong);
+  border-radius: 5px;
+  touch-action: none;
+}
+
+.board-scroll-v .board-scroll-thumb {
+  left: 2px;
+  right: 2px;
+}
+
+.board-scroll-h .board-scroll-thumb {
+  top: 2px;
+  bottom: 2px;
+}
+
+.board-scroll-thumb[data-scrollable='true'] {
+  background: #6b6b6b;
+  cursor: grab;
+}
+
+.board-scroll-thumb[data-scrollable='true']:active {
+  background: var(--orange-mid);
+  cursor: grabbing;
+}
+
+/* 操作パネルは**縮まない**。ボタンが増えて背が高くなったぶんは盤面が譲る＝下合わせ（C-164） */
+.control-panel {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* 右置き（C-166）。幅は中身（数字ボタンの列数）で決まる。
+   ズームバーが読める幅は残す＝1×1 のように列が1本しかないときの下限 */
+.control-panel[data-placement='RIGHT'] {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 200px;
+  border-top: 0;
+  border-left: 1px solid var(--border);
+  padding: 10px 12px;
+}
+
+/* パレットだけの置き場。ここの実寸とパネル全体の差が「パレット以外の部分」になる（C-166）。
+   下置きでは**素通しの箱**にする。横並びの箱にすると、幅に合わせて列を決める仕組み
+   （`auto-fill`）が中身の幅を基準にしてしまい、1列に潰れる */
+.palette-slot {
+  display: block;
+}
+
+.palette-slot > .palette {
+  margin: 0 auto;
+}
+
+/* 右置きでは、パレットの置き場が残りの高さをすべて受け取る。
+   その実寸がそのまま「何列にするか」の元になる（C-166） */
+.control-panel[data-placement='RIGHT'] .panel-upper,
+.control-panel[data-placement='RIGHT'] .palette-slot {
+  flex: 1;
+  min-height: 0;
+}
+
+.control-panel[data-placement='RIGHT'] .palette-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.control-panel[data-placement='RIGHT'] .palette {
+  justify-content: center;
+}
+
+/* 右置きの操作ボタンは**2列組みに固定**する（C-166）。
+   折り返しに任せると、細い帯では1列に落ちて 206px を食い、パレットの居場所が無くなる。
+   固定にすると高さが帯の幅に左右されないので、列数の決め方も一度で落ち着く */
+.control-panel[data-placement='RIGHT'] .action-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.control-panel[data-placement='RIGHT'] .action-row .btn {
+  min-width: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+/* 右置きでは「全体」を別の行へ落とす（新2）。
+   帯は 220px しかなく、左右の余白を引くと 196px。1行に並べると
+   `−`44 ＋ `＋`44 ＋ `全体`44 ＋ すきま24 で、スライダに 40px しか残らず掴めない。
+   行を分けるとスライダは 90px ほどになる。**行が増えたぶんの高さは実測で拾う**ので、
+   二段構えの判定（C-166）はそのまま追随する */
+.control-panel[data-placement='RIGHT'] .zoom-bar {
+  flex-wrap: wrap;
+}
+
+.control-panel[data-placement='RIGHT'] .zoom-fit {
+  flex-basis: 100%;
+}
+
+/* ズームバー（5.5）。操作パネルの最上段に置く */
+.panel-upper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.zoom-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.zoom-slider {
+  flex: 1;
+  min-width: 0;
+  /* 指定が無いと既定の水色になり、この画面で唯一そこだけ配色から外れる */
+  accent-color: var(--orange-mid);
+}
+
+.zoom-button,
+.zoom-fit {
+  min-width: 44px;
+  min-height: 32px;
+  padding: 0 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.zoom-button:disabled,
+.zoom-slider:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* 数値パレット（8.4）。列数は上位が `b` の倍数で渡し、幅が足りなければ行が増える。
+   最小 44px はここで保証する（8.4 のタッチ最小寸法） */
+.palette {
+  display: grid;
+  gap: 6px;
+  justify-content: center;
+}
+
+/* 縮んだ姿（C-159）。全値をひと目で見せるための一覧で、押すのは拡大した姿の役目である。
+   44px は守らない代わりに `disabled` で押せなくしてある（NumberPalette 側） */
+.palette-mini {
+  gap: 3px;
+  width: 100%;
+  justify-content: stretch;
+}
+
+.palette-mini .palette-key {
+  min-width: 0;
+  min-height: 0;
+  width: auto;
+  height: auto;
+  aspect-ratio: 1;
+  font-size: 10px;
+  border-radius: 3px;
+  opacity: 0.9;
+}
+
+.palette-mini .palette-key:disabled {
+  /* 縮んだ姿では全部が非活性なので、使い切った値だけをさらに淡くする */
+  opacity: 0.9;
+  cursor: default;
+}
+
+.palette-mini .palette-key:disabled[data-exhausted='true'] {
+  opacity: 0.25;
+}
+
+/* 拡大した姿（C-159）。盤面の下側にせり上がって重なる。
+   **上端より上は覆わない**ので、そこにルーペの帯が残る（LOUPE_RESERVE_PX） */
+.palette-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  padding: 10px 0;
+  background: var(--surface);
+  border-top: 1px solid var(--border-strong);
+  box-shadow: 0 -6px 16px rgb(0 0 0 / 35%);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* 右置きの二段構えでは、拡大した姿は**左へ**せり出す（C-166）。
+   上下いっぱいに立つので、ルーペの帯は盤面の上下に残ったままである */
+.control-panel[data-placement='RIGHT'] .palette-overlay {
+  top: 0;
+  bottom: 0;
+  left: auto;
+  right: 0;
+  width: max-content;
+  padding: 10px 12px;
+  border-top: 0;
+  border-left: 1px solid var(--border-strong);
+  box-shadow: -6px 0 16px rgb(0 0 0 / 35%);
+  display: flex;
+  align-items: center;
+}
+
+.palette-key {
+  /* **縦横とも倍率に追随させる**（C-190）。固定値のままだと、小さくしたときに
+     枠からはみ出して隣のボタンと重なり、縦も縮まなかった（実機で判明） */
+  min-width: var(--palette-key, 44px);
+  min-height: var(--palette-key, 44px);
+  width: 100%;
+  height: var(--palette-key, 44px);
+  padding: 0;
+  background: var(--surface2);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: 'Roboto Mono', 'SF Mono', 'Segoe UI Mono', Consolas, monospace;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.palette-key:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* 使い切った値は**押せないだけでなく、灰色に見える**（⑬）。
+   「選べない」と「もう要らない」は別のことなので、色でも分ける */
+.palette-key:disabled[data-exhausted='true'] {
+  opacity: 0.45;
+  background: var(--surface2);
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+/* メモ入力中は確定入力と見た目を変える（9.2。誤入力を防ぐため） */
+.palette-note .palette-key {
+  border-style: dashed;
+  border-color: var(--orange-mid);
+  color: var(--orange-light);
+}
+
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* ------------------------------------------------------------------ ダイアログ（12.1） */
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.dialog {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dialog-title {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.dialog-body {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-muted);
+}
+
+.dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+/* ------------------------------------------------------------------ トースト（11.5） */
+
+.toast-stack {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 400;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: calc(100% - 32px);
+  max-width: 420px;
+}
+
+/* 失敗の中身（C-168）。`?debug=1` のときだけ2行目として現れる */
+.toast-detail {
+  display: block;
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+
+.toast {
+  width: 100%;
+  text-align: left;
+  padding: 10px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface2);
+  color: var(--text);
+  font-family: 'Noto Sans JP', system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.6;
+  cursor: pointer;
+}
+
+.toast-error {
+  border-color: var(--danger);
+}
+
+.toast-warn {
+  border-color: var(--orange);
+}
+
+/* ------------------------------------------------- アプリ説明のフッター（⑩） */
+
+/* MOMO Works の他アプリと同じ形。タイトル画面の末尾に置く */
+.site-footer {
+  border-top: 1px solid var(--border);
+  background: #0d0d0d;
+  margin: 8px -16px -16px;
+  padding: 26px 24px 38px;
+  color: var(--text-muted);
+}
+
+.site-footer-inner {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.site-footer h2 {
+  font-family: 'Fredoka One', system-ui, sans-serif;
+  font-weight: 400;
+  font-size: 15px;
+  color: var(--text);
+  margin-bottom: 9px;
+  letter-spacing: 0.02em;
+}
+
+.site-footer p {
+  font-size: 12px;
+  line-height: 1.9;
+  margin-bottom: 14px;
+}
+
+.foot-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  font-size: 12px;
+}
+
+.foot-links a {
+  color: var(--orange-light);
+  text-decoration: none;
+}
+
+.foot-links a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+  .site-footer {
+    padding: 22px 14px 32px;
+  }
+}
+
+
+/* ------------------------------------------------------------------ ルーペ（7章 / C-189） */
+
+/* 盤面の枠を基準に、四隅へ重ねる。中身は Canvas が描き、ここは触るところだけ */
+.board-frame {
+  position: relative;
+}
+
+/* 虫眼鏡アイコン。**ルーペが閉じていても常に見えている**——唯一の開く手段だからである */
+.loupe-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: rgba(17, 17, 17, 0.82);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  color: var(--text-muted);
+  cursor: pointer;
+  /* 数字ボタンより上に出す。**開けなくなっては困る** */
+  z-index: 30;
+}
+
+.loupe-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.loupe-icon-on {
+  color: var(--orange-light);
+  border-color: var(--orange);
+}
+
+/* ルーペの中の ＋ / −。箱の下辺へ寄せる（中身の邪魔をしない位置） */
+.loupe-controls {
+  /* 箱そのものは Canvas が描く。ここはボタンを置くためだけの枠なので素通しにする */
+  pointer-events: none;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 6px;
+  padding-bottom: 4px;
+  z-index: 25;
+}
+
+.loupe-zoom {
+  pointer-events: auto;
+  min-width: 28px;
+  min-height: 22px;
+  padding: 0 6px;
+  background: rgba(17, 17, 17, 0.9);
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.loupe-zoom:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* ------------------------------------------------------------------ 数字ボタンの大きさ（C-190） */
+
+/* 文字もボタンの寸法に追随させる（C-190）。`--palette-key` は NumberPalette が渡す */
+.palette-key {
+  font-size: calc(var(--palette-key, 44px) * 0.42);
+}
+
+/* 設定パネルの ＋ / −（大きさの上げ下げ） */
+.settings-stepper {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.settings-stepper button {
+  min-width: 30px;
+  min-height: 24px;
+  background: var(--surface2);
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.settings-stepper button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* ------------------------------------------------------------------ 重なり順（C-192）
+
+   歯車と設定パネルは、数字ボタンより上に出ていなければならない（利用者の指示）。
+   **これは既にそうなっている。** 共通ヘッダーが 100、拡大した数字ボタンが 5 で、
+   設定パネルはヘッダーの中（200）にあるためである。**新しく重ね順を足すと、
+   ダイアログ（300）や通知（400）との関係を壊す**ので、ここでは何も足さない。 */
+
+/* はみ出すほど大きくしたときの寄せ方（C-190）。
+   **横画面は右の中央、縦画面は下の中央**へ寄せる（利用者の指示） */
+.control-panel[data-placement='BOTTOM'] .palette {
+  justify-content: center;
+  margin-inline: auto;
+}
+
+.control-panel[data-placement='RIGHT'] .palette {
+  align-content: center;
+  margin-block: auto;
+}

@@ -1,0 +1,34 @@
+{
+  "schemaVersion": "1.04",
+  "n": 1,
+  "b": 1,
+  "released": true,
+  "count": 1,
+  "chunkSize": 25,
+  "updatedAt": "2026-08-05T12:41:56.356Z",
+  "difficultyCount": {
+    "Easy": 1,
+    "Hard": 0,
+    "Apocalypse": 0
+  },
+  "chunks": [
+    {
+      "file": "c0000.json",
+      "count": 1,
+      "idRange": [
+        "N1-000001",
+        "N1-000001"
+      ],
+      "difficultyCount": {
+        "Easy": 1,
+        "Hard": 0,
+        "Apocalypse": 0
+      },
+      "clueRatioRange": [
+        0,
+        0
+      ],
+      "truncatedCount": 0
+    }
+  ]
+}

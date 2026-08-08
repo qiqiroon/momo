@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "1.04",
+  "n": 49,
+  "b": 7,
+  "released": false,
+  "count": 0,
+  "chunkSize": 25,
+  "updatedAt": "2026-08-05T14:51:26.742Z",
+  "difficultyCount": {
+    "Easy": 0,
+    "Hard": 0,
+    "Apocalypse": 0
+  },
+  "chunks": []
+}

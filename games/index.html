@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MOMO Games v1.22 -->
+<!-- MOMO Games v1.24 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -74,7 +74,17 @@
   .section-label { display:flex; align-items:center; gap:12px; margin-bottom:20px; animation:fadeUp 0.6s ease 0.15s both; }
   .section-label span { font-size:0.72rem; font-weight:500; letter-spacing:0.14em; text-transform:uppercase; color:var(--orange); }
   .section-label::after { content:''; flex:1; height:1px; background:var(--border); }
-  .cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:16px; margin-bottom:60px; animation:fadeUp 0.6s ease 0.2s both; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:16px; animation:fadeUp 0.6s ease 0.2s both; }
+  /* ── CATEGORY SECTION（MOMO Tools と同じ流儀） ── */
+  .genres { margin-bottom:60px; }
+  .category-section { margin-bottom:40px; }
+  .category-section:last-child { margin-bottom:0; }
+  .category-label {
+    font-size:10px; font-weight:700; letter-spacing:0.15em; text-transform:uppercase;
+    color:var(--text-muted); border-bottom:1px solid var(--border);
+    padding-bottom:8px; margin-bottom:20px;
+    opacity:0; animation:fadeDown 0.5s 0.25s ease forwards;
+  }
   .card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:28px 24px; text-decoration:none; color:inherit; transition:border-color 0.2s, transform 0.2s, background 0.2s; display:flex; flex-direction:column; gap:10px; position:relative; overflow:hidden; }
   .card::before { content:''; position:absolute; inset:0; background:radial-gradient(ellipse at top left,rgba(194,65,12,0.09) 0%,transparent 60%); opacity:0; transition:opacity 0.3s; }
   .card:hover { border-color:var(--orange); transform:translateY(-3px); background:var(--surface2); }
@@ -173,52 +183,11 @@
 
   <div class="section-label"><span id="section-label">Game List</span></div>
 
-  <div class="cards">
-    <a class="card" href="tilt/">
-      <div class="card-head">
-        <img class="card-icon" src="tilt/favicon.svg" alt="" aria-hidden="true">
-        <div class="card-headtext">
-          <div class="card-title">MOMO <span>Tilt</span></div>
-          <div class="card-subtitle" id="tilt-subtitle">Tilt the World, Balance the Fate</div>
-        </div>
-      </div>
-      <div class="card-badge" id="tilt-badge">📱 Mobile</div>
-      <div class="card-desc" id="tilt-desc">スマホを傾けてボールを転がし、同じ色のゴールへ同時に入れるパズル＆アクション。鍵を集めてゴールを解錠、敵をかわしながらクリアを目指せ！</div>
-      <div class="card-meta" id="tilt-meta">
-        <span>📐 迷路</span>
-        <span>🔵 マルチボール</span>
-        <span id="tilt-device">スマホ対応</span>
-      </div>
-      <div class="platform-row">
-        <span class="platform-tag">🍎 iPhone</span>
-        <span class="platform-tag">🤖 Android</span>
-      </div>
-      <div class="card-play" id="tilt-play">今すぐプレイ</div>
-    </a>
-
-    <a class="card" href="hanoi/">
-      <div class="card-head">
-        <img class="card-icon" src="hanoi/favicon.svg" alt="" aria-hidden="true">
-        <div class="card-headtext">
-          <div class="card-title">MOMO <span>Hanoi</span></div>
-          <div class="card-subtitle" id="hanoi-subtitle">Tower Defence of Hanoi</div>
-        </div>
-      </div>
-      <div class="card-badge" id="hanoi-badge">🧩 Puzzle</div>
-      <div class="card-desc" id="hanoi-desc">ハノイの塔を解きながらUFOを迎撃するパズル×シューティング。円盤を移動させて砲弾を発射し、地面を守れ！</div>
-      <div class="card-meta" id="hanoi-meta">
-        <span>🧩 パズル</span>
-        <span>🛸 シューティング</span>
-        <span id="hanoi-diff">3難易度</span>
-      </div>
-      <div class="platform-row">
-        <span class="platform-tag">🍎 iPhone</span>
-        <span class="platform-tag">🤖 Android</span>
-        <span class="platform-tag">💻 PC</span>
-      </div>
-      <div class="card-play" id="hanoi-play">今すぐプレイ</div>
-    </a>
-
+  <div class="genres">
+    <!-- ── Online Games ── -->
+    <div class="category-section">
+      <div class="category-label" id="cat-online">Online Games</div>
+      <div class="cards">
     <a class="card" href="javascript:void(0)" onclick="openReversi()">
       <div class="card-head">
         <img class="card-icon" src="reversi/favicon.svg" alt="" aria-hidden="true">
@@ -241,7 +210,6 @@
       </div>
       <div class="card-play" id="reversi-play">今すぐプレイ</div>
     </a>
-
     <a class="card" href="javascript:void(0)" onclick="openGomokuGo()">
       <div class="card-head">
         <img class="card-icon" src="gomoku-go/favicon.svg" alt="" aria-hidden="true">
@@ -264,7 +232,6 @@
       </div>
       <div class="card-play" id="gomokugo-play">今すぐプレイ</div>
     </a>
-
     <a class="card card-wip" href="shogi/">
       <div class="card-head">
         <img class="card-icon" src="shogi/favicon.svg" alt="" aria-hidden="true">
@@ -287,7 +254,6 @@
       </div>
       <div class="card-play" id="shogi-play">今すぐプレイ</div>
     </a>
-
     <a class="card" href="javascript:void(0)" onclick="openDarts()">
       <div class="card-head">
         <img class="card-icon" src="darts/favicon.svg" alt="" aria-hidden="true">
@@ -309,7 +275,6 @@
       </div>
       <div class="card-play" id="darts-play">今すぐプレイ</div>
     </a>
-
     <a class="card" href="javascript:void(0)" onclick="openHanafuda()">
       <div class="card-head">
         <img class="card-icon" src="hanafuda/favicon.svg" alt="" aria-hidden="true">
@@ -332,6 +297,80 @@
       </div>
       <div class="card-play" id="hanafuda-play">今すぐプレイ</div>
     </a>
+      </div>
+    </div>
+
+    <!-- ── Puzzle Games ── -->
+    <div class="category-section">
+      <div class="category-label" id="cat-puzzle">Puzzle Games</div>
+      <div class="cards">
+    <a class="card" href="sudoku/">
+      <div class="card-head">
+        <img class="card-icon" src="sudoku/favicon.svg" alt="" aria-hidden="true">
+        <div class="card-headtext">
+          <div class="card-title">MOMO <span>Sudoku</span></div>
+          <div class="card-subtitle" id="sudoku-subtitle">You'll call it Su-doom.</div>
+        </div>
+      </div>
+      <div class="card-badge" id="sudoku-badge">🧩 パズル</div>
+      <div class="card-desc" id="sudoku-desc">1×1 から 49×49 まで選べる可変サイズのナンバープレイス。問題は作り溜めてあり、どれも解が1つに定まります。拡大縮小と拡大鏡で大きな盤面も読みやすく、候補メモ・取り消し・ヒント付き。</div>
+      <div class="card-meta" id="sudoku-meta">
+        <span>🧩 パズル</span>
+        <span>🔢 可変サイズ</span>
+        <span id="sudoku-players">1人</span>
+      </div>
+      <div class="platform-row">
+        <span class="platform-tag">🍎 iPhone</span>
+        <span class="platform-tag">🤖 Android</span>
+        <span class="platform-tag">💻 PC</span>
+      </div>
+      <div class="card-play" id="sudoku-play">今すぐプレイ</div>
+    </a>
+    <a class="card" href="tilt/">
+      <div class="card-head">
+        <img class="card-icon" src="tilt/favicon.svg" alt="" aria-hidden="true">
+        <div class="card-headtext">
+          <div class="card-title">MOMO <span>Tilt</span></div>
+          <div class="card-subtitle" id="tilt-subtitle">Tilt the World, Balance the Fate</div>
+        </div>
+      </div>
+      <div class="card-badge" id="tilt-badge">📱 Mobile</div>
+      <div class="card-desc" id="tilt-desc">スマホを傾けてボールを転がし、同じ色のゴールへ同時に入れるパズル＆アクション。鍵を集めてゴールを解錠、敵をかわしながらクリアを目指せ！</div>
+      <div class="card-meta" id="tilt-meta">
+        <span>📐 迷路</span>
+        <span>🔵 マルチボール</span>
+        <span id="tilt-device">スマホ対応</span>
+      </div>
+      <div class="platform-row">
+        <span class="platform-tag">🍎 iPhone</span>
+        <span class="platform-tag">🤖 Android</span>
+      </div>
+      <div class="card-play" id="tilt-play">今すぐプレイ</div>
+    </a>
+    <a class="card" href="hanoi/">
+      <div class="card-head">
+        <img class="card-icon" src="hanoi/favicon.svg" alt="" aria-hidden="true">
+        <div class="card-headtext">
+          <div class="card-title">MOMO <span>Hanoi</span></div>
+          <div class="card-subtitle" id="hanoi-subtitle">Tower Defence of Hanoi</div>
+        </div>
+      </div>
+      <div class="card-badge" id="hanoi-badge">🧩 Puzzle</div>
+      <div class="card-desc" id="hanoi-desc">ハノイの塔を解きながらUFOを迎撃するパズル×シューティング。円盤を移動させて砲弾を発射し、地面を守れ！</div>
+      <div class="card-meta" id="hanoi-meta">
+        <span>🧩 パズル</span>
+        <span>🛸 シューティング</span>
+        <span id="hanoi-diff">3難易度</span>
+      </div>
+      <div class="platform-row">
+        <span class="platform-tag">🍎 iPhone</span>
+        <span class="platform-tag">🤖 Android</span>
+        <span class="platform-tag">💻 PC</span>
+      </div>
+      <div class="card-play" id="hanoi-play">今すぐプレイ</div>
+    </a>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -344,6 +383,8 @@ const I18N = {
   ja: {
     headerSub: 'ブラウザで遊べるゲーム集',
     sectionLabel: 'Game List',
+    catOnline: 'Online Games',
+    catPuzzle: 'Puzzle Games',
     tiltBadge: '📱 モバイル',
     tiltSubtitle: 'Tilt the World, Balance the Fate',
     tiltDesc: 'スマホを傾けてボールを転がし、同じ色のゴールへ同時に入れるパズル＆アクション。鍵を集めてゴールを解錠、敵をかわしながらクリアを目指せ！',
@@ -379,11 +420,18 @@ const I18N = {
     hanafudaDesc: 'MOMO Hanafuda は花札をオンライン2人対戦で遊べるブラウザゲームです。4言語対応・PCとスマホの縦画面に対応。アカウント登録もインストールも不要です。',
     hanafudaMeta1: '🎴 花札', hanafudaMeta2: '🌐 オンライン対戦', hanafudaPlayers: '2人',
     hanafudaPlay: '今すぐプレイ',
+    sudokuBadge: '🧩 パズル',
+    sudokuSubtitle: "You'll call it Su-doom.",
+    sudokuDesc: '1×1 から 49×49 まで選べる可変サイズのナンバープレイス。問題は作り溜めてあり、どれも解が1つに定まります。拡大縮小と拡大鏡で大きな盤面も読みやすく、候補メモ・取り消し・ヒント付き。',
+    sudokuMeta1: '🧩 パズル', sudokuMeta2: '🔢 可変サイズ', sudokuPlayers: '1人',
+    sudokuPlay: '今すぐプレイ',
     footerBack: '← MOMO Works に戻る',
   },
   en: {
     headerSub: 'Browser games collection',
     sectionLabel: 'Game List',
+    catOnline: 'Online Games',
+    catPuzzle: 'Puzzle Games',
     tiltBadge: '📱 Mobile',
     tiltSubtitle: 'Tilt the World, Balance the Fate',
     tiltDesc: 'Tilt your phone to roll balls through a maze and drop them into matching color goals simultaneously. Collect keys, dodge enemies, and clear each stage!',
@@ -419,11 +467,18 @@ const I18N = {
     hanafudaDesc: 'MOMO Hanafuda lets you play the Japanese card game Hanafuda online against another player, in your browser. 4-language UI, works on PC and mobile portrait. No account, no install.',
     hanafudaMeta1: '🎴 Hanafuda', hanafudaMeta2: '🌐 Online', hanafudaPlayers: '2 Players',
     hanafudaPlay: 'Play Now',
+    sudokuBadge: '🧩 Puzzle',
+    sudokuSubtitle: "You'll call it Su-doom.",
+    sudokuDesc: 'Number-place puzzles on boards from 1x1 up to 49x49. Every puzzle is prepared in advance and has exactly one solution. Zoom and a loupe keep large boards readable, with candidate notes, undo and hints.',
+    sudokuMeta1: '🧩 Puzzle', sudokuMeta2: '🔢 Variable size', sudokuPlayers: '1 Player',
+    sudokuPlay: 'Play Now',
     footerBack: '← Back to MOMO Works',
   },
   zh: {
     headerSub: '可在浏览器中游玩的游戏合集',
     sectionLabel: 'Game List',
+    catOnline: 'Online Games',
+    catPuzzle: 'Puzzle Games',
     tiltBadge: '📱 移动',
     tiltSubtitle: '倾斜世界，掌握乾坤',
     tiltDesc: '倾斜手机滚动小球穿越迷宫，同时将所有小球送入对应颜色的目标洞。收集钥匙解锁目标，躲避敌人，挑战每一关！',
@@ -459,6 +514,11 @@ const I18N = {
     hanafudaDesc: 'MOMO Hanafuda 是一款可在浏览器中双人在线对战的花札游戏。支持 4 语言、可在 PC 与手机竖屏使用。无需注册、无需安装。',
     hanafudaMeta1: '🎴 花札', hanafudaMeta2: '🌐 在线对战', hanafudaPlayers: '2人',
     hanafudaPlay: '立即游玩',
+    sudokuBadge: '🧩 益智',
+    sudokuSubtitle: "You'll call it Su-doom.",
+    sudokuDesc: '盘面从 1×1 到 49×49 的可变尺寸数字谜题。题目均为预先生成，且解唯一。缩放与放大镜让大盘面依然清晰，并提供候选笔记、撤销与提示。',
+    sudokuMeta1: '🧩 益智', sudokuMeta2: '🔢 可变尺寸', sudokuPlayers: '1人',
+    sudokuPlay: '立即游玩',
     footerBack: '← 返回 MOMO Works',
   },
 };
@@ -515,6 +575,9 @@ function applyLang() {
   document.getElementById('hanoi-badge').textContent = t('hanoiBadge');
   document.getElementById('reversi-badge').textContent = t('reversiBadge');
   document.getElementById('gomokugo-badge').textContent = t('gomokugoBadge');
+  document.getElementById('cat-online').textContent = t('catOnline');
+  document.getElementById('cat-puzzle').textContent = t('catPuzzle');
+  document.getElementById('sudoku-badge').textContent = t('sudokuBadge');
   document.getElementById('shogi-badge').textContent = t('shogiBadge');
   document.getElementById('darts-badge').textContent = t('dartsBadge');
   document.getElementById('hanafuda-badge').textContent = t('hanafudaBadge');
@@ -553,6 +616,12 @@ function applyLang() {
   if (shogiMetaSpans[1]) shogiMetaSpans[1].textContent = t('shogiMeta2');
   document.getElementById('shogi-players').textContent = t('shogiPlayers');
   document.getElementById('shogi-play').textContent = t('shogiPlay');
+  document.getElementById('sudoku-desc').textContent = t('sudokuDesc');
+  const sudokuMetaSpans = document.querySelectorAll('#sudoku-meta span');
+  if (sudokuMetaSpans[0]) sudokuMetaSpans[0].textContent = t('sudokuMeta1');
+  if (sudokuMetaSpans[1]) sudokuMetaSpans[1].textContent = t('sudokuMeta2');
+  document.getElementById('sudoku-players').textContent = t('sudokuPlayers');
+  document.getElementById('sudoku-play').textContent = t('sudokuPlay');
   // Darts
   document.getElementById('darts-desc').textContent = t('dartsDesc');
   const dartsMetaSpans = document.querySelectorAll('#darts-meta span');
@@ -578,6 +647,7 @@ function applyLang() {
     ['shogi-subtitle',    subtitleDict.shogiSubtitle],
     ['darts-subtitle',    subtitleDict.dartsSubtitle],
     ['hanafuda-subtitle', subtitleDict.hanafudaSubtitle],
+    ['sudoku-subtitle',   subtitleDict.sudokuSubtitle],
   ].forEach(([id, text]) => {
     const el = document.getElementById(id);
     if (!el || !text) return;

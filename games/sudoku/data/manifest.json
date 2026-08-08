@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "1.04",
+  "updatedAt": "2026-08-05T12:58:43.742Z",
+  "sizes": [
+    {
+      "n": 1,
+      "released": true,
+      "count": 1,
+      "path": "n01/index.json"
+    },
+    {
+      "n": 4,
+      "released": true,
+      "count": 100,
+      "path": "n04/index.json"
+    },
+    {
+      "n": 9,
+      "released": true,
+      "count": 100,
+      "path": "n09/index.json"
+    },
+    {
+      "n": 16,
+      "released": true,
+      "count": 100,
+      "path": "n16/index.json"
+    },
+    {
+      "n": 25,
+      "released": true,
+      "count": 100,
+      "path": "n25/index.json"
+    },
+    {
+      "n": 36,
+      "released": false,
+      "count": 0,
+      "path": "n36/index.json"
+    },
+    {
+      "n": 49,
+      "released": false,
+      "count": 0,
+      "path": "n49/index.json"
+    }
+  ]
+}

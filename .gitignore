@@ -6,3 +6,14 @@ games/darts/v2.19/
 # Local-only app docs / specs (non-public)
 games/hanafuda/docs/
 games/matchmaking/docs/
+
+# Local-only working notes for Claude Code (do not publish)
+CLAUDE.md
+**/CLAUDE.md
+
+# Sudoku: generator-side ledger, developer PC only (server spec 3.3)
+.recorded.json
+
+# Windows thumbnail cache (never publish)
+Thumbs.db
+**/Thumbs.db

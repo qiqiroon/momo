@@ -1,0 +1,482 @@
+{
+  "schemaVersion": "1.04",
+  "n": 4,
+  "count": 25,
+  "puzzles": [
+    {
+      "schemaVersion": "1.04",
+      "id": "N4-000027",
+      "hash": "a92f8da4",
+      "n": 4,
+      "b": 2,
+      "difficulty": "Hard",
+      "clueCount": 7,
+      "clueRatio": 0.4375,
+      "puzzle": "1,0,0,2,0,0,0,1,4,0,0,3,2,0,0,4",
+      "solution": "1,4,3,2,3,2,4,1,4,1,2,3,2,3,1,4",
+      "generator": {
+        "appVersion": "1.00",
+        "algo": "DLX",
+        "createdAt": "2026-08-05T12:52:36.100Z",
+        "genTimeMs": 3,
+        "truncated": false
+      }
+    },
+    {
+      "schemaVersion": "1.04",
+      "id": "N4-000028",
+      "hash": "736695b8",
+      "n": 4,
+      "b": 2,
+      "difficulty": "Hard",
+      "clueCount": 7,
+      "clueRatio": 0.4375,
+      "puzzle": "0,0,4,0,4,0,0,3,3,0,2,4,0,4,0,0",
+      "solution": "1,3,4,2,4,2,1,3,3,1,2,4,2,4,3,1",
+      "generator": {
+        "appVersion": "1.00",
+        "algo": "DLX",
+        "createdAt": "2026-08-05T12:52:36.448Z",
+        "genTimeMs": 3,
+        "truncated": false
+      }
+    },
+    {
+      "schemaVersion": "1.04",
+      "id": "N4-000029",
+      "hash": "9781f2ac",
+      "n": 4,
+      "b": 2,
+      "difficulty": "Hard",
+      "clueCount": 7,
+      "clueRatio": 0.4375,
+      "puzzle": "0,4,1,2,0,0,0,0,0,0,2,0,1,2,3,0",
+      "solution": "3,4,1,2,2,1,4,3,4,3,2,1,1,2,3,4",
+      "generator": {
+        "appVersion": "1.00",
+        "algo": "DLX",
+        "createdAt": "2026-08-05T12:52:36.513Z",
+        "genTimeMs": 5,
+        "truncated": false
+      }
+    },
+    {
+      "schemaVersion": "1.04",
+      "id": "N4-000030",
+      "hash": "a82cc242",
+      "n": 4,
+      "b": 2,
+      "difficulty": "Hard",
+      "clueCount": 7,
+      "clueRatio": 0.4375,
+      "puzzle": "0,0,2,3,3,2,0,0,0,0,1,4,4,0,0,0",
+      "solution": "1,4,2,3,3,2,4,1,2,3,1,4,4,1,3,2",
+      "generator": {
+        "appVersion": "1.00",
+        "algo": "DLX",
+        "createdAt": "2026-08-05T12:52:36.582Z",
+        "genTimeMs": 3,
+        "truncated": false
+      }
+    },
+    {
+      "schemaVersion": "1.04",
+      "id": "N4-000031",
+      "hash": "91ac9759",
+      "n": 4,
+      "b": 2,
+      "difficulty": "Hard",
+      "clueCount": 7,
+      "clueRatio": 0.4375,
+      "puzzle": "0,0,0,1,1,0,2,0,0,1,0,2,2,0,0,3",
+      "solution": "4,2,3,1,1,3,2,4,3,1,4,2,2,4,1,3",
+      "generator": {
+        "appVersion": "1.00",
+        "algo": "DLX",
+        "createdAt": "2026-08-05T12:52:36.661Z",
+        "genTimeMs": 3,
+        "truncated": false
+      }
+    },
+    {
+      "schemaVersion": "1.04",
+      "id": "N4-000032",
+      "hash": "c68ced8f",
+      "n": 4,
+      "b": 2,
+      "difficulty": "Hard",
+      "clueCount": 7,
+      "clueRatio": 0.4375,
+      "puzzle": "4,0,0,2,0,0,3,0,0,2,4,0,1,0,0,3",
+      "solution": "4,3,1,2,2,1,3,4,3,2,4,1,1,4,2,3",
+      "generator": {
+        "appVersion": "1.00",
+        "algo": "DLX",
+        "createdAt": "2026-08-05T12:52:36.736Z",
+        "genTimeMs": 4,
+        "truncated": false
+      }
+    },
+    {
+      "schemaVersion": "1.04",
+      "id": "N4-000033",
+      "hash": "427a5dca",
+      "n": 4,
+      "b": 2,
+      "difficulty": "Hard",
+      "clueCount": 7,
+      "clueRatio": 0.4375,
+      "puzzle": "0,1,0,4,4,0,0,0,1,0,0,2,2,0,1,0",
+      "solution": "3,1,2,4,4,2,3,1,1,3,4,2,2,4,1,3",
+      "generator": {
+        "appVersion": "1.00",
+        "algo": "DLX",
+        "createdAt": "2026-08-05T12:52:36.812Z",
+        "genTimeMs": 3,
+        "truncated": false
+      }
+    },
+    {
+      "schemaVersion": "1.04",
+      "id": "N4-000034",
+      "hash": "d26135d9",
+      "n": 4,
+      "b": 2,
+      "difficulty": "Hard",
+      "clueCount": 7,
+      "clueRatio": 0.4375,
+      "puzzle": "0,0,1,0,4,1,0,3,2,0,4,0,0,4,0,0",
+      "solution": "3,2,1,4,4,1,2,3,2,3,4,1,1,4,3,2",
+      "generator": {
+        "appVersion": "1.00",
+        "algo": "DLX",
+        "createdAt": "2026-08-05T12:52:36.889Z",
+        "genTimeMs": 5,
+        "truncated": false
+      }
+    },
+    {
+      "schemaVersion": "1.04",
+      "id": "N4-000035",
+      "hash": "3641fd87",
+      "n": 4,
+      "b": 2,
+      "difficulty": "Hard",
+      "clueCount": 7,
+      "clueRatio": 0.4375,
+      "puzzle": "3,1,2,0,0,0,1,0,0,0,0,0,0,4,3,1",
+      "solution": "3,1,2,4,4,2,1,3,1,3,4,2,2,4,3,1",
+      "generator": {
+        "appVersion": "1.00",
+        "algo": "DLX",
+        "createdAt": "2026-08-05T12:52:37.059Z",
+        "genTimeMs": 3,
+        "truncated": false
+      }
+    },
+    {
+      "schemaVersion": "1.04",
+      "id": "N4-000036",
+      "hash": "19484469",
+      "n": 4,
+      "b": 2,
+      "difficulty": "Hard",
+      "clueCount": 7,
+      "clueRatio": 0.4375,
+      "puzzle": "4,0,0,0,1,0,4,2,3,0,0,1,0,0,0,4",
+      "solution": "4,2,1,3,1,3,4,2,3,4,2,1,2,1,3,4",
+      "generator": {
+        "appVersion": "1.00",
+        "algo": "DLX",
+        "createdAt": "2026-08-05T12:52:37.251Z",
+        "genTimeMs": 6,
+        "truncated": false
+      }
+    },
+    {
+      "schemaVersion": "1.04",
+      "id": "N4-000037",
+      "hash": "ed487d32",
+      "n": 4,
+      "b": 2,
+      "difficulty": "Hard",
+      "clueCount": 7,
+      "clueRatio": 0.4375,
+      "puzzle": "0,2,0,3,0,1,0,0,0,0,3,0,1,3,4,0",
+      "solution": "4,2,1,3,3,1,2,4,2,4,3,1,1,3,4,2",
+      "generator": {
+        "appVersion": "1.00",
+        "algo": "DLX",
+        "createdAt": "2026-08-05T12:52:37.383Z",
+        "genTimeMs": 7,
+        "truncated": false
+      }
+    },
+    {
+      "schemaVersion": "1.04",
+      "id": "N4-000038",
+      "hash": "17d11e72",
+      "n": 4,
+      "b": 2,
+      "difficulty": "Hard",
+      "clueCount": 7,
+      "clueRatio": 0.4375,
+      "puzzle": "0,0,4,0,4,1,3,0,0,0,1,3,0,3,0,0",
+      "solution": "3,2,4,1,4,1,3,2,2,4,1,3,1,3,2,4",
+      "generator": {
+        "appVersion": "1.00",
+        "algo": "DLX",
+        "createdAt": "2026-08-05T12:52:37.457Z",
+        "genTimeMs": 5,
+        "truncated": false
+      }
+    },
+    {
+      "schemaVersion": "1.04",
+      "id": "N4-000039",
+      "hash": "6850ad8e",
+      "n": 4,
+      "b": 2,
+      "difficulty": "Hard",
+      "clueCount": 7,
+      "clueRatio": 0.4375,
+      "puzzle": "3,0,0,0,2,0,3,4,0,2,0,3,0,0,0,1",
+      "solution": "3,4,1,2,2,1,3,4,1,2,4,3,4,3,2,1",
+      "generator": {
+        "appVersion": "1.00",
+        "algo": "DLX",
+        "createdAt": "2026-08-05T12:52:37.537Z",
+        "genTimeMs": 4,
+        "truncated": false
+      }
+    },
+    {
+      "schemaVersion": "1.04",
+      "id": "N4-000040",
+      "hash": "e5e578e9",
+      "n": 4,
+      "b": 2,
+      "difficulty": "Hard",
+      "clueCount": 7,
+      "clueRatio": 0.4375,
+      "puzzle": "3,0,2,0,4,0,0,3,2,0,0,1,0,3,0,0",
+      "solution": "3,1,2,4,4,2,1,3,2,4,3,1,1,3,4,2",
+      "generator": {
+        "appVersion": "1.00",
+        "algo": "DLX",
+        "createdAt": "2026-08-05T12:52:37.640Z",
+        "genTimeMs": 1,
+        "truncated": false
+      }
+    },
+    {
+      "schemaVersion": "1.04",
+      "id": "N4-000041",
+      "hash": "51eeef4b",
+      "n": 4,
+      "b": 2,
+      "difficulty": "Hard",
+      "clueCount": 7,
+      "clueRatio": 0.4375,
+      "puzzle": "4,0,2,1,0,0,0,0,0,0,1,0,1,2,0,3",
+      "solution": "4,3,2,1,2,1,3,4,3,4,1,2,1,2,4,3",
+      "generator": {
+        "appVersion": "1.00",
+        "algo": "DLX",
+        "createdAt": "2026-08-05T12:52:37.684Z",
+        "genTimeMs": 1,
+        "truncated": false
+      }
+    },
+    {
+      "schemaVersion": "1.04",
+      "id": "N4-000042",
+      "hash": "0a95117d",
+      "n": 4,
+      "b": 2,
+      "difficulty": "Hard",
+      "clueCount": 7,
+      "clueRatio": 0.4375,
+      "puzzle": "0,0,0,4,4,0,0,3,3,0,0,1,1,0,0,2",
+      "solution": "2,3,1,4,4,1,2,3,3,2,4,1,1,4,3,2",
+      "generator": {
+        "appVersion": "1.00",
+        "algo": "DLX",
+        "createdAt": "2026-08-05T12:52:37.749Z",
+        "genTimeMs": 1,
+        "truncated": false
+      }
+    },
+    {
+      "schemaVersion": "1.04",
+      "id": "N4-000043",
+      "hash": "410d4596",
+      "n": 4,
+      "b": 2,
+      "difficulty": "Hard",
+      "clueCount": 7,
+      "clueRatio": 0.4375,
+      "puzzle": "0,0,1,0,1,3,0,0,0,1,3,4,0,4,0,0",
+      "solution": "4,2,1,3,1,3,4,2,2,1,3,4,3,4,2,1",
+      "generator": {
+        "appVersion": "1.00",
+        "algo": "DLX",
+        "createdAt": "2026-08-05T12:52:37.857Z",
+        "genTimeMs": 2,
+        "truncated": false
+      }
+    },
+    {
+      "schemaVersion": "1.04",
+      "id": "N4-000044",
+      "hash": "9bc25e6a",
+      "n": 4,
+      "b": 2,
+      "difficulty": "Hard",
+      "clueCount": 7,
+      "clueRatio": 0.4375,
+      "puzzle": "1,2,4,0,0,0,1,0,0,4,0,0,0,0,3,4",
+      "solution": "1,2,4,3,4,3,1,2,3,4,2,1,2,1,3,4",
+      "generator": {
+        "appVersion": "1.00",
+        "algo": "DLX",
+        "createdAt": "2026-08-05T12:52:37.924Z",
+        "genTimeMs": 2,
+        "truncated": false
+      }
+    },
+    {
+      "schemaVersion": "1.04",
+      "id": "N4-000045",
+      "hash": "67234631",
+      "n": 4,
+      "b": 2,
+      "difficulty": "Hard",
+      "clueCount": 7,
+      "clueRatio": 0.4375,
+      "puzzle": "2,4,3,0,0,0,0,0,0,2,0,0,0,3,4,2",
+      "solution": "2,4,3,1,3,1,2,4,4,2,1,3,1,3,4,2",
+      "generator": {
+        "appVersion": "1.00",
+        "algo": "DLX",
+        "createdAt": "2026-08-05T12:52:38.179Z",
+        "genTimeMs": 2,
+        "truncated": false
+      }
+    },
+    {
+      "schemaVersion": "1.04",
+      "id": "N4-000046",
+      "hash": "b2cbc066",
+      "n": 4,
+      "b": 2,
+      "difficulty": "Hard",
+      "clueCount": 7,
+      "clueRatio": 0.4375,
+      "puzzle": "0,0,2,0,0,4,0,3,3,0,4,1,0,1,0,0",
+      "solution": "1,3,2,4,2,4,1,3,3,2,4,1,4,1,3,2",
+      "generator": {
+        "appVersion": "1.00",
+        "algo": "DLX",
+        "createdAt": "2026-08-05T12:52:38.268Z",
+        "genTimeMs": 1,
+        "truncated": false
+      }
+    },
+    {
+      "schemaVersion": "1.04",
+      "id": "N4-000047",
+      "hash": "47946619",
+      "n": 4,
+      "b": 2,
+      "difficulty": "Hard",
+      "clueCount": 7,
+      "clueRatio": 0.4375,
+      "puzzle": "0,1,0,0,2,0,1,4,0,2,0,1,0,0,3,0",
+      "solution": "4,1,2,3,2,3,1,4,3,2,4,1,1,4,3,2",
+      "generator": {
+        "appVersion": "1.00",
+        "algo": "DLX",
+        "createdAt": "2026-08-05T12:52:38.333Z",
+        "genTimeMs": 1,
+        "truncated": false
+      }
+    },
+    {
+      "schemaVersion": "1.04",
+      "id": "N4-000048",
+      "hash": "2a996048",
+      "n": 4,
+      "b": 2,
+      "difficulty": "Hard",
+      "clueCount": 7,
+      "clueRatio": 0.4375,
+      "puzzle": "0,3,0,0,4,0,0,1,3,0,0,2,0,4,1,0",
+      "solution": "1,3,2,4,4,2,3,1,3,1,4,2,2,4,1,3",
+      "generator": {
+        "appVersion": "1.00",
+        "algo": "DLX",
+        "createdAt": "2026-08-05T12:52:38.396Z",
+        "genTimeMs": 2,
+        "truncated": false
+      }
+    },
+    {
+      "schemaVersion": "1.04",
+      "id": "N4-000049",
+      "hash": "d495c646",
+      "n": 4,
+      "b": 2,
+      "difficulty": "Hard",
+      "clueCount": 7,
+      "clueRatio": 0.4375,
+      "puzzle": "0,0,0,3,0,3,0,4,2,0,3,0,3,0,4,0",
+      "solution": "4,2,1,3,1,3,2,4,2,4,3,1,3,1,4,2",
+      "generator": {
+        "appVersion": "1.00",
+        "algo": "DLX",
+        "createdAt": "2026-08-05T12:52:38.464Z",
+        "genTimeMs": 1,
+        "truncated": false
+      }
+    },
+    {
+      "schemaVersion": "1.04",
+      "id": "N4-000050",
+      "hash": "472181f9",
+      "n": 4,
+      "b": 2,
+      "difficulty": "Hard",
+      "clueCount": 7,
+      "clueRatio": 0.4375,
+      "puzzle": "0,1,0,0,0,0,1,2,4,3,0,1,0,0,4,0",
+      "solution": "2,1,3,4,3,4,1,2,4,3,2,1,1,2,4,3",
+      "generator": {
+        "appVersion": "1.00",
+        "algo": "DLX",
+        "createdAt": "2026-08-05T12:52:38.534Z",
+        "genTimeMs": 1,
+        "truncated": false
+      }
+    },
+    {
+      "schemaVersion": "1.04",
+      "id": "N4-000051",
+      "hash": "405ec0e8",
+      "n": 4,
+      "b": 2,
+      "difficulty": "Hard",
+      "clueCount": 7,
+      "clueRatio": 0.4375,
+      "puzzle": "0,0,0,0,4,2,3,0,0,1,4,3,0,4,0,0",
+      "solution": "1,3,2,4,4,2,3,1,2,1,4,3,3,4,1,2",
+      "generator": {
+        "appVersion": "1.00",
+        "algo": "DLX",
+        "createdAt": "2026-08-05T12:52:38.605Z",
+        "genTimeMs": 1,
+        "truncated": false
+      }
+    }
+  ]
+}

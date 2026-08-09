@@ -161,11 +161,38 @@ const TONES: Record<FeedbackCue, ToneSpec> = {
 };
 
 /**
+ * 音の文脈（AudioContext）は**アプリ全体で1つだけ**にする（C-202）
+ *
+ * 合成音と音声ファイルの両方が Web Audio で鳴るようになったので、方式ごとに持つと
+ * 文脈が2つできる。端末によっては同時に持てる数に上限があり、
+ * **後から作ったほうが止まったまま**になる。
+ *
+ * 最初に必要になるまで作らない。ブラウザは利用者の操作なしに音を鳴らすことを許さないため、
+ * 起動直後に作ると停止状態のまま残る（11.7.4）。作れない環境では `null` を返すだけとし、
+ * 分岐による機能差は設けない。
+ */
+let sharedContext: AudioContext | null = null;
+
+function audioContext(): AudioContext | null {
+  if (sharedContext !== null) return sharedContext;
+  const Ctor =
+    typeof window === 'undefined'
+      ? undefined
+      : (window.AudioContext ??
+        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext);
+  if (Ctor === undefined) return null;
+  try {
+    sharedContext = new Ctor();
+  } catch {
+    return null;
+  }
+  return sharedContext;
+}
+
+/**
  * 合成音（Web Audio API）
  *
  * **音声ファイルを持たない＝配信容量が増えない。** 音量も長さもその場で作る。
- * 音の文脈（AudioContext）は最初の再生まで作らない。ブラウザは利用者の操作なしに
- * 音を鳴らすことを許さないため、起動直後に作ると停止状態のまま残る（11.7.4）。
  */
 export function createSynthSource(): SoundSource {
   let context: AudioContext | null = null;
@@ -175,13 +202,8 @@ export function createSynthSource(): SoundSource {
 
   const ensure = (): boolean => {
     if (context !== null) return true;
-    const Ctor =
-      typeof window === 'undefined'
-        ? undefined
-        : (window.AudioContext ??
-          (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext);
-    if (Ctor === undefined) return false;
-    context = new Ctor();
+    context = audioContext();
+    if (context === null) return false;
     master = context.createGain();
     master.connect(context.destination);
     return true;
@@ -272,17 +294,17 @@ export function createSynthSource(): SoundSource {
 }
 
 /**
- * 音声ファイルの再生（U-18 の決着＝**こちらを採用**）
+ * 音声ファイルの再生（控えの方式・C-202）
  *
  * 契機ごとに短い音声ファイルを1本ずつ持ち、`Audio` で鳴らす。
- * **合成音と違って配信容量を使う**代わりに、作り込んだ音をそのまま使える。
- * 差し替えは `base` の下にファイルを置くだけで済む。
+ * **この方式は、鳴らし始める瞬間に本体側の手が空いている必要がある。**
+ * 盤面の描き直しが重いあいだは、頼んでも鳴り出せずに待たされる（49×49 の実機で判明）。
+ * よって**ふだんは使わない**。Web Audio が使えない環境と、まだ展開が済んでいない
+ * 一瞬のあいだだけ、ここへ落ちてくる。
  *
  * 形式は **MP3**（案内書 §6「記録する前に必ず軽くする」）。無圧縮の 67.3KB を 13.9KB にした。
- * MP3 は先頭に無音が入る（実測 17.5〜50ms）が、いちばん頻繁に鳴る入力音でも
- * 人が遅れとして感じ始める手前である。
  */
-export function createSampleSource(base: string): SoundSource {
+export function createElementSource(base: string): SoundSource {
   const cache = new Map<FeedbackCue, HTMLAudioElement>();
   let current: HTMLAudioElement | null = null;
 
@@ -350,6 +372,118 @@ export function createSampleSource(base: string): SoundSource {
         // 再生できない環境では何もしないだけとし、分岐による機能差は設けない
       }
       current = audio;
+    },
+    stop,
+  };
+}
+
+/**
+ * 音声ファイルの再生（U-18 の決着＝**こちらを採用**・C-202 で作り直し）
+ *
+ * 作り込んだ音をそのまま使う点は変わらないが、**鳴らし方をブザーと同じ Web Audio に寄せた。**
+ *
+ * ---
+ *
+ * **なぜ作り直したか**
+ *
+ * `Audio` で鳴らす方式は、鳴らし始める瞬間に本体側の手が空いている必要がある。
+ * ところが数字を入れた直後は、次のコマで**盤面の描き直しが走る**。
+ * 49×49 の序盤は候補メモが盤面いっぱいに描かれるため、ここが長い。
+ * その結果「頼んだのに鳴り出せない」状態が生まれ、**遅れて鳴る・時々鳴らない**という形で出た。
+ * 盤面が埋まるほど描く量が減って速くなる、という利用者の証言とも一致する。
+ *
+ * 展開（デコード）を**先に一度だけ**済ませておけば、鳴らすときは音の側へ合図を渡すだけで済む。
+ * 合図を受けたあとの再生は音の担当が受け持つので、**本体が重い処理をしていても先に音が出る。**
+ *
+ * 展開が間に合っていない一瞬と、Web Audio が使えない環境では、
+ * 従来の `Audio` へ落とす（`createElementSource`）。**鳴らないよりは遅れて鳴るほうがよい。**
+ */
+export function createSampleSource(base: string): SoundSource {
+  /** 展開済みの音。**契機ごとに1つ。一度展開したら使い回す** */
+  const buffers = new Map<FeedbackCue, AudioBuffer>();
+  /** 展開の最中。二重に取りに行かないために持つ */
+  const loading = new Set<FeedbackCue>();
+  const fallback = createElementSource(base);
+  let playing: AudioBufferSourceNode | null = null;
+
+  /**
+   * 展開は約束を返す形と、成否を受け口で受け取る形の2つがある。
+   * **古い作りの端末は後者しか持たない**ので、どちらでも動くようにしておく。
+   */
+  const decode = (context: AudioContext, bytes: ArrayBuffer): Promise<AudioBuffer> =>
+    new Promise<AudioBuffer>((resolve, reject) => {
+      const returned: unknown = context.decodeAudioData(bytes, resolve, reject);
+      if (returned instanceof Promise) returned.then(resolve, reject);
+    });
+
+  /** 1つぶんを取りに行って展開する。**既にあるもの・取得中のものは何もしない** */
+  const load = (cue: FeedbackCue): void => {
+    const context = audioContext();
+    if (context === null || typeof fetch !== 'function') {
+      // Web Audio が使えない環境では、控えの方式に先読みだけさせる
+      fallback.warm?.([cue]);
+      return;
+    }
+    if (buffers.has(cue) || loading.has(cue)) return;
+    loading.add(cue);
+
+    void fetch(`${base}${cue.toLowerCase()}.mp3`)
+      .then((response) => response.arrayBuffer())
+      .then((bytes) => decode(context, bytes))
+      .then((buffer) => {
+        buffers.set(cue, buffer);
+        // **展開が終わった時点を残す**（C-179）。間に合っていたかが記録から読める
+        diagnostics.recordEvent('音の用意ができた', cue);
+      })
+      .catch(() => {
+        // 取れない・展開できないときは控えへ回すだけとし、機能差は設けない
+        fallback.warm?.([cue]);
+      })
+      .finally(() => loading.delete(cue));
+  };
+
+  const stop = (): void => {
+    if (playing !== null) {
+      try {
+        playing.stop();
+      } catch {
+        // 既に鳴り終わっている場合は何もしない
+      }
+      playing = null;
+    }
+    // 控えで鳴っているものも一緒に止める。片方だけ止めると2つ重なって鳴る
+    fallback.stop();
+  };
+
+  return {
+    warm(cues) {
+      for (const cue of cues) load(cue);
+      diagnostics.recordEvent('音の先読みを始めた', `${cues.length}件`);
+    },
+    play(cue, volume) {
+      const context = audioContext();
+      const buffer = buffers.get(cue);
+      if (context === null || buffer === undefined) {
+        // まだ展開できていないなら、取りに行かせたうえで今回は控えの方式で鳴らす
+        load(cue);
+        fallback.play(cue, volume);
+        return;
+      }
+
+      stop();
+      // 一度止まっていた場合は鳴らす直前に起こす（iOS で頻繁に起きる）
+      if (context.state === 'suspended') void context.resume();
+
+      const gain = context.createGain();
+      gain.gain.value = Math.min(1, Math.max(0, volume));
+      const node = context.createBufferSource();
+      node.buffer = buffer;
+      node.connect(gain);
+      gain.connect(context.destination);
+
+      diagnostics.recordEvent('音の要求', `${cue} 展開済み`);
+      node.start();
+      playing = node;
     },
     stop,
   };

@@ -172,8 +172,11 @@ describe('ヒント吹き出しの判定（10.2 / 10.3 / 10.4）', () => {
 
   it('対象セルが画面外なら吹き出しを描かない（表示状態は保持する・10.2）', () => {
     const layout = createLayout(49);
-    // 左上へ寄せると右下のセルは画面外
-    const vp = pan(zoomTo(initial(layout, W, H), layout, MAX_ZOOM), layout, 100000, 100000);
+    // 盤面の左上隅を画面の左上へ合わせると、右下のセルは画面外になる。
+    // **位置に制限が無くなったので（C-203）、寄せ先は自分で指定する。**
+    // 大きく引くと盤面ごと画面の外へ出てしまい、左上も盤面でなくなる
+    const zoomed = zoomTo(initial(layout, W, H), layout, MAX_ZOOM);
+    const vp = pan(zoomed, layout, -zoomed.offsetX, -zoomed.offsetY);
     const hints = [hint(49 * 49 - 1, 49, 1)];
     expect(bubbleGeometries(layout, vp, hints)).toHaveLength(0);
     // 判定にも現れない

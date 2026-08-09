@@ -20,12 +20,22 @@ export interface ActionButtonsProps {
   canErase: boolean;
   /** 数字入力そのものが行えるか（セル未選択・固定セル選択中は不可） */
   canInput: boolean;
+  /**
+   * 数字ボタンの伸び縮みを手で切り替えられるか（C-204）
+   *
+   * **二段構えに入っているときだけ出す。** 伸び縮みしない画面では押しても何も起きず、
+   * 並びを1つ増やすだけになる。
+   */
+  canTogglePalette: boolean;
+  /** いま手で縮めているか。押すたびに入れ替わる */
+  paletteCollapsed: boolean;
   onErase(): void;
   onToggleNoteMode(): void;
   onUndo(): void;
   onRedo(): void;
   onHint(): void;
   onSuspend(): void;
+  onTogglePalette(): void;
 }
 
 export function ActionButtons(props: ActionButtonsProps): React.ReactElement {
@@ -77,6 +87,22 @@ export function ActionButtons(props: ActionButtonsProps): React.ReactElement {
       <button type="button" className="btn" onClick={props.onHint} data-testid="action-hint">
         {t('play.action.hint')}
       </button>
+
+      {/*
+        せり上がった数字ボタンが盤面を覆うので、**手で引っ込められる逃げ道**を置く（C-204）。
+        押しているあいだだけの措置で、別のマスを選び直せば自動の振る舞いへ戻る。
+      */}
+      {props.canTogglePalette && (
+        <button
+          type="button"
+          className="btn"
+          aria-pressed={props.paletteCollapsed}
+          onClick={props.onTogglePalette}
+          data-testid="action-palette"
+        >
+          {t(props.paletteCollapsed ? 'play.action.palette.expand' : 'play.action.palette.shrink')}
+        </button>
+      )}
 
       <button type="button" className="btn" onClick={props.onSuspend} data-testid="action-suspend">
         {t('play.action.suspend')}

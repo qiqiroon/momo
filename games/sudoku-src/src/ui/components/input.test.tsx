@@ -160,6 +160,9 @@ describe('操作ボタンの活性条件（8.6 / C-53）', () => {
     onRedo: noop,
     onHint: noop,
     onSuspend: noop,
+    canTogglePalette: false,
+    paletteCollapsed: false,
+    onTogglePalette: noop,
   };
 
   beforeEach(async () => {

@@ -53,6 +53,15 @@ export interface ControlPanelProps {
    * そうしないと、いま何を決めているのかが見えない（利用者の指示）。
    */
   sizePreview?: boolean;
+  /**
+   * 手で縮めているか（C-204・利用者の指示）
+   *
+   * 二段構えでは、マスを選ぶと数字ボタンがせり上がって盤面を覆う。
+   * **その場だけ引っ込めたいことがある**ので、手で切り替えられるようにした。
+   * **別のマスを選び直せば自動の振る舞いへ戻る**（呼び出し側が解除する）。
+   */
+  paletteCollapsed: boolean;
+  onTogglePaletteCollapsed(): void;
 }
 
 /** 操作パネルの置き場所（C-166） */
@@ -283,8 +292,15 @@ export function ControlPanel(props: ControlPanelProps): React.ReactElement {
     windowSpanPx,
     keyPx,
   );
-  // **大きさを決めている最中は、二段目に相当する姿で見せる**（C-190・利用者の指示）
-  const expanded = twoStage && (canInput || props.sizePreview === true);
+  /**
+   * **大きさを決めている最中は、二段目に相当する姿で見せる**（C-190・利用者の指示）
+   *
+   * 手で縮めているあいだは、マスを選んでいても伸ばさない（C-204）。
+   * ただし**大きさを決めている最中だけは手の指定より優先する。**
+   * いま何を決めているのかが見えないと、決めようがないためである。
+   */
+  const expanded =
+    twoStage && ((canInput && !props.paletteCollapsed) || props.sizePreview === true);
 
   /**
    * 右置きの列数と帯の幅（C-166）。
@@ -428,12 +444,15 @@ export function ControlPanel(props: ControlPanelProps): React.ReactElement {
         canRedo={props.canRedo}
         canErase={canErase}
         canInput={canInput}
+        canTogglePalette={twoStage}
+        paletteCollapsed={props.paletteCollapsed}
         onErase={props.onErase}
         onToggleNoteMode={props.onToggleNoteMode}
         onUndo={props.onUndo}
         onRedo={props.onRedo}
         onHint={props.onHint}
         onSuspend={props.onSuspend}
+        onTogglePalette={props.onTogglePaletteCollapsed}
       />
     </div>
   );

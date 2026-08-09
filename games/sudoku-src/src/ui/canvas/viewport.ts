@@ -56,25 +56,21 @@ export function fitOf(layout: BoardLayout, width: number, height: number): numbe
 /** 初期状態（盤面全体・中央寄せ）を作る。初期倍率は常に fit倍率である（C-48 / C-167） */
 export function initial(layout: BoardLayout, width: number, height: number): ViewportState {
   const zoom = fitOf(layout, width, height);
-  // **中央寄せはここで明示する。** 境界制御は余白の中を自由に動かせるようになったので
-  // （新6）、任せておいても中央には来ない
+  // **中央寄せはここで明示する。** 位置に制限が無いので（C-203）、任せておいても中央には来ない
   const boardPx = layout.boardSize * zoom;
-  return clampOffsets(
-    {
-      zoom,
-      offsetX: (width - boardPx) / 2,
-      offsetY: (height - boardPx) / 2,
-      width,
-      height,
-    },
-    layout,
-  );
+  return {
+    zoom,
+    offsetX: (width - boardPx) / 2,
+    offsetY: (height - boardPx) / 2,
+    width,
+    height,
+  };
 }
 
-/** 不動点を保ったまま倍率を変更し、境界制御を適用する */
+/** 不動点を保ったまま倍率を変更する */
 export function zoomAt(
   vp: ViewportState,
-  layout: BoardLayout,
+  _layout: BoardLayout,
   factor: number,
   originX: number,
   originY: number,
@@ -85,15 +81,12 @@ export function zoomAt(
   // 不動点の論理座標を保つ
   const logicalX = (originX - vp.offsetX) / vp.zoom;
   const logicalY = (originY - vp.offsetY) / vp.zoom;
-  return clampOffsets(
-    {
-      ...vp,
-      zoom: next,
-      offsetX: originX - logicalX * next,
-      offsetY: originY - logicalY * next,
-    },
-    layout,
-  );
+  return {
+    ...vp,
+    zoom: next,
+    offsetX: originX - logicalX * next,
+    offsetY: originY - logicalY * next,
+  };
 }
 
 /**
@@ -111,14 +104,14 @@ export function zoomTo(
   return zoomAt(vp, layout, zoom / vp.zoom, point.x, point.y);
 }
 
-/** パンし、境界制御を適用する（5.4） */
+/** パンする（5.4 / C-203）。**止める場所は無い。動かしたぶんだけ動く** */
 export function pan(
   vp: ViewportState,
-  layout: BoardLayout,
+  _layout: BoardLayout,
   dx: number,
   dy: number,
 ): ViewportState {
-  return clampOffsets({ ...vp, offsetX: vp.offsetX + dx, offsetY: vp.offsetY + dy }, layout);
+  return { ...vp, offsetX: vp.offsetX + dx, offsetY: vp.offsetY + dy };
 }
 
 /** 盤面全体が入る倍率へ戻し、中央へ寄せる（「全体」ボタン・5.5） */
@@ -135,23 +128,20 @@ export function fit(vp: ViewportState, layout: BoardLayout): ViewportState {
  */
 export function resize(
   vp: ViewportState,
-  layout: BoardLayout,
+  _layout: BoardLayout,
   width: number,
   height: number,
 ): ViewportState {
   const centerX = (vp.width / 2 - vp.offsetX) / vp.zoom;
   const centerY = (vp.height / 2 - vp.offsetY) / vp.zoom;
   const zoom = clamp(vp.zoom, MIN_ZOOM, MAX_ZOOM);
-  return clampOffsets(
-    {
-      zoom,
-      offsetX: width / 2 - centerX * zoom,
-      offsetY: height / 2 - centerY * zoom,
-      width,
-      height,
-    },
-    layout,
-  );
+  return {
+    zoom,
+    offsetX: width / 2 - centerX * zoom,
+    offsetY: height / 2 - centerY * zoom,
+    width,
+    height,
+  };
 }
 
 /** 現在のセル実寸（CSS px）。表示LOD とルーペの唯一の判定基準である（6.1 / 7.1） */
@@ -200,36 +190,23 @@ export function toLogical(vp: ViewportState, x: number, y: number): { x: number;
   return { x: (x - vp.offsetX) / vp.zoom, y: (y - vp.offsetY) / vp.zoom };
 }
 
-// ---------------------------------------------------------------- 境界制御（5.4）
+// ---------------------------------------------------------------- 位置の制限（5.4 / C-203）
 
 /**
- * 盤面の外側が描画領域に入らないよう `offset` を制限する。
- * 盤面が描画領域より小さい軸は**中央固定**とし、その軸のパンを無効にする。
- * ゴムバンドは設けない。越える操作はその場で止まる。
- */
-function clampOffsets(vp: ViewportState, layout: BoardLayout): ViewportState {
-  const boardPx = layout.boardSize * vp.zoom;
-  return {
-    ...vp,
-    offsetX: clampAxis(vp.offsetX, boardPx, vp.width),
-    offsetY: clampAxis(vp.offsetY, boardPx, vp.height),
-  };
-}
-
-/**
- * 1軸ぶんの境界制御（新6）
+ * **位置の制限は設けない。どこまでも動かせる**（C-203・利用者の指示）
  *
- * **盤面が描画領域に収まっている軸でも、余白のぶんだけ寄せられる。**
- * 段階7 までは中央固定にしていたが、横画面では盤面領域が横に広く縦に短いため、
- * 拡大しても横だけ余白が残り続け、**横へ引いても何も起きない**という手ざわりになった
- * （820×420 の 16×16 で、縦のつまみは 263/319 に対し横のつまみは帯いっぱい）。
+ * 段階7 までは「盤面の外側を描画領域に入れない」という制限を置いていた。
+ * これは余白を見せないための決まりだったが、**端のマスを画面の中央へ持ってこられない**
+ * という不便を生む。49×49 の縦画面では、いちばん下の行を選ぶと数字ボタンの帯にかかり、
+ * どう引いても真ん中まで上がってこなかった。
  *
- * 動ける範囲は「端から端まで」で、行き過ぎない点は従来どおり。ゴムバンドは設けない。
+ * 制限を外すと盤面を見失いうるが、**「全体」ボタン（5.5）がいつでも中央へ戻す**ので
+ * 行き止まりにはならない。**逃げ道が1つあるなら、動きのほうを縛らない。**
+ *
+ * これに伴い、脇のスクロールつまみ（C-165）は**盤面の外へ出ているあいだ端に張り付く。**
+ * どれだけ外へ出たかは表せないが、つまみは「盤のどこを見ているか」の目安であり、
+ * 盤の外にいることは見れば分かる。
  */
-function clampAxis(offset: number, boardPx: number, viewPx: number): number {
-  if (boardPx <= viewPx) return clamp(offset, 0, viewPx - boardPx);
-  return clamp(offset, viewPx - boardPx, 0);
-}
 
 function clamp(value: number, lo: number, hi: number): number {
   return Math.min(Math.max(value, lo), hi);

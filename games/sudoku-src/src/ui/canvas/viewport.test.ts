@@ -146,40 +146,39 @@ describe('ズーム（5.2 / 5.5）', () => {
   });
 });
 
-describe('パンの境界制御（5.4）', () => {
-  it('盤面の外側が描画領域に入らない', () => {
+describe('パンに制限を設けない（5.4 / C-203）', () => {
+  it('盤面より外へも、いくらでも動かせる', () => {
     const layout = createLayout(49);
     let vp = zoomAt(initial(layout, W, H), layout, 2, W / 2, H / 2);
     const boardPx = layout.boardSize * vp.zoom;
     expect(boardPx).toBeGreaterThan(W);
 
+    // 段階7 までは 0 で止めていた。**止めない**のが C-203 である
     vp = pan(vp, layout, 10000, 10000);
-    expect(vp.offsetX).toBe(0);
-    expect(vp.offsetY).toBe(0);
-
-    vp = pan(vp, layout, -100000, -100000);
-    expect(vp.offsetX).toBeCloseTo(W - boardPx, 6);
-    expect(vp.offsetY).toBeCloseTo(H - boardPx, 6);
+    expect(vp.offsetX).toBe(10000 + (W - boardPx) / 2);
+    expect(vp.offsetY).toBe(10000 + (H - boardPx) / 2);
   });
 
-  it('盤面が収まっている軸でも、余白のぶんだけ寄せられる（新6）', () => {
-    // 段階7 までは中央固定にしていたが、横画面では横だけ余白が残り続け、
-    // **横へ引いても何も起きない**という手ざわりになった（820×420 の 16×16 で実測）
+  it('端のマスを画面の中央まで持ってこられる（利用者の指示）', () => {
+    // これが制限を外した理由そのもの。**いちばん端の行が真ん中に来る**ことを見る
+    const layout = createLayout(49);
+    const vp = zoomAt(initial(layout, W, H), layout, 4, W / 2, H / 2);
+    const boardPx = layout.boardSize * vp.zoom;
+
+    // 盤面の下端を画面の中央へ置く量だけ引く
+    const moved = pan(vp, layout, 0, H / 2 - (boardPx + vp.offsetY));
+    expect(boardPx + moved.offsetY).toBeCloseTo(H / 2, 6);
+  });
+
+  it('盤面が収まっているときも、同じく制限しない', () => {
     const layout = createLayout(9);
     const vp = initial(layout, W, H);
-    const slack = W - layout.boardSize * vp.zoom;
-    expect(slack).toBeGreaterThan(0);
-
-    // 中央から左端まで寄せられる
     const moved = pan(vp, layout, -1000, 0);
-    expect(moved.offsetX).toBe(0);
-    // 右端まで寄せても、盤面が外へ出ることはない
-    const other = pan(vp, layout, 1000, 0);
-    expect(other.offsetX).toBeCloseTo(slack, 6);
+    expect(moved.offsetX).toBeCloseTo(vp.offsetX - 1000, 6);
   });
 
   it('「全体」表示は中央に置かれる（受入条件⑥）', () => {
-    // 余白の中を自由に動かせるようにしたので、**中央寄せは明示しないと成り立たない**
+    // 位置に制限が無いので、**中央寄せは明示しないと成り立たない**
     const layout = createLayout(9);
     const vp = initial(layout, W, H);
     const boardPx = layout.boardSize * vp.zoom;
@@ -187,11 +186,16 @@ describe('パンの境界制御（5.4）', () => {
     expect(vp.offsetY).toBeCloseTo((H - boardPx) / 2, 6);
   });
 
-  it('ゴムバンドを設けない（越えた分は戻らずその場で止まる）', () => {
+  it('どこまで動かしても「全体」で中央へ戻れる（見失ったときの逃げ道・C-203）', () => {
+    // **制限を外す代わりの安全網**。これが効かなくなると盤面が行方不明になる
     const layout = createLayout(49);
-    const vp = zoomAt(initial(layout, W, H), layout, 2, W / 2, H / 2);
-    const stopped = pan(vp, layout, 10000, 0);
-    expect(pan(stopped, layout, 1, 0)).toEqual(stopped);
+    const lost = pan(
+      zoomAt(initial(layout, W, H), layout, 8, W / 2, H / 2),
+      layout,
+      -999999,
+      888888,
+    );
+    expect(fit(lost, layout)).toEqual(initial(layout, W, H));
   });
 });
 

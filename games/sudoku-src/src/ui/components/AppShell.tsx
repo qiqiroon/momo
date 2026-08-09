@@ -283,6 +283,16 @@ export function AppShell(): React.ReactElement {
 
   const [selected, setSelected] = useState<number | null>(null);
   /**
+   * 数字ボタンを手で縮めているか（C-204・利用者の指示）
+   *
+   * 二段構えでは、マスを選ぶと数字ボタンがせり上がって盤面を覆う。**その場だけ引っ込めたい**
+   * ことがあるので、操作パネルのボタンで切り替えられるようにした。
+   *
+   * **これは一時的な指定であり、設定として残さない。** 別のマスを選び直した時点で解除し、
+   * 自動の振る舞い（選んだら伸びる・外したら縮む）へ戻る。
+   */
+  const [paletteCollapsed, setPaletteCollapsed] = useState(false);
+  /**
    * 最後に選んだマス（C-185）。**選択を外しても残す。**
    * ルーペはマウスが無いときここを映す。選択と一緒に消すと、
    * 盤面の外を触っただけでルーペが消えてしまう。
@@ -619,17 +629,25 @@ export function AppShell(): React.ReactElement {
       }
 
       const outcome = sessionModule.input(current.session, index, value);
-      bump();
-      if (outcome.ignored) return;
+      if (outcome.ignored) {
+        bump();
+        return;
+      }
 
-      // 契機は2つ続けて渡すだけでよい（11.7.1）。**打ち切りの判断は音の側が持つ**ので、
-      // ここに「誤りなら入力音を鳴らさない」という条件分岐は書かない
+      /**
+       * **音は盤面の書き換えより先に頼む**（C-202・利用者の指示）。
+       *
+       * 盤面が変わったと伝えた時点で描き直しの段取りが始まるので、音を後ろに置くと
+       * そのぶん出遅れる。契機は2つ続けて渡すだけでよく（11.7.1）、
+       * **打ち切りの判断は音の側が持つ**ので、ここに「誤りなら入力音を鳴らさない」
+       * という条件分岐は書かない。
+       */
       feedback.fire('VALUE_COMMITTED');
       if (outcome.wasMistake) feedback.fire('MISTAKE_DETECTED');
-      if (outcome.justFailed) {
-        feedback.fire('FAILED');
-        setDialog({ kind: 'failed' });
-      }
+      if (outcome.justFailed) feedback.fire('FAILED');
+
+      bump();
+      if (outcome.justFailed) setDialog({ kind: 'failed' });
     },
     [bump, feedback],
   );
@@ -698,6 +716,8 @@ export function AppShell(): React.ReactElement {
       const buffer = pendingRef.current;
       if (buffer !== null && buffer.index !== index) commitPending(buffer);
       setSelected(index);
+      // 手で縮めていたぶんはここで解除する（C-204）。**指定は次の1マスぶんだけ持つ**
+      setPaletteCollapsed(false);
       // 解除（null）では上書きしない。**最後に選んだマスを覚えておく**ためである（C-185）
       if (index !== null) setLastSelected(index);
     },
@@ -1224,6 +1244,8 @@ export function AppShell(): React.ReactElement {
           onFrameRect={setFrameRect}
           paletteScale={settings.paletteScale}
           paletteSizePreview={sizePreview}
+          paletteCollapsed={paletteCollapsed}
+          onTogglePaletteCollapsed={() => setPaletteCollapsed((prev) => !prev)}
           loupe={{
             homeCorner: settings.loupeCorner,
             open: settings.loupeOpen,
@@ -1290,12 +1312,13 @@ export function AppShell(): React.ReactElement {
               onSelect: () => {
                 updateSettings({ soundEnabled: true, hapticEnabled: true });
                 soundGate.answer();
+                // **鳴らしてよいと分かった今のうちに、全部取りに行かせる**（C-179）。
+                // 完成音は1局に1度しか鳴らず、そのままだと鳴らす瞬間が毎回初回になる。
+                // **試聴より先に頼む**（C-202）。展開はここから始まるので、早いほどよい
+                feedback.warm();
                 // 押した瞬間が「人が触った」合図になる。ここで一度鳴らして、
                 // 以後ふつうに鳴らせる状態にしておく
                 feedback.preview();
-                // **鳴らしてよいと分かった今のうちに、全部取りに行かせる**（C-179）。
-                // 完成音は1局に1度しか鳴らず、そのままだと鳴らす瞬間が毎回初回になる
-                feedback.warm();
               },
             },
           ]}

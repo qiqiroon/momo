@@ -223,6 +223,8 @@ describe('二段構えの見え方（C-159）', () => {
     onZoom: noop,
     paletteScale: 1,
     onCoveringChange: noop,
+    paletteCollapsed: false,
+    onTogglePaletteCollapsed: noop,
   };
 
   /** 操作パネルの実寸だけ実機並みに見せる。jsdom は矩形をすべて 0 にするため */
@@ -290,6 +292,47 @@ describe('二段構えの見え方（C-159）', () => {
   it('固定セルを選んだだけでは広がらない。入力できないからである（8.6）', () => {
     render(<ControlPanel {...base} selected={10} selectedIsGiven />);
     expect(screen.queryByTestId('palette-overlay')).not.toBeInTheDocument();
+  });
+
+  it('手で縮めているあいだは、セルを選んでいてもせり上がらない（C-204）', () => {
+    render(<ControlPanel {...base} selected={10} paletteCollapsed />);
+    expect(screen.queryByTestId('palette-overlay')).not.toBeInTheDocument();
+    // 縮んだ姿は残る。**残数の一覧としては役に立つ**ためである
+    expect(screen.getByTestId('palette-mini')).toBeInTheDocument();
+  });
+
+  it('縮める／戻すボタンは、二段構えのときだけ出る（C-204）', () => {
+    render(<ControlPanel {...base} selected={10} />);
+    expect(screen.getByTestId('action-palette')).toBeInTheDocument();
+
+    cleanup();
+    const small = createLayout(9);
+    render(
+      <ControlPanel
+        {...base}
+        n={9}
+        b={3}
+        exhausted={new Array(9).fill(false)}
+        layout={small}
+        viewport={initialViewport(small, 375, 400)}
+        selected={10}
+      />,
+    );
+    expect(screen.queryByTestId('action-palette')).not.toBeInTheDocument();
+  });
+
+  it('ボタンの文字は、いまの姿の逆（次にどうなるか）を示す（C-204）', () => {
+    const { rerender } = render(<ControlPanel {...base} selected={10} />);
+    expect(screen.getByTestId('action-palette')).toHaveTextContent('数字を縮める');
+
+    rerender(<ControlPanel {...base} selected={10} paletteCollapsed />);
+    expect(screen.getByTestId('action-palette')).toHaveTextContent('数字を戻す');
+  });
+
+  it('大きさを決めている最中は、手で縮めていても見せる（C-190 が優先・C-204）', () => {
+    // いま何を決めているのかが見えないと、決めようがない
+    render(<ControlPanel {...base} selected={null} paletteCollapsed sizePreview />);
+    expect(screen.getByTestId('palette-overlay')).toBeInTheDocument();
   });
 
   it('二段構えに入らないサイズでは、縮んだ姿もせり上がりも現れない', () => {

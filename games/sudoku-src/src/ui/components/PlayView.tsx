@@ -36,6 +36,9 @@ export interface PlayViewProps {
   paletteScale: number;
   /** 大きさを決めている最中か（C-190） */
   paletteSizePreview: boolean;
+  /** 数字ボタンを手で縮めているか（C-204） */
+  paletteCollapsed: boolean;
+  onTogglePaletteCollapsed(): void;
   /** ルーペの操作部（C-189）。中身は Canvas が描き、触るところだけを重ねる */
   loupe: {
     homeCorner: LoupeCorner;
@@ -89,6 +92,8 @@ export function PlayView(props: PlayViewProps): React.ReactElement {
         onCoveringChange={props.onPaletteCoveringChange}
         paletteScale={props.paletteScale}
         sizePreview={props.paletteSizePreview}
+        paletteCollapsed={props.paletteCollapsed}
+        onTogglePaletteCollapsed={props.onTogglePaletteCollapsed}
         difficulty={props.difficulty}
         exhausted={props.exhausted}
         noteMode={props.noteMode}

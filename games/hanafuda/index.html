@@ -1355,7 +1355,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.00</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.01</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1421,7 +1421,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.00</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.01</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1557,7 +1557,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.00</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.01</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1620,7 +1620,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.00</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.01</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -3875,7 +3875,7 @@ function handleGuestJoined(guestName) {
   hideConnOverlay();
   refreshRoomView();
   // DC 未確立でも設定が届くよう明示送信（フォールバック）
-  MomoMatchmaking.send({ type: 'hello', name: state.hostName });
+  MomoMatchmaking.send({ type: 'hello', name: state.hostName, role: 'host' });
   MomoMatchmaking.send({ type: 'settings', settings: state.settings, gameSel: state.gameSel, guestName: state.guestName }); // v2.42: ゲーム選択も同送／D3: 実プレイヤー名も（観戦者のゲスト枠表示用）
   h88SendRules(); // v2.50: ①八八のルールもゲスト参加時に送る（gameSel=hachiのときだけ実行）
   if (state.game) {
@@ -4009,7 +4009,7 @@ function initMatchmaking() {
         applySettingsToUi();
         saveSession();
         // D4 Option B: 八八の復帰は端末IDをホストへ通知（一致すれば元の席へ戻して盤面を再送してくれる）。
-        if (!state.isSpectator) { try { MomoMatchmaking.send({ type: 'hello', name: state.guestName, uid: h88MyUid() }); } catch (e) {} }
+        if (!state.isSpectator) { try { MomoMatchmaking.send({ type: 'hello', name: state.guestName, uid: h88MyUid(), role: 'player' }); } catch (e) {} }
         if (state.game) { showScreen('game'); renderGame(); } // こいこい：ホストの state 再送を待つ
         else if (state.h88 && state.h88.game) { showScreen('hachi'); renderH88(); } // 八八：ホストの再開(h88-start/state)を待つ
         else { renderOyaDraw(); showScreen('room'); refreshRoomView(); }
@@ -4084,7 +4084,7 @@ function initMatchmaking() {
         // D3: 観戦者は hello を送らない（ホスト側の guestName を上書きしないため）。名前は roster で届く。
         if (!state.isHost && !state.isSpectator) {
           state.connected = true;
-          MomoMatchmaking.send({ type: 'hello', name: state.guestName, uid: h88MyUid() }); // D4 Option B: 端末IDも通知（再接続で元席復帰に使う）
+          MomoMatchmaking.send({ type: 'hello', name: state.guestName, uid: h88MyUid(), role: 'player' }); // D4 Option B: 端末IDも通知（再接続で元席復帰に使う）
           refreshRoomView();
         } else if (state.isSpectator) {
           refreshRoomView();
@@ -4094,10 +4094,10 @@ function initMatchmaking() {
       state.connected = true;
       refreshRoomView();
       if (state.isHost) {
-        MomoMatchmaking.send({ type: 'hello', name: state.hostName });
+        MomoMatchmaking.send({ type: 'hello', name: state.hostName, role: 'host' });
         MomoMatchmaking.send({ type: 'settings', settings: state.settings, gameSel: state.gameSel }); // v2.42: ゲーム選択も同送
       } else {
-        MomoMatchmaking.send({ type: 'hello', name: state.guestName });
+        MomoMatchmaking.send({ type: 'hello', name: state.guestName, role: 'player' });
       }
     },
     onDisconnected: (msg) => {
@@ -4198,7 +4198,7 @@ function handleSpectatorMsg(data) {
   if (data.type === 'h88-next-go') { if (state.h88 && state.h88._h88GateCleanup) state.h88._h88GateCleanup(); return; } // #2: 次局で観戦者の局終了パネルを閉じる
   if (data.type === 'h88-matchend') { if (state.h88 && state.h88._h88GateCleanup) state.h88._h88GateCleanup(); h88ShowMatchEnd(); return; } // #2(v2.77): 八八総合結果を観戦者にも（同期済みスコアから中立表示）
   if (data.type === 'h88-rematch') { h88SpectatorToPrep(); return; } // v2.78 #5/#7: 対局者が「もう一度／中断」で準備室へ戻ったら観戦者も準備室へ追従
-  if (data.type === 'hello') { state.hostName = data.name || state.hostName; refreshRoomView(); return; }
+  if (data.type === 'hello') { if (helloIsFromHost(data)) state.hostName = data.name || state.hostName; refreshRoomView(); return; } // ★v3.01: ホストの名乗りだけ（観戦者の名乗りでホスト名が上書きされていた）
   if (data.type === 'start') { showScreen('game'); return; }
   if (data.type === 'go-lobby') { leaveRoom(); return; }
   if (data.type === 'role-assign') { applyRoleAssign(data); return; } // D3c: 観戦→プレイヤー昇格など
@@ -4289,7 +4289,11 @@ function handleP2P(data) {
   if (data.type === 'h88-rematch') { h88GuestRematch(); return; } // v2.50: ゲスト：総合結果「もう一度」に追従（準備室へ）
   if (data.type === 'hello') {
     if (state.isHost) {
-      state.guestName = data.name || state.guestName;
+      // ★v3.01: 名乗りは「いま席に着いている対戦者」からのものだけ受け取る。
+      //   部屋の人数表示が更新される前に3人目が入ると、その人は通信上「対戦者」として入ってくる。
+      //   本人はまだ自分が観戦者だと知らないので名乗りを送り、送り主を見ずに書き込むと
+      //   対戦者の名前が観戦者の名前に置き換わる（ホストの名前が狂うと、そこから配る観戦者用の名前も狂う）。
+      if (!data.from || !state.playerPid || data.from === state.playerPid) state.guestName = data.name || state.guestName;
       if (data.uid && data.from) { // D4 Option B: 端末IDを記録し、切断中の席と一致したら元席へ復帰
         if (!state.h88PidUid) state.h88PidUid = {};
         state.h88PidUid[data.from] = data.uid;
@@ -4301,7 +4305,7 @@ function handleP2P(data) {
         }
       }
     }
-    else { state.hostName = data.name || state.hostName; }
+    else if (helloIsFromHost(data)) { state.hostName = data.name || state.hostName; } // ★v3.01: ホストの名乗りだけ受け取る
     refreshRoomView();
     return;
   }
@@ -5150,7 +5154,9 @@ function h88OnlineRoleNames() {
   return { p0: hostName, p1: guestName, p2: t('vsai.cpu') };
 }
 function h88PrepNames() {
-  if (!state.vsAI) return h88OnlineRoleNames(); // オンライン八八＝ホスト/ゲスト/コンピュータ
+  // ★v3.01: オンラインは「席の担い手(pid)」から名前を引く（八八の他の表示と同じ方式）。
+  //   役割の名前から組み立てると、観戦者の画面でゲスト枠に自分の名前が出てしまう。
+  if (!state.vsAI) return h88CompNames();
   const name = (document.getElementById('in-playername').value || '').trim() || t('vsai.you');
   return { p0: name, p1: t('vsai.cpu') + '1', p2: t('vsai.cpu') + '2' }; // 名称に強さ(HARD等)は含めない
 }
@@ -11118,6 +11124,13 @@ document.addEventListener('DOMContentLoaded', () => {
    ・× で閉じる。自分のものは全員から消え、他人のものは自分の画面だけ消える
    ・1人1つ。新しく送ると前のものが置き換わる
    吹き出しは画面最前面の専用レイヤーに置くので、八八の回転席の上でも倒れず読める向きのまま出る。 */
+// ★v3.01: 名乗り（hello）がホストからのものか。ホストは役の目印 role:'host' を付けて送る。
+//   目印の無い名乗りは、宛先の付かない昔の1対1経路のときだけ「相手＝ホスト」として受け取る。
+//   多人数の部屋では、役の分からない名乗りで名前を書き換えない（観戦者の名乗りで対戦者名が消えていた）。
+function helloIsFromHost(data) {
+  if (data && data.role) return data.role === 'host';
+  return !(data && data.from);
+}
 function chatLayer() {
   let l = document.getElementById('chat-layer');
   if (!l) { l = document.createElement('div'); l.id = 'chat-layer'; document.body.appendChild(l); }
@@ -11276,17 +11289,24 @@ function chatAnchorFor(pid) {
   const iSpec = chatIsSpectatorNow();
   if (scr === 'game') {
     const title = { el: chatTitleEl('screen-game'), titleRandom: true };
-    if (chatRoleOf(pid) === 'spectator') return title; // 観戦者は盤に名前が無いので必ずタイトル帯
+    const known = (state.rosterView || []).some(x => x && x.pid === pid); // 名簿で役が分かっている人か
+    const role = chatRoleOf(pid);
+    if (known && role === 'spectator') return title; // 観戦者は盤に名前が無いので必ずタイトル帯
     const mine = document.getElementById('my-hand-name'), opp = document.getElementById('opp-hand-name');
-    if (!iSpec) { // 対局者から見た画面＝自分は下・相手は上で決まる
+    if (!iSpec) { // 対局者から見た画面＝自分は下・相手は上
       if (pid === state.myPid) return mine ? { el: mine.parentElement, prefer: 'down' } : title;
-      return opp ? { el: opp.parentElement, prefer: 'up' } : title;
+      return (known && opp) ? { el: opp.parentElement, prefer: 'up' } : title; // 役が不明ならタイトル帯（対局者の場所に他人を出さない）
     }
-    // 観戦している画面＝2人の対局者は、盤に出ている名前と「完全一致」で上下を決める。
-    // ★部分一致にすると、観戦者の名前が対局者の名前の一部（例「ゲスト」と「ゲスト花子」）のときに取り違える。
-    if (mine && nm && String(mine.textContent).trim() === nm) return { el: mine.parentElement, prefer: 'down' };
-    if (opp && nm && String(opp.textContent).trim() === nm) return { el: opp.parentElement, prefer: 'up' };
-    return opp ? { el: opp.parentElement, prefer: 'up' } : title;
+    // 観戦している画面＝下段はゲスト側の対局者、上段はホスト。役で決める。
+    // ★観戦中は名前の欄が空になり（名前は見出しの方へ入る）ので、欄の文字では判別できない。
+    if (known && role === 'player' && mine) return { el: mine.parentElement, prefer: 'down' };
+    if (known && role === 'host' && opp) return { el: opp.parentElement, prefer: 'up' };
+    // 名簿がまだ届いていないとき用の予備＝見出しの文字と「完全一致」で照らす（部分一致は取り違えるので不可）
+    const lm = document.getElementById('my-hand-lbl'), lo = document.getElementById('opp-hand-lbl');
+    const suffix = t('game.hand.suffix');
+    if (nm && lm && String(lm.textContent) === nm + suffix && mine) return { el: mine.parentElement, prefer: 'down' };
+    if (nm && lo && String(lo.textContent) === nm + suffix && opp) return { el: opp.parentElement, prefer: 'up' };
+    return title;
   }
   if (scr === 'hachi') {
     const title = { el: chatTitleEl('screen-hachi'), titleRandom: true };

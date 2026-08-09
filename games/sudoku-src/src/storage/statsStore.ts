@@ -34,13 +34,41 @@ export function save(stats: Stats): Result<void> {
   return written;
 }
 
-/** 1セッション分の結果を反映して保存する（計上規則は 3.10） */
+/**
+ * プレイ回数を1つ数える（3.10 / C-206）
+ *
+ * **出題が確定した時点で呼ぶ。** 中断しても破棄しても、始めた1回として数える——
+ * これが 3.10 の定める意味である。**中断からの再開では呼ばない**（第2分冊 12.3）。
+ * 同じ1回のプレイの続きだからである。
+ *
+ * 段階7 までは完成したときにまとめて数えていたため、**途中でやめた対局が1回も
+ * 数えられず、「プレイ」の数が必ず「クリア＋失敗」と一致していた**（＝何も表していなかった）。
+ */
+export function countPlay(key: StatsKey): Result<Stats> {
+  const stats = load();
+  const entry = { ...(stats.entries[key] ?? emptyEntry()) };
+  entry.playCount += 1;
+
+  const next: Stats = {
+    schemaVersion: STORAGE_VERSION,
+    entries: { ...stats.entries, [key]: entry },
+    updatedAt: new Date().toISOString(),
+  };
+  const written = save(next);
+  if (!written.ok) return written;
+  return ok(next);
+}
+
+/**
+ * 1セッション分の結果を反映して保存する（計上規則は 3.10）
+ *
+ * **`playCount` はここでは触らない**（C-206）。開始時に `countPlay` で計上済みである。
+ */
 export function record(result: SessionResult): Result<Stats> {
   const stats = load();
   const key: StatsKey = `${result.n}:${result.difficulty}`;
   const entry = { ...(stats.entries[key] ?? emptyEntry()) };
 
-  entry.playCount += 1;
   entry.hintUsedTotal += result.hintUsed;
 
   if (result.completed) {
@@ -104,4 +132,4 @@ function validateEntry(raw: unknown): StatsEntry | null {
   };
 }
 
-export const statsStore = { load, save, record, reset };
+export const statsStore = { load, save, countPlay, record, reset };

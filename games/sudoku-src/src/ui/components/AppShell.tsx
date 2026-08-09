@@ -505,6 +505,12 @@ export function AppShell(): React.ReactElement {
         sessionStore.clear();
         setHasSuspended(false);
 
+        // **プレイ回数はここで数える**（3.10 / C-206）。始めた1回であり、
+        // 最後まで解くかどうかとは関係しない。**再開のときは数えない**
+        const counted = statsStore.countPlay(`${n}:${difficulty}`);
+        if (!counted.ok) reportError(counted.error);
+        else setStats(counted.value);
+
         enterPlay(session.value);
       } finally {
         setPreparing(false);

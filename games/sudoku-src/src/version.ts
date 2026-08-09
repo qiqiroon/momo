@@ -2,4 +2,4 @@
  * 画面に表示するアプリのバージョン。
  * デプロイのたびに 0.01 加算する（設計書 4.9 / C-132）。
  */
-export const APP_VERSION = 'v0.05';
+export const APP_VERSION = 'v0.06';

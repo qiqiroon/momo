@@ -63,6 +63,9 @@ describe('端末内の保存（3.6）', () => {
   });
 
   it('成績は 3.10 の規則どおりに積まれる', () => {
+    // **プレイ回数は始めた時点で数える**（C-206）。ここでは2回始めて2回とも解ききった形
+    statsStore.countPlay('9:Hard');
+    statsStore.countPlay('9:Hard');
     statsStore.record({
       n: 9,
       difficulty: 'Hard',
@@ -89,6 +92,42 @@ describe('端末内の保存（3.6）', () => {
     expect(entry.hintUsedTotal).toBe(2);
     // 失敗したセッションは、速くても最短時間に採らない（C-06）
     expect(entry.bestTimeMs).toBe(60000);
+  });
+
+  it('途中でやめた対局も、始めた1回として数える（C-206）', () => {
+    // **これが直した理由そのもの。** 段階7 までは完成したときにだけ数えていたため、
+    // 「プレイ」の数が必ず「クリア＋失敗」と一致し、何も表していなかった
+    statsStore.countPlay('9:Hard');
+    statsStore.countPlay('9:Hard');
+    statsStore.countPlay('9:Hard');
+    statsStore.record({
+      n: 9,
+      difficulty: 'Hard',
+      completed: true,
+      failed: false,
+      elapsedMs: 60000,
+      hintUsed: 0,
+      mistakeCount: 0,
+    });
+
+    const entry = statsStore.load().entries['9:Hard'];
+    expect(entry.playCount).toBe(3);
+    expect(entry.clearCount).toBe(1);
+    // **一致しないことが正しい。** 3回始めて1回解いた、という意味である
+    expect(entry.playCount).toBeGreaterThan(entry.clearCount + entry.failedCount);
+  });
+
+  it('結果の記録だけではプレイ回数が増えない（二重に数えない・C-206）', () => {
+    statsStore.record({
+      n: 9,
+      difficulty: 'Hard',
+      completed: true,
+      failed: false,
+      elapsedMs: 60000,
+      hintUsed: 0,
+      mistakeCount: 0,
+    });
+    expect(statsStore.load().entries['9:Hard'].playCount).toBe(0);
   });
 
   it('既出はサイズ別のリングバッファとして回る', () => {

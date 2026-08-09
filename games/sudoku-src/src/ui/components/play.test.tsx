@@ -310,6 +310,12 @@ describe('段階6 後半: 起動と中断からの再開', () => {
     await waitFor(() => expect(screen.getByTestId('board')).toBeInTheDocument());
     expect(screen.getByText('1×1 Easy')).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    // **出題が確定した時点でプレイ回数が1つ増える**（C-206）。解ききるかどうかとは関係しない
+    const stats = JSON.parse(localStorage.getItem(KEYS.stats) ?? '{}') as {
+      entries: Record<string, { playCount: number }>;
+    };
+    expect(stats.entries['1:Easy'].playCount).toBe(1);
   });
 
   it('6-7: 完成の結果は成績にも現れる（サイズ×難易度）', async () => {
@@ -321,13 +327,16 @@ describe('段階6 後半: 起動と中断からの再開', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /成績/ }));
     const row = within(screen.getByRole('table')).getAllByRole('row')[1];
+    // 並びは サイズ / 難易度 / クリア / 失敗 / 最短 / プレイ / ヒント
+    // **プレイが 0 なのが正しい**（C-206）。これは中断からの再開であり、
+    // 始めたのは前回である。再開では数えない（第2分冊 12.3）
     expect(within(row).getAllByRole('cell').map((c) => c.textContent)).toEqual([
       '1',
       'Easy',
       '1',
       '0',
       '1:01',
-      '1',
+      '0',
       '0',
     ]);
   });

@@ -1355,7 +1355,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.01</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.02</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1421,7 +1421,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.01</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.02</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1557,7 +1557,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.01</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.02</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1620,7 +1620,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.01</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.02</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -11274,9 +11274,12 @@ function chatTitleEl(screenId) {
   const s = document.getElementById(screenId);
   return s ? (s.querySelector('.titleblock .site-header') || s.querySelector('.titleblock')) : null;
 }
+// 席の「名前」から吹き出しを出す。★席の箱そのものを目印にすると、手札を囲う枠の端から
+//   出ているように見える（横の席はとくに大きくずれる）ので、箱の中の名前の行を使う。
 function chatH88SeatEl(seat) {
   const el = document.querySelector('#screen-hachi [data-h88seat="' + String(seat).replace(/"/g, '') + '"]');
-  return el || null;
+  if (!el) return null;
+  return el.querySelector('.h88-name') || el;
 }
 // 吹き出しをどこから出すか。{el, prefer} を返す（prefer=down は要素の上に出す＝しっぽが下向き）
 function chatAnchorFor(pid) {
@@ -11326,9 +11329,21 @@ function chatAnchorFor(pid) {
 // 置き場所はいったん「いま見えている画面の中の位置」で決め（画面からはみ出さないように）、
 // 最後にレイヤー自身の位置を差し引いて「ページ上の位置」に直す。
 function chatLayerOrigin() { const l = chatLayer().getBoundingClientRect(); return { x: l.left, y: l.top }; }
+// ★目印の「囲み枠」ではなく「文字そのもの」の位置を測る。
+//   八八の左右の席は名前ごと90度倒れており、囲み枠は列いっぱいの細長い帯になるため、
+//   枠を使うと名前から遠く離れた場所から吹き出しが出てしまう。
+function chatRectOf(el) {
+  try {
+    const rg = document.createRange();
+    rg.selectNodeContents(el);
+    const r = rg.getBoundingClientRect();
+    if (r && r.width > 0 && r.height > 0) return r;
+  } catch (e) {}
+  return el.getBoundingClientRect();
+}
 function chatPlaceNear(box, anchorEl, prefer) {
   if (!anchorEl || !box) return;
-  const r = anchorEl.getBoundingClientRect();
+  const r = chatRectOf(anchorEl);
   const bw = box.offsetWidth, bh = box.offsetHeight;
   let top, tail;
   if (prefer === 'up') { top = r.bottom + 12; tail = 'tail-up'; }
@@ -11345,7 +11360,7 @@ function chatHash(s) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31
 // 観戦者はタイトル帯のどこかへ（人ごとに決まった位置＝毎回動かない）
 function chatPlaceInTitle(box, el, pid) {
   if (!el || !box) return;
-  const r = el.getBoundingClientRect();
+  const r = chatRectOf(el);
   const bw = box.offsetWidth, bh = box.offsetHeight;
   const f = (chatHash(String(pid)) % 1000) / 1000;
   let left = Math.max(4, Math.min(r.left + f * Math.max(0, r.width - bw), window.innerWidth - bw - 4));

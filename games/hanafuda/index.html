@@ -764,6 +764,35 @@
   .foot-links a{font-size:13px;color:var(--orange-light);text-decoration:none;font-weight:700;}
   .foot-links a:hover{text-decoration:underline;}
   @media (max-width:640px){.site-footer{padding:22px 16px 32px;}}
+
+  /* ---- v2.99 チャット（準備室・対局画面／こいこい・八八 共通） ----
+     吹き出しは画面最前面の専用レイヤーに置く＝八八の回転席の上でも倒れず読める向きのまま出る。 */
+  .chat-icon{display:inline-flex;align-items:center;justify-content:center;width:1.5em;height:1.5em;margin-left:.35em;
+    border:none;background:transparent;color:var(--orange,#e88c2a);font-size:1em;line-height:1;cursor:pointer;padding:0;vertical-align:middle;}
+  .chat-icon:hover{filter:brightness(1.25);}
+  #chat-layer{position:fixed;inset:0;pointer-events:none;z-index:12000;}
+  #chat-layer > *{pointer-events:auto;}
+  .chat-bubble{position:absolute;max-width:min(64vw,320px);background:#fffaf0;color:#20201c;border:2px solid var(--orange,#e88c2a);
+    border-radius:12px;padding:6px 26px 6px 10px;font-size:.8rem;line-height:1.35;font-weight:600;
+    box-shadow:0 4px 14px rgba(0,0,0,.35);word-break:break-word;}
+  .chat-bubble .who{color:var(--orange-dark,#a8631a);}
+  .chat-bubble .x{position:absolute;top:2px;right:4px;border:none;background:transparent;color:#8a7a63;font-size:.9rem;
+    line-height:1;cursor:pointer;padding:2px 3px;}
+  .chat-bubble .x:hover{color:#c0392b;}
+  .chat-bubble::after{content:"";position:absolute;width:0;height:0;border:7px solid transparent;}
+  .chat-bubble.tail-down::after{bottom:-14px;left:18px;border-top-color:var(--orange,#e88c2a);}
+  .chat-bubble.tail-up::after{top:-14px;left:18px;border-bottom-color:var(--orange,#e88c2a);}
+  .chat-entry{position:absolute;display:flex;gap:6px;align-items:center;background:#2a2723;border:2px solid var(--orange,#e88c2a);
+    border-radius:12px;padding:6px 8px;box-shadow:0 4px 14px rgba(0,0,0,.4);}
+  .chat-entry input{width:min(52vw,220px);font-size:.85rem;padding:4px 6px;border-radius:6px;border:1px solid #55504a;
+    background:#fffaf0;color:#20201c;}
+  .chat-entry button{font-size:.75rem;padding:4px 9px;border-radius:8px;border:none;cursor:pointer;font-weight:700;}
+  .chat-entry .ok{background:var(--orange,#e88c2a);color:#1a1a1a;}
+  .chat-entry .no{background:transparent;color:#c8c0b4;}
+  /* 準備室の参加者一覧（全員が見る。役の与奪とキックはホストのみ） */
+  .pm-row{display:flex;align-items:center;gap:.5em;margin:.15em 0;}
+  .pm-row .pm-name{flex:1;}
+  .pm-row .pm-you{color:var(--orange,#e88c2a);font-weight:700;}
 </style>
 </head>
 <body>
@@ -1107,38 +1136,29 @@
   </symbol>
 
   <!-- ---- 7月 萩 ---- -->
+  <!-- 萩に猪（7月・種）をユーザー手描きPNGに差し替え（縁付き・m06系と同型） -->
   <symbol id="m07_tane" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
-    <use href="#kasumi"/>
-    <g fill="none" stroke="#4f7a30" stroke-width="2.4" stroke-linecap="round"><path d="M40 120 C 60 150 66 190 58 240"/><path d="M70 116 C 92 150 98 196 92 244"/><path d="M104 120 C 120 152 124 190 120 232"/></g>
-    <use href="#hagiSprig" transform="translate(58,180)"/><use href="#hagiSprig" transform="translate(92,196)"/><use href="#hagiSprig" transform="translate(50,150) scale(.9)"/><use href="#hagiSprig" transform="translate(120,180) scale(.9)"/>
-    <g transform="translate(140,262)">
-      <path d="M-34 6 C -40 -14 -18 -26 6 -22 C 28 -18 36 -2 30 12 C 22 24 -24 24 -34 6 Z" fill="#5a4636" stroke="#2f2418" stroke-width="1.6"/>
-      <path d="M-20 -18 C -14 -26 -8 -26 -4 -20" fill="none" stroke="#3a2c1e" stroke-width="2"/>
-      <path d="M30 -2 C 42 -6 46 2 42 8 C 38 4 34 6 30 6 Z" fill="#5a4636" stroke="#2f2418" stroke-width="1.4"/>
-      <path d="M40 2 L 48 0 L 42 6 Z" fill="#efe0c0"/>
-      <circle cx="30" cy="-2" r="1.4" fill="#111"/>
-      <g stroke="#2f2418" stroke-width="3" stroke-linecap="round"><line x1="-20" y1="16" x2="-22" y2="30"/><line x1="-6" y1="18" x2="-8" y2="32"/><line x1="12" y1="18" x2="12" y2="32"/><line x1="24" y1="14" x2="26" y2="28"/></g>
-    </g>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
+    <image href="cards/m07_tane.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
+  <!-- 萩の短冊（7月）をユーザー手描きPNGに差し替え（縁付き・m06系と同型） -->
   <symbol id="m07_tan" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
-    <use href="#kasumi"/>
-    <g fill="none" stroke="#4f7a30" stroke-width="2.4" stroke-linecap="round"><path d="M150 110 C 168 146 172 190 166 240"/><path d="M132 116 C 148 150 150 194 146 240"/></g>
-    <use href="#hagiSprig" transform="translate(166,180)"/><use href="#hagiSprig" transform="translate(146,200)"/><use href="#hagiSprig" transform="translate(158,150) scale(.9)"/>
-    <use href="#tanRed" transform="translate(96,214) rotate(-8)"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
+    <image href="cards/m07_tan.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
+  <!-- 萩のカス1（7月）をユーザー手描きPNGに差し替え（縁付き・m06系と同型） -->
   <symbol id="m07_kasu1" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
-    <use href="#kasumi"/>
-    <g fill="none" stroke="#4f7a30" stroke-width="2.4" stroke-linecap="round"><path d="M70 110 C 92 150 98 200 90 260"/><path d="M108 112 C 128 152 132 202 126 262"/><path d="M140 118 C 156 154 158 200 152 250"/></g>
-    <use href="#hagiSprig" transform="translate(90,190)"/><use href="#hagiSprig" transform="translate(126,206)"/><use href="#hagiSprig" transform="translate(152,186)"/><use href="#hagiSprig" transform="translate(80,150) scale(.9)"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
+    <image href="cards/m07_kasu1.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
+  <!-- 萩のカス2（7月）をユーザー手描きPNGに差し替え（縁付き・m06系と同型） -->
   <symbol id="m07_kasu2" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
-    <use href="#kasumi"/>
-    <g fill="none" stroke="#4f7a30" stroke-width="2.4" stroke-linecap="round"><path d="M150 110 C 128 150 122 200 130 260"/><path d="M112 112 C 92 152 88 202 94 262"/><path d="M80 118 C 64 154 62 200 68 250"/></g>
-    <use href="#hagiSprig" transform="translate(130,190)"/><use href="#hagiSprig" transform="translate(94,206)"/><use href="#hagiSprig" transform="translate(68,186)"/><use href="#hagiSprig" transform="translate(140,150) scale(.9)"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
+    <image href="cards/m07_kasu2.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
 
   <!-- ---- 8月 芒 ---- -->
@@ -1150,31 +1170,23 @@
     <g fill="none" stroke="#7a5f28" stroke-width="2" stroke-linecap="round"><path d="M50 268 C 44 218 48 178 38 140"/><path d="M66 270 C 64 222 72 184 66 148"/><path d="M82 268 C 84 224 94 192 92 160"/><path d="M100 270 C 104 228 112 204 116 176"/></g>
     <use href="#susukiPlume" transform="translate(38,140)"/><use href="#susukiPlume" transform="translate(66,148)"/><use href="#susukiPlume" transform="translate(92,160)"/><use href="#susukiPlume" transform="translate(116,176) scale(.9)"/>
   </symbol>
+  <!-- 芒に雁（8月・種）をユーザー手描きPNGに差し替え（縁付き・m06系と同型） -->
   <symbol id="m08_tane" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
-    <use href="#kasumi"/>
-    <path d="M8 268 C 54 220 96 218 132 240 C 164 258 188 252 214 244 L214 306 L8 306 Z" fill="#242019" stroke="#11100c" stroke-width="1.6"/>
-    <g fill="#2a2620" stroke="#000" stroke-width=".6">
-      <path d="M96 96 c 10 -8 14 -8 22 0 c -8 -3 -14 -3 -22 0 Z"/>
-      <path d="M130 118 c 9 -7 13 -7 20 0 c -7 -3 -13 -3 -20 0 Z"/>
-      <path d="M78 130 c 8 -6 12 -6 18 0 c -6 -3 -12 -3 -18 0 Z"/>
-    </g>
-    <g fill="none" stroke="#7a5f28" stroke-width="2" stroke-linecap="round"><path d="M50 268 C 44 218 48 178 38 140"/><path d="M66 270 C 64 222 72 184 66 148"/><path d="M100 270 C 104 228 112 204 116 176"/></g>
-    <use href="#susukiPlume" transform="translate(38,140)"/><use href="#susukiPlume" transform="translate(66,148)"/><use href="#susukiPlume" transform="translate(116,176) scale(.9)"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
+    <image href="cards/m08_tane.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
+  <!-- 芒のカス1（8月）をユーザー手描きPNGに差し替え（縁付き・m06系と同型） -->
   <symbol id="m08_kasu1" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
-    <use href="#kasumi"/>
-    <path d="M8 262 C 54 214 96 212 132 234 C 164 252 188 246 214 238 L214 306 L8 306 Z" fill="#242019" stroke="#11100c" stroke-width="1.6"/>
-    <g fill="none" stroke="#7a5f28" stroke-width="2" stroke-linecap="round"><path d="M56 262 C 50 212 54 172 44 134"/><path d="M74 264 C 72 216 80 178 74 142"/><path d="M92 262 C 94 218 104 186 102 154"/><path d="M112 264 C 116 222 124 198 128 170"/><path d="M134 266 C 138 226 144 206 148 182"/></g>
-    <use href="#susukiPlume" transform="translate(44,134)"/><use href="#susukiPlume" transform="translate(74,142)"/><use href="#susukiPlume" transform="translate(102,154)"/><use href="#susukiPlume" transform="translate(128,170) scale(.9)"/><use href="#susukiPlume" transform="translate(148,182) scale(.85)"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
+    <image href="cards/m08_kasu1.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
+  <!-- 芒のカス2（8月）をユーザー手描きPNGに差し替え（縁付き・m06系と同型） -->
   <symbol id="m08_kasu2" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
-    <use href="#kasumi"/>
-    <path d="M8 244 C 40 252 70 250 110 236 C 150 222 184 224 214 262 L214 306 L8 306 Z" fill="#242019" stroke="#11100c" stroke-width="1.6"/>
-    <g fill="none" stroke="#7a5f28" stroke-width="2" stroke-linecap="round"><path d="M64 250 C 58 200 62 160 52 122"/><path d="M84 250 C 82 202 90 164 84 128"/><path d="M104 246 C 106 202 116 170 114 138"/><path d="M126 250 C 130 208 136 188 140 160"/></g>
-    <use href="#susukiPlume" transform="translate(52,122)"/><use href="#susukiPlume" transform="translate(84,128)"/><use href="#susukiPlume" transform="translate(114,138)"/><use href="#susukiPlume" transform="translate(140,160) scale(.9)"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
+    <image href="cards/m08_kasu2.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
 
   <!-- ---- 9月 菊 ---- -->
@@ -1341,7 +1353,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.98</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.99</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1407,7 +1419,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.98</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.99</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1543,7 +1555,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.98</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.99</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1606,7 +1618,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.98</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.99</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -2274,6 +2286,8 @@ const I18N = {
     'srv.connecting': 'サーバー接続中…',
     'srv.online': 'サーバー接続済み',
     'srv.offline': 'サーバー未接続',
+    'chat.open': 'チャット', 'chat.placeholder': 'メッセージ（40文字まで）', 'chat.send': '送る', 'chat.cancel': 'やめる', 'chat.close': '閉じる',
+    'pm.list': '参加者', 'pm.role.host': 'ホスト', 'pm.you': '（あなた）',
   },
   en: {
     'lobby.lobby': 'Lobby',
@@ -2599,6 +2613,8 @@ const I18N = {
     'srv.connecting': 'Connecting to server…',
     'srv.online': 'Server connected',
     'srv.offline': 'Server offline',
+    'chat.open': 'Chat', 'chat.placeholder': 'Message (up to 40 chars)', 'chat.send': 'Send', 'chat.cancel': 'Cancel', 'chat.close': 'Close',
+    'pm.list': 'Participants', 'pm.role.host': 'Host', 'pm.you': ' (you)',
   },
   zh: {
     'lobby.lobby': '大厅',
@@ -2924,6 +2940,8 @@ const I18N = {
     'srv.connecting': '正在连接服务器…',
     'srv.online': '服务器已连接',
     'srv.offline': '服务器未连接',
+    'chat.open': '聊天', 'chat.placeholder': '消息（最多40字）', 'chat.send': '发送', 'chat.cancel': '取消', 'chat.close': '关闭',
+    'pm.list': '参加者', 'pm.role.host': '房主', 'pm.you': '（你）',
   },
 };
 
@@ -4187,6 +4205,10 @@ function handleSpectatorMsg(data) {
 
 function handleP2P(data) {
   if (!data || !data.type) return;
+  // v2.99: チャットと参加者一覧は役割に関係なく全員が受け取る＝観戦者の振り分けより前に処理する。
+  if (data.type === 'chat') { chatOnRecv(data); return; }
+  if (data.type === 'chat-close') { chatOnRemoteClose(data.pid); return; }
+  if (data.type === 'roster') { chatOnRosterView(data.list); return; }
   // v2.76: キックはサーバーが横取りして対象へ 'kicked' を送るため、対象は onKicked で退室する（ここには 'kick' は来ない）。
   // D3: 観戦者は公開ビュー系のみ処理。親決め・準備完了・intent などプレイヤー宛の合図は一切踏まない。
   if (state.isSpectator) { handleSpectatorMsg(data); return; }
@@ -10220,44 +10242,59 @@ function h88InGameNow() { return !!(state.h88 && state.h88.game); }
 function inGameNow() { return !!state.game || h88InGameNow(); }
 
 // D3c: ホストの役変更パネル（準備画面のみ・対局中は非表示・ホストのみ）。
+// v2.99: 参加者一覧は「名前と役割は全員に見せる／役の与奪・キック・観戦許可はホストだけ」に変更。
+//   各行が吹き出しの出どころになるので、行に data-pid を持たせる。
 function renderParticipantMgmt() {
   const el = document.getElementById('participant-mgmt');
   if (!el) return;
-  if (!state.isHost || inGameNow()) { el.classList.add('hidden'); el.innerHTML = ''; return; }
-  const others = (state.roster || []).filter(x => x && x.pid && x.pid !== state.myPid);
+  if (inGameNow() || state.vsAI || state.solo) { el.classList.add('hidden'); el.innerHTML = ''; chatRender(); return; }
+  const list = state.isHost ? chatBuildRosterView() : (state.rosterView || []);
+  if (!state.isHost && !list.length) { el.classList.add('hidden'); el.innerHTML = ''; chatRender(); return; }
   el.classList.remove('hidden'); // ⑦: 参加者が居なくても観戦許可チェックは常に出す（ホスト・準備画面）
   el.innerHTML = '';
-  const head = document.createElement('div'); head.style.cssText = 'font-weight:600;margin-bottom:.3em'; head.textContent = t('pm.head'); el.appendChild(head);
-  // ⑦: 観戦許可チェックボックス（外すと以後の観戦入室を即キック＋現在の観戦者も全員キック）
-  const specRow = document.createElement('label'); specRow.style.cssText = 'display:flex;align-items:center;gap:.4em;margin-bottom:.45em;cursor:pointer';
-  const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = (state.allowSpectators !== false);
-  cb.addEventListener('change', () => { state.allowSpectators = cb.checked; if (!cb.checked) kickAllSpectators(); });
-  const cbl = document.createElement('span'); cbl.textContent = t('pm.allowspec');
-  specRow.appendChild(cb); specRow.appendChild(cbl); el.appendChild(specRow);
+  const head = document.createElement('div'); head.style.cssText = 'font-weight:600;margin-bottom:.3em';
+  head.textContent = state.isHost ? t('pm.head') : t('pm.list'); el.appendChild(head);
+  if (state.isHost) {
+    // ⑦: 観戦許可チェックボックス（外すと以後の観戦入室を即キック＋現在の観戦者も全員キック）
+    const specRow = document.createElement('label'); specRow.style.cssText = 'display:flex;align-items:center;gap:.4em;margin-bottom:.45em;cursor:pointer';
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = (state.allowSpectators !== false);
+    cb.addEventListener('change', () => { state.allowSpectators = cb.checked; if (!cb.checked) kickAllSpectators(); });
+    const cbl = document.createElement('span'); cbl.textContent = t('pm.allowspec');
+    specRow.appendChild(cb); specRow.appendChild(cbl); el.appendChild(specRow);
+  }
   // 同名を区別できるよう、重複する名前には番号を付ける（同一PCの別タブで既定名が同じになりがちなため）
-  const nameCounts = {}; others.forEach(x => { const nm0 = x.name || '?'; nameCounts[nm0] = (nameCounts[nm0] || 0) + 1; });
+  const nameCounts = {}; list.forEach(x => { const nm0 = x.name || '?'; nameCounts[nm0] = (nameCounts[nm0] || 0) + 1; });
   const seenIdx = {};
   const isHachiComp = (state.gameSel === 'hachi' && !state.vsAI); // D4: 八八は席編成パネルで担い手を割り当てる
-  others.forEach(x => {
-    const isPlayer = isHachiComp ? !!h88SeatOfPid(x.pid) : (x.pid === state.playerPid);
+  list.forEach(x => {
+    const isMe = (x.pid === state.myPid);
+    const isPlayer = (x.role === 'player');
     const row = document.createElement('div');
-    row.style.cssText = 'display:flex;align-items:center;gap:.5em;margin:.15em 0';
+    row.className = 'pm-row'; row.dataset.pid = x.pid;
     let dispName = x.name || '?';
     if (nameCounts[dispName] > 1) { seenIdx[dispName] = (seenIdx[dispName] || 0) + 1; dispName += ' #' + seenIdx[dispName]; }
-    const nm = document.createElement('span'); nm.style.flex = '1'; nm.textContent = dispName + '（' + t(isPlayer ? 'pm.role.player' : 'pm.role.spectator') + '）';
+    const roleKey = (x.role === 'host') ? 'pm.role.host' : (isPlayer ? 'pm.role.player' : 'pm.role.spectator');
+    const nm = document.createElement('span'); nm.className = 'pm-name' + (isMe ? ' pm-you' : '');
+    nm.textContent = dispName + '（' + t(roleKey) + '）' + (isMe ? t('pm.you') : '');
     row.appendChild(nm);
-    if (!isHachiComp) { // こいこい等は従来の昇格/降格ボタン（八八は上の顔ぶれパネルで席割り当て）
-      const btn = document.createElement('button'); btn.className = 'btn btn-ghost btn-sm';
-      btn.textContent = isPlayer ? t('pm.demote') : t('pm.promote');
-      btn.addEventListener('click', () => hostSetRole(x.pid, isPlayer ? 'spectator' : 'player'));
-      row.appendChild(btn);
+    if (isMe) row.appendChild(chatMakeIcon()); // 自分の名前の後ろに吹き出しアイコン
+    if (state.isHost && !isMe) {
+      if (!isHachiComp) { // こいこい等は従来の昇格/降格ボタン（八八は上の顔ぶれパネルで席割り当て）
+        const btn = document.createElement('button'); btn.className = 'btn btn-ghost btn-sm';
+        btn.textContent = isPlayer ? t('pm.demote') : t('pm.promote');
+        btn.addEventListener('click', () => hostSetRole(x.pid, isPlayer ? 'spectator' : 'player'));
+        row.appendChild(btn);
+      }
+      // ⑥: キックボタン（プレイヤー・観戦者とも。再入室は禁止しない）
+      const kbtn = document.createElement('button'); kbtn.className = 'btn btn-ghost btn-sm';
+      kbtn.textContent = t('pm.kick'); kbtn.style.color = '#e06b5a';
+      kbtn.addEventListener('click', () => hostKick(x.pid));
+      row.appendChild(kbtn);
     }
-    // ⑥: キックボタン（プレイヤー・観戦者とも。再入室は禁止しない）
-    const kbtn = document.createElement('button'); kbtn.className = 'btn btn-ghost btn-sm';
-    kbtn.textContent = t('pm.kick'); kbtn.style.color = '#e06b5a';
-    kbtn.addEventListener('click', () => hostKick(x.pid));
-    row.appendChild(kbtn); el.appendChild(row);
+    el.appendChild(row);
   });
+  if (state.isHost) chatPushRoster(list); // 中身が変わったときだけ全員へ配る
+  chatRender();
 }
 
 // D3c: ホストが参加者の役を変更（プレイヤー↔観戦）。花札側だけで実現（サーバーの役は変えない）。
@@ -11071,6 +11108,249 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
 });
+
+/* ===================== v2.99 チャット =====================
+   こいこい／八八のネット対戦で、準備室と対局画面の両方に一言チャットを出す。
+   ・自分の名前の後ろの吹き出しアイコン → 1行入力欄 → 送ると全員の画面に出る
+   ・吹き出しは送り主の名前の位置から出る（観戦者は名前が盤に無いのでタイトル帯から）
+   ・× で閉じる。自分のものは全員から消え、他人のものは自分の画面だけ消える
+   ・1人1つ。新しく送ると前のものが置き換わる
+   吹き出しは画面最前面の専用レイヤーに置くので、八八の回転席の上でも倒れず読める向きのまま出る。 */
+function chatLayer() {
+  let l = document.getElementById('chat-layer');
+  if (!l) { l = document.createElement('div'); l.id = 'chat-layer'; document.body.appendChild(l); }
+  return l;
+}
+function chatEnabled() {
+  if (state.vsAI || state.solo || !state.myPid) return false;
+  return state.screen === 'room' || state.screen === 'game' || state.screen === 'hachi';
+}
+// 自分がいま「盤に席を持たない側」か（観戦者、または八八で席を持たないホスト）
+function chatIsSpectatorNow() {
+  if (state.isSpectator) return true;
+  if (state.screen === 'hachi' && typeof h88HostObserver === 'function' && h88HostObserver()) return true;
+  return false;
+}
+function chatMyName() {
+  const me = (state.rosterView || []).find(x => x && x.pid === state.myPid);
+  if (me && me.name) return me.name;
+  return (state.isHost ? state.hostName : state.guestName) || t(state.isHost ? 'room.host' : 'room.guest');
+}
+function chatRoleOf(pid) {
+  const e = (state.rosterView || []).find(x => x && x.pid === pid);
+  return e ? e.role : 'spectator';
+}
+// ホストだけが「誰がどの役か」を確定できる。名簿ビューを作って全員へ配る。
+function chatBuildRosterView() {
+  const isHachiComp = (state.gameSel === 'hachi' && !state.vsAI);
+  const out = [{ pid: state.myPid, name: state.hostName || t('room.host'), role: 'host' }];
+  (state.roster || []).forEach(x => {
+    if (!x || !x.pid || x.pid === state.myPid) return;
+    const isPlayer = isHachiComp ? !!h88SeatOfPid(x.pid) : (x.pid === state.playerPid);
+    out.push({ pid: x.pid, name: x.name || '?', role: isPlayer ? 'player' : 'spectator' });
+  });
+  return out;
+}
+function chatPushRoster(list) {
+  if (!state.isHost) return;
+  const js = JSON.stringify(list);
+  state.rosterView = list;
+  if (state._rosterViewSent === js) return; // 中身が変わったときだけ送る
+  state._rosterViewSent = js;
+  try { MomoMatchmaking.send({ type: 'roster', list: list }, 'all'); } catch (e) {}
+}
+function chatOnRosterView(list) {
+  if (state.isHost) return; // ホストは自分で作る
+  state.rosterView = Array.isArray(list) ? list : [];
+  if (typeof renderParticipantMgmt === 'function') renderParticipantMgmt();
+  chatRender();
+}
+function chatOnRecv(d) {
+  if (!d || !d.pid) return;
+  state.chat = state.chat || {}; state.chatHidden = state.chatHidden || {};
+  state.chat[d.pid] = { name: String(d.name || '?').slice(0, 24), text: String(d.text || '').slice(0, 40) };
+  delete state.chatHidden[d.pid]; // 新しい発言は、前に閉じていても出し直す
+  chatRender();
+}
+function chatOnRemoteClose(pid) {
+  if (!pid) return;
+  if (state.chat) delete state.chat[pid];
+  if (state.chatHidden) delete state.chatHidden[pid];
+  chatRender();
+}
+function chatSend(text) {
+  text = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 40);
+  if (!text || !state.myPid) return;
+  const pid = state.myPid, name = chatMyName();
+  state.chat = state.chat || {}; state.chatHidden = state.chatHidden || {};
+  state.chat[pid] = { name: name, text: text };
+  delete state.chatHidden[pid];
+  try { MomoMatchmaking.send({ type: 'chat', pid: pid, name: name, text: text }, 'all'); } catch (e) {}
+  chatRender();
+}
+function chatClose(pid) {
+  state.chatHidden = state.chatHidden || {};
+  if (pid === state.myPid) { // 自分の吹き出し＝全員の画面から消す
+    if (state.chat) delete state.chat[pid];
+    try { MomoMatchmaking.send({ type: 'chat-close', pid: pid }, 'all'); } catch (e) {}
+  } else { // 他人の吹き出し＝自分の画面だけ消す
+    state.chatHidden[pid] = true;
+  }
+  chatRender();
+}
+function chatMakeIcon() {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'chat-icon'; b.textContent = '💬';
+  b.title = t('chat.open'); b.setAttribute('aria-label', t('chat.open'));
+  b.addEventListener('click', (e) => { e.stopPropagation(); chatToggleInput(b); });
+  return b;
+}
+// いま自分のアイコンがどれかを、画面ごとに引き直す。
+// ★盤や準備室は定期的に描き直され、そのたびにアイコンの実体が作り替わる。
+//   入力欄の目印に「そのときのアイコン」を握ると、描き直しのたびに入力中の欄が消えてしまうので、
+//   毎回ここで引き直して位置だけ合わせ直す（入力中の文字はそのまま残る）。
+function chatMyIconEl() {
+  if (!state.myPid) return null;
+  if (state.screen === 'room') {
+    const row = document.querySelector('#participant-mgmt .pm-row[data-pid="' + String(state.myPid).replace(/"/g, '') + '"]');
+    return row ? row.querySelector('.chat-icon') : null;
+  }
+  let box = null;
+  if (chatIsSpectatorNow()) box = chatTitleEl(state.screen === 'hachi' ? 'screen-hachi' : 'screen-game');
+  else if (state.screen === 'game') { const e = document.getElementById('my-hand-name'); box = e && e.parentElement; }
+  else if (state.screen === 'hachi') box = document.getElementById('h88-self-nameline');
+  return box ? box.querySelector('.chat-icon') : null;
+}
+function chatToggleInput(anchorEl) {
+  const layer = chatLayer();
+  const old = layer.querySelector('.chat-entry');
+  if (old) { old.remove(); return; } // 開いているときにもう一度押したら閉じる
+  const box = document.createElement('div'); box.className = 'chat-entry';
+  const inp = document.createElement('input'); inp.type = 'text'; inp.maxLength = 40;
+  inp.placeholder = t('chat.placeholder'); inp.autocomplete = 'off';
+  const ok = document.createElement('button'); ok.type = 'button'; ok.className = 'ok'; ok.textContent = t('chat.send');
+  const no = document.createElement('button'); no.type = 'button'; no.className = 'no'; no.textContent = t('chat.cancel');
+  const fire = () => { chatSend(inp.value); box.remove(); chatRender(); };
+  ok.addEventListener('click', fire);
+  no.addEventListener('click', () => box.remove());
+  inp.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); fire(); }
+    else if (e.key === 'Escape') { box.remove(); }
+  });
+  box.appendChild(inp); box.appendChild(ok); box.appendChild(no);
+  layer.appendChild(box);
+  chatPlaceNear(box, anchorEl, 'down');
+  try { inp.focus(); } catch (e) {}
+}
+// 準備室以外（対局画面）では、自分の名前の場所にアイコンを貼り直す（描画のたびに消えるため）
+function chatMountIcons() {
+  const scr = state.screen;
+  if (scr === 'room') return; // 準備室は参加者一覧の行（renderParticipantMgmt）が担当
+  let box = null;
+  if (chatIsSpectatorNow()) box = chatTitleEl(scr === 'hachi' ? 'screen-hachi' : 'screen-game');
+  else if (scr === 'game') { const e = document.getElementById('my-hand-name'); box = e && e.parentElement; }
+  else if (scr === 'hachi') box = document.getElementById('h88-self-nameline');
+  if (!box) return;
+  const cur = box.querySelector('.chat-icon');
+  if (!cur) box.appendChild(chatMakeIcon());
+  else { cur.title = t('chat.open'); cur.setAttribute('aria-label', t('chat.open')); } // 言語切替に追従
+}
+function chatTitleEl(screenId) {
+  const s = document.getElementById(screenId);
+  return s ? (s.querySelector('.titleblock .site-header') || s.querySelector('.titleblock')) : null;
+}
+function chatH88SeatEl(seat) {
+  const el = document.querySelector('#screen-hachi [data-h88seat="' + String(seat).replace(/"/g, '') + '"]');
+  return el || null;
+}
+// 吹き出しをどこから出すか。{el, prefer} を返す（prefer=down は要素の上に出す＝しっぽが下向き）
+function chatAnchorFor(pid) {
+  const scr = state.screen;
+  if (scr === 'room') {
+    const row = document.querySelector('#participant-mgmt .pm-row[data-pid="' + String(pid).replace(/"/g, '') + '"]');
+    return row ? { el: row, prefer: 'down' } : null;
+  }
+  const nm = (state.chat && state.chat[pid] && state.chat[pid].name) || '';
+  if (scr === 'game') {
+    const mine = document.getElementById('my-hand-name'), opp = document.getElementById('opp-hand-name');
+    if (pid === state.myPid && !chatIsSpectatorNow() && mine) return { el: mine.parentElement, prefer: 'down' };
+    // 観戦者から見た2人の対局者は、盤に出ている名前と突き合わせて上下を決める
+    if (mine && nm && mine.textContent && mine.textContent.indexOf(nm) >= 0) return { el: mine.parentElement, prefer: 'down' };
+    if (opp && nm && opp.textContent && opp.textContent.indexOf(nm) >= 0) return { el: opp.parentElement, prefer: 'up' };
+    if (chatRoleOf(pid) !== 'spectator' && opp) return { el: opp.parentElement, prefer: 'up' };
+    return { el: chatTitleEl('screen-game'), titleRandom: true };
+  }
+  if (scr === 'hachi') {
+    if (pid === state.myPid && !chatIsSpectatorNow()) {
+      const e = document.getElementById('h88-self-nameline');
+      if (e) return { el: e, prefer: 'down' };
+    }
+    const seat = (typeof h88SeatOfPid === 'function') ? h88SeatOfPid(pid) : null;
+    if (seat) { const el = chatH88SeatEl(seat); if (el) return { el: el, prefer: 'up' }; }
+    return { el: chatTitleEl('screen-hachi'), titleRandom: true };
+  }
+  return null;
+}
+function chatPlaceNear(box, anchorEl, prefer) {
+  if (!anchorEl || !box) return;
+  const r = anchorEl.getBoundingClientRect();
+  const bw = box.offsetWidth, bh = box.offsetHeight;
+  let top, tail;
+  if (prefer === 'up') { top = r.bottom + 12; tail = 'tail-up'; }
+  else { top = r.top - bh - 12; tail = 'tail-down'; }
+  if (top < 4) { top = r.bottom + 12; tail = 'tail-up'; }
+  if (top + bh > window.innerHeight - 4) { top = Math.max(4, r.top - bh - 12); tail = 'tail-down'; }
+  let left = Math.max(4, Math.min(r.left, window.innerWidth - bw - 4));
+  box.style.top = top + 'px'; box.style.left = left + 'px';
+  box.classList.remove('tail-up', 'tail-down');
+  if (box.classList.contains('chat-bubble')) box.classList.add(tail);
+}
+function chatHash(s) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; }
+// 観戦者はタイトル帯のどこかへ（人ごとに決まった位置＝毎回動かない）
+function chatPlaceInTitle(box, el, pid) {
+  if (!el || !box) return;
+  const r = el.getBoundingClientRect();
+  const bw = box.offsetWidth, bh = box.offsetHeight;
+  const f = (chatHash(String(pid)) % 1000) / 1000;
+  let left = Math.max(4, Math.min(r.left + f * Math.max(0, r.width - bw), window.innerWidth - bw - 4));
+  let top = r.bottom + 12;
+  if (top + bh > window.innerHeight - 4) top = Math.max(4, r.top - bh - 12);
+  box.style.left = left + 'px'; box.style.top = top + 'px';
+  box.classList.remove('tail-down'); box.classList.add('tail-up');
+}
+function chatRender() {
+  const layer = chatLayer();
+  layer.querySelectorAll('.chat-bubble').forEach(b => b.remove());
+  if (!chatEnabled()) { layer.querySelectorAll('.chat-entry').forEach(b => b.remove()); return; }
+  if (state.isHost) chatPushRoster(chatBuildRosterView()); // 対局中に観戦者が来ても名簿が届くように（中身が同じなら送らない）
+  chatMountIcons();
+  const chats = state.chat || {}, hidden = state.chatHidden || {};
+  Object.keys(chats).forEach(pid => {
+    if (hidden[pid]) return;
+    const c = chats[pid]; if (!c || !c.text) return;
+    const a = chatAnchorFor(pid); if (!a || !a.el) return;
+    const b = document.createElement('div'); b.className = 'chat-bubble';
+    const who = document.createElement('span'); who.className = 'who'; who.textContent = (c.name || '?') + '：';
+    const tx = document.createElement('span'); tx.textContent = c.text;
+    const x = document.createElement('button'); x.type = 'button'; x.className = 'x'; x.textContent = '×';
+    x.title = t('chat.close'); x.setAttribute('aria-label', t('chat.close'));
+    x.addEventListener('click', () => chatClose(pid));
+    b.appendChild(who); b.appendChild(tx); b.appendChild(x);
+    layer.appendChild(b);
+    if (a.titleRandom) chatPlaceInTitle(b, a.el, pid); else chatPlaceNear(b, a.el, a.prefer);
+  });
+  const e = layer.querySelector('.chat-entry');
+  if (e) { const a = chatMyIconEl(); if (a) chatPlaceNear(e, a, 'down'); else e.remove(); }
+}
+window.addEventListener('resize', () => { try { chatRender(); } catch (e) {} });
+window.addEventListener('orientationchange', () => { setTimeout(() => { try { chatRender(); } catch (e) {} }, 250); });
+// 盤や準備室が描き直されると名前の行ごと作り直されるので、描画のあとに吹き出しとアイコンを貼り直す。
+// 既存の関数には手を入れず、後ろに付け足す形で包む（元の処理はそのまま先に走る）。
+if (typeof renderGame === 'function') { const _o = renderGame; renderGame = function () { const r = _o.apply(this, arguments); try { chatRender(); } catch (e) {} return r; }; }
+if (typeof renderH88 === 'function') { const _o = renderH88; renderH88 = function () { const r = _o.apply(this, arguments); try { chatRender(); } catch (e) {} return r; }; }
+if (typeof refreshRoomView === 'function') { const _o = refreshRoomView; refreshRoomView = function () { const r = _o.apply(this, arguments); try { chatRender(); } catch (e) {} return r; }; }
+if (typeof showScreen === 'function') { const _o = showScreen; showScreen = function () { const r = _o.apply(this, arguments); try { chatRender(); } catch (e) {} return r; }; }
+if (typeof applyLang === 'function') { const _o = applyLang; applyLang = function () { const r = _o.apply(this, arguments); try { chatRender(); } catch (e) {} return r; }; }
 })();
 </script>
 

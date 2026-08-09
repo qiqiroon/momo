@@ -1,0 +1,105 @@
+/**
+ * 画面の高さを実測して土台へ渡す（C-207）
+ *
+ * 段階7 までは、土台（`.app`）の高さを CSS の「画面いっぱい」（`100dvh`）に任せていた。
+ * ところが **iPhone の横画面では、この値が実際に見えている範囲より下まで伸びることがある**。
+ * 起こり方は環境によっていくつかある（回転した直後に古い値のまま返る／ブラウザの帯が
+ * 中身の上に重なる／`dvh` を解さない）が、**現れ方はどれも同じ**である。
+ *
+ *   - 盤面の「全体」が、見えていない下側まで含めて収めようとする（下が欠ける）
+ *   - 画面いっぱいに重ねるダイアログが、見えている範囲より下を中心にして置かれ、
+ *     下のボタンが帯の裏に入る（押しても効かない・そもそも見えない）
+ *
+ * **どの数字が本当かをブラウザ任せにせず、こちらで測る。** ブラウザが答える2つの高さ
+ * ——器としての高さ（`documentElement.clientHeight`）と、いま実際に見えている高さ
+ * （`visualViewport`）——の**小さいほうを採る。** どちらが正しいかは環境によるが、
+ * **小さいほうを採るかぎり「見えていないところまで広げる」ことは起こらない。**
+ *
+ * この選び方には、もう一つ効き目がある。ホームバーの帯は器のほうの高さから除かれるので、
+ * **見えている高さがその帯を含んでいても、小さいほうを採れば巻き込まれない。**
+ */
+
+import { useEffect } from 'react';
+
+/** 実測した高さを渡す変数名。CSS 側はこれを最優先で使う */
+export const APP_HEIGHT_VAR = '--app-height';
+
+/**
+ * 回転した直後に測り直す時刻（ミリ秒）
+ *
+ * **向きが変わった合図が来た瞬間は、まだ新しい寸法になっていないことがある。**
+ * 1回だけ遅らせても足りない端末があるため、二度に分けて測り直す。
+ * 同じ値なら書き込みは起こらないので、余分に測っても害は無い。
+ */
+const RECHECK_MS = [120, 400] as const;
+
+/**
+ * いま使ってよい高さ（CSS px）。測れなければ 0 を返す。
+ *
+ * 純粋な関数として切り出してある（副作用は `applyAppHeight` が持つ）。
+ */
+export function measureAppHeight(win: Window): number {
+  const heights: number[] = [];
+
+  const client = win.document?.documentElement?.clientHeight ?? 0;
+  if (client > 0) heights.push(client);
+
+  const visual = win.visualViewport;
+  if (visual && visual.height > 0) {
+    // 指で広げている（ピンチ）あいだは、見えている高さが倍率のぶん縮んで見える。
+    // **倍率を掛けて等倍へ戻してから比べる**——そうしないと、広げるたびに器まで縮む
+    const scale = visual.scale > 0 ? visual.scale : 1;
+    heights.push(visual.height * scale);
+  }
+
+  if (heights.length === 0) return win.innerHeight > 0 ? win.innerHeight : 0;
+  return Math.round(Math.min(...heights));
+}
+
+/** 測った高さを CSS 変数へ書き込む。書き込んだ値を返す（測れなければ 0・何も書かない） */
+export function applyAppHeight(win: Window): number {
+  const height = measureAppHeight(win);
+  if (height > 0) win.document.documentElement.style.setProperty(APP_HEIGHT_VAR, `${height}px`);
+  return height;
+}
+
+/**
+ * 測り続ける。後片付けの関数を返す。
+ *
+ * 窓の寸法変化・向きの変化に加えて、**見えている高さ自身の変化**も見る
+ * （ブラウザの帯が出入りしても窓の `resize` は来ないことがある）。
+ */
+export function observeAppHeight(win: Window): () => void {
+  const apply = (): void => {
+    applyAppHeight(win);
+  };
+  apply();
+
+  const timers: ReturnType<typeof setTimeout>[] = [];
+  const onOrientation = (): void => {
+    apply();
+    for (const delay of RECHECK_MS) timers.push(setTimeout(apply, delay));
+  };
+
+  win.addEventListener('resize', apply);
+  win.addEventListener('orientationchange', onOrientation);
+  const visual = win.visualViewport;
+  visual?.addEventListener('resize', apply);
+  visual?.addEventListener('scroll', apply);
+
+  return () => {
+    for (const timer of timers) clearTimeout(timer);
+    win.removeEventListener('resize', apply);
+    win.removeEventListener('orientationchange', onOrientation);
+    visual?.removeEventListener('resize', apply);
+    visual?.removeEventListener('scroll', apply);
+  };
+}
+
+/** 土台が生きているあいだ、器の高さを測り続ける */
+export function useAppHeight(): void {
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    return observeAppHeight(window);
+  }, []);
+}

@@ -45,6 +45,7 @@ const SETTINGS: Settings = {
   soundEnabled: true,
   soundVolume: 0.6,
   hapticEnabled: true,
+  keepAwake: true,
 };
 
 const CUES: FeedbackCue[] = [

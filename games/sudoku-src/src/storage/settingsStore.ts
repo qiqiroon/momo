@@ -6,6 +6,7 @@
 
 import {
   HAPTIC_ENABLED_DEFAULT,
+  KEEP_AWAKE_DEFAULT,
   LOUPE_CORNER_DEFAULT,
   LOUPE_OPEN_DEFAULT,
   LOUPE_SPAN_DEFAULT,
@@ -45,6 +46,7 @@ export function defaults(): Settings {
     loupeOpen: LOUPE_OPEN_DEFAULT,
     loupeSpan: LOUPE_SPAN_DEFAULT,
     paletteScale: PALETTE_SCALE_DEFAULT,
+    keepAwake: KEEP_AWAKE_DEFAULT,
   };
 }
 
@@ -86,6 +88,7 @@ function validate(raw: unknown): Settings | null {
     loupeOpen: typeof raw.loupeOpen === 'boolean' ? raw.loupeOpen : d.loupeOpen,
     loupeSpan: positiveNumberOr(raw.loupeSpan, d.loupeSpan),
     paletteScale: positiveNumberOr(raw.paletteScale, d.paletteScale),
+    keepAwake: typeof raw.keepAwake === 'boolean' ? raw.keepAwake : d.keepAwake,
   };
 }
 

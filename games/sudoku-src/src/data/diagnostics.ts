@@ -141,6 +141,25 @@ export function formatRecord(r: AttemptRecord): string {
 }
 
 /**
+ * 画面の素性（C-207）
+ *
+ * **高さは3つ並べる。** 携帯の横画面で「見えている範囲より下まで器が伸びる」ことがあり、
+ * そのとき**どの数字が食い違っているかが、そのまま原因を指す**。
+ * 器＝土台に与えられた高さ、見え＝いま実際に見えている高さ、採用＝こちらが選んだ値。
+ */
+function screenLine(win: Window): string {
+  const client = win.document?.documentElement?.clientHeight ?? 0;
+  const visual = win.visualViewport;
+  const seen = visual === null || visual === undefined ? '-' : `${Math.round(visual.height)}`;
+  const scale = visual === null || visual === undefined ? '-' : `${visual.scale}`;
+  const adopted = win.document?.documentElement?.style.getPropertyValue('--app-height') || '-';
+  return (
+    `画面 ${win.innerWidth}×${win.innerHeight} / 器 ${client} / 見え ${seen}(倍 ${scale})` +
+    ` / 採用 ${adopted} / 倍率 ${win.devicePixelRatio}`
+  );
+}
+
+/**
  * そのまま貼って渡せる形にまとめる。
  * ユーザーがコピーして送ってくるための出口であり、**環境の素性も一緒に載せる**
  * （同じ症状でも、端末と画面の大きさで原因が変わりうるため）。
@@ -149,9 +168,7 @@ export function formatReport(): string {
   const head = [
     `MOMO Sudoku ${APP_VERSION} 取り込み記録`,
     typeof navigator === 'undefined' ? '' : navigator.userAgent,
-    typeof window === 'undefined'
-      ? ''
-      : `画面 ${window.innerWidth}×${window.innerHeight} / 倍率 ${window.devicePixelRatio}`,
+    typeof window === 'undefined' ? '' : screenLine(window),
     typeof navigator === 'undefined' || navigator.onLine === undefined
       ? ''
       : `オンライン判定 ${navigator.onLine ? 'あり' : 'なし'}`,

@@ -41,11 +41,14 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* `dvh` は携帯の住所欄が伸縮しても実際に見えている高さを指す。
-   対応しない環境のために `vh` を先に置いて上書きさせる。 */
+/* 高さは**実測した値を最優先で使う**（C-207）。`--app-height` は起動時に書き込まれ、
+   向きが変わるたびに測り直される。宣言に任せた `dvh` は、携帯の横画面で
+   実際に見えている範囲より下まで伸びることがあり、盤面の下やダイアログのボタンが隠れた。
+   実測が入るまでの一瞬と、変数が書けない環境のために `vh` / `dvh` を残す。 */
 .app {
   height: 100vh;
   height: 100dvh;
+  height: var(--app-height, 100dvh);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -189,6 +192,12 @@ body {
   flex-direction: column;
   gap: 10px;
   z-index: 200;
+  /* 画面の下からはみ出させない（C-208）。横画面は高さが狭く、項目が1つ増えるだけで
+     入り切らなくなる。引いている 96px は「ヘッダー＋上下のすきま」の見積もりで、
+     多めに取ってある——足りないより余るほうが害が無い */
+  max-height: calc(var(--app-height, 100dvh) - 96px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .settings-row {
@@ -849,20 +858,33 @@ body {
 
 /* ------------------------------------------------------------------ ダイアログ（12.1） */
 
+/* 覆いの高さも実測に従わせる（C-207）。`inset: 0` だけだと、見えていない下側まで含めた
+   まん中に置かれ、ボタンがブラウザの帯の裏へ入って押せなくなる。
+   端のすきまは、切り欠き・ホームバーのぶんを足す（対応しない環境では 0 になる）。 */
 .dialog-backdrop {
   position: fixed;
   inset: 0;
+  height: var(--app-height, auto);
   z-index: 300;
   background: rgba(0, 0, 0, 0.65);
   display: flex;
-  align-items: center;
+  /* **まん中に置きたいが、収まらないときは上を切ってはいけない。**
+     `center` のままだと、はみ出した瞬間に上端が画面の外へ出て戻せなくなる。
+     余りを吸う指定（`margin: auto`）で寄せると、余りが無いときは上端で止まる */
+  align-items: flex-start;
   justify-content: center;
-  padding: 16px;
+  padding: 12px calc(12px + env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom))
+    calc(12px + env(safe-area-inset-left));
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .dialog {
   width: 100%;
   max-width: 380px;
+  /* 画面より高くならない。あふれるぶんは中身の箱だけで送る（C-208） */
+  max-height: 100%;
+  margin: auto;
   background: var(--surface);
   border: 1px solid var(--border-strong);
   border-radius: 8px;
@@ -873,8 +895,19 @@ body {
 }
 
 .dialog-title {
+  flex-shrink: 0;
   font-size: 16px;
   font-weight: 500;
+}
+
+/* 送れるのはここだけ。**題とボタンは動かない**ので、何をしているどの選択肢かが常に見える */
+.dialog-content {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .dialog-body {
@@ -884,6 +917,7 @@ body {
 }
 
 .dialog-actions {
+  flex-shrink: 0;
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
@@ -895,7 +929,8 @@ body {
 .toast-stack {
   position: fixed;
   left: 50%;
-  bottom: 16px;
+  /* ホームバーの帯に重ねない（C-208。対応しない環境では 0 になる） */
+  bottom: calc(16px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
   z-index: 400;
   display: flex;

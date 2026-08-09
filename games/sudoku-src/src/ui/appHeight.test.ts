@@ -1,0 +1,117 @@
+/**
+ * 器の高さの実測の検査（C-207）
+ *
+ * **携帯の横画面で起きたことは、この環境では再現できない。** 確かめられるのは
+ * 「2つの数字を渡したとき、こちらがどちらを採るか」という決め方のほうである。
+ * 決め方さえ間違っていなければ、実機がどちらの数字を返してきても外さない。
+ */
+
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { APP_HEIGHT_VAR, applyAppHeight, measureAppHeight, observeAppHeight } from './appHeight';
+
+/** 高さを答えるだけの偽の窓。実際の `window` は寸法を差し替えられない */
+function fakeWindow(options: {
+  client?: number;
+  innerHeight?: number;
+  visual?: { height: number; scale: number } | null;
+}): Window {
+  const listeners = new Map<string, Set<EventListener>>();
+  const style = document.createElement('div').style;
+  const visual =
+    options.visual === undefined || options.visual === null
+      ? null
+      : {
+          height: options.visual.height,
+          scale: options.visual.scale,
+          addEventListener: () => undefined,
+          removeEventListener: () => undefined,
+        };
+
+  return {
+    innerHeight: options.innerHeight ?? 0,
+    visualViewport: visual,
+    document: { documentElement: { clientHeight: options.client ?? 0, style } },
+    addEventListener: (type: string, fn: EventListener) => {
+      if (!listeners.has(type)) listeners.set(type, new Set());
+      listeners.get(type)?.add(fn);
+    },
+    removeEventListener: (type: string, fn: EventListener) => {
+      listeners.get(type)?.delete(fn);
+    },
+    /** 検査から合図を送るための入口 */
+    __fire: (type: string) => {
+      for (const fn of listeners.get(type) ?? []) fn(new Event(type));
+    },
+  } as unknown as Window;
+}
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+describe('画面の高さの見立て', () => {
+  it('器と見えている高さが食い違うときは、小さいほうを採る', () => {
+    // 携帯の横画面で起きていた形。器のほうが大きい＝見えていない下側まで含んでいる
+    const win = fakeWindow({ client: 430, visual: { height: 330, scale: 1 } });
+    expect(measureAppHeight(win)).toBe(330);
+  });
+
+  it('見えている高さのほうが大きくても、小さいほうを採る', () => {
+    // ホームバーの帯を含んで大きく答える環境。**採るのはやはり小さいほう**
+    const win = fakeWindow({ client: 320, visual: { height: 360, scale: 1 } });
+    expect(measureAppHeight(win)).toBe(320);
+  });
+
+  it('指で広げているあいだも器は縮まない', () => {
+    // 2倍に広げると、見えている高さは半分に見える。倍率で戻してから比べる
+    const win = fakeWindow({ client: 800, visual: { height: 400, scale: 2 } });
+    expect(measureAppHeight(win)).toBe(800);
+  });
+
+  it('どちらも答えない環境では窓の高さへ落とす', () => {
+    const win = fakeWindow({ client: 0, visual: null, innerHeight: 667 });
+    expect(measureAppHeight(win)).toBe(667);
+  });
+
+  it('何も測れなければ 0 を返し、書き込まない', () => {
+    const win = fakeWindow({ client: 0, visual: null, innerHeight: 0 });
+    expect(applyAppHeight(win)).toBe(0);
+    expect(win.document.documentElement.style.getPropertyValue(APP_HEIGHT_VAR)).toBe('');
+  });
+});
+
+describe('測り続けるしかけ', () => {
+  it('採った高さを CSS 変数へ書き込む', () => {
+    const win = fakeWindow({ client: 430, visual: { height: 330, scale: 1 } });
+    applyAppHeight(win);
+    expect(win.document.documentElement.style.getPropertyValue(APP_HEIGHT_VAR)).toBe('330px');
+  });
+
+  it('向きが変わったあと、少し置いて測り直す', () => {
+    vi.useFakeTimers();
+    const win = fakeWindow({ client: 800, visual: { height: 800, scale: 1 } });
+    const stop = observeAppHeight(win);
+    expect(win.document.documentElement.style.getPropertyValue(APP_HEIGHT_VAR)).toBe('800px');
+
+    // **合図が来た瞬間はまだ古い値のまま**、という端末がある。
+    // ここでは合図のあとで寸法が変わる状況をそのまま作る
+    (win as unknown as { __fire(type: string): void }).__fire('orientationchange');
+    (win.document.documentElement as unknown as { clientHeight: number }).clientHeight = 380;
+    (win.visualViewport as unknown as { height: number }).height = 380;
+    expect(win.document.documentElement.style.getPropertyValue(APP_HEIGHT_VAR)).toBe('800px');
+
+    vi.advanceTimersByTime(500);
+    expect(win.document.documentElement.style.getPropertyValue(APP_HEIGHT_VAR)).toBe('380px');
+    stop();
+  });
+
+  it('後片付けをすると、以後の合図では測らない', () => {
+    const win = fakeWindow({ client: 800, visual: { height: 800, scale: 1 } });
+    const stop = observeAppHeight(win);
+    stop();
+
+    (win.document.documentElement as unknown as { clientHeight: number }).clientHeight = 380;
+    (win as unknown as { __fire(type: string): void }).__fire('resize');
+    expect(win.document.documentElement.style.getPropertyValue(APP_HEIGHT_VAR)).toBe('800px');
+  });
+});

@@ -65,6 +65,8 @@ import { PlayView } from './PlayView';
 import { StatusBar } from './StatusBar';
 import { TitleView, type DataState } from './TitleView';
 import { useSoundGate } from './useSoundGate';
+import { useAppHeight } from '../appHeight';
+import { useWakeLock } from '../wakeLock';
 import { Dialog } from './overlay/Dialog';
 import { Toast, type ToastItem, type ToastKind } from './overlay/Toast';
 
@@ -1206,6 +1208,11 @@ export function AppShell(): React.ReactElement {
   }, [active, revision, selected]);
 
   const inPlay = active !== null && model !== null;
+
+  /** 器の高さは実測に従わせる（C-207）。宣言に任せると携帯の横画面で下がはみ出す */
+  useAppHeight();
+  /** 画面を寝かせないのは**プレイ画面のあいだだけ**（C-209・利用者の指示） */
+  useWakeLock(inPlay && settings.keepAwake);
 
   return (
     <div className="app">

@@ -13,6 +13,7 @@ import { diagnostics } from '../../data/diagnostics';
 import { LOUPE_CORNERS, type LoupeCorner, type Settings } from '../../data/types';
 import { PALETTE_SCALES } from '../config';
 import { t } from '../../i18n/locale';
+import { isSupported as keepAwakeSupported } from '../wakeLock';
 
 export interface SettingsPanelProps {
   settings: Settings;
@@ -161,6 +162,19 @@ export function SettingsPanel({
             type="checkbox"
             checked={settings.hapticEnabled}
             onChange={(event) => onChange({ hapticEnabled: event.target.checked })}
+          />
+        </label>
+      )}
+
+      {/* 画面を寝かせない（C-209）。**効くのはプレイ画面のあいだだけ**である。
+          頼めない端末では項目自体を出さない（触覚と同じ流儀） */}
+      {keepAwakeSupported() && (
+        <label className="settings-row">
+          <span>{t('settings.screen.keepAwake')}</span>
+          <input
+            type="checkbox"
+            checked={settings.keepAwake}
+            onChange={(event) => onChange({ keepAwake: event.target.checked })}
           />
         </label>
       )}

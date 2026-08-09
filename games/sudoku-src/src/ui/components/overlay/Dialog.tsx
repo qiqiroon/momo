@@ -65,8 +65,15 @@ export function Dialog({ title, body, children, actions, defaultIndex }: DialogP
     <div className="dialog-backdrop" role="presentation" onKeyDown={onKeyDown}>
       <div className="dialog" role="dialog" aria-modal="true" aria-label={title} ref={panelRef}>
         <h2 className="dialog-title">{title}</h2>
-        {body !== undefined && <p className="dialog-body">{body}</p>}
-        {children}
+        {/* **中身だけを送れる箱に入れる**（C-208）。携帯の横画面は高さが狭く、
+            素直に積むと下のボタンが画面の外へ落ちて、見えも押せもしなくなる。
+            送るのを中身に限れば、ボタンは常に見える位置に残る */}
+        {(body !== undefined || children !== undefined) && (
+          <div className="dialog-content">
+            {body !== undefined && <p className="dialog-body">{body}</p>}
+            {children}
+          </div>
+        )}
         <div className="dialog-actions">
           {actions.map((action, index) => (
             <button

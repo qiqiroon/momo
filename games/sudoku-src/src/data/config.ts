@@ -48,6 +48,14 @@ export const SOUND_VOLUME_DEFAULT = 0.5;
 /** 触覚フィードバックの既定値 */
 export const HAPTIC_ENABLED_DEFAULT = true;
 
+/**
+ * 画面を寝かせないの既定値（C-209）
+ *
+ * **入で始める。** 考えているあいだに暗くなるという指摘への答えなので、
+ * まず効いている状態から始めるのが素直である。要らなければ設定で切れる。
+ */
+export const KEEP_AWAKE_DEFAULT = true;
+
 /** ルーペを置く角の既定値（C-185）。利用者の指定は右上である */
 export const LOUPE_CORNER_DEFAULT: LoupeCorner = 'TOP_RIGHT';
 

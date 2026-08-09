@@ -135,6 +135,12 @@ export interface Settings {
   loupeSpan: number;
   /** 数字ボタンの大きさの倍率（C-190）。1 が既定 */
   paletteScale: number;
+  /**
+   * 遊んでいるあいだ画面を寝かせないか（C-209）
+   *
+   * **効くのはプレイ画面のあいだだけ**である。タイトル画面では効かせない。
+   */
+  keepAwake: boolean;
 }
 
 export interface StatsEntry {

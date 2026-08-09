@@ -770,7 +770,9 @@
   .chat-icon{display:inline-flex;align-items:center;justify-content:center;width:1.5em;height:1.5em;margin-left:.35em;
     border:none;background:transparent;color:var(--orange,#e88c2a);font-size:1em;line-height:1;cursor:pointer;padding:0;vertical-align:middle;}
   .chat-icon:hover{filter:brightness(1.25);}
-  #chat-layer{position:fixed;inset:0;pointer-events:none;z-index:12000;}
+  /* ★画面に貼り付ける(fixed)のではなく、ページ上に置く(absolute)。こうするとスクロールで
+     吹き出しが名前と一緒に動く＝スクロールの通知を待たなくてよい。 */
+  #chat-layer{position:absolute;top:0;left:0;width:100%;height:0;pointer-events:none;z-index:12000;}
   #chat-layer > *{pointer-events:auto;}
   .chat-bubble{position:absolute;max-width:min(64vw,320px);background:#fffaf0;color:#20201c;border:2px solid var(--orange,#e88c2a);
     border-radius:12px;padding:6px 26px 6px 10px;font-size:.8rem;line-height:1.35;font-weight:600;
@@ -1353,7 +1355,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.99</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.00</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1419,7 +1421,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.99</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.00</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1555,7 +1557,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.99</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.00</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1618,7 +1620,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v2.99</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.00</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -11270,27 +11272,40 @@ function chatAnchorFor(pid) {
     const row = document.querySelector('#participant-mgmt .pm-row[data-pid="' + String(pid).replace(/"/g, '') + '"]');
     return row ? { el: row, prefer: 'down' } : null;
   }
-  const nm = (state.chat && state.chat[pid] && state.chat[pid].name) || '';
+  const nm = String((state.chat && state.chat[pid] && state.chat[pid].name) || '').trim();
+  const iSpec = chatIsSpectatorNow();
   if (scr === 'game') {
+    const title = { el: chatTitleEl('screen-game'), titleRandom: true };
+    if (chatRoleOf(pid) === 'spectator') return title; // 観戦者は盤に名前が無いので必ずタイトル帯
     const mine = document.getElementById('my-hand-name'), opp = document.getElementById('opp-hand-name');
-    if (pid === state.myPid && !chatIsSpectatorNow() && mine) return { el: mine.parentElement, prefer: 'down' };
-    // 観戦者から見た2人の対局者は、盤に出ている名前と突き合わせて上下を決める
-    if (mine && nm && mine.textContent && mine.textContent.indexOf(nm) >= 0) return { el: mine.parentElement, prefer: 'down' };
-    if (opp && nm && opp.textContent && opp.textContent.indexOf(nm) >= 0) return { el: opp.parentElement, prefer: 'up' };
-    if (chatRoleOf(pid) !== 'spectator' && opp) return { el: opp.parentElement, prefer: 'up' };
-    return { el: chatTitleEl('screen-game'), titleRandom: true };
+    if (!iSpec) { // 対局者から見た画面＝自分は下・相手は上で決まる
+      if (pid === state.myPid) return mine ? { el: mine.parentElement, prefer: 'down' } : title;
+      return opp ? { el: opp.parentElement, prefer: 'up' } : title;
+    }
+    // 観戦している画面＝2人の対局者は、盤に出ている名前と「完全一致」で上下を決める。
+    // ★部分一致にすると、観戦者の名前が対局者の名前の一部（例「ゲスト」と「ゲスト花子」）のときに取り違える。
+    if (mine && nm && String(mine.textContent).trim() === nm) return { el: mine.parentElement, prefer: 'down' };
+    if (opp && nm && String(opp.textContent).trim() === nm) return { el: opp.parentElement, prefer: 'up' };
+    return opp ? { el: opp.parentElement, prefer: 'up' } : title;
   }
   if (scr === 'hachi') {
-    if (pid === state.myPid && !chatIsSpectatorNow()) {
+    const title = { el: chatTitleEl('screen-hachi'), titleRandom: true };
+    const seat = (typeof h88SeatOfPid === 'function') ? h88SeatOfPid(pid) : null;
+    if (!seat) return title; // 席に居ない＝観戦者
+    // ★下段（盤のいちばん下）の席には data-h88seat の目印が付かない。観戦していると下段は自分ではなく
+    //   対局者なので、席だけで探すとその人の吹き出しがタイトル帯へ飛んでしまう。下段は名前行を当て先にする。
+    if (seat === h88MySeat()) {
       const e = document.getElementById('h88-self-nameline');
       if (e) return { el: e, prefer: 'down' };
     }
-    const seat = (typeof h88SeatOfPid === 'function') ? h88SeatOfPid(pid) : null;
-    if (seat) { const el = chatH88SeatEl(seat); if (el) return { el: el, prefer: 'up' }; }
-    return { el: chatTitleEl('screen-hachi'), titleRandom: true };
+    const el = chatH88SeatEl(seat);
+    return el ? { el: el, prefer: 'up' } : title;
   }
   return null;
 }
+// 置き場所はいったん「いま見えている画面の中の位置」で決め（画面からはみ出さないように）、
+// 最後にレイヤー自身の位置を差し引いて「ページ上の位置」に直す。
+function chatLayerOrigin() { const l = chatLayer().getBoundingClientRect(); return { x: l.left, y: l.top }; }
 function chatPlaceNear(box, anchorEl, prefer) {
   if (!anchorEl || !box) return;
   const r = anchorEl.getBoundingClientRect();
@@ -11301,7 +11316,8 @@ function chatPlaceNear(box, anchorEl, prefer) {
   if (top < 4) { top = r.bottom + 12; tail = 'tail-up'; }
   if (top + bh > window.innerHeight - 4) { top = Math.max(4, r.top - bh - 12); tail = 'tail-down'; }
   let left = Math.max(4, Math.min(r.left, window.innerWidth - bw - 4));
-  box.style.top = top + 'px'; box.style.left = left + 'px';
+  const o = chatLayerOrigin();
+  box.style.top = (top - o.y) + 'px'; box.style.left = (left - o.x) + 'px';
   box.classList.remove('tail-up', 'tail-down');
   if (box.classList.contains('chat-bubble')) box.classList.add(tail);
 }
@@ -11315,7 +11331,8 @@ function chatPlaceInTitle(box, el, pid) {
   let left = Math.max(4, Math.min(r.left + f * Math.max(0, r.width - bw), window.innerWidth - bw - 4));
   let top = r.bottom + 12;
   if (top + bh > window.innerHeight - 4) top = Math.max(4, r.top - bh - 12);
-  box.style.left = left + 'px'; box.style.top = top + 'px';
+  const o = chatLayerOrigin();
+  box.style.left = (left - o.x) + 'px'; box.style.top = (top - o.y) + 'px';
   box.classList.remove('tail-down'); box.classList.add('tail-up');
 }
 function chatRender() {
@@ -11336,12 +11353,33 @@ function chatRender() {
     x.title = t('chat.close'); x.setAttribute('aria-label', t('chat.close'));
     x.addEventListener('click', () => chatClose(pid));
     b.appendChild(who); b.appendChild(tx); b.appendChild(x);
+    b.__pid = pid; // 位置を出し直すときの目印
     layer.appendChild(b);
     if (a.titleRandom) chatPlaceInTitle(b, a.el, pid); else chatPlaceNear(b, a.el, a.prefer);
   });
   const e = layer.querySelector('.chat-entry');
   if (e) { const a = chatMyIconEl(); if (a) chatPlaceNear(e, a, 'down'); else e.remove(); }
 }
+// 画面をスクロールしても、吹き出しが名前について回るように位置だけ出し直す。
+// （作り直さないので、入力中の文字も吹き出しの中身も触らない）
+function chatReposition() {
+  const layer = document.getElementById('chat-layer');
+  if (!layer || !chatEnabled()) return;
+  layer.querySelectorAll('.chat-bubble').forEach(b => {
+    const a = chatAnchorFor(b.__pid);
+    if (!a || !a.el) { b.style.visibility = 'hidden'; return; }
+    b.style.visibility = '';
+    if (a.titleRandom) chatPlaceInTitle(b, a.el, b.__pid); else chatPlaceNear(b, a.el, a.prefer);
+  });
+  const e = layer.querySelector('.chat-entry');
+  if (e) { const icon = chatMyIconEl(); if (icon) chatPlaceNear(e, icon, 'down'); }
+}
+// ★次の描画を待つ形（requestAnimationFrame）にはしない。画面が表に出ていないと描画の時計が止まり、
+//   位置の出し直しが動かないため。出す吹き出しはせいぜい数個なので、その場で計算して差し支えない。
+function chatRepositionSoon() { try { chatReposition(); } catch (e) {} }
+// ページ全体のスクロールと、盤や一覧の中のスクロール（捕捉して拾う）の両方に追従する
+window.addEventListener('scroll', chatRepositionSoon, { passive: true });
+document.addEventListener('scroll', chatRepositionSoon, { passive: true, capture: true });
 window.addEventListener('resize', () => { try { chatRender(); } catch (e) {} });
 window.addEventListener('orientationchange', () => { setTimeout(() => { try { chatRender(); } catch (e) {} }, 250); });
 // 盤や準備室が描き直されると名前の行ごと作り直されるので、描画のあとに吹き出しとアイコンを貼り直す。

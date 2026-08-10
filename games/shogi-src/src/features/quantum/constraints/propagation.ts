@@ -37,6 +37,7 @@
  * かつ現在 col != C なら、その候補を除外」でよい。
  */
 
+import type { Player } from '../../../core/engine/mgf/types';
 import type { PieceId, PieceInstance, Position } from '../../../core/engine/position/types';
 import type { QuantumConstraint } from '../candidate-update';
 
@@ -151,6 +152,90 @@ export const c108FuFileConservation: QuantumConstraint = (piece, location, _pos,
 };
 
 /**
+ * C-302 枚数確定制約 (Phase 5-9・§Q8.7 / §Q12.5)。
+ *
+ * 「ある候補を保持する駒数が、その駒の初期枚数と一致した場合、それらの駒はその候補として確定する」。
+ *
+ * ## PieceID ベースでの読み替え (Phase 5-6.5 以降)
+ *
+ * 候補が駒種名から PieceID に変わったので、仕様の「候補 kind k」は
+ * **「初期陣営 S・初期駒種 K を持つ PieceID の集合」** に読み替える (以下グループ)。
+ * グループの大きさ n = その陣営のその駒種の初期枚数 (金なら 2、王なら 1)。
+ *
+ * グループの PieceID を 1 つでも候補に持つ駒を holder と呼ぶ。**holder がちょうど n 枚なら、
+ * その n 枚は全員そのグループの駒**である (n 個の身元を n 枚で分け合うしかない)。
+ * よって holder の候補は、そのグループ内の PieceID だけに狭められる。
+ *
+ * ## C-106 との違い (なぜ別に要るのか)
+ *
+ * C-106 は「PieceID X を持つ駒が 1 枚だけなら、その駒は X」。個々の PieceID を見る。
+ * C-302 は「金の身元 2 個を担えるのが 2 枚だけなら、その 2 枚は両方とも金」。
+ * どちらの金かは決まらないが、**金以外の候補 (銀など) は落とせる**。
+ * 数独でいう naked pair に相当し、C-106 (hidden single) では取れない絞り込み。
+ *
+ * ## §Q12.5 王の確定を含む
+ *
+ * 王は各初期陣営 1 枚 (§Q12.2) なので n=1。「王候補を保持する未確定駒が 1 枚になった時点で
+ * その駒は王として確定する (先手・後手それぞれで独立判定)」は本制約の n=1 の場合にあたる。
+ * 陣営別に数えるため、先手の王候補が 1 枚に減っても後手側の判定には影響しない。
+ *
+ * ## 矛盾した局面での挙動
+ *
+ * 2 つ以上のグループが同時に成立し、かつ自分がそのどちらの holder でもある場合、
+ * 「金でも銀でもある」ことになり交わりは空集合になる。これは局面自体が矛盾している
+ * (整合する割り当てが存在しない) ことを意味し、§Q8.8 C-901 異常状態の検出対象。
+ * 本制約は握り潰さず空集合を返す (C-901 の通知・投票 UI は未実装)。
+ */
+export const c302CountConfirmation: QuantumConstraint = (piece, _location, pos, _mgf, context) => {
+  if (piece.candidates === undefined) return new Set();
+
+  // 自分の候補が全部同じグループなら、狭めても何も変わらないので早期に打ち切る。
+  const myGroups = new Set<string>();
+  for (const pid of piece.candidates) {
+    const info = context.infoMap.get(pid);
+    if (info) myGroups.add(groupKeyOf(info.initialOwner, info.initialKind));
+  }
+  if (myGroups.size <= 1) return new Set(piece.candidates);
+
+  // 自分に関係するグループについてだけ「そのグループの PieceID 全体」を集める。
+  const groupIds = new Map<string, Set<PieceId>>();
+  for (const info of context.infoMap.values()) {
+    const key = groupKeyOf(info.initialOwner, info.initialKind);
+    if (!myGroups.has(key)) continue;
+    const ids = groupIds.get(key);
+    if (ids) ids.add(info.pieceId);
+    else groupIds.set(key, new Set([info.pieceId]));
+  }
+
+  // グループごとの holder (そのグループの PieceID を 1 つ以上候補に持つ駒) を数える。
+  const holderCount = new Map<string, number>();
+  for (const p of collectAllQuantumPieces(pos)) {
+    for (const [key, ids] of groupIds) {
+      let holds = false;
+      for (const pid of p.candidates!) {
+        if (ids.has(pid)) { holds = true; break; }
+      }
+      if (holds) holderCount.set(key, (holderCount.get(key) ?? 0) + 1);
+    }
+  }
+
+  // holder 数 == 初期枚数 のグループについて、自分の候補をそのグループ内に狭める。
+  let narrowed: Set<PieceId> = new Set(piece.candidates);
+  for (const [key, ids] of groupIds) {
+    if ((holderCount.get(key) ?? 0) !== ids.size) continue;
+    const next = new Set<PieceId>();
+    for (const pid of narrowed) if (ids.has(pid)) next.add(pid);
+    narrowed = next;
+  }
+  return narrowed;
+};
+
+/** C-302 のグループ鍵。初期陣営と初期駒種の組で 1 グループ (先手の金と後手の金は別)。 */
+function groupKeyOf(initialOwner: Player, initialKind: string): string {
+  return `${initialOwner}/${initialKind}`;
+}
+
+/**
  * 全盤上駒 + 全持ち駒を集める (candidate assignment 集計用)。
  * candidate_update 側のフレームワークが per-piece 呼び出しをするが、C-106 は全体視点が必要なので
  * 制約関数の中で毎回 pos を走査する。
@@ -174,4 +259,7 @@ export const propagationConstraints: QuantumConstraint[] = [
   c108FuFileConservation,
   c107ConfirmedExclusion,
   c106UniqueAssignment,
+  // C-302 は「グループ丸ごと」の判定なので、個別の狭め (C-108) と個別の確定 (C-106/C-107) が
+  // 効いて候補が減った後に回すほうが成立しやすい。よって最後。
+  c302CountConfirmation,
 ];

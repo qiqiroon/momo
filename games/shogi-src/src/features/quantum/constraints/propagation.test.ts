@@ -3,7 +3,7 @@ import { hondou } from '../../../core/engine/mgf/loader';
 import { initPosition } from '../../../core/engine/position/init';
 import { applyMove } from '../../../core/engine/position/apply';
 import { register, clear } from '../../../core/plugin/registry';
-import type { PieceInstance, Position } from '../../../core/engine/position/types';
+import type { PieceId, PieceInstance, Position } from '../../../core/engine/position/types';
 import { candidateUpdate } from '../candidate-update';
 import { buildInitialInfoMap } from '../piece-lookup';
 import { quantumInit } from '../init';
@@ -13,6 +13,7 @@ import {
   c106UniqueAssignment,
   c107ConfirmedExclusion,
   c108FuFileConservation,
+  c302CountConfirmation,
   propagationConstraints,
 } from './propagation';
 
@@ -324,5 +325,205 @@ describe('P8 斜め → P19 fu 確定伝搬 (統合)', () => {
         expect(movedPiece.candidates!.has(pid)).toBe(false);
       }
     }
+  });
+});
+
+// ============================================================
+// C-302 枚数確定制約 (Phase 5-9 §Q8.7 / §Q12.5)
+// ============================================================
+
+/** 全駒の候補を pick() で作り直した Position を返す (C-302 の場面作り用)。 */
+function withAllCandidates(pos: Position, pick: (p: PieceInstance) => Set<PieceId>): Position {
+  return {
+    ...pos,
+    board: pos.board.map((row) =>
+      row.map((cell) => (cell ? { ...cell, candidates: pick(cell) } : cell)),
+    ),
+    hands: {
+      player1: pos.hands.player1.map((p) => ({ ...p, candidates: pick(p) })),
+      player2: pos.hands.player2.map((p) => ({ ...p, candidates: pick(p) })),
+    },
+  };
+}
+
+/** 指定の初期陣営・初期駒種を持つ PieceID 一覧。 */
+function idsOfKind(pos: Position, owner: 'player1' | 'player2', kind: string): PieceId[] {
+  const out: PieceId[] = [];
+  for (const info of buildInitialInfoMap(pos).values()) {
+    if (info.initialOwner === owner && info.initialKind === kind) out.push(info.pieceId);
+  }
+  return out;
+}
+
+describe('C-302 枚数確定制約 (単体)', () => {
+  it('金の身元 2 個を担える駒が 2 枚だけ: その 2 枚から金以外の候補が落ちる (naked pair)', () => {
+    const base = quantumInit(initPosition(hondou));
+    const kinIds = idsOfKind(base, 'player1', 'kin');
+    const ginIds = idsOfKind(base, 'player1', 'gin');
+    expect(kinIds.length).toBe(2);
+    expect(ginIds.length).toBe(2);
+
+    // 金 2 枚だけが {金A, 金B, 銀A} を持ち、他は全員自分の身元に確定している状態。
+    // 銀A の担当は「銀A 本体」と「金 2 枚」= 3 枚なので銀グループは成立しない。
+    const pos = withAllCandidates(base, (p) =>
+      kinIds.includes(p.pieceId)
+        ? new Set([...kinIds, ginIds[0]])
+        : new Set([p.pieceId]),
+    );
+    const infoMap = buildInitialInfoMap(pos);
+    const target = pos.board[8][3]!;
+    expect(kinIds).toContain(target.pieceId);
+
+    const survivors = c302CountConfirmation(
+      target,
+      { kind: 'board', square: { row: 8, col: 3 } },
+      pos, hondou, { torusMode: 'none', infoMap },
+    );
+
+    // 「どちらの金か」は決まらないが、銀の目は消える
+    expect(survivors.size).toBe(2);
+    expect(survivors.has(kinIds[0])).toBe(true);
+    expect(survivors.has(kinIds[1])).toBe(true);
+    expect(survivors.has(ginIds[0])).toBe(false);
+  });
+
+  it('金の身元 2 個を担える駒が 3 枚なら狭まらない', () => {
+    const base = quantumInit(initPosition(hondou));
+    const kinIds = idsOfKind(base, 'player1', 'kin');
+    const ginIds = idsOfKind(base, 'player1', 'gin');
+
+    // 銀A 本体にも金A の目を持たせて、金グループの担当を 3 枚に増やす
+    const pos = withAllCandidates(base, (p) => {
+      if (kinIds.includes(p.pieceId)) return new Set([...kinIds, ginIds[0]]);
+      if (p.pieceId === ginIds[0]) return new Set([ginIds[0], kinIds[0]]);
+      return new Set([p.pieceId]);
+    });
+    const infoMap = buildInitialInfoMap(pos);
+    const target = pos.board[8][3]!;
+
+    const survivors = c302CountConfirmation(
+      target,
+      { kind: 'board', square: { row: 8, col: 3 } },
+      pos, hondou, { torusMode: 'none', infoMap },
+    );
+
+    expect(survivors.size).toBe(3);
+    expect(survivors.has(ginIds[0])).toBe(true);
+  });
+
+  it('§Q12.5 王候補を持つ駒が 1 枚になったらその駒は王として確定する', () => {
+    const base = quantumInit(initPosition(hondou));
+    const ouIds = idsOfKind(base, 'player1', 'ou');
+    expect(ouIds.length).toBe(1);
+    const ouId = ouIds[0];
+    const fuPiece = base.board[6][0]!;
+
+    // 玉の位置の駒は「歩 F0」に確定済み、歩 F0 の位置の駒だけが玉候補を残している状態
+    const pos = withAllCandidates(base, (p) => {
+      if (p.pieceId === fuPiece.pieceId) return new Set([ouId, fuPiece.pieceId]);
+      if (p.pieceId === ouId) return new Set([fuPiece.pieceId]);
+      return new Set([p.pieceId]);
+    });
+    const infoMap = buildInitialInfoMap(pos);
+
+    const survivors = c302CountConfirmation(
+      pos.board[6][0]!,
+      { kind: 'board', square: { row: 6, col: 0 } },
+      pos, hondou, { torusMode: 'none', infoMap },
+    );
+
+    expect(survivors.size).toBe(1);
+    expect(survivors.has(ouId)).toBe(true);
+  });
+
+  it('§Q12.5 王候補を持つ駒が 2 枚あるうちは確定しない', () => {
+    const base = quantumInit(initPosition(hondou));
+    const ouId = idsOfKind(base, 'player1', 'ou')[0];
+    const fuPiece = base.board[6][0]!;
+
+    // 2 枚が「玉か、その歩か」で見分けが付いていない状態
+    const pos = withAllCandidates(base, (p) =>
+      p.pieceId === fuPiece.pieceId || p.pieceId === ouId
+        ? new Set([ouId, fuPiece.pieceId])
+        : new Set([p.pieceId]),
+    );
+    const infoMap = buildInitialInfoMap(pos);
+
+    const survivors = c302CountConfirmation(
+      pos.board[6][0]!,
+      { kind: 'board', square: { row: 6, col: 0 } },
+      pos, hondou, { torusMode: 'none', infoMap },
+    );
+
+    expect(survivors.size).toBe(2);
+    expect(survivors.has(ouId)).toBe(true);
+  });
+
+  it('先手の王が 1 枚に絞れても、後手の王候補は影響を受けない (陣営別に独立判定)', () => {
+    const base = quantumInit(initPosition(hondou));
+    const p1OuId = idsOfKind(base, 'player1', 'ou')[0];
+    const p2OuId = idsOfKind(base, 'player2', 'ou')[0];
+    const p1Fu = base.board[6][0]!;
+    const p2Fu = base.board[2][0]!;
+    expect(p2Fu.initialOwner).toBe('player2');
+
+    // 先手側は玉候補 1 枚 (確定できる)、後手側は玉候補 2 枚 (確定できない)
+    const pos = withAllCandidates(base, (p) => {
+      if (p.pieceId === p1Fu.pieceId) return new Set([p1OuId, p1Fu.pieceId]);
+      if (p.pieceId === p1OuId) return new Set([p1Fu.pieceId]);
+      if (p.pieceId === p2Fu.pieceId || p.pieceId === p2OuId) {
+        return new Set([p2OuId, p2Fu.pieceId]);
+      }
+      return new Set([p.pieceId]);
+    });
+    const infoMap = buildInitialInfoMap(pos);
+    const context = { torusMode: 'none' as const, infoMap };
+
+    const senteSurvivors = c302CountConfirmation(
+      pos.board[6][0]!, { kind: 'board', square: { row: 6, col: 0 } }, pos, hondou, context,
+    );
+    const goteSurvivors = c302CountConfirmation(
+      pos.board[2][0]!, { kind: 'board', square: { row: 2, col: 0 } }, pos, hondou, context,
+    );
+
+    expect(senteSurvivors.size).toBe(1);
+    expect(senteSurvivors.has(p1OuId)).toBe(true);
+    expect(goteSurvivors.size).toBe(2);
+  });
+
+  it('通常将棋モード (候補を持たない駒) には作用しない', () => {
+    const pos = initPosition(hondou);
+    const survivors = c302CountConfirmation(
+      pos.board[6][0]!,
+      { kind: 'board', square: { row: 6, col: 0 } },
+      pos, hondou, { torusMode: 'none', infoMap: new Map() },
+    );
+    expect(survivors.size).toBe(0);
+  });
+});
+
+describe('C-302 → C-301 の連鎖 (統合)', () => {
+  afterEach(() => {
+    clear();
+  });
+
+  it('王候補が 1 枚に絞れた駒は、候補更新の結果として確定フラグまで立つ', () => {
+    register('quantum:constraints', [c302CountConfirmation]);
+
+    const base = quantumInit(initPosition(hondou));
+    const ouId = idsOfKind(base, 'player1', 'ou')[0];
+    const fuPiece = base.board[6][0]!;
+    const pos = withAllCandidates(base, (p) => {
+      if (p.pieceId === fuPiece.pieceId) return new Set([ouId, fuPiece.pieceId]);
+      if (p.pieceId === ouId) return new Set([fuPiece.pieceId]);
+      return new Set([p.pieceId]);
+    });
+
+    const stable = candidateUpdate(pos, hondou);
+
+    const king = stable.board[6][0]!;
+    expect(king.candidates!.size).toBe(1);
+    expect(king.candidates!.has(ouId)).toBe(true);
+    expect(king.confirmed).toBe(true);
   });
 });

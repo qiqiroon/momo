@@ -11,6 +11,11 @@
  * buildInitialInfoMap で 1 回作って全制約に渡す。制約側は候補 PieceID を
  * context.infoMap.get(pid) で「初期 kind / 初期位置 / 初期陣営」に resolve する。
  *
+ * ## Phase 5-8 変更点
+ *
+ * 1 反復は「候補を狭める制約群」→「C-301 単一候補確定」の 2 パス構成になった (§Q7.4 擬似コード)。
+ * 確定フラグは制約側の副作用ではなく single-confirm.ts の独立パスが立てる。
+ *
  * ## 反復上限 (§Q7.9.1)
  *
  * 目安は pieces × pieceIds。本将棋なら 40 駒 × 40 PieceID = 1600 だが、
@@ -22,6 +27,7 @@ import type { PieceInstance, Position, Square } from '../../core/engine/position
 import { get as pluginGet } from '../../core/plugin/registry';
 import { checkC001InitialOwnerPreserved, checkC002CandidatesMonotone } from './constraints/basic';
 import { buildInitialInfoMap, type CandidateInfo } from './piece-lookup';
+import { applyC301SingleConfirm } from './single-confirm';
 
 /** 制約が判定する駒がどこに居るかの情報 (盤上か持ち駒か)。 */
 export type QuantumPieceLocation =
@@ -102,12 +108,14 @@ export function candidateUpdate(
   let current = pos;
   let final: Position | null = null;
   for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
-    const { next, changed } = applyConstraintsOnce(current, mgf, constraints, context);
-    if (!changed) {
+    // 1 反復 = 「候補を狭める制約群」→「C-301 単一候補確定」の 2 パス (§Q7.4 擬似コード)。
+    const narrowed = applyConstraintsOnce(current, mgf, constraints, context);
+    const confirmedPass = applyC301SingleConfirm(narrowed.next);
+    if (!narrowed.changed && !confirmedPass.changed) {
       final = current;
       break;
     }
-    current = next;
+    current = confirmedPass.next;
   }
   if (final === null) {
     console.warn(
@@ -209,10 +217,9 @@ function applyConstraintsToPiece(
     }
   }
   if (next === null || next.size === piece.candidates.size) return piece;
-  // §Q7.5: 候補集合が 1 個に収縮したら確定 (C-301)。5-8 で正式実装するが
-  // ここでは confirmed=true への遷移だけは行う (安全な副作用)。
-  const confirmed = next.size === 1;
-  return { ...piece, candidates: next, confirmed };
+  // 確定フラグはここでは触らない。候補が 1 個になったかどうかの判定は
+  // C-301 の独立パス (single-confirm.ts) が反復ごとに全駒へ回す (Phase 5-8)。
+  return { ...piece, candidates: next };
 }
 
 function intersect(a: ReadonlySet<string>, b: ReadonlySet<string>): Set<string> {

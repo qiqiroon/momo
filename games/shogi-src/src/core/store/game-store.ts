@@ -1,7 +1,9 @@
 import { create } from 'zustand';
 import {
   applyMove,
+  buildInitialKindMap,
   canDeclareNyugyoku,
+  displayKindsFor,
   generateLegalMoves,
   hondou,
   initPosition,
@@ -13,6 +15,7 @@ import type { BoardMove, Mgf, Move, Player, Position, Square } from '../engine';
 import { formatMove } from '../engine/kifu/format';
 import { NO_LIMIT_TIME_CONTROL, initClockState, type ClockState, type TimeControl } from '../engine/time-control';
 import { get as pluginGet } from '../plugin/registry';
+import type { OnlineGameConnector } from '../plugin/gameConnector';
 import { useDebugStore, type DebugCandidateChangeEntry } from './debug-store';
 
 /**
@@ -20,8 +23,16 @@ import { useDebugStore, type DebugCandidateChangeEntry } from './debug-store';
  * quantum=true かつ 'quantum:init' が登録されていれば初期候補集合を割り当てる。
  * A ビルドでは quantum モジュール自体が tree-shake で除外されるため常に no-op となる。
  */
+/**
+ * 未確定駒の見せ方 (spec 駒デザイン・対局UI §4.2 / 対局設定 `qtdisp`)。
+ * 'cycle' = 候補を 1 秒ごとに 1 種ずつ入れ替える (既定) / 'stack' = 候補を黒で重ねる。
+ */
+export type QuantumDisplay = 'cycle' | 'stack';
+
 export interface ResetOptions {
   quantum?: boolean;
+  /** 省略時は現在値を維持する (ルール設定者が対局中に切り替えた値を消さない)。 */
+  quantumDisplay?: QuantumDisplay;
 }
 type QuantumInitFn = (pos: Position) => Position;
 type QuantumCandidateUpdateFn = (
@@ -51,6 +62,15 @@ export interface PendingPromotion {
   promotedKind: string;
   owner: Player;
   heading: string;
+  /**
+   * v1.08 (Phase 5-11): 量子モードで未確定の駒が成るときの表示用。
+   * 成り確認は「この駒が成るとこうなる」を見せる画面なので、未確定の駒に対して
+   * pieceKind (＝初期位置の駒種で、正体ではない) を出すと嘘になる。
+   * 未確定なら候補の駒種 (強さ降順) を並べて、盤上と同じ ? + 巡回/重ねで見せる。
+   * 確定駒・本将棋モードでは 1 個だけ入り、従来と同じ表示になる。
+   */
+  candidateKinds: string[];
+  promotedCandidateKinds: string[];
 }
 
 type GameStatus =
@@ -158,6 +178,15 @@ interface GameState {
   reset: (options?: ResetOptions) => void;
   /** 現局面が量子モードで初期化されたか。reset({quantum}) で更新される。v0.90 追加。 */
   currentQuantum: boolean;
+  /**
+   * 未確定駒の見せ方 (Phase 5-11)。対局設定 `qtdisp` の実行時の単一情報源で、
+   * S02 (ルール選択) / S10 (歯車設定) / 対局画面の切替はすべてここを読み書きする。
+   * 公平性原則 (spec §4.4) によりルール設定者だけが操作でき、両プレイヤーに共通適用される
+   * (＝相手側の値はホストの選択が部屋のルールとして届く)。
+   */
+  quantumDisplay: QuantumDisplay;
+  /** 未確定駒の見せ方を切り替える。操作権の判定は呼び出し側 (UI) の責務。 */
+  setQuantumDisplay: (mode: QuantumDisplay) => void;
   /**
    * 相手から受信した着手を盤面に反映する。
    * pieceId / from / to / promote に完全一致する合法手を探して適用。
@@ -455,7 +484,15 @@ export const useGameStore = create<GameState>((set, get) => ({
   activeClockSide: null,
   paused: false,
   currentQuantum: false,
+  quantumDisplay: 'cycle',
   entangledPieceIds: [],
+
+  setQuantumDisplay: (mode) => {
+    set({ quantumDisplay: mode });
+    // 対局設定 (qtdisp) は部屋のルールと同じ値なので、そちらにも書き戻して
+    // 次の対局・再戦でルール設定者の選択が失われないようにする (spec §4.4 単一情報源)。
+    pluginGet<OnlineGameConnector>('gameConnector')?.setQuantumDisplayMode(mode);
+  },
 
   selectSquare: (sq) => {
     const { position, mgf, status } = get();
@@ -517,6 +554,11 @@ export const useGameStore = create<GameState>((set, get) => ({
       }
       const def = mgf.pieces.find((p) => p.id === piece.kind);
       const promotedKind = def?.promoted_id ?? piece.kind;
+      // v1.08: 未確定駒なら候補を並べる (確定駒・本将棋モードは 1 個で従来通り)
+      const candidateKinds = displayKindsFor(mgf, piece, buildInitialKindMap(position));
+      const promotedCandidateKinds = candidateKinds
+        .map((k) => mgf.pieces.find((p) => p.id === k)?.promoted_id)
+        .filter((k): k is string => !!k);
       set({
         pendingPromotion: {
           nonPromoteMove: nonPromote,
@@ -525,6 +567,9 @@ export const useGameStore = create<GameState>((set, get) => ({
           promotedKind,
           owner: piece.owner,
           heading: formatMove(mgf, position, nonPromote),
+          candidateKinds,
+          promotedCandidateKinds:
+            promotedCandidateKinds.length > 0 ? promotedCandidateKinds : [promotedKind],
         },
       });
       return true;
@@ -763,10 +808,25 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (quantum) {
       const quantumInitFn = pluginGet<QuantumInitFn>('quantum:init');
       if (quantumInitFn) pos = quantumInitFn(pos);
+      // v1.08 (Phase 5-11): 初期配置の時点で既に成り立っている制約 (歩は最初に居た筋から
+      // 動かない = C-108 等) を、対局開始時に 1 回だけ適用しておく。
+      //
+      // これを入れないと、着手と無関係な絞り込みが「初手の候補更新」のタイミングで
+      // 初めてまとめて走り、40 枚全部の候補が一斉に減る = 初手が盤全体に波及したように
+      // 見えてしまう (実測: 候補 20 → 12 は着手前から確定していた減り方で、初手自身が
+      // 減らすのは動いた 1 枚だけだった)。
+      //
+      // ここでの減りは対局開始前の整理なので、演出もハイライトも出さない。
+      // reset は lastAppliedMove=null / entangledPieceIds=[] で終わるため、
+      // 観測アニメ・もつれハイライトのどちらも発火しない (下の set を参照)。
+      const candidateUpdateFn = pluginGet<QuantumCandidateUpdateFn>('quantum:candidateUpdate');
+      if (candidateUpdateFn) pos = candidateUpdateFn(pos, state.mgf);
     }
     const tc = state.timeControl;
     set({
       currentQuantum: quantum,
+      // Phase 5-11: 表示方式は対局設定 (qtdisp) の一部。未指定なら現在値を維持する。
+      quantumDisplay: options?.quantumDisplay ?? state.quantumDisplay,
       position: pos,
       selectedSquare: null,
       selectedHandPieceId: null,

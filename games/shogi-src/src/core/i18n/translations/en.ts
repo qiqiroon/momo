@@ -5,7 +5,7 @@ export const en: LocaleData = {
   name: 'English',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.07',
+    'app.ver': 'v1.08',
     'sound.promptTitle': 'Enable BGM and sound effects?',
     'sound.bgmLabel': 'BGM volume',
     'sound.sfxLabel': 'SFX volume',
@@ -140,6 +140,8 @@ export const en: LocaleData = {
     'spec.empty': 'No spectators',
     'qmode.cycle': 'Cycle',
     'qmode.stack': 'Stack',
+    'qmode.title': 'Undetermined pieces',
+    'qmode.lockedHint': 'Only the player who set the rules can change this',
     'promote.decline': "Don't Promote",
     'promote.confirm': 'Promote',
     'cmd.nyugyoku': 'Declare Nyugyoku',

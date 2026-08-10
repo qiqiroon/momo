@@ -188,6 +188,9 @@ export function LobbyScreen() {
         game: config.gameType,
         torus: config.torus,
         quantum: config.quantum,
+        // v1.08 (Phase 5-11): 未確定駒の見せ方はルール設定者 (ホスト) が決めて
+        // 両者に共通適用する決まりなので、部屋のルールとしてゲストへ送る。
+        qtdisp: config.quantumDisplayMode,
         customRuleName: config.customRuleName,
         time: config.timeControl,
       },

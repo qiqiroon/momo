@@ -13,6 +13,14 @@ export { generateLegalMoves, isMoveLegal, isCheckmate } from './moves/legal';
 export { findKing, isSquareAttackedBy, isInCheck } from './moves/check';
 export { directionOffsets } from './moves/directions';
 export {
+  buildInitialKindMap,
+  resolveCandidateKinds,
+  groupCandidatesByKind,
+  displayKindsFor,
+} from './candidate-kinds';
+export { foretellKindByDestination } from './foretell';
+export { strengthOf, pieceStrengthOf } from './piece-strength';
+export {
   shogiToInternal,
   internalToShogi,
   rankFromRow,

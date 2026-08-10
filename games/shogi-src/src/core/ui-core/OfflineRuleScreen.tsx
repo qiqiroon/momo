@@ -59,7 +59,11 @@ export function OfflineRuleScreen(_props: OfflineRuleScreenProps) {
     // v0.84: 持ち時間も pendingRoomConfig から引き継ぐ (S01 の local state は廃止)
     gs.setTimeControl(pendingTc);
     // v0.90: 量子 ON の場合は初期候補集合を割り当てる (Phase 5-2)。
-    gs.reset({ quantum: pendingRules?.quantum ?? false });
+    // v1.08 (Phase 5-11): 未確定駒の見せ方 (qtdisp) も S02 で選んだ値を引き継ぐ。
+    gs.reset({
+      quantum: pendingRules?.quantum ?? false,
+      quantumDisplay: pendingRules?.quantumDisplayMode ?? 'cycle',
+    });
     setScreen('game');
   };
 

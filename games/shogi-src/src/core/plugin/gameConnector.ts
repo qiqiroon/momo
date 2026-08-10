@@ -13,6 +13,11 @@ export interface ActiveRulesInfo {
   gameType: 'shogi' | 'hasami' | 'shogi-custom';
   torusMode: 'none' | 'cylinder' | 'full';
   quantum: boolean;
+  /**
+   * v1.08 (Phase 5-11): 未確定駒の見せ方 (対局設定 `qtdisp`)。
+   * 部屋のルールの一部なので、ルール設定者の選択が両プレイヤーに共通適用される。
+   */
+  quantumDisplayMode: 'cycle' | 'stack';
 }
 
 export interface RemoteMovePayload {
@@ -48,6 +53,19 @@ export interface OnlineGameConnector {
   getOpponentName(): string;
   /** v0.68: S07 の上部ルール表示帯に使う。オフライン時は null (対局画面が本将棋固定扱い) */
   getActiveRules(): ActiveRulesInfo | null;
+  /**
+   * v1.08 (Phase 5-11): 自分がルール設定者か。
+   * 未確定駒の見せ方 (qtdisp) など「両者に共通適用される対局設定」を操作できるのは
+   * ルール設定者だけ (spec 駒デザイン・対局UI §4.4 公平性原則)。
+   * 部屋に居ないとき (オフライン対局) はルールを決めたのが本人なので true。
+   */
+  isRuleSetter(): boolean;
+  /**
+   * v1.08 (Phase 5-11): 未確定駒の見せ方 (qtdisp) を部屋のルール側にも書き戻す。
+   * 対局中に切り替えた値が次の対局・再戦で失われないようにするための同期で、
+   * ルール選択画面 (S02) の表示もこれで追随する (spec §4.4 の単一情報源)。
+   */
+  setQuantumDisplayMode(mode: 'cycle' | 'stack'): void;
   /** v0.69: S01 オフライン設定でルールサマリを表示するため、pendingRoomConfig を返す */
   getPendingRules(): ActiveRulesInfo | null;
   /** v0.84: S01 オフライン設定でも持ち時間を S02 で選ばせるため、

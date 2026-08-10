@@ -101,7 +101,12 @@ export function handleShogiMessage(data: unknown): void {
       if (cfg?.timeControl) useGameStore.getState().setTimeControl(cfg.timeControl);
       // v0.90: 量子 ON の部屋なら初期候補集合を割り当てる (Phase 5-2)。
       // オフライン側と揃えるため、game_start を受けたタイミングで盤面を初期化する。
-      useGameStore.getState().reset({ quantum: cfg?.quantum ?? false });
+      // v1.08 (Phase 5-11): 未確定駒の見せ方 (qtdisp) は部屋のルールの一部なので、
+      // ホストの選択をゲスト側にもそのまま適用する (公平性原則・spec §4.4)。
+      useGameStore.getState().reset({
+        quantum: cfg?.quantum ?? false,
+        quantumDisplay: cfg?.quantumDisplayMode ?? 'cycle',
+      });
       useRouteStore.getState().setScreen('game');
       return;
     }

@@ -33,6 +33,7 @@ function normalizeIncomingRules(rules: unknown, roomName: string): RoomConfig | 
     game?: string;
     torus?: boolean;
     quantum?: boolean;
+    qtdisp?: string;
     customRuleName?: string;
     time?: unknown;
   };
@@ -49,7 +50,9 @@ function normalizeIncomingRules(rules: unknown, roomName: string): RoomConfig | 
     // cylinder をデフォルトとして復元する (詳細モードはルール同期で送る予定)。
     torusMode: r.torus ? 'cylinder' : 'none',
     quantum: !!r.quantum,
-    quantumDisplayMode: 'cycle',
+    // v1.08 (Phase 5-11): ホストが選んだ見せ方をそのまま採用する (公平性原則)。
+    // 旧版のホストは qtdisp を送ってこないので、その場合は既定の巡回にする。
+    quantumDisplayMode: r.qtdisp === 'stack' ? 'stack' : 'cycle',
     customRuleName: r.customRuleName,
     timeControl: {
       mode: time.mode ?? DEFAULT_ROOM_CONFIG.timeControl.mode,

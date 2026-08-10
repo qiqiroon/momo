@@ -1,6 +1,7 @@
 import type { Mgf, MgfAbility, MgfPieceDef } from '../mgf/types';
-import type { BoardMove, PieceId, PieceInstance, Position, Square } from '../position/types';
+import type { BoardMove, PieceInstance, Position, Square } from '../position/types';
 import { directionOffsets } from './directions';
+import { buildInitialKindMap, resolveCandidateKinds } from '../candidate-kinds';
 
 /**
  * 盤上の指定マスの駒について、擬合法手 (pseudo-legal moves) を生成する。
@@ -19,7 +20,7 @@ export function generatePieceMoves(mgf: Mgf, position: Position, from: Square): 
   if (piece.owner !== position.sideToMove) return [];
 
   const candidateKinds = piece.candidates
-    ? resolveCandidateKinds(position, mgf, piece.candidates, piece.promoted)
+    ? resolveCandidateKinds(mgf, piece.candidates, piece.promoted, buildInitialKindMap(position))
     : [piece.kind];
 
   const moves: BoardMove[] = [];
@@ -39,49 +40,6 @@ export function generatePieceMoves(mgf: Mgf, position: Position, from: Square): 
     }
   }
   return moves;
-}
-
-/**
- * 候補 PieceID 集合を「実際に動きを問い合わせる kind の配列」に resolve する。
- * PieceID → position 内スキャンで initialKind 取得 → 成っているならその kind の promoted_id に差し替え。
- * 見つからない PieceID (テスト等での orphan 参照) は無視。
- */
-function resolveCandidateKinds(
-  position: Position,
-  mgf: Mgf,
-  candidates: ReadonlySet<PieceId>,
-  promoted: boolean,
-): string[] {
-  const kinds = new Set<string>();
-  for (const pid of candidates) {
-    const info = findInitialKind(position, pid);
-    if (info === undefined) continue;
-    if (promoted) {
-      // 現在成っている駒 = そのまま成り駒として動く。initialKind の promoted_id を使う。
-      const def = mgf.pieces.find((p) => p.id === info);
-      if (def?.promoted_id) kinds.add(def.promoted_id);
-      // 成れない駒 (kin/ou 等) が候補にあれば実質不整合だが、ここでは静かに落とす。
-    } else {
-      kinds.add(info);
-    }
-  }
-  return Array.from(kinds);
-}
-
-/**
- * position 内 (盤上・両手駒) で pieceId を検索し initialKind を返す。
- * 内部の O(N) スキャン。generatePieceMoves は駒 1 枚あたり |candidates|≦40 回この関数を呼ぶが、
- * 通常局面では O(40×40) = 1600 回程度で十分速い。将来ホットになったら infoMap 化で対応。
- */
-function findInitialKind(position: Position, pieceId: PieceId): string | undefined {
-  for (const row of position.board) {
-    for (const cell of row) {
-      if (cell && cell.pieceId === pieceId) return cell.initialKind;
-    }
-  }
-  for (const p of position.hands.player1) if (p.pieceId === pieceId) return p.initialKind;
-  for (const p of position.hands.player2) if (p.pieceId === pieceId) return p.initialKind;
-  return undefined;
 }
 
 /**

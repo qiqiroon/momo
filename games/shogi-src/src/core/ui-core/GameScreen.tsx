@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useI18nStore } from '../store/i18n-store';
 import { useGameStore } from '../store/game-store';
 import { useChatStore } from '../store/chat-store';
@@ -9,10 +9,17 @@ import { get as pluginGet } from '../plugin/registry';
 import { seMove, seCheck, seFanfareWin, seGameLose, sePause, seResume, seSelect, seCapture } from '../audio/se-synth';
 import { t as _t } from '../i18n';
 import type { LocaleCode } from '../i18n/types';
-import type { PieceInstance } from '../engine';
-import { isInCheck, positionHash } from '../engine';
+import type { Mgf, PieceId, PieceInstance, Position, Square } from '../engine';
+import {
+  buildInitialKindMap,
+  displayKindsFor,
+  foretellKindByDestination,
+  isInCheck,
+  positionHash,
+} from '../engine';
 import { pieceNameFor } from '../engine/kifu/format';
 import { strengthOf } from '../engine/piece-strength';
+import type { QuantumDisplay } from '../store/game-store';
 import { CatIcon } from './CatIcon';
 import { FloatingPanel } from './FloatingPanel';
 import { HeaderCommonRight } from './HeaderCommonRight';
@@ -33,7 +40,6 @@ function isTwoChar(kind: string): boolean {
 export function GameScreen({ variant }: GameScreenProps) {
   const locale = useI18nStore((s) => s.locale);
   const t = (key: string) => _t(key, locale);
-  const [qmode, setQmode] = useState<'cycle' | 'stack'>('cycle');
 
   const mgf = useGameStore((s) => s.mgf);
   const position = useGameStore((s) => s.position);
@@ -44,6 +50,11 @@ export function GameScreen({ variant }: GameScreenProps) {
   const status = useGameStore((s) => s.status);
   const lastAppliedMove = useGameStore((s) => s.lastAppliedMove);
   const entangledPieceIds = useGameStore((s) => s.entangledPieceIds);
+  // v1.08 (Phase 5-11): 量子表示まわり。currentQuantum が false のときは
+  // displayKindsFor が常に [piece.kind] を返すので、以下は全て本将棋と同じ挙動に縮退する。
+  const currentQuantum = useGameStore((s) => s.currentQuantum);
+  const quantumDisplay = useGameStore((s) => s.quantumDisplay);
+  const setQuantumDisplay = useGameStore((s) => s.setQuantumDisplay);
   const selectSquare = useGameStore((s) => s.selectSquare);
   const selectHandPiece = useGameStore((s) => s.selectHandPiece);
   const clearSelection = useGameStore((s) => s.clearSelection);
@@ -62,6 +73,8 @@ export function GameScreen({ variant }: GameScreenProps) {
     mySide: 'player1' | 'player2' | null;
     myName: string;
     opponentName: string;
+    /** v1.08: 両者共通適用の対局設定 (未確定駒の見せ方) を操作できる側か */
+    isRuleSetter: boolean;
   }>(() => {
     const c = pluginGet<OnlineGameConnector>('gameConnector');
     return c
@@ -70,8 +83,9 @@ export function GameScreen({ variant }: GameScreenProps) {
           mySide: c.getMySide(),
           myName: c.getMyName(),
           opponentName: c.getOpponentName(),
+          isRuleSetter: c.isRuleSetter(),
         }
-      : { isOnline: false, mySide: null, myName: '', opponentName: '' };
+      : { isOnline: false, mySide: null, myName: '', opponentName: '', isRuleSetter: true };
   });
 
   useEffect(() => {
@@ -83,6 +97,7 @@ export function GameScreen({ variant }: GameScreenProps) {
         mySide: c.getMySide(),
         myName: c.getMyName(),
         opponentName: c.getOpponentName(),
+        isRuleSetter: c.isRuleSetter(),
       });
     update();
     return c.subscribe(update);
@@ -312,6 +327,45 @@ export function GameScreen({ variant }: GameScreenProps) {
     return !!cell && entangledSet.has(cell.pieceId);
   };
 
+  // ===== v1.08 (Phase 5-11): 候補集合の可視化 =====
+  // 本将棋モードでは候補集合が無く displayKindsFor が常に [piece.kind] を返すため、
+  // 以下は全て「未確定駒ゼロ」に縮退して従来と同じ描画になる。
+
+  // 候補 PieceID → 初期駒種 の対応表。局面が変わったときだけ作り直す。
+  const kindMap = useMemo(() => buildInitialKindMap(position), [position]);
+
+  // 巡回表示の時計。駒を持っている間は止めて字を固定する (spec 駒デザイン §4.5・§5)。
+  const holding = selectedSquare !== null || selectedHandPieceId !== null;
+  const [cycleTick, setCycleTick] = useState(0);
+  useEffect(() => {
+    if (!currentQuantum || quantumDisplay !== 'cycle' || holding) return;
+    const id = setInterval(() => setCycleTick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [currentQuantum, quantumDisplay, holding]);
+
+  // 観測アニメ (spec §Q17.8): 着手のたびに「動いた駒 + 候補が変化した駒」を収縮させる。
+  // どこまで波及したかが一目で分かるので、量子もつれハイライトと役割が重なるが、
+  // ハイライトは次の着手まで残る静的表示、こちらは発生の瞬間だけの動きで住み分ける。
+  const [collapsingIds, setCollapsingIds] = useState<ReadonlySet<string>>(new Set());
+  useEffect(() => {
+    if (!currentQuantum || !lastAppliedMove) return;
+    const ids = new Set(useGameStore.getState().entangledPieceIds);
+    ids.add(lastAppliedMove.move.pieceId);
+    setCollapsingIds(ids);
+    const id = setTimeout(() => setCollapsingIds(new Set()), 600);
+    return () => clearTimeout(id);
+  }, [lastAppliedMove, currentQuantum]);
+
+  // 見せ方を実際に切り替えられる側か (オフラインは常に本人)
+  const ruleSetter = online.isRuleSetter;
+
+  // 移動先による駒種確定の予告 (spec §4.3)。選択中の未確定駒について、
+  // 「そこへ動けるのが 1 駒種だけ」のマスに、確定する駒種を薄く出す。
+  const foretellMap = useMemo(
+    () => computeForetell(mgf, position, selectedSquare, kindMap),
+    [mgf, position, selectedSquare, kindMap],
+  );
+
   // オンライン対戦で自分の手番でないなら入力を受け付けない
   const inputBlocked = online.isOnline && online.mySide !== null && position.sideToMove !== online.mySide;
 
@@ -353,8 +407,8 @@ export function GameScreen({ variant }: GameScreenProps) {
     seSelect(); // v0.73 音響: 持ち駒選択音
   };
 
-  const senteHandGrouped = groupHand(position.hands.player1);
-  const goteHandGrouped = groupHand(position.hands.player2);
+  const senteHandGrouped = groupHand(position.hands.player1, mgf, kindMap);
+  const goteHandGrouped = groupHand(position.hands.player2, mgf, kindMap);
   // v0.34: 相手／自分 の持ち駒を viewer 基準で
   const oppHandGrouped = viewerSide === 'player1' ? goteHandGrouped : senteHandGrouped;
   const myHandGrouped = viewerSide === 'player1' ? senteHandGrouped : goteHandGrouped;
@@ -453,22 +507,29 @@ export function GameScreen({ variant }: GameScreenProps) {
 
           <div className="turn-row">
             <div className={`turn-banner${status === 'checkmate' ? ' opp' : ''}`}>{turnLabel}</div>
-            <div className="qmode-toggle">
-              <button
-                type="button"
-                className={`qm${qmode === 'cycle' ? ' active' : ''}`}
-                onClick={() => setQmode('cycle')}
-              >
-                {t('qmode.cycle')}
-              </button>
-              <button
-                type="button"
-                className={`qm${qmode === 'stack' ? ' active' : ''}`}
-                onClick={() => setQmode('stack')}
-              >
-                {t('qmode.stack')}
-              </button>
-            </div>
+            {/* v1.08: 量子 ON のときだけ出す。公平性原則 (spec §4.4) により実際に
+                切り替えられるのはルール設定者だけで、相手側は現在値の表示のみ。 */}
+            {currentQuantum && (
+              <div className="qmode-toggle" title={ruleSetter ? undefined : t('qmode.lockedHint')}>
+                <button
+                  type="button"
+                  className={`qm${quantumDisplay === 'cycle' ? ' active' : ''}`}
+                  disabled={!ruleSetter}
+                  onClick={() => setQuantumDisplay('cycle')}
+                >
+                  {t('qmode.cycle')}
+                </button>
+                <button
+                  type="button"
+                  className={`qm${quantumDisplay === 'stack' ? ' active' : ''}`}
+                  disabled={!ruleSetter}
+                  onClick={() => setQuantumDisplay('stack')}
+                >
+                  {t('qmode.stack')}
+                </button>
+                {!ruleSetter && <span className="qm-lock" aria-hidden="true">🔒</span>}
+              </div>
+            )}
           </div>
 
           <div className="pinfo opp">
@@ -493,6 +554,9 @@ export function GameScreen({ variant }: GameScreenProps) {
               label={oppSideLabel}
               entangledPieceIds={entangledSet}
               debugShowPieceIds={debugEnabled && showPieceIds}
+              mode={quantumDisplay}
+              tick={cycleTick}
+              collapsingIds={collapsingIds}
             />
             <div className={`board-with-coords${flipped ? ' flipped' : ''}`}>
               <div className={`board-outer${isMyTurnOnline ? ' myturn' : ''}`}>
@@ -531,6 +595,11 @@ export function GameScreen({ variant }: GameScreenProps) {
                     const row = flipped ? 8 - visualRow : visualRow;
                     const col = flipped ? 8 - visualCol : visualCol;
                     const piece = position.board[row][col];
+                    // v1.08: 未確定駒は「元々そこに置かれていた駒」ではなく候補を見せる。
+                    // 確定した駒も、候補が示す駒種の顔になる (piece.kind ではない)。
+                    const kinds = piece ? displayKindsFor(mgf, piece, kindMap) : [];
+                    const unconfirmed = kinds.length >= 2;
+                    const foretellKind = foretellMap.get(`${row},${col}`);
                     const cls = [
                       'sq',
                       isSelected(row, col) ? 'selected' : '',
@@ -542,7 +611,28 @@ export function GameScreen({ variant }: GameScreenProps) {
                       .join(' ');
                     return (
                       <div key={i} className={cls} onClick={() => onSquareClick(row, col)}>
-                        {piece && <PieceView piece={piece} locale={locale} viewerSide={viewerSide} />}
+                        {piece && (
+                          <PieceView
+                            piece={piece}
+                            kinds={kinds}
+                            locale={locale}
+                            viewerSide={viewerSide}
+                            mode={quantumDisplay}
+                            tick={cycleTick}
+                            collapsing={collapsingIds.has(piece.pieceId)}
+                          />
+                        )}
+                        {/* 未確定マーク。駒 (.pc) は clip-path で切り抜かれるのでマス直下に置く */}
+                        {piece && unconfirmed && (
+                          <span className={`qmark-b${piece.owner !== viewerSide ? ' gote' : ''}`}>？</span>
+                        )}
+                        {foretellKind && (
+                          <span className="foretell">{pieceNameFor(foretellKind, locale)}</span>
+                        )}
+                        {/* 候補ボックス: 選択した未確定駒の右上に候補を文字だけで並べる */}
+                        {piece && unconfirmed && isSelected(row, col) && (
+                          <CandidateBox kinds={kinds} locale={locale} onLeft={visualCol >= 6} />
+                        )}
                         {debugEnabled && showPieceIds && piece && (
                           <DebugIdBadge piece={piece} />
                         )}
@@ -562,6 +652,9 @@ export function GameScreen({ variant }: GameScreenProps) {
               label={mySideLabel}
               entangledPieceIds={entangledSet}
               debugShowPieceIds={debugEnabled && showPieceIds}
+              mode={quantumDisplay}
+              tick={cycleTick}
+              collapsingIds={collapsingIds}
             />
           </div>
 
@@ -1514,6 +1607,11 @@ function PromotionModal({ locale, t, viewerSide }: PromotionModalProps) {
     promoted: true,
   };
 
+  // v1.08: 未確定駒が成るときは「初期位置の駒種」ではなく候補を見せる。
+  // 巡回だと選択に時間がかかるので、この画面だけは常に重ね表示にする。
+  const nonPromoteKinds = pendingPromotion.candidateKinds;
+  const promoteKinds = pendingPromotion.promotedCandidateKinds;
+
   return (
     <div className="promotion-modal-overlay" onClick={cancelPromotion}>
       <div className="promotion-modal" onClick={(e) => e.stopPropagation()}>
@@ -1522,13 +1620,13 @@ function PromotionModal({ locale, t, viewerSide }: PromotionModalProps) {
           <button type="button" className="promotion-card" onClick={() => confirmPromotion(false)}>
             <div className="label">{t('promote.decline')}</div>
             <div className="promotion-card-piece">
-              <PieceView piece={nonPromotePiece} locale={locale} viewerSide={viewerSide} />
+              <PieceView piece={nonPromotePiece} kinds={nonPromoteKinds} locale={locale} viewerSide={viewerSide} mode="stack" />
             </div>
           </button>
           <button type="button" className="promotion-card" onClick={() => confirmPromotion(true)}>
             <div className="label">{t('promote.confirm')}</div>
             <div className="promotion-card-piece">
-              <PieceView piece={promotePiece} locale={locale} viewerSide={viewerSide} />
+              <PieceView piece={promotePiece} kinds={promoteKinds} locale={locale} viewerSide={viewerSide} mode="stack" />
             </div>
           </button>
         </div>
@@ -1538,60 +1636,178 @@ function PromotionModal({ locale, t, viewerSide }: PromotionModalProps) {
 }
 
 interface HandGroup {
-  kind: string;
+  /** React の key。確定駒は駒種で 1 枚に束ね、未確定駒は 1 枚ずつ独立させる。 */
+  key: string;
+  /** 表示する駒種 (強さ降順)。2 個以上なら未確定 = ? + 巡回/重ね表示の対象。 */
+  kinds: string[];
   pieceIds: string[];
   /** v1.03: debug 表示で持ち駒の PieceID + candidates.size を出すため、生 PieceInstance も保持。 */
   pieces: PieceInstance[];
 }
 
-function groupHand(hand: PieceInstance[]): HandGroup[] {
-  const groups = new Map<string, PieceInstance[]>();
+/**
+ * 持ち駒を駒台のカードに束ねる。
+ *
+ * v1.08 (Phase 5-11): 量子モードの未確定駒は候補の中身が 1 枚ごとに違うので、
+ * 「同じ駒だから 1 枚にまとめる」ができない。よって未確定駒は 1 枚ずつ別カードにし、
+ * 確定した駒だけを従来通り駒種でまとめる。
+ * 並び順は spec D1 §4.4 の「未確定駒の強さは候補中の最強の駒」に従う
+ * (displayKindsFor が強さ降順を返すので kinds[0] がその最強)。
+ */
+function groupHand(hand: PieceInstance[], mgf: Mgf, kindMap: Map<PieceId, string>): HandGroup[] {
+  const groups: HandGroup[] = [];
+  const byKind = new Map<string, HandGroup>();
   for (const p of hand) {
-    if (!groups.has(p.kind)) groups.set(p.kind, []);
-    groups.get(p.kind)!.push(p);
+    const kinds = displayKindsFor(mgf, p, kindMap);
+    if (kinds.length >= 2) {
+      groups.push({ key: p.pieceId, kinds, pieceIds: [p.pieceId], pieces: [p] });
+      continue;
+    }
+    const existing = byKind.get(kinds[0]);
+    if (existing) {
+      existing.pieceIds.push(p.pieceId);
+      existing.pieces.push(p);
+      continue;
+    }
+    const group: HandGroup = { key: `k:${kinds[0]}`, kinds, pieceIds: [p.pieceId], pieces: [p] };
+    byKind.set(kinds[0], group);
+    groups.push(group);
   }
-  const arr = Array.from(groups.entries()).map(([kind, pieces]) => ({
-    kind,
-    pieces,
-    pieceIds: pieces.map((p) => p.pieceId),
-  }));
   // v0.88: spec D1 §4.4 準拠で強さ降順にソート (大駒 上・小駒 下)。
   // .stand.you の caps は justify-end で下寄せ、.stand.opp は justify-start で上寄せだが、
   // どちらも DOM 順の先頭が視覚的な「上」なので、DESC ソートで大駒が上に来る。
-  // 量子将棋の未確定駒は candidates 集合中の最強で順位付け (spec D1 §4.4) — 現在
-  // PieceInstance に candidates フィールドは無いので kind ベース。将来の Phase 5 で
-  // groupHand を含むこの経路の再検討時に candidates 伝播を組み込む。
-  arr.sort((a, b) => strengthOf(b.kind) - strengthOf(a.kind));
-  return arr;
+  groups.sort((a, b) => strengthOf(b.kinds[0]) - strengthOf(a.kinds[0]));
+  return groups;
+}
+
+/**
+ * v1.08 (Phase 5-11): 巡回表示で「今どの字を出すか」を選ぶ。
+ * 全ての未確定駒が同じ tick を共有するので、候補数の違う駒は自然に別々の周期で回る
+ * (候補 3 個の駒と 8 個の駒が同時に同じ駒種を出し続けることがない)。
+ */
+function shownKind(kinds: string[], tick: number): string {
+  return kinds[tick % kinds.length];
 }
 
 function PieceView({
   piece,
+  kinds,
   locale,
   viewerSide = 'player1',
+  mode = 'cycle',
+  tick = 0,
+  collapsing = false,
 }: {
   piece: PieceInstance;
+  /** 表示する駒種 (強さ降順)。本将棋モードは [piece.kind] の 1 個。 */
+  kinds: string[];
   locale: LocaleCode;
   viewerSide?: 'player1' | 'player2';
+  mode?: QuantumDisplay;
+  tick?: number;
+  collapsing?: boolean;
 }) {
-  const name = pieceNameFor(piece.kind, locale);
   const isEn = locale === 'en';
+  const unconfirmed = kinds.length >= 2;
+  const stacked = unconfirmed && mode === 'stack';
+  const shown = unconfirmed ? shownKind(kinds, tick) : kinds[0];
+  const name = pieceNameFor(shown, locale);
   const isMulti = isEn && name.length > 1;
   // v0.34: gote 反転は viewer 基準（相手の駒＝反転して viewer 側から見て逆向き）
   const cls = [
     'pc',
     piece.owner !== viewerSide ? 'gote' : '',
     piece.promoted ? 'promoted' : '',
-    !isEn && isTwoChar(piece.kind) ? 'two' : '',
+    !isEn && !stacked && isTwoChar(shown) ? 'two' : '',
+    collapsing ? 'collapsing' : '',
   ]
     .filter(Boolean)
     .join(' ');
   const jaCls = ['ja', isEn ? 'en' : '', isEn && isMulti ? 'multi' : ''].filter(Boolean).join(' ');
   return (
     <div className={cls}>
-      <span className={jaCls}>{name}</span>
+      {stacked ? (
+        <QuantumStack kinds={kinds} locale={locale} />
+      ) : (
+        <span className={jaCls}>{name}</span>
+      )}
     </div>
   );
+}
+
+/**
+ * 重ね表示 (spec 駒デザイン §4.2)。候補の駒種をくっきり黒で重ね、
+ * 文字を衝突させて一瞥性を意図的に殺す = 「揺れている」の表現。
+ * 正確な候補は候補ボックス (§4.5) で補う。
+ *
+ * 2 文字の駒種 (成銀・成桂 等) が混ざるときは縦書きにし、先頭字が全候補で共通なら
+ * 先頭字を 1 枚だけ描いて末尾字を重ねる (「成」を二重に太らせない)。
+ * 英字表記 (locale=en) は縦書きにすると読めないので常に横重ねにする。
+ */
+function QuantumStack({ kinds, locale }: { kinds: string[]; locale: LocaleCode }) {
+  const names = kinds.map((k) => pieceNameFor(k, locale));
+  const vertical = locale !== 'en' && names.some((n) => n.length > 1);
+  if (!vertical) {
+    return (
+      <span className="qstack">
+        {names.map((n, i) => (
+          <span key={i} className="ov">{n}</span>
+        ))}
+      </span>
+    );
+  }
+  const head = names[0][0];
+  const shared = names.every((n) => n.length > 1 && n[0] === head);
+  return (
+    <span className="qstack">
+      {names.map((n, i) => (
+        <span key={i} className="vov">
+          {shared ? (i === 0 ? head : '　') + (n[1] ?? '') : n}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/**
+ * 候補ボックス (spec 駒デザイン §4.5)。未確定駒を選んだとき、その右上に候補の駒種を
+ * 文字だけ並べる (例「歩桂銀」)。説明文は付けない。盤の右端寄りでは左上へ回避する。
+ * 英字表記のときは読みやすさのため空白区切りにする (例「P N S」)。
+ */
+function CandidateBox({
+  kinds,
+  locale,
+  onLeft,
+}: {
+  kinds: string[];
+  locale: LocaleCode;
+  onLeft: boolean;
+}) {
+  const sep = locale === 'en' ? ' ' : '';
+  const text = kinds.map((k) => pieceNameFor(k, locale)).join(sep);
+  const style: CSSProperties = onLeft
+    ? { right: '100%', bottom: '92%', marginRight: 4 }
+    : { left: '100%', bottom: '92%', marginLeft: 4 };
+  return (
+    <span className="qtip" style={style}>
+      {text}
+    </span>
+  );
+}
+
+/**
+ * 移動先による駒種確定の予告 (spec 駒デザイン §4.3)。
+ * 判定そのものは core/engine/foretell.ts に置いてある (盤面の理屈なので engine 側)。
+ * ここは「選択していないときは何も出さない」だけを足す薄い包み。
+ */
+function computeForetell(
+  mgf: Mgf,
+  position: Position,
+  selectedSquare: Square | null,
+  kindMap: Map<PieceId, string>,
+): Map<string, string> {
+  if (!selectedSquare) return new Map();
+  return foretellKindByDestination(mgf, position, selectedSquare, kindMap);
 }
 
 interface PieceStandViewProps {
@@ -1608,9 +1824,15 @@ interface PieceStandViewProps {
   entangledPieceIds?: Set<string>;
   /** v1.03: ?debug=1 && showPieceIds ON で持ち駒カードにも PieceID + candidates.size を出す。 */
   debugShowPieceIds?: boolean;
+  /** v1.08: 未確定持ち駒の見せ方 (巡回 / 重ね)。 */
+  mode?: QuantumDisplay;
+  /** v1.08: 巡回表示の共有時計。 */
+  tick?: number;
+  /** v1.08: 観測アニメ中の pieceId 群。 */
+  collapsingIds?: ReadonlySet<string>;
 }
 
-function PieceStandView({ side, pieces, onClick, selectedId, activePlayer, locale, label, entangledPieceIds, debugShowPieceIds }: PieceStandViewProps) {
+function PieceStandView({ side, pieces, onClick, selectedId, activePlayer, locale, label, entangledPieceIds, debugShowPieceIds, mode = 'cycle', tick = 0, collapsingIds }: PieceStandViewProps) {
   const isEn = locale === 'en';
   // v0.89: spec D1 §4.4 「相手の持ち駒は先手と点対称：並び順も先手を逆順にする」
   // groupHand は DESC (大駒 上) で返すので、you 側はそのまま。opp 側は reverse して
@@ -1623,25 +1845,36 @@ function PieceStandView({ side, pieces, onClick, selectedId, activePlayer, local
       <div className="stand-h">{label ?? (side === 'opp' ? 'Gote' : 'You')}</div>
       <div className="caps">
         {orderedPieces.map((g) => {
-          const name = pieceNameFor(g.kind, locale);
+          // v1.08: 未確定の持ち駒は盤上と同じ扱い (? + 巡回/重ね)。確定駒は従来通り。
+          const unconfirmed = g.kinds.length >= 2;
+          const stacked = unconfirmed && mode === 'stack';
+          const shown = unconfirmed ? shownKind(g.kinds, tick) : g.kinds[0];
+          const name = pieceNameFor(shown, locale);
           const isMulti = isEn && name.length > 1;
           const jaCls = ['ja', isEn ? 'en' : '', isEn && isMulti ? 'multi' : ''].filter(Boolean).join(' ');
           const hasEntangled = !!entangledPieceIds && g.pieceIds.some((pid) => entangledPieceIds.has(pid));
+          const isCollapsing = !!collapsingIds && g.pieceIds.some((pid) => collapsingIds.has(pid));
           const capCls = [
             'cap',
             selectedId && g.pieceIds.includes(selectedId) ? 'selected' : '',
             hasEntangled ? 'entangled' : '',
+            isCollapsing ? 'collapsing' : '',
           ].filter(Boolean).join(' ');
           return (
             <div
-              key={g.kind}
+              key={g.key}
               className={capCls}
               onClick={() => activePlayer && onClick(g.pieceIds[0])}
               style={{ cursor: activePlayer ? 'pointer' : 'default', position: 'relative' } as CSSProperties}
             >
               <div className="capface">
-                <span className={jaCls}>{name}</span>
+                {stacked ? (
+                  <QuantumStack kinds={g.kinds} locale={locale} />
+                ) : (
+                  <span className={jaCls}>{name}</span>
+                )}
               </div>
+              {unconfirmed && <span className="qmark">？</span>}
               {g.pieceIds.length >= 2 && <span className="ct">{g.pieceIds.length}</span>}
               {debugShowPieceIds && <HandDebugIdBadge pieces={g.pieces} />}
             </div>

@@ -3,6 +3,9 @@ import { useI18nStore } from '../store/i18n-store';
 import { t as _t } from '../i18n';
 import { getBgmVolume, getSfxVolume, setBgmVolume, setSfxVolume } from '../audio/audio-engine';
 import { useDebugStore } from '../store/debug-store';
+import { useGameStore } from '../store/game-store';
+import { get as pluginGet } from '../plugin/registry';
+import type { OnlineGameConnector } from '../plugin/gameConnector';
 
 /**
  * v0.73: 歯車ボタンから開く設定ポップアップ (Darts 準拠)。
@@ -63,6 +66,7 @@ export function SettingsPopup({ open, onClose }: SettingsPopupProps) {
           <input type="range" min="0" max="100" value={sfxV} onChange={(e) => onSfx(Number(e.target.value))} style={{ flex: 1, accentColor: 'var(--orange)' }} />
           <span style={{ minWidth: 36, textAlign: 'right' }}>{sfxV}%</span>
         </label>
+        <QuantumDisplaySection t={t} />
         {/* v0.80: ボタン → リンク風テキストに変更 */}
         <div style={{ marginTop: 12, textAlign: 'right' }}>
           <a
@@ -80,6 +84,54 @@ export function SettingsPopup({ open, onClose }: SettingsPopupProps) {
       </div>
       {creditsOpen && <CreditsModal onClose={() => setCreditsOpen(false)} t={t} />}
     </>
+  );
+}
+
+/**
+ * v1.08 (Phase 5-11): 未確定駒の見せ方 (対局設定 `qtdisp`) の切替。
+ *
+ * spec 画面機能仕様 S10 / 駒デザイン・対局UI §4.4 に従い、
+ * - 量子モードの対局中だけ現れる
+ * - 実際に切り替えられるのはルール設定者だけ (公平性原則)。相手側は現在値の表示のみで、
+ *   鍵アイコンと理由を出す
+ * - 値は game-store の quantumDisplay 一箇所を読み書きする (S02・対局画面と同じ情報源)
+ */
+function QuantumDisplaySection({ t }: { t: (k: string) => string }) {
+  const currentQuantum = useGameStore((s) => s.currentQuantum);
+  const quantumDisplay = useGameStore((s) => s.quantumDisplay);
+  const setQuantumDisplay = useGameStore((s) => s.setQuantumDisplay);
+  if (!currentQuantum) return null;
+  const canEdit = pluginGet<OnlineGameConnector>('gameConnector')?.isRuleSetter() ?? true;
+  return (
+    <div style={{ marginTop: 14, borderTop: '1px solid var(--border-strong)', paddingTop: 10 }}>
+      <div style={{ fontSize: 11, color: 'var(--orange)', fontWeight: 700, letterSpacing: '0.06em', marginBottom: 8 }}>
+        {t('qmode.title')}
+      </div>
+      <div className="qmode-toggle" style={{ display: 'inline-flex' }}>
+        <button
+          type="button"
+          className={`qm${quantumDisplay === 'cycle' ? ' active' : ''}`}
+          disabled={!canEdit}
+          onClick={() => setQuantumDisplay('cycle')}
+        >
+          {t('qmode.cycle')}
+        </button>
+        <button
+          type="button"
+          className={`qm${quantumDisplay === 'stack' ? ' active' : ''}`}
+          disabled={!canEdit}
+          onClick={() => setQuantumDisplay('stack')}
+        >
+          {t('qmode.stack')}
+        </button>
+        {!canEdit && <span className="qm-lock" aria-hidden="true">🔒</span>}
+      </div>
+      {!canEdit && (
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6 }}>
+          {t('qmode.lockedHint')}
+        </div>
+      )}
+    </div>
   );
 }
 

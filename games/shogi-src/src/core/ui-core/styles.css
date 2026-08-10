@@ -289,6 +289,22 @@ body::before {
   border-left: 1px solid var(--border-strong);
 }
 
+/* v1.08: 公平性原則によりルール設定者以外は操作できない。
+   現在値は読めるようにしたいので、選択中の側の色は落とさない。 */
+.qm:disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+
+.qm-lock {
+  display: flex;
+  align-items: center;
+  padding: 0 7px;
+  font-size: 10px;
+  background: var(--surface2);
+  border-left: 1px solid var(--border-strong);
+}
+
 /* ===== プレイヤー情報行 ===== */
 .pinfo {
   display: flex;
@@ -695,6 +711,157 @@ body::before {
   box-shadow: 0 1px 3px #000c;
   z-index: 5;
   padding: 0 2px;
+}
+
+/* ===== 量子: 未確定駒の表示 (Phase 5-11 / mock S06 v7 §量子 から verbatim 移植) ===== */
+
+/* 未確定「？」は駒 (.pc は clip-path で切り抜かれる) の外に置かないと
+   クリップされて見えないので、盤マス (.sq) 直下に絶対配置する。 */
+.sq {
+  overflow: visible;
+}
+
+.sq .qmark-b {
+  position: absolute;
+  top: 2%;
+  right: 2px;
+  font-family: 'Noto Sans JP', sans-serif;
+  font-weight: 700;
+  color: #000;
+  font-size: calc(var(--cell) * 0.36);
+  line-height: 0.8;
+  z-index: 6;
+  pointer-events: none;
+}
+
+.sq .qmark-b.gote {
+  transform: rotate(180deg);
+  top: auto;
+  bottom: 2%;
+  right: auto;
+  left: 2px;
+}
+
+/* 持ち駒台の未確定「？」。盤上と同様に駒の外へ出す・黒・影なし */
+.cap .qmark {
+  position: absolute;
+  top: -7px;
+  right: -4px;
+  font-family: 'Noto Sans JP', sans-serif;
+  font-weight: 700;
+  color: #000;
+  font-size: calc(var(--hand-pc) * 0.5);
+  line-height: 1;
+  z-index: 6;
+  pointer-events: none;
+}
+
+/* 重ね表示: 全候補を黒で重ねる (あえて潰す＝量子感)。
+   1 文字は中央重ね、2 文字は縦書きで先頭字 (成) を共有する。 */
+.pc .qstack,
+.capface .qstack {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pc .qstack .ov {
+  position: absolute;
+  font-family: 'Yuji Syuku', serif;
+  font-size: calc(var(--cell) * 0.52);
+  color: var(--piece-ink);
+  -webkit-text-stroke: 0.5px var(--piece-ink);
+}
+
+.pc .qstack .vov {
+  position: absolute;
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  font-family: 'Yuji Syuku', serif;
+  font-size: calc(var(--cell) * 0.36);
+  line-height: 0.9;
+  letter-spacing: -0.06em;
+  color: var(--piece-ink);
+}
+
+/* 持ち駒カードは盤マスより小さいので --hand-pc 基準に読み替える */
+.capface .qstack .ov {
+  position: absolute;
+  font-family: 'Yuji Syuku', serif;
+  font-size: calc(var(--hand-pc) * 0.56);
+  color: var(--piece-ink);
+  -webkit-text-stroke: 0.4px var(--piece-ink);
+}
+
+.capface .qstack .vov {
+  position: absolute;
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  font-family: 'Yuji Syuku', serif;
+  font-size: calc(var(--hand-pc) * 0.4);
+  line-height: 0.9;
+  letter-spacing: -0.06em;
+  color: var(--piece-ink);
+}
+
+/* 候補ボックス: 選択駒の右上に文字だけのテキストボックス (歩桂銀 のように) */
+.qtip {
+  position: absolute;
+  z-index: 40;
+  background: var(--surface2);
+  border: 1px solid var(--orange);
+  border-radius: 7px;
+  padding: 3px 8px;
+  font-family: 'Yuji Syuku', serif;
+  font-size: calc(var(--cell) * 0.36);
+  color: var(--orange-light);
+  white-space: nowrap;
+  box-shadow: 0 4px 14px #000a;
+  pointer-events: none;
+}
+
+/* 移動先による駒種確定の予告: 「ここへ動くとこの駒に決まる」を薄く出す */
+.foretell {
+  position: absolute;
+  font-family: 'Yuji Syuku', serif;
+  font-size: calc(var(--cell) * 0.34);
+  color: var(--orange);
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* 観測アニメ (収縮)。gote 駒は .pc.gote の rotate(180deg) を打ち消さないよう
+   回転込みの keyframes を別に用意する (共通の collapse だと着地で正立してしまう)。 */
+.pc.collapsing {
+  animation: collapse 0.55s ease forwards;
+}
+
+.pc.gote.collapsing {
+  animation: collapse-gote 0.55s ease forwards;
+}
+
+/* 持ち駒カードも同じ収縮。相手側の駒台は .cap ごと 180 度回っているので回転込み */
+.cap.collapsing {
+  animation: collapse 0.55s ease forwards;
+}
+
+.stand.opp .cap.collapsing {
+  animation: collapse-gote 0.55s ease forwards;
+}
+
+@keyframes collapse {
+  0% { transform: scale(1.18); }
+  60% { transform: scale(0.9); }
+  100% { transform: scale(1); }
+}
+
+@keyframes collapse-gote {
+  0% { transform: rotate(180deg) scale(1.18); }
+  60% { transform: rotate(180deg) scale(0.9); }
+  100% { transform: rotate(180deg) scale(1); }
 }
 
 /* 自分の手番＝盤枠オレンジ */

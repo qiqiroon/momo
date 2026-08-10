@@ -51,12 +51,27 @@ const connector: OnlineGameConnector = {
   getActiveRules() {
     const cfg = useMatchmakingStore.getState().activeRoomConfig;
     if (!cfg) return null;
-    return { gameType: cfg.gameType, torusMode: cfg.torusMode, quantum: cfg.quantum };
+    return { gameType: cfg.gameType, torusMode: cfg.torusMode, quantum: cfg.quantum, quantumDisplayMode: cfg.quantumDisplayMode };
   },
 
   getPendingRules() {
     const cfg = useMatchmakingStore.getState().pendingRoomConfig;
-    return { gameType: cfg.gameType, torusMode: cfg.torusMode, quantum: cfg.quantum };
+    return { gameType: cfg.gameType, torusMode: cfg.torusMode, quantum: cfg.quantum, quantumDisplayMode: cfg.quantumDisplayMode };
+  },
+
+  setQuantumDisplayMode(mode: 'cycle' | 'stack') {
+    const s = useMatchmakingStore.getState();
+    s.setPendingRoomConfig({ quantumDisplayMode: mode });
+    if (s.activeRoomConfig) {
+      s.setActiveRoomConfig({ ...s.activeRoomConfig, quantumDisplayMode: mode });
+    }
+  },
+
+  isRuleSetter() {
+    const s = useMatchmakingStore.getState();
+    // 部屋に入っていない = オフライン対局 = ルールを決めたのは本人
+    if (!s.currentRoomId) return true;
+    return s.isHost;
   },
 
   getPendingTimeControl() {

@@ -5,7 +5,7 @@ export const zh: LocaleData = {
   name: '中文',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.07',
+    'app.ver': 'v1.08',
     'sound.promptTitle': '是否播放 BGM 与音效？',
     'sound.bgmLabel': 'BGM 音量',
     'sound.sfxLabel': '音效音量',
@@ -140,6 +140,8 @@ export const zh: LocaleData = {
     'spec.empty': '暂无观战者',
     'qmode.cycle': '轮显',
     'qmode.stack': '叠加',
+    'qmode.title': '未确定棋子的显示方式',
+    'qmode.lockedHint': '只有设定规则的一方可以切换',
     'promote.decline': '不成',
     'promote.confirm': '升变',
     'cmd.nyugyoku': '入玉宣布',

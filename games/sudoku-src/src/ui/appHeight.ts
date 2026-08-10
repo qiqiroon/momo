@@ -20,6 +20,7 @@
  */
 
 import { useEffect } from 'react';
+import { diagnostics } from '../data/diagnostics';
 
 /** 実測した高さを渡す変数名。CSS 側はこれを最優先で使う */
 export const APP_HEIGHT_VAR = '--app-height';
@@ -56,10 +57,30 @@ export function measureAppHeight(win: Window): number {
   return Math.round(Math.min(...heights));
 }
 
-/** 測った高さを CSS 変数へ書き込む。書き込んだ値を返す（測れなければ 0・何も書かない） */
+/**
+ * 測った高さを CSS 変数へ書き込む。書き込んだ値を返す（測れなければ 0・何も書かない）
+ *
+ * **値が変わったときだけ、そのときの内訳を控える**（C-210）。
+ * 「画面の大きさを取り違えているように見える」という指摘は、**その瞬間の1枚では確かめられない**
+ * ——傾けた前後でどう動いたかを並べて初めて分かる。毎回書くと記録が溢れるので変わった瞬間だけにする。
+ */
 export function applyAppHeight(win: Window): number {
   const height = measureAppHeight(win);
-  if (height > 0) win.document.documentElement.style.setProperty(APP_HEIGHT_VAR, `${height}px`);
+  if (height <= 0) return 0;
+
+  const root = win.document.documentElement;
+  const before = root.style.getPropertyValue(APP_HEIGHT_VAR);
+  root.style.setProperty(APP_HEIGHT_VAR, `${height}px`);
+
+  if (before !== `${height}px`) {
+    const visual = win.visualViewport;
+    diagnostics.recordEvent(
+      '画面の高さ',
+      `窓 ${win.innerWidth}×${win.innerHeight} / 器 ${root.clientHeight}` +
+        ` / 見え ${visual ? `${Math.round(visual.height)}(倍 ${visual.scale})` : '-'}` +
+        ` / 採用 ${height}（前 ${before || '-'}）`,
+    );
+  }
   return height;
 }
 

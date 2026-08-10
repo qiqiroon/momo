@@ -52,6 +52,12 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* **重ねもの（ダイアログ・通知）の基準はここ**（C-211）。
+     「画面に固定」で置くと、基準がブラウザの持つ枠になる。携帯を横にしたあと、
+     その枠と実際に見えている範囲がずれることがあり、**描かれた位置と指の当たる位置が食い違う**
+     （ボタンの少し下を押すと反応する、という形で出た）。
+     土台そのものを基準にすれば、描画も判定も同じ箱から出るのでずれようがない。 */
+  position: relative;
 }
 
 /* ------------------------------------------------------------------ 共通ヘッダー（2.3） */
@@ -659,7 +665,15 @@ body {
 
 /* 右置きでは、パレットの置き場が残りの高さをすべて受け取る。
    その実寸がそのまま「何列にするか」の元になる（C-166） */
-.control-panel[data-placement='RIGHT'] .panel-upper,
+/* **ズームの段と数字ボタンの側は縮めない**（C-210）。
+   縮められるようにしていたため、操作ボタンに押されて `panel-upper` が中身より低くなり、
+   行き場を失った数字ボタンが操作ボタンの上へはみ出して重なった（実機の横画面で判明）。
+   **足りないぶんは操作ボタンの側で吸収する**（下の `.action-row`）。 */
+.control-panel[data-placement='RIGHT'] .panel-upper {
+  flex: 1 0 auto;
+  min-height: 0;
+}
+
 .control-panel[data-placement='RIGHT'] .palette-slot {
   flex: 1;
   min-height: 0;
@@ -681,6 +695,12 @@ body {
 .control-panel[data-placement='RIGHT'] .action-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  /* **最後の受け皿**（C-210）。詰めてもなお入りきらないときは、**ここだけを送れるようにする。**
+     重ねて隠すのではなく送る形にしておけば、押せないボタンは生まれない */
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  align-content: start;
 }
 
 .control-panel[data-placement='RIGHT'] .action-row .btn {
@@ -700,6 +720,30 @@ body {
 
 .control-panel[data-placement='RIGHT'] .zoom-fit {
   flex-basis: 100%;
+}
+
+/* 低い画面では操作部をひとまわり詰める（C-210）
+   携帯を横にすると画面の高さが 400px を切り、44px のボタンのままでは帯に入りきらない。
+   **数字ボタン（`.palette-key`）はここで縮めない。** 44px を守れるかどうかが二段構えの
+   分かれ目であり（C-159）、そこを動かすと判定の意味が変わってしまう。
+   縮めるのは操作ボタンとズームの段——**「その他」のほうである**（利用者の指示）。 */
+@media (max-height: 480px) {
+  .control-panel {
+    padding: 6px 10px;
+    gap: 6px;
+  }
+
+  .control-panel .btn {
+    min-height: 34px;
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+
+  .control-panel .panel-upper,
+  .control-panel .action-row,
+  .control-panel .zoom-bar {
+    gap: 6px;
+  }
 }
 
 /* ズームバー（5.5）。操作パネルの最上段に置く */
@@ -858,13 +902,12 @@ body {
 
 /* ------------------------------------------------------------------ ダイアログ（12.1） */
 
-/* 覆いの高さも実測に従わせる（C-207）。`inset: 0` だけだと、見えていない下側まで含めた
-   まん中に置かれ、ボタンがブラウザの帯の裏へ入って押せなくなる。
+/* 覆いは**土台の中に重ねる**（C-211）。「画面に固定」をやめたので、高さの指定も要らない
+   ——土台がすでに実測の高さ（C-207）を持っており、その箱にぴったり重なる。
    端のすきまは、切り欠き・ホームバーのぶんを足す（対応しない環境では 0 になる）。 */
 .dialog-backdrop {
-  position: fixed;
+  position: absolute;
   inset: 0;
-  height: var(--app-height, auto);
   z-index: 300;
   background: rgba(0, 0, 0, 0.65);
   display: flex;
@@ -927,7 +970,8 @@ body {
 /* ------------------------------------------------------------------ トースト（11.5） */
 
 .toast-stack {
-  position: fixed;
+  /* 通知も土台の中へ（C-211）。理由はダイアログと同じ */
+  position: absolute;
   left: 50%;
   /* ホームバーの帯に重ねない（C-208。対応しない環境では 0 になる） */
   bottom: calc(16px + env(safe-area-inset-bottom));

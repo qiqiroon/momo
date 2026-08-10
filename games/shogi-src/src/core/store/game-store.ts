@@ -11,8 +11,8 @@ import {
   isInCheck,
   positionHash,
 } from '../engine';
-import type { BoardMove, Mgf, Move, Player, Position, Square } from '../engine';
-import { formatMove } from '../engine/kifu/format';
+import type { BoardMove, Mgf, Move, PieceInstance, Player, Position, Square } from '../engine';
+import { formatMove, pieceNameJa, squareNameJa } from '../engine/kifu/format';
 import { NO_LIMIT_TIME_CONTROL, initClockState, type ClockState, type TimeControl } from '../engine/time-control';
 import { get as pluginGet } from '../plugin/registry';
 import type { OnlineGameConnector } from '../plugin/gameConnector';
@@ -39,6 +39,16 @@ type QuantumCandidateUpdateFn = (
   pos: Position,
   mgf: Mgf,
   context?: { torusMode: 'none' | 'cylinder' | 'full' },
+) => Position;
+/**
+ * v1.09 (Phase 5-11 追補): 打つ手の直後に呼ぶ絞り込みフック。
+ * features/quantum が register する (core → features の型依存を作らないローカル型)。
+ */
+type QuantumOnDropFn = (
+  pos: Position,
+  mgf: Mgf,
+  droppedPieceId: string,
+  to: Square,
 ) => Position;
 /**
  * Phase 5-7 (§Q8.5): 捕獲制約フック。features/quantum が register する。
@@ -231,6 +241,59 @@ function computeLegalDestinationsFromHand(mgf: Mgf, position: Position, pieceId:
   return dests;
 }
 
+/**
+ * v1.09: 「この手で駒種が決まった駒」を棋譜に書くための行を作る。
+ *
+ * 量子将棋では、指した手そのものより「その結果どの駒の正体が決まったか」が
+ * 局面の意味を左右する。棋譜に残らないと後から追えないので、決まった瞬間を
+ * 「3三 先手 金に確定」の形で手の下に書き足す。
+ *
+ * 判定は盤の表示と同じ「候補の駒種が 1 つに絞れたか」。どちらの金かまでは
+ * 決まっていなくても、金と呼べるようになった時点で確定として扱う。
+ */
+function diffConfirmedKinds(mgf: Mgf, before: Position, after: Position): string[] {
+  const beforeMap = buildInitialKindMap(before);
+  const afterMap = buildInitialKindMap(after);
+  const kindsBefore = new Map<string, number>();
+  for (const p of allPieces(before)) {
+    if (p.candidates === undefined) continue;
+    kindsBefore.set(p.pieceId, displayKindsFor(mgf, p, beforeMap).length);
+  }
+
+  const lines: string[] = [];
+  for (const { piece, square } of allPiecesWithSquare(after)) {
+    if (piece.candidates === undefined) continue;
+    const prev = kindsBefore.get(piece.pieceId);
+    if (prev === undefined || prev < 2) continue;
+    const kinds = displayKindsFor(mgf, piece, afterMap);
+    if (kinds.length !== 1) continue;
+    const where = square ? squareNameJa(after.width, square) : '持駒';
+    const side = piece.owner === 'player1' ? '先手' : '後手';
+    lines.push(`${where} ${side} ${pieceNameJa(kinds[0])}に確定`);
+  }
+  return lines;
+}
+
+function allPieces(pos: Position): PieceInstance[] {
+  const out: PieceInstance[] = [];
+  for (const row of pos.board) for (const c of row) if (c) out.push(c);
+  out.push(...pos.hands.player1, ...pos.hands.player2);
+  return out;
+}
+
+function allPiecesWithSquare(pos: Position): { piece: PieceInstance; square: Square | null }[] {
+  const out: { piece: PieceInstance; square: Square | null }[] = [];
+  for (let row = 0; row < pos.height; row++) {
+    for (let col = 0; col < pos.width; col++) {
+      const c = pos.board[row][col];
+      if (c) out.push({ piece: c, square: { row, col } });
+    }
+  }
+  for (const p of pos.hands.player1) out.push({ piece: p, square: null });
+  for (const p of pos.hands.player2) out.push({ piece: p, square: null });
+  return out;
+}
+
 function computeStatusAfterMove(
   mgf: Mgf,
   position: Position,
@@ -280,6 +343,15 @@ function applyAndCommit(
       }
     }
   }
+  // v1.09 (Phase 5-11 追補): 打つ手から得られる絞り込み。
+  // 「詰みになる手が打てた = 打ち歩詰めではない = その駒は歩ではない」を反映する。
+  // 詰み判定が要るので候補更新の反復ループには入れず、捕獲時の C-201 と同じく
+  // イベント側でこの位置に 1 回だけ挟む。二歩・行き所のない駒による絞り込みは
+  // 打った駒が盤上の駒になった時点で C-103 / C-104 が拾うのでここでは扱わない。
+  if (currentQuantum && move.type === 'drop') {
+    const dropHook = pluginGet<QuantumOnDropFn>('quantum:onDrop');
+    if (dropHook) nextPos = dropHook(nextPos, mgf, move.pieceId, move.to);
+  }
   // v0.96 (Phase 5-4): 量子モードなら着手直後に候補集合を再評価する。
   // v0.98 (Phase 5-6): torus モード情報を context として渡す。torus 実装は Phase 4
   // で完成予定なので現状は 'none' を渡す (C-103/C-104 は非 torus 環境で有効化)。
@@ -296,6 +368,11 @@ function applyAndCommit(
   const entangledPieceIds = currentQuantum
     ? diffEntangledPieceIds(position, nextPos, move)
     : [];
+  // v1.09: この手で駒種が決まった駒があれば、棋譜の手の下に書き足す
+  const confirmedLines = currentQuantum ? diffConfirmedKinds(mgf, position, nextPos) : [];
+  const kifuEntry = confirmedLines.length > 0
+    ? `${formatted}\n${confirmedLines.join('\n')}`
+    : formatted;
   const { status, positionCounts: nextCounts } = computeStatusAfterMove(mgf, nextPos, positionCounts);
   // v1.04 (Phase 5-7 §Q8.5 C-202): 確定王捕獲は checkmate に強制上書き (千日手・詰み判定より優先)。
   const finalStatus = statusOverride ?? status;
@@ -321,7 +398,7 @@ function applyAndCommit(
     selectedHandPieceId: null,
     legalDestinations: [],
     pendingPromotion: null,
-    moveHistory: [...moveHistory, formatted],
+    moveHistory: [...moveHistory, kifuEntry],
     status: finalStatus,
     positionCounts: nextCounts,
     canNyugyokuP1: canDeclareNyugyoku(mgf, nextPos, 'player1'),

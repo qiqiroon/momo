@@ -14,6 +14,7 @@ import { propagationConstraints } from './constraints/propagation';
 import { applyC201, isConfirmedKing } from './capture-effects';
 import { buildInitialInfoMap } from './piece-lookup';
 import { findConfirmedKing } from './king-detection';
+import { applyUchifuTsumeExclusion } from './drop-effects';
 
 register('quantum:init', quantumInit);
 register('quantum:candidateUpdate', candidateUpdate);
@@ -36,6 +37,9 @@ register('quantum:onCapture', {
 // Phase 5-10 §Q13.4 王手判定の量子拡張。findKing を「玉として確定した駒だけ」に狭める。
 // 通常将棋モード (A ビルド or shogi モード時) は hook 未登録 → check.ts の kind ベース実装が使われる。
 register('quantum:findKing', findConfirmedKing);
+// v1.09 (Phase 5-11 追補): 打った手から得られる絞り込み。詰み判定が要るので
+// 候補更新の反復ループではなくイベント側 (applyAndCommit) から 1 回だけ呼ぶ。
+register('quantum:onDrop', applyUchifuTsumeExclusion);
 
 export type QuantumInitFn = typeof quantumInit;
 export type QuantumCandidateUpdateFn = typeof candidateUpdate;
@@ -45,3 +49,4 @@ export type QuantumOnCaptureHook = {
   buildInitialInfoMap: typeof buildInitialInfoMap;
 };
 export type QuantumFindKingFn = typeof findConfirmedKing;
+export type QuantumOnDropFn = typeof applyUchifuTsumeExclusion;

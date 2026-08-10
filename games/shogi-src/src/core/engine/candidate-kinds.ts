@@ -101,3 +101,23 @@ export function displayKindsFor(
   kinds.sort((a, b) => strengthOf(b) - strengthOf(a));
   return kinds;
 }
+
+/**
+ * 「この駒は確実に○○である」と言える場合だけその駒種を返す (v1.09)。
+ *
+ * 候補の駒種が 1 つに絞れているときだけ確定とみなす。2 つ以上残っていれば undefined。
+ * 本将棋モード (candidates undefined) は常に piece.kind で確定。
+ *
+ * 二歩のように「その筋に歩が居るか」を数えるルールは、**確定した駒だけ**を数えないと
+ * いけない。piece.kind は「対局開始時にその位置に置かれていた駒種」であって正体ではないので、
+ * kind で数えると未確定の駒を歩として数えてしまい、打てるはずの筋が塞がれる。
+ */
+export function confirmedKindOf(
+  mgf: Mgf,
+  piece: PieceInstance,
+  kindMap: Map<PieceId, string>,
+): string | undefined {
+  if (piece.candidates === undefined) return piece.kind;
+  const kinds = resolveCandidateKinds(mgf, piece.candidates, piece.promoted, kindMap);
+  return kinds.length === 1 ? kinds[0] : undefined;
+}

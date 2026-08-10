@@ -806,6 +806,19 @@ body::before {
   color: var(--piece-ink);
 }
 
+/* v1.09: 成った駒の重ね表示は赤字にする。巡回表示 (.pc.promoted .ja) は既に赤なので、
+   重ね表示だけ取り残されていた。「成っている」は候補が何であれ共通の事実なので、
+   候補の字は全部赤で重ねる。
+   持ち駒は捕獲時に成りが戻る決まりなので、駒台側に成り駒は出ない。 */
+.pc.promoted .qstack .ov {
+  color: var(--promoted-ink);
+  -webkit-text-stroke-color: var(--promoted-ink);
+}
+
+.pc.promoted .qstack .vov {
+  color: var(--promoted-ink);
+}
+
 /* 候補ボックス: 選択駒の右上に文字だけのテキストボックス (歩桂銀 のように) */
 .qtip {
   position: absolute;

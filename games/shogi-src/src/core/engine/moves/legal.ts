@@ -1,6 +1,7 @@
 import type { Mgf, MgfPieceDef } from '../mgf/types';
 import type { BoardCell, Move, PieceInstance, Position, Square } from '../position/types';
 import { applyMove } from '../position/apply';
+import { buildInitialKindMap, confirmedKindOf, displayKindsFor } from '../candidate-kinds';
 import { isInCheck } from './check';
 import { generateDropMoves } from './drops';
 import { directionOffsets } from './directions';
@@ -27,11 +28,15 @@ export function isMoveLegal(mgf: Mgf, position: Position, move: Move, opts: Lega
   const after = applyMove(mgf, position, move);
   if (isInCheck(mgf, after, mover)) return false;
 
-  // 打歩詰め: 歩打による相手詰めは反則
+  // 打歩詰め: 歩打による相手詰めは反則。
+  // v1.09: 量子モードでは「歩と確定している駒を打つとき」だけ見る。まだ歩と決まって
+  // いない駒は歩打とは言い切れないので禁止しない。逆に、詰みになる手が打てたという
+  // ことは打ち歩詰めではない = その駒は歩ではないので、候補から歩を落とす
+  // (features/quantum/drop-effects.ts)。
   if (move.type === 'drop' && !opts.skipUchifuTsume && mgf.constraints?.uchifu_tsume) {
     const player = position.sideToMove;
     const piece = position.hands[player].find((p) => p.pieceId === move.pieceId);
-    if (piece?.kind === 'fu') {
+    if (piece && confirmedKindOf(mgf, piece, buildInitialKindMap(position)) === 'fu') {
       if (isCheckmate(mgf, after)) return false;
     }
   }
@@ -45,6 +50,18 @@ export function isCheckmate(mgf: Mgf, position: Position): boolean {
   return escapes.length === 0;
 }
 
+/**
+ * 打つ手が許されるか。
+ *
+ * v1.09 (Phase 5-11 追補): 量子モードでは駒の正体が決まっていないので、
+ * **候補の駒種のうち 1 つでも合法に打てるなら打てる**とする (盤上の動きを
+ * 候補の和集合で出しているのと同じ考え方)。打った後に「その手を非合法にする候補」は
+ * 候補更新の側で落ちる (二歩なら C-103・行き所のない駒なら C-104)。
+ *
+ * 以前は piece.kind (＝初期位置の駒種で正体ではない) 1 つだけで判定していたため、
+ * 歩以外の可能性を持つ駒まで歩として二歩に引っかかり、打てる筋が 1〜2 列しか
+ * 残らなかった。
+ */
 function isDropAllowed(
   mgf: Mgf,
   position: Position,
@@ -54,16 +71,34 @@ function isDropAllowed(
   const player = position.sideToMove;
   const piece = position.hands[player].find((p) => p.pieceId === pieceId);
   if (!piece) return false;
-  const def = mgf.pieces.find((p) => p.id === piece.kind);
-  if (!def) return false;
+  const kindMap = buildInitialKindMap(position);
+  const kinds = displayKindsFor(mgf, piece, kindMap);
+  return kinds.some((kind) => isDropAllowedAsKind(mgf, position, to, piece, kind, kindMap));
+}
 
-  // 打歩: 同筋二歩禁止
-  if (piece.kind === 'fu' && mgf.constraints?.nifu) {
+/** 「この駒が駒種 K だったとして」打てるか。 */
+function isDropAllowedAsKind(
+  mgf: Mgf,
+  position: Position,
+  to: Square,
+  piece: PieceInstance,
+  kind: string,
+  kindMap: Map<string, string>,
+): boolean {
+  const player = position.sideToMove;
+  const def = mgf.pieces.find((p) => p.id === kind);
+  if (!def) return false;
+  if (!def.is_hand_piece) return false;
+
+  // 打歩: 同筋二歩禁止。
+  // 数える対象は「歩と確定した駒」だけ。未確定の駒を kind で数えると、まだ歩と
+  // 決まっていない駒が筋を塞いでしまう (本将棋モードでは confirmedKindOf が
+  // そのまま kind を返すので従来と同じ判定になる)。
+  if (kind === 'fu' && mgf.constraints?.nifu) {
     for (let row = 0; row < position.height; row++) {
       const cell = position.board[row][to.col];
-      if (cell && cell.owner === player && cell.kind === 'fu' && !cell.promoted) {
-        return false;
-      }
+      if (!cell || cell.owner !== player || cell.promoted) continue;
+      if (confirmedKindOf(mgf, cell, kindMap) === 'fu') return false;
     }
   }
 

@@ -1,5 +1,6 @@
 import type { Mgf } from '../mgf/types';
-import type { Move, Position } from '../position/types';
+import type { Move, PieceInstance, Position } from '../position/types';
+import { buildInitialKindMap, displayKindsFor } from '../candidate-kinds';
 
 const RANK_KANJI = ['一', '二', '三', '四', '五', '六', '七', '八', '九'];
 
@@ -50,23 +51,49 @@ export function pieceNameFor(kind: string, locale: string): string {
   return pieceNameJa(kind);
 }
 
+/** 盤の座標を将棋の呼び方 (3三 等) にする。 */
+export function squareNameJa(width: number, square: { row: number; col: number }): string {
+  const file = width - square.col;
+  const rank = square.row + 1;
+  return `${file}${RANK_KANJI[rank - 1] ?? rank}`;
+}
+
+/**
+ * 棋譜に書く駒の名前 (v1.09・量子将棋対応)。
+ *
+ * 量子モードでは正体が決まるまで駒名を確定できない。かといって名前が無いと
+ * 棋譜が読めないので、**「元の場所に置かれていた駒の名前」に「仮」を付けて呼ぶ**
+ * (5 一の駒なら 仮王)。これは正体の主張ではなく、その駒を指し示すための呼び名。
+ *
+ * 候補が 1 駒種に絞れた時点からは、その駒名で呼ぶ (仮 が外れる)。盤の表示が
+ * 顔を切り替えるのと同じ条件なので、棋譜と盤で呼び方がズレない。
+ */
+export function kifuPieceName(mgf: Mgf, position: Position, piece: PieceInstance): string {
+  const kinds = displayKindsFor(mgf, piece, buildInitialKindMap(position));
+  if (kinds.length === 1) return pieceNameJa(kinds[0]);
+  let base = piece.initialKind;
+  if (piece.promoted) {
+    const def = mgf.pieces.find((p) => p.id === piece.initialKind);
+    if (def?.promoted_id) base = def.promoted_id;
+  }
+  return `仮${pieceNameJa(base)}`;
+}
+
 /**
  * 指し手を日本語棋譜表記 (▲76歩 △34歩 ▲22角成 ▲55桂打 等) に変換する。
  * position は「その手が指される直前」の局面。
  */
-export function formatMove(_mgf: Mgf, position: Position, move: Move): string {
+export function formatMove(mgf: Mgf, position: Position, move: Move): string {
   const mark = position.sideToMove === 'player1' ? '▲' : '△';
-  const shogiFile = position.width - move.to.col;
-  const shogiRank = move.to.row + 1;
-  const coord = `${shogiFile}${RANK_KANJI[shogiRank - 1] ?? shogiRank}`;
+  const coord = squareNameJa(position.width, move.to);
 
   if (move.type === 'drop') {
     const piece = position.hands[position.sideToMove].find((p) => p.pieceId === move.pieceId);
-    const name = piece ? pieceNameJa(piece.kind) : '?';
+    const name = piece ? kifuPieceName(mgf, position, piece) : '?';
     return `${mark}${coord}${name}打`;
   }
   const piece = position.board[move.from.row][move.from.col];
-  const name = piece ? pieceNameJa(piece.kind) : '?';
+  const name = piece ? kifuPieceName(mgf, position, piece) : '?';
   const suffix = move.promote ? '成' : '';
   return `${mark}${coord}${name}${suffix}`;
 }

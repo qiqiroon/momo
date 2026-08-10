@@ -16,19 +16,33 @@ export function positionHash(position: Position): string {
         rowParts.push('.');
       } else {
         const owner = cell.owner === 'player1' ? 'P' : 'p';
-        rowParts.push(`${owner}${cell.kind}${cell.promoted ? '+' : ''}`);
+        rowParts.push(`${owner}${cell.kind}${cell.promoted ? '+' : ''}${candidateTag(cell)}`);
       }
     }
     boardParts.push(rowParts.join('|'));
   }
   const board = boardParts.join('/');
   const h1 = position.hands.player1
-    .map((p) => p.kind)
+    .map((p) => `${p.kind}${candidateTag(p)}`)
     .sort()
     .join(',');
   const h2 = position.hands.player2
-    .map((p) => p.kind)
+    .map((p) => `${p.kind}${candidateTag(p)}`)
     .sort()
     .join(',');
   return `${board}#${h1}#${h2}#${position.sideToMove}`;
+}
+
+/**
+ * v1.09: 候補集合をハッシュに織り込む。
+ *
+ * 量子将棋では駒が同じ場所に戻ってきても候補は減っているので「同じ局面」ではない。
+ * 候補を無視すると、駒を往復させただけで千日手 (既定 4 回で引分) が成立してしまう。
+ *
+ * 本将棋モード (candidates undefined) では空文字を返すので、ハッシュ値は従来と
+ * 完全に同じになる (棋譜・通信の照合に影響しない)。
+ */
+function candidateTag(piece: { candidates?: ReadonlySet<string> }): string {
+  if (piece.candidates === undefined) return '';
+  return `{${Array.from(piece.candidates).sort().join('+')}}`;
 }

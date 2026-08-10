@@ -334,14 +334,16 @@ export function GameScreen({ variant }: GameScreenProps) {
   // 候補 PieceID → 初期駒種 の対応表。局面が変わったときだけ作り直す。
   const kindMap = useMemo(() => buildInitialKindMap(position), [position]);
 
-  // 巡回表示の時計。駒を持っている間は止めて字を固定する (spec 駒デザイン §4.5・§5)。
-  const holding = selectedSquare !== null || selectedHandPieceId !== null;
+  // 巡回表示の時計。
+  // v1.09: 仕様 (駒デザイン §4.5) では「駒を持っている間は巡回を止める」だが、
+  // 実機で見てユーザー判断により止めないことにした。止めると持っている間だけ
+  // 表示が固まって、指すまでの確認に余計な時間がかかるため。
   const [cycleTick, setCycleTick] = useState(0);
   useEffect(() => {
-    if (!currentQuantum || quantumDisplay !== 'cycle' || holding) return;
+    if (!currentQuantum || quantumDisplay !== 'cycle') return;
     const id = setInterval(() => setCycleTick((n) => n + 1), 1000);
     return () => clearInterval(id);
-  }, [currentQuantum, quantumDisplay, holding]);
+  }, [currentQuantum, quantumDisplay]);
 
   // 観測アニメ (spec §Q17.8): 着手のたびに「動いた駒 + 候補が変化した駒」を収縮させる。
   // どこまで波及したかが一目で分かるので、量子もつれハイライトと役割が重なるが、
@@ -377,6 +379,11 @@ export function GameScreen({ variant }: GameScreenProps) {
       if (clicked) debugLogClick(clicked, 'board');
     }
     if (inputBlocked) return;
+    // v1.09: 持っている駒の元の位置をもう一度クリックしたら持ち直し (持ち駒台と同じ操作感)。
+    if (selectedSquare && selectedSquare.row === row && selectedSquare.col === col) {
+      clearSelection();
+      return;
+    }
     if ((selectedSquare || selectedHandPieceId) && isHint(row, col)) {
       tryMove({ row, col });
       return;
@@ -708,7 +715,9 @@ export function GameScreen({ variant }: GameScreenProps) {
                   <div className="spec-empty">{t('s07.kifuEmpty')}</div>
                 ) : (
                   moveHistory.map((m, i) => (
-                    <div key={i} style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                    // v1.09: 量子モードでは「この手で何が確定したか」を手の下に
+                    // 改行で書き足しているので、改行をそのまま出す
+                    <div key={i} style={{ color: 'var(--text-muted)', fontSize: 12, whiteSpace: 'pre-line' }}>
                       {i + 1}. {m}
                     </div>
                   ))
@@ -1778,16 +1787,20 @@ function CandidateBox({
   kinds,
   locale,
   onLeft,
+  flipped = false,
 }: {
   kinds: string[];
   locale: LocaleCode;
   onLeft: boolean;
+  /** 180 度回転した器 (相手側の駒台) の中に置くとき、文字を読める向きに戻す */
+  flipped?: boolean;
 }) {
   const sep = locale === 'en' ? ' ' : '';
   const text = kinds.map((k) => pieceNameFor(k, locale)).join(sep);
   const style: CSSProperties = onLeft
     ? { right: '100%', bottom: '92%', marginRight: 4 }
     : { left: '100%', bottom: '92%', marginLeft: 4 };
+  if (flipped) style.transform = 'rotate(180deg)';
   return (
     <span className="qtip" style={style}>
       {text}
@@ -1875,6 +1888,16 @@ function PieceStandView({ side, pieces, onClick, selectedId, activePlayer, local
                 )}
               </div>
               {unconfirmed && <span className="qmark">？</span>}
+              {/* v1.09: 持ち駒を持ったときも候補ボックスを出す (盤の駒と揃える)。
+                  相手側の駒台は .cap ごと 180 度回っているので、文字が読めるよう回し戻す。 */}
+              {unconfirmed && selectedId && g.pieceIds.includes(selectedId) && (
+                <CandidateBox
+                  kinds={g.kinds}
+                  locale={locale}
+                  onLeft={side === 'you'}
+                  flipped={side === 'opp'}
+                />
+              )}
               {g.pieceIds.length >= 2 && <span className="ct">{g.pieceIds.length}</span>}
               {debugShowPieceIds && <HandDebugIdBadge pieces={g.pieces} />}
             </div>

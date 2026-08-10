@@ -73,6 +73,27 @@ describe('画面の高さの見立て', () => {
     expect(measureAppHeight(win)).toBe(667);
   });
 
+  it('飾りが全部出ているときの高さがいちばん小さければ、それを採る', () => {
+    // 実機の横画面で起きていた形。器も見えている高さも、帯が引っ込むと 393 と答えるが、
+    // **帯が出ているときは 334 しかない。** そこへ倒さないと、帯が戻った瞬間に下が隠れる
+    const original = Element.prototype.getBoundingClientRect;
+    Element.prototype.getBoundingClientRect = function rect(this: Element): DOMRect {
+      const height = this.id === 'momo-sudoku-viewport-probe' ? 334 : 0;
+      return { height, width: 0, top: 0, left: 0, right: 0, bottom: height, x: 0, y: 0 } as DOMRect;
+    };
+    Object.defineProperty(document.documentElement, 'clientHeight', {
+      value: 393,
+      configurable: true,
+    });
+
+    try {
+      expect(measureAppHeight(window)).toBe(334);
+    } finally {
+      Element.prototype.getBoundingClientRect = original;
+      document.getElementById('momo-sudoku-viewport-probe')?.remove();
+    }
+  });
+
   it('何も測れなければ 0 を返し、書き込まない', () => {
     const win = fakeWindow({ client: 0, visual: null, innerHeight: 0 });
     expect(applyAppHeight(win)).toBe(0);

@@ -35,6 +35,38 @@ export const APP_HEIGHT_VAR = '--app-height';
 const RECHECK_MS = [120, 400] as const;
 
 /**
+ * 「ブラウザの飾りが全部出ているときの高さ」を尋ねる物差し（C-212）
+ *
+ * **携帯の横画面には高さが2つある。** ブラウザの帯が出ているときと、引っ込んだとき——
+ * 実機の記録では 334 と 393 で、**その差 59px がちょうど帯の高さ**であった。
+ * 器も見えている高さも、**引っ込んだときは 393 と答える。** そのまま採ると、
+ * 帯が戻ってきた瞬間に下 59px が帯の裏へ入る（＝画面が拡大したように見える）。
+ *
+ * CSS には**この「いちばん狭いときの高さ」を指す単位**（`svh`）がある。
+ * 数字では尋ねられないので、**その高さを持つ見えない物差しを1本立てて実寸を読む。**
+ *
+ * **狭いほうへ倒すので、帯が引っ込んでいるあいだは下に余白ができる。** それは承知のうえで、
+ * **いつ帯が出てきても操作できることを優先する**（隠れたボタンは押せないが、余白は押せる）。
+ */
+const PROBE_ID = 'momo-sudoku-viewport-probe';
+
+function smallViewportHeight(win: Window): number {
+  const doc = win.document;
+  if (!doc.body) return 0;
+
+  let probe = doc.getElementById(PROBE_ID);
+  if (probe === null) {
+    probe = doc.createElement('div');
+    probe.id = PROBE_ID;
+    // 見えず・触れず・場所も取らない。**高さを尋ねるためだけに立てる**
+    probe.style.cssText =
+      'position:fixed;top:0;left:0;width:0;height:100svh;visibility:hidden;pointer-events:none;z-index:-1';
+    doc.body.appendChild(probe);
+  }
+  return probe.getBoundingClientRect().height;
+}
+
+/**
  * いま使ってよい高さ（CSS px）。測れなければ 0 を返す。
  *
  * 純粋な関数として切り出してある（副作用は `applyAppHeight` が持つ）。
@@ -52,6 +84,11 @@ export function measureAppHeight(win: Window): number {
     const scale = visual.scale > 0 ? visual.scale : 1;
     heights.push(visual.height * scale);
   }
+
+  // **飾りが全部出ているときの高さ**（C-212）。上の2つは飾りが引っ込むと大きく答えるため、
+  // これを混ぜないと、帯が戻ってきた瞬間に下が隠れる
+  const small = smallViewportHeight(win);
+  if (small > 0) heights.push(small);
 
   if (heights.length === 0) return win.innerHeight > 0 ? win.innerHeight : 0;
   return Math.round(Math.min(...heights));
@@ -78,6 +115,7 @@ export function applyAppHeight(win: Window): number {
       '画面の高さ',
       `窓 ${win.innerWidth}×${win.innerHeight} / 器 ${root.clientHeight}` +
         ` / 見え ${visual ? `${Math.round(visual.height)}(倍 ${visual.scale})` : '-'}` +
+        ` / 狭 ${Math.round(smallViewportHeight(win)) || '-'}` +
         ` / 採用 ${height}（前 ${before || '-'}）`,
     );
   }

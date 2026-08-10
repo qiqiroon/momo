@@ -730,7 +730,13 @@ body {
 @media (max-height: 480px) {
   .control-panel {
     padding: 6px 10px;
-    gap: 6px;
+    gap: 4px;
+  }
+
+  /* 右置きの余白は**専用の規定のほうが強い**ので、同じ強さで上書きしないと効かない
+     （ここを取り違えて、詰めたつもりで詰まっていなかった） */
+  .control-panel[data-placement='RIGHT'] {
+    padding: 6px 10px;
   }
 
   .control-panel .btn {
@@ -742,7 +748,26 @@ body {
   .control-panel .panel-upper,
   .control-panel .action-row,
   .control-panel .zoom-bar {
-    gap: 6px;
+    gap: 4px;
+  }
+
+  /* ヘッダーも詰める。**帯だけでなく盤面にも効く**ので、狭い画面ではここが一番よく効く */
+  .app-header {
+    padding: 4px 12px;
+  }
+
+  /* ズームの段は**「押すもの」を1行、スライダを1行**に組み替える（C-210）。
+     いまは `−` スライダ `＋` が1行で「全体」だけが下という並びで、
+     **横画面では2行ぶんの高さを使いながらスライダは 90px しか無い。**
+     押すもの3つを1行へまとめると、**スライダは帯の幅いっぱい（195px）になり、
+     高さも1行ぶん減る。** 掴みやすさと高さの両方が同時に良くなる */
+  .control-panel[data-placement='RIGHT'] .zoom-fit {
+    flex-basis: auto;
+  }
+
+  .control-panel[data-placement='RIGHT'] .zoom-slider {
+    order: 1;
+    flex-basis: 100%;
   }
 }
 

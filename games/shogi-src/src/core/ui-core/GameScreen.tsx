@@ -361,6 +361,14 @@ export function GameScreen({ variant }: GameScreenProps) {
   // 見せ方を実際に切り替えられる側か (オフラインは常に本人)
   const ruleSetter = online.isRuleSetter;
 
+  // v1.10: 予告の文字も駒と同じ向きにする。選んでいるのが相手側 (viewer から見て
+  // 逆向きに置かれている側) の駒なら、予告も逆さにしないと「自分の駒に決まる」ように
+  // 見えてしまう。
+  const selectedPieceOwner = selectedSquare
+    ? position.board[selectedSquare.row][selectedSquare.col]?.owner ?? null
+    : null;
+  const foretellFlipped = selectedPieceOwner !== null && selectedPieceOwner !== viewerSide;
+
   // 移動先による駒種確定の予告 (spec §4.3)。選択中の未確定駒について、
   // 「そこへ動けるのが 1 駒種だけ」のマスに、確定する駒種を薄く出す。
   const foretellMap = useMemo(
@@ -634,7 +642,9 @@ export function GameScreen({ variant }: GameScreenProps) {
                           <span className={`qmark-b${piece.owner !== viewerSide ? ' gote' : ''}`}>？</span>
                         )}
                         {foretellKind && (
-                          <span className="foretell">{pieceNameFor(foretellKind, locale)}</span>
+                          <span className={`foretell${foretellFlipped ? ' gote' : ''}`}>
+                            {pieceNameFor(foretellKind, locale)}
+                          </span>
                         )}
                         {/* 候補ボックス: 選択した未確定駒の右上に候補を文字だけで並べる */}
                         {piece && unconfirmed && isSelected(row, col) && (
@@ -733,7 +743,7 @@ export function GameScreen({ variant }: GameScreenProps) {
           <DebugClickLog />
         </div>
       </div>
-      <PromotionModal locale={locale} t={t} viewerSide={viewerSide} />
+      <PromotionModal locale={locale} t={t} viewerSide={viewerSide} mode={quantumDisplay} tick={cycleTick} />
       <OpponentLeftModal t={t} />
       <GameEndModal t={t} online={online} />
       <OfferReceivedModal t={t} online={online} />
@@ -1579,9 +1589,13 @@ interface PromotionModalProps {
    *  PieceView に viewer 情報を伝播する (既定値 'player1' へのフォールバックで
    *  後手時に piece.owner !== viewerSide となり誤って gote クラスが付いていた) */
   viewerSide: 'player1' | 'player2';
+  /** v1.10: 未確定駒の見せ方。盤と同じ方式 (巡回 / 重ね) で候補を出す。 */
+  mode: QuantumDisplay;
+  /** v1.10: 巡回表示の共有時計。盤と同じ拍で字が入れ替わる。 */
+  tick: number;
 }
 
-function PromotionModal({ locale, t, viewerSide }: PromotionModalProps) {
+function PromotionModal({ locale, t, viewerSide, mode, tick }: PromotionModalProps) {
   const pendingPromotion = useGameStore((s) => s.pendingPromotion);
   const confirmPromotion = useGameStore((s) => s.confirmPromotion);
   const cancelPromotion = useGameStore((s) => s.cancelPromotion);
@@ -1617,7 +1631,8 @@ function PromotionModal({ locale, t, viewerSide }: PromotionModalProps) {
   };
 
   // v1.08: 未確定駒が成るときは「初期位置の駒種」ではなく候補を見せる。
-  // 巡回だと選択に時間がかかるので、この画面だけは常に重ね表示にする。
+  // v1.10: 見せ方は盤と揃える (巡回なら巡回・重ねなら重ね)。この画面だけ別方式だと
+  // 「同じ駒なのに見え方が違う」ことになり、成る/成らずの判断がしにくい。
   const nonPromoteKinds = pendingPromotion.candidateKinds;
   const promoteKinds = pendingPromotion.promotedCandidateKinds;
 
@@ -1629,13 +1644,13 @@ function PromotionModal({ locale, t, viewerSide }: PromotionModalProps) {
           <button type="button" className="promotion-card" onClick={() => confirmPromotion(false)}>
             <div className="label">{t('promote.decline')}</div>
             <div className="promotion-card-piece">
-              <PieceView piece={nonPromotePiece} kinds={nonPromoteKinds} locale={locale} viewerSide={viewerSide} mode="stack" />
+              <PieceView piece={nonPromotePiece} kinds={nonPromoteKinds} locale={locale} viewerSide={viewerSide} mode={mode} tick={tick} />
             </div>
           </button>
           <button type="button" className="promotion-card" onClick={() => confirmPromotion(true)}>
             <div className="label">{t('promote.confirm')}</div>
             <div className="promotion-card-piece">
-              <PieceView piece={promotePiece} kinds={promoteKinds} locale={locale} viewerSide={viewerSide} mode="stack" />
+              <PieceView piece={promotePiece} kinds={promoteKinds} locale={locale} viewerSide={viewerSide} mode={mode} tick={tick} />
             </div>
           </button>
         </div>

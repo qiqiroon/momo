@@ -846,6 +846,12 @@ body::before {
   z-index: 3;
 }
 
+/* v1.10: 相手側の駒を選んでいるときの予告は、駒と同じく逆さにする。
+   正立のままだと自分の駒に決まるように見えてしまう。 */
+.foretell.gote {
+  transform: rotate(180deg);
+}
+
 /* 観測アニメ (収縮)。gote 駒は .pc.gote の rotate(180deg) を打ち消さないよう
    回転込みの keyframes を別に用意する (共通の collapse だと着地で正立してしまう)。 */
 .pc.collapsing {

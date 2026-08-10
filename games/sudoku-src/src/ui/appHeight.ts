@@ -79,10 +79,19 @@ export function measureAppHeight(win: Window): number {
 
   const visual = win.visualViewport;
   if (visual && visual.height > 0) {
-    // 指で広げている（ピンチ）あいだは、見えている高さが倍率のぶん縮んで見える。
-    // **倍率を掛けて等倍へ戻してから比べる**——そうしないと、広げるたびに器まで縮む
-    const scale = visual.scale > 0 ? visual.scale : 1;
-    heights.push(visual.height * scale);
+    // **見えている高さは、そのまま使う**（C-213）。
+    //
+    // v0.07〜v0.09 では、ここで倍率を掛けて「等倍のときの高さ」へ戻していた。
+    // 指で広げている（ピンチ）あいだに器まで縮むのを避けるつもりだったが、
+    // **携帯を横にしたときにブラウザが自分でページを拡大することがあり、
+    // その拡大まで打ち消していた。** 結果、実際には半分ほどしか見えていないのに
+    // 「全部見えている」ものとして器を組み、下がはみ出していた
+    // （「表示したあと拡大する」という形で出た）。
+    //
+    // **見えている高さとは、いま実際に目に入っている範囲の広さである。**
+    // 拡大されているならそのぶん狭いのが正しく、器もそれに合わせるのが正しい。
+    // 拡大の理由（ブラウザの都合か、指で広げたのか）を見分ける必要は無い。
+    heights.push(visual.height);
   }
 
   // **飾りが全部出ているときの高さ**（C-212）。上の2つは飾りが引っ込むと大きく答えるため、
@@ -101,6 +110,8 @@ export function measureAppHeight(win: Window): number {
  * 「画面の大きさを取り違えているように見える」という指摘は、**その瞬間の1枚では確かめられない**
  * ——傾けた前後でどう動いたかを並べて初めて分かる。毎回書くと記録が溢れるので変わった瞬間だけにする。
  */
+let lastNote = '';
+
 export function applyAppHeight(win: Window): number {
   const height = measureAppHeight(win);
   if (height <= 0) return 0;
@@ -109,15 +120,19 @@ export function applyAppHeight(win: Window): number {
   const before = root.style.getPropertyValue(APP_HEIGHT_VAR);
   root.style.setProperty(APP_HEIGHT_VAR, `${height}px`);
 
-  if (before !== `${height}px`) {
-    const visual = win.visualViewport;
-    diagnostics.recordEvent(
-      '画面の高さ',
-      `窓 ${win.innerWidth}×${win.innerHeight} / 器 ${root.clientHeight}` +
-        ` / 見え ${visual ? `${Math.round(visual.height)}(倍 ${visual.scale})` : '-'}` +
-        ` / 狭 ${Math.round(smallViewportHeight(win)) || '-'}` +
-        ` / 採用 ${height}（前 ${before || '-'}）`,
-    );
+  // **採った値だけでなく、内訳のどれかが動いたら控える**（C-213）。
+  // ページが拡大されても採った値は動かないことがあり、**動いた値だけ見ていると
+  // 拡大そのものが記録に残らない。** 拡大は「倍」と「ずれ」に出る
+  const visual = win.visualViewport;
+  const note =
+    `窓 ${win.innerWidth}×${win.innerHeight} / 器 ${root.clientHeight}` +
+    ` / 見え ${visual ? `${Math.round(visual.height)}(倍 ${visual.scale}・ずれ ${Math.round(visual.offsetTop)})` : '-'}` +
+    ` / 狭 ${Math.round(smallViewportHeight(win)) || '-'}` +
+    ` / 採用 ${height}`;
+
+  if (note !== lastNote) {
+    diagnostics.recordEvent('画面の高さ', `${note}（前 ${before || '-'}）`);
+    lastNote = note;
   }
   return height;
 }

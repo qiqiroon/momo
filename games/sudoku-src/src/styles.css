@@ -34,6 +34,13 @@ body {
   height: 100%;
   overflow: hidden;
   overscroll-behavior: none;
+  /* **携帯を横にしたとき、文字だけが勝手に大きくなるのを止める**（C-213）。
+     iOS は「画面が広くなった＝読みやすくしよう」と判断して文字を膨らませることがある。
+     **帯が出るわけでもないのに、表示したあと拡大したように見える**のはこれである。
+     文字が膨らむとボタンの行が高くなり、帯の中身がはみ出す。
+     **こちらは寸法を実測して組んでいるので、後から勝手に膨らまされると前提が崩れる。** */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   background: var(--bg);
   color: var(--text);
   font-family: 'Noto Sans JP', system-ui, sans-serif;

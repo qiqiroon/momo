@@ -110,10 +110,72 @@ export function measureAppHeight(win: Window): number {
  * 「画面の大きさを取り違えているように見える」という指摘は、**その瞬間の1枚では確かめられない**
  * ——傾けた前後でどう動いたかを並べて初めて分かる。毎回書くと記録が溢れるので変わった瞬間だけにする。
  */
+/**
+ * 向きごとに「いちばん狭かった高さ」を覚える（C-214）
+ *
+ * **実機の記録が、この扱いを求めていた。**
+ *
+ *     #13 窓 734×334 / 器 393 / 見え 334 / 採用 334
+ *     #14 窓 734×393 / 器 393 / 見え 393 / 採用 393
+ *
+ * **#13 では「入れ物は 393」と言いながら、実際に目に入っているのは 334 しかない**
+ * ——ブラウザの帯が上に乗っている状態である。ところが 0.3 秒後に「見え」も 393 に変わり、
+ * **以後 334 には戻らない。** 帯が引っ込んだのか、回転の途中で一瞬だけ全部見えたのか。
+ * どちらであれ、**大きいほうを掴んだまま握り続ける**ため、アプリは 393 のつもりで組み、
+ * 実際には 334 しか見えていない状態になる。差の 59 が、そのまま下からはみ出す。
+ *
+ * したがって **一度でも「これだけしか見えていない」と答えた画面では、以後もその狭いほうに合わせる。**
+ * 大きいほうの申告が来ても乗り換えない。帯が本当に引っ込んでいるあいだは下に余白が出るが、
+ * **いつ帯が戻ってきても全部操作できるほうを採る**（隠れたボタンは押せないが、余白は押せる）。
+ *
+ * 覚え直すのは**向きが変わったとき**（窓の幅が変わったとき）である。縦と横で別々に覚える。
+ *
+ * **この扱いは指で操作する端末だけに効かせる。** マウスの端末では窓の大きさがそのまま正しく、
+ * 「小さかったときを覚える」と窓を広げたときに戻らなくなる。
+ */
+interface Smallest {
+  width: number;
+  height: number;
+}
+let smallest: Smallest | null = null;
+
+/** 検査用。覚えていることを忘れさせる */
+export function forgetSmallest(): void {
+  smallest = null;
+}
+
+/**
+ * 実際に使う高さを決める。
+ *
+ * `zoomed` のあいだは覚えない——**指で広げているだけの一時的な狭さ**を、
+ * その向きの答えとして握ってしまわないためである。
+ */
+export function adoptHeight(width: number, live: number, coarse: boolean, zoomed: boolean): number {
+  if (live <= 0) return live;
+  if (!coarse) {
+    smallest = null;
+    return live;
+  }
+  if (zoomed) return live;
+  if (smallest === null || smallest.width !== width) {
+    smallest = { width, height: live };
+    return live;
+  }
+  if (live < smallest.height) smallest.height = live;
+  return smallest.height;
+}
+
+/** 指で操作する端末か（C-214） */
+function isCoarsePointer(win: Window): boolean {
+  return typeof win.matchMedia === 'function' && win.matchMedia('(pointer: coarse)').matches;
+}
+
 let lastNote = '';
 
 export function applyAppHeight(win: Window): number {
-  const height = measureAppHeight(win);
+  const live = measureAppHeight(win);
+  const zoomed = (win.visualViewport?.scale ?? 1) > 1.01;
+  const height = adoptHeight(win.innerWidth, live, isCoarsePointer(win), zoomed);
   if (height <= 0) return 0;
 
   const root = win.document.documentElement;
@@ -128,7 +190,7 @@ export function applyAppHeight(win: Window): number {
     `窓 ${win.innerWidth}×${win.innerHeight} / 器 ${root.clientHeight}` +
     ` / 見え ${visual ? `${Math.round(visual.height)}(倍 ${visual.scale}・ずれ ${Math.round(visual.offsetTop)})` : '-'}` +
     ` / 狭 ${Math.round(smallViewportHeight(win)) || '-'}` +
-    ` / 採用 ${height}`;
+    ` / 生 ${live} / 採用 ${height}`;
 
   if (note !== lastNote) {
     diagnostics.recordEvent('画面の高さ', `${note}（前 ${before || '-'}）`);

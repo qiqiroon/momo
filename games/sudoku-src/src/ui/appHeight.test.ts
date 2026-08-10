@@ -6,8 +6,15 @@
  * 決め方さえ間違っていなければ、実機がどちらの数字を返してきても外さない。
  */
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { APP_HEIGHT_VAR, applyAppHeight, measureAppHeight, observeAppHeight } from './appHeight';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  APP_HEIGHT_VAR,
+  adoptHeight,
+  applyAppHeight,
+  forgetSmallest,
+  measureAppHeight,
+  observeAppHeight,
+} from './appHeight';
 
 /** 高さを答えるだけの偽の窓。実際の `window` は寸法を差し替えられない */
 function fakeWindow(options: {
@@ -101,6 +108,45 @@ describe('画面の高さの見立て', () => {
     const win = fakeWindow({ client: 0, visual: null, innerHeight: 0 });
     expect(applyAppHeight(win)).toBe(0);
     expect(win.document.documentElement.style.getPropertyValue(APP_HEIGHT_VAR)).toBe('');
+  });
+});
+
+describe('いちばん狭かった高さを覚える（C-214）', () => {
+  beforeEach(() => {
+    forgetSmallest();
+  });
+
+  it('一度でも狭いと答えたら、あとで広いと言われても狭いほうを使う', () => {
+    // 実機で起きた順序そのもの。帯が乗っているあいだは 334、
+    // その 0.3 秒後に 393 と言い直され、以後 334 には戻らなかった
+    expect(adoptHeight(734, 334, true, false)).toBe(334);
+    expect(adoptHeight(734, 393, true, false)).toBe(334);
+  });
+
+  it('先に広いと答えても、あとで狭いと分かればそちらへ下げる', () => {
+    expect(adoptHeight(734, 393, true, false)).toBe(393);
+    expect(adoptHeight(734, 334, true, false)).toBe(334);
+    expect(adoptHeight(734, 393, true, false)).toBe(334);
+  });
+
+  it('向きが変われば覚え直す', () => {
+    adoptHeight(734, 334, true, false);
+    // 縦向き（幅が変わる）。**横で狭かったことを持ち込まない**
+    expect(adoptHeight(393, 793, true, false)).toBe(793);
+    // 横へ戻ったら、その向きとして測り直す
+    expect(adoptHeight(734, 393, true, false)).toBe(393);
+  });
+
+  it('指で広げているあいだの狭さは覚えない', () => {
+    adoptHeight(734, 393, true, false);
+    // 拡大中は見えている範囲が狭くなる。**そのまま使うが、その向きの答えとしては握らない**
+    expect(adoptHeight(734, 200, true, true)).toBe(200);
+    expect(adoptHeight(734, 393, true, false)).toBe(393);
+  });
+
+  it('マウスの端末では覚えない（窓を広げたら広がる）', () => {
+    expect(adoptHeight(1280, 400, false, false)).toBe(400);
+    expect(adoptHeight(1280, 800, false, false)).toBe(800);
   });
 });
 

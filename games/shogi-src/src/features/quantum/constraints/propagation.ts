@@ -135,10 +135,17 @@ export const c107ConfirmedExclusion: QuantumConstraint = (piece, _location, pos,
  * 除外される。以後は「fu@col 8 を候補に持つ現在駒」= (5,7) 以外の col=8 駒だけになり、
  * C-106 で 1 個に narrow される連鎖が起きる」動作を実現する。
  */
-export const c108FuFileConservation: QuantumConstraint = (piece, location, _pos, _mgf, context) => {
+export const c108FuFileConservation: QuantumConstraint = (piece, location, pos, _mgf, context) => {
   if (piece.candidates === undefined) return new Set();
   if (location.kind !== 'board') return new Set(piece.candidates);
   if (piece.promoted) return new Set(piece.candidates);
+  // v1.15 (ユーザー指摘の調査中に発覚): 一度でも打たれた駒はこの制約の前提から外れる。
+  // 「歩は筋を移れない」と言えるのは盤の上を歩き続けた歩だけで、取られて持ち駒になった
+  // 歩はどの筋にでも打てる。区別せずに縛っていたため、取った歩を元の筋以外に打つと
+  // 候補が空になり、必ず量子異常になっていた (実測で確認)。
+  if (pos.history.some((m) => m.type === 'drop' && m.pieceId === piece.pieceId)) {
+    return new Set(piece.candidates);
+  }
 
   const currentCol = location.square.col;
   const narrowed = new Set<PieceId>();

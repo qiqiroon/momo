@@ -221,6 +221,16 @@ export function handleShogiMessage(data: unknown): void {
       if (client) client.send({ v: PROTOCOL_VERSION, type: 'pong' });
       return;
     }
+    case 'anomaly_raise': {
+      // v1.15: 相手側で異常が起きた。デバッグで故意に起こしたものなら、同じ操作を
+      // 自分の盤にも実行して両者の盤を揃える (走査の手順が決まっているので結果は同じ)。
+      if (msg.debugForce) {
+        useGameStore.getState().debugForceAnomaly(msg.debugForce, true);
+      } else {
+        useGameStore.getState().raiseAnomaly(msg.cause, true);
+      }
+      return;
+    }
     case 'anomaly_vote': {
       // Phase 5-13: 相手の投票。「ノーゲーム」なら game-store 側で即座に不成立になる。
       useGameStore.getState().receiveAnomalyVote(msg.choice);

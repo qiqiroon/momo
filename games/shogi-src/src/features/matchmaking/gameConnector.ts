@@ -209,6 +209,15 @@ const connector: OnlineGameConnector = {
     });
   },
 
+  sendAnomalyRaise(cause, debugForce) {
+    // v1.15: 異常が起きたことを相手に伝える。ローカルの反映は game-store 側が
+    // 済ませているのでここでは送信だけ。
+    if (!this.isOnline()) return;
+    const client = getMomoMatchmaking();
+    if (!client) return;
+    client.send({ v: PROTOCOL_VERSION, type: 'anomaly_raise', cause, debugForce });
+  },
+
   sendPauseNotify() {
     // v0.42: 一時中断は合意不要 → ローカルは即中断＋相手へ通知
     useGameStore.getState().pauseGame();

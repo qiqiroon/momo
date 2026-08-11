@@ -9,8 +9,8 @@
  * - **C-101 行動可能性**: 動いた駒の候補 PieceID X について、X の initialKind K の
  *   direction × range に (from, to) が乗るか判定。乗らなければ X を除外。
  * - **C-102 移動経路**: 5-6 初版は C-101 と同一。将来経路の history 妥当性検証に拡張予定。
- * - **C-103 二歩**: 同筋に自初期陣営の確定 fu-initial-PieceID が居るなら、
- *   この駒の候補から fu-initial-@同筋の PieceID を除外。torus ON で無効化。
+ * - **C-103 二歩**: 同筋に「いま自分と同じ側が持つ・必ず歩と言える駒」が居るなら、
+ *   この駒の候補から fu-initial の PieceID を除外。torus ON で無効化。
  * - **C-104 行き所のない駒**: 敵陣最奥から N 段以内に居るのに不成のままでは合法手ゼロ
  *   になる初期駒種を候補から除外 (dead_zone)。torus ON で無効化。
  * - **C-105 強制成り**: must_promote 圏内なのに piece.promoted=false なら、
@@ -23,6 +23,7 @@
 import type { Mgf, Player } from '../../../core/engine/mgf/types';
 import type { PieceId, Square } from '../../../core/engine/position/types';
 import { directionOffsets } from '../../../core/engine/moves/directions';
+import { fileHasCertainPawn } from '../../../core/engine/moves/nifu';
 import type {
   QuantumConstraint,
   QuantumPieceLocation,
@@ -117,42 +118,30 @@ export const c101ActionPossibility: QuantumConstraint = (piece, location, pos, m
  */
 export const c102MovePathIntegrity: QuantumConstraint = c101ActionPossibility;
 
-/** C-103 二歩: 同筋に自初期陣営の確定 fu (initialKind='fu') が居るなら、
- *  この駒の候補から「自初期陣営の fu-initial かつ initialSquare.col == 同筋」の PieceID を除外。
- *  厳密には initialKind='fu' の初期駒はどれでも「歩として盤上に居られる」ので、
- *  fu を候補に持てる余地を残すのは「別の fu-initial-@col C が該当筋に確定していない」ときのみ。
- *  簡易に: 現在 col に既に fu 確定駒が居るなら、この駒の候補から「fu 系候補」を全部除外する。
+/** C-103 二歩: その筋に既に「必ず歩」と言える駒が居るなら、この駒は歩ではありえない。
+ *  よって候補から fu-initial の PieceID を全部除外する。
+ *
+ *  v1.15 (ユーザー指摘) で 2 点直した:
+ *  - **陣営はいま持っている側で見る**。二歩は「同じ人が同じ筋に歩 2 枚」の禁止なので、
+ *    取ってきた駒を元の持ち主の歩と突き合わせても意味がない。以前は初期陣営で
+ *    数えていたため、取った歩を打ったときに相手の歩と照らし合わせていた。
+ *  - **「どちらかは必ず歩」も数える**。個々の駒が確定していなくても、その身元を担える
+ *    駒がその筋にしか残っていなければ、その筋には必ず歩が居る。数え方は打つ前の判定と
+ *    共通 (core/engine/moves/nifu.ts) にして、打てたのに矛盾する事態を防ぐ。
+ *
+ *  成った駒 (と金など) は歩ではないので二歩に関係しない。候補から fu-initial を
+ *  落としてしまうと「と金は元は歩」という当たり前の事実を消してしまうため対象外。
  */
 export const c103Nifu: QuantumConstraint = (piece, location, pos, mgf, context) => {
   if (piece.candidates === undefined) return new Set();
   if (mgf.constraints?.nifu !== true) return new Set(piece.candidates);
   if (context.torusMode !== 'none') return new Set(piece.candidates);
   if (location.kind !== 'board') return new Set(piece.candidates);
+  if (piece.promoted) return new Set(piece.candidates);
 
-  const col = location.square.col;
-  const myInitial = piece.initialOwner;
-  const myId = piece.pieceId;
-
-  // その筋に「自初期陣営の confirmed fu」が居るか探す。
-  let filesHasConfirmedFu = false;
-  for (let r = 0; r < pos.height; r++) {
-    const cell = pos.board[r][col];
-    if (!cell || cell.pieceId === myId) continue;
-    if (cell.initialOwner !== myInitial) continue;
-    if (cell.promoted) continue;
-    // 本将棋モード (candidates 無) では kind で判定
-    if (cell.candidates === undefined) {
-      if (cell.kind === 'fu') { filesHasConfirmedFu = true; break; }
-      continue;
-    }
-    // 量子モード: 確定 & 単一 & その候補 PieceID の initialKind == 'fu' なら fu 確定
-    if (cell.confirmed && cell.candidates.size === 1) {
-      const only = Array.from(cell.candidates)[0];
-      const info = context.infoMap.get(only);
-      if (info?.initialKind === 'fu') { filesHasConfirmedFu = true; break; }
-    }
+  if (!fileHasCertainPawn(pos, location.square.col, piece.owner, piece)) {
+    return new Set(piece.candidates);
   }
-  if (!filesHasConfirmedFu) return new Set(piece.candidates);
 
   // fu-initial の候補 PieceID を全部除外
   const narrowed = new Set<PieceId>();

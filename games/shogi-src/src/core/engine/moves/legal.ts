@@ -4,6 +4,7 @@ import { applyMove } from '../position/apply';
 import { buildInitialKindMap, confirmedKindOf, displayKindsFor } from '../candidate-kinds';
 import { isInCheck } from './check';
 import { generateDropMoves } from './drops';
+import { fileHasCertainPawn } from './nifu';
 import { directionOffsets } from './directions';
 import { generateAllBoardMoves } from './generator';
 
@@ -73,7 +74,7 @@ function isDropAllowed(
   if (!piece) return false;
   const kindMap = buildInitialKindMap(position);
   const kinds = displayKindsFor(mgf, piece, kindMap);
-  return kinds.some((kind) => isDropAllowedAsKind(mgf, position, to, piece, kind, kindMap));
+  return kinds.some((kind) => isDropAllowedAsKind(mgf, position, to, piece, kind));
 }
 
 /** 「この駒が駒種 K だったとして」打てるか。 */
@@ -83,7 +84,6 @@ function isDropAllowedAsKind(
   to: Square,
   piece: PieceInstance,
   kind: string,
-  kindMap: Map<string, string>,
 ): boolean {
   const player = position.sideToMove;
   const def = mgf.pieces.find((p) => p.id === kind);
@@ -91,15 +91,16 @@ function isDropAllowedAsKind(
   if (!def.is_hand_piece) return false;
 
   // 打歩: 同筋二歩禁止。
-  // 数える対象は「歩と確定した駒」だけ。未確定の駒を kind で数えると、まだ歩と
-  // 決まっていない駒が筋を塞いでしまう (本将棋モードでは confirmedKindOf が
-  // そのまま kind を返すので従来と同じ判定になる)。
+  // 数える対象は「必ず歩だと言い切れる駒」だけ。未確定の駒を kind で数えると、まだ歩と
+  // 決まっていない駒が筋を塞いでしまう (本将棋モードでは候補が無いので駒種そのままの
+  // 判定になり、従来と同じ結果になる)。
+  //
+  // v1.15 (ユーザー指摘): 個々の駒が確定していなくても「その筋の 2 枚のどちらかは
+  // 必ず歩」と言い切れる場面がある。そこへ歩と確定した駒を打てば必ず二歩なので、
+  // 打った後に候補から歩を落とす (＝候補が空になる) のではなく、打てない手として弾く。
+  // 判定は fileHasCertainPawn に 1 本化し、打った後の絞り込み (C-103) と同じ数え方にする。
   if (kind === 'fu' && mgf.constraints?.nifu) {
-    for (let row = 0; row < position.height; row++) {
-      const cell = position.board[row][to.col];
-      if (!cell || cell.owner !== player || cell.promoted) continue;
-      if (confirmedKindOf(mgf, cell, kindMap) === 'fu') return false;
-    }
+    if (fileHasCertainPawn(position, to.col, player, piece)) return false;
   }
 
   // dead_zone: 打った駒が動けない位置なら禁止 (歩・香を最奥、桂を最奥2段目まで、など)

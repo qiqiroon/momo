@@ -252,8 +252,11 @@ interface GameState {
   /**
    * Phase 5-13: 異常状態を立てる。既に立っているか対局が終わっていれば何もしない。
    * 候補更新が異常を投げたときと、デバッグから故意に起こしたときの共通入口。
+   *
+   * v1.15: 立てたことを相手にも伝える。fromRemote=true は「相手からの知らせで立てる」
+   * 場合で、そのときは送り返さない (往復し続けないため)。
    */
-  raiseAnomaly: (cause: AnomalyCause) => void;
+  raiseAnomaly: (cause: AnomalyCause, fromRemote?: boolean) => void;
   /** Phase 5-13: 自分の投票。片方でも nogame ならその場で不成立が決まる。 */
   voteAnomaly: (choice: AnomalyChoice) => void;
   /** Phase 5-13: 相手の投票を受信したときに呼ぶ (通信側から)。 */
@@ -262,8 +265,11 @@ interface GameState {
    * Phase 5-13: デバッグから故意に異常を起こす (kickoff §5「意図的に破綻局面を作れる
    * スクリプトを用意」)。'empty' は実際に盤上の駒の候補を空にして本番と同じ検出経路を
    * 通す。'limit' は反復が終わらない状況を人工的に作るのが難しいので通知だけを直接出す。
+   *
+   * v1.15: ネット対戦では相手側にも同じ操作を実行させて盤を揃える。fromRemote=true は
+   * その受け側 (自分からは送り返さない)。
    */
-  debugForceAnomaly: (kind: 'empty' | 'limit') => void;
+  debugForceAnomaly: (kind: 'empty' | 'limit', fromRemote?: boolean) => void;
   /**
    * 相手から受信した着手を盤面に反映する。
    * pieceId / from / to / promote に完全一致する合法手を探して適用。
@@ -716,11 +722,16 @@ export const useGameStore = create<GameState>((set, get) => ({
   entangledPieceIds: [],
   anomaly: null,
 
-  raiseAnomaly: (cause) => {
+  raiseAnomaly: (cause, fromRemote = false) => {
     const { status, anomaly } = get();
     // 既に投票中、または対局が終わっているなら二重に立てない。
     if (anomaly || status !== 'playing') return;
-    const online = pluginGet<OnlineGameConnector>('gameConnector')?.isOnline() ?? false;
+    const connector = pluginGet<OnlineGameConnector>('gameConnector');
+    const online = connector?.isOnline() ?? false;
+    // v1.15: 相手にも知らせる。ふつうに起きた異常は相手側も同じ計算で気づくので
+    // 二重になるが、受信側は既に投票中なら無視するので害はない。相手が気づけない
+    // 経路 (デバッグで故意に起こした場合) はこの知らせだけが頼りになる。
+    if (!fromRemote) connector?.sendAnomalyRaise(cause);
     set({
       anomaly: { cause, myVote: null, oppVote: null, online },
       // 盤は停止時点のまま残すが、駒の選択だけは解除する (投票中は指せないため)。
@@ -749,17 +760,26 @@ export const useGameStore = create<GameState>((set, get) => ({
     resolveAnomaly(set, next);
   },
 
-  debugForceAnomaly: (kind) => {
+  debugForceAnomaly: (kind, fromRemote = false) => {
     const { position, mgf, currentQuantum, status } = get();
     if (status !== 'playing') return;
+    // v1.15: 相手側でも同じ操作を実行してもらう。盤を壊す操作なので、知らせるだけだと
+    // 両者の盤が食い違い、「継続」を選んだ後の局面照合で対局が止まってしまう。
+    // 走査の手順は決まっているので、同じ局面からは同じ駒の候補が空になる。
+    if (!fromRemote) {
+      pluginGet<OnlineGameConnector>('gameConnector')?.sendAnomalyRaise(
+        kind === 'limit' ? 'iteration_limit' : 'empty_candidates',
+        kind,
+      );
+    }
     if (kind === 'limit') {
-      get().raiseAnomaly('iteration_limit');
+      get().raiseAnomaly('iteration_limit', true);
       return;
     }
     // 'empty': 盤上の未確定駒を 1 枚選んで候補を空にし、本番と同じ候補更新に通す。
     // 通知だけ直接出すのではなく検出経路ごと動かしたいので、この形にしている。
     if (!currentQuantum) {
-      get().raiseAnomaly('empty_candidates');
+      get().raiseAnomaly('empty_candidates', true);
       return;
     }
     let broken: Position | null = null;
@@ -774,7 +794,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       }
     }
     if (!broken) {
-      get().raiseAnomaly('empty_candidates');
+      get().raiseAnomaly('empty_candidates', true);
       return;
     }
     let cause: AnomalyCause = 'empty_candidates';
@@ -791,7 +811,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       }
     }
     set({ position: nextPos });
-    get().raiseAnomaly(cause);
+    get().raiseAnomaly(cause, true);
   },
 
   setQuantumDisplay: (mode) => {

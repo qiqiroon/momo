@@ -208,6 +208,24 @@ export interface AnomalyVoteMsg extends Envelope {
   timestamp: number;
 }
 
+/**
+ * v1.15 (ユーザー報告): 異常状態が起きたことを相手に伝える。
+ *
+ * 本来の異常はどちらの端末でも同じ計算をするので同時に気づくが、デバッグで故意に
+ * 起こした異常は押した側の端末でしか起きず、相手は何も知らないまま投票を待たされて
+ * 進行が止まっていた。異常を立てた側が必ず知らせることで、どちらの経路でも両者が
+ * 同じタイミングで投票に入る。既に投票中なら受信側は黙って無視する (二重に立てない)。
+ *
+ * debugForce が付いている場合、受信側は**同じ操作を自分の盤にも実行する**。
+ * 走査の手順が決まっているので、同じ局面からは同じ駒の候補が空になり、両者の盤が
+ * 揃ったまま投票に入れる (揃えないと「継続」を選んだ後の局面照合で食い違う)。
+ */
+export interface AnomalyRaiseMsg extends Envelope {
+  type: 'anomaly_raise';
+  cause: 'empty_candidates' | 'iteration_limit';
+  debugForce?: 'empty' | 'limit';
+}
+
 export type ShogiMessage =
   | SideSelectMsg
   | ReadyMsg
@@ -231,7 +249,8 @@ export type ShogiMessage =
   | DrawCancelMsg
   | PingMsg
   | PongMsg
-  | AnomalyVoteMsg;
+  | AnomalyVoteMsg
+  | AnomalyRaiseMsg;
 
 /** 型ガード：unknown をゲームメッセージとして扱えるか */
 export function isShogiMessage(data: unknown): data is ShogiMessage {

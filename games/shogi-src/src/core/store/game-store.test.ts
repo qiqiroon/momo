@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useGameStore } from './game-store';
 import type { PieceInstance, Position } from '../engine';
+import { register, clear as clearPlugins } from '../plugin/registry';
 
 function P(kind: string, owner: 'player1' | 'player2', promoted = false, id?: string): PieceInstance {
   return {
@@ -318,6 +319,50 @@ describe('Game store — 異常状態の通知・投票 (Phase 5-13)', () => {
     s.selectSquare({ row: 6, col: 2 });
     expect(useGameStore.getState().selectedSquare).toBeNull();
     expect(useGameStore.getState().tryMove({ row: 5, col: 2 })).toBe(false);
+  });
+
+  it('異常を立てたら相手にも知らせる (v1.15)', () => {
+    const sent: Array<{ cause: string; debugForce?: string }> = [];
+    register('gameConnector', {
+      isOnline: () => true,
+      sendAnomalyRaise: (cause: string, debugForce?: string) => sent.push({ cause, debugForce }),
+    });
+    try {
+      useGameStore.getState().raiseAnomaly('empty_candidates');
+      expect(sent).toEqual([{ cause: 'empty_candidates', debugForce: undefined }]);
+    } finally {
+      clearPlugins();
+    }
+  });
+
+  it('相手からの知らせで立てたときは送り返さない (v1.15)', () => {
+    const sent: string[] = [];
+    register('gameConnector', {
+      isOnline: () => true,
+      sendAnomalyRaise: (cause: string) => sent.push(cause),
+    });
+    try {
+      useGameStore.getState().raiseAnomaly('iteration_limit', true);
+      expect(useGameStore.getState().anomaly!.cause).toBe('iteration_limit');
+      expect(sent).toEqual([]);
+    } finally {
+      clearPlugins();
+    }
+  });
+
+  it('デバッグで故意に起こした異常は、相手にも同じ操作を頼む (v1.15)', () => {
+    const sent: Array<{ cause: string; debugForce?: string }> = [];
+    register('gameConnector', {
+      isOnline: () => true,
+      sendAnomalyRaise: (cause: string, debugForce?: string) => sent.push({ cause, debugForce }),
+    });
+    try {
+      useGameStore.getState().debugForceAnomaly('limit');
+      expect(sent).toEqual([{ cause: 'iteration_limit', debugForce: 'limit' }]);
+      expect(useGameStore.getState().anomaly!.cause).toBe('iteration_limit');
+    } finally {
+      clearPlugins();
+    }
   });
 
   it('二重に発火しても最初の原因のまま (通知が上書きされない)', () => {

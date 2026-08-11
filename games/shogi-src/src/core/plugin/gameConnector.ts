@@ -109,6 +109,15 @@ export interface OnlineGameConnector {
    * オフライン時は何もしない (相手が居ないので投票は自分の選択だけで決まる)。
    */
   sendAnomalyVote(choice: 'continue' | 'nogame'): void;
+  /**
+   * v1.15: 異常状態が起きたことを相手に伝える。
+   * debugForce を付けると、相手側でも同じ操作を実行して盤を揃える (デバッグ専用)。
+   * オフライン時は何もしない。
+   */
+  sendAnomalyRaise(
+    cause: 'empty_candidates' | 'iteration_limit',
+    debugForce?: 'empty' | 'limit',
+  ): void;
   /** 一時中断を相手に通知（v0.42 で合意不要に変更）。 */
   sendPauseNotify(): void;
   /** 再開を相手に申し出る。 */

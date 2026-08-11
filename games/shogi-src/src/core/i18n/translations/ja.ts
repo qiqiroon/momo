@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.12',
+    'app.ver': 'v1.13',
     // v0.72 音楽再生確認モーダル (Darts と同じ思想)
     'sound.promptTitle': 'BGM と効果音を再生してもよろしいですか？',
     'sound.bgmLabel': 'BGM 音量',
@@ -353,7 +353,7 @@ export const ja: LocaleData = {
     's06.backToOnlineLobby': '退室（オンライン対戦ロビーに戻る）',
   
     // Phase 5-13 (v1.12): 異常状態の通知・投票 (画面機能 §3 S06.Q5)
-    'anomaly.title': '観測が完了しませんでした',
+    'anomaly.title': '量子異常：観測が完了しませんでした',
     'anomaly.cause.empty': '駒の候補が矛盾しました',
     'anomaly.cause.limit': '計算量が上限に達しました',
     'anomaly.vote.title': '対局の継続を選択してください',
@@ -364,6 +364,6 @@ export const ja: LocaleData = {
     'anomaly.opp.continue': '相手：継続',
     'anomaly.opp.nogame': '相手：ノーゲーム',
     'result.verdict.nogame': '対局不成立',
-    'result.reason.nogame': 'ノーゲーム（異常状態合意）',
+    'result.reason.nogame': 'ノーゲーム（量子異常で合意）',
   },
 };

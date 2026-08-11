@@ -780,6 +780,10 @@ export function GameScreen({ variant }: GameScreenProps) {
  *   0ms    バナー登場 + 停止音
  *   300ms  投票画面が開く + 投票開始音
  *   投票確定 継続音 または 不成立音
+ *
+ * v1.13 (仕様と違えた点・ユーザー指示): 見出しに「量子異常 / Quantum anomaly」を冠する。
+ * 仕様の文言は「観測が完了しませんでした」だけだが、それだけでは何が起きたのか
+ * 名前が付かないため、呼び名を先頭に出す。終局理由も「ノーゲーム（量子異常で合意）」。
  */
 function AnomalyNotice({ t }: { t: (key: string) => string }) {
   const anomaly = useGameStore((s) => s.anomaly);

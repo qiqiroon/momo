@@ -5,7 +5,7 @@ export const en: LocaleData = {
   name: 'English',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.12',
+    'app.ver': 'v1.13',
     'sound.promptTitle': 'Enable BGM and sound effects?',
     'sound.bgmLabel': 'BGM volume',
     'sound.sfxLabel': 'SFX volume',
@@ -338,7 +338,7 @@ export const en: LocaleData = {
     's06.backToOnlineLobby': 'Leave (back to online lobby)',
   
     // Phase 5-13 (v1.12): anomaly notice / vote (screen spec S06.Q5)
-    'anomaly.title': 'Observation did not complete',
+    'anomaly.title': 'Quantum anomaly: observation did not complete',
     'anomaly.cause.empty': 'Piece candidates became inconsistent',
     'anomaly.cause.limit': 'Computation reached its limit',
     'anomaly.vote.title': 'Choose whether to continue',
@@ -349,6 +349,6 @@ export const en: LocaleData = {
     'anomaly.opp.continue': 'Opponent: Continue',
     'anomaly.opp.nogame': 'Opponent: No game',
     'result.verdict.nogame': 'No game',
-    'result.reason.nogame': 'No game (anomaly agreed)',
+    'result.reason.nogame': 'No game (quantum anomaly, agreed)',
   },
 };

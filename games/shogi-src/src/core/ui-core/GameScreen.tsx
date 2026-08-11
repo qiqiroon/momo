@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import { useI18nStore } from '../store/i18n-store';
 import { useGameStore } from '../store/game-store';
 import { useChatStore } from '../store/chat-store';
@@ -1959,73 +1960,84 @@ function QuantumStack({ kinds, locale }: { kinds: string[]; locale: LocaleCode }
  * v1.16 (ユーザー要望): 出す条件を「選んだとき」から「選んだとき **または** マウスを
  * 乗せたとき」に広げ、相手の駒・自分の手番でない駒も対象にした。あわせて、
  * **画面からはみ出さないように出す**。上端・下端・左右端では出す向きを変え、それでも
- * はみ出すぶんは描画後に測って画面内へ寄せる (盤の隅や駒台の端で切れていたため)。
+ * はみ出すぶんは測って画面内へ寄せる (盤の隅や駒台の端で切れていたため)。
+ *
+ * v1.17 (ユーザー報告): **他の駒の下に隠れることがあった**。相手の駒台のカードは
+ * 器ごと 180 度回っており、回転は「重なり順の入れ物」を作るため、その中に置いた
+ * 候補ボックスは**どれだけ手前指定をしても同じ駒台の後続カードに隠れて**しまう。
+ * そこで**画面の一番外側に出して画面座標で置く**方式に変えた (常に最前面・切れない)。
+ * 回転した器の外に出るので、文字を回し戻す必要も無くなった。
+ * 出したまま窓の大きさが変わる/巻物が動く場合に備えて位置は測り直す。
  */
 function CandidateBox({
   kinds,
   locale,
   onLeft,
   below = false,
-  flipped = false,
 }: {
   kinds: string[];
   locale: LocaleCode;
   onLeft: boolean;
   /** 上端寄りで上に出すと画面外になる場合、下に出す */
   below?: boolean;
-  /** 180 度回転した器 (相手側の駒台) の中に置くとき、文字を読める向きに戻す */
-  flipped?: boolean;
 }) {
-  const ref = useRef<HTMLSpanElement>(null);
-  // 画面内へ寄せるための補正量 (画面座標)。0 のままなら従来どおりの位置。
-  const [shift, setShift] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  // 置き場所の基準にする駒 (このしるしの親要素 = 盤のマス or 駒台のカード)。
+  const anchorRef = useRef<HTMLSpanElement>(null);
+  const tipRef = useRef<HTMLSpanElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const [recalc, setRecalc] = useState(0);
 
   const sep = locale === 'en' ? ' ' : '';
   const text = kinds.map((k) => pieceNameFor(k, locale)).join(sep);
 
   useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    // いま当てている補正を差し引いて「補正前の位置」に戻してから計算する
-    // (補正の上に補正を重ねて暴れるのを防ぐ)。
-    const left = r.left - shift.x;
-    const right = r.right - shift.x;
-    const top = r.top - shift.y;
-    const bottom = r.bottom - shift.y;
+    const anchor = anchorRef.current?.parentElement;
+    const el = tipRef.current;
+    if (!anchor || !el) return;
+    const a = anchor.getBoundingClientRect();
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
     const margin = 4;
-    let x = 0;
-    let y = 0;
-    if (left < margin) x = margin - left;
-    else if (right > window.innerWidth - margin) x = window.innerWidth - margin - right;
-    if (top < margin) y = margin - top;
-    else if (bottom > window.innerHeight - margin) y = window.innerHeight - margin - bottom;
-    if (x !== shift.x || y !== shift.y) setShift({ x, y });
-  }, [text, onLeft, below, flipped, shift.x, shift.y]);
+    // 従来と同じ位置関係 (駒の右上／右端寄りは左上／上端寄りは下側) を画面座標で組む。
+    let left = onLeft ? a.left - w - margin : a.right + margin;
+    let top = below ? a.top + a.height * 0.92 : a.top + a.height * 0.08 - h;
+    // 画面内に収める。
+    left = Math.min(Math.max(left, margin), Math.max(margin, window.innerWidth - w - margin));
+    top = Math.min(Math.max(top, margin), Math.max(margin, window.innerHeight - h - margin));
+    setPos((cur) => (cur && cur.left === left && cur.top === top ? cur : { left, top }));
+  }, [text, onLeft, below, recalc]);
 
-  // 出したまま窓の大きさが変わったら、補正を捨てて測り直す (古い補正で逆にはみ出さないように)。
+  // 出している間に窓の大きさが変わる/画面が動いたら測り直す。
   useEffect(() => {
-    const onResize = () => setShift((cur) => (cur.x === 0 && cur.y === 0 ? cur : { x: 0, y: 0 }));
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    const onChange = () => setRecalc((n) => n + 1);
+    window.addEventListener('resize', onChange);
+    window.addEventListener('scroll', onChange, true);
+    return () => {
+      window.removeEventListener('resize', onChange);
+      window.removeEventListener('scroll', onChange, true);
+    };
   }, []);
 
   const style: CSSProperties = {
-    ...(onLeft ? { right: '100%', marginRight: 4 } : { left: '100%', marginLeft: 4 }),
-    ...(below ? { top: '92%' } : { bottom: '92%' }),
+    position: 'fixed',
+    left: pos ? pos.left : 0,
+    top: pos ? pos.top : 0,
+    // 盤・駒台 (最大 z-index 101) より手前、各種オーバーレイ (195 以上) より奥。
+    zIndex: 150,
+    // 測り終えるまでは出さない (一瞬だけ変な位置に見えるのを防ぐ)。
+    visibility: pos ? 'visible' : 'hidden',
   };
-  // 器ごと 180 度回っている駒台では、画面座標の補正は符号が逆になる。
-  const dx = flipped ? -shift.x : shift.x;
-  const dy = flipped ? -shift.y : shift.y;
-  const move = shift.x !== 0 || shift.y !== 0 ? `translate(${dx}px, ${dy}px)` : '';
-  const rotate = flipped ? 'rotate(180deg)' : '';
-  const transform = [move, rotate].filter(Boolean).join(' ');
-  if (transform) style.transform = transform;
 
   return (
-    <span ref={ref} className="qtip" style={style}>
-      {text}
-    </span>
+    <>
+      <span ref={anchorRef} style={{ display: 'none' }} />
+      {createPortal(
+        <span ref={tipRef} className="qtip" style={style}>
+          {text}
+        </span>,
+        document.body,
+      )}
+    </>
   );
 }
 
@@ -2121,15 +2133,16 @@ function PieceStandView({ side, pieces, onClick, selectedId, activePlayer, local
               {/* v1.09: 持ち駒を持ったときも候補ボックスを出す (盤の駒と揃える)。
                   相手側の駒台は .cap ごと 180 度回っているので、文字が読めるよう回し戻す。
                   v1.16: 持ったときに加えてマウスを乗せたときも出す (相手の駒台も対象)。
-                  相手側は器ごと回っているので bottom 指定のままで画面上は下側に出る
-                  (＝盤に近い側)。はみ出すぶんは CandidateBox 側が画面内へ寄せる。 */}
+                  v1.17: 候補ボックスは画面の一番外側に出すようになったので、器の回転を
+                  打ち消す必要がなくなった。相手の駒台は画面の上寄りなので下側へ出す。
+                  自分の駒台は右・相手の駒台は左にあるので、どちらも盤に近い側へ寄せる。 */}
               {unconfirmed &&
                 ((selectedId && g.pieceIds.includes(selectedId)) || hoverKey === g.key) && (
                 <CandidateBox
                   kinds={g.kinds}
                   locale={locale}
                   onLeft={side === 'you'}
-                  flipped={side === 'opp'}
+                  below={side === 'opp'}
                 />
               )}
               {g.pieceIds.length >= 2 && <span className="ct">{g.pieceIds.length}</span>}

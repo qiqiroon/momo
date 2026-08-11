@@ -59,7 +59,7 @@ describe('棋譜の駒名 (v1.09 量子将棋対応)', () => {
     expect(kifuPieceName(hondou, pos, pos.board[6][2]!)).toBe('仮と');
   });
 
-  it('指し手の表記にも仮が乗る', () => {
+  it('量子将棋の指し手は「元の座標 + 駒名 + 行き先座標」で書く (v1.14)', () => {
     const pos = quantumInit(initPosition(hondou));
     const piece = pos.board[6][2]!;
 
@@ -71,6 +71,37 @@ describe('棋譜の駒名 (v1.09 量子将棋対応)', () => {
       promote: false,
     });
 
-    expect(text).toBe('▲7六仮歩');
+    // 7 七に居た仮歩が 7 六へ。行き先だけだとどの駒が動いたか読み取れないため元の座標も書く
+    expect(text).toBe('▲7七仮歩7六');
+  });
+
+  it('成るときは行き先座標のうしろに成が付く (v1.14)', () => {
+    const pos = quantumInit(initPosition(hondou));
+    const piece = pos.board[6][7]!;
+
+    const text = formatMove(hondou, pos, {
+      type: 'move',
+      pieceId: piece.pieceId,
+      from: { row: 6, col: 7 },
+      to: { row: 5, col: 7 },
+      promote: true,
+    });
+
+    expect(text).toBe('▲2七仮歩2六成');
+  });
+
+  it('本将棋モードは従来どおり行き先だけを書く (縮退互換)', () => {
+    const pos = initPosition(hondou);
+    const piece = pos.board[6][2]!;
+
+    const text = formatMove(hondou, pos, {
+      type: 'move',
+      pieceId: piece.pieceId,
+      from: { row: 6, col: 2 },
+      to: { row: 5, col: 2 },
+      promote: false,
+    });
+
+    expect(text).toBe('▲7六歩');
   });
 });

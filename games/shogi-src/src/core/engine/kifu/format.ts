@@ -80,20 +80,41 @@ export function kifuPieceName(mgf: Mgf, position: Position, piece: PieceInstance
 }
 
 /**
- * 指し手を日本語棋譜表記 (▲76歩 △34歩 ▲22角成 ▲55桂打 等) に変換する。
- * position は「その手が指される直前」の局面。
+ * 指し手を日本語棋譜表記に変換する。position は「その手が指される直前」の局面。
+ *
+ * ## 本将棋・その他のルール (従来どおり)
+ *
+ * `▲7六歩` `▲2二角成` `▲5五桂打` — 行き先だけを書く普通の棋譜。
+ *
+ * ## 量子将棋のときだけ変わる (v1.14・ユーザー指示)
+ *
+ * `▲3三仮歩3四` のように **元の座標 + 駒名 + 行き先座標** で書く。
+ *
+ * 理由: 未確定の駒が多いと「そのマスへ行ける駒」が何枚もあり、行き先だけの
+ * 書き方ではどの駒が動いたのか読み取れない。元の座標を書けば一意に決まる。
+ *
+ * - 成るときは末尾に付ける: `▲3三仮歩3四成`
+ * - 打つ手は元の座標が無いので `▲仮歩打3四` (打 が持ち駒から来たことを示す)
+ *
+ * 量子将棋かどうかは「動かす駒が候補集合を持っているか」で判定する。
+ * 本将棋モードの駒は候補集合を持たないので、自然に従来表記へ縮退する。
  */
 export function formatMove(mgf: Mgf, position: Position, move: Move): string {
   const mark = position.sideToMove === 'player1' ? '▲' : '△';
-  const coord = squareNameJa(position.width, move.to);
+  const to = squareNameJa(position.width, move.to);
 
   if (move.type === 'drop') {
     const piece = position.hands[position.sideToMove].find((p) => p.pieceId === move.pieceId);
     const name = piece ? kifuPieceName(mgf, position, piece) : '?';
-    return `${mark}${coord}${name}打`;
+    if (piece?.candidates !== undefined) return `${mark}${name}打${to}`;
+    return `${mark}${to}${name}打`;
   }
   const piece = position.board[move.from.row][move.from.col];
   const name = piece ? kifuPieceName(mgf, position, piece) : '?';
   const suffix = move.promote ? '成' : '';
-  return `${mark}${coord}${name}${suffix}`;
+  if (piece?.candidates !== undefined) {
+    const from = squareNameJa(position.width, move.from);
+    return `${mark}${from}${name}${to}${suffix}`;
+  }
+  return `${mark}${to}${name}${suffix}`;
 }

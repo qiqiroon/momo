@@ -317,7 +317,12 @@ function computeLegalDestinationsFromHand(mgf: Mgf, position: Position, pieceId:
  *
  * 判定は盤の表示と同じ「候補の駒種が 1 つに絞れたか」。どちらの金かまでは
  * 決まっていなくても、金と呼べるようになった時点で確定として扱う。
+ *
+ * v1.14: 1 手で何枚も決まると棋譜が縦に伸びすぎるので、3 件までを並べて
+ * 残りは「他 N 件」でまとめる (付録D-8 §10.3 の同時収縮の圧縮にならった)。
  */
+const CONFIRM_LINES_MAX = 3;
+
 function diffConfirmedKinds(mgf: Mgf, before: Position, after: Position): string[] {
   const beforeMap = buildInitialKindMap(before);
   const afterMap = buildInitialKindMap(after);
@@ -337,6 +342,10 @@ function diffConfirmedKinds(mgf: Mgf, before: Position, after: Position): string
     const where = square ? squareNameJa(after.width, square) : '持駒';
     const side = piece.owner === 'player1' ? '先手' : '後手';
     lines.push(`${where} ${side} ${pieceNameJa(kinds[0])}に確定`);
+  }
+  if (lines.length > CONFIRM_LINES_MAX) {
+    const rest = lines.length - CONFIRM_LINES_MAX;
+    return [...lines.slice(0, CONFIRM_LINES_MAX), `他 ${rest} 件`];
   }
   return lines;
 }

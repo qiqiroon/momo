@@ -123,6 +123,21 @@ describe('打つ手の量子対応 (v1.09)', () => {
     expect(ids).toEqual(new Set(['HAND1', 'HAND2']));
   });
 
+  it('駒種の顔ぶれが同じでも身元が違う持ち駒は、それぞれ別に打つ手が出る (v1.16 ユーザー報告)', () => {
+    const base = quantumInit(initPosition(hondou));
+    const kin = pidOfKind(base, 'player2', 'kin');
+    // 2 枚とも「金か歩」だが、担える歩の身元が違う (別の筋の歩)。駒種の顔ぶれは同じ。
+    const fuA = pieceOfKind(base, 'player2', 'fu').pieceId;
+    const fuB = base.board.flat().find(
+      (c) => c && c.initialOwner === 'player2' && c.initialKind === 'fu' && c.pieceId !== fuA,
+    )!.pieceId;
+    const withTwo = withHandPiece(withHandPiece(base, 'HAND1', [kin, fuA]), 'HAND2', [kin, fuB]);
+
+    const ids = new Set(generateDropMoves(hondou, withTwo).map((m) => m.pieceId));
+
+    expect(ids).toEqual(new Set(['HAND1', 'HAND2']));
+  });
+
   it('本将棋モードは従来どおり: 自分の歩が居る筋には歩を打てない', () => {
     const base = initPosition(hondou);
     const goteFu = pieceOfKind(base, 'player2', 'fu');

@@ -6,11 +6,19 @@ import { buildInitialKindMap, displayKindsFor } from '../candidate-kinds';
  * 現手番の持ち駒から可能な打つ手 (擬合法) を全て生成する。
  * nifu / uchifu_tsume / dead_zone / suicide の除外は generateLegalMoves 側で行う。
  *
- * v1.09 (Phase 5-11 追補): 量子モード対応。
- * - 持ち駒の重複除去を `piece.kind` (＝初期位置の駒種で正体ではない) ではなく
- *   「候補の中身」で行う。同じ kind でも候補が違えば別の駒なので、まとめると
- *   一方の打つ手がまるごと消えてしまう。
- * - 打てる駒かどうか (is_hand_piece) も候補のどれか 1 つが該当すれば可とする。
+ * v1.09 (Phase 5-11 追補): 量子モード対応。打てる駒かどうか (is_hand_piece) は
+ * 候補のどれか 1 つが該当すれば可とする。
+ *
+ * v1.16 (ユーザー報告): **量子モードでは持ち駒をまとめない**。
+ *
+ * v1.09 は「駒種の顔ぶれが同じ持ち駒は打つ手も同じ」とみなして 2 枚目以降を省いていたが、
+ * 顔ぶれが同じでも身元は別物になり得る。実際に「角・金・銀・桂・歩(2 筋生まれ)」と
+ * 「角・金・銀・桂・歩(3 筋生まれ)」の 2 枚が同じ駒と判定され、**2 枚目の打つ手が丸ごと
+ * 消えてどこにも打てなくなっていた**。駒台には 1 枚ずつ別のカードで並び個別に持てるので、
+ * 手も 1 枚ずつ出さなければならない。
+ *
+ * 本将棋モード (候補を持たない) の持ち駒は同じ駒種なら本当に見分けが付かないので、
+ * 従来どおり駒種でまとめる (生成される手の数も変わらない)。
  */
 export function generateDropMoves(mgf: Mgf, position: Position): DropMove[] {
   const player = position.sideToMove;
@@ -21,10 +29,12 @@ export function generateDropMoves(mgf: Mgf, position: Position): DropMove[] {
 
   for (const piece of hand) {
     const kinds = displayKindsFor(mgf, piece, kindMap);
-    // 候補の中身が同じ持ち駒は打つ手も同じなので 1 枚ぶんだけ生成する
-    const signature = [...kinds].sort().join(',');
-    if (seen.has(signature)) continue;
-    seen.add(signature);
+    if (piece.candidates === undefined) {
+      // 本将棋モードのみ: 同じ駒種の持ち駒は 1 枚ぶんだけ生成する
+      const signature = [...kinds].sort().join(',');
+      if (seen.has(signature)) continue;
+      seen.add(signature);
+    }
 
     const droppable = kinds.some((k) => mgf.pieces.find((p) => p.id === k)?.is_hand_piece);
     if (!droppable) continue;

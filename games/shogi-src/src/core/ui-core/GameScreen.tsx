@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useI18nStore } from '../store/i18n-store';
 import { useGameStore } from '../store/game-store';
 import { useChatStore } from '../store/chat-store';
@@ -347,6 +347,11 @@ export function GameScreen({ variant }: GameScreenProps) {
   // 候補 PieceID → 初期駒種 の対応表。局面が変わったときだけ作り直す。
   const kindMap = useMemo(() => buildInitialKindMap(position), [position]);
 
+  // v1.16 (ユーザー要望): 候補ボックスをマウスを乗せただけでも出す。相手の駒・自分の
+  // 手番でない駒も対象 (候補は両者に等しく見えている公開情報なので隠す理由がない)。
+  const [hoverSquare, setHoverSquare] = useState<string | null>(null);
+  const isHovered = (row: number, col: number) => hoverSquare === `${row},${col}`;
+
   // 巡回表示の時計。
   // v1.09: 仕様 (駒デザイン §4.5) では「駒を持っている間は巡回を止める」だが、
   // 実機で見てユーザー判断により止めないことにした。止めると持っている間だけ
@@ -638,7 +643,20 @@ export function GameScreen({ variant }: GameScreenProps) {
                       .filter(Boolean)
                       .join(' ');
                     return (
-                      <div key={i} className={cls} onClick={() => onSquareClick(row, col)}>
+                      <div
+                        key={i}
+                        className={cls}
+                        onClick={() => {
+                          // タッチ端末にはマウスオーバーが無いので、触れた駒の候補は
+                          // クリック (タップ) でも出す。自分の駒は選択でも出るので二重にならない。
+                          setHoverSquare(`${row},${col}`);
+                          onSquareClick(row, col);
+                        }}
+                        onMouseEnter={() => setHoverSquare(`${row},${col}`)}
+                        onMouseLeave={() =>
+                          setHoverSquare((cur) => (cur === `${row},${col}` ? null : cur))
+                        }
+                      >
                         {piece && (
                           <PieceView
                             piece={piece}
@@ -659,9 +677,15 @@ export function GameScreen({ variant }: GameScreenProps) {
                             {pieceNameFor(foretellKind, locale)}
                           </span>
                         )}
-                        {/* 候補ボックス: 選択した未確定駒の右上に候補を文字だけで並べる */}
-                        {piece && unconfirmed && isSelected(row, col) && (
-                          <CandidateBox kinds={kinds} locale={locale} onLeft={visualCol >= 6} />
+                        {/* 候補ボックス: 未確定駒の右上に候補を文字だけで並べる。
+                            v1.16: 選んだときに加えてマウスを乗せたときも出す (相手の駒も対象)。 */}
+                        {piece && unconfirmed && (isSelected(row, col) || isHovered(row, col)) && (
+                          <CandidateBox
+                            kinds={kinds}
+                            locale={locale}
+                            onLeft={visualCol >= 6}
+                            below={visualRow <= 1}
+                          />
                         )}
                         {debugEnabled && showPieceIds && piece && (
                           <DebugIdBadge piece={piece} />
@@ -1928,30 +1952,78 @@ function QuantumStack({ kinds, locale }: { kinds: string[]; locale: LocaleCode }
 }
 
 /**
- * 候補ボックス (spec 駒デザイン §4.5)。未確定駒を選んだとき、その右上に候補の駒種を
- * 文字だけ並べる (例「歩桂銀」)。説明文は付けない。盤の右端寄りでは左上へ回避する。
+ * 候補ボックス (spec 駒デザイン §4.5)。未確定駒の右上に候補の駒種を文字だけ並べる
+ * (例「歩桂銀」)。説明文は付けない。盤の右端寄りでは左上へ回避する。
  * 英字表記のときは読みやすさのため空白区切りにする (例「P N S」)。
+ *
+ * v1.16 (ユーザー要望): 出す条件を「選んだとき」から「選んだとき **または** マウスを
+ * 乗せたとき」に広げ、相手の駒・自分の手番でない駒も対象にした。あわせて、
+ * **画面からはみ出さないように出す**。上端・下端・左右端では出す向きを変え、それでも
+ * はみ出すぶんは描画後に測って画面内へ寄せる (盤の隅や駒台の端で切れていたため)。
  */
 function CandidateBox({
   kinds,
   locale,
   onLeft,
+  below = false,
   flipped = false,
 }: {
   kinds: string[];
   locale: LocaleCode;
   onLeft: boolean;
+  /** 上端寄りで上に出すと画面外になる場合、下に出す */
+  below?: boolean;
   /** 180 度回転した器 (相手側の駒台) の中に置くとき、文字を読める向きに戻す */
   flipped?: boolean;
 }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  // 画面内へ寄せるための補正量 (画面座標)。0 のままなら従来どおりの位置。
+  const [shift, setShift] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
   const sep = locale === 'en' ? ' ' : '';
   const text = kinds.map((k) => pieceNameFor(k, locale)).join(sep);
-  const style: CSSProperties = onLeft
-    ? { right: '100%', bottom: '92%', marginRight: 4 }
-    : { left: '100%', bottom: '92%', marginLeft: 4 };
-  if (flipped) style.transform = 'rotate(180deg)';
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    // いま当てている補正を差し引いて「補正前の位置」に戻してから計算する
+    // (補正の上に補正を重ねて暴れるのを防ぐ)。
+    const left = r.left - shift.x;
+    const right = r.right - shift.x;
+    const top = r.top - shift.y;
+    const bottom = r.bottom - shift.y;
+    const margin = 4;
+    let x = 0;
+    let y = 0;
+    if (left < margin) x = margin - left;
+    else if (right > window.innerWidth - margin) x = window.innerWidth - margin - right;
+    if (top < margin) y = margin - top;
+    else if (bottom > window.innerHeight - margin) y = window.innerHeight - margin - bottom;
+    if (x !== shift.x || y !== shift.y) setShift({ x, y });
+  }, [text, onLeft, below, flipped, shift.x, shift.y]);
+
+  // 出したまま窓の大きさが変わったら、補正を捨てて測り直す (古い補正で逆にはみ出さないように)。
+  useEffect(() => {
+    const onResize = () => setShift((cur) => (cur.x === 0 && cur.y === 0 ? cur : { x: 0, y: 0 }));
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  const style: CSSProperties = {
+    ...(onLeft ? { right: '100%', marginRight: 4 } : { left: '100%', marginLeft: 4 }),
+    ...(below ? { top: '92%' } : { bottom: '92%' }),
+  };
+  // 器ごと 180 度回っている駒台では、画面座標の補正は符号が逆になる。
+  const dx = flipped ? -shift.x : shift.x;
+  const dy = flipped ? -shift.y : shift.y;
+  const move = shift.x !== 0 || shift.y !== 0 ? `translate(${dx}px, ${dy}px)` : '';
+  const rotate = flipped ? 'rotate(180deg)' : '';
+  const transform = [move, rotate].filter(Boolean).join(' ');
+  if (transform) style.transform = transform;
+
   return (
-    <span className="qtip" style={style}>
+    <span ref={ref} className="qtip" style={style}>
       {text}
     </span>
   );
@@ -1996,6 +2068,9 @@ interface PieceStandViewProps {
 
 function PieceStandView({ side, pieces, onClick, selectedId, activePlayer, locale, label, entangledPieceIds, debugShowPieceIds, mode = 'cycle', tick = 0, collapsingIds }: PieceStandViewProps) {
   const isEn = locale === 'en';
+  // v1.16 (ユーザー要望): 持ち駒もマウスを乗せただけで候補ボックスを出す。
+  // 相手の駒台 (持てない側) も対象。
+  const [hoverKey, setHoverKey] = useState<string | null>(null);
   // v0.89: spec D1 §4.4 「相手の持ち駒は先手と点対称：並び順も先手を逆順にする」
   // groupHand は DESC (大駒 上) で返すので、you 側はそのまま。opp 側は reverse して
   // 「相手視点での大駒上 = 盤面上では opp 駒台の下側 (盤に近い側)」に配置する。
@@ -2026,7 +2101,13 @@ function PieceStandView({ side, pieces, onClick, selectedId, activePlayer, local
             <div
               key={g.key}
               className={capCls}
-              onClick={() => activePlayer && onClick(g.pieceIds[0])}
+              onClick={() => {
+                // 相手の駒台は持てないが、タップでも候補が読めるようにする (上と同じ理由)。
+                setHoverKey(g.key);
+                if (activePlayer) onClick(g.pieceIds[0]);
+              }}
+              onMouseEnter={() => setHoverKey(g.key)}
+              onMouseLeave={() => setHoverKey((cur) => (cur === g.key ? null : cur))}
               style={{ cursor: activePlayer ? 'pointer' : 'default', position: 'relative' } as CSSProperties}
             >
               <div className="capface">
@@ -2038,8 +2119,12 @@ function PieceStandView({ side, pieces, onClick, selectedId, activePlayer, local
               </div>
               {unconfirmed && <span className="qmark">？</span>}
               {/* v1.09: 持ち駒を持ったときも候補ボックスを出す (盤の駒と揃える)。
-                  相手側の駒台は .cap ごと 180 度回っているので、文字が読めるよう回し戻す。 */}
-              {unconfirmed && selectedId && g.pieceIds.includes(selectedId) && (
+                  相手側の駒台は .cap ごと 180 度回っているので、文字が読めるよう回し戻す。
+                  v1.16: 持ったときに加えてマウスを乗せたときも出す (相手の駒台も対象)。
+                  相手側は器ごと回っているので bottom 指定のままで画面上は下側に出る
+                  (＝盤に近い側)。はみ出すぶんは CandidateBox 側が画面内へ寄せる。 */}
+              {unconfirmed &&
+                ((selectedId && g.pieceIds.includes(selectedId)) || hoverKey === g.key) && (
                 <CandidateBox
                   kinds={g.kinds}
                   locale={locale}

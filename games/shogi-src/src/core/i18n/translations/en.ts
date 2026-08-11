@@ -5,7 +5,7 @@ export const en: LocaleData = {
   name: 'English',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.10',
+    'app.ver': 'v1.12',
     'sound.promptTitle': 'Enable BGM and sound effects?',
     'sound.bgmLabel': 'BGM volume',
     'sound.sfxLabel': 'SFX volume',
@@ -336,5 +336,19 @@ export const en: LocaleData = {
     's07.kifuEmpty': 'No moves yet.',
     's07.boardAria': 'Shogi board (9x9)',
     's06.backToOnlineLobby': 'Leave (back to online lobby)',
+  
+    // Phase 5-13 (v1.12): anomaly notice / vote (screen spec S06.Q5)
+    'anomaly.title': 'Observation did not complete',
+    'anomaly.cause.empty': 'Piece candidates became inconsistent',
+    'anomaly.cause.limit': 'Computation reached its limit',
+    'anomaly.vote.title': 'Choose whether to continue',
+    'anomaly.vote.desc': 'The state is unstable. If both players choose Continue, the game resumes as-is. If either chooses No game, the match is declared void.',
+    'anomaly.btn.continue': 'Continue',
+    'anomaly.btn.nogame': 'No game',
+    'anomaly.opp.choosing': 'Opponent: choosing',
+    'anomaly.opp.continue': 'Opponent: Continue',
+    'anomaly.opp.nogame': 'Opponent: No game',
+    'result.verdict.nogame': 'No game',
+    'result.reason.nogame': 'No game (anomaly agreed)',
   },
 };

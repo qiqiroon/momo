@@ -104,6 +104,11 @@ export interface OnlineGameConnector {
   sendDrawCancel(): void;
   /** 自分側の時間切れを相手に通知（段階 2-8 v0.35）。 */
   sendTimeout(side: 'player1' | 'player2'): void;
+  /**
+   * Phase 5-13: 異常状態の投票を相手に送る (親 §6.3.4 `anomaly_vote`)。
+   * オフライン時は何もしない (相手が居ないので投票は自分の選択だけで決まる)。
+   */
+  sendAnomalyVote(choice: 'continue' | 'nogame'): void;
   /** 一時中断を相手に通知（v0.42 で合意不要に変更）。 */
   sendPauseNotify(): void;
   /** 再開を相手に申し出る。 */

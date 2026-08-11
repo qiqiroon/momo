@@ -25,6 +25,7 @@
 import type { Mgf } from '../../core/engine/mgf/types';
 import type { PieceInstance, Position, Square } from '../../core/engine/position/types';
 import { get as pluginGet } from '../../core/plugin/registry';
+import { assertNoEmptyCandidates, QuantumAnomalyError } from './anomaly';
 import { checkC001InitialOwnerPreserved, checkC002CandidatesMonotone } from './constraints/basic';
 import { buildInitialInfoMap, type CandidateInfo } from './piece-lookup';
 import { applyC301SingleConfirm } from './single-confirm';
@@ -87,7 +88,16 @@ const MAX_ITERATIONS = 512;
  * - 制約が 0 個 (5-4 骨組み) の場合は入力をそのまま返す。
  * - 制約適用で position が全く変わらないなら、参照そのまま返す (React の
  *   memo/useMemo フックが余計に再計算されないようにする配慮)。
- * - MAX_ITERATIONS で強制打ち切り + console.warn ログ (安全弁)。
+ * - MAX_ITERATIONS で強制打ち切り。
+ *
+ * ## 異常状態 (Phase 5-13)
+ *
+ * 候補集合が空になった (§Q8.8 C-901) / 反復が上限に達した (§Q7.9.1) の 2 つは
+ * QuantumAnomalyError を投げて呼び出し側に知らせる。例外には打ち切り時点の
+ * Position が入っているので、呼び出し側は盤をその状態のまま残して投票 UI を出せる。
+ *
+ * 入口でも 1 回検査する。捕獲の C-201 や打ち歩詰めの絞り込みは candidate_update の
+ * 外側で候補を削るので、ここに来る前に既に空になっている場合があるため。
  */
 export function candidateUpdate(
   pos: Position,
@@ -105,12 +115,18 @@ export function candidateUpdate(
     infoMap: buildInitialInfoMap(pos),
   };
 
+  // Phase 5-13: 外側 (C-201 捕獲・打ち歩詰め絞り込み) で既に空になっている可能性がある。
+  assertNoEmptyCandidates(pos);
+
   let current = pos;
   let final: Position | null = null;
   for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
     // 1 反復 = 「候補を狭める制約群」→「C-301 単一候補確定」の 2 パス (§Q7.4 擬似コード)。
     const narrowed = applyConstraintsOnce(current, mgf, constraints, context);
     const confirmedPass = applyC301SingleConfirm(narrowed.next);
+    // Phase 5-13 (§Q8.8 C-901): 狭めた結果どれかの駒の候補が空になったら、その時点で異常。
+    // 反復を続けても矛盾は解消しないので即座に打ち切る。
+    assertNoEmptyCandidates(confirmedPass.next);
     if (!narrowed.changed && !confirmedPass.changed) {
       final = current;
       break;
@@ -118,11 +134,10 @@ export function candidateUpdate(
     current = confirmedPass.next;
   }
   if (final === null) {
-    console.warn(
-      `[quantum:candidateUpdate] hit MAX_ITERATIONS=${MAX_ITERATIONS} without stabilizing; ` +
-      `returning last computed state. Constraints may be non-monotone (C-002 violation).`,
-    );
-    final = current;
+    // Phase 5-13 (§Q7.9.1): 上限まで回っても安定しない = 異常状態。
+    // v1.11 までは警告を出して最後の状態を返していたが、それでは対局側が
+    // 「収束しなかった」ことに気付けない (仕様の anomaly 分岐に入れない)。
+    throw new QuantumAnomalyError('iteration_limit', current);
   }
   // §Q8.3 basic invariants (C-001 / C-002) を最後にまとめて検証。
   checkC001InitialOwnerPreserved(pos, final);

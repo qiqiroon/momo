@@ -5,7 +5,7 @@ export const zh: LocaleData = {
   name: '中文',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.10',
+    'app.ver': 'v1.12',
     'sound.promptTitle': '是否播放 BGM 与音效？',
     'sound.bgmLabel': 'BGM 音量',
     'sound.sfxLabel': '音效音量',
@@ -336,5 +336,19 @@ export const zh: LocaleData = {
     's07.kifuEmpty': '尚无着子。',
     's07.boardAria': '将棋棋盘 (9x9)',
     's06.backToOnlineLobby': '退出（返回联机大厅）',
+  
+    // Phase 5-13 (v1.12): 异常状态通知・投票 (画面机能 §3 S06.Q5)
+    'anomaly.title': '观测未能完成',
+    'anomaly.cause.empty': '棋子候选出现矛盾',
+    'anomaly.cause.limit': '计算量已达上限',
+    'anomaly.vote.title': '请选择是否继续对局',
+    'anomaly.vote.desc': '当前状态不稳定。若双方均选择「继续」，则以现状继续对局；任一方选择「不成立」，则本局作废。',
+    'anomaly.btn.continue': '继续',
+    'anomaly.btn.nogame': '不成立',
+    'anomaly.opp.choosing': '对手：选择中',
+    'anomaly.opp.continue': '对手：继续',
+    'anomaly.opp.nogame': '对手：不成立',
+    'result.verdict.nogame': '对局不成立',
+    'result.reason.nogame': '不成立（异常状态合意）',
   },
 };

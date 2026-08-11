@@ -9,6 +9,7 @@ import { useGameStore } from '../../core/store/game-store';
 import { useOffersStore } from '../../core/store/offers-store';
 import { useRouteStore } from '../../core/store/route-store';
 import type { OnlineGameConnector, RemoteMovePayload } from '../../core/plugin/gameConnector';
+import { positionHash } from '../../core/engine';
 import { getMomoMatchmaking } from './client';
 import { PROTOCOL_VERSION } from './protocol';
 import { useMatchmakingStore } from './store';
@@ -191,6 +192,21 @@ const connector: OnlineGameConnector = {
     const client = getMomoMatchmaking();
     if (!client) return;
     client.send({ v: PROTOCOL_VERSION, type: 'timeout', side });
+  },
+
+  sendAnomalyVote(choice) {
+    // Phase 5-13 (親 §6.3.4): 自分の投票を相手に伝える。ローカルの反映は
+    // game-store 側 (voteAnomaly) が済ませているのでここでは送信だけ。
+    if (!this.isOnline()) return;
+    const client = getMomoMatchmaking();
+    if (!client) return;
+    client.send({
+      v: PROTOCOL_VERSION,
+      type: 'anomaly_vote',
+      choice,
+      pieceIdListHash: positionHash(useGameStore.getState().position),
+      timestamp: Date.now(),
+    });
   },
 
   sendPauseNotify() {

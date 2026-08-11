@@ -2736,3 +2736,118 @@ body::before {
   margin-top: 6px;
   line-height: 1.5;
 }
+
+/* ================================================================
+   Phase 5-13 (v1.12) 異常状態の通知・投票 UI
+   画面機能 §3 S06.Q5 / 付録D-1 §5.7.3 (絵柄の単一情報源)
+
+   ・盤は隠さない。停止時点の候補集合が両者に等しく見える必要があるため、
+     スクリムは半透明のまま (待った・中断の盤隠しとは別物)
+   ・赤系を使わない。「ノーゲーム」は破壊的操作ではなく正当な選択肢なので
+     警告色を避け、継続=オレンジ / ノーゲーム=グレーで区別する
+   ・z 値はこのアプリの実際の重なり順に合わせている (バナーは投票画面より上に
+     置いて原因表示が読めるようにする＝付録D-1 §5.7.3.3 が許す実装選択)
+   ================================================================ */
+.anomaly-banner {
+  position: fixed;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  width: min(520px, 92%);
+  padding: 12px 20px;
+  background: rgba(28, 22, 30, 0.94);
+  border: 2px solid var(--orange-mid);
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
+  z-index: 320;
+  animation: anomaly-banner-in 300ms ease-out;
+}
+.anomaly-banner .ico {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  margin-right: 12px;
+  color: var(--orange-mid);
+}
+.anomaly-banner .txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.anomaly-banner .hd { font-size: 14px; font-weight: 700; color: var(--text); }
+.anomaly-banner .cause { font-size: 11px; font-weight: 400; color: var(--text-muted); }
+@keyframes anomaly-banner-in {
+  from { opacity: 0; transform: translate(-50%, -8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.anomaly-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  z-index: 300;
+}
+.anomaly-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(440px, 88%);
+  padding: 24px 28px;
+  background: var(--surface2);
+  border: 1px solid var(--orange-mid);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+  z-index: 310;
+  animation: anomaly-modal-in 200ms ease-out;
+}
+@keyframes anomaly-modal-in {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.96); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+.anomaly-modal .ttl {
+  text-align: center;
+  margin-bottom: 12px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+}
+.anomaly-modal .desc {
+  text-align: left;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+}
+.anomaly-modal .btns { display: flex; gap: 12px; }
+.anomaly-modal .ay-btn {
+  flex: 1;
+  height: 44px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  background: transparent;
+  cursor: pointer;
+}
+.anomaly-modal .ay-btn.cont { border: 1.5px solid var(--orange-mid); color: var(--orange-light); }
+.anomaly-modal .ay-btn.cont:hover { background: rgba(255, 152, 0, 0.12); }
+.anomaly-modal .ay-btn.ng { border: 1.5px solid var(--text-muted); color: var(--text-muted); }
+.anomaly-modal .ay-btn.ng:hover { background: rgba(255, 255, 255, 0.06); }
+/* 選んだ側はリングで明示、もう一方は薄くして押せなくする (投票の取り消しは不可) */
+.anomaly-modal .ay-btn.cont.picked { box-shadow: 0 0 0 2px inset var(--orange-mid); }
+.anomaly-modal .ay-btn.ng.picked { box-shadow: 0 0 0 2px inset var(--text-muted); }
+.anomaly-modal .ay-btn.dimmed { opacity: 0.4; pointer-events: none; }
+.anomaly-modal .opp {
+  margin-top: 16px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.anomaly-modal .opp .mk { color: var(--orange-mid); }
+
+@media (prefers-reduced-motion: reduce) {
+  /* 動きは止めるが、出入りが分からなくならないよう不透明度だけは変化させる */
+  .anomaly-banner, .anomaly-modal { animation: anomaly-fade-in 200ms ease-out !important; }
+  .anomaly-scrim { backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+@keyframes anomaly-fade-in { from { opacity: 0; } to { opacity: 1; } }

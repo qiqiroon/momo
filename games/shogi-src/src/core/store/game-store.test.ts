@@ -300,3 +300,100 @@ describe('Game store — Position 型を Position インターフェース経由
     expect(useGameStore.getState().position.moveNumber).toBe(100);
   });
 });
+
+describe('Game store — 異常状態の通知・投票 (Phase 5-13)', () => {
+  beforeEach(() => {
+    useGameStore.getState().reset();
+  });
+
+  it('発火すると投票状態が立ち、駒を触れなくなる', () => {
+    const st = useGameStore.getState();
+    st.raiseAnomaly('empty_candidates');
+    const s = useGameStore.getState();
+    expect(s.anomaly).not.toBeNull();
+    expect(s.anomaly!.cause).toBe('empty_candidates');
+    expect(s.anomaly!.myVote).toBeNull();
+    expect(s.status).toBe('playing');
+    // 投票中は駒を選べない
+    s.selectSquare({ row: 6, col: 2 });
+    expect(useGameStore.getState().selectedSquare).toBeNull();
+    expect(useGameStore.getState().tryMove({ row: 5, col: 2 })).toBe(false);
+  });
+
+  it('二重に発火しても最初の原因のまま (通知が上書きされない)', () => {
+    useGameStore.getState().raiseAnomaly('empty_candidates');
+    useGameStore.getState().raiseAnomaly('iteration_limit');
+    expect(useGameStore.getState().anomaly!.cause).toBe('empty_candidates');
+  });
+
+  it('一人で遊んでいるときは自分が「継続」を選んだだけで対局に戻る', () => {
+    useGameStore.getState().raiseAnomaly('empty_candidates');
+    expect(useGameStore.getState().anomaly!.online).toBe(false);
+    useGameStore.getState().voteAnomaly('continue');
+    expect(useGameStore.getState().anomaly).toBeNull();
+    expect(useGameStore.getState().status).toBe('playing');
+  });
+
+  it('自分が「ノーゲーム」を選ぶとその場で不成立になる', () => {
+    useGameStore.getState().raiseAnomaly('iteration_limit');
+    useGameStore.getState().voteAnomaly('nogame');
+    expect(useGameStore.getState().status).toBe('nogame');
+    expect(useGameStore.getState().anomaly).toBeNull();
+    expect(useGameStore.getState().activeClockSide).toBeNull();
+  });
+
+  it('対人対局では自分が「継続」でも相手待ちになり、両者「継続」で再開する', () => {
+    useGameStore.getState().raiseAnomaly('empty_candidates');
+    // オンライン扱いに差し替える (gameConnector を登録せずに成立条件だけ切り替える)
+    useGameStore.setState({ anomaly: { ...useGameStore.getState().anomaly!, online: true } });
+    useGameStore.getState().voteAnomaly('continue');
+    expect(useGameStore.getState().anomaly).not.toBeNull();
+    expect(useGameStore.getState().anomaly!.myVote).toBe('continue');
+    useGameStore.getState().receiveAnomalyVote('continue');
+    expect(useGameStore.getState().anomaly).toBeNull();
+    expect(useGameStore.getState().status).toBe('playing');
+  });
+
+  it('相手が「ノーゲーム」を選べば自分が未投票でも即座に不成立になる', () => {
+    useGameStore.getState().raiseAnomaly('empty_candidates');
+    useGameStore.setState({ anomaly: { ...useGameStore.getState().anomaly!, online: true } });
+    useGameStore.getState().receiveAnomalyVote('nogame');
+    expect(useGameStore.getState().status).toBe('nogame');
+    expect(useGameStore.getState().anomaly).toBeNull();
+  });
+
+  it('投票は取り消せない (2 回目の投票は無視される)', () => {
+    useGameStore.getState().raiseAnomaly('empty_candidates');
+    useGameStore.setState({ anomaly: { ...useGameStore.getState().anomaly!, online: true } });
+    useGameStore.getState().voteAnomaly('continue');
+    useGameStore.getState().voteAnomaly('nogame');
+    expect(useGameStore.getState().anomaly!.myVote).toBe('continue');
+    expect(useGameStore.getState().status).toBe('playing');
+  });
+
+  it('投票中は時計が進まない', () => {
+    useGameStore.getState().setTimeControl({ mode: 'sudden_death', mainSeconds: 600 });
+    const before = useGameStore.getState().clocks.player1.mainMs;
+    useGameStore.getState().raiseAnomaly('empty_candidates');
+    useGameStore.getState().tickClock(3000);
+    expect(useGameStore.getState().clocks.player1.mainMs).toBe(before);
+    // 継続で合意したら再び進む
+    useGameStore.getState().voteAnomaly('continue');
+    useGameStore.getState().tickClock(3000);
+    expect(useGameStore.getState().clocks.player1.mainMs).toBe(before - 3000);
+  });
+
+  it('対局が終わっていれば発火しない', () => {
+    useGameStore.getState().resign('player1');
+    useGameStore.getState().raiseAnomaly('empty_candidates');
+    expect(useGameStore.getState().anomaly).toBeNull();
+    expect(useGameStore.getState().status).toBe('resigned_p1');
+  });
+
+  it('リセットすると投票状態も消える', () => {
+    useGameStore.getState().raiseAnomaly('empty_candidates');
+    useGameStore.getState().reset();
+    expect(useGameStore.getState().anomaly).toBeNull();
+    expect(useGameStore.getState().status).toBe('playing');
+  });
+});

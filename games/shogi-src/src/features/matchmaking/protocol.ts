@@ -191,6 +191,23 @@ export interface ResumeResponseMsg extends Envelope { type: 'resume_response'; a
 export interface UndoCancelMsg extends Envelope { type: 'undo_cancel'; }
 export interface DrawCancelMsg extends Envelope { type: 'draw_cancel'; }
 
+/**
+ * Phase 5-13: 異常状態の投票 (親 §6.3.4 `anomaly_vote`・量子分冊 §Q17.8.1)。
+ *
+ * 片方拒否権モデル: 受信側は「ノーゲーム」を受け取った瞬間に対局を不成立にする
+ * (相手の投票は待たない)。両者「継続」が揃ったときだけ対局を再開する。
+ * タイムアウトは設けない (待ちきれない側は自分で「ノーゲーム」を選べる)。
+ *
+ * pieceIdListHash は停止時点の量子状態ハッシュ (§Q18)。同じ異常について投票して
+ * いるかの照合用で、現状は受信側で使っていない (将来の再送・遅延対策のため送る)。
+ */
+export interface AnomalyVoteMsg extends Envelope {
+  type: 'anomaly_vote';
+  choice: 'continue' | 'nogame';
+  pieceIdListHash?: string;
+  timestamp: number;
+}
+
 export type ShogiMessage =
   | SideSelectMsg
   | ReadyMsg
@@ -213,7 +230,8 @@ export type ShogiMessage =
   | UndoCancelMsg
   | DrawCancelMsg
   | PingMsg
-  | PongMsg;
+  | PongMsg
+  | AnomalyVoteMsg;
 
 /** 型ガード：unknown をゲームメッセージとして扱えるか */
 export function isShogiMessage(data: unknown): data is ShogiMessage {

@@ -41,6 +41,11 @@ register('quantum:findKing', findConfirmedKing);
 // 候補更新の反復ループではなくイベント側 (applyAndCommit) から 1 回だけ呼ぶ。
 register('quantum:onDrop', applyUchifuTsumeExclusion);
 
+// Phase 5-13 (§Q8.8/§Q7.9.1): 異常状態は candidate_update が例外で知らせるので
+// registry へのフック登録は不要。型だけ公開しておく。
+export type { QuantumAnomalyCause } from './anomaly';
+export { QuantumAnomalyError } from './anomaly';
+
 export type QuantumInitFn = typeof quantumInit;
 export type QuantumCandidateUpdateFn = typeof candidateUpdate;
 export type QuantumOnCaptureHook = {

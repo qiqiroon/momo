@@ -221,6 +221,11 @@ export function handleShogiMessage(data: unknown): void {
       if (client) client.send({ v: PROTOCOL_VERSION, type: 'pong' });
       return;
     }
+    case 'anomaly_vote': {
+      // Phase 5-13: 相手の投票。「ノーゲーム」なら game-store 側で即座に不成立になる。
+      useGameStore.getState().receiveAnomalyVote(msg.choice);
+      return;
+    }
     case 'pong': {
       // 生存確認 pong の受信自体は lastPeerMessageAt の更新で完結。追加処理不要。
       return;

@@ -65,6 +65,48 @@ type QuantumOnCaptureHook = {
   buildInitialInfoMap: (pos: Position) => ReadonlyMap<string, unknown>;
 };
 
+/**
+ * Phase 5-13 (§Q8.8 C-901 / §Q7.9.1): 異常状態の原因種別。
+ * 画面はこれで原因行の文言を切り替える。音は原因で変えない (音響 §2.7.2)。
+ */
+export type AnomalyCause = 'empty_candidates' | 'iteration_limit';
+export type AnomalyChoice = 'continue' | 'nogame';
+
+/**
+ * Phase 5-13: 異常状態の投票 (§Q17.8 `anomaly_action=vote_to_annul`)。
+ *
+ * 発火中は対局全体が止まる (時計凍結・駒を触れない)。盤面は「停止時点のまま」残す
+ * 決まりなので、待った/中断で使う paused (盤を隠す) とは別の状態として持つ。
+ *
+ * online は発火時点の値を固定する。成立条件が変わるため (対人は両者「継続」で再開、
+ * 一人で遊んでいるときは自分の選択だけで決まる)。
+ */
+export interface AnomalyState {
+  cause: AnomalyCause;
+  myVote: AnomalyChoice | null;
+  oppVote: AnomalyChoice | null;
+  online: boolean;
+}
+
+/**
+ * Phase 5-13: features/quantum が投げる異常状態の例外を core 側で見分けるための形。
+ * core/ は features/ を import できない (モジュール境界) ので、目印フィールドで判定する。
+ */
+interface QuantumAnomalyLike {
+  quantumAnomaly: true;
+  anomalyCause: AnomalyCause;
+  position: Position;
+}
+
+function asQuantumAnomaly(e: unknown): QuantumAnomalyLike | null {
+  if (!e || typeof e !== 'object') return null;
+  const a = e as Partial<QuantumAnomalyLike>;
+  if (a.quantumAnomaly !== true) return null;
+  if (a.anomalyCause !== 'empty_candidates' && a.anomalyCause !== 'iteration_limit') return null;
+  if (!a.position) return null;
+  return a as QuantumAnomalyLike;
+}
+
 export interface PendingPromotion {
   nonPromoteMove: BoardMove;
   promoteMove: BoardMove;
@@ -94,7 +136,12 @@ type GameStatus =
   | 'agreed_draw'
   /** v0.35: 持ち時間切れ。timeout_p1 = 先手が時間切れ(＝後手勝ち) */
   | 'timeout_p1'
-  | 'timeout_p2';
+  | 'timeout_p2'
+  /**
+   * Phase 5-13: ノーゲーム (異常状態合意)。勝敗つかず・レート非変動 (親 §4.4)。
+   * 異常状態の投票で片方でも「ノーゲーム」を選ぶと成立する。
+   */
+  | 'nogame';
 
 /**
  * 着手発生元:
@@ -149,6 +196,11 @@ interface GameState {
    * UI ハイライト (盤マス・持ち駒台に薄い水色半透明) の描画根拠として使う。
    */
   entangledPieceIds: string[];
+  /**
+   * Phase 5-13 (§Q8.8/§Q17.8): 異常状態の投票中なら中身が入る。null なら平常。
+   * これが立っている間は時計が止まり、駒の選択・着手を受け付けない。
+   */
+  anomaly: AnomalyState | null;
 
   selectSquare: (sq: Square) => void;
   selectHandPiece: (pieceId: string) => void;
@@ -197,6 +249,21 @@ interface GameState {
   quantumDisplay: QuantumDisplay;
   /** 未確定駒の見せ方を切り替える。操作権の判定は呼び出し側 (UI) の責務。 */
   setQuantumDisplay: (mode: QuantumDisplay) => void;
+  /**
+   * Phase 5-13: 異常状態を立てる。既に立っているか対局が終わっていれば何もしない。
+   * 候補更新が異常を投げたときと、デバッグから故意に起こしたときの共通入口。
+   */
+  raiseAnomaly: (cause: AnomalyCause) => void;
+  /** Phase 5-13: 自分の投票。片方でも nogame ならその場で不成立が決まる。 */
+  voteAnomaly: (choice: AnomalyChoice) => void;
+  /** Phase 5-13: 相手の投票を受信したときに呼ぶ (通信側から)。 */
+  receiveAnomalyVote: (choice: AnomalyChoice) => void;
+  /**
+   * Phase 5-13: デバッグから故意に異常を起こす (kickoff §5「意図的に破綻局面を作れる
+   * スクリプトを用意」)。'empty' は実際に盤上の駒の候補を空にして本番と同じ検出経路を
+   * 通す。'limit' は反復が終わらない状況を人工的に作るのが難しいので通知だけを直接出す。
+   */
+  debugForceAnomaly: (kind: 'empty' | 'limit') => void;
   /**
    * 相手から受信した着手を盤面に反映する。
    * pieceId / from / to / promote に完全一致する合法手を探して適用。
@@ -294,6 +361,47 @@ function allPiecesWithSquare(pos: Position): { piece: PieceInstance; square: Squ
   return out;
 }
 
+/**
+ * v1.11: 成る/成らずの選択肢に並べる候補を「その手を指した後の姿」で求める。
+ *
+ * 動くこと自体が候補を狭める (斜め 1 マスの移動なら銀・金・角・王しか説明できない) ので、
+ * 動く前の候補をそのまま並べると、その手では絶対にあり得ない駒が選択肢に出てしまう。
+ * 成る側はさらに「成れない駒 (王・金) ではあり得ない」で狭まる。
+ *
+ * どちらも実際に着手した盤面を作って候補更新まで回し、動いた駒の候補を読み取ることで、
+ * 本番の絞り込みと同じ結果を先取りする (絞り込みの規則をここで作り直さない)。
+ *
+ * 候補更新は矛盾局面で例外を投げ得るので、投げたら動く前の候補に落とす。
+ * 選択肢が出せないより、広めでも出せたほうが操作が止まらない。
+ */
+function previewKindsAfterMove(state: GameState, move: BoardMove): string[] {
+  const { mgf, position, currentQuantum } = state;
+  try {
+    let next = applyMove(mgf, position, move);
+    if (currentQuantum) {
+      // 捕獲を伴うなら C-201 (取られた駒は王ではない) まで本番と同じ手順を踏む
+      const captured = position.board[move.to.row][move.to.col];
+      if (captured) {
+        const capHook = pluginGet<QuantumOnCaptureHook>('quantum:onCapture');
+        if (capHook) {
+          const infoMap = capHook.buildInitialInfoMap(position);
+          if (!capHook.isConfirmedKing(captured, infoMap, mgf)) {
+            next = capHook.applyC201(next, captured.pieceId, mgf);
+          }
+        }
+      }
+      const updateFn = pluginGet<QuantumCandidateUpdateFn>('quantum:candidateUpdate');
+      if (updateFn) next = updateFn(next, mgf);
+    }
+    const moved = next.board[move.to.row][move.to.col];
+    if (!moved) return [];
+    return displayKindsFor(mgf, moved, buildInitialKindMap(next));
+  } catch {
+    const before = position.board[move.from.row][move.from.col];
+    return before ? displayKindsFor(mgf, before, buildInitialKindMap(position)) : [];
+  }
+}
+
 function computeStatusAfterMove(
   mgf: Mgf,
   position: Position,
@@ -348,6 +456,10 @@ function applyAndCommit(
   // 詰み判定が要るので候補更新の反復ループには入れず、捕獲時の C-201 と同じく
   // イベント側でこの位置に 1 回だけ挟む。二歩・行き所のない駒による絞り込みは
   // 打った駒が盤上の駒になった時点で C-103 / C-104 が拾うのでここでは扱わない。
+  // Phase 5-13: 候補更新が異常 (候補が空 / 反復上限) を投げたら、打ち切り時点の盤面を
+  // そのまま採用して、着手をコミットしたあとに投票 UI を出す。盤を「停止時点のまま」
+  // 見せる決まり (付録D-1 §5.7.3.3) なので、着手をなかったことにはしない。
+  let anomalyCause: AnomalyCause | null = null;
   if (currentQuantum && move.type === 'drop') {
     const dropHook = pluginGet<QuantumOnDropFn>('quantum:onDrop');
     if (dropHook) nextPos = dropHook(nextPos, mgf, move.pieceId, move.to);
@@ -360,7 +472,16 @@ function applyAndCommit(
     const candidateUpdateFn = pluginGet<QuantumCandidateUpdateFn>('quantum:candidateUpdate');
     // Phase 5-6.5 移行後: context (infoMap 含む) は candidateUpdate 側で pos から自動生成。
     // torusMode 等の追加副次情報を渡したい場合はここで context を組み立てる。
-    if (candidateUpdateFn) nextPos = candidateUpdateFn(nextPos, mgf);
+    if (candidateUpdateFn) {
+      try {
+        nextPos = candidateUpdateFn(nextPos, mgf);
+      } catch (e) {
+        const anomaly = asQuantumAnomaly(e);
+        if (!anomaly) throw e;
+        nextPos = anomaly.position;
+        anomalyCause = anomaly.anomalyCause;
+      }
+    }
   }
   // v0.99 (Phase 5-6 拡張): 動いた駒以外で candidates が変化した駒を「量子もつれ」として
   // 記録する。UI ハイライトと debug の候補変更履歴表示で使う。動いた駒 (move.pieceId) は
@@ -412,6 +533,9 @@ function applyAndCommit(
     activeClockSide: nextActiveSide,
     entangledPieceIds,
   });
+  // Phase 5-13: 着手を反映し終えてから異常状態を立てる。順序を逆にすると、盤に
+  // 停止時点の局面が乗る前に投票 UI が開いてしまい「何が起きて止まったか」が見えない。
+  if (anomalyCause) get().raiseAnomaly(anomalyCause);
   // v0.99 (Phase 5-6 拡張): デバッグモード有効なら候補変更履歴を debug-store にも積む。
   // 動いた駒自身の変化も含めて全部押し込む (UI ハイライトは動いた駒を除外するが、
   // デバッグ情報は全変化を時系列で見たい)。debug-store は core/store 内で
@@ -432,6 +556,24 @@ function applyAndCommit(
       if (changes.length > 0) dbg.logCandidateChanges(changes);
     }
   }
+}
+
+/**
+ * Phase 5-13: 投票が揃ったかを判定して結果を反映する (§Q17.8.1 片方拒否権モデル)。
+ *
+ * - 片方でも「ノーゲーム」→ その瞬間に不成立。相手の投票は待たない。
+ * - 対人対局は両者「継続」で再開。
+ * - 一人で遊んでいるときは相手が居ないので、自分の「継続」だけで再開する。
+ *
+ * まだ決まらない場合は何もしない (投票 UI が相手待ちの表示を出す)。
+ */
+function resolveAnomaly(set: (partial: Partial<GameState>) => void, a: AnomalyState): void {
+  if (a.myVote === 'nogame' || a.oppVote === 'nogame') {
+    set({ status: 'nogame', anomaly: null, activeClockSide: null });
+    return;
+  }
+  const agreed = a.online ? a.myVote === 'continue' && a.oppVote === 'continue' : a.myVote === 'continue';
+  if (agreed) set({ anomaly: null });
 }
 
 /**
@@ -563,6 +705,85 @@ export const useGameStore = create<GameState>((set, get) => ({
   currentQuantum: false,
   quantumDisplay: 'cycle',
   entangledPieceIds: [],
+  anomaly: null,
+
+  raiseAnomaly: (cause) => {
+    const { status, anomaly } = get();
+    // 既に投票中、または対局が終わっているなら二重に立てない。
+    if (anomaly || status !== 'playing') return;
+    const online = pluginGet<OnlineGameConnector>('gameConnector')?.isOnline() ?? false;
+    set({
+      anomaly: { cause, myVote: null, oppVote: null, online },
+      // 盤は停止時点のまま残すが、駒の選択だけは解除する (投票中は指せないため)。
+      selectedSquare: null,
+      selectedHandPieceId: null,
+      legalDestinations: [],
+      pendingPromotion: null,
+    });
+  },
+
+  voteAnomaly: (choice) => {
+    const { anomaly } = get();
+    if (!anomaly || anomaly.myVote !== null) return;
+    // 相手にも自分の選択を伝える (オフラインでは connector が無いので何も起きない)。
+    pluginGet<OnlineGameConnector>('gameConnector')?.sendAnomalyVote(choice);
+    const next = { ...anomaly, myVote: choice };
+    set({ anomaly: next });
+    resolveAnomaly(set, next);
+  },
+
+  receiveAnomalyVote: (choice) => {
+    const { anomaly } = get();
+    if (!anomaly || anomaly.oppVote !== null) return;
+    const next = { ...anomaly, oppVote: choice };
+    set({ anomaly: next });
+    resolveAnomaly(set, next);
+  },
+
+  debugForceAnomaly: (kind) => {
+    const { position, mgf, currentQuantum, status } = get();
+    if (status !== 'playing') return;
+    if (kind === 'limit') {
+      get().raiseAnomaly('iteration_limit');
+      return;
+    }
+    // 'empty': 盤上の未確定駒を 1 枚選んで候補を空にし、本番と同じ候補更新に通す。
+    // 通知だけ直接出すのではなく検出経路ごと動かしたいので、この形にしている。
+    if (!currentQuantum) {
+      get().raiseAnomaly('empty_candidates');
+      return;
+    }
+    let broken: Position | null = null;
+    outer: for (let r = 0; r < position.height; r++) {
+      for (let c = 0; c < position.width; c++) {
+        const cell = position.board[r][c];
+        if (!cell || cell.candidates === undefined) continue;
+        const board = position.board.map((row) => row.slice());
+        board[r][c] = { ...cell, candidates: new Set<string>() };
+        broken = { ...position, board };
+        break outer;
+      }
+    }
+    if (!broken) {
+      get().raiseAnomaly('empty_candidates');
+      return;
+    }
+    let cause: AnomalyCause = 'empty_candidates';
+    let nextPos = broken;
+    const candidateUpdateFn = pluginGet<QuantumCandidateUpdateFn>('quantum:candidateUpdate');
+    if (candidateUpdateFn) {
+      try {
+        nextPos = candidateUpdateFn(broken, mgf);
+      } catch (e) {
+        const anomaly = asQuantumAnomaly(e);
+        if (!anomaly) throw e;
+        nextPos = anomaly.position;
+        cause = anomaly.anomalyCause;
+      }
+    }
+    set({ position: nextPos });
+    get().raiseAnomaly(cause);
+  },
 
   setQuantumDisplay: (mode) => {
     set({ quantumDisplay: mode });
@@ -572,8 +793,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   selectSquare: (sq) => {
-    const { position, mgf, status } = get();
-    if (status !== 'playing') return;
+    const { position, mgf, status, anomaly } = get();
+    if (status !== 'playing' || anomaly) return;
     const piece = position.board[sq.row][sq.col];
     if (!piece || piece.owner !== position.sideToMove) {
       set({ selectedSquare: null, selectedHandPieceId: null, legalDestinations: [] });
@@ -587,8 +808,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   selectHandPiece: (pieceId) => {
-    const { position, mgf, status } = get();
-    if (status !== 'playing') return;
+    const { position, mgf, status, anomaly } = get();
+    if (status !== 'playing' || anomaly) return;
     const piece = position.hands[position.sideToMove].find((p) => p.pieceId === pieceId);
     if (!piece) return;
     set({
@@ -603,8 +824,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   tryMove: (to) => {
-    const { position, mgf, selectedSquare, selectedHandPieceId, status } = get();
-    if (status !== 'playing') return false;
+    const { position, mgf, selectedSquare, selectedHandPieceId, status, anomaly } = get();
+    if (status !== 'playing' || anomaly) return false;
 
     if (selectedSquare) {
       const piece = position.board[selectedSquare.row][selectedSquare.col];
@@ -631,11 +852,13 @@ export const useGameStore = create<GameState>((set, get) => ({
       }
       const def = mgf.pieces.find((p) => p.id === piece.kind);
       const promotedKind = def?.promoted_id ?? piece.kind;
-      // v1.08: 未確定駒なら候補を並べる (確定駒・本将棋モードは 1 個で従来通り)
-      const candidateKinds = displayKindsFor(mgf, piece, buildInitialKindMap(position));
-      const promotedCandidateKinds = candidateKinds
-        .map((k) => mgf.pieces.find((p) => p.id === k)?.promoted_id)
-        .filter((k): k is string => !!k);
+      // v1.11: 成る/成らずの選択肢は「その手を指した後の候補」で見せる。
+      // 動いたこと自体で候補は狭まる (斜め 1 マスなら銀・金・角・王しか説明できない、等) ので、
+      // 動く前の候補を並べるとあり得ない駒が選択肢に出てしまう。
+      // 成る側はさらに「成れない駒 (王・金) ではあり得ない」で狭まるため、
+      // 実際に成った盤面で候補更新まで回してから読み取る。
+      const candidateKinds = previewKindsAfterMove(get(), nonPromote);
+      const promotedCandidateKinds = previewKindsAfterMove(get(), promote);
       set({
         pendingPromotion: {
           nonPromoteMove: nonPromote,
@@ -644,7 +867,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           promotedKind,
           owner: piece.owner,
           heading: formatMove(mgf, position, nonPromote),
-          candidateKinds,
+          candidateKinds: candidateKinds.length > 0 ? candidateKinds : [piece.kind],
           promotedCandidateKinds:
             promotedCandidateKinds.length > 0 ? promotedCandidateKinds : [promotedKind],
         },
@@ -704,6 +927,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (status !== 'playing') return;
     set({
       status: side === 'player1' ? 'resigned_p1' : 'resigned_p2',
+      anomaly: null,
       selectedSquare: null,
       selectedHandPieceId: null,
       legalDestinations: [],
@@ -716,6 +940,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (status !== 'playing') return;
     set({
       status: 'agreed_draw',
+      anomaly: null,
       selectedSquare: null,
       selectedHandPieceId: null,
       legalDestinations: [],
@@ -742,6 +967,9 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (state.status !== 'playing') return;
     if (!state.activeClockSide) return;
     if (state.paused) return; // v0.41: 中断中は tick しない
+    // Phase 5-13: 異常状態の投票中は時計凍結 (音響 §2.2.1 状態遷移表「異常状態投票中」)。
+    // 待った/中断の paused と分けているのは、投票中は盤を隠さず見せ続けるため。
+    if (state.anomaly) return;
     if (state.timeControl.mode === 'no_limit') return;
     const side = state.activeClockSide;
     const cur = state.clocks[side];
@@ -809,6 +1037,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     };
     set({
       status: side === 'player1' ? 'timeout_p1' : 'timeout_p2',
+      anomaly: null,
       activeClockSide: null,
       clocks: { ...state.clocks, [side]: zeroed },
       selectedSquare: null,
@@ -868,6 +1097,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       legalDestinations: [],
       pendingPromotion: null,
       status: 'playing',
+      anomaly: null,
       canNyugyokuP1: canDeclareNyugyoku(state.mgf, restoredPos, 'player1'),
       canNyugyokuP2: canDeclareNyugyoku(state.mgf, restoredPos, 'player2'),
       // v0.33 バグ修正: lastAppliedMove を触らない。触ると対局画面の
@@ -882,6 +1112,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     // 明示指定があればそれを、なければ前回 reset の値を引き継ぐ (対局中「リセット」ボタン用)
     const quantum = options?.quantum ?? state.currentQuantum;
     let pos = initPosition(state.mgf);
+    let initialAnomaly: AnomalyState | null = null;
     if (quantum) {
       const quantumInitFn = pluginGet<QuantumInitFn>('quantum:init');
       if (quantumInitFn) pos = quantumInitFn(pos);
@@ -897,7 +1128,18 @@ export const useGameStore = create<GameState>((set, get) => ({
       // reset は lastAppliedMove=null / entangledPieceIds=[] で終わるため、
       // 観測アニメ・もつれハイライトのどちらも発火しない (下の set を参照)。
       const candidateUpdateFn = pluginGet<QuantumCandidateUpdateFn>('quantum:candidateUpdate');
-      if (candidateUpdateFn) pos = candidateUpdateFn(pos, state.mgf);
+      if (candidateUpdateFn) {
+        try {
+          pos = candidateUpdateFn(pos, state.mgf);
+        } catch (e) {
+          // Phase 5-13: 開始前の整理で矛盾が出るのはルール定義そのものが破綻している状態。
+          // 起きたことは隠さず、打ち切り時点の盤で始めて投票 UI に載せる。
+          const anomaly = asQuantumAnomaly(e);
+          if (!anomaly) throw e;
+          pos = anomaly.position;
+          initialAnomaly = { cause: anomaly.anomalyCause, myVote: null, oppVote: null, online: false };
+        }
+      }
     }
     const tc = state.timeControl;
     set({
@@ -926,6 +1168,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       activeClockSide: tc.mode === 'no_limit' ? null : 'player1',
       paused: false,
       entangledPieceIds: [],
+      anomaly: initialAnomaly,
     });
   },
 

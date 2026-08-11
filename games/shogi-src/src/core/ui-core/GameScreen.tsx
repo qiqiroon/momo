@@ -6,7 +6,20 @@ import { useOffersStore } from '../store/offers-store';
 import { ChatConsole } from './ChatConsole';
 import { useRouteStore } from '../store/route-store';
 import { get as pluginGet } from '../plugin/registry';
-import { seMove, seCheck, seFanfareWin, seGameLose, sePause, seResume, seSelect, seCapture } from '../audio/se-synth';
+import {
+  seMove,
+  seCheck,
+  seFanfareWin,
+  seGameLose,
+  sePause,
+  seResume,
+  seSelect,
+  seCapture,
+  seAnomalyHalt,
+  seAnomalyVoteOpen,
+  seAnomalyContinue,
+  seAnomalyNogame,
+} from '../audio/se-synth';
 import { t as _t } from '../i18n';
 import type { LocaleCode } from '../i18n/types';
 import type { Mgf, PieceId, PieceInstance, Position, Square } from '../engine';
@@ -751,7 +764,116 @@ export function GameScreen({ variant }: GameScreenProps) {
       <PauseCenterPanel t={t} />
       <OfferResponseToast t={t} />
       <ConnectionUncertainBanner t={t} />
+      <AnomalyNotice t={t} />
     </div>
+  );
+}
+
+/**
+ * Phase 5-13 (v1.12): 異常状態の通知バナー + 投票画面 (画面機能 §3 S06.Q5 / 付録D-1 §5.7.3)。
+ *
+ * 観測 (候補の絞り込み) が矛盾または上限で止まったときに出る。盤は隠さず、
+ * 停止時点の状態を薄いスクリム越しに見せたまま投票してもらう決まりなので、
+ * 待った・中断で使う盤隠しフィルターとは別建てにしてある。
+ *
+ * 時間の流れ (付録D-1 §5.7.3.6):
+ *   0ms    バナー登場 + 停止音
+ *   300ms  投票画面が開く + 投票開始音
+ *   投票確定 継続音 または 不成立音
+ */
+function AnomalyNotice({ t }: { t: (key: string) => string }) {
+  const anomaly = useGameStore((s) => s.anomaly);
+  const voteAnomaly = useGameStore((s) => s.voteAnomaly);
+  const [voteOpen, setVoteOpen] = useState(false);
+  // 投票が決着したとき (anomaly が null に戻ったとき) にどちらの音を鳴らすかの判断材料。
+  const prevRef = useRef<{ myVote: string | null; oppVote: string | null } | null>(null);
+  const status = useGameStore((s) => s.status);
+
+  // 発火の瞬間に停止音、300ms 後に投票画面と投票開始音。
+  useEffect(() => {
+    if (!anomaly) {
+      setVoteOpen(false);
+      return;
+    }
+    if (voteOpen) return;
+    seAnomalyHalt();
+    const id = setTimeout(() => {
+      setVoteOpen(true);
+      seAnomalyVoteOpen();
+    }, 300);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anomaly === null]);
+
+  // 決着音。ノーゲームなら勝敗音は鳴らさない決まり (音響 §2.7.4) だが、
+  // 'nogame' は勝者が居ない終局なので勝敗音側の判定に元々引っかからない。
+  useEffect(() => {
+    const prev = prevRef.current;
+    prevRef.current = anomaly ? { myVote: anomaly.myVote, oppVote: anomaly.oppVote } : null;
+    if (anomaly || !prev) return;
+    if (status === 'nogame') seAnomalyNogame();
+    else seAnomalyContinue();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anomaly]);
+
+  if (!anomaly) return null;
+  const causeKey = anomaly.cause === 'iteration_limit' ? 'anomaly.cause.limit' : 'anomaly.cause.empty';
+  const oppLabel =
+    anomaly.oppVote === 'continue'
+      ? t('anomaly.opp.continue')
+      : anomaly.oppVote === 'nogame'
+        ? t('anomaly.opp.nogame')
+        : t('anomaly.opp.choosing');
+  const oppMark = anomaly.oppVote === 'continue' ? '○' : anomaly.oppVote === 'nogame' ? '─' : '…';
+
+  return (
+    <>
+      <div className="anomaly-banner" role="alert" aria-live="assertive">
+        {/* 観測停止アイコン: 目の上に一時停止バー 2 本 (付録D-1 §5.7.3.2) */}
+        <svg className="ico" viewBox="0 0 24 24" aria-hidden="true">
+          <ellipse cx="12" cy="15" rx="8" ry="5" fill="none" stroke="currentColor" strokeWidth="1.6" />
+          <circle cx="12" cy="15" r="2.5" fill="currentColor" />
+          <rect x="9" y="3" width="2" height="6" rx="1" fill="currentColor" />
+          <rect x="13" y="3" width="2" height="6" rx="1" fill="currentColor" />
+        </svg>
+        <span className="txt">
+          <span className="hd">{t('anomaly.title')}</span>
+          <span className="cause">{t(causeKey)}</span>
+        </span>
+      </div>
+      {voteOpen && (
+        <>
+          <div className="anomaly-scrim" aria-hidden="true" />
+          <div className="anomaly-modal" role="dialog" aria-modal="true">
+            <div className="ttl">{t('anomaly.vote.title')}</div>
+            <div className="desc">{t('anomaly.vote.desc')}</div>
+            <div className="btns">
+              <button
+                type="button"
+                className={`ay-btn cont${anomaly.myVote === 'continue' ? ' picked' : ''}${anomaly.myVote === 'nogame' ? ' dimmed' : ''}`}
+                onClick={() => voteAnomaly('continue')}
+              >
+                {t('anomaly.btn.continue')}
+              </button>
+              <button
+                type="button"
+                className={`ay-btn ng${anomaly.myVote === 'nogame' ? ' picked' : ''}${anomaly.myVote === 'continue' ? ' dimmed' : ''}`}
+                onClick={() => voteAnomaly('nogame')}
+              >
+                {t('anomaly.btn.nogame')}
+              </button>
+            </div>
+            {/* 相手の選択は自分が投票してから出す (相手に引っ張られないため・付録D-1 §5.7.3.4)。
+                一人で遊んでいるときは相手が居ないので出さない。 */}
+            {anomaly.online && anomaly.myVote !== null && (
+              <div className="opp">
+                <span className="mk">{oppMark}</span> {oppLabel}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </>
   );
 }
 
@@ -1471,6 +1593,11 @@ function GameEndModal({
       winnerSide = 'player1';
       reasonKey = 'result.reason.timeout';
       break;
+    case 'nogame':
+      // Phase 5-13: ノーゲーム (異常状態合意)。勝敗つかず・レート非変動 (親 §4.4)。
+      winnerSide = null;
+      reasonKey = 'result.reason.nogame';
+      break;
     default:
       return null;
   }
@@ -1478,7 +1605,10 @@ function GameEndModal({
   // 表示は「自分視点」を優先、なければ絶対 side（先手/後手）
   // v0.42: 投了の場合は「投了しました」「相手が投了」だけを reasonKey に上書きして冗長表示を避ける
   let verdictKey: string;
-  if (winnerSide === null) {
+  if (status === 'nogame') {
+    // 引分とは別扱い。「対局不成立」と言い切る (勝敗も引分も付かない)。
+    verdictKey = 'result.verdict.nogame';
+  } else if (winnerSide === null) {
     verdictKey = 'result.verdict.draw';
   } else if (online.isOnline && online.mySide) {
     if (winnerSide === online.mySide) {

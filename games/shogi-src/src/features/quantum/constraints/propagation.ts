@@ -40,6 +40,7 @@
 import type { Player } from '../../../core/engine/mgf/types';
 import type { PieceId, PieceInstance, Position } from '../../../core/engine/position/types';
 import type { QuantumConstraint } from '../candidate-update';
+import { c303AssignmentConsistency } from './assignment';
 
 /**
  * C-106 unique assignment (hidden single).
@@ -269,4 +270,7 @@ export const propagationConstraints: QuantumConstraint[] = [
   // C-302 は「グループ丸ごと」の判定なので、個別の狭め (C-108) と個別の確定 (C-106/C-107) が
   // 効いて候補が減った後に回すほうが成立しやすい。よって最後。
   c302CountConfirmation,
+  // C-303 (v1.16) は割り当て全体を解く一番重い判定。C-106/C-107/C-302 はその特別な場合に
+  // あたるので、軽いそれらで候補が減った後に回す。
+  c303AssignmentConsistency,
 ];

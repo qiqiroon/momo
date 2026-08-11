@@ -30,8 +30,19 @@ function identityOf(pos: Position, owner: 'player1' | 'player2', kind: string, c
   throw new Error(`no ${owner}/${kind} identity`);
 }
 
-/** player1 の持ち駒を 1 枚足す (相手から取ってきた駒＝初期陣営は player2)。 */
+/**
+ * player1 の持ち駒を 1 枚足す (相手から取ってきた駒＝初期陣営は player2)。
+ *
+ * 取ってきた以上、後手の盤上の駒は 1 枚減っていなければならない。片側の駒の枚数と
+ * 身元の個数は必ず一致する (C-303 割り当て整合) ので、足すだけだと後手が 21 枚になり
+ * 実際の対局では起こらない矛盾した局面になる。よって盤から 1 枚取り除いてから足す。
+ * 取り除くのは 2 筋の歩 (同じ筋に後手の駒がまだ 2 枚残るので、身元の担い手が 1 枚に
+ * なって別の確定が誘発されることがない)。
+ */
 function withHandPiece(pos: Position, pieceId: string, candidates: PieceId[]): Position {
+  const board = pos.board.map((r) => r.slice());
+  board[2][1] = null;
+  pos = { ...pos, board };
   const piece: PieceInstance = {
     pieceId,
     kind: 'fu',

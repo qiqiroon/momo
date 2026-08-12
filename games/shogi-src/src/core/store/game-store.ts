@@ -17,6 +17,7 @@ import { NO_LIMIT_TIME_CONTROL, initClockState, type ClockState, type TimeContro
 import { get as pluginGet } from '../plugin/registry';
 import type { OnlineGameConnector } from '../plugin/gameConnector';
 import { useDebugStore, type DebugCandidateChangeEntry } from './debug-store';
+import { DEFAULT_QUANTUM_PARAMS, type QuantumParams } from './quantum-params';
 
 /**
  * 対局開始オプション (Phase 5-2)。
@@ -38,7 +39,7 @@ type QuantumInitFn = (pos: Position) => Position;
 type QuantumCandidateUpdateFn = (
   pos: Position,
   mgf: Mgf,
-  context?: { torusMode: 'none' | 'cylinder' | 'full' },
+  context?: { torusMode?: 'none' | 'cylinder' | 'full'; maxIterations?: number },
 ) => Position;
 /**
  * v1.09 (Phase 5-11 追補): 打つ手の直後に呼ぶ絞り込みフック。
@@ -86,6 +87,12 @@ export interface AnomalyState {
   myVote: AnomalyChoice | null;
   oppVote: AnomalyChoice | null;
   online: boolean;
+  /**
+   * Phase 5-15: 投票を出すか (§Q17.8 `anomaly_action`)。
+   * 標準の `vote_to_annul` は true。`notify_user` は知らせるだけなので false
+   * (バナーは出るが投票は開かず、盤は異常状態のまま残る)。
+   */
+  vote: boolean;
 }
 
 /**
@@ -249,6 +256,13 @@ interface GameState {
   quantumDisplay: QuantumDisplay;
   /** 未確定駒の見せ方を切り替える。操作権の判定は呼び出し側 (UI) の責務。 */
   setQuantumDisplay: (mode: QuantumDisplay) => void;
+  /**
+   * Phase 5-15: 量子モードの実行時パラメータ (§Q17.8)。対局設定の一部で、
+   * 既定値のままなら従来と同じ挙動になる。いまはデバッグパネルからのみ変更できる。
+   */
+  quantumParams: QuantumParams;
+  /** 実行時パラメータを部分更新する。 */
+  setQuantumParams: (patch: Partial<QuantumParams>) => void;
   /**
    * Phase 5-13: 異常状態を立てる。既に立っているか対局が終わっていれば何もしない。
    * 候補更新が異常を投げたときと、デバッグから故意に起こしたときの共通入口。
@@ -489,7 +503,8 @@ function applyAndCommit(
     // torusMode 等の追加副次情報を渡したい場合はここで context を組み立てる。
     if (candidateUpdateFn) {
       try {
-        nextPos = candidateUpdateFn(nextPos, mgf);
+        // Phase 5-15: 反復上限は対局設定 (§Q17.8 `max_iterations`) から。
+        nextPos = candidateUpdateFn(nextPos, mgf, { maxIterations: state.quantumParams.maxIterations });
       } catch (e) {
         const anomaly = asQuantumAnomaly(e);
         if (!anomaly) throw e;
@@ -719,11 +734,14 @@ export const useGameStore = create<GameState>((set, get) => ({
   paused: false,
   currentQuantum: false,
   quantumDisplay: 'cycle',
+  quantumParams: DEFAULT_QUANTUM_PARAMS,
   entangledPieceIds: [],
   anomaly: null,
 
+  setQuantumParams: (patch) => set({ quantumParams: { ...get().quantumParams, ...patch } }),
+
   raiseAnomaly: (cause, fromRemote = false) => {
-    const { status, anomaly } = get();
+    const { status, anomaly, quantumParams } = get();
     // 既に投票中、または対局が終わっているなら二重に立てない。
     if (anomaly || status !== 'playing') return;
     const connector = pluginGet<OnlineGameConnector>('gameConnector');
@@ -732,8 +750,28 @@ export const useGameStore = create<GameState>((set, get) => ({
     // 二重になるが、受信側は既に投票中なら無視するので害はない。相手が気づけない
     // 経路 (デバッグで故意に起こした場合) はこの知らせだけが頼りになる。
     if (!fromRemote) connector?.sendAnomalyRaise(cause);
+    // Phase 5-15 (§Q17.8 `anomaly_action`): 投票を挟まず即ノーゲームにする設定。
+    // 相手にも上で知らせてあるので、向こうも同じ設定なら同じ結末になる。
+    if (quantumParams.anomalyAction === 'no_game') {
+      set({
+        status: 'nogame',
+        anomaly: null,
+        activeClockSide: null,
+        selectedSquare: null,
+        selectedHandPieceId: null,
+        legalDestinations: [],
+        pendingPromotion: null,
+      });
+      return;
+    }
     set({
-      anomaly: { cause, myVote: null, oppVote: null, online },
+      anomaly: {
+        cause,
+        myVote: null,
+        oppVote: null,
+        online,
+        vote: quantumParams.anomalyAction === 'vote_to_annul',
+      },
       // 盤は停止時点のまま残すが、駒の選択だけは解除する (投票中は指せないため)。
       selectedSquare: null,
       selectedHandPieceId: null,
@@ -1156,17 +1194,26 @@ export const useGameStore = create<GameState>((set, get) => ({
       // ここでの減りは対局開始前の整理なので、演出もハイライトも出さない。
       // reset は lastAppliedMove=null / entangledPieceIds=[] で終わるため、
       // 観測アニメ・もつれハイライトのどちらも発火しない (下の set を参照)。
-      const candidateUpdateFn = pluginGet<QuantumCandidateUpdateFn>('quantum:candidateUpdate');
+      // Phase 5-15: 開始時に走らせるかは対局設定 (§Q17.8 `initial_propagation`)。
+      const candidateUpdateFn = state.quantumParams.initialPropagation
+        ? pluginGet<QuantumCandidateUpdateFn>('quantum:candidateUpdate')
+        : undefined;
       if (candidateUpdateFn) {
         try {
-          pos = candidateUpdateFn(pos, state.mgf);
+          pos = candidateUpdateFn(pos, state.mgf, { maxIterations: state.quantumParams.maxIterations });
         } catch (e) {
           // Phase 5-13: 開始前の整理で矛盾が出るのはルール定義そのものが破綻している状態。
           // 起きたことは隠さず、打ち切り時点の盤で始めて投票 UI に載せる。
           const anomaly = asQuantumAnomaly(e);
           if (!anomaly) throw e;
           pos = anomaly.position;
-          initialAnomaly = { cause: anomaly.anomalyCause, myVote: null, oppVote: null, online: false };
+          initialAnomaly = {
+            cause: anomaly.anomalyCause,
+            myVote: null,
+            oppVote: null,
+            online: false,
+            vote: state.quantumParams.anomalyAction === 'vote_to_annul',
+          };
         }
       }
     }

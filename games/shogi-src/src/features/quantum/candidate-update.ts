@@ -50,6 +50,15 @@ export interface QuantumContext {
   infoMap: Map<string, CandidateInfo>;
 }
 
+/**
+ * 呼び出し側が部分的に指定できる入力 (Phase 5-15)。
+ * 省略した項目は position から自動生成 / 既定値になる。
+ */
+export type QuantumContextInput = Partial<QuantumContext> & {
+  /** 反復上限 (§Q17.8 `max_iterations`)。省略時は DEFAULT_MAX_ITERATIONS。 */
+  maxIterations?: number;
+};
+
 /** context を省略した時の既定値 (torus 非適用・空 infoMap)。テスト向けフォールバック。 */
 export const DEFAULT_QUANTUM_CONTEXT: QuantumContext = {
   torusMode: 'none',
@@ -79,7 +88,11 @@ export type QuantumConstraint = (
   context: QuantumContext,
 ) => ReadonlySet<string>;
 
-const MAX_ITERATIONS = 512;
+/**
+ * 反復上限の既定値 (§Q17.8 `max_iterations` の標準値)。
+ * Phase 5-15 で対局設定から差し替えられるようになった。呼び出し側が指定しなければこの値。
+ */
+export const DEFAULT_MAX_ITERATIONS = 512;
 
 /**
  * §Q7.4 candidate_update の実装。plugin registry から `'quantum:constraints'`
@@ -102,25 +115,25 @@ const MAX_ITERATIONS = 512;
 export function candidateUpdate(
   pos: Position,
   mgf: Mgf,
-  contextInput?: QuantumContext,
+  contextInput?: QuantumContextInput,
 ): Position {
   const constraints = pluginGet<QuantumConstraint[]>('quantum:constraints') ?? [];
   if (constraints.length === 0) return pos;
 
   // context.infoMap は「対局中不変な初期属性の map」なので反復途中で作り直す必要はない。
-  // 呼び出し側で明示的に渡された context がある場合はそのまま尊重し (テスト向け)、
-  // 無ければ pos から生成する。
-  const context: QuantumContext = contextInput ?? {
-    torusMode: 'none',
-    infoMap: buildInitialInfoMap(pos),
+  // 呼び出し側で明示的に渡された分はそのまま尊重し (テスト向け)、無い分は pos から生成する。
+  const context: QuantumContext = {
+    torusMode: contextInput?.torusMode ?? 'none',
+    infoMap: contextInput?.infoMap ?? buildInitialInfoMap(pos),
   };
+  const maxIterations = contextInput?.maxIterations ?? DEFAULT_MAX_ITERATIONS;
 
   // Phase 5-13: 外側 (C-201 捕獲・打ち歩詰め絞り込み) で既に空になっている可能性がある。
   assertNoEmptyCandidates(pos);
 
   let current = pos;
   let final: Position | null = null;
-  for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
+  for (let iter = 0; iter < maxIterations; iter++) {
     // 1 反復 = 「候補を狭める制約群」→「C-301 単一候補確定」の 2 パス (§Q7.4 擬似コード)。
     const narrowed = applyConstraintsOnce(current, mgf, constraints, context);
     const confirmedPass = applyC301SingleConfirm(narrowed.next);

@@ -91,7 +91,95 @@ export function DebugPanel() {
             </button>
           </div>
         </div>
+
+        <QuantumParamControls />
       </div>
     </>
+  );
+}
+
+const rowStyle = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 8,
+  marginTop: 8,
+  fontSize: 11,
+} as const;
+
+/**
+ * Phase 5-15: 量子モードの実行時パラメータ (§Q17.8) の操作。
+ *
+ * 仕様は設定画面 (S09 系) への露出を「実装バリエーションとして認める」に留めており、
+ * 項目名や見せ方は画面機能仕様側の決めごとなので、そこが決まるまではここに置く。
+ * **既定値のままなら従来と完全に同じ挙動**になる。
+ *
+ * 反復上限を小さくすると「計算量が上限に達しました」を、異常時の挙動を変えると
+ * 投票を挟まない終わり方を、それぞれ故意に試せる。
+ */
+function QuantumParamControls() {
+  const params = useGameStore((s) => s.quantumParams);
+  const setParams = useGameStore((s) => s.setQuantumParams);
+
+  return (
+    <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+      <div style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.04em' }}>
+        量子モードの実行時パラメータ (§Q17.8)
+      </div>
+
+      <label style={rowStyle}>
+        <span>反復上限 (max_iterations)</span>
+        <input
+          type="number"
+          min={1}
+          value={params.maxIterations}
+          onChange={(e) => {
+            const n = Number(e.target.value);
+            if (Number.isFinite(n) && n >= 1) setParams({ maxIterations: Math.floor(n) });
+          }}
+          style={{
+            width: 72, padding: '2px 4px', fontSize: 11,
+            background: 'transparent', color: 'var(--text)',
+            border: '1px solid var(--border-strong)', borderRadius: 4,
+          }}
+        />
+      </label>
+
+      <label style={{ ...rowStyle, cursor: 'pointer' }}>
+        <span>開始時に絞り込みを 1 回 (initial_propagation)</span>
+        <input
+          type="checkbox"
+          checked={params.initialPropagation}
+          onChange={(e) => setParams({ initialPropagation: e.target.checked })}
+          style={{ accentColor: 'var(--orange)' }}
+        />
+      </label>
+
+      <label style={rowStyle}>
+        <span>異常時 (anomaly_action)</span>
+        <select
+          value={params.anomalyAction}
+          onChange={(e) => setParams({ anomalyAction: e.target.value as typeof params.anomalyAction })}
+          style={{
+            padding: '2px 4px', fontSize: 11,
+            background: 'var(--surface)', color: 'var(--text)',
+            border: '1px solid var(--border-strong)', borderRadius: 4,
+          }}
+        >
+          <option value="vote_to_annul">投票 (標準)</option>
+          <option value="notify_user">知らせるだけ</option>
+          <option value="no_game">即ノーゲーム</option>
+        </select>
+      </label>
+
+      <div style={{ ...rowStyle, color: 'var(--text-muted)' }}>
+        <span>観測タイミング (observation_timing)</span>
+        <span>着手後</span>
+      </div>
+      <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.4 }}>
+        ※ 反復上限と異常時の挙動は次の 1 手から効きます。開始時の絞り込みは対局を
+        始め直したときに効きます。手動観測 (manual) は仕様側が未確定です。
+      </div>
+    </div>
   );
 }

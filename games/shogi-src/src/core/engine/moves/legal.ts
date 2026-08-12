@@ -1,6 +1,7 @@
 import type { Mgf, MgfPieceDef } from '../mgf/types';
 import type { BoardCell, Move, PieceInstance, Position, Square } from '../position/types';
 import { applyMove } from '../position/apply';
+import { get as pluginGet } from '../../plugin/registry';
 import { buildInitialKindMap, confirmedKindOf, displayKindsFor } from '../candidate-kinds';
 import { isInCheck } from './check';
 import { generateDropMoves } from './drops';
@@ -34,21 +35,73 @@ export function isMoveLegal(mgf: Mgf, position: Position, move: Move, opts: Lega
   // いない駒は歩打とは言い切れないので禁止しない。逆に、詰みになる手が打てたという
   // ことは打ち歩詰めではない = その駒は歩ではないので、候補から歩を落とす
   // (features/quantum/drop-effects.ts)。
+  //
+  // v1.19 (Phase 5-15 §Q15.5): 詰みかどうかは**候補更新を通した安定状態**で見る。
+  // 絞り込みは候補を減らすだけなので相手の逃げ道は減る方向にしか動かない。つまり
+  // 通さずに見ると打ち歩詰めを**見逃して打ててしまう**side に外れていた (逆向きの
+  // 誤り=打てるはずの手を禁じる、は起きない)。
   if (move.type === 'drop' && !opts.skipUchifuTsume && mgf.constraints?.uchifu_tsume) {
     const player = position.sideToMove;
     const piece = position.hands[player].find((p) => p.pieceId === move.pieceId);
     if (piece && confirmedKindOf(mgf, piece, buildInitialKindMap(position)) === 'fu') {
-      if (isCheckmate(mgf, after)) return false;
+      const settled = settleForJudgement(mgf, after);
+      if (settled && isCheckmate(mgf, settled)) return false;
     }
   }
 
   return true;
 }
 
+type CandidateUpdateFn = (position: Position, mgf: Mgf) => Position;
+
+/**
+ * 判定用に「候補更新を通した安定状態」(§Q7.9) を作る。
+ *
+ * 本将棋モード (hook 未登録) では候補更新そのものが無いので、渡された局面がそのまま
+ * 安定状態。量子モードでは候補更新を 1 度通す。
+ *
+ * **異常 (候補が空・反復上限) が出たら null を返す**。呼び出し側は「判定できなかった」
+ * として扱い、手を弾かない。仮の判定の途中で出た異常でその手を禁じてしまうと、本物の
+ * 異常として表に出る機会を奪ってしまうため (2026-08-12 ユーザー方針=いまは量子異常を
+ * 表に出して発生条件そのものを減らしていく段階。将来スイッチで避けさせる予定)。
+ */
+function settleForJudgement(mgf: Mgf, position: Position): Position | null {
+  const candidateUpdate = pluginGet<CandidateUpdateFn>('quantum:candidateUpdate');
+  if (!candidateUpdate) return position;
+  try {
+    return candidateUpdate(position, mgf);
+  } catch {
+    return null;
+  }
+}
+
 export function isCheckmate(mgf: Mgf, position: Position): boolean {
   if (!isInCheck(mgf, position, position.sideToMove)) return false;
-  const escapes = generateLegalMoves(mgf, position, { skipUchifuTsume: true });
-  return escapes.length === 0;
+  return !hasAnyLegalMove(mgf, position, { skipUchifuTsume: true });
+}
+
+/**
+ * 合法手が 1 つでもあるか。**最初の 1 つが見つかった時点で打ち切る**。
+ *
+ * 詰み判定は「逃げ道が 1 つでもあるか」しか要らないのに、以前は合法手を全部作ってから
+ * 個数を見ていた。量子モードでは 1 手の合法性を確かめるたびに王手判定 (＝相手全駒の
+ * 手を候補の和集合で作る) が走るので、逃げ道が見つかった後の手を調べる分がそのまま
+ * 無駄になる。実測で 27ms → 7ms (169 手中 54 手目で発見・PC)。
+ *
+ * 詰んでいる場合は結局すべて調べるので最悪値は変わらない。返す答えは以前と同じ。
+ *
+ * ※この重さは「王として確定した駒がある」ときにしか出ない (§Q13.1 により、王が
+ * 未確定なら王手が成立せず isInCheck が即 false になる)。つまり終盤で王が確定して
+ * から効いてくる。
+ */
+export function hasAnyLegalMove(mgf: Mgf, position: Position, opts: LegalOpts = {}): boolean {
+  for (const m of generateAllBoardMoves(mgf, position)) {
+    if (isMoveLegal(mgf, position, m, opts)) return true;
+  }
+  for (const m of generateDropMoves(mgf, position)) {
+    if (isMoveLegal(mgf, position, m, opts)) return true;
+  }
+  return false;
 }
 
 /**

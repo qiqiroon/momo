@@ -826,6 +826,9 @@ function AnomalyNotice({ t }: { t: (key: string) => string }) {
     }
     if (voteOpen) return;
     seAnomalyHalt();
+    // Phase 5-15 (§Q17.8 `anomaly_action=notify_user`): 知らせるだけの設定では
+    // 投票を開かない。バナーだけ出して盤は異常状態のまま残す。
+    if (!anomaly.vote) return;
     const id = setTimeout(() => {
       setVoteOpen(true);
       seAnomalyVoteOpen();

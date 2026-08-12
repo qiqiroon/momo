@@ -2863,3 +2863,66 @@ body::before {
   .anomaly-scrim { backdrop-filter: none; -webkit-backdrop-filter: none; }
 }
 @keyframes anomaly-fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* ===== v1.22: 未確定駒の見せ方 カード式選択UI (S10 モック v3 / 付録D-10 v2.3 §5.2.1) =====
+   モックの寸法をそのまま使う: 2 列・すき間 8px・ミニプレビュー 60px・サンプル駒 36x42。 */
+.qd-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;   /* カードを足すときは 3〜4 列へ (付録 §5.2.2) */
+  gap: 8px;
+}
+.qd-card {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  color: var(--text);
+  transition: transform 0.15s, border-color 0.15s, background 0.15s;
+}
+.qd-card:hover { transform: translateY(-1px); border-color: var(--orange); }
+.qd-card.selected {
+  border: 2px solid var(--orange);
+  background: rgba(234, 88, 12, 0.08);
+  padding: 9px 11px;                /* 枠が太る分を相殺して並びを揺らさない */
+}
+.qd-card.selected::after {
+  content: '✓';
+  position: absolute; top: -8px; right: -8px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--orange); color: #fff;
+  font-size: 10px; line-height: 16px; text-align: center;
+}
+/* 操作できないとき (部屋の値が重ねに固定されている側) */
+.qd-grid.locked .qd-card { opacity: .55; cursor: not-allowed; }
+.qd-grid.locked .qd-card:hover { transform: none; border-color: var(--border-strong); }
+.qd-grid.locked .qd-card.selected:hover { border-color: var(--orange); }
+.qd-title { font-size: 12px; font-weight: 600; margin-top: 6px; }
+.qd-desc { font-size: 10px; color: var(--text-muted); }
+.qd-badge {
+  font-size: 10px; color: var(--text-muted);
+  border: 1px solid var(--border-strong); border-radius: 4px;
+  padding: 2px 6px; white-space: nowrap;
+}
+.qd-preview {
+  height: 60px; border-radius: 4px; background: rgba(0, 0, 0, 0.15);
+  display: flex; align-items: center; justify-content: center;
+}
+.qd-piece {
+  position: relative; width: 36px; height: 42px;
+  background: linear-gradient(160deg, #f2e0b8, #e9d3a3 55%, #d9c091 100%);
+  border: 1px solid #b7965f;
+  clip-path: polygon(50% 3%, 80% 20%, 92% 100%, 8% 100%, 20% 20%);
+}
+.qd-glyph {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Yuji Syuku', serif; font-size: 24px; color: #2a1c0c;
+  padding-top: 4px;
+}
+/* 重ね = 濃い字のまま少しずらして重ねる (半透明にしない) */
+.qd-glyph.g2 { transform: translate(-3px, 1px); }
+.qd-glyph.g3 { transform: translate(3px, -1px); }

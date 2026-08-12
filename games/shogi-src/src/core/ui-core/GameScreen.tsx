@@ -68,6 +68,9 @@ export function GameScreen({ variant }: GameScreenProps) {
   // displayKindsFor が常に [piece.kind] を返すので、以下は全て本将棋と同じ挙動に縮退する。
   const currentQuantum = useGameStore((s) => s.currentQuantum);
   const quantumDisplay = useGameStore((s) => s.quantumDisplay);
+  const roomQuantumDisplay = useGameStore((s) => s.roomQuantumDisplay);
+  // v1.22: 移動先ヒント (行き先マスのオレンジ) の表示。S10 設定で消せる。
+  const hintOn = useGameStore((s) => s.hintAlwaysOn);
   const setQuantumDisplay = useGameStore((s) => s.setQuantumDisplay);
   const selectSquare = useGameStore((s) => s.selectSquare);
   const selectHandPiece = useGameStore((s) => s.selectHandPiece);
@@ -541,29 +544,42 @@ export function GameScreen({ variant }: GameScreenProps) {
 
           <div className="turn-row">
             <div className={`turn-banner${status === 'checkmate' ? ' opp' : ''}`}>{turnLabel}</div>
-            {/* v1.08: 量子 ON のときだけ出す。公平性原則 (spec §4.4) により実際に
-                切り替えられるのはルール設定者だけで、相手側は現在値の表示のみ。 */}
-            {currentQuantum && (
-              <div className="qmode-toggle" title={ruleSetter ? undefined : t('qmode.lockedHint')}>
-                <button
-                  type="button"
-                  className={`qm${quantumDisplay === 'cycle' ? ' active' : ''}`}
-                  disabled={!ruleSetter}
-                  onClick={() => setQuantumDisplay('cycle')}
+            {/* ★申し送り (ユーザー判断 2026-08-12): **この切替ボタンはいずれ削除する**。
+                付録D-1 §5.6.2 が「対局画面に切替 UI は持たない」と定めており、見せ方の切替は
+                S02 / S10 の 2 か所に集約する。今回は消さずに新しい分岐へ揃えるところまで。
+                削除するときは合わせて付録D-1 §5.6.2 の記述と本コメントを片付けること。
+
+                v1.08: 量子 ON のときだけ出す。v1.22 で操作の可否を spec 駒UI v0.8 §4.4 に合わせた。
+                ルール設定者は部屋の値を決められる。それ以外は部屋の値が巡回のときだけ
+                自分の画面の値を切り替えられ、重ねのときは固定 (読みやすい側へは逃げられない)。 */}
+            {currentQuantum && (() => {
+              const stackFixed = !ruleSetter && roomQuantumDisplay === 'stack';
+              const canEdit = ruleSetter || !stackFixed;
+              return (
+                <div
+                  className="qmode-toggle"
+                  title={ruleSetter ? undefined : stackFixed ? t('qmode.stackFixed') : t('qmode.ownScreenOnly')}
                 >
-                  {t('qmode.cycle')}
-                </button>
-                <button
-                  type="button"
-                  className={`qm${quantumDisplay === 'stack' ? ' active' : ''}`}
-                  disabled={!ruleSetter}
-                  onClick={() => setQuantumDisplay('stack')}
-                >
-                  {t('qmode.stack')}
-                </button>
-                {!ruleSetter && <span className="qm-lock" aria-hidden="true">🔒</span>}
-              </div>
-            )}
+                  <button
+                    type="button"
+                    className={`qm${quantumDisplay === 'cycle' ? ' active' : ''}`}
+                    disabled={!canEdit}
+                    onClick={() => setQuantumDisplay('cycle')}
+                  >
+                    {t('qmode.cycle')}
+                  </button>
+                  <button
+                    type="button"
+                    className={`qm${quantumDisplay === 'stack' ? ' active' : ''}`}
+                    disabled={!canEdit}
+                    onClick={() => setQuantumDisplay('stack')}
+                  >
+                    {t('qmode.stack')}
+                  </button>
+                  {stackFixed && <span className="qm-lock" aria-hidden="true">🔒</span>}
+                </div>
+              );
+            })()}
           </div>
 
           <div className="pinfo opp">
@@ -637,7 +653,9 @@ export function GameScreen({ variant }: GameScreenProps) {
                     const cls = [
                       'sq',
                       isSelected(row, col) ? 'selected' : '',
-                      isHint(row, col) ? 'hint' : '',
+                      // v1.22: 移動先ヒント (行き先マスのオレンジ) は S10 設定で消せる。
+                      // 消えるのは色だけで、指せる場所が変わるわけではない。
+                      hintOn && isHint(row, col) ? 'hint' : '',
                       isLastMove(row, col) ? 'lastmove' : '',
                       isEntangledBoard(row, col) ? 'entangled' : '',
                     ]

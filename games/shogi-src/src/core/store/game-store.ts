@@ -18,6 +18,9 @@ import { get as pluginGet } from '../plugin/registry';
 import type { OnlineGameConnector } from '../plugin/gameConnector';
 import { useDebugStore, type DebugCandidateChangeEntry } from './debug-store';
 import { DEFAULT_QUANTUM_PARAMS, type QuantumParams } from './quantum-params';
+import {
+  loadHintAlwaysOn, loadMyQuantumDisplay, saveHintAlwaysOn, saveMyQuantumDisplay,
+} from './ui-settings';
 
 /**
  * 対局開始オプション (Phase 5-2)。
@@ -248,14 +251,38 @@ interface GameState {
   /** 現局面が量子モードで初期化されたか。reset({quantum}) で更新される。v0.90 追加。 */
   currentQuantum: boolean;
   /**
-   * 未確定駒の見せ方 (Phase 5-11)。対局設定 `qtdisp` の実行時の単一情報源で、
-   * S02 (ルール選択) / S10 (歯車設定) / 対局画面の切替はすべてここを読み書きする。
-   * 公平性原則 (spec §4.4) によりルール設定者だけが操作でき、両プレイヤーに共通適用される
-   * (＝相手側の値はホストの選択が部屋のルールとして届く)。
+   * 未確定駒の見せ方の **実効値** (Phase 5-11・v1.22 で 2 層化)。盤・駒・棋譜など
+   * 描画側はすべてこれを読む。値の決め方は spec 駒デザイン・対局UI v0.8 §4.4:
+   *   部屋の値が stack (重ね) なら常に stack / cycle (巡回) なら各自の画面の値。
    */
   quantumDisplay: QuantumDisplay;
-  /** 未確定駒の見せ方を切り替える。操作権の判定は呼び出し側 (UI) の責務。 */
+  /**
+   * v1.22: **部屋の値** (対局設定 `qtdisp`)。ルール設定者が決め、ルール同期で
+   * 相手・観戦者へ配られる。読みやすさの下限を決めるもので、これより読みやすくはできない。
+   */
+  roomQuantumDisplay: QuantumDisplay;
+  /**
+   * v1.22: **各自の画面の値**。端末ごとに持ち、通信では送らない。
+   * 部屋の値が cycle のときだけ実効値に効く (stack のときは無視される)。
+   */
+  myQuantumDisplay: QuantumDisplay;
+  /**
+   * 未確定駒の見せ方を切り替える。**どちらの層に書くかは本メソッドが決める** (spec §4.4):
+   *   ルール設定者 → 部屋の値 (と自分の値) を変え、部屋のルールへ書き戻す。
+   *   それ以外     → 部屋の値が cycle のときだけ自分の値を変える。stack のときは何もしない。
+   */
   setQuantumDisplay: (mode: QuantumDisplay) => void;
+  /**
+   * v1.22: 部屋の値を外から受け取る (ルール同期・対局開始時)。
+   * 自分の画面の値は書き換えない (部屋が cycle に戻れば再び効くため)。
+   */
+  applyRoomQuantumDisplay: (mode: QuantumDisplay) => void;
+  /**
+   * v1.22: 移動先ヒント (指せるマスをオレンジに塗る) を出すか。既定 ON・端末ごとの設定で、
+   * 通信では送らない。消えるのは色だけで、指せる場所そのものは変わらない。
+   */
+  hintAlwaysOn: boolean;
+  setHintAlwaysOn: (on: boolean) => void;
   /**
    * Phase 5-15: 量子モードの実行時パラメータ (§Q17.8)。対局設定の一部で、
    * 既定値のままなら従来と同じ挙動になる。いまはデバッグパネルからのみ変更できる。
@@ -733,7 +760,10 @@ export const useGameStore = create<GameState>((set, get) => ({
   activeClockSide: null,
   paused: false,
   currentQuantum: false,
-  quantumDisplay: 'cycle',
+  quantumDisplay: loadMyQuantumDisplay(),
+  roomQuantumDisplay: 'cycle',
+  myQuantumDisplay: loadMyQuantumDisplay(),
+  hintAlwaysOn: loadHintAlwaysOn(),
   quantumParams: DEFAULT_QUANTUM_PARAMS,
   entangledPieceIds: [],
   anomaly: null,
@@ -853,10 +883,31 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   setQuantumDisplay: (mode) => {
-    set({ quantumDisplay: mode });
-    // 対局設定 (qtdisp) は部屋のルールと同じ値なので、そちらにも書き戻して
-    // 次の対局・再戦でルール設定者の選択が失われないようにする (spec §4.4 単一情報源)。
-    pluginGet<OnlineGameConnector>('gameConnector')?.setQuantumDisplayMode(mode);
+    // spec 駒デザイン・対局UI v0.8 §4.4。どちらの層に書くかをここ 1 か所で決める。
+    const isSetter = pluginGet<OnlineGameConnector>('gameConnector')?.isRuleSetter() ?? true;
+    if (isSetter) {
+      // ルール設定者は部屋の値を決める。自分の画面の値も同じにして、次の対局へ持ち越す。
+      saveMyQuantumDisplay(mode);
+      set({ roomQuantumDisplay: mode, myQuantumDisplay: mode, quantumDisplay: mode });
+      // 対局設定 (qtdisp) は部屋のルールそのものなので書き戻す (spec §4.4 単一情報源)。
+      pluginGet<OnlineGameConnector>('gameConnector')?.setQuantumDisplayMode(mode);
+      return;
+    }
+    // 設定者でない側。部屋の値が重ねなら固定＝読みやすい側へは逃げられない。
+    if (get().roomQuantumDisplay === 'stack') return;
+    saveMyQuantumDisplay(mode);
+    set({ myQuantumDisplay: mode, quantumDisplay: mode });
+  },
+
+  setHintAlwaysOn: (on) => {
+    saveHintAlwaysOn(on);
+    set({ hintAlwaysOn: on });
+  },
+
+  applyRoomQuantumDisplay: (mode) => {
+    // 部屋の値が重ねに変わった瞬間、自分の画面の値は無視して重ねへ落とす。
+    // 自分の値そのものは残す (部屋が巡回に戻ればまた効く)。
+    set({ roomQuantumDisplay: mode, quantumDisplay: mode === 'stack' ? 'stack' : get().myQuantumDisplay });
   },
 
   selectSquare: (sq) => {
@@ -1220,8 +1271,13 @@ export const useGameStore = create<GameState>((set, get) => ({
     const tc = state.timeControl;
     set({
       currentQuantum: quantum,
-      // Phase 5-11: 表示方式は対局設定 (qtdisp) の一部。未指定なら現在値を維持する。
-      quantumDisplay: options?.quantumDisplay ?? state.quantumDisplay,
+      // Phase 5-11: 表示方式は対局設定 (qtdisp) の一部＝これは「部屋の値」。未指定なら現在値を維持。
+      // v1.22: 実効値は「部屋が重ねなら重ね／巡回なら各自の画面の値」(spec 駒UI v0.8 §4.4)。
+      roomQuantumDisplay: options?.quantumDisplay ?? state.roomQuantumDisplay,
+      quantumDisplay:
+        (options?.quantumDisplay ?? state.roomQuantumDisplay) === 'stack'
+          ? 'stack'
+          : state.myQuantumDisplay,
       position: pos,
       selectedSquare: null,
       selectedHandPieceId: null,

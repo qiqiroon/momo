@@ -147,7 +147,8 @@ export function handleShogiMessage(data: unknown): void {
       // v0.90: 量子 ON の部屋なら初期候補集合を割り当てる (Phase 5-2)。
       // オフライン側と揃えるため、game_start を受けたタイミングで盤面を初期化する。
       // v1.08 (Phase 5-11): 未確定駒の見せ方 (qtdisp) は部屋のルールの一部なので、
-      // ホストの選択をゲスト側にもそのまま適用する (公平性原則・spec §4.4)。
+      // ホストの選択をゲスト側にも「部屋の値」として適用する (spec 駒UI v0.8 §4.4)。
+      // v1.22: 部屋の値が巡回なら、実際の見え方は各自の画面の値になる。
       useGameStore.getState().reset({
         quantum: cfg?.quantum ?? false,
         quantumDisplay: cfg?.quantumDisplayMode ?? 'cycle',
@@ -302,6 +303,9 @@ export function handleShogiMessage(data: unknown): void {
       }
       const applied = applySyncedRules(msg.rules);
       useMatchmakingStore.getState().setActiveRoomConfig(applied);
+      // v1.22: 未確定駒の見せ方は「部屋の値」として受け取る。自分の画面の値は残したまま、
+      // 部屋が重ねなら実際の見え方だけ重ねへ落とす (spec 駒UI v0.8 §4.4)。
+      useGameStore.getState().applyRoomQuantumDisplay(applied.quantumDisplayMode);
       // 量子の実行時パラメータは両者の計算結果を左右するので、ホストの値に揃える
       // (v1.19 の申し送り: デバッグパネルで片側だけ変えると局面がずれる)。
       useGameStore.getState().setQuantumParams(msg.rules.quantumParams);

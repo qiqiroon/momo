@@ -9,6 +9,9 @@ import { useMatchmakingStore, type TorusMode, type QuantumDisplayMode, type Time
 import type { GameType } from '../roomNameCodec';
 import { MiniBoardPreview, QUANTUM_PIECES, pieceLabel } from './MiniBoardPreview';
 import { seButton } from '../../../core/audio/se-synth';
+import { useGameStore } from '../../../core/store/game-store';
+import { get as pluginGet } from '../../../core/plugin/registry';
+import type { OnlineGameConnector } from '../../../core/plugin/gameConnector';
 
 /** v0.58 S02 ルール選択 (レイアウト圧縮 + 時間設定を S04 から移設)。
  *
@@ -126,7 +129,23 @@ export function RuleSelectScreen() {
     if (!quantumUsable) return;
     setConfig({ quantum: on });
   };
-  const onSetQm = (m: QuantumDisplayMode) => setConfig({ quantumDisplayMode: m });
+  /**
+   * v1.22 (spec 駒デザイン・対局UI v0.8 §4.4 / 付録D-2 v1.3):
+   * ここで決めるのは**部屋の値**＝対局の基準。S02 に来るのはルールを決める側なので
+   * 通常は常に操作できるが、決める側でない状態で開いた場合に備えて分岐も持たせる。
+   * 部屋の値が重ねなら、決める側でない人は巡回へ変えられない。
+   */
+  const isRuleSetter = pluginGet<OnlineGameConnector>('gameConnector')?.isRuleSetter() ?? true;
+  const qmLocked = !isRuleSetter && config.quantumDisplayMode === 'stack';
+  const onSetQm = (m: QuantumDisplayMode) => {
+    if (qmLocked) return;
+    if (isRuleSetter) {
+      setConfig({ quantumDisplayMode: m });
+      return;
+    }
+    // 決める側でないときは部屋の値を動かさず、自分の画面の値だけを変える。
+    useGameStore.getState().setQuantumDisplay(m);
+  };
 
   // v0.64: 時計あり (byoyomi/fischer/sudden_death) のデフォルトを 10 分 + 30 秒に統一
   const setTimeMode = (m: TimeControlMode) => {
@@ -332,10 +351,13 @@ export function RuleSelectScreen() {
                   {config.quantum && quantumUsable && (
                     <div className="quantum-sub show">
                       <div className="qh">{t('s02.qmTitle')}</div>
+                      {/* v1.22: 新しい決まり (付録D-2 v1.3 §4.1) を説明する文面。
+                          巡回なら各自が自分の画面だけ変えられる / 重ねなら全員が重ねのまま。 */}
                       <div className="fair">
                         <b>{t('s02.qmFairBold')}</b>
                         {t('s02.qmFairRest')}
                       </div>
+                      {qmLocked && <div className="incompat show">{t('qmode.stackFixed')}</div>}
                       {/* v0.63: 巡回/重ねをスイッチではなくパネル選択に。パネル自体が選択ボタン。
                           巡回は 1 秒ごとに強い駒→弱い駒へ、重ねは 8 種類を全て重ねる。 */}
                       <div className="qpreview">

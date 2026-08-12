@@ -64,20 +64,20 @@ describe('S10 設定画面', () => {
   it('秒読み音は値を覚える (音そのものは未実装なので鳴らない)', () => {
     mockConnector(true);
     render(<SettingsPopup open onClose={() => {}} />);
-    // 音セクションの 1 つ目のチェックボックスが秒読み音
-    const box = screen.getAllByRole('checkbox')[0] as HTMLInputElement;
-    expect(box.checked).toBe(true);
-    fireEvent.click(box);
+    // 音セクションの 1 つ目のスイッチが秒読み音 (モックと同じスイッチ形式)
+    const sw = screen.getAllByRole('switch')[0];
+    expect(sw.getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(sw);
     expect(localStorage.getItem('shogi.settings.sound.byomu')).toBe('false');
   });
 
   it('移動先ヒントを消すと設定に残る (指せる場所は変えない)', () => {
     mockConnector(true);
     render(<SettingsPopup open onClose={() => {}} />);
-    // 対局セクションのチェックボックス (2 つ目) が移動先ヒント
-    const box = screen.getAllByRole('checkbox')[1] as HTMLInputElement;
-    expect(box.checked).toBe(true);
-    fireEvent.click(box);
+    // 対局セクションのスイッチ (2 つ目) が移動先ヒント
+    const sw = screen.getAllByRole('switch')[1];
+    expect(sw.getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(sw);
     expect(useGameStore.getState().hintAlwaysOn).toBe(false);
   });
 
@@ -121,6 +121,22 @@ describe('S10 設定画面', () => {
     useGameStore.setState({ currentQuantum: false });
     render(<SettingsPopup open onClose={() => {}} />);
     expect(screen.queryAllByRole('radio')).toHaveLength(0);
+  });
+
+  it('全設定を既定に戻すは線より上、クレジットは線の下', () => {
+    mockConnector(true);
+    useDebugStore.setState({ enabled: true });
+    const { container } = render(<SettingsPopup open onClose={() => {}} />);
+    const reset = screen.getByText('全設定を既定に戻す');
+    const credits = screen.getByText('クレジット');
+    // 並び順: リセット → クレジット
+    expect(reset.compareDocumentPosition(credits) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // クレジット側の枠が区切り線を持ち、リセット側は持たない
+    expect(credits.parentElement?.style.borderTop).toContain('1px solid');
+    expect(reset.parentElement?.style.borderTop).toBe('');
+    // デバッグパネルへの入口も線の下 (クレジットと同じ枠)
+    expect(credits.parentElement?.contains(screen.getByText('デバッグパネル'))).toBe(true);
+    expect(container).toBeTruthy();
   });
 
   it('リセットは確認を挟んでから既定に戻す', () => {

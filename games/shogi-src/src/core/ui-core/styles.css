@@ -2926,3 +2926,25 @@ body::before {
 /* 重ね = 濃い字のまま少しずらして重ねる (半透明にしない) */
 .qd-glyph.g2 { transform: translate(-3px, 1px); }
 .qd-glyph.g3 { transform: translate(3px, -1px); }
+
+/* v1.22: 設定パネルのスイッチ (S10 モック v3 / 付録D-10 §4.5)。
+   チェックボックスではなくモックと同じ形にする。44x24・つまみ 20px・入で橙。 */
+.set-toggle {
+  position: relative;
+  width: 44px; height: 24px;
+  background: var(--border-strong);
+  border: none; border-radius: 12px;
+  cursor: pointer; flex-shrink: 0;
+  transition: background 0.2s ease;
+  padding: 0;
+}
+.set-toggle::after {
+  content: '';
+  position: absolute; top: 2px; left: 2px;
+  width: 20px; height: 20px;
+  background: #fff; border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  transition: transform 0.2s ease;
+}
+.set-toggle.on { background: var(--orange); }
+.set-toggle.on::after { transform: translateX(20px); }

@@ -78,49 +78,30 @@ export function SettingsPopup({ open, onClose }: SettingsPopupProps) {
         </label>
         {/* v1.22: 秒読み音 (S10 モック v3 / 付録D-10 §5.1 の音セクション 3 行目)。
             秒読みの音そのものはまだ実装していないので、いまは何も鳴らない。 */}
-        <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12, marginTop: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12, marginTop: 8 }}>
           <span style={{ flex: 1, minWidth: 0, color: 'var(--text-muted)' }}>{t('settings.byomuSound')}</span>
-          <input
-            type="checkbox"
-            checked={byomuOn}
-            onChange={(e) => { setByomuOn(e.target.checked); saveByomuSound(e.target.checked); }}
-            style={{ accentColor: 'var(--orange)', width: 16, height: 16, cursor: 'pointer' }}
+          <SettingSwitch
+            label={t('settings.byomuSound')}
+            on={byomuOn}
+            onChange={(v) => { setByomuOn(v); saveByomuSound(v); }}
           />
-        </label>
+        </div>
         {/* v1.22: 対局セクション (S10 モック v3 / 付録D-10 §5.2 の行 2-1・2-2) */}
         <div style={{ fontSize: 11, color: 'var(--orange)', fontWeight: 700, letterSpacing: '0.06em', marginTop: 14, marginBottom: 8 }}>
           {t('settings.gameSection')}
         </div>
-        <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>
           <span style={{ flex: 1, minWidth: 0 }}>
             <span style={{ color: 'var(--text-muted)' }}>{t('settings.hintAlwaysOn')}</span>
             <span style={{ display: 'block', fontSize: 10, color: 'var(--text-muted)', opacity: 0.7 }}>
               {t('settings.hintDesc')}
             </span>
           </span>
-          <input
-            type="checkbox"
-            checked={hintOn}
-            onChange={(e) => setHintOn(e.target.checked)}
-            style={{ accentColor: 'var(--orange)', width: 16, height: 16, cursor: 'pointer' }}
-          />
-        </label>
-        <QuantumDisplaySection t={t} />
-        {/* v0.80: ボタン → リンク風テキストに変更 */}
-        <div style={{ marginTop: 12, textAlign: 'right' }}>
-          <a
-            href="#credits"
-            onClick={(e) => { e.preventDefault(); setCreditsOpen(true); }}
-            style={{
-              fontSize: 11, color: 'var(--text-muted)',
-              textDecoration: 'underline', cursor: 'pointer',
-            }}
-          >
-            {t('sound.creditsButton')}
-          </a>
+          <SettingSwitch label={t('settings.hintAlwaysOn')} on={hintOn} onChange={setHintOn} />
         </div>
-        {/* v1.22: リセットゾーン (付録D-10 §6)。確認を挟んでから既定値に戻す。 */}
-        <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border-strong)', textAlign: 'center' }}>
+        <QuantumDisplaySection t={t} />
+        {/* v1.22: リセットは設定の一部なので**線より上**。確認を挟んでから既定値に戻す (付録D-10 §6)。 */}
+        <div style={{ marginTop: 14, textAlign: 'center' }}>
           <button
             type="button"
             onClick={() => setResetOpen(true)}
@@ -134,7 +115,21 @@ export function SettingsPopup({ open, onClose }: SettingsPopupProps) {
             {t('settings.reset')}
           </button>
         </div>
-        <DebugPanelLink onOpen={onClose} />
+        {/* v1.22: 設定ではないもの (クレジット・デバッグパネルへの入口) は**線の下**へ。
+            v0.80: ボタン → リンク風テキストに変更 */}
+        <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border-strong)', textAlign: 'right' }}>
+          <a
+            href="#credits"
+            onClick={(e) => { e.preventDefault(); setCreditsOpen(true); }}
+            style={{
+              fontSize: 11, color: 'var(--text-muted)',
+              textDecoration: 'underline', cursor: 'pointer',
+            }}
+          >
+            {t('sound.creditsButton')}
+          </a>
+          <DebugPanelLink onOpen={onClose} />
+        </div>
       </div>
       {creditsOpen && <CreditsModal onClose={() => setCreditsOpen(false)} t={t} />}
       {resetOpen && (
@@ -204,6 +199,25 @@ function QuantumDisplaySection({ t }: { t: (k: string) => string }) {
         ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * v1.22: 設定のオン/オフスイッチ (S10 モック v3 / 付録D-10 §4.5)。
+ * モックはチェックボックスではなくスイッチなので、そちらに合わせる。
+ */
+function SettingSwitch({ label, on, onChange }: {
+  label: string; on: boolean; onChange: (on: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      className={`set-toggle${on ? ' on' : ''}`}
+      onClick={() => onChange(!on)}
+    />
   );
 }
 

@@ -18,6 +18,14 @@ const LS_LAST_PLAYER_NAME = 'shogi.lobby.lastPlayerName';
 /** localStorage キー：前回の部屋名 (パスワードは保存しない) */
 const LS_LAST_ROOM_NAME = 'shogi.roomForm.lastRoomName';
 
+/**
+ * v1.21: 部屋一覧を取り直す間隔 (ミリ秒)。
+ *
+ * 待つための画面なので、消えた部屋が数秒残る程度は許容して回数を抑える。
+ * 送るのは小さな 1 通で、返ってくるのも部屋一覧だけ。
+ */
+const ROOM_LIST_REFRESH_MS = 10_000;
+
 /** v0.58 S04 通信対戦ロビー。3 カード構成。
  *  - カード A: 接続状態 + プレイヤー名
  *  - カード B: 部屋に入る (公開部屋一覧 + 非公開部屋の表示切替)
@@ -84,6 +92,43 @@ export function LobbyScreen() {
   useEffect(() => {
     ensureMatchmakingInit();
   }, []);
+
+  // v1.21 (ユーザー報告 2026-08-12): 部屋一覧を定期的に取り直す。
+  //
+  // それまでは更新ボタンを押したときと、サーバーから知らせが届いたときにしか
+  // 一覧が変わらなかった。ホストの回線が黙って切れた場合など知らせが来ないことが
+  // あり、**もう無い部屋が並んだまま**になっていた (サーバー側は無いと分かっていて、
+  // 押すと「部屋が見つかりません」と返ってくる状態)。
+  //
+  // この画面を開いている間だけ動かす。裏に回った (タブが隠れた) 間は止めて、
+  // 戻ってきたらすぐ 1 回取り直す — 復帰直後に古い一覧を見せないため。
+  useEffect(() => {
+    const refresh = () => {
+      if (document.hidden) return;
+      const client = getMomoMatchmaking();
+      if (!client) return;
+      // 部屋に入っている間は一覧を触らない (入室中に上書きすると表示が乱れる)
+      if (useMatchmakingStore.getState().currentRoomId) return;
+      client.refreshRooms();
+    };
+    refresh();
+    const timer = window.setInterval(refresh, ROOM_LIST_REFRESH_MS);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, []);
+
+  // v1.21 (ユーザー報告 2026-08-12): 入室に失敗したら、その場で一覧を取り直す。
+  // 押しても入れない行が残っていると同じ行を何度も押すことになるので、次の定期更新を
+  // 待たずに消す。消えたかどうかの判断はサーバーの返事に任せる (手元で勝手に消さない)。
+  useEffect(() => {
+    if (!errorMessage) return;
+    if (useMatchmakingStore.getState().currentRoomId) return;
+    const client = getMomoMatchmaking();
+    if (client) client.refreshRooms();
+  }, [errorMessage]);
 
   // v0.58.1: Chrome の autofill 対策。autocomplete="new-password" を Chrome は無視するので、
   // マウント直後 + 少し遅延して 2 回、パスワード欄の DOM 値を強制的に空に戻す。

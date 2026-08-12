@@ -18,15 +18,38 @@
  * 段階 2-5.2 以降:
  * - move / resign / undo / draw / chat / hash_check / …
  *
+ * Phase 5-12 v1.20（ルール同期・親 §6.5）:
+ * - rule_sync : ホスト → ゲスト。部屋のルール定義を送る（一方向）
+ * - rule_ack  : ゲスト → ホスト。受領と検証の結果を返す
+ *
  * 段階 2-7 v0.28（チャット）:
  * - chat : 対局中の会話メッセージ。発言者側と本文を含む。
  *          両者の履歴表示は共通のため、発言者側（player1=先手 / player2=後手）を
  *          相手側で描画するためにメッセージ本体に持たせる。
  */
 
-import type { SideChoice, SideSelection } from './store';
+import type { TimeControl } from '../../core/engine/time-control';
+import type { QuantumParams } from '../../core/store/quantum-params';
+import type { GameType } from './roomNameCodec';
+import type { QuantumDisplayMode, SideChoice, SideSelection, TorusMode } from './store';
 
 export const PROTOCOL_VERSION = 1;
+
+/**
+ * Phase 5-12: このクライアントが扱える機能の名札 (キックオフ資料 5-12)。
+ *
+ * いまは両者が同じコードなので常に一致するが、将来クライアントの版が食い違ったときに
+ * 「相手はこのルールを扱えない」を対局が始まる前に見つけるための足場。名札を増やす
+ * ときは古い版が知らない値として扱われる = 古い相手が非対応を返す、が正しい動き。
+ */
+export const CLIENT_CAPABILITIES = [
+  'shogi',
+  'hasami',
+  'torus:cylinder',
+  'torus:full',
+  'quantum',
+  'quantum:params',
+] as const;
 
 /** すべてのメッセージ共通の envelope */
 interface Envelope {
@@ -226,6 +249,107 @@ export interface AnomalyRaiseMsg extends Envelope {
   debugForce?: 'empty' | 'limit';
 }
 
+/**
+ * Phase 5-12: ルール同期で揃える対局設定の一式 (親 §6.5)。
+ *
+ * 「部屋を作った人が決めたルールを対戦相手に送って揃える」ためのもので、対応可否を
+ * 相談する仕組みではない (受け取る側は原則そのまま採用する)。ゲストが返せるのは
+ * 「自分のエンジンでは扱えない」という拒否だけ。
+ *
+ * 自作ルールの定義本体 (MGF) はここに含めていない。作る・保存する・選ぶ機能自体が
+ * Phase 7 (自由ルール基盤) の担当で、いま送れる中身が無いため。§6.5 が定める MGF
+ * 送信はその段で足す (2026-08-12 ユーザー判断)。
+ */
+export interface SyncedRules {
+  gameType: GameType;
+  torusMode: TorusMode;
+  quantum: boolean;
+  quantumDisplayMode: QuantumDisplayMode;
+  timeControl: TimeControl;
+  customRuleName?: string;
+  /**
+   * 量子の実行時パラメータ (§Q17.8)。両者の計算結果を左右するので必ず揃える。
+   * デバッグパネルで片側だけ変えると局面がずれる、という v1.19 の申し送りがここで閉じる。
+   */
+  quantumParams: QuantumParams;
+}
+
+/** ルールを受け取れなかった理由 (親 §6.5.1 の reason コードに準じる)。 */
+export type RuleAckReason =
+  | 'unsupported_game_type'
+  | 'unsupported_torus_mode'
+  | 'engine_not_quantum_capable'
+  | 'rule_digest_mismatch'
+  | 'pieceid_hash_mismatch';
+
+/**
+ * Phase 5-12: ホスト → ゲスト。部屋のルール定義を送る (親 §6.5)。
+ *
+ * digest は送る側が組み立てたルールの見取り図。受け取った側は自分が採用した設定から
+ * 同じ見取り図を作り直して返すので、途中で欠けた項目があれば食い違いとして表に出る
+ * (古いクライアントが知らない項目を捨てた場合など)。
+ */
+export interface RuleSyncMsg extends Envelope {
+  type: 'rule_sync';
+  rules: SyncedRules;
+  digest: string;
+  capabilities: readonly string[];
+}
+
+/**
+ * Phase 5-12: ゲスト → ホスト。受領と検証の結果 (親 §6.5・§6.5.2)。
+ *
+ * pieceIdListHash は量子 ON のときだけ入れる。駒の身元の並びが両者で一致しているかの
+ * 突き合わせで、量子 OFF では駒の外形的な区別が要らないので省く (§6.5.2)。
+ */
+export interface RuleAckMsg extends Envelope {
+  type: 'rule_ack';
+  ok: boolean;
+  digest: string;
+  pieceIdListHash?: string;
+  reason?: RuleAckReason;
+  capabilities: readonly string[];
+}
+
+/**
+ * ルール一式を 1 本の文字列にまとめる (照合用)。
+ *
+ * ハッシュ関数を通さないのは、食い違ったときにどの項目が違うのかをそのまま
+ * 読めるようにするため (positionHash と同じ方針)。項目を足したらここにも足す
+ * — 足し忘れるとその項目の食い違いを見逃す。
+ */
+export function ruleDigest(r: SyncedRules): string {
+  const tc = r.timeControl;
+  const qp = r.quantumParams;
+  return [
+    r.gameType,
+    r.torusMode,
+    r.quantum ? 'q1' : 'q0',
+    r.quantumDisplayMode,
+    `${tc.mode}/${tc.mainSeconds}/${tc.byoyomiSeconds ?? '-'}/${tc.incrementSeconds ?? '-'}`,
+    r.customRuleName ?? '',
+    `${qp.observationTiming}/${qp.maxIterations}/${qp.initialPropagation ? 1 : 0}/${qp.anomalyAction}`,
+  ].join('#');
+}
+
+/**
+ * 受け取ったルールを自分のエンジンで扱えるかを見る (親 §6.5.1)。
+ *
+ * いまは両者が同じコードなので実質いつも扱える。将来の版ちがいに備えた入口で、
+ * 名札 (CLIENT_CAPABILITIES) に無いものを頼まれたら断る、という形にしてある。
+ */
+export function checkRuleSupport(rules: SyncedRules): { ok: true } | { ok: false; reason: RuleAckReason } {
+  const caps: readonly string[] = CLIENT_CAPABILITIES;
+  if (!caps.includes(rules.gameType)) return { ok: false, reason: 'unsupported_game_type' };
+  if (rules.torusMode !== 'none' && !caps.includes(`torus:${rules.torusMode}`)) {
+    return { ok: false, reason: 'unsupported_torus_mode' };
+  }
+  if (rules.quantum && !caps.includes('quantum')) {
+    return { ok: false, reason: 'engine_not_quantum_capable' };
+  }
+  return { ok: true };
+}
+
 export type ShogiMessage =
   | SideSelectMsg
   | ReadyMsg
@@ -250,7 +374,9 @@ export type ShogiMessage =
   | PingMsg
   | PongMsg
   | AnomalyVoteMsg
-  | AnomalyRaiseMsg;
+  | AnomalyRaiseMsg
+  | RuleSyncMsg
+  | RuleAckMsg;
 
 /** 型ガード：unknown をゲームメッセージとして扱えるか */
 export function isShogiMessage(data: unknown): data is ShogiMessage {

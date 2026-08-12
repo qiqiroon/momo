@@ -9,8 +9,9 @@ import { HeaderCommonRight } from '../../../core/ui-core/HeaderCommonRight';
 import { getMomoMatchmaking } from '../client';
 import { decodeRoomName } from '../roomNameCodec';
 import { RoomBadges } from './RoomBadges';
+import { useGameStore } from '../../../core/store/game-store';
 import { useMatchmakingStore, type SideChoice, type SideSelection } from '../store';
-import { PROTOCOL_VERSION } from '../protocol';
+import { CLIENT_CAPABILITIES, PROTOCOL_VERSION, ruleDigest, type SyncedRules } from '../protocol';
 import { handleShogiMessage } from '../messageDispatcher';
 import { deriveFurigoma, generateNonce, sha256Hex } from '../fairFlip';
 import { seFurigoma, seButton } from '../../../core/audio/se-synth';
@@ -31,6 +32,23 @@ import { seFurigoma, seButton } from '../../../core/audio/se-synth';
  * - 準備完了ボタンは、両者おまかせ + 振り駒結果未確定なら無効
  * - 選択変更で自分の準備完了は自動解除、相手の準備完了は受信時に解除
  */
+/** Phase 5-12: ルール同期の 1 段分の見た目 (CSS のクラス名と同じ語)。 */
+type SyncStepState = 'wait' | 'active' | 'done' | 'fail';
+
+function syncIcon(state: SyncStepState): string {
+  if (state === 'done') return '✓';
+  if (state === 'fail') return '!';
+  if (state === 'active') return '⋯';
+  return '·';
+}
+
+function syncStateKey(state: SyncStepState): string {
+  if (state === 'done') return 's06.stDone';
+  if (state === 'fail') return 's06.stFail';
+  if (state === 'active') return 's06.stActive';
+  return 's06.stWait';
+}
+
 export function RoomScreen() {
   const locale = useI18nStore((s) => s.locale);
   const t = (key: string) => _t(key, locale);
@@ -90,6 +108,36 @@ export function RoomScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [oppPresent]);
 
+  // Phase 5-12 (親 §6.5): 相手が入室したらホストがルール定義を送る。
+  // 一方向 — 部屋を作った人が決めたルールを対戦相手に揃えてもらう仕組みで、
+  // 相談ではない。ゲストは受け取って採用し、受領確認だけを返す。
+  useEffect(() => {
+    if (!oppPresent || !isHost) return;
+    // 送る口が無いときは「送信済み」にしない。ここを素通しにすると、実際には
+    // 何も出ていないのに画面だけ「受領確認待ち」で止まって見える。
+    if (!getMomoMatchmaking()) return;
+    const cfg = useMatchmakingStore.getState().activeRoomConfig;
+    if (!cfg) return;
+    const rules: SyncedRules = {
+      gameType: cfg.gameType,
+      torusMode: cfg.torusMode,
+      quantum: cfg.quantum,
+      quantumDisplayMode: cfg.quantumDisplayMode,
+      timeControl: cfg.timeControl,
+      customRuleName: cfg.customRuleName,
+      quantumParams: useGameStore.getState().quantumParams,
+    };
+    sendMsg({
+      v: PROTOCOL_VERSION,
+      type: 'rule_sync',
+      rules,
+      digest: ruleDigest(rules),
+      capabilities: CLIENT_CAPABILITIES,
+    });
+    useMatchmakingStore.getState().setRuleSync('sent');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [oppPresent, isHost]);
+
   // ゲスト退室でホストは待機表示に戻る（相手行が「入室待ち」に戻る）
   // また、ゲスト退室時にハンドシェイク状態はリセット（再入室で新規開始）
   useEffect(() => {
@@ -98,9 +146,17 @@ export function RoomScreen() {
     }
   }, [isHost, opponentName, resetHandshake]);
 
-  // v0.67 A5: ルール同期の ack 結果 (null=未検査, true=対応OK, false=非対応)。
-  // ルール同期プロトコル実装時に置き換え予定。それまでは null で警告帯は非表示。
-  const [ruleSyncAckOk] = useState<boolean | null>(null);
+  // Phase 5-12: ルール同期の進み具合。v0.67 A5 で置いた見せかけの表示 (常に「完了」)
+  // をここで本物のメッセージフローに差し替えた。
+  const ruleSyncPhase = useMatchmakingStore((s) => s.ruleSyncPhase);
+  // 1・2 段目 (送信とモディファイア) は同じ 1 通で運ぶので状態を共有する。
+  // 3 段目 (相手の対応確認) だけが受領確認の到着を待つ。
+  const syncStep12: SyncStepState = ruleSyncPhase === 'idle' ? 'wait' : 'done';
+  const syncStep3: SyncStepState =
+    ruleSyncPhase === 'ok' ? 'done'
+    : ruleSyncPhase === 'failed' ? 'fail'
+    : ruleSyncPhase === 'sent' ? 'active'
+    : 'wait';
 
   // v0.67 A6: 相手が退室したときの警告帯 (部屋は維持)
   // 一度でも相手が入室していた状態から相手不在に戻ったら oppLeftWarn を立てる。
@@ -203,6 +259,10 @@ export function RoomScreen() {
   // 混合パターン (sente+random 等) は「合意ができていない」ので Ready 不可。
   const canReady = (() => {
     if (!oppPresent) return false;
+    // Phase 5-12: ルールが揃わなかったことが分かっているときだけ準備完了を止める。
+    // 「まだ返事が来ていない」では止めない — 相手が旧クライアントだと受領確認を返さず、
+    // 待ち続けると永久に対局を始められなくなるため。
+    if (ruleSyncPhase === 'failed') return false;
     if (mySideChoice === null || oppSideChoice === null) return false;
     // 明示的な相互合意
     if (mySideChoice === 'sente' && oppSideChoice === 'gote') return !furigomaSpinning;
@@ -410,40 +470,39 @@ export function RoomScreen() {
           )}
         </div>
 
-        {/* ===== ルール同期の進捗（段階 2-5.1 では見せかけ全部完了） ===== */}
+        {/* ===== ルール同期の進捗（Phase 5-12 で本物のメッセージフローに接続） ===== */}
         <div className="section-label">{t('s06.lblSync')}</div>
         <div className="s06-card">
-          <div className="sync-step done">
-            <span className="ss-icon">✓</span>
+          <div className={`sync-step ${syncStep12}`}>
+            <span className="ss-icon">{syncIcon(syncStep12)}</span>
             <div className="ss-label">
               <span>{t('s06.ss1')}</span>
               <small>rule_sync</small>
             </div>
             <span className="ss-spacer" />
-            <span className="ss-state">{t('s06.stDone')}</span>
+            <span className="ss-state">{t(syncStateKey(syncStep12))}</span>
           </div>
-          <div className="sync-step done">
-            <span className="ss-icon">✓</span>
+          <div className={`sync-step ${syncStep12}`}>
+            <span className="ss-icon">{syncIcon(syncStep12)}</span>
             <div className="ss-label">
               <span>{t('s06.ss2')}</span>
               <small>modifiers_sync</small>
             </div>
             <span className="ss-spacer" />
-            <span className="ss-state">{t('s06.stDone')}</span>
+            <span className="ss-state">{t(syncStateKey(syncStep12))}</span>
           </div>
-          <div className="sync-step done">
-            <span className="ss-icon">✓</span>
+          <div className={`sync-step ${syncStep3}`}>
+            <span className="ss-icon">{syncIcon(syncStep3)}</span>
             <div className="ss-label">
               <span>{t('s06.ss3')}</span>
               <small>rule_ack</small>
             </div>
             <span className="ss-spacer" />
-            <span className="ss-state">{t('s06.stDone')}</span>
+            <span className="ss-state">{t(syncStateKey(syncStep3))}</span>
           </div>
-          {/* v0.67 A5: ルール非対応の警告帯 (プレースホルダ)
-             ルール同期プロトコル実装時に ackOk === false を検出して表示予定。
-             今は wiring 済みで表示条件が false のため常に非表示。 */}
-          {ruleSyncAckOk === false && (
+          {/* Phase 5-12: 相手が扱えない、または照合が食い違ったときの警告帯。
+             ここが出ている間は準備完了を押せない (canReady 側で止めている)。 */}
+          {ruleSyncPhase === 'failed' && (
             <div className="block-note">
               <span>⚠</span>
               <span>{t('s06.ackFail')}</span>

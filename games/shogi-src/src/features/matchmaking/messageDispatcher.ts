@@ -14,6 +14,10 @@
  * 段階 2-5.2（S07 対局中の着手送受信）:
  * - move           → 相手の着手を game-store に適用
  *
+ * Phase 5-12 v1.20（ルール同期・親 §6.5）:
+ * - rule_sync      → ゲスト側。ホストが決めたルールを採用して rule_ack を返す
+ * - rule_ack       → ホスト側。ゲストが同じルールで構えたかを照合する
+ *
  * 知らない type や不正な形式は黙って無視（フォワード互換）。
  */
 
@@ -21,11 +25,52 @@ import { useChatStore } from '../../core/store/chat-store';
 import { useRouteStore } from '../../core/store/route-store';
 import { useGameStore } from '../../core/store/game-store';
 import { useOffersStore } from '../../core/store/offers-store';
-import { positionHash } from '../../core/engine';
+import { pieceIdListDigest, positionHash } from '../../core/engine';
 import { getMomoMatchmaking } from './client';
 import { sha256Hex } from './fairFlip';
-import { isShogiMessage, PROTOCOL_VERSION, type ShogiMessage } from './protocol';
-import { useMatchmakingStore } from './store';
+import {
+  checkRuleSupport,
+  CLIENT_CAPABILITIES,
+  isShogiMessage,
+  PROTOCOL_VERSION,
+  ruleDigest,
+  type ShogiMessage,
+  type SyncedRules,
+} from './protocol';
+import { DEFAULT_ROOM_CONFIG, useMatchmakingStore, type RoomConfig } from './store';
+
+/**
+ * Phase 5-12: 受け取ったルールを自分の部屋設定に流し込む。
+ *
+ * 部屋名は自分が既に持っているもの (サーバー経由で先に届いている) を残す。ルール同期が
+ * 運ぶのはルールだけで、部屋の呼び名は同期の対象ではないため。
+ */
+function applySyncedRules(rules: SyncedRules): RoomConfig {
+  const base = useMatchmakingStore.getState().activeRoomConfig ?? DEFAULT_ROOM_CONFIG;
+  return {
+    ...base,
+    gameType: rules.gameType,
+    torus: rules.torusMode !== 'none',
+    torusMode: rules.torusMode,
+    quantum: rules.quantum,
+    quantumDisplayMode: rules.quantumDisplayMode,
+    customRuleName: rules.customRuleName,
+    timeControl: rules.timeControl,
+  };
+}
+
+/** 自分が採用した設定から、送られてきたのと同じ形のルール一式を組み立て直す。 */
+function rulesFromConfig(cfg: RoomConfig): SyncedRules {
+  return {
+    gameType: cfg.gameType,
+    torusMode: cfg.torusMode,
+    quantum: cfg.quantum,
+    quantumDisplayMode: cfg.quantumDisplayMode,
+    timeControl: cfg.timeControl,
+    customRuleName: cfg.customRuleName,
+    quantumParams: useGameStore.getState().quantumParams,
+  };
+}
 
 export function handleShogiMessage(data: unknown): void {
   if (!isShogiMessage(data)) return;
@@ -234,6 +279,77 @@ export function handleShogiMessage(data: unknown): void {
     case 'anomaly_vote': {
       // Phase 5-13: 相手の投票。「ノーゲーム」なら game-store 側で即座に不成立になる。
       useGameStore.getState().receiveAnomalyVote(msg.choice);
+      return;
+    }
+    case 'rule_sync': {
+      // Phase 5-12 (親 §6.5): ゲスト側。部屋を作った人が決めたルールをそのまま採用する。
+      // 対応可否を相談する仕組みではないので、扱えるなら黙って受け入れて確認だけ返す。
+      const client = getMomoMatchmaking();
+      const support = checkRuleSupport(msg.rules);
+      if (!support.ok) {
+        useMatchmakingStore.getState().setRuleSync('failed', support.reason);
+        if (client) {
+          client.send({
+            v: PROTOCOL_VERSION,
+            type: 'rule_ack',
+            ok: false,
+            digest: msg.digest,
+            reason: support.reason,
+            capabilities: CLIENT_CAPABILITIES,
+          });
+        }
+        return;
+      }
+      const applied = applySyncedRules(msg.rules);
+      useMatchmakingStore.getState().setActiveRoomConfig(applied);
+      // 量子の実行時パラメータは両者の計算結果を左右するので、ホストの値に揃える
+      // (v1.19 の申し送り: デバッグパネルで片側だけ変えると局面がずれる)。
+      useGameStore.getState().setQuantumParams(msg.rules.quantumParams);
+      if (client) {
+        client.send({
+          v: PROTOCOL_VERSION,
+          type: 'rule_ack',
+          ok: true,
+          // 受け取った値をそのまま返すのではなく、自分が採用した設定から作り直す。
+          // 途中で欠けた項目があればここで違いが出る (古い版が知らない項目を捨てた等)。
+          digest: ruleDigest(rulesFromConfig(applied)),
+          pieceIdListHash: applied.quantum
+            ? pieceIdListDigest(useGameStore.getState().mgf)
+            : undefined,
+          capabilities: CLIENT_CAPABILITIES,
+        });
+      }
+      useMatchmakingStore.getState().setRuleSync('ok');
+      return;
+    }
+    case 'rule_ack': {
+      // Phase 5-12 (親 §6.5.2): ホスト側。ゲストが本当に同じルールで構えたかを確かめる。
+      const store = useMatchmakingStore.getState();
+      if (!msg.ok) {
+        store.setRuleSync('failed', msg.reason ?? 'unsupported_game_type');
+        return;
+      }
+      const cfg = store.activeRoomConfig;
+      if (!cfg) return;
+      const myDigest = ruleDigest(rulesFromConfig(cfg));
+      if (myDigest !== msg.digest) {
+        // eslint-disable-next-line no-console
+        console.warn('[shogi] ルール同期の食い違い:', { mine: myDigest, theirs: msg.digest });
+        store.setRuleSync('failed', 'rule_digest_mismatch');
+        return;
+      }
+      // 駒の身元の並びは量子 ON のときだけ突き合わせる (§6.5.2)。相手が返してこない
+      // 場合 (量子 OFF / 旧クライアント) は照合を飛ばす。
+      if (cfg.quantum && typeof msg.pieceIdListHash === 'string') {
+        const myPieceIds = pieceIdListDigest(useGameStore.getState().mgf);
+        if (myPieceIds !== msg.pieceIdListHash) {
+          // eslint-disable-next-line no-console
+          console.warn('[shogi] 駒の身元の並びが不一致:', { mine: myPieceIds, theirs: msg.pieceIdListHash });
+          store.setRuleSync('failed', 'pieceid_hash_mismatch');
+          return;
+        }
+      }
+      store.setRuleSync('ok');
       return;
     }
     case 'pong': {

@@ -21,9 +21,18 @@ export type { TimeControl, TimeControlMode };
  *  - 'cylinder' : 円筒 (左右がつながる)
  *  - 'full'     : 完全トーラス (上下左右すべてつながる)
  *  部屋名にはブール (トーラス有無) しか載らないため、cylinder/full の別は
- *  ルール同期チャネルで送る想定 (Phase 4 実装時)。
+ *  部屋のルール (サーバー中継) とルール同期の両方で送る (v1.20 / Phase 5-12)。
  */
 export type TorusMode = 'none' | 'cylinder' | 'full';
+
+/**
+ * Phase 5-12: ルール同期の進み具合 (S06 の同期表示が読む)。
+ *  - 'idle'   : まだ始まっていない (相手が未入室 / 旧クライアント相手で何も来ない)
+ *  - 'sent'   : ホストが送って受領確認を待っている
+ *  - 'ok'     : 揃った
+ *  - 'failed' : 相手が扱えない、または照合が食い違った
+ */
+export type RuleSyncPhase = 'idle' | 'sent' | 'ok' | 'failed';
 
 /** v0.57 段階 2-4: 量子将棋の未確定駒表示方式 (S02 モック追随)
  *  - 'cycle' : 1秒ごとに候補を1つずつ表示 (巡回)
@@ -131,6 +140,13 @@ interface MatchmakingState {
    * 生存確認の判定に使う。ping/pong に限らず、move や chat も生存の証となる。
    */
   lastPeerMessageAt: number | null;
+  /** Phase 5-12: ルール同期の進み具合 */
+  ruleSyncPhase: RuleSyncPhase;
+  /**
+   * Phase 5-12: 揃わなかった理由コード (親 §6.5.1)。'failed' 以外では null。
+   * 画面には共通の警告文だけを出し、コードは食い違いの切り分け用に持っておく。
+   */
+  ruleSyncReason: string | null;
 
   setConnection: (c: ConnectionStatus) => void;
   setRooms: (rooms: MomoRoomInfo[]) => void;
@@ -158,6 +174,7 @@ interface MatchmakingState {
   setOpponentLeftDuringGame: (b: boolean) => void;
   setWsPendingReconnect: (b: boolean) => void;
   setLastPeerMessageAt: (t: number | null) => void;
+  setRuleSync: (phase: RuleSyncPhase, reason?: string | null) => void;
   resetHandshake: () => void;
 }
 
@@ -188,6 +205,8 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
   opponentLeftDuringGame: false,
   wsPendingReconnect: false,
   lastPeerMessageAt: null,
+  ruleSyncPhase: 'idle',
+  ruleSyncReason: null,
 
   setConnection: (c) => set({ connection: c }),
   setRooms: (rooms) => set({ rooms }),
@@ -220,6 +239,8 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
     gameStartInfo: null,
     opponentLeftDuringGame: false,
     wsPendingReconnect: false,
+    ruleSyncPhase: 'idle',
+    ruleSyncReason: null,
   }),
   setIntentionallyLeft: (intentionallyLeft) => set({ intentionallyLeft }),
   setMySideChoice: (mySideChoice) => set({ mySideChoice }),
@@ -246,6 +267,7 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
   setOpponentLeftDuringGame: (opponentLeftDuringGame) => set({ opponentLeftDuringGame }),
   setWsPendingReconnect: (wsPendingReconnect) => set({ wsPendingReconnect }),
   setLastPeerMessageAt: (lastPeerMessageAt) => set({ lastPeerMessageAt }),
+  setRuleSync: (ruleSyncPhase, ruleSyncReason = null) => set({ ruleSyncPhase, ruleSyncReason }),
   resetHandshake: () => set({
     mySideChoice: null,
     oppSideChoice: null,
@@ -261,5 +283,7 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
     gameStartInfo: null,
     opponentLeftDuringGame: false,
     wsPendingReconnect: false,
+    ruleSyncPhase: 'idle',
+    ruleSyncReason: null,
   }),
 }));

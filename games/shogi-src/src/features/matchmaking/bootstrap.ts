@@ -23,15 +23,22 @@ let _inited = false;
 
 /**
  * サーバーが joined_room で中継してくる rules は
- * ホストが createRoom に渡した `{game, torus, quantum, customRuleName, time}` を素通ししたもの。
- * RoomConfig 形状に正規化する (先後はルームで決めるので含めない)。
+ * ホストが createRoom に渡した `{game, torus, torusMode, quantum, qtdisp, customRuleName, time}`
+ * を素通ししたもの。RoomConfig 形状に正規化する (先後はルームで決めるので含めない)。
  * roomName は encoded 状態のまま格納 (表示側で decode)。
+ *
+ * これは入室した時点 (P2P がつながる前) に部屋のルールを画面に出すための早見表。
+ * 対局に使うルールの正本は Phase 5-12 の rule_sync で改めて届き、そちらで上書きされる。
+ * 量子の実行時パラメータは画面に出さないのでここには載せず、rule_sync だけが運ぶ。
+ *
+ * export しているのはテストから直接呼ぶため (純関数)。
  */
-function normalizeIncomingRules(rules: unknown, roomName: string): RoomConfig | null {
+export function normalizeIncomingRules(rules: unknown, roomName: string): RoomConfig | null {
   if (!rules || typeof rules !== 'object') return null;
   const r = rules as {
     game?: string;
     torus?: boolean;
+    torusMode?: string;
     quantum?: boolean;
     qtdisp?: string;
     customRuleName?: string;
@@ -46,9 +53,16 @@ function normalizeIncomingRules(rules: unknown, roomName: string): RoomConfig | 
     isPublic: true,
     gameType,
     torus: !!r.torus,
-    // v0.57: ゲスト側は torus のブールしか受け取らないため、
-    // cylinder をデフォルトとして復元する (詳細モードはルール同期で送る予定)。
-    torusMode: r.torus ? 'cylinder' : 'none',
+    // Phase 5-12: ホストが選んだトーラスの詳細をそのまま採用する。
+    // v0.57 からここは「つながっているなら円筒」の決め打ちで、ホストが完全トーラスを
+    // 選んでもゲスト側は円筒に化けていた。torusMode を送ってこない旧版のホストが
+    // 相手のときだけ、従来どおり円筒として復元する。
+    torusMode:
+      r.torusMode === 'none' || r.torusMode === 'cylinder' || r.torusMode === 'full'
+        ? r.torusMode
+        : r.torus
+          ? 'cylinder'
+          : 'none',
     quantum: !!r.quantum,
     // v1.08 (Phase 5-11): ホストが選んだ見せ方をそのまま採用する (公平性原則)。
     // 旧版のホストは qtdisp を送ってこないので、その場合は既定の巡回にする。

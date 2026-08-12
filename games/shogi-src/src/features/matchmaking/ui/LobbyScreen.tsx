@@ -187,6 +187,10 @@ export function LobbyScreen() {
       rules: {
         game: config.gameType,
         torus: config.torus,
+        // Phase 5-12: トーラスの詳細 (円筒か完全か) も送る。以前は有無の真偽しか
+        // 送っておらず、受け取る側が「つながっているなら円筒」と決め打ちで戻していた
+        // ため、ホストが完全トーラスを選んでもゲストの画面は円筒になっていた。
+        torusMode: config.torusMode,
         quantum: config.quantum,
         // v1.08 (Phase 5-11): 未確定駒の見せ方はルール設定者 (ホスト) が決めて
         // 両者に共通適用する決まりなので、部屋のルールとしてゲストへ送る。

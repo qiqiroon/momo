@@ -4,8 +4,6 @@ import { t as _t } from '../i18n';
 import { getBgmVolume, getSfxVolume, setBgmVolume, setSfxVolume } from '../audio/audio-engine';
 import { useDebugStore } from '../store/debug-store';
 import { useGameStore } from '../store/game-store';
-import { get as pluginGet } from '../plugin/registry';
-import type { OnlineGameConnector } from '../plugin/gameConnector';
 import { SETTINGS_DEFAULTS, clearUiSettings, loadByomuSound, saveByomuSound } from '../store/ui-settings';
 
 /**
@@ -152,12 +150,14 @@ export function SettingsPopup({ open, onClose }: SettingsPopupProps) {
 /**
  * v1.08 (Phase 5-11) → v1.22 でカード式へ。未確定駒の見せ方の切替。
  *
- * 意匠は S10 モック `momo_shogi_S10_mock_v3.html` / 付録D-10 v2.3 §5.2.1、
- * 操作の可否は駒デザイン・対局UI v0.8 §4.4:
+ * 意匠は S10 モック `momo_shogi_S10_mock_v3.html` / 付録D-10 v2.4 §5.2.1、
+ * 操作の可否は駒デザイン・対局UI v0.9 §4.4:
  * - 量子モードの対局中だけ現れる
- * - ルール設定者は常に操作可能 (部屋の値を決める)
- * - それ以外は、部屋の値が巡回のときだけ自分の画面の値を切り替えられる (バッジ「自分の画面のみ」)。
- *   部屋の値が重ねなら固定 = 読みやすい側へは逃げられない (バッジ「重ね固定」)
+ * - 部屋の値が巡回なら、**誰でも** 自分の画面の値を切り替えられる (バッジ「自分の画面のみ」)
+ * - 部屋の値が重ねなら固定 = 読みやすい側へは誰も逃げられない (バッジ「重ね固定」)
+ *
+ * v1.24: ルールを決めた側だけを特別扱いするのをやめた。対局中に基準を動かせるのが
+ * 片方だけだと、自分に有利な局面で読みやすさを変えられて不公平になるため。
  */
 function QuantumDisplaySection({ t }: { t: (k: string) => string }) {
   const currentQuantum = useGameStore((s) => s.currentQuantum);
@@ -165,10 +165,9 @@ function QuantumDisplaySection({ t }: { t: (k: string) => string }) {
   const roomQuantumDisplay = useGameStore((s) => s.roomQuantumDisplay);
   const setQuantumDisplay = useGameStore((s) => s.setQuantumDisplay);
   if (!currentQuantum) return null;
-  const isSetter = pluginGet<OnlineGameConnector>('gameConnector')?.isRuleSetter() ?? true;
-  const stackFixed = !isSetter && roomQuantumDisplay === 'stack';
-  const canEdit = isSetter || !stackFixed;
-  const badge = isSetter ? null : stackFixed ? t('qmode.stackFixed') : t('qmode.ownScreenOnly');
+  const stackFixed = roomQuantumDisplay === 'stack';
+  const canEdit = !stackFixed;
+  const badge = stackFixed ? t('qmode.stackFixed') : t('qmode.ownScreenOnly');
   const cards: { value: 'stack' | 'cycle'; title: string; desc: string }[] = [
     { value: 'stack', title: t('qmode.stack'), desc: t('qmode.stackDesc') },
     { value: 'cycle', title: t('qmode.cycle'), desc: t('qmode.cycleDesc') },

@@ -1355,7 +1355,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.02</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.03</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1421,7 +1421,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.02</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.03</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1557,7 +1557,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.02</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.03</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1620,7 +1620,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.02</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.03</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -7489,11 +7489,31 @@ const AUDIO = (function () {
     if (kind !== 'sfx' && !val && audioOn) { resumeCtx(); if (!curSource) playRandomBgm(desiredPool); }
   }
 
-  const BGM_POOLS = {
-    lobby:  ['sounds/bgm-lobby-1.mp3', 'sounds/bgm-lobby-2.mp3', 'sounds/bgm-lobby-3.mp3', 'sounds/bgm-lobby-4.mp3'],
-    game:   ['sounds/bgm-game-1.mp3', 'sounds/bgm-game-2.mp3', 'sounds/bgm-game-3.mp3'],
-    koikoi: ['sounds/bgm-koikoi-1.mp3', 'sounds/bgm-koikoi-2.mp3'],
-  };
+  // v3.03: 音は MOMO 共通素材 (assets/) へ集約した。アプリはどれも games/○○/ の深さなので
+  //   相対パスの書き方はどのアプリでも同じ。詳しくは assets/readme.md。
+  const ASSETS = '../../assets/';
+  // プール名 → BGM フォルダ名。**曲名はここに書かない**（目録 assets/bgm/manifest.json が持つ）。
+  //   曲を増やすときはフォルダに置いて node assets/make-manifest.mjs を走らせるだけで、ここは触らない。
+  const BGM_FOLDERS = { lobby: 'lobby', game: 'game-japanese', koikoi: 'game-koikoi' };
+  let bgmManifest = null, bgmManifestFetching = null;
+  function loadBgmManifest() {
+    if (bgmManifest) return Promise.resolve(bgmManifest);
+    if (bgmManifestFetching) return bgmManifestFetching;
+    bgmManifestFetching = fetch(ASSETS + 'bgm/manifest.json')
+      .then(r => r.ok ? r.json() : null)
+      .then(m => { bgmManifest = m; return m; })
+      .catch(() => null)
+      .finally(() => { bgmManifestFetching = null; });
+    return bgmManifestFetching;
+  }
+  // 目録が読めなければ空＝無音。曲名を推測して補うと、名前を変えた瞬間に静かに壊れるので推測しない。
+  async function bgmPoolUrls(pool) {
+    const m = await loadBgmManifest();
+    const folder = BGM_FOLDERS[pool];
+    const files = m && m[folder];
+    if (!files || !files.length) { console.warn('[audio] BGM の目録に "' + folder + '" がありません (assets/bgm/manifest.json)'); return []; }
+    return files.map(f => ASSETS + 'bgm/' + folder + '/' + f);
+  }
   const bgmBufs = new Map(), bgmFetching = new Map();
   let curSource = null, curPool = null, reqGen = 0;
   function loadBgm(url) {
@@ -7524,7 +7544,10 @@ const AUDIO = (function () {
     //   起こしてから鳴らすことで「聞こえない無音ソースを作って再生状態を汚す」恒久無音を防ぐ。
     if (ctx.state !== 'running') { try { await ctx.resume(); } catch (e) {} }
     if (myGen !== reqGen) return;
-    const urls = BGM_POOLS[pool]; if (!urls || !urls.length) return;
+    // v3.03: 曲名は目録から取る（初回だけ通信が入るので、ここでも世代を見張る）
+    const urls = await bgmPoolUrls(pool);
+    if (myGen !== reqGen) return;
+    if (!urls.length) return;
     const url = urls[Math.floor(Math.random() * urls.length)];
     const buf = await loadBgm(url);
     if (myGen !== reqGen) return; // await 中に別要求/stop が入ったら諦める（二重再生防止）
@@ -7593,11 +7616,12 @@ const AUDIO = (function () {
   }
   // ───────── 効果音（SFX）：mp3 素材＋合成音 ─────────
   // 素材=効果音ラボ(無料・商用OK・クレジット不要)／将棋流用。合成=しゅっ/ちゃりん/ぷっ。
+  // v3.03: 効果音も共通素材へ。フォルダ分けはせず、ファイル名で一意に参照する。
   const SFX_URLS = {
-    bishi:'sounds/se-bishi.mp3', pa:'sounds/se-pa.mp3', pero:'sounds/se-pero.mp3',
-    deal:'sounds/se-deal.mp3', koikoi:'sounds/se-koikoi.mp3', gyun:'sounds/se-gyun.mp3',
-    fanfareWin:'sounds/se-fanfare-win.mp3', fanfareWin2:'sounds/se-fanfare-win-2.mp3',
-    gameLose:'sounds/se-game-lose.mp3', button:'sounds/se-button.mp3',
+    bishi:ASSETS+'se/se-bishi.mp3', pa:ASSETS+'se/se-pa.mp3', pero:ASSETS+'se/se-pero.mp3',
+    deal:ASSETS+'se/se-deal.mp3', koikoi:ASSETS+'se/se-koikoi.mp3', gyun:ASSETS+'se/se-gyun.mp3',
+    fanfareWin:ASSETS+'se/se-fanfare-win.mp3', fanfareWin2:ASSETS+'se/se-fanfare-win-2.mp3',
+    gameLose:ASSETS+'se/se-game-lose.mp3', button:ASSETS+'se/se-button.mp3',
   };
   const sfxBufs = new Map(), sfxFetching = new Map();
   function loadSfx(name) {

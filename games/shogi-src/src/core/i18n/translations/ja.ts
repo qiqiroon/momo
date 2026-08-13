@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.23',
+    'app.ver': 'v1.24',
     // v0.72 音楽再生確認モーダル (Darts と同じ思想)
     'sound.promptTitle': 'BGM と効果音を再生してもよろしいですか？',
     'sound.bgmLabel': 'BGM 音量',
@@ -38,8 +38,8 @@ export const ja: LocaleData = {
     's02.quantumOn': 'ON',
     's02.quantumIncompat': 'このルールでは量子を使えません（隠れた駒と重ね合わせが両立しないため）。',
     's02.qmTitle': '量子状態（未確定）駒の見せ方',
-    's02.qmFairBold': 'あなたが選んだ見せ方が、対局の基準になります。',
-    's02.qmFairRest': '巡回にすると、相手も観戦者も自分の画面だけを重ねに変えられます（読みにくくするのは自由）。重ねにすると、全員が重ねのまま変えられません。片方だけが読みやすくなる有利を出さないためです。',
+    's02.qmFairCycle': '巡回にすると、プレイヤーごとに重ねに変更できます',
+    's02.qmFairStack': '重ねにすると両者重ねに固定です',
     's02.qmCycleDesc': '1秒ごとに候補を1つずつ表示します',
     's02.qmStackDesc': '全候補を黒で重ねます（あえて読みにくく）',
     's02.pvTitle': 'プレビュー',
@@ -151,7 +151,6 @@ export const ja: LocaleData = {
     'qmode.cycle': '巡回',
     'qmode.stack': '重ね',
     'qmode.title': '未確定の駒の見せ方',
-    'qmode.lockedHint': 'ルールを決めた側だけが切り替えられます',
     // v1.22 (spec 駒UI v0.8 §4.4): 見せ方は「部屋の値」と「自分の画面の値」の 2 層。
     'qmode.ownScreenOnly': '自分の画面のみ',
     'qmode.stackFixed': '重ね固定（ルールを決めた側の指定）',
@@ -160,7 +159,7 @@ export const ja: LocaleData = {
     'settings.byomuSound': '秒読み音',
     'settings.gameSection': '対局',
     'settings.hintAlwaysOn': '移動先ヒント',
-    'settings.hintDesc': '指せるマスをオレンジに塗る',
+    'settings.hintDesc': '指せるマスのオレンジと、駒が確定する予告',
     'settings.reset': '全設定を既定に戻す',
     'settings.resetConfirm': 'すべての設定を既定に戻します。よろしいですか?',
     'settings.resetDone': '既定値に戻しました',

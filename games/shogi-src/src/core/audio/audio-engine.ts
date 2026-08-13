@@ -115,20 +115,27 @@ export function getBgmSink(): { ctx: AudioContext; gain: GainNode } | null {
 const sampleBufs = new Map<string, AudioBuffer>();
 const sampleFetching = new Map<string, Promise<AudioBuffer | null>>();
 
-/** 音源ファイルの URL 一覧。追加は自由。 */
+/**
+ * v1.24: 音は MOMO 共通素材 (`assets/`) に集約した。アプリはどれも `games/○○/` の
+ * 深さにあるので、公開時の相対パスはどのアプリでも同じ書き方になる。
+ * 詳しくは `assets/readme.md`。
+ */
+const ASSETS = '../../assets/';
+
+/** 音源ファイルの URL 一覧。追加は自由 (効果音はフォルダ分けせず名前で一意)。 */
 export const SAMPLE_URLS: Record<string, string> = {
-  move: 'sounds/se-move.mp3',
-  capture: 'sounds/se-capture.mp3',
+  move: `${ASSETS}se/se-move.mp3`,
+  capture: `${ASSETS}se/se-capture.mp3`,
   // v0.77 追加 (合成音から素材ベースへ)
-  select: 'sounds/se-select.mp3',
-  check: 'sounds/se-check.mp3',
-  button: 'sounds/se-button.mp3',
-  pause: 'sounds/se-pause.mp3',
-  chatRecv: 'sounds/se-chat-recv.mp3',
-  furiPiece: 'sounds/se-furigoma-piece.mp3',
-  fanfareWin: 'sounds/se-fanfare-win.mp3',
-  fanfareWin2: 'sounds/se-fanfare-win-2.mp3',
-  gameLose: 'sounds/se-game-lose.mp3',
+  select: `${ASSETS}se/se-select.mp3`,
+  check: `${ASSETS}se/se-check.mp3`,
+  button: `${ASSETS}se/se-button.mp3`,
+  pause: `${ASSETS}se/se-pause.mp3`,
+  chatRecv: `${ASSETS}se/se-chat-recv.mp3`,
+  furiPiece: `${ASSETS}se/se-furigoma-piece.mp3`,
+  fanfareWin: `${ASSETS}se/se-fanfare-win.mp3`,
+  fanfareWin2: `${ASSETS}se/se-fanfare-win-2.mp3`,
+  gameLose: `${ASSETS}se/se-game-lose.mp3`,
 };
 
 /**
@@ -213,10 +220,54 @@ export function preloadAllSamples(): void {
 //   現在のプールと同じなら何もしない
 // ─────────────────────────────────────────────
 
-export const BGM_POOLS: Record<'lobby' | 'game', string[]> = {
-  lobby: ['sounds/bgm-lobby-1.mp3', 'sounds/bgm-lobby-2.mp3'],
-  game: ['sounds/bgm-game-1.mp3', 'sounds/bgm-game-2.mp3', 'sounds/bgm-game-3.mp3'],
+/**
+ * v1.24: プール名 → 共通素材の BGM フォルダ名 (`assets/bgm/<フォルダ>/`)。
+ *
+ * **曲名はここに書かない。** どの曲が入っているかは目録 (`assets/bgm/manifest.json`) が持ち、
+ * 目録はフォルダを走査して作られる。したがって曲を増やすときプログラムは触らない
+ * (置く → `node assets/make-manifest.mjs` → 公開)。詳しくは `assets/readme.md`。
+ */
+export const BGM_FOLDERS: Record<'lobby' | 'game', string> = {
+  lobby: 'lobby',
+  game: 'game-japanese',
 };
+
+/** 目録の中身 (フォルダ名 → ファイル名の並び)。読み込みは 1 回だけ。 */
+let bgmManifest: Record<string, string[]> | null = null;
+let bgmManifestFetching: Promise<Record<string, string[]> | null> | null = null;
+
+async function loadBgmManifest(): Promise<Record<string, string[]> | null> {
+  if (bgmManifest) return bgmManifest;
+  if (bgmManifestFetching) return bgmManifestFetching;
+  bgmManifestFetching = (async () => {
+    try {
+      const res = await fetch(`${ASSETS}bgm/manifest.json`);
+      if (!res.ok) return null;
+      bgmManifest = (await res.json()) as Record<string, string[]>;
+      return bgmManifest;
+    } catch {
+      return null;
+    } finally {
+      bgmManifestFetching = null;
+    }
+  })();
+  return bgmManifestFetching;
+}
+
+/**
+ * プールに入っている曲の URL 一覧。目録が読めなければ空 (= 無音)。
+ * 目録が無いのに曲名を推測して鳴らすと、名前を変えた瞬間に静かに壊れるので推測しない。
+ */
+async function bgmPoolUrls(pool: 'lobby' | 'game'): Promise<string[]> {
+  const manifest = await loadBgmManifest();
+  const folder = BGM_FOLDERS[pool];
+  const files = manifest?.[folder];
+  if (!files || files.length === 0) {
+    console.warn(`[audio] BGM の目録に "${folder}" がありません (assets/bgm/manifest.json)`);
+    return [];
+  }
+  return files.map((f) => `${ASSETS}bgm/${folder}/${f}`);
+}
 
 const bgmBufs = new Map<string, AudioBuffer>();
 const bgmFetching = new Map<string, Promise<AudioBuffer | null>>();
@@ -273,8 +324,10 @@ export async function playRandomBgm(pool: 'lobby' | 'game'): Promise<void> {
   const myGen = ++bgmRequestGen;
   ensureCtx();
   if (!ctx || !bgmGain) return;
-  const urls = BGM_POOLS[pool];
-  if (!urls || urls.length === 0) return;
+  // v1.24: 曲名は目録から取る (初回だけ通信が入るので、ここでも世代を見張る)
+  const urls = await bgmPoolUrls(pool);
+  if (myGen !== bgmRequestGen) return;
+  if (urls.length === 0) return;
   const url = urls[Math.floor(Math.random() * urls.length)];
   const buf = await loadBgm(url);
   // await 中に新しい要求 or stopBgm が入っていたら諦める (二重再生防止の要)

@@ -351,11 +351,12 @@ export function RuleSelectScreen() {
                   {config.quantum && quantumUsable && (
                     <div className="quantum-sub show">
                       <div className="qh">{t('s02.qmTitle')}</div>
-                      {/* v1.22: 新しい決まり (付録D-2 v1.3 §4.1) を説明する文面。
-                          巡回なら各自が自分の画面だけ変えられる / 重ねなら全員が重ねのまま。 */}
+                      {/* v1.24: 決まり (付録D-2 v1.4 §4.1) を 2 行で言い切る。
+                          理屈の説明より、どちらを選ぶと何ができるかが一目で分かることを優先
+                          (ユーザー判断 2026-08-13)。 */}
                       <div className="fair">
-                        <b>{t('s02.qmFairBold')}</b>
-                        {t('s02.qmFairRest')}
+                        <div>{t('s02.qmFairCycle')}</div>
+                        <div>{t('s02.qmFairStack')}</div>
                       </div>
                       {qmLocked && <div className="incompat show">{t('qmode.stackFixed')}</div>}
                       {/* v0.63: 巡回/重ねをスイッチではなくパネル選択に。パネル自体が選択ボタン。

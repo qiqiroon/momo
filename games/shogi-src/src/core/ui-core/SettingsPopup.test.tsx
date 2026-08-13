@@ -11,15 +11,13 @@ import { clearUiSettings } from '../store/ui-settings';
  *
  * - モックにあって画面に無かった項目 (移動先ヒント・全設定を既定に戻す) を足したこと
  * - 元から画面にあった項目 (クレジット・デバッグパネルへの入口) を削っていないこと
- * - 未確定駒の見せ方がカード式になり、操作の可否が spec 駒UI v0.8 §4.4 の分岐に従うこと
+ * - 未確定駒の見せ方がカード式になり、操作の可否が spec 駒UI v0.9 §4.4 の分岐に従うこと
  *
  * 見せ方の分岐は 2 台そろえないと実機で見られないので、描画で固定する。
+ * v1.24: 分岐は「部屋の値」だけで決まる。ルールを決めた側かどうかでは変わらない。
  */
 function mockConnector(isRuleSetter: boolean) {
-  register('gameConnector', {
-    isRuleSetter: () => isRuleSetter,
-    setQuantumDisplayMode: () => {},
-  });
+  register('gameConnector', { isRuleSetter: () => isRuleSetter });
 }
 
 describe('S10 設定画面', () => {
@@ -89,31 +87,44 @@ describe('S10 設定画面', () => {
     expect(cards.find((c) => c.getAttribute('aria-checked') === 'true')?.textContent).toContain('巡回');
   });
 
-  it('ルール設定者はバッジなしで両方押せる', () => {
+  // ★v1.24 で直した不具合 (ユーザー報告 2026-08-13)。
+  // 重ねで始めた部屋なのに、ホストの画面では巡回のカードが押せてしまっていた。
+  it('部屋が重ねなら、ルールを決めた側も固定で押しても変わらない', () => {
+    useGameStore.setState({ roomQuantumDisplay: 'stack', quantumDisplay: 'stack' });
     mockConnector(true);
     render(<SettingsPopup open onClose={() => {}} />);
-    expect(screen.queryByText('自分の画面のみ')).toBeNull();
-    expect(screen.queryByText(/重ね固定/)).toBeNull();
-    fireEvent.click(screen.getAllByRole('radio')[0]); // 重ね
+    expect(screen.getByText(/重ね固定/)).toBeTruthy();
+    fireEvent.click(screen.getAllByRole('radio')[1]); // 巡回を押してみる
+    expect(useGameStore.getState().quantumDisplay).toBe('stack');
     expect(useGameStore.getState().roomQuantumDisplay).toBe('stack');
   });
 
-  it('部屋が巡回なら、設定者でない側は「自分の画面のみ」で切り替えられる', () => {
-    mockConnector(false);
-    render(<SettingsPopup open onClose={() => {}} />);
-    expect(screen.getByText('自分の画面のみ')).toBeTruthy();
-    fireEvent.click(screen.getAllByRole('radio')[0]); // 重ね
-    expect(useGameStore.getState().quantumDisplay).toBe('stack');
-    expect(useGameStore.getState().roomQuantumDisplay).toBe('cycle'); // 部屋は動かない
-  });
-
-  it('部屋が重ねなら、設定者でない側は固定で押しても変わらない', () => {
+  it('部屋が重ねなら、決めた側でない人も固定で押しても変わらない', () => {
     useGameStore.setState({ roomQuantumDisplay: 'stack', quantumDisplay: 'stack' });
     mockConnector(false);
     render(<SettingsPopup open onClose={() => {}} />);
     expect(screen.getByText(/重ね固定/)).toBeTruthy();
     fireEvent.click(screen.getAllByRole('radio')[1]); // 巡回を押してみる
     expect(useGameStore.getState().quantumDisplay).toBe('stack');
+  });
+
+  it('部屋が巡回なら、ルールを決めた側も「自分の画面のみ」で切り替えられる', () => {
+    mockConnector(true);
+    render(<SettingsPopup open onClose={() => {}} />);
+    expect(screen.getByText('自分の画面のみ')).toBeTruthy();
+    fireEvent.click(screen.getAllByRole('radio')[0]); // 重ね
+    expect(useGameStore.getState().quantumDisplay).toBe('stack');
+    // ★決めた側でも部屋は動かない＝相手の画面は巡回のまま
+    expect(useGameStore.getState().roomQuantumDisplay).toBe('cycle');
+  });
+
+  it('部屋が巡回なら、決めた側でない人も「自分の画面のみ」で切り替えられる', () => {
+    mockConnector(false);
+    render(<SettingsPopup open onClose={() => {}} />);
+    expect(screen.getByText('自分の画面のみ')).toBeTruthy();
+    fireEvent.click(screen.getAllByRole('radio')[0]); // 重ね
+    expect(useGameStore.getState().quantumDisplay).toBe('stack');
+    expect(useGameStore.getState().roomQuantumDisplay).toBe('cycle'); // 部屋は動かない
   });
 
   it('量子でない対局ではカードごと出さない', () => {

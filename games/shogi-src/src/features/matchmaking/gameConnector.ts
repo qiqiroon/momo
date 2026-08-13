@@ -60,13 +60,9 @@ const connector: OnlineGameConnector = {
     return { gameType: cfg.gameType, torusMode: cfg.torusMode, quantum: cfg.quantum, quantumDisplayMode: cfg.quantumDisplayMode };
   },
 
-  setQuantumDisplayMode(mode: 'cycle' | 'stack') {
-    const s = useMatchmakingStore.getState();
-    s.setPendingRoomConfig({ quantumDisplayMode: mode });
-    if (s.activeRoomConfig) {
-      s.setActiveRoomConfig({ ...s.activeRoomConfig, quantumDisplayMode: mode });
-    }
-  },
+  // v1.24: setQuantumDisplayMode は廃止した。対局中に部屋の値 (qtdisp) を書き換えられる口が
+  //   あると、ルールを決めた側だけが自分に有利な局面で読みやすさを変えられてしまうため
+  //   (spec 駒デザイン・対局UI v0.9 §4.4)。部屋の値が決まるのは S02 の setConfig 経路だけ。
 
   isRuleSetter() {
     const s = useMatchmakingStore.getState();

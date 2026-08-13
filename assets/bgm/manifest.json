@@ -1,0 +1,5 @@
+{
+  "game-japanese": ["bgm-game-1.mp3","bgm-game-2.mp3","bgm-game-3.mp3"],
+  "game-koikoi": ["bgm-koikoi-1.mp3","bgm-koikoi-2.mp3"],
+  "lobby": ["bgm-lobby-1.mp3","bgm-lobby-2.mp3","bgm-lobby-3.mp3","bgm-lobby-4.mp3"]
+}

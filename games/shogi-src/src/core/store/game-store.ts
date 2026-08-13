@@ -883,17 +883,15 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   setQuantumDisplay: (mode) => {
-    // spec 駒デザイン・対局UI v0.8 §4.4。どちらの層に書くかをここ 1 か所で決める。
-    const isSetter = pluginGet<OnlineGameConnector>('gameConnector')?.isRuleSetter() ?? true;
-    if (isSetter) {
-      // ルール設定者は部屋の値を決める。自分の画面の値も同じにして、次の対局へ持ち越す。
-      saveMyQuantumDisplay(mode);
-      set({ roomQuantumDisplay: mode, myQuantumDisplay: mode, quantumDisplay: mode });
-      // 対局設定 (qtdisp) は部屋のルールそのものなので書き戻す (spec §4.4 単一情報源)。
-      pluginGet<OnlineGameConnector>('gameConnector')?.setQuantumDisplayMode(mode);
-      return;
-    }
-    // 設定者でない側。部屋の値が重ねなら固定＝読みやすい側へは逃げられない。
+    // spec 駒デザイン・対局UI v0.9 §4.4。**対局中に動かせるのは「自分の画面の値」だけ**で、
+    // これはルールを決めた側も含めた全員に等しく効く (v1.24 で改訂・誰が決めた側かを見ない)。
+    //
+    // 部屋の値 (対局の基準) が決まるのはルール設定画面ただ 1 か所。対局中にルールを決めた側だけが
+    // 基準を動かせると、自分に有利な局面で読みやすさを変えられて不公平になるため
+    // (ユーザー判断 2026-08-13)。開始時点で決まっていれば両者同じ条件で始められる。
+    //
+    // 部屋の値が重ねなら何もしない = 読みやすい側へは誰も逃げられない。
+    // 巡回なら各自が自分の画面だけ重ねにできる (読みにくくするのは自由)。
     if (get().roomQuantumDisplay === 'stack') return;
     saveMyQuantumDisplay(mode);
     set({ myQuantumDisplay: mode, quantumDisplay: mode });

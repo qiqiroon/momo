@@ -380,8 +380,7 @@ export function GameScreen({ variant }: GameScreenProps) {
     return () => clearTimeout(id);
   }, [lastAppliedMove, currentQuantum]);
 
-  // 見せ方を実際に切り替えられる側か (オフラインは常に本人)
-  const ruleSetter = online.isRuleSetter;
+  // v1.24: 見せ方の切替は「ルールを決めた側か」を見なくなった (部屋の値だけで決まる)。
 
   // v1.10: 予告の文字も駒と同じ向きにする。選んでいるのが相手側 (viewer から見て
   // 逆向きに置かれている側) の駒なら、予告も逆さにしないと「自分の駒に決まる」ように
@@ -549,16 +548,16 @@ export function GameScreen({ variant }: GameScreenProps) {
                 S02 / S10 の 2 か所に集約する。今回は消さずに新しい分岐へ揃えるところまで。
                 削除するときは合わせて付録D-1 §5.6.2 の記述と本コメントを片付けること。
 
-                v1.08: 量子 ON のときだけ出す。v1.22 で操作の可否を spec 駒UI v0.8 §4.4 に合わせた。
-                ルール設定者は部屋の値を決められる。それ以外は部屋の値が巡回のときだけ
-                自分の画面の値を切り替えられ、重ねのときは固定 (読みやすい側へは逃げられない)。 */}
+                v1.08: 量子 ON のときだけ出す。v1.24 で操作の可否を spec 駒UI v0.9 §4.4 に合わせた。
+                対局中に動かせるのは自分の画面の値だけで、これは**全員に等しく効く**
+                (ルールを決めた側も同じ)。部屋の値が重ねなら固定＝読みやすい側へは誰も逃げられない。 */}
             {currentQuantum && (() => {
-              const stackFixed = !ruleSetter && roomQuantumDisplay === 'stack';
-              const canEdit = ruleSetter || !stackFixed;
+              const stackFixed = roomQuantumDisplay === 'stack';
+              const canEdit = !stackFixed;
               return (
                 <div
                   className="qmode-toggle"
-                  title={ruleSetter ? undefined : stackFixed ? t('qmode.stackFixed') : t('qmode.ownScreenOnly')}
+                  title={stackFixed ? t('qmode.stackFixed') : t('qmode.ownScreenOnly')}
                 >
                   <button
                     type="button"
@@ -691,7 +690,11 @@ export function GameScreen({ variant }: GameScreenProps) {
                         {piece && unconfirmed && (
                           <span className={`qmark-b${piece.owner !== viewerSide ? ' gote' : ''}`}>？</span>
                         )}
-                        {foretellKind && (
+                        {/* v1.24: 移動先ヒントを切ると、この「行き先で駒が確定する」予告も
+                            一緒に消える (ユーザー判断 2026-08-13)。どちらも「そこへ動いたら
+                            どうなるか」を先に教える手助けなので、片方だけ残ると中途半端になる。
+                            消えるのは表示だけで、指せる場所も確定の結果も変わらない。 */}
+                        {hintOn && foretellKind && (
                           <span className={`foretell${foretellFlipped ? ' gote' : ''}`}>
                             {pieceNameFor(foretellKind, locale)}
                           </span>

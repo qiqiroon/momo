@@ -9,14 +9,12 @@ import { clearUiSettings } from '../../../core/store/ui-settings';
 /**
  * v1.22: S02 ルール選択画面の「未確定駒の見せ方」。
  *
- * ここで決めるのは部屋の値＝対局の基準 (spec 駒デザイン・対局UI v0.8 §4.4 / 付録D-2 v1.3)。
+ * ここで決めるのは部屋の値＝対局の基準 (spec 駒デザイン・対局UI v0.9 §4.4 / 付録D-2 v1.4)。
+ * **部屋の値が決まるのはこの画面だけ**で、対局が始まったら誰も動かせない。
  * S10 と同じ分岐を持つ必要があるので、こちらでも固定しておく。
  */
 function mockConnector(isRuleSetter: boolean) {
-  register('gameConnector', {
-    isRuleSetter: () => isRuleSetter,
-    setQuantumDisplayMode: () => {},
-  });
+  register('gameConnector', { isRuleSetter: () => isRuleSetter });
 }
 
 function setup(displayMode: 'cycle' | 'stack' = 'cycle') {
@@ -36,12 +34,16 @@ describe('S02 未確定駒の見せ方', () => {
     clearUiSettings();
   });
 
-  it('新しい決まりを説明する文面が出る (両者共通で適用、ではない)', () => {
+  // v1.24: 理屈を並べるのをやめ、どちらを選ぶと何ができるかを 2 行で言い切る
+  // (ユーザー判断 2026-08-13・見やすさ優先)。
+  it('決まりを 2 行で言い切る文面が出る', () => {
     mockConnector(true);
     setup();
     render(<RuleSelectScreen />);
-    expect(screen.getByText(/対局の基準になります/)).toBeTruthy();
-    expect(screen.getByText(/巡回にすると、相手も観戦者も自分の画面だけを重ねに変えられます/)).toBeTruthy();
+    expect(screen.getByText('巡回にすると、プレイヤーごとに重ねに変更できます')).toBeTruthy();
+    expect(screen.getByText('重ねにすると両者重ねに固定です')).toBeTruthy();
+    // 前の版の長い言い回しは残っていない
+    expect(screen.queryByText(/対局の基準になります/)).toBeNull();
     expect(screen.queryByText(/両プレイヤーに共通で適用されます/)).toBeNull();
   });
 

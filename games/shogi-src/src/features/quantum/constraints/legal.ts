@@ -22,8 +22,9 @@
  */
 
 import type { Mgf, Player } from '../../../core/engine/mgf/types';
-import type { PieceId, Square } from '../../../core/engine/position/types';
+import type { BoardTopology, PieceId, Square } from '../../../core/engine/position/types';
 import { directionOffsets } from '../../../core/engine/moves/directions';
+import { topologyOf, wrapSquare } from '../../../core/engine/position/coordinates';
 import { fileHasCertainPawn } from '../../../core/engine/moves/nifu';
 import type {
   QuantumConstraint,
@@ -35,10 +36,17 @@ import type { CandidateInfo } from '../piece-lookup';
  * 「盤上を kind K の駒だったとみなして、(from, to) の移動を説明できるか」を判定する。
  * §Q5/§Q7 の C-101 は「今の局面で説明可能な候補だけを残す」もので、実測ベースの
  * narrowing 判定 (静的な "動けるか" 一般論ではない)。よって:
- *   - direction × range の組合せに (dr, dc) が乗るか (方向マッチ)
+ *   - direction × range の組合せで from から to へ届くか (方向マッチ)
  *   - slide/step/jump のいずれかの型で許される移動長か
  * だけをチェックする。実際にその move が成立したという事実により、途中の
  * 経路が空いていた/居ても道が繋がっていたことは確定しているので、盤面走査は不要。
+ *
+ * **v1.27 (ユーザー報告 2026-08-14)**: 盤の端がつながっている場合に対応した。
+ * それまでは行き先を「to − from の差」で見ていたので、**回り込んだ手はどの駒種でも
+ * 説明できない動きに見え、候補が全部消えて異常になっていた**
+ * (円筒で角を横から回り込ませた実例)。実際に指せた手を「あり得ない」と判定していた
+ * わけで、盤の端の扱いが動きを作る側 (generator) とここで食い違っていたのが原因。
+ * 以後は generator と同じく **1 マスずつ進めて回り込ませ**、一周したら打ち切る。
  */
 function canKindExplainMove(
   kind: string,
@@ -46,21 +54,28 @@ function canKindExplainMove(
   to: Square,
   owner: Player,
   mgf: Mgf,
+  topology: BoardTopology,
 ): boolean {
   const def = mgf.pieces.find((p) => p.id === kind);
   if (!def || !def.move_logic) return false;
 
-  const dr = to.row - from.row;
-  const dc = to.col - from.col;
+  const { width, height } = mgf.board;
 
   for (const ability of def.move_logic.abilities) {
     const offsets = directionOffsets(ability.direction, owner);
-    const maxRange =
-      ability.range === -1 ? Math.max(mgf.board.width, mgf.board.height) : ability.range;
     for (const { drow, dcol } of offsets) {
-      for (let s = 1; s <= maxRange; s++) {
-        if (drow * s === dr && dcol * s === dc) return true;
+      const wraps = (dcol !== 0 && topology.wrapX) || (drow !== 0 && topology.wrapY);
+      const maxRange =
+        ability.range === -1
+          ? (wraps ? width * height : Math.max(width, height))
+          : ability.range;
+      let cur = wrapSquare({ row: from.row + drow, col: from.col + dcol }, width, height, topology);
+      for (let s = 1; s <= maxRange && cur !== null; s++) {
+        if (cur.row === to.row && cur.col === to.col) return true;
+        // 一周して出発マスへ戻ったら、そこから先は同じ道をなぞるだけ
+        if (cur.row === from.row && cur.col === from.col) break;
         if (ability.type === 'step' || ability.type === 'jump') break;
+        cur = wrapSquare({ row: cur.row + drow, col: cur.col + dcol }, width, height, topology);
       }
     }
   }
@@ -107,7 +122,7 @@ export const c101ActionPossibility: QuantumConstraint = (piece, location, pos, m
     const testKind = wasPromotedBeforeMove
       ? (mgf.pieces.find((p) => p.id === initialKind)?.promoted_id ?? initialKind)
       : initialKind;
-    if (canKindExplainMove(testKind, lastMove.from, lastMove.to, piece.owner, mgf)) {
+    if (canKindExplainMove(testKind, lastMove.from, lastMove.to, piece.owner, mgf, topologyOf(pos))) {
       survivors.add(pid);
     }
   }

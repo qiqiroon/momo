@@ -123,6 +123,59 @@ describe('C-101 行動可能性 (§Q7 移動履歴依存)', () => {
     expect(result.has('P_ref_ou')).toBe(true);
   });
 
+  /**
+   * ★ユーザー報告 2026-08-14 (v1.26 実機): 円筒の量子将棋で、角として盤の横から
+   * 回り込ませたら**候補が全部消えた**。行き先を「to − from の差」で見ていたため、
+   * 回り込んだ手はどの駒種でも説明できない動きに見えていた。実際に指せた手を
+   * 「あり得ない」と判定していたことになる (盤の端の扱いが、動きを作る側と食い違っていた)。
+   */
+  it('円筒: 横から回り込んだ角の手を説明できる (候補が消えない)', () => {
+    const piece = makeSentePiece({ pieceId: 'P_wrap' });
+    let pos = makeQuantumPosWithRefs(piece, { row: 3, col: 8 });
+    pos = {
+      ...pos,
+      topology: { wrapX: true, wrapY: false },
+      // 4筋側の端 (col 0) から左上へ 1 歩 = 反対側の端 (col 8) の 1 つ上の段へ回り込む
+      history: [{ type: 'move', pieceId: 'P_wrap', from: { row: 4, col: 0 }, to: { row: 3, col: 8 }, promote: false }],
+    };
+    const ctx = makeQuantumContext(pos, 'cylinder');
+    const result = c101ActionPossibility(piece, { kind: 'board', square: { row: 3, col: 8 } }, pos, hondou, ctx);
+    expect(result.size).toBeGreaterThan(0);
+    expect(result.has('P_ref_kaku')).toBe(true);
+    // 斜め前 1 マスの動きなので、銀・金・玉も説明できる (角だけに絞られはしない)
+    expect(result.has('P_ref_gin')).toBe(true);
+    // まっすぐしか進めない駒は従来どおり説明不能
+    expect(result.has('P_ref_fu')).toBe(false);
+    expect(result.has('P_ref_kyo')).toBe(false);
+  });
+
+  it('円筒: 横へ回り込んだ飛車の手を説明できる', () => {
+    const piece = makeSentePiece({ pieceId: 'P_wrap2' });
+    let pos = makeQuantumPosWithRefs(piece, { row: 4, col: 8 });
+    pos = {
+      ...pos,
+      topology: { wrapX: true, wrapY: false },
+      history: [{ type: 'move', pieceId: 'P_wrap2', from: { row: 4, col: 0 }, to: { row: 4, col: 8 }, promote: false }],
+    };
+    const ctx = makeQuantumContext(pos, 'cylinder');
+    const result = c101ActionPossibility(piece, { kind: 'board', square: { row: 4, col: 8 } }, pos, hondou, ctx);
+    expect(result.has('P_ref_hi')).toBe(true);
+    expect(result.has('P_ref_ou')).toBe(true); // 1 マス横なので玉でも説明できる
+    expect(result.has('P_ref_kaku')).toBe(false);
+  });
+
+  it('つないでいない盤では従来どおり説明不能 (回り込みを勝手に許さない)', () => {
+    const piece = makeSentePiece({ pieceId: 'P_plane' });
+    let pos = makeQuantumPosWithRefs(piece, { row: 3, col: 8 });
+    pos = {
+      ...pos,
+      history: [{ type: 'move', pieceId: 'P_plane', from: { row: 4, col: 0 }, to: { row: 3, col: 8 }, promote: false }],
+    };
+    const ctx = makeQuantumContext(pos);
+    const result = c101ActionPossibility(piece, { kind: 'board', square: { row: 3, col: 8 } }, pos, hondou, ctx);
+    expect(result.has('P_ref_kaku')).toBe(false);
+  });
+
   it('直近の指し手が桂馬ジャンプ (前2 横1): kei のみ残る', () => {
     const piece = makeSentePiece({ pieceId: 'P_kei' });
     let pos = makeQuantumPosWithRefs(piece, { row: 5, col: 6 });

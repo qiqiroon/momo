@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.28',
+    'app.ver': 'v1.29',
     // v0.72 音楽再生確認モーダル (Darts と同じ思想)
     'sound.promptTitle': 'BGM と効果音を再生してもよろしいですか？',
     'sound.bgmLabel': 'BGM 音量',
@@ -123,7 +123,6 @@ export const ja: LocaleData = {
     's00.mKifuD': '保存した対局を並べ直して振り返る。',
     's00.pvpReason': 'サーバーに接続できていないため、ネット対戦は選べません。',
     's00.watchReason': 'サーバーに接続できていないため、ネット観戦は選べません。',
-    's00.aiNotYet': 'AI 対戦は Phase 3 で実装予定です',
     's00.footAbout': 'MOMO Shogi について',
     's00.footDesc': 'MOMO Shogi は、ブラウザで遊べる将棋ゲームです。本将棋のほか、盤の端がつながるトーラス盤や、駒の正体が確定しない量子将棋など、変わりダネのルールで遊べます。ネット越しの対人対戦と AI 対戦に対応。アカウント登録もインストールも不要で、ブラウザだけですぐに遊べます。',
     's00.footTop': 'MOMO Works トップ',
@@ -356,6 +355,11 @@ export const ja: LocaleData = {
     's07.senteTurn': '先手番',
     's07.goteTurn': '後手番',
     's07.checkTag': '（王手）',
+    's07.aiThinking': '（AI が考え中…）',
+    'ai.selfmade.name': '自作探索 AI',
+    'ai.selfmade.desc': '数手先まで読んで駒の損得で選ぶ AI。すべてのルール・モードで動きます。',
+    's01.vsAi': 'AI と対局します',
+    's01.vsAiSide': 'あなたが先手・AI が後手',
     's07.leaveGame': '退室（対戦ロビーに戻る）',
     's07.reset': 'リセット',
     's07.kifuTitle': '棋譜',

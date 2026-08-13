@@ -2948,3 +2948,28 @@ body::before {
 }
 .set-toggle.on { background: var(--orange); }
 .set-toggle.on::after { transform: translateX(20px); }
+
+/* Phase 3: オフライン対局ルール画面で、相手が AI であることを示す一行 */
+.ai-opponent-note {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 8px);
+  background: var(--bg-elev1, rgba(255, 255, 255, 0.04));
+  font-size: 13px;
+  color: var(--fg-muted, #b9b3a8);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.ai-opponent-note::before {
+  content: '機';
+  font-family: 'Yuji Syuku', serif;
+  color: var(--orange-light);
+}
+.ai-opponent-side {
+  color: var(--orange-light);
+  font-size: 12px;
+}

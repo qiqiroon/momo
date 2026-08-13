@@ -39,6 +39,8 @@ import { FloatingPanel } from './FloatingPanel';
 import { HeaderCommonRight } from './HeaderCommonRight';
 import type { OnlineGameConnector } from '../plugin/gameConnector';
 import { useDebugStore } from '../store/debug-store';
+import { useAiStore } from '../store/ai-store';
+import { useAiOpponent } from '../controller/ai-driver';
 import { DebugClickLog } from './DebugClickLog';
 
 interface GameScreenProps {
@@ -77,6 +79,11 @@ export function GameScreen({ variant }: GameScreenProps) {
   const clearSelection = useGameStore((s) => s.clearSelection);
   const tryMove = useGameStore((s) => s.tryMove);
   const reset = useGameStore((s) => s.reset);
+
+  // Phase 3: 対 AI 対局。オフラインのときだけ効く。
+  const vsAi = useAiStore((s) => s.enabled);
+  const aiSide = useAiStore((s) => s.aiSide);
+  const aiThinking = useAiStore((s) => s.thinking);
 
   // v0.91: デバッグモード (?debug=1) 用の hooks。enabled が false なら
   // 全て no-op と等価 (overlay 非表示・logClick 呼び出しても捨てられる)。
@@ -300,6 +307,9 @@ export function GameScreen({ variant }: GameScreenProps) {
     prevPausedRef.current = paused;
   }, [paused]);
 
+  // Phase 3: AI の手番が来たら考えさせて 1 手指す (オンライン対局中は何もしない)。
+  useAiOpponent(online.isOnline);
+
   // v0.74: チャット音の発火は ChatConsole 側に移動 (S06/S07 共通化)
   // オンライン対戦時は自分の手番か相手の手番かを表示
   const isMyTurnOnline = online.isOnline && online.mySide === position.sideToMove;
@@ -332,6 +342,12 @@ export function GameScreen({ variant }: GameScreenProps) {
                     : position.sideToMove === 'player1'
                       ? t('s07.senteTurn') + (senteInCheck ? t('s07.checkTag') : '')
                       : t('s07.goteTurn') + (goteInCheck ? t('s07.checkTag') : '');
+
+  // Phase 3: AI の手番の間は、手番表示に「考え中」を添えて待ち時間を分かるようにする。
+  const turnLabelWithAi =
+    vsAi && status === 'playing' && position.sideToMove === aiSide
+      ? `${turnLabel}${aiThinking ? t('s07.aiThinking') : ''}`
+      : turnLabel;
 
   const isSelected = (row: number, col: number) => selectedSquare?.row === row && selectedSquare?.col === col;
   const isHint = (row: number, col: number) => legalDestinations.some((d) => d.row === row && d.col === col);
@@ -397,8 +413,11 @@ export function GameScreen({ variant }: GameScreenProps) {
     [mgf, position, selectedSquare, kindMap],
   );
 
-  // オンライン対戦で自分の手番でないなら入力を受け付けない
-  const inputBlocked = online.isOnline && online.mySide !== null && position.sideToMove !== online.mySide;
+  // オンライン対戦で自分の手番でないなら入力を受け付けない。
+  // Phase 3: 対 AI では AI の手番も同じく受け付けない (人が AI の駒を動かせてしまわないように)。
+  const inputBlocked =
+    (online.isOnline && online.mySide !== null && position.sideToMove !== online.mySide) ||
+    (vsAi && !online.isOnline && position.sideToMove === aiSide);
 
   const onSquareClick = (row: number, col: number) => {
     if (status !== 'playing') return;
@@ -542,7 +561,7 @@ export function GameScreen({ variant }: GameScreenProps) {
           </div>
 
           <div className="turn-row">
-            <div className={`turn-banner${status === 'checkmate' ? ' opp' : ''}`}>{turnLabel}</div>
+            <div className={`turn-banner${status === 'checkmate' ? ' opp' : ''}`}>{turnLabelWithAi}</div>
             {/* ★申し送り (ユーザー判断 2026-08-12): **この切替ボタンはいずれ削除する**。
                 付録D-1 §5.6.2 が「対局画面に切替 UI は持たない」と定めており、見せ方の切替は
                 S02 / S10 の 2 か所に集約する。今回は消さずに新しい分岐へ揃えるところまで。

@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useI18nStore } from '../../../core/store/i18n-store';
 import { useRouteStore } from '../../../core/store/route-store';
+import { useAiStore } from '../../../core/store/ai-store';
 import { t as _t } from '../../../core/i18n';
 import type { LocaleCode } from '../../../core/i18n/types';
 import { CatIcon } from '../../../core/ui-core/CatIcon';
@@ -19,7 +20,8 @@ import { seButton } from '../../../core/audio/se-synth';
  * - モック由来の見出し h2「モード選択」+ 説明文
  * - モードリスト (縦 1 列):
  *   - 対 ネット対戦 (primary・要通信)
- *   - 機 AI 対戦 (primary・Phase 3 で実装予定)
+ *   - 機 AI 対戦 (primary・Phase 3-1 で開通。設定画面 S03 ができるまではオフライン
+ *     対局のルール選択画面を流用し、人が先手・AI が後手で始まる)
  *   - 同 vs 人 (オフライン) — impl 追加 (モックには無いが残す)
  *   - 観 ネット観戦 (未実装・見た目のみ)
  *   - 作 カスタムルール作成 (未実装・見た目のみ)
@@ -31,7 +33,6 @@ export function MenuScreen() {
   const t = (key: string) => _t(key, locale);
   const setScreen = useRouteStore((s) => s.setScreen);
   const connection = useMatchmakingStore((s) => s.connection);
-  const [showAiNote, setShowAiNote] = useState(false);
 
   // v0.55: S00 メニュー段階でシグナリング接続を先行して確立。
   // これで接続状態バーが即座に「接続中→接続済み」を反映し、
@@ -97,16 +98,24 @@ export function MenuScreen() {
         <ModeRow
           glyph="機"
           primary
-          disabled
           name={t('s00.mAi')}
           desc={t('s00.mAiD')}
-          onClick={() => setShowAiNote(true)}
+          onClick={() => {
+            // Phase 3-1: 対 AI の設定画面 (S03) はまだ無いので、オフライン対局の
+            // ルール選択画面をそのまま使う。人が先手・AI が後手で始める。
+            // 先後を選ぶ (振り駒を含む) のは S03 を作るとき。
+            useAiStore.getState().startVsAi({ aiSide: 'player2' });
+            setScreen('offline-rule');
+          }}
         />
         <ModeRow
           glyph="同"
           name={t('s00.mOffline')}
           desc={t('s00.mOfflineD')}
-          onClick={() => setScreen('offline-rule')}
+          onClick={() => {
+            useAiStore.getState().stopVsAi();
+            setScreen('offline-rule');
+          }}
         />
         <ModeRow
           glyph="棋"
@@ -136,39 +145,6 @@ export function MenuScreen() {
         </div>
       </footer>
 
-      {showAiNote && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 100,
-          }}
-          onClick={() => setShowAiNote(false)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--border-strong)',
-              borderRadius: 10,
-              padding: 20,
-              maxWidth: 360,
-              textAlign: 'center',
-            }}
-          >
-            <div style={{ fontSize: 14, color: 'var(--text)', marginBottom: 12 }}>
-              {t('s00.aiNotYet')}
-            </div>
-            <button className="reset-btn" type="button" onClick={() => setShowAiNote(false)}>
-              {t('common.close')}
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

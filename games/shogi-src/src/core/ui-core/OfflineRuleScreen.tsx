@@ -1,6 +1,7 @@
 import { useI18nStore } from '../store/i18n-store';
 import { useRouteStore } from '../store/route-store';
 import { useGameStore } from '../store/game-store';
+import { useAiStore } from '../store/ai-store';
 import { t as _t } from '../i18n';
 import type { LocaleCode } from '../i18n/types';
 import { CatIcon } from './CatIcon';
@@ -33,6 +34,7 @@ export function OfflineRuleScreen(_props: OfflineRuleScreenProps) {
   const locale = useI18nStore((s) => s.locale);
   const t = (key: string) => _t(key, locale);
   const setScreen = useRouteStore((s) => s.setScreen);
+  const vsAi = useAiStore((s) => s.enabled);
 
   const subLocale: LocaleCode = locale === 'cat' ? 'ja' : locale;
   const subtitle = subLocale === 'zh' ? _t('app.sub', 'zh') : _t('app.sub', 'en');
@@ -106,6 +108,15 @@ export function OfflineRuleScreen(_props: OfflineRuleScreenProps) {
             onEditRule={onEditRule}
           />
         </div>
+
+        {/* Phase 3-1: 対 AI で入ってきたときだけ、相手が AI であることと先後を出す。
+            選べるようにする (振り駒つき) のは設定画面 S03 を作るとき。 */}
+        {vsAi && (
+          <div className="ai-opponent-note">
+            {t('s01.vsAi')}
+            <span className="ai-opponent-side">{t('s01.vsAiSide')}</span>
+          </div>
+        )}
 
         <div style={{ marginTop: 20, display: 'flex', justifyContent: 'center' }}>
           <button className="act taunt" type="button" onClick={onStart} style={{ minWidth: 180 }}>

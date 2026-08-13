@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useI18nStore } from '../store/i18n-store';
 import { useRouteStore } from '../store/route-store';
 import { useGameStore } from '../store/game-store';
@@ -11,6 +12,7 @@ import { get as pluginGet } from '../plugin/registry';
 import type { OnlineGameConnector } from '../plugin/gameConnector';
 import { seButton } from '../audio/se-synth';
 import { DEFAULT_TIME_CONTROL } from '../engine/time-control';
+import { SidePickAi, useFurigoma, type AiSideChoice } from './SidePickAi';
 
 /**
  * オフライン対局のルール/持ち時間選択画面（v0.45 追加）。
@@ -41,6 +43,22 @@ export function OfflineRuleScreen(_props: OfflineRuleScreenProps) {
 
   const onBack = () => { seButton(); setScreen('lobby'); }; // v0.76: 家アイコンにも SE-button
 
+  // Phase 3-1 追補: 対 AI のときだけ先後を選ぶ (ネット対戦の部屋と同じ見た目・同じ文言)。
+  // 選ぶまでは対局を始められない (部屋側で「合意できるまで準備完了を押せない」のと同じ扱い)。
+  const [sideChoice, setSideChoice] = useState<AiSideChoice | null>(null);
+  const { draw, spinning, roll } = useFurigoma(sideChoice);
+  const onPickSide = (choice: AiSideChoice) => {
+    setSideChoice(choice);
+    if (choice === 'random') roll(); // 押し直すと振り直す
+  };
+  /** あなたが先手か。おまかせは振り駒の結果に従う。決まっていなければ null。 */
+  const youAreSente: boolean | null =
+    sideChoice === 'sente' ? true
+    : sideChoice === 'gote' ? false
+    : sideChoice === 'random' && draw && !spinning ? draw.youAreSente
+    : null;
+  const startDisabled = vsAi && youAreSente === null;
+
   // v0.69: features/matchmaking の pendingRoomConfig からルール/時間サマリを取る (B ビルドのみ)
   const conn = pluginGet<OnlineGameConnector>('gameConnector');
   const pendingRules = conn?.getPendingRules() ?? null;
@@ -53,7 +71,12 @@ export function OfflineRuleScreen(_props: OfflineRuleScreenProps) {
   };
 
   const onStart = () => {
+    if (startDisabled) return;
     seButton(); // v0.74
+    // Phase 3-1 追補: 選んだ先後を AI 側に反映する (あなたが先手なら AI は後手)。
+    if (vsAi) {
+      useAiStore.getState().startVsAi({ aiSide: youAreSente ? 'player2' : 'player1' });
+    }
     // v0.69: pendingRoomConfig を activeRoomConfig に反映して S07 の getActiveRules() が
     // オフライン対局中も正しいルールを返せるようにする
     conn?.commitPendingToActive();
@@ -109,17 +132,30 @@ export function OfflineRuleScreen(_props: OfflineRuleScreenProps) {
           />
         </div>
 
-        {/* Phase 3-1: 対 AI で入ってきたときだけ、相手が AI であることと先後を出す。
-            選べるようにする (振り駒つき) のは設定画面 S03 を作るとき。 */}
+        {/* Phase 3-1 追補: 対 AI で入ってきたときだけ、相手が AI であることと先後選択を出す。
+            先後選択はネット対戦の部屋 (S05) からそのまま持ってきたもの。 */}
         {vsAi && (
-          <div className="ai-opponent-note">
-            {t('s01.vsAi')}
-            <span className="ai-opponent-side">{t('s01.vsAiSide')}</span>
-          </div>
+          <>
+            <div className="ai-opponent-note">{t('s01.vsAi')}</div>
+            <SidePickAi
+              t={t}
+              choice={sideChoice}
+              onChoice={onPickSide}
+              draw={draw}
+              spinning={spinning}
+              onBeforeChoice={seButton}
+            />
+          </>
         )}
 
         <div style={{ marginTop: 20, display: 'flex', justifyContent: 'center' }}>
-          <button className="act taunt" type="button" onClick={onStart} style={{ minWidth: 180 }}>
+          <button
+            className="act taunt"
+            type="button"
+            onClick={onStart}
+            disabled={startDisabled}
+            style={{ minWidth: 180, ...(startDisabled ? { opacity: 0.32, cursor: 'not-allowed' } : {}) }}
+          >
             {t('s01.startGame')}
           </button>
         </div>

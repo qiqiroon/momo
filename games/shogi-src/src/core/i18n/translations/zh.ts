@@ -5,7 +5,7 @@ export const zh: LocaleData = {
   name: '中文',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.29',
+    'app.ver': 'v1.30',
     'sound.promptTitle': '是否播放 BGM 与音效？',
     'sound.bgmLabel': 'BGM 音量',
     'sound.sfxLabel': '音效音量',
@@ -344,7 +344,6 @@ export const zh: LocaleData = {
     'ai.selfmade.name': '自制搜索 AI',
     'ai.selfmade.desc': '向前读取数手、按子力得失选择的 AI。适用于所有规则与模式。',
     's01.vsAi': '与 AI 对局',
-    's01.vsAiSide': '你执先手，AI 执后手',
     's07.leaveGame': '退出（返回大厅）',
     's07.reset': '重置',
     's07.kifuTitle': '棋谱',

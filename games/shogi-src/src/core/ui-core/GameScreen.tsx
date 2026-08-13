@@ -314,7 +314,9 @@ export function GameScreen({ variant }: GameScreenProps) {
   // オンライン対戦時は自分の手番か相手の手番かを表示
   const isMyTurnOnline = online.isOnline && online.mySide === position.sideToMove;
   // v0.34: 盤面の視点。mySide=player2 のとき盤を反転して「自分の駒を下側」に表示
-  const viewerSide: 'player1' | 'player2' = online.mySide ?? 'player1';
+  // Phase 3-1 追補: 対 AI では AI の反対側が自分なので、後手を選んだときも自分の駒が下に来る。
+  const viewerSide: 'player1' | 'player2' =
+    online.mySide ?? (vsAi ? (aiSide === 'player1' ? 'player2' : 'player1') : 'player1');
   const oppSide: 'player1' | 'player2' = viewerSide === 'player1' ? 'player2' : 'player1';
   const flipped = viewerSide === 'player2';
   const turnLabel =

@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.29',
+    'app.ver': 'v1.30',
     // v0.72 音楽再生確認モーダル (Darts と同じ思想)
     'sound.promptTitle': 'BGM と効果音を再生してもよろしいですか？',
     'sound.bgmLabel': 'BGM 音量',
@@ -359,7 +359,6 @@ export const ja: LocaleData = {
     'ai.selfmade.name': '自作探索 AI',
     'ai.selfmade.desc': '数手先まで読んで駒の損得で選ぶ AI。すべてのルール・モードで動きます。',
     's01.vsAi': 'AI と対局します',
-    's01.vsAiSide': 'あなたが先手・AI が後手',
     's07.leaveGame': '退室（対戦ロビーに戻る）',
     's07.reset': 'リセット',
     's07.kifuTitle': '棋譜',

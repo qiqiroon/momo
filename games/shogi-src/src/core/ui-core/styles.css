@@ -2969,7 +2969,3 @@ body::before {
   font-family: 'Yuji Syuku', serif;
   color: var(--orange-light);
 }
-.ai-opponent-side {
-  color: var(--orange-light);
-  font-size: 12px;
-}

@@ -5,7 +5,7 @@ export const en: LocaleData = {
   name: 'English',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.29',
+    'app.ver': 'v1.30',
     'sound.promptTitle': 'Enable BGM and sound effects?',
     'sound.bgmLabel': 'BGM volume',
     'sound.sfxLabel': 'SFX volume',
@@ -344,7 +344,6 @@ export const en: LocaleData = {
     'ai.selfmade.name': 'Built-in Search AI',
     'ai.selfmade.desc': 'Reads a few moves ahead and picks by material. Works with every rule and mode.',
     's01.vsAi': 'Playing against the AI',
-    's01.vsAiSide': 'You are Sente, the AI is Gote',
     's07.leaveGame': 'Leave (back to lobby)',
     's07.reset': 'Reset',
     's07.kifuTitle': 'Kifu',

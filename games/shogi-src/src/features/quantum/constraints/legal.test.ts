@@ -164,6 +164,63 @@ describe('C-101 行動可能性 (§Q7 移動履歴依存)', () => {
     expect(result.has('P_ref_kaku')).toBe(false);
   });
 
+  /**
+   * ★ユーザー報告 2026-08-14 (v1.27 実機): 完全トーラスで 1 歩下がって上下の境界を
+   * またいだ駒から、**香車の可能性が消えなかった**。香車は後ろに下がれないので、
+   * 説明が付くのは盤を縦にほぼ一周する長い前進だけ。その道には他の駒が並んでいて
+   * 通れないのに、通り道を見ずに「届くかどうか」だけで判定していた。
+   */
+  it('完全トーラス: 1 歩下がった手を、道が塞がった長い前進として説明しない (香を除外)', () => {
+    const piece = makeSentePiece({ pieceId: 'P_back' });
+    let pos = makeQuantumPosWithRefs(piece, { row: 0, col: 4 });
+    // 同じ筋の途中に駒を置く = 縦に一周する長い道は通れない
+    pos = withPieceAt(pos, 4, 4, makeRefPiece('P_block', 'fu', 'player1', 4));
+    pos = {
+      ...pos,
+      topology: { wrapX: true, wrapY: true },
+      // 9段目 (row 8) から 1 歩下がって上端 (row 0) へ回り込んだ
+      history: [{ type: 'move', pieceId: 'P_back', from: { row: 8, col: 4 }, to: { row: 0, col: 4 }, promote: false }],
+    };
+    const ctx = makeQuantumContext(pos, 'full');
+    const result = c101ActionPossibility(piece, { kind: 'board', square: { row: 0, col: 4 } }, pos, hondou, ctx);
+    // 香・歩は前にしか進めず、長い道は塞がっているので説明できない
+    expect(result.has('P_ref_kyo')).toBe(false);
+    expect(result.has('P_ref_fu')).toBe(false);
+    // 後ろへ 1 歩下がれる駒は説明できる
+    expect(result.has('P_ref_kin')).toBe(true);
+    expect(result.has('P_ref_ou')).toBe(true);
+    expect(result.has('P_ref_hi')).toBe(true);
+    // 斜めにしか下がれない銀は説明できない
+    expect(result.has('P_ref_gin')).toBe(false);
+  });
+
+  it('完全トーラス: 縦の道が空いていれば長い前進としての説明は残す (香が残る)', () => {
+    const piece = makeSentePiece({ pieceId: 'P_back2' });
+    let pos = makeQuantumPosWithRefs(piece, { row: 0, col: 4 });
+    pos = {
+      ...pos,
+      topology: { wrapX: true, wrapY: true },
+      history: [{ type: 'move', pieceId: 'P_back2', from: { row: 8, col: 4 }, to: { row: 0, col: 4 }, promote: false }],
+    };
+    const ctx = makeQuantumContext(pos, 'full');
+    const result = c101ActionPossibility(piece, { kind: 'board', square: { row: 0, col: 4 } }, pos, hondou, ctx);
+    expect(result.has('P_ref_kyo')).toBe(true);
+  });
+
+  it('走り駒の途中に駒が居れば、その駒種では説明しない (平面でも同じ)', () => {
+    const piece = makeSentePiece({ pieceId: 'P_far' });
+    let pos = makeQuantumPosWithRefs(piece, { row: 2, col: 4 });
+    pos = withPieceAt(pos, 4, 4, makeRefPiece('P_block2', 'fu', 'player1', 4));
+    pos = {
+      ...pos,
+      history: [{ type: 'move', pieceId: 'P_far', from: { row: 6, col: 4 }, to: { row: 2, col: 4 }, promote: false }],
+    };
+    const ctx = makeQuantumContext(pos);
+    const result = c101ActionPossibility(piece, { kind: 'board', square: { row: 2, col: 4 } }, pos, hondou, ctx);
+    expect(result.has('P_ref_kyo')).toBe(false);
+    expect(result.has('P_ref_hi')).toBe(false);
+  });
+
   it('つないでいない盤では従来どおり説明不能 (回り込みを勝手に許さない)', () => {
     const piece = makeSentePiece({ pieceId: 'P_plane' });
     let pos = makeQuantumPosWithRefs(piece, { row: 3, col: 8 });

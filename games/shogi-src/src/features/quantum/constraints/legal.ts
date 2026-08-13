@@ -22,7 +22,7 @@
  */
 
 import type { Mgf, Player } from '../../../core/engine/mgf/types';
-import type { BoardTopology, PieceId, Square } from '../../../core/engine/position/types';
+import type { PieceId, Position, Square } from '../../../core/engine/position/types';
 import { directionOffsets } from '../../../core/engine/moves/directions';
 import { topologyOf, wrapSquare } from '../../../core/engine/position/coordinates';
 import { fileHasCertainPawn } from '../../../core/engine/moves/nifu';
@@ -35,18 +35,27 @@ import type { CandidateInfo } from '../piece-lookup';
 /**
  * 「盤上を kind K の駒だったとみなして、(from, to) の移動を説明できるか」を判定する。
  * §Q5/§Q7 の C-101 は「今の局面で説明可能な候補だけを残す」もので、実測ベースの
- * narrowing 判定 (静的な "動けるか" 一般論ではない)。よって:
+ * narrowing 判定 (静的な "動けるか" 一般論ではない)。判定するのは:
  *   - direction × range の組合せで from から to へ届くか (方向マッチ)
  *   - slide/step/jump のいずれかの型で許される移動長か
- * だけをチェックする。実際にその move が成立したという事実により、途中の
- * 経路が空いていた/居ても道が繋がっていたことは確定しているので、盤面走査は不要。
+ *   - **走り駒として説明するなら、その道が実際に空いているか** (下記 v1.28)
  *
  * **v1.27 (ユーザー報告 2026-08-14)**: 盤の端がつながっている場合に対応した。
  * それまでは行き先を「to − from の差」で見ていたので、**回り込んだ手はどの駒種でも
  * 説明できない動きに見え、候補が全部消えて異常になっていた**
- * (円筒で角を横から回り込ませた実例)。実際に指せた手を「あり得ない」と判定していた
- * わけで、盤の端の扱いが動きを作る側 (generator) とここで食い違っていたのが原因。
- * 以後は generator と同じく **1 マスずつ進めて回り込ませ**、一周したら打ち切る。
+ * (円筒で角を横から回り込ませた実例)。以後は generator と同じく **1 マスずつ進めて
+ * 回り込ませ**、一周したら打ち切る。
+ *
+ * **v1.28 (ユーザー報告 2026-08-14)**: 走り駒として説明するときは**通り道の空きを確かめる**。
+ * v1.27 までは「実際にその手が成立した以上、途中の道は空いていたはず」として盤面を見て
+ * いなかったが、**これは端がつながっていない盤でしか成り立たない**。つながっていると
+ * 同じマスへ**短い道と長い道の 2 通り**で届くため、「実際に通った短い道」が空いていた
+ * ことは「長い道」が空いていたことを意味しない。実例=完全トーラスで 1 歩下がって上下の
+ * 境界をまたいだ駒から**香車の可能性が消えなかった**(香車は後ろに下がれないので、説明が
+ * 付くのは盤を縦にほぼ一周する長い前進だけ。そこには他の駒が並んでいて通れない)。
+ *
+ * 盤面は着手後のものを見る。動いた駒の出発マスと行き先マス以外は着手で変化しないので、
+ * 途中のマスの空き具合は着手前と同じ。
  */
 function canKindExplainMove(
   kind: string,
@@ -54,11 +63,12 @@ function canKindExplainMove(
   to: Square,
   owner: Player,
   mgf: Mgf,
-  topology: BoardTopology,
+  pos: Position,
 ): boolean {
   const def = mgf.pieces.find((p) => p.id === kind);
   if (!def || !def.move_logic) return false;
 
+  const topology = topologyOf(pos);
   const { width, height } = mgf.board;
 
   for (const ability of def.move_logic.abilities) {
@@ -74,7 +84,10 @@ function canKindExplainMove(
         if (cur.row === to.row && cur.col === to.col) return true;
         // 一周して出発マスへ戻ったら、そこから先は同じ道をなぞるだけ
         if (cur.row === from.row && cur.col === from.col) break;
+        // 跳ぶ駒・1 マスだけの駒は通り道を持たない
         if (ability.type === 'step' || ability.type === 'jump') break;
+        // 走り駒として説明するなら、行き先の手前に駒が居てはいけない
+        if (pos.board[cur.row][cur.col] !== null) break;
         cur = wrapSquare({ row: cur.row + drow, col: cur.col + dcol }, width, height, topology);
       }
     }
@@ -122,7 +135,7 @@ export const c101ActionPossibility: QuantumConstraint = (piece, location, pos, m
     const testKind = wasPromotedBeforeMove
       ? (mgf.pieces.find((p) => p.id === initialKind)?.promoted_id ?? initialKind)
       : initialKind;
-    if (canKindExplainMove(testKind, lastMove.from, lastMove.to, piece.owner, mgf, topologyOf(pos))) {
+    if (canKindExplainMove(testKind, lastMove.from, lastMove.to, piece.owner, mgf, pos)) {
       survivors.add(pid);
     }
   }

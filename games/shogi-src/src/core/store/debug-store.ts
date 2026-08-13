@@ -39,6 +39,24 @@ export interface DebugCandidateChangeEntry {
   added: string[];
 }
 
+/**
+ * v1.26: 「デバッグパネルが開かない」を突き止めるための開閉ログ (ユーザー報告 2026-08-14)。
+ *
+ * リンクを押しても何も出ない、という報告に対して、**押した／出た／消えた**のどれが
+ * 起きたのかを記録する。原因は大きく 3 通りあり、どれかで見分けが付く:
+ *   - 押した記録すら無い      → クリックが届いていない
+ *   - 出た記録の直後に消えた記録 → 何かが即座に閉じている (背景タップの二度押し等)
+ *   - 出た記録だけで消えていない → 出てはいるが、何かの陰に隠れて見えない
+ * 最後の 1 つを見分けるため、表示直後にパネルの中心へ**実際に何があるか**を測って
+ * `covering` に残す (数値をいじって直そうとしないための実測)。
+ */
+export interface DebugPanelEvent {
+  time: number;
+  kind: 'open-requested' | 'shown' | 'closed';
+  /** 何が起きたか (押した場所・閉じた理由・覆っていた要素など) */
+  detail: string;
+}
+
 interface DebugState {
   /** URL に ?debug=1 が付いていたか。付いていなければ全機能非表示 (歯車内リンクも棋譜下 DebugClickLog も出ない)。 */
   enabled: boolean;
@@ -50,8 +68,13 @@ interface DebugState {
   clickLog: DebugClickEntry[];
   /** 直近 MAX_LOG 件の候補集合変更履歴 (新しい方が末尾)。v0.99 追加。 */
   candidateChangeLog: DebugCandidateChangeEntry[];
+  /** v1.26: デバッグパネルの開閉ログ (最新が末尾)。 */
+  panelEvents: DebugPanelEvent[];
   enable: () => void;
-  setPanelOpen: (open: boolean) => void;
+  /** reason を渡すと開閉ログに残る (v1.26)。 */
+  setPanelOpen: (open: boolean, reason?: string) => void;
+  /** v1.26: 開閉ログに 1 件足す。 */
+  logPanelEvent: (kind: DebugPanelEvent['kind'], detail: string) => void;
   toggleShowPieceIds: () => void;
   logClick: (piece: PieceInstance, source: 'board' | 'hand') => void;
   clearLog: () => void;
@@ -61,6 +84,8 @@ interface DebugState {
 }
 
 const MAX_LOG = 20;
+/** 開閉ログは直近だけ見られればよいので短く持つ (v1.26)。 */
+const MAX_PANEL_EVENTS = 12;
 
 export const useDebugStore = create<DebugState>((set) => ({
   enabled: false,
@@ -68,8 +93,21 @@ export const useDebugStore = create<DebugState>((set) => ({
   showPieceIds: false,
   clickLog: [],
   candidateChangeLog: [],
+  panelEvents: [],
   enable: () => set({ enabled: true }),
-  setPanelOpen: (open) => set({ panelOpen: open }),
+  setPanelOpen: (open, reason) => set((s) => ({
+    panelOpen: open,
+    panelEvents: reason === undefined
+      ? s.panelEvents
+      : [...s.panelEvents, {
+          time: Date.now(),
+          kind: open ? 'open-requested' as const : 'closed' as const,
+          detail: reason,
+        }].slice(-MAX_PANEL_EVENTS),
+  })),
+  logPanelEvent: (kind, detail) => set((s) => ({
+    panelEvents: [...s.panelEvents, { time: Date.now(), kind, detail }].slice(-MAX_PANEL_EVENTS),
+  })),
   toggleShowPieceIds: () => set((s) => ({ showPieceIds: !s.showPieceIds })),
   logClick: (piece, source) => set((s) => ({
     clickLog: [...s.clickLog, { time: Date.now(), source, piece }].slice(-MAX_LOG),

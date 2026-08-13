@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useI18nStore } from '../store/i18n-store';
 import { t as _t } from '../i18n';
 import { getBgmVolume, getSfxVolume, setBgmVolume, setSfxVolume } from '../audio/audio-engine';
-import { useDebugStore } from '../store/debug-store';
+import { useDebugStore, type DebugPanelEvent } from '../store/debug-store';
 import { useGameStore } from '../store/game-store';
 import { SETTINGS_DEFAULTS, clearUiSettings, loadByomuSound, saveByomuSound } from '../store/ui-settings';
 
@@ -308,16 +308,26 @@ function QuantumDisplayPreview({ kind }: { kind: 'stack' | 'cycle' }) {
 /**
  * v0.91 追加, v0.95 復元。`?debug=1` が付いている時だけ現れる「デバッグパネル」リンク。
  * クリックすると SettingsPopup を閉じてフローティング DebugPanel (PieceID スイッチ等) を開く。
+ *
+ * v1.26 (ユーザー報告 2026-08-14「押しても何も出ない」): リンクの下に**直前の開閉の記録**を
+ * 出す。押した記録／出た記録／消えた記録のどれが残っているかで原因が分かれるため。
+ * 記録はここに残るので、**開かなかったあとに設定をもう一度開けば読める**。
  */
 function DebugPanelLink({ onOpen }: { onOpen: () => void }) {
   const enabled = useDebugStore((s) => s.enabled);
   const setPanelOpen = useDebugStore((s) => s.setPanelOpen);
+  const panelEvents = useDebugStore((s) => s.panelEvents);
   if (!enabled) return null;
+  const recent = panelEvents.slice(-4);
   return (
     <div style={{ marginTop: 8, textAlign: 'right' }}>
       <a
         href="#debug"
-        onClick={(e) => { e.preventDefault(); setPanelOpen(true); onOpen(); }}
+        onClick={(e) => {
+          e.preventDefault();
+          setPanelOpen(true, '設定の「デバッグパネル」を押した');
+          onOpen();
+        }}
         style={{
           fontSize: 11, color: 'var(--orange)',
           textDecoration: 'underline', cursor: 'pointer',
@@ -325,8 +335,37 @@ function DebugPanelLink({ onOpen }: { onOpen: () => void }) {
       >
         デバッグパネル
       </a>
+      {recent.length > 0 && (
+        <div
+          style={{
+            marginTop: 6, textAlign: 'left', fontSize: 10, lineHeight: 1.5,
+            color: 'var(--text-muted)', background: 'rgba(0,0,0,0.25)',
+            border: '1px solid var(--border-strong)', borderRadius: 4,
+            padding: '5px 6px', maxHeight: 92, overflowY: 'auto',
+            fontFamily: 'ui-monospace, Menlo, Consolas, monospace', wordBreak: 'break-all',
+          }}
+        >
+          {recent.map((e, i) => (
+            <div key={i}>{formatPanelEvent(e)}</div>
+          ))}
+        </div>
+      )}
     </div>
   );
+}
+
+const PANEL_EVENT_LABEL: Record<DebugPanelEvent['kind'], string> = {
+  'open-requested': '押した',
+  shown: '出た',
+  closed: '消えた',
+};
+
+function formatPanelEvent(e: DebugPanelEvent): string {
+  const t = new Date(e.time);
+  const hh = String(t.getHours()).padStart(2, '0');
+  const mm = String(t.getMinutes()).padStart(2, '0');
+  const ss = String(t.getSeconds()).padStart(2, '0');
+  return `[${hh}:${mm}:${ss}] ${PANEL_EVENT_LABEL[e.kind]} ${e.detail}`;
 }
 
 /**

@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { hondou } from '../../core/engine/mgf/loader';
 import type { PieceInstance, Position } from '../../core/engine/position/types';
+import { initPosition } from '../../core/engine/position/init';
 import { generatePieceMoves } from '../../core/engine/moves/generator';
-import { isMoveLegal } from '../../core/engine/moves/legal';
+import { generateLegalMoves, isMoveLegal } from '../../core/engine/moves/legal';
+import { isInCheck } from '../../core/engine/moves/check';
 import { clear as clearPlugins, register } from '../../core/plugin/registry';
-import { noRoyalCaptureRoyal, topologyFor } from './topology';
+import { noRoyalCaptureRoyal, noRoyalCheckRoyal, topologyFor } from './topology';
 
 /**
  * 完全トーラス専用の追加制限 (親 §3.4.2)。
@@ -75,6 +77,7 @@ describe('完全トーラスの「王で敵王を取れない」', () => {
   beforeEach(() => {
     clearPlugins();
     register('topology:moveFilter', noRoyalCaptureRoyal);
+    register('topology:attackFilter', noRoyalCheckRoyal);
   });
 
   it('玉で敵の玉は取れない', () => {
@@ -102,6 +105,48 @@ describe('完全トーラスの「王で敵王を取れない」', () => {
     let pos = place(emptyPos('cylinder'), 0, 4, piece('ou', 'player1', 'P1'));
     pos = place(pos, 8, 4, piece('ou', 'player2', 'p1'));
     expect(noRoyalCaptureRoyal(hondou, pos, crossEdgeMove('P1'))).toBe(true);
+  });
+
+  /**
+   * v1.26 (ユーザー報告 2026-08-14「完全トーラスでどこへも行けなくなった」)。
+   *
+   * 取れないようにするだけでは、**王手はかかったまま**だった。上下がつながった盤では
+   * 開始局面で両者の玉が背中合わせに隣り合うので、先手は王手を受けた状態で始まり、
+   * 玉を逃がす手以外がすべて反則になっていた。玉どうしは取れないし王手にもならない、
+   * とすることで開始局面が普通に指せる状態に戻る。
+   */
+  it('玉どうしは王手にもならない (開始局面が固まらない)', () => {
+    const pos = initPosition(hondou, topologyFor('full'));
+    expect(isInCheck(hondou, pos, 'player1')).toBe(false);
+    expect(isInCheck(hondou, pos, 'player2')).toBe(false);
+  });
+
+  it('開始局面で玉以外の駒も動ける (報告された症状そのもの)', () => {
+    const pos = initPosition(hondou, topologyFor('full'));
+    const movers = new Set(
+      generateLegalMoves(hondou, pos)
+        .filter((m) => m.type === 'move')
+        .map((m) => m.pieceId),
+    );
+    expect(movers.size).toBeGreaterThan(1);
+    // 歩が 1 枚も動けないなら、また玉一択に戻っている
+    const pawnCanMove = generateLegalMoves(hondou, pos).some(
+      (m) => m.type === 'move' && pos.board[m.from.row][m.from.col]?.kind === 'fu',
+    );
+    expect(pawnCanMove).toBe(true);
+  });
+
+  it('玉以外からの周回王手はそのまま成立する (塞いでいない)', () => {
+    let pos = place(emptyPos('full'), 0, 4, piece('ou', 'player1', 'P1'));
+    pos = place(pos, 8, 4, piece('kin', 'player2', 'p1'));
+    // 後手の金が下端から上端へ回り込んで先手玉に利いている
+    expect(isInCheck(hondou, { ...pos, sideToMove: 'player1' }, 'player1')).toBe(true);
+  });
+
+  it('円筒では玉どうしの扱いを変えない (上下がつながらないので出番がない)', () => {
+    let pos = place(emptyPos('cylinder'), 0, 4, piece('ou', 'player1', 'P1'));
+    pos = place(pos, 8, 4, piece('ou', 'player2', 'p1'));
+    expect(noRoyalCheckRoyal(hondou, pos, { row: 8, col: 4 }, { row: 0, col: 4 })).toBe(true);
   });
 
   it('未確定の駒どうしは止めない (量子モード・玉と言い切れないため)', () => {

@@ -1,5 +1,5 @@
 import type { Mgf } from '../../core/engine/mgf/types';
-import type { BoardTopology, Move, PieceInstance, Position } from '../../core/engine/position/types';
+import type { BoardTopology, Move, PieceInstance, Position, Square } from '../../core/engine/position/types';
 import { PLANE_TOPOLOGY, topologyOf } from '../../core/engine/position/coordinates';
 import { buildInitialKindMap, confirmedKindOf } from '../../core/engine/candidate-kinds';
 
@@ -48,6 +48,34 @@ export function noRoyalCaptureRoyal(mgf: Mgf, position: Position, move: Move): b
   if (!mover) return true;
   const kindMap = buildInitialKindMap(position);
   return !(isConfirmedRoyal(mgf, mover, kindMap) && isConfirmedRoyal(mgf, target, kindMap));
+}
+
+/**
+ * 完全トーラス専用・上の制限の対**王手側**。false を返した組み合わせは王手にしない。
+ *
+ * **玉は敵の玉に王手をかけない**(v1.26・ユーザー判断 2026-08-14)。
+ *
+ * 取れないようにするだけでは足りなかった。上下がつながった盤では開始局面で両者の玉が
+ * 背中合わせに隣り合うので、**先手はいきなり王手を受けた状態で始まり、玉を逃がす 3 手
+ * 以外がすべて反則になる**(実機で「どこへも行けない」とユーザー報告)。防ぎたかった
+ * 「玉が背中合わせで即取り合う崩壊」は、王手が残っている限り半分残ったままになる。
+ *
+ * そこで、玉どうしは**取れないし、王手にもならない**とする。玉が並んで立つことはできるが、
+ * 互いに取れないので決着には他の駒が要る。飛・角・金などが盤を回り込んで王手・王取りを
+ * するのは従来どおり(親 §3.4.2 の「周回利きは塞がない」は不変)。
+ */
+export function noRoyalCheckRoyal(
+  mgf: Mgf,
+  position: Position,
+  from: Square,
+  target: Square,
+): boolean {
+  if (!topologyOf(position).wrapY) return true;
+  const attacker = position.board[from.row][from.col];
+  const defender = position.board[target.row][target.col];
+  if (!attacker || !defender) return true;
+  const kindMap = buildInitialKindMap(position);
+  return !(isConfirmedRoyal(mgf, attacker, kindMap) && isConfirmedRoyal(mgf, defender, kindMap));
 }
 
 function isConfirmedRoyal(

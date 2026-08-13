@@ -10,10 +10,11 @@
  */
 
 import { register } from '../../core/plugin/registry';
-import { noRoyalCaptureRoyal, topologyFor } from './topology';
+import { noRoyalCaptureRoyal, noRoyalCheckRoyal, topologyFor } from './topology';
 
 register('torus:topology', topologyFor);
 register('topology:moveFilter', noRoyalCaptureRoyal);
+register('topology:attackFilter', noRoyalCheckRoyal);
 
 export type { TorusMode } from './topology';
-export { topologyFor, noRoyalCaptureRoyal } from './topology';
+export { topologyFor, noRoyalCaptureRoyal, noRoyalCheckRoyal } from './topology';

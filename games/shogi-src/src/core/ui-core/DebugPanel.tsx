@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { useDebugStore } from '../store/debug-store';
 import { useGameStore } from '../store/game-store';
 
@@ -29,16 +30,50 @@ export function DebugPanel() {
   const showPieceIds = useDebugStore((s) => s.showPieceIds);
   const setPanelOpen = useDebugStore((s) => s.setPanelOpen);
   const toggleShowPieceIds = useDebugStore((s) => s.toggleShowPieceIds);
+  const logPanelEvent = useDebugStore((s) => s.logPanelEvent);
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  // v1.26: 表示できたことと、**そのとき画面のその場所に実際に何があるか**を記録する。
+  // 「出ていない」のか「出ているが隠れている」のかは、数値を眺めても分からないので実測する。
+  useEffect(() => {
+    if (!enabled || !panelOpen) return;
+    // タイマーで測る。**画面が表に出ていないと requestAnimationFrame は動かない**ので、
+    // それに頼ると「出た」記録が残らず、原因が分からないまま沈黙してしまう。
+    const id = window.setTimeout(() => {
+      const el = boxRef.current;
+      if (!el) { logPanelEvent('shown', 'パネルの箱が作られなかった'); return; }
+      const r = el.getBoundingClientRect();
+      const x = Math.round(r.left + Math.min(r.width / 2, 60));
+      const y = Math.round(r.top + 8);
+      const hit = document.elementFromPoint(x, y);
+      const covered = hit !== null && !el.contains(hit);
+      const name = hit
+        ? `${hit.tagName.toLowerCase()}${hit.className && typeof hit.className === 'string' ? '.' + hit.className.split(' ')[0] : ''}`
+        : 'なし';
+      const onScreen = r.width > 0 && r.height > 0
+        && r.bottom > 0 && r.right > 0
+        && r.top < window.innerHeight && r.left < window.innerWidth;
+      logPanelEvent(
+        'shown',
+        `位置 ${Math.round(r.left)},${Math.round(r.top)} 大きさ ${Math.round(r.width)}x${Math.round(r.height)}`
+        + ` (画面 ${window.innerWidth}x${window.innerHeight})`
+        + ` / 画面内=${onScreen ? 'はい' : 'いいえ'}`
+        + ` / 隠れている=${covered ? `はい (上にあるのは ${name})` : 'いいえ'}`,
+      );
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, [enabled, panelOpen, logPanelEvent]);
 
   if (!enabled || !panelOpen) return null;
 
   return (
     <>
       <div
-        onClick={() => setPanelOpen(false)}
+        onClick={() => setPanelOpen(false, '背景をクリックした')}
         style={{ position: 'fixed', inset: 0, background: 'transparent', zIndex: 600 }}
       />
       <div
+        ref={boxRef}
         style={{
           position: 'fixed', top: 46, right: 12, zIndex: 601,
           background: 'var(--surface)', border: '1px solid var(--border-strong)',
@@ -53,7 +88,7 @@ export function DebugPanel() {
           </span>
           <button
             type="button"
-            onClick={() => setPanelOpen(false)}
+            onClick={() => setPanelOpen(false, 'close ボタンを押した')}
             style={{
               padding: '2px 8px', background: 'transparent',
               border: '1px solid var(--border-strong)', borderRadius: 4,

@@ -149,9 +149,12 @@ export function handleShogiMessage(data: unknown): void {
       // v1.08 (Phase 5-11): 未確定駒の見せ方 (qtdisp) は部屋のルールの一部なので、
       // ホストの選択をゲスト側にも「部屋の値」として適用する (spec 駒UI v0.8 §4.4)。
       // v1.22: 部屋の値が巡回なら、実際の見え方は各自の画面の値になる。
+      // v1.25 (Phase 4): 盤の端のつなぎ方も部屋のルールの一部。ホスト・ゲスト・観戦者が
+      // 同じ盤で始まらないと、同じ手が片方だけ非合法になって局面がずれる。
       useGameStore.getState().reset({
         quantum: cfg?.quantum ?? false,
         quantumDisplay: cfg?.quantumDisplayMode ?? 'cycle',
+        torusMode: cfg?.torusMode ?? 'none',
       });
       useRouteStore.getState().setScreen('game');
       return;

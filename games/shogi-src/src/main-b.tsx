@@ -5,6 +5,7 @@ import './momo-lang/init';
 import './features/cat-lang';
 import './features/matchmaking';
 import './features/quantum';
+import './features/torus';
 import { App } from './App';
 import { useRouteStore } from './core/store/route-store';
 import { useGameStore } from './core/store/game-store';

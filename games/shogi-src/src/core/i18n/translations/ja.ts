@@ -1,11 +1,11 @@
-import type { LocaleData } from '../types';
+﻿import type { LocaleData } from '../types';
 
 export const ja: LocaleData = {
   code: 'ja',
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.24',
+    'app.ver': 'v1.25',
     // v0.72 音楽再生確認モーダル (Darts と同じ思想)
     'sound.promptTitle': 'BGM と効果音を再生してもよろしいですか？',
     'sound.bgmLabel': 'BGM 音量',

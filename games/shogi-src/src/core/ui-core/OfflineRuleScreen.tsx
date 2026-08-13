@@ -60,9 +60,11 @@ export function OfflineRuleScreen(_props: OfflineRuleScreenProps) {
     gs.setTimeControl(pendingTc);
     // v0.90: 量子 ON の場合は初期候補集合を割り当てる (Phase 5-2)。
     // v1.08 (Phase 5-11): 未確定駒の見せ方 (qtdisp) も S02 で選んだ値を引き継ぐ。
+    // v1.25 (Phase 4): 盤の端のつなぎ方 (トーラス) も S02 で選んだ値で始める。
     gs.reset({
       quantum: pendingRules?.quantum ?? false,
       quantumDisplay: pendingRules?.quantumDisplayMode ?? 'cycle',
+      torusMode: pendingRules?.torusMode ?? 'none',
     });
     setScreen('game');
   };

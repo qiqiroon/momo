@@ -34,6 +34,22 @@ export interface Square {
 
 export type BoardCell = PieceInstance | null;
 
+/**
+ * 盤の端のつなぎ方 (Phase 4・親 §3.4)。
+ *
+ * 省略時 (undefined) は平面＝どの端もつながっていない。円筒は左右だけ (wrapX)、
+ * 完全トーラスは上下も (wrapX && wrapY) つなぐ。
+ *
+ * **座標系そのものの性質なので core に置く**。「なし/円筒/完全」というモードの解釈と、
+ * 完全トーラス専用の追加規則 (王で敵王を取れない) は features/torus 側にある。
+ */
+export interface BoardTopology {
+  /** 左右の端をつなぐ */
+  wrapX: boolean;
+  /** 上下の端をつなぐ */
+  wrapY: boolean;
+}
+
 export type MoveKind = 'move' | 'drop';
 
 export interface BoardMove {
@@ -64,4 +80,9 @@ export interface Position {
   sideToMove: Player;
   moveNumber: number;
   history: Move[];
+  /**
+   * 盤の端のつなぎ方 (Phase 4)。省略時は平面。対局中は変わらないので、
+   * 着手を適用しても (applyMove の展開で) そのまま引き継がれる。
+   */
+  topology?: BoardTopology;
 }

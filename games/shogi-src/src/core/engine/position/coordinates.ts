@@ -1,5 +1,35 @@
-import type { Square } from './types';
+import type { BoardTopology, Position, Square } from './types';
 import type { Player } from '../mgf/types';
+
+/** 端がどこもつながっていない盤 (通常の将棋盤)。 */
+export const PLANE_TOPOLOGY: BoardTopology = { wrapX: false, wrapY: false };
+
+/** 局面の端のつなぎ方。未設定なら平面。 */
+export function topologyOf(position: Pick<Position, 'topology'>): BoardTopology {
+  return position.topology ?? PLANE_TOPOLOGY;
+}
+
+/**
+ * 盤の外に出た座標を、つながっている反対側へ回り込ませる (親 §3.4 の座標計算)。
+ * つながっていない方向にはみ出した場合は null＝盤の外。
+ */
+export function wrapSquare(
+  sq: Square,
+  width: number,
+  height: number,
+  topology: BoardTopology,
+): Square | null {
+  let { row, col } = sq;
+  if (col < 0 || col >= width) {
+    if (!topology.wrapX) return null;
+    col = ((col % width) + width) % width;
+  }
+  if (row < 0 || row >= height) {
+    if (!topology.wrapY) return null;
+    row = ((row % height) + height) % height;
+  }
+  return { row, col };
+}
 
 /**
  * Shogi 座標（筋段, 1-indexed, 筋 x=1 が最右）と内部座標（row, col, 0-indexed）の変換。

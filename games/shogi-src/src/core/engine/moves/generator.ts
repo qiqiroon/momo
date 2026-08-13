@@ -1,6 +1,7 @@
 import type { Mgf, MgfAbility, MgfPieceDef } from '../mgf/types';
-import type { BoardMove, PieceInstance, Position, Square } from '../position/types';
+import type { BoardMove, BoardTopology, PieceInstance, Position, Square } from '../position/types';
 import { directionOffsets } from './directions';
+import { topologyOf, wrapSquare } from '../position/coordinates';
 import { buildInitialKindMap, resolveCandidateKinds } from '../candidate-kinds';
 
 /**
@@ -58,6 +59,13 @@ export function generateAllBoardMoves(mgf: Mgf, position: Position): BoardMove[]
   return moves;
 }
 
+/**
+ * 1 方向ぶんの行き先を集める。
+ *
+ * Phase 4: 盤の端がつながっている方向 (円筒＝左右／完全トーラス＝上下も) では、
+ * 盤の外に出た座標を反対側へ回り込ませる (親 §3.4)。走り駒は**盤を一周して出発マスへ
+ * 戻ったところで打ち切る**ので、回り込んでも無限に進み続けることはない。
+ */
 function collectDestinations(
   position: Position,
   piece: PieceInstance,
@@ -67,10 +75,18 @@ function collectDestinations(
   ability: MgfAbility,
 ): Square[] {
   const dests: Square[] = [];
-  const maxRange = ability.range === -1 ? Math.max(position.width, position.height) : ability.range;
-  let cur = { row: from.row + drow, col: from.col + dcol };
+  const topology = topologyOf(position);
+  const { width, height } = position;
+  // 回り込む方向へ進むなら、一周ぶん進めるように上限を取る (斜めは縦横の周期が噛み合う
+  // まで出発マスに戻らないことがあるので、マスの総数を上限にする)。
+  const wraps = (dcol !== 0 && topology.wrapX) || (drow !== 0 && topology.wrapY);
+  const unlimited = wraps ? width * height : Math.max(width, height);
+  const maxRange = ability.range === -1 ? unlimited : ability.range;
+  let cur = wrapSquare({ row: from.row + drow, col: from.col + dcol }, width, height, topology);
   let step = 1;
-  while (step <= maxRange && inBounds(cur, position)) {
+  while (step <= maxRange && cur !== null) {
+    // 一周して出発マスへ戻った = ここから先は同じ道をなぞるだけなので止める
+    if (cur.row === from.row && cur.col === from.col) break;
     const target = position.board[cur.row][cur.col];
     if (target === null) {
       if (ability.can_move_to_empty !== false) dests.push({ ...cur });
@@ -81,14 +97,10 @@ function collectDestinations(
       break;
     }
     if (ability.type === 'step' || ability.type === 'jump') break;
-    cur = { row: cur.row + drow, col: cur.col + dcol };
+    cur = wrapSquare({ row: cur.row + drow, col: cur.col + dcol }, width, height, topology);
     step++;
   }
   return dests;
-}
-
-function inBounds(sq: Square, position: Position): boolean {
-  return sq.row >= 0 && sq.row < position.height && sq.col >= 0 && sq.col < position.width;
 }
 
 function pushMoves(
@@ -103,7 +115,7 @@ function pushMoves(
 ): void {
   const capturedPieceId = position.board[to.row][to.col]?.pieceId;
   const canPromote = canPromoteMove(mgf, def, piece, from, to);
-  const mustPromote = mustPromoteMove(mgf, def, piece, to);
+  const mustPromote = mustPromoteMove(mgf, def, piece, to, topologyOf(position));
   const push = (promote: boolean) => {
     const key = `${to.row},${to.col},${promote ? 1 : 0}`;
     if (seen.has(key)) return;
@@ -138,10 +150,20 @@ function canPromoteMove(
   return inZone(from.row) || inZone(to.row);
 }
 
-function mustPromoteMove(mgf: Mgf, def: MgfPieceDef, piece: PieceInstance, to: Square): boolean {
+function mustPromoteMove(
+  mgf: Mgf,
+  def: MgfPieceDef,
+  piece: PieceInstance,
+  to: Square,
+  topology: BoardTopology,
+): boolean {
   if (!def.can_promote) return false;
   if (piece.promoted) return false;
   if (!def.must_promote_at || def.must_promote_at === 0) return false;
+  // Phase 4 (親 §3.9 v1.11 追記): 上下がつながっている盤 (完全トーラス) には
+  // 「行き所のない駒」が存在しない。最奥まで行っても、そのまま反対側へ抜けられる。
+  // 縦方向に効く強制成りはこの場合だけ外す (円筒＝左右のみでは従来どおり)。
+  if (topology.wrapY) return false;
   const rank = to.row + 1;
   const enemyBackRank = piece.owner === 'player1' ? 1 : mgf.board.height;
   const distanceFromEnemyBack = Math.abs(rank - enemyBackRank);

@@ -1,11 +1,11 @@
-import type { LocaleData } from '../types';
+﻿import type { LocaleData } from '../types';
 
 export const en: LocaleData = {
   code: 'en',
   name: 'English',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.24',
+    'app.ver': 'v1.25',
     'sound.promptTitle': 'Enable BGM and sound effects?',
     'sound.bgmLabel': 'BGM volume',
     'sound.sfxLabel': 'SFX volume',

@@ -11,7 +11,7 @@ import {
   isInCheck,
   positionHash,
 } from '../engine';
-import type { BoardMove, Mgf, Move, PieceInstance, Player, Position, Square } from '../engine';
+import type { BoardMove, BoardTopology, Mgf, Move, PieceInstance, Player, Position, Square } from '../engine';
 import { formatMove, pieceNameJa, squareNameJa } from '../engine/kifu/format';
 import { NO_LIMIT_TIME_CONTROL, initClockState, type ClockState, type TimeControl } from '../engine/time-control';
 import { get as pluginGet } from '../plugin/registry';
@@ -37,6 +37,23 @@ export interface ResetOptions {
   quantum?: boolean;
   /** 省略時は現在値を維持する (ルール設定者が対局中に切り替えた値を消さない)。 */
   quantumDisplay?: QuantumDisplay;
+  /**
+   * Phase 4: 盤の端のつなぎ方 (対局設定 `torus`)。省略時は現在値を維持する。
+   * 実際の回り込みは features/torus が登録する翻訳器を通して局面に載る。
+   */
+  torusMode?: TorusMode;
+}
+export type TorusMode = 'none' | 'cylinder' | 'full';
+/** features/torus が登録する「モード → 盤の端のつなぎ方」の翻訳器 (未登録なら平面)。 */
+type TorusTopologyFn = (mode: TorusMode) => BoardTopology;
+
+/**
+ * 対局設定のトーラスモードを盤の端のつなぎ方に翻訳する。
+ * features/torus が読み込まれていない (A ビルド) ときは常に平面。
+ */
+function topologyForMode(mode: TorusMode): BoardTopology | undefined {
+  if (mode === 'none') return undefined;
+  return pluginGet<TorusTopologyFn>('torus:topology')?.(mode);
 }
 type QuantumInitFn = (pos: Position) => Position;
 type QuantumCandidateUpdateFn = (
@@ -250,6 +267,12 @@ interface GameState {
   reset: (options?: ResetOptions) => void;
   /** 現局面が量子モードで初期化されたか。reset({quantum}) で更新される。v0.90 追加。 */
   currentQuantum: boolean;
+  /**
+   * Phase 4: 現局面の盤の端のつなぎ方 (対局設定 `torus`)。reset({torusMode}) で更新される。
+   * 実際の回り込みは position.topology が持つので、こちらは「次の reset で引き継ぐ値」と
+   * 量子の絞り込みへ渡す値のための控え。
+   */
+  currentTorusMode: TorusMode;
   /**
    * 未確定駒の見せ方の **実効値** (Phase 5-11・v1.22 で 2 層化)。盤・駒・棋譜など
    * 描画側はすべてこれを読む。値の決め方は spec 駒デザイン・対局UI v0.8 §4.4:
@@ -483,7 +506,7 @@ function applyAndCommit(
   source: MoveSource = 'local',
 ): void {
   const state = get();
-  const { position, mgf, moveHistory, positionCounts, lastAppliedMove, positionHistory, positionCountsHistory, clockHistory, timeControl, clocks, activeClockSide, currentQuantum } = state;
+  const { position, mgf, moveHistory, positionCounts, lastAppliedMove, positionHistory, positionCountsHistory, clockHistory, timeControl, clocks, activeClockSide, currentQuantum, currentTorusMode } = state;
   const formatted = formatMove(mgf, position, move);
   let nextPos = applyMove(mgf, position, move);
   // v1.04 (Phase 5-7 §Q8.5): 捕獲制約 C-201/C-202/C-203。捕獲を検知して:
@@ -521,17 +544,19 @@ function applyAndCommit(
     if (dropHook) nextPos = dropHook(nextPos, mgf, move.pieceId, move.to);
   }
   // v0.96 (Phase 5-4): 量子モードなら着手直後に候補集合を再評価する。
-  // v0.98 (Phase 5-6): torus モード情報を context として渡す。torus 実装は Phase 4
-  // で完成予定なので現状は 'none' を渡す (C-103/C-104 は非 torus 環境で有効化)。
+  // v1.25 (Phase 4): 盤の端のつなぎ方を渡す。ここは Phase 4 まで 'none' 固定だったので、
+  // トーラスを選んでも盤端に依存する絞り込み (行き所のない駒・強制成り) が外れなかった。
   // v1.04 (Phase 5-7): C-202 発動時は候補更新をスキップ (§Q8.5)。
   if (currentQuantum && !statusOverride) {
     const candidateUpdateFn = pluginGet<QuantumCandidateUpdateFn>('quantum:candidateUpdate');
     // Phase 5-6.5 移行後: context (infoMap 含む) は candidateUpdate 側で pos から自動生成。
-    // torusMode 等の追加副次情報を渡したい場合はここで context を組み立てる。
     if (candidateUpdateFn) {
       try {
         // Phase 5-15: 反復上限は対局設定 (§Q17.8 `max_iterations`) から。
-        nextPos = candidateUpdateFn(nextPos, mgf, { maxIterations: state.quantumParams.maxIterations });
+        nextPos = candidateUpdateFn(nextPos, mgf, {
+          torusMode: currentTorusMode,
+          maxIterations: state.quantumParams.maxIterations,
+        });
       } catch (e) {
         const anomaly = asQuantumAnomaly(e);
         if (!anomaly) throw e;
@@ -760,6 +785,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   activeClockSide: null,
   paused: false,
   currentQuantum: false,
+  currentTorusMode: 'none',
   quantumDisplay: loadMyQuantumDisplay(),
   roomQuantumDisplay: 'cycle',
   myQuantumDisplay: loadMyQuantumDisplay(),
@@ -1227,7 +1253,8 @@ export const useGameStore = create<GameState>((set, get) => ({
     const state = get();
     // 明示指定があればそれを、なければ前回 reset の値を引き継ぐ (対局中「リセット」ボタン用)
     const quantum = options?.quantum ?? state.currentQuantum;
-    let pos = initPosition(state.mgf);
+    const torusMode = options?.torusMode ?? state.currentTorusMode;
+    let pos = initPosition(state.mgf, topologyForMode(torusMode));
     let initialAnomaly: AnomalyState | null = null;
     if (quantum) {
       const quantumInitFn = pluginGet<QuantumInitFn>('quantum:init');
@@ -1249,7 +1276,10 @@ export const useGameStore = create<GameState>((set, get) => ({
         : undefined;
       if (candidateUpdateFn) {
         try {
-          pos = candidateUpdateFn(pos, state.mgf, { maxIterations: state.quantumParams.maxIterations });
+          pos = candidateUpdateFn(pos, state.mgf, {
+            torusMode,
+            maxIterations: state.quantumParams.maxIterations,
+          });
         } catch (e) {
           // Phase 5-13: 開始前の整理で矛盾が出るのはルール定義そのものが破綻している状態。
           // 起きたことは隠さず、打ち切り時点の盤で始めて投票 UI に載せる。
@@ -1269,6 +1299,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     const tc = state.timeControl;
     set({
       currentQuantum: quantum,
+      currentTorusMode: torusMode,
       // Phase 5-11: 表示方式は対局設定 (qtdisp) の一部＝これは「部屋の値」。未指定なら現在値を維持。
       // v1.22: 実効値は「部屋が重ねなら重ね／巡回なら各自の画面の値」(spec 駒UI v0.8 §4.4)。
       roomQuantumDisplay: options?.quantumDisplay ?? state.roomQuantumDisplay,

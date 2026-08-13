@@ -1,5 +1,5 @@
 import type { Mgf, Player } from '../mgf/types';
-import type { BoardCell, PieceInstance, Position } from './types';
+import type { BoardCell, BoardTopology, PieceInstance, Position } from './types';
 
 const SFEN_LETTER_TO_KIND: Record<string, string> = {
   p: 'fu',
@@ -12,7 +12,13 @@ const SFEN_LETTER_TO_KIND: Record<string, string> = {
   k: 'ou',
 };
 
-export function initPosition(mgf: Mgf): Position {
+/**
+ * MGF の初期配置から開始局面を作る。
+ *
+ * Phase 4: `topology` を渡すと盤の端がつながった状態 (円筒・完全トーラス) で始まる。
+ * 省略時は平面＝通常の将棋盤。
+ */
+export function initPosition(mgf: Mgf, topology?: BoardTopology): Position {
   const { width, height } = mgf.board;
   const board: BoardCell[][] = Array.from({ length: height }, () =>
     Array.from({ length: width }, () => null as BoardCell),
@@ -88,6 +94,7 @@ export function initPosition(mgf: Mgf): Position {
     sideToMove,
     moveNumber: 1,
     history: [],
+    ...(topology && (topology.wrapX || topology.wrapY) ? { topology } : {}),
   };
 }
 

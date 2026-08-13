@@ -27,6 +27,9 @@ export {
   rankFromRow,
   isInPromotionZone,
   distanceFromEnemyBack,
+  PLANE_TOPOLOGY,
+  topologyOf,
+  wrapSquare,
 } from './position/coordinates';
 export type {
   Mgf,
@@ -41,6 +44,7 @@ export type {
   Position,
   PieceInstance,
   BoardCell,
+  BoardTopology,
   Move,
   BoardMove,
   DropMove,

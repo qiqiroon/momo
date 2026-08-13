@@ -10,9 +10,10 @@
  *   direction × range に (from, to) が乗るか判定。乗らなければ X を除外。
  * - **C-102 移動経路**: 5-6 初版は C-101 と同一。将来経路の history 妥当性検証に拡張予定。
  * - **C-103 二歩**: 同筋に「いま自分と同じ側が持つ・必ず歩と言える駒」が居るなら、
- *   この駒の候補から fu-initial の PieceID を除外。torus ON で無効化。
+ *   この駒の候補から fu-initial の PieceID を除外。**盤の端のつなぎ方に関係なく効く**
+ *   (v1.25 で訂正。筋を数えるだけなので端に触れない)。
  * - **C-104 行き所のない駒**: 敵陣最奥から N 段以内に居るのに不成のままでは合法手ゼロ
- *   になる初期駒種を候補から除外 (dead_zone)。torus ON で無効化。
+ *   になる初期駒種を候補から除外 (dead_zone)。**完全トーラスでのみ無効化** (v1.25)。
  * - **C-105 強制成り**: must_promote 圏内なのに piece.promoted=false なら、
  *   「成っていなければおかしい」候補 PieceID (K として must_promote 対象) を除外。
  *
@@ -135,7 +136,9 @@ export const c102MovePathIntegrity: QuantumConstraint = c101ActionPossibility;
 export const c103Nifu: QuantumConstraint = (piece, location, pos, mgf, context) => {
   if (piece.candidates === undefined) return new Set();
   if (mgf.constraints?.nifu !== true) return new Set(piece.candidates);
-  if (context.torusMode !== 'none') return new Set(piece.candidates);
+  // v1.25 (Phase 4): 盤の端がつながっても筋は筋なので、二歩は従来どおり効く。
+  // (以前はトーラス ON で一律に外していたが、外す理由があるのは「盤端があること」に
+  //  頼った制約だけ = 行き所のない駒・強制成り。二歩は列を数えるだけで端に触れない)
   if (location.kind !== 'board') return new Set(piece.candidates);
   if (piece.promoted) return new Set(piece.candidates);
 
@@ -160,7 +163,9 @@ export const c103Nifu: QuantumConstraint = (piece, location, pos, mgf, context) 
  */
 export const c104DeadZone: QuantumConstraint = (piece, location, _pos, mgf, context) => {
   if (piece.candidates === undefined) return new Set();
-  if (context.torusMode !== 'none') return new Set(piece.candidates);
+  // v1.25 (Phase 4・親 §3.9 v1.11 追記): 上下がつながっている盤 (完全トーラス) には
+  // 行き所のない駒が存在しないので外す。円筒 (左右のみ) では段の話なので従来どおり効く。
+  if (context.torusMode === 'full') return new Set(piece.candidates);
   if (mgf.constraints?.dead_zone !== 'auto' && mgf.constraints?.dead_zone !== true) {
     return new Set(piece.candidates);
   }
@@ -190,7 +195,9 @@ export const c104DeadZone: QuantumConstraint = (piece, location, _pos, mgf, cont
  */
 export const c105ForcedPromotion: QuantumConstraint = (piece, location, _pos, mgf, context) => {
   if (piece.candidates === undefined) return new Set();
-  if (context.torusMode !== 'none') return new Set(piece.candidates);
+  // v1.25 (Phase 4): 強制成りも「盤端があること」に頼った制約なので、完全トーラスでは外す
+  // (最奥まで行ってもそのまま抜けられる = 成らないと動けなくなる、が起きない)。
+  if (context.torusMode === 'full') return new Set(piece.candidates);
   if (location.kind !== 'board') return new Set(piece.candidates);
   if (piece.promoted) return new Set(piece.candidates);
 

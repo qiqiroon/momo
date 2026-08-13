@@ -1,11 +1,11 @@
-import type { LocaleData } from '../types';
+﻿import type { LocaleData } from '../types';
 
 export const zh: LocaleData = {
   code: 'zh',
   name: '中文',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.24',
+    'app.ver': 'v1.25',
     'sound.promptTitle': '是否播放 BGM 与音效？',
     'sound.bgmLabel': 'BGM 音量',
     'sound.sfxLabel': '音效音量',

@@ -275,7 +275,11 @@ describe('C-103 二歩', () => {
     expect(result.has('P_ref_fu')).toBe(true);
   });
 
-  it('torus ON の時は二歩制約が発火しない', () => {
+  // v1.25 (Phase 4): 以前は「torus ON なら二歩制約は発火しない」と決めてあったが、
+  // 外す理由があるのは盤端があることに頼った制約 (行き所のない駒・強制成り) だけで、
+  // 二歩は筋を数えるだけなので端のつなぎ方に左右されない (親 §3.9 v1.11 追記も
+  // 円筒＝従来どおりと書いている)。円筒・完全トーラスとも効いたままにする。
+  it.each(['cylinder', 'full'] as const)('盤の端がつながっていても二歩は効く (%s)', (torusMode) => {
     const fixed: PieceInstance = {
       pieceId: 'P_fix', kind: 'fu', owner: 'player1', initialOwner: 'player1',
       initialKind: 'fu', initialSquare: { row: 6, col: 4 }, promoted: false,
@@ -285,8 +289,8 @@ describe('C-103 二歩', () => {
     let pos = makeQuantumPosWithRefs(q, { row: 4, col: 4 });
     pos = withPieceAt(pos, 6, 4, fixed);
     const infoMap = buildInitialInfoMap(pos);
-    const result = c103Nifu(q, { kind: 'board', square: { row: 4, col: 4 } }, pos, hondou, { torusMode: 'cylinder', infoMap });
-    expect(result.has('P_ref_fu')).toBe(true);
+    const result = c103Nifu(q, { kind: 'board', square: { row: 4, col: 4 } }, pos, hondou, { torusMode, infoMap });
+    expect(result.has('P_ref_fu')).toBe(false);
   });
 });
 

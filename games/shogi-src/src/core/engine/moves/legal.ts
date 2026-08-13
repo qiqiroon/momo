@@ -1,6 +1,7 @@
 import type { Mgf, MgfPieceDef } from '../mgf/types';
-import type { BoardCell, Move, PieceInstance, Position, Square } from '../position/types';
+import type { Move, PieceInstance, Position, Square } from '../position/types';
 import { applyMove } from '../position/apply';
+import { topologyOf, wrapSquare } from '../position/coordinates';
 import { get as pluginGet } from '../../plugin/registry';
 import { buildInitialKindMap, confirmedKindOf, displayKindsFor } from '../candidate-kinds';
 import { isInCheck } from './check';
@@ -25,6 +26,12 @@ export function isMoveLegal(mgf: Mgf, position: Position, move: Move, opts: Lega
   if (move.type === 'drop') {
     if (!isDropAllowed(mgf, position, move.to, move.pieceId)) return false;
   }
+
+  // Phase 4: 盤の端のつなぎ方だけに由来する追加の禁じ手 (完全トーラスの
+  // 「王で敵王を取れない」= 親 §3.4.2 の最小介入)。features/torus が登録している
+  // ときだけ効く。平面・円筒では常に true を返すので、通常将棋は素通りする。
+  const topologyFilter = pluginGet<TopologyMoveFilter>('topology:moveFilter');
+  if (topologyFilter && !topologyFilter(mgf, position, move)) return false;
 
   // 自玉が王手放置 or 自ら王手される手 (suicide)
   const after = applyMove(mgf, position, move);
@@ -51,6 +58,13 @@ export function isMoveLegal(mgf: Mgf, position: Position, move: Move, opts: Lega
 
   return true;
 }
+
+/**
+ * Phase 4: 盤の端のつなぎ方に由来する追加の禁じ手。false を返した手は指せない。
+ * features/torus が `topology:moveFilter` として登録する (core → features の型依存を
+ * 作らないローカル型)。
+ */
+type TopologyMoveFilter = (mgf: Mgf, position: Position, move: Move) => boolean;
 
 type CandidateUpdateFn = (position: Position, mgf: Mgf) => Position;
 
@@ -158,7 +172,7 @@ function isDropAllowedAsKind(
 
   // dead_zone: 打った駒が動けない位置なら禁止 (歩・香を最奥、桂を最奥2段目まで、など)
   if (mgf.constraints?.dead_zone === true || mgf.constraints?.dead_zone === 'auto') {
-    if (!hasAnyMoveFromDrop(mgf, def, piece, to, position.board, position.height, position.width)) {
+    if (!hasAnyMoveFromDrop(def, piece, to, position)) {
       return false;
     }
   }
@@ -166,18 +180,24 @@ function isDropAllowedAsKind(
   return true;
 }
 
+/**
+ * 打った先から動ける手があるか (行き所のない駒の判定)。
+ *
+ * Phase 4 (親 §3.9 v1.11 追記): 上下がつながっている盤 (完全トーラス) では、
+ * 最奥まで進んでもそのまま反対側へ抜けられるので「行き所のない駒」が存在しない。
+ * 縦方向に効くこの制約はその場合だけ外す (円筒＝左右のみでは従来どおり効く)。
+ */
 function hasAnyMoveFromDrop(
-  _mgf: Mgf,
   def: MgfPieceDef,
   piece: PieceInstance,
   to: Square,
-  _board: BoardCell[][],
-  height: number,
-  width: number,
+  position: Position,
 ): boolean {
   if (!def.move_logic) return false;
+  const topology = topologyOf(position);
+  const { width, height } = position;
   // must_promote_at: 打った位置から成らずに動ける段がなければ禁止 (歩=敵最奥・香=敵最奥・桂=敵最奥2段)
-  if (def.must_promote_at && !piece.promoted) {
+  if (def.must_promote_at && !piece.promoted && !topology.wrapY) {
     const rank = to.row + 1;
     const enemyBackRank = piece.owner === 'player1' ? 1 : height;
     const distanceFromEnemyBack = Math.abs(rank - enemyBackRank);
@@ -188,10 +208,8 @@ function hasAnyMoveFromDrop(
   for (const ability of def.move_logic.abilities) {
     const offsets = directionOffsets(ability.direction, piece.owner);
     for (const { drow, dcol } of offsets) {
-      const target = { row: to.row + drow, col: to.col + dcol };
-      if (target.row >= 0 && target.row < height && target.col >= 0 && target.col < width) {
-        return true;
-      }
+      const target = wrapSquare({ row: to.row + drow, col: to.col + dcol }, width, height, topology);
+      if (target) return true;
     }
   }
   return false;

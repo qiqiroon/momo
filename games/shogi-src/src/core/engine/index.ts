@@ -20,6 +20,14 @@ export {
   displayKindsFor,
 } from './candidate-kinds';
 export { foretellKindByDestination } from './foretell';
+export {
+  listHandicaps,
+  supportsHandicap,
+  findHandicap,
+  firstMoverWithHandicap,
+  selectRemovedPieces,
+} from './handicap';
+export type { HandicapSetting } from './handicap';
 export { strengthOf, pieceStrengthOf } from './piece-strength';
 export {
   shogiToInternal,
@@ -38,6 +46,7 @@ export type {
   MgfAbility,
   MgfDirection,
   MgfAbilityType,
+  MgfHandicapType,
   Player,
 } from './mgf/types';
 export type {

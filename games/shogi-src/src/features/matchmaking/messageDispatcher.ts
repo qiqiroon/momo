@@ -152,6 +152,8 @@ export function handleShogiMessage(data: unknown): void {
       // v1.25 (Phase 4): 盤の端のつなぎ方も部屋のルールの一部。ホスト・ゲスト・観戦者が
       // 同じ盤で始まらないと、同じ手が片方だけ非合法になって局面がずれる。
       useGameStore.getState().reset({
+        // ネット対戦に駒落ちは無い (対AI だけ)。直前の対AI対局の手合いを引きずらない。
+        handicap: null,
         quantum: cfg?.quantum ?? false,
         quantumDisplay: cfg?.quantumDisplayMode ?? 'cycle',
         torusMode: cfg?.torusMode ?? 'none',

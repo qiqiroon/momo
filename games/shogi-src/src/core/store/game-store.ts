@@ -11,7 +11,9 @@ import {
   isInCheck,
   positionHash,
 } from '../engine';
-import type { BoardMove, BoardTopology, Mgf, Move, PieceInstance, Player, Position, Square } from '../engine';
+import type {
+  BoardMove, BoardTopology, HandicapSetting, Mgf, Move, PieceInstance, Player, Position, Square,
+} from '../engine';
 import { formatMove, pieceNameJa, squareNameJa } from '../engine/kifu/format';
 import { NO_LIMIT_TIME_CONTROL, initClockState, type ClockState, type TimeControl } from '../engine/time-control';
 import { get as pluginGet } from '../plugin/registry';
@@ -42,6 +44,12 @@ export interface ResetOptions {
    * 実際の回り込みは features/torus が登録する翻訳器を通して局面に載る。
    */
   torusMode?: TorusMode;
+  /**
+   * Phase 3-3: 手合い (駒落ち)。null なら平手。省略時は現在値を維持する
+   * (対局中の「リセット」で駒落ちのまま指し直せる)。先手は駒を落とした側になる
+   * (親 §3.12.1)。
+   */
+  handicap?: HandicapSetting | null;
 }
 export type TorusMode = 'none' | 'cylinder' | 'full';
 /** features/torus が登録する「モード → 盤の端のつなぎ方」の翻訳器 (未登録なら平面)。 */
@@ -273,6 +281,11 @@ interface GameState {
    * 量子の絞り込みへ渡す値のための控え。
    */
   currentTorusMode: TorusMode;
+  /**
+   * Phase 3-3: 現局面の手合い (駒落ち)。平手なら null。reset({handicap}) で更新される。
+   * 次の reset で引き継ぐための控え (対局中の「リセット」で駒落ちのまま指し直せる)。
+   */
+  currentHandicap: HandicapSetting | null;
   /**
    * 未確定駒の見せ方の **実効値** (Phase 5-11・v1.22 で 2 層化)。盤・駒・棋譜など
    * 描画側はすべてこれを読む。値の決め方は spec 駒デザイン・対局UI v0.8 §4.4:
@@ -786,6 +799,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   paused: false,
   currentQuantum: false,
   currentTorusMode: 'none',
+  currentHandicap: null,
   quantumDisplay: loadMyQuantumDisplay(),
   roomQuantumDisplay: 'cycle',
   myQuantumDisplay: loadMyQuantumDisplay(),
@@ -1254,7 +1268,9 @@ export const useGameStore = create<GameState>((set, get) => ({
     // 明示指定があればそれを、なければ前回 reset の値を引き継ぐ (対局中「リセット」ボタン用)
     const quantum = options?.quantum ?? state.currentQuantum;
     const torusMode = options?.torusMode ?? state.currentTorusMode;
-    let pos = initPosition(state.mgf, topologyForMode(torusMode));
+    // Phase 3-3: 手合い。null を渡せば平手に戻す・省略なら現在値を維持 (親 §3.12.1)
+    const handicap = options?.handicap !== undefined ? options.handicap : state.currentHandicap;
+    let pos = initPosition(state.mgf, topologyForMode(torusMode), handicap ?? undefined);
     let initialAnomaly: AnomalyState | null = null;
     if (quantum) {
       const quantumInitFn = pluginGet<QuantumInitFn>('quantum:init');
@@ -1300,6 +1316,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     set({
       currentQuantum: quantum,
       currentTorusMode: torusMode,
+      currentHandicap: handicap,
       // Phase 5-11: 表示方式は対局設定 (qtdisp) の一部＝これは「部屋の値」。未指定なら現在値を維持。
       // v1.22: 実効値は「部屋が重ねなら重ね／巡回なら各自の画面の値」(spec 駒UI v0.8 §4.4)。
       roomQuantumDisplay: options?.quantumDisplay ?? state.roomQuantumDisplay,
@@ -1326,7 +1343,8 @@ export const useGameStore = create<GameState>((set, get) => ({
         player1: initClockState(tc),
         player2: initClockState(tc),
       },
-      activeClockSide: tc.mode === 'no_limit' ? null : 'player1',
+      // 動かす時計は「先に指す側」のもの。駒落ちでは上手が先手なので player1 とは限らない
+      activeClockSide: tc.mode === 'no_limit' ? null : pos.sideToMove,
       paused: false,
       entangledPieceIds: [],
       anomaly: initialAnomaly,

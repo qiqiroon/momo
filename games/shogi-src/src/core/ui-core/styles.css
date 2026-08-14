@@ -3015,6 +3015,25 @@ body::before {
   color: var(--fg-muted, #b9b3a8);
 }
 
+/* Phase 3-3: 手合い (駒落ち・付録 D-5 v1.3 §5) */
+.s03-handicap { margin-top: 16px; }
+.s03-handicap .s03-ai-label { margin-top: 10px; }
+.s03-handicap-note,
+.s03-handicap-gate,
+.s03-side-locked {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--fg-muted, #b9b3a8);
+}
+.s03-handicap-gate,
+.s03-side-locked { color: var(--orange-light); }
+/* 駒落ちで先後が決まっているとき、選ばれていない側のカードを沈める */
+.side-card.locked {
+  opacity: 0.32;
+  cursor: not-allowed;
+}
+
 /* Phase 3: オフライン対局ルール画面で、相手が AI であることを示す一行 */
 .ai-opponent-note {
   margin-top: 12px;

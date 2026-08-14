@@ -1,5 +1,6 @@
 import type { Mgf, Player } from '../mgf/types';
 import type { BoardCell, BoardTopology, PieceInstance, Position } from './types';
+import { findHandicap, selectRemovedPieces, type HandicapSetting } from '../handicap';
 
 const SFEN_LETTER_TO_KIND: Record<string, string> = {
   p: 'fu',
@@ -17,8 +18,12 @@ const SFEN_LETTER_TO_KIND: Record<string, string> = {
  *
  * Phase 4: `topology` を渡すと盤の端がつながった状態 (円筒・完全トーラス) で始まる。
  * 省略時は平面＝通常の将棋盤。
+ *
+ * Phase 3-3: `handicap` を渡すと**上手側の駒を落としてから**始まる (親 §3.12.1)。
+ * 落とした駒は盤にも持ち駒にも現れず、**通し番号は落としたあとに振る**ので欠番は出ない。
+ * 先手は**駒を落とした側**になる (将棋の作法・初期配置の手番指定より優先)。
  */
-export function initPosition(mgf: Mgf, topology?: BoardTopology): Position {
+export function initPosition(mgf: Mgf, topology?: BoardTopology, handicap?: HandicapSetting): Position {
   const { width, height } = mgf.board;
   const board: BoardCell[][] = Array.from({ length: height }, () =>
     Array.from({ length: width }, () => null as BoardCell),
@@ -77,14 +82,30 @@ export function initPosition(mgf: Mgf, topology?: BoardTopology): Position {
     }
   }
 
-  player1Pieces.forEach((p, idx) => {
+  // 手合い (駒落ち): 番号を振る前に上手側の駒を取り除く (親 §3.12.1)
+  let remaining1 = player1Pieces;
+  let remaining2 = player2Pieces;
+  if (handicap) {
+    const type = findHandicap(mgf, handicap.typeId);
+    if (!type) throw new Error(`Unknown handicap: ${handicap.typeId}`);
+    const giverPieces = handicap.giver === 'player1' ? player1Pieces : player2Pieces;
+    const removed = selectRemovedPieces(giverPieces, type, handicap.giver);
+    for (const p of removed) {
+      board[p.initialSquare.row][p.initialSquare.col] = null;
+    }
+    if (handicap.giver === 'player1') remaining1 = player1Pieces.filter((p) => !removed.includes(p));
+    else remaining2 = player2Pieces.filter((p) => !removed.includes(p));
+  }
+
+  remaining1.forEach((p, idx) => {
     p.pieceId = `P${idx}`;
   });
-  player2Pieces.forEach((p, idx) => {
+  remaining2.forEach((p, idx) => {
     p.pieceId = `p${idx}`;
   });
 
-  const sideToMove: Player = sideStr === 'w' ? 'player2' : 'player1';
+  // 手合いを指定したときは、駒を落とした側 (上手) が先手 (親 §3.12.1)
+  const sideToMove: Player = handicap ? handicap.giver : sideStr === 'w' ? 'player2' : 'player1';
 
   return {
     width,

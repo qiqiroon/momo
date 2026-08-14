@@ -65,6 +65,9 @@ export function OfflineRuleScreen(_props: OfflineRuleScreenProps) {
     // v1.08 (Phase 5-11): 未確定駒の見せ方 (qtdisp) も S02 で選んだ値を引き継ぐ。
     // v1.25 (Phase 4): 盤の端のつなぎ方 (トーラス) も S02 で選んだ値で始める。
     gs.reset({
+      // 人どうしの対局に駒落ちは無い (対AI だけ・画面機能 §3 S03)。
+      // 直前の対AI対局の手合いを引きずらないよう、明示的に平手へ戻す。
+      handicap: null,
       quantum: pendingRules?.quantum ?? false,
       quantumDisplay: pendingRules?.quantumDisplayMode ?? 'cycle',
       torusMode: pendingRules?.torusMode ?? 'none',

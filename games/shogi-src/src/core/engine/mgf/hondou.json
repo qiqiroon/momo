@@ -249,5 +249,28 @@
   "initial_placement": {
     "format": "sfen",
     "sfen": "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1"
+  },
+  "handicap": {
+    "types": [
+      { "id": "kyo", "name": "香落ち", "remove": [{ "piece": "kyo", "count": 1, "pick": "left" }] },
+      { "id": "kaku", "name": "角落ち", "remove": [{ "piece": "kaku" }] },
+      { "id": "hi", "name": "飛車落ち", "remove": [{ "piece": "hi" }] },
+      { "id": "ni", "name": "二枚落ち", "remove": [{ "piece": "hi" }, { "piece": "kaku" }] },
+      {
+        "id": "yon",
+        "name": "四枚落ち",
+        "remove": [{ "piece": "hi" }, { "piece": "kaku" }, { "piece": "kyo", "count": 2 }]
+      },
+      {
+        "id": "roku",
+        "name": "六枚落ち",
+        "remove": [
+          { "piece": "hi" },
+          { "piece": "kaku" },
+          { "piece": "kyo", "count": 2 },
+          { "piece": "kei", "count": 2 }
+        ]
+      }
+    ]
   }
 }

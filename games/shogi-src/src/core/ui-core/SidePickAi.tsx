@@ -41,15 +41,26 @@ interface SidePickAiProps {
   spinning: boolean;
   /** 効果音など、押したときに親でやりたいこと。 */
   onBeforeChoice?: () => void;
+  /**
+   * Phase 3-3: 駒落ちのあいだは先後を選べない (付録 D-5 v1.3 §4.3)。
+   * 駒を落とした側が先手と決まっているため。選ばれている側のカードだけは
+   * 選択状態の見た目を残し、何が選ばれているか分かるようにする。
+   */
+  disabled?: boolean;
+  /** 選べない理由 (カード列の下に出す)。 */
+  disabledNote?: string;
 }
 
-export function SidePickAi({ t, choice, onChoice, draw, spinning, onBeforeChoice }: SidePickAiProps) {
+export function SidePickAi({
+  t, choice, onChoice, draw, spinning, onBeforeChoice, disabled, disabledNote,
+}: SidePickAiProps) {
   const pick = (c: AiSideChoice) => {
+    if (disabled) return;
     onBeforeChoice?.();
     onChoice(c);
   };
 
-  const showFurigoma = choice === 'random';
+  const showFurigoma = choice === 'random' && !disabled;
 
   // 振り駒の結果テキスト (部屋側と同じ文言を使う。相手＝AI なので「相手が先手！」でよい)
   const resultText = (() => {
@@ -80,6 +91,7 @@ export function SidePickAi({ t, choice, onChoice, draw, spinning, onBeforeChoice
           mine={choice === 'sente'}
           mineText={t('s06.mineLabel')}
           onClick={() => pick('sente')}
+          disabled={disabled}
         />
         <SideCard
           label={t('s06.sideNameG')}
@@ -88,6 +100,7 @@ export function SidePickAi({ t, choice, onChoice, draw, spinning, onBeforeChoice
           mine={choice === 'gote'}
           mineText={t('s06.mineLabel')}
           onClick={() => pick('gote')}
+          disabled={disabled}
         />
         <SideCard
           label={t('s06.sideNameR')}
@@ -96,8 +109,11 @@ export function SidePickAi({ t, choice, onChoice, draw, spinning, onBeforeChoice
           mine={choice === 'random'}
           mineText={t('s06.mineLabel')}
           onClick={() => pick('random')}
+          disabled={disabled}
         />
       </div>
+
+      {disabled && disabledNote && <div className="s03-side-locked">⚠ {disabledNote}</div>}
 
       {/* 振り駒アニメ（おまかせのときだけ表示） */}
       <div className={`furigoma${showFurigoma ? ' show' : ''}`}>
@@ -164,6 +180,7 @@ function SideCard({
   mine,
   mineText,
   onClick,
+  disabled,
 }: {
   label: string;
   desc: string;
@@ -171,11 +188,14 @@ function SideCard({
   mine: boolean;
   mineText: string;
   onClick: () => void;
+  disabled?: boolean;
 }) {
   const cls = ['side-card'];
   if (mine) cls.push('on', 'mine');
+  // 駒落ちで固定されているときは、選ばれている 1 枚だけ通常の見た目を残す
+  if (disabled && !mine) cls.push('locked');
   return (
-    <button type="button" className={cls.join(' ')} onClick={onClick}>
+    <button type="button" className={cls.join(' ')} onClick={onClick} disabled={disabled}>
       <div className="side-glyph">
         <span>{glyph}</span>
       </div>

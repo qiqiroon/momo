@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { RuleSelectScreen } from './RuleSelectScreen';
 import { OfflineRuleScreen } from '../../../core/ui-core/OfflineRuleScreen';
 import { useGameStore } from '../../../core/store/game-store';
-import { applyHandicapToCells } from './MiniBoardPreview';
+import { applyHandicapToCells, quantumKindsFor } from './MiniBoardPreview';
 import { DEFAULT_ROOM_CONFIG, useMatchmakingStore } from '../store';
 import { useRouteStore } from '../../../core/store/route-store';
 import { useI18nStore } from '../../../core/store/i18n-store';
@@ -206,5 +206,51 @@ describe('プレビュー盤の駒落ち', () => {
       ],
     });
     expect(filled(out)).toBe(34);
+  });
+
+  /**
+   * v1.34 (付録D-2 v1.7 §5): 量子 ON のとき、落とした駒種はプレビューの候補からも消す。
+   * 決め打ちの 8 種を回していたので、盤に 1 枚も無い飛や角が候補として回り続けていた。
+   */
+  describe('量子 ON の候補の顔ぶれ', () => {
+    it('平手なら両側とも 8 種', () => {
+      const cells = shogi();
+      expect(quantumKindsFor(cells, false)).toEqual(['王', '飛', '角', '金', '銀', '桂', '香', '歩']);
+      expect(quantumKindsFor(cells, true)).toHaveLength(8);
+    });
+
+    it('六枚落ちなら上手側は玉・金・銀・歩の 4 種だけになる', () => {
+      const out = applyHandicapToCells(shogi(), {
+        giverIsBottom: true,
+        remove: [
+          { piece: 'hi' }, { piece: 'kaku' },
+          { piece: 'kyo', count: 2 }, { piece: 'kei', count: 2 },
+        ],
+      });
+      expect(quantumKindsFor(out, false)).toEqual(['王', '金', '銀', '歩']);
+      // 落としていない側は 8 種のまま
+      expect(quantumKindsFor(out, true)).toHaveLength(8);
+    });
+
+    it('香落ちでは香が残る (1 枚あるため)', () => {
+      const out = applyHandicapToCells(shogi(), {
+        giverIsBottom: true,
+        remove: [{ piece: 'kyo', count: 1, pick: 'left' }],
+      });
+      expect(quantumKindsFor(out, false)).toContain('香');
+      expect(quantumKindsFor(out, false)).toHaveLength(8);
+    });
+
+    it('二枚落ちなら上手側から飛と角が消える', () => {
+      const out = applyHandicapToCells(shogi(), {
+        giverIsBottom: false,
+        remove: [{ piece: 'hi' }, { piece: 'kaku' }],
+      });
+      const top = quantumKindsFor(out, true);
+      expect(top).not.toContain('飛');
+      expect(top).not.toContain('角');
+      expect(top).toEqual(['王', '金', '銀', '桂', '香', '歩']);
+      expect(quantumKindsFor(out, false)).toContain('飛');
+    });
   });
 });

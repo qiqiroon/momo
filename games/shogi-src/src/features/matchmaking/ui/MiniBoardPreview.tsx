@@ -114,6 +114,29 @@ export function applyHandicapToCells(base: Cell[], hc: PreviewHandicap): Cell[] 
   return cells;
 }
 
+/**
+ * v1.34: 量子 ON のときプレビューに出す候補の顔ぶれ (付録D-2 v1.7 §5)。
+ *
+ * 候補は「自陣営の駒の集合」(量子分冊 §Q4.2) なので、**その側に残っている駒種だけ**を
+ * 強い順に返す。駒落ちで落ちた駒種はここから自動的に消える (六枚落ちの上手なら
+ * 玉・金・銀・歩の 4 種)。決め打ちの 8 種を回すと、盤に 1 枚も無い飛や角が候補として
+ * 回り続け、対局盤 (候補集合から顔を作る) と食い違う。
+ *
+ * `gote` はプレビュー盤の上側 (相手側) を指す。手合いを適用した後の盤を渡すこと。
+ */
+export function quantumKindsFor(cells: Cell[], gote: boolean): readonly string[] {
+  const present = new Set<string>();
+  for (const c of cells) {
+    if (!c.ch) continue;
+    if (!!c.gote !== gote) continue;
+    // 盤の駒字は「玉」だが候補の並びは「王」で持っているので寄せる
+    present.add(c.ch === '玉' ? '王' : c.ch);
+  }
+  const kinds = QUANTUM_PIECES.filter((p) => present.has(p));
+  // 駒が 1 枚も無い側 (はさみ将棋の空側など) は従来どおり全種を回す
+  return kinds.length > 0 ? kinds : QUANTUM_PIECES;
+}
+
 /** 9×9 の 1 次元配列から (row, col) を取得 */
 function cellAt(cells: Cell[], row: number, col: number): Cell {
   return cells[row * 9 + col];
@@ -168,11 +191,17 @@ export function MiniBoardPreview({ rule, torusMode, quantum = false, quantumDisp
     : torusMode === 'cylinder' ? extendCylinder(base)
     : base;
 
+  // v1.34: 候補の顔ぶれは側ごとに作る (手合いで上手だけ減るため・付録D-2 v1.7 §5)
+  const kindsBottom = quantumKindsFor(base, false);
+  const kindsTop = quantumKindsFor(base, true);
+
   // 量子 ON の巡回表示: 1 秒ごとに駒種を切替 (プレビュー用)
+  // 上下で顔ぶれの数が違い得るので、拍だけ共通にして表示のときに各側の長さで折り返す。
+  // 840 は 1〜8 のどれでも割り切れるので、どの顔ぶれでも一巡の途中で飛ばない。
   const [qIdx, setQIdx] = useState(0);
   useEffect(() => {
     if (!quantum || quantumDisplayMode !== 'cycle') return;
-    const id = setInterval(() => setQIdx((i) => (i + 1) % QUANTUM_PIECES.length), 1000);
+    const id = setInterval(() => setQIdx((i) => (i + 1) % 840), 1000);
     return () => clearInterval(id);
   }, [quantum, quantumDisplayMode]);
 
@@ -184,7 +213,9 @@ export function MiniBoardPreview({ rule, torusMode, quantum = false, quantumDisp
   return (
     <div className={`mini-board${torusMode !== 'none' ? ' is-torus' : ''}`}>
       <div className={gridClass}>
-        {cells.map((c, i) => (
+        {cells.map((c, i) => {
+          const kinds = c.gote ? kindsTop : kindsBottom;
+          return (
           <div key={i} className="mini-sq">
             {c.ch && (
               <>
@@ -192,12 +223,12 @@ export function MiniBoardPreview({ rule, torusMode, quantum = false, quantumDisp
                   {quantum ? (
                     quantumDisplayMode === 'stack' ? (
                       <span className="mini-stack">
-                        {QUANTUM_PIECES.map((p) => (
+                        {kinds.map((p) => (
                           <span key={p}>{pieceLabel(p, locale)}</span>
                         ))}
                       </span>
                     ) : (
-                      <span>{pieceLabel(QUANTUM_PIECES[qIdx], locale)}</span>
+                      <span>{pieceLabel(kinds[qIdx % kinds.length], locale)}</span>
                     )
                   ) : (
                     <span>{pieceLabel(c.ch, locale)}</span>
@@ -209,7 +240,8 @@ export function MiniBoardPreview({ rule, torusMode, quantum = false, quantumDisp
               </>
             )}
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

@@ -8,6 +8,8 @@
  * 動作する。
  */
 
+import type { HandicapChoice } from '../engine/handicap';
+
 /** v0.68: S07 のルール表示バンド用。オフライン時は null (=本将棋固定扱い)。 */
 export interface ActiveRulesInfo {
   gameType: 'shogi' | 'hasami' | 'shogi-custom';
@@ -18,6 +20,11 @@ export interface ActiveRulesInfo {
    * 部屋のルールの一部なので、ルール設定者の選択が両プレイヤーに共通適用される。
    */
   quantumDisplayMode: 'cycle' | 'stack';
+  /**
+   * 手合い (駒落ち)。平手なら null。親 v1.28 §3.12.1。
+   * ルールの一部として S02 で決まり、対AI・オフライン対人・ネット対戦で共通に使う。
+   */
+  handicap: HandicapChoice | null;
 }
 
 export interface RemoteMovePayload {

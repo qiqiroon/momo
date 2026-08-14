@@ -10,6 +10,7 @@ import { get as pluginGet } from '../plugin/registry';
 import type { OnlineGameConnector } from '../plugin/gameConnector';
 import { seButton } from '../audio/se-synth';
 import { DEFAULT_TIME_CONTROL } from '../engine/time-control';
+import { handicapSettingFor } from '../engine';
 
 /**
  * オフライン対局のルール/持ち時間選択画面（v0.45 追加）。
@@ -64,10 +65,13 @@ export function OfflineRuleScreen(_props: OfflineRuleScreenProps) {
     // v0.90: 量子 ON の場合は初期候補集合を割り当てる (Phase 5-2)。
     // v1.08 (Phase 5-11): 未確定駒の見せ方 (qtdisp) も S02 で選んだ値を引き継ぐ。
     // v1.25 (Phase 4): 盤の端のつなぎ方 (トーラス) も S02 で選んだ値で始める。
+    // v1.33: 人どうしの対局でも手合いを使う (親 v1.28 §3.12.1・3 経路共通)。
+    // 上手＝先手＝player1 なので、**向こう側が落とすときは自分 (手前) が player2 になる**。
+    // 盤は自分の側が下に来るように向きを決める＝プレビューで見た形とそろう。
+    const handicap = pendingRules?.handicap ?? null;
+    gs.setLocalViewerSide(handicap && handicap.giver === 'opponent' ? 'player2' : 'player1');
     gs.reset({
-      // 人どうしの対局に駒落ちは無い (対AI だけ・画面機能 §3 S03)。
-      // 直前の対AI対局の手合いを引きずらないよう、明示的に平手へ戻す。
-      handicap: null,
+      handicap: handicapSettingFor(handicap),
       quantum: pendingRules?.quantum ?? false,
       quantumDisplay: pendingRules?.quantumDisplayMode ?? 'cycle',
       torusMode: pendingRules?.torusMode ?? 'none',
@@ -109,6 +113,8 @@ export function OfflineRuleScreen(_props: OfflineRuleScreenProps) {
             torusMode={pendingRules?.torusMode ?? 'none'}
             quantum={pendingRules?.quantum ?? false}
             timeControl={pendingTc}
+            handicap={pendingRules?.handicap ?? null}
+            handicapSeatKeys={{ self: 's02.hcSeatNear', opponent: 's02.hcSeatFar' }}
             onEditRule={onEditRule}
           />
         </div>

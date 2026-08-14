@@ -1,4 +1,4 @@
-export { hondou, loadMgf } from './mgf/loader';
+export { hondou, loadMgf, mgfForGameType } from './mgf/loader';
 export { formatMove, pieceNameJa } from './kifu/format';
 export { positionHash } from './position/hash';
 export { pieceIdListDigest } from './position/piece-id-hash';
@@ -26,8 +26,10 @@ export {
   findHandicap,
   firstMoverWithHandicap,
   selectRemovedPieces,
+  handicapKey,
+  handicapSettingFor,
 } from './handicap';
-export type { HandicapSetting } from './handicap';
+export type { HandicapSetting, HandicapChoice, HandicapSeat } from './handicap';
 export { strengthOf, pieceStrengthOf } from './piece-strength';
 export {
   shogiToInternal,

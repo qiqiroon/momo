@@ -25,7 +25,7 @@ import { useChatStore } from '../../core/store/chat-store';
 import { useRouteStore } from '../../core/store/route-store';
 import { useGameStore } from '../../core/store/game-store';
 import { useOffersStore } from '../../core/store/offers-store';
-import { pieceIdListDigest, positionHash } from '../../core/engine';
+import { handicapSettingFor, pieceIdListDigest, positionHash } from '../../core/engine';
 import { getMomoMatchmaking } from './client';
 import { sha256Hex } from './fairFlip';
 import {
@@ -56,6 +56,8 @@ function applySyncedRules(rules: SyncedRules): RoomConfig {
     quantumDisplayMode: rules.quantumDisplayMode,
     customRuleName: rules.customRuleName,
     timeControl: rules.timeControl,
+    // v1.33: 手合いも部屋のルールの一部。席は送り手 (ホスト) から見た向きのまま持つ。
+    handicap: rules.handicap ?? null,
   };
 }
 
@@ -67,6 +69,7 @@ function rulesFromConfig(cfg: RoomConfig): SyncedRules {
     quantum: cfg.quantum,
     quantumDisplayMode: cfg.quantumDisplayMode,
     timeControl: cfg.timeControl,
+    handicap: cfg.handicap,
     customRuleName: cfg.customRuleName,
     quantumParams: useGameStore.getState().quantumParams,
   };
@@ -152,8 +155,10 @@ export function handleShogiMessage(data: unknown): void {
       // v1.25 (Phase 4): 盤の端のつなぎ方も部屋のルールの一部。ホスト・ゲスト・観戦者が
       // 同じ盤で始まらないと、同じ手が片方だけ非合法になって局面がずれる。
       useGameStore.getState().reset({
-        // ネット対戦に駒落ちは無い (対AI だけ)。直前の対AI対局の手合いを引きずらない。
-        handicap: null,
+        // v1.33: ネット対戦でも手合いを使う (親 v1.28 §3.12.1)。上手＝先手＝player1 で、
+        // 誰がその席に座るかは部屋の先後の確定値 (駒落ちなら自動確定) が受け持つ。
+        // 平手なら null が渡り、直前の対AI対局の手合いを引きずらない。
+        handicap: handicapSettingFor(cfg?.handicap ?? null),
         quantum: cfg?.quantum ?? false,
         quantumDisplay: cfg?.quantumDisplayMode ?? 'cycle',
         torusMode: cfg?.torusMode ?? 'none',

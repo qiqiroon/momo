@@ -17,6 +17,40 @@ export interface HandicapSetting {
   giver: Player;
 }
 
+/**
+ * 画面で選ぶときの「落とす席」(親 v1.28 §3.12.1)。
+ *
+ * ルール選択画面 (S02) の時点では先後がまだ決まっていない — 先後は手合いから
+ * 決まるので、陣営 (player1/player2) で書くと堂々巡りになる。そこで**席**で持ち、
+ * 対局を始めるところで「その席が先手 (＝上手＝player1)」になるよう割り当てる。
+ *
+ * self = この設定を決めた人の席。対AI なら「あなた」、ネット対戦なら「部屋を作る人」、
+ * 人どうしのオフライン対局なら「手前側」。呼び名は画面ごとに変えるが意味は同じ。
+ */
+export type HandicapSeat = 'self' | 'opponent';
+
+/** ルール設定側が持つ手合い (両方平手なら null)。 */
+export interface HandicapChoice {
+  typeId: string;
+  giver: HandicapSeat;
+}
+
+/**
+ * 席で選んだ手合いを、対局を始めるときの指定に読み替える。
+ *
+ * **上手＝先手＝`player1` に固定**し、人・AI・ホスト/ゲストのどちらがその席を持つかは
+ * 席の割り当て (aiSide / 先後の確定値 / 盤の向き) の側で表す。こうすると
+ * 「先手は player1」という呼び名がどの経路でも崩れない。
+ */
+export function handicapSettingFor(choice: HandicapChoice | null | undefined): HandicapSetting | null {
+  return choice ? { typeId: choice.typeId, giver: 'player1' } : null;
+}
+
+/** 手合いを 1 本の文字列にする (ルール同期の照合用・見えるまま並べる)。 */
+export function handicapKey(h: HandicapChoice | null | undefined): string {
+  return h ? `${h.giver}:${h.typeId}` : '-';
+}
+
 /** そのルールで指せる手合いの一覧 (無ければ空＝平手のみ)。 */
 export function listHandicaps(mgf: Mgf): MgfHandicapType[] {
   return mgf.handicap?.types ?? [];

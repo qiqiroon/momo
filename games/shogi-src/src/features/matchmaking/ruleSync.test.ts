@@ -38,6 +38,7 @@ const HOST_RULES: SyncedRules = {
   quantumDisplayMode: 'stack',
   timeControl: { mode: 'byoyomi', mainSeconds: 900, byoyomiSeconds: 30 },
   quantumParams: { ...DEFAULT_QUANTUM_PARAMS, maxIterations: 64 },
+  handicap: null,
 };
 
 function ruleSyncMsg(rules: SyncedRules = HOST_RULES) {

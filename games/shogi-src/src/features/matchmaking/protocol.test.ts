@@ -16,6 +16,7 @@ const BASE: SyncedRules = {
   quantumDisplayMode: 'cycle',
   timeControl: { mode: 'byoyomi', mainSeconds: 900, byoyomiSeconds: 30 },
   quantumParams: DEFAULT_QUANTUM_PARAMS,
+  handicap: null,
 };
 
 describe('ruleDigest — ルール一式の照合', () => {
@@ -29,6 +30,16 @@ describe('ruleDigest — ルール一式の照合', () => {
     const cyl = ruleDigest({ ...BASE, torusMode: 'cylinder' });
     const full = ruleDigest({ ...BASE, torusMode: 'full' });
     expect(cyl).not.toBe(full);
+  });
+
+  it('手合いが違えば別の値になる (v1.33)', () => {
+    // 手合いが揃わないと初期局面そのものが食い違う。見取り図に入れ忘れると
+    // 「揃った」と表示したまま別の盤で始まってしまう。
+    const even = ruleDigest(BASE);
+    const drop = ruleDigest({ ...BASE, handicap: { typeId: 'ni', giver: 'self' } });
+    const other = ruleDigest({ ...BASE, handicap: { typeId: 'ni', giver: 'opponent' } });
+    expect(drop).not.toBe(even);
+    expect(drop).not.toBe(other); // 落とす側が違えば別物
   });
 
   it('量子の実行時パラメータが違えば別の値になる', () => {

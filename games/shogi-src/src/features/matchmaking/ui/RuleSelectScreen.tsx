@@ -7,7 +7,9 @@ import { CatIcon } from '../../../core/ui-core/CatIcon';
 import { HeaderCommonRight } from '../../../core/ui-core/HeaderCommonRight';
 import { useMatchmakingStore, type TorusMode, type QuantumDisplayMode, type TimeControlMode } from '../store';
 import type { GameType } from '../roomNameCodec';
-import { MiniBoardPreview, QUANTUM_PIECES, pieceLabel } from './MiniBoardPreview';
+import { MiniBoardPreview, QUANTUM_PIECES, pieceLabel, type PreviewHandicap } from './MiniBoardPreview';
+import { listHandicaps, findHandicap, mgfForGameType } from '../../../core/engine';
+import type { HandicapSeat, MgfHandicapType } from '../../../core/engine';
 import { seButton } from '../../../core/audio/se-synth';
 import { useGameStore } from '../../../core/store/game-store';
 import { get as pluginGet } from '../../../core/plugin/registry';
@@ -107,6 +109,33 @@ export function RuleSelectScreen() {
   const torusUsable = currentRule.torusOK;
   const quantumUsable = currentRule.quantumOK;
 
+  // ---- 手合い (駒落ち)。親 v1.28 §3.12.1 / 付録D-2 v1.6 §3.1 ----
+  // 選べる種類は**ルール定義が持つ手合いの一覧**から作る (画面に焼き付けない)。
+  // 一覧を持たないルール (＝定義そのものがまだ無いルールを含む) は平手のみ。
+  const ruleMgf = mgfForGameType(config.gameType);
+  const handicapTypes: MgfHandicapType[] = ruleMgf ? listHandicaps(ruleMgf) : [];
+  const handicapAvailable = handicapTypes.length > 0;
+  const handicapName = (h: MgfHandicapType) => {
+    const key = `hc.${h.id}`;
+    const label = t(key);
+    return label === key ? (h.name ?? h.id) : label;
+  };
+  /** 席の呼び名は「どこへ戻る画面か」で変える (対AI／ネット対戦／人どうし)。 */
+  const seatLabelKey = (seat: HandicapSeat) => {
+    const dest = useRouteStore.getState().ruleSelectReturn;
+    if (dest === 'ai-setup') return seat === 'self' ? 's02.hcSeatYou' : 's02.hcSeatAi';
+    if (dest === 'offline-rule') return seat === 'self' ? 's02.hcSeatNear' : 's02.hcSeatFar';
+    return seat === 'self' ? 's02.hcSeatYou' : 's02.hcSeatOpp';
+  };
+  /** その席がいま選んでいる手合い (平手なら空文字)。 */
+  const handicapValueFor = (seat: HandicapSeat) =>
+    config.handicap && config.handicap.giver === seat ? config.handicap.typeId : '';
+  /** 片方に手合いを入れると、もう一方は自動的に平手へ戻る (排他・親 §3.12.1)。 */
+  const onSetHandicap = (seat: HandicapSeat, typeId: string) => {
+    seButton();
+    setConfig({ handicap: typeId ? { typeId, giver: seat } : null });
+  };
+
   const onSelectRule = (rid: GameType) => {
     const def = RULES.find((r) => r.id === rid);
     if (!def || def.disabled) return;
@@ -117,6 +146,11 @@ export function RuleSelectScreen() {
     }
     if (!def.quantumOK && config.quantum) {
       patch.quantum = false;
+    }
+    // 駒落ちに対応しないルールへ移ったら平手へ戻す (付録D-2 v1.6 §3.1)
+    const nextMgf = mgfForGameType(rid);
+    if (config.handicap && (!nextMgf || !findHandicap(nextMgf, config.handicap.typeId))) {
+      patch.handicap = null;
     }
     setConfig(patch);
   };
@@ -172,6 +206,18 @@ export function RuleSelectScreen() {
 
   const timeSummary = formatTimeSummary(config.timeControl, t);
 
+  // 決定カード・プレビューに出す手合いの要約 (平手なら null)
+  const currentHandicapType =
+    config.handicap && ruleMgf ? findHandicap(ruleMgf, config.handicap.typeId) : undefined;
+  const handicapSummary = currentHandicapType && config.handicap
+    ? `${handicapName(currentHandicapType)}（${t(seatLabelKey(config.handicap.giver))}${t('s02.hcDropsSuffix')}）`
+    : null;
+  // プレビュー盤は「自分側＝手前＝下」で描く (付録D-2 v1.6 §5)
+  const previewHandicap: PreviewHandicap | null =
+    currentHandicapType && config.handicap
+      ? { giverIsBottom: config.handicap.giver === 'self', remove: currentHandicapType.remove }
+      : null;
+
   const commitCard = (
     <div className="commit-card">
       <button className="go-btn" type="button" onClick={onCommit}>
@@ -193,6 +239,12 @@ export function RuleSelectScreen() {
         )}
         <br />
         <b>{t('s02.commitSumTime')}</b>: {timeSummary}
+        {handicapSummary && (
+          <>
+            <br />
+            <b>{t('s02.secHandicap')}</b>: {handicapSummary}
+          </>
+        )}
       </div>
     </div>
   );
@@ -214,8 +266,12 @@ export function RuleSelectScreen() {
           quantum={config.quantum && quantumUsable}
           quantumDisplayMode={config.quantumDisplayMode}
           locale={locale}
+          handicap={previewHandicap}
         />
       </div>
+      {handicapSummary && (
+        <div className="pv-handicap">{handicapSummary}</div>
+      )}
       {config.torusMode !== 'none' && (
         <div style={{ textAlign: 'center' }}>
           <span className="wrap-tag">
@@ -278,6 +334,35 @@ export function RuleSelectScreen() {
                   </button>
                 );
               })}
+            </div>
+
+            {/* 手合い (駒落ち)。ルール一覧と変則条件の間 (付録D-2 v1.6 §3.1)。
+                自分側・相手側それぞれで選び、片方を駒落ちにすると反対側は平手に戻る。 */}
+            <div className="hc-block">
+              <div className="section-label">{t('s02.secHandicap')}</div>
+              <div className="hc-grid">
+                {(['self', 'opponent'] as const).map((seat) => (
+                  <div key={seat} className="hc-side">
+                    <label className="hc-label" htmlFor={`s02-hc-${seat}`}>
+                      {t(seatLabelKey(seat))}
+                    </label>
+                    <select
+                      id={`s02-hc-${seat}`}
+                      className="hc-select"
+                      value={handicapValueFor(seat)}
+                      disabled={!handicapAvailable}
+                      onChange={(e) => onSetHandicap(seat, e.target.value)}
+                    >
+                      <option value="">{t('s02.hcEven')}</option>
+                      {handicapTypes.map((h) => (
+                        <option key={h.id} value={h.id}>{handicapName(h)}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+              {!handicapAvailable && <div className="incompat show">{t('s02.hcUnsupported')}</div>}
+              {config.handicap && <div className="hc-note">{t('s02.hcSenteNote')}</div>}
             </div>
 
             {/* 変則条件 横 2 列 */}

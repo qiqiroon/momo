@@ -71,6 +71,49 @@ function initialFor(rule: GameType): Cell[] {
   return shogiInitial();
 }
 
+/** ルール定義の駒 id → プレビューの駒文字。定義に無い駒は落とせない (無視する)。 */
+const PIECE_ID_TO_CH: Record<string, string> = {
+  fu: '歩', kyo: '香', kei: '桂', gin: '銀', kin: '金', kaku: '角', hi: '飛', ou: '玉', gyoku: '玉',
+};
+
+/** プレビューに渡す手合い。giverIsBottom = 落とす側が盤の下側 (＝自分側) か。 */
+export interface PreviewHandicap {
+  giverIsBottom: boolean;
+  remove: { piece: string; count?: number; pick?: 'left' | 'right' | 'any' }[];
+}
+
+/**
+ * 手合いぶんの駒を盤から抜く (親 §3.12.1 / 付録D-2 v1.6 §5)。
+ *
+ * どれを抜くかの決め方は本番の初期局面と同じ＝**駒の種類と「上手から見た左右」**。
+ * 盤は先手 (下側) から見て描いてあるので、**下側の上手から見た左＝列 0 側**、
+ * **上側の上手から見た左＝列 8 側**になる。
+ */
+export function applyHandicapToCells(base: Cell[], hc: PreviewHandicap): Cell[] {
+  const cells = [...base];
+  const removed = new Set<number>();
+  for (const entry of hc.remove) {
+    const ch = PIECE_ID_TO_CH[entry.piece];
+    if (!ch) continue;
+    const count = entry.count ?? 1;
+    const found: number[] = [];
+    for (let i = 0; i < cells.length; i++) {
+      if (removed.has(i)) continue;
+      const c = cells[i];
+      if (c.ch !== ch) continue;
+      if (!c.gote !== hc.giverIsBottom) continue;
+      found.push(i);
+    }
+    found.sort((a, b) => (hc.giverIsBottom ? (a % 9) - (b % 9) : (b % 9) - (a % 9)));
+    const ordered = entry.pick === 'right' ? [...found].reverse() : found;
+    for (const i of ordered.slice(0, count)) {
+      removed.add(i);
+      cells[i] = EMPTY;
+    }
+  }
+  return cells;
+}
+
 /** 9×9 の 1 次元配列から (row, col) を取得 */
 function cellAt(cells: Cell[], row: number, col: number): Cell {
   return cells[row * 9 + col];
@@ -111,10 +154,15 @@ interface Props {
   quantumDisplayMode?: QuantumDisplayMode;
   /** v0.86: en 時のみ駒表記を英語化 (それ以外は漢字) */
   locale?: LocaleCode;
+  /** v1.33: 手合い (駒落ち)。落とす駒を抜いた形で描く。平手なら省略。 */
+  handicap?: PreviewHandicap | null;
 }
 
-export function MiniBoardPreview({ rule, torusMode, quantum = false, quantumDisplayMode = 'cycle', locale = 'ja' }: Props) {
-  const base = initialFor(rule);
+export function MiniBoardPreview({ rule, torusMode, quantum = false, quantumDisplayMode = 'cycle', locale = 'ja', handicap = null }: Props) {
+  const plain = initialFor(rule);
+  // 手合いは盤を広げる前に適用する。回り込みの写しは元の盤から作るので、
+  // 欠けもそのまま写る (付録D-2 v1.6 §5)。
+  const base = handicap ? applyHandicapToCells(plain, handicap) : plain;
   const cells =
     torusMode === 'full' ? extendFullTorus(base)
     : torusMode === 'cylinder' ? extendCylinder(base)

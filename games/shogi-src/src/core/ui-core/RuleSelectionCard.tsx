@@ -1,6 +1,8 @@
 import { useI18nStore } from '../store/i18n-store';
 import { t as _t } from '../i18n';
 import type { TimeControl } from '../engine/time-control';
+import type { HandicapChoice } from '../engine/handicap';
+import { mgfForGameType, findHandicap } from '../engine';
 
 /**
  * v0.86: 対局ルール選択サブカード (S01 オフライン設定 / S04 通信対戦ロビー 部屋作成で共用)。
@@ -17,6 +19,13 @@ export interface RuleSelectionCardProps {
   torusMode: 'none' | 'cylinder' | 'full';
   quantum: boolean;
   timeControl: TimeControl;
+  /** v1.33: 手合い (駒落ち)。S02 で決まった値。平手なら null。 */
+  handicap?: HandicapChoice | null;
+  /**
+   * v1.33: 手合いの席の呼び名。対AI なら「あなた／AI」、人どうしなら「手前側／向こう側」。
+   * 画面ごとに違うので呼び出し側から渡す (付録D-2 v1.6 §3.1)。
+   */
+  handicapSeatKeys?: { self: string; opponent: string };
   onEditRule: () => void;
 }
 
@@ -41,9 +50,20 @@ function formatTimeSummary(tc: TimeControl, tr: (k: string) => string): string {
   return parts.join('・');
 }
 
-export function RuleSelectionCard({ gameType, torusMode, quantum, timeControl, onEditRule }: RuleSelectionCardProps) {
+export function RuleSelectionCard({
+  gameType, torusMode, quantum, timeControl, handicap = null,
+  handicapSeatKeys = { self: 's02.hcSeatYou', opponent: 's02.hcSeatOpp' },
+  onEditRule,
+}: RuleSelectionCardProps) {
   const locale = useI18nStore((s) => s.locale);
   const t = (key: string) => _t(key, locale);
+
+  // 手合いの要約。名前はルール定義の一覧から引く (画面に焼き付けない・親 §3.12.1)
+  const handicapMgf = handicap ? mgfForGameType(gameType) : null;
+  const handicapType = handicap && handicapMgf ? findHandicap(handicapMgf, handicap.typeId) : undefined;
+  const handicapSummary = handicap && handicapType
+    ? `${t(`hc.${handicapType.id}`) === `hc.${handicapType.id}` ? (handicapType.name ?? handicapType.id) : t(`hc.${handicapType.id}`)}（${t(handicapSeatKeys[handicap.giver])}${t('s02.hcDropsSuffix')}）`
+    : null;
 
   const ruleNameKey =
     gameType === 'hasami' ? 's02.ruleHasami.name'
@@ -81,6 +101,11 @@ export function RuleSelectionCard({ gameType, torusMode, quantum, timeControl, o
           <div style={{ fontSize: 16, fontWeight: 700, marginTop: 4 }}>
             {t('s04.lblTime')}：{timeSummary}
           </div>
+          {handicapSummary && (
+            <div style={{ fontSize: 16, fontWeight: 700, marginTop: 4 }}>
+              {t('s02.secHandicap')}：{handicapSummary}
+            </div>
+          )}
         </div>
       </div>
       <div style={{ marginTop: 8, fontSize: 11, color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}>

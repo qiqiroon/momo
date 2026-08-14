@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.32',
+    'app.ver': 'v1.33',
     // v0.72 音楽再生確認モーダル (Darts と同じ思想)
     'sound.promptTitle': 'BGM と効果音を再生してもよろしいですか？',
     'sound.bgmLabel': 'BGM 音量',
@@ -24,6 +24,17 @@ export const ja: LocaleData = {
     's02.screenTitle': 'ルール選択',
     's02.secRules': '対局ルール',
     's02.secMods': '変則条件（重ねがけ）',
+    // 手合い (駒落ち)。v1.33 で S03 から移設・3 経路共通 (付録D-2 v1.6 §3.1)
+    's02.secHandicap': '手合い',
+    's02.hcEven': '平手',
+    's02.hcSeatYou': 'あなた',
+    's02.hcSeatAi': 'AI',
+    's02.hcSeatOpp': '相手',
+    's02.hcSeatNear': '手前側',
+    's02.hcSeatFar': '向こう側',
+    's02.hcDropsSuffix': 'が落とす',
+    's02.hcUnsupported': 'このルールは駒落ちに対応していません（平手のみ）',
+    's02.hcSenteNote': '駒を落とした側が先手になります',
     's02.torus': 'トーラス盤',
     's02.torusNote': '盤の端をつなげて、駒が反対側へ回り込む。円筒＝左右をつなぐ／完全＝上下左右すべてつなぐ。',
     's02.torusOff': 'なし',

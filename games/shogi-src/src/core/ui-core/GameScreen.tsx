@@ -315,8 +315,12 @@ export function GameScreen({ variant }: GameScreenProps) {
   const isMyTurnOnline = online.isOnline && online.mySide === position.sideToMove;
   // v0.34: 盤面の視点。mySide=player2 のとき盤を反転して「自分の駒を下側」に表示
   // Phase 3-1 追補: 対 AI では AI の反対側が自分なので、後手を選んだときも自分の駒が下に来る。
+  // v1.33: 人どうしのオフライン対局は localViewerSide (手前に座っている側)。
+  //   駒落ちで向こう側が落とすと上手＝先手＝player1 が向こう側になるため、既定の player1 固定では
+  //   落とした側が手前に来てしまう (ルール選択のプレビューと上下が逆になる)。
+  const localViewerSide = useGameStore((s) => s.localViewerSide);
   const viewerSide: 'player1' | 'player2' =
-    online.mySide ?? (vsAi ? (aiSide === 'player1' ? 'player2' : 'player1') : 'player1');
+    online.mySide ?? (vsAi ? (aiSide === 'player1' ? 'player2' : 'player1') : localViewerSide);
   const oppSide: 'player1' | 'player2' = viewerSide === 'player1' ? 'player2' : 'player1';
   const flipped = viewerSide === 'player2';
   const turnLabel =

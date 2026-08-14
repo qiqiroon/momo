@@ -3,6 +3,7 @@ import type { MomoRoomInfo } from './client';
 import type { GameType } from './roomNameCodec';
 // v0.35: TimeControl 型は core に移動（game-store でも使うため）。ここでは re-export。
 import { DEFAULT_TIME_CONTROL, type TimeControl, type TimeControlMode } from '../../core/engine/time-control';
+import type { HandicapChoice } from '../../core/engine/handicap';
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'in_room' | 'game_connected';
 
@@ -59,6 +60,15 @@ export interface RoomConfig {
   /** 自由ルール将棋 (shogi-custom) の MGF ルール名 (Phase 3+ で利用) */
   customRuleName?: string;
   timeControl: TimeControl;
+  /**
+   * 手合い (駒落ち)。両方平手なら null。親 v1.28 §3.12.1 / 付録D-2 v1.6 §3.1。
+   *
+   * ルールの一部として S02 で決め、**ネット対戦・オフライン対人・対AI の 3 経路で共通**に使う。
+   * giver は陣営ではなく**席**で持つ — S02 の時点では先後がまだ決まっていないため
+   * (先後は手合いから決まる)。ネット対戦では **部屋を作った側から見た向き**が正で、
+   * 受け取った側は自分から見た向きに読み替えて表示する。
+   */
+  handicap: HandicapChoice | null;
 }
 
 export const DEFAULT_ROOM_CONFIG: RoomConfig = {
@@ -71,6 +81,7 @@ export const DEFAULT_ROOM_CONFIG: RoomConfig = {
   quantum: false,
   quantumDisplayMode: 'cycle',
   timeControl: DEFAULT_TIME_CONTROL,
+  handicap: null,
 };
 
 interface MatchmakingState {

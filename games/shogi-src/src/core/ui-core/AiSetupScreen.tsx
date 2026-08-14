@@ -10,10 +10,10 @@
  * ルール選択画面 (S02) の担当で、ここでは要約を見せるだけ。変えたいときは
  * ルールカードの「変更」から S02 へ戻る。
  *
- * **手合い (駒落ち) は Phase 3-3 で追加** (付録 D-5 v1.3 §5・親 §3.12.1)。
- * 落とす側は AI でも自分でも選べ、**駒を落とした側が先手**になるので、
- * 駒落ちのあいだ先後は選べない (§4.3)。選べる駒落ちの種類は**ルール定義が持つ
- * 手合いの一覧**から作る (画面に焼き付けない)。
+ * **手合い (駒落ち) はここでは選べない** (付録 D-5 v1.4 §5・ユーザー判断 2026-08-14)。
+ * 手合いはルールの一部として**ルール選択画面 (S02)** で決める。ここでは要約を見せるだけで、
+ * **駒を落とした側が先手**になるため、駒落ちのあいだ先後は**自動で選ばれた状態のまま固定**
+ * される (§4.3)。
  */
 
 import { useEffect, useState } from 'react';
@@ -33,8 +33,7 @@ import { DEFAULT_TIME_CONTROL } from '../engine/time-control';
 import { SidePickAi, useFurigoma, type AiSideChoice } from './SidePickAi';
 import { listEngines, resolveEngineId, findEngine } from '../ai/engine-registry';
 import { aiModeFrom, unsupportedReasonKey } from '../ai/mode';
-import { listHandicaps } from '../engine';
-import type { HandicapSetting, MgfHandicapType } from '../engine';
+import { handicapSettingFor } from '../engine';
 
 export function AiSetupScreen() {
   const locale = useI18nStore((s) => s.locale);
@@ -63,25 +62,8 @@ export function AiSetupScreen() {
 
   const selected = (engineId ? findEngine(engineId) : undefined) ?? choices.find((c) => c.supported)?.descriptor;
 
-  // 手合い (駒落ち)。選べる種類はルール定義が持つ一覧から取る (親 §3.12.1)。
-  const mgf = useGameStore((s) => s.mgf);
-  const handicaps = listHandicaps(mgf);
-  const handicapAvailable = handicaps.length > 0;
-  const [handicapOn, setHandicapOn] = useState(false);
-  /** 駒を落とす側。既定は AI (子ども・初心者が勝ちやすくする向き・付録 D-5 §5)。 */
-  const [handicapGiver, setHandicapGiver] = useState<'ai' | 'you'>('ai');
-  const [handicapTypeId, setHandicapTypeId] = useState<string>(
-    () => handicaps.find((h) => h.id === 'ni')?.id ?? handicaps[0]?.id ?? '',
-  );
-  // 駒落ちに対応しないルールへ変わったら平手へ戻す (付録 D-5 §5)
-  useEffect(() => {
-    if (!handicapAvailable && handicapOn) setHandicapOn(false);
-  }, [handicapAvailable, handicapOn]);
-  const handicapName = (h: MgfHandicapType) => {
-    const key = `hc.${h.id}`;
-    const label = t(key);
-    return label === key ? (h.name ?? h.id) : label;
-  };
+  // 手合い (駒落ち) は S02 で決まっている。ここでは先後を固定するのに使うだけ (付録 D-5 v1.4 §4.3)。
+  const handicap = pendingRules?.handicap ?? null;
 
   // 先後。ネット対戦の部屋 (S05) から持ってきたものをそのまま使う。
   const [sideChoice, setSideChoice] = useState<AiSideChoice | null>(null);
@@ -95,14 +77,14 @@ export function AiSetupScreen() {
    * **駒落ちのときは手合いから決まる**＝駒を落とした側が先手 (親 §3.12.1)。
    */
   const youAreSente: boolean | null =
-    handicapOn ? handicapGiver === 'you'
+    handicap ? handicap.giver === 'self'
     : sideChoice === 'sente' ? true
     : sideChoice === 'gote' ? false
     : sideChoice === 'random' && draw && !spinning ? draw.youAreSente
     : null;
   /** 先後カードに出す選択。駒落ち中は自動で決まった側を見せる (平手に戻すと元の選択が復帰)。 */
   const shownSideChoice: AiSideChoice | null =
-    handicapOn ? (handicapGiver === 'you' ? 'sente' : 'gote') : sideChoice;
+    handicap ? (handicap.giver === 'self' ? 'sente' : 'gote') : sideChoice;
   const startDisabled = youAreSente === null || !selected;
 
   const onBack = () => {
@@ -117,8 +99,7 @@ export function AiSetupScreen() {
     seButton();
     // 上手 (駒を落とした側) は先手なので player1。どちらの人間/AI がそれを持つかは
     // aiSide 側で表される (親 §3.12.1)。
-    const handicap: HandicapSetting | null =
-      handicapOn && handicapTypeId ? { typeId: handicapTypeId, giver: 'player1' } : null;
+    const handicapSetting = handicapSettingFor(handicap);
     useAiStore.getState().startVsAi({
       aiSide: youAreSente ? 'player2' : 'player1',
       engineId: selected?.id,
@@ -128,7 +109,7 @@ export function AiSetupScreen() {
     const gs = useGameStore.getState();
     gs.setTimeControl(pendingTc);
     gs.reset({
-      handicap,
+      handicap: handicapSetting,
       quantum: pendingRules?.quantum ?? false,
       quantumDisplay: pendingRules?.quantumDisplayMode ?? 'cycle',
       torusMode: pendingRules?.torusMode ?? 'none',
@@ -176,6 +157,8 @@ export function AiSetupScreen() {
             torusMode={pendingRules?.torusMode ?? 'none'}
             quantum={pendingRules?.quantum ?? false}
             timeControl={pendingTc}
+            handicap={handicap}
+            handicapSeatKeys={{ self: 's02.hcSeatYou', opponent: 's02.hcSeatAi' }}
             onEditRule={onBack}
           />
         </div>
@@ -192,66 +175,13 @@ export function AiSetupScreen() {
           draw={draw}
           spinning={spinning}
           onBeforeChoice={seButton}
-          disabled={handicapOn}
+          disabled={!!handicap}
           disabledNote={t('s03.sideLocked')}
         />
 
-        {/* 手合い (付録 D-5 v1.3 §5)。駒落ちなら「落とす側」と「落とす駒」も選ぶ。 */}
-        <div className="s03-handicap">
-          <div className="section-label">{t('s03.lblHandicap')}</div>
-          <div className="seg">
-            <button
-              type="button"
-              className={!handicapOn ? 'on' : ''}
-              onClick={() => { seButton(); setHandicapOn(false); }}
-            >
-              {t('s03.hcEven')}
-            </button>
-            <button
-              type="button"
-              className={handicapOn ? 'on' : ''}
-              disabled={!handicapAvailable}
-              onClick={() => { seButton(); setHandicapOn(true); }}
-            >
-              {t('s03.hcDrop')}
-            </button>
-          </div>
-          {!handicapAvailable && <div className="s03-handicap-gate">⚠ {t('s03.hcUnsupported')}</div>}
-          {handicapOn && (
-            <>
-              <div className="seg" style={{ marginTop: 8 }}>
-                <button
-                  type="button"
-                  className={handicapGiver === 'ai' ? 'on' : ''}
-                  onClick={() => { seButton(); setHandicapGiver('ai'); }}
-                >
-                  {t('s03.hcGiverAi')}
-                </button>
-                <button
-                  type="button"
-                  className={handicapGiver === 'you' ? 'on' : ''}
-                  onClick={() => { seButton(); setHandicapGiver('you'); }}
-                >
-                  {t('s03.hcGiverYou')}
-                </button>
-              </div>
-              <label className="s03-ai-label" htmlFor="s03-hc-select" style={{ marginTop: 10 }}>
-                {t('s03.hcLblType')}
-              </label>
-              <select
-                id="s03-hc-select"
-                className="s03-ai-select"
-                value={handicapTypeId}
-                onChange={(e) => { seButton(); setHandicapTypeId(e.target.value); }}
-              >
-                {handicaps.map((h) => (
-                  <option key={h.id} value={h.id}>{handicapName(h)}</option>
-                ))}
-              </select>
-              <div className="s03-handicap-note">{t('s03.hcNote')}</div>
-            </>
-          )}
-        </div>
+        {/* 手合いのカードは v1.33 で撤去した (ルール選択画面 S02 へ移設・付録 D-5 v1.4 §5)。
+            ここに残るのは、手合いから決まった先後を固定して見せることだけ (§4.3)。
+            手合いそのものはルールカードの要約に出る。 */}
 
         {/* AI 選択 (付録 D-5 §6)。積まれているものを、このモードでの順位で並べる。 */}
         <div className="s03-ai-block">

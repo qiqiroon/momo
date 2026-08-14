@@ -4,23 +4,42 @@ import { AiSetupScreen } from './AiSetupScreen';
 import { useGameStore } from '../store/game-store';
 import { useAiStore } from '../store/ai-store';
 import { useI18nStore } from '../store/i18n-store';
-import { clear as clearPlugins } from '../plugin/registry';
+import { register, clear as clearPlugins } from '../plugin/registry';
 import { registerEngine, clearEngines } from '../ai/engine-registry';
+import { DEFAULT_TIME_CONTROL } from '../engine/time-control';
+import type { HandicapChoice } from '../engine';
 
 /**
- * Phase 3-3: 対AI設定画面 (S03) の手合い (駒落ち)。
+ * 対AI設定画面 (S03) と手合い (駒落ち)。
  *
- * 決まりは付録 D-5 v1.3 §4.3／§5・意味論は親 §3.12.1:
- *   - 落とす側は AI でも自分でも選べる
- *   - 駒落ちのあいだ先後は選べない (駒を落とした側が先手)
- *   - 平手に戻すと先後をまた選べる
+ * v1.33 で**手合いを選ぶ場所はルール選択画面 (S02) へ移った**ので、この画面に
+ * 手合いのカードは無い。ここで固定したいのは、S02 で決まった手合いを受け取って
+ *   - 先後が自動で決まり、変えられなくなること (付録 D-5 v1.4 §4.3)
+ *   - 落とした側が先手で、その側の駒が減った盤で始まること (親 §3.12.1)
+ * の 2 点。
  */
+
+/** S02 で決まったルール (手合いを含む) を返す口を差し込む。 */
+function mockConnector(handicap: HandicapChoice | null) {
+  register('gameConnector', {
+    isRuleSetter: () => true,
+    getPendingRules: () => ({
+      gameType: 'shogi' as const,
+      torusMode: 'none' as const,
+      quantum: false,
+      quantumDisplayMode: 'cycle' as const,
+      handicap,
+    }),
+    getPendingTimeControl: () => DEFAULT_TIME_CONTROL,
+    commitPendingToActive: () => {},
+  });
+}
 
 function startGame() {
   fireEvent.click(screen.getByText('対局開始'));
 }
 
-describe('S03 手合い (駒落ち)', () => {
+describe('S03 手合い (駒落ち) の受け取り', () => {
   beforeEach(() => {
     clearPlugins();
     clearEngines();
@@ -48,44 +67,16 @@ describe('S03 手合い (駒落ち)', () => {
     clearEngines();
   });
 
-  it('手合いの選択が出る (既定は平手)', () => {
+  it('手合いを選ぶ操作はこの画面に無い (S02 へ移った)', () => {
+    mockConnector(null);
     render(<AiSetupScreen />);
-    expect(screen.getByText('手合い')).toBeTruthy();
-    expect(screen.getByText('平手')).toBeTruthy();
-    expect(screen.getByText('駒落ち')).toBeTruthy();
-    // 平手のうちは落とす側・落とす駒は出ない
+    expect(screen.queryByText('駒落ち')).toBeNull();
     expect(screen.queryByText('落とす駒')).toBeNull();
+    expect(screen.queryByText('AI が落とす')).toBeNull();
   });
 
-  it('駒落ちを選ぶと、落とす側と落とす駒が出る', () => {
-    render(<AiSetupScreen />);
-    fireEvent.click(screen.getByText('駒落ち'));
-    expect(screen.getByText('AI が落とす')).toBeTruthy();
-    expect(screen.getByText('あなたが落とす')).toBeTruthy();
-    expect(screen.getByText('落とす駒')).toBeTruthy();
-    // 種類はルール定義が持つ一覧から作る (本将棋は 6 種類)
-    const select = screen.getByLabelText('落とす駒') as HTMLSelectElement;
-    expect(select.options.length).toBe(6);
-    expect(select.value).toBe('ni'); // 既定は二枚落ち
-  });
-
-  it('駒落ちのあいだ先後は選べず、理由が出る', () => {
-    render(<AiSetupScreen />);
-    fireEvent.click(screen.getByText('駒落ち'));
-    expect(screen.getByText(/駒を落とした側が先手/)).toBeTruthy();
-    const senteCard = screen.getByText('先手').closest('button') as HTMLButtonElement;
-    expect(senteCard.disabled).toBe(true);
-  });
-
-  it('平手に戻せば先後をまた選べる', () => {
-    render(<AiSetupScreen />);
-    fireEvent.click(screen.getByText('駒落ち'));
-    fireEvent.click(screen.getByText('平手'));
-    const senteCard = screen.getByText('先手').closest('button') as HTMLButtonElement;
-    expect(senteCard.disabled).toBe(false);
-  });
-
-  it('先後を選ばないと対局を始められない (平手)', () => {
+  it('平手なら先後を選ばないと対局を始められない', () => {
+    mockConnector(null);
     render(<AiSetupScreen />);
     const start = screen.getByText('対局開始').closest('button') as HTMLButtonElement;
     expect(start.disabled).toBe(true);
@@ -93,16 +84,20 @@ describe('S03 手合い (駒落ち)', () => {
     expect(start.disabled).toBe(false);
   });
 
-  it('駒落ちなら先後を選ばなくても始められる (手合いから決まるため)', () => {
+  it('駒落ちなら先後は自動で決まり、選び直せない', () => {
+    mockConnector({ typeId: 'ni', giver: 'opponent' });
     render(<AiSetupScreen />);
-    fireEvent.click(screen.getByText('駒落ち'));
+    expect(screen.getByText(/駒を落とした側が先手/)).toBeTruthy();
+    const senteCard = screen.getByText('先手').closest('button') as HTMLButtonElement;
+    expect(senteCard.disabled).toBe(true);
+    // 先後を触らなくても始められる (手合いから決まっているため)
     const start = screen.getByText('対局開始').closest('button') as HTMLButtonElement;
     expect(start.disabled).toBe(false);
   });
 
   it('AI が落とすと、AI が先手で二枚落ちの盤で始まる', () => {
+    mockConnector({ typeId: 'ni', giver: 'opponent' });
     render(<AiSetupScreen />);
-    fireEvent.click(screen.getByText('駒落ち'));
     startGame();
     const gs = useGameStore.getState();
     expect(gs.currentHandicap).toEqual({ typeId: 'ni', giver: 'player1' });
@@ -113,9 +108,8 @@ describe('S03 手合い (駒落ち)', () => {
   });
 
   it('自分が落とすと、自分が先手で自分の駒が減る', () => {
+    mockConnector({ typeId: 'ni', giver: 'self' });
     render(<AiSetupScreen />);
-    fireEvent.click(screen.getByText('駒落ち'));
-    fireEvent.click(screen.getByText('あなたが落とす'));
     startGame();
     const gs = useGameStore.getState();
     expect(useAiStore.getState().aiSide).toBe('player2'); // あなたが先手＝上手
@@ -124,6 +118,7 @@ describe('S03 手合い (駒落ち)', () => {
   });
 
   it('平手で始めれば手合いは残らない', () => {
+    mockConnector(null);
     render(<AiSetupScreen />);
     fireEvent.click(screen.getByText('先手'));
     startGame();

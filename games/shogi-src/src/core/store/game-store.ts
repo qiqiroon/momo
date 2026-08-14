@@ -287,6 +287,15 @@ interface GameState {
    */
   currentHandicap: HandicapSetting | null;
   /**
+   * v1.33: オフライン対局で盤の下側に置く陣営 (＝手前に座っている人)。既定は player1。
+   *
+   * 人どうしの駒落ちで**向こう側が落とす**と、上手＝先手＝player1 は向こう側になる。
+   * そのままだと落とした側が手前に来てしまい、ルール選択のプレビューと上下が逆になるので、
+   * この値で手前側を指定する。オンライン対局では自分の側が優先されるので使われない。
+   */
+  localViewerSide: 'player1' | 'player2';
+  setLocalViewerSide: (side: 'player1' | 'player2') => void;
+  /**
    * 未確定駒の見せ方の **実効値** (Phase 5-11・v1.22 で 2 層化)。盤・駒・棋譜など
    * 描画側はすべてこれを読む。値の決め方は spec 駒デザイン・対局UI v0.8 §4.4:
    *   部屋の値が stack (重ね) なら常に stack / cycle (巡回) なら各自の画面の値。
@@ -800,6 +809,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   currentQuantum: false,
   currentTorusMode: 'none',
   currentHandicap: null,
+  localViewerSide: 'player1',
   quantumDisplay: loadMyQuantumDisplay(),
   roomQuantumDisplay: 'cycle',
   myQuantumDisplay: loadMyQuantumDisplay(),
@@ -1262,6 +1272,8 @@ export const useGameStore = create<GameState>((set, get) => ({
     });
     return actual;
   },
+
+  setLocalViewerSide: (side) => set({ localViewerSide: side }),
 
   reset: (options?: ResetOptions) => {
     const state = get();

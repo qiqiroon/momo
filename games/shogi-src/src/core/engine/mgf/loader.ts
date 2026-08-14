@@ -14,3 +14,17 @@ export function loadMgf(json: unknown): Mgf {
 }
 
 export const hondou: Mgf = loadMgf(hondouRaw);
+
+/**
+ * ルールの種類 → ルール定義 (MGF)。**まだ定義を持たないルールは null**。
+ *
+ * 手合いの一覧のように「ルール定義が持っているかどうか」で決まる項目は、
+ * 画面ではなくここから引く (親 §3.12.1)。定義が無いルールは平手のみになる。
+ */
+const MGF_BY_GAME_TYPE: Record<string, Mgf> = {
+  shogi: hondou,
+};
+
+export function mgfForGameType(gameType: string): Mgf | null {
+  return MGF_BY_GAME_TYPE[gameType] ?? null;
+}

@@ -126,6 +126,8 @@ export function RoomScreen() {
       timeControl: cfg.timeControl,
       customRuleName: cfg.customRuleName,
       quantumParams: useGameStore.getState().quantumParams,
+      // v1.33: 手合いも部屋のルールの一部。席はこちら (部屋を作った側) から見た向きで送る。
+      handicap: cfg.handicap,
     };
     sendMsg({
       v: PROTOCOL_VERSION,
@@ -296,7 +298,31 @@ export function RoomScreen() {
     setScreen('net-lobby');
   };
 
+  /**
+   * v1.33: 駒落ちの部屋では先後が手合いから決まる (親 v1.28 §3.12.1)。
+   *
+   * 上手＝先手なので、**落とす席の人が先手**。手合いの席は部屋を作った側から見た向きで
+   * 届くので、ゲスト側は反転して読む。平手なら null＝従来どおり自分で選ぶ。
+   */
+  const lockedSide: SideChoice | null = (() => {
+    const hc = activeRoomConfig?.handicap;
+    if (!hc) return null;
+    const hostGivesOdds = hc.giver === 'self';
+    const iGiveOdds = isHost ? hostGivesOdds : !hostGivesOdds;
+    return iGiveOdds ? 'sente' : 'gote';
+  })();
+
+  // 決まった側を「選ばれた状態」にして送る。画面は消さず、押せなくするだけ (付録D-5 v1.4 §4.3)。
+  useEffect(() => {
+    if (!lockedSide) return;
+    if (mySideChoice === lockedSide) return;
+    setMySideChoice(lockedSide);
+    sendMsg({ v: PROTOCOL_VERSION, type: 'side_select', choice: lockedSide });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lockedSide, mySideChoice]);
+
   const onPickSide = (choice: SideChoice) => {
+    if (lockedSide) return; // 駒落ちのあいだは変えられない
     setMySideChoice(choice);
     // 選択変更で自分の準備完了は自動解除（もし押していた場合）
     if (myReady) {
@@ -521,6 +547,7 @@ export function RoomScreen() {
             opp={oppSideChoice === 'sente'}
             mineText={t('s06.mineLabel')}
             oppText={t('s06.oppLabel')}
+            locked={!!lockedSide && lockedSide !== 'sente'}
             onClick={() => onPickSide('sente')}
           />
           <SideCard
@@ -531,6 +558,7 @@ export function RoomScreen() {
             opp={oppSideChoice === 'gote'}
             mineText={t('s06.mineLabel')}
             oppText={t('s06.oppLabel')}
+            locked={!!lockedSide && lockedSide !== 'gote'}
             onClick={() => onPickSide('gote')}
           />
           <SideCard
@@ -541,9 +569,11 @@ export function RoomScreen() {
             opp={oppSideChoice === 'random'}
             mineText={t('s06.mineLabel')}
             oppText={t('s06.oppLabel')}
+            locked={!!lockedSide}
             onClick={() => onPickSide('random')}
           />
         </div>
+        {lockedSide && <div className="incompat show">{t('s03.sideLocked')}</div>}
 
         {/* ===== 振り駒アニメ（両者おまかせ時のみ表示） ===== */}
         <div className={`furigoma${showFurigoma ? ' show' : ''}`}>
@@ -690,6 +720,7 @@ function SideCard({
   opp,
   mineText,
   oppText,
+  locked = false,
   onClick,
 }: {
   label: string;
@@ -699,13 +730,21 @@ function SideCard({
   opp: boolean;
   mineText: string;
   oppText: string;
+  /** v1.33: 駒落ちで先後が決まっているとき、選ばれていないカードを押せなくする。 */
+  locked?: boolean;
   onClick: () => void;
 }) {
   const cls = ['side-card'];
   if (mine) cls.push('on', 'mine'); // 自分の選択のみオレンジハイライト
   if (opp) cls.push('opp');
   return (
-    <button type="button" className={cls.join(' ')} onClick={onClick}>
+    <button
+      type="button"
+      className={cls.join(' ')}
+      onClick={onClick}
+      disabled={locked}
+      style={locked ? { opacity: 0.32, cursor: 'not-allowed' } : undefined}
+    >
       <div className="side-glyph">
         <span>{glyph}</span>
       </div>

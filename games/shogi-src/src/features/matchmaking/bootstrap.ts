@@ -74,6 +74,9 @@ export function normalizeIncomingRules(rules: unknown, roomName: string): RoomCo
       byoyomiSeconds: time.byoyomiSeconds,
       incrementSeconds: time.incrementSeconds,
     },
+    // v1.33: 手合いは部屋名にも部屋一覧にも載せていない。正本はルール同期 (rule_sync) で
+    // 届くので、ここでは平手にしておき、届いた時点で上書きされる (親 §6.5)。
+    handicap: null,
   };
 }
 

@@ -52,12 +52,12 @@ const connector: OnlineGameConnector = {
   getActiveRules() {
     const cfg = useMatchmakingStore.getState().activeRoomConfig;
     if (!cfg) return null;
-    return { gameType: cfg.gameType, torusMode: cfg.torusMode, quantum: cfg.quantum, quantumDisplayMode: cfg.quantumDisplayMode };
+    return { gameType: cfg.gameType, torusMode: cfg.torusMode, quantum: cfg.quantum, quantumDisplayMode: cfg.quantumDisplayMode, handicap: cfg.handicap };
   },
 
   getPendingRules() {
     const cfg = useMatchmakingStore.getState().pendingRoomConfig;
-    return { gameType: cfg.gameType, torusMode: cfg.torusMode, quantum: cfg.quantum, quantumDisplayMode: cfg.quantumDisplayMode };
+    return { gameType: cfg.gameType, torusMode: cfg.torusMode, quantum: cfg.quantum, quantumDisplayMode: cfg.quantumDisplayMode, handicap: cfg.handicap };
   },
 
   // v1.24: setQuantumDisplayMode は廃止した。対局中に部屋の値 (qtdisp) を書き換えられる口が

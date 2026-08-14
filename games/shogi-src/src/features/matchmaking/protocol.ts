@@ -29,6 +29,7 @@
  */
 
 import type { TimeControl } from '../../core/engine/time-control';
+import { handicapKey, type HandicapChoice } from '../../core/engine/handicap';
 import type { QuantumParams } from '../../core/store/quantum-params';
 import type { GameType } from './roomNameCodec';
 import type { QuantumDisplayMode, SideChoice, SideSelection, TorusMode } from './store';
@@ -272,6 +273,14 @@ export interface SyncedRules {
    * デバッグパネルで片側だけ変えると局面がずれる、という v1.19 の申し送りがここで閉じる。
    */
   quantumParams: QuantumParams;
+  /**
+   * v1.33: 手合い (駒落ち)。平手なら null。親 v1.28 §3.12.1 / §6.5。
+   *
+   * 手合いが揃わないと初期局面そのものが食い違い、駒の通し番号の突き合わせも成立しない。
+   * **席は送り手 (部屋を作った側) から見た向き**で運ぶ＝受け取った側は自分から見た
+   * 向きに読み替えて表示する。
+   */
+  handicap: HandicapChoice | null;
 }
 
 /** ルールを受け取れなかった理由 (親 §6.5.1 の reason コードに準じる)。 */
@@ -329,6 +338,7 @@ export function ruleDigest(r: SyncedRules): string {
     `${tc.mode}/${tc.mainSeconds}/${tc.byoyomiSeconds ?? '-'}/${tc.incrementSeconds ?? '-'}`,
     r.customRuleName ?? '',
     `${qp.observationTiming}/${qp.maxIterations}/${qp.initialPropagation ? 1 : 0}/${qp.anomalyAction}`,
+    handicapKey(r.handicap),
   ].join('#');
 }
 

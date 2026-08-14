@@ -2112,6 +2112,48 @@ body::before {
 }
 
 /* ── 変則条件 (トーラス / 量子) v0.58: 横 2 列グリッド。狭幅では縦積みへ ── */
+/* ── 手合い (駒落ち)。ルール一覧と変則条件の間 (付録D-2 v1.6 §3.1) ── */
+.hc-block { margin-top: 26px; }
+.hc-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  align-items: end;
+}
+@media (max-width: 420px) {
+  .hc-grid { grid-template-columns: 1fr; }
+}
+.hc-side { min-width: 0; }
+.hc-label {
+  display: block;
+  font-size: 13px;
+  color: var(--fg-muted, #b9b3a8);
+  margin-bottom: 6px;
+}
+.hc-select {
+  width: 100%;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 15px;
+  color: #fff;
+  background: var(--bg-input, #1b1b1b);
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 8px);
+}
+.hc-select:disabled { opacity: 0.32; cursor: not-allowed; }
+.hc-note {
+  margin-top: 9px;
+  font-size: 11.5px;
+  color: var(--orange-light);
+  line-height: 1.45;
+}
+.pv-handicap {
+  margin-top: 6px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--orange-light);
+}
+
 .mod-block { margin-top: 26px; }
 .mod-grid {
   display: grid;

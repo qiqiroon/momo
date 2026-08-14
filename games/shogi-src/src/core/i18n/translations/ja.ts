@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.34',
+    'app.ver': 'v1.35',
     // v0.72 音楽再生確認モーダル (Darts と同じ思想)
     'sound.promptTitle': 'BGM と効果音を再生してもよろしいですか？',
     'sound.bgmLabel': 'BGM 音量',
@@ -186,6 +186,9 @@ export const ja: LocaleData = {
     'status.agreed_draw': '引分（合意）',
     'status.timeout_p1': '先手時間切れ',
     'status.timeout_p2': '後手時間切れ',
+    // Phase 6: はさみ将棋の全滅 (相手の駒が規定枚数以下)
+    'status.annihilation_win_p1': '先手の勝ち（はさみ）',
+    'status.annihilation_win_p2': '後手の勝ち（はさみ）',
     'clk.byoyomi': '秒読み',
     // 投了確認と対局終了モーダル（段階 2-7 v0.30）
     'resign.confirmTitle': '投了確認',
@@ -211,6 +214,10 @@ export const ja: LocaleData = {
     'result.rematch.offline': 'もう一度対局',
     'result.close': '閉じる',
     'result.reason.agreed_draw': '合意による引分',
+    // Phase 6: はさみ将棋の全滅 (親 §3.10 annihilation・付録D-3 §3.3/§3.4)
+    'result.reason.annihilation': 'はさみ将棋の勝ち',
+    'result.detail.pieces': '枚',
+    'result.detail.winCondition': '勝利条件',
     // 引分・待った 合意フロー (段階 2-7 v0.33、v0.41 で具体ラベル化)
     'draw.confirmTitle': '引分にしますか？',
     'draw.confirmBody': 'この対局を引分（和棋）として終了します。',

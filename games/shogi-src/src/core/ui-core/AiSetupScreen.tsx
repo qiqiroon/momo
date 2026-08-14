@@ -109,6 +109,8 @@ export function AiSetupScreen() {
     const gs = useGameStore.getState();
     gs.setTimeControl(pendingTc);
     gs.reset({
+      // Phase 6: 遊ぶルール (本将棋 / はさみ将棋)。渡さないと前の対局のルールが残る。
+      gameType: pendingRules?.gameType ?? 'shogi',
       handicap: handicapSetting,
       quantum: pendingRules?.quantum ?? false,
       quantumDisplay: pendingRules?.quantumDisplayMode ?? 'cycle',

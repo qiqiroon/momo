@@ -1,5 +1,6 @@
 import type { Mgf } from '../mgf/types';
 import type { BoardCell, Move, PieceInstance, Position } from './types';
+import { sandwichCaptures } from '../moves/sandwich';
 
 /**
  * Position に Move を適用して新しい Position を返す (immutable)。
@@ -60,6 +61,20 @@ export function applyMove(mgf: Mgf, position: Position, move: Move): Position {
     const dropped = newHands[player][handIdx];
     newHands[player].splice(handIdx, 1);
     newBoard[move.to.row][move.to.col] = { ...dropped };
+  }
+
+  // はさみ将棋の「挟んで取る」(親 §3.8 `post_move_topology`)。挟みの決まりを持たない
+  // ルールでは何も起きないので、本将棋・トーラス・量子の各モードは素通りする。
+  // **取った駒は持ち駒にならない**＝挟みで取るルールは駒台を持たない (§5.3)。
+  const moved: Position = { ...position, board: newBoard };
+  const takenIds = new Set(sandwichCaptures(mgf, moved, move.to));
+  if (takenIds.size > 0) {
+    for (let row = 0; row < moved.height; row++) {
+      for (let col = 0; col < moved.width; col++) {
+        const cell = newBoard[row][col];
+        if (cell && takenIds.has(cell.pieceId)) newBoard[row][col] = null;
+      }
+    }
   }
 
   return {

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { hondou, initPosition, mgfForGameType } from '../../../core/engine';
 import type { GameType } from '../roomNameCodec';
 import type { TorusMode, QuantumDisplayMode } from '../store';
 import type { LocaleCode } from '../../../core/i18n/types';
@@ -38,37 +39,31 @@ interface Cell {
 
 const EMPTY: Cell = { ch: '' };
 
-function shogiInitial(): Cell[] {
-  const g = (ch: string): Cell => ({ ch, gote: true });
-  const s = (ch: string): Cell => ({ ch });
-  return [
-    g('香'), g('桂'), g('銀'), g('金'), g('玉'), g('金'), g('銀'), g('桂'), g('香'),
-    EMPTY, g('飛'), EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, g('角'), EMPTY,
-    g('歩'), g('歩'), g('歩'), g('歩'), g('歩'), g('歩'), g('歩'), g('歩'), g('歩'),
-    EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY,
-    EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY,
-    EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY,
-    s('歩'), s('歩'), s('歩'), s('歩'), s('歩'), s('歩'), s('歩'), s('歩'), s('歩'),
-    EMPTY, s('角'), EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, s('飛'), EMPTY,
-    s('香'), s('桂'), s('銀'), s('金'), s('玉'), s('金'), s('銀'), s('桂'), s('香'),
-  ];
-}
-
-function hasamiInitial(): Cell[] {
+/**
+ * v1.35: プレビューの初期配置は**ルール定義から起こす**（付録D-2 v1.8 §5）。
+ *
+ * 以前は本将棋とはさみ将棋の並びを、この画面の中に書き置いていた。**同じ見た目を
+ * 2 か所で別々に作っている状態**で、実際に 2026-08-14 に片方だけ直して気づけない
+ * 不具合（量子の候補の顔ぶれ）が出ている。ルールを増やしてもここは触らない形にする。
+ *
+ * 定義を持たないルール（自由ルールは Phase 7）は本将棋の並びで代用する。
+ */
+export function initialFor(rule: GameType): Cell[] {
+  const mgf = mgfForGameType(rule) ?? hondou;
+  const pos = initPosition(mgf);
   const cells: Cell[] = [];
-  for (let r = 0; r < 9; r++) {
-    for (let c = 0; c < 9; c++) {
-      if (r === 0) cells.push({ ch: '歩', gote: true });
-      else if (r === 8) cells.push({ ch: '歩' });
-      else cells.push(EMPTY);
+  for (let row = 0; row < pos.height; row++) {
+    for (let col = 0; col < pos.width; col++) {
+      const piece = pos.board[row][col];
+      if (!piece) {
+        cells.push(EMPTY);
+        continue;
+      }
+      const ch = PIECE_ID_TO_CH[piece.kind] ?? mgf.pieces.find((d) => d.id === piece.kind)?.name ?? '？';
+      cells.push(piece.owner === 'player2' ? { ch, gote: true } : { ch });
     }
   }
   return cells;
-}
-
-function initialFor(rule: GameType): Cell[] {
-  if (rule === 'hasami') return hasamiInitial();
-  return shogiInitial();
 }
 
 /** ルール定義の駒 id → プレビューの駒文字。定義に無い駒は落とせない (無視する)。 */

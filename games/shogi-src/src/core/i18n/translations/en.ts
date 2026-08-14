@@ -5,7 +5,7 @@ export const en: LocaleData = {
   name: 'English',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.34',
+    'app.ver': 'v1.35',
     'sound.promptTitle': 'Enable BGM and sound effects?',
     'sound.bgmLabel': 'BGM volume',
     'sound.sfxLabel': 'SFX volume',
@@ -176,6 +176,9 @@ export const en: LocaleData = {
     'status.agreed_draw': 'Draw (agreed)',
     'status.timeout_p1': 'Sente timed out',
     'status.timeout_p2': 'Gote timed out',
+    // Phase 6: Hasami Shogi annihilation
+    'status.annihilation_win_p1': 'Sente wins (Hasami)',
+    'status.annihilation_win_p2': 'Gote wins (Hasami)',
     'clk.byoyomi': 'Byoyomi',
     // Resign confirmation and game-end modal (Phase 2-7 v0.30)
     'resign.confirmTitle': 'Confirm Resignation',
@@ -201,6 +204,10 @@ export const en: LocaleData = {
     'result.rematch.offline': 'Play Again',
     'result.close': 'Close',
     'result.reason.agreed_draw': 'Agreed Draw',
+    // Phase 6: Hasami Shogi annihilation (spec §3.10 / appendix D-3 §3.3, §3.4)
+    'result.reason.annihilation': 'Win by capture (Hasami)',
+    'result.detail.pieces': ' left',
+    'result.detail.winCondition': 'win at',
     // Draw/Undo agreement flow (Phase 2-7 v0.33, v0.41: specific labels)
     'draw.confirmTitle': 'Agree to Draw?',
     'draw.confirmBody': 'End this game in a draw.',

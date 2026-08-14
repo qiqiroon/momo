@@ -1,5 +1,6 @@
 import type { Mgf } from './types';
 import hondouRaw from './hondou.json';
+import hasamiRaw from './hasami.json';
 
 export function loadMgf(json: unknown): Mgf {
   if (typeof json !== 'object' || json === null) {
@@ -15,6 +16,9 @@ export function loadMgf(json: unknown): Mgf {
 
 export const hondou: Mgf = loadMgf(hondouRaw);
 
+/** はさみ将棋 (Phase 6・親 v1.29 §5.3 の標準バリアント)。 */
+export const hasami: Mgf = loadMgf(hasamiRaw);
+
 /**
  * ルールの種類 → ルール定義 (MGF)。**まだ定義を持たないルールは null**。
  *
@@ -23,6 +27,7 @@ export const hondou: Mgf = loadMgf(hondouRaw);
  */
 const MGF_BY_GAME_TYPE: Record<string, Mgf> = {
   shogi: hondou,
+  hasami,
 };
 
 export function mgfForGameType(gameType: string): Mgf | null {

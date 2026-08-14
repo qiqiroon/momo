@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { RuleSelectScreen } from './RuleSelectScreen';
 import { OfflineRuleScreen } from '../../../core/ui-core/OfflineRuleScreen';
 import { useGameStore } from '../../../core/store/game-store';
-import { applyHandicapToCells, quantumKindsFor } from './MiniBoardPreview';
+import { applyHandicapToCells, initialFor, quantumKindsFor } from './MiniBoardPreview';
 import { DEFAULT_ROOM_CONFIG, useMatchmakingStore } from '../store';
 import { useRouteStore } from '../../../core/store/route-store';
 import { useI18nStore } from '../../../core/store/i18n-store';
@@ -251,6 +251,31 @@ describe('プレビュー盤の駒落ち', () => {
       expect(top).not.toContain('角');
       expect(top).toEqual(['王', '金', '銀', '桂', '香', '歩']);
       expect(quantumKindsFor(out, false)).toContain('飛');
+    });
+  });
+
+  /**
+   * v1.35 (付録D-2 v1.8 §5): プレビューの初期配置は**ルール定義から起こす**。
+   * 画面側に盤の並びを書き置くと、対局盤と 2 か所で別々に作ることになり、
+   * 片方だけ直しても気づけない (v1.34 の候補の顔ぶれがその形だった)。
+   */
+  describe('初期配置はルール定義から起こす', () => {
+    it('本将棋の並びは従来と一致する', () => {
+      expect(initialFor('shogi')).toEqual(shogi());
+    });
+
+    it('はさみ将棋は最奥段に歩が 9 枚ずつ・中央 7 段は空', () => {
+      const cells = initialFor('hasami');
+      expect(filled(cells)).toBe(18);
+      for (let col = 0; col < 9; col++) {
+        expect(cells[col]).toEqual({ ch: '歩', gote: true });
+        expect(cells[8 * 9 + col]).toEqual({ ch: '歩' });
+      }
+      for (let i = 9; i < 8 * 9; i++) expect(cells[i].ch).toBe('');
+    });
+
+    it('定義を持たないルール (自由ルール) は本将棋の並びで代用する', () => {
+      expect(initialFor('shogi-custom')).toEqual(shogi());
     });
   });
 });

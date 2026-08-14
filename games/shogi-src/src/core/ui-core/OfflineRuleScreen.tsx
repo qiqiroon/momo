@@ -71,6 +71,8 @@ export function OfflineRuleScreen(_props: OfflineRuleScreenProps) {
     const handicap = pendingRules?.handicap ?? null;
     gs.setLocalViewerSide(handicap && handicap.giver === 'opponent' ? 'player2' : 'player1');
     gs.reset({
+      // Phase 6: 遊ぶルール (本将棋 / はさみ将棋)。渡さないと前の対局のルールが残る。
+      gameType: pendingRules?.gameType ?? 'shogi',
       handicap: handicapSettingFor(handicap),
       quantum: pendingRules?.quantum ?? false,
       quantumDisplay: pendingRules?.quantumDisplayMode ?? 'cycle',

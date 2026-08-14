@@ -26,6 +26,7 @@ import type { LocaleCode } from '../i18n/types';
 import type { Mgf, PieceId, PieceInstance, Position, Square } from '../engine';
 import {
   buildInitialKindMap,
+  countBoardPieces,
   displayKindsFor,
   foretellKindByDestination,
   isInCheck,
@@ -285,6 +286,9 @@ export function GameScreen({ variant }: GameScreenProps) {
       : status === 'timeout_p2' ? 'player1'
       : status === 'nyugyoku_win_p1' ? 'player1'
       : status === 'nyugyoku_win_p2' ? 'player2'
+      // Phase 6: 全滅 (はさみ将棋)。名前が示すのは勝った側。
+      : status === 'annihilation_win_p1' ? 'player1'
+      : status === 'annihilation_win_p2' ? 'player2'
       : null;
     if (!winnerSide) return;
     if (online.isOnline) {
@@ -342,6 +346,10 @@ export function GameScreen({ variant }: GameScreenProps) {
                     ? t('status.timeout_p1')
                     : status === 'timeout_p2'
                       ? t('status.timeout_p2')
+                      : status === 'annihilation_win_p1'
+                        ? t('status.annihilation_win_p1')
+                      : status === 'annihilation_win_p2'
+                        ? t('status.annihilation_win_p2')
                       : online.isOnline
                   ? (isMyTurnOnline ? t('turn.mine') : t('turn.opp')) +
                     (position.sideToMove === 'player1' ? (senteInCheck ? t('s07.checkTag') : '') : goteInCheck ? t('s07.checkTag') : '')
@@ -1627,6 +1635,7 @@ function GameEndModal({
 }) {
   const status = useGameStore((s) => s.status);
   const position = useGameStore((s) => s.position);
+  const mgf = useGameStore((s) => s.mgf);
   const reset = useGameStore((s) => s.reset);
   const [dismissed, setDismissed] = useState<string>('');
 
@@ -1682,6 +1691,15 @@ function GameEndModal({
       winnerSide = null;
       reasonKey = 'result.reason.nogame';
       break;
+    case 'annihilation_win_p1':
+      // Phase 6: 全滅 (はさみ将棋・親 §3.10)。相手の駒が規定枚数以下になった。
+      winnerSide = 'player1';
+      reasonKey = 'result.reason.annihilation';
+      break;
+    case 'annihilation_win_p2':
+      winnerSide = 'player2';
+      reasonKey = 'result.reason.annihilation';
+      break;
     default:
       return null;
   }
@@ -1710,6 +1728,19 @@ function GameEndModal({
     verdictKey = winnerSide === 'player1' ? 'result.verdict.senteWin' : 'result.verdict.goteWin';
   }
 
+  // Phase 6 (付録D-3 §3.4): 全滅で終わったときは、両者の残り駒と勝利条件の枚数を添える。
+  // 「あと何枚で終わりだったのか」が分からないと、なぜ終わったのかが伝わらないため。
+  let annihilationDetail: string | null = null;
+  if (status === 'annihilation_win_p1' || status === 'annihilation_win_p2') {
+    const threshold = mgf.victory?.remaining_threshold ?? 0;
+    const sente = countBoardPieces(position, 'player1');
+    const gote = countBoardPieces(position, 'player2');
+    annihilationDetail =
+      `${t('s07.senteLbl')} ${sente}${t('result.detail.pieces')}` +
+      ` / ${t('s07.goteLbl')} ${gote}${t('result.detail.pieces')}` +
+      `（${t('result.detail.winCondition')} ≤${threshold}）`;
+  }
+
   // 「対局準備に戻る」or「もう一度対局」— 同じ部屋で再対局を可能に
   const rematchLabel = online.isOnline ? t('result.rematch.online') : t('result.rematch.offline');
   const onRematch = () => {
@@ -1729,6 +1760,7 @@ function GameEndModal({
     <FloatingPanel key={status} className="floating-result" title={t('result.title')}>
       <div className={`verdict ${verdictClass}`}>{t(verdictKey)}</div>
       <div className="body">{t(reasonKey)}</div>
+      {annihilationDetail && <div className="body">{annihilationDetail}</div>}
       <div className="btn-row">
         <button type="button" className="btn ghost" onClick={() => setDismissed(status)}>
           {t('result.close')}

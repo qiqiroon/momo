@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { useGameStore } from './game-store';
 import type { PieceInstance, Position } from '../engine';
 import { register, clear as clearPlugins } from '../plugin/registry';
@@ -282,6 +282,54 @@ describe('Game store — リセット', () => {
     expect(useGameStore.getState().position.sideToMove).toBe('player1');
     expect(useGameStore.getState().position.moveNumber).toBe(1);
     expect(useGameStore.getState().status).toBe('playing');
+  });
+});
+
+describe('Game store — はさみ将棋 (Phase 6)', () => {
+  afterEach(() => {
+    // 他のテストに本将棋以外のルールを持ち越さない
+    useGameStore.getState().reset({ gameType: 'shogi' });
+  });
+
+  it('ルールの種類を渡すと盤ごと切り替わる (歩 18 枚・持ち駒なし)', () => {
+    useGameStore.getState().reset({ gameType: 'hasami' });
+    const st = useGameStore.getState();
+    expect(st.currentGameType).toBe('hasami');
+    expect(st.mgf.metadata.game_id).toBe('hasami');
+    const kinds = st.position.board.flat().filter(Boolean).map((p) => p!.kind);
+    expect(kinds).toHaveLength(18);
+    expect(new Set(kinds)).toEqual(new Set(['fu']));
+  });
+
+  it('ルールを渡さずに reset すると前の対局のルールのまま指し直せる', () => {
+    useGameStore.getState().reset({ gameType: 'hasami' });
+    useGameStore.getState().reset();
+    expect(useGameStore.getState().mgf.metadata.game_id).toBe('hasami');
+  });
+
+  it('挟んで取れて、相手が 2 枚以下になったら決着する', () => {
+    useGameStore.getState().reset({ gameType: 'hasami' });
+    // 先手 3 枚・後手 3 枚。後手の 1 枚を挟めば 2 枚になって決着
+    const board = emptyBoard();
+    board[4][3] = P('fu', 'player1', false, 'P0');
+    board[4][4] = P('fu', 'player2', false, 'p0');
+    board[0][5] = P('fu', 'player1', false, 'P1');
+    board[8][0] = P('fu', 'player1', false, 'P2');
+    board[0][0] = P('fu', 'player2', false, 'p1');
+    board[0][1] = P('fu', 'player2', false, 'p2');
+    useGameStore.setState({
+      position: { ...useGameStore.getState().position, board, sideToMove: 'player1' },
+      status: 'playing',
+    });
+
+    const st = useGameStore.getState();
+    st.selectSquare({ row: 0, col: 5 });
+    st.tryMove({ row: 4, col: 5 });
+
+    const after = useGameStore.getState();
+    expect(after.position.board[4][4]).toBeNull(); // 挟んだ駒が消える
+    expect(after.position.hands.player1).toHaveLength(0); // 持ち駒にはならない
+    expect(after.status).toBe('annihilation_win_p1');
   });
 });
 

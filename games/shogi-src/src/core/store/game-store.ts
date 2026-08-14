@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import {
+  annihilationLoser,
   applyMove,
   buildInitialKindMap,
   canDeclareNyugyoku,
@@ -9,6 +10,7 @@ import {
   initPosition,
   isCheckmate,
   isInCheck,
+  mgfForGameType,
   positionHash,
 } from '../engine';
 import type {
@@ -50,6 +52,12 @@ export interface ResetOptions {
    * (親 §3.12.1)。
    */
   handicap?: HandicapSetting | null;
+  /**
+   * Phase 6: 遊ぶルールの種類 (本将棋 / はさみ将棋 / 自由ルール)。省略時は現在値を維持する。
+   * ここからルール定義 (MGF) を引き、盤・駒・勝ち方のすべてが決まる。定義を持たない
+   * 種類が来たら本将棋のまま始める (未実装のルールで盤が空になるのを避ける)。
+   */
+  gameType?: string;
 }
 export type TorusMode = 'none' | 'cylinder' | 'full';
 /** features/torus が登録する「モード → 盤の端のつなぎ方」の翻訳器 (未登録なら平面)。 */
@@ -176,7 +184,13 @@ type GameStatus =
    * Phase 5-13: ノーゲーム (異常状態合意)。勝敗つかず・レート非変動 (親 §4.4)。
    * 異常状態の投票で片方でも「ノーゲーム」を選ぶと成立する。
    */
-  | 'nogame';
+  | 'nogame'
+  /**
+   * Phase 6: 全滅 (はさみ将棋・親 §3.10 annihilation)。**勝った側**を書く
+   * (時間切れの `timeout_p1` とは向きが逆なので名前に win を入れて取り違えを防ぐ)。
+   */
+  | 'annihilation_win_p1'
+  | 'annihilation_win_p2';
 
 /**
  * 着手発生元:
@@ -286,6 +300,11 @@ interface GameState {
    * 次の reset で引き継ぐための控え (対局中の「リセット」で駒落ちのまま指し直せる)。
    */
   currentHandicap: HandicapSetting | null;
+  /**
+   * Phase 6: 現局面のルールの種類。reset({gameType}) で更新される。
+   * 次の reset で引き継ぐための控え (対局中の「リセット」で同じルールのまま指し直せる)。
+   */
+  currentGameType: string;
   /**
    * v1.33: オフライン対局で盤の下側に置く陣営 (＝手前に座っている人)。既定は player1。
    *
@@ -508,6 +527,15 @@ function computeStatusAfterMove(
   position: Position,
   positionCounts: Record<string, number>,
 ): { status: GameStatus; positionCounts: Record<string, number> } {
+  // Phase 6 (親 §3.10): 全滅。相手の盤上の駒が規定枚数以下になった側の負け。
+  // 全滅を持たないルールでは何も返らないので、本将棋は素通りする。
+  const loser = annihilationLoser(mgf, position);
+  if (loser) {
+    return {
+      status: loser === 'player1' ? 'annihilation_win_p2' : 'annihilation_win_p1',
+      positionCounts,
+    };
+  }
   if (isCheckmate(mgf, position)) {
     return { status: 'checkmate', positionCounts };
   }
@@ -809,6 +837,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   currentQuantum: false,
   currentTorusMode: 'none',
   currentHandicap: null,
+  currentGameType: 'shogi',
   localViewerSide: 'player1',
   quantumDisplay: loadMyQuantumDisplay(),
   roomQuantumDisplay: 'cycle',
@@ -1282,7 +1311,11 @@ export const useGameStore = create<GameState>((set, get) => ({
     const torusMode = options?.torusMode ?? state.currentTorusMode;
     // Phase 3-3: 手合い。null を渡せば平手に戻す・省略なら現在値を維持 (親 §3.12.1)
     const handicap = options?.handicap !== undefined ? options.handicap : state.currentHandicap;
-    let pos = initPosition(state.mgf, topologyForMode(torusMode), handicap ?? undefined);
+    // Phase 6: 遊ぶルール。ここでルール定義を差し替えると、盤・駒・勝ち方まで丸ごと変わる。
+    // 定義を持たない種類 (自由ルールは Phase 7) が来たら本将棋のまま始める。
+    const gameType = options?.gameType ?? state.currentGameType;
+    const mgf = mgfForGameType(gameType) ?? hondou;
+    let pos = initPosition(mgf, topologyForMode(torusMode), handicap ?? undefined);
     let initialAnomaly: AnomalyState | null = null;
     if (quantum) {
       const quantumInitFn = pluginGet<QuantumInitFn>('quantum:init');
@@ -1304,7 +1337,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         : undefined;
       if (candidateUpdateFn) {
         try {
-          pos = candidateUpdateFn(pos, state.mgf, {
+          pos = candidateUpdateFn(pos, mgf, {
             torusMode,
             maxIterations: state.quantumParams.maxIterations,
           });
@@ -1326,9 +1359,11 @@ export const useGameStore = create<GameState>((set, get) => ({
     }
     const tc = state.timeControl;
     set({
+      mgf,
       currentQuantum: quantum,
       currentTorusMode: torusMode,
       currentHandicap: handicap,
+      currentGameType: gameType,
       // Phase 5-11: 表示方式は対局設定 (qtdisp) の一部＝これは「部屋の値」。未指定なら現在値を維持。
       // v1.22: 実効値は「部屋が重ねなら重ね／巡回なら各自の画面の値」(spec 駒UI v0.8 §4.4)。
       roomQuantumDisplay: options?.quantumDisplay ?? state.roomQuantumDisplay,

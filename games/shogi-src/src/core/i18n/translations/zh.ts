@@ -5,7 +5,7 @@ export const zh: LocaleData = {
   name: '中文',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.34',
+    'app.ver': 'v1.35',
     'sound.promptTitle': '是否播放 BGM 与音效？',
     'sound.bgmLabel': 'BGM 音量',
     'sound.sfxLabel': '音效音量',
@@ -176,6 +176,9 @@ export const zh: LocaleData = {
     'status.agreed_draw': '和棋（同意）',
     'status.timeout_p1': '先手超时',
     'status.timeout_p2': '后手超时',
+    // Phase 6: 夹将棋的全灭
+    'status.annihilation_win_p1': '先手获胜（夹）',
+    'status.annihilation_win_p2': '后手获胜（夹）',
     'clk.byoyomi': '秒读',
     // 认输确认与终局弹窗（阶段 2-7 v0.30）
     'resign.confirmTitle': '认输确认',
@@ -201,6 +204,10 @@ export const zh: LocaleData = {
     'result.rematch.offline': '再来一局',
     'result.close': '关闭',
     'result.reason.agreed_draw': '双方同意和棋',
+    // Phase 6: 夹将棋的全灭 (亲 §3.10 annihilation・附录D-3 §3.3/§3.4)
+    'result.reason.annihilation': '夹将棋获胜',
+    'result.detail.pieces': '枚',
+    'result.detail.winCondition': '胜利条件',
     // 和棋/悔棋 协商流程 (阶段 2-7 v0.33、v0.41 具体标签)
     'draw.confirmTitle': '同意和棋？',
     'draw.confirmBody': '将本局作为和棋结束。',

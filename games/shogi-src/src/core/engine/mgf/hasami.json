@@ -1,0 +1,58 @@
+{
+  "metadata": {
+    "game_name": "はさみ将棋",
+    "game_id": "hasami",
+    "version": "0.1.0",
+    "description": "はさみ将棋 (Hasami Shogi) — 親仕様 v1.29 §5.3 の標準バリアント"
+  },
+  "board": {
+    "width": 9,
+    "height": 9,
+    "coordinate": "shogi",
+    "sfen_support": true
+  },
+  "compatible_modifiers": {
+    "torus": { "cylinder": true, "full_torus": true },
+    "quantum": { "enabled": false }
+  },
+  "capture_rules": {
+    "default": "none",
+    "post_move_topology": {
+      "condition": "sandwich",
+      "axis": ["horizontal", "vertical"],
+      "target": "opponent_piece",
+      "bound_by": "own_piece",
+      "corner_enclosure": true,
+      "mover_only": true
+    }
+  },
+  "victory": {
+    "type": "annihilation",
+    "remaining_threshold": 2,
+    "resign_allowed": true
+  },
+  "repetition": {
+    "type": "draw",
+    "detection_threshold": 4
+  },
+  "pieces": [
+    {
+      "id": "fu",
+      "name": "歩",
+      "can_promote": false,
+      "is_hand_piece": false,
+      "score": 1,
+      "move_logic": {
+        "abilities": [
+          { "type": "slide", "direction": "forward", "range": -1, "can_capture": false },
+          { "type": "slide", "direction": "backward", "range": -1, "can_capture": false },
+          { "type": "slide", "direction": "sideways", "range": -1, "can_capture": false }
+        ]
+      }
+    }
+  ],
+  "initial_placement": {
+    "format": "sfen",
+    "sfen": "ppppppppp/9/9/9/9/9/9/9/PPPPPPPPP b - 1"
+  }
+}

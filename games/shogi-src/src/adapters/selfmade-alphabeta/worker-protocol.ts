@@ -16,6 +16,8 @@ export interface WorkerGoRequest {
   position: Position;
   movetimeMs: number;
   maxDepth: number;
+  /** 同点崩しの幅 (段から決まる=levels.ts)。省略時は search 側の既定。 */
+  jitter?: number;
 }
 
 export type WorkerRequest = WorkerGoRequest;

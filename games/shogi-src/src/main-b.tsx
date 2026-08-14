@@ -7,6 +7,7 @@ import './features/matchmaking';
 import './features/quantum';
 import './features/torus';
 import './adapters/selfmade-alphabeta';
+import './adapters/mcts-adapter';
 import { App } from './App';
 import { register as pluginRegister } from './core/plugin/registry';
 import { useRouteStore } from './core/store/route-store';

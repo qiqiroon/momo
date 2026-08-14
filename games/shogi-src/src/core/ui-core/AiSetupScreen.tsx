@@ -32,6 +32,7 @@ import { seButton } from '../audio/se-synth';
 import { DEFAULT_TIME_CONTROL } from '../engine/time-control';
 import { SidePickAi, useFurigoma, type AiSideChoice } from './SidePickAi';
 import { listEngines, resolveEngineId, findEngine } from '../ai/engine-registry';
+import { AI_LEVELS } from '../ai/types';
 import { aiModeFrom, unsupportedReasonKey } from '../ai/mode';
 import { handicapSettingFor } from '../engine';
 
@@ -52,6 +53,9 @@ export function AiSetupScreen() {
   const choices = listEngines(mode);
   const engineId = useAiStore((s) => s.engineId);
   const setEngineId = useAiStore((s) => s.setEngineId);
+  // 強さ (親 §7.5)。AI 選択とは直交する別の軸なので、モードが変わっても選び直さない。
+  const level = useAiStore((s) => s.level);
+  const setLevel = useAiStore((s) => s.setLevel);
 
   // モードが変わったら選び直す。いま選んでいるものが新しいモードにも対応していれば
   // その選択を尊重して残す (親 §7.1.1)。
@@ -103,6 +107,7 @@ export function AiSetupScreen() {
     useAiStore.getState().startVsAi({
       aiSide: youAreSente ? 'player2' : 'player1',
       engineId: selected?.id,
+      level,
       mode,
     });
     conn?.commitPendingToActive();
@@ -214,6 +219,26 @@ export function AiSetupScreen() {
               <div className="s03-ai-mobile-note">{t('s03.mobileNote')}</div>
             </>
           )}
+        </div>
+
+        {/* 強さ (付録 D-5 v1.5 §6.7)。**AI 選択とは別の軸**で、どの AI にも同じ 3 段階が効く。
+            段の名前は MOMO Works 共通の呼び名なので 3 言語とも英語表記のまま (訳さない)。
+            対応・非対応の分岐は無い＝常に 3 つとも選べる。 */}
+        <div className="s03-ai-block">
+          <div className="s03-ai-label">{t('s03.lblLevel')}</div>
+          <div className="seg">
+            {AI_LEVELS.map((lv) => (
+              <button
+                key={lv}
+                type="button"
+                className={level === lv ? 'on' : ''}
+                onClick={() => { seButton(); setLevel(lv); }}
+              >
+                {lv}
+              </button>
+            ))}
+          </div>
+          <div className="s03-ai-mobile-note">{t(`s03.level.${level}`)}</div>
         </div>
 
         <div style={{ marginTop: 20, display: 'flex', justifyContent: 'center' }}>

@@ -127,3 +127,83 @@ describe('S03 手合い (駒落ち) の受け取り', () => {
     expect(gs.position.board.flat().filter((c) => c !== null)).toHaveLength(40);
   });
 });
+
+/**
+ * 強さ (Phase 3-3・親 §7.5・付録 D-5 v1.5 §6.7)。
+ *
+ * ここで固定したいのは
+ *   - 3 段が **AI 選択とは別の欄**として出ること
+ *   - 段の名前は **3 言語とも英語表記のまま**であること (訳さない)
+ *   - 既定が `Hard` で、選んだ段が対局へ持ち越されること
+ * の 3 点。
+ */
+describe('S03 強さ (Easy / Hard / Apocalypse)', () => {
+  beforeEach(() => {
+    clearPlugins();
+    clearEngines();
+    registerEngine({
+      id: 'test-engine',
+      labelKey: 'ai.test',
+      descKey: 'ai.testDesc',
+      weights: { shogi: 10, variant: 10, torus: 10, quantum: 10 },
+      create: () => ({
+        id: 'test-engine',
+        init: () => {},
+        setPosition: () => {},
+        go: async () => null,
+        stop: () => {},
+        quit: () => {},
+      }),
+    });
+    useI18nStore.setState({ locale: 'ja' });
+    useGameStore.getState().reset({ handicap: null, quantum: false, torusMode: 'none' });
+    useAiStore.setState({ enabled: false, aiSide: 'player2', engineId: null, level: 'Hard' });
+    mockConnector(null);
+  });
+  afterEach(() => {
+    clearPlugins();
+    clearEngines();
+  });
+
+  it('3 段が並び、既定は Hard', () => {
+    render(<AiSetupScreen />);
+    for (const name of ['Easy', 'Hard', 'Apocalypse']) {
+      expect(screen.getByText(name)).toBeTruthy();
+    }
+    const hard = screen.getByText('Hard').closest('button') as HTMLButtonElement;
+    expect(hard.className).toContain('on');
+  });
+
+  it('選び直すと切り替わる (どの段も常に選べる＝グレーアウトは無い)', () => {
+    render(<AiSetupScreen />);
+    for (const name of ['Easy', 'Hard', 'Apocalypse']) {
+      expect((screen.getByText(name).closest('button') as HTMLButtonElement).disabled).toBe(false);
+    }
+    fireEvent.click(screen.getByText('Apocalypse'));
+    expect(useAiStore.getState().level).toBe('Apocalypse');
+    expect((screen.getByText('Apocalypse').closest('button') as HTMLButtonElement).className).toContain('on');
+  });
+
+  it('★段の名前は日本語でも英語のまま (MOMO Works 共通の呼び名)', () => {
+    render(<AiSetupScreen />);
+    expect(screen.getByText('強さ')).toBeTruthy(); // 欄のラベルは訳す
+    expect(screen.getByText('Easy')).toBeTruthy(); // 段の名前は訳さない
+    expect(screen.queryByText('やさしい')).toBeNull();
+  });
+
+  it('選んだ段が対局へ持ち越される', () => {
+    render(<AiSetupScreen />);
+    fireEvent.click(screen.getByText('Easy'));
+    fireEvent.click(screen.getByText('先手'));
+    startGame();
+    expect(useAiStore.getState().level).toBe('Easy');
+    expect(useAiStore.getState().enabled).toBe(true);
+  });
+
+  it('AI 選択とは別の軸＝AI を選び直しても段は変わらない', () => {
+    render(<AiSetupScreen />);
+    fireEvent.click(screen.getByText('Apocalypse'));
+    useAiStore.getState().setEngineId('test-engine');
+    expect(useAiStore.getState().level).toBe('Apocalypse');
+  });
+});

@@ -17,6 +17,7 @@ import { get as pluginGet } from '../../core/plugin/registry';
 import type { Mgf } from '../../core/engine/mgf/types';
 import type { Move, Position } from '../../core/engine/position/types';
 import { searchBestMove } from './search';
+import { resolveLevel } from './levels';
 import type { WorkerRequest, WorkerResponse } from './worker-protocol';
 
 export const SELFMADE_ENGINE_ID = 'selfmade-alphabeta';
@@ -46,12 +47,12 @@ class SelfmadeAdapter implements EngineAdapter {
     if (!mgf || !position) return null;
     this.stopped = false;
 
-    const movetimeMs = limits.movetimeMs ?? 2000;
-    const maxDepth = limits.depth ?? 6;
+    // 段 (Easy / Hard / Apocalypse) の解釈はこの思考ルーチンの仕事 (親 §7.5.3)。
+    const { movetimeMs, maxDepth, jitter } = resolveLevel(limits);
 
     const worker = this.ensureWorker();
     if (worker) {
-      return this.goInWorker(worker, mgf, position, movetimeMs, maxDepth, onProgress);
+      return this.goInWorker(worker, mgf, position, movetimeMs, maxDepth, jitter, onProgress);
     }
 
     // 同じスレッドで考える。開始を 1 度画面に返してから走らせ、「考え中」の表示が
@@ -60,6 +61,7 @@ class SelfmadeAdapter implements EngineAdapter {
     const result = searchBestMove(mgf, position, {
       movetimeMs,
       maxDepth,
+      jitter,
       shouldStop: () => this.stopped,
       onProgress: (p) => onProgress?.({ depth: p.depth, nodes: p.nodes, elapsedMs: p.elapsedMs }),
     });
@@ -99,6 +101,7 @@ class SelfmadeAdapter implements EngineAdapter {
     position: Position,
     movetimeMs: number,
     maxDepth: number,
+    jitter: number,
     onProgress?: (p: ThinkProgress) => void,
   ): Promise<Move | null> {
     const id = ++this.seq;
@@ -122,11 +125,11 @@ class SelfmadeAdapter implements EngineAdapter {
         // 別スレッドが落ちたら捨てて、次回は同じスレッドで考え直す
         this.worker = null;
         worker.terminate();
-        resolve(searchBestMove(mgf, position, { movetimeMs, maxDepth }).move);
+        resolve(searchBestMove(mgf, position, { movetimeMs, maxDepth, jitter }).move);
       };
       worker.addEventListener('message', onMessage);
       worker.addEventListener('error', onError);
-      const req: WorkerRequest = { type: 'go', id, mgf, position, movetimeMs, maxDepth };
+      const req: WorkerRequest = { type: 'go', id, mgf, position, movetimeMs, maxDepth, jitter };
       worker.postMessage(req);
     });
   }

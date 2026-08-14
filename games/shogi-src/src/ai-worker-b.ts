@@ -23,6 +23,7 @@ self.addEventListener('message', (ev: MessageEvent<WorkerRequest>) => {
   const result = searchBestMove(req.mgf, req.position, {
     movetimeMs: req.movetimeMs,
     maxDepth: req.maxDepth,
+    jitter: req.jitter,
     onProgress: (p) => {
       post({ type: 'progress', id: req.id, depth: p.depth, nodes: p.nodes, elapsedMs: p.elapsedMs });
     },

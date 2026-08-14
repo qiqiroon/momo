@@ -11,7 +11,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useGameStore } from '../store/game-store';
-import { useAiStore } from '../store/ai-store';
+import { useAiStore, isSmallScreen, THINK_BUDGET_CAP_MS } from '../store/ai-store';
 import { findEngine, defaultEngine, supports } from '../ai/engine-registry';
 import { aiModeFrom } from '../ai/mode';
 import type { EngineAdapter } from '../ai/types';
@@ -79,14 +79,16 @@ export function useAiOpponent(isOnline: boolean): void {
 
     const { mgf, timeControl, clocks } = useGameStore.getState();
     const ai = useAiStore.getState();
-    const budget = thinkBudgetMs(timeControl, clocks[aiSide], ai.thinkMs);
+    // 持ち時間から割り出した上限。**段が求める時間との小さい方**を思考ルーチンが採る
+    // (親 §7.5.3)。core は段の名前を渡すだけで、具体値には触らない。
+    const budget = thinkBudgetMs(timeControl, clocks[aiSide], THINK_BUDGET_CAP_MS);
 
     engine.init(mgf);
     engine.setPosition(position);
     ai.setThinking(true);
 
     void engine
-      .go({ movetimeMs: budget, depth: ai.maxDepth }, (p) => {
+      .go({ movetimeMs: budget, level: ai.level, mobile: isSmallScreen() }, (p) => {
         useAiStore.getState().setLastThink({ depth: p.depth, nodes: p.nodes, elapsedMs: p.elapsedMs });
       })
       .then((move) => {

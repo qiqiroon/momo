@@ -16,12 +16,42 @@
 import type { Mgf } from '../engine/mgf/types';
 import type { Move, Position } from '../engine/position/types';
 
-/** 1 手にどれだけ考えてよいか (親 §7.4)。指定が無い項目は思考ルーチン側の既定に従う。 */
+/**
+ * 強さの段 (親 §7.5・MOMO Works 共通の呼び名)。
+ *
+ * 花札の対コンピュータ戦・数独の問題難易度と**同じ 3 語**を使う。
+ * 3 言語とも英語表記のまま訳さない (猫語化もしない=付録 D-5 §10)。
+ *
+ * **AI 選択とは直交する別の軸**で、どの思考ルーチンを選んでも同じ 3 段階が効く
+ * (親 §7.5.2)。目録の重み (下の EngineDescriptor) には段を含めない。
+ */
+export type AiLevel = 'Easy' | 'Hard' | 'Apocalypse';
+
+export const AI_LEVELS: readonly AiLevel[] = ['Easy', 'Hard', 'Apocalypse'];
+
+/** 既定の段。花札の対コンピュータ戦に合わせて真ん中 (親 §7.5.1)。 */
+export const DEFAULT_AI_LEVEL: AiLevel = 'Hard';
+
+/**
+ * 1 手にどれだけ考えてよいか (親 §7.4)。指定が無い項目は思考ルーチン側の既定に従う。
+ *
+ * **段 (level) から具体値への写像は core では行わない** (親 §7.5.3)。ここで渡すのは
+ * 「段の名前」と「持ち時間から割り出した上限」だけで、実際に何秒どこまで読むかは
+ * 各思考ルーチンが自分で決める。弱くする手立てがルーチンごとに違うため
+ * (αβ は深さと時間、MCTS はプレイアウト数)。
+ */
 export interface ThinkLimits {
-  /** 考える時間の上限 (ms) */
+  /**
+   * 考える時間の上限 (ms)。**持ち時間から割り出した上限**であって、段が求める時間ではない。
+   * 思考ルーチンは「段が求める時間」とこれの**小さい方**を使う (親 §7.5.3)。
+   */
   movetimeMs?: number;
   /** 読む深さの上限 (手数) */
   depth?: number;
+  /** 強さの段。指定が無ければ思考ルーチン側の既定 (= Hard 相当)。 */
+  level?: AiLevel;
+  /** 指で触る画面か。スマホでは各段とも軽い既定値を使う (親 §7.4)。 */
+  mobile?: boolean;
 }
 
 /** 思考の途中経過。長考のときに「まだ動いている」ことを画面へ出すために使う。 */
@@ -71,6 +101,9 @@ export const AI_MODES: readonly AiMode[] = ['shogi', 'variant', 'torus', 'quantu
  *
  * **順位を入れ替えたくなったら、ここの数値を書き換えるだけでよい**
  * (画面・選び方・他の思考ルーチンには手を入れない。親 §7.1.1 の要件3)。
+ *
+ * **強さの段 (AiLevel) はここに含めない**。段は AI 選択と直交する別の軸なので、
+ * 目録の行は**思考ルーチンごとに 1 行**であり、段では行を分けない (親 §7.1.1 v1.30 追記)。
  */
 export interface EngineDescriptor {
   id: string;

@@ -165,35 +165,40 @@ describe('S03 強さ (Easy / Hard / Apocalypse)', () => {
     clearEngines();
   });
 
+  // ★表示名は暫定 (2026-08-14 ユーザー指示)。ある程度の強さが確保できるまで
+  // 「とてとて弱い／とても弱い／弱い」と正直に出す。内部の呼び名は Easy/Hard/Apocalypse のまま。
+  const LABEL = { Easy: 'とてとて弱い', Hard: 'とても弱い', Apocalypse: '弱い' } as const;
+
   it('3 段が並び、既定は Hard', () => {
     render(<AiSetupScreen />);
-    for (const name of ['Easy', 'Hard', 'Apocalypse']) {
+    for (const name of Object.values(LABEL)) {
       expect(screen.getByText(name)).toBeTruthy();
     }
-    const hard = screen.getByText('Hard').closest('button') as HTMLButtonElement;
+    const hard = screen.getByText(LABEL.Hard).closest('button') as HTMLButtonElement;
     expect(hard.className).toContain('on');
   });
 
   it('選び直すと切り替わる (どの段も常に選べる＝グレーアウトは無い)', () => {
     render(<AiSetupScreen />);
-    for (const name of ['Easy', 'Hard', 'Apocalypse']) {
+    for (const name of Object.values(LABEL)) {
       expect((screen.getByText(name).closest('button') as HTMLButtonElement).disabled).toBe(false);
     }
-    fireEvent.click(screen.getByText('Apocalypse'));
+    fireEvent.click(screen.getByText(LABEL.Apocalypse));
     expect(useAiStore.getState().level).toBe('Apocalypse');
-    expect((screen.getByText('Apocalypse').closest('button') as HTMLButtonElement).className).toContain('on');
+    expect((screen.getByText(LABEL.Apocalypse).closest('button') as HTMLButtonElement).className).toContain('on');
   });
 
-  it('★段の名前は日本語でも英語のまま (MOMO Works 共通の呼び名)', () => {
+  it('★暫定の表示名が出ている (内部の呼び名は Easy/Hard/Apocalypse のまま)', () => {
     render(<AiSetupScreen />);
-    expect(screen.getByText('強さ')).toBeTruthy(); // 欄のラベルは訳す
-    expect(screen.getByText('Easy')).toBeTruthy(); // 段の名前は訳さない
-    expect(screen.queryByText('やさしい')).toBeNull();
+    expect(screen.getByText('強さ')).toBeTruthy();
+    expect(screen.getByText('とてとて弱い')).toBeTruthy();
+    // 元の英語表記は画面に出ない (戻すときはここも一緒に直す)
+    expect(screen.queryByText('Apocalypse')).toBeNull();
   });
 
   it('選んだ段が対局へ持ち越される', () => {
     render(<AiSetupScreen />);
-    fireEvent.click(screen.getByText('Easy'));
+    fireEvent.click(screen.getByText(LABEL.Easy));
     fireEvent.click(screen.getByText('先手'));
     startGame();
     expect(useAiStore.getState().level).toBe('Easy');
@@ -202,7 +207,7 @@ describe('S03 強さ (Easy / Hard / Apocalypse)', () => {
 
   it('AI 選択とは別の軸＝AI を選び直しても段は変わらない', () => {
     render(<AiSetupScreen />);
-    fireEvent.click(screen.getByText('Apocalypse'));
+    fireEvent.click(screen.getByText(LABEL.Apocalypse));
     useAiStore.getState().setEngineId('test-engine');
     expect(useAiStore.getState().level).toBe('Apocalypse');
   });

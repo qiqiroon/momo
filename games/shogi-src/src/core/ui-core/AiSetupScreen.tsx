@@ -234,7 +234,7 @@ export function AiSetupScreen() {
                 className={level === lv ? 'on' : ''}
                 onClick={() => { seButton(); setLevel(lv); }}
               >
-                {lv}
+                {t(`s03.levelName.${lv}`)}
               </button>
             ))}
           </div>

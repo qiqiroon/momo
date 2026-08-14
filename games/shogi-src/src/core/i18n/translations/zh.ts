@@ -5,7 +5,7 @@ export const zh: LocaleData = {
   name: '中文',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.36',
+    'app.ver': 'v1.37',
     'sound.promptTitle': '是否播放 BGM 与音效？',
     'sound.bgmLabel': 'BGM 音量',
     'sound.sfxLabel': '音效音量',
@@ -366,6 +366,11 @@ export const zh: LocaleData = {
     'ai.mcts.desc': '随机试下到底、选择胜率最高一手的 AI。擅长变则规则，但在普通将棋中弱于自制搜索。',
     // 强度（Phase 3-3・母规格 §7.5）。级别名称为 MOMO Works 共通，不翻译。
     's03.lblLevel': '强度',
+    // ★临时显示名（2026-08-14）。在 AI 达到一定强度之前，如实标注。
+    // 内部名称（Easy/Hard/Apocalypse）未变，变强后改回英文表记即可。
+    's03.levelName.Easy': '非常非常弱',
+    's03.levelName.Hard': '非常弱',
+    's03.levelName.Apocalypse': '弱',
     's03.level.Easy': '想轻松下棋时使用。读得浅，有时也会选择并非最佳的一手。',
     's03.level.Hard': '标准强度。',
     's03.level.Apocalypse': '本应用能达到的最强（读得更久更深）。',

@@ -2,6 +2,7 @@ import type { Mgf, Player } from '../mgf/types';
 import type { Position, Square } from '../position/types';
 import { get as pluginGet } from '../../plugin/registry';
 import { generatePieceMoves } from './generator';
+import { collectAttackCandidates } from './attack-scan';
 
 type FindKingFn = (mgf: Mgf, position: Position, player: Player) => Square | null;
 
@@ -51,6 +52,32 @@ export function isSquareAttackedBy(
   // Phase 4: 完全トーラスでは玉どうしが盤の端をまたいで隣り合うので、そのままだと
   // 開始局面から双方に王手がかかって玉しか動かせない。features/torus が登録する
   // フィルタで「玉は敵玉を脅かさない」を除外する (平面・円筒では常に true)。
+  const attackFilter = pluginGet<TopologyAttackFilter>('topology:attackFilter');
+
+  // 2026-08-14: 盤全体を総当たりせず、**目標マスから届きうる場所だけ**を拾ってから
+  // 確かめる (attack-scan.ts)。拾い方は取りこぼさないことが保証されているので、
+  // 答えは総当たりと同じで、速さだけが変わる (差が出ないことは検査で突き合わせている)。
+  for (const from of collectAttackCandidates(mgf, position, target, attacker)) {
+    if (attackFilter && !attackFilter(mgf, position, from, target)) continue;
+    const moves = generatePieceMoves(mgf, attackerTurnPos, from);
+    if (moves.some((m) => m.to.row === target.row && m.to.col === target.col)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * 作り替える前のやり方 (盤全体を総当たり)。**検査で新しいやり方と突き合わせるためだけ**に残す。
+ * 対局では使わない。
+ */
+export function isSquareAttackedByScanAll(
+  mgf: Mgf,
+  position: Position,
+  target: Square,
+  attacker: Player,
+): boolean {
+  const attackerTurnPos: Position = { ...position, sideToMove: attacker };
   const attackFilter = pluginGet<TopologyAttackFilter>('topology:attackFilter');
   for (let row = 0; row < position.height; row++) {
     for (let col = 0; col < position.width; col++) {

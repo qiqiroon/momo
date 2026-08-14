@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.36',
+    'app.ver': 'v1.37',
     // v0.72 音楽再生確認モーダル (Darts と同じ思想)
     'sound.promptTitle': 'BGM と効果音を再生してもよろしいですか？',
     'sound.bgmLabel': 'BGM 音量',
@@ -381,6 +381,12 @@ export const ja: LocaleData = {
     'ai.mcts.desc': '手当たり次第に最後まで指してみて、勝った割合が高い手を選ぶ AI。変則ルールに強い一方、ふつうの将棋では自作探索より弱めです。',
     // 強さ (Phase 3-3・親 §7.5)。段の名前は MOMO Works 共通なので訳さない。
     's03.lblLevel': '強さ',
+    // ★暫定の表示名 (2026-08-14 ユーザー指示)。ある程度の強さが確保できるまで、
+    // 正直な言い方にしておく。内部の呼び名 (Easy/Hard/Apocalypse) は変えていないので、
+    // 強くなったらこの 3 行を元の英語表記へ戻すだけでよい。
+    's03.levelName.Easy': 'とてとて弱い',
+    's03.levelName.Hard': 'とても弱い',
+    's03.levelName.Apocalypse': '弱い',
     's03.level.Easy': '軽く指したいときに。浅く読み、最善から外れた手も選びます。',
     's03.level.Hard': '標準の強さです。',
     's03.level.Apocalypse': 'このアプリで出せる最大です（長く深く読みます）。',

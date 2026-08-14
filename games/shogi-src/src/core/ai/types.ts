@@ -49,10 +49,28 @@ export interface EngineAdapter {
 }
 
 /**
+ * AI を選ぶときの「モード」(親 §7.1.1・付録 D-5 §6.3 の列)。
+ *
+ * 遊ぶルールと、そこへ掛かるモディファイアの組合せを 4 つに区分したもの。
+ * **モードによって最強の思考ルーチンが入れ替わる**ので、重みはモードごとに持つ。
+ */
+export type AiMode = 'shogi' | 'variant' | 'torus' | 'quantum';
+
+export const AI_MODES: readonly AiMode[] = ['shogi', 'variant', 'torus', 'quantum'];
+
+/**
  * AI 一覧に並べるための説明 (親 §7.1・付録 D-5 §6.3)。
  *
- * weight は「選べるものの中でいちばん上を既定にする」ための並び順の重み。
- * 大きいほど上に来る。数値の絶対値に意味はない (順序比較のみ)。
+ * weights は「選べるものの中でいちばん上を既定にする」ための並び順の重み。
+ * **モードごとに 1 つ**持ち、大きいほど上に来る。数値の絶対値に意味はなく、
+ * **同じモードの中でだけ大小を比べる** (モードをまたいで比べない)。
+ *
+ * **載っていないモードには対応しない**＝そのモードでは選べない (理由を添えて
+ * グレーアウト)。対応できるかどうかを名乗るのは思考ルーチン自身の仕事で、
+ * core 側が個々の思考ルーチンを知っていてはいけない。
+ *
+ * **順位を入れ替えたくなったら、ここの数値を書き換えるだけでよい**
+ * (画面・選び方・他の思考ルーチンには手を入れない。親 §7.1.1 の要件3)。
  */
 export interface EngineDescriptor {
   id: string;
@@ -60,6 +78,15 @@ export interface EngineDescriptor {
   labelKey: string;
   /** 説明文の i18n キー */
   descKey: string;
-  weight: number;
+  weights: Partial<Record<AiMode, number>>;
   create(): EngineAdapter;
+}
+
+/** 一覧に並べる 1 行。対応しないモードでも行は出し、理由を添えて選べなくする。 */
+export interface EngineChoice {
+  descriptor: EngineDescriptor;
+  /** そのモードでの重み。対応しないなら null。 */
+  weight: number | null;
+  /** そのモードで選べるか。 */
+  supported: boolean;
 }

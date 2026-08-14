@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.30',
+    'app.ver': 'v1.31',
     // v0.72 音楽再生確認モーダル (Darts と同じ思想)
     'sound.promptTitle': 'BGM と効果音を再生してもよろしいですか？',
     'sound.bgmLabel': 'BGM 音量',
@@ -112,7 +112,7 @@ export const ja: LocaleData = {
     's00.mPvp': 'ネット対戦',
     's00.mPvpD': 'ネット越しに相手と対局。ルールを選んでロビーへ。',
     's00.mAi': 'AI対戦',
-    's00.mAiD': 'コンピュータと対局。強さと持ち時間を選べます。',
+    's00.mAiD': 'コンピュータと対局。先後と AI の強さを選べます。',
     's00.mOffline': 'vs 人 (オフライン対戦)',
     's00.mOfflineD': '同じ端末で交互に指すデバッグ用モード (将来「感想戦モード」に統合予定)。',
     's00.mWatch': 'ネット観戦',
@@ -279,6 +279,7 @@ export const ja: LocaleData = {
     // S07 対局画面（v0.27 追加）
     // v0.68 S07 対局画面
     's07.backToOfflineSetup': 'オフライン設定に戻る',
+    's07.backToAiSetup': '対AI設定に戻る',
     's07.ruleShogi': '本将棋',
     's07.ruleHasami': 'はさみ将棋',
     's07.ruleCustom': 'カスタム',
@@ -358,6 +359,18 @@ export const ja: LocaleData = {
     's07.aiThinking': '（AI が考え中…）',
     'ai.selfmade.name': '自作探索 AI',
     'ai.selfmade.desc': '数手先まで読んで駒の損得で選ぶ AI。すべてのルール・モードで動きます。',
+    // Phase 3-2: 対AI設定画面 (S03)
+    's03.back': 'ルール選択に戻る',
+    's03.title': '対AI設定',
+    's03.step': 'S03 · AI Match Setup',
+    's03.lblAi': 'AI',
+    's03.weakNote': 'トーラス・量子モードでは AI はまだ弱くなります（汎用エンジンで対応するため）。',
+    's03.mobileNote': '📱 モバイルでは電池と発熱に配慮し、探索を軽くした既定値になります。',
+    's03.noEngine': '使える AI がありません。',
+    'ai.unsupported.quantum': '量子未対応',
+    'ai.unsupported.torus': 'トーラス未対応',
+    'ai.unsupported.variant': 'このルール未対応',
+    'ai.unsupported.shogi': '本将棋未対応',
     's01.vsAi': 'AI と対局します',
     's07.leaveGame': '退室（対戦ロビーに戻る）',
     's07.reset': 'リセット',

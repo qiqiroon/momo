@@ -3,6 +3,7 @@ import { get as pluginGet } from '../plugin/registry';
 import { useRouteStore } from '../store/route-store';
 import { GameScreen } from './GameScreen';
 import { OfflineRuleScreen } from './OfflineRuleScreen';
+import { AiSetupScreen } from './AiSetupScreen';
 import { playRandomBgm, stopBgm, isAudioRunning } from '../audio/audio-engine';
 
 interface RootViewProps {
@@ -36,6 +37,9 @@ export function RootView({ variant }: RootViewProps) {
   }
   if (screen === 'offline-rule') {
     return <OfflineRuleScreen variant={variant} />;
+  }
+  if (screen === 'ai-setup') {
+    return <AiSetupScreen />;
   }
 
   // features 由来の画面は plugin registry から解決 (A ビルドには存在しない)

@@ -522,13 +522,19 @@ export function GameScreen({ variant }: GameScreenProps) {
               ) : (
                 <>
                   {/* v0.68: オフライン対局はオフライン設定から入るので、戻り先も
-                      オフライン設定にする (以前はメニューまで戻していた) */}
+                      オフライン設定にする (以前はメニューまで戻していた)
+                      v1.31 (Phase 3-2): 対 AI で始めた対局は対AI設定 (S03) から入るので、
+                      そちらへ戻す (先後と AI を選び直して指し直せる) */}
                   <button
                     className="reset-btn"
                     type="button"
-                    onClick={() => useRouteStore.getState().setScreen('offline-rule')}
+                    onClick={() =>
+                      useRouteStore.getState().setScreen(
+                        useAiStore.getState().enabled ? 'ai-setup' : 'offline-rule',
+                      )
+                    }
                   >
-                    {t('s07.backToOfflineSetup')}
+                    {t(vsAi ? 's07.backToAiSetup' : 's07.backToOfflineSetup')}
                   </button>
                   <button className="reset-btn" type="button" onClick={() => reset()}>
                     {t('s07.reset')}

@@ -12,9 +12,12 @@
 import { useEffect, useRef } from 'react';
 import { useGameStore } from '../store/game-store';
 import { useAiStore } from '../store/ai-store';
-import { findEngine, defaultEngine } from '../ai/engine-registry';
+import { findEngine, defaultEngine, supports } from '../ai/engine-registry';
+import { aiModeFrom } from '../ai/mode';
 import type { EngineAdapter } from '../ai/types';
 import { thinkBudgetMs } from '../ai/think-budget';
+import { get as pluginGet } from '../plugin/registry';
+import type { OnlineGameConnector } from '../plugin/gameConnector';
 
 function turnKey(moveNumber: number, side: string): string {
   return `${moveNumber}:${side}`;
@@ -55,7 +58,18 @@ export function useAiOpponent(isOnline: boolean): void {
     if (startedKeyRef.current === key) return; // 同じ手番で二重に頼まない
     startedKeyRef.current = key;
 
-    const descriptor = (engineId ? findEngine(engineId) : undefined) ?? defaultEngine();
+    // 親 §7.1.1: どの思考ルーチンを使うかはモード (ルール x モディファイア) で決まる。
+    // S03 で選んだものがこの対局のモードに対応していなければ、そのモードの既定へ移す。
+    // 盤の端のつなぎ方と量子は対局中の実値 (game-store) を見る。ルールの種類だけは
+    // 対局設定側にしか無いので、通信モジュールが積まれていなければ本将棋として扱う。
+    const gs0 = useGameStore.getState();
+    const mode = aiModeFrom({
+      gameType: pluginGet<OnlineGameConnector>('gameConnector')?.getActiveRules()?.gameType ?? 'shogi',
+      torusMode: gs0.currentTorusMode,
+      quantum: gs0.currentQuantum,
+    });
+    const picked = engineId ? findEngine(engineId) : undefined;
+    const descriptor = picked && supports(picked, mode) ? picked : defaultEngine(mode);
     if (!descriptor) return; // 思考ルーチンが 1 つも積まれていない (A ビルド)
     if (!engineRef.current || engineRef.current.id !== descriptor.id) {
       engineRef.current?.quit();

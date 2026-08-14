@@ -136,7 +136,10 @@ registerEngine({
   id: SELFMADE_ENGINE_ID,
   labelKey: 'ai.selfmade.name',
   descKey: 'ai.selfmade.desc',
-  weight: 10,
+  // 全モードに対応する。指せる手を出す・手を進める・王手と詰みを見る、のいずれも
+  // 第4章のエンジンから借りているので、盤が回り込んでも駒の正体が未確定でもそのまま動く。
+  // 数値は「同じモードの中での順位」だけを意味する (付録 D-5 §6.3 の表と対で管理する)。
+  weights: { shogi: 10, variant: 10, torus: 10, quantum: 10 },
   create: () => new SelfmadeAdapter(),
 });
 

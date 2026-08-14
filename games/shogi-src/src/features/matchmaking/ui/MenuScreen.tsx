@@ -101,11 +101,12 @@ export function MenuScreen() {
           name={t('s00.mAi')}
           desc={t('s00.mAiD')}
           onClick={() => {
-            // Phase 3-1: 対 AI の設定画面 (S03) はまだ無いので、オフライン対局の
-            // ルール選択画面をそのまま使う。人が先手・AI が後手で始める。
-            // 先後を選ぶ (振り駒を含む) のは S03 を作るとき。
+            // Phase 3-2: 対AI設定画面 (S03) へ入る。先後・AI の選択はそこで行う。
+            // ルールと持ち時間は S03 のルールカードの「変更」から S02 へ行って決める
+            // (付録 D-5 §3 の変更導線)。オフライン対人と同じ入り方。
             useAiStore.getState().startVsAi({ aiSide: 'player2' });
-            setScreen('offline-rule');
+            useRouteStore.getState().setRuleSelectReturn('ai-setup');
+            setScreen('ai-setup');
           }}
         />
         <ModeRow

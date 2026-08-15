@@ -792,9 +792,28 @@
   .chat-entry .ok{background:var(--orange,#e88c2a);color:#1a1a1a;}
   .chat-entry .no{background:transparent;color:#c8c0b4;}
   /* 準備室の参加者一覧（全員が見る。役の与奪とキックはホストのみ） */
-  .pm-row{display:flex;align-items:center;gap:.5em;margin:.15em 0;}
-  .pm-row .pm-name{flex:1;}
+  /* v3.04: 1人1枠。枠の中に「ホスト/ゲスト」「プレイヤー/観戦」の2つの区別＋準備の印、
+     改行してチャット1行。名前を二重に出さないため、枠の下のホスト箱・ゲスト箱は出さない。 */
+  .pm-row{display:block;margin:.3em 0;padding:.4em .55em;border:1px solid var(--border,#4443);border-radius:.5em;background:#0c0c0c;}
+  .pm-row.pm-mine{border-color:var(--orange,#e88c2a);}
+  .pm-line{display:flex;align-items:center;gap:.4em;flex-wrap:wrap;}
+  .pm-row .pm-name{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .pm-ctl{margin-left:auto;display:flex;align-items:center;gap:.4em;flex:0 0 auto;}
   .pm-row .pm-you{color:var(--orange,#e88c2a);font-weight:700;}
+  .pm-row .pm-wait{color:var(--text-muted);font-style:italic;}
+  .pm-tag{font-size:.7rem;padding:.1em .5em;border-radius:.5em;color:#fff;white-space:nowrap;}
+  .pm-tag.c-host{background:#2a9d5b;}
+  .pm-tag.c-guest{background:#4a5a6a;}
+  .pm-tag.c-cpu{background:#6b5a7a;}
+  .pm-tag.r-player{background:#e08a2b;}
+  .pm-tag.r-spec{background:#7a7f87;}
+  .pm-ready{font-weight:700;font-size:.9rem;}
+  .pm-row .ai-level-select{width:auto;min-width:104px;margin:0;padding:3px 7px;font-size:.75rem;flex:0 0 auto;}
+  .pm-chat{margin:.3em 0 .05em;padding:.22em .45em;background:#fffaf0;color:#20201c;border-radius:.4em;
+    font-size:.82rem;display:flex;align-items:flex-start;gap:.4em;}
+  .pm-chat .t{flex:1;word-break:break-word;}
+  .pm-chat .x{border:none;background:transparent;color:#8a7a63;font-size:.9rem;line-height:1.2;cursor:pointer;padding:0;}
+  .pm-chat .x:hover{color:#c0392b;}
 </style>
 </head>
 <body>
@@ -1164,13 +1183,11 @@
   </symbol>
 
   <!-- ---- 8月 芒 ---- -->
+  <!-- 芒に月（8月・光）をユーザー手描きPNGに差し替え（縁付き・m06系と同型） -->
   <symbol id="m08_hikari" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
-    <use href="#kasumi"/>
-    <circle cx="130" cy="96" r="33" fill="#cf2b28" stroke="#7d1512" stroke-width="2"/>
-    <path d="M8 268 C 54 220 96 218 132 240 C 164 258 188 252 214 244 L214 306 L8 306 Z" fill="#242019" stroke="#11100c" stroke-width="1.6"/>
-    <g fill="none" stroke="#7a5f28" stroke-width="2" stroke-linecap="round"><path d="M50 268 C 44 218 48 178 38 140"/><path d="M66 270 C 64 222 72 184 66 148"/><path d="M82 268 C 84 224 94 192 92 160"/><path d="M100 270 C 104 228 112 204 116 176"/></g>
-    <use href="#susukiPlume" transform="translate(38,140)"/><use href="#susukiPlume" transform="translate(66,148)"/><use href="#susukiPlume" transform="translate(92,160)"/><use href="#susukiPlume" transform="translate(116,176) scale(.9)"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
+    <image href="cards/m08_hikari.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
   <!-- 芒に雁（8月・種）をユーザー手描きPNGに差し替え（縁付き・m06系と同型） -->
   <symbol id="m08_tane" viewBox="0 0 220 350">
@@ -1192,38 +1209,26 @@
   </symbol>
 
   <!-- ---- 9月 菊 ---- -->
+  <!-- 9月（菊）4枚をユーザー手描きPNGに差し替え（縁付き・m06系と同型） -->
   <symbol id="m09_tane" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
-    <use href="#kasumi"/>
-    <g fill="#2f6b2e" stroke="#153311" stroke-width="1.2"><ellipse cx="66" cy="150" rx="13" ry="8" transform="rotate(-24 66 150)"/><ellipse cx="150" cy="150" rx="13" ry="8" transform="rotate(24 150 150)"/></g>
-    <use href="#kikuBloom" transform="translate(66,120) scale(1.1)"/><use href="#kikuBloom" transform="translate(150,122)"/>
-    <g transform="translate(108,244)">
-      <path d="M-30 -8 C -30 12 30 12 30 -8 Z" fill="#c1401f" stroke="#7a2410" stroke-width="1.8"/>
-      <ellipse cx="0" cy="-8" rx="30" ry="7" fill="#d9552e" stroke="#7a2410" stroke-width="1.6"/>
-      <ellipse cx="0" cy="-8" rx="22" ry="5" fill="#8f2c12"/>
-      <rect x="-4" y="10" width="8" height="8" fill="#7a2410"/>
-      <ellipse cx="0" cy="20" rx="16" ry="5" fill="#c1401f" stroke="#7a2410" stroke-width="1.6"/>
-      <text x="0" y="-6" text-anchor="middle" font-size="9" fill="#f0d24a" font-family="serif">寿</text>
-    </g>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
+    <image href="cards/m09_tane.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
   <symbol id="m09_tan" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
-    <use href="#kasumi"/>
-    <g fill="#2f6b2e" stroke="#153311" stroke-width="1.2"><ellipse cx="150" cy="150" rx="13" ry="8" transform="rotate(20 150 150)"/></g>
-    <use href="#kikuBloom" transform="translate(150,120) scale(1.1)"/>
-    <use href="#tanBlue" transform="translate(96,216) rotate(-8)"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
+    <image href="cards/m09_tan.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
   <symbol id="m09_kasu1" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
-    <use href="#kasumi"/>
-    <g fill="#2f6b2e" stroke="#153311" stroke-width="1.2"><ellipse cx="82" cy="210" rx="14" ry="9" transform="rotate(-20 82 210)"/><ellipse cx="140" cy="212" rx="14" ry="9" transform="rotate(20 140 212)"/></g>
-    <use href="#kikuBloom" transform="translate(84,176) scale(1.2)"/><use href="#kikuBloom" transform="translate(140,186)"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
+    <image href="cards/m09_kasu1.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
   <symbol id="m09_kasu2" viewBox="0 0 220 350">
-    <rect x="3" y="3" width="214" height="344" rx="14" fill="url(#cardTile)" stroke="#20201c" stroke-width="2.5"/>
-    <use href="#kasumi"/>
-    <g fill="#2f6b2e" stroke="#153311" stroke-width="1.2"><ellipse cx="140" cy="210" rx="14" ry="9" transform="rotate(20 140 210)"/><ellipse cx="82" cy="212" rx="14" ry="9" transform="rotate(-20 82 212)"/></g>
-    <use href="#kikuBloom" transform="translate(138,176) scale(1.2)"/><use href="#kikuBloom" transform="translate(82,186)"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="#f1e6c6" stroke="none"/>
+    <image href="cards/m09_kasu2.webp" x="9" y="9" width="202" height="332" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="3" y="3" width="214" height="344" rx="14" fill="none" stroke="#20201c" stroke-width="2.5"/>
   </symbol>
 
   <!-- ---- 10月 紅葉 ---- -->
@@ -1355,7 +1360,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.03</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.04</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1421,7 +1426,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.03</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.04</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1557,7 +1562,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.03</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.04</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1620,7 +1625,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.03</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.04</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -3049,9 +3054,12 @@ function applyLang() {
 function updateOyaLabels() {
   const oh = document.getElementById('oya-host-lbl');
   const og = document.getElementById('oya-guest-lbl');
-  // v1.61: 「ロール：名前」形式（例「ホスト：ゆうき」「ゲスト：コンピュータ」）
-  if (oh) oh.textContent = t('room.host') + '：' + (state.hostName || t('room.host'));
-  if (og) og.textContent = t('room.guest') + '：' + (state.guestName || t('room.guest'));
+  // v3.04: 名前だけにする（「ホスト：」「ゲスト：」の肩書きは参加者の枠が持つので、ここでは重ねない）。
+  //   八八の親決め（h88OyaSlotsHTML）は元から名前だけなので、こいこいをそれに合わせる形。
+  // ★観戦者の画面では state.guestName が自分の名前になっているので、対局者の名前（viewNames）を使う。
+  const gName = state.isSpectator ? (state.viewNames && state.viewNames.guest) : state.guestName;
+  if (oh) oh.textContent = state.hostName || t('room.host');
+  if (og) og.textContent = gName || t('room.waiting');
 }
 function updateStatusI18n() {
   // status bar refresh (labels only; values are ephemeral)
@@ -3120,6 +3128,8 @@ const state = {
 // 4) 画面遷移
 // --------------------------------------------------------------------------
 function showScreen(s) {
+  // ★v3.04: 準備室のチャットは対局画面へ持ち込まない（対局が始まったら消えてから始まる）。
+  if ((s === 'game' || s === 'hachi') && state.screen === 'room') { state.chat = {}; state.chatHidden = {}; }
   state.screen = s;
   document.getElementById('screen-lobby').classList.toggle('hidden', s !== 'lobby');
   document.getElementById('screen-room').classList.toggle('hidden', s !== 'room');
@@ -3321,6 +3331,7 @@ function refreshRoomView() {
   updateSpectatorCount();
   renderParticipantMgmt(); // D3c: ホストの役変更パネル
   updateSelfIdentity();     // D3: 自分の名前＋役割（プレイヤー/観戦/ホスト）
+  pmSyncPrepBoxes();        // v3.04: オンラインでは下の箱（名前の二重表示）を出さない
   // v2.45-段3: 八八の役BOX（ホスト/ゲスト/コンピュータ）はゲスト参加・名前変化で再描画（「参加待ち…」→実名）
   if (state.gameSel === 'hachi') { h88PrepRenderPlayers(); if (!state.vsAI) h88OnlineOyaRender(); }
   updateStartBtn();
@@ -3387,11 +3398,10 @@ function pickGame(g) {
   const sh = document.getElementById('set-hachi'); if (sh) sh.classList.toggle('hidden', !isHachi);
   const kb = document.getElementById('koikoi-prep-block'); if (kb) kb.classList.toggle('hidden', isHachi);
   // v2.11: 上部プレイヤー表示の出し分け（こいこい=ホスト/ゲスト／八八=3人の顔ぶれ・同じ上部位置）
-  const plsKoi = document.querySelector('#screen-room .room-head .players:not(#h88-prep-players)');
-  if (plsKoi) plsKoi.classList.toggle('hidden', isHachi);
-  const h88pl = document.getElementById('h88-prep-players'); if (h88pl) h88pl.classList.toggle('hidden', !isHachi);
+  // ★v3.04: オンラインでは参加者の枠（1人1枠）が名前も種別も持つので、この下の箱は出さない（名前の二重表示をやめる）。
+  pmSyncPrepBoxes();
   if (isHachi) h88PrepReset(); // v1.68 C3/C4: 八八の顔ぶれ・親決めを準備室で
-  if (isHachi && state.isHost && !state.vsAI) h88HostReseatFromRoster(); // D4: 八八に切替時、既に居る人間を席へ座らせる
+  if (state.isHost && !state.vsAI && !state.solo) pmAutoFillSeats(); // v3.04: 人数が変わったので早い者順に埋め直す
   if (isHachi && state.isHost && !state.vsAI && state.guestName) h88SendRules(); // v2.50: 八八選択時に現在のルールをゲストへ
   updateStartBtn();
 }
@@ -4222,7 +4232,7 @@ function handleP2P(data) {
   if (data.type === 'h88-comp') { if (!state.isHost) { state.h88Comp = data.comp; h88OnlineOyaRender(); refreshRoomView(); } return; } // D4: ゲスト：席編成を受信して反映
   if (data.type === 'h88-pause') { if (!state.isHost) { if (data.paused) h88ShowPauseOverlay(data.names || [], false); else h88HidePauseOverlay(); } return; } // D4 Option B: 一時停止/再開の待機画面
   if (data.type === 'h88-ready') { if (state.isHost && data.from) { h88ReadyPids()[data.from] = true; h88HostAfterReadyChange(); } return; } // D4: ホスト：ゲストの準備完了を集計
-  if (data.type === 'h88-ready-state') { if (!state.isHost) { state.h88ReadyPids = data.ready || state.h88ReadyPids; updateStartBtn(); h88PrepRenderPlayers(); } return; } // D4: ゲスト：準備状況を表示同期
+  if (data.type === 'h88-ready-state') { if (!state.isHost) { state.h88ReadyPids = data.ready || state.h88ReadyPids; updateStartBtn(); h88PrepRenderPlayers(); renderParticipantMgmt(); } return; } // D4: ゲスト：準備状況を表示同期
   if (data.type === 'h88-oya-req') { h88OnlineHostOyaReq(data.seat || 'p1', data.from); return; } // D4: ホスト：依頼者(from)の自席を1枚引く
   if (data.type === 'h88-oya-state') { h88OnlineOyaApplyRemote(data.draws); return; } // v2.48-段5: ゲスト：親札状態を反映
   if (data.type === 'h88-ask') { // v2.49-段4: ホスト→ゲスト 選択問い合わせ（上がる/下げる・出降り）
@@ -4334,6 +4344,7 @@ function handleP2P(data) {
     if (data.side === 'host') state.readyHost = true;
     else if (data.side === 'guest') state.readyGuest = true;
     updateStartBtn();
+    renderParticipantMgmt(); // v3.04: 準備の印は各自の枠の中に出す
     if (state.gameSel === 'hachi') h88TryStart(); else tryLaunchGame(); // v2.51: 八八は八八の開始処理へ
     return;
   }
@@ -5640,7 +5651,7 @@ function h88TryStart() { if (state.isHost && h88AllReady()) h88StartOnlineHost()
 function h88HostAfterReadyChange() {
   if (!state.isHost) return;
   MomoMatchmaking.send({ type: 'h88-ready-state', ready: h88ReadyPids() }, 'all'); // 表示同期
-  updateStartBtn(); h88PrepRenderPlayers(); // 顔ぶれの準備✓を更新
+  updateStartBtn(); h88PrepRenderPlayers(); renderParticipantMgmt(); // 顔ぶれ／参加者の枠の準備✓を更新
   if (h88AllReady()) h88StartOnlineHost();
 }
 // v2.48-段5: ホスト：オンライン八八を開始。親決めは準備室で各自引いた結果（state.h88OnlineOya）をそのまま使う。
@@ -5812,6 +5823,7 @@ function h88ApplyState(msg) {
   st.teyakuMarks = msg.teyakuMarks || null; st.teyakuReveal = msg.teyakuReveal || null;
   st.turnBusy = false;
   if (g.currentPlayer !== mySeat) st.sel = null; // 自分の手番でなければ選択解除
+  h88AutoFocus(); // ★v3.04: 縦画面の相手表示を手番に自動で合わせる（ゲスト・観戦者にも効かせる＝ここが抜けていた）
   renderH88(); // ゲストは描画のみ（入力可否は同期状態＝currentPlayer/pending/drawn/playedFromHand で判定）
   // v2.50: ゲストも下げ演出を出す（同期で新しい下げが立ったら「下げ！」バナー）。
   if (g.sage) { const key = g.sage.seat + ':' + g.sage.total; if (st.sageShown !== key) { st.sageShown = key; h88SageToast(g.sage.seat); } }
@@ -6283,16 +6295,25 @@ function h88OppSeats() {
   return g.seats.filter(s => s !== h88MySeat());
 }
 // 現手番が相手なら、その相手を主表示(focusSeat)に自動で合わせる（縦=1人表示の既定）。v2.50: 自席基準。
+// v3.04: 手で切り替えたときは、その表示を「次に自分以外の人の手番が始まる」まで保つ。
+//   （自分の手番をはさんでも、手で選んだ相手を出したまま。次の相手の番になったら自動追従に戻る）
 function h88AutoFocus() {
-  const st = state.h88, g = st.game;
+  const st = state.h88, g = st && st.game;
   if (!g || g.winner) return;
-  if (g.currentPlayer !== h88MySeat()) st.focusSeat = g.currentPlayer;
+  const cur = g.currentPlayer;
+  if (cur !== st._focusTurnSeat) {                     // 手番が移った
+    st._focusTurnSeat = cur;
+    if (cur !== h88MySeat()) st.focusManual = false;   // 「次の自分以外の番」＝手動の維持はここまで
+  }
+  if (st.focusManual) return;                          // 手で選んだ表示を保つ
+  if (cur !== h88MySeat()) st.focusSeat = cur;
 }
 // 縦画面の表示相手を手動で切替（もう一方の相手へ）
 function h88ToggleFocus() {
   const st = state.h88; if (!st || !st.game) return;
   const opps = h88OppSeats();
   st.focusSeat = (st.focusSeat === opps[0]) ? opps[1] : opps[0];
+  st.focusManual = true; // v3.04: 次に自分以外の人の手番が始まるまで、この表示のまま
   renderH88();
 }
 // v1.66: 手が早くて目で追えないので「誰が何をしたか」のログを残す（ルール検証用）
@@ -10276,6 +10297,10 @@ function inGameNow() { return !!state.game || h88InGameNow(); }
 // D3c: ホストの役変更パネル（準備画面のみ・対局中は非表示・ホストのみ）。
 // v2.99: 参加者一覧は「名前と役割は全員に見せる／役の与奪・キック・観戦許可はホストだけ」に変更。
 //   各行が吹き出しの出どころになるので、行に data-pid を持たせる。
+// ★v3.04: 1枠に全員を並べるのをやめ「1人1枠」に。枠の中は
+//   〈名前（あなた）〉〈ホスト or ゲスト or コンピュータ〉〈プレイヤー or 観戦〉〈準備の印〉、
+//   改行して〈チャット1行〉。プレイヤー枠は入室の早い順に自動で埋まり、あふれた人が観戦。
+//   操作できるのはホストだけで、ほかの人には見えるだけ。
 function renderParticipantMgmt() {
   const el = document.getElementById('participant-mgmt');
   if (!el) return;
@@ -10295,38 +10320,138 @@ function renderParticipantMgmt() {
     specRow.appendChild(cb); specRow.appendChild(cbl); el.appendChild(specRow);
   }
   // 同名を区別できるよう、重複する名前には番号を付ける（同一PCの別タブで既定名が同じになりがちなため）
-  const nameCounts = {}; list.forEach(x => { const nm0 = x.name || '?'; nameCounts[nm0] = (nameCounts[nm0] || 0) + 1; });
+  const nameCounts = {}; list.forEach(x => { if (x.kind === 'human') { const nm0 = x.name || '?'; nameCounts[nm0] = (nameCounts[nm0] || 0) + 1; } });
   const seenIdx = {};
-  const isHachiComp = (state.gameSel === 'hachi' && !state.vsAI); // D4: 八八は席編成パネルで担い手を割り当てる
-  list.forEach(x => {
-    const isMe = (x.pid === state.myPid);
-    const isPlayer = (x.role === 'player');
-    const row = document.createElement('div');
-    row.className = 'pm-row'; row.dataset.pid = x.pid;
-    let dispName = x.name || '?';
-    if (nameCounts[dispName] > 1) { seenIdx[dispName] = (seenIdx[dispName] || 0) + 1; dispName += ' #' + seenIdx[dispName]; }
-    const roleKey = (x.role === 'host') ? 'pm.role.host' : (isPlayer ? 'pm.role.player' : 'pm.role.spectator');
-    const nm = document.createElement('span'); nm.className = 'pm-name' + (isMe ? ' pm-you' : '');
-    nm.textContent = dispName + '（' + t(roleKey) + '）' + (isMe ? t('pm.you') : '');
-    row.appendChild(nm);
-    if (isMe) row.appendChild(chatMakeIcon()); // 自分の名前の後ろに吹き出しアイコン
-    if (state.isHost && !isMe) {
-      if (!isHachiComp) { // こいこい等は従来の昇格/降格ボタン（八八は上の顔ぶれパネルで席割り当て）
-        const btn = document.createElement('button'); btn.className = 'btn btn-ghost btn-sm';
-        btn.textContent = isPlayer ? t('pm.demote') : t('pm.promote');
-        btn.addEventListener('click', () => hostSetRole(x.pid, isPlayer ? 'spectator' : 'player'));
-        row.appendChild(btn);
-      }
-      // ⑥: キックボタン（プレイヤー・観戦者とも。再入室は禁止しない）
-      const kbtn = document.createElement('button'); kbtn.className = 'btn btn-ghost btn-sm';
-      kbtn.textContent = t('pm.kick'); kbtn.style.color = '#e06b5a';
-      kbtn.addEventListener('click', () => hostKick(x.pid));
-      row.appendChild(kbtn);
-    }
-    el.appendChild(row);
-  });
+  list.forEach(x => el.appendChild(pmSlotEl(x, nameCounts, seenIdx)));
   if (state.isHost) chatPushRoster(list); // 中身が変わったときだけ全員へ配る
   chatRender();
+}
+// v3.04: 参加者ひとりぶんの枠を作る。
+function pmSlotEl(x, nameCounts, seenIdx) {
+  x = Object.assign({ kind: 'human', conn: (x && x.role === 'host') ? 'host' : 'guest' }, x || {}); // 古い形の名簿が届いても崩れないように
+  const isMe = (x.kind === 'human' && x.pid === state.myPid);
+  const row = document.createElement('div');
+  row.className = 'pm-row' + (isMe ? ' pm-mine' : ''); row.dataset.pid = x.pid;
+  const line = document.createElement('div'); line.className = 'pm-line'; row.appendChild(line);
+  // 名前
+  const nm = document.createElement('span'); nm.className = 'pm-name' + (isMe ? ' pm-you' : '');
+  if (x.kind === 'empty') { nm.classList.add('pm-wait'); nm.textContent = t('room.waiting'); }
+  else if (x.kind === 'cpu') { nm.textContent = (x.name === t('vsai.cpu')) ? '' : (x.name || ''); } // 種別の印が「コンピュータ」なので、1体だけのときは名前を重ねない
+  else {
+    let dispName = x.name || '?';
+    if (nameCounts[dispName] > 1) { seenIdx[dispName] = (seenIdx[dispName] || 0) + 1; dispName += ' #' + seenIdx[dispName]; }
+    nm.textContent = dispName + (isMe ? t('pm.you') : '');
+  }
+  line.appendChild(nm);
+  // 種別（ホスト／ゲスト／コンピュータ）と 立場（プレイヤー／観戦）の2つを並べる
+  const tag = (cls, text) => { const s = document.createElement('span'); s.className = 'pm-tag ' + cls; s.textContent = text; line.appendChild(s); };
+  tag('c-' + x.conn, x.conn === 'host' ? t('pm.role.host') : x.conn === 'cpu' ? t('vsai.cpu') : t('room.guest'));
+  const isPlayerSlot = (x.role !== 'spectator');
+  tag(isPlayerSlot ? 'r-player' : 'r-spec', isPlayerSlot ? t('pm.role.player') : t('pm.role.spectator'));
+  // 準備の印（Q3A: 枠の下に別行で出していたものを各枠の中へ）
+  if (x.kind === 'human' && isPlayerSlot) {
+    const r = document.createElement('span'); r.className = 'pm-ready';
+    const done = pmReadyOf(x);
+    r.textContent = done ? '✓' : '…'; r.style.color = done ? 'var(--gold,gold)' : 'var(--text-muted,#888)';
+    line.appendChild(r);
+  }
+  if (isMe) line.appendChild(chatMakeIcon()); // 自分の枠に吹き出しアイコン（送るのは誰でもできる）
+  // ここから下はホストだけの操作（ほかの人には出さない＝見えるだけ）。枠の右端にまとめる。
+  if (state.isHost && !inGameNow()) {
+    const ctl = document.createElement('span'); ctl.className = 'pm-ctl';
+    if (x.kind === 'cpu') { // Q2A: コンピュータも1枠として並べ、強さはその枠の中で選ぶ
+      const sel = document.createElement('select');
+      sel.className = 'ai-level-select h88-cpu-level'; sel.dataset.seat = x.seat;
+      ['EASY', 'HARD', 'APOCALYPSE'].forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; if (x.level === v) o.selected = true; sel.appendChild(o); });
+      ctl.appendChild(sel);
+    } else if (x.kind === 'human') {
+      if (pmCanToggleRole(x)) {
+        const btn = document.createElement('button'); btn.className = 'btn btn-ghost btn-sm';
+        btn.textContent = isPlayerSlot ? t('pm.demote') : t('pm.promote');
+        btn.addEventListener('click', () => pmSetRole(x.pid, !isPlayerSlot));
+        ctl.appendChild(btn);
+      }
+      if (!isMe) { // ⑥: キックボタン（プレイヤー・観戦者とも。再入室は禁止しない）
+        const kbtn = document.createElement('button'); kbtn.className = 'btn btn-ghost btn-sm';
+        kbtn.textContent = t('pm.kick'); kbtn.style.color = '#e06b5a';
+        kbtn.addEventListener('click', () => hostKick(x.pid));
+        ctl.appendChild(kbtn);
+      }
+    }
+    if (ctl.children.length) line.appendChild(ctl);
+  }
+  // チャット1行（準備室では吹き出しを出さず、この枠の中に出す）
+  if (x.kind === 'human') {
+    const c = (state.chat || {})[x.pid];
+    if (c && c.text && !(state.chatHidden || {})[x.pid]) {
+      const box = document.createElement('div'); box.className = 'pm-chat';
+      const tx = document.createElement('span'); tx.className = 't'; tx.textContent = c.text;
+      const cx = document.createElement('button'); cx.type = 'button'; cx.className = 'x'; cx.textContent = '×';
+      cx.title = t('chat.close'); cx.setAttribute('aria-label', t('chat.close'));
+      cx.addEventListener('click', () => chatClose(x.pid));
+      box.appendChild(tx); box.appendChild(cx); row.appendChild(box);
+    }
+  }
+  return row;
+}
+// v3.04: その人が準備完了を押しているか（八八＝席ごと／こいこい＝ホストとゲスト）。両側とも手元の情報で分かる。
+function pmReadyOf(x) {
+  if (!x || x.kind !== 'human') return false;
+  if (state.gameSel === 'hachi' && !state.vsAI) return !!h88ReadyPids()[x.pid];
+  return (x.conn === 'host') ? !!state.readyHost : !!state.readyGuest;
+}
+// v3.04: ホストがこの人の立場（プレイヤー↔観戦）を動かせるか。
+function pmCanToggleRole(x) {
+  if (!state.isHost || x.kind !== 'human' || inGameNow()) return false;
+  const isHachi = (state.gameSel === 'hachi' && !state.vsAI);
+  const isPlayerSlot = (x.role !== 'spectator');
+  if (!isHachi && x.pid === state.myPid) return false; // こいこいのホストは必ず対局者
+  if (isPlayerSlot) return true;                        // 観戦へ落とすのはいつでも可
+  if (!isHachi) return true;                            // こいこい＝入れ替え（今のプレイヤーは観戦へ）
+  // 八八＝空いている席があるときだけ。ホストが戻れるのは席 p0 が空いているときに限る。
+  if (x.pid === state.myPid) { const p0 = h88Comp().p0; return !!(p0 && p0.t === 'cpu'); }
+  return !!h88FirstCpuSeat();
+}
+// v3.04: 立場の切り替え。こいこいは「プレイヤーは1人」、八八は席へ着かせる／席を空ける。
+function pmSetRole(pid, toPlayer) {
+  if (!state.isHost || inGameNow()) return;
+  const isHachi = (state.gameSel === 'hachi' && !state.vsAI);
+  if (!isHachi) { hostSetRole(pid, toPlayer ? 'player' : 'spectator'); return; }
+  const prev = h88CompSnapshot();
+  if (toPlayer) {
+    const seat = (pid === state.myPid) ? 'p0' : h88FirstCpuSeat(); // ★ホストは席p0のみ（エンジンのp0固定前提を保つ）
+    const occ = seat && h88Comp()[seat];
+    if (!occ || occ.t !== 'cpu') return; // 空いていない席には座らせない
+    h88SeatToHuman(seat, pid);
+  } else {
+    const seat = h88SeatOfPid(pid); if (!seat) return;
+    h88SeatToCpu(seat);
+  }
+  h88ApplyCompChange(prev);
+  refreshRoomView();
+}
+// v3.04: 準備室の「下の箱」の出し分け。オンラインでは出さない（名前・種別・準備の印は参加者の枠に集約したため）。
+//   対コンピュータ戦（オフライン）は相手が居ないので従来どおりホスト箱・コンピュータ箱を出す。
+function pmSyncPrepBoxes() {
+  const offline = !!(state.vsAI || state.solo);
+  const isHachi = (state.gameSel === 'hachi');
+  const plsKoi = document.querySelector('#screen-room .room-head .players:not(#h88-prep-players)');
+  if (plsKoi) plsKoi.classList.toggle('hidden', isHachi || !offline);
+  const h88pl = document.getElementById('h88-prep-players');
+  if (h88pl) h88pl.classList.toggle('hidden', !isHachi || !offline);
+  document.querySelectorAll('#screen-room .ready-panel').forEach(el => el.classList.toggle('hidden', !offline));
+}
+// v3.04: ゲームで人数が変わったら、入室の早い順にプレイヤー枠を埋め直す（あふれた人は観戦）。
+function pmAutoFillSeats() {
+  if (!state.isHost || state.vsAI || state.solo || inGameNow()) return;
+  if (state.gameSel === 'hachi') { h88HostReseatFromRoster(); return; } // 八八＝空いている席へ順に座らせる
+  // こいこい＝プレイヤーはホスト＋1人。入室のいちばん早い人を残し、ほかは観戦へ。
+  const others = (state.roster || []).filter(x => x && x.pid && x.pid !== state.myPid);
+  const want = others.length ? others[0].pid : null;
+  others.forEach(x => { if (x.pid !== want) MomoMatchmaking.send({ type: 'role-assign', role: 'spectator' }, x.pid); });
+  if (want) { if (state.playerPid !== want) hostSetRole(want, 'player'); }
+  else if (state.playerPid) hostSetRole(state.playerPid, 'spectator');
+  renderParticipantMgmt();
 }
 
 // D3c: ホストが参加者の役を変更（プレイヤー↔観戦）。花札側だけで実現（サーバーの役は変えない）。
@@ -10548,7 +10673,7 @@ function startGame() {
     if (r[state.myPid]) return;               // 既に押し済み
     r[state.myPid] = true;
     if (state.isHost) h88HostAfterReadyChange();
-    else { MomoMatchmaking.send({ type: 'h88-ready' }, 'host'); updateStartBtn(); h88PrepRenderPlayers(); }
+    else { MomoMatchmaking.send({ type: 'h88-ready' }, 'host'); updateStartBtn(); h88PrepRenderPlayers(); renderParticipantMgmt(); }
     return;
   }
   if (state.gameSel === 'hachi' && state.vsAI) {
@@ -10572,6 +10697,7 @@ function startGame() {
   state[myKey] = true;
   MomoMatchmaking.send({ type: 'ready', side: me });
   updateStartBtn();
+  renderParticipantMgmt(); // v3.04: 準備の印は各自の枠の中に出す
   tryLaunchGame();
 }
 
@@ -10788,6 +10914,15 @@ function bindEvents() {
     }
     h88Levels()[sel.dataset.seat] = sel.value; // vsコンピュータは従来どおり
     h88PrepReset(); // 強さが変わったら顔ぶれ・親決めをやり直し（名前の（強さ）表記も更新）
+  });
+  // v3.04: 参加者の枠に置いたコンピュータの強さ（オンライン八八・ホストのみ）
+  const pmEl = document.getElementById('participant-mgmt');
+  if (pmEl) pmEl.addEventListener('change', (e) => {
+    const sel = e.target.closest('.h88-cpu-level'); if (!sel) return;
+    if (!state.isHost || state.vsAI || inGameNow()) return;
+    const prev = h88CompSnapshot();
+    h88SeatToCpu(sel.dataset.seat, sel.value);
+    h88ApplyCompChange(prev); // 全員へ編成を配り直す（親決めは無効化しない）
   });
   // v1.60: 準備画面のコンピュータ強さプルダウン
   const aiPrepSel = document.getElementById('ai-level-prep');
@@ -11180,13 +11315,42 @@ function chatRoleOf(pid) {
   return e ? e.role : 'spectator';
 }
 // ホストだけが「誰がどの役か」を確定できる。名簿ビューを作って全員へ配る。
+// v3.04: 準備室の「1人1枠」もこの名簿から作るので、並び順（プレイヤー枠が先・早い者順）と
+//   「ホスト／ゲスト／コンピュータ」の種別・席・強さまで載せる。
+//   ★role（'host'|'player'|'spectator'）の意味は変えない。対局画面の吹き出しの当て先がこれを見ている。
 function chatBuildRosterView() {
   const isHachiComp = (state.gameSel === 'hachi' && !state.vsAI);
-  const out = [{ pid: state.myPid, name: state.hostName || t('room.host'), role: 'host' }];
-  (state.roster || []).forEach(x => {
-    if (!x || !x.pid || x.pid === state.myPid) return;
-    const isPlayer = isHachiComp ? !!h88SeatOfPid(x.pid) : (x.pid === state.playerPid);
-    out.push({ pid: x.pid, name: x.name || '?', role: isPlayer ? 'player' : 'spectator' });
+  const hostName = state.hostName || t('room.host');
+  const byPid = {}; (state.roster || []).forEach(x => { if (x && x.pid) byPid[x.pid] = x; });
+  const nameOf = (pid) => (pid === state.myPid) ? hostName : ((byPid[pid] && byPid[pid].name) || '?');
+  const out = [], seated = {};
+  if (isHachiComp) {
+    const c = h88Comp(), cnames = h88CompNames();
+    H88_SEATS.forEach(s => {
+      const occ = c[s] || { t: 'cpu' };
+      if (occ.t === 'human') {
+        seated[occ.pid] = true;
+        const isHostPid = (occ.pid === state.myPid);
+        out.push({ pid: occ.pid, name: nameOf(occ.pid), kind: 'human', conn: isHostPid ? 'host' : 'guest', role: isHostPid ? 'host' : 'player', seat: s });
+      } else {
+        out.push({ pid: 'cpu:' + s, name: cnames[s], kind: 'cpu', conn: 'cpu', role: 'player', seat: s, level: occ.level || 'HARD' });
+      }
+    });
+    if (!seated[state.myPid]) out.push({ pid: state.myPid, name: hostName, kind: 'human', conn: 'host', role: 'spectator' }); // 席に居ないホスト＝観戦
+    seated[state.myPid] = true;
+  } else {
+    out.push({ pid: state.myPid, name: hostName, kind: 'human', conn: 'host', role: 'host' });
+    seated[state.myPid] = true;
+    if (state.playerPid && !state.noGuest) {
+      seated[state.playerPid] = true;
+      out.push({ pid: state.playerPid, name: nameOf(state.playerPid), kind: 'human', conn: 'guest', role: 'player' });
+    } else {
+      out.push({ pid: 'empty:1', name: '', kind: 'empty', conn: 'guest', role: 'player' }); // 参加待ちの枠
+    }
+  }
+  (state.roster || []).forEach(x => { // 残り＝観戦者（入室の早い順）
+    if (!x || !x.pid || seated[x.pid]) return;
+    out.push({ pid: x.pid, name: x.name || '?', kind: 'human', conn: 'guest', role: 'spectator' });
   });
   return out;
 }
@@ -11204,18 +11368,23 @@ function chatOnRosterView(list) {
   if (typeof renderParticipantMgmt === 'function') renderParticipantMgmt();
   chatRender();
 }
+// v3.04: 出し直しの入口。準備室は各自の枠の中に出すので、枠から描き直す（吹き出しは出さない）。
+function chatRefresh() {
+  if (state.screen === 'room' && typeof renderParticipantMgmt === 'function') renderParticipantMgmt(); // 末尾で chatRender も呼ばれる
+  else chatRender();
+}
 function chatOnRecv(d) {
   if (!d || !d.pid) return;
   state.chat = state.chat || {}; state.chatHidden = state.chatHidden || {};
   state.chat[d.pid] = { name: String(d.name || '?').slice(0, 24), text: String(d.text || '').slice(0, 40) };
   delete state.chatHidden[d.pid]; // 新しい発言は、前に閉じていても出し直す
-  chatRender();
+  chatRefresh();
 }
 function chatOnRemoteClose(pid) {
   if (!pid) return;
   if (state.chat) delete state.chat[pid];
   if (state.chatHidden) delete state.chatHidden[pid];
-  chatRender();
+  chatRefresh();
 }
 function chatSend(text) {
   text = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 40);
@@ -11225,7 +11394,7 @@ function chatSend(text) {
   state.chat[pid] = { name: name, text: text };
   delete state.chatHidden[pid];
   try { MomoMatchmaking.send({ type: 'chat', pid: pid, name: name, text: text }, 'all'); } catch (e) {}
-  chatRender();
+  chatRefresh();
 }
 function chatClose(pid) {
   state.chatHidden = state.chatHidden || {};
@@ -11235,7 +11404,7 @@ function chatClose(pid) {
   } else { // 他人の吹き出し＝自分の画面だけ消す
     state.chatHidden[pid] = true;
   }
-  chatRender();
+  chatRefresh();
 }
 function chatMakeIcon() {
   const b = document.createElement('button');
@@ -11401,7 +11570,9 @@ function chatRender() {
   if (state.isHost) chatPushRoster(chatBuildRosterView()); // 対局中に観戦者が来ても名簿が届くように（中身が同じなら送らない）
   chatMountIcons();
   const chats = state.chat || {}, hidden = state.chatHidden || {};
-  Object.keys(chats).forEach(pid => {
+  // ★v3.04: 準備室では吹き出しを出さない（各自の枠の中に1行で出す＝renderParticipantMgmt が描く）。
+  //   出すのは対局画面だけ。入力欄の位置合わせは下でそのまま行う。
+  if (state.screen !== 'room') Object.keys(chats).forEach(pid => {
     if (hidden[pid]) return;
     const c = chats[pid]; if (!c || !c.text) return;
     const a = chatAnchorFor(pid); if (!a || !a.el) return;

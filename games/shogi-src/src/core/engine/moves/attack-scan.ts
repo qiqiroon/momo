@@ -126,3 +126,58 @@ export function collectAttackCandidates(
 
   return out;
 }
+
+/**
+ * 玉の前に**立ちふさがっている自分の駒**がいる場所を拾う (2026-08-15・読む速さの改善)。
+ *
+ * ここでいう「ふさぎ役」は、**玉から外へ向かう筋の上で最初にぶつかった自分の駒で、
+ * その先に相手の駒がいるもの**。その駒がどくと相手の走り駒の筋が玉まで通るかもしれない
+ * ので、動かすときは従来どおり盤を進めて確かめる必要がある。
+ *
+ * **拾いすぎても構わない**（確かめる手が少し増えるだけ）。取りこぼすと、指せない手を
+ * 指せてしまう不具合になるので、判断に迷う側はすべて拾う:
+ *   - その先の相手の駒が本当にその向きへ走れるかは見ない（相手の駒なら拾う）
+ *   - 跳ぶ駒・1 マスだけ動く駒は間に入っても防げないので、ふさぎ役の対象にしない
+ *
+ * **盤の端がつながっている場合**も同じたどり方をする。筋が輪になるので**一周して玉へ
+ * 戻ったら打ち切る**。輪になっていても、ふさぎ役の駒は玉も相手の駒も飛び越えられない
+ * ため、玉と相手の駒に挟まれた区間から出られない（2026-08-15 ユーザー指摘）。
+ */
+export function collectShieldSquares(
+  mgf: Mgf,
+  position: Position,
+  king: Square,
+  defender: Player,
+): Set<string> {
+  const { width, height } = position;
+  const topology = topologyOf(position);
+  const attacker: Player = defender === 'player1' ? 'player2' : 'player1';
+  const profile = profileOf(mgf, attacker);
+  const shields = new Set<string>();
+
+  for (const offset of profile.rays) {
+    const cap = rayCap(offset, topology, width, height);
+    let cur = wrapSquare({ row: king.row - offset.drow, col: king.col - offset.dcol }, width, height, topology);
+    let step = 1;
+    let shield: Square | null = null;
+    while (step <= cap && cur !== null) {
+      if (cur.row === king.row && cur.col === king.col) break; // 一周して戻った
+      const cell = position.board[cur.row][cur.col];
+      if (cell) {
+        if (!shield) {
+          // 最初にぶつかった駒。自分の駒なら、その先に相手がいるかを見に行く。
+          if (cell.owner !== defender) break; // 相手の駒＝すでに王手側の話 (呼び出し側が別に見る)
+          shield = cur;
+        } else {
+          // ふさぎ役の先で最初にぶつかった駒。相手のものなら、ふさぎ役として登録する。
+          if (cell.owner === attacker) shields.add(`${shield.row},${shield.col}`);
+          break;
+        }
+      }
+      cur = wrapSquare({ row: cur.row - offset.drow, col: cur.col - offset.dcol }, width, height, topology);
+      step++;
+    }
+  }
+
+  return shields;
+}

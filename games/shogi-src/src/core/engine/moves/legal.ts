@@ -1,10 +1,11 @@
-import type { Mgf, MgfPieceDef } from '../mgf/types';
+import type { Mgf, MgfPieceDef, Player } from '../mgf/types';
 import type { Move, PieceInstance, Position, Square } from '../position/types';
 import { applyMove } from '../position/apply';
 import { topologyOf, wrapSquare } from '../position/coordinates';
 import { get as pluginGet } from '../../plugin/registry';
 import { buildInitialKindMap, confirmedKindOf, displayKindsFor } from '../candidate-kinds';
-import { isInCheck } from './check';
+import { findKing, isInCheck, isSquareAttackedBy } from './check';
+import { collectShieldSquares } from './attack-scan';
 import { generateDropMoves } from './drops';
 import { fileHasCertainPawn } from './nifu';
 import { directionOffsets } from './directions';
@@ -12,11 +13,108 @@ import { generateAllBoardMoves } from './generator';
 
 interface LegalOpts {
   skipUchifuTsume?: boolean;
+  /**
+   * 「玉の安全を確かめなくてよい手」を見分けるための下ごしらえ (§7.3.2)。
+   * 省略せず全部確かめるときは渡さない (単発で呼ぶときの既定)。
+   */
+  safety?: KingSafety | null;
+}
+
+/**
+ * その局面で、玉の安全に関係しうる手を見分けるための下ごしらえ (2026-08-15・読む速さの改善)。
+ *
+ * @see buildKingSafety
+ */
+export interface KingSafety {
+  /** 玉のマス。null なら守るべき玉がいない (量子で玉が未確定など)。 */
+  king: Square | null;
+  /** 玉の前に立ちふさがっている自分の駒のマス (`"row,col"`)。 */
+  shields: Set<string>;
 }
 
 export function generateLegalMoves(mgf: Mgf, position: Position, opts: LegalOpts = {}): Move[] {
   const pseudo: Move[] = [...generateAllBoardMoves(mgf, position), ...generateDropMoves(mgf, position)];
-  return pseudo.filter((m) => isMoveLegal(mgf, position, m, opts));
+  const safety = opts.safety !== undefined ? opts.safety : buildKingSafety(mgf, position);
+  return pseudo.filter((m) => isMoveLegal(mgf, position, m, { ...opts, safety }));
+}
+
+/**
+ * 検査用: 省略をいっさい使わずに合法手を出す (作り替える前と同じやり方)。
+ * **対局では使わない**。新しいやり方と答えが一致することを突き合わせるためだけに残す。
+ */
+export function generateLegalMovesNoSkip(mgf: Mgf, position: Position, opts: LegalOpts = {}): Move[] {
+  return generateLegalMoves(mgf, position, { ...opts, safety: null });
+}
+
+/**
+ * 「この手は自玉を危なくしようがない」と言い切れる手を見分けるための下ごしらえ (§7.3.2)。
+ *
+ * ★なぜ要るか
+ * 王手放置・自殺手の判定は、これまで**指せる手 1 つごとに盤を 1 手進めて**玉が狙われて
+ * いないかを見ていた。2026-08-14 に王手の判定そのものを速くしたあと、**この「盤を 1 手
+ * 進める」処理が一番の重し**になった (1 手あたり 3.7μs のうち約 3μs)。
+ *
+ * ★理屈
+ * 自玉が危なくなる手は次の 3 つしかない。
+ *   1. 玉そのものが動く手 (行き先が狙われているかもしれない)
+ *   2. すでに王手をかけられているとき (どの手も王手を解けているか要確認)
+ *   3. **ふさぎ役**の駒が動く手 (どくと相手の走り駒の筋が玉まで通るかもしれない)
+ * それ以外の手は、盤のどこで何をしようと自玉の安全に影響しない。
+ *   - **打つ手**は駒が増えるだけなので、王手されていない限り必ず安全
+ *   - **取る手**も、取った駒のマスに自分の駒が座るので新しい穴は開かない
+ *
+ * ★前提が崩れる場合は使わない (null を返す＝全部これまでどおり確かめる)
+ *   - **他の駒が盤から消えるルール** (挟んで取る＝親 §3.8)。相手の駒が消えると、その駒が
+ *     塞いでいた筋が開いて自玉に当たりうる。いまのはさみ将棋に玉は無いが、自由ルール
+ *     (Phase 7) で「挟み取り＋玉」を作られたときに破綻するので、ここで止める
+ *   - **玉が 2 枚以上あるルール**。どの駒を玉とみなすかが手のあとで入れ替わりうる
+ *   - **すでに王手**のとき
+ *
+ * ★盤の端がつながる場合 (トーラス) と量子について
+ *   - トーラスでも理屈は変わらない。筋は輪になるが、ふさぎ役は玉も相手の駒も飛び越え
+ *     られないので、玉と相手の駒に挟まれた区間から出られない (2026-08-15 ユーザー指摘)。
+ *     なお本関数は**ふさぎ役の駒は省略の対象にしない**ので、この点に寄りかかっていない
+ *   - 量子で**玉が未確定なら王手が成立しない** (§Q13.1) ので、確かめること自体が無い。
+ *     玉の確定は候補集合だけで決まり、着手 (applyMove) では候補を動かさないため、
+ *     **1 手指したせいで玉が確定して王手になる、ということは起きない**
+ */
+export function buildKingSafety(mgf: Mgf, position: Position): KingSafety | null {
+  // 挟み取りのように、指した駒以外が盤から消えるルールでは省略しない。
+  if (mgf.capture_rules?.post_move_topology) return null;
+
+  const mover = position.sideToMove;
+  if (countRoyalsOnBoard(mgf, position, mover) > 1) return null;
+
+  const king = findKing(mgf, position, mover);
+  if (!king) return { king: null, shields: EMPTY_SHIELDS };
+
+  const opponent: Player = mover === 'player1' ? 'player2' : 'player1';
+  if (isSquareAttackedBy(mgf, position, king, opponent)) return null; // すでに王手
+
+  return { king, shields: collectShieldSquares(mgf, position, king, mover) };
+}
+
+const EMPTY_SHIELDS: Set<string> = new Set();
+
+/** その手は自玉の安全に影響しようがないか (影響しうるなら false＝これまでどおり確かめる)。 */
+function isKingSafetyIrrelevant(safety: KingSafety, move: Move): boolean {
+  if (!safety.king) return true; // 守るべき玉がいない
+  if (move.type === 'drop') return true; // 駒が増えるだけ
+  if (move.from.row === safety.king.row && move.from.col === safety.king.col) return false;
+  return !safety.shields.has(`${move.from.row},${move.from.col}`);
+}
+
+function countRoyalsOnBoard(mgf: Mgf, position: Position, player: Player): number {
+  const royalKinds = new Set(mgf.pieces.filter((p) => p.is_royal).map((p) => p.id));
+  if (royalKinds.size === 0) return 0;
+  let n = 0;
+  for (let row = 0; row < position.height; row++) {
+    for (let col = 0; col < position.width; col++) {
+      const cell = position.board[row][col];
+      if (cell && cell.owner === player && royalKinds.has(cell.kind)) n++;
+    }
+  }
+  return n;
 }
 
 export function isMoveLegal(mgf: Mgf, position: Position, move: Move, opts: LegalOpts = {}): boolean {
@@ -33,9 +131,14 @@ export function isMoveLegal(mgf: Mgf, position: Position, move: Move, opts: Lega
   const topologyFilter = pluginGet<TopologyMoveFilter>('topology:moveFilter');
   if (topologyFilter && !topologyFilter(mgf, position, move)) return false;
 
-  // 自玉が王手放置 or 自ら王手される手 (suicide)
-  const after = applyMove(mgf, position, move);
-  if (isInCheck(mgf, after, mover)) return false;
+  // 自玉が王手放置 or 自ら王手される手 (suicide)。
+  // **玉の安全に影響しようがない手は、盤を進めずに素通りさせる** (§7.3.2・上の buildKingSafety)。
+  const skipKingSafety = opts.safety != null && isKingSafetyIrrelevant(opts.safety, move);
+  let after: Position | null = null;
+  if (!skipKingSafety) {
+    after = applyMove(mgf, position, move);
+    if (isInCheck(mgf, after, mover)) return false;
+  }
 
   // 打歩詰め: 歩打による相手詰めは反則。
   // v1.09: 量子モードでは「歩と確定している駒を打つとき」だけ見る。まだ歩と決まって
@@ -51,6 +154,7 @@ export function isMoveLegal(mgf: Mgf, position: Position, move: Move, opts: Lega
     const player = position.sideToMove;
     const piece = position.hands[player].find((p) => p.pieceId === move.pieceId);
     if (piece && confirmedKindOf(mgf, piece, buildInitialKindMap(position)) === 'fu') {
+      after ??= applyMove(mgf, position, move);
       const settled = settleForJudgement(mgf, after);
       if (settled && isCheckmate(mgf, settled)) return false;
     }
@@ -109,11 +213,13 @@ export function isCheckmate(mgf: Mgf, position: Position): boolean {
  * から効いてくる。
  */
 export function hasAnyLegalMove(mgf: Mgf, position: Position, opts: LegalOpts = {}): boolean {
+  const safety = opts.safety !== undefined ? opts.safety : buildKingSafety(mgf, position);
+  const o = { ...opts, safety };
   for (const m of generateAllBoardMoves(mgf, position)) {
-    if (isMoveLegal(mgf, position, m, opts)) return true;
+    if (isMoveLegal(mgf, position, m, o)) return true;
   }
   for (const m of generateDropMoves(mgf, position)) {
-    if (isMoveLegal(mgf, position, m, opts)) return true;
+    if (isMoveLegal(mgf, position, m, o)) return true;
   }
   return false;
 }

@@ -70,16 +70,20 @@ describe('王手の判定: 新しいやり方と古いやり方が一致する',
     expect(n).toBeGreaterThan(1000);
   }, 120_000);
 
+  // ★2026-08-15 修正: 以前はここで `torusMode` を局面に足していたが、**回り込みを決めるのは
+  // `position.topology`** で、`torusMode` は対局設定側の言葉。engine はこの名前を見ないので、
+  // 2 件とも平面の盤を確かめていた (＝トーラスは検査できていなかった)。実際の対局と同じく
+  // `initPosition` に端のつなぎ方を渡す形へ直した。
   it('★円筒 (左右がつながる盤)', async () => {
-    await import('../../../features/torus');
-    const pos = { ...initPosition(hondou), torusMode: 'cylinder' as const };
+    const { topologyFor } = await import('../../../features/torus');
+    const pos = initPosition(hondou, topologyFor('cylinder'));
     const n = walkAndCompare(hondou, pos, 20, 3, '円筒');
     expect(n).toBeGreaterThan(1000);
   }, 120_000);
 
   it('★完全トーラス (四辺がつながる盤)', async () => {
-    await import('../../../features/torus');
-    const pos = { ...initPosition(hondou), torusMode: 'full' as const };
+    const { topologyFor } = await import('../../../features/torus');
+    const pos = initPosition(hondou, topologyFor('full'));
     const n = walkAndCompare(hondou, pos, 20, 4, '完全トーラス');
     expect(n).toBeGreaterThan(1000);
   }, 120_000);

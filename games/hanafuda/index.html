@@ -1363,7 +1363,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.05</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.06</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1429,7 +1429,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.05</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.06</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1565,7 +1565,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.05</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.06</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1628,7 +1628,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.05</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.06</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1832,6 +1832,7 @@
   <div class="credit-body">
     CC-BY 4.0: <a href="https://taira-komori.net/freesounden.html" target="_blank" rel="noopener">Taira Komori</a>
     &nbsp;/&nbsp; CC-BY (Freesound): <a href="https://freesound.org/s/270404/" target="_blank" rel="noopener">LittleRobotSoundFactory</a>
+    &nbsp;/&nbsp; CC-BY (Freesound): <a href="https://freesound.org/s/658431/" target="_blank" rel="noopener">deathbyfairydust</a>
   </div>
   <div class="btn-row">
     <button class="btn btn-ghost btn-sm" id="btn-credits-close" data-i18n="sound.creditsClose">閉じる</button>
@@ -7653,6 +7654,8 @@ const AUDIO = (function () {
     deal:ASSETS+'se/se-deal.mp3', koikoi:ASSETS+'se/se-koikoi.mp3', gyun:ASSETS+'se/se-gyun.mp3',
     fanfareWin:ASSETS+'se/se-fanfare-win.mp3', fanfareWin2:ASSETS+'se/se-fanfare-win-2.mp3',
     gameLose:ASSETS+'se/se-game-lose.mp3', button:ASSETS+'se/se-button.mp3',
+    // v3.06: チャット着信の合図。将棋が使っている共通素材をそのまま借りる（新しい素材は足さない）。
+    chatRecv:ASSETS+'se/se-chat-recv.mp3',
   };
   const sfxBufs = new Map(), sfxFetching = new Map();
   function loadSfx(name) {
@@ -7742,6 +7745,7 @@ const AUDIO = (function () {
       case 'pa':     playBuf('pa'); break;
       case 'pero':   playBuf('pero'); break;
       case 'button': playBuf('button', { gain: 0.85 }); break;
+      case 'chatRecv': playBuf('chatRecv', { gain: 0.7 }); break; // v3.06: チャット着信（小さめ・邪魔しない音量）
     }
   }
 
@@ -10415,19 +10419,30 @@ function pmSlotEl(x, nameCounts, seenIdx) {
     const c = (state.chat || {})[x.pid];
     const box = document.createElement('div'); box.className = 'pm-chat';
     if (isMe) {
+      const mine = (c && c.text) || '';
       const inp = document.createElement('input');
       inp.type = 'text'; inp.className = 'pm-chat-input'; inp.maxLength = 40; inp.autocomplete = 'off';
-      inp.placeholder = t('chat.placeholder'); inp.value = (c && c.text) || '';
-      inp.addEventListener('focus', () => { inp.value = ''; }); // 選ぶと既存の文字は消える
+      inp.placeholder = t('chat.placeholder'); inp.value = mine;
+      // 「選ぶと今の文字が消える」。★v3.06: いま出ている自分の発言と同じ中身のときだけ消す。
+      //   打ちかけの文字は消さない。すでに焦点があるときにもう一度押した場合も効くよう click でも見る。
+      const clearIfShowingSent = () => { if (inp.value === mine) inp.value = ''; };
+      inp.addEventListener('focus', clearIfShowingSent);
+      inp.addEventListener('click', clearIfShowingSent);
+      // ★v3.06: 送る前に焦点を外す。外さないまま送ると、描き直しのあとも入力欄に焦点が残り、
+      //   もう一度押しても「選んだ」ことにならず（focus が起きない）文字が消えないため、
+      //   次の発言が前の文につながって打てなくなっていた。
+      const send = () => { const v = inp.value; inp.blur(); chatSend(v); };
       inp.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); chatSend(inp.value); inp.blur(); }
-        else if (e.key === 'Escape') { inp.blur(); }
+        if (e.key === 'Enter') { e.preventDefault(); send(); }
+        else if (e.key === 'Escape') { inp.value = mine; inp.blur(); }
       });
-      inp.addEventListener('blur', () => { setTimeout(() => { if (state.screen === 'room') renderParticipantMgmt(); }, 120); }); // 送らずに離れたら元の文へ戻す
+      inp.addEventListener('blur', () => { // 送らずに離れたら、いま出ている自分の発言に戻す
+        setTimeout(() => { const cur = (state.chat || {})[state.myPid]; const now = (cur && cur.text) || ''; if (inp.isConnected && inp.value !== now) inp.value = now; }, 0);
+      });
       const ok = document.createElement('button'); ok.type = 'button'; ok.className = 'pm-chat-send';
       ok.textContent = t('chat.send');
-      ok.addEventListener('mousedown', (e) => e.preventDefault()); // blur で消える前に押せるように
-      ok.addEventListener('click', () => chatSend(inp.value));
+      ok.addEventListener('mousedown', (e) => e.preventDefault()); // 焦点が外れて中身が戻る前に押せるように
+      ok.addEventListener('click', send);
       box.appendChild(inp); box.appendChild(ok);
     } else {
       const tx = document.createElement('span'); tx.className = 't';
@@ -11497,6 +11512,8 @@ function chatOnRecv(d) {
   state.chat = state.chat || {}; state.chatHidden = state.chatHidden || {};
   state.chat[d.pid] = { name: String(d.name || '?').slice(0, 24), text: String(d.text || '').slice(0, 40) };
   delete state.chatHidden[d.pid]; // 新しい発言は、前に閉じていても出し直す
+  // v3.06: 着信の合図。自分の発言では鳴らさない。準備室・対局画面のどちらでもここを通る。
+  if (d.pid !== state.myPid) { try { playSfx('chatRecv'); } catch (e) {} }
   chatRefresh();
 }
 function chatOnRemoteClose(pid) {

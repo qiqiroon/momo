@@ -1363,7 +1363,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.06</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.07</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1429,7 +1429,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.06</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.07</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1565,7 +1565,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.06</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.07</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1628,7 +1628,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.06</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.07</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -4318,7 +4318,10 @@ function handleP2P(data) {
       //   部屋の人数表示が更新される前に3人目が入ると、その人は通信上「対戦者」として入ってくる。
       //   本人はまだ自分が観戦者だと知らないので名乗りを送り、送り主を見ずに書き込むと
       //   対戦者の名前が観戦者の名前に置き換わる（ホストの名前が狂うと、そこから配る観戦者用の名前も狂う）。
-      if (!data.from || !state.playerPid || data.from === state.playerPid) state.guestName = data.name || state.guestName;
+      // ★v3.07: 相手をコンピュータが務めているときは、誰の名乗りも受け取らない。
+      //   「対局者がまだ決まっていない」＝相手が居ない、という前提でこの条件を緩めていたが、
+      //   コンピュータが相手を務める形を作ったので前提が崩れた（後から入った人の名前がコンピュータの名前に化けた）。
+      if (!state.aiGuest && (!data.from || !state.playerPid || data.from === state.playerPid)) state.guestName = data.name || state.guestName;
       if (data.uid && data.from) { // D4 Option B: 端末IDを記録し、切断中の席と一致したら元席へ復帰
         if (!state.h88PidUid) state.h88PidUid = {};
         state.h88PidUid[data.from] = data.uid;
@@ -7724,6 +7727,20 @@ const AUDIO = (function () {
         const o=ctx.createOscillator(); o.type='triangle'; o.frequency.value=f;
         const g=ctx.createGain(); envg(g,tt,0.004,0.28,dur); o.connect(g).connect(sfxGain); o.start(tt); o.stop(tt+dur+0.02); });
     },
+    // v3.07 ちりん：チャット着信。はっきり聞こえるように、倍音を重ねた鐘の音で上がる2音。
+    //   「ぴろっ」(自分の番・triangleの短い上がり)より高く長く響かせ、「ぴんぽーん」(入室・下がる2音)とは向きが逆。
+    //   素材の「ポン」に重ねて鳴らすので、出だしの輪郭（打点）も残る。
+    chat() { const t = ctx.currentTime + 0.01;
+      const bell = (f, dt, dur, peak) => {
+        [[1, peak], [2, peak * 0.34], [3, peak * 0.15]].forEach(h => { // 基音＋倍音2つで鐘らしい響きに
+          const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f * h[0];
+          const g = ctx.createGain(); envg(g, t + dt, 0.004, h[1], dur);
+          o.connect(g).connect(sfxGain); o.start(t + dt); o.stop(t + dt + dur + 0.02);
+        });
+      };
+      bell(1319, 0, 0.30, 0.34);    // E6
+      bell(1976, 0.10, 0.60, 0.34); // B6（余韻を長めに）
+    },
     // v2.98 ぴんぽーん：誰かが部屋に入ってきた合図（玄関チャイム風の下がる2音・sineでやわらかく／
     //   自分の手番の「ぴろっ」(triangleの上がる2音)とは向きも音色も変えて紛れないように）
     join() { const t = ctx.currentTime + 0.01;
@@ -7745,7 +7762,8 @@ const AUDIO = (function () {
       case 'pa':     playBuf('pa'); break;
       case 'pero':   playBuf('pero'); break;
       case 'button': playBuf('button', { gain: 0.85 }); break;
-      case 'chatRecv': playBuf('chatRecv', { gain: 0.7 }); break; // v3.06: チャット着信（小さめ・邪魔しない音量）
+      // v3.07: チャット着信。素材の「ポン」（打点）に、上がる2音の鐘（ちりん）を重ねてはっきりさせる。
+      case 'chatRecv': playBuf('chatRecv', { gain: 0.9 }); if (SYNTH.chat) SYNTH.chat(); break;
     }
   }
 

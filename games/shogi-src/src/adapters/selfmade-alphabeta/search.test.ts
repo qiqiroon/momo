@@ -145,6 +145,62 @@ describe('読み筋', () => {
     expect(r.depth).toBeGreaterThanOrEqual(1);
   });
 
+  /**
+   * v1.39 の再発防止 (親 §7.3.3)。
+   *
+   * 枝刈りは**最善手以外に正確な点数を出さない**。それを確定値として同点扱いすると、
+   * 実際には大損する手が候補に混ざる。v1.38 まではこれで**駒がぶつかった局面の 12 件中 9 件**
+   * で歩 1 枚以上、最悪 3818 点を損する手を選んでいた。
+   *
+   * **駒が数枚しかない作り物の局面では出ない**ので (上の検査が全部緑だったのはそのため)、
+   * ここでは実戦と同じように駒が詰まった局面を作り、当たりのある形で確かめる。
+   * また**同点崩しを 0 にすると隠れる**ので、対局と同じ幅を渡して確かめること。
+   */
+  it('駒がぶつかった局面で、最善から同点崩しの幅より大きく損しない', () => {
+    const JITTER = 20;
+    const DEPTH = 3;
+
+    for (let seed = 0; seed < 4; seed++) {
+      // でたらめな手で進めて、当たり (取り合い) のある局面を作る
+      let s = (1000 + seed) >>> 0;
+      const rnd = () => {
+        s = (s * 1664525 + 1013904223) >>> 0;
+        return s / 4294967296;
+      };
+      let pos = initPosition(hondou);
+      for (let i = 0; i < 24; i++) {
+        const legal = generateLegalMoves(hondou, pos);
+        if (legal.length === 0) break;
+        pos = applyMove(hondou, pos, legal[Math.floor(rnd() * legal.length)]);
+      }
+
+      const chosen = searchBestMove(hondou, pos, {
+        movetimeMs: 60000,
+        maxDepth: DEPTH,
+        jitter: JITTER,
+        random: rnd,
+      });
+      expect(chosen.move).not.toBeNull();
+
+      // 全部の手を full window で測り直して、選んだ手の本当の値打ちを知る
+      let trueBest = -Infinity;
+      let chosenValue = NaN;
+      for (const m of generateLegalMoves(hondou, pos)) {
+        const sub = searchBestMove(hondou, applyMove(hondou, pos, m), {
+          movetimeMs: 60000,
+          maxDepth: DEPTH - 1,
+          jitter: 0,
+          random: () => 0,
+        });
+        const v = -sub.score;
+        if (v > trueBest) trueBest = v;
+        if (JSON.stringify(m) === JSON.stringify(chosen.move)) chosenValue = v;
+      }
+      expect(chosenValue).not.toBeNaN();
+      expect(trueBest - chosenValue).toBeLessThanOrEqual(JITTER);
+    }
+  });
+
   it('外から打ち切られても 1 手は返す', () => {
     const pos = initPosition(hondou);
     const r = searchBestMove(hondou, pos, {

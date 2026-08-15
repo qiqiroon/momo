@@ -24,9 +24,13 @@ export interface SearchOptions {
   /** 読む深さの上限 (手数)。 */
   maxDepth: number;
   /**
-   * 同点崩しの幅 (点・歩 1 枚 = 100)。この幅の中に収まる手からランダムに 1 つ選ぶ。
-   * 0 なら常に同じ手を指す。**対局では強さの段から決まる** (levels.ts)。ここの既定 20 は
-   * 段を渡さずに直接呼んだとき (検査など) の値。
+   * 同点崩しの幅 (点・歩 1 枚 = 100)。**最善からこの幅までしか損しないことを保証した上で**
+   * 候補から 1 つ選ぶ。0 なら常に最善を指す。**対局では強さの段から決まる** (levels.ts)。
+   * ここの既定 20 は段を渡さずに直接呼んだとき (検査など) の値。
+   *
+   * v1.39 以前は「上限しか分かっていない手」もこの幅の中に混ぜていたため、実際には
+   * 飛車を丸損する手が同点として選ばれていた (親 §7.3.3)。いまは正確な点数が出た手だけを
+   * 候補にするので、幅は文字どおり「保証された損の上限」を意味する。
    */
   jitter?: number;
   /** 深さを 1 つ読み切るたびに呼ばれる。長考中に「動いている」ことを出すため。 */
@@ -115,14 +119,37 @@ function capturedValue(position: Position, move: Move): number {
  * 良さそうな手から先に見る。アルファベータは「先に良い手を見るほど枝が刈れる」ので、
  * 並べ替えるだけで読める深さが変わる。
  */
+function orderKey(position: Position, m: Move): number {
+  let s = capturedValue(position, m) * 10;
+  if (m.type === 'move' && m.promote) s += 500;
+  return s;
+}
+
 function orderMoves(position: Position, moves: Move[]): Move[] {
-  const scored = moves.map((m) => {
-    let s = capturedValue(position, m) * 10;
-    if (m.type === 'move' && m.promote) s += 500;
-    return { m, s };
-  });
+  const scored = moves.map((m) => ({ m, s: orderKey(position, m) }));
   scored.sort((a, b) => b.s - a.s);
   return scored.map((x) => x.m);
+}
+
+/**
+ * 点数の大きい順に並べつつ、**同じ点数どうしの並び順だけをばらす**。
+ *
+ * 枝刈りの都合で、**本当に同点の手のうち正確な点数が付くのは最初に読んだ 1 つだけ**で、
+ * 残りは「これ以上は良くない」という上限しか出ない (親 §7.3.3)。そのため同点の中から
+ * どれが選ばれるかは**読む順番で決まる**。ここで順番をばらすことで、毎回同じ将棋に
+ * ならないようにする (以前は同点崩しの幅がその役をしていたが、上限を確定値と取り違えて
+ * いたため大損する手まで選んでいた)。
+ *
+ * `random` が常に 0 を返すとき (検査) は元の並びのまま＝結果が毎回同じになる。
+ */
+function orderByScoreWithTieShuffle<T>(
+  items: { move: T; score: number }[],
+  random: () => number,
+): T[] {
+  return items
+    .map((x, i) => ({ move: x.move, score: x.score, r: random(), i }))
+    .sort((a, b) => b.score - a.score || a.r - b.r || a.i - b.i)
+    .map((x) => x.move);
 }
 
 /** 駒の取り合いだけを読み進めて、取り返しの途中で評価を打ち切らないようにする。 */
@@ -193,7 +220,11 @@ export function searchBestMove(mgf: Mgf, position: Position, options: SearchOpti
     return { move: null, score: -MATE_VALUE, depth: 0, nodes: 0, elapsedMs: now() - start, completed: true };
   }
 
-  let ordered = orderMoves(position, rootMoves);
+  // 最初の並びも、見込みが同じ手どうしは順番をばらす (下の並べ替えと同じ理由)。
+  let ordered = orderByScoreWithTieShuffle(
+    rootMoves.map((m) => ({ move: m, score: orderKey(position, m) })),
+    random,
+  );
   let bestMove: Move = ordered[0];
   let bestScore = 0;
   let reachedDepth = 0;
@@ -201,40 +232,56 @@ export function searchBestMove(mgf: Mgf, position: Position, options: SearchOpti
   const maxDepth = Math.max(1, options.maxDepth);
   for (let depth = 1; depth <= maxDepth; depth++) {
     let alpha = -Infinity;
-    const scores: { move: Move; score: number }[] = [];
+    /** 並べ替え用。上限しか分かっていない手も含む。 */
+    const all: { move: Move; score: number }[] = [];
+    /**
+     * 選ぶ用。**正確な点数が出た手だけ**を入れる (親 §7.3.3)。
+     *
+     * 枝刈りの窓を (−∞, −alpha) で開いているので、返る値が alpha より大きい手だけが
+     * 確定値で、それ以外は「これ以上は良くない」という上限にすぎない。上限は最善手の
+     * 点数とぴったり同じ値になることが多く、これを確定値として同点扱いすると
+     * **飛車を丸損する手が候補に混ざる** (v1.38 までの不具合)。
+     */
+    const exact: { move: Move; score: number }[] = [];
     let aborted = false;
 
     for (const m of ordered) {
       // 1 手も評価しないうちは打ち切らない (指す手が決まらなくなるため)。
       // 2 手目からは、根の手と手の間でも時間を見る (量子のように 1 手が重い場面で効く)。
-      if (scores.length > 0 && now() >= ctx.deadline) {
+      if (all.length > 0 && now() >= ctx.deadline) {
         ctx.aborted = true;
         aborted = true;
         break;
       }
       const next = safeApply(mgf, position, m);
       if (!next) continue;
+      const prevAlpha = alpha;
       const score = -negamax(ctx, next, depth - 1, -Infinity, -alpha, 1);
       if (ctx.aborted) {
         // 深さ 1 だけは読み切る (1 手も評価しないまま返さないため)。
-        if (depth === 1 && scores.length === 0) {
-          scores.push({ move: m, score });
+        // 最初の 1 手は窓が (−∞, +∞) なので確定値。
+        if (depth === 1 && all.length === 0) {
+          all.push({ move: m, score });
+          exact.push({ move: m, score });
         }
         aborted = true;
         break;
       }
-      scores.push({ move: m, score });
+      all.push({ move: m, score });
+      if (score > prevAlpha) exact.push({ move: m, score });
       if (score > alpha) alpha = score;
     }
 
     if (aborted && depth > 1) break; // 途中で切れた深さの結論は捨てる
-    if (scores.length === 0) break;
+    if (exact.length === 0) break;
 
-    scores.sort((a, b) => b.score - a.score);
-    bestScore = scores[0].score;
-    // 同点崩し: 最善と jitter 以内の手から 1 つ選ぶ (毎回同じ将棋にならないように)
-    const tied = scores.filter((s) => s.score >= bestScore - jitter);
-    bestMove = tied[Math.floor(random() * tied.length)]?.move ?? scores[0].move;
+    // 確定値の並びは必ず増えていく (alpha を更新した手だけが入るため) ので、末尾が最善。
+    exact.sort((a, b) => b.score - a.score);
+    bestScore = exact[0].score;
+    // 同点崩し: 最善から jitter 以内**であることが確かめられた手**から 1 つ選ぶ。
+    // 本当に同点の手どうしのばらけは、上の読む順番のランダム化が受け持つ。
+    const tied = exact.filter((s) => s.score >= bestScore - jitter);
+    bestMove = tied[Math.floor(random() * tied.length)]?.move ?? exact[0].move;
     reachedDepth = depth;
     options.onProgress?.({ depth, nodes: ctx.nodes, elapsedMs: now() - start, score: bestScore });
 
@@ -243,8 +290,13 @@ export function searchBestMove(mgf: Mgf, position: Position, options: SearchOpti
     if (elapsed * 2 > options.movetimeMs) break;
     if (Math.abs(bestScore) > MATE_VALUE - 1000) break; // 詰みが見えたらそれ以上読まない
 
-    // 次の深さは今回の良かった順に見る (枝がよく刈れる)
-    ordered = scores.map((s) => s.move);
+    // 次の深さは今回の良かった順に見る (枝がよく刈れる)。
+    // **ここでは並びをばらさない**。ばらすのは読み始める前の 1 回だけで足りるうえ、
+    // 深さごとにばらすと前の深さで分かった良い並びが崩れて枝が刈れなくなる
+    // (実測で中盤の読める深さが 1 つ落ちた)。並べ替えは安定なので、同点の手どうしは
+    // 最初にばらした順番のまま保たれる。
+    all.sort((a, b) => b.score - a.score);
+    ordered = all.map((x) => x.move);
     if (aborted) break;
   }
 

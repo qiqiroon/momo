@@ -810,10 +810,13 @@
   .pm-ready{font-weight:700;font-size:.9rem;}
   .pm-row .ai-level-select{width:auto;min-width:104px;margin:0;padding:3px 7px;font-size:.75rem;flex:0 0 auto;}
   .pm-chat{margin:.3em 0 .05em;padding:.22em .45em;background:#fffaf0;color:#20201c;border-radius:.4em;
-    font-size:.82rem;display:flex;align-items:flex-start;gap:.4em;}
+    font-size:.82rem;display:flex;align-items:center;gap:.4em;min-height:1.7em;}
   .pm-chat .t{flex:1;word-break:break-word;}
-  .pm-chat .x{border:none;background:transparent;color:#8a7a63;font-size:.9rem;line-height:1.2;cursor:pointer;padding:0;}
-  .pm-chat .x:hover{color:#c0392b;}
+  .pm-chat .t.empty::before{content:'—';color:#b5aa96;}
+  .pm-chat-input{flex:1;min-width:0;font:inherit;font-size:.82rem;padding:2px 5px;border:1px solid #d8cdb4;
+    border-radius:.3em;background:#fff;color:#20201c;}
+  .pm-chat-send{flex:0 0 auto;font-size:.72rem;padding:2px 9px;border:none;border-radius:.4em;cursor:pointer;
+    font-weight:700;background:var(--orange,#e88c2a);color:#1a1a1a;}
 </style>
 </head>
 <body>
@@ -1360,7 +1363,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.04</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.05</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1426,7 +1429,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.04</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.05</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1562,7 +1565,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.04</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.05</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1625,7 +1628,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.04</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.05</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -3401,7 +3404,8 @@ function pickGame(g) {
   // ★v3.04: オンラインでは参加者の枠（1人1枠）が名前も種別も持つので、この下の箱は出さない（名前の二重表示をやめる）。
   pmSyncPrepBoxes();
   if (isHachi) h88PrepReset(); // v1.68 C3/C4: 八八の顔ぶれ・親決めを準備室で
-  if (state.isHost && !state.vsAI && !state.solo) pmAutoFillSeats(); // v3.04: 人数が変わったので早い者順に埋め直す
+  if (state.isHost && !state.vsAI && !state.solo) pmRecompute(); // v3.05: 定員が変わったので上から順に埋め直す
+  renderParticipantMgmt(); // ★v3.05: ゲームを切り替えたら必ず一覧を描き直す（v3.04 はここが抜けていて古い中身が残った）
   if (isHachi && state.isHost && !state.vsAI && state.guestName) h88SendRules(); // v2.50: 八八選択時に現在のルールをゲストへ
   updateStartBtn();
 }
@@ -3633,6 +3637,11 @@ function drawOya() {
     return;
   }
   MomoMatchmaking.send({ type: 'oya_draw', side: me, month: card.month, card: card.id });
+  if (state.aiGuest && state.isHost) { // ★v3.05: 相手がコンピュータのときは続けて相手の分も引く（観戦者にも配る）
+    updateStartBtn(); refreshRoomView();
+    setTimeout(aiDrawOya, 650);
+    return;
+  }
   updateStartBtn();
   refreshRoomView();
 }
@@ -3993,13 +4002,16 @@ function initMatchmaking() {
       state.readyHost = false; state.readyGuest = false;
       state.oppLeftAtEnd = false; state.myEndChoice = null; state.gameChoiceMade = false; state.matchOver = false; // v2.62
       clearSession(); // ホストは復帰保存しない
+      state.pmRoles = null; state.pmPinned = null; state._pmSentRole = null; // v3.05: 参加者の台帳を新しい部屋で作り直す
       renderOyaDraw();
       showScreen('room');
+      pmRecompute();  // ★v3.05: ホストを対局者に据え、足りない分はコンピュータが埋める
       refreshRoomView();
     },
     onJoinedRoom: (roomId, roomName, hostName, rules, multi) => {
       diagLog('room', 'joined id=' + roomId + ' name=' + roomName + ' host=' + hostName + ' pid=' + (multi && multi.pid));
       state.isHost = false;
+      state.aiGuest = false; state.pmRoles = null; state.pmPinned = null; state._pmSentRole = null; // v3.05: ホストだった名残（コンピュータ相手の印・台帳）を捨てる
       // D3: サーバーが割り当てた役割で観戦か否かを最終確定（tryJoin の事前判定を上書き）
       state.isSpectator = !!(multi && multi.role === 'spectator');
       state.playerPid = null;
@@ -4046,43 +4058,45 @@ function initMatchmaking() {
       //   プレイヤー／観戦者の区別なく鳴らす。自分自身の入室では鳴らさない。
       if (state.myPid && pid !== state.myPid) playSfx('join');
       if (!state.isHost) { updateSpectatorCount(); return; } // 観戦者・ゲスト側は名簿更新のみ
-      if (state.gameSel === 'hachi' && !state.vsAI) { h88HostOnParticipantJoined(pid, role, name); return; } // D4: 八八は席編成モデルへ
-      // D3: 観戦者、または既にゲストが居る状態での追加プレイヤー入室 → 観戦者として受け入れる。
-      if (role === 'spectator' || state.playerPid) {
-        // ⑦(v2.74/76): 観戦を禁止しているなら、入ってきた観戦者を即キック（サーバーが対象へ 'kicked' を送る）
-        if (state.allowSpectators === false) {
-          MomoMatchmaking.send({ type: 'kick', pid: pid });
-          state.roster = (state.roster || []).filter(x => x && x.pid !== pid);
-          updateSpectatorCount(); renderParticipantMgmt();
-          return;
-        }
-        // ★重要: サーバー上「プレイヤー」役で入ったが席が埋まっていて観戦扱いにする人には、
-        //   本人のクライアントを観戦へ合わせる role-assign を必ず送る（送らないと本人の画面はプレイヤーのままで役がズレる）。
-        //   これは部屋一覧の人数が更新される前に2人目が入ると起きる（同一PCの別タブ等で顕著）。
-        if (role === 'player') MomoMatchmaking.send({ type: 'role-assign', role: 'spectator' }, pid);
-        updateSpectatorCount();
-        renderParticipantMgmt(); // D3c: 役変更パネルを更新
-        koiBootstrapSpectator(pid); // 対局中なら現在の公開ビューを送って画面に載せる
+      // ★v3.05: 入室した人の立場は台帳が決める（空きがあればプレイヤー／無ければ観戦。対局中は必ず観戦）。
+      //   こいこい・八八とも同じ道を通す。八八の一時停止まわりだけ従来の処理を続けて呼ぶ。
+      const inGame = inGameNow();
+      pmSyncRoles();
+      if (inGame) pmRoles()[pid] = 'spectator';
+      const willPlay = (pmRoles()[pid] === 'player');
+      // ⑦(v2.74/76): 観戦を禁止しているなら、座れない人は即キック（サーバーが対象へ 'kicked' を送る）
+      if (state.allowSpectators === false && !willPlay) {
+        MomoMatchmaking.send({ type: 'kick', pid: pid });
+        state.roster = (state.roster || []).filter(x => x && x.pid !== pid);
+        delete pmRoles()[pid]; delete pmPinned()[pid];
+        updateSpectatorCount(); renderParticipantMgmt();
         return;
       }
-      // 最初のプレイヤー = 従来ゲスト
-      state.playerPid = pid;
-      state.noGuest = false;
-      state.connected = true;
-      handleGuestJoined(name);
+      // ★重要: サーバー上の役と食い違うことがあるので、本人へ必ず立場を伝える
+      //   （送らないと、席が埋まっていて観戦扱いにした人の画面がプレイヤーのままになる）。
+      (state._pmSentRole || (state._pmSentRole = {}))[pid] = willPlay ? 'player' : 'spectator';
+      MomoMatchmaking.send({ type: 'role-assign', role: willPlay ? 'player' : 'spectator', hostName: state.hostName }, pid);
+      koiBootstrapSpectator(pid); // 設定・親決め・ルール（対局中は公開ビュー）を新しい人へ
+      if (willPlay && state.gameSel !== 'hachi') handleGuestJoined(name); // こいこい＝対局者が来た（挨拶・設定・盤面の送り直し）
+      pmRecompute();
+      updateSpectatorCount(); refreshRoomView();
+      if (state.gameSel === 'hachi' && !state.vsAI) { if (h88IsPaused()) h88HostBroadcastPause(); else hideConnOverlay(); } // ★切断待ち中に別入室があってもホストの待機画面を消さない
     },
     onParticipantLeft: (pid, roster) => {
       state.roster = roster || state.roster;
       diagLog('room', 'participant left pid=' + pid);
       if (!state.isHost) { updateSpectatorCount(); return; }
-      if (state.gameSel === 'hachi' && !state.vsAI) { h88HostOnParticipantLeft(pid); return; } // D4: 八八は席編成モデルへ
-      if (pid === state.playerPid) { // ゲスト（プレイヤー）が退出
+      if (state.gameSel === 'hachi' && !state.vsAI) { h88HostOnParticipantLeft(pid); if (!h88InGameNow()) { delete pmRoles()[pid]; pmRecompute(); } return; } // D4: 対局中の切断は一時停止（従来）／準備中は台帳から外す
+      const wasPlayer = (pmRoles()[pid] === 'player');
+      delete pmRoles()[pid]; delete pmPinned()[pid];
+      if (pid === state.playerPid) { // ゲスト（対局者）が退出
         state.playerPid = null;
         handleGuestLeft();
-      } else { // 観戦者が退出 → 対局には影響させない
-        updateSpectatorCount();
-        renderParticipantMgmt(); // D3c: 役変更パネルを更新
       }
+      if (!inGameNow()) pmRecompute(); // v3.05: 空いた分はコンピュータが埋める（あふれていた観戦者は繰り上がらない＝並びは動かさない）
+      updateSpectatorCount();
+      renderParticipantMgmt();
+      if (wasPlayer) refreshRoomView();
     },
     onConnected: () => {
       diagLog('p2p', 'onConnected fired');
@@ -5490,13 +5504,9 @@ function h88ApplyCompChange(prev) {
   H88_SEATS.forEach(s => { if (h88SeatOccChanged(prev && prev[s], c[s])) o[s] = null; }); // 担い手交代→親決め引き直し
   MomoMatchmaking.send({ type: 'h88-comp', comp: c, names: h88CompNames() }, 'all'); // 全員へ編成配信
   MomoMatchmaking.send({ type: 'h88-oya-state', draws: o }, 'all'); // 無効化した親決めを全員へ反映
-  // 着席状態が変わった人間だけ role-assign（変わらない人の親決め/準備は保持＝席ひも付けの仕様）。
-  const prevSeated = []; if (prev) H88_SEATS.forEach(s => { if (prev[s] && prev[s].t === 'human') prevSeated.push(prev[s].pid); });
-  const nowSeated = h88SeatedPids();
-  const affected = {};
-  prevSeated.forEach(p => { if (nowSeated.indexOf(p) < 0) affected[p] = 'spectator'; });
-  nowSeated.forEach(p => { if (prevSeated.indexOf(p) < 0) affected[p] = 'player'; });
-  Object.keys(affected).forEach(pid => { if (pid !== state.myPid) MomoMatchmaking.send({ type: 'role-assign', role: affected[pid], hostName: state.hostName }, pid); });
+  // ★v3.05: 立場の通知は pmNotifyRoles（参加者の台帳）に一本化した。
+  //   ここで席の差分から送っていたときは、こいこいの間に台帳だけが動くと席は変わらず通知が出ず、
+  //   八八へ戻した人が相手の画面で観戦のまま取り残された。
   // ready: 席から外れた人間の押下は不要になるだけ（下の必要集合から外れる）。新担い手は未readyで自然にブロック。
   h88OnlineHostMaybeAutoCpuOya(); // 人間が全員引き終えていればCPU席を自動でめくる
   h88OnlineOyaRender(); updateStartBtn(); renderParticipantMgmt();
@@ -7998,7 +8008,7 @@ function startRound() {
   }
   syncState({ deal: true }); // 先に配って（guest も同時に配りアニメを開始できる）
   runDeal(); // v1.36: 局開始の配りアニメ（無効時は通常描画）
-  if (state.vsAI) setTimeout(scheduleAi, animEnabled() ? 1600 : 400); // v1.59: 親がAIなら配り後に先手
+  if (koiAiOn()) setTimeout(scheduleAi, animEnabled() ? 1600 : 400); // v1.59: 親がAIなら配り後に先手（v3.05: オンラインのコンピュータ相手も同じ）
 }
 
 // --- 描画 ---
@@ -9613,14 +9623,15 @@ function aiYakuDecide() {
 }
 // 各「入力待ち」点で、いま AI の手番なら少し待って自動着手（人間は待つ間に盤面を見る）
 function scheduleAi() {
-  if (!state.vsAI || !state.game) return;
+  if (!koiAiOn() || !state.game) return; // v3.05: 対コンピュータ戦に加え、オンライン部屋でコンピュータが相手のときも動かす
   if (state.game.currentPlayer !== state.aiSide) return;
+  if (state.aiGuest && !state.isHost) return; // コンピュータを動かすのはホストだけ（ゲスト・観戦者は同期を見るだけ）
   const ph = state.game.phase;
   if (ph !== 'select-hand' && ph !== 'pick-play' && ph !== 'pick-draw' && ph !== 'yaku') return;
   const tok = ++aiToken;
   const delay = (ph === 'yaku') ? 1500 : (ph === 'select-hand' ? 800 : 600);
   setTimeout(() => {
-    if (tok !== aiToken || !state.vsAI || !state.game) return;
+    if (tok !== aiToken || !koiAiOn() || !state.game) return;
     if (state.game.currentPlayer !== state.aiSide) return;
     const p = state.game.phase;
     try {
@@ -9637,7 +9648,10 @@ function aiDrawOya() {
   let card; const avoid = state.oyaHostCard;
   do { card = deck[Math.floor(Math.random() * deck.length)]; } while (avoid != null && card.id === avoid);
   state.oyaGuestCard = card.id; state.oyaGuestMonth = card.month;
+  // ★v3.05: オンライン部屋でコンピュータが相手のときは、引いた札を観戦者にも配る
+  if (state.aiGuest && state.isHost && !state.solo) MomoMatchmaking.send({ type: 'oya_draw', side: 'guest', month: card.month, card: card.id }, 'all');
   updateOyaResult(); renderOyaDraw(); updateStartBtn();
+  if (state.aiGuest) { state.readyGuest = true; renderParticipantMgmt(); } // コンピュータは準備完了を押す人が居ない
 }
 // ロビー「対コンピュータ戦」→ 対戦準備画面（人間=host固定・AIがguest）
 function startVsAI() {
@@ -10093,6 +10107,13 @@ function onGameChoice(choice) { // choice = 'rematch' | 'lobby'
     else leaveRoom();
     return;
   }
+  if (state.aiGuest && state.isHost) { // ★v3.05: 相手がコンピュータ＝待つ相手が居ないので押した側の選択で決める（観戦者には同期で届く）
+    state.gameChoiceMade = true; state.myEndChoice = choice;
+    document.getElementById('ovGame').classList.remove('show');
+    if (choice === 'rematch') { state.oya = state.oya || 'host'; beginMatch(); }
+    else leaveRoom();
+    return;
+  }
   if (state.gameChoiceMade) return; // 既に選択済み
   state.gameChoiceMade = true;
   state.myEndChoice = choice; // v2.62: 自分の選択を記憶（相手退出時の行き先判定用）
@@ -10305,9 +10326,14 @@ function renderParticipantMgmt() {
   const el = document.getElementById('participant-mgmt');
   if (!el) return;
   if (inGameNow() || state.vsAI || state.solo) { el.classList.add('hidden'); el.innerHTML = ''; chatRender(); return; }
+  if (state.isHost) pmSyncRoles(); // v3.05: 台帳を整えてから作る（描くだけで通信はしない）
   const list = state.isHost ? chatBuildRosterView() : (state.rosterView || []);
   if (!state.isHost && !list.length) { el.classList.add('hidden'); el.innerHTML = ''; chatRender(); return; }
   el.classList.remove('hidden'); // ⑦: 参加者が居なくても観戦許可チェックは常に出す（ホスト・準備画面）
+  // ★v3.05: チャット欄は枠の中に常時出ている入力欄。描き直しで打ちかけの文字とカーソルを失わないよう控える。
+  const ae = document.activeElement;
+  const keep = (ae && ae.classList && ae.classList.contains('pm-chat-input'))
+    ? { v: ae.value, s: ae.selectionStart, e: ae.selectionEnd } : null;
   el.innerHTML = '';
   const head = document.createElement('div'); head.style.cssText = 'font-weight:600;margin-bottom:.3em';
   head.textContent = state.isHost ? t('pm.head') : t('pm.list'); el.appendChild(head);
@@ -10323,6 +10349,10 @@ function renderParticipantMgmt() {
   const nameCounts = {}; list.forEach(x => { if (x.kind === 'human') { const nm0 = x.name || '?'; nameCounts[nm0] = (nameCounts[nm0] || 0) + 1; } });
   const seenIdx = {};
   list.forEach(x => el.appendChild(pmSlotEl(x, nameCounts, seenIdx)));
+  if (keep) { // 打ちかけの文字を戻す
+    const inp = el.querySelector('.pm-chat-input');
+    if (inp) { inp.value = keep.v; try { inp.focus(); inp.setSelectionRange(keep.s, keep.e); } catch (e) {} }
+  }
   if (state.isHost) chatPushRoster(list); // 中身が変わったときだけ全員へ配る
   chatRender();
 }
@@ -10355,13 +10385,12 @@ function pmSlotEl(x, nameCounts, seenIdx) {
     r.textContent = done ? '✓' : '…'; r.style.color = done ? 'var(--gold,gold)' : 'var(--text-muted,#888)';
     line.appendChild(r);
   }
-  if (isMe) line.appendChild(chatMakeIcon()); // 自分の枠に吹き出しアイコン（送るのは誰でもできる）
   // ここから下はホストだけの操作（ほかの人には出さない＝見えるだけ）。枠の右端にまとめる。
   if (state.isHost && !inGameNow()) {
     const ctl = document.createElement('span'); ctl.className = 'pm-ctl';
     if (x.kind === 'cpu') { // Q2A: コンピュータも1枠として並べ、強さはその枠の中で選ぶ
       const sel = document.createElement('select');
-      sel.className = 'ai-level-select h88-cpu-level'; sel.dataset.seat = x.seat;
+      sel.className = 'ai-level-select pm-cpu-level'; if (x.seat) sel.dataset.seat = x.seat;
       ['EASY', 'HARD', 'APOCALYPSE'].forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; if (x.level === v) o.selected = true; sel.appendChild(o); });
       ctl.appendChild(sel);
     } else if (x.kind === 'human') {
@@ -10380,17 +10409,33 @@ function pmSlotEl(x, nameCounts, seenIdx) {
     }
     if (ctl.children.length) line.appendChild(ctl);
   }
-  // チャット1行（準備室では吹き出しを出さず、この枠の中に出す）
+  // ★v3.05: チャット行は常時表示。自分の枠はそのまま入力欄で、選ぶと今の文字が消えて打ち直せる。
+  //   Enter か「送信」で全員の画面に反映（準備室では吹き出しを使わない）。
   if (x.kind === 'human') {
     const c = (state.chat || {})[x.pid];
-    if (c && c.text && !(state.chatHidden || {})[x.pid]) {
-      const box = document.createElement('div'); box.className = 'pm-chat';
-      const tx = document.createElement('span'); tx.className = 't'; tx.textContent = c.text;
-      const cx = document.createElement('button'); cx.type = 'button'; cx.className = 'x'; cx.textContent = '×';
-      cx.title = t('chat.close'); cx.setAttribute('aria-label', t('chat.close'));
-      cx.addEventListener('click', () => chatClose(x.pid));
-      box.appendChild(tx); box.appendChild(cx); row.appendChild(box);
+    const box = document.createElement('div'); box.className = 'pm-chat';
+    if (isMe) {
+      const inp = document.createElement('input');
+      inp.type = 'text'; inp.className = 'pm-chat-input'; inp.maxLength = 40; inp.autocomplete = 'off';
+      inp.placeholder = t('chat.placeholder'); inp.value = (c && c.text) || '';
+      inp.addEventListener('focus', () => { inp.value = ''; }); // 選ぶと既存の文字は消える
+      inp.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); chatSend(inp.value); inp.blur(); }
+        else if (e.key === 'Escape') { inp.blur(); }
+      });
+      inp.addEventListener('blur', () => { setTimeout(() => { if (state.screen === 'room') renderParticipantMgmt(); }, 120); }); // 送らずに離れたら元の文へ戻す
+      const ok = document.createElement('button'); ok.type = 'button'; ok.className = 'pm-chat-send';
+      ok.textContent = t('chat.send');
+      ok.addEventListener('mousedown', (e) => e.preventDefault()); // blur で消える前に押せるように
+      ok.addEventListener('click', () => chatSend(inp.value));
+      box.appendChild(inp); box.appendChild(ok);
+    } else {
+      const tx = document.createElement('span'); tx.className = 't';
+      tx.textContent = (c && c.text) || '';
+      if (!tx.textContent) tx.classList.add('empty');
+      box.appendChild(tx);
     }
+    row.appendChild(box);
   }
   return row;
 }
@@ -10400,36 +10445,87 @@ function pmReadyOf(x) {
   if (state.gameSel === 'hachi' && !state.vsAI) return !!h88ReadyPids()[x.pid];
   return (x.conn === 'host') ? !!state.readyHost : !!state.readyGuest;
 }
-// v3.04: ホストがこの人の立場（プレイヤー↔観戦）を動かせるか。
+// v3.05: 台帳のプレイヤー数。
+function pmPlayerPids() { const roles = pmRoles(); return pmHumans().filter(h => roles[h.pid] === 'player').map(h => h.pid); }
+function pmPlayerCount() { return pmPlayerPids().length; }
+// v3.05: ホストがこの人の立場（プレイヤー↔観戦）を動かせるか。
 function pmCanToggleRole(x) {
   if (!state.isHost || x.kind !== 'human' || inGameNow()) return false;
-  const isHachi = (state.gameSel === 'hachi' && !state.vsAI);
-  const isPlayerSlot = (x.role !== 'spectator');
-  if (!isHachi && x.pid === state.myPid) return false; // こいこいのホストは必ず対局者
-  if (isPlayerSlot) return true;                        // 観戦へ落とすのはいつでも可
-  if (!isHachi) return true;                            // こいこい＝入れ替え（今のプレイヤーは観戦へ）
-  // 八八＝空いている席があるときだけ。ホストが戻れるのは席 p0 が空いているときに限る。
-  if (x.pid === state.myPid) { const p0 = h88Comp().p0; return !!(p0 && p0.t === 'cpu'); }
-  return !!h88FirstCpuSeat();
+  const isPlayer = (pmRoles()[x.pid] === 'player');
+  // こいこいはホストが対局者である前提の作り（ホストの席をコンピュータに任せる経路が無い）ので、ホスト自身は外せない
+  if (isPlayer && x.pid === pmHostPid() && state.gameSel !== 'hachi') return false;
+  if (isPlayer) return true;                       // 観戦へ落とすのはいつでも可
+  return pmPlayerCount() < pmCapacity();           // 戻せるのは空きがあるときだけ
 }
-// v3.04: 立場の切り替え。こいこいは「プレイヤーは1人」、八八は席へ着かせる／席を空ける。
+// v3.05: 立場の切り替え＝台帳を書き換えて、席・ゲスト指名・コンピュータへ反映し直す。
 function pmSetRole(pid, toPlayer) {
   if (!state.isHost || inGameNow()) return;
-  const isHachi = (state.gameSel === 'hachi' && !state.vsAI);
-  if (!isHachi) { hostSetRole(pid, toPlayer ? 'player' : 'spectator'); return; }
-  const prev = h88CompSnapshot();
-  if (toPlayer) {
-    const seat = (pid === state.myPid) ? 'p0' : h88FirstCpuSeat(); // ★ホストは席p0のみ（エンジンのp0固定前提を保つ）
-    const occ = seat && h88Comp()[seat];
-    if (!occ || occ.t !== 'cpu') return; // 空いていない席には座らせない
-    h88SeatToHuman(seat, pid);
-  } else {
-    const seat = h88SeatOfPid(pid); if (!seat) return;
-    h88SeatToCpu(seat);
-  }
-  h88ApplyCompChange(prev);
-  refreshRoomView();
+  if (toPlayer && pmPlayerCount() >= pmCapacity()) return;
+  pmRoles()[pid] = toPlayer ? 'player' : 'spectator';
+  pmPinned()[pid] = true; // ホストが手で決めた＝自動の埋め直しで動かさない
+  pmRecompute();
 }
+// ★v3.05: 台帳（誰がプレイヤーか）を、ゲーム側の席・ゲスト指名・コンピュータへ反映して全員へ配る。
+//   立場の変更・入退室・ゲーム切替のあとは必ずこれを通す（通さないと表示と中身がずれる）。
+function pmRecompute() {
+  if (!state.isHost || state.vsAI || state.solo || inGameNow()) return;
+  pmSyncRoles();
+  const playerPids = pmPlayerPids();
+  if (state.gameSel === 'hachi') {
+    const prev = h88CompSnapshot();
+    const c = h88EnsureComp();
+    H88_SEATS.forEach((s, i) => {
+      const pid = playerPids[i];
+      c[s] = pid ? { t: 'human', pid: pid } : { t: 'cpu', level: (c[s] && c[s].level) || 'HARD' };
+    });
+    h88ApplyCompChange(prev); // 編成配信＋担い手が変わった席の親決め引き直し＋再描画
+  } else {
+    koiApplyRoles(playerPids);
+  }
+  pmNotifyRoles(); // ★立場が変わった人へ知らせる（ゲーム別の席の差分ではなく台帳を正とする）
+  renderParticipantMgmt();
+  updateStartBtn();
+}
+// ★v3.05: 台帳の立場を、変わった人にだけ知らせる。ゲームを切り替えても取り残されないよう、
+//   「席が変わったか」ではなく「その人へ最後に伝えた立場と違うか」で送る。
+function pmNotifyRoles() {
+  if (!state.isHost) return;
+  const roles = pmRoles(), sent = state._pmSentRole || (state._pmSentRole = {});
+  pmHumans().forEach(h => {
+    if (h.pid === state.myPid) return;
+    const want = (roles[h.pid] === 'player') ? 'player' : 'spectator';
+    if (sent[h.pid] === want) return;
+    sent[h.pid] = want;
+    MomoMatchmaking.send({ type: 'role-assign', role: want, hostName: state.hostName }, h.pid);
+  });
+}
+// v3.05: こいこい側へ反映。プレイヤーはホスト＋1人。空いていればコンピュータが相手を務める。
+function koiApplyRoles(playerPids) {
+  const hostPid = pmHostPid(), roles = pmRoles();
+  const guestPid = playerPids.find(p => p !== hostPid) || null;
+  const prevGuest = state.playerPid;
+  state.playerPid = guestPid;
+  state.noGuest = !guestPid;
+  if (guestPid) {
+    const e = (state.roster || []).find(x => x && x.pid === guestPid);
+    state.guestName = (e && e.name) || state.guestName || t('room.guest');
+    state.connected = true;
+    state.aiGuest = false;
+  } else {
+    state.guestName = t('vsai.cpu'); // ★空いた分はコンピュータが相手を務める
+    state.connected = false;
+    state.aiGuest = true;
+  }
+  if (prevGuest !== guestPid) hostResetPrepHandshake(); // 顔ぶれが変わったら親決め・準備をやり直し
+  koiSyncAiGuest();
+}
+// v3.05: こいこいの相手がコンピュータのときの下ごしらえ（準備完了は押す人が居ないので立てておく）。
+function koiSyncAiGuest() {
+  if (state.gameSel === 'hachi') return;
+  if (state.aiGuest) { state.aiSide = 'guest'; state.readyGuest = true; }
+}
+// v3.05: こいこいで相手をコンピュータが務めているか（対コンピュータ戦＝state.vsAI とは別物）。
+function koiAiOn() { return !!(state.vsAI || state.aiGuest); }
 // v3.04: 準備室の「下の箱」の出し分け。オンラインでは出さない（名前・種別・準備の印は参加者の枠に集約したため）。
 //   対コンピュータ戦（オフライン）は相手が居ないので従来どおりホスト箱・コンピュータ箱を出す。
 function pmSyncPrepBoxes() {
@@ -10441,18 +10537,8 @@ function pmSyncPrepBoxes() {
   if (h88pl) h88pl.classList.toggle('hidden', !isHachi || !offline);
   document.querySelectorAll('#screen-room .ready-panel').forEach(el => el.classList.toggle('hidden', !offline));
 }
-// v3.04: ゲームで人数が変わったら、入室の早い順にプレイヤー枠を埋め直す（あふれた人は観戦）。
-function pmAutoFillSeats() {
-  if (!state.isHost || state.vsAI || state.solo || inGameNow()) return;
-  if (state.gameSel === 'hachi') { h88HostReseatFromRoster(); return; } // 八八＝空いている席へ順に座らせる
-  // こいこい＝プレイヤーはホスト＋1人。入室のいちばん早い人を残し、ほかは観戦へ。
-  const others = (state.roster || []).filter(x => x && x.pid && x.pid !== state.myPid);
-  const want = others.length ? others[0].pid : null;
-  others.forEach(x => { if (x.pid !== want) MomoMatchmaking.send({ type: 'role-assign', role: 'spectator' }, x.pid); });
-  if (want) { if (state.playerPid !== want) hostSetRole(want, 'player'); }
-  else if (state.playerPid) hostSetRole(state.playerPid, 'spectator');
-  renderParticipantMgmt();
-}
+// v3.05: 定員が変わった（こいこい2人 ⇄ 八八3人）ときの埋め直しは pmRecompute が一手に引き受ける。
+function pmAutoFillSeats() { pmRecompute(); }
 
 // D3c: ホストが参加者の役を変更（プレイヤー↔観戦）。花札側だけで実現（サーバーの役は変えない）。
 function hostSetRole(pid, role) {
@@ -10510,7 +10596,9 @@ function hostKick(pid) {
   //   （旧v2.74は宛先 to で送り data.pid が無く、サーバーに弾かれていた＝キックが届かない不具合）
   MomoMatchmaking.send({ type: 'kick', pid: pid });
   state.roster = (state.roster || []).filter(x => x && x.pid !== pid); // ローカル名簿を即更新（server の participant_left でも届く）
+  delete pmRoles()[pid]; delete pmPinned()[pid]; // v3.05: 台帳からも外す
   if (pid === state.playerPid) { state.playerPid = null; handleGuestLeft(); } // プレイヤーをキック＝ゲスト不在に戻す
+  if (!inGameNow()) pmRecompute(); // 空いた分はコンピュータが埋める
   updateSpectatorCount();
   renderParticipantMgmt();
   renderSpectatorFloat();
@@ -10712,6 +10800,7 @@ function tryLaunchGame() {
 function leaveRoom() {
   state.intentionalLeave = true;        // 意図的退出 → 自動復帰を抑止
   state.vsAI = false; state.solo = false; // v1.59: 対コンピュータ戦フラグ解除
+  state.aiGuest = false; state.pmRoles = null; state.pmPinned = null; state._pmSentRole = null; // v3.05: 参加者の台帳を捨てる
   state.isSpectator = false; state.playerPid = null; state.noGuest = false; state.viewNames = null; // D3: 観戦フラグを解除
   try { MomoMatchmaking.leaveRoom(); } catch (e) {}
   state.connected = false;
@@ -10915,14 +11004,19 @@ function bindEvents() {
     h88Levels()[sel.dataset.seat] = sel.value; // vsコンピュータは従来どおり
     h88PrepReset(); // 強さが変わったら顔ぶれ・親決めをやり直し（名前の（強さ）表記も更新）
   });
-  // v3.04: 参加者の枠に置いたコンピュータの強さ（オンライン八八・ホストのみ）
+  // v3.04/3.05: 参加者の枠に置いたコンピュータの強さ（ホストのみ）。八八は席ごと・こいこいは1つ。
   const pmEl = document.getElementById('participant-mgmt');
   if (pmEl) pmEl.addEventListener('change', (e) => {
-    const sel = e.target.closest('.h88-cpu-level'); if (!sel) return;
+    const sel = e.target.closest('.pm-cpu-level'); if (!sel) return;
     if (!state.isHost || state.vsAI || inGameNow()) return;
-    const prev = h88CompSnapshot();
-    h88SeatToCpu(sel.dataset.seat, sel.value);
-    h88ApplyCompChange(prev); // 全員へ編成を配り直す（親決めは無効化しない）
+    if (sel.dataset.seat) { // 八八＝席ごとの強さ
+      const prev = h88CompSnapshot();
+      h88SeatToCpu(sel.dataset.seat, sel.value);
+      h88ApplyCompChange(prev); // 全員へ編成を配り直す（親決めは無効化しない）
+    } else { // こいこい＝相手を務めるコンピュータの強さ
+      state.aiLevel = sel.value;
+      renderParticipantMgmt();
+    }
   });
   // v1.60: 準備画面のコンピュータ強さプルダウン
   const aiPrepSel = document.getElementById('ai-level-prep');
@@ -11318,40 +11412,65 @@ function chatRoleOf(pid) {
 // v3.04: 準備室の「1人1枠」もこの名簿から作るので、並び順（プレイヤー枠が先・早い者順）と
 //   「ホスト／ゲスト／コンピュータ」の種別・席・強さまで載せる。
 //   ★role（'host'|'player'|'spectator'）の意味は変えない。対局画面の吹き出しの当て先がこれを見ている。
-function chatBuildRosterView() {
-  const isHachiComp = (state.gameSel === 'hachi' && !state.vsAI);
-  const hostName = state.hostName || t('room.host');
-  const byPid = {}; (state.roster || []).forEach(x => { if (x && x.pid) byPid[x.pid] = x; });
-  const nameOf = (pid) => (pid === state.myPid) ? hostName : ((byPid[pid] && byPid[pid].name) || '?');
-  const out = [], seated = {};
-  if (isHachiComp) {
-    const c = h88Comp(), cnames = h88CompNames();
-    H88_SEATS.forEach(s => {
-      const occ = c[s] || { t: 'cpu' };
-      if (occ.t === 'human') {
-        seated[occ.pid] = true;
-        const isHostPid = (occ.pid === state.myPid);
-        out.push({ pid: occ.pid, name: nameOf(occ.pid), kind: 'human', conn: isHostPid ? 'host' : 'guest', role: isHostPid ? 'host' : 'player', seat: s });
-      } else {
-        out.push({ pid: 'cpu:' + s, name: cnames[s], kind: 'cpu', conn: 'cpu', role: 'player', seat: s, level: occ.level || 'HARD' });
-      }
-    });
-    if (!seated[state.myPid]) out.push({ pid: state.myPid, name: hostName, kind: 'human', conn: 'host', role: 'spectator' }); // 席に居ないホスト＝観戦
-    seated[state.myPid] = true;
-  } else {
-    out.push({ pid: state.myPid, name: hostName, kind: 'human', conn: 'host', role: 'host' });
-    seated[state.myPid] = true;
-    if (state.playerPid && !state.noGuest) {
-      seated[state.playerPid] = true;
-      out.push({ pid: state.playerPid, name: nameOf(state.playerPid), kind: 'human', conn: 'guest', role: 'player' });
-    } else {
-      out.push({ pid: 'empty:1', name: '', kind: 'empty', conn: 'guest', role: 'player' }); // 参加待ちの枠
-    }
-  }
-  (state.roster || []).forEach(x => { // 残り＝観戦者（入室の早い順）
-    if (!x || !x.pid || seated[x.pid]) return;
-    out.push({ pid: x.pid, name: x.name || '?', kind: 'human', conn: 'guest', role: 'spectator' });
+// ★v3.05 参加者モデル（ユーザー指定）
+//   ・人はホストを先頭に**入室順**で並ぶ。プレイヤー／観戦を切り替えても**並びは動かない**。
+//   ・その下に、定員に足りない人数分の**コンピュータ**が並ぶ（定員＝こいこい2／八八3）。
+//   ・入室した人は、プレイヤーに空きがあればプレイヤー、無ければ観戦。
+function pmCapacity() { return (state.gameSel === 'hachi') ? 3 : 2; } // このゲームで対局する人数
+function pmRoles() { if (!state.pmRoles) state.pmRoles = {}; return state.pmRoles; } // pid → 'player'|'spectator'（ホストが持つ台帳）
+function pmHostPid() { const h = (state.roster || []).find(x => x && x.role === 'host'); return (h && h.pid) || (state.isHost ? state.myPid : null); }
+// 入室順の人間一覧（ホストが先頭）。名簿の並びをそのまま使う＝立場を変えても動かない。
+function pmHumans() {
+  const r = (state.roster || []).filter(x => x && x.pid);
+  const hostPid = pmHostPid();
+  const nameOf = (x) => (x.pid === state.myPid && state.isHost) ? (state.hostName || x.name || '?') : (x.name || '?');
+  const out = [];
+  const h = r.find(x => x.pid === hostPid);
+  if (h) out.push({ pid: h.pid, name: nameOf(h) });
+  else if (state.isHost) out.push({ pid: state.myPid, name: state.hostName || t('room.host') }); // 名簿が届く前のホスト自身
+  r.forEach(x => { if (x.pid !== hostPid) out.push({ pid: x.pid, name: nameOf(x) }); });
+  return out;
+}
+// ホストが手で決めた人の印。ここに載っている人は自動の埋め直しで動かさない。
+function pmPinned() { if (!state.pmPinned) state.pmPinned = {}; return state.pmPinned; }
+// 台帳を整える。
+//   ・ホストが手で決めた立場はそのまま尊重する
+//   ・それ以外の人は**入室順に上から**、空きがある限りプレイヤー。あふれた人は観戦
+//   ・定員が変わったら（こいこい2 ⇄ 八八3）この規則でもう一度並べ直す
+//   ・抜けた人は落とす
+function pmSyncRoles() {
+  if (!state.isHost) return;
+  const roles = pmRoles(), pinned = pmPinned(), cap = pmCapacity(), humans = pmHumans();
+  const alive = {}; humans.forEach(h => { alive[h.pid] = true; });
+  Object.keys(roles).forEach(pid => { if (!alive[pid]) delete roles[pid]; });
+  Object.keys(pinned).forEach(pid => { if (!alive[pid]) delete pinned[pid]; });
+  let n = 0;
+  humans.forEach(h => { if (pinned[h.pid] && roles[h.pid] === 'player') n++; }); // ホスト指定の対局者を先に数える
+  humans.forEach(h => { // 残りを入室順に埋める
+    if (pinned[h.pid]) return;
+    if (n < cap) { roles[h.pid] = 'player'; n++; } else roles[h.pid] = 'spectator';
   });
+  // 定員が減って対局者があふれたら、入室の遅い人から観戦へ（ホスト指定も含む）
+  let players = humans.filter(h => roles[h.pid] === 'player');
+  while (players.length > cap) { const last = players.pop(); roles[last.pid] = 'spectator'; }
+}
+function chatBuildRosterView() {
+  const isHachi = (state.gameSel === 'hachi' && !state.vsAI);
+  const roles = pmRoles(), humans = pmHumans(), cap = pmCapacity(), hostPid = pmHostPid();
+  const out = [];
+  humans.forEach(h => {
+    const isHostPid = (h.pid === hostPid);
+    const isPlayer = (roles[h.pid] === 'player');
+    out.push({ pid: h.pid, name: h.name, kind: 'human', conn: isHostPid ? 'host' : 'guest', role: isPlayer ? (isHostPid ? 'host' : 'player') : 'spectator' });
+  });
+  const shortfall = Math.max(0, cap - humans.filter(h => roles[h.pid] === 'player').length);
+  if (isHachi) { // 八八＝人間が座っていない席がコンピュータ
+    const c = h88Comp(), cnames = h88CompNames();
+    H88_SEATS.filter(s => !(c[s] && c[s].t === 'human')).slice(0, shortfall)
+      .forEach(s => out.push({ pid: 'cpu:' + s, name: cnames[s], kind: 'cpu', conn: 'cpu', role: 'player', seat: s, level: (c[s] && c[s].level) || 'HARD' }));
+  } else { // こいこい＝席の概念が無いので強さは1つ
+    for (let i = 0; i < shortfall; i++) out.push({ pid: 'cpu:koi' + i, name: t('vsai.cpu'), kind: 'cpu', conn: 'cpu', role: 'player', seat: null, level: state.aiLevel || 'HARD' });
+  }
   return out;
 }
 function chatPushRoster(list) {
@@ -11419,10 +11538,7 @@ function chatMakeIcon() {
 //   毎回ここで引き直して位置だけ合わせ直す（入力中の文字はそのまま残る）。
 function chatMyIconEl() {
   if (!state.myPid) return null;
-  if (state.screen === 'room') {
-    const row = document.querySelector('#participant-mgmt .pm-row[data-pid="' + String(state.myPid).replace(/"/g, '') + '"]');
-    return row ? row.querySelector('.chat-icon') : null;
-  }
+  if (state.screen === 'room') return null; // v3.05: 準備室は枠の中の入力欄で打つ（吹き出しの入力は使わない）
   let box = null;
   if (chatIsSpectatorNow()) box = chatTitleEl(state.screen === 'hachi' ? 'screen-hachi' : 'screen-game');
   else if (state.screen === 'game') { const e = document.getElementById('my-hand-name'); box = e && e.parentElement; }

@@ -214,6 +214,19 @@ export const ja: LocaleData = {
     'result.rematch.offline': 'もう一度対局',
     'result.close': '閉じる',
     'result.saveKifu': '棋譜を保存',
+
+    // 棋譜を捨てる前の確認 (親 v1.36 §9.2.3 ②・画面機能 v0.30 §3 S02／S07)。
+    // リセットだけ二段 (「リセットしますか」→ はい →「保存する／破棄する」)。
+    'kifu.guard.resetTitle': 'リセットしますか',
+    'kifu.guard.resetBody': '盤を最初の並びに戻します。ここまでの指し手は消えます。',
+    'kifu.guard.resetYes': 'リセットする',
+    'kifu.guard.resetNo': 'やめる',
+    'kifu.guard.title': '棋譜がまだ保存されていません',
+    'kifu.guard.body': '直前の対局の棋譜は、まだファイルに書き出していません。新しい対局を始めると失われます。',
+    'kifu.guard.save': '保存する',
+    'kifu.guard.saving': '書き出しています…',
+    'kifu.guard.discard': '破棄する',
+    'kifu.guard.cancelledNote': '保存をやめました。棋譜はまだ残っています。',
     'result.reason.agreed_draw': '合意による引分',
     // Phase 6: はさみ将棋の全滅 (親 §3.10 annihilation・付録D-3 §3.3/§3.4)
     'result.reason.annihilation': 'はさみ将棋の勝ち',

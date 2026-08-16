@@ -1,6 +1,18 @@
 import { create } from 'zustand';
+import { requestNewGame } from './kifu-guard';
 
 export type Screen = 'game' | 'lobby' | 'net-lobby' | 'rule-select' | 'room' | 'endgame' | 'offline-rule' | 'ai-setup';
+
+/**
+ * **そこから先へ進むと必ず盤が作り直される設定画面**（親 v1.36 §9.2.3 ②）。
+ * ここへ入るときは、未保存の棋譜があれば「保存する／破棄する」を尋ねる。
+ *
+ * **画面 ID の列挙ではなく上の事実で選ぶこと**。v1.35 は S02／S03／S05 の 3 つを
+ * 並べていたため、**画面一覧に載っていない `offline-rule`（オフライン対人の設定）が
+ * 漏れ**、そこから始める対局では一度も尋ねずに棋譜が消えていた。
+ * 画面を足すときは「その画面から対局が始まるか」で判断する。
+ */
+const NEW_GAME_SETUP_SCREENS: readonly Screen[] = ['rule-select', 'ai-setup', 'room', 'offline-rule'];
 
 interface RouteState {
   screen: Screen;
@@ -10,13 +22,26 @@ interface RouteState {
    * 'ai-setup' (対AI設定 S03・Phase 3-2)。
    */
   ruleSelectReturn: 'net-lobby' | 'offline-rule' | 'ai-setup';
-  setScreen: (screen: Screen) => void;
+  /**
+   * 画面を移る。設定画面へ入るときは棋譜の確認をはさむ（親 §9.2.3 ②）。
+   *
+   * `skipKifuGuard` は**割り込んではいけない経路のための逃げ道**＝ネット対戦で
+   * **相手の操作により盤が作り直される**経路。こちらが確認で止めると相手を待たせる。
+   * 使ってよいのはその場合だけで、**既定は必ず確認を通す側**にしてある。
+   */
+  setScreen: (screen: Screen, opts?: { skipKifuGuard?: boolean }) => void;
   setRuleSelectReturn: (dest: 'net-lobby' | 'offline-rule' | 'ai-setup') => void;
 }
 
 export const useRouteStore = create<RouteState>((set) => ({
   screen: 'game',
   ruleSelectReturn: 'net-lobby',
-  setScreen: (screen) => set({ screen }),
+  setScreen: (screen, opts) => {
+    if (!opts?.skipKifuGuard && NEW_GAME_SETUP_SCREENS.includes(screen)) {
+      requestNewGame(() => set({ screen }));
+      return;
+    }
+    set({ screen });
+  },
   setRuleSelectReturn: (ruleSelectReturn) => set({ ruleSelectReturn }),
 }));

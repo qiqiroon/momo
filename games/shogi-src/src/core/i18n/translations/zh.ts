@@ -204,6 +204,19 @@ export const zh: LocaleData = {
     'result.rematch.offline': '再来一局',
     'result.close': '关闭',
     'result.saveKifu': '保存棋谱',
+
+    // 丢弃棋谱前的确认 (母规格 v1.36 §9.2.3 ②・画面功能 v0.30 §3 S02／S07)。
+    // 只有「重置」是两段式。
+    'kifu.guard.resetTitle': '要重置吗',
+    'kifu.guard.resetBody': '棋盘将回到初始摆法，已下的着子会消失。',
+    'kifu.guard.resetYes': '重置',
+    'kifu.guard.resetNo': '取消',
+    'kifu.guard.title': '棋谱尚未保存',
+    'kifu.guard.body': '上一局的棋谱还没有写成文件。开始新对局就会丢失。',
+    'kifu.guard.save': '保存',
+    'kifu.guard.saving': '正在写出…',
+    'kifu.guard.discard': '丢弃',
+    'kifu.guard.cancelledNote': '已取消保存，棋谱仍然保留。',
     'result.reason.agreed_draw': '双方同意和棋',
     // Phase 6: 夹将棋的全灭 (亲 §3.10 annihilation・附录D-3 §3.3/§3.4)
     'result.reason.annihilation': '夹将棋获胜',

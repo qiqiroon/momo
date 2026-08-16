@@ -204,6 +204,19 @@ export const en: LocaleData = {
     'result.rematch.offline': 'Play Again',
     'result.close': 'Close',
     'result.saveKifu': 'Save record',
+
+    // Confirmation before the stored record is dropped (spec v1.36 §9.2.3 ②,
+    // screen spec v0.30 §3 S02 / S07). Reset is the only two-step one.
+    'kifu.guard.resetTitle': 'Reset the board?',
+    'kifu.guard.resetBody': 'The board returns to the starting position. Moves played so far are lost.',
+    'kifu.guard.resetYes': 'Reset',
+    'kifu.guard.resetNo': 'Cancel',
+    'kifu.guard.title': 'This record is not saved yet',
+    'kifu.guard.body': 'The record of the last game has not been written to a file. Starting a new game loses it.',
+    'kifu.guard.save': 'Save',
+    'kifu.guard.saving': 'Saving…',
+    'kifu.guard.discard': 'Discard',
+    'kifu.guard.cancelledNote': 'Saving was cancelled. The record is still here.',
     'result.reason.agreed_draw': 'Agreed Draw',
     // Phase 6: Hasami Shogi annihilation (spec §3.10 / appendix D-3 §3.3, §3.4)
     'result.reason.annihilation': 'Win by capture (Hasami)',

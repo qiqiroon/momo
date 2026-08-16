@@ -6,6 +6,7 @@ import { useChatStore } from '../store/chat-store';
 import { useOffersStore } from '../store/offers-store';
 import { ChatConsole } from './ChatConsole';
 import { useRouteStore } from '../store/route-store';
+import { requestNewGame } from '../store/kifu-guard';
 import { get as pluginGet } from '../plugin/registry';
 import {
   seMove,
@@ -502,8 +503,13 @@ export function GameScreen({ variant }: GameScreenProps) {
                       className="reset-btn primary"
                       type="button"
                       onClick={() => {
-                        const c = pluginGet<OnlineGameConnector>('gameConnector');
-                        if (c) c.returnToPreparation();
+                        // 再戦は待機 (S05) へ戻る＝新しい対局の開始 (親 §9.2.3 ②)。
+                        // **確認はここで取る**。戻る処理は盤を作り直してから画面を移すので、
+                        // 画面を移る側の関門だけに任せると、やめても盤が消えてしまう。
+                        requestNewGame(() => {
+                          const c = pluginGet<OnlineGameConnector>('gameConnector');
+                          if (c) c.returnToPreparation();
+                        });
                       }}
                     >
                       {t('result.rematch.online')}
@@ -537,7 +543,13 @@ export function GameScreen({ variant }: GameScreenProps) {
                   >
                     {t(vsAi ? 's07.backToAiSetup' : 's07.backToOfflineSetup')}
                   </button>
-                  <button className="reset-btn" type="button" onClick={() => reset()}>
+                  {/* リセットだけ二段 (画面機能 §3 S07)＝対局中に押せる位置にあり、
+                      誤操作の代償が大きいので、先に「リセットしますか」を尋ねる。 */}
+                  <button
+                    className="reset-btn"
+                    type="button"
+                    onClick={() => requestNewGame(() => reset(), { twoStep: true })}
+                  >
                     {t('s07.reset')}
                   </button>
                 </>
@@ -1712,14 +1724,18 @@ function GameEndModal({
 
   // 「対局準備に戻る」or「もう一度対局」— 同じ部屋で再対局を可能に
   const rematchLabel = online.isOnline ? t('result.rematch.online') : t('result.rematch.offline');
+  // 「もう一度対局」も新しい対局の開始なので、未保存の棋譜があれば先に尋ねる
+  // (親 §9.2.3 ②)。終局後に押す物なので一段 (二段はリセットだけ)。
   const onRematch = () => {
-    const c = pluginGet<OnlineGameConnector>('gameConnector');
-    if (online.isOnline && c) {
-      c.returnToPreparation();
-    } else {
-      reset();
-      setDismissed(status);
-    }
+    requestNewGame(() => {
+      const c = pluginGet<OnlineGameConnector>('gameConnector');
+      if (online.isOnline && c) {
+        c.returnToPreparation();
+      } else {
+        reset();
+        setDismissed(status);
+      }
+    });
   };
 
   const verdictClass =

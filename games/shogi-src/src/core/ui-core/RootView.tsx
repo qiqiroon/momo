@@ -4,6 +4,7 @@ import { useRouteStore } from '../store/route-store';
 import { GameScreen } from './GameScreen';
 import { OfflineRuleScreen } from './OfflineRuleScreen';
 import { AiSetupScreen } from './AiSetupScreen';
+import { KifuGuardDialog } from './KifuGuardDialog';
 import { playRandomBgm, stopBgm, isAudioRunning } from '../audio/audio-engine';
 
 interface RootViewProps {
@@ -32,6 +33,17 @@ export function RootView({ variant }: RootViewProps) {
   const screen = useRouteStore((s) => s.screen);
   useScreenBgm(screen);
 
+  return (
+    <>
+      {renderScreen(screen, variant)}
+      {/* 棋譜を捨てる前の確認 (親 §9.2.3 ②)。**画面のいちばん外側に置く**＝
+          どの画面から呼ばれても同じ物が出て、途中の入れ物の重なり順に埋もれない。 */}
+      <KifuGuardDialog />
+    </>
+  );
+}
+
+function renderScreen(screen: string, variant: 'a' | 'b') {
   if (screen === 'game') {
     return <GameScreen variant={variant} />;
   }

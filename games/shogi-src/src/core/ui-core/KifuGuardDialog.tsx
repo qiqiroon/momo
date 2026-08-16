@@ -67,6 +67,17 @@ export function KifuGuardDialog() {
           （元の操作も行わず、この確認へ戻る＝親 §9.2.3 ③）。 */}
       {cancelled && <div className="body warn">{t('kifu.guard.cancelledNote')}</div>}
       <div className="btn-row">
+        {/* **「やめる」は必ず置く**（親 v1.37 §9.2.3 ②）。この確認は破棄の契機の
+            手前に割り込むので、引き返せないと「どちらかを選ぶまで通さない関所」に
+            なる＝棋譜を守るための仕掛けが、棋譜を捨てる方へ人を押し出してしまう。 */}
+        <button
+          type="button"
+          className="btn ghost"
+          disabled={saving}
+          onClick={() => { seButton(); guardCancel(); }}
+        >
+          {t('kifu.guard.cancel')}
+        </button>
         <button
           type="button"
           className="btn ghost"

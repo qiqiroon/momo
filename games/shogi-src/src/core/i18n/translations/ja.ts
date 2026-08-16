@@ -226,6 +226,8 @@ export const ja: LocaleData = {
     'kifu.guard.save': '保存する',
     'kifu.guard.saving': '書き出しています…',
     'kifu.guard.discard': '破棄する',
+    // 元の操作を行わず、記憶もそのまま（親 v1.37 §9.2.3 ②）。
+    'kifu.guard.cancel': 'やめる',
     'kifu.guard.cancelledNote': '保存をやめました。棋譜はまだ残っています。',
     'result.reason.agreed_draw': '合意による引分',
     // Phase 6: はさみ将棋の全滅 (親 §3.10 annihilation・付録D-3 §3.3/§3.4)

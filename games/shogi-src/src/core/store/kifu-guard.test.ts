@@ -71,6 +71,28 @@ describe('棋譜を捨てる前の確認（親 §9.2.3 ②）', () => {
     expect(useKifuGuardStore.getState().stage).toBeNull();
   });
 
+  it('★「やめる」で引き返せる＝元の操作を行わず、記憶もそのまま（親 v1.37 §9.2.3 ②）', () => {
+    const fake = installFakeKifu('unsaved');
+    let ran = 0;
+    requestNewGame(() => { ran += 1; });
+    expect(useKifuGuardStore.getState().stage).toBe('kifu');
+    guardCancel();
+    expect(ran).toBe(0);
+    expect(fake.discarded).toBe(0);
+    expect(fake.state).toBe('unsaved');
+    expect(useKifuGuardStore.getState().stage).toBeNull();
+  });
+
+  it('★「やめる」を選んだあと、同じ操作をやり直せば再び尋ねる', () => {
+    installFakeKifu('unsaved');
+    let ran = 0;
+    requestNewGame(() => { ran += 1; });
+    guardCancel();
+    requestNewGame(() => { ran += 1; });
+    expect(useKifuGuardStore.getState().stage).toBe('kifu');
+    expect(ran).toBe(0);
+  });
+
   it('保存済みなら尋ねずに捨てて進む（ファイルとして残っているため）', () => {
     const fake = installFakeKifu('saved');
     let ran = 0;
@@ -120,6 +142,19 @@ describe('「保存する」を選んだとき（親 §9.2.3 ③）', () => {
     // 確認は出したまま。取り消したことも画面に出せるようにしておく。
     expect(useKifuGuardStore.getState().stage).toBe('kifu');
     expect(useKifuGuardStore.getState().cancelled).toBe(true);
+  });
+
+  it('★取り消して戻った先でも「やめる」で引き返せる（閉じ込めない）', async () => {
+    const fake = installFakeKifu('unsaved');
+    fake.outcome = 'cancelled';
+    let ran = 0;
+    requestNewGame(() => { ran += 1; });
+    await guardSave();
+    guardCancel();
+    expect(ran).toBe(0);
+    expect(fake.discarded).toBe(0);
+    expect(fake.state).toBe('unsaved');
+    expect(useKifuGuardStore.getState().stage).toBeNull();
   });
 
   it('取り消したあと、もう一度保存して進める', async () => {
@@ -199,6 +234,15 @@ describe('画面を移る仕組みの側で確認する（親 §9.2.3 ②）', (
     guardDiscard();
     expect(fake.discarded).toBe(1);
     expect(useRouteStore.getState().screen).toBe('offline-rule');
+  });
+
+  it('★確認で「やめる」を選んだら画面も移らない（元の場所に留まる）', () => {
+    const fake = installFakeKifu('unsaved');
+    setScreen()('rule-select');
+    guardCancel();
+    expect(useRouteStore.getState().screen).toBe('game');
+    expect(fake.discarded).toBe(0);
+    expect(fake.state).toBe('unsaved');
   });
 
   it('対局画面やメニューへ移るときは尋ねない（盤を作り直す画面ではない）', () => {

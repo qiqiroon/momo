@@ -216,6 +216,8 @@ export const en: LocaleData = {
     'kifu.guard.save': 'Save',
     'kifu.guard.saving': 'Saving…',
     'kifu.guard.discard': 'Discard',
+    // Goes back without doing anything; the record stays (spec v1.37 §9.2.3 ②).
+    'kifu.guard.cancel': 'Cancel',
     'kifu.guard.cancelledNote': 'Saving was cancelled. The record is still here.',
     'result.reason.agreed_draw': 'Agreed Draw',
     // Phase 6: Hasami Shogi annihilation (spec §3.10 / appendix D-3 §3.3, §3.4)

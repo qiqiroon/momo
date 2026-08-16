@@ -216,6 +216,8 @@ export const zh: LocaleData = {
     'kifu.guard.save': '保存',
     'kifu.guard.saving': '正在写出…',
     'kifu.guard.discard': '丢弃',
+    // 不执行原来的操作，棋谱也保持原样 (母规格 v1.37 §9.2.3 ②)。
+    'kifu.guard.cancel': '取消',
     'kifu.guard.cancelledNote': '已取消保存，棋谱仍然保留。',
     'result.reason.agreed_draw': '双方同意和棋',
     // Phase 6: 夹将棋的全灭 (亲 §3.10 annihilation・附录D-3 §3.3/§3.4)

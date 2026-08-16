@@ -1,12 +1,20 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useGameStore } from '../../core/store/game-store';
 import { useAiStore } from '../../core/store/ai-store';
 import { clear as clearPlugins } from '../../core/plugin/registry';
-import { generateLegalMoves, positionHash } from '../../core/engine';
+import { applyMove, generateLegalMoves, positionHash } from '../../core/engine';
 import '../quantum';
 import '../torus';
-import { buildKifuFile, kifuFileName, parseKifu, replayKifu, serializeKifu } from './index';
-import { clearLastKifu, loadLastKifu } from './storage';
+import {
+  adoptLoadedKifu,
+  buildKifuFile,
+  kifuFileName,
+  parseKifu,
+  replayKifu,
+  saveCurrentKifu,
+  serializeKifu,
+} from './index';
+import { discardKifu, kifuMemoryState, loadKifuMemory, loadLastKifu } from './storage';
 import type { KifuFile } from './types';
 
 /**
@@ -24,9 +32,35 @@ function playMoves(count: number): void {
   }
 }
 
+/**
+ * 千日手（同じ局面 4 回）まで指す。**手だけで終局する棋譜**が要るところで使う
+ * （投了や時間切れは棋譜に手として残らないので、再生では終局まで行かない）。
+ *
+ * 選び方＝行き先の局面が既に出ている手を優先する。行って戻れる駒を見つけると
+ * そこを往復し続けるので、そのまま 4 回に達する。乱数は使わない（毎回同じ棋譜）。
+ */
+function playUntilSennichite(cap = 120): void {
+  for (let i = 0; i < cap; i++) {
+    const s = useGameStore.getState();
+    if (s.status !== 'playing') return;
+    const legal = generateLegalMoves(s.mgf, s.position);
+    if (legal.length === 0) return;
+    let best = legal[(i * 7 + 3) % legal.length];
+    let bestSeen = -1;
+    for (const m of legal) {
+      const seen = s.positionCounts[positionHash(applyMove(s.mgf, s.position, m))] ?? 0;
+      if (seen > bestSeen) {
+        bestSeen = seen;
+        best = m;
+      }
+    }
+    if (!useGameStore.getState().replayRecordedMove(best)) return;
+  }
+}
+
 describe('棋譜ファイル — 書き出して読み直すと同じ局面に戻る', () => {
   beforeEach(() => {
-    clearLastKifu();
+    discardKifu();
     useAiStore.setState({ enabled: false });
   });
 
@@ -95,25 +129,183 @@ describe('棋譜ファイル — 書き出して読み直すと同じ局面に�
   });
 });
 
-describe('棋譜ファイル — 直前の 1 局の受け皿', () => {
+describe('棋譜の記憶 — 1 枠 3 状態 (親 §9.2.3 ①②)', () => {
   beforeEach(() => {
-    clearLastKifu();
+    discardKifu();
     useAiStore.setState({ enabled: false });
   });
 
-  it('対局が終わると受け皿に入り、次の対局が始まると消える', () => {
+  it('対局が終わると「未保存」で記憶に入る', () => {
     useGameStore.getState().reset({ gameType: 'shogi', quantum: false, torusMode: 'none', handicap: null });
     playMoves(6);
-    expect(loadLastKifu()).toBeNull(); // 対局中はまだ入らない
+    expect(kifuMemoryState()).toBe('empty'); // 対局中はまだ入らない
 
     useGameStore.getState().resign('player1');
-    const saved = loadLastKifu();
-    expect(saved).not.toBeNull();
-    expect(saved?.meta.result.status).toBe('resigned_p1');
-    expect(saved?.moves).toHaveLength(6);
+    expect(kifuMemoryState()).toBe('unsaved');
+    const m = loadKifuMemory();
+    expect(m?.file.meta.result.status).toBe('resigned_p1');
+    expect(m?.file.moves).toHaveLength(6);
+  });
 
+  it('盤を作り直しただけでは消えない（破棄は §9.2.3 ② の契機だけ）', () => {
+    useGameStore.getState().reset({ gameType: 'shogi', quantum: false, torusMode: 'none', handicap: null });
+    playMoves(6);
+    useGameStore.getState().resign('player1');
+    expect(kifuMemoryState()).toBe('unsaved');
+
+    // v1.40 はここで消していた。盤の作り直しは再生でも起きるので合図にしてはならない。
     useGameStore.getState().reset();
+    expect(kifuMemoryState()).toBe('unsaved');
+    expect(loadLastKifu()?.moves).toHaveLength(6);
+  });
+
+  it('破棄すると空になる', () => {
+    useGameStore.getState().reset({ gameType: 'shogi', quantum: false, torusMode: 'none', handicap: null });
+    playMoves(4);
+    useGameStore.getState().resign('player2');
+    expect(kifuMemoryState()).toBe('unsaved');
+
+    discardKifu();
+    expect(kifuMemoryState()).toBe('empty');
     expect(loadLastKifu()).toBeNull();
+  });
+
+  it('★再生しても記憶は消えず、印も変わらない（v1.40 の欠陥①）', () => {
+    useGameStore.getState().reset({ gameType: 'shogi', quantum: false, torusMode: 'none', handicap: null });
+    playMoves(10);
+    useGameStore.getState().resign('player2');
+    const kept = loadKifuMemory();
+    expect(kept).not.toBeNull();
+
+    // 記憶している棋譜そのものを再生する（v1.40 では、これで当の棋譜が消えていた）
+    const r = replayKifu(kept!.file);
+    expect(r.applied).toBe(r.recorded);
+
+    const after = loadKifuMemory();
+    expect(after).not.toBeNull();
+    expect(after?.saved).toBe(kept!.saved);
+    expect(after?.file.moves).toHaveLength(10);
+  });
+
+  it('★終局まで指し切る棋譜を再生しても、本物の対局と取り違えない', () => {
+    // 再生は盤を作り直して終局まで指し直すので、見張っている側から見ると
+    // 「対局が終わった」と同じに見える。取り違えると印が未保存へ戻ってしまう。
+    useGameStore.getState().reset({ gameType: 'shogi', quantum: false, torusMode: 'none', handicap: null });
+    playUntilSennichite();
+    expect(useGameStore.getState().status).toBe('sennichite'); // 手だけで終局していること
+
+    const file = parseKifu(serializeKifu(buildKifuFile(new Date())));
+    adoptLoadedKifu(file); // 読み込んだ棋譜＝「保存済み」
+    expect(kifuMemoryState()).toBe('saved');
+
+    const r = replayKifu(file);
+    expect(r.applied).toBe(r.recorded);
+    expect(useGameStore.getState().status).not.toBe('playing'); // 再生でも終局まで進む
+    expect(kifuMemoryState()).toBe('saved'); // 印が未保存へ戻らないこと
+  });
+
+  it('読み込んだ棋譜は「保存済み」で記憶に入る（ファイルが存在するため）', () => {
+    useGameStore.getState().reset({ gameType: 'shogi', quantum: false, torusMode: 'none', handicap: null });
+    playMoves(4);
+    const file = parseKifu(serializeKifu(buildKifuFile(new Date())));
+
+    adoptLoadedKifu(file);
+    expect(kifuMemoryState()).toBe('saved');
+    expect(loadLastKifu()?.moves).toHaveLength(4);
+  });
+});
+
+/**
+ * 共有シートとダウンロードの差し替え。
+ * jsdom には共有シートが無いので、こちらで名乗らせて経路を作る。
+ */
+function stubShare(behavior: 'ok' | 'cancel' | 'broken'): ReturnType<typeof vi.fn> {
+  const share = vi.fn(async () => {
+    if (behavior === 'cancel') {
+      // 取り消しは拒否として返る（iOS の実際の返り方）
+      const e = new Error('share cancelled');
+      e.name = 'AbortError';
+      throw e;
+    }
+    if (behavior === 'broken') throw new Error('share is not working here');
+  });
+  Object.defineProperty(navigator, 'share', { value: share, configurable: true });
+  Object.defineProperty(navigator, 'canShare', { value: () => true, configurable: true });
+  return share;
+}
+
+function removeShare(): void {
+  Reflect.deleteProperty(navigator, 'share');
+  Reflect.deleteProperty(navigator, 'canShare');
+}
+
+/** ダウンロードが走ったかどうかを見る（走ったらファイル名が積まれる）。 */
+function watchDownloads(): string[] {
+  const names: string[] = [];
+  Object.defineProperty(URL, 'createObjectURL', { value: () => 'blob:test', configurable: true });
+  Object.defineProperty(URL, 'revokeObjectURL', { value: () => {}, configurable: true });
+  vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+    this: HTMLAnchorElement,
+  ) {
+    names.push(this.download);
+  });
+  return names;
+}
+
+describe('棋譜の書き出し — 保存の成否をどう確かめるか (親 §9.2.3 ③)', () => {
+  beforeEach(() => {
+    discardKifu();
+    useAiStore.setState({ enabled: false });
+    useGameStore.getState().reset({ gameType: 'shogi', quantum: false, torusMode: 'none', handicap: null });
+    playMoves(8);
+    useGameStore.getState().resign('player2');
+    expect(kifuMemoryState()).toBe('unsaved');
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    removeShare();
+  });
+
+  it('共有に成功すると「保存済み」になり、記憶は残る（もう一度保存でき、再生もできる）', async () => {
+    const share = stubShare('ok');
+    const downloads = watchDownloads();
+
+    expect(await saveCurrentKifu()).toBe('saved');
+    expect(share).toHaveBeenCalledTimes(1);
+    expect(downloads).toHaveLength(0);
+    expect(kifuMemoryState()).toBe('saved');
+    expect(loadLastKifu()?.moves).toHaveLength(8); // 消えていない
+  });
+
+  it('★共有を取り消すとダウンロードが走らず、印も「未保存」のまま（v1.40 の欠陥②）', async () => {
+    stubShare('cancel');
+    const downloads = watchDownloads();
+
+    expect(await saveCurrentKifu()).toBe('cancelled');
+    expect(downloads).toHaveLength(0); // やめたのに保存される、が v1.40 の欠陥
+    expect(kifuMemoryState()).toBe('unsaved');
+  });
+
+  it('共有そのものが動かない端末はダウンロードへ落ちる（取り消しとは区別する）', async () => {
+    stubShare('broken');
+    const downloads = watchDownloads();
+
+    expect(await saveCurrentKifu()).toBe('saved');
+    expect(downloads).toHaveLength(1);
+    expect(kifuMemoryState()).toBe('saved');
+  });
+
+  it('共有を持たない端末（PC）はダウンロードになり、印は「保存済み」・記憶も残る', async () => {
+    removeShare();
+    const downloads = watchDownloads();
+
+    expect(await saveCurrentKifu()).toBe('saved');
+    expect(downloads).toHaveLength(1);
+    expect(downloads[0]).toMatch(/\.json$/);
+    // 引き渡した先は分からないが、印は保存済みとし、記憶は安全網として残す
+    expect(kifuMemoryState()).toBe('saved');
+    expect(loadLastKifu()).not.toBeNull();
   });
 });
 

@@ -13,6 +13,14 @@ interface KifuListModalProps {
   rememberedState: KifuMemoryState;
   /** この画面で読み込んだぶん。画面を離れると空に戻る（端末のファイルは残る）。 */
   loaded: KifuFile[];
+  /** 指定してあるフォルダの名前（指定なしなら null）。 */
+  folderName: string | null;
+  /** そのフォルダの中の棋譜すべて。**一覧の出所はここになる**（画面機能 §3 S08）。 */
+  folderFiles: KifuFile[];
+  /** フォルダを読んでいる最中。 */
+  folderBusy: boolean;
+  /** 「別のフォルダを選ぶ」。 */
+  onChangeFolder: () => void;
   onPick: (file: KifuFile) => void;
   /** 「棋譜を読み込む」。**確認を通してから**書類ピッカーを開くこと。 */
   onRequestLoad: () => void;
@@ -28,18 +36,30 @@ interface KifuListModalProps {
  * ＝アプリの中に棋譜の書庫を持たないので、フォルダ列に対応する実体が無い（親 §9.2.1）。
  * **モックはまだ 2 ペインのままなので参照しない**（文書とモックが食い違ったら文書が正しい）。
  *
- * **フォルダ指定あり／なしを 1 画面で扱う**のが決まりだが、フォルダの指定そのものは
- * 未実装（親 §9.2.3 ④）なので、現状は常に「指定なし」の姿になる。行の形・並べ替え・
- * 読み込みの操作は両者で同じにする決まりなので、**画面を 2 種類作らない**。
+ * **フォルダ指定あり／なしを 1 画面で扱う**（親 §9.2.3 ④）。**変わるのは上の帯と
+ * 一覧の出所だけ**で、行の形・並べ替え・押したときの動きは同じ＝**画面を 2 種類作らない**。
+ *
+ * | | フォルダ指定あり（PC） | 指定なし（iPhone・Firefox・デスクトップ Safari） |
+ * |---|---|---|
+ * | 上の帯 | フォルダ名＋件数＋「別のフォルダを選ぶ」 | 「棋譜を読み込む」 |
+ * | 一覧 | **そのフォルダの棋譜すべて** | その場で読み込んだぶんだけ |
  *
  * **★書類ピッカーは押されるまで開かない**（画面機能 §3 S08）。勝手に開くと、
  * 受け皿の棋譜が隠れ、やめたときの行き先も失われる。
+ *
+ * **★フォルダ指定ありのときは、行を押しても確認を出さない**（親 v1.39 §9.2.3 ②）。
+ * フォルダの中の棋譜は**すでにファイルとして在る**ので、記憶に載せ直す意味がない
+ * ＝読み込みではなく再生であり、破棄の契機にあたらない。
  */
 export function KifuListModal({
   locale,
   remembered,
   rememberedState,
   loaded,
+  folderName,
+  folderFiles,
+  folderBusy,
+  onChangeFolder,
   onPick,
   onRequestLoad,
   onSave,
@@ -50,8 +70,15 @@ export function KifuListModal({
   const [sort, setSort] = useState<SortKey>('date');
   const labels = kifuLabels(locale);
 
-  const rows = [...loaded].sort(labels.comparator(sort));
-  const empty = !remembered && rows.length === 0;
+  // 一覧の出所は、フォルダを指定してあればそのフォルダ、無ければその場で読んだぶん。
+  const source = folderName ? folderFiles : loaded;
+  const rows = [...source].sort(labels.comparator(sort));
+  /**
+   * 先頭に固定する記憶の 1 局（付録D-8 §7）。**フォルダに書き終えたものは固定しない**
+   * ＝同じ対局が下の一覧にも出て二重になるため。未保存のうちはフォルダに無いので固定する。
+   */
+  const pinned = remembered && (!folderName || rememberedState === 'unsaved') ? remembered : null;
+  const empty = !pinned && rows.length === 0;
 
   return (
     <div
@@ -69,23 +96,47 @@ export function KifuListModal({
           </button>
         </div>
 
-        {/* 上の帯。フォルダ指定なしの姿＝入口は「棋譜を読み込む」だけ。
-            空のときは唯一の入口になるので中央に大きく置く（付録D-8 §7）。 */}
-        <div className={`lib-bar${empty ? ' only-load' : ''}`}>
-          {!empty && <span className="sp" />}
-          <button
-            type="button"
-            className="pick-btn"
-            onClick={() => {
-              seButton();
-              // **開く前に確認する**（親 §9.2.3 ②）。読み込みは破棄の契機なので、
-              // 未保存の棋譜があれば「保存する／破棄する／やめる」を尋ねる。
-              onRequestLoad();
-            }}
-          >
-            {t('s08.load')}
-          </button>
-        </div>
+        {/* 上の帯（付録D-8 §7）。**フォルダ指定の有無で中身が変わる**。
+            切り替えは自動で、ユーザーに環境の違いを説明しない。 */}
+        {folderName ? (
+          <div className="lib-bar has-folder">
+            <span className="fold">
+              <span className="ic">📁</span>
+              <span className="nm">{folderName}</span>
+              <span className="cnt">{folderBusy ? '…' : rows.length}</span>
+            </span>
+            <span className="sp" />
+            <button
+              type="button"
+              className="ghost-btn"
+              disabled={folderBusy}
+              onClick={() => {
+                seButton();
+                onChangeFolder();
+              }}
+            >
+              {t('s08.changeFolder')}
+            </button>
+          </div>
+        ) : (
+          /* フォルダ指定なしの姿＝入口は「棋譜を読み込む」だけ。
+             空のときは唯一の入口になるので中央に大きく置く。 */
+          <div className={`lib-bar${empty ? ' only-load' : ''}`}>
+            {!empty && <span className="sp" />}
+            <button
+              type="button"
+              className="pick-btn"
+              onClick={() => {
+                seButton();
+                // **開く前に確認する**（親 §9.2.3 ②）。書類ピッカーからの読み込みは
+                // 破棄の契機なので、未保存なら「保存する／破棄する／やめる」を尋ねる。
+                onRequestLoad();
+              }}
+            >
+              {t('s08.load')}
+            </button>
+          </div>
+        )}
 
         {/* 並べ替え。件数が少ないうちは実効が薄いが、**画面を 2 種類作らない**ため
             フォルダ指定なしでも同じ列を出す（付録D-8 §7）。 */}
@@ -105,17 +156,20 @@ export function KifuListModal({
         )}
 
         <div className="lib-list">
-          {empty && <div className="lib-empty">{t('s08.empty')}</div>}
+          {/* フォルダ指定ありで 0 件のときは、そのフォルダに無いことを言う（付録D-8 §7）。 */}
+          {empty && (
+            <div className="lib-empty">{t(folderName ? 's08.emptyFolder' : 's08.empty')}</div>
+          )}
 
           {/* 記憶している 1 局は先頭に固定し、区切り線で下と分ける（付録D-8 §7）。 */}
-          {remembered && (
+          {pinned && (
             <>
               <KifuRow
-                file={remembered}
+                file={pinned}
                 locale={locale}
                 unsaved={rememberedState === 'unsaved'}
-                onPick={() => onPick(remembered)}
-                onSave={() => onSave(remembered)}
+                onPick={() => onPick(pinned)}
+                onSave={() => onSave(pinned)}
                 saving={saving}
               />
               {rows.length > 0 && <div className="lib-sep" />}

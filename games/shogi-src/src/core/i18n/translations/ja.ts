@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.40',
+    'app.ver': 'v1.41',
     // v0.72 音楽再生確認モーダル (Darts と同じ思想)
     'sound.promptTitle': 'BGM と効果音を再生してもよろしいですか？',
     'sound.bgmLabel': 'BGM 音量',
@@ -226,10 +226,13 @@ export const ja: LocaleData = {
     's08.loaded': '棋譜を読み込みました',
     's08.loadFailed': 'この形式は読み込めません',
     's08.empty': 'まだ棋譜がありません',
+    's08.emptyFolder': 'このフォルダに棋譜がありません',
+    's08.changeFolder': '別のフォルダを選ぶ',
     's08.unsaved': '未保存',
     's08.save': '保存',
     's08.saved': '保存しました',
     's08.saveCancelled': '保存しませんでした',
+    's08.saveFailed': '保存できませんでした',
     's08.sortDate': '日付',
     's08.sortOpponent': '相手',
     's08.sortRule': 'ルール',
@@ -263,6 +266,7 @@ export const ja: LocaleData = {
     // 元の操作を行わず、記憶もそのまま（親 v1.37 §9.2.3 ②）。
     'kifu.guard.cancel': 'やめる',
     'kifu.guard.cancelledNote': '保存をやめました。棋譜はまだ残っています。',
+    'kifu.guard.failedNote': '保存できませんでした。棋譜はまだ残っています。',
     'result.reason.agreed_draw': '合意による引分',
     // Phase 6: はさみ将棋の全滅 (親 §3.10 annihilation・付録D-3 §3.3/§3.4)
     'result.reason.annihilation': 'はさみ将棋の勝ち',

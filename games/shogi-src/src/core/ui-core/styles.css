@@ -3164,6 +3164,16 @@ body::before {
 .io-btn:hover { border-color: var(--orange); color: var(--orange-light); }
 .io-btn:disabled { opacity: .35; cursor: not-allowed; }
 .io-btn:disabled:hover { border-color: var(--border-strong); color: var(--text); }
+/* 保存先の表示 (D-8 §8)。指定なしのときは出さない＝環境の制約を説明文にしない。
+   長い名前は中央で省く (末尾だけ切ると似た名前が見分けられなくなるため)。 */
+.dest-btn {
+  background: transparent; border: none; color: var(--text-muted); font-family: inherit;
+  font-size: 11px; cursor: pointer; display: flex; align-items: center; gap: 4px;
+  max-width: 190px; padding: 4px 6px; border-radius: 7px;
+}
+.dest-btn .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; }
+.dest-btn:hover { color: var(--orange-light); }
+.dest-btn:disabled { opacity: .35; cursor: not-allowed; }
 
 /* 手数リスト＝固定 3 行ボックス (D-8 §6)。**高さを変えない**＝手が増えても
    画面が伸びず、現在手だけが自動で見える位置へ入る。 */
@@ -3211,6 +3221,20 @@ body::before {
 /* 空のときは読み込みが唯一の入口なので、中央に大きく置く (D-8 §7) */
 .lib-bar.only-load { justify-content: center; padding-top: 16px; }
 .lib-bar.only-load .pick-btn { font-size: 13px; padding: 12px 20px; }
+/* フォルダ指定ありの帯＝フォルダ名＋件数＋「別のフォルダを選ぶ」 (D-8 §7) */
+.lib-bar .fold { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.lib-bar .fold .ic { font-size: 13px; flex: none; }
+.lib-bar .fold .nm {
+  font-weight: 700; font-size: 13px; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.lib-bar .fold .cnt { font-family: 'Fredoka One', cursive; font-size: 12px; color: var(--orange-light); flex: none; }
+.ghost-btn {
+  background: transparent; border: 1px solid var(--border-strong); color: var(--text-muted);
+  border-radius: 8px; font-size: 11px; padding: 6px 12px; cursor: pointer; font-family: inherit;
+}
+.ghost-btn:hover { border-color: var(--orange); color: var(--orange-light); }
+.ghost-btn:disabled { opacity: .35; cursor: not-allowed; }
 .lib-sort { display: flex; gap: 6px; padding: 10px 16px 0; flex-wrap: wrap; }
 .lib-sort button {
   background: transparent; border: 1px solid var(--border-strong); color: var(--text-muted);

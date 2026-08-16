@@ -21,8 +21,12 @@ import { get as pluginGet } from '../plugin/registry';
 
 /** 記憶の 3 状態（親 §9.2.3 ①）。 */
 type MemoryState = 'empty' | 'unsaved' | 'saved';
-/** 書き出しの結末（親 §9.2.3 ③）。`cancelled` は**本人がやめた**＝何も書いていない。 */
-type SaveOutcome = 'saved' | 'cancelled';
+/**
+ * 書き出しの結末（親 §9.2.3 ③）。`cancelled` は**本人がやめた**＝何も書いていない。
+ * `failed` は**やめていないのに書けなかった**＝どちらも先へ進めないが、
+ * **画面に出す言葉が違う**ので分ける（やめていない人に「やめました」と言わない）。
+ */
+type SaveOutcome = 'saved' | 'cancelled' | 'failed';
 
 /**
  * いま出ている確認。
@@ -37,6 +41,8 @@ interface KifuGuardState {
   saving: boolean;
   /** 直前の書き出しを本人が取り消した（画面に一言出すためだけに持つ）。 */
   cancelled: boolean;
+  /** 直前の書き出しが**やめたのではなく失敗した**（同上）。 */
+  failed: boolean;
   /** 確認が済んだら行う、元の操作。 */
   pending: (() => void) | null;
 }
@@ -45,6 +51,7 @@ export const useKifuGuardStore = create<KifuGuardState>(() => ({
   stage: null,
   saving: false,
   cancelled: false,
+  failed: false,
   pending: null,
 }));
 
@@ -58,7 +65,13 @@ function discardMemory(): void {
 }
 
 function close(): void {
-  useKifuGuardStore.setState({ stage: null, saving: false, cancelled: false, pending: null });
+  useKifuGuardStore.setState({
+    stage: null,
+    saving: false,
+    cancelled: false,
+    failed: false,
+    pending: null,
+  });
 }
 
 /** 捨てて元の操作へ進む。**ここが唯一の破棄の実行点**。 */
@@ -78,7 +91,13 @@ function discardAndRun(action: () => void): void {
  */
 export function requestNewGame(action: () => void, opts: { twoStep?: boolean } = {}): void {
   if (opts.twoStep) {
-    useKifuGuardStore.setState({ stage: 'reset', saving: false, cancelled: false, pending: action });
+    useKifuGuardStore.setState({
+      stage: 'reset',
+      saving: false,
+      cancelled: false,
+      failed: false,
+      pending: action,
+    });
     return;
   }
   askKifuOrRun(action);
@@ -101,7 +120,13 @@ function askKifuOrRun(action: () => void): void {
     discardAndRun(action);
     return;
   }
-  useKifuGuardStore.setState({ stage: 'kifu', saving: false, cancelled: false, pending: action });
+  useKifuGuardStore.setState({
+    stage: 'kifu',
+    saving: false,
+    cancelled: false,
+    failed: false,
+    pending: action,
+  });
 }
 
 /** 一段目「リセットしますか」に「はい」。ここから二段目（未保存なら）へ。 */
@@ -152,16 +177,23 @@ export async function guardSave(): Promise<void> {
     close();
     return;
   }
-  useKifuGuardStore.setState({ saving: true, cancelled: false });
+  useKifuGuardStore.setState({ saving: true, cancelled: false, failed: false });
   let outcome: SaveOutcome;
   try {
     outcome = await save();
   } catch {
     // 書き出せなかった＝何も残っていないかもしれない。捨てずに確認へ戻る。
-    outcome = 'cancelled';
+    // **本人はやめていない**ので `failed` として扱う（言葉が変わる）。
+    outcome = 'failed';
   }
   if (outcome !== 'saved') {
-    useKifuGuardStore.setState({ saving: false, cancelled: true });
+    // やめたのか書けなかったのかで、画面に出す言葉が変わる（付録D-8 §8
+    // 「確かめられた場合だけ断定する」）。どちらでも**先へは進めない**。
+    useKifuGuardStore.setState({
+      saving: false,
+      cancelled: outcome === 'cancelled',
+      failed: outcome === 'failed',
+    });
     return;
   }
   // 書き出せた＝ファイルとして残ったので、ここで捨ててよい（§9.2.3 ②）。

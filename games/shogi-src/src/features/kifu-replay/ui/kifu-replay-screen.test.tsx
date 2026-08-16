@@ -7,6 +7,8 @@ import { useRouteStore } from '../../../core/store/route-store';
 import { useKifuGuardStore } from '../../../core/store/kifu-guard';
 import { generateLegalMoves } from '../../../core/engine';
 import '../index';
+import { serializeKifu } from '../index';
+import { chooseFolder, forgetFolder } from '../folder';
 import { discardKifu, kifuMemoryState, loadLastKifu, markKifuSaved } from '../storage';
 import { KifuReplayScreen } from './KifuReplayScreen';
 
@@ -204,6 +206,84 @@ describe('S08 棋譜の読み込み（破棄の契機）', () => {
 
     expect(useKifuGuardStore.getState().stage).toBeNull();
     expect(picker.opened()).toBe(1);
+  });
+});
+
+/**
+ * ★フォルダを指定してあるとき（親 v1.39 §9.2.3 ②④）。
+ *
+ * **変わるのは上の帯と一覧の出所だけ**で、画面は 1 つのまま（画面機能 §3 S08）。
+ * **フォルダの中の棋譜を選ぶのは「読み込み」ではない**ので、確認は出ないし記憶にも触らない
+ * （すでにファイルとして在るものを、控えに取り直す意味がないため）。
+ */
+describe('S08 フォルダを指定してあるとき', () => {
+  /** 端末のフォルダの代役（中に棋譜を 1 局置いておく）。 */
+  function fakeFolderWith(text: string) {
+    const files = new Map<string, string>([['a.json', text]]);
+    const handle = (n: string) => ({
+      kind: 'file' as const,
+      name: n,
+      getFile: async () => ({ text: async () => files.get(n) ?? '' }) as unknown as File,
+      createWritable: async () => ({ write: async () => {}, close: async () => {} }),
+    });
+    return {
+      kind: 'directory' as const,
+      name: '棋譜フォルダ',
+      getFileHandle: async (n: string) => handle(n),
+      values: async function* () {
+        for (const n of [...files.keys()]) yield handle(n);
+      },
+      queryPermission: async () => 'granted' as PermissionState,
+      requestPermission: async () => 'granted' as PermissionState,
+    };
+  }
+
+  beforeEach(async () => {
+    await forgetFolder();
+    // 一覧に出す棋譜を 1 局作ってから、それを入れたフォルダを覚えさせる。
+    finishedGame(4);
+    const inFolder = serializeKifu(loadLastKifu()!);
+    discardKifu();
+    Object.defineProperty(window, 'showDirectoryPicker', {
+      value: async () => fakeFolderWith(inFolder),
+      configurable: true,
+    });
+    await chooseFolder();
+    // 記憶にはこれとは別の、未保存の 1 局を置く。
+    finishedGame(6);
+    expect(kifuMemoryState()).toBe('unsaved');
+  });
+
+  afterEach(async () => {
+    await forgetFolder();
+    Reflect.deleteProperty(window, 'showDirectoryPicker');
+  });
+
+  it('上の帯がフォルダ名と件数になり、「棋譜を読み込む」は出ない', async () => {
+    render(<KifuReplayScreen />);
+    fireEvent.click(screen.getByText('棋譜一覧'));
+
+    expect(await screen.findByText('別のフォルダを選ぶ')).toBeInTheDocument();
+    expect(screen.queryByText('棋譜を読み込む')).not.toBeInTheDocument();
+    // 保存先の表示（io-bar 右端）にも同じ名前が出る
+    expect(screen.getAllByText('棋譜フォルダ').length).toBeGreaterThan(0);
+  });
+
+  it('★フォルダの中の棋譜を選んでも確認は出ず、記憶にも触らない', async () => {
+    const { container } = render(<KifuReplayScreen />);
+    fireEvent.click(screen.getByText('棋譜一覧'));
+    await screen.findByText('別のフォルダを選ぶ');
+
+    // 先頭は未保存の記憶（固定）。その下がフォルダの中の 1 局。
+    const rows = container.querySelectorAll('.kcard');
+    expect(rows).toHaveLength(2);
+    fireEvent.click(rows[1]);
+
+    expect(useKifuGuardStore.getState().stage).toBeNull();
+    expect(kifuMemoryState()).toBe('unsaved');
+    expect(loadLastKifu()?.moves).toHaveLength(6); // 記憶は入れ替わっていない
+    // 盤は選んだ棋譜（4 手）に入れ替わり、0 手目から見せる
+    expect(screen.getByText('0 / 4')).toBeInTheDocument();
   });
 });
 

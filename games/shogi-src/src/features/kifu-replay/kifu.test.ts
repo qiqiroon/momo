@@ -9,11 +9,15 @@ import {
   adoptLoadedKifu,
   buildKifuFile,
   kifuFileName,
+  listFolderKifu,
   parseKifu,
   replayKifu,
   saveCurrentKifu,
   serializeKifu,
+  usableFolder,
+  type FsDirHandle,
 } from './index';
+import { forgetFolder } from './folder';
 import { discardKifu, kifuMemoryState, loadKifuMemory, loadLastKifu } from './storage';
 import type { KifuFile } from './types';
 
@@ -498,6 +502,174 @@ describe('棋譜ファイル — 棋譜でないものを読み込んだとき',
 
   it('正しい棋譜は読み込める', () => {
     expect(parseKifu(serializeKifu(sampleKifu())).meta.gameType).toBe('shogi');
+  });
+});
+
+/**
+ * 端末のフォルダの代役。**中身は素の文字列で持つ**ので、書いたものが本当に
+ * そのまま読み返せるか（＝突き合わせが効いているか）を見られる。
+ */
+function fakeFolder(name: string, initial: Record<string, string> = {}) {
+  const files = new Map<string, string>(Object.entries(initial));
+  const fileHandle = (n: string) => ({
+    kind: 'file' as const,
+    name: n,
+    getFile: async () => ({ text: async () => files.get(n) ?? '' }) as unknown as File,
+    createWritable: async () => ({
+      write: async (data: string) => {
+        files.set(n, data);
+      },
+      close: async () => {},
+    }),
+  });
+  const dir = {
+    kind: 'directory' as const,
+    name,
+    getFileHandle: vi.fn(async (n: string, opts?: { create?: boolean }) => {
+      if (!files.has(n)) {
+        if (!opts?.create) throw new Error('NotFoundError');
+        files.set(n, '');
+      }
+      return fileHandle(n);
+    }),
+    values: async function* () {
+      for (const n of [...files.keys()]) yield fileHandle(n);
+    },
+    queryPermission: async () => 'granted' as PermissionState,
+    requestPermission: async () => 'granted' as PermissionState,
+  };
+  return { dir: dir as unknown as FsDirHandle, files };
+}
+
+/** フォルダを選ぶ画面の代役。`null` を渡すと「やめた」になる。 */
+function stubPicker(result: FsDirHandle | null): ReturnType<typeof vi.fn> {
+  const picker = vi.fn(async () => {
+    if (!result) {
+      const e = new Error('picker cancelled');
+      e.name = 'AbortError';
+      throw e;
+    }
+    return result;
+  });
+  Object.defineProperty(window, 'showDirectoryPicker', { value: picker, configurable: true });
+  return picker;
+}
+
+function removePicker(): void {
+  Reflect.deleteProperty(window, 'showDirectoryPicker');
+}
+
+/**
+ * ★PC のフォルダ指定（親 v1.39 §9.2.3 ④）。
+ *
+ * ここが**保存できたと確実に言える唯一の経路**＝書いた直後に読み返して突き合わせる。
+ * 併せて、**フォルダを選ぶのをやめたらダウンロードへ落とさない**ことを固定する
+ * （落とすと「やめたのに保存される」＝共有シートで一度直した誤りの繰り返しになる）。
+ */
+describe('★PC のフォルダ指定 (親 v1.39 §9.2.3 ④)', () => {
+  beforeEach(async () => {
+    await forgetFolder();
+    discardKifu();
+    useAiStore.setState({ enabled: false });
+    useGameStore.getState().reset({ gameType: 'shogi', quantum: false, torusMode: 'none', handicap: null });
+    playMoves(8);
+    useGameStore.getState().resign('player2');
+    expect(kifuMemoryState()).toBe('unsaved');
+  });
+
+  afterEach(async () => {
+    await forgetFolder();
+    vi.restoreAllMocks();
+    removePicker();
+    removeShare();
+  });
+
+  it('フォルダへ書き、読み返して一致すれば「保存済み」になる', async () => {
+    const { dir, files } = fakeFolder('棋譜');
+    stubPicker(dir);
+    const downloads = watchDownloads();
+
+    expect(await saveCurrentKifu()).toBe('saved');
+    expect(downloads).toHaveLength(0); // フォルダがあるならダウンロードは使わない
+    expect(files.size).toBe(1);
+    expect(parseKifu([...files.values()][0]).moves).toHaveLength(8);
+    expect(kifuMemoryState()).toBe('saved');
+  });
+
+  it('★選ぶのをやめたら何も書かず、ダウンロードにも落とさない（印は未保存のまま）', async () => {
+    stubPicker(null);
+    const downloads = watchDownloads();
+
+    expect(await saveCurrentKifu()).toBe('cancelled');
+    expect(downloads).toHaveLength(0);
+    expect(kifuMemoryState()).toBe('unsaved');
+    expect(loadLastKifu()?.moves).toHaveLength(8); // 記憶は残る＝押し直せる
+  });
+
+  it('一度指定したら、次からは尋ねずにそのフォルダへ書く', async () => {
+    const { dir, files } = fakeFolder('棋譜');
+    const picker = stubPicker(dir);
+
+    expect(await saveCurrentKifu()).toBe('saved');
+    expect(await saveCurrentKifu()).toBe('saved');
+    expect(picker).toHaveBeenCalledTimes(1);
+    expect(files.size).toBe(2); // 1 局 1 ファイル＝上書きしない
+  });
+
+  it('★書き戻せなかったら「保存済み」と言わない（読み返して突き合わせる）', async () => {
+    const { dir } = fakeFolder('棋譜');
+    // 書いたものと違う中身が返ってくる＝書けたつもりの状態を作る
+    (dir as unknown as { getFileHandle: unknown }).getFileHandle = async () => ({
+      getFile: async () => ({ text: async () => '別の中身' }),
+      createWritable: async () => ({ write: async () => {}, close: async () => {} }),
+    });
+    stubPicker(dir);
+
+    expect(await saveCurrentKifu()).toBe('failed');
+    expect(kifuMemoryState()).toBe('unsaved');
+  });
+
+  it('★同じ名前が既にあるときは連番を送る（あるファイルを上書きしない）', async () => {
+    const base = kifuFileName(loadLastKifu()!, 0);
+    const { dir, files } = fakeFolder('棋譜', { [base]: '先にあった中身' });
+    stubPicker(dir);
+
+    expect(await saveCurrentKifu()).toBe('saved');
+    expect(files.get(base)).toBe('先にあった中身'); // 触っていない
+    expect(files.size).toBe(2);
+    expect([...files.keys()][1]).toBe(base.replace(/\.json$/, '_2.json'));
+  });
+
+  it('フォルダを扱えない端末は、いままでどおり共有シート・ダウンロードへ落ちる', async () => {
+    removePicker();
+    removeShare();
+    const downloads = watchDownloads();
+
+    expect(await saveCurrentKifu()).toBe('saved');
+    expect(downloads).toHaveLength(1);
+  });
+
+  it('一覧はフォルダの中の棋譜から組み立て、棋譜でないファイルは黙って飛ばす', async () => {
+    const { dir } = fakeFolder('棋譜', {
+      'a.json': serializeKifu(sampleKifu()),
+      'b.json': 'これは棋譜ではありません',
+      'memo.txt': serializeKifu(sampleKifu()),
+    });
+
+    const list = await listFolderKifu(dir);
+    expect(list).toHaveLength(1); // 棋譜 1 件だけ（.txt は見ない・壊れた JSON は飛ばす）
+    expect(list[0].meta.gameType).toBe('shogi');
+  });
+
+  it('★一覧を開くだけではフォルダを選ばせない（保存のときだけ尋ねる）', async () => {
+    const { dir } = fakeFolder('棋譜');
+    const picker = stubPicker(dir);
+
+    expect(await usableFolder('permission')).toBeNull();
+    expect(picker).not.toHaveBeenCalled();
+
+    expect(await usableFolder('choose')).not.toBeNull();
+    expect(picker).toHaveBeenCalledTimes(1);
   });
 });
 

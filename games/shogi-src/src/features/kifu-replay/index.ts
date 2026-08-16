@@ -18,22 +18,11 @@ import { KifuReplayScreen } from './ui/KifuReplayScreen';
 import { setReplayOrigin } from './ui/origin';
 import { buildKifuFile } from './build';
 import { kifuFileName } from './filename';
-import { writeKifuFile, type KifuSaveOutcome } from './io';
+import { readFolderTexts, type FsDirHandle } from './folder';
+import { parseKifu, writeKifuFile, type KifuSaveOutcome } from './io';
 import { isReplayingKifu } from './replay';
 import { discardKifu, kifuMemoryState, loadLastKifu, markKifuSaved, rememberKifu } from './storage';
 import type { KifuFile } from './types';
-
-/**
- * 同じ分に 2 局以上終わったときの連番。名前の重複はファイル側で防げない
- * (どんなファイルがあるか見えないため) ので、この端末が出した名前を覚えておく。
- */
-const issuedNames = new Map<string, number>();
-
-function nextSeqFor(base: string): number {
-  const used = issuedNames.get(base) ?? 0;
-  issuedNames.set(base, used + 1);
-  return used;
-}
 
 /**
  * 記憶している 1 局を、1 局 1 ファイルとして書き出す。
@@ -67,10 +56,31 @@ export async function saveCurrentKifu(): Promise<KifuSaveOutcome> {
  * **中身は書き戻さない**＝盤や画面から記録を作り直す経路を作らないため。
  */
 export async function saveKifuFile(file: KifuFile): Promise<KifuSaveOutcome> {
-  const base = kifuFileName(file, 0);
-  const outcome = await writeKifuFile(file, kifuFileName(file, nextSeqFor(base)));
+  // 渡すのは連番を付けない素の名前。**同じ名前が既にあるときの送り方は書き出し側が決める**
+  // ＝フォルダを扱える環境は実際に在るファイルを見て、扱えない環境はこの端末が出した
+  // 名前を数えて決める（見えるかどうかで確かめ方が変わるため・親 §9.2.2）。
+  const outcome = await writeKifuFile(file, kifuFileName(file, 0));
   if (outcome === 'saved' && isRememberedKifu(file)) markKifuSaved();
   return outcome;
+}
+
+/**
+ * 指定したフォルダの中の棋譜をすべて読む（画面機能 §3 S08「一覧の中身」）。
+ *
+ * **索引を持たないので毎回読む**（§9.2.1）。**棋譜でないファイルは黙って飛ばす**
+ * ＝同じフォルダに何が置いてあってもよい。**中身の素性が正**で、ファイル名からは
+ * 何も読み戻さない（§9.2.2・名前は改名され得るので正本ではない）。
+ */
+export async function listFolderKifu(dir: FsDirHandle): Promise<KifuFile[]> {
+  const out: KifuFile[] = [];
+  for (const text of await readFolderTexts(dir)) {
+    try {
+      out.push(parseKifu(text));
+    } catch {
+      // 棋譜ではなかった。一覧に出さないだけで、ファイルには手を触れない。
+    }
+  }
+  return out;
 }
 
 /**
@@ -130,6 +140,15 @@ register('kifu:open', (from: 'lobby' | 'game') => {
 
 export { buildKifuFile } from './build';
 export { kifuFileName } from './filename';
+export {
+  canUseFolder,
+  chooseFolder,
+  readFolderTexts,
+  rememberedFolder,
+  usableFolder,
+  writeIntoFolder,
+} from './folder';
+export type { FolderAsk, FsDirHandle } from './folder';
 export { parseKifu, readKifuFile, serializeKifu, writeKifuFile } from './io';
 export type { KifuSaveOutcome } from './io';
 export { replayKifu, isReplayingKifu } from './replay';

@@ -5,7 +5,7 @@ export const zh: LocaleData = {
   name: '中文',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.40',
+    'app.ver': 'v1.41',
     'sound.promptTitle': '是否播放 BGM 与音效？',
     'sound.bgmLabel': 'BGM 音量',
     'sound.sfxLabel': '音效音量',
@@ -215,10 +215,13 @@ export const zh: LocaleData = {
     's08.loaded': '已载入棋谱',
     's08.loadFailed': '无法读取此格式',
     's08.empty': '还没有棋谱',
+    's08.emptyFolder': '此文件夹中没有棋谱',
+    's08.changeFolder': '选择其他文件夹',
     's08.unsaved': '未保存',
     's08.save': '保存',
     's08.saved': '已保存',
     's08.saveCancelled': '未保存',
+    's08.saveFailed': '无法保存',
     's08.sortDate': '日期',
     's08.sortOpponent': '对手',
     's08.sortRule': '规则',
@@ -252,6 +255,7 @@ export const zh: LocaleData = {
     // 不执行原来的操作，棋谱也保持原样 (母规格 v1.37 §9.2.3 ②)。
     'kifu.guard.cancel': '取消',
     'kifu.guard.cancelledNote': '已取消保存，棋谱仍然保留。',
+    'kifu.guard.failedNote': '无法保存，棋谱仍然保留。',
     'result.reason.agreed_draw': '双方同意和棋',
     // Phase 6: 夹将棋的全灭 (亲 §3.10 annihilation・附录D-3 §3.3/§3.4)
     'result.reason.annihilation': '夹将棋获胜',

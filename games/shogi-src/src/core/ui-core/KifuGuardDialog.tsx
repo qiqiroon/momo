@@ -25,6 +25,7 @@ export function KifuGuardDialog() {
   const stage = useKifuGuardStore((s) => s.stage);
   const saving = useKifuGuardStore((s) => s.saving);
   const cancelled = useKifuGuardStore((s) => s.cancelled);
+  const failed = useKifuGuardStore((s) => s.failed);
 
   if (stage === null) return null;
 
@@ -63,9 +64,12 @@ export function KifuGuardDialog() {
       }
     >
       <div className="body">{t('kifu.guard.body')}</div>
-      {/* 共有シートを取り消したときは、何も書けていないことをその場で伝える
-          （元の操作も行わず、この確認へ戻る＝親 §9.2.3 ③）。 */}
+      {/* 共有シートやフォルダ選びを取り消したときは、何も書けていないことをその場で
+          伝える（元の操作も行わず、この確認へ戻る＝親 §9.2.3 ③④）。
+          **やめたのと書けなかったのは別の言葉にする**＝やめていない人に
+          「やめました」と言わない（付録D-8 §8）。 */}
       {cancelled && <div className="body warn">{t('kifu.guard.cancelledNote')}</div>}
+      {failed && <div className="body warn">{t('kifu.guard.failedNote')}</div>}
       <div className="btn-row">
         {/* **「やめる」は必ず置く**（親 v1.37 §9.2.3 ②）。この確認は破棄の契機の
             手前に割り込むので、引き返せないと「どちらかを選ぶまで通さない関所」に

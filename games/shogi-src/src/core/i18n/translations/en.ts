@@ -5,7 +5,7 @@ export const en: LocaleData = {
   name: 'English',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.40',
+    'app.ver': 'v1.41',
     'sound.promptTitle': 'Enable BGM and sound effects?',
     'sound.bgmLabel': 'BGM volume',
     'sound.sfxLabel': 'SFX volume',
@@ -215,10 +215,13 @@ export const en: LocaleData = {
     's08.loaded': 'Record loaded',
     's08.loadFailed': 'This file cannot be read',
     's08.empty': 'No records yet',
+    's08.emptyFolder': 'No records in this folder',
+    's08.changeFolder': 'Choose another folder',
     's08.unsaved': 'Unsaved',
     's08.save': 'Save',
     's08.saved': 'Saved',
     's08.saveCancelled': 'Not saved',
+    's08.saveFailed': 'Could not save',
     's08.sortDate': 'Date',
     's08.sortOpponent': 'Opponent',
     's08.sortRule': 'Rule',
@@ -252,6 +255,7 @@ export const en: LocaleData = {
     // Goes back without doing anything; the record stays (spec v1.37 §9.2.3 ②).
     'kifu.guard.cancel': 'Cancel',
     'kifu.guard.cancelledNote': 'Saving was cancelled. The record is still here.',
+    'kifu.guard.failedNote': 'The record could not be saved. It is still here.',
     'result.reason.agreed_draw': 'Agreed Draw',
     // Phase 6: Hasami Shogi annihilation (spec §3.10 / appendix D-3 §3.3, §3.4)
     'result.reason.annihilation': 'Win by capture (Hasami)',

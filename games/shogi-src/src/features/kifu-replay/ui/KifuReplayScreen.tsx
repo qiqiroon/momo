@@ -9,7 +9,8 @@ import { CatIcon } from '../../../core/ui-core/CatIcon';
 import { HeaderCommonRight } from '../../../core/ui-core/HeaderCommonRight';
 import { PieceStandView, PieceView, groupHand } from '../../../core/ui-core/GameScreen';
 import { seButton } from '../../../core/audio/se-synth';
-import { adoptLoadedKifu, saveKifuFile } from '../index';
+import { adoptLoadedKifu, listFolderKifu, saveKifuFile } from '../index';
+import { canUseFolder, chooseFolder, rememberedFolder, usableFolder, type FsDirHandle } from '../folder';
 import { readKifuFile } from '../io';
 import { asReplay, replayKifu } from '../replay';
 import { kifuMemoryState, loadLastKifu, type KifuMemoryState } from '../storage';
@@ -50,6 +51,14 @@ export function KifuReplayScreen() {
   const [listOpen, setListOpen] = useState(false);
   /** この画面で読み込んだぶん。画面を離れると空に戻る（ファイル自体は端末に残る）。 */
   const [loaded, setLoaded] = useState<KifuFile[]>([]);
+  /**
+   * 指定してある保存先フォルダ（親 §9.2.3 ④）。**名前を出すだけなら許可は要らない**ので、
+   * 画面に入った時点で控えだけ読む＝勝手に許可を尋ねない。
+   */
+  const [folder, setFolder] = useState<FsDirHandle | null>(null);
+  /** そのフォルダの中の棋譜。一覧を開いたときに読む（索引は持たない・§9.2.1）。 */
+  const [folderFiles, setFolderFiles] = useState<KifuFile[]>([]);
+  const [folderBusy, setFolderBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const pickerRef = useRef<HTMLInputElement>(null);
@@ -104,6 +113,49 @@ export function KifuReplayScreen() {
     return () => clearTimeout(id);
   }, [toast]);
 
+  // 指定済みのフォルダを控えから読む。**許可は尋ねない**（名前を出すだけなら要らない）。
+  useEffect(() => {
+    let alive = true;
+    void rememberedFolder().then((dir) => {
+      if (alive) setFolder(dir);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  /**
+   * フォルダの中身を読み直す。**索引を持たないので毎回読む**（親 §9.2.1）。
+   *
+   * `ask` で尋ねてよい範囲を分ける＝**一覧を開いただけでフォルダを選ばせない**
+   * （押していないのに選ぶ画面が出るのは、書類ピッカーを勝手に開くのと同じ驚き）。
+   */
+  const refreshFolder = async (ask: 'silent' | 'permission') => {
+    if (!canUseFolder()) return;
+    setFolderBusy(true);
+    try {
+      const dir = await usableFolder(ask);
+      if (!dir) return;
+      setFolder(dir);
+      setFolderFiles(await listFolderKifu(dir));
+    } finally {
+      setFolderBusy(false);
+    }
+  };
+
+  /** 「別のフォルダを選ぶ」。**やめたときは今のフォルダをそのまま残す**（親 §9.2.3 ④）。 */
+  const changeFolder = async () => {
+    setFolderBusy(true);
+    try {
+      const dir = await chooseFolder();
+      if (!dir) return;
+      setFolder(dir);
+      setFolderFiles(await listFolderKifu(dir));
+    } finally {
+      setFolderBusy(false);
+    }
+  };
+
   const viewerSide: 'player1' | 'player2' = file?.meta.viewerSide ?? 'player1';
   const oppSide: 'player1' | 'player2' = viewerSide === 'player1' ? 'player2' : 'player1';
   const flipped = viewerSide === 'player2';
@@ -156,14 +208,29 @@ export function KifuReplayScreen() {
     }
   };
 
-  /** 書き出し。**記録をそのまま書く**（盤から組み立て直さない）。 */
+  /**
+   * 書き出し。**記録をそのまま書く**（盤から組み立て直さない）。
+   *
+   * フォルダを扱える環境では、ここが**フォルダを 1 度だけ選んでもらう場所**になる
+   * （親 §9.2.3 ④）。選ぶのをやめられたら**何も書かない**＝ダウンロードへは落とさない。
+   */
   const save = (target: KifuFile) => {
     setSaving(true);
     void saveKifuFile(target)
-      .then((outcome) => {
+      .then(async (outcome) => {
         setMemoryState(kifuMemoryState());
-        // **確かめられた場合だけ断定する**（付録D-8 §8）。取り消しは失敗ではない。
-        setToast(t(outcome === 'saved' ? 's08.saved' : 's08.saveCancelled'));
+        // **確かめられた場合だけ断定する**（付録D-8 §8）。やめたのと書けなかったのは別物。
+        setToast(
+          t(
+            outcome === 'saved'
+              ? 's08.saved'
+              : outcome === 'cancelled'
+                ? 's08.saveCancelled'
+                : 's08.saveFailed',
+          ),
+        );
+        // 初回はここでフォルダが決まる。書けたぶんを一覧へ映すため読み直す。
+        if (outcome === 'saved') await refreshFolder('silent');
       })
       .finally(() => setSaving(false));
   };
@@ -230,6 +297,9 @@ export function KifuReplayScreen() {
                 seButton();
                 setPlaying(false);
                 setListOpen(true);
+                // フォルダを指定してあれば、その中身を一覧に出す（画面機能 §3 S08）。
+                // **許可までしか尋ねない**＝ここでフォルダを選ばせはしない。
+                void refreshFolder('permission');
               }}
             >
               {t('s08.list')}
@@ -397,6 +467,23 @@ export function KifuReplayScreen() {
             >
               {t('result.saveKifu')}
             </button>
+            {/* 保存先（付録D-8 v1.3 §8）。**指定なしのときは何も出さない**
+                ＝環境の制約を説明文で見せない。押すと選び直せる（§9.2.3 ④）。 */}
+            {folder && (
+              <button
+                type="button"
+                className="dest-btn"
+                disabled={folderBusy}
+                title={folder.name}
+                onClick={() => {
+                  seButton();
+                  void changeFolder();
+                }}
+              >
+                <span className="ic">📁</span>
+                <span className="nm">{folder.name}</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -425,6 +512,10 @@ export function KifuReplayScreen() {
           remembered={remembered}
           rememberedState={memoryState}
           loaded={loaded}
+          folderName={folder ? folder.name : null}
+          folderFiles={folderFiles}
+          folderBusy={folderBusy}
+          onChangeFolder={() => void changeFolder()}
           onPick={pick}
           onRequestLoad={requestPicker}
           onSave={save}

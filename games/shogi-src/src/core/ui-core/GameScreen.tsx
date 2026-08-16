@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { useI18nStore } from '../store/i18n-store';
-import { useGameStore } from '../store/game-store';
+import { useGameStore, winnerOf } from '../store/game-store';
 import { useChatStore } from '../store/chat-store';
 import { useOffersStore } from '../store/offers-store';
 import { ChatConsole } from './ChatConsole';
@@ -278,18 +278,7 @@ export function GameScreen({ variant }: GameScreenProps) {
   useEffect(() => {
     if (status === 'playing' || status === 'sennichite' || status === 'agreed_draw') return;
     // オンライン: 自分の勝ちなら fanfare、負けなら lose。オフラインでは負けた側視点で lose。
-    const winnerSide: 'player1' | 'player2' | null =
-      status === 'checkmate' ? (position.sideToMove === 'player1' ? 'player2' : 'player1')
-      : status === 'resigned_p1' ? 'player2'
-      : status === 'resigned_p2' ? 'player1'
-      : status === 'timeout_p1' ? 'player2'
-      : status === 'timeout_p2' ? 'player1'
-      : status === 'nyugyoku_win_p1' ? 'player1'
-      : status === 'nyugyoku_win_p2' ? 'player2'
-      // Phase 6: 全滅 (はさみ将棋)。名前が示すのは勝った側。
-      : status === 'annihilation_win_p1' ? 'player1'
-      : status === 'annihilation_win_p2' ? 'player2'
-      : null;
+    const winnerSide = winnerOf(status, position.sideToMove);
     if (!winnerSide) return;
     if (online.isOnline) {
       if (winnerSide === online.mySide) seFanfareWin();
@@ -1646,58 +1635,38 @@ function GameEndModal({
   if (status === 'playing') return null;
   if (dismissed === status) return null;
 
-  // 誰が勝ちで誰が負けか（絶対 side ベース）
-  let winnerSide: 'player1' | 'player2' | null;
+  // 誰が勝ちで誰が負けか（絶対 side ベース）。読み替えは game-store の 1 か所に集約。
+  const winnerSide = winnerOf(status, position.sideToMove);
   let reasonKey: string;
   switch (status) {
     case 'checkmate':
-      winnerSide = position.sideToMove === 'player1' ? 'player2' : 'player1';
       reasonKey = 'result.reason.checkmate';
       break;
     case 'nyugyoku_win_p1':
-      winnerSide = 'player1';
-      reasonKey = 'result.reason.nyugyoku';
-      break;
     case 'nyugyoku_win_p2':
-      winnerSide = 'player2';
       reasonKey = 'result.reason.nyugyoku';
       break;
     case 'resigned_p1':
-      winnerSide = 'player2';
-      reasonKey = 'result.reason.resign';
-      break;
     case 'resigned_p2':
-      winnerSide = 'player1';
       reasonKey = 'result.reason.resign';
       break;
     case 'sennichite':
-      winnerSide = null;
       reasonKey = 'result.reason.sennichite';
       break;
     case 'agreed_draw':
-      winnerSide = null;
       reasonKey = 'result.reason.agreed_draw';
       break;
     case 'timeout_p1':
-      winnerSide = 'player2';
-      reasonKey = 'result.reason.timeout';
-      break;
     case 'timeout_p2':
-      winnerSide = 'player1';
       reasonKey = 'result.reason.timeout';
       break;
     case 'nogame':
       // Phase 5-13: ノーゲーム (異常状態合意)。勝敗つかず・レート非変動 (親 §4.4)。
-      winnerSide = null;
       reasonKey = 'result.reason.nogame';
       break;
     case 'annihilation_win_p1':
-      // Phase 6: 全滅 (はさみ将棋・親 §3.10)。相手の駒が規定枚数以下になった。
-      winnerSide = 'player1';
-      reasonKey = 'result.reason.annihilation';
-      break;
     case 'annihilation_win_p2':
-      winnerSide = 'player2';
+      // Phase 6: 全滅 (はさみ将棋・親 §3.10)。相手の駒が規定枚数以下になった。
       reasonKey = 'result.reason.annihilation';
       break;
     default:
@@ -1765,11 +1734,40 @@ function GameEndModal({
         <button type="button" className="btn ghost" onClick={() => setDismissed(status)}>
           {t('result.close')}
         </button>
+        <SaveKifuButton t={t} />
         <button type="button" className="btn" onClick={onRematch}>
           {rematchLabel}
         </button>
       </div>
     </FloatingPanel>
+  );
+}
+
+/**
+ * 終局パネルの「棋譜を保存」(親 §9.2.1・画面機能 §3 S07)。
+ *
+ * 押すとその場で 1 局 1 ファイルとして端末へ書き出す。**棋譜再生画面へは行かない**
+ * (保存だけして再戦やトップへ進めるようにするため)。
+ *
+ * 棋譜の機能を積んでいないビルド (アプリ A) では書き出す口が無いので、
+ * **ボタンごと出さない**。押せるのに何も起きない状態を作らないため。
+ */
+function SaveKifuButton({ t }: { t: (key: string) => string }) {
+  const save = pluginGet<() => Promise<void>>('kifu:save');
+  const [saving, setSaving] = useState(false);
+  if (!save) return null;
+  return (
+    <button
+      type="button"
+      className="btn ghost"
+      disabled={saving}
+      onClick={() => {
+        setSaving(true);
+        void save().finally(() => setSaving(false));
+      }}
+    >
+      {t('result.saveKifu')}
+    </button>
   );
 }
 

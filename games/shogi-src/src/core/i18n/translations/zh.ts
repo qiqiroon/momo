@@ -5,7 +5,7 @@ export const zh: LocaleData = {
   name: '中文',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.39',
+    'app.ver': 'v1.40',
     'sound.promptTitle': '是否播放 BGM 与音效？',
     'sound.bgmLabel': 'BGM 音量',
     'sound.sfxLabel': '音效音量',
@@ -203,6 +203,7 @@ export const zh: LocaleData = {
     'result.rematch.online': '返回对局准备',
     'result.rematch.offline': '再来一局',
     'result.close': '关闭',
+    'result.saveKifu': '保存棋谱',
     'result.reason.agreed_draw': '双方同意和棋',
     // Phase 6: 夹将棋的全灭 (亲 §3.10 annihilation・附录D-3 §3.3/§3.4)
     'result.reason.annihilation': '夹将棋获胜',

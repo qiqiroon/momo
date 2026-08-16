@@ -6,6 +6,7 @@ import './features/cat-lang';
 import './features/matchmaking';
 import './features/quantum';
 import './features/torus';
+import './features/kifu-replay';
 import './adapters/selfmade-alphabeta';
 import './adapters/mcts-adapter';
 import { App } from './App';

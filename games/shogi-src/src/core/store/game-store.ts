@@ -168,7 +168,7 @@ export interface PendingPromotion {
   promotedCandidateKinds: string[];
 }
 
-type GameStatus =
+export type GameStatus =
   | 'playing'
   | 'checkmate'
   | 'sennichite'
@@ -191,6 +191,36 @@ type GameStatus =
    */
   | 'annihilation_win_p1'
   | 'annihilation_win_p2';
+
+/**
+ * 終局した対局の**勝った側**。引分・ノーゲーム・対局中は null。
+ *
+ * 状態の名前は向きがそろっていない (`timeout_p1` は「先手が時間切れ」＝後手の勝ち、
+ * `annihilation_win_p1` は「先手の勝ち」) ので、読み替えは必ずここ 1 か所で行う。
+ * 詰みだけは状態名から決まらず、**手番が回ってきた側の負け**なので局面が要る。
+ */
+export function winnerOf(
+  status: GameStatus,
+  sideToMove: Player,
+): 'player1' | 'player2' | null {
+  switch (status) {
+    case 'checkmate':
+      return sideToMove === 'player1' ? 'player2' : 'player1';
+    case 'nyugyoku_win_p1':
+    case 'annihilation_win_p1':
+    case 'resigned_p2':
+    case 'timeout_p2':
+      return 'player1';
+    case 'nyugyoku_win_p2':
+    case 'annihilation_win_p2':
+    case 'resigned_p1':
+    case 'timeout_p1':
+      return 'player2';
+    default:
+      // playing / sennichite / agreed_draw / nogame は勝った側が居ない
+      return null;
+  }
+}
 
 /**
  * 着手発生元:
@@ -273,6 +303,14 @@ interface GameState {
   setTimeControl: (tc: TimeControl) => void;
   /** ticker 経由で active 側の残り時間を減らす。時間切れなら timeout 状態へ。v0.35。 */
   tickClock: (deltaMs: number) => void;
+  /**
+   * 棋譜に記録された手を 1 手再生する。指せたら true。
+   *
+   * 相手から届いた手と同じ経路 (合法手と突き合わせてから適用) を通るので、
+   * 量子の候補更新・収縮も対局中とまったく同じに走る。棋譜の書き出しが
+   * 正しいことを確かめる検査と、棋譜再生画面 (S08) が使う。
+   */
+  replayRecordedMove: (move: Move) => boolean;
   /** 相手からの move メッセージで得た時計状態を反映（sync）。v0.35。 */
   syncClock: (side: 'player1' | 'player2', clock: ClockState) => void;
   /** 指定側を時間切れ負けにする（idempotent）。v0.35。 */
@@ -1426,6 +1464,29 @@ export const useGameStore = create<GameState>((set, get) => ({
       );
       if (found) target = found;
     }
+    if (!target) return false;
+    applyAndCommit(set, get, target, 'remote');
+    return true;
+  },
+
+  replayRecordedMove: (move) => {
+    const { position, mgf, status } = get();
+    if (status !== 'playing') return false;
+    // 記録された手をそのまま適用せず、**いまの局面の合法手と突き合わせてから**適用する。
+    // 棋譜の中の手は座標と駒の番号しか持たないので、取った駒の番号のように
+    // 局面から決まる項目は合法手生成が出したものを使う (自分で組み立てると食い違う)。
+    const target = generateLegalMoves(mgf, position).find((m) =>
+      move.type === 'move'
+        ? m.type === 'move' &&
+          m.pieceId === move.pieceId &&
+          m.from.row === move.from.row &&
+          m.from.col === move.from.col &&
+          m.to.row === move.to.row &&
+          m.to.col === move.to.col &&
+          m.promote === move.promote
+        : m.type === 'drop' && m.pieceId === move.pieceId &&
+          m.to.row === move.to.row && m.to.col === move.to.col,
+    );
     if (!target) return false;
     applyAndCommit(set, get, target, 'remote');
     return true;

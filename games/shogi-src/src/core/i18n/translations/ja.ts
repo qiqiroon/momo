@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.39',
+    'app.ver': 'v1.40',
     // v0.72 音楽再生確認モーダル (Darts と同じ思想)
     'sound.promptTitle': 'BGM と効果音を再生してもよろしいですか？',
     'sound.bgmLabel': 'BGM 音量',
@@ -213,6 +213,7 @@ export const ja: LocaleData = {
     'result.rematch.online': '対局準備に戻る',
     'result.rematch.offline': 'もう一度対局',
     'result.close': '閉じる',
+    'result.saveKifu': '棋譜を保存',
     'result.reason.agreed_draw': '合意による引分',
     // Phase 6: はさみ将棋の全滅 (親 §3.10 annihilation・付録D-3 §3.3/§3.4)
     'result.reason.annihilation': 'はさみ将棋の勝ち',

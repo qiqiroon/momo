@@ -5,7 +5,7 @@ export const en: LocaleData = {
   name: 'English',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.39',
+    'app.ver': 'v1.40',
     'sound.promptTitle': 'Enable BGM and sound effects?',
     'sound.bgmLabel': 'BGM volume',
     'sound.sfxLabel': 'SFX volume',
@@ -203,6 +203,7 @@ export const en: LocaleData = {
     'result.rematch.online': 'Back to Prep',
     'result.rematch.offline': 'Play Again',
     'result.close': 'Close',
+    'result.saveKifu': 'Save record',
     'result.reason.agreed_draw': 'Agreed Draw',
     // Phase 6: Hasami Shogi annihilation (spec §3.10 / appendix D-3 §3.3, §3.4)
     'result.reason.annihilation': 'Win by capture (Hasami)',

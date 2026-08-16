@@ -309,6 +309,73 @@ describe('棋譜の書き出し — 保存の成否をどう確かめるか (親
   });
 });
 
+/**
+ * ★書き出す対象は「記憶している 1 局」であって、盤ではない（2026-08-16 ユーザー判断）。
+ *
+ * 棋譜再生は記録された手を初手から並べ直すので、途中まで戻して見ている間、
+ * **盤にはそこまでの手しか載っていない**。ここで盤から棋譜を組み立てると、
+ * 満額の記録が短いものに化け、しかもそれが記憶へ書き戻されて正本が壊れる。
+ * 記録から盤を作るのは順方向・その逆は作らない、を検査で固定する。
+ */
+describe('★保存の対象は記憶の側（記録 → 盤の一方向）', () => {
+  beforeEach(() => {
+    discardKifu();
+    useAiStore.setState({ enabled: false });
+    useGameStore.getState().reset({ gameType: 'shogi', quantum: false, torusMode: 'none', handicap: null });
+    playMoves(8);
+    useGameStore.getState().resign('player2');
+    expect(loadLastKifu()?.moves).toHaveLength(8);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    removeShare();
+  });
+
+  it('途中まで再生した状態で保存しても、書き出されるのは満額の 8 手', async () => {
+    removeShare();
+    const downloads = watchDownloads();
+    const memory = loadLastKifu()!;
+
+    // 3 手目まで戻して見ている状態を作る（盤には 3 手しか載っていない）
+    replayKifu(memory, 3);
+    expect(useGameStore.getState().position.history).toHaveLength(3);
+
+    expect(await saveCurrentKifu()).toBe('saved');
+    expect(downloads).toHaveLength(1);
+    // ファイル名の結果欄が 'X'（不成立）なら、指し掛けの盤から作ってしまっている。
+    // 末尾の連番はこの端末が何度目に出した名前かで変わるので、そこは見ない。
+    const stem = kifuFileName(memory, 0).replace(/\.json$/, '');
+    expect(downloads[0].startsWith(stem)).toBe(true);
+  });
+
+  it('保存しても記憶の中身は書き戻されない（変わるのは印だけ）', async () => {
+    removeShare();
+    watchDownloads();
+    const before = loadLastKifu()!;
+
+    replayKifu(before, 3);
+    await saveCurrentKifu();
+
+    const after = loadLastKifu()!;
+    expect(after.moves).toHaveLength(8);
+    expect(after.meta.savedAt).toBe(before.meta.savedAt);
+    expect(kifuMemoryState()).toBe('saved');
+  });
+
+  it('記憶を持てない端末では、いままでどおり盤から組み立てる（記録が生まれる経路と同じ）', async () => {
+    removeShare();
+    const downloads = watchDownloads();
+    discardKifu(); // 記憶が空の状態
+    expect(kifuMemoryState()).toBe('empty');
+
+    expect(await saveCurrentKifu()).toBe('saved');
+    expect(downloads).toHaveLength(1);
+    expect(loadLastKifu()?.moves).toHaveLength(8); // 盤に残っている 8 手から作られる
+    expect(kifuMemoryState()).toBe('saved');
+  });
+});
+
 /** 素性だけ差し替えた見本 (ファイル名の規約を単体で確かめる用)。 */
 function sampleKifu(over: Partial<KifuFile['meta']> = {}): KifuFile {
   return {

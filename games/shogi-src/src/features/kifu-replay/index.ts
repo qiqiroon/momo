@@ -13,11 +13,14 @@
 
 import { register } from '../../core/plugin/registry';
 import { useGameStore } from '../../core/store/game-store';
+import { useRouteStore } from '../../core/store/route-store';
+import { KifuReplayScreen } from './ui/KifuReplayScreen';
+import { setReplayOrigin } from './ui/origin';
 import { buildKifuFile } from './build';
 import { kifuFileName } from './filename';
 import { writeKifuFile, type KifuSaveOutcome } from './io';
 import { isReplayingKifu } from './replay';
-import { discardKifu, kifuMemoryState, rememberKifu } from './storage';
+import { discardKifu, kifuMemoryState, loadLastKifu, markKifuSaved, rememberKifu } from './storage';
 import type { KifuFile } from './types';
 
 /**
@@ -33,18 +36,52 @@ function nextSeqFor(base: string): number {
 }
 
 /**
- * いまの対局を 1 局 1 ファイルとして書き出す。
+ * 記憶している 1 局を、1 局 1 ファイルとして書き出す。
  *
- * **書き出せたときだけ記憶に「保存済み」の印を付ける**（親 §9.2.3 ①③）。
- * **記憶は消さない**＝もう一度保存でき、そのまま再生もできる。
+ * **★書き出す対象は記憶の側**（親 §9.2.3 ①・2026-08-16 ユーザー判断）。
+ * **盤から組み立て直してはならない**＝棋譜再生は記録された手を初手から並べ直すので、
+ * 途中まで戻して見ている間、盤には**そこまでの手しか載っていない**。そこから作ると
+ * 満額の記録が短いものに化ける。記録から盤を作るのは順方向、その逆は作らない。
+ *
+ * 記憶が空のときだけ盤から組み立てる（記憶を持てない端末＝記録が生まれる経路と同じ）。
+ *
+ * **書き出せたときだけ「保存済み」の印を付ける**（親 §9.2.3 ③）。**中身は書き戻さない**
+ * ＝印だけを変える。**記憶は消さない**＝もう一度保存でき、そのまま再生もできる。
  * やめたときは何も書いていないので、印は未保存のまま。
  */
 export async function saveCurrentKifu(): Promise<KifuSaveOutcome> {
+  const remembered = loadLastKifu();
+  if (remembered) return saveKifuFile(remembered);
+  // ここへ来るのは記憶を持てない端末だけ（シークレット・容量超過）。
+  // 記録が生まれる経路と同じく盤から組み立てる。
   const file = buildKifuFile(new Date());
-  const base = kifuFileName(file, 0);
-  const outcome = await writeKifuFile(file, kifuFileName(file, nextSeqFor(base)));
+  const outcome = await saveKifuFile(file);
   if (outcome === 'saved') rememberKifu(file, true);
   return outcome;
+}
+
+/**
+ * 渡された棋譜をそのまま書き出す（S08 の一覧・書き出し行から呼ぶ）。
+ *
+ * 書き出せたものが**記憶している 1 局と同じ対局なら、印だけ**を「保存済み」に変える。
+ * **中身は書き戻さない**＝盤や画面から記録を作り直す経路を作らないため。
+ */
+export async function saveKifuFile(file: KifuFile): Promise<KifuSaveOutcome> {
+  const base = kifuFileName(file, 0);
+  const outcome = await writeKifuFile(file, kifuFileName(file, nextSeqFor(base)));
+  if (outcome === 'saved' && isRememberedKifu(file)) markKifuSaved();
+  return outcome;
+}
+
+/**
+ * 記憶している 1 局と同じ対局か。棋譜には対局そのものの番号が無いので、
+ * **書き出した時刻と手数**で見分ける（同じ対局から作った記録は両方とも一致する）。
+ */
+function isRememberedKifu(file: KifuFile): boolean {
+  const m = loadLastKifu();
+  return (
+    !!m && m.meta.savedAt === file.meta.savedAt && m.meta.moveCount === file.meta.moveCount
+  );
 }
 
 /**
@@ -78,6 +115,19 @@ register('kifu:hasLast', () => kifuMemoryState() !== 'empty');
 register('kifu:state', kifuMemoryState);
 register('kifu:discard', discardKifu);
 
+// 棋譜再生画面 (S08)。A ビルドには存在しないので、口ごと無い＝入口も出ない。
+register('screen:kifu-replay', KifuReplayScreen);
+/**
+ * S08 を開く。**どこから開いたかを一緒に置いていく**（戻る先が変わるため）。
+ * 呼ぶ側 (core の終局パネル・メニュー) は画面の名前を知らなくてよい。
+ *
+ * **再生は破棄の契機ではない**ので確認は挟まない（親 §9.2.3 ②）。
+ */
+register('kifu:open', (from: 'lobby' | 'game') => {
+  setReplayOrigin(from);
+  useRouteStore.getState().setScreen('kifu-replay');
+});
+
 export { buildKifuFile } from './build';
 export { kifuFileName } from './filename';
 export { parseKifu, readKifuFile, serializeKifu, writeKifuFile } from './io';
@@ -92,4 +142,5 @@ export {
   rememberKifu,
 } from './storage';
 export type { KifuMemory, KifuMemoryState } from './storage';
+export { KifuReplayScreen } from './ui/KifuReplayScreen';
 export type { KifuFile, KifuMeta, KifuPlayer, KifuOpponent } from './types';

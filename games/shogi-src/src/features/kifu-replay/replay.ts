@@ -30,6 +30,23 @@ export function isReplayingKifu(): boolean {
 }
 
 /**
+ * 「これは本物の対局ではない」と名乗りながら盤を触る。
+ *
+ * 棋譜再生画面を離れるとき、**入る前の盤をそのまま戻す**のに使う。戻すと status が
+ * 対局中から終局へ動くので、見張っている側 (index.ts) がそれを新しい終局と取り違え、
+ * **盤から作り直した棋譜で記憶を上書きしてしまう**（記録 → 盤の一方向が壊れる）。
+ */
+export function asReplay<T>(fn: () => T): T {
+  const outer = replaying;
+  replaying = true;
+  try {
+    return fn();
+  } finally {
+    replaying = outer;
+  }
+}
+
+/**
  * 棋譜の設定で盤を作り直し、`upTo` 手まで指し直す（省略なら最後まで）。
  * 指せない手に当たったらそこで止める（残りは applied との差で分かる）。
  *

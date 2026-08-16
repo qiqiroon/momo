@@ -3096,3 +3096,152 @@ body::before {
   font-family: 'Yuji Syuku', serif;
   color: var(--orange-light);
 }
+
+/* =====================================================================
+ * 棋譜再生 (S08)。絵柄の正本＝付録D-8 v1.3・モック momo_shogi_S08_mock_v2.html。
+ * 値はモックから写す (発明し直さない)。ただし **§7 棋譜一覧はモックを参照しない**
+ * ＝モックは 2 ペイン (フォルダ列) のままで、付録D-8 v1.3 が 1 ペインに改めている。
+ * 文書とモックが食い違ったら文書が正しい (CLAUDE.md §0-5)。
+ * ===================================================================== */
+
+/* ツールバー：戻る＋棋譜メタ帯＋棋譜一覧ボタン (D-8 §3) */
+.s08-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.back-btn {
+  background: var(--surface2); border: 1px solid var(--border-strong); color: var(--text);
+  border-radius: 9px; padding: 7px 11px; font-size: 12px; font-family: inherit; cursor: pointer;
+  display: flex; align-items: center; gap: 6px; flex: none;
+}
+.back-btn:hover { border-color: var(--orange); color: var(--orange-light); }
+.kifu-meta {
+  flex: 1; min-width: 180px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 6px 11px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.kifu-meta .rn { font-weight: 700; font-size: 13px; }
+.kifu-meta .mods { display: flex; gap: 4px; }
+.kifu-meta .who { font-size: 11px; color: var(--text-muted); }
+.mod-badge {
+  font-size: 9px; font-weight: 700; letter-spacing: .05em; color: var(--orange-light);
+  border: 1px solid var(--orange); border-radius: 6px; padding: 1px 6px; background: var(--bg-selected);
+}
+.pick-btn {
+  background: var(--bg-selected); border: 1px solid var(--orange); color: var(--orange-light);
+  border-radius: 9px; padding: 7px 12px; font-size: 12px; font-weight: 700; font-family: inherit;
+  cursor: pointer; display: flex; align-items: center; gap: 6px; flex: none;
+}
+.pick-btn:hover { filter: brightness(1.15); }
+
+/* 再生コントロール帯 (D-8 §5)。ボタンは 44x36 以上＝タッチで押せる大きさ */
+.playbar {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;
+}
+.playbar .btns { display: flex; gap: 7px; justify-content: center; align-items: center; flex-wrap: wrap; }
+.pb {
+  background: var(--surface2); border: 1px solid var(--border-strong); color: var(--text);
+  border-radius: 9px; min-width: 44px; height: 36px; font-size: 14px; font-family: inherit;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px; padding: 0 10px;
+}
+.pb:hover { border-color: var(--orange); color: var(--orange-light); }
+.pb:disabled { opacity: .35; cursor: not-allowed; }
+.pb:disabled:hover { border-color: var(--border-strong); color: var(--text); }
+.pb.auto { font-size: 12px; font-weight: 700; }
+.pb.auto.playing { background: var(--bg-selected); border-color: var(--orange); color: var(--orange-light); }
+.pb.spd { font-size: 11px; min-width: 38px; }
+.playbar .track { display: flex; align-items: center; gap: 10px; }
+.playbar input[type=range] { flex: 1; accent-color: var(--orange-mid); height: 20px; cursor: pointer; }
+.playbar .plycnt {
+  font-family: 'Fredoka One', cursive; font-size: 13px; color: var(--orange-light);
+  min-width: 74px; text-align: right;
+}
+
+/* 書き出し行 (D-8 §8)。今版は独自JSON のみ (他形式は未実装) */
+.io-bar { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; justify-content: center; }
+.io-btn {
+  background: var(--surface2); border: 1px solid var(--border-strong); color: var(--text);
+  border-radius: 9px; padding: 7px 11px; font-size: 11px; font-family: inherit; cursor: pointer;
+  display: flex; align-items: center; gap: 5px;
+}
+.io-btn:hover { border-color: var(--orange); color: var(--orange-light); }
+.io-btn:disabled { opacity: .35; cursor: not-allowed; }
+.io-btn:disabled:hover { border-color: var(--border-strong); color: var(--text); }
+
+/* 手数リスト＝固定 3 行ボックス (D-8 §6)。**高さを変えない**＝手が増えても
+   画面が伸びず、現在手だけが自動で見える位置へ入る。 */
+.mv-list {
+  height: 87px; overflow-y: scroll; display: flex; flex-direction: column; gap: 1px; font-size: 12px;
+  background: var(--surface2); border: 1px solid var(--border-strong); border-radius: 9px; padding: 3px;
+}
+.mv-list::-webkit-scrollbar { width: 8px; }
+.mv-list::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+.mv-list::-webkit-scrollbar-thumb:hover { background: var(--orange); }
+.mv {
+  display: flex; align-items: center; gap: 7px; padding: 4px 7px; border-radius: 7px;
+  cursor: pointer; border: 1px solid transparent; font-family: inherit; font-size: 12px;
+  background: transparent; color: var(--text); text-align: left; width: 100%;
+}
+.mv:hover { background: var(--surface2); }
+.mv.cur { background: var(--bg-selected); border-color: var(--orange); }
+.mv .no {
+  font-family: 'Fredoka One', cursive; font-size: 10px; color: var(--text-muted);
+  min-width: 22px; text-align: right;
+}
+.mv .nt { flex: 1; }
+.mv.start .nt { color: var(--text-muted); }
+
+/* 棋譜一覧 (D-8 §7・**1 ペイン**)。上の帯＋一覧＋注記 */
+.lib-overlay {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, .72); z-index: 60;
+  display: flex; align-items: flex-start; justify-content: center; padding: 6vh 14px;
+}
+.lib-panel {
+  background: var(--surface); border: 1px solid var(--border-strong); border-radius: 16px;
+  width: min(720px, 100%); max-height: 82vh; display: flex; flex-direction: column;
+  box-shadow: 0 18px 50px #000d;
+}
+.lib-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.lib-head .t { font-family: 'Fredoka One', cursive; font-size: 1.05rem; color: var(--orange-light); }
+.lib-head .sp { flex: 1; }
+.lib-close {
+  background: transparent; border: 1px solid var(--border-strong); color: var(--text-muted);
+  border-radius: 8px; width: 30px; height: 30px; cursor: pointer; font-size: 14px; font-family: inherit;
+}
+.lib-close:hover { border-color: var(--orange); color: var(--orange-light); }
+.lib-bar { display: flex; align-items: center; gap: 10px; padding: 12px 16px 0; flex-wrap: wrap; }
+.lib-bar .sp { flex: 1; }
+/* 空のときは読み込みが唯一の入口なので、中央に大きく置く (D-8 §7) */
+.lib-bar.only-load { justify-content: center; padding-top: 16px; }
+.lib-bar.only-load .pick-btn { font-size: 13px; padding: 12px 20px; }
+.lib-sort { display: flex; gap: 6px; padding: 10px 16px 0; flex-wrap: wrap; }
+.lib-sort button {
+  background: transparent; border: 1px solid var(--border-strong); color: var(--text-muted);
+  border-radius: 7px; font-size: 11px; padding: 3px 10px; cursor: pointer; font-family: inherit;
+}
+.lib-sort button.on { background: var(--bg-selected); border-color: var(--orange); color: var(--orange-light); }
+.lib-list { padding: 12px 16px 16px; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
+.kcard {
+  background: var(--surface2); border: 1px solid var(--border-strong); border-radius: 11px;
+  padding: 10px 12px; cursor: pointer; display: flex; align-items: center; gap: 10px;
+  font-family: inherit; color: var(--text); text-align: left; width: 100%;
+}
+.kcard:hover { border-color: var(--orange); }
+.kcard .col { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.kcard .r1 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.kcard .rn { font-weight: 700; font-size: 13px; }
+.kcard .r2 { font-size: 11px; color: var(--text-muted); display: flex; gap: 10px; flex-wrap: wrap; }
+/* 未保存の印＝左端のオレンジのドット (D-8 §7) */
+.kcard .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--orange-mid); flex: none; }
+.kcard .save-btn {
+  background: transparent; border: 1px solid var(--border-strong); color: var(--text);
+  border-radius: 8px; font-size: 11px; padding: 5px 10px; cursor: pointer; font-family: inherit; flex: none;
+}
+.kcard .save-btn:hover { border-color: var(--orange); color: var(--orange-light); }
+.lib-sep { height: 1px; background: var(--border); margin: 2px 0; }
+.lib-empty { font-size: 12px; color: var(--text-muted); padding: 8px; }
+.lib-foot { padding: 10px 16px; border-top: 1px solid var(--border); font-size: 10px; color: var(--text-muted); }
+
+/* トースト (付録D-6 の流儀・下部中央・オレンジ枠) */
+.s08-toast {
+  position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%);
+  background: var(--surface2); border: 1px solid var(--orange); color: var(--orange-light);
+  border-radius: 10px; padding: 9px 16px; font-size: 12px; z-index: 90; box-shadow: 0 6px 20px #000c;
+}

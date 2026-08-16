@@ -9,6 +9,7 @@ import { HeaderCommonRight } from '../../../core/ui-core/HeaderCommonRight';
 import { useMatchmakingStore } from '../store';
 import { ensureMatchmakingInit } from '../bootstrap';
 import { seButton } from '../../../core/audio/se-synth';
+import { get as pluginGet } from '../../../core/plugin/registry';
 
 /**
  * S00 トップメニュー (v0.55 でモック momo_shogi_S01_mock_v5 に追随)。
@@ -25,7 +26,7 @@ import { seButton } from '../../../core/audio/se-synth';
  *   - 同 vs 人 (オフライン) — impl 追加 (モックには無いが残す)
  *   - 観 ネット観戦 (未実装・見た目のみ)
  *   - 作 カスタムルール作成 (未実装・見た目のみ)
- *   - 棋 棋譜再生 (未実装・見た目のみ)
+ *   - 棋 棋譜再生 (S08 へ遷移・v1.41 で開通)
  * - フッター (アプリ紹介 + MOMO Works 内リンク)
  */
 export function MenuScreen() {
@@ -123,7 +124,11 @@ export function MenuScreen() {
           name={t('s00.mKifu')}
           desc={t('s00.mKifuD')}
           onClick={() => {
-            /* 未実装・見た目のみ (Phase 9 予定) */
+            // 棋譜再生 (S08)。**新しい対局ではない**ので棋譜の確認は挟まない
+            // (親 §9.2.3 ②)。記憶が空でも画面は開く＝そこが読み込みの入口で、
+            // 書類ピッカーをやめたときの行き先でもある (画面機能 §3 S08)。
+            // 棋譜の機能を積んでいないビルドでは口が無く、押しても何も起きない。
+            pluginGet<(from: 'lobby' | 'game') => void>('kifu:open')?.('lobby');
           }}
         />
         <ModeRow

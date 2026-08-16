@@ -1751,6 +1751,7 @@ function GameEndModal({
           {t('result.close')}
         </button>
         <SaveKifuButton t={t} />
+        <ReplayKifuButton t={t} />
         <button type="button" className="btn" onClick={onRematch}>
           {rematchLabel}
         </button>
@@ -1783,6 +1784,26 @@ function SaveKifuButton({ t }: { t: (key: string) => string }) {
       }}
     >
       {t('result.saveKifu')}
+    </button>
+  );
+}
+
+/**
+ * 終局パネルの「棋譜再生」(画面機能 §3 S07)。
+ *
+ * 押すと棋譜再生画面 (S08) へ移り、**直前の対局が読み込まれた状態**で開く
+ * (ファイルを選び直さなくてよい)。**保存とは別の動作**で、ここでは何も書き出さない。
+ *
+ * **再生は破棄の契機ではない**ので確認は挟まない (親 §9.2.3 ②)。
+ * 棋譜の機能を積んでいないビルド (アプリ A) では画面そのものが無いので出さない。
+ */
+function ReplayKifuButton({ t }: { t: (key: string) => string }) {
+  const open = pluginGet<(from: 'lobby' | 'game') => void>('kifu:open');
+  const hasLast = pluginGet<() => boolean>('kifu:hasLast');
+  if (!open || !hasLast?.()) return null;
+  return (
+    <button type="button" className="btn ghost" onClick={() => open('game')}>
+      {t('result.replayKifu')}
     </button>
   );
 }
@@ -1919,7 +1940,8 @@ function PromotionModal({ locale, t, viewerSide, mode, tick }: PromotionModalPro
   );
 }
 
-interface HandGroup {
+/** 駒台のカード 1 枚ぶん。棋譜再生画面 (S08) も同じ駒台を使うので外へ出す。 */
+export interface HandGroup {
   /** React の key。確定駒は駒種で 1 枚に束ね、未確定駒は 1 枚ずつ独立させる。 */
   key: string;
   /** 表示する駒種 (強さ降順)。2 個以上なら未確定 = ? + 巡回/重ね表示の対象。 */
@@ -1938,7 +1960,7 @@ interface HandGroup {
  * 並び順は spec D1 §4.4 の「未確定駒の強さは候補中の最強の駒」に従う
  * (displayKindsFor が強さ降順を返すので kinds[0] がその最強)。
  */
-function groupHand(hand: PieceInstance[], mgf: Mgf, kindMap: Map<PieceId, string>): HandGroup[] {
+export function groupHand(hand: PieceInstance[], mgf: Mgf, kindMap: Map<PieceId, string>): HandGroup[] {
   const groups: HandGroup[] = [];
   const byKind = new Map<string, HandGroup>();
   for (const p of hand) {
@@ -1973,7 +1995,8 @@ function shownKind(kinds: string[], tick: number): string {
   return kinds[tick % kinds.length];
 }
 
-function PieceView({
+/** 盤の駒 1 枚。棋譜再生画面 (S08) も同じ絵柄を使うので外へ出す（発明し直さない）。 */
+export function PieceView({
   piece,
   kinds,
   locale,
@@ -2179,7 +2202,8 @@ interface PieceStandViewProps {
   collapsingIds?: ReadonlySet<string>;
 }
 
-function PieceStandView({ side, pieces, onClick, selectedId, activePlayer, locale, label, entangledPieceIds, debugShowPieceIds, mode = 'cycle', tick = 0, collapsingIds }: PieceStandViewProps) {
+/** 駒台。棋譜再生画面 (S08) も同じものを使う（触れない＝`activePlayer` を false にする）。 */
+export function PieceStandView({ side, pieces, onClick, selectedId, activePlayer, locale, label, entangledPieceIds, debugShowPieceIds, mode = 'cycle', tick = 0, collapsingIds }: PieceStandViewProps) {
   const isEn = locale === 'en';
   // v1.16 (ユーザー要望): 持ち駒もマウスを乗せただけで候補ボックスを出す。
   // 相手の駒台 (持てない側) も対象。

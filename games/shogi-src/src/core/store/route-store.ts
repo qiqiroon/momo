@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { requestNewGame } from './kifu-guard';
 
-export type Screen = 'game' | 'lobby' | 'net-lobby' | 'rule-select' | 'room' | 'endgame' | 'offline-rule' | 'ai-setup';
+export type Screen = 'game' | 'lobby' | 'net-lobby' | 'rule-select' | 'room' | 'endgame' | 'offline-rule' | 'ai-setup' | 'kifu-replay';
 
 /**
  * **そこから先へ進むと必ず盤が作り直される設定画面**（親 v1.36 §9.2.3 ②）。
@@ -11,6 +11,10 @@ export type Screen = 'game' | 'lobby' | 'net-lobby' | 'rule-select' | 'room' | '
  * 並べていたため、**画面一覧に載っていない `offline-rule`（オフライン対人の設定）が
  * 漏れ**、そこから始める対局では一度も尋ねずに棋譜が消えていた。
  * 画面を足すときは「その画面から対局が始まるか」で判断する。
+ *
+ * **棋譜再生 (S08) は入れない**＝再生は盤を作り直すが**新しい対局ではない**ので
+ * 破棄の契機に当たらない（親 §9.2.3 ②・画面機能 §3 S08）。受け皿を見に行っただけで
+ * 当の受け皿が消えては本末転倒になる。
  */
 const NEW_GAME_SETUP_SCREENS: readonly Screen[] = ['rule-select', 'ai-setup', 'room', 'offline-rule'];
 

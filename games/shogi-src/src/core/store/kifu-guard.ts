@@ -84,6 +84,17 @@ export function requestNewGame(action: () => void, opts: { twoStep?: boolean } =
   askKifuOrRun(action);
 }
 
+/**
+ * **棋譜の読み込み**を、確認をはさんで行う（親 §9.2.3 ② の 2 系統目）。
+ *
+ * 読み込むと記憶が読み込んだ棋譜に置き換わる＝**破棄の契機**なので、新しい対局を
+ * 始めるときと同じ確認を通す。**書類ピッカーを開く前に尋ねる**こと（画面機能 §3 S08）
+ * ＝開いてしまうと、やめたときの行き先も、受け皿の中身も見えなくなる。
+ */
+export function requestKifuLoad(action: () => void): void {
+  askKifuOrRun(action);
+}
+
 function askKifuOrRun(action: () => void): void {
   // **未保存のときだけ尋ねる**。保存済みならファイルとして残っているので尋ねずに捨てる。
   if (memoryState() !== 'unsaved') {

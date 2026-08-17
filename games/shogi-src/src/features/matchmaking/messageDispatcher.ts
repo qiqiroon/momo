@@ -26,6 +26,8 @@ import { useRouteStore } from '../../core/store/route-store';
 import { useGameStore } from '../../core/store/game-store';
 import { useOffersStore } from '../../core/store/offers-store';
 import { handicapSettingFor, pieceIdListDigest, positionHash } from '../../core/engine';
+import { get as pluginGet } from '../../core/plugin/registry';
+import type { ReviewMessage } from '../../core/plugin/review';
 import { getMomoMatchmaking } from './client';
 import { sha256Hex } from './fairFlip';
 import {
@@ -73,6 +75,16 @@ function rulesFromConfig(cfg: RoomConfig): SyncedRules {
     customRuleName: cfg.customRuleName,
     quantumParams: useGameStore.getState().quantumParams,
   };
+}
+
+/**
+ * 感想戦の伝言を、感想戦の側へ渡す (v1.47・親 §6.3.6)。
+ *
+ * **通信機能から感想戦の実装を直に呼ばない**＝棋譜の機能を積んでいないビルドでは
+ * 受け口が無いので、そのまま何も起きない (縮退互換)。
+ */
+function deliverReview(msg: ReviewMessage): void {
+  pluginGet<(m: ReviewMessage) => void>('review:message')?.(msg);
 }
 
 export function handleShogiMessage(data: unknown): void {
@@ -369,6 +381,27 @@ export function handleShogiMessage(data: unknown): void {
       store.setRuleSync('ok');
       return;
     }
+    // v1.47 (親 §6.3.6): 感想戦の伝言。**通信機能は中身を解釈しない**＝感想戦の画面
+    // (features/kifu-replay) が受け口を registry に出しているので、そこへ渡すだけ。
+    // 棋譜の機能を積んでいないビルドでは受け口ごと無いので、黙って捨てられる。
+    case 'review_offer':
+      deliverReview({ kind: 'offer' });
+      return;
+    case 'review_reply':
+      deliverReview({ kind: 'reply', accepted: msg.accepted });
+      return;
+    case 'review_state':
+      deliverReview({ kind: 'state', kifu: msg.kifu, ply: msg.ply, branch: msg.branch });
+      return;
+    case 'review_move':
+      deliverReview({ kind: 'move', base: msg.base, ply: msg.ply, branch: msg.branch });
+      return;
+    case 'review_seek':
+      deliverReview({ kind: 'seek', base: msg.base, ply: msg.ply });
+      return;
+    case 'review_undo':
+      deliverReview({ kind: 'undo', base: msg.base, ply: msg.ply, branch: msg.branch });
+      return;
     case 'pong': {
       // 生存確認 pong の受信自体は lastPeerMessageAt の更新で完結。追加処理不要。
       return;

@@ -14,6 +14,7 @@
 import { useChatStore } from '../../core/store/chat-store';
 import { useRouteStore } from '../../core/store/route-store';
 import { useOffersStore } from '../../core/store/offers-store';
+import { get as pluginGet } from '../../core/plugin/registry';
 import { getMomoMatchmaking } from './client';
 import { SHOGI_GAME_TYPE, SIGNALING_URL } from './config';
 import { handleShogiMessage } from './messageDispatcher';
@@ -81,6 +82,18 @@ export function normalizeIncomingRules(rules: unknown, roomName: string): RoomCo
 }
 
 /**
+ * 感想戦の最中に相手が抜けた (v1.47・親 §9.4.4)。
+ *
+ * 感想戦をやっていたなら**その旨だけを感想戦の側へ伝えて true を返す**＝呼んだ側は
+ * 対局中の切断としての始末 (退室を促すモーダル) をしない。**続けられるものを打ち切らない。**
+ * 感想戦をしていなければ false で、従来どおりの扱いになる。
+ */
+function reviewOpponentLeft(): boolean {
+  const notify = pluginGet<() => boolean>('review:opponentLeft');
+  return notify ? notify() : false;
+}
+
+/**
  * matchmaking を初期化 (シグナリング WS を開く)。多重呼び出しは無視。
  * MenuScreen / LobbyScreen の両方から呼んで良い。
  */
@@ -119,6 +132,9 @@ export function ensureMatchmakingInit(): void {
     },
     onGuestLeft: () => {
       const state = useMatchmakingStore.getState();
+      // v1.47 (親 §9.4.4): 感想戦の最中なら**感想戦は終わらない**。相手が抜けたことは
+      // 知らせるが、対局中の切断とは扱いを分ける (退室を促さない)。
+      if (reviewOpponentLeft()) return;
       if (state.gameStartInfo) {
         useMatchmakingStore.setState({
           opponentName: '',
@@ -135,6 +151,11 @@ export function ensureMatchmakingInit(): void {
       const state = useMatchmakingStore.getState();
       if (state.intentionallyLeft) {
         useMatchmakingStore.setState({ intentionallyLeft: false, connection: 'connected' });
+        return;
+      }
+      // v1.47 (親 §9.4.4): 感想戦の最中の切断も「相手が抜けた」と同じ扱い＝ひとりで続ける。
+      if (reviewOpponentLeft()) {
+        useMatchmakingStore.setState({ wsPendingReconnect: false });
         return;
       }
       if (state.gameStartInfo) {

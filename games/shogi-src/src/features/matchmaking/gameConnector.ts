@@ -214,6 +214,40 @@ const connector: OnlineGameConnector = {
     client.send({ v: PROTOCOL_VERSION, type: 'anomaly_raise', cause, debugForce });
   },
 
+  isRoomHost() {
+    const s = useMatchmakingStore.getState();
+    return !!s.currentRoomId && s.isHost;
+  },
+
+  sendReview(msg) {
+    // v1.47 (親 §6.3.6): 感想戦の伝言。**部屋に居ないときは送り先が無い**ので黙って捨てる
+    // (ひとりの感想戦では縮退互換＝何も送らない)。
+    const client = getMomoMatchmaking();
+    if (!client) return;
+    if (!useMatchmakingStore.getState().currentRoomId) return;
+    const v = PROTOCOL_VERSION;
+    switch (msg.kind) {
+      case 'offer':
+        client.send({ v, type: 'review_offer' });
+        return;
+      case 'reply':
+        client.send({ v, type: 'review_reply', accepted: msg.accepted });
+        return;
+      case 'state':
+        client.send({ v, type: 'review_state', kifu: msg.kifu, ply: msg.ply, branch: msg.branch });
+        return;
+      case 'move':
+        client.send({ v, type: 'review_move', base: msg.base, ply: msg.ply, branch: msg.branch });
+        return;
+      case 'seek':
+        client.send({ v, type: 'review_seek', base: msg.base, ply: msg.ply });
+        return;
+      case 'undo':
+        client.send({ v, type: 'review_undo', base: msg.base, ply: msg.ply, branch: msg.branch });
+        return;
+    }
+  },
+
   sendPauseNotify() {
     // v0.42: 一時中断は合意不要 → ローカルは即中断＋相手へ通知
     useGameStore.getState().pauseGame();

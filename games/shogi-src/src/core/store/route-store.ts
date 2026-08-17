@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { requestNewGame } from './kifu-guard';
 
-export type Screen = 'game' | 'lobby' | 'net-lobby' | 'rule-select' | 'room' | 'endgame' | 'offline-rule' | 'ai-setup' | 'kifu-replay';
+export type Screen = 'game' | 'lobby' | 'net-lobby' | 'rule-select' | 'room' | 'endgame' | 'offline-rule' | 'ai-setup' | 'kifu-replay' | 'review';
 
 /**
  * **そこから先へ進むと必ず盤が作り直される設定画面**（親 v1.36 §9.2.3 ②）。
@@ -15,6 +15,9 @@ export type Screen = 'game' | 'lobby' | 'net-lobby' | 'rule-select' | 'room' | '
  * **棋譜再生 (S08) は入れない**＝再生は盤を作り直すが**新しい対局ではない**ので
  * 破棄の契機に当たらない（親 §9.2.3 ②・画面機能 §3 S08）。受け皿を見に行っただけで
  * 当の受け皿が消えては本末転倒になる。
+ *
+ * **感想戦 (S11) も入れない**（親 §9.4.3）＝盤は作り直すが対局ではない。
+ * 記憶にも触らないので、破棄する理由がそもそも無い。
  */
 const NEW_GAME_SETUP_SCREENS: readonly Screen[] = ['rule-select', 'ai-setup', 'room', 'offline-rule'];
 

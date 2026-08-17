@@ -3266,8 +3266,12 @@ body::before {
  * 下限 24px（付録D-1 §4.4.1）・上限 54px（同 §3）。
  */
 .stage.s08 {
-  /* 引く値は 2026-08-17 実測（付録D-8 §5.1 の表）。手数リストが横に並ぶ窓。 */
-  --s08-v-fixed: 397px;
+  /* 引く値は 2026-08-17 実測（付録D-8 §5.1 の表）。手数リストが横に並ぶ窓。
+     感想戦 (S11) はこの画面より縦に 3 本ぶん多く置く（自由に指せる旨・操作帯の
+     補助語・保存の注記）ので、その厚みだけを `--s08-extra` で足す。
+     **計算そのものは増やさない**＝盤の大きさの決め方は 1 か所にしか無い。 */
+  --s08-extra: 0px;
+  --s08-v-fixed: calc(397px + var(--s08-extra));
   --s08-h-fixed: 390px;
   --s08-slack: 12px;
   --s08-by-w: calc(
@@ -3291,14 +3295,14 @@ body::before {
    縦にその高さとすき間が加わり、横は列幅ぶんが空く。 */
 @media (max-width: 860px) {
   .stage.s08 {
-    --s08-v-fixed: 556px;
+    --s08-v-fixed: calc(556px + var(--s08-extra));
     --s08-h-fixed: 110px;
   }
 }
 /* 狭い画面の体裁（余白・ヘッダが縮み、ツールバーは折り返す）。 */
 @media (max-width: 720px) {
   .stage.s08 {
-    --s08-v-fixed: 568px;
+    --s08-v-fixed: calc(568px + var(--s08-extra));
     --s08-h-fixed: 86px;
   }
 }
@@ -3463,6 +3467,61 @@ body::before {
 .lib-sep { height: 1px; background: var(--border); margin: 2px 0; }
 .lib-empty { font-size: 12px; color: var(--text-muted); padding: 8px; }
 .lib-foot { padding: 10px 16px; border-top: 1px solid var(--border); font-size: 10px; color: var(--text-muted); }
+
+/* =====================================================================
+ * 感想戦 (S11)。絵柄の正本＝付録D-12 v1.0・モック momo_shogi_S11_mock_v1.html。
+ *
+ * **流用が原則**（付録D-12 §1）＝盤・駒台・再生の操作帯・手数リスト・盤の大きさの
+ * 計算は S08／S06 のものをそのまま使う。**ここに書くのは S11 で新しく決めた
+ * 2 つ（分岐の見せ方・共有の見せ方）と、そのために増える帯だけ**。
+ * ===================================================================== */
+
+/* この画面だけ縦に 3 本多い（自由に指せる旨・操作帯の補助語・保存の注記）。
+   その厚みを引いておかないと、盤が窓からはみ出してスクロールする。 */
+.stage.s08.s11 { --s08-extra: 56px; }
+
+/* 画面名バッジ＝対局画面と見た目が近いので、どちらに居るかを常に出す (D-12 §3)。 */
+.screen-badge {
+  font-size: 10px; font-weight: 700; letter-spacing: .08em; color: var(--orange-light);
+  border: 1px solid var(--orange); border-radius: 7px; padding: 4px 9px;
+  background: var(--bg-selected); flex: none;
+}
+
+/* 相手の在室 (D-12 §3)。**緑は使わない**＝緑は「合意が済んでいる」を表す色なので、
+   居るだけの状態に使うと、何かが成立したように読める。居るときは白丸、抜けたら
+   薄い白抜きの丸にして、名前ごと目立たなくする。 */
+.s08-toolbar .peer {
+  margin-left: auto; flex: none; font-size: 11px; color: var(--text);
+  white-space: nowrap;
+}
+.s08-toolbar .peer.gone { color: var(--text-muted); }
+
+/* 操作帯の補助語 (D-12 §5)＝**押す前に何が起きるか分かるようにする**極小の一言。
+   **常に場所を取る**（空でも高さを持つ）＝分岐に入った拍子に帯が伸びて盤が動かない。 */
+.s11 .playbar .btns { align-items: flex-start; }
+.pbwrap { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.pb-sub { font-size: 10px; color: var(--text-muted); height: 12px; }
+/* 「どちらの駒も動かせる」ことを画面に出す＝手番の縁取りが無い理由がこれで分かる。 */
+.free-note { font-size: 10px; color: var(--text-muted); text-align: center; }
+/* 保存の注記 (D-12 §9)。空でも高さを保つ（上と同じ理由）。 */
+.io-note { font-size: 10px; color: var(--text-muted); width: 100%; text-align: center; min-height: 13px; }
+.saved-tag { font-size: 10px; color: var(--text-muted); }
+
+/* 分岐中は盤の外枠を破線にする (D-12 §4)＝**いま見ているのが記録された局面では
+   ない**ことを、盤そのもので示す。本譜へ戻ると実線に戻る。 */
+.board-outer.branching { border-style: dashed; border-color: var(--orange); }
+
+/* 分岐の行 (D-12 §6)。**1 段字下げ・行頭 └・番号を振らない**＝分岐は記録では
+   ないので、本譜と同じ体系で数えると保存された棋譜と食い違って見える。
+   **本譜の行の色は変えない**（本譜は動いていないため）。 */
+.mv.br { margin-left: 14px; color: var(--text-muted); }
+.mv.br.cur { color: var(--text); }
+.mv.br .no { min-width: 14px; text-align: center; }
+.br-badge {
+  font-size: 9px; font-weight: 700; color: var(--orange-light);
+  border: 1px solid var(--orange); border-radius: 6px; padding: 0 5px;
+  background: var(--bg-selected); flex: none;
+}
 
 /* トースト (付録D-6 の流儀・下部中央・オレンジ枠) */
 .s08-toast {

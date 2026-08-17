@@ -132,6 +132,17 @@ export function MenuScreen() {
           }}
         />
         <ModeRow
+          glyph="感"
+          name={t('s00.mReview')}
+          desc={t('s00.mReviewD')}
+          onClick={() => {
+            // 感想戦 (S11)。**記憶している棋譜があればそのまま始まる**（読み込ませない・
+            // 親 §9.4.1）。**記憶が空のときだけ**棋譜を尋ねる。新しい対局ではないので
+            // 棋譜の確認は挟まない（§9.2.3 ②）。
+            pluginGet<() => void>('review:openFromMenu')?.();
+          }}
+        />
+        <ModeRow
           glyph="作"
           name={t('s00.mBuild')}
           desc={t('s00.mBuildD')}

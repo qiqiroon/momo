@@ -862,6 +862,10 @@ export function GameScreen({ variant }: GameScreenProps) {
       <GameEndModal t={t} online={online} />
       <OfferReceivedModal t={t} online={online} />
       <OfferSentPanel t={t} />
+      {/* v1.47: 感想戦の打診と諾否 (親 §6.3.6)。**終局後に出る**ものなので、
+          対局中の申し出とは別に置く。 */}
+      <ReviewOfferReceivedModal t={t} />
+      <ReviewOfferSentPanel t={t} />
       <PauseCenterPanel t={t} />
       <OfferResponseToast t={t} />
       <ConnectionUncertainBanner t={t} />
@@ -1774,6 +1778,7 @@ function GameEndModal({
         </button>
         <SaveKifuButton t={t} />
         <ReplayKifuButton t={t} />
+        <ReviewButton t={t} />
         <button type="button" className="btn" onClick={onRematch}>
           {rematchLabel}
         </button>
@@ -1827,6 +1832,116 @@ function ReplayKifuButton({ t }: { t: (key: string) => string }) {
     <button type="button" className="btn ghost outline" onClick={() => open('game')}>
       {t('result.replayKifu')}
     </button>
+  );
+}
+
+/**
+ * 終局パネルの「感想戦」(画面機能 v0.37 §3 S07・意味論＝親 §9.4)。
+ *
+ * 押すと**いま終わった対局**で感想戦 (S11) へ入る。**記録を作らない場**なので、
+ * ここで何も書き出さず、記憶にも触らない (§9.4.3)。
+ *
+ * **相手が居るネット対戦では、まず打診する** (親 §6.3.6・v1.47)。同意が要るのは
+ * **相手を巻き込むことだけ**なので、**断られてもひとりで入る**。対 AI・オフライン対人
+ * ではその場でひとりで入る (打診しない)。
+ */
+function ReviewButton({ t }: { t: (key: string) => string }) {
+  const open = pluginGet<(from: 'lobby' | 'game' | 'kifu-replay') => boolean>('review:open');
+  const hasLast = pluginGet<() => boolean>('kifu:hasLast');
+  const canOffer = pluginGet<() => boolean>('review:canOffer');
+  const offer = pluginGet<() => void>('review:offer');
+  if (!open || !hasLast?.()) return null;
+  return (
+    <button
+      type="button"
+      className="btn ghost outline"
+      onClick={() => {
+        if (canOffer?.() && offer) {
+          offer();
+          return;
+        }
+        open('game');
+      }}
+    >
+      {t('result.review')}
+    </button>
+  );
+}
+
+/**
+ * 感想戦を申し出ている間のパネル (付録D-12 §7・v1.47)。
+ *
+ * **返事を待つあいだ閉じ込めない**＝「ひとりで始める」を必ず置く。押せば申し出を
+ * 取り下げてその場で感想戦へ入る。**相手が居なくなったら、待たずにひとりで入る**。
+ */
+function ReviewOfferSentPanel({ t }: { t: (key: string) => string }) {
+  const from = useOffersStore((s) => s.reviewOfferFrom);
+  const open = pluginGet<(from: 'lobby' | 'game' | 'kifu-replay') => boolean>('review:open');
+  const withdraw = pluginGet<() => void>('review:withdrawOffer');
+  const oppName = pluginGet<OnlineGameConnector>('gameConnector')?.getOpponentName() ?? '';
+
+  const startAlone = () => {
+    withdraw?.();
+    open?.('game');
+  };
+
+  // 相手が居なくなったら待ち続けない (付録D-12 §7)。
+  useEffect(() => {
+    if (from === 'me' && oppName === '') startAlone();
+    // startAlone は毎回作り直されるが、見たいのは「申し出中に相手が消えたか」だけ。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [from, oppName]);
+
+  if (from !== 'me') return null;
+  return (
+    <FloatingPanel
+      className="floating-result floating-confirm review"
+      title={
+        <>
+          <span className="icon">🔍</span>
+          {t('review.sentTitle')}
+        </>
+      }
+    >
+      <div className="body">{t('review.sentBody')}</div>
+      <div className="btn-row">
+        <button type="button" className="btn ghost outline" onClick={startAlone}>
+          {t('review.aloneAction')}
+        </button>
+      </div>
+    </FloatingPanel>
+  );
+}
+
+/**
+ * 感想戦のお誘いを受けたときのモーダル (付録D-12 §7・v1.47)。
+ *
+ * **緑を使わない**・**断るボタンを灰色にしない** (灰色は「押せない」だけを意味する)。
+ */
+function ReviewOfferReceivedModal({ t }: { t: (key: string) => string }) {
+  const from = useOffersStore((s) => s.reviewOfferFrom);
+  const answer = pluginGet<(accepted: boolean) => void>('review:answerOffer');
+  if (from !== 'opp' || !answer) return null;
+  return (
+    <FloatingPanel
+      className="floating-result floating-confirm review"
+      title={
+        <>
+          <span className="icon">🔍</span>
+          {t('review.receivedTitle')}
+        </>
+      }
+    >
+      <div className="body">{t('review.receivedBody')}</div>
+      <div className="btn-row">
+        <button type="button" className="btn ghost outline" onClick={() => answer(false)}>
+          {t('review.rejectAction')}
+        </button>
+        <button type="button" className="btn" onClick={() => answer(true)}>
+          {t('review.acceptAction')}
+        </button>
+      </div>
+    </FloatingPanel>
   );
 }
 
@@ -1898,7 +2013,12 @@ interface PromotionModalProps {
   cycle: CycleReader;
 }
 
-function PromotionModal({ locale, t, viewerSide, mode, cycle }: PromotionModalProps) {
+/**
+ * 成るかどうかの確認。**感想戦 (S11) からも同じものを出す**ので export する
+ * （付録D-12 §1「発明し直さない」）。盤に触れる部品はここ 1 つに集めておかないと、
+ * 片方だけ直った状態が生まれる。
+ */
+export function PromotionModal({ locale, t, viewerSide, mode, cycle }: PromotionModalProps) {
   const pendingPromotion = useGameStore((s) => s.pendingPromotion);
   const confirmPromotion = useGameStore((s) => s.confirmPromotion);
   const cancelPromotion = useGameStore((s) => s.cancelPromotion);

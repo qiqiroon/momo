@@ -19,6 +19,7 @@ import { adoptLoadedKifu, listFolderKifu, saveKifuFile } from '../index';
 import { canUseFolder, chooseFolder, rememberedFolder, usableFolder, type FsDirHandle } from '../folder';
 import { readKifuFile } from '../io';
 import { asReplay, replayKifu } from '../replay';
+import { setReviewTarget } from '../review';
 import { endingLabel } from './ending';
 import { kifuMemoryState, loadLastKifu, type KifuMemoryState } from '../storage';
 import type { KifuFile } from '../types';
@@ -353,6 +354,25 @@ export function KifuReplayScreen() {
                 <span className="who">{t('s08.noKifu')}</span>
               )}
             </div>
+            {/* v1.46: **この棋譜で感想戦**（画面機能 v0.37 §3 S08・意味論＝親 §9.4）。
+                **いま開いている棋譜**で S11 へ入る＝選び直させない。**棋譜が無いときは
+                押せない**（感想戦は振り返る 1 局が決まっていることが前提）。
+                **記憶には触らない**ので確認は出ない。 */}
+            <button
+              type="button"
+              className="io-btn"
+              disabled={!file}
+              onClick={() => {
+                seButton();
+                setPlaying(false);
+                if (file) {
+                  setReviewTarget(file, 'kifu-replay');
+                  setScreen('review');
+                }
+              }}
+            >
+              {t('s08.review')}
+            </button>
             <button
               type="button"
               className="pick-btn"

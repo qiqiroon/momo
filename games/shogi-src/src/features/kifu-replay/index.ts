@@ -15,11 +15,21 @@ import { register } from '../../core/plugin/registry';
 import { useGameStore } from '../../core/store/game-store';
 import { useRouteStore } from '../../core/store/route-store';
 import { KifuReplayScreen } from './ui/KifuReplayScreen';
+import { ReviewScreen } from './ui/ReviewScreen';
+import { setReviewTarget, type ReviewOrigin } from './review';
+import {
+  answerReviewOffer,
+  canOfferReview,
+  offerReview,
+  receiveReviewMessage,
+  reviewOpponentLeft,
+  withdrawReviewOffer,
+} from './review-share';
 import { setReplayOrigin } from './ui/origin';
 import { buildKifuFile } from './build';
 import { kifuFileName } from './filename';
 import { readFolderTexts, type FsDirHandle } from './folder';
-import { parseKifu, writeKifuFile, type KifuSaveOutcome } from './io';
+import { parseKifu, readKifuFile, writeKifuFile, type KifuSaveOutcome } from './io';
 import { isReplayingKifu } from './replay';
 import {
   discardKifu,
@@ -180,6 +190,80 @@ register('kifu:open', (from: 'lobby' | 'game') => {
   useRouteStore.getState().setScreen('kifu-replay');
 });
 
+// 感想戦画面 (S11)。A ビルドには存在しないので、口ごと無い＝入口も出ない。
+register('screen:review', ReviewScreen);
+/**
+ * 感想戦を開く（親 §9.4.1・入り口は 3 つ）。**振り返る 1 局を一緒に渡す**
+ * ＝棋譜の無い感想戦は定義しない（画面の中で選び直せないので、ここで決まる）。
+ *
+ * 棋譜を渡さない呼び方では**記憶している 1 局**で始める（モード選択からの経路）。
+ * 記憶が空なら開かず false を返す＝呼んだ側が読み込みへ案内できる。
+ *
+ * **感想戦は破棄の契機ではない**ので確認は挟まない（親 §9.2.3 ②・§9.4.3）。
+ */
+register('review:open', (from: ReviewOrigin, file?: KifuFile): boolean => {
+  const target = file ?? loadLastKifu();
+  if (!target) return false;
+  setReviewTarget(target, from);
+  useRouteStore.getState().setScreen('review');
+  return true;
+});
+/**
+ * モード選択から感想戦へ入る（親 §9.4.1 の 3 つめの入り口）。
+ *
+ * **記憶している棋譜があれば、それでそのまま始める**＝読み込ませない。
+ * **記憶が空のときだけ棋譜を読み込む**（S08 と同じ経路＝**押すまで書類ピッカーを
+ * 開かない**）。押した先で確かめる材料が無いので、ここが唯一ファイルを尋ねる場所。
+ *
+ * 読み込みは本来なら破棄の契機だが、**ここへ来るのは記憶が空のときだけ**なので
+ * 捨てるものが無い（親 §9.2.3 ②）。
+ */
+/**
+ * 二人の感想戦（親 §9.4.4／§6.3.6）。**通信側からはこの 3 つの口だけが見える**。
+ *
+ * - `review:message` … 相手から届いた伝言を渡す口
+ * - `review:opponentLeft` … 相手が抜けたことを渡す口。**二人でやっていたときだけ true**
+ *   を返し、呼んだ側は対局中の切断としての始末（退室を促す）をしない
+ * - `review:canOffer` … 打診できるか（終局パネルが二人用に振る舞うかを決める）
+ *
+ * 棋譜の機能を積んでいないビルドでは口ごと無いので、感想戦の伝言は黙って捨てられる。
+ */
+register('review:message', receiveReviewMessage);
+register('review:opponentLeft', reviewOpponentLeft);
+register('review:canOffer', canOfferReview);
+/** 終局パネルの「感想戦」から相手へ申し出る（返事を待つ間も閉じ込めない）。 */
+register('review:offer', offerReview);
+register('review:withdrawOffer', withdrawReviewOffer);
+register('review:answerOffer', answerReviewOffer);
+register('review:openFromMenu', () => {
+  if (loadLastKifu()) {
+    setReviewTarget(loadLastKifu() as KifuFile, 'lobby');
+    useRouteStore.getState().setScreen('review');
+    return;
+  }
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'application/json,.json';
+  input.style.display = 'none';
+  input.addEventListener('change', () => {
+    const chosen = input.files?.[0];
+    input.remove();
+    if (!chosen) return;
+    void readKifuFile(chosen)
+      .then((next) => {
+        // 読み込めた時点でファイルは存在するので、記憶の印は最初から「保存済み」。
+        adoptLoadedKifu(next);
+        setReviewTarget(next, 'lobby');
+        useRouteStore.getState().setScreen('review');
+      })
+      .catch(() => {
+        // 棋譜でないものを選んだ。**入らずに済ませる**（画面機能 §3 S11「状態・エラー」）。
+      });
+  });
+  document.body.appendChild(input);
+  input.click();
+});
+
 export { buildKifuFile } from './build';
 export { kifuFileName } from './filename';
 export {
@@ -193,7 +277,15 @@ export {
 export type { FolderAsk, FsDirHandle } from './folder';
 export { parseKifu, readKifuFile, serializeKifu, writeKifuFile } from './io';
 export type { KifuSaveOutcome } from './io';
-export { replayKifu, isReplayingKifu } from './replay';
+export { replayKifu, isReplayingKifu, holdReplayGuard } from './replay';
+export { setReviewTarget, reviewTarget, reviewOrigin } from './review';
+export type { ReviewOrigin } from './review';
+export {
+  canOfferReview,
+  endSharedReview,
+  isSharedReview,
+  useReviewShareStore,
+} from './review-share';
 export {
   discardKifu,
   discardKifuIfDue,
@@ -206,4 +298,5 @@ export {
 } from './storage';
 export type { KifuMark, KifuMemory, KifuMemoryState } from './storage';
 export { KifuReplayScreen } from './ui/KifuReplayScreen';
+export { ReviewScreen } from './ui/ReviewScreen';
 export type { KifuFile, KifuMeta, KifuPlayer, KifuOpponent } from './types';

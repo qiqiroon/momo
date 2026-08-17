@@ -121,6 +121,21 @@ export interface OnlineGameConnector {
     cause: 'empty_candidates' | 'iteration_limit',
     debugForce?: 'empty' | 'limit',
   ): void;
+  /**
+   * v1.47: 部屋を建てた側か（親 §6.3.6 の「食い違ったらホストを正」）。
+   *
+   * **ルールを決めた人かどうか (`isRuleSetter`) とは分けて持つ**＝あちらは部屋に
+   * 居ないとき true（自分で決めたのだから）だが、こちらは**部屋の役**なので
+   * 部屋に居なければ false。同じ値に見える場面があっても意味が違う。
+   */
+  isRoomHost(): boolean;
+  /**
+   * v1.47: 感想戦の伝言を相手に送る（親 §6.3.6・型は `core/plugin/review.ts`）。
+   *
+   * **対局用の部屋をそのまま使う**ので、送る手立ては着手やチャットと同じもの。
+   * 部屋に居ないとき（ひとりの感想戦）は送り先が無いので**何もしない**。
+   */
+  sendReview(msg: import('./review').ReviewMessage): void;
   /** 一時中断を相手に通知（v0.42 で合意不要に変更）。 */
   sendPauseNotify(): void;
   /** 再開を相手に申し出る。 */

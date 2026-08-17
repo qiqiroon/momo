@@ -28,6 +28,7 @@
  *          相手側で描画するためにメッセージ本体に持たせる。
  */
 
+import type { ReviewMovePayload, ReviewPoint } from '../../core/plugin/review';
 import type { TimeControl } from '../../core/engine/time-control';
 import { handicapKey, type HandicapChoice } from '../../core/engine/handicap';
 import type { QuantumParams } from '../../core/store/quantum-params';
@@ -251,6 +252,41 @@ export interface AnomalyRaiseMsg extends Envelope {
 }
 
 /**
+ * v1.47 (親 §6.3.6): 感想戦のやり取り。**対局用の部屋をそのまま使う**ので、
+ * 新しい通信の仕組みは作らない。中身の型は `core/plugin/review.ts` が正本で、
+ * ここはそれを線に乗せる形だけを決める (通信機能は感想戦の画面に依存しない)。
+ *
+ * 棋譜は**文字列のまま**運ぶ (保存で使っている形をそのまま流用する)。
+ * 通信側が棋譜の中身を知る必要はなく、知らないほうが版が食い違ったときに強い。
+ */
+export interface ReviewOfferMsg extends Envelope { type: 'review_offer'; }
+export interface ReviewReplyMsg extends Envelope { type: 'review_reply'; accepted: boolean; }
+export interface ReviewStateMsg extends Envelope {
+  type: 'review_state';
+  /** 土台の配布では必ず入る。食い違いを直すだけのときは省く (相手は既に持っている)。 */
+  kifu?: string;
+  ply: number;
+  branch: ReviewMovePayload[];
+}
+export interface ReviewMoveMsg extends Envelope {
+  type: 'review_move';
+  base: ReviewPoint;
+  ply: number;
+  branch: ReviewMovePayload[];
+}
+export interface ReviewSeekMsg extends Envelope {
+  type: 'review_seek';
+  base: ReviewPoint;
+  ply: number;
+}
+export interface ReviewUndoMsg extends Envelope {
+  type: 'review_undo';
+  base: ReviewPoint;
+  ply: number;
+  branch: ReviewMovePayload[];
+}
+
+/**
  * Phase 5-12: ルール同期で揃える対局設定の一式 (親 §6.5)。
  *
  * 「部屋を作った人が決めたルールを対戦相手に送って揃える」ためのもので、対応可否を
@@ -386,7 +422,13 @@ export type ShogiMessage =
   | AnomalyVoteMsg
   | AnomalyRaiseMsg
   | RuleSyncMsg
-  | RuleAckMsg;
+  | RuleAckMsg
+  | ReviewOfferMsg
+  | ReviewReplyMsg
+  | ReviewStateMsg
+  | ReviewMoveMsg
+  | ReviewSeekMsg
+  | ReviewUndoMsg;
 
 /** 型ガード：unknown をゲームメッセージとして扱えるか */
 export function isShogiMessage(data: unknown): data is ShogiMessage {

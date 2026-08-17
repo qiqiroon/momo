@@ -22,11 +22,15 @@ export interface ReplayResult {
  * 再生は**盤を作り直して終局まで指し直す**ので、外から見ると新しい対局が始まって
  * 終わったのと区別がつかない。見張っている側（index.ts）がそれを本物の対局と
  * 取り違えると、**再生しただけで記憶が書き換わる**。ここで名乗って避ける。
+ *
+ * **入れ子になるので数で持つ**（v1.46）＝感想戦は画面が開いている間ずっと名乗り
+ * 続けるが、その中で再生（`replayKifu`）も走る。真偽値だと内側が終わった時点で
+ * 名乗りが解けてしまい、**外側がまだ続いているのに素通しになる**。
  */
-let replaying = false;
+let depth = 0;
 
 export function isReplayingKifu(): boolean {
-  return replaying;
+  return depth > 0;
 }
 
 /**
@@ -37,13 +41,31 @@ export function isReplayingKifu(): boolean {
  * **盤から作り直した棋譜で記憶を上書きしてしまう**（記録 → 盤の一方向が壊れる）。
  */
 export function asReplay<T>(fn: () => T): T {
-  const outer = replaying;
-  replaying = true;
+  depth++;
   try {
     return fn();
   } finally {
-    replaying = outer;
+    depth--;
   }
+}
+
+/**
+ * **画面が開いている間ずっと名乗り続ける**（感想戦 S11・親 §9.4.3）。返り値を呼ぶと解く。
+ *
+ * 感想戦は**人がいつ指すか分からない**ので、操作のたびに名乗る形にすると
+ * **名乗り漏れが 1 か所でもあれば記憶が書き換わる**（分岐で詰ませた瞬間に、その
+ * 分岐が「新しい対局の終局」として記録される）。**盤に触れる口を数え上げる代わりに、
+ * 画面に居る間を丸ごと囲う**＝成るかどうかの確認のように、画面から離れたところで
+ * 盤を動かす部品も自動で入る。
+ */
+export function holdReplayGuard(): () => void {
+  depth++;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    depth--;
+  };
 }
 
 /**
@@ -53,7 +75,7 @@ export function asReplay<T>(fn: () => T): T {
  * **再生は破棄の契機ではない**（親 §9.2.3 ②）＝記憶は触らない。
  */
 export function replayKifu(file: KifuFile, upTo?: number): ReplayResult {
-  replaying = true;
+  depth++;
   try {
     const g = useGameStore.getState();
     g.reset({
@@ -72,6 +94,6 @@ export function replayKifu(file: KifuFile, upTo?: number): ReplayResult {
     }
     return { applied, recorded: file.moves.length };
   } finally {
-    replaying = false;
+    depth--;
   }
 }

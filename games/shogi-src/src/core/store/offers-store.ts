@@ -23,6 +23,13 @@ interface UndoOfferMeta {
 }
 
 interface OffersState {
+  /**
+   * v1.47: 感想戦の打診（親 §9.4.1・付録D-12 §7）。'me'＝返事待ち／'opp'＝答える番。
+   *
+   * **他の申し出と違い、断られても申し出た側は先へ進む**（ひとりで感想戦に入る）
+   * ＝同意が要るのは「相手を巻き込むこと」だけで、振り返り自体には要らないため。
+   */
+  reviewOfferFrom: 'me' | 'opp' | null;
   drawOfferFrom: 'me' | 'opp' | null;
   undoOfferFrom: 'me' | 'opp' | null;
   undoOfferMeta: UndoOfferMeta | null;
@@ -30,6 +37,7 @@ interface OffersState {
   lastNoticeKind: OfferKind | null;
   lastNoticeType: OfferNoticeType | null;
 
+  setReviewOfferFrom: (from: 'me' | 'opp' | null) => void;
   setDrawOfferFrom: (from: 'me' | 'opp' | null) => void;
   setUndoOfferFrom: (from: 'me' | 'opp' | null, meta?: UndoOfferMeta | null) => void;
   setResumeOfferFrom: (from: 'me' | 'opp' | null) => void;
@@ -38,6 +46,7 @@ interface OffersState {
 }
 
 export const useOffersStore = create<OffersState>((set) => ({
+  reviewOfferFrom: null,
   drawOfferFrom: null,
   undoOfferFrom: null,
   undoOfferMeta: null,
@@ -45,6 +54,7 @@ export const useOffersStore = create<OffersState>((set) => ({
   lastNoticeKind: null,
   lastNoticeType: null,
 
+  setReviewOfferFrom: (reviewOfferFrom) => set({ reviewOfferFrom }),
   setDrawOfferFrom: (drawOfferFrom) => set({ drawOfferFrom }),
   setUndoOfferFrom: (undoOfferFrom, meta) =>
     set({
@@ -55,6 +65,7 @@ export const useOffersStore = create<OffersState>((set) => ({
   setNotice: (lastNoticeKind, lastNoticeType) => set({ lastNoticeKind, lastNoticeType }),
   clearAll: () =>
     set({
+      reviewOfferFrom: null,
       drawOfferFrom: null,
       undoOfferFrom: null,
       undoOfferMeta: null,

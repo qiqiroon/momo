@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.45',
+    'app.ver': 'v1.47',
     // v0.72 音楽再生確認モーダル (Darts と同じ思想)
     'sound.promptTitle': 'BGM と効果音を再生してもよろしいですか？',
     'sound.bgmLabel': 'BGM 音量',
@@ -125,13 +125,18 @@ export const ja: LocaleData = {
     's00.mAi': 'AI対戦',
     's00.mAiD': 'コンピュータと対局。先後と AI の強さを選べます。',
     's00.mOffline': 'vs 人 (オフライン対戦)',
-    's00.mOfflineD': '同じ端末で交互に指すデバッグ用モード (将来「感想戦モード」に統合予定)。',
+    // v1.46: 「将来『感想戦モード』に統合予定」を外す（親 §9.4.5・ユーザー判断
+    // 2026-08-17）＝オフライン対人は**対局**であり勝敗も持ち時間も棋譜の記録も持つ。
+    // 感想戦はいずれも持たないので、統合しない。
+    's00.mOfflineD': '同じ端末で二人が交互に指します。',
     's00.mWatch': 'ネット観戦',
     's00.mWatchD': 'ほかの人の対局を見る。',
     's00.mBuild': 'カスタムルール作成',
     's00.mBuildD': '盤の大きさや駒の動きを決めて、自分だけのルールに。',
     's00.mKifu': '棋譜再生',
     's00.mKifuD': '保存した対局を並べ直して振り返る。',
+    's00.mReview': '感想戦',
+    's00.mReviewD': '終わった対局を並べ直し、どの局面からでも自由に指してみる。',
     's00.pvpReason': 'サーバーに接続できていないため、ネット対戦は選べません。',
     's00.watchReason': 'サーバーに接続できていないため、ネット観戦は選べません。',
     's00.footAbout': 'MOMO Shogi について',
@@ -218,6 +223,32 @@ export const ja: LocaleData = {
 
     // 棋譜再生画面 (S08・付録D-8 v1.3)。棋譜の文字づかい自体は猫語化しない
     // (コンテンツ扱い・§11) が、画面のラベルは 5 モード連動。
+    'result.review': '感想戦',
+    // 感想戦 (S11・親 §9.4／付録D-12 §11)。棋譜の手の表記はコンテンツ扱いなので触らない。
+    's11.title': '感想戦',
+    's11.backResult': '結果へ',
+    's11.backReplay': '棋譜再生へ',
+    's11.free': 'どちらの駒も自由に動かせます（時計は動きません）',
+    's11.toMain': '本譜へ',
+    's11.saveNote': '本譜を保存します（分岐は入りません）',
+    's11.branch': '分岐',
+    's11.droppedBranch': '分岐をやめて本譜へ戻りました',
+    's11.noKifu': '棋譜がありません',
+    // v1.47: 二人の感想戦（親 §9.4.4・付録D-12 §3／§7／§8）
+    's11.peerGone': '（退室）',
+    's11.receiving': '棋譜を受け取っています…',
+    's11.notice.declined': '相手は感想戦をしません。ひとりで始めます。',
+    's11.notice.aloneNoPeer': 'ひとりで感想戦を始めます',
+    's11.notice.oppLeft': '相手が退室しました。ひとりで続けます。',
+    's11.notice.overridden': '同時に指したため、相手の手が残りました',
+    'review.sentTitle': '感想戦のお誘い',
+    'review.sentBody': '相手に感想戦を申し出ています…',
+    'review.aloneAction': 'ひとりで始める',
+    'review.receivedTitle': '感想戦のお誘い',
+    'review.receivedBody': '相手が感想戦をしようと言っています。',
+    'review.acceptAction': '受ける',
+    'review.rejectAction': '断る',
+    's08.review': 'この棋譜で感想戦',
     's08.backTop': 'トップへ',
     's08.backResult': '結果へ',
     's08.list': '棋譜一覧',

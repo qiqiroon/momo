@@ -1746,12 +1746,29 @@ function GameEndModal({
       <div className={`verdict ${verdictClass}`}>{t(verdictKey)}</div>
       <div className="body">{t(reasonKey)}</div>
       {annihilationDetail && <div className="body">{annihilationDetail}</div>}
+      {/* v1.42: **押せるボタンは白文字・白枠**（付録D-3 §4.1）。灰色は「押せない」だけを
+          意味する＝押せるのに灰色だと押せないボタンに見える。主動作の「もう一度対局」
+          だけオレンジ地のまま＝主従の差は残す。 */}
       <div className="btn-row">
-        <button type="button" className="btn ghost" onClick={() => setDismissed(status)}>
+        <button
+          type="button"
+          className="btn ghost outline"
+          onClick={() => setDismissed(status)}
+        >
           {t('result.close')}
         </button>
         <SaveKifuButton t={t} />
         <ReplayKifuButton t={t} />
+        {/* v1.42: **モード選択へ戻る道をここに置く**（画面機能 §3 S07「トップへ」）。
+            無いと対 AI の終局後は対局準備の設定画面を通るしかなく、そこは
+            盤を作り直す画面なので、棋譜の確認をまたいで戻ることになっていた。 */}
+        <button
+          type="button"
+          className="btn ghost outline"
+          onClick={() => useRouteStore.getState().setScreen('lobby')}
+        >
+          {t('s00.modeSelect')}
+        </button>
         <button type="button" className="btn" onClick={onRematch}>
           {rematchLabel}
         </button>
@@ -1776,7 +1793,7 @@ function SaveKifuButton({ t }: { t: (key: string) => string }) {
   return (
     <button
       type="button"
-      className="btn ghost"
+      className="btn ghost outline"
       disabled={saving}
       onClick={() => {
         setSaving(true);
@@ -1802,7 +1819,7 @@ function ReplayKifuButton({ t }: { t: (key: string) => string }) {
   const hasLast = pluginGet<() => boolean>('kifu:hasLast');
   if (!open || !hasLast?.()) return null;
   return (
-    <button type="button" className="btn ghost" onClick={() => open('game')}>
+    <button type="button" className="btn ghost outline" onClick={() => open('game')}>
       {t('result.replayKifu')}
     </button>
   );
@@ -2093,7 +2110,7 @@ function QuantumStack({ kinds, locale }: { kinds: string[]; locale: LocaleCode }
  * 回転した器の外に出るので、文字を回し戻す必要も無くなった。
  * 出したまま窓の大きさが変わる/巻物が動く場合に備えて位置は測り直す。
  */
-function CandidateBox({
+export function CandidateBox({
   kinds,
   locale,
   onLeft,
@@ -2202,6 +2219,32 @@ interface PieceStandViewProps {
   collapsingIds?: ReadonlySet<string>;
 }
 
+/**
+ * 駒が増えたときの詰め方 (付録D-1 §4.4.1・駒UI v0.11 §5.1)。
+ *
+ * **駒台の高さは盤に固定**し、下へ伸ばさない（伸ばすと対局画面の操作列・S08 の
+ * 再生の操作帯を押し下げ、**同じボタンを続けて押せなくなる**）。
+ *
+ * 詰める順は **①間隔を詰める → ②2 列にする → ③駒を小さくする**。
+ * **間隔は失っても読めるが、大きさは失うと読めなくなる**（縮小は画数の多い字から潰れる）
+ * ので、間隔を先に使い切る。2 列は同じ枚数を 4 倍の面積で置けるため、縮めるより先。
+ *
+ * 枚数の境目は付録D-1 §4.4.1 の実測値（1 列 10 / 間隔 0 で 12 / 2 列 20 / 2 列間隔 0 で 24）。
+ *
+ * **量子でしか起きない**＝確定した駒は駒種ごとにまとまるので、本将棋では 7〜8 行で収まる。
+ */
+function standPacking(count: number): { cls: string; scale: number } {
+  if (count <= 10) return { cls: '', scale: 1 };
+  if (count <= 12) return { cls: 'tight', scale: 1 };
+  if (count <= 20) return { cls: 'two', scale: 1 };
+  if (count <= 24) return { cls: 'two tight', scale: 1 };
+  // ここまで来るのは 25 枚以上＝通常の対局ではまず起きない。**読めることは保証しない**が、
+  // **駒を画面から消さない**（読みにくくても在ることは分かる）。最小は付録D-1 の 0.40/0.66。
+  const rows = Math.ceil(count / 2);
+  const scale = Math.max(0.4 / 0.66, 12.2 / rows);
+  return { cls: 'two tight', scale };
+}
+
 /** 駒台。棋譜再生画面 (S08) も同じものを使う（触れない＝`activePlayer` を false にする）。 */
 export function PieceStandView({ side, pieces, onClick, selectedId, activePlayer, locale, label, entangledPieceIds, debugShowPieceIds, mode = 'cycle', tick = 0, collapsingIds }: PieceStandViewProps) {
   const isEn = locale === 'en';
@@ -2212,8 +2255,12 @@ export function PieceStandView({ side, pieces, onClick, selectedId, activePlayer
   // groupHand は DESC (大駒 上) で返すので、you 側はそのまま。opp 側は reverse して
   // 「相手視点での大駒上 = 盤面上では opp 駒台の下側 (盤に近い側)」に配置する。
   const orderedPieces = side === 'opp' ? [...pieces].reverse() : pieces;
+  const pack = standPacking(orderedPieces.length);
   return (
-    <div className={`stand ${side}`}>
+    <div
+      className={`stand ${side} ${pack.cls}`}
+      style={pack.scale < 1 ? ({ '--stand-scale': pack.scale } as CSSProperties) : undefined}
+    >
       {/* v0.68 C4: 従来 'Gote'/'You' 固定で自分が後手のときも相手側が Gote になっていたのを、
           呼び出し側から先手/後手ラベルを注入して viewer 基準に合わせる。 */}
       <div className="stand-h">{label ?? (side === 'opp' ? 'Gote' : 'You')}</div>

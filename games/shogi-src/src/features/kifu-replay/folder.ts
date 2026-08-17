@@ -236,8 +236,17 @@ async function freeName(dir: FsDirHandle, fileName: string): Promise<string> {
   return withSeq(fileName, 99);
 }
 
-/** 書き出しの結末 (io.ts と同じ言葉を使う)。 */
-export type FolderWriteResult = 'saved' | 'failed';
+/**
+ * 書き出しの結末 (io.ts と同じ言葉を使う) と、**実際に書いた名前**。
+ *
+ * 名前を返すのは、**保存できたことを知らせるときに出す**ため (親 §9.2.3 ③)。
+ * 連番を送った場合は送ったあとの名前でないと、次に探すときの手がかりにならない。
+ */
+export interface FolderWriteResult {
+  result: 'saved' | 'failed';
+  /** 実際に書いた名前（連番を送ったならそれも含む）。書けなかったときは試みた名前。 */
+  name: string;
+}
 
 /**
  * フォルダへ書き出し、**書いた直後に読み返して突き合わせる** (§9.2.3 ③)。
@@ -250,16 +259,17 @@ export async function writeIntoFolder(
   fileName: string,
   text: string,
 ): Promise<FolderWriteResult> {
+  let name = fileName;
   try {
-    const name = await freeName(dir, fileName);
+    name = await freeName(dir, fileName);
     const handle = await dir.getFileHandle(name, { create: true });
     const stream = await handle.createWritable();
     await stream.write(text);
     await stream.close();
     const back = await (await handle.getFile()).text();
-    return back === text ? 'saved' : 'failed';
+    return { result: back === text ? 'saved' : 'failed', name };
   } catch {
-    return 'failed';
+    return { result: 'failed', name };
   }
 }
 

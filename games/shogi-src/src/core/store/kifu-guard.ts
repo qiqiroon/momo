@@ -19,8 +19,8 @@
 import { create } from 'zustand';
 import { get as pluginGet } from '../plugin/registry';
 
-/** 記憶の 3 状態（親 §9.2.3 ①）。 */
-type MemoryState = 'empty' | 'unsaved' | 'saved';
+/** 記憶の 4 状態（親 §9.2.3 ①）。 */
+type MemoryState = 'empty' | 'unsaved' | 'saved' | 'pending-discard';
 /**
  * 書き出しの結末（親 §9.2.3 ③）。`cancelled` は**本人がやめた**＝何も書いていない。
  * `failed` は**やめていないのに書けなかった**＝どちらも先へ進めないが、
@@ -60,8 +60,9 @@ function memoryState(): MemoryState {
   return read ? read() : 'empty';
 }
 
-function discardMemory(): void {
-  pluginGet<() => void>('kifu:discard')?.();
+/** 「捨てる」と答えられた印を付ける。**中身はここでは消えない**（親 v1.40 §9.2.3 ②）。 */
+function markPendingDiscard(): void {
+  pluginGet<() => void>('kifu:markDiscard')?.();
 }
 
 function close(): void {
@@ -74,9 +75,17 @@ function close(): void {
   });
 }
 
-/** 捨てて元の操作へ進む。**ここが唯一の破棄の実行点**。 */
-function discardAndRun(action: () => void): void {
-  discardMemory();
+/**
+ * 確認を閉じて元の操作へ進む。
+ *
+ * **★ここでは棋譜を捨てない**（親 v1.40 §9.2.3 ②）。実際に捨てるのは
+ * **盤が作り直された瞬間**で、その時に「保存済み」と「破棄予定」だけが黙って消える。
+ *
+ * 理由＝**確認が出る場所（設定画面へ入るとき）と、盤が作り直される場所は同じではない**。
+ * ここで捨てると、引き返しただけで棋譜が消える（対 AI の終局後はモード選択へ直接戻る道が
+ * 無く、必ず対AI設定画面を通るのでこれが毎回起きていた）。
+ */
+function closeAndRun(action: () => void): void {
   close();
   action();
 }
@@ -115,9 +124,10 @@ export function requestKifuLoad(action: () => void): void {
 }
 
 function askKifuOrRun(action: () => void): void {
-  // **未保存のときだけ尋ねる**。保存済みならファイルとして残っているので尋ねずに捨てる。
+  // **未保存のときだけ尋ねる**。保存済み（ファイルが残っている）・破棄予定（既に
+  // 捨てると答えてもらった）・空は、**同じことを二度尋ねない**ので素通りする。
   if (memoryState() !== 'unsaved') {
-    discardAndRun(action);
+    closeAndRun(action);
     return;
   }
   useKifuGuardStore.setState({
@@ -151,14 +161,20 @@ export function guardCancel(): void {
   close();
 }
 
-/** 「破棄する」。記憶を捨てて元の操作へ進む。 */
+/**
+ * 「破棄する」。**印を付けるだけで、中身はまだ残す**（親 v1.40 §9.2.3 ②）。
+ *
+ * 実際に消えるのは盤が作り直された瞬間。それまでは棋譜再生画面へ入れば
+ * **読み込み直さずに再生できる**。以後この棋譜について同じ確認は出さない。
+ */
 export function guardDiscard(): void {
   const action = useKifuGuardStore.getState().pending;
   if (!action) {
     close();
     return;
   }
-  discardAndRun(action);
+  markPendingDiscard();
+  closeAndRun(action);
 }
 
 /**
@@ -196,6 +212,7 @@ export async function guardSave(): Promise<void> {
     });
     return;
   }
-  // 書き出せた＝ファイルとして残ったので、ここで捨ててよい（§9.2.3 ②）。
-  discardAndRun(action);
+  // 書き出せた＝ファイルとして残ったので、印は「保存済み」になっている（書き出し側が付ける）。
+  // **ここでも捨てない**＝次の対局が実際に始まるまで再生できる（親 v1.40 §9.2.3 ②）。
+  closeAndRun(action);
 }

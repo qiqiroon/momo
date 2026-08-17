@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { useGameStore } from '../../../core/store/game-store';
 import { useAiStore } from '../../../core/store/ai-store';
 import { useI18nStore } from '../../../core/store/i18n-store';
@@ -7,6 +7,9 @@ import { useRouteStore } from '../../../core/store/route-store';
 import { useKifuGuardStore } from '../../../core/store/kifu-guard';
 import { generateLegalMoves } from '../../../core/engine';
 import '../index';
+// 量子の検査で候補集合を作るのに要る（積んでいないと駒が最初から確定してしまい、
+// 「巡回するか」「候補が出るか」の検査が素通りする）。
+import '../../quantum';
 import { serializeKifu } from '../index';
 import { chooseFolder, forgetFolder } from '../folder';
 import { discardKifu, kifuMemoryState, loadLastKifu, markKifuSaved } from '../storage';
@@ -284,6 +287,103 @@ describe('S08 フォルダを指定してあるとき', () => {
     expect(loadLastKifu()?.moves).toHaveLength(6); // 記憶は入れ替わっていない
     // 盤は選んだ棋譜（4 手）に入れ替わり、0 手目から見せる
     expect(screen.getByText('0 / 4')).toBeInTheDocument();
+  });
+});
+
+/**
+ * ★実機確認からの 13 件（2026-08-16 ユーザー報告・v1.42）。
+ */
+describe('S08 v1.42 の直し', () => {
+  it('★棋譜が無いときは初期配置を出す（前の対局の終局図を残さない）', () => {
+    // 盤は対局画面と同じものを使うので、並べ直さないと終局図がそのまま残り、
+    // 「その棋譜を開いている」と誤読される。
+    finishedGame(6);
+    expect(useGameStore.getState().position.history).toHaveLength(6);
+    discardKifu(); // 記憶が空の状態で開く
+
+    render(<KifuReplayScreen />);
+    expect(useGameStore.getState().position.history).toHaveLength(0);
+    expect(screen.getByText('0 / 0')).toBeInTheDocument();
+  });
+
+  it('★戻るは常にモード選択へ（「結果へ」を廃止＝無関係な結果へ飛ばない）', () => {
+    finishedGame(6);
+    render(<KifuReplayScreen />);
+    expect(screen.queryByText('結果へ')).not.toBeInTheDocument();
+    expect(screen.queryByText('トップへ')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('モード選択'));
+    expect(useRouteStore.getState().screen).toBe('lobby');
+  });
+
+  it('★終局は最後の手と同じ行に出る＝手数は増えない', () => {
+    finishedGame(6); // 投了で終わる
+    const { container } = render(<KifuReplayScreen />);
+
+    const rows = container.querySelectorAll('.mv');
+    expect(rows).toHaveLength(7); // 0 行目（開始）＋ 6 手。終局で行は増えない
+    expect(screen.getByText('0 / 6')).toBeInTheDocument();
+
+    const badge = container.querySelector('.end-badge');
+    expect(badge).not.toBeNull();
+    expect(badge?.textContent).toContain('投了');
+    // 最後の手の行に付いていること
+    expect(rows[6].contains(badge!)).toBe(true);
+  });
+
+  it('★終局の記録を持たない古い棋譜では何も出さない（縮退互換）', () => {
+    finishedGame(6);
+    const old = loadLastKifu()!;
+    // v1.41 までのファイルには result が無いことがある。読めなくしてはならない。
+    const stripped = { ...old, meta: { ...old.meta, result: undefined } };
+    localStorage.setItem('shogi.kifu.last', JSON.stringify({ mark: 'saved', file: stripped }));
+
+    const { container } = render(<KifuReplayScreen />);
+    expect(container.querySelector('.end-badge')).toBeNull();
+    expect(screen.getByText('0 / 6')).toBeInTheDocument();
+  });
+
+  it('★量子の巡回は再生の状態に関わらず動き続ける', () => {
+    vi.useFakeTimers();
+    try {
+      useGameStore.getState().reset({ gameType: 'shogi', quantum: true, torusMode: 'none', handicap: null });
+      playMoves(4);
+      useGameStore.getState().resign('player2');
+
+      const { container } = render(<KifuReplayScreen />);
+      // **末尾まで再生し切ってから**字を控える。先に控えると、再生で盤が変わったぶんを
+      // 「巡回した」と取り違えて、時計が止まっていても緑になってしまう。
+      fireEvent.click(screen.getByText('▶|'));
+      const before = [...container.querySelectorAll('.board .pc .ja')].map((e) => e.textContent);
+      expect(before.length).toBeGreaterThan(0);
+      expect(container.querySelectorAll('.qmark-b').length).toBeGreaterThan(0); // 未確定駒が居ること
+
+      let changed = false;
+      for (let i = 0; i < 8 && !changed; i += 1) {
+        act(() => {
+          vi.advanceTimersByTime(1000);
+        });
+        const now = [...container.querySelectorAll('.board .pc .ja')].map((e) => e.textContent);
+        changed = now.some((s, idx) => s !== before[idx]);
+      }
+      expect(changed).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('★盤の駒に乗せると候補ボックスが出る（駒台だけではない）', () => {
+    useGameStore.getState().reset({ gameType: 'shogi', quantum: true, torusMode: 'none', handicap: null });
+    playMoves(4);
+    useGameStore.getState().resign('player2');
+
+    const { container } = render(<KifuReplayScreen />);
+    fireEvent.click(screen.getByText('▶'));
+    // 候補が 2 つ以上ある駒＝「？」が付いているマスを選ぶ（確定した駒には出ない）。
+    const sq = [...container.querySelectorAll('.sq')].find((e) => e.querySelector('.qmark-b'));
+    expect(sq).toBeDefined();
+    fireEvent.mouseEnter(sq!);
+    expect(document.querySelector('.qtip')).not.toBeNull();
   });
 });
 

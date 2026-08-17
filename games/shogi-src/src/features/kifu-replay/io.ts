@@ -11,6 +11,7 @@
  * フォルダを指定した場合だけは中が見えるので、一覧はそちらから組み立てる。
  */
 
+import { showSaveNotice } from '../../core/store/save-notice';
 import { canUseFolder, usableFolder, writeIntoFolder } from './folder';
 import { KIFU_FORMAT, type KifuFile } from './types';
 
@@ -99,7 +100,12 @@ export async function writeKifuFile(file: KifuFile, fileName: string): Promise<K
     // 押された直後なので、未指定なら選んでもらってよい（§9.2.3 ④「1 度だけ」）。
     const dir = await usableFolder('choose');
     if (!dir) return 'cancelled';
-    return writeIntoFolder(dir, fileName, text);
+    const written = await writeIntoFolder(dir, fileName, text);
+    if (written.result === 'saved') {
+      // **書いた場所まで言える唯一の経路**＝読み返して突き合わせたうえで名前も分かる。
+      showSaveNotice({ fileName: written.name, folderName: dir.name, verified: true });
+    }
+    return written.result;
   }
 
   const nav = navigator as Navigator & {
@@ -114,6 +120,8 @@ export async function writeKifuFile(file: KifuFile, fileName: string): Promise<K
         await nav.share({ files: [shareFile], title: name });
         // 共有先がファイル以外 (メール等) でも「保存済み」とする。本人が意図して
         // 渡した先であり、こちらから渡り先を見分ける手段も無い (§9.2.3 ③)。
+        // **どこへ置かれたかは分からない**ので、断定はしない (verified=false)。
+        showSaveNotice({ fileName: name, folderName: null, verified: false });
         return 'saved';
       } catch (e) {
         // 取り消しは拒否として返ってくる。ここで止めるのが v1.40 との違い。
@@ -123,6 +131,8 @@ export async function writeKifuFile(file: KifuFile, fileName: string): Promise<K
     }
   }
   downloadKifuFile(text, name);
+  // ダウンロードは**渡した先すら分からない**ので断定しない (§9.2.3 ③)。
+  showSaveNotice({ fileName: name, folderName: null, verified: false });
   return 'saved';
 }
 

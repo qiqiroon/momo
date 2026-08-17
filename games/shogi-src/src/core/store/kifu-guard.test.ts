@@ -17,22 +17,30 @@ import {
  * features 側が plugin registry で答えるので、検査では**答える側を差し替える**。
  */
 
-type MemoryState = 'empty' | 'unsaved' | 'saved';
+type MemoryState = 'empty' | 'unsaved' | 'saved' | 'pending-discard';
 
 interface FakeKifu {
   state: MemoryState;
+  /** 中身を実際に消した回数。**確認に答えただけでは 0 のまま**（親 v1.40 §9.2.3 ②）。 */
   discarded: number;
+  /** 「捨てる」と答えられて印を付けた回数。 */
+  marked: number;
   saveCalls: number;
   /** 書き出しの結末をここで決める（取り消しを再現するため）。 */
   outcome: 'saved' | 'cancelled';
 }
 
 function installFakeKifu(state: MemoryState): FakeKifu {
-  const fake: FakeKifu = { state, discarded: 0, saveCalls: 0, outcome: 'saved' };
+  const fake: FakeKifu = { state, discarded: 0, marked: 0, saveCalls: 0, outcome: 'saved' };
   register('kifu:state', () => fake.state);
   register('kifu:discard', () => {
     fake.discarded += 1;
     fake.state = 'empty';
+  });
+  register('kifu:markDiscard', () => {
+    fake.marked += 1;
+    // 保存済みなら印を変えない（ファイルが残っている事実のほうが強い）。
+    if (fake.state !== 'saved') fake.state = 'pending-discard';
   });
   register('kifu:save', async () => {
     fake.saveCalls += 1;
@@ -61,14 +69,26 @@ describe('棋譜を捨てる前の確認（親 §9.2.3 ②）', () => {
     expect(ran).toBe(0);
   });
 
-  it('「破棄する」で記憶を捨ててから元の操作を行う', () => {
+  it('★「破棄する」は印を付けるだけ＝その場では捨てない（親 v1.40 §9.2.3 ②）', () => {
     const fake = installFakeKifu('unsaved');
     let ran = 0;
     requestNewGame(() => { ran += 1; });
     guardDiscard();
-    expect(fake.discarded).toBe(1);
+    // 元の操作は行うが、**中身はまだ残っている**＝引き返しても棋譜は失われない。
     expect(ran).toBe(1);
+    expect(fake.marked).toBe(1);
+    expect(fake.discarded).toBe(0);
+    expect(fake.state).toBe('pending-discard');
     expect(useKifuGuardStore.getState().stage).toBeNull();
+  });
+
+  it('★破棄予定なら二度と尋ねない（本人が既に選んでいる）', () => {
+    const fake = installFakeKifu('pending-discard');
+    let ran = 0;
+    requestNewGame(() => { ran += 1; });
+    expect(useKifuGuardStore.getState().stage).toBeNull();
+    expect(ran).toBe(1);
+    expect(fake.discarded).toBe(0);
   });
 
   it('★「やめる」で引き返せる＝元の操作を行わず、記憶もそのまま（親 v1.37 §9.2.3 ②）', () => {
@@ -93,12 +113,13 @@ describe('棋譜を捨てる前の確認（親 §9.2.3 ②）', () => {
     expect(ran).toBe(0);
   });
 
-  it('保存済みなら尋ねずに捨てて進む（ファイルとして残っているため）', () => {
+  it('★保存済みなら尋ねずに進む＝ここでも捨てない（次の対局が始まるまで再生できる）', () => {
     const fake = installFakeKifu('saved');
     let ran = 0;
     requestNewGame(() => { ran += 1; });
     expect(useKifuGuardStore.getState().stage).toBeNull();
-    expect(fake.discarded).toBe(1);
+    expect(fake.discarded).toBe(0);
+    expect(fake.state).toBe('saved');
     expect(ran).toBe(1);
   });
 
@@ -119,13 +140,14 @@ describe('棋譜を捨てる前の確認（親 §9.2.3 ②）', () => {
 });
 
 describe('「保存する」を選んだとき（親 §9.2.3 ③）', () => {
-  it('書き出せたら記憶を捨てて元の操作を続行する', async () => {
+  it('★書き出せたら元の操作を続行する＝記憶は残す（印だけ保存済みへ）', async () => {
     const fake = installFakeKifu('unsaved');
     let ran = 0;
     requestNewGame(() => { ran += 1; });
     await guardSave();
     expect(fake.saveCalls).toBe(1);
-    expect(fake.discarded).toBe(1);
+    expect(fake.discarded).toBe(0);
+    expect(fake.state).toBe('saved');
     expect(ran).toBe(1);
     expect(useKifuGuardStore.getState().stage).toBeNull();
   });
@@ -207,7 +229,7 @@ describe('対局画面のリセットだけ二段（画面機能 §3 S07）', ()
     expect(ran).toBe(0);
     guardResetYes();
     expect(useKifuGuardStore.getState().stage).toBeNull();
-    expect(fake.discarded).toBe(1);
+    expect(fake.discarded).toBe(0); // 捨てるのは盤が作り直された瞬間（v1.42）
     expect(ran).toBe(1);
   });
 });
@@ -232,8 +254,22 @@ describe('画面を移る仕組みの側で確認する（親 §9.2.3 ②）', (
     setScreen()('offline-rule');
     expect(useKifuGuardStore.getState().stage).toBe('kifu');
     guardDiscard();
-    expect(fake.discarded).toBe(1);
+    expect(fake.marked).toBe(1);
     expect(useRouteStore.getState().screen).toBe('offline-rule');
+  });
+
+  it('★対 AI の終局後に設定画面を通っても、棋譜はまだ残っている（v1.41 の欠陥）', () => {
+    // 対 AI はモード選択へ直接戻る導線が無く、必ず対AI設定画面を通る。
+    // v1.41 は確認に答えた瞬間に捨てていたため、**まだ何も始まっていないのに**
+    // 棋譜だけが先に消え、そのまま棋譜再生へ入っても何も無かった。
+    const fake = installFakeKifu('unsaved');
+    setScreen()('ai-setup');
+    guardDiscard();
+    expect(useRouteStore.getState().screen).toBe('ai-setup');
+    expect(fake.discarded).toBe(0); // 中身は残っている＝読み込み直さずに再生できる
+    // ここから引き返して棋譜再生へ入っても、記憶は空になっていない。
+    setScreen()('kifu-replay');
+    expect(fake.discarded).toBe(0);
   });
 
   it('★確認で「やめる」を選んだら画面も移らない（元の場所に留まる）', () => {

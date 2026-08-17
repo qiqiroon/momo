@@ -42,7 +42,7 @@ export function KifuGuardDialog() {
       >
         <div className="body">{t('kifu.guard.resetBody')}</div>
         <div className="btn-row">
-          <button type="button" className="btn ghost" onClick={() => { seButton(); guardCancel(); }}>
+          <button type="button" className="btn ghost outline" onClick={() => { seButton(); guardCancel(); }}>
             {t('kifu.guard.resetNo')}
           </button>
           <button type="button" className="btn" onClick={() => { seButton(); guardResetYes(); }}>
@@ -55,7 +55,7 @@ export function KifuGuardDialog() {
 
   return (
     <FloatingPanel
-      className="floating-result floating-confirm draw"
+      className="floating-result floating-confirm kifu"
       title={
         <>
           <span className="icon">📄</span>
@@ -76,7 +76,7 @@ export function KifuGuardDialog() {
             なる＝棋譜を守るための仕掛けが、棋譜を捨てる方へ人を押し出してしまう。 */}
         <button
           type="button"
-          className="btn ghost"
+          className="btn ghost outline"
           disabled={saving}
           onClick={() => { seButton(); guardCancel(); }}
         >
@@ -84,7 +84,7 @@ export function KifuGuardDialog() {
         </button>
         <button
           type="button"
-          className="btn ghost"
+          className="btn ghost outline"
           disabled={saving}
           onClick={() => { seButton(); guardDiscard(); }}
         >

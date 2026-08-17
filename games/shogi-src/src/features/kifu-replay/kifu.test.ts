@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useGameStore } from '../../core/store/game-store';
 import { useAiStore } from '../../core/store/ai-store';
 import { clear as clearPlugins } from '../../core/plugin/registry';
+import { dismissSaveNotice, useSaveNoticeStore } from '../../core/store/save-notice';
 import { applyMove, generateLegalMoves, positionHash } from '../../core/engine';
 import '../quantum';
 import '../torus';
@@ -18,7 +19,13 @@ import {
   type FsDirHandle,
 } from './index';
 import { forgetFolder } from './folder';
-import { discardKifu, kifuMemoryState, loadKifuMemory, loadLastKifu } from './storage';
+import {
+  discardKifu,
+  kifuMemoryState,
+  loadKifuMemory,
+  loadLastKifu,
+  markKifuPendingDiscard,
+} from './storage';
 import type { KifuFile } from './types';
 
 /**
@@ -187,8 +194,83 @@ describe('棋譜の記憶 — 1 枠 3 状態 (親 §9.2.3 ①②)', () => {
 
     const after = loadKifuMemory();
     expect(after).not.toBeNull();
-    expect(after?.saved).toBe(kept!.saved);
+    expect(after?.mark).toBe(kept!.mark);
     expect(after?.file.moves).toHaveLength(10);
+  });
+
+  it('★破棄を選んでも中身は残り、盤が作り直されるまで再生できる（v1.42）', () => {
+    useGameStore.getState().reset({ gameType: 'shogi', quantum: false, torusMode: 'none', handicap: null });
+    playMoves(10);
+    useGameStore.getState().resign('player2');
+    expect(kifuMemoryState()).toBe('unsaved');
+
+    markKifuPendingDiscard();
+    expect(kifuMemoryState()).toBe('pending-discard');
+    // **中身は残っている**＝読み込み直さずに再生できる。
+    const kept = loadLastKifu();
+    expect(kept).not.toBeNull();
+    expect(replayKifu(kept!).applied).toBe(10);
+    expect(loadLastKifu()).not.toBeNull();
+  });
+
+  it('★盤が実際に作り直されたときに、はじめて黙って捨てる（v1.42）', () => {
+    useGameStore.getState().reset({ gameType: 'shogi', quantum: false, torusMode: 'none', handicap: null });
+    playMoves(10);
+    useGameStore.getState().resign('player2');
+    markKifuPendingDiscard();
+    expect(loadLastKifu()).not.toBeNull();
+
+    // 新しい対局が本当に始まった＝ここで捨てる。
+    useGameStore.getState().reset({ gameType: 'shogi', quantum: false, torusMode: 'none', handicap: null });
+    expect(kifuMemoryState()).toBe('empty');
+  });
+
+  it('★未保存のまま盤が作り直されても、勝手には捨てない（確認は画面側の担当）', () => {
+    useGameStore.getState().reset({ gameType: 'shogi', quantum: false, torusMode: 'none', handicap: null });
+    playMoves(10);
+    useGameStore.getState().resign('player2');
+    expect(kifuMemoryState()).toBe('unsaved');
+
+    useGameStore.getState().reset({ gameType: 'shogi', quantum: false, torusMode: 'none', handicap: null });
+    // 未保存は残す（誰も答えていない棋譜を、盤の都合で捨てない）。
+    expect(loadLastKifu()).not.toBeNull();
+  });
+
+  it('★保存済みも、盤が作り直された時点で捨てる（ファイルは残っている）', () => {
+    useGameStore.getState().reset({ gameType: 'shogi', quantum: false, torusMode: 'none', handicap: null });
+    playMoves(10);
+    useGameStore.getState().resign('player2');
+    const file = parseKifu(serializeKifu(buildKifuFile(new Date())));
+    adoptLoadedKifu(file);
+    expect(kifuMemoryState()).toBe('saved');
+
+    useGameStore.getState().reset({ gameType: 'shogi', quantum: false, torusMode: 'none', handicap: null });
+    expect(kifuMemoryState()).toBe('empty');
+  });
+
+  it('★再生で盤を作り直しても捨てない（再生は新しい対局ではない）', () => {
+    useGameStore.getState().reset({ gameType: 'shogi', quantum: false, torusMode: 'none', handicap: null });
+    playMoves(10);
+    useGameStore.getState().resign('player2');
+    markKifuPendingDiscard();
+
+    const kept = loadLastKifu()!;
+    replayKifu(kept); // 中で reset が走る
+    expect(kifuMemoryState()).toBe('pending-discard');
+    expect(loadLastKifu()).not.toBeNull();
+  });
+
+  it('★v1.41 までの記憶（真偽値 1 つ）も読み直せる＝版が上がって受け皿が消えない', () => {
+    discardKifu();
+    useGameStore.getState().reset({ gameType: 'shogi', quantum: false, torusMode: 'none', handicap: null });
+    playMoves(6);
+    useGameStore.getState().resign('player2');
+    const file = loadLastKifu()!;
+
+    localStorage.setItem('shogi.kifu.last', JSON.stringify({ saved: true, file }));
+    expect(kifuMemoryState()).toBe('saved');
+    localStorage.setItem('shogi.kifu.last', JSON.stringify({ saved: false, file }));
+    expect(kifuMemoryState()).toBe('unsaved');
   });
 
   it('★終局まで指し切る棋譜を再生しても、本物の対局と取り違えない', () => {
@@ -310,6 +392,83 @@ describe('棋譜の書き出し — 保存の成否をどう確かめるか (親
     // 引き渡した先は分からないが、印は保存済みとし、記憶は安全網として残す
     expect(kifuMemoryState()).toBe('saved');
     expect(loadLastKifu()).not.toBeNull();
+  });
+
+  // ★v1.42: 保存できたことを必ず知らせる（親 v1.40 §9.2.3 ③）。
+  // 保存は成功しても画面上では何も起こらないので、**押したのに何も起きなかったのと
+  // 区別が付かない**。知らせにはファイル名と書いた場所を載せる。
+  it('★共有できたら知らせが出る。ただし置かれた場所は分からないので断定しない', async () => {
+    dismissSaveNotice();
+    stubShare('ok');
+    await saveCurrentKifu();
+
+    const notice = useSaveNoticeStore.getState().notice;
+    expect(notice).not.toBeNull();
+    expect(notice?.fileName).toMatch(/\.json$/);
+    expect(notice?.folderName).toBeNull();
+    expect(notice?.verified).toBe(false);
+  });
+
+  it('★ダウンロードでも知らせは出るが、確かめられないので断定しない', async () => {
+    dismissSaveNotice();
+    removeShare();
+    watchDownloads();
+    await saveCurrentKifu();
+
+    const notice = useSaveNoticeStore.getState().notice;
+    expect(notice?.verified).toBe(false);
+    expect(notice?.folderName).toBeNull();
+  });
+
+  it('★やめたときは知らせを出さない（何も書いていない）', async () => {
+    dismissSaveNotice();
+    stubShare('cancel');
+    watchDownloads();
+    expect(await saveCurrentKifu()).toBe('cancelled');
+    expect(useSaveNoticeStore.getState().notice).toBeNull();
+  });
+
+  it('★フォルダへ書けたときは、書いた場所まで言い切る（読み返して突き合わせている）', async () => {
+    dismissSaveNotice();
+    const written = new Map<string, string>();
+    const dir = {
+      kind: 'directory' as const,
+      name: '棋譜フォルダ',
+      getFileHandle: async (n: string, opts?: { create?: boolean }) => {
+        if (!opts?.create && !written.has(n)) throw new Error('not found');
+        return {
+          kind: 'file' as const,
+          name: n,
+          getFile: async () => ({ text: async () => written.get(n) ?? '' }) as unknown as File,
+          createWritable: async () => ({
+            write: async (data: string) => {
+              written.set(n, data);
+            },
+            close: async () => {},
+          }),
+        };
+      },
+      values: async function* () {},
+      queryPermission: async () => 'granted' as PermissionState,
+      requestPermission: async () => 'granted' as PermissionState,
+    };
+    Object.defineProperty(window, 'showDirectoryPicker', {
+      value: async () => dir,
+      configurable: true,
+    });
+    try {
+      await forgetFolder();
+      expect(await saveCurrentKifu()).toBe('saved');
+
+      const notice = useSaveNoticeStore.getState().notice;
+      expect(notice?.verified).toBe(true);
+      expect(notice?.folderName).toBe('棋譜フォルダ');
+      // 実際に書いた名前であること（フォルダの中に同じ名前で入っている）。
+      expect(written.has(notice!.fileName)).toBe(true);
+    } finally {
+      await forgetFolder();
+      Reflect.deleteProperty(window, 'showDirectoryPicker');
+    }
   });
 });
 

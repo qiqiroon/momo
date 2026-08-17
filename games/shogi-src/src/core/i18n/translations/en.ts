@@ -5,7 +5,7 @@ export const en: LocaleData = {
   name: 'English',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.41',
+    'app.ver': 'v1.42',
     'sound.promptTitle': 'Enable BGM and sound effects?',
     'sound.bgmLabel': 'BGM volume',
     'sound.sfxLabel': 'SFX volume',
@@ -256,6 +256,13 @@ export const en: LocaleData = {
     'kifu.guard.cancel': 'Cancel',
     'kifu.guard.cancelledNote': 'Saving was cancelled. The record is still here.',
     'kifu.guard.failedNote': 'The record could not be saved. It is still here.',
+    'kifu.saved.title': 'Game record saved',
+    'kifu.saved.titleUnverified': 'Game record exported',
+    'kifu.saved.file': 'File name',
+    'kifu.saved.folder': 'Saved to',
+    'kifu.saved.unverifiedNote':
+      'This browser cannot tell us where the file was placed. Please check your device.',
+    'kifu.saved.ok': 'OK',
     'result.reason.agreed_draw': 'Agreed Draw',
     // Phase 6: Hasami Shogi annihilation (spec §3.10 / appendix D-3 §3.3, §3.4)
     'result.reason.annihilation': 'Win by capture (Hasami)',

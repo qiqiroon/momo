@@ -1343,6 +1343,12 @@ export const useGameStore = create<GameState>((set, get) => ({
   setLocalViewerSide: (side) => set({ localViewerSide: side }),
 
   reset: (options?: ResetOptions) => {
+    // **盤を作り直す＝棋譜の記憶を実際に捨てる瞬間**（親 v1.40 §9.2.3 ②）。
+    // 確認に答えた時点では捨てず、ここまで持ち越す＝**確認が出る場所と盤が作り直される
+    // 場所は同じではない**ので、引き返しただけで棋譜が消えるのを避ける。
+    // 捨てるのは「保存済み」と「破棄予定」だけで、未保存はここでは捨てない。
+    // 棋譜の機能を積んでいないビルド (アプリ A) では口ごと無く、何も起きない。
+    pluginGet<() => void>('kifu:boardRebuilt')?.();
     const state = get();
     // 明示指定があればそれを、なければ前回 reset の値を引き継ぐ (対局中「リセット」ボタン用)
     const quantum = options?.quantum ?? state.currentQuantum;

@@ -21,7 +21,15 @@ import { kifuFileName } from './filename';
 import { readFolderTexts, type FsDirHandle } from './folder';
 import { parseKifu, writeKifuFile, type KifuSaveOutcome } from './io';
 import { isReplayingKifu } from './replay';
-import { discardKifu, kifuMemoryState, loadLastKifu, markKifuSaved, rememberKifu } from './storage';
+import {
+  discardKifu,
+  discardKifuIfDue,
+  kifuMemoryState,
+  loadLastKifu,
+  markKifuPendingDiscard,
+  markKifuSaved,
+  rememberKifu,
+} from './storage';
 import type { KifuFile } from './types';
 
 /**
@@ -45,7 +53,7 @@ export async function saveCurrentKifu(): Promise<KifuSaveOutcome> {
   // 記録が生まれる経路と同じく盤から組み立てる。
   const file = buildKifuFile(new Date());
   const outcome = await saveKifuFile(file);
-  if (outcome === 'saved') rememberKifu(file, true);
+  if (outcome === 'saved') rememberKifu(file, 'saved');
   return outcome;
 }
 
@@ -102,7 +110,7 @@ function isRememberedKifu(file: KifuFile): boolean {
  * 存在するので、**印は最初から「保存済み」**。
  */
 export function adoptLoadedKifu(file: KifuFile): void {
-  rememberKifu(file, true);
+  rememberKifu(file, 'saved');
 }
 
 // 対局の状態の変わり目を 1 か所で見張る。
@@ -124,6 +132,18 @@ register('kifu:hasLast', () => kifuMemoryState() !== 'empty');
 // 画面が「保存しますか / 破棄しますか」を出すかどうかを決めるために見る (§9.2.3 ②)。
 register('kifu:state', kifuMemoryState);
 register('kifu:discard', discardKifu);
+// 「捨てる」と答えられた印（親 v1.40 §9.2.3 ②）。**中身はまだ残す**＝再生できる。
+register('kifu:markDiscard', markKifuPendingDiscard);
+/**
+ * 盤が実際に作り直された（＝新しい対局が本当に始まった）。**ここが唯一の破棄の実行点**。
+ *
+ * **再生も盤を作り直す**ので、再生中は何もしない。名乗っていないと、
+ * 受け皿を再生しようとした瞬間に当の受け皿が消える。
+ */
+register('kifu:boardRebuilt', () => {
+  if (isReplayingKifu()) return;
+  discardKifuIfDue();
+});
 
 // 棋譜再生画面 (S08)。A ビルドには存在しないので、口ごと無い＝入口も出ない。
 register('screen:kifu-replay', KifuReplayScreen);
@@ -154,12 +174,14 @@ export type { KifuSaveOutcome } from './io';
 export { replayKifu, isReplayingKifu } from './replay';
 export {
   discardKifu,
+  discardKifuIfDue,
   kifuMemoryState,
   loadKifuMemory,
   loadLastKifu,
+  markKifuPendingDiscard,
   markKifuSaved,
   rememberKifu,
 } from './storage';
-export type { KifuMemory, KifuMemoryState } from './storage';
+export type { KifuMark, KifuMemory, KifuMemoryState } from './storage';
 export { KifuReplayScreen } from './ui/KifuReplayScreen';
 export type { KifuFile, KifuMeta, KifuPlayer, KifuOpponent } from './types';

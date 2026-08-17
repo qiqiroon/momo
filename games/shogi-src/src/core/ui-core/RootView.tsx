@@ -5,6 +5,7 @@ import { GameScreen } from './GameScreen';
 import { OfflineRuleScreen } from './OfflineRuleScreen';
 import { AiSetupScreen } from './AiSetupScreen';
 import { KifuGuardDialog } from './KifuGuardDialog';
+import { SaveNoticeDialog } from './SaveNoticeDialog';
 import { playRandomBgm, stopBgm, isAudioRunning } from '../audio/audio-engine';
 
 interface RootViewProps {
@@ -39,6 +40,9 @@ export function RootView({ variant }: RootViewProps) {
       {/* 棋譜を捨てる前の確認 (親 §9.2.3 ②)。**画面のいちばん外側に置く**＝
           どの画面から呼ばれても同じ物が出て、途中の入れ物の重なり順に埋もれない。 */}
       <KifuGuardDialog />
+      {/* 「保存しました」の知らせ (親 §9.2.3 ③)。保存の入口は 3 つあるが、
+          出るものは 1 つ＝同じことを 3 か所で別々に作らない。 */}
+      <SaveNoticeDialog />
     </>
   );
 }

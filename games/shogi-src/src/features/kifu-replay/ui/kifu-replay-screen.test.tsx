@@ -411,6 +411,66 @@ describe('S08 v1.42 の直し', () => {
  * マスの大きさ自体は CSS が窓の寸法から決めるので、jsdom では値を測れない。
  * **測れるのは「何を材料にして計算しているか」**なので、そこを見る。
  */
+/**
+ * 自動再生中の巡回（付録D-1 v1.14 §5.6.2・2026-08-17 ユーザー報告）。
+ *
+ * **自動再生は 1 秒ごとに手が進んで候補が減り、巡回の切り替えも 1 秒ごと**なので、
+ * 「候補の何番目か」で字を選ぶと**候補が減った拍子に前と同じ字**を指す。
+ * v1.44 まではこれで**その駒だけ止まって見えていた**（実測＝60 手の量子棋譜で 2 枚）。
+ *
+ * **マスではなく駒そのもの（pieceId）で追う**＝マスで追うと、駒が動いた先に
+ * 別の駒が来たぶんを「変わった」と取り違えて、止まりを見逃す。
+ */
+describe('S08 自動再生中の巡回（付録D-1 §5.6.2）', () => {
+  it('★手が進んで候補が減っても、未確定の駒は毎秒かならず字が変わる', () => {
+    vi.useFakeTimers();
+    try {
+      useGameStore.getState().reset({ gameType: 'shogi', quantum: true, torusMode: 'none', handicap: null });
+      for (let i = 0; i < 60; i += 1) {
+        const s = useGameStore.getState();
+        if (s.status !== 'playing') break;
+        const legal = generateLegalMoves(s.mgf, s.position);
+        if (legal.length === 0) break;
+        if (!useGameStore.getState().replayRecordedMove(legal[(i * 13 + 5) % legal.length])) break;
+      }
+      useGameStore.getState().resign('player2');
+
+      const { container } = render(<KifuReplayScreen />);
+      fireEvent.click(screen.getByText(/自動|▶ /));
+
+      /** ？付きの駒の字を、駒そのものごとに控える。 */
+      const shownByPiece = (): Map<string, string> => {
+        const m = new Map<string, string>();
+        const board = useGameStore.getState().position.board;
+        [...container.querySelectorAll('.board .sq')].forEach((sq, i) => {
+          if (!sq.querySelector('.qmark-b')) return;
+          const ja = sq.querySelector('.pc .ja');
+          const piece = board[Math.floor(i / 9)]?.[i % 9];
+          if (ja?.textContent && piece) m.set(piece.pieceId, ja.textContent);
+        });
+        return m;
+      };
+
+      const stuck: string[] = [];
+      let prev = shownByPiece();
+      expect(prev.size).toBeGreaterThan(0); // 未確定の駒が居ること（居ないと素通りする）
+      for (let step = 0; step < 30; step += 1) {
+        act(() => {
+          vi.advanceTimersByTime(1000);
+        });
+        const now = shownByPiece();
+        for (const [id, ch] of now) {
+          if (prev.get(id) === ch) stuck.push(`${id}=${ch}`);
+        }
+        prev = now;
+      }
+      expect(stuck).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe('S08 盤の大きさの計算（付録D-8 §5.1）', () => {
   const cssPath = resolve(process.cwd(), 'src/core/ui-core/styles.css');
   const s08Rule = (): string => {

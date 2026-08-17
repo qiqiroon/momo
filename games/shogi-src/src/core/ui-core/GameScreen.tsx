@@ -8,6 +8,7 @@ import { ChatConsole } from './ChatConsole';
 import { useRouteStore } from '../store/route-store';
 import { requestNewGame } from '../store/kifu-guard';
 import { get as pluginGet } from '../plugin/registry';
+import { useQuantumCycle, type CycleReader } from './quantum-cycle';
 import {
   seMove,
   seCheck,
@@ -386,6 +387,9 @@ export function GameScreen({ variant }: GameScreenProps) {
     const id = setInterval(() => setCycleTick((n) => n + 1), 1000);
     return () => clearInterval(id);
   }, [currentQuantum, quantumDisplay]);
+  // v1.45: 「いま出している字の次」へ送る (付録D-1 §5.6.2)。番号で選ぶと、
+  // 候補が減った拍子に前と同じ字を指してその駒だけ止まって見える。
+  const cycle = useQuantumCycle(cycleTick, quantumDisplay === 'cycle');
 
   // 観測アニメ (spec §Q17.8): 着手のたびに「動いた駒 + 候補が変化した駒」を収縮させる。
   // どこまで波及したかが一目で分かるので、量子もつれハイライトと役割が重なるが、
@@ -655,7 +659,7 @@ export function GameScreen({ variant }: GameScreenProps) {
               entangledPieceIds={entangledSet}
               debugShowPieceIds={debugEnabled && showPieceIds}
               mode={quantumDisplay}
-              tick={cycleTick}
+              cycle={cycle}
               collapsingIds={collapsingIds}
             />
             <div className={`board-with-coords${flipped ? ' flipped' : ''}`}>
@@ -733,7 +737,7 @@ export function GameScreen({ variant }: GameScreenProps) {
                             locale={locale}
                             viewerSide={viewerSide}
                             mode={quantumDisplay}
-                            tick={cycleTick}
+                            cycle={cycle}
                             collapsing={collapsingIds.has(piece.pieceId)}
                           />
                         )}
@@ -780,7 +784,7 @@ export function GameScreen({ variant }: GameScreenProps) {
               entangledPieceIds={entangledSet}
               debugShowPieceIds={debugEnabled && showPieceIds}
               mode={quantumDisplay}
-              tick={cycleTick}
+              cycle={cycle}
               collapsingIds={collapsingIds}
             />
           </div>
@@ -853,7 +857,7 @@ export function GameScreen({ variant }: GameScreenProps) {
           <DebugClickLog />
         </div>
       </div>
-      <PromotionModal locale={locale} t={t} viewerSide={viewerSide} mode={quantumDisplay} tick={cycleTick} />
+      <PromotionModal locale={locale} t={t} viewerSide={viewerSide} mode={quantumDisplay} cycle={cycle} />
       <OpponentLeftModal t={t} />
       <GameEndModal t={t} online={online} />
       <OfferReceivedModal t={t} online={online} />
@@ -1891,10 +1895,10 @@ interface PromotionModalProps {
   /** v1.10: 未確定駒の見せ方。盤と同じ方式 (巡回 / 重ね) で候補を出す。 */
   mode: QuantumDisplay;
   /** v1.10: 巡回表示の共有時計。盤と同じ拍で字が入れ替わる。 */
-  tick: number;
+  cycle: CycleReader;
 }
 
-function PromotionModal({ locale, t, viewerSide, mode, tick }: PromotionModalProps) {
+function PromotionModal({ locale, t, viewerSide, mode, cycle }: PromotionModalProps) {
   const pendingPromotion = useGameStore((s) => s.pendingPromotion);
   const confirmPromotion = useGameStore((s) => s.confirmPromotion);
   const cancelPromotion = useGameStore((s) => s.cancelPromotion);
@@ -1943,13 +1947,13 @@ function PromotionModal({ locale, t, viewerSide, mode, tick }: PromotionModalPro
           <button type="button" className="promotion-card" onClick={() => confirmPromotion(false)}>
             <div className="label">{t('promote.decline')}</div>
             <div className="promotion-card-piece">
-              <PieceView piece={nonPromotePiece} kinds={nonPromoteKinds} locale={locale} viewerSide={viewerSide} mode={mode} tick={tick} />
+              <PieceView piece={nonPromotePiece} kinds={nonPromoteKinds} locale={locale} viewerSide={viewerSide} mode={mode} cycle={cycle} />
             </div>
           </button>
           <button type="button" className="promotion-card" onClick={() => confirmPromotion(true)}>
             <div className="label">{t('promote.confirm')}</div>
             <div className="promotion-card-piece">
-              <PieceView piece={promotePiece} kinds={promoteKinds} locale={locale} viewerSide={viewerSide} mode={mode} tick={tick} />
+              <PieceView piece={promotePiece} kinds={promoteKinds} locale={locale} viewerSide={viewerSide} mode={mode} cycle={cycle} />
             </div>
           </button>
         </div>
@@ -2005,12 +2009,12 @@ export function groupHand(hand: PieceInstance[], mgf: Mgf, kindMap: Map<PieceId,
 }
 
 /**
- * v1.08 (Phase 5-11): 巡回表示で「今どの字を出すか」を選ぶ。
- * 全ての未確定駒が同じ tick を共有するので、候補数の違う駒は自然に別々の周期で回る
- * (候補 3 個の駒と 8 個の駒が同時に同じ駒種を出し続けることがない)。
+ * v1.45: 巡回表示で「今どの字を出すか」は `useQuantumCycle` が決める
+ * (付録D-1 v1.14 §5.6.2)。**候補の何番目か、では選ばない**＝候補が減った拍子に
+ * 前と同じ字を指し、その駒だけ止まって見えるため。詳しくは `quantum-cycle.ts`。
  */
-function shownKind(kinds: string[], tick: number): string {
-  return kinds[tick % kinds.length];
+function shownKind(cycle: CycleReader | undefined, key: string, kinds: string[]): string {
+  return cycle ? cycle(key, kinds) : kinds[0];
 }
 
 /** 盤の駒 1 枚。棋譜再生画面 (S08) も同じ絵柄を使うので外へ出す（発明し直さない）。 */
@@ -2020,7 +2024,7 @@ export function PieceView({
   locale,
   viewerSide = 'player1',
   mode = 'cycle',
-  tick = 0,
+  cycle,
   collapsing = false,
 }: {
   piece: PieceInstance;
@@ -2029,13 +2033,14 @@ export function PieceView({
   locale: LocaleCode;
   viewerSide?: 'player1' | 'player2';
   mode?: QuantumDisplay;
-  tick?: number;
+  /** 巡回表示で「いま出す字」を決める口 (付録D-1 §5.6.2)。渡さなければ先頭の字。 */
+  cycle?: CycleReader;
   collapsing?: boolean;
 }) {
   const isEn = locale === 'en';
   const unconfirmed = kinds.length >= 2;
   const stacked = unconfirmed && mode === 'stack';
-  const shown = unconfirmed ? shownKind(kinds, tick) : kinds[0];
+  const shown = unconfirmed ? shownKind(cycle, piece.pieceId, kinds) : kinds[0];
   const name = pieceNameFor(shown, locale);
   const isMulti = isEn && name.length > 1;
   // v0.34: gote 反転は viewer 基準（相手の駒＝反転して viewer 側から見て逆向き）
@@ -2215,7 +2220,7 @@ interface PieceStandViewProps {
   /** v1.08: 未確定持ち駒の見せ方 (巡回 / 重ね)。 */
   mode?: QuantumDisplay;
   /** v1.08: 巡回表示の共有時計。 */
-  tick?: number;
+  cycle?: CycleReader;
   /** v1.08: 観測アニメ中の pieceId 群。 */
   collapsingIds?: ReadonlySet<string>;
 }
@@ -2246,7 +2251,7 @@ function standPacking(count: number): { cls: string; rows: number } {
 }
 
 /** 駒台。棋譜再生画面 (S08) も同じものを使う（触れない＝`activePlayer` を false にする）。 */
-export function PieceStandView({ side, pieces, onClick, selectedId, activePlayer, locale, label, entangledPieceIds, debugShowPieceIds, mode = 'cycle', tick = 0, collapsingIds }: PieceStandViewProps) {
+export function PieceStandView({ side, pieces, onClick, selectedId, activePlayer, locale, label, entangledPieceIds, debugShowPieceIds, mode = 'cycle', cycle, collapsingIds }: PieceStandViewProps) {
   const isEn = locale === 'en';
   // v1.16 (ユーザー要望): 持ち駒もマウスを乗せただけで候補ボックスを出す。
   // 相手の駒台 (持てない側) も対象。
@@ -2269,7 +2274,8 @@ export function PieceStandView({ side, pieces, onClick, selectedId, activePlayer
           // v1.08: 未確定の持ち駒は盤上と同じ扱い (? + 巡回/重ね)。確定駒は従来通り。
           const unconfirmed = g.kinds.length >= 2;
           const stacked = unconfirmed && mode === 'stack';
-          const shown = unconfirmed ? shownKind(g.kinds, tick) : g.kinds[0];
+          // 駒台は束ねた 1 かたまりを単位に巡回する (付録D-1 §5.6.2)。
+          const shown = unconfirmed ? shownKind(cycle, g.pieceIds[0], g.kinds) : g.kinds[0];
           const name = pieceNameFor(shown, locale);
           const isMulti = isEn && name.length > 1;
           const jaCls = ['ja', isEn ? 'en' : '', isEn && isMulti ? 'multi' : ''].filter(Boolean).join(' ');

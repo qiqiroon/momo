@@ -5,6 +5,7 @@ import { useRouteStore } from '../../../core/store/route-store';
 import { requestKifuLoad } from '../../../core/store/kifu-guard';
 import { t as _t } from '../../../core/i18n';
 import { buildInitialKindMap, displayKindsFor } from '../../../core/engine';
+import { useQuantumCycle } from '../../../core/ui-core/quantum-cycle';
 import { CatIcon } from '../../../core/ui-core/CatIcon';
 import { HeaderCommonRight } from '../../../core/ui-core/HeaderCommonRight';
 import {
@@ -102,6 +103,11 @@ export function KifuReplayScreen() {
     const id = setInterval(() => setCycleTick((n) => n + 1), 1000);
     return () => clearInterval(id);
   }, [quantumDisplay]);
+  // v1.45: 「いま出している字の次」へ送る（付録D-1 §5.6.2・駒UI §4.2）。
+  // v1.44 までは「候補の何番目か」で選んでいたため、**候補が減った拍子に前と同じ字**を
+  // 指すことがあり、その駒だけ止まって見えた。自動再生は 1 秒ごとに手が進んで候補が
+  // 減るので、巡回の切り替えと同じ間隔でこれが起きていた（2026-08-17 ユーザー報告）。
+  const cycle = useQuantumCycle(cycleTick, quantumDisplay === 'cycle');
 
   /**
    * **入る前の盤を丸ごと控えておき、離れるときに戻す**。
@@ -381,7 +387,7 @@ export function KifuReplayScreen() {
               locale={locale}
               label={oppSide === 'player1' ? t('s07.senteLbl') : t('s07.goteLbl')}
               mode={quantumDisplay}
-              tick={cycleTick}
+              cycle={cycle}
             />
             <div className={`board-with-coords${flipped ? ' flipped' : ''}`}>
               <div className="board-outer">
@@ -439,7 +445,7 @@ export function KifuReplayScreen() {
                             locale={locale}
                             viewerSide={viewerSide}
                             mode={quantumDisplay}
-                            tick={cycleTick}
+                            cycle={cycle}
                           />
                         )}
                         {piece && kinds.length >= 2 && (
@@ -471,7 +477,7 @@ export function KifuReplayScreen() {
               locale={locale}
               label={viewerSide === 'player1' ? t('s07.senteLbl') : t('s07.goteLbl')}
               mode={quantumDisplay}
-              tick={cycleTick}
+              cycle={cycle}
             />
           </div>
 

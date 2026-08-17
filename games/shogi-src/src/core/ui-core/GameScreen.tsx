@@ -532,6 +532,17 @@ export function GameScreen({ variant }: GameScreenProps) {
                       オフライン設定にする (以前はメニューまで戻していた)
                       v1.31 (Phase 3-2): 対 AI で始めた対局は対AI設定 (S03) から入るので、
                       そちらへ戻す (先後と AI を選び直して指し直せる) */}
+                  {/* v1.43: **モード選択へ戻る道は、他の戻る導線と同じ場所に置く**
+                      （2026-08-17 ユーザー判断）。終局パネルの中ではなくここに置くのは、
+                      **戻る先を選ぶ操作は同じ並びに集める**ため（終局していなくても押せる）。
+                      **設定画面と違って盤を作り直さない**ので、棋譜の確認は出ない。 */}
+                  <button
+                    className="reset-btn"
+                    type="button"
+                    onClick={() => useRouteStore.getState().setScreen('lobby')}
+                  >
+                    {t('s00.modeSelect')}
+                  </button>
                   <button
                     className="reset-btn"
                     type="button"
@@ -1759,16 +1770,6 @@ function GameEndModal({
         </button>
         <SaveKifuButton t={t} />
         <ReplayKifuButton t={t} />
-        {/* v1.42: **モード選択へ戻る道をここに置く**（画面機能 §3 S07「トップへ」）。
-            無いと対 AI の終局後は対局準備の設定画面を通るしかなく、そこは
-            盤を作り直す画面なので、棋譜の確認をまたいで戻ることになっていた。 */}
-        <button
-          type="button"
-          className="btn ghost outline"
-          onClick={() => useRouteStore.getState().setScreen('lobby')}
-        >
-          {t('s00.modeSelect')}
-        </button>
         <button type="button" className="btn" onClick={onRematch}>
           {rematchLabel}
         </button>
@@ -2233,16 +2234,15 @@ interface PieceStandViewProps {
  *
  * **量子でしか起きない**＝確定した駒は駒種ごとにまとまるので、本将棋では 7〜8 行で収まる。
  */
-function standPacking(count: number): { cls: string; scale: number } {
-  if (count <= 10) return { cls: '', scale: 1 };
-  if (count <= 12) return { cls: 'tight', scale: 1 };
-  if (count <= 20) return { cls: 'two', scale: 1 };
-  if (count <= 24) return { cls: 'two tight', scale: 1 };
-  // ここまで来るのは 25 枚以上＝通常の対局ではまず起きない。**読めることは保証しない**が、
-  // **駒を画面から消さない**（読みにくくても在ることは分かる）。最小は付録D-1 の 0.40/0.66。
-  const rows = Math.ceil(count / 2);
-  const scale = Math.max(0.4 / 0.66, 12.2 / rows);
-  return { cls: 'two tight', scale };
+function standPacking(count: number): { cls: string; rows: number } {
+  // **列は 2 つまで**（v1.43・2026-08-17 ユーザー判断）。3 列目を作ると駒台からはみ出す。
+  // 1 列に積む枚数を返し、駒の大きさはそこから CSS が逆算する
+  // （**入る大きさを先に決めてから並べる**ので、はみ出しようがない）。
+  if (count <= 10) return { cls: '', rows: Math.max(7, count) };
+  if (count <= 12) return { cls: 'tight', rows: count };
+  if (count <= 20) return { cls: 'two', rows: Math.ceil(count / 2) };
+  // ここから先は間隔を 0 にしたうえで、**駒台の中の駒だけ**が小さくなる（盤には触れない）。
+  return { cls: 'two tight', rows: Math.ceil(count / 2) };
 }
 
 /** 駒台。棋譜再生画面 (S08) も同じものを使う（触れない＝`activePlayer` を false にする）。 */
@@ -2259,7 +2259,7 @@ export function PieceStandView({ side, pieces, onClick, selectedId, activePlayer
   return (
     <div
       className={`stand ${side} ${pack.cls}`}
-      style={pack.scale < 1 ? ({ '--stand-scale': pack.scale } as CSSProperties) : undefined}
+      style={{ '--stand-rows': pack.rows } as CSSProperties}
     >
       {/* v0.68 C4: 従来 'Gote'/'You' 固定で自分が後手のときも相手側が Gote になっていたのを、
           呼び出し側から先手/後手ラベルを注入して viewer 基準に合わせる。 */}

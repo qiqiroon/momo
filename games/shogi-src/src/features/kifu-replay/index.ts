@@ -144,6 +144,28 @@ register('kifu:boardRebuilt', () => {
   if (isReplayingKifu()) return;
   discardKifuIfDue();
 });
+/**
+ * 指しかけの対局を、打ち切る直前に棋譜として残す（v1.43・親 §9.2.3 (a)）。
+ *
+ * 棋譜が生まれるのは終局の瞬間だけだったので、**対局中にリセットすると、その対局は
+ * 保存する機会が一度も無いまま消えていた**（2026-08-17 ユーザー報告）。
+ *
+ * **盤から記録を作ってよい数少ない場面**（§9.2.3 の (a) 記録の誕生）。ここは
+ * **再生中でもなく、盤がその対局のすべてを載せている**時点なので、記録と盤が食い違わない。
+ *
+ * 作らない場合が 3 つある。
+ *   - **対局中でない**…終局していれば記録はもう生まれている（上書きしない）
+ *   - **1 手も指していない**…残すものが無い
+ *   - **答えの済んでいない棋譜が残っている**…前の対局の未保存分を黙って押しのけない
+ */
+register('kifu:captureCurrent', () => {
+  if (isReplayingKifu()) return;
+  const s = useGameStore.getState();
+  if (s.status !== 'playing') return;
+  if (s.moveHistory.length === 0) return;
+  if (kifuMemoryState() === 'unsaved') return;
+  rememberKifu(buildKifuFile(new Date()));
+});
 
 // 棋譜再生画面 (S08)。A ビルドには存在しないので、口ごと無い＝入口も出ない。
 register('screen:kifu-replay', KifuReplayScreen);

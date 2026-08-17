@@ -39,49 +39,51 @@ function standOf(n: number): HTMLElement {
   return container.querySelector('.stand') as HTMLElement;
 }
 
+const rowsOf = (stand: HTMLElement) => Number(stand.style.getPropertyValue('--stand-rows'));
+
 describe('駒台の詰め方（付録D-1 §4.4.1）', () => {
-  it('10 枚までは何も変えない（間隔も列も大きさもそのまま）', () => {
+  it('10 枚までは 1 列・既定の間隔（何も変えない）', () => {
     const stand = standOf(10);
     expect(stand.classList.contains('tight')).toBe(false);
     expect(stand.classList.contains('two')).toBe(false);
-    expect(stand.style.getPropertyValue('--stand-scale')).toBe('');
+    expect(rowsOf(stand)).toBe(10);
   });
 
-  it('★11 枚で先に間隔を詰める（大きさにはまだ手を付けない）', () => {
+  it('★11 枚で先に間隔を詰める（列はまだ増やさない）', () => {
     const stand = standOf(11);
     expect(stand.classList.contains('tight')).toBe(true);
     expect(stand.classList.contains('two')).toBe(false);
-    expect(stand.style.getPropertyValue('--stand-scale')).toBe('');
+    expect(rowsOf(stand)).toBe(11);
   });
 
   it('★13 枚で 2 列にする。間隔は既定へ戻す（2 列のほうが 4 倍の面積で置ける）', () => {
     const stand = standOf(13);
     expect(stand.classList.contains('two')).toBe(true);
     expect(stand.classList.contains('tight')).toBe(false);
-    expect(stand.style.getPropertyValue('--stand-scale')).toBe('');
+    expect(rowsOf(stand)).toBe(7);
   });
 
-  it('21 枚では 2 列のまま間隔を詰める（まだ縮めない）', () => {
+  it('21 枚では 2 列のまま間隔も詰める', () => {
     const stand = standOf(21);
     expect(stand.classList.contains('two')).toBe(true);
     expect(stand.classList.contains('tight')).toBe(true);
-    expect(stand.style.getPropertyValue('--stand-scale')).toBe('');
+    expect(rowsOf(stand)).toBe(11);
   });
 
-  it('★25 枚ではじめて駒を縮める（最後の手段）', () => {
-    const stand = standOf(25);
-    expect(stand.classList.contains('two')).toBe(true);
-    const scale = Number(stand.style.getPropertyValue('--stand-scale'));
-    expect(scale).toBeGreaterThan(0);
-    expect(scale).toBeLessThan(1);
+  it('★どれだけ増えても列は 2 つまで＝3 列目を作らない', () => {
+    // v1.42 は折り返しに任せていたため、増えると 3 列目が駒台からはみ出していた。
+    for (const n of [13, 20, 21, 25, 30, 38, 40]) {
+      const stand = standOf(n);
+      expect(stand.classList.contains('two')).toBe(true);
+      // 1 列に積む枚数 × 2 で全部入る＝2 列で足りる。
+      expect(rowsOf(stand) * 2).toBeGreaterThanOrEqual(n);
+      // かつ、余分に高くしない（1 列ぶん減らすと足りなくなる＝これ以上詰められない）。
+      expect((rowsOf(stand) - 1) * 2).toBeLessThan(n);
+    }
   });
 
-  it('★縮める下限を割らない（読めなくても駒を画面から消さない）', () => {
+  it('★枚数が増えても駒は全部出す（読みにくくても画面から消さない）', () => {
     const stand = standOf(38);
-    const scale = Number(stand.style.getPropertyValue('--stand-scale'));
-    // 付録D-1 の最小 `--cell * 0.40`（既定は 0.66）。
-    expect(scale).toBeGreaterThanOrEqual(0.4 / 0.66 - 1e-9);
-    // 枚数が増えても、駒は全部出ていること。
     expect(stand.querySelectorAll('.cap')).toHaveLength(38);
   });
 });

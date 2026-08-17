@@ -3,6 +3,12 @@ import { useGameStore } from '../../core/store/game-store';
 import { useAiStore } from '../../core/store/ai-store';
 import { clear as clearPlugins } from '../../core/plugin/registry';
 import { dismissSaveNotice, useSaveNoticeStore } from '../../core/store/save-notice';
+import {
+  guardCancel,
+  guardResetYes,
+  requestNewGame,
+  useKifuGuardStore,
+} from '../../core/store/kifu-guard';
 import { applyMove, generateLegalMoves, positionHash } from '../../core/engine';
 import '../quantum';
 import '../torus';
@@ -298,6 +304,85 @@ describe('棋譜の記憶 — 1 枠 3 状態 (親 §9.2.3 ①②)', () => {
     adoptLoadedKifu(file);
     expect(kifuMemoryState()).toBe('saved');
     expect(loadLastKifu()?.moves).toHaveLength(4);
+  });
+});
+
+/**
+ * ★指しかけの対局も、リセットの前に棋譜として残せる（v1.43・2026-08-17 ユーザー報告）。
+ *
+ * 棋譜が生まれるのは終局の瞬間だけだったので、**対局中にリセットすると、その対局は
+ * 保存する機会が一度も無いまま消えていた**。
+ */
+describe('リセットで指しかけの棋譜を残す', () => {
+  function startGame(moves: number): void {
+    discardKifu();
+    useKifuGuardStore.setState({ stage: null, saving: false, cancelled: false, pending: null });
+    useAiStore.setState({ enabled: false });
+    useGameStore.getState().reset({ gameType: 'shogi', quantum: false, torusMode: 'none', handicap: null });
+    playMoves(moves);
+  }
+
+  it('★対局中にリセットすると、その時点の棋譜が未保存として残り、確認が出る', () => {
+    startGame(6);
+    expect(kifuMemoryState()).toBe('empty'); // 終局していないので、まだ記録は無い
+
+    requestNewGame(() => useGameStore.getState().reset(), { twoStep: true });
+    expect(useKifuGuardStore.getState().stage).toBe('reset');
+    guardResetYes();
+
+    expect(kifuMemoryState()).toBe('unsaved');
+    expect(loadLastKifu()?.moves).toHaveLength(6);
+    // 保存する／破棄する／やめる が出ている＝ここで残す機会がある
+    expect(useKifuGuardStore.getState().stage).toBe('kifu');
+  });
+
+  it('「やめる」を選べば盤はそのまま（対局は続く）', () => {
+    startGame(6);
+    requestNewGame(() => useGameStore.getState().reset(), { twoStep: true });
+    guardResetYes();
+    guardCancel();
+
+    expect(useGameStore.getState().moveHistory).toHaveLength(6); // 盤は戻っていない
+    expect(loadLastKifu()?.moves).toHaveLength(6); // 残した棋譜はそのまま
+  });
+
+  it('1 手も指していなければ作らない（残すものが無い）', () => {
+    startGame(0);
+    requestNewGame(() => useGameStore.getState().reset(), { twoStep: true });
+    guardResetYes();
+
+    expect(kifuMemoryState()).toBe('empty');
+    expect(useKifuGuardStore.getState().stage).toBeNull(); // 尋ねずにリセットされる
+  });
+
+  it('★終局後のリセットでは、生まれている記録を上書きしない', () => {
+    startGame(6);
+    useGameStore.getState().resign('player2');
+    const born = loadLastKifu();
+    expect(born?.meta.result.status).toBe('resigned_p2');
+
+    requestNewGame(() => useGameStore.getState().reset(), { twoStep: true });
+    guardResetYes();
+
+    // 終局の記録が「指しかけ」で上書きされていないこと
+    expect(loadLastKifu()?.meta.result.status).toBe('resigned_p2');
+    expect(loadLastKifu()?.meta.savedAt).toBe(born?.meta.savedAt);
+  });
+
+  it('★答えの済んでいない棋譜が残っていれば押しのけない', () => {
+    startGame(6);
+    useGameStore.getState().resign('player2'); // 前の対局の記録（未保存）
+    const previous = loadLastKifu()?.meta.savedAt;
+    useGameStore.getState().reset({ gameType: 'shogi', quantum: false, torusMode: 'none', handicap: null });
+    playMoves(4); // 新しい対局を指しかける
+    expect(kifuMemoryState()).toBe('unsaved'); // 前の対局が未保存のまま残っている
+
+    requestNewGame(() => useGameStore.getState().reset(), { twoStep: true });
+    guardResetYes();
+
+    expect(loadLastKifu()?.meta.savedAt).toBe(previous); // 前の対局のまま
+    expect(useKifuGuardStore.getState().stage).toBe('kifu');
+    guardCancel();
   });
 });
 

@@ -372,6 +372,16 @@ describe('S08 v1.42 の直し', () => {
     }
   });
 
+  it('★対局者の名前の前に先手／後手を出す（どちらが先手か分かるように）', () => {
+    finishedGame(6);
+    const { container } = render(<KifuReplayScreen />);
+    const names = [...container.querySelectorAll('.pinfo .nm')].map((e) => e.textContent);
+    expect(names).toHaveLength(2);
+    // 印＋「先手」「後手」の語が名前の前に付いていること。
+    expect(names.some((n) => n?.startsWith('▲先手'))).toBe(true);
+    expect(names.some((n) => n?.startsWith('△後手'))).toBe(true);
+  });
+
   it('★盤の駒に乗せると候補ボックスが出る（駒台だけではない）', () => {
     useGameStore.getState().reset({ gameType: 'shogi', quantum: true, torusMode: 'none', handicap: null });
     playMoves(4);

@@ -353,7 +353,9 @@ export function KifuReplayScreen() {
           </div>
 
           <div className="pinfo opp">
-            <span className="nm">{file ? labels.playerName(file, oppSide) : t('player.opp')}</span>
+            {/* v1.43: **どちらが先手か名前だけでは分からない**（ネット対戦では下が自分とも
+                限らない）ので、印と「先手／後手」を名前の前に置く。 */}
+            <span className="nm">{file ? labels.playerLabel(file, oppSide) : t('player.opp')}</span>
           </div>
 
           {/* 盤・駒台は対局画面の部品をそのまま借りる（付録D-8 §1「発明し直さない」）。
@@ -463,7 +465,7 @@ export function KifuReplayScreen() {
           </div>
 
           <div className="pinfo you">
-            <span className="nm">{file ? labels.playerName(file, viewerSide) : t('player.you')}</span>
+            <span className="nm">{file ? labels.playerLabel(file, viewerSide) : t('player.you')}</span>
           </div>
 
           {/* 再生コントロール帯（付録D-8 §5）。棋譜が無いときは全部押せない。 */}

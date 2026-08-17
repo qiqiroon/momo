@@ -38,6 +38,20 @@ export function kifuLabels(locale: LocaleCode) {
     return t(side === 'player1' ? 's07.senteLbl' : 's07.goteLbl');
   };
 
+  /**
+   * 盤の上下に出す対局者の行（v1.43・2026-08-17 ユーザー報告）。
+   *
+   * **名前だけでは、どちらが先手か分からない**（ネット対戦では下が自分とも限らない）。
+   * **印と「先手／後手」の語を名前の前に置く**＝`▲先手：太郎`。
+   * 名乗っていない人は `playerName` が先手／後手を返すので、そのときは語を重ねない。
+   */
+  const playerLabel = (f: KifuFile, side: 'player1' | 'player2'): string => {
+    const mark = side === 'player1' ? '▲' : '△';
+    const sideWord = t(side === 'player1' ? 's07.senteLbl' : 's07.goteLbl');
+    const name = playerName(f, side);
+    return name === sideWord ? `${mark}${sideWord}` : `${mark}${sideWord}：${name}`;
+  };
+
   const players = (f: KifuFile): string =>
     `☗${playerName(f, 'player1')} ─ ☖${playerName(f, 'player2')}`;
 
@@ -67,5 +81,15 @@ export function kifuLabels(locale: LocaleCode) {
     return players(a).localeCompare(players(b));
   };
 
-  return { ruleName, modifiers, playerName, players, date, result, opponentKind, comparator };
+  return {
+    ruleName,
+    modifiers,
+    playerName,
+    playerLabel,
+    players,
+    date,
+    result,
+    opponentKind,
+    comparator,
+  };
 }

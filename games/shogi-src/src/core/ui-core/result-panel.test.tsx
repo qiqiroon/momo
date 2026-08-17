@@ -26,11 +26,20 @@ beforeEach(() => {
 });
 
 describe('終局パネル（付録D-3 §4.1）', () => {
-  it('★モード選択へ戻れる（対 AI の終局後に設定画面を通らずに済む）', () => {
+  it('★モード選択へ戻れる。ただし置き場所は他の戻る導線と同じ並び（v1.43）', () => {
     finishedGame();
-    render(<App variant="b" />);
+    const { container } = render(<App variant="b" />);
     const btn = screen.getByText('モード選択');
-    expect(btn).toBeInTheDocument();
+    // 終局パネルの中ではなく、対局画面のヘッダの戻る導線の並びに置く
+    // （2026-08-17 ユーザー判断＝戻る先を選ぶ操作は同じ場所に集める）。
+    expect(container.querySelector('.floating-result')?.contains(btn)).toBe(false);
+    expect(btn.closest('.header-tools')).not.toBeNull();
+  });
+
+  it('モード選択は対局中でも押せる（終局していなくても戻れる）', () => {
+    useGameStore.getState().reset({ gameType: 'shogi', quantum: false, torusMode: 'none', handicap: null });
+    render(<App variant="b" />);
+    expect(screen.getByText('モード選択')).toBeInTheDocument();
   });
 
   it('★押せるボタンは白文字白枠にする（灰色は「押せない」だけを意味する）', () => {

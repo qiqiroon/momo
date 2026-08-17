@@ -375,7 +375,21 @@ body::before {
 }
 
 .stand {
-  width: calc(var(--hand-pc) + 12px);
+  /* v1.43: 駒台の寸法は**列数と行数から一意に決める**（付録D-1 §4.4.1）。
+   * `--stand-rows` は「1 列に何枚積むか」で、駒の大きさはそこから逆算する。
+   * **入る大きさを先に決めてから並べる**ので、**3 列目が生まれることが無い**
+   * （v1.42 は折り返しに任せていたため、増えると 3 列目が駒台からはみ出していた）。
+   */
+  --stand-gap: 5px;
+  --stand-rows: 7;
+  /* 駒台の中身に使える高さ＝盤の高さ − 上下の余白 − 見出し。2px は端数の逃げ。 */
+  --caps-h: calc(var(--cell) * 9 - 3px);
+  /* 1 枚の幅。**行数ぶんが必ず収まる大きさ**を選ぶ（既定より大きくはしない）。 */
+  --cap-w: min(
+    var(--hand-pc),
+    calc((var(--caps-h) - 2px - (var(--stand-rows) - 1) * var(--stand-gap)) / var(--stand-rows) / 1.12)
+  );
+  width: calc(var(--cap-w) + 12px);
   background: linear-gradient(160deg, var(--stand), #9a7442);
   border: 1px solid var(--stand-edge);
   border-radius: 8px;
@@ -389,8 +403,9 @@ body::before {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: var(--stand-gap);
   min-height: calc(var(--hand-pc) * 7 + 5px * 6);
+  max-height: var(--caps-h);
 }
 
 /* ===== v1.42: 駒が増えたときの詰め方（付録D-1 §4.4.1・駒UI v0.11 §5.1） =====
@@ -398,19 +413,21 @@ body::before {
  * 詰める順は ①間隔 → ②2 列 → ③駒の大きさ。
  * **間隔は失っても読めるが、大きさは失うと読めなくなる**（画数の多い字から潰れる）。
  */
-.stand.tight .caps {
-  gap: 0;
+.stand.tight {
+  --stand-gap: 0px;
 }
+/* **列は 2 つまで**（v1.43・2026-08-17 ユーザー報告＝3 列目が駒台からはみ出していた）。
+ * 1 列に積む枚数は `--stand-rows` で決めてあり、その高さちょうどで折り返すので、
+ * 2 列に収まらない枚数はそもそも生じない（大きさのほうが先に縮む）。
+ */
 .stand.two {
-  width: calc(var(--hand-pc) * var(--stand-scale, 1) * 2 + 5px + 12px);
+  width: calc(var(--cap-w) * 2 + 5px + 12px);
 }
 .stand.two .caps {
-  /* 縦に積んで、入りきらないぶんを右の列へ折り返す。高さは盤に合わせて止まる。 */
   flex-flow: column wrap;
   align-content: flex-start;
   column-gap: 5px;
   min-height: 0;
-  max-height: 100%;
 }
 .stand.two.you .caps {
   /* あなた側は下詰めのまま＝列の中で下から積む（付録D-1 §4.4）。 */
@@ -419,22 +436,23 @@ body::before {
 .stand.two .cap {
   margin: 0;
 }
-/* ③ 駒を小さくする。**最後の手段**で、25 枚以上のときだけ効く。
+/* 駒の大きさは `--cap-w` から決まる。**小さくするのは駒台の中だけ**で、
+ * **盤の駒には触れない**（2026-08-17 ユーザー判断）。
  * 未確定マーク（`.qmark`）は駒の外に出ているので隣と重なってよい＝
  * 重なっても駒の文字の読み取りを妨げない（駒本体は重ねない）。
  */
-.stand[style*='--stand-scale'] .cap {
-  width: calc(var(--hand-pc) * var(--stand-scale));
-  height: calc(var(--hand-pc) * var(--stand-scale) * 1.12);
+.stand .cap {
+  width: var(--cap-w);
+  height: calc(var(--cap-w) * 1.12);
 }
-.stand[style*='--stand-scale'] .cap .ja {
-  font-size: calc(var(--hand-pc) * var(--stand-scale) * 0.56);
+.stand .cap .ja {
+  font-size: calc(var(--cap-w) * 0.56);
 }
-.stand[style*='--stand-scale'] .cap .ja.en {
-  font-size: calc(var(--hand-pc) * var(--stand-scale) * 0.5);
+.stand .cap .ja.en {
+  font-size: calc(var(--cap-w) * 0.5);
 }
-.stand[style*='--stand-scale'] .cap .ja.en.multi {
-  font-size: calc(var(--hand-pc) * var(--stand-scale) * 0.36);
+.stand .cap .ja.en.multi {
+  font-size: calc(var(--cap-w) * 0.36);
 }
 
 .stand.you .caps {

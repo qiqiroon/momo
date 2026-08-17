@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { useGameStore } from '../../../core/store/game-store';
 import { useAiStore } from '../../../core/store/ai-store';
@@ -394,6 +396,65 @@ describe('S08 v1.42 の直し', () => {
     expect(sq).toBeDefined();
     fireEvent.mouseEnter(sq!);
     expect(document.querySelector('.qtip')).not.toBeNull();
+  });
+});
+
+/**
+ * 盤の大きさの計算（付録D-8 §5.1・付録D-1 §4.2.1／2026-08-17 ユーザー指示）。
+ *
+ * ここで固定したいのは 3 点。
+ *   - **盤の縦横をルール定義から画面へ流す**＝9 を書かない（将来 9x9 以外があるため）
+ *   - **マスの大きさは縦と横の両方から決める**＝どちらか片方だけ見ると、
+ *     余る窓とはみ出す窓の両方が生じる（v1.43 まで実際にそうだった）
+ *   - **駒台が 2 列になる前提で横を計算する**＝持ち駒が増えても盤の大きさが変わらない
+ *
+ * マスの大きさ自体は CSS が窓の寸法から決めるので、jsdom では値を測れない。
+ * **測れるのは「何を材料にして計算しているか」**なので、そこを見る。
+ */
+describe('S08 盤の大きさの計算（付録D-8 §5.1）', () => {
+  const cssPath = resolve(process.cwd(), 'src/core/ui-core/styles.css');
+  const s08Rule = (): string => {
+    const css = readFileSync(cssPath, 'utf8');
+    const at = css.indexOf('.stage.s08 {');
+    expect(at).toBeGreaterThan(0);
+    return css.slice(at, css.indexOf('}', at));
+  };
+
+  it('★盤の縦横をルール定義から画面へ流す（9 を書かない）', () => {
+    const { container } = render(<KifuReplayScreen />);
+    const stage = container.querySelector('.stage.s08') as HTMLElement;
+    const mgf = useGameStore.getState().mgf;
+    expect(stage.style.getPropertyValue('--board-cols')).toBe(String(mgf.board.width));
+    expect(stage.style.getPropertyValue('--board-rows')).toBe(String(mgf.board.height));
+  });
+
+  it('★マスの大きさは窓の縦と横の両方から決める（片方だけ見ない）', () => {
+    const rule = s08Rule();
+    expect(rule).toContain('100vw');
+    expect(rule).toMatch(/100s?vh/);
+    // 小さいほうを採る＝どちらの向きでもはみ出さない。
+    expect(rule).toContain('min(');
+  });
+
+  it('★割り数に盤の段数・列数を使う（マスの数を決め打ちにしない）', () => {
+    const rule = s08Rule();
+    expect(rule).toContain('var(--board-cols, 9)');
+    expect(rule).toContain('var(--board-rows, 9)');
+  });
+
+  it('★横は駒台が 2 列になる前提で計算する（持ち駒が増えても盤が変わらない）', () => {
+    // 駒はマスの 0.66・2 列 × 左右 2 つ＝2.64 マスぶんを列数に足す。
+    expect(s08Rule()).toContain('2.64');
+  });
+
+  it('★駒台の駒はこの画面のマスから 2/3 を取る（共通の既定値から取らない）', () => {
+    expect(s08Rule()).toMatch(/--hand-pc:\s*calc\(var\(--cell\) \* 0\.66\)/);
+  });
+
+  it('★駒台の高さも段数から求める（盤の高さ＝マス × 段数）', () => {
+    const css = readFileSync(cssPath, 'utf8');
+    expect(css).toContain('--caps-h: calc(var(--cell) * var(--board-rows, 9) - 3px)');
+    expect(css).toContain('max-height: calc(var(--cell) * var(--board-rows, 9) + 24px)');
   });
 });
 

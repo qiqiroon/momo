@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useI18nStore } from '../../../core/store/i18n-store';
 import { useGameStore } from '../../../core/store/game-store';
 import { useRouteStore } from '../../../core/store/route-store';
@@ -270,7 +270,18 @@ export function KifuReplayScreen() {
   return (
     // v1.42: `s08` を付けて、この画面だけ盤の大きさを窓の高さにも合わせる
     // （付録D-8 §5「ヘッダから再生の操作帯までが 1 画面に収まること」）。
-    <div className="stage s08">
+    // v1.44: **盤の縦横をルール定義から流す**（付録D-1 §4.2.1）＝マスの大きさ・
+    // 駒台の高さ・盤のグリッドがこの値から決まる。**9 を書かない**ので、
+    // 将来 9x9 以外の盤ができても計算がそのまま追随する。
+    <div
+      className="stage s08"
+      style={
+        {
+          '--board-cols': mgf.board.width,
+          '--board-rows': mgf.board.height,
+        } as CSSProperties
+      }
+    >
       <div className="grid">
         <div className="main-col">
           <header className="match-header">

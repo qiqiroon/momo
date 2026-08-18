@@ -31,6 +31,7 @@ import {
   bindReviewView,
   clearReviewNotice,
   leaveSharedReview,
+  reviewRoomCreated,
   shareReviewMove,
   shareReviewSeek,
   shareReviewUndo,
@@ -39,12 +40,23 @@ import {
 } from '../review-share';
 import { get as pluginGet } from '../../../core/plugin/registry';
 import type { OnlineGameConnector } from '../../../core/plugin/gameConnector';
+import type { ReviewRoomBlock, ReviewRoomRequest } from '../../../core/plugin/reviewRoom';
+import { ChatConsole } from '../../../core/ui-core/ChatConsole';
+import { useChatStore } from '../../../core/store/chat-store';
 import { endingLabel } from './ending';
 import { kifuMemoryState, loadLastKifu } from '../storage';
 import type { KifuFile } from '../types';
 import { kifuLabels } from './labels';
 
 const SPEEDS = [1, 2, 0.5] as const;
+
+/**
+ * 部屋を建てられるかを通信側に聞く（付録D-12 §8）。
+ * **通信機能を積んでいないビルドでは口ごと無い**ので null＝ボタンそのものを出さない。
+ */
+function askRoomBlock(): ReviewRoomBlock | null {
+  return pluginGet<() => ReviewRoomBlock>('reviewRoom:block')?.() ?? null;
+}
 
 /**
  * 感想戦画面 (S11)。機能の正典＝画面機能 v0.37 §3 S11・意味論＝親 v1.42 §9.4・
@@ -119,6 +131,56 @@ export function ReviewScreen() {
    * いちばん先に置く＝この後ろの効果が盤に触れる前から囲われているようにする。
    */
   useEffect(() => holdReplayGuard(), []);
+
+  /**
+   * ★チャットは**入るたびに空から始める**（画面機能 v0.40 §3 S11・ユーザー判断）。
+   *
+   * **入口ごとに空にしない**＝入口は 4 通り（終局直後・棋譜再生・モード選択・
+   * 一覧から入室）あり、数え上げる形にすると 1 か所の書き忘れで**対局中の会話が
+   * 感想戦へ漏れる**。**画面に入ったという事実 1 つで囲う**なら、入口が何通りに
+   * 増えても直す場所は無い。
+   *
+   * **空にするのはここだけ**＝この後で相手が入ってきても、抜けても消さない
+   * （話した内容が手元から消えるほうが不都合）。
+   */
+  useEffect(() => {
+    useChatStore.getState().clearChat();
+  }, []);
+
+  /**
+   * 部屋を建てられるか（付録D-12 §8）。**通信側の事情なので聞きに行く**。
+   * つなぎ直しや入室で変わるので、通信側の変化を購読して測り直す。
+   */
+  const [roomBlock, setRoomBlock] = useState<ReviewRoomBlock | null>(() => askRoomBlock());
+  useEffect(() => {
+    const conn = pluginGet<OnlineGameConnector>('gameConnector');
+    if (!conn) return;
+    return conn.subscribe(() => setRoomBlock(askRoomBlock()));
+  }, []);
+
+  /** 人を呼ぶ＝**棋譜のルール名＋「の感想戦」**で建てる（付録D-12 §8）。 */
+  const makeRoom = () => {
+    if (!file) return;
+    const create = pluginGet<(info: ReviewRoomRequest) => boolean>('reviewRoom:create');
+    if (!create) return;
+    const ok = create({
+      gameType: (file.meta.gameType === 'hasami'
+        ? 'hasami'
+        : file.meta.gameType === 'shogi-custom'
+          ? 'shogi-custom'
+          : 'shogi') as ReviewRoomRequest['gameType'],
+      torus: file.meta.torus !== 'none',
+      quantum: file.meta.quantum,
+      roomName: `${labels.ruleName(file)}${t('s11.roomSuffix')}`,
+    });
+    if (!ok) {
+      setRoomBlock(askRoomBlock());
+      return;
+    }
+    reviewRoomCreated();
+    setRoomBlock(askRoomBlock());
+    setToast(t('s11.roomMade'));
+  };
 
   /**
    * **入る前の盤を丸ごと控えて、離れるときに戻す**（親 §9.4.3・S08 と同じ仕掛け）。
@@ -416,7 +478,10 @@ export function ReviewScreen() {
     // `s11` は**この画面だけ縦に増える帯**（自由に指せる旨・補助語・保存の注記）を
     // 引くための目印で、計算そのものは 1 か所（styles.css の `.stage.s08`）にしかない。
     <div
-      className="stage s08 s11"
+      // `has-chat` ＝二人のときだけ出るチャット欄のぶん（v1.50）。**手数リストが盤の下へ
+      // 回る狭い窓では縦に積み増しになる**ので、盤の大きさの計算から引く厚みを増やす
+      // （付録D-8 §5.1＝置くものを全部引いた残りを割る。引き忘れるとスクロールする）。
+      className={`stage s08 s11${shared ? ' has-chat' : ''}`}
       style={
         {
           '--board-cols': mgf.board.width,
@@ -486,6 +551,27 @@ export function ReviewScreen() {
               <span className={`peer${oppPresent ? '' : ' gone'}`}>
                 {oppPresent ? '●' : '○'} {oppName || t('player.opp')}
                 {oppPresent ? '' : ` ${t('s11.peerGone')}`}
+              </span>
+            )}
+            {/* 人を呼ぶ（付録D-12 §8）。**ひとりのときだけ**出す。**建てられないときは
+                不活性にして理由を添える**＝灰色は「押せない」しか意味しないので、
+                待てば直るのか自分の事情なのかが分からなくなる。 */}
+            {!shared && roomBlock !== null && (
+              <span className="make-room">
+                <button
+                  type="button"
+                  className="io-btn"
+                  disabled={roomBlock !== 'ok' || !file}
+                  onClick={() => {
+                    seButton();
+                    makeRoom();
+                  }}
+                >
+                  {t('s11.makeRoom')}
+                </button>
+                {roomBlock !== 'ok' && (
+                  <span className="why">{t(`s11.makeRoom.${roomBlock}`)}</span>
+                )}
               </span>
             )}
           </div>
@@ -750,6 +836,9 @@ export function ReviewScreen() {
               ending={endingLabel(file?.meta.result, locale)}
             />
           </div>
+          {/* チャット（付録D-12 §2・画面機能 v0.40 §3 S11）。**ひとりのときは出さない**
+              ＝相手が居ないので置く意味が無い。中身は対局画面と同じ部品をそのまま借りる。 */}
+          {shared && <ChatConsole t={t} />}
         </div>
       </div>
 

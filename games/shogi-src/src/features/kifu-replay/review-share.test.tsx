@@ -14,16 +14,21 @@ import { generateLegalMoves } from '../../core/engine';
 import '../matchmaking/gameConnector';
 import './index';
 import { discardKifu, loadLastKifu, markKifuSaved, kifuMemoryState } from './storage';
-import { setReviewTarget } from './review';
+import { reviewTarget, setReviewTarget } from './review';
+import { useChatStore } from '../../core/store/chat-store';
 import { serializeKifu } from './io';
 import {
   answerReviewOffer,
   canOfferReview,
   endSharedReview,
   isSharedReview,
+  joinedReviewRoom,
+  leaveSharedReview,
   offerReview,
   receiveReviewMessage,
+  reviewGuestArrived,
   reviewOpponentLeft,
+  reviewRoomCreated,
   useReviewShareStore,
 } from './review-share';
 import { ReviewScreen } from './ui/ReviewScreen';
@@ -54,7 +59,10 @@ const fakeConnector = {
   getOpponentName: () => peerName,
   getMyName: () => '太郎',
   getMySide: () => mySide,
+  // v1.50: 二人のときはチャット欄が出るので、その分も答えられるようにする。
+  getMyChatSide: () => mySide,
   getActiveRules: () => null,
+  subscribe: () => () => {},
   sendReview: (msg: ReviewMessage) => {
     sent.push(msg);
   },
@@ -357,6 +365,99 @@ describe('S11 相手が抜けたとき', () => {
     view.unmount();
     expect(kifuMemoryState()).toBe('saved');
     expect(loadLastKifu()?.moves).toHaveLength(6);
+  });
+});
+
+describe('S11 感想戦の部屋（段2・v1.50）', () => {
+  it('★ゲストとして入ると、待機画面ではなく感想戦へ進み、棋譜が届くまで待つ', () => {
+    finishedGame(6);
+    iAmHost = false;
+    joinedReviewRoom();
+
+    expect(useRouteStore.getState().screen).toBe('review');
+    const s = useReviewShareStore.getState();
+    expect(s.role).toBe('guest');
+    // **配り終えるまで触れない**（画面機能 §3 S11）。
+    expect(s.ready).toBe(false);
+    // **手元の記憶を代わりに映さない**＝配られる 1 局とは限らない。
+    expect(reviewTarget()).toBeNull();
+  });
+
+  it('★自分の建てた部屋に客が来たら、そこで棋譜を配り始める', () => {
+    finishedGame(6);
+    iAmHost = true;
+    reviewRoomCreated();
+    sent = [];
+
+    expect(reviewGuestArrived()).toBe(true);
+    expect(useReviewShareStore.getState().role).toBe('host');
+    const state = sent.find((m) => m.kind === 'state');
+    expect(state).toBeDefined();
+    // **棋譜そのものを送る**（相手が持っていることを当てにしない・親 §6.3.6）。
+    expect(state && 'kifu' in state ? state.kifu : undefined).toBeTruthy();
+  });
+
+  it('感想戦の部屋でなければ、客が来ても何も起きない（対局の部屋と混ぜない）', () => {
+    finishedGame(6);
+    sent = [];
+    expect(reviewGuestArrived()).toBe(false);
+    expect(sent).toHaveLength(0);
+  });
+
+  it('★感想戦のために建てた／入った部屋は、画面を離れるときに出る', () => {
+    finishedGame(6);
+    let left = 0;
+    register('reviewRoom:leave', () => {
+      left += 1;
+    });
+    reviewRoomCreated();
+
+    leaveSharedReview();
+    expect(left).toBe(1);
+
+    // 対局の終わりから入った感想戦では**部屋から出ない**（相手を追い出さない）。
+    startAsHost();
+    leaveSharedReview();
+    expect(left).toBe(1);
+  });
+});
+
+describe('S11 チャット（v1.50）', () => {
+  it('★感想戦に入るたびに空から始める（対局中の会話を持ち込まない）', () => {
+    finishedGame(6);
+    useChatStore.getState().addMessage('player1', '対局中のひとこと');
+    startAsHost();
+
+    const view = render(<ReviewScreen />);
+    expect(useChatStore.getState().messages).toHaveLength(0);
+    expect(screen.queryByText('対局中のひとこと')).not.toBeInTheDocument();
+    view.unmount();
+  });
+
+  it('空にするのは入るときだけ＝そのあとの会話は相手が抜けても消さない', () => {
+    finishedGame(6);
+    startAsHost();
+    const view = render(<ReviewScreen />);
+
+    act(() => useChatStore.getState().addMessage('player1', '感想戦でのひとこと'));
+    deliver({ kind: 'reply', accepted: false }); // 相手が抜けた
+    expect(useChatStore.getState().messages).toHaveLength(1);
+    view.unmount();
+  });
+
+  it('ひとりのときはチャットを出さない（相手が居ないので置く意味が無い）', () => {
+    finishedGame(6);
+    const view = render(<ReviewScreen />);
+    expect(view.container.querySelector('.moves-col .console')).toBeNull();
+    view.unmount();
+  });
+
+  it('二人のときはチャットを出す', () => {
+    finishedGame(6);
+    startAsHost();
+    const view = render(<ReviewScreen />);
+    expect(view.container.querySelector('.moves-col .console')).not.toBeNull();
+    view.unmount();
   });
 });
 

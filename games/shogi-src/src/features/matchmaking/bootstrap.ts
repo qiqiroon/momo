@@ -18,6 +18,7 @@ import { get as pluginGet } from '../../core/plugin/registry';
 import { getMomoMatchmaking } from './client';
 import { SHOGI_GAME_TYPE, SIGNALING_URL } from './config';
 import { handleShogiMessage } from './messageDispatcher';
+import { decodeRoomName } from './roomNameCodec';
 import { useMatchmakingStore, DEFAULT_ROOM_CONFIG, type RoomConfig } from './store';
 
 let _inited = false;
@@ -94,6 +95,28 @@ function reviewOpponentLeft(): boolean {
 }
 
 /**
+ * v1.50: 感想戦の部屋へ入った（画面機能 §3 S04・付録D-12 §8）。
+ *
+ * **待機画面 (S05) は通らず、そのまま感想戦へ進む**＝先後も持ち時間も無いので
+ * 決めることが無い。**用途は部屋名の記号から読む**＝サーバーは部屋名を素通しする
+ * だけで、部屋の用途という概念を持たない。棋譜の機能を積んでいないビルドでは
+ * 口ごと無いので、その場合は今までどおり待機画面へ進む。
+ */
+function enterReviewAsGuest(roomName: string): boolean {
+  if (!decodeRoomName(roomName).review) return false;
+  const enter = pluginGet<() => void>('review:joinedRoom');
+  if (!enter) return false;
+  enter();
+  return true;
+}
+
+/** v1.50: 自分の建てた感想戦の部屋へ客が来た＝**ここで棋譜を配り始める**。 */
+function reviewGuestArrived(): boolean {
+  const arrived = pluginGet<() => boolean>('review:guestArrived');
+  return arrived ? arrived() : false;
+}
+
+/**
  * matchmaking を初期化 (シグナリング WS を開く)。多重呼び出しは無視。
  * MenuScreen / LobbyScreen の両方から呼んで良い。
  */
@@ -125,10 +148,15 @@ export function ensureMatchmakingInit(): void {
       s.setCurrentRoom({ roomId, roomName, isHost: false });
       s.setOpponentName(hostName);
       s.setActiveRoomConfig(normalizeIncomingRules(rules, roomName));
+      // v1.50: 感想戦の部屋なら待機画面ではなく感想戦へ（画面機能 §3 S04）。
+      if (enterReviewAsGuest(roomName)) return;
       useRouteStore.getState().setScreen('room');
     },
     onGuestJoined: (guestName) => {
       useMatchmakingStore.getState().setOpponentName(guestName);
+      // v1.50: 感想戦の部屋なら、ここが**棋譜を配り始める合図**（親 §6.3.6）。
+      // 対局の部屋なら false が返るので、今までどおり何も起こらない。
+      reviewGuestArrived();
     },
     onGuestLeft: () => {
       const state = useMatchmakingStore.getState();

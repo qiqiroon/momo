@@ -5,7 +5,7 @@ export const en: LocaleData = {
   name: 'English',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.49',
+    'app.ver': 'v1.50',
     'sound.promptTitle': 'Enable BGM and sound effects?',
     'sound.bgmLabel': 'BGM volume',
     'sound.sfxLabel': 'SFX volume',
@@ -226,6 +226,12 @@ export const en: LocaleData = {
     's11.notice.aloneNoPeer': 'Starting the review on your own',
     's11.notice.oppLeft': 'They left the room. Continuing on your own.',
     's11.notice.overridden': 'You both moved at once — their move stands',
+    // v1.50: review rooms (appendix D-12 §8)
+    's11.makeRoom': 'Create room',
+    's11.makeRoom.no-server': 'Not connected to the server',
+    's11.makeRoom.already-in-room': 'You are already in a room',
+    's11.roomSuffix': ' review',
+    's11.roomMade': 'Room created. Waiting for someone to join.',
     'review.sentTitle': 'Review invitation',
     'review.sentBody': 'Asking your opponent to review the game…',
     'review.aloneAction': 'Start on my own',

@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.49',
+    'app.ver': 'v1.50',
     // v0.72 音楽再生確認モーダル (Darts と同じ思想)
     'sound.promptTitle': 'BGM と効果音を再生してもよろしいですか？',
     'sound.bgmLabel': 'BGM 音量',
@@ -241,6 +241,12 @@ export const ja: LocaleData = {
     's11.notice.aloneNoPeer': 'ひとりで感想戦を始めます',
     's11.notice.oppLeft': '相手が退室しました。ひとりで続けます。',
     's11.notice.overridden': '同時に指したため、相手の手が残りました',
+    // v1.50: 感想戦の部屋（付録D-12 §8）。理由は「押せない」だけでは分からないので添える
+    's11.makeRoom': '部屋を作る',
+    's11.makeRoom.no-server': 'サーバーにつながっていません',
+    's11.makeRoom.already-in-room': 'すでに部屋にいます',
+    's11.roomSuffix': 'の感想戦',
+    's11.roomMade': '部屋を作りました。相手が入るのを待っています。',
     'review.sentTitle': '感想戦のお誘い',
     'review.sentBody': '相手に感想戦を申し出ています…',
     'review.aloneAction': 'ひとりで始める',

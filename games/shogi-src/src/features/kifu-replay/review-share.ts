@@ -22,7 +22,7 @@ import type { ReviewMessage, ReviewMovePayload, ReviewPoint } from '../../core/p
 import { useOffersStore } from '../../core/store/offers-store';
 import { useRouteStore } from '../../core/store/route-store';
 import { parseKifu, serializeKifu } from './io';
-import { reviewTarget, setReviewTarget } from './review';
+import { clearReviewTarget, reviewTarget, setReviewTarget } from './review';
 
 /** 部屋を建てた側か、入った側か。**正はホスト**（親 §6.3.6）。 */
 export type ReviewRole = 'host' | 'guest';
@@ -52,6 +52,15 @@ interface ReviewShareState {
   incoming: (ReviewView & { seq: number }) | null;
   /** 画面が拾って出す一言。 */
   notice: ReviewNotice;
+  /**
+   * v1.50: **この部屋は感想戦のために在る**（S11 で建てたか、一覧から入ったか）。
+   *
+   * 対局の終わりから入った感想戦とは扱いを分ける＝あちらは**部屋から出ない**
+   * （結果の画面へ戻るだけで、相手を部屋から追い出さない）が、こちらは
+   * **画面を離れると部屋そのものが用済み**になる。残すと一覧に**誰も居ない
+   * 感想戦の部屋**が並び続ける（戻ってくる画面が無いので誰も片付けられない）。
+   */
+  ownsRoom: boolean;
 }
 
 const initial: ReviewShareState = {
@@ -61,6 +70,7 @@ const initial: ReviewShareState = {
   ready: true,
   incoming: null,
   notice: null,
+  ownsRoom: false,
 };
 
 export const useReviewShareStore = create<ReviewShareState>(() => ({ ...initial }));
@@ -103,11 +113,17 @@ export function endSharedReview(): void {
 /**
  * 感想戦の画面を離れる。**相手にも伝える**＝黙って居なくなると、相手は共有されて
  * いない操作を続けてしまう（画面機能 §3 S11「相手が抜けたことは知らせる」）。
- * 部屋そのものからは出ない（結果の画面へ戻るだけ）。
+ *
+ * **対局の終わりから入った感想戦では部屋から出ない**（結果の画面へ戻るだけ＝
+ * 相手を部屋から追い出さない）。**v1.50** ＝ここで建てた／一覧から入った部屋だけは
+ * 出る（`ownsRoom`）＝その部屋は感想戦のためだけに在り、残すと一覧に**誰も居ない
+ * 部屋**が並び続ける。
  */
 export function leaveSharedReview(): void {
-  if (!isSharedReview()) return;
-  connector()?.sendReview({ kind: 'reply', accepted: false });
+  const s = useReviewShareStore.getState();
+  if (s.role !== null) connector()?.sendReview({ kind: 'reply', accepted: false });
+  if (s.ownsRoom) pluginGet<() => void>('reviewRoom:leave')?.();
+  if (s.role === null && !s.ownsRoom) return;
   endSharedReview();
 }
 
@@ -134,6 +150,49 @@ function beginSharedReview(): ReviewRole {
 export function offerReview(): void {
   useOffersStore.getState().setReviewOfferFrom('me');
   connector()?.sendReview({ kind: 'offer' });
+}
+
+/**
+ * ★v1.50: 感想戦の部屋を建てた（S11 の「部屋を作る」・付録D-12 §8）。
+ *
+ * **建てただけでは二人にならない**＝相手が来るまでは今までどおりひとりで、
+ * 役が決まるのは**ゲストが入ってきた時点**（`reviewGuestArrived`）。
+ * ここで控えるのは「この部屋は感想戦のために在る」ことだけ。
+ */
+export function reviewRoomCreated(): void {
+  useReviewShareStore.setState({ ownsRoom: true });
+}
+
+/**
+ * ★v1.50: 感想戦の部屋へゲストとして入った（ロビー S04 の一覧から・画面機能 §3 S04）。
+ *
+ * **待機画面 (S05) は通らない**＝先後も持ち時間も無いので決めることが無い。
+ * **棋譜は持っていない**ので、配られるまで待つ（`beginSharedReview` が `ready` を
+ * false にする）。**手元の記憶を代わりに映さない**＝配られる 1 局とは限らないのに
+ * 盤に出ると、届いた瞬間に別の対局へ化けたように見える。
+ */
+export function joinedReviewRoom(): void {
+  clearReviewTarget('lobby');
+  beginSharedReview();
+  useReviewShareStore.setState({ ownsRoom: true });
+  enterReviewScreen();
+}
+
+/**
+ * ★v1.50: 自分が建てた感想戦の部屋へゲストが入ってきた（ホスト側）。
+ *
+ * **棋譜を配るのはここ**＝終局から入る経路では「受ける」の返事が合図だったが、
+ * 一覧から入ってくる経路にはその返事が無い。**合図を 1 つに束ねられない**ので、
+ * 入り口ごとに配り始める場所を持つ（配り忘れると相手は待ち続ける）。
+ *
+ * 感想戦の部屋でなければ false を返し、呼んだ側は今までどおりに扱う。
+ */
+export function reviewGuestArrived(): boolean {
+  if (!useReviewShareStore.getState().ownsRoom) return false;
+  if (!reviewTarget()) return false;
+  const role = beginSharedReview();
+  if (role === 'host') distributeKifu();
+  return true;
 }
 
 /** 打診を取り下げてひとりで始める（「ひとりで始める」を押したとき）。 */

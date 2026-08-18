@@ -34,6 +34,17 @@ export function setReviewTarget(file: KifuFile, from: ReviewOrigin): void {
   origin = from;
 }
 
+/**
+ * v1.50: **振り返る 1 局がまだ決まっていない状態**で入る（感想戦の部屋へゲストとして
+ * 入ったとき・親 §6.3.6）。**ホストから配られるまで待つ**ので、ここで手元の記憶を
+ * 代わりに置かない＝配られる 1 局とは限らないのに盤へ出ると、届いた瞬間に別の対局へ
+ * 化けたように見える。
+ */
+export function clearReviewTarget(from: ReviewOrigin): void {
+  target = null;
+  origin = from;
+}
+
 export function reviewTarget(): KifuFile | null {
   return target;
 }

@@ -20,8 +20,10 @@ import { setReviewTarget, type ReviewOrigin } from './review';
 import {
   answerReviewOffer,
   canOfferReview,
+  joinedReviewRoom,
   offerReview,
   receiveReviewMessage,
+  reviewGuestArrived,
   reviewOpponentLeft,
   withdrawReviewOffer,
 } from './review-share';
@@ -231,6 +233,13 @@ register('review:open', (from: ReviewOrigin, file?: KifuFile): boolean => {
 register('review:message', receiveReviewMessage);
 register('review:opponentLeft', reviewOpponentLeft);
 register('review:canOffer', canOfferReview);
+/**
+ * v1.50: 感想戦の部屋（画面機能 §3 S04・付録D-12 §8）。**通信側が入室・来客を
+ * 見つけたときに呼ぶ**。感想戦をしていない部屋なら `reviewGuestArrived` は false を
+ * 返し、呼んだ側は今までどおりに扱う（対局の部屋の来客と混ぜない）。
+ */
+register('review:joinedRoom', joinedReviewRoom);
+register('review:guestArrived', reviewGuestArrived);
 /** 終局パネルの「感想戦」から相手へ申し出る（返事を待つ間も閉じ込めない）。 */
 register('review:offer', offerReview);
 register('review:withdrawOffer', withdrawReviewOffer);
@@ -284,6 +293,9 @@ export {
   canOfferReview,
   endSharedReview,
   isSharedReview,
+  joinedReviewRoom,
+  reviewGuestArrived,
+  reviewRoomCreated,
   useReviewShareStore,
 } from './review-share';
 export {

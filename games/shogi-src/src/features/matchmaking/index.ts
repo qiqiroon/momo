@@ -15,6 +15,7 @@ import { MenuScreen } from './ui/MenuScreen';
 import { LobbyScreen } from './ui/LobbyScreen';
 import { RuleSelectScreen } from './ui/RuleSelectScreen';
 import { RoomScreen } from './ui/RoomScreen';
+import { createReviewRoom, leaveReviewRoom, reviewRoomBlock } from './reviewRoom';
 
 const client = getMomoMatchmaking();
 if (client) {
@@ -27,3 +28,10 @@ register('screen:net-lobby', LobbyScreen);
 register('screen:rule-select', RuleSelectScreen);
 // 'room' = S06 対局準備画面（段階 2-5.1 で S05 ホスト待機と統合）
 register('screen:room', RoomScreen);
+/**
+ * v1.50: 感想戦の部屋（付録D-12 §8）。**感想戦の画面はこの 3 つの口だけを見る**
+ * ＝部屋の建て方も部屋名の記号も通信機能の持ち物で、感想戦の側は知らなくてよい。
+ */
+register('reviewRoom:create', createReviewRoom);
+register('reviewRoom:block', reviewRoomBlock);
+register('reviewRoom:leave', leaveReviewRoom);

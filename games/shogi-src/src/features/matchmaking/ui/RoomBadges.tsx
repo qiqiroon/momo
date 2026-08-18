@@ -18,7 +18,10 @@ export function RoomBadges({ parts, locale, size = 'sm' }: RoomBadgesProps) {
   const fontSize = size === 'md' ? 11 : 9;
   const padding = size === 'md' ? '2px 8px' : '1px 6px';
 
-  const badges: { text: string; color: 'game' | 'mod' | 'time' | 'custom' | 'unknown' }[] = [];
+  const badges: { text: string; color: BadgeColor }[] = [];
+  // v1.50: 感想戦の印は先頭 (付録D-12 §8)。**何の部屋か**が種類やルールより先に要る
+  // ＝対局のつもりで入る人に、入る前に分かるようにするための印だから。
+  if (parts.review) badges.push({ text: labels.review, color: 'review' });
   badges.push({ text: labels.gameType[parts.gameType], color: 'game' });
   if (parts.torus) badges.push({ text: labels.torus, color: 'mod' });
   if (parts.quantum) badges.push({ text: labels.quantum, color: 'mod' });
@@ -53,10 +56,13 @@ export function RoomBadges({ parts, locale, size = 'sm' }: RoomBadgesProps) {
 }
 
 // v0.87: 'time' 色 (持ち時間バッジ用) を追加。mod と同系だが少し blue-ish で区別
-type BadgeColor = 'game' | 'mod' | 'time' | 'custom' | 'unknown';
+// v1.50: 'review' 色 (感想戦の部屋) を追加。**オレンジ枠**は付録D-12 §8 の指定。
+type BadgeColor = 'game' | 'mod' | 'time' | 'custom' | 'unknown' | 'review';
 
 function colorForBorder(c: BadgeColor): string {
   switch (c) {
+    case 'review':
+      return 'var(--orange)';
     case 'game':
       return 'var(--orange)';
     case 'mod':
@@ -72,6 +78,8 @@ function colorForBorder(c: BadgeColor): string {
 
 function colorForText(c: BadgeColor): string {
   switch (c) {
+    case 'review':
+      return 'var(--orange-light)';
     case 'game':
       return 'var(--orange-light)';
     case 'mod':
@@ -87,6 +95,8 @@ function colorForText(c: BadgeColor): string {
 
 function colorForBg(c: BadgeColor): string {
   switch (c) {
+    case 'review':
+      return 'var(--bg-selected)';
     case 'game':
       return 'var(--bg-selected)';
     case 'mod':

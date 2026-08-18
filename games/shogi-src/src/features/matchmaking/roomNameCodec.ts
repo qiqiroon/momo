@@ -5,8 +5,8 @@
  * ゲーム種類/modifier などのメタ情報を部屋名の先頭にプレフィクスとして
  * 埋め込むことで、他プレイヤーがロビーから識別できるようにする。
  *
- * 形式 (v0.87 で持ち時間 T フラグ追加):
- *   [<種類記号>(+<修飾記号>)*(+T<時間コード>)?(:<カスタム名>)?] <ユーザー部屋名>
+ * 形式 (v0.87 で持ち時間 T フラグ追加・v1.50 で感想戦フラグ追加):
+ *   [<種類記号>(+<修飾記号>)*(+感)?(+T<時間コード>)?(:<カスタム名>)?] <ユーザー部屋名>
  *
  * 例:
  *   [本] 私の部屋               → 本将棋 (時間情報なし・旧形式)
@@ -16,10 +16,12 @@
  *   [本+環+量+TI10.5] 全部乗せ  → 本将棋 + トーラス + 量子 + フィッシャー 10分+5秒
  *   [挟+TS15] 切れ負け対局      → はさみ将棋 + 切れ負け 15分
  *   [自+TS30:王手放置OK] おもしろ → 自由ルール将棋 + 切れ負け 30分 + カスタム名
+ *   [本+量+感] 量子将棋の感想戦  → 感想戦の部屋 (持ち時間は持たない)
  *
  * 記号 (種類・修飾):
  *   種類: 本 (shogi) / 挟 (hasami) / 自 (shogi-custom)
  *   修飾: 環 (torus) / 量 (quantum)
+ *   用途: 感 (review = 感想戦の部屋・v1.50 新設)
  *
  * 記号 (時間 = v0.87 新設):
  *   TF          時間フリー (no_limit)
@@ -46,6 +48,12 @@ export interface RoomLabelParts {
   quantum: boolean;
   /** v0.87: 部屋名から復元した持ち時間 (T フラグが無い旧形式では undefined) */
   timeControl?: TimeControl;
+  /**
+   * v1.50: 感想戦の部屋か (親 §9.4／画面機能 §3 S04)。
+   * **対局の部屋と同じ一覧に並べ、印で見分けられるようにする**ので、
+   * 一覧を分けるのではなく部屋そのものに用途を持たせる。
+   */
+  review: boolean;
   customRuleName?: string;
   userRoomName: string;
   /** decode で認識できなかったフラグ記号 */
@@ -68,6 +76,8 @@ const CHAR_TO_GAME_TYPE: Record<string, GameType> = {
 
 const MODIFIER_TORUS = '環';
 const MODIFIER_QUANTUM = '量';
+/** v1.50: 感想戦の部屋の印。**用途**であって盤のルールの修飾ではない。 */
+const PURPOSE_REVIEW = '感';
 
 export interface EncodeInput {
   gameType: GameType;
@@ -75,6 +85,8 @@ export interface EncodeInput {
   quantum: boolean;
   /** v0.87: 持ち時間を T フラグとして部屋名に埋め込む (省略時は T フラグ無しに) */
   timeControl?: TimeControl;
+  /** v1.50: 感想戦の部屋として建てる (持ち時間は持たない)。 */
+  review?: boolean;
   customRuleName?: string;
   userRoomName: string;
 }
@@ -136,8 +148,10 @@ export function encodeRoomName(input: EncodeInput): string {
   const parts: string[] = [gameChar];
   if (input.torus) parts.push(MODIFIER_TORUS);
   if (input.quantum) parts.push(MODIFIER_QUANTUM);
+  // v1.50: 用途 (感) は修飾のあと・時間の前。感想戦の部屋は持ち時間を持たない。
+  if (input.review) parts.push(PURPOSE_REVIEW);
   // v0.87: 時間フラグは修飾記号列の末尾 + カスタム名の前に置く (順序:
-  // 種類 → 修飾 (環/量) → 時間 (T*) → カスタム名 (:))
+  // 種類 → 修飾 (環/量) → 用途 (感) → 時間 (T*) → カスタム名 (:))
   if (input.timeControl) parts.push(encodeTimeFlag(input.timeControl));
   const prefixInside =
     input.gameType === 'shogi-custom' && input.customRuleName?.trim()
@@ -160,6 +174,7 @@ export function decodeRoomName(raw: string): RoomLabelParts {
       gameType: 'shogi',
       torus: false,
       quantum: false,
+      review: false,
       userRoomName: trimmed,
       unknownFlags: [],
       unrecognized: true,
@@ -175,6 +190,7 @@ export function decodeRoomName(raw: string): RoomLabelParts {
   let gameType: GameType | null = null;
   let torus = false;
   let quantum = false;
+  let review = false;
   let timeControl: TimeControl | undefined = undefined;
   const unknownFlags: string[] = [];
   for (const f of flags) {
@@ -188,6 +204,10 @@ export function decodeRoomName(raw: string): RoomLabelParts {
     }
     if (f === MODIFIER_QUANTUM) {
       quantum = true;
+      continue;
+    }
+    if (f === PURPOSE_REVIEW) {
+      review = true;
       continue;
     }
     // v0.87: 時間フラグ (T プレフィクス) を先に判定してから unknown に落とす
@@ -204,6 +224,7 @@ export function decodeRoomName(raw: string): RoomLabelParts {
     gameType: gameType ?? 'shogi',
     torus,
     quantum,
+    review,
     timeControl,
     customRuleName,
     userRoomName,
@@ -220,6 +241,8 @@ export interface BadgeLabels {
   gameType: Record<GameType, string>;
   torus: string;
   quantum: string;
+  /** v1.50: 感想戦の部屋の印 (付録D-12 §8)。 */
+  review: string;
   unknown: string;
 }
 
@@ -227,6 +250,7 @@ const LABELS_JA: BadgeLabels = {
   gameType: { shogi: '本将棋', hasami: 'はさみ', 'shogi-custom': '自由' },
   torus: 'トーラス',
   quantum: '量子',
+  review: '感想戦',
   unknown: '?',
 };
 
@@ -234,6 +258,7 @@ const LABELS_EN: BadgeLabels = {
   gameType: { shogi: 'Shogi', hasami: 'Hasami', 'shogi-custom': 'Custom' },
   torus: 'Torus',
   quantum: 'Quantum',
+  review: 'Review',
   unknown: '?',
 };
 

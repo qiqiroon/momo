@@ -59,6 +59,51 @@ describe('棋譜の駒名 (v1.09 量子将棋対応)', () => {
     expect(kifuPieceName(hondou, pos, pos.board[6][2]!)).toBe('仮と');
   });
 
+  /**
+   * v1.49 (ユーザー判断 2026-08-18)。
+   *
+   * 金・王のマスから来た駒は、名札の側に成った姿が無い。v1.48 までは名札をそのまま出して
+   * いたので、成っているのに `仮金` `仮王` と成っていない字になり盤と食い違って見えた。
+   * 名札を差し替える先が無いので、末尾に 成 を添えて区別する。
+   */
+  it('名札に成った姿が無い駒 (金・王のマス) が成ると呼び名の末尾に成が付く', () => {
+    const base = quantumInit(initPosition(hondou));
+    const cands = new Set([pidOfKind(base, 'fu'), pidOfKind(base, 'hi')]);
+
+    // 4 九 = 先手金の初期位置。正体は別なので成れるが、名札の金には成った姿が無い
+    const kinSquare = base.board[8][5]!;
+    expect(kinSquare.initialKind).toBe('kin');
+    const posKin = withBoardPiece(base, 8, 5, { ...kinSquare, promoted: true, candidates: cands });
+    expect(kifuPieceName(hondou, posKin, posKin.board[8][5]!)).toBe('仮金成');
+
+    // 5 九 = 先手王の初期位置。同じ理由で 仮王成
+    const ouSquare = base.board[8][4]!;
+    expect(ouSquare.initialKind).toBe('ou');
+    const posOu = withBoardPiece(base, 8, 4, { ...ouSquare, promoted: true, candidates: cands });
+    expect(kifuPieceName(hondou, posOu, posOu.board[8][4]!)).toBe('仮王成');
+  });
+
+  it('呼び名の成と、成る手の成は位置で見分けられる (v1.49)', () => {
+    const base = quantumInit(initPosition(hondou));
+    const kinSquare = base.board[8][5]!;
+    const pos = withBoardPiece(base, 8, 5, {
+      ...kinSquare,
+      promoted: true,
+      candidates: new Set([pidOfKind(base, 'fu'), pidOfKind(base, 'hi')]),
+    });
+
+    const text = formatMove(hondou, pos, {
+      type: 'move',
+      pieceId: kinSquare.pieceId,
+      from: { row: 8, col: 5 },
+      to: { row: 7, col: 5 },
+      promote: false,
+    });
+
+    // 呼び名の 成 は行き先座標の前・成る手の 成 は行き先座標の後ろ
+    expect(text).toBe('▲4九仮金成4八');
+  });
+
   it('量子将棋の指し手は「元の座標 + 駒名 + 行き先座標」で書く (v1.14)', () => {
     const pos = quantumInit(initPosition(hondou));
     const piece = pos.board[6][2]!;

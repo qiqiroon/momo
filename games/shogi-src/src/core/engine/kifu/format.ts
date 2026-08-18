@@ -67,16 +67,29 @@ export function squareNameJa(width: number, square: { row: number; col: number }
  *
  * 候補が 1 駒種に絞れた時点からは、その駒名で呼ぶ (仮 が外れる)。盤の表示が
  * 顔を切り替えるのと同じ条件なので、棋譜と盤で呼び方がズレない。
+ *
+ * ## v1.49 (ユーザー判断 2026-08-18): 成った未確定駒に 成 を添える
+ *
+ * 呼び名の元にする initialKind は「対局開始時にそのマスに置かれていた駒種」であって
+ * 正体ではない。金・王のマスから来た駒は、正体が桂でも **名札の側に成った姿が無い** ので、
+ * 成った後も `仮金` `仮王` という成っていない字になり、盤 (成り駒の顔) と食い違って見えた。
+ *
+ * 名札を成り駒へ差し替えることはできない (金・王に成った姿は無い) ので、
+ * **名札はそのままにして末尾に 成 を添える** = `仮金成` `仮王成`。
+ * 移動の 成 は行き先座標の後ろに付く (`▲3三仮金3四成`) ので、
+ * 呼び名の 成 (行き先の前) と位置で見分けられる。
  */
 export function kifuPieceName(mgf: Mgf, position: Position, piece: PieceInstance): string {
   const kinds = displayKindsFor(mgf, piece, buildInitialKindMap(position));
   if (kinds.length === 1) return pieceNameJa(kinds[0]);
   let base = piece.initialKind;
+  let promotedMark = '';
   if (piece.promoted) {
     const def = mgf.pieces.find((p) => p.id === piece.initialKind);
     if (def?.promoted_id) base = def.promoted_id;
+    else promotedMark = '成';
   }
-  return `仮${pieceNameJa(base)}`;
+  return `仮${pieceNameJa(base)}${promotedMark}`;
 }
 
 /**

@@ -18,7 +18,8 @@ import type { Mgf } from '../../core/engine/mgf/types';
 import type { Move, Position } from '../../core/engine/position/types';
 import { generateLegalMoves } from '../../core/engine/moves/legal';
 import { applyMove } from '../../core/engine/position/apply';
-import { evaluate } from '../selfmade-alphabeta/evaluate';
+import { buildValueBook, evaluate } from '../selfmade-alphabeta/evaluate';
+import type { ValueBook } from '../selfmade-alphabeta/evaluate';
 
 export interface MctsOptions {
   /** 何回試すか。段 (Easy/Hard/Apocalypse) から決まる。 */
@@ -89,6 +90,7 @@ function playout(
   rootSide: string,
   depth: number,
   drawMargin: number,
+  book: ValueBook,
   random: () => number,
   outOfTime: () => boolean,
 ): number {
@@ -110,7 +112,10 @@ function playout(
   }
 
   // 打ち切り。evaluate は「その局面の手番側から見た点」なので、根の手番の側へ揃える。
-  const score = position.sideToMove === rootSide ? evaluate(mgf, position) : -evaluate(mgf, position);
+  const score =
+    position.sideToMove === rootSide
+      ? evaluate(mgf, position, book)
+      : -evaluate(mgf, position, book);
   if (score > drawMargin) return 1;
   if (score < -drawMargin) return 0;
   return 0.5;
@@ -129,6 +134,9 @@ export function searchBestMoveMcts(mgf: Mgf, position: Position, options: MctsOp
   const deadline = start + Math.max(1, options.movetimeMs);
   const depth = options.playoutDepth ?? DEFAULT_PLAYOUT_DEPTH;
   const drawMargin = options.drawMargin ?? DEFAULT_DRAW_MARGIN;
+  // 値打ちの早見表は局面によらないので入口で 1 度だけ作る (v1.49)。
+  // 試し打ちのたびに作ると、量子では盤 1 面ぶんの走査がその回数だけ余分に走る。
+  const book = buildValueBook(mgf, position);
 
   const rootSide = position.sideToMove;
   const rootMoves = legalMoves(mgf, position);
@@ -162,7 +170,7 @@ export function searchBestMoveMcts(mgf: Mgf, position: Position, options: MctsOp
       if (ucb > bestUcb) { bestUcb = ucb; picked = child; }
     }
 
-    picked.wins += playout(mgf, picked.position, rootSide, depth, drawMargin, random, outOfTime);
+    picked.wins += playout(mgf, picked.position, rootSide, depth, drawMargin, book, random, outOfTime);
     picked.visits++;
     total++;
 

@@ -16,7 +16,8 @@ import type { Mgf } from '../../core/engine/mgf/types';
 import type { Move, Position } from '../../core/engine/position/types';
 import { generateLegalMoves } from '../../core/engine/moves/legal';
 import { applyMove } from '../../core/engine/position/apply';
-import { MATE_VALUE, evaluate, valueOf } from './evaluate';
+import { MATE_VALUE, buildValueBook, evaluate, pieceValue } from './evaluate';
+import type { ValueBook } from './evaluate';
 
 export interface SearchOptions {
   /** 考える時間の上限 (ms)。深さ 1 だけは必ず読み切る。 */
@@ -60,6 +61,11 @@ const QUIESCENCE_DEPTH = 3;
 
 interface Ctx {
   mgf: Mgf;
+  /**
+   * 候補 1 個ぶんの値打ちの早見表 (v1.49)。量子モードの値打ちは候補から引くので要る。
+   * **局面によらない**ので探索の入口で 1 度だけ作って読みの間じゅう使い回す。
+   */
+  book: ValueBook;
   nodes: number;
   deadline: number;
   now: () => number;
@@ -109,24 +115,24 @@ function safeApply(mgf: Mgf, position: Position, move: Move): Position | null {
   }
 }
 
-function capturedValue(position: Position, move: Move): number {
+function capturedValue(ctx: Ctx, position: Position, move: Move): number {
   if (move.type !== 'move') return 0;
   const target = position.board[move.to.row][move.to.col];
-  return target ? valueOf(target.kind) : 0;
+  return target ? pieceValue(target, ctx.book) : 0;
 }
 
 /**
  * 良さそうな手から先に見る。アルファベータは「先に良い手を見るほど枝が刈れる」ので、
  * 並べ替えるだけで読める深さが変わる。
  */
-function orderKey(position: Position, m: Move): number {
-  let s = capturedValue(position, m) * 10;
+function orderKey(ctx: Ctx, position: Position, m: Move): number {
+  let s = capturedValue(ctx, position, m) * 10;
   if (m.type === 'move' && m.promote) s += 500;
   return s;
 }
 
-function orderMoves(position: Position, moves: Move[]): Move[] {
-  const scored = moves.map((m) => ({ m, s: orderKey(position, m) }));
+function orderMoves(ctx: Ctx, position: Position, moves: Move[]): Move[] {
+  const scored = moves.map((m) => ({ m, s: orderKey(ctx, position, m) }));
   scored.sort((a, b) => b.s - a.s);
   return scored.map((x) => x.m);
 }
@@ -155,16 +161,16 @@ function orderByScoreWithTieShuffle<T>(
 /** 駒の取り合いだけを読み進めて、取り返しの途中で評価を打ち切らないようにする。 */
 function quiescence(ctx: Ctx, position: Position, alpha: number, beta: number, depth: number): number {
   ctx.nodes++;
-  const stand = evaluate(ctx.mgf, position);
+  const stand = evaluate(ctx.mgf, position, ctx.book);
   if (depth <= 0) return stand;
   if (stand >= beta) return stand;
   if (stand > alpha) alpha = stand;
   if (timeUp(ctx)) return stand;
 
-  const captures = safeLegalMoves(ctx.mgf, position).filter((m) => capturedValue(position, m) > 0);
+  const captures = safeLegalMoves(ctx.mgf, position).filter((m) => capturedValue(ctx, position, m) > 0);
   if (captures.length === 0) return alpha;
 
-  for (const m of orderMoves(position, captures)) {
+  for (const m of orderMoves(ctx, position, captures)) {
     const next = safeApply(ctx.mgf, position, m);
     if (!next) continue;
     const score = -quiescence(ctx, next, -beta, -alpha, depth - 1);
@@ -178,7 +184,7 @@ function quiescence(ctx: Ctx, position: Position, alpha: number, beta: number, d
 function negamax(ctx: Ctx, position: Position, depth: number, alpha: number, beta: number, ply: number): number {
   if (depth <= 0) return quiescence(ctx, position, alpha, beta, QUIESCENCE_DEPTH);
   ctx.nodes++;
-  if (timeUp(ctx)) return evaluate(ctx.mgf, position);
+  if (timeUp(ctx)) return evaluate(ctx.mgf, position, ctx.book);
 
   const moves = safeLegalMoves(ctx.mgf, position);
   // 指す手が無い = 負け。浅いところで詰まされるほど悪いので ply を足して差を付ける
@@ -186,11 +192,11 @@ function negamax(ctx: Ctx, position: Position, depth: number, alpha: number, bet
   if (moves.length === 0) return -MATE_VALUE + ply;
 
   let best = -Infinity;
-  for (const m of orderMoves(position, moves)) {
+  for (const m of orderMoves(ctx, position, moves)) {
     const next = safeApply(ctx.mgf, position, m);
     if (!next) continue;
     const score = -negamax(ctx, next, depth - 1, -beta, -alpha, ply + 1);
-    if (ctx.aborted) return best === -Infinity ? evaluate(ctx.mgf, position) : best;
+    if (ctx.aborted) return best === -Infinity ? evaluate(ctx.mgf, position, ctx.book) : best;
     if (score > best) best = score;
     if (best > alpha) alpha = best;
     if (alpha >= beta) break;
@@ -207,6 +213,7 @@ export function searchBestMove(mgf: Mgf, position: Position, options: SearchOpti
 
   const ctx: Ctx = {
     mgf,
+    book: buildValueBook(mgf, position),
     nodes: 0,
     deadline: start + Math.max(1, options.movetimeMs),
     now,
@@ -222,7 +229,7 @@ export function searchBestMove(mgf: Mgf, position: Position, options: SearchOpti
 
   // 最初の並びも、見込みが同じ手どうしは順番をばらす (下の並べ替えと同じ理由)。
   let ordered = orderByScoreWithTieShuffle(
-    rootMoves.map((m) => ({ move: m, score: orderKey(position, m) })),
+    rootMoves.map((m) => ({ move: m, score: orderKey(ctx, position, m) })),
     random,
   );
   let bestMove: Move = ordered[0];

@@ -308,6 +308,22 @@ export function GameScreen({ variant }: GameScreenProps) {
   // v0.74: チャット音の発火は ChatConsole 側に移動 (S06/S07 共通化)
   // オンライン対戦時は自分の手番か相手の手番かを表示
   const isMyTurnOnline = online.isOnline && online.mySide === position.sideToMove;
+  /**
+   * ★v1.53: 盤枠のオレンジ＝**人が指す番であること**の合図（2026-08-18 ユーザー報告）。
+   *
+   * v1.52 まではネット対戦のときだけ点けていたので、**対 AI では一度も出なかった**。
+   * 対 AI は「AI の側でなければ人の番」。
+   *
+   * **人どうしのオフライン対局では出さない**＝どちらの番も人なので常時点灯になり、
+   * 合図として何も区別しない（点きっぱなしの灯りは消えているのと同じ）。
+   *
+   * **終わった盤では点けない**＝勝負が付いた後は誰の番でもない。
+   */
+  const isMyTurn =
+    status === 'playing' &&
+    (online.isOnline
+      ? online.mySide === position.sideToMove
+      : vsAi && position.sideToMove !== aiSide);
   // v0.34: 盤面の視点。mySide=player2 のとき盤を反転して「自分の駒を下側」に表示
   // Phase 3-1 追補: 対 AI では AI の反対側が自分なので、後手を選んだときも自分の駒が下に来る。
   // v1.33: 人どうしのオフライン対局は localViewerSide (手前に座っている側)。
@@ -663,7 +679,7 @@ export function GameScreen({ variant }: GameScreenProps) {
               collapsingIds={collapsingIds}
             />
             <div className={`board-with-coords${flipped ? ' flipped' : ''}`}>
-              <div className={`board-outer${isMyTurnOnline ? ' myturn' : ''}`}>
+              <div className={`board-outer${isMyTurn ? ' myturn' : ''}`}>
                 {/* v0.34: 座標は viewer 基準。先手=上/右、後手=下/左 */}
                 <div className="col-coords">
                   {(flipped ? [1, 2, 3, 4, 5, 6, 7, 8, 9] : [9, 8, 7, 6, 5, 4, 3, 2, 1]).map((n) => (
@@ -1179,6 +1195,12 @@ function useAnyOfferPending(): boolean {
  * challengerSide は自分の side。承諾されると承諾者の時計だけ復元される。
  * オフライン: 即実行（時計は両側巻き戻し）。
  * オンライン: 相手に申し出＋盤面中央パネル＋キャンセル可＋両者時計停止。
+ *
+ * ★v1.53: **対 AI は 1 回押すごとに 2 手戻す**（ユーザー判断 2026-08-18）。
+ * 1 手だけ戻すと**戻るのは AI の指した手だけ**で、人の手は盤に残ったまま AI が
+ * 考え直して指す＝**人は指し直せない**（待ったにならない）。**押すたびに 2 手ずつ、
+ * 残っている限りどこまでも戻せる**（残りが 1 手ならその 1 手だけ戻る）。
+ * 人どうしのオフライン対局は**どちらも人**なので今までどおり 1 手。
  */
 function UndoButton({
   t,
@@ -1194,6 +1216,7 @@ function UndoButton({
   const anyOffer = useAnyOfferPending();
   const paused = useGameStore((s) => s.paused);
   const undoLastMove = useGameStore((s) => s.undoLastMove);
+  const vsAi = useAiStore((s) => s.enabled);
   const historyLen = useGameStore((s) => s.positionHistory.length);
   // v0.44: 待ったで戻せるのは「自分の手」だけ。自分の手が 0 なら不可。
   //   sente の自手数 = ceil(historyLen/2)、gote の自手数 = floor(historyLen/2)
@@ -1217,8 +1240,11 @@ function UndoButton({
       // どちらの場合も disabled チェックで自分の手が 1 手以上あることは保証済み。
       const count = sideToMove === mySide ? 2 : 1;
       c.sendUndoOffer(count, mySide);
+    } else if (vsAi) {
+      // ★対 AI は 2 手＝AI の手と自分の手（残りが 1 手ならその 1 手だけ戻る）。
+      undoLastMove(2);
     } else {
-      // オフラインは相手役もいないので単純に 1 手戻す（両側の時計も戻す）
+      // 人どうしのオフラインは相手役もいないので単純に 1 手戻す（両側の時計も戻す）
       undoLastMove(1);
     }
   };

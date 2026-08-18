@@ -19,8 +19,20 @@ import { thinkBudgetMs } from '../ai/think-budget';
 import { get as pluginGet } from '../plugin/registry';
 import type { OnlineGameConnector } from '../plugin/gameConnector';
 
-function turnKey(moveNumber: number, side: string): string {
-  return `${moveNumber}:${side}`;
+/**
+ * 「いつ頼んだ手か」の合印。
+ *
+ * ★v1.53: **巻き戻した回数を混ぜる**（2026-08-18 ユーザー報告「待ったをかけると
+ * AI が指さなくなる」）。手数と手番だけで名乗ると、**待ったで 1 手戻った先は、
+ * 直前に AI が考えたのとまったく同じ合印**になる。すると AI は「もう頼んだ手番だ」と
+ * 見て**二度と考えない**（＝指さなくなる）。
+ *
+ * 巻き戻しは**手の並びが短くなること**で分かるので、その回数を数えて混ぜる。
+ * 答えが返ったときの照合にも同じ合印を使う＝**戻された盤に古い答えを置かない**。
+ * 盤の作り直し（新しい対局・リセット）も並びが 0 に戻るので同じ数え方で拾える。
+ */
+function turnKey(rewinds: number, moveNumber: number, side: string): string {
+  return `${rewinds}:${moveNumber}:${side}`;
 }
 
 /**
@@ -37,6 +49,19 @@ export function useAiOpponent(isOnline: boolean): void {
 
   const engineRef = useRef<EngineAdapter | null>(null);
   const startedKeyRef = useRef<string | null>(null);
+  /** 盤が巻き戻された回数（待った・リセット・新しい対局）。合印に混ぜる。 */
+  const rewindsRef = useRef(0);
+  const seenLenRef = useRef(0);
+
+  /**
+   * ★v1.53: 巻き戻しを見張る。**AI へ頼む側より先に数える**ので、この効果を先に置く
+   * （同じ描き直しではここが先に走る）。手の並びが短くなったら 1 つ数える。
+   */
+  useEffect(() => {
+    const len = position.history.length;
+    if (len < seenLenRef.current) rewindsRef.current++;
+    seenLenRef.current = len;
+  }, [position]);
 
   // 画面を離れるときは考えるのをやめる (別スレッドも片付ける)
   useEffect(() => {
@@ -54,7 +79,7 @@ export function useAiOpponent(isOnline: boolean): void {
     if (anomaly) return; // 量子の異常が出ている間は人の判断待ち
     if (position.sideToMove !== aiSide) return;
 
-    const key = turnKey(position.moveNumber, position.sideToMove);
+    const key = turnKey(rewindsRef.current, position.moveNumber, position.sideToMove);
     if (startedKeyRef.current === key) return; // 同じ手番で二重に頼まない
     startedKeyRef.current = key;
 
@@ -97,7 +122,8 @@ export function useAiOpponent(isOnline: boolean): void {
 
         // 考えている間に局面が動いていたら捨てる
         const now = useGameStore.getState();
-        if (turnKey(now.position.moveNumber, now.position.sideToMove) !== key) return;
+        if (turnKey(rewindsRef.current, now.position.moveNumber, now.position.sideToMove) !== key)
+          return;
         if (now.status !== 'playing') return;
 
         if (move.type === 'move') {

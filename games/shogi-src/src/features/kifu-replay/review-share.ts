@@ -145,9 +145,21 @@ export function leaveSharedReview(): void {
  * （親 §6.3.6）、手元の記憶を代わりに置くと**配られる 1 局とは限らないもの**が
  * 盤に出る（一覧から入ったゲストは、その対局を指してすらいない）。**必要なのは
  * 「配るものが無い」を無くすことだけ**なので、必要な側にだけ入れる。
+ *
+ * ★v1.53: **対局の終わりから入るときは、いま終わった対局で必ず決め直す**
+ * （2026-08-18 ユーザー報告「ネット対戦から感想戦に入ると、前に読み込んだ棋譜が出る」）。
+ *
+ * 振り返る 1 局の控えは**画面より長生きする**（画面を閉じても残る）ので、
+ * 前に一度でも感想戦を使っていると**その 1 局が入ったまま**になる。v1.52 までは
+ * 「空のときだけ埋める」形だったため、**前の棋譜が残っていると、いま終わった対局を
+ * 一度も見ずにそれを配っていた**（配られるゲスト側も同じものを見る）。
+ *
+ * **どこから入ったかで決め方が違う**＝終局からなら「いま終わった対局」しかあり得ないが、
+ * 感想戦の部屋（S11 で建てた／一覧から入った）では**開くときに決めた 1 局が正**なので、
+ * 記憶で上書きしてはならない。だから空かどうかではなく**入口で分ける**。
  */
-function ensureReviewTargetForHost(): void {
-  if (reviewTarget()) return;
+function ensureReviewTarget(fromGame: boolean): void {
+  if (!fromGame && reviewTarget()) return;
   const remembered = loadLastKifu();
   if (remembered) setReviewTarget(remembered, 'game');
 }
@@ -155,11 +167,14 @@ function ensureReviewTargetForHost(): void {
 /**
  * 二人の感想戦を始める。**役はその部屋のホストかどうかで決まる**（打診した側ではない）
  * ＝食い違いの正を先に決めておくため（親 §6.3.6）。
+ *
+ * `fromGame`＝対局の終わり（S07 の打診・諾否）から始まったか。感想戦の部屋で
+ * 客を迎えて始まったときは false（振り返る 1 局は既に決まっている）。
  */
-function beginSharedReview(): ReviewRole {
+function beginSharedReview(fromGame: boolean): ReviewRole {
   const c = connector();
   const role: ReviewRole = c?.isRoomHost() ? 'host' : 'guest';
-  if (role === 'host') ensureReviewTargetForHost();
+  if (role === 'host') ensureReviewTarget(fromGame);
   useReviewShareStore.setState({
     role,
     opponentName: c?.getOpponentName() ?? '',
@@ -199,7 +214,7 @@ export function reviewRoomCreated(): void {
  */
 export function joinedReviewRoom(): void {
   clearReviewTarget('lobby');
-  beginSharedReview();
+  beginSharedReview(false);
   useReviewShareStore.setState({ ownsRoom: true });
   enterReviewScreen();
 }
@@ -216,7 +231,7 @@ export function joinedReviewRoom(): void {
 export function reviewGuestArrived(): boolean {
   if (!useReviewShareStore.getState().ownsRoom) return false;
   if (!reviewTarget()) return false;
-  const role = beginSharedReview();
+  const role = beginSharedReview(false);
   if (role === 'host') distributeKifu();
   return true;
 }
@@ -234,7 +249,7 @@ export function answerReviewOffer(accepted: boolean): void {
     return;
   }
   // **先に場を開いてから返事をする**＝返事の直後に届く棋譜を取りこぼさないため。
-  const role = beginSharedReview();
+  const role = beginSharedReview(true);
   connector()?.sendReview({ kind: 'reply', accepted: true });
   enterReviewScreen();
   if (role === 'host') distributeKifu();
@@ -312,11 +327,14 @@ export function receiveReviewMessage(msg: ReviewMessage): void {
       }
       if (!msg.accepted) {
         // **断られてもひとりで入る**（親 §9.4.1）。黙って隠さず、一言だけ知らせる。
+        // ★v1.53: ここも**いま終わった対局で決め直す**＝断られた側は打診しかしていない
+        //   ので 1 局を決めておらず、前に見た棋譜の控えが残っていればそれが出ていた。
+        ensureReviewTarget(true);
         useReviewShareStore.setState({ ...initial, notice: 'declined' });
         enterReviewScreen();
         return;
       }
-      const role = beginSharedReview();
+      const role = beginSharedReview(true);
       enterReviewScreen();
       if (role === 'host') distributeKifu();
       return;

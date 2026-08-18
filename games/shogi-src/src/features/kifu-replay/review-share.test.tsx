@@ -16,7 +16,7 @@ import './index';
 import { discardKifu, loadLastKifu, markKifuSaved, kifuMemoryState } from './storage';
 import { clearReviewTarget, reviewTarget, setReviewTarget } from './review';
 import { useChatStore } from '../../core/store/chat-store';
-import { serializeKifu } from './io';
+import { parseKifu, serializeKifu } from './io';
 import {
   answerReviewOffer,
   canOfferReview,
@@ -76,6 +76,19 @@ function playMoves(count: number): void {
     if (legal.length === 0) return;
     if (!useGameStore.getState().replayRecordedMove(legal[(i * 7 + 3) % legal.length])) return;
   }
+}
+
+/**
+ * 1 局を終局まで指すだけ（**振り返る 1 局には決めない**）。
+ * 記憶だけが置き換わる＝本番の「対局が終わった」時点そのもの。
+ */
+function playedGame(moves: number): KifuFile {
+  useGameStore.getState().reset({ gameType: 'shogi', quantum: false, torusMode: 'none', handicap: null });
+  playMoves(moves);
+  useGameStore.getState().resign('player2');
+  const file = loadLastKifu();
+  if (!file) throw new Error('棋譜が記憶されていない');
+  return file;
 }
 
 /** 終局まで進めて、振り返る 1 局を用意する。 */
@@ -413,6 +426,55 @@ describe('★S11 振り返る 1 局は必ず決まる（v1.51・実機で見つ�
     expect(buttons.length).toBeGreaterThan(0);
     expect(buttons.every((b) => (b as HTMLButtonElement).disabled)).toBe(false);
     view.unmount();
+  });
+
+  /**
+   * ★v1.53・実機のご報告（2026-08-18）「ネット対戦から感想戦に入ると、対戦の結果では
+   * なく前にダウンロードした棋譜で始まった」。
+   *
+   * **振り返る 1 局の控えは画面より長生きする**（閉じても残る）ので、前に一度でも
+   * 感想戦を使っていると**その 1 局が入ったまま**になる。v1.52 の埋め方は「空のときだけ」
+   * だったので、**残っている限り、いま終わった対局は一度も見られなかった**。
+   *
+   * ★v1.51 の検査が緑だったのは、**下ごしらえでわざわざ控えを空にしていた**から。
+   * 本番には空にする工程が無い。だからここでは**前の 1 局を残したまま**始める。
+   */
+  it('★前に見た棋譜が控えに残っていても、終局から入れば いま終わった対局で始まる', () => {
+    const before = finishedGame(4); // 前に感想戦で見た 1 局（控えに残る）
+    const now = playedGame(10); // そのあと終わったネット対戦
+    expect(now.meta.moveCount).not.toBe(before.meta.moveCount);
+    // **本番と同じ状態**＝控えは前の 1 局のまま。
+    expect(reviewTarget()?.meta.moveCount).toBe(before.meta.moveCount);
+
+    iAmHost = true;
+    answerReviewOffer(true);
+
+    expect(reviewTarget()?.meta.moveCount).toBe(now.meta.moveCount);
+    const state = sent.find((m) => m.kind === 'state');
+    const handed = state && 'kifu' in state && state.kifu ? parseKifu(state.kifu) : null;
+    // 相手にも**いま終わった対局**が配られる（前の棋譜を二人で見ることにならない）。
+    expect(handed?.meta.moveCount).toBe(now.meta.moveCount);
+  });
+
+  it('★断られてひとりで入るときも、いま終わった対局で始まる', () => {
+    const before = finishedGame(4);
+    const now = playedGame(10);
+    offerReview();
+    deliver({ kind: 'reply', accepted: false });
+    expect(reviewTarget()?.meta.moveCount).toBe(now.meta.moveCount);
+    expect(reviewTarget()?.meta.moveCount).not.toBe(before.meta.moveCount);
+  });
+
+  it('感想戦の部屋で客を迎えるときは、開くときに決めた 1 局のまま（記憶で上書きしない）', () => {
+    const chosen = playedGame(4); // 部屋で振り返ると決めた 1 局
+    const other = playedGame(10); // そのあと記憶は別の対局に置き換わっている
+    expect(other.meta.moveCount).not.toBe(chosen.meta.moveCount);
+    setReviewTarget(chosen, 'lobby');
+    reviewRoomCreated();
+    iAmHost = true;
+
+    expect(reviewGuestArrived()).toBe(true);
+    expect(reviewTarget()?.meta.moveCount).toBe(chosen.meta.moveCount);
   });
 
   it('★埋めるのは配る側だけ＝ゲストは手元の記憶を代わりに映さず、配られるのを待つ', () => {

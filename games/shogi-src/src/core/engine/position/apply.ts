@@ -43,6 +43,23 @@ export function applyMove(mgf: Mgf, position: Position, move: Move): Position {
       if (def?.promoted_id) {
         newKind = def.promoted_id;
         newPromoted = true;
+      } else if (piece.candidates !== undefined) {
+        // v1.48 (ユーザー報告 2026-08-18・量子分冊 §Q11.3):
+        // **成るかどうかは piece.kind で決めてはいけない**。量子モードの piece.kind は
+        // 「対局開始時にその位置に置かれていた駒種」であって正体ではないので、金・王の
+        // マスから来た駒は正体が桂でも成れなかった (成った姿を持たない駒種のため)。
+        // 実害は 2 つ:
+        //   - 成りが必須の位置 (後手の桂が 8 段目など) へ跳ぶと、成らないまま着地する
+        //     → 行き所のない駒 (C-104) / 強制成り (C-105) が候補を全部落とし、候補が空
+        //       になって量子異常になっていた (今回の報告そのもの)
+        //   - 成りが任意の位置では、「成る」を選んでも黙って成らなかった
+        // 分冊 §Q11.3 は「成ることを選択した場合、駒は成駒となる」と無条件に定めており、
+        // 名札は条件に入っていない。候補側の整合は C-101/C-105/C-109 が引き受ける
+        // (成れない駒種=王・金 の候補は成った時点で落ちる・§Q11.4)。
+        // **kind は名札のまま据え置く** (成った姿を持たないので置き換える先が無い)。
+        // 盤の顔も棋譜の駒名も候補から作る (candidate-kinds.ts) ので表示は変わらない。
+        // 通常将棋モード (candidates undefined) はこの枝に入らず従来どおり。
+        newPromoted = true;
       }
     }
     newBoard[move.from.row][move.from.col] = null;

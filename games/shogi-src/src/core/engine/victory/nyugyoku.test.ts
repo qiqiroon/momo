@@ -175,3 +175,89 @@ describe('canDeclareNyugyoku', () => {
     expect(canDeclareNyugyoku(hondou, pos, 'player1')).toBe(false);
   });
 });
+
+/**
+ * v1.48 (ユーザー判断 2026-08-18・量子分冊 §Q21): 候補未確定時の入玉。
+ * v1.47 までは駒の名札 (初期位置の駒種) で数えていたため、飛車のマスから来た駒は
+ * 正体が歩でも 5 点として数えられ、王の除外も名札で行われていた。
+ */
+const Q = (
+  pieceId: string,
+  initialKind: string,
+  candidates: string[],
+  owner: 'player1' | 'player2' = 'player1',
+): PieceInstance => ({
+  pieceId,
+  kind: initialKind,
+  owner,
+  initialOwner: owner,
+  initialKind,
+  initialSquare: { row: -1, col: -1 },
+  promoted: false,
+  candidates: new Set(candidates),
+  confirmed: candidates.length === 1,
+});
+
+/** 先手の敵陣 (row 0..2) に 12 枚並べた局面。K と F1 の 2 枚が王候補を保持する。 */
+function quantumEnteredPos(overrides: {
+  f1At?: { row: number; col: number };
+  gote?: Array<{ row: number; col: number; piece: PieceInstance }>;
+} = {}): Position {
+  const f1At = overrides.f1At ?? { row: 0, col: 5 };
+  const pieces: Array<{ row: number; col: number; piece: PieceInstance }> = [
+    { row: 0, col: 4, piece: Q('K', 'ou', ['K', 'F1']) },
+    { row: f1At.row, col: f1At.col, piece: Q('F1', 'fu', ['K', 'F1']) },
+    { row: 2, col: 0, piece: Q('R', 'hi', ['R']) },
+    { row: 2, col: 1, piece: Q('B', 'kaku', ['B']) },
+    ...['F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9'].map((id, i) => ({
+      row: 1,
+      col: i,
+      piece: Q(id, 'fu', [id]),
+    })),
+    ...(overrides.gote ?? []),
+  ];
+  const pos = buildPos(pieces);
+  return {
+    ...pos,
+    hands: { player1: [Q('H1', 'hi', ['H1']), Q('H2', 'kaku', ['H2'])], player2: [] },
+  };
+}
+
+describe('入玉 (量子・候補未確定時) §Q21', () => {
+  it('§Q21.3 候補がすべて大駒の駒だけ 5 点・混ざっていれば 1 点', () => {
+    const pos = buildPos([
+      { row: 0, col: 4, piece: Q('K', 'ou', ['K']) },        // 王 = 1 点 → −1 で消える
+      { row: 2, col: 0, piece: Q('R', 'hi', ['R', 'B']) },   // 飛か角 → 5 点
+      { row: 2, col: 1, piece: Q('B', 'kaku', ['B', 'F1']) }, // 角か歩 → 1 点
+      { row: 2, col: 2, piece: Q('F1', 'fu', ['F1']) },       // 歩 → 1 点
+    ]);
+    expect(computeEnterZonePoints(hondou, pos, 'player1')).toBe(1 + 5 + 1 + 1 - 1);
+  });
+
+  it('§Q21.2 王が確定していなくても、王候補がすべて敵陣・利きの外なら宣言できる', () => {
+    const pos = quantumEnteredPos();
+    expect(canDeclareNyugyoku(hondou, pos, 'player1')).toBe(true);
+  });
+
+  it('§Q21.2 王候補を持つ駒が 1 枚でも敵陣の外にあると不成立', () => {
+    const pos = quantumEnteredPos({ f1At: { row: 5, col: 5 } });
+    expect(canDeclareNyugyoku(hondou, pos, 'player1')).toBe(false);
+  });
+
+  it('§Q21.2 王候補を持つ駒が 1 枚でも相手の利きの中にあると不成立', () => {
+    // 後手の飛 (確定) が、王かもしれない駒 F1 (row0,col5) の隣で横に当たっている。
+    // F1 は「王と決まってはいない」が、王候補を保持している以上これで不成立になる。
+    const pos = quantumEnteredPos({
+      gote: [{ row: 0, col: 6, piece: Q('g_hi', 'hi', ['g_hi'], 'player2') }],
+    });
+    expect(canDeclareNyugyoku(hondou, pos, 'player1')).toBe(false);
+  });
+
+  it('§Q21.3/§Q21.4 王候補が 2 枚あっても引くのは 1 回だけ', () => {
+    const pos = quantumEnteredPos();
+    // 敵陣内 12 枚 → 11 枚
+    expect(countEnterZonePieces(hondou, pos, 'player1')).toBe(11);
+    // 盤 (1+1+5+5+1×8=20) + 持ち駒 (5+5=10) = 30 → 王の分 1 を引いて 29
+    expect(computeEnterZonePoints(hondou, pos, 'player1')).toBe(29);
+  });
+});

@@ -3510,6 +3510,16 @@ body::before {
   margin-left: auto; flex: none; display: flex; align-items: center; gap: 6px;
 }
 .s08-toolbar .make-room .why { font-size: 10px; color: var(--text-muted); white-space: nowrap; }
+/* v1.52: 建てた部屋に居ることを出し続ける。**灰色にしない**＝灰色は「押せない」を
+   意味するので、うまくいった状態に使うと失敗したように読める。 */
+.s08-toolbar .make-room .waiting { font-size: 11px; color: var(--orange-light); white-space: nowrap; }
+/* 部屋を建てるときの入力（v1.52・付録D-12 §8）。 */
+.floating-confirm.review .room-field { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.floating-confirm.review .room-field > span { flex: none; min-width: 68px; font-size: 12px; color: var(--text-muted); }
+.floating-confirm.review .room-field input {
+  flex: 1; background: var(--bg); border: 1px solid var(--border-strong); color: var(--text);
+  padding: 5px 8px; border-radius: 6px; font-size: 13px;
+}
 
 /* 感想戦のチャット (D-12 §2)。手数リストの下に置く。**高さを決め打ちにする**＝
    会話が伸びるたびに盤の大きさが変わっては読めない（履歴の側がスクロールする）。 */

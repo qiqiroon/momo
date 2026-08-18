@@ -15,7 +15,7 @@ import { MenuScreen } from './ui/MenuScreen';
 import { LobbyScreen } from './ui/LobbyScreen';
 import { RuleSelectScreen } from './ui/RuleSelectScreen';
 import { RoomScreen } from './ui/RoomScreen';
-import { createReviewRoom, leaveReviewRoom, reviewRoomBlock } from './reviewRoom';
+import { createReviewRoom, lastPlayerName, leaveReviewRoom, reviewRoomBlock } from './reviewRoom';
 
 const client = getMomoMatchmaking();
 if (client) {
@@ -35,3 +35,4 @@ register('screen:room', RoomScreen);
 register('reviewRoom:create', createReviewRoom);
 register('reviewRoom:block', reviewRoomBlock);
 register('reviewRoom:leave', leaveReviewRoom);
+register('reviewRoom:lastName', lastPlayerName);

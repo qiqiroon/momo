@@ -23,6 +23,11 @@ export interface ReviewRoomRequest {
   torus: boolean;
   quantum: boolean;
   customRuleName?: string;
-  /** 部屋名の既定＝**棋譜のルール名＋「の感想戦」**（付録D-12 §8）。 */
+  /** 部屋名。**既定は棋譜のルール名＋「の感想戦」**だが、決め直せる（付録D-12 §8）。 */
   roomName: string;
+  /**
+   * v1.52: 一覧に出る自分の名前。**決めてもらったものを使う**＝v1.51 は前に使った
+   * 名前の流用しか無く、ロビーを通っていない人は**空のまま建っていた**。
+   */
+  playerName: string;
 }

@@ -122,6 +122,12 @@ beforeEach(() => {
   peerName = '花子';
   mySide = 'player1';
   register<OnlineGameConnector>('gameConnector', fakeConnector);
+  // **毎回ここで既定へ戻す**＝口は登録しっぱなしになるので、前の検査の登録が
+  // 残ると走らせる順で結果が変わる（借りた運で緑になる検査は嘘をつく）。
+  register('reviewRoom:block', () => 'ok');
+  register('reviewRoom:lastName', () => '太郎');
+  register('reviewRoom:create', () => true);
+  register('reviewRoom:leave', () => {});
   endSharedReview();
   discardKifu();
   useOffersStore.getState().clearAll();
@@ -471,6 +477,85 @@ describe('S11 感想戦の部屋（段2・v1.50）', () => {
     startAsHost();
     leaveSharedReview();
     expect(left).toBe(1);
+  });
+});
+
+describe('★S11 部屋を作ったあとの見え方（v1.52・実機のご報告）', () => {
+  /**
+   * v1.51 まで＝建てるとボタンが灰色になり、添えられる理由が
+   * **「対局の部屋にいます。先に退室してください」**だった。**自分がいま建てた
+   * 感想戦の部屋なのに、対局の部屋に居ると言われる**ので、うまくいったのに
+   * 失敗したように読める（灰色は「押せない」しか意味しない）。畳む手立ても
+   * 画面に無く、出たのかどうかも分からなかった。
+   */
+  beforeEach(() => {
+    register('reviewRoom:block', () => 'already-in-room');
+    register('reviewRoom:lastName', () => '太郎');
+  });
+
+  it('★建てたあとは「相手を待っています」と出し続ける（失敗のように見せない）', () => {
+    finishedGame(6);
+    reviewRoomCreated();
+    const view = render(<ReviewScreen />);
+
+    expect(screen.getByText('部屋を作りました。相手を待っています')).toBeInTheDocument();
+    // **紛らわしい理由を出さない**＝自分で建てた部屋なのだから。
+    expect(screen.queryByText('対局の部屋にいます。先に退室してください')).not.toBeInTheDocument();
+    expect(screen.queryByText('部屋を作る')).not.toBeInTheDocument();
+    view.unmount();
+  });
+
+  it('★画面を出たままで部屋を畳めて、畳んだことを知らせる', () => {
+    finishedGame(6);
+    let left = 0;
+    register('reviewRoom:leave', () => {
+      left += 1;
+    });
+    reviewRoomCreated();
+    const view = render(<ReviewScreen />);
+
+    fireEvent.click(screen.getByText('部屋を閉じる'));
+
+    expect(left).toBe(1);
+    expect(screen.getByText('部屋を閉じました')).toBeInTheDocument();
+    // **感想戦そのものは続く**（画面から追い出さない）。
+    expect(useRouteStore.getState().screen).not.toBe('lobby');
+    expect(useReviewShareStore.getState().ownsRoom).toBe(false);
+    view.unmount();
+  });
+
+  it('相手の入り方を画面に書いておく（ロビーからしか入れないことが分からない）', () => {
+    finishedGame(6);
+    reviewRoomCreated();
+    const view = render(<ReviewScreen />);
+    expect(screen.getByText('相手は「ネット対戦」の一覧から入れます')).toBeInTheDocument();
+    view.unmount();
+  });
+
+  it('★建てる前に部屋名と表示名を決められる（既定は入れておく）', () => {
+    finishedGame(6);
+    register('reviewRoom:block', () => 'ok');
+    let got: { roomName: string; playerName: string } | null = null;
+    register('reviewRoom:create', (info: { roomName: string; playerName: string }) => {
+      got = info;
+      return true;
+    });
+    const view = render(<ReviewScreen />);
+
+    fireEvent.click(screen.getByText('部屋を作る'));
+    const inputs = view.container.querySelectorAll('.room-field input');
+    expect(inputs).toHaveLength(2);
+    // **既定が入っている**＝決めさせるために止めない。
+    expect((inputs[0] as HTMLInputElement).value).toContain('感想戦');
+    expect((inputs[1] as HTMLInputElement).value).toBe('太郎');
+
+    fireEvent.change(inputs[0], { target: { value: 'わたしの部屋' } });
+    fireEvent.change(inputs[1], { target: { value: '花子' } });
+    fireEvent.click(view.container.querySelector('.btn-row .btn.primary') as Element);
+
+    expect(got!.roomName).toBe('わたしの部屋');
+    expect(got!.playerName).toBe('花子');
+    view.unmount();
   });
 });
 

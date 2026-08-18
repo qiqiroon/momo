@@ -30,6 +30,7 @@ import {
 import {
   bindReviewView,
   clearReviewNotice,
+  endSharedReview,
   leaveSharedReview,
   reviewRoomCreated,
   shareReviewMove,
@@ -42,6 +43,7 @@ import { get as pluginGet } from '../../../core/plugin/registry';
 import type { OnlineGameConnector } from '../../../core/plugin/gameConnector';
 import type { ReviewRoomBlock, ReviewRoomRequest } from '../../../core/plugin/reviewRoom';
 import { ChatConsole } from '../../../core/ui-core/ChatConsole';
+import { FloatingPanel } from '../../../core/ui-core/FloatingPanel';
 import { useChatStore } from '../../../core/store/chat-store';
 import { endingLabel } from './ending';
 import { kifuMemoryState, loadLastKifu } from '../storage';
@@ -122,6 +124,8 @@ export function ReviewScreen() {
   const oppPresent = useReviewShareStore((s) => s.opponentPresent);
   const incoming = useReviewShareStore((s) => s.incoming);
   const notice = useReviewShareStore((s) => s.notice);
+  /** 自分が建てた／入った感想戦の部屋に居るか（v1.52 の表示分けに使う）。 */
+  const ownsRoom = useReviewShareStore((s) => s.ownsRoom);
   const shared = shareRole !== null;
   /** **棋譜を配っている最中は触れない**（画面機能 §3 S11・付録D-12 §5）。 */
   const waiting = shared && !shareReady;
@@ -158,8 +162,17 @@ export function ReviewScreen() {
     return conn.subscribe(() => setRoomBlock(askRoomBlock()));
   }, []);
 
-  /** 人を呼ぶ＝**棋譜のルール名＋「の感想戦」**で建てる（付録D-12 §8）。 */
-  const makeRoom = () => {
+  /**
+   * 部屋を建てるときの入力（v1.52）。null＝出していない。
+   * **既定を入れて出す**＝多くの人はそのまま押すので、決めさせるために止めない。
+   */
+  const [roomForm, setRoomForm] = useState<{ room: string; name: string } | null>(null);
+  const defaultRoomName = () => (file ? `${labels.ruleName(file)}${t('s11.roomSuffix')}` : '');
+  const defaultPlayerName = () =>
+    pluginGet<() => string>('reviewRoom:lastName')?.() ?? '';
+
+  /** 人を呼ぶ（付録D-12 §8）。**名前は決めてもらったものを使う**。 */
+  const makeRoom = (roomName: string, playerName: string) => {
     if (!file) return;
     const create = pluginGet<(info: ReviewRoomRequest) => boolean>('reviewRoom:create');
     if (!create) return;
@@ -171,15 +184,30 @@ export function ReviewScreen() {
           : 'shogi') as ReviewRoomRequest['gameType'],
       torus: file.meta.torus !== 'none',
       quantum: file.meta.quantum,
-      roomName: `${labels.ruleName(file)}${t('s11.roomSuffix')}`,
+      roomName,
+      playerName,
     });
+    setRoomForm(null);
     if (!ok) {
       setRoomBlock(askRoomBlock());
+      setToast(t('s11.roomFailed'));
       return;
     }
     reviewRoomCreated();
     setRoomBlock(askRoomBlock());
     setToast(t('s11.roomMade'));
+  };
+
+  /**
+   * ★v1.52: 建てた部屋を畳む（付録D-12 §8）。**画面には残る**＝ひとりの感想戦は
+   * 続けられる。**畳んだことを必ず知らせる**＝黙って消えると、出たのかどうかが
+   * 分からない（2026-08-18 ご報告）。
+   */
+  const closeRoom = () => {
+    pluginGet<() => void>('reviewRoom:leave')?.();
+    endSharedReview();
+    setRoomBlock(askRoomBlock());
+    setToast(t('s11.roomClosed'));
   };
 
   /**
@@ -553,10 +581,31 @@ export function ReviewScreen() {
                 {oppPresent ? '' : ` ${t('s11.peerGone')}`}
               </span>
             )}
-            {/* 人を呼ぶ（付録D-12 §8）。**ひとりのときだけ**出す。**建てられないときは
-                不活性にして理由を添える**＝灰色は「押せない」しか意味しないので、
-                待てば直るのか自分の事情なのかが分からなくなる。 */}
-            {!shared && roomBlock !== null && (
+            {/* ★v1.52: **自分が建てた部屋に居る間は、そう出し続ける**（付録D-12 §8）。
+                v1.51 まではボタンが灰色になり「対局の部屋にいます」と出るだけで、
+                **建てられたのに失敗したように見えていた**（2026-08-18 ご報告）。
+                **畳む手立てもここに置く**＝画面ごと出るしか無いと、出たのかどうかも
+                分からない。 */}
+            {ownsRoom && !shared && (
+              <span className="make-room">
+                <span className="waiting">{t('s11.roomWaiting')}</span>
+                <button
+                  type="button"
+                  className="io-btn"
+                  onClick={() => {
+                    seButton();
+                    closeRoom();
+                  }}
+                >
+                  {t('s11.closeRoom')}
+                </button>
+                <span className="why">{t('s11.roomHowToJoin')}</span>
+              </span>
+            )}
+            {/* 人を呼ぶ（付録D-12 §8）。**ひとりで、まだ建てていないときだけ**出す。
+                **建てられないときは不活性にして理由を添える**＝灰色は「押せない」しか
+                意味しないので、待てば直るのか自分の事情なのかが分からなくなる。 */}
+            {!shared && !ownsRoom && roomBlock !== null && (
               <span className="make-room">
                 <button
                   type="button"
@@ -564,7 +613,7 @@ export function ReviewScreen() {
                   disabled={roomBlock !== 'ok' || !file}
                   onClick={() => {
                     seButton();
-                    makeRoom();
+                    setRoomForm({ room: defaultRoomName(), name: defaultPlayerName() });
                   }}
                 >
                   {t('s11.makeRoom')}
@@ -575,6 +624,48 @@ export function ReviewScreen() {
               </span>
             )}
           </div>
+
+          {/* ★v1.52: 部屋名と表示名を決めてから建てる（付録D-12 §8）。
+              v1.51 は既定の名前で黙って建てていたので、**同じ名前の部屋が並んで
+              自分のものが見分けられず**、ロビーを通っていない人は名前も空だった。 */}
+          {roomForm && (
+            <FloatingPanel
+              className="floating-result floating-confirm review"
+              title={<>{t('s11.makeRoom')}</>}
+            >
+              <div className="body">
+                <label className="room-field">
+                  <span>{t('s04.roomName')}</span>
+                  <input
+                    type="text"
+                    value={roomForm.room}
+                    onChange={(e) => setRoomForm({ ...roomForm, room: e.target.value })}
+                  />
+                </label>
+                <label className="room-field">
+                  <span>{t('s04.playerNameLbl')}</span>
+                  <input
+                    type="text"
+                    value={roomForm.name}
+                    onChange={(e) => setRoomForm({ ...roomForm, name: e.target.value })}
+                  />
+                </label>
+              </div>
+              <div className="btn-row">
+                <button type="button" className="btn ghost outline" onClick={() => { seButton(); setRoomForm(null); }}>
+                  {t('kifu.cancel')}
+                </button>
+                <button
+                  type="button"
+                  className="btn primary"
+                  disabled={!roomForm.room.trim() || !roomForm.name.trim()}
+                  onClick={() => { seButton(); makeRoom(roomForm.room.trim(), roomForm.name.trim()); }}
+                >
+                  {t('s11.makeRoom')}
+                </button>
+              </div>
+            </FloatingPanel>
+          )}
 
           <div className="pinfo opp">
             <span className="nm">{file ? labels.playerLabel(file, oppSide) : t('player.opp')}</span>

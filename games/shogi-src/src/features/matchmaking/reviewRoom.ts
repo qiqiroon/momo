@@ -43,16 +43,16 @@ export function createReviewRoom(info: ReviewRoomRequest): boolean {
   if (!client) return false;
 
   const s = useMatchmakingStore.getState();
-  // 名前は対局と同じものを使う。ロビーを一度も通らずに感想戦へ来た人は空なので、
-  // 前に使った名前を控えから拾う（それも無ければサーバー側の既定に任せる）。
-  let hostName = s.playerName.trim();
-  if (!hostName) {
+  // v1.52: 名前は画面で決めてもらったものを使う。**次からの既定にもする**
+  // ＝対局のロビーと同じ 1 つの名前を使い回す（別々に覚えると食い違う）。
+  const hostName = info.playerName.trim();
+  if (hostName) {
+    s.setPlayerName(hostName);
     try {
-      hostName = (localStorage.getItem(LS_LAST_PLAYER_NAME) ?? '').trim();
+      localStorage.setItem(LS_LAST_PLAYER_NAME, hostName);
     } catch {
       // localStorage が使えない環境は無視
     }
-    if (hostName) s.setPlayerName(hostName);
   }
 
   const encodedName = encodeRoomName({
@@ -82,6 +82,17 @@ export function createReviewRoom(info: ReviewRoomRequest): boolean {
     },
   });
   return true;
+}
+
+/** v1.52: 前に使った名前（画面が既定として出すために聞きに来る）。 */
+export function lastPlayerName(): string {
+  const inStore = useMatchmakingStore.getState().playerName.trim();
+  if (inStore) return inStore;
+  try {
+    return (localStorage.getItem(LS_LAST_PLAYER_NAME) ?? '').trim();
+  } catch {
+    return '';
+  }
 }
 
 /**

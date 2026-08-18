@@ -5,7 +5,7 @@ export const en: LocaleData = {
   name: 'English',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.50',
+    'app.ver': 'v1.51',
     'sound.promptTitle': 'Enable BGM and sound effects?',
     'sound.bgmLabel': 'BGM volume',
     'sound.sfxLabel': 'SFX volume',
@@ -229,7 +229,7 @@ export const en: LocaleData = {
     // v1.50: review rooms (appendix D-12 §8)
     's11.makeRoom': 'Create room',
     's11.makeRoom.no-server': 'Not connected to the server',
-    's11.makeRoom.already-in-room': 'You are already in a room',
+    's11.makeRoom.already-in-room': 'Leave your current room first',
     's11.roomSuffix': ' review',
     's11.roomMade': 'Room created. Waiting for someone to join.',
     'review.sentTitle': 'Review invitation',

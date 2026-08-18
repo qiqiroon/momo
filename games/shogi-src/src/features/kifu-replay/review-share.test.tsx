@@ -14,7 +14,7 @@ import { generateLegalMoves } from '../../core/engine';
 import '../matchmaking/gameConnector';
 import './index';
 import { discardKifu, loadLastKifu, markKifuSaved, kifuMemoryState } from './storage';
-import { reviewTarget, setReviewTarget } from './review';
+import { clearReviewTarget, reviewTarget, setReviewTarget } from './review';
 import { useChatStore } from '../../core/store/chat-store';
 import { serializeKifu } from './io';
 import {
@@ -365,6 +365,58 @@ describe('S11 相手が抜けたとき', () => {
     view.unmount();
     expect(kifuMemoryState()).toBe('saved');
     expect(loadLastKifu()?.moves).toHaveLength(6);
+  });
+});
+
+describe('★S11 振り返る 1 局は必ず決まる（v1.51・実機で見つかった穴）', () => {
+  /**
+   * 実機（2 台）で判明した段1 からの穴。**終局パネルの「感想戦」は相手が居ると
+   * 打診しかせず、振り返る 1 局を決めない**。受ける側も決めない。結果、ホストの配布は
+   * 「配る 1 局が無い」ので黙って何もせず戻り、両者とも 1 局の無いまま画面へ入って
+   * いた＝盤が並び直されず、進む・戻すが押せず、指した手も相手に届かない。
+   *
+   * **v1.50 までの検査が緑だったのは、検査の下ごしらえが 1 局を決めていたから**
+   * ＝本番にその工程が無いことを見ていなかった。だからここでは**わざと決めずに**始める。
+   */
+  it('★打診の前に 1 局を決めていなくても、二人で始まれば記憶している 1 局で決まる', () => {
+    finishedGame(6);
+    // ★本番と同じ状態にする＝終局パネルは打診しかしないので、対象は決まっていない。
+    clearReviewTarget('game');
+    expect(reviewTarget()).toBeNull();
+
+    iAmHost = true;
+    answerReviewOffer(true);
+
+    expect(reviewTarget()).not.toBeNull();
+    // **1 局が決まっていないと、ここで何も送らずに終わっていた**（それが実機の症状）。
+    const state = sent.find((m) => m.kind === 'state');
+    expect(state && 'kifu' in state ? state.kifu : undefined).toBeTruthy();
+  });
+
+  it('★盤が終局のまま取り残されない（並び直され、進む・戻すが押せる）', () => {
+    finishedGame(6);
+    clearReviewTarget('game');
+    iAmHost = true;
+    answerReviewOffer(true);
+    sent = [];
+
+    const view = render(<ReviewScreen />);
+    // 1 局が決まっていないと「棋譜がありません」が出て、操作帯が押せなかった。
+    expect(screen.queryByText('棋譜がありません')).not.toBeInTheDocument();
+    const buttons = [...view.container.querySelectorAll('.playbar button')];
+    expect(buttons.length).toBeGreaterThan(0);
+    expect(buttons.every((b) => (b as HTMLButtonElement).disabled)).toBe(false);
+    view.unmount();
+  });
+
+  it('★埋めるのは配る側だけ＝ゲストは手元の記憶を代わりに映さず、配られるのを待つ', () => {
+    finishedGame(6);
+    clearReviewTarget('game');
+    iAmHost = false;
+    answerReviewOffer(true);
+    // **配られる 1 局とは限らないものを盤に出さない**（親 §6.3.6）。
+    expect(reviewTarget()).toBeNull();
+    expect(useReviewShareStore.getState().ready).toBe(false);
   });
 });
 

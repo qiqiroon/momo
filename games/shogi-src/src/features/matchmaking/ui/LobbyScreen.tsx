@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useI18nStore } from '../../../core/store/i18n-store';
 import { useRouteStore } from '../../../core/store/route-store';
+import { requestNewGame } from '../../../core/store/kifu-guard';
 import { t as _t } from '../../../core/i18n';
 import type { LocaleCode } from '../../../core/i18n/types';
 import { CatIcon } from '../../../core/ui-core/CatIcon';
@@ -221,6 +222,22 @@ export function LobbyScreen() {
     } catch {
       // localStorage 使えない環境は無視
     }
+    // ★v1.51: **棋譜の確認が済んでから部屋を建てる**（親 §9.2.3 ②）。
+    //
+    // v1.50 まではここで先に建ててから画面を移していたため、画面を移る仕組みが
+    // 「未保存の棋譜があります」の確認を割り込ませた時点で**部屋だけが先にできて
+    // いた**。「やめる」を選ぶと画面はロビーのまま・**誰も居ない部屋が一覧に残る**
+    // ＝作った本人にも片付けられない（戻ってくる画面が無い）。**対局のあとは必ず
+    // 未保存の棋譜があるので、毎回これが起きていた**（2026-08-18 実機で再現）。
+    //
+    // 確認を先に通し、通ったときだけ建てて移る。**移るときは二度尋ねない**。
+    requestNewGame(() => createAndEnter(encodedName));
+  };
+
+  /** 確認が済んだあとの本体＝**建てて、待機画面へ移る**。 */
+  const createAndEnter = (encodedName: string) => {
+    const client = getMomoMatchmaking();
+    if (!client) return;
     setActiveRoomConfig({ ...config, roomName: encodedName });
     setCurrentRoom({ roomId: null, roomName: encodedName, isHost: true });
     setOpponentName('');
@@ -244,7 +261,7 @@ export function LobbyScreen() {
         time: config.timeControl,
       },
     });
-    setScreen('room');
+    setScreen('room', { skipKifuGuard: true });
   };
 
   const connLabel: Record<string, string> = {

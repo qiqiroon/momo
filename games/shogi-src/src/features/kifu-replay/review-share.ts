@@ -23,6 +23,7 @@ import { useOffersStore } from '../../core/store/offers-store';
 import { useRouteStore } from '../../core/store/route-store';
 import { parseKifu, serializeKifu } from './io';
 import { clearReviewTarget, reviewTarget, setReviewTarget } from './review';
+import { loadLastKifu } from './storage';
 
 /** 部屋を建てた側か、入った側か。**正はホスト**（親 §6.3.6）。 */
 export type ReviewRole = 'host' | 'guest';
@@ -128,12 +129,37 @@ export function leaveSharedReview(): void {
 }
 
 /**
+ * ★v1.51: **振り返る 1 局が決まっていなければ、記憶している 1 局で決める**。
+ *
+ * 親 §9.4.1 は「入るときに対象が決まる」と定めているのに、**終局から二人で入る経路
+ * だけ決める工程が無かった**（v1.47〜v1.50）＝終局パネルの「感想戦」は相手が居ると
+ * 打診しかせず、受ける側も決めない。**結果、ホストの配布は「配る 1 局が無い」ので
+ * 黙って何もせず戻り**、両者とも 1 局の無いまま画面へ入っていた（盤が並び直されず、
+ * 進む・戻すが押せず、指した手は「分岐が対局まるごと」という形で送られて相手が
+ * 組み立て直せない）。
+ *
+ * **入口ごとに決めるのではなく、二人で始まる 1 か所で埋める**＝入口は 4 通りあり、
+ * 数え上げる形にすると必ずどれかが漏れる（今回漏れたのがまさにその形）。
+ *
+ * **★埋めるのは配る側（ホスト）だけ**＝**ゲストは配られるのを待つ**のが決まりで
+ * （親 §6.3.6）、手元の記憶を代わりに置くと**配られる 1 局とは限らないもの**が
+ * 盤に出る（一覧から入ったゲストは、その対局を指してすらいない）。**必要なのは
+ * 「配るものが無い」を無くすことだけ**なので、必要な側にだけ入れる。
+ */
+function ensureReviewTargetForHost(): void {
+  if (reviewTarget()) return;
+  const remembered = loadLastKifu();
+  if (remembered) setReviewTarget(remembered, 'game');
+}
+
+/**
  * 二人の感想戦を始める。**役はその部屋のホストかどうかで決まる**（打診した側ではない）
  * ＝食い違いの正を先に決めておくため（親 §6.3.6）。
  */
 function beginSharedReview(): ReviewRole {
   const c = connector();
   const role: ReviewRole = c?.isRoomHost() ? 'host' : 'guest';
+  if (role === 'host') ensureReviewTargetForHost();
   useReviewShareStore.setState({
     role,
     opponentName: c?.getOpponentName() ?? '',

@@ -5,7 +5,7 @@ export const zh: LocaleData = {
   name: '中文',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.50',
+    'app.ver': 'v1.51',
     'sound.promptTitle': '是否播放 BGM 与音效？',
     'sound.bgmLabel': 'BGM 音量',
     'sound.sfxLabel': '音效音量',
@@ -229,7 +229,7 @@ export const zh: LocaleData = {
     // v1.50: 复盘房间（附录 D-12 §8）
     's11.makeRoom': '创建房间',
     's11.makeRoom.no-server': '未连接到服务器',
-    's11.makeRoom.already-in-room': '您已在房间中',
+    's11.makeRoom.already-in-room': '请先离开当前房间',
     's11.roomSuffix': '的复盘',
     's11.roomMade': '已创建房间。正在等待对方加入。',
     'review.sentTitle': '复盘邀请',

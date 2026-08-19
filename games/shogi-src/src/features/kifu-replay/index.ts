@@ -42,6 +42,7 @@ import {
   discardKifu,
   discardKifuIfDue,
   kifuMemoryState,
+  lastKifuIsOwnGame,
   loadLastKifu,
   markKifuPendingDiscard,
   markKifuSaved,
@@ -127,7 +128,8 @@ function isRememberedKifu(file: KifuFile): boolean {
  * 存在するので、**印は最初から「保存済み」**。
  */
 export function adoptLoadedKifu(file: KifuFile): void {
-  rememberKifu(file, 'saved');
+  // ★v1.57: **読み込んだ棋譜は「自分の対局」ではない**（親 §9.2.5）＝盤は先手が下。
+  rememberKifu(file, 'saved', false);
 }
 
 // 対局の状態の変わり目を 1 か所で見張る。
@@ -211,7 +213,10 @@ register('screen:review', ReviewScreen);
 register('review:open', (from: ReviewOrigin, file?: KifuFile): boolean => {
   const target = file ?? loadLastKifu();
   if (!target) return false;
-  setReviewTarget(target, from);
+  // ★v1.57: 棋譜を渡されない呼び方は**記憶している 1 局**＝その出どころをそのまま継ぐ
+  // （親 §9.2.5）。棋譜を渡す呼び方（S08 から）は、渡す側が出どころを知っているので
+  // `review:openWith` を使う。
+  setReviewTarget(target, from, file ? false : lastKifuIsOwnGame());
   useRouteStore.getState().setScreen('review');
   return true;
 });
@@ -259,7 +264,7 @@ register('review:answerOffer', answerReviewOffer);
 register('review:startSolo', () => {
   endSharedReview();
   const remembered = loadLastKifu();
-  if (remembered) setReviewTarget(remembered, 'lobby');
+  if (remembered) setReviewTarget(remembered, 'lobby', lastKifuIsOwnGame());
   else clearReviewTarget('lobby');
   useRouteStore.getState().setScreen('review');
 });
@@ -288,7 +293,7 @@ register('review:roomInfo', (locale: LocaleCode): ReviewRoomInfo => {
  */
 register('review:roomCreated', () => {
   const remembered = loadLastKifu();
-  if (remembered) setReviewTarget(remembered, 'lobby');
+  if (remembered) setReviewTarget(remembered, 'lobby', lastKifuIsOwnGame());
   else clearReviewTarget('lobby');
   reviewRoomCreated();
   useRouteStore.getState().setScreen('review');
@@ -323,6 +328,7 @@ export {
   discardKifu,
   discardKifuIfDue,
   kifuMemoryState,
+  lastKifuIsOwnGame,
   loadKifuMemory,
   loadLastKifu,
   markKifuPendingDiscard,

@@ -37,12 +37,27 @@ export interface KifuMemory {
   file: KifuFile;
   /** いまの印。`saved`＝ファイルとして存在する／`pending-discard`＝捨てると決めた。 */
   mark: KifuMark;
+  /**
+   * ★v1.57: **この 1 局が「いま自分が指した対局」から生まれたものか**（親 §9.2.5）。
+   *
+   * **盤をどちら側から見るかがこれで決まる**＝自分の対局なら自分の側が手前、
+   * 外から読み込んだ棋譜なら先手が下。**棋譜の中身からは見分けられない**
+   * （棋譜が持っているのは「書き出した人の側」であって、それが自分とは限らない）
+   * ので、**生まれた場所でしか分からない事実**をここに一緒に置く。
+   */
+  own: boolean;
 }
 
-/** 記憶に置く。`mark` を省くと「未保存」＝まだ書き出せていない扱い。 */
-export function rememberKifu(file: KifuFile, mark: KifuMark = 'unsaved'): void {
+/**
+ * 記憶に置く。`mark` を省くと「未保存」＝まだ書き出せていない扱い。
+ *
+ * ★v1.57: `own` を省くと「自分の対局から生まれた」扱い＝**記憶が生まれる場所は
+ * 対局の終わりだけ**（親 §9.2.3 ③ (a)）なので、それが既定になる。読み込んだ棋譜を
+ * 記憶へ移すときだけ false を渡す（`adoptLoadedKifu`）。
+ */
+export function rememberKifu(file: KifuFile, mark: KifuMark = 'unsaved', own = true): void {
   try {
-    localStorage.setItem(KEY_LAST, JSON.stringify({ mark, file }));
+    localStorage.setItem(KEY_LAST, JSON.stringify({ mark, own, file }));
   } catch {
     // 置き場が使えない環境 (シークレット・容量超過) では記憶を持たないだけ。
     // 書き出しは手動でできるので、対局そのものには影響しない。
@@ -59,7 +74,7 @@ export function loadKifuMemory(): KifuMemory | null {
 
     // v1.40 は棋譜だけを裸で置いていた。印が無いので「未保存」として拾う。
     if ((parsed as KifuFile).format === KIFU_FORMAT) {
-      return { file: parsed as KifuFile, mark: 'unsaved' };
+      return { file: parsed as KifuFile, mark: 'unsaved', own: true };
     }
 
     const m = parsed as Partial<KifuMemory> & { saved?: boolean };
@@ -67,7 +82,10 @@ export function loadKifuMemory(): KifuMemory | null {
     // v1.41 までは真偽値 1 つ (saved) だった。真なら保存済み・偽なら未保存として拾う
     // ＝**古い記憶を捨てない**（版が上がっただけで受け皿が消えると保存し忘れにつながる）。
     const mark: KifuMark = m.mark ?? (m.saved === true ? 'saved' : 'unsaved');
-    return { file: m.file as KifuFile, mark };
+    // ★v1.57: v1.56 までの記憶は出どころを持っていない。**自分の対局として拾う**
+    // ＝記憶が生まれるのはほとんどが対局の終わりであり、こちらに倒すほうが
+    // 「自分の対局なのに後手から見た盤で出る」という目立つ外れ方をしない。
+    return { file: m.file as KifuFile, mark, own: m.own !== false };
   } catch {
     return null;
   }
@@ -84,13 +102,21 @@ export function loadLastKifu(): KifuFile | null {
 }
 
 /**
+ * ★v1.57: 記憶している 1 局が**自分の対局から生まれたもの**か（親 §9.2.5）。
+ * 盤をどちら側から見るかがこれで決まる。記憶が空なら false（見る棋譜が無い）。
+ */
+export function lastKifuIsOwnGame(): boolean {
+  return loadKifuMemory()?.own === true;
+}
+
+/**
  * 「保存済み」の印を付ける。**中身は消さない**（§9.2.3 ①）。
  * 記憶が空のときは何もしない（印だけが宙に浮く状態を作らない）。
  */
 export function markKifuSaved(): void {
   const m = loadKifuMemory();
   if (!m) return;
-  rememberKifu(m.file, 'saved');
+  rememberKifu(m.file, 'saved', m.own);
 }
 
 /**
@@ -103,7 +129,7 @@ export function markKifuSaved(): void {
 export function markKifuPendingDiscard(): void {
   const m = loadKifuMemory();
   if (!m || m.mark === 'saved') return;
-  rememberKifu(m.file, 'pending-discard');
+  rememberKifu(m.file, 'pending-discard', m.own);
 }
 
 /**

@@ -29,9 +29,50 @@ export type ReviewOrigin = 'lobby' | 'game' | 'kifu-replay';
 let target: KifuFile | null = null;
 let origin: ReviewOrigin = 'lobby';
 
-export function setReviewTarget(file: KifuFile, from: ReviewOrigin): void {
+/**
+ * ★v1.57: 振り返る 1 局の**出どころ**（親 §9.2.5）。**盤の向きはこれで決まる**
+ * ＝自分の対局なら自分の側が手前、外から読み込んだ棋譜なら先手が下。
+ *
+ * **入ってきた画面の名前では決めない**＝入口は増え続けており（v1.54 でロビー、
+ * v1.55 で部屋の移行）、名前を数え上げる形は足すたびに書き足しが要る。
+ * **出どころは入口が何通りに増えても 2 つのまま**である。
+ */
+let fromOwnGame = false;
+
+/**
+ * ★v1.57: **自分の側**（親 §6.3.6）。二人の感想戦で盤をどちら向きに出すかに使う。
+ *
+ * **なぜ控えるのか**＝先後は**対局の部屋が持っている情報**なので、v1.55 で入れた
+ * 「対局の部屋から感想戦の部屋へ移る」経路では**部屋を出た時点で消える**。
+ * 聞きに行っても答えが返らず、棋譜が持つ向き（＝ホストの向き）に落ちるため、
+ * **ゲストの盤だけ上下が逆**になっていた（2026-08-19 実機のご報告）。
+ *
+ * **新しい伝言は作らない**＝先後は二人ともそれぞれ自分で知っているので送る必要が無い。
+ */
+let myGameSide: 'player1' | 'player2' | null = null;
+
+export function setReviewTarget(file: KifuFile, from: ReviewOrigin, own = false): void {
   target = file;
   origin = from;
+  fromOwnGame = own;
+}
+
+/** ★v1.57: 振り返る 1 局が「いま自分が指した対局」から来たものか（親 §9.2.5）。 */
+export function reviewIsOwnGame(): boolean {
+  return fromOwnGame;
+}
+
+/**
+ * ★v1.57: 自分の側を控える／忘れる（親 §6.3.6）。
+ * **対局の部屋を出る前に控える**。**別の入り方をしたときは必ず忘れる**
+ * ＝残っていると、2 回目から前の対局の側で盤が出る。
+ */
+export function setReviewMySide(side: 'player1' | 'player2' | null): void {
+  myGameSide = side;
+}
+
+export function reviewMySide(): 'player1' | 'player2' | null {
+  return myGameSide;
 }
 
 /**
@@ -43,6 +84,8 @@ export function setReviewTarget(file: KifuFile, from: ReviewOrigin): void {
 export function clearReviewTarget(from: ReviewOrigin): void {
   target = null;
   origin = from;
+  // ★v1.57: 配られるのを待つ側は、まだ何も持っていない＝自分の対局でもない。
+  fromOwnGame = false;
 }
 
 export function reviewTarget(): KifuFile | null {

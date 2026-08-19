@@ -3508,15 +3508,34 @@ body::before {
    2 倍の高さ**を使っていた（実測 30px + 55px = 85px ／ 1 マス 41.7px）。
    **「感想戦」は小さいオレンジ文字**にする＝**枠で囲うとボタンに見える**ので囲わず、
    それでも見出しだと分かるように色で示す。 */
+/* ★v1.57: **この行は「幅を決める側」から外す**（付録D-12 v1.6 §2・2026-08-19 実機の
+   ご報告）。`width: 0` で**幅の計算には加わらず**、`min-width: 100%` で**置かれるときは
+   親の幅いっぱい**になる。
+
+   **なぜ要るのか**＝画面全体の幅は「その中でいちばん幅を要るもの」に合わせて決まる。
+   この行は棋譜の情報（ルール名・修飾の札・対局者・日付）を載せるので**盤より幅を要る**
+   ことがあり、そのとき**幅を決めているのは盤ではなくこの行**になる。盤は中央に置かれる
+   ので、**行が伸び縮みするたびに盤が左右に動く**＝**駒を掴むと成り・不成のボタンが出て
+   25px 動き、離すと戻る**（本番ビルドで実測）ため、駒が置きにくかった。
+
+   **数え上げでは直さない**＝ボタンのぶんだけ場所を空ける形にすると、**在室表示・言語の
+   切り替え・棋譜名の長さ**では同じことが起き続ける。幅の決め方そのものを変える。
+
+   **折り返さない**＝折り返すと今度は行が厚くなって**盤が縦に動く**。入りきらない棋譜の
+   情報は省略する（下記）。 */
 .s11-bar {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 8px; flex-wrap: nowrap;
   margin-top: 6px; min-height: 28px;
+  width: 0; min-width: 100%; overflow: hidden;
 }
 .s11-title {
   font-size: 12px; font-weight: 700; letter-spacing: .06em;
   color: var(--orange-light); margin: 0; flex: none;
 }
-.s11-bar .kifu-meta { flex: 1; min-width: 0; }
+/* ★v1.57: 棋譜の情報は**縮む側**（入りきらなければ末尾を省略する）＝この行の都合で
+   盤を動かさないため（上記）。S08 の帯（.stage.s08 .kifu-meta）と同じ扱い。 */
+.s11-bar .kifu-meta { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; overflow: hidden; }
+.s11-bar .kifu-meta .who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* 相手の在室 (D-12 §3)。**緑は使わない**＝緑は「合意が済んでいる」を表す色なので、
    居るだけの状態に使うと、何かが成立したように読める。居るときは白丸、抜けたら
    薄い白抜きの丸にして、名前ごと目立たなくする。 */
@@ -3543,6 +3562,27 @@ body::before {
    v1.55 は 169px あった（ボタン 36px＋補助語の行＋つまみの行＋一言）。
    **ボタンを小さくし、折り返さず一列**にして、つまみと手数を同じ行へ入れる。 */
 .s11 .moves-col .playbar { margin-bottom: 12px; padding: 7px 8px; gap: 5px; }
+
+/* ★v1.57: **横に並ぶ窓では、操作帯は盤と同じ高さに置き、画面を送っても留める**
+   （付録D-12 v1.6 §5・2026-08-19 実機のご報告・ユーザー判断）。
+
+   **同じ高さ**＝ヘッダと見出しの行を列の外へ出したので（ReviewScreen.tsx）、
+   右の列は**盤の並びと同じ高さから始まる**。v1.56 は 159px 上から始まっていた。
+
+   **留める**＝盤は**縦には収めない**決まり（§2）なので窓より高くなる。置き場所を
+   合わせるだけでは、**盤の下側を見ようと送った時点でまた隠れ始める**（実測 82px）。
+   実測 932x430 では、送りきると帯は画面の上へ **308px** 抜けて押せなくなっていた。
+
+   **留めるのは操作帯だけ**＝チャット・観戦者・棋譜は流れてよい（いつでも押すもの
+   ではない）。**列を盤の高さまで伸ばす**のは、留まっていられる範囲をその列の高さが
+   決めるため（伸ばさないと帯が途中で連れて行かれる）。
+
+   **盤の下へ回る狭い窓では留めない**＝そこでは帯が盤の幅いっぱいになるので、
+   留めると盤にかぶる。切り替え点は 860px（§2・S08 と同一）。 */
+@media (min-width: 861px) {
+  .s11 .moves-col { align-self: stretch; }
+  .s11 .moves-col .playbar { position: sticky; top: 12px; z-index: 2; }
+}
 .s11 .moves-col .playbar .btns { flex-wrap: nowrap; justify-content: space-between; gap: 3px; }
 .s11 .moves-col .pb { min-width: 0; height: 26px; font-size: 12px; padding: 0 5px; border-radius: 7px; }
 .s11 .moves-col .pb.auto { font-size: 10px; padding: 0 4px; }

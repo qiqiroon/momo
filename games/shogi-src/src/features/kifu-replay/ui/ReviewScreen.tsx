@@ -26,6 +26,8 @@ import { asReplay, holdReplayGuard, replayKifu } from '../replay';
 import {
   reviewApplyMoves,
   reviewBranchMoves,
+  reviewIsOwnGame,
+  reviewMySide,
   reviewSelectHand,
   reviewSelectSquare,
   reviewTarget,
@@ -95,6 +97,11 @@ export function ReviewScreen() {
    * 二人のときだけ、**ホストから配られた棋譜で差し替わる**（親 §6.3.6・入室時の 1 回）。
    */
   const [file, setFile] = useState<KifuFile | null>(() => reviewTarget());
+  /**
+   * ★v1.57: **いま振り返っている 1 局が、自分が指した対局から来たものか**（親 §9.2.5）。
+   * **盤の向きがこれで決まる**。画面の中で棋譜を読み込んだら、その場で決め直す。
+   */
+  const [ownGame, setOwnGame] = useState<boolean>(() => reviewIsOwnGame());
   const [ply, setPly] = useState(0);
   /**
    * 盤を並べ直させる合図。**手数が変わらないまま作り直したいことがある**
@@ -189,6 +196,8 @@ export function ReviewScreen() {
       adoptLoadedKifu(next);
       // **差し替えたら初期局面から**（親 §9.4.1）＝分岐も持ち越さない。
       setFile(next);
+      // ★v1.57: **読み込んだ棋譜は自分の対局ではない**＝盤は先手が下（親 §9.2.5）。
+      setOwnGame(false);
       setPly(0);
       setRebuild((v) => v + 1);
       setSaved(true);
@@ -256,7 +265,12 @@ export function ReviewScreen() {
     sharedPointRef.current = { ply: incoming.ply, branch: incoming.branch };
     // 配られた棋譜で差し替わることがある（ゲスト側の 1 回目）。
     const target = reviewTarget();
-    if (target !== file) setFile(target);
+    if (target !== file) {
+      setFile(target);
+      // ★v1.57: 配られた 1 局の出どころに従って向きを決め直す（親 §9.2.5）＝
+      // 1 回目（いま指した対局の続き）なら自分の側、差し替え（ホストが読み込んだ）なら先手が下。
+      setOwnGame(reviewIsOwnGame());
+    }
     setPlaying(false);
     setPly(incoming.ply);
     setRebuild((v) => v + 1);
@@ -356,16 +370,25 @@ export function ReviewScreen() {
   }, []);
 
   /**
-   * どちら側から見た盤にするか。
+   * ★v1.57: どちら側から見た盤にするか。**棋譜の出どころで決まる**（親 §9.2.5）。
    *
-   * **二人のときは棋譜の持ち主ではなく自分の側**（親 §6.3.6）＝棋譜はホストのものが
-   * 配られるので、そのまま使うとゲストの盤だけ上下が逆になる（棋譜には**書き出した
-   * 人から見た向き**が入っている）。ひとりのときは従来どおり棋譜のものを使う。
+   * - **いま自分が指した対局を続けて振り返るとき**＝**自分の側が手前**。
+   *   二人ならそれぞれ自分の側なので、**二人の画面は上下が逆**になる（棋譜には
+   *   **書き出した人から見た向き**が入っており、ホストのものが配られるため、
+   *   棋譜の向きをそのまま使うと**ゲストの盤だけ上下が逆**になる）。
+   * - **外から読み込んだ棋譜**＝**先手が下**（どちらの対局でもないので寄せる先が無い）。
+   *
+   * **自分の側は控えてあるものを使う**（`reviewMySide`）＝**部屋を移ると先後は消える**
+   * ので、その場で聞きに行っても答えが返らない（v1.55〜v1.56 の不具合の原因）。
+   * 控えが無いときだけ、いま居る部屋に聞く（部屋を移らない経路のための保険）。
    */
-  const viewerSide: 'player1' | 'player2' =
-    (shared ? pluginGet<OnlineGameConnector>('gameConnector')?.getMySide() : null) ??
-    file?.meta.viewerSide ??
-    'player1';
+  const viewerSide: 'player1' | 'player2' = !ownGame
+    ? 'player1'
+    : (shared
+        ? (reviewMySide() ?? pluginGet<OnlineGameConnector>('gameConnector')?.getMySide())
+        : null) ??
+      file?.meta.viewerSide ??
+      'player1';
   const oppSide: 'player1' | 'player2' = viewerSide === 'player1' ? 'player2' : 'player1';
   const flipped = viewerSide === 'player2';
 
@@ -649,9 +672,16 @@ export function ReviewScreen() {
         } as CSSProperties
       }
     >
-      <div className="grid">
-        <div className="main-col">
-          <header className="match-header">
+      {/* ★v1.57: **ヘッダと操作の行は列の外へ出す**（付録D-12 v1.6 §2／§5）。
+          理由は 2 つあり、どちらも実機のご報告から出たもの（2026-08-19）。
+          ①**盤の位置が操作の行の伸び縮みで動いていた**＝列の幅は「その中でいちばん
+            幅を要るもの」で決まるので、棋譜の情報を載せたこの行が盤より幅を要ると、
+            **成り・不成のボタンが出入りするたびに盤が左右に動く**（実測 25px）。
+          ②**右の列が盤と同じ高さから始まる**＝この 2 つが左の列に居る間、右の列は
+            盤より 159px 上から始まっており、**盤の下側を見ようと画面を送ると
+            再生の操作帯が画面の上へ抜けて届かなかった**（実測 308px）。
+          列の外へ出すと、**列の幅は盤の側だけで決まり、右の列は盤の高さから始まる**。 */}
+      <header className="match-header">
             <CatIcon />
             <div className="title-block">
               <h1>
@@ -792,6 +822,8 @@ export function ReviewScreen() {
             />
           </div>
 
+      <div className="grid">
+        <div className="main-col">
           <div className="pinfo opp">
             <span className="nm">{file ? labels.playerLabel(file, oppSide) : t('player.opp')}</span>
             {/* ★v1.55: **王手は出す**（親 §9.4.2.1）。ただし**無視して指せる**ので、

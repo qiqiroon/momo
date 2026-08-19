@@ -22,8 +22,8 @@ import type { ReviewMessage, ReviewMovePayload, ReviewPoint } from '../../core/p
 import { useOffersStore } from '../../core/store/offers-store';
 import { useRouteStore } from '../../core/store/route-store';
 import { parseKifu, serializeKifu } from './io';
-import { clearReviewTarget, reviewTarget, setReviewTarget } from './review';
-import { loadLastKifu } from './storage';
+import { clearReviewTarget, reviewTarget, setReviewMySide, setReviewTarget } from './review';
+import { lastKifuIsOwnGame, loadLastKifu } from './storage';
 import type { KifuFile } from './types';
 
 /** 部屋を建てた側か、入った側か。**正はホスト**（親 §6.3.6）。 */
@@ -136,6 +136,9 @@ export function clearReviewNotice(): void {
 /** ひとりへ戻す（断られたとき・後始末）。 */
 export function endSharedReview(): void {
   useReviewShareStore.setState({ ...initial });
+  // ★v1.57: 控えも待ち受けもここで忘れる（親 §6.3.6＝残っていると次の入り方に効く）。
+  setReviewMySide(null);
+  dealIsOwnGame = false;
 }
 
 /**
@@ -194,8 +197,16 @@ export function leaveSharedReview(): void {
 function ensureReviewTarget(fromGame: boolean): void {
   if (!fromGame && reviewTarget()) return;
   const remembered = loadLastKifu();
-  if (remembered) setReviewTarget(remembered, 'game');
+  // ★v1.57: 出どころをそのまま継ぐ（親 §9.2.5）＝終わったばかりの対局なら自分の対局、
+  // 前に棋譜を読み込んでいればそれは自分の対局ではない。
+  if (remembered) setReviewTarget(remembered, 'game', lastKifuIsOwnGame());
 }
+
+/**
+ * ★v1.57: 次に配られてくる 1 局の出どころ（`beginSharedReview` で決める）。
+ * ゲスト側だけが使う（ホストは自分で選んだものを持っている）。
+ */
+let dealIsOwnGame = false;
 
 /**
  * 二人の感想戦を始める。**役はその部屋のホストかどうかで決まる**（打診した側ではない）
@@ -207,6 +218,21 @@ function ensureReviewTarget(fromGame: boolean): void {
 function beginSharedReview(fromGame: boolean): ReviewRole {
   const c = connector();
   const role: ReviewRole = c?.isRoomHost() ? 'host' : 'guest';
+  // ★v1.57: **自分の側をここで控える**（親 §6.3.6・§9.2.5）。
+  //
+  // ここは**まだ対局の部屋に居るうち**に必ず通る唯一の場所で、この後の
+  // 「感想戦の部屋へ移る」で部屋を出ると**先後は消える**（部屋が持っている情報なので、
+  // 出た先で聞いても答えが返らない）。v1.55〜v1.56 はそれで棋譜の向き（＝ホストの向き）
+  // に落ちており、**ゲストの盤だけ上下が逆**になっていた（2026-08-19 実機のご報告）。
+  //
+  // **対局の続きでないときは必ず忘れる**（`null`）＝残っていると、ロビーから入った
+  // 感想戦に前の対局の側が効いてしまう。
+  setReviewMySide(fromGame ? (c?.getMySide() ?? null) : null);
+  // ★v1.57: **次に配られてくる 1 局が「いま指した対局」かどうか**（親 §9.2.5）。
+  // **手元に前の 1 局が残っているかどうかでは決められない**＝前に感想戦を使っていれば
+  // 残っているので、それを手掛かりにすると 2 回目から向きが変わる（v1.53 で直した
+  // 「控えが画面より長生きする」のと同じ形）。**待っている側が知っている事実で持つ。**
+  dealIsOwnGame = fromGame;
   if (role === 'host') ensureReviewTarget(fromGame);
   useReviewShareStore.setState({
     role,
@@ -566,7 +592,11 @@ export function receiveReviewMessage(msg: ReviewMessage): void {
         try {
           const file = parseKifu(msg.kifu);
           // 振り返る対象を差し替える。**記憶には触らない**（親 §9.4.3）。
-          setReviewTarget(file, 'game');
+          // ★v1.57: **配られたものが「自分の対局」かどうかは、待っていた側が知っている**
+          //（親 §9.2.5）＝対局の続きとして始めたなら 1 回目に配られるのがその対局。
+          // **2 回目以降は差し替え**＝ホストが棋譜を読み込んだということなので先手が下。
+          setReviewTarget(file, 'game', dealIsOwnGame);
+          dealIsOwnGame = false;
         } catch {
           // 読めない棋譜だった。配り直しを待つ（勝手に部屋から出さない）。
           return;

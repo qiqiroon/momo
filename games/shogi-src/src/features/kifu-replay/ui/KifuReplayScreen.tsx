@@ -21,7 +21,12 @@ import { readKifuFile } from '../io';
 import { asReplay, replayKifu } from '../replay';
 import { setReviewTarget } from '../review';
 import { endingLabel } from './ending';
-import { kifuMemoryState, loadLastKifu, type KifuMemoryState } from '../storage';
+import {
+  kifuMemoryState,
+  lastKifuIsOwnGame,
+  loadLastKifu,
+  type KifuMemoryState,
+} from '../storage';
 import type { KifuFile } from '../types';
 import { KifuListModal } from './KifuListModal';
 import { kifuLabels } from './labels';
@@ -54,6 +59,11 @@ export function KifuReplayScreen() {
   const [remembered, setRemembered] = useState<KifuFile | null>(() => loadLastKifu());
   const [memoryState, setMemoryState] = useState<KifuMemoryState>(() => kifuMemoryState());
   const [file, setFile] = useState<KifuFile | null>(() => loadLastKifu());
+  /**
+   * ★v1.57: **いま出している 1 局が、自分が指した対局から来たものか**（親 §9.2.5）。
+   * **盤の向きがこれで決まる**。最初に出るのは記憶している 1 局なので、その出どころを継ぐ。
+   */
+  const [ownGame, setOwnGame] = useState<boolean>(() => lastKifuIsOwnGame());
   const [ply, setPly] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState<number>(1);
@@ -194,7 +204,20 @@ export function KifuReplayScreen() {
     }
   };
 
-  const viewerSide: 'player1' | 'player2' = file?.meta.viewerSide ?? 'player1';
+  /**
+   * ★v1.57: どちら側から見た盤にするか。**棋譜の出どころで決まる**（親 §9.2.5）。
+   *
+   * - **いま自分が指した対局**（記憶している 1 局）＝**自分の側が手前**。
+   * - **外から読み込んだ棋譜**（一覧・フォルダ・書類ピッカー）＝**先手が下**。
+   *
+   * v1.56 までは棋譜が持つ向きをそのまま使っていたが、そこに入っているのは
+   * **書き出した人から見た向き**なので、**他人の棋譜を読み込むと、自分が指しても
+   * いない対局が後手から見た盤で出る**ことがあった。**読み込んだ棋譜には「自分」が
+   * 居ない**ので、将棋の既定の向きに倒す。**感想戦 (S11) とまったく同じ規定**。
+   */
+  const viewerSide: 'player1' | 'player2' = ownGame
+    ? (file?.meta.viewerSide ?? 'player1')
+    : 'player1';
   const oppSide: 'player1' | 'player2' = viewerSide === 'player1' ? 'player2' : 'player1';
   const flipped = viewerSide === 'player2';
 
@@ -214,6 +237,9 @@ export function KifuReplayScreen() {
   const pick = (next: KifuFile) => {
     setPlaying(false);
     setFile(next);
+    // ★v1.57: **記憶している 1 局を選び直したときだけ「自分の対局」**（親 §9.2.5）。
+    // 一覧・フォルダ・書類ピッカーから来たものは外の棋譜なので、盤は先手が下。
+    setOwnGame(next === remembered && lastKifuIsOwnGame());
     setPly(0);
     setListOpen(false);
     setToast(t('s08.loaded'));
@@ -369,7 +395,9 @@ export function KifuReplayScreen() {
                 seButton();
                 setPlaying(false);
                 if (file) {
-                  setReviewTarget(file, 'kifu-replay');
+                  // ★v1.57: 出どころも一緒に渡す（親 §9.2.5）＝盤の向きは
+                  // 感想戦でも同じ規定で決まるので、ここで決め直させない。
+                  setReviewTarget(file, 'kifu-replay', ownGame);
                   setScreen('review');
                 }
               }}

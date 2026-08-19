@@ -479,7 +479,8 @@
   .draw-area{display:flex;gap:18px;justify-content:center;}
   .draw-slot{display:flex;flex-direction:column;align-items:center;gap:7px;}
   .draw-slot small{font-size:.72rem;color:var(--text-muted);}
-  .mini{width:58px;height:92px;border-radius:8px;border:1px solid #e7ddc4;display:flex;align-items:center;justify-content:center;flex-direction:column;font-size:.7rem;color:#333;background:#f1e6c6;box-shadow:0 3px 8px rgba(0,0,0,.4);overflow:hidden;}
+  /* v3.11: 親決めの枠も、絵札のときは白っぽい枠線と下地を出さない（.mini.back で裏だけ戻す） */
+  .mini{width:58px;height:92px;border-radius:8px;border:1px solid transparent;display:flex;align-items:center;justify-content:center;flex-direction:column;font-size:.7rem;color:#333;background:transparent;box-shadow:0 3px 8px rgba(0,0,0,.4);overflow:hidden;}
   /* v3.10: 引く前の空きマスも本物の裏面（総柄）にそろえる。下地は裏面の地色 */
   .mini.back{background:#701700;color:transparent;border-color:#20130c;}
   .mini .card{width:58px;height:auto;}
@@ -511,7 +512,9 @@
   .home-btn + .rulename{margin-left:6px;margin-right:auto;}
   .statusbar b{color:var(--orange-mid);}
   /* カードは幅を CSS 変数で可変にし、高さは縦横比から自動算出（機種ごとに JS が --card-w を実測セット） */
-  .card{width:var(--card-w,42px);aspect-ratio:42/67;height:auto;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,.5);display:block;flex:0 0 auto;background:#f1e6c6;}
+  /* v3.11: 絵札の外にはみ出していたクリーム色の下地をやめる（赤茶の縁を弱めていた）。裏札は暗い背景と見分けやすいよう下地を残す */
+  .card{width:var(--card-w,42px);aspect-ratio:42/67;height:auto;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,.5);display:block;flex:0 0 auto;background:transparent;}
+  .card.back{background:#f1e6c6;}
   .card.cap{width:var(--cap-w,32px);aspect-ratio:32/51;height:auto;}
   .card.match{outline:2px solid var(--gold);box-shadow:0 0 8px var(--gold);border-radius:5px;}
   .card.sel{outline:2px solid var(--gold);transform:translateY(-6px);}
@@ -1319,7 +1322,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.10</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.11</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1385,7 +1388,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.10</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.11</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1521,7 +1524,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.10</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.11</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1584,7 +1587,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.10</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.11</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>

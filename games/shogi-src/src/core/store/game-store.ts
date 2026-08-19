@@ -14,7 +14,7 @@ import {
   positionHash,
 } from '../engine';
 import type {
-  BoardMove, BoardTopology, HandicapSetting, Mgf, Move, PieceInstance, Player, Position, Square,
+  BoardMove, BoardTopology, HandicapSetting, Mgf, Move, MoveDest, PieceInstance, Player, Position, Square,
 } from '../engine';
 import { formatMove, pieceNameJa, squareNameJa } from '../engine/kifu/format';
 import { NO_LIMIT_TIME_CONTROL, initClockState, type ClockState, type TimeControl } from '../engine/time-control';
@@ -423,6 +423,23 @@ interface GameState {
     pieceId: string;
     from?: Square;
     to: Square;
+    promote?: boolean;
+  }) => boolean;
+  /**
+   * ★v1.55: 感想戦で盤を自由に組み替える 1 手を適用する（親 v1.49 §9.4.2.1）。
+   *
+   * **合法性を一切見ない**（感想戦には不可操作が無い）。**量子の候補も更新しない**
+   * （量子分冊 §Q22.1＝自由な手は正体について何も語っていないので、絞ると嘘の
+   * 絞り込みになり、説明のつかない手では候補が空になって異常として止まる）。
+   * **終局の判定もしない**（§9.4＝王を取っても終局しない）。
+   *
+   * **指す前の局面は積む**ので、「戻す」で 1 つずつ戻せる（§9.4.2.1）。
+   * **対局中には呼ばれない**＝呼ぶのは感想戦の画面と、そこから来た伝言だけ。
+   */
+  applyFreeMove: (msg: {
+    pieceId: string;
+    from?: Square;
+    dest: MoveDest;
     promote?: boolean;
   }) => boolean;
 }
@@ -1442,6 +1459,56 @@ export const useGameStore = create<GameState>((set, get) => ({
     });
   },
 
+  applyFreeMove: (msg) => {
+    const state = get();
+    const { position, mgf } = state;
+    const move: Move = {
+      type: 'free',
+      pieceId: msg.pieceId,
+      ...(msg.from ? { from: msg.from } : {}),
+      dest: msg.dest,
+      ...(msg.promote !== undefined ? { promote: msg.promote } : {}),
+    };
+    let nextPos: Position;
+    try {
+      nextPos = applyMove(mgf, position, move);
+    } catch {
+      // 掴んだ駒がもう無い等。**盤は動かさない**（黙って別の駒を動かさない）。
+      return false;
+    }
+    const formatted = formatMove(mgf, position, move);
+    set({
+      // **指す前の局面を積む**＝「戻す」は待ったと同じ仕掛けで 1 つずつ戻る。
+      positionHistory: [...state.positionHistory, position],
+      positionCountsHistory: [...state.positionCountsHistory, state.positionCounts],
+      clockHistory: [
+        ...state.clockHistory,
+        { clocks: state.clocks, activeClockSide: state.activeClockSide },
+      ],
+      position: {
+        ...nextPos,
+        // **手として残す**＝分岐の長さは「盤が持つ手の数と本譜の手数の差」で数えるので、
+        // ここへ入れないと組み替えが分岐に数えられず、相手にも渡らない。
+        history: [...position.history, move],
+        moveNumber: position.moveNumber + 1,
+        // **手番は動かさない**＝感想戦に手番の縛りは無く、次に触った駒の側になる。
+        sideToMove: position.sideToMove,
+      },
+      moveHistory: [...state.moveHistory, formatted],
+      lastAppliedMove: {
+        move,
+        source: 'local',
+        seq: (state.lastAppliedMove?.seq ?? 0) + 1,
+      },
+      selectedSquare: null,
+      selectedHandPieceId: null,
+      legalDestinations: [],
+      // **量子の候補は触らない**（§Q22）。もつれの光らせ方も出さない。
+      entangledPieceIds: [],
+    });
+    return true;
+  },
+
   applyRemoteMove: (msg) => {
     const { position, mgf, status } = get();
     if (status !== 'playing') return false;
@@ -1490,9 +1557,14 @@ export const useGameStore = create<GameState>((set, get) => ({
           m.to.row === move.to.row &&
           m.to.col === move.to.col &&
           m.promote === move.promote
-        : m.type === 'drop' && m.pieceId === move.pieceId &&
-          m.to.row === move.to.row && m.to.col === move.to.col,
+        : move.type === 'drop' &&
+          m.type === 'drop' &&
+          m.pieceId === move.pieceId &&
+          m.to.row === move.to.row &&
+          m.to.col === move.to.col,
     );
+    // ★v1.55: `free`（感想戦の自由な手）はここへ来ない＝**棋譜に入らない**ので、
+    // 記録された手を並べ直す道には現れない（親 §9.4.3）。
     if (!target) return false;
     applyAndCommit(set, get, target, 'remote');
     return true;

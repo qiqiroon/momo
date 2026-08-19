@@ -67,7 +67,46 @@ export interface DropMove {
   to: Square;
 }
 
-export type Move = BoardMove | DropMove;
+/**
+ * ★v1.55: 感想戦で盤を自由に組み替える 1 手（親 v1.49 §9.4.2.1）。
+ *
+ * **対局では絶対に生まれない**＝作れるのは感想戦の画面だけであり、**棋譜にも
+ * 記憶にも入らない**（分岐は記録ではない・親 §9.4.3）。
+ *
+ * **なぜ「手」にするのか**＝組み替えを手として表すと、**(a) 二人のときそのまま
+ * 相手へ渡り（新しい伝言が要らない） (b) 「戻す」が 1 つずつ効き（戻す仕組みは
+ * 指す前の局面を積んで戻す形） (c) 分岐の長さの数え方が変わらない**（盤が持つ
+ * 手の数と本譜の手数の差）。
+ *
+ * **行き先を `to`（マス）に押し込まない**＝駒台へ移す・消すはマスではないので、
+ * マスの欄に別の意味を持たせると、**名札を正体として使う**ことになる。
+ */
+export type MoveDest =
+  /** 盤のマスへ（**そこに駒があれば取る**）。 */
+  | { kind: 'square'; square: Square }
+  /** どちらかの駒台へ（自分の駒でも相手の駒でも移せる）。 */
+  | { kind: 'hand'; owner: Player }
+  /** 盤からも駒台からも取り除く（どこにも行かない）。 */
+  | { kind: 'discard' };
+
+export interface FreeMove {
+  type: 'free';
+  pieceId: PieceId;
+  /** 盤から動かすなら元のマス。省略＝駒台から。 */
+  from?: Square;
+  /** 行き先。 */
+  dest: MoveDest;
+  /**
+   * 置いた後の成りの状態。**省略＝いまのまま**。
+   * **成り・不成の切り替えは「同じマスへ移して成りだけ変える手」**として表す
+   * （`from` と `dest` が同じマス）。
+   */
+  promote?: boolean;
+  /** 盤のマスへ移して駒を取ったとき、その駒（戻すときの手掛かり・表示用）。 */
+  capturedPieceId?: PieceId;
+}
+
+export type Move = BoardMove | DropMove | FreeMove;
 
 export interface Position {
   width: number;
@@ -85,4 +124,16 @@ export interface Position {
    * 着手を適用しても (applyMove の展開で) そのまま引き継がれる。
    */
   topology?: BoardTopology;
+}
+
+/**
+ * ★v1.55: その手で駒が**着地したマス**（無ければ null）。
+ *
+ * **「最後に動いた場所」を出す画面が 3 つある**（対局・棋譜再生・感想戦）ので、
+ * **手の形を各画面で場合分けさせない**ためにここへ置く（同じことを 3 か所に書かない）。
+ * **駒台へ移した手・消した手はマスに着地していない**ので null を返す。
+ */
+export function moveLandingSquare(move: Move): Square | null {
+  if (move.type === 'free') return move.dest.kind === 'square' ? move.dest.square : null;
+  return move.to;
 }

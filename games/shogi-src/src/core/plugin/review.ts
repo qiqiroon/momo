@@ -12,13 +12,28 @@
  * 量子でも同じ＝候補の減り方は手の並びから決まるので、並びが同じなら候補も同じになる。
  */
 
-/** 盤の駒を動かす／持ち駒を打つ、1 手ぶん。 */
+/**
+ * 盤の駒を動かす／持ち駒を打つ、1 手ぶん。
+ *
+ * ★**v1.55: 盤を自由に組み替える手も、同じこの形で運ぶ**（親 v1.49 §9.4.2.1）＝
+ * **行き先の種類が増えるだけ**で、伝言そのものは増えない。`kind: 'free'` のときは
+ * `to` ではなく `dest` を見る（**マスの欄に別の意味を持たせない**）。
+ */
 export interface ReviewMovePayload {
-  kind: 'move' | 'drop';
+  kind: 'move' | 'drop' | 'free';
   pieceId: string;
   from?: { row: number; col: number };
-  to: { row: number; col: number };
+  /** `kind` が 'move' / 'drop' のときの行き先。 */
+  to?: { row: number; col: number };
   promote?: boolean;
+  /**
+   * ★v1.55: `kind: 'free'` のときの行き先。
+   * `square`＝盤のマスへ／`hand`＝どちらかの駒台へ／`discard`＝消す。
+   */
+  dest?:
+    | { kind: 'square'; square: { row: number; col: number } }
+    | { kind: 'hand'; owner: 'player1' | 'player2' }
+    | { kind: 'discard' };
 }
 
 /**
@@ -40,8 +55,23 @@ export interface ReviewPoint {
  * - `move` / `seek` / `undo` … 指す・再生する・戻す。**盤だけでなく再生操作も共有する**
  */
 export type ReviewMessage =
-  | { kind: 'offer' }
-  | { kind: 'reply'; accepted: boolean }
+  /**
+   * ★v1.55: **打診する側がその部屋のホストなら、移る先の合言葉と部屋名を載せる**
+   * （親 v1.49 §6.3.6 の移る手順・**往復を増やさない**）。ゲストが打診するときは
+   * 付かず、ホストが返事に載せてくる。
+   */
+  | { kind: 'offer'; pass?: string; room?: string }
+  /**
+   * ★v1.55: 受けるときは**移る先の部屋の合言葉**も渡す（親 v1.49 §6.3.6 の移る手順）。
+   * **往復を増やさない**ためここに載せる。断るときは付かない。
+   */
+  | { kind: 'reply'; accepted: boolean; pass?: string; room?: string }
+  /**
+   * ★v1.55: ハイライト（親 v1.49 §9.4.2.2）。**盤の 1 か所を指し示す印**。
+   * `null`＝消えた。**これは手ではない**ので、受け取った側は**盤を組み立て直さない**。
+   * **取りこぼしても害が無い**＝次に触れば上書きされ、盤が動けば両者とも消える。
+   */
+  | { kind: 'mark'; square: { row: number; col: number } | null }
   | { kind: 'state'; kifu?: string; ply: number; branch: ReviewMovePayload[] }
   | { kind: 'move'; base: ReviewPoint; ply: number; branch: ReviewMovePayload[] }
   | { kind: 'seek'; base: ReviewPoint; ply: number }

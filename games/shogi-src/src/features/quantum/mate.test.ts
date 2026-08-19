@@ -145,7 +145,7 @@ describe('Phase 5-14 候補集合を含む詰み判定 (§Q13.7)', () => {
     ]);
     expect(isInCheck(hondou, pos, 'player1')).toBe(true);
     const escapes = generateLegalMoves(hondou, pos);
-    expect(escapes.some((m) => m.to.row === 7 && m.to.col === 4)).toBe(true);
+    expect(escapes.some((m) => m.type !== 'free' && m.to.row === 7 && m.to.col === 4)).toBe(true);
     expect(isCheckmate(hondou, pos)).toBe(false);
   });
 

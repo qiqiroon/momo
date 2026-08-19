@@ -106,19 +106,21 @@ describe('S11 どちらの駒でも指せる（手番の縛りが無い）', () 
     expect(useGameStore.getState().position.sideToMove).toBe('player2');
   });
 
-  it('★指せるのは合法手だけ（盤面編集ではない）', () => {
+  it('★v1.55: 合法でない置き方も通る（v1.42 の「合法手だけ」は撤回）', () => {
     const { container } = render(<ReviewScreen />);
     fireEvent.click(squareAt(container, 2, 4));
-    // 歩は 1 マス前へしか行けない。**2 マス先を押しても、そこへは置けない**
-    // （対局画面と同じく、行けない空きマスを押すと持っていた駒を放す）。
+    // 歩は 1 マス前へしか行けないが、**感想戦では 2 マス先へも置ける**
+    // （親 v1.49 §9.4.2.1＝確かめたい局面が合法手の並びで到達できるとは限らない）。
     fireEvent.click(squareAt(container, 4, 4));
-    expect(useGameStore.getState().moveHistory).toHaveLength(0);
+    expect(useGameStore.getState().moveHistory).toHaveLength(1);
+    expect(useGameStore.getState().position.board[4][4]).not.toBeNull();
     expect(useGameStore.getState().selectedSquare).toBeNull();
 
-    // 行ける先なら指せる。
-    fireEvent.click(squareAt(container, 2, 4));
-    fireEvent.click(squareAt(container, 3, 4));
-    expect(useGameStore.getState().moveHistory).toHaveLength(1);
+    // 合法な手はこれまでどおり（成りの確認も量子の絞り込みも走る道を通る）。
+    fireEvent.click(squareAt(container, 2, 3));
+    fireEvent.click(squareAt(container, 3, 3));
+    expect(useGameStore.getState().moveHistory).toHaveLength(2);
+    expect(useGameStore.getState().position.history[1].type).toBe('move');
   });
 
   it('★分岐しても記憶は変わらない（盤 → 記録は作らない）', () => {

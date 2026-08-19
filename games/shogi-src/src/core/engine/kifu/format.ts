@@ -113,6 +113,12 @@ export function kifuPieceName(mgf: Mgf, position: Position, piece: PieceInstance
  * 本将棋モードの駒は候補集合を持たないので、自然に従来表記へ縮退する。
  */
 export function formatMove(mgf: Mgf, position: Position, move: Move): string {
+  // ★v1.55: 感想戦の自由な手（親 v1.49 §9.4.2.1・付録D-12 v1.4 §14.2）。
+  // **手数リストに 1 行として出す**が、**「自由な手である」ことは書かない**＝
+  // 感想戦の分岐はもともと記録ではないので、区別しても使い道が無い（枝であることは
+  // リストの側が示す）。
+  if (move.type === 'free') return formatFree(mgf, position, move);
+
   const mark = position.sideToMove === 'player1' ? '▲' : '△';
   const to = squareNameJa(position.width, move.to);
 
@@ -130,4 +136,35 @@ export function formatMove(mgf: Mgf, position: Position, move: Move): string {
     return `${mark}${from}${name}${to}${suffix}`;
   }
   return `${mark}${to}${name}${suffix}`;
+}
+
+/**
+ * ★v1.55: 自由な手の書き方（付録D-12 v1.4 §14.2）。
+ *
+ * **手番ではなく駒の持ち主で先後の印を選ぶ**＝感想戦には手番の縛りが無いので、
+ * 手番から選ぶと**動かした駒と印が食い違う**（名札を正体として使わない）。
+ *
+ * 棋譜の他の書き方と同じく**日本語で書く**（`formatMove` 全体がそうなっている）。
+ */
+function formatFree(mgf: Mgf, position: Position, move: Extract<Move, { type: 'free' }>): string {
+  const piece = move.from
+    ? position.board[move.from.row][move.from.col]
+    : position.hands.player1.find((p) => p.pieceId === move.pieceId) ??
+      position.hands.player2.find((p) => p.pieceId === move.pieceId) ??
+      null;
+  const mark = piece?.owner === 'player2' ? '△' : '▲';
+  const name = piece ? kifuPieceName(mgf, position, piece) : '?';
+  const src = move.from ? squareNameJa(position.width, move.from) : '';
+
+  if (move.dest.kind === 'discard') return `${mark}${src}${name} を消す`;
+  if (move.dest.kind === 'hand') {
+    const side = move.dest.owner === 'player1' ? '先手' : '後手';
+    return `${mark}${src}${name} → ${side}の駒台`;
+  }
+  const sq = move.dest.square;
+  // 同じマスへ戻す手＝**成り・不成の切り替え**（§9.4.2.1）。
+  if (move.from && move.from.row === sq.row && move.from.col === sq.col) {
+    return move.promote ? `${mark}${src}${name} を成る` : `${mark}${src}${name} を不成に`;
+  }
+  return `${mark}${src}${name} → ${squareNameJa(position.width, sq)}`;
 }

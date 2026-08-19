@@ -15,7 +15,11 @@ import { ReviewLobbyScreen } from './ReviewLobbyScreen';
 import { LobbyScreen } from './LobbyScreen';
 
 /**
- * S12 感想戦ロビー（★v1.54・親 v1.48 §9.4.1／§9.4.4・画面機能 v0.42 §3 S12）。
+ * S12 感想戦ロビー（★v1.54／★v1.55・親 v1.49 §9.4.1／§9.4.4・画面機能 v0.43 §3 S12）。
+ *
+ * ★**v1.55 で骨格を S04 とまったく同じ 4 つの箱にした**（接続／部屋に入る／部屋を作る／
+ * ひとりで始める）。**部屋を作るパネルは廃止**し、中身を箱へ直接置いている。
+ * **パスワードと非公開も S04 と同じ扱いで効く**。
  *
  * ここで固定するのは 3 つ。
  *   - **ひとりで始めるは部屋を作らない**（誰も居ない部屋を一覧に並べないため）
@@ -29,13 +33,15 @@ import { LobbyScreen } from './LobbyScreen';
 
 let created = 0;
 let joined: string | null = null;
+let lastCreate: { password?: string; isPublic?: boolean } | null = null;
 
 const fakeApi = {
   init: (o: { onWsOpen?: () => void }) => {
     o.onWsOpen?.();
   },
-  createRoom: () => {
+  createRoom: (o: { password?: string; isPublic?: boolean }) => {
     created += 1;
+    lastCreate = o;
   },
   joinRoom: (roomId: string) => {
     joined = roomId;
@@ -61,20 +67,28 @@ function finishedGame(moves = 6): void {
   useGameStore.getState().resign('player2');
 }
 
-function roomRow(id: string, name: string, hostName = '花子') {
+function roomRow(id: string, name: string, hostName = '花子', opts?: { isPublic?: boolean; hasPassword?: boolean }) {
   return {
     id,
     name,
     hostName,
-    isPublic: true,
-    hasPassword: false,
+    isPublic: opts?.isPublic ?? true,
+    hasPassword: opts?.hasPassword ?? false,
     guestConnected: false,
   };
+}
+
+/** 箱 ④ の「ひとりで始める」ボタン（同じ言葉が箱の見出しにも出る）。 */
+function soloButton(): HTMLElement {
+  const b = screen.getAllByRole('button').find((x) => x.textContent === 'ひとりで始める');
+  if (!b) throw new Error('「ひとりで始める」が見つからない');
+  return b;
 }
 
 beforeEach(() => {
   created = 0;
   joined = null;
+  lastCreate = null;
   (window as unknown as { MomoMatchmaking: typeof fakeApi }).MomoMatchmaking = fakeApi;
   useAiStore.setState({ enabled: false });
   useI18nStore.setState({ locale: 'ja' });
@@ -92,7 +106,7 @@ describe('S12 感想戦ロビー（v1.54）', () => {
   it('★「ひとりで始める」は部屋を作らずに感想戦へ入る', () => {
     const view = render(<ReviewLobbyScreen />);
 
-    fireEvent.click(screen.getByText('ひとりで始める'));
+    fireEvent.click(soloButton());
 
     expect(useRouteStore.getState().screen).toBe('review');
     // **部屋を作らない**＝人を呼ばない振り返りで一覧に部屋を並べない。
@@ -103,21 +117,61 @@ describe('S12 感想戦ロビー（v1.54）', () => {
     view.unmount();
   });
 
-  it('★「部屋を作る」は名前を決めてから建て、相手を待たずに感想戦へ入る', () => {
+  it('★「部屋を作る」は画面の上で決めて建て、相手を待たずに感想戦へ入る（v1.55）', () => {
     const view = render(<ReviewLobbyScreen />);
 
-    fireEvent.click(screen.getByText('部屋を作る'));
-    const inputs = view.container.querySelectorAll('.room-field input');
-    expect(inputs).toHaveLength(2);
+    // ★v1.55: **パネルを開かずに、部屋名の欄が最初から画面に出ている**
+    // （v1.54 は「部屋を作る」を押すとパネルが出る形だった＝S04 と揃わない）。
+    const roomInput = view.container.querySelector(
+      'input[name="shogi-review-room-label"]',
+    ) as HTMLInputElement;
+    expect(roomInput).toBeTruthy();
     // **既定を入れて出す**＝そのまま押せる（決めさせるために止めない）。
-    expect((inputs[0] as HTMLInputElement).value).toContain('感想戦');
+    expect(roomInput.value).toContain('感想戦');
 
-    fireEvent.click(view.container.querySelector('.btn-row .btn.primary') as Element);
+    fireEvent.click(screen.getByText('部屋を作成'));
 
     expect(created).toBe(1);
     // **S05 待機画面は通らない**＝先後も持ち時間も無く、揃えるものが無い。
     expect(useRouteStore.getState().screen).toBe('review');
     expect(useReviewShareStore.getState().ownsRoom).toBe(true);
+    view.unmount();
+  });
+
+  it('★v1.55: 感想戦の部屋にもパスワードと非公開が効く（S04 と同じ扱い）', () => {
+    const view = render(<ReviewLobbyScreen />);
+
+    const pw = view.container.querySelector(
+      'input[name="shogi-review-room-key"]',
+    ) as HTMLInputElement;
+    expect(pw).toBeTruthy();
+    fireEvent.change(pw, { target: { value: 'aikotoba' } });
+    fireEvent.click(view.container.querySelector('.check-private input') as Element);
+
+    fireEvent.click(screen.getByText('部屋を作成'));
+
+    // **通信の口へそのまま渡る**＝感想戦の部屋だけ扱いを変えない。
+    expect(lastCreate?.password).toBe('aikotoba');
+    expect(lastCreate?.isPublic).toBe(false);
+    view.unmount();
+  });
+
+  it('★v1.55: 非公開の部屋は「表示」を入れるまで一覧に出さない（S04 と同じ）', () => {
+    useMatchmakingStore.setState({
+      rooms: [
+        roomRow(
+          'r3',
+          encodeRoomName({ gameType: 'shogi', torus: false, quantum: false, review: true, userRoomName: 'ないしょの振り返り' }),
+          '花子',
+          { isPublic: false, hasPassword: true },
+        ),
+      ],
+    });
+    const view = render(<ReviewLobbyScreen />);
+
+    expect(screen.queryByText('ないしょの振り返り')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('表示'));
+    expect(screen.getByText('ないしょの振り返り')).toBeInTheDocument();
     view.unmount();
   });
 
@@ -154,12 +208,12 @@ describe('S12 感想戦ロビー（v1.54）', () => {
     useMatchmakingStore.setState({ connection: 'connecting' });
     const view = render(<ReviewLobbyScreen />);
 
-    const make = screen.getAllByRole('button').find((b) => b.textContent === '部屋を作る');
+    const make = screen.getAllByRole('button').find((b) => b.textContent === '部屋を作成');
     expect(make).toBeDisabled();
     // **灰色は「押せない」だけを意味する**ので、理由は言葉で出す。
     expect(screen.getByText('サーバーにつながっていません')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText('ひとりで始める'));
+    fireEvent.click(soloButton());
     expect(useRouteStore.getState().screen).toBe('review');
     view.unmount();
   });

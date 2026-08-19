@@ -30,6 +30,7 @@ import {
   buildInitialKindMap,
   countBoardPieces,
   displayKindsFor,
+  moveLandingSquare,
   foretellKindByDestination,
   isInCheck,
   positionHash,
@@ -165,7 +166,7 @@ export function GameScreen({ variant }: GameScreenProps) {
         time: timePayload,
         hash: hashPayload,
       });
-    } else {
+    } else if (move.type === 'drop') {
       c.sendMove({
         kind: 'drop',
         pieceId: move.pieceId,
@@ -174,6 +175,8 @@ export function GameScreen({ variant }: GameScreenProps) {
         hash: hashPayload,
       });
     }
+    // ★v1.55: `free`（感想戦の自由な手）はここへ来ない＝**対局画面では生まれない**。
+    // 感想戦の共有は別の伝言（親 §6.3.6 の `review_move`）が受け持つ。
   }, [lastAppliedMove, online.isOnline, online.mySide]);
 
   // v0.35 ticker → v0.38: アンカー方式に置換。手番開始時の (時計値, Date.now()) を anchor に、
@@ -372,7 +375,10 @@ export function GameScreen({ variant }: GameScreenProps) {
 
   const isSelected = (row: number, col: number) => selectedSquare?.row === row && selectedSquare?.col === col;
   const isHint = (row: number, col: number) => legalDestinations.some((d) => d.row === row && d.col === col);
-  const lastMoveTo = position.history.length > 0 ? position.history[position.history.length - 1].to : null;
+  const lastMoveTo =
+    position.history.length > 0
+      ? moveLandingSquare(position.history[position.history.length - 1])
+      : null;
   const isLastMove = (row: number, col: number) => lastMoveTo?.row === row && lastMoveTo?.col === col;
   // v0.99: 量子もつれハイライト用 Set (盤マス位置は駒の pieceId 経由で判定)
   const entangledSet = new Set(entangledPieceIds);

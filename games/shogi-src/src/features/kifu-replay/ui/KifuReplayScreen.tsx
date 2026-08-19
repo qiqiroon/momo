@@ -4,7 +4,7 @@ import { useGameStore } from '../../../core/store/game-store';
 import { useRouteStore } from '../../../core/store/route-store';
 import { requestKifuLoad } from '../../../core/store/kifu-guard';
 import { t as _t } from '../../../core/i18n';
-import { buildInitialKindMap, displayKindsFor } from '../../../core/engine';
+import { buildInitialKindMap, displayKindsFor, moveLandingSquare } from '../../../core/engine';
 import { useQuantumCycle } from '../../../core/ui-core/quantum-cycle';
 import { CatIcon } from '../../../core/ui-core/CatIcon';
 import { HeaderCommonRight } from '../../../core/ui-core/HeaderCommonRight';
@@ -203,7 +203,10 @@ export function KifuReplayScreen() {
   const goteHand = groupHand(position.hands.player2, mgf, kindMap);
   const oppHand = viewerSide === 'player1' ? goteHand : senteHand;
   const myHand = viewerSide === 'player1' ? senteHand : goteHand;
-  const lastTo = position.history.length > 0 ? position.history[position.history.length - 1].to : null;
+  const lastTo =
+    position.history.length > 0
+      ? moveLandingSquare(position.history[position.history.length - 1])
+      : null;
 
   const jump = (n: number) => setPly(Math.max(0, Math.min(moveCount, n)));
 

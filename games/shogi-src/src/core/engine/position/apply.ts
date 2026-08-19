@@ -13,6 +13,13 @@ export function applyMove(mgf: Mgf, position: Position, move: Move): Position {
     player2: position.hands.player2.slice(),
   };
 
+  // ★v1.55: 感想戦の自由な手（親 v1.49 §9.4.2.1）。**合法性を一切見ない**のはこの
+  // 関数の元からの約束（呼び出し側の責務）だが、こちらは**駒台へ移す・消す**という
+  // 行き先を持つので別に扱う。**対局では絶対に生まれない**。
+  if (move.type === 'free') {
+    return applyFree(mgf, position, move, newBoard, newHands);
+  }
+
   if (move.type === 'move') {
     const piece = newBoard[move.from.row][move.from.col];
     if (!piece) throw new Error(`No piece at from (${move.from.row}, ${move.from.col})`);
@@ -79,6 +86,95 @@ export function applyMove(mgf: Mgf, position: Position, move: Move): Position {
     newHands[player].splice(handIdx, 1);
     newBoard[move.to.row][move.to.col] = { ...dropped };
   }
+
+
+/**
+ * ★v1.55: 感想戦の自由な手を適用する（親 v1.49 §9.4.2.1）。
+ *
+ * **ここでは何も検めない**＝王手も二歩も行き所のない駒も見ない（感想戦には
+ * 不可操作が無い）。**量子の候補も触らない**（量子分冊 §Q22＝自由な手は正体に
+ * ついて何も語っていないので、絞ると嘘の絞り込みになる）。**駒は無から作らない**
+ * （§Q22.3）ので、動かすのは既に在る駒だけである。
+ *
+ * **はさみの「挟んで取る」も走らせない**＝ルールを外して並べているのに、
+ * ルールの一部だけが働くと、何が起きたのか読めなくなる。
+ */
+function applyFree(
+  mgf: Mgf,
+  position: Position,
+  move: Extract<Move, { type: 'free' }>,
+  newBoard: BoardCell[][],
+  newHands: { player1: PieceInstance[]; player2: PieceInstance[] },
+): Position {
+  // 掴んだ駒を、元の場所から外す。
+  let piece: PieceInstance | null = null;
+  if (move.from) {
+    piece = newBoard[move.from.row][move.from.col];
+    if (!piece) throw new Error(`No piece at from (${move.from.row}, ${move.from.col})`);
+    newBoard[move.from.row][move.from.col] = null;
+  } else {
+    for (const owner of ['player1', 'player2'] as const) {
+      const idx = newHands[owner].findIndex((p) => p.pieceId === move.pieceId);
+      if (idx >= 0) {
+        piece = newHands[owner][idx];
+        newHands[owner].splice(idx, 1);
+        break;
+      }
+    }
+    if (!piece) throw new Error(`Piece ${move.pieceId} not found in hands`);
+  }
+  if (piece.pieceId !== move.pieceId) {
+    throw new Error(`Piece ID mismatch: expected ${move.pieceId}, got ${piece.pieceId}`);
+  }
+
+  // 成り・不成の切り替え（省略＝いまのまま）。**成った姿を持たない駒種でも
+  // `promoted` だけは切り替える**＝候補から顔を作るので表示は候補側が決める
+  // （§Q11.3 と同じ考え方）。
+  let placed: PieceInstance = piece;
+  if (move.promote !== undefined && move.promote !== piece.promoted) {
+    const def = mgf.pieces.find((p) => p.id === piece!.kind);
+    if (move.promote && def?.promoted_id) {
+      placed = { ...piece, kind: def.promoted_id, promoted: true };
+    } else if (!move.promote && !def?.promoted_id) {
+      // いま成駒の名前なら、元の名前へ戻す。
+      placed = { ...piece, kind: getUnpromotedKind(mgf, piece.kind), promoted: false };
+    } else {
+      placed = { ...piece, promoted: move.promote };
+    }
+  }
+
+  if (move.dest.kind === 'discard') {
+    // どこにも行かない（盤からも駒台からも消える）。
+    return { ...position, board: newBoard, hands: newHands, history: position.history };
+  }
+
+  if (move.dest.kind === 'hand') {
+    // **どちらの駒台へでも移せる**（自分の駒でも相手の駒でも）。
+    // **成りは落とす**＝駒台の駒は成っていない姿で持つ（対局の捕獲と同じ）。
+    const owner = move.dest.owner;
+    newHands[owner].push({
+      ...placed,
+      kind: placed.promoted ? getUnpromotedKind(mgf, placed.kind) : placed.kind,
+      owner,
+      promoted: false,
+    });
+    return { ...position, board: newBoard, hands: newHands, history: position.history };
+  }
+
+  // 盤のマスへ。**そこに駒があれば取る**（取った駒は動かした側の駒台へ）。
+  const sq = move.dest.square;
+  const captured = newBoard[sq.row][sq.col];
+  if (captured) {
+    newHands[placed.owner].push({
+      ...captured,
+      kind: captured.promoted ? getUnpromotedKind(mgf, captured.kind) : captured.kind,
+      owner: placed.owner,
+      promoted: false,
+    });
+  }
+  newBoard[sq.row][sq.col] = placed;
+  return { ...position, board: newBoard, hands: newHands, history: position.history };
+}
 
   // はさみ将棋の「挟んで取る」(親 §3.8 `post_move_topology`)。挟みの決まりを持たない
   // ルールでは何も起きないので、本将棋・トーラス・量子の各モードは素通りする。

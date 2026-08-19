@@ -36,7 +36,14 @@ export interface ReviewView {
 }
 
 /** 画面に一言出すこと（付録D-12 §7／§8）。 */
-export type ReviewNotice = 'declined' | 'aloneNoPeer' | 'oppLeft' | 'overridden' | null;
+export type ReviewNotice =
+  | 'declined'
+  | 'aloneNoPeer'
+  | 'oppLeft'
+  | 'overridden'
+  /** ★v1.55: 感想戦の部屋へ移れなかった（親 §9.4.4＝ひとりで続ける）。 */
+  | 'migrateFailed'
+  | null;
 
 interface ReviewShareState {
   /** 二人でやっているときだけ入る。null＝ひとり（縮退＝何も送らない）。 */
@@ -63,6 +70,23 @@ interface ReviewShareState {
    * 感想戦の部屋**が並び続ける（戻ってくる画面が無いので誰も片付けられない）。
    */
   ownsRoom: boolean;
+  /**
+   * ★v1.55: 相手が付けたハイライト（親 v1.49 §9.4.2.2）。null＝付いていない。
+   *
+   * **自分の印と描き分けない**＝印は 1 つであり、どちらが付けたかは「いま話して
+   * いる人」で分かる（描き分けると同じ場所を指したときに 2 重に出る）。したがって
+   * 画面は**自分の印と相手の印を同じ 1 つの入れ物として扱う**が、**受け取ったことを
+   * 画面が拾えるよう `seq` で数える**（同じマスを指し直されても映せるように）。
+   */
+  mark: { row: number; col: number; seq: number } | null;
+  /**
+   * ★v1.55: **対局の部屋から感想戦の部屋へ移っている最中**（親 v1.49 §9.4.4／§6.3.6）。
+   *
+   * この間は**互いに部屋の外に居る時間がある**ので、**切断を「相手が抜けた」と
+   * 取り違えない**。画面は「移っています」と出して盤に触れない（線が切れている
+   * 間に指しても相手へ届かないため）。
+   */
+  migrating: boolean;
 }
 
 const initial: ReviewShareState = {
@@ -73,6 +97,8 @@ const initial: ReviewShareState = {
   incoming: null,
   notice: null,
   ownsRoom: false,
+  mark: null,
+  migrating: false,
 };
 
 export const useReviewShareStore = create<ReviewShareState>(() => ({ ...initial }));
@@ -194,10 +220,124 @@ function beginSharedReview(fromGame: boolean): ReviewRole {
   return role;
 }
 
+/**
+ * ★v1.55: 対局の部屋から移る先の、その場限りの合言葉と部屋名（親 v1.49 §6.3.6）。
+ *
+ * **作るのは部屋のホストだけ**＝建てるのもホストなので、決める側を 1 つにする。
+ * **人には見せない**（画面に出さない・ログにも出さない）。
+ */
+let migrationPass: string | null = null;
+/** 相手（ホスト）の打診に載ってきた合言葉。答えるときに使う。 */
+let offeredMigration: { pass: string; room: string } | null = null;
+let migrationRoom: string | null = null;
+/** 移るのを待つ上限（過ぎたらひとりで続ける・親 §9.4.4）。 */
+const MIGRATE_TIMEOUT_MS = 12_000;
+let migrateTimer: number | null = null;
+
+/** その場限りの合言葉を作る。**人には見せない**ので読みやすさは要らない。 */
+function newPass(): string {
+  const b = new Uint8Array(8);
+  crypto.getRandomValues(b);
+  return Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * ★v1.55: 移る先の部屋の名前と合言葉を用意する（**ホストだけ**）。
+ * 打診／諾否の伝言に載せて渡すので、**往復を増やさない**。
+ */
+function prepareMigration(): { pass: string; room: string } | null {
+  const c = connector();
+  if (!c?.isRoomHost()) return null;
+  const build = pluginGet<(name: string) => string>('reviewRoom:buildName');
+  if (!build) return null;
+  // **同じ部屋名**にする（親 §9.4.4）＝人から見て同じ場が続くようにするため。
+  const current = pluginGet<() => string>('reviewRoom:currentUserName')?.() ?? '';
+  migrationPass = newPass();
+  migrationRoom = build(current);
+  return { pass: migrationPass, room: migrationRoom };
+}
+
 /** 感想戦を相手に申し出る（付録D-12 §7）。返事を待つ間も**閉じ込めない**。 */
 export function offerReview(): void {
   useOffersStore.getState().setReviewOfferFrom('me');
-  connector()?.sendReview({ kind: 'offer' });
+  // ★v1.55: **ホストが申し出るときは、ここに合言葉を載せる**（§6.3.6）。
+  // ゲストが申し出るときは付かず、ホストが返事に載せてくる。
+  const m = prepareMigration();
+  connector()?.sendReview({ kind: 'offer', ...(m ? { pass: m.pass, room: m.room } : {}) });
+}
+
+/**
+ * ★v1.55: 対局の部屋を出て、感想戦の部屋へ移る（親 v1.49 §9.4.4／§6.3.6）。
+ *
+ * **人がするのは「受ける」を押すことだけ**＝合言葉も部屋の一覧も画面に出さない。
+ *
+ * なぜ移るのか＝**部屋の用途の印は建てた後に変えられない**ので、対局の印のまま
+ * 感想戦を続けると、**片方が抜けた瞬間に対局のつもりの人が入ってくる**。
+ *
+ * なぜ合言葉なのか＝**部屋を離れると直通の線もその場で閉じる**ので、離れた後に
+ * 新しい部屋を知らせる道が無く、離れる前にはその部屋がまだ建っていない。
+ * **番号ではなく合言葉で待ち合わせる**（名前だけで見分けない＝同じ名前の部屋が
+ * 2 つあっても、合言葉の合う部屋は 1 つしか無い）。
+ */
+function migrateToReviewRoom(pass: string, room: string): void {
+  const asHost = connector()?.isRoomHost() === true;
+  useReviewShareStore.setState({ migrating: true });
+  // 対局の部屋を出る。**自分から出たと立ててから**出る（事故と取り違えないため）。
+  pluginGet<() => void>('reviewRoom:leave')?.();
+
+  if (asHost) {
+    const ok = pluginGet<(p: { room: string; pass: string }) => boolean>('reviewRoom:createMigrated')?.({
+      room,
+      pass,
+    });
+    if (!ok) {
+      failMigration();
+      return;
+    }
+    useReviewShareStore.setState({ ownsRoom: true });
+  } else {
+    pluginGet<(p: { room: string; pass: string }) => void>('reviewRoom:joinMigrated')?.({ room, pass });
+  }
+
+  // **待ち続けない**＝建て損ね・入り損ねのどちらでも、上限を過ぎたらひとりで続ける。
+  if (migrateTimer !== null) window.clearTimeout(migrateTimer);
+  migrateTimer = window.setTimeout(() => {
+    if (useReviewShareStore.getState().migrating) failMigration();
+  }, MIGRATE_TIMEOUT_MS);
+}
+
+/** 移り終えた（ホスト＝客が来た／ゲスト＝入れた）。 */
+export function migrationSettled(): void {
+  if (migrateTimer !== null) {
+    window.clearTimeout(migrateTimer);
+    migrateTimer = null;
+  }
+  migrationPass = null;
+  migrationRoom = null;
+  useReviewShareStore.setState({ migrating: false });
+}
+
+/**
+ * 移れなかった。**感想戦そのものは止めない**（親 §9.4.4＝続けられるものを
+ * 打ち切らない）＝ひとりで続け、**移れなかったことは言葉で伝える**。
+ */
+function failMigration(): void {
+  if (migrateTimer !== null) {
+    window.clearTimeout(migrateTimer);
+    migrateTimer = null;
+  }
+  migrationPass = null;
+  migrationRoom = null;
+  useReviewShareStore.setState({
+    ...initial,
+    migrating: false,
+    notice: 'migrateFailed',
+  });
+}
+
+/** いま待ち合わせている合言葉と部屋名（通信側が一覧を見張るときに使う）。 */
+export function pendingMigration(): { pass: string; room: string } | null {
+  return migrationPass && migrationRoom ? { pass: migrationPass, room: migrationRoom } : null;
 }
 
 /**
@@ -223,6 +363,8 @@ export function joinedReviewRoom(): void {
   clearReviewTarget('lobby');
   beginSharedReview(false);
   useReviewShareStore.setState({ ownsRoom: true });
+  // ★v1.55: 対局から移ってきた場合は、ここが**移り終えた合図**（親 §6.3.6 の手順 4）。
+  migrationSettled();
   enterReviewScreen();
 }
 
@@ -238,6 +380,8 @@ export function joinedReviewRoom(): void {
 export function reviewGuestArrived(): boolean {
   if (!useReviewShareStore.getState().ownsRoom) return false;
   if (!reviewTarget()) return false;
+  // ★v1.55: 対局から移ってきた場合は、ここが**移り終えた合図**（親 §6.3.6 の手順 5）。
+  migrationSettled();
   const role = beginSharedReview(false);
   if (role === 'host') distributeKifu();
   return true;
@@ -249,7 +393,9 @@ export function withdrawReviewOffer(): void {
 }
 
 /** 打診に答える（付録D-12 §7 の「受ける」「断る」）。 */
-export function answerReviewOffer(accepted: boolean): void {
+export function answerReviewOffer(accepted: boolean, offered?: { pass?: string; room?: string }): void {
+  const carried = offered ?? offeredMigration ?? undefined;
+  offeredMigration = null;
   useOffersStore.getState().setReviewOfferFrom(null);
   if (!accepted) {
     connector()?.sendReview({ kind: 'reply', accepted: false });
@@ -257,8 +403,22 @@ export function answerReviewOffer(accepted: boolean): void {
   }
   // **先に場を開いてから返事をする**＝返事の直後に届く棋譜を取りこぼさないため。
   const role = beginSharedReview(true);
-  connector()?.sendReview({ kind: 'reply', accepted: true });
+  // ★v1.55: **ホストが答える側なら、ここで合言葉を作って返事に載せる**（§6.3.6）。
+  // ゲストが答える側なら、**打診に載ってきた合言葉**を使う。
+  const mine = prepareMigration();
+  connector()?.sendReview({
+    kind: 'reply',
+    accepted: true,
+    ...(mine ? { pass: mine.pass, room: mine.room } : {}),
+  });
   enterReviewScreen();
+  const m = mine ?? (carried?.pass && carried.room ? { pass: carried.pass, room: carried.room } : null);
+  if (m) {
+    // ★v1.55: **対局の部屋はそのまま使わず、感想戦の部屋へ移る**（親 §9.4.4）。
+    // 棋譜を配るのは移り終えてから（ホストは客が来た合図で配る）。
+    migrateToReviewRoom(m.pass, m.room);
+    return;
+  }
   if (role === 'host') distributeKifu();
 }
 
@@ -306,6 +466,18 @@ export function replaceSharedKifu(file: KifuFile): void {
 }
 
 /** いまの居場所を線に乗せる（分岐は手そのものを運ぶ）。 */
+/**
+ * ★v1.55: ハイライトを相手へ送る（親 v1.49 §9.4.2.2・§6.3.6）。
+ *
+ * **これだけは新しい伝言**＝盤の組み替えは「1 手」として既存の伝言に乗るが、
+ * **印は手ではない**ので乗らない。**受け取った側は盤を組み立て直さない**。
+ * ひとりのときは送らない（縮退）。
+ */
+export function shareReviewMark(square: { row: number; col: number } | null): void {
+  if (!isSharedReview()) return;
+  connector()?.sendReview({ kind: 'mark', square });
+}
+
 export function shareReviewMove(base: ReviewPoint, view: ReviewView): void {
   if (!isSharedReview()) return;
   connector()?.sendReview({ kind: 'move', base, ply: view.ply, branch: view.branch });
@@ -329,6 +501,10 @@ export function shareReviewUndo(base: ReviewPoint, view: ReviewView): void {
  */
 export function reviewOpponentLeft(): boolean {
   if (!isSharedReview()) return false;
+  // ★v1.55: **移っている最中は「抜けた」と扱わない**（親 §6.3.6）＝この間は
+  // 互いに部屋の外に居るので、離脱の知らせと取り違えると毎回「相手が退室しました」
+  // が出てしまう。
+  if (useReviewShareStore.getState().migrating) return true;
   useReviewShareStore.setState({
     opponentPresent: false,
     // 相手が居なくなった以上、配られるのを待ち続けない（ひとりで続けられる形にする）。
@@ -348,6 +524,9 @@ export function receiveReviewMessage(msg: ReviewMessage): void {
   switch (msg.kind) {
     case 'offer': {
       // 打診を受けた（付録D-12 §7）。答えるまで S07 に居る。
+      // ★v1.55: **相手がホストなら合言葉が載っている**ので控える（§6.3.6）。
+      // **人には見せない**（画面には出さない）。
+      offeredMigration = msg.pass && msg.room ? { pass: msg.pass, room: msg.room } : null;
       useOffersStore.getState().setReviewOfferFrom('opp');
       return;
     }
@@ -371,6 +550,13 @@ export function receiveReviewMessage(msg: ReviewMessage): void {
       }
       const role = beginSharedReview(true);
       enterReviewScreen();
+      // ★v1.55: **受けてもらえたら感想戦の部屋へ移る**（親 §9.4.4）。
+      // 自分がホストなら打診のときに作った合言葉、ゲストなら返事に載ってきたもの。
+      const m = pendingMigration() ?? (msg.pass && msg.room ? { pass: msg.pass, room: msg.room } : null);
+      if (m) {
+        migrateToReviewRoom(m.pass, m.room);
+        return;
+      }
       if (role === 'host') distributeKifu();
       return;
     }
@@ -387,6 +573,15 @@ export function receiveReviewMessage(msg: ReviewMessage): void {
         }
       }
       adopt({ ply: msg.ply, branch: msg.branch }, true);
+      return;
+    }
+    case 'mark': {
+      if (!isSharedReview()) return;
+      // **盤は組み立て直さない**（印は局面の一部ではない）。
+      const seq = (useReviewShareStore.getState().mark?.seq ?? 0) + 1;
+      useReviewShareStore.setState({
+        mark: msg.square ? { ...msg.square, seq } : null,
+      });
       return;
     }
     case 'move':

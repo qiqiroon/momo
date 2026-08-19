@@ -60,6 +60,9 @@ export type {
   Move,
   BoardMove,
   DropMove,
+  FreeMove,
+  MoveDest,
   Square,
   PieceId,
 } from './position/types';
+export { moveLandingSquare } from './position/types';

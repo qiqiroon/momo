@@ -99,7 +99,9 @@ const EMPTY_SHIELDS: Set<string> = new Set();
 /** その手は自玉の安全に影響しようがないか (影響しうるなら false＝これまでどおり確かめる)。 */
 function isKingSafetyIrrelevant(safety: KingSafety, move: Move): boolean {
   if (!safety.king) return true; // 守るべき玉がいない
-  if (move.type === 'drop') return true; // 駒が増えるだけ
+  // ★v1.55: `drop` は駒が増えるだけ。`free`（感想戦の自由な手）は**合法手の生成に
+  // 入らない**（感想戦は合法手を作らずに指すため）ので、ここへ来ることも無い。
+  if (move.type !== 'move') return true;
   if (move.from.row === safety.king.row && move.from.col === safety.king.col) return false;
   return !safety.shields.has(`${move.from.row},${move.from.col}`);
 }

@@ -12,7 +12,7 @@
 
 import type { ReviewRoomBlock, ReviewRoomRequest } from '../../core/plugin/reviewRoom';
 import { getMomoMatchmaking } from './client';
-import { encodeRoomName } from './roomNameCodec';
+import { decodeRoomName, encodeRoomName } from './roomNameCodec';
 import { useMatchmakingStore } from './store';
 
 const LS_LAST_PLAYER_NAME = 'shogi.lobby.lastPlayerName';
@@ -69,8 +69,11 @@ export function createReviewRoom(info: ReviewRoomRequest): boolean {
   client.createRoom({
     hostName,
     name: encodedName,
-    password: '',
-    isPublic: true,
+    // ★v1.55: パスワードと非公開も効かせる（親 v1.49 §9.4.4・ユーザー判断 2026-08-19）
+    // ＝**S04 とまったく同じ扱い**にする。感想戦の部屋だけ扱いを変えない。
+    // 終局から移ってきた部屋（§6.3.6 の合言葉）も、この同じ口を通って建つ。
+    password: info.password ?? '',
+    isPublic: info.isPublic ?? true,
     // ルールは**棋譜が持っているもの**を継ぐ（親 §9.4）ので、部屋のルールは
     // 一覧の表示のためだけに載せる。ゲスト側の盤は配られた棋譜から組み立てる。
     rules: {
@@ -109,4 +112,100 @@ export function leaveReviewRoom(): void {
   // 扱われないようにするため（bootstrap の `onDisconnected`）。
   client.leaveRoom();
   useMatchmakingStore.getState().resetRoomState();
+}
+
+/**
+ * ★v1.55: 対局の部屋から移る先の、**感想戦の部屋の名前**を組み立てる
+ * （親 v1.49 §9.4.4／§6.3.6）。**同じ部屋名**にする＝人から見て同じ場が続くように。
+ *
+ * 名前は用途の印を載せた形（`roomNameCodec`）にする＝**サーバーは部屋名を素通しする
+ * だけ**なので、感想戦であることは名前に載せて運ぶしかない。
+ */
+export function buildMigratedRoomName(userRoomName: string): string {
+  const s = useMatchmakingStore.getState();
+  const parts = decodeRoomName(s.currentRoomName);
+  return encodeRoomName({
+    gameType: parts.gameType,
+    torus: parts.torus,
+    quantum: parts.quantum,
+    review: true,
+    customRuleName: parts.customRuleName,
+    userRoomName: userRoomName || parts.userRoomName,
+  });
+}
+
+/** ★v1.55: いま居る部屋の、人が付けた名前（移る先でもこれを使う）。 */
+export function currentUserRoomName(): string {
+  return decodeRoomName(useMatchmakingStore.getState().currentRoomName).userRoomName;
+}
+
+/**
+ * ★v1.55: 移る先の感想戦の部屋を建てる（ホスト側・親 §6.3.6 の手順 3）。
+ *
+ * **必ず非公開＋合言葉**にする（§9.4.4）＝二人で始めた話の続きなので、
+ * 人の入れ方を勝手に広げない。合言葉は**人には見せない**。
+ */
+export function createMigratedReviewRoom(p: { room: string; pass: string }): boolean {
+  const client = getMomoMatchmaking();
+  if (!client) return false;
+  const s = useMatchmakingStore.getState();
+  s.setCurrentRoom({ roomId: null, roomName: p.room, isHost: true });
+  s.setOpponentName('');
+  client.createRoom({
+    hostName: lastPlayerName(),
+    name: p.room,
+    password: p.pass,
+    isPublic: false,
+    rules: { review: true },
+  });
+  return true;
+}
+
+/**
+ * ★v1.55: 移る先の感想戦の部屋を見つけて入る（ゲスト側・親 §6.3.6 の手順 4）。
+ *
+ * **名前だけで見分けない**＝同じ名前の部屋が 2 つあっても、**合言葉の合う部屋は
+ * 1 つしか無い**。見つからない間は一覧を取り直して待つ（**待ち続けない**＝
+ * 打ち切りは呼んだ側が持つ）。
+ *
+ * **人には見せない**＝部屋の一覧も合言葉も画面に出さない。
+ */
+export function joinMigratedReviewRoom(p: { room: string; pass: string }): void {
+  const client = getMomoMatchmaking();
+  if (!client) return;
+  let stopped = false;
+  let unsub: (() => void) | null = null;
+  let timer: number | null = null;
+
+  const stop = () => {
+    stopped = true;
+    if (unsub) unsub();
+    if (timer !== null) window.clearInterval(timer);
+  };
+
+  const tryJoin = () => {
+    if (stopped) return;
+    const st = useMatchmakingStore.getState();
+    if (st.currentRoomId) {
+      stop();
+      return;
+    }
+    const found = st.rooms.find((r) => r.name === p.room && !r.isPublic && r.hasPassword);
+    if (!found) return;
+    stop();
+    client.joinRoom(found.id, p.pass, lastPlayerName());
+  };
+
+  // **一覧が届いた瞬間に見る**＝決まった間隔で覗きに行くと、その分だけ待たされる。
+  unsub = useMatchmakingStore.subscribe(tryJoin);
+  // 一覧を取り直しながら待つ（届けば上の見張りが拾う）。
+  client.refreshRooms();
+  tryJoin();
+  timer = window.setInterval(() => {
+    if (stopped) return;
+    client.refreshRooms();
+    tryJoin();
+  }, 700);
+  // 呼んだ側の打ち切りより長く回さない（親 §9.4.4＝待ち続けない）。
+  window.setTimeout(stop, 12_000);
 }

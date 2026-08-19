@@ -20,12 +20,22 @@ interface RootViewProps {
  * AudioContext が resume されていない (音楽再生確認モーダルで「はい」を押していない)
  * 段階では何もしない。resume 後は同じ pool を返しても playRandomBgm 側で
  * 「既に鳴っていれば何もしない」ので安全。
+ *
+ * ★v1.55 (音響 v0.8 §4・ユーザー判断 2026-08-19): **盤を並べる画面でも対局中の曲**
+ * ＝**感想戦 (S11) と棋譜再生 (S08)** を追加した。**画面に居る間ずっと**であり、
+ * **自動再生の入り切りでは変えない**（止めるたびに曲が入れ替わると、盤を見ながら
+ * 話している場が毎回切れる）。音響 v0.3 の「S08 は呼び出し元の BGM を継承する」は
+ * 撤回＝S08 は当時オーバーレイに近いものとして書かれていたが、**実装では独立した
+ * 画面で盤を並べる**ので、継承の前提そのものが失われている。
+ * **感想戦ロビー (S12) はロビーの曲のまま**（人を待つ画面であるため）。
  */
+const BGM_GAME_SCREENS = new Set(['game', 'review', 'kifu-replay']);
+
 function useScreenBgm(screen: string): void {
   useEffect(() => {
     if (!isAudioRunning()) return;
     if (screen === 'endgame') { stopBgm(); return; }
-    const pool: 'lobby' | 'game' = screen === 'game' ? 'game' : 'lobby';
+    const pool: 'lobby' | 'game' = BGM_GAME_SCREENS.has(screen) ? 'game' : 'lobby';
     void playRandomBgm(pool);
   }, [screen]);
 }

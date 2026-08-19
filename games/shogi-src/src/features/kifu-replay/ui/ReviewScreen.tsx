@@ -3,7 +3,12 @@ import { useI18nStore } from '../../../core/store/i18n-store';
 import { useGameStore } from '../../../core/store/game-store';
 import { useRouteStore } from '../../../core/store/route-store';
 import { t as _t } from '../../../core/i18n';
-import { buildInitialKindMap, displayKindsFor } from '../../../core/engine';
+import {
+  buildInitialKindMap,
+  displayKindsFor,
+  isInCheck,
+  moveLandingSquare,
+} from '../../../core/engine';
 import { useQuantumCycle } from '../../../core/ui-core/quantum-cycle';
 import { CatIcon } from '../../../core/ui-core/CatIcon';
 import { HeaderCommonRight } from '../../../core/ui-core/HeaderCommonRight';
@@ -14,7 +19,7 @@ import {
   PromotionModal,
   groupHand,
 } from '../../../core/ui-core/GameScreen';
-import { seButton, seSelect } from '../../../core/audio/se-synth';
+import { seButton, seCapture, seCheck, seMove, seSelect } from '../../../core/audio/se-synth';
 import { saveKifuFile } from '../index';
 import { chooseFolder, rememberedFolder, type FsDirHandle } from '../folder';
 import { asReplay, holdReplayGuard, replayKifu } from '../replay';
@@ -32,6 +37,7 @@ import {
   endSharedReview,
   leaveSharedReview,
   replaceSharedKifu,
+  shareReviewMark,
   shareReviewMove,
   shareReviewSeek,
   shareReviewUndo,
@@ -80,6 +86,8 @@ export function ReviewScreen() {
   const legalDestinations = useGameStore((s) => s.legalDestinations);
   const hintOn = useGameStore((s) => s.hintAlwaysOn);
   const tryMove = useGameStore((s) => s.tryMove);
+  const applyFreeMove = useGameStore((s) => s.applyFreeMove);
+  const lastAppliedMove = useGameStore((s) => s.lastAppliedMove);
   const clearSelection = useGameStore((s) => s.clearSelection);
 
   /**
@@ -101,6 +109,12 @@ export function ReviewScreen() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(() => isRememberedAndSaved(file));
   const [toast, setToast] = useState<string | null>(null);
+  /**
+   * ★v1.55: ハイライト（親 v1.49 §9.4.2.2）＝**盤の 1 か所を指し示す印**。
+   * 「ここでしょ」と話すためのもので、**常に 1 つ**。**盤が変われば消える**。
+   * **自分の印と相手の印を描き分けない**（印は 1 つ＝§9.4.2.2）ので、入れ物も 1 つ。
+   */
+  const [mark, setMark] = useState<{ row: number; col: number } | null>(null);
 
   const labels = kifuLabels(locale);
   const moveCount = file ? file.moves.length : 0;
@@ -119,7 +133,13 @@ export function ReviewScreen() {
   const ownsRoom = useReviewShareStore((s) => s.ownsRoom);
   const shared = shareRole !== null;
   /** **棋譜を配っている最中は触れない**（画面機能 §3 S11・付録D-12 §5）。 */
-  const waiting = shared && !shareReady;
+  /**
+   * ★v1.55: **移っている最中も盤に触れない**（親 §9.4.4）＝線が切れている間に
+   * 指しても相手へ届かない。**待つ理由は 2 つある**（配られるのを待つ／部屋へ移る）
+   * ので、**押せない理由も言葉で書き分ける**（灰色は「押せない」しか意味しない）。
+   */
+  const migrating = useReviewShareStore((s) => s.migrating);
+  const waiting = (shared && !shareReady) || migrating;
 
   /**
    * **画面に居る間ずっと「本物の対局ではない」と名乗る**（親 §9.4.3）。
@@ -354,7 +374,10 @@ export function ReviewScreen() {
   const goteHand = groupHand(position.hands.player2, mgf, kindMap);
   const oppHand = viewerSide === 'player1' ? goteHand : senteHand;
   const myHand = viewerSide === 'player1' ? senteHand : goteHand;
-  const lastTo = position.history.length > 0 ? position.history[position.history.length - 1].to : null;
+  const lastTo =
+    position.history.length > 0
+      ? moveLandingSquare(position.history[position.history.length - 1])
+      : null;
 
   const isHint = (row: number, col: number) => legalDestinations.some((d) => d.row === row && d.col === col);
   const isSelected = (row: number, col: number) =>
@@ -401,9 +424,94 @@ export function ReviewScreen() {
     if (ply > 0) setPly(ply - 1);
   };
 
+  /**
+   * ★v1.55: 盤が動いたら音を鳴らす（音響 v0.8 §2.1・ユーザー判断 2026-08-19）。
+   *
+   * **対局とまったく同じ音**を使う＝**盤が動いたことを音で知る**のは対局と変わらず、
+   * 感想戦だけ黙らせる理由が無い。**自分の手でも相手の手でも鳴る**（自他を問わない
+   * のは対局と同じ）。**取ったかどうかは駒台の枚数の増減で見る**（対局画面と同じ
+   * 見分け方＝2 か所で違う数え方をしない）。
+   *
+   * **`SE-illegal` は使わない**＝感想戦には**不可操作が無い**（親 §9.4）。
+   * **王手の音は鳴らす**が、これは「まずい」ではなく「そうなった」の知らせである
+   * （王手を無視して指せるため）。
+   */
+  const prevHandsRef = useRef({
+    p1: position.hands.player1.length,
+    p2: position.hands.player2.length,
+  });
+  useEffect(() => {
+    if (!lastAppliedMove) return;
+    const curP1 = useGameStore.getState().position.hands.player1.length;
+    const curP2 = useGameStore.getState().position.hands.player2.length;
+    const wasCapture = curP1 > prevHandsRef.current.p1 || curP2 > prevHandsRef.current.p2;
+    prevHandsRef.current = { p1: curP1, p2: curP2 };
+    if (wasCapture) seCapture();
+    else seMove();
+    const pos = useGameStore.getState().position;
+    if (isInCheck(useGameStore.getState().mgf, pos, pos.sideToMove)) setTimeout(seCheck, 90);
+    // ★v1.55: **盤が変わったら印は消える**（親 §9.4.2.2）＝指し示した局面が変われば、
+    // 指し示した意味も失われる。**消えるときは音を鳴らさない**（盤が動いた音が
+    // 既に鳴っている）。
+    setMark(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastAppliedMove]);
+
+  // 相手が付けた印を拾う（自分の印と同じ入れ物へ入れる＝描き分けない）。
+  const peerMark = useReviewShareStore((s) => s.mark);
+  useEffect(() => {
+    if (!peerMark) {
+      setMark(null);
+      return;
+    }
+    setMark({ row: peerMark.row, col: peerMark.col });
+    // **相手が付けた印でも鳴らす**（音響 v0.8 §2.3）＝相手が指し示したことに
+    // 気づけないと用を成さない。
+    seSelect();
+  }, [peerMark]);
+
   /** 盤に触れたときの共通の後始末。**自動再生は止まる**（付録D-12 §5）。 */
   const touchBoard = () => {
     if (playing) setPlaying(false);
+  };
+
+  /** ★v1.55: 印を付け直す（相手にも伝える）。 */
+  const putMark = (sq: { row: number; col: number } | null) => {
+    setMark(sq);
+    shareReviewMark(sq);
+    if (sq) seSelect();
+  };
+
+  /**
+   * ★v1.55: いま掴んでいる駒（盤／駒台）。自由な操作の的を出す条件でもある。
+   * **掴んでいる間だけ的を出す**＝常に置くと画面が狭くなり、押し間違いも増える
+   * （付録D-12 v1.4 §14.1）。
+   */
+  const heldPiece = selectedSquare
+    ? position.board[selectedSquare.row][selectedSquare.col]
+    : selectedHandPieceId
+      ? position.hands.player1.find((p) => p.pieceId === selectedHandPieceId) ??
+        position.hands.player2.find((p) => p.pieceId === selectedHandPieceId) ??
+        null
+      : null;
+
+  /**
+   * ★v1.55: 盤を自由に組み替える（親 §9.4.2.1）。
+   *
+   * **合法かどうかを見ない**。**量子の候補も絞らない**（量子分冊 §Q22＝自由な手は
+   * 正体について何も語っていない）。**手として積む**ので「戻す」で 1 つずつ戻せ、
+   * 二人のときは**指し手と同じ伝言でそのまま相手へ渡る**（新しい伝言を作らない）。
+   */
+  const doFree = (dest: import('../../../core/engine').MoveDest, promote?: boolean) => {
+    if (!heldPiece) return;
+    touchBoard();
+    applyFreeMove({
+      pieceId: heldPiece.pieceId,
+      ...(selectedSquare ? { from: selectedSquare } : {}),
+      dest,
+      ...(promote !== undefined ? { promote } : {}),
+    });
+    clearSelection();
   };
 
   const onSquare = (row: number, col: number) => {
@@ -413,16 +521,33 @@ export function ReviewScreen() {
     if (waiting) return;
     touchBoard();
     // 持っている駒の元の位置をもう一度押したら持ち直し（対局画面と同じ操作感）。
+    // ★v1.55: **駒を持って同じマスへ戻したときも印が付く**（親 §9.4.2.2）＝
+    // **駒のあるマスを指し示す手立てがこれしか無い**ため。
     if (selectedSquare && selectedSquare.row === row && selectedSquare.col === col) {
       clearSelection();
+      putMark({ row, col });
       return;
     }
-    if ((selectedSquare || selectedHandPieceId) && isHint(row, col)) {
-      tryMove({ row, col });
+    if (selectedSquare || selectedHandPieceId) {
+      // **合法な手はこれまでどおり指す**＝成りの確認も量子の候補の絞り込みも走る
+      // （合法に指せたことは正体の手掛かりになる）。
+      if (isHint(row, col)) {
+        tryMove({ row, col });
+        return;
+      }
+      // ★v1.55: **合法でない置き方も通す**（親 §9.4.2.1）＝王手を無視して指す・
+      // 盤から盤へ直接移す・ルールを無視して打つ は、どれもここを通る。
+      doFree({ kind: 'square', square: { row, col } });
       return;
     }
     // **どちらの駒でも掴める**（親 §9.4）。掴めたら選択音を鳴らす。
-    if (reviewSelectSquare({ row, col })) seSelect();
+    if (reviewSelectSquare({ row, col })) {
+      seSelect();
+      return;
+    }
+    // ★v1.55: **何もないマスを触ると、そのマスに印が付く**（親 §9.4.2.2）。
+    // 別のマスを触れば印はそちらへ移る（印は常に 1 つ）。
+    putMark({ row, col });
   };
 
   const onHand = (owner: 'player1' | 'player2', pieceId: string) => {
@@ -499,10 +624,11 @@ export function ReviewScreen() {
     // `s11` は**この画面だけ縦に増える帯**（自由に指せる旨・補助語・保存の注記）を
     // 引くための目印で、計算そのものは 1 か所（styles.css の `.stage.s08`）にしかない。
     <div
-      // `has-chat` ＝二人のときだけ出るチャット欄のぶん（v1.50）。**手数リストが盤の下へ
-      // 回る狭い窓では縦に積み増しになる**ので、盤の大きさの計算から引く厚みを増やす
-      // （付録D-8 §5.1＝置くものを全部引いた残りを割る。引き忘れるとスクロールする）。
-      className={`stage s08 s11${shared ? ' has-chat' : ''}`}
+      // ★v1.55: `has-chat` は廃止した＝**チャットと観戦者はひとりのときも置いたまま
+      // 灰色にする**ので（付録D-12 v1.4 §2）、**相手が入ってきても置くものの数が
+      // 変わらない**。v1.50〜v1.54 は二人になった瞬間に厚みが増え、**盤の大きさが
+      // 動いていた**。
+      className="stage s08 s11"
       style={
         {
           '--board-cols': mgf.board.width,
@@ -523,15 +649,15 @@ export function ReviewScreen() {
             </div>
             <div className="header-spacer" />
             <div className="header-tools">
-              <HeaderCommonRight />
-            </div>
-          </header>
-
-          {/* ツールバー（付録D-12 §3）。**戻るはどこから入ってもモード選択の一択**
-              （★v1.54＝画面の中で棋譜を選び直せるようになったため。S08 と同じ形）。 */}
-          <div className="s08-toolbar">
-            <button type="button" className="back-btn" onClick={goBack}>
-              {
+              {/* ★v1.55: 戻るはタイトルブロックの右（付録D-12 v1.4 §3・他の画面と同じ
+                  位置）。**戻るはどこから入ってもモード選択の一択**（v1.54）。
+                  v1.54 までのヘッダ直下のツールバー帯は廃止した。 */}
+              <button
+                className="reset-btn"
+                type="button"
+                onClick={goBack}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              >
                 <svg
                   width="14"
                   height="14"
@@ -543,11 +669,16 @@ export function ReviewScreen() {
                 >
                   <path d="M3 12l9-9 9 9M5 10v10h14V10" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
-              }
-              {backLabel}
-            </button>
-            {/* 画面名バッジ＝対局画面と見た目が近いので、どちらに居るかを常に出す。 */}
-            <span className="screen-badge">{t('s11.title')}</span>
+                {backLabel}
+              </button>
+              <HeaderCommonRight />
+            </div>
+          </header>
+
+          {/* ★v1.55: 見出しの行（付録D-12 v1.4 §3）。**「感想戦」は箱で囲わない**
+              ＝**枠で囲うとボタンに見える**（2026-08-19 ご指摘）。 */}
+          <div className="s11-head">
+            <h2 className="s11-title">{t('s11.title')}</h2>
             <div className="kifu-meta">
               {file ? (
                 <>
@@ -574,36 +705,61 @@ export function ReviewScreen() {
                 {oppPresent ? '' : ` ${t('s11.peerGone')}`}
               </span>
             )}
-            {/* ★v1.52: **自分が建てた部屋に居る間は、そう出し続ける**（付録D-12 §8）。
-                v1.51 まではボタンが灰色になり「対局の部屋にいます」と出るだけで、
-                **建てられたのに失敗したように見えていた**（2026-08-18 ご報告）。
-                **畳む手立てもここに置く**＝画面ごと出るしか無いと、出たのかどうかも
-                分からない。 */}
-            {ownsRoom && !shared && (
-              <span className="make-room">
-                <span className="waiting">{t('s11.roomWaiting')}</span>
-                <button
-                  type="button"
-                  className="io-btn"
-                  onClick={() => {
-                    seButton();
-                    closeRoom();
-                  }}
-                >
-                  {t('s11.closeRoom')}
-                </button>
-                <span className="why">{t('s11.roomHowToJoin')}</span>
-              </span>
-            )}
-            {/* ★v1.54: **棋譜を読み込む**（親 v1.48 §9.4.2・付録D-12 §3）。
-                **二人のときはホストだけに出す**＝ゲストが差し替えると、配られる 1 局と
-                食い違ったまま、どちらが正かを確かめる材料が無い。
-                **部屋を作る導線は S12 感想戦ロビーへ移した**（建てる場所は 1 か所）。 */}
+          </div>
+
+          {/* ★v1.55: 操作の行（付録D-12 v1.4 §3）＝**棋譜を読み込む・棋譜を保存**を
+              並べ、**その横に部屋を閉じる**。v1.54 まで盤の下にあった保存行は廃止し、
+              ここへ統合した（**盤の下に何も積まない**＝盤が最大になる）。 */}
+          <div className="s11-actions">
+            {/* **棋譜を読み込む**（親 §9.4.2・二人のときはホストだけ）。 */}
             {canLoad && (
               <button type="button" className="io-btn" onClick={requestLoad}>
                 {t('s11.loadKifu')}
               </button>
             )}
+            <button
+              type="button"
+              className="io-btn"
+              disabled={waiting || !file || saving}
+              onClick={() => {
+                seButton();
+                save();
+              }}
+            >
+              {t('result.saveKifu')}
+            </button>
+            {saved && <span className="saved-tag">✓</span>}
+            {folder && (
+              <button
+                type="button"
+                className="dest-btn"
+                disabled={folderBusy}
+                title={folder.name}
+                onClick={() => {
+                  seButton();
+                  void changeFolder();
+                }}
+              >
+                <span className="ic">📁</span>
+                <span className="nm">{folder.name}</span>
+              </button>
+            )}
+            {/* ★v1.52: **自分が建てた部屋に居る間は畳む手立てを出す**（付録D-12 §8）。
+                v1.55: 置き場所を操作の行へ移した。**「相手を待っています」は出さない**
+                ＝このボタンが出ていること自体が「部屋に居る」の表示になる。 */}
+            {ownsRoom && !shared && (
+              <button
+                type="button"
+                className="io-btn"
+                onClick={() => {
+                  seButton();
+                  closeRoom();
+                }}
+              >
+                {t('s11.closeRoom')}
+              </button>
+            )}
+            <div className="io-note">{branch > 0 ? t('s11.saveNote') : ''}</div>
             <input
               ref={pickerRef}
               type="file"
@@ -615,12 +771,44 @@ export function ReviewScreen() {
 
           <div className="pinfo opp">
             <span className="nm">{file ? labels.playerLabel(file, oppSide) : t('player.opp')}</span>
+            {/* ★v1.55: **王手は出す**（親 §9.4.2.1）。ただし**無視して指せる**ので、
+                これは「まずい」ではなく「そうなった」の知らせである。 */}
+            {isInCheck(mgf, position, oppSide) && <span className="check-tag">{t('s07.checkTag')}</span>}
           </div>
 
           {/* 盤・駒台は対局画面の部品をそのまま借りる。**時計・手番の縁取りは出さない**
               （勝敗も持ち時間も無いため）が、**移動先ヒントは出す**＝指せる場所を
               確かめる画面なので（付録D-12 §4）。 */}
           <div className="broadcast">
+            {/* ★v1.55: 自由な操作の的（付録D-12 v1.4 §14.1）。**掴んでいる間だけ出す**
+                ＝常に置くと画面が狭くなり、押し間違いも増える。**盤の上に浮かせる**
+                ので、出入りしても盤の大きさは動かない。 */}
+            {heldPiece && (
+              <div className="free-targets">
+                <span className="ft-label">{t('s11.free.putTo')}</span>
+                <button type="button" className="ft" onClick={() => doFree({ kind: 'hand', owner: 'player1' })}>
+                  {t('s11.free.hand1')}
+                </button>
+                <button type="button" className="ft" onClick={() => doFree({ kind: 'hand', owner: 'player2' })}>
+                  {t('s11.free.hand2')}
+                </button>
+                <button type="button" className="ft" onClick={() => doFree({ kind: 'discard' })}>
+                  {t('s11.free.discard')}
+                </button>
+                {/* 成り・不成の切り替えは**盤に居る駒だけ**（駒台の駒は成っていない）。 */}
+                {selectedSquare && (
+                  <button
+                    type="button"
+                    className="ft"
+                    onClick={() =>
+                      doFree({ kind: 'square', square: selectedSquare }, !heldPiece.promoted)
+                    }
+                  >
+                    {heldPiece.promoted ? t('s11.free.unpromote') : t('s11.free.promote')}
+                  </button>
+                )}
+              </div>
+            )}
             <PieceStandView
               side="opp"
               pieces={oppHand}
@@ -676,6 +864,7 @@ export function ReviewScreen() {
                       isSelected(row, col) ? 'selected' : '',
                       hintOn && isHint(row, col) ? 'hint' : '',
                       lastTo?.row === row && lastTo?.col === col ? 'lastmove' : '',
+                      mark?.row === row && mark?.col === col ? 'review-mark' : '',
                     ]
                       .filter(Boolean)
                       .join(' ');
@@ -732,133 +921,142 @@ export function ReviewScreen() {
 
           <div className="pinfo you">
             <span className="nm">{file ? labels.playerLabel(file, viewerSide) : t('player.you')}</span>
+            {isInCheck(mgf, position, viewerSide) && (
+              <span className="check-tag">{t('s07.checkTag')}</span>
+            )}
           </div>
 
-          {/* 再生の操作帯（付録D-8 §5 の帯をそのまま／補助語だけ S11 で足す）。 */}
-          <div className="playbar">
-            <div className="btns">
-              <div className="pbwrap">
-                <button
-                  type="button"
-                  className="pb"
-                  disabled={waiting || (ply === 0 && branch === 0)}
-                  onClick={() => jump(0)}
-                >
-                  |◀
-                </button>
-                <span className="pb-sub" />
-              </div>
-              <div className="pbwrap">
-                <button
-                  type="button"
-                  className="pb"
-                  disabled={waiting || (ply === 0 && branch === 0)}
-                  onClick={stepBack}
-                >
-                  ◀
-                </button>
-                <span className="pb-sub" />
-              </div>
-              <div className="pbwrap">
-                <button
-                  type="button"
-                  className={`pb auto${playing ? ' playing' : ''}`}
-                  disabled={waiting || !file || moveCount === 0}
-                  onClick={() => {
-                    if (playing) {
-                      setPlaying(false);
-                      return;
-                    }
-                    // 分岐したまま自動再生は始めない（記録をたどる操作なので本譜へ戻す）。
-                    if (branch > 0) setRebuild((v) => v + 1);
-                    if (ply >= moveCount) setPly(0);
-                    setPlaying(true);
-                  }}
-                >
-                  {playing ? `⏸ ${t('s08.stop')}` : `▶ ${t('s08.auto')}`}
-                </button>
-                <span className="pb-sub" />
-              </div>
-              <div className="pbwrap">
-                <button
-                  type="button"
-                  className="pb spd"
-                  onClick={() => setSpeed((cur) => SPEEDS[(SPEEDS.indexOf(cur as 1) + 1) % SPEEDS.length])}
-                >
-                  {speed === 0.5 ? '0.5×' : `${speed}×`}
-                </button>
-                <span className="pb-sub" />
-              </div>
-              <div className="pbwrap">
-                <button
-                  type="button"
-                  className="pb"
-                  disabled={waiting || (ply >= moveCount && branch === 0)}
-                  onClick={stepNext}
-                >
-                  ▶
-                </button>
-                {/* **押す前に分かるようにする**＝分岐中の「次へ」は本譜へ戻ってから進む。 */}
-                <span className="pb-sub">{branch > 0 ? t('s11.toMain') : ''}</span>
-              </div>
-              <div className="pbwrap">
-                <button
-                  type="button"
-                  className="pb"
-                  disabled={waiting || (ply >= moveCount && branch === 0)}
-                  onClick={() => jump(moveCount)}
-                >
-                  ▶|
-                </button>
-                <span className="pb-sub" />
-              </div>
-            </div>
-            <div className="track">
-              <input
-                type="range"
-                min={0}
-                max={Math.max(moveCount, 1)}
-                value={ply}
-                disabled={waiting || !file || moveCount === 0}
-                onChange={(e) => jump(Number(e.target.value))}
-              />
-              <span className="plycnt">
-                {ply} / {moveCount}
-                {branch > 0 ? ` +${branch}` : ''}
-              </span>
-            </div>
-            {/* 配っている最中はその旨を出す（付録D-12 §8）＝押せないのに何も
-                書いていないと、壊れているのか待てばよいのかが分からない。 */}
-            <div className="free-note">{waiting ? t('s11.receiving') : t('s11.free')}</div>
-          </div>
+        </div>
 
-          {/* 保存行（付録D-12 §9）。**出るのは満額の本譜**で、分岐は入らない。 */}
-          <div className="io-bar">
-            <button type="button" className="io-btn" disabled={waiting || !file || saving} onClick={() => { seButton(); save(); }}>
-              {t('result.saveKifu')}
-            </button>
-            {saved && <span className="saved-tag">✓</span>}
-            {folder && (
+        {/* ★v1.55: 右カラム（付録D-12 v1.4 §2）＝**上から 操作帯 → チャット →
+            観戦者 → 棋譜**。**チャット・観戦者・棋譜の並びは対局画面と同じ**
+            （同じものを違う並びにしない）。 */}
+        <div className="moves-col">
+        {/* 再生の操作帯（付録D-8 §5 の帯をそのまま／補助語だけ S11 で足す）。 */}
+        <div className="playbar">
+          <div className="btns">
+            <div className="pbwrap">
               <button
                 type="button"
-                className="dest-btn"
-                disabled={folderBusy}
-                title={folder.name}
+                className="pb"
+                disabled={waiting || (ply === 0 && branch === 0)}
+                onClick={() => jump(0)}
+              >
+                |◀
+              </button>
+              <span className="pb-sub" />
+            </div>
+            <div className="pbwrap">
+              <button
+                type="button"
+                className="pb"
+                disabled={waiting || (ply === 0 && branch === 0)}
+                onClick={stepBack}
+              >
+                ◀
+              </button>
+              <span className="pb-sub" />
+            </div>
+            <div className="pbwrap">
+              <button
+                type="button"
+                className={`pb auto${playing ? ' playing' : ''}`}
+                disabled={waiting || !file || moveCount === 0}
                 onClick={() => {
-                  seButton();
-                  void changeFolder();
+                  if (playing) {
+                    setPlaying(false);
+                    return;
+                  }
+                  // 分岐したまま自動再生は始めない（記録をたどる操作なので本譜へ戻す）。
+                  if (branch > 0) setRebuild((v) => v + 1);
+                  if (ply >= moveCount) setPly(0);
+                  setPlaying(true);
                 }}
               >
-                <span className="ic">📁</span>
-                <span className="nm">{folder.name}</span>
+                {playing ? `⏸ ${t('s08.stop')}` : `▶ ${t('s08.auto')}`}
               </button>
-            )}
-            <div className="io-note">{branch > 0 ? t('s11.saveNote') : ''}</div>
+              <span className="pb-sub" />
+            </div>
+            <div className="pbwrap">
+              <button
+                type="button"
+                className="pb spd"
+                onClick={() => setSpeed((cur) => SPEEDS[(SPEEDS.indexOf(cur as 1) + 1) % SPEEDS.length])}
+              >
+                {speed === 0.5 ? '0.5×' : `${speed}×`}
+              </button>
+              <span className="pb-sub" />
+            </div>
+            <div className="pbwrap">
+              <button
+                type="button"
+                className="pb"
+                disabled={waiting || (ply >= moveCount && branch === 0)}
+                onClick={stepNext}
+              >
+                ▶
+              </button>
+              {/* **押す前に分かるようにする**＝分岐中の「次へ」は本譜へ戻ってから進む。 */}
+              <span className="pb-sub">{branch > 0 ? t('s11.toMain') : ''}</span>
+            </div>
+            <div className="pbwrap">
+              <button
+                type="button"
+                className="pb"
+                disabled={waiting || (ply >= moveCount && branch === 0)}
+                onClick={() => jump(moveCount)}
+              >
+                ▶|
+              </button>
+              <span className="pb-sub" />
+            </div>
+          </div>
+          <div className="track">
+            <input
+              type="range"
+              min={0}
+              max={Math.max(moveCount, 1)}
+              value={ply}
+              disabled={waiting || !file || moveCount === 0}
+              onChange={(e) => jump(Number(e.target.value))}
+            />
+            <span className="plycnt">
+              {ply} / {moveCount}
+              {branch > 0 ? ` +${branch}` : ''}
+            </span>
+          </div>
+          {/* 配っている最中はその旨を出す（付録D-12 §8）＝押せないのに何も
+              書いていないと、壊れているのか待てばよいのかが分からない。 */}
+          {/* ★v1.55: **掴んでいる間は「どこへでも置けます」**（付録D-12 v1.4 §14.1）
+              ＝移動先ヒントを「ここしか置けません」と読ませないため。 */}
+          <div className="free-note">
+            {migrating
+              ? t('s11.migrating')
+              : waiting
+                ? t('s11.receiving')
+                : heldPiece
+                  ? t('s11.free.anywhere')
+                  : t('s11.free')}
           </div>
         </div>
 
-        {/* 手数リスト＝固定 3 行ボックス（付録D-8 §6）。**分岐だけ S11 で足す**。 */}
-        <div className="moves-col">
+          {/* チャット・観戦者は**ひとりのときも置いたまま灰色にする**（対局画面が
+              オフライン対戦でそうしているのと同じ）＝**相手が入ってきた拍子に
+              並びが変わって盤の大きさが動く**のを防ぐ。 */}
+          <div className={`panel${shared ? '' : ' offline-disabled'}`}>
+            <div className="panel-label">
+              <span>{t('chat.title')}</span>
+            </div>
+            <ChatConsole t={t} />
+          </div>
+
+          <div className={`panel spectators${shared ? '' : ' offline-disabled'}`}>
+            <div className="panel-label">
+              <span>{t('spec.title')}</span>
+            </div>
+            <div className="spec-empty">{t('spec.empty')}</div>
+          </div>
+
           <div className="panel">
             <div className="panel-label">
               <span>{t('s08.moves')}</span>
@@ -873,9 +1071,6 @@ export function ReviewScreen() {
               ending={endingLabel(file?.meta.result, locale)}
             />
           </div>
-          {/* チャット（付録D-12 §2・画面機能 v0.40 §3 S11）。**ひとりのときは出さない**
-              ＝相手が居ないので置く意味が無い。中身は対局画面と同じ部品をそのまま借りる。 */}
-          {shared && <ChatConsole t={t} />}
         </div>
       </div>
 

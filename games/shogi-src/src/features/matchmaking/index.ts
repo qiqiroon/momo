@@ -16,7 +16,16 @@ import { LobbyScreen } from './ui/LobbyScreen';
 import { RuleSelectScreen } from './ui/RuleSelectScreen';
 import { RoomScreen } from './ui/RoomScreen';
 import { ReviewLobbyScreen } from './ui/ReviewLobbyScreen';
-import { createReviewRoom, lastPlayerName, leaveReviewRoom, reviewRoomBlock } from './reviewRoom';
+import {
+  buildMigratedRoomName,
+  createMigratedReviewRoom,
+  createReviewRoom,
+  currentUserRoomName,
+  joinMigratedReviewRoom,
+  lastPlayerName,
+  leaveReviewRoom,
+  reviewRoomBlock,
+} from './reviewRoom';
 
 const client = getMomoMatchmaking();
 if (client) {
@@ -43,3 +52,9 @@ register('reviewRoom:create', createReviewRoom);
 register('reviewRoom:block', reviewRoomBlock);
 register('reviewRoom:leave', leaveReviewRoom);
 register('reviewRoom:lastName', lastPlayerName);
+// ★v1.55: 対局の部屋から感想戦の部屋へ移る（親 v1.49 §9.4.4／§6.3.6）。
+// **建てるのも探すのも通信機能の側**で、感想戦の画面は口越しに頼むだけ。
+register('reviewRoom:buildName', buildMigratedRoomName);
+register('reviewRoom:currentUserName', currentUserRoomName);
+register('reviewRoom:createMigrated', createMigratedReviewRoom);
+register('reviewRoom:joinMigrated', joinMigratedReviewRoom);

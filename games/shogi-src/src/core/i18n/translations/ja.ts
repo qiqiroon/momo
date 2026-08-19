@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.54',
+    'app.ver': 'v1.55',
     // v0.72 音楽再生確認モーダル (Darts と同じ思想)
     'sound.promptTitle': 'BGM と効果音を再生してもよろしいですか？',
     'sound.bgmLabel': 'BGM 音量',
@@ -229,6 +229,16 @@ export const ja: LocaleData = {
     's11.backResult': '結果へ',
     's11.backReplay': '棋譜再生へ',
     's11.free': 'どちらの駒も自由に動かせます（時計は動きません）',
+    // ★v1.55: 盤を自由に組み替える（親 v1.49 §9.4.2.1・付録D-12 v1.4 §14.1）。
+    // **どこへでも置ける**ことを、掴んでいる間だけ言葉で出す＝移動先ヒントを
+    // 「ここしか置けません」と読ませないため。
+    's11.free.anywhere': 'どこへでも置けます',
+    's11.free.putTo': 'ここへ移す：',
+    's11.free.hand1': '先手の駒台',
+    's11.free.hand2': '後手の駒台',
+    's11.free.discard': '消す',
+    's11.free.promote': '成る',
+    's11.free.unpromote': '不成に',
     's11.toMain': '本譜へ',
     's11.saveNote': '本譜を保存します（分岐は入りません）',
     's11.branch': '分岐',
@@ -237,6 +247,10 @@ export const ja: LocaleData = {
     // v1.47: 二人の感想戦（親 §9.4.4・付録D-12 §3／§7／§8）
     's11.peerGone': '（退室）',
     's11.receiving': '棋譜を受け取っています…',
+    // ★v1.55: 対局の部屋から感想戦の部屋へ移っている間（親 v1.49 §9.4.4）。
+    // **合言葉も部屋の一覧も出さない**＝人がするのは「受ける」を押すことだけ。
+    's11.migrating': '感想戦の部屋へ移っています…',
+    's11.notice.migrateFailed': '部屋へ移れませんでした。ひとりで続けます。',
     's11.notice.declined': '相手は感想戦をしません。ひとりで始めます。',
     's11.notice.aloneNoPeer': 'ひとりで感想戦を始めます',
     's11.notice.oppLeft': '相手が退室しました。ひとりで続けます。',

@@ -134,9 +134,11 @@ export function useAiOpponent(isOnline: boolean): void {
             to: move.to,
             promote: move.promote,
           });
-        } else {
+        } else if (move.type === 'drop') {
           now.applyRemoteMove({ kind: 'drop', pieceId: move.pieceId, to: move.to });
         }
+        // ★v1.55: `free`（感想戦の自由な手）はここへ来ない＝**AI は対局中にしか
+        // 動かず、感想戦には AI が居ない**（親 §9.4）。読みの候補にも入らない。
       })
       .catch(() => {
         useAiStore.getState().setThinking(false);

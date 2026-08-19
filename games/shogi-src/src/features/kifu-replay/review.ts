@@ -127,11 +127,15 @@ export function reviewBranchMoves(ply: number): ReviewMovePayload[] {
   return useGameStore
     .getState()
     .position.history.slice(ply)
-    .map((m) =>
-      m.type === 'move'
-        ? { kind: 'move' as const, pieceId: m.pieceId, from: m.from, to: m.to, promote: m.promote }
-        : { kind: 'drop' as const, pieceId: m.pieceId, to: m.to },
-    );
+    .map((m): ReviewMovePayload => {
+      if (m.type === 'move') {
+        return { kind: 'move', pieceId: m.pieceId, from: m.from, to: m.to, promote: m.promote };
+      }
+      if (m.type === 'drop') return { kind: 'drop', pieceId: m.pieceId, to: m.to };
+      // ★v1.55: 盤の組み替えも**同じ形で運ぶ**（親 §9.4.2.1）＝行き先の種類が
+      // 増えるだけで、新しい伝言は作らない。
+      return { kind: 'free', pieceId: m.pieceId, from: m.from, dest: m.dest, promote: m.promote };
+    });
 }
 
 /**
@@ -148,6 +152,22 @@ export function reviewApplyMoves(moves: ReviewMovePayload[]): boolean {
     const owner = ownerOf(m);
     if (!owner) return false;
     prepareFor(owner);
+    // ★v1.55: 自由な手は**合法性を検めない**（親 §6.3.6）＝**送り手の側でも見て
+    // いない**ので、受け手だけが検めると同じ操作が片方でだけ通り、食い違いの解消が
+    // 毎回走る。**量子の候補も絞らない**（量子分冊 §Q22.4＝絞る側と絞らない側が
+    // できると、手の並びが同じでも候補が食い違う）。
+    if (m.kind === 'free') {
+      if (!m.dest) return false;
+      const ok = useGameStore.getState().applyFreeMove({
+        pieceId: m.pieceId,
+        from: m.from,
+        dest: m.dest,
+        promote: m.promote,
+      });
+      if (!ok) return false;
+      continue;
+    }
+    if (!m.to) return false;
     const ok = useGameStore.getState().applyRemoteMove({
       kind: m.kind,
       pieceId: m.pieceId,
@@ -163,7 +183,7 @@ export function reviewApplyMoves(moves: ReviewMovePayload[]): boolean {
 /** その手を指すのはどちらか（盤の駒／持ち駒の持ち主）。 */
 function ownerOf(m: ReviewMovePayload): 'player1' | 'player2' | null {
   const { position } = useGameStore.getState();
-  if (m.kind === 'move') {
+  if (m.kind === 'move' || (m.kind === 'free' && m.from)) {
     if (!m.from) return null;
     return position.board[m.from.row]?.[m.from.col]?.owner ?? null;
   }

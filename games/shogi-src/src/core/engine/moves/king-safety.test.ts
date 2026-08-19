@@ -25,9 +25,11 @@ function seeded(seed: number): () => number {
 }
 
 function key(m: Move): string {
-  return m.type === 'drop'
-    ? `drop ${m.pieceId} → ${m.to.row},${m.to.col}`
-    : `move ${m.pieceId} ${m.from.row},${m.from.col} → ${m.to.row},${m.to.col}${m.promote ? '+' : ''}`;
+  // 合法手の生成が返すのは 'move' / 'drop' だけ（'free' は感想戦の画面が作る手で、
+  // 合法手として生成されることはない＝v1.55）。
+  if (m.type === 'drop') return `drop ${m.pieceId} → ${m.to.row},${m.to.col}`;
+  if (m.type !== 'move') throw new Error('合法手に free は現れない');
+  return `move ${m.pieceId} ${m.from.row},${m.from.col} → ${m.to.row},${m.to.col}${m.promote ? '+' : ''}`;
 }
 
 function sortedKeys(moves: Move[]): string[] {

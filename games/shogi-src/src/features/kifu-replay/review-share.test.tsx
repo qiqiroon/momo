@@ -558,12 +558,15 @@ describe('★S11 部屋を作ったあとの見え方（v1.52・実機のご報�
     register('reviewRoom:lastName', () => '太郎');
   });
 
-  it('★建てたあとは「相手を待っています」と出し続ける（失敗のように見せない）', () => {
+  it('★v1.55: 建てた部屋に居ることは「部屋を閉じる」が出ていることで示す', () => {
     finishedGame(6);
     reviewRoomCreated();
     const view = render(<ReviewScreen />);
 
-    expect(screen.getByText('部屋を作りました。相手を待っています')).toBeInTheDocument();
+    // ★v1.55（付録D-12 v1.4 §8）＝**S12 で建てた直後にこの画面へ来る**ので、
+    // 「部屋を作りました。相手を待っています」という知らせは要らなくなった。
+    // **畳む手立てが出ていること自体が「部屋に居る」の表示**になる。
+    expect(screen.getByText('部屋を閉じる')).toBeInTheDocument();
     // **紛らわしい理由を出さない**＝自分で建てた部屋なのだから。
     expect(screen.queryByText('対局の部屋にいます。先に退室してください')).not.toBeInTheDocument();
     expect(screen.queryByText('部屋を作る')).not.toBeInTheDocument();
@@ -589,13 +592,13 @@ describe('★S11 部屋を作ったあとの見え方（v1.52・実機のご報�
     view.unmount();
   });
 
-  it('★v1.54: 相手の入り方は「モード選択の感想戦から」と書く（部屋の切り分け）', () => {
+  it('★v1.55: 入り方の案内は S11 に置かない（案内するのは S12 の側）', () => {
     finishedGame(6);
     reviewRoomCreated();
     const view = render(<ReviewScreen />);
-    // 親 v1.48 §9.4.4＝**感想戦の部屋へはロビー (S12) から**。ネット対戦の一覧には
-    // 見えるが入れないので、そちらを案内すると入れない道を教えることになる。
-    expect(screen.getByText('相手はモード選択の「感想戦」から入れます')).toBeInTheDocument();
+    // ★v1.55（付録D-12 v1.4 §3）＝操作の行は**押せるものだけ**を並べる。
+    // 相手の入り方はモード選択の説明が受け持っており、ここで繰り返さない。
+    expect(screen.queryByText('相手はモード選択の「感想戦」から入れます')).not.toBeInTheDocument();
     view.unmount();
   });
 
@@ -635,10 +638,14 @@ describe('S11 チャット（v1.50）', () => {
     view.unmount();
   });
 
-  it('ひとりのときはチャットを出さない（相手が居ないので置く意味が無い）', () => {
+  it('★v1.55: ひとりのときもチャットの場所は置いたまま灰色にする', () => {
     finishedGame(6);
     const view = render(<ReviewScreen />);
-    expect(view.container.querySelector('.moves-col .console')).toBeNull();
+    // ★v1.55（付録D-12 v1.4 §2）＝**相手が入ってきた拍子に並びが変わって盤の
+    // 大きさが動く**のを防ぐため、置くものの数を変えない（対局画面がオフライン
+    // 対戦でそうしているのと同じ）。v1.50〜v1.54 の「出さない」は撤回。
+    expect(view.container.querySelector('.moves-col .console')).not.toBeNull();
+    expect(view.container.querySelector('.moves-col .panel.offline-disabled')).not.toBeNull();
     view.unmount();
   });
 

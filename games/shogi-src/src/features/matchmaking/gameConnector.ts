@@ -225,27 +225,11 @@ const connector: OnlineGameConnector = {
     const client = getMomoMatchmaking();
     if (!client) return;
     if (!useMatchmakingStore.getState().currentRoomId) return;
-    const v = PROTOCOL_VERSION;
-    switch (msg.kind) {
-      case 'offer':
-        client.send({ v, type: 'review_offer' });
-        return;
-      case 'reply':
-        client.send({ v, type: 'review_reply', accepted: msg.accepted });
-        return;
-      case 'state':
-        client.send({ v, type: 'review_state', kifu: msg.kifu, ply: msg.ply, branch: msg.branch });
-        return;
-      case 'move':
-        client.send({ v, type: 'review_move', base: msg.base, ply: msg.ply, branch: msg.branch });
-        return;
-      case 'seek':
-        client.send({ v, type: 'review_seek', base: msg.base, ply: msg.ply });
-        return;
-      case 'undo':
-        client.send({ v, type: 'review_undo', base: msg.base, ply: msg.ply, branch: msg.branch });
-        return;
-    }
+    // ★v1.56: **中身に触れず、そのまま渡す**（protocol.ts の `ReviewMsg`）。
+    // v1.55 までは伝言の種類ごとに項目を書き写しており、**書き写す欄に無いものは
+    // 黙って捨てられて**いた（ハイライトと、部屋を移るための合言葉が届かなかった）。
+    // **これ以降、感想戦の伝言を増やしてもここは直さなくてよい。**
+    client.send({ v: PROTOCOL_VERSION, type: 'review', payload: msg });
   },
 
   sendPauseNotify() {

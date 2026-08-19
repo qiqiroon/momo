@@ -3484,32 +3484,52 @@ body::before {
    ★`has-chat` も廃止した＝**チャットと観戦者はひとりのときも置いたまま灰色にする**
    ので、**相手が入ってきても置くものの数が変わらない**（v1.50〜v1.54 は二人になった
    瞬間に盤の大きさが動いていた）。 */
-.stage.s08.s11 { --s08-extra: -64px; }
-/* ★狭い窓（右カラムが盤の下へ回る）では、**盤と再生の操作帯までを収める**。
-   **チャット・観戦者・棋譜はその下に置き、そこまでは画面が送られる**。
-   理由＝この 3 つを積んだうえで盤も収めようとすると、**縦 900px の窓でも 1 マス
-   12px しか残らない**（実測 2026-08-19）＝盤が読めなくなる。**盤を最大に**という
-   決めごとを先に立て、下に続くものへは画面を送って届く形にした（付録D-12 v1.4 §2）。
-   数値は実測（820x900 で操作帯の下端 862px・余り 38px）。 */
-@media (max-width: 860px) {
-  .stage.s08.s11 { --s08-extra: -100px; }
+/* ★v1.56: **盤の大きさの決め方を対局画面と同じにした**（2026-08-19 ユーザー判断 C）。
+   ＝**横幅だけで決め、上限 54px**。v1.55 までの「縦にも収める」計算は使わない。
+
+   **理由**＝対局画面 (S06) は元から `clamp(30px, 6.2vw, 54px)` で**横幅だけ**から決めて
+   おり、**縦は収まらないまま**（実測 1280x720 で 130px はみ出す）。感想戦だけ縦にも
+   収めようとしていたので、**同じ窓で 41.7px 対 54px** という差になっていた
+   （2026-08-19 ご指摘「盤が小さすぎ・対戦と同じくらいに」）。**2 つの画面で違う理屈を
+   持たない**ほうが、見え方も揃うし直す場所も 1 か所で済む。
+
+   **段数・列数は決め打ちにしない**（付録D-1 §4.2.1）＝S06 の 6.2vw は 9 列を前提に
+   した値なので、**9 列ぶんの幅 (55.8vw) を列数で割る**形に開いておく。9 列なら
+   S06 とまったく同じ値になる。
+
+   **縦に収まらない窓では画面が送られる**（対局画面と同じ）。 */
+.stage.s08.s11 {
+  --cell: clamp(30px, calc(55.8vw / var(--board-cols, 9)), 54px);
+  --hand-pc: calc(var(--cell) * 0.66);
 }
 
-/* ★v1.55: 見出しの行（付録D-12 v1.4 §3）。**「感想戦」は箱で囲わない**＝
-   **枠で囲うとボタンに見える**（2026-08-19 ご指摘で v1.54 のバッジを廃止）。 */
-.s11-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
-.s11-title { font-size: 16px; font-weight: 700; color: var(--text); margin: 0; flex: none; }
-.s11-head .kifu-meta { flex: 1; min-width: 0; }
+/* ★v1.56: 見出しと操作を **1 行にまとめた**（付録D-12 v1.5 §3・2026-08-19 ご指摘）。
+   v1.55 は見出しの行と操作の行で 2 段になっており、**その 2 段だけで盤の 1 マスの
+   2 倍の高さ**を使っていた（実測 30px + 55px = 85px ／ 1 マス 41.7px）。
+   **「感想戦」は小さいオレンジ文字**にする＝**枠で囲うとボタンに見える**ので囲わず、
+   それでも見出しだと分かるように色で示す。 */
+.s11-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-top: 6px; min-height: 28px;
+}
+.s11-title {
+  font-size: 12px; font-weight: 700; letter-spacing: .06em;
+  color: var(--orange-light); margin: 0; flex: none;
+}
+.s11-bar .kifu-meta { flex: 1; min-width: 0; }
 /* 相手の在室 (D-12 §3)。**緑は使わない**＝緑は「合意が済んでいる」を表す色なので、
    居るだけの状態に使うと、何かが成立したように読める。居るときは白丸、抜けたら
    薄い白抜きの丸にして、名前ごと目立たなくする。 */
-.s11-head .peer { flex: none; font-size: 11px; color: var(--text); white-space: nowrap; }
-.s11-head .peer.gone { color: var(--text-muted); }
+.s11-bar .peer { flex: none; font-size: 11px; color: var(--text); white-space: nowrap; }
+.s11-bar .peer.gone { color: var(--text-muted); }
+/* ★v1.56: 操作の行のボタンは詰める（v1.55 は 32px あった）。 */
+.s11-bar .io-btn { padding: 4px 9px; font-size: 11px; }
+.s11-bar .io-btn.promote { border-color: var(--orange); color: var(--orange-light); }
+.s11-bar .io-note { font-size: 10px; color: var(--text-muted); white-space: nowrap; }
 
-/* ★v1.55: 操作の行（付録D-12 v1.4 §3）＝棋譜を読み込む・棋譜を保存・部屋を閉じる。
-   v1.54 まで盤の下にあった保存行（`.io-bar`）を、ここへ統合した。 */
-.s11-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
-.s11-actions .io-note { font-size: 10px; color: var(--text-muted); margin-left: auto; }
+/* ★v1.56: 対局者の行を詰める（盤に回す高さを稼ぐ・付録D-12 v1.5 §2）。
+   名前が読めればよい行なので、余白だけを削って字は変えない。 */
+.s11 .pinfo { padding: 2px 8px; min-height: 0; }
 
 /* 感想戦のチャット (D-12 §2)。**高さを決め打ちにする**＝会話が伸びるたびに盤の
    大きさが変わっては読めない（履歴の側がスクロールする）。 */
@@ -3518,8 +3538,17 @@ body::before {
 /* ★v1.55: 右カラムの箱は上下に間を空ける（対局画面と同じ見え方）。 */
 .s11 .moves-col .panel + .panel { margin-top: 12px; }
 /* ★v1.55: 操作帯は右カラム（264px）に収める＝**折り返してよい**（付録D-12 v1.4 §5）。 */
-.s11 .moves-col .playbar { margin-bottom: 12px; }
-.s11 .moves-col .playbar .btns { flex-wrap: wrap; justify-content: center; }
+/* ★v1.56: 感想戦の操作帯を詰めた（付録D-12 v1.5 §5・2026-08-19 ご指摘
+   「棋譜再生パネルはもっと小さいボタンにできるはず・全部一列に」）。
+   v1.55 は 169px あった（ボタン 36px＋補助語の行＋つまみの行＋一言）。
+   **ボタンを小さくし、折り返さず一列**にして、つまみと手数を同じ行へ入れる。 */
+.s11 .moves-col .playbar { margin-bottom: 12px; padding: 7px 8px; gap: 5px; }
+.s11 .moves-col .playbar .btns { flex-wrap: nowrap; justify-content: space-between; gap: 3px; }
+.s11 .moves-col .pb { min-width: 0; height: 26px; font-size: 12px; padding: 0 5px; border-radius: 7px; }
+.s11 .moves-col .pb.auto { font-size: 10px; padding: 0 4px; }
+.s11 .moves-col .pb.spd { font-size: 10px; padding: 0 4px; }
+.s11 .moves-col .playbar .track { gap: 6px; }
+.s11 .moves-col .playbar .plycnt { font-size: 11px; min-width: 58px; }
 
 /* 操作帯の補助語 (D-12 §5)＝**押す前に何が起きるか分かるようにする**極小の一言。
    **常に場所を取る**（空でも高さを持つ）＝分岐に入った拍子に帯が伸びて盤が動かない。 */
@@ -3530,22 +3559,12 @@ body::before {
    伸びて盤が動くのを避けるため、**空でない語は 1 つしか出さない**（「本譜へ」）。 */
 .pb-sub { font-size: 10px; color: var(--text-muted); }
 .pb-sub:empty { display: none; }
-/* ★v1.55: 自由な操作の的（付録D-12 v1.4 §14.1）。**掴んでいる間だけ現れる**ので、
-   **盤の上に浮かせて置く**＝出入りで盤の大きさが動かないようにするため。 */
-.broadcast { position: relative; }
-.free-targets {
-  position: absolute; left: 50%; bottom: -6px; transform: translateX(-50%);
-  display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center;
-  background: var(--surface2); border: 1px solid var(--border-strong); border-radius: 10px;
-  padding: 5px 9px; z-index: 6; box-shadow: 0 6px 18px #000a;
-}
-.free-targets .ft-label { font-size: 10px; color: var(--text-muted); white-space: nowrap; }
-.free-targets .ft {
-  background: transparent; border: 1px dashed var(--border-strong); color: var(--text);
-  border-radius: 7px; padding: 3px 8px; font-size: 11px; font-family: inherit; cursor: pointer;
-  white-space: nowrap;
-}
-.free-targets .ft:hover { border-color: var(--orange); color: var(--orange-light); }
+/* ★v1.56: v1.55 の「盤に浮く的」は廃止した（2026-08-19 ユーザーご指示）＝
+   **駒台への移動は駒台を押す**形になり、**消すは無くなった**ので、残るのは
+   成り・不成の切り替えだけになり、それは操作の行へ移した。
+   **駒を持っている間だけ、駒台が受け口であることを示す**（押せると分かるように）。 */
+.stand.droppable { cursor: pointer; }
+.s11 .stand.droppable:hover { outline: 1px dashed var(--orange); outline-offset: 2px; }
 
 /* ★v1.55: ハイライト（付録D-12 v1.4 §14.3）＝「ここでしょ」と指し示す印。
    **移動先ヒントより手前**に出すが、**掴んでいる駒は隠さない**。 */

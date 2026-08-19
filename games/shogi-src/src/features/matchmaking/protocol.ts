@@ -28,7 +28,7 @@
  *          相手側で描画するためにメッセージ本体に持たせる。
  */
 
-import type { ReviewMovePayload, ReviewPoint } from '../../core/plugin/review';
+import type { ReviewMessage } from '../../core/plugin/review';
 import type { TimeControl } from '../../core/engine/time-control';
 import { handicapKey, type HandicapChoice } from '../../core/engine/handicap';
 import type { QuantumParams } from '../../core/store/quantum-params';
@@ -259,31 +259,24 @@ export interface AnomalyRaiseMsg extends Envelope {
  * 棋譜は**文字列のまま**運ぶ (保存で使っている形をそのまま流用する)。
  * 通信側が棋譜の中身を知る必要はなく、知らないほうが版が食い違ったときに強い。
  */
-export interface ReviewOfferMsg extends Envelope { type: 'review_offer'; }
-export interface ReviewReplyMsg extends Envelope { type: 'review_reply'; accepted: boolean; }
-export interface ReviewStateMsg extends Envelope {
-  type: 'review_state';
-  /** 土台の配布では必ず入る。食い違いを直すだけのときは省く (相手は既に持っている)。 */
-  kifu?: string;
-  ply: number;
-  branch: ReviewMovePayload[];
-}
-export interface ReviewMoveMsg extends Envelope {
-  type: 'review_move';
-  base: ReviewPoint;
-  ply: number;
-  branch: ReviewMovePayload[];
-}
-export interface ReviewSeekMsg extends Envelope {
-  type: 'review_seek';
-  base: ReviewPoint;
-  ply: number;
-}
-export interface ReviewUndoMsg extends Envelope {
-  type: 'review_undo';
-  base: ReviewPoint;
-  ply: number;
-  branch: ReviewMovePayload[];
+/**
+ * ★v1.56: **感想戦の伝言は 1 本の入れ物で丸ごと運ぶ**（親 §6.3.6）。
+ *
+ * v1.55 までは伝言の種類ごとに型を立て、**項目を 1 つずつ書き写して**いた
+ * （送る側・受け取る側・型の 3 か所）。**書き写す欄に無いものは黙って捨てられる**ので、
+ * v1.55 で足した**ハイライトの伝言**と、**部屋を移るための合言葉**が
+ * どちらも相手に届いていなかった（2026-08-19 実機のご報告）。
+ *
+ * **数え上げる形は必ず漏れる**ので、**中身には触れずそのまま渡す**形に改めた
+ * ＝この欄の元からの言い分（「通信機能は中身を解釈しない」）に実装をそろえたことになる。
+ * **これ以降、感想戦の伝言を増やしても通信側は何も直さなくてよい。**
+ *
+ * 棋譜は**文字列のまま**運ぶ（保存で使っている形をそのまま流用する）。
+ */
+export interface ReviewMsg extends Envelope {
+  type: 'review';
+  /** 感想戦の伝言そのもの（`core/plugin/review.ts` の `ReviewMessage`）。 */
+  payload: ReviewMessage;
 }
 
 /**
@@ -423,12 +416,7 @@ export type ShogiMessage =
   | AnomalyRaiseMsg
   | RuleSyncMsg
   | RuleAckMsg
-  | ReviewOfferMsg
-  | ReviewReplyMsg
-  | ReviewStateMsg
-  | ReviewMoveMsg
-  | ReviewSeekMsg
-  | ReviewUndoMsg;
+  | ReviewMsg;
 
 /** 型ガード：unknown をゲームメッセージとして扱えるか */
 export function isShogiMessage(data: unknown): data is ShogiMessage {

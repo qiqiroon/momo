@@ -550,6 +550,19 @@ export function ReviewScreen() {
     putMark({ row, col });
   };
 
+  /**
+   * ★v1.56: **駒を持って駒台を押したら、その駒台へ移す**（親 §9.4.2.1・
+   * 2026-08-19 ユーザーご指示）。v1.55 の「盤に浮く的」は廃止した＝
+   * **駒台が目の前にあるのに別の的を押させるのは遠回り**だった。
+   *
+   * **持っていないときは何も起きない**（駒台の駒を押すのは別の受け口）。
+   */
+  const onStand = (owner: 'player1' | 'player2') => {
+    if (waiting) return;
+    if (!heldPiece) return;
+    doFree({ kind: 'hand', owner });
+  };
+
   const onHand = (owner: 'player1' | 'player2', pieceId: string) => {
     if (waiting) return;
     touchBoard();
@@ -675,10 +688,75 @@ export function ReviewScreen() {
             </div>
           </header>
 
-          {/* ★v1.55: 見出しの行（付録D-12 v1.4 §3）。**「感想戦」は箱で囲わない**
-              ＝**枠で囲うとボタンに見える**（2026-08-19 ご指摘）。 */}
-          <div className="s11-head">
-            <h2 className="s11-title">{t('s11.title')}</h2>
+          {/* ★v1.56: 見出しと操作を **1 行にまとめた**（付録D-12 v1.5 §3・
+              2026-08-19 ご指摘）＝v1.55 は見出しと操作で 2 段になっており、
+              **その 2 段だけで盤の 1 マスの 2 倍の高さ**を使っていた。
+              **「感想戦」は小さいオレンジ文字**（囲わない＝枠はボタンに見える）。 */}
+          <div className="s11-bar">
+            <span className="s11-title">{t('s11.title')}</span>
+            {/* **棋譜を読み込む**（親 §9.4.2・二人のときはホストだけ）。 */}
+            {canLoad && (
+              <button type="button" className="io-btn" onClick={requestLoad}>
+                {t('s11.loadKifu')}
+              </button>
+            )}
+            <button
+              type="button"
+              className="io-btn"
+              disabled={waiting || !file || saving}
+              onClick={() => {
+                seButton();
+                save();
+              }}
+            >
+              {t('result.saveKifu')}
+            </button>
+            {saved && <span className="saved-tag">✓</span>}
+            {/* **押す前に分かるようにする**（付録D-12 §9）＝分岐して指している最中でも、
+                書き出されるのは満額の本譜。**分岐中だけ出す**ので、ふだんは行を取らない。 */}
+            {branch > 0 && <span className="io-note">{t('s11.saveNote')}</span>}
+            {folder && (
+              <button
+                type="button"
+                className="dest-btn"
+                disabled={folderBusy}
+                title={folder.name}
+                onClick={() => {
+                  seButton();
+                  void changeFolder();
+                }}
+              >
+                <span className="ic">📁</span>
+                <span className="nm">{folder.name}</span>
+              </button>
+            )}
+            {/* **自分が建てた部屋に居る間は畳む手立てを出す**（付録D-12 §8）。 */}
+            {ownsRoom && !shared && (
+              <button
+                type="button"
+                className="io-btn"
+                onClick={() => {
+                  seButton();
+                  closeRoom();
+                }}
+              >
+                {t('s11.closeRoom')}
+              </button>
+            )}
+            {/* ★v1.56: **成り・不成の切り替えはここに出す**（掴んでいる間だけ）。
+                v1.55 の「盤に浮く的」は廃止した＝**駒台への移動は駒台を押す**形に
+                なり、**消すは無くなった**ので、残るのはこれ 1 つだけになった。 */}
+            {selectedSquare && heldPiece && (
+              <button
+                type="button"
+                className="io-btn promote"
+                onClick={() =>
+                  doFree({ kind: 'square', square: selectedSquare }, !heldPiece.promoted)
+                }
+              >
+                {heldPiece.promoted ? t('s11.free.unpromote') : t('s11.free.promote')}
+              </button>
+            )}
             <div className="kifu-meta">
               {file ? (
                 <>
@@ -705,61 +783,6 @@ export function ReviewScreen() {
                 {oppPresent ? '' : ` ${t('s11.peerGone')}`}
               </span>
             )}
-          </div>
-
-          {/* ★v1.55: 操作の行（付録D-12 v1.4 §3）＝**棋譜を読み込む・棋譜を保存**を
-              並べ、**その横に部屋を閉じる**。v1.54 まで盤の下にあった保存行は廃止し、
-              ここへ統合した（**盤の下に何も積まない**＝盤が最大になる）。 */}
-          <div className="s11-actions">
-            {/* **棋譜を読み込む**（親 §9.4.2・二人のときはホストだけ）。 */}
-            {canLoad && (
-              <button type="button" className="io-btn" onClick={requestLoad}>
-                {t('s11.loadKifu')}
-              </button>
-            )}
-            <button
-              type="button"
-              className="io-btn"
-              disabled={waiting || !file || saving}
-              onClick={() => {
-                seButton();
-                save();
-              }}
-            >
-              {t('result.saveKifu')}
-            </button>
-            {saved && <span className="saved-tag">✓</span>}
-            {folder && (
-              <button
-                type="button"
-                className="dest-btn"
-                disabled={folderBusy}
-                title={folder.name}
-                onClick={() => {
-                  seButton();
-                  void changeFolder();
-                }}
-              >
-                <span className="ic">📁</span>
-                <span className="nm">{folder.name}</span>
-              </button>
-            )}
-            {/* ★v1.52: **自分が建てた部屋に居る間は畳む手立てを出す**（付録D-12 §8）。
-                v1.55: 置き場所を操作の行へ移した。**「相手を待っています」は出さない**
-                ＝このボタンが出ていること自体が「部屋に居る」の表示になる。 */}
-            {ownsRoom && !shared && (
-              <button
-                type="button"
-                className="io-btn"
-                onClick={() => {
-                  seButton();
-                  closeRoom();
-                }}
-              >
-                {t('s11.closeRoom')}
-              </button>
-            )}
-            <div className="io-note">{branch > 0 ? t('s11.saveNote') : ''}</div>
             <input
               ref={pickerRef}
               type="file"
@@ -780,39 +803,11 @@ export function ReviewScreen() {
               （勝敗も持ち時間も無いため）が、**移動先ヒントは出す**＝指せる場所を
               確かめる画面なので（付録D-12 §4）。 */}
           <div className="broadcast">
-            {/* ★v1.55: 自由な操作の的（付録D-12 v1.4 §14.1）。**掴んでいる間だけ出す**
-                ＝常に置くと画面が狭くなり、押し間違いも増える。**盤の上に浮かせる**
-                ので、出入りしても盤の大きさは動かない。 */}
-            {heldPiece && (
-              <div className="free-targets">
-                <span className="ft-label">{t('s11.free.putTo')}</span>
-                <button type="button" className="ft" onClick={() => doFree({ kind: 'hand', owner: 'player1' })}>
-                  {t('s11.free.hand1')}
-                </button>
-                <button type="button" className="ft" onClick={() => doFree({ kind: 'hand', owner: 'player2' })}>
-                  {t('s11.free.hand2')}
-                </button>
-                <button type="button" className="ft" onClick={() => doFree({ kind: 'discard' })}>
-                  {t('s11.free.discard')}
-                </button>
-                {/* 成り・不成の切り替えは**盤に居る駒だけ**（駒台の駒は成っていない）。 */}
-                {selectedSquare && (
-                  <button
-                    type="button"
-                    className="ft"
-                    onClick={() =>
-                      doFree({ kind: 'square', square: selectedSquare }, !heldPiece.promoted)
-                    }
-                  >
-                    {heldPiece.promoted ? t('s11.free.unpromote') : t('s11.free.promote')}
-                  </button>
-                )}
-              </div>
-            )}
             <PieceStandView
               side="opp"
               pieces={oppHand}
               onClick={(pid) => onHand(oppSide, pid)}
+              onStandClick={() => onStand(oppSide)}
               selectedId={selectedHandPieceId}
               activePlayer
               locale={locale}
@@ -910,6 +905,7 @@ export function ReviewScreen() {
               side="you"
               pieces={myHand}
               onClick={(pid) => onHand(viewerSide, pid)}
+              onStandClick={() => onStand(viewerSide)}
               selectedId={selectedHandPieceId}
               activePlayer
               locale={locale}

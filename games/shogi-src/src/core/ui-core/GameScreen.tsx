@@ -2371,6 +2371,14 @@ interface PieceStandViewProps {
   debugShowPieceIds?: boolean;
   /** v1.08: 未確定持ち駒の見せ方 (巡回 / 重ね)。 */
   mode?: QuantumDisplay;
+  /**
+   * ★v1.56: **駒台そのものを押したときの受け口**（感想戦の自由な操作・親 §9.4.2.1）。
+   *
+   * **駒を持って駒台を押したら、その駒台へ移す**（2026-08-19 ユーザーご指示）。
+   * v1.55 は盤の上に浮く「的」を出していたが、**駒台が目の前にあるのに別の的を
+   * 押させるのは遠回り**だった。対局画面では渡さないので、これまでどおり何も起きない。
+   */
+  onStandClick?: () => void;
   /** v1.08: 巡回表示の共有時計。 */
   cycle?: CycleReader;
   /** v1.08: 観測アニメ中の pieceId 群。 */
@@ -2403,7 +2411,7 @@ function standPacking(count: number): { cls: string; rows: number } {
 }
 
 /** 駒台。棋譜再生画面 (S08) も同じものを使う（触れない＝`activePlayer` を false にする）。 */
-export function PieceStandView({ side, pieces, onClick, selectedId, activePlayer, locale, label, entangledPieceIds, debugShowPieceIds, mode = 'cycle', cycle, collapsingIds }: PieceStandViewProps) {
+export function PieceStandView({ side, pieces, onClick, onStandClick, selectedId, activePlayer, locale, label, entangledPieceIds, debugShowPieceIds, mode = 'cycle', cycle, collapsingIds }: PieceStandViewProps) {
   const isEn = locale === 'en';
   // v1.16 (ユーザー要望): 持ち駒もマウスを乗せただけで候補ボックスを出す。
   // 相手の駒台 (持てない側) も対象。
@@ -2415,8 +2423,9 @@ export function PieceStandView({ side, pieces, onClick, selectedId, activePlayer
   const pack = standPacking(orderedPieces.length);
   return (
     <div
-      className={`stand ${side} ${pack.cls}`}
+      className={`stand ${side} ${pack.cls}${onStandClick ? ' droppable' : ''}`}
       style={{ '--stand-rows': pack.rows } as CSSProperties}
+      onClick={onStandClick ? () => onStandClick() : undefined}
     >
       {/* v0.68 C4: 従来 'Gote'/'You' 固定で自分が後手のときも相手側が Gote になっていたのを、
           呼び出し側から先手/後手ラベルを注入して viewer 基準に合わせる。 */}

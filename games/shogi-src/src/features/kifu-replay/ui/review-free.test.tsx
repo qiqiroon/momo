@@ -54,12 +54,22 @@ function squareAt(container: HTMLElement, row: number, col: number): Element {
   return container.querySelectorAll('.board .sq')[row * 9 + col];
 }
 
-/** 自由な操作の的（掴んでいる間だけ出る）。 */
-function target(container: HTMLElement, label: string): HTMLElement {
-  const b = [...container.querySelectorAll('.free-targets .ft')].find(
+/**
+ * ★v1.56: 駒台へ移すのは**駒台を押す**（2026-08-19 ユーザーご指示）。
+ * v1.55 の「盤に浮く的」は廃止した。
+ */
+function stand(container: HTMLElement, side: 'opp' | 'you'): HTMLElement {
+  const el = container.querySelector(`.stand.${side}`);
+  if (!el) throw new Error(`駒台が見つからない: ${side}`);
+  return el as HTMLElement;
+}
+
+/** 成り・不成の切り替えは操作の行に出る（掴んでいる間だけ）。 */
+function barButton(container: HTMLElement, label: string): HTMLElement {
+  const b = [...container.querySelectorAll('.s11-bar .io-btn')].find(
     (x) => x.textContent === label,
   );
-  if (!b) throw new Error(`的が見つからない: ${label}`);
+  if (!b) throw new Error(`操作の行に見つからない: ${label}`);
   return b as HTMLElement;
 }
 
@@ -96,11 +106,11 @@ describe('★v1.55 盤を自由に組み替える（親 §9.4.2.1）', () => {
     view.unmount();
   });
 
-  it('★盤の駒をどちらの駒台へでも移せる（相手の駒台にも）', () => {
+  it('★v1.56: 駒を持って駒台を押すと、その駒台へ移る（相手の駒台にも）', () => {
     const view = render(<ReviewScreen />);
 
     fireEvent.click(squareAt(view.container, 6, 4));
-    fireEvent.click(target(view.container, '後手の駒台'));
+    fireEvent.click(stand(view.container, 'opp'));
 
     const pos = useGameStore.getState().position;
     expect(pos.board[6][4]).toBeNull();
@@ -109,18 +119,14 @@ describe('★v1.55 盤を自由に組み替える（親 §9.4.2.1）', () => {
     view.unmount();
   });
 
-  it('★駒を消せる（盤からも駒台からも取り除く）', () => {
+  it('★v1.56: 「消す」は無くなった（ユーザーご指示で撤去）', () => {
     const view = render(<ReviewScreen />);
-    const before = useGameStore.getState().position.hands.player1.length;
 
     fireEvent.click(squareAt(view.container, 6, 4));
-    fireEvent.click(target(view.container, '消す'));
-
-    const pos = useGameStore.getState().position;
-    expect(pos.board[6][4]).toBeNull();
-    // **どこにも行かない**＝駒台にも増えない。
-    expect(pos.hands.player1).toHaveLength(before);
-    expect(pos.hands.player2.some((p) => p.kind === 'fu')).toBe(false);
+    // **掴んでいる間に出るのは成り・不成の切り替えだけ**（駒台は駒台を押す）。
+    const labels = [...view.container.querySelectorAll('.s11-bar .io-btn')].map((b) => b.textContent);
+    expect(labels).not.toContain('消す');
+    expect(view.container.querySelector('.free-targets')).toBeNull();
     view.unmount();
   });
 
@@ -128,13 +134,13 @@ describe('★v1.55 盤を自由に組み替える（親 §9.4.2.1）', () => {
     const view = render(<ReviewScreen />);
 
     fireEvent.click(squareAt(view.container, 6, 4));
-    fireEvent.click(target(view.container, '成る'));
+    fireEvent.click(barButton(view.container, '成る'));
 
     expect(useGameStore.getState().position.board[6][4]?.promoted).toBe(true);
 
-    // 戻す方向も同じ的から。
+    // 戻す方向も同じところから。
     fireEvent.click(squareAt(view.container, 6, 4));
-    fireEvent.click(target(view.container, '不成に'));
+    fireEvent.click(barButton(view.container, '不成に'));
     expect(useGameStore.getState().position.board[6][4]?.promoted).toBe(false);
     view.unmount();
   });
@@ -165,7 +171,7 @@ describe('★v1.55 盤を自由に組み替える（親 §9.4.2.1）', () => {
     fireEvent.click(squareAt(view.container, 6, 4));
     fireEvent.click(squareAt(view.container, 4, 4));
     fireEvent.click(squareAt(view.container, 4, 4));
-    fireEvent.click(target(view.container, '消す'));
+    fireEvent.click(stand(view.container, 'opp'));
 
     expect(loadLastKifu()?.moves).toEqual(before?.moves);
     // **保存済みの印も消えない**（親 §9.4.3）。
@@ -177,7 +183,7 @@ describe('★v1.55 盤を自由に組み替える（親 §9.4.2.1）', () => {
     const view = render(<ReviewScreen />);
 
     fireEvent.click(squareAt(view.container, 6, 4));
-    fireEvent.click(target(view.container, '後手の駒台'));
+    fireEvent.click(stand(view.container, 'opp'));
 
     expect(useGameStore.getState().moveHistory[0]).toContain('後手の駒台');
     view.unmount();

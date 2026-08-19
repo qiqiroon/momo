@@ -661,7 +661,11 @@ describe('S11 チャット（v1.50）', () => {
 describe('S11 通信の口（伝言が素通りする）', () => {
   it('感想戦の伝言は、そのまま感想戦の側へ渡る', () => {
     finishedGame(6);
-    handleShogiMessage({ v: 1, type: 'review_offer' });
+    // ★v1.56: **伝言は 1 本の入れ物で丸ごと運ぶ**（親 v1.50 §6.3.6）。
+    // v1.55 までは種類ごとに項目を書き写しており、**書き写す欄に無いものは黙って
+    // 捨てられて**いた（ハイライトと合言葉が届かなかった）。運び方そのものの
+    // 見張りは `features/matchmaking/review-transport.test.ts`。
+    handleShogiMessage({ v: 1, type: 'review', payload: { kind: 'offer' } });
     expect(useOffersStore.getState().reviewOfferFrom).toBe('opp');
   });
 

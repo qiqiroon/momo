@@ -21,7 +21,6 @@ import { asReplay, holdReplayGuard, replayKifu } from '../replay';
 import {
   reviewApplyMoves,
   reviewBranchMoves,
-  reviewOrigin,
   reviewSelectHand,
   reviewSelectSquare,
   reviewTarget,
@@ -32,7 +31,7 @@ import {
   clearReviewNotice,
   endSharedReview,
   leaveSharedReview,
-  reviewRoomCreated,
+  replaceSharedKifu,
   shareReviewMove,
   shareReviewSeek,
   shareReviewUndo,
@@ -41,24 +40,17 @@ import {
 } from '../review-share';
 import { get as pluginGet } from '../../../core/plugin/registry';
 import type { OnlineGameConnector } from '../../../core/plugin/gameConnector';
-import type { ReviewRoomBlock, ReviewRoomRequest } from '../../../core/plugin/reviewRoom';
 import { ChatConsole } from '../../../core/ui-core/ChatConsole';
-import { FloatingPanel } from '../../../core/ui-core/FloatingPanel';
 import { useChatStore } from '../../../core/store/chat-store';
 import { endingLabel } from './ending';
 import { kifuMemoryState, loadLastKifu } from '../storage';
+import { adoptLoadedKifu } from '../index';
+import { readKifuFile } from '../io';
+import { requestKifuLoad } from '../../../core/store/kifu-guard';
 import type { KifuFile } from '../types';
 import { kifuLabels } from './labels';
 
 const SPEEDS = [1, 2, 0.5] as const;
-
-/**
- * 部屋を建てられるかを通信側に聞く（付録D-12 §8）。
- * **通信機能を積んでいないビルドでは口ごと無い**ので null＝ボタンそのものを出さない。
- */
-function askRoomBlock(): ReviewRoomBlock | null {
-  return pluginGet<() => ReviewRoomBlock>('reviewRoom:block')?.() ?? null;
-}
 
 /**
  * 感想戦画面 (S11)。機能の正典＝画面機能 v0.37 §3 S11・意味論＝親 v1.42 §9.4・
@@ -95,7 +87,6 @@ export function ReviewScreen() {
    * 二人のときだけ、**ホストから配られた棋譜で差し替わる**（親 §6.3.6・入室時の 1 回）。
    */
   const [file, setFile] = useState<KifuFile | null>(() => reviewTarget());
-  const [origin] = useState(() => reviewOrigin());
   const [ply, setPly] = useState(0);
   /**
    * 盤を並べ直させる合図。**手数が変わらないまま作り直したいことがある**
@@ -152,50 +143,43 @@ export function ReviewScreen() {
   }, []);
 
   /**
-   * 部屋を建てられるか（付録D-12 §8）。**通信側の事情なので聞きに行く**。
-   * つなぎ直しや入室で変わるので、通信側の変化を購読して測り直す。
+   * ★v1.54: **振り返る 1 局を、この画面で差し替える**（親 v1.48 §9.4.2）。
+   *
+   * **開く前に確認を通す**＝読み込みは破棄の契機（親 §9.2.3 ②）なので、未保存の
+   * 棋譜があれば「保存する／破棄する／やめる」が先に出る。**書類ピッカーを開いて
+   * から尋ねない**（開くと、やめたときの行き先も受け皿の中身も見えなくなる）。
+   *
+   * **二人のときはホストだけ**（ボタンごと出さない・親 §9.4.1）＝ゲストが差し替えると
+   * 配られる 1 局と食い違ったまま、どちらが正かを確かめる材料が無くなる。
    */
-  const [roomBlock, setRoomBlock] = useState<ReviewRoomBlock | null>(() => askRoomBlock());
-  useEffect(() => {
-    const conn = pluginGet<OnlineGameConnector>('gameConnector');
-    if (!conn) return;
-    return conn.subscribe(() => setRoomBlock(askRoomBlock()));
-  }, []);
-
-  /**
-   * 部屋を建てるときの入力（v1.52）。null＝出していない。
-   * **既定を入れて出す**＝多くの人はそのまま押すので、決めさせるために止めない。
-   */
-  const [roomForm, setRoomForm] = useState<{ room: string; name: string } | null>(null);
-  const defaultRoomName = () => (file ? `${labels.ruleName(file)}${t('s11.roomSuffix')}` : '');
-  const defaultPlayerName = () =>
-    pluginGet<() => string>('reviewRoom:lastName')?.() ?? '';
-
-  /** 人を呼ぶ（付録D-12 §8）。**名前は決めてもらったものを使う**。 */
-  const makeRoom = (roomName: string, playerName: string) => {
-    if (!file) return;
-    const create = pluginGet<(info: ReviewRoomRequest) => boolean>('reviewRoom:create');
-    if (!create) return;
-    const ok = create({
-      gameType: (file.meta.gameType === 'hasami'
-        ? 'hasami'
-        : file.meta.gameType === 'shogi-custom'
-          ? 'shogi-custom'
-          : 'shogi') as ReviewRoomRequest['gameType'],
-      torus: file.meta.torus !== 'none',
-      quantum: file.meta.quantum,
-      roomName,
-      playerName,
-    });
-    setRoomForm(null);
-    if (!ok) {
-      setRoomBlock(askRoomBlock());
-      setToast(t('s11.roomFailed'));
-      return;
+  const pickerRef = useRef<HTMLInputElement | null>(null);
+  const canLoad = !shared || shareRole === 'host';
+  const requestLoad = () => {
+    seButton();
+    setPlaying(false);
+    requestKifuLoad(() => pickerRef.current?.click());
+  };
+  const onPicked = async (input: HTMLInputElement) => {
+    const chosen = input.files?.[0];
+    input.value = '';
+    if (!chosen) return;
+    try {
+      const next = await readKifuFile(chosen);
+      // 読み込めた時点でファイルは存在するので、記憶の印は最初から「保存済み」。
+      adoptLoadedKifu(next);
+      // **差し替えたら初期局面から**（親 §9.4.1）＝分岐も持ち越さない。
+      setFile(next);
+      setPly(0);
+      setRebuild((v) => v + 1);
+      setSaved(true);
+      // **二人のときは配り直す**＝差し替えられるのはホストだけなので、配る側も 1 つ。
+      replaceSharedKifu(next);
+      setToast(t('s08.loaded'));
+    } catch {
+      // 棋譜でないものを選んだ。**いま振り返っている 1 局はそのまま**にして理由だけ出す
+      //（画面機能 §3 S11「状態・エラー」＝失敗したら差し替えない）。
+      setToast(t('s08.loadFailed'));
     }
-    reviewRoomCreated();
-    setRoomBlock(askRoomBlock());
-    setToast(t('s11.roomMade'));
   };
 
   /**
@@ -206,7 +190,6 @@ export function ReviewScreen() {
   const closeRoom = () => {
     pluginGet<() => void>('reviewRoom:leave')?.();
     endSharedReview();
-    setRoomBlock(askRoomBlock());
     setToast(t('s11.roomClosed'));
   };
 
@@ -491,11 +474,21 @@ export function ReviewScreen() {
     }
   };
 
-  const backLabel =
-    origin === 'game' ? t('s11.backResult') : origin === 'kifu-replay' ? t('s11.backReplay') : t('s00.modeSelect');
+  /**
+   * ★v1.54: **戻るは、どこから入ってもモード選択の一択**（親 v1.48 §9.4.3・付録D-12 §3）。
+   *
+   * v1.53 までは入ってきた画面（結果／棋譜再生／モード選択）へ戻していた。**この画面の
+   * 中で棋譜を読み込めるようになった**ので、その前提＝「入るときに対象が決まり、画面の
+   * 中で選び直せない」が失われた＝**別の棋譜を見ている最中に、無関係な直前の対局の結果
+   * へ飛ぶ**ことになる。**S08 が v1.41 で「結果へ」をやめたのとまったく同じ理由**。
+   *
+   * **部屋からも出る**のは `leaveSharedReview`（画面を離れる後始末）が受け持つ＝
+   * 出口ごとに書き足さない。
+   */
+  const backLabel = t('s00.modeSelect');
   const goBack = () => {
     seButton();
-    setScreen(origin === 'game' ? 'game' : origin === 'kifu-replay' ? 'kifu-replay' : 'lobby');
+    setScreen('lobby');
   };
 
   const subLocale = locale === 'cat' ? 'ja' : locale;
@@ -534,11 +527,11 @@ export function ReviewScreen() {
             </div>
           </header>
 
-          {/* ツールバー（付録D-12 §3）。**戻るは入ってきた画面へ**＝部屋の中で始めた
-              感想戦は、結果へ戻れないと部屋から出てしまう（S08 とは扱いを分ける）。 */}
+          {/* ツールバー（付録D-12 §3）。**戻るはどこから入ってもモード選択の一択**
+              （★v1.54＝画面の中で棋譜を選び直せるようになったため。S08 と同じ形）。 */}
           <div className="s08-toolbar">
             <button type="button" className="back-btn" onClick={goBack}>
-              {origin === 'lobby' && (
+              {
                 <svg
                   width="14"
                   height="14"
@@ -550,7 +543,7 @@ export function ReviewScreen() {
                 >
                   <path d="M3 12l9-9 9 9M5 10v10h14V10" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
-              )}
+              }
               {backLabel}
             </button>
             {/* 画面名バッジ＝対局画面と見た目が近いので、どちらに居るかを常に出す。 */}
@@ -602,70 +595,23 @@ export function ReviewScreen() {
                 <span className="why">{t('s11.roomHowToJoin')}</span>
               </span>
             )}
-            {/* 人を呼ぶ（付録D-12 §8）。**ひとりで、まだ建てていないときだけ**出す。
-                **建てられないときは不活性にして理由を添える**＝灰色は「押せない」しか
-                意味しないので、待てば直るのか自分の事情なのかが分からなくなる。 */}
-            {!shared && !ownsRoom && roomBlock !== null && (
-              <span className="make-room">
-                <button
-                  type="button"
-                  className="io-btn"
-                  disabled={roomBlock !== 'ok' || !file}
-                  onClick={() => {
-                    seButton();
-                    setRoomForm({ room: defaultRoomName(), name: defaultPlayerName() });
-                  }}
-                >
-                  {t('s11.makeRoom')}
-                </button>
-                {roomBlock !== 'ok' && (
-                  <span className="why">{t(`s11.makeRoom.${roomBlock}`)}</span>
-                )}
-              </span>
+            {/* ★v1.54: **棋譜を読み込む**（親 v1.48 §9.4.2・付録D-12 §3）。
+                **二人のときはホストだけに出す**＝ゲストが差し替えると、配られる 1 局と
+                食い違ったまま、どちらが正かを確かめる材料が無い。
+                **部屋を作る導線は S12 感想戦ロビーへ移した**（建てる場所は 1 か所）。 */}
+            {canLoad && (
+              <button type="button" className="io-btn" onClick={requestLoad}>
+                {t('s11.loadKifu')}
+              </button>
             )}
+            <input
+              ref={pickerRef}
+              type="file"
+              accept="application/json,.json"
+              style={{ display: 'none' }}
+              onChange={(e) => void onPicked(e.currentTarget)}
+            />
           </div>
-
-          {/* ★v1.52: 部屋名と表示名を決めてから建てる（付録D-12 §8）。
-              v1.51 は既定の名前で黙って建てていたので、**同じ名前の部屋が並んで
-              自分のものが見分けられず**、ロビーを通っていない人は名前も空だった。 */}
-          {roomForm && (
-            <FloatingPanel
-              className="floating-result floating-confirm review"
-              title={<>{t('s11.makeRoom')}</>}
-            >
-              <div className="body">
-                <label className="room-field">
-                  <span>{t('s04.roomName')}</span>
-                  <input
-                    type="text"
-                    value={roomForm.room}
-                    onChange={(e) => setRoomForm({ ...roomForm, room: e.target.value })}
-                  />
-                </label>
-                <label className="room-field">
-                  <span>{t('s04.playerNameLbl')}</span>
-                  <input
-                    type="text"
-                    value={roomForm.name}
-                    onChange={(e) => setRoomForm({ ...roomForm, name: e.target.value })}
-                  />
-                </label>
-              </div>
-              <div className="btn-row">
-                <button type="button" className="btn ghost outline" onClick={() => { seButton(); setRoomForm(null); }}>
-                  {t('kifu.cancel')}
-                </button>
-                <button
-                  type="button"
-                  className="btn primary"
-                  disabled={!roomForm.room.trim() || !roomForm.name.trim()}
-                  onClick={() => { seButton(); makeRoom(roomForm.room.trim(), roomForm.name.trim()); }}
-                >
-                  {t('s11.makeRoom')}
-                </button>
-              </div>
-            </FloatingPanel>
-          )}
 
           <div className="pinfo opp">
             <span className="nm">{file ? labels.playerLabel(file, oppSide) : t('player.opp')}</span>

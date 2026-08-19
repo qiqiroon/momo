@@ -281,6 +281,15 @@ export function LobbyScreen() {
 
   const renderRoomRow = (r: typeof rooms[number]) => {
     const parts = decodeRoomName(r.name);
+    /**
+     * ★v1.54: **感想戦の部屋は見えるが、ここからは入れない**（親 v1.48 §9.4.4 の
+     * 部屋の切り分け・画面機能 v0.42 §3 S04）。**入り口は感想戦ロビー (S12)**。
+     *
+     * 見えること自体は残す＝隠すと「在るのに見えない」で分かりにくく、印があれば
+     * 取り違えない。**入れてしまうと、対局の相手を待っている人のところへ感想戦の客が
+     * 来る**（逆も同じ）。**灰色は「押せない」だけを意味する**ので、**理由は言葉で出す**。
+     */
+    const isReviewRoom = !!parts.review;
     // 非公開 (privateRooms) の入室にはパスワード欄の値を自動送信する
     const autoPw = !r.isPublic ? privatePw : undefined;
     return (
@@ -299,8 +308,17 @@ export function LobbyScreen() {
             {r.hasPassword && `  ${t('s04.hasPassword')}`}
             {r.guestConnected && `  ${t('s04.inGame')}`}
           </div>
+          {isReviewRoom && (
+            <div style={{ color: 'var(--text-muted)', fontSize: 10, marginTop: 2 }}>
+              {t('s04.reviewRoomWhy')}
+            </div>
+          )}
         </div>
-        {joinRoomId === r.id && r.hasPassword && (autoPw === undefined || autoPw === '') ? (
+        {isReviewRoom ? (
+          <button className="reset-btn" type="button" disabled>
+            {t('s04.enterRoom')}
+          </button>
+        ) : joinRoomId === r.id && r.hasPassword && (autoPw === undefined || autoPw === '') ? (
           <>
             <input
               ref={joinPwRef}

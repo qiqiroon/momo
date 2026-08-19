@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.53',
+    'app.ver': 'v1.54',
     // v0.72 音楽再生確認モーダル (Darts と同じ思想)
     'sound.promptTitle': 'BGM と効果音を再生してもよろしいですか？',
     'sound.bgmLabel': 'BGM 音量',
@@ -136,7 +136,7 @@ export const ja: LocaleData = {
     's00.mKifu': '棋譜再生',
     's00.mKifuD': '保存した対局を並べ直して振り返る。',
     's00.mReview': '感想戦',
-    's00.mReviewD': '終わった対局を並べ直し、どの局面からでも自由に指してみる。ここはひとり用。相手の感想戦の部屋に入るときは「ネット対戦」から。',
+    's00.mReviewD': '終わった対局を並べ直し、どの局面からでも自由に指してみる。ひとりで振り返る／人を呼ぶ／人の部屋に入るを、次の画面で選びます。',
     's00.pvpReason': 'サーバーに接続できていないため、ネット対戦は選べません。',
     's00.watchReason': 'サーバーに接続できていないため、ネット観戦は選べません。',
     's00.footAbout': 'MOMO Shogi について',
@@ -250,8 +250,18 @@ export const ja: LocaleData = {
     's11.closeRoom': '部屋を閉じる',
     's11.roomClosed': '部屋を閉じました',
     's11.roomFailed': '部屋を作れませんでした',
-    's11.roomHowToJoin': '相手は「ネット対戦」の一覧から入れます',
+    's11.roomHowToJoin': '相手はモード選択の「感想戦」から入れます',
     's11.roomMade': '部屋を作りました。相手が入るのを待っています。',
+    // ★v1.54: 感想戦ロビー (S12・親 v1.48 §9.4.1・付録D-12 §13)
+    's12.head': '感想戦',
+    's12.lead': 'ひとりで振り返る／人を呼んで振り返る。振り返る棋譜は次の画面で決まります（記憶していれば直前の 1 局）。',
+    's12.solo': 'ひとりで始める',
+    's12.roomsHead': '感想戦の部屋',
+    's12.roomsEmpty': 'いま開いている感想戦の部屋はありません',
+    's12.roomsOffline': 'サーバーにつながると、感想戦の部屋の一覧が出ます',
+    // ★v1.54: 感想戦の中で棋譜を差し替える (親 v1.48 §9.4.2)
+    's11.loadKifu': '棋譜を読み込む',
+    's04.reviewRoomWhy': '感想戦の部屋です。モード選択の「感想戦」から入れます',
     'review.sentTitle': '感想戦のお誘い',
     'review.sentBody': '相手に感想戦を申し出ています…',
     'review.aloneAction': 'ひとりで始める',

@@ -3559,3 +3559,26 @@ body::before {
   background: var(--surface2); border: 1px solid var(--orange); color: var(--orange-light);
   border-radius: 10px; padding: 9px 16px; font-size: 12px; z-index: 90; box-shadow: 0 6px 20px #000c;
 }
+
+/* ★v1.54: 感想戦ロビー S12（付録D-12 v1.3 §13）。**骨格はネット対戦のロビー（付録D-6）
+   に揃える**＝同じ形のものを違う見た目にしない。ここで新しく要るのは
+   「3 つの導線」と「感想戦の部屋だけを並べる一覧」の 2 つだけ。 */
+.review-lobby-actions {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 10px 0 18px;
+}
+/* **ひとりで始めるは接続していなくても押せる**ので、主動作の見た目のまま置く。 */
+.review-lobby-actions .make-room { display: flex; align-items: center; gap: 6px; }
+/* **灰色は「押せない」だけを意味する**ので、理由は色ではなく言葉で出す（付録D-3 §4.1）。 */
+.review-lobby-actions .make-room .why { font-size: 10px; color: var(--text-muted); }
+.review-room-list h3 {
+  font-size: 12px; color: var(--text-muted); letter-spacing: .08em; margin: 0 0 8px;
+}
+.review-room-list .empty { font-size: 12px; color: var(--text-muted); margin: 0; }
+.review-room-row {
+  display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+  background: var(--surface2); border-radius: 8px; font-size: 13px; margin-bottom: 8px;
+}
+.review-room-row .who { flex: 1; }
+.review-room-row .who .line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.review-room-row .who .name { color: var(--text); }
+.review-room-row .who .sub { color: var(--text-muted); font-size: 11px; margin-top: 2px; }

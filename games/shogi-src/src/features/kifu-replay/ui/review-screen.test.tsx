@@ -241,26 +241,21 @@ describe('S11 画面を離れるとき', () => {
     expect(useGameStore.getState().status).toBe(before);
   });
 
-  it('★戻るは入ってきた画面へ（結果／棋譜再生／モード選択）', () => {
+  it('★v1.54: 戻るは、どこから入ってもモード選択の一択', () => {
     finishedGame(6);
 
-    enterFrom('game');
-    const a = render(<ReviewScreen />);
-    fireEvent.click(screen.getByText('結果へ'));
-    expect(useRouteStore.getState().screen).toBe('game');
-    a.unmount();
-
-    useRouteStore.setState({ screen: 'review' });
-    enterFrom('kifu-replay');
-    const b = render(<ReviewScreen />);
-    fireEvent.click(screen.getByText('棋譜再生へ'));
-    expect(useRouteStore.getState().screen).toBe('kifu-replay');
-    b.unmount();
-
-    useRouteStore.setState({ screen: 'review' });
-    enterFrom('lobby');
-    render(<ReviewScreen />);
-    fireEvent.click(screen.getByText('モード選択'));
-    expect(useRouteStore.getState().screen).toBe('lobby');
+    // 親 v1.48 §9.4.3＝**画面の中で棋譜を読み込めるようになった**ので、
+    // 「入るときに対象が決まり選び直せない」という前提が失われた＝別の棋譜を
+    // 見ている最中に無関係な結果へ飛ぶ。S08 が「結果へ」をやめたのと同じ理由。
+    for (const from of ['game', 'kifu-replay', 'lobby'] as const) {
+      useRouteStore.setState({ screen: 'review' });
+      enterFrom(from);
+      const view = render(<ReviewScreen />);
+      expect(screen.queryByText('結果へ')).not.toBeInTheDocument();
+      expect(screen.queryByText('棋譜再生へ')).not.toBeInTheDocument();
+      fireEvent.click(screen.getByText('モード選択'));
+      expect(useRouteStore.getState().screen).toBe('lobby');
+      view.unmount();
+    }
   });
 });

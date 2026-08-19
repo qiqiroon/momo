@@ -16,22 +16,27 @@ import { useGameStore } from '../../core/store/game-store';
 import { useRouteStore } from '../../core/store/route-store';
 import { KifuReplayScreen } from './ui/KifuReplayScreen';
 import { ReviewScreen } from './ui/ReviewScreen';
-import { setReviewTarget, type ReviewOrigin } from './review';
+import { clearReviewTarget, setReviewTarget, type ReviewOrigin } from './review';
 import {
   answerReviewOffer,
   canOfferReview,
+  endSharedReview,
   joinedReviewRoom,
   offerReview,
   receiveReviewMessage,
   reviewGuestArrived,
   reviewOpponentLeft,
+  reviewRoomCreated,
   withdrawReviewOffer,
 } from './review-share';
+import { kifuLabels } from './ui/labels';
+import type { LocaleCode } from '../../core/i18n/types';
+import type { ReviewRoomInfo } from '../../core/plugin/reviewRoom';
 import { setReplayOrigin } from './ui/origin';
 import { buildKifuFile } from './build';
 import { kifuFileName } from './filename';
 import { readFolderTexts, type FsDirHandle } from './folder';
-import { parseKifu, readKifuFile, writeKifuFile, type KifuSaveOutcome } from './io';
+import { parseKifu, writeKifuFile, type KifuSaveOutcome } from './io';
 import { isReplayingKifu } from './replay';
 import {
   discardKifu,
@@ -211,16 +216,6 @@ register('review:open', (from: ReviewOrigin, file?: KifuFile): boolean => {
   return true;
 });
 /**
- * モード選択から感想戦へ入る（親 §9.4.1 の 3 つめの入り口）。
- *
- * **記憶している棋譜があれば、それでそのまま始める**＝読み込ませない。
- * **記憶が空のときだけ棋譜を読み込む**（S08 と同じ経路＝**押すまで書類ピッカーを
- * 開かない**）。押した先で確かめる材料が無いので、ここが唯一ファイルを尋ねる場所。
- *
- * 読み込みは本来なら破棄の契機だが、**ここへ来るのは記憶が空のときだけ**なので
- * 捨てるものが無い（親 §9.2.3 ②）。
- */
-/**
  * 二人の感想戦（親 §9.4.4／§6.3.6）。**通信側からはこの 3 つの口だけが見える**。
  *
  * - `review:message` … 相手から届いた伝言を渡す口
@@ -244,33 +239,59 @@ register('review:guestArrived', reviewGuestArrived);
 register('review:offer', offerReview);
 register('review:withdrawOffer', withdrawReviewOffer);
 register('review:answerOffer', answerReviewOffer);
-register('review:openFromMenu', () => {
-  if (loadLastKifu()) {
-    setReviewTarget(loadLastKifu() as KifuFile, 'lobby');
-    useRouteStore.getState().setScreen('review');
-    return;
-  }
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = 'application/json,.json';
-  input.style.display = 'none';
-  input.addEventListener('change', () => {
-    const chosen = input.files?.[0];
-    input.remove();
-    if (!chosen) return;
-    void readKifuFile(chosen)
-      .then((next) => {
-        // 読み込めた時点でファイルは存在するので、記憶の印は最初から「保存済み」。
-        adoptLoadedKifu(next);
-        setReviewTarget(next, 'lobby');
-        useRouteStore.getState().setScreen('review');
-      })
-      .catch(() => {
-        // 棋譜でないものを選んだ。**入らずに済ませる**（画面機能 §3 S11「状態・エラー」）。
-      });
-  });
-  document.body.appendChild(input);
-  input.click();
+/**
+ * ★v1.54: 感想戦ロビー (S12) から呼ばれる 3 つの口（親 v1.48 §9.4.1）。
+ *
+ * **ロビーは通信機能 (features/matchmaking) 側に居る**ので、棋譜のことは何も知らない。
+ * だから**棋譜に関わる判断はすべてこちらで済ませ**、ロビーには結果だけを返す。
+ *
+ * v1.53 までの `review:openFromMenu`（記憶が空なら書類ピッカーを開く）は**廃止**した
+ * ＝**画面の中で読み込めるようになった**ので、入る前にだけ読み込ませる理由が無い
+ * （親 v1.48 §9.4.1・S08 も棋譜が無ければ初期配置で開く）。
+ */
+
+/**
+ * ひとりで始める（S12）。**記憶している 1 局があればそれで、無ければ空のまま入る**。
+ *
+ * **入るたびに決め直す**（親 §9.4.1・v1.47）＝前に見た 1 局の控えは画面より長生き
+ * するので、空かどうかで決めると**前の棋譜がそのまま出る**。ここは記憶を正とする。
+ */
+register('review:startSolo', () => {
+  endSharedReview();
+  const remembered = loadLastKifu();
+  if (remembered) setReviewTarget(remembered, 'lobby');
+  else clearReviewTarget('lobby');
+  useRouteStore.getState().setScreen('review');
+});
+/**
+ * 部屋を建てるのに要るものを、記憶している 1 局から取る（S12）。
+ * **記憶が無くても建てられる**＝中で読み込めるので、ルール名だけが空になる。
+ */
+register('review:roomInfo', (locale: LocaleCode): ReviewRoomInfo => {
+  const file = loadLastKifu();
+  if (!file) return { gameType: 'shogi', torus: false, quantum: false, ruleName: '' };
+  return {
+    gameType:
+      file.meta.gameType === 'hasami'
+        ? 'hasami'
+        : file.meta.gameType === 'shogi-custom'
+          ? 'shogi-custom'
+          : 'shogi',
+    torus: file.meta.torus !== 'none',
+    quantum: file.meta.quantum,
+    ruleName: kifuLabels(locale).ruleName(file),
+  };
+});
+/**
+ * 部屋が建った（S12）。**建てた人はそのまま感想戦へ入る**＝相手を待たない
+ * （親 §9.4.1）。振り返る 1 局の決め方は「ひとりで始める」と同じ。
+ */
+register('review:roomCreated', () => {
+  const remembered = loadLastKifu();
+  if (remembered) setReviewTarget(remembered, 'lobby');
+  else clearReviewTarget('lobby');
+  reviewRoomCreated();
+  useRouteStore.getState().setScreen('review');
 });
 
 export { buildKifuFile } from './build';

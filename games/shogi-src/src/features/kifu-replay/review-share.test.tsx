@@ -4,6 +4,7 @@ import { useGameStore } from '../../core/store/game-store';
 import { useAiStore } from '../../core/store/ai-store';
 import { useI18nStore } from '../../core/store/i18n-store';
 import { useRouteStore } from '../../core/store/route-store';
+import { useKifuGuardStore } from '../../core/store/kifu-guard';
 import { useOffersStore } from '../../core/store/offers-store';
 import { useMatchmakingStore } from '../matchmaking/store';
 import { handleShogiMessage } from '../matchmaking/messageDispatcher';
@@ -524,7 +525,7 @@ describe('S11 感想戦の部屋（段2・v1.50）', () => {
     expect(sent).toHaveLength(0);
   });
 
-  it('★感想戦のために建てた／入った部屋は、画面を離れるときに出る', () => {
+  it('★v1.54: 画面を離れるときは、入り口によらず部屋から出る', () => {
     finishedGame(6);
     let left = 0;
     register('reviewRoom:leave', () => {
@@ -535,10 +536,12 @@ describe('S11 感想戦の部屋（段2・v1.50）', () => {
     leaveSharedReview();
     expect(left).toBe(1);
 
-    // 対局の終わりから入った感想戦では**部屋から出ない**（相手を追い出さない）。
+    // ★v1.54: **対局の終わりから入った感想戦でも出る**（親 v1.48 §9.4.3）。
+    // 戻る先がモード選択の一択になったので、部屋に残っても戻る道が無く、
+    // 誰も居ない部屋になる。v1.53 まではここで出ずに残っていた。
     startAsHost();
     leaveSharedReview();
-    expect(left).toBe(1);
+    expect(left).toBe(2);
   });
 });
 
@@ -586,37 +589,25 @@ describe('★S11 部屋を作ったあとの見え方（v1.52・実機のご報�
     view.unmount();
   });
 
-  it('相手の入り方を画面に書いておく（ロビーからしか入れないことが分からない）', () => {
+  it('★v1.54: 相手の入り方は「モード選択の感想戦から」と書く（部屋の切り分け）', () => {
     finishedGame(6);
     reviewRoomCreated();
     const view = render(<ReviewScreen />);
-    expect(screen.getByText('相手は「ネット対戦」の一覧から入れます')).toBeInTheDocument();
+    // 親 v1.48 §9.4.4＝**感想戦の部屋へはロビー (S12) から**。ネット対戦の一覧には
+    // 見えるが入れないので、そちらを案内すると入れない道を教えることになる。
+    expect(screen.getByText('相手はモード選択の「感想戦」から入れます')).toBeInTheDocument();
     view.unmount();
   });
 
-  it('★建てる前に部屋名と表示名を決められる（既定は入れておく）', () => {
+  it('★v1.54: 建てる導線は S11 に無い（建てる場所はロビー S12 だけ）', () => {
     finishedGame(6);
     register('reviewRoom:block', () => 'ok');
-    let got: { roomName: string; playerName: string } | null = null;
-    register('reviewRoom:create', (info: { roomName: string; playerName: string }) => {
-      got = info;
-      return true;
-    });
     const view = render(<ReviewScreen />);
 
-    fireEvent.click(screen.getByText('部屋を作る'));
-    const inputs = view.container.querySelectorAll('.room-field input');
-    expect(inputs).toHaveLength(2);
-    // **既定が入っている**＝決めさせるために止めない。
-    expect((inputs[0] as HTMLInputElement).value).toContain('感想戦');
-    expect((inputs[1] as HTMLInputElement).value).toBe('太郎');
-
-    fireEvent.change(inputs[0], { target: { value: 'わたしの部屋' } });
-    fireEvent.change(inputs[1], { target: { value: '花子' } });
-    fireEvent.click(view.container.querySelector('.btn-row .btn.primary') as Element);
-
-    expect(got!.roomName).toBe('わたしの部屋');
-    expect(got!.playerName).toBe('花子');
+    // 親 v1.48 §9.4.1＝**建てる場所が 2 か所あると、名前を決める手順も規定も
+    // 二重になる**。部屋名と表示名を決めるパネルは S12 へ移した。
+    expect(screen.queryByText('部屋を作る')).not.toBeInTheDocument();
+    expect(view.container.querySelectorAll('.room-field input')).toHaveLength(0);
     view.unmount();
   });
 });
@@ -669,5 +660,97 @@ describe('S11 通信の口（伝言が素通りする）', () => {
 
   it('知らない伝言は黙って捨てる（フォワード互換）', () => {
     expect(() => handleShogiMessage({ v: 1, type: 'review_unknown' })).not.toThrow();
+  });
+});
+
+describe('★v1.54 進んだ部屋に入ってきた人にも、いまの局面を配る（親 v1.48 §6.3.6）', () => {
+  /**
+   * v1.53 まで＝配るのは棋譜だけで、居場所は必ず `ply: 0` だった。そのため
+   * **先に来ていた人が話している局面が、後から来た人にだけ見えず**、
+   * 誰かが 1 手動かすまで追いつけなかった（2026-08-19 実機のご報告）。
+   *
+   * `state` はもともと「何手目にいるか＋分岐の手の並び」を丸ごと運ぶ形なので、
+   * **入室の瞬間にも同じものを載せればよい**＝新しい伝言は作らない。
+   */
+  it('★ホストが 3 手目を見ているところへ客が来たら、3 手目を配る', () => {
+    finishedGame(6);
+    reviewRoomCreated();
+    const view = render(<ReviewScreen />);
+
+    // ホストが再生を進める（画面が「いまの居場所」を持っている状態にする）。
+    fireEvent.click(screen.getByText('▶'));
+    fireEvent.click(screen.getByText('▶'));
+    fireEvent.click(screen.getByText('▶'));
+    sent = [];
+
+    act(() => {
+      reviewGuestArrived();
+    });
+
+    const state = sent.find((m) => m.kind === 'state');
+    expect(state).toBeTruthy();
+    expect(state && state.kind === 'state' ? state.ply : -1).toBe(3);
+    // **棋譜も必ず一緒に配る**（相手が持っていることを当てにしない）。
+    expect(state && state.kind === 'state' ? !!state.kifu : false).toBe(true);
+    view.unmount();
+  });
+
+  it('画面がまだ出ていなければ、初期局面から配る（居場所がそもそも無い）', () => {
+    finishedGame(6);
+    reviewRoomCreated();
+    sent = [];
+
+    reviewGuestArrived();
+
+    const state = sent.find((m) => m.kind === 'state');
+    expect(state && state.kind === 'state' ? state.ply : -1).toBe(0);
+  });
+});
+
+describe('★v1.54 感想戦の中で棋譜を差し替える（親 v1.48 §9.4.2）', () => {
+  it('★ひとりのときは「棋譜を読み込む」が出る', () => {
+    finishedGame(6);
+    const view = render(<ReviewScreen />);
+    expect(screen.getByText('棋譜を読み込む')).toBeInTheDocument();
+    view.unmount();
+  });
+
+  it('★二人のときは、ホストにだけ出す（ゲストには出さない）', () => {
+    const file = finishedGame(6);
+
+    startAsHost();
+    const host = render(<ReviewScreen />);
+    expect(screen.getByText('棋譜を読み込む')).toBeInTheDocument();
+    host.unmount();
+
+    endSharedReview();
+    startAsGuest(file);
+    const guest = render(<ReviewScreen />);
+    // ゲストが差し替えると、配られる 1 局と食い違ったまま気づけない。
+    expect(screen.queryByText('棋譜を読み込む')).not.toBeInTheDocument();
+    guest.unmount();
+  });
+
+  it('★未保存の棋譜があるときは、書類ピッカーを開く前に確認を出す', () => {
+    finishedGame(6);
+    expect(kifuMemoryState()).toBe('unsaved');
+    const view = render(<ReviewScreen />);
+
+    fireEvent.click(screen.getByText('棋譜を読み込む'));
+
+    // 読み込みは破棄の契機（親 §9.2.3 ②）＝**開いてから尋ねない**。
+    expect(useKifuGuardStore.getState().stage).toBe('kifu');
+    view.unmount();
+  });
+
+  it('保存済みなら尋ねずに開く（同じことを二度尋ねない）', () => {
+    finishedGame(6);
+    markKifuSaved();
+    const view = render(<ReviewScreen />);
+
+    fireEvent.click(screen.getByText('棋譜を読み込む'));
+
+    expect(useKifuGuardStore.getState().stage).toBeNull();
+    view.unmount();
   });
 });

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { requestNewGame } from './kifu-guard';
 
-export type Screen = 'game' | 'lobby' | 'net-lobby' | 'rule-select' | 'room' | 'endgame' | 'offline-rule' | 'ai-setup' | 'kifu-replay' | 'review';
+export type Screen = 'game' | 'lobby' | 'net-lobby' | 'rule-select' | 'room' | 'endgame' | 'offline-rule' | 'ai-setup' | 'kifu-replay' | 'review' | 'review-lobby';
 
 /**
  * **そこから先へ進むと必ず盤が作り直される設定画面**（親 v1.36 §9.2.3 ②）。
@@ -18,6 +18,10 @@ export type Screen = 'game' | 'lobby' | 'net-lobby' | 'rule-select' | 'room' | '
  *
  * **感想戦 (S11) も入れない**（親 §9.4.3）＝盤は作り直すが対局ではない。
  * 記憶にも触らないので、破棄する理由がそもそも無い。
+ *
+ * **感想戦ロビー (S12) も入れない**（v1.48・親 §9.4.1）＝ここは入り口を選ぶだけで
+ * 盤に触れない。**部屋を建てる手前では確認を出す**が、それは S12 の中の仕事
+ * （親 §9.2.3 ②＝**確認の手前で外へ出る操作をしない**）。
  */
 const NEW_GAME_SETUP_SCREENS: readonly Screen[] = ['rule-select', 'ai-setup', 'room', 'offline-rule'];
 

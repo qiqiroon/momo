@@ -24,6 +24,7 @@ import { useRouteStore } from '../../core/store/route-store';
 import { parseKifu, serializeKifu } from './io';
 import { clearReviewTarget, reviewTarget, setReviewTarget } from './review';
 import { loadLastKifu } from './storage';
+import type { KifuFile } from './types';
 
 /** 部屋を建てた側か、入った側か。**正はホスト**（親 §6.3.6）。 */
 export type ReviewRole = 'host' | 'guest';
@@ -115,15 +116,21 @@ export function endSharedReview(): void {
  * 感想戦の画面を離れる。**相手にも伝える**＝黙って居なくなると、相手は共有されて
  * いない操作を続けてしまう（画面機能 §3 S11「相手が抜けたことは知らせる」）。
  *
- * **対局の終わりから入った感想戦では部屋から出ない**（結果の画面へ戻るだけ＝
- * 相手を部屋から追い出さない）。**v1.50** ＝ここで建てた／一覧から入った部屋だけは
- * 出る（`ownsRoom`）＝その部屋は感想戦のためだけに在り、残すと一覧に**誰も居ない
- * 部屋**が並び続ける。
+ * ★**v1.54: 入り口によらず、部屋からも出る**（親 v1.48 §9.4.3）。
+ *
+ * v1.53 までは**対局の終わりから入った感想戦だけ部屋に残っていた**＝戻る先が
+ * 「結果の画面」で、そこから部屋へ戻れたため。**戻る先がモード選択の一択になった**
+ * 以上、**部屋に残っても戻る道が無く、誰も居ない部屋になる**（v1.50 が一覧から入った
+ * 部屋について直したのと同じ形を、全経路へ広げた）。
+ *
+ * **相手を追い出すことにはならない**＝残った側の感想戦は終わらない（§9.4.4）。
  */
 export function leaveSharedReview(): void {
   const s = useReviewShareStore.getState();
   if (s.role !== null) connector()?.sendReview({ kind: 'reply', accepted: false });
-  if (s.ownsRoom) pluginGet<() => void>('reviewRoom:leave')?.();
+  // **部屋に居るかどうかは通信側が知っている**＝こちらで数え上げない（`ownsRoom` は
+  // 「感想戦のために建てた／入った」の印であって、部屋に居るかの印ではない）。
+  pluginGet<() => void>('reviewRoom:leave')?.();
   if (s.role === null && !s.ownsRoom) return;
   endSharedReview();
 }
@@ -263,10 +270,38 @@ function enterReviewScreen(): void {
 /**
  * ホストが棋譜を配る（親 §6.3.6）。**相手が同じ対局を指していた場合でも必ず送る**
  * ＝入るまでの間にゲスト側の記憶が置き換わったり失われたりしている可能性があるため。
+ *
+ * ★**v1.54: 棋譜だけでなく「いまの居場所」も一緒に配る**（親 v1.48 §6.3.6）。
+ *
+ * v1.53 までは常に `ply: 0` で配っていたので、**進んだ部屋に入ったゲストは初期局面から
+ * 始まり**、次に誰かが 1 手動かすまで追いつけなかった（2026-08-19 ご報告）。
+ * `state` はもともと「何手目にいるか＋分岐の手の並び」を丸ごと運ぶ形なので、
+ * **入室の瞬間にも同じものを載せればよい**＝新しい伝言は作らない。
+ *
+ * 画面がまだ出ていなければ居場所そのものが無いので、そのときだけ初期局面になる。
  */
 function distributeKifu(): void {
   const file = reviewTarget();
   if (!file) return;
+  const here = localView?.();
+  connector()?.sendReview({
+    kind: 'state',
+    kifu: serializeKifu(file),
+    ply: here?.ply ?? 0,
+    branch: here?.branch ?? [],
+  });
+}
+
+/**
+ * ★v1.54: **ホストが振り返る 1 局を差し替えた**（S11 の「棋譜を読み込む」・親 §9.4.2）。
+ *
+ * **差し替えられるのはホストだけ**なので、配り直す側も 1 つに決まる。ひとりのときは
+ * 送り先が無いので何も起きない（縮退）。
+ */
+export function replaceSharedKifu(file: KifuFile): void {
+  setReviewTarget(file, 'lobby');
+  if (!isSharedReview()) return;
+  if (useReviewShareStore.getState().role !== 'host') return;
   connector()?.sendReview({ kind: 'state', kifu: serializeKifu(file), ply: 0, branch: [] });
 }
 

@@ -17,6 +17,22 @@ export type ReviewRoomBlock =
   /** 既にどこかの部屋に居る＝そこを使えばよいので、新しく建てる意味が無い。 */
   | 'already-in-room';
 
+/**
+ * ★v1.54: 感想戦ロビー (S12) が、部屋を建てる前に棋譜から取る情報（親 v1.48 §9.4.1）。
+ *
+ * **ロビーは通信機能の側に居て棋譜を知らない**ので、既定の部屋名に使うルール名まで
+ * 含めてこちらへ渡す。**記憶が空でも建てられる**（中で読み込めるため）＝そのときは
+ * ルール名だけが空になる。
+ */
+export interface ReviewRoomInfo {
+  gameType: 'shogi' | 'hasami' | 'shogi-custom';
+  torus: boolean;
+  quantum: boolean;
+  customRuleName?: string;
+  /** 既定の部屋名に使う、いま記憶している 1 局のルール名（空＝記憶が無い）。 */
+  ruleName: string;
+}
+
 /** 感想戦の部屋を建てるのに要る、棋譜から取れるだけの情報。 */
 export interface ReviewRoomRequest {
   gameType: 'shogi' | 'hasami' | 'shogi-custom';

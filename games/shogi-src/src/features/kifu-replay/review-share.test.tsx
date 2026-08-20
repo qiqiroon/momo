@@ -792,6 +792,55 @@ describe('★v1.54 感想戦の中で棋譜を差し替える（親 v1.48 §9.4.
     guest.unmount();
   });
 
+  it('★v1.67: 棋譜が無くても、相手が組み替えた盤がこちらの盤に載る', () => {
+    // v1.66 まで＝盤を並べ直す仕掛けが**棋譜が無いと何もせずに引き返して**いたため、
+    // **届いた手を載せる処理までたどり着かなかった**（実サーバーで確認・2026-08-20）。
+    // 印だけが届いて見えていたのは、**印は盤を組み立て直さない**から。
+    clearReviewTarget('lobby');
+    iAmHost = false;
+    joinedReviewRoom();
+    const view = render(<ReviewScreen />);
+
+    // 相手（ホスト）が初期配置から 1 手だけ動かした、という配り。
+    const before = useGameStore.getState().position;
+    const legal = generateLegalMoves(useGameStore.getState().mgf, before);
+    const m = legal.find((x) => x.type === 'move') as {
+      pieceId: string;
+      from: { row: number; col: number };
+      to: { row: number; col: number };
+    };
+    deliver({
+      kind: 'move',
+      base: { ply: 0, branchLen: 0 },
+      ply: 0,
+      branch: [{ kind: 'move', pieceId: m.pieceId, from: m.from, to: m.to, promote: false }],
+    });
+
+    // 盤が動いていること＝載せる処理まで届いた
+    expect(useGameStore.getState().position).not.toBe(before);
+    view.unmount();
+  });
+
+  it('★v1.67: 棋譜が無い感想戦で盤を作り直しても、記憶している棋譜は捨てられない', () => {
+    // **盤を作り直すのは棋譜の記憶を捨てる瞬間でもある**（親 §9.2.3 ②）。
+    // 感想戦は**画面に居る間ずっと「本物の対局ではない」と名乗る**ので捨てられない
+    // （§9.4.3）が、**実害が大きいので検査で固定する**。
+    finishedGame(6);
+    markKifuSaved();
+    expect(kifuMemoryState()).toBe('saved');
+    clearReviewTarget('lobby');
+    iAmHost = false;
+    joinedReviewRoom();
+    const view = render(<ReviewScreen />);
+
+    deliver({ kind: 'state', ply: 0, branch: [] });
+
+    // 印が「保存済み」でも、この経路では捨てられない
+    expect(kifuMemoryState()).toBe('saved');
+    expect(loadLastKifu()).not.toBeNull();
+    view.unmount();
+  });
+
   it('★未保存の棋譜があるときは、書類ピッカーを開く前に確認を出す', () => {
     finishedGame(6);
     expect(kifuMemoryState()).toBe('unsaved');

@@ -3,6 +3,7 @@ import {
   useDebugStore,
   type DebugClickEntry,
   type DebugCandidateChangeEntry,
+  type DebugLayoutEntry,
 } from '../store/debug-store';
 import { useGameStore } from '../store/game-store';
 import { buildInitialInfoMap } from '../../features/quantum/piece-lookup';
@@ -27,6 +28,9 @@ export function DebugClickLog() {
   const candidateChangeLog = useDebugStore((s) => s.candidateChangeLog);
   const clearLog = useDebugStore((s) => s.clearLog);
   const clearCandidateChangeLog = useDebugStore((s) => s.clearCandidateChangeLog);
+  // ★v1.62: 窓の大きさ → 盤の大きさ の記録（2026-08-20 ユーザーご依頼）。
+  const layoutLog = useDebugStore((s) => s.layoutLog);
+  const clearLayoutLog = useDebugStore((s) => s.clearLayoutLog);
   // Phase 5-6.5: candidates を「初期 kind@初期筋」でグルーピング表示するための resolver。
   // 現局面の board/hands 全部をスキャンして pid→initialKind, initialSquare の map を作る。
   // 描画のたびに再計算されるが、40 駒スキャンなので許容範囲。
@@ -35,12 +39,16 @@ export function DebugClickLog() {
 
   const clickLogRef = useRef<HTMLDivElement>(null);
   const changeLogRef = useRef<HTMLDivElement>(null);
+  const layoutLogRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (clickLogRef.current) clickLogRef.current.scrollTop = clickLogRef.current.scrollHeight;
   }, [clickLog]);
   useEffect(() => {
     if (changeLogRef.current) changeLogRef.current.scrollTop = changeLogRef.current.scrollHeight;
   }, [candidateChangeLog]);
+  useEffect(() => {
+    if (layoutLogRef.current) layoutLogRef.current.scrollTop = layoutLogRef.current.scrollHeight;
+  }, [layoutLog]);
 
   if (!enabled) return null;
 
@@ -50,6 +58,36 @@ export function DebugClickLog() {
         <span style={{ color: 'var(--orange)', letterSpacing: '0.06em' }}>デバッグ情報</span>
       </div>
       <div style={{ padding: '10px 12px' }}>
+        {/* ★v1.62: 盤が不自然に小さくなったとき、**そのまま貼って渡せる**ように
+            「窓 → 盤」を時系列で残す（2026-08-20 ユーザーご依頼）。 */}
+        <LogSection
+          title="画面サイズと盤面サイズ (最新 60 件)"
+          onClear={clearLayoutLog}
+          logRef={layoutLogRef}
+          empty={layoutLog.length === 0}
+          extra={
+            <button
+              type="button"
+              onClick={() => copyText(layoutLog.map(formatLayoutEntry).join('\n'))}
+              style={{
+                padding: '2px 8px', background: 'transparent',
+                border: '1px solid var(--orange)', borderRadius: 4,
+                color: 'var(--orange)', fontSize: 10, cursor: 'pointer',
+              }}
+            >
+              コピー
+            </button>
+          }
+        >
+          {layoutLog.map((entry, i) => (
+            <div key={i} style={{ marginBottom: 2, lineHeight: 1.4, whiteSpace: 'pre' }}>
+              {formatLayoutEntry(entry)}
+            </div>
+          ))}
+        </LogSection>
+
+        <div style={{ height: 10 }} />
+
         <LogSection
           title="駒クリック履歴 (最新 20 件)"
           onClear={clearLog}
@@ -88,12 +126,15 @@ function LogSection({
   logRef,
   empty,
   children,
+  extra,
 }: {
   title: string;
   onClear: () => void;
   logRef: React.RefObject<HTMLDivElement | null>;
   empty: boolean;
   children: React.ReactNode;
+  /** clear の左に置く追加ボタン (v1.62: 「コピー」)。 */
+  extra?: React.ReactNode;
 }) {
   return (
     <>
@@ -104,6 +145,8 @@ function LogSection({
         }}
       >
         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{title}</span>
+        <span style={{ display: 'flex', gap: 6 }}>
+        {extra}
         <button
           type="button"
           onClick={onClear}
@@ -115,6 +158,7 @@ function LogSection({
         >
           clear
         </button>
+        </span>
       </div>
       <div
         ref={logRef}
@@ -216,4 +260,56 @@ function formatCandidateChangeEntry(
   if (entry.removed.length > 0) parts.push(`removed=[${formatCandidatePieceIds(entry.removed, infoMap)}]`);
   if (entry.added.length > 0) parts.push(`added=[${formatCandidatePieceIds(entry.added, infoMap)}]`);
   return parts.join(' ');
+}
+
+/**
+ * ★v1.62: 「窓 → 盤」1 件を、そのまま貼って渡せる 1 行にする（2026-08-20 ユーザーご依頼）。
+ *
+ * 桁を揃えて書く＝**縦に並べたときに、どこで急に小さくなったかが目で追える**ようにする。
+ */
+function formatLayoutEntry(entry: DebugLayoutEntry): string {
+  const t = new Date(entry.time);
+  const hh = String(t.getHours()).padStart(2, '0');
+  const mm = String(t.getMinutes()).padStart(2, '0');
+  const ss = String(t.getSeconds()).padStart(2, '0');
+  const win = `${entry.vw}x${entry.vh}`.padEnd(9, ' ');
+  const shape = entry.landscape ? '横長' : '縦長';
+  const fixed = (entry.fixed === null ? '--' : String(entry.fixed)).padStart(4, ' ');
+  const board = String(entry.boardPx).padStart(4, ' ');
+  const cell = entry.cellPx.toFixed(1).padStart(5, ' ');
+  const over = entry.overflowX === 0 && entry.overflowY === 0
+    ? 'はみ出し無し'
+    : `はみ出し 横${entry.overflowX} 縦${entry.overflowY}`;
+  return `[${hh}:${mm}:${ss}] 窓 ${win} ${shape} 引${fixed} 盤${board} マス${cell} ${over}`;
+}
+
+/**
+ * ★v1.62: 文字を写し取る。**うまくいかない環境でも黙って終わらせない**
+ * （記憶＝灰色や無反応で「成功」を表さない）ので、取れなかったときは
+ * 選択状態にして「自分で写せる」状態にする。
+ */
+function copyText(text: string) {
+  if (!text) return;
+  const done = () => window.alert('コピーしました');
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text));
+    return;
+  }
+  fallbackCopy(text);
+}
+
+function fallbackCopy(text: string) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;left:0;top:0;opacity:0';
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try {
+    ok = document.execCommand('copy');
+  } catch {
+    ok = false;
+  }
+  document.body.removeChild(ta);
+  window.alert(ok ? 'コピーしました' : 'コピーできませんでした。枠の中を選んで写してください。');
 }

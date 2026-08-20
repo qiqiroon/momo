@@ -57,6 +57,27 @@ export interface DebugPanelEvent {
   detail: string;
 }
 
+/**
+ * ★v1.62: 「窓の大きさが変わるたびに、盤をいくつにしたか」の記録
+ * （2026-08-20 ユーザーご依頼）。
+ *
+ * 盤が不自然に小さくなったとき、**そのときの数値をそのまま貼って渡せる**ようにするための
+ * ものである。推測で語らずに済むよう、**決まり方に効く値だけ**を残す＝窓の内寸・横長か
+ * 縦長か・盤以外に置くものの高さ（引いた値）・実際に描かれた盤とマス・はみ出し量。
+ */
+export interface DebugLayoutEntry {
+  time: number;
+  vw: number;
+  vh: number;
+  landscape: boolean;
+  /** 盤以外に置くものの高さ。縦長では使わないので null。 */
+  fixed: number | null;
+  boardPx: number;
+  cellPx: number;
+  overflowX: number;
+  overflowY: number;
+}
+
 interface DebugState {
   /** URL に ?debug=1 が付いていたか。付いていなければ全機能非表示 (歯車内リンクも棋譜下 DebugClickLog も出ない)。 */
   enabled: boolean;
@@ -70,6 +91,8 @@ interface DebugState {
   candidateChangeLog: DebugCandidateChangeEntry[];
   /** v1.26: デバッグパネルの開閉ログ (最新が末尾)。 */
   panelEvents: DebugPanelEvent[];
+  /** ★v1.62: 窓の大きさが変わるたびの「窓 → 盤」の記録 (最新が末尾)。 */
+  layoutLog: DebugLayoutEntry[];
   enable: () => void;
   /** reason を渡すと開閉ログに残る (v1.26)。 */
   setPanelOpen: (open: boolean, reason?: string) => void;
@@ -81,9 +104,14 @@ interface DebugState {
   /** 1 手で発生した候補変更エントリ群 (複数駒) をまとめて追加。 */
   logCandidateChanges: (entries: DebugCandidateChangeEntry[]) => void;
   clearCandidateChangeLog: () => void;
+  /** ★v1.62: 窓 → 盤 を 1 件足す。**同じ窓の大きさが続くときは足さない**（埋もれるため）。 */
+  logLayout: (entry: Omit<DebugLayoutEntry, 'time'>) => void;
+  clearLayoutLog: () => void;
 }
 
 const MAX_LOG = 20;
+/** ★v1.62: 窓の大きさは何度も変わるので、少し多めに持つ。 */
+const MAX_LAYOUT_LOG = 60;
 /** 開閉ログは直近だけ見られればよいので短く持つ (v1.26)。 */
 const MAX_PANEL_EVENTS = 12;
 
@@ -94,6 +122,7 @@ export const useDebugStore = create<DebugState>((set) => ({
   clickLog: [],
   candidateChangeLog: [],
   panelEvents: [],
+  layoutLog: [],
   enable: () => set({ enabled: true }),
   setPanelOpen: (open, reason) => set((s) => ({
     panelOpen: open,
@@ -117,4 +146,15 @@ export const useDebugStore = create<DebugState>((set) => ({
     candidateChangeLog: [...s.candidateChangeLog, ...entries].slice(-MAX_LOG),
   })),
   clearCandidateChangeLog: () => set({ candidateChangeLog: [] }),
+  logLayout: (entry) => set((s) => {
+    const last = s.layoutLog[s.layoutLog.length - 1];
+    // **同じ窓の大きさで同じ盤なら足さない**＝引きずっている間の同じ値で埋め尽くさない。
+    if (last && last.vw === entry.vw && last.vh === entry.vh && last.boardPx === entry.boardPx) {
+      return {};
+    }
+    return {
+      layoutLog: [...s.layoutLog, { time: Date.now(), ...entry }].slice(-MAX_LAYOUT_LOG),
+    };
+  }),
+  clearLayoutLog: () => set({ layoutLog: [] }),
 }));

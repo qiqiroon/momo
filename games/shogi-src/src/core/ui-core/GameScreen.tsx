@@ -502,8 +502,11 @@ export function GameScreen({ variant }: GameScreenProps) {
   const mySideLabel = viewerSide === 'player1' ? t('s07.senteLbl') : t('s07.goteLbl');
 
   // ★v1.60: 盤以外に置くものの高さを毎回測って CSS へ返す（付録D-8 v1.10 §5.1）。
+  // ★v1.62: あわせて「窓の大きさが変わるたびに、盤をいくつにしたか」を記録する
+  //          （?debug=1 のときだけ・デバッグ情報の枠に出る／2026-08-20 ユーザーご依頼）。
   const fitRef = useRef<HTMLDivElement>(null);
-  useFitHeight(fitRef);
+  const debugLogLayout = useDebugStore((s) => s.logLayout);
+  useFitHeight(fitRef, [], debugEnabled ? debugLogLayout : undefined);
 
   const kifuScrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {

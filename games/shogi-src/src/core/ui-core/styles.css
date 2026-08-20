@@ -3556,8 +3556,15 @@ body::before {
 }
 /* ★v1.57: 棋譜の情報は**縮む側**（入りきらなければ末尾を省略する）＝この行の都合で
    盤を動かさないため（上記）。S08 の帯（.stage.s08 .kifu-meta）と同じ扱い。 */
-.s11-bar .kifu-meta { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; overflow: hidden; }
-.s11-bar .kifu-meta .who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* ★v1.59: **ひと続きに並べ、2 行まで**（付録D-12 v1.8 §3・2026-08-20 ユーザー判断）
+   ＝**幅が足りないときに縮むのはここ**（ボタンではない）。1 行に収まらなければ 2 行目へ
+   回し、**2 行からあふれた分は表示しない**。**3 行目は作らない**＝行が厚くなると
+   その下にあるものが押し下げられる。 */
+.s11-bar .kifu-meta {
+  flex: 1 1 auto; min-width: 0; flex-wrap: wrap; overflow: hidden;
+  max-height: 2.9em; line-height: 1.35;
+}
+.s11-bar .kifu-meta .who { overflow: hidden; white-space: normal; }
 /* 相手の在室 (D-12 §3)。**緑は使わない**＝緑は「合意が済んでいる」を表す色なので、
    居るだけの状態に使うと、何かが成立したように読める。居るときは白丸、抜けたら
    薄い白抜きの丸にして、名前ごと目立たなくする。 */
@@ -3565,6 +3572,15 @@ body::before {
 .s11-bar .peer.gone { color: var(--text-muted); }
 /* ★v1.56: 操作の行のボタンは詰める（v1.55 は 32px あった）。 */
 .s11-bar .io-btn { padding: 4px 9px; font-size: 11px; }
+/* ★v1.59: **ボタンの外形を固定する**（付録D-12 v1.8 §3・2026-08-20 実機のご報告）。
+   **日本語はどの文字の間でも折り返せる**ので、縮められるだけ縮められると
+   **1 文字ずつ改行して 3 行・4 行になる**（実測＝窓幅 376px で「棋譜を読み込む」
+   「棋譜を保存」が 3 行・高さ 58px）。**行が厚くなると、その下にあるものが押し下げられる。**
+   **文字は 1 行・縮まない**＝幅が足りないときに縮むのは棋譜メタ帯のほう。 */
+.s11-bar .io-btn,
+.s08-toolbar .io-btn,
+.s08-toolbar .back-btn,
+.s08-toolbar .pick-btn { flex: none; white-space: nowrap; }
 .s11-bar .io-btn.promote { border-color: var(--orange); color: var(--orange-light); }
 .s11-bar .io-note { font-size: 10px; color: var(--text-muted); white-space: nowrap; }
 
@@ -3642,7 +3658,9 @@ body::before {
 }
 
 /* 「どちらの駒も動かせる」ことを画面に出す＝手番の縁取りが無い理由がこれで分かる。 */
-.free-note { font-size: 10px; color: var(--text-muted); text-align: center; }
+/* ★v1.59: **空でも場所を空けておく**（付録D-12 v1.8 §14.1）＝一言が出たり消えたり
+   するたびに**盤が縦に動く**のを防ぐ。1 行ぶんの高さを常に確保する。 */
+.free-note { font-size: 10px; color: var(--text-muted); text-align: center; min-height: 1.4em; }
 /* 保存の注記 (D-12 §9)。空でも高さを保つ（上と同じ理由）。 */
 .io-note { font-size: 10px; color: var(--text-muted); width: 100%; text-align: center; min-height: 13px; }
 .saved-tag { font-size: 10px; color: var(--text-muted); }

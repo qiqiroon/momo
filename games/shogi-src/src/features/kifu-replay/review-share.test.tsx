@@ -719,10 +719,10 @@ describe('★v1.54 進んだ部屋に入ってきた人にも、いまの局面�
 });
 
 describe('★v1.54 感想戦の中で棋譜を差し替える（親 v1.48 §9.4.2）', () => {
-  it('★ひとりのときは「棋譜を読み込む」が出る', () => {
+  it('★ひとりのときは「棋譜読込」が出る', () => {
     finishedGame(6);
     const view = render(<ReviewScreen />);
-    expect(screen.getByText('棋譜を読み込む')).toBeInTheDocument();
+    expect(screen.getByText('棋譜読込')).toBeInTheDocument();
     view.unmount();
   });
 
@@ -731,14 +731,14 @@ describe('★v1.54 感想戦の中で棋譜を差し替える（親 v1.48 §9.4.
 
     startAsHost();
     const host = render(<ReviewScreen />);
-    expect(screen.getByText('棋譜を読み込む')).toBeInTheDocument();
+    expect(screen.getByText('棋譜読込')).toBeInTheDocument();
     host.unmount();
 
     endSharedReview();
     startAsGuest(file);
     const guest = render(<ReviewScreen />);
     // ゲストが差し替えると、配られる 1 局と食い違ったまま気づけない。
-    expect(screen.queryByText('棋譜を読み込む')).not.toBeInTheDocument();
+    expect(screen.queryByText('棋譜読込')).not.toBeInTheDocument();
     guest.unmount();
   });
 
@@ -747,7 +747,7 @@ describe('★v1.54 感想戦の中で棋譜を差し替える（親 v1.48 §9.4.
     expect(kifuMemoryState()).toBe('unsaved');
     const view = render(<ReviewScreen />);
 
-    fireEvent.click(screen.getByText('棋譜を読み込む'));
+    fireEvent.click(screen.getByText('棋譜読込'));
 
     // 読み込みは破棄の契機（親 §9.2.3 ②）＝**開いてから尋ねない**。
     expect(useKifuGuardStore.getState().stage).toBe('kifu');
@@ -759,7 +759,7 @@ describe('★v1.54 感想戦の中で棋譜を差し替える（親 v1.48 §9.4.
     markKifuSaved();
     const view = render(<ReviewScreen />);
 
-    fireEvent.click(screen.getByText('棋譜を読み込む'));
+    fireEvent.click(screen.getByText('棋譜読込'));
 
     expect(useKifuGuardStore.getState().stage).toBeNull();
     view.unmount();

@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.58',
+    'app.ver': 'v1.59',
     // v0.72 音楽再生確認モーダル (Darts と同じ思想)
     'sound.promptTitle': 'BGM と効果音を再生してもよろしいですか？',
     'sound.bgmLabel': 'BGM 音量',
@@ -274,7 +274,10 @@ export const ja: LocaleData = {
     's12.roomsEmpty': 'いま開いている感想戦の部屋はありません',
     's12.roomsOffline': 'サーバーにつながると、感想戦の部屋の一覧が出ます',
     // ★v1.54: 感想戦の中で棋譜を差し替える (親 v1.48 §9.4.2)
-    's11.loadKifu': '棋譜を読み込む',
+    's11.loadKifu': '棋譜読込',
+    // ★v1.59: 操作の行は幅が足りない＝**ここだけ短い言い方**にする（終局パネルと
+    // 棋譜再生の書き出し行は「棋譜を保存」のまま＝そちらは幅に余裕がある）。
+    's11.saveKifu': '棋譜保存',
     's04.reviewRoomWhy': '感想戦の部屋です。モード選択の「感想戦」から入れます',
     'review.sentTitle': '感想戦のお誘い',
     'review.sentBody': '相手に感想戦を申し出ています…',
@@ -286,7 +289,7 @@ export const ja: LocaleData = {
     's08.review': 'この棋譜で感想戦',
     // ★v1.58: 盤の上下を入れ替える（親 §9.2.5.1）。**S08 と S11 で同じ言葉**を使う
     // ＝同じことをする手立てを画面ごとに別の名前で呼ばない。
-    'replay.flipBoard': '盤を反転',
+    'replay.flipBoard': '盤反転',
     's08.backTop': 'トップへ',
     's08.backResult': '結果へ',
     's08.list': '棋譜一覧',

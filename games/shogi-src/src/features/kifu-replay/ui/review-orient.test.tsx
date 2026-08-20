@@ -258,10 +258,10 @@ describe('★v1.58 盤の上下を入れ替える（親 §9.2.5.1）', () => {
     const { container, getByText } = render(<ReviewScreen />);
     expect(flipped(container)).toBe(false);
 
-    fireEvent.click(getByText('盤を反転'));
+    fireEvent.click(getByText('盤反転'));
     expect(flipped(container)).toBe(true);
 
-    fireEvent.click(getByText('盤を反転'));
+    fireEvent.click(getByText('盤反転'));
     expect(flipped(container)).toBe(false);
   });
 
@@ -270,7 +270,7 @@ describe('★v1.58 盤の上下を入れ替える（親 §9.2.5.1）', () => {
     setReviewTarget(file, 'game', true);
 
     const first = render(<ReviewScreen />);
-    fireEvent.click(first.getByText('盤を反転'));
+    fireEvent.click(first.getByText('盤反転'));
     expect(flipped(first.container)).toBe(true);
     first.unmount();
 
@@ -284,7 +284,7 @@ describe('★v1.58 盤の上下を入れ替える（親 §9.2.5.1）', () => {
     inSharedReview('guest');
 
     const { container, getByText } = render(<ReviewScreen />);
-    fireEvent.click(getByText('盤を反転'));
+    fireEvent.click(getByText('盤反転'));
     expect(flipped(container)).toBe(true);
 
     // ホストが別の棋譜を読み込んで配り直した＝**読み込んだ棋譜なので先手が下**に戻る。
@@ -303,7 +303,7 @@ describe('★v1.58 盤の上下を入れ替える（親 §9.2.5.1）', () => {
     const { container, getByText } = render(<KifuReplayScreen />);
     expect(flipped(container)).toBe(false);
 
-    fireEvent.click(getByText('盤を反転'));
+    fireEvent.click(getByText('盤反転'));
     expect(flipped(container)).toBe(true);
   });
 
@@ -327,7 +327,7 @@ describe('★v1.58 盤の上下を入れ替える（親 §9.2.5.1）', () => {
     useRouteStore.setState({ screen: 'kifu-replay' });
 
     const first = render(<KifuReplayScreen />);
-    fireEvent.click(first.getByText('盤を反転'));
+    fireEvent.click(first.getByText('盤反転'));
     expect(flipped(first.container)).toBe(true);
     first.unmount();
 

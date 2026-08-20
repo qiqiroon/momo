@@ -138,7 +138,7 @@ describe('S11 どちらの駒でも指せる（手番の縛りが無い）', () 
     expect(loadLastKifu()?.moves).toHaveLength(6);
   });
 
-  it('分岐中は盤の外枠が破線になり、「本譜へ」と保存の注記が出る', () => {
+  it('分岐中は盤の外枠が破線になり、「本譜へ」が出る（★v1.59: 保存の注記は出さない）', () => {
     const { container } = render(<ReviewScreen />);
     expect(container.querySelector('.board-outer.branching')).toBeNull();
     expect(screen.queryByText('本譜へ')).not.toBeInTheDocument();
@@ -148,9 +148,25 @@ describe('S11 どちらの駒でも指せる（手番の縛りが無い）', () 
 
     expect(container.querySelector('.board-outer.branching')).not.toBeNull();
     expect(screen.getByText('本譜へ')).toBeInTheDocument();
-    expect(screen.getByText('本譜を保存します（分岐は入りません）')).toBeInTheDocument();
+    // ★v1.59: 分岐中の補助語は廃止（付録D-12 v1.8 §9・2026-08-20 実機のご報告）
+    // ＝**操作の行に置くものを減らす**（ボタンが折り返す原因になっていた）。
+    expect(screen.queryByText('本譜を保存します（分岐は入りません）')).not.toBeInTheDocument();
     // 手数の数え方は本譜と分けて出す（本譜 0 手＋分岐 1 手）。
     expect(screen.getByText(/0 \/ 6/)).toBeInTheDocument();
+  });
+
+  it('★v1.59: 駒を掴んでいないときは一言を出さないが、場所は空けたまま', () => {
+    const { container } = render(<ReviewScreen />);
+    const note = container.querySelector('.free-note');
+    expect(note).not.toBeNull();
+    // v1.58 までは「どちらの駒も自由に動かせます（時計は動きません）」を出しっぱなし
+    // にしていた（付録D-12 v1.8 §14.1・2026-08-20 実機のご報告）。
+    expect(note?.textContent).toBe('');
+    expect(screen.queryByText('どちらの駒も自由に動かせます（時計は動きません）')).not.toBeInTheDocument();
+
+    // 掴んだら出る＝**行そのものは消さない**ので、出たり消えたりしても盤が縦に動かない。
+    fireEvent.click(squareAt(container, 2, 4));
+    expect(container.querySelector('.free-note')?.textContent).toBe('どこへでも置けます');
   });
 
   it('分岐の手は手数リストに枝として出る（番号を振らない）', () => {

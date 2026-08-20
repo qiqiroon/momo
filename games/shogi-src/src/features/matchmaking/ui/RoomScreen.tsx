@@ -11,7 +11,7 @@ import { decodeRoomName } from '../roomNameCodec';
 import { RoomBadges } from './RoomBadges';
 import { useGameStore } from '../../../core/store/game-store';
 import { useMatchmakingStore, type SideChoice, type SideSelection } from '../store';
-import { CLIENT_CAPABILITIES, PROTOCOL_VERSION, ruleDigest, type SyncedRules } from '../protocol';
+import { CLIENT_CAPABILITIES, PROTOCOL_VERSION, ruleDigest, sendShogiMessage, type ShogiMessage, type SyncedRules } from '../protocol';
 import { handleShogiMessage } from '../messageDispatcher';
 import { deriveFurigoma, generateNonce, sha256Hex } from '../fairFlip';
 import { seFurigoma, seButton } from '../../../core/audio/se-synth';
@@ -95,10 +95,11 @@ export function RoomScreen() {
   }, [furigomaSpinning]);
 
   // 送信ユーティリティ
-  const sendMsg = (msg: unknown) => {
+  const sendMsg = (msg: ShogiMessage) => {
     const client = getMomoMatchmaking();
     if (!client) return;
-    client.send(msg);
+    // ★v1.53: 生の送信は使わない（包みに入れないと `from`/`to` が土台に上書きされる）。
+    sendShogiMessage(client, msg);
   };
 
   // 相手が入室してきた瞬間に自分の現在状態を送る（キャッチアップ用）

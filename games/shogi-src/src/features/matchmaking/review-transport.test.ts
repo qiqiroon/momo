@@ -5,6 +5,7 @@ import type { ReviewMessage } from '../../core/plugin/review';
 import './index';
 import { useMatchmakingStore } from './store';
 import { handleShogiMessage } from './messageDispatcher';
+import { unwrapShogiMessage } from './protocol';
 
 /**
  * ★v1.56: **感想戦の伝言は、通信の口で中身を落とさない**（親 §6.3.6）。
@@ -49,7 +50,10 @@ function roundTrip(msg: ReviewMessage): ReviewMessage | null {
   register('review:message', (m: ReviewMessage) => {
     got = m;
   });
-  handleShogiMessage(wire[0]);
+  // ★v1.53: 線に乗るのは包み。**土台が宛先と送り主を書き足す**ところまで真似てから
+  // 受け取り側へ渡す＝実際に壊れたのはこの書き足しだった（親 §6.2）。
+  const stamped = Object.assign({}, wire[0] as object, { to: 'all', from: 'p0' });
+  handleShogiMessage(unwrapShogiMessage(stamped));
   if (saved) register('review:message', saved);
   return got;
 }

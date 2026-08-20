@@ -3,7 +3,7 @@ import { useGameStore } from '../../core/store/game-store';
 import { DEFAULT_QUANTUM_PARAMS } from '../../core/store/quantum-params';
 import { normalizeIncomingRules } from './bootstrap';
 import { handleShogiMessage } from './messageDispatcher';
-import { CLIENT_CAPABILITIES, PROTOCOL_VERSION, ruleDigest, type SyncedRules } from './protocol';
+import { CLIENT_CAPABILITIES, PROTOCOL_VERSION, ruleDigest, unwrapShogiMessage, type SyncedRules } from './protocol';
 import { DEFAULT_ROOM_CONFIG, useMatchmakingStore } from './store';
 
 /**
@@ -21,7 +21,9 @@ function installMockClient() {
     init: () => {},
     createRoom: () => {},
     joinRoom: () => {},
-    send: (m: SentMsg) => { sent.push(m); },
+    // ★v1.53: 対局の伝言は包みに入って線に乗る（親 §6.2）ので、
+    // 検査は**取り出してから**中身を見る。見たいものは今までと同じ。
+    send: (m: unknown) => { sent.push(unwrapShogiMessage(m) as SentMsg); },
     leaveRoom: () => {},
     refreshRooms: () => {},
     kickGuest: () => {},

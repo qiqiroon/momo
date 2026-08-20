@@ -426,3 +426,58 @@ export function isShogiMessage(data: unknown): data is ShogiMessage {
   if (typeof m.v !== 'number') return false;
   return true;
 }
+
+/**
+ * ★v1.53 (親 §6.2): **対局の伝言は包みに入れて運ぶ**。
+ *
+ * **理由＝土台が使う名前と、将棋が使う名前がぶつかるため。**
+ * サーバー中継では **`to` が「宛先」**、**`from` が「送り主」**として扱われ、
+ * **送る瞬間と中継の瞬間に、その 2 つが土台の値で上書きされる**。
+ * 将棋の「指した手」は **`from`（どこから）／`to`（どこへ）** という名前で
+ * マスを運んでいたので、**行き先と出どころが両方とも消えて、受け取った側が
+ * 手を捨てていた**（2026-08-20・第54セッション・実サーバーで実測）。
+ *
+ * **名前を 2 つ変えるだけの直し方は採らない**＝**次に `role` や `pid` と同じ名前の
+ * 項目を足した人が、また同じ壊れ方をする**。**包みの中に入れてしまえば、
+ * 中の名前が何であっても土台とはぶつからない**（[[見張りは仕組みの側で囲う]]）。
+ *
+ * 包みの外に出すのは**土台が読む項目だけ**（`type` と版）。
+ */
+export const SHOGI_ENVELOPE_TYPE = 'shogi_msg';
+
+interface ShogiEnvelope {
+  v: number;
+  type: typeof SHOGI_ENVELOPE_TYPE;
+  body: unknown;
+}
+
+/** 対局の伝言を包みに入れる。 */
+export function wrapShogiMessage(msg: ShogiMessage): ShogiEnvelope {
+  return { v: PROTOCOL_VERSION, type: SHOGI_ENVELOPE_TYPE, body: msg };
+}
+
+/**
+ * 対局の伝言を送る。**送る口はこの 1 つだけ**にする。
+ *
+ * 生の `client.send` を直に呼ぶと包み忘れが起き、**その伝言だけが黙って壊れる**
+ * （`from` と `to` を持つ伝言＝指した手が、いちばん壊れて困るもの）。
+ * 宛先を省くと「自分以外の全員」＝観戦者にも届く（親 §6.2）。
+ */
+export function sendShogiMessage(
+  client: { send: (data: unknown, to?: string) => void },
+  msg: ShogiMessage,
+  to?: string,
+): void {
+  client.send(wrapShogiMessage(msg), to);
+}
+
+/**
+ * 受け取ったものから対局の伝言を取り出す。
+ * 包みでなければそのまま返す（包みを使わない相手＝旧版とも話せるように）。
+ */
+export function unwrapShogiMessage(data: unknown): unknown {
+  if (!data || typeof data !== 'object') return data;
+  const m = data as { type?: unknown; body?: unknown };
+  if (m.type === SHOGI_ENVELOPE_TYPE) return m.body;
+  return data;
+}

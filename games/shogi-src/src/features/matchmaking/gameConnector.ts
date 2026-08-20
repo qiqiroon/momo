@@ -11,7 +11,7 @@ import { useRouteStore } from '../../core/store/route-store';
 import type { OnlineGameConnector, RemoteMovePayload } from '../../core/plugin/gameConnector';
 import { positionHash } from '../../core/engine';
 import { getMomoMatchmaking } from './client';
-import { PROTOCOL_VERSION } from './protocol';
+import { PROTOCOL_VERSION, sendShogiMessage } from './protocol';
 import { useMatchmakingStore } from './store';
 
 const connector: OnlineGameConnector = {
@@ -83,7 +83,7 @@ const connector: OnlineGameConnector = {
   sendMove(payload: RemoteMovePayload) {
     const client = getMomoMatchmaking();
     if (!client) return;
-    client.send({
+    sendShogiMessage(client, {
       v: PROTOCOL_VERSION,
       type: 'move',
       kind: payload.kind,
@@ -104,7 +104,7 @@ const connector: OnlineGameConnector = {
     if (!mySide) return;
     const client = getMomoMatchmaking();
     if (!client) return;
-    client.send({
+    sendShogiMessage(client, {
       v: PROTOCOL_VERSION,
       type: 'chat',
       side: mySide,
@@ -121,7 +121,7 @@ const connector: OnlineGameConnector = {
     if (!state.gameStartInfo) return;
     const client = getMomoMatchmaking();
     if (!client) return;
-    client.send({
+    sendShogiMessage(client, {
       v: PROTOCOL_VERSION,
       type: 'resign',
       side,
@@ -132,7 +132,7 @@ const connector: OnlineGameConnector = {
     const client = getMomoMatchmaking();
     if (!client) return;
     useOffersStore.getState().setDrawOfferFrom('me');
-    client.send({ v: PROTOCOL_VERSION, type: 'draw_offer' });
+    sendShogiMessage(client, { v: PROTOCOL_VERSION, type: 'draw_offer' });
   },
 
   sendDrawResponse(accepted) {
@@ -140,7 +140,7 @@ const connector: OnlineGameConnector = {
     if (!client) return;
     // 応答したので自分側の「相手からの申し出」表示を消す
     useOffersStore.getState().setDrawOfferFrom(null);
-    client.send({ v: PROTOCOL_VERSION, type: 'draw_response', accepted });
+    sendShogiMessage(client, { v: PROTOCOL_VERSION, type: 'draw_response', accepted });
     if (accepted) {
       useGameStore.getState().agreeDraw();
     }
@@ -151,14 +151,14 @@ const connector: OnlineGameConnector = {
     const client = getMomoMatchmaking();
     if (!client) return;
     useOffersStore.getState().setDrawOfferFrom(null);
-    client.send({ v: PROTOCOL_VERSION, type: 'draw_cancel' });
+    sendShogiMessage(client, { v: PROTOCOL_VERSION, type: 'draw_cancel' });
   },
 
   sendUndoOffer(count, challengerSide) {
     const client = getMomoMatchmaking();
     if (!client) return;
     useOffersStore.getState().setUndoOfferFrom('me', { count, challengerSide });
-    client.send({ v: PROTOCOL_VERSION, type: 'undo_offer', count, challengerSide });
+    sendShogiMessage(client, { v: PROTOCOL_VERSION, type: 'undo_offer', count, challengerSide });
   },
 
   sendUndoResponse(accepted) {
@@ -167,7 +167,7 @@ const connector: OnlineGameConnector = {
     if (!client) return;
     const meta = useOffersStore.getState().undoOfferMeta;
     useOffersStore.getState().setUndoOfferFrom(null);
-    client.send({ v: PROTOCOL_VERSION, type: 'undo_response', accepted });
+    sendShogiMessage(client, { v: PROTOCOL_VERSION, type: 'undo_response', accepted });
     if (accepted && meta) {
       // 承諾者 side = challengerSide の反対 = mySide（＝this connector の getMySide()）。
       // 待ったのペナルティで challengerSide の時計は戻さない。
@@ -181,13 +181,13 @@ const connector: OnlineGameConnector = {
     const client = getMomoMatchmaking();
     if (!client) return;
     useOffersStore.getState().setUndoOfferFrom(null);
-    client.send({ v: PROTOCOL_VERSION, type: 'undo_cancel' });
+    sendShogiMessage(client, { v: PROTOCOL_VERSION, type: 'undo_cancel' });
   },
 
   sendTimeout(side) {
     const client = getMomoMatchmaking();
     if (!client) return;
-    client.send({ v: PROTOCOL_VERSION, type: 'timeout', side });
+    sendShogiMessage(client, { v: PROTOCOL_VERSION, type: 'timeout', side });
   },
 
   sendAnomalyVote(choice) {
@@ -196,7 +196,7 @@ const connector: OnlineGameConnector = {
     if (!this.isOnline()) return;
     const client = getMomoMatchmaking();
     if (!client) return;
-    client.send({
+    sendShogiMessage(client, {
       v: PROTOCOL_VERSION,
       type: 'anomaly_vote',
       choice,
@@ -211,7 +211,7 @@ const connector: OnlineGameConnector = {
     if (!this.isOnline()) return;
     const client = getMomoMatchmaking();
     if (!client) return;
-    client.send({ v: PROTOCOL_VERSION, type: 'anomaly_raise', cause, debugForce });
+    sendShogiMessage(client, { v: PROTOCOL_VERSION, type: 'anomaly_raise', cause, debugForce });
   },
 
   isRoomHost() {
@@ -229,7 +229,7 @@ const connector: OnlineGameConnector = {
     // v1.55 までは伝言の種類ごとに項目を書き写しており、**書き写す欄に無いものは
     // 黙って捨てられて**いた（ハイライトと、部屋を移るための合言葉が届かなかった）。
     // **これ以降、感想戦の伝言を増やしてもここは直さなくてよい。**
-    client.send({ v: PROTOCOL_VERSION, type: 'review', payload: msg });
+    sendShogiMessage(client, { v: PROTOCOL_VERSION, type: 'review', payload: msg });
   },
 
   sendPauseNotify() {
@@ -237,21 +237,21 @@ const connector: OnlineGameConnector = {
     useGameStore.getState().pauseGame();
     const client = getMomoMatchmaking();
     if (!client) return;
-    client.send({ v: PROTOCOL_VERSION, type: 'pause_notify' });
+    sendShogiMessage(client, { v: PROTOCOL_VERSION, type: 'pause_notify' });
   },
 
   sendResumeOffer() {
     const client = getMomoMatchmaking();
     if (!client) return;
     useOffersStore.getState().setResumeOfferFrom('me');
-    client.send({ v: PROTOCOL_VERSION, type: 'resume_offer' });
+    sendShogiMessage(client, { v: PROTOCOL_VERSION, type: 'resume_offer' });
   },
 
   sendResumeResponse(accepted) {
     const client = getMomoMatchmaking();
     if (!client) return;
     useOffersStore.getState().setResumeOfferFrom(null);
-    client.send({ v: PROTOCOL_VERSION, type: 'resume_response', accepted });
+    sendShogiMessage(client, { v: PROTOCOL_VERSION, type: 'resume_response', accepted });
     if (accepted) {
       useGameStore.getState().resumeGame();
     }
@@ -289,7 +289,7 @@ const connector: OnlineGameConnector = {
   sendPing() {
     const client = getMomoMatchmaking();
     if (!client) return;
-    client.send({ v: PROTOCOL_VERSION, type: 'ping' });
+    sendShogiMessage(client, { v: PROTOCOL_VERSION, type: 'ping' });
   },
 
   markConnectionHealthy() {

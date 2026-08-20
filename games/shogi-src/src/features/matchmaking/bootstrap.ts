@@ -18,6 +18,7 @@ import { get as pluginGet } from '../../core/plugin/registry';
 import { getMomoMatchmaking } from './client';
 import { SHOGI_GAME_TYPE, SIGNALING_URL } from './config';
 import { handleShogiMessage } from './messageDispatcher';
+import { unwrapShogiMessage } from './protocol';
 import { decodeRoomName } from './roomNameCodec';
 import { hasOpponent, hasSeat, opponentOf } from './roster';
 import { useMatchmakingStore, DEFAULT_ROOM_CONFIG, type RoomConfig } from './store';
@@ -273,7 +274,9 @@ export function ensureMatchmakingInit(): void {
       useMatchmakingStore.getState().setError(msg);
     },
     onMessage: (data) => {
-      handleShogiMessage(data);
+      // ★v1.53: 対局の伝言は包みに入って届く（親 §6.2）。
+      // 包みでないものはそのまま通す＝包みを使わない相手とも話せる。
+      handleShogiMessage(unwrapShogiMessage(data));
     },
     onWsOpen: () => {
       const state = useMatchmakingStore.getState();

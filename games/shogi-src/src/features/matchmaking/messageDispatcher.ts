@@ -35,6 +35,7 @@ import {
   CLIENT_CAPABILITIES,
   isShogiMessage,
   PROTOCOL_VERSION,
+  sendShogiMessage,
   ruleDigest,
   type ShogiMessage,
   type SyncedRules,
@@ -289,7 +290,7 @@ export function handleShogiMessage(data: unknown): void {
     case 'ping': {
       // v0.48: 相手からの生存確認 ping。即 pong を返す。
       const client = getMomoMatchmaking();
-      if (client) client.send({ v: PROTOCOL_VERSION, type: 'pong' });
+      if (client) sendShogiMessage(client, { v: PROTOCOL_VERSION, type: 'pong' });
       return;
     }
     case 'anomaly_raise': {
@@ -315,7 +316,7 @@ export function handleShogiMessage(data: unknown): void {
       if (!support.ok) {
         useMatchmakingStore.getState().setRuleSync('failed', support.reason);
         if (client) {
-          client.send({
+          sendShogiMessage(client, {
             v: PROTOCOL_VERSION,
             type: 'rule_ack',
             ok: false,
@@ -335,7 +336,7 @@ export function handleShogiMessage(data: unknown): void {
       // (v1.19 の申し送り: デバッグパネルで片側だけ変えると局面がずれる)。
       useGameStore.getState().setQuantumParams(msg.rules.quantumParams);
       if (client) {
-        client.send({
+        sendShogiMessage(client, {
           v: PROTOCOL_VERSION,
           type: 'rule_ack',
           ok: true,

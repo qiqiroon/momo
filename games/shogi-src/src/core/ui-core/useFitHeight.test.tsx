@@ -113,6 +113,47 @@ describe('盤以外に置くものの高さ（付録D-8 §5.1.3）', () => {
     expect(stage.style.getPropertyValue('--fit-v')).toBe('');
   });
 
+  it('★横長では、窓の大きさが変わったときに画面の左上へ戻す', () => {
+    // 下へスクロールしていると**盤の上側が窓の外へ出て切れる**ので、見えている盤が
+    // 小さく、下に空間が広がって見える（2026-08-20 ユーザーご報告）。
+    const calls: Array<[number, number]> = [];
+    const orig = window.scrollTo;
+    window.scrollTo = ((x: number, y: number) => {
+      calls.push([x, y]);
+    }) as typeof window.scrollTo;
+    Object.defineProperty(window, 'scrollX', { value: 0, configurable: true, writable: true });
+    Object.defineProperty(window, 'scrollY', { value: 300, configurable: true, writable: true });
+    render(<Harness stageH={788} gridH={700} mainColH={700} boardH={434} />);
+    window.scrollTo = orig;
+    expect(calls).toEqual([[0, 0]]);
+  });
+
+  it('★縦長では左上へ戻さない（読んでいた場所から引き剥がさない）', () => {
+    setViewport(390, 844);
+    const calls: Array<[number, number]> = [];
+    const orig = window.scrollTo;
+    window.scrollTo = ((x: number, y: number) => {
+      calls.push([x, y]);
+    }) as typeof window.scrollTo;
+    Object.defineProperty(window, 'scrollY', { value: 300, configurable: true, writable: true });
+    render(<Harness stageH={842} gridH={780} mainColH={500} boardH={227} />);
+    window.scrollTo = orig;
+    expect(calls).toEqual([]);
+  });
+
+  it('すでに左上にいるなら動かさない', () => {
+    const calls: Array<[number, number]> = [];
+    const orig = window.scrollTo;
+    window.scrollTo = ((x: number, y: number) => {
+      calls.push([x, y]);
+    }) as typeof window.scrollTo;
+    Object.defineProperty(window, 'scrollX', { value: 0, configurable: true, writable: true });
+    Object.defineProperty(window, 'scrollY', { value: 0, configurable: true, writable: true });
+    render(<Harness stageH={788} gridH={700} mainColH={700} boardH={434} />);
+    window.scrollTo = orig;
+    expect(calls).toEqual([]);
+  });
+
   it('盤がまだ無い間は書き込まない', () => {
     const { container } = render(<Harness stageH={788} gridH={700} mainColH={700} boardH={0} />);
     const stage = container.firstElementChild as HTMLElement;

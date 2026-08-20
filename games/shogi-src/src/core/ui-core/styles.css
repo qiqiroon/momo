@@ -93,6 +93,18 @@ body::before {
  * **横長なら、どんなに小さい窓でも 2 列のまま縮める**（ユーザー判断＝
  * 「小さい窓ならそれに合わせて縮小表示。小さくしたのはユーザー責任」）。
  */
+/* ★v1.61: **右の列の幅は窓に合わせて縮める**（2026-08-20 実機のご報告）。
+ * v1.60 は横長のあいだ **264px を固定で確保し続けていた**ので、**窓が狭くなるほど
+ * 盤だけが不釣り合いに小さくなっていた**（実測＝650×620 の窓で、右の列 264px に対し
+ * 盤は 212px）。**盤に回せる幅は「窓の幅 − 右の列 − 余白」を 11.64 で割った値**なので、
+ * 引く側が固定だと**盤は窓より 3 倍の速さで縮む**＝これが「800px あたりから急に
+ * ものすごく小さくなる」の正体。
+ *
+ * **盤が主役なので、譲るのは右の列のほう。**上限は今までどおり 264px。 */
+.stage {
+  --side-col: min(264px, 30vw);
+}
+
 .grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -105,7 +117,10 @@ body::before {
 
 @media (min-aspect-ratio: 1/1) {
   .grid {
-    grid-template-columns: auto 264px;
+    /* ★v1.61: 盤の列は `minmax(0, auto)`＝**要る幅より狭くもなれる**ようにする。
+       `auto` のままだと「その中でいちばん幅を要るもの」（操作の行）に合わせて広がり、
+       右の列と足して画面からはみ出す（実測＝650x620 の窓で横に 34px）。 */
+    grid-template-columns: minmax(0, auto) var(--side-col);
   }
   .chat-col {
     order: 0;
@@ -165,7 +180,8 @@ body::before {
    ②**縦にも収める**ので、縦と横の小さいほうを採る。 */
 @media (min-aspect-ratio: 1/1) {
   .stage.s06 {
-    --s06-h-fixed: 392px;
+    /* ★v1.61: 右の列の幅は固定でなく `--side-col`（窓に合わせて縮む）から引く。 */
+    --s06-h-fixed: calc(var(--side-col) + 128px);
     --cell: min(54px, max(4px, min(var(--s06-by-w), var(--s06-by-h))));
   }
 }
@@ -1062,12 +1078,26 @@ body::before {
 }
 
 /* ===== コマンドバー ===== */
+/* ★v1.61: **この行は「幅を決める側」から外す**（S11 の `.s11-bar`・S08 の `.s08-toolbar`
+   に入れたのとまったく同じ仕掛け＝**4 例目**）。`width: 0` で**幅の計算には加わらず**、
+   `min-width: 100%` で**置かれるときは親の幅いっぱい**になる。
+
+   **なぜ要るのか**＝この行に要る幅は 418px あり、**盤が小さくなると盤より広くなる**。
+   列の幅は「その中でいちばん幅を要るもの」で決まるので、そのとき**幅を決めているのは
+   盤ではなくこの行**になり、右の列と足すと画面からはみ出す（実測＝650×620 の窓で
+   横に 34px）。
+
+   **折り返しは残す**＝狭い窓で折り返さないと**投了・待ったが画面の外へ出て押せなくなる**
+   （S08 の棋譜一覧と同じ理由）。折り返して行が厚くなったぶんは、**盤以外の高さを毎回
+   測っている**ので自動で盤に反映される（付録D-8 v1.10 §5.1.3）。 */
 .command-bar {
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
   justify-content: center;
   margin-top: 2px;
+  width: 0;
+  min-width: 100%;
 }
 
 .act {
@@ -1112,6 +1142,8 @@ body::before {
 /* ===== チャット (MS-DOS 風) ===== */
 .chat-col {
   align-self: start;
+  /* ★v1.61: 列が狭くなったときに**中身が押し広げない**ようにする（上の入力欄と同じ理由）。 */
+  min-width: 0;
 }
 
 .panel {
@@ -1198,6 +1230,7 @@ body::before {
   align-items: baseline;
   gap: 0;
   margin-top: 2px;
+  min-width: 0;
 }
 
 .console .inputline .prompt {
@@ -1207,6 +1240,11 @@ body::before {
 
 .console .inputline input {
   flex: 1;
+  /* ★v1.61: **入力欄は縮められる側にする**＝`<input>` は既定で「20 文字ぶん」の幅を
+     自分から要求するので、**右の列を狭くしても中身が縮まず、画面から右へはみ出す**
+     （実測＝650px の窓で入力欄と送信ボタンが x=684 まで出ていた）。
+     `min-width: 0` を置くと、要求ではなく**与えられた幅に合わせる**ようになる。 */
+  min-width: 0;
   background: transparent;
   border: none;
   outline: none;
@@ -2130,33 +2168,29 @@ body::before {
  *        = 76 + 10.32*cell
  *   88px は 12px の予備を含む安全マージン
  */
-@media (max-width: 720px) {
-  :root {
-    --cell: clamp(20px, calc((100vw - 88px) / 10.32), 42px);
-    --hand-pc: calc(var(--cell) * 0.66);
-  }
+/* ★v1.61: **この塊は「狭い窓」だけでなく「横長の窓」にも効かせる**
+   （2026-08-20 ユーザー判断 C）。理由＝v1.60 まで**幅 720px を境にだけ**詰めていたので、
+   その一点で**盤が 238px → 301px と 26% 跳ねていた**（実測＝730x620 と 715x620）。
+   跳ねる中身は **①絵と文字を一回り小さく ②行と行のすき間と画面のふちの余白を狭く**の
+   2 つで、合わせて **123px**。**横長では常に詰めておけば、境目そのものが無くなる。**
+
+   **変わらないでいてほしい**（ユーザー指示）＝**同じ縮尺で伸び縮みできないものは、
+   固定にして跳ねさせない**。**並べ方そのもの（横幅いっぱいに広げる・ヘッダを折り返す）
+   は狭い窓だけの話**なので、下の別の塊に残してある。 */
+@media (max-width: 720px), (min-aspect-ratio: 1/1) {
   /* ★v1.60: 下の余白を 24px → 12px（2026-08-20 ユーザー判断 A）＝**縦長の画面では
      置くものが下へ流れるので、いちばん下の余白は場所の無駄になる**。 */
   .stage {
-    width: 100%;
-    max-width: 100vw;
     padding: 10px 8px 12px;
   }
   /* ★v1.60: 行と行のすき間を 10px → 6px（同上）＝**縦長の画面に少しでも多く入れる**。
      行が 7 つあるので 24px 空く。**出しているものは 1 つも減らさない。** */
   .main-col {
-    width: 100%;
-    max-width: 100%;
     gap: 6px;
   }
   /* ★v1.60: 左右の列のすき間も詰める（同上）＝縦長では上下のすき間になる。 */
   .grid {
     gap: 10px;
-  }
-  .broadcast {
-    width: 100%;
-    justify-content: center;
-    gap: 6px;
   }
   .match-header {
     flex-wrap: wrap;
@@ -2192,16 +2226,6 @@ body::before {
 
      **すべての画面のヘッダで同じ形にする**＝画面ごとに折り返し方が違うほうが不揃いに
      なる。**出しているものは 1 つも減らさない。** */
-  .header-tools {
-    display: contents;
-  }
-  .header-tools > * {
-    order: 1;
-  }
-  .header-tools > .gear-btn,
-  .header-tools > .lang-select {
-    order: 0;
-  }
   .reset-btn {
     padding: 5px 9px;
     font-size: 11px;
@@ -2242,6 +2266,41 @@ body::before {
   .pinfo .byo.byoyomi-on {
     font-size: 0.95rem;
     margin-left: 4px;
+  }
+}
+
+/* ★v1.61: **狭い窓だけの並べ方**（上の「詰めた見た目」とは別もの）。
+   ここに置くのは**横幅いっぱいに広げる・ヘッダを折り返す・盤の枠と座標を細くする**など、
+   **窓が狭いことそのものへの対処**で、横長の広い窓には持ち込まない。 */
+@media (max-width: 720px) {
+  :root {
+    --cell: clamp(20px, calc((100vw - 88px) / 10.32), 42px);
+    --hand-pc: calc(var(--cell) * 0.66);
+  }
+  .stage {
+    width: 100%;
+    max-width: 100vw;
+  }
+  .main-col {
+    width: 100%;
+    max-width: 100%;
+  }
+  .broadcast {
+    width: 100%;
+    justify-content: center;
+    gap: 6px;
+  }
+  /* 設定と言語切替を題字の行の右へ、入り口のボタンを次の行へ（v1.60 §2）。
+     **広い窓では並べ替えない**＝1 行に収まるので、並びを変える理由が無い。 */
+  .header-tools {
+    display: contents;
+  }
+  .header-tools > * {
+    order: 1;
+  }
+  .header-tools > .gear-btn,
+  .header-tools > .lang-select {
+    order: 0;
   }
   .board-outer {
     padding: 8px;
@@ -3421,7 +3480,8 @@ body::before {
    ②**縦にも収める**ので、縦と横の小さいほうを採る。 */
 @media (min-aspect-ratio: 1/1) {
   .stage.s08 {
-    --s08-h-fixed: 390px;
+    /* ★v1.61: 右の列の幅は固定でなく `--side-col`（窓に合わせて縮む）から引く。 */
+    --s08-h-fixed: calc(var(--side-col) + 126px);
     --cell: min(54px, max(4px, min(var(--s08-by-w), var(--s08-by-h))));
   }
 }

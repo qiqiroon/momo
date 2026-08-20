@@ -29,6 +29,7 @@ import {
   receiveReviewMessage,
   reviewGuestArrived,
   reviewOpponentLeft,
+  replaceSharedKifu,
   reviewRoomCreated,
   useReviewShareStore,
 } from './review-share';
@@ -516,6 +517,55 @@ describe('S11 感想戦の部屋（段2・v1.50）', () => {
     expect(state).toBeDefined();
     // **棋譜そのものを送る**（相手が持っていることを当てにしない・親 §6.3.6）。
     expect(state && 'kifu' in state ? state.kifu : undefined).toBeTruthy();
+  });
+
+  it('★v1.66: 棋譜をまだ持っていなくても、客が来たら共有を始めて「無い」ことを配る', () => {
+    // 規定＝**棋譜が無くても入れる**（親 §9.4.1・初期配置で入り、中で読み込む）。
+    // v1.65 までは「配るものが無い」として引き返していたため、**共有そのものが
+    // 始まらず**、ゲストは「棋譜を受け取っています…」のまま待ち続けていた
+    // （2026-08-20 実機のご報告）。**黙ると、待っている側は「まだ来ていない」と
+    // 「無いと知らされた」を区別できない。**
+    clearReviewTarget('lobby');
+    iAmHost = true;
+    reviewRoomCreated();
+    sent = [];
+
+    expect(reviewGuestArrived()).toBe(true);
+    expect(useReviewShareStore.getState().role).toBe('host');
+    const state = sent.find((m) => m.kind === 'state');
+    expect(state).toBeDefined();
+    // 棋譜の欄は省いて送る＝受け取った側は差し替えず、居場所だけ採る（初期配置のまま）。
+    expect(state && 'kifu' in state ? state.kifu : undefined).toBeUndefined();
+  });
+
+  it('★v1.66: 棋譜を持たずに始めた部屋でも、あとから読み込めばゲストへ届く', () => {
+    // v1.65 までは、配り直しの仕掛けが「共有が始まっていること」を前提に
+    // していたので、**ここでも黙って止まって**いた（止めている場所が 2 つあった）。
+    clearReviewTarget('lobby');
+    iAmHost = true;
+    reviewRoomCreated();
+    reviewGuestArrived();
+    sent = [];
+
+    const file = playedGame(6);
+    replaceSharedKifu(file);
+
+    const state = sent.find((m) => m.kind === 'state');
+    expect(state).toBeDefined();
+    expect(state && 'kifu' in state ? state.kifu : undefined).toBeTruthy();
+  });
+
+  it('★v1.66: 受け取る側は、棋譜の無い配りでも待ちが解ける', () => {
+    // ゲスト側＝「棋譜を受け取っています…」は**何か届くまで**出続ける表示なので、
+    // 届いたものに棋譜が入っていなくても、そこで待ちは終わらなければならない。
+    clearReviewTarget('lobby');
+    iAmHost = false;
+    joinedReviewRoom();
+    expect(useReviewShareStore.getState().ready).toBe(false);
+
+    deliver({ kind: 'state', ply: 0, branch: [] });
+
+    expect(useReviewShareStore.getState().ready).toBe(true);
   });
 
   it('感想戦の部屋でなければ、客が来ても何も起きない（対局の部屋と混ぜない）', () => {

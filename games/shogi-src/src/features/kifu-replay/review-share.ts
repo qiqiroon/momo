@@ -438,7 +438,17 @@ export function joinedReviewRoom(): void {
  */
 export function reviewGuestArrived(): boolean {
   if (!useReviewShareStore.getState().ownsRoom) return false;
-  if (!reviewTarget()) return false;
+  // ★v1.66: **振り返る 1 局がまだ無くても共有を始める**（親 §9.4.1・実機のご報告 2026-08-20）。
+  //
+  // v1.65 まではここで「配るものが無い」として引き返していたため、
+  // **棋譜を持たずに建てた部屋では共有そのものが始まらず**、
+  // ①ゲストは「棋譜を受け取っています…」のまま待ち続け、
+  // ②ホストが後から棋譜を読み込んでも、配り直しの仕掛けが
+  //   「共有が始まっていること」を前提にしているので**そこでも黙って止まって**いた。
+  //
+  // **「棋譜が無い」は送るべき事実であって、送らない理由ではない**＝受け取る側は
+  // 「まだ来ていない」と「無いと知らされた」を区別できないので、黙られると待つしかない。
+  // 規定は v1.48 から**棋譜が無くても入れる**（初期配置で入り、中で読み込む）。
   // ★v1.55: 対局から移ってきた場合は、ここが**移り終えた合図**（親 §6.3.6 の手順 5）。
   migrationSettled();
   const role = beginSharedReview(false);
@@ -501,13 +511,17 @@ function enterReviewScreen(): void {
  */
 function distributeKifu(): void {
   const file = reviewTarget();
-  if (!file) return;
   const here = localView?.();
+  // ★v1.66: **振り返る 1 局がまだ無いときも配る**（棋譜の欄を省いて送る）。
+  //
+  // v1.65 までは黙って引き返していたので、**受け取る側は待ちが解けなかった**。
+  // 棋譜の欄はもともと省ける形なので**新しい伝言は要らない**＝受け取った側は
+  // 「棋譜は差し替えず、居場所だけ採る」＝**初期配置のまま触れるようになる**。
   connector()?.sendReview({
     kind: 'state',
-    kifu: serializeKifu(file),
-    ply: here?.ply ?? 0,
-    branch: here?.branch ?? [],
+    ...(file ? { kifu: serializeKifu(file) } : {}),
+    ply: file ? (here?.ply ?? 0) : 0,
+    branch: file ? (here?.branch ?? []) : [],
   });
 }
 

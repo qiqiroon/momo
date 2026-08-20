@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useFitHeight } from './useFitHeight';
 import { createPortal } from 'react-dom';
 import { useI18nStore } from '../store/i18n-store';
 import { useGameStore, winnerOf } from '../store/game-store';
@@ -500,6 +501,10 @@ export function GameScreen({ variant }: GameScreenProps) {
   const oppSideLabel = oppSide === 'player1' ? t('s07.senteLbl') : t('s07.goteLbl');
   const mySideLabel = viewerSide === 'player1' ? t('s07.senteLbl') : t('s07.goteLbl');
 
+  // ★v1.60: 盤以外に置くものの高さを毎回測って CSS へ返す（付録D-8 v1.10 §5.1）。
+  const fitRef = useRef<HTMLDivElement>(null);
+  useFitHeight(fitRef);
+
   const kifuScrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (kifuScrollRef.current) {
@@ -508,92 +513,93 @@ export function GameScreen({ variant }: GameScreenProps) {
   }, [moveHistory]);
 
   return (
-    <div className="stage">
+    <div ref={fitRef}
+      className="stage s06">
+      <header className="match-header">
+        <CatIcon />
+        <div className="title-block">
+          <h1>
+            <span className="momo">MOMO</span> <span className="shogi">Shogi</span>{' '}
+            <span className="ver">{t('app.ver')}</span>
+          </h1>
+          <div className={`subtitle${subLocale === 'zh' ? ' zh' : ''}`}>{subtitle}</div>
+        </div>
+        <div className="header-spacer" />
+        <div className="header-tools">
+          {online.isOnline ? (
+            <>
+              {status !== 'playing' && (
+                <button
+                  className="reset-btn primary"
+                  type="button"
+                  onClick={() => {
+                    // 再戦は待機 (S05) へ戻る＝新しい対局の開始 (親 §9.2.3 ②)。
+                    // **確認はここで取る**。戻る処理は盤を作り直してから画面を移すので、
+                    // 画面を移る側の関門だけに任せると、やめても盤が消えてしまう。
+                    requestNewGame(() => {
+                      const c = pluginGet<OnlineGameConnector>('gameConnector');
+                      if (c) c.returnToPreparation();
+                    });
+                  }}
+                >
+                  {t('result.rematch.online')}
+                </button>
+              )}
+              <button
+                className="reset-btn"
+                type="button"
+                onClick={() => {
+                  const c = pluginGet<OnlineGameConnector>('gameConnector');
+                  if (c) c.leaveOnline();
+                }}
+              >
+                {t('s07.leaveGame')}
+              </button>
+            </>
+          ) : (
+            <>
+              {/* v0.68: オフライン対局はオフライン設定から入るので、戻り先も
+                  オフライン設定にする (以前はメニューまで戻していた)
+                  v1.31 (Phase 3-2): 対 AI で始めた対局は対AI設定 (S03) から入るので、
+                  そちらへ戻す (先後と AI を選び直して指し直せる) */}
+              {/* v1.43: **モード選択へ戻る道は、他の戻る導線と同じ場所に置く**
+                  （2026-08-17 ユーザー判断）。終局パネルの中ではなくここに置くのは、
+                  **戻る先を選ぶ操作は同じ並びに集める**ため（終局していなくても押せる）。
+                  **設定画面と違って盤を作り直さない**ので、棋譜の確認は出ない。 */}
+              <button
+                className="reset-btn"
+                type="button"
+                onClick={() => useRouteStore.getState().setScreen('lobby')}
+              >
+                {t('s00.modeSelect')}
+              </button>
+              <button
+                className="reset-btn"
+                type="button"
+                onClick={() =>
+                  useRouteStore.getState().setScreen(
+                    useAiStore.getState().enabled ? 'ai-setup' : 'offline-rule',
+                  )
+                }
+              >
+                {t(vsAi ? 's07.backToAiSetup' : 's07.backToOfflineSetup')}
+              </button>
+              {/* リセットだけ二段 (画面機能 §3 S07)＝対局中に押せる位置にあり、
+                  誤操作の代償が大きいので、先に「リセットしますか」を尋ねる。 */}
+              <button
+                className="reset-btn"
+                type="button"
+                onClick={() => requestNewGame(() => reset(), { twoStep: true })}
+              >
+                {t('s07.reset')}
+              </button>
+            </>
+          )}
+          <HeaderCommonRight includeCat={variant === 'b'} />
+        </div>
+      </header>
       <div className="grid">
         <div className="main-col">
-          <header className="match-header">
-            <CatIcon />
-            <div className="title-block">
-              <h1>
-                <span className="momo">MOMO</span> <span className="shogi">Shogi</span>{' '}
-                <span className="ver">{t('app.ver')}</span>
-              </h1>
-              <div className={`subtitle${subLocale === 'zh' ? ' zh' : ''}`}>{subtitle}</div>
-            </div>
-            <div className="header-spacer" />
-            <div className="header-tools">
-              {online.isOnline ? (
-                <>
-                  {status !== 'playing' && (
-                    <button
-                      className="reset-btn primary"
-                      type="button"
-                      onClick={() => {
-                        // 再戦は待機 (S05) へ戻る＝新しい対局の開始 (親 §9.2.3 ②)。
-                        // **確認はここで取る**。戻る処理は盤を作り直してから画面を移すので、
-                        // 画面を移る側の関門だけに任せると、やめても盤が消えてしまう。
-                        requestNewGame(() => {
-                          const c = pluginGet<OnlineGameConnector>('gameConnector');
-                          if (c) c.returnToPreparation();
-                        });
-                      }}
-                    >
-                      {t('result.rematch.online')}
-                    </button>
-                  )}
-                  <button
-                    className="reset-btn"
-                    type="button"
-                    onClick={() => {
-                      const c = pluginGet<OnlineGameConnector>('gameConnector');
-                      if (c) c.leaveOnline();
-                    }}
-                  >
-                    {t('s07.leaveGame')}
-                  </button>
-                </>
-              ) : (
-                <>
-                  {/* v0.68: オフライン対局はオフライン設定から入るので、戻り先も
-                      オフライン設定にする (以前はメニューまで戻していた)
-                      v1.31 (Phase 3-2): 対 AI で始めた対局は対AI設定 (S03) から入るので、
-                      そちらへ戻す (先後と AI を選び直して指し直せる) */}
-                  {/* v1.43: **モード選択へ戻る道は、他の戻る導線と同じ場所に置く**
-                      （2026-08-17 ユーザー判断）。終局パネルの中ではなくここに置くのは、
-                      **戻る先を選ぶ操作は同じ並びに集める**ため（終局していなくても押せる）。
-                      **設定画面と違って盤を作り直さない**ので、棋譜の確認は出ない。 */}
-                  <button
-                    className="reset-btn"
-                    type="button"
-                    onClick={() => useRouteStore.getState().setScreen('lobby')}
-                  >
-                    {t('s00.modeSelect')}
-                  </button>
-                  <button
-                    className="reset-btn"
-                    type="button"
-                    onClick={() =>
-                      useRouteStore.getState().setScreen(
-                        useAiStore.getState().enabled ? 'ai-setup' : 'offline-rule',
-                      )
-                    }
-                  >
-                    {t(vsAi ? 's07.backToAiSetup' : 's07.backToOfflineSetup')}
-                  </button>
-                  {/* リセットだけ二段 (画面機能 §3 S07)＝対局中に押せる位置にあり、
-                      誤操作の代償が大きいので、先に「リセットしますか」を尋ねる。 */}
-                  <button
-                    className="reset-btn"
-                    type="button"
-                    onClick={() => requestNewGame(() => reset(), { twoStep: true })}
-                  >
-                    {t('s07.reset')}
-                  </button>
-                </>
-              )}
-              <HeaderCommonRight includeCat={variant === 'b'} />
-            </div>
-          </header>
 
           {/* v0.68: 従来の「S07 · 対局」バンドをルール表示に置換。
               オフライン (rules===null) は本将棋のみ表示、オンラインは gameType +

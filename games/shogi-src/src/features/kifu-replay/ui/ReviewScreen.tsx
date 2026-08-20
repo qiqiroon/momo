@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useFitHeight } from '../../../core/ui-core/useFitHeight';
 import { useI18nStore } from '../../../core/store/i18n-store';
 import { useGameStore } from '../../../core/store/game-store';
 import { useRouteStore } from '../../../core/store/route-store';
@@ -685,6 +686,10 @@ export function ReviewScreen() {
     setScreen('lobby');
   };
 
+  // ★v1.60: 盤以外に置くものの高さを毎回測って CSS へ返す（付録D-8 v1.10 §5.1）。
+  const fitRef = useRef<HTMLDivElement>(null);
+  useFitHeight(fitRef);
+
   const subLocale = locale === 'cat' ? 'ja' : locale;
   const subtitle = subLocale === 'zh' ? '擒王为胜，破局无界' : 'Capture the King, Bend the Rules';
 
@@ -697,6 +702,7 @@ export function ReviewScreen() {
       // 灰色にする**ので（付録D-12 v1.4 §2）、**相手が入ってきても置くものの数が
       // 変わらない**。v1.50〜v1.54 は二人になった瞬間に厚みが増え、**盤の大きさが
       // 動いていた**。
+      ref={fitRef}
       className="stage s08 s11"
       style={
         {

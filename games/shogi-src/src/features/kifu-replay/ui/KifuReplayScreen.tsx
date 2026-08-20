@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useFitHeight } from '../../../core/ui-core/useFitHeight';
 import { useI18nStore } from '../../../core/store/i18n-store';
 import { useGameStore } from '../../../core/store/game-store';
 import { useRouteStore } from '../../../core/store/route-store';
@@ -321,6 +322,10 @@ export function KifuReplayScreen() {
       .finally(() => setSaving(false));
   };
 
+  // ★v1.60: 盤以外に置くものの高さを毎回測って CSS へ返す（付録D-8 v1.10 §5.1）。
+  const fitRef = useRef<HTMLDivElement>(null);
+  useFitHeight(fitRef);
+
   const subLocale = locale === 'cat' ? 'ja' : locale;
   const subtitle = subLocale === 'zh' ? '擒王为胜，破局无界' : 'Capture the King, Bend the Rules';
 
@@ -331,6 +336,7 @@ export function KifuReplayScreen() {
     // 駒台の高さ・盤のグリッドがこの値から決まる。**9 を書かない**ので、
     // 将来 9x9 以外の盤ができても計算がそのまま追随する。
     <div
+      ref={fitRef}
       className="stage s08"
       style={
         {

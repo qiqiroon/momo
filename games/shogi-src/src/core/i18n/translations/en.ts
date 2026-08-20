@@ -5,7 +5,7 @@ export const en: LocaleData = {
   name: 'English',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.57',
+    'app.ver': 'v1.58',
     'sound.promptTitle': 'Enable BGM and sound effects?',
     'sound.bgmLabel': 'BGM volume',
     'sound.sfxLabel': 'SFX volume',
@@ -263,6 +263,7 @@ export const en: LocaleData = {
     'review.acceptAction': 'Accept',
     'review.rejectAction': 'Decline',
     's08.review': 'Review this game',
+    'replay.flipBoard': 'Flip board',
     's08.backTop': 'Top',
     's08.backResult': 'Back to result',
     's08.list': 'Records',

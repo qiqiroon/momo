@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render } from '@testing-library/react';
+import { act, fireEvent, render } from '@testing-library/react';
 import { useGameStore } from '../../../core/store/game-store';
 import { useAiStore } from '../../../core/store/ai-store';
 import { useI18nStore } from '../../../core/store/i18n-store';
@@ -235,5 +235,103 @@ describe('S11 盤の位置は操作の行に決めさせない（付録D-12 v1.6
     const { container } = render(<ReviewScreen />);
     const col = container.querySelector('.moves-col');
     expect(col?.firstElementChild?.classList.contains('playbar')).toBe(true);
+  });
+});
+
+/**
+ * ★v1.58: **見ている人が上下を入れ替えられる**（親 v1.52 §9.2.5.1・
+ * 画面機能 v0.46・付録D-8 v1.7 §3／D-12 v1.7 §3）。
+ *
+ * ここで固定したいのは、**壊れても手元では気づきにくいもの**。
+ *   - **既定の向きは書き換わらない**＝入れ替えは上に重なるだけ
+ *   - **画面に入るたび既定へ戻る**（ユーザー判断）＝残ると、次に別の棋譜を開いたときに
+ *     **前の操作が効いたまま**になり、なぜ逆さなのかを人が説明できなくなる
+ *   - **振り返る 1 局が差し替わったときも解ける**（向きが決まり直す瞬間だから）
+ */
+describe('★v1.58 盤の上下を入れ替える（親 §9.2.5.1）', () => {
+  beforeEach(() => finishedGame(6));
+
+  it('S11＝押すと上下が逆になり、もう一度押すと戻る', () => {
+    const file = rememberedAs('player1', true);
+    setReviewTarget(file, 'game', true);
+
+    const { container, getByText } = render(<ReviewScreen />);
+    expect(flipped(container)).toBe(false);
+
+    fireEvent.click(getByText('盤を反転'));
+    expect(flipped(container)).toBe(true);
+
+    fireEvent.click(getByText('盤を反転'));
+    expect(flipped(container)).toBe(false);
+  });
+
+  it('★S11＝画面に入り直すと既定の向きへ戻る（入れ替えは画面より長生きしない）', () => {
+    const file = rememberedAs('player1', true);
+    setReviewTarget(file, 'game', true);
+
+    const first = render(<ReviewScreen />);
+    fireEvent.click(first.getByText('盤を反転'));
+    expect(flipped(first.container)).toBe(true);
+    first.unmount();
+
+    const again = render(<ReviewScreen />);
+    expect(flipped(again.container)).toBe(false);
+  });
+
+  it('★S11＝振り返る 1 局が差し替わると入れ替えは解ける（向きが決まり直す瞬間）', () => {
+    const mine = rememberedAs('player1', true);
+    setReviewTarget(mine, 'game', true);
+    inSharedReview('guest');
+
+    const { container, getByText } = render(<ReviewScreen />);
+    fireEvent.click(getByText('盤を反転'));
+    expect(flipped(container)).toBe(true);
+
+    // ホストが別の棋譜を読み込んで配り直した＝**読み込んだ棋譜なので先手が下**に戻る。
+    const other: KifuFile = { ...mine, meta: { ...mine.meta, viewerSide: 'player2' } };
+    act(() => {
+      setReviewTarget(other, 'game', false);
+      useReviewShareStore.setState({ incoming: { ply: 0, branch: [], seq: 1 } });
+    });
+    expect(flipped(container)).toBe(false);
+  });
+
+  it('S08＝押すと上下が逆になる（S11 とまったく同じ規定）', () => {
+    rememberedAs('player1', true);
+    useRouteStore.setState({ screen: 'kifu-replay' });
+
+    const { container, getByText } = render(<KifuReplayScreen />);
+    expect(flipped(container)).toBe(false);
+
+    fireEvent.click(getByText('盤を反転'));
+    expect(flipped(container)).toBe(true);
+  });
+
+  it('★S08＝見出しと操作の行は、盤の入っている列の外に置く（S11 と同じ）', () => {
+    rememberedAs('player1', true);
+    useRouteStore.setState({ screen: 'kifu-replay' });
+
+    const { container } = render(<KifuReplayScreen />);
+    const bar = container.querySelector('.s08-toolbar');
+    const grid = container.querySelector('.grid');
+    expect(bar).not.toBeNull();
+    expect(grid).not.toBeNull();
+    // 列の中に居ると、**行の幅が列の幅を決める**＝棋譜の情報が長いと画面から
+    // はみ出す（本番ビルドで実測＝窓幅 960px で 39px・900px で 99px）。
+    expect(grid?.contains(bar as Node)).toBe(false);
+    expect(grid?.querySelector('.board-with-coords')).not.toBeNull();
+  });
+
+  it('★S08＝画面に入り直すと既定の向きへ戻る', () => {
+    rememberedAs('player1', true);
+    useRouteStore.setState({ screen: 'kifu-replay' });
+
+    const first = render(<KifuReplayScreen />);
+    fireEvent.click(first.getByText('盤を反転'));
+    expect(flipped(first.container)).toBe(true);
+    first.unmount();
+
+    const again = render(<KifuReplayScreen />);
+    expect(flipped(again.container)).toBe(false);
   });
 });

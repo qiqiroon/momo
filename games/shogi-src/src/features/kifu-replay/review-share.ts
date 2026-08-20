@@ -136,9 +136,8 @@ export function clearReviewNotice(): void {
 /** ひとりへ戻す（断られたとき・後始末）。 */
 export function endSharedReview(): void {
   useReviewShareStore.setState({ ...initial });
-  // ★v1.57: 控えも待ち受けもここで忘れる（親 §6.3.6＝残っていると次の入り方に効く）。
-  setReviewMySide(null);
-  dealIsOwnGame = false;
+  // ★v1.58: 控えを忘れるのは**二人の感想戦が終わるここだけ**（`forgetCarriedGame` の注記）。
+  forgetCarriedGame();
 }
 
 /**
@@ -203,10 +202,41 @@ function ensureReviewTarget(fromGame: boolean): void {
 }
 
 /**
- * ★v1.57: 次に配られてくる 1 局の出どころ（`beginSharedReview` で決める）。
+ * ★v1.57: 次に配られてくる 1 局の出どころ（対局から続いた感想戦かどうか）。
  * ゲスト側だけが使う（ホストは自分で選んだものを持っている）。
  */
 let dealIsOwnGame = false;
+
+/**
+ * ★v1.58: **対局から続いた感想戦であることを控える**（親 §6.3.6・§9.2.5）。
+ *
+ * 控えるのは 2 つ＝**自分の側**（盤をどちら向きに出すか）と、**次に配られてくる 1 局が
+ * 自分の指した対局であること**（向きを自分の側へ寄せてよいかどうか）。**盤の向きは
+ * 両方が揃って初めて決まる**ので、**片方だけ残しても意味を成さない**＝一緒に扱う。
+ */
+function carryOwnGame(side: 'player1' | 'player2' | null): void {
+  setReviewMySide(side);
+  dealIsOwnGame = true;
+}
+
+/**
+ * ★v1.58: 控えを忘れる。**呼ぶのは二人の感想戦が終わるときだけ**（`endSharedReview`・
+ * `failMigration`）。
+ *
+ * **★取る場所と消す場所を同じところに置かない**（2026-08-19 実機のご報告）。
+ * v1.57 は「二人の感想戦を始める」処理の中で、対局から続くときは控え、そうでないときは
+ * 消していた。ところが**ゲストは移った先の部屋に入った時点で同じ処理をもう一度通る**
+ * （そこが「移り終えた合図」を兼ねている）ので、**2 回目が「対局の続きではない」として
+ * 控えを消していた**＝**控えを必要としているまさにその経路の途中で、自分で消していた**。
+ *
+ * **始めるが 2 回走る経路がある**以上、**始めるときに消してはいけない**。
+ * 残りっぱなしにならないのは、**感想戦の画面を離れれば必ず `leaveSharedReview` を通る**
+ * ため（画面が消えるときの後始末）。
+ */
+function forgetCarriedGame(): void {
+  setReviewMySide(null);
+  dealIsOwnGame = false;
+}
 
 /**
  * 二人の感想戦を始める。**役はその部屋のホストかどうかで決まる**（打診した側ではない）
@@ -218,21 +248,21 @@ let dealIsOwnGame = false;
 function beginSharedReview(fromGame: boolean): ReviewRole {
   const c = connector();
   const role: ReviewRole = c?.isRoomHost() ? 'host' : 'guest';
-  // ★v1.57: **自分の側をここで控える**（親 §6.3.6・§9.2.5）。
+  // ★v1.57: **対局から続くときだけ、自分の側と出どころを控える**（親 §6.3.6・§9.2.5）。
   //
   // ここは**まだ対局の部屋に居るうち**に必ず通る唯一の場所で、この後の
   // 「感想戦の部屋へ移る」で部屋を出ると**先後は消える**（部屋が持っている情報なので、
   // 出た先で聞いても答えが返らない）。v1.55〜v1.56 はそれで棋譜の向き（＝ホストの向き）
   // に落ちており、**ゲストの盤だけ上下が逆**になっていた（2026-08-19 実機のご報告）。
   //
-  // **対局の続きでないときは必ず忘れる**（`null`）＝残っていると、ロビーから入った
-  // 感想戦に前の対局の側が効いてしまう。
-  setReviewMySide(fromGame ? (c?.getMySide() ?? null) : null);
-  // ★v1.57: **次に配られてくる 1 局が「いま指した対局」かどうか**（親 §9.2.5）。
   // **手元に前の 1 局が残っているかどうかでは決められない**＝前に感想戦を使っていれば
   // 残っているので、それを手掛かりにすると 2 回目から向きが変わる（v1.53 で直した
   // 「控えが画面より長生きする」のと同じ形）。**待っている側が知っている事実で持つ。**
-  dealIsOwnGame = fromGame;
+  //
+  // ★**v1.58: 対局の続きでないときは、ここでは何もしない**（消さない）。
+  // **ここは 2 回走る**（ゲストは移った先の部屋に入るときにもう一度通る）ので、
+  // ここで消すと**必要としている経路の途中で控えが消える**＝`forgetCarriedGame` の注記。
+  if (fromGame) carryOwnGame(c?.getMySide() ?? null);
   if (role === 'host') ensureReviewTarget(fromGame);
   useReviewShareStore.setState({
     role,
@@ -359,6 +389,9 @@ function failMigration(): void {
     migrating: false,
     notice: 'migrateFailed',
   });
+  // ★v1.58: ここも**二人の感想戦が終わる場所**なので控えを忘れる（`endSharedReview` と同じ）。
+  // ひとりで続ける側の向きは棋譜が持っているもので足りる（親 §9.2.5）。
+  forgetCarriedGame();
 }
 
 /** いま待ち合わせている合言葉と部屋名（通信側が一覧を見張るときに使う）。 */

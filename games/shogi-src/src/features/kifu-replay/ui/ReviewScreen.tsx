@@ -102,6 +102,28 @@ export function ReviewScreen() {
    * **盤の向きがこれで決まる**。画面の中で棋譜を読み込んだら、その場で決め直す。
    */
   const [ownGame, setOwnGame] = useState<boolean>(() => reviewIsOwnGame());
+  /**
+   * ★v1.58: **見ている人が上下を入れ替えたか**（親 §9.2.5.1）。
+   *
+   * **既定の向きの上に重なるもの**であって、既定そのものは書き換えない
+   * ＝入れ替えを解けば、いつでも決まった向きへ戻る。
+   *
+   * **自分の画面だけに効く**（相手には伝えない・伝言も増やさない）＝二人の画面が
+   * 上下逆になることは §9.2.5 がもともと認めている。**自分で直すための手立てなので、
+   * 相手に伝わると直せなくなる**。
+   *
+   * **画面に持たせる**＝画面より長生きさせない（親 §9.2.5.1）。
+   */
+  const [flipView, setFlipView] = useState(false);
+  /**
+   * ★v1.58: **向きが決まり直したら、入れ替えは解ける**（親 §9.2.5.1）。
+   *
+   * **解く場所を数え上げない**＝振り返る 1 局が差し替わる入口は既に 2 つあり
+   * （自分で読み込む／ホストから配られる）、これから増える。**入口ごとに解く形にすると、
+   * 足したときに必ずどれかを書き忘れる**。**向きを決めている材料そのものを見張る**ので、
+   * 差し替えの入口が何通りに増えても、この 1 行のままでよい。
+   */
+  useEffect(() => setFlipView(false), [file, ownGame]);
   const [ply, setPly] = useState(0);
   /**
    * 盤を並べ直させる合図。**手数が変わらないまま作り直したいことがある**
@@ -382,13 +404,24 @@ export function ReviewScreen() {
    * ので、その場で聞きに行っても答えが返らない（v1.55〜v1.56 の不具合の原因）。
    * 控えが無いときだけ、いま居る部屋に聞く（部屋を移らない経路のための保険）。
    */
-  const viewerSide: 'player1' | 'player2' = !ownGame
+  const defaultSide: 'player1' | 'player2' = !ownGame
     ? 'player1'
     : (shared
         ? (reviewMySide() ?? pluginGet<OnlineGameConnector>('gameConnector')?.getMySide())
         : null) ??
       file?.meta.viewerSide ??
       'player1';
+  /**
+   * ★v1.58: **見ている人が入れ替えたぶんを重ねる**（親 §9.2.5.1）＝上で決まるのは
+   * **既定の向き**であり、**既定が常に望みどおりとは限らない**（他人の対局を相手の側から
+   * 考えたい・二人で同じ向きを見ながら話したい等）。**規定を場合分けで増やして当てにいく
+   * のではなく、当てられない場合が残ることを認めて、人が自分で直せる出口を 1 つ置く。**
+   */
+  const viewerSide: 'player1' | 'player2' = flipView
+    ? defaultSide === 'player1'
+      ? 'player2'
+      : 'player1'
+    : defaultSide;
   const oppSide: 'player1' | 'player2' = viewerSide === 'player1' ? 'player2' : 'player1';
   const flipped = viewerSide === 'player2';
 
@@ -724,6 +757,19 @@ export function ReviewScreen() {
               **「感想戦」は小さいオレンジ文字**（囲わない＝枠はボタンに見える）。 */}
           <div className="s11-bar">
             <span className="s11-title">{t('s11.title')}</span>
+            {/* ★v1.58: **盤を反転**（親 §9.2.5.1・付録D-12 v1.7 §3）。
+                **自分の画面だけ**＝相手には伝えない（伝言も増やさない）。 */}
+            <button
+              type="button"
+              className={`io-btn${flipView ? ' on' : ''}`}
+              aria-pressed={flipView}
+              onClick={() => {
+                seButton();
+                setFlipView((v) => !v);
+              }}
+            >
+              {t('replay.flipBoard')}
+            </button>
             {/* **棋譜を読み込む**（親 §9.4.2・二人のときはホストだけ）。 */}
             {canLoad && (
               <button type="button" className="io-btn" onClick={requestLoad}>

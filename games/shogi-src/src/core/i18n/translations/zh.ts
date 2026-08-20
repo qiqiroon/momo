@@ -5,7 +5,7 @@ export const zh: LocaleData = {
   name: '中文',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.57',
+    'app.ver': 'v1.58',
     'sound.promptTitle': '是否播放 BGM 与音效？',
     'sound.bgmLabel': 'BGM 音量',
     'sound.sfxLabel': '音效音量',
@@ -263,6 +263,7 @@ export const zh: LocaleData = {
     'review.acceptAction': '接受',
     'review.rejectAction': '拒绝',
     's08.review': '用这局复盘',
+    'replay.flipBoard': '翻转棋盘',
     's08.backTop': '返回首页',
     's08.backResult': '返回结果',
     's08.list': '棋谱列表',

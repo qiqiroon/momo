@@ -9,13 +9,17 @@ import type { OnlineGameConnector } from '../../core/plugin/gameConnector';
 import type { ReviewMessage } from '../../core/plugin/review';
 import '../matchmaking/index';
 import './index';
-import { discardKifu } from './storage';
+import { discardKifu, loadLastKifu } from './storage';
+import { serializeKifu } from './io';
+import { reviewIsOwnGame, reviewMySide, setReviewMySide } from './review';
 import { useMatchmakingStore } from '../matchmaking/store';
 import { encodeRoomName, decodeRoomName } from '../matchmaking/roomNameCodec';
 import {
   answerReviewOffer,
+  joinedReviewRoom,
   offerReview,
   receiveReviewMessage,
+  reviewGuestArrived,
   useReviewShareStore,
 } from './review-share';
 
@@ -68,12 +72,16 @@ function roomRow(id: string, name: string, opts?: { isPublic?: boolean; hasPassw
   };
 }
 
-/** 対局の相手が居る状態の通信の口を差し替える（ホストかどうかを指定できる）。 */
-function installConnector(isHost: boolean): void {
+/** 対局の相手が居る状態の通信の口を差し替える（ホストかどうか・自分の側を指定できる）。 */
+function installConnector(isHost: boolean, side: 'player1' | 'player2' = 'player1'): void {
   const c = pluginGet<OnlineGameConnector>('gameConnector');
   if (!c) throw new Error('gameConnector が無い');
   vi.spyOn(c, 'isOnline').mockReturnValue(true);
   vi.spyOn(c, 'isRoomHost').mockReturnValue(isHost);
+  // ★v1.58: **対局の部屋を出ると先後は消える**ので、出た後は答えられない。
+  vi.spyOn(c, 'getMySide').mockImplementation(() =>
+    useReviewShareStore.getState().migrating ? null : side,
+  );
   vi.spyOn(c, 'getOpponentName').mockReturnValue('花子');
   vi.spyOn(c, 'sendReview').mockImplementation((m: ReviewMessage) => {
     sent.push(m);
@@ -123,6 +131,9 @@ beforeEach(() => {
     isHost: true,
     rooms: [],
   });
+  // **毎回ここで既定へ戻す**＝控えは画面より長生きするので、前の検査の控えが残ると
+  // 走らせる順で結果が変わる。
+  setReviewMySide(null);
   finishedGame();
 });
 
@@ -211,5 +222,61 @@ describe('★v1.55 対局の部屋から感想戦の部屋へ移る（親 §9.4.
     expect(left1).toBe(true);
     // **「相手が退室しました」を出さない**＝出すと毎回それが出てしまう。
     expect(useReviewShareStore.getState().notice).not.toBe('oppLeft');
+  });
+});
+
+/**
+ * ★v1.58: **移った先の部屋に入るところまで通す**（親 §6.3.6・§9.2.5）。
+ *
+ * v1.57 の検査は「控えがあれば自分の側になる」ことしか固定しておらず、
+ * **移る一連の流れを通していなかった**（2 台ないと通らないと決めつけて外に置いた）。
+ * **実際には、移った先で入る処理を呼ぶところまでは 1 台でも辿れる**。
+ * その 1 歩で、**控えを取る処理と消す処理が同じところに在る**ことが分かる。
+ */
+describe('★v1.58 移った先の部屋に入っても、対局から続いた控えは消えない', () => {
+  const REVIEW_ROOM = encodeRoomName({
+    gameType: 'shogi',
+    torus: false,
+    quantum: false,
+    review: true,
+    userRoomName: '太郎の部屋',
+  });
+
+  it('★ゲスト＝移った先の部屋に入っても「自分の側」と「自分の対局」が残る', () => {
+    (window as unknown as { MomoMatchmaking: unknown }).MomoMatchmaking = fakeApi([
+      roomRow('x2', REVIEW_ROOM, { isPublic: false, hasPassword: true }),
+    ]);
+    // 自分は**後手**だった＝ここが逆さになると実機で「ゲストの盤だけ上下が逆」に見える。
+    installConnector(false, 'player2');
+    useMatchmakingStore.setState({ isHost: false, currentRoomId: 'g1' });
+    const file = loadLastKifu();
+    if (!file) throw new Error('棋譜が記憶されていない');
+
+    receiveReviewMessage({ kind: 'offer', pass: 'aabbccdd11223344', room: REVIEW_ROOM });
+    answerReviewOffer(true);
+    // 対局の部屋を出る前に控えられている（v1.57 でここまでは通っていた）。
+    expect(reviewMySide()).toBe('player2');
+
+    // ★ここから先が v1.57 で通っていなかった＝移った先の部屋に入る。
+    joinedReviewRoom();
+    expect(reviewMySide()).toBe('player2');
+
+    // 配られた棋譜は**ホストの向き**（先手が下）で来る。**自分の対局として受け取る**
+    // ことで初めて、自分の側へ向きを寄せられる（親 §9.2.5）。
+    receiveReviewMessage({ kind: 'state', kifu: serializeKifu(file), ply: 0, branch: [] });
+    expect(reviewIsOwnGame()).toBe(true);
+  });
+
+  it('★ホスト＝客を迎えても「自分の側」が残る', () => {
+    (window as unknown as { MomoMatchmaking: unknown }).MomoMatchmaking = fakeApi([]);
+    installConnector(true, 'player1');
+
+    offerReview();
+    receiveReviewMessage({ kind: 'reply', accepted: true });
+    expect(reviewMySide()).toBe('player1');
+
+    // 移った先の部屋へ客が来た＝ホスト側の「移り終えた合図」。
+    expect(reviewGuestArrived()).toBe(true);
+    expect(reviewMySide()).toBe('player1');
   });
 });

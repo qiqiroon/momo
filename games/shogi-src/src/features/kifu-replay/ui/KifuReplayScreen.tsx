@@ -64,6 +64,17 @@ export function KifuReplayScreen() {
    * **盤の向きがこれで決まる**。最初に出るのは記憶している 1 局なので、その出どころを継ぐ。
    */
   const [ownGame, setOwnGame] = useState<boolean>(() => lastKifuIsOwnGame());
+  /**
+   * ★v1.58: **見ている人が上下を入れ替えたか**（親 §9.2.5.1・**S11 と同じ規定**
+   * ＝2 つの画面で違う理屈を持たない）。**画面に持たせる**＝画面より長生きさせない。
+   */
+  const [flipView, setFlipView] = useState(false);
+  /**
+   * ★v1.58: **向きが決まり直したら、入れ替えは解ける**（親 §9.2.5.1）。
+   * **解く場所を数え上げない**＝棋譜が差し替わる入口は複数ある（一覧・フォルダ・
+   * 書類ピッカー）ので、**向きを決めている材料そのものを見張る**。
+   */
+  useEffect(() => setFlipView(false), [file, ownGame]);
   const [ply, setPly] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState<number>(1);
@@ -215,9 +226,19 @@ export function KifuReplayScreen() {
    * いない対局が後手から見た盤で出る**ことがあった。**読み込んだ棋譜には「自分」が
    * 居ない**ので、将棋の既定の向きに倒す。**感想戦 (S11) とまったく同じ規定**。
    */
-  const viewerSide: 'player1' | 'player2' = ownGame
+  const defaultSide: 'player1' | 'player2' = ownGame
     ? (file?.meta.viewerSide ?? 'player1')
     : 'player1';
+  /**
+   * ★v1.58: **見ている人が入れ替えたぶんを重ねる**（親 §9.2.5.1・**S11 と同じ**）。
+   * 上で決まるのは**既定の向き**であり、**既定が常に望みどおりとは限らない**ので、
+   * **人が自分で直せる出口を 1 つ置く**。
+   */
+  const viewerSide: 'player1' | 'player2' = flipView
+    ? defaultSide === 'player1'
+      ? 'player2'
+      : 'player1'
+    : defaultSide;
   const oppSide: 'player1' | 'player2' = viewerSide === 'player1' ? 'player2' : 'player1';
   const flipped = viewerSide === 'player2';
 
@@ -318,107 +339,131 @@ export function KifuReplayScreen() {
         } as CSSProperties
       }
     >
+      {/* ★v1.58: **見出しと操作の行は列の外へ出す**（付録D-8 v1.7 §2・ユーザー判断
+          2026-08-20）＝**S11 で v1.57 に入れたのとまったく同じ直し**。
+
+          列の幅は「その中でいちばん幅を要るもの」で決まるので、**棋譜の情報を載せた
+          この行が盤より幅を要ると、列の幅を決めるのが盤ではなくこの行**になる。
+          実測（本番ビルド・1 マス 35px）＝**窓幅 960px で横に 39px はみ出す**
+          （v1.57 以前も 900px で 23px はみ出していた＝**前からある不具合**）。
+
+          列の外へ出すと**列の幅は盤の側だけで決まり**、あわせて**右の列（手数リスト）が
+          盤と同じ高さから始まる**（S11 と同じ形）。 */}
+      <header className="match-header">
+        <CatIcon />
+        <div className="title-block">
+          <h1>
+            <span className="momo">MOMO</span> <span className="shogi">Shogi</span>{' '}
+            <span className="ver">{t('app.ver')}</span>
+          </h1>
+          <div className={`subtitle${subLocale === 'zh' ? ' zh' : ''}`}>{subtitle}</div>
+        </div>
+        <div className="header-spacer" />
+        <div className="header-tools">
+          <HeaderCommonRight />
+        </div>
+      </header>
+
+      {/* ツールバー：戻る＋棋譜の素性＋棋譜一覧（付録D-8 §3）。
+          **一覧ボタンを押しただけでは書類ピッカーを開かない**。 */}
+      <div className="s08-toolbar">
+        {/* v1.42: **どこから来ても行き先は同じ**（付録D-8 §3・画面機能 §3 S08）。
+            v1.41 は終局パネルから来たとき「結果へ」で対局画面へ戻していたが、
+            **別の棋譜を見ている最中に押すと、いま見ている棋譜と無関係な
+            直前の対局の結果**が出ていた＝画面に出ているものと押した先が食い違う。
+            表示も他画面と同じ「家アイコン＋モード選択」に揃える。 */}
+        <button
+          type="button"
+          className="back-btn"
+          onClick={() => {
+            seButton();
+            setScreen('lobby');
+          }}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            aria-hidden="true"
+          >
+            <path d="M3 12l9-9 9 9M5 10v10h14V10" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          {t('s00.modeSelect')}
+        </button>
+        <div className="kifu-meta">
+          {file ? (
+            <>
+              <span className="rn">{labels.ruleName(file)}</span>
+              <span className="mods">
+                {labels.modifiers(file).map((m) => (
+                  <span key={m} className="mod-badge">
+                    {m}
+                  </span>
+                ))}
+              </span>
+              <span className="who">
+                {labels.players(file)} · {labels.date(file)}
+              </span>
+            </>
+          ) : (
+            <span className="who">{t('s08.noKifu')}</span>
+          )}
+        </div>
+        {/* ★v1.58: **盤を反転**（親 §9.2.5.1・付録D-8 v1.7 §3）。
+            **棋譜が無いときも押せる**＝初期配置でも向きは意味を持つ。 */}
+        <button
+          type="button"
+          className={`io-btn${flipView ? ' on' : ''}`}
+          aria-pressed={flipView}
+          onClick={() => {
+            seButton();
+            setFlipView((v) => !v);
+          }}
+        >
+          {t('replay.flipBoard')}
+        </button>
+        {/* v1.46: **この棋譜で感想戦**（画面機能 v0.37 §3 S08・意味論＝親 §9.4）。
+            **いま開いている棋譜**で S11 へ入る＝選び直させない。**棋譜が無いときは
+            押せない**（感想戦は振り返る 1 局が決まっていることが前提）。
+            **記憶には触らない**ので確認は出ない。 */}
+        <button
+          type="button"
+          className="io-btn"
+          disabled={!file}
+          onClick={() => {
+            seButton();
+            setPlaying(false);
+            if (file) {
+              // ★v1.57: 出どころも一緒に渡す（親 §9.2.5）＝盤の向きは
+              // 感想戦でも同じ規定で決まるので、ここで決め直させない。
+              setReviewTarget(file, 'kifu-replay', ownGame);
+              setScreen('review');
+            }
+          }}
+        >
+          {t('s08.review')}
+        </button>
+        <button
+          type="button"
+          className="pick-btn"
+          onClick={() => {
+            seButton();
+            setPlaying(false);
+            setListOpen(true);
+            // フォルダを指定してあれば、その中身を一覧に出す（画面機能 §3 S08）。
+            // **許可までしか尋ねない**＝ここでフォルダを選ばせはしない。
+            void refreshFolder('permission');
+          }}
+        >
+          {t('s08.list')}
+        </button>
+      </div>
+
       <div className="grid">
         <div className="main-col">
-          <header className="match-header">
-            <CatIcon />
-            <div className="title-block">
-              <h1>
-                <span className="momo">MOMO</span> <span className="shogi">Shogi</span>{' '}
-                <span className="ver">{t('app.ver')}</span>
-              </h1>
-              <div className={`subtitle${subLocale === 'zh' ? ' zh' : ''}`}>{subtitle}</div>
-            </div>
-            <div className="header-spacer" />
-            <div className="header-tools">
-              <HeaderCommonRight />
-            </div>
-          </header>
-
-          {/* ツールバー：戻る＋棋譜の素性＋棋譜一覧（付録D-8 §3）。
-              **一覧ボタンを押しただけでは書類ピッカーを開かない**。 */}
-          <div className="s08-toolbar">
-            {/* v1.42: **どこから来ても行き先は同じ**（付録D-8 §3・画面機能 §3 S08）。
-                v1.41 は終局パネルから来たとき「結果へ」で対局画面へ戻していたが、
-                **別の棋譜を見ている最中に押すと、いま見ている棋譜と無関係な
-                直前の対局の結果**が出ていた＝画面に出ているものと押した先が食い違う。
-                表示も他画面と同じ「家アイコン＋モード選択」に揃える。 */}
-            <button
-              type="button"
-              className="back-btn"
-              onClick={() => {
-                seButton();
-                setScreen('lobby');
-              }}
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                aria-hidden="true"
-              >
-                <path d="M3 12l9-9 9 9M5 10v10h14V10" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              {t('s00.modeSelect')}
-            </button>
-            <div className="kifu-meta">
-              {file ? (
-                <>
-                  <span className="rn">{labels.ruleName(file)}</span>
-                  <span className="mods">
-                    {labels.modifiers(file).map((m) => (
-                      <span key={m} className="mod-badge">
-                        {m}
-                      </span>
-                    ))}
-                  </span>
-                  <span className="who">
-                    {labels.players(file)} · {labels.date(file)}
-                  </span>
-                </>
-              ) : (
-                <span className="who">{t('s08.noKifu')}</span>
-              )}
-            </div>
-            {/* v1.46: **この棋譜で感想戦**（画面機能 v0.37 §3 S08・意味論＝親 §9.4）。
-                **いま開いている棋譜**で S11 へ入る＝選び直させない。**棋譜が無いときは
-                押せない**（感想戦は振り返る 1 局が決まっていることが前提）。
-                **記憶には触らない**ので確認は出ない。 */}
-            <button
-              type="button"
-              className="io-btn"
-              disabled={!file}
-              onClick={() => {
-                seButton();
-                setPlaying(false);
-                if (file) {
-                  // ★v1.57: 出どころも一緒に渡す（親 §9.2.5）＝盤の向きは
-                  // 感想戦でも同じ規定で決まるので、ここで決め直させない。
-                  setReviewTarget(file, 'kifu-replay', ownGame);
-                  setScreen('review');
-                }
-              }}
-            >
-              {t('s08.review')}
-            </button>
-            <button
-              type="button"
-              className="pick-btn"
-              onClick={() => {
-                seButton();
-                setPlaying(false);
-                setListOpen(true);
-                // フォルダを指定してあれば、その中身を一覧に出す（画面機能 §3 S08）。
-                // **許可までしか尋ねない**＝ここでフォルダを選ばせはしない。
-                void refreshFolder('permission');
-              }}
-            >
-              {t('s08.list')}
-            </button>
-          </div>
 
           <div className="pinfo opp">
             {/* v1.43: **どちらが先手か名前だけでは分からない**（ネット対戦では下が自分とも

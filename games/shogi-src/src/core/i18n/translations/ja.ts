@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.57',
+    'app.ver': 'v1.58',
     // v0.72 音楽再生確認モーダル (Darts と同じ思想)
     'sound.promptTitle': 'BGM と効果音を再生してもよろしいですか？',
     'sound.bgmLabel': 'BGM 音量',
@@ -284,6 +284,9 @@ export const ja: LocaleData = {
     'review.acceptAction': '受ける',
     'review.rejectAction': '断る',
     's08.review': 'この棋譜で感想戦',
+    // ★v1.58: 盤の上下を入れ替える（親 §9.2.5.1）。**S08 と S11 で同じ言葉**を使う
+    // ＝同じことをする手立てを画面ごとに別の名前で呼ばない。
+    'replay.flipBoard': '盤を反転',
     's08.backTop': 'トップへ',
     's08.backResult': '結果へ',
     's08.list': '棋譜一覧',

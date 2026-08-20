@@ -13,6 +13,7 @@
 import type { ReviewRoomBlock, ReviewRoomRequest } from '../../core/plugin/reviewRoom';
 import { getMomoMatchmaking } from './client';
 import { decodeRoomName, encodeRoomName } from './roomNameCodec';
+import { createSeatedRoom } from './roster';
 import { useMatchmakingStore } from './store';
 
 const LS_LAST_PLAYER_NAME = 'shogi.lobby.lastPlayerName';
@@ -66,7 +67,7 @@ export function createReviewRoom(info: ReviewRoomRequest): boolean {
 
   s.setCurrentRoom({ roomId: null, roomName: encodedName, isHost: true });
   s.setOpponentName('');
-  client.createRoom({
+  createSeatedRoom(client, {
     hostName,
     name: encodedName,
     // ★v1.55: パスワードと非公開も効かせる（親 v1.49 §9.4.4・ユーザー判断 2026-08-19）
@@ -151,7 +152,7 @@ export function createMigratedReviewRoom(p: { room: string; pass: string }): boo
   const s = useMatchmakingStore.getState();
   s.setCurrentRoom({ roomId: null, roomName: p.room, isHost: true });
   s.setOpponentName('');
-  client.createRoom({
+  createSeatedRoom(client, {
     hostName: lastPlayerName(),
     name: p.room,
     password: p.pass,

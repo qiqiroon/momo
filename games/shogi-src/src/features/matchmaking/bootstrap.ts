@@ -19,6 +19,7 @@ import { getMomoMatchmaking } from './client';
 import { SHOGI_GAME_TYPE, SIGNALING_URL } from './config';
 import { handleShogiMessage } from './messageDispatcher';
 import { decodeRoomName } from './roomNameCodec';
+import { hasOpponent, hasSeat, opponentOf } from './roster';
 import { useMatchmakingStore, DEFAULT_ROOM_CONFIG, type RoomConfig } from './store';
 
 let _inited = false;
@@ -117,6 +118,43 @@ function reviewGuestArrived(): boolean {
 }
 
 /**
+ * v1.53: **対局相手が席に着いた**ときの始末を 1 か所にまとめたもの。
+ *
+ * 呼ばれる経路が 2 つある (従来の 1 対 1 の部屋＝ゲスト入室／多人数の部屋＝参加者の入室) ので、
+ * **中身を 2 か所に書かない**。片方だけ直った状態を作らないため。
+ */
+function handleOpponentArrived(name: string): void {
+  const s = useMatchmakingStore.getState();
+  s.setOpponentName(name);
+  // v1.53: 相手が席に着いて初めて「対局できる状態」になる (親 §6.2)。
+  if (useMatchmakingStore.getState().connection === 'in_room') {
+    s.setConnection('game_connected');
+  }
+  // v1.50: 感想戦の部屋なら、ここが**棋譜を配り始める合図**（親 §6.3.6）。
+  // 対局の部屋なら false が返るので、今までどおり何も起こらない。
+  reviewGuestArrived();
+}
+
+/**
+ * v1.53: **対局相手が居なくなった**ときの始末を 1 か所にまとめたもの。
+ * 従来の onGuestLeft の中身をそのまま移したもので、扱いは変えていない。
+ */
+function handleOpponentGone(): void {
+  const state = useMatchmakingStore.getState();
+  // v1.47 (親 §9.4.4): 感想戦の最中なら**感想戦は終わらない**。相手が抜けたことは
+  // 知らせるが、対局中の切断とは扱いを分ける (退室を促さない)。
+  if (reviewOpponentLeft()) return;
+  if (state.gameStartInfo) {
+    useMatchmakingStore.setState({
+      opponentName: '',
+      opponentLeftDuringGame: true,
+    });
+    return;
+  }
+  state.setOpponentName('');
+}
+
+/**
  * matchmaking を初期化 (シグナリング WS を開く)。多重呼び出しは無視。
  * MenuScreen / LobbyScreen の両方から呼んで良い。
  */
@@ -137,43 +175,68 @@ export function ensureMatchmakingInit(): void {
     onRoomList: (list) => {
       useMatchmakingStore.getState().setRooms(list);
     },
-    onRoomCreated: (roomId, roomName) => {
+    onRoomCreated: (roomId, roomName, _rules, multi) => {
       const s = useMatchmakingStore.getState();
       s.setConnection('in_room');
       s.setCurrentRoom({ roomId, roomName, isHost: true });
+      if (multi) s.setMultiInfo({ pid: multi.pid, role: multi.role, roster: multi.roster });
     },
-    onJoinedRoom: (roomId, roomName, hostName, rules) => {
+    onJoinedRoom: (roomId, roomName, hostName, rules, multi) => {
       const s = useMatchmakingStore.getState();
       s.setConnection('in_room');
       s.setCurrentRoom({ roomId, roomName, isHost: false });
-      s.setOpponentName(hostName);
+      if (multi) s.setMultiInfo({ pid: multi.pid, role: multi.role, roster: multi.roster });
+      // v1.53: 相手の名前は**名簿の席から**取る。名簿が無い部屋 (従来の 1 対 1) では
+      // ホスト名がそのまま相手なのでそれを使う。
+      const fromRoster = multi ? opponentOf(multi.roster, multi.pid) : null;
+      s.setOpponentName(fromRoster ? fromRoster.name : hostName);
       s.setActiveRoomConfig(normalizeIncomingRules(rules, roomName));
       // v1.50: 感想戦の部屋なら待機画面ではなく感想戦へ（画面機能 §3 S04）。
       if (enterReviewAsGuest(roomName)) return;
       useRouteStore.getState().setScreen('room');
     },
+    // v1.53: 従来の 1 対 1 の部屋だけがここを通る (多人数の部屋では呼ばれない)。
     onGuestJoined: (guestName) => {
-      useMatchmakingStore.getState().setOpponentName(guestName);
-      // v1.50: 感想戦の部屋なら、ここが**棋譜を配り始める合図**（親 §6.3.6）。
-      // 対局の部屋なら false が返るので、今までどおり何も起こらない。
-      reviewGuestArrived();
+      handleOpponentArrived(guestName);
     },
     onGuestLeft: () => {
-      const state = useMatchmakingStore.getState();
-      // v1.47 (親 §9.4.4): 感想戦の最中なら**感想戦は終わらない**。相手が抜けたことは
-      // 知らせるが、対局中の切断とは扱いを分ける (退室を促さない)。
-      if (reviewOpponentLeft()) return;
-      if (state.gameStartInfo) {
-        useMatchmakingStore.setState({
-          opponentName: '',
-          opponentLeftDuringGame: true,
-        });
+      handleOpponentGone();
+    },
+    /**
+     * v1.53 (親 §6.2): 多人数の部屋に誰かが入った。
+     * **席の有無で振り分ける** — 観戦者が来ても対局相手にはしない。
+     */
+    onParticipantJoined: (_pid, role, name, roster) => {
+      useMatchmakingStore.getState().setRoster(roster);
+      if (!hasSeat(role)) return;
+      handleOpponentArrived(name);
+    },
+    /**
+     * v1.53: 多人数の部屋から誰かが抜けた。
+     * **抜けたのが観戦者なら対局には何も起きない**ので、名簿を見て相手が残っているかで決める。
+     */
+    onParticipantLeft: (_pid, roster) => {
+      const s = useMatchmakingStore.getState();
+      const hadOpponent = !!s.opponentName;
+      s.setRoster(roster);
+      const opp = opponentOf(roster, s.myPid);
+      if (opp) {
+        s.setOpponentName(opp.name);
         return;
       }
-      state.setOpponentName('');
+      if (!hadOpponent) return;
+      handleOpponentGone();
     },
     onConnected: () => {
-      useMatchmakingStore.getState().setConnection('game_connected');
+      const s = useMatchmakingStore.getState();
+      // ★v1.53 (親 §6.2): これは「部屋に入った」の合図であって「相手が居る」ではない。
+      // サーバー中継では**部屋を建てた時点で発火する**ので、名簿に席のある相手が
+      // 居るときだけ対局できる状態へ進める。
+      // 名簿を持たない部屋 (従来の 1 対 1) では、この合図の到達そのものが
+      // 相手とつながった証なので従来どおり進める。
+      if (s.roster.length === 0 || hasOpponent(s.roster, s.myPid)) {
+        s.setConnection('game_connected');
+      }
     },
     onDisconnected: (reason) => {
       const state = useMatchmakingStore.getState();

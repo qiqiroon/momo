@@ -32,6 +32,7 @@ import { HeaderCommonRight } from '../../../core/ui-core/HeaderCommonRight';
 import { get as pluginGet } from '../../../core/plugin/registry';
 import type { ReviewRoomInfo, ReviewRoomRequest } from '../../../core/plugin/reviewRoom';
 import { getMomoMatchmaking } from '../client';
+import { isRoomPlayersFull } from '../roster';
 import { useMatchmakingStore } from '../store';
 import { ensureMatchmakingInit } from '../bootstrap';
 import { decodeRoomName } from '../roomNameCodec';
@@ -359,7 +360,7 @@ export function ReviewLobbyScreen() {
                         <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>
                           {t('s04.host')}: {room.hostName}
                           {room.hasPassword && `  ${t('s04.hasPassword')}`}
-                          {room.guestConnected && `  ${t('s04.inGame')}`}
+                          {isRoomPlayersFull(room) && `  ${t('s04.inGame')}`}
                         </div>
                       </div>
                       {joinRoomId === room.id &&
@@ -396,7 +397,7 @@ export function ReviewLobbyScreen() {
                         <button
                           className="reset-btn"
                           type="button"
-                          disabled={!connected || room.guestConnected}
+                          disabled={!connected || isRoomPlayersFull(room)}
                           onClick={() => joinRoom(room.id, room.hasPassword, autoPw)}
                         >
                           {t('s04.enterRoom')}

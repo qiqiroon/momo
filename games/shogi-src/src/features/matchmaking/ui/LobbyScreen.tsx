@@ -8,6 +8,7 @@ import { CatIcon } from '../../../core/ui-core/CatIcon';
 import { HeaderCommonRight } from '../../../core/ui-core/HeaderCommonRight';
 import { RuleSelectionCard } from '../../../core/ui-core/RuleSelectionCard';
 import { getMomoMatchmaking } from '../client';
+import { createSeatedRoom, isRoomPlayersFull } from '../roster';
 import { useMatchmakingStore } from '../store';
 import { decodeRoomName, encodeRoomName } from '../roomNameCodec';
 import { RoomBadges } from './RoomBadges';
@@ -241,7 +242,7 @@ export function LobbyScreen() {
     setActiveRoomConfig({ ...config, roomName: encodedName });
     setCurrentRoom({ roomId: null, roomName: encodedName, isHost: true });
     setOpponentName('');
-    client.createRoom({
+    createSeatedRoom(client, {
       hostName: playerName,
       name: encodedName,
       password: config.password,
@@ -306,7 +307,7 @@ export function LobbyScreen() {
           <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>
             {t('s04.host')}: {r.hostName}
             {r.hasPassword && `  ${t('s04.hasPassword')}`}
-            {r.guestConnected && `  ${t('s04.inGame')}`}
+            {isRoomPlayersFull(r) && `  ${t('s04.inGame')}`}
           </div>
           {isReviewRoom && (
             <div style={{ color: 'var(--text-muted)', fontSize: 10, marginTop: 2 }}>
@@ -339,7 +340,7 @@ export function LobbyScreen() {
             className="reset-btn"
             type="button"
             onClick={() => onJoin(r.id, r.hasPassword, autoPw)}
-            disabled={connection !== 'connected' || r.guestConnected}
+            disabled={connection !== 'connected' || isRoomPlayersFull(r)}
           >
             {t('s04.enterRoom')}
           </button>

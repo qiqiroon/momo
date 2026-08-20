@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { MomoRoomInfo } from './client';
+import type { MomoRoomInfo, MomoRole, MomoRosterEntry } from './client';
 import type { GameType } from './roomNameCodec';
 // v0.35: TimeControl 型は core に移動（game-store でも使うため）。ここでは re-export。
 import { DEFAULT_TIME_CONTROL, type TimeControl, type TimeControlMode } from '../../core/engine/time-control';
@@ -92,6 +92,15 @@ interface MatchmakingState {
   isHost: boolean;
   /** 相手プレイヤー名 (ホスト側=ゲスト名、ゲスト側=ホスト名) */
   opponentName: string;
+  /**
+   * v1.53 (親 §6.1): 参加者名簿。**対局相手を知りたいときはここから席で選ぶ**。
+   * 「自分以外の 1 人」を相手とみなしてはならない (観戦者が混じるため)。
+   */
+  roster: MomoRosterEntry[];
+  /** v1.53: 多人数の部屋での自分の参加者 ID。 */
+  myPid: string | null;
+  /** v1.53: 多人数の部屋での自分の立場 (席の有無)。 */
+  myRole: MomoRole | null;
   /** 現在部屋のルール設定 (段階 2-4 では表示用) */
   activeRoomConfig: RoomConfig | null;
   errorMessage: string | null;
@@ -162,6 +171,10 @@ interface MatchmakingState {
   setConnection: (c: ConnectionStatus) => void;
   setRooms: (rooms: MomoRoomInfo[]) => void;
   setCurrentRoom: (info: { roomId: string | null; roomName: string; isHost: boolean }) => void;
+  /** v1.53: 部屋に入った/建てたときの多人数情報をまとめて置く。 */
+  setMultiInfo: (info: { pid: string | null; role: MomoRole; roster: MomoRosterEntry[] }) => void;
+  /** v1.53: 名簿だけ差し替える (誰かが出入りしたとき)。 */
+  setRoster: (roster: MomoRosterEntry[]) => void;
   setOpponentName: (name: string) => void;
   setActiveRoomConfig: (config: RoomConfig | null) => void;
   setError: (msg: string | null) => void;
@@ -196,6 +209,9 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
   currentRoomName: '',
   isHost: false,
   opponentName: '',
+  roster: [],
+  myPid: null,
+  myRole: null,
   activeRoomConfig: null,
   errorMessage: null,
   playerName: '',
@@ -222,6 +238,8 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
   setConnection: (c) => set({ connection: c }),
   setRooms: (rooms) => set({ rooms }),
   setCurrentRoom: ({ roomId, roomName, isHost }) => set({ currentRoomId: roomId, currentRoomName: roomName, isHost }),
+  setMultiInfo: ({ pid, role, roster }) => set({ myPid: pid, myRole: role, roster }),
+  setRoster: (roster) => set({ roster }),
   setOpponentName: (opponentName) => set({ opponentName }),
   setActiveRoomConfig: (activeRoomConfig) => set({ activeRoomConfig }),
   setError: (errorMessage) => set({ errorMessage }),
@@ -233,6 +251,9 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
     currentRoomName: '',
     isHost: false,
     opponentName: '',
+    roster: [],
+    myPid: null,
+    myRole: null,
     activeRoomConfig: null,
     connection: 'connected',
     intentionallyLeft: true,

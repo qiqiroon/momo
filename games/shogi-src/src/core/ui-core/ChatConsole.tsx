@@ -18,6 +18,15 @@ import { seChatRecv } from '../audio/se-synth';
  */
 export function ChatConsole({ t }: { t: (key: string) => string }) {
   const messages = useChatStore((s) => s.messages);
+  /**
+   * ★v1.55: 観戦者の発言が観戦者どうしに絞られるのは**対局が進んでいる間だけ**
+   * （親 §6.8.5）。**ここは購読して読む**＝口越しに一度だけ聞くと、
+   * **終局しても古いまま**になり、**届いているのに「届いていません」と出し続ける**
+   * （2026-08-21 実サーバーで実際にそうなった）。**送る側と同じ条件**で判断する。
+   */
+  const screen = useRouteStore((s) => s.screen);
+  const gameStatus = useGameStore((s) => s.status);
+  const inPlay = screen === 'game' && gameStatus === 'playing';
   const [draft, setDraft] = useState('');
   const logRef = useRef<HTMLDivElement>(null);
   const [state, setState] = useState(readState);
@@ -120,7 +129,7 @@ export function ChatConsole({ t }: { t: (key: string) => string }) {
           対局者にも届いたと思い込んだまま話し続ける。**絞られるのは対局が進んで
           いる間だけ**なので、準備室・終局後・感想戦ではこの一言を出さない
           （出すと、届いているのに届いていないと思わせる）。 */}
-      {state.spectating && state.inPlay && (
+      {state.spectating && inPlay && (
         <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 4 }}>
           {t('spec.chatNote')}
         </div>
@@ -136,7 +145,6 @@ function readState() {
     myName: '',
     opponentName: '',
     spectating: false,
-    inPlay: false,
     seatNames: null as { player1: string; player2: string } | null,
   };
   if (!c) return empty;
@@ -146,10 +154,6 @@ function readState() {
     opponentName: c.getOpponentName(),
     // **口が無いビルド・古い形の相手でも落ちない**ようにする（縮退互換）。
     spectating: typeof c.isSpectating === 'function' ? c.isSpectating() : false,
-    // ★v1.55: 観戦者の発言が観戦者どうしに絞られるのは**対局が進んでいる間だけ**
-    //   （送る側と同じ条件で判断する＝片方だけ別の決め方をしない）。
-    inPlay:
-      useRouteStore.getState().screen === 'game' && useGameStore.getState().status === 'playing',
     seatNames: typeof c.getSeatNames === 'function' ? c.getSeatNames() : null,
   };
 }

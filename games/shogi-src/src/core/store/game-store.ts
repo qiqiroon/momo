@@ -289,6 +289,8 @@ interface GameState {
   cancelPromotion: () => void;
   declareNyugyoku: () => boolean;
   /** 指定側を投了させる。既に対局が終わっているときは何もしない。段階 2-7 v0.30。 */
+  /** ★v1.55: 観戦者が、配られた対局の終わりをそのまま載せる（親 §6.8.4）。 */
+  applySpectatedStatus: (next: GameStatus) => void;
   resign: (side: 'player1' | 'player2') => void;
   /** 引分に合意した状態にする。段階 2-7 v0.33。 */
   agreeDraw: () => void;
@@ -1170,6 +1172,30 @@ export const useGameStore = create<GameState>((set, get) => ({
       pendingPromotion: null,
     });
     return true;
+  },
+
+  /**
+   * ★v1.55（親 §6.8.4）: **観戦者が、配られた対局の「終わり」をそのまま載せる。**
+   *
+   * **終局は手ではない**ので、手を並べ直しても盤には現れない（投了・時間切れ・
+   * 中断合意・ノーゲーム）。v1.74 までこれを配っていなかったため、**終局後に入った
+   * 観戦者には、終わった対局が「対局中」に見えていた**（手番が出て、終局パネルが
+   * 出ない）。**これは棋譜のときに一度学んだのと同じ形**（親 §9.2.4＝手の並びだけでは
+   * どちらが勝ったか分からない）。
+   *
+   * **観戦者の画面を合わせるためだけのもの**で、**対局の進行には一切関わらない**
+   * （勝敗を作るのは対局者どうしのやり取りで、ここでは受け取った結果を映すだけ）。
+   */
+  applySpectatedStatus: (next) => {
+    if (get().status === next) return;
+    set({
+      status: next,
+      anomaly: null,
+      selectedSquare: null,
+      selectedHandPieceId: null,
+      legalDestinations: [],
+      pendingPromotion: null,
+    });
   },
 
   resign: (side) => {

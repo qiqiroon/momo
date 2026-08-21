@@ -236,6 +236,10 @@ describe('v1.55: いまの対局を丸ごと配る（親 §6.8.4）', () => {
     expect(msg.moves[0].to).toEqual({ row: 5, col: 2 });
     // 対局者の名前は名簿の席から読む（観戦者には「あなた／あいて」が無いため）
     expect(msg.names).toEqual({ host: '太郎', guest: '花子' });
+    // ★終局は手ではないので、手の並びとは別に載せて配る
+    expect(msg.status).toBe('playing');
+    useGameStore.getState().resign('player1');
+    expect(buildSpectateSync().status).toBe('resigned_p1');
   });
 
   it('感想戦で作られる「自由な手」は配り物に混ぜない（並べ直せないため）', () => {
@@ -306,6 +310,23 @@ describe('v1.55: 配られたものから組み立て直す（親 §6.8.4）', (
     expect(useMatchmakingStore.getState().spectateWaiting).toBe(false);
     expect(useRouteStore.getState().screen).toBe('game');
     expect(useMatchmakingStore.getState().seatNames).toEqual({ host: '太郎', guest: '花子' });
+  });
+
+  it('★終わった対局に入ったら、終わっていることが伝わる（終局は手ではない）', () => {
+    // v1.74 まではこれを配っておらず、**終局後に入った観戦者には対局中に見えていた**
+    // （手番が出て、終局パネルが出ない）＝2026-08-21 実サーバーで確認。
+    handleShogiMessage(unwrap(syncMsg({ phase: 'ended', status: 'resigned_p1' })));
+    expect(useGameStore.getState().status).toBe('resigned_p1');
+  });
+
+  it('対局中の部屋に入ったときは、盤を終わらせない', () => {
+    handleShogiMessage(unwrap(syncMsg({ phase: 'playing', status: 'playing' })));
+    expect(useGameStore.getState().status).toBe('playing');
+  });
+
+  it('終わりを知らせてこない相手（旧版）でも壊れない＝対局中として扱う', () => {
+    handleShogiMessage(unwrap(syncMsg({ phase: 'ended' })));
+    expect(useGameStore.getState().status).toBe('playing');
   });
 
   it('★人待ちの部屋なら盤へは移らない（見るべき盤がまだ無い）', () => {

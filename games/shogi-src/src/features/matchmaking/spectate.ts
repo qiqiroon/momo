@@ -95,6 +95,8 @@ export function buildSpectateSync(): SpectateSyncMsg {
     sides: mm.gameStartInfo,
     names: seatNamesFromRoster(),
     moves: started ? movesFromHistory(g.position.history) : [],
+    // ★終局は手ではないので、手の並びとは別に配る（親 §6.8.4）。
+    status: g.status,
   };
 }
 
@@ -129,6 +131,13 @@ export function applySpectateSync(msg: SpectateSyncMsg): void {
         promote: m.promote,
       });
     }
+  }
+
+  // ★終わっている対局なら、その終わりを載せる。**手を並べ直しただけでは
+  //   盤に現れない**（投了・時間切れ・中断合意は手ではない）ので、
+  //   これが無いと**終わった対局が「対局中」に見える**。
+  if (msg.sides && msg.status && msg.status !== 'playing') {
+    useGameStore.getState().applySpectatedStatus(msg.status as never);
   }
 
   // ④ 受け取り終わったことを画面へ知らせ、盤へ移る。

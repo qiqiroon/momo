@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.70',
+    'app.ver': 'v1.71',
     // v0.72 音楽再生確認モーダル (Darts と同じ思想)
     'sound.promptTitle': 'BGM と効果音を再生してもよろしいですか？',
     'sound.bgmLabel': 'BGM 音量',
@@ -292,6 +292,7 @@ export const ja: LocaleData = {
     'spec.autoStart': '対局者がそろうと自動で始まります',
     'spec.chatNote': '観戦者どうしにだけ見えます',
     'spec.frResult': '{name} が先手です',
+    'spec.turnSuffix': ' の手番',
     's05.participants': '参加者',
     's04.allowSpec': '観戦を許す',
     's04.allowSpecNote': 'あとから変えられません',

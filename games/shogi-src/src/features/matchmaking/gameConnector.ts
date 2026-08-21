@@ -12,7 +12,7 @@ import type { OnlineGameConnector, RemoteMovePayload } from '../../core/plugin/g
 import { positionHash } from '../../core/engine';
 import { getMomoMatchmaking } from './client';
 import { PROTOCOL_VERSION, sendShogiMessage } from './protocol';
-import { isSpectator, otherSpectatorPids, spectatorsOf } from './roster';
+import { hasSeat, isSpectator, otherSpectatorPids, spectatorsOf } from './roster';
 import { useMatchmakingStore } from './store';
 
 const connector: OnlineGameConnector = {
@@ -68,11 +68,33 @@ const connector: OnlineGameConnector = {
    */
   getSeatNames() {
     const s = useMatchmakingStore.getState();
-    if (!s.seatNames || !s.gameStartInfo) return null;
-    const hostIsSente = s.gameStartInfo.hostSide === 'sente';
+    if (!isSpectator(s.myRole)) return null;
+    /**
+     * ★v1.55: **名前は名簿から引く。配られたものは足がかりにすぎない**。
+     *
+     * `spectate_sync` は**入ったその瞬間の顔ぶれ**を運ぶので、**あとから対局者が
+     * 入ってくると古くなる**（実機で**後手の名前が空のまま**だった）。**名簿は
+     * 出入りのたびに届く**ので、そちらを先に見る。
+     */
+    const seated = s.roster.filter((p) => hasSeat(p.role));
+    const fromRoster = {
+      host: seated.find((p) => p.role === 'host')?.name ?? '',
+      guest: seated.find((p) => p.role !== 'host')?.name ?? '',
+    };
+    const names = {
+      host: fromRoster.host || s.seatNames?.host || '',
+      guest: fromRoster.guest || s.seatNames?.guest || '',
+    };
+    if (!names.host && !names.guest) return null;
+    /**
+     * **先後が決まる前は暫定の割り当てで読む**＝送る側も対局前は
+     * 「ホスト＝先手・ゲスト＝後手」の暫定で名乗っている（`getMyChatSide`）ので、
+     * **読む側だけ別の決め方をしない**。
+     */
+    const hostIsSente = s.gameStartInfo ? s.gameStartInfo.hostSide === 'sente' : true;
     return {
-      player1: hostIsSente ? s.seatNames.host : s.seatNames.guest,
-      player2: hostIsSente ? s.seatNames.guest : s.seatNames.host,
+      player1: hostIsSente ? names.host : names.guest,
+      player2: hostIsSente ? names.guest : names.host,
     };
   },
 
@@ -289,6 +311,11 @@ const connector: OnlineGameConnector = {
   },
 
   sendReview(msg) {
+    // ★v1.55 (親 §6.8.1): **観戦者は感想戦の打診も諾否も送らない**。
+    // 受け取る側だけで守ると、**画面のどこかに導線が残っていたときに二人の相談へ
+    // 割り込める**（実際に終局パネルの「感想戦」が観戦者にも出ていた）。
+    // **盤を追う伝言も観戦者からは出ない**（観戦者は盤に触れないため）。
+    if (isSpectator(useMatchmakingStore.getState().myRole)) return;
     // v1.47 (親 §6.3.6): 感想戦の伝言。**部屋に居ないときは送り先が無い**ので黙って捨てる
     // (ひとりの感想戦では縮退互換＝何も送らない)。
     const client = getMomoMatchmaking();

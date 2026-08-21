@@ -5,7 +5,7 @@ export const en: LocaleData = {
   name: 'English',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.70',
+    'app.ver': 'v1.71',
     'sound.promptTitle': 'Enable BGM and sound effects?',
     'sound.bgmLabel': 'BGM volume',
     'sound.sfxLabel': 'SFX volume',
@@ -272,6 +272,7 @@ export const en: LocaleData = {
     'spec.autoStart': 'The game starts on its own once both players are ready',
     'spec.chatNote': 'Only other spectators can see this',
     'spec.frResult': '{name} plays first',
+    'spec.turnSuffix': "'s turn",
     's05.participants': 'Participants',
     's04.allowSpec': 'Allow spectators',
     's04.allowSpecNote': 'This cannot be changed later',

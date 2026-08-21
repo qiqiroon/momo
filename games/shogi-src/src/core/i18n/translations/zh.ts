@@ -5,7 +5,7 @@ export const zh: LocaleData = {
   name: '中文',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.70',
+    'app.ver': 'v1.71',
     'sound.promptTitle': '是否播放 BGM 与音效？',
     'sound.bgmLabel': 'BGM 音量',
     'sound.sfxLabel': '音效音量',
@@ -272,6 +272,7 @@ export const zh: LocaleData = {
     'spec.autoStart': '双方准备好后会自动开始',
     'spec.chatNote': '只有其他观战者能看到',
     'spec.frResult': '{name} 先手',
+    'spec.turnSuffix': ' 的回合',
     's05.participants': '参加者',
     's04.allowSpec': '允许观战',
     's04.allowSpecNote': '之后无法更改',

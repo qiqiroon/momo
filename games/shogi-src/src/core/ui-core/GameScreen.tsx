@@ -419,7 +419,17 @@ export function GameScreen({ variant }: GameScreenProps) {
                       : status === 'annihilation_win_p2'
                         ? t('status.annihilation_win_p2')
                       : online.isOnline
-                  ? (isMyTurnOnline ? t('turn.mine') : t('turn.opp')) +
+                  ? // ★v1.55: **観戦者に「あなた／相手」は使えない**（親 §6.8.4）。
+                    // 席の名前で言い直す＝誰の手番なのかが読み取れるようにする。
+                    (spec.spectating
+                      ? (spec.seatNames
+                          ? `${spec.seatNames[position.sideToMove]}${t('spec.turnSuffix')}`
+                          : position.sideToMove === 'player1'
+                            ? t('s07.senteTurn')
+                            : t('s07.goteTurn'))
+                      : isMyTurnOnline
+                        ? t('turn.mine')
+                        : t('turn.opp')) +
                     (position.sideToMove === 'player1' ? (senteInCheck ? t('s07.checkTag') : '') : goteInCheck ? t('s07.checkTag') : '')
                     : position.sideToMove === 'player1'
                       ? t('s07.senteTurn') + (senteInCheck ? t('s07.checkTag') : '')
@@ -1796,6 +1806,13 @@ function GameEndModal({
   const mgf = useGameStore((s) => s.mgf);
   const reset = useGameStore((s) => s.reset);
   const [dismissed, setDismissed] = useState<string>('');
+  /**
+   * ★v1.55: 観戦者かどうか（親 §6.8.6）。**いまこの瞬間の事実を口に聞く**＝
+   * この入れ物は終局のたびに作り直されるので、控えを持ち回る理由が無い。
+   * **口が無いビルド・古い形の相手でも落ちない**ようにする（縮退互換）。
+   */
+  const conn = pluginGet<OnlineGameConnector>('gameConnector');
+  const spectating = conn && typeof conn.isSpectating === 'function' ? conn.isSpectating() : false;
 
   useEffect(() => {
     setDismissed('');
@@ -1914,12 +1931,20 @@ function GameEndModal({
         >
           {t('result.close')}
         </button>
-        <SaveKifuButton t={t} />
-        <ReplayKifuButton t={t} />
-        <ReviewButton t={t} />
-        <button type="button" className="btn" onClick={onRematch}>
-          {rematchLabel}
-        </button>
+        {/* ★v1.55 (親 §6.8.6・付録D-3 v1.6 §4.2): **観戦者には次アクションを出さない**
+            （棋譜の保存・棋譜再生・感想戦・もう一度対局）。**他人の対局の始末**であり、
+            とくに**感想戦は二人で決めるもの**なので、押せると二人の相談に割り込む。
+            **勝敗と終局理由は今までどおり見える**（見届けるために残るので減らさない）。 */}
+        {!spectating && (
+          <>
+            <SaveKifuButton t={t} />
+            <ReplayKifuButton t={t} />
+            <ReviewButton t={t} />
+            <button type="button" className="btn" onClick={onRematch}>
+              {rematchLabel}
+            </button>
+          </>
+        )}
       </div>
     </FloatingPanel>
   );

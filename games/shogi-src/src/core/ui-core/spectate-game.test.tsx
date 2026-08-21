@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react';
 import { register } from '../plugin/registry';
 import { useI18nStore } from '../store/i18n-store';
 import { useRouteStore } from '../store/route-store';
@@ -166,6 +166,36 @@ describe('S06 対局画面を観戦者から見たとき（v1.55）', () => {
     registerConnector({ spectating: false });
     const view = render(<GameScreen variant="b" />);
     expect(useGameStore.getState().position.history).toHaveLength(0);
+    view.unmount();
+  });
+
+  it('★終局しても観戦者には次アクションを出さない（他人の対局の始末・感想戦は二人で決める）', () => {
+    registerConnector({ spectating: true });
+    useGameStore.getState().resign('player1');
+    const view = render(<GameScreen variant="b" />);
+    // **終局パネルの中だけを見る**（同じ言葉がヘッダの戻る導線にもあるため）。
+    const panel = view.container.querySelector('.floating-result') as HTMLElement;
+    expect(panel).toBeTruthy();
+    const labels = Array.from(panel.querySelectorAll('button')).map((b) => b.textContent?.trim());
+    // 残るのは「閉じる」だけ＝次アクションは 1 つも無い
+    expect(labels).toEqual(['閉じる']);
+    // **勝敗は見える**（見届けるために残るので減らさない）
+    expect(panel.textContent).toContain('投了');
+    view.unmount();
+  });
+
+  it('対局者には終局の次アクションが今までどおり出る（縮退互換）', () => {
+    registerConnector({ spectating: false });
+    const view = render(<GameScreen variant="b" />);
+    // ★対局者は**画面へ来た拍子に盤が作り直される**（従来どおり）ので、
+    //   終わらせるのは描いたあと。観戦者側はそこが違う（上の検査）。
+    act(() => {
+      useGameStore.getState().resign('player2');
+    });
+    const panel = view.container.querySelector('.floating-result') as HTMLElement;
+    const labels = Array.from(panel.querySelectorAll('button')).map((b) => b.textContent?.trim());
+    expect(labels).toContain('対局準備に戻る');
+    expect(labels.length).toBeGreaterThan(1);
     view.unmount();
   });
 

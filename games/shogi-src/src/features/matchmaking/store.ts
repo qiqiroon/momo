@@ -254,7 +254,23 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
 
   setConnection: (c) => set({ connection: c }),
   setRooms: (rooms) => set({ rooms }),
-  setCurrentRoom: ({ roomId, roomName, isHost }) => set({ currentRoomId: roomId, currentRoomName: roomName, isHost }),
+  /**
+   * ★v1.59: **部屋に入るたび「自分から出た」の印を決め直す**（親 §6.8.6 の実装で判明）。
+   *
+   * この印は「出た直後に返ってくる知らせを無視する」ための使い捨てだが、
+   * **消えるのはその知らせが実際に届いたときだけ**だった。**自分から出たあと、
+   * 何も届かないまま次の部屋へ入ると、印は立ったまま持ち越される**＝その部屋で
+   * 起きた**本物の切断を握りつぶす**。
+   *
+   * 実機で出た形＝**観戦者が一度「観戦をやめる」を押してから入り直すと、
+   * 対局者が全員抜けても「対局が終わりました」が出ず、画面が固まったままになる**
+   * （感想戦へ移る経路でも同じ＝移るときに一度部屋を出るため）。
+   *
+   * **入るたびに決め直す**なら、消し忘れる場所が無い（**画面より長生きする控えは、
+   * 入るたびに決め直す**）。**部屋に入る場所はこの 1 つ**なので、ここに置けば足りる。
+   */
+  setCurrentRoom: ({ roomId, roomName, isHost }) =>
+    set({ currentRoomId: roomId, currentRoomName: roomName, isHost, intentionallyLeft: false }),
   setMultiInfo: ({ pid, role, roster }) => set({ myPid: pid, myRole: role, roster }),
   setRoster: (roster) => set({ roster }),
   setOpponentName: (opponentName) => set({ opponentName }),

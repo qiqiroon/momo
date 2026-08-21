@@ -253,6 +253,35 @@ describe('v1.59 段3: 「入る」と出口（付録D-3 §4.3）', () => {
   });
 });
 
+describe('v1.59 段3: 「自分から出た」の印は部屋に入るたび決め直す', () => {
+  /**
+   * ★実機で見つかった（2026-08-22・公開ページ）。**一度でも自分から部屋を出た人は、
+   * 入り直した先で本物の切断を握りつぶしていた**＝印は「出た直後に返ってくる知らせ」を
+   * 無視するための使い捨てなのに、**消えるのはその知らせが届いたときだけ**だった。
+   *
+   * 症状＝**観戦者が「観戦をやめる」を押してから入り直すと、対局者が全員抜けても
+   * 「対局が終わりました」が出ず、画面が固まったままになる**（感想戦へ移る経路でも
+   * 同じ＝移るときに一度部屋を出るため）。**新しいタブでは正しく出る**ので、
+   * 手元の 1 回きりの試しでは気づけない。
+   */
+  it('★出たあと入り直したら、その部屋の切断はちゃんと届く', () => {
+    // 自分から出た（印が立つ）。
+    useMatchmakingStore.getState().resetRoomState();
+    expect(useMatchmakingStore.getState().intentionallyLeft).toBe(true);
+    // 出た直後の知らせが届かないまま、次の部屋へ入る。
+    useMatchmakingStore.getState().setCurrentRoom({ roomId: 'r9', roomName: '部屋', isHost: false });
+    expect(useMatchmakingStore.getState().intentionallyLeft).toBe(false);
+
+    useMatchmakingStore.setState({
+      myRole: 'spectator',
+      myPid: 'v1',
+      roster: [{ pid: 'v1', role: 'spectator', name: '見物人' }],
+    });
+    opts?.onDisconnected?.('部屋が閉じられました');
+    expect(useSpectateMigrateStore.getState().ended).toBe(true);
+  });
+});
+
 describe('v1.59 段3: 感想戦の部屋では配るものが違う（親 §6.8.6）', () => {
   beforeEach(() => {
     useMatchmakingStore.setState({

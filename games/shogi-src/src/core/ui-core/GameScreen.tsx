@@ -602,7 +602,10 @@ export function GameScreen({ variant }: GameScreenProps) {
         <div className="header-tools">
           {online.isOnline ? (
             <>
-              {status !== 'playing' && (
+              {/* ★v1.55 (親 §6.8.6): **観戦者には再戦の導線を出さない**＝
+                  これは対局者どうしの始末であり、押すと**観戦者の盤だけが作り直されて
+                  準備画面へ飛ぶ**（他人の対局を見に来ただけなのに見失う）。 */}
+              {status !== 'playing' && !spec.spectating && (
                 <button
                   className="reset-btn primary"
                   type="button"
@@ -627,7 +630,8 @@ export function GameScreen({ variant }: GameScreenProps) {
                   if (c) c.leaveOnline();
                 }}
               >
-                {t('s07.leaveGame')}
+                {/* ★v1.55: 観戦者は**観戦をやめる**（戻る先も観戦の一覧・親 §6.8.6）。 */}
+                {spec.spectating ? t('s13.leave') : t('s07.leaveGame')}
               </button>
             </>
           ) : (

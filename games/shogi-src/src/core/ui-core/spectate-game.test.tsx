@@ -204,6 +204,31 @@ describe('S06 対局画面を観戦者から見たとき（v1.55）', () => {
     view.unmount();
   });
 
+  it('★観戦者には再戦の導線を出さず、退室は「観戦をやめる」にする', () => {
+    registerConnector({ spectating: true });
+    useGameStore.getState().resign('player1');
+    const view = render(<GameScreen variant="b" />);
+    const labels = screen.queryAllByRole('button').map((b) => (b.textContent ?? '').trim());
+    // 再戦（対局準備に戻る）は対局者どうしの始末なので出さない
+    expect(labels).not.toContain('対局準備に戻る');
+    // 退室の言葉も立場に合わせる
+    expect(labels).toContain('観戦をやめる');
+    expect(labels).not.toContain('退室（オンライン対戦ロビーに戻る）');
+    view.unmount();
+  });
+
+  it('対局者には再戦の導線と従来の退室が出る（縮退互換）', () => {
+    registerConnector({ spectating: false });
+    const view = render(<GameScreen variant="b" />);
+    act(() => {
+      useGameStore.getState().resign('player1');
+    });
+    const labels = screen.queryAllByRole('button').map((b) => (b.textContent ?? '').trim());
+    expect(labels).toContain('対局準備に戻る');
+    expect(labels).not.toContain('観戦をやめる');
+    view.unmount();
+  });
+
   it('★観戦者には対局者二人の名前を出す（「あなた／あいて」は使えない）', () => {
     registerConnector({
       spectating: true,

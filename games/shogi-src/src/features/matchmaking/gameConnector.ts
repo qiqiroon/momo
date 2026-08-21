@@ -370,9 +370,15 @@ const connector: OnlineGameConnector = {
   leaveOnline() {
     const client = getMomoMatchmaking();
     if (client) client.leaveRoom();
+    // ★v1.55 (親 §6.8.6): **観戦者は入ってきた場所へ戻す**＝観戦の一覧 (S13)。
+    // 対戦のロビーへ戻すと、見に来ただけの人が**部屋を建てる画面に着地する**。
+    // **立場を見てから畳む**＝畳んだ後では観戦者だったことが分からなくなる。
+    const backTo = isSpectator(useMatchmakingStore.getState().myRole)
+      ? 'spectate-lobby'
+      : 'net-lobby';
     // 退室時にハンドシェイク・部屋状態をリセット
     useMatchmakingStore.getState().resetRoomState();
-    useRouteStore.getState().setScreen('net-lobby');
+    useRouteStore.getState().setScreen(backTo);
   },
 
   returnToPreparation() {

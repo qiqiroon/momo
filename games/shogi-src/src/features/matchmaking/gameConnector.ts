@@ -22,6 +22,14 @@ const connector: OnlineGameConnector = {
 
   getMySide() {
     const state = useMatchmakingStore.getState();
+    /**
+     * ★v1.55: **観戦者は席を持たないので、どちらの側でもない**（親 §6.8.1）。
+     *
+     * ここを素通りさせていたため、**観戦者が「ゲスト側の人」として扱われ**、
+     * 終局パネルに**「勝ち」「相手が投了」**と出ていた（2026-08-21 実サーバーで確認）。
+     * **観戦者に勝ち負けも相手も無い**ので、null を返して**先手／後手の言い方**へ落とす。
+     */
+    if (isSpectator(state.myRole)) return null;
     if (!state.gameStartInfo) return null;
     const mySelection = state.isHost
       ? state.gameStartInfo.hostSide

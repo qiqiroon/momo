@@ -31,6 +31,7 @@ function registerConnector(over: Partial<SpecConnector> = {}) {
   };
   register('gameConnector', {
     isOnline: () => true,
+    // ★観戦者は席を持たないので、どちらの側でもない（本物の connector と同じ）。
     getMySide: () => (c.spectating ? null : ('player1' as const)),
     getMyChatSide: () => 'player1' as const,
     getMyName: () => '太郎',
@@ -181,6 +182,10 @@ describe('S06 対局画面を観戦者から見たとき（v1.55）', () => {
     expect(labels).toEqual(['閉じる']);
     // **勝敗は見える**（見届けるために残るので減らさない）
     expect(panel.textContent).toContain('投了');
+    // ★**観戦者に勝ち負けも相手も無い**＝「勝ち」「相手が投了」とは書かない
+    //   （実サーバーで実際にそう出ていた・2026-08-21）。先手／後手の言い方にする。
+    expect(panel.textContent).not.toContain('相手');
+    expect(panel.textContent).toMatch(/先手|後手/);
     view.unmount();
   });
 

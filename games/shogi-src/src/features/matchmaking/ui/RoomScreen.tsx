@@ -686,8 +686,10 @@ export function RoomScreen() {
           </div>
         </div>
 
-        {/* v0.61: 先後選択の状態メッセージ (5 段階) */}
-        {(sideMessage.kind === 'prompt' || sideMessage.kind === 'conflict') ? (
+        {/* v0.61: 先後選択の状態メッセージ (5 段階)。
+            ★v1.55: **観戦者には出さない**＝「先手か後手を選んでください」など、
+            **押すものが無い人への指示**になってしまう（2026-08-21 実サーバーで確認）。 */}
+        {spectating ? null : (sideMessage.kind === 'prompt' || sideMessage.kind === 'conflict') ? (
           <div style={{ marginTop: 10, padding: '8px 12px', textAlign: 'center', fontSize: 13, fontWeight: 700, color: 'var(--orange-light)', border: '1px solid var(--orange)', borderRadius: 8, background: 'var(--bg-selected)' }}>
             {sideMessage.text}
           </div>
@@ -725,7 +727,10 @@ export function RoomScreen() {
 
         {/* ===== 準備完了カード ===== */}
         <div className="start-card">
-          <div className="st-line">{t('s06.stLead')}</div>
+          {/* ★v1.55: 観戦者にはリード文を出さない＝**「準備完了を押してください」は
+              押すものが無い人への指示**（2026-08-21 実サーバーで確認）。
+              代わりの 1 行は下のボタンの位置に置いてある。 */}
+          {!spectating && <div className="st-line">{t('s06.stLead')}</div>}
           <div className="st-rule">
             {/* v0.67 A11: ルール名 + 盤サイズ表記 (現状の 3 ルールは全て 9×9) */}
             <span>{ruleNameLabel} 9×9</span>
@@ -775,13 +780,17 @@ export function RoomScreen() {
               {myReady ? t('s06.readyArmed') : t('s06.readyBtn')}
             </button>
           )}
-          <div className={`opp-ready${oppReady ? ' ok' : ''}`}>
-            {!oppPresent
-              ? t('s06.readyHint')
-              : oppReady
-              ? t('s06.oppReadyYes')
-              : t('s06.oppReadyNo')}
-          </div>
+          {/* ★v1.55: 観戦者には出さない＝この行は「相手」という言い方で、
+              **観戦者に相手は居ない**（誰のことを言っているのか読み取れない）。 */}
+          {!spectating && (
+            <div className={`opp-ready${oppReady ? ' ok' : ''}`}>
+              {!oppPresent
+                ? t('s06.readyHint')
+                : oppReady
+                ? t('s06.oppReadyYes')
+                : t('s06.oppReadyNo')}
+            </div>
+          )}
           <div className="start-dest">{t('s06.startDest')}</div>
         </div>
 

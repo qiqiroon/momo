@@ -184,6 +184,20 @@ describe('S05 準備画面を観戦者から見たとき（v1.55）', () => {
     view.unmount();
   });
 
+  it('★押すものが無い人に「押してください」と言わない（2026-08-21 実サーバーで見つけた）', () => {
+    asSpectator();
+    const view = render(<RoomScreen />);
+    // 先後の状態メッセージ＝「先手か後手を選んでください」は選べない人には出さない
+    expect(screen.queryByText('先手か後手を選んでください')).toBeNull();
+    // 準備完了カードのリード文＝「準備完了を押してください」も同じ
+    expect(
+      screen.queryAllByText((_t, el) => (el?.textContent ?? '').includes('「準備完了」を押して')),
+    ).toHaveLength(0);
+    // 「相手」という言い方の行も出さない（観戦者に相手は居ない）
+    expect(screen.queryByText('相手の入室と同期の完了をお待ちください')).toBeNull();
+    view.unmount();
+  });
+
   it('★受け取っている間は「対局を受け取っています」と出す（黙って空の盤を見せない）', () => {
     asSpectator();
     useMatchmakingStore.setState({ spectateWaiting: true });

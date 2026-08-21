@@ -88,8 +88,9 @@ describe('v1.53 段1: 席と名簿の読み方', () => {
     const o = got as unknown as MomoCreateRoomOptions;
     expect(o.mode).toBe('multi');
     expect(o.maxPlayers).toBe(2);
-    // 段1 では観戦者は入れない（観戦は段2）。枠の指定そのものは付いていること。
-    expect(o.maxSpectators).toBe(0);
+    // ★v1.55: 観戦は本機能になったので、既定は**許す**＝枠 8（親 §6.8.7）。
+    // **書き忘れた部屋だけが観戦できない**状態を作らないため、既定を「許さない」にしない。
+    expect(o.maxSpectators).toBe(8);
     // 呼んだ側が渡した中身は失われない
     expect(o.name).toBe('部屋');
   });

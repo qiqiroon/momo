@@ -101,6 +101,21 @@ interface MatchmakingState {
   myPid: string | null;
   /** v1.53: 多人数の部屋での自分の立場 (席の有無)。 */
   myRole: MomoRole | null;
+  /**
+   * ★v1.55 (親 §6.8.4): 席に着いている二人の名前。**観戦者の画面だけが読む**。
+   *
+   * 観戦者には「あなた／あいて」が使えないので、ホストが `spectate_sync` で配る。
+   * 対局者の画面はこれを見ない（従来どおり playerName / opponentName）ので、
+   * **null のままでも対局には何も起きない**。
+   */
+  seatNames: { host: string; guest: string } | null;
+  /**
+   * ★v1.55 (親 §6.8.4): 観戦者が「いまの対局」をまだ受け取っていない。
+   *
+   * **黙って空の盤を見せない**ため＝受け取る前と、受け取った結果が空である
+   * ことを、見ている人が区別できないため（画面機能 §3 S06）。
+   */
+  spectateWaiting: boolean;
   /** 現在部屋のルール設定 (段階 2-4 では表示用) */
   activeRoomConfig: RoomConfig | null;
   errorMessage: string | null;
@@ -212,6 +227,8 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
   roster: [],
   myPid: null,
   myRole: null,
+  seatNames: null,
+  spectateWaiting: false,
   activeRoomConfig: null,
   errorMessage: null,
   playerName: '',
@@ -254,6 +271,8 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
     roster: [],
     myPid: null,
     myRole: null,
+    seatNames: null,
+    spectateWaiting: false,
     activeRoomConfig: null,
     connection: 'connected',
     intentionallyLeft: true,

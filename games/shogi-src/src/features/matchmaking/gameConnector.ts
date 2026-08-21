@@ -12,6 +12,7 @@ import type { OnlineGameConnector, RemoteMovePayload } from '../../core/plugin/g
 import { positionHash } from '../../core/engine';
 import { getMomoMatchmaking } from './client';
 import { PROTOCOL_VERSION, sendShogiMessage } from './protocol';
+import { isSpectator, spectatorsOf } from './roster';
 import { useMatchmakingStore } from './store';
 
 const connector: OnlineGameConnector = {
@@ -47,6 +48,39 @@ const connector: OnlineGameConnector = {
 
   getOpponentName() {
     return useMatchmakingStore.getState().opponentName;
+  },
+
+  // ★v1.55 (親 §6.8): 観戦まわり。**A ビルドにはこの実装ごと無い**（縮退互換）。
+  isSpectating() {
+    return isSpectator(useMatchmakingStore.getState().myRole);
+  },
+
+  /**
+   * 対局者二人の名前を**側で引ける形**に直す。
+   *
+   * ホストが配ってくるのは「ホスト側／ゲスト側」の名前なので、**先後の確定値で
+   * 割り当て直す**。**先後が決まる前は null**＝どちらがどちらか言えないため
+   * （**分からないものを分かったように書かない**）。
+   */
+  getSeatNames() {
+    const s = useMatchmakingStore.getState();
+    if (!s.seatNames || !s.gameStartInfo) return null;
+    const hostIsSente = s.gameStartInfo.hostSide === 'sente';
+    return {
+      player1: hostIsSente ? s.seatNames.host : s.seatNames.guest,
+      player2: hostIsSente ? s.seatNames.guest : s.seatNames.host,
+    };
+  },
+
+  getSpectators() {
+    return spectatorsOf(useMatchmakingStore.getState().roster).map((p) => ({
+      pid: p.pid,
+      name: p.name,
+    }));
+  },
+
+  isSpectateWaiting() {
+    return useMatchmakingStore.getState().spectateWaiting;
   },
 
   getActiveRules() {

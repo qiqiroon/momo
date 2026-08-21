@@ -389,6 +389,53 @@ export function checkRuleSupport(rules: SyncedRules): { ok: true } | { ok: false
   return { ok: true };
 }
 
+/**
+ * ★v1.55 (親 §6.8.4 / §6.3): ホスト → **入ってきた観戦者ひとり宛**。
+ * **いまの対局を丸ごと配る**。
+ *
+ * **観戦者は途中から入ってくる**ので、差分を積み上げる形では追いつけない。
+ * **状態そのものを送り、受け取った側が組み立て直す**＝§6.3.6 の感想戦
+ * (`review_state`) とまったく同じ考え方で、**2 つの画面で違う理屈を持たない**。
+ *
+ * **手は初手から全部入れて、受け取った側が順に並べ直す**＝盤の絵を送らないのは、
+ * **並べ直せば棋譜・持ち駒・量子の候補まで一度に揃う**ため。盤だけ送ると
+ * 「どうやってそこに至ったか」が失われ、棋譜ペインが空になる。
+ *
+ * **これを配ったあとは、対局者どうしの `move` がそのまま観戦者にも届く**
+ * (既定の宛先＝自分以外の全員・親 §6.2) ので、**観戦のための伝言はこれ 1 つで足りる**。
+ */
+export interface SpectateSyncMsg extends Envelope {
+  type: 'spectate_sync';
+  /** 部屋のいまの段。'lobby'=人待ち・先後決め / 'playing'=対局中 / 'ended'=終局後。 */
+  phase: 'lobby' | 'playing' | 'ended';
+  /** 部屋のルール (`rule_sync` とまったく同じ形)。まだ揃っていなければ null。 */
+  rules: SyncedRules | null;
+  /** 先後の確定値 (`game_start` と同じ)。対局が始まる前は null。 */
+  sides: { hostSide: SideSelection; guestSide: SideSelection } | null;
+  /**
+   * 対局者の名前。**観戦者には「あなた/あいて」が使えない**ので、
+   * 画面に出す名前をここで渡す (親 §6.8.4)。
+   */
+  names: { host: string; guest: string };
+  /** 初手からいまの局面までの手。**そのまま順に並べ直す**。 */
+  moves: MoveMsg[];
+}
+
+/**
+ * ★v1.55 (親 §6.8.6 / §6.3): ホスト → **観戦者全員宛**。
+ * **感想戦の部屋へ移るための知らせ**。
+ *
+ * **感想戦が成立してから送る**＝§9.4 のとおり相手の同意が要るので、
+ * 打診しただけでは送らない。**人には部屋名も合言葉も見せない** (§9.4.4)。
+ *
+ * ※伝言の形だけ先に定義してある。**使うのは段3**（画面機能 v0.49 §3 S07）。
+ */
+export interface ReviewMigrateMsg extends Envelope {
+  type: 'review_migrate';
+  room: string;
+  pass: string;
+}
+
 export type ShogiMessage =
   | SideSelectMsg
   | ReadyMsg
@@ -416,6 +463,8 @@ export type ShogiMessage =
   | AnomalyRaiseMsg
   | RuleSyncMsg
   | RuleAckMsg
+  | SpectateSyncMsg
+  | ReviewMigrateMsg
   | ReviewMsg;
 
 /** 型ガード：unknown をゲームメッセージとして扱えるか */

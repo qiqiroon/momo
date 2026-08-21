@@ -18,9 +18,10 @@ import { get as pluginGet } from '../../core/plugin/registry';
 import { getMomoMatchmaking } from './client';
 import { SHOGI_GAME_TYPE, SIGNALING_URL } from './config';
 import { handleShogiMessage } from './messageDispatcher';
-import { unwrapShogiMessage } from './protocol';
+import { sendShogiMessage, unwrapShogiMessage } from './protocol';
 import { decodeRoomName } from './roomNameCodec';
-import { hasOpponent, hasSeat, opponentOf } from './roster';
+import { hasOpponent, hasSeat, isSpectator, opponentOf } from './roster';
+import { buildSpectateSync } from './spectate';
 import { useMatchmakingStore, DEFAULT_ROOM_CONFIG, type RoomConfig } from './store';
 
 let _inited = false;
@@ -119,6 +120,19 @@ function reviewGuestArrived(): boolean {
 }
 
 /**
+ * ★v1.55 (親 §6.8.4): 入ってきた観戦者ひとりに、いまの対局を丸ごと配る。
+ *
+ * **配るのはホストだけ**＝二人が同じものを配ると受け取った側が二度組み立て直す。
+ * **ホストでなければ何もしない**のが正しい（黙っていてよい唯一の場面）。
+ */
+function sendSpectateSyncTo(pid: string): void {
+  if (!useMatchmakingStore.getState().isHost) return;
+  const client = getMomoMatchmaking();
+  if (!client) return;
+  sendShogiMessage(client, buildSpectateSync(), pid);
+}
+
+/**
  * v1.53: **対局相手が席に着いた**ときの始末を 1 か所にまとめたもの。
  *
  * 呼ばれる経路が 2 つある (従来の 1 対 1 の部屋＝ゲスト入室／多人数の部屋＝参加者の入室) ので、
@@ -187,6 +201,20 @@ export function ensureMatchmakingInit(): void {
       s.setConnection('in_room');
       s.setCurrentRoom({ roomId, roomName, isHost: false });
       if (multi) s.setMultiInfo({ pid: multi.pid, role: multi.role, roster: multi.roster });
+      // ★v1.55 (親 §6.8): 観戦者として入った場合。
+      // **「相手」は居ない**（見ているだけで席に着いていない）ので相手の名前は空のまま。
+      // 対局者の名前は `spectate_sync` が運ぶ（親 §6.8.4）。
+      if (multi && isSpectator(multi.role)) {
+        s.setOpponentName('');
+        s.setActiveRoomConfig(normalizeIncomingRules(rules, roomName));
+        // **受け取り終わるまで「対局を受け取っています」と出す**（画面機能 §3 S06）。
+        useMatchmakingStore.setState({ spectateWaiting: true, seatNames: null });
+        if (enterReviewAsGuest(roomName)) return;
+        // **棋譜の確認は入る前に済ませてある**（S13＝親 §9.2.3 ②
+        // 「確認の手前で外へ出る操作をしない」）ので、ここでは割り込ませない。
+        useRouteStore.getState().setScreen('room', { skipKifuGuard: true });
+        return;
+      }
       // v1.53: 相手の名前は**名簿の席から**取る。名簿が無い部屋 (従来の 1 対 1) では
       // ホスト名がそのまま相手なのでそれを使う。
       const fromRoster = multi ? opponentOf(multi.roster, multi.pid) : null;
@@ -207,9 +235,16 @@ export function ensureMatchmakingInit(): void {
      * v1.53 (親 §6.2): 多人数の部屋に誰かが入った。
      * **席の有無で振り分ける** — 観戦者が来ても対局相手にはしない。
      */
-    onParticipantJoined: (_pid, role, name, roster) => {
+    onParticipantJoined: (pid, role, name, roster) => {
       useMatchmakingStore.getState().setRoster(roster);
-      if (!hasSeat(role)) return;
+      if (!hasSeat(role)) {
+        // ★v1.55 (親 §6.8.4): 観戦者が入ってきた。**ホストがその 1 人に宛てて
+        // いまの対局を丸ごと配る**。**まだ何も始まっていなくても配る**＝
+        // **「無い」は送るべき事実であって、送らない理由ではない**。黙ると、
+        // 入ってきた側は「まだ来ていない」と「無い」を区別できず待ち続ける。
+        sendSpectateSyncTo(pid);
+        return;
+      }
       handleOpponentArrived(name);
     },
     /**
@@ -220,6 +255,10 @@ export function ensureMatchmakingInit(): void {
       const s = useMatchmakingStore.getState();
       const hadOpponent = !!s.opponentName;
       s.setRoster(roster);
+      // ★v1.55: 観戦者に「対局相手」は居ないので、この始末は自分に当てはまらない。
+      // **席のある者を自分の相手として拾わない**（拾うと対局していないのに
+      // 「相手が抜けた」の始末が走る）。観戦者から見た終局後の行き先は段3（§6.8.6）。
+      if (isSpectator(s.myRole)) return;
       const opp = opponentOf(roster, s.myPid);
       if (opp) {
         s.setOpponentName(opp.name);

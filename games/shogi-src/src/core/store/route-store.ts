@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { requestNewGame } from './kifu-guard';
 
-export type Screen = 'game' | 'lobby' | 'net-lobby' | 'rule-select' | 'room' | 'endgame' | 'offline-rule' | 'ai-setup' | 'kifu-replay' | 'review' | 'review-lobby';
+export type Screen = 'game' | 'lobby' | 'net-lobby' | 'rule-select' | 'room' | 'endgame' | 'offline-rule' | 'ai-setup' | 'kifu-replay' | 'review' | 'review-lobby' | 'spectate-lobby';
 
 /**
  * **そこから先へ進むと必ず盤が作り直される設定画面**（親 v1.36 §9.2.3 ②）。
@@ -22,6 +22,11 @@ export type Screen = 'game' | 'lobby' | 'net-lobby' | 'rule-select' | 'room' | '
  * **感想戦ロビー (S12) も入れない**（v1.48・親 §9.4.1）＝ここは入り口を選ぶだけで
  * 盤に触れない。**部屋を建てる手前では確認を出す**が、それは S12 の中の仕事
  * （親 §9.2.3 ②＝**確認の手前で外へ出る操作をしない**）。
+ *
+ * **★観戦ロビー (S13) も入れない**（v1.55・親 §6.8）＝同じ理由。ただし
+ * **観戦に入ると盤は作り直される**（配られた対局を組み立て直すため）ので、
+ * **確認は「観戦する」を押した時点＝部屋へ入る前**に S13 の中で出す。
+ * ここへ来たときに出すと、**やめても部屋には入ったあと**になってしまう。
  */
 const NEW_GAME_SETUP_SCREENS: readonly Screen[] = ['rule-select', 'ai-setup', 'room', 'offline-rule'];
 

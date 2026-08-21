@@ -75,6 +75,8 @@ export function createReviewRoom(info: ReviewRoomRequest): boolean {
     // 終局から移ってきた部屋（§6.3.6 の合言葉）も、この同じ口を通って建つ。
     password: info.password ?? '',
     isPublic: info.isPublic ?? true,
+    // ★v1.55 (親 §6.8.2): 観戦の可否。省略＝許す。
+    allowSpectators: info.allowSpectators ?? true,
     // ルールは**棋譜が持っているもの**を継ぐ（親 §9.4）ので、部屋のルールは
     // 一覧の表示のためだけに載せる。ゲスト側の盤は配られた棋譜から組み立てる。
     rules: {

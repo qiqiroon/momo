@@ -54,6 +54,17 @@ export function LobbyScreen() {
 
   const [joinRoomId, setJoinRoomId] = useState<string | null>(null);
   const [joinPassword, setJoinPassword] = useState('');
+  /**
+   * ★v1.55: 観戦を許すか（親 §6.8.2・付録D-6 v1.2 §4）。**既定は「許す」**。
+   *
+   * **★この画面の中だけで持ち、store にも localStorage にも置かない。**
+   * 規定は「**端末に覚えさせない・入るたび『許す』から始める**」であり、
+   * **画面から出れば消える入れ物に置けば、覚えないことが仕組みとして保証される**
+   * （数え上げて「入るたびに戻す」処理を書くと、入口が増えたときに必ず 1 つ漏れ、
+   * しかも**初回は必ず意図どおりに動くので気づけない**）。
+   * **部屋のほかの設定（`config`）へ相乗りさせないこと**＝あちらは持ち越す入れ物。
+   */
+  const [allowSpectators, setAllowSpectators] = useState(true);
   // v0.58: 非公開部屋の表示切替 + そのパスワード欄 (入室時に自動使用)
   const [showPrivate, setShowPrivate] = useState(false);
   const [privatePw, setPrivatePw] = useState('');
@@ -247,6 +258,9 @@ export function LobbyScreen() {
       name: encodedName,
       password: config.password,
       isPublic: config.isPublic,
+      // ★v1.55 (親 §6.8.2): 許さないときは**観戦枠 0 で建てる**＝可否を別の項目に
+      // 持たない（持つと枠と可否が食い違う組み合わせが生まれる）。
+      allowSpectators,
       rules: {
         game: config.gameType,
         torus: config.torus,
@@ -503,6 +517,21 @@ export function LobbyScreen() {
                 />
                 <span style={{ color: 'var(--text)' }}>{t('s04.private')}</span>
               </label>
+              {/* ★v1.55: 観戦を許す（親 §6.8.2・付録D-6 v1.2 §4）。
+                  **見た目は「非公開」と同じ**でそのすぐ下に置く（同じ形のものを
+                  違う見た目にしない）。**既定は「許す」**。 */}
+              <label className="check-private">
+                <input
+                  type="checkbox"
+                  checked={allowSpectators}
+                  onChange={(e) => setAllowSpectators(e.target.checked)}
+                />
+                <span style={{ color: 'var(--text)' }}>{t('s04.allowSpec')}</span>
+              </label>
+              {/* **建てた後は変えられない**（部屋の枠は建てるときに決まる）。 */}
+              <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: -4 }}>
+                {t('s04.allowSpecNote')}
+              </div>
             </div>
           </form>
 

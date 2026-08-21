@@ -25,7 +25,7 @@ import { useChatStore } from '../../core/store/chat-store';
 import { useRouteStore } from '../../core/store/route-store';
 import { useGameStore } from '../../core/store/game-store';
 import { useOffersStore } from '../../core/store/offers-store';
-import { handicapSettingFor, pieceIdListDigest, positionHash } from '../../core/engine';
+import { pieceIdListDigest, positionHash } from '../../core/engine';
 import { get as pluginGet } from '../../core/plugin/registry';
 import type { ReviewMessage } from '../../core/plugin/review';
 import { getMomoMatchmaking } from './client';
@@ -38,45 +38,11 @@ import {
   sendShogiMessage,
   ruleDigest,
   type ShogiMessage,
-  type SyncedRules,
 } from './protocol';
-import { DEFAULT_ROOM_CONFIG, useMatchmakingStore, type RoomConfig } from './store';
-
-/**
- * Phase 5-12: 受け取ったルールを自分の部屋設定に流し込む。
- *
- * 部屋名は自分が既に持っているもの (サーバー経由で先に届いている) を残す。ルール同期が
- * 運ぶのはルールだけで、部屋の呼び名は同期の対象ではないため。
- */
-function applySyncedRules(rules: SyncedRules): RoomConfig {
-  const base = useMatchmakingStore.getState().activeRoomConfig ?? DEFAULT_ROOM_CONFIG;
-  return {
-    ...base,
-    gameType: rules.gameType,
-    torus: rules.torusMode !== 'none',
-    torusMode: rules.torusMode,
-    quantum: rules.quantum,
-    quantumDisplayMode: rules.quantumDisplayMode,
-    customRuleName: rules.customRuleName,
-    timeControl: rules.timeControl,
-    // v1.33: 手合いも部屋のルールの一部。席は送り手 (ホスト) から見た向きのまま持つ。
-    handicap: rules.handicap ?? null,
-  };
-}
-
-/** 自分が採用した設定から、送られてきたのと同じ形のルール一式を組み立て直す。 */
-function rulesFromConfig(cfg: RoomConfig): SyncedRules {
-  return {
-    gameType: cfg.gameType,
-    torusMode: cfg.torusMode,
-    quantum: cfg.quantum,
-    quantumDisplayMode: cfg.quantumDisplayMode,
-    timeControl: cfg.timeControl,
-    handicap: cfg.handicap,
-    customRuleName: cfg.customRuleName,
-    quantumParams: useGameStore.getState().quantumParams,
-  };
-}
+import { applySyncedRules, rulesFromConfig, startGameFromSides } from './rulesSync';
+import { isSpectator } from './roster';
+import { applySpectateSync } from './spectate';
+import { useMatchmakingStore } from './store';
 
 /**
  * 感想戦の伝言を、感想戦の側へ渡す (v1.47・親 §6.3.6)。
@@ -155,30 +121,7 @@ export function handleShogiMessage(data: unknown): void {
       return;
     }
     case 'game_start': {
-      useMatchmakingStore.setState({
-        gameStartInfo: { hostSide: msg.hostSide, guestSide: msg.guestSide },
-      });
-      const cfg = useMatchmakingStore.getState().activeRoomConfig;
-      if (cfg?.timeControl) useGameStore.getState().setTimeControl(cfg.timeControl);
-      // v0.90: 量子 ON の部屋なら初期候補集合を割り当てる (Phase 5-2)。
-      // オフライン側と揃えるため、game_start を受けたタイミングで盤面を初期化する。
-      // v1.08 (Phase 5-11): 未確定駒の見せ方 (qtdisp) は部屋のルールの一部なので、
-      // ホストの選択をゲスト側にも「部屋の値」として適用する (spec 駒UI v0.8 §4.4)。
-      // v1.22: 部屋の値が巡回なら、実際の見え方は各自の画面の値になる。
-      // v1.25 (Phase 4): 盤の端のつなぎ方も部屋のルールの一部。ホスト・ゲスト・観戦者が
-      // 同じ盤で始まらないと、同じ手が片方だけ非合法になって局面がずれる。
-      useGameStore.getState().reset({
-        // Phase 6: 部屋のルール (本将棋 / はさみ将棋)。ホストが決めた種類がルール同期で
-        // 届いているので、対戦者も観戦者も同じルール定義で盤を作る。
-        gameType: cfg?.gameType ?? 'shogi',
-        // v1.33: ネット対戦でも手合いを使う (親 v1.28 §3.12.1)。上手＝先手＝player1 で、
-        // 誰がその席に座るかは部屋の先後の確定値 (駒落ちなら自動確定) が受け持つ。
-        // 平手なら null が渡り、直前の対AI対局の手合いを引きずらない。
-        handicap: handicapSettingFor(cfg?.handicap ?? null),
-        quantum: cfg?.quantum ?? false,
-        quantumDisplay: cfg?.quantumDisplayMode ?? 'cycle',
-        torusMode: cfg?.torusMode ?? 'none',
-      });
+      startGameFromSides({ hostSide: msg.hostSide, guestSide: msg.guestSide });
       useRouteStore.getState().setScreen('game');
       return;
     }
@@ -335,7 +278,12 @@ export function handleShogiMessage(data: unknown): void {
       // 量子の実行時パラメータは両者の計算結果を左右するので、ホストの値に揃える
       // (v1.19 の申し送り: デバッグパネルで片側だけ変えると局面がずれる)。
       useGameStore.getState().setQuantumParams(msg.rules.quantumParams);
-      if (client) {
+      // ★v1.55 (親 §6.8.1): **観戦者は受領の返事をしない**。
+      // ルール同期は既定の宛先（自分以外の全員）で流れるので観戦者にも届くが、
+      // **観戦者は正しさの担保に加わらない**＝ここで返すと、ホストは
+      // 「ゲストが構えた」と取り違え、席がまだ空でも対局を始められる状態に見える。
+      // **受け取ったルールを自分の盤に入れるのは観戦者にも要る**ので、そこは通す。
+      if (client && !isSpectator(useMatchmakingStore.getState().myRole)) {
         sendShogiMessage(client, {
           v: PROTOCOL_VERSION,
           type: 'rule_ack',
@@ -388,6 +336,17 @@ export function handleShogiMessage(data: unknown): void {
     // 捨てられて**いた（ハイライトと、部屋を移るための合言葉が届かなかった＝
     // 2026-08-19 実機のご報告）。**数え上げる形は必ず漏れる**ので、丸ごと渡す形にした。
     // 棋譜の機能を積んでいないビルドでは受け口ごと無いので、黙って捨てられる。
+    case 'spectate_sync': {
+      // ★v1.55 (親 §6.8.4): 観戦者が途中から入ったので、いまの対局が丸ごと届いた。
+      // **席のある者には来ない**（ホストが入ってきた観戦者ひとりに宛てて送る）。
+      applySpectateSync(msg);
+      return;
+    }
+    case 'review_migrate': {
+      // ★v1.55 (親 §6.8.6): 感想戦の部屋へ移るための知らせ。**受け口は段3 で作る**。
+      // ここで黙って捨てても害は無い（移らないだけ）。
+      return;
+    }
     case 'review':
       deliverReview(msg.payload);
       return;

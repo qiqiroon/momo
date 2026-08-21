@@ -58,6 +58,27 @@ export interface OnlineGameConnector {
   getMyName(): string;
   /** 相手の表示名。オフライン時／未取得時は空文字。段階 2-7 v0.29 追加。 */
   getOpponentName(): string;
+  /**
+   * ★v1.55 (親 §6.8): **自分は観戦者か**（席を持たない参加者）。
+   *
+   * **見るだけ**なので、盤にも操作にも触れない。**A ビルドにはこの口ごと無い**ので、
+   * 呼び出し側は「口が無ければ観戦していない」として扱う（縮退互換）。
+   */
+  isSpectating(): boolean;
+  /**
+   * ★v1.55 (親 §6.8.4): **対局者二人の名前を側で引けるようにしたもの**。
+   *
+   * 観戦者には「あなた／あいて」が使えないので、ホストが配った名前を側へ割り当てて返す。
+   * 観戦していないとき・まだ届いていないときは null（呼び出し側は従来どおりの名前を使う）。
+   */
+  getSeatNames(): { player1: string; player2: string } | null;
+  /** ★v1.55 (親 §6.8.4): いまその部屋を見ている観戦者。観戦者の欄が読む。 */
+  getSpectators(): { pid: string; name: string }[];
+  /**
+   * ★v1.55 (親 §6.8.4): 観戦者が「いまの対局」をまだ受け取っていない。
+   * **黙って空の盤を見せない**ための印（画面機能 §3 S06）。
+   */
+  isSpectateWaiting(): boolean;
   /** v0.68: S07 の上部ルール表示帯に使う。オフライン時は null (対局画面が本将棋固定扱い) */
   getActiveRules(): ActiveRulesInfo | null;
   /**

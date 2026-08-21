@@ -132,13 +132,65 @@ export function GameScreen({ variant }: GameScreenProps) {
     return c.subscribe(update);
   }, []);
 
+  /**
+   * ★v1.55 (親 §6.8.4): 観戦しているときの情報。
+   *
+   * **`online` とは別に持つ**＝あちらは操作ボタン群へそのまま渡している入れ物で、
+   * 形を変えると関係の無い箇所まで触ることになるため。
+   * **口が無いビルド（アプリ A）では観戦していない扱い**になる（縮退互換）。
+   */
+  const [spec, setSpec] = useState<{
+    spectating: boolean;
+    seatNames: { player1: string; player2: string } | null;
+    watchers: { pid: string; name: string }[];
+    waiting: boolean;
+  }>({ spectating: false, seatNames: null, watchers: [], waiting: false });
+
+  useEffect(() => {
+    const c = pluginGet<OnlineGameConnector>('gameConnector');
+    if (!c) return;
+    // **口が古い／部分的な相手でも落ちないようにする**＝観戦の口は v1.55 で
+    // 足したものなので、それ以前の形の connector（検査の差し替えを含む）には無い。
+    // **無ければ「観戦していない」**として扱う（縮退互換）。
+    const update = () =>
+      setSpec({
+        spectating: typeof c.isSpectating === 'function' ? c.isSpectating() : false,
+        seatNames: typeof c.getSeatNames === 'function' ? c.getSeatNames() : null,
+        watchers: typeof c.getSpectators === 'function' ? c.getSpectators() : [],
+        waiting: typeof c.isSpectateWaiting === 'function' ? c.isSpectateWaiting() : false,
+      });
+    update();
+    return c.subscribe(update);
+  }, []);
+
+  /**
+   * ★v1.55 (親 §6.8.4): 観戦者が盤の上下を入れ替えたか。
+   *
+   * **既定は先手が手前**。**自分の画面だけに効き、誰にも伝えない**。
+   * **画面より長生きさせない**＝この画面を離れれば消える入れ物に置くことで、
+   * 「入るたび既定へ戻す」が仕組みとして保証される（S08／S11 と同じ考え方）。
+   */
+  const [specFlip, setSpecFlip] = useState(false);
+
   // オンラインモード開始時に対局盤面とチャット履歴を初期化（前回のゲームの残り状態を持ち越さない）
   const clearChat = useChatStore((s) => s.clearChat);
   useEffect(() => {
-    if (online.isOnline) {
-      reset();
-      clearChat();
-    }
+    if (!online.isOnline) return;
+    /**
+     * ★v1.55（親 §6.8.4）: **観戦者の盤は作り直さない。**
+     *
+     * 観戦者はこの画面へ来る直前に、配られた対局を**盤へ並べ直し終えている**。
+     * ここで作り直すと**並べ直したぶんが丸ごと消え、初期配置が出る**
+     * （途中から入ったのに「まだ 1 手も指されていない」ように見える）。
+     *
+     * ★**`spec.spectating` を見ない**＝あちらは別の効果で入る値なので、
+     * **この効果が最初に走る回では、まだ入っていない**（同じ描き直しの中では
+     * 前の値のまま）。**いまこの瞬間の事実を口に聞く。**
+     */
+    const c = pluginGet<OnlineGameConnector>('gameConnector');
+    const spectating = c && typeof c.isSpectating === 'function' ? c.isSpectating() : false;
+    if (!spectating) reset();
+    clearChat();
   }, [online.isOnline, reset, clearChat]);
 
   // 自分の着手を相手に送信
@@ -334,8 +386,13 @@ export function GameScreen({ variant }: GameScreenProps) {
   //   駒落ちで向こう側が落とすと上手＝先手＝player1 が向こう側になるため、既定の player1 固定では
   //   落とした側が手前に来てしまう (ルール選択のプレビューと上下が逆になる)。
   const localViewerSide = useGameStore((s) => s.localViewerSide);
-  const viewerSide: 'player1' | 'player2' =
-    online.mySide ?? (vsAi ? (aiSide === 'player1' ? 'player2' : 'player1') : localViewerSide);
+  // ★v1.55 (親 §6.8.4): 観戦者には「自分の側」が無いので**先手が手前**を既定にし、
+  // **いつでも上下を入れ替えられる**ようにする（対局者には出さない＝向きは確定済み）。
+  const viewerSide: 'player1' | 'player2' = spec.spectating
+    ? specFlip
+      ? 'player2'
+      : 'player1'
+    : (online.mySide ?? (vsAi ? (aiSide === 'player1' ? 'player2' : 'player1') : localViewerSide));
   const oppSide: 'player1' | 'player2' = viewerSide === 'player1' ? 'player2' : 'player1';
   const flipped = viewerSide === 'player2';
   const turnLabel =
@@ -447,6 +504,10 @@ export function GameScreen({ variant }: GameScreenProps) {
   // オンライン対戦で自分の手番でないなら入力を受け付けない。
   // Phase 3: 対 AI では AI の手番も同じく受け付けない (人が AI の駒を動かせてしまわないように)。
   const inputBlocked =
+    // ★v1.55 (親 §6.8.1): **観戦者は盤に触れない**。
+    // **`mySide === null` では止まらない**＝観戦者は側を持たないので、
+    // 上の 1 つ目の条件をすり抜けて相手の駒まで動かせてしまう。
+    spec.spectating ||
     (online.isOnline && online.mySide !== null && position.sideToMove !== online.mySide) ||
     (vsAi && !online.isOnline && position.sideToMove === aiSide);
 
@@ -668,7 +729,13 @@ export function GameScreen({ variant }: GameScreenProps) {
           </div>
 
           <div className="pinfo opp">
-            <span className="nm">{online.opponentName || t('player.opp')}</span>
+            {/* ★v1.55 (親 §6.8.4): 観戦者には「あなた／あいて」が無いので、
+                配られた**対局者二人の名前**を側に合わせて出す。 */}
+            <span className="nm">
+              {spec.seatNames
+                ? spec.seatNames[oppSide]
+                : online.opponentName || t('player.opp')}
+            </span>
             {/* v0.51: モック S06_mock_v7 由来のレーティング表示 (「先手 · 1420」など)。
                 レーティング機構は Phase 9 で実装。それまで 0 固定。 */}
             <span className="sub">
@@ -821,7 +888,9 @@ export function GameScreen({ variant }: GameScreenProps) {
           </div>
 
           <div className="pinfo you">
-            <span className="nm">{online.myName || t('player.you')}</span>
+            <span className="nm">
+              {spec.seatNames ? spec.seatNames[viewerSide] : online.myName || t('player.you')}
+            </span>
             <span className="sub">
               {mySideLabel} · {0}
             </span>
@@ -829,17 +898,34 @@ export function GameScreen({ variant }: GameScreenProps) {
           </div>
 
           <div className="command-bar">
-            <button type="button" className="act taunt">
-              {t('cmd.taunt')} <span className="cnt">3</span>
-            </button>
-            <UndoButton t={t} online={online} status={status} sideToMove={position.sideToMove} />
-            <DrawButton t={t} online={online} status={status} sideToMove={position.sideToMove} />
-            <PauseButton t={t} online={online} status={status} />
-            <ResignButton t={t} online={online} status={status} sideToMove={position.sideToMove} />
-            <button type="button" className="act" onClick={clearSelection}>
-              {t('cmd.cancel')}
-            </button>
-            <NyugyokuButton t={t} />
+            {/* ★v1.55 (親 §6.8.4): 観戦者には**手を出す操作を置かない**
+                （投了・待った・引分・中断・威嚇・入玉宣言）。**灰色にして置くのではなく
+                置かない**＝灰色は「押せない」だけを意味するので、そもそも自分に
+                関係の無い操作は出さない。代わりに**盤の上下を入れ替える**を置く。 */}
+            {spec.spectating ? (
+              <button
+                type="button"
+                className={`act${specFlip ? ' on' : ''}`}
+                aria-pressed={specFlip}
+                onClick={() => setSpecFlip((v) => !v)}
+              >
+                {t('replay.flipBoard')}
+              </button>
+            ) : (
+              <>
+                <button type="button" className="act taunt">
+                  {t('cmd.taunt')} <span className="cnt">3</span>
+                </button>
+                <UndoButton t={t} online={online} status={status} sideToMove={position.sideToMove} />
+                <DrawButton t={t} online={online} status={status} sideToMove={position.sideToMove} />
+                <PauseButton t={t} online={online} status={status} />
+                <ResignButton t={t} online={online} status={status} sideToMove={position.sideToMove} />
+                <button type="button" className="act" onClick={clearSelection}>
+                  {t('cmd.cancel')}
+                </button>
+                <NyugyokuButton t={t} />
+              </>
+            )}
           </div>
         </div>
 
@@ -857,7 +943,18 @@ export function GameScreen({ variant }: GameScreenProps) {
             <div className="panel-label">
               <span>{t('spec.title')}</span>
             </div>
-            <div className="spec-empty">{t('spec.empty')}</div>
+            {/* ★v1.55 (親 §6.8.4): v1.54 まではここが常に空だった。 */}
+            {spec.watchers.length === 0 ? (
+              <div className="spec-empty">{t('spec.empty')}</div>
+            ) : (
+              <div className="console">
+                {spec.watchers.map((w) => (
+                  <div key={w.pid} style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                    {w.name}（{t('spec.role')}）
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="panel" style={{ marginTop: 12 }}>

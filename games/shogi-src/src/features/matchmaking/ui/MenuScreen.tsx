@@ -24,7 +24,7 @@ import { get as pluginGet } from '../../../core/plugin/registry';
  *   - 機 AI 対戦 (primary・Phase 3-1 で開通。設定画面 S03 ができるまではオフライン
  *     対局のルール選択画面を流用し、人が先手・AI が後手で始まる)
  *   - 同 vs 人 (オフライン) — impl 追加 (モックには無いが残す)
- *   - 観 ネット観戦 (未実装・見た目のみ)
+ *   - 観 ネット観戦 (★v1.55 で開通＝観戦ロビー S13 へ。それまでは見た目のみだった)
  *   - 作 カスタムルール作成 (未実装・見た目のみ)
  *   - 棋 棋譜再生 (S08 へ遷移・v1.41 で開通)
  * - フッター (アプリ紹介 + MOMO Works 内リンク)
@@ -93,7 +93,11 @@ export function MenuScreen() {
           desc={t('s00.mWatchD')}
           reason={!connected ? t('s00.watchReason') : undefined}
           onClick={() => {
-            /* v0.70: 接続時はまだ実装なし (Phase 6.8 予定)。未接続は disabled で押せない */
+            // ★v1.55 (親 §6.8・画面機能 v0.49 §3 S01): 観戦ロビー (S13) へ入る。
+            // **v1.54 までの「押しても何も起きない (準備中)」は撤回**＝観戦は本機能。
+            // **入り口はここだけ**＝ネット対戦の一覧 (S04) から観戦へは入らない
+            // (部屋は用途で入り口を切り分ける・親 §9.4.4)。
+            if (connected) setScreen('spectate-lobby');
           }}
         />
         <ModeRow

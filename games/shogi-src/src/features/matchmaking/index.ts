@@ -16,6 +16,7 @@ import { LobbyScreen } from './ui/LobbyScreen';
 import { RuleSelectScreen } from './ui/RuleSelectScreen';
 import { RoomScreen } from './ui/RoomScreen';
 import { ReviewLobbyScreen } from './ui/ReviewLobbyScreen';
+import { SpectateLobbyScreen } from './ui/SpectateLobbyScreen';
 import {
   buildMigratedRoomName,
   createMigratedReviewRoom,
@@ -26,6 +27,13 @@ import {
   leaveReviewRoom,
   reviewRoomBlock,
 } from './reviewRoom';
+
+import { watchRoomPhase } from './roomState';
+
+// ★v1.55 (親 §6.8.2): 部屋の段（人待ち／対局中／終局後）を知らせ続ける。
+// **観戦の一覧がその印を出す**ので、ここが止まると一覧だけが古い段を見せる。
+// **呼び出し場所を数え上げず、盤の様子から決める**（入口が増えても書き足さない）。
+watchRoomPhase();
 
 const client = getMomoMatchmaking();
 if (client) {
@@ -44,6 +52,12 @@ register('screen:room', RoomScreen);
  * 一覧に並べるのは**感想戦の部屋だけ**（対局の部屋は S04 から入る）。
  */
 register('screen:review-lobby', ReviewLobbyScreen);
+/**
+ * ★v1.55: 'spectate-lobby' = 観戦ロビー S13（親 v1.55 §6.8・画面機能 v0.49 §3 S13）。
+ * **観戦の入り口**＝観戦できる部屋を選ぶだけ。**部屋は建てない**。
+ * **入り口を S04 に相乗りさせない**＝どの立場で入ったのかを画面が言えなくなるため。
+ */
+register('screen:spectate-lobby', SpectateLobbyScreen);
 /**
  * v1.50: 感想戦の部屋（付録D-12 §8）。**感想戦の画面はこの 3 つの口だけを見る**
  * ＝部屋の建て方も部屋名の記号も通信機能の持ち物で、感想戦の側は知らなくてよい。

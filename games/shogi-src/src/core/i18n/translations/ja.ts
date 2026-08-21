@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.67',
+    'app.ver': 'v1.68',
     // v0.72 音楽再生確認モーダル (Darts と同じ思想)
     'sound.promptTitle': 'BGM と効果音を再生してもよろしいですか？',
     'sound.bgmLabel': 'BGM 音量',
@@ -273,6 +273,28 @@ export const ja: LocaleData = {
     's12.roomsHead': '感想戦の部屋',
     's12.roomsEmpty': 'いま開いている感想戦の部屋はありません',
     's12.roomsOffline': 'サーバーにつながると、感想戦の部屋の一覧が出ます',
+    // ★v1.55: ネット観戦 (S13・親 v1.55 §6.8・画面機能 v0.49 §3 S13)
+    's13.head': 'ネット観戦',
+    's13.lead': '人の対局を見にいきます。人待ちの部屋にも、対局中の部屋にも入れます。',
+    's13.roomsHead': '観戦する部屋',
+    's13.roomsEmpty': 'いま観戦できる部屋はありません',
+    's13.roomsOffline': 'サーバーにつながると、観戦できる部屋の一覧が出ます',
+    's13.watch': '観戦する',
+    's13.badgeWaiting': '対局前',
+    's13.badgePlaying': '対局中',
+    's13.badgeEnded': '終局後',
+    's13.specFull': '観戦がいっぱいです',
+    's13.leave': '観戦をやめる',
+    // ★v1.55: 観戦者まわりの共通の言葉
+    'spec.role': '観戦者',
+    'spec.watching': '観戦中',
+    'spec.receiving': '対局を受け取っています…',
+    'spec.autoStart': '対局者がそろうと自動で始まります',
+    'spec.chatNote': '観戦者どうしにだけ見えます',
+    'spec.frResult': '{name} が先手です',
+    's05.participants': '参加者',
+    's04.allowSpec': '観戦を許す',
+    's04.allowSpecNote': 'あとから変えられません',
     // ★v1.54: 感想戦の中で棋譜を差し替える (親 v1.48 §9.4.2)
     's11.loadKifu': '棋譜読込',
     // ★v1.59: 操作の行は幅が足りない＝**ここだけ短い言い方**にする（終局パネルと

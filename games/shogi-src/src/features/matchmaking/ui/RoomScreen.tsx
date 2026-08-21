@@ -11,6 +11,7 @@ import { decodeRoomName } from '../roomNameCodec';
 import { RoomBadges } from './RoomBadges';
 import { useGameStore } from '../../../core/store/game-store';
 import { useMatchmakingStore, type SideChoice, type SideSelection } from '../store';
+import { hasSeat, isSpectator, spectatorsOf } from '../roster';
 import { CLIENT_CAPABILITIES, PROTOCOL_VERSION, ruleDigest, sendShogiMessage, type ShogiMessage, type SyncedRules } from '../protocol';
 import { handleShogiMessage } from '../messageDispatcher';
 import { deriveFurigoma, generateNonce, sha256Hex } from '../fairFlip';
@@ -57,6 +58,16 @@ export function RoomScreen() {
   const isHost = useMatchmakingStore((s) => s.isHost);
   const playerName = useMatchmakingStore((s) => s.playerName);
   const opponentName = useMatchmakingStore((s) => s.opponentName);
+  /**
+   * ★v1.55 (親 §6.8.3): 自分は観戦者か。**見るだけ**なので、先後も準備完了も出さない。
+   * **`!hasSeat()` と書かない**＝立場が分かっていないときまで観戦者になってしまう。
+   */
+  const myRole = useMatchmakingStore((s) => s.myRole);
+  const spectating = isSpectator(myRole);
+  /** ★v1.55: 参加者名簿（付録D-7 v1.1 §4.1 の参加者カードが読む）。 */
+  const roster = useMatchmakingStore((s) => s.roster);
+  const seatNames = useMatchmakingStore((s) => s.seatNames);
+  const spectateWaiting = useMatchmakingStore((s) => s.spectateWaiting);
   const currentRoomName = useMatchmakingStore((s) => s.currentRoomName);
   const activeRoomConfig = useMatchmakingStore((s) => s.activeRoomConfig);
   const errorMessage = useMatchmakingStore((s) => s.errorMessage);
@@ -295,8 +306,11 @@ export function RoomScreen() {
   const onLeave = () => {
     const client = getMomoMatchmaking();
     if (client) client.leaveRoom();
+    // ★v1.55: 観戦者は**入ってきた場所へ戻す**＝観戦ロビー (S13)。
+    // 対局のロビー (S04) へ戻すと、見に来ただけの人が部屋を建てる画面に着地する。
+    const backTo = spectating ? 'spectate-lobby' : 'net-lobby';
     resetRoomState();
-    setScreen('net-lobby');
+    setScreen(backTo);
   };
 
   /**
@@ -361,6 +375,13 @@ export function RoomScreen() {
     }
   })();
 
+  /**
+   * ★v1.55 (付録D-7 v1.1 §4.1): 参加者カードに並べる行。
+   * **席のある者が先、観戦者があと**。数え上げて 2 行に決め打たない。
+   */
+  const seatedRows = roster.filter((p) => hasSeat(p.role));
+  const watchers = spectatorsOf(roster);
+
   // 自分の役割（ホスト/ゲスト）と相手の役割
   const myRoleLabel = isHost ? t('s06.roleHost') : t('s06.roleGuest');
   const oppRoleLabel = isHost ? t('s06.roleGuest') : t('s06.roleHost');
@@ -422,6 +443,17 @@ export function RoomScreen() {
   const resultText = (() => {
     if (!furigomaResult) return '';
     const { faceUps, hostIsSente } = furigomaResult;
+    // ★v1.55 (付録D-7 v1.1 §8.1): 観戦者には「あなた」が無いので**第三者の言い方**にする。
+    // 名前は `spectate_sync` が運んだもの（親 §6.8.4）。まだ届いていなければ
+    // 名簿の席から読む＝**どちらにせよ空欄のまま出さない**。
+    if (spectating) {
+      const names = seatNames ?? {
+        host: seatedRows[0]?.name ?? '',
+        guest: seatedRows[1]?.name ?? '',
+      };
+      const first = hostIsSente ? names.host : names.guest;
+      return t('spec.frResult').replace('{name}', first);
+    }
     const faceUpCount = faceUps.filter((x) => x).length;
     const faceDownCount = faceUps.length - faceUpCount;
     if (hostIsSente) {
@@ -464,24 +496,63 @@ export function RoomScreen() {
         {/* ===== 対局者 ===== */}
         <div className="section-label">{t('s06.lblPlayers')}</div>
         <div className="s06-card">
-          <div className="player-row">
-            <span className="p-dot ok" />
-            <span className="p-name">{playerName || t('s06.youName')}</span>
-            <span className="role-tag you">{myRoleLabel}</span>
-            <span className="p-spacer" />
-            <span className="p-status ok">{t('s06.stConnected')}</span>
-          </div>
-          <div className="player-row">
-            <span className={`p-dot ${oppPresent ? 'ok' : 'wait'}`} />
-            <span className={`p-name${oppPresent ? '' : ' muted'}`}>
-              {oppPresent ? opponentName : t('s06.oppWaiting')}
-            </span>
-            {oppPresent && <span className="role-tag">{oppRoleLabel}</span>}
-            <span className="p-spacer" />
-            <span className={`p-status ${oppPresent ? 'ok' : 'warn'}`}>
-              {oppPresent ? t('s06.stConnected') : ''}
-            </span>
-          </div>
+          {/* ★v1.55: 席のある二人（付録D-7 v1.1 §4.1）。
+              **観戦者が居ない部屋では v1.54 と 1 px も変わらない。**
+              観戦者から見るときだけ、自分ではなく**対局者二人**を並べる。 */}
+          {spectating ? (
+            seatedRows.map((p, i) => (
+              <div className="player-row" key={p.pid}>
+                <span className="p-dot ok" />
+                <span className="p-name">{p.name}</span>
+                <span className="role-tag">{i === 0 ? t('s06.roleHost') : t('s06.roleGuest')}</span>
+                <span className="p-spacer" />
+                <span className="p-status ok">{t('s06.stConnected')}</span>
+              </div>
+            ))
+          ) : (
+            <>
+              <div className="player-row">
+                <span className="p-dot ok" />
+                <span className="p-name">{playerName || t('s06.youName')}</span>
+                <span className="role-tag you">{myRoleLabel}</span>
+                <span className="p-spacer" />
+                <span className="p-status ok">{t('s06.stConnected')}</span>
+              </div>
+              <div className="player-row">
+                <span className={`p-dot ${oppPresent ? 'ok' : 'wait'}`} />
+                <span className={`p-name${oppPresent ? '' : ' muted'}`}>
+                  {oppPresent ? opponentName : t('s06.oppWaiting')}
+                </span>
+                {oppPresent && <span className="role-tag">{oppRoleLabel}</span>}
+                <span className="p-spacer" />
+                <span className={`p-status ${oppPresent ? 'ok' : 'warn'}`}>
+                  {oppPresent ? t('s06.stConnected') : ''}
+                </span>
+              </div>
+            </>
+          )}
+          {/* ★v1.55: 観戦者の行（付録D-7 v1.1 §4.1）。
+              **0 人のときは見出しごと出さない**＝空の見出しを置かない。
+              **席の 2 行は常に見えるよう、流すのは観戦者の行だけ。** */}
+          {watchers.length > 0 && (
+            <>
+              <div className="section-label" style={{ marginTop: 8 }}>
+                {t('spec.role')}（{watchers.length}）
+              </div>
+              <div style={{ maxHeight: 132, overflowY: 'auto' }}>
+                {watchers.map((p) => (
+                  <div className="player-row" key={p.pid}>
+                    <span className="p-dot ok" />
+                    <span className="p-name">
+                      {p.name}（{t('spec.role')}）
+                    </span>
+                    <span className="p-spacer" />
+                    <span className="p-status">{t('spec.watching')}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
           {/* v0.67 A6: 相手切断・入室タイムアウト警告帯 (部屋は維持) */}
           {oppLeftWarn && (
             <div className="block-note">
@@ -538,6 +609,11 @@ export function RoomScreen() {
         </div>
 
         {/* ===== 先後選択 ===== */}
+        {/* ★v1.55 (親 §6.8.3・付録D-7 v1.1 §8.1): 観戦者には**置かない**。
+            灰色にして置くのではなく置かない＝**灰色は「押せない」だけを意味する**ので、
+            そもそも自分に関係の無い操作は出さない。**振り駒の結果は下で見える。** */}
+        {!spectating && (
+        <>
         <div className="section-label">{t('s06.lblSide')}</div>
         <div className="side-pick">
           <SideCard
@@ -575,6 +651,8 @@ export function RoomScreen() {
           />
         </div>
         {lockedSide && <div className="incompat show">{t('s03.sideLocked')}</div>}
+        </>
+        )}
 
         {/* ===== 振り駒アニメ（両者おまかせ時のみ表示） ===== */}
         <div className={`furigoma${showFurigoma ? ' show' : ''}`}>
@@ -673,14 +751,30 @@ export function RoomScreen() {
               <span className="chip mod">{t('s04.summaryQuantum')}</span>
             )}
           </div>
-          <button
-            type="button"
-            className={`start-btn${myReady ? ' armed' : ''}`}
-            onClick={onToggleReady}
-            disabled={readyDisabled}
-          >
-            {myReady ? t('s06.readyArmed') : t('s06.readyBtn')}
-          </button>
+          {/* ★v1.55 (親 §6.8.3・付録D-7 v1.1 §8.1): 観戦者は「準備完了」を押せない。
+              **ボタンの位置を空白のまま空けない**＝押すものが無いのか、まだ出て
+              いないのかを区別できないため、代わりに 1 行を置く。 */}
+          {spectating ? (
+            <div
+              style={{
+                margin: '10px 0 4px',
+                textAlign: 'center',
+                fontSize: 12,
+                color: 'var(--text-muted)',
+              }}
+            >
+              {spectateWaiting ? t('spec.receiving') : t('spec.autoStart')}
+            </div>
+          ) : (
+            <button
+              type="button"
+              className={`start-btn${myReady ? ' armed' : ''}`}
+              onClick={onToggleReady}
+              disabled={readyDisabled}
+            >
+              {myReady ? t('s06.readyArmed') : t('s06.readyBtn')}
+            </button>
+          )}
           <div className={`opp-ready${oppReady ? ' ok' : ''}`}>
             {!oppPresent
               ? t('s06.readyHint')
@@ -699,7 +793,7 @@ export function RoomScreen() {
             onClick={onLeave}
             style={{ minWidth: 260, padding: '8px 18px', fontSize: 13 }}
           >
-            {t('s06.backToOnlineLobby')}
+            {spectating ? t('s13.leave') : t('s06.backToOnlineLobby')}
           </button>
         </div>
       </div>

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useChatStore } from '../store/chat-store';
 import { useRouteStore } from '../store/route-store';
+import { useGameStore } from '../store/game-store';
 import { get as pluginGet } from '../plugin/registry';
 import type { OnlineGameConnector } from '../plugin/gameConnector';
 import { seChatRecv } from '../audio/se-synth';
@@ -116,9 +117,10 @@ export function ChatConsole({ t }: { t: (key: string) => string }) {
         </button>
       </div>
       {/* ★v1.55 (親 §6.8.5): **書いた本人に届き先を知らせる**＝知らせないと、
-          対局者にも届いたと思い込んだまま話し続ける。**感想戦では全員に届く**ので
-          この一言は出さない。 */}
-      {state.spectating && !state.inReview && (
+          対局者にも届いたと思い込んだまま話し続ける。**絞られるのは対局が進んで
+          いる間だけ**なので、準備室・終局後・感想戦ではこの一言を出さない
+          （出すと、届いているのに届いていないと思わせる）。 */}
+      {state.spectating && state.inPlay && (
         <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 4 }}>
           {t('spec.chatNote')}
         </div>
@@ -134,7 +136,7 @@ function readState() {
     myName: '',
     opponentName: '',
     spectating: false,
-    inReview: false,
+    inPlay: false,
     seatNames: null as { player1: string; player2: string } | null,
   };
   if (!c) return empty;
@@ -144,7 +146,10 @@ function readState() {
     opponentName: c.getOpponentName(),
     // **口が無いビルド・古い形の相手でも落ちない**ようにする（縮退互換）。
     spectating: typeof c.isSpectating === 'function' ? c.isSpectating() : false,
-    inReview: useRouteStore.getState().screen === 'review',
+    // ★v1.55: 観戦者の発言が観戦者どうしに絞られるのは**対局が進んでいる間だけ**
+    //   （送る側と同じ条件で判断する＝片方だけ別の決め方をしない）。
+    inPlay:
+      useRouteStore.getState().screen === 'game' && useGameStore.getState().status === 'playing',
     seatNames: typeof c.getSeatNames === 'function' ? c.getSeatNames() : null,
   };
 }

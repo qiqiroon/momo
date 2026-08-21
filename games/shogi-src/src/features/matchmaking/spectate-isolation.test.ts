@@ -176,13 +176,34 @@ describe('v1.55: チャットの送り分け（親 §6.8.5）', () => {
     });
   });
 
-  it('★観戦者の発言は観戦者へ一人ずつ宛てる（全員へ送って無視させる形は採らない）', () => {
+  it('★対局が進んでいる間は、観戦者の発言を観戦者へ一人ずつ宛てる（全員へ送って無視させる形は採らない）', () => {
+    // 盤の画面で、まだ対局が終わっていない＝助言が成り立つ唯一の場面
+    useRouteStore.setState({ screen: 'game' });
+    useGameStore.getState().reset({ gameType: 'shogi' });
     connector().sendChat('こんにちは');
     expect(sent).toHaveLength(1);
     expect(sent[0].to).toBe('v2');
   });
 
+  it('★対戦準備室では観戦者の発言も全員に届く（2026-08-21 ユーザー判断）', () => {
+    useRouteStore.setState({ screen: 'room' });
+    connector().sendChat('よろしくお願いします');
+    expect(sent).toHaveLength(1);
+    expect(sent[0].to).toBeUndefined();
+  });
+
+  it('★終局したら観戦者の発言も全員に届く（助言が成り立つのは指す局面があるときだけ）', () => {
+    useRouteStore.setState({ screen: 'game' });
+    useGameStore.getState().reset({ gameType: 'shogi' });
+    useGameStore.getState().resign('player1');
+    connector().sendChat('よい将棋でした');
+    expect(sent).toHaveLength(1);
+    expect(sent[0].to).toBeUndefined();
+  });
+
   it('★観戦者の発言に席（先手／後手）を入れない（実機で「後手」と出ていた）', () => {
+    useRouteStore.setState({ screen: 'game' });
+    useGameStore.getState().reset({ gameType: 'shogi' });
     connector().sendChat('こんにちは');
     const body = bodies()[0] as { type: string; side?: string };
     expect(body.type).toBe('chat');
@@ -190,6 +211,8 @@ describe('v1.55: チャットの送り分け（親 §6.8.5）', () => {
   });
 
   it('聞く人が居なくても、書いた本人の画面には出す', () => {
+    useRouteStore.setState({ screen: 'game' });
+    useGameStore.getState().reset({ gameType: 'shogi' });
     useMatchmakingStore.setState({
       roster: [
         { pid: 'p0', role: 'host', name: '太郎' },

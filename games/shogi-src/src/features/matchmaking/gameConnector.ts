@@ -181,13 +181,19 @@ const connector: OnlineGameConnector = {
      * 機械まで届いてしまい、助言を防いだことにならない。**土台に「観戦者全員」という
      * 宛先が無い**ので、**一人ずつ宛てて送る**。
      *
-     * **感想戦（S11）だけは全員に届く**＝勝敗が無く、助言という概念が無い場（全員で
-     * 話す場）だから。**ここだけ既定の宛先（自分以外の全員）に戻す。**
+     * **★観戦者どうしだけに絞るのは「対局が進んでいる間」だけ**（2026-08-21 ユーザー判断）。
+     * **対戦準備室・終局後・感想戦は全員に届く**＝**助言が成り立つのは、これから手を
+     * 指す局面があるときだけ**だから。
+     *
+     * ★**画面の名前で並べず、事実で書く**＝「盤の画面に居て、かつ対局がまだ終わって
+     * いない」。画面を数え上げる形にすると、**画面が増えたときに必ず書き忘れる**し、
+     * **終局後も絞ったまま**になる（終局後に助言のしようは無い）。
      */
     if (isSpectator(st.myRole)) {
-      const inReview = useRouteStore.getState().screen === 'review';
+      const onBoard = useRouteStore.getState().screen === 'game';
+      const inPlay = onBoard && useGameStore.getState().status === 'playing';
       const body = { v: PROTOCOL_VERSION, type: 'chat' as const, text: trimmed };
-      if (inReview) {
+      if (!inPlay) {
         sendShogiMessage(client, body);
       } else {
         for (const pid of otherSpectatorPids(st.roster, st.myPid)) {

@@ -40,7 +40,7 @@ import {
   type ShogiMessage,
 } from './protocol';
 import { applySyncedRules, rulesFromConfig, startGameFromSides } from './rulesSync';
-import { isSpectator } from './roster';
+import { findParticipant, isSpectator } from './roster';
 import { applySpectateSync } from './spectate';
 import { useMatchmakingStore } from './store';
 
@@ -54,11 +54,68 @@ function deliverReview(msg: ReviewMessage): void {
   pluginGet<(m: ReviewMessage) => void>('review:message')?.(msg);
 }
 
-export function handleShogiMessage(data: unknown): void {
+/**
+ * ★v1.55 (親 §6.8.1): **観戦者が受け取ってよい伝言**。
+ *
+ * ## なぜ「通すものを並べる」形にするのか
+ *
+ * **逆向き（危ないものを並べて弾く）は、次に伝言を足した人が書き忘れると、
+ * その伝言に観戦者が反応してしまう**。実際に v1.68 で、**感想戦の打診が観戦者にも
+ * 届いて観戦者が「受ける」と答えられ、本来の対局相手が置き去りにされた**
+ * （2026-08-21 実機のご報告）。**振り駒のコミットも二人ぶん届いて必ず食い違い、
+ * 「改ざんの疑い」の警告が出ていた。**
+ *
+ * こちら向きなら、**書き忘れは「観戦者に新しい表示が出ない」で済む**（軽いほう）。
+ *
+ * ## ここに無いもの＝観戦者には関わりの無い「二人で決める伝言」
+ *
+ * 先後の選択・準備完了・状態合わせ・振り駒・ルールの受領・引分/待った/再開の申し出、
+ * そして**感想戦の打診と諾否**。
+ */
+const SPECTATOR_ALLOWED: ReadonlySet<ShogiMessage['type']> = new Set([
+  // 盤を追うために要るもの
+  'game_start',
+  'move',
+  'resign',
+  'timeout',
+  'spectate_sync',
+  'rule_sync',
+  'anomaly_raise',
+  'anomaly_vote',
+  'pause_notify',
+  // 会話（送り分けは §6.8.5）
+  'chat',
+  // 感想戦の盤を追うために要るもの（打診と諾否は下の関数で弾く）
+  'review',
+  // 生存確認
+  'ping',
+  'pong',
+]);
+
+/**
+ * ★v1.55: いまの自分（観戦者かどうか）で、その伝言を処理してよいかを決める。
+ *
+ * **感想戦の伝言だけは中身で分ける**＝盤を追う伝言（`state`/`move`/`seek`/`mark`/`undo`）は
+ * 要るが、**打診と諾否（`offer`/`reply`）は二人で決めるもの**なので観戦者は関わらない。
+ */
+function mayHandleAsSpectator(msg: ShogiMessage): boolean {
+  if (!SPECTATOR_ALLOWED.has(msg.type)) return false;
+  if (msg.type === 'review') {
+    // ★中身は `payload` に入っている（`msg` ではない）。**名前を取り違えると
+    // どの kind でも素通りし、弾いているつもりで弾けない**（検査も緑のまま通る）。
+    const kind = (msg as { payload?: { kind?: string } }).payload?.kind;
+    return kind !== 'offer' && kind !== 'reply';
+  }
+  return true;
+}
+
+export function handleShogiMessage(data: unknown, from?: string): void {
   if (!isShogiMessage(data)) return;
   const msg = data as ShogiMessage;
   // v0.48: 有効なメッセージが来た＝相手の P2P 直通が生きている証。生存タイムスタンプを更新。
   useMatchmakingStore.getState().setLastPeerMessageAt(Date.now());
+  // ★v1.55: **観戦者は「二人で決める伝言」に反応しない**（上記）。
+  if (isSpectator(useMatchmakingStore.getState().myRole) && !mayHandleAsSpectator(msg)) return;
   switch (msg.type) {
     case 'side_select': {
       // 相手の選択変更 → 相手の準備完了は解除
@@ -164,6 +221,17 @@ export function handleShogiMessage(data: unknown): void {
       return;
     }
     case 'chat': {
+      // ★v1.55 (親 §6.8.5): **送り主を名簿に照らして、観戦者の発言かどうかを決める**。
+      // **発言そのものに立場を書き込まない**＝書き込むと、途中で立場が変わったときに
+      // 古い名札が残る。送り主が分からない相手（旧版）は従来どおり席のある人として扱う。
+      const speaker = findParticipant(useMatchmakingStore.getState().roster, from);
+      if (speaker && isSpectator(speaker.role)) {
+        useChatStore.getState().addSpectatorMessage(speaker.name, msg.text);
+        return;
+      }
+      // 席が入っていない発言は、送り主も分からないなら置き場所が無いので捨てる
+      // （**分からないものを分かったように書かない**）。
+      if (!msg.side) return;
       useChatStore.getState().addMessage(msg.side, msg.text);
       return;
     }

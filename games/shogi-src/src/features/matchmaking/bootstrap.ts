@@ -18,7 +18,7 @@ import { get as pluginGet } from '../../core/plugin/registry';
 import { getMomoMatchmaking } from './client';
 import { SHOGI_GAME_TYPE, SIGNALING_URL } from './config';
 import { handleShogiMessage } from './messageDispatcher';
-import { sendShogiMessage, unwrapShogiMessage } from './protocol';
+import { sendShogiMessage, senderOfMessage, unwrapShogiMessage } from './protocol';
 import { decodeRoomName } from './roomNameCodec';
 import { hasOpponent, hasSeat, isSpectator, opponentOf } from './roster';
 import { buildSpectateSync } from './spectate';
@@ -237,6 +237,12 @@ export function ensureMatchmakingInit(): void {
      */
     onParticipantJoined: (pid, role, name, roster) => {
       useMatchmakingStore.getState().setRoster(roster);
+      // ★v1.55 (親 §6.8.1): **観戦者に「自分の対局相手」は居ない**。
+      // v1.68 はここを素通りしていたので、**観戦者が対局者の入室を「相手が来た」と
+      // 受け取り、状態合わせの伝言を送り返して二人の準備状態を上書き**していた
+      // （2026-08-21 実機のご報告＝対局が始まっても観戦者の試合が始まらない）。
+      // 名簿だけ更新して、対局者としての始末はしない。
+      if (isSpectator(useMatchmakingStore.getState().myRole)) return;
       if (!hasSeat(role)) {
         // ★v1.55 (親 §6.8.4): 観戦者が入ってきた。**ホストがその 1 人に宛てて
         // いまの対局を丸ごと配る**。**まだ何も始まっていなくても配る**＝
@@ -315,7 +321,9 @@ export function ensureMatchmakingInit(): void {
     onMessage: (data) => {
       // ★v1.53: 対局の伝言は包みに入って届く（親 §6.2）。
       // 包みでないものはそのまま通す＝包みを使わない相手とも話せる。
-      handleShogiMessage(unwrapShogiMessage(data));
+      // ★v1.55: **送り主は包みの外側に付いている**ので、開ける前に取り出して一緒に渡す
+      // （捨てると誰が言ったのか分からなくなる＝花札で実際に起きた壊れ方・§6.8.5）。
+      handleShogiMessage(unwrapShogiMessage(data), senderOfMessage(data));
     },
     onWsOpen: () => {
       const state = useMatchmakingStore.getState();

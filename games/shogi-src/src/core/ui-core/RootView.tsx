@@ -1,6 +1,7 @@
 import { useEffect, type ComponentType } from 'react';
 import { get as pluginGet } from '../plugin/registry';
 import { useRouteStore } from '../store/route-store';
+import { useWakeLock } from './useWakeLock';
 import { GameScreen } from './GameScreen';
 import { OfflineRuleScreen } from './OfflineRuleScreen';
 import { AiSetupScreen } from './AiSetupScreen';
@@ -43,6 +44,10 @@ function useScreenBgm(screen: string): void {
 export function RootView({ variant }: RootViewProps) {
   const screen = useRouteStore((s) => s.screen);
   useScreenBgm(screen);
+  // ★v1.55: 盤を眺めている間は画面を消させない（2026-08-21 実機のご要望）。
+  // **画面のいちばん外側に 1 か所だけ置く**＝画面ごとに書き足すと、新しい画面で
+  // 必ず書き忘れる（観戦者のための例外も作らない＝観戦者が居るのはここに入っている画面）。
+  useWakeLock(screen);
 
   return (
     <>

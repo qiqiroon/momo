@@ -160,7 +160,15 @@ export interface MoveMsg extends Envelope {
  */
 export interface ChatMsg extends Envelope {
   type: 'chat';
-  side: 'player1' | 'player2';
+  /**
+   * 発言者の席（player1=先手／player2=後手）。
+   *
+   * ★v1.55: **観戦者の発言には入らない**（§6.8.5）＝観戦者は席を持たないので、
+   * 席を名乗らせると嘘になる（v1.54 までは席のある側として名乗っており、実機で
+   * **観戦者の発言が「後手」と出ていた**）。**受け取った側は送り主を名簿に照らして
+   * 振り分ける**ので、無いことが情報になっている。
+   */
+  side?: 'player1' | 'player2';
   text: string;
 }
 
@@ -529,4 +537,23 @@ export function unwrapShogiMessage(data: unknown): unknown {
   const m = data as { type?: unknown; body?: unknown };
   if (m.type === SHOGI_ENVELOPE_TYPE) return m.body;
   return data;
+}
+
+/**
+ * ★v1.55: **送り主を落とさずに取り出す**（親 §6.8.5）。
+ *
+ * 土台は中継のときに**包みの外側へ `from`（送り主）を書き足す**。**包みの中だけを
+ * 取り出すと、その送り主が捨てられる**＝誰が言ったのか分からなくなる。
+ *
+ * **★これは花札で実際に起きた壊れ方と同じ形**（送信を見張る仕掛けが本体だけを通して
+ * 宛先を捨てていたため、配り分けが効かなかった。2026-07-31）。**運び屋が書き足した
+ * ものは、開けるときに一緒に取り出す。**
+ *
+ * 観戦者の発言かどうかは**この送り主を名簿に照らして決める**＝**発言そのものに
+ * 立場を書き込まない**（書き込むと、途中で立場が変わったとき古い名札が残る）。
+ */
+export function senderOfMessage(data: unknown): string | undefined {
+  if (!data || typeof data !== 'object') return undefined;
+  const m = data as { from?: unknown };
+  return typeof m.from === 'string' ? m.from : undefined;
 }

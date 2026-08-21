@@ -37,6 +37,28 @@ export function spectatorsOf(roster: MomoRosterEntry[]): MomoRosterEntry[] {
   return roster.filter((p) => isSpectator(p.role));
 }
 
+/**
+ * ★v1.55 (親 §6.8.5): **自分以外の観戦者の宛先**。
+ *
+ * 観戦者どうしの話は**一人ずつ宛てて送る**＝土台に「観戦者全員」という宛先が無いため。
+ * **「全員へ送って対局者に無視させる」形は採らない**＝言葉そのものは相手の機械まで
+ * 届いてしまい、**助言を防いだことにならない**。
+ */
+export function otherSpectatorPids(roster: MomoRosterEntry[], myPid: string | null): string[] {
+  return spectatorsOf(roster)
+    .filter((p) => p.pid !== myPid)
+    .map((p) => p.pid);
+}
+
+/** ★v1.55: 名簿からその参加者を引く（送り主の立場を知るため）。 */
+export function findParticipant(
+  roster: MomoRosterEntry[],
+  pid: string | null | undefined,
+): MomoRosterEntry | null {
+  if (!pid) return null;
+  return roster.find((p) => p.pid === pid) ?? null;
+}
+
 /** 名簿のうち、自分以外で席に着いている者。 */
 export function seatedOthers(roster: MomoRosterEntry[], myPid: string | null): MomoRosterEntry[] {
   return roster.filter((p) => hasSeat(p.role) && p.pid !== myPid);

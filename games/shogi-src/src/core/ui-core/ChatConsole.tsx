@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useChatStore } from '../store/chat-store';
+import { useRouteStore } from '../store/route-store';
 import { get as pluginGet } from '../plugin/registry';
 import type { OnlineGameConnector } from '../plugin/gameConnector';
 import { seChatRecv } from '../audio/se-synth';
@@ -43,7 +44,8 @@ export function ChatConsole({ t }: { t: (key: string) => string }) {
     prevMsgCountRef.current = messages.length;
   }, [messages.length]);
 
-  const canSend = state.mySide !== null;
+  // ★v1.55 (親 §6.8.5): 観戦者は席を持たないが**書ける**（届く先が違うだけ）。
+  const canSend = state.mySide !== null || state.spectating;
   const sideFallback = (side: 'player1' | 'player2') =>
     t(side === 'player1' ? 'chat.pSente' : 'chat.pGote');
   const myPrompt = state.myName
@@ -51,6 +53,8 @@ export function ChatConsole({ t }: { t: (key: string) => string }) {
     : state.mySide
       ? sideFallback(state.mySide)
       : sideFallback('player1');
+  /** ★v1.55: 観戦者の名札は「名前（観戦者）」（§6.8.5）。 */
+  const watcherPrompt = (name: string) => `${name}（${t('spec.role')}）＞`;
 
   const send = () => {
     const text = draft.trim();
@@ -66,8 +70,23 @@ export function ChatConsole({ t }: { t: (key: string) => string }) {
     <div className="console">
       <div className="chat-log" ref={logRef}>
         {messages.map((m, i) => {
+          // ★v1.55: 席の無い人の発言（§6.8.5）。**名前に「観戦者」を添える**＝
+          // 誰が対局している人なのかが分かるようにするため。
+          if (m.kind === 'spectator') {
+            const mine = state.spectating && m.name === state.myName;
+            return (
+              <div key={i} className={`line ${mine ? 'self' : 'other'}`}>
+                <span className="prompt">{watcherPrompt(m.name)}</span>
+                {m.text}
+              </div>
+            );
+          }
           const isMine = state.mySide !== null && m.side === state.mySide;
-          const nameForSide = isMine ? state.myName : state.opponentName;
+          const nameForSide = isMine
+            ? state.myName
+            : state.seatNames
+              ? state.seatNames[m.side]
+              : state.opponentName;
           const prompt = nameForSide ? `${nameForSide}＞` : sideFallback(m.side);
           return (
             <div key={i} className={`line ${isMine ? 'self' : 'other'}`}>
@@ -96,16 +115,36 @@ export function ChatConsole({ t }: { t: (key: string) => string }) {
           {t('chat.send')}
         </button>
       </div>
+      {/* ★v1.55 (親 §6.8.5): **書いた本人に届き先を知らせる**＝知らせないと、
+          対局者にも届いたと思い込んだまま話し続ける。**感想戦では全員に届く**ので
+          この一言は出さない。 */}
+      {state.spectating && !state.inReview && (
+        <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 4 }}>
+          {t('spec.chatNote')}
+        </div>
+      )}
     </div>
   );
 }
 
 function readState() {
   const c = pluginGet<OnlineGameConnector>('gameConnector');
-  if (!c) return { mySide: null as 'player1' | 'player2' | null, myName: '', opponentName: '' };
+  const empty = {
+    mySide: null as 'player1' | 'player2' | null,
+    myName: '',
+    opponentName: '',
+    spectating: false,
+    inReview: false,
+    seatNames: null as { player1: string; player2: string } | null,
+  };
+  if (!c) return empty;
   return {
     mySide: c.getMyChatSide(),
     myName: c.getMyName(),
     opponentName: c.getOpponentName(),
+    // **口が無いビルド・古い形の相手でも落ちない**ようにする（縮退互換）。
+    spectating: typeof c.isSpectating === 'function' ? c.isSpectating() : false,
+    inReview: useRouteStore.getState().screen === 'review',
+    seatNames: typeof c.getSeatNames === 'function' ? c.getSeatNames() : null,
   };
 }

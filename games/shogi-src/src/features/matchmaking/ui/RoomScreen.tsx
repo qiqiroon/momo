@@ -107,6 +107,11 @@ export function RoomScreen() {
 
   // 送信ユーティリティ
   const sendMsg = (msg: ShogiMessage) => {
+    // ★v1.55 (親 §6.8.1): **観戦者はこの画面から何も送らない**。
+    // 操作そのものは出していないので普通は呼ばれないが、**見張りを送る口に置く**＝
+    // 画面のどこかに新しい操作を足した人が書き忘れても、**観戦者が二人の準備に
+    // 割り込まない側（安全なほう）へ倒れる**。
+    if (spectating) return;
     const client = getMomoMatchmaking();
     if (!client) return;
     // ★v1.53: 生の送信は使わない（包みに入れないと `from`/`to` が土台に上書きされる）。
@@ -568,7 +573,13 @@ export function RoomScreen() {
           )}
         </div>
 
-        {/* ===== ルール同期の進捗（Phase 5-12 で本物のメッセージフローに接続） ===== */}
+        {/* ===== ルール同期の進捗（Phase 5-12 で本物のメッセージフローに接続） =====
+            ★v1.55: **観戦者には出さない**（親 §6.8.3・ユーザー判断 2026-08-21）＝
+            この欄は「二人が同じルールで構えたか」を示すもので、**観戦者は正しさの
+            担保に加わらない**（受領の返事も返さない）。**ルールそのものは受け取る**
+            ので盤は同じに組める。 */}
+        {!spectating && (
+        <>
         <div className="section-label">{t('s06.lblSync')}</div>
         <div className="s06-card">
           <div className={`sync-step ${syncStep12}`}>
@@ -607,6 +618,8 @@ export function RoomScreen() {
             </div>
           )}
         </div>
+        </>
+        )}
 
         {/* ===== 先後選択 ===== */}
         {/* ★v1.55 (親 §6.8.3・付録D-7 v1.1 §8.1): 観戦者には**置かない**。
@@ -654,7 +667,15 @@ export function RoomScreen() {
         </>
         )}
 
-        {/* ===== 振り駒アニメ（両者おまかせ時のみ表示） ===== */}
+        {/* ===== 振り駒アニメ（両者おまかせ時のみ表示） =====
+            ★v1.55: **観戦者には出さない**（親 §6.8.3・ユーザー判断 2026-08-21）。
+            振り駒は**二人がそれぞれ乱数を出し合って決める**もので、**席の無い者が
+            加わる余地がそもそも無い**。**先後の結果は対局開始の伝言に入っている**
+            ので、コミット/リビールを観戦者へ届ける理由も無い。
+            （付録D-7 v1.1 §8.1 の「観戦者にも振り駒が見える」は撤回＝**実装では
+            自分の乱数を持たない観戦者に結果を計算できず、もともと映っていなかった**。） */}
+        {!spectating && (
+        <>
         <div className={`furigoma${showFurigoma ? ' show' : ''}`}>
           <div className="fg-row">
             {Array.from({ length: 5 }).map((_, i) => {
@@ -712,6 +733,8 @@ export function RoomScreen() {
             {t('s06.fairNote')}
           </div>
         </div>
+        </>
+        )}
 
         {/* ===== チャット（v0.32 で S07 と同じ ChatConsole を使用） ===== */}
         <div className="section-label">{t('s06.lblChatSec')}</div>

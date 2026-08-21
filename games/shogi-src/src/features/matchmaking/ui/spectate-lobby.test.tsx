@@ -206,6 +206,38 @@ describe('S05 準備画面を観戦者から見たとき（v1.55）', () => {
     view.unmount();
   });
 
+  it('★観戦者には振り駒もルール同期の欄も出さない（2026-08-21 ユーザー判断）', () => {
+    asSpectator();
+    const view = render(<RoomScreen />);
+    // ルール同期の 3 段（二人が同じルールで構えたかを示す欄）
+    expect(screen.queryByText('ルールデータの送信（MGF）')).toBeNull();
+    expect(screen.queryByText('相手エンジンの対応確認')).toBeNull();
+    // 振り駒の公平性の注記（振り駒ブロックと一緒に出るもの）
+    expect(
+      screen.queryAllByText((_t, el) => (el?.textContent ?? '').includes('公平な方式で行います')),
+    ).toHaveLength(0);
+    view.unmount();
+  });
+
+  it('対局者には今までどおり振り駒もルール同期も出る（縮退互換）', () => {
+    useMatchmakingStore.setState({
+      connection: 'game_connected',
+      currentRoomId: 'r1',
+      currentRoomName: 'へや',
+      isHost: true,
+      myRole: 'host',
+      myPid: 'p0',
+      opponentName: '次郎',
+      roster: [
+        { pid: 'p0', role: 'host', name: '太郎' },
+        { pid: 'p1', role: 'player', name: '次郎' },
+      ],
+    });
+    const view = render(<RoomScreen />);
+    expect(screen.getByText('ルールデータの送信（MGF）')).toBeTruthy();
+    view.unmount();
+  });
+
   it('★参加者の欄に対局者二人と観戦者が並び、観戦者には印が付く', () => {
     asSpectator();
     const view = render(<RoomScreen />);

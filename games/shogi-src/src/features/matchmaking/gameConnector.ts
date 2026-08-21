@@ -12,7 +12,7 @@ import type { OnlineGameConnector, RemoteMovePayload } from '../../core/plugin/g
 import { positionHash } from '../../core/engine';
 import { getMomoMatchmaking } from './client';
 import { PROTOCOL_VERSION, sendShogiMessage } from './protocol';
-import { isSpectator, spectatorsOf } from './roster';
+import { isSpectator, otherSpectatorPids, spectatorsOf } from './roster';
 import { useMatchmakingStore } from './store';
 
 const connector: OnlineGameConnector = {
@@ -31,6 +31,10 @@ const connector: OnlineGameConnector = {
 
   getMyChatSide() {
     const state = useMatchmakingStore.getState();
+    // ★v1.55: **観戦者は席を持たないので、席を名乗らない**（§6.8.5）。
+    // v1.54 まではここが「ホストでなければ後手」を返していたため、実機で
+    // **観戦者の発言が「後手」と出ていた**（2026-08-21 ご報告）。
+    if (isSpectator(state.myRole)) return null;
     if (state.gameStartInfo) {
       const sel = state.isHost ? state.gameStartInfo.hostSide : state.gameStartInfo.guestSide;
       return sel === 'sente' ? 'player1' : 'player2';
@@ -133,11 +137,42 @@ const connector: OnlineGameConnector = {
   sendChat(text) {
     const trimmed = text.trim();
     if (!trimmed) return;
+    const client = getMomoMatchmaking();
+    if (!client) return;
+    const st = useMatchmakingStore.getState();
+
+    /**
+     * ★v1.55 (親 §6.8.5): **観戦者の発言は観戦者どうしにだけ届く。**
+     *
+     * 理由＝**将棋の観戦者は盤を見ながら対局者に話しかけられる立場**なので、
+     * 対局中に自由に書けると**指し手を教えられてしまう**。
+     *
+     * **「全員へ送って対局者の側で無視する」形は採らない**＝言葉そのものは相手の
+     * 機械まで届いてしまい、助言を防いだことにならない。**土台に「観戦者全員」という
+     * 宛先が無い**ので、**一人ずつ宛てて送る**。
+     *
+     * **感想戦（S11）だけは全員に届く**＝勝敗が無く、助言という概念が無い場（全員で
+     * 話す場）だから。**ここだけ既定の宛先（自分以外の全員）に戻す。**
+     */
+    if (isSpectator(st.myRole)) {
+      const inReview = useRouteStore.getState().screen === 'review';
+      const body = { v: PROTOCOL_VERSION, type: 'chat' as const, text: trimmed };
+      if (inReview) {
+        sendShogiMessage(client, body);
+      } else {
+        for (const pid of otherSpectatorPids(st.roster, st.myPid)) {
+          sendShogiMessage(client, body, pid);
+        }
+      }
+      // **相手が居なくても自分の画面には出す**＝押したのに何も起きないと、
+      // 送れなかったのか誰も居ないのかを区別できない。
+      useChatStore.getState().addSpectatorMessage(st.playerName, trimmed);
+      return;
+    }
+
     // v0.32: getMyChatSide() は入室後なら暫定 side を返すため、対局前 (S06) でも動作
     const mySide = this.getMyChatSide();
     if (!mySide) return;
-    const client = getMomoMatchmaking();
-    if (!client) return;
     sendShogiMessage(client, {
       v: PROTOCOL_VERSION,
       type: 'chat',

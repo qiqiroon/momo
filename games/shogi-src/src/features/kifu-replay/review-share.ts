@@ -128,6 +128,27 @@ export function isSharedReview(): boolean {
   return useReviewShareStore.getState().role !== null;
 }
 
+/**
+ * ★v1.59 (段3・親 §6.8.6): **盤の動きを線に乗せるべきか**。
+ *
+ * `isSharedReview()` は「**対局相手と二人でやっているか**」の問いで、
+ * **観戦者はそこに数えられていない**。乗せるかどうかをそれで決めていたため、
+ * **相手の居ない感想戦の部屋（S12 から建てて観戦者だけが来た部屋・相手が抜けた後の
+ * 部屋）では、観戦者の盤が動かなかった**。
+ *
+ * **送り先が居るかを数え上げない**＝居なければ土台が黙って捨てる（`sendReview` は
+ * 部屋に居ないとき何もしない）。**問いは「感想戦の部屋に居るか」だけでよい。**
+ */
+function shouldShareReview(): boolean {
+  const s = useReviewShareStore.getState();
+  return s.role !== null || s.ownsRoom;
+}
+
+/** その感想戦の部屋を建てた側か（**配り手を 1 人に絞る**ための問い）。 */
+function isReviewRoomHost(): boolean {
+  return connector()?.isRoomHost() === true;
+}
+
 /** 画面が一言を出し終えたら消す。 */
 export function clearReviewNotice(): void {
   useReviewShareStore.setState({ notice: null });
@@ -338,6 +359,13 @@ export function offerReview(): void {
 function migrateToReviewRoom(pass: string, room: string): void {
   const asHost = connector()?.isRoomHost() === true;
   useReviewShareStore.setState({ migrating: true });
+  // ★v1.59 (段3・親 §6.8.6): **部屋を出る前に、観戦者へ移り先を知らせる**。
+  //
+  // **出てからでは知らせる道が無い**＝部屋を離れると線もその場で閉じる（§6.3.6）。
+  // 送るのはホストだけ・観戦者へ一人ずつ（宛先の始末は通信側が持つ）。
+  //
+  // **観戦者が受け取れなくても、二人の感想戦は止めない**（親 §9.4.4）。
+  connector()?.notifySpectatorsReviewMigrate(room, pass);
   // 対局の部屋を出る。**自分から出たと立ててから**出る（事故と取り違えないため）。
   pluginGet<() => void>('reviewRoom:leave')?.();
 
@@ -509,7 +537,7 @@ function enterReviewScreen(): void {
  *
  * 画面がまだ出ていなければ居場所そのものが無いので、そのときだけ初期局面になる。
  */
-function distributeKifu(): void {
+function distributeKifu(to?: string): void {
   const file = reviewTarget();
   const here = localView?.();
   // ★v1.66: **振り返る 1 局がまだ無いときも配る**（棋譜の欄を省いて送る）。
@@ -517,12 +545,39 @@ function distributeKifu(): void {
   // v1.65 までは黙って引き返していたので、**受け取る側は待ちが解けなかった**。
   // 棋譜の欄はもともと省ける形なので**新しい伝言は要らない**＝受け取った側は
   // 「棋譜は差し替えず、居場所だけ採る」＝**初期配置のまま触れるようになる**。
-  connector()?.sendReview({
-    kind: 'state',
-    ...(file ? { kifu: serializeKifu(file) } : {}),
-    ply: file ? (here?.ply ?? 0) : 0,
-    branch: file ? (here?.branch ?? []) : [],
-  });
+  connector()?.sendReview(
+    {
+      kind: 'state',
+      ...(file ? { kifu: serializeKifu(file) } : {}),
+      ply: file ? (here?.ply ?? 0) : 0,
+      branch: file ? (here?.branch ?? []) : [],
+    },
+    to,
+  );
+}
+
+/**
+ * ★v1.59 (段3・親 §6.8.6): **感想戦の部屋へ観戦者が入ってきた**。
+ *
+ * **配るものは、入ってきた人の立場ではなく「いま自分が居る部屋の用途」で決まる**
+ * ＝対局の部屋なら `spectate_sync`、感想戦の部屋ならこちら。**そのまま対局用の
+ * 仕掛けを動かすと、観戦者は在りもしない対局を組み立てて盤の画面へ行ってしまう。**
+ *
+ * **配るのは入ってきたその一人だけ**＝既に居る人の画面を作り直さない。
+ * **中身は対局者に配るものと同じ**（見るだけの人に別の形を作らない）。
+ *
+ * 感想戦の部屋でなければ false を返し、呼んだ側は今までどおりに扱う。
+ */
+export function reviewSpectatorArrived(pid: string): boolean {
+  if (!useReviewShareStore.getState().ownsRoom) return false;
+  // **配るのは部屋を建てた側だけ**（配り手を 1 人に絞る）。**いまの事実で見る**＝
+  // 役は対局相手が来たときにしか決まらないので、**観戦者しか来ていない部屋では
+  // 役が空のまま**で、それを条件にすると誰も配らず観戦者は待ち続ける
+  // （**「無い」は送るべき事実であって、送らない理由ではない**）。
+  // ホストでなくても「感想戦の部屋の出来事」ではあるので true を返し、
+  // 対局用の配りへ落ちないようにする（**黙って別のものを配らない**）。
+  if (isReviewRoomHost()) distributeKifu(pid);
+  return true;
 }
 
 /**
@@ -533,8 +588,10 @@ function distributeKifu(): void {
  */
 export function replaceSharedKifu(file: KifuFile): void {
   setReviewTarget(file, 'lobby');
-  if (!isSharedReview()) return;
-  if (useReviewShareStore.getState().role !== 'host') return;
+  if (!shouldShareReview()) return;
+  // ★v1.59: **配るのは部屋を建てた側だけ**。**いまの事実で見る**＝役は相手が来た
+  // ときにしか決まらないので、**観戦者しか居ない部屋では役が空のまま**になる。
+  if (!isReviewRoomHost()) return;
   connector()?.sendReview({ kind: 'state', kifu: serializeKifu(file), ply: 0, branch: [] });
 }
 
@@ -547,22 +604,22 @@ export function replaceSharedKifu(file: KifuFile): void {
  * ひとりのときは送らない（縮退）。
  */
 export function shareReviewMark(square: { row: number; col: number } | null): void {
-  if (!isSharedReview()) return;
+  if (!shouldShareReview()) return;
   connector()?.sendReview({ kind: 'mark', square });
 }
 
 export function shareReviewMove(base: ReviewPoint, view: ReviewView): void {
-  if (!isSharedReview()) return;
+  if (!shouldShareReview()) return;
   connector()?.sendReview({ kind: 'move', base, ply: view.ply, branch: view.branch });
 }
 
 export function shareReviewSeek(base: ReviewPoint, ply: number): void {
-  if (!isSharedReview()) return;
+  if (!shouldShareReview()) return;
   connector()?.sendReview({ kind: 'seek', base, ply });
 }
 
 export function shareReviewUndo(base: ReviewPoint, view: ReviewView): void {
-  if (!isSharedReview()) return;
+  if (!shouldShareReview()) return;
   connector()?.sendReview({ kind: 'undo', base, ply: view.ply, branch: view.branch });
 }
 

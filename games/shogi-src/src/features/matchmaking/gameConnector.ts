@@ -13,6 +13,7 @@ import { positionHash } from '../../core/engine';
 import { getMomoMatchmaking } from './client';
 import { PROTOCOL_VERSION, sendShogiMessage } from './protocol';
 import { hasSeat, isSpectator, otherSpectatorPids, spectatorsOf } from './roster';
+import { resetSpectateMigrate } from './spectateMigrate';
 import { useMatchmakingStore } from './store';
 
 const connector: OnlineGameConnector = {
@@ -324,7 +325,24 @@ const connector: OnlineGameConnector = {
     return !!s.currentRoomId && s.isHost;
   },
 
-  sendReview(msg) {
+  notifySpectatorsReviewMigrate(room, pass) {
+    // ★v1.59 (段3・親 §6.8.6): 感想戦が成立した＝**観戦者に移り先を配る**。
+    //
+    // **配るのはホストだけ**＝二人が別々の移り先を配ると、どちらが正なのか
+    // 誰も言えなくなる（部屋を建てるのもホストなので、書き手は自然に 1 人）。
+    //
+    // **一人ずつ宛てて送る**＝土台に「観戦者全員」という宛先が無い（§6.8.5）。
+    // **席のある相手には送らない**＝相手は自分たちのやり取りで移り先を知っている。
+    if (!this.isRoomHost()) return;
+    const client = getMomoMatchmaking();
+    if (!client) return;
+    const st = useMatchmakingStore.getState();
+    for (const pid of otherSpectatorPids(st.roster, st.myPid)) {
+      sendShogiMessage(client, { v: PROTOCOL_VERSION, type: 'review_migrate', room, pass }, pid);
+    }
+  },
+
+  sendReview(msg, to) {
     // ★v1.55 (親 §6.8.1): **観戦者は感想戦の打診も諾否も送らない**。
     // 受け取る側だけで守ると、**画面のどこかに導線が残っていたときに二人の相談へ
     // 割り込める**（実際に終局パネルの「感想戦」が観戦者にも出ていた）。
@@ -339,7 +357,7 @@ const connector: OnlineGameConnector = {
     // v1.55 までは伝言の種類ごとに項目を書き写しており、**書き写す欄に無いものは
     // 黙って捨てられて**いた（ハイライトと、部屋を移るための合言葉が届かなかった）。
     // **これ以降、感想戦の伝言を増やしてもここは直さなくてよい。**
-    sendShogiMessage(client, { v: PROTOCOL_VERSION, type: 'review', payload: msg });
+    sendShogiMessage(client, { v: PROTOCOL_VERSION, type: 'review', payload: msg }, to);
   },
 
   sendPauseNotify() {
@@ -376,6 +394,9 @@ const connector: OnlineGameConnector = {
     const backTo = isSpectator(useMatchmakingStore.getState().myRole)
       ? 'spectate-lobby'
       : 'net-lobby';
+    // ★v1.59 (段3): **自分から出たなら、移行の控えも捨てる**（親 §6.8.6）＝
+    // 残すと、観戦の一覧に着いた先で「感想戦に入りますか」だけが立ったままになる。
+    resetSpectateMigrate();
     // 退室時にハンドシェイク・部屋状態をリセット
     useMatchmakingStore.getState().resetRoomState();
     useRouteStore.getState().setScreen(backTo);

@@ -58,8 +58,18 @@ export function RootView({ variant }: RootViewProps) {
       {/* 「保存しました」の知らせ (親 §9.2.3 ③)。保存の入口は 3 つあるが、
           出るものは 1 つ＝同じことを 3 か所で別々に作らない。 */}
       <SaveNoticeDialog />
+      {/* ★v1.59 (段3・親 §6.8.6): 観戦者に出す「感想戦へ移りますか」「対局が終わりました」。
+          **画面のいちばん外側に 1 か所**＝観戦者が居る画面は 1 つではないので、
+          画面ごとに置くと新しい画面で必ず書き忘れる。A ビルドには口ごと無い。 */}
+      <SpectateOverlay />
     </>
   );
+}
+
+/** 通信機能を積んでいないビルドでは口ごと無い＝何も出ない（縮退）。 */
+function SpectateOverlay() {
+  const Comp = pluginGet<ComponentType>('overlay:spectate');
+  return Comp ? <Comp /> : null;
 }
 
 function renderScreen(screen: string, variant: 'a' | 'b') {

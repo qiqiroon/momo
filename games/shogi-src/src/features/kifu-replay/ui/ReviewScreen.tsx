@@ -162,6 +162,31 @@ export function ReviewScreen() {
   /** 自分が建てた／入った感想戦の部屋に居るか（v1.52 の表示分けに使う）。 */
   const ownsRoom = useReviewShareStore((s) => s.ownsRoom);
   const shared = shareRole !== null;
+  /**
+   * ★v1.59 (段3・親 §6.8.6／画面機能 §3 S11): **自分は観戦者か**と、**居る観戦者**。
+   *
+   * **口越しに聞く**＝この画面は通信機能を直接見ない（features どうしは行き来しない）。
+   * **口が無いビルドでは観戦していない扱い**（縮退互換）。
+   *
+   * **終局から連れられて移ってきた人も、一覧から観戦しに来た人も、扱いは同じ**
+   * （**入口で見え方を変えない**）＝この 1 つの事実だけで分ける。
+   */
+  const [watch, setWatch] = useState<{ me: boolean; list: { pid: string; name: string }[] }>({
+    me: false,
+    list: [],
+  });
+  useEffect(() => {
+    const c = pluginGet<OnlineGameConnector>('gameConnector');
+    if (!c) return;
+    const update = () =>
+      setWatch({
+        me: typeof c.isSpectating === 'function' ? c.isSpectating() : false,
+        list: typeof c.getSpectators === 'function' ? c.getSpectators() : [],
+      });
+    update();
+    return c.subscribe(update);
+  }, []);
+  const watching = watch.me;
   /** **棋譜を配っている最中は触れない**（画面機能 §3 S11・付録D-12 §5）。 */
   /**
    * ★v1.55: **移っている最中も盤に触れない**（親 §9.4.4）＝線が切れている間に
@@ -203,7 +228,8 @@ export function ReviewScreen() {
    * 配られる 1 局と食い違ったまま、どちらが正かを確かめる材料が無くなる。
    */
   const pickerRef = useRef<HTMLInputElement | null>(null);
-  const canLoad = !shared || shareRole === 'host';
+  // ★v1.59: **観戦者は振り返る 1 局を差し替えられない**（盤に起きることはすべて対局者が起こす）。
+  const canLoad = !watching && (!shared || shareRole === 'host');
   const requestLoad = () => {
     seButton();
     setPlaying(false);
@@ -589,7 +615,8 @@ export function ReviewScreen() {
     setHoverSquare(`${row},${col}`);
     // **配り終えるまでは触れない**（画面機能 §3 S11）＝まだ何も並んでいないので、
     // ここで指せると、届いた瞬間に消える手を指すことになる。
-    if (waiting) return;
+    // ★v1.59 (段3): **観戦者は見るだけ**＝盤にも印にも触れない（親 §6.8.6）。
+    if (waiting || watching) return;
     touchBoard();
     // 持っている駒の元の位置をもう一度押したら持ち直し（対局画面と同じ操作感）。
     // ★v1.55: **駒を持って同じマスへ戻したときも印が付く**（親 §9.4.2.2）＝
@@ -629,13 +656,13 @@ export function ReviewScreen() {
    * **持っていないときは何も起きない**（駒台の駒を押すのは別の受け口）。
    */
   const onStand = (owner: 'player1' | 'player2') => {
-    if (waiting) return;
+    if (waiting || watching) return;
     if (!heldPiece) return;
     doFree({ kind: 'hand', owner });
   };
 
   const onHand = (owner: 'player1' | 'player2', pieceId: string) => {
-    if (waiting) return;
+    if (waiting || watching) return;
     touchBoard();
     if (selectedHandPieceId === pieceId) {
       clearSelection();
@@ -694,10 +721,17 @@ export function ReviewScreen() {
    * **部屋からも出る**のは `leaveSharedReview`（画面を離れる後始末）が受け持つ＝
    * 出口ごとに書き足さない。
    */
-  const backLabel = t('s00.modeSelect');
+  /**
+   * ★v1.59 (段3・画面機能 v0.51 §3 S11): **観戦者の戻り先は観戦の一覧**。
+   *
+   * **観戦者は、どの画面から出ても観戦の一覧へ返す**（S05／S07 と同じ扱い＝
+   * **同じ立場の人を画面ごとに違う場所へ返さない**）。v1.76 で対局画面の退室が
+   * 対戦ロビーへ戻っていたのと同じ形なので、ここも同じ規定でそろえる。
+   */
+  const backLabel = watching ? t('s13.leave') : t('s00.modeSelect');
   const goBack = () => {
     seButton();
-    setScreen('lobby');
+    setScreen(watching ? 'spectate-lobby' : 'lobby', watching ? { skipKifuGuard: true } : undefined);
   };
 
   // ★v1.60: 盤以外に置くものの高さを毎回測って CSS へ返す（付録D-8 v1.10 §5.1）。
@@ -796,22 +830,26 @@ export function ReviewScreen() {
                 {t('s11.loadKifu')}
               </button>
             )}
-            <button
-              type="button"
-              className="io-btn"
-              disabled={waiting || !file || saving}
-              onClick={() => {
-                seButton();
-                save();
-              }}
-            >
-              {t('s11.saveKifu')}
-            </button>
-            {saved && <span className="saved-tag">✓</span>}
+            {/* ★v1.59 (段3): **観戦者には棋譜の保存を出さない**（灰色で置くのではなく
+                置かない・画面機能 §3 S11）＝振り返っているのは他人の対局である。 */}
+            {!watching && (
+              <button
+                type="button"
+                className="io-btn"
+                disabled={waiting || !file || saving}
+                onClick={() => {
+                  seButton();
+                  save();
+                }}
+              >
+                {t('s11.saveKifu')}
+              </button>
+            )}
+            {!watching && saved && <span className="saved-tag">✓</span>}
             {/* ★v1.59: 分岐中の補助語「本譜を保存します（分岐は入りません）」は廃止した
                 （付録D-12 v1.8 §9・2026-08-20 実機のご報告）＝**この行に置くものを減らす**。
                 書き出されるのが本譜だけであることは変えていない。 */}
-            {folder && (
+            {!watching && folder && (
               <button
                 type="button"
                 className="dest-btn"
@@ -827,7 +865,7 @@ export function ReviewScreen() {
               </button>
             )}
             {/* **自分が建てた部屋に居る間は畳む手立てを出す**（付録D-12 §8）。 */}
-            {ownsRoom && !shared && (
+            {!watching && ownsRoom && !shared && (
               <button
                 type="button"
                 className="io-btn"
@@ -1026,7 +1064,10 @@ export function ReviewScreen() {
             観戦者 → 棋譜**。**チャット・観戦者・棋譜の並びは対局画面と同じ**
             （同じものを違う並びにしない）。 */}
         <div className="moves-col">
-        {/* 再生の操作帯（付録D-8 §5 の帯をそのまま／補助語だけ S11 で足す）。 */}
+        {/* 再生の操作帯（付録D-8 §5 の帯をそのまま／補助語だけ S11 で足す）。
+            ★v1.59 (段3): **観戦者には置かない**＝盤に起きることはすべて対局者が
+            起こす（灰色で置くのではなく置かない・画面機能 §3 S11）。 */}
+        {!watching && (
         <div className="playbar">
           <div className="btns">
             <div className="pbwrap">
@@ -1140,6 +1181,10 @@ export function ReviewScreen() {
                   : ''}
           </div>
         </div>
+        )}
+        {/* ★v1.59 (段3): 観戦者にも**待っていること**は言葉で出す（押すものは無くても、
+            黙って空の盤を見せない・親 §6.8.6）。 */}
+        {watching && waiting && <div className="free-note">{t('s11.receiving')}</div>}
 
           {/* チャット・観戦者は**ひとりのときも置いたまま灰色にする**（対局画面が
               オフライン対戦でそうしているのと同じ）＝**相手が入ってきた拍子に
@@ -1155,7 +1200,19 @@ export function ReviewScreen() {
             <div className="panel-label">
               <span>{t('spec.title')}</span>
             </div>
-            <div className="spec-empty">{t('spec.empty')}</div>
+            {/* ★v1.59 (段3・画面機能 §3 S11): **ここに実際に人が並ぶ**（v1.58 までは
+                常に空だった）。**書き方は対局画面と同じ**＝同じものを違う書き方にしない。 */}
+            {watch.list.length === 0 ? (
+              <div className="spec-empty">{t('spec.empty')}</div>
+            ) : (
+              <div className="console">
+                {watch.list.map((w) => (
+                  <div key={w.pid} style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                    {w.name}（{t('spec.role')}）
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="panel">

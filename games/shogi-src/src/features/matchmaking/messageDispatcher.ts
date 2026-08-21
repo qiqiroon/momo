@@ -42,6 +42,7 @@ import {
 import { applySyncedRules, rulesFromConfig, startGameFromSides } from './rulesSync';
 import { findParticipant, isSpectator } from './roster';
 import { applySpectateSync } from './spectate';
+import { offerSpectateMigrate } from './spectateMigrate';
 import { useMatchmakingStore } from './store';
 
 /**
@@ -87,6 +88,9 @@ const SPECTATOR_ALLOWED: ReadonlySet<ShogiMessage['type']> = new Set([
   'chat',
   // 感想戦の盤を追うために要るもの（打診と諾否は下の関数で弾く）
   'review',
+  // ★v1.59 (段3・親 §6.8.6): 感想戦の部屋への移り先の知らせ。**観戦者だけが使う**
+  // （席のある二人は自分たちで移り先を決めているので、受け取っても何もしない）。
+  'review_migrate',
   // 生存確認
   'ping',
   'pong',
@@ -411,8 +415,12 @@ export function handleShogiMessage(data: unknown, from?: string): void {
       return;
     }
     case 'review_migrate': {
-      // ★v1.55 (親 §6.8.6): 感想戦の部屋へ移るための知らせ。**受け口は段3 で作る**。
-      // ここで黙って捨てても害は無い（移らないだけ）。
+      // ★v1.59 (段3・親 §6.8.6): 感想戦の部屋へ移るための知らせ。
+      // **観戦者だけがこれで動く**＝席のある二人は自分たちのやり取りで移るので、
+      // ここへ来ても何も起きない（**立場で分けず、確認を出す側が観戦者だけ**）。
+      if (isSpectator(useMatchmakingStore.getState().myRole)) {
+        offerSpectateMigrate(msg.room, msg.pass);
+      }
       return;
     }
     case 'review':

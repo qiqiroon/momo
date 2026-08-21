@@ -1532,6 +1532,44 @@ body::before {
   color: var(--orange-light);
   margin-bottom: 8px;
 }
+/* ★v1.59 (段3・付録D-3 v1.7 §4.2/§4.3): 観戦者に出す確認と知らせ。
+ * **枠は `--border-strong`**（オレンジ枠は「相手が退室した」の知らせのもの）。
+ * **緑も灰色も使わない**＝緑は「済んでいる」・灰色は「押せない」を表すため。 */
+.opp-left-modal.spectate-modal {
+  border-color: var(--border-strong);
+}
+.opp-left-modal.spectate-modal .btn {
+  background: var(--orange);
+  border: none;
+  color: #fff;
+  font-family: 'Fredoka One', cursive;
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.opp-left-modal.spectate-modal .btn:hover { background: var(--orange-mid); }
+/* 副次＝白文字・白枠・地は透過（付録D-3 §4.1 の色の決まり）。 */
+.opp-left-modal.spectate-modal .btn.ghost.outline {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  color: #fff;
+  font-family: 'Noto Sans JP', sans-serif;
+  font-weight: 700;
+}
+.opp-left-modal.spectate-modal .btn.ghost.outline:hover {
+  border-color: var(--orange);
+  color: var(--orange-light);
+}
+/* 2 つのボタンは横並び・同じ大きさ（付録D-3 §4.3）。狭い窓では縦に積む。 */
+.opp-left-modal .spectate-btn-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.opp-left-modal .spectate-btn-row .btn { flex: 1 1 130px; }
+
 .opp-left-modal .body {
   font-size: 12.5px;
   color: var(--text);

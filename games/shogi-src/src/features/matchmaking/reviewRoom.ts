@@ -173,7 +173,17 @@ export function createMigratedReviewRoom(p: { room: string; pass: string }): boo
  *
  * **人には見せない**＝部屋の一覧も合言葉も画面に出さない。
  */
-export function joinMigratedReviewRoom(p: { room: string; pass: string }): void {
+export function joinMigratedReviewRoom(p: {
+  room: string;
+  pass: string;
+  /**
+   * ★v1.59 (段3・親 §6.8.6): 観戦者として入るか。省略＝席に着く（従来のゲスト）。
+   *
+   * **立場を渡さないと席に着いてしまう**＝観戦者が対局者として入り込むと、
+   * 感想戦の相手が二人居ることになる（親 §6.8）。
+   */
+  asSpectator?: boolean;
+}): void {
   const client = getMomoMatchmaking();
   if (!client) return;
   let stopped = false;
@@ -196,7 +206,7 @@ export function joinMigratedReviewRoom(p: { room: string; pass: string }): void 
     const found = st.rooms.find((r) => r.name === p.room && !r.isPublic && r.hasPassword);
     if (!found) return;
     stop();
-    client.joinRoom(found.id, p.pass, lastPlayerName());
+    client.joinRoom(found.id, p.pass, lastPlayerName(), p.asSpectator ? 'spectator' : undefined);
   };
 
   // **一覧が届いた瞬間に見る**＝決まった間隔で覗きに行くと、その分だけ待たされる。

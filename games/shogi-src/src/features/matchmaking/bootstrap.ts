@@ -22,6 +22,7 @@ import { sendShogiMessage, senderOfMessage, unwrapShogiMessage } from './protoco
 import { decodeRoomName } from './roomNameCodec';
 import { hasOpponent, hasSeat, isSpectator, opponentOf } from './roster';
 import { buildSpectateSync } from './spectate';
+import { noteSpectatedRoomClosed, spectateMigrateSettled } from './spectateMigrate';
 import { useMatchmakingStore, DEFAULT_ROOM_CONFIG, type RoomConfig } from './store';
 
 let _inited = false;
@@ -120,6 +121,18 @@ function reviewGuestArrived(): boolean {
 }
 
 /**
+ * ★v1.59 (段3・親 §6.8.6): 感想戦の部屋へ観戦者が入ってきた。
+ *
+ * **配るものは、入ってきた人の立場ではなく「いま自分が居る部屋の用途」で決まる**
+ * ＝感想戦の部屋で対局用の配りを動かすと、**観戦者は在りもしない対局を組み立てて
+ * 盤の画面へ行ってしまう**。感想戦の部屋でなければ false。
+ */
+function reviewSpectatorArrived(pid: string): boolean {
+  const arrived = pluginGet<(pid: string) => boolean>('review:spectatorArrived');
+  return arrived ? arrived(pid) : false;
+}
+
+/**
  * ★v1.55 (親 §6.8.4): 入ってきた観戦者ひとりに、いまの対局を丸ごと配る。
  *
  * **配るのはホストだけ**＝二人が同じものを配ると受け取った側が二度組み立て直す。
@@ -207,9 +220,16 @@ export function ensureMatchmakingInit(): void {
       if (multi && isSpectator(multi.role)) {
         s.setOpponentName('');
         s.setActiveRoomConfig(normalizeIncomingRules(rules, roomName));
+        // ★v1.59 (段3・親 §6.8.6): **観戦の部屋に入るたび、移行の控えを決め直す**。
+        // 感想戦へ移り終えた合図でもあり、**観戦に入り直したときの決め直し**でもある
+        // （**画面より長生きする控えは、入るたびに決め直す**＝前の対局で答えなかった
+        // 確認が次の観戦に出てこないようにする）。**入り口ごとに書き足さない。**
+        spectateMigrateSettled();
+        // ★v1.59: **感想戦の部屋なら盤ではなく感想戦の画面へ**（親 §6.8.6）。
+        // 配られるのは感想戦の土台なので、「対局を受け取っています」も立てない。
+        if (enterReviewAsGuest(roomName)) return;
         // **受け取り終わるまで「対局を受け取っています」と出す**（画面機能 §3 S06）。
         useMatchmakingStore.setState({ spectateWaiting: true, seatNames: null });
-        if (enterReviewAsGuest(roomName)) return;
         // **棋譜の確認は入る前に済ませてある**（S13＝親 §9.2.3 ②
         // 「確認の手前で外へ出る操作をしない」）ので、ここでは割り込ませない。
         useRouteStore.getState().setScreen('room', { skipKifuGuard: true });
@@ -248,7 +268,8 @@ export function ensureMatchmakingInit(): void {
         // いまの対局を丸ごと配る**。**まだ何も始まっていなくても配る**＝
         // **「無い」は送るべき事実であって、送らない理由ではない**。黙ると、
         // 入ってきた側は「まだ来ていない」と「無い」を区別できず待ち続ける。
-        sendSpectateSyncTo(pid);
+        // ★v1.59 (段3): **感想戦の部屋なら配るものが違う**（親 §6.8.6）。
+        if (!reviewSpectatorArrived(pid)) sendSpectateSyncTo(pid);
         return;
       }
       handleOpponentArrived(name);
@@ -263,8 +284,15 @@ export function ensureMatchmakingInit(): void {
       s.setRoster(roster);
       // ★v1.55: 観戦者に「対局相手」は居ないので、この始末は自分に当てはまらない。
       // **席のある者を自分の相手として拾わない**（拾うと対局していないのに
-      // 「相手が抜けた」の始末が走る）。観戦者から見た終局後の行き先は段3（§6.8.6）。
-      if (isSpectator(s.myRole)) return;
+      // 「相手が抜けた」の始末が走る）。
+      if (isSpectator(s.myRole)) {
+        // ★v1.59 (段3・親 §6.8.6): **席のある人が誰も居なくなったら、観戦は続けられない**
+        // ＝部屋を建てた人が抜けるとサーバーが部屋を閉じるので、観戦者だけ残れない。
+        // **観戦者どうしの出入りでは何も起きない**（席の有無で決める＝人数で数えない）。
+        // 移り先を受け取っているなら**予期された閉鎖**なので何もしない（判断は 1 か所）。
+        if (!roster.some((p) => hasSeat(p.role))) noteSpectatedRoomClosed();
+        return;
+      }
       const opp = opponentOf(roster, s.myPid);
       if (opp) {
         s.setOpponentName(opp.name);
@@ -288,6 +316,16 @@ export function ensureMatchmakingInit(): void {
       const state = useMatchmakingStore.getState();
       if (state.intentionallyLeft) {
         useMatchmakingStore.setState({ intentionallyLeft: false, connection: 'connected' });
+        return;
+      }
+      // ★v1.59 (段3・親 §6.8.6): **観戦者には対局者としての始末をしない**。
+      // 通信が一時的に切れただけのときは待つ（対局者側と同じ見分け方）。
+      // **黙って固まらない**＝それ以外は「対局が終わりました」と伝えて一覧へ返す
+      // （移り先を受け取っているときは予期された閉鎖なので、そちらで判断される）。
+      if (isSpectator(state.myRole)) {
+        const isWsOnly = typeof reason === 'string' && reason.includes('再接続中');
+        if (isWsOnly) return;
+        noteSpectatedRoomClosed();
         return;
       }
       // v1.47 (親 §9.4.4): 感想戦の最中の切断も「相手が抜けた」と同じ扱い＝ひとりで続ける。

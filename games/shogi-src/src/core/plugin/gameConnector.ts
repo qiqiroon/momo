@@ -156,7 +156,15 @@ export interface OnlineGameConnector {
    * **対局用の部屋をそのまま使う**ので、送る手立ては着手やチャットと同じもの。
    * 部屋に居ないとき（ひとりの感想戦）は送り先が無いので**何もしない**。
    */
-  sendReview(msg: import('./review').ReviewMessage): void;
+  sendReview(msg: import('./review').ReviewMessage, to?: string): void;
+  /**
+   * ★v1.59 (段3・親 §6.8.6): **感想戦が成立したことを観戦者へ知らせる**。
+   *
+   * **送るのはホストだけ**（書き手を 1 人に絞る）。**観戦者へ一人ずつ宛てて送る**
+   * ＝土台に「観戦者全員」という宛先が無いため（§6.8.5 と同じ理由）。
+   * 観戦者が居なければ何も起きない。
+   */
+  notifySpectatorsReviewMigrate(room: string, pass: string): void;
   /** 一時中断を相手に通知（v0.42 で合意不要に変更）。 */
   sendPauseNotify(): void;
   /** 再開を相手に申し出る。 */

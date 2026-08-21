@@ -17,6 +17,7 @@ import { RuleSelectScreen } from './ui/RuleSelectScreen';
 import { RoomScreen } from './ui/RoomScreen';
 import { ReviewLobbyScreen } from './ui/ReviewLobbyScreen';
 import { SpectateLobbyScreen } from './ui/SpectateLobbyScreen';
+import { SpectateMigrateDialog } from './ui/SpectateMigrateDialog';
 import {
   buildMigratedRoomName,
   createMigratedReviewRoom,
@@ -58,6 +59,13 @@ register('screen:review-lobby', ReviewLobbyScreen);
  * **入り口を S04 に相乗りさせない**＝どの立場で入ったのかを画面が言えなくなるため。
  */
 register('screen:spectate-lobby', SpectateLobbyScreen);
+/**
+ * ★v1.59 (段3・親 §6.8.6): 観戦者に出す「感想戦へ移りますか」と「対局が終わりました」。
+ *
+ * **画面のいちばん外側に 1 か所だけ置く**（画面機能 v0.51 §3 S07）＝観戦者が居る画面は
+ * 1 つではないので、**画面ごとに置くと新しい画面で必ず書き忘れる**。
+ */
+register('overlay:spectate', SpectateMigrateDialog);
 /**
  * v1.50: 感想戦の部屋（付録D-12 §8）。**感想戦の画面はこの 3 つの口だけを見る**
  * ＝部屋の建て方も部屋名の記号も通信機能の持ち物で、感想戦の側は知らなくてよい。

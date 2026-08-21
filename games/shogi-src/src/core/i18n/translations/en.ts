@@ -5,7 +5,7 @@ export const en: LocaleData = {
   name: 'English',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.76',
+    'app.ver': 'v1.77',
     'sound.promptTitle': 'Enable BGM and sound effects?',
     'sound.bgmLabel': 'BGM volume',
     'sound.sfxLabel': 'SFX volume',
@@ -265,6 +265,14 @@ export const en: LocaleData = {
     's13.badgeEnded': 'Finished',
     's13.specFull': 'No spectator slots left',
     's13.leave': 'Stop watching',
+    // v1.59 (stage 3): moving on to the review room, and the end-of-game notice.
+    's13.migrateTitle': 'The review has started',
+    's13.migrateBody': 'Keep watching?',
+    's13.migrateEnter': 'Join',
+    's13.migrateLeave': 'Back to the list',
+    's13.endedTitle': 'The game is over',
+    's13.endedBody': 'Returning to the list of rooms to watch.',
+    's13.endedOk': 'OK',
     // v1.55: shared spectator wording
     'spec.role': 'Spectator',
     'spec.watching': 'Watching',

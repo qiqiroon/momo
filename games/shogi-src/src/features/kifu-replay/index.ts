@@ -25,6 +25,7 @@ import {
   offerReview,
   receiveReviewMessage,
   reviewGuestArrived,
+  reviewSpectatorArrived,
   reviewOpponentLeft,
   reviewRoomCreated,
   withdrawReviewOffer,
@@ -240,6 +241,12 @@ register('review:canOffer', canOfferReview);
  */
 register('review:joinedRoom', joinedReviewRoom);
 register('review:guestArrived', reviewGuestArrived);
+/**
+ * ★v1.59 (段3・親 §6.8.6): 感想戦の部屋へ**観戦者**が入ってきた。
+ * **配るものは、入ってきた人の立場ではなく「いま自分が居る部屋の用途」で決まる**。
+ * 感想戦の部屋でなければ false を返し、呼んだ側は対局用の配りを続ける。
+ */
+register('review:spectatorArrived', reviewSpectatorArrived);
 /** 終局パネルの「感想戦」から相手へ申し出る（返事を待つ間も閉じ込めない）。 */
 register('review:offer', offerReview);
 register('review:withdrawOffer', withdrawReviewOffer);

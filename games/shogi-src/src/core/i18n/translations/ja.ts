@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.76',
+    'app.ver': 'v1.77',
     // v0.72 音楽再生確認モーダル (Darts と同じ思想)
     'sound.promptTitle': 'BGM と効果音を再生してもよろしいですか？',
     'sound.bgmLabel': 'BGM 音量',
@@ -285,6 +285,14 @@ export const ja: LocaleData = {
     's13.badgeEnded': '終局後',
     's13.specFull': '観戦がいっぱいです',
     's13.leave': '観戦をやめる',
+    // ★v1.59 (段3・親 §6.8.6・付録D-3 §4.2/§4.3): 感想戦へ移るかの確認と、終わりの知らせ。
+    's13.migrateTitle': '感想戦が始まりました',
+    's13.migrateBody': '続けて観戦しますか？',
+    's13.migrateEnter': '入る',
+    's13.migrateLeave': '観戦の一覧へ戻る',
+    's13.endedTitle': '対局が終わりました',
+    's13.endedBody': '観戦の一覧へ戻ります。',
+    's13.endedOk': 'OK',
     // ★v1.55: 観戦者まわりの共通の言葉
     'spec.role': '観戦者',
     'spec.watching': '観戦中',

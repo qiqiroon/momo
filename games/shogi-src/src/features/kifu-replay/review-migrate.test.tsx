@@ -159,21 +159,29 @@ describe('★v1.55 対局の部屋から感想戦の部屋へ移る（親 §9.4.
     expect(decodeRoomName(room).userRoomName).toBe('太郎の部屋');
   });
 
-  it('★受けてもらえたら、対局の部屋を出て、非公開＋合言葉で感想戦の部屋を建てる', () => {
+  it('★受けてもらえたら、対局の部屋を出て、元の部屋と同じ入れ方で感想戦の部屋を建てる', () => {
     (window as unknown as { MomoMatchmaking: unknown }).MomoMatchmaking = fakeApi([]);
     installConnector(true);
+    // 元の部屋は「公開・合言葉つき」で建てられていたとする。
+    useMatchmakingStore.setState({ roomIsPublic: true, roomPassword: 'himitsu' });
 
     offerReview();
     const offer = sent.find((m) => m.kind === 'offer');
-    const pass = offer && 'pass' in offer ? offer.pass : '';
+    const token = offer && 'pass' in offer ? offer.pass : '';
     receiveReviewMessage({ kind: 'reply', accepted: true });
 
     // **対局の部屋はそのまま使わない**（v1.54 までは使い続けていた）。
     expect(left).toBeGreaterThan(0);
     expect(created).toBeTruthy();
-    // **必ず非公開＋合言葉**（親 §9.4.4）＝人の入れ方を勝手に広げない。
-    expect(created?.isPublic).toBe(false);
-    expect(created?.password).toBe(pass);
+    /**
+     * ★v1.61 (親 §6.3.6／§9.4.4): **公開・非公開とパスワードは元の部屋のものを引き継ぐ**。
+     * v1.55〜v1.60 は**必ず非公開＋その場限りの合言葉**で建てており、そのため
+     * **一度出た観戦者が入り直せなかった**（2026-08-22 実機のご報告）。
+     * **待ち合わせの印はパスワードではなく、部屋名に載る。**
+     */
+    expect(created?.isPublic).toBe(true);
+    expect(created?.password).toBe('himitsu');
+    expect(decodeRoomName(created?.name ?? '').meetToken).toBe(token);
     expect(decodeRoomName(created?.name ?? '').review).toBe(true);
     // 移り終えるまでは盤に触れない（画面が「移っています」を出す）。
     expect(useReviewShareStore.getState().migrating).toBe(true);
@@ -181,30 +189,40 @@ describe('★v1.55 対局の部屋から感想戦の部屋へ移る（親 §9.4.
     expect(useRouteStore.getState().screen).toBe('review');
   });
 
-  it('★ゲスト側は、合言葉の合う部屋を自分で見つけて入る（人には一覧を見せない）', () => {
-    const target = encodeRoomName({
+  it('★ゲスト側は、印の合う部屋を自分で見つけて入る（人には一覧を見せない）', () => {
+    const plain = encodeRoomName({
       gameType: 'shogi',
       torus: false,
       quantum: false,
       review: true,
       userRoomName: '太郎の部屋',
     });
+    const target = encodeRoomName({
+      gameType: 'shogi',
+      torus: false,
+      quantum: false,
+      review: true,
+      meetToken: 'aabbccdd11223344',
+      userRoomName: '太郎の部屋',
+    });
     (window as unknown as { MomoMatchmaking: unknown }).MomoMatchmaking = fakeApi([
-      // **名前だけで見分けない**＝紛らわしい公開部屋が並んでいても、
-      // 非公開＋合言葉つきの方に入る。
-      roomRow('x1', target),
-      roomRow('x2', target, { isPublic: false, hasPassword: true }),
+      // ★v1.61: **名前だけで見分けない**＝同じ名前の部屋が並んでいても、
+      // **印の合う部屋は 1 つしか無い**（v1.60 までは「非公開＋合言葉つき」で見分けていた）。
+      roomRow('x1', plain),
+      roomRow('x2', target),
     ]);
     installConnector(false);
-    useMatchmakingStore.setState({ isHost: false, currentRoomId: 'g1' });
+    // 元の部屋には合言葉つきで入っていたとする（**入り方は元の部屋と同じ**）。
+    useMatchmakingStore.setState({ isHost: false, currentRoomId: 'g1', roomPassword: 'himitsu' });
 
-    // ホストからの打診に合言葉が載ってくる。
+    // ホストからの打診に**待ち合わせの印**が載ってくる。
     receiveReviewMessage({ kind: 'offer', pass: 'aabbccdd11223344', room: target });
     answerReviewOffer(true);
 
     expect(left).toBeGreaterThan(0);
     expect(joined?.roomId).toBe('x2');
-    expect(joined?.password).toBe('aabbccdd11223344');
+    // ★印を合言葉として使わない＝入るのは**元の部屋の合言葉**。
+    expect(joined?.password).toBe('himitsu');
     // 建てるのはホストだけ＝ゲストは建てない。
     expect(created).toBeNull();
   });

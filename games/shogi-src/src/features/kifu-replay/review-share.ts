@@ -311,7 +311,13 @@ let migrationRoom: string | null = null;
 const MIGRATE_TIMEOUT_MS = 12_000;
 let migrateTimer: number | null = null;
 
-/** その場限りの合言葉を作る。**人には見せない**ので読みやすさは要らない。 */
+/**
+ * ★v1.61: その場限りの**待ち合わせの印**を作る（親 §6.3.6）。
+ *
+ * **これはパスワードではない**＝公開・非公開とパスワードは**元の部屋のものを
+ * 引き継ぐ**（§9.4.4）。この印は**部屋名に載せて「どれが移り先か」を見分ける**
+ * ためだけのもので、**人には見せない**（読みやすさは要らない）。
+ */
 function newPass(): string {
   const b = new Uint8Array(8);
   crypto.getRandomValues(b);
@@ -325,12 +331,13 @@ function newPass(): string {
 function prepareMigration(): { pass: string; room: string } | null {
   const c = connector();
   if (!c?.isRoomHost()) return null;
-  const build = pluginGet<(name: string) => string>('reviewRoom:buildName');
+  const build = pluginGet<(name: string, meetToken?: string) => string>('reviewRoom:buildName');
   if (!build) return null;
   // **同じ部屋名**にする（親 §9.4.4）＝人から見て同じ場が続くようにするため。
   const current = pluginGet<() => string>('reviewRoom:currentUserName')?.() ?? '';
   migrationPass = newPass();
-  migrationRoom = build(current);
+  // ★v1.61: **印を部屋名に載せて建てる**ので、名前を組み立てるときに渡す。
+  migrationRoom = build(current, migrationPass);
   return { pass: migrationPass, room: migrationRoom };
 }
 

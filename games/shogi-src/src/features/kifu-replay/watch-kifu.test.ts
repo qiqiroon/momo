@@ -104,7 +104,7 @@ describe('v1.60: 観戦した対局の記録（親 §6.8.6）', () => {
     const base = buildKifuFile(new Date('2026-08-22T01:30:00+09:00'));
     const draw: KifuFile = {
       ...base,
-      meta: { ...base.meta, result: { status: 'repetition', winner: null } },
+      meta: { ...base.meta, result: { status: 'sennichite', winner: null } },
     };
     expect(kifuFileName(draw)).toBe('260822_0130_WATCH_HON_D.json');
     const abort: KifuFile = {

@@ -13,7 +13,7 @@
 import type { ReviewRoomBlock, ReviewRoomRequest } from '../../core/plugin/reviewRoom';
 import { getMomoMatchmaking } from './client';
 import { decodeRoomName, encodeRoomName } from './roomNameCodec';
-import { createSeatedRoom } from './roster';
+import { createSeatedRoom, joinSeatedRoom } from './roster';
 import { useMatchmakingStore } from './store';
 
 const LS_LAST_PLAYER_NAME = 'shogi.lobby.lastPlayerName';
@@ -124,7 +124,7 @@ export function leaveReviewRoom(): void {
  * 名前は用途の印を載せた形（`roomNameCodec`）にする＝**サーバーは部屋名を素通しする
  * だけ**なので、感想戦であることは名前に載せて運ぶしかない。
  */
-export function buildMigratedRoomName(userRoomName: string): string {
+export function buildMigratedRoomName(userRoomName: string, meetToken?: string): string {
   const s = useMatchmakingStore.getState();
   const parts = decodeRoomName(s.currentRoomName);
   return encodeRoomName({
@@ -132,6 +132,10 @@ export function buildMigratedRoomName(userRoomName: string): string {
     torus: parts.torus,
     quantum: parts.quantum,
     review: true,
+    // ★v1.61 (親 §6.3.6): **待ち合わせの印を部屋名に載せる**＝パスワードは
+    // 元の部屋のものを引き継ぐので、**どれが移り先かを見分ける手立てを別に持つ**。
+    // **人には見えない**（バッジにも出さない・`roomNameCodec`）。
+    meetToken,
     customRuleName: parts.customRuleName,
     userRoomName: userRoomName || parts.userRoomName,
   });
@@ -152,13 +156,29 @@ export function createMigratedReviewRoom(p: { room: string; pass: string }): boo
   const client = getMomoMatchmaking();
   if (!client) return false;
   const s = useMatchmakingStore.getState();
+  /**
+   * ★v1.61 (親 §6.3.6／§9.4.4): **元の部屋の入れ方をそのまま引き継ぐ**。
+   *
+   * v1.60 までは**必ず非公開＋その場限りの合言葉**で建てていた。そのため
+   * **元の部屋が公開でも移り先は非公開**になり、**一度出た観戦者は二度と入れなかった**
+   * （2026-08-22 実機のご報告）。**公開・非公開とパスワードは、ホストが部屋を建てる
+   * ときに決める事項**であって、移動の都合で書き換えてよいものではない。
+   *
+   * **控えは部屋に入った時点のもの**を使う（`roomPassword`／`roomIsPublic`）＝
+   * **部屋を出た後に読むので、出るときに消える入れ物には置けない**（§9.4.4 の
+   * 「先後を移る前に控える」とまったく同じ形）。
+   *
+   * `p.pass` は**待ち合わせの印**であってパスワードではない（部屋名に載っている）。
+   */
+  const password = s.roomPassword;
+  const isPublic = s.roomIsPublic;
   s.setCurrentRoom({ roomId: null, roomName: p.room, isHost: true });
   s.setOpponentName('');
   createSeatedRoom(client, {
     hostName: lastPlayerName(),
     name: p.room,
-    password: p.pass,
-    isPublic: false,
+    password,
+    isPublic,
     rules: { review: true },
   });
   return true;
@@ -203,10 +223,25 @@ export function joinMigratedReviewRoom(p: {
       stop();
       return;
     }
-    const found = st.rooms.find((r) => r.name === p.room && !r.isPublic && r.hasPassword);
+    /**
+     * ★v1.61 (親 §6.3.6): **見分けるのは待ち合わせの印**（部屋名に載っている）。
+     *
+     * v1.60 までは「非公開でパスワード付きの、同じ名前の部屋」で探していたが、
+     * **移り先は元の部屋の公開・非公開を引き継ぐ**ようになったので、その条件では
+     * 見つからない。**印の合う部屋は 1 つしか無い**ので、名前だけで見分ける形にも
+     * 戻さない（§6.3.6 の「名前だけで見分けない」を印が引き継ぐ）。
+     */
+    const found = st.rooms.find((r) => decodeRoomName(r.name).meetToken === p.pass);
     if (!found) return;
     stop();
-    client.joinRoom(found.id, p.pass, lastPlayerName(), p.asSpectator ? 'spectator' : undefined);
+    // **入り方は元の部屋と同じ**＝入るときに控えた合言葉をそのまま使う。
+    joinSeatedRoom(client, {
+      roomId: found.id,
+      password: st.roomPassword,
+      name: lastPlayerName(),
+      role: p.asSpectator ? 'spectator' : undefined,
+      isPublic: found.isPublic,
+    });
   };
 
   // **一覧が届いた瞬間に見る**＝決まった間隔で覗きに行くと、その分だけ待たされる。

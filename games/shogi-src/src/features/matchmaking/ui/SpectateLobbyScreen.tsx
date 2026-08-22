@@ -35,7 +35,7 @@ import type { LocaleCode } from '../../../core/i18n/types';
 import { CatIcon } from '../../../core/ui-core/CatIcon';
 import { HeaderCommonRight } from '../../../core/ui-core/HeaderCommonRight';
 import { getMomoMatchmaking, type MomoRoomInfo } from '../client';
-import { isRoomSpectatorsFull, isSpectatable } from '../roster';
+import { isRoomSpectatorsFull, isSpectatable, joinSeatedRoom } from '../roster';
 import { useMatchmakingStore } from '../store';
 import { ensureMatchmakingInit } from '../bootstrap';
 import { decodeRoomName } from '../roomNameCodec';
@@ -167,7 +167,13 @@ export function SpectateLobbyScreen() {
     const enter = (password: string) => {
       requestNewGame(() => {
         // ★v1.55: **役を渡して入る**＝渡さないと席に着いてしまう（親 §6.8）。
-        client.joinRoom(roomId, password, who, 'spectator');
+        joinSeatedRoom(client, {
+          roomId,
+          password,
+          name: who,
+          role: 'spectator',
+          isPublic: rooms.find((r) => r.id === roomId)?.isPublic !== false,
+        });
         setJoinRoomId(null);
         setJoinPassword('');
       });

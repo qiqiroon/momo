@@ -325,6 +325,31 @@ const connector: OnlineGameConnector = {
     return !!s.currentRoomId && s.isHost;
   },
 
+  kickSpectator(pid) {
+    /**
+     * ★v1.61 (親 §6.8.4): **ホストが観戦者を退室させる**。
+     *
+     * ## 実測した事実（2026-08-22・本番サーバーで確認）
+     *
+     * - **`{ type: 'kick', pid }` を送ると、その参加者だけが退室させられる**
+     *   （本人に `kicked` が届き、名簿からも消える）。**共通ライブラリは触らない。**
+     * - **いまライブラリが持っている `kickGuest()`（pid 無しの `kick_guest`）は
+     *   多人数の部屋では効かない**＝エラーにもならず、**ただの伝言として参加者へ
+     *   素通りする**（**黙って無視される形**なので、押しても何も起きないように見える）。
+     * - 共通ライブラリが必ず付ける **`to` が入っていても効く**。
+     *
+     * ## これは「対局の伝言」ではない
+     *
+     * **サーバー自身に宛てた指示**なので §6.2 の包みに入れない（部屋の段を知らせる
+     * `game_state_update` と同じ扱い＝**包まない経路はこの 2 つだけ**）。
+     */
+    if (!this.isRoomHost()) return;
+    if (!pid) return;
+    const client = getMomoMatchmaking();
+    if (!client) return;
+    client.send({ type: 'kick', pid });
+  },
+
   notifySpectatorsReviewMigrate(room, pass) {
     // ★v1.59 (段3・親 §6.8.6): 感想戦が成立した＝**観戦者に移り先を配る**。
     //

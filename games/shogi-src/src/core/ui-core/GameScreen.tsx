@@ -23,6 +23,7 @@ import {
   seAnomalyVoteOpen,
   seAnomalyContinue,
   seAnomalyNogame,
+  seButton,
 } from '../audio/se-synth';
 import { t as _t } from '../i18n';
 import type { LocaleCode } from '../i18n/types';
@@ -162,6 +163,19 @@ export function GameScreen({ variant }: GameScreenProps) {
     update();
     return c.subscribe(update);
   }, []);
+
+  /**
+   * ★v1.61 (画面機能 §3 S06): **観戦者を退室させられるのは、その部屋のホストだけ**。
+   *
+   * **観戦者自身には出さない**（自分を追い出す押し方を置かない）。**口が無いビルド・
+   * 古い形の相手では出さない**（縮退互換＝押せるのに何も起きない状態を作らない）。
+   */
+  const canKick = (() => {
+    if (spec.spectating) return false;
+    const c = pluginGet<OnlineGameConnector>('gameConnector');
+    if (!c || typeof c.isRoomHost !== 'function' || typeof c.kickSpectator !== 'function') return false;
+    return c.isRoomHost();
+  })();
 
   /**
    * ★v1.55 (親 §6.8.4): 観戦者が盤の上下を入れ替えたか。
@@ -957,14 +971,40 @@ export function GameScreen({ variant }: GameScreenProps) {
             <div className="panel-label">
               <span>{t('spec.title')}</span>
             </div>
-            {/* ★v1.55 (親 §6.8.4): v1.54 まではここが常に空だった。 */}
+            {/* ★v1.55 (親 §6.8.4): v1.54 まではここが常に空だった。
+                ★v1.61 (画面機能 §3 S06・付録D-3 §5): **ホストだけに「退室させる」を出す**
+                （2026-08-22 実機のご報告＝**規定は v1.55 から在ったのに実装が無かった**）。
+                **観戦者自身には出さない**（自分を追い出す押し方を置かない）。 */}
             {spec.watchers.length === 0 ? (
               <div className="spec-empty">{t('spec.empty')}</div>
             ) : (
               <div className="console">
                 {spec.watchers.map((w) => (
-                  <div key={w.pid} style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-                    {w.name}（{t('spec.role')}）
+                  <div
+                    key={w.pid}
+                    style={{
+                      color: 'var(--text-muted)',
+                      fontSize: 12,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <span style={{ flex: 1 }}>
+                      {w.name}（{t('spec.role')}）
+                    </span>
+                    {canKick && (
+                      <button
+                        type="button"
+                        className="spec-kick"
+                        onClick={() => {
+                          seButton();
+                          pluginGet<OnlineGameConnector>('gameConnector')?.kickSpectator?.(w.pid);
+                        }}
+                      >
+                        {t('spec.kick')}
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1935,13 +1975,18 @@ function GameEndModal({
         >
           {t('result.close')}
         </button>
-        {/* ★v1.55 (親 §6.8.6・付録D-3 v1.6 §4.2): **観戦者には次アクションを出さない**
-            （棋譜の保存・棋譜再生・感想戦・もう一度対局）。**他人の対局の始末**であり、
-            とくに**感想戦は二人で決めるもの**なので、押せると二人の相談に割り込む。
-            **勝敗と終局理由は今までどおり見える**（見届けるために残るので減らさない）。 */}
+        {/* ★v1.61 (親 §6.8.6・付録D-3 v1.8 §4.2): **観戦した棋譜は保存できる**。
+            v1.60 まではこれも出していなかったが、**置かない根拠は「観戦者に棋譜は無い」
+            だった**（v1.55 当時）。**その前提は親 v1.60 で消えている**＝観戦した対局も
+            見ていた人の端末に記録が残るようになった。**分けている規定は、その理由と
+            一緒に死ぬ**ので、置かない理由はもう無い（2026-08-22 実機のご報告＝
+            **観戦した棋譜の保存手段が無かった**）。 */}
+        <SaveKifuButton t={t} />
+        {/* ★v1.55: **観戦者には残りの次アクションを出さない**（棋譜再生・感想戦・
+            もう一度対局）。**他人の対局の始末**であり、とくに**感想戦は二人で決めるもの**
+            なので、押せると二人の相談に割り込む。**勝敗と終局理由は今までどおり見える**。 */}
         {!spectating && (
           <>
-            <SaveKifuButton t={t} />
             <ReplayKifuButton t={t} />
             <ReviewButton t={t} />
             <button type="button" className="btn" onClick={onRematch}>

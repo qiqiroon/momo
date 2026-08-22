@@ -200,22 +200,29 @@ describe('v1.59 段3: 「入る」と出口（付録D-3 §4.3）', () => {
       myPid: 'v1',
       isHost: false,
       currentRoomId: null,
+      // ★v1.61: 見分けるのは**部屋名に載った待ち合わせの印**（親 §6.3.6）。
+      // **入り方は元の部屋と同じ**なので、公開・非公開もパスワードも引き継ぐ。
+      roomPassword: 'himitsu',
       rooms: [
         {
           id: 'r2',
-          name: '部屋#review',
-          isPublic: false,
+          name: '[本+感+Mabc] 部屋',
+          isPublic: true,
           hasPassword: true,
         } as never,
       ],
     });
-    useSpectateMigrateStore.setState({ offer: { room: '部屋#review', pass: 'abc' }, moving: false, ended: false });
+    useSpectateMigrateStore.setState({
+      offer: { room: '[本+感+Mabc] 部屋', pass: 'abc' },
+      moving: false,
+      ended: false,
+    });
   });
 
   it('★「入る」で**観戦者として**移り先へ入る（渡さないと席に着いてしまう）', () => {
     acceptSpectateMigrate();
     expect(joins).toHaveLength(1);
-    expect(joins[0]).toMatchObject({ roomId: 'r2', password: 'abc', role: 'spectator' });
+    expect(joins[0]).toMatchObject({ roomId: 'r2', password: 'himitsu', role: 'spectator' });
     expect(useSpectateMigrateStore.getState().moving).toBe(true);
   });
 

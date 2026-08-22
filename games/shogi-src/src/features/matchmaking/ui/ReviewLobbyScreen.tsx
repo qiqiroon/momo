@@ -32,7 +32,7 @@ import { HeaderCommonRight } from '../../../core/ui-core/HeaderCommonRight';
 import { get as pluginGet } from '../../../core/plugin/registry';
 import type { ReviewRoomInfo, ReviewRoomRequest } from '../../../core/plugin/reviewRoom';
 import { getMomoMatchmaking } from '../client';
-import { isRoomPlayersFull } from '../roster';
+import { isRoomPlayersFull, joinSeatedRoom } from '../roster';
 import { useMatchmakingStore } from '../store';
 import { ensureMatchmakingInit } from '../bootstrap';
 import { decodeRoomName } from '../roomNameCodec';
@@ -199,7 +199,7 @@ export function ReviewLobbyScreen() {
     if (!client) return;
     const who = (playerName.trim() || lastPlayerName()).trim();
     if (needsPassword && autoPassword !== undefined && autoPassword !== '') {
-      client.joinRoom(roomId, autoPassword, who);
+      joinSeatedRoom(client, { roomId, password: autoPassword, name: who, isPublic: false });
       setJoinRoomId(null);
       setJoinPassword('');
       return;
@@ -209,7 +209,12 @@ export function ReviewLobbyScreen() {
       setJoinPassword('');
       return;
     }
-    client.joinRoom(roomId, needsPassword ? joinPassword : '', who);
+    joinSeatedRoom(client, {
+      roomId,
+      password: needsPassword ? joinPassword : '',
+      name: who,
+      isPublic: rooms.find((r) => r.id === roomId)?.isPublic !== false,
+    });
     setJoinRoomId(null);
     setJoinPassword('');
   };

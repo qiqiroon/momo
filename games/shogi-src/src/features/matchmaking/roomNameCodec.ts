@@ -54,6 +54,14 @@ export interface RoomLabelParts {
    * 一覧を分けるのではなく部屋そのものに用途を持たせる。
    */
   review: boolean;
+  /**
+   * ★v1.61 (親 §6.3.6): **感想戦の部屋へ移るときの、その場限りの「待ち合わせの印」**。
+   *
+   * **パスワードではない**＝公開・非公開とパスワードは**元の部屋のものを引き継ぐ**
+   * ので（§9.4.4）、**どれが移り先かを見分ける手立てを別に持つ**。
+   * **人には見せない**（バッジにも出さない）。無いときは undefined。
+   */
+  meetToken?: string;
   customRuleName?: string;
   userRoomName: string;
   /** decode で認識できなかったフラグ記号 */
@@ -61,6 +69,12 @@ export interface RoomLabelParts {
   /** そもそも [...] プレフィクスがない古い形式 or 生入力 */
   unrecognized: boolean;
 }
+
+/**
+ * ★v1.61: 待ち合わせの印の頭文字（親 §6.3.6）。**時間フラグ `T` と衝突しない字**を選ぶ。
+ * 印そのものは 16 進の短い文字列で、**その場限り**（部屋が建つたびに作り直す）。
+ */
+const MEET_PREFIX = 'M';
 
 const GAME_TYPE_CHAR: Record<GameType, string> = {
   shogi: '本',
@@ -87,6 +101,11 @@ export interface EncodeInput {
   timeControl?: TimeControl;
   /** v1.50: 感想戦の部屋として建てる (持ち時間は持たない)。 */
   review?: boolean;
+  /**
+   * ★v1.61: 待ち合わせの印（親 §6.3.6）。**パスワードではない**ので、
+   * **公開・非公開とパスワードは元の部屋のものを引き継ぐ**（§9.4.4）。
+   */
+  meetToken?: string;
   customRuleName?: string;
   userRoomName: string;
 }
@@ -153,6 +172,9 @@ export function encodeRoomName(input: EncodeInput): string {
   // v0.87: 時間フラグは修飾記号列の末尾 + カスタム名の前に置く (順序:
   // 種類 → 修飾 (環/量) → 用途 (感) → 時間 (T*) → カスタム名 (:))
   if (input.timeControl) parts.push(encodeTimeFlag(input.timeControl));
+  // ★v1.61: 待ち合わせの印 (M プレフィクス)。**人には見せない**ので、
+  // decode 側は unknownFlags へ落とさずに専用の欄で受ける。
+  if (input.meetToken) parts.push(`${MEET_PREFIX}${input.meetToken}`);
   const prefixInside =
     input.gameType === 'shogi-custom' && input.customRuleName?.trim()
       ? `${parts.join('+')}:${input.customRuleName.trim()}`
@@ -192,6 +214,7 @@ export function decodeRoomName(raw: string): RoomLabelParts {
   let quantum = false;
   let review = false;
   let timeControl: TimeControl | undefined = undefined;
+  let meetToken: string | undefined = undefined;
   const unknownFlags: string[] = [];
   for (const f of flags) {
     if (gameType == null && CHAR_TO_GAME_TYPE[f]) {
@@ -210,6 +233,12 @@ export function decodeRoomName(raw: string): RoomLabelParts {
       review = true;
       continue;
     }
+    // ★v1.61: 待ち合わせの印 (M プレフィクス)。**バッジには出さない**
+    // （unknownFlags へ落とすと、人に見える印になってしまう）。
+    if (f.length > 1 && f.startsWith(MEET_PREFIX)) {
+      meetToken = f.slice(1);
+      continue;
+    }
     // v0.87: 時間フラグ (T プレフィクス) を先に判定してから unknown に落とす
     if (f.startsWith('T')) {
       const tc = decodeTimeFlag(f);
@@ -226,6 +255,7 @@ export function decodeRoomName(raw: string): RoomLabelParts {
     quantum,
     review,
     timeControl,
+    meetToken,
     customRuleName,
     userRoomName,
     unknownFlags,

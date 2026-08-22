@@ -118,6 +118,19 @@ interface MatchmakingState {
   spectateWaiting: boolean;
   /** 現在部屋のルール設定 (段階 2-4 では表示用) */
   activeRoomConfig: RoomConfig | null;
+  /**
+   * ★v1.61 (親 §6.3.6／§9.4.4): **いま居る部屋の入り方**（合言葉と、一覧に出るか）。
+   *
+   * **感想戦の部屋へ移るとき、元の部屋と同じ入れ方で建て直すため**に要る。
+   * v1.60 までは**移り先を必ず非公開＋その場限りの合言葉**で建てていたので、
+   * **元の部屋が公開でも移り先は非公開になり、一度出た観戦者は戻れなかった**。
+   *
+   * **入るたび・建てるたびに決め直す**＝**消す処理を持たない**（消し忘れも消しすぎも
+   * 起こらない）。部屋を出ても残るが、**次に入った時点で必ず上書きされる**。
+   * **画面には出さない**（合言葉は人に見せない）。
+   */
+  roomPassword: string;
+  roomIsPublic: boolean;
   errorMessage: string | null;
   playerName: string;
   pendingRoomConfig: RoomConfig;
@@ -230,6 +243,8 @@ export const useMatchmakingStore = create<MatchmakingState>((set, get) => ({
   seatNames: null,
   spectateWaiting: false,
   activeRoomConfig: null,
+  roomPassword: '',
+  roomIsPublic: true,
   errorMessage: null,
   playerName: '',
   pendingRoomConfig: { ...DEFAULT_ROOM_CONFIG },

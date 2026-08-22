@@ -16,6 +16,7 @@ import type {
   MomoRoomInfo,
   MomoRosterEntry,
 } from './client';
+import { useMatchmakingStore } from './store';
 
 /** その立場は席に着いているか (= 対局者か)。 */
 export function hasSeat(role: MomoRole | null | undefined): boolean {
@@ -90,6 +91,24 @@ export function isRoomPlayersFull(room: MomoRoomInfo): boolean {
   return !!room.guestConnected;
 }
 
+/**
+ * ★v1.61 (親 §6.3.6): 部屋に入る（**入り方を控えてから入る**）。
+ *
+ * **入る場所は 4 つある**（対局の一覧・感想戦の一覧・観戦の一覧・移り先を探す処理）ので、
+ * **控えるのを呼び出しごとに書かない**＝1 か所書き忘れると、その経路から入った人だけが
+ * 感想戦の部屋へ移れなくなる（**数え上げる形は必ず漏れる**）。
+ */
+export function joinSeatedRoom(
+  client: MomoMatchmakingApi,
+  p: { roomId: string; password: string; name: string; role?: MomoRole; isPublic?: boolean },
+): void {
+  useMatchmakingStore.setState({
+    roomPassword: p.password ?? '',
+    roomIsPublic: p.isPublic !== false,
+  });
+  client.joinRoom(p.roomId, p.password, p.name, p.role);
+}
+
 /** 将棋の席の数 (先手・後手)。 */
 export const SHOGI_MAX_PLAYERS = 2;
 
@@ -149,6 +168,13 @@ export function createSeatedRoom(
   options: MomoCreateRoomOptions & { allowSpectators?: boolean },
 ): void {
   const { allowSpectators, ...rest } = options;
+  // ★v1.61 (親 §6.3.6): **入り方を控える**＝感想戦の部屋へ移るとき、元の部屋と
+  // 同じ入れ方で建て直すのに要る。**建てるたび・入るたびに決め直す**ので、
+  // 忘れる処理を持たない（消し忘れも消しすぎも起こらない）。
+  useMatchmakingStore.setState({
+    roomPassword: rest.password ?? '',
+    roomIsPublic: rest.isPublic !== false,
+  });
   client.createRoom({
     ...rest,
     mode: 'multi',

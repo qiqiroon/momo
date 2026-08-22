@@ -165,6 +165,13 @@ export interface OnlineGameConnector {
    * 観戦者が居なければ何も起きない。
    */
   notifySpectatorsReviewMigrate(room: string, pass: string): void;
+  /**
+   * ★v1.61 (親 §6.8.4／画面機能 §3 S06・S07): **ホストが観戦者を退室させる**。
+   *
+   * **規定は v1.55 から在ったが、実装が追いついていなかった**（2026-08-22 ご報告）。
+   * **ホストでなければ何もしない**（呼び出し側は出す・出さないだけを決める）。
+   */
+  kickSpectator(pid: string): void;
   /** 一時中断を相手に通知（v0.42 で合意不要に変更）。 */
   sendPauseNotify(): void;
   /** 再開を相手に申し出る。 */

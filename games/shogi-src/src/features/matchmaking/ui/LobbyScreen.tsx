@@ -8,7 +8,7 @@ import { CatIcon } from '../../../core/ui-core/CatIcon';
 import { HeaderCommonRight } from '../../../core/ui-core/HeaderCommonRight';
 import { RuleSelectionCard } from '../../../core/ui-core/RuleSelectionCard';
 import { getMomoMatchmaking } from '../client';
-import { createSeatedRoom, isRoomPlayersFull } from '../roster';
+import { createSeatedRoom, isRoomPlayersFull, joinSeatedRoom } from '../roster';
 import { useMatchmakingStore } from '../store';
 import { decodeRoomName, encodeRoomName } from '../roomNameCodec';
 import { RoomBadges } from './RoomBadges';
@@ -173,7 +173,7 @@ export function LobbyScreen() {
     }
     // 自動パスワード (非公開一覧のパスワード欄) が指定されていればそれを使う
     if (needsPassword && autoPassword !== undefined && autoPassword !== '') {
-      client.joinRoom(roomId, autoPassword, playerName);
+      joinSeatedRoom(client, { roomId, password: autoPassword, name: playerName, isPublic: false });
       setJoinRoomId(null);
       setJoinPassword('');
       return;
@@ -183,7 +183,12 @@ export function LobbyScreen() {
       setJoinPassword('');
       return;
     }
-    client.joinRoom(roomId, needsPassword ? joinPassword : '', playerName);
+    joinSeatedRoom(client, {
+      roomId,
+      password: needsPassword ? joinPassword : '',
+      name: playerName,
+      isPublic: rooms.find((r) => r.id === roomId)?.isPublic !== false,
+    });
     setJoinRoomId(null);
     setJoinPassword('');
   };

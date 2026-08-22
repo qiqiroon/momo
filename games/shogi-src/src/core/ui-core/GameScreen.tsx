@@ -1696,7 +1696,10 @@ function JishogiReceivedModal({ t }: { t: (key: string) => string }) {
         </span>
       </div>
       <div className="btn-row">
-        <button type="button" className="btn ghost" onClick={() => send(false)}>
+        {/* ★v1.85: **拒否は白文字・白枠**（付録D-1 v1.21 §7）＝薄い灰色にすると
+            **押せるのに押せないボタンに見える**（実機のご報告）。
+            **灰色は「押せない」だけを意味する。** */}
+        <button type="button" className="btn ghost outline" onClick={() => send(false)}>
           {t('jishogi.rejectAction')}
         </button>
         <button type="button" className="btn" onClick={() => send(true)}>

@@ -289,6 +289,36 @@ describe('v1.59 段3: 「自分から出た」の印は部屋に入るたび決�
   });
 });
 
+describe('v1.61: ホストに退室させられたとき（親 §6.8.4）', () => {
+  /**
+   * ★実機で見つけた（2026-08-22・公開ページ）＝**キックは効いているのに、
+   * 追い出された側の画面が固まったまま**だった。**将棋はこの知らせをどこでも
+   * 受けていなかった**（**黙って固まらない**）。
+   */
+  it('★追い出されたら言葉で伝える（「対局が終わりました」とは言わない＝対局は続いている）', () => {
+    useMatchmakingStore.setState({
+      myRole: 'spectator',
+      myPid: 'v1',
+      roster: [{ pid: 'v1', role: 'spectator', name: '見物人' }],
+    });
+    opts?.onKicked?.();
+    expect(useSpectateMigrateStore.getState().kicked).toBe(true);
+    expect(useSpectateMigrateStore.getState().ended).toBe(false);
+  });
+
+  it('★移り先を受け取っていても、追い出された事実が優先する（もう元の部屋に居ない）', () => {
+    useMatchmakingStore.setState({
+      myRole: 'spectator',
+      myPid: 'v1',
+      roster: [{ pid: 'v1', role: 'spectator', name: '見物人' }],
+    });
+    useSpectateMigrateStore.setState({ offer: { room: 'r', pass: 'p' }, moving: false, ended: false, kicked: false });
+    opts?.onKicked?.();
+    expect(useSpectateMigrateStore.getState().kicked).toBe(true);
+    expect(useSpectateMigrateStore.getState().offer).toBeNull();
+  });
+});
+
 describe('v1.59 段3: 感想戦の部屋では配るものが違う（親 §6.8.6）', () => {
   beforeEach(() => {
     useMatchmakingStore.setState({

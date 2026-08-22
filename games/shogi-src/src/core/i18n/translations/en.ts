@@ -5,7 +5,7 @@ export const en: LocaleData = {
   name: 'English',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.80',
+    'app.ver': 'v1.81',
     'sound.promptTitle': 'Enable BGM and sound effects?',
     'sound.bgmLabel': 'BGM volume',
     'sound.sfxLabel': 'SFX volume',
@@ -273,6 +273,8 @@ export const en: LocaleData = {
     's13.endedTitle': 'The game is over',
     's13.endedBody': 'Returning to the list of rooms to watch.',
     's13.endedOk': 'OK',
+    's13.kickedTitle': 'You have left the room',
+    's13.kickedBody': 'The host removed you from the room. Returning to the list.',
     // v1.55: shared spectator wording
     'spec.role': 'Spectator',
     'spec.watching': 'Watching',

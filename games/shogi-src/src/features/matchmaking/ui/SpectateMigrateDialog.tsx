@@ -35,6 +35,30 @@ export function SpectateMigrateDialog() {
   const offer = useSpectateMigrateStore((s) => s.offer);
   const moving = useSpectateMigrateStore((s) => s.moving);
   const ended = useSpectateMigrateStore((s) => s.ended);
+  const kicked = useSpectateMigrateStore((s) => s.kicked);
+
+  // ★v1.61: **追い出されたことを先に見る**＝もう部屋に居ないので、他の知らせより優先。
+  //   **「対局が終わりました」とは言わない**（対局は続いているので嘘になる）。
+  if (kicked) {
+    return (
+      <div className="opp-left-overlay" role="dialog" aria-modal="true">
+        <div className="opp-left-modal spectate-modal">
+          <div className="title">{t('s13.kickedTitle')}</div>
+          <div className="body">{t('s13.kickedBody')}</div>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              seButton();
+              dismissSpectateEnded();
+            }}
+          >
+            {t('s13.endedOk')}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // ★「対局が終わりました」を先に見る＝入れなかったときは確認も移動も畳んである。
   if (ended) {

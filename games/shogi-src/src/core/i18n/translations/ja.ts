@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.80',
+    'app.ver': 'v1.81',
     // v0.72 音楽再生確認モーダル (Darts と同じ思想)
     'sound.promptTitle': 'BGM と効果音を再生してもよろしいですか？',
     'sound.bgmLabel': 'BGM 音量',
@@ -293,6 +293,10 @@ export const ja: LocaleData = {
     's13.endedTitle': '対局が終わりました',
     's13.endedBody': '観戦の一覧へ戻ります。',
     's13.endedOk': 'OK',
+    // ★v1.61 (親 §6.8.4): ホストに退室させられたとき。**対局は続いている**ので
+    // 「対局が終わりました」とは言わない（起きた事実をそのまま伝える）。
+    's13.kickedTitle': '観戦を終了しました',
+    's13.kickedBody': '部屋のホストによって退室しました。観戦の一覧へ戻ります。',
     // ★v1.55: 観戦者まわりの共通の言葉
     'spec.role': '観戦者',
     'spec.watching': '観戦中',

@@ -28,9 +28,16 @@ interface SpectateMigrateState {
   moving: boolean;
   /** 「対局が終わりました」の知らせ。**本人が閉じるまで残す**（付録D-3 §4.2）。 */
   ended: boolean;
+  /**
+   * ★v1.61: **ホストに退室させられた**（親 §6.8.4）。
+   *
+   * **「対局が終わりました」とは別に持つ**＝**対局は続いている**ので、
+   * 同じ言葉で伝えると嘘になる（**起きた事実をそのまま伝える**）。
+   */
+  kicked: boolean;
 }
 
-const initial: SpectateMigrateState = { offer: null, moving: false, ended: false };
+const initial: SpectateMigrateState = { offer: null, moving: false, ended: false, kicked: false };
 
 export const useSpectateMigrateStore = create<SpectateMigrateState>(() => ({ ...initial }));
 
@@ -57,7 +64,7 @@ export function resetSpectateMigrate(): void {
 /** ホストから移り先が届いた（`review_migrate`）＝確認を出す。 */
 export function offerSpectateMigrate(room: string, pass: string): void {
   if (!room || !pass) return;
-  useSpectateMigrateStore.setState({ offer: { room, pass }, moving: false, ended: false });
+  useSpectateMigrateStore.setState({ offer: { room, pass }, moving: false, ended: false, kicked: false });
 }
 
 /**
@@ -111,10 +118,22 @@ export function noteSpectatedRoomClosed(): void {
 /** 移り先へ入れなかった＝ここで初めて「対局が終わりました」を出す。 */
 export function failSpectateMigrate(): void {
   clearTimer();
-  useSpectateMigrateStore.setState({ offer: null, moving: false, ended: true });
+  useSpectateMigrateStore.setState({ offer: null, moving: false, ended: true, kicked: false });
 }
 
-/** 「対局が終わりました」の OK を押した＝観戦の一覧へ戻る。 */
+/**
+ * ★v1.61: **ホストに退室させられた**（親 §6.8.4）。
+ *
+ * **黙って固まらない**＝追い出されたことを伝えて観戦の一覧へ返す。**「対局が
+ * 終わりました」とは言わない**（**対局は続いている**ので嘘になる）。
+ * **移り先を持っていても、追い出された事実が優先**する（もう元の部屋には居ない）。
+ */
+export function noteSpectatorKicked(): void {
+  clearTimer();
+  useSpectateMigrateStore.setState({ offer: null, moving: false, ended: false, kicked: true });
+}
+
+/** 「対局が終わりました」「退室させられました」の OK を押した＝観戦の一覧へ戻る。 */
 export function dismissSpectateEnded(): void {
   clearTimer();
   useSpectateMigrateStore.setState({ ...initial });

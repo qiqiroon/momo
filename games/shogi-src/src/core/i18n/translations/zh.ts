@@ -5,7 +5,7 @@ export const zh: LocaleData = {
   name: '中文',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.80',
+    'app.ver': 'v1.81',
     'sound.promptTitle': '是否播放 BGM 与音效？',
     'sound.bgmLabel': 'BGM 音量',
     'sound.sfxLabel': '音效音量',
@@ -273,6 +273,8 @@ export const zh: LocaleData = {
     's13.endedTitle': '对局已结束',
     's13.endedBody': '将返回观战列表。',
     's13.endedOk': 'OK',
+    's13.kickedTitle': '观战已结束',
+    's13.kickedBody': '房主已将您移出房间。将返回观战列表。',
     // v1.55: 观战相关用语
     'spec.role': '观战者',
     'spec.watching': '观战中',

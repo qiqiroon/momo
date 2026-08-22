@@ -22,7 +22,7 @@ import { sendShogiMessage, senderOfMessage, unwrapShogiMessage } from './protoco
 import { decodeRoomName } from './roomNameCodec';
 import { hasOpponent, hasSeat, isSpectator, opponentOf } from './roster';
 import { buildSpectateSync } from './spectate';
-import { noteSpectatedRoomClosed, spectateMigrateSettled } from './spectateMigrate';
+import { noteSpectatedRoomClosed, noteSpectatorKicked, spectateMigrateSettled } from './spectateMigrate';
 import { useMatchmakingStore, DEFAULT_ROOM_CONFIG, type RoomConfig } from './store';
 
 let _inited = false;
@@ -311,6 +311,24 @@ export function ensureMatchmakingInit(): void {
       if (s.roster.length === 0 || hasOpponent(s.roster, s.myPid)) {
         s.setConnection('game_connected');
       }
+    },
+    /**
+     * ★v1.61 (親 §6.8.4): **ホストに退室させられた**。
+     *
+     * **将棋はこの知らせをどこでも受けていなかった**ので、**追い出された人の画面は
+     * 固まったまま**だった（2026-08-22 実測＝部屋からは確かに出ているのに、
+     * 見ている側には何も起きない）。**黙って固まらない**＝言葉で伝えて返す。
+     */
+    onKicked: () => {
+      const s = useMatchmakingStore.getState();
+      if (isSpectator(s.myRole)) {
+        noteSpectatorKicked();
+        return;
+      }
+      // 席のある人を追い出す導線は置いていないが、届いたときに黙らない。
+      s.setError(null);
+      useMatchmakingStore.setState({ intentionallyLeft: true });
+      useRouteStore.getState().setScreen('net-lobby', { skipKifuGuard: true });
     },
     onDisconnected: (reason) => {
       const state = useMatchmakingStore.getState();

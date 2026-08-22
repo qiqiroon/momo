@@ -25,7 +25,10 @@ export function buildKifuFile(now: Date): KifuFile {
   const online = c?.isOnline() === true;
 
   // 誰と指したか。オンラインが最優先 (オンライン中は対 AI にならない)。
-  const opponent: KifuOpponent = online ? 'net' : ai.enabled ? 'com' : 'f2f';
+  // ★v1.60 (親 §6.8.6): **観戦は「指していない」**ので別の種類にする。
+  // **口が無いビルドでは観戦していない扱い**（縮退互換）。
+  const watching = typeof c?.isSpectating === 'function' && c.isSpectating();
+  const opponent: KifuOpponent = online ? (watching ? 'watch' : 'net') : ai.enabled ? 'com' : 'f2f';
 
   const aiPlayer = (): KifuPlayer => ({
     name: 'AI',
@@ -43,6 +46,25 @@ export function buildKifuFile(now: Date): KifuFile {
     viewerSide = aiSide === 'player1' ? 'player2' : 'player1';
     player1 = aiSide === 'player1' ? aiPlayer() : humanPlayer('');
     player2 = aiSide === 'player2' ? aiPlayer() : humanPlayer('');
+  } else if (opponent === 'watch') {
+    /**
+     * ★v1.60 (親 §6.8.6): **観戦した対局**。
+     *
+     * **記録に入るのは二人の対局者の名前**＝**観戦者は自分の名前をそこへ書かない**
+     * （書くと、指してもいない人が対局者として残る）。v1.59 までは
+     * `getMySide()` が空を返すのを既定の先手に落としていたため、**観戦者自身が
+     * 「先手」として記録され、後手は空欄**になっていた（2026-08-22 実機で判明）。
+     *
+     * **「自分の側」は持たせない**＝観戦者に席が無いので、**盤の向きも勝敗の
+     * 見方も先手から決まる**（§9.2.5／§9.2.2 の `F2F` と同じ扱い）。
+     *
+     * **名前は名簿から引いたものを使う**（`getSeatNames`）＝配られたものは
+     * 入ったその瞬間の顔ぶれなので、あとから対局者が入ってくると古くなる。
+     */
+    const seats = typeof c?.getSeatNames === 'function' ? c.getSeatNames() : null;
+    viewerSide = null;
+    player1 = humanPlayer(seats?.player1 ?? '');
+    player2 = humanPlayer(seats?.player2 ?? '');
   } else if (opponent === 'net') {
     const mySide = c?.getMySide() ?? 'player1';
     viewerSide = mySide;

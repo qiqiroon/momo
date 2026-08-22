@@ -14,7 +14,14 @@ import type { TimeControl } from '../../core/engine/time-control';
 import type { GameStatus } from '../../core/store/game-store';
 
 /** 誰と指したか。ファイル名の 3 文字 (`COM`/`NET`/`F2F`) と 1 対 1。 */
-export type KifuOpponent = 'com' | 'net' | 'f2f';
+/**
+ * 誰と指したか。★v1.60 で `watch`（観戦）を追加（親 §6.8.6）。
+ *
+ * **観戦は「指していない」ので、他の 3 つとは意味が違う**＝自分の側が無く、
+ * 対局者は二人とも他人である。**古い棋譜には出てこない値**なので、読む側は
+ * 知らない値をそのまま扱えること（形式の版は上げない・§9.2.4）。
+ */
+export type KifuOpponent = 'com' | 'net' | 'f2f' | 'watch';
 
 /** 対局者 1 人分。人か AI かで持つ項目が変わる。 */
 export interface KifuPlayer {

@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.78',
+    'app.ver': 'v1.79',
     // v0.72 音楽再生確認モーダル (Darts と同じ思想)
     'sound.promptTitle': 'BGM と効果音を再生してもよろしいですか？',
     'sound.bgmLabel': 'BGM 音量',
@@ -353,6 +353,8 @@ export const ja: LocaleData = {
     's08.oppCom': '対 AI',
     's08.oppNet': 'ネット対戦',
     's08.oppF2f': '同じ端末で二人',
+    // ★v1.60 (親 §6.8.6): 観戦して見ていた対局。**指していない**ので別の言葉で出す。
+    's08.oppWatch': '観戦',
     's08.moveCount': '手',
 
     // 棋譜を捨てる前の確認 (親 v1.36 §9.2.3 ②・画面機能 v0.30 §3 S02／S07)。

@@ -5,7 +5,7 @@ export const zh: LocaleData = {
   name: '中文',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.78',
+    'app.ver': 'v1.79',
     'sound.promptTitle': '是否播放 BGM 与音效？',
     'sound.bgmLabel': 'BGM 音量',
     'sound.sfxLabel': '音效音量',
@@ -328,6 +328,7 @@ export const zh: LocaleData = {
     's08.oppCom': '对 AI',
     's08.oppNet': '联网对局',
     's08.oppF2f': '同一设备两人',
+    's08.oppWatch': '观战',
     's08.moveCount': '手',
 
     // 丢弃棋谱前的确认 (母规格 v1.36 §9.2.3 ②・画面功能 v0.30 §3 S02／S07)。

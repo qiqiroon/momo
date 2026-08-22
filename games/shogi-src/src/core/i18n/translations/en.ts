@@ -5,7 +5,7 @@ export const en: LocaleData = {
   name: 'English',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.78',
+    'app.ver': 'v1.79',
     'sound.promptTitle': 'Enable BGM and sound effects?',
     'sound.bgmLabel': 'BGM volume',
     'sound.sfxLabel': 'SFX volume',
@@ -328,6 +328,7 @@ export const en: LocaleData = {
     's08.oppCom': 'vs AI',
     's08.oppNet': 'Online',
     's08.oppF2f': 'Two players, one device',
+    's08.oppWatch': 'Watched',
     's08.moveCount': ' moves',
 
     // Confirmation before the stored record is dropped (spec v1.36 §9.2.3 ②,

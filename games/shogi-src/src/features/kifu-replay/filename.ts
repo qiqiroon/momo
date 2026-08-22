@@ -65,9 +65,19 @@ function resultPart(file: KifuFile): 'W' | 'L' | 'D' | 'X' {
   return result.winner === me ? 'W' : 'L';
 }
 
-/** 相手を表す欄。対 AI は強さの頭文字、ネット対戦は相手の名前、二人対局は後手の名前。 */
+/**
+ * 相手を表す欄。対 AI は強さの頭文字、ネット対戦は相手の名前、二人対局は後手の名前。
+ *
+ * ★v1.60 (親 §9.2.2): **観戦は勝者の名前**＝どちらも他人なので「相手」が定まらず、
+ * **勝った人の名前がいちばんその対局を思い出しやすい**（2026-08-22 ユーザー判断）。
+ * **引分・不成立・中断では勝者が居ないので欄ごと省く**（**居ない人の名前を書かない**）。
+ */
 function opponentPart(file: KifuFile): string {
   const { opponent, players, viewerSide } = file.meta;
+  if (opponent === 'watch') {
+    const w = file.meta.result.winner;
+    return w ? clipName(players[w].name) : '';
+  }
   if (opponent === 'com') {
     const lv = players.player1.kind === 'ai' ? players.player1.level : players.player2.level;
     return lv ? lv.charAt(0).toUpperCase() : '';

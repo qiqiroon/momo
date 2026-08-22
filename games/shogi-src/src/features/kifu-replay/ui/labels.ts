@@ -71,7 +71,16 @@ export function kifuLabels(locale: LocaleCode) {
 
   /** 誰と指したか。並べ替えの見出しにも使う。 */
   const opponentKind = (f: KifuFile): string =>
-    t(f.meta.opponent === 'com' ? 's08.oppCom' : f.meta.opponent === 'net' ? 's08.oppNet' : 's08.oppF2f');
+    t(
+      f.meta.opponent === 'com'
+        ? 's08.oppCom'
+        : f.meta.opponent === 'net'
+          ? 's08.oppNet'
+          : // ★v1.60: 観戦した対局（親 §6.8.6）。**指していないので別の言葉で出す**。
+            f.meta.opponent === 'watch'
+            ? 's08.oppWatch'
+            : 's08.oppF2f',
+    );
 
   /** 並べ替え。日付だけは**新しい順**（他は文字の順）。 */
   const comparator = (key: SortKey) => (a: KifuFile, b: KifuFile): number => {

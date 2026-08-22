@@ -762,15 +762,28 @@ function MoveList({
   ending: string | null;
 }) {
   const curRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  /**
+   * ★v1.62 (2026-08-22 実機のご報告): **動かすのは手数リストの箱の中だけ**。
+   * `scrollIntoView` は**入れ子の外側もページごと巻き取る**ので、**携帯（縦長）では
+   * ページが下へスクロールして盤が画面から消える**。**S11 と同じ直しをここにも入れる**
+   * （**同じ仕掛けを 2 か所で違う形にしない**）。
+   */
   useEffect(() => {
-    curRef.current?.scrollIntoView({ block: 'nearest' });
+    const cur = curRef.current;
+    const box = listRef.current;
+    if (!cur || !box) return;
+    const top = cur.offsetTop - box.offsetTop;
+    const bottom = top + cur.offsetHeight;
+    if (top < box.scrollTop) box.scrollTop = top;
+    else if (bottom > box.scrollTop + box.clientHeight) box.scrollTop = bottom - box.clientHeight;
   }, [ply, file]);
 
   const texts = file?.moveTexts ?? [];
   const count = file?.moves.length ?? 0;
 
   return (
-    <div className="mv-list">
+    <div className="mv-list" ref={listRef}>
       <button
         type="button"
         ref={ply === 0 ? curRef : undefined}

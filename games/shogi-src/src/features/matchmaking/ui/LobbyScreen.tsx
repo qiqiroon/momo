@@ -348,7 +348,7 @@ export function LobbyScreen() {
               value={joinPassword}
               onChange={(e) => setJoinPassword(e.target.value)}
               placeholder={t('s04.passwordPh2')}
-              style={{ background: 'var(--bg)', border: '1px solid var(--border-strong)', color: 'var(--text)', padding: '4px 8px', borderRadius: 6, fontSize: 12, width: 120 }}
+              style={{ background: 'var(--bg)', border: '1px solid var(--border-strong)', color: 'var(--text)', padding: '4px 8px', borderRadius: 6, fontSize: 16, width: 120 }}
             />
             <button className="reset-btn" type="button" onClick={() => onJoin(r.id, r.hasPassword)}>
               {t('s04.enterRoom')}
@@ -421,7 +421,7 @@ export function LobbyScreen() {
               onChange={(e) => onPlayerNameChange(e.target.value)}
               placeholder={t('s04.playerNamePh')}
               maxLength={20}
-              style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border-strong)', color: 'var(--text)', padding: '5px 10px', borderRadius: 6, fontSize: 13 }}
+              style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border-strong)', color: 'var(--text)', padding: '5px 10px', borderRadius: 6, fontSize: 16 }}
             />
           </label>
         </div>
@@ -497,7 +497,7 @@ export function LobbyScreen() {
                   onChange={(e) => setConfig({ roomName: e.target.value })}
                   placeholder={t('s04.roomNamePh')}
                   maxLength={30}
-                  style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border-strong)', color: 'var(--text)', padding: '5px 10px', borderRadius: 6, fontSize: 13 }}
+                  style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border-strong)', color: 'var(--text)', padding: '5px 10px', borderRadius: 6, fontSize: 16 }}
                 />
               </label>
               <label style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 13 }}>
@@ -510,7 +510,7 @@ export function LobbyScreen() {
                   value={config.password}
                   onChange={(e) => setConfig({ password: e.target.value })}
                   placeholder={t('s04.passwordPh')}
-                  style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border-strong)', color: 'var(--text)', padding: '5px 10px', borderRadius: 6, fontSize: 13 }}
+                  style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border-strong)', color: 'var(--text)', padding: '5px 10px', borderRadius: 6, fontSize: 16 }}
                 />
               </label>
               {/* v0.58: 「公開」→「非公開」に反転 + オレンジのアクセント */}

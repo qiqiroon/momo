@@ -91,13 +91,25 @@ describe('S11 感想戦を観戦者から見たとき（v1.59 段3）', () => {
     view.unmount();
   });
 
-  it('★棋譜の読み込み・保存・部屋を閉じるを置かない（灰色で置くのではなく置かない）', () => {
+  it('★棋譜の読み込みと部屋を閉じるは置かない（盤に起きることは対局者が起こす）', () => {
     registerConnector(true);
     const view = render(<ReviewScreen />);
     const labels = labelsOf();
-    for (const label of ['棋譜読込', '棋譜保存', '部屋を閉じる']) {
+    for (const label of ['棋譜読込', '部屋を閉じる']) {
       expect(labels.some((s) => s.includes(label))).toBe(false);
     }
+    view.unmount();
+  });
+
+  it('★★「棋譜保存」は置く（見ている場でそのまま書き出せるようにする）', () => {
+    /**
+     * ★v1.62（2026-08-22 実機のご報告）＝**保存の道が「別の画面へ移ってから」しか
+     * 無いのは、実質「保存できない」に近い**。**S07 で同じ判断をしたのとまったく同じ
+     * 理由**で、**置かない根拠（観戦者に棋譜は無い）は親 v1.60 で消えている**。
+     */
+    registerConnector(true);
+    const view = render(<ReviewScreen />);
+    expect(labelsOf().some((s) => s.includes('棋譜保存'))).toBe(true);
     view.unmount();
   });
 

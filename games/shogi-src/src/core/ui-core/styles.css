@@ -1,3 +1,22 @@
+/*
+ * ★v1.62 (付録D-1 v1.19 §8・2026-08-22 実機のご報告・iPhone)
+ *
+ * **人が文字を打ち込む欄の字は 16px 以上**。**iPhone の Safari は、字が 16px より
+ * 小さい入力欄に触れると画面を勝手に拡大する**（拡大されたままだと盤も操作も
+ * 画面からはみ出し、人が自分でつまんで戻すしかない）。
+ *
+ * **画面の指定（viewport）で拡大そのものを禁じる形は採らない**＝**見づらい人が
+ * 自分で拡大する自由まで奪う**ため。**元から拡大が起きない大きさにする**のが筋。
+ *
+ * **画面ごとに数え上げない**＝ここに 1 つ置けば、次に足した欄にも最初から効く。
+ * （その場で字を指定している欄だけは、その場も 16px にしてある。）
+ */
+input,
+textarea,
+select {
+  font-size: 16px;
+}
+
 /* MOMO Works 共通デザイントークン (design-spec-v1_0 §1) + Shogi 対局画面トークン (mock v7 準拠) */
 :root {
   --bg: #0a0a0a;
@@ -1254,7 +1273,12 @@ body::before {
   outline: none;
   color: #e5e5e5;
   font-family: inherit;
-  font-size: 12px;
+  /* ★v1.62 (付録D-1 v1.19 §8・2026-08-22 実機のご報告・iPhone):
+     **iPhone の Safari は、字が 16px より小さい入力欄に触れると画面を勝手に拡大する**。
+     拡大されたままだと**盤も操作も画面からはみ出し、人が自分でつまんで戻すしかない**。
+     **画面の指定で拡大そのものを禁じる形は採らない**＝見づらい人が自分で拡大する自由まで
+     奪うため。**元から拡大が起きない大きさにする**のが筋。 */
+  font-size: 16px;
   caret-color: #e5e5e5;
   padding: 0;
 }
@@ -1397,7 +1421,8 @@ body::before {
 .s06-console .prompt { opacity: .9; }
 .s06-console .inputline { display: flex; align-items: baseline; gap: 0; margin-top: 2px; }
 .s06-console .inputline .prompt { color: var(--orange-light); flex: none; }
-.s06-console .inputline input { flex: 1; background: transparent; border: none; outline: none; color: var(--orange-light); font-family: inherit; font-size: 12px; caret-color: var(--orange-light); padding: 0; }
+/* ★v1.62: 打ち込む欄の字は 16px 以上（付録D-1 v1.19 §8・iPhone の自動拡大を防ぐ）。 */
+.s06-console .inputline input { flex: 1; min-width: 0; background: transparent; border: none; outline: none; color: var(--orange-light); font-family: inherit; font-size: 16px; caret-color: var(--orange-light); padding: 0; }
 .s06-console .send { background: transparent; border: 1px solid var(--border-strong); color: var(--text-muted); border-radius: 5px; font-family: inherit; font-size: 10px; padding: 1px 6px; cursor: pointer; margin-left: 6px; }
 .s06-console .send:hover { border-color: var(--orange); color: var(--orange-light); }
 

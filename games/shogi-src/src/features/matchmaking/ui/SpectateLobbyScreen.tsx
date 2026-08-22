@@ -197,7 +197,8 @@ export function SpectateLobbyScreen() {
     color: 'var(--text)',
     padding: '5px 10px',
     borderRadius: 6,
-    fontSize: 13,
+    // ★v1.62: 打ち込む欄の字は 16px 以上（付録D-1 v1.19 §8）。
+    fontSize: 16,
   } as const;
 
   return (
@@ -392,7 +393,8 @@ export function SpectateLobbyScreen() {
                               color: 'var(--text)',
                               padding: '4px 8px',
                               borderRadius: 6,
-                              fontSize: 12,
+                              // ★v1.62: 打ち込む欄の字は 16px 以上（付録D-1 v1.19 §8）。
+                              fontSize: 16,
                               width: 120,
                             }}
                           />

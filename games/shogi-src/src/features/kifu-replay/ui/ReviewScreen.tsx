@@ -830,26 +830,28 @@ export function ReviewScreen() {
                 {t('s11.loadKifu')}
               </button>
             )}
-            {/* ★v1.59 (段3): **観戦者には棋譜の保存を出さない**（灰色で置くのではなく
-                置かない・画面機能 §3 S11）＝振り返っているのは他人の対局である。 */}
-            {!watching && (
-              <button
-                type="button"
-                className="io-btn"
-                disabled={waiting || !file || saving}
-                onClick={() => {
-                  seButton();
-                  save();
-                }}
-              >
-                {t('s11.saveKifu')}
-              </button>
-            )}
-            {!watching && saved && <span className="saved-tag">✓</span>}
+            {/* ★v1.62 (画面機能 v0.53 §3 S11・2026-08-22 実機のご報告):
+                **観戦者にも棋譜の保存を出す**＝**見ている対局を、見ている場でそのまま
+                書き出せるようにする**。**S07 で同じ判断をしたのとまったく同じ理由**で、
+                **置かない根拠（観戦者に棋譜は無い）は親 v1.60 で消えている**。
+                **保存の道が「別の画面へ移ってから」しか無いのは、実質「保存できない」に近い。**
+                **読み込みと部屋を閉じるは引き続き置かない**（盤に起きることは対局者が起こす）。 */}
+            <button
+              type="button"
+              className="io-btn"
+              disabled={waiting || !file || saving}
+              onClick={() => {
+                seButton();
+                save();
+              }}
+            >
+              {t('s11.saveKifu')}
+            </button>
+            {saved && <span className="saved-tag">✓</span>}
             {/* ★v1.59: 分岐中の補助語「本譜を保存します（分岐は入りません）」は廃止した
                 （付録D-12 v1.8 §9・2026-08-20 実機のご報告）＝**この行に置くものを減らす**。
                 書き出されるのが本譜だけであることは変えていない。 */}
-            {!watching && folder && (
+            {folder && (
               <button
                 type="button"
                 className="dest-btn"
@@ -1264,8 +1266,26 @@ function ReviewMoveList({
   ending: string | null;
 }) {
   const curRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  /**
+   * ★v1.62 (2026-08-22 実機のご報告・iPhone): **動かすのは手数リストの箱の中だけ**。
+   *
+   * v1.61 までは `scrollIntoView` を使っていたが、**あれは入れ子の外側もページごと
+   * 巻き取る**。**携帯（縦長）では手数リストが盤の下に回る**ので、手が進むたびに
+   * **ページが下へスクロールして盤が画面から消えて**いた（ご報告＝「棋譜が表示される
+   * ことで下の方にスクロールしてしまう」）。
+   *
+   * **やりたいのは「いまの手をリストの中で見えるようにする」ことだけ**なので、
+   * **箱の巻き取り位置を自分で決める**（外側は一切動かさない）。
+   */
   useEffect(() => {
-    curRef.current?.scrollIntoView({ block: 'nearest' });
+    const cur = curRef.current;
+    const box = listRef.current;
+    if (!cur || !box) return;
+    const top = cur.offsetTop - box.offsetTop;
+    const bottom = top + cur.offsetHeight;
+    if (top < box.scrollTop) box.scrollTop = top;
+    else if (bottom > box.scrollTop + box.clientHeight) box.scrollTop = bottom - box.clientHeight;
   }, [ply, file, branchTexts.length]);
 
   const texts = file?.moveTexts ?? [];
@@ -1286,7 +1306,7 @@ function ReviewMoveList({
   ));
 
   return (
-    <div className="mv-list">
+    <div className="mv-list" ref={listRef}>
       <div
         ref={ply === 0 && !onBranch ? curRef : undefined}
         className={`mv start${ply === 0 && !onBranch ? ' cur' : ''}`}

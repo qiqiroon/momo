@@ -67,6 +67,28 @@ describe('v1.62: 打ち込む欄の字は 16px 以上（付録D-1 v1.19 §8）',
     for (const px of sizes) expect(px).toBeGreaterThanOrEqual(16);
   });
 
+  it('★★字を打ち込む欄の決まりを、名指しせずに全部見る（数え上げると必ず漏れる）', () => {
+    /**
+     * ★v1.62: **公開ページで測って 1 つ漏れが見つかった**（非公開の部屋のパスワード欄が
+     * 13px のままだった）。**「この欄」「あの欄」と名指しで見張ると、名指ししていない欄が
+     * 黙って漏れる**ので、**`input` を含む決まりを全部見る**形にする。
+     *
+     * **つまみで動かす欄（range）は文字を打ち込まない**ので、拡大の引き金にならない＝除く。
+     */
+    const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)];
+    const bad: string[] = [];
+    for (const [, selector, body] of rules) {
+      const sel = selector.trim();
+      if (!/input/.test(sel)) continue;
+      if (sel.includes('type=range') || sel.includes('type="range"')) continue;
+      if (sel.includes('checkbox')) continue;
+      for (const px of fontSizesIn(body)) {
+        if (px < 16) bad.push(`${sel} → ${px}px`);
+      }
+    }
+    expect(bad).toEqual([]);
+  });
+
   it('★その場で字を指定している入力欄も 16px 以上（一覧の各画面）', () => {
     for (const rel of [
       join('features', 'matchmaking', 'ui', 'LobbyScreen.tsx'),

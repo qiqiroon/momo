@@ -3160,7 +3160,8 @@ body::before {
   color: var(--text);
   padding: 5px 10px;
   border-radius: 6px;
-  font-size: 13px;
+  /* ★v1.62: 打ち込む欄の字は 16px 以上（付録D-1 v1.19 §8・iPhone の自動拡大を防ぐ）。 */
+  font-size: 16px;
 }
 .private-panel .pp-note {
   font-size: 11px;

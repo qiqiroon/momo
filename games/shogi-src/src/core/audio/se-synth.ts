@@ -50,6 +50,18 @@ export function seChatRecv(): void {
   playSample('chatRecv');
 }
 
+/**
+ * SE-notify: 通知 (音響 v0.9 §2.3)。**押せる手立てが現れたこと**を知らせる。
+ *
+ * **新しい音源は足さない**＝`SE-chat-recv` を **130ms 間隔で 2 度**鳴らす
+ * (`SE-resume` が `SE-pause` を 2 度鳴らすのと同じ方式)。**1 度だとチャットの
+ * 新着と区別が付かない**ので、2 度にして「知らせ」であることを分ける。
+ */
+export function seNotify(): void {
+  playSample('chatRecv');
+  playSample('chatRecv', { at: 0.13 });
+}
+
 /** SE-pause: v0.77 で Freesound BaggoNotes「Button_Click1」に置換 (CC0)。 */
 export function sePause(): void {
   playSample('pause');

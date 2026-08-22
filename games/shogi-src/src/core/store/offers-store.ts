@@ -14,7 +14,22 @@ import { create } from 'zustand';
  * 対局のたびに clearAll() でリセット（game_start / returnToPreparation / reset）。
  */
 
-export type OfferKind = 'draw' | 'undo' | 'pause' | 'resume';
+/**
+ * 持将棋の提案に答えられる時間（親 v1.62 §4.4.1.3・**10 秒**）。
+ * **答える側の締め切りであり、提案した側の待ち時間もこれで決まる。**
+ */
+export const JISHOGI_ANSWER_MS = 10_000;
+
+/**
+ * 提案した側が「返事が来ない」と見切るまでの時間（v1.84）。
+ *
+ * **答える側は 10 秒で必ず答えを送る**が、**その伝言が届かないことはある**（回線・離脱）。
+ * 見切らないと**提案した側は永久に待ち、盤も時計も止まったままになる**。
+ * **答える側の締め切りより長くする**＝先に切ると、届いた答えを捨ててしまう。
+ */
+export const JISHOGI_WAIT_TIMEOUT_MS = 15_000;
+
+export type OfferKind = 'draw' | 'undo' | 'pause' | 'resume' | 'jishogi';
 export type OfferNoticeType = 'rejected' | 'cancelled';
 
 interface UndoOfferMeta {
@@ -31,6 +46,24 @@ interface OffersState {
    */
   reviewOfferFrom: 'me' | 'opp' | null;
   drawOfferFrom: 'me' | 'opp' | null;
+  /**
+   * v1.84: 持将棋の提案 (親 v1.62 §4.4.1.3)。'me'＝返事待ち／'opp'＝答える番。
+   *
+   * **引分の申し出と別に持つ**＝**持将棋での引き分けと理由のない引き分けは別の終局**
+   * であり、同じ枠を使い回すと**どちらに答えたのかが受け取った側で分からなくなる**。
+   */
+  jishogiOfferFrom: 'me' | 'opp' | null;
+  /**
+   * 相手が答えるまでの締め切り (ミリ秒・`Date.now()` 基準)。**答える側だけが持つ。**
+   * **10 秒経ったら合意不成立**とする (親 §4.4.1.3)。
+   */
+  jishogiDeadline: number | null;
+  /**
+   * v1.84: **観戦者に見せるためだけの印**（親 v1.62 §4.4.1.3）。
+   * **観戦者に選ばせるものは無い**ので諾否の状態は持たせず、これだけを立てる
+   * （盤が止まるので、何も出さないと固まったように見える）。
+   */
+  jishogiSpectatorNotice: boolean;
   undoOfferFrom: 'me' | 'opp' | null;
   undoOfferMeta: UndoOfferMeta | null;
   resumeOfferFrom: 'me' | 'opp' | null;
@@ -39,6 +72,8 @@ interface OffersState {
 
   setReviewOfferFrom: (from: 'me' | 'opp' | null) => void;
   setDrawOfferFrom: (from: 'me' | 'opp' | null) => void;
+  setJishogiOfferFrom: (from: 'me' | 'opp' | null, deadline?: number | null) => void;
+  setJishogiSpectatorNotice: (on: boolean) => void;
   setUndoOfferFrom: (from: 'me' | 'opp' | null, meta?: UndoOfferMeta | null) => void;
   setResumeOfferFrom: (from: 'me' | 'opp' | null) => void;
   setNotice: (kind: OfferKind | null, type: OfferNoticeType | null) => void;
@@ -48,6 +83,9 @@ interface OffersState {
 export const useOffersStore = create<OffersState>((set) => ({
   reviewOfferFrom: null,
   drawOfferFrom: null,
+  jishogiOfferFrom: null,
+  jishogiDeadline: null,
+  jishogiSpectatorNotice: false,
   undoOfferFrom: null,
   undoOfferMeta: null,
   resumeOfferFrom: null,
@@ -56,6 +94,9 @@ export const useOffersStore = create<OffersState>((set) => ({
 
   setReviewOfferFrom: (reviewOfferFrom) => set({ reviewOfferFrom }),
   setDrawOfferFrom: (drawOfferFrom) => set({ drawOfferFrom }),
+  setJishogiOfferFrom: (jishogiOfferFrom, deadline) =>
+    set({ jishogiOfferFrom, jishogiDeadline: jishogiOfferFrom ? deadline ?? null : null }),
+  setJishogiSpectatorNotice: (jishogiSpectatorNotice) => set({ jishogiSpectatorNotice }),
   setUndoOfferFrom: (undoOfferFrom, meta) =>
     set({
       undoOfferFrom,
@@ -67,6 +108,9 @@ export const useOffersStore = create<OffersState>((set) => ({
     set({
       reviewOfferFrom: null,
       drawOfferFrom: null,
+      jishogiOfferFrom: null,
+      jishogiDeadline: null,
+      jishogiSpectatorNotice: false,
       undoOfferFrom: null,
       undoOfferMeta: null,
       resumeOfferFrom: null,

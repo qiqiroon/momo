@@ -3949,3 +3949,78 @@ body::before {
    パネル方式ごと廃止した。 */
 /* **灰色は「押せない」だけを意味する**ので、理由は色ではなく言葉で出す（付録D-3 §4.1）。 */
 .lobby-card > .why { font-size: 10px; color: var(--text-muted); margin-top: 6px; text-align: center; }
+
+/* ===== ★v1.84: 持将棋 (親 v1.62 §4.4.1・付録D-1 v1.20 §7) ===== */
+
+/* 条件が揃って現れたボタン (入玉宣言・持将棋の提案) はオレンジ地。
+   **他のコマンドは白文字・白枠のまま**＝オレンジはこの 2 つだけで、
+   「いま押せる特別な手立てが現れた」ことを色で示す。 */
+.command-bar .act.available {
+  background: var(--orange);
+  color: #fff;
+  border-color: var(--orange);
+}
+.command-bar .act.available:hover {
+  background: var(--orange-mid);
+}
+/* 押せない間 (相手の手番・不成立の直後) は地を落とす。
+   **灰色は「押せない」だけを意味する**ので、色で理由は語らせない。 */
+.command-bar .act.available:disabled {
+  background: var(--surface2);
+  color: var(--text-muted);
+  border-color: var(--border-strong);
+}
+
+/* 提案した側だけを覆う半透明の膜。**答える側には出さない**
+   ＝受けるかどうかは盤を見なければ決められないため。 */
+.jishogi-veil {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 190;
+}
+
+/* 残り秒数。**赤系は使わない**＝拒否は責められることではない。 */
+.jishogi-countdown {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  margin: 8px 0 4px;
+}
+.jishogi-countdown .num {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--orange-mid);
+  min-width: 22px;
+}
+.jishogi-countdown .bar {
+  display: block;
+  width: 120px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface2);
+  overflow: hidden;
+}
+.jishogi-countdown .bar > span {
+  display: block;
+  height: 100%;
+  background: var(--orange-mid);
+  transition: width 0.2s linear;
+}
+
+/* 観戦者への知らせ。**選ばせるものは無い**ので言葉だけ。 */
+.jishogi-spectator-notice {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 190;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--orange-mid);
+  background: rgba(20, 20, 20, 0.8);
+  border: 1px solid var(--orange-mid);
+  border-radius: 999px;
+  padding: 4px 14px;
+}

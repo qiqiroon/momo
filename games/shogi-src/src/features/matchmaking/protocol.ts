@@ -191,6 +191,25 @@ export interface DrawResponseMsg extends Envelope {
   accepted: boolean;
 }
 /**
+ * 持将棋の提案（v1.84・親 v1.62 §4.4.1.3）。応答は jishogi_response で返す。
+ *
+ * **引分の申し出と別の伝言にする**＝**成立したときの終局理由が違う**ので、
+ * 同じ伝言を使い回すと**どちらに答えたのかが受け取った側で分からなくなる**。
+ */
+export interface JishogiOfferMsg extends Envelope {
+  type: 'jishogi_offer';
+}
+/**
+ * 持将棋の提案への応答（v1.84）。accepted=true で両者「持将棋」終局。
+ *
+ * **10 秒経って自動的に不成立になったときも accepted=false を送る**＝**送らないと
+ * 提案した側は永久に待つ**（「無い」は送るべき事実であって、送らない理由ではない）。
+ */
+export interface JishogiResponseMsg extends Envelope {
+  type: 'jishogi_response';
+  accepted: boolean;
+}
+/**
  * 待ったの申し出（段階 2-7 v0.33、v0.42 改装）。応答は undo_response で返す。
  * count は巻き戻し手数（1=自分の1手だけ／2=相手の直前手＋自分の1手）。
  * challengerSide は申し出者の side（＝ペナルティで時計が戻らない側）。
@@ -466,6 +485,8 @@ export type ShogiMessage =
   | ResignMsg
   | DrawOfferMsg
   | DrawResponseMsg
+  | JishogiOfferMsg
+  | JishogiResponseMsg
   | UndoOfferMsg
   | UndoResponseMsg
   | TimeoutMsg

@@ -75,7 +75,7 @@ describe('canDeclareNyugyoku', () => {
     expect(canDeclareNyugyoku(hondou, pos, 'player2')).toBe(false);
   });
 
-  it('sente 王 in enemy zone + 24 points: declares', () => {
+  it('★v1.84: 先手は 28 点で宣言でき、27 点では宣言できない (27 点法・親 v1.62 §3.10)', () => {
     let pos = buildPos([
       { row: 0, col: 4, piece: P('ou', 'player1') },
       { row: 2, col: 0, piece: P('hi', 'player1') },
@@ -93,15 +93,49 @@ describe('canDeclareNyugyoku', () => {
       { row: 1, col: 5, piece: P('fu', 'player1') },
       { row: 1, col: 6, piece: P('fu', 'player1') },
     ]);
-    // Points: 飛5 + 角5 + 金1 + 銀1 + 銀1 + 金1 + 桂1 + 香1 + 歩1 × 6 = 22. Not yet 24.
-    expect(computeEnterZonePoints(hondou, pos, 'player1')).toBeGreaterThanOrEqual(20);
-    // Add more to reach 24
+    // 盤上: 飛5 + 角5 + 金1 + 銀1 + 銀1 + 金1 + 桂1 + 香1 + 歩1 × 6 = 22 (王の分 1 を引いて 22)。
+    // 持ち駒で 27 点ちょうどに合わせる → **先手は 28 点要るのでまだ宣言できない**。
     pos = {
       ...pos,
       hands: { player1: [P('kaku', 'player1')], player2: [] },
     };
-    expect(computeEnterZonePoints(hondou, pos, 'player1')).toBeGreaterThanOrEqual(24);
+    expect(computeEnterZonePoints(hondou, pos, 'player1')).toBe(27);
+    expect(canDeclareNyugyoku(hondou, pos, 'player1')).toBe(false);
+    // 1 点足して 28 点 → 宣言できる。
+    pos = {
+      ...pos,
+      hands: { player1: [P('kaku', 'player1'), P('fu', 'player1')], player2: [] },
+    };
+    expect(computeEnterZonePoints(hondou, pos, 'player1')).toBe(28);
     expect(canDeclareNyugyoku(hondou, pos, 'player1')).toBe(true);
+  });
+
+  it('★v1.84: 後手は 27 点で宣言できる (先手より 1 点低い・27 点法)', () => {
+    // 先手の配置を上下・左右に写して後手側に作る (後手の敵陣は下 3 段)。
+    let pos = buildPos(
+      [
+        { row: 8, col: 4, piece: P('ou', 'player2') },
+        { row: 6, col: 0, piece: P('hi', 'player2') },
+        { row: 6, col: 1, piece: P('kaku', 'player2') },
+        { row: 6, col: 2, piece: P('kin', 'player2') },
+        { row: 6, col: 3, piece: P('gin', 'player2') },
+        { row: 6, col: 5, piece: P('gin', 'player2') },
+        { row: 6, col: 6, piece: P('kin', 'player2') },
+        { row: 6, col: 7, piece: P('kei', 'player2') },
+        { row: 6, col: 8, piece: P('kyo', 'player2') },
+        { row: 7, col: 0, piece: P('fu', 'player2') },
+        { row: 7, col: 1, piece: P('fu', 'player2') },
+        { row: 7, col: 2, piece: P('fu', 'player2') },
+        { row: 7, col: 3, piece: P('fu', 'player2') },
+        { row: 7, col: 5, piece: P('fu', 'player2') },
+        { row: 7, col: 6, piece: P('fu', 'player2') },
+      ],
+      'player2',
+    );
+    pos = { ...pos, hands: { player1: [], player2: [P('kaku', 'player2')] } };
+    expect(computeEnterZonePoints(hondou, pos, 'player2')).toBe(27);
+    // **同じ 27 点でも、先手なら不可・後手なら可**＝先後で 1 点違うことの検査。
+    expect(canDeclareNyugyoku(hondou, pos, 'player2')).toBe(true);
   });
 
   it('king in enemy zone but only 10 points: cannot declare', () => {

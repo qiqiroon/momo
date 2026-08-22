@@ -252,6 +252,25 @@ const connector: OnlineGameConnector = {
     }
   },
 
+  sendJishogiOffer() {
+    // 持将棋の提案（v1.84・親 §4.4.1.3）。**撤回の口は持たない**＝10 秒で必ず決着する。
+    const client = getMomoMatchmaking();
+    if (!client) return;
+    useOffersStore.getState().setJishogiOfferFrom('me');
+    sendShogiMessage(client, { v: PROTOCOL_VERSION, type: 'jishogi_offer' });
+  },
+
+  sendJishogiResponse(accepted) {
+    const client = getMomoMatchmaking();
+    if (!client) return;
+    // 答えたので自分側の「相手からの提案」表示を消す
+    useOffersStore.getState().setJishogiOfferFrom(null);
+    sendShogiMessage(client, { v: PROTOCOL_VERSION, type: 'jishogi_response', accepted });
+    if (accepted) {
+      useGameStore.getState().agreeJishogi();
+    }
+  },
+
   sendDrawCancel() {
     // 引分申し出を撤回（v0.42）
     const client = getMomoMatchmaking();

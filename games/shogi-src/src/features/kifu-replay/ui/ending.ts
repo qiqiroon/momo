@@ -27,6 +27,8 @@ function reasonKeyOf(status: GameStatus): string | null {
       return 'result.reason.sennichite';
     case 'agreed_draw':
       return 'result.reason.agreed_draw';
+    case 'jishogi':
+      return 'result.reason.jishogi';
     case 'timeout_p1':
     case 'timeout_p2':
       return 'result.reason.timeout';

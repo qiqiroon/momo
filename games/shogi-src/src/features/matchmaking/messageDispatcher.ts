@@ -24,7 +24,7 @@
 import { useChatStore } from '../../core/store/chat-store';
 import { useRouteStore } from '../../core/store/route-store';
 import { useGameStore } from '../../core/store/game-store';
-import { useOffersStore } from '../../core/store/offers-store';
+import { JISHOGI_ANSWER_MS, useOffersStore } from '../../core/store/offers-store';
 import { pieceIdListDigest, positionHash } from '../../core/engine';
 import { get as pluginGet } from '../../core/plugin/registry';
 import type { ReviewMessage } from '../../core/plugin/review';
@@ -91,6 +91,11 @@ const SPECTATOR_ALLOWED: ReadonlySet<ShogiMessage['type']> = new Set([
   // ★v1.59 (段3・親 §6.8.6): 感想戦の部屋への移り先の知らせ。**観戦者だけが使う**
   // （席のある二人は自分たちで移り先を決めているので、受け取っても何もしない）。
   'review_migrate',
+  // ★v1.84 (親 §4.4.1.3): 持将棋の提案と応答。**観戦者は諾否に関わらない**が、
+  // **盤が止まるので「提案中」であることだけは見せる**（何も出さないと固まって見える）。
+  // 立場による扱いの分けは下の case で行う。
+  'jishogi_offer',
+  'jishogi_response',
   // 生存確認
   'ping',
   'pong',
@@ -245,6 +250,33 @@ export function handleShogiMessage(data: unknown, from?: string): void {
     }
     case 'draw_offer': {
       useOffersStore.getState().setDrawOfferFrom('opp');
+      return;
+    }
+    case 'jishogi_offer': {
+      // ★v1.84: **観戦者には知らせるだけ**（選ばせるものが無い）。
+      if (isSpectator(useMatchmakingStore.getState().myRole)) {
+        useOffersStore.getState().setJishogiSpectatorNotice(true);
+        return;
+      }
+      useOffersStore
+        .getState()
+        .setJishogiOfferFrom('opp', Date.now() + JISHOGI_ANSWER_MS);
+      return;
+    }
+    case 'jishogi_response': {
+      if (isSpectator(useMatchmakingStore.getState().myRole)) {
+        // ★観戦者にも**結果は伝える**＝印を消すだけで終わると、**成立したのに観戦者の
+        // 画面だけ対局中のまま止まる**（第56 の「追い出された側の画面が固まる」と同じ形）。
+        // **諾否に関わらないことと、結果を見届けられないことは別**である。
+        useOffersStore.getState().setJishogiSpectatorNotice(false);
+        if (msg.accepted) useGameStore.getState().agreeJishogi();
+        return;
+      }
+      useOffersStore.getState().setJishogiOfferFrom(null);
+      // **断られたことも 10 秒経ったことも、同じ「不成立」として伝える**
+      // （親 §4.4.1.3＝拒否は責められることではないので言い分けない）。
+      useOffersStore.getState().setNotice('jishogi', msg.accepted ? null : 'rejected');
+      if (msg.accepted) useGameStore.getState().agreeJishogi();
       return;
     }
     case 'draw_response': {

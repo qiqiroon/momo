@@ -126,6 +126,16 @@ export interface OnlineGameConnector {
   sendUndoCancel(): void;
   /** 引分を申し出た側が撤回する（v0.42）。 */
   sendDrawCancel(): void;
+  /**
+   * 持将棋を相手に提案する（v1.84・親 v1.62 §4.4.1.3）。
+   * **撤回の口は持たない**＝10 秒で必ず決着するので、待つ側に操作を求めない。
+   */
+  sendJishogiOffer(): void;
+  /**
+   * 持将棋の提案への応答（v1.84）。accepted=true で両者「持将棋」終局。
+   * **10 秒経って自動的に不成立になったときも false を送る**（送らないと相手が永久に待つ）。
+   */
+  sendJishogiResponse(accepted: boolean): void;
   /** 自分側の時間切れを相手に通知（段階 2-8 v0.35）。 */
   sendTimeout(side: 'player1' | 'player2'): void;
   /**

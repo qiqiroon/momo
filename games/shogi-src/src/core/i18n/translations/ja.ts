@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.83',
+    'app.ver': 'v1.84',
     // v0.72 音楽再生確認モーダル (Darts と同じ思想)
     'sound.promptTitle': 'BGM と効果音を再生してもよろしいですか？',
     'sound.bgmLabel': 'BGM 音量',
@@ -152,6 +152,7 @@ export const ja: LocaleData = {
     'cmd.taunt': '威嚇',
     'cmd.undo': '待った',
     'cmd.draw': '引分',
+    'cmd.jishogi': '持将棋の提案',
     'cmd.pause': '一時中断',
     'cmd.resign': '投了',
     'cmd.cancel': '持ち直し',
@@ -189,6 +190,7 @@ export const ja: LocaleData = {
     'status.resigned_p1': '先手投了',
     'status.resigned_p2': '後手投了',
     'status.agreed_draw': '引分（合意）',
+    'status.jishogi': '持将棋（引分）',
     'status.timeout_p1': '先手時間切れ',
     'status.timeout_p2': '後手時間切れ',
     // Phase 6: はさみ将棋の全滅 (相手の駒が規定枚数以下)
@@ -385,6 +387,7 @@ export const ja: LocaleData = {
       'このブラウザでは、どこへ置かれたかをこちらから確かめられません。端末の保存先をご確認ください。',
     'kifu.saved.ok': 'OK',
     'result.reason.agreed_draw': '合意による引分',
+    'result.reason.jishogi': '持将棋（引分）',
     // Phase 6: はさみ将棋の全滅 (親 §3.10 annihilation・付録D-3 §3.3/§3.4)
     'result.reason.annihilation': 'はさみ将棋の勝ち',
     'result.detail.pieces': '枚',
@@ -399,7 +402,14 @@ export const ja: LocaleData = {
     'draw.acceptAction': '引分に同意',
     'draw.rejectAction': '引分を拒否',
     'draw.sentWaiting': '引分を申し出中',
+    'jishogi.receivedTitle': '持将棋の提案',
+    'jishogi.receivedBody': '相手が持将棋（引分）を提案しています。',
+    'jishogi.acceptAction': '受け入れる',
+    'jishogi.rejectAction': '拒否する',
+    'jishogi.sentWaiting': '持将棋を提案中',
+    'jishogi.spectatorNotice': '持将棋の提案中',
     'draw.rejectedByOpp': '相手が引分を拒否しました',
+    'jishogi.notAgreed': '持将棋は成立しませんでした',
     'draw.cancelledByOpp': '相手が引分の申し出を撤回しました',
     'undo.receivedTitle': '待ったの申し出',
     'undo.receivedBody': '相手が待った（{n} 手戻す）を申し出ています。',

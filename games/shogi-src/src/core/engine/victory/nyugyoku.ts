@@ -1,4 +1,4 @@
-import type { Mgf, Player } from '../mgf/types';
+import type { Mgf, MgfSideThreshold, Player } from '../mgf/types';
 import type { PieceInstance, Position, Square } from '../position/types';
 import { isSquareAttackedBy } from '../moves/check';
 import { buildInitialKindMap, displayKindsFor } from '../candidate-kinds';
@@ -159,10 +159,73 @@ export function countEnterZonePieces(mgf: Mgf, position: Position, player: Playe
 export function canDeclareNyugyoku(mgf: Mgf, position: Position, player: Player): boolean {
   const ek = mgf.victory?.entering_king;
   if (!ek?.enabled) return false;
-  const threshold = ek.point_threshold ?? 24;
+  const threshold = resolveSideThreshold(ek.point_threshold, player, 24);
 
   if (!isEnteringKingEstablished(mgf, position, player)) return false;
   if (countEnterZonePieces(mgf, position, player) < REQUIRED_PIECE_COUNT) return false;
 
   return computeEnterZonePoints(mgf, position, player) >= threshold;
+}
+
+/**
+ * 先手・後手で違うしきい値を読む (親 v1.62 §3.10)。
+ * 27 点法は**先手 28 点・後手 27 点**。**数を 1 つだけ書いた形は両者同じ値**。
+ */
+export function resolveSideThreshold(
+  value: MgfSideThreshold | undefined,
+  player: Player,
+  fallback: number,
+): number {
+  if (value === undefined) return fallback;
+  if (typeof value === 'number') return value;
+  return value[player] ?? fallback;
+}
+
+/**
+ * 持将棋の点数 (親 v1.62 §4.4.1.2・量子分冊 v0.8 §Q21.5)。
+ *
+ * **入玉宣言と違い、盤の上のどこにあっても自分の駒すべて＋自分の持ち駒**を数える。
+ * **1 枚あたりの数え方は §Q21.3 と同じ**＝候補の姿がすべて大駒なら 5 点・それ以外は
+ * 1 点・合計から王の分として 1 を引く (王候補を保持する駒が複数あっても 1 回だけ)。
+ *
+ * **範囲が違うのは、測っている対象が違うため**＝入玉宣言は「相手陣まで戦力を運び込め
+ * たか」を問うので運び込んだ駒だけを数え、持将棋は「双方どれだけの戦力を残している
+ * か」を問うので全部を数える。**初期局面では双方 27 点**になる (玉を除く 19 枚＝
+ * 飛角 5 点 × 2 ＋ 小駒 17)。
+ */
+export function computeJishogiPoints(mgf: Mgf, position: Position, player: Player): number {
+  const kindMap = buildInitialKindMap(position);
+  const royalKinds = royalKindsOf(mgf);
+  let points = 0;
+  let countedRoyal = false;
+  for (const { kinds } of ownPiecesOnBoard(mgf, position, player, kindMap)) {
+    if (holdsRoyalCandidate(kinds, royalKinds)) countedRoyal = true;
+    points += isCertainMajor(kinds) ? 5 : 1;
+  }
+  for (const hand of position.hands[player]) {
+    points += isCertainMajor(kindsOf(mgf, hand, kindMap)) ? 5 : 1;
+  }
+  return countedRoyal ? points - 1 : points;
+}
+
+/**
+ * 持将棋の提案を出せるか (親 v1.62 §4.4.1.1)。
+ *
+ * **双方が入玉していて、かつ双方が持将棋の点数以上**であること。**片方だけでは出せない**
+ * ＝持将棋は双方の合意で成り立つものなので、条件も双方について問う。
+ *
+ * **点数だけを条件にしてはならない**＝持将棋の点数は盤の駒を全部数えるので**開始時点で
+ * 双方 27 点あり**、駒を取り合うほど減る。点数だけで判定すると 1 手目から出て、終盤に
+ * 向かって条件から外れるという逆向きの動きになる。**入玉の成立が前提**である。
+ */
+export function canProposeJishogi(mgf: Mgf, position: Position): boolean {
+  const js = mgf.victory?.jishogi;
+  if (!js?.enabled) return false;
+  const threshold = js.point_threshold ?? 24;
+  const sides: Player[] = ['player1', 'player2'];
+  return sides.every(
+    (side) =>
+      isEnteringKingEstablished(mgf, position, side) &&
+      computeJishogiPoints(mgf, position, side) >= threshold,
+  );
 }

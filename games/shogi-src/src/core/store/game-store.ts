@@ -4,6 +4,7 @@ import {
   applyMove,
   buildInitialKindMap,
   canDeclareNyugyoku,
+  canProposeJishogi,
   displayKindsFor,
   generateLegalMoves,
   hondou,
@@ -177,6 +178,14 @@ export type GameStatus =
   | 'resigned_p1'
   | 'resigned_p2'
   | 'agreed_draw'
+  /**
+   * v1.84: 持将棋 (親 v1.62 §4.4.1)。**双方が入玉していて双方が持将棋の点数以上**の
+   * ときに提案でき、相手が受け入れると成立する引き分け。
+   *
+   * **「合意による引分」とは別に立てる**＝**持将棋での引き分けと、理由のない引き分けの
+   * 違いには意義がある**ため (ユーザー判断 2026-08-22)。
+   */
+  | 'jishogi'
   /** v0.35: 持ち時間切れ。timeout_p1 = 先手が時間切れ(＝後手勝ち) */
   | 'timeout_p1'
   | 'timeout_p2'
@@ -191,6 +200,28 @@ export type GameStatus =
    */
   | 'annihilation_win_p1'
   | 'annihilation_win_p2';
+
+/**
+ * 局面から決まる「いま押せる手立て」をまとめて求める (v1.84)。
+ *
+ * **1 か所にまとめてあるのは、増やしたときに数え上げ直す場所を作らないため**＝
+ * 盤が変わる場所は複数あり (着手・待った・巻き戻し)、**個々に書き足す形にすると
+ * どれか 1 つで必ず書き忘れる**。
+ */
+export function computeVictoryFlags(mgf: Mgf, position: Position) {
+  return {
+    canNyugyokuP1: canDeclareNyugyoku(mgf, position, 'player1'),
+    canNyugyokuP2: canDeclareNyugyoku(mgf, position, 'player2'),
+    canJishogi: canProposeJishogi(mgf, position),
+  };
+}
+
+/** 盤がまだ無い / 作り直した直後の値。**上と同じ顔ぶれを持つ**。 */
+export const NO_VICTORY_FLAGS = {
+  canNyugyokuP1: false,
+  canNyugyokuP2: false,
+  canJishogi: false,
+} as const;
 
 /**
  * 終局した対局の**勝った側**。引分・ノーゲーム・対局中は null。
@@ -217,7 +248,7 @@ export function winnerOf(
     case 'timeout_p1':
       return 'player2';
     default:
-      // playing / sennichite / agreed_draw / nogame は勝った側が居ない
+      // playing / sennichite / agreed_draw / jishogi / nogame は勝った側が居ない
       return null;
   }
 }
@@ -253,6 +284,11 @@ interface GameState {
   positionCounts: Record<string, number>;
   canNyugyokuP1: boolean;
   canNyugyokuP2: boolean;
+  /**
+   * v1.84: 持将棋の提案を出せるか (親 v1.62 §4.4.1.1)。**双方について**成り立つ 1 つの
+   * 事実なので、先手・後手で分けない。
+   */
+  canJishogi: boolean;
   /** 直近適用された着手（着手送信を検知したい画面が subscribe する） */
   lastAppliedMove: LastAppliedMove | null;
   /** 待ったのための着手前局面スタック（v0.33 追加）。着手のたびに現在局面を push、undoLastMove で pop。 */
@@ -294,6 +330,7 @@ interface GameState {
   resign: (side: 'player1' | 'player2') => void;
   /** 引分に合意した状態にする。段階 2-7 v0.33。 */
   agreeDraw: () => void;
+  agreeJishogi: () => void;
   /**
    * 最後の n 手を巻き戻す。実際に戻せた手数を返す。段階 2-7 v0.33 / v0.42 で時計巻き戻し追加。
    * opts.restoreClockForSide が指定されたら、その side の時計を「戻される最古の手を指す前」の値に戻す。
@@ -711,8 +748,7 @@ function applyAndCommit(
     moveHistory: [...moveHistory, kifuEntry],
     status: finalStatus,
     positionCounts: nextCounts,
-    canNyugyokuP1: canDeclareNyugyoku(mgf, nextPos, 'player1'),
-    canNyugyokuP2: canDeclareNyugyoku(mgf, nextPos, 'player2'),
+    ...computeVictoryFlags(mgf, nextPos),
     lastAppliedMove: { move, source, seq: nextSeq },
     // v0.33: 待ったの巻き戻し用に、着手前の局面と positionCounts を履歴に積む
     positionHistory: [...positionHistory, position],
@@ -878,8 +914,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   status: 'playing',
   pendingPromotion: null,
   positionCounts: { [initialHash]: 1 },
-  canNyugyokuP1: false,
-  canNyugyokuP2: false,
+  ...NO_VICTORY_FLAGS,
   lastAppliedMove: null,
   positionHistory: [],
   positionCountsHistory: [],
@@ -1211,6 +1246,26 @@ export const useGameStore = create<GameState>((set, get) => ({
     });
   },
 
+  /**
+   * 持将棋の成立 (親 v1.62 §4.4.1)。**双方が受け入れたときだけ呼ばれる。**
+   *
+   * ここでは条件を測り直さない＝**測るのは提案を出すとき**であり、提案から合意まで
+   * のあいだ盤は動かない (提案中は両者の時計も止まり、手も指せない)。
+   */
+  agreeJishogi: () => {
+    const { status } = get();
+    if (status !== 'playing') return;
+    set({
+      status: 'jishogi',
+      anomaly: null,
+      selectedSquare: null,
+      selectedHandPieceId: null,
+      legalDestinations: [],
+      pendingPromotion: null,
+      activeClockSide: null,
+    });
+  },
+
   agreeDraw: () => {
     const { status } = get();
     if (status !== 'playing') return;
@@ -1374,8 +1429,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       pendingPromotion: null,
       status: 'playing',
       anomaly: null,
-      canNyugyokuP1: canDeclareNyugyoku(state.mgf, restoredPos, 'player1'),
-      canNyugyokuP2: canDeclareNyugyoku(state.mgf, restoredPos, 'player2'),
+      ...computeVictoryFlags(state.mgf, restoredPos),
       // v0.33 バグ修正: lastAppliedMove を触らない。触ると対局画面の
       // 「自分の手を相手に送信」useEffect が発火して直前の着手が再送信されてしまい、
       // 相手の巻き戻しが直後に上書きされる。
@@ -1466,8 +1520,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       status: 'playing',
       pendingPromotion: null,
       positionCounts: { [positionHash(pos)]: 1 },
-      canNyugyokuP1: false,
-      canNyugyokuP2: false,
+      ...NO_VICTORY_FLAGS,
       lastAppliedMove: null,
       positionHistory: [],
       positionCountsHistory: [],

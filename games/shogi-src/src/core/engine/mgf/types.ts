@@ -114,17 +114,41 @@ export interface MgfConstraints {
   dead_zone?: 'auto' | boolean;
 }
 
+/**
+ * 先手・後手で違うしきい値を持てる形 (親 v1.62 §3.10)。
+ * 27 点法は**先手 28 点・後手 27 点**なので 1 つの数では書けない。
+ * **数を 1 つだけ書いた従来の形も引き続き読め、その場合は両者同じ値**とする。
+ */
+export type MgfSideThreshold = number | { player1: number; player2: number };
+
 export interface MgfEnteringKing {
   enabled?: boolean;
   zone?: 'enemy_promotion' | string;
-  point_threshold?: number;
+  point_threshold?: MgfSideThreshold;
   count_method?: '24point' | '27point' | string;
+}
+
+/**
+ * 持将棋 (合意による引き分け・親 v1.62 §3.10／§4.4.1)。
+ *
+ * **点数を数える範囲が入玉宣言と違う**＝持将棋は**盤の上のどこにあっても自分の駒すべて
+ * ＋持ち駒**、入玉宣言は**敵陣内の自分の駒＋持ち駒**。**1 枚あたりの数え方 (飛角龍馬は
+ * 5 点・それ以外 1 点・王の分として 1 を引く／量子では候補の姿がすべて大駒である駒だけ
+ * 5 点) は共通**で、量子の読み替えはそちらに属するので範囲が変わっても効く。
+ *
+ * 省略時は `enabled:false` = 提案そのものを出さない。
+ */
+export interface MgfJishogi {
+  enabled?: boolean;
+  point_threshold?: number;
 }
 
 export interface MgfVictory {
   type?: 'capture_royalty' | 'bare_king' | 'points' | 'flag_capture' | 'annihilation' | 'check_wins';
   royalty_ids?: string[];
   entering_king?: MgfEnteringKing;
+  /** 持将棋 (親 v1.62 §4.4.1)。省略時は提案を出さない。 */
+  jishogi?: MgfJishogi;
   /**
    * `annihilation` の成立枚数 (親 §3.10)。相手の**盤上の駒がこの枚数以下**になったら勝ち。
    * 省略時 0 = 文字どおりの全滅。はさみ将棋の標準は 2 (§5.3)。

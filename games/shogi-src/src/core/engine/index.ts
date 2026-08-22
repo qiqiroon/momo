@@ -3,7 +3,15 @@ export { sandwichCaptures, countBoardPieces, annihilationLoser } from './moves/s
 export { formatMove, pieceNameJa } from './kifu/format';
 export { positionHash } from './position/hash';
 export { pieceIdListDigest } from './position/piece-id-hash';
-export { canDeclareNyugyoku, computeEnterZonePoints, countEnterZonePieces } from './victory/nyugyoku';
+export {
+  canDeclareNyugyoku,
+  computeEnterZonePoints,
+  countEnterZonePieces,
+  computeJishogiPoints,
+  canProposeJishogi,
+  isEnteringKingEstablished,
+  resolveSideThreshold,
+} from './victory/nyugyoku';
 export { initPosition } from './position/init';
 export { applyMove } from './position/apply';
 export {

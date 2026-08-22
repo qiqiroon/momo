@@ -4,7 +4,11 @@ import { createPortal } from 'react-dom';
 import { useI18nStore } from '../store/i18n-store';
 import { useGameStore, winnerOf } from '../store/game-store';
 import { useChatStore } from '../store/chat-store';
-import { useOffersStore } from '../store/offers-store';
+import {
+  JISHOGI_ANSWER_MS,
+  JISHOGI_WAIT_TIMEOUT_MS,
+  useOffersStore,
+} from '../store/offers-store';
 import { ChatConsole } from './ChatConsole';
 import { useRouteStore } from '../store/route-store';
 import { requestNewGame } from '../store/kifu-guard';
@@ -24,6 +28,7 @@ import {
   seAnomalyContinue,
   seAnomalyNogame,
   seButton,
+  seNotify,
 } from '../audio/se-synth';
 import { t as _t } from '../i18n';
 import type { LocaleCode } from '../i18n/types';
@@ -254,11 +259,16 @@ export function GameScreen({ variant }: GameScreenProps) {
   const activeClockSide = useGameStore((s) => s.activeClockSide);
   const paused = useGameStore((s) => s.paused);
   const undoOfferPending = useOffersStore((s) => s.undoOfferFrom) !== null;
+  // ★v1.84 (親 §4.4.1.3): 持将棋の提案中も**両者の時計を止める**。
+  // 提案できるのは自分の手番のときだけなので、止めなければ**答えを待っている間ずっと
+  // 提案した側の時間が減る**＝提案そのものが不利になり、誰も提案しなくなる。
+  const jishogiOfferPending = useOffersStore((s) => s.jishogiOfferFrom) !== null;
   useEffect(() => {
     if (!activeClockSide) return;
     if (status !== 'playing') return;
     if (paused) return; // 一時中断中は tick しない
     if (undoOfferPending) return; // v0.42: 待った申し出中は両者の時計を止める
+    if (jishogiOfferPending) return; // ★v1.84: 持将棋の提案中も両者の時計を止める
     const anchorSide = activeClockSide;
     const anchorAt = Date.now();
     const s = useGameStore.getState();
@@ -312,7 +322,7 @@ export function GameScreen({ variant }: GameScreenProps) {
     const interval = setInterval(advance, 100);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeClockSide, status, paused, undoOfferPending]);
+  }, [activeClockSide, status, paused, undoOfferPending, jishogiOfferPending]);
 
   // v0.35: 時間切れになったら相手に通知
   useEffect(() => {
@@ -348,7 +358,14 @@ export function GameScreen({ variant }: GameScreenProps) {
 
   // v0.72 音響: 勝敗の効果音 (自分視点)
   useEffect(() => {
-    if (status === 'playing' || status === 'sennichite' || status === 'agreed_draw') return;
+    // ★v1.84: 持将棋も勝った側が居ないので、勝敗の音は鳴らさない。
+    if (
+      status === 'playing' ||
+      status === 'sennichite' ||
+      status === 'agreed_draw' ||
+      status === 'jishogi'
+    )
+      return;
     // オンライン: 自分の勝ちなら fanfare、負けなら lose。オフラインでは負けた側視点で lose。
     const winnerSide = winnerOf(status, position.sideToMove);
     if (!winnerSide) return;
@@ -424,6 +441,8 @@ export function GameScreen({ variant }: GameScreenProps) {
                 ? t('status.resigned_p2')
                 : status === 'agreed_draw'
                   ? t('status.agreed_draw')
+                  : status === 'jishogi'
+                    ? t('status.jishogi')
                   : status === 'timeout_p1'
                     ? t('status.timeout_p1')
                     : status === 'timeout_p2'
@@ -952,6 +971,7 @@ export function GameScreen({ variant }: GameScreenProps) {
                   {t('cmd.cancel')}
                 </button>
                 <NyugyokuButton t={t} />
+                <JishogiButton t={t} online={online} status={status} sideToMove={position.sideToMove} />
               </>
             )}
           </div>
@@ -1044,6 +1064,11 @@ export function GameScreen({ variant }: GameScreenProps) {
       <GameEndModal t={t} online={online} />
       <OfferReceivedModal t={t} online={online} />
       <OfferSentPanel t={t} />
+      {/* ★v1.84 (親 §4.4.1.3): 持将棋の提案。**別の部品にしてある**＝待つ側は画面を
+          覆い、答える側は盤を覆わない＝**見せ方が正反対**なので、同じ部品に混ぜない。 */}
+      <JishogiSentPanel t={t} />
+      <JishogiReceivedModal t={t} />
+      <JishogiSpectatorNotice t={t} />
       {/* v1.47: 感想戦の打診と諾否 (親 §6.3.6)。**終局後に出る**ものなので、
           対局中の申し出とは別に置く。 */}
       <ReviewOfferReceivedModal t={t} />
@@ -1350,7 +1375,9 @@ function useAnyOfferPending(): boolean {
   const draw = useOffersStore((s) => s.drawOfferFrom);
   const undo = useOffersStore((s) => s.undoOfferFrom);
   const resume = useOffersStore((s) => s.resumeOfferFrom);
-  return draw !== null || undo !== null || resume !== null;
+  // ★v1.84: 持将棋の提案中も「申し出中」＝他の申し出と同時に走らせない。
+  const jishogi = useOffersStore((s) => s.jishogiOfferFrom);
+  return draw !== null || undo !== null || resume !== null || jishogi !== null;
 }
 
 /**
@@ -1576,6 +1603,121 @@ function OfferReceivedModal({
  * v0.42: 自分が申し出中のとき盤面中央にパネル表示＋撤回ボタン。
  * 引分・待った・再開の 3 種。
  */
+/**
+ * 持将棋を提案した側の画面 (親 v1.62 §4.4.1.3・付録D-1 v1.20 §7)。
+ *
+ * **画面を半透明で覆い**「相手の合意を待っています」と出す。**取り消すボタンは置かない**
+ * ＝**10 秒で必ず決着する**ので、待つ側に操作を求めない。
+ *
+ * **★見切りを持つ**＝答える側は 10 秒で必ず答えを送るが、**その伝言が届かないことは
+ * ある**（回線・離脱）。見切らないと**提案した側は永久に待ち、盤も時計も止まったまま**
+ * になる。**答える側の締め切り (10 秒) より長い 15 秒**にしてあるのは、先に切ると
+ * **届いた答えを捨ててしまう**ため。
+ */
+function JishogiSentPanel({ t }: { t: (key: string) => string }) {
+  const from = useOffersStore((s) => s.jishogiOfferFrom);
+  const waiting = from === 'me';
+  useEffect(() => {
+    if (!waiting) return;
+    const id = setTimeout(() => {
+      useOffersStore.getState().setJishogiOfferFrom(null);
+      useOffersStore.getState().setNotice('jishogi', 'rejected');
+    }, JISHOGI_WAIT_TIMEOUT_MS);
+    return () => clearTimeout(id);
+  }, [waiting]);
+  if (!waiting) return null;
+  return (
+    <>
+      <div className="jishogi-veil" />
+      <FloatingPanel
+        className="floating-result floating-confirm jishogi"
+        title={
+          <>
+            <span className="icon">🤝</span>
+            {t('jishogi.sentWaiting')}
+          </>
+        }
+      >
+        <div className="body">{t('offer.waitingBody')}</div>
+      </FloatingPanel>
+    </>
+  );
+}
+
+/**
+ * 持将棋を提案された側の画面 (親 v1.62 §4.4.1.3)。
+ *
+ * **盤は覆わない**＝**受けるかどうかは盤を見なければ決められない**。
+ * **残り秒数を 10 から 0 まで出す**＝**黙って消えると押し損ねる**ので、
+ * **これを待っている人がいつ待つのをやめられるか**を示す。
+ * **0 になったら自分から「不成立」を送る**＝送らないと相手が永久に待つ。
+ */
+function JishogiReceivedModal({ t }: { t: (key: string) => string }) {
+  const from = useOffersStore((s) => s.jishogiOfferFrom);
+  const deadline = useOffersStore((s) => s.jishogiDeadline);
+  const [now, setNow] = useState(() => Date.now());
+  const answering = from === 'opp';
+
+  useEffect(() => {
+    if (!answering) return;
+    const id = setInterval(() => setNow(Date.now()), 200);
+    return () => clearInterval(id);
+  }, [answering]);
+
+  const remainMs = deadline === null ? JISHOGI_ANSWER_MS : Math.max(0, deadline - now);
+  useEffect(() => {
+    if (!answering || deadline === null || remainMs > 0) return;
+    const c = pluginGet<OnlineGameConnector>('gameConnector');
+    if (c) c.sendJishogiResponse(false);
+    else useOffersStore.getState().setJishogiOfferFrom(null);
+  }, [answering, deadline, remainMs]);
+
+  if (!answering) return null;
+  const send = (accepted: boolean) => {
+    const c = pluginGet<OnlineGameConnector>('gameConnector');
+    if (c) c.sendJishogiResponse(accepted);
+  };
+  const remainSec = Math.ceil(remainMs / 1000);
+  return (
+    <FloatingPanel
+      className="floating-result floating-confirm jishogi"
+      title={
+        <>
+          <span className="icon">🤝</span>
+          {t('jishogi.receivedTitle')}
+        </>
+      }
+    >
+      <div className="body">{t('jishogi.receivedBody')}</div>
+      <div className="jishogi-countdown">
+        <span className="num">{remainSec}</span>
+        <span className="bar">
+          <span style={{ width: `${(remainMs / JISHOGI_ANSWER_MS) * 100}%` }} />
+        </span>
+      </div>
+      <div className="btn-row">
+        <button type="button" className="btn ghost" onClick={() => send(false)}>
+          {t('jishogi.rejectAction')}
+        </button>
+        <button type="button" className="btn" onClick={() => send(true)}>
+          {t('jishogi.acceptAction')}
+        </button>
+      </div>
+    </FloatingPanel>
+  );
+}
+
+/**
+ * 観戦者に「持将棋の提案中」であることだけを出す (親 v1.62 §4.4.1.3)。
+ * **盤は覆わず、選ばせるものも置かない**＝**盤が止まるので、何も出さないと固まったように
+ * 見える**というだけの理由で出している。
+ */
+function JishogiSpectatorNotice({ t }: { t: (key: string) => string }) {
+  const on = useOffersStore((s) => s.jishogiSpectatorNotice);
+  if (!on) return null;
+  return <div className="jishogi-spectator-notice">{t('jishogi.spectatorNotice')}</div>;
+}
+
 function OfferSentPanel({ t }: { t: (key: string) => string }) {
   const drawFrom = useOffersStore((s) => s.drawOfferFrom);
   const undoFrom = useOffersStore((s) => s.undoOfferFrom);
@@ -1694,7 +1836,11 @@ function OfferResponseToast({ t }: { t: (key: string) => string }) {
           ? 'undo.rejectedByOpp'
           : kind === 'resume'
             ? 'resume.rejectedByOpp'
-            : 'pause.rejectedByOpp'
+            : // ★v1.84: **拒否と 10 秒経過を言い分けない**（親 §4.4.1.3＝どちらも
+              // 同じ「不成立」であり、断ることは責められることではない）。
+              kind === 'jishogi'
+              ? 'jishogi.notAgreed'
+              : 'pause.rejectedByOpp'
       : /* cancelled */
         kind === 'draw'
         ? 'draw.cancelledByOpp'
@@ -1885,6 +2031,9 @@ function GameEndModal({
       break;
     case 'agreed_draw':
       reasonKey = 'result.reason.agreed_draw';
+      break;
+    case 'jishogi':
+      reasonKey = 'result.reason.jishogi';
       break;
     case 'timeout_p1':
     case 'timeout_p2':
@@ -2204,10 +2353,82 @@ function NyugyokuButton({ t }: NyugyokuButtonProps) {
   const status = useGameStore((s) => s.status);
   const declareNyugyoku = useGameStore((s) => s.declareNyugyoku);
   const canNow = status === 'playing' && (position.sideToMove === 'player1' ? canP1 : canP2);
+  useAppearedNotice(canNow);
   if (!canNow) return null;
   return (
-    <button type="button" className="act" onClick={() => declareNyugyoku()}>
+    <button type="button" className="act available" onClick={() => declareNyugyoku()}>
       {t('cmd.nyugyoku')}
+    </button>
+  );
+}
+
+/**
+ * 「押せる手立てが現れた」ことを 1 度だけ音で知らせる (音響 v0.9 §2.3・付録D-1 v1.20 §7)。
+ *
+ * **現れた瞬間に 1 回だけ**＝**現れている間ずっとは鳴らさない／条件を満たしたまま手が
+ * 進む間も鳴らし直さない**。**いったん条件から外れて再び満たしたときに、また 1 回**。
+ *
+ * **鳴らす理由**＝入玉宣言も持将棋も**自分の指し手だけでは条件が揃わない**（相手の駒の
+ * 位置にも左右される）ので、**知らせないと現れたことに気づけない**。
+ * **鳴らし続けない理由**＝どちらも**押さずに指し続けてよい**手立てなので、鳴り続けると
+ * 急かしているように受け取られる。
+ */
+function useAppearedNotice(available: boolean): void {
+  const prev = useRef(available);
+  useEffect(() => {
+    if (available && !prev.current) seNotify();
+    prev.current = available;
+  }, [available]);
+}
+
+interface JishogiButtonProps {
+  t: (key: string) => string;
+  online: { isOnline: boolean; mySide: 'player1' | 'player2' | null };
+  status: string;
+  sideToMove: 'player1' | 'player2';
+}
+
+/**
+ * 持将棋の提案ボタン (親 v1.62 §4.4.1・画面機能 v0.54 §3 S06)。
+ *
+ * **双方が入玉していて双方が持将棋の点数以上のときだけ現れる**（揃わない間は灰色で
+ * 置くのではなく置かない＝**灰色は「押せない」だけを意味する**ので、条件を説明しない
+ * 灰色を並べても何も伝わらない）。**押せるのは自分の手番のときだけ。**
+ *
+ * **オフライン（対 AI・同じ端末の二人）では出さない**＝**相手が諾否を答えられない**。
+ * 引き分けにしたいときは従来どおり「引分」が使える（親 §4.4.1.4＝両方残す）。
+ */
+function JishogiButton({ t, online, status, sideToMove }: JishogiButtonProps) {
+  const canJishogi = useGameStore((s) => s.canJishogi);
+  const paused = useGameStore((s) => s.paused);
+  const anyOffer = useAnyOfferPending();
+  const [blockedUntilMyNextTurn, setBlockedUntilMyNextTurn] = useState(false);
+  const notice = useOffersStore((s) => s.lastNoticeKind);
+  const noticeType = useOffersStore((s) => s.lastNoticeType);
+  const mySide = online.mySide;
+  const myTurn = online.isOnline && mySide !== null && mySide === sideToMove;
+
+  // ★不成立になったら、**次に自分の手番が来るまで**再提案できない (親 §4.4.1.3)。
+  // 連打で相手を煩わせないため。手番が自分から離れた時点で解ける。
+  useEffect(() => {
+    if (notice === 'jishogi' && noticeType === 'rejected') setBlockedUntilMyNextTurn(true);
+  }, [notice, noticeType]);
+  useEffect(() => {
+    if (!myTurn) setBlockedUntilMyNextTurn(false);
+  }, [myTurn]);
+
+  const visible = online.isOnline && status === 'playing' && canJishogi;
+  useAppearedNotice(visible);
+  if (!visible) return null;
+
+  const disabled = paused || anyOffer || !myTurn || blockedUntilMyNextTurn;
+  const onClick = () => {
+    const c = pluginGet<OnlineGameConnector>('gameConnector');
+    if (c) c.sendJishogiOffer();
+  };
+  return (
+    <button type="button" className="act available" disabled={disabled} onClick={onClick}>
+      {t('cmd.jishogi')}
     </button>
   );
 }

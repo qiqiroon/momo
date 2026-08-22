@@ -31,8 +31,12 @@
     "entering_king": {
       "enabled": true,
       "zone": "enemy_promotion",
-      "point_threshold": 24,
-      "count_method": "24point"
+      "point_threshold": { "player1": 28, "player2": 27 },
+      "count_method": "27point"
+    },
+    "jishogi": {
+      "enabled": true,
+      "point_threshold": 24
     },
     "resign_allowed": true
   },

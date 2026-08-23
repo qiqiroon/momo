@@ -96,6 +96,11 @@ const SPECTATOR_ALLOWED: ReadonlySet<ShogiMessage['type']> = new Set([
   // 立場による扱いの分けは下の case で行う。
   'jishogi_offer',
   'jishogi_response',
+  // ★v1.88 (親 v1.63 §4.4.2): 入玉宣言と「選択中」。**観戦者は選ばないが、
+  // 盤が止まるので「選択中」は見せ、勝ちの宣言は終局として適用する**
+  // （**諾否に関わらないことと、結果を見届けられないことは別**＝第56・第57 と同じ形）。
+  'nyugyoku_declare',
+  'nyugyoku_prompt',
   // 生存確認
   'ping',
   'pong',
@@ -246,6 +251,17 @@ export function handleShogiMessage(data: unknown, from?: string): void {
     }
     case 'resign': {
       useGameStore.getState().resign(msg.side);
+      return;
+    }
+    case 'nyugyoku_declare': {
+      // ★v1.88: **観戦者にも同じ終局を適用する**（見届けられないと画面が止まる）。
+      useGameStore.getState().applyRemoteNyugyoku(msg.side);
+      return;
+    }
+    case 'nyugyoku_prompt': {
+      // ★v1.88: **出すのは「選択中」の表示だけ**。盤と時計が止まるのは、
+      // この印が立っていること自体から決まる（game-store 側で見ている）。
+      useGameStore.getState().setNyugyokuPrompt(msg.open ? msg.side : null);
       return;
     }
     case 'draw_offer': {

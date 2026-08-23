@@ -136,6 +136,23 @@ export interface OnlineGameConnector {
    * **10 秒経って自動的に不成立になったときも false を送る**（送らないと相手が永久に待つ）。
    */
   sendJishogiResponse(accepted: boolean): void;
+  /**
+   * ★v1.88: 入玉宣言による勝ちを相手と観戦者へ届ける（親 v1.63 §6 `nyugyoku_declare`）。
+   *
+   * **v1.87 まではこの口が無く、宣言した本人の画面だけが終局していた**
+   * （実機のご報告 2026-08-23）。**諾否に関わらないことと、結果を見届けられないことは
+   * 別**＝第56・第57 と同じ形の穴だった。
+   */
+  sendNyugyokuDeclare?(side: 'player1' | 'player2'): void;
+  /**
+   * ★v1.88: 「入玉宣言しますか」を出している／閉じたことの知らせ
+   * （親 v1.63 §6 `nyugyoku_prompt`）。
+   *
+   * **これは「入玉宣言選択中」と出すためだけのもの**で、**届かなくても対局は止まらない**
+   * ＝**指した手そのものを、答えるまで送らない**ので、相手は「まだ自分の番ではない」
+   * ままになる（§4.4.2.2）。**知らせに寄りかからない作りにしてある。**
+   */
+  sendNyugyokuPrompt?(open: boolean): void;
   /** 自分側の時間切れを相手に通知（段階 2-8 v0.35）。 */
   sendTimeout(side: 'player1' | 'player2'): void;
   /**

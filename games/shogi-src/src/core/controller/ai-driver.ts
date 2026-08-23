@@ -12,6 +12,7 @@
 import { useEffect, useRef } from 'react';
 import { useGameStore } from '../store/game-store';
 import { useAiStore, isSmallScreen, THINK_BUDGET_CAP_MS } from '../store/ai-store';
+import { canDeclareNyugyoku } from '../engine';
 import { findEngine, defaultEngine, supports } from '../ai/engine-registry';
 import { aiModeFrom } from '../ai/mode';
 import type { EngineAdapter } from '../ai/types';
@@ -72,6 +73,27 @@ export function useAiOpponent(isOnline: boolean): void {
       useAiStore.getState().setThinking(false);
     };
   }, []);
+
+  /**
+   * ★v1.88 (親 v1.63 §7.9.1): **AI は宣言できるときは必ず宣言する。**
+   *
+   * **自分の手番が来るのを待たない**＝**自分の手で条件が揃った直後にも宣言する**
+   * （§4.4.2.2 が人に対して用意した「その場で尋ねる」段に相当する）。待つと、
+   * **相手の 1 手で条件が崩れて勝ちを逃す**。
+   *
+   * **段（Easy / Hard / Apocalypse）では変えない**＝段は読みの深さの話であって、
+   * **勝ちが確定している手立てを取るかどうかの話ではない**。
+   *
+   * **考え始めるより先に置いてある**＝宣言できるなら考える必要が無い。
+   */
+  useEffect(() => {
+    if (!enabled || isOnline) return;
+    if (status !== 'playing' || paused) return;
+    if (anomaly) return;
+    const gs = useGameStore.getState();
+    if (!canDeclareNyugyoku(gs.mgf, gs.position, aiSide)) return;
+    gs.declareNyugyoku(aiSide);
+  }, [enabled, isOnline, status, paused, position, anomaly, aiSide]);
 
   useEffect(() => {
     if (!enabled || isOnline) return;

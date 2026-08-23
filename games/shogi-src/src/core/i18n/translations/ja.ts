@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.87',
+    'app.ver': 'v1.88',
     // v0.72 音楽再生確認モーダル (Darts と同じ思想)
     'sound.promptTitle': 'BGM と効果音を再生してもよろしいですか？',
     'sound.bgmLabel': 'BGM 音量',
@@ -392,6 +392,11 @@ export const ja: LocaleData = {
     'result.reason.annihilation': 'はさみ将棋の勝ち',
     // ★v1.86: 補足詳細の折込みカード (付録D-3 v1.10 §3.4)。
     // 「左に項目名・右に値」の 2 列で並べるので、**項目名の側に単位を混ぜない**。
+    'nyugyoku.askTitle': '入玉宣言しますか？',
+    'nyugyoku.askBody': '宣言すると、その時点であなたの勝ちになります。しない場合も対局は続けられます（時間は止まっています）。',
+    'nyugyoku.askYes': '宣言する',
+    'nyugyoku.askNo': 'しない',
+    'nyugyoku.waitNotice': '入玉宣言選択中',
     'result.detail.pieces': '枚',
     'result.detail.piecesOrFewer': '枚以下',
     'result.detail.points': '点',

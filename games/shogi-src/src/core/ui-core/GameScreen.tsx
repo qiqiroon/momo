@@ -222,10 +222,21 @@ export function GameScreen({ variant }: GameScreenProps) {
   }, [online.isOnline, reset, clearChat]);
 
   // 自分の着手を相手に送信
+  // ★v1.88 (親 v1.63 §4.4.2.2): 入玉宣言を尋ねている間も**両者の時計を止める**。
+  // **時間制限が無い**ので、止めなければ**選んでいる間ずっと時間が減る**。
+  const nyugyokuPrompt = useGameStore((s) => s.nyugyokuPromptSide);
   useEffect(() => {
     if (!online.isOnline) return;
     if (!lastAppliedMove) return;
     if (lastAppliedMove.source !== 'local') return;
+    // ★v1.88 (親 v1.63 §4.4.2.2): **「入玉宣言しますか」に答えるまで、指した手を送らない**
+    // ＝**相手に手番を渡さない**を、そのままの形で実現する。
+    //
+    // **知らせの伝言に頼らないのはこのため**＝**送らなければ相手は「まだ自分の番では
+    // ない」ままなので、知らせが届かなくても固まらない**。知らせ (`nyugyoku_prompt`)
+    // は**「選択中」と出すためだけのもの**で、届かなくても害が無い。
+    // **答えたあとにこの効果がもう一度走って送る**（`nyugyokuPrompt` を deps に入れてある）。
+    if (nyugyokuPrompt) return;
     const c = pluginGet<OnlineGameConnector>('gameConnector');
     if (!c) return;
     const move = lastAppliedMove.move;
@@ -258,7 +269,25 @@ export function GameScreen({ variant }: GameScreenProps) {
     }
     // ★v1.55: `free`（感想戦の自由な手）はここへ来ない＝**対局画面では生まれない**。
     // 感想戦の共有は別の伝言（親 §6.3.6 の `review_move`）が受け持つ。
-  }, [lastAppliedMove, online.isOnline, online.mySide]);
+  }, [lastAppliedMove, online.isOnline, online.mySide, nyugyokuPrompt]);
+
+  /**
+   * ★v1.88 (親 v1.63 §6): 自分の入玉宣言を相手と観戦者へ知らせる。
+   *
+   * **上の「手を送る」効果より後に置いてある**＝**答えるまで送らずに持っている手が
+   * ある場合、手 → 宣言の順で送らないと、相手は終局だけ受け取って盤が 1 手古いまま**に
+   * なる（終局画面の点数はその局面から数えるので、数まで食い違う）。
+   * 同じ描き直しの中では、宣言した順に効果が走る。
+   */
+  const nyugyokuAnnounce = useGameStore((s) => s.nyugyokuAnnounce);
+  useEffect(() => {
+    if (!nyugyokuAnnounce) return;
+    if (online.isOnline) {
+      const c = pluginGet<OnlineGameConnector>('gameConnector');
+      c?.sendNyugyokuDeclare?.(nyugyokuAnnounce);
+    }
+    useGameStore.getState().clearNyugyokuAnnounce();
+  }, [nyugyokuAnnounce, online.isOnline]);
 
   // v0.35 ticker → v0.38: アンカー方式に置換。手番開始時の (時計値, Date.now()) を anchor に、
   // 各 tick で elapsed = Date.now() - anchor.at をもとに絶対再計算する。
@@ -278,6 +307,7 @@ export function GameScreen({ variant }: GameScreenProps) {
     if (paused) return; // 一時中断中は tick しない
     if (undoOfferPending) return; // v0.42: 待った申し出中は両者の時計を止める
     if (jishogiOfferPending) return; // ★v1.84: 持将棋の提案中も両者の時計を止める
+    if (nyugyokuPrompt) return; // ★v1.88: 入玉宣言を尋ねている間も止める
     const anchorSide = activeClockSide;
     const anchorAt = Date.now();
     const s = useGameStore.getState();
@@ -331,7 +361,7 @@ export function GameScreen({ variant }: GameScreenProps) {
     const interval = setInterval(advance, 100);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeClockSide, status, paused, undoOfferPending, jishogiOfferPending]);
+  }, [activeClockSide, status, paused, undoOfferPending, jishogiOfferPending, nyugyokuPrompt]);
 
   // v0.35: 時間切れになったら相手に通知
   useEffect(() => {
@@ -979,7 +1009,7 @@ export function GameScreen({ variant }: GameScreenProps) {
                 <button type="button" className="act" onClick={clearSelection}>
                   {t('cmd.cancel')}
                 </button>
-                <NyugyokuButton t={t} />
+                <NyugyokuButton t={t} online={online} />
                 <JishogiButton t={t} online={online} status={status} sideToMove={position.sideToMove} />
               </>
             )}
@@ -1078,6 +1108,11 @@ export function GameScreen({ variant }: GameScreenProps) {
       <JishogiSentPanel t={t} />
       <JishogiReceivedModal t={t} />
       <JishogiSpectatorNotice t={t} />
+      {/* ★v1.88 (親 v1.63 §4.4.2.2): 入玉宣言を尋ねる／相手と観戦者への「選択中」。
+          **持将棋の提案と同じ並びに置く**＝同じ「盤が止まっている」出来事なので、
+          出し方も置き場所もそろえる。 */}
+      <NyugyokuPromptModal t={t} online={online} />
+      <NyugyokuWaitNotice t={t} online={online} />
       {/* v1.47: 感想戦の打診と諾否 (親 §6.3.6)。**終局後に出る**ものなので、
           対局中の申し出とは別に置く。 */}
       <ReviewOfferReceivedModal t={t} />
@@ -2516,22 +2551,166 @@ function OpponentLeftModal({ t }: { t: (key: string) => string }) {
 
 interface NyugyokuButtonProps {
   t: (key: string) => string;
+  online: { isOnline: boolean; mySide: 'player1' | 'player2' | null };
 }
 
-function NyugyokuButton({ t }: NyugyokuButtonProps) {
+/**
+ * 入玉宣言ボタン (親 v1.63 §4.4.2.1)。
+ *
+ * **★宣言は勝つ側の権利**であり、**負ける側に押す権利は無い**。したがって
+ * **出してよいのは「この画面を見ている本人の側」が条件を満たしているときだけ**で、
+ * **「いま手番の側」で決めてはならない**。
+ *
+ * **v1.87 まではいま手番の側で決めていた**ので、**ネット対戦で相手の手番になった瞬間、
+ * 相手の条件で自分の画面にもボタンが出ていた**（実機のご報告 2026-08-23）。
+ * **押すと相手の勝ちを宣言してしまう。**
+ * 投了・待った・引分・持将棋は元から自分の側で決めており、ここだけが揃っていなかった。
+ *
+ * **押せるのは自分の手番のときだけ**（§4.4.2.3）。自分の手で条件が揃った直後は、
+ * このボタンではなく `NyugyokuPromptModal` が受け持つ。
+ */
+function NyugyokuButton({ t, online }: NyugyokuButtonProps) {
   const position = useGameStore((s) => s.position);
   const canP1 = useGameStore((s) => s.canNyugyokuP1);
   const canP2 = useGameStore((s) => s.canNyugyokuP2);
   const status = useGameStore((s) => s.status);
+  const prompting = useGameStore((s) => s.nyugyokuPromptSide) !== null;
   const declareNyugyoku = useGameStore((s) => s.declareNyugyoku);
-  const canNow = status === 'playing' && (position.sideToMove === 'player1' ? canP1 : canP2);
+  const mySide = useMyDeclaringSide(online);
+  const canMine = mySide !== null && (mySide === 'player1' ? canP1 : canP2);
+  const canNow =
+    status === 'playing' && !prompting && canMine && position.sideToMove === mySide;
+  // 音は「押せるようになった」ことに対して鳴らす。**尋ねているモーダルが出ている間は
+  // ボタンを出さない**が、そのときは鳴らす役目をモーダル側が持つ。
   useAppearedNotice(canNow);
-  if (!canNow) return null;
+  if (!canNow || !mySide) return null;
   return (
-    <button type="button" className="act available" onClick={() => declareNyugyoku()}>
+    <button type="button" className="act available" onClick={() => declareNyugyoku(mySide)}>
       {t('cmd.nyugyoku')}
     </button>
   );
+}
+
+/**
+ * 「入玉宣言しますか？」(★v1.88・親 v1.63 §4.4.2.2・付録D-1 v1.22 §7)。
+ *
+ * **自分が指した直後に、それまで成立していなかった条件が成立したとき**に出る。
+ * **両者の時計は止まり、選ぶまで駒は動かせない**（止める仕事は game-store と
+ * 時計の tick が受け持つ）。
+ *
+ * **★残り秒数は出さない**＝**時間制限が無い**。**持将棋の諾否から残量表示を
+ * 借りてこないこと**＝借りると**在りもしない締め切りを見せる**ことになる。
+ *
+ * **★覆いは盤・駒台・操作の行までで、チャットには掛けない**＝**止めるのは盤と
+ * 時計だけ**で、**話す手段まで止めない**（ユーザー判断 2026-08-23）。
+ */
+function NyugyokuPromptModal({
+  t,
+  online,
+}: {
+  t: (key: string) => string;
+  online: { isOnline: boolean; mySide: 'player1' | 'player2' | null };
+}) {
+  const promptSide = useGameStore((s) => s.nyugyokuPromptSide);
+  const declareNyugyoku = useGameStore((s) => s.declareNyugyoku);
+  const setNyugyokuPrompt = useGameStore((s) => s.setNyugyokuPrompt);
+  const mySide = useMyDeclaringSide(online);
+  const vsAi = useAiStore((st) => st.enabled);
+  const aiSide = useAiStore((st) => st.aiSide);
+  // **AI には尋ねない**（親 §7.9.1＝できるときは必ず宣言するので迷わない）。
+  const forAi = vsAi && promptSide === aiSide;
+  // **同じ端末の二人**のときは、尋ねられているのはその手を指した側なので、
+  // `useMyDeclaringSide` の「いま手番の側」とは食い違う。**尋ねられている側で判断する。**
+  const mine = online.isOnline ? promptSide === mySide : !forAi;
+  const notify = promptSide !== null && mine;
+  useAppearedNotice(notify);
+  useEffect(() => {
+    if (!notify) return;
+    const c = pluginGet<OnlineGameConnector>('gameConnector');
+    c?.sendNyugyokuPrompt?.(true);
+    return () => {
+      c?.sendNyugyokuPrompt?.(false);
+    };
+  }, [notify]);
+  if (promptSide === null || !mine) return null;
+  const answer = (declare: boolean) => {
+    if (declare) declareNyugyoku(promptSide);
+    else setNyugyokuPrompt(null);
+  };
+  return (
+    <>
+      {/* **持将棋の覆いを流用しない**＝あちらの見張りは「覆いを出すのは提案した側だけ」を
+          クラスの数で確かめている。**値は下の検査でそろえてある。** */}
+      <div className="nyugyoku-veil" />
+      <FloatingPanel
+        className="floating-result floating-confirm nyugyoku"
+        title={
+          <>
+            <span className="icon">🏁</span>
+            {t('nyugyoku.askTitle')}
+          </>
+        }
+      >
+        <div className="body">{t('nyugyoku.askBody')}</div>
+        <div className="btn-row">
+          <button type="button" className="btn ghost outline" onClick={() => answer(false)}>
+            {t('nyugyoku.askNo')}
+          </button>
+          <button type="button" className="btn" onClick={() => answer(true)}>
+            {t('nyugyoku.askYes')}
+          </button>
+        </div>
+      </FloatingPanel>
+    </>
+  );
+}
+
+/**
+ * 「入玉宣言選択中」(★v1.88・親 v1.63 §4.4.2.2・付録D-1 v1.22 §7)。
+ *
+ * **相手と観戦者に出す**。**盤は覆わない**（見ていてよい）。
+ * **答えるものは無いのでボタンは置かない。**
+ *
+ * **何も出さずに盤だけ効かなくすると、相手は壊れたと受け取る**＝
+ * **「無い」は送るべき事実**という既存の決まりと同じ。
+ */
+function NyugyokuWaitNotice({
+  t,
+  online,
+}: {
+  t: (key: string) => string;
+  online: { isOnline: boolean; mySide: 'player1' | 'player2' | null };
+}) {
+  const promptSide = useGameStore((s) => s.nyugyokuPromptSide);
+  const mySide = useMyDeclaringSide(online);
+  const vsAi = useAiStore((st) => st.enabled);
+  const aiSide = useAiStore((st) => st.aiSide);
+  if (promptSide === null) return null;
+  const forAi = vsAi && promptSide === aiSide;
+  const mine = online.isOnline ? promptSide === mySide : !forAi;
+  if (mine) return null;
+  return <div className="nyugyoku-wait">{t('nyugyoku.waitNotice')}</div>;
+}
+
+/**
+ * この画面の持ち主が宣言できる側 (★v1.88・親 v1.63 §4.4.2.1)。
+ *
+ * - **ネット対戦**＝自分の席。相手の側は決して返さない。
+ * - **対 AI**＝AI ではないほうの側（AI は §7.9 で自分から宣言する）。
+ * - **同じ端末の二人**＝どちらも自分なので、いま手番の側。
+ *
+ * **1 か所にまとめてあるのは、場面ごとに書き分けると必ずどれかで取り違えるため。**
+ */
+function useMyDeclaringSide(online: {
+  isOnline: boolean;
+  mySide: 'player1' | 'player2' | null;
+}): 'player1' | 'player2' | null {
+  const sideToMove = useGameStore((s) => s.position.sideToMove);
+  const vsAi = useAiStore((st) => st.enabled);
+  const aiSide = useAiStore((st) => st.aiSide);
+  if (online.isOnline) return online.mySide;
+  if (vsAi) return aiSide === 'player1' ? 'player2' : 'player1';
+  return sideToMove;
 }
 
 /**
@@ -2577,8 +2756,21 @@ function JishogiButton({ t, online, status, sideToMove }: JishogiButtonProps) {
   const [blockedUntilMyNextTurn, setBlockedUntilMyNextTurn] = useState(false);
   const notice = useOffersStore((s) => s.lastNoticeKind);
   const noticeType = useOffersStore((s) => s.lastNoticeType);
-  const mySide = online.mySide;
-  const myTurn = online.isOnline && mySide !== null && mySide === sideToMove;
+  // ★v1.88 (親 v1.63 §7.9.2): **対 AI でも提案できる**＝**AI は自分から提案しないが、
+  // 提案されたら必ず賛成する**と決めた（ユーザー判断 2026-08-23）。
+  // **v1.87 の「オフラインでは出さない」は「相手が諾否を答えられない」ことを理由に
+  // していた**ので、**その理由は対 AI については消えた**。
+  // **同じ端末の二人のときは引き続き出さない**（答える相手が居ない）。
+  const vsAi = useAiStore((st) => st.enabled);
+  const aiSide = useAiStore((st) => st.aiSide);
+  const mySide = online.isOnline
+    ? online.mySide
+    : vsAi
+      ? aiSide === 'player1'
+        ? 'player2'
+        : 'player1'
+      : null;
+  const myTurn = mySide !== null && mySide === sideToMove;
 
   // ★不成立になったら、**次に自分の手番が来るまで**再提案できない (親 §4.4.1.3)。
   // 連打で相手を煩わせないため。手番が自分から離れた時点で解ける。
@@ -2589,12 +2781,18 @@ function JishogiButton({ t, online, status, sideToMove }: JishogiButtonProps) {
     if (!myTurn) setBlockedUntilMyNextTurn(false);
   }, [myTurn]);
 
-  const visible = online.isOnline && status === 'playing' && canJishogi;
+  const visible = (online.isOnline || vsAi) && status === 'playing' && canJishogi;
   useAppearedNotice(visible);
   if (!visible) return null;
 
   const disabled = paused || anyOffer || !myTurn || blockedUntilMyNextTurn;
   const onClick = () => {
+    if (!online.isOnline && vsAi) {
+      // ★v1.88 (親 §7.9.2): **AI は必ず賛成する**。伝言を往復させる相手が居ないので、
+      // **その場で成立**させる。**断る経路は AI 相手では起こらない。**
+      useGameStore.getState().agreeJishogi();
+      return;
+    }
     const c = pluginGet<OnlineGameConnector>('gameConnector');
     if (c) c.sendJishogiOffer();
   };

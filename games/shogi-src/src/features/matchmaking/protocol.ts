@@ -181,6 +181,31 @@ export interface ResignMsg extends Envelope {
   side: 'player1' | 'player2';
 }
 
+/**
+ * ★v1.88: 入玉宣言による勝ち（親 v1.63 §4.4.2・§6 `nyugyoku_declare`）。
+ *
+ * **side は宣言した側**＝その側の勝ちで終局する。**受け取った側は観戦者を含めて
+ * 同じ終局を適用する**。**v1.87 までこの伝言は無く、宣言した本人の画面だけが
+ * 終局していた**（実機のご報告 2026-08-23）。
+ */
+export interface NyugyokuDeclareMsg extends Envelope {
+  type: 'nyugyoku_declare';
+  side: 'player1' | 'player2';
+}
+
+/**
+ * ★v1.88: 「入玉宣言しますか」を出している／閉じた（親 v1.63 §6 `nyugyoku_prompt`）。
+ *
+ * **side は尋ねられている側**。**受け取った側は「入玉宣言選択中」と出すだけ**で、
+ * 答えるものは無い。**届かなくても対局は止まらない**＝**指した手そのものが、
+ * 答えるまで送られない**ので、相手は「まだ自分の番ではない」ままになる。
+ */
+export interface NyugyokuPromptMsg extends Envelope {
+  type: 'nyugyoku_prompt';
+  side: 'player1' | 'player2';
+  open: boolean;
+}
+
 /** 引分の申し出（段階 2-7 v0.33）。応答は draw_response で返す。 */
 export interface DrawOfferMsg extends Envelope {
   type: 'draw_offer';
@@ -486,6 +511,8 @@ export type ShogiMessage =
   | DrawOfferMsg
   | DrawResponseMsg
   | JishogiOfferMsg
+  | NyugyokuDeclareMsg
+  | NyugyokuPromptMsg
   | JishogiResponseMsg
   | UndoOfferMsg
   | UndoResponseMsg

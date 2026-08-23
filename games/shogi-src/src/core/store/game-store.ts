@@ -221,6 +221,15 @@ export const NO_VICTORY_FLAGS = {
   canNyugyokuP1: false,
   canNyugyokuP2: false,
   canJishogi: false,
+  /**
+   * ★v1.88: 盤を作り直したら「入玉宣言しますか」も必ず消す。
+   *
+   * **ここに入れてあるのは、盤が変わる場所を数え上げ直さないため**（v1.84 の
+   * `computeVictoryFlags` と同じ理由）。**別に消す行を書く形にすると、
+   * 待った・巻き戻し・新しい対局のどれかで必ず書き忘れる。**
+   */
+  nyugyokuPromptSide: null,
+  nyugyokuAnnounce: null,
 } as const;
 
 /**
@@ -285,6 +294,26 @@ interface GameState {
   canNyugyokuP1: boolean;
   canNyugyokuP2: boolean;
   /**
+   * ★v1.88: 「入玉宣言しますか」を尋ねている相手 (親 v1.63 §4.4.2.2)。
+   *
+   * **自分が指した直後に、それまで成立していなかった宣言の条件が成立した側**が入る。
+   * **その側の端末では中央のモーダル・相手と観戦者の端末では「入玉宣言選択中」**になる
+   * （どちらを出すかは画面側が決める。ここは「誰に尋ねているか」という事実だけを持つ）。
+   *
+   * **尋ねている間は盤も時計も止まる。時間制限は無い**（ユーザー判断 2026-08-23）＝
+   * **持将棋の 10 秒は「相手に答えてもらう」ための締め切り**であって、
+   * **自分の勝ちを宣言するかどうかの選択には急かす理由が無い**。
+   */
+  nyugyokuPromptSide: 'player1' | 'player2' | null;
+  /**
+   * ★v1.88: **自分が宣言したので、相手と観戦者へ知らせる必要がある**という印。
+   *
+   * **知らせるのを画面側の 1 か所に寄せるため**に置いている＝**指した手をまだ送って
+   * いない場合があり**（§4.4.2.2 の「答えるまで送らない」）、**知らせを先に送ると
+   * 相手は終局だけ受け取って盤が 1 手古いまま**になる。**手 → 宣言の順を守る。**
+   */
+  nyugyokuAnnounce: 'player1' | 'player2' | null;
+  /**
    * v1.84: 持将棋の提案を出せるか (親 v1.62 §4.4.1.1)。**双方について**成り立つ 1 つの
    * 事実なので、先手・後手で分けない。
    */
@@ -323,7 +352,26 @@ interface GameState {
   tryMove: (to: Square) => boolean;
   confirmPromotion: (promote: boolean) => void;
   cancelPromotion: () => void;
-  declareNyugyoku: () => boolean;
+  /**
+   * ★v1.88: 入玉宣言 (親 v1.63 §4.4.2.1)。**側を必ず指定する。**
+   *
+   * **v1.87 までは「いま手番の側」で宣言していた**ため、**負ける側の端末からでも
+   * 相手の勝ちを宣言できた**（実機のご報告 2026-08-23）。**宣言は勝つ側の権利**なので、
+   * **誰が宣言したのかを呼ぶ側が名指しする**形に改めた。
+   */
+  declareNyugyoku: (side: 'player1' | 'player2') => boolean;
+  /** ★v1.88: 「入玉宣言しますか」を出す／閉じる（受信した知らせからも呼ぶ）。 */
+  setNyugyokuPrompt: (side: 'player1' | 'player2' | null) => void;
+  /** ★v1.88: 相手へ知らせ終えたので印を下ろす。 */
+  clearNyugyokuAnnounce: () => void;
+  /**
+   * ★v1.88: 相手（または観戦している対局）の入玉宣言をそのまま載せる（親 v1.63 §6）。
+   *
+   * **条件を測り直さない**＝**宣言した端末が測って通したもの**であり、
+   * こちらで測り直すと**版や取りこぼしのわずかな違いで「相手だけ終局している」状態**を作る。
+   * **投了・時間切れをそのまま載せているのと同じ扱い。**
+   */
+  applyRemoteNyugyoku: (side: 'player1' | 'player2') => void;
   /** 指定側を投了させる。既に対局が終わっているときは何もしない。段階 2-7 v0.30。 */
   /** ★v1.55: 観戦者が、配られた対局の終わりをそのまま載せる（親 §6.8.4）。 */
   applySpectatedStatus: (next: GameStatus) => void;
@@ -643,6 +691,28 @@ function computeStatusAfterMove(
   return { status: 'playing', positionCounts: nextCounts };
 }
 
+/**
+ * ★v1.88: 指した直後に「入玉宣言しますか」を出すかどうか (親 v1.63 §4.4.2.2)。
+ *
+ * **それまで成立していなかった条件が、その手で成立したとき**だけ出す。
+ * **成立したまま手が進む間は出し直さない**（急かしになる）。
+ * **いったん崩れて組み直したときは、また出す**＝「しない」と答えた記憶は、
+ * 崩れた時点で忘れる（別の機会なので、黙って通すと勝てる場面を逃す）。
+ * **記憶を別に持たずに済むのは、出す条件を「立ち上がり」にしてあるから。**
+ */
+function nyugyokuPromptFor(
+  mover: Player,
+  before: { canNyugyokuP1: boolean; canNyugyokuP2: boolean },
+  mgf: Mgf,
+  after: Position,
+  finalStatus: GameStatus,
+): Player | null {
+  if (finalStatus !== 'playing') return null;
+  const was = mover === 'player1' ? before.canNyugyokuP1 : before.canNyugyokuP2;
+  if (was) return null;
+  return canDeclareNyugyoku(mgf, after, mover) ? mover : null;
+}
+
 function applyAndCommit(
   set: (partial: Partial<GameState>) => void,
   get: () => GameState,
@@ -652,6 +722,8 @@ function applyAndCommit(
   const state = get();
   const { position, mgf, moveHistory, positionCounts, lastAppliedMove, positionHistory, positionCountsHistory, clockHistory, timeControl, clocks, activeClockSide, currentQuantum, currentTorusMode } = state;
   const formatted = formatMove(mgf, position, move);
+  /** 指した側（`position` は着手前なので、その手番が指した側）。 */
+  const mover = position.sideToMove;
   let nextPos = applyMove(mgf, position, move);
   // v1.04 (Phase 5-7 §Q8.5): 捕獲制約 C-201/C-202/C-203。捕獲を検知して:
   //   - 捕獲された駒が「王として確定」なら C-202 で即終局 (checkmate 相当)、候補更新は
@@ -749,6 +821,17 @@ function applyAndCommit(
     status: finalStatus,
     positionCounts: nextCounts,
     ...computeVictoryFlags(mgf, nextPos),
+    // ★v1.88 (親 v1.63 §4.4.2.2): **自分が指した直後に、それまで成立していなかった
+    // 宣言の条件が成立したら、その場で尋ねる**。
+    //
+    // **指した側だけを見る**＝相手の手で成立したときは尋ねない（そのときは既に自分の
+    // 手番なので、コマンド列のボタンをすぐ押せる）。**尋ねる意味があるのは、
+    // 自分の手で成立して、このままだと相手に手番を渡してしまう場合だけ**。
+    //
+    // **書く場所をここ 1 か所にしてあるのは、盤が変わる場所が複数あるため**
+    // （着手・待った・巻き戻し）。待った・巻き戻しでは `NO_VICTORY_FLAGS` が
+    // 消す側を受け持つので、**立てる側と消す側の両方が数え上げにならない**。
+    nyugyokuPromptSide: nyugyokuPromptFor(mover, state, mgf, nextPos, finalStatus),
     lastAppliedMove: { move, source, seq: nextSeq },
     // v0.33: 待ったの巻き戻し用に、着手前の局面と positionCounts を履歴に積む
     positionHistory: [...positionHistory, position],
@@ -1080,8 +1163,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   selectSquare: (sq) => {
-    const { position, mgf, status, anomaly } = get();
-    if (status !== 'playing' || anomaly) return;
+    const { position, mgf, status, anomaly, nyugyokuPromptSide } = get();
+    if (status !== 'playing' || anomaly || nyugyokuPromptSide) return;
     const piece = position.board[sq.row][sq.col];
     if (!piece || piece.owner !== position.sideToMove) {
       set({ selectedSquare: null, selectedHandPieceId: null, legalDestinations: [] });
@@ -1095,8 +1178,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   selectHandPiece: (pieceId) => {
-    const { position, mgf, status, anomaly } = get();
-    if (status !== 'playing' || anomaly) return;
+    const { position, mgf, status, anomaly, nyugyokuPromptSide } = get();
+    if (status !== 'playing' || anomaly || nyugyokuPromptSide) return;
     const piece = position.hands[position.sideToMove].find((p) => p.pieceId === pieceId);
     if (!piece) return;
     set({
@@ -1111,8 +1194,10 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   tryMove: (to) => {
-    const { position, mgf, selectedSquare, selectedHandPieceId, status, anomaly } = get();
-    if (status !== 'playing' || anomaly) return false;
+    const { position, mgf, selectedSquare, selectedHandPieceId, status, anomaly, nyugyokuPromptSide } = get();
+    // ★v1.88 (親 v1.63 §4.4.2.2): **選ぶまで駒を動かせない**。
+    // **時間制限が無いので、ここで止めないと尋ねたまま対局が進む。**
+    if (status !== 'playing' || anomaly || nyugyokuPromptSide) return false;
 
     if (selectedSquare) {
       const piece = position.board[selectedSquare.row][selectedSquare.col];
@@ -1194,19 +1279,40 @@ export const useGameStore = create<GameState>((set, get) => ({
     });
   },
 
-  declareNyugyoku: () => {
+  declareNyugyoku: (side) => {
     const { position, mgf, status } = get();
     if (status !== 'playing') return false;
-    const player = position.sideToMove;
-    if (!canDeclareNyugyoku(mgf, position, player)) return false;
+    // **手番は見ない**（親 v1.63 §4.4.2.2）＝自分が指した直後にも宣言できる。
+    // 見てよいのは「その側が条件を満たしているか」だけ。
+    if (!canDeclareNyugyoku(mgf, position, side)) return false;
     set({
-      status: player === 'player1' ? 'nyugyoku_win_p1' : 'nyugyoku_win_p2',
+      status: side === 'player1' ? 'nyugyoku_win_p1' : 'nyugyoku_win_p2',
+      nyugyokuPromptSide: null,
+      nyugyokuAnnounce: side,
       selectedSquare: null,
       selectedHandPieceId: null,
       legalDestinations: [],
       pendingPromotion: null,
+      activeClockSide: null,
     });
     return true;
+  },
+
+  setNyugyokuPrompt: (side) => set({ nyugyokuPromptSide: side }),
+
+  clearNyugyokuAnnounce: () => set({ nyugyokuAnnounce: null }),
+
+  applyRemoteNyugyoku: (side) => {
+    if (get().status !== 'playing') return;
+    set({
+      status: side === 'player1' ? 'nyugyoku_win_p1' : 'nyugyoku_win_p2',
+      nyugyokuPromptSide: null,
+      selectedSquare: null,
+      selectedHandPieceId: null,
+      legalDestinations: [],
+      pendingPromotion: null,
+      activeClockSide: null,
+    });
   },
 
   /**

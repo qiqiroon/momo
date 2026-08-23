@@ -219,6 +219,30 @@ const connector: OnlineGameConnector = {
     useChatStore.getState().addMessage(mySide, trimmed);
   },
 
+  /**
+   * ★v1.88: 入玉宣言の勝ちを届ける（親 v1.63 §6）。**手元の盤は宣言した時点で
+   * 既に終局している**ので、ここは知らせるだけ。
+   */
+  sendNyugyokuDeclare(side: 'player1' | 'player2') {
+    const state = useMatchmakingStore.getState();
+    if (!state.gameStartInfo) return;
+    const client = getMomoMatchmaking();
+    if (!client) return;
+    sendShogiMessage(client, { v: PROTOCOL_VERSION, type: 'nyugyoku_declare', side });
+  },
+  /**
+   * ★v1.88: 「入玉宣言しますか」を出している／閉じたことの知らせ（親 v1.63 §6）。
+   * **届かなくても対局は止まらない**（指した手そのものを答えるまで送らないため）。
+   */
+  sendNyugyokuPrompt(open: boolean) {
+    const state = useMatchmakingStore.getState();
+    if (!state.gameStartInfo) return;
+    const side = useGameStore.getState().nyugyokuPromptSide ?? this.getMySide();
+    if (!side) return;
+    const client = getMomoMatchmaking();
+    if (!client) return;
+    sendShogiMessage(client, { v: PROTOCOL_VERSION, type: 'nyugyoku_prompt', side, open });
+  },
   sendResign(side) {
     // ローカル盤面をまず投了扱いに（オンライン/オフライン共通）
     useGameStore.getState().resign(side);

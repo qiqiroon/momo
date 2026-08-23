@@ -1941,6 +1941,10 @@ body::before {
 .floating-result.resume { border-color: var(--orange); }
 .floating-result.resume .title { color: var(--orange-light); }
 .floating-result.resign { border-color: #b3401a; }
+/* ★v1.88: 入玉宣言を尋ねるパネル。**勝ちを宣言する場面なので橙**（持将棋と同系）。
+   **残り秒数は置かない**＝時間制限が無い（親 §4.4.2.2）。 */
+.floating-result.nyugyoku { border-color: var(--orange); }
+.floating-result.nyugyoku .title { color: var(--orange-light); }
 .floating-result.resign .title { color: #e8836a; }
 /* v1.42: 棋譜の確認はオレンジ（付録D-8 §7.1）。
  * v1.41 までは引分と同じ緑を借りていたが、**「まだ保存されていません」は注意の文言**であり、
@@ -4027,6 +4031,12 @@ body::before {
    （`.board-blocker`）と同じ値**にする。**暗くするだけでは駒が読めてしまう**
    （駒は輪郭が強い）ので、**読めなくするのはぼかしの役目**。
    濃さを上げる方向で押し切ると、今度はパネルの字まで沈む。 */
+/* ★v1.88 (付録D-1 v1.22 §7): 入玉宣言を尋ねている側の覆い。
+   **濃さとぼかしは持将棋の提案・一時中断・待った申し出と同じ**＝
+   同じ「盤が止まっている」出来事を違う見せ方にしない。
+   **別のクラスにしてあるのは、持将棋側の見張りが「覆いを出すのは提案した側だけ」を
+   クラスの数で確かめているため**（流用すると、あちらの見張りが意味を失う）。 */
+.nyugyoku-veil,
 .jishogi-veil {
   position: fixed;
   inset: 0;
@@ -4066,6 +4076,10 @@ body::before {
 }
 
 /* 観戦者への知らせ。**選ばせるものは無い**ので言葉だけ。 */
+/* ★v1.88 (親 v1.63 §4.4.2.2・付録D-1 v1.22 §7): 「入玉宣言選択中」。
+   **持将棋の提案中の知らせと同じ位置・同じ形**＝どちらも「盤が止まっている」という
+   同じ出来事なので、違う見せ方にしない。**答えるものは無いのでボタンは置かない。** */
+.nyugyoku-wait,
 .jishogi-spectator-notice {
   position: fixed;
   top: 12px;

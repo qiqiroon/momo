@@ -5,7 +5,7 @@ export const en: LocaleData = {
   name: 'English',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.87',
+    'app.ver': 'v1.88',
     'sound.promptTitle': 'Enable BGM and sound effects?',
     'sound.bgmLabel': 'BGM volume',
     'sound.sfxLabel': 'SFX volume',
@@ -362,6 +362,11 @@ export const en: LocaleData = {
     // Phase 6: Hasami Shogi annihilation (spec §3.10 / appendix D-3 §3.3, §3.4)
     'result.reason.annihilation': 'Win by capture (Hasami)',
     // v1.86: detail card rows (appendix D-3 v1.10 §3.4). Labels carry no units.
+    'nyugyoku.askTitle': 'Declare entering king?',
+    'nyugyoku.askBody': 'Declaring wins the game for you right now. You may also keep playing (clocks are stopped).',
+    'nyugyoku.askYes': 'Declare',
+    'nyugyoku.askNo': 'Not now',
+    'nyugyoku.waitNotice': 'Deciding on declaration',
     'result.detail.pieces': ' pieces',
     'result.detail.piecesOrFewer': ' pieces or fewer',
     'result.detail.points': ' pts',

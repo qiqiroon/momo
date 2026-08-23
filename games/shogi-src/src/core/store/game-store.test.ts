@@ -175,7 +175,7 @@ describe('Game store — 入玉宣言', () => {
 
   it('宣言条件を満たさない状態では declareNyugyoku=false・状態不変', () => {
     const st = useGameStore.getState();
-    expect(st.declareNyugyoku()).toBe(false);
+    expect(st.declareNyugyoku(useGameStore.getState().position.sideToMove)).toBe(false);
     expect(useGameStore.getState().status).toBe('playing');
   });
 
@@ -207,7 +207,7 @@ describe('Game store — 入玉宣言', () => {
       canNyugyokuP2: false,
     });
 
-    const success = useGameStore.getState().declareNyugyoku();
+    const success = useGameStore.getState().declareNyugyoku(useGameStore.getState().position.sideToMove);
     expect(success).toBe(true);
     expect(useGameStore.getState().status).toBe('nyugyoku_win_p1');
   });

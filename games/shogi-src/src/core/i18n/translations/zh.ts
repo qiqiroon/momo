@@ -5,7 +5,7 @@ export const zh: LocaleData = {
   name: '中文',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.87',
+    'app.ver': 'v1.88',
     'sound.promptTitle': '是否播放 BGM 与音效？',
     'sound.bgmLabel': 'BGM 音量',
     'sound.sfxLabel': '音效音量',
@@ -361,6 +361,11 @@ export const zh: LocaleData = {
     // Phase 6: 夹将棋的全灭 (亲 §3.10 annihilation・附录D-3 §3.3/§3.4)
     'result.reason.annihilation': '夹将棋获胜',
     // ★v1.86: 补充详情折叠卡片 (附录D-3 v1.10 §3.4)。左为项目名、右为数值。
+    'nyugyoku.askTitle': '要宣言入玉吗？',
+    'nyugyoku.askBody': '宣言后立即判你获胜。也可以不宣言继续对局（时钟已停）。',
+    'nyugyoku.askYes': '宣言',
+    'nyugyoku.askNo': '暂不',
+    'nyugyoku.waitNotice': '入玉宣言选择中',
     'result.detail.pieces': '枚',
     'result.detail.piecesOrFewer': '枚以下',
     'result.detail.points': '点',

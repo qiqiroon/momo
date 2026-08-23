@@ -706,7 +706,18 @@ function nyugyokuPromptFor(
   mgf: Mgf,
   after: Position,
   finalStatus: GameStatus,
+  source: MoveSource,
 ): Player | null {
+  // ★v1.89 (2026-08-23 実機のご報告): **自分で指した手のときだけ**立てる。
+  //
+  // **v1.88 は届いた手でも立てていた**ため、ネット対戦でこうなっていた＝
+  // 尋ねられた側は**答えるまで手を送らない**ので、**相手にはまず知らせだけが届き、
+  // 答えたあとに手が届く**。ところが**その手を載せた時点で相手の端末でも印が立ち**、
+  // **もう誰も答えないので盤が止まったままになる**（＝ご報告の「動けなくなった」）。
+  //
+  // **相手の画面の「入玉宣言選択中」は知らせ (`nyugyoku_prompt`) だけが受け持つ**
+  // ＝立てる場所と下ろす場所を同じ側に揃える。観戦者も同じ（届いた手で立てない）。
+  if (source !== 'local') return null;
   if (finalStatus !== 'playing') return null;
   const was = mover === 'player1' ? before.canNyugyokuP1 : before.canNyugyokuP2;
   if (was) return null;
@@ -831,7 +842,7 @@ function applyAndCommit(
     // **書く場所をここ 1 か所にしてあるのは、盤が変わる場所が複数あるため**
     // （着手・待った・巻き戻し）。待った・巻き戻しでは `NO_VICTORY_FLAGS` が
     // 消す側を受け持つので、**立てる側と消す側の両方が数え上げにならない**。
-    nyugyokuPromptSide: nyugyokuPromptFor(mover, state, mgf, nextPos, finalStatus),
+    nyugyokuPromptSide: nyugyokuPromptFor(mover, state, mgf, nextPos, finalStatus, source),
     lastAppliedMove: { move, source, seq: nextSeq },
     // v0.33: 待ったの巻き戻し用に、着手前の局面と positionCounts を履歴に積む
     positionHistory: [...positionHistory, position],

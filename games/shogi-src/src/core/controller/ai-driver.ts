@@ -39,6 +39,31 @@ function turnKey(rewinds: number, moveNumber: number, side: string): string {
 /**
  * 対 AI 対局を進める。オンライン対局中は何もしない (AI は対人戦に混ざらない)。
  */
+/**
+ * AI が指しに行ってよい状況か (★v1.89)。
+ *
+ * **判断だけを取り出してあるのは、思考ルーチンを積んでいない場所でも見張れるようにする
+ * ため**＝検査環境では AI は 1 手も指さないので、**「指さなかった」を結果から確かめると
+ * 何を壊しても緑になる**（実測で確認）。
+ *
+ * **★「入玉宣言しますか」に答えるまで、AI も指さない**（親 v1.63 §4.4.2.2）＝
+ * **相手に手番を渡さない**という決まりは、相手が AI でも同じ。
+ */
+export function aiMayMove(s: {
+  enabled: boolean;
+  isOnline: boolean;
+  status: string;
+  paused: boolean;
+  anomaly: boolean;
+  nyugyokuPrompt: 'player1' | 'player2' | null;
+}): boolean {
+  if (!s.enabled || s.isOnline) return false;
+  if (s.status !== 'playing' || s.paused) return false;
+  if (s.anomaly) return false; // 量子の異常が出ている間は人の判断待ち
+  if (s.nyugyokuPrompt) return false;
+  return true;
+}
+
 export function useAiOpponent(isOnline: boolean): void {
   const enabled = useAiStore((s) => s.enabled);
   const aiSide = useAiStore((s) => s.aiSide);
@@ -47,6 +72,7 @@ export function useAiOpponent(isOnline: boolean): void {
   const paused = useGameStore((s) => s.paused);
   const position = useGameStore((s) => s.position);
   const anomaly = useGameStore((s) => s.anomaly);
+  const nyugyokuPrompt = useGameStore((s) => s.nyugyokuPromptSide);
 
   const engineRef = useRef<EngineAdapter | null>(null);
   const startedKeyRef = useRef<string | null>(null);
@@ -96,9 +122,7 @@ export function useAiOpponent(isOnline: boolean): void {
   }, [enabled, isOnline, status, paused, position, anomaly, aiSide]);
 
   useEffect(() => {
-    if (!enabled || isOnline) return;
-    if (status !== 'playing' || paused) return;
-    if (anomaly) return; // 量子の異常が出ている間は人の判断待ち
+    if (!aiMayMove({ enabled, isOnline, status, paused, anomaly: !!anomaly, nyugyokuPrompt })) return;
     if (position.sideToMove !== aiSide) return;
 
     const key = turnKey(rewindsRef.current, position.moveNumber, position.sideToMove);
@@ -165,5 +189,5 @@ export function useAiOpponent(isOnline: boolean): void {
       .catch(() => {
         useAiStore.getState().setThinking(false);
       });
-  }, [enabled, isOnline, aiSide, engineId, status, paused, position, anomaly]);
+  }, [enabled, isOnline, aiSide, engineId, status, paused, position, anomaly, nyugyokuPrompt]);
 }

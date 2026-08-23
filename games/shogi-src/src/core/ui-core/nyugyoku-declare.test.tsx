@@ -7,6 +7,7 @@ import { useGameStore, computeVictoryFlags } from '../store/game-store';
 import { useRouteStore } from '../store/route-store';
 import { useI18nStore } from '../store/i18n-store';
 import { useAiStore } from '../store/ai-store';
+import { aiMayMove } from '../controller/ai-driver';
 import { register } from '../plugin/registry';
 import type { PieceInstance, Position } from '../engine/position/types';
 
@@ -252,6 +253,59 @@ describe('★ネット対戦（2026-08-23 実機のご報告）', () => {
   });
 });
 
+describe('★v1.89 尋ねる印が立つ経路（2026-08-23 実機のご報告）', () => {
+  /** 先手が「あと 1 枚敵陣へ打てば宣言できる」局面（打っても点数は変わらず、枚数だけ届く）。 */
+  function almostPos(): Position {
+    const pieces = [
+      { row: 0, col: 4, piece: P('ou', 'player1') },
+      { row: 0, col: 0, piece: P('hi', 'player1') },
+      { row: 0, col: 1, piece: P('kaku', 'player1') },
+      { row: 8, col: 4, piece: P('ou', 'player2') },
+    ];
+    for (let c = 0; c < 7; c++) {
+      pieces.push({ row: 1, col: c, piece: P('fu', 'player1', `p1_fu_b${c}`) });
+    }
+    const base = buildPos(pieces, 'player1');
+    return {
+      ...base,
+      hands: {
+        player1: Array.from({ length: 11 }, (_, i) => P('fu', 'player1', `p1_fu_h${i}`)),
+        player2: [],
+      },
+    };
+  }
+
+  it('自分で指して成立したら印が立つ', () => {
+    setBoard(almostPos());
+    expect(useGameStore.getState().canNyugyokuP1).toBe(false);
+    const st = useGameStore.getState();
+    st.selectHandPiece('p1_fu_h0');
+    expect(st.tryMove({ row: 1, col: 8 })).toBe(true);
+    expect(useGameStore.getState().nyugyokuPromptSide).toBe('player1');
+  });
+
+  it('★届いた手では印を立てない（立てると、もう誰も答えないので盤が止まる）', () => {
+    // v1.88 はここでも立てていたため、**尋ねられた側が「しない」と答えたあとに
+    // 手が届いた相手の端末で印が立ち、答える人が居ないまま盤が止まっていた**。
+    setBoard(almostPos());
+    const ok = useGameStore
+      .getState()
+      .applyRemoteMove({ kind: 'drop', pieceId: 'p1_fu_h0', to: { row: 1, col: 8 } } as never);
+    expect(ok).toBe(true);
+    // 条件そのものは満たしている（＝印を立てなかっただけで、判定は生きている）。
+    expect(useGameStore.getState().canNyugyokuP1).toBe(true);
+    expect(useGameStore.getState().nyugyokuPromptSide).toBeNull();
+  });
+
+  it('★観戦していても、届いた手で盤が止まらない（同じ経路を通る）', () => {
+    setBoard(almostPos());
+    useGameStore
+      .getState()
+      .applyRemoteMove({ kind: 'drop', pieceId: 'p1_fu_h0', to: { row: 1, col: 8 } } as never);
+    expect(useGameStore.getState().nyugyokuPromptSide).toBeNull();
+  });
+});
+
 describe('入玉宣言を尋ねる（親 v1.63 §4.4.2.2）', () => {
   it('★尋ねている間は駒を動かせない', () => {
     setBoard(declarablePos('player1'));
@@ -337,6 +391,21 @@ describe('AI の扱い（親 v1.63 §7.9）', () => {
     useGameStore.getState().setNyugyokuPrompt('player1');
     const { container } = render(<App variant="b" />);
     expect(container.querySelector('.floating-result.nyugyoku')).toBeNull();
+  });
+
+  it('★AI は「入玉宣言しますか」に答えるまで指さない（相手に手番を渡さない）', () => {
+    // **判断そのものを見る**＝検査環境では思考ルーチンが積まれておらず、AI は
+    // どのみち 1 手も指さない。**結果から確かめると何を壊しても緑になる**（実測）。
+    const base = {
+      enabled: true,
+      isOnline: false,
+      status: 'playing',
+      paused: false,
+      anomaly: false,
+    };
+    expect(aiMayMove({ ...base, nyugyokuPrompt: null })).toBe(true);
+    expect(aiMayMove({ ...base, nyugyokuPrompt: 'player1' })).toBe(false);
+    expect(aiMayMove({ ...base, nyugyokuPrompt: 'player2' })).toBe(false);
   });
 
   it('★AI は宣言できるときは必ず宣言する（手番を待たない）', () => {

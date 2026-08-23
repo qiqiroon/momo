@@ -1845,24 +1845,38 @@ body::before {
   flex-direction: column;
   gap: 8px;
   margin: 0 auto 14px;
-  max-width: 300px;
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: rgba(0, 0, 0, 0.22);
   font-size: 12px;
-  color: var(--text-muted);
+  /* ★v1.87 (付録D-3 v1.11 §4.1): **透明パネルの上では本文に灰色を使わない**。
+     半透明で下の盤が透けるため地の明るさが場所によって変わり、灰色の字はそこで沈む。
+     **主従は色ではなく太さで付ける** (項目名は細く・値は太く)。
+     灰色を残すのは「押せない」を表すとき (無効のボタン) だけ。 */
+  color: var(--text);
   text-align: left;
+  line-height: 1.6;
 }
 .floating-result .detail .drow {
   display: flex;
   justify-content: space-between;
   gap: 10px;
 }
+.floating-result .detail .drow span {
+  font-weight: 400;
+}
 .floating-result .detail .drow b {
-  color: var(--text);
   font-weight: 700;
   text-align: right;
+}
+/* ★v1.87: 2 列に収まらないもの (式・条件) は 1 行まるごと使う。長ければ折り返す。 */
+.floating-result .detail .dline {
+  font-weight: 400;
+}
+.floating-result .detail .dline .mark {
+  font-weight: 700;
+  color: var(--orange-light);
 }
 
 .floating-result .btn-row {
@@ -1885,7 +1899,9 @@ body::before {
 .floating-result .btn.ghost {
   background: transparent;
   border: 1px solid var(--border-strong);
-  color: var(--text-muted);
+  /* ★v1.87: 灰色は「押せない」だけを意味する（付録D-3 v1.11 §4.1）。
+     押せるボタンの土台に灰色を置くと、outline を付け忘れた場所が押せないボタンに見える。 */
+  color: var(--text);
   font-family: 'Noto Sans JP', sans-serif;
   font-weight: 500;
 }
@@ -1949,7 +1965,9 @@ body::before {
 }
 .save-notice-row .lbl {
   flex: 0 0 auto;
-  color: var(--text-muted);
+  /* ★v1.87 (付録D-3 v1.11 §4.1): 透明パネルの上では本文に灰色を使わない。 */
+  color: var(--text);
+  font-weight: 400;
   font-size: 11px;
 }
 .save-notice-row .val {

@@ -34,19 +34,23 @@ import { t as _t } from '../i18n';
 import type { LocaleCode } from '../i18n/types';
 import type { Mgf, PieceId, PieceInstance, Position, Square } from '../engine';
 import {
+  REQUIRED_PIECE_COUNT,
   buildInitialKindMap,
-  computeEnterZonePoints,
-  computeJishogiPoints,
   countBoardPieces,
   countEnterZonePieces,
   displayKindsFor,
+  enterZonePointBreakdown,
   hasCandidateSets,
+  isEnteringKingEstablished,
+  jishogiPointBreakdown,
   listEnterZoneMajors,
   moveLandingSquare,
   foretellKindByDestination,
   isInCheck,
   positionHash,
+  resolveSideThreshold,
 } from '../engine';
+import type { PointBreakdown } from '../engine/victory/nyugyoku';
 import { pieceNameFor } from '../engine/kifu/format';
 import { strengthOf } from '../engine/piece-strength';
 import type { QuantumDisplay } from '../store/game-store';
@@ -2113,28 +2117,62 @@ function GameEndModal({
   };
 
   /**
-   * 補足詳細の折込みカード (★v1.86・付録D-3 v1.10 §3.4)。
+   * 補足詳細の折込みカード (★v1.87・付録D-3 v1.11 §3.4)。
    *
-   * **該当する終局理由のときだけ現れ**、**1 行につき「左に項目名・右に値」**で並べる。
-   * **この形は 3 つの終局理由すべてに共通**＝理由ごとに違う見せ方を作らない。
+   * **該当する終局理由のときだけ現れる**。行は 2 種類で、**2 列の行**(左に項目名・
+   * 右に値) と**1 行まるごとの行**(式・条件のように 2 列に収まらないもの)。
+   * **どちらを使うかは「言うことが 2 列に収まるか」だけで決まる**＝終局理由ごとに
+   * 勝手な見せ方を作ってよいという意味ではない。
    *
-   * v1.85 までは全滅 (はさみ将棋) だけが**枠も項目名も無い 1 行**で出ており、
-   * 入玉宣言と持将棋は規定があるのに出ていなかった。
+   * **★点数は合計だけでなく式で出す** (v1.87・ユーザー指示)＝**合計だけでは、
+   * その数がどう出たのか読み手に確かめようがない**。とくに本アプリは**同じ「点」で
+   * 数える範囲が 2 通りある**ので、合計だけ見て別の物差しと見比べられてしまう。
    */
-  const detailRows: { label: string; value: string }[] = [];
+  type DetailLine =
+    | { kind: 'row'; label: string; value: string }
+    | { kind: 'line'; text: string; ok?: boolean };
+  const detailLines: DetailLine[] = [];
+
+  /** 式の中の数を差し込む (語順は言語ごとに違うので、雛形の側を各言語が持つ)。 */
+  const fill = (key: string, vars: Record<string, string | number>) =>
+    Object.entries(vars).reduce(
+      (acc, [k, v]) => acc.split(`{${k}}`).join(String(v)),
+      t(key),
+    );
+
+  /**
+   * 「先手：入玉、大駒5点×2枚＋小駒1点×22枚（玉1枚を除く）＝31点」の 1 行。
+   *
+   * **王の分を引いていないときは「（玉1枚を除く）」を書かない**＝引いていない数を
+   * 引いたと言うことになるため (雛形を 2 つ持つ)。
+   */
+  const pointLine = (side: 'player1' | 'player2', b: PointBreakdown, entered: boolean) => {
+    const formula = fill(
+      b.royalExcluded ? 'result.detail.formula' : 'result.detail.formulaNoKing',
+      { M: b.major, m: b.minor, P: b.points },
+    );
+    return fill(entered ? 'result.detail.sideEntered' : 'result.detail.sideLine', {
+      side: t(side === 'player1' ? 's07.senteLbl' : 's07.goteLbl'),
+      formula,
+    });
+  };
+
   if (status === 'annihilation_win_p1' || status === 'annihilation_win_p2') {
     // 「あと何枚で終わりだったのか」が分からないと、なぜ終わったのかが伝わらない。
     const threshold = mgf.victory?.remaining_threshold ?? 0;
-    detailRows.push(
+    detailLines.push(
       {
+        kind: 'row',
         label: t('result.detail.remainingSente'),
         value: `${countBoardPieces(position, 'player1')}${t('result.detail.pieces')}`,
       },
       {
+        kind: 'row',
         label: t('result.detail.remainingGote'),
         value: `${countBoardPieces(position, 'player2')}${t('result.detail.pieces')}`,
       },
       {
+        kind: 'row',
         label: t('result.detail.winCondition'),
         value: `${threshold}${t('result.detail.piecesOrFewer')}`,
       },
@@ -2143,39 +2181,68 @@ function GameEndModal({
     // **宣言した側だけ**を出す (付録D-3 §3.4)＝入玉宣言はひとりで宣言するので、
     // 判定の材料は宣言した側の数字だけである。
     const side: 'player1' | 'player2' = status === 'nyugyoku_win_p1' ? 'player1' : 'player2';
+    const breakdown = enterZonePointBreakdown(mgf, position, side);
+    const entered = isEnteringKingEstablished(mgf, position, side);
+    const zonePieces = countEnterZonePieces(mgf, position, side);
+    // しきい値は先手・後手で違う (27 点法＝先手 28・後手 27)。**宣言した側のもの**を出す。
+    const need = resolveSideThreshold(mgf.victory?.entering_king?.point_threshold, side, 24);
     // 点数法の呼び名はルール定義から取る。**しきい値の数から言い当てない**
-    // (付録D-3 v1.10 §3.4)。知らない呼び名なら何も添えない。
+    // (付録D-3 §3.4)。知らない呼び名なら何も添えない。
     const method = mgf.victory?.entering_king?.count_method;
-    const methodKey =
-      method === '27point' || method === '24point' ? `result.detail.method.${method}` : '';
-    detailRows.push({
-      label: t('result.detail.pointsLabel'),
-      value:
-        `${computeEnterZonePoints(mgf, position, side)}${t('result.detail.points')}` +
-        (methodKey ? t(methodKey) : ''),
+    const methodName =
+      method === '27point' || method === '24point' ? t(`result.detail.method.${method}`) : '';
+
+    detailLines.push({ kind: 'line', text: pointLine(side, breakdown, entered) });
+    // ★宣言の 3 条件を式で出し、達成の有無を印で示す (v1.87・ユーザー指示)。
+    // **終局画面に出す時点では 3 つとも必ず達成済み**なので、役目は
+    // 「どう達成したのかを見せる」こと。
+    detailLines.push({ kind: 'line', text: t('result.detail.condEntered'), ok: entered });
+    detailLines.push({
+      kind: 'line',
+      text: fill('result.detail.condPieces', { n: zonePieces, need: REQUIRED_PIECE_COUNT }),
+      ok: zonePieces >= REQUIRED_PIECE_COUNT,
     });
-    detailRows.push({
-      label: t('result.detail.zonePieces'),
-      value: `${countEnterZonePieces(mgf, position, side)}${t('result.detail.pieces')}`,
+    detailLines.push({
+      kind: 'line',
+      text: fill(methodName ? 'result.detail.condPointsMethod' : 'result.detail.condPoints', {
+        p: breakdown.points,
+        need,
+        method: methodName,
+      }),
+      ok: breakdown.points >= need,
     });
-    detailRows.push({ label: t('result.detail.zoneMajors'), value: majorsText(side) });
+    // **式の枚数 (持ち駒を含む) と、条件の枚数 (盤上だけ) は違う**ので、
+    // 数える範囲を添えないと 2 つの数が食い違って見える。
+    detailLines.push({
+      kind: 'row',
+      label: t('result.detail.scope'),
+      value: t('result.detail.scopeEnter'),
+    });
+    detailLines.push({
+      kind: 'row',
+      label: t('result.detail.zoneMajors'),
+      value: majorsText(side),
+    });
   } else if (status === 'jishogi') {
     // **双方を出す** (付録D-3 §3.4)＝持将棋は双方の合意で成り立つので、
     // 両方の数字が揃って初めて「引き分けが妥当だった」と読める。
-    detailRows.push(
-      {
-        label: t('result.detail.sentePoints'),
-        value: `${computeJishogiPoints(mgf, position, 'player1')}${t('result.detail.points')}`,
-      },
-      {
-        label: t('result.detail.gotePoints'),
-        value: `${computeJishogiPoints(mgf, position, 'player2')}${t('result.detail.points')}`,
-      },
-      // **数える範囲が入玉宣言と違うことを添える**＝同じ「点」でも測っている
-      // 対象が違うので、添えないと入玉宣言の点数と見比べられてしまう。
-      { label: t('result.detail.scope'), value: t('result.detail.scopeJishogi') },
-      { label: t('result.detail.countRule'), value: t('result.detail.countRuleValue') },
-    );
+    for (const side of ['player1', 'player2'] as const) {
+      detailLines.push({
+        kind: 'line',
+        text: pointLine(
+          side,
+          jishogiPointBreakdown(mgf, position, side),
+          isEnteringKingEstablished(mgf, position, side),
+        ),
+      });
+    }
+    // **数える範囲が入玉宣言と違うことを添える**＝同じ「点」でも測っている
+    // 対象が違うので、添えないと入玉宣言の点数と見比べられてしまう。
+    detailLines.push({
+      kind: 'row',
+      label: t('result.detail.scope'),
+      value: t('result.detail.scopeJishogi'),
+    });
   }
 
   // 「対局準備に戻る」or「もう一度対局」— 同じ部屋で再対局を可能に
@@ -2201,14 +2268,21 @@ function GameEndModal({
     <FloatingPanel key={status} className="floating-result" title={t('result.title')}>
       <div className={`verdict ${verdictClass}`}>{t(verdictKey)}</div>
       <div className="body">{t(reasonKey)}</div>
-      {detailRows.length > 0 && (
+      {detailLines.length > 0 && (
         <div className="detail">
-          {detailRows.map((r) => (
-            <div className="drow" key={r.label}>
-              <span>{r.label}</span>
-              <b>{r.value}</b>
-            </div>
-          ))}
+          {detailLines.map((d, i) =>
+            d.kind === 'row' ? (
+              <div className="drow" key={`r${i}`}>
+                <span>{d.label}</span>
+                <b>{d.value}</b>
+              </div>
+            ) : (
+              <div className="dline" key={`l${i}`}>
+                {d.text}
+                {d.ok !== undefined && <b className="mark">{d.ok ? ' ✓' : ' ✗'}</b>}
+              </div>
+            ),
+          )}
         </div>
       )}
       {/* v1.42: **押せるボタンは白文字・白枠**（付録D-3 §4.1）。灰色は「押せない」だけを

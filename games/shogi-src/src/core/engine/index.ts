@@ -12,6 +12,9 @@ export {
   isEnteringKingEstablished,
   resolveSideThreshold,
   listEnterZoneMajors,
+  enterZonePointBreakdown,
+  jishogiPointBreakdown,
+  REQUIRED_PIECE_COUNT,
 } from './victory/nyugyoku';
 export { initPosition } from './position/init';
 export { applyMove } from './position/apply';

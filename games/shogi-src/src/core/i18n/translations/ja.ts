@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.86',
+    'app.ver': 'v1.87',
     // v0.72 音楽再生確認モーダル (Darts と同じ思想)
     'sound.promptTitle': 'BGM と効果音を再生してもよろしいですか？',
     'sound.bgmLabel': 'BGM 音量',
@@ -399,18 +399,25 @@ export const ja: LocaleData = {
     'result.detail.remainingSente': '先手の残り駒',
     'result.detail.remainingGote': '後手の残り駒',
     'result.detail.winCondition': '勝利条件',
-    'result.detail.pointsLabel': '点数',
+    // ★v1.87: 点数は合計だけでなく式で出す (付録D-3 v1.11 §3.4)。
+    // **語順は言語ごとに違う**ので、雛形の側を各言語が持ち、数だけを差し込む。
+    'result.detail.formula': '大駒5点×{M}枚＋小駒1点×{m}枚（玉1枚を除く）＝{P}点',
+    'result.detail.formulaNoKing': '大駒5点×{M}枚＋小駒1点×{m}枚＝{P}点',
+    'result.detail.sideEntered': '{side}：入玉、{formula}',
+    'result.detail.sideLine': '{side}：{formula}',
+    // ★v1.87: 入玉宣言の 3 条件。終局画面では 3 つとも達成済みなので、
+    // ここでの役目は「どう達成したのかを見せる」こと。
+    'result.detail.condEntered': '入玉できている',
+    'result.detail.condPieces': '敵陣内の駒数 {n}枚 ≥ {need}枚',
+    'result.detail.condPoints': '点数 {p}点 ≥ {need}点',
+    'result.detail.condPointsMethod': '点数 {p}点 ≥ {need}点（{method}）',
     // 点数法の呼び名はルール定義から取る (しきい値の数から言い当てない)。
-    'result.detail.method.27point': '（27点法）',
-    'result.detail.method.24point': '（24点法）',
-    'result.detail.zonePieces': '敵陣内の駒数（玉を除く）',
+    'result.detail.method.27point': '27点法',
+    'result.detail.method.24point': '24点法',
     'result.detail.zoneMajors': '敵陣内の大駒',
-    'result.detail.sentePoints': '先手の点数',
-    'result.detail.gotePoints': '後手の点数',
     'result.detail.scope': '数える範囲',
     'result.detail.scopeJishogi': '盤上の駒すべて＋持ち駒',
-    'result.detail.countRule': '1 枚の数え方',
-    'result.detail.countRuleValue': '大駒5・小駒1（玉を除く）',
+    'result.detail.scopeEnter': '敵陣内の駒＋持ち駒',
     // 引分・待った 合意フロー (段階 2-7 v0.33、v0.41 で具体ラベル化)
     'draw.confirmTitle': '引分にしますか？',
     'draw.confirmBody': 'この対局を引分（和棋）として終了します。',

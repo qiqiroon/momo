@@ -5,7 +5,8 @@ import { buildInitialKindMap, displayKindsFor } from '../candidate-kinds';
 import { strengthOf } from '../piece-strength';
 
 const MAJOR_KINDS = new Set(['kaku', 'hi', 'uma', 'ryu']);
-const REQUIRED_PIECE_COUNT = 10;
+/** 入玉宣言に要る敵陣内の駒数 (親 §4.4)。表示にも使うので外へ出す。 */
+export const REQUIRED_PIECE_COUNT = 10;
 
 /**
  * 入玉宣言の判定 (親 §4.4 / §3.10 `victory.entering_king`)。
@@ -110,25 +111,65 @@ export function isEnteringKingEstablished(mgf: Mgf, position: Position, player: 
  * 候補の姿がすべて大駒の駒 = 5 点 / それ以外 = 1 点。合計から王の分として 1 を引く。
  */
 export function computeEnterZonePoints(mgf: Mgf, position: Position, player: Player): number {
-  if (!mgf.board.promotion_zone?.[player]) return 0;
+  return enterZonePointBreakdown(mgf, position, player).points;
+}
+
+/**
+ * 点数の内訳 (★v1.87・付録D-3 v1.11 §3.4)。
+ *
+ * **合計だけでなく、大駒・小駒の枚数も返す**＝終局画面で
+ * 「大駒5点×2枚＋小駒1点×22枚（玉1枚を除く）＝31点」という式で見せるため。
+ *
+ * **判定と表示は同じ数から作る**＝合計を別の場所でもう一度数えると、
+ * **式と合計が食い違ったときにどちらが正しいか分からなくなる**。
+ * `computeEnterZonePoints` / `computeJishogiPoints` はこの関数の `points` を返すだけ。
+ *
+ * `royalExcluded` は「王の分として 1 を引いたか」。引いていないときは
+ * 式に「（玉1枚を除く）」を書いてはいけない (書くと引いていない数を引いたと言うことになる)。
+ */
+export interface PointBreakdown {
+  /** 5 点として数えた駒の枚数 (候補の姿がすべて大駒の駒)。 */
+  major: number;
+  /** 1 点として数えた駒の枚数 (王候補を保持する駒もここに入る)。 */
+  minor: number;
+  /** 王の分として 1 を引いたか。 */
+  royalExcluded: boolean;
+  /** 合計 = major * 5 + minor - (royalExcluded ? 1 : 0)。 */
+  points: number;
+}
+
+function tally(major: number, minor: number, royalExcluded: boolean): PointBreakdown {
+  return { major, minor, royalExcluded, points: major * 5 + minor - (royalExcluded ? 1 : 0) };
+}
+
+/** §Q21.3 敵陣内の自駒 + 持ち駒の内訳。 */
+export function enterZonePointBreakdown(
+  mgf: Mgf,
+  position: Position,
+  player: Player,
+): PointBreakdown {
+  if (!mgf.board.promotion_zone?.[player]) return tally(0, 0, false);
   const kindMap = buildInitialKindMap(position);
 
   const royalKinds = royalKindsOf(mgf);
-  let points = 0;
+  let major = 0;
+  let minor = 0;
   let countedRoyal = false;
   for (const { square, kinds } of ownPiecesOnBoard(mgf, position, player, kindMap)) {
     if (!inZone(mgf, player, square.row)) continue;
     if (holdsRoyalCandidate(kinds, royalKinds)) countedRoyal = true;
-    points += isCertainMajor(kinds) ? 5 : 1;
+    if (isCertainMajor(kinds)) major++;
+    else minor++;
   }
   for (const hand of position.hands[player]) {
-    points += isCertainMajor(kindsOf(mgf, hand, kindMap)) ? 5 : 1;
+    if (isCertainMajor(kindsOf(mgf, hand, kindMap))) major++;
+    else minor++;
   }
   // 王の分を引く。**数えた中に王候補を保持する駒が含まれるときだけ**引く (複数含まれて
   // いても 1 回だけ)。入玉が成立していれば王候補は必ず敵陣に居るので必ず引かれ、
   // 成立していない局面 (点数を単独で見るとき) に居もしない王の分を引かずに済む。
   // 王候補を保持する駒は候補に王を含む以上「すべて大駒」にはなり得ないので必ず 1 点。
-  return countedRoyal ? points - 1 : points;
+  return tally(major, minor, countedRoyal);
 }
 
 /**
@@ -195,18 +236,30 @@ export function resolveSideThreshold(
  * 飛角 5 点 × 2 ＋ 小駒 17)。
  */
 export function computeJishogiPoints(mgf: Mgf, position: Position, player: Player): number {
+  return jishogiPointBreakdown(mgf, position, player).points;
+}
+
+/** 持将棋の点数の内訳 (★v1.87)。範囲だけが §Q21.3 と違い、1 枚あたりの数え方は同じ。 */
+export function jishogiPointBreakdown(
+  mgf: Mgf,
+  position: Position,
+  player: Player,
+): PointBreakdown {
   const kindMap = buildInitialKindMap(position);
   const royalKinds = royalKindsOf(mgf);
-  let points = 0;
+  let major = 0;
+  let minor = 0;
   let countedRoyal = false;
   for (const { kinds } of ownPiecesOnBoard(mgf, position, player, kindMap)) {
     if (holdsRoyalCandidate(kinds, royalKinds)) countedRoyal = true;
-    points += isCertainMajor(kinds) ? 5 : 1;
+    if (isCertainMajor(kinds)) major++;
+    else minor++;
   }
   for (const hand of position.hands[player]) {
-    points += isCertainMajor(kindsOf(mgf, hand, kindMap)) ? 5 : 1;
+    if (isCertainMajor(kindsOf(mgf, hand, kindMap))) major++;
+    else minor++;
   }
-  return countedRoyal ? points - 1 : points;
+  return tally(major, minor, countedRoyal);
 }
 
 /**

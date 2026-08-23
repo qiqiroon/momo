@@ -1834,6 +1834,37 @@ body::before {
   margin-bottom: 14px;
   line-height: 1.55;
 }
+/* ★v1.86: 補足詳細の折込みカード (付録D-3 v1.10 §3.4・モック momo_shogi_S07_mock_v6.html)。
+ * **該当する終局理由のときだけ現れ**、1 行につき「左に項目名・右に値」の 2 列で並べる。
+ * **項目名は控えめ・値は明るく太字**、枠線とやや暗い地で囲い、字は .body より小さい
+ * ＝ **主役は勝敗と終局理由で、内訳は脇役**という関係を見た目で表す。
+ * 値の側は右寄せのまま折り返す (言語によっては 1 行に収まらないため)。
+ */
+.floating-result .detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 auto 14px;
+  max-width: 300px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22);
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: left;
+}
+.floating-result .detail .drow {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.floating-result .detail .drow b {
+  color: var(--text);
+  font-weight: 700;
+  text-align: right;
+}
+
 .floating-result .btn-row {
   display: flex;
   gap: 8px;

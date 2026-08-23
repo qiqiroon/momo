@@ -11,6 +11,7 @@ export {
   canProposeJishogi,
   isEnteringKingEstablished,
   resolveSideThreshold,
+  listEnterZoneMajors,
 } from './victory/nyugyoku';
 export { initPosition } from './position/init';
 export { applyMove } from './position/apply';
@@ -27,6 +28,7 @@ export {
   resolveCandidateKinds,
   groupCandidatesByKind,
   displayKindsFor,
+  hasCandidateSets,
 } from './candidate-kinds';
 export { foretellKindByDestination } from './foretell';
 export {

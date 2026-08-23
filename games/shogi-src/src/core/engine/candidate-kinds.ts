@@ -121,3 +121,22 @@ export function confirmedKindOf(
   const kinds = resolveCandidateKinds(mgf, piece.candidates, piece.promoted, kindMap);
   return kinds.length === 1 ? kinds[0] : undefined;
 }
+
+/**
+ * この局面が量子モードのものか (v1.86)。
+ *
+ * **駒が候補集合を持っているかで判定する**＝棋譜の書き方 (kifu/format.ts) が使っている
+ * のと同じ既存の決まりで、新しい判定を作らない。ルール定義の `modifiers.quantum` は
+ * 「量子モードを選べるルールか」であって「いま量子モードで指しているか」ではない
+ * (本将棋の定義は量子を選べるので常に true になる)。
+ */
+export function hasCandidateSets(position: Position): boolean {
+  for (const row of position.board) {
+    for (const cell of row) {
+      if (cell?.candidates !== undefined) return true;
+    }
+  }
+  for (const p of position.hands.player1) if (p.candidates !== undefined) return true;
+  for (const p of position.hands.player2) if (p.candidates !== undefined) return true;
+  return false;
+}

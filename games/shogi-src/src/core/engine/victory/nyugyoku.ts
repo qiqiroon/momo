@@ -2,6 +2,7 @@ import type { Mgf, MgfSideThreshold, Player } from '../mgf/types';
 import type { PieceInstance, Position, Square } from '../position/types';
 import { isSquareAttackedBy } from '../moves/check';
 import { buildInitialKindMap, displayKindsFor } from '../candidate-kinds';
+import { strengthOf } from '../piece-strength';
 
 const MAJOR_KINDS = new Set(['kaku', 'hi', 'uma', 'ryu']);
 const REQUIRED_PIECE_COUNT = 10;
@@ -228,4 +229,41 @@ export function canProposeJishogi(mgf: Mgf, position: Position): boolean {
       isEnteringKingEstablished(mgf, position, side) &&
       computeJishogiPoints(mgf, position, side) >= threshold,
   );
+}
+
+/**
+ * 敵陣内の大駒の内訳 (v1.86・付録D-3 v1.10 §3.4・量子分冊 v0.9 §Q21.7)。
+ *
+ * 終局画面の補足詳細に「敵陣内の大駒」を出すためだけの関数で、**判定には使わない**。
+ *
+ * `total` は §Q21.3 で 5 点として数えた駒の枚数 (候補の姿がすべて大駒である駒)。
+ * `byKind` はそのうち**姿が 1 つに決まっている駒**を駒種ごとに数えたもの。
+ *
+ * **量子モードでは呼び出し側が `byKind` を使わず `total` だけを出す** (§Q21.7)。
+ * 5 点と分かっていても飛か角かは分からないので、名前を出すと**名札を正体として
+ * 使う**ことになるため。ここで名前を伏せずに両方返すのは、通常将棋モードでは
+ * 名前を出すからで、**どちらを使うかは見せ方の決めごと**である。
+ */
+export function listEnterZoneMajors(
+  mgf: Mgf,
+  position: Position,
+  player: Player,
+): { total: number; byKind: { kind: string; count: number }[] } {
+  if (!mgf.board.promotion_zone?.[player]) return { total: 0, byKind: [] };
+  const kindMap = buildInitialKindMap(position);
+
+  let total = 0;
+  const counts = new Map<string, number>();
+  for (const { square, kinds } of ownPiecesOnBoard(mgf, position, player, kindMap)) {
+    if (!inZone(mgf, player, square.row)) continue;
+    if (!isCertainMajor(kinds)) continue;
+    total++;
+    if (kinds.length === 1) counts.set(kinds[0], (counts.get(kinds[0]) ?? 0) + 1);
+  }
+  // 並び順は**強さの降順**＝画面のほかの場所 (盤の巡回表示・候補の重ね表示) と同じ
+  // 「王飛角金銀桂香歩」の並び。数えた順にすると局面によって並びが変わる。
+  const byKind = [...counts.entries()]
+    .map(([kind, count]) => ({ kind, count }))
+    .sort((a, b) => strengthOf(b.kind) - strengthOf(a.kind));
+  return { total, byKind };
 }

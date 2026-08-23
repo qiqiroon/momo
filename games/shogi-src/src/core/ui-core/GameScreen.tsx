@@ -35,8 +35,13 @@ import type { LocaleCode } from '../i18n/types';
 import type { Mgf, PieceId, PieceInstance, Position, Square } from '../engine';
 import {
   buildInitialKindMap,
+  computeEnterZonePoints,
+  computeJishogiPoints,
   countBoardPieces,
+  countEnterZonePieces,
   displayKindsFor,
+  hasCandidateSets,
+  listEnterZoneMajors,
   moveLandingSquare,
   foretellKindByDestination,
   isInCheck,
@@ -1998,6 +2003,8 @@ function GameEndModal({
   const position = useGameStore((s) => s.position);
   const mgf = useGameStore((s) => s.mgf);
   const reset = useGameStore((s) => s.reset);
+  // v1.86: 折込みカードの駒名に要る (t は鍵を引くだけで言語を返さない)。
+  const locale = useI18nStore((s) => s.locale);
   const [dismissed, setDismissed] = useState<string>('');
   /**
    * ★v1.55: 観戦者かどうか（親 §6.8.6）。**いまこの瞬間の事実を口に聞く**＝
@@ -2079,17 +2086,96 @@ function GameEndModal({
     verdictKey = winnerSide === 'player1' ? 'result.verdict.senteWin' : 'result.verdict.goteWin';
   }
 
-  // Phase 6 (付録D-3 §3.4): 全滅で終わったときは、両者の残り駒と勝利条件の枚数を添える。
-  // 「あと何枚で終わりだったのか」が分からないと、なぜ終わったのかが伝わらないため。
-  let annihilationDetail: string | null = null;
+  /**
+   * 敵陣内の大駒の内訳 (★v1.86・量子分冊 v0.9 §Q21.7・付録D-3 v1.10 §3.4)。
+   *
+   * **量子モードでは駒の名前を出さず、枚数だけを出す** (例「大駒 2 枚」)。点数は
+   * 「**取りうる姿がすべて大駒なら 5 点**」で数えている (§Q21.3) ので、**5 点と
+   * 分かっていても飛か角かは分からない**。名前を出すと**名札を正体として使う**ことに
+   * なり、v1.48 で直した取り違えを見た目の側で繰り返す。
+   *
+   * **棋譜の「仮」は流用しない**＝あれは「もともとどのマスに置かれていた駒か」を指す
+   * 呼び名であって、**大駒かどうかとは無関係** (2026-08-23 ユーザー指摘)。
+   *
+   * 量子モードかどうかは**駒が候補集合を持っているか**で判定する (棋譜の書き方と
+   * 同じ既存の決まり)。通常将棋モードでは候補が 1 つなので必ず名前が出る。
+   */
+  const majorsText = (side: 'player1' | 'player2') => {
+    const { total, byKind } = listEnterZoneMajors(mgf, position, side);
+    if (hasCandidateSets(position) || byKind.length === 0) {
+      return `${total}${t('result.detail.pieces')}`;
+    }
+    // 猫語のときの駒名は日本語を借りる (盤の駒と同じ扱い)。
+    const nameLocale: LocaleCode = locale === 'cat' ? 'ja' : locale;
+    return byKind
+      .map((m) => `${pieceNameFor(m.kind, nameLocale)}${m.count}`)
+      .join(t('result.detail.sep'));
+  };
+
+  /**
+   * 補足詳細の折込みカード (★v1.86・付録D-3 v1.10 §3.4)。
+   *
+   * **該当する終局理由のときだけ現れ**、**1 行につき「左に項目名・右に値」**で並べる。
+   * **この形は 3 つの終局理由すべてに共通**＝理由ごとに違う見せ方を作らない。
+   *
+   * v1.85 までは全滅 (はさみ将棋) だけが**枠も項目名も無い 1 行**で出ており、
+   * 入玉宣言と持将棋は規定があるのに出ていなかった。
+   */
+  const detailRows: { label: string; value: string }[] = [];
   if (status === 'annihilation_win_p1' || status === 'annihilation_win_p2') {
+    // 「あと何枚で終わりだったのか」が分からないと、なぜ終わったのかが伝わらない。
     const threshold = mgf.victory?.remaining_threshold ?? 0;
-    const sente = countBoardPieces(position, 'player1');
-    const gote = countBoardPieces(position, 'player2');
-    annihilationDetail =
-      `${t('s07.senteLbl')} ${sente}${t('result.detail.pieces')}` +
-      ` / ${t('s07.goteLbl')} ${gote}${t('result.detail.pieces')}` +
-      `（${t('result.detail.winCondition')} ≤${threshold}）`;
+    detailRows.push(
+      {
+        label: t('result.detail.remainingSente'),
+        value: `${countBoardPieces(position, 'player1')}${t('result.detail.pieces')}`,
+      },
+      {
+        label: t('result.detail.remainingGote'),
+        value: `${countBoardPieces(position, 'player2')}${t('result.detail.pieces')}`,
+      },
+      {
+        label: t('result.detail.winCondition'),
+        value: `${threshold}${t('result.detail.piecesOrFewer')}`,
+      },
+    );
+  } else if (status === 'nyugyoku_win_p1' || status === 'nyugyoku_win_p2') {
+    // **宣言した側だけ**を出す (付録D-3 §3.4)＝入玉宣言はひとりで宣言するので、
+    // 判定の材料は宣言した側の数字だけである。
+    const side: 'player1' | 'player2' = status === 'nyugyoku_win_p1' ? 'player1' : 'player2';
+    // 点数法の呼び名はルール定義から取る。**しきい値の数から言い当てない**
+    // (付録D-3 v1.10 §3.4)。知らない呼び名なら何も添えない。
+    const method = mgf.victory?.entering_king?.count_method;
+    const methodKey =
+      method === '27point' || method === '24point' ? `result.detail.method.${method}` : '';
+    detailRows.push({
+      label: t('result.detail.pointsLabel'),
+      value:
+        `${computeEnterZonePoints(mgf, position, side)}${t('result.detail.points')}` +
+        (methodKey ? t(methodKey) : ''),
+    });
+    detailRows.push({
+      label: t('result.detail.zonePieces'),
+      value: `${countEnterZonePieces(mgf, position, side)}${t('result.detail.pieces')}`,
+    });
+    detailRows.push({ label: t('result.detail.zoneMajors'), value: majorsText(side) });
+  } else if (status === 'jishogi') {
+    // **双方を出す** (付録D-3 §3.4)＝持将棋は双方の合意で成り立つので、
+    // 両方の数字が揃って初めて「引き分けが妥当だった」と読める。
+    detailRows.push(
+      {
+        label: t('result.detail.sentePoints'),
+        value: `${computeJishogiPoints(mgf, position, 'player1')}${t('result.detail.points')}`,
+      },
+      {
+        label: t('result.detail.gotePoints'),
+        value: `${computeJishogiPoints(mgf, position, 'player2')}${t('result.detail.points')}`,
+      },
+      // **数える範囲が入玉宣言と違うことを添える**＝同じ「点」でも測っている
+      // 対象が違うので、添えないと入玉宣言の点数と見比べられてしまう。
+      { label: t('result.detail.scope'), value: t('result.detail.scopeJishogi') },
+      { label: t('result.detail.countRule'), value: t('result.detail.countRuleValue') },
+    );
   }
 
   // 「対局準備に戻る」or「もう一度対局」— 同じ部屋で再対局を可能に
@@ -2115,7 +2201,16 @@ function GameEndModal({
     <FloatingPanel key={status} className="floating-result" title={t('result.title')}>
       <div className={`verdict ${verdictClass}`}>{t(verdictKey)}</div>
       <div className="body">{t(reasonKey)}</div>
-      {annihilationDetail && <div className="body">{annihilationDetail}</div>}
+      {detailRows.length > 0 && (
+        <div className="detail">
+          {detailRows.map((r) => (
+            <div className="drow" key={r.label}>
+              <span>{r.label}</span>
+              <b>{r.value}</b>
+            </div>
+          ))}
+        </div>
+      )}
       {/* v1.42: **押せるボタンは白文字・白枠**（付録D-3 §4.1）。灰色は「押せない」だけを
           意味する＝押せるのに灰色だと押せないボタンに見える。主動作の「もう一度対局」
           だけオレンジ地のまま＝主従の差は残す。 */}

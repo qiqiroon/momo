@@ -1,5 +1,5 @@
 import type { Mgf } from '../mgf/types';
-import type { BoardCell, Move, PieceInstance, Position } from './types';
+import type { BoardCell, Move, MoveStep, PieceInstance, Position } from './types';
 import { sandwichCaptures } from '../moves/sandwich';
 import { buildInitialKindMap, displayKindsFor } from '../candidate-kinds';
 import {
@@ -199,6 +199,15 @@ function applyFree(
   return { ...position, board: newBoard, hands: newHands, history: position.history };
 }
 
+  // 【v1.65 §3.7.1】続けて起きる動きの並び。本体の手を運んだあと、書かれた順に適用する。
+  // **省略＝並び無し**＝将棋・はさみの手は素通りする。並びを持つのはキャスリング・
+  // アンパッサン・獅子の 2 回行動のような複合の手だけ (手の種類は増やしていない)。
+  if (move.type === 'move' && move.extra_steps) {
+    for (const step of move.extra_steps) {
+      applyStepInPlace(mgf, newBoard, newHands, step);
+    }
+  }
+
   // はさみ将棋の「挟んで取る」(親 §3.8 `post_move_topology`)。挟みの決まりを持たない
   // ルールでは何も起きないので、本将棋・トーラス・量子の各モードは素通りする。
   // **取った駒は持ち駒にならない**＝挟みで取るルールは駒台を持たない (§5.3)。
@@ -221,6 +230,92 @@ function applyFree(
     moveNumber: position.moveNumber + 1,
     history: [...position.history, move],
   };
+}
+
+/**
+ * 【v1.65 §3.7.1】続きの動き 1 段を、その場で盤・駒台に反映する。
+ *
+ * 行き先は感想戦の自由な手 (applyFree) と同じ 3 種類で、扱いも揃える
+ * (マスへ＝そこに駒があれば動かした側の駒台へ／駒台へ＝成りを落とす／取り除く＝消す)。
+ * ここでは合法性を見ない (呼び出し側が組み立て済みの手を運ぶだけ・§3.7.1)。
+ */
+function applyStepInPlace(
+  mgf: Mgf,
+  board: BoardCell[][],
+  hands: { player1: PieceInstance[]; player2: PieceInstance[] },
+  step: MoveStep,
+): void {
+  // 動かす駒を、元の場所 (盤 or 駒台) から外す。
+  let piece: PieceInstance | null = null;
+  if (step.from) {
+    piece = board[step.from.row][step.from.col];
+    if (!piece) throw new Error(`No piece at step.from (${step.from.row}, ${step.from.col})`);
+    board[step.from.row][step.from.col] = null;
+  } else {
+    for (const owner of ['player1', 'player2'] as const) {
+      const idx = hands[owner].findIndex((p) => p.pieceId === step.pieceId);
+      if (idx >= 0) {
+        piece = hands[owner][idx];
+        hands[owner].splice(idx, 1);
+        break;
+      }
+    }
+    if (!piece) throw new Error(`Step piece ${step.pieceId} not found in hands`);
+  }
+  if (piece.pieceId !== step.pieceId) {
+    throw new Error(`Step piece ID mismatch: expected ${step.pieceId}, got ${piece.pieceId}`);
+  }
+
+  let placed: PieceInstance = piece;
+  if (step.promote !== undefined && step.promote !== piece.promoted) {
+    const def = mgf.pieces.find((p) => p.id === piece!.kind);
+    if (step.promote && def?.promoted_id) {
+      placed = { ...piece, kind: def.promoted_id, promoted: true };
+    } else if (!step.promote && !def?.promoted_id) {
+      placed = { ...piece, kind: unpromotedKindOf(mgf, piece.kind), promoted: false };
+    } else {
+      placed = { ...piece, promoted: step.promote };
+    }
+  }
+
+  if (step.dest.kind === 'discard') return; // 盤からも駒台からも消える (アンパッサン)。
+
+  if (step.dest.kind === 'hand') {
+    const owner = step.dest.owner;
+    hands[owner].push({
+      ...placed,
+      kind: placed.promoted ? unpromotedKindOf(mgf, placed.kind) : placed.kind,
+      owner,
+      promoted: false,
+    });
+    return;
+  }
+
+  // 盤のマスへ。そこに駒があれば、その駒が駒台へ入るかを駒ごとの欄で決める (§5.5.8)。
+  const sq = step.dest.square;
+  const captured = board[sq.row][sq.col];
+  if (captured) {
+    let kinds = [captured.kind];
+    if (captured.candidates) {
+      // 量子モードでは正体が候補集合。**盤と駒台から身元表を組み立てて**顔を出す
+      // (buildInitialKindMap と同じ読み方だが、ここでは局面ではなく手中の盤・駒台を見る)。
+      const kindMap = new Map<string, string>();
+      for (const r of board) for (const c of r) if (c) kindMap.set(c.pieceId, c.initialKind);
+      for (const owner of ['player1', 'player2'] as const) {
+        for (const h of hands[owner]) kindMap.set(h.pieceId, h.initialKind);
+      }
+      kinds = displayKindsFor(mgf, captured, kindMap);
+    }
+    if (capturedGoesToHand(mgf, kinds)) {
+      hands[placed.owner].push({
+        ...captured,
+        kind: captured.promoted ? unpromotedKindOf(mgf, captured.kind) : captured.kind,
+        owner: placed.owner,
+        promoted: false,
+      });
+    }
+  }
+  board[sq.row][sq.col] = placed;
 }
 
 function getUnpromotedKind(mgf: Mgf, kind: string): string {

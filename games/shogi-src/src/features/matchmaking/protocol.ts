@@ -51,6 +51,10 @@ export const CLIENT_CAPABILITIES = [
   'torus:full',
   'quantum',
   'quantum:params',
+  // 【v1.65 §3.7.1】続けて起きる動きの並び (キャスリング等) を運べる・入れ替わる昇格の
+  // 昇格先を扱える。**名乗りに載せることで、知らない相手とは対局を始めない**
+  // (古い版は欄を無視してルークだけ動かない盤になるため)。
+  'composite_moves',
 ] as const;
 
 /** すべてのメッセージ共通の envelope */
@@ -135,6 +139,14 @@ export interface MoveMsg extends Envelope {
   from?: { row: number; col: number };
   to: { row: number; col: number };
   promote?: boolean;
+  /**
+   * 【v1.65 §3.6.2】入れ替わる昇格で、どの駒になったか。
+   *
+   * from/to からは決まらない情報 (ポーンは 4 通り) なので**伝言に載せる**。
+   * 受け取った側は、これも突き合わせてどの合法手かを一意に決める。裏返る成り
+   * (将棋) は載せない＝従来の伝言はそのまま。
+   */
+  promoteTo?: string;
   /**
    * 送信側の時計状態（v0.35 追加）。指し終わった直後の指し手側の残り時間で、
    * 受信側は自分の内部モデル（相手の時計）をこの値に上書きして時計をシンクさせる。

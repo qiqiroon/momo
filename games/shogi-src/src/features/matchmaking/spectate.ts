@@ -45,6 +45,7 @@ export function movesFromHistory(history: readonly Move[]): MoveMsg[] {
         from: { row: m.from.row, col: m.from.col },
         to: { row: m.to.row, col: m.to.col },
         promote: m.promote,
+        ...(m.promoteTo !== undefined ? { promoteTo: m.promoteTo } : {}),
       });
     } else if (m.type === 'drop') {
       out.push({
@@ -129,6 +130,7 @@ export function applySpectateSync(msg: SpectateSyncMsg): void {
         from: m.from,
         to: m.to,
         promote: m.promote,
+        promoteTo: m.promoteTo,
       });
     }
   }

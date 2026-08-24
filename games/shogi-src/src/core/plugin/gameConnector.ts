@@ -33,6 +33,8 @@ export interface RemoteMovePayload {
   from?: { row: number; col: number };
   to: { row: number; col: number };
   promote?: boolean;
+  /** 【v1.65 §3.6.2】入れ替わる昇格の昇格先 (from/to からは決まらないので運ぶ)。 */
+  promoteTo?: string;
   /** v0.35: 送信直後の自分側の時計状態（相手が時計をシンクするための値） */
   time?: {
     mainMs: number;

@@ -511,6 +511,8 @@ interface GameState {
     from?: Square;
     to: Square;
     promote?: boolean;
+    /** 【v1.65 §3.6.2】入れ替わる昇格の昇格先。突き合わせてどの合法手かを一意に決める。 */
+    promoteTo?: string;
   }) => boolean;
   /**
    * ★v1.55: 感想戦で盤を自由に組み替える 1 手を適用する（親 v1.49 §9.4.2.1）。
@@ -1720,7 +1722,9 @@ export const useGameStore = create<GameState>((set, get) => ({
           m.from.col === msg.from!.col &&
           m.to.row === msg.to.row &&
           m.to.col === msg.to.col &&
-          m.promote === (msg.promote ?? false),
+          m.promote === (msg.promote ?? false) &&
+          // 【v1.65 §3.6.2】入れ替わる昇格は昇格先で見分ける (指定が無い側は昇格先を持たない手)。
+          m.promoteTo === msg.promoteTo,
       );
       if (found) target = found;
     } else {
@@ -1752,7 +1756,8 @@ export const useGameStore = create<GameState>((set, get) => ({
           m.from.col === move.from.col &&
           m.to.row === move.to.row &&
           m.to.col === move.to.col &&
-          m.promote === move.promote
+          m.promote === move.promote &&
+          m.promoteTo === move.promoteTo
         : move.type === 'drop' &&
           m.type === 'drop' &&
           m.pieceId === move.pieceId &&

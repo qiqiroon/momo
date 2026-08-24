@@ -261,6 +261,7 @@ export function GameScreen({ variant }: GameScreenProps) {
         from: move.from,
         to: move.to,
         promote: move.promote,
+        ...(move.promoteTo !== undefined ? { promoteTo: move.promoteTo } : {}),
         time: timePayload,
         hash: hashPayload,
       });

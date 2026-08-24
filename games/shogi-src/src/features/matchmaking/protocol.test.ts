@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { DEFAULT_QUANTUM_PARAMS } from '../../core/store/quantum-params';
-import { checkRuleSupport, ruleDigest, type SyncedRules } from './protocol';
+import { CLIENT_CAPABILITIES, checkRuleSupport, ruleDigest, type SyncedRules } from './protocol';
 
 /**
  * Phase 5-12 ルール同期 (親 §6.5)。
@@ -88,5 +88,13 @@ describe('checkRuleSupport — 自分のエンジンで扱えるか', () => {
   it('知らないトーラスの種類は理由を付けて断る', () => {
     const rules = { ...BASE, torusMode: 'klein' as unknown as SyncedRules['torusMode'] };
     expect(checkRuleSupport(rules)).toEqual({ ok: false, reason: 'unsupported_torus_mode' });
+  });
+});
+
+describe('名乗り — 続けて起きる動きを運べる（親 v1.65 §3.7.1・第9段9-2）', () => {
+  it('CLIENT_CAPABILITIES に composite_moves を載せている', () => {
+    // 知らない相手 (古い版) とは対局を始めないための名乗り。並びを使うルールの
+    // 拒否そのものはチェス定義 (9-4) と一緒に働くが、名乗りはここで載せる。
+    expect(CLIENT_CAPABILITIES).toContain('composite_moves');
   });
 });

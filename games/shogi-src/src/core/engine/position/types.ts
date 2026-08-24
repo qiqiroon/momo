@@ -52,6 +52,23 @@ export interface BoardTopology {
 
 export type MoveKind = 'move' | 'drop';
 
+/**
+ * 【v1.65 §3.7.1】**続けて起きる動きの 1 段**。
+ *
+ * 本体の手を運んだあと、この並びを書かれた順に適用する。行き先は感想戦の自由な手
+ * (MoveDest) と**同じ 3 種類**を使う (マスへ／駒台へ／取り除く)＝新しい書き方を作らない。
+ * これ 1 つで**キャスリング**(ルークがマスへ)・**アンパッサン**(取られるポーンを取り除く)・
+ * **獅子の 2 回行動**(同じ駒がもう一度マスへ) が表せる。
+ */
+export interface MoveStep {
+  pieceId: PieceId;
+  /** 盤から動かすなら元のマス。省略＝駒台から。 */
+  from?: Square;
+  dest: MoveDest;
+  /** 置いた後の成りの状態。省略＝いまのまま。 */
+  promote?: boolean;
+}
+
 export interface BoardMove {
   type: 'move';
   pieceId: PieceId;
@@ -66,6 +83,13 @@ export interface BoardMove {
    * 候補の先頭になる (候補が 1 つだけのルールでは選択が起きない)。
    */
   promoteTo?: string;
+  /**
+   * 【v1.65 §3.7.1】**続けて起きる動きの並び**。
+   *
+   * **省略＝並び無し**＝本将棋・はさみ将棋の手は従来どおりこの欄を持たない
+   * (知らない側は素通りする)。手の種類 (move/drop) は増やさない。
+   */
+  extra_steps?: MoveStep[];
   capturedPieceId?: PieceId;
 }
 

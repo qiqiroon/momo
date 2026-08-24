@@ -203,6 +203,7 @@ export function handleShogiMessage(data: unknown, from?: string): void {
         from: msg.from,
         to: msg.to,
         promote: msg.promote,
+        promoteTo: msg.promoteTo,
       });
       if (applied && msg.time) {
         const nextSide = useGameStore.getState().position.sideToMove;

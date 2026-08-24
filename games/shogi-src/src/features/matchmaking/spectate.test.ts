@@ -250,6 +250,23 @@ describe('v1.55: いまの対局を丸ごと配る（親 §6.8.4）', () => {
       ]),
     ).toHaveLength(1);
   });
+
+  it('入れ替わる昇格の昇格先は配り物に載る（親 v1.65 §3.6.2・第9段9-2）', () => {
+    // from/to からは決まらない情報なので、載っていないと観戦・再生でどの駒に
+    // 昇格したか分からなくなる。
+    const out = movesFromHistory([
+      {
+        type: 'move',
+        pieceId: 'P0',
+        from: { row: 1, col: 2 },
+        to: { row: 0, col: 2 },
+        promote: true,
+        promoteTo: 'bishop',
+      },
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0].promoteTo).toBe('bishop');
+  });
 });
 
 describe('v1.55: 配られたものから組み立て直す（親 §6.8.4）', () => {

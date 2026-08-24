@@ -160,6 +160,7 @@ const connector: OnlineGameConnector = {
       from: payload.from,
       to: payload.to,
       promote: payload.promote,
+      ...(payload.promoteTo !== undefined ? { promoteTo: payload.promoteTo } : {}),
       time: payload.time,
       hash: payload.hash,
     });

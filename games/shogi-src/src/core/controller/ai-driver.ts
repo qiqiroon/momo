@@ -179,6 +179,7 @@ export function useAiOpponent(isOnline: boolean): void {
             from: move.from,
             to: move.to,
             promote: move.promote,
+            promoteTo: move.promoteTo,
           });
         } else if (move.type === 'drop') {
           now.applyRemoteMove({ kind: 'drop', pieceId: move.pieceId, to: move.to });

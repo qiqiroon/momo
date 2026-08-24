@@ -594,7 +594,7 @@ function diffConfirmedKinds(mgf: Mgf, before: Position, after: Position): string
     if (kinds.length !== 1) continue;
     const where = square ? squareNameJa(after.width, square) : '持駒';
     const side = piece.owner === 'player1' ? '先手' : '後手';
-    lines.push(`${where} ${side} ${pieceNameJa(kinds[0])}に確定`);
+    lines.push(`${where} ${side} ${pieceNameJa(mgf, kinds[0])}に確定`);
   }
   if (lines.length > CONFIRM_LINES_MAX) {
     const rest = lines.length - CONFIRM_LINES_MAX;

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
 import { PieceStandView } from './GameScreen';
+import { hondou } from '../engine';
 import type { PieceInstance } from '../engine';
 
 /**
@@ -28,6 +29,7 @@ function fakeGroups(n: number) {
 function standOf(n: number): HTMLElement {
   const { container } = render(
     <PieceStandView
+      mgf={hondou}
       side="you"
       pieces={fakeGroups(n)}
       onClick={() => {}}

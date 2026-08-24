@@ -58,6 +58,14 @@ export interface BoardMove {
   from: Square;
   to: Square;
   promote: boolean;
+  /**
+   * 【v1.65 §3.6.2】**入れ替わる昇格で、どの駒になるか**。
+   *
+   * 裏返る成り (将棋) は成った姿が 1 対 1 に決まっているので**書かない**＝
+   * 従来の手はそのままの形で通る。書かれていない入れ替わる昇格は、昇格先の
+   * 候補の先頭になる (候補が 1 つだけのルールでは選択が起きない)。
+   */
+  promoteTo?: string;
   capturedPieceId?: PieceId;
 }
 

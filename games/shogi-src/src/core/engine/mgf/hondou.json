@@ -48,7 +48,7 @@
   "pieces": [
     {
       "id": "fu",
-      "name": "歩",
+      "name": { "ja": "歩", "en": "P", "zh": "歩" },
       "can_promote": true,
       "promoted_id": "to",
       "must_promote_at": 1,
@@ -62,7 +62,7 @@
     },
     {
       "id": "kyo",
-      "name": "香",
+      "name": { "ja": "香", "en": "L", "zh": "香" },
       "can_promote": true,
       "promoted_id": "narikyo",
       "must_promote_at": 1,
@@ -76,7 +76,7 @@
     },
     {
       "id": "kei",
-      "name": "桂",
+      "name": { "ja": "桂", "en": "N", "zh": "桂" },
       "can_promote": true,
       "promoted_id": "narikei",
       "must_promote_at": 2,
@@ -90,7 +90,7 @@
     },
     {
       "id": "gin",
-      "name": "銀",
+      "name": { "ja": "銀", "en": "S", "zh": "銀" },
       "can_promote": true,
       "promoted_id": "narigin",
       "is_hand_piece": true,
@@ -105,7 +105,7 @@
     },
     {
       "id": "kin",
-      "name": "金",
+      "name": { "ja": "金", "en": "G", "zh": "金" },
       "can_promote": false,
       "is_hand_piece": true,
       "score": 6,
@@ -120,7 +120,7 @@
     },
     {
       "id": "kaku",
-      "name": "角",
+      "name": { "ja": "角", "en": "B", "zh": "角" },
       "can_promote": true,
       "promoted_id": "uma",
       "is_hand_piece": true,
@@ -133,7 +133,7 @@
     },
     {
       "id": "hi",
-      "name": "飛",
+      "name": { "ja": "飛", "en": "R", "zh": "飛" },
       "can_promote": true,
       "promoted_id": "ryu",
       "is_hand_piece": true,
@@ -148,7 +148,7 @@
     },
     {
       "id": "ou",
-      "name": "王",
+      "name": { "ja": "王", "en": "K", "zh": "王" },
       "is_royal": true,
       "can_promote": false,
       "is_hand_piece": false,
@@ -161,7 +161,7 @@
     },
     {
       "id": "to",
-      "name": "と",
+      "name": { "ja": "と", "en": "+P", "zh": "と" },
       "can_promote": false,
       "is_hand_piece": false,
       "score": 6,
@@ -176,7 +176,7 @@
     },
     {
       "id": "narikyo",
-      "name": "成香",
+      "name": { "ja": "成香", "en": "+L", "zh": "成香" },
       "can_promote": false,
       "is_hand_piece": false,
       "score": 6,
@@ -191,7 +191,7 @@
     },
     {
       "id": "narikei",
-      "name": "成桂",
+      "name": { "ja": "成桂", "en": "+N", "zh": "成桂" },
       "can_promote": false,
       "is_hand_piece": false,
       "score": 6,
@@ -206,7 +206,7 @@
     },
     {
       "id": "narigin",
-      "name": "成銀",
+      "name": { "ja": "成銀", "en": "+S", "zh": "成銀" },
       "can_promote": false,
       "is_hand_piece": false,
       "score": 6,
@@ -221,7 +221,7 @@
     },
     {
       "id": "uma",
-      "name": "馬",
+      "name": { "ja": "馬", "en": "+B", "zh": "馬" },
       "can_promote": false,
       "is_hand_piece": false,
       "score": 10,
@@ -236,7 +236,7 @@
     },
     {
       "id": "ryu",
-      "name": "龍",
+      "name": { "ja": "龍", "en": "+R", "zh": "龍" },
       "can_promote": false,
       "is_hand_piece": false,
       "score": 12,

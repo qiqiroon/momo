@@ -1,6 +1,16 @@
 export { hondou, hasami, loadMgf, mgfForGameType } from './mgf/loader';
 export { sandwichCaptures, countBoardPieces, annihilationLoser } from './moves/sandwich';
-export { formatMove, pieceNameJa } from './kifu/format';
+export { formatMove, pieceNameJa, pieceNameFor } from './kifu/format';
+export {
+  canPromoteKind,
+  capturedGoesToHand,
+  forcedPromotionApplies,
+  glyphColorOf,
+  pieceNameOf,
+  promotionChoicesOf,
+  promotionTypeOf,
+  unpromotedKindOf,
+} from './piece-rules';
 export { positionHash } from './position/hash';
 export { pieceIdListDigest } from './position/piece-id-hash';
 export {

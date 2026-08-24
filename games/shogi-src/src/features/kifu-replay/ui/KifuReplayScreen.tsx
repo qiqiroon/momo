@@ -481,6 +481,7 @@ export function KifuReplayScreen() {
               時計・手番の縁取り・行き先ヒントは付けない＝閲覧のための画面なので。 */}
           <div className="broadcast">
             <PieceStandView
+              mgf={mgf}
               side="opp"
               pieces={oppHand}
               onClick={() => {}}
@@ -542,6 +543,7 @@ export function KifuReplayScreen() {
                       >
                         {piece && (
                           <PieceView
+                            mgf={mgf}
                             piece={piece}
                             kinds={kinds}
                             locale={locale}
@@ -558,6 +560,7 @@ export function KifuReplayScreen() {
                             候補は両者に等しく見えている公開情報なので、読める駒を限定しない。 */}
                         {piece && kinds.length >= 2 && hovered && (
                           <CandidateBox
+                            mgf={mgf}
                             kinds={kinds}
                             locale={locale}
                             onLeft={visualCol >= 6}
@@ -571,6 +574,7 @@ export function KifuReplayScreen() {
               </div>
             </div>
             <PieceStandView
+              mgf={mgf}
               side="you"
               pieces={myHand}
               onClick={() => {}}

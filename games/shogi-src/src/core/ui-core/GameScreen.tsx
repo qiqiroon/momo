@@ -52,6 +52,7 @@ import {
 } from '../engine';
 import type { PointBreakdown } from '../engine/victory/nyugyoku';
 import { pieceNameFor } from '../engine/kifu/format';
+import { glyphColorOf } from '../engine/piece-rules';
 import { strengthOf } from '../engine/piece-strength';
 import type { QuantumDisplay } from '../store/game-store';
 import { CatIcon } from './CatIcon';
@@ -67,10 +68,15 @@ interface GameScreenProps {
   variant: 'a' | 'b';
 }
 
-const TWO_CHAR_KINDS = new Set(['narikyo', 'narikei', 'narigin']);
-
-function isTwoChar(kind: string): boolean {
-  return TWO_CHAR_KINDS.has(kind);
+/**
+ * 2 文字の駒 (成香・成桂・成銀 等) は枠に収めるため字を詰める。
+ *
+ * 【v1.65 §3.6.1】以前はここに駒種の一覧が直書きされていたが、**ルール定義から
+ * 名前を引くようになったので、実際に出す字の長さで決められる**。自作ルールの
+ * 2 文字の駒も同じ扱いになる (一覧に足し忘れる場所が無くなる)。
+ */
+function isTwoChar(name: string): boolean {
+  return name.length >= 2;
 }
 
 export function GameScreen({ variant }: GameScreenProps) {
@@ -833,6 +839,7 @@ export function GameScreen({ variant }: GameScreenProps) {
           <div className="broadcast">
             <BoardBlocker />
             <PieceStandView
+              mgf={mgf}
               side="opp"
               pieces={oppHandGrouped}
               onClick={(pid) => onHandPieceClick(oppSide, pid)}
@@ -916,6 +923,7 @@ export function GameScreen({ variant }: GameScreenProps) {
                       >
                         {piece && (
                           <PieceView
+                            mgf={mgf}
                             piece={piece}
                             kinds={kinds}
                             locale={locale}
@@ -935,13 +943,14 @@ export function GameScreen({ variant }: GameScreenProps) {
                             消えるのは表示だけで、指せる場所も確定の結果も変わらない。 */}
                         {hintOn && foretellKind && (
                           <span className={`foretell${foretellFlipped ? ' gote' : ''}`}>
-                            {pieceNameFor(foretellKind, locale)}
+                            {pieceNameFor(mgf, foretellKind, locale)}
                           </span>
                         )}
                         {/* 候補ボックス: 未確定駒の右上に候補を文字だけで並べる。
                             v1.16: 選んだときに加えてマウスを乗せたときも出す (相手の駒も対象)。 */}
                         {piece && unconfirmed && (isSelected(row, col) || isHovered(row, col)) && (
                           <CandidateBox
+                            mgf={mgf}
                             kinds={kinds}
                             locale={locale}
                             onLeft={visualCol >= 6}
@@ -958,6 +967,7 @@ export function GameScreen({ variant }: GameScreenProps) {
               </div>
             </div>
             <PieceStandView
+              mgf={mgf}
               side="you"
               pieces={myHandGrouped}
               onClick={(pid) => onHandPieceClick(viewerSide, pid)}
@@ -1098,7 +1108,7 @@ export function GameScreen({ variant }: GameScreenProps) {
           <DebugClickLog />
         </div>
       </div>
-      <PromotionModal locale={locale} t={t} viewerSide={viewerSide} mode={quantumDisplay} cycle={cycle} />
+      <PromotionModal mgf={mgf} locale={locale} t={t} viewerSide={viewerSide} mode={quantumDisplay} cycle={cycle} />
       <OpponentLeftModal t={t} />
       <GameEndModal t={t} online={online} />
       <OfferReceivedModal t={t} online={online} />
@@ -2147,7 +2157,7 @@ function GameEndModal({
     // 猫語のときの駒名は日本語を借りる (盤の駒と同じ扱い)。
     const nameLocale: LocaleCode = locale === 'cat' ? 'ja' : locale;
     return byKind
-      .map((m) => `${pieceNameFor(m.kind, nameLocale)}${m.count}`)
+      .map((m) => `${pieceNameFor(mgf, m.kind, nameLocale)}${m.count}`)
       .join(t('result.detail.sep'));
   };
 
@@ -2804,6 +2814,8 @@ function JishogiButton({ t, online, status, sideToMove }: JishogiButtonProps) {
 }
 
 interface PromotionModalProps {
+  /** 駒の名前と文字の色の正本 (親 v1.65 §3.6.1)。 */
+  mgf: Mgf;
   locale: LocaleCode;
   t: (key: string) => string;
   /** v0.87: viewer 基準の駒反転バグ修正。後手視点でも駒が上下正しく表示されるよう
@@ -2821,7 +2833,7 @@ interface PromotionModalProps {
  * （付録D-12 §1「発明し直さない」）。盤に触れる部品はここ 1 つに集めておかないと、
  * 片方だけ直った状態が生まれる。
  */
-export function PromotionModal({ locale, t, viewerSide, mode, cycle }: PromotionModalProps) {
+export function PromotionModal({ mgf, locale, t, viewerSide, mode, cycle }: PromotionModalProps) {
   const pendingPromotion = useGameStore((s) => s.pendingPromotion);
   const confirmPromotion = useGameStore((s) => s.confirmPromotion);
   const cancelPromotion = useGameStore((s) => s.cancelPromotion);
@@ -2870,13 +2882,13 @@ export function PromotionModal({ locale, t, viewerSide, mode, cycle }: Promotion
           <button type="button" className="promotion-card" onClick={() => confirmPromotion(false)}>
             <div className="label">{t('promote.decline')}</div>
             <div className="promotion-card-piece">
-              <PieceView piece={nonPromotePiece} kinds={nonPromoteKinds} locale={locale} viewerSide={viewerSide} mode={mode} cycle={cycle} />
+              <PieceView mgf={mgf} piece={nonPromotePiece} kinds={nonPromoteKinds} locale={locale} viewerSide={viewerSide} mode={mode} cycle={cycle} />
             </div>
           </button>
           <button type="button" className="promotion-card" onClick={() => confirmPromotion(true)}>
             <div className="label">{t('promote.confirm')}</div>
             <div className="promotion-card-piece">
-              <PieceView piece={promotePiece} kinds={promoteKinds} locale={locale} viewerSide={viewerSide} mode={mode} cycle={cycle} />
+              <PieceView mgf={mgf} piece={promotePiece} kinds={promoteKinds} locale={locale} viewerSide={viewerSide} mode={mode} cycle={cycle} />
             </div>
           </button>
         </div>
@@ -2942,6 +2954,7 @@ function shownKind(cycle: CycleReader | undefined, key: string, kinds: string[])
 
 /** 盤の駒 1 枚。棋譜再生画面 (S08) も同じ絵柄を使うので外へ出す（発明し直さない）。 */
 export function PieceView({
+  mgf,
   piece,
   kinds,
   locale,
@@ -2950,6 +2963,8 @@ export function PieceView({
   cycle,
   collapsing = false,
 }: {
+  /** 駒の名前と文字の色の正本 (親 v1.65 §3.6.1)。 */
+  mgf: Mgf;
   piece: PieceInstance;
   /** 表示する駒種 (強さ降順)。本将棋モードは [piece.kind] の 1 個。 */
   kinds: string[];
@@ -2964,14 +2979,17 @@ export function PieceView({
   const unconfirmed = kinds.length >= 2;
   const stacked = unconfirmed && mode === 'stack';
   const shown = unconfirmed ? shownKind(cycle, piece.pieceId, kinds) : kinds[0];
-  const name = pieceNameFor(shown, locale);
+  const name = pieceNameFor(mgf, shown, locale);
   const isMulti = isEn && name.length > 1;
+  // 【v1.65 §3.6.1】文字の色をルール定義が指定していれば、それを使う。
+  // **将棋は指定していないので従来どおり** (テーマの墨色のまま)。
+  const glyphColor = glyphColorOf(mgf, shown, piece.owner);
   // v0.34: gote 反転は viewer 基準（相手の駒＝反転して viewer 側から見て逆向き）
   const cls = [
     'pc',
     piece.owner !== viewerSide ? 'gote' : '',
     piece.promoted ? 'promoted' : '',
-    !isEn && !stacked && isTwoChar(shown) ? 'two' : '',
+    !isEn && !stacked && isTwoChar(name) ? 'two' : '',
     collapsing ? 'collapsing' : '',
   ]
     .filter(Boolean)
@@ -2980,9 +2998,9 @@ export function PieceView({
   return (
     <div className={cls}>
       {stacked ? (
-        <QuantumStack kinds={kinds} locale={locale} />
+        <QuantumStack mgf={mgf} kinds={kinds} locale={locale} />
       ) : (
-        <span className={jaCls}>{name}</span>
+        <span className={jaCls} style={glyphColor ? { color: glyphColor } : undefined}>{name}</span>
       )}
     </div>
   );
@@ -2997,8 +3015,8 @@ export function PieceView({
  * 先頭字を 1 枚だけ描いて末尾字を重ねる (「成」を二重に太らせない)。
  * 英字表記 (locale=en) は縦書きにすると読めないので常に横重ねにする。
  */
-function QuantumStack({ kinds, locale }: { kinds: string[]; locale: LocaleCode }) {
-  const names = kinds.map((k) => pieceNameFor(k, locale));
+function QuantumStack({ mgf, kinds, locale }: { mgf: Mgf; kinds: string[]; locale: LocaleCode }) {
+  const names = kinds.map((k) => pieceNameFor(mgf, k, locale));
   const vertical = locale !== 'en' && names.some((n) => n.length > 1);
   if (!vertical) {
     return (
@@ -3040,11 +3058,14 @@ function QuantumStack({ kinds, locale }: { kinds: string[]; locale: LocaleCode }
  * 出したまま窓の大きさが変わる/巻物が動く場合に備えて位置は測り直す。
  */
 export function CandidateBox({
+  mgf,
   kinds,
   locale,
   onLeft,
   below = false,
 }: {
+  /** 駒の名前の正本 (親 v1.65 §3.6.1)。 */
+  mgf: Mgf;
   kinds: string[];
   locale: LocaleCode;
   onLeft: boolean;
@@ -3058,7 +3079,7 @@ export function CandidateBox({
   const [recalc, setRecalc] = useState(0);
 
   const sep = locale === 'en' ? ' ' : '';
-  const text = kinds.map((k) => pieceNameFor(k, locale)).join(sep);
+  const text = kinds.map((k) => pieceNameFor(mgf, k, locale)).join(sep);
 
   useLayoutEffect(() => {
     const anchor = anchorRef.current?.parentElement;
@@ -3127,6 +3148,8 @@ function computeForetell(
 }
 
 interface PieceStandViewProps {
+  /** 駒の名前と文字の色の正本 (親 v1.65 §3.6.1)。 */
+  mgf: Mgf;
   side: 'opp' | 'you';
   pieces: HandGroup[];
   onClick: (pieceId: string) => void;
@@ -3182,7 +3205,7 @@ function standPacking(count: number): { cls: string; rows: number } {
 }
 
 /** 駒台。棋譜再生画面 (S08) も同じものを使う（触れない＝`activePlayer` を false にする）。 */
-export function PieceStandView({ side, pieces, onClick, onStandClick, selectedId, activePlayer, locale, label, entangledPieceIds, debugShowPieceIds, mode = 'cycle', cycle, collapsingIds }: PieceStandViewProps) {
+export function PieceStandView({ mgf, side, pieces, onClick, onStandClick, selectedId, activePlayer, locale, label, entangledPieceIds, debugShowPieceIds, mode = 'cycle', cycle, collapsingIds }: PieceStandViewProps) {
   const isEn = locale === 'en';
   // v1.16 (ユーザー要望): 持ち駒もマウスを乗せただけで候補ボックスを出す。
   // 相手の駒台 (持てない側) も対象。
@@ -3208,8 +3231,10 @@ export function PieceStandView({ side, pieces, onClick, onStandClick, selectedId
           const stacked = unconfirmed && mode === 'stack';
           // 駒台は束ねた 1 かたまりを単位に巡回する (付録D-1 §5.6.2)。
           const shown = unconfirmed ? shownKind(cycle, g.pieceIds[0], g.kinds) : g.kinds[0];
-          const name = pieceNameFor(shown, locale);
+          const name = pieceNameFor(mgf, shown, locale);
           const isMulti = isEn && name.length > 1;
+          // 【v1.65 §3.6.1】駒台の駒もルール定義の文字色に従う (指定が無ければ従来どおり)。
+          const glyphColor = glyphColorOf(mgf, shown, g.pieces[0]?.owner ?? 'player1');
           const jaCls = ['ja', isEn ? 'en' : '', isEn && isMulti ? 'multi' : ''].filter(Boolean).join(' ');
           const hasEntangled = !!entangledPieceIds && g.pieceIds.some((pid) => entangledPieceIds.has(pid));
           const isCollapsing = !!collapsingIds && g.pieceIds.some((pid) => collapsingIds.has(pid));
@@ -3234,9 +3259,9 @@ export function PieceStandView({ side, pieces, onClick, onStandClick, selectedId
             >
               <div className="capface">
                 {stacked ? (
-                  <QuantumStack kinds={g.kinds} locale={locale} />
+                  <QuantumStack mgf={mgf} kinds={g.kinds} locale={locale} />
                 ) : (
-                  <span className={jaCls}>{name}</span>
+                  <span className={jaCls} style={glyphColor ? { color: glyphColor } : undefined}>{name}</span>
                 )}
               </div>
               {unconfirmed && <span className="qmark">？</span>}
@@ -3249,6 +3274,7 @@ export function PieceStandView({ side, pieces, onClick, onStandClick, selectedId
               {unconfirmed &&
                 ((selectedId && g.pieceIds.includes(selectedId)) || hoverKey === g.key) && (
                 <CandidateBox
+                  mgf={mgf}
                   kinds={g.kinds}
                   locale={locale}
                   onLeft={side === 'you'}

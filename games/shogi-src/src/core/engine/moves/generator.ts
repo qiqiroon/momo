@@ -3,6 +3,7 @@ import type { BoardMove, BoardTopology, PieceInstance, Position, Square } from '
 import { directionOffsets } from './directions';
 import { topologyOf, wrapSquare } from '../position/coordinates';
 import { buildInitialKindMap, resolveCandidateKinds } from '../candidate-kinds';
+import { canPromoteKind, forcedPromotionApplies, promotionChoicesOf, promotionTypeOf } from '../piece-rules';
 
 /**
  * 盤上の指定マスの駒について、擬合法手 (pseudo-legal moves) を生成する。
@@ -116,17 +117,36 @@ function pushMoves(
   const capturedPieceId = position.board[to.row][to.col]?.pieceId;
   const canPromote = canPromoteMove(mgf, def, piece, from, to);
   const mustPromote = mustPromoteMove(mgf, def, piece, to, topologyOf(position));
-  const push = (promote: boolean) => {
-    const key = `${to.row},${to.col},${promote ? 1 : 0}`;
+  const push = (promote: boolean, promoteTo?: string) => {
+    const key = `${to.row},${to.col},${promote ? 1 : 0},${promoteTo ?? ''}`;
     if (seen.has(key)) return;
     seen.add(key);
-    out.push({ type: 'move', pieceId: piece.pieceId, from, to, promote, capturedPieceId });
+    out.push({
+      type: 'move',
+      pieceId: piece.pieceId,
+      from,
+      to,
+      promote,
+      ...(promoteTo !== undefined ? { promoteTo } : {}),
+      capturedPieceId,
+    });
+  };
+  // 【v1.65 §3.6.2】入れ替わる昇格は**昇格先ごとに別の手**になる (チェスのポーンは
+  // クイーン・ルーク・ビショップ・ナイトの 4 通り)。**裏返る成りは従来どおり
+  // 成る／成らないの二択**なので、ここは型で分ける。候補が 1 つだけのルールでは
+  // 手は 1 つしか生まれない (選択が起きない)。
+  const pushPromoted = () => {
+    if (promotionTypeOf(def) === 'replace') {
+      for (const choice of promotionChoicesOf(def)) push(true, choice);
+    } else {
+      push(true);
+    }
   };
   if (mustPromote) {
-    push(true);
+    pushPromoted();
   } else if (canPromote) {
     push(false);
-    push(true);
+    pushPromoted();
   } else {
     push(false);
   }
@@ -139,7 +159,9 @@ function canPromoteMove(
   from: Square,
   to: Square,
 ): boolean {
-  if (!def.can_promote || !def.promoted_id) return false;
+  // 【v1.65 §3.6.2】「成れるか」は成りの型ごとに条件が違う (裏返る成りは成った姿が要る・
+  // 入れ替わる昇格は昇格先の候補が要る)。piece-rules に集めた読み方を使う。
+  if (!canPromoteKind(def)) return false;
   if (piece.promoted) return false;
   const zone = mgf.board.promotion_zone?.[piece.owner];
   if (!zone) return false;
@@ -157,15 +179,14 @@ function mustPromoteMove(
   to: Square,
   topology: BoardTopology,
 ): boolean {
-  if (!def.can_promote) return false;
+  if (!canPromoteKind(def)) return false;
   if (piece.promoted) return false;
-  if (!def.must_promote_at || def.must_promote_at === 0) return false;
-  // Phase 4 (親 §3.9 v1.11 追記): 上下がつながっている盤 (完全トーラス) には
-  // 「行き所のない駒」が存在しない。最奥まで行っても、そのまま反対側へ抜けられる。
-  // 縦方向に効く強制成りはこの場合だけ外す (円筒＝左右のみでは従来どおり)。
-  if (topology.wrapY) return false;
+  // Phase 4 (親 §3.9 v1.11 追記) / 【v1.65 §3.6.3】: 上下がつながっている盤 (完全トーラス)
+  // には「行き所のない駒」が存在しないので、**その理由で必ず成る駒だけ**強制が外れる。
+  // **ルールとしてそう決まっている駒 (チェスのポーン) は、つながっていても外れない**。
+  if (!forcedPromotionApplies(def, topology.wrapY)) return false;
   const rank = to.row + 1;
   const enemyBackRank = piece.owner === 'player1' ? 1 : mgf.board.height;
   const distanceFromEnemyBack = Math.abs(rank - enemyBackRank);
-  return distanceFromEnemyBack < def.must_promote_at;
+  return distanceFromEnemyBack < (def.must_promote_at ?? 0);
 }

@@ -942,6 +942,7 @@ export function ReviewScreen() {
               確かめる画面なので（付録D-12 §4）。 */}
           <div className="broadcast">
             <PieceStandView
+              mgf={mgf}
               side="opp"
               pieces={oppHand}
               onClick={(pid) => onHand(oppSide, pid)}
@@ -1013,6 +1014,7 @@ export function ReviewScreen() {
                       >
                         {piece && (
                           <PieceView
+                            mgf={mgf}
                             piece={piece}
                             kinds={kinds}
                             locale={locale}
@@ -1027,6 +1029,7 @@ export function ReviewScreen() {
                         {/* 盤の駒に触れると候補が開く（対局画面・棋譜再生と同じ）。 */}
                         {piece && kinds.length >= 2 && (hovered || isSelected(row, col)) && (
                           <CandidateBox
+                            mgf={mgf}
                             kinds={kinds}
                             locale={locale}
                             onLeft={visualCol >= 6}
@@ -1040,6 +1043,7 @@ export function ReviewScreen() {
               </div>
             </div>
             <PieceStandView
+              mgf={mgf}
               side="you"
               pieces={myHand}
               onClick={(pid) => onHand(viewerSide, pid)}
@@ -1235,7 +1239,7 @@ export function ReviewScreen() {
       </div>
 
       {/* 成るかどうかの確認。対局画面と同じものを出す（発明し直さない）。 */}
-      <PromotionModal locale={locale} t={t} viewerSide={viewerSide} mode={quantumDisplay} cycle={cycle} />
+      <PromotionModal mgf={mgf} locale={locale} t={t} viewerSide={viewerSide} mode={quantumDisplay} cycle={cycle} />
 
       {toast && <div className="s08-toast">{toast}</div>}
     </div>

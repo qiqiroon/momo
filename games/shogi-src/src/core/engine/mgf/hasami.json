@@ -38,7 +38,7 @@
   "pieces": [
     {
       "id": "fu",
-      "name": "歩",
+      "name": { "ja": "歩", "en": "P", "zh": "歩" },
       "can_promote": false,
       "is_hand_piece": false,
       "score": 1,

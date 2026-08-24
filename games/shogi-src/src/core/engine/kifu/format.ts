@@ -1,54 +1,25 @@
 import type { Mgf } from '../mgf/types';
 import type { Move, PieceInstance, Position } from '../position/types';
 import { buildInitialKindMap, displayKindsFor } from '../candidate-kinds';
+import { pieceNameOf } from '../piece-rules';
 
 const RANK_KANJI = ['一', '二', '三', '四', '五', '六', '七', '八', '九'];
 
-const NAME_MAP_JA: Record<string, string> = {
-  fu: '歩',
-  kyo: '香',
-  kei: '桂',
-  gin: '銀',
-  kin: '金',
-  kaku: '角',
-  hi: '飛',
-  ou: '王',
-  to: 'と',
-  narikyo: '成香',
-  narikei: '成桂',
-  narigin: '成銀',
-  uma: '馬',
-  ryu: '龍',
-};
-
-const NAME_MAP_EN: Record<string, string> = {
-  fu: 'P',
-  kyo: 'L',
-  kei: 'N',
-  gin: 'S',
-  kin: 'G',
-  kaku: 'B',
-  hi: 'R',
-  ou: 'K',
-  to: '+P',
-  narikyo: '+L',
-  narikei: '+N',
-  narigin: '+S',
-  uma: '+B',
-  ryu: '+R',
-};
-
-export function pieceNameJa(kind: string): string {
-  return NAME_MAP_JA[kind] ?? kind;
+/**
+ * 駒に書く文字 (親 v1.65 §3.6.1)。
+ *
+ * ★以前はここに日本語用・英語用の表が直書きされていた。**ルール定義に駒の名前の欄が
+ * 最初から在ったのに読んでおらず**、同じことが 2 か所に書かれている状態だったので、
+ * **自作ルールで新しい駒を作っても盤に名前が出なかった** (内部の呼び名がそのまま出た)。
+ * v1.65 で**ルール定義を正本**と定め、表は piece-rules の読み方 1 本にした。
+ */
+export function pieceNameFor(mgf: Mgf, kind: string, locale: string): string {
+  return pieceNameOf(mgf, kind, locale);
 }
 
-export function pieceNameEn(kind: string): string {
-  return NAME_MAP_EN[kind] ?? kind;
-}
-
-export function pieceNameFor(kind: string, locale: string): string {
-  if (locale === 'en') return pieceNameEn(kind);
-  return pieceNameJa(kind);
+/** 棋譜は日本語の呼び方で書くので、日本語名だけを引く近道。 */
+export function pieceNameJa(mgf: Mgf, kind: string): string {
+  return pieceNameOf(mgf, kind, 'ja');
 }
 
 /** 盤の座標を将棋の呼び方 (3三 等) にする。 */
@@ -81,7 +52,7 @@ export function squareNameJa(width: number, square: { row: number; col: number }
  */
 export function kifuPieceName(mgf: Mgf, position: Position, piece: PieceInstance): string {
   const kinds = displayKindsFor(mgf, piece, buildInitialKindMap(position));
-  if (kinds.length === 1) return pieceNameJa(kinds[0]);
+  if (kinds.length === 1) return pieceNameJa(mgf, kinds[0]);
   let base = piece.initialKind;
   let promotedMark = '';
   if (piece.promoted) {
@@ -89,7 +60,7 @@ export function kifuPieceName(mgf: Mgf, position: Position, piece: PieceInstance
     if (def?.promoted_id) base = def.promoted_id;
     else promotedMark = '成';
   }
-  return `仮${pieceNameJa(base)}${promotedMark}`;
+  return `仮${pieceNameJa(mgf, base)}${promotedMark}`;
 }
 
 /**

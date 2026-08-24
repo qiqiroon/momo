@@ -49,13 +49,44 @@ export interface MgfMoveLogic {
   composite?: unknown[];
 }
 
+/**
+ * 駒に書く文字 (親 v1.65 §3.6.1)。
+ *
+ * 1 語だけ書けば全言語で同じ字を出す。言語ごとに変えるなら言語コードで引ける形にする。
+ * **猫語は駒に反映しない** (駒デザイン §5.2) ので、この表には猫語を置かない。
+ */
+export type MgfPieceName = string | { [locale: string]: string | undefined };
+
+/** 成りの型 (親 v1.65 §3.6.2)。 */
+export type MgfPromotionType = 'flip' | 'replace' | 'zone_move';
+
+/** 「必ず成る」の理由 (親 v1.65 §3.6.3)。 */
+export type MgfMustPromoteReason = 'no_legal_move' | 'by_rule';
+
+/** 駒の見せ方のうち、ルール定義が持つもの (親 v1.65 §3.6.1)。 */
+export interface MgfPieceDisplay {
+  /**
+   * 文字の色。省略時は両者とも既定の墨色 (＝将棋は従来どおり)。
+   * **縁取りの色と駒の外形・地色はここには持たせない** (テーマ側の持ち物・§8.5)。
+   */
+  glyph_color?: Partial<Record<Player, string>>;
+}
+
 export interface MgfPieceDef {
   id: string;
-  name: string;
+  name: MgfPieceName;
+  /** 【v1.65】文字の色 (§3.6.1)。 */
+  display?: MgfPieceDisplay;
   is_royal?: boolean;
   can_promote: boolean;
+  /** 【v1.65】成りの型 (§3.6.2)。省略時は `flip` (裏返る成り)。 */
+  promotion_type?: MgfPromotionType;
   promoted_id?: string;
+  /** 【v1.65】`promotion_type='replace'` のときの昇格先候補 (§3.6.2)。1 個だけなら選択は起きない。 */
+  promotion_choices?: string[];
   must_promote_at?: number;
+  /** 【v1.65】強制成りの理由 (§3.6.3)。省略時は `no_legal_move` (行き所がなくなるから)。 */
+  must_promote_reason?: MgfMustPromoteReason;
   is_hand_piece?: boolean;
   score?: number;
   visibility?: { owner: boolean; opponent: boolean };

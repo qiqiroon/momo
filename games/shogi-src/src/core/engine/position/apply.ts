@@ -1,6 +1,13 @@
 import type { Mgf } from '../mgf/types';
 import type { BoardCell, Move, PieceInstance, Position } from './types';
 import { sandwichCaptures } from '../moves/sandwich';
+import { buildInitialKindMap, displayKindsFor } from '../candidate-kinds';
+import {
+  capturedGoesToHand,
+  promotionChoicesOf,
+  promotionTypeOf,
+  unpromotedKindOf,
+} from '../piece-rules';
 
 /**
  * Position に Move を適用して新しい Position を返す (immutable)。
@@ -29,25 +36,41 @@ export function applyMove(mgf: Mgf, position: Position, move: Move): Position {
 
     const captured = newBoard[move.to.row][move.to.col];
     if (captured) {
-      const handPiece: PieceInstance = {
-        pieceId: captured.pieceId,
-        kind: captured.promoted ? getUnpromotedKind(mgf, captured.kind) : captured.kind,
-        owner: piece.owner,
-        initialOwner: captured.initialOwner,
-        initialKind: captured.initialKind,
-        initialSquare: captured.initialSquare,
-        promoted: false,
-        ...(captured.candidates !== undefined ? { candidates: captured.candidates } : {}),
-        ...(captured.confirmed !== undefined ? { confirmed: captured.confirmed } : {}),
-      };
-      newHands[piece.owner].push(handPiece);
+      // 【v1.65 §5.5.8 / §3.6】**取った駒が駒台へ入るかは駒ごとの欄で決まる**。
+      // 以前はここが無条件だったので、駒台を持たないルール (チェスの捕獲＝盤から
+      // 取り除く) を書いても駒が駒台へ溜まった。**判定は「戻したあとの駒種」で行う**
+      // ので、将棋の と金 は元の 歩 として従来どおり駒台へ入る (piece-rules 参照)。
+      const kinds = displayKindsFor(mgf, captured, buildInitialKindMap(position));
+      if (capturedGoesToHand(mgf, kinds)) {
+        const handPiece: PieceInstance = {
+          pieceId: captured.pieceId,
+          kind: captured.promoted ? unpromotedKindOf(mgf, captured.kind) : captured.kind,
+          owner: piece.owner,
+          initialOwner: captured.initialOwner,
+          initialKind: captured.initialKind,
+          initialSquare: captured.initialSquare,
+          promoted: false,
+          ...(captured.candidates !== undefined ? { candidates: captured.candidates } : {}),
+          ...(captured.confirmed !== undefined ? { confirmed: captured.confirmed } : {}),
+        };
+        newHands[piece.owner].push(handPiece);
+      }
+      // 駒台へ入らない駒は**盤から取り除かれる**だけ (行き先を持たない)。
+      // 盤から消す処理はこの下の「移動元・移動先の書き換え」が兼ねている。
     }
 
     let newKind = piece.kind;
     let newPromoted = piece.promoted;
     if (move.promote && !piece.promoted) {
       const def = mgf.pieces.find((p) => p.id === piece.kind);
-      if (def?.promoted_id) {
+      if (def && promotionTypeOf(def) === 'replace') {
+        // 【v1.65 §3.6.2】**入れ替わる昇格**＝昇格した駒は昇格先の駒そのもので、
+        // それ以上でも以下でもない。**元が何だったかを覚えておく理由が無い**
+        // (取られて駒台へ戻ることが無いので) ため、**成り駒の印は立てない**＝
+        // 裏返る成りの赤も付かない (先後を文字の色で表すルールで 3 色目にしない)。
+        newKind = move.promoteTo ?? promotionChoicesOf(def)[0] ?? piece.kind;
+        newPromoted = false;
+      } else if (def?.promoted_id) {
         newKind = def.promoted_id;
         newPromoted = true;
       } else if (piece.candidates !== undefined) {
@@ -201,6 +224,5 @@ function applyFree(
 }
 
 function getUnpromotedKind(mgf: Mgf, kind: string): string {
-  const base = mgf.pieces.find((p) => p.promoted_id === kind);
-  return base ? base.id : kind;
+  return unpromotedKindOf(mgf, kind);
 }

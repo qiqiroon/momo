@@ -31,6 +31,7 @@ import type {
   QuantumPieceLocation,
 } from '../candidate-update';
 import type { CandidateInfo } from '../piece-lookup';
+import { forcedPromotionApplies } from '../../../core/engine/piece-rules';
 
 /**
  * 「盤上を kind K の駒だったとみなして、(from, to) の移動を説明できるか」を判定する。
@@ -225,7 +226,9 @@ export const c105ForcedPromotion: QuantumConstraint = (piece, location, _pos, mg
   if (piece.candidates === undefined) return new Set();
   // v1.25 (Phase 4): 強制成りも「盤端があること」に頼った制約なので、完全トーラスでは外す
   // (最奥まで行ってもそのまま抜けられる = 成らないと動けなくなる、が起きない)。
-  if (context.torusMode === 'full') return new Set(piece.candidates);
+  // 【v1.65 §3.6.3】ただし**外れるのは「行き所がなくなるから」の駒だけ**。ルールとして
+  // そう決まっている駒 (チェスのポーン) はつながっていても効くので、ここで一律には
+  // 外さず、駒ごとの判定 (forcedPromotionApplies) に任せる。
   if (location.kind !== 'board') return new Set(piece.candidates);
   if (piece.promoted) return new Set(piece.candidates);
 
@@ -240,8 +243,8 @@ export const c105ForcedPromotion: QuantumConstraint = (piece, location, _pos, mg
     const def = mgf.pieces.find((p) => p.id === info.initialKind);
     if (!def) { survivors.add(pid); continue; }
     if (!def.can_promote) { survivors.add(pid); continue; }
-    if (!def.must_promote_at || def.must_promote_at === 0) { survivors.add(pid); continue; }
-    if (distanceFromEnemyBack < def.must_promote_at) continue;
+    if (!forcedPromotionApplies(def, context.torusMode === 'full')) { survivors.add(pid); continue; }
+    if (distanceFromEnemyBack < (def.must_promote_at ?? 0)) continue;
     survivors.add(pid);
   }
   return survivors;

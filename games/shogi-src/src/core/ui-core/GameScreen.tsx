@@ -34,7 +34,7 @@ import { t as _t } from '../i18n';
 import type { LocaleCode } from '../i18n/types';
 import type { Mgf, PieceId, PieceInstance, Position, Square } from '../engine';
 import {
-  REQUIRED_PIECE_COUNT,
+  requiredPieceCountOf,
   buildInitialKindMap,
   countBoardPieces,
   countEnterZonePieces,
@@ -2245,8 +2245,8 @@ function GameEndModal({
     detailLines.push({ kind: 'line', text: t('result.detail.condEntered'), ok: entered });
     detailLines.push({
       kind: 'line',
-      text: fill('result.detail.condPieces', { n: zonePieces, need: REQUIRED_PIECE_COUNT }),
-      ok: zonePieces >= REQUIRED_PIECE_COUNT,
+      text: fill('result.detail.condPieces', { n: zonePieces, need: requiredPieceCountOf(mgf) }),
+      ok: zonePieces >= requiredPieceCountOf(mgf),
     });
     detailLines.push({
       kind: 'line',

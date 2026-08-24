@@ -32,11 +32,14 @@
       "enabled": true,
       "zone": "enemy_promotion",
       "point_threshold": { "player1": 28, "player2": 27 },
-      "count_method": "27point"
+      "count_method": "27point",
+      "trigger": "claim",
+      "required_piece_count": 10
     },
     "jishogi": {
       "enabled": true,
-      "point_threshold": 24
+      "point_threshold": 24,
+      "trigger": "agree"
     },
     "resign_allowed": true
   },

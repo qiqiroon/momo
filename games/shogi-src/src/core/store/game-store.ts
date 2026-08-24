@@ -721,6 +721,8 @@ function nyugyokuPromptFor(
   // ＝立てる場所と下ろす場所を同じ側に揃える。観戦者も同じ（届いた手で立てない）。
   if (source !== 'local') return null;
   if (finalStatus !== 'playing') return null;
+  // 【v1.65 §3.10.0】尋ねるのは起こし方が「主張」のときだけ。省略時は claim なので従来どおり。
+  if ((mgf.victory?.entering_king?.trigger ?? 'claim') !== 'claim') return null;
   const was = mover === 'player1' ? before.canNyugyokuP1 : before.canNyugyokuP2;
   if (was) return null;
   return canDeclareNyugyoku(mgf, after, mover) ? mover : null;

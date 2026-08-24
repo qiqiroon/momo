@@ -152,11 +152,30 @@ export interface MgfConstraints {
  */
 export type MgfSideThreshold = number | { player1: number; player2: number };
 
+/**
+ * 終局の「起こし方」 (親 v1.65 §3.10.0)。**「何を満たせば」だけでなく「誰が・いつ」も定める**。
+ *
+ * - `auto` … 条件が満たされた瞬間、アプリが終わらせる (詰み・全滅・時間切れ・駒不足)
+ * - `claim` … 有利になる側が主張して初めて成立する (入玉宣言・チェスの 3 回/50 手)
+ * - `agree` … 双方が合意して初めて成立する (持将棋・引き分けの合意)
+ */
+export type MgfEndTrigger = 'auto' | 'claim' | 'agree';
+
 export interface MgfEnteringKing {
   enabled?: boolean;
   zone?: 'enemy_promotion' | string;
   point_threshold?: MgfSideThreshold;
   count_method?: '24point' | '27point' | string;
+  /**
+   * 【v1.65 §3.10.0】起こし方。入玉宣言は**主張** (`claim`)＝勝つ側の権利。
+   * 省略時は `claim` (従来の入玉宣言の振る舞い)。意味論は §4.4.2 のまま。
+   */
+  trigger?: MgfEndTrigger;
+  /**
+   * 【v1.65 §5.5.8】宣言に要る敵陣内の自駒枚数。省略時 10 (本将棋)。
+   * **以前はプログラムに直書きされていた** (親 §3.10 は「ルール定義から」なのに欄が無かった)。
+   */
+  required_piece_count?: number;
 }
 
 /**
@@ -172,6 +191,11 @@ export interface MgfEnteringKing {
 export interface MgfJishogi {
   enabled?: boolean;
   point_threshold?: number;
+  /**
+   * 【v1.65 §3.10.0】起こし方。持将棋は**合意** (`agree`)＝双方が諾で成立。
+   * 省略時は `agree` (従来の持将棋の振る舞い)。意味論は §4.4.1 のまま。
+   */
+  trigger?: MgfEndTrigger;
 }
 
 export interface MgfVictory {

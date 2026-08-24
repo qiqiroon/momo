@@ -5,8 +5,16 @@ import { buildInitialKindMap, displayKindsFor } from '../candidate-kinds';
 import { strengthOf } from '../piece-strength';
 
 const MAJOR_KINDS = new Set(['kaku', 'hi', 'uma', 'ryu']);
-/** 入玉宣言に要る敵陣内の駒数 (親 §4.4)。表示にも使うので外へ出す。 */
+/** 入玉宣言に要る敵陣内の駒数の**既定**値 (親 §4.4)。ルール定義が省略したときに使う。 */
 export const REQUIRED_PIECE_COUNT = 10;
+
+/**
+ * 宣言に要る敵陣内の駒数 (親 §5.5.8)。**ルール定義の欄から読む**＝省略時は既定 10。
+ * 以前はこの 10 が判定と表示の両方に直書きされていた。
+ */
+export function requiredPieceCountOf(mgf: Mgf): number {
+  return mgf.victory?.entering_king?.required_piece_count ?? REQUIRED_PIECE_COUNT;
+}
 
 /**
  * 入玉宣言の判定 (親 §4.4 / §3.10 `victory.entering_king`)。
@@ -204,7 +212,7 @@ export function canDeclareNyugyoku(mgf: Mgf, position: Position, player: Player)
   const threshold = resolveSideThreshold(ek.point_threshold, player, 24);
 
   if (!isEnteringKingEstablished(mgf, position, player)) return false;
-  if (countEnterZonePieces(mgf, position, player) < REQUIRED_PIECE_COUNT) return false;
+  if (countEnterZonePieces(mgf, position, player) < requiredPieceCountOf(mgf)) return false;
 
   return computeEnterZonePoints(mgf, position, player) >= threshold;
 }
@@ -275,6 +283,8 @@ export function jishogiPointBreakdown(
 export function canProposeJishogi(mgf: Mgf, position: Position): boolean {
   const js = mgf.victory?.jishogi;
   if (!js?.enabled) return false;
+  // 【v1.65 §3.10.0】提案を出せるのは起こし方が「合意」のときだけ。省略時は agree。
+  if ((js.trigger ?? 'agree') !== 'agree') return false;
   const threshold = js.point_threshold ?? 24;
   const sides: Player[] = ['player1', 'player2'];
   return sides.every(

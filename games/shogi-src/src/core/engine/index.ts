@@ -25,6 +25,7 @@ export {
   enterZonePointBreakdown,
   jishogiPointBreakdown,
   REQUIRED_PIECE_COUNT,
+  requiredPieceCountOf,
 } from './victory/nyugyoku';
 export { initPosition } from './position/init';
 export { applyMove } from './position/apply';

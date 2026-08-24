@@ -143,6 +143,13 @@ export interface MgfConstraints {
   uchifu_tsume?: boolean;
   suicide?: boolean;
   dead_zone?: 'auto' | boolean;
+  /**
+   * 【v1.65 §3.9／§5.5.3】ポーンの初手 2 マス。**一度も動いていないポーンは前へ 2 マス
+   * 進める**（間のマスも着地マスも空いていること）。この指定があるとき、直前の手が相手の
+   * ポーンの 2 マス進みだった場合の**アンパッサン**も生む（§5.5.3・生む側は moves/pawn-special）。
+   * 省略＝生まない（将棋・はさみ将棋は素通り）。
+   */
+  pawn_double_step?: boolean;
 }
 
 /**

@@ -102,6 +102,12 @@ function isKingSafetyIrrelevant(safety: KingSafety, move: Move): boolean {
   // ★v1.55: `drop` は駒が増えるだけ。`free`（感想戦の自由な手）は**合法手の生成に
   // 入らない**（感想戦は合法手を作らずに指すため）ので、ここへ来ることも無い。
   if (move.type !== 'move') return true;
+  // 【v1.65 §3.7.1】続けて起きる動きの並びを持つ手 (アンパッサン・キャスリング) は、
+  // **動かした駒とは別のマスの駒を消したり動かしたりする**。省略の前提「取る手も取った
+  // 駒のマスに自分の駒が座るので新しい穴は開かない」が崩れる——アンパッサンは横のマスの
+  // 相手ポーンを消すので、そこがふさいでいた筋が自玉に通りうる (アンパッサンのピン)。
+  // **土台 (手の形) を増やしたら検算する側も洗う**＝並びを持つ手は必ず盤を進めて確かめる。
+  if (move.extra_steps && move.extra_steps.length > 0) return false;
   if (move.from.row === safety.king.row && move.from.col === safety.king.col) return false;
   return !safety.shields.has(`${move.from.row},${move.from.col}`);
 }

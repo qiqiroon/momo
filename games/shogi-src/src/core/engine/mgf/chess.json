@@ -20,7 +20,8 @@
     "quantum": { "enabled": false }
   },
   "constraints": {
-    "suicide": true
+    "suicide": true,
+    "pawn_double_step": true
   },
   "victory": {
     "type": "capture_royalty",

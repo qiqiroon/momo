@@ -4,6 +4,7 @@ import { directionOffsets } from './directions';
 import { topologyOf, wrapSquare } from '../position/coordinates';
 import { buildInitialKindMap, resolveCandidateKinds } from '../candidate-kinds';
 import { canPromoteKind, forcedPromotionApplies, promotionChoicesOf, promotionTypeOf } from '../piece-rules';
+import { pawnSpecialMoves } from './pawn-special';
 
 /**
  * 盤上の指定マスの駒について、擬合法手 (pseudo-legal moves) を生成する。
@@ -40,6 +41,14 @@ export function generatePieceMoves(mgf: Mgf, position: Position, from: Square): 
         }
       }
     }
+  }
+
+  // 【v1.65 §5.5.3】動きの定義だけでは書けないポーンの特殊な手 (初手 2 マス・アンパッサン)。
+  // **指定を持つルール (チェス) でだけ**足す。将棋・はさみ・トーラス・量子は素通り。
+  // 着地マスは通常の生成と重ならない (初手 2 マスは 2 つ先の空マス・アンパッサンは斜め前の
+  // 空マス＝どちらも通常のポーンの手では生まれない) ので seen とはぶつからない。
+  if (mgf.constraints?.pawn_double_step) {
+    moves.push(...pawnSpecialMoves(mgf, position, from));
   }
   return moves;
 }

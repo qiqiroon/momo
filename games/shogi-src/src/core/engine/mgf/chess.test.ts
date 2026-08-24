@@ -105,11 +105,16 @@ describe('9-4a チェスの初期局面 (FEN)', () => {
 
 describe('9-4a 駒の動き', () => {
   it('ポーンは前へ 1 マス・まっすぐでは取れない', () => {
-    // 白ポーン row6col0。前 (row5col0) が空なら 1 マス、初手 2 マスは 9-4b なので出ない。
-    const pos = posWith([mk('pawn', 'player1', 6, 0, 'P0'), mk('king', 'player1', 7, 4, 'P1'), mk('king', 'player2', 0, 4, 'p0')], 'player1');
-    const moves = generatePieceMoves(chess, pos, { row: 6, col: 0 });
+    // 初手 2 マス (9-4b) と混ざらないよう、一度動いた白ポーン (初期マス row6 → いま row5)
+    // で見る。前 (row4col0) が空なら 1 マスだけ。
+    const pos = posWith([mk('king', 'player1', 7, 4, 'P1'), mk('king', 'player2', 0, 4, 'p0')], 'player1');
+    pos.board[5][0] = {
+      pieceId: 'P0', kind: 'pawn', owner: 'player1', initialOwner: 'player1',
+      initialKind: 'pawn', initialSquare: { row: 6, col: 0 }, promoted: false,
+    };
+    const moves = generatePieceMoves(chess, pos, { row: 5, col: 0 });
     expect(moves).toHaveLength(1);
-    expect(moves[0].to).toEqual({ row: 5, col: 0 });
+    expect(moves[0].to).toEqual({ row: 4, col: 0 });
   });
 
   it('ポーンの前に敵がいると、まっすぐには進めない', () => {
@@ -122,17 +127,22 @@ describe('9-4a 駒の動き', () => {
   });
 
   it('ポーンは前斜めの敵だけ取れる', () => {
+    // 一度動いたポーン (初期マス row6 → いま row5col1) で見る (初手 2 マスと分ける)。
     const pos = posWith(
-      [mk('pawn', 'player1', 6, 1, 'P0'), mk('pawn', 'player2', 5, 0, 'p9'), mk('pawn', 'player2', 5, 2, 'p8'), mk('king', 'player1', 7, 4, 'P1'), mk('king', 'player2', 0, 4, 'p0')],
+      [mk('pawn', 'player2', 4, 0, 'p9'), mk('pawn', 'player2', 4, 2, 'p8'), mk('king', 'player1', 7, 4, 'P1'), mk('king', 'player2', 0, 4, 'p0')],
       'player1',
     );
-    const moves = generatePieceMoves(chess, pos, { row: 6, col: 1 });
+    pos.board[5][1] = {
+      pieceId: 'P0', kind: 'pawn', owner: 'player1', initialOwner: 'player1',
+      initialKind: 'pawn', initialSquare: { row: 6, col: 1 }, promoted: false,
+    };
+    const moves = generatePieceMoves(chess, pos, { row: 5, col: 1 });
     const dests = moves.map((m) => m.to).sort((a, b) => a.col - b.col);
-    // 前 (row5col1) へ 1 マス＋斜め 2 つを取る
+    // 前 (row4col1) へ 1 マス＋斜め 2 つ (row4col0・row4col2) を取る
     expect(dests).toEqual([
-      { row: 5, col: 0 },
-      { row: 5, col: 1 },
-      { row: 5, col: 2 },
+      { row: 4, col: 0 },
+      { row: 4, col: 1 },
+      { row: 4, col: 2 },
     ]);
   });
 

@@ -959,37 +959,51 @@ export function ReviewScreen() {
                   ない**ことを、盤そのもので示す（付録D-12 §4）。 */}
               <div className={`board-outer${branch > 0 ? ' branching' : ''}`}>
                 <div className="col-coords">
-                  {(flipped ? [1, 2, 3, 4, 5, 6, 7, 8, 9] : [9, 8, 7, 6, 5, 4, 3, 2, 1]).map((n) => (
-                    <span key={n}>{n}</span>
+                  {((): string[] => {
+                    const W = position.width;
+                    const labels =
+                      mgf.board.coordinate === 'chess'
+                        ? Array.from({ length: W }, (_, c) => String.fromCharCode(97 + c))
+                        : Array.from({ length: W }, (_, c) => String(W - c));
+                    return flipped ? [...labels].reverse() : labels;
+                  })().map((s, i) => (
+                    <span key={i}>{s}</span>
                   ))}
                 </div>
                 <div className={`row-coords${locale === 'en' ? ' en' : ''}`}>
                   {((): string[] => {
-                    const arabic = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
+                    const H = position.height;
                     const kanji = ['一', '二', '三', '四', '五', '六', '七', '八', '九'];
-                    const arr = locale === 'en' ? arabic : kanji;
-                    return flipped ? [...arr].reverse() : arr;
-                  })().map((s) => (
-                    <span key={s}>{s}</span>
+                    const labels =
+                      mgf.board.coordinate === 'chess'
+                        ? Array.from({ length: H }, (_, r) => String(H - r))
+                        : Array.from({ length: H }, (_, r) =>
+                            locale === 'en' ? String(r + 1) : kanji[r] ?? String(r + 1),
+                          );
+                    return flipped ? [...labels].reverse() : labels;
+                  })().map((s, i) => (
+                    <span key={i}>{s}</span>
                   ))}
                 </div>
                 <div className="board" aria-label={t('s07.boardAria')}>
-                  <div className="stars">
-                    {[3, 6].flatMap((cx) =>
-                      [3, 6].map((cy) => (
-                        <div
-                          key={`${cx}-${cy}`}
-                          className="star"
-                          style={{ left: `${(cx / 9) * 100}%`, top: `${(cy / 9) * 100}%` }}
-                        />
-                      )),
-                    )}
-                  </div>
-                  {Array.from({ length: 81 }).map((_, i) => {
-                    const visualRow = Math.floor(i / 9);
-                    const visualCol = i % 9;
-                    const row = flipped ? 8 - visualRow : visualRow;
-                    const col = flipped ? 8 - visualCol : visualCol;
+                  {mgf.board.coordinate !== 'chess' && (
+                    <div className="stars">
+                      {[3, 6].flatMap((cx) =>
+                        [3, 6].map((cy) => (
+                          <div
+                            key={`${cx}-${cy}`}
+                            className="star"
+                            style={{ left: `${(cx / 9) * 100}%`, top: `${(cy / 9) * 100}%` }}
+                          />
+                        )),
+                      )}
+                    </div>
+                  )}
+                  {Array.from({ length: position.width * position.height }).map((_, i) => {
+                    const visualRow = Math.floor(i / position.width);
+                    const visualCol = i % position.width;
+                    const row = flipped ? position.height - 1 - visualRow : visualRow;
+                    const col = flipped ? position.width - 1 - visualCol : visualCol;
                     const piece = position.board[row][col];
                     const kinds = piece ? displayKindsFor(mgf, piece, kindMap) : [];
                     const hovered = hoverSquare === `${row},${col}`;
@@ -999,6 +1013,8 @@ export function ReviewScreen() {
                       hintOn && isHint(row, col) ? 'hint' : '',
                       lastTo?.row === row && lastTo?.col === col ? 'lastmove' : '',
                       mark?.row === row && mark?.col === col ? 'review-mark' : '',
+                      visualCol === position.width - 1 ? 'edge-r' : '',
+                      visualRow === position.height - 1 ? 'edge-b' : '',
                     ]
                       .filter(Boolean)
                       .join(' ');

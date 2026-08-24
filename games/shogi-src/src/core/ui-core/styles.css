@@ -631,16 +631,16 @@ body::before {
 }
 
 /*
- * 盤の枠線調整:
- * .board の子要素は先頭に .stars（絶対配置オーバーレイ）＋ 81 枚の .sq という
- * 順序なので、nth-child は 1 ずれる。右端列（col=8 = 将棋の 1筋）の右辺、
- * 下端行（row=8 = 一段）の下辺だけ内側罫線を消す。
+ * 盤の枠線調整: 盤の外枠に接する枡は内側の罫線を消す。
+ * v1.65 (9-4a②): 以前は nth-child(9n+1) / nth-last-child(-n+9) で 9 に決め打ちしていた
+ * ため、8×8 (チェス) では位置がずれた。**視覚上の右端列・下端行を JS が edge-r / edge-b
+ * で名指しする**形にし、盤の縦横に依らず正しく消える (将棋 9×9 は同じ枡に付くので不変)。
  */
-.board .sq:nth-child(9n + 1) {
+.board .sq.edge-r {
   border-right: none;
 }
 
-.board .sq:nth-last-child(-n + 9) {
+.board .sq.edge-b {
   border-bottom: none;
 }
 

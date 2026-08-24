@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { hondou, initPosition, mgfForGameType } from '../../../core/engine';
+import { hondou, initPosition, mgfForGameType, pieceNameFor } from '../../../core/engine';
 import type { GameType } from '../roomNameCodec';
 import type { TorusMode, QuantumDisplayMode } from '../store';
 import type { LocaleCode } from '../../../core/i18n/types';
@@ -59,7 +59,11 @@ export function initialFor(rule: GameType): Cell[] {
         cells.push(EMPTY);
         continue;
       }
-      const ch = PIECE_ID_TO_CH[piece.kind] ?? mgf.pieces.find((d) => d.id === piece.kind)?.name ?? '？';
+      // 将棋の駒字は漢字の対応表から。定義に無い駒 (チェスの K/Q/R… 等) は
+      // **ルール定義の表示文字を string で引く** (§3.6.1)。以前は生の `name` を
+      // そのまま入れており、name が言語ごとの {ja,en,zh} だとオブジェクトが
+      // React の子に渡って落ちた (9-1 と同じ「決め打ち表に無いと生を出す」型)。
+      const ch = PIECE_ID_TO_CH[piece.kind] ?? pieceNameFor(mgf, piece.kind, 'ja');
       cells.push(piece.owner === 'player2' ? { ch, gote: true } : { ch });
     }
   }

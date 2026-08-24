@@ -667,7 +667,16 @@ export function GameScreen({ variant }: GameScreenProps) {
 
   return (
     <div ref={fitRef}
-      className="stage s06">
+      className="stage s06"
+      style={
+        {
+          // v1.44/§4.2.1: 盤の縦横をルール定義から流す。**対局画面は設定していなかった**
+          // ので、9×9 でない盤 (チェス 8×8) では枡の大きさが 9 で計算され、枡の数も 9×9
+          // 決め打ちで描かれていた。棋譜再生・感想戦と同じく board から設定する。
+          '--board-cols': mgf.board.width,
+          '--board-rows': mgf.board.height,
+        } as CSSProperties
+      }>
       <header className="match-header">
         <CatIcon />
         <div className="title-block">
@@ -862,40 +871,57 @@ export function GameScreen({ variant }: GameScreenProps) {
             />
             <div className={`board-with-coords${flipped ? ' flipped' : ''}`}>
               <div className={`board-outer${isMyTurn ? ' myturn' : ''}`}>
-                {/* v0.34: 座標は viewer 基準。先手=上/右、後手=下/左 */}
+                {/* v0.34: 座標は viewer 基準。先手=上/右、後手=下/左。
+                    §5.5.6: チェスは筋 a〜h・段 1〜8 (先手から見て左下が a1)。将棋は従来どおり。 */}
                 <div className="col-coords">
-                  {(flipped ? [1, 2, 3, 4, 5, 6, 7, 8, 9] : [9, 8, 7, 6, 5, 4, 3, 2, 1]).map((n) => (
-                    <span key={n}>{n}</span>
+                  {((): string[] => {
+                    const W = position.width;
+                    const labels =
+                      mgf.board.coordinate === 'chess'
+                        ? Array.from({ length: W }, (_, c) => String.fromCharCode(97 + c))
+                        : Array.from({ length: W }, (_, c) => String(W - c));
+                    return flipped ? [...labels].reverse() : labels;
+                  })().map((s, i) => (
+                    <span key={i}>{s}</span>
                   ))}
                 </div>
                 <div className={`row-coords${locale === 'en' ? ' en' : ''}`}>
                   {((): string[] => {
-                    const arabic = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
+                    const H = position.height;
                     const kanji = ['一', '二', '三', '四', '五', '六', '七', '八', '九'];
-                    const arr = locale === 'en' ? arabic : kanji;
-                    return flipped ? [...arr].reverse() : arr;
-                  })().map((s) => (
-                    <span key={s}>{s}</span>
+                    const labels =
+                      mgf.board.coordinate === 'chess'
+                        ? Array.from({ length: H }, (_, r) => String(H - r))
+                        : Array.from({ length: H }, (_, r) =>
+                            locale === 'en' ? String(r + 1) : kanji[r] ?? String(r + 1),
+                          );
+                    return flipped ? [...labels].reverse() : labels;
+                  })().map((s, i) => (
+                    <span key={i}>{s}</span>
                   ))}
                 </div>
                 <div className="board" aria-label={t('s07.boardAria')}>
-                  <div className="stars">
-                    {[3, 6].flatMap((cx) =>
-                      [3, 6].map((cy) => (
-                        <div
-                          key={`${cx}-${cy}`}
-                          className="star"
-                          style={{ left: `${(cx / 9) * 100}%`, top: `${(cy / 9) * 100}%` }}
-                        />
-                      )),
-                    )}
-                  </div>
-                  {Array.from({ length: 81 }).map((_, i) => {
-                    const visualRow = Math.floor(i / 9);
-                    const visualCol = i % 9;
-                    // v0.34: 後手視点なら盤を反転して描画（board データ自体は先手基準のまま）
-                    const row = flipped ? 8 - visualRow : visualRow;
-                    const col = flipped ? 8 - visualCol : visualCol;
+                  {/* 星は将棋の 9×9 盤の目印。チェスには無い (§5.5.6)。 */}
+                  {mgf.board.coordinate !== 'chess' && (
+                    <div className="stars">
+                      {[3, 6].flatMap((cx) =>
+                        [3, 6].map((cy) => (
+                          <div
+                            key={`${cx}-${cy}`}
+                            className="star"
+                            style={{ left: `${(cx / 9) * 100}%`, top: `${(cy / 9) * 100}%` }}
+                          />
+                        )),
+                      )}
+                    </div>
+                  )}
+                  {Array.from({ length: position.width * position.height }).map((_, i) => {
+                    const visualRow = Math.floor(i / position.width);
+                    const visualCol = i % position.width;
+                    // v0.34: 後手視点なら盤を反転して描画（board データ自体は先手基準のまま）。
+                    // 反転は盤の縦横から (9 決め打ちを外す・§4.2.1)。
+                    const row = flipped ? position.height - 1 - visualRow : visualRow;
+                    const col = flipped ? position.width - 1 - visualCol : visualCol;
                     const piece = position.board[row][col];
                     // v1.08: 未確定駒は「元々そこに置かれていた駒」ではなく候補を見せる。
                     // 確定した駒も、候補が示す駒種の顔になる (piece.kind ではない)。
@@ -910,6 +936,10 @@ export function GameScreen({ variant }: GameScreenProps) {
                       hintOn && isHint(row, col) ? 'hint' : '',
                       isLastMove(row, col) ? 'lastmove' : '',
                       isEntangledBoard(row, col) ? 'entangled' : '',
+                      // 盤の外枠に接する枡は内側の罫線を消す。9 決め打ちの nth-child では
+                      // 8×8 で位置がずれるので、視覚上の右端列・下端行を印で名指しする。
+                      visualCol === position.width - 1 ? 'edge-r' : '',
+                      visualRow === position.height - 1 ? 'edge-b' : '',
                     ]
                       .filter(Boolean)
                       .join(' ');

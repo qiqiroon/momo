@@ -14,6 +14,7 @@ import { getMomoMatchmaking, type MomoMatchmakingApi } from './client';
 import { MenuScreen } from './ui/MenuScreen';
 import { LobbyScreen } from './ui/LobbyScreen';
 import { RuleSelectScreen } from './ui/RuleSelectScreen';
+import { RuleLoadScreen } from './ui/RuleLoadScreen';
 import { RoomScreen } from './ui/RoomScreen';
 import { ReviewLobbyScreen } from './ui/ReviewLobbyScreen';
 import { SpectateLobbyScreen } from './ui/SpectateLobbyScreen';
@@ -45,6 +46,9 @@ register('screen:lobby', MenuScreen);
 // 'net-lobby' = 通信対戦のロビー（部屋一覧・作成）
 register('screen:net-lobby', LobbyScreen);
 register('screen:rule-select', RuleSelectScreen);
+// 'rule-load' = カスタムルール読み込み (第 9 段 段A・親 v1.65 §5.5)。rules/ の MGF を
+// データとして読み込んでオフライン対局へ。
+register('screen:rule-load', RuleLoadScreen);
 // 'room' = S06 対局準備画面（段階 2-5.1 で S05 ホスト待機と統合）
 register('screen:room', RoomScreen);
 /**

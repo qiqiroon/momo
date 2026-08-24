@@ -25,7 +25,7 @@ import { get as pluginGet } from '../../../core/plugin/registry';
  *     対局のルール選択画面を流用し、人が先手・AI が後手で始まる)
  *   - 同 vs 人 (オフライン) — impl 追加 (モックには無いが残す)
  *   - 観 ネット観戦 (★v1.55 で開通＝観戦ロビー S13 へ。それまでは見た目のみだった)
- *   - 作 カスタムルール作成 (未実装・見た目のみ)
+ *   - 作 カスタムルール作成 (第 9 段 段A で「ルールを読み込む」画面 rule-load へ開通・§5.5)
  *   - 棋 棋譜再生 (S08 へ遷移・v1.41 で開通)
  * - フッター (アプリ紹介 + MOMO Works 内リンク)
  */
@@ -153,7 +153,9 @@ export function MenuScreen() {
           name={t('s00.mBuild')}
           desc={t('s00.mBuildD')}
           onClick={() => {
-            /* 未実装・見た目のみ (Phase 8 予定) */
+            // 第 9 段 段A: カスタムルールの入口。いまは rules/ に置いた MGF を
+            // 「読み込む」画面へ (親 v1.65 §5.5)。ルールを「作る」S09 は段C。
+            setScreen('rule-load');
           }}
         />
       </div>

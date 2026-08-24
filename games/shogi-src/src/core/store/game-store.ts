@@ -59,6 +59,12 @@ export interface ResetOptions {
    * 種類が来たら本将棋のまま始める (未実装のルールで盤が空になるのを避ける)。
    */
   gameType?: string;
+  /**
+   * 第 9 段 段A: 読み込んだカスタムルールの定義 (MGF)。`gameType==='custom'` のとき、
+   * 焼き込みの一覧ではなく**この定義そのもの**で対局を作る (親 v1.65 §5.5)。省略時は
+   * 現在保持中の定義を維持する (対局中の「リセット」で同じカスタムルールのまま指し直せる)。
+   */
+  customMgf?: Mgf;
 }
 export type TorusMode = 'none' | 'cylinder' | 'full';
 /** features/torus が登録する「モード → 盤の端のつなぎ方」の翻訳器 (未登録なら平面)。 */
@@ -430,6 +436,11 @@ interface GameState {
    * 次の reset で引き継ぐための控え (対局中の「リセット」で同じルールのまま指し直せる)。
    */
   currentGameType: string;
+  /**
+   * 第 9 段 段A: 読み込み中のカスタルール定義 (MGF)。`currentGameType==='custom'` のときだけ
+   * 意味を持つ。次の reset で引き継ぐための控え (対局中の「リセット」で同じ定義のまま指し直す)。
+   */
+  currentCustomMgf: Mgf | null;
   /**
    * v1.33: オフライン対局で盤の下側に置く陣営 (＝手前に座っている人)。既定は player1。
    *
@@ -1028,6 +1039,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   currentTorusMode: 'none',
   currentHandicap: null,
   currentGameType: 'shogi',
+  currentCustomMgf: null,
   localViewerSide: 'player1',
   quantumDisplay: loadMyQuantumDisplay(),
   roomQuantumDisplay: 'cycle',
@@ -1576,7 +1588,12 @@ export const useGameStore = create<GameState>((set, get) => ({
     // Phase 6: 遊ぶルール。ここでルール定義を差し替えると、盤・駒・勝ち方まで丸ごと変わる。
     // 定義を持たない種類 (自由ルールは Phase 7) が来たら本将棋のまま始める。
     const gameType = options?.gameType ?? state.currentGameType;
-    const mgf = mgfForGameType(gameType) ?? hondou;
+    // 第 9 段 段A: 読み込んだカスタムルール (gameType==='custom') は、焼き込みの一覧ではなく
+    // 渡された/保持中の MGF そのもので対局を作る (親 v1.65 §5.5)。省略時は前回の定義を引き継ぐ
+    // (対局中の「リセット」で同じカスタムルールのまま指し直せる)。
+    const customMgf = options?.customMgf ?? state.currentCustomMgf;
+    const mgf =
+      gameType === 'custom' ? (customMgf ?? hondou) : (mgfForGameType(gameType) ?? hondou);
     let pos = initPosition(mgf, topologyForMode(torusMode), handicap ?? undefined);
     let initialAnomaly: AnomalyState | null = null;
     if (quantum) {
@@ -1626,6 +1643,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       currentTorusMode: torusMode,
       currentHandicap: handicap,
       currentGameType: gameType,
+      currentCustomMgf: customMgf,
       // Phase 5-11: 表示方式は対局設定 (qtdisp) の一部＝これは「部屋の値」。未指定なら現在値を維持。
       // v1.22: 実効値は「部屋が重ねなら重ね／巡回なら各自の画面の値」(spec 駒UI v0.8 §4.4)。
       roomQuantumDisplay: options?.quantumDisplay ?? state.roomQuantumDisplay,

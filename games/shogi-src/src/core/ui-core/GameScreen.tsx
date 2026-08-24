@@ -84,6 +84,7 @@ export function GameScreen({ variant }: GameScreenProps) {
   const t = (key: string) => _t(key, locale);
 
   const mgf = useGameStore((s) => s.mgf);
+  const currentGameType = useGameStore((s) => s.currentGameType);
   const position = useGameStore((s) => s.position);
   const selectedSquare = useGameStore((s) => s.selectedSquare);
   const selectedHandPieceId = useGameStore((s) => s.selectedHandPieceId);
@@ -773,14 +774,21 @@ export function GameScreen({ variant }: GameScreenProps) {
           <div style={{ marginTop: 4, padding: '3px 2px', fontSize: 12, color: 'var(--text-muted)', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ color: 'var(--text)', fontWeight: 700 }}>
               {(() => {
-                const g = pluginGet<OnlineGameConnector>('gameConnector')?.getActiveRules()?.gameType ?? 'shogi';
+                // 対局中のルール名。オンラインは相手と揃えた gameType、オフラインは
+                // このアプリが持っている currentGameType を使う (以前は offline を一律
+                // 本将棋にしていた)。第 9 段 段A: 読み込んだカスタムルール ('custom') は
+                // i18n の名前を持たないので、定義そのものの名前 (metadata.game_name) を出す。
+                const online = pluginGet<OnlineGameConnector>('gameConnector')?.getActiveRules()?.gameType;
+                const g = online ?? currentGameType;
                 return g === 'hasami'
                   ? t('s07.ruleHasami')
                   : g === 'chess'
                     ? t('s07.ruleChess')
-                    : g === 'shogi-custom'
-                      ? t('s07.ruleCustom')
-                      : t('s07.ruleShogi');
+                    : g === 'custom'
+                      ? mgf.metadata.game_name
+                      : g === 'shogi-custom'
+                        ? t('s07.ruleCustom')
+                        : t('s07.ruleShogi');
               })()}
             </span>
             {(() => {

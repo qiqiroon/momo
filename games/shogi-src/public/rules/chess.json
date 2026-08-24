@@ -1,0 +1,123 @@
+{
+  "metadata": {
+    "game_name": "チェス",
+    "game_id": "chess",
+    "version": "0.1.0",
+    "description": "チェス (standard Chess・親 v1.65 §5.5)"
+  },
+  "board": {
+    "width": 8,
+    "height": 8,
+    "coordinate": "chess",
+    "promotion_zone": {
+      "player1": { "min_rank": 1, "max_rank": 1 },
+      "player2": { "min_rank": 8, "max_rank": 8 }
+    },
+    "sfen_support": true
+  },
+  "compatible_modifiers": {
+    "torus": { "cylinder": true, "full_torus": true },
+    "quantum": { "enabled": false }
+  },
+  "constraints": {
+    "suicide": true,
+    "pawn_double_step": true
+  },
+  "victory": {
+    "type": "capture_royalty",
+    "royalty_ids": ["king"],
+    "resign_allowed": true
+  },
+  "pieces": [
+    {
+      "id": "king",
+      "name": { "ja": "K", "en": "K", "zh": "K" },
+      "display": { "glyph_color": { "player1": "#ffffff" } },
+      "is_royal": true,
+      "can_promote": false,
+      "is_hand_piece": false,
+      "score": 0,
+      "move_logic": {
+        "abilities": [
+          { "type": "step", "direction": "all_8", "range": 1 }
+        ]
+      }
+    },
+    {
+      "id": "queen",
+      "name": { "ja": "Q", "en": "Q", "zh": "Q" },
+      "display": { "glyph_color": { "player1": "#ffffff" } },
+      "can_promote": false,
+      "is_hand_piece": false,
+      "score": 9,
+      "move_logic": {
+        "abilities": [
+          { "type": "slide", "direction": "all_8", "range": -1 }
+        ]
+      }
+    },
+    {
+      "id": "rook",
+      "name": { "ja": "R", "en": "R", "zh": "R" },
+      "display": { "glyph_color": { "player1": "#ffffff" } },
+      "can_promote": false,
+      "is_hand_piece": false,
+      "score": 5,
+      "move_logic": {
+        "abilities": [
+          { "type": "slide", "direction": "forward", "range": -1 },
+          { "type": "slide", "direction": "backward", "range": -1 },
+          { "type": "slide", "direction": "sideways", "range": -1 }
+        ]
+      }
+    },
+    {
+      "id": "bishop",
+      "name": { "ja": "B", "en": "B", "zh": "B" },
+      "display": { "glyph_color": { "player1": "#ffffff" } },
+      "can_promote": false,
+      "is_hand_piece": false,
+      "score": 3,
+      "move_logic": {
+        "abilities": [
+          { "type": "slide", "direction": "diagonal", "range": -1 }
+        ]
+      }
+    },
+    {
+      "id": "knight",
+      "name": { "ja": "N", "en": "N", "zh": "N" },
+      "display": { "glyph_color": { "player1": "#ffffff" } },
+      "can_promote": false,
+      "is_hand_piece": false,
+      "score": 3,
+      "move_logic": {
+        "abilities": [
+          { "type": "jump", "direction": "knight_8", "range": 1, "jump_over": true }
+        ]
+      }
+    },
+    {
+      "id": "pawn",
+      "name": { "ja": "P", "en": "P", "zh": "P" },
+      "display": { "glyph_color": { "player1": "#ffffff" } },
+      "can_promote": true,
+      "promotion_type": "replace",
+      "promotion_choices": ["queen", "rook", "bishop", "knight"],
+      "must_promote_at": 1,
+      "must_promote_reason": "by_rule",
+      "is_hand_piece": false,
+      "score": 1,
+      "move_logic": {
+        "abilities": [
+          { "type": "step", "direction": "forward", "range": 1, "can_capture": false },
+          { "type": "step", "direction": "forward_diagonal", "range": 1, "can_move_to_empty": false }
+        ]
+      }
+    }
+  ],
+  "initial_placement": {
+    "format": "sfen",
+    "sfen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  }
+}

@@ -30,6 +30,17 @@ export function squareNameJa(width: number, square: { row: number; col: number }
 }
 
 /**
+ * 盤の座標をチェスの呼び方 (e4 等) にする (親 §5.5.6)。
+ * 筋は左から a・段は下から 1 (先手＝白から見て左下が a1)。内部座標は上端が row0 なので、
+ * 段は `height - row` で下から数え直す。
+ */
+export function squareNameChess(height: number, square: { row: number; col: number }): string {
+  const file = String.fromCharCode(97 + square.col);
+  const rank = height - square.row;
+  return `${file}${rank}`;
+}
+
+/**
  * 棋譜に書く駒の名前 (v1.09・量子将棋対応)。
  *
  * 量子モードでは正体が決まるまで駒名を確定できない。かといって名前が無いと
@@ -90,6 +101,10 @@ export function formatMove(mgf: Mgf, position: Position, move: Move): string {
   // リストの側が示す）。
   if (move.type === 'free') return formatFree(mgf, position, move);
 
+  // §5.5.6: チェスは長い記法 (e2-e4・Ng1-f3・e7-e8=Q)。必ず出発点を書くので、
+  // 同じマスへ 2 枚行けるときの書き分けが要らない。先後の印 (▲△) は付けない。
+  if (mgf.board.coordinate === 'chess') return formatMoveChess(mgf, position, move);
+
   const mark = position.sideToMove === 'player1' ? '▲' : '△';
   const to = squareNameJa(position.width, move.to);
 
@@ -107,6 +122,28 @@ export function formatMove(mgf: Mgf, position: Position, move: Move): string {
     return `${mark}${from}${name}${to}${suffix}`;
   }
   return `${mark}${to}${name}${suffix}`;
+}
+
+/**
+ * チェスの手の記法 (§5.5.6)。長い記法＝駒文字 (ポーンは無し)＋出発点-着地点＋昇格 (=Q)。
+ * 取る手も必ず出発点を書くので `x` の区別は付けず、先後の印 (▲△) も付けない。
+ * キャスリング (O-O) は手の並びから起こす 9-4c で扱うのでここではまだ出ない。
+ * チェスに打つ手は無いが、念のため drop も着地点だけ返す。
+ */
+function formatMoveChess(
+  mgf: Mgf,
+  position: Position,
+  move: Exclude<Move, { type: 'free' }>,
+): string {
+  if (move.type === 'drop') return squareNameChess(position.height, move.to);
+  const from = squareNameChess(position.height, move.from);
+  const to = squareNameChess(position.height, move.to);
+  const piece = position.board[move.from.row][move.from.col];
+  const letter = piece ? pieceNameOf(mgf, piece.kind, 'en') : '';
+  // ポーン (表示文字 P) は駒文字を書かない (チェスの作法)。
+  const pieceLetter = letter === 'P' ? '' : letter;
+  const promo = move.promote && move.promoteTo ? `=${pieceNameOf(mgf, move.promoteTo, 'en')}` : '';
+  return `${pieceLetter}${from}-${to}${promo}`;
 }
 
 /**

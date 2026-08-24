@@ -52,7 +52,13 @@ export function normalizeIncomingRules(rules: unknown, roomName: string): RoomCo
   };
   const time = (r.time && typeof r.time === 'object' ? r.time : {}) as Partial<RoomConfig['timeControl']>;
   const gameType: RoomConfig['gameType'] =
-    r.game === 'hasami' ? 'hasami' : r.game === 'shogi-custom' ? 'shogi-custom' : 'shogi';
+    r.game === 'hasami'
+      ? 'hasami'
+      : r.game === 'chess'
+        ? 'chess'
+        : r.game === 'shogi-custom'
+          ? 'shogi-custom'
+          : 'shogi';
   return {
     roomName,
     password: '',

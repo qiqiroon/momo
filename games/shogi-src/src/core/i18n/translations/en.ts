@@ -66,6 +66,8 @@ export const en: LocaleData = {
     's02.ruleHongi.desc': 'Classic shogi with drops.',
     's02.ruleHasami.name': 'Hasami Shogi',
     's02.ruleHasami.desc': 'Capture by flanking.',
+    's02.ruleChess.name': 'Chess',
+    's02.ruleChess.desc': 'Checkmate the king. 8×8 board.',
     's02.ruleCustom.name': 'Custom',
     's02.ruleCustom.desc': 'Your own rule (planned for Phase 8). Not selectable yet.',
     // S04 lobby (v0.58: 3-card layout — connection / join / create)
@@ -475,6 +477,7 @@ export const en: LocaleData = {
     's07.backToAiSetup': 'Back to AI setup',
     's07.ruleShogi': 'Standard Shogi',
     's07.ruleHasami': 'Hasami Shogi',
+    's07.ruleChess': 'Chess',
     's07.ruleCustom': 'Custom',
     's07.oppLeftTitle': 'Your opponent has left',
     's07.oppLeftBody': 'The match is aborted. Please leave to return to the lobby.',

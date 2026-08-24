@@ -765,7 +765,13 @@ export function GameScreen({ variant }: GameScreenProps) {
             <span style={{ color: 'var(--text)', fontWeight: 700 }}>
               {(() => {
                 const g = pluginGet<OnlineGameConnector>('gameConnector')?.getActiveRules()?.gameType ?? 'shogi';
-                return g === 'hasami' ? t('s07.ruleHasami') : g === 'shogi-custom' ? t('s07.ruleCustom') : t('s07.ruleShogi');
+                return g === 'hasami'
+                  ? t('s07.ruleHasami')
+                  : g === 'chess'
+                    ? t('s07.ruleChess')
+                    : g === 'shogi-custom'
+                      ? t('s07.ruleCustom')
+                      : t('s07.ruleShogi');
               })()}
             </span>
             {(() => {

@@ -437,6 +437,7 @@ export function RoomScreen() {
   const ruleNameLabel = (() => {
     const g = activeRoomConfig?.gameType ?? 'shogi';
     if (g === 'hasami') return t('s02.ruleHasami.name');
+    if (g === 'chess') return t('s02.ruleChess.name');
     if (g === 'shogi-custom') return t('s02.ruleCustom.name');
     return t('s02.ruleHongi.name');
   })();

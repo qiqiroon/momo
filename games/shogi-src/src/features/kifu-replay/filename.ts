@@ -41,6 +41,7 @@ function clipName(raw: string): string {
 function rulePart(gameType: string): string {
   if (gameType === 'shogi') return 'HON';
   if (gameType === 'hasami') return 'HAS';
+  if (gameType === 'chess') return 'CHE';
   return 'CUS';
 }
 

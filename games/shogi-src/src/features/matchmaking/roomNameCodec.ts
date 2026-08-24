@@ -40,7 +40,7 @@
 
 import type { TimeControl } from '../../core/engine/time-control';
 
-export type GameType = 'shogi' | 'hasami' | 'shogi-custom';
+export type GameType = 'shogi' | 'hasami' | 'chess' | 'shogi-custom';
 
 export interface RoomLabelParts {
   gameType: GameType;
@@ -79,12 +79,14 @@ const MEET_PREFIX = 'M';
 const GAME_TYPE_CHAR: Record<GameType, string> = {
   shogi: '本',
   hasami: '挟',
+  chess: 'チ',
   'shogi-custom': '自',
 };
 
 const CHAR_TO_GAME_TYPE: Record<string, GameType> = {
   本: 'shogi',
   挟: 'hasami',
+  チ: 'chess',
   自: 'shogi-custom',
 };
 
@@ -277,7 +279,7 @@ export interface BadgeLabels {
 }
 
 const LABELS_JA: BadgeLabels = {
-  gameType: { shogi: '本将棋', hasami: 'はさみ', 'shogi-custom': '自由' },
+  gameType: { shogi: '本将棋', hasami: 'はさみ', chess: 'チェス', 'shogi-custom': '自由' },
   torus: 'トーラス',
   quantum: '量子',
   review: '感想戦',
@@ -285,7 +287,7 @@ const LABELS_JA: BadgeLabels = {
 };
 
 const LABELS_EN: BadgeLabels = {
-  gameType: { shogi: 'Shogi', hasami: 'Hasami', 'shogi-custom': 'Custom' },
+  gameType: { shogi: 'Shogi', hasami: 'Hasami', chess: 'Chess', 'shogi-custom': 'Custom' },
   torus: 'Torus',
   quantum: 'Quantum',
   review: 'Review',

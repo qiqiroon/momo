@@ -110,3 +110,30 @@ export function glyphColorOf(mgf: Mgf, kind: string, owner: 'player1' | 'player2
   const def = mgf.pieces.find((p) => p.id === kind);
   return def?.display?.glyph_color?.[owner];
 }
+
+/**
+ * 初期配置 (SFEN/FEN) の 1 文字 → 駒種の対応を**ルール定義の表示文字から作る**。
+ *
+ * ★なぜ定義から作るか
+ * 以前は将棋の文字表 (p→歩・l→香…) が配置を読む側 (position/init) に決め打ちされていた。
+ * ところがチェスの FEN 文字 (k/q/r/b/n/p) は将棋と対応が違う (**n は桂ではなくナイト**) ので、
+ * 決め打ちのままでは読めない。**表示文字 (§3.6.1) がそのまま SFEN/FEN の略記**
+ * (将棋 P/L/N/S/G/B/R/K・チェス K/Q/R/B/N/P・いずれもその競技の棋譜で使う正式な字) なので、
+ * そこから対応を作れば 9-1 と同じ「決め打ちを定義側へ寄せる」直しになる。
+ *
+ * **1 文字でない表示名 (成り駒の "+P" など) は基底の配置文字ではない**ので載せない
+ * (成り駒は '+' 接頭辞＋基底文字で書かれる)。
+ */
+export function placementLetterMap(mgf: Mgf): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const def of mgf.pieces) {
+    const name = def.name;
+    let letter: string | undefined;
+    if (typeof name === 'string') letter = name;
+    else if (name) letter = name.en ?? Object.values(name).find((v): v is string => !!v);
+    if (letter && /^[A-Za-z]$/.test(letter)) {
+      map[letter.toLowerCase()] = def.id;
+    }
+  }
+  return map;
+}

@@ -18,6 +18,7 @@ export function kifuLabels(locale: LocaleCode) {
   const ruleName = (f: KifuFile): string => {
     if (f.meta.gameType === 'shogi') return t('s02.ruleHongi.name');
     if (f.meta.gameType === 'hasami') return t('s02.ruleHasami.name');
+    if (f.meta.gameType === 'chess') return t('s02.ruleChess.name');
     return t('s02.ruleCustom.name');
   };
 

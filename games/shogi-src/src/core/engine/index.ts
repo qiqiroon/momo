@@ -1,4 +1,4 @@
-export { hondou, hasami, loadMgf, mgfForGameType } from './mgf/loader';
+export { hondou, hasami, chess, loadMgf, mgfForGameType } from './mgf/loader';
 export { sandwichCaptures, countBoardPieces, annihilationLoser } from './moves/sandwich';
 export { formatMove, pieceNameJa, pieceNameFor } from './kifu/format';
 export {

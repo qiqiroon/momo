@@ -66,6 +66,8 @@ export const zh: LocaleData = {
     's02.ruleHongi.desc': '标准将棋，可打入。',
     's02.ruleHasami.name': '夹将棋',
     's02.ruleHasami.desc': '夹住吃子。',
+    's02.ruleChess.name': '国际象棋',
+    's02.ruleChess.desc': '将死国王。8×8 棋盘。',
     's02.ruleCustom.name': '自定义',
     's02.ruleCustom.desc': '自制规则 (计划 Phase 8 实现)。目前不可选。',
     // S04 房间大厅 (v0.58: 三卡片布局 — 连接 / 加入 / 创建)
@@ -474,6 +476,7 @@ export const zh: LocaleData = {
     's07.backToAiSetup': '返回对 AI 设置',
     's07.ruleShogi': '本将棋',
     's07.ruleHasami': '夹将棋',
+    's07.ruleChess': '国际象棋',
     's07.ruleCustom': '自定义',
     's07.oppLeftTitle': '对方已退出',
     's07.oppLeftBody': '对局中止。请退出返回大厅。',

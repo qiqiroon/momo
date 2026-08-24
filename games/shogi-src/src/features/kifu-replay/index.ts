@@ -286,9 +286,11 @@ register('review:roomInfo', (locale: LocaleCode): ReviewRoomInfo => {
     gameType:
       file.meta.gameType === 'hasami'
         ? 'hasami'
-        : file.meta.gameType === 'shogi-custom'
-          ? 'shogi-custom'
-          : 'shogi',
+        : file.meta.gameType === 'chess'
+          ? 'chess'
+          : file.meta.gameType === 'shogi-custom'
+            ? 'shogi-custom'
+            : 'shogi',
     torus: file.meta.torus !== 'none',
     quantum: file.meta.quantum,
     ruleName: kifuLabels(locale).ruleName(file),

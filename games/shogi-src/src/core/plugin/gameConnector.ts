@@ -12,7 +12,7 @@ import type { HandicapChoice } from '../engine/handicap';
 
 /** v0.68: S07 のルール表示バンド用。オフライン時は null (=本将棋固定扱い)。 */
 export interface ActiveRulesInfo {
-  gameType: 'shogi' | 'hasami' | 'shogi-custom';
+  gameType: 'shogi' | 'hasami' | 'chess' | 'shogi-custom';
   torusMode: 'none' | 'cylinder' | 'full';
   quantum: boolean;
   /**

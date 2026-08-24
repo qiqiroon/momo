@@ -47,6 +47,7 @@ export const PROTOCOL_VERSION = 1;
 export const CLIENT_CAPABILITIES = [
   'shogi',
   'hasami',
+  'chess',
   'torus:cylinder',
   'torus:full',
   'quantum',

@@ -1,17 +1,7 @@
 import type { Mgf, Player } from '../mgf/types';
 import type { BoardCell, BoardTopology, PieceInstance, Position } from './types';
 import { findHandicap, selectRemovedPieces, type HandicapSetting } from '../handicap';
-
-const SFEN_LETTER_TO_KIND: Record<string, string> = {
-  p: 'fu',
-  l: 'kyo',
-  n: 'kei',
-  s: 'gin',
-  g: 'kin',
-  b: 'kaku',
-  r: 'hi',
-  k: 'ou',
-};
+import { placementLetterMap } from '../piece-rules';
 
 /**
  * MGF の初期配置から開始局面を作る。
@@ -39,6 +29,8 @@ export function initPosition(mgf: Mgf, topology?: BoardTopology, handicap?: Hand
     throw new Error(`SFEN rank count ${ranks.length} does not match board height ${height}`);
   }
 
+  const letterToKind = placementLetterMap(mgf);
+
   const player1Pieces: PieceInstance[] = [];
   const player2Pieces: PieceInstance[] = [];
 
@@ -62,7 +54,7 @@ export function initPosition(mgf: Mgf, topology?: BoardTopology, handicap?: Hand
       const isUpperCase = ch === ch.toUpperCase();
       const owner: Player = isUpperCase ? 'player1' : 'player2';
       const letter = ch.toLowerCase();
-      const baseKind = SFEN_LETTER_TO_KIND[letter];
+      const baseKind = letterToKind[letter];
       if (!baseKind) throw new Error(`Unknown SFEN piece letter: ${ch}`);
       const kind = promoted ? getPromotedId(mgf, baseKind) : baseKind;
       const piece: PieceInstance = {
@@ -104,8 +96,19 @@ export function initPosition(mgf: Mgf, topology?: BoardTopology, handicap?: Hand
     p.pieceId = `p${idx}`;
   });
 
-  // 手合いを指定したときは、駒を落とした側 (上手) が先手 (親 §3.12.1)
-  const sideToMove: Player = handicap ? handicap.giver : sideStr === 'w' ? 'player2' : 'player1';
+  // 手番の文字は競技で意味が逆になる。将棋の SFEN は 'b'(黒＝先手＝player1)/'w'(白＝後手＝player2)、
+  // チェスの FEN は 'w'(白＝先手＝player1)/'b'(黒＝後手＝player2)＝**同じ 'w' が指す側が違う**。
+  // どちらでも player1 は「先手・盤の下側」だが、その側を表す文字が競技で入れ替わる。
+  // 手合いを指定したときは、駒を落とした側 (上手) が先手 (親 §3.12.1)。
+  const firstMover: Player =
+    mgf.board.coordinate === 'chess'
+      ? sideStr === 'w'
+        ? 'player1'
+        : 'player2'
+      : sideStr === 'w'
+        ? 'player2'
+        : 'player1';
+  const sideToMove: Player = handicap ? handicap.giver : firstMover;
 
   return {
     width,

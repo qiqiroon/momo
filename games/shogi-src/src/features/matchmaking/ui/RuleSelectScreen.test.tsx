@@ -34,6 +34,16 @@ describe('S02 未確定駒の見せ方', () => {
     clearUiSettings();
   });
 
+  // 9-4b 動作確認: チェスのカードがルール選択に「置かれている」ことを固定する。
+  it('ルール一覧にチェスのカードが出る (本将棋・はさみ将棋と横並び)', () => {
+    mockConnector(true);
+    setup();
+    render(<RuleSelectScreen />);
+    expect(screen.getByText('チェス')).toBeTruthy();
+    expect(screen.getByText('本将棋')).toBeTruthy();
+    expect(screen.getByText('はさみ将棋')).toBeTruthy();
+  });
+
   // v1.24: 理屈を並べるのをやめ、どちらを選ぶと何ができるかを 2 行で言い切る
   // (ユーザー判断 2026-08-13・見やすさ優先)。
   it('決まりを 2 行で言い切る文面が出る', () => {

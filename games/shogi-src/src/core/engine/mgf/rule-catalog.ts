@@ -12,7 +12,7 @@
  * `import.meta.env.BASE_URL`＝`/momo/games/shogi/`）＝検証を差し込めるようにするため。
  */
 
-import { loadMgf } from './loader';
+import { loadMgf, officialCustomRule } from './loader';
 import type { Mgf } from './types';
 
 /** マニフェスト 1 行＝読み込めるルール 1 つ。 */
@@ -23,6 +23,27 @@ export interface RuleCatalogEntry {
   file: string;
   /** 一覧に出す名前（正本は読み込んだ MGF の metadata.game_name）。 */
   name: string;
+}
+
+/**
+ * ★段B②: 一度取ってきた一覧の目印を控える。
+ *
+ * ★なぜ控えるか＝**配る側は「このルールは公式一覧にあるか」を、待たずに答えたい**
+ * （1 局を配るのは操作の流れの中で起きる）。**控えが無いときは「公式ではない」側に
+ * 倒れる**＝定義を送ってしまうだけで、盤は食い違わない
+ * （忘れたときに軽いほうへ倒す）。
+ */
+let knownOfficialIds: Set<string> | null = null;
+
+/**
+ * ★段B②: その目印のルールは**公式一覧にあるか**（＝受け取った側が自分で取りに行けるか）。
+ *
+ * アプリに焼き込んであるものと、一度取ってきた一覧に載っていたものを公式とみなす。
+ * **分からないときは false**（上記のとおり、送ってしまう側が安全）。
+ */
+export function isOfficialRuleId(id: string): boolean {
+  if (officialCustomRule(id)) return true;
+  return knownOfficialIds?.has(id) ?? false;
 }
 
 function rulesBase(baseUrl: string): string {
@@ -46,6 +67,7 @@ export async function fetchRuleCatalog(baseUrl: string): Promise<RuleCatalogEntr
       }
     }
   }
+  knownOfficialIds = new Set(out.map((e) => e.id));
   return out;
 }
 
@@ -72,4 +94,28 @@ export async function readMgfFile(file: Blob): Promise<Mgf> {
   const text = await file.text();
   const json: unknown = JSON.parse(text); // 壊れた JSON はここで例外
   return loadMgf(json); // MGF として不足があればここで例外
+}
+
+/**
+ * 公式一覧に**その目印のルールがあれば取ってくる**（無ければ null・段B②）。
+ *
+ * ★なぜ「取ってくる」側を用意するか
+ * ネット対戦・感想戦で相手から届くのは**ルールの参照（目印）だけ**のことがある
+ * ＝**公式に置いてあるものは、受け取った側が自分で取りに行けばよい**（線に大きな定義を
+ * 流さない・ユーザー判断 2026-08-25）。**ホストが配るのは公式一覧に無いルールだけ**。
+ *
+ * **無いことは例外にしない**＝一覧に載っていないのは普通に起こること（相手のほうが
+ * 新しい版を持っている等）なので、null を返して呼ぶ側に判断させる。取得そのものに
+ * 失敗したときも同じ＝**受け取った側は「用意できなかった」と返さなければならず**、
+ * 理由の細かさで振る舞いは変わらない。
+ */
+export async function fetchOfficialRuleById(baseUrl: string, id: string): Promise<Mgf | null> {
+  try {
+    const catalog = await fetchRuleCatalog(baseUrl);
+    const entry = catalog.find((e) => e.id === id);
+    if (!entry) return null;
+    return await fetchRuleMgf(baseUrl, entry.file);
+  } catch {
+    return null;
+  }
 }

@@ -32,6 +32,7 @@ import type { ReviewMessage } from '../../core/plugin/review';
 import type { TimeControl } from '../../core/engine/time-control';
 import { handicapKey, type HandicapChoice } from '../../core/engine/handicap';
 import type { QuantumParams } from '../../core/store/quantum-params';
+import type { Mgf } from '../../core/engine/mgf/types';
 import type { GameType } from './roomNameCodec';
 import type { QuantumDisplayMode, SideChoice, SideSelection, TorusMode } from './store';
 
@@ -48,8 +49,10 @@ export const CLIENT_CAPABILITIES = [
   'shogi',
   'hasami',
   // 【§5.0 一本化】チェスは gameType 'chess' でなく読み込みのカスタムルール (custom) に
-  // なった。custom はまだ「定義そのものをネットで運ぶ仕組み (段B②)」が無いので名乗りに
-  // 載せない＝ネット対戦では非対応と返す (オフラインの読み込み対局は別経路で成立)。
+  // なった。**★段B② で定義そのものをネットで運べるようになった**ので名乗りに載せる。
+  // ★載せる意味＝**古い版は 'custom' を名乗らない**ので、定義を受け取れない相手とは
+  // ルール同期がそこで止まる (盤が本将棋に化けたまま対局が始まらない)。
+  'custom',
   'torus:cylinder',
   'torus:full',
   'quantum',
@@ -353,9 +356,10 @@ export interface ReviewMsg extends Envelope {
  * 相談する仕組みではない (受け取る側は原則そのまま採用する)。ゲストが返せるのは
  * 「自分のエンジンでは扱えない」という拒否だけ。
  *
- * 自作ルールの定義本体 (MGF) はここに含めていない。作る・保存する・選ぶ機能自体が
- * Phase 7 (自由ルール基盤) の担当で、いま送れる中身が無いため。§6.5 が定める MGF
- * 送信はその段で足す (2026-08-12 ユーザー判断)。
+ * ★段B② (親 §6.5): **自作ルールの定義本体 (MGF) もここで運ぶ**。v1.55 まで含めていな
+ * かったのは「選ぶ機能自体が無く、送れる中身が無かった」ためで、段A で `rules/` から
+ * 読み込めるようになった時点でその理由は消えている。**custom は定義が正体**なので、
+ * 名前だけ送っても受け取った側は盤を作れない。
  */
 export interface SyncedRules {
   gameType: GameType;
@@ -363,7 +367,36 @@ export interface SyncedRules {
   quantum: boolean;
   quantumDisplayMode: QuantumDisplayMode;
   timeControl: TimeControl;
+  /** 読み込んだカスタムルールの表示名 (定義が名乗る名前)。**画面に出すためのもの**。 */
   customRuleName?: string;
+  /**
+   * ★段B②: 公式一覧 (`rules/`) にあるルールの**目印** (`metadata.game_id`)。
+   *
+   * **公式に置いてあるものは、受け取った側が自分で取りに行く**（ユーザー判断
+   * 2026-08-25）＝線に大きな定義を流さずに済む。**この欄が入っているかどうかが
+   * 「公式一覧のルールか」の判断**でもある。
+   */
+  customRuleId?: string;
+  /**
+   * ★段B②: 読み込んだカスタムルールの**定義そのもの** (`gameType==='custom'` のときだけ)。
+   *
+   * **公式一覧に無いルールのときだけ入れる**＝作った本人が配っているルールは、
+   * 受け取った側に取りに行く先が無いので**ホストが配る**（ユーザー判断 2026-08-25）。
+   *
+   * **名札 (customRuleName) は正体ではない**＝名前だけを運ぶと、受け取った側は同じ名前の
+   * 別物で盤を作るか、定義が無くて本将棋に落ちる。目印も定義も無い custom は
+   * `checkRuleSupport` が断る (黙って本将棋で始めない)。
+   */
+  customMgf?: Mgf;
+  /**
+   * ★段B②: **送り手が実際に使っている定義の中身の目印**（`mgfFingerprint`）。
+   *
+   * ★これを別に運ぶ理由＝**公式一覧のルールは定義を運ばない**ので、中身の突き合わせに
+   * 使える材料が受け取った側の手元にしか無くなる。送り手の中身の印を添えておけば、
+   * **同じ目印で中身の違う定義**（相手のほうが新しい `rules/` を持っている等）が
+   * 見取り図の食い違いとして表に出る。**名札だけの一致で通さない**ためのもの。
+   */
+  customRuleDigest?: string;
   /**
    * 量子の実行時パラメータ (§Q17.8)。両者の計算結果を左右するので必ず揃える。
    * デバッグパネルで片側だけ変えると局面がずれる、という v1.19 の申し送りがここで閉じる。
@@ -382,6 +415,10 @@ export interface SyncedRules {
 /** ルールを受け取れなかった理由 (親 §6.5.1 の reason コードに準じる)。 */
 export type RuleAckReason =
   | 'unsupported_game_type'
+  /** ★段B②: custom なのに目印も定義も入っていない (名前だけ届いた・古い版の相手など)。 */
+  | 'custom_rule_missing'
+  /** ★段B②: 目印は届いたが、公式一覧から**取ってくることができなかった**。 */
+  | 'custom_rule_unavailable'
   | 'unsupported_torus_mode'
   | 'engine_not_quantum_capable'
   | 'rule_digest_mismatch'
@@ -433,6 +470,13 @@ export function ruleDigest(r: SyncedRules): string {
     r.quantumDisplayMode,
     `${tc.mode}/${tc.mainSeconds}/${tc.byoyomiSeconds ?? '-'}/${tc.incrementSeconds ?? '-'}`,
     r.customRuleName ?? '',
+    // ★段B②: **名札ではなく定義の中身**で突き合わせる。名前だけを並べていると、
+    // 同じ名前の別物や、運ぶ途中で欠けた定義が黙って「一致」として通る。
+    // **ここでは中身から計算し直さない**＝公式一覧のルールは定義が線に乗らないので、
+    // 手元の定義から計算すると送り手と受け手で違うものを測ることになる。
+    // 印を作るのは 1 か所 (`rulesFromConfig`) だけにする。
+    r.customRuleId ?? '',
+    r.customRuleDigest ?? '',
     `${qp.observationTiming}/${qp.maxIterations}/${qp.initialPropagation ? 1 : 0}/${qp.anomalyAction}`,
     handicapKey(r.handicap),
   ].join('#');
@@ -447,6 +491,13 @@ export function ruleDigest(r: SyncedRules): string {
 export function checkRuleSupport(rules: SyncedRules): { ok: true } | { ok: false; reason: RuleAckReason } {
   const caps: readonly string[] = CLIENT_CAPABILITIES;
   if (!caps.includes(rules.gameType)) return { ok: false, reason: 'unsupported_game_type' };
+  // ★段B②: **custom は定義が正体**。名前だけ届いても盤は作れないので、ここで断る。
+  // 黙って本将棋で始めると、部屋の札には相手が選んだルール名が出たまま、
+  // **まったく別のゲームを指す**ことになる (どちらも気づけない)。
+  // **目印か定義のどちらかが要る**＝目印があれば自分で取りに行ける。
+  if (rules.gameType === 'custom' && !rules.customMgf && !rules.customRuleId) {
+    return { ok: false, reason: 'custom_rule_missing' };
+  }
   if (rules.torusMode !== 'none' && !caps.includes(`torus:${rules.torusMode}`)) {
     return { ok: false, reason: 'unsupported_torus_mode' };
   }

@@ -1,3 +1,5 @@
+import type { Mgf } from '../engine/mgf/types';
+
 /**
  * 感想戦 (S11) を二人で行うときの伝言（意味論＝親 v1.42 §9.4.4・通信＝親 §6.3.6）。
  *
@@ -72,7 +74,15 @@ export type ReviewMessage =
    * **取りこぼしても害が無い**＝次に触れば上書きされ、盤が動けば両者とも消える。
    */
   | { kind: 'mark'; square: { row: number; col: number } | null }
-  | { kind: 'state'; kifu?: string; ply: number; branch: ReviewMovePayload[] }
+  /**
+   * ★段B②: 振り返る 1 局を丸ごと配る。
+   *
+   * `rule` ＝**その棋譜が参照しているカスタムルールの定義**。**公式一覧 (`rules/`) に
+   * 無いルールのときだけ入れる**（ユーザー判断 2026-08-25）＝公式のものは受け取った側が
+   * 自分で取りに行けるので線に乗せない。**棋譜は名前と版しか持たない**ので、
+   * これが無いと受け取った側は自作ルールの盤を作れない（§9.2.6）。
+   */
+  | { kind: 'state'; kifu?: string; rule?: Mgf; ply: number; branch: ReviewMovePayload[] }
   | { kind: 'move'; base: ReviewPoint; ply: number; branch: ReviewMovePayload[] }
   | { kind: 'seek'; base: ReviewPoint; ply: number }
   | { kind: 'undo'; base: ReviewPoint; ply: number; branch: ReviewMovePayload[] };

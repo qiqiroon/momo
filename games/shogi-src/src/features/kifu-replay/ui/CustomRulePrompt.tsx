@@ -25,6 +25,15 @@ interface CustomRulePromptProps {
   onChoose: (mgf: Mgf, mismatched: boolean) => void;
   /** ファイル選択をやめた（棋譜は開かない）。 */
   onCancel: () => void;
+  /**
+   * ★段B②: 食い違ったときに**「そのまま進める」を出してよいか**（既定＝出す）。
+   *
+   * **ネット越しに配られた 1 局では出さない**（前回の判断を保つ・2026-08-25）＝
+   * **食い違ったままゲストだけが進むと、ホストと違う盤を並べたまま話し続ける**ことに
+   * なる（二人の感想戦は食い違ったらホストを正とする・親 §9.4.4）。出さないときは
+   * **選び直す／中止の 2 択**になる。
+   */
+  allowProceed?: boolean;
 }
 
 /** 名前と版を 1 組で見せる小さな囲み。棋譜側と選んだ定義側で同じ形にする。 */
@@ -77,7 +86,7 @@ function RuleFacts({
  * 決めないのは、**並べ直しを持っているのは画面**だからで、ここは「人が何を選んだか」
  * だけを伝える。
  */
-export function CustomRulePrompt({ locale, kifuRef, onChoose, onCancel }: CustomRulePromptProps) {
+export function CustomRulePrompt({ locale, kifuRef, onChoose, onCancel, allowProceed = true }: CustomRulePromptProps) {
   const t = (key: string) => _t(key, locale);
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -149,7 +158,7 @@ export function CustomRulePrompt({ locale, kifuRef, onChoose, onCancel }: Custom
           <button type="button" className="reset-btn rulefile-plain" onClick={() => { seButton(); onCancel(); }}>
             {t(mismatch ? 's08.ruleFile.abort' : 's08.ruleFile.cancel')}
           </button>
-          {mismatch && (
+          {mismatch && allowProceed && (
             <button
               type="button"
               className="reset-btn rulefile-plain"

@@ -37,9 +37,12 @@ import {
   PROTOCOL_VERSION,
   sendShogiMessage,
   ruleDigest,
+  type RuleAckReason,
+  type RuleSyncMsg,
   type ShogiMessage,
 } from './protocol';
-import { applySyncedRules, rulesFromConfig, startGameFromSides } from './rulesSync';
+import type { Mgf } from '../../core/engine/mgf/types';
+import { applySyncedRules, resolveCustomRuleForSync, rulesFromConfig, startGameFromSides } from './rulesSync';
 import { findParticipant, isSpectator } from './roster';
 import { applySpectateSync } from './spectate';
 import { offerSpectateMigrate } from './spectateMigrate';
@@ -373,52 +376,10 @@ export function handleShogiMessage(data: unknown, from?: string): void {
       return;
     }
     case 'rule_sync': {
-      // Phase 5-12 (親 §6.5): ゲスト側。部屋を作った人が決めたルールをそのまま採用する。
-      // 対応可否を相談する仕組みではないので、扱えるなら黙って受け入れて確認だけ返す。
-      const client = getMomoMatchmaking();
-      const support = checkRuleSupport(msg.rules);
-      if (!support.ok) {
-        useMatchmakingStore.getState().setRuleSync('failed', support.reason);
-        if (client) {
-          sendShogiMessage(client, {
-            v: PROTOCOL_VERSION,
-            type: 'rule_ack',
-            ok: false,
-            digest: msg.digest,
-            reason: support.reason,
-            capabilities: CLIENT_CAPABILITIES,
-          });
-        }
-        return;
-      }
-      const applied = applySyncedRules(msg.rules);
-      useMatchmakingStore.getState().setActiveRoomConfig(applied);
-      // v1.22: 未確定駒の見せ方は「部屋の値」として受け取る。自分の画面の値は残したまま、
-      // 部屋が重ねなら実際の見え方だけ重ねへ落とす (spec 駒UI v0.8 §4.4)。
-      useGameStore.getState().applyRoomQuantumDisplay(applied.quantumDisplayMode);
-      // 量子の実行時パラメータは両者の計算結果を左右するので、ホストの値に揃える
-      // (v1.19 の申し送り: デバッグパネルで片側だけ変えると局面がずれる)。
-      useGameStore.getState().setQuantumParams(msg.rules.quantumParams);
-      // ★v1.55 (親 §6.8.1): **観戦者は受領の返事をしない**。
-      // ルール同期は既定の宛先（自分以外の全員）で流れるので観戦者にも届くが、
-      // **観戦者は正しさの担保に加わらない**＝ここで返すと、ホストは
-      // 「ゲストが構えた」と取り違え、席がまだ空でも対局を始められる状態に見える。
-      // **受け取ったルールを自分の盤に入れるのは観戦者にも要る**ので、そこは通す。
-      if (client && !isSpectator(useMatchmakingStore.getState().myRole)) {
-        sendShogiMessage(client, {
-          v: PROTOCOL_VERSION,
-          type: 'rule_ack',
-          ok: true,
-          // 受け取った値をそのまま返すのではなく、自分が採用した設定から作り直す。
-          // 途中で欠けた項目があればここで違いが出る (古い版が知らない項目を捨てた等)。
-          digest: ruleDigest(rulesFromConfig(applied)),
-          pieceIdListHash: applied.quantum
-            ? pieceIdListDigest(useGameStore.getState().mgf)
-            : undefined,
-          capabilities: CLIENT_CAPABILITIES,
-        });
-      }
-      useMatchmakingStore.getState().setRuleSync('ok');
+      // ★段B②: **カスタムルールは定義を用意してから返事する**（公式一覧にあるものは
+      // 受け取った側が自分で取りに行くので時間がかかる）。**用意できなければ必ず断る**
+      // ＝黙って止まると、ホストは受領確認を永久に待つ。
+      void adoptRuleSync(msg);
       return;
     }
     case 'rule_ack': {
@@ -483,4 +444,79 @@ export function handleShogiMessage(data: unknown, from?: string): void {
       return;
     }
   }
+}
+
+/**
+ * ★段B②: ルール同期を受けて採用するまで（親 §6.5）。
+ *
+ * Phase 5-12: **部屋を作った人が決めたルールをそのまま採用する**。対応可否を相談する
+ * 仕組みではないので、扱えるなら黙って受け入れて確認だけ返す。
+ *
+ * ★**非同期にした理由**＝カスタムルールのうち**公式一覧にあるものは定義が線に乗らず、
+ * 受け取った側が `rules/` から自分で取ってくる**（ユーザー判断 2026-08-25）。取ってくる
+ * のは時間のかかる処理なので、**定義が揃ってから受領確認を返す**。
+ *
+ * ★**どの道を通っても必ず返事を出す**＝返事を出さない出口を作ると、ホストは
+ * 「受領確認待ち」のまま永久に止まる（[[reference_absence_is_a_message]]）。
+ */
+async function adoptRuleSync(msg: RuleSyncMsg): Promise<void> {
+  const client = getMomoMatchmaking();
+  /** 断って止まる。**理由を添えて必ず返す**。 */
+  const refuse = (reason: RuleAckReason) => {
+    useMatchmakingStore.getState().setRuleSync('failed', reason);
+    if (client) {
+      sendShogiMessage(client, {
+        v: PROTOCOL_VERSION,
+        type: 'rule_ack',
+        ok: false,
+        digest: msg.digest,
+        reason,
+        capabilities: CLIENT_CAPABILITIES,
+      });
+    }
+  };
+
+  const support = checkRuleSupport(msg.rules);
+  if (!support.ok) return refuse(support.reason);
+
+  // ★段B②: 遊ぶための定義を用意する。ホストが配ってくれていればその場で決まり、
+  // 公式一覧のルールなら取りに行く。**取ってこられなかったことは事実として返す**
+  // ＝本将棋に落として続けない（部屋の札のルールと違う盤で指すことになる）。
+  let resolved: Mgf | null = null;
+  if (msg.rules.gameType === 'custom') {
+    resolved = await resolveCustomRuleForSync(msg.rules);
+    if (!resolved) return refuse('custom_rule_unavailable');
+  }
+
+  const applied = applySyncedRules(msg.rules, resolved);
+  useMatchmakingStore.getState().setActiveRoomConfig(applied);
+  // v1.22: 未確定駒の見せ方は「部屋の値」として受け取る。自分の画面の値は残したまま、
+  // 部屋が重ねなら実際の見え方だけ重ねへ落とす (spec 駒UI v0.8 §4.4)。
+  useGameStore.getState().applyRoomQuantumDisplay(applied.quantumDisplayMode);
+  // 量子の実行時パラメータは両者の計算結果を左右するので、ホストの値に揃える
+  // (v1.19 の申し送り: デバッグパネルで片側だけ変えると局面がずれる)。
+  useGameStore.getState().setQuantumParams(msg.rules.quantumParams);
+  // ★v1.55 (親 §6.8.1): **観戦者は受領の返事をしない**。
+  // ルール同期は既定の宛先（自分以外の全員）で流れるので観戦者にも届くが、
+  // **観戦者は正しさの担保に加わらない**＝ここで返すと、ホストは
+  // 「ゲストが構えた」と取り違え、席がまだ空でも対局を始められる状態に見える。
+  // **受け取ったルールを自分の盤に入れるのは観戦者にも要る**ので、そこは通す。
+  if (client && !isSpectator(useMatchmakingStore.getState().myRole)) {
+    sendShogiMessage(client, {
+      v: PROTOCOL_VERSION,
+      type: 'rule_ack',
+      ok: true,
+      // 受け取った値をそのまま返すのではなく、自分が採用した設定から作り直す。
+      // 途中で欠けた項目があればここで違いが出る (古い版が知らない項目を捨てた等)。
+      // ★段B②: **中身の印も自分の定義から作り直す**＝公式一覧から取ってきた定義が
+      // ホストのものと違えば（相手のほうが新しい `rules/` を持っている等）、
+      // ここで食い違いとして表に出る。
+      digest: ruleDigest(rulesFromConfig(applied)),
+      pieceIdListHash: applied.quantum
+        ? pieceIdListDigest(useGameStore.getState().mgf)
+        : undefined,
+      capabilities: CLIENT_CAPABILITIES,
+    });
+  }
+  useMatchmakingStore.getState().setRuleSync('ok');
 }

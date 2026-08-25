@@ -78,12 +78,21 @@ describe('checkRuleSupport — 自分のエンジンで扱えるか', () => {
   });
 
   it('知らないゲーム種目は理由を付けて断る', () => {
-    // 読み込みのカスタムルール (custom) は、定義そのものをネットで運ぶ仕組み (段B②) が
-    // まだ無いので、いまは扱えないと答えるのが正しい (名乗りに custom を載せていない)。
+    // ★段B② で custom は名乗りに載ったので、例は**まだ名乗っていない種類**に替えた。
+    const unknown = { ...BASE, gameType: 'chuushogi' as unknown as SyncedRules['gameType'] };
+    expect(checkRuleSupport(unknown)).toEqual({ ok: false, reason: 'unsupported_game_type' });
+  });
+
+  it('★段B②: 目印も定義も無いカスタムルールは断る（黙って本将棋で始めない）', () => {
+    // **custom は定義が正体**＝名前だけでは盤が作れない。目印があれば自分で取りに行ける。
     expect(checkRuleSupport({ ...BASE, gameType: 'custom' })).toEqual({
       ok: false,
-      reason: 'unsupported_game_type',
+      reason: 'custom_rule_missing',
     });
+  });
+
+  it('★段B②: 目印があれば受け入れる（定義は受け取った側が取ってくる）', () => {
+    expect(checkRuleSupport({ ...BASE, gameType: 'custom', customRuleId: 'chess' })).toEqual({ ok: true });
   });
 
   it('知らないトーラスの種類は理由を付けて断る', () => {

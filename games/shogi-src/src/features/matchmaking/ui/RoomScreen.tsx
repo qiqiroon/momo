@@ -9,10 +9,10 @@ import { HeaderCommonRight } from '../../../core/ui-core/HeaderCommonRight';
 import { getMomoMatchmaking } from '../client';
 import { decodeRoomName } from '../roomNameCodec';
 import { RoomBadges } from './RoomBadges';
-import { useGameStore } from '../../../core/store/game-store';
 import { useMatchmakingStore, type SideChoice, type SideSelection } from '../store';
 import { hasSeat, isSpectator, spectatorsOf } from '../roster';
 import { CLIENT_CAPABILITIES, PROTOCOL_VERSION, ruleDigest, sendShogiMessage, type ShogiMessage, type SyncedRules } from '../protocol';
+import { rulesFromConfig } from '../rulesSync';
 import { handleShogiMessage } from '../messageDispatcher';
 import { deriveFurigoma, generateNonce, sha256Hex } from '../fairFlip';
 import { seFurigoma, seButton } from '../../../core/audio/se-synth';
@@ -135,17 +135,11 @@ export function RoomScreen() {
     if (!getMomoMatchmaking()) return;
     const cfg = useMatchmakingStore.getState().activeRoomConfig;
     if (!cfg) return;
-    const rules: SyncedRules = {
-      gameType: cfg.gameType,
-      torusMode: cfg.torusMode,
-      quantum: cfg.quantum,
-      quantumDisplayMode: cfg.quantumDisplayMode,
-      timeControl: cfg.timeControl,
-      customRuleName: cfg.customRuleName,
-      quantumParams: useGameStore.getState().quantumParams,
-      // v1.33: 手合いも部屋のルールの一部。席はこちら (部屋を作った側) から見た向きで送る。
-      handicap: cfg.handicap,
-    };
+    // ★段B②: **詰める仕事は 1 か所 (rulesSync) に任せる**。ここで項目を並べ直していた
+    // ため、運ぶ項目が増えるたびに**この写しだけ古いまま**になる形だった（ルールを詰める／
+    // 取り出すを 1 か所へ集めた v1.55 の理由が、この画面には届いていなかった）。
+    // 席はこちら (部屋を作った側) から見た向きで送る＝受け取った側が読み替える。
+    const rules: SyncedRules = rulesFromConfig(cfg);
     sendMsg({
       v: PROTOCOL_VERSION,
       type: 'rule_sync',

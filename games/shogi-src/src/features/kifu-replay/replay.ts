@@ -8,6 +8,7 @@
 
 import { useGameStore } from '../../core/store/game-store';
 import { officialCustomRule } from '../../core/engine';
+import { fetchOfficialRuleById } from '../../core/engine/mgf/rule-catalog';
 import type { Mgf } from '../../core/engine/mgf/types';
 import type { KifuFile } from './types';
 
@@ -190,4 +191,24 @@ export function replayKifu(file: KifuFile, upTo?: number, opened?: OpenedRule): 
   } finally {
     depth--;
   }
+}
+
+/**
+ * ★段B②: **公式一覧から自分で取ってくる**ところまで含めた取り戻し（§9.2.6 ①）。
+ *
+ * ★なぜ非同期の口を別に足すか
+ * §9.2.6 ① は「公式に用意した一覧（`rules/` のマニフェスト）から引く」と定めているが、
+ * v1.89 までの実装が見ていたのは**アプリに焼き込んである定義だけ**だった。一覧が
+ * チェス 1 件で、それが焼き込みと同じものだったため**症状としては出ていなかった**が、
+ * 公式ルールが増えた瞬間に「一覧に載っているのに利用者がファイルを探させられる」
+ * ことになる。**公式のものは自分で取りに行く**（ユーザー判断 2026-08-25）。
+ *
+ * 同期で決まるものは同期のまま返す（`resolveCustomRuleForOpen`）＝取りに行くのは
+ * 手元で決まらなかったときだけ。取ってこられなければ `needsFile`（ファイル選択）。
+ */
+export async function resolveCustomRuleForOpenAsync(file: KifuFile): Promise<CustomRuleResolution> {
+  const sync = resolveCustomRuleForOpen(file);
+  if (sync.kind !== 'needsFile') return sync;
+  const mgf = await fetchOfficialRuleById(import.meta.env.BASE_URL, sync.ref.id);
+  return mgf ? { kind: 'resolved', mgf } : sync;
 }

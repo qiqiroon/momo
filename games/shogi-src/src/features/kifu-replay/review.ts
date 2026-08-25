@@ -13,6 +13,7 @@
 import { useGameStore } from '../../core/store/game-store';
 import type { Square } from '../../core/engine';
 import type { ReviewMovePayload } from '../../core/plugin/review';
+import type { Mgf } from '../../core/engine/mgf/types';
 import type { KifuFile } from './types';
 
 /**
@@ -28,6 +29,15 @@ export type ReviewOrigin = 'lobby' | 'game' | 'kifu-replay';
  */
 let target: KifuFile | null = null;
 let origin: ReviewOrigin = 'lobby';
+
+/**
+ * ★段B②: **その 1 局と一緒に配られてきたカスタムルールの定義**（公式一覧に無いもの）。
+ *
+ * **1 局と同じ入れ物で持つ**＝差し替わる入口が複数あるので、別々に持つと
+ * **どれかで書き忘れて、前の 1 局のルールで新しい棋譜を並べる**ことになる。
+ * 配られていない（公式一覧のルール・ひとりで開いた）ときは null。
+ */
+let targetRule: Mgf | null = null;
 
 /**
  * ★v1.57: 振り返る 1 局の**出どころ**（親 §9.2.5）。**盤の向きはこれで決まる**
@@ -51,10 +61,18 @@ let fromOwnGame = false;
  */
 let myGameSide: 'player1' | 'player2' | null = null;
 
-export function setReviewTarget(file: KifuFile, from: ReviewOrigin, own = false): void {
+export function setReviewTarget(file: KifuFile, from: ReviewOrigin, own = false, rule: Mgf | null = null): void {
   target = file;
   origin = from;
   fromOwnGame = own;
+  // ★段B②: **1 局を置き換えるたびに必ず決め直す**（省略なら「添えられていない」）。
+  // 「空なら入れる」形にすると、2 回目から前の 1 局の定義が残る。
+  targetRule = rule;
+}
+
+/** ★段B②: その 1 局と一緒に配られてきた定義（無ければ null）。 */
+export function reviewTargetRule(): Mgf | null {
+  return targetRule;
 }
 
 /** ★v1.57: 振り返る 1 局が「いま自分が指した対局」から来たものか（親 §9.2.5）。 */
@@ -84,6 +102,7 @@ export function reviewMySide(): 'player1' | 'player2' | null {
 export function clearReviewTarget(from: ReviewOrigin): void {
   target = null;
   origin = from;
+  targetRule = null;
   // ★v1.57: 配られるのを待つ側は、まだ何も持っていない＝自分の対局でもない。
   fromOwnGame = false;
 }

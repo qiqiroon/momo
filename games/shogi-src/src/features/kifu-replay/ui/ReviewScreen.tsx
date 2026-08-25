@@ -23,7 +23,7 @@ import {
 import { seButton, seCapture, seCheck, seMove, seSelect } from '../../../core/audio/se-synth';
 import { saveKifuFile } from '../index';
 import { chooseFolder, rememberedFolder, type FsDirHandle } from '../folder';
-import { asReplay, holdReplayGuard, replayKifu, resolveCustomRuleForOpen, type CustomRuleRef, type OpenedRule } from '../replay';
+import { asReplay, holdReplayGuard, replayKifu, resolveCustomRuleForOpen, resolveCustomRuleForOpenAsync, type CustomRuleRef, type OpenedRule } from '../replay';
 import { CustomRulePrompt } from './CustomRulePrompt';
 import {
   reviewApplyMoves,
@@ -33,6 +33,7 @@ import {
   reviewSelectHand,
   reviewSelectSquare,
   reviewTarget,
+  reviewTargetRule,
   reviewUndoBranch,
 } from '../review';
 import {
@@ -159,7 +160,11 @@ export function ReviewScreen() {
    * 「差し替え」ではないので、向きと配り直しを動かさない（親 §9.4.1・§6.3.6）。
    */
   const [pendingRule, setPendingRule] = useState<
-    { next: KifuFile; ref: CustomRuleRef; initial?: boolean } | null
+    /**
+     * `dealt` ＝★段B②: **ネット越しに配られた 1 局**を待っている（自分で開いたのではない）。
+     * このときは食い違っても「そのまま進める」を出さない（ホストと違う盤で進めない）。
+     */
+    { next: KifuFile; ref: CustomRuleRef; initial?: boolean; dealt?: boolean } | null
   >(initial.pending);
   /**
    * 盤を並べ直させる合図。**手数が変わらないまま作り直したいことがある**
@@ -382,14 +387,37 @@ export function ReviewScreen() {
       // ★段2b: 配られた 1 局で差し替わったら、**前の 1 局を待っていたパネルは下ろす**
       // ＝選ばせても、もう盤に出ていない 1 局の定義になる。
       setPendingRule(null);
-      // ★段2: 配られた棋譜も定義を取り戻す（§9.2.6）。ネット越しの相手からのぶんは、
-      // まず手元・公式で取り戻せる範囲だけ（ファイル選択のパネルは出さない＝ネット送信への
-      // 対応は別段②）。取り戻せなければ undefined のまま＝従来どおり replayKifu が引き直す。
+      // ★段B②: 配られた 1 局も定義を用意する（§9.2.6・ユーザー判断 2026-08-25）。
+      // 順に **①ホストが添えてくれた定義**（公式一覧に無いルール）→ **②手元・焼き込みの
+      // 公式** → **③`rules/` から自分でダウンロード**。**どれでも用意できなければ
+      // ファイル選択のパネルを出す**＝v1.89 まではここで黙って undefined のまま進み、
+      // **本将棋の盤に並べていた**（部屋の札には相手のルール名が出たまま）。
       if (target) {
-        const r = resolveCustomRuleForOpen(target);
-        // ★段2c: **配られた 1 局は「食い違ったまま進める」に当たらない**＝ここでは
-        // 人に尋ねていないので、違反を無視する理由が無い（一致した定義か、無いか）。
-        setOpenedRule({ mgf: r.kind === 'resolved' ? r.mgf : undefined });
+        const delivered = reviewTargetRule();
+        if (delivered) {
+          // ★段2c: **配られた 1 局は「食い違ったまま進める」に当たらない**＝ここでは
+          // 人に尋ねていないので、違反を無視する理由が無い。
+          setOpenedRule({ mgf: delivered });
+        } else {
+          const sync = resolveCustomRuleForOpen(target);
+          if (sync.kind !== 'needsFile') {
+            setOpenedRule({ mgf: sync.kind === 'resolved' ? sync.mgf : undefined });
+          } else {
+            // **取りに行っている間は盤に出さない**＝間違ったルールで並べた盤を
+            // 一瞬でも見せない（S08 と同じ扱い）。
+            setFile(null);
+            void resolveCustomRuleForOpenAsync(target).then((r) => {
+              if (reviewTarget() !== target) return; // 待っている間にまた差し替わった
+              if (r.kind === 'resolved') {
+                setOpenedRule({ mgf: r.mgf });
+                setFile(target);
+              } else {
+                // 取ってこられなかった＝**人に尋ねるしかない**（§9.2.6 ②）。
+                setPendingRule({ next: target, ref: sync.ref, dealt: true });
+              }
+            });
+          }
+        }
       }
       // ★v1.57: 配られた 1 局の出どころに従って向きを決め直す（親 §9.2.5）＝
       // 1 回目（いま指した対局の続き）なら自分の側、差し替え（ホストが読み込んだ）なら先手が下。
@@ -1323,6 +1351,9 @@ export function ReviewScreen() {
         <CustomRulePrompt
           locale={locale}
           kifuRef={pendingRule.ref}
+          // ★段B②: **配られた 1 局では「そのまま進める」を出さない**（前回の判断を保つ）
+          // ＝食い違ったままゲストだけが進むと、ホストと違う盤で話し続けることになる。
+          allowProceed={!pendingRule.dealt}
           onChoose={(mgf, mismatched) => {
             const { next, initial: wasInitial } = pendingRule;
             setPendingRule(null);

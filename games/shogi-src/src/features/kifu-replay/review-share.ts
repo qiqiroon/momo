@@ -23,6 +23,9 @@ import { useOffersStore } from '../../core/store/offers-store';
 import { useRouteStore } from '../../core/store/route-store';
 import { parseKifu, serializeKifu } from './io';
 import { clearReviewTarget, reviewTarget, setReviewMySide, setReviewTarget } from './review';
+import { isOfficialRuleId } from '../../core/engine/mgf/rule-catalog';
+import { useGameStore } from '../../core/store/game-store';
+import type { Mgf } from '../../core/engine/mgf/types';
 import { lastKifuIsOwnGame, loadLastKifu } from './storage';
 import type { KifuFile } from './types';
 
@@ -544,6 +547,24 @@ function enterReviewScreen(): void {
  *
  * 画面がまだ出ていなければ居場所そのものが無いので、そのときだけ初期局面になる。
  */
+/**
+ * ★段B②: 配る 1 局に**カスタムルールの定義を添えるか**（ユーザー判断 2026-08-25）。
+ *
+ * **添えるのは公式一覧に無いルールだけ**＝公式のものは受け取った側が `rules/` から
+ * 自分で取りに行ける。**作った本人が配っているルールは取りに行く先が無い**ので、
+ * ホストが配らないと相手は盤を作れない（棋譜は名前と版しか持たない・§9.2.6）。
+ *
+ * **手元にその定義が無ければ添えない**＝無いものは配れないので、受け取った側は
+ * 自分で取り戻す（それでも駄目ならファイル選択のパネルが出る）。
+ */
+function ruleToShare(file: KifuFile): { rule?: Mgf } {
+  const ref = file.meta.customRule;
+  if (!ref || isOfficialRuleId(ref.id)) return {};
+  const mine = useGameStore.getState().currentCustomMgf;
+  if (!mine || mine.metadata.game_id !== ref.id) return {};
+  return { rule: mine };
+}
+
 function distributeKifu(to?: string): void {
   const file = reviewTarget();
   const here = localView?.();
@@ -555,7 +576,7 @@ function distributeKifu(to?: string): void {
   connector()?.sendReview(
     {
       kind: 'state',
-      ...(file ? { kifu: serializeKifu(file) } : {}),
+      ...(file ? { kifu: serializeKifu(file), ...ruleToShare(file) } : {}),
       ply: file ? (here?.ply ?? 0) : 0,
       branch: file ? (here?.branch ?? []) : [],
     },
@@ -599,7 +620,7 @@ export function replaceSharedKifu(file: KifuFile): void {
   // ★v1.59: **配るのは部屋を建てた側だけ**。**いまの事実で見る**＝役は相手が来た
   // ときにしか決まらないので、**観戦者しか居ない部屋では役が空のまま**になる。
   if (!isReviewRoomHost()) return;
-  connector()?.sendReview({ kind: 'state', kifu: serializeKifu(file), ply: 0, branch: [] });
+  connector()?.sendReview({ kind: 'state', kifu: serializeKifu(file), ...ruleToShare(file), ply: 0, branch: [] });
 }
 
 /** いまの居場所を線に乗せる（分岐は手そのものを運ぶ）。 */
@@ -706,7 +727,9 @@ export function receiveReviewMessage(msg: ReviewMessage): void {
           // ★v1.57: **配られたものが「自分の対局」かどうかは、待っていた側が知っている**
           //（親 §9.2.5）＝対局の続きとして始めたなら 1 回目に配られるのがその対局。
           // **2 回目以降は差し替え**＝ホストが棋譜を読み込んだということなので先手が下。
-          setReviewTarget(file, 'game', dealIsOwnGame);
+          // ★段B②: **配られてきた定義も 1 局と一緒に据える**（公式一覧に無いルール）。
+          // 添えられていなければ null＝受け取った側が自分で取り戻す。
+          setReviewTarget(file, 'game', dealIsOwnGame, msg.rule ?? null);
           dealIsOwnGame = false;
         } catch {
           // 読めない棋譜だった。配り直しを待つ（勝手に部屋から出さない）。

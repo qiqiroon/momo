@@ -189,6 +189,9 @@ export function RuleSelectScreen() {
         gameType: 'custom',
         customMgf: mgf,
         customRuleName: mgf.metadata.game_name,
+        // ★段B②: **公式一覧から選んだ**という印（目印＝定義が名乗る `game_id`）。
+        // ネット対戦では定義を送らず、受け取った側がこの目印で自分で取ってくる。
+        customRuleId: mgf.metadata.game_id,
       };
       // 手合いは**その定義が持っている一覧**から決まる。持っていなければ平手へ戻す。
       if (config.handicap && !findHandicap(mgf, config.handicap.typeId)) patch.handicap = null;
@@ -205,10 +208,9 @@ export function RuleSelectScreen() {
     const def = RULES.find((r) => r.id === rid);
     if (!def || def.disabled) return;
     if (rid === 'custom') {
-      // ★ネット対戦の経路では**まだ動かない**（相手へ定義を送る仕組みが無い・
-      // 2026-08-12 ユーザー判断）。動かない機能に理由も保護も付けず、無反応にする
-      // （2026-08-25 ユーザー指示・[[feedback_no_gating_unimplemented]]）。
-      if (returnDest === 'net-lobby') return;
+      // ★段B②: **ネット対戦の経路でも押せる**。無反応にしてあったのは「相手へ定義を
+      // 送る仕組みが無かった」ためで、定義をルール同期で運べるようになった時点で
+      // その理由は消えている（親 §6.5）。
       // カスタムは**定義を選んで初めて決まる**ので、ここでは一覧を開くだけ。
       // 種類の名札を先に立てると、定義の無い custom が下流へ流れてしまう。
       seButton();

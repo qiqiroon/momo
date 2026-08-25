@@ -73,6 +73,9 @@ export function OfflineRuleScreen(_props: OfflineRuleScreenProps) {
     gs.reset({
       // Phase 6: 遊ぶルール (本将棋 / はさみ将棋)。渡さないと前の対局のルールが残る。
       gameType: pendingRules?.gameType ?? 'shogi',
+      // ★カスタムルールは**定義そのものが正体**なので、種類の名札だけでは盤が作れない。
+      // S02 で選んだ定義をそのまま渡す（組み込みルールでは undefined＝従来どおり）。
+      customMgf: pendingRules?.customMgf ?? undefined,
       handicap: handicapSettingFor(handicap),
       quantum: pendingRules?.quantum ?? false,
       quantumDisplay: pendingRules?.quantumDisplayMode ?? 'cycle',

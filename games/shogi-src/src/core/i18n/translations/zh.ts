@@ -67,7 +67,10 @@ export const zh: LocaleData = {
     's02.ruleHasami.name': '夹将棋',
     's02.ruleHasami.desc': '夹住吃子。',
     's02.ruleCustom.name': '自定义',
-    's02.ruleCustom.desc': '自制规则 (计划 Phase 8 实现)。目前不可选。',
+    's02.ruleCustom.desc': '使用已载入的规则对局。',
+    's02.ruleCustom.loading': '载入中…',
+    's02.ruleCustom.failed': '无法载入规则列表。',
+    's02.ruleCustom.none': '没有可载入的规则。',
     // S04 房间大厅 (v0.58: 三卡片布局 — 连接 / 加入 / 创建)
     's04.cardConn': '连接',
     's04.cardJoin': '加入房间',

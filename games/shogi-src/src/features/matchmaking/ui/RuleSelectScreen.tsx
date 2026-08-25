@@ -9,6 +9,11 @@ import { useMatchmakingStore, type TorusMode, type QuantumDisplayMode, type Time
 import type { GameType } from '../roomNameCodec';
 import { MiniBoardPreview, QUANTUM_PIECES, pieceLabel, type PreviewHandicap } from './MiniBoardPreview';
 import { listHandicaps, findHandicap, mgfForGameType } from '../../../core/engine';
+import {
+  fetchRuleCatalog,
+  fetchRuleMgf,
+  type RuleCatalogEntry,
+} from '../../../core/engine/mgf/rule-catalog';
 import type { HandicapSeat, MgfHandicapType } from '../../../core/engine';
 import { seButton } from '../../../core/audio/se-synth';
 import { useGameStore } from '../../../core/store/game-store';
@@ -46,7 +51,9 @@ const RULES: RuleDef[] = [
   // メニュー「カスタムルール作成」→読み込み画面から `rules/chess.json` を選んで遊ぶ。
   // ここ (S02) は元から入っているルールだけを並べる。custom は将来のオーサリング用に
   // 無効カードとして置いておく (実際の読み込み経路は読み込み画面)。
-  { id: 'custom', nameKey: 's02.ruleCustom.name', descKey: 's02.ruleCustom.desc', torusOK: true, quantumOK: true, disabled: true },
+  // 【§5.0 一本化】読み込んだカスタムルール（チェス等）はここから選ぶ。仕様 S02 の
+  // 「ルール一覧＝同梱ルール＋ユーザー保存ルール」がこの札の置き場（2026-08-25 ユーザー指摘）。
+  { id: 'custom', nameKey: 's02.ruleCustom.name', descKey: 's02.ruleCustom.desc', torusOK: true, quantumOK: true },
 ];
 
 // v0.64: 10 分と 3 秒を追加
@@ -116,7 +123,10 @@ export function RuleSelectScreen() {
   // ---- 手合い (駒落ち)。親 v1.28 §3.12.1 / 付録D-2 v1.6 §3.1 ----
   // 選べる種類は**ルール定義が持つ手合いの一覧**から作る (画面に焼き付けない)。
   // 一覧を持たないルール (＝定義そのものがまだ無いルールを含む) は平手のみ。
-  const ruleMgf = mgfForGameType(config.gameType);
+  // ★custom は**選んだ定義そのもの**が正体。手合いの一覧もプレビューもここから引く
+  // （§3.12.1「ルール定義が持っているかで決まる項目は定義から引く」）。
+  const ruleMgf =
+    config.gameType === 'custom' ? (config.customMgf ?? null) : mgfForGameType(config.gameType);
   const handicapTypes: MgfHandicapType[] = ruleMgf ? listHandicaps(ruleMgf) : [];
   const handicapAvailable = handicapTypes.length > 0;
   const handicapName = (h: MgfHandicapType) => {
@@ -140,9 +150,72 @@ export function RuleSelectScreen() {
     setConfig({ handicap: typeId ? { typeId, giver: seat } : null });
   };
 
+  // v0.69: 戻る先は route.ruleSelectReturn を参照 (S04 経由=net-lobby / S01 経由=offline-rule)
+  const returnDest = useRouteStore((s) => s.ruleSelectReturn);
+
+  /** カスタムの札を押して、読み込めるルールの一覧を開いているか。 */
+  const [pickOpen, setPickOpen] = useState(false);
+  /** 読み込めるルールの一覧（`rules/` のマニフェスト）。開いたときに 1 回だけ取りに行く。 */
+  const [catalog, setCatalog] = useState<RuleCatalogEntry[] | null>(null);
+  const [catalogError, setCatalogError] = useState(false);
+  /** いま定義を取りに行っているルール（二重に押させない）。 */
+  const [pickingId, setPickingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!pickOpen || catalog || catalogError) return;
+    let alive = true;
+    fetchRuleCatalog(import.meta.env.BASE_URL)
+      .then((l) => {
+        if (alive) setCatalog(l);
+      })
+      .catch(() => {
+        if (alive) setCatalogError(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [pickOpen, catalog, catalogError]);
+
+  /**
+   * 一覧から 1 つ選ぶ＝**定義を取ってきて初めて custom が決まる**。
+   * 取れなかったときは選んだことにしない（定義の無い custom を下流へ流さない）。
+   */
+  const onPickCustom = async (entry: RuleCatalogEntry) => {
+    seButton();
+    setPickingId(entry.id);
+    try {
+      const mgf = await fetchRuleMgf(import.meta.env.BASE_URL, entry.file);
+      const patch: Parameters<typeof setConfig>[0] = {
+        gameType: 'custom',
+        customMgf: mgf,
+        customRuleName: mgf.metadata.game_name,
+      };
+      // 手合いは**その定義が持っている一覧**から決まる。持っていなければ平手へ戻す。
+      if (config.handicap && !findHandicap(mgf, config.handicap.typeId)) patch.handicap = null;
+      setConfig(patch);
+      setPickOpen(false);
+    } catch {
+      setCatalogError(true);
+    } finally {
+      setPickingId(null);
+    }
+  };
+
   const onSelectRule = (rid: GameType) => {
     const def = RULES.find((r) => r.id === rid);
     if (!def || def.disabled) return;
+    if (rid === 'custom') {
+      // ★ネット対戦の経路では**まだ動かない**（相手へ定義を送る仕組みが無い・
+      // 2026-08-12 ユーザー判断）。動かない機能に理由も保護も付けず、無反応にする
+      // （2026-08-25 ユーザー指示・[[feedback_no_gating_unimplemented]]）。
+      if (returnDest === 'net-lobby') return;
+      // カスタムは**定義を選んで初めて決まる**ので、ここでは一覧を開くだけ。
+      // 種類の名札を先に立てると、定義の無い custom が下流へ流れてしまう。
+      seButton();
+      setPickOpen((v) => !v);
+      return;
+    }
+    setPickOpen(false);
     const patch: Parameters<typeof setConfig>[0] = { gameType: rid };
     if (!def.torusOK && config.torusMode !== 'none') {
       patch.torusMode = 'none';
@@ -198,8 +271,6 @@ export function RuleSelectScreen() {
     });
   };
 
-  // v0.69: 戻る先は route.ruleSelectReturn を参照 (S04 経由=net-lobby / S01 経由=offline-rule)
-  const returnDest = useRouteStore((s) => s.ruleSelectReturn);
   const onBack = () => setScreen(returnDest);
   const onCommit = () => { seButton(); setScreen(returnDest); };
 
@@ -327,7 +398,13 @@ export function RuleSelectScreen() {
                     disabled={r.disabled}
                   >
                     <div className="rc-name">{t(r.nameKey)}</div>
-                    <div className="rc-desc">{t(r.descKey)}</div>
+                    <div className="rc-desc">
+                      {/* カスタムは**選んだ定義の名前**を出す＝どのルールで指すのかは
+                          種類の名札でなく定義が決めるので、名札の説明文では足りない。 */}
+                      {r.id === 'custom' && selected && config.customRuleName
+                        ? config.customRuleName
+                        : t(r.descKey)}
+                    </div>
                     {selected && (
                       <div className="rc-check" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -339,6 +416,31 @@ export function RuleSelectScreen() {
                 );
               })}
             </div>
+
+            {/* カスタムの札を押したときに開く「読み込めるルール」の一覧。
+                **定義を選んで初めて custom が決まる**（§5.0・仕様 S02 のルール一覧）。 */}
+            {pickOpen && (
+              <div className="rule-pick">
+                {catalogError && <div className="rule-pick-note">{t('s02.ruleCustom.failed')}</div>}
+                {!catalog && !catalogError && (
+                  <div className="rule-pick-note">{t('s02.ruleCustom.loading')}</div>
+                )}
+                {catalog?.length === 0 && (
+                  <div className="rule-pick-note">{t('s02.ruleCustom.none')}</div>
+                )}
+                {catalog?.map((e) => (
+                  <button
+                    key={e.id}
+                    type="button"
+                    className="rule-pick-row"
+                    disabled={pickingId !== null}
+                    onClick={() => void onPickCustom(e)}
+                  >
+                    {pickingId === e.id ? t('s02.ruleCustom.loading') : e.name}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* 手合い (駒落ち)。ルール一覧と変則条件の間 (付録D-2 v1.6 §3.1)。
                 自分側・相手側それぞれで選び、片方を駒落ちにすると反対側は平手に戻る。 */}

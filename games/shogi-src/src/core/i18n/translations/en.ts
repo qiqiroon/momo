@@ -67,7 +67,10 @@ export const en: LocaleData = {
     's02.ruleHasami.name': 'Hasami Shogi',
     's02.ruleHasami.desc': 'Capture by flanking.',
     's02.ruleCustom.name': 'Custom',
-    's02.ruleCustom.desc': 'Your own rule (planned for Phase 8). Not selectable yet.',
+    's02.ruleCustom.desc': 'Play with a loaded rule.',
+    's02.ruleCustom.loading': 'Loading…',
+    's02.ruleCustom.failed': 'Could not load the rule list.',
+    's02.ruleCustom.none': 'No rules available to load.',
     // S04 lobby (v0.58: 3-card layout — connection / join / create)
     's04.cardConn': 'Connection',
     's04.cardJoin': 'Join a room',

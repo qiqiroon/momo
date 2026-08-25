@@ -9,6 +9,7 @@
  */
 
 import type { HandicapChoice } from '../engine/handicap';
+import type { Mgf } from '../engine/mgf/types';
 
 /** v0.68: S07 のルール表示バンド用。オフライン時は null (=本将棋固定扱い)。 */
 export interface ActiveRulesInfo {
@@ -25,6 +26,14 @@ export interface ActiveRulesInfo {
    * ルールの一部として S02 で決まり、対AI・オフライン対人・ネット対戦で共通に使う。
    */
   handicap: HandicapChoice | null;
+  /**
+   * 読み込んだカスタムルールの定義そのもの（`gameType:'custom'` のときだけ入る）。
+   *
+   * **ルールの種類だけでは盤が作れない**＝custom は定義が正体なので、対局を始める側
+   * （S03 対AI・オフライン対人）へここで運ぶ。**ネット越しには運ばない**（相手へ定義を
+   * 送る仕組みは未実装・2026-08-12 ユーザー判断）。
+   */
+  customMgf?: Mgf | null;
 }
 
 export interface RemoteMovePayload {

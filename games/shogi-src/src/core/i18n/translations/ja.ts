@@ -72,7 +72,10 @@ export const ja: LocaleData = {
     's02.ruleHasami.name': 'はさみ将棋',
     's02.ruleHasami.desc': '相手の駒を挟んで取る。',
     's02.ruleCustom.name': 'カスタム',
-    's02.ruleCustom.desc': '自作ルール (Phase 8 で実装予定)。今は選択不可。',
+    's02.ruleCustom.desc': '読み込んだルールで対局します。',
+    's02.ruleCustom.loading': '読み込み中…',
+    's02.ruleCustom.failed': 'ルールの一覧を読み込めませんでした。',
+    's02.ruleCustom.none': '読み込めるルールがありません。',
     // S04 ロビーの項目 (v0.57 で S02 から移設 → v0.58 で 3 カード構成に大改造)
     // カード A: 接続 + プレイヤー名 / カード B: 部屋に入る / カード C: 部屋を作る
     's04.cardConn': '接続',

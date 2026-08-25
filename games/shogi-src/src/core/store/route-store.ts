@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { requestNewGame } from './kifu-guard';
 
-export type Screen = 'game' | 'lobby' | 'net-lobby' | 'rule-select' | 'rule-load' | 'room' | 'endgame' | 'offline-rule' | 'ai-setup' | 'kifu-replay' | 'review' | 'review-lobby' | 'spectate-lobby';
+export type Screen = 'game' | 'lobby' | 'net-lobby' | 'rule-select' | 'room' | 'endgame' | 'offline-rule' | 'ai-setup' | 'kifu-replay' | 'review' | 'review-lobby' | 'spectate-lobby';
 
 /**
  * **そこから先へ進むと必ず盤が作り直される設定画面**（親 v1.36 §9.2.3 ②）。

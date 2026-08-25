@@ -3,6 +3,7 @@ import type { MomoRoomInfo, MomoRole, MomoRosterEntry } from './client';
 import type { GameType } from './roomNameCodec';
 // v0.35: TimeControl 型は core に移動（game-store でも使うため）。ここでは re-export。
 import { DEFAULT_TIME_CONTROL, type TimeControl, type TimeControlMode } from '../../core/engine/time-control';
+import type { Mgf } from '../../core/engine/mgf/types';
 import type { HandicapChoice } from '../../core/engine/handicap';
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'in_room' | 'game_connected';
@@ -60,6 +61,12 @@ export interface RoomConfig {
   /** 読み込んだカスタムルール (custom・§5.0) の名前 (MGF の metadata.game_name)。
    *  部屋名・棋譜・準備完了カードに出す。定義そのものをネットで運ぶのは段B②。 */
   customRuleName?: string;
+  /**
+   * 読み込んだカスタムルールの定義そのもの（S02 で選んだもの）。**custom は定義が正体**
+   * なので、種類の名札だけでは盤が作れない。**この欄はネットへ送らない**
+   * （`SyncedRules` は項目を 1 つずつ書き写しているので、ここに足しても漏れない）。
+   */
+  customMgf?: Mgf;
   timeControl: TimeControl;
   /**
    * 手合い (駒落ち)。両方平手なら null。親 v1.28 §3.12.1 / 付録D-2 v1.6 §3.1。

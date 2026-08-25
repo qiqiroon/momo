@@ -10,6 +10,7 @@ import {
   useKifuGuardStore,
 } from '../../core/store/kifu-guard';
 import { applyMove, generateLegalMoves, positionHash, chess } from '../../core/engine';
+import { readMgfFile } from '../../core/engine/mgf/rule-catalog';
 import '../quantum';
 import '../torus';
 import {
@@ -19,6 +20,7 @@ import {
   listFolderKifu,
   parseKifu,
   replayKifu,
+  resolveCustomRuleForOpen,
   saveCurrentKifu,
   serializeKifu,
   usableFolder,
@@ -172,6 +174,103 @@ describe('棋譜ファイル — 書き出して読み直すと同じ局面に�
     const r = replayKifu(file);
     expect(r.applied).toBe(r.recorded);
     expect(positionHash(useGameStore.getState().position)).toBe(before);
+  });
+});
+
+describe('カスタムルールの取り戻し — 開く工程 (段2・§9.2.6)', () => {
+  beforeEach(() => {
+    discardKifu();
+    useAiStore.setState({ enabled: false });
+    useGameStore.setState({ currentCustomMgf: null });
+  });
+
+  /** チェスを 6 手指した棋譜 (名前+版の参照だけを持つ)。 */
+  function chessKifu(): KifuFile {
+    useGameStore.getState().reset({ gameType: 'custom', customMgf: chess, quantum: false, torusMode: 'none', handicap: null });
+    playMoves(6);
+    const file = parseKifu(serializeKifu(buildKifuFile(new Date())));
+    expect(file.meta.customRule?.id).toBe('chess');
+    return file;
+  }
+
+  it('組み込みルールの棋譜は取り戻し不要 (none)', () => {
+    useGameStore.getState().reset({ gameType: 'shogi', quantum: false, torusMode: 'none', handicap: null });
+    playMoves(4);
+    const file = parseKifu(serializeKifu(buildKifuFile(new Date())));
+    expect(resolveCustomRuleForOpen(file)).toEqual({ kind: 'none' });
+  });
+
+  it('公式一覧にあるチェスは、手元の控えが空でも resolved で取り戻せる', () => {
+    const file = chessKifu();
+    // 別セッション相当＝手元の読み込み済みを消す。公式一覧 (officialCustomRule) から引ける。
+    useGameStore.setState({ currentCustomMgf: null });
+    const r = resolveCustomRuleForOpen(file);
+    expect(r.kind).toBe('resolved');
+    if (r.kind === 'resolved') expect(r.mgf.metadata.game_id).toBe('chess');
+  });
+
+  it('手元に読み込み済みで一致すれば、その定義で取り戻す (同一セッション)', () => {
+    const file = chessKifu();
+    useGameStore.setState({ currentCustomMgf: chess });
+    const r = resolveCustomRuleForOpen(file);
+    expect(r.kind).toBe('resolved');
+    if (r.kind === 'resolved') expect(r.mgf).toBe(chess);
+  });
+
+  it('★公式にも手元にも無いルールは needsFile＝ファイル選択が要る (§9.2.6 ②)', () => {
+    const file = chessKifu();
+    // 公式一覧に無いルール (将来の中将棋など) を模す＝参照の id を差し替える。
+    const unknown: KifuFile = {
+      ...file,
+      meta: { ...file.meta, customRule: { id: 'chuushogi', name: '中将棋', version: '0.1.0' } },
+    };
+    useGameStore.setState({ currentCustomMgf: null });
+    const r = resolveCustomRuleForOpen(unknown);
+    expect(r.kind).toBe('needsFile');
+    if (r.kind === 'needsFile') {
+      expect(r.ref.name).toBe('中将棋');
+      expect(r.ref.version).toBe('0.1.0');
+    }
+  });
+
+  it('★開く工程で選んだ定義を渡すと、その定義で並べ直す (自動では取り戻せなくても)', () => {
+    const file = chessKifu();
+    // 参照の id を未知にして、自動の取り戻し (手元・公式) をどちらも封じる。
+    const unknown: KifuFile = {
+      ...file,
+      meta: { ...file.meta, customRule: { id: 'chuushogi', name: '中将棋', version: '0.1.0' } },
+    };
+    useGameStore.getState().reset({ gameType: 'shogi', quantum: false, torusMode: 'none', handicap: null });
+    useGameStore.setState({ currentCustomMgf: null });
+
+    // 定義を渡さないと自動では取り戻せず、本将棋 (9×9) に化ける＝手はほとんど並ばない。
+    const auto = replayKifu(unknown);
+    expect(useGameStore.getState().position.width).toBe(9);
+    expect(auto.applied).toBeLessThan(auto.recorded);
+
+    // ファイル選択で取り戻した定義 (ここではチェス) を渡すと、その定義で満額並ぶ。
+    const picked = replayKifu(unknown, undefined, chess);
+    expect(useGameStore.getState().position.width).toBe(8);
+    expect(picked.applied).toBe(picked.recorded);
+  });
+});
+
+describe('MGF ファイルの読み込み検証 — readMgfFile (段2・§9.2.6 ②)', () => {
+  /** 検査環境の jsdom は Blob.text() を持たないので、コードベース慣例の疑似ファイルを使う。 */
+  const fakeFile = (text: string) => ({ text: async () => text }) as unknown as Blob;
+
+  it('正しい MGF ファイルは読めて検証を通る', async () => {
+    const mgf = await readMgfFile(fakeFile(JSON.stringify(chess)));
+    expect(mgf.metadata.game_id).toBe('chess');
+    expect(mgf.board.width).toBe(8);
+  });
+
+  it('壊れた JSON は弾く', async () => {
+    await expect(readMgfFile(fakeFile('{ これは JSON ではない'))).rejects.toBeTruthy();
+  });
+
+  it('MGF として欠けているファイルは弾く (loadMgf の検証)', async () => {
+    await expect(readMgfFile(fakeFile(JSON.stringify({ hello: 'world' })))).rejects.toBeTruthy();
   });
 });
 

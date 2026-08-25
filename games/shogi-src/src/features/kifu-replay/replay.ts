@@ -11,17 +11,44 @@ import { officialCustomRule } from '../../core/engine';
 import type { Mgf } from '../../core/engine/mgf/types';
 import type { KifuFile } from './types';
 
+/** カスタムルールの参照（棋譜が持つ名前+版・§9.2.6）。 */
+export type CustomRuleRef = NonNullable<KifuFile['meta']['customRule']>;
+
 /**
- * カスタムルールの棋譜（参照＝名前+版）から、再生に使う定義を取り戻す（§9.2.6）。
- * ①手元に読み込み済みで一致すればそれ（同一セッション）→ ②公式一覧から `game_id` で引く。
- * どちらでも取れなければ null（＝公式に無いルール。ファイル選択で読むのは段2）。
+ * カスタムルールの棋譜を**開く工程**での取り戻しの結果（§9.2.6）。
+ * - `none`   ＝組み込みルール or 参照なし（取り戻し不要）。
+ * - `resolved`＝手元 or 公式一覧で取り戻せた（そのまま再生できる）。
+ * - `needsFile`＝公式にも手元にも無い＝**利用者にファイルを選ばせる**（段2・§9.2.6 ②）。
  */
-function resolveCustomRule(file: KifuFile): Mgf | undefined {
+export type CustomRuleResolution =
+  | { kind: 'none' }
+  | { kind: 'resolved'; mgf: Mgf }
+  | { kind: 'needsFile'; ref: CustomRuleRef };
+
+/**
+ * 棋譜を開くときに、参照（名前+版）から定義を取り戻す（§9.2.6）。**非同期の取得の前に
+ * まず同期で試す**＝①手元に読み込み済みで一致すればそれ（同一セッション）→ ②公式一覧から
+ * `game_id` で引く。どちらでも取れなければ `needsFile`（ファイル選択が要る）。
+ *
+ * 取り戻しは**再生（同期）の中でなく開く工程で先に行う**（§9.2.6）＝ファイル選択は
+ * 時間のかかる処理なので、定義を用意してから盤の並べ直しに入る。
+ */
+export function resolveCustomRuleForOpen(file: KifuFile): CustomRuleResolution {
   const ref = file.meta.customRule;
-  if (!ref) return undefined;
+  if (!ref) return { kind: 'none' };
   const cur = useGameStore.getState().currentCustomMgf;
-  if (cur && cur.metadata.game_id === ref.id && cur.metadata.version === ref.version) return cur;
-  return officialCustomRule(ref.id) ?? undefined;
+  if (cur && cur.metadata.game_id === ref.id && cur.metadata.version === ref.version) {
+    return { kind: 'resolved', mgf: cur };
+  }
+  const off = officialCustomRule(ref.id);
+  if (off) return { kind: 'resolved', mgf: off };
+  return { kind: 'needsFile', ref };
+}
+
+/** 再生の内側で使う同期版（開く工程で取り戻せているものだけを引く）。 */
+function resolveCustomRule(file: KifuFile): Mgf | undefined {
+  const r = resolveCustomRuleForOpen(file);
+  return r.kind === 'resolved' ? r.mgf : undefined;
 }
 
 export interface ReplayResult {
@@ -87,9 +114,13 @@ export function holdReplayGuard(): () => void {
  * 棋譜の設定で盤を作り直し、`upTo` 手まで指し直す（省略なら最後まで）。
  * 指せない手に当たったらそこで止める（残りは applied との差で分かる）。
  *
+ * `rule` は**開く工程で取り戻した定義**（§9.2.6）＝ファイル選択で読んだものなど、
+ * 同期の `resolveCustomRule` では引けない定義を明示的に渡す口。省略時は従来どおり
+ * 手元・公式から取り戻す（組み込みルールと、公式一覧にあるチェスはこれで足りる）。
+ *
  * **再生は破棄の契機ではない**（親 §9.2.3 ②）＝記憶は触らない。
  */
-export function replayKifu(file: KifuFile, upTo?: number): ReplayResult {
+export function replayKifu(file: KifuFile, upTo?: number, rule?: Mgf): ReplayResult {
   depth++;
   try {
     const g = useGameStore.getState();
@@ -97,8 +128,8 @@ export function replayKifu(file: KifuFile, upTo?: number): ReplayResult {
       gameType: file.meta.gameType,
       // カスタムルール ('custom'・§5.0) は、棋譜の参照 (名前+版) から取り戻した定義で
       // 盤を作り直す (§9.2.6)。取れないと種類だけでは組み込みの一覧に無く、本将棋へ
-      // 落ちて再生が化ける。
-      customMgf: resolveCustomRule(file),
+      // 落ちて再生が化ける。開く工程で用意した `rule` があればそれを使う。
+      customMgf: rule ?? resolveCustomRule(file),
       quantum: file.meta.quantum,
       torusMode: file.meta.torus,
       handicap: file.meta.handicap

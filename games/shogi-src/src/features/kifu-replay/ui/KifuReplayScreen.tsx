@@ -19,7 +19,9 @@ import { seButton } from '../../../core/audio/se-synth';
 import { adoptLoadedKifu, listFolderKifu, saveKifuFile } from '../index';
 import { canUseFolder, chooseFolder, rememberedFolder, usableFolder, type FsDirHandle } from '../folder';
 import { readKifuFile } from '../io';
-import { asReplay, replayKifu } from '../replay';
+import { asReplay, replayKifu, resolveCustomRuleForOpen, type CustomRuleRef } from '../replay';
+import type { Mgf } from '../../../core/engine/mgf/types';
+import { CustomRulePrompt } from './CustomRulePrompt';
 import { setReviewTarget } from '../review';
 import { endingLabel } from './ending';
 import {
@@ -77,6 +79,16 @@ export function KifuReplayScreen() {
    */
   useEffect(() => setFlipView(false), [file, ownGame]);
   const [ply, setPly] = useState(0);
+  /**
+   * ★段2: **開く工程で取り戻したカスタムルールの定義**（§9.2.6）。ファイル選択で読んだ
+   * 定義など、同期の取り戻しでは引けないものをここに載せ、並べ直しに渡す。
+   */
+  const [resolvedRule, setResolvedRule] = useState<Mgf | undefined>(undefined);
+  /**
+   * ★段2: **定義が取り戻せず、ファイル選択を待っている棋譜**（§9.2.6 ②）。null 以外の
+   * 間はパネルを出し、選べたら開く・やめたら開かない。
+   */
+  const [pendingRule, setPendingRule] = useState<{ next: KifuFile; ref: CustomRuleRef } | null>(null);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState<number>(1);
   const [listOpen, setListOpen] = useState(false);
@@ -107,11 +119,13 @@ export function KifuReplayScreen() {
   // **「再生」と名乗って触る**ので、記憶には触れないし、破棄も走らない。
   useEffect(() => {
     if (file) {
-      replayKifu(file, ply);
+      // ★段2: 開く工程で取り戻した定義 (resolvedRule) を渡す (§9.2.6)。組み込みルールと
+      // 公式一覧にあるチェスは undefined でも replayKifu の中で取り戻せる。
+      replayKifu(file, ply, resolvedRule);
       return;
     }
     asReplay(() => useGameStore.getState().reset());
-  }, [file, ply]);
+  }, [file, ply, resolvedRule]);
 
   /**
    * 量子の巡回表示の時計（付録D-8 §10.1）。
@@ -255,9 +269,10 @@ export function KifuReplayScreen() {
 
   const jump = (n: number) => setPly(Math.max(0, Math.min(moveCount, n)));
 
-  /** 棋譜を選び直す。**記憶には触らない**（再生は破棄の契機ではない）。 */
-  const pick = (next: KifuFile) => {
+  /** 取り戻しが済んだ棋譜を実際に開く。**記憶には触らない**（再生は破棄の契機ではない）。 */
+  const applyOpen = (next: KifuFile, rule: Mgf | undefined) => {
     setPlaying(false);
+    setResolvedRule(rule);
     setFile(next);
     // ★v1.57: **記憶している 1 局を選び直したときだけ「自分の対局」**（親 §9.2.5）。
     // 一覧・フォルダ・書類ピッカーから来たものは外の棋譜なので、盤は先手が下。
@@ -265,6 +280,20 @@ export function KifuReplayScreen() {
     setPly(0);
     setListOpen(false);
     setToast(t('s08.loaded'));
+  };
+
+  /**
+   * 棋譜を選び直す。**開く前にカスタムルールの定義を取り戻す**（§9.2.6）。
+   * 公式・手元で取り戻せればそのまま開き、無ければファイル選択のパネルを出す（段2）。
+   */
+  const pick = (next: KifuFile) => {
+    const r = resolveCustomRuleForOpen(next);
+    if (r.kind === 'needsFile') {
+      setListOpen(false);
+      setPendingRule({ next, ref: r.ref });
+      return;
+    }
+    applyOpen(next, r.kind === 'resolved' ? r.mgf : undefined);
   };
 
   /**
@@ -752,6 +781,20 @@ export function KifuReplayScreen() {
         style={{ display: 'none' }}
         onChange={(e) => void onPicked(e.currentTarget)}
       />
+
+      {/* ★段2: カスタムルールの定義が取り戻せないとき、ファイルを選んでもらう（§9.2.6 ②）。 */}
+      {pendingRule && (
+        <CustomRulePrompt
+          locale={locale}
+          ref={pendingRule.ref}
+          onChoose={(mgf) => {
+            const next = pendingRule.next;
+            setPendingRule(null);
+            applyOpen(next, mgf);
+          }}
+          onCancel={() => setPendingRule(null)}
+        />
+      )}
 
       {toast && <div className="s08-toast">{toast}</div>}
     </div>

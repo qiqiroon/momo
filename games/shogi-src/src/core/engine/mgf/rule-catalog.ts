@@ -59,3 +59,17 @@ export async function fetchRuleMgf(baseUrl: string, file: string): Promise<Mgf> 
   const json: unknown = await res.json(); // 壊れた JSON はここで例外
   return loadMgf(json); // MGF として不足があればここで例外
 }
+
+/**
+ * 利用者が選んだファイルを MGF として読んで検証する（§9.2.6 ②・段2）。
+ *
+ * カスタムルールの棋譜は「名前+版」の参照だけを持つので、公式一覧にも手元にも
+ * 定義が無いときは、利用者にファイルを選んでもらって取り戻す。`rules/` からの
+ * 取得 (`fetchRuleMgf`) と**同じ検証**（壊れた JSON・欠けた MGF を弾く）をドライブ上の
+ * ファイルにも通す＝読み込む経路が増えても確かめる中身は 1 つにする。
+ */
+export async function readMgfFile(file: Blob): Promise<Mgf> {
+  const text = await file.text();
+  const json: unknown = JSON.parse(text); // 壊れた JSON はここで例外
+  return loadMgf(json); // MGF として不足があればここで例外
+}

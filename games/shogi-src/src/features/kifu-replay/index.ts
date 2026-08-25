@@ -319,7 +319,8 @@ export {
 export type { FolderAsk, FsDirHandle } from './folder';
 export { parseKifu, readKifuFile, serializeKifu, writeKifuFile } from './io';
 export type { KifuSaveOutcome } from './io';
-export { replayKifu, isReplayingKifu, holdReplayGuard } from './replay';
+export { replayKifu, isReplayingKifu, holdReplayGuard, resolveCustomRuleForOpen } from './replay';
+export type { CustomRuleRef, CustomRuleResolution } from './replay';
 export { setReviewTarget, reviewTarget, reviewOrigin } from './review';
 export type { ReviewOrigin } from './review';
 export {

@@ -20,6 +20,7 @@ import {
   listFolderKifu,
   parseKifu,
   replayKifu,
+  customRuleMatches,
   resolveCustomRuleForOpen,
   saveCurrentKifu,
   serializeKifu,
@@ -271,6 +272,26 @@ describe('MGF ファイルの読み込み検証 — readMgfFile (段2・§9.2.6 
 
   it('MGF として欠けているファイルは弾く (loadMgf の検証)', async () => {
     await expect(readMgfFile(fakeFile(JSON.stringify({ hello: 'world' })))).rejects.toBeTruthy();
+  });
+});
+
+describe('選んだ定義の一致確認 — customRuleMatches (段2b・§9.2.6 ③)', () => {
+  const ref = { id: 'chess', name: chess.metadata.game_name, version: chess.metadata.version };
+
+  it('名前も版も同じなら一致', () => {
+    expect(customRuleMatches(ref, chess)).toBe(true);
+  });
+
+  it('名前が違えば不一致', () => {
+    expect(customRuleMatches({ ...ref, name: 'ぐるぐる大砲将棋' }, chess)).toBe(false);
+  });
+
+  it('★版だけが違っても不一致に数える (§9.2.6 明文＝手が合わなくなることがある)', () => {
+    expect(customRuleMatches({ ...ref, version: '0.0.1' }, chess)).toBe(false);
+  });
+
+  it('棋譜が版を記録していないのに定義が版を持つなら不一致', () => {
+    expect(customRuleMatches({ id: 'chess', name: chess.metadata.game_name }, chess)).toBe(false);
   });
 });
 

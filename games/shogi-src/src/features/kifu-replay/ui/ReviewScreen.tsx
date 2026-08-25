@@ -96,10 +96,29 @@ export function ReviewScreen() {
   const clearSelection = useGameStore((s) => s.clearSelection);
 
   /**
+   * ★段2b: **入るときに決まっていた 1 局も、読み込んだときと同じ取り戻しを通す**（§9.2.6）。
+   * 取り戻せなければ**盤に出さずにパネルを先に出す**＝出してしまうと、パネルをやめたときに
+   * 間違ったルールで並んだ盤が残る（S08 と同じ扱い＝2 つの画面で違う理屈を持たない）。
+   */
+  const [initial] = useState<{
+    file: KifuFile | null;
+    rule: Mgf | undefined;
+    pending: { next: KifuFile; ref: CustomRuleRef; initial?: boolean } | null;
+  }>(() => {
+    const first = reviewTarget();
+    if (!first) return { file: null, rule: undefined, pending: null };
+    const r = resolveCustomRuleForOpen(first);
+    if (r.kind === 'needsFile') {
+      return { file: null, rule: undefined, pending: { next: first, ref: r.ref, initial: true } };
+    }
+    return { file: first, rule: r.kind === 'resolved' ? r.mgf : undefined, pending: null };
+  });
+
+  /**
    * 振り返る 1 局。**入るときに決まっていて、この画面では選び直せない**（親 §9.4.1）。
    * 二人のときだけ、**ホストから配られた棋譜で差し替わる**（親 §6.3.6・入室時の 1 回）。
    */
-  const [file, setFile] = useState<KifuFile | null>(() => reviewTarget());
+  const [file, setFile] = useState<KifuFile | null>(initial.file);
   /**
    * ★v1.57: **いま振り返っている 1 局が、自分が指した対局から来たものか**（親 §9.2.5）。
    * **盤の向きがこれで決まる**。画面の中で棋譜を読み込んだら、その場で決め直す。
@@ -132,14 +151,15 @@ export function ReviewScreen() {
    * ★段2: **開く工程で取り戻したカスタムルールの定義**（§9.2.6）。S08 と同じ扱い
    * ＝ファイル選択で読んだ定義などを載せ、並べ直しに渡す。
    */
-  const [resolvedRule, setResolvedRule] = useState<Mgf | undefined>(() => {
-    const init = reviewTarget();
-    if (!init) return undefined;
-    const r = resolveCustomRuleForOpen(init);
-    return r.kind === 'resolved' ? r.mgf : undefined;
-  });
-  /** ★段2: 定義が取り戻せず、ファイル選択を待っている棋譜（§9.2.6 ②）。 */
-  const [pendingRule, setPendingRule] = useState<{ next: KifuFile; ref: CustomRuleRef } | null>(null);
+  const [resolvedRule, setResolvedRule] = useState<Mgf | undefined>(initial.rule);
+  /**
+   * ★段2: 定義が取り戻せず、ファイル選択を待っている棋譜（§9.2.6 ②）。
+   * `initial` は**入るときに決まっていた 1 局**かどうか＝これだけは
+   * 「差し替え」ではないので、向きと配り直しを動かさない（親 §9.4.1・§6.3.6）。
+   */
+  const [pendingRule, setPendingRule] = useState<
+    { next: KifuFile; ref: CustomRuleRef; initial?: boolean } | null
+  >(initial.pending);
   /**
    * 盤を並べ直させる合図。**手数が変わらないまま作り直したいことがある**
    * （末尾で分岐を捨てるとき）ので、手数だけを頼りにしない。
@@ -358,6 +378,9 @@ export function ReviewScreen() {
     const target = reviewTarget();
     if (target !== file) {
       setFile(target);
+      // ★段2b: 配られた 1 局で差し替わったら、**前の 1 局を待っていたパネルは下ろす**
+      // ＝選ばせても、もう盤に出ていない 1 局の定義になる。
+      setPendingRule(null);
       // ★段2: 配られた棋譜も定義を取り戻す（§9.2.6）。ネット越しの相手からのぶんは、
       // まず手元・公式で取り戻せる範囲だけ（ファイル選択のパネルは出さない＝ネット送信への
       // 対応は別段②）。取り戻せなければ undefined のまま＝従来どおり replayKifu が引き直す。
@@ -1296,10 +1319,19 @@ export function ReviewScreen() {
       {pendingRule && (
         <CustomRulePrompt
           locale={locale}
-          ref={pendingRule.ref}
+          kifuRef={pendingRule.ref}
           onChoose={(mgf) => {
-            const next = pendingRule.next;
+            const { next, initial: wasInitial } = pendingRule;
             setPendingRule(null);
+            if (wasInitial) {
+              // 入るときに決まっていた 1 局。**差し替えではない**ので、向きも
+              // 配り直しも動かさない（定義が揃ったので盤に出すだけ）。
+              setResolvedRule(mgf);
+              setFile(next);
+              setPly(0);
+              setRebuild((v) => v + 1);
+              return;
+            }
             applyReviewOpen(next, mgf);
           }}
           onCancel={() => setPendingRule(null)}

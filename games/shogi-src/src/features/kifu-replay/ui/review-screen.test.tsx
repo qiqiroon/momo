@@ -5,7 +5,7 @@ import { useAiStore } from '../../../core/store/ai-store';
 import { useI18nStore } from '../../../core/store/i18n-store';
 import { useRouteStore } from '../../../core/store/route-store';
 import { useKifuGuardStore } from '../../../core/store/kifu-guard';
-import { generateLegalMoves } from '../../../core/engine';
+import { chess, generateLegalMoves } from '../../../core/engine';
 import '../index';
 import { discardKifu, kifuMemoryState, loadLastKifu, markKifuSaved } from '../storage';
 import { setReviewTarget } from '../review';
@@ -275,5 +275,58 @@ describe('S11 画面を離れるとき', () => {
       expect(useRouteStore.getState().screen).toBe('lobby');
       view.unmount();
     }
+  });
+});
+
+
+describe('S11 入るときに決まっていた 1 局もルール定義を取り戻す (段2b・§9.2.6)', () => {
+  /**
+   * カスタムルール (チェス) で 6 手指し終えて、感想戦の対象に据える。
+   * `unresolvable` なら参照だけを公式にも手元にも無いルールへ差し替える。
+   */
+  function customTarget(unresolvable: boolean): void {
+    useGameStore.getState().reset({
+      gameType: 'custom',
+      customMgf: chess,
+      quantum: false,
+      torusMode: 'none',
+      handicap: null,
+    });
+    playMoves(6);
+    useGameStore.getState().resign('player2');
+    const file = loadLastKifu();
+    if (!file) throw new Error('棋譜が記憶されていない');
+    setReviewTarget(
+      unresolvable
+        ? {
+            ...file,
+            meta: { ...file.meta, customRule: { id: 'chuushogi', name: '中将棋', version: '0.1.0' } },
+          }
+        : file,
+      'game',
+    );
+    // 別セッション相当＝読み込み済みの定義は残っていない（開き直すと消える）。
+    useGameStore.setState({ currentCustomMgf: null });
+  }
+
+  it('★取り戻せないルールの棋譜は、黙って本将棋にせずパネルを出す', () => {
+    customTarget(true);
+    useRouteStore.setState({ screen: 'review' });
+    render(<ReviewScreen />);
+
+    expect(screen.getByText('ルール定義が必要です')).toBeInTheDocument();
+    expect(screen.getByText('中将棋')).toBeInTheDocument();
+    // 記録は 6 手あるのに並べ直していない＝間違ったルールの盤を出していない。
+    expect(screen.getByText('0 / 0')).toBeInTheDocument();
+    expect(screen.queryByText('0 / 6')).not.toBeInTheDocument();
+  });
+
+  it('公式一覧から取り戻せるルールは、これまでどおりそのまま出る（無回帰の対）', () => {
+    customTarget(false);
+    useRouteStore.setState({ screen: 'review' });
+    render(<ReviewScreen />);
+
+    expect(screen.queryByText('ルール定義が必要です')).not.toBeInTheDocument();
+    expect(screen.getByText('0 / 6')).toBeInTheDocument();
   });
 });

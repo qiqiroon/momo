@@ -4094,3 +4094,26 @@ body::before {
   border-radius: 999px;
   padding: 4px 14px;
 }
+
+/* ===== カスタムルールの定義を取り戻すパネル (S08/S11 共用・仕様 §9.2.6 ②③) ===== */
+/* ★ボタンの大きさはここで決める＝ヘッダ用の .reset-btn は横長画面で 11px まで縮む
+   決まりがあり、そのままだとパネルの中で字が不揃いになる (2026-08-25 実測)。
+   触って押す大きさ (D-8 §5 = 高さ 36 以上) もここで満たす。 */
+.rulefile-panel { width: min(420px, 100%); padding: 20px; gap: 0; }
+.rulefile-title { margin: 0 0 10px; font-size: 1.05rem; }
+.rulefile-body { margin: 0 0 12px; line-height: 1.5; }
+.rulefile-facts {
+  margin: 0 0 10px; padding: 10px; border-radius: 8px; background: rgba(255, 255, 255, .06);
+}
+.rulefile-facts-label { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+.rulefile-key { opacity: .7; margin-right: 6px; }
+.rulefile-error {
+  margin: 10px 0 0; padding: 10px; border-radius: 8px;
+  background: rgba(180, 40, 40, .15); color: var(--orange-light);
+}
+.rulefile-actions {
+  display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; margin-top: 16px;
+}
+.rulefile-actions button { font-size: 13px; min-height: 36px; padding: 8px 14px; }
+/* 灰色は「押せない」だけ (付録D-3 §4.1)。押せるボタンの字は白で出す。 */
+.rulefile-plain { color: var(--text); }

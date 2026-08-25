@@ -7,14 +7,14 @@ import { useAiStore } from '../../../core/store/ai-store';
 import { useI18nStore } from '../../../core/store/i18n-store';
 import { useRouteStore } from '../../../core/store/route-store';
 import { useKifuGuardStore } from '../../../core/store/kifu-guard';
-import { generateLegalMoves } from '../../../core/engine';
+import { chess, generateLegalMoves } from '../../../core/engine';
 import '../index';
 // 量子の検査で候補集合を作るのに要る（積んでいないと駒が最初から確定してしまい、
 // 「巡回するか」「候補が出るか」の検査が素通りする）。
 import '../../quantum';
 import { serializeKifu } from '../index';
 import { chooseFolder, forgetFolder } from '../folder';
-import { discardKifu, kifuMemoryState, loadLastKifu, markKifuSaved } from '../storage';
+import { discardKifu, kifuMemoryState, loadLastKifu, markKifuSaved, rememberKifu } from '../storage';
 import { KifuReplayScreen } from './KifuReplayScreen';
 
 /**
@@ -537,5 +537,69 @@ describe('S08 への行き来', () => {
     expect(useRouteStore.getState().screen).toBe('kifu-replay');
     expect(useKifuGuardStore.getState().stage).toBeNull();
     expect(kifuMemoryState()).toBe('unsaved');
+  });
+});
+
+
+describe('S08 開いた瞬間の 1 局もルール定義を取り戻す (段2b・§9.2.6)', () => {
+  /** カスタムルール (チェス) で指し終えて、記憶に置く。 */
+  function finishedCustomGame(moves = 6): void {
+    useGameStore.getState().reset({
+      gameType: 'custom',
+      customMgf: chess,
+      quantum: false,
+      torusMode: 'none',
+      handicap: null,
+    });
+    playMoves(moves);
+    useGameStore.getState().resign('player2');
+  }
+
+  /** 記憶している 1 局の参照だけを、公式にも手元にも無いルールへ差し替える。 */
+  function makeUnresolvable(): void {
+    const file = loadLastKifu();
+    if (!file) throw new Error('記憶が空');
+    rememberKifu(
+      {
+        ...file,
+        meta: {
+          ...file.meta,
+          customRule: { id: 'chuushogi', name: '中将棋', version: '0.1.0' },
+        },
+      },
+      'saved',
+      true,
+    );
+  }
+
+  beforeEach(() => {
+    finishedCustomGame(6);
+    // 別セッション相当＝読み込み済みの定義は残っていない（開き直すと消える）。
+    useGameStore.setState({ currentCustomMgf: null });
+  });
+
+  it('★取り戻せないルールの棋譜は、黙って本将棋にせずパネルを出す', () => {
+    makeUnresolvable();
+    render(<KifuReplayScreen />);
+
+    expect(screen.getByText('ルール定義が必要です')).toBeInTheDocument();
+    expect(screen.getByText('中将棋')).toBeInTheDocument();
+    expect(screen.getByText('0.1.0')).toBeInTheDocument();
+  });
+
+  it('★取り戻せないうちは盤に出さない（間違ったルールで並べない）', () => {
+    makeUnresolvable();
+    render(<KifuReplayScreen />);
+
+    // 記録は 6 手あるのに、盤は 1 局も持っていない＝並べ直していない。
+    expect(screen.getByText('0 / 0')).toBeInTheDocument();
+    expect(screen.queryByText('0 / 6')).not.toBeInTheDocument();
+  });
+
+  it('公式一覧から取り戻せるルールは、これまでどおりそのまま出る（無回帰の対）', () => {
+    render(<KifuReplayScreen />);
+
+    expect(screen.queryByText('ルール定義が必要です')).not.toBeInTheDocument();
+    expect(screen.getByText('0 / 6')).toBeInTheDocument();
   });
 });

@@ -45,6 +45,23 @@ export function resolveCustomRuleForOpen(file: KifuFile): CustomRuleResolution {
   return { kind: 'needsFile', ref };
 }
 
+/**
+ * **利用者が選んだ定義が、棋譜の参照と一致するか**（§9.2.6 ②③）。
+ *
+ * **名前と版で見る**＝仕様が参照として定めているのがこの 2 つ（`metadata.game_name` と
+ * `metadata.version`）。**版だけの食い違いも「不一致」に数える**＝同じ名前でも版が違えば
+ * 手が合わなくなることがあるので、利用者に 3 択を出す対象にする（§9.2.6 明文）。
+ *
+ * ★**目印（`game_id`）は突き合わせない**＝仕様が一致確認の材料として挙げていないため。
+ * 名前と版が同じで目印だけ違う定義は、ここでは一致として通る。
+ *
+ * **一致確認は選ばせたファイルにだけ効く**＝公式一覧から引けたものは①で取り戻せた扱いで、
+ * ここは通らない（§9.2.6 ①と②の切れ目）。
+ */
+export function customRuleMatches(ref: CustomRuleRef, mgf: Mgf): boolean {
+  return mgf.metadata.game_name === ref.name && mgf.metadata.version === ref.version;
+}
+
 /** 再生の内側で使う同期版（開く工程で取り戻せているものだけを引く）。 */
 function resolveCustomRule(file: KifuFile): Mgf | undefined {
   const r = resolveCustomRuleForOpen(file);

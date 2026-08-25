@@ -4,37 +4,85 @@ import type { LocaleCode } from '../../../core/i18n/types';
 import { readMgfFile } from '../../../core/engine/mgf/rule-catalog';
 import type { Mgf } from '../../../core/engine/mgf/types';
 import { seButton } from '../../../core/audio/se-synth';
-import type { CustomRuleRef } from '../replay';
+import { customRuleMatches, type CustomRuleRef } from '../replay';
 
 interface CustomRulePromptProps {
   locale: LocaleCode;
-  /** 棋譜が持つルールの参照（名前+版・§9.2.6）。取り戻したいルールを人に示すのに使う。 */
-  ref: CustomRuleRef;
-  /** 定義ファイルを読めた（検証済み）。この定義で再生に進む。 */
+  /**
+   * 棋譜が持つルールの参照（名前+版・§9.2.6）。取り戻したいルールを人に示すのに使う。
+   *
+   * ★**`ref` という名前では受け取らない**＝React が部品の受け渡しで予約している名前と
+   * ぶつかる（[[reference_transport_reserves_names]]）。荷物は別の名前で包んで渡す。
+   */
+  kifuRef: CustomRuleRef;
+  /** 定義ファイルを読めた（検証済み・一致確認も済み）。この定義で再生に進む。 */
   onChoose: (mgf: Mgf) => void;
   /** ファイル選択をやめた（棋譜は開かない）。 */
   onCancel: () => void;
 }
 
+/** 名前と版を 1 組で見せる小さな囲み。棋譜側と選んだ定義側で同じ形にする。 */
+function RuleFacts({
+  t,
+  label,
+  name,
+  version,
+}: {
+  t: (key: string) => string;
+  label?: string;
+  name: string;
+  version?: string;
+}) {
+  return (
+    <div className="rulefile-facts">
+      {label && <div className="rulefile-facts-label">{label}</div>}
+      <div>
+        <span className="rulefile-key">{t('s08.ruleFile.rule')}</span>
+        <strong>{name}</strong>
+      </div>
+      <div style={{ marginTop: 4 }}>
+        <span className="rulefile-key">{t('s08.ruleFile.version')}</span>
+        <span>{version || t('s08.ruleFile.noVersion')}</span>
+      </div>
+    </div>
+  );
+}
+
 /**
- * カスタムルールの棋譜を開こうとしたが、**公式一覧にも手元にも定義が無い**ときに出す
- * パネル（§9.2.6 ②・段2）。**ルールの名前と版を見せて、定義ファイルを選んでもらう**。
+ * カスタムルールの棋譜を開くとき、**定義を取り戻すためのパネル**（§9.2.6 ②③・段2）。
+ *
+ * **2 段構え**にしてある：
+ * 1. **定義が無い**＝ルールの名前と版を見せて、定義ファイルを選んでもらう（段2a）。
+ * 2. **選んだ定義が棋譜と食い違う**＝両方の名前と版を並べて見せ、**3 択**を出す
+ *    （そのまま進める／別のファイルを選ぶ／中止・段2b）。
  *
  * ★ファイル選択は**このパネルのボタンを押して開く**＝棋譜を開く操作から一続きに
  * 自動で開くと、携帯のブラウザで最初のクリックの効力が切れて開けないことがある
- * （[[reference_mobile_browser_surprises]]）。新しいクリックで開く。
+ * （[[reference_mobile_browser_surprises]]）。**「別のファイルを選ぶ」も新しいクリック**
+ * なので、そのまま選択を開いてよい。
  *
- * ★色の決まり（付録D-3 §4.1）＝**灰色は「押せない」だけ**・**緑は使わない**。主動作
- * （定義ファイルを選ぶ）だけオレンジ地、そのほかは白文字・白枠。
+ * ★色の決まり（付録D-3 §4.1）＝**灰色は「押せない」だけ**・**緑は使わない**。オレンジ地は
+ * **1 画面に 1 つ**＝「その場を進めるために勧める手立て」に付ける。食い違いの画面では
+ * **「別のファイルを選ぶ」が勧める手立て**（食い違いを解消できるのはこれだけ）なので、
+ * 「そのまま進める」は白文字・白枠にしてある。
  *
- * 段2b で、選んだファイルが棋譜の参照と食い違ったときの 3 択（そのまま進める／選び直す／
- * 中止）をこのパネルに足す。
+ * ★**「そのまま進める」でも、この段では指せない手が出たところで止まる**（従来どおり）。
+ * 記録どおり最後まで並べる＝違反を無視するのは段2c。
  */
-export function CustomRulePrompt({ locale, ref, onChoose, onCancel }: CustomRulePromptProps) {
+export function CustomRulePrompt({ locale, kifuRef, onChoose, onCancel }: CustomRulePromptProps) {
   const t = (key: string) => _t(key, locale);
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** 読めたが**棋譜と食い違った**定義。null 以外の間は 3 択を出している（§9.2.6 ③）。 */
+  const [mismatch, setMismatch] = useState<Mgf | null>(null);
+
+  const openPicker = () => {
+    seButton();
+    setError(null);
+    setMismatch(null);
+    inputRef.current?.click();
+  };
 
   const onPicked = async (input: HTMLInputElement) => {
     const chosen = input.files?.[0];
@@ -44,7 +92,13 @@ export function CustomRulePrompt({ locale, ref, onChoose, onCancel }: CustomRule
     setError(null);
     try {
       const mgf = await readMgfFile(chosen); // 壊れた JSON・欠けた MGF はここで弾く
-      onChoose(mgf);
+      // ★段2b: **読めただけでは進めない**。棋譜の参照と突き合わせ、食い違えば 3 択へ。
+      if (customRuleMatches(kifuRef, mgf)) {
+        onChoose(mgf);
+        return;
+      }
+      setMismatch(mgf);
+      setBusy(false);
     } catch {
       // 定義として読めないものを選んでもパネルは壊さない。言葉で伝えて選び直させる。
       setError(t('s08.ruleFile.invalid'));
@@ -54,45 +108,50 @@ export function CustomRulePrompt({ locale, ref, onChoose, onCancel }: CustomRule
 
   return (
     <div className="lib-overlay" onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
-      <div className="lib-panel" style={{ maxWidth: 420, padding: 20 }}>
-        <h2 style={{ margin: '0 0 10px', fontSize: '1.05rem' }}>{t('s08.ruleFile.title')}</h2>
-        <p style={{ margin: '0 0 12px', lineHeight: 1.5 }}>{t('s08.ruleFile.body')}</p>
+      <div className="lib-panel rulefile-panel">
+        <h2 className="rulefile-title">
+          {t(mismatch ? 's08.ruleFile.mismatchTitle' : 's08.ruleFile.title')}
+        </h2>
+        <p className="rulefile-body">
+          {t(mismatch ? 's08.ruleFile.mismatchBody' : 's08.ruleFile.body')}
+        </p>
 
-        <div style={{ margin: '0 0 16px', padding: 10, borderRadius: 8, background: 'rgba(255,255,255,0.06)' }}>
-          <div>
-            <span style={{ opacity: 0.7, marginRight: 6 }}>{t('s08.ruleFile.rule')}</span>
-            <strong>{ref.name}</strong>
-          </div>
-          {ref.version && (
-            <div style={{ marginTop: 4 }}>
-              <span style={{ opacity: 0.7, marginRight: 6 }}>{t('s08.ruleFile.version')}</span>
-              <span>{ref.version}</span>
-            </div>
-          )}
-        </div>
+        <RuleFacts
+          t={t}
+          label={mismatch ? t('s08.ruleFile.kifuSide') : undefined}
+          name={kifuRef.name}
+          version={kifuRef.version}
+        />
+        {mismatch && (
+          <RuleFacts
+            t={t}
+            label={t('s08.ruleFile.fileSide')}
+            name={mismatch.metadata.game_name}
+            version={mismatch.metadata.version}
+          />
+        )}
 
         {error && (
-          <div role="alert" style={{ margin: '0 0 12px', padding: 10, borderRadius: 8, background: 'rgba(180,40,40,0.15)', color: 'var(--orange, #e07a3a)' }}>
+          <div role="alert" className="rulefile-error">
             {error}
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-          <button
-            type="button"
-            className="reset-btn"
-            style={{ color: '#fff' }}
-            onClick={() => { seButton(); onCancel(); }}
-          >
-            {t('s08.ruleFile.cancel')}
+        <div className="rulefile-actions">
+          <button type="button" className="reset-btn rulefile-plain" onClick={() => { seButton(); onCancel(); }}>
+            {t(mismatch ? 's08.ruleFile.abort' : 's08.ruleFile.cancel')}
           </button>
-          <button
-            type="button"
-            className="pick-btn"
-            disabled={busy}
-            onClick={() => { seButton(); inputRef.current?.click(); }}
-          >
-            {t('s08.ruleFile.choose')}
+          {mismatch && (
+            <button
+              type="button"
+              className="reset-btn rulefile-plain"
+              onClick={() => { seButton(); onChoose(mismatch); }}
+            >
+              {t('s08.ruleFile.proceed')}
+            </button>
+          )}
+          <button type="button" className="pick-btn" disabled={busy} onClick={openPicker}>
+            {t(mismatch ? 's08.ruleFile.rechoose' : 's08.ruleFile.choose')}
           </button>
         </div>
 

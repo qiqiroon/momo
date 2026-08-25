@@ -58,10 +58,45 @@ export function KifuReplayScreen() {
   /** 未確定駒の見せ方（巡回／重ね）。S08 は購読するだけで切替 UI は持たない。 */
   const quantumDisplay = useGameStore((s) => s.quantumDisplay);
 
+  /**
+   * ★段2b: **開いた瞬間に出す 1 局も、選び直したときと同じ取り戻しを通す**（§9.2.6）。
+   *
+   * ここを通していなかったので、**記憶している 1 局のカスタムルールが取り戻せないとき、
+   * パネルも出さずに黙って本将棋へ化けていた**（2026-08-25 実測）＝段2a が消したはずの
+   * 症状が、この入口にだけ残っていた。**取り戻しを必要とする入口を数え上げるのではなく、
+   * 棋譜を出す前に必ず通る形**にして塞ぐ（[[reference_guard_where_forgetting_is_cheap]]）。
+   *
+   * 取り戻せないときは**盤に出さない**（`file` を持たせない）＝出してしまうと、パネルを
+   * やめたときに**間違ったルールで並んだ盤が残る**。棋譜そのものは一覧に残るので、
+   * 選び直せば同じパネルがもう一度出る。
+   *
+   * **1 回だけ読む**＝記憶は読むたびに別の入れ物になるので、受け皿・盤・待ちの 3 つが
+   * 同じ 1 局を指すように、ここで読んだものを配る（向きの判定が同一性を見ている）。
+   */
+  const [initial] = useState<{
+    remembered: KifuFile | null;
+    file: KifuFile | null;
+    rule: Mgf | undefined;
+    pending: { next: KifuFile; ref: CustomRuleRef } | null;
+  }>(() => {
+    const first = loadLastKifu();
+    if (!first) return { remembered: null, file: null, rule: undefined, pending: null };
+    const r = resolveCustomRuleForOpen(first);
+    if (r.kind === 'needsFile') {
+      return { remembered: first, file: null, rule: undefined, pending: { next: first, ref: r.ref } };
+    }
+    return {
+      remembered: first,
+      file: first,
+      rule: r.kind === 'resolved' ? r.mgf : undefined,
+      pending: null,
+    };
+  });
+
   // 開いた時点の記憶を受け皿として持つ（S07 から来たときは直前の対局がここに居る）。
-  const [remembered, setRemembered] = useState<KifuFile | null>(() => loadLastKifu());
+  const [remembered, setRemembered] = useState<KifuFile | null>(initial.remembered);
   const [memoryState, setMemoryState] = useState<KifuMemoryState>(() => kifuMemoryState());
-  const [file, setFile] = useState<KifuFile | null>(() => loadLastKifu());
+  const [file, setFile] = useState<KifuFile | null>(initial.file);
   /**
    * ★v1.57: **いま出している 1 局が、自分が指した対局から来たものか**（親 §9.2.5）。
    * **盤の向きがこれで決まる**。最初に出るのは記憶している 1 局なので、その出どころを継ぐ。
@@ -83,12 +118,14 @@ export function KifuReplayScreen() {
    * ★段2: **開く工程で取り戻したカスタムルールの定義**（§9.2.6）。ファイル選択で読んだ
    * 定義など、同期の取り戻しでは引けないものをここに載せ、並べ直しに渡す。
    */
-  const [resolvedRule, setResolvedRule] = useState<Mgf | undefined>(undefined);
+  const [resolvedRule, setResolvedRule] = useState<Mgf | undefined>(initial.rule);
   /**
    * ★段2: **定義が取り戻せず、ファイル選択を待っている棋譜**（§9.2.6 ②）。null 以外の
    * 間はパネルを出し、選べたら開く・やめたら開かない。
    */
-  const [pendingRule, setPendingRule] = useState<{ next: KifuFile; ref: CustomRuleRef } | null>(null);
+  const [pendingRule, setPendingRule] = useState<{ next: KifuFile; ref: CustomRuleRef } | null>(
+    initial.pending,
+  );
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState<number>(1);
   const [listOpen, setListOpen] = useState(false);
@@ -786,7 +823,7 @@ export function KifuReplayScreen() {
       {pendingRule && (
         <CustomRulePrompt
           locale={locale}
-          ref={pendingRule.ref}
+          kifuRef={pendingRule.ref}
           onChoose={(mgf) => {
             const next = pendingRule.next;
             setPendingRule(null);

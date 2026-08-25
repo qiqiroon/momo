@@ -86,6 +86,17 @@ export function buildKifuFile(now: Date): KifuFile {
       savedAt: toLocalIso(now),
       opponent,
       gameType: g.currentGameType,
+      // 読み込んだカスタムルールは、種類だけでは再生できない (組み込みの一覧に無い) ので、
+      // ルールの名前とバージョンを参照として棋譜へ入れる (§9.2.6・定義本体は入れない)。
+      // 組み込みルールでは undefined (JSON.stringify が落とすので欄ごと出ない)。
+      customRule:
+        g.currentGameType === 'custom' && g.currentCustomMgf
+          ? {
+              id: g.currentCustomMgf.metadata.game_id,
+              name: g.currentCustomMgf.metadata.game_name,
+              version: g.currentCustomMgf.metadata.version,
+            }
+          : undefined,
       quantum: g.currentQuantum,
       torus: g.currentTorusMode,
       handicap: g.currentHandicap

@@ -71,8 +71,6 @@ export const ja: LocaleData = {
     's02.ruleHongi.desc': '通常の将棋。持ち駒あり。',
     's02.ruleHasami.name': 'はさみ将棋',
     's02.ruleHasami.desc': '相手の駒を挟んで取る。',
-    's02.ruleChess.name': 'チェス',
-    's02.ruleChess.desc': 'キングを詰ませる。8×8 の盤。',
     's02.ruleCustom.name': 'カスタム',
     's02.ruleCustom.desc': '自作ルール (Phase 8 で実装予定)。今は選択不可。',
     // S04 ロビーの項目 (v0.57 で S02 から移設 → v0.58 で 3 カード構成に大改造)
@@ -514,8 +512,6 @@ export const ja: LocaleData = {
     's07.backToAiSetup': '対AI設定に戻る',
     's07.ruleShogi': '本将棋',
     's07.ruleHasami': 'はさみ将棋',
-    's07.ruleChess': 'チェス',
-    's07.ruleCustom': 'カスタム',
     's07.oppLeftTitle': '相手が退室しました',
     's07.oppLeftBody': '対局を中断します。退室して対戦ロビーに戻ってください。',
     's07.oppLeftBtn': '退室（対戦ロビーに戻る）',

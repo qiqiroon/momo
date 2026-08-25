@@ -104,7 +104,7 @@ describe('ゲスト側: ルールを受け取る', () => {
   });
 
   it('扱えないルールなら理由を付けて断り、採用しない', () => {
-    handleShogiMessage(ruleSyncMsg({ ...HOST_RULES, gameType: 'shogi-custom' }));
+    handleShogiMessage(ruleSyncMsg({ ...HOST_RULES, gameType: 'custom' }));
 
     const ack = sent.find((m) => m.type === 'rule_ack');
     expect(ack?.ok).toBe(false);

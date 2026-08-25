@@ -78,8 +78,9 @@ describe('checkRuleSupport — 自分のエンジンで扱えるか', () => {
   });
 
   it('知らないゲーム種目は理由を付けて断る', () => {
-    // 自作ルール (shogi-custom) は Phase 7 の担当なので、いまは扱えないと答えるのが正しい。
-    expect(checkRuleSupport({ ...BASE, gameType: 'shogi-custom' })).toEqual({
+    // 読み込みのカスタムルール (custom) は、定義そのものをネットで運ぶ仕組み (段B②) が
+    // まだ無いので、いまは扱えないと答えるのが正しい (名乗りに custom を載せていない)。
+    expect(checkRuleSupport({ ...BASE, gameType: 'custom' })).toEqual({
       ok: false,
       reason: 'unsupported_game_type',
     });

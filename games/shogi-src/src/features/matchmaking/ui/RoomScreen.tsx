@@ -437,8 +437,9 @@ export function RoomScreen() {
   const ruleNameLabel = (() => {
     const g = activeRoomConfig?.gameType ?? 'shogi';
     if (g === 'hasami') return t('s02.ruleHasami.name');
-    if (g === 'chess') return t('s02.ruleChess.name');
-    if (g === 'shogi-custom') return t('s02.ruleCustom.name');
+    // 読み込んだカスタムルールは、その定義が名乗る名前 (customRuleName) を出す。
+    // 名前が無ければ汎用の「自由ルール」に落ちる (§5.0)。
+    if (g === 'custom') return activeRoomConfig?.customRuleName?.trim() || t('s02.ruleCustom.name');
     return t('s02.ruleHongi.name');
   })();
 

@@ -20,7 +20,12 @@ export const hondou: Mgf = loadMgf(hondouRaw);
 /** はさみ将棋 (Phase 6・親 v1.29 §5.3 の標準バリアント)。 */
 export const hasami: Mgf = loadMgf(hasamiRaw);
 
-/** チェス (第 9 段 9-4・親 v1.65 §5.5 の標準バリアント)。 */
+/**
+ * チェス (第 9 段 9-4・親 v1.66 §5.5)。**「読み込んで遊ぶカスタムルール」の実証例**であり、
+ * gameType の名札としては持たない (§5.0)。実アプリはメニュー「カスタムルール作成」→
+ * 読み込み画面から `rules/chess.json` を読み込み、`gameType:'custom'` として対局する。
+ * この export はエンジン検査と読み込み定義の drift 防止照合のための参照実体である。
+ */
 export const chess: Mgf = loadMgf(chessRaw);
 
 /**
@@ -32,9 +37,22 @@ export const chess: Mgf = loadMgf(chessRaw);
 const MGF_BY_GAME_TYPE: Record<string, Mgf> = {
   shogi: hondou,
   hasami,
-  chess,
 };
 
 export function mgfForGameType(gameType: string): Mgf | null {
   return MGF_BY_GAME_TYPE[gameType] ?? null;
+}
+
+/**
+ * 公式に用意したカスタムルール（`game_id` → 定義）。§9.2.6 の「公式一覧から取り戻す」の
+ * 同期版。**チェスの定義は `rules/chess.json` と同一（drift 照合済み）のものをアプリが
+ * 持っている**ので、棋譜が持つ参照（`game_id`）からここで同期的に引ける。ここに無い
+ * ルールは `rules/` から取ってくる・利用者にファイルを選ばせる（段2・§9.2.6 ②）。
+ */
+const OFFICIAL_CUSTOM_RULES: Record<string, Mgf> = {
+  chess,
+};
+
+export function officialCustomRule(id: string): Mgf | null {
+  return OFFICIAL_CUSTOM_RULES[id] ?? null;
 }

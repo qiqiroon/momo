@@ -34,14 +34,17 @@ describe('S02 未確定駒の見せ方', () => {
     clearUiSettings();
   });
 
-  // 9-4b 動作確認: チェスのカードがルール選択に「置かれている」ことを固定する。
-  it('ルール一覧にチェスのカードが出る (本将棋・はさみ将棋と横並び)', () => {
+  // 段B① (§5.0 一本化): チェスは S02 の同梱カードでなく「読み込んで遊ぶカスタムルール」に
+  // なった。S02 は元から入っている本将棋・はさみだけを並べ、チェスのカードは出さない
+  // (実際の起動はメニュー「カスタムルール作成」→読み込み画面)。9-4b で入れた
+  // 「チェスのカードが出る」検査を、撤去後の正しい姿に反転させたもの。
+  it('ルール一覧は本将棋・はさみだけで、チェスのカードは出さない (読み込み経路へ移った)', () => {
     mockConnector(true);
     setup();
     render(<RuleSelectScreen />);
-    expect(screen.getByText('チェス')).toBeTruthy();
     expect(screen.getByText('本将棋')).toBeTruthy();
     expect(screen.getByText('はさみ将棋')).toBeTruthy();
+    expect(screen.queryByText('チェス')).toBeNull();
   });
 
   // v1.24: 理屈を並べるのをやめ、どちらを選ぶと何ができるかを 2 行で言い切る

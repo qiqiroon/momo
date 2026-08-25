@@ -9,7 +9,7 @@ import {
   requestNewGame,
   useKifuGuardStore,
 } from '../../core/store/kifu-guard';
-import { applyMove, generateLegalMoves, positionHash } from '../../core/engine';
+import { applyMove, generateLegalMoves, positionHash, chess } from '../../core/engine';
 import '../quantum';
 import '../torus';
 import {
@@ -122,6 +122,35 @@ describe('棋譜ファイル — 書き出して読み直すと同じ局面に�
     expect(file.meta.gameType).toBe('hasami');
     const r = replayKifu(file);
     expect(r.applied).toBe(r.recorded);
+    expect(positionHash(useGameStore.getState().position)).toBe(before);
+  });
+
+  it('カスタムルール (チェス・§9.2.6): 棋譜は名前+版の参照だけ持ち、公式一覧から取り戻して再生できる', () => {
+    // 読み込んだカスタムルールで対局する (段A と同じ道)。
+    useGameStore.getState().reset({ gameType: 'custom', customMgf: chess, quantum: false, torusMode: 'none', handicap: null });
+    expect(useGameStore.getState().position.width).toBe(8); // チェスは 8×8
+    playMoves(6);
+    const before = positionHash(useGameStore.getState().position);
+
+    const file = parseKifu(serializeKifu(buildKifuFile(new Date())));
+    // 棋譜は定義本体でなく「名前+版」の参照だけを持つ (§9.2.6・MGF は埋め込まない)。
+    expect(file.meta.gameType).toBe('custom');
+    expect(file.meta).not.toHaveProperty('customMgf');
+    expect(file.meta.customRule?.id).toBe('chess');
+    expect(file.meta.customRule?.name).toBeTruthy();
+    expect(file.meta.customRule?.version).toBe(chess.metadata.version);
+
+    // ★縮退の見張り: 別セッション相当にする＝手元の読み込み済み定義 (currentCustomMgf) を
+    //   消し、9×9 本将棋にしてから再生する。これで「手元の控え」の枝を封じ、**公式一覧
+    //   (officialCustomRule) から名前で取り戻せて初めて 8×8 に戻る**ことを固定する。
+    //   参照を種類だけで引き直すと custom は組み込みの一覧に無いので本将棋 (9×9) に化ける。
+    useGameStore.getState().reset({ gameType: 'shogi', quantum: false, torusMode: 'none', handicap: null });
+    useGameStore.setState({ currentCustomMgf: null });
+    expect(useGameStore.getState().position.width).toBe(9);
+
+    const r = replayKifu(file);
+    expect(r.applied).toBe(r.recorded);
+    expect(useGameStore.getState().position.width).toBe(8); // チェスに戻っている
     expect(positionHash(useGameStore.getState().position)).toBe(before);
   });
 
@@ -716,7 +745,7 @@ describe('棋譜ファイル — ファイル名の規約 (親 §9.2.2)', () => 
 
   it('はさみ将棋は HAS・定義の無いルールは CUS', () => {
     expect(kifuFileName(sampleKifu({ gameType: 'hasami' }))).toContain('_HAS_');
-    expect(kifuFileName(sampleKifu({ gameType: 'shogi-custom' }))).toContain('_CUS_');
+    expect(kifuFileName(sampleKifu({ gameType: 'custom' }))).toContain('_CUS_');
   });
 
   it('同じ分に 2 局終わったら連番が付く', () => {

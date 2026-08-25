@@ -41,7 +41,8 @@ function clipName(raw: string): string {
 function rulePart(gameType: string): string {
   if (gameType === 'shogi') return 'HON';
   if (gameType === 'hasami') return 'HAS';
-  if (gameType === 'chess') return 'CHE';
+  // 読み込みのカスタムルール (チェス等) は CUS。§5.0 一本化前は 'chess' に CHE を
+  // 当てていたが、いまは custom に一本化した (旧い CHE 付きの棋譜も読めるまま)。
   return 'CUS';
 }
 

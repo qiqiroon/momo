@@ -47,7 +47,9 @@ export const PROTOCOL_VERSION = 1;
 export const CLIENT_CAPABILITIES = [
   'shogi',
   'hasami',
-  'chess',
+  // 【§5.0 一本化】チェスは gameType 'chess' でなく読み込みのカスタムルール (custom) に
+  // なった。custom はまだ「定義そのものをネットで運ぶ仕組み (段B②)」が無いので名乗りに
+  // 載せない＝ネット対戦では非対応と返す (オフラインの読み込み対局は別経路で成立)。
   'torus:cylinder',
   'torus:full',
   'quantum',

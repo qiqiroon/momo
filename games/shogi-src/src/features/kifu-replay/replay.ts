@@ -7,7 +7,22 @@
  */
 
 import { useGameStore } from '../../core/store/game-store';
+import { officialCustomRule } from '../../core/engine';
+import type { Mgf } from '../../core/engine/mgf/types';
 import type { KifuFile } from './types';
+
+/**
+ * カスタムルールの棋譜（参照＝名前+版）から、再生に使う定義を取り戻す（§9.2.6）。
+ * ①手元に読み込み済みで一致すればそれ（同一セッション）→ ②公式一覧から `game_id` で引く。
+ * どちらでも取れなければ null（＝公式に無いルール。ファイル選択で読むのは段2）。
+ */
+function resolveCustomRule(file: KifuFile): Mgf | undefined {
+  const ref = file.meta.customRule;
+  if (!ref) return undefined;
+  const cur = useGameStore.getState().currentCustomMgf;
+  if (cur && cur.metadata.game_id === ref.id && cur.metadata.version === ref.version) return cur;
+  return officialCustomRule(ref.id) ?? undefined;
+}
 
 export interface ReplayResult {
   /** 指し直せた手数。 */
@@ -80,6 +95,10 @@ export function replayKifu(file: KifuFile, upTo?: number): ReplayResult {
     const g = useGameStore.getState();
     g.reset({
       gameType: file.meta.gameType,
+      // カスタムルール ('custom'・§5.0) は、棋譜の参照 (名前+版) から取り戻した定義で
+      // 盤を作り直す (§9.2.6)。取れないと種類だけでは組み込みの一覧に無く、本将棋へ
+      // 落ちて再生が化ける。
+      customMgf: resolveCustomRule(file),
       quantum: file.meta.quantum,
       torusMode: file.meta.torus,
       handicap: file.meta.handicap

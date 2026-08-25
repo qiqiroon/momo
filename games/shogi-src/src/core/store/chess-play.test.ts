@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useGameStore } from './game-store';
+import { chess } from '../engine';
 
 /**
  * チェスを「実際のストア経由」で指せることの動作確認 (第 9 段 9-4b)。
@@ -12,7 +13,7 @@ import { useGameStore } from './game-store';
  */
 describe('9-4b チェスをストア経由で指す (初手 2 マス・アンパッサン)', () => {
   beforeEach(() => {
-    useGameStore.getState().reset({ gameType: 'chess' });
+    useGameStore.getState().reset({ gameType: 'custom', customMgf: chess });
   });
 
   it('チェスの対局が 8×8 で始まり、盤・持ち駒がチェスの初期配置', () => {

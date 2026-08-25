@@ -57,7 +57,8 @@ export interface RoomConfig {
   quantum: boolean;
   /** v0.57: 未確定駒の表示方式 (S02 の 2 択、両プレイヤー共通適用) */
   quantumDisplayMode: QuantumDisplayMode;
-  /** 自由ルール将棋 (shogi-custom) の MGF ルール名 (Phase 3+ で利用) */
+  /** 読み込んだカスタムルール (custom・§5.0) の名前 (MGF の metadata.game_name)。
+   *  部屋名・棋譜・準備完了カードに出す。定義そのものをネットで運ぶのは段B②。 */
   customRuleName?: string;
   timeControl: TimeControl;
   /**

@@ -15,7 +15,7 @@ import { mgfForGameType, findHandicap } from '../engine';
  * サブカードとして配置できるようにした。
  */
 export interface RuleSelectionCardProps {
-  gameType: 'shogi' | 'hasami' | 'chess' | 'shogi-custom';
+  gameType: 'shogi' | 'hasami' | 'custom';
   torusMode: 'none' | 'cylinder' | 'full';
   quantum: boolean;
   timeControl: TimeControl;
@@ -67,7 +67,7 @@ export function RuleSelectionCard({
 
   const ruleNameKey =
     gameType === 'hasami' ? 's02.ruleHasami.name'
-    : gameType === 'shogi-custom' ? 's02.ruleCustom.name'
+    : gameType === 'custom' ? 's02.ruleCustom.name'
     : 's02.ruleHongi.name';
   const timeSummary = formatTimeSummary(timeControl, t);
 

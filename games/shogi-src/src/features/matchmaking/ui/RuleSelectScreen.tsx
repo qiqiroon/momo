@@ -42,9 +42,11 @@ interface RuleDef {
 const RULES: RuleDef[] = [
   { id: 'shogi', nameKey: 's02.ruleHongi.name', descKey: 's02.ruleHongi.desc', torusOK: true, quantumOK: true },
   { id: 'hasami', nameKey: 's02.ruleHasami.name', descKey: 's02.ruleHasami.desc', torusOK: true, quantumOK: false },
-  // 【9-4a】チェス。量子は 9-4e で仕組みを直してから開く (いまは quantumOK=false)。
-  { id: 'chess', nameKey: 's02.ruleChess.name', descKey: 's02.ruleChess.desc', torusOK: true, quantumOK: false },
-  { id: 'shogi-custom', nameKey: 's02.ruleCustom.name', descKey: 's02.ruleCustom.desc', torusOK: true, quantumOK: true, disabled: true },
+  // 【§5.0 一本化】チェスは同梱カードでなく「読み込んで遊ぶカスタムルールの実証例」＝
+  // メニュー「カスタムルール作成」→読み込み画面から `rules/chess.json` を選んで遊ぶ。
+  // ここ (S02) は元から入っているルールだけを並べる。custom は将来のオーサリング用に
+  // 無効カードとして置いておく (実際の読み込み経路は読み込み画面)。
+  { id: 'custom', nameKey: 's02.ruleCustom.name', descKey: 's02.ruleCustom.desc', torusOK: true, quantumOK: true, disabled: true },
 ];
 
 // v0.64: 10 分と 3 秒を追加

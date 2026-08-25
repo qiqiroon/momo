@@ -54,11 +54,9 @@ export function normalizeIncomingRules(rules: unknown, roomName: string): RoomCo
   const gameType: RoomConfig['gameType'] =
     r.game === 'hasami'
       ? 'hasami'
-      : r.game === 'chess'
-        ? 'chess'
-        : r.game === 'shogi-custom'
-          ? 'shogi-custom'
-          : 'shogi';
+      : r.game === 'custom' || r.game === 'chess' || r.game === 'shogi-custom'
+        ? 'custom'
+        : 'shogi';
   return {
     roomName,
     password: '',

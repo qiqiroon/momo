@@ -776,19 +776,15 @@ export function GameScreen({ variant }: GameScreenProps) {
               {(() => {
                 // 対局中のルール名。オンラインは相手と揃えた gameType、オフラインは
                 // このアプリが持っている currentGameType を使う (以前は offline を一律
-                // 本将棋にしていた)。第 9 段 段A: 読み込んだカスタムルール ('custom') は
+                // 本将棋にしていた)。読み込んだカスタムルール ('custom'＝チェス等・§5.0) は
                 // i18n の名前を持たないので、定義そのものの名前 (metadata.game_name) を出す。
                 const online = pluginGet<OnlineGameConnector>('gameConnector')?.getActiveRules()?.gameType;
                 const g = online ?? currentGameType;
                 return g === 'hasami'
                   ? t('s07.ruleHasami')
-                  : g === 'chess'
-                    ? t('s07.ruleChess')
-                    : g === 'custom'
-                      ? mgf.metadata.game_name
-                      : g === 'shogi-custom'
-                        ? t('s07.ruleCustom')
-                        : t('s07.ruleShogi');
+                  : g === 'custom'
+                    ? mgf.metadata.game_name
+                    : t('s07.ruleShogi');
               })()}
             </span>
             {(() => {

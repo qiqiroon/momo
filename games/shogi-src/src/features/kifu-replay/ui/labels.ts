@@ -18,8 +18,9 @@ export function kifuLabels(locale: LocaleCode) {
   const ruleName = (f: KifuFile): string => {
     if (f.meta.gameType === 'shogi') return t('s02.ruleHongi.name');
     if (f.meta.gameType === 'hasami') return t('s02.ruleHasami.name');
-    if (f.meta.gameType === 'chess') return t('s02.ruleChess.name');
-    return t('s02.ruleCustom.name');
+    // 読み込みのカスタムルール (チェス等・§5.0) は、棋譜が持っている参照の名前を出す
+    // (§9.2.6)。参照を持たない古い棋譜は汎用の「カスタム」に落ちる。
+    return f.meta.customRule?.name || t('s02.ruleCustom.name');
   };
 
   /** 変則条件のバッジ。無いものは欄ごと出さない。 */

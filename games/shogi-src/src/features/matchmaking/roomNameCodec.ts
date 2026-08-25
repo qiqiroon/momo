@@ -19,7 +19,7 @@
  *   [本+量+感] 量子将棋の感想戦  → 感想戦の部屋 (持ち時間は持たない)
  *
  * 記号 (種類・修飾):
- *   種類: 本 (shogi) / 挟 (hasami) / 自 (shogi-custom)
+ *   種類: 本 (shogi) / 挟 (hasami) / 自 (custom = 読み込んだカスタムルール・§5.0)
  *   修飾: 環 (torus) / 量 (quantum)
  *   用途: 感 (review = 感想戦の部屋・v1.50 新設)
  *
@@ -40,7 +40,7 @@
 
 import type { TimeControl } from '../../core/engine/time-control';
 
-export type GameType = 'shogi' | 'hasami' | 'chess' | 'shogi-custom';
+export type GameType = 'shogi' | 'hasami' | 'custom';
 
 export interface RoomLabelParts {
   gameType: GameType;
@@ -79,15 +79,15 @@ const MEET_PREFIX = 'M';
 const GAME_TYPE_CHAR: Record<GameType, string> = {
   shogi: '本',
   hasami: '挟',
-  chess: 'チ',
-  'shogi-custom': '自',
+  custom: '自',
 };
 
 const CHAR_TO_GAME_TYPE: Record<string, GameType> = {
   本: 'shogi',
   挟: 'hasami',
-  チ: 'chess',
-  自: 'shogi-custom',
+  自: 'custom',
+  // 旧い部屋名 (チ=チェス) は読み込みのカスタムルールへ寄せる (§5.0 一本化前の名残)。
+  チ: 'custom',
 };
 
 const MODIFIER_TORUS = '環';
@@ -178,7 +178,7 @@ export function encodeRoomName(input: EncodeInput): string {
   // decode 側は unknownFlags へ落とさずに専用の欄で受ける。
   if (input.meetToken) parts.push(`${MEET_PREFIX}${input.meetToken}`);
   const prefixInside =
-    input.gameType === 'shogi-custom' && input.customRuleName?.trim()
+    input.gameType === 'custom' && input.customRuleName?.trim()
       ? `${parts.join('+')}:${input.customRuleName.trim()}`
       : parts.join('+');
   const userPart = input.userRoomName.trim();
@@ -279,7 +279,7 @@ export interface BadgeLabels {
 }
 
 const LABELS_JA: BadgeLabels = {
-  gameType: { shogi: '本将棋', hasami: 'はさみ', chess: 'チェス', 'shogi-custom': '自由' },
+  gameType: { shogi: '本将棋', hasami: 'はさみ', custom: '自由' },
   torus: 'トーラス',
   quantum: '量子',
   review: '感想戦',
@@ -287,7 +287,7 @@ const LABELS_JA: BadgeLabels = {
 };
 
 const LABELS_EN: BadgeLabels = {
-  gameType: { shogi: 'Shogi', hasami: 'Hasami', chess: 'Chess', 'shogi-custom': 'Custom' },
+  gameType: { shogi: 'Shogi', hasami: 'Hasami', custom: 'Custom' },
   torus: 'Torus',
   quantum: 'Quantum',
   review: 'Review',

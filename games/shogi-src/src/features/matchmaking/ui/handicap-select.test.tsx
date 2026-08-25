@@ -275,7 +275,7 @@ describe('プレビュー盤の駒落ち', () => {
     });
 
     it('定義を持たないルール (自由ルール) は本将棋の並びで代用する', () => {
-      expect(initialFor('shogi-custom')).toEqual(shogi());
+      expect(initialFor('custom')).toEqual(shogi());
     });
   });
 });

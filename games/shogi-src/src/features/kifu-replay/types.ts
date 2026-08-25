@@ -40,8 +40,18 @@ export interface KifuMeta {
   /** 書き出した時刻 (ISO 8601・端末の時刻帯つき)。 */
   savedAt: string;
   opponent: KifuOpponent;
-  /** ルールの種類 ('shogi' / 'hasami' / …)。再生はここからルール定義を引く。 */
+  /** ルールの種類 ('shogi' / 'hasami' / 'custom')。再生はここからルール定義を引く。 */
   gameType: string;
+  /**
+   * 読み込んだカスタムルール ('custom'＝チェス等・§5.0) への**参照**。
+   * **定義 (MGF) 本体は埋め込まず、名前とバージョンだけを持つ** (親 v1.67 §9.2.6・
+   * ユーザー判断 2026-08-25)。再生時は、この参照から定義を取り戻す
+   * (公式一覧→無ければファイル選択・§9.2.6)。組み込みルール (shogi / hasami) では持たない。
+   * **この欄を持たない古い棋譜もそのまま読める**。`id`＝定義の安定した目印
+   * (`metadata.game_id`)・`name`＝表示名 (`metadata.game_name`)・`version`＝版
+   * (`metadata.version`)。
+   */
+  customRule?: { id: string; name: string; version?: string };
   quantum: boolean;
   torus: 'none' | 'cylinder' | 'full';
   /** 手合い (駒落ち)。平手なら null。giver = 落とした側 (＝上手＝先手)。 */

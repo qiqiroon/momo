@@ -8,14 +8,10 @@ import { initialFor } from './MiniBoardPreview';
  */
 
 describe('9-4a② プレビュー盤の駒字は必ず string', () => {
-  it('チェスは K/Q/R/B/N/P を string で返す (オブジェクトを出さない)', () => {
-    const cells = initialFor('chess');
-    expect(cells.every((c) => typeof c.ch === 'string')).toBe(true);
-    const chars = new Set(cells.map((c) => c.ch).filter(Boolean));
-    for (const ch of ['K', 'Q', 'R', 'B', 'N', 'P']) {
-      expect(chars.has(ch)).toBe(true);
-    }
-  });
+  // 【§5.0 一本化】チェスは S02 の同梱カードでなく読み込みのカスタムルールになったため、
+  // initialFor('chess') は無くなった (S02 は元から入っているルールだけを並べる)。
+  // チェスの駒 (K/Q/R/B/N/P) が string で描かれることは、実際の対局盤の検査
+  // (chess-board-render.test) が固定している。
 
   it('将棋は従来どおり漢字 (玉・歩 等) で、string のまま', () => {
     const cells = initialFor('shogi');

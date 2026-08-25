@@ -25,7 +25,7 @@ export type ReviewRoomBlock =
  * ルール名だけが空になる。
  */
 export interface ReviewRoomInfo {
-  gameType: 'shogi' | 'hasami' | 'chess' | 'shogi-custom';
+  gameType: 'shogi' | 'hasami' | 'custom';
   torus: boolean;
   quantum: boolean;
   customRuleName?: string;
@@ -35,7 +35,7 @@ export interface ReviewRoomInfo {
 
 /** 感想戦の部屋を建てるのに要る、棋譜から取れるだけの情報。 */
 export interface ReviewRoomRequest {
-  gameType: 'shogi' | 'hasami' | 'chess' | 'shogi-custom';
+  gameType: 'shogi' | 'hasami' | 'custom';
   torus: boolean;
   quantum: boolean;
   customRuleName?: string;

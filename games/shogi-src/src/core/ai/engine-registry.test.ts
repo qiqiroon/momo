@@ -114,7 +114,7 @@ describe('対局設定からモードを決める', () => {
   it('平面・量子 OFF なら、ルールの種類で本将棋と変則を分ける', () => {
     expect(aiModeFrom({ gameType: 'shogi', torusMode: 'none', quantum: false })).toBe('shogi');
     expect(aiModeFrom({ gameType: 'hasami', torusMode: 'none', quantum: false })).toBe('variant');
-    expect(aiModeFrom({ gameType: 'shogi-custom', torusMode: 'none', quantum: false })).toBe('variant');
+    expect(aiModeFrom({ gameType: 'custom', torusMode: 'none', quantum: false })).toBe('variant');
   });
 
   it('対局設定が取れないときは本将棋として扱う', () => {

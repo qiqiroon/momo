@@ -66,6 +66,8 @@ describe('ルール定義パネル — 一致確認と 3 択 (段2b・§9.2.6 �
     await choose(mgfFile());
     expect(onChoose).toHaveBeenCalledTimes(1);
     expect(onChoose.mock.calls[0][0].metadata.game_id).toBe(chess.metadata.game_id);
+    // ★段2c: **一致しているので「食い違ったまま進める」ではない**＝違反は無視しない。
+    expect(onChoose.mock.calls[0][1]).toBe(false);
     expect(screen.queryByText('そのまま進める')).toBeNull();
   });
 
@@ -101,6 +103,8 @@ describe('ルール定義パネル — 一致確認と 3 択 (段2b・§9.2.6 �
     fireEvent.click(screen.getByText('そのまま進める'));
     expect(onChoose).toHaveBeenCalledTimes(1);
     expect(onChoose.mock.calls[0][0].metadata.version).toBe(chess.metadata.version);
+    // ★段2c: **食い違ったまま進めたことを伝える**＝受け取った側は違反を無視して並べる。
+    expect(onChoose.mock.calls[0][1]).toBe(true);
     expect(onCancel).not.toHaveBeenCalled();
   });
 

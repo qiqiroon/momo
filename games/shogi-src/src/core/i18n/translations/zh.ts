@@ -320,7 +320,7 @@ export const zh: LocaleData = {
     's08.ruleFile.invalid': '无法将该文件作为规则定义读取。',
     's08.ruleFile.noVersion': '（无记录）',
     's08.ruleFile.mismatchTitle': '所选定义与棋谱不一致',
-    's08.ruleFile.mismatchBody': '所选定义的名称或版本与此棋谱记录的不一致。若仍然继续，重演可能会中途停止。',
+    's08.ruleFile.mismatchBody': '所选定义的名称或版本与此棋谱记录的不一致。若仍然继续，将按记录重演，即使是此规则不允许的着法也照样摆上。',
     's08.ruleFile.kifuSide': '棋谱记录',
     's08.ruleFile.fileSide': '所选定义',
     's08.ruleFile.proceed': '仍然继续',

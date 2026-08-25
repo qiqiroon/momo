@@ -15,8 +15,14 @@ interface CustomRulePromptProps {
    * ぶつかる（[[reference_transport_reserves_names]]）。荷物は別の名前で包んで渡す。
    */
   kifuRef: CustomRuleRef;
-  /** 定義ファイルを読めた（検証済み・一致確認も済み）。この定義で再生に進む。 */
-  onChoose: (mgf: Mgf) => void;
+  /**
+   * 定義ファイルを読めた（検証済み）。この定義で再生に進む。
+   *
+   * ★段2c: `mismatched` は**棋譜と食い違ったまま「そのまま進める」を選んだ**ことを表す
+   * （§9.2.6 ③④）。**受け取った側は、この 1 局を違反を無視して並べる**。
+   * **一致していたら偽**＝そのときは従来どおり、指せない手が出たら止まる。
+   */
+  onChoose: (mgf: Mgf, mismatched: boolean) => void;
   /** ファイル選択をやめた（棋譜は開かない）。 */
   onCancel: () => void;
 }
@@ -66,8 +72,10 @@ function RuleFacts({
  * **「別のファイルを選ぶ」が勧める手立て**（食い違いを解消できるのはこれだけ）なので、
  * 「そのまま進める」は白文字・白枠にしてある。
  *
- * ★**「そのまま進める」でも、この段では指せない手が出たところで止まる**（従来どおり）。
- * 記録どおり最後まで並べる＝違反を無視するのは段2c。
+ * ★段2c: **「そのまま進める」を選んだことは、そのまま呼び出し元へ伝える**（§9.2.6 ④）＝
+ * 受け取った側は**このルールで指せない手も記録どおりに並べる**。パネルの側で並べ方を
+ * 決めないのは、**並べ直しを持っているのは画面**だからで、ここは「人が何を選んだか」
+ * だけを伝える。
  */
 export function CustomRulePrompt({ locale, kifuRef, onChoose, onCancel }: CustomRulePromptProps) {
   const t = (key: string) => _t(key, locale);
@@ -94,7 +102,7 @@ export function CustomRulePrompt({ locale, kifuRef, onChoose, onCancel }: Custom
       const mgf = await readMgfFile(chosen); // 壊れた JSON・欠けた MGF はここで弾く
       // ★段2b: **読めただけでは進めない**。棋譜の参照と突き合わせ、食い違えば 3 択へ。
       if (customRuleMatches(kifuRef, mgf)) {
-        onChoose(mgf);
+        onChoose(mgf, false);
         return;
       }
       setMismatch(mgf);
@@ -145,7 +153,7 @@ export function CustomRulePrompt({ locale, kifuRef, onChoose, onCancel }: Custom
             <button
               type="button"
               className="reset-btn rulefile-plain"
-              onClick={() => { seButton(); onChoose(mismatch); }}
+              onClick={() => { seButton(); onChoose(mismatch, true); }}
             >
               {t('s08.ruleFile.proceed')}
             </button>

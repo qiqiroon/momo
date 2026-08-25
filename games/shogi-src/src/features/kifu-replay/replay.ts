@@ -15,6 +15,29 @@ import type { KifuFile } from './types';
 export type CustomRuleRef = NonNullable<KifuFile['meta']['customRule']>;
 
 /**
+ * **開く工程で用意したルール**（§9.2.6）。並べ直しに渡す。
+ *
+ * ★**定義と「違反を無視するか」を 1 つで持つ**＝この 2 つは同じ瞬間（人がパネルで
+ * 定義を選んだ瞬間）に決まり、**片方だけ入れ替わることが無い**。別々の入れ物にすると、
+ * 棋譜が差し替わる入口が増えたときに**どちらか一方だけ書き換えて食い違う**
+ * （[[reference_fix_did_not_stick_count_all_inputs]]）。
+ */
+export interface OpenedRule {
+  /**
+   * 取り戻した定義。**省略してよい**＝組み込みルールと、公式一覧から引けるものは
+   * 並べ直しの中で引き直せる。
+   */
+  mgf?: Mgf;
+  /**
+   * ★段2c: **食い違う定義のまま「そのまま進める」を選んだ**（§9.2.6 ④）。
+   * 記録された手を**合法性に関わらず**並べ、ルール違反では止めない。
+   * **一致して取り戻せたときは立てない**＝そのときは従来どおり、指せない手が出たら
+   * そこで止める（「書き出した棋譜を読み直すと同じ局面に戻る」ことの見張りを残すため）。
+   */
+  ignoreViolations?: boolean;
+}
+
+/**
  * カスタムルールの棋譜を**開く工程**での取り戻しの結果（§9.2.6）。
  * - `none`   ＝組み込みルール or 参照なし（取り戻し不要）。
  * - `resolved`＝手元 or 公式一覧で取り戻せた（そのまま再生できる）。
@@ -131,13 +154,16 @@ export function holdReplayGuard(): () => void {
  * 棋譜の設定で盤を作り直し、`upTo` 手まで指し直す（省略なら最後まで）。
  * 指せない手に当たったらそこで止める（残りは applied との差で分かる）。
  *
- * `rule` は**開く工程で取り戻した定義**（§9.2.6）＝ファイル選択で読んだものなど、
- * 同期の `resolveCustomRule` では引けない定義を明示的に渡す口。省略時は従来どおり
+ * `opened` は**開く工程で用意したルール**（§9.2.6）＝ファイル選択で読んだ定義など、
+ * 同期の `resolveCustomRule` では引けないものを明示的に渡す口。省略時は従来どおり
  * 手元・公式から取り戻す（組み込みルールと、公式一覧にあるチェスはこれで足りる）。
+ *
+ * ★段2c: `opened.ignoreViolations` のときは**このルールで指せない手も記録どおりに
+ * 並べる**（§9.2.6 ④）。それでも止まるのは**盤と噛み合わない手**に当たったときだけ。
  *
  * **再生は破棄の契機ではない**（親 §9.2.3 ②）＝記憶は触らない。
  */
-export function replayKifu(file: KifuFile, upTo?: number, rule?: Mgf): ReplayResult {
+export function replayKifu(file: KifuFile, upTo?: number, opened?: OpenedRule): ReplayResult {
   depth++;
   try {
     const g = useGameStore.getState();
@@ -145,8 +171,8 @@ export function replayKifu(file: KifuFile, upTo?: number, rule?: Mgf): ReplayRes
       gameType: file.meta.gameType,
       // カスタムルール ('custom'・§5.0) は、棋譜の参照 (名前+版) から取り戻した定義で
       // 盤を作り直す (§9.2.6)。取れないと種類だけでは組み込みの一覧に無く、本将棋へ
-      // 落ちて再生が化ける。開く工程で用意した `rule` があればそれを使う。
-      customMgf: rule ?? resolveCustomRule(file),
+      // 落ちて再生が化ける。開く工程で用意した定義があればそれを使う。
+      customMgf: opened?.mgf ?? resolveCustomRule(file),
       quantum: file.meta.quantum,
       torusMode: file.meta.torus,
       handicap: file.meta.handicap
@@ -154,9 +180,10 @@ export function replayKifu(file: KifuFile, upTo?: number, rule?: Mgf): ReplayRes
         : null,
     });
     const limit = upTo === undefined ? file.moves.length : Math.min(upTo, file.moves.length);
+    const ignoreViolations = opened?.ignoreViolations ?? false;
     let applied = 0;
     for (let i = 0; i < limit; i++) {
-      if (!useGameStore.getState().replayRecordedMove(file.moves[i])) break;
+      if (!useGameStore.getState().replayRecordedMove(file.moves[i], ignoreViolations)) break;
       applied++;
     }
     return { applied, recorded: file.moves.length };

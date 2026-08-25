@@ -320,7 +320,7 @@ export const en: LocaleData = {
     's08.ruleFile.invalid': 'That file could not be read as a rule definition.',
     's08.ruleFile.noVersion': '(none recorded)',
     's08.ruleFile.mismatchTitle': 'The chosen definition does not match the kifu',
-    's08.ruleFile.mismatchBody': 'The name or version of the chosen definition differs from what this kifu recorded. If you proceed, the replay may stop partway through.',
+    's08.ruleFile.mismatchBody': 'The name or version of the chosen definition differs from what this kifu recorded. If you proceed, the recorded moves are replayed as they were, even moves this rule does not allow.',
     's08.ruleFile.kifuSide': 'Recorded in the kifu',
     's08.ruleFile.fileSide': 'Chosen definition',
     's08.ruleFile.proceed': 'Proceed anyway',

@@ -402,8 +402,12 @@ interface GameState {
    * 相手から届いた手と同じ経路 (合法手と突き合わせてから適用) を通るので、
    * 量子の候補更新・収縮も対局中とまったく同じに走る。棋譜の書き出しが
    * 正しいことを確かめる検査と、棋譜再生画面 (S08) が使う。
+   *
+   * ★段2c: `ignoreViolations` は**食い違う定義のまま「そのまま進める」を選んだとき
+   * だけ**真になる (親 §9.2.6 ④)。**このルールでは指せない手も記録どおりに適用し、
+   * ルール違反では止まらない**。
    */
-  replayRecordedMove: (move: Move) => boolean;
+  replayRecordedMove: (move: Move, ignoreViolations?: boolean) => boolean;
   /** 相手からの move メッセージで得た時計状態を反映（sync）。v0.35。 */
   syncClock: (side: 'player1' | 'player2', clock: ClockState) => void;
   /** 指定側を時間切れ負けにする（idempotent）。v0.35。 */
@@ -1762,9 +1766,12 @@ export const useGameStore = create<GameState>((set, get) => ({
     return true;
   },
 
-  replayRecordedMove: (move) => {
+  replayRecordedMove: (move, ignoreViolations = false) => {
     const { position, mgf, status } = get();
-    if (status !== 'playing') return false;
+    // ★段2c (§9.2.6 ④): 違反を無視して並べているときは、**終局しても止めない**＝
+    // 食い違う定義では「王が取られた」「動ける手が無い」が本来と違う場所で立つので、
+    // ここで止めると**記録の残りをまるごと失う**。記録は最後までたどらせる。
+    if (status !== 'playing' && !ignoreViolations) return false;
     // 記録された手をそのまま適用せず、**いまの局面の合法手と突き合わせてから**適用する。
     // 棋譜の中の手は座標と駒の番号しか持たないので、取った駒の番号のように
     // 局面から決まる項目は合法手生成が出したものを使う (自分で組み立てると食い違う)。
@@ -1786,9 +1793,29 @@ export const useGameStore = create<GameState>((set, get) => ({
     );
     // ★v1.55: `free`（感想戦の自由な手）はここへ来ない＝**棋譜に入らない**ので、
     // 記録された手を並べ直す道には現れない（親 §9.4.3）。
-    if (!target) return false;
-    applyAndCommit(set, get, target, 'remote');
-    return true;
+    if (target) {
+      applyAndCommit(set, get, target, 'remote');
+      return true;
+    }
+    if (!ignoreViolations) return false;
+    // ★段2c (§9.2.6 ④): **合法手に無くても、記録された手をそのまま盤へ運ぶ**。
+    //
+    // **合法手を先に探すのは残したまま**＝そこに在ればこれまでとまったく同じ道を通る
+    // （取った駒の番号のように**局面から決まる項目**を合法手生成が埋めてくれる）。
+    // ここへ来るのは「このルールでは指せない手」だけなので、**違反を無視する範囲を
+    // 食い違った手だけに閉じ込められる**。
+    //
+    // **盤と噛み合わない手はここで止まる**＝駒がそのマスに居ない・駒台にその駒が無い・
+    // 打つ先が塞がっている、は「ルール違反」ではなく**その手を運びようがない**という
+    // ことなので、盤を動かす側 (applyMove) が投げる。**飛ばして続けない**＝1 手飛ばすと
+    // 以降の記録は全部ずれた盤の上に載り、**どこから嘘になったのかが読めなくなる**。
+    // 止めれば「ここまでは記録どおり」と言い切れる（並べられた手数は呼び出し元へ返る）。
+    try {
+      applyAndCommit(set, get, move, 'remote');
+      return true;
+    } catch {
+      return false;
+    }
   },
 }));
 

@@ -19,8 +19,7 @@ import { seButton } from '../../../core/audio/se-synth';
 import { adoptLoadedKifu, listFolderKifu, saveKifuFile } from '../index';
 import { canUseFolder, chooseFolder, rememberedFolder, usableFolder, type FsDirHandle } from '../folder';
 import { readKifuFile } from '../io';
-import { asReplay, replayKifu, resolveCustomRuleForOpen, type CustomRuleRef } from '../replay';
-import type { Mgf } from '../../../core/engine/mgf/types';
+import { asReplay, replayKifu, resolveCustomRuleForOpen, type CustomRuleRef, type OpenedRule } from '../replay';
 import { CustomRulePrompt } from './CustomRulePrompt';
 import { setReviewTarget } from '../review';
 import { endingLabel } from './ending';
@@ -76,19 +75,19 @@ export function KifuReplayScreen() {
   const [initial] = useState<{
     remembered: KifuFile | null;
     file: KifuFile | null;
-    rule: Mgf | undefined;
+    rule: OpenedRule;
     pending: { next: KifuFile; ref: CustomRuleRef } | null;
   }>(() => {
     const first = loadLastKifu();
-    if (!first) return { remembered: null, file: null, rule: undefined, pending: null };
+    if (!first) return { remembered: null, file: null, rule: {}, pending: null };
     const r = resolveCustomRuleForOpen(first);
     if (r.kind === 'needsFile') {
-      return { remembered: first, file: null, rule: undefined, pending: { next: first, ref: r.ref } };
+      return { remembered: first, file: null, rule: {}, pending: { next: first, ref: r.ref } };
     }
     return {
       remembered: first,
       file: first,
-      rule: r.kind === 'resolved' ? r.mgf : undefined,
+      rule: { mgf: r.kind === 'resolved' ? r.mgf : undefined },
       pending: null,
     };
   });
@@ -115,10 +114,12 @@ export function KifuReplayScreen() {
   useEffect(() => setFlipView(false), [file, ownGame]);
   const [ply, setPly] = useState(0);
   /**
-   * ★段2: **開く工程で取り戻したカスタムルールの定義**（§9.2.6）。ファイル選択で読んだ
-   * 定義など、同期の取り戻しでは引けないものをここに載せ、並べ直しに渡す。
+   * ★段2: **開く工程で用意したルール**（§9.2.6）。ファイル選択で読んだ定義など、
+   * 同期の取り戻しでは引けないものをここに載せ、並べ直しに渡す。
+   * ★段2c: **「食い違ったまま進める」かどうかも同じ入れ物で運ぶ**＝定義と一緒にしか
+   * 決まらないので、片方だけ書き換わることが起きない。
    */
-  const [resolvedRule, setResolvedRule] = useState<Mgf | undefined>(initial.rule);
+  const [openedRule, setOpenedRule] = useState<OpenedRule>(initial.rule);
   /**
    * ★段2: **定義が取り戻せず、ファイル選択を待っている棋譜**（§9.2.6 ②）。null 以外の
    * 間はパネルを出し、選べたら開く・やめたら開かない。
@@ -156,13 +157,13 @@ export function KifuReplayScreen() {
   // **「再生」と名乗って触る**ので、記憶には触れないし、破棄も走らない。
   useEffect(() => {
     if (file) {
-      // ★段2: 開く工程で取り戻した定義 (resolvedRule) を渡す (§9.2.6)。組み込みルールと
-      // 公式一覧にあるチェスは undefined でも replayKifu の中で取り戻せる。
-      replayKifu(file, ply, resolvedRule);
+      // ★段2: 開く工程で用意したルール (openedRule) を渡す (§9.2.6)。組み込みルールと
+      // 公式一覧にあるチェスは空のままでも replayKifu の中で取り戻せる。
+      replayKifu(file, ply, openedRule);
       return;
     }
     asReplay(() => useGameStore.getState().reset());
-  }, [file, ply, resolvedRule]);
+  }, [file, ply, openedRule]);
 
   /**
    * 量子の巡回表示の時計（付録D-8 §10.1）。
@@ -307,9 +308,9 @@ export function KifuReplayScreen() {
   const jump = (n: number) => setPly(Math.max(0, Math.min(moveCount, n)));
 
   /** 取り戻しが済んだ棋譜を実際に開く。**記憶には触らない**（再生は破棄の契機ではない）。 */
-  const applyOpen = (next: KifuFile, rule: Mgf | undefined) => {
+  const applyOpen = (next: KifuFile, rule: OpenedRule) => {
     setPlaying(false);
-    setResolvedRule(rule);
+    setOpenedRule(rule);
     setFile(next);
     // ★v1.57: **記憶している 1 局を選び直したときだけ「自分の対局」**（親 §9.2.5）。
     // 一覧・フォルダ・書類ピッカーから来たものは外の棋譜なので、盤は先手が下。
@@ -330,7 +331,7 @@ export function KifuReplayScreen() {
       setPendingRule({ next, ref: r.ref });
       return;
     }
-    applyOpen(next, r.kind === 'resolved' ? r.mgf : undefined);
+    applyOpen(next, { mgf: r.kind === 'resolved' ? r.mgf : undefined });
   };
 
   /**
@@ -824,10 +825,12 @@ export function KifuReplayScreen() {
         <CustomRulePrompt
           locale={locale}
           kifuRef={pendingRule.ref}
-          onChoose={(mgf) => {
+          onChoose={(mgf, mismatched) => {
             const next = pendingRule.next;
             setPendingRule(null);
-            applyOpen(next, mgf);
+            // ★段2c: **食い違ったまま「そのまま進める」を選んだら、違反を無視して並べる**
+            // （§9.2.6 ④）。一致していれば従来どおり（指せない手が出たら止まる）。
+            applyOpen(next, { mgf, ignoreViolations: mismatched });
           }}
           onCancel={() => setPendingRule(null)}
         />

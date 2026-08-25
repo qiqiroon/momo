@@ -602,4 +602,37 @@ describe('S08 開いた瞬間の 1 局もルール定義を取り戻す (段2b�
     expect(screen.queryByText('ルール定義が必要です')).not.toBeInTheDocument();
     expect(screen.getByText('0 / 6')).toBeInTheDocument();
   });
+
+  /**
+   * ★段2c（§9.2.6 ④）＝**食い違う定義で「そのまま進める」を選んだら、このルールでは
+   * 指せない手も記録どおりに並べる**。ここは**人がたどる道をそのまま通す**
+   * （パネルにファイルを渡す → 3 択 → 進める → 末尾へ）。
+   */
+  it('★食い違う定義で「そのまま進める」＝指せない手も記録どおりに並ぶ', async () => {
+    makeUnresolvable();
+    render(<KifuReplayScreen />);
+
+    // **どの駒も動けないチェス**を選ばせる＝記録された手は全部「このルールでは指せない手」。
+    const crippled = {
+      ...JSON.parse(JSON.stringify(chess)),
+      pieces: chess.pieces.map((p) => ({ ...p, move_logic: { ...p.move_logic, abilities: [] } })),
+    };
+    const panelInput = document
+      .querySelector('.rulefile-panel')!
+      .querySelector('input[type="file"]') as HTMLInputElement;
+    const fake = { text: async () => JSON.stringify(crippled) } as unknown as File;
+    await act(async () => {
+      fireEvent.change(panelInput, { target: { files: [fake] } });
+    });
+
+    // 名前も版も棋譜（中将棋 0.1.0）と食い違うので 3 択が出る。
+    expect(screen.getByText('そのまま進める')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('そのまま進める'));
+
+    // 棋譜が開き、末尾まで送ると**6 手すべて**並ぶ（違反を無視していなければ 0 手のまま）。
+    expect(screen.getByText('0 / 6')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('▶|'));
+    expect(screen.getByText('6 / 6')).toBeInTheDocument();
+    expect(useGameStore.getState().position.history.length).toBe(6);
+  });
 });

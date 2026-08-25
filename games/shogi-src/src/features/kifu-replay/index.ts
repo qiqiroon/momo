@@ -326,7 +326,7 @@ export {
   resolveCustomRuleForOpen,
   customRuleMatches,
 } from './replay';
-export type { CustomRuleRef, CustomRuleResolution } from './replay';
+export type { CustomRuleRef, CustomRuleResolution, OpenedRule } from './replay';
 export { setReviewTarget, reviewTarget, reviewOrigin } from './review';
 export type { ReviewOrigin } from './review';
 export {

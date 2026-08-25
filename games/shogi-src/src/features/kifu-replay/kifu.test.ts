@@ -35,6 +35,7 @@ import {
   loadLastKifu,
   markKifuPendingDiscard,
 } from './storage';
+import type { Mgf } from '../../core/engine/mgf/types';
 import type { KifuFile } from './types';
 
 /**
@@ -250,9 +251,88 @@ describe('カスタムルールの取り戻し — 開く工程 (段2・§9.2.6)
     expect(auto.applied).toBeLessThan(auto.recorded);
 
     // ファイル選択で取り戻した定義 (ここではチェス) を渡すと、その定義で満額並ぶ。
-    const picked = replayKifu(unknown, undefined, chess);
+    const picked = replayKifu(unknown, undefined, { mgf: chess });
     expect(useGameStore.getState().position.width).toBe(8);
     expect(picked.applied).toBe(picked.recorded);
+  });
+});
+
+describe('食い違う定義での並べ直し — 違反を無視する (段2c・§9.2.6 ④)', () => {
+  beforeEach(() => {
+    discardKifu();
+    useAiStore.setState({ enabled: false });
+    useGameStore.setState({ currentCustomMgf: null });
+  });
+
+  /**
+   * **版だけが違い、どの駒も動けない**チェス。記録された手は 1 手目から全部
+   * 「このルールでは指せない手」になるので、**違反を無視するかどうかで結果が
+   * はっきり分かれる**（盤の形・駒の並びは本物のチェスと同じなので、並べられれば
+   * 同じ局面に戻るはず）。
+   */
+  const crippled: Mgf = {
+    ...chess,
+    metadata: { ...chess.metadata, version: '9.9.9' },
+    pieces: chess.pieces.map((p) => ({ ...p, move_logic: { ...p.move_logic, abilities: [] } })),
+  };
+
+  /** チェスを 6 手指した棋譜と、そのときの局面。 */
+  function chessGame(): { file: KifuFile; hash: string } {
+    useGameStore.getState().reset({ gameType: 'custom', customMgf: chess, quantum: false, torusMode: 'none', handicap: null });
+    playMoves(6);
+    const hash = positionHash(useGameStore.getState().position);
+    const file = parseKifu(serializeKifu(buildKifuFile(new Date())));
+    expect(file.moves.length).toBe(6);
+    return { file, hash };
+  }
+
+  it('★そのまま進めると、このルールで指せない手も記録どおりに並ぶ (同じ局面に戻る)', () => {
+    const { file, hash } = chessGame();
+    const r = replayKifu(file, undefined, { mgf: crippled, ignoreViolations: true });
+    expect(r.applied).toBe(r.recorded);
+    expect(positionHash(useGameStore.getState().position)).toBe(hash);
+  });
+
+  it('★同じ定義でも、無視しないなら 1 手目で止まる (段2c が効いていることの対)', () => {
+    const { file } = chessGame();
+    const r = replayKifu(file, undefined, { mgf: crippled });
+    expect(r.applied).toBe(0);
+    expect(r.recorded).toBe(6);
+  });
+
+  it('★終局が立っても止めない (食い違う定義は、本来と違う場所で終局を立てる)', () => {
+    const { file } = chessGame();
+    // **同じ局面が 1 回出たら引分**とする定義＝**1 手並べた時点で終局が立つ**。
+    // 版がずれると、こういう「本来と違う場所で立つ終局」が起こりうる。
+    const endsAtOnce: Mgf = { ...crippled, repetition: { detection_threshold: 1 } };
+    const r = replayKifu(file, undefined, { mgf: endsAtOnce, ignoreViolations: true });
+    expect(useGameStore.getState().status).not.toBe('playing');
+    // 終局で止める作りのままなら、ここは 1 手で終わっている。
+    expect(r.applied).toBe(6);
+  });
+
+  it('★止めないのは「違反」だけ＝盤と噛み合わない手はそこで止まる', () => {
+    const { file } = chessGame();
+    // 3 手目を「誰も居ないマスから動かす手」に差し替える＝運びようがない手。
+    const broken: KifuFile = {
+      ...file,
+      moves: [
+        ...file.moves.slice(0, 2),
+        { type: 'move', pieceId: 'no_such_piece', from: { row: 4, col: 4 }, to: { row: 3, col: 4 }, promote: false },
+        ...file.moves.slice(3),
+      ],
+    };
+    const r = replayKifu(broken, undefined, { mgf: chess, ignoreViolations: true });
+    expect(r.applied).toBe(2); // ここまでは記録どおり
+    expect(r.recorded).toBe(6);
+  });
+
+  it('一致して取り戻せた棋譜は従来どおり満額並ぶ (無回帰の対)', () => {
+    const { file, hash } = chessGame();
+    useGameStore.setState({ currentCustomMgf: null });
+    const r = replayKifu(file, undefined, { mgf: chess });
+    expect(r.applied).toBe(r.recorded);
+    expect(positionHash(useGameStore.getState().position)).toBe(hash);
   });
 });
 

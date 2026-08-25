@@ -347,7 +347,7 @@ export const ja: LocaleData = {
     's08.ruleFile.invalid': 'そのファイルはルール定義として読めませんでした。',
     's08.ruleFile.noVersion': '（記録なし）',
     's08.ruleFile.mismatchTitle': '選んだ定義が棋譜と違います',
-    's08.ruleFile.mismatchBody': '選んだ定義の名前か版が、この棋譜に記録されているものと一致しません。そのまま進めると、途中で並べ直せなくなることがあります。',
+    's08.ruleFile.mismatchBody': '選んだ定義の名前か版が、この棋譜に記録されているものと一致しません。そのまま進めると、このルールでは指せない手も記録どおりに並べます。',
     's08.ruleFile.kifuSide': '棋譜の記録',
     's08.ruleFile.fileSide': '選んだ定義',
     's08.ruleFile.proceed': 'そのまま進める',

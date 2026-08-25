@@ -23,8 +23,7 @@ import {
 import { seButton, seCapture, seCheck, seMove, seSelect } from '../../../core/audio/se-synth';
 import { saveKifuFile } from '../index';
 import { chooseFolder, rememberedFolder, type FsDirHandle } from '../folder';
-import { asReplay, holdReplayGuard, replayKifu, resolveCustomRuleForOpen, type CustomRuleRef } from '../replay';
-import type { Mgf } from '../../../core/engine/mgf/types';
+import { asReplay, holdReplayGuard, replayKifu, resolveCustomRuleForOpen, type CustomRuleRef, type OpenedRule } from '../replay';
 import { CustomRulePrompt } from './CustomRulePrompt';
 import {
   reviewApplyMoves,
@@ -102,16 +101,16 @@ export function ReviewScreen() {
    */
   const [initial] = useState<{
     file: KifuFile | null;
-    rule: Mgf | undefined;
+    rule: OpenedRule;
     pending: { next: KifuFile; ref: CustomRuleRef; initial?: boolean } | null;
   }>(() => {
     const first = reviewTarget();
-    if (!first) return { file: null, rule: undefined, pending: null };
+    if (!first) return { file: null, rule: {}, pending: null };
     const r = resolveCustomRuleForOpen(first);
     if (r.kind === 'needsFile') {
-      return { file: null, rule: undefined, pending: { next: first, ref: r.ref, initial: true } };
+      return { file: null, rule: {}, pending: { next: first, ref: r.ref, initial: true } };
     }
-    return { file: first, rule: r.kind === 'resolved' ? r.mgf : undefined, pending: null };
+    return { file: first, rule: { mgf: r.kind === 'resolved' ? r.mgf : undefined }, pending: null };
   });
 
   /**
@@ -148,10 +147,12 @@ export function ReviewScreen() {
   useEffect(() => setFlipView(false), [file, ownGame]);
   const [ply, setPly] = useState(0);
   /**
-   * ★段2: **開く工程で取り戻したカスタムルールの定義**（§9.2.6）。S08 と同じ扱い
-   * ＝ファイル選択で読んだ定義などを載せ、並べ直しに渡す。
+   * ★段2: **開く工程で用意したルール**（§9.2.6）。S08 と同じ扱い＝ファイル選択で
+   * 読んだ定義などを載せ、並べ直しに渡す。
+   * ★段2c: **「食い違ったまま進める」かどうかも同じ入れ物**＝この画面は 1 局が
+   * 差し替わる入口を 4 つ持つので、別々に持つと必ずどれかで書き忘れる。
    */
-  const [resolvedRule, setResolvedRule] = useState<Mgf | undefined>(initial.rule);
+  const [openedRule, setOpenedRule] = useState<OpenedRule>(initial.rule);
   /**
    * ★段2: 定義が取り戻せず、ファイル選択を待っている棋譜（§9.2.6 ②）。
    * `initial` は**入るときに決まっていた 1 局**かどうか＝これだけは
@@ -270,8 +271,8 @@ export function ReviewScreen() {
     requestKifuLoad(() => pickerRef.current?.click());
   };
   /** 取り戻しが済んだ棋譜で振り返る 1 局を差し替える（親 §9.4.1・§6.3.6）。 */
-  const applyReviewOpen = (next: KifuFile, rule: Mgf | undefined) => {
-    setResolvedRule(rule);
+  const applyReviewOpen = (next: KifuFile, rule: OpenedRule) => {
+    setOpenedRule(rule);
     // **差し替えたら初期局面から**（親 §9.4.1）＝分岐も持ち越さない。
     setFile(next);
     // ★v1.57: **読み込んだ棋譜は自分の対局ではない**＝盤は先手が下（親 §9.2.5）。
@@ -299,7 +300,7 @@ export function ReviewScreen() {
         setPendingRule({ next, ref: r.ref });
         return;
       }
-      applyReviewOpen(next, r.kind === 'resolved' ? r.mgf : undefined);
+      applyReviewOpen(next, { mgf: r.kind === 'resolved' ? r.mgf : undefined });
     } catch {
       // 棋譜でないものを選んだ。**いま振り返っている 1 局はそのまま**にして理由だけ出す
       //（画面機能 §3 S11「状態・エラー」＝失敗したら差し替えない）。
@@ -342,8 +343,8 @@ export function ReviewScreen() {
   // この後に指し足したぶんなので、並べ直すと消える（＝それが「捨てる」の実体）。
   useEffect(() => {
     if (file) {
-      // ★段2: 開く工程で取り戻した定義を渡す（§9.2.6・S08 と同じ）。
-      replayKifu(file, ply, resolvedRule);
+      // ★段2: 開く工程で用意したルールを渡す（§9.2.6・S08 と同じ）。
+      replayKifu(file, ply, openedRule);
     } else {
       // ★v1.67: **振り返る 1 局が無いときは、初期配置がそのまま本譜**（親 §9.4.1）。
       //
@@ -362,7 +363,7 @@ export function ReviewScreen() {
     const pending = pendingBranchRef.current;
     pendingBranchRef.current = null;
     if (pending && pending.length > 0) reviewApplyMoves(pending);
-  }, [file, ply, rebuild, resolvedRule]);
+  }, [file, ply, rebuild, openedRule]);
 
   /**
    * 相手の居場所を自分の盤へ映す（親 §6.3.6）。**毎回そこから組み立て直す**ので、
@@ -386,7 +387,9 @@ export function ReviewScreen() {
       // 対応は別段②）。取り戻せなければ undefined のまま＝従来どおり replayKifu が引き直す。
       if (target) {
         const r = resolveCustomRuleForOpen(target);
-        setResolvedRule(r.kind === 'resolved' ? r.mgf : undefined);
+        // ★段2c: **配られた 1 局は「食い違ったまま進める」に当たらない**＝ここでは
+        // 人に尋ねていないので、違反を無視する理由が無い（一致した定義か、無いか）。
+        setOpenedRule({ mgf: r.kind === 'resolved' ? r.mgf : undefined });
       }
       // ★v1.57: 配られた 1 局の出どころに従って向きを決め直す（親 §9.2.5）＝
       // 1 回目（いま指した対局の続き）なら自分の側、差し替え（ホストが読み込んだ）なら先手が下。
@@ -1320,19 +1323,21 @@ export function ReviewScreen() {
         <CustomRulePrompt
           locale={locale}
           kifuRef={pendingRule.ref}
-          onChoose={(mgf) => {
+          onChoose={(mgf, mismatched) => {
             const { next, initial: wasInitial } = pendingRule;
             setPendingRule(null);
+            // ★段2c: 食い違ったまま「そのまま進める」なら、違反を無視して並べる（§9.2.6 ④）。
+            const rule: OpenedRule = { mgf, ignoreViolations: mismatched };
             if (wasInitial) {
               // 入るときに決まっていた 1 局。**差し替えではない**ので、向きも
               // 配り直しも動かさない（定義が揃ったので盤に出すだけ）。
-              setResolvedRule(mgf);
+              setOpenedRule(rule);
               setFile(next);
               setPly(0);
               setRebuild((v) => v + 1);
               return;
             }
-            applyReviewOpen(next, mgf);
+            applyReviewOpen(next, rule);
           }}
           onCancel={() => setPendingRule(null)}
         />

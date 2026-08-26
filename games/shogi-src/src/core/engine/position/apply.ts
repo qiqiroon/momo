@@ -1,7 +1,7 @@
-import type { Mgf } from '../mgf/types';
+import type { Mgf, MgfPieceDef } from '../mgf/types';
 import type { BoardCell, Move, MoveStep, PieceInstance, Position } from './types';
 import { sandwichCaptures } from '../moves/sandwich';
-import { buildInitialKindMap, displayKindsFor } from '../candidate-kinds';
+import { buildInitialKindMap, displayKindsFor, resolveCandidateKinds } from '../candidate-kinds';
 import {
   capturedGoesToHand,
   promotionChoicesOf,
@@ -61,8 +61,15 @@ export function applyMove(mgf: Mgf, position: Position, move: Move): Position {
 
     let newKind = piece.kind;
     let newPromoted = piece.promoted;
+    let newReplaced = piece.replaced;
     if (move.promote && !piece.promoted) {
-      const def = mgf.pieces.find((p) => p.id === piece.kind);
+      // ★**昇格の型は名札で決めない**（量子分冊 §Q23.1・2026-08-26）。量子モードの
+      // `piece.kind` は「対局開始時にその位置に置かれていた駒種」であって正体ではないので、
+      // **ルークのマスから来た駒は、正体がポーンでも「入れ替わる昇格を持たない」と読まれる**
+      // ＝昇格を選んでも黙って昇格しなかった。v1.48 が裏返る成りで直したのと同じ誤りが、
+      // **入れ替わる昇格には届いていなかった**。候補のうち**入れ替わる昇格を持つ駒種**が
+      // あれば、それがこの手を説明できる唯一の候補である。
+      const def = replaceDefFor(mgf, piece, position) ?? mgf.pieces.find((p) => p.id === piece.kind);
       if (def && promotionTypeOf(def) === 'replace') {
         // 【v1.65 §3.6.2】**入れ替わる昇格**＝昇格した駒は昇格先の駒そのもので、
         // それ以上でも以下でもない。**元が何だったかを覚えておく理由が無い**
@@ -70,6 +77,10 @@ export function applyMove(mgf: Mgf, position: Position, move: Move): Position {
         // 裏返る成りの赤も付かない (先後を文字の色で表すルールで 3 色目にしない)。
         newKind = move.promoteTo ?? promotionChoicesOf(def)[0] ?? piece.kind;
         newPromoted = false;
+        // ★**昇格を経たという事実だけは残す**（§Q23.1）。駒そのものは昇格先の駒に
+        // なるが、**残さないと「昇格したことが誰にも分からない」**＝量子で正体が
+        // 確定できず、強制成りの制約が確定したはずの候補を落とす。
+        newReplaced = true;
       } else if (def?.promoted_id) {
         newKind = def.promoted_id;
         newPromoted = true;
@@ -97,6 +108,7 @@ export function applyMove(mgf: Mgf, position: Position, move: Move): Position {
       ...piece,
       kind: newKind,
       promoted: newPromoted,
+      ...(newReplaced ? { replaced: true } : {}),
     };
   } else {
     const player = position.sideToMove;
@@ -110,6 +122,24 @@ export function applyMove(mgf: Mgf, position: Position, move: Move): Position {
     newBoard[move.to.row][move.to.col] = { ...dropped };
   }
 
+
+/**
+ * 候補のうち**入れ替わる昇格を持つ駒種**の定義（量子分冊 §Q23.1）。
+ *
+ * **チェスで昇格できるのはポーンだけ**なので、昇格という行動を説明できる候補は
+ * ポーンしかない。したがって「候補の中に入れ替わる昇格を持つ駒種があるか」を見れば、
+ * **名札を見ずに**この手を解釈できる。通常将棋モード（候補が無い）では null を返し、
+ * 呼び出し側は従来どおり名札から引く。
+ */
+function replaceDefFor(mgf: Mgf, piece: PieceInstance, position: Position): MgfPieceDef | null {
+  if (piece.candidates === undefined) return null;
+  const kinds = resolveCandidateKinds(mgf, piece.candidates, piece.promoted, buildInitialKindMap(position));
+  for (const kind of kinds) {
+    const def = mgf.pieces.find((p) => p.id === kind);
+    if (def && promotionTypeOf(def) === 'replace') return def;
+  }
+  return null;
+}
 
 /**
  * ★v1.55: 感想戦の自由な手を適用する（親 v1.49 §9.4.2.1）。

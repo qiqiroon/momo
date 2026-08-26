@@ -154,7 +154,20 @@ function filterSide(pieces: PieceInstance[], out: AllowedMap): void {
 
   // --- 3. 使える辺を印付け ---
   const comp = tarjanScc(dir, nodeCount);
-  // 未使用の身元から到達できる節点 (そこから出る辺はすべて使える)
+  // ★**担い手の居ない身元からは、辺を逆向きにたどる**（量子分冊 §Q23.5・2026-08-26）。
+  //
+  // 使い残した身元 a があるなら、**a につながっている辺はどれも使える**（その駒を a へ
+  // 付け替え、いま使っていた身元を空ければ、割り当ての数は減らない）。そこから先も
+  // 「使っていない辺 → 使っている辺」と交互にたどるかぎり同じことが言える。
+  //
+  // ところが**この向き付けでは、使い残した身元から出ていく辺が 1 本も無い**
+  // （その身元につながる辺はすべて「駒 → 身元」の向き）。**そのまま前向きにたどると
+  // 何も拾えない**＝将棋では駒が盤外へ消えず身元と枚数が必ず一致するので使い残しが
+  // 生まれず、**この誤りは表に出なかった**。チェスの捕獲で初めて出る
+  // （実測 2026-08-26＝2 枚のうち 1 枚を取ったら、残った 1 枚が「取られたほうの身元」に
+  //  確定して顔が消えた）。**逆向きにたどる**のが正しい。
+  const rev: number[][] = Array.from({ length: nodeCount }, () => []);
+  for (let v = 0; v < nodeCount; v++) for (const w of dir[v]) rev[w].push(v);
   const reachable = new Array<boolean>(nodeCount).fill(false);
   const stack: number[] = [];
   for (let i = 0; i < m; i++) {
@@ -165,7 +178,7 @@ function filterSide(pieces: PieceInstance[], out: AllowedMap): void {
   }
   while (stack.length > 0) {
     const v = stack.pop()!;
-    for (const w of dir[v]) {
+    for (const w of rev[v]) {
       if (!reachable[w]) {
         reachable[w] = true;
         stack.push(w);
@@ -177,7 +190,8 @@ function filterSide(pieces: PieceInstance[], out: AllowedMap): void {
     const keep = new Set<PieceId>();
     keep.add(idList[matchOfPiece[u]]); // マッチング辺は必ず使える
     for (const i of adj[u]) {
-      if (comp[u] === comp[n + i] || reachable[u]) keep.add(idList[i]);
+      // ★**使い残した身元へ届く辺**（逆向きにたどって印の付いた身元）も使える。
+      if (comp[u] === comp[n + i] || reachable[n + i]) keep.add(idList[i]);
     }
     out.set(pieces[u].pieceId, keep);
   }

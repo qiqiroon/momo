@@ -94,6 +94,9 @@ export function displayKindsFor(
   kindMap: Map<PieceId, string>,
 ): string[] {
   if (piece.candidates === undefined) return [piece.kind];
+  // ★**入れ替わる昇格を経た駒は、正体が昇格先そのもの**（量子分冊 §Q23.1）。
+  // 候補（＝元が誰だったか）から顔を作ると、**女王になった駒がポーンの顔で出る**。
+  if (piece.replaced) return [piece.kind];
   const kinds = resolveCandidateKinds(mgf, piece.candidates, piece.promoted, kindMap);
   // 候補が空 (矛盾局面・C-901 相当) や resolve 不能のときは、
   // 描画が消えてしまわないよう現在の kind にフォールバックする。
@@ -118,6 +121,8 @@ export function confirmedKindOf(
   kindMap: Map<PieceId, string>,
 ): string | undefined {
   if (piece.candidates === undefined) return piece.kind;
+  // ★入れ替わる昇格を経た駒は、正体が昇格先そのもの（量子分冊 §Q23.1）。
+  if (piece.replaced) return piece.kind;
   const kinds = resolveCandidateKinds(mgf, piece.candidates, piece.promoted, kindMap);
   return kinds.length === 1 ? kinds[0] : undefined;
 }

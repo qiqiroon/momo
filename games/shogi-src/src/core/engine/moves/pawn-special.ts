@@ -25,6 +25,7 @@ import type { Mgf, MgfPieceDef, Player } from '../mgf/types';
 import type { BoardMove, Position, Square } from '../position/types';
 import { topologyOf, wrapSquare } from '../position/coordinates';
 import { directionOffsets } from './directions';
+import { buildInitialKindMap, displayKindsFor } from '../candidate-kinds';
 
 /** その駒種は「前へ 1 マス・取れない」動き (＝ポーンの前進) を持つか。 */
 function hasPawnPush(def: MgfPieceDef): boolean {
@@ -33,12 +34,59 @@ function hasPawnPush(def: MgfPieceDef): boolean {
   );
 }
 
-/** 盤上の駒がポーン (§5.5.3 の意味で) か。量子で正体が未確定な駒はここでは扱わない。 */
-function isPawnAt(mgf: Mgf, position: Position, sq: Square): boolean {
+/**
+ * その駒がいま名乗りうる駒種（量子分冊 §Q5.3）。
+ *
+ * ★**名札で決めない**＝量子モードの `piece.kind` は「対局開始時にその位置に置かれていた
+ * 駒種」であって正体ではない。候補から作り直す。
+ */
+function kindsAt(mgf: Mgf, position: Position, sq: Square): string[] {
   const cell = position.board[sq.row][sq.col];
-  if (!cell || cell.candidates !== undefined) return false;
-  const def = mgf.pieces.find((p) => p.id === cell.kind);
+  if (!cell) return [];
+  return displayKindsFor(mgf, cell, buildInitialKindMap(position));
+}
+
+/** 盤上の駒がポーン (§5.5.3 の意味で) でありうるか。 */
+function isPawnAt(mgf: Mgf, position: Position, sq: Square): boolean {
+  return kindsAt(mgf, position, sq).some((kind) => {
+    const def = mgf.pieces.find((p) => p.id === kind);
+    return !!def && hasPawnPush(def);
+  });
+}
+
+/**
+ * その駒種は「前へ 1 マス・取れない」動きを持つか（＝§5.5.3 の意味でのポーン）。
+ * 量子の絞り込み側（C-101）からも使うので外へ出してある。
+ */
+export function isPawnKind(mgf: Mgf, kind: string): boolean {
+  const def = mgf.pieces.find((p) => p.id === kind);
   return !!def && hasPawnPush(def);
+}
+
+/**
+ * **その手はポーンの初手 2 マスか**（親 §5.5.3）。
+ *
+ * ★量子の絞り込みが要る（量子分冊 §Q23.4）＝**初手 2 マスは動きの定義では説明できない手**
+ * である。C-101 は「その正体で出発点から着地点へ動けるか」だけを見るので、そのまま通すと
+ * **ポーンの候補まで落としてしまう**（キャスリングで王の候補が落ちるのとまったく同じ形）。
+ */
+export function isPawnDoubleStep(
+  mgf: Mgf,
+  position: Position,
+  move: { from: Square; to: Square; pieceId: string },
+): boolean {
+  if (!mgf.constraints?.pawn_double_step) return false;
+  const landed = position.board[move.to.row][move.to.col];
+  if (!landed || landed.pieceId !== move.pieceId) return false;
+  // 一度も動いていない駒が、初期マスから前へ 2 マスまっすぐ進んだか。
+  if (move.from.row !== landed.initialSquare.row || move.from.col !== landed.initialSquare.col) return false;
+  const { width, height } = position;
+  const topology = topologyOf(position);
+  const fwd = directionOffsets('forward', landed.owner)[0];
+  const one = wrapSquare({ row: move.from.row + fwd.drow, col: move.from.col + fwd.dcol }, width, height, topology);
+  if (!one) return false;
+  const two = wrapSquare({ row: one.row + fwd.drow, col: one.col + fwd.dcol }, width, height, topology);
+  return !!two && two.row === move.to.row && two.col === move.to.col;
 }
 
 /**
@@ -49,9 +97,13 @@ function isPawnAt(mgf: Mgf, position: Position, sq: Square): boolean {
  */
 export function pawnSpecialMoves(mgf: Mgf, position: Position, from: Square): BoardMove[] {
   const piece = position.board[from.row][from.col];
-  if (!piece || piece.candidates !== undefined) return [];
-  const def = mgf.pieces.find((p) => p.id === piece.kind);
-  if (!def || !hasPawnPush(def)) return [];
+  if (!piece) return [];
+  // ★**量子モードでも生む**（量子分冊 §Q23.4・2026-08-26）。v1.91 まではここで
+  // 候補集合を持つ駒をまるごと弾いており、**量子でチェスを指すと初手 2 マスも
+  // アンパッサンも一度も現れなかった**（規定 §5.5.7 は量子との併用を「可」としている）。
+  // **正体がポーンでありうる**なら、その手はこの駒に開かれていなければならない
+  // （説明できる候補があるかどうかは C-101 が後で引き受ける）。
+  if (!isPawnAt(mgf, position, from)) return [];
 
   const moves: BoardMove[] = [];
   const doubleStep = pawnDoubleStep(position, from, piece.owner, piece.pieceId, piece.initialSquare);

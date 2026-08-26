@@ -23,9 +23,12 @@ export function generatePieceMoves(mgf: Mgf, position: Position, from: Square): 
   if (!piece) return [];
   if (piece.owner !== position.sideToMove) return [];
 
-  const candidateKinds = piece.candidates
-    ? resolveCandidateKinds(mgf, piece.candidates, piece.promoted, buildInitialKindMap(position))
-    : [piece.kind];
+  // ★**入れ替わる昇格を経た駒は、昇格先の駒として動く**（量子分冊 §Q23.1）＝候補
+  // （元が誰だったか）から動きを作ると、**女王になった駒がポーンの動きしかできない**。
+  const candidateKinds =
+    piece.candidates && !piece.replaced
+      ? resolveCandidateKinds(mgf, piece.candidates, piece.promoted, buildInitialKindMap(position))
+      : [piece.kind];
 
   const moves: BoardMove[] = [];
   const seen = new Set<string>();
@@ -181,6 +184,8 @@ function canPromoteMove(
   // 入れ替わる昇格は昇格先の候補が要る)。piece-rules に集めた読み方を使う。
   if (!canPromoteKind(def)) return false;
   if (piece.promoted) return false;
+  // ★一度昇格した駒は二度と昇格しない（入れ替わる昇格は `promoted` を立てない）。
+  if (piece.replaced) return false;
   const zone = mgf.board.promotion_zone?.[piece.owner];
   if (!zone) return false;
   const inZone = (row: number) => {
@@ -199,6 +204,7 @@ function mustPromoteMove(
 ): boolean {
   if (!canPromoteKind(def)) return false;
   if (piece.promoted) return false;
+  if (piece.replaced) return false;
   // Phase 4 (親 §3.9 v1.11 追記) / 【v1.65 §3.6.3】: 上下がつながっている盤 (完全トーラス)
   // には「行き所のない駒」が存在しないので、**その理由で必ず成る駒だけ**強制が外れる。
   // **ルールとしてそう決まっている駒 (チェスのポーン) は、つながっていても外れない**。

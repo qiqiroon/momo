@@ -27,6 +27,7 @@ import { directionOffsets } from '../../../core/engine/moves/directions';
 import { topologyOf, wrapSquare } from '../../../core/engine/position/coordinates';
 import { fileHasCertainPawn } from '../../../core/engine/moves/nifu';
 import { castlingStepOfLastMove } from '../../../core/engine/moves/castling';
+import { isPawnDoubleStep, isPawnKind } from '../../../core/engine/moves/pawn-special';
 import type {
   QuantumConstraint,
   QuantumPieceLocation,
@@ -125,6 +126,17 @@ export const c101ActionPossibility: QuantumConstraint = (piece, location, pos, m
   // 王の動きは 1 マスしかない。ここで見ると**王の候補を落としてしまう**ので素通りさせ、
   // 確定は C-110 に任せる。
   if (castlingStepOfLastMove(mgf, pos)) return new Set(piece.candidates);
+  // 【§Q23.4】**ポーンの初手 2 マスも動きの定義では説明できない手**（前へ 1 マスしか
+  // 書かれていない）。キャスリングとまったく同じ理由でここを素通りさせ、かわりに
+  // **その手を説明できる唯一の顔ぶれ＝ポーン**へ絞る（2 マス進めるのはポーンだけ）。
+  if (isPawnDoubleStep(mgf, pos, lastMove)) {
+    const survivors = new Set<PieceId>();
+    for (const pid of piece.candidates) {
+      const initialKind = resolveInitialKind(context, pid);
+      if (initialKind !== undefined && isPawnKind(mgf, initialKind)) survivors.add(pid);
+    }
+    return survivors;
+  }
 
   // 「移動した駒が実際にどの姿で動いたか」を決める:
   // - lastMove.promote === true: 移動そのものは未成の姿で行い、着手完了時に成る。
@@ -205,6 +217,9 @@ export const c104DeadZone: QuantumConstraint = (piece, location, _pos, mgf, cont
   }
   if (location.kind !== 'board') return new Set(piece.candidates);
   if (piece.promoted) return new Set(piece.candidates);
+  // ★**入れ替わる昇格を経た駒は、もう昇格していない駒ではない**（量子分冊 §Q23.1）。
+  // 印を見ないと「最奥段に居るのに成っていない駒」に見え、**確定したはずの候補を落とす**。
+  if (piece.replaced) return new Set(piece.candidates);
 
   const survivors = new Set<PieceId>();
   const rank = location.square.row + 1;
@@ -236,6 +251,10 @@ export const c105ForcedPromotion: QuantumConstraint = (piece, location, _pos, mg
   // 外さず、駒ごとの判定 (forcedPromotionApplies) に任せる。
   if (location.kind !== 'board') return new Set(piece.candidates);
   if (piece.promoted) return new Set(piece.candidates);
+  // ★入れ替わる昇格を経た駒は対象外（§Q23.1）。**ここを見落とすと逆のことが起きる**＝
+  // 昇格してポーンに確定したばかりの駒から、**そのポーン候補を落としてしまう**
+  // （候補が空になって量子異常）。
+  if (piece.replaced) return new Set(piece.candidates);
 
   const survivors = new Set<PieceId>();
   const rank = location.square.row + 1;
@@ -269,7 +288,11 @@ export const c105ForcedPromotion: QuantumConstraint = (piece, location, _pos, mg
  */
 export const c109UnpromotableExclusion: QuantumConstraint = (piece, _location, _pos, mgf, context) => {
   if (piece.candidates === undefined) return new Set();
-  if (!piece.promoted) return new Set(piece.candidates);
+  // ★**昇格の型が違っても規則は同じ**（量子分冊 §Q23.1・2026-08-26）。裏返る成りは
+  // `promoted` が立ち、入れ替わる昇格は `replaced` が立つ。**どちらも「昇格した」という
+  // 同じ事実**なので、分けて別の制約を作らない。チェスでは昇格できる駒種がポーンだけ
+  // なので、これだけで**ポーンに確定する**（§Q23.1 の言う確定はこれで成立する）。
+  if (!piece.promoted && !piece.replaced) return new Set(piece.candidates);
   const survivors = new Set<PieceId>();
   for (const pid of piece.candidates) {
     const info = context.infoMap.get(pid);

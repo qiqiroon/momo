@@ -43,6 +43,25 @@ import type { QuantumConstraint } from '../candidate-update';
 import { c303AssignmentConsistency } from './assignment';
 
 /**
+ * ★**その陣営で「身元がぜんぶ担われている」と言えるか**（量子分冊 §Q23.5）。
+ *
+ * 「身元 X は必ずどれかの駒が担っている」という数え方は、**駒が盤外へ消えないこと**に
+ * 乗っている。将棋は取られても駒台に残るので常に成り立つが、**チェスの捕獲は盤から
+ * 取り除く**ので、担い手の居ない身元ができる。そのまま数えると**生き残った駒に、
+ * 消えたはずの身元を強引に背負わせる**（実測 2026-08-26）。
+ *
+ * 身元の勘定には残す（§Q23.5）が、**枚数と身元の数が合っているときだけ**「他に居場所が
+ * 無い」と言える。合わないときの強い絞り込みは C-303（割り当ての整合）が引き受ける
+ * ＝あちらは担い手の居ない身元を空きとして正しく扱う。
+ */
+function identitiesAllBorne(pos: Position, side: Player): boolean {
+  const pieces = collectAllQuantumPieces(pos).filter((p) => p.candidates && p.initialOwner === side);
+  const identities = new Set<PieceId>();
+  for (const p of pieces) for (const pid of p.candidates!) identities.add(pid);
+  return identities.size === pieces.length;
+}
+
+/**
  * C-106 unique assignment (hidden single).
  *
  * 各初期 PieceID X について、X を candidates に含む現在駒を集計。
@@ -71,6 +90,19 @@ export const c106UniqueAssignment: QuantumConstraint = (piece, _location, pos, _
       else carriers.set(pid, [p]);
     }
   }
+
+  // ★**駒が盤外へ消えるルールでは「他に居場所が無い」が言えない**（量子分冊 §Q23.5）。
+  //
+  // この制約は「身元 X は必ずどれかの駒が担っている」に乗っている。将棋は取られても
+  // 駒台に残るので常に成り立つが、**チェスの捕獲は盤から取り除く**ので、**担い手の
+  // 居ない身元**ができる。そのまま数えると、**生き残った駒に、消えたはずの身元を
+  // 強引に背負わせる**（実測 2026-08-26＝2 枚のうち 1 枚を取ったら、残った 1 枚が
+  // 「取られたほうの身元」に確定して顔が消えた）。
+  //
+  // 身元の勘定には残す（§Q23.5）が、**枚数と身元の数が合っているときだけ**「他に
+  // 居場所が無い」と言える。合わなくなったら、強い絞り込みは C-303（割り当ての整合）
+  // が引き受ける＝あちらは担い手の居ない身元を空きとして正しく扱う。
+  if (!identitiesAllBorne(pos, piece.initialOwner)) return new Set(piece.candidates);
 
   // 自分の candidates 内で「担当が自分だけ (list.length==1)」の X を探す。見つかれば
   // その X に narrow (hidden single)。見つからなければ candidates 変化なし。
@@ -196,6 +228,8 @@ export const c108FuFileConservation: QuantumConstraint = (piece, location, pos, 
  */
 export const c302CountConfirmation: QuantumConstraint = (piece, _location, pos, _mgf, context) => {
   if (piece.candidates === undefined) return new Set();
+  // ★駒が盤外へ消えたあとは「n 個の身元を n 枚で分け合うしかない」が言えない（§Q23.5）。
+  if (!identitiesAllBorne(pos, piece.initialOwner)) return new Set(piece.candidates);
 
   // 自分の候補が全部同じグループなら、狭めても何も変わらないので早期に打ち切る。
   const myGroups = new Set<string>();

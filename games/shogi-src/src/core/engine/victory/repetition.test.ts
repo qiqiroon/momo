@@ -7,11 +7,13 @@
  * 3. **アンパッサンは「実際に取れるか」で見る**＝取れる駒が居なければ同じ局面として数える
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { chess, hondou } from '../mgf/loader';
+import type { Mgf } from '../mgf/types';
 import type { BoardMove, PieceInstance, Position } from '../position/types';
 import { countSamePositions, hiddenRightsFingerprint } from './repetition';
 import { positionHash } from '../position/hash';
+import { useGameStore } from '../../store/game-store';
 
 function mk(
   kind: string,
@@ -167,6 +169,68 @@ describe('9-4d 同じ局面か（アンパッサンは「実際に取れるか�
     const justPassed = withWhitePawn(0, [doubleStep]);
     const arrivedSlowly = withWhitePawn(0, [oneStep]);
     expect(countSamePositions(chess, [justPassed], arrivedSlowly)).toBe(2);
+  });
+});
+
+describe('9-4d 自動で成立する側でも、権利まで確かめる', () => {
+  /** 2 回目の出現で自動成立するチェス（主張は書かない）。 */
+  function twiceRule(): Mgf {
+    const rule = JSON.parse(JSON.stringify(chess)) as Mgf;
+    rule.repetition = { type: 'draw', detection_threshold: 2 };
+    return rule;
+  }
+
+  /** 王・ルーク・ナイトだけの盤（ルークを往復させると権利が変わる）。 */
+  function rookBoard(): Position {
+    const board = emptyBoard();
+    place(board, mk('king', 'player1', 7, 0), 7, 0);
+    place(board, mk('rook', 'player1', 7, 7), 7, 7);
+    place(board, mk('king', 'player2', 0, 4), 0, 4);
+    place(board, mk('knight', 'player2', 0, 1), 0, 1);
+    return posOf(board, []);
+  }
+
+  /** ルークと相手のナイトを往復させて、同じ配置へ戻る 4 手。 */
+  function roundTrip() {
+    const st = useGameStore.getState();
+    st.selectSquare({ row: 7, col: 7 });
+    expect(st.tryMove({ row: 6, col: 7 })).toBe(true);
+    st.selectSquare({ row: 0, col: 1 });
+    expect(st.tryMove({ row: 2, col: 2 })).toBe(true);
+    st.selectSquare({ row: 6, col: 7 });
+    expect(st.tryMove({ row: 7, col: 7 })).toBe(true);
+    st.selectSquare({ row: 2, col: 2 });
+    expect(st.tryMove({ row: 0, col: 1 })).toBe(true);
+  }
+
+  beforeEach(() => {
+    useGameStore.getState().reset({ gameType: 'custom', customMgf: twiceRule() });
+    const pos = rookBoard();
+    useGameStore.setState({
+      position: pos,
+      positionCounts: { [positionHash(pos)]: 1 },
+      positionHistory: [],
+      positionCountsHistory: [],
+      selectedSquare: null,
+      selectedHandPieceId: null,
+      legalDestinations: [],
+    });
+  });
+
+  it('配置が戻っても、ルークが動いて権利が変わっていれば成立しない', () => {
+    roundTrip();
+    // 粗い印では 2 回目だが、キャスリングの権利が違うので同じ局面ではない
+    expect(useGameStore.getState().status).toBe('playing');
+  });
+
+  it('権利まで同じ形が 2 回目になったら成立する', () => {
+    roundTrip();
+    // ルークが動いたあとの形は、2 周目の 1 手目でもう 2 回目になる
+    // （権利はどちらも「ルークは動いた後」で揃っているため）。
+    const st = useGameStore.getState();
+    st.selectSquare({ row: 7, col: 7 });
+    expect(st.tryMove({ row: 6, col: 7 })).toBe(true);
+    expect(useGameStore.getState().status).toBe('sennichite');
   });
 });
 

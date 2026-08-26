@@ -167,6 +167,16 @@ describe('9-4c キャスリングを生む', () => {
     expect(kingMovesTo(p, G1)).toHaveLength(0);
   });
 
+  it('相方が近すぎると出ない (王が相方のマスに乗ってしまう)', () => {
+    // g1 のルーク＝王から 2 マス。王も 2 マス動くので、そのままでは重なる。
+    const p = posWith([
+      mk('king', 'player1', E1.row, E1.col, 'wk'),
+      mk('rook', 'player1', G1.row, G1.col, 'wrg'),
+      mk('king', 'player2', E8.row, E8.col, 'bk'),
+    ]);
+    expect(kingMovesTo(p, G1).filter((m) => m.extra_steps)).toHaveLength(0);
+  });
+
   it('いま王手されていたら、どちらも出ない', () => {
     const p = bareCastlingBoard([mk('rook', 'player2', 3, E1.col, 'br')]);
     expect(kingMovesTo(p, G1)).toHaveLength(0);

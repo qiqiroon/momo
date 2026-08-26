@@ -25,6 +25,12 @@ function reasonKeyOf(status: GameStatus): string | null {
       return 'result.reason.resign';
     case 'sennichite':
       return 'result.reason.sennichite';
+    case 'stalemate':
+      // ★v1.90: ステイルメイト (親 §3.10・チェス §5.5.5)。
+      return 'result.reason.stalemate';
+    case 'stalemate_loss_p1':
+    case 'stalemate_loss_p2':
+      return 'result.reason.stalemate_loss';
     case 'agreed_draw':
       return 'result.reason.agreed_draw';
     case 'jishogi':

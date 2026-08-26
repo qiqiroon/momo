@@ -11,6 +11,7 @@ import {
   initPosition,
   isCheckmate,
   isInCheck,
+  isStalemate,
   mgfForGameType,
   positionHash,
 } from '../engine';
@@ -179,6 +180,18 @@ export interface PendingPromotion {
 export type GameStatus =
   | 'playing'
   | 'checkmate'
+  /**
+   * ★v1.90: ステイルメイト＝**王手ではないが指す手が無い**ときの引き分け
+   * (親 v1.65 §3.10・チェス §5.5.5)。**ルール定義が欄を持つときだけ起きる**。
+   */
+  | 'stalemate'
+  /**
+   * ★v1.90: 手詰まり負け＝ステイルメイトを `result:"loss"` と書いたルール用
+   * (将棋の手詰まり)。**`_p1` は先手が手詰まりになった側**＝後手の勝ち
+   * (`timeout_p1` と同じ向きの名前)。同梱ルールはどれも欄を持たない。
+   */
+  | 'stalemate_loss_p1'
+  | 'stalemate_loss_p2'
   | 'sennichite'
   | 'nyugyoku_win_p1'
   | 'nyugyoku_win_p2'
@@ -257,14 +270,16 @@ export function winnerOf(
     case 'annihilation_win_p1':
     case 'resigned_p2':
     case 'timeout_p2':
+    case 'stalemate_loss_p2':
       return 'player1';
     case 'nyugyoku_win_p2':
     case 'annihilation_win_p2':
     case 'resigned_p1':
     case 'timeout_p1':
+    case 'stalemate_loss_p1':
       return 'player2';
     default:
-      // playing / sennichite / agreed_draw / jishogi / nogame は勝った側が居ない
+      // playing / stalemate / sennichite / agreed_draw / jishogi / nogame は勝った側が居ない
       return null;
   }
 }
@@ -690,6 +705,19 @@ function computeStatusAfterMove(
   }
   if (isCheckmate(mgf, position)) {
     return { status: 'checkmate', positionCounts };
+  }
+  // ★v1.90 (親 §3.10・§5.5.5): ステイルメイト。**詰みの次に見る**＝どちらも「指す手が
+  // 無い」局面で、王手されているかだけが違う。**欄を持たないルールでは常に false** な
+  // ので、本将棋・はさみ将棋はここを素通りする (毎手の重さは変わらない)。
+  if (isStalemate(mgf, position)) {
+    if ((mgf.victory?.stalemate?.result ?? 'draw') === 'loss') {
+      // 手番が回ってきた側の負け (将棋の手詰まり)。
+      return {
+        status: position.sideToMove === 'player1' ? 'stalemate_loss_p1' : 'stalemate_loss_p2',
+        positionCounts,
+      };
+    }
+    return { status: 'stalemate', positionCounts };
   }
   const hash = positionHash(position);
   const count = (positionCounts[hash] ?? 0) + 1;

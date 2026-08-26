@@ -219,12 +219,30 @@ export interface MgfJishogi {
   trigger?: MgfEndTrigger;
 }
 
+/**
+ * ステイルメイト (親 v1.65 §3.10・§5.5.5)。**王手ではないが、指す手が無い**。
+ *
+ * **省略時は判定しない**＝本将棋・はさみ将棋は欄を持たないので、手が無くなっても
+ * 従来どおり何も起こらない (縮退互換)。**欄を持つルールだけが判定の代金を払う**
+ * ＝合法手が 1 つでもあるかを毎手調べるのは、この欄があるときだけ。
+ *
+ * - `draw` … 引き分け (チェス)
+ * - `loss` … **手番が回ってきた側の負け** (将棋の手詰まり)
+ */
+export interface MgfStalemate {
+  result?: 'draw' | 'loss';
+  /** 起こし方 (§3.10.0)。ステイルメイトは**自動**。省略時 `auto`。 */
+  trigger?: MgfEndTrigger;
+}
+
 export interface MgfVictory {
   type?: 'capture_royalty' | 'bare_king' | 'points' | 'flag_capture' | 'annihilation' | 'check_wins';
   royalty_ids?: string[];
   entering_king?: MgfEnteringKing;
   /** 持将棋 (親 v1.62 §4.4.1)。省略時は提案を出さない。 */
   jishogi?: MgfJishogi;
+  /** ステイルメイト (親 v1.65 §3.10)。**省略時は判定しない**。 */
+  stalemate?: MgfStalemate;
   /**
    * `annihilation` の成立枚数 (親 §3.10)。相手の**盤上の駒がこの枚数以下**になったら勝ち。
    * 省略時 0 = 文字どおりの全滅。はさみ将棋の標準は 2 (§5.3)。

@@ -224,6 +224,26 @@ export function isCheckmate(mgf: Mgf, position: Position): boolean {
 }
 
 /**
+ * ステイルメイト = **王手ではないが、手番の側に指す手が無い** (親 v1.65 §3.10・§5.5.5)。
+ *
+ * **ルール定義が欄を持たないときは常に false**＝「省略時は判定しない」。判定の可否を
+ * ここで閉じておけば、呼ぶ側が毎回思い出さなくてよい。**本将棋・はさみ将棋は欄が無い
+ * ので、盤を 1 枚も余分に作らずに素通りする** (毎手の重さが増えない)。
+ *
+ * 詰みと同じ材料 (王手か・逃げ道があるか) を逆向きに見るだけなので、判定の本体は
+ * `isCheckmate` と共通。**呼ぶ側は詰みを先に見ること**＝両方が同時に真になることは
+ * 無いが、順番を決めておけば読む人が迷わない。
+ *
+ * 量子では §Q13.1 により**王が確定するまで王手が成立しない**ので、未確定のまま手が
+ * 尽きた局面はステイルメイトとして扱われる (盤が黙って止まるよりは終局として出す)。
+ */
+export function isStalemate(mgf: Mgf, position: Position): boolean {
+  if (!mgf.victory?.stalemate) return false;
+  if (isInCheck(mgf, position, position.sideToMove)) return false;
+  return !hasAnyLegalMove(mgf, position, { skipUchifuTsume: true });
+}
+
+/**
  * 合法手が 1 つでもあるか。**最初の 1 つが見つかった時点で打ち切る**。
  *
  * 詰み判定は「逃げ道が 1 つでもあるか」しか要らないのに、以前は合法手を全部作ってから

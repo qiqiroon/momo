@@ -34,7 +34,7 @@ export {
   generateAllBoardMoves,
 } from './moves/generator';
 export { generateDropMoves } from './moves/drops';
-export { generateLegalMoves, isMoveLegal, isCheckmate } from './moves/legal';
+export { generateLegalMoves, isMoveLegal, isCheckmate, isStalemate } from './moves/legal';
 export { findKing, isSquareAttackedBy, isInCheck } from './moves/check';
 export { directionOffsets } from './moves/directions';
 export {

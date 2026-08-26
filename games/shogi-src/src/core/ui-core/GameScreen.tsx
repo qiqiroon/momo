@@ -395,7 +395,9 @@ export function GameScreen({ variant }: GameScreenProps) {
       status === 'playing' ||
       status === 'sennichite' ||
       status === 'agreed_draw' ||
-      status === 'jishogi'
+      status === 'jishogi' ||
+      // ★v1.90: ステイルメイトも勝った側が居ない (手詰まり負けの側は勝敗がつく)。
+      status === 'stalemate'
     )
       return;
     // オンライン: 自分の勝ちなら fanfare、負けなら lose。オフラインでは負けた側視点で lose。
@@ -461,7 +463,12 @@ export function GameScreen({ variant }: GameScreenProps) {
   const turnLabel =
     status === 'checkmate'
       ? t(position.sideToMove === 'player1' ? 'status.checkmate_p1' : 'status.checkmate_p2')
-      : status === 'sennichite'
+      : status === 'stalemate' ||
+          status === 'stalemate_loss_p1' ||
+          status === 'stalemate_loss_p2'
+        ? // ★v1.90: ステイルメイト。状態の名前がそのまま翻訳キーになる。
+          t(`status.${status}`)
+        : status === 'sennichite'
         ? t('status.sennichite')
         : status === 'nyugyoku_win_p1'
           ? t('status.nyugyoku_win_p1')
@@ -2113,6 +2120,14 @@ function GameEndModal({
       break;
     case 'sennichite':
       reasonKey = 'result.reason.sennichite';
+      break;
+    case 'stalemate':
+      // ★v1.90: ステイルメイト (親 §3.10・チェス §5.5.5)。
+      reasonKey = 'result.reason.stalemate';
+      break;
+    case 'stalemate_loss_p1':
+    case 'stalemate_loss_p2':
+      reasonKey = 'result.reason.stalemate_loss';
       break;
     case 'agreed_draw':
       reasonKey = 'result.reason.agreed_draw';

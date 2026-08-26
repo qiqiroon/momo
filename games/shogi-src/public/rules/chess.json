@@ -27,6 +27,7 @@
   "victory": {
     "type": "capture_royalty",
     "royalty_ids": ["king"],
+    "stalemate": { "result": "draw", "trigger": "auto" },
     "resign_allowed": true
   },
   "pieces": [

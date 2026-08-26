@@ -21,6 +21,7 @@ import { formatMove, pieceNameJa, squareNameJa } from '../engine/kifu/format';
 import { NO_LIMIT_TIME_CONTROL, initClockState, type ClockState, type TimeControl } from '../engine/time-control';
 import { get as pluginGet } from '../plugin/registry';
 import type { OnlineGameConnector } from '../plugin/gameConnector';
+import { isSameWireMove, wireMoveOf, type WireMove } from '../protocol/wire-move';
 import { useDebugStore, type DebugCandidateChangeEntry } from './debug-store';
 import { DEFAULT_QUANTUM_PARAMS, type QuantumParams } from './quantum-params';
 import {
@@ -520,15 +521,7 @@ interface GameState {
    * pieceId / from / to / promote に完全一致する合法手を探して適用。
    * 対応する合法手が見つからなければ false を返す（同期ずれ）。
    */
-  applyRemoteMove: (msg: {
-    kind: 'move' | 'drop';
-    pieceId: string;
-    from?: Square;
-    to: Square;
-    promote?: boolean;
-    /** 【v1.65 §3.6.2】入れ替わる昇格の昇格先。突き合わせてどの合法手かを一意に決める。 */
-    promoteTo?: string;
-  }) => boolean;
+  applyRemoteMove: (msg: WireMove) => boolean;
   /**
    * ★v1.55: 感想戦で盤を自由に組み替える 1 手を適用する（親 v1.49 §9.4.2.1）。
    *
@@ -1736,31 +1729,11 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (status !== 'playing') return false;
     const legal = generateLegalMoves(mgf, position);
     let target: Move | null = null;
-    if (msg.kind === 'move') {
-      if (!msg.from) return false;
-      const found = legal.find(
-        (m): m is BoardMove =>
-          m.type === 'move' &&
-          m.pieceId === msg.pieceId &&
-          m.from.row === msg.from!.row &&
-          m.from.col === msg.from!.col &&
-          m.to.row === msg.to.row &&
-          m.to.col === msg.to.col &&
-          m.promote === (msg.promote ?? false) &&
-          // 【v1.65 §3.6.2】入れ替わる昇格は昇格先で見分ける (指定が無い側は昇格先を持たない手)。
-          m.promoteTo === msg.promoteTo,
-      );
-      if (found) target = found;
-    } else {
-      const found = legal.find(
-        (m) =>
-          m.type === 'drop' &&
-          m.pieceId === msg.pieceId &&
-          m.to.row === msg.to.row &&
-          m.to.col === msg.to.col,
-      );
-      if (found) target = found;
-    }
+    // ★v1.90: 届いた項目と合法手の突き合わせは 1 か所 (isSameWireMove)。
+    //   **続けて起きる動きの並びまで見る**＝同じ「どこからどこへ」で中身の違う手が
+    //   2 通りある場面 (量子でのキャスリングとクイーンの横滑り) を取り違えないため。
+    const found = legal.find((m) => isSameWireMove(m, msg));
+    if (found) target = found;
     if (!target) return false;
     applyAndCommit(set, get, target, 'remote');
     return true;
@@ -1775,22 +1748,13 @@ export const useGameStore = create<GameState>((set, get) => ({
     // 記録された手をそのまま適用せず、**いまの局面の合法手と突き合わせてから**適用する。
     // 棋譜の中の手は座標と駒の番号しか持たないので、取った駒の番号のように
     // 局面から決まる項目は合法手生成が出したものを使う (自分で組み立てると食い違う)。
-    const target = generateLegalMoves(mgf, position).find((m) =>
-      move.type === 'move'
-        ? m.type === 'move' &&
-          m.pieceId === move.pieceId &&
-          m.from.row === move.from.row &&
-          m.from.col === move.from.col &&
-          m.to.row === move.to.row &&
-          m.to.col === move.to.col &&
-          m.promote === move.promote &&
-          m.promoteTo === move.promoteTo
-        : move.type === 'drop' &&
-          m.type === 'drop' &&
-          m.pieceId === move.pieceId &&
-          m.to.row === move.to.row &&
-          m.to.col === move.to.col,
-    );
+    // ★v1.90: 突き合わせ方は相手の着手を受けるときと同じ 1 か所 (isSameWireMove)＝
+    //   **記録に書かれた並びも見る**ので、同じ座標で中身の違う手を取り違えない。
+    //   `free`（感想戦の自由な手）は棋譜に入らないのでここへは来ない。
+    const wanted = move.type === 'free' ? null : wireMoveOf(move);
+    const target = wanted
+      ? generateLegalMoves(mgf, position).find((m) => isSameWireMove(m, wanted))
+      : undefined;
     // ★v1.55: `free`（感想戦の自由な手）はここへ来ない＝**棋譜に入らない**ので、
     // 記録された手を並べ直す道には現れない（親 §9.4.3）。
     if (target) {

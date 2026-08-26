@@ -1,4 +1,5 @@
 import type { Mgf } from '../engine/mgf/types';
+import type { WireMove } from '../protocol/wire-move';
 
 /**
  * 感想戦 (S11) を二人で行うときの伝言（意味論＝親 v1.42 §9.4.4・通信＝親 §6.3.6）。
@@ -21,13 +22,14 @@ import type { Mgf } from '../engine/mgf/types';
  * **行き先の種類が増えるだけ**で、伝言そのものは増えない。`kind: 'free'` のときは
  * `to` ではなく `dest` を見る（**マスの欄に別の意味を持たせない**）。
  */
-export interface ReviewMovePayload {
+export interface ReviewMovePayload extends Omit<Partial<WireMove>, 'kind'> {
   kind: 'move' | 'drop' | 'free';
   pieceId: string;
-  from?: { row: number; col: number };
-  /** `kind` が 'move' / 'drop' のときの行き先。 */
-  to?: { row: number; col: number };
-  promote?: boolean;
+  /**
+   * ★v1.90: 盤の駒を動かす／打つ手の項目は `WireMove` が正本（`from` / `to` / `promote` /
+   * 昇格先 / **続けて起きる動きの並び**）。**感想戦だけ古い写しを持たない**ようにする＝
+   * 並びが落ちると、キャスリングを並べ直したときにルークが動かない盤になる。
+   */
   /**
    * ★v1.55: `kind: 'free'` のときの行き先。
    * `square`＝盤のマスへ／`hand`＝どちらかの駒台へ／`discard`＝消す。

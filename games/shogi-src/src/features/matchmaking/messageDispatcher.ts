@@ -24,6 +24,7 @@
 import { useChatStore } from '../../core/store/chat-store';
 import { useRouteStore } from '../../core/store/route-store';
 import { useGameStore } from '../../core/store/game-store';
+import { wireFieldsOf } from '../../core/protocol/wire-move';
 import { JISHOGI_ANSWER_MS, useOffersStore } from '../../core/store/offers-store';
 import { pieceIdListDigest, positionHash } from '../../core/engine';
 import { get as pluginGet } from '../../core/plugin/registry';
@@ -200,14 +201,7 @@ export function handleShogiMessage(data: unknown, from?: string): void {
       return;
     }
     case 'move': {
-      const applied = useGameStore.getState().applyRemoteMove({
-        kind: msg.kind,
-        pieceId: msg.pieceId,
-        from: msg.from,
-        to: msg.to,
-        promote: msg.promote,
-        promoteTo: msg.promoteTo,
-      });
+      const applied = useGameStore.getState().applyRemoteMove(wireFieldsOf(msg));
       if (applied && msg.time) {
         const nextSide = useGameStore.getState().position.sideToMove;
         const moverSide: 'player1' | 'player2' = nextSide === 'player1' ? 'player2' : 'player1';

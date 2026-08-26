@@ -3,6 +3,7 @@ import { useFitHeight } from './useFitHeight';
 import { createPortal } from 'react-dom';
 import { useI18nStore } from '../store/i18n-store';
 import { useGameStore, winnerOf } from '../store/game-store';
+import { wireMoveOf } from '../protocol/wire-move';
 import { useChatStore } from '../store/chat-store';
 import {
   JISHOGI_ANSWER_MS,
@@ -255,25 +256,9 @@ export function GameScreen({ variant }: GameScreenProps) {
     // v0.52 (段階 2-6): 送信直後の自分の局面ハッシュを添える。受信側が着手適用後に
     // 照合してズレを検知する。
     const hashPayload = positionHash(useGameStore.getState().position);
-    if (move.type === 'move') {
-      c.sendMove({
-        kind: 'move',
-        pieceId: move.pieceId,
-        from: move.from,
-        to: move.to,
-        promote: move.promote,
-        ...(move.promoteTo !== undefined ? { promoteTo: move.promoteTo } : {}),
-        time: timePayload,
-        hash: hashPayload,
-      });
-    } else if (move.type === 'drop') {
-      c.sendMove({
-        kind: 'drop',
-        pieceId: move.pieceId,
-        to: move.to,
-        time: timePayload,
-        hash: hashPayload,
-      });
+    if (move.type === 'move' || move.type === 'drop') {
+      // ★「どの手か」を決める項目は 1 か所で作る (§3.7.1 の並びを含む)。
+      c.sendMove({ ...wireMoveOf(move), time: timePayload, hash: hashPayload });
     }
     // ★v1.55: `free`（感想戦の自由な手）はここへ来ない＝**対局画面では生まれない**。
     // 感想戦の共有は別の伝言（親 §6.3.6 の `review_move`）が受け持つ。

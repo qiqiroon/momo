@@ -25,6 +25,7 @@ import type { Move } from '../../core/engine/position/types';
 import { PROTOCOL_VERSION, type MoveMsg, type SpectateSyncMsg } from './protocol';
 import { applySyncedRules, rulesFromConfig, startGameFromSides } from './rulesSync';
 import { hasSeat } from './roster';
+import { wireFieldsOf, wireMoveOf } from '../../core/protocol/wire-move';
 import { useMatchmakingStore } from './store';
 
 /**
@@ -36,25 +37,8 @@ import { useMatchmakingStore } from './store';
 export function movesFromHistory(history: readonly Move[]): MoveMsg[] {
   const out: MoveMsg[] = [];
   for (const m of history) {
-    if (m.type === 'move') {
-      out.push({
-        v: PROTOCOL_VERSION,
-        type: 'move',
-        kind: 'move',
-        pieceId: m.pieceId,
-        from: { row: m.from.row, col: m.from.col },
-        to: { row: m.to.row, col: m.to.col },
-        promote: m.promote,
-        ...(m.promoteTo !== undefined ? { promoteTo: m.promoteTo } : {}),
-      });
-    } else if (m.type === 'drop') {
-      out.push({
-        v: PROTOCOL_VERSION,
-        type: 'move',
-        kind: 'drop',
-        pieceId: m.pieceId,
-        to: { row: m.to.row, col: m.to.col },
-      });
+    if (m.type === 'move' || m.type === 'drop') {
+      out.push({ v: PROTOCOL_VERSION, type: 'move', ...wireMoveOf(m) });
     }
   }
   return out;
@@ -124,14 +108,7 @@ export function applySpectateSync(msg: SpectateSyncMsg): void {
   if (msg.sides) {
     startGameFromSides(msg.sides);
     for (const m of msg.moves) {
-      useGameStore.getState().applyRemoteMove({
-        kind: m.kind,
-        pieceId: m.pieceId,
-        from: m.from,
-        to: m.to,
-        promote: m.promote,
-        promoteTo: m.promoteTo,
-      });
+      useGameStore.getState().applyRemoteMove(wireFieldsOf(m));
     }
   }
 

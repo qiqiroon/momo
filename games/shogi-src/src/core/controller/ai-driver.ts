@@ -11,6 +11,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useGameStore } from '../store/game-store';
+import { wireMoveOf } from '../protocol/wire-move';
 import { useAiStore, isSmallScreen, THINK_BUDGET_CAP_MS } from '../store/ai-store';
 import { canDeclareNyugyoku } from '../engine';
 import { findEngine, defaultEngine, supports } from '../ai/engine-registry';
@@ -172,17 +173,8 @@ export function useAiOpponent(isOnline: boolean): void {
           return;
         if (now.status !== 'playing') return;
 
-        if (move.type === 'move') {
-          now.applyRemoteMove({
-            kind: 'move',
-            pieceId: move.pieceId,
-            from: move.from,
-            to: move.to,
-            promote: move.promote,
-            promoteTo: move.promoteTo,
-          });
-        } else if (move.type === 'drop') {
-          now.applyRemoteMove({ kind: 'drop', pieceId: move.pieceId, to: move.to });
+        if (move.type === 'move' || move.type === 'drop') {
+          now.applyRemoteMove(wireMoveOf(move));
         }
         // ★v1.55: `free`（感想戦の自由な手）はここへ来ない＝**AI は対局中にしか
         // 動かず、感想戦には AI が居ない**（親 §9.4）。読みの候補にも入らない。

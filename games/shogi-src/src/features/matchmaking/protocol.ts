@@ -33,6 +33,7 @@ import type { TimeControl } from '../../core/engine/time-control';
 import { handicapKey, type HandicapChoice } from '../../core/engine/handicap';
 import type { QuantumParams } from '../../core/store/quantum-params';
 import type { Mgf } from '../../core/engine/mgf/types';
+import type { WireMove } from '../../core/protocol/wire-move';
 import type { GameType } from './roomNameCodec';
 import type { QuantumDisplayMode, SideChoice, SideSelection, TorusMode } from './store';
 
@@ -61,6 +62,15 @@ export const CLIENT_CAPABILITIES = [
   // 昇格先を扱える。**名乗りに載せることで、知らない相手とは対局を始めない**
   // (古い版は欄を無視してルークだけ動かない盤になるため)。
   'composite_moves',
+  // ★v1.90 (9-4c): **並びを伝言そのものに載せて運ぶ**ようになった。
+  //
+  // ★なぜ名札を分けるか＝`composite_moves` は v1.89 の版も名乗っていたが、**その版は
+  // 並びを送っていなかった**（受け取った側が自分で合法手を作り直して突き合わせていた）。
+  // 名札が同じままだと「送ってくるはず」と思って待ち受けることになる。
+  // **同じ「どこからどこへ」で中身の違う手が 2 通りある**場面——量子で王のマスの駒が
+  // 王かクイーンか決まっておらず、キャスリングと横滑りが同じ項目になる——では、
+  // **並びが載っていないと送った側と違う盤が並ぶ**ので、扱えない相手とは始めない。
+  'composite_moves_wire',
 ] as const;
 
 /** すべてのメッセージ共通の envelope */
@@ -138,21 +148,8 @@ export interface GameStartMsg extends Envelope {
  *
  * pieceId は両側の初期化で決定的に生成されるので同一。
  */
-export interface MoveMsg extends Envelope {
+export interface MoveMsg extends Envelope, WireMove {
   type: 'move';
-  kind: 'move' | 'drop';
-  pieceId: string;
-  from?: { row: number; col: number };
-  to: { row: number; col: number };
-  promote?: boolean;
-  /**
-   * 【v1.65 §3.6.2】入れ替わる昇格で、どの駒になったか。
-   *
-   * from/to からは決まらない情報 (ポーンは 4 通り) なので**伝言に載せる**。
-   * 受け取った側は、これも突き合わせてどの合法手かを一意に決める。裏返る成り
-   * (将棋) は載せない＝従来の伝言はそのまま。
-   */
-  promoteTo?: string;
   /**
    * 送信側の時計状態（v0.35 追加）。指し終わった直後の指し手側の残り時間で、
    * 受信側は自分の内部モデル（相手の時計）をこの値に上書きして時計をシンクさせる。

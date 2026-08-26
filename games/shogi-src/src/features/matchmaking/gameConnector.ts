@@ -10,6 +10,7 @@ import { useOffersStore } from '../../core/store/offers-store';
 import { useRouteStore } from '../../core/store/route-store';
 import type { OnlineGameConnector, RemoteMovePayload } from '../../core/plugin/gameConnector';
 import { positionHash } from '../../core/engine';
+import { wireFieldsOf } from '../../core/protocol/wire-move';
 import { getMomoMatchmaking } from './client';
 import { PROTOCOL_VERSION, sendShogiMessage } from './protocol';
 import { hasSeat, isSpectator, otherSpectatorPids, spectatorsOf } from './roster';
@@ -155,12 +156,9 @@ const connector: OnlineGameConnector = {
     sendShogiMessage(client, {
       v: PROTOCOL_VERSION,
       type: 'move',
-      kind: payload.kind,
-      pieceId: payload.pieceId,
-      from: payload.from,
-      to: payload.to,
-      promote: payload.promote,
-      ...(payload.promoteTo !== undefined ? { promoteTo: payload.promoteTo } : {}),
+      // ★「どの手か」を決める項目は 1 か所で作る (WireMove)＝項目を足したとき、
+      //   ここだけが古いまま残らないようにする。時計と局面の印は外側の事情。
+      ...wireFieldsOf(payload),
       time: payload.time,
       hash: payload.hash,
     });

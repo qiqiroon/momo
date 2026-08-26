@@ -13,6 +13,7 @@
 import { useGameStore } from '../../core/store/game-store';
 import type { Square } from '../../core/engine';
 import type { ReviewMovePayload } from '../../core/plugin/review';
+import { wireFieldsOf, wireMoveOf } from '../../core/protocol/wire-move';
 import type { Mgf } from '../../core/engine/mgf/types';
 import type { KifuFile } from './types';
 
@@ -190,10 +191,8 @@ export function reviewBranchMoves(ply: number): ReviewMovePayload[] {
     .getState()
     .position.history.slice(ply)
     .map((m): ReviewMovePayload => {
-      if (m.type === 'move') {
-        return { kind: 'move', pieceId: m.pieceId, from: m.from, to: m.to, promote: m.promote };
-      }
-      if (m.type === 'drop') return { kind: 'drop', pieceId: m.pieceId, to: m.to };
+      // ★v1.90: 盤の手の項目は 1 か所で作る（昇格先と、続けて起きる動きの並びを含む）。
+      if (m.type === 'move' || m.type === 'drop') return wireMoveOf(m);
       // ★v1.55: 盤の組み替えも**同じ形で運ぶ**（親 §9.4.2.1）＝行き先の種類が
       // 増えるだけで、新しい伝言は作らない。
       return { kind: 'free', pieceId: m.pieceId, from: m.from, dest: m.dest, promote: m.promote };
@@ -230,13 +229,9 @@ export function reviewApplyMoves(moves: ReviewMovePayload[]): boolean {
       continue;
     }
     if (!m.to) return false;
-    const ok = useGameStore.getState().applyRemoteMove({
-      kind: m.kind,
-      pieceId: m.pieceId,
-      from: m.from,
-      to: m.to,
-      promote: m.promote,
-    });
+    const ok = useGameStore.getState().applyRemoteMove(
+      wireFieldsOf({ ...m, kind: m.kind === 'drop' ? 'drop' : 'move', to: m.to }),
+    );
     if (!ok) return false;
   }
   return true;

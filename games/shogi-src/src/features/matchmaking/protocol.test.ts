@@ -107,4 +107,10 @@ describe('名乗り — 続けて起きる動きを運べる（親 v1.65 §3.7.1
     // 拒否そのものはチェス定義 (9-4) と一緒に働くが、名乗りはここで載せる。
     expect(CLIENT_CAPABILITIES).toContain('composite_moves');
   });
+
+  it('★9-4c: 並びを伝言そのものに載せて運ぶことを、別の名札で名乗る', () => {
+    // v1.89 の版も composite_moves は名乗っていたが、**並びを送ってはいなかった**。
+    // 名札が同じままだと「送ってくるはず」と思って待ち受けることになるので分ける。
+    expect(CLIENT_CAPABILITIES).toContain('composite_moves_wire');
+  });
 });

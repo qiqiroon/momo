@@ -10,6 +10,7 @@
 
 import type { HandicapChoice } from '../engine/handicap';
 import type { Mgf } from '../engine/mgf/types';
+import type { WireMove } from '../protocol/wire-move';
 
 /** v0.68: S07 のルール表示バンド用。オフライン時は null (=本将棋固定扱い)。 */
 export interface ActiveRulesInfo {
@@ -36,14 +37,14 @@ export interface ActiveRulesInfo {
   customMgf?: Mgf | null;
 }
 
-export interface RemoteMovePayload {
-  kind: 'move' | 'drop';
-  pieceId: string;
-  from?: { row: number; col: number };
-  to: { row: number; col: number };
-  promote?: boolean;
-  /** 【v1.65 §3.6.2】入れ替わる昇格の昇格先 (from/to からは決まらないので運ぶ)。 */
-  promoteTo?: string;
+/**
+ * 相手へ送る 1 手。
+ *
+ * ★**「どの手か」を決める項目は `WireMove` が正本**（v1.90・9-4c）＝写す場所が 6 つ
+ * あるので、運ぶ項目を足したときに写しのどれかだけが古いまま残らないよう 1 か所へ寄せた。
+ * ここが足すのは**その手の外側の事情**（時計・局面の印）だけ。
+ */
+export interface RemoteMovePayload extends WireMove {
   /** v0.35: 送信直後の自分側の時計状態（相手が時計をシンクするための値） */
   time?: {
     mainMs: number;

@@ -289,6 +289,43 @@ describe('9-4c 縮退互換', () => {
 });
 
 describe('9-4c 空のマスが狙われているかの数え方 (§5.5.4)', () => {
+  /**
+   * 「動けるが取れない」駒。**チェスの盤ではこの食い違いを切り出せない**——王が通るマスへ
+   * 進めるポーンは、必ず王の出発マスと着地マスの両方を斜めに狙ってしまうので、どのみち
+   * キャスリングできない。そこで**取れない動きしか持たない駒**を 1 つ足して切り出す。
+   */
+  const walkerMgf: Mgf = {
+    ...chess,
+    pieces: [
+      ...chess.pieces,
+      {
+        id: 'walker',
+        name: { ja: 'W', en: 'W', zh: 'W' },
+        can_promote: false,
+        is_hand_piece: false,
+        move_logic: { abilities: [{ type: 'step', direction: 'all_8', range: 1, can_capture: false }] },
+      },
+    ],
+  };
+
+  it('★取れない駒が通り抜けるマスへ動けても、キャスリングは止まらない', () => {
+    const p = posWith([
+      mk('king', 'player1', E1.row, E1.col, 'wk'),
+      mk('rook', 'player1', H1.row, H1.col, 'wrh'),
+      mk('king', 'player2', E8.row, E8.col, 'bk'),
+      mk('walker', 'player2', 6, F1.col, 'bw'),
+    ]);
+    // 「そのマスへ動ける手があるか」だけを見ると、通れないことになってしまう。
+    expect(isSquareAttackedBy(walkerMgf, p, F1, 'player2')).toBe(true);
+    expect(isSquareCapturableBy(walkerMgf, p, F1, 'player2')).toBe(false);
+
+    const moves = generateLegalMoves(walkerMgf, p).filter(
+      (m): m is BoardMove => m.type === 'move' && m.pieceId === 'wk' && m.extra_steps !== undefined,
+    );
+    expect(moves).toHaveLength(1);
+    expect(moves[0].to).toEqual(G1);
+  });
+
   it('★ポーンは前へ進めるだけで、そのマスを狙ってはいない', () => {
     // 後手のポーン f2。f1 へ進めるが、狙っているのは e1 と g1。
     const p = posWith([

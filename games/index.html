@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MOMO Games v1.25 -->
+<!-- MOMO Games v1.26 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -297,6 +297,28 @@
       </div>
       <div class="card-play" id="hanafuda-play">今すぐプレイ</div>
     </a>
+    <a class="card" href="javascript:void(0)" onclick="openBilliards()">
+      <div class="card-head">
+        <img class="card-icon" src="billiards/favicon.svg" alt="" aria-hidden="true">
+        <div class="card-headtext">
+          <div class="card-title">MOMO <span>Billiards</span></div>
+          <div class="card-subtitle" id="billiards-subtitle">Any Shape, Any Rule, One Cue</div>
+        </div>
+      </div>
+      <div class="card-badge" id="billiards-badge">🌐 オンライン</div>
+      <div class="card-desc" id="billiards-desc">ナインボール・エイトボール・ポケットローテーション・キャロムを、本格的な物理演算で。ローカル・AI・オンライン対戦と観戦に対応。</div>
+      <div class="card-meta" id="billiards-meta">
+        <span>🎱 ビリヤード</span>
+        <span>🌐 オンライン対戦</span>
+        <span id="billiards-players">1〜4人</span>
+      </div>
+      <div class="platform-row">
+        <span class="platform-tag">🍎 iPhone</span>
+        <span class="platform-tag">🤖 Android</span>
+        <span class="platform-tag">💻 PC</span>
+      </div>
+      <div class="card-play" id="billiards-play">今すぐプレイ</div>
+    </a>
       </div>
     </div>
 
@@ -420,6 +442,11 @@ const I18N = {
     hanafudaDesc: 'MOMO Hanafuda は花札をオンライン2人対戦で遊べるブラウザゲームです。4言語対応・PCとスマホの縦画面に対応。アカウント登録もインストールも不要です。',
     hanafudaMeta1: '🎴 花札', hanafudaMeta2: '🌐 オンライン対戦', hanafudaPlayers: '2人',
     hanafudaPlay: '今すぐプレイ',
+    billiardsBadge: '🌐 オンライン',
+    billiardsSubtitle: 'Any Shape, Any Rule, One Cue',
+    billiardsDesc: 'ナインボール・エイトボール・ポケットローテーション・キャロムを、本格的な物理演算で。ローカル・AI・オンライン対戦と観戦に対応。',
+    billiardsMeta1: '🎱 ビリヤード', billiardsMeta2: '🌐 オンライン対戦', billiardsPlayers: '1〜4人',
+    billiardsPlay: '今すぐプレイ',
     sudokuBadge: '🧩 パズル',
     sudokuSubtitle: "You'll call it Su-doom.",
     sudokuDesc: '1×1 から 49×49 まで選べる可変サイズのナンバープレイス。Easy・Hard・Apocalypse の3段階。9×9 では物足りない、数字が大好きな人のために。解きかけは保存されるので、何日でもかけてじっくり取り組めます。拡大縮小とルーペで大きな盤面も読みやすく、候補メモ・取り消し・ヒント付き。',
@@ -467,6 +494,11 @@ const I18N = {
     hanafudaDesc: 'MOMO Hanafuda lets you play the Japanese card game Hanafuda online against another player, in your browser. 4-language UI, works on PC and mobile portrait. No account, no install.',
     hanafudaMeta1: '🎴 Hanafuda', hanafudaMeta2: '🌐 Online', hanafudaPlayers: '2 Players',
     hanafudaPlay: 'Play Now',
+    billiardsBadge: '🌐 Online',
+    billiardsSubtitle: 'Any Shape, Any Rule, One Cue',
+    billiardsDesc: 'Nine-ball, eight-ball, pocket rotation and carom with a full physics engine. Play locally, against the AI, or online — and watch others play.',
+    billiardsMeta1: '🎱 Billiards', billiardsMeta2: '🌐 Online', billiardsPlayers: '1-4 Players',
+    billiardsPlay: 'Play Now',
     sudokuBadge: '🧩 Puzzle',
     sudokuSubtitle: "You'll call it Su-doom.",
     sudokuDesc: 'Number-place puzzles on boards from 1x1 up to 49x49, in three difficulty levels: Easy, Hard and Apocalypse. For people who love numbers and have outgrown 9x9. Your unfinished board is saved, so you can take days over it. Zoom and a loupe keep large boards readable, with candidate notes, undo and hints.',
@@ -514,6 +546,11 @@ const I18N = {
     hanafudaDesc: 'MOMO Hanafuda 是一款可在浏览器中双人在线对战的花札游戏。支持 4 语言、可在 PC 与手机竖屏使用。无需注册、无需安装。',
     hanafudaMeta1: '🎴 花札', hanafudaMeta2: '🌐 在线对战', hanafudaPlayers: '2人',
     hanafudaPlay: '立即游玩',
+    billiardsBadge: '🌐 在线',
+    billiardsSubtitle: '百变球台，一杆入魂',
+    billiardsDesc: '九球、八球、落袋轮转与开伦，配备完整的物理演算。支持本地、人机与在线对战，并可观战。',
+    billiardsMeta1: '🎱 台球', billiardsMeta2: '🌐 在线对战', billiardsPlayers: '1〜4人',
+    billiardsPlay: '立即游玩',
     sudokuBadge: '🧩 益智',
     sudokuSubtitle: "You'll call it Su-doom.",
     sudokuDesc: '盘面从 1×1 到 49×49 的可变尺寸数字谜题，难度分为 Easy、Hard、Apocalypse 三级。献给觉得 9×9 已不够尽兴、又喜爱数字的你。解到一半会保存下来，可以花上好几天慢慢琢磨。缩放与放大镜让大盘面依然清晰，并提供候选笔记、撤销与提示。',
@@ -581,6 +618,7 @@ function applyLang() {
   document.getElementById('shogi-badge').textContent = t('shogiBadge');
   document.getElementById('darts-badge').textContent = t('dartsBadge');
   document.getElementById('hanafuda-badge').textContent = t('hanafudaBadge');
+  document.getElementById('billiards-badge').textContent = t('billiardsBadge');
   // Tilt
   document.getElementById('tilt-desc').textContent = t('tiltDesc');
   const tiltMetaSpans = document.querySelectorAll('#tilt-meta span');
@@ -636,6 +674,13 @@ function applyLang() {
   if (hanafudaMetaSpans[1]) hanafudaMetaSpans[1].textContent = t('hanafudaMeta2');
   document.getElementById('hanafuda-players').textContent = t('hanafudaPlayers');
   document.getElementById('hanafuda-play').textContent = t('hanafudaPlay');
+  // Billiards
+  document.getElementById('billiards-desc').textContent = t('billiardsDesc');
+  const billiardsMetaSpans = document.querySelectorAll('#billiards-meta span');
+  if (billiardsMetaSpans[0]) billiardsMetaSpans[0].textContent = t('billiardsMeta1');
+  if (billiardsMetaSpans[1]) billiardsMetaSpans[1].textContent = t('billiardsMeta2');
+  document.getElementById('billiards-players').textContent = t('billiardsPlayers');
+  document.getElementById('billiards-play').textContent = t('billiardsPlay');
   // 各サブタイトル: 猫語非対応のため、cat 選択時は catBase 言語のテキストを表示
   const subtitleLang = currentLang === 'cat' ? catBase : currentLang;
   const subtitleDict = I18N[subtitleLang] || I18N.ja;
@@ -648,6 +693,7 @@ function applyLang() {
     ['darts-subtitle',    subtitleDict.dartsSubtitle],
     ['hanafuda-subtitle', subtitleDict.hanafudaSubtitle],
     ['sudoku-subtitle',   subtitleDict.sudokuSubtitle],
+    ['billiards-subtitle', subtitleDict.billiardsSubtitle],
   ].forEach(([id, text]) => {
     const el = document.getElementById(id);
     if (!el || !text) return;
@@ -698,6 +744,11 @@ function openDarts() {
 function openHanafuda() {
   fetch('https://momo-server-reversi.onrender.com/ping').catch(() => {});
   window.location.href = 'hanafuda/';
+}
+
+function openBilliards() {
+  fetch('https://momo-server-reversi.onrender.com/ping').catch(() => {});
+  window.location.href = 'billiards/';
 }
 
 applyLang();

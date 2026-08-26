@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>MOMO Billiards</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<meta name="description" content="台の形もルールも選べるブラウザ・ビリヤード。ナインボール／エイトボール／ポケット・ローテーション／キャロムを、ローカル・AI・オンライン対戦で。4言語対応・登録不要・インストール不要。">
+<link rel="alternate" hreflang="ja" href="https://qiqiroon.github.io/momo/games/billiards/">
+<link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/games/billiards/">
+<link rel="alternate" hreflang="zh-Hans" href="https://qiqiroon.github.io/momo/games/billiards/">
+<link rel="alternate" hreflang="x-default" href="https://qiqiroon.github.io/momo/games/billiards/">
+<link rel="canonical" href="https://qiqiroon.github.io/momo/games/billiards/">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://qiqiroon.github.io/momo/games/billiards/">
+<meta property="og:title" content="MOMO Billiards">
+<meta property="og:description" content="Any Shape, Any Rule, One Cue — 台の形もルールも選べるブラウザ・ビリヤード。">
+<link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22MOMO%20Billiards%22%2C%22short_name%22%3A%22Billiards%22%2C%22display%22%3A%22standalone%22%2C%22orientation%22%3A%22portrait%22%2C%22background_color%22%3A%22%230a0a0a%22%2C%22theme_color%22%3A%22%230a0a0a%22%2C%22start_url%22%3A%22.%22%2C%22scope%22%3A%22.%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22favicon.svg%22%2C%22sizes%22%3A%22any%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%7D">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="/momo/lib/momo-lang/momo-lang.js"></script>
+<style>
+:root{
+  --bg:#0a0a0a; --surface:#111111; --surface2:#1a1a1a;
+  --orange:#c2410c; --orange-mid:#ea580c; --orange-light:#fb923c;
+  --text:#e5e5e5; --text-muted:#737373;
+  --border:#2a2a2a; --border-strong:#444;
+  --bg-selected:rgba(194,65,12,0.15);
+  --cloth:#0f3d2e; --cloth-lit:#155e46; --rail:#5a2f16; --rail-top:#7a4322;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;height:100%;}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:'Noto Sans JP','Noto Sans SC',sans-serif; font-size:14px;
+  -webkit-text-size-adjust:100%; overscroll-behavior:none;
+}
+body::before{
+  content:''; position:fixed; inset:0;
+  background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);
+  background-size:48px 48px; opacity:.3; pointer-events:none; z-index:0;
+}
+@keyframes fadeDown{from{opacity:0;transform:translateY(-14px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── 言語切替（design-spec §6.1） ── */
+#lang-switcher{position:fixed;top:8px;right:12px;z-index:200;}
+#lang-switcher select{
+  background:var(--surface); border:.5px solid var(--border-strong); color:var(--text-muted);
+  font-size:11px; padding:3px 6px; border-radius:4px; font-family:inherit;
+}
+
+/* ── 画面 ── */
+.screen{display:none; position:relative; z-index:1; min-height:100%;}
+.screen.on{display:block;}
+.wrap{max-width:760px;margin:0 auto;padding:20px 18px 40px;}
+.breadcrumb{font-size:12px;color:var(--text-muted);margin:4px 0 18px;animation:fadeDown .4s ease-out;}
+.breadcrumb a{color:var(--text-muted);text-decoration:none;}
+.breadcrumb a:hover{color:var(--orange-light);}
+.breadcrumb span{margin:0 6px;}
+
+/* ── アプリカード・ヘッダー（app-card-design v1.1） ── */
+.site-header{display:flex;align-items:flex-start;gap:10px;margin:8px 0 0;width:100%;max-width:460px;position:relative;z-index:1;animation:fadeDown .4s ease-out;}
+.cat-icon{width:57px;height:62px;flex-shrink:0;}
+.title-block{display:flex;flex-direction:column;align-items:flex-start;line-height:1;}
+h1{font-family:'Fredoka One',cursive;font-size:clamp(2rem,6vw,2.6rem);font-weight:400;letter-spacing:.02em;line-height:1;display:flex;align-items:baseline;gap:.3em;margin:0;}
+h1 .momo{color:var(--text);}
+h1 .billiards{color:var(--orange-mid);}
+h1 .version-tag{color:var(--text-muted);font-size:.28em;letter-spacing:.04em;align-self:flex-end;padding-bottom:.2em;}
+.subtitle{font-family:'Fredoka One',cursive;color:#888;letter-spacing:0;margin-top:1px;margin-bottom:16px;font-size:16px;animation:fadeDown .5s ease-out;min-height:1.2em;}
+.subtitle.zh{font-family:'Fredoka One','Noto Sans SC','Noto Sans JP',sans-serif;}
+
+.section-label{display:flex;align-items:center;gap:12px;margin:26px 0 14px;}
+.section-label span{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--orange);}
+.section-label::after{content:'';flex:1;height:1px;background:var(--border);}
+
+/* ── 部品 ── */
+.btn{
+  background:var(--surface); border:1px solid var(--border-strong); color:var(--text);
+  font-family:inherit; font-size:14px; padding:9px 18px; border-radius:8px; cursor:pointer;
+  transition:border-color .15s,background .15s,color .15s;
+}
+.btn:hover:not(:disabled){border-color:var(--orange);color:var(--orange-light);}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+.btn.primary{background:var(--orange);border-color:var(--orange);color:#fff;font-weight:700;}
+.btn.primary:hover:not(:disabled){background:var(--orange-mid);border-color:var(--orange-mid);color:#fff;}
+.btn.small{font-size:12px;padding:5px 10px;border-radius:6px;}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:14px;}
+.card.tight{padding:10px 12px;}
+.lbl{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--orange);margin-bottom:8px;display:block;}
+.hint{font-size:12px;color:var(--text-muted);line-height:1.6;}
+input[type=text],input[type=password],input[type=number],select{
+  background:var(--surface2);border:1px solid var(--border-strong);color:var(--text);
+  border-radius:6px;padding:6px 9px;font-family:inherit;
+  /* 16px 未満だと iOS Safari が入力欄に触れた瞬間ページごと拡大する。下回らせない */
+  font-size:16px;
+}
+input[type=range]{accent-color:var(--orange-mid);}
+
+/* 選択肢チップ */
+.opts{display:flex;flex-wrap:wrap;gap:7px;}
+.opt{
+  background:var(--surface2);border:1px solid var(--border);color:var(--text);
+  border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer;position:relative;
+  transition:border-color .15s,background .15s;
+}
+.opt:hover:not(.dis){border-color:var(--orange);}
+.opt.sel{background:var(--bg-selected);border-color:var(--orange);color:var(--orange-light);font-weight:700;}
+.opt.dis{opacity:.42;cursor:not-allowed;color:var(--text-muted);}
+.opt .why{display:block;font-size:10px;color:var(--text-muted);margin-top:3px;line-height:1.3;}
+.seg{display:inline-flex;border:1px solid var(--border-strong);border-radius:8px;overflow:hidden;}
+.seg button{background:var(--surface2);border:0;color:var(--text-muted);font-family:inherit;font-size:13px;padding:7px 16px;cursor:pointer;}
+.seg button.sel{background:var(--orange);color:#fff;font-weight:700;}
+.chk{display:flex;align-items:center;gap:7px;font-size:13px;padding:3px 0;cursor:pointer;}
+.chk input{accent-color:var(--orange-mid);}
+
+/* 撞球の癖は5軸と視覚的に区切る（2.5.2節） */
+#cue-block{border:1px dashed var(--border-strong);background:rgba(255,255,255,.015);}
+
+/* ── プレイ画面 ── */
+#scr-play{height:100%;}
+.play-grid{display:grid;height:100vh;height:100dvh;grid-template-columns:200px 1fr 200px;grid-template-rows:1fr;gap:8px;padding:8px;}
+.pane{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px;overflow:auto;display:flex;flex-direction:column;gap:8px;min-height:0;}
+#board-pane{background:transparent;border:0;padding:0;position:relative;overflow:hidden;align-items:center;justify-content:center;}
+#board{display:block;touch-action:none;width:100%;height:100%;}
+.info-row{display:flex;justify-content:space-between;font-size:12px;gap:6px;}
+.info-row b{font-weight:700;color:var(--text);}
+.info-k{color:var(--text-muted);}
+.pl-row{display:flex;justify-content:space-between;font-size:12px;padding:3px 5px;border-radius:5px;}
+.pl-row.turn{background:var(--bg-selected);color:var(--orange-light);font-weight:700;}
+#msg-bar{position:absolute;left:50%;transform:translateX(-50%);bottom:8px;background:rgba(10,10,10,.86);border:1px solid var(--border-strong);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--text);max-width:92%;text-align:center;pointer-events:none;}
+#elev-wrap{display:flex;align-items:center;gap:8px;}
+#elev{writing-mode:vertical-lr;direction:rtl;height:120px;}
+.mini{font-size:11px;color:var(--text-muted);}
+.gauge{height:8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;overflow:hidden;}
+.gauge>i{display:block;height:100%;background:var(--orange-mid);width:0;transition:width .05s linear;}
+.gauge.over>i{background:#dc2626;}
+@media (max-width:860px){
+  /* 盤面を上、周辺領域を下部へ圧縮して並べる（4.10.3節） */
+  .play-grid{grid-template-columns:1fr;grid-template-rows:1fr auto auto;}
+  /* 高さの上限は周辺領域だけに掛ける。盤面へ掛けると台が縮んで余白が生まれる */
+  #info-pane,#ctrl-pane{flex-direction:row;flex-wrap:wrap;align-items:center;padding:8px;gap:6px;max-height:26vh;}
+  #board-pane{max-height:none;min-height:0;}
+  #info-pane{order:1;} #board-pane{order:0;} #ctrl-pane{order:2;}
+  #elev{writing-mode:horizontal-tb;direction:ltr;height:auto;width:120px;}
+  #info-pane .info-row{gap:4px;}
+  #players-box{display:flex;gap:8px;flex-wrap:wrap;}
+}
+
+/* ── モーダル ── */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;z-index:300;padding:18px;}
+.modal.on{display:flex;}
+.modal .box{background:var(--surface);border:1px solid var(--border-strong);border-radius:14px;padding:20px;max-width:440px;width:100%;max-height:86vh;overflow:auto;}
+.modal h3{font-family:'Fredoka One',cursive;font-weight:400;color:var(--orange-mid);margin:0 0 10px;font-size:19px;}
+
+/* ── ロビー ── */
+.room{display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 11px;margin-bottom:7px;font-size:13px;}
+.room .nm{font-weight:700;}
+.room .meta{font-size:11px;color:var(--text-muted);}
+
+footer{padding:22px 0;font-size:12px;color:var(--text-muted);text-align:center;border-top:1px solid var(--border);margin-top:24px;}
+footer a{color:var(--text-muted);text-decoration:none;}
+footer a:hover{color:var(--orange-light);}
+</style>
+</head>
+<body>
+
+<div id="lang-switcher">
+  <select class="lang-select" id="lang-select">
+    <option value="auto">Auto</option>
+    <option value="ja">日本語</option>
+    <option value="en">EN</option>
+    <option value="zh">中文</option>
+    <option value="cat">CAT</option>
+  </select>
+</div>
+
+<!-- ══════════ タイトル ══════════ -->
+<div class="screen on" id="scr-title">
+  <div class="wrap">
+    <nav class="breadcrumb"><a href="../../">MOMO Works</a><span>›</span><a href="../">MOMO Games</a><span>›</span>MOMO Billiards</nav>
+    <header class="site-header">
+      <svg class="cat-icon" xmlns="http://www.w3.org/2000/svg" viewBox="-46 -50 100 110" aria-hidden="true">
+        <g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/></g>
+        <g transform="rotate(12,12,8.3)"><path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/></g>
+        <ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/>
+        <line x1="-14" y1="1.00" x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="-14" y1="6.0" x2="-33.44" y2="6.0" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="-33.68" y1="-2.28" x2="-38" y2="-3" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="-33.44" y1="6.0" x2="-40" y2="6" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="-29.58" y1="14.26" x2="-37" y2="16" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="14" y1="1.00" x2="33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="14" y1="6.0" x2="33.44" y2="6.0" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="14" y1="10.59" x2="29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="33.68" y1="-2.28" x2="38" y2="-3" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="33.44" y1="6.0" x2="40" y2="6" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="29.58" y1="14.26" x2="37" y2="16" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+        <ellipse cx="-12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/><ellipse cx="12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+        <ellipse cx="-12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/><ellipse cx="12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+        <circle cx="-10.5" cy="-5.2" r="1.0" fill="#c2410c"/><circle cx="13.5" cy="-5.2" r="1.0" fill="#c2410c"/>
+        <path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/>
+        <line x1="0" y1="11.3" x2="0" y2="13.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M0,13.3 Q5,17.3 8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+        <!-- アプリ固有アイコン：三角ラック（現実のビリヤード球の配色。仕様書1.2.2節） -->
+        <g id="billiards-overlay">
+          <circle cx="26" cy="6" r="8.2" fill="#f2c00e"/><circle cx="26" cy="6" r="3.4" fill="#fff"/>
+          <circle cx="17.4" cy="21" r="8.2" fill="#dc2626"/><circle cx="17.4" cy="21" r="3.4" fill="#fff"/>
+          <circle cx="34.6" cy="21" r="8.2" fill="#1d4ed8"/><circle cx="34.6" cy="21" r="3.4" fill="#fff"/>
+          <circle cx="8.8" cy="36" r="8.2" fill="#15803d"/><circle cx="8.8" cy="36" r="3.4" fill="#fff"/>
+          <circle cx="26" cy="36" r="8.2" fill="#1c1c1c"/><circle cx="26" cy="36" r="3.4" fill="#fff"/>
+          <circle cx="43.2" cy="36" r="8.2" fill="#ea6a0c"/><circle cx="43.2" cy="36" r="3.4" fill="#fff"/>
+        </g>
+      </svg>
+      <div class="title-block">
+        <h1><span class="momo">MOMO</span><span class="billiards">Billiards</span><span class="version-tag" id="version-tag">v1.00</span></h1>
+        <div class="subtitle" id="subtitle">Any Shape, Any Rule, One Cue</div>
+      </div>
+    </header>
+    <p class="hint" id="title-lead" style="max-width:460px"></p>
+    <div class="section-label"><span>Start</span></div>
+    <div class="row">
+      <button class="btn primary" id="btn-title-play"></button>
+    </div>
+    <footer><a href="../">← MOMO Games</a></footer>
+  </div>
+</div>
+
+<!-- ══════════ ゲーム選択 ══════════ -->
+<div class="screen" id="scr-setup">
+  <div class="wrap">
+    <nav class="breadcrumb"><a href="#" id="crumb-title">MOMO Billiards</a><span>›</span><span id="crumb-setup"></span></nav>
+
+    <!-- 最上段：標準／特殊の上位スイッチ（2.2.2節） -->
+    <div class="card tight">
+      <div class="row" style="justify-content:space-between">
+        <div class="seg" id="seg-scope">
+          <button data-v="standard"></button><button data-v="special"></button>
+        </div>
+        <button class="btn small" id="btn-settings-1"></button>
+      </div>
+      <div class="hint" id="scope-desc" style="margin-top:8px"></div>
+    </div>
+
+    <!-- 上段：5軸 -->
+    <div class="card"><span class="lbl" id="lbl-rule"></span><div class="opts" id="opts-rule"></div></div>
+    <div class="card"><span class="lbl" id="lbl-table"></span><div class="opts" id="opts-table"></div></div>
+    <div class="card"><span class="lbl" id="lbl-mode"></span><div class="opts" id="opts-mode"></div></div>
+    <div class="card"><span class="lbl" id="lbl-mod"></span><div class="opts" id="opts-mod"></div></div>
+    <div class="card"><span class="lbl" id="lbl-diff"></span><div class="opts" id="opts-diff"></div></div>
+
+    <!-- 下段：撞球の癖（5軸とは区切る） -->
+    <div class="card" id="cue-block">
+      <span class="lbl" id="lbl-cue"></span>
+      <div class="seg" id="seg-cue" style="margin-bottom:10px">
+        <button data-v="simple"></button><button data-v="real"></button><button data-v="custom" disabled></button>
+      </div>
+      <div id="cue-items"></div>
+      <div class="hint" id="cue-note" style="margin-top:8px"></div>
+    </div>
+
+    <!-- 最下段：人数・対戦形式・開始 -->
+    <div class="card">
+      <span class="lbl" id="lbl-format"></span>
+      <div class="opts" id="opts-format" style="margin-bottom:12px"></div>
+      <div class="row" style="gap:16px">
+        <label class="row" style="gap:6px"><span class="mini" id="lbl-players"></span>
+          <select id="sel-players"></select></label>
+        <label class="row" style="gap:6px" id="wrap-ai"><span class="mini" id="lbl-aicount"></span>
+          <select id="sel-aicount"></select></label>
+        <label class="row" style="gap:6px" id="wrap-target"><span class="mini" id="lbl-target"></span>
+          <input type="number" id="in-target" min="1" max="200" value="10" style="width:70px"></label>
+      </div>
+      <div class="row" style="gap:16px;margin-top:10px" id="wrap-time">
+        <label class="row" style="gap:6px"><span class="mini" id="lbl-tbase"></span>
+          <input type="number" id="in-tbase" min="0" max="600" value="30" style="width:70px"><span class="mini" id="u-sec"></span></label>
+        <label class="row" style="gap:6px"><span class="mini" id="lbl-tbank"></span>
+          <input type="number" id="in-tbank" min="0" max="60" value="5" style="width:70px"><span class="mini" id="u-min"></span></label>
+      </div>
+    </div>
+
+    <div class="row" style="justify-content:flex-end;margin-bottom:30px">
+      <button class="btn primary" id="btn-start"></button>
+    </div>
+    <footer><a href="../">← MOMO Games</a></footer>
+  </div>
+</div>
+
+<!-- ══════════ ロビー（通信対戦） ══════════ -->
+<div class="screen" id="scr-lobby">
+  <div class="wrap">
+    <nav class="breadcrumb"><a href="#" id="crumb-setup2">MOMO Billiards</a><span>›</span><span id="crumb-lobby"></span></nav>
+    <div class="card">
+      <div class="row" style="gap:10px">
+        <label class="row" style="gap:6px"><span class="mini" id="lbl-myname"></span><input type="text" id="in-name" maxlength="16" style="width:130px"></label>
+        <span class="mini" id="lobby-status"></span>
+      </div>
+    </div>
+    <div class="card">
+      <span class="lbl" id="lbl-create"></span>
+      <div class="row" style="gap:10px">
+        <label class="row" style="gap:6px"><span class="mini" id="lbl-roomname"></span><input type="text" id="in-room" maxlength="20" style="width:150px"></label>
+        <label class="row" style="gap:6px"><span class="mini" id="lbl-pw"></span><input type="password" id="in-pw" maxlength="16" style="width:100px"></label>
+        <label class="chk"><input type="checkbox" id="in-private"><span id="lbl-private"></span></label>
+        <button class="btn primary small" id="btn-create"></button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <span class="lbl" id="lbl-rooms" style="margin:0"></span>
+        <button class="btn small" id="btn-refresh"></button>
+      </div>
+      <div id="room-list" style="margin-top:10px"></div>
+    </div>
+    <div class="row"><button class="btn" id="btn-lobby-back"></button></div>
+    <footer><a href="../">← MOMO Games</a></footer>
+  </div>
+</div>
+
+<!-- ══════════ 待機部屋 ══════════ -->
+<div class="screen" id="scr-room">
+  <div class="wrap">
+    <div class="section-label"><span id="room-title">Room</span></div>
+    <div class="card">
+      <div class="hint" id="room-status"></div>
+      <div id="roster" style="margin-top:10px"></div>
+    </div>
+    <div class="card"><div class="hint" id="room-config"></div></div>
+    <div class="row">
+      <button class="btn primary" id="btn-room-start"></button>
+      <button class="btn" id="btn-room-leave"></button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ プレイ ══════════ -->
+<div class="screen" id="scr-play">
+  <div class="play-grid">
+    <div class="pane" id="info-pane">
+      <div class="info-row"><span class="info-k" id="k-turn"></span><b id="v-turn">–</b></div>
+      <div id="players-box"></div>
+      <div class="info-row"><span class="info-k" id="k-next"></span><b id="v-next">–</b></div>
+      <div class="info-row"><span class="info-k" id="k-foul"></span><b id="v-foul">–</b></div>
+      <div id="time-box">
+        <div class="info-row"><span class="info-k" id="k-base"></span><b id="v-base">–</b></div>
+        <div class="info-row"><span class="info-k" id="k-bank"></span><b id="v-bank">–</b></div>
+      </div>
+      <div class="mini" id="v-config"></div>
+    </div>
+
+    <div class="pane" id="board-pane">
+      <canvas id="board"></canvas>
+      <div id="msg-bar"></div>
+    </div>
+
+    <div class="pane" id="ctrl-pane">
+      <div id="elev-wrap">
+        <span class="mini" id="k-elev">0°</span>
+        <input type="range" id="elev" min="0" max="90" value="0" step="1">
+      </div>
+      <div>
+        <div class="mini" id="k-power">0%</div>
+        <div class="gauge" id="power-gauge"><i></i></div>
+      </div>
+      <button class="btn small" id="btn-aim"></button>
+      <button class="btn small" id="btn-replay"></button>
+      <button class="btn small" id="btn-deadlock"></button>
+      <button class="btn small" id="btn-settings-2"></button>
+      <button class="btn small" id="btn-quit"></button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 結果 ══════════ -->
+<div class="screen" id="scr-result">
+  <div class="wrap">
+    <div class="section-label"><span id="res-title">Result</span></div>
+    <div class="card"><div id="res-body"></div></div>
+    <div class="row">
+      <button class="btn primary" id="btn-again"></button>
+      <button class="btn" id="btn-to-setup"></button>
+    </div>
+    <footer><a href="../">← MOMO Games</a></footer>
+  </div>
+</div>
+
+<!-- ══════════ モーダル ══════════ -->
+<div class="modal" id="modal-audio"><div class="box">
+  <h3 id="audio-title"></h3>
+  <p class="hint" id="audio-desc"></p>
+  <div class="row" style="margin-top:14px">
+    <button class="btn primary" id="btn-audio-yes"></button>
+    <button class="btn" id="btn-audio-no"></button>
+  </div>
+</div></div>
+
+<div class="modal" id="modal-settings"><div class="box">
+  <h3 id="set-title"></h3>
+  <div style="margin:10px 0">
+    <div class="row" style="justify-content:space-between"><span id="set-bgm"></span>
+      <label class="chk"><input type="checkbox" id="mute-bgm"><span id="set-mute1"></span></label></div>
+    <input type="range" id="vol-bgm" min="0" max="100" style="width:100%">
+  </div>
+  <div style="margin:10px 0">
+    <div class="row" style="justify-content:space-between"><span id="set-sfx"></span>
+      <label class="chk"><input type="checkbox" id="mute-sfx"><span id="set-mute2"></span></label></div>
+    <input type="range" id="vol-sfx" min="0" max="100" style="width:100%">
+  </div>
+  <div class="row" style="justify-content:flex-end"><button class="btn" id="btn-set-close"></button></div>
+</div></div>
+
+<div class="modal" id="modal-dl"><div class="box">
+  <h3 id="dl-title"></h3>
+  <p class="hint" id="dl-ask"></p>
+  <div class="row" style="margin-top:14px">
+    <button class="btn primary" id="btn-dl-yes"></button>
+    <button class="btn" id="btn-dl-no"></button>
+  </div>
+</div></div>
+
+<div class="modal" id="modal-note"><div class="box">
+  <h3 id="note-title">–</h3>
+  <div class="hint" id="note-body"></div>
+  <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn" id="btn-note-close"></button></div>
+</div></div>
+
+<script src="../matchmaking/momo-matchmaking.js"></script>
+<script src="js/i18n.js"></script>
+<script src="js/table.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/rules.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/net.js"></script>
+<script src="js/app.js"></script>
+<script src="/momo/lib/momo-analytics.js" defer></script>
+</body>
+</html>

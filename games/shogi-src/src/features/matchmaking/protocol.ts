@@ -431,6 +431,11 @@ export type RuleAckReason =
   | 'custom_rule_unavailable'
   | 'unsupported_torus_mode'
   | 'engine_not_quantum_capable'
+  /**
+   * ★2026-08-26: **そのルールの定義が、その変則条件を許していない**（親 §3.2.1）。
+   * 扱えないのは自分の側ではなくルールの側なので、能力不足とは別の理由として返す。
+   */
+  | 'modifier_not_allowed'
   | 'rule_digest_mismatch'
   | 'pieceid_hash_mismatch';
 

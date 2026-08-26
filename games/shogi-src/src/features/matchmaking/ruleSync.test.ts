@@ -117,6 +117,29 @@ describe('ゲスト側: ルールを受け取る', () => {
     // 断ったのに設定だけ書き換わっていたら、断った意味がない
     expect(useMatchmakingStore.getState().activeRoomConfig?.gameType).toBe('shogi');
   });
+
+  /**
+   * ★2026-08-26（親 §3.2.1・§3.13）＝**そのルールの定義が許していない変則条件**で
+   * 部屋が建っていたら断る。**扱えないのは自分の側ではなくルールの側**なので、
+   * 能力不足とは別の理由で返す。
+   */
+  it('★ルールの定義が許さない変則条件なら断る（はさみ将棋 × 量子）', () => {
+    handleShogiMessage(ruleSyncMsg({ ...HOST_RULES, gameType: 'hasami', quantum: true }));
+
+    const ack = sent.find((m) => m.type === 'rule_ack');
+    expect(ack?.ok).toBe(false);
+    expect(ack?.reason).toBe('modifier_not_allowed');
+    expect(useMatchmakingStore.getState().ruleSyncPhase).toBe('failed');
+    expect(useMatchmakingStore.getState().activeRoomConfig?.gameType).toBe('shogi');
+  });
+
+  it('許している組み合わせは通る（はさみ将棋 × 円筒）', () => {
+    handleShogiMessage(ruleSyncMsg({ ...HOST_RULES, gameType: 'hasami', quantum: false, torusMode: 'cylinder' }));
+
+    const ack = sent.find((m) => m.type === 'rule_ack');
+    expect(ack?.ok).toBe(true);
+    expect(useMatchmakingStore.getState().activeRoomConfig?.gameType).toBe('hasami');
+  });
 });
 
 describe('ホスト側: 受領確認を検証する', () => {

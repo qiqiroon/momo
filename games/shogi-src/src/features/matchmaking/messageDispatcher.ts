@@ -26,7 +26,8 @@ import { useRouteStore } from '../../core/store/route-store';
 import { useGameStore } from '../../core/store/game-store';
 import { wireFieldsOf } from '../../core/protocol/wire-move';
 import { JISHOGI_ANSWER_MS, useOffersStore } from '../../core/store/offers-store';
-import { pieceIdListDigest, positionHash } from '../../core/engine';
+import { mgfForGameType, pieceIdListDigest, positionHash } from '../../core/engine';
+import { modifierConflict } from '../../core/engine/mgf/compatibility';
 import { get as pluginGet } from '../../core/plugin/registry';
 import type { ReviewMessage } from '../../core/plugin/review';
 import { getMomoMatchmaking } from './client';
@@ -488,6 +489,15 @@ async function adoptRuleSync(msg: RuleSyncMsg): Promise<void> {
   if (msg.rules.gameType === 'custom') {
     resolved = await resolveCustomRuleForSync(msg.rules);
     if (!resolved) return refuse('custom_rule_unavailable');
+  }
+
+  // ★2026-08-26 (親 §3.2.1・§3.13): **設定がそのルールの宣言に反していたら断る**。
+  // 可否を持っているのはルール定義だけで、**画面にも通信にも一覧を置かない**。
+  // ここで見るのは**ホストの設定 × ホストが使うルールの定義**＝自分の能力の話ではないので、
+  // 能力不足 (engine_not_quantum_capable) とは別の理由で返す。
+  const syncedMgf = resolved ?? mgfForGameType(msg.rules.gameType);
+  if (syncedMgf && modifierConflict(syncedMgf, { quantum: msg.rules.quantum, torusMode: msg.rules.torusMode })) {
+    return refuse('modifier_not_allowed');
   }
 
   const applied = applySyncedRules(msg.rules, resolved);

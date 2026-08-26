@@ -17,7 +17,7 @@
   },
   "compatible_modifiers": {
     "torus": { "cylinder": true, "full_torus": true },
-    "quantum": { "enabled": false }
+    "quantum": { "enabled": true }
   },
   "constraints": {
     "suicide": true,

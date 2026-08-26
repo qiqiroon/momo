@@ -165,3 +165,57 @@ describe('S02 カスタムの札から読み込んだルールを選ぶ (仕様 
     expect(useMatchmakingStore.getState().pendingRoomConfig.customMgf).toBeUndefined();
   });
 });
+
+/**
+ * ★2026-08-26（親 §3.2.1）＝**変則条件の可否はルール定義から引く**。
+ *
+ * v1.91 まではこの画面が可否の一覧を持っており、**カスタムだけは中身を見ずに「可」と
+ * 決め打ち**だった＝**「量子とは併用しない」と宣言したカスタムルールでも量子で始められた**。
+ * ここで見張るのは、**読み込んだ定義の宣言が実際に効いていること**。
+ */
+describe('S02 変則条件の可否は、そのルールの定義から引く', () => {
+  beforeEach(() => {
+    clearPlugins();
+    clearUiSettings();
+  });
+  afterEach(() => {
+    clearPlugins();
+    clearUiSettings();
+  });
+
+  /** そのカスタム定義を選んだ状態にする。 */
+  function setupCustom(mgf: unknown) {
+    useMatchmakingStore.setState({
+      pendingRoomConfig: {
+        ...DEFAULT_ROOM_CONFIG,
+        gameType: 'custom',
+        customMgf: mgf as never,
+        quantum: false,
+      },
+    });
+  }
+
+  const quantumButtons = () =>
+    screen.getAllByRole('button').filter((b) => b.textContent === 'ON' || b.textContent === 'OFF');
+
+  it('★量子を許さないと宣言したカスタムルールでは、量子を選べない', () => {
+    mockConnector(true);
+    setupCustom({ ...chessRaw, compatible_modifiers: { quantum: { enabled: false } } });
+    render(<RuleSelectScreen />);
+
+    // 「このルールでは量子を使えません」が出て、ON/OFF が押せない
+    expect(screen.getByText(/量子を使えません/)).toBeTruthy();
+    for (const b of quantumButtons()) expect((b as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('★チェス（量子を許すと宣言）では、量子を選べる', () => {
+    mockConnector(true);
+    setupCustom(chessRaw);
+    render(<RuleSelectScreen />);
+
+    expect(screen.queryByText(/量子を使えません/)).toBeNull();
+    const buttons = quantumButtons();
+    expect(buttons.length).toBeGreaterThan(0);
+    for (const b of buttons) expect((b as HTMLButtonElement).disabled).toBe(false);
+  });
+});

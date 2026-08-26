@@ -15,6 +15,7 @@ import {
   type RuleCatalogEntry,
 } from '../../../core/engine/mgf/rule-catalog';
 import type { HandicapSeat, MgfHandicapType } from '../../../core/engine';
+import { quantumAllowed, torusAllowed } from '../../../core/engine/mgf/compatibility';
 import { seButton } from '../../../core/audio/se-synth';
 import { useGameStore } from '../../../core/store/game-store';
 import { get as pluginGet } from '../../../core/plugin/registry';
@@ -34,26 +35,32 @@ import type { OnlineGameConnector } from '../../../core/plugin/gameConnector';
  *  - 持ち時間設定パネルをこの画面の変則条件の下に追加 (S04 から移動)
  */
 
+/**
+ * ★**変則条件の可否をここに書かない**（親 §3.2.1・2026-08-26 ユーザー判断）。
+ *
+ * v1.91 まではこの表が `torusOK` / `quantumOK` を持ち、**ルール定義に書いてあることを
+ * 写していた**。写しは**ルールが増えるたびに書き足す形**なので、**カスタムだけは中身を
+ * 見ずに「可」と決め打ち**になっており、**「量子とは併用しない」と宣言したカスタムルール
+ * でも量子で始められた**。可否は**そのルールの定義から引く**（`compatibility.ts`）。
+ */
 interface RuleDef {
   id: GameType;
   nameKey: string;
   descKey: string;
-  torusOK: boolean;
-  quantumOK: boolean;
   disabled?: boolean;
 }
 
 // 現状 selectable な 3 ルール
 const RULES: RuleDef[] = [
-  { id: 'shogi', nameKey: 's02.ruleHongi.name', descKey: 's02.ruleHongi.desc', torusOK: true, quantumOK: true },
-  { id: 'hasami', nameKey: 's02.ruleHasami.name', descKey: 's02.ruleHasami.desc', torusOK: true, quantumOK: false },
+  { id: 'shogi', nameKey: 's02.ruleHongi.name', descKey: 's02.ruleHongi.desc' },
+  { id: 'hasami', nameKey: 's02.ruleHasami.name', descKey: 's02.ruleHasami.desc' },
   // 【§5.0 一本化】チェスは同梱カードでなく「読み込んで遊ぶカスタムルールの実証例」＝
   // メニュー「カスタムルール作成」→読み込み画面から `rules/chess.json` を選んで遊ぶ。
   // ここ (S02) は元から入っているルールだけを並べる。custom は将来のオーサリング用に
   // 無効カードとして置いておく (実際の読み込み経路は読み込み画面)。
   // 【§5.0 一本化】読み込んだカスタムルール（チェス等）はここから選ぶ。仕様 S02 の
   // 「ルール一覧＝同梱ルール＋ユーザー保存ルール」がこの札の置き場（2026-08-25 ユーザー指摘）。
-  { id: 'custom', nameKey: 's02.ruleCustom.name', descKey: 's02.ruleCustom.desc', torusOK: true, quantumOK: true },
+  { id: 'custom', nameKey: 's02.ruleCustom.name', descKey: 's02.ruleCustom.desc' },
 ];
 
 // v0.64: 10 分と 3 秒を追加
@@ -117,8 +124,6 @@ export function RuleSelectScreen() {
   const subtitle = subLocale === 'zh' ? '擒王为胜，破局无界' : 'Capture the King, Bend the Rules';
 
   const currentRule = RULES.find((r) => r.id === config.gameType) ?? RULES[0];
-  const torusUsable = currentRule.torusOK;
-  const quantumUsable = currentRule.quantumOK;
 
   // ---- 手合い (駒落ち)。親 v1.28 §3.12.1 / 付録D-2 v1.6 §3.1 ----
   // 選べる種類は**ルール定義が持つ手合いの一覧**から作る (画面に焼き付けない)。
@@ -127,6 +132,15 @@ export function RuleSelectScreen() {
   // （§3.12.1「ルール定義が持っているかで決まる項目は定義から引く」）。
   const ruleMgf =
     config.gameType === 'custom' ? (config.customMgf ?? null) : mgfForGameType(config.gameType);
+
+  // ★変則条件の可否も**定義から引く**（親 §3.2.1）。定義がまだ決まっていない custom は
+  // 選ばせるだけ選ばせ、可否は定義が決まってから効く（宣言が無ければすべて許容が既定）。
+  // ★つなぎ方は 1 つずつ見る＝**円筒は許すが完全トーラスは許さない**ルールが書けるので、
+  // まとめて可否を決めない（§3.2.1 は 2 つを別々の欄で持っている）。
+  const torusModeOK = (mode: TorusMode) => !ruleMgf || torusAllowed(ruleMgf, mode);
+  const torusUsable = torusModeOK('cylinder') || torusModeOK('full');
+  const quantumUsable = ruleMgf ? quantumAllowed(ruleMgf) : true;
+
   const handicapTypes: MgfHandicapType[] = ruleMgf ? listHandicaps(ruleMgf) : [];
   const handicapAvailable = handicapTypes.length > 0;
   const handicapName = (h: MgfHandicapType) => {
@@ -219,15 +233,17 @@ export function RuleSelectScreen() {
     }
     setPickOpen(false);
     const patch: Parameters<typeof setConfig>[0] = { gameType: rid };
-    if (!def.torusOK && config.torusMode !== 'none') {
+    // 移った先のルールが許さない変則条件は落とす。**可否は移った先の定義から引く**
+    // （親 §3.2.1・画面に一覧を持たない）。
+    const nextMgf = mgfForGameType(rid);
+    if (nextMgf && config.torusMode !== 'none' && !torusAllowed(nextMgf, config.torusMode)) {
       patch.torusMode = 'none';
       patch.torus = false;
     }
-    if (!def.quantumOK && config.quantum) {
+    if (nextMgf && config.quantum && !quantumAllowed(nextMgf)) {
       patch.quantum = false;
     }
     // 駒落ちに対応しないルールへ移ったら平手へ戻す (付録D-2 v1.6 §3.1)
-    const nextMgf = mgfForGameType(rid);
     if (config.handicap && (!nextMgf || !findHandicap(nextMgf, config.handicap.typeId))) {
       patch.handicap = null;
     }
@@ -235,7 +251,7 @@ export function RuleSelectScreen() {
   };
 
   const onSetTorus = (mode: TorusMode) => {
-    if (!torusUsable) return;
+    if (!torusModeOK(mode)) return;
     setConfig({ torusMode: mode, torus: mode !== 'none' });
   };
   const onSetQuantum = (on: boolean) => {
@@ -495,7 +511,7 @@ export function RuleSelectScreen() {
                       type="button"
                       className={config.torusMode === 'cylinder' ? 'on' : ''}
                       onClick={() => onSetTorus('cylinder')}
-                      disabled={!torusUsable}
+                      disabled={!torusModeOK('cylinder')}
                     >
                       {t('s02.torusCyl')}
                     </button>
@@ -503,7 +519,7 @@ export function RuleSelectScreen() {
                       type="button"
                       className={config.torusMode === 'full' ? 'on' : ''}
                       onClick={() => onSetTorus('full')}
-                      disabled={!torusUsable}
+                      disabled={!torusModeOK('full')}
                     >
                       {t('s02.torusFull')}
                     </button>

@@ -787,9 +787,9 @@ export function ReviewScreen() {
   const changeFolder = async () => {
     setFolderBusy(true);
     try {
-      const dir = await chooseFolder();
-      if (!dir) return;
-      setFolder(dir);
+      const got = await chooseFolder();
+      if (got.kind !== 'ready') return;
+      setFolder(got.dir);
     } finally {
       setFolderBusy(false);
     }

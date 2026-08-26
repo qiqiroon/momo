@@ -14,6 +14,13 @@
  * **★「使える」と「フォルダを受け取れた」は別**。選ぶのをやめられたときは指定なしとして扱い、
  * **その回の保存もやめた扱いにする** (v1.39・ダウンロードへ落とさない＝やめたのに保存される
  * ことになるため)。
+ *
+ * **★仕組みが在ることと、それが答えることも別** (2026-08-26 実機のご報告・ユーザー判断)。
+ * **アプリ内蔵ブラウザは「フォルダを選べます」と名乗り、実際に呼ぶと窓が出ないまま、
+ * 成功も失敗も返してこない**。待つ側は「やめた」も「失敗した」も区別できず、**利用者に
+ * 何も言わないまま永久に待つ**。したがって**返事が返ってこないこと自体を 1 つの結末として
+ * 扱う** ([[reference_absence_is_a_message]])＝名乗りで環境を見分けるのではなく、
+ * **返ってこなかったという事実**で判断し、共有シート・ダウンロードへ落とす。
  */
 
 /**
@@ -49,6 +56,70 @@ type PickerWindow = Window & {
 /** フォルダを扱えるか。**名乗りではなく、その仕組みがあるかを直接見る** (§9.2.3 ④)。 */
 export function canUseFolder(): boolean {
   return typeof (window as PickerWindow).showDirectoryPicker === 'function';
+}
+
+/**
+ * フォルダを用意しようとした結末。**3 つに分ける**＝呼び出し側の振る舞いが 3 通り違う。
+ *
+ * - `ready` … 使えるフォルダを受け取れた。
+ * - `none` … **人がやめた／許可が下りない**。**その回の保存もやめる**
+ *   (ダウンロードへ落とさない＝やめたのに保存されることになる・§9.2.3 ④)。
+ * - `unresponsive` … **窓が出ず、返事も返ってこない**。**人はやめていない**ので、
+ *   保存そのものは続け、共有シート・ダウンロードへ落とす。
+ */
+export type FolderResult =
+  | { kind: 'ready'; dir: FsDirHandle }
+  | { kind: 'none' }
+  | { kind: 'unresponsive' };
+
+/**
+ * 返事を待つ上限。**窓が出ていれば人が選んでいる途中なので、この上限は使わない**
+ * （下の `openWithLimit` を参照）。したがって短くてよい＝**窓が出るなら即座に出る**。
+ */
+const NO_ANSWER_MS = 5000;
+
+/**
+ * **この画面を開いている間だけ覚える**＝一度「返事が返ってこない環境」と分かったら、
+ * 保存のたびに待ち直さない。**次に開いたときは何も引きずらない**ので、環境が直れば
+ * そのまま使える。
+ */
+let noAnswerHere = false;
+
+/**
+ * フォルダを選ぶ窓を開き、**返事が返ってこないなら見切る**。
+ *
+ * ★**時間だけでは見切らない**＝PC では人が何十秒も選んでいることがあり、時間だけで
+ * 打ち切ると**窓が開いたままダウンロードもされる**（二重に保存される）。**窓が出れば
+ * 画面はいったん裏へ回る**ので、**裏へ回ったかどうかという実際の出来事**を見て、
+ * 回っていない＝**窓が出ていない**ときだけ見切る。
+ *
+ * ★見切った後に窓の返事が届いても**受け取らない**（もう下へ落ちているため）。
+ */
+function openWithLimit(open: () => Promise<FsDirHandle>): Promise<FolderResult> {
+  return new Promise((resolve) => {
+    let settled = false;
+    /** 画面が一度でも裏へ回ったか＝窓は出ている。 */
+    let wentBackground = false;
+    const noteBackground = () => {
+      wentBackground = true;
+    };
+    const finish = (r: FolderResult) => {
+      if (settled) return;
+      settled = true;
+      window.removeEventListener('blur', noteBackground);
+      clearTimeout(timer);
+      resolve(r);
+    };
+    window.addEventListener('blur', noteBackground);
+    const timer = setTimeout(() => {
+      if (wentBackground) return; // 窓は出ている＝人が選んでいる途中。待ち続ける
+      finish({ kind: 'unresponsive' });
+    }, NO_ANSWER_MS);
+    open().then(
+      (dir) => finish({ kind: 'ready', dir }),
+      () => finish({ kind: 'none' }), // やめた・拒まれた
+    );
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -133,6 +204,7 @@ function writeStored(dir: FsDirHandle | null): Promise<void> {
  */
 export async function forgetFolder(): Promise<void> {
   await writeStored(null);
+  noAnswerHere = false;
 }
 
 /**
@@ -177,15 +249,15 @@ export type FolderAsk = 'silent' | 'permission' | 'choose';
  * **一覧を出すだけの場面でフォルダを選ばせない**＝押していないのに選ぶ画面が出ると、
  * 書類ピッカーを勝手に開かない決まり（画面機能 §3 S08）と同じ驚きになる。
  */
-export async function usableFolder(ask: FolderAsk): Promise<FsDirHandle | null> {
-  if (!canUseFolder()) return null;
+export async function usableFolder(ask: FolderAsk): Promise<FolderResult> {
+  if (!canUseFolder()) return { kind: 'none' };
   const stored = await readStored();
   if (stored) {
-    if (await ensurePermission(stored, ask !== 'silent')) return stored;
+    if (await ensurePermission(stored, ask !== 'silent')) return { kind: 'ready', dir: stored };
     // 許可が下りない＝フォルダごと消された等で実体を失っている。
     // 保存の場面だけは選び直してもらう（黙って「やめました」と言わないため）。
   }
-  return ask === 'choose' ? chooseFolder() : null;
+  return ask === 'choose' ? chooseFolder() : { kind: 'none' };
 }
 
 /**
@@ -194,17 +266,17 @@ export async function usableFolder(ask: FolderAsk): Promise<FsDirHandle | null> 
  * **やめられたときは覚えているものを消さない**＝「別のフォルダを選ぶ」を押して
  * 気が変わっただけで、いま使えているフォルダまで失うのは行き過ぎなので。
  */
-export async function chooseFolder(): Promise<FsDirHandle | null> {
+export async function chooseFolder(): Promise<FolderResult> {
   const picker = (window as PickerWindow).showDirectoryPicker;
-  if (!picker) return null;
-  try {
-    const dir = await picker({ mode: 'readwrite', id: 'momo-shogi-kifu', startIn: 'documents' });
-    await writeStored(dir);
-    return dir;
-  } catch {
-    // やめた・拒まれた。どちらも「フォルダを受け取れなかった」として同じに扱う。
-    return null;
-  }
+  if (!picker) return { kind: 'none' };
+  // 一度「返事が返ってこない」と分かった環境では、待ち直さない。
+  if (noAnswerHere) return { kind: 'unresponsive' };
+  const got = await openWithLimit(() =>
+    picker({ mode: 'readwrite', id: 'momo-shogi-kifu', startIn: 'documents' }),
+  );
+  if (got.kind === 'ready') await writeStored(got.dir);
+  if (got.kind === 'unresponsive') noAnswerHere = true;
+  return got;
 }
 
 // ---------------------------------------------------------------------------

@@ -246,10 +246,10 @@ export function KifuReplayScreen() {
     if (!canUseFolder()) return;
     setFolderBusy(true);
     try {
-      const dir = await usableFolder(ask);
-      if (!dir) return;
-      setFolder(dir);
-      setFolderFiles(await listFolderKifu(dir));
+      const got = await usableFolder(ask);
+      if (got.kind !== 'ready') return;
+      setFolder(got.dir);
+      setFolderFiles(await listFolderKifu(got.dir));
     } finally {
       setFolderBusy(false);
     }
@@ -259,10 +259,10 @@ export function KifuReplayScreen() {
   const changeFolder = async () => {
     setFolderBusy(true);
     try {
-      const dir = await chooseFolder();
-      if (!dir) return;
-      setFolder(dir);
-      setFolderFiles(await listFolderKifu(dir));
+      const got = await chooseFolder();
+      if (got.kind !== 'ready') return;
+      setFolder(got.dir);
+      setFolderFiles(await listFolderKifu(got.dir));
     } finally {
       setFolderBusy(false);
     }

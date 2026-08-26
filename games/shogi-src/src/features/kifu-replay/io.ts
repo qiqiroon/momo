@@ -98,14 +98,19 @@ export async function writeKifuFile(file: KifuFile, fileName: string): Promise<K
 
   if (canUseFolder()) {
     // 押された直後なので、未指定なら選んでもらってよい（§9.2.3 ④「1 度だけ」）。
-    const dir = await usableFolder('choose');
-    if (!dir) return 'cancelled';
-    const written = await writeIntoFolder(dir, fileName, text);
-    if (written.result === 'saved') {
-      // **書いた場所まで言える唯一の経路**＝読み返して突き合わせたうえで名前も分かる。
-      showSaveNotice({ fileName: written.name, folderName: dir.name, verified: true });
+    const got = await usableFolder('choose');
+    if (got.kind === 'ready') {
+      const written = await writeIntoFolder(got.dir, fileName, text);
+      if (written.result === 'saved') {
+        // **書いた場所まで言える唯一の経路**＝読み返して突き合わせたうえで名前も分かる。
+        showSaveNotice({ fileName: written.name, folderName: got.dir.name, verified: true });
+      }
+      return written.result;
     }
-    return written.result;
+    // ★やめた・拒まれた＝**その回の保存もやめる**（ダウンロードへ落とさない・§9.2.3 ④）。
+    if (got.kind === 'none') return 'cancelled';
+    // ★窓が出ず返事も返ってこない（アプリ内蔵ブラウザ）＝**人はやめていない**ので
+    //   保存は続ける。下の共有シート・ダウンロードへ落とす。**黙って待ち続けない**。
   }
 
   const nav = navigator as Navigator & {

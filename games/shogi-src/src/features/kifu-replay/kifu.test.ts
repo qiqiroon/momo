@@ -1138,11 +1138,87 @@ describe('★PC のフォルダ指定 (親 v1.39 §9.2.3 ④)', () => {
     const { dir } = fakeFolder('棋譜');
     const picker = stubPicker(dir);
 
-    expect(await usableFolder('permission')).toBeNull();
+    expect((await usableFolder('permission')).kind).toBe('none');
     expect(picker).not.toHaveBeenCalled();
 
-    expect(await usableFolder('choose')).not.toBeNull();
+    expect((await usableFolder('choose')).kind).toBe('ready');
     expect(picker).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * ★2026-08-26 実機のご報告＝**アプリ内蔵ブラウザは「フォルダを選べます」と名乗るのに、
+   * 呼んでも窓が出ず、成功も失敗も返してこない**。v1.90 まではここで**永久に待ち、
+   * 利用者には何も出なかった**（押しても何も起きないように見える）。
+   */
+  describe('★返事が返ってこない環境（アプリ内蔵ブラウザ）', () => {
+    /** **成功も失敗も返さない**窓の代役（内蔵ブラウザで起きていること）。 */
+    function stubSilentPicker(): ReturnType<typeof vi.fn> {
+      const picker = vi.fn(() => new Promise<never>(() => {}));
+      Object.defineProperty(window, 'showDirectoryPicker', { value: picker, configurable: true });
+      return picker;
+    }
+
+    it('★待ち続けず、共有シート・ダウンロードへ落とす（保存はやめない）', async () => {
+      vi.useFakeTimers();
+      try {
+        stubSilentPicker();
+        removeShare();
+        const downloads = watchDownloads();
+
+        const saving = saveCurrentKifu();
+        await vi.advanceTimersByTimeAsync(6000);
+
+        expect(await saving).toBe('saved');
+        expect(downloads).toHaveLength(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('★窓が出ている間は見切らない（人が選んでいる途中で二重に保存しない）', async () => {
+      vi.useFakeTimers();
+      try {
+        stubSilentPicker();
+        removeShare();
+        const downloads = watchDownloads();
+
+        let done = false;
+        void saveCurrentKifu().then(() => {
+          done = true;
+        });
+        // ★**窓を開くところまで進めてから**知らせる＝保存は控えを読むところから
+        // 始まるので、押した直後にはまだ窓を開いていない（見張りも付いていない）。
+        await vi.advanceTimersByTimeAsync(0);
+        // **窓が出た**＝画面がいったん裏へ回る。人が選んでいる途中なので待ち続ける。
+        window.dispatchEvent(new Event('blur'));
+        await vi.advanceTimersByTimeAsync(60000);
+
+        expect(done).toBe(false);
+        expect(downloads).toHaveLength(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('★一度見切ったら、次の保存では待ち直さない', async () => {
+      vi.useFakeTimers();
+      try {
+        const picker = stubSilentPicker();
+        removeShare();
+        const downloads = watchDownloads();
+
+        const first = saveCurrentKifu();
+        await vi.advanceTimersByTimeAsync(6000);
+        expect(await first).toBe('saved');
+
+        // 2 回目は窓を呼ばずに落とす＝**毎回 5 秒待たされない**。
+        expect(await saveCurrentKifu()).toBe('saved');
+        expect(picker).toHaveBeenCalledTimes(1);
+        expect(downloads).toHaveLength(2);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 });
 

@@ -25,15 +25,6 @@ interface CustomRulePromptProps {
   onChoose: (mgf: Mgf, mismatched: boolean) => void;
   /** ファイル選択をやめた（棋譜は開かない）。 */
   onCancel: () => void;
-  /**
-   * ★段B②: 食い違ったときに**「そのまま進める」を出してよいか**（既定＝出す）。
-   *
-   * **ネット越しに配られた 1 局では出さない**（前回の判断を保つ・2026-08-25）＝
-   * **食い違ったままゲストだけが進むと、ホストと違う盤を並べたまま話し続ける**ことに
-   * なる（二人の感想戦は食い違ったらホストを正とする・親 §9.4.4）。出さないときは
-   * **選び直す／中止の 2 択**になる。
-   */
-  allowProceed?: boolean;
 }
 
 /** 名前と版を 1 組で見せる小さな囲み。棋譜側と選んだ定義側で同じ形にする。 */
@@ -85,8 +76,15 @@ function RuleFacts({
  * 受け取った側は**このルールで指せない手も記録どおりに並べる**。パネルの側で並べ方を
  * 決めないのは、**並べ直しを持っているのは画面**だからで、ここは「人が何を選んだか」
  * だけを伝える。
+ *
+ * ★**3 択は入り口で分けない**（ユーザー判断 2026-08-26）＝自分で開いた 1 局でも、
+ * ネット越しに配られた 1 局でも同じ 3 択を出す。**§9.2.6 ③ は元から入り口を分けずに
+ * 3 択と定めており**、「配られた 1 局は 2 択」は実装だけが持っていた例外だった。
+ * 配られた側が食い違ったまま進むとホストと違う盤になるが、**それは人に尋ねたうえでの
+ * 選択**であり、§9.4.4 の「食い違ったらホストを正とする」（＝黙って割れたときの
+ * 決め方）とは別の話。
  */
-export function CustomRulePrompt({ locale, kifuRef, onChoose, onCancel, allowProceed = true }: CustomRulePromptProps) {
+export function CustomRulePrompt({ locale, kifuRef, onChoose, onCancel }: CustomRulePromptProps) {
   const t = (key: string) => _t(key, locale);
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -158,7 +156,7 @@ export function CustomRulePrompt({ locale, kifuRef, onChoose, onCancel, allowPro
           <button type="button" className="reset-btn rulefile-plain" onClick={() => { seButton(); onCancel(); }}>
             {t(mismatch ? 's08.ruleFile.abort' : 's08.ruleFile.cancel')}
           </button>
-          {mismatch && allowProceed && (
+          {mismatch && (
             <button
               type="button"
               className="reset-btn rulefile-plain"

@@ -160,11 +160,7 @@ export function ReviewScreen() {
    * 「差し替え」ではないので、向きと配り直しを動かさない（親 §9.4.1・§6.3.6）。
    */
   const [pendingRule, setPendingRule] = useState<
-    /**
-     * `dealt` ＝★段B②: **ネット越しに配られた 1 局**を待っている（自分で開いたのではない）。
-     * このときは食い違っても「そのまま進める」を出さない（ホストと違う盤で進めない）。
-     */
-    { next: KifuFile; ref: CustomRuleRef; initial?: boolean; dealt?: boolean } | null
+    { next: KifuFile; ref: CustomRuleRef; initial?: boolean } | null
   >(initial.pending);
   /**
    * 盤を並べ直させる合図。**手数が変わらないまま作り直したいことがある**
@@ -413,7 +409,7 @@ export function ReviewScreen() {
                 setFile(target);
               } else {
                 // 取ってこられなかった＝**人に尋ねるしかない**（§9.2.6 ②）。
-                setPendingRule({ next: target, ref: sync.ref, dealt: true });
+                setPendingRule({ next: target, ref: sync.ref });
               }
             });
           }
@@ -1351,9 +1347,9 @@ export function ReviewScreen() {
         <CustomRulePrompt
           locale={locale}
           kifuRef={pendingRule.ref}
-          // ★段B②: **配られた 1 局では「そのまま進める」を出さない**（前回の判断を保つ）
-          // ＝食い違ったままゲストだけが進むと、ホストと違う盤で話し続けることになる。
-          allowProceed={!pendingRule.dealt}
+          // ★2026-08-26 ユーザー判断: **配られた 1 局でも同じ 3 択を出す**（§9.2.6 ③ は
+          // 元から入り口を分けていない）。食い違ったまま進めばホストと違う盤になるが、
+          // **人に尋ねたうえでの選択**なので、黙って割れたときの決め方（§9.4.4）とは別。
           onChoose={(mgf, mismatched) => {
             const { next, initial: wasInitial } = pendingRule;
             setPendingRule(null);

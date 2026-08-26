@@ -15,6 +15,7 @@ import { answerReviewOffer, endSharedReview, receiveReviewMessage, replaceShared
 import { serializeKifu } from './io';
 import { resolveCustomRuleForOpenAsync } from './replay';
 import { CustomRulePrompt } from './ui/CustomRulePrompt';
+import { ReviewScreen } from './ui/ReviewScreen';
 import type { KifuFile } from './types';
 
 /**
@@ -167,17 +168,21 @@ describe('公式一覧からのダウンロード', () => {
   });
 });
 
-describe('ファイル選択のパネル: 配られた 1 局では「そのまま進める」を出さない', () => {
+describe('ファイル選択のパネル: 入り口で分けず、どちらも 3 択', () => {
   const kifuRef = { id: 'my-own-rule', name: '自作ルール', version: '9.9' };
 
   /**
    * **食い違う定義を選ばせる**ところまで実際に通す。
    *
    * ★ここを通さないと**3 択そのものが出ていない**ので、押しどころの数を数えても
-   * 「出す／出さない」の切り替えを測ったことにならない（食い違う前はどちらも同じ形）。
+   * 何も測ったことにならない（食い違う前はどの入り口でも同じ形）。
    */
   async function pickMismatchingFile(container: HTMLElement): Promise<void> {
-    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    // ★**パネルの中の受け口を狙う**＝感想戦の画面には「棋譜を読み込む」の受け口も
+    // あり、画面ごと描くと**そちらが先に見つかって、パネルには何も起きない**
+    // （食い違いに到達しないまま最初の 2 つを数えてしまう）。
+    const scope = (container.querySelector('.rulefile-panel') as HTMLElement | null) ?? container;
+    const input = scope.querySelector('input[type="file"]') as HTMLInputElement;
     // ★中身を読むのに使われるのは `text()` だけ。**この環境の File には無い**ので、
     // 読み口だけを持つものを置く（実物の File を作っても中身が読めず、
     // **「定義として読めない」側へ落ちて食い違いに到達しない**）。
@@ -203,13 +208,37 @@ describe('ファイル選択のパネル: 配られた 1 局では「そのま�
     expect(labels.some((l) => l?.includes('進める'))).toBe(true);
   });
 
-  it('配られた 1 局なら、食い違っても「そのまま進める」が出ない（2 択）', async () => {
-    const { container } = render(
-      <CustomRulePrompt locale="ja" kifuRef={kifuRef} allowProceed={false} onChoose={() => {}} onCancel={() => {}} />,
-    );
-    await pickMismatchingFile(container);
-    const labels = buttons(container);
-    expect(labels.length).toBe(2);
-    expect(labels.some((l) => l?.includes('進める'))).toBe(false);
+  /**
+   * ★2026-08-26 ユーザー判断＝**配られた 1 局でも同じ 3 択を出す**（§9.2.6 ③ は元から
+   * 入り口を分けていない）。
+   *
+   * ★**部品を 2 回描いて数えても、この決まりを測ったことにならない**＝出し分けの
+   * 切り替えが無くなった以上、同じものを 2 回描くだけになる。**配られる道を実際に
+   * 通して**（感想戦の画面へ 1 局が届き、定義がどこからも取り戻せず、パネルが出る）
+   * そこに「そのまま進める」があることを見る。
+   */
+  it('配られた 1 局でも、食い違うと 3 択（そのまま進める入り）', async () => {
+    const file = gameWith(ownRule);
+    // 手元・焼き込みからは取り戻せない状態にし、公式一覧からも取ってこられなくする。
+    useGameStore.getState().reset({ gameType: 'custom', customMgf: chess, quantum: false, torusMode: 'none', handicap: null });
+    (globalThis as { fetch?: unknown }).fetch = (() => Promise.resolve({ ok: false, status: 404 })) as unknown as typeof fetch;
+    answerReviewOffer(true);
+
+    const view = render(<ReviewScreen />);
+    // **定義を添えずに配る**＝受け取った側はどこからも用意できず、人に尋ねるしかない。
+    await act(async () => {
+      receiveReviewMessage({ kind: 'state', kifu: serializeKifu(file), ply: 0, branch: [] });
+    });
+    await act(async () => {
+      for (let i = 0; i < 20; i++) await Promise.resolve();
+    });
+
+    const panel = view.container.querySelector('.rulefile-panel') as HTMLElement;
+    expect(panel).toBeTruthy();
+    await pickMismatchingFile(view.container);
+    const labels = buttons(view.container);
+    expect(labels.length).toBe(3);
+    expect(labels.some((l) => l?.includes('進める'))).toBe(true);
+    view.unmount();
   });
 });

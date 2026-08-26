@@ -80,6 +80,34 @@ function quantumBoard(
 }
 
 /**
+ * **どちらが王でどちらがルークか、盤からは決まらない盤**。
+ *
+ * e1 と h1 の 2 枚がどちらも「王かルーク」の候補を持ち、それ以外の駒を置かない。
+ * 他の決まり（確定済みの駒からの消し込み・枚数合わせ）では決まらないので、
+ * **確定できるのはキャスリングだけ**になる。
+ */
+function twoWayBoard(): Position {
+  const board = Array.from({ length: 8 }, () =>
+    Array.from({ length: 8 }, () => null as PieceInstance | null),
+  );
+  const pieces = [
+    qp('king', 'player1', E1.row, E1.col, 'wk', ['wk', 'wrh']),
+    qp('rook', 'player1', H1.row, H1.col, 'wrh', ['wk', 'wrh']),
+    qp('king', 'player2', E8.row, E8.col, 'bk', ['bk']),
+  ];
+  for (const p of pieces) board[p.initialSquare.row][p.initialSquare.col] = p;
+  return {
+    width: 8,
+    height: 8,
+    board,
+    hands: { player1: [], player2: [] },
+    sideToMove: 'player1',
+    moveNumber: 1,
+    history: [],
+  };
+}
+
+/**
  * e1 の駒が `to` へ動くキャスリング。
  *
  * ★**並びを持つことで見分ける**＝量子では e1 の駒がクイーンでもありうるので、**同じ
@@ -135,7 +163,14 @@ describe('§Q23.3 量子モードのキャスリング', () => {
   });
 
   it('★指した時点で 2 枚とも正体が確定する', () => {
-    const p = quantumBoard(['wk', 'wq'], ['wrh', 'wq']);
+    // ★**他の決まりで決まってしまわない盤**を使う。2 枚とも候補が「王かルーク」で、
+    // どちらがどちらかを決める手がかりは盤に無い＝**確定できるのはキャスリングだけ**。
+    // （最初に書いた盤は、確定済みのクイーンが居たせいで、その分が他の駒から落ちて
+    //   キャスリングと関係なく確定していた＝この検査は素通りしていた）
+    const p = twoWayBoard();
+    expect(kindsOf(p, 'wk')).toEqual(['king', 'rook']);
+    expect(kindsOf(p, 'wrh')).toEqual(['king', 'rook']);
+
     const after = candidateUpdate(applyMove(chess, p, castlingTo(p, G1)[0]), chess);
     expect(kindsOf(after, 'wk')).toEqual(['king']);
     expect(kindsOf(after, 'wrh')).toEqual(['rook']);

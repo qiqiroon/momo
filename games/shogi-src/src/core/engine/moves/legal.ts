@@ -4,7 +4,8 @@ import { applyMove } from '../position/apply';
 import { topologyOf, wrapSquare } from '../position/coordinates';
 import { get as pluginGet } from '../../plugin/registry';
 import { buildInitialKindMap, confirmedKindOf, displayKindsFor } from '../candidate-kinds';
-import { findKing, isInCheck, isSquareAttackedBy } from './check';
+import { findKing, isInCheck, isSquareAttackedBy, isSquareCapturableBy } from './check';
+import { castlingPassThroughSquares } from './castling';
 import { collectShieldSquares } from './attack-scan';
 import { generateDropMoves } from './drops';
 import { fileHasCertainPawn } from './nifu';
@@ -131,6 +132,22 @@ export function isMoveLegal(mgf: Mgf, position: Position, move: Move, opts: Lega
   // 打つ手固有の反則を先にチェック (applyMove 呼び出し前に落とせるものを落とす)
   if (move.type === 'drop') {
     if (!isDropAllowed(mgf, position, move.to, move.pieceId)) return false;
+  }
+
+  // 【v1.65 §5.5.4】キャスリングの安全条件＝**いま王手されていない**／**王が通り抜ける
+  // マスが狙われていない**。**着地マスは下の「盤を 1 手進めて王手か見る」で見ている**ので
+  // ここでは数えない (並びを持つ手は必ず盤を進める＝isKingSafetyIrrelevant)。
+  //
+  // ★量子モード (§Q23.3)＝**王が確定するまで王手は成立しない** (§Q13.1) ので、
+  // これらの条件は未確定のうちは自動的に真になる。**§Q13 の判定そのものは変えず**、
+  // 「確定した王がいるか」を findKing に尋ねるだけで同じ結果になる。
+  const castlingPath = castlingPassThroughSquares(mgf, position, move);
+  if (castlingPath && findKing(mgf, position, mover)) {
+    if (isInCheck(mgf, position, mover)) return false;
+    const opponent: Player = mover === 'player1' ? 'player2' : 'player1';
+    for (const sq of castlingPath) {
+      if (isSquareCapturableBy(mgf, position, sq, opponent)) return false;
+    }
   }
 
   // Phase 4: 盤の端のつなぎ方だけに由来する追加の禁じ手 (完全トーラスの

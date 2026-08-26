@@ -2,6 +2,7 @@ import type { Mgf } from '../mgf/types';
 import type { Move, PieceInstance, Position } from '../position/types';
 import { buildInitialKindMap, displayKindsFor } from '../candidate-kinds';
 import { pieceNameOf } from '../piece-rules';
+import { castlingSideOf } from '../moves/castling';
 
 const RANK_KANJI = ['一', '二', '三', '四', '五', '六', '七', '八', '九'];
 
@@ -127,7 +128,7 @@ export function formatMove(mgf: Mgf, position: Position, move: Move): string {
 /**
  * チェスの手の記法 (§5.5.6)。長い記法＝駒文字 (ポーンは無し)＋出発点-着地点＋昇格 (=Q)。
  * 取る手も必ず出発点を書くので `x` の区別は付けず、先後の印 (▲△) も付けない。
- * キャスリング (O-O) は手の並びから起こす 9-4c で扱うのでここではまだ出ない。
+ * **キャスリングだけは行き先を書かず `O-O`／`O-O-O`** と書く (§5.5.6)。
  * チェスに打つ手は無いが、念のため drop も着地点だけ返す。
  */
 function formatMoveChess(
@@ -136,6 +137,10 @@ function formatMoveChess(
   move: Exclude<Move, { type: 'free' }>,
 ): string {
   if (move.type === 'drop') return squareNameChess(position.height, move.to);
+  // 【v1.65 §5.5.6】キャスリング。**王が 2 マス動いたことから起こさず**、手に書かれた
+  // 並び (ルークがどこへ着いたか) から起こす (§3.7.1)。
+  const castling = castlingSideOf(mgf, position, move);
+  if (castling) return castling === 'king' ? 'O-O' : 'O-O-O';
   const from = squareNameChess(position.height, move.from);
   const to = squareNameChess(position.height, move.to);
   const piece = position.board[move.from.row][move.from.col];

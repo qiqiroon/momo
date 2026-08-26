@@ -26,6 +26,7 @@ import type { PieceId, Position, Square } from '../../../core/engine/position/ty
 import { directionOffsets } from '../../../core/engine/moves/directions';
 import { topologyOf, wrapSquare } from '../../../core/engine/position/coordinates';
 import { fileHasCertainPawn } from '../../../core/engine/moves/nifu';
+import { castlingStepOfLastMove } from '../../../core/engine/moves/castling';
 import type {
   QuantumConstraint,
   QuantumPieceLocation,
@@ -120,6 +121,10 @@ export const c101ActionPossibility: QuantumConstraint = (piece, location, pos, m
   const lastMove = pos.history[pos.history.length - 1];
   if (!lastMove || lastMove.type !== 'move') return new Set(piece.candidates);
   if (lastMove.pieceId !== piece.pieceId) return new Set(piece.candidates);
+  // 【§Q23.3】キャスリングは**動きの定義では説明できない手**＝王は横へ 2 マス動くが、
+  // 王の動きは 1 マスしかない。ここで見ると**王の候補を落としてしまう**ので素通りさせ、
+  // 確定は C-110 に任せる。
+  if (castlingStepOfLastMove(mgf, pos)) return new Set(piece.candidates);
 
   // 「移動した駒が実際にどの姿で動いたか」を決める:
   // - lastMove.promote === true: 移動そのものは未成の姿で行い、着手完了時に成る。
@@ -278,6 +283,45 @@ export const c109UnpromotableExclusion: QuantumConstraint = (piece, _location, _
 };
 
 /**
+ * C-110 キャスリングの確定 (§Q23.3・第 9 段 9-4c)。
+ *
+ * **キャスリングを説明できる候補は、王と相方の駒しかない**。したがって**指した時点で
+ * 動いた 2 枚とも正体が確定する**（昇格がポーンを確定させるのとまったく同じ形）。
+ *
+ * ★**これが無いと逆のことが起きる**＝C-101 は「動いた駒が、その正体で出発点から着地点へ
+ * 動けるか」だけを見る。キャスリングで王は**横へ 2 マス**動くが、**王は 1 マスしか
+ * 動けない**ので、C-101 は「王ではありえない」と判断して**王の候補を落としてしまう**。
+ * そこで C-101 はキャスリングの手を素通りさせ（下の分岐）、確定はここで行う。
+ *
+ * ★**相方は「今回動いた駒」ではない**（並びで動く）ので、C-101 の側では一切狭まらない。
+ * ここで**ルール定義が名指しした駒種**に絞る。名指しであることが効くのはまさにここで、
+ * 動きの形で見分けていたら「段を走れる駒のどれか」までしか絞れない。
+ */
+export const c110CastlingConfirm: QuantumConstraint = (piece, _location, pos, mgf, context) => {
+  if (piece.candidates === undefined) return new Set();
+  const castling = castlingStepOfLastMove(mgf, pos);
+  if (!castling) return new Set(piece.candidates);
+  const partnerKind = mgf.constraints?.castling?.partner;
+  if (partnerKind === undefined) return new Set(piece.candidates);
+
+  let explains: (kind: string) => boolean;
+  if (piece.pieceId === castling.moverId) {
+    explains = (kind) => mgf.pieces.find((p) => p.id === kind)?.is_royal === true;
+  } else if (piece.pieceId === castling.partnerId) {
+    explains = (kind) => kind === partnerKind;
+  } else {
+    return new Set(piece.candidates);
+  }
+
+  const survivors = new Set<PieceId>();
+  for (const pid of piece.candidates) {
+    const initialKind = resolveInitialKind(context, pid);
+    if (initialKind !== undefined && explains(initialKind)) survivors.add(pid);
+  }
+  return survivors;
+};
+
+/**
  * `register('quantum:constraints', [...basicConstraints, ...legalConstraints, ...propagationConstraints])`
  * として `index.ts` から結合登録される順序付き配列。
  */
@@ -288,6 +332,7 @@ export const legalConstraints: QuantumConstraint[] = [
   c104DeadZone,
   c105ForcedPromotion,
   c109UnpromotableExclusion,
+  c110CastlingConfirm,
 ];
 
 /** テスト用の型別名エクスポート (basic.ts と同型)。 */

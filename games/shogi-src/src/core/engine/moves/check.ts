@@ -68,6 +68,44 @@ export function isSquareAttackedBy(
 }
 
 /**
+ * そのマスに**取られる駒が居たとしたら**、相手はそこで取れるか (v1.90・§5.5.4)。
+ *
+ * ★なぜ `isSquareAttackedBy` をそのまま使えないか
+ * あちらは「そのマスへ**動ける手**があるか」を見る。**王のマスのように駒が乗っている
+ * マスなら**、取れない動き (ポーンのまっすぐ前進) は行き先に出てこないので正しく効く。
+ * ところが**空のマス**では、取れない動きまでそのマスへ届いてしまう——**キャスリングで
+ * 王が通るマスは空**なので、そのままでは**ポーンが前に進めるだけで通せんぼ**になる。
+ *
+ * ★直し方＝**空なら守り側の駒を 1 枚仮に置いてから、同じ判定にかける**。
+ * 新しい利きの数え方を作らない (作ると本物の王手判定と食い違う恐れがある)。
+ * 仮の駒は**王ではない駒種**にする＝完全トーラスの「王は敵王を脅かさない」に触れないため。
+ */
+export function isSquareCapturableBy(
+  mgf: Mgf,
+  position: Position,
+  target: Square,
+  attacker: Player,
+): boolean {
+  if (position.board[target.row][target.col] !== null) {
+    return isSquareAttackedBy(mgf, position, target, attacker);
+  }
+  const defender: Player = attacker === 'player1' ? 'player2' : 'player1';
+  const kind = (mgf.pieces.find((p) => !p.is_royal) ?? mgf.pieces[0])?.id;
+  if (kind === undefined) return false;
+  const board = position.board.map((row) => row.slice());
+  board[target.row][target.col] = {
+    pieceId: '__capturable_probe__',
+    kind,
+    owner: defender,
+    initialOwner: defender,
+    initialKind: kind,
+    initialSquare: { ...target },
+    promoted: false,
+  };
+  return isSquareAttackedBy(mgf, { ...position, board }, target, attacker);
+}
+
+/**
  * 作り替える前のやり方 (盤全体を総当たり)。**検査で新しいやり方と突き合わせるためだけ**に残す。
  * 対局では使わない。
  */

@@ -21,7 +21,8 @@
   },
   "constraints": {
     "suicide": true,
-    "pawn_double_step": true
+    "pawn_double_step": true,
+    "castling": { "partner": "rook" }
   },
   "victory": {
     "type": "capture_royalty",

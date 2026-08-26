@@ -5,6 +5,7 @@ import { topologyOf, wrapSquare } from '../position/coordinates';
 import { buildInitialKindMap, resolveCandidateKinds } from '../candidate-kinds';
 import { canPromoteKind, forcedPromotionApplies, promotionChoicesOf, promotionTypeOf } from '../piece-rules';
 import { pawnSpecialMoves } from './pawn-special';
+import { castlingMoves } from './castling';
 
 /**
  * 盤上の指定マスの駒について、擬合法手 (pseudo-legal moves) を生成する。
@@ -49,6 +50,14 @@ export function generatePieceMoves(mgf: Mgf, position: Position, from: Square): 
   // 空マス＝どちらも通常のポーンの手では生まれない) ので seen とはぶつからない。
   if (mgf.constraints?.pawn_double_step) {
     moves.push(...pawnSpecialMoves(mgf, position, from));
+  }
+
+  // 【v1.65 §5.5.4】キャスリング。**指定を持つルール (チェス) でだけ**足す。
+  // 着地マスは王が横へ 2 マスなので通常の王の手 (1 マス) とは重ならない。**王が滑る自由
+  // ルールを作ると重なりうる**が、そのときも「何が起きたか」は手の並びに書いてあるので、
+  // 盤に載せる側・相手へ送る側・観戦へ配る側は取り違えない (§3.7.1)。
+  if (mgf.constraints?.castling) {
+    moves.push(...castlingMoves(mgf, position, from));
   }
   return moves;
 }

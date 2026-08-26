@@ -185,6 +185,14 @@ export const ja: LocaleData = {
     'promote.decline': '成らず',
     'promote.confirm': '成る',
     'cmd.nyugyoku': '入玉宣言',
+    // ★v1.90: 引き分けの「主張」（申し出とは別物＝相手の同意が要らない）。
+    'cmd.claimDraw': '引き分けを主張',
+    'claim.askTitle': '引き分けを主張しますか？',
+    'claim.askBody.repetition': '同じ形が繰り返し現れました。',
+    'claim.askBody.moveLimit': '駒を取る手も、数え直しになる手も無いまま手数が過ぎました。',
+    'claim.noConsentNote': '主張すると、相手の同意なしでこの対局は引分になります。',
+    'claim.askYes': '主張する',
+    'claim.askNo': 'しない',
     'status.sennichite': '千日手（引分）',
     // ★v1.90: ステイルメイト（親 §3.10）。引分のルールと、手詰まり負けのルールの両方。
     'status.stalemate': 'ステイルメイト（引分）',

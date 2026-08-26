@@ -222,6 +222,18 @@ const connector: OnlineGameConnector = {
    * ★v1.88: 入玉宣言の勝ちを届ける（親 v1.63 §6）。**手元の盤は宣言した時点で
    * 既に終局している**ので、ここは知らせるだけ。
    */
+  /**
+   * ★v1.90: 引き分けの主張を届ける（親 §3.10.0）。**手元の盤は主張した時点で
+   * 既に終局している**ので、ここは知らせるだけ。
+   */
+  sendDrawClaim(side: 'player1' | 'player2', reason: 'repetition' | 'move_limit') {
+    const state = useMatchmakingStore.getState();
+    if (!state.gameStartInfo) return;
+    const client = getMomoMatchmaking();
+    if (!client) return;
+    sendShogiMessage(client, { v: PROTOCOL_VERSION, type: 'draw_claim', side, reason });
+  },
+
   sendNyugyokuDeclare(side: 'player1' | 'player2') {
     const state = useMatchmakingStore.getState();
     if (!state.gameStartInfo) return;

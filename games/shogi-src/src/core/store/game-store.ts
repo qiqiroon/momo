@@ -13,6 +13,7 @@ import {
   isInCheck,
   countNoProgressPlies,
   countSamePositions,
+  drawClaimAvailable,
   isInsufficientMaterial,
   isStalemate,
   reachedMoveLimitAuto,
@@ -20,7 +21,7 @@ import {
   positionHash,
 } from '../engine';
 import type {
-  BoardMove, BoardTopology, HandicapSetting, Mgf, Move, MoveDest, PieceInstance, Player, Position, Square,
+  BoardMove, BoardTopology, DrawClaimReason, HandicapSetting, Mgf, Move, MoveDest, PieceInstance, Player, Position, Square,
 } from '../engine';
 import { formatMove, pieceNameJa, squareNameJa } from '../engine/kifu/format';
 import { NO_LIMIT_TIME_CONTROL, initClockState, type ClockState, type TimeControl } from '../engine/time-control';
@@ -242,11 +243,22 @@ export type GameStatus =
  * 盤が変わる場所は複数あり (着手・待った・巻き戻し)、**個々に書き足す形にすると
  * どれか 1 つで必ず書き忘れる**。
  */
-export function computeVictoryFlags(mgf: Mgf, position: Position) {
+export function computeVictoryFlags(
+  mgf: Mgf,
+  position: Position,
+  /** これまでの局面すべてと、印ごとの出現回数。**引き分けの主張を見るのに要る**。 */
+  past: Position[] = [],
+  counts: Record<string, number> = {},
+) {
   return {
     canNyugyokuP1: canDeclareNyugyoku(mgf, position, 'player1'),
     canNyugyokuP2: canDeclareNyugyoku(mgf, position, 'player2'),
     canJishogi: canProposeJishogi(mgf, position),
+    /**
+     * ★v1.90: いま引き分けを主張できるか（できないなら null・親 §3.10.0）。
+     * **ここに入れてあるのは、盤が変わる場所を数え上げ直さないため**（他の旗と同じ理由）。
+     */
+    claimableDraw: drawClaimAvailable(mgf, past, position, counts),
   };
 }
 
@@ -264,6 +276,10 @@ export const NO_VICTORY_FLAGS = {
    */
   nyugyokuPromptSide: null,
   nyugyokuAnnounce: null,
+  /** ★v1.90: 盤を作り直したら、引き分けの主張まわりも必ず消す。 */
+  claimableDraw: null,
+  drawClaimPromptSide: null,
+  drawClaimAnnounce: null,
 } as const;
 
 /**
@@ -355,6 +371,22 @@ interface GameState {
    * 事実なので、先手・後手で分けない。
    */
   canJishogi: boolean;
+  /**
+   * ★v1.90: いま引き分けを**主張**できる根拠 (親 §3.10.0 `claim`)。できないなら null。
+   *
+   * **持将棋と同じく、双方について成り立つ 1 つの事実**なので先手・後手で分けない
+   * （条件は盤の側にあって、どちらか一方の持ち物ではない）。
+   */
+  claimableDraw: DrawClaimReason | null;
+  /**
+   * ★v1.90: 「引き分けを主張しますか」を尋ねている相手（**いま手番の側**）。
+   *
+   * **条件が立ち上がった瞬間に 1 度だけ**出す。**断ってもボタンからはいつでも
+   * 主張できる**ので、入玉宣言と違って盤も時計も止めない（急かさない）。
+   */
+  drawClaimPromptSide: 'player1' | 'player2' | null;
+  /** ★v1.90: **自分が主張したので相手と観戦者へ知らせる**という印（入玉宣言と同じ形）。 */
+  drawClaimAnnounce: { side: 'player1' | 'player2'; reason: DrawClaimReason } | null;
   /** 直近適用された着手（着手送信を検知したい画面が subscribe する） */
   lastAppliedMove: LastAppliedMove | null;
   /** 待ったのための着手前局面スタック（v0.33 追加）。着手のたびに現在局面を push、undoLastMove で pop。 */
@@ -397,6 +429,17 @@ interface GameState {
    * **誰が宣言したのかを呼ぶ側が名指しする**形に改めた。
    */
   declareNyugyoku: (side: 'player1' | 'player2') => boolean;
+  /**
+   * ★v1.90: 引き分けを主張する（親 §3.10.0）。**相手の同意は要らない**。
+   * 条件を満たしていなければ何もせず false を返す。
+   */
+  claimDraw: (side: 'player1' | 'player2') => boolean;
+  /** ★v1.90: 「主張しますか」を出す／閉じる。 */
+  setDrawClaimPrompt: (side: 'player1' | 'player2' | null) => void;
+  /** ★v1.90: 知らせ終わったので印を下ろす。 */
+  clearDrawClaimAnnounce: () => void;
+  /** ★v1.90: 相手（または観戦している対局）の主張をそのまま適用する。 */
+  applyRemoteDrawClaim: (reason: DrawClaimReason) => void;
   /** ★v1.88: 「入玉宣言しますか」を出す／閉じる（受信した知らせからも呼ぶ）。 */
   setNyugyokuPrompt: (side: 'player1' | 'player2' | null) => void;
   /** ★v1.88: 相手へ知らせ終えたので印を下ろす。 */
@@ -874,16 +917,15 @@ function applyAndCommit(
   const kifuEntry = confirmedLines.length > 0
     ? `${formatted}\n${confirmedLines.join('\n')}`
     : formatted;
-  const { status, positionCounts: nextCounts } = computeStatusAfterMove(mgf, nextPos, positionCounts, [
-    ...positionHistory,
-    position,
-  ]);
+  const past = [...positionHistory, position];
+  const { status, positionCounts: nextCounts } = computeStatusAfterMove(mgf, nextPos, positionCounts, past);
   // v1.04 (Phase 5-7 §Q8.5 C-202): 確定王捕獲は checkmate に強制上書き (千日手・詰み判定より優先)。
   const finalStatus = statusOverride ?? status;
   const nextSeq = (lastAppliedMove?.seq ?? 0) + 1;
   // v0.35: 時計の更新。指し終わった側は byoyomi なら秒読みリセット / fischer なら加算
   const moverSide = position.sideToMove;
   const nextClocks = updateClocksAfterMove(clocks, moverSide, timeControl);
+  const victoryFlags = computeVictoryFlags(mgf, nextPos, past, nextCounts);
   const isTerminal = finalStatus !== 'playing';
   const nextActiveSide =
     isTerminal || timeControl.mode === 'no_limit'
@@ -905,7 +947,14 @@ function applyAndCommit(
     moveHistory: [...moveHistory, kifuEntry],
     status: finalStatus,
     positionCounts: nextCounts,
-    ...computeVictoryFlags(mgf, nextPos),
+    ...victoryFlags,
+    // ★v1.90 (親 §3.10.0): **主張できる条件が、この手で立ち上がったときだけ**尋ねる。
+    // **尋ねるのはいま手番の側**＝チェスで主張するのは手番を持つ側なので、その端末に
+    // 出す。**断ってもボタンからいつでも主張できる**ので、盤も時計も止めない。
+    drawClaimPromptSide:
+      finalStatus === 'playing' && victoryFlags.claimableDraw && !state.claimableDraw
+        ? nextPos.sideToMove
+        : null,
     // ★v1.88 (親 v1.63 §4.4.2.2): **自分が指した直後に、それまで成立していなかった
     // 宣言の条件が成立したら、その場で尋ねる**。
     //
@@ -1384,6 +1433,54 @@ export const useGameStore = create<GameState>((set, get) => ({
     return true;
   },
 
+  /**
+   * ★v1.90: 引き分けの主張（親 §3.10.0 `claim`）。
+   *
+   * **相手の同意は要らない**＝決まりを満たしていること自体が根拠なので、投了や
+   * 入玉宣言と同じく、押した時点で終局する。**手番は見ない**（条件は盤の側にあって
+   * どちらか一方の持ち物ではない）。
+   */
+  claimDraw: (side) => {
+    const { status, claimableDraw } = get();
+    if (status !== 'playing') return false;
+    if (!claimableDraw) return false;
+    set({
+      status: claimableDraw === 'repetition' ? 'sennichite' : 'move_limit',
+      drawClaimPromptSide: null,
+      drawClaimAnnounce: { side, reason: claimableDraw },
+      selectedSquare: null,
+      selectedHandPieceId: null,
+      legalDestinations: [],
+      pendingPromotion: null,
+      activeClockSide: null,
+    });
+    return true;
+  },
+
+  setDrawClaimPrompt: (side) => set({ drawClaimPromptSide: side }),
+
+  clearDrawClaimAnnounce: () => set({ drawClaimAnnounce: null }),
+
+  /**
+   * ★v1.90: 届いた主張をそのまま適用する（観戦者も同じ終局になる）。
+   *
+   * **こちらでも条件を数え直して突き合わせることはしない**＝投了・入玉宣言と同じ扱い。
+   * 途中から入った端末は遡れる範囲が短く、**同じ事実を見ていても数えが足りないこと**が
+   * あるので、突き合わせると「片方だけ終わっている」対局を作ってしまう。
+   */
+  applyRemoteDrawClaim: (reason) => {
+    if (get().status !== 'playing') return;
+    set({
+      status: reason === 'repetition' ? 'sennichite' : 'move_limit',
+      drawClaimPromptSide: null,
+      selectedSquare: null,
+      selectedHandPieceId: null,
+      legalDestinations: [],
+      pendingPromotion: null,
+      activeClockSide: null,
+    });
+  },
+
   setNyugyokuPrompt: (side) => set({ nyugyokuPromptSide: side }),
 
   clearNyugyokuAnnounce: () => set({ nyugyokuAnnounce: null }),
@@ -1621,7 +1718,12 @@ export const useGameStore = create<GameState>((set, get) => ({
       pendingPromotion: null,
       status: 'playing',
       anomaly: null,
-      ...computeVictoryFlags(state.mgf, restoredPos),
+      ...computeVictoryFlags(
+        state.mgf,
+        restoredPos,
+        state.positionHistory.slice(0, state.positionHistory.length - actual),
+        restoredCounts,
+      ),
       // v0.33 バグ修正: lastAppliedMove を触らない。触ると対局画面の
       // 「自分の手を相手に送信」useEffect が発火して直前の着手が再送信されてしまい、
       // 相手の巻き戻しが直後に上書きされる。

@@ -282,6 +282,20 @@ export function GameScreen({ variant }: GameScreenProps) {
     useGameStore.getState().clearNyugyokuAnnounce();
   }, [nyugyokuAnnounce, online.isOnline]);
 
+  /**
+   * ★v1.90 (親 v1.65 §3.10.0): 自分の**引き分けの主張**を相手と観戦者へ知らせる。
+   * **諾否を待つものではない**（申し出とは別物）ので、入玉宣言と同じ形で知らせる。
+   */
+  const drawClaimAnnounce = useGameStore((s) => s.drawClaimAnnounce);
+  useEffect(() => {
+    if (!drawClaimAnnounce) return;
+    if (online.isOnline) {
+      const c = pluginGet<OnlineGameConnector>('gameConnector');
+      c?.sendDrawClaim?.(drawClaimAnnounce.side, drawClaimAnnounce.reason);
+    }
+    useGameStore.getState().clearDrawClaimAnnounce();
+  }, [drawClaimAnnounce, online.isOnline]);
+
   // v0.35 ticker → v0.38: アンカー方式に置換。手番開始時の (時計値, Date.now()) を anchor に、
   // 各 tick で elapsed = Date.now() - anchor.at をもとに絶対再計算する。
   // 積算 delta 方式ではないため累積誤差ゼロ、Date.now() は OS 時計と同期するので長時間対局でも drift しない。
@@ -1058,6 +1072,7 @@ export function GameScreen({ variant }: GameScreenProps) {
                   {t('cmd.cancel')}
                 </button>
                 <NyugyokuButton t={t} online={online} />
+                <DrawClaimButton t={t} online={online} />
                 <JishogiButton t={t} online={online} status={status} sideToMove={position.sideToMove} />
               </>
             )}
@@ -1160,6 +1175,9 @@ export function GameScreen({ variant }: GameScreenProps) {
           **持将棋の提案と同じ並びに置く**＝同じ「盤が止まっている」出来事なので、
           出し方も置き場所もそろえる。 */}
       <NyugyokuPromptModal t={t} online={online} />
+      {/* ★v1.90 (親 §3.10.0): 引き分けを主張できるようになった立ち上がりで 1 度尋ねる。
+          **盤も時計も止めない**＝断ってもボタンからいつでも主張できるので急かさない。 */}
+      <DrawClaimPromptModal t={t} online={online} />
       <NyugyokuWaitNotice t={t} online={online} />
       {/* v1.47: 感想戦の打診と諾否 (親 §6.3.6)。**終局後に出る**ものなので、
           対局中の申し出とは別に置く。 */}
@@ -2652,6 +2670,94 @@ function NyugyokuButton({ t, online }: NyugyokuButtonProps) {
     <button type="button" className="act available" onClick={() => declareNyugyoku(mySide)}>
       {t('cmd.nyugyoku')}
     </button>
+  );
+}
+
+/**
+ * 「引き分けを主張」ボタン (★v1.90・親 v1.65 §3.10.0)。
+ *
+ * **申し出（`cmd.draw`）とは別物**＝**相手の同意が要らない**。決まりを満たしている
+ * こと自体が根拠なので、**満たしているときだけ出す**（入玉宣言と同じく、押せない
+ * ボタンを灰色で置くのではなく、押せるときに現れる形にそろえる）。
+ *
+ * **尋ねているモーダルが出ている間は出さない**（そちらが受け持つ）。
+ */
+function DrawClaimButton({
+  t,
+  online,
+}: {
+  t: (key: string) => string;
+  online: { isOnline: boolean; mySide: 'player1' | 'player2' | null };
+}) {
+  const claimable = useGameStore((s) => s.claimableDraw);
+  const status = useGameStore((s) => s.status);
+  const prompting = useGameStore((s) => s.drawClaimPromptSide) !== null;
+  const claimDraw = useGameStore((s) => s.claimDraw);
+  const mySide = useMyDeclaringSide(online);
+  const canNow = status === 'playing' && !prompting && claimable !== null && mySide !== null;
+  useAppearedNotice(canNow);
+  if (!canNow || !mySide) return null;
+  return (
+    <button type="button" className="act available" onClick={() => claimDraw(mySide)}>
+      {t('cmd.claimDraw')}
+    </button>
+  );
+}
+
+/**
+ * 「引き分けを主張しますか？」(★v1.90・親 v1.65 §3.10.0)。
+ *
+ * **主張できる条件が立ち上がった瞬間に 1 度だけ**出る。**盤も時計も止めない**＝
+ * **断ってもボタンからいつでも主張できる**ので、選ぶまで待たせる理由が無い
+ * （入玉宣言は「このままだと相手に手番を渡してしまう」ので止めていた）。
+ */
+function DrawClaimPromptModal({
+  t,
+  online,
+}: {
+  t: (key: string) => string;
+  online: { isOnline: boolean; mySide: 'player1' | 'player2' | null };
+}) {
+  const promptSide = useGameStore((s) => s.drawClaimPromptSide);
+  const reason = useGameStore((s) => s.claimableDraw);
+  const claimDraw = useGameStore((s) => s.claimDraw);
+  const setDrawClaimPrompt = useGameStore((s) => s.setDrawClaimPrompt);
+  const mySide = useMyDeclaringSide(online);
+  const vsAi = useAiStore((st) => st.enabled);
+  const aiSide = useAiStore((st) => st.aiSide);
+  // **AI には尋ねない**（AI は主張しない＝上限に届けば自動で引き分けになる）。
+  const forAi = vsAi && promptSide === aiSide;
+  const mine = online.isOnline ? promptSide === mySide : !forAi;
+  const notify = promptSide !== null && mine;
+  useAppearedNotice(notify);
+  if (promptSide === null || !mine || !reason) return null;
+  return (
+    <FloatingPanel
+      className="floating-result floating-confirm draw"
+      title={
+        <>
+          <span className="icon">🤝</span>
+          {t('claim.askTitle')}
+        </>
+      }
+    >
+      <div className="body">
+        {t(reason === 'repetition' ? 'claim.askBody.repetition' : 'claim.askBody.moveLimit')}
+      </div>
+      <div className="body warn">{t('claim.noConsentNote')}</div>
+      <div className="btn-row">
+        <button
+          type="button"
+          className="btn ghost outline"
+          onClick={() => setDrawClaimPrompt(null)}
+        >
+          {t('claim.askNo')}
+        </button>
+        <button type="button" className="btn" onClick={() => claimDraw(promptSide)}>
+          {t('claim.askYes')}
+        </button>
+      </div>
+    </FloatingPanel>
   );
 }
 

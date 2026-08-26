@@ -221,6 +221,19 @@ export interface NyugyokuPromptMsg extends Envelope {
   open: boolean;
 }
 
+/**
+ * ★v1.90: 引き分けの**主張**（親 v1.65 §3.10.0 `claim`・チェス §5.5.5）。
+ *
+ * **申し出（`draw_offer`）とは別物**＝**諾否を返すものが無い**。決まりを満たして
+ * いること自体が根拠なので、**受け取った側は観戦者を含めて同じ終局を適用する**
+ * （投了・入玉宣言と同じ扱い）。`reason` は終局の言葉を決めるために運ぶ。
+ */
+export interface DrawClaimMsg extends Envelope {
+  type: 'draw_claim';
+  side: 'player1' | 'player2';
+  reason: 'repetition' | 'move_limit';
+}
+
 /** 引分の申し出（段階 2-7 v0.33）。応答は draw_response で返す。 */
 export interface DrawOfferMsg extends Envelope {
   type: 'draw_offer';
@@ -573,6 +586,7 @@ export type ShogiMessage =
   | ResignMsg
   | DrawOfferMsg
   | DrawResponseMsg
+  | DrawClaimMsg
   | JishogiOfferMsg
   | NyugyokuDeclareMsg
   | NyugyokuPromptMsg

@@ -172,6 +172,14 @@ export const zh: LocaleData = {
     'promote.decline': '不成',
     'promote.confirm': '升变',
     'cmd.nyugyoku': '入玉宣布',
+    // v1.90: 主张和棋（与提议不同，不需要对方同意）。
+    'cmd.claimDraw': '主张和棋',
+    'claim.askTitle': '要主张和棋吗？',
+    'claim.askBody.repetition': '相同局面已多次出现。',
+    'claim.askBody.moveLimit': '在既无吃子也无重新计数之着的情况下已超过规定手数。',
+    'claim.noConsentNote': '一旦主张，无需对方同意，本局即为和棋。',
+    'claim.askYes': '主张',
+    'claim.askNo': '暂不',
     'status.sennichite': '千日手（和棋）',
     // v1.90: 逼和（母规格 §3.10）。和棋的规则与无子可动判负的规则两种。
     'status.stalemate': '逼和（和棋）',

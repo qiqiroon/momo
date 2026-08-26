@@ -105,6 +105,8 @@ const SPECTATOR_ALLOWED: ReadonlySet<ShogiMessage['type']> = new Set([
   // （**諾否に関わらないことと、結果を見届けられないことは別**＝第56・第57 と同じ形）。
   'nyugyoku_declare',
   'nyugyoku_prompt',
+  // ★v1.90: 引き分けの主張。**諾否が無く、そのまま終局する**ので観戦者にも適用する。
+  'draw_claim',
   // 生存確認
   'ping',
   'pong',
@@ -264,6 +266,12 @@ export function handleShogiMessage(data: unknown, from?: string): void {
     }
     case 'draw_offer': {
       useOffersStore.getState().setDrawOfferFrom('opp');
+      return;
+    }
+    case 'draw_claim': {
+      // ★v1.90: 主張には諾否が無い。**届いたらそのまま同じ終局にする**
+      //（数え直して突き合わせない＝途中から入った端末は遡れる範囲が短い）。
+      useGameStore.getState().applyRemoteDrawClaim(msg.reason);
       return;
     }
     case 'jishogi_offer': {

@@ -44,6 +44,7 @@ export {
   isProgressMove,
 } from './victory/no-progress';
 export { countSamePositions, hiddenRightsFingerprint } from './victory/repetition';
+export { drawClaimAvailable, type DrawClaimReason } from './victory/draw-claim';
 export { directionOffsets } from './moves/directions';
 export {
   buildInitialKindMap,

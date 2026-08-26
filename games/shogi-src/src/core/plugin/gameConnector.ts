@@ -157,6 +157,13 @@ export interface OnlineGameConnector {
    */
   sendNyugyokuDeclare?(side: 'player1' | 'player2'): void;
   /**
+   * ★v1.90: 引き分けの**主張**を相手と観戦者へ届ける（親 v1.65 §3.10.0）。
+   *
+   * **申し出と違って諾否を待たない**＝送った時点で自分の盤は終局している。
+   * **届けないと相手の盤だけ続く**ので、入玉宣言と同じく必ず知らせる。
+   */
+  sendDrawClaim?(side: 'player1' | 'player2', reason: 'repetition' | 'move_limit'): void;
+  /**
    * ★v1.88: 「入玉宣言しますか」を出している／閉じたことの知らせ
    * （親 v1.63 §6 `nyugyoku_prompt`）。
    *

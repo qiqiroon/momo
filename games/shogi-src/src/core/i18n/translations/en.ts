@@ -172,6 +172,14 @@ export const en: LocaleData = {
     'promote.decline': "Don't Promote",
     'promote.confirm': 'Promote',
     'cmd.nyugyoku': 'Declare Nyugyoku',
+    // v1.90: Claiming a draw (unlike an offer, the opponent does not get to refuse).
+    'cmd.claimDraw': 'Claim draw',
+    'claim.askTitle': 'Claim a draw?',
+    'claim.askBody.repetition': 'The same position has occurred repeatedly.',
+    'claim.askBody.moveLimit': 'No capture and no reset move for the full move limit.',
+    'claim.noConsentNote': 'Claiming ends the game as a draw without the opponent agreeing.',
+    'claim.askYes': 'Claim',
+    'claim.askNo': 'Not now',
     'status.sennichite': 'Sennichite (Draw)',
     // v1.90: Stalemate (spec 3.10) - as a draw, and as a loss for the side to move.
     'status.stalemate': 'Stalemate (Draw)',

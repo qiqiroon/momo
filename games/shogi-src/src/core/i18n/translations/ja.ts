@@ -188,6 +188,7 @@ export const ja: LocaleData = {
     'status.sennichite': '千日手（引分）',
     // ★v1.90: ステイルメイト（親 §3.10）。引分のルールと、手詰まり負けのルールの両方。
     'status.stalemate': 'ステイルメイト（引分）',
+    'status.insufficient_material': '駒不足（引分）',
     'status.stalemate_loss_p1': '先手手詰まり',
     'status.stalemate_loss_p2': '後手手詰まり',
     'status.nyugyoku_win_p1': '先手入玉勝ち',
@@ -218,6 +219,7 @@ export const ja: LocaleData = {
     'result.reason.checkmate': '詰み',
     'result.reason.sennichite': '千日手',
     'result.reason.stalemate': 'ステイルメイト',
+    'result.reason.insufficient_material': '駒不足',
     'result.reason.stalemate_loss': '手詰まり',
     'result.reason.nyugyoku': '入玉宣言',
     'result.reason.resign': '投了',

@@ -11,6 +11,7 @@ import {
   initPosition,
   isCheckmate,
   isInCheck,
+  isInsufficientMaterial,
   isStalemate,
   mgfForGameType,
   positionHash,
@@ -192,6 +193,11 @@ export type GameStatus =
    */
   | 'stalemate_loss_p1'
   | 'stalemate_loss_p2'
+  /**
+   * ★v1.90: 駒不足＝**どちらも詰ませることが不可能な駒の顔ぶれ**になった引き分け
+   * (親 v1.65 §3.10・チェス §5.5.5)。**顔ぶれはルール定義が名指しで書く**。
+   */
+  | 'insufficient_material'
   | 'sennichite'
   | 'nyugyoku_win_p1'
   | 'nyugyoku_win_p2'
@@ -279,7 +285,8 @@ export function winnerOf(
     case 'stalemate_loss_p1':
       return 'player2';
     default:
-      // playing / stalemate / sennichite / agreed_draw / jishogi / nogame は勝った側が居ない
+      // playing / stalemate / insufficient_material / sennichite / agreed_draw /
+      // jishogi / nogame は勝った側が居ない
       return null;
   }
 }
@@ -718,6 +725,11 @@ function computeStatusAfterMove(
       };
     }
     return { status: 'stalemate', positionCounts };
+  }
+  // ★v1.90 (親 §3.10・§5.5.5): 駒不足。**欄を持たないルールでは常に false** なので
+  // 本将棋・はさみ将棋はここも素通りする。
+  if (isInsufficientMaterial(mgf, position)) {
+    return { status: 'insufficient_material', positionCounts };
   }
   const hash = positionHash(position);
   const count = (positionCounts[hash] ?? 0) + 1;

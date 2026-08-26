@@ -36,6 +36,7 @@ export {
 export { generateDropMoves } from './moves/drops';
 export { generateLegalMoves, isMoveLegal, isCheckmate, isStalemate } from './moves/legal';
 export { findKing, isSquareAttackedBy, isInCheck } from './moves/check';
+export { isInsufficientMaterial } from './victory/insufficient-material';
 export { directionOffsets } from './moves/directions';
 export {
   buildInitialKindMap,

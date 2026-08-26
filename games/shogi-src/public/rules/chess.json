@@ -28,6 +28,16 @@
     "type": "capture_royalty",
     "royalty_ids": ["king"],
     "stalemate": { "result": "draw", "trigger": "auto" },
+    "insufficient_material": {
+      "enabled": true,
+      "trigger": "auto",
+      "combinations": [
+        { "sides": [[], []] },
+        { "sides": [["bishop"], []] },
+        { "sides": [["knight"], []] },
+        { "sides": [["bishop"], ["bishop"]], "same_square_color": true }
+      ]
+    },
     "resign_allowed": true
   },
   "pieces": [

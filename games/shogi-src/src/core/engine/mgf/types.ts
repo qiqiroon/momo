@@ -235,6 +235,45 @@ export interface MgfStalemate {
   trigger?: MgfEndTrigger;
 }
 
+/**
+ * 駒不足 (親 v1.65 §3.10・チェス §5.5.5)＝**どちらも詰ませることが不可能な駒の
+ * 組み合わせ**になったら、その瞬間に引き分け。
+ *
+ * ★**組み合わせはルール定義が名指しで書く** (ユーザー判断 2026-08-26)。
+ * 本家チェスも「詰ませられるか」を盤から探索しているのではなく、**当てはまる顔ぶれが
+ * 4 通りしかない**ことを知っていて突き合わせているだけである。エンジンは駒の動きを
+ * 定義から読む作りなので、**動きの形から「詰ませられなさ」を言い当てることはできない**
+ * (量子では正体が未確定な駒についてなおさら言えない＝キャスリングの相方を動きの形で
+ * 見分ける案を落としたのと同じ理由)。
+ *
+ * **書き忘れたら成立しないだけ**＝対局が続く安全側に倒れる。
+ */
+export interface MgfInsufficientMaterial {
+  enabled?: boolean;
+  /** 起こし方 (§3.10.0)。駒不足は**自動**。省略時 `auto`。 */
+  trigger?: MgfEndTrigger;
+  /** 引き分けになる顔ぶれ。1 つでも当てはまれば成立する。 */
+  combinations?: MgfMaterialCombination[];
+}
+
+/**
+ * 引き分けになる駒の顔ぶれ 1 通り。
+ *
+ * - **王 (`is_royal`) は数えない**＝必ず居るので書かない。
+ * - **持ち駒も同じように数える**＝打てる駒があるならそれは残っている駒である。
+ * - **左右は入れ替えても成立する**＝先手・後手のどちらがどちらでもよいので 1 通り書けば足りる。
+ */
+export interface MgfMaterialCombination {
+  /** 双方に残っている駒 (王を除く)。`[[], []]` なら「王だけ 対 王だけ」。 */
+  sides: [string[], string[]];
+  /**
+   * true なら、**挙げた駒がすべて同じ色のマスに乗っているとき**だけ成立する
+   * (チェスの「ビショップ 1 枚ずつ・同じ色のマス」)。色の違うビショップどうしは
+   * 協力すれば詰みが作れるので、本家でも引き分けにならない。
+   */
+  same_square_color?: boolean;
+}
+
 export interface MgfVictory {
   type?: 'capture_royalty' | 'bare_king' | 'points' | 'flag_capture' | 'annihilation' | 'check_wins';
   royalty_ids?: string[];
@@ -243,6 +282,8 @@ export interface MgfVictory {
   jishogi?: MgfJishogi;
   /** ステイルメイト (親 v1.65 §3.10)。**省略時は判定しない**。 */
   stalemate?: MgfStalemate;
+  /** 駒不足 (親 v1.65 §3.10)。**省略時は判定しない**。 */
+  insufficient_material?: MgfInsufficientMaterial;
   /**
    * `annihilation` の成立枚数 (親 §3.10)。相手の**盤上の駒がこの枚数以下**になったら勝ち。
    * 省略時 0 = 文字どおりの全滅。はさみ将棋の標準は 2 (§5.3)。

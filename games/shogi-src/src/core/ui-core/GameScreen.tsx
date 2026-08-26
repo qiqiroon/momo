@@ -396,8 +396,10 @@ export function GameScreen({ variant }: GameScreenProps) {
       status === 'sennichite' ||
       status === 'agreed_draw' ||
       status === 'jishogi' ||
-      // ★v1.90: ステイルメイトも勝った側が居ない (手詰まり負けの側は勝敗がつく)。
-      status === 'stalemate'
+      // ★v1.90: ステイルメイトと駒不足も勝った側が居ない
+      // (手詰まり負けと書いたルールだけは勝敗がつく)。
+      status === 'stalemate' ||
+      status === 'insufficient_material'
     )
       return;
     // オンライン: 自分の勝ちなら fanfare、負けなら lose。オフラインでは負けた側視点で lose。
@@ -465,7 +467,8 @@ export function GameScreen({ variant }: GameScreenProps) {
       ? t(position.sideToMove === 'player1' ? 'status.checkmate_p1' : 'status.checkmate_p2')
       : status === 'stalemate' ||
           status === 'stalemate_loss_p1' ||
-          status === 'stalemate_loss_p2'
+          status === 'stalemate_loss_p2' ||
+          status === 'insufficient_material'
         ? // ★v1.90: ステイルメイト。状態の名前がそのまま翻訳キーになる。
           t(`status.${status}`)
         : status === 'sennichite'
@@ -2128,6 +2131,10 @@ function GameEndModal({
     case 'stalemate_loss_p1':
     case 'stalemate_loss_p2':
       reasonKey = 'result.reason.stalemate_loss';
+      break;
+    case 'insufficient_material':
+      // ★v1.90: 駒不足 (親 §3.10・チェス §5.5.5)。
+      reasonKey = 'result.reason.insufficient_material';
       break;
     case 'agreed_draw':
       reasonKey = 'result.reason.agreed_draw';

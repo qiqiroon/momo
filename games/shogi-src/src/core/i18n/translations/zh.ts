@@ -175,6 +175,7 @@ export const zh: LocaleData = {
     'status.sennichite': '千日手（和棋）',
     // v1.90: 逼和（母规格 §3.10）。和棋的规则与无子可动判负的规则两种。
     'status.stalemate': '逼和（和棋）',
+    'status.insufficient_material': '子力不足（和棋）',
     'status.stalemate_loss_p1': '先手无子可动',
     'status.stalemate_loss_p2': '后手无子可动',
     'status.nyugyoku_win_p1': '先手入玉获胜',
@@ -205,6 +206,7 @@ export const zh: LocaleData = {
     'result.reason.checkmate': '将死',
     'result.reason.sennichite': '千日手',
     'result.reason.stalemate': '逼和',
+    'result.reason.insufficient_material': '子力不足',
     'result.reason.stalemate_loss': '无子可动',
     'result.reason.nyugyoku': '入玉宣言',
     'result.reason.resign': '认输',

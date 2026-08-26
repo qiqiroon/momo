@@ -176,6 +176,7 @@ export const en: LocaleData = {
     // v1.90: Stalemate (spec 3.10) - as a draw, and as a loss for the side to move.
     'status.stalemate': 'Stalemate (Draw)',
     'status.insufficient_material': 'Insufficient material (Draw)',
+    'status.move_limit': 'No progress (Draw)',
     'status.stalemate_loss_p1': 'Sente has no legal move',
     'status.stalemate_loss_p2': 'Gote has no legal move',
     'status.nyugyoku_win_p1': 'Sente wins by Nyugyoku',
@@ -207,6 +208,7 @@ export const en: LocaleData = {
     'result.reason.sennichite': 'Sennichite',
     'result.reason.stalemate': 'Stalemate',
     'result.reason.insufficient_material': 'Insufficient material',
+    'result.reason.move_limit': 'No-progress move limit',
     'result.reason.stalemate_loss': 'No legal move',
     'result.reason.nyugyoku': 'Nyugyoku declaration',
     'result.reason.resign': 'Resignation',

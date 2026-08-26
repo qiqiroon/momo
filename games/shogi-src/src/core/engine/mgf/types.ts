@@ -284,6 +284,8 @@ export interface MgfVictory {
   stalemate?: MgfStalemate;
   /** 駒不足 (親 v1.65 §3.10)。**省略時は判定しない**。 */
   insufficient_material?: MgfInsufficientMaterial;
+  /** 無進展手数 (親 v1.65 §3.10)。**省略時は判定しない**。 */
+  move_limit?: MgfMoveLimit;
   /**
    * `annihilation` の成立枚数 (親 §3.10)。相手の**盤上の駒がこの枚数以下**になったら勝ち。
    * 省略時 0 = 文字どおりの全滅。はさみ将棋の標準は 2 (§5.3)。
@@ -325,9 +327,42 @@ export interface MgfCaptureRules {
 export interface MgfRepetitionExtended {
   type?: 'draw' | 'rematch_with_side_swap' | 'sennichite' | 'perpetual_check';
   on_check_repetition?: 'loss' | 'none';
+  /**
+   * 同じ局面が何回現れたら**自動で**成立するか (親 §3.11)。
+   * 本将棋は 4 (＝同じ局面が 3 回繰り返された次)・チェスは 5。省略時 4。
+   */
   detection_threshold?: number;
+  /**
+   * 【v1.65 §3.11】**主張できる出現回数**。チェスは 3。
+   * **省略＝主張は無く、`detection_threshold` の自動成立だけ**（将棋は従来どおり省略）。
+   */
+  claim_threshold?: number;
   count?: number;
   action?: 'draw' | 'win_attacker' | 'no_repeat';
+}
+
+/**
+ * 無進展手数 (親 v1.65 §3.10 `move_limit`・チェスの 50 手ルール)。
+ *
+ * **駒を取る手も、決められた駒が動く手も無いまま**この手数が過ぎたら引き分け。
+ *
+ * ★**数え直しを起こす駒はルール定義が名指しする**（チェスならポーン）。「後戻りできない
+ * 動きの駒」を動きの形から見分ける案は採らない＝**量子では正体が未確定な駒についてそれを
+ * 言えない**（キャスリングの相方・駒不足と同じ理由）。**取る手はどのルールでも数え直す**
+ * ので名指しは要らない。
+ *
+ * ★**数は「両者が指して 1 手」**＝チェスの数え方に合わせる（50 手ルール＝双方が 50 手
+ * ずつ指す間）。内部では片側 1 手ずつ数えているので、比べるときに 2 倍する。
+ */
+export interface MgfMoveLimit {
+  /** 主張できるようになる手数 (チェスは 50)。省略＝主張できない。 */
+  claim_at?: number;
+  /** 主張が無くても自動で引き分けになる手数 (チェスは 75)。省略＝自動では成立しない。 */
+  auto_at?: number;
+  /** 動くと数えが 0 に戻る駒 (チェスは `["pawn"]`)。省略＝取る手だけが数えを戻す。 */
+  reset_on?: string[];
+  /** 起こし方 (§3.10.0)。主張と、上限での自動を併せ持つ。省略時 `claim`。 */
+  trigger?: MgfEndTrigger;
 }
 
 export interface MgfRepetition {

@@ -38,8 +38,10 @@
         { "sides": [["bishop"], ["bishop"]], "same_square_color": true }
       ]
     },
+    "move_limit": { "claim_at": 50, "auto_at": 75, "reset_on": ["pawn"], "trigger": "claim" },
     "resign_allowed": true
   },
+  "repetition": { "type": "draw", "detection_threshold": 5, "claim_threshold": 3 },
   "pieces": [
     {
       "id": "king",

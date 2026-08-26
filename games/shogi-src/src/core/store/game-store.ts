@@ -11,8 +11,11 @@ import {
   initPosition,
   isCheckmate,
   isInCheck,
+  countNoProgressPlies,
+  countSamePositions,
   isInsufficientMaterial,
   isStalemate,
+  reachedMoveLimitAuto,
   mgfForGameType,
   positionHash,
 } from '../engine';
@@ -198,6 +201,11 @@ export type GameStatus =
    * (親 v1.65 §3.10・チェス §5.5.5)。**顔ぶれはルール定義が名指しで書く**。
    */
   | 'insufficient_material'
+  /**
+   * ★v1.90: 無進展手数（親 v1.65 §3.10 `move_limit`・チェスの 50 手ルール）。
+   * **駒を取る手も、名指しされた駒が動く手も無いまま**書かれた手数が過ぎた引き分け。
+   */
+  | 'move_limit'
   | 'sennichite'
   | 'nyugyoku_win_p1'
   | 'nyugyoku_win_p2'
@@ -285,8 +293,8 @@ export function winnerOf(
     case 'stalemate_loss_p1':
       return 'player2';
     default:
-      // playing / stalemate / insufficient_material / sennichite / agreed_draw /
-      // jishogi / nogame は勝った側が居ない
+      // playing / stalemate / insufficient_material / move_limit / sennichite /
+      // agreed_draw / jishogi / nogame は勝った側が居ない
       return null;
   }
 }
@@ -700,6 +708,8 @@ function computeStatusAfterMove(
   mgf: Mgf,
   position: Position,
   positionCounts: Record<string, number>,
+  /** これまでの局面すべて（各手を指す前の局面）。**遡って確かめるときだけ使う**。 */
+  past: Position[],
 ): { status: GameStatus; positionCounts: Record<string, number> } {
   // Phase 6 (親 §3.10): 全滅。相手の盤上の駒が規定枚数以下になった側の負け。
   // 全滅を持たないルールでは何も返らないので、本将棋は素通りする。
@@ -735,8 +745,17 @@ function computeStatusAfterMove(
   const count = (positionCounts[hash] ?? 0) + 1;
   const nextCounts = { ...positionCounts, [hash]: count };
   const threshold = mgf.repetition?.detection_threshold ?? 4;
-  if (count >= threshold) {
+  // ★v1.90 (親 §4.2.1): **数えるのは今までどおりの印**で、**しきい値に届いたときだけ
+  // 遡って権利まで確かめる**。粗い印は数えすぎることはあっても数え足りないことは無いので、
+  // 届いていないうちは本当の繰り返しも届いていない。**将棋には盤に現れない権利が無いので、
+  // 確かめても答えは変わらない**（遡りもしない）。
+  if (count >= threshold && countSamePositions(mgf, past, position) >= threshold) {
     return { status: 'sennichite', positionCounts: nextCounts };
+  }
+  // ★v1.90 (親 §3.10 `move_limit`): 無進展手数の上限。**主張されないまま上限に達したら
+  // 自動で引き分け**（チェスの 75 手）。**欄を持たないルールでは 0 のまま**。
+  if (reachedMoveLimitAuto(mgf, countNoProgressPlies(mgf, past, position))) {
+    return { status: 'move_limit', positionCounts: nextCounts };
   }
   return { status: 'playing', positionCounts: nextCounts };
 }
@@ -855,7 +874,10 @@ function applyAndCommit(
   const kifuEntry = confirmedLines.length > 0
     ? `${formatted}\n${confirmedLines.join('\n')}`
     : formatted;
-  const { status, positionCounts: nextCounts } = computeStatusAfterMove(mgf, nextPos, positionCounts);
+  const { status, positionCounts: nextCounts } = computeStatusAfterMove(mgf, nextPos, positionCounts, [
+    ...positionHistory,
+    position,
+  ]);
   // v1.04 (Phase 5-7 §Q8.5 C-202): 確定王捕獲は checkmate に強制上書き (千日手・詰み判定より優先)。
   const finalStatus = statusOverride ?? status;
   const nextSeq = (lastAppliedMove?.seq ?? 0) + 1;

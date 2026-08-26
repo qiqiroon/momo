@@ -399,7 +399,8 @@ export function GameScreen({ variant }: GameScreenProps) {
       // ★v1.90: ステイルメイトと駒不足も勝った側が居ない
       // (手詰まり負けと書いたルールだけは勝敗がつく)。
       status === 'stalemate' ||
-      status === 'insufficient_material'
+      status === 'insufficient_material' ||
+      status === 'move_limit'
     )
       return;
     // オンライン: 自分の勝ちなら fanfare、負けなら lose。オフラインでは負けた側視点で lose。
@@ -468,7 +469,8 @@ export function GameScreen({ variant }: GameScreenProps) {
       : status === 'stalemate' ||
           status === 'stalemate_loss_p1' ||
           status === 'stalemate_loss_p2' ||
-          status === 'insufficient_material'
+          status === 'insufficient_material' ||
+          status === 'move_limit'
         ? // ★v1.90: ステイルメイト。状態の名前がそのまま翻訳キーになる。
           t(`status.${status}`)
         : status === 'sennichite'
@@ -2135,6 +2137,10 @@ function GameEndModal({
     case 'insufficient_material':
       // ★v1.90: 駒不足 (親 §3.10・チェス §5.5.5)。
       reasonKey = 'result.reason.insufficient_material';
+      break;
+    case 'move_limit':
+      // ★v1.90: 無進展手数 (親 §3.10・チェスの 50 手ルール)。
+      reasonKey = 'result.reason.move_limit';
       break;
     case 'agreed_draw':
       reasonKey = 'result.reason.agreed_draw';

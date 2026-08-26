@@ -225,7 +225,7 @@ function kindsOf(mgf: Mgf, position: Position, piece: PieceInstance): string[] {
  * 一度も動いていない局面は盤を見ても区別が付かない**ので、手を遡って数える。
  * **並びで動いた駒も数える**＝キャスリングでルークが動いたことを取りこぼさない。
  */
-function movedPieceIds(position: Position): Set<PieceId> {
+export function movedPieceIds(position: Position): Set<PieceId> {
   const ids = new Set<PieceId>();
   for (const m of position.history) {
     ids.add(m.pieceId);

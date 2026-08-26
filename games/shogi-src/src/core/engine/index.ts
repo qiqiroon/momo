@@ -37,6 +37,13 @@ export { generateDropMoves } from './moves/drops';
 export { generateLegalMoves, isMoveLegal, isCheckmate, isStalemate } from './moves/legal';
 export { findKing, isSquareAttackedBy, isInCheck } from './moves/check';
 export { isInsufficientMaterial } from './victory/insufficient-material';
+export {
+  countNoProgressPlies,
+  canClaimMoveLimit,
+  reachedMoveLimitAuto,
+  isProgressMove,
+} from './victory/no-progress';
+export { countSamePositions, hiddenRightsFingerprint } from './victory/repetition';
 export { directionOffsets } from './moves/directions';
 export {
   buildInitialKindMap,

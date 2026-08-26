@@ -33,6 +33,8 @@ function reasonKeyOf(status: GameStatus): string | null {
       return 'result.reason.stalemate_loss';
     case 'insufficient_material':
       return 'result.reason.insufficient_material';
+    case 'move_limit':
+      return 'result.reason.move_limit';
     case 'agreed_draw':
       return 'result.reason.agreed_draw';
     case 'jishogi':

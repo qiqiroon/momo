@@ -27,7 +27,6 @@
   --text:#e5e5e5; --text-muted:#737373;
   --border:#2a2a2a; --border-strong:#444;
   --bg-selected:rgba(194,65,12,0.15);
-  --cloth:#0f3d2e; --cloth-lit:#155e46; --rail:#5a2f16; --rail-top:#7a4322;
 }
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;height:100%;}
@@ -44,34 +43,49 @@ body::before{
 @keyframes fadeDown{from{opacity:0;transform:translateY(-14px)}to{opacity:1;transform:translateY(0)}}
 @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
 
-/* ── 言語切替（design-spec §6.1） ── */
-#lang-switcher{position:fixed;top:8px;right:12px;z-index:200;}
-#lang-switcher select{
-  background:var(--surface); border:.5px solid var(--border-strong); color:var(--text-muted);
-  font-size:11px; padding:3px 6px; border-radius:4px; font-family:inherit;
+/* ── 全画面共通：言語切替と設定（いつでも出ている） ── */
+#topbar{position:fixed;top:8px;right:10px;z-index:250;display:flex;gap:6px;align-items:center;}
+#topbar select{
+  background:rgba(17,17,17,.9); border:.5px solid var(--border-strong); color:var(--text-muted);
+  font-size:11px; padding:4px 6px; border-radius:6px; font-family:inherit;
 }
+#btn-gear{
+  background:rgba(17,17,17,.9); border:.5px solid var(--border-strong); color:var(--text-muted);
+  width:30px; height:28px; border-radius:6px; cursor:pointer; font-size:15px; line-height:1;
+  display:flex; align-items:center; justify-content:center; padding:0;
+}
+#btn-gear:hover{color:var(--orange-light);border-color:var(--orange);}
 
 /* ── 画面 ── */
 .screen{display:none; position:relative; z-index:1; min-height:100%;}
 .screen.on{display:block;}
-.wrap{max-width:760px;margin:0 auto;padding:20px 18px 40px;}
-.breadcrumb{font-size:12px;color:var(--text-muted);margin:4px 0 18px;animation:fadeDown .4s ease-out;}
-.breadcrumb a{color:var(--text-muted);text-decoration:none;}
-.breadcrumb a:hover{color:var(--orange-light);}
-.breadcrumb span{margin:0 6px;}
+.wrap{max-width:780px;margin:0 auto;padding:18px 18px 0;}
 
 /* ── アプリカード・ヘッダー（app-card-design v1.1） ── */
-.site-header{display:flex;align-items:flex-start;gap:10px;margin:8px 0 0;width:100%;max-width:460px;position:relative;z-index:1;animation:fadeDown .4s ease-out;}
+.site-header{display:flex;align-items:flex-start;gap:10px;margin:6px 0 0;width:100%;max-width:460px;position:relative;z-index:1;animation:fadeDown .4s ease-out;}
 .cat-icon{width:57px;height:62px;flex-shrink:0;}
 .title-block{display:flex;flex-direction:column;align-items:flex-start;line-height:1;}
 h1{font-family:'Fredoka One',cursive;font-size:clamp(2rem,6vw,2.6rem);font-weight:400;letter-spacing:.02em;line-height:1;display:flex;align-items:baseline;gap:.3em;margin:0;}
 h1 .momo{color:var(--text);}
 h1 .billiards{color:var(--orange-mid);}
 h1 .version-tag{color:var(--text-muted);font-size:.28em;letter-spacing:.04em;align-self:flex-end;padding-bottom:.2em;}
-.subtitle{font-family:'Fredoka One',cursive;color:#888;letter-spacing:0;margin-top:1px;margin-bottom:16px;font-size:16px;animation:fadeDown .5s ease-out;min-height:1.2em;}
+.subtitle{font-family:'Fredoka One',cursive;color:#888;letter-spacing:0;margin-top:1px;margin-bottom:14px;font-size:16px;animation:fadeDown .5s ease-out;min-height:1.2em;}
 .subtitle.zh{font-family:'Fredoka One','Noto Sans SC','Noto Sans JP',sans-serif;}
+/* 小型版（ロビー・待機部屋） */
+.site-header.mini{max-width:100%;gap:8px;}
+.site-header.mini .cat-icon{width:38px;height:41px;}
+.site-header.mini h1{font-size:1.5rem;}
+.site-header.mini .subtitle{font-size:12px;margin-bottom:8px;}
 
-.section-label{display:flex;align-items:center;gap:12px;margin:26px 0 14px;}
+/* ── サーバー接続状態バー ── */
+.server-status{display:flex;align-items:center;gap:8px;margin:10px 0 14px;padding:6px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:.78rem;color:var(--text-muted);}
+.server-status .dot{width:9px;height:9px;border-radius:50%;background:var(--text-muted);flex:0 0 auto;transition:.2s;}
+.server-status.online .dot{background:#3fae5a;box-shadow:0 0 8px rgba(63,174,90,.6);}
+.server-status.online{color:var(--text);}
+.server-status.offline .dot{background:#c94848;}
+.server-status.offline{color:#c94848;border-color:rgba(201,72,72,.4);}
+
+.section-label{display:flex;align-items:center;gap:12px;margin:20px 0 12px;}
 .section-label span{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--orange);}
 .section-label::after{content:'';flex:1;height:1px;background:var(--border);}
 
@@ -87,7 +101,7 @@ h1 .version-tag{color:var(--text-muted);font-size:.28em;letter-spacing:.04em;ali
 .btn.primary:hover:not(:disabled){background:var(--orange-mid);border-color:var(--orange-mid);color:#fff;}
 .btn.small{font-size:12px;padding:5px 10px;border-radius:6px;}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:14px;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:12px;}
 .card.tight{padding:10px 12px;}
 .lbl{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--orange);margin-bottom:8px;display:block;}
 .hint{font-size:12px;color:var(--text-muted);line-height:1.6;}
@@ -99,7 +113,6 @@ input[type=text],input[type=password],input[type=number],select{
 }
 input[type=range]{accent-color:var(--orange-mid);}
 
-/* 選択肢チップ */
 .opts{display:flex;flex-wrap:wrap;gap:7px;}
 .opt{
   background:var(--surface2);border:1px solid var(--border);color:var(--text);
@@ -115,38 +128,67 @@ input[type=range]{accent-color:var(--orange-mid);}
 .seg button.sel{background:var(--orange);color:#fff;font-weight:700;}
 .chk{display:flex;align-items:center;gap:7px;font-size:13px;padding:3px 0;cursor:pointer;}
 .chk input{accent-color:var(--orange-mid);}
+/* ON/OFF スイッチ */
+.sw{position:relative;display:inline-flex;align-items:center;gap:9px;cursor:pointer;font-size:13px;}
+.sw input{position:absolute;opacity:0;width:0;height:0;}
+.sw i{width:40px;height:22px;border-radius:11px;background:var(--surface2);border:1px solid var(--border-strong);position:relative;transition:.15s;flex:0 0 auto;}
+.sw i::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--text-muted);transition:.15s;}
+.sw input:checked + i{background:var(--bg-selected);border-color:var(--orange);}
+.sw input:checked + i::after{left:20px;background:var(--orange-mid);}
 
-/* 撞球の癖は5軸と視覚的に区切る（2.5.2節） */
 #cue-block{border:1px dashed var(--border-strong);background:rgba(255,255,255,.015);}
+
+/* ── フッター（SEO 説明） ── */
+.site-footer{position:relative;z-index:1;width:100%;max-width:780px;margin:18px auto 0;padding:24px 18px 40px;text-align:left;}
+.site-footer-inner{margin:0 auto;color:#a3a3a3;font-size:12px;line-height:1.9;}
+.site-footer h2{font-family:'Fredoka One',sans-serif;font-weight:400;font-size:15px;color:var(--text);margin:0 0 9px;letter-spacing:.02em;}
+.site-footer p{margin:0 0 14px;color:#a3a3a3;}
+.foot-links{display:flex;flex-wrap:wrap;gap:8px 16px;}
+.foot-links a{font-size:13px;color:var(--orange-light);text-decoration:none;font-weight:700;}
+.foot-links a:hover{text-decoration:underline;}
 
 /* ── プレイ画面 ── */
 #scr-play{height:100%;}
-.play-grid{display:grid;height:100vh;height:100dvh;grid-template-columns:200px 1fr 200px;grid-template-rows:1fr;gap:8px;padding:8px;}
+.play-grid{display:grid;height:100vh;height:100dvh;grid-template-columns:212px 1fr 212px;grid-template-rows:1fr;gap:8px;padding:8px;}
 .pane{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px;overflow:auto;display:flex;flex-direction:column;gap:8px;min-height:0;}
 #board-pane{background:transparent;border:0;padding:0;position:relative;overflow:hidden;align-items:center;justify-content:center;}
 #board{display:block;touch-action:none;width:100%;height:100%;}
+/* プレイ画面の小さなタイトルブロック（盤面を圧迫しない控えめな大きさ） */
+.mini-title{display:flex;align-items:center;gap:7px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.mini-title svg{width:30px;height:33px;flex:0 0 auto;}
+.mini-title .mt-t{font-family:'Fredoka One',cursive;font-size:14px;line-height:1.05;}
+.mini-title .mt-t .momo{color:var(--text);} .mini-title .mt-t .billiards{color:var(--orange-mid);}
+.mini-title .mt-v{font-size:9px;color:var(--text-muted);}
+.mini-title .mt-s{font-family:'Fredoka One',cursive;font-size:9px;color:#888;line-height:1.1;}
 .info-row{display:flex;justify-content:space-between;font-size:12px;gap:6px;}
 .info-row b{font-weight:700;color:var(--text);}
 .info-k{color:var(--text-muted);}
 .pl-row{display:flex;justify-content:space-between;font-size:12px;padding:3px 5px;border-radius:5px;}
 .pl-row.turn{background:var(--bg-selected);color:var(--orange-light);font-weight:700;}
 #msg-bar{position:absolute;left:50%;transform:translateX(-50%);bottom:8px;background:rgba(10,10,10,.86);border:1px solid var(--border-strong);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--text);max-width:92%;text-align:center;pointer-events:none;}
-#elev-wrap{display:flex;align-items:center;gap:8px;}
-#elev{writing-mode:vertical-lr;direction:rtl;height:120px;}
+#elev-row{display:flex;align-items:center;gap:8px;}
+#elev{writing-mode:vertical-lr;direction:rtl;height:110px;}
+#elev-pic{width:64px;height:110px;flex:0 0 auto;}
 .mini{font-size:11px;color:var(--text-muted);}
 .gauge{height:8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;overflow:hidden;}
 .gauge>i{display:block;height:100%;background:var(--orange-mid);width:0;transition:width .05s linear;}
 .gauge.over>i{background:#dc2626;}
 @media (max-width:860px){
-  /* 盤面を上、周辺領域を下部へ圧縮して並べる（4.10.3節） */
-  .play-grid{grid-template-columns:1fr;grid-template-rows:1fr auto auto;}
-  /* 高さの上限は周辺領域だけに掛ける。盤面へ掛けると台が縮んで余白が生まれる */
-  #info-pane,#ctrl-pane{flex-direction:row;flex-wrap:wrap;align-items:center;padding:8px;gap:6px;max-height:26vh;}
-  #board-pane{max-height:none;min-height:0;}
-  #info-pane{order:1;} #board-pane{order:0;} #ctrl-pane{order:2;}
-  #elev{writing-mode:horizontal-tb;direction:ltr;height:auto;width:120px;}
-  #info-pane .info-row{gap:4px;}
-  #players-box{display:flex;gap:8px;flex-wrap:wrap;}
+  /* 盤面を上、周辺領域を下部へ圧縮して並べる（4.10.3節）。
+     表示する項目はPCと同じで、並べ方と密度だけを変える */
+  .play-grid{grid-template-columns:1fr;grid-template-rows:1fr auto auto;gap:5px;padding:5px;}
+  #info-pane{flex-direction:row;flex-wrap:wrap;align-items:center;gap:4px 12px;padding:5px 8px;max-height:20vh;order:1;}
+  #info-pane .mini-title{display:none;}   /* タイトルは盤面の左上へ重ねて出す */
+  #info-pane #v-config{display:none;}
+  #info-pane #players-box{display:flex;gap:8px;flex-wrap:wrap;}
+  #info-pane .pl-row{padding:2px 7px;gap:7px;border:1px solid var(--border);border-radius:5px;}
+  #info-pane #time-box{display:flex;gap:12px;}
+  #ctrl-pane{flex-direction:row;flex-wrap:wrap;align-items:center;padding:6px;gap:6px;max-height:26vh;order:2;}
+  #board-pane{max-height:none;min-height:0;order:0;}
+  #elev{writing-mode:horizontal-tb;direction:ltr;height:auto;width:110px;}
+  #elev-pic{display:none;}    /* 角度は調整中だけ盤面へ重ねて出す */
+  #k-elevlabel{display:none;}
+  .wrap{padding:14px 14px 0;}
 }
 
 /* ── モーダル ── */
@@ -159,15 +201,13 @@ input[type=range]{accent-color:var(--orange-mid);}
 .room{display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 11px;margin-bottom:7px;font-size:13px;}
 .room .nm{font-weight:700;}
 .room .meta{font-size:11px;color:var(--text-muted);}
-
-footer{padding:22px 0;font-size:12px;color:var(--text-muted);text-align:center;border-top:1px solid var(--border);margin-top:24px;}
-footer a{color:var(--text-muted);text-decoration:none;}
-footer a:hover{color:var(--orange-light);}
+.room .mode{font-size:11px;color:var(--orange-light);}
 </style>
 </head>
 <body>
 
-<div id="lang-switcher">
+<!-- 言語と設定は全画面で常に出す -->
+<div id="topbar">
   <select class="lang-select" id="lang-select">
     <option value="auto">Auto</option>
     <option value="ja">日本語</option>
@@ -175,12 +215,12 @@ footer a:hover{color:var(--orange-light);}
     <option value="zh">中文</option>
     <option value="cat">CAT</option>
   </select>
+  <button id="btn-gear" aria-label="設定" title="設定">⚙</button>
 </div>
 
-<!-- ══════════ タイトル ══════════ -->
-<div class="screen on" id="scr-title">
+<!-- ══════════ トップ（タイトル＋ゲーム選択） ══════════ -->
+<div class="screen on" id="scr-home">
   <div class="wrap">
-    <nav class="breadcrumb"><a href="../../">MOMO Works</a><span>›</span><a href="../">MOMO Games</a><span>›</span>MOMO Billiards</nav>
     <header class="site-header">
       <svg class="cat-icon" xmlns="http://www.w3.org/2000/svg" viewBox="-46 -50 100 110" aria-hidden="true">
         <g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/></g>
@@ -205,7 +245,6 @@ footer a:hover{color:var(--orange-light);}
         <line x1="0" y1="11.3" x2="0" y2="13.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
         <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
         <path d="M0,13.3 Q5,17.3 8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
-        <!-- アプリ固有アイコン：三角ラック（現実のビリヤード球の配色。仕様書1.2.2節） -->
         <g id="billiards-overlay">
           <circle cx="26" cy="6" r="8.2" fill="#f2c00e"/><circle cx="26" cy="6" r="3.4" fill="#fff"/>
           <circle cx="17.4" cy="21" r="8.2" fill="#dc2626"/><circle cx="17.4" cy="21" r="3.4" fill="#fff"/>
@@ -220,39 +259,49 @@ footer a:hover{color:var(--orange-light);}
         <div class="subtitle" id="subtitle">Any Shape, Any Rule, One Cue</div>
       </div>
     </header>
-    <p class="hint" id="title-lead" style="max-width:460px"></p>
-    <div class="section-label"><span>Start</span></div>
-    <div class="row">
-      <button class="btn primary" id="btn-title-play"></button>
-    </div>
-    <footer><a href="../">← MOMO Games</a></footer>
-  </div>
-</div>
 
-<!-- ══════════ ゲーム選択 ══════════ -->
-<div class="screen" id="scr-setup">
-  <div class="wrap">
-    <nav class="breadcrumb"><a href="#" id="crumb-title">MOMO Billiards</a><span>›</span><span id="crumb-setup"></span></nav>
-
-    <!-- 最上段：標準／特殊の上位スイッチ（2.2.2節） -->
+    <!-- 最上段：標準／特殊の上位スイッチ -->
     <div class="card tight">
-      <div class="row" style="justify-content:space-between">
-        <div class="seg" id="seg-scope">
-          <button data-v="standard"></button><button data-v="special"></button>
-        </div>
-        <button class="btn small" id="btn-settings-1"></button>
-      </div>
+      <div class="seg" id="seg-scope"><button data-v="standard"></button><button data-v="special"></button></div>
       <div class="hint" id="scope-desc" style="margin-top:8px"></div>
     </div>
 
-    <!-- 上段：5軸 -->
+    <!-- 対戦形式（上位スイッチの直下） -->
+    <div class="card">
+      <span class="lbl" id="lbl-format"></span>
+      <div class="opts" id="opts-format"></div>
+      <div class="row" style="gap:16px;margin-top:10px" id="wrap-ai">
+        <label class="row" style="gap:6px"><span class="mini" id="lbl-aicount"></span>
+          <select id="sel-aicount"></select></label>
+      </div>
+    </div>
+
+    <!-- 5つの選択 -->
     <div class="card"><span class="lbl" id="lbl-rule"></span><div class="opts" id="opts-rule"></div></div>
     <div class="card"><span class="lbl" id="lbl-table"></span><div class="opts" id="opts-table"></div></div>
     <div class="card"><span class="lbl" id="lbl-mode"></span><div class="opts" id="opts-mode"></div></div>
-    <div class="card"><span class="lbl" id="lbl-mod"></span><div class="opts" id="opts-mod"></div></div>
     <div class="card"><span class="lbl" id="lbl-diff"></span><div class="opts" id="opts-diff"></div></div>
 
-    <!-- 下段：撞球の癖（5軸とは区切る） -->
+    <!-- 持ち時間設定 -->
+    <div class="card">
+      <span class="lbl" id="lbl-time"></span>
+      <label class="sw"><input type="checkbox" id="sw-time"><i></i><span id="lbl-time-en"></span></label>
+      <div id="time-fields" style="margin-top:10px">
+        <div class="row" style="gap:16px">
+          <label class="row" style="gap:6px"><span class="mini" id="lbl-tbase"></span>
+            <input type="number" id="in-tbase" min="0" max="600" value="30" style="width:74px"><span class="mini" id="u-sec"></span></label>
+          <label class="row" style="gap:6px"><span class="mini" id="lbl-tbank"></span>
+            <input type="number" id="in-tbank" min="0" max="60" value="5" style="width:74px"><span class="mini" id="u-min"></span></label>
+        </div>
+      </div>
+      <div class="hint" id="time-off-note" style="margin-top:8px;display:none"></div>
+      <div id="mod-extra" style="margin-top:12px;display:none">
+        <span class="lbl" id="lbl-mod-extra"></span>
+        <div class="opts" id="opts-mod"></div>
+      </div>
+    </div>
+
+    <!-- 撞球の癖 -->
     <div class="card" id="cue-block">
       <span class="lbl" id="lbl-cue"></span>
       <div class="seg" id="seg-cue" style="margin-bottom:10px">
@@ -262,48 +311,63 @@ footer a:hover{color:var(--orange-light);}
       <div class="hint" id="cue-note" style="margin-top:8px"></div>
     </div>
 
-    <!-- 最下段：人数・対戦形式・開始 -->
+    <!-- 最下段：参加人数・目標点・開始 -->
     <div class="card">
-      <span class="lbl" id="lbl-format"></span>
-      <div class="opts" id="opts-format" style="margin-bottom:12px"></div>
       <div class="row" style="gap:16px">
         <label class="row" style="gap:6px"><span class="mini" id="lbl-players"></span>
           <select id="sel-players"></select></label>
-        <label class="row" style="gap:6px" id="wrap-ai"><span class="mini" id="lbl-aicount"></span>
-          <select id="sel-aicount"></select></label>
         <label class="row" style="gap:6px" id="wrap-target"><span class="mini" id="lbl-target"></span>
-          <input type="number" id="in-target" min="1" max="200" value="10" style="width:70px"></label>
-      </div>
-      <div class="row" style="gap:16px;margin-top:10px" id="wrap-time">
-        <label class="row" style="gap:6px"><span class="mini" id="lbl-tbase"></span>
-          <input type="number" id="in-tbase" min="0" max="600" value="30" style="width:70px"><span class="mini" id="u-sec"></span></label>
-        <label class="row" style="gap:6px"><span class="mini" id="lbl-tbank"></span>
-          <input type="number" id="in-tbank" min="0" max="60" value="5" style="width:70px"><span class="mini" id="u-min"></span></label>
+          <input type="number" id="in-target" min="1" max="200" value="10" style="width:74px"></label>
       </div>
     </div>
-
-    <div class="row" style="justify-content:flex-end;margin-bottom:30px">
+    <div class="row" style="justify-content:flex-end;margin-bottom:8px">
       <button class="btn primary" id="btn-start"></button>
     </div>
-    <footer><a href="../">← MOMO Games</a></footer>
   </div>
+  <footer class="site-footer">
+    <div class="site-footer-inner">
+      <h2 id="foot-about">MOMO Billiards について</h2>
+      <p id="foot-desc"></p>
+      <div class="foot-links">
+        <a href="../../" id="foot-top">MOMO Works トップ</a>
+        <a href="../" id="foot-games">ゲーム一覧</a>
+        <a href="../../tools/" id="foot-tools">ツール一覧</a>
+      </div>
+    </div>
+  </footer>
 </div>
 
 <!-- ══════════ ロビー（通信対戦） ══════════ -->
 <div class="screen" id="scr-lobby">
   <div class="wrap">
-    <nav class="breadcrumb"><a href="#" id="crumb-setup2">MOMO Billiards</a><span>›</span><span id="crumb-lobby"></span></nav>
-    <div class="card">
-      <div class="row" style="gap:10px">
-        <label class="row" style="gap:6px"><span class="mini" id="lbl-myname"></span><input type="text" id="in-name" maxlength="16" style="width:130px"></label>
-        <span class="mini" id="lobby-status"></span>
+    <header class="site-header mini">
+      <svg class="cat-icon" xmlns="http://www.w3.org/2000/svg" viewBox="-46 -50 100 110" aria-hidden="true">
+        <use href="#billiards-cat"></use>
+      </svg>
+      <div class="title-block">
+        <h1><span class="momo">MOMO</span><span class="billiards">Billiards</span><span class="version-tag" id="version-tag-2">v1.00</span></h1>
+        <div class="subtitle" id="subtitle-2">Any Shape, Any Rule, One Cue</div>
       </div>
+    </header>
+    <div class="server-status" id="srv-status"><span class="dot"></span><span class="lbl" id="srv-lbl"></span></div>
+
+    <!-- Chrome の自動入力を避けるため、フォーム扱いにせず autocomplete も切る -->
+    <div class="card">
+      <label class="row" style="gap:6px"><span class="mini" id="lbl-myname"></span>
+        <input type="text" id="in-name" maxlength="16" style="width:150px"
+               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+               name="bl-nick" data-lpignore="true" data-1p-ignore></label>
     </div>
     <div class="card">
       <span class="lbl" id="lbl-create"></span>
       <div class="row" style="gap:10px">
-        <label class="row" style="gap:6px"><span class="mini" id="lbl-roomname"></span><input type="text" id="in-room" maxlength="20" style="width:150px"></label>
-        <label class="row" style="gap:6px"><span class="mini" id="lbl-pw"></span><input type="password" id="in-pw" maxlength="16" style="width:100px"></label>
+        <label class="row" style="gap:6px"><span class="mini" id="lbl-roomname"></span>
+          <input type="text" id="in-room" maxlength="20" style="width:150px"
+                 autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                 name="bl-roomlabel" data-lpignore="true" data-1p-ignore></label>
+        <label class="row" style="gap:6px"><span class="mini" id="lbl-pw"></span>
+          <input type="password" id="in-pw" maxlength="16" style="width:110px"
+                 autocomplete="new-password" name="bl-secret" data-lpignore="true" data-1p-ignore></label>
         <label class="chk"><input type="checkbox" id="in-private"><span id="lbl-private"></span></label>
         <button class="btn primary small" id="btn-create"></button>
       </div>
@@ -315,21 +379,29 @@ footer a:hover{color:var(--orange-light);}
       </div>
       <div id="room-list" style="margin-top:10px"></div>
     </div>
-    <div class="row"><button class="btn" id="btn-lobby-back"></button></div>
-    <footer><a href="../">← MOMO Games</a></footer>
+    <div class="row" style="margin-bottom:24px"><button class="btn" id="btn-lobby-back"></button></div>
   </div>
 </div>
 
 <!-- ══════════ 待機部屋 ══════════ -->
 <div class="screen" id="scr-room">
   <div class="wrap">
-    <div class="section-label"><span id="room-title">Room</span></div>
+    <header class="site-header mini">
+      <svg class="cat-icon" xmlns="http://www.w3.org/2000/svg" viewBox="-46 -50 100 110" aria-hidden="true">
+        <use href="#billiards-cat"></use>
+      </svg>
+      <div class="title-block">
+        <h1><span class="momo">MOMO</span><span class="billiards">Billiards</span><span class="version-tag" id="version-tag-3">v1.00</span></h1>
+        <div class="subtitle" id="subtitle-3">Any Shape, Any Rule, One Cue</div>
+      </div>
+    </header>
+    <div class="server-status" id="srv-status-room"><span class="dot"></span><span class="lbl" id="srv-lbl-room"></span></div>
     <div class="card">
       <div class="hint" id="room-status"></div>
       <div id="roster" style="margin-top:10px"></div>
     </div>
     <div class="card"><div class="hint" id="room-config"></div></div>
-    <div class="row">
+    <div class="row" style="margin-bottom:24px">
       <button class="btn primary" id="btn-room-start"></button>
       <button class="btn" id="btn-room-leave"></button>
     </div>
@@ -340,6 +412,13 @@ footer a:hover{color:var(--orange-light);}
 <div class="screen" id="scr-play">
   <div class="play-grid">
     <div class="pane" id="info-pane">
+      <div class="mini-title">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="-46 -50 100 110" aria-hidden="true"><use href="#billiards-cat"></use></svg>
+        <div>
+          <div class="mt-t"><span class="momo">MOMO</span> <span class="billiards">Billiards</span> <span class="mt-v" id="version-tag-4">v1.00</span></div>
+          <div class="mt-s" id="subtitle-4">Any Shape, Any Rule, One Cue</div>
+        </div>
+      </div>
       <div class="info-row"><span class="info-k" id="k-turn"></span><b id="v-turn">–</b></div>
       <div id="players-box"></div>
       <div class="info-row"><span class="info-k" id="k-next"></span><b id="v-next">–</b></div>
@@ -357,9 +436,11 @@ footer a:hover{color:var(--orange-light);}
     </div>
 
     <div class="pane" id="ctrl-pane">
-      <div id="elev-wrap">
+      <div class="mini" id="k-elevlabel"></div>
+      <div id="elev-row">
         <span class="mini" id="k-elev">0°</span>
         <input type="range" id="elev" min="0" max="90" value="0" step="1">
+        <canvas id="elev-pic" width="128" height="220"></canvas>
       </div>
       <div>
         <div class="mini" id="k-power">0%</div>
@@ -368,7 +449,6 @@ footer a:hover{color:var(--orange-light);}
       <button class="btn small" id="btn-aim"></button>
       <button class="btn small" id="btn-replay"></button>
       <button class="btn small" id="btn-deadlock"></button>
-      <button class="btn small" id="btn-settings-2"></button>
       <button class="btn small" id="btn-quit"></button>
     </div>
   </div>
@@ -379,11 +459,10 @@ footer a:hover{color:var(--orange-light);}
   <div class="wrap">
     <div class="section-label"><span id="res-title">Result</span></div>
     <div class="card"><div id="res-body"></div></div>
-    <div class="row">
+    <div class="row" style="margin-bottom:24px">
       <button class="btn primary" id="btn-again"></button>
       <button class="btn" id="btn-to-setup"></button>
     </div>
-    <footer><a href="../">← MOMO Games</a></footer>
   </div>
 </div>
 
@@ -426,6 +505,40 @@ footer a:hover{color:var(--orange-light);}
   <div class="hint" id="note-body"></div>
   <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn" id="btn-note-close"></button></div>
 </div></div>
+
+<!-- 猫アイコン＋三角ラックの共有定義（各画面から use で参照する） -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <g id="billiards-cat">
+    <g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/></g>
+    <g transform="rotate(12,12,8.3)"><path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/></g>
+    <ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/>
+    <line x1="-14" y1="1.00" x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="-14" y1="6.0" x2="-33.44" y2="6.0" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="-33.68" y1="-2.28" x2="-38" y2="-3" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="-33.44" y1="6.0" x2="-40" y2="6" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="-29.58" y1="14.26" x2="-37" y2="16" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="14" y1="1.00" x2="33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="14" y1="6.0" x2="33.44" y2="6.0" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="14" y1="10.59" x2="29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="33.68" y1="-2.28" x2="38" y2="-3" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="33.44" y1="6.0" x2="40" y2="6" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="29.58" y1="14.26" x2="37" y2="16" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+    <ellipse cx="-12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/><ellipse cx="12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+    <ellipse cx="-12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/><ellipse cx="12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+    <circle cx="-10.5" cy="-5.2" r="1.0" fill="#c2410c"/><circle cx="13.5" cy="-5.2" r="1.0" fill="#c2410c"/>
+    <path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/>
+    <line x1="0" y1="11.3" x2="0" y2="13.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M0,13.3 Q5,17.3 8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+    <circle cx="26" cy="6" r="8.2" fill="#f2c00e"/><circle cx="26" cy="6" r="3.4" fill="#fff"/>
+    <circle cx="17.4" cy="21" r="8.2" fill="#dc2626"/><circle cx="17.4" cy="21" r="3.4" fill="#fff"/>
+    <circle cx="34.6" cy="21" r="8.2" fill="#1d4ed8"/><circle cx="34.6" cy="21" r="3.4" fill="#fff"/>
+    <circle cx="8.8" cy="36" r="8.2" fill="#15803d"/><circle cx="8.8" cy="36" r="3.4" fill="#fff"/>
+    <circle cx="26" cy="36" r="8.2" fill="#1c1c1c"/><circle cx="26" cy="36" r="3.4" fill="#fff"/>
+    <circle cx="43.2" cy="36" r="8.2" fill="#ea6a0c"/><circle cx="43.2" cy="36" r="3.4" fill="#fff"/>
+  </g>
+</defs></svg>
 
 <script src="../matchmaking/momo-matchmaking.js"></script>
 <script src="js/i18n.js"></script>

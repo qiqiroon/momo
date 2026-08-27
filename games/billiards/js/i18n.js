@@ -41,7 +41,7 @@ const BilliardsI18N = (() => {
       'mod.G-13': '連鎖ボーナス', 'mod.G-14': '持ち時間制', 'mod.G-15': 'ミッション制',
 
       'cue.title': '撞球の癖', 'cue.simple': '簡単', 'cue.real': '本格', 'cue.custom': 'カスタム',
-      'cue.note': '5軸とは別の項目です。遊ぶゲームの中身は変わらず、撞き味だけが変わります。',
+      'cue.note': '遊ぶゲームの中身は変わりません。変わるのは撞き味だけです。',
       'cue.i1': 'ダブルヒット／プッシュショット判定',
       'cue.i2': 'ミスキュー判定',
       'cue.i3': 'スロー効果',
@@ -129,6 +129,24 @@ const BilliardsI18N = (() => {
 
       'rules.title': 'ルール確認',
       'ver.stage': '第1段階（標準的なビリヤード）',
+
+      'time.title': '持ち時間設定', 'time.enable': '持ち時間を使う',
+      'time.off': '時間制限なしで遊びます',
+      'time.other': 'そのほかの追加ルール',
+      'btn.place': 'ここに置く',
+      'ph.placeArea': 'ブレイクはこの範囲（ヘッドストリングより手前）に置きます',
+      'ph.freeArea': '台のどこにでも置けます',
+      'hint.dir': '◀ ここを左右にドラッグして向きを合わせる ▶',
+      'hint.power': 'キューを引いて離す',
+      'hint.tip': 'なぞって撞点',
+      'hint.elev': 'キューの角度',
+      'srv.connecting': 'サーバー接続中…', 'srv.online': 'サーバー接続済み', 'srv.offline': 'サーバー未接続',
+      'lobby.pw2': 'パスワード',
+      'lobby.mode': 'モード',
+      'foot.about': 'MOMO Billiards について',
+      'foot.desc': 'MOMO Billiards は、ナインボール・エイトボール・ポケットローテーション・キャロムを本格的な物理演算で遊べるブラウザゲームです。同じ端末での対戦、AI対戦、ひとりでの練習に加えて、オンライン対戦と観戦にも対応しています。4言語対応・PCとスマホの縦画面に対応。アカウント登録もインストールも不要です。',
+      'foot.top': 'MOMO Works トップ', 'foot.games': 'ゲーム一覧', 'foot.tools': 'ツール一覧',
+      'set.open': '設定',
     },
 
     en: {
@@ -159,7 +177,7 @@ const BilliardsI18N = (() => {
       'mod.G-13': 'Combo bonus', 'mod.G-14': 'Shot clock', 'mod.G-15': 'Missions',
 
       'cue.title': 'Cue behaviour', 'cue.simple': 'Simple', 'cue.real': 'Realistic', 'cue.custom': 'Custom',
-      'cue.note': 'Separate from the five axes. It changes how the balls feel, not what you play.',
+      'cue.note': 'This changes how the balls feel, not what you play.',
       'cue.i1': 'Double hit / push shot',
       'cue.i2': 'Miscue',
       'cue.i3': 'Throw',
@@ -247,6 +265,24 @@ const BilliardsI18N = (() => {
 
       'rules.title': 'Rules',
       'ver.stage': 'Stage 1 (standard billiards)',
+
+      'time.title': 'Shot clock', 'time.enable': 'Use a shot clock',
+      'time.off': 'No time limit.',
+      'time.other': 'Other extras',
+      'btn.place': 'Place it here',
+      'ph.placeArea': 'Break from behind the head string (shaded area).',
+      'ph.freeArea': 'You may place it anywhere on the table.',
+      'hint.dir': '◀ drag here to fine-tune your aim ▶',
+      'hint.power': 'Pull the cue back and release',
+      'hint.tip': 'Drag for english',
+      'hint.elev': 'Cue elevation',
+      'srv.connecting': 'Connecting to the server…', 'srv.online': 'Server connected', 'srv.offline': 'Server offline',
+      'lobby.pw2': 'Password',
+      'lobby.mode': 'Mode',
+      'foot.about': 'About MOMO Billiards',
+      'foot.desc': 'MOMO Billiards is a browser billiards game with a full physics engine, offering nine-ball, eight-ball, pocket rotation and carom. Play on one device, against the AI, alone in practice, or online — and watch other people play. 4-language UI, works on PC and mobile portrait. No account, no install.',
+      'foot.top': 'MOMO Works', 'foot.games': 'Games', 'foot.tools': 'Tools',
+      'set.open': 'Settings',
     },
 
     zh: {
@@ -277,7 +313,7 @@ const BilliardsI18N = (() => {
       'mod.G-13': '连击奖励', 'mod.G-14': '计时制', 'mod.G-15': '任务制',
 
       'cue.title': '击球手感', 'cue.simple': '简单', 'cue.real': '正统', 'cue.custom': '自定义',
-      'cue.note': '与五轴无关的独立项目。只改变手感，不改变对局内容。',
+      'cue.note': '只改变手感，不改变对局内容。',
       'cue.i1': '二次击球／推杆判定',
       'cue.i2': '滑杆判定',
       'cue.i3': '抛射（throw）',
@@ -365,6 +401,24 @@ const BilliardsI18N = (() => {
 
       'rules.title': '规则',
       'ver.stage': '第 1 阶段（标准台球）',
+
+      'time.title': '计时设置', 'time.enable': '使用计时',
+      'time.off': '不设时间限制。',
+      'time.other': '其他附加规则',
+      'btn.place': '放在这里',
+      'ph.placeArea': '开球需放在开球线之后（阴影范围内）。',
+      'ph.freeArea': '可以放在台面的任意位置。',
+      'hint.dir': '◀ 在此左右拖动微调方向 ▶',
+      'hint.power': '拉杆后松手',
+      'hint.tip': '拖动调整击点',
+      'hint.elev': '球杆仰角',
+      'srv.connecting': '正在连接服务器…', 'srv.online': '已连接服务器', 'srv.offline': '未连接服务器',
+      'lobby.pw2': '密码',
+      'lobby.mode': '模式',
+      'foot.about': '关于 MOMO Billiards',
+      'foot.desc': 'MOMO Billiards 是一款配备完整物理演算的浏览器台球游戏，可游玩九球、八球、落袋轮转与开伦。支持同一设备对战、人机对战、单人练习，以及在线对战与观战。支持 4 语言、可在 PC 与手机竖屏使用。无需注册、无需安装。',
+      'foot.top': 'MOMO Works 首页', 'foot.games': '游戏列表', 'foot.tools': '工具列表',
+      'set.open': '设置',
     },
   };
 

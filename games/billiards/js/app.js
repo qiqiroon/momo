@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.08';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.09';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -61,6 +61,14 @@
    * そこで倍率の側を等分（対数）にして、**真ん中がちょうど等速**になるようにした。
    * さらに真ん中の近くでは等速へ吸い付かせる＝いちばん使う値を選びやすくする。
    */
+  /*
+   * ジャンプしている間だけの速さ。設定の値は無視してここまで落とす。
+   * 飛んでいる時間は実測 0.4〜1.2 秒しかなく、等速だと一瞬で終わって
+   * 跳ねたことも着地の音も分からないため。
+   */
+  const JUMP_SPEED = 0.05;
+  const JUMP_Z = 6;                       // これより高ければ「飛んでいる」とみなす
+
   const SNAP = 4;                         // この幅ぶん真ん中に近ければ等速に合わせる
   function posToSpeed(pos) {
     if (Math.abs(pos - 50) <= SNAP) return 1;
@@ -107,6 +115,8 @@
     net: { on: false, role: 'none', isHost: false, myPid: null, myIdx: -1, roster: [], lastRooms: [], wsOpen: false, wasClosed: false, ready: {}, sentCfg: null },
     aiCancel: null, confirmCb: null, dlVotes: {},
     chk: {},               // 受け取った盤面照合（ショット番号 → 指紋）。追いついてから比べる
+    pendingShots: {},      // 先に届いた相手の手。こちらがその番号へ達したら指す
+    airZ: {},
     won: false,
     wakeLock: null,
   };
@@ -528,7 +538,7 @@
     g.players.forEach(p => { if (cfg.rule === 'G-04') p.target = cfg.target; });
     S.game = g;
     S.chk = {};                             // 前の局の照合は持ち越さない
-    S.dropped = null; S.bursts = [];
+    S.dropped = null; S.bursts = []; S.airZ = {}; S.pendingShots = {};
     S.replay = null; S.replayRun = null;
     S.clock.banks = g.players.map(() => cfg.tbank * 60);
     S.aim = { dir: 0, tipX: 0, tipY: 0, elev: 0, power: 0 };
@@ -585,6 +595,12 @@
     } else if (!isMyTurn()) {
       S.phase = 'wait';
       setMsg(S.net.role === 'spectator' ? t('lobby.watching') : t('ph.wait'));
+      // 先に届いていた相手の手が、いまの番号のものなら指す
+      const held = S.pendingShots && S.pendingShots[g.shotNo];
+      if (held) {
+        delete S.pendingShots[g.shotNo];
+        setTimeout(() => { if (S.game === g && !g.over) applyShot(held.shot, held.place, true); }, 60);
+      }
     } else {
       setMsg(S.phase === 'place' ? (g.ballInHandFull ? t('ph.freeArea') : t('ph.placeArea')) : t('ph.aim'));
       AU.sfx('turn');
@@ -983,11 +999,17 @@
 
   function drawBall2D(b, s, alpha) {
     const p = toScreen(b.x, b.y);
-    const r = b.r * s;
+    const r0 = b.r * s;
+    /*
+     * 真上から見た絵では、高さは影との離れ具合でしか分からない。
+     * 高いほど玉を大きく描いて（最大2倍）、こちらへ近づいて見えるようにする。
+     */
+    const r = r0 * (1 + Math.min(1, (b.z || 0) / 320));
     ctx.save();
     if (alpha != null) ctx.globalAlpha = alpha;
     const lift = b.z * s;
-    ctx.beginPath(); ctx.ellipse(p.x + r * .18, p.y + r * .22, r * .95, r * .95, 0, 0, 7);
+    // 影は地面に残す。大きくすると玉と一緒に浮いて見えてしまう
+    ctx.beginPath(); ctx.ellipse(p.x + r0 * .18, p.y + r0 * .22, r0 * .95, r0 * .95, 0, 0, 7);
     ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fill();
     const bx = p.x - lift * .25, by = p.y - lift * .5;
     const g = ctx.createRadialGradient(bx - r * .38, by - r * .42, r * .08, bx, by, r * 1.06);
@@ -1267,6 +1289,35 @@
    * 玉が跳ねたことは、真上から見た2Dの絵では影の大きさでしか分からない。
    * 「米」の字のように四方八方へ線を散らして、どこへ落ちたかを一目で示す。
    */
+  /** いちばん高いところにいる玉の高さ */
+  function highestBall(world) {
+    let hi = 0;
+    for (const b of world.balls) if (b.state === 'live' && b.z > hi) hi = b.z;
+    return hi;
+  }
+
+  /**
+   * 飛んで着地した玉を見つけて、音と弾ける絵を出す。
+   * 物理側の着地の知らせは跳ね返りが強いときしか出ないので、
+   * ふわりと落ちた場合も拾えるよう、玉の高さの移り変わりから自分で見る。
+   * 跳ねた高さを覚えておき、それを音と絵の大きさにする。
+   */
+  function watchJumps() {
+    const g = S.game; if (!g) return;
+    const air = S.airZ || (S.airZ = {});
+    for (const b of g.world.balls) {
+      if (b.state !== 'live') { delete air[b.id]; continue; }
+      if (b.z > JUMP_Z) { air[b.id] = Math.max(air[b.id] || 0, b.z); continue; }
+      const peak = air[b.id];
+      if (peak != null && b.z <= 0.01) {
+        delete air[b.id];
+        const p = Math.min(1, peak / 320);
+        AU.sfx('jump', 0.3 + 0.7 * p);
+        addBurst(b.x, b.y, p);
+      }
+    }
+  }
+
   const BURST_MS = 420;
   function addBurst(x, y, power) {
     (S.bursts = S.bursts || []).push({ x, y, at: performance.now(), p: Math.min(1, power) });
@@ -2015,8 +2066,10 @@
       const t0 = DEBUG ? performance.now() : 0;
       // 1コマで進める刻みの数。等速なら8刻み＝1/60秒ぶん。端数は次のコマへ持ち越す
       let steps = 0;
-      if (S.phase === 'rolling' || S.replayRun) {
-        S.stepAcc = (S.stepAcc || 0) + 8 * animSpeed();
+      const world = S.phase === 'rolling' ? S.game.world : S.replayRun;
+      if (world) {
+        const flying = highestBall(world) > JUMP_Z;
+        S.stepAcc = (S.stepAcc || 0) + 8 * (flying ? JUMP_SPEED : animSpeed());
         steps = Math.min(32, Math.floor(S.stepAcc));
         S.stepAcc -= steps;
       } else S.stepAcc = 0;
@@ -2024,6 +2077,7 @@
         for (let i = 0; i < steps; i++) {
           if (E.allStopped(S.game.world)) break;
           E.step(S.game.world);
+          watchJumps();                     // 刻みごとに見る。着地を跨いで見落とさないため
         }
         drainEvents();
         if (E.allStopped(S.game.world)) { S.phase = 'idle'; finishShot(); }
@@ -2092,10 +2146,7 @@
       } else if (e.type === 'cushion') {
         if (cush++ < MAX_PER_FRAME) AU.sfx('cushion', Math.min(1, e.speed / 4000));
       } else if (e.type === 'pocket') AU.sfx('pocket');
-      else if (e.type === 'land') {
-        AU.sfx('jump', Math.min(1, e.speed / 900));
-        if (e.x != null) addBurst(e.x, e.y, e.speed / 900);
-      }
+      // 着地は watchJumps が玉の高さから見ている（ふわりと落ちた場合も拾うため）
     }
     S.evCursor = evs.length;
   }
@@ -2384,7 +2435,16 @@
       return;
     }
     if (p.k === 'shot') {
-      if (!S.game || S.game.shotNo !== p.n) { requestResync(); return; }
+      if (!S.game) { requestResync(); return; }
+      /*
+       * 相手のほうが先へ進んでいることがある（玉の転がる速さは人ごとに違い、
+       * ジャンプ中はさらに遅くなるため）。まだ追いついていないだけなら、
+       * その手を預かって、こちらがその番号に達したときに指す。
+       * ここで盤面の作り直しを求めると、速さを変えている人だけが
+       * 毎手やり直しになってしまう。
+       */
+      if (p.n > S.game.shotNo) { S.pendingShots[p.n] = p; return; }
+      if (p.n < S.game.shotNo) { requestResync(); return; }
       applyShot(p.shot, p.place, true);
       return;
     }
@@ -2708,6 +2768,6 @@
 
   if (DEBUG) {
     document.body.classList.add('debug');
-    window.BL = { S, E, RU, T, I, fire: fireShot, shootNow, beginTurn, startGame, finishShot, applyShot, draw2D, draw3D, drawElevPic, minElevFor, computeElevFan, placeOk, resizeBoard, show, showRoom, buildSetup, mountSetup, onNetMsg, seatList, seatIndexOfMe };
+    window.BL = { S, E, RU, T, I, fire: fireShot, shootNow, beginTurn, startGame, finishShot, applyShot, draw2D, draw3D, drawElevPic, minElevFor, computeElevFan, placeOk, resizeBoard, show, showRoom, watchJumps, highestBall, buildSetup, mountSetup, onNetMsg, seatList, seatIndexOfMe };
   }
 })();

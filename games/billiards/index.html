@@ -242,7 +242,10 @@ input[type=range]{accent-color:var(--orange-mid);}
   transition:opacity .18s ease;}
 #board-title svg{width:26px;height:29px;}
 @media (max-width:860px){ #board-title{display:flex;} }
-#board-title.faded{opacity:.14;}
+/* 盤面に重ねる表示は、狙いにかぶったら薄くして台を見せる（消さずにうっすら残す） */
+#msg-bar,#flash,#board-title{transition:opacity .16s ease;}
+#msg-bar.faded,#flash.faded,#board-title.faded{opacity:.10;}
+#flash.faded.on{opacity:.10;}
 #dbg{position:absolute;left:6px;bottom:6px;font-size:10px;color:#9ca3af;background:rgba(10,10,10,.7);
   padding:2px 6px;border-radius:5px;pointer-events:none;display:none;}
 body.debug #dbg{display:block;}

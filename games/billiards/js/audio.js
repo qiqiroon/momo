@@ -355,7 +355,7 @@ const BilliardsAudio = (() => {
        * 低い音だけ通して、音量を落として鳴らす＝くぐもった「ドン」を1回。
        */
       case 'cushion':
-        playBuf('bilPocket', { gain: 0.11 + 0.34 * s, rate: (0.88 + 0.22 * s) * vary(),
+        playBuf('bilPocket', { gain: 0.055 + 0.175 * s, rate: (0.88 + 0.22 * s) * vary(),
           lp: 620 + 260 * s, dur: 0.11 }); break;
       case 'break':                                                                   // ラックが割れる
         playBuf('bilBreak', { gain: 0.55 + 0.45 * s, rate: 0.96 + 0.08 * s }); break;

@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.11';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.12';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -1192,7 +1192,7 @@
     drawBursts();
     drawPocketedRails();
     drawDroppedFlash();
-    fadeMiniTitle(view.mobile);   // 2Dでは玉が下に来たら薄くする
+    fadeBoardOverlays(view.mobile);   // 盤面に重ねた表示を、狙いにかぶるぶんだけ薄くする
     if (S.elevAdjusting) drawElevOverlay();
   }
 
@@ -1505,22 +1505,26 @@
     const s = view.s, diff = S.cfg.diff;
     const c = toScreen(cue.x, cue.y);
     const dir = S.aim.dir;
+    S.aimScreen = [];                        // 狙いが画面のどこを通るか（表示を逃がすのに使う）
     if (diff === 'apocalypse') {
       const L = 260;
       const e = toScreen(cue.x + Math.cos(dir) * L, cue.y + Math.sin(dir) * L);
       line(c, e, 'rgba(255,255,255,.75)', 2);
+      S.aimScreen.push([c, e]);
       return;
     }
     const prev = getAimPreview();
     if (!prev) return;
     const hitPt = toScreen(prev.cue.x, prev.cue.y);
     line(c, hitPt, 'rgba(255,255,255,.72)', 1.8);
+    S.aimScreen.push([c, hitPt]);
     ctx.beginPath(); ctx.arc(hitPt.x, hitPt.y, cue.r * s, 0, 7);
     ctx.strokeStyle = 'rgba(255,255,255,.42)'; ctx.lineWidth = 1.2; ctx.stroke();
     if (diff === 'easy' && prev.obj) {
       const o0 = toScreen(prev.obj.from.x, prev.obj.from.y);
       const o1 = toScreen(prev.obj.to.x, prev.obj.to.y);
       line(o0, o1, 'rgba(251,146,60,.85)', 2);
+      S.aimScreen.push([o0, o1]);
     }
   }
   function line(p, q, col, w) {
@@ -1666,9 +1670,13 @@
     }
 
     const prev = getAimPreview();
+    S.aimScreen = [];
     if (prev) {
       const a = proj(cue.x, cue.y, 1), b2 = proj(prev.cue.x, prev.cue.y, 1);
-      if (a && b2) { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b2.x, b2.y); ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 2; ctx.stroke(); }
+      if (a && b2) {
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b2.x, b2.y); ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 2; ctx.stroke();
+        S.aimScreen.push([a, b2]);
+      }
     }
 
     const live = g.world.balls.filter(b => b.state === 'live')
@@ -1709,7 +1717,7 @@
     drawDirStrip();
     drawCueStrip();
     drawTipPad();
-    fadeMiniTitle(false);         // 3Dでは帯の上に置いてあるので薄くしない
+    fadeBoardOverlays(false);         // 3Dのタイトルは帯の上なので玉では薄くしない
     if (S.elevAdjusting) drawElevOverlay();
   }
 
@@ -1950,26 +1958,44 @@
    * ここでは、玉や予測線がその下に来たときに薄くするかどうかだけを決める。
    * 描く実体を2つ持たないので、アイコンや副題が片方だけ欠けることがない。
    */
-  function fadeMiniTitle(active) {
-    const el = $('board-title'); if (!el) return;
-    if (!active) { el.classList.remove('faded'); return; }
-    const g = S.game; if (!g) return;
-    const r0 = el.getBoundingClientRect(), c0 = cv.getBoundingClientRect();
-    const x = r0.left - c0.left, y = r0.top - c0.top, w = r0.width, h = r0.height;
+  /** その要素が盤面のどこを覆っているか（キャンバスの座標で） */
+  function rectOnBoard(el) {
+    const r = el.getBoundingClientRect(), c0 = cv.getBoundingClientRect();
+    return { x: r.left - c0.left, y: r.top - c0.top, w: r.width, h: r.height };
+  }
+
+  /**
+   * 盤面に重ねている表示を、狙いにかぶるときだけ薄くする。
+   * 消してしまうと何のための表示か分からなくなるので、うっすら残す。
+   * 狙いの元・途中・先のどこが重なっても薄くする（線そのものを見る）。
+   */
+  function fadeIfAimCovers(el, alsoBalls) {
+    if (!el) return;
+    const g = S.game;
+    const shown = el.offsetWidth > 0 && el.offsetHeight > 0;
+    if (!g || !shown) { el.classList.remove('faded'); return; }
+    const q = rectOnBoard(el);
     let hit = false;
-    for (const b of g.world.balls) {
-      if (b.state !== 'live') continue;
-      const p = toScreen(b.x, b.y), r = b.r * view.s + 2;
-      if (p.x + r > x && p.x - r < x + w && p.y + r > y && p.y - r < y + h) { hit = true; break; }
+    for (const seg of (S.aimScreen || [])) {
+      if (segRect(seg[0], seg[1], q.x, q.y, q.w, q.h)) { hit = true; break; }
     }
-    if (!hit && (S.phase === 'aim' || S.phase === 'stance') && S.aimPreview) {
-      const cue = RU.cueBallOf(g, g.turn);
-      if (cue) {
-        const a = toScreen(cue.x, cue.y), b2 = toScreen(S.aimPreview.cue.x, S.aimPreview.cue.y);
-        if (segRect(a, b2, x, y, w, h)) hit = true;
+    if (!hit && alsoBalls) {
+      for (const b of g.world.balls) {
+        if (b.state !== 'live') continue;
+        const p = toScreen(b.x, b.y), r = b.r * view.s + 2;
+        if (p.x + r > q.x && p.x - r < q.x + q.w && p.y + r > q.y && p.y - r < q.y + q.h) { hit = true; break; }
       }
     }
     el.classList.toggle('faded', hit);
+  }
+
+  /** 盤面に重ねている表示ぜんぶを見て回る。1つ足したらここへ足す */
+  function fadeBoardOverlays(mobileTitle) {
+    const aiming = (S.phase === 'aim' || S.phase === 'stance') && isMyTurn();
+    if (!aiming) S.aimScreen = [];
+    fadeIfAimCovers($('msg-bar'), false);
+    fadeIfAimCovers($('flash'), false);
+    fadeIfAimCovers($('board-title'), mobileTitle);
   }
   function segRect(p, q, x, y, w, h) {
     const minX = Math.min(p.x, q.x), maxX = Math.max(p.x, q.x);
@@ -2252,10 +2278,13 @@
     const el = $('flash'); if (!el || !text) return;
     $('flash-t').textContent = text;
     $('flash-w').textContent = why || '';
-    el.className = 'on ' + (kind || '');
+    // faded（狙いを避けて薄くする印）を消さないよう、必要な組だけ触る
+    el.classList.remove('foul', 'warn');
+    if (kind) el.classList.add(kind);
+    el.classList.add('on');
     if (flashTimer) clearTimeout(flashTimer);
     // 理由まで読ませるときは長めに出す
-    flashTimer = setTimeout(() => { el.className = ''; flashTimer = null; }, why ? 2600 : 1000);
+    flashTimer = setTimeout(() => { el.classList.remove('on'); flashTimer = null; }, why ? 2600 : 1000);
   }
 
   /**

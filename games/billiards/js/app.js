@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.06';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.07';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -50,14 +50,33 @@
     if (S.animSpeed == null) {
       let v = 1;
       try { v = parseFloat(localStorage.getItem(KEY_SPEED)) || 1; } catch (e) {}
-      S.animSpeed = Math.min(2, Math.max(0.5, v));
+      S.animSpeed = Math.min(2, Math.max(0.1, v));
     }
     return S.animSpeed;
   }
+  /*
+   * つまみの位置と速さの対応。
+   * 0.1〜1.0 と 1.0〜2.0 では倍率の幅が 10倍 と 2倍 で釣り合わないので、
+   * つまみを等分に切ると 1.0 が端へ寄ってしまう。
+   * そこで倍率の側を等分（対数）にして、**真ん中がちょうど等速**になるようにした。
+   * さらに真ん中の近くでは等速へ吸い付かせる＝いちばん使う値を選びやすくする。
+   */
+  const SNAP = 4;                         // この幅ぶん真ん中に近ければ等速に合わせる
+  function posToSpeed(pos) {
+    if (Math.abs(pos - 50) <= SNAP) return 1;
+    if (pos < 50) return 0.1 * Math.pow(10, pos / 50);
+    return Math.pow(2, (pos - 50) / 50);
+  }
+  function speedToPos(v) {
+    if (v >= 0.995 && v <= 1.005) return 50;
+    if (v < 1) return Math.round(50 * (Math.log10(v) + 1));
+    return Math.round(50 + 50 * Math.log2(v));
+  }
   function setAnimSpeed(v) {
-    S.animSpeed = Math.min(2, Math.max(0.5, v));
+    S.animSpeed = Math.min(2, Math.max(0.1, v));
     try { localStorage.setItem(KEY_SPEED, String(S.animSpeed)); } catch (e) {}
-    const el = $('speed-val'); if (el) el.textContent = S.animSpeed.toFixed(1) + '×';
+    const el = $('speed-val');
+    if (el) el.textContent = (S.animSpeed < 0.95 ? S.animSpeed.toFixed(2) : S.animSpeed.toFixed(2)) + '×';
   }
   const DEFAULT_NAME = 'MOMO太郎';
 
@@ -151,12 +170,10 @@
   // ══════════════════════════════════════════════
   //  トップ（タイトル＋ゲーム選択）
   // ══════════════════════════════════════════════
-  function chip(label, sel, dis, why, onClick, desc) {
+  function chip(label, sel, dis, why, onClick) {
     const d = document.createElement('div');
-    d.className = 'opt' + (sel ? ' sel' : '') + (dis ? ' dis' : '') + (desc ? ' wide' : '');
+    d.className = 'opt' + (sel ? ' sel' : '') + (dis ? ' dis' : '');
     d.textContent = label;
-    // 遊び方の説明。名前だけでは何をするゲームか分からない
-    if (desc) { const s = document.createElement('span'); s.className = 'desc'; s.textContent = desc; d.appendChild(s); }
     if (why) { const s = document.createElement('span'); s.className = 'why'; s.textContent = why; d.appendChild(s); }
     if (!dis) d.onclick = () => { AU.sfx('select'); onClick(); };
     return d;
@@ -172,11 +189,15 @@
     if (id === 'G-02' && S.cfg.players > 2) return t('why.twoOnly');
     return null;
   }
-  function shapeBlock(shape, carom) {
+  /**
+   * そのルールで使う台がキャロム版（ポケットなし）かどうか。
+   * ルールの側が「ポケットが要るか」を持っているので、そこから引く。
+   * ルール名を並べて判定すると、ルールが増えたときに書き足し忘れる。
+   */
+  function caromForRule(rule) { return RU.NEEDS_POCKETS[rule] === false; }
+
+  function shapeBlock(shape) {
     if (STAGE.shape[shape] >= 3) return t('why.stage3');
-    const r = S.cfg.rule;
-    if (carom && (r === 'G-01' || r === 'G-02' || r === 'G-03' || r === 'G-08' || r === 'G-10')) return t('why.pocketOnly');
-    if (!carom && r === 'G-04') return t('why.caromOnly');
     return null;
   }
   function modeBlock(m) {
@@ -241,19 +262,25 @@
       if (!visible('rule', id)) return;
       const why = ruleBlock(id);
       or.appendChild(chip(t('rule.' + id), S.cfg.rule === id, !!why, why,
-        () => { S.cfg.rule = id; onRuleChanged(); }, t('rule.how.' + id)));
+        () => { S.cfg.rule = id; onRuleChanged(); }));
     });
+    // 遊び方は選んだ1つぶんだけ下に出す。全部に付けると名前が探しにくい
+    $('rule-how').textContent = t('rule.how.' + S.cfg.rule);
+    /*
+     * 台は形を選ぶだけ。ポケットあり／キャロム版はルールが決めるので、
+     * 同じ形を2つ並べない。ルールを変えると、いま選んでいる台の姿が変わる。
+     */
+    S.cfg.carom = caromForRule(S.cfg.rule);
+    const carom = S.cfg.carom;
     const ot = $('opts-table'); ot.innerHTML = '';
     SHAPES_ALL.forEach(sh => {
       if (!visible('shape', sh)) return;
-      [false, true].forEach(carom => {
-        const why = shapeBlock(sh, carom);
-        const label = t('shape.' + sh) + '（' + t(carom ? 'tbl.carom' : 'tbl.pocket') + '）';
-        const sel = S.cfg.tableChosen && (S.cfg.shape === sh && S.cfg.carom === carom);
-        ot.appendChild(chip(label, sel, !!why, why, () => {
-          S.cfg.shape = sh; S.cfg.carom = carom; S.cfg.tableChosen = true; buildSetup();
-        }));
-      });
+      const why = shapeBlock(sh);
+      const label = t('shape.' + sh) + '（' + t(carom ? 'tbl.carom' : 'tbl.pocket') + '）';
+      const sel = S.cfg.tableChosen && S.cfg.shape === sh;
+      ot.appendChild(chip(label, sel, !!why, why, () => {
+        S.cfg.shape = sh; S.cfg.tableChosen = true; buildSetup();
+      }));
     });
     const om = $('opts-mode'); om.innerHTML = '';
     ['normal', 'disturb', 'abnormal'].forEach(m => {
@@ -333,7 +360,7 @@
     $('coop-note').textContent = !S.cfg.coop ? t('coop.off')
       : solo ? t('coop.solo') : t('coop.on');
 
-    const bad = !S.cfg.tableChosen || !!ruleBlock(S.cfg.rule) || !!shapeBlock(S.cfg.shape, S.cfg.carom);
+    const bad = !S.cfg.tableChosen || !!ruleBlock(S.cfg.rule) || !!shapeBlock(S.cfg.shape);
     $('btn-start').disabled = bad;
     $('setup-format-note').textContent = t('setup.forFormat', { f: t('fmt.' + S.cfg.format) });
     if ($('btn-ready')) $('btn-ready').disabled = bad;
@@ -411,7 +438,9 @@
   }
 
   function onRuleChanged() {
-    if (S.cfg.tableChosen && shapeBlock(S.cfg.shape, S.cfg.carom)) S.cfg.tableChosen = false;
+    // 台の姿はルールが決める。選んでいた形はそのまま残す
+    S.cfg.carom = caromForRule(S.cfg.rule);
+    if (S.cfg.tableChosen && shapeBlock(S.cfg.shape)) S.cfg.tableChosen = false;
     if (S.cfg.rule === 'G-02' && S.cfg.players > 2) S.cfg.players = 2;
     if (S.cfg.mods['G-13'] && modBlock('G-13')) S.cfg.mods['G-13'] = false;
     buildSetup();
@@ -486,6 +515,9 @@
   function startGame(seed, players, remoteCfg) {
     if (remoteCfg) Object.assign(S.cfg, remoteCfg);   // 通信対戦はホストの設定を強制適用（9.5.3節）
     const cfg = S.cfg;
+    // 台の姿はルールから引く。画面を作り直したときだけ決まる形にすると、
+    // 設定画面を通らずに始まった局（もう一度・通信）で食い違う
+    cfg.carom = caromForRule(cfg.rule);
     const g = RU.createGame({
       rule: cfg.rule, hasPockets: !cfg.carom,
       players: players || playerList(),
@@ -664,6 +696,22 @@
   function finishShot() {
     const g = S.game;
     const res = RU.resolveShot(g, S.pre, g.world.events);
+
+    /*
+     * いま落ちた玉を控えておく（盤の真ん中に絵で出す）。手玉が落ちた場合も入れる。
+     * 「いま落ちた」の判定は玉の状態ではなく、このショットの結果から引く。
+     * 9番のように、落ちてもすぐ盤へ戻される玉があるため。
+     */
+    const nowIds = {};
+    res.pocketed.forEach(id => { nowIds[id] = 1; });
+    const justNow = g.world.balls.filter(b => nowIds[b.id]);
+    if (justNow.length) {
+      S.dropped = {
+        balls: justNow,
+        prev: pocketedBalls(g).filter(b => b.kind !== 'cue' && !nowIds[b.id]),
+        at: performance.now(),
+      };
+    }
 
     if (!g.broken && RU.HAS_RACK[g.rule]) {
       const ok = RU.breakValid(g.world.events, res.pocketed.length);
@@ -1054,16 +1102,192 @@
 
     if ((S.phase === 'aim' || S.phase === 'stance') && isMyTurn()) drawAimLine();
 
-    const tg = RU.legalTargets(g, g.turn);
-    if (tg && tg.length && tg.length <= 3) {
-      for (const b2 of tg) {
-        const q = toScreen(b2.x, b2.y);
-        ctx.beginPath(); ctx.arc(q.x, q.y, b2.r * s * 1.35, 0, 7);
-        ctx.strokeStyle = 'rgba(251,146,60,.75)'; ctx.lineWidth = 1.6; ctx.stroke();
-      }
-    }
+    if ((S.phase === 'aim' || S.phase === 'stance') && isMyTurn()) drawAimTargetMark();
+    drawPocketedRails();
+    drawDroppedFlash();
     fadeMiniTitle(view.mobile);   // 2Dでは玉が下に来たら薄くする
     if (S.elevAdjusting) drawElevOverlay();
+  }
+
+  /**
+   * 玉を1つ、好きな場所に好きな大きさで描く（落ちた玉の一覧・中央の知らせ用）。
+   * 盤上の玉と同じ見た目にする＝どの玉が落ちたのか、絵で分かるようにするため。
+   */
+  function drawBallIcon(x, y, r, color, stripe, num, dim) {
+    ctx.save();
+    if (dim) ctx.globalAlpha = 0.55;
+    ctx.beginPath(); ctx.ellipse(x + r * .16, y + r * .2, r * .95, r * .95, 0, 0, 7);
+    ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.fill();
+    const g = ctx.createRadialGradient(x - r * .38, y - r * .42, r * .08, x, y, r * 1.06);
+    g.addColorStop(0, '#ffffff'); g.addColorStop(.20, shade(color, 1.28));
+    g.addColorStop(.72, color); g.addColorStop(1, shade(color, .42));
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = g; ctx.fill();
+    if (stripe) {
+      ctx.save(); ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.clip();
+      ctx.fillStyle = 'rgba(255,255,255,.92)';
+      ctx.fillRect(x - r, y - r, r * 2, r * .42);
+      ctx.fillRect(x - r, y + r * .58, r * 2, r * .42);
+      ctx.restore();
+    }
+    ctx.lineWidth = Math.max(1, r * .07); ctx.strokeStyle = 'rgba(0,0,0,.55)';
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.stroke();
+    if (num) {
+      ctx.beginPath(); ctx.arc(x, y, Math.max(5, r * .52), 0, 7);
+      ctx.fillStyle = '#ffffff'; ctx.fill();
+      ctx.fillStyle = '#111';
+      ctx.font = '700 ' + Math.max(8, r * .78) + 'px "Noto Sans JP",sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(String(num), x, y + r * .04);
+    }
+    ctx.restore();
+  }
+  function drawBallOf(b, x, y, r, dim) { drawBallIcon(x, y, r, b.color, b.stripe, b.num, dim); }
+
+  /** 落ちた玉（手玉も含む）。番号順。手玉は先頭 */
+  function pocketedBalls(g) {
+    return g.world.balls
+      .filter(b => b.state === 'pocketed' || b.state === 'gone')
+      .sort((a, b) => (a.kind === 'cue' ? -1 : 0) - (b.kind === 'cue' ? -1 : 0) || (a.num - b.num));
+  }
+
+  /**
+   * 「自分」の側。通信対戦は自分の席、そうでなければ人が持っている先頭の席。
+   * 手番ごとに左右が入れ替わると、どちらが自分か分からなくなる。
+   */
+  function viewerIdx() {
+    const g = S.game;
+    if (S.net.on && S.net.myIdx >= 0) return S.net.myIdx;
+    const h = g.players.findIndex(p => p.type === 'human');
+    return h < 0 ? 0 : h;
+  }
+
+  /**
+   * 落ちた玉を台の左右に並べる。
+   * エイトボールは担当が分かれるので、相手のぶんを左・自分のぶんを右に置く。
+   * それ以外のルールは担当が無いので右にまとめる。
+   */
+  function drawPocketedRails() {
+    const g = S.game, table = g.table;
+    const dropped = pocketedBalls(g).filter(b => b.kind !== 'cue');
+    if (!dropped.length) return;
+    const thick = 34 * view.s + 10;
+    const edge = table.halfH * view.s + thick;
+    const r = Math.max(7, Math.min(13, view.h * 0.018));
+    const gap = r * 2.35;
+    const room = Math.max(90, view.h - 40);
+    const maxN = Math.max(3, Math.floor(room / gap));
+
+    let left = [], right = [];
+    if (g.rule === 'G-02') {
+      const mine = g.players[viewerIdx()] ? g.players[viewerIdx()].group : null;
+      dropped.forEach(b => {
+        const grp = RU.groupOf(b.num);
+        if (grp == null) right.push(b);                       // 8番はどちらでもない
+        else if (mine && grp === mine) right.push(b);
+        else if (mine) left.push(b);
+        else right.push(b);                                   // 担当が決まる前
+      });
+    } else right = dropped;
+
+    /*
+     * 台の外に置き場が無いとき（携帯は横幅がぎりぎり）は、枠の上に重ねる。
+     * 「入らないから描かない」にすると、携帯では落ちた玉が一切見えなくなる。
+     */
+    const column = (list, sign) => {
+      if (!list.length) return;
+      const want = view.cx + sign * (edge + r + 8);
+      const x = clamp(want, r + 3, view.w - r - 3);
+      const over = Math.abs(x - want) > 1;                    // 枠に重ねている
+      const n = Math.min(list.length, maxN);
+      let y = view.cy - (n - 1) * gap / 2;
+      if (over) {                                             // 重ねるときは下敷きを敷く
+        ctx.save();
+        roundRect(x - r - 3, y - r - 5, r * 2 + 6, (n - 1) * gap + r * 2 + 10, r);
+        ctx.fillStyle = 'rgba(10,10,10,.55)'; ctx.fill();
+        ctx.restore();
+      }
+      for (let i = 0; i < n; i++) { drawBallOf(list[i], x, y, r, true); y += gap; }
+    };
+    column(left, -1);
+    column(right, 1);
+  }
+
+  /**
+   * 撞き終わって玉が止まったあと、いま落ちた玉を盤の真ん中に大きく出す。
+   * 何が落ちたのかは、小さい玉が消えるのを目で追うだけでは分からない。
+   * すでに落ちている玉も下に小さく並べて、全体の進み具合が見えるようにする。
+   */
+  const DROP_SHOW_MS = 2400;
+  function drawDroppedFlash() {
+    const g = S.game, d = S.dropped;
+    if (!d || !d.balls.length) return;
+    const age = performance.now() - d.at;
+    if (age > DROP_SHOW_MS) { S.dropped = null; return; }
+    const fade = age > DROP_SHOW_MS - 400 ? (DROP_SHOW_MS - age) / 400 : 1;
+
+    const big = Math.max(18, Math.min(34, view.w * 0.055));
+    const small = Math.max(8, big * 0.42);
+    const n = d.balls.length;
+    const w = Math.max(150, n * big * 2.5 + 44);
+    const prev = d.prev.slice(0, Math.floor((w - 30) / (small * 2.3)));
+    const h = big * 2.5 + (prev.length ? small * 2.6 : 0) + 34;
+    const x = view.cx - w / 2, y = view.cy - h / 2;
+
+    ctx.save();
+    ctx.globalAlpha = fade;
+    roundRect(x, y, w, h, 12);
+    ctx.fillStyle = 'rgba(10,10,10,.86)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(251,146,60,.75)'; ctx.lineWidth = 2; ctx.stroke();
+
+    ctx.font = '11px "Noto Sans JP",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillStyle = 'rgba(255,255,255,.72)';
+    ctx.fillText(t('drop.title'), view.cx, y + 8);
+
+    let bx = view.cx - (n - 1) * big * 1.25;
+    const by = y + 26 + big;
+    for (const b of d.balls) { drawBallOf(b, bx, by, big); bx += big * 2.5; }
+
+    if (prev.length) {
+      ctx.font = '10px "Noto Sans JP",sans-serif'; ctx.textAlign = 'left';
+      ctx.fillStyle = 'rgba(255,255,255,.5)';
+      const ly = by + big + 6;
+      ctx.fillText(t('drop.already'), x + 14, ly);
+      let px = x + 14 + small;
+      const py = ly + small + 12;
+      for (const b of prev) { drawBallOf(b, px, py, small, true); px += small * 2.3; }
+    }
+    ctx.restore();
+  }
+
+  /**
+   * いま狙っている先の玉に印を出す。
+   * 当ててよい玉ならオレンジの輪、いけない玉なら禁止の印。
+   * 「次に当てる玉」を文字で出すだけでは、盤の上のどれなのかが結びつかない。
+   */
+  function drawAimTargetMark() {
+    const g = S.game;
+    const pv = S.aimPreview;
+    if (!pv || !pv.contact || pv.contact.type !== 'ball' || !pv.contact.ball) return;
+    const b = pv.contact.ball;
+    const tg = RU.legalTargets(g, g.turn);
+    const ok = !tg || tg.some(x => x.id === b.id);
+    const p = toScreen(b.x, b.y), r = b.r * view.s;
+    ctx.save();
+    if (ok) {
+      ctx.beginPath(); ctx.arc(p.x, p.y, r * 1.45, 0, 7);
+      ctx.strokeStyle = 'rgba(251,146,60,.95)'; ctx.lineWidth = Math.max(2, r * .22); ctx.stroke();
+      ctx.beginPath(); ctx.arc(p.x, p.y, r * 1.72, 0, 7);
+      ctx.strokeStyle = 'rgba(251,146,60,.35)'; ctx.lineWidth = Math.max(1, r * .1); ctx.stroke();
+    } else {
+      // 禁止の印（丸に斜線）
+      const R = r * 1.5, lw = Math.max(2.5, r * .3);
+      ctx.strokeStyle = 'rgba(220,38,38,.95)'; ctx.lineWidth = lw;
+      ctx.beginPath(); ctx.arc(p.x, p.y, R, 0, 7); ctx.stroke();
+      const c = Math.SQRT1_2 * (R - lw * .1);
+      ctx.beginPath(); ctx.moveTo(p.x - c, p.y - c); ctx.lineTo(p.x + c, p.y + c);
+      ctx.lineCap = 'round'; ctx.stroke();
+    }
+    ctx.restore();
   }
 
   function drawPlaceArea() {
@@ -1594,6 +1818,7 @@
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
 
   cv.addEventListener('pointerdown', e => {
+    S.dropped = null;                    // 触ったら中央の知らせは畳む
     if (!S.game || !isMyTurn()) return;
     try { cv.setPointerCapture(e.pointerId); } catch (err) {}
     const p = evPos(e);
@@ -2249,8 +2474,8 @@
   function openSettings() {
     $('vol-bgm').value = AU.getBgmVolume(); $('vol-sfx').value = AU.getSfxVolume();
     $('mute-bgm').checked = AU.getMuted('bgm'); $('mute-sfx').checked = AU.getMuted('sfx');
-    $('in-speed').value = Math.round(animSpeed() * 100);
-    $('speed-val').textContent = animSpeed().toFixed(1) + '×';
+    $('in-speed').value = speedToPos(animSpeed());
+    $('speed-val').textContent = animSpeed().toFixed(2) + '×';
     $('modal-settings').classList.add('on');
   }
   $('btn-set-close').onclick = () => $('modal-settings').classList.remove('on');
@@ -2258,7 +2483,12 @@
   $('vol-sfx').oninput = e => AU.setSfxVolume(+e.target.value);
   $('mute-bgm').onchange = e => AU.setMuted('bgm', e.target.checked);
   $('mute-sfx').onchange = e => AU.setMuted('sfx', e.target.checked);
-  $('in-speed').oninput = e => setAnimSpeed((+e.target.value || 100) / 100);
+  $('in-speed').oninput = e => {
+    const pos = +e.target.value;
+    const v = posToSpeed(pos);
+    if (v === 1 && pos !== 50) e.target.value = 50;    // 等速の近くでは吸い付かせる
+    setAnimSpeed(v);
+  };
   $('btn-gear').onclick = openSettings;
 
   // ══════════════════════════════════════════════

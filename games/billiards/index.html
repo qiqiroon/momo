@@ -164,10 +164,9 @@ input[type=range]{accent-color:var(--orange-mid);}
 .opt.sel{background:var(--bg-selected);border-color:var(--orange);color:var(--orange-light);font-weight:700;}
 .opt.dis{opacity:.42;cursor:not-allowed;color:var(--text-muted);}
 .opt .why{display:block;font-size:10px;color:var(--text-muted);margin-top:3px;line-height:1.3;}
-/* ルールは名前だけでは何をするのか分からないので、遊び方を数行添える */
-.opt.wide{flex:1 1 236px;min-width:210px;text-align:left;}
-.opt .desc{display:block;font-size:11px;font-weight:400;color:var(--text-muted);margin-top:5px;line-height:1.5;white-space:normal;}
-.opt.sel .desc{color:var(--text);}
+/* 選んだルールの遊び方。名前の一覧の下に1つだけ出す */
+.rule-how{margin-top:10px;padding:10px 12px;border-left:3px solid var(--orange);
+  background:var(--surface2);border-radius:0 8px 8px 0;font-size:12px;line-height:1.65;color:var(--text);}
 .seg{display:inline-flex;border:1px solid var(--border-strong);border-radius:8px;overflow:hidden;}
 .seg button{background:var(--surface2);border:0;color:var(--text-muted);font-family:inherit;font-size:13px;padding:7px 16px;cursor:pointer;}
 .seg button.sel{background:var(--orange);color:#fff;font-weight:700;}
@@ -390,7 +389,9 @@ body.debug #dbg{display:block;}
     </div>
 
     <!-- 5つの選択 -->
-    <div class="card"><span class="lbl" id="lbl-rule"></span><div class="opts" id="opts-rule"></div></div>
+    <div class="card"><span class="lbl" id="lbl-rule"></span><div class="opts" id="opts-rule"></div>
+      <!-- 遊び方は「いま選んでいるルール」のぶんだけ、この1か所に出す -->
+      <div class="rule-how" id="rule-how"></div></div>
     <div class="card"><span class="lbl" id="lbl-table"></span><div class="opts" id="opts-table"></div></div>
     <div class="card"><span class="lbl" id="lbl-mode"></span><div class="opts" id="opts-mode"></div></div>
     <div class="card"><span class="lbl" id="lbl-diff"></span><div class="opts" id="opts-diff"></div></div>
@@ -621,7 +622,11 @@ body.debug #dbg{display:block;}
   <div style="margin:14px 0 6px">
     <div class="row" style="justify-content:space-between">
       <span id="set-speed"></span><span class="mini" id="speed-val">1.0×</span></div>
-    <input type="range" id="in-speed" min="50" max="200" step="10" value="100" style="width:100%">
+    <!-- つまみの真ん中が等速。左端 0.10倍・右端 2.00倍（倍率の側を等分にしてある） -->
+    <input type="range" id="in-speed" min="0" max="100" step="1" value="50" style="width:100%">
+    <div class="row" style="justify-content:space-between;margin-top:-2px">
+      <span class="mini">0.10×</span><span class="mini">1.00×</span><span class="mini">2.00×</span>
+    </div>
     <div class="hint" id="speed-note" style="margin-top:5px"></div>
   </div>
   <div class="row" style="justify-content:flex-end"><button class="btn" id="btn-set-close"></button></div>

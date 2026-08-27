@@ -97,6 +97,7 @@ const BilliardsI18N = (() => {
       'hud.turn': '手番', 'hud.score': '得点', 'hud.next': '次に当てる玉',
       'hud.foul': 'ファウル', 'hud.none': 'なし', 'hud.time': '持ち時間',
       'hud.base': '基本', 'hud.group': '担当', 'hud.open': '未定',
+      'drop.title': '落ちた玉', 'drop.already': 'これまでに落ちた玉',
       'group.solid': 'ソリッド（1〜7）', 'group.stripe': 'ストライプ（9〜15）',
 
       'btn.aim': '構える', 'btn.back2d': '2Dへ戻る', 'btn.shoot': '撞く',
@@ -261,6 +262,7 @@ const BilliardsI18N = (() => {
       'hud.turn': 'Turn', 'hud.score': 'Score', 'hud.next': 'Hit first',
       'hud.foul': 'Foul', 'hud.none': 'none', 'hud.time': 'Time bank',
       'hud.base': 'Base', 'hud.group': 'Group', 'hud.open': 'open',
+      'drop.title': 'Pocketed', 'drop.already': 'Already pocketed',
       'group.solid': 'Solids (1-7)', 'group.stripe': 'Stripes (9-15)',
 
       'btn.aim': 'Take stance', 'btn.back2d': 'Back to 2D', 'btn.shoot': 'Shoot',
@@ -426,6 +428,7 @@ const BilliardsI18N = (() => {
       'hud.turn': '轮到', 'hud.score': '得分', 'hud.next': '先击打',
       'hud.foul': '犯规', 'hud.none': '无', 'hud.time': '保留时间',
       'hud.base': '基本', 'hud.group': '组别', 'hud.open': '未定',
+      'drop.title': '已进袋', 'drop.already': '此前进袋的球',
       'group.solid': '全色（1〜7）', 'group.stripe': '花色（9〜15）',
 
       'btn.aim': '架杆', 'btn.back2d': '回到俯视', 'btn.shoot': '击球',

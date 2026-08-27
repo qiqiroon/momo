@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.01';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.02';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -32,6 +32,10 @@
   };
   const RULES_ALL = ['G-01', 'G-02', 'G-03', 'G-04', 'G-06', 'G-08', 'G-09', 'G-10', 'G-11'];
   const SHAPES_ALL = ['A-01', 'A-02', 'A-04', 'A-06', 'A-07', 'A-08', 'A-09', 'A-11'];
+
+  // ?debug=1 のときだけ、1フレームの内訳（物理・描画）を画面に出す。
+  // 「処理落ちしている気がする」を推測で語らないための物差し
+  const DEBUG = location.search.indexOf('debug=1') >= 0;
 
   const KEY_NAME = 'billiards_name', KEY_ROOM = 'billiards_room';
   const DEFAULT_NAME = 'MOMO太郎';
@@ -59,7 +63,7 @@
     msg: '',
     replay: null, replayRun: null,
     clock: { baseLeft: 0, banks: [], running: false },
-    net: { on: false, role: 'none', isHost: false, myPid: null, myIdx: -1, roster: [], lastRooms: [], wsOpen: false, wasClosed: false },
+    net: { on: false, role: 'none', isHost: false, myPid: null, myIdx: -1, roster: [], lastRooms: [], wsOpen: false, wasClosed: false, ready: {}, sentCfg: null },
     aiCancel: null, confirmCb: null, dlVotes: {},
     wakeLock: null,
   };
@@ -70,7 +74,7 @@
   function applyLang() {
     const bl = I.brandLang();
     const subText = (bl === 'zh') ? '百变球台，一杆入魂' : 'Any Shape, Any Rule, One Cue';
-    ['subtitle', 'subtitle-2', 'subtitle-3', 'subtitle-4'].forEach(id => {
+    ['subtitle', 'subtitle-2', 'subtitle-3', 'subtitle-4', 'subtitle-5'].forEach(id => {
       const e = $(id); if (!e) return;
       e.textContent = subText; e.classList.toggle('zh', bl === 'zh');
     });
@@ -89,7 +93,7 @@
     set('k-turn', 'hud.turn'); set('k-next', 'hud.next'); set('k-foul', 'hud.foul');
     set('k-base', 'hud.base'); set('k-bank', 'hud.time'); set('k-elevlabel', 'hint.elev');
     set('btn-replay', 'btn.replay'); set('btn-deadlock', 'btn.deadlock'); set('btn-quit', 'btn.quit');
-    set('btn-again', 'res.again'); set('btn-to-setup', 'res.toSetup'); set('res-title', 'res.title');
+    set('btn-again', 'res.again'); set('btn-to-setup-t', 'res.toMenu'); set('res-title', 'res.title');
     set('audio-title', 'audio.title'); set('audio-desc', 'audio.desc');
     set('btn-audio-yes', 'audio.yes'); set('btn-audio-no', 'audio.no');
     set('set-title', 'set.title'); set('set-bgm', 'set.bgm'); set('set-sfx', 'set.sfx');
@@ -99,7 +103,8 @@
     set('lbl-myname', 'lobby.name'); set('lbl-roomname', 'lobby.room'); set('lbl-pw', 'lobby.pw2');
     set('lbl-private', 'lobby.private'); set('btn-create', 'lobby.create'); set('lbl-create', 'lobby.create');
     set('lbl-rooms', 'lobby.rooms'); set('btn-refresh', 'lobby.refresh');
-    set('btn-lobby-back', 'nav.back'); set('btn-room-start', 'lobby.startGame'); set('btn-room-leave', 'nav.back');
+    set('btn-lobby-back', 'nav.back'); set('btn-room-leave', 'nav.back');
+    set('btn-setup-back', 'nav.back'); set('setup-title', 'setup.title');
     set('foot-about', 'foot.about'); set('foot-desc', 'foot.desc');
     set('foot-top', 'foot.top'); set('foot-games', 'foot.games'); set('foot-tools', 'foot.tools');
     $('btn-gear').title = t('set.open');
@@ -110,7 +115,9 @@
     $('seg-cue').children[2].textContent = t('cue.custom');
     $('lang-select').value = I.mode;
     refreshServerStatus();
+    buildHome();
     buildSetup();
+    if (S.screen === 'room') showRoom();
     renderHUD();
     renderRooms(S.net.lastRooms);
   }
@@ -161,6 +168,42 @@
     return !(SPECIAL[kind] && SPECIAL[kind][id]);
   }
 
+  /**
+   * 設定の中身（#setup-block）を指定の入れ物へ移す。
+   * 同じ画面を2つ作らないための仕掛け＝設定画面と部屋で必ず同じものが出る。
+   * @param {boolean} readonly ゲストは見えるだけで触れない
+   */
+  function mountSetup(hostId, readonly) {
+    const blk = $('setup-block'), host = $(hostId);
+    if (!blk || !host) return;
+    if (blk.parentNode !== host) host.appendChild(blk);
+    blk.classList.toggle('readonly', !!readonly);
+    buildSetup();
+  }
+
+  /** 最上位画面＝遊び方を選ぶだけ */
+  function buildHome() {
+    const box = $('opts-format'); if (!box) return;
+    box.innerHTML = '';
+    ['local', 'ai', 'practice', 'online', 'coop'].forEach(f => {
+      const why = formatBlock(f);
+      const b = document.createElement('button');
+      b.className = 'fmt-btn';
+      b.disabled = !!why;
+      b.innerHTML = '<span>' + escapeHtml(t('fmt.' + f)) + '</span>' +
+        '<span class="sub">' + escapeHtml(why || t('fmt.desc.' + f)) + '</span>';
+      b.onclick = () => {
+        AU.sfx('select');
+        S.cfg.format = f;
+        syncPlayers();
+        if (f === 'online') { openLobby(); return; }
+        S.net.on = false;
+        show('setup');
+      };
+      box.appendChild(b);
+    });
+  }
+
   function buildSetup() {
     const or = $('opts-rule'); if (!or) return;
     or.innerHTML = '';
@@ -197,12 +240,6 @@
         buildSetup();
       }));
     });
-    const ofm = $('opts-format'); ofm.innerHTML = '';
-    ['local', 'ai', 'practice', 'online', 'coop'].forEach(f => {
-      const why = formatBlock(f);
-      ofm.appendChild(chip(t('fmt.' + f), S.cfg.format === f, !!why, why, () => { S.cfg.format = f; syncPlayers(); buildSetup(); }));
-    });
-
     // 持ち時間設定。ON のときだけ2つの値を出す
     $('sw-time').checked = !!S.cfg.mods['G-14'];
     $('time-fields').style.display = S.cfg.mods['G-14'] ? '' : 'none';
@@ -243,6 +280,7 @@
     selP.value = S.cfg.players;
 
     $('wrap-ai').style.display = (S.cfg.format === 'ai') ? '' : 'none';
+    $('sel-players').parentNode.style.display = (S.cfg.format === 'ai') ? 'none' : '';
     const selA = $('sel-aicount'); selA.innerHTML = '';
     for (let n = 1; n <= Math.max(1, maxP - 1); n++) {
       const o = document.createElement('option'); o.value = n; o.textContent = n; selA.appendChild(o);
@@ -252,8 +290,21 @@
     $('wrap-target').style.display = (S.cfg.rule === 'G-04') ? '' : 'none';
     $('in-target').value = S.cfg.target;
 
-    $('btn-start').textContent = (S.cfg.format === 'online') ? t('lobby.title') : t('btn.start');
-    $('btn-start').disabled = !S.cfg.tableChosen || !!ruleBlock(S.cfg.rule) || !!shapeBlock(S.cfg.shape, S.cfg.carom);
+    const bad = !S.cfg.tableChosen || !!ruleBlock(S.cfg.rule) || !!shapeBlock(S.cfg.shape, S.cfg.carom);
+    $('btn-start').disabled = bad;
+    $('setup-format-note').textContent = t('setup.forFormat', { f: t('fmt.' + S.cfg.format) });
+    if ($('btn-ready')) $('btn-ready').disabled = bad;
+
+    // ホストが部屋の中で設定を変えたら、その場でゲストへ配る。
+    // 変わっていないのに送らない＝同じ設定を撞くたびに流さない
+    if (S.screen === 'room' && S.net.on && S.net.isHost) {
+      const now = JSON.stringify(S.cfg);
+      if (now !== S.net.sentCfg) {
+        S.net.sentCfg = now;
+        NET.send({ k: 'cfg', config: netConfig() });
+        clearReady();                         // 条件が変わったら合意はやり直し
+      }
+    }
   }
 
   function onRuleChanged() {
@@ -286,9 +337,12 @@
   // ══════════════════════════════════════════════
   function show(name) {
     S.screen = name;
-    ['home', 'lobby', 'room', 'play', 'result'].forEach(n => {
+    ['home', 'setup', 'lobby', 'room', 'play', 'result'].forEach(n => {
       $('scr-' + n).classList.toggle('on', n === name);
     });
+    // 設定の中身は1つしか無い。設定画面と部屋の間を行き来させる
+    if (name === 'setup') mountSetup('setup-host', false);
+    else if (name === 'room') mountSetup('setup-host-room', !S.net.isHost);
     AU.setBgm(name === 'play' ? 'game' : 'lobby');
     if (name === 'play') { requestWakeLock(); resizeBoard(); }
     else releaseWakeLock();
@@ -371,6 +425,7 @@
       S.phase = 'aim';
     }
     S.clock.baseLeft = S.cfg.mods['G-14'] ? S.cfg.tbase : 0;
+    S.clock.lastBeep = 0;
     S.clock.running = S.cfg.mods['G-14'] && isMyTurn() && g.players[g.turn].type === 'human';
 
     if (g.players[g.turn].type === 'ai') {
@@ -413,6 +468,9 @@
   const CUE_LEN = 1400;
   function computeElevFan(cue) {
     const fan = new Float32Array(360);
+    // 壁までの距離も一緒に覚える。角度の絵に「何に当たっているのか」を描くため
+    const dist = new Float32Array(360).fill(Infinity);
+    S.elevDist = dist;
     if (!S.cfg.cue[6]) { S.elevFan = fan; return; }
     const table = S.game.table;
     const hNeed = table.cushionTop - cue.r;
@@ -429,15 +487,24 @@
         if (tt > 0 && uu >= 0 && uu <= 1 && tt < L) L = tt;
       }
       if (!isFinite(L) || L > CUE_LEN) { fan[d] = 0; continue; }
+      dist[d] = L;
       if (L <= 1) { fan[d] = Math.PI / 2; continue; }
       fan[d] = Math.min(Math.PI / 2, Math.atan2(Math.max(0, hNeed), L));
     }
     S.elevFan = fan;
   }
+  function dirIndex(dir) {
+    let d = Math.round(dir * 180 / Math.PI) % 360; if (d < 0) d += 360;
+    return d;
+  }
   function minElevFor(dir) {
     if (!S.elevFan) return 0;
-    let d = Math.round(dir * 180 / Math.PI) % 360; if (d < 0) d += 360;
-    return S.elevFan[d];
+    return S.elevFan[dirIndex(dir)];
+  }
+  /** いま向いている方向で、キューの尻がぶつかる壁までの距離。無ければ Infinity */
+  function wallDistFor(dir) {
+    if (!S.elevDist) return Infinity;
+    return S.elevDist[dirIndex(dir)];
   }
 
   // ══════════════════════════════════════════════
@@ -503,7 +570,12 @@
     if (res.message) { msg = (msg ? msg + ' — ' : '') + t(res.message); g.lastMessageKey = res.message; }
     if (res.gained) msg = (msg ? msg + ' — ' : '') + '+' + res.gained;
     setMsg(msg);
-    if (res.fouls.length) AU.sfx('foul');
+    if (res.fouls.length) {
+      AU.sfx('foul');
+      // ファウルは盤の真ん中に大きく出す。これが見えないと
+      // 「玉が落ちたのに手番が移った」理由が分からない
+      flash(t('hud.foul') + '　' + res.fouls.map(f => t('foul.' + f)).join(' / '), 'foul');
+    }
 
     if (S.cfg.format === 'practice' && (res.gameOver || g.over)) {
       setTimeout(() => startGame(newSeed(), null, null), 900);   // 練習は勝敗を持たない（9.6.1節）
@@ -526,6 +598,7 @@
     if (RU.WIN_KIND[g.rule] === 'points') RU.finishRanking(g);
     const meIdx = S.net.on ? S.net.myIdx : 0;
     const won = (g.winner >= 0) && (S.net.on ? g.winner === meIdx : g.players[g.winner].type === 'human');
+    S.won = won;
     AU.sfx(won ? 'win' : 'lose');
     renderResult();
     show('result');
@@ -547,9 +620,25 @@
         onTimeout(true);
       }
     }
+    // 残り5秒からは1秒ごとに鳴らす。数字だけだと気づけない
+    const whole = Math.ceil(clockRemain());
+    if (whole >= 1 && whole <= 5 && whole !== S.clock.lastBeep) {
+      S.clock.lastBeep = whole;
+      if (isMyTurn()) AU.sfx('tick');
+    } else if (whole > 5) {
+      S.clock.lastBeep = 0;
+    }
+  }
+  /** いま減っているほうの残り秒。基本制限時間を使い切ったら持ち時間へ移る */
+  function clockRemain() {
+    const g = S.game; if (!g) return Infinity;
+    if (S.clock.baseLeft > 0) return S.clock.baseLeft;
+    return S.clock.banks[g.turn] || 0;
   }
   function onTimeout(local) {
     const g = S.game;
+    AU.sfx('timeup');
+    flash(t('ev.timeout'), 'warn');
     setMsg(t('ev.timeout'));                  // タイムアウトはパスと同じ（8.4.4節）
     if (S.net.on && local) NET.send({ k: 'timeout', n: g.shotNo });
     g.history.push({ n: g.shotNo, timeout: true });
@@ -789,15 +878,24 @@
 
     if (S.cfg.cue[6] && (S.phase === 'aim' || S.phase === 'stance')) drawElevFan();
 
-    const live = g.world.balls.filter(bb => bb.state === 'live');
+    // 置く段では手玉の実体を描かない。描くと「もう置いてある」ように見えて、
+    // 破線の輪（これから置く場所）との区別がつかなくなる
+    const placing = S.phase === 'place';
+    const cueNow = placing ? RU.cueBallOf(g, g.turn) : null;
+    const live = g.world.balls.filter(bb => bb.state === 'live' && bb !== cueNow);
     live.sort((x, y) => x.z - y.z);
     for (const bb of live) drawBall2D(bb, s);
 
-    if (S.phase === 'place' && S.placePos) {
-      const cue = RU.cueBallOf(g, g.turn);
+    if (placing && S.placePos && cueNow) {
       const q = toScreen(S.placePos.x, S.placePos.y);
-      ctx.beginPath(); ctx.arc(q.x, q.y, cue.r * s, 0, 7);
-      ctx.strokeStyle = placeOk(S.placePos) ? 'rgba(251,146,60,.95)' : 'rgba(220,38,38,.95)';
+      const ok = placeOk(S.placePos);
+      ctx.save();
+      ctx.globalAlpha = 0.45;                 // 薄く＝まだ置いていない
+      ctx.beginPath(); ctx.arc(q.x, q.y, cueNow.r * s, 0, 7);
+      ctx.fillStyle = '#f4f4f4'; ctx.fill();
+      ctx.restore();
+      ctx.beginPath(); ctx.arc(q.x, q.y, cueNow.r * s, 0, 7);
+      ctx.strokeStyle = ok ? 'rgba(251,146,60,.95)' : 'rgba(220,38,38,.95)';
       ctx.lineWidth = 2; ctx.setLineDash([5, 4]); ctx.stroke(); ctx.setLineDash([]);
     }
 
@@ -886,15 +984,22 @@
     let obj = null;
     if (fc.type === 'ball' && fc.ball) {
       if (S.cfg.cue[2]) {
-        // スロー効果ON：短時間だけ物理を先回りさせる（4.6.3節）
+        /*
+         * スロー効果ON：短時間だけ物理を先回りさせる（4.6.3節）。
+         * 的球が動き出す向きが分かれば足りるので、動いた距離で打ち切る。
+         * 1.1秒ぶん最後まで回すと1回あたり約30ミリ秒＝描画2フレームぶん固まる（実測）。
+         */
         const w = E.cloneWorld(g.world);
         const c2 = w.balls.find(b => b.id === cue.id);
         const o2 = w.balls.find(b => b.id === fc.ball.id);
         E.applyCue(c2, { dir, power: Math.max(0.28, S.aim.power || 0.4), tipX: S.aim.tipX, tipY: S.aim.tipY, elev: S.aim.elev });
         const from = { x: o2.x, y: o2.y };
-        E.runShot(w, 1.1, () => true);
-        obj = { from, to: { x: o2.x, y: o2.y } };
-        if (Math.hypot(obj.to.x - from.x, obj.to.y - from.y) < 10) obj = null;
+        const NEED = 40;
+        E.runShot(w, 0.35, () => Math.hypot(o2.x - from.x, o2.y - from.y) < NEED);
+        const mx = o2.x - from.x, my = o2.y - from.y;
+        const ml = Math.hypot(mx, my);
+        // 向きだけを取り出し、線の長さはスロー効果OFFのときと揃える
+        obj = ml < 1 ? null : { from, to: { x: from.x + mx / ml * 620, y: from.y + my / ml * 620 } };
       } else {
         const nx = cuePt.x - fc.ball.x, ny = cuePt.y - fc.ball.y;
         const nl = Math.hypot(nx, ny) || 1;
@@ -1012,7 +1117,8 @@
     drawDirStrip();
     drawCueStrip();
     drawTipPad();
-    drawMiniTitle(false);
+    // PC は左の欄にタイトルが出ているので、盤面には重ねない（二重になる）
+    if (view.mobile) drawMiniTitle(false);
     if (S.elevAdjusting) drawElevOverlay();
   }
 
@@ -1164,6 +1270,7 @@
     c.fillStyle = '#8a5228'; c.fillRect(x, bedY - h * 0.06, w * 0.07, h * 0.06);
     // 手玉。キューは左上へ伸びるので、玉は右寄りに置いて絵が枠から出ないようにする
     const bx = x + w * 0.78, br = Math.max(6, h * 0.11);
+    drawSideWall(c, x, bedY, w, h, bx, br, elev);
     const bg = c.createRadialGradient(bx - br * .35, bedY - br * 1.3, br * .1, bx, bedY - br, br);
     bg.addColorStop(0, '#fff'); bg.addColorStop(1, '#b5b5b5');
     c.beginPath(); c.arc(bx, bedY - br, br, 0, 7); c.fillStyle = bg; c.fill();
@@ -1184,6 +1291,41 @@
     c.strokeStyle = 'rgba(251,146,60,.7)'; c.lineWidth = 1.3; c.stroke();
     c.beginPath(); c.moveTo(tipX, tipY); c.lineTo(tipX - L * 0.34, tipY);
     c.strokeStyle = 'rgba(255,255,255,.25)'; c.setLineDash([4, 3]); c.lineWidth = 1; c.stroke(); c.setLineDash([]);
+    c.restore();
+  }
+
+  /**
+   * 角度の絵に、キューの尻がぶつかる壁（クッション）を描く。
+   * 角度を下げられない理由は「後ろに壁がある」ことなので、
+   * 壁そのものを見せないと、なぜ下げられないのかが分からない。
+   */
+  function drawSideWall(c, x, bedY, w, h, bx, br, elev) {
+    const g = S.game; if (!g) return;
+    const L = w * 0.70;                       // 絵の中のキューの長さ＝CUE_LEN に相当
+    const dist = wallDistFor(S.aim.dir);
+    const need = minElevFor(S.aim.dir);
+    if (!isFinite(dist) || dist > CUE_LEN || need <= 0.001) return;
+    const tipX = bx - br * 0.9, tipY = bedY - br;
+    // 実距離のままだと、壁際のときに壁が手玉に重なって1画素になる。
+    // 近すぎる場合は手前に引き寄せて描く（距離ではなく「当たっていること」を見せる絵）
+    const dxp = clamp(dist * (L / CUE_LEN), L * 0.30, L * 0.85);
+    const wallX = tipX - dxp;
+    if (wallX < x) return;                    // 絵の外なら描かない
+    /*
+     * 壁の高さは、その方向の最小角でキューがちょうど掠める高さにする。
+     * 実寸をそのまま縮めると、横は 1/40、縦は等倍で、絵の中で辻褄が合わなくなる。
+     * 「これ以上下げられない理由」を見せるのが目的なので、
+     * 角度と壁の関係のほうを正しく描く。
+     */
+    const wallTopY = tipY - dxp * Math.tan(Math.min(need, 1.4));
+    const wallH = Math.max(3, bedY - wallTopY);
+    const wallW = Math.max(3, w * 0.07);
+    const touching = elev <= need + 0.02;
+    c.save();
+    c.fillStyle = touching ? '#a3431a' : '#6b4423';
+    c.fillRect(wallX - wallW / 2, bedY - wallH, wallW, wallH);
+    c.fillStyle = touching ? 'rgba(251,146,60,.9)' : 'rgba(255,255,255,.3)';
+    c.fillRect(wallX - wallW / 2, bedY - wallH, wallW, Math.max(1.4, wallH * 0.16));
     c.restore();
   }
 
@@ -1386,9 +1528,11 @@
   //  主ループ
   // ══════════════════════════════════════════════
   let lastT = performance.now();
+  const dbg = { phys: 0, draw: 0, gap: 0, at: 0 };
   function loop(now) {
     const dt = Math.min(100, now - lastT); lastT = now;
     if (S.screen === 'play' && S.game) {
+      const t0 = DEBUG ? performance.now() : 0;
       if (S.phase === 'rolling') {
         for (let i = 0; i < 8; i++) {         // 描画60Hzに対し1フレーム8ステップ＝1/480秒
           if (E.allStopped(S.game.world)) break;
@@ -1404,9 +1548,23 @@
         if (E.allStopped(S.replayRun)) S.replayRun = null;
       }
       tickClock(dt);
+      const t1 = DEBUG ? performance.now() : 0;
       if (S.replayRun) drawReplay();
       else if (S.phase === 'stance') draw3D();
       else draw2D();
+      if (DEBUG) {
+        const t2 = performance.now();
+        dbg.phys = Math.max(dbg.phys, t1 - t0);
+        dbg.draw = Math.max(dbg.draw, t2 - t1);
+        dbg.gap = Math.max(dbg.gap, dt);
+        if (now - dbg.at > 500) {
+          dbg.at = now;
+          const el = $('dbg');
+          if (el) el.textContent = '最悪 物理' + dbg.phys.toFixed(1) + ' 描画' + dbg.draw.toFixed(1)
+            + ' 間隔' + dbg.gap.toFixed(1) + 'ms';
+          dbg.phys = dbg.draw = dbg.gap = 0;
+        }
+      }
       renderClock();
       drawElevPic();
       $('k-elev').textContent = Math.round(S.aim.elev * 180 / Math.PI) + '°';
@@ -1445,6 +1603,19 @@
   // ══════════════════════════════════════════════
   function setMsg(m) { S.msg = m || ''; $('msg-bar').textContent = S.msg; $('msg-bar').style.display = S.msg ? '' : 'none'; }
 
+  /**
+   * 盤の真ん中に大きく1秒だけ出す。
+   * 端の細い帯に出すだけでは、盤を見ている人の目に入らない。
+   */
+  let flashTimer = null;
+  function flash(text, kind) {
+    const el = $('flash'); if (!el || !text) return;
+    el.textContent = text;
+    el.className = 'on ' + (kind || '');
+    if (flashTimer) clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => { el.className = ''; flashTimer = null; }, 1000);
+  }
+
   function renderHUD() {
     const g = S.game; if (!g) return;
     $('v-turn').textContent = g.players[g.turn] ? g.players[g.turn].name : '–';
@@ -1452,7 +1623,8 @@
     g.players.forEach((p, i) => {
       const d = document.createElement('div');
       d.className = 'pl-row' + (i === g.turn ? ' turn' : '');
-      let right = String(p.score);
+      // 点数を持たないルールでは点を出さない（ずっと 0 点に見えて壊れて見える）
+      let right = RU.HAS_SCORE[g.rule] ? String(p.score) : '';
       if (g.rule === 'G-04') right = p.score + '/' + p.target;
       if (g.rule === 'G-02') right = p.group ? t('group.' + p.group).split('（')[0] : t('hud.open');
       d.innerHTML = '<span>' + escapeHtml(p.name) + '</span><span>' + escapeHtml(right) + '</span>';
@@ -1474,23 +1646,60 @@
   }
   function renderClock() {
     if (!S.cfg.mods['G-14'] || !S.game) return;
-    $('v-base').textContent = Math.ceil(S.clock.baseLeft) + 's';
+    const base = $('v-base'), bank = $('v-bank');
+    base.textContent = Math.ceil(S.clock.baseLeft) + 's';
     const b = S.clock.banks[S.game.turn] || 0;
-    $('v-bank').textContent = Math.floor(b / 60) + ':' + String(Math.floor(b % 60)).padStart(2, '0');
+    bank.textContent = Math.floor(b / 60) + ':' + String(Math.floor(b % 60)).padStart(2, '0');
+    // 残り5秒はオレンジ。減っているほうだけを染める
+    const r = clockRemain(), hot = S.clock.running && r <= 5;
+    base.classList.toggle('hot', hot && S.clock.baseLeft > 0);
+    bank.classList.toggle('hot', hot && S.clock.baseLeft <= 0);
   }
   function escapeHtml(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
+  /** 勝ったときだけ、くす玉と紙吹雪を出す（MOMO Hanafuda と同じ見せ方） */
+  let confettiTimer = null;
+  function renderWinArt(won, draw) {
+    const panel = $('res-panel'), conf = $('confetti'), head = $('res-headline');
+    if (!panel) return;
+    panel.classList.toggle('win', !!won);
+    head.textContent = won ? t('res.win') : draw ? t('res.draw') : t('res.lose');
+    head.className = 'ge-title ' + (won ? 'win' : draw ? 'draw' : 'lose');
+    if (conf) conf.innerHTML = '';
+    if (confettiTimer) { clearTimeout(confettiTimer); confettiTimer = null; }
+    if (!won || !conf) return;
+    // くす玉が開いてから紙吹雪を後追いで降らせる
+    confettiTimer = setTimeout(() => {
+      confettiTimer = null;
+      if (S.screen !== 'result') return;
+      const colors = ['#d8a838', '#ea580c', '#cf2b28', '#33aa99', '#5599ff', '#ffffff'];
+      for (let i = 0; i < 64; i++) {
+        const p = document.createElement('span');
+        p.className = 'cf';
+        p.style.left = ((i * 37) % 100) + '%';
+        p.style.background = colors[i % colors.length];
+        p.style.animationDelay = ((i % 12) * 0.11).toFixed(2) + 's';
+        p.style.animationDuration = (1.9 + (i % 6) * 0.28).toFixed(2) + 's';
+        if (i % 2) p.style.borderRadius = '50%';
+        conf.appendChild(p);
+      }
+    }, 650);
+  }
+
   function renderResult() {
     const g = S.game;
+    renderWinArt(S.won, g.winner < 0);
     const body = $('res-body'); body.innerHTML = '';
     const kind = RU.WIN_KIND[g.rule];
     let rows;
     if (kind === 'points') rows = g.ranking.map((idx, i) => ({ p: g.players[idx], label: (i + 1) + ' ' + t('res.rank') }));
     else rows = g.players.map(p => ({ p, label: p.idx === g.winner ? t('res.win') : t('res.lose') }));
+    const withPts = RU.HAS_SCORE[g.rule];
     rows.forEach(r => {
       const d = document.createElement('div');
       d.className = 'pl-row' + (r.p.idx === g.winner ? ' turn' : '');
-      d.innerHTML = '<span>' + escapeHtml(r.p.name) + '</span><span>' + escapeHtml(r.label + '　' + r.p.score + t('res.pts')) + '</span>';
+      const right = withPts ? r.label + '　' + r.p.score + t('res.pts') : r.label;
+      d.innerHTML = '<span>' + escapeHtml(r.p.name) + '</span><span>' + escapeHtml(right) + '</span>';
       body.appendChild(d);
     });
     if (g.lastMessageKey) {
@@ -1528,11 +1737,13 @@
     else if (kind === 'ver-mismatch') { alertNote(t('lobby.title'), t('lobby.verMismatch', { a: d.theirs, b: d.mine })); }
     else if (kind === 'created') {
       S.net.on = true; S.net.isHost = true; S.net.role = 'host'; S.net.myIdx = 0;
+      S.net.ready = {}; S.net.sentCfg = null;
       S.net.myPid = (d.multi && d.multi.pid) || null;
       S.net.roster = (d.multi && d.multi.roster) || [];
       showRoom();
     } else if (kind === 'joined') {
       S.net.on = true; S.net.isHost = false;
+      S.net.ready = {}; S.net.sentCfg = null;
       S.net.role = (d.multi && d.multi.role) || 'player';
       S.net.myPid = (d.multi && d.multi.pid) || null;
       S.net.roster = (d.multi && d.multi.roster) || [];
@@ -1543,7 +1754,8 @@
       if (d.roster) S.net.roster = d.roster;
       AU.sfx('join');
       showRoom();
-      if (S.net.isHost) NET.send({ k: 'cfg', config: netConfig() });
+      // 人が増えたら合意はやり直し。入ってきた人はまだ何も見ていない
+      if (S.net.isHost) { NET.send({ k: 'cfg', config: netConfig() }); clearReady(); }
     } else if (kind === 'participant-left') {
       if (d.roster) S.net.roster = d.roster;
       setMsg(t('lobby.left'));
@@ -1587,6 +1799,8 @@
   function onNetMsg(p, from) {
     if (!p || !p.k) return;
     if (p.k === 'cfg') { Object.assign(S.cfg, p.config); showRoom(); buildSetup(); return; }
+    if (p.k === 'ready') { setReady(p.pid || from, !!p.ok); return; }
+    if (p.k === 'rmap') { S.net.ready = p.map || {}; showRoom(); return; }
     if (p.k === 'need') {
       if (!S.net.isHost || !S.game) return;
       NET.send({
@@ -1709,17 +1923,60 @@
     return v;
   }
 
+  // ───────── 準備完了の合意（全員が押したら始まる） ─────────
+  function myPid() { const st = NET.state(); return (st && st.pid) || S.net.myPid; }
+  function playersInRoom() { return (S.net.roster || []).filter(r => r.role !== 'spectator'); }
+  function clearReady() {
+    if (!S.net.isHost) return;
+    S.net.ready = {};
+    NET.send({ k: 'rmap', map: {} });
+    showRoom();
+  }
+  function setReady(pid, ok) {
+    if (!S.net.isHost) return;
+    S.net.ready = S.net.ready || {};
+    if (ok) S.net.ready[pid] = true; else delete S.net.ready[pid];
+    NET.send({ k: 'rmap', map: S.net.ready });
+    showRoom();
+    const list = playersInRoom();
+    if (list.length >= 1 && list.every(r => S.net.ready[r.pid])) startNetGame();
+  }
+  function toggleMyReady() {
+    const pid = myPid();
+    const on = !(S.net.ready && S.net.ready[pid]);
+    AU.sfx('button');
+    if (S.net.isHost) { setReady(pid, on); return; }
+    S.net.ready = S.net.ready || {};
+    if (on) S.net.ready[pid] = true; else delete S.net.ready[pid];
+    NET.send({ k: 'ready', ok: on, pid }, 'host');
+    showRoom();
+  }
+  function startNetGame() {
+    const names = seatList();
+    const seed = newSeed();
+    NET.send({ k: 'start', seed, config: netConfig(), names });
+    S.net.myIdx = seatIndexOfMe(names);
+    startGame(seed, names, null);
+  }
+
   function showRoom() {
-    show('room');
-    $('room-status').textContent = S.net.role === 'spectator' ? t('lobby.watching') : t('lobby.waiting');
+    if (S.screen !== 'room') show('room');
+    else mountSetup('setup-host-room', !S.net.isHost);
+    const spec = S.net.role === 'spectator';
+    $('room-status').textContent = spec ? t('lobby.watching') : t('lobby.waiting');
+    $('room-owner-note').textContent = S.net.isHost ? t('room.youDecide') : t('room.hostDecides');
+    const ready = S.net.ready || {};
     const box = $('roster'); box.innerHTML = '';
     (S.net.roster || []).forEach(r => {
-      const d = document.createElement('div'); d.className = 'pl-row';
-      d.innerHTML = '<span>' + escapeHtml(r.name || '') + '</span><span>' + escapeHtml(r.role || '') + '</span>';
+      const d = document.createElement('div'); d.className = 'pl-row' + (ready[r.pid] ? ' turn' : '');
+      const mark = r.role === 'spectator' ? t('lobby.spectate') : (ready[r.pid] ? t('room.ready') : t('room.notReady'));
+      d.innerHTML = '<span>' + escapeHtml(r.name || '') + '</span><span>' + escapeHtml(mark) + '</span>';
       box.appendChild(d);
     });
-    $('room-config').textContent = configLabel();
-    $('btn-room-start').style.display = S.net.isHost ? '' : 'none';
+    const btn = $('btn-ready');
+    btn.style.display = spec ? 'none' : '';
+    btn.textContent = ready[myPid()] ? t('room.cancelReady') : t('room.ready');
+    btn.classList.toggle('primary', !ready[myPid()]);
     refreshServerStatus();
   }
 
@@ -1783,10 +2040,11 @@
 
   $('btn-start').onclick = () => {
     AU.sfx('button');
-    if (S.cfg.format === 'online') { openLobby(); return; }
     S.net.on = false;
     startGame(newSeed(), null, null);
   };
+  $('btn-setup-back').onclick = () => { AU.sfx('button'); show('home'); };
+  $('btn-ready').onclick = toggleMyReady;
   $('btn-create').onclick = () => {
     const room = ($('in-room').value || '').trim();
     try { localStorage.setItem(KEY_ROOM, room); } catch (e) {}
@@ -1800,13 +2058,6 @@
     });
   };
   $('btn-refresh').onclick = () => NET.refresh();
-  $('btn-room-start').onclick = () => {
-    const names = seatList();
-    const seed = newSeed();
-    NET.send({ k: 'start', seed, config: netConfig(), names });
-    S.net.myIdx = seatIndexOfMe(names);
-    startGame(seed, names, null);
-  };
 
   $('btn-quit').onclick = () => {
     if (S.net.on) { NET.leave(); S.net.on = false; }
@@ -1832,7 +2083,8 @@
   // ══════════════════════════════════════════════
   function boot() {
     I.init();
-    ['version-tag', 'version-tag-2', 'version-tag-3', 'version-tag-4'].forEach(id => {
+    mountSetup('setup-host', false);        // 設定の中身の定位置は設定画面の中
+    ['version-tag', 'version-tag-2', 'version-tag-3', 'version-tag-4', 'version-tag-5'].forEach(id => {
       const e = $(id); if (e) e.textContent = 'v' + APP_VER;
     });
     // 名前と部屋名は憶えておく。パスワードは憶えない
@@ -1866,7 +2118,8 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
 
-  if (location.search.indexOf('debug=1') >= 0) {
-    window.BL = { S, E, RU, T, I, fire: fireShot, shootNow, beginTurn, startGame, finishShot, applyShot, draw2D, draw3D, minElevFor, computeElevFan, placeOk, resizeBoard };
+  if (DEBUG) {
+    document.body.classList.add('debug');
+    window.BL = { S, E, RU, T, I, fire: fireShot, shootNow, beginTurn, startGame, finishShot, applyShot, draw2D, draw3D, drawElevPic, minElevFor, computeElevFan, placeOk, resizeBoard, show, showRoom, buildSetup, mountSetup, onNetMsg, seatList, seatIndexOfMe };
   }
 })();

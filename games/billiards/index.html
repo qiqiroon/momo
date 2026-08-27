@@ -102,6 +102,33 @@ h1 .version-tag{color:var(--text-muted);font-size:.28em;letter-spacing:.04em;ali
 .btn.small{font-size:12px;padding:5px 10px;border-radius:6px;}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:12px;}
+/* 勝利表示。MOMO Hanafuda と同じ見せ方（くす玉＋紙吹雪＋喝采音）に揃える。
+   くす玉の絵は花札のものをそのまま指す＝同じ絵を2つ持たない（公開リポの容量方針） */
+.res-panel{position:relative;overflow:hidden;text-align:center;}
+.ge-title{font-family:'Fredoka One',cursive;font-size:1.5rem;margin-bottom:10px;}
+.ge-title.win{color:#d8a838;text-shadow:0 0 16px rgba(216,168,56,.5);}
+.ge-title.lose{color:var(--text-muted);}
+.ge-title.draw{color:var(--orange-mid);}
+.win-art{width:190px;height:220px;margin:2px auto 8px;background-image:url("../hanafuda/kusudama.png");
+  background-size:contain;background-position:center;background-repeat:no-repeat;display:none;
+  animation:winPop .5s cubic-bezier(.2,1.3,.5,1);}
+.res-panel.win .win-art{display:block;}
+@keyframes winPop{0%{transform:scale(.6);opacity:0;}60%{transform:scale(1.08);opacity:1;}100%{transform:scale(1);}}
+.confetti{position:absolute;inset:0;pointer-events:none;overflow:hidden;display:none;}
+.res-panel.win .confetti{display:block;}
+.confetti .cf{position:absolute;top:-12px;width:8px;height:12px;opacity:.95;animation-name:cfFall;animation-timing-function:linear;animation-iteration-count:1;}
+@keyframes cfFall{0%{transform:translateY(-12px) rotate(0);opacity:1;}100%{transform:translateY(520px) rotate(540deg);opacity:0;}}
+.btn .ico{margin-right:6px;}
+/* 最上位画面：遊び方を大きく並べるだけ */
+.fmt-list{display:flex;flex-direction:column;gap:10px;}
+.fmt-btn{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:14px 16px;
+  background:var(--surface2);border:1px solid var(--border-strong);border-radius:10px;color:var(--text);
+  font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;}
+.fmt-btn:hover:not(:disabled){border-color:var(--orange);background:var(--bg-selected);}
+.fmt-btn:disabled{opacity:.42;cursor:not-allowed;}
+.fmt-btn .sub{font-size:11px;font-weight:400;color:var(--text-muted);margin-left:auto;text-align:right;}
+/* ゲストの設定欄。見えるが触れない */
+#setup-block.readonly{pointer-events:none;opacity:.72;}
 .card.tight{padding:10px 12px;}
 .lbl{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--orange);margin-bottom:8px;display:block;}
 .hint{font-size:12px;color:var(--text-muted);line-height:1.6;}
@@ -166,6 +193,20 @@ input[type=range]{accent-color:var(--orange-mid);}
 .pl-row{display:flex;justify-content:space-between;font-size:12px;padding:3px 5px;border-radius:5px;}
 .pl-row.turn{background:var(--bg-selected);color:var(--orange-light);font-weight:700;}
 #msg-bar{position:absolute;left:50%;transform:translateX(-50%);bottom:8px;background:rgba(10,10,10,.86);border:1px solid var(--border-strong);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--text);max-width:92%;text-align:center;pointer-events:none;}
+/* 盤の真ん中に1秒だけ出す知らせ。端の帯だけでは盤を見ている目に入らない */
+#flash{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.86);
+  padding:12px 26px;border-radius:12px;font-weight:700;font-size:clamp(17px,4.4vw,28px);
+  text-align:center;white-space:nowrap;max-width:94%;overflow:hidden;text-overflow:ellipsis;
+  background:rgba(10,10,10,.82);border:2px solid var(--border-strong);color:var(--text);
+  opacity:0;pointer-events:none;transition:opacity .12s ease,transform .12s ease;}
+#flash.on{opacity:1;transform:translate(-50%,-50%) scale(1);}
+#flash.foul{border-color:#dc2626;color:#fca5a5;}
+#flash.warn{border-color:var(--orange);color:var(--orange-light);}
+/* 残り5秒。数字だけだと気づけないので色でも出す */
+#time-box b.hot{color:var(--orange);}
+#dbg{position:absolute;left:6px;bottom:6px;font-size:10px;color:#9ca3af;background:rgba(10,10,10,.7);
+  padding:2px 6px;border-radius:5px;pointer-events:none;display:none;}
+body.debug #dbg{display:block;}
 #elev-row{display:flex;align-items:center;gap:8px;}
 #elev{writing-mode:vertical-lr;direction:rtl;height:110px;}
 #elev-pic{width:64px;height:110px;flex:0 0 auto;}
@@ -208,6 +249,7 @@ input[type=range]{accent-color:var(--orange-mid);}
 
 <!-- 言語と設定は全画面で常に出す -->
 <div id="topbar">
+  <button id="btn-gear" aria-label="設定" title="設定">⚙</button>
   <select class="lang-select" id="lang-select">
     <option value="auto">Auto</option>
     <option value="ja">日本語</option>
@@ -215,7 +257,6 @@ input[type=range]{accent-color:var(--orange-mid);}
     <option value="zh">中文</option>
     <option value="cat">CAT</option>
   </select>
-  <button id="btn-gear" aria-label="設定" title="設定">⚙</button>
 </div>
 
 <!-- ══════════ トップ（タイトル＋ゲーム選択） ══════════ -->
@@ -260,20 +301,55 @@ input[type=range]{accent-color:var(--orange-mid);}
       </div>
     </header>
 
+    <!-- 最上位はここ＝遊び方を選ぶだけ。
+         通信対戦の設定はホストだけが持つので、ゲストに設定画面を見せない -->
+    <div class="card">
+      <span class="lbl" id="lbl-format"></span>
+      <div class="fmt-list" id="opts-format"></div>
+    </div>
+  </div>
+  <footer class="site-footer">
+    <div class="site-footer-inner">
+      <h2 id="foot-about">MOMO Billiards について</h2>
+      <p id="foot-desc"></p>
+      <div class="foot-links">
+        <a href="../../" id="foot-top">MOMO Works トップ</a>
+        <a href="../" id="foot-games">ゲーム一覧</a>
+        <a href="../../tools/" id="foot-tools">ツール一覧</a>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<!-- ══════════ 設定（ローカル／AI／練習。通信対戦ではホストの部屋の中に出る） ══════════ -->
+<div class="screen" id="scr-setup">
+  <div class="wrap">
+    <header class="site-header mini">
+      <svg class="cat-icon" xmlns="http://www.w3.org/2000/svg" viewBox="-46 -50 100 110" aria-hidden="true"><use href="#billiards-cat"></use></svg>
+      <div class="title-block">
+        <h1><span class="momo">MOMO</span><span class="billiards">Billiards</span><span class="version-tag" id="version-tag-5">v1.00</span></h1>
+        <div class="subtitle" id="subtitle-5">Any Shape, Any Rule, One Cue</div>
+      </div>
+    </header>
+    <div class="section-label"><span id="setup-title">Setup</span></div>
+    <div class="mini" id="setup-format-note" style="margin-bottom:10px"></div>
+
+    <!-- 設定の中身はここに入る（部屋の中へ移して使い回す） -->
+    <div id="setup-host"></div>
+
+    <div class="row" style="margin-bottom:24px">
+      <button class="btn primary" id="btn-start"></button>
+      <button class="btn" id="btn-setup-back"></button>
+    </div>
+  </div>
+</div>
+
+<!-- 設定の中身。scr-setup と scr-room の間を行き来する唯一の実体 -->
+<div id="setup-block">
     <!-- 最上段：標準／特殊の上位スイッチ -->
     <div class="card tight">
       <div class="seg" id="seg-scope"><button data-v="standard"></button><button data-v="special"></button></div>
       <div class="hint" id="scope-desc" style="margin-top:8px"></div>
-    </div>
-
-    <!-- 対戦形式（上位スイッチの直下） -->
-    <div class="card">
-      <span class="lbl" id="lbl-format"></span>
-      <div class="opts" id="opts-format"></div>
-      <div class="row" style="gap:16px;margin-top:10px" id="wrap-ai">
-        <label class="row" style="gap:6px"><span class="mini" id="lbl-aicount"></span>
-          <select id="sel-aicount"></select></label>
-      </div>
     </div>
 
     <!-- 5つの選択 -->
@@ -311,30 +387,17 @@ input[type=range]{accent-color:var(--orange-mid);}
       <div class="hint" id="cue-note" style="margin-top:8px"></div>
     </div>
 
-    <!-- 最下段：参加人数・目標点・開始 -->
+    <!-- 最下段：参加人数・目標点 -->
     <div class="card">
       <div class="row" style="gap:16px">
         <label class="row" style="gap:6px"><span class="mini" id="lbl-players"></span>
           <select id="sel-players"></select></label>
+        <label class="row" style="gap:6px" id="wrap-ai"><span class="mini" id="lbl-aicount"></span>
+          <select id="sel-aicount"></select></label>
         <label class="row" style="gap:6px" id="wrap-target"><span class="mini" id="lbl-target"></span>
           <input type="number" id="in-target" min="1" max="200" value="10" style="width:74px"></label>
       </div>
     </div>
-    <div class="row" style="justify-content:flex-end;margin-bottom:8px">
-      <button class="btn primary" id="btn-start"></button>
-    </div>
-  </div>
-  <footer class="site-footer">
-    <div class="site-footer-inner">
-      <h2 id="foot-about">MOMO Billiards について</h2>
-      <p id="foot-desc"></p>
-      <div class="foot-links">
-        <a href="../../" id="foot-top">MOMO Works トップ</a>
-        <a href="../" id="foot-games">ゲーム一覧</a>
-        <a href="../../tools/" id="foot-tools">ツール一覧</a>
-      </div>
-    </div>
-  </footer>
 </div>
 
 <!-- ══════════ ロビー（通信対戦） ══════════ -->
@@ -400,9 +463,11 @@ input[type=range]{accent-color:var(--orange-mid);}
       <div class="hint" id="room-status"></div>
       <div id="roster" style="margin-top:10px"></div>
     </div>
-    <div class="card"><div class="hint" id="room-config"></div></div>
+    <!-- 設定はホストだけが操作できる。ゲストには同じ画面を、触れない形で見せる -->
+    <div class="mini" id="room-owner-note" style="margin-bottom:10px"></div>
+    <div id="setup-host-room"></div>
     <div class="row" style="margin-bottom:24px">
-      <button class="btn primary" id="btn-room-start"></button>
+      <button class="btn primary" id="btn-ready"></button>
       <button class="btn" id="btn-room-leave"></button>
     </div>
   </div>
@@ -433,6 +498,10 @@ input[type=range]{accent-color:var(--orange-mid);}
     <div class="pane" id="board-pane">
       <canvas id="board"></canvas>
       <div id="msg-bar"></div>
+      <!-- 盤に重ねて1秒だけ出す大きな知らせ（ファウル・時間切れ） -->
+      <div id="flash"></div>
+      <!-- ?debug=1 のときだけ出す1フレームの内訳 -->
+      <div id="dbg"></div>
     </div>
 
     <div class="pane" id="ctrl-pane">
@@ -458,10 +527,15 @@ input[type=range]{accent-color:var(--orange-mid);}
 <div class="screen" id="scr-result">
   <div class="wrap">
     <div class="section-label"><span id="res-title">Result</span></div>
-    <div class="card"><div id="res-body"></div></div>
+    <div class="card res-panel" id="res-panel">
+      <div class="confetti" id="confetti"></div>
+      <div class="win-art" id="win-art"></div>
+      <div class="ge-title" id="res-headline"></div>
+      <div id="res-body"></div>
+    </div>
     <div class="row" style="margin-bottom:24px">
       <button class="btn primary" id="btn-again"></button>
-      <button class="btn" id="btn-to-setup"></button>
+      <button class="btn" id="btn-to-setup"><span class="ico">🏠</span><span id="btn-to-setup-t"></span></button>
     </div>
   </div>
 </div>

@@ -248,6 +248,14 @@ const BilliardsAudio = (() => {
     const g = ctx.createGain(); env(g, t + 0.10, 0.02, 0.14, 0.32);
     src.connect(lp).connect(g).connect(sfxGain); src.start(t + 0.10); src.stop(t + 0.45);
   }
+  /** 単音。秒読みと時間切れに使う */
+  function beep(freq, dur, peak, delay) {
+    if (!audioOn || !ctx || !sfxGain) return;
+    const t = ctx.currentTime + 0.005 + (delay || 0);
+    const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = freq;
+    const g = ctx.createGain(); env(g, t, 0.004, peak, dur);
+    o.connect(g).connect(sfxGain); o.start(t); o.stop(t + dur + 0.02);
+  }
   function tick2(f1, f2) {
     if (!audioOn || !ctx || !sfxGain) return;
     const t = ctx.currentTime + 0.005;
@@ -272,6 +280,8 @@ const BilliardsAudio = (() => {
       case 'pocket': pocketDrop(); break;                                             // 落球
       case 'jump': clack(0.35, 900, 0.05, 2.0); break;
       case 'foul': tick2(330, 220); break;
+      case 'tick': beep(1046, 0.07, 0.22); break;        // 残り5秒からの秒読み
+      case 'timeup': beep(392, 0.16, 0.30); beep(294, 0.30, 0.26, 0.14); break;
       case 'turn': tick2(880, 1318); break;   // 自分の手番
       case 'join': tick2(988, 659); break;
       case 'button': playBuf('button', { gain: 0.85 }); break;

@@ -35,6 +35,13 @@ const BilliardsRules = (() => {
   const PENALTY = { 'G-01': 'freeball', 'G-02': 'freeball', 'G-03': 'freeball', 'G-04': 'score' };
   // 勝敗の決まり方（7.2.8節）
   const WIN_KIND = { 'G-01': 'reach', 'G-02': 'reach', 'G-03': 'points', 'G-04': 'reach' };
+
+  /**
+   * 点数を数えるルールかどうか。
+   * ナインボール・エイトボールは「どの玉を落としたか」で決まり点数を持たない。
+   * 持たないルールで 0 点と出し続けると、壊れているように見える。
+   */
+  const HAS_SCORE = { 'G-01': false, 'G-02': false, 'G-03': true, 'G-04': true };
   // ラックを持つか（7.2.7節）
   const HAS_RACK = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': false };
   // ポケットあり台が要るか
@@ -473,7 +480,7 @@ const BilliardsRules = (() => {
   }
 
   return {
-    RULE_IDS, FOUL_TABLE, PENALTY, WIN_KIND, HAS_RACK, NEEDS_POCKETS,
+    RULE_IDS, FOUL_TABLE, PENALTY, WIN_KIND, HAS_RACK, NEEDS_POCKETS, HAS_SCORE,
     BALL_COLORS, CAROM_COLORS,
     makeRng, createGame, setupBalls, cueBallOf, liveObjects, legalTargets, groupOf,
     spotBall, homeBall, place, resolveShot, nextTurn, breakValid, detectDoubleHit,

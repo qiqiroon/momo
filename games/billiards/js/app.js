@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.04';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.05';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -38,6 +38,27 @@
   const DEBUG = location.search.indexOf('debug=1') >= 0;
 
   const KEY_NAME = 'billiards_name', KEY_ROOM = 'billiards_room';
+  const KEY_SPEED = 'billiards_anim_speed';
+
+  /*
+   * 玉が転がる速さ（見た目だけ）。
+   * 物理の刻みは 1/480 秒のまま動かさない。変えるのは「1コマで何刻みぶん進めるか」だけ。
+   * したがって同じ入力からは同じ結果が出る＝決定論は崩れない（通信対戦・リプレイも無事）。
+   * キューの動き・画面の切り替わり・AIの考える間には効かせない。
+   */
+  function animSpeed() {
+    if (S.animSpeed == null) {
+      let v = 1;
+      try { v = parseFloat(localStorage.getItem(KEY_SPEED)) || 1; } catch (e) {}
+      S.animSpeed = Math.min(2, Math.max(0.5, v));
+    }
+    return S.animSpeed;
+  }
+  function setAnimSpeed(v) {
+    S.animSpeed = Math.min(2, Math.max(0.5, v));
+    try { localStorage.setItem(KEY_SPEED, String(S.animSpeed)); } catch (e) {}
+    const el = $('speed-val'); if (el) el.textContent = S.animSpeed.toFixed(1) + '×';
+  }
   const DEFAULT_NAME = 'MOMO太郎';
 
   // ───────── 状態 ─────────
@@ -77,7 +98,7 @@
   function applyLang() {
     const bl = I.brandLang();
     const subText = (bl === 'zh') ? '百变球台，一杆入魂' : 'Any Shape, Any Rule, One Cue';
-    ['subtitle', 'subtitle-2', 'subtitle-3', 'subtitle-4', 'subtitle-5'].forEach(id => {
+    ['subtitle', 'subtitle-2', 'subtitle-3', 'subtitle-4', 'subtitle-5', 'subtitle-6'].forEach(id => {
       const e = $(id); if (!e) return;
       e.textContent = subText; e.classList.toggle('zh', bl === 'zh');
     });
@@ -102,6 +123,7 @@
     set('btn-audio-yes', 'audio.yes'); set('btn-audio-no', 'audio.no');
     set('set-title', 'set.title'); set('set-bgm', 'set.bgm'); set('set-sfx', 'set.sfx');
     set('set-mute1', 'set.mute'); set('set-mute2', 'set.mute'); set('btn-set-close', 'nav.close');
+    set('set-speed', 'set.speed'); set('speed-note', 'set.speedNote');
     set('dl-title', 'dl.title'); set('dl-ask', 'dl.ask');
     set('btn-dl-yes', 'btn.yes'); set('btn-dl-no', 'btn.no'); set('btn-note-close', 'nav.close');
     set('lbl-myname', 'lobby.name'); set('lbl-roomname', 'lobby.room'); set('lbl-pw', 'lobby.pw2');
@@ -129,10 +151,12 @@
   // ══════════════════════════════════════════════
   //  トップ（タイトル＋ゲーム選択）
   // ══════════════════════════════════════════════
-  function chip(label, sel, dis, why, onClick) {
+  function chip(label, sel, dis, why, onClick, desc) {
     const d = document.createElement('div');
-    d.className = 'opt' + (sel ? ' sel' : '') + (dis ? ' dis' : '');
+    d.className = 'opt' + (sel ? ' sel' : '') + (dis ? ' dis' : '') + (desc ? ' wide' : '');
     d.textContent = label;
+    // 遊び方の説明。名前だけでは何をするゲームか分からない
+    if (desc) { const s = document.createElement('span'); s.className = 'desc'; s.textContent = desc; d.appendChild(s); }
     if (why) { const s = document.createElement('span'); s.className = 'why'; s.textContent = why; d.appendChild(s); }
     if (!dis) d.onclick = () => { AU.sfx('select'); onClick(); };
     return d;
@@ -216,7 +240,8 @@
     RULES_ALL.forEach(id => {
       if (!visible('rule', id)) return;
       const why = ruleBlock(id);
-      or.appendChild(chip(t('rule.' + id), S.cfg.rule === id, !!why, why, () => { S.cfg.rule = id; onRuleChanged(); }));
+      or.appendChild(chip(t('rule.' + id), S.cfg.rule === id, !!why, why,
+        () => { S.cfg.rule = id; onRuleChanged(); }, t('rule.how.' + id)));
     });
     const ot = $('opts-table'); ot.innerHTML = '';
     SHAPES_ALL.forEach(sh => {
@@ -415,7 +440,8 @@
   // ══════════════════════════════════════════════
   function show(name) {
     S.screen = name;
-    ['home', 'setup', 'lobby', 'room', 'play', 'result'].forEach(n => {
+    if (name !== 'play') closeResult();       // 盤面から離れたら結果も畳む
+    ['home', 'setup', 'lobby', 'room', 'play'].forEach(n => {
       $('scr-' + n).classList.toggle('on', n === name);
     });
     // 設定の中身は1つしか無い。設定画面と部屋の間を行き来させる
@@ -685,8 +711,50 @@
     S.won = won;
     AU.sfx(won ? 'win' : 'lose');
     renderResult();
-    show('result');
+    openResult();                           // 盤面は消さない。上に重ねて出す
   }
+
+  // ══════════════════════════════════════════════
+  //  結果のポップアップ（盤面に重ねる・つまんで動かせる）
+  // ══════════════════════════════════════════════
+  function openResult() {
+    const pop = $('result-pop'); if (!pop) return;
+    pop.classList.add('on');
+    placeResultCentered();
+  }
+  function closeResult() {
+    const pop = $('result-pop'); if (pop) pop.classList.remove('on');
+  }
+  function resultOpen() { const p = $('result-pop'); return !!p && p.classList.contains('on'); }
+  function placeResultCentered() {
+    const pop = $('result-pop'), pane = $('board-pane');
+    if (!pop || !pane) return;
+    const pw = pane.clientWidth, ph = pane.clientHeight;
+    pop.style.left = Math.max(4, (pw - pop.offsetWidth) / 2) + 'px';
+    pop.style.top = Math.max(4, (ph - pop.offsetHeight) / 2) + 'px';
+  }
+  /** つまんで動かす。盤面の外へ出してしまうと戻せなくなるので枠内に留める */
+  (function enableResultDrag() {
+    const bar = $('rp-bar'), pop = $('result-pop'), pane = $('board-pane');
+    if (!bar || !pop || !pane) return;
+    let d = null;
+    bar.addEventListener('pointerdown', e => {
+      d = { x: e.clientX, y: e.clientY, l: pop.offsetLeft, t: pop.offsetTop };
+      try { bar.setPointerCapture(e.pointerId); } catch (err) {}
+      e.preventDefault(); e.stopPropagation();
+    });
+    bar.addEventListener('pointermove', e => {
+      if (!d) return;
+      const maxL = Math.max(0, pane.clientWidth - pop.offsetWidth);
+      const maxT = Math.max(0, pane.clientHeight - pop.offsetHeight);
+      pop.style.left = clamp(d.l + (e.clientX - d.x), 0, maxL) + 'px';
+      pop.style.top = clamp(d.t + (e.clientY - d.y), 0, maxT) + 'px';
+      e.preventDefault(); e.stopPropagation();
+    });
+    const end = e => { d = null; if (e) e.stopPropagation(); };
+    bar.addEventListener('pointerup', end);
+    bar.addEventListener('pointercancel', end);
+  })();
 
   // ══════════════════════════════════════════════
   //  持ち時間制（8.4節）
@@ -785,6 +853,7 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     view.w = w; view.h = h;
     view.mobile = window.innerWidth <= 860;
+    view.topInset = null;                    // タイトルの高さは測り直す
     // 長軸を画面の縦方向へ（4.10.1節）。枠（クッションの厚み）まで含めて収める
     const frame = 95;                        // クッションと外枠のぶん（mm 換算の余裕）
     const outerW = T.PLAY_H + frame * 2, outerH = T.PLAY_W + frame * 2;
@@ -993,7 +1062,7 @@
         ctx.strokeStyle = 'rgba(251,146,60,.75)'; ctx.lineWidth = 1.6; ctx.stroke();
       }
     }
-    if (view.mobile) drawMiniTitle(true);
+    fadeMiniTitle(view.mobile);   // 2Dでは玉が下に来たら薄くする
     if (S.elevAdjusting) drawElevOverlay();
   }
 
@@ -1098,6 +1167,21 @@
   // ───────── 3D 低視点（4.2.3節） ─────────
   const CAM = { back: 620, height: 260, pitch: 0.20, fov: 780 };
   function dirStripH() { return Math.max(46, Math.min(66, view.h * 0.10)); }
+  /**
+   * 盤面の上に空けておく高さ。
+   * 携帯ではここにタイトル（アイコン・名前・版・副題）を出しているので、
+   * 向きを合わせる帯はその下から始める。重ねると両方とも読めない。
+   */
+  function topInset() {
+    if (!view.mobile) return 0;
+    // 毎コマ測ると、そのたびにブラウザが並べ直しを迫られる。盤の作り直しのときだけ測る
+    if (view.topInset == null) {
+      const el = $('board-title');
+      view.topInset = el ? el.offsetHeight + 8 : 0;
+    }
+    return view.topInset;
+  }
+  function dirStripTop() { return topInset(); }
   function cueStripW() { return Math.max(58, Math.min(88, view.w * 0.16)); }
   function tipPadRect() {
     const R = Math.min(80, Math.max(46, view.w * 0.14));
@@ -1201,8 +1285,7 @@
     drawDirStrip();
     drawCueStrip();
     drawTipPad();
-    // PC は左の欄にタイトルが出ているので、盤面には重ねない（二重になる）
-    if (view.mobile) drawMiniTitle(false);
+    fadeMiniTitle(false);         // 3Dでは帯の上に置いてあるので薄くしない
     if (S.elevAdjusting) drawElevOverlay();
   }
 
@@ -1241,7 +1324,9 @@
   /** 上部：ここを左右にドラッグすると向きが変わる、と分かる帯 */
   function drawDirStrip() {
     const h = dirStripH();
+    const y0 = dirStripTop();                 // タイトルの下から始める
     ctx.save();
+    ctx.translate(0, y0);
     const g = ctx.createLinearGradient(0, 0, 0, h);
     g.addColorStop(0, 'rgba(20,20,20,.82)'); g.addColorStop(1, 'rgba(20,20,20,.34)');
     ctx.fillStyle = g; ctx.fillRect(0, 0, view.w, h);
@@ -1271,7 +1356,7 @@
   function drawCueStrip() {
     const w = cueStripW();
     const x0 = view.w - w;
-    const top = dirStripH() + 10, bot = view.h - 14;
+    const top = dirStripTop() + dirStripH() + 10, bot = view.h - 14;
     const H = bot - top;
     ctx.save();
     ctx.fillStyle = 'rgba(20,20,20,.55)';
@@ -1284,16 +1369,8 @@
     const travel = H * 0.34;
     const off = S.aim.power * travel;
     const tipY = top + 18 + off, buttY = bot - 6 + off;
-    ctx.lineCap = 'round';
-    const grad = ctx.createLinearGradient(cx, tipY, cx, buttY);
-    grad.addColorStop(0, '#e8d5b5'); grad.addColorStop(.12, '#c9a06a');
-    grad.addColorStop(.7, '#8a5a2c'); grad.addColorStop(1, '#4a2f18');
-    ctx.strokeStyle = grad; ctx.lineWidth = 11;
-    ctx.beginPath(); ctx.moveTo(cx, tipY); ctx.lineTo(cx, Math.min(buttY, bot + travel)); ctx.stroke();
-    // 先革
-    ctx.strokeStyle = '#f4f4f4'; ctx.lineWidth = 10;
-    ctx.beginPath(); ctx.moveTo(cx, tipY); ctx.lineTo(cx, tipY + 7); ctx.stroke();
-    ctx.lineCap = 'butt';
+    // 先が細く尻が太い実物の形。真っ直ぐな棒だと向きが読めない
+    taperedCue(ctx, cx, tipY, cx, Math.min(buttY, bot + travel), 5.5, 13);
     // 手玉（先端の先に置いて、引く向きが分かるようにする）
     ctx.beginPath(); ctx.arc(cx, top + 6, 9, 0, 7);
     const bg2 = ctx.createRadialGradient(cx - 3, top + 3, 1, cx, top + 6, 9);
@@ -1345,6 +1422,43 @@
     ctx.restore();
   }
 
+  /**
+   * キューを1本描く。**先端は細く、尻へ向かって太くなる**（実物と同じ形）。
+   * 真っ直ぐな棒だと、どちらが先でどちらが尻なのか絵から読めない。
+   * @param {number} tipW 先端の太さ  @param {number} buttW 尻の太さ
+   */
+  function taperedCue(c, tipX, tipY, buttX, buttY, tipW, buttW) {
+    const dx = buttX - tipX, dy = buttY - tipY;
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len, ny = dx / len;        // 軸に直交する向き
+    const ferr = Math.min(len * 0.10, tipW * 3.2);   // 先革＋その下の白い部分
+    const at = (d, wid) => ({
+      ax: tipX + dx * (d / len) + nx * wid / 2, ay: tipY + dy * (d / len) + ny * wid / 2,
+      bx: tipX + dx * (d / len) - nx * wid / 2, by: tipY + dy * (d / len) - ny * wid / 2,
+    });
+    const wAt = d => tipW + (buttW - tipW) * (d / len);
+    c.save();
+    // 本体（先から尻へ太くなる四角形）
+    const p0 = at(0, tipW), p1 = at(len, buttW);
+    const g = c.createLinearGradient(tipX, tipY, buttX, buttY);
+    g.addColorStop(0, '#e8d5b5'); g.addColorStop(.14, '#c9a06a');
+    g.addColorStop(.62, '#8a5a2c'); g.addColorStop(1, '#4a2f18');
+    c.beginPath();
+    c.moveTo(p0.ax, p0.ay); c.lineTo(p1.ax, p1.ay); c.lineTo(p1.bx, p1.by); c.lineTo(p0.bx, p0.by);
+    c.closePath(); c.fillStyle = g; c.fill();
+    // 先革（白）
+    const q1 = at(ferr, wAt(ferr));
+    c.beginPath();
+    c.moveTo(p0.ax, p0.ay); c.lineTo(q1.ax, q1.ay); c.lineTo(q1.bx, q1.by); c.lineTo(p0.bx, p0.by);
+    c.closePath(); c.fillStyle = '#f4f4f4'; c.fill();
+    // 継ぎ目（バット寄りの帯）。実物らしさが出る
+    const j0 = at(len * 0.62, wAt(len * 0.62)), j1 = at(len * 0.66, wAt(len * 0.66));
+    c.beginPath();
+    c.moveTo(j0.ax, j0.ay); c.lineTo(j1.ax, j1.ay); c.lineTo(j1.bx, j1.by); c.lineTo(j0.bx, j0.by);
+    c.closePath(); c.fillStyle = 'rgba(0,0,0,.35)'; c.fill();
+    c.restore();
+  }
+
   /** 横から見たキューの絵。角度がそのまま傾きになる */
   function drawCueSide(c, x, y, w, h, elev) {
     const bedY = y + h * 0.82;
@@ -1352,23 +1466,17 @@
     // 台の断面
     c.fillStyle = '#12482f'; c.fillRect(x, bedY, w, Math.max(3, h * 0.10));
     c.fillStyle = '#8a5228'; c.fillRect(x, bedY - h * 0.06, w * 0.07, h * 0.06);
-    // 手玉。キューは左上へ伸びるので、玉は右寄りに置いて絵が枠から出ないようにする
-    const bx = x + w * 0.78, br = Math.max(6, h * 0.11);
+    // 手玉。キューは左上へ伸びるので、玉は右端に寄せてキューの長さを稼ぐ
+    const bx = x + w * 0.88, br = Math.max(6, h * 0.11);
     drawSideWall(c, x, bedY, w, h, bx, br, elev);
     const bg = c.createRadialGradient(bx - br * .35, bedY - br * 1.3, br * .1, bx, bedY - br, br);
     bg.addColorStop(0, '#fff'); bg.addColorStop(1, '#b5b5b5');
     c.beginPath(); c.arc(bx, bedY - br, br, 0, 7); c.fillStyle = bg; c.fill();
-    // キュー（尻を持ち上げる）
-    const L = w * 0.70;
+    // キュー（尻を持ち上げる）。先が細く、尻が太い実物の形に寄せる
+    const L = w * 0.86;
     const tipX = bx - br * 0.9, tipY = bedY - br;
     const ex = tipX - Math.cos(elev) * L, ey = tipY - Math.sin(elev) * L;
-    c.lineCap = 'round';
-    const g = c.createLinearGradient(tipX, tipY, ex, ey);
-    g.addColorStop(0, '#e8d5b5'); g.addColorStop(.14, '#c9a06a'); g.addColorStop(1, '#5b3a1d');
-    c.strokeStyle = g; c.lineWidth = Math.max(4, h * 0.055);
-    c.beginPath(); c.moveTo(tipX, tipY); c.lineTo(ex, ey); c.stroke();
-    c.strokeStyle = '#f4f4f4'; c.lineWidth = Math.max(3.4, h * 0.048);
-    c.beginPath(); c.moveTo(tipX, tipY); c.lineTo(tipX - Math.cos(elev) * L * .05, tipY - Math.sin(elev) * L * .05); c.stroke();
+    taperedCue(c, tipX, tipY, ex, ey, Math.max(2.6, h * 0.030), Math.max(5, h * 0.062));
     c.lineCap = 'butt';
     // 角度の弧
     c.beginPath(); c.arc(tipX, tipY, L * 0.30, -elev, 0);
@@ -1413,37 +1521,31 @@
     c.restore();
   }
 
-  /** 携帯の左上に出す小さなタイトル。玉や線に重なったらほとんど見えなくする */
-  function drawMiniTitle(fadeWhenOverlapped) {
+  /**
+   * 携帯の左上に重ねたタイトルは HTML の実体（#board-title）。
+   * ここでは、玉や予測線がその下に来たときに薄くするかどうかだけを決める。
+   * 描く実体を2つ持たないので、アイコンや副題が片方だけ欠けることがない。
+   */
+  function fadeMiniTitle(active) {
+    const el = $('board-title'); if (!el) return;
+    if (!active) { el.classList.remove('faded'); return; }
     const g = S.game; if (!g) return;
-    const w = 132, h = 30, x = 8, y = 8;
-    let alpha = 0.85;
-    if (fadeWhenOverlapped) {
-      let hit = false;
-      for (const b of g.world.balls) {
-        if (b.state !== 'live') continue;
-        const p = toScreen(b.x, b.y), r = b.r * view.s + 2;
-        if (p.x + r > x && p.x - r < x + w && p.y + r > y && p.y - r < y + h) { hit = true; break; }
-      }
-      if (!hit && (S.phase === 'aim' || S.phase === 'stance') && S.aimPreview) {
-        const cue = RU.cueBallOf(g, g.turn);
-        if (cue) {
-          const a = toScreen(cue.x, cue.y), b2 = toScreen(S.aimPreview.cue.x, S.aimPreview.cue.y);
-          if (segRect(a, b2, x, y, w, h)) hit = true;
-        }
-      }
-      if (hit) alpha = 0.10;
+    const r0 = el.getBoundingClientRect(), c0 = cv.getBoundingClientRect();
+    const x = r0.left - c0.left, y = r0.top - c0.top, w = r0.width, h = r0.height;
+    let hit = false;
+    for (const b of g.world.balls) {
+      if (b.state !== 'live') continue;
+      const p = toScreen(b.x, b.y), r = b.r * view.s + 2;
+      if (p.x + r > x && p.x - r < x + w && p.y + r > y && p.y - r < y + h) { hit = true; break; }
     }
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.font = '700 13px "Fredoka One","Noto Sans JP",sans-serif';
-    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    ctx.fillStyle = '#e5e5e5'; ctx.fillText('MOMO', x, y);
-    const mw = ctx.measureText('MOMO ').width;
-    ctx.fillStyle = '#ea580c'; ctx.fillText('Billiards', x + mw, y);
-    ctx.font = '9px "Noto Sans JP",sans-serif';
-    ctx.fillStyle = '#737373'; ctx.fillText('v' + APP_VER, x, y + 16);
-    ctx.restore();
+    if (!hit && (S.phase === 'aim' || S.phase === 'stance') && S.aimPreview) {
+      const cue = RU.cueBallOf(g, g.turn);
+      if (cue) {
+        const a = toScreen(cue.x, cue.y), b2 = toScreen(S.aimPreview.cue.x, S.aimPreview.cue.y);
+        if (segRect(a, b2, x, y, w, h)) hit = true;
+      }
+    }
+    el.classList.toggle('faded', hit);
   }
   function segRect(p, q, x, y, w, h) {
     const minX = Math.min(p.x, q.x), maxX = Math.max(p.x, q.x);
@@ -1457,7 +1559,8 @@
     if (!elevPic || view.mobile) return;
     const c = elevPic.getContext('2d');
     const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const W = 64, H = 110;
+    // 横に広げてある＝玉を右端へ寄せ、キューを長く見せるため
+    const W = 112, H = 120;
     if (elevPic.width !== W * dpr) {
       elevPic.width = W * dpr; elevPic.height = H * dpr;
       elevPic.style.width = W + 'px'; elevPic.style.height = H + 'px';
@@ -1502,7 +1605,7 @@
         S.drag = { kind: 'tip', x: p.x, y: p.y, t0: { x: S.aim.tipX, y: S.aim.tipY } };
       } else if (p.x > view.w - cueStripW()) {
         S.drag = { kind: 'pull', y: p.y };
-      } else if (p.y < dirStripH()) {
+      } else if (p.y >= dirStripTop() && p.y < dirStripTop() + dirStripH()) {
         S.drag = { kind: 'fine', x: p.x, d0: S.aim.dir };
       }
     }
@@ -1617,15 +1720,22 @@
     const dt = Math.min(100, now - lastT); lastT = now;
     if (S.screen === 'play' && S.game) {
       const t0 = DEBUG ? performance.now() : 0;
+      // 1コマで進める刻みの数。等速なら8刻み＝1/60秒ぶん。端数は次のコマへ持ち越す
+      let steps = 0;
+      if (S.phase === 'rolling' || S.replayRun) {
+        S.stepAcc = (S.stepAcc || 0) + 8 * animSpeed();
+        steps = Math.min(32, Math.floor(S.stepAcc));
+        S.stepAcc -= steps;
+      } else S.stepAcc = 0;
       if (S.phase === 'rolling') {
-        for (let i = 0; i < 8; i++) {         // 描画60Hzに対し1フレーム8ステップ＝1/480秒
+        for (let i = 0; i < steps; i++) {
           if (E.allStopped(S.game.world)) break;
           E.step(S.game.world);
         }
         drainEvents();
         if (E.allStopped(S.game.world)) { S.phase = 'idle'; finishShot(); }
       } else if (S.replayRun) {
-        for (let i = 0; i < 8; i++) {
+        for (let i = 0; i < steps; i++) {
           if (E.allStopped(S.replayRun)) break;
           E.step(S.replayRun);
         }
@@ -1777,7 +1887,7 @@
     // くす玉が開いてから紙吹雪を後追いで降らせる
     confettiTimer = setTimeout(() => {
       confettiTimer = null;
-      if (S.screen !== 'result') return;
+      if (!resultOpen()) return;
       const colors = ['#d8a838', '#ea580c', '#cf2b28', '#33aa99', '#5599ff', '#ffffff'];
       for (let i = 0; i < 64; i++) {
         const p = document.createElement('span');
@@ -2139,6 +2249,8 @@
   function openSettings() {
     $('vol-bgm').value = AU.getBgmVolume(); $('vol-sfx').value = AU.getSfxVolume();
     $('mute-bgm').checked = AU.getMuted('bgm'); $('mute-sfx').checked = AU.getMuted('sfx');
+    $('in-speed').value = Math.round(animSpeed() * 100);
+    $('speed-val').textContent = animSpeed().toFixed(1) + '×';
     $('modal-settings').classList.add('on');
   }
   $('btn-set-close').onclick = () => $('modal-settings').classList.remove('on');
@@ -2146,6 +2258,7 @@
   $('vol-sfx').oninput = e => AU.setSfxVolume(+e.target.value);
   $('mute-bgm').onchange = e => AU.setMuted('bgm', e.target.checked);
   $('mute-sfx').onchange = e => AU.setMuted('sfx', e.target.checked);
+  $('in-speed').oninput = e => setAnimSpeed((+e.target.value || 100) / 100);
   $('btn-gear').onclick = openSettings;
 
   // ══════════════════════════════════════════════
@@ -2214,8 +2327,8 @@
     E.applyCue(cue, S.replay.shot);
     S.replayRun = w;
   };
-  $('btn-again').onclick = () => { AU.sfx('button'); startGame(newSeed(), null, null); };
-  $('btn-to-setup').onclick = () => { AU.sfx('button'); show('home'); };
+  $('btn-again').onclick = () => { AU.sfx('button'); closeResult(); startGame(newSeed(), null, null); };
+  $('btn-to-setup').onclick = () => { AU.sfx('button'); closeResult(); show('home'); };
   $('lang-select').onchange = e => { I.setMode(e.target.value); applyLang(); };
 
   function newSeed() { return (Math.random() * 4294967296) >>> 0; }
@@ -2226,7 +2339,7 @@
   function boot() {
     I.init();
     mountSetup('setup-host', false);        // 設定の中身の定位置は設定画面の中
-    ['version-tag', 'version-tag-2', 'version-tag-3', 'version-tag-4', 'version-tag-5'].forEach(id => {
+    ['version-tag', 'version-tag-2', 'version-tag-3', 'version-tag-4', 'version-tag-5', 'version-tag-6'].forEach(id => {
       const e = $(id); if (e) e.textContent = 'v' + APP_VER;
     });
     // 名前と部屋名は憶えておく。パスワードは憶えない

@@ -164,6 +164,10 @@ input[type=range]{accent-color:var(--orange-mid);}
 .opt.sel{background:var(--bg-selected);border-color:var(--orange);color:var(--orange-light);font-weight:700;}
 .opt.dis{opacity:.42;cursor:not-allowed;color:var(--text-muted);}
 .opt .why{display:block;font-size:10px;color:var(--text-muted);margin-top:3px;line-height:1.3;}
+/* ルールは名前だけでは何をするのか分からないので、遊び方を数行添える */
+.opt.wide{flex:1 1 236px;min-width:210px;text-align:left;}
+.opt .desc{display:block;font-size:11px;font-weight:400;color:var(--text-muted);margin-top:5px;line-height:1.5;white-space:normal;}
+.opt.sel .desc{color:var(--text);}
 .seg{display:inline-flex;border:1px solid var(--border-strong);border-radius:8px;overflow:hidden;}
 .seg button{background:var(--surface2);border:0;color:var(--text-muted);font-family:inherit;font-size:13px;padding:7px 16px;cursor:pointer;}
 .seg button.sel{background:var(--orange);color:#fff;font-weight:700;}
@@ -218,12 +222,31 @@ input[type=range]{accent-color:var(--orange-mid);}
 #flash.warn{border-color:var(--orange);color:var(--orange-light);}
 /* 残り5秒。数字だけだと気づけないので色でも出す */
 #time-box b.hot{color:var(--orange);}
+/* 結果のポップアップ。盤面の上に浮かせ、つまんで動かせる */
+#result-pop{display:none;position:absolute;z-index:6;width:min(340px,92%);
+  background:var(--surface);border:1px solid var(--border-strong);border-radius:12px;
+  box-shadow:0 14px 40px rgba(0,0,0,.65);overflow:hidden;}
+#result-pop.on{display:block;}
+.rp-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:7px 12px;background:var(--surface2);border-bottom:1px solid var(--border);
+  font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--orange);
+  cursor:grab;touch-action:none;user-select:none;}
+.rp-bar:active{cursor:grabbing;}
+.rp-grip{color:var(--text-muted);letter-spacing:0;font-size:14px;}
+.rp-body{padding:14px 16px;border:0;margin:0;background:transparent;}
+/* 携帯だけ、盤面の左上へ重ねて出すタイトル。PC は左の欄にあるので出さない */
+#board-title{display:none;position:absolute;left:6px;top:6px;z-index:3;pointer-events:none;
+  padding:5px 9px 5px 6px;border-radius:8px;border:0;background:rgba(10,10,10,.72);
+  transition:opacity .18s ease;}
+#board-title svg{width:26px;height:29px;}
+@media (max-width:860px){ #board-title{display:flex;} }
+#board-title.faded{opacity:.14;}
 #dbg{position:absolute;left:6px;bottom:6px;font-size:10px;color:#9ca3af;background:rgba(10,10,10,.7);
   padding:2px 6px;border-radius:5px;pointer-events:none;display:none;}
 body.debug #dbg{display:block;}
 #elev-row{display:flex;align-items:center;gap:8px;}
 #elev{writing-mode:vertical-lr;direction:rtl;height:110px;}
-#elev-pic{width:64px;height:110px;flex:0 0 auto;}
+#elev-pic{width:112px;height:120px;flex:0 0 auto;}
 .mini{font-size:11px;color:var(--text-muted);}
 .gauge{height:8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;overflow:hidden;}
 .gauge>i{display:block;height:100%;background:var(--orange-mid);width:0;transition:width .05s linear;}
@@ -521,6 +544,30 @@ body.debug #dbg{display:block;}
 
     <div class="pane" id="board-pane">
       <canvas id="board"></canvas>
+      <!-- 携帯用のタイトル。盤面に重ねるが、アイコン・版・副題まで省略しない。
+           以前は盤面に直接描いていたので、向きを合わせる帯と重なって読めなかった -->
+      <div class="mini-title" id="board-title">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="-46 -50 100 110" aria-hidden="true"><use href="#billiards-cat"></use></svg>
+        <div>
+          <div class="mt-t"><span class="momo">MOMO</span> <span class="billiards">Billiards</span> <span class="mt-v" id="version-tag-6">v1.00</span></div>
+          <div class="mt-s" id="subtitle-6">Any Shape, Any Rule, One Cue</div>
+        </div>
+      </div>
+      <!-- 結果は盤面に重ねて出す。画面を切り替えて盤を消してしまうと、
+           どういう終わり方をしたのかを見て確かめられない。つまんで動かせる -->
+      <div id="result-pop">
+        <div class="rp-bar" id="rp-bar"><span id="res-title">Result</span><span class="rp-grip">⠿</span></div>
+        <div class="rp-body res-panel" id="res-panel">
+          <div class="confetti" id="confetti"></div>
+          <div class="win-art" id="win-art"></div>
+          <div class="ge-title" id="res-headline"></div>
+          <div id="res-body"></div>
+          <div class="row" style="margin-top:12px">
+            <button class="btn primary small" id="btn-again"></button>
+            <button class="btn small" id="btn-to-setup"><span class="ico">🏠</span><span id="btn-to-setup-t"></span></button>
+          </div>
+        </div>
+      </div>
       <div id="msg-bar"></div>
       <!-- 盤に重ねて1秒だけ出す大きな知らせ（ファウル・時間切れ） -->
       <div id="flash"></div>
@@ -533,7 +580,7 @@ body.debug #dbg{display:block;}
       <div id="elev-row">
         <span class="mini" id="k-elev">0°</span>
         <input type="range" id="elev" min="0" max="90" value="0" step="1">
-        <canvas id="elev-pic" width="128" height="220"></canvas>
+        <canvas id="elev-pic" width="224" height="240"></canvas>
       </div>
       <div>
         <div class="mini" id="k-power">0%</div>
@@ -547,22 +594,6 @@ body.debug #dbg{display:block;}
   </div>
 </div>
 
-<!-- ══════════ 結果 ══════════ -->
-<div class="screen" id="scr-result">
-  <div class="wrap">
-    <div class="section-label"><span id="res-title">Result</span></div>
-    <div class="card res-panel" id="res-panel">
-      <div class="confetti" id="confetti"></div>
-      <div class="win-art" id="win-art"></div>
-      <div class="ge-title" id="res-headline"></div>
-      <div id="res-body"></div>
-    </div>
-    <div class="row" style="margin-bottom:24px">
-      <button class="btn primary" id="btn-again"></button>
-      <button class="btn" id="btn-to-setup"><span class="ico">🏠</span><span id="btn-to-setup-t"></span></button>
-    </div>
-  </div>
-</div>
 
 <!-- ══════════ モーダル ══════════ -->
 <div class="modal" id="modal-audio"><div class="box">
@@ -585,6 +616,13 @@ body.debug #dbg{display:block;}
     <div class="row" style="justify-content:space-between"><span id="set-sfx"></span>
       <label class="chk"><input type="checkbox" id="mute-sfx"><span id="set-mute2"></span></label></div>
     <input type="range" id="vol-sfx" min="0" max="100" style="width:100%">
+  </div>
+  <!-- 玉の転がりだけを遅くする。キューの動きや画面の切り替わりには効かない -->
+  <div style="margin:14px 0 6px">
+    <div class="row" style="justify-content:space-between">
+      <span id="set-speed"></span><span class="mini" id="speed-val">1.0×</span></div>
+    <input type="range" id="in-speed" min="50" max="200" step="10" value="100" style="width:100%">
+    <div class="hint" id="speed-note" style="margin-top:5px"></div>
   </div>
   <div class="row" style="justify-content:flex-end"><button class="btn" id="btn-set-close"></button></div>
 </div></div>

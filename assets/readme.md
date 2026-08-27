@@ -15,7 +15,7 @@
 |---|---|
 | `lobby/` | 対局前（トップ・ロビー・待機）。全アプリ共通 |
 | `game-japanese/` | 対局中・和風 |
-| `game-western/` | 対局中・洋風（曲を入れるまで存在しません） |
+| `game-western/` | 対局中・洋風。Billiards と Darts が使う |
 | `game-koikoi/` | 花札こいこい専用 |
 
 ### 曲を増やすとき

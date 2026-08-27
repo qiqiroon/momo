@@ -28,16 +28,21 @@ const FILES = {
 };
 
 // v2.09 (v1.5): BGM 用ファイル群（lobby = 対戦室系画面、play = ゲーム中）
+// v2.22: 出所のはっきりしない自前の曲をやめ、MOMO 共通素材（assets/bgm/）へ移した。
+//        ロビーは全アプリ共通の lobby、プレイ中は Billiards と同じ洋風の曲を鳴らす。
+//        共通素材 assets/readme.md 参照。曲を増やすときはあちらへ置く
 const BGM_FILES = {
-  lobby1: 'sounds/lobby1.mp3',
-  lobby2: 'sounds/lobby2.mp3',
-  play1:  'sounds/play1.mp3',
-  play2:  'sounds/play2.mp3',
-  play3:  'sounds/play3.mp3',
-  play4:  'sounds/play4.mp3',
+  lobby1: '../../assets/bgm/lobby/bgm-lobby-1.mp3',
+  lobby2: '../../assets/bgm/lobby/bgm-lobby-2.mp3',
+  lobby3: '../../assets/bgm/lobby/bgm-lobby-3.mp3',
+  lobby4: '../../assets/bgm/lobby/bgm-lobby-4.mp3',
+  play1:  '../../assets/bgm/game-western/bgm-western-1.mp3',
+  play2:  '../../assets/bgm/game-western/bgm-western-2.mp3',
+  play3:  '../../assets/bgm/game-western/bgm-western-3.mp3',
+  play4:  '../../assets/bgm/game-western/bgm-western-4.mp3',
 };
 const BGM_CATEGORY = {
-  lobby: ['lobby1', 'lobby2'],
+  lobby: ['lobby1', 'lobby2', 'lobby3', 'lobby4'],
   play:  ['play1', 'play2', 'play3', 'play4'],
 };
 

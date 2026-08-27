@@ -224,9 +224,24 @@ const BilliardsAudio = (() => {
       const at = ctx.currentTime + (opts.at || 0);
       let node = src;
       if (opts.lp) { const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = opts.lp; node = node.connect(f); }
-      if (opts.gain != null) { const g = ctx.createGain(); g.gain.value = opts.gain; node = node.connect(g); }
+      if (opts.dur) {
+        /*
+         * 素材の頭だけを切り出して鳴らす（衝撃の一発ぶん）。
+         * ぶつ切りにするとプツッと鳴るので、終わりに短い消え際を作る。
+         */
+        const lvl = opts.gain != null ? opts.gain : 1;
+        const fade = Math.min(0.03, opts.dur * 0.4);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(lvl, at);
+        g.gain.setValueAtTime(lvl, at + opts.dur - fade);
+        g.gain.linearRampToValueAtTime(0.0001, at + opts.dur);
+        node = node.connect(g);
+      } else if (opts.gain != null) {
+        const g = ctx.createGain(); g.gain.value = opts.gain; node = node.connect(g);
+      }
       node.connect(opts.pan != null ? panNode(opts.pan) : sfxGain);
       src.start(at, sfxHead.get(name) || 0);      // 頭の無音を飛ばす
+      if (opts.dur) src.stop(at + opts.dur + 0.02);
     };
     const cached = sfxBufs.get(name);
     if (cached) doPlay(cached); else loadSfx(name).then(doPlay);
@@ -333,8 +348,15 @@ const BilliardsAudio = (() => {
         playBuf('bilCue', { gain: 0.35 + 0.65 * s, rate: (0.94 + 0.14 * s) * vary() }); break;
       case 'ball':                                                                    // 玉どうし
         playBuf('bilBall', { gain: 0.18 + 0.82 * s, rate: (0.90 + 0.26 * s) * vary() }); break;
-      case 'cushion':                                                                 // クッション
-        playBuf('bilBall', { gain: 0.14 + 0.5 * s, rate: (0.58 + 0.16 * s) * vary(), lp: 1100 }); break;
+      /*
+       * クッションと、ジャンプして台に落ちた音。
+       * 玉どうしの音を低くしたものは硬すぎてクッションらしくなかったので、
+       * 落球音の**最初の衝撃だけ**（実測 20〜130ms が一発ぶん）を切り出し、
+       * 低い音だけ通して、音量を落として鳴らす＝くぐもった「ドン」を1回。
+       */
+      case 'cushion':
+        playBuf('bilPocket', { gain: 0.11 + 0.34 * s, rate: (0.88 + 0.22 * s) * vary(),
+          lp: 620 + 260 * s, dur: 0.11 }); break;
       case 'break':                                                                   // ラックが割れる
         playBuf('bilBreak', { gain: 0.55 + 0.45 * s, rate: 0.96 + 0.08 * s }); break;
       case 'pocket': playBuf('bilPocket', { gain: 0.95, rate: vary() }); break;        // 落球

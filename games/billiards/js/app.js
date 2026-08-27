@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.10';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.11';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -116,7 +116,7 @@
     aiCancel: null, confirmCb: null, dlVotes: {},
     chk: {},               // 受け取った盤面照合（ショット番号 → 指紋）。追いついてから比べる
     pendingShots: {},      // 先に届いた相手の手。こちらがその番号へ達したら指す
-    waitDone: null, waitTimer: null,
+    waitDone: null, waitTimer: null, readyShot: null, forceShot: null,
     airZ: {},
     won: false,
     wakeLock: null,
@@ -540,7 +540,7 @@
     S.game = g;
     S.chk = {};                             // 前の局の照合は持ち越さない
     S.dropped = null; S.bursts = []; S.airZ = {}; S.pendingShots = {};
-    S.net.done = {}; S.waitDone = null;
+    S.net.done = {}; S.waitDone = null; S.readyShot = null; S.forceShot = null;
     if (S.waitTimer) { clearTimeout(S.waitTimer); S.waitTimer = null; }
     S.replay = null; S.replayRun = null;
     S.clock.banks = g.players.map(() => cfg.tbank * 60);
@@ -574,6 +574,7 @@
     (d[n] || (d[n] = {}))[pid] = 1;
   }
   function allDone(n) {
+    if (S.forceShot === n) return true;      // 待ちを打ち切った手は、そろった扱いにする
     const d = (S.net.done || {})[n] || {};
     const seats = seatList();
     if (!seats.length) return true;
@@ -584,21 +585,38 @@
     const g = S.game;
     if (!g || g.over) return;
 
-    // 全員が同じ手まで見終わるのを待つ
-    if (S.net.on && S.net.role !== 'spectator' && !allDone(g.shotNo)) {
-      if (S.waitDone !== g.shotNo) {
-        S.waitDone = g.shotNo;
-        S.phase = 'wait';
-        setMsg(t('lobby.waitScreen'));
-        renderHUD();
-        if (S.waitTimer) clearTimeout(S.waitTimer);
-        // 返事が来ないまま止まり続けるほうが困る。待つのは打ち切る
-        S.waitTimer = setTimeout(() => {
-          S.waitTimer = null;
-          if (S.waitDone === g.shotNo && S.game === g) { S.waitDone = null; beginTurn(); }
-        }, DONE_WAIT_MS);
+    /*
+     * 待ち合わせは「手の入り口」で行う。
+     * 撞き終わったときだけ知らせる作りにしていたが、手番が始まる経路は
+     * 対局開始・ミスキュー・時間切れ・組み直しと他にもあり、
+     * それらでは誰も知らせないので全員が待ったまま止まった。
+     * **知らせる側と待つ側を同じ場所に置く**ことで、経路を数え落とさない。
+     */
+    if (S.net.on && S.net.role !== 'spectator') {
+      if (S.readyShot !== g.shotNo) {
+        S.readyShot = g.shotNo;
+        markDone(myPid(), g.shotNo);
+        NET.send({ k: 'done', n: g.shotNo, pid: myPid() });
       }
-      return;
+      if (!allDone(g.shotNo)) {
+        if (S.waitDone !== g.shotNo) {
+          S.waitDone = g.shotNo;
+          S.phase = 'wait';
+          setMsg(t('lobby.waitScreen'));
+          renderHUD();
+          if (S.waitTimer) clearTimeout(S.waitTimer);
+          // 返事が来ないまま止まり続けるほうが困る。待つのは打ち切る
+          S.waitTimer = setTimeout(() => {
+            S.waitTimer = null;
+            if (S.game === g && S.waitDone === g.shotNo) {
+              S.forceShot = g.shotNo;        // 打ち切った印。これが無いと待ち直してしまう
+              S.waitDone = null;
+              beginTurn();
+            }
+          }, DONE_WAIT_MS);
+        }
+        return;
+      }
     }
     if (S.waitTimer) { clearTimeout(S.waitTimer); S.waitTimer = null; }
     S.waitDone = null;
@@ -800,11 +818,6 @@
     if (S.net.on && S.net.isHost) NET.send({ k: 'chk', n: g.shotNo, h: boardHash() });
     else if (S.net.on) compareBoardCheck();   // 先に届いていた照合と、いま比べる
 
-    // この手を見終わったことを知らせる。次の手は全員が見終わってから始める
-    if (S.net.on && S.net.role !== 'spectator') {
-      markDone(myPid(), g.shotNo);
-      NET.send({ k: 'done', n: g.shotNo, pid: myPid() });
-    }
 
     if (res.gameOver || g.over) { endGame(); return; }
     if (g.deadlockCount >= 12) { g.deadlockCount = 0; askDeadlock(true); return; }

@@ -3,10 +3,11 @@
  * 仕様書 momo_billiards_spec.md 第11章11.9節／MOMO 共通素材 assets/readme.md
  *
  * ・BGM は共通素材 assets/bgm/ の目録（manifest.json）から選ぶ。曲名はここに書かない。
- *   洋風フォルダ（game-western）がまだ空なので、無ければ game-japanese へ落とす。
+ *   洋風（game-western）を先に探し、無ければ和風（game-japanese）へ落とす。
  *   曲を足したら目録を作り直すだけでこのファイルは触らない。
- * ・撞球音・玉どうしの衝突音・クッション音は素材ではなく合成音にした。
- *   強さに応じて音の高さと大きさが変わる必要があり、固定の音源では手応えが返らないため。
+ * ・撞球・衝突・クッション・ブレイク・落球は**録音した素材**を鳴らす（効果音ラボ）。
+ *   もとは合成音だったが、音程のある芯が滑り落ちる作りだったため電子音に聞こえた。
+ *   強さへの応じ方は素材でも残す＝強いほど大きく、わずかに高く鳴らす。
  * ・音は表示層に属し、決定論の対象外（11.9.2節）。物理の結果に影響してはならない。
  */
 const BilliardsAudio = (() => {
@@ -175,8 +176,27 @@ const BilliardsAudio = (() => {
     fanfare2: ASSETS + 'se/se-fanfare-win-2.mp3',
     lose: ASSETS + 'se/se-game-lose.mp3',
     chatRecv: ASSETS + 'se/se-chat-recv.mp3',
+    // ビリヤードの音（効果音ラボ／商用可・表示不要）。合成音は電子音に聞こえたのでやめた
+    bilCue: ASSETS + 'se/se-billiards-cue.mp3',
+    bilBall: ASSETS + 'se/se-billiards-ball.mp3',
+    bilBreak: ASSETS + 'se/se-billiards-break.mp3',
+    bilPocket: ASSETS + 'se/se-billiards-pocket.mp3',
   };
   const sfxBufs = new Map(), sfxLoading = new Map();
+  const sfxHead = new Map();     // 素材ごとの「頭の無音」の長さ（秒）
+
+  /**
+   * MP3 は変換のときに先頭へ 26ms ほどの無音が入る（実測）。
+   * 撞いた音がそのぶん遅れて鳴ると、手応えが1テンポずれて感じられる。
+   * 読み込んだ時に音の立ち上がりを測っておき、鳴らすときはそこから始める。
+   */
+  function measureHead(buf) {
+    const ch = buf.getChannelData(0);
+    const n = Math.min(ch.length, buf.sampleRate * 0.2 | 0);
+    const TH = 0.01;
+    for (let i = 0; i < n; i++) if (Math.abs(ch[i]) > TH) return Math.max(0, i / buf.sampleRate - 0.001);
+    return 0;
+  }
   function loadSfx(name) {
     const url = SFX_URLS[name]; if (!url) return Promise.resolve(null);
     if (sfxBufs.has(name)) return Promise.resolve(sfxBufs.get(name));
@@ -184,59 +204,34 @@ const BilliardsAudio = (() => {
     ensureCtx(); if (!ctx) return Promise.resolve(null);
     const p = fetch(url).then(r => r.ok ? r.arrayBuffer() : null)
       .then(b => b ? ctx.decodeAudioData(b) : null)
-      .then(buf => { if (buf) sfxBufs.set(name, buf); return buf; })
+      .then(buf => { if (buf) { sfxBufs.set(name, buf); sfxHead.set(name, measureHead(buf)); } return buf; })
       .catch(() => null).finally(() => sfxLoading.delete(name));
     sfxLoading.set(name, p); return p;
   }
-  function preloadSfx() { Object.keys(SFX_URLS).forEach(loadSfx); warmup(); }
+  function preloadSfx() { Object.keys(SFX_URLS).forEach(loadSfx); }
 
   /**
-   * 合成音の道を一度だけ空回しして温めておく。
-   * ブレイクは玉の音を20個ほど同時に組み立てるが、その1回目だけ 26ms かかり
-   * （実測）、よりによってブレイクの瞬間に画面が引っかかる。
-   * 出口をどこにも繋がない入れ物にするので、音は出ない。
+   * 素材を鳴らす。
+   * @param {object} opts at 遅らせる秒 ／ gain 音量 ／ rate 再生の速さ（＝音の高さ）
+   *                      ／ lp 低い音だけ通す上限 Hz ／ pan 左右
    */
-  let warmed = false;
-  function warmup() {
-    if (warmed || !ctx) return;
-    warmed = true;
-    const dead = ctx.createGain(); dead.gain.value = 0;   // destination へ繋がない＝無音
-    const t = ctx.currentTime;
-    // 実際に使う長さの雑音を先に作っておく（撞球・玉・クッション・ブレイク）
-    [0.02, 0.045, 0.05, 0.06, 0.075, 0.09, 0.35].forEach(noiseBuf);
-    for (let i = 0; i < 24; i++) {
-      let out = dead;
-      if (ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.connect(dead); out = p; }
-      const src = ctx.createBufferSource(); src.buffer = noiseBuf(0.045);
-      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 3;
-      const g = ctx.createGain(); env(g, t, 0.001, 0.0002, 0.02);
-      src.connect(bp).connect(g).connect(out); src.start(t); src.stop(t + 0.03);
-      const o = ctx.createOscillator(); o.type = 'triangle';
-      const g2 = ctx.createGain(); g2.gain.value = 0;
-      o.connect(g2).connect(out); o.start(t); o.stop(t + 0.03);
-    }
-  }
   function playBuf(name, opts) {
     if (!audioOn || !ctx || !sfxGain) return; opts = opts || {};
     const doPlay = buf => {
       if (!buf || !ctx || !sfxGain) return;
       const src = ctx.createBufferSource(); src.buffer = buf;
+      if (opts.rate) src.playbackRate.value = opts.rate;
       const at = ctx.currentTime + (opts.at || 0);
-      if (opts.gain != null) { const g = ctx.createGain(); g.gain.value = opts.gain; src.connect(g).connect(sfxGain); }
-      else src.connect(sfxGain);
-      src.start(at);
+      let node = src;
+      if (opts.lp) { const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = opts.lp; node = node.connect(f); }
+      if (opts.gain != null) { const g = ctx.createGain(); g.gain.value = opts.gain; node = node.connect(g); }
+      node.connect(opts.pan != null ? panNode(opts.pan) : sfxGain);
+      src.start(at, sfxHead.get(name) || 0);      // 頭の無音を飛ばす
     };
     const cached = sfxBufs.get(name);
     if (cached) doPlay(cached); else loadSfx(name).then(doPlay);
   }
 
-  // ───────── 効果音：合成（打球・衝突・クッション・落球） ─────────
-  /*
-   * 雑音の素は長さごとに1本だけ作って使い回す。
-   * 毎回作り直すと、鳴らすたびに数千個の乱数を書き込むことになり、
-   * 20個を同時に組み立てるブレイクで、その1回目に画面が引っかかる。
-   * 中身が同じでも、通す帯域・音量・長さ・左右が違うので聞き分けはつかない。
-   */
   /*
    * 左右へ寄せる装置は5か所ぶんだけ作って使い回す。
    * 音1つごとに作ると、ブレイクの一瞬で百個以上の部品を組むことになる。
@@ -250,105 +245,12 @@ const BilliardsAudio = (() => {
     return n;
   }
 
-  const noiseCache = new Map();
-  function noiseBuf(dur) {
-    const n = Math.max(1, (ctx.sampleRate * dur) | 0);
-    const key = n >> 6;                      // 近い長さは同じものを使う
-    const hit = noiseCache.get(key);
-    if (hit && hit.length >= n) return hit;
-    const len = Math.max(n, (key + 1) << 6);
-    const b = ctx.createBuffer(1, len, ctx.sampleRate), d = b.getChannelData(0);
-    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
-    noiseCache.set(key, b);
-    return b;
-  }
   function env(g, t0, a, peak, dur) {
     g.gain.setValueAtTime(0, t0);
     g.gain.linearRampToValueAtTime(peak, t0 + a);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
   }
-  // strength: 0〜1。撞いた強さ・当たった速さをそのまま音へ返す
-  /**
-   * 玉どうしがぶつかる音。撞球音・クッション音もこれの味付け違い。
-   * @param {number} [at] 鳴らす時刻（省略時は今すぐ）。ブレイクで粒をばらまくのに使う
-   * @param {number} [pan] 左右の寄せ -1〜1
-   */
-  function clack(strength, baseFreq, dur, tone, at, pan) {
-    if (!audioOn || !ctx || !sfxGain) return;
-    const s = Math.max(0.04, Math.min(1, strength));
-    const t = at != null ? at : ctx.currentTime + 0.005;
-    const out = (pan != null) ? panNode(pan) : sfxGain;
-    const f = baseFreq * (0.82 + 0.45 * s);
-    // 打点（短いノイズ）
-    const src = ctx.createBufferSource(); src.buffer = noiseBuf(dur);
-    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = tone || 2.2;
-    bp.frequency.setValueAtTime(f * 1.6, t);
-    bp.frequency.exponentialRampToValueAtTime(f * 0.7, t + dur);
-    const g = ctx.createGain(); env(g, t, 0.0015, 0.55 * s + 0.06, dur);
-    src.connect(bp).connect(g).connect(out); src.start(t); src.stop(t + dur + 0.02);
-    // 芯（正弦）
-    const o = ctx.createOscillator(); o.type = 'triangle';
-    o.frequency.setValueAtTime(f, t);
-    o.frequency.exponentialRampToValueAtTime(f * 0.55, t + dur * 0.9);
-    const g2 = ctx.createGain(); env(g2, t, 0.001, 0.30 * s + 0.03, dur * 0.9);
-    o.connect(g2).connect(out); o.start(t); o.stop(t + dur + 0.02);
-  }
-  /**
-   * ブレイクの音。
-   * ラックが割れる瞬間は 1 コマに 12 発の衝突が同時に来る（実測）。
-   * それを 12 回の同じ衝突音で鳴らすと団子になって、ただの雑音に聞こえる。
-   * そこで「一発の大きな割れ」＋「散らばっていく粒」＋「下に敷く唸り」の
-   * 3 層に作り替えて、一度きりの出来事として鳴らす。
-   * @param {number} strength 0〜1
-   */
-  function breakSlam(strength) {
-    if (!audioOn || !ctx || !sfxGain) return;
-    const s = Math.max(0.3, Math.min(1, strength == null ? 0.8 : strength));
-    const t = ctx.currentTime + 0.005;
-    const BALL_F = 1500, BALL_D = 0.045, BALL_Q = 3.0;   // 玉どうしの音の味付け（'ball' と同じ）
 
-    /*
-     * ブレイクは「玉どうしの衝突がたくさん、ほぼ同時に起きる」出来事なので、
-     * 材料は玉の音そのものにする。低い唸りやノイズの掃引を足すと、
-     * ビリヤードではなく破裂音になる（一度そうして作り直した）。
-     */
-    // ① 手玉が先頭の玉を叩く最初の一撃。いちばん強く、わずかに長い
-    clack(1.0, BALL_F, 0.06, BALL_Q, t, 0);
-    // ② その直後、先頭の玉が後ろの玉へ押し込む厚み。音の高さだけ下げて重さを出す
-    clack(0.85 * s + 0.15, BALL_F * 0.62, 0.075, 2.2, t + 0.006, 0);
-
-    /*
-     * ③ 広がっていく玉どうしの衝突。だんだん間延びし、弱くなり、左右へ散る。
-     * 20個ぶんを一度に組み立てると1コマ（16.7ms）に収まらないので、
-     * 3回に分けて組む。鳴らす時刻は先に決めてあるので、音のほうはずれない。
-     */
-    const n = 10 + Math.round(9 * s);
-    const one = i => {
-      const at = t + 0.03 + Math.pow(i / n, 0.8) * 0.55 + Math.random() * 0.045;
-      const lvl = (1 - i / n) * 0.62 + 0.10;
-      const freq = BALL_F * (0.75 + Math.random() * 0.75);
-      clack(s * lvl, freq, BALL_D, BALL_Q, at, (Math.random() * 2 - 1) * 0.8);
-    };
-    const chunk = Math.ceil(n / 3);
-    for (let i = 0; i < chunk; i++) one(i);
-    setTimeout(() => { for (let i = chunk; i < chunk * 2 && i < n; i++) one(i); }, 0);
-    setTimeout(() => { for (let i = chunk * 2; i < n; i++) one(i); }, 16);
-  }
-
-  function pocketDrop() {
-    if (!audioOn || !ctx || !sfxGain) return;
-    const t = ctx.currentTime + 0.005;
-    // ころんと落ちて転がる：下がる2音＋短い転がりノイズ
-    [[520, 0, 0.10], [300, 0.09, 0.20]].forEach(a => {
-      const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = a[0];
-      const g = ctx.createGain(); env(g, t + a[1], 0.004, 0.34, a[2]);
-      o.connect(g).connect(sfxGain); o.start(t + a[1]); o.stop(t + a[1] + a[2] + 0.02);
-    });
-    const src = ctx.createBufferSource(); src.buffer = noiseBuf(0.35);
-    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900;
-    const g = ctx.createGain(); env(g, t + 0.10, 0.02, 0.14, 0.32);
-    src.connect(lp).connect(g).connect(sfxGain); src.start(t + 0.10); src.stop(t + 0.45);
-  }
   /** 単音。秒読みと時間切れに使う */
   function beep(freq, dur, peak, delay) {
     if (!audioOn || !ctx || !sfxGain) return;
@@ -374,13 +276,26 @@ const BilliardsAudio = (() => {
    */
   function sfx(name, strength) {
     if (!audioOn || !ctx || !sfxGain) return;
+    /*
+     * 撞球・衝突・ブレイク・落球は録音した素材（効果音ラボ）を鳴らす。
+     * 以前は合成していたが、音程のある芯が滑り落ちる作りだったため
+     * 「ぴこぴこした電子音」に聞こえていた。
+     * 強さへの応じ方は素材でも残す＝強く撞くほど大きく、わずかに高く鳴らす。
+     */
+    const s = strength != null ? strength : 0.5;
+    const vary = () => 0.97 + Math.random() * 0.06;      // 同じ音が続いても機械的に聞こえないように
     switch (name) {
-      case 'cue': clack(strength != null ? strength : 0.6, 320, 0.075, 1.4); break;   // 撞球音
-      case 'ball': clack(strength != null ? strength : 0.5, 1500, 0.045, 3.0); break; // 玉どうし
-      case 'cushion': clack(strength != null ? strength : 0.5, 240, 0.09, 1.0); break;// クッション
-      case 'break': breakSlam(strength); break;                                       // ラックが割れる
-      case 'pocket': pocketDrop(); break;                                             // 落球
-      case 'jump': clack(0.35, 900, 0.05, 2.0); break;
+      case 'cue':                                                                     // 撞球音
+        playBuf('bilCue', { gain: 0.35 + 0.65 * s, rate: (0.94 + 0.14 * s) * vary() }); break;
+      case 'ball':                                                                    // 玉どうし
+        playBuf('bilBall', { gain: 0.18 + 0.82 * s, rate: (0.90 + 0.26 * s) * vary() }); break;
+      case 'cushion':                                                                 // クッション
+        playBuf('bilBall', { gain: 0.14 + 0.5 * s, rate: (0.58 + 0.16 * s) * vary(), lp: 1100 }); break;
+      case 'break':                                                                   // ラックが割れる
+        playBuf('bilBreak', { gain: 0.55 + 0.45 * s, rate: 0.96 + 0.08 * s }); break;
+      case 'pocket': playBuf('bilPocket', { gain: 0.95, rate: vary() }); break;        // 落球
+      case 'jump':
+        playBuf('bilBall', { gain: 0.30, rate: 0.72 * vary(), lp: 2200 }); break;
       case 'foul': tick2(330, 220); break;
       case 'tick': beep(1046, 0.07, 0.22); break;        // 残り5秒からの秒読み
       case 'timeup': beep(392, 0.16, 0.30); beep(294, 0.30, 0.26, 0.14); break;

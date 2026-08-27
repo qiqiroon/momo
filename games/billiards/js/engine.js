@@ -457,7 +457,8 @@ const BilliardsEngine = (() => {
         if (b.vz < 0) {
           const bounce = -b.vz * table.clothRestitution;
           b.vz = bounce > 120 ? bounce : 0;
-          if (bounce > 200) w.events.push({ type: 'land', ball: b.id, speed: bounce, tick: w.tick });
+          // 着地した場所も添える。画面側がそこへ弾ける絵を出すため
+          if (bounce > 200) w.events.push({ type: 'land', ball: b.id, speed: bounce, x: b.x, y: b.y, tick: w.tick });
         }
       }
       // 停止判定（5.5.5節）

@@ -251,6 +251,43 @@ const BilliardsAudio = (() => {
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
   }
 
+  /**
+   * ジャンプした玉が落ちたときの「ピョーン」。
+   * ここだけは**音程が滑るのが正解**で、漫画の跳ねる音そのもの。
+   * （玉どうしの衝突で同じことをすると電子音に聞こえるので、そちらは素材にしてある）
+   *
+   * 続けて跳ねたときは鳴らし直す。ただし前の「ピョーン」がまだ鳴っている間は
+   * 小さめにして、重なって騒がしくならないようにする。
+   */
+  let lastBoing = -1e9;
+  const BOING_MS = 320;
+  function boing(strength) {
+    if (!audioOn || !ctx || !sfxGain) return;
+    const s = Math.max(0.15, Math.min(1, strength == null ? 0.6 : strength));
+    const now = ctx.currentTime;
+    const overlap = (now - lastBoing) * 1000 < BOING_MS;
+    lastBoing = now;
+    const lvl = (0.18 + 0.22 * s) * (overlap ? 0.4 : 1);
+    const t = now + 0.004;
+    const dur = 0.20 + 0.14 * s;
+
+    // 落ちた衝撃（素材を小さく）＋ 音程が下へ揺れながら落ちる芯＝ピョーン
+    playBuf('bilBall', { gain: 0.10 + 0.16 * s, rate: 0.7, lp: 2400 });
+    const f0 = 620 * (0.85 + 0.4 * s);
+    const N = 24, curve = new Float32Array(N);
+    for (let i = 0; i < N; i++) {
+      const k = i / (N - 1);
+      const fall = f0 * Math.pow(0.28, k);                 // 下へ落ちる
+      const wob = 1 + 0.16 * Math.sin(k * Math.PI * 5) * (1 - k);  // 揺れは先ほど大きい
+      curve[i] = fall * wob;
+    }
+    const o = ctx.createOscillator(); o.type = 'triangle';
+    o.frequency.setValueAtTime(curve[0], t);
+    o.frequency.setValueCurveAtTime(curve, t, dur);
+    const g = ctx.createGain(); env(g, t, 0.006, lvl, dur);
+    o.connect(g).connect(sfxGain); o.start(t); o.stop(t + dur + 0.03);
+  }
+
   /** 単音。秒読みと時間切れに使う */
   function beep(freq, dur, peak, delay) {
     if (!audioOn || !ctx || !sfxGain) return;
@@ -294,8 +331,7 @@ const BilliardsAudio = (() => {
       case 'break':                                                                   // ラックが割れる
         playBuf('bilBreak', { gain: 0.55 + 0.45 * s, rate: 0.96 + 0.08 * s }); break;
       case 'pocket': playBuf('bilPocket', { gain: 0.95, rate: vary() }); break;        // 落球
-      case 'jump':
-        playBuf('bilBall', { gain: 0.30, rate: 0.72 * vary(), lp: 2200 }); break;
+      case 'jump': boing(s); break;                                                   // 着地のピョーン
       case 'foul': tick2(330, 220); break;
       case 'tick': beep(1046, 0.07, 0.22); break;        // 残り5秒からの秒読み
       case 'timeup': beep(392, 0.16, 0.30); beep(294, 0.30, 0.26, 0.14); break;

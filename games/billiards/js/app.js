@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.07';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.08';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -528,6 +528,7 @@
     g.players.forEach(p => { if (cfg.rule === 'G-04') p.target = cfg.target; });
     S.game = g;
     S.chk = {};                             // 前の局の照合は持ち越さない
+    S.dropped = null; S.bursts = [];
     S.replay = null; S.replayRun = null;
     S.clock.banks = g.players.map(() => cfg.tbank * 60);
     S.aim = { dir: 0, tipX: 0, tipY: 0, elev: 0, power: 0 };
@@ -672,6 +673,7 @@
       doubleHit: RU.detectDoubleHit(g, cue, shot),
       miscue: S.cfg.cue[1] && E.isMiscue(shot),
     };
+    S.lastShotTip = Math.hypot(shot.tipX || 0, shot.tipY || 0);   // 捻りの強さ（説明に使う）
     S.clock.running = false;
 
     if (pre.miscue) {
@@ -728,7 +730,7 @@
       AU.sfx('foul');
       // ファウルは盤の真ん中に大きく出す。これが見えないと
       // 「玉が落ちたのに手番が移った」理由が分からない
-      flash(t('hud.foul') + '　' + res.fouls.map(f => t('foul.' + f)).join(' / '), 'foul');
+      flash(t('hud.foul') + '　' + res.fouls.map(f => t('foul.' + f)).join(' / '), 'foul', foulWhy(res));
     }
 
     if (S.cfg.format === 'practice' && (res.gameOver || g.over)) {
@@ -1103,6 +1105,7 @@
     if ((S.phase === 'aim' || S.phase === 'stance') && isMyTurn()) drawAimLine();
 
     if ((S.phase === 'aim' || S.phase === 'stance') && isMyTurn()) drawAimTargetMark();
+    drawBursts();
     drawPocketedRails();
     drawDroppedFlash();
     fadeMiniTitle(view.mobile);   // 2Dでは玉が下に来たら薄くする
@@ -1257,6 +1260,49 @@
       for (const b of prev) { drawBallOf(b, px, py, small, true); px += small * 2.3; }
     }
     ctx.restore();
+  }
+
+  /**
+   * ジャンプした玉が落ちてきた場所に、弾ける印を出す。
+   * 玉が跳ねたことは、真上から見た2Dの絵では影の大きさでしか分からない。
+   * 「米」の字のように四方八方へ線を散らして、どこへ落ちたかを一目で示す。
+   */
+  const BURST_MS = 420;
+  function addBurst(x, y, power) {
+    (S.bursts = S.bursts || []).push({ x, y, at: performance.now(), p: Math.min(1, power) });
+    if (S.bursts.length > 12) S.bursts.shift();
+  }
+  function drawBursts() {
+    const list = S.bursts; if (!list || !list.length) return;
+    const now = performance.now();
+    for (let i = list.length - 1; i >= 0; i--) {
+      const b = list[i];
+      const age = now - b.at;
+      if (age > BURST_MS) { list.splice(i, 1); continue; }
+      const k = age / BURST_MS;                       // 0→1 で広がって消える
+      const p = toScreen(b.x, b.y);
+      // 玉の大きさを基準にする。台の寸法で決めると、縮尺しだいで玉より小さくなる
+      const base = T.R * view.s * (1.5 + 1.8 * b.p);
+      const r0 = base * (0.25 + k * 0.9), r1 = base * (0.62 + k * 1.5);
+      ctx.save();
+      ctx.globalAlpha = (1 - k) * 0.95;
+      ctx.strokeStyle = '#fde68a'; ctx.lineCap = 'round';
+      ctx.lineWidth = Math.max(1.2, base * 0.13 * (1 - k));
+      for (let a = 0; a < 8; a++) {
+        const ang = a * Math.PI / 4 + 0.13;
+        const cs = Math.cos(ang), sn = Math.sin(ang);
+        const long = (a % 2 === 0) ? 1 : 0.66;        // 縦横を長く、斜めを短く＝「米」の形
+        ctx.beginPath();
+        ctx.moveTo(p.x + cs * r0, p.y + sn * r0);
+        ctx.lineTo(p.x + cs * r1 * long, p.y + sn * r1 * long);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = (1 - k) * 0.5;
+      ctx.beginPath(); ctx.arc(p.x, p.y, r0 * 0.8, 0, 7);
+      ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = Math.max(1, base * 0.07);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   /**
@@ -1457,6 +1503,28 @@
       if (a && b2) { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b2.x, b2.y); ctx.stroke(); }
     }
     ctx.lineCap = 'butt';
+    /*
+     * レール上のダイヤ（目印）。2Dには出ていて3Dに無いと、
+     * 3Dで狙いを合わせるときに位置の手がかりが消えてしまう。
+     * 長辺は8等分の7点、短辺は4等分の3点＝現実の台と同じ数。
+     */
+    ctx.fillStyle = 'rgba(255,240,215,.72)';
+    const diamond = (tx, ty) => {
+      const q = proj(tx, ty, table.cushionTop + 2); if (!q) return;
+      const rr = Math.max(1.2, scale * 26 / q.z);
+      ctx.beginPath();
+      ctx.moveTo(q.x, q.y - rr); ctx.lineTo(q.x + rr * .72, q.y);
+      ctx.lineTo(q.x, q.y + rr); ctx.lineTo(q.x - rr * .72, q.y);
+      ctx.closePath(); ctx.fill();
+    };
+    for (let i = 1; i <= 7; i++) {
+      const tx = -table.halfW + table.halfW * 2 * i / 8;
+      diamond(tx, -table.halfH); diamond(tx, table.halfH);
+    }
+    for (let i = 1; i <= 3; i++) {
+      const ty = -table.halfH + table.halfH * 2 * i / 4;
+      diamond(-table.halfW, ty); diamond(table.halfW, ty);
+    }
     for (const pk of table.pockets) {
       const q = proj(pk.x, pk.y, 0); if (!q) continue;
       const rr = scale * pk.r / q.z;
@@ -2024,7 +2092,10 @@
       } else if (e.type === 'cushion') {
         if (cush++ < MAX_PER_FRAME) AU.sfx('cushion', Math.min(1, e.speed / 4000));
       } else if (e.type === 'pocket') AU.sfx('pocket');
-      else if (e.type === 'land') AU.sfx('jump');
+      else if (e.type === 'land') {
+        AU.sfx('jump', Math.min(1, e.speed / 900));
+        if (e.x != null) addBurst(e.x, e.y, e.speed / 900);
+      }
     }
     S.evCursor = evs.length;
   }
@@ -2045,12 +2116,44 @@
    * 端の細い帯に出すだけでは、盤を見ている人の目に入らない。
    */
   let flashTimer = null;
-  function flash(text, kind) {
+  function flash(text, kind, why) {
     const el = $('flash'); if (!el || !text) return;
-    el.textContent = text;
+    $('flash-t').textContent = text;
+    $('flash-w').textContent = why || '';
     el.className = 'on ' + (kind || '');
     if (flashTimer) clearTimeout(flashTimer);
-    flashTimer = setTimeout(() => { el.className = ''; flashTimer = null; }, 1000);
+    // 理由まで読ませるときは長めに出す
+    flashTimer = setTimeout(() => { el.className = ''; flashTimer = null; }, why ? 2600 : 1000);
+  }
+
+  /**
+   * ファウルの一言説明。
+   * 「対象違い」とだけ出ても、当たったつもりの人には何が起きたのか分からない。
+   * とくに撞球の癖を入れていると、狙った通りに手玉が進まないことがあるので、
+   * その可能性まで添える。
+   */
+  function foulWhy(res) {
+    const g = S.game;
+    const lines = [];
+    for (const f of res.fouls) lines.push(t('foul.why.' + f));
+
+    /*
+     * 「当たりそうだったのに外れた」の一言。
+     * 撞球の癖が入っているだけでは足りない。**その癖が効く場面だったか**まで見る。
+     * クッションの捻りが効くのは、手玉が的球より先にクッションへ触れたときだけ。
+     * 条件を確かめずに書くと、関係のない場面で見当違いの説明を出すことになる。
+     */
+    const missed = res.fouls.indexOf('V-01') >= 0 || res.fouls.indexOf('V-02') >= 0;
+    const spun = (S.lastShotTip || 0) > 0.18;             // 撞点を芯から外して撞いた
+    if (missed && spun && S.cfg.cue[3] && S.pre) {
+      let railFirst = false;
+      for (const e of g.world.events) {
+        if (e.type === 'hit' && (e.a === S.pre.cueId || e.b === S.pre.cueId)) break;
+        if (e.type === 'cushion' && e.ball === S.pre.cueId) { railFirst = true; break; }
+      }
+      if (railFirst) lines.push(t('foul.why.bend'));
+    }
+    return lines.filter(Boolean).join('\n');
   }
 
   function teamMark(tm) { return t('coop.team', { t: 'ABCD'[tm] || String(tm + 1) }); }

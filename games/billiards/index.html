@@ -129,6 +129,20 @@ h1 .version-tag{color:var(--text-muted);font-size:.28em;letter-spacing:.04em;ali
 .fmt-btn .sub{font-size:11px;font-weight:400;color:var(--text-muted);margin-left:auto;text-align:right;}
 /* ゲストの設定欄。見えるが触れない */
 #setup-block.readonly{pointer-events:none;opacity:.72;}
+/* 協力プレイのチーム分け。誰と誰が組むかを1行ずつ出す */
+.team-row{display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:6px;
+  background:var(--surface2);margin-bottom:5px;font-size:12px;}
+.team-row .who{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.team-row .seat{color:var(--text-muted);font-size:11px;min-width:2.2em;}
+.team-pick{display:flex;gap:4px;}
+.team-pick button{padding:3px 10px;font-size:12px;font-weight:700;border-radius:5px;
+  border:1px solid var(--border-strong);background:transparent;color:var(--text-muted);
+  cursor:pointer;font-family:inherit;}
+.team-pick button.sel{color:#fff;border-color:transparent;}
+.team-pick button.sel[data-t="0"]{background:#c2410c;}
+.team-pick button.sel[data-t="1"]{background:#1d4ed8;}
+.team-pick button.sel[data-t="2"]{background:#15803d;}
+.team-pick button.sel[data-t="3"]{background:#a16207;}
 .card.tight{padding:10px 12px;}
 .lbl{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--orange);margin-bottom:8px;display:block;}
 .hint{font-size:12px;color:var(--text-muted);line-height:1.6;}
@@ -387,7 +401,7 @@ body.debug #dbg{display:block;}
       <div class="hint" id="cue-note" style="margin-top:8px"></div>
     </div>
 
-    <!-- 最下段：参加人数・目標点 -->
+    <!-- 最下段：参加人数・目標点・協力プレイ -->
     <div class="card">
       <div class="row" style="gap:16px">
         <label class="row" style="gap:6px"><span class="mini" id="lbl-players"></span>
@@ -396,6 +410,16 @@ body.debug #dbg{display:block;}
           <select id="sel-aicount"></select></label>
         <label class="row" style="gap:6px" id="wrap-target"><span class="mini" id="lbl-target"></span>
           <input type="number" id="in-target" min="1" max="200" value="10" style="width:74px"></label>
+      </div>
+      <!-- 協力プレイ＝勝ち負けを見る相手を個人からチームへ差し替えるスイッチ（9.7節） -->
+      <div id="coop-block" style="margin-top:12px">
+        <label class="sw"><input type="checkbox" id="sw-coop"><i></i><span id="lbl-coop"></span></label>
+        <div class="hint" id="coop-note" style="margin-top:6px"></div>
+        <div id="team-rows" style="margin-top:10px"></div>
+        <label class="row" style="gap:6px;margin-top:10px" id="wrap-limit">
+          <span class="mini" id="lbl-limit"></span>
+          <input type="number" id="in-limit" min="4" max="200" value="30" style="width:74px">
+          <span class="mini" id="u-shots"></span></label>
       </div>
     </div>
 </div>

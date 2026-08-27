@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.02';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.03';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -52,6 +52,7 @@
       cue: [false, false, false, false, false, false, false],   // 撞球の癖7項目（既定=簡単）
       players: 2, aiCount: 1, format: 'local',
       target: 10, tbase: 30, tbank: 5,
+      coop: false, teams: [], shotLimit: 30,
     },
     game: null,
     phase: 'idle',         // idle|place|aim|stance|rolling|wait|over
@@ -89,6 +90,7 @@
     set('time-off-note', 'time.off'); set('lbl-mod-extra', 'time.other');
     set('lbl-tbase', 'opt.time.base'); set('lbl-tbank', 'opt.time.bank');
     set('u-sec', 'opt.sec'); set('u-min', 'opt.min');
+    set('lbl-coop', 'coop.title'); set('lbl-limit', 'coop.limit'); set('u-shots', 'coop.shots');
     set('btn-start', 'btn.start');
     set('k-turn', 'hud.turn'); set('k-next', 'hud.next'); set('k-foul', 'hud.foul');
     set('k-base', 'hud.base'); set('k-bank', 'hud.time'); set('k-elevlabel', 'hint.elev');
@@ -185,7 +187,9 @@
   function buildHome() {
     const box = $('opts-format'); if (!box) return;
     box.innerHTML = '';
-    ['local', 'ai', 'practice', 'online', 'coop'].forEach(f => {
+    // 協力プレイはここに並べない。遊び方ではなく「勝ち負けを見る相手を
+    // 個人からチームへ差し替える」スイッチなので、人数のところに置いてある
+    ['local', 'ai', 'practice', 'online'].forEach(f => {
       const why = formatBlock(f);
       const b = document.createElement('button');
       b.className = 'fmt-btn';
@@ -290,6 +294,18 @@
     $('wrap-target').style.display = (S.cfg.rule === 'G-04') ? '' : 'none';
     $('in-target').value = S.cfg.target;
 
+    // 協力プレイ。2人以上いないとチームの意味がない（9.2.3節）
+    const seats = seatNames().length;
+    if (seats < 2 && S.cfg.coop) S.cfg.coop = false;
+    $('coop-block').style.display = seats >= 2 ? '' : 'none';
+    $('sw-coop').checked = !!S.cfg.coop;
+    buildTeams();
+    const solo = S.cfg.coop && soloTeam();
+    $('wrap-limit').style.display = solo ? '' : 'none';
+    $('in-limit').value = S.cfg.shotLimit;
+    $('coop-note').textContent = !S.cfg.coop ? t('coop.off')
+      : solo ? t('coop.solo') : t('coop.on');
+
     const bad = !S.cfg.tableChosen || !!ruleBlock(S.cfg.rule) || !!shapeBlock(S.cfg.shape, S.cfg.carom);
     $('btn-start').disabled = bad;
     $('setup-format-note').textContent = t('setup.forFormat', { f: t('fmt.' + S.cfg.format) });
@@ -305,6 +321,66 @@
         clearReady();                         // 条件が変わったら合意はやり直し
       }
     }
+  }
+
+  // ══════════════════════════════════════════════
+  //  協力プレイのチーム分け（9.7節）
+  // ══════════════════════════════════════════════
+  const TEAM_MAX = 4;
+
+  /** いま席に着くことになる人の名前。設定画面と部屋とで出どころが違う */
+  function seatNames() {
+    // 部屋では席順そのものから引く。名簿を各自で数え直すと並びがずれる
+    if (S.screen === 'room' && S.net.on) return seatList().map(s => s.name);
+    if (S.cfg.format === 'ai') {
+      const out = [t('seat.you')];
+      for (let i = 0; i < S.cfg.aiCount; i++) out.push('AI' + (i + 1));
+      return out;
+    }
+    const out = [];
+    for (let i = 0; i < S.cfg.players; i++) out.push('P' + (i + 1));
+    return out;
+  }
+
+  /**
+   * 席の数に合わせてチームの割り当てを整える。
+   * 既定は交互（A B A B）。ビリヤードのダブルスは相手と交互に撞くので、
+   * 席の順にそのまま回せば自然に相手チームと入れ替わる。
+   */
+  function syncTeams(n) {
+    const a = S.cfg.teams || (S.cfg.teams = []);
+    for (let i = 0; i < n; i++) if (a[i] == null || a[i] >= TEAM_MAX) a[i] = i % 2;
+    a.length = n;
+    return a;
+  }
+
+  /** チームが1つしかない＝相手がいない。規定打数で決着をつける（9.7.3節） */
+  function soloTeam() {
+    const a = S.cfg.teams || [];
+    return a.length > 0 && a.every(v => v === a[0]);
+  }
+
+  function buildTeams() {
+    const box = $('team-rows'); if (!box) return;
+    box.innerHTML = '';
+    const names = seatNames();
+    const teams = syncTeams(names.length);
+    if (!S.cfg.coop) return;
+    names.forEach((nm, i) => {
+      const row = document.createElement('div'); row.className = 'team-row';
+      const seat = document.createElement('span'); seat.className = 'seat'; seat.textContent = (i + 1) + '.';
+      const who = document.createElement('span'); who.className = 'who'; who.textContent = nm;
+      const pick = document.createElement('div'); pick.className = 'team-pick';
+      for (let tm = 0; tm < TEAM_MAX; tm++) {
+        const b = document.createElement('button');
+        b.dataset.t = tm; b.textContent = 'ABCD'[tm];
+        b.classList.toggle('sel', teams[i] === tm);
+        b.onclick = () => { S.cfg.teams[i] = tm; AU.sfx('select'); buildSetup(); };
+        pick.appendChild(b);
+      }
+      row.appendChild(seat); row.appendChild(who); row.appendChild(pick);
+      box.appendChild(row);
+    });
   }
 
   function onRuleChanged() {
@@ -387,6 +463,7 @@
       players: players || playerList(),
       seed: seed >>> 0, difficulty: cfg.diff,
       tuning: tuningFromCfg(), targets: null,
+      coop: !!cfg.coop, teams: (cfg.teams || []).slice(), shotLimit: cfg.shotLimit,
     });
     g.players.forEach(p => { if (cfg.rule === 'G-04') p.target = cfg.target; });
     S.game = g;
@@ -596,8 +673,11 @@
     const g = S.game;
     S.phase = 'over'; S.clock.running = false;
     if (RU.WIN_KIND[g.rule] === 'points') RU.finishRanking(g);
+    // 勝ったかどうかはチームで見る。協力プレイでなければ 1人＝1チームなので同じ答えになる
     const meIdx = S.net.on ? S.net.myIdx : 0;
-    const won = (g.winner >= 0) && (S.net.on ? g.winner === meIdx : g.players[g.winner].type === 'human');
+    const myTeam = (meIdx >= 0 && g.players[meIdx]) ? RU.teamOf(g, meIdx) : -1;
+    const won = (g.winTeam >= 0) && (S.net.on ? g.winTeam === myTeam
+      : RU.teamMembers(g, g.winTeam).some(p => p.type === 'human'));
     S.won = won;
     AU.sfx(won ? 'win' : 'lose');
     renderResult();
@@ -1580,13 +1660,31 @@
     requestAnimationFrame(loop);
   }
 
+  /**
+   * 出来事を音にする。
+   * ラックが割れる瞬間は 1 コマに 12 発の衝突が来る（実測）。
+   * 同じ衝突音を12回重ねると団子になるので、まとめて1つの大きな音にする。
+   * ふだんの場面でも、1コマに何発も重ねると濁るだけなので数を抑える。
+   */
+  const SLAM_HITS = 4;      // これ以上が同じコマに来たら「割れた」とみなす
+  const MAX_PER_FRAME = 3;  // 1コマに鳴らす衝突音の上限
   function drainEvents() {
     const evs = S.game.world.events;
-    for (let i = S.evCursor || 0; i < evs.length; i++) {
+    const start = S.evCursor || 0;
+    let hits = 0, top = 0;
+    for (let i = start; i < evs.length; i++) {
+      if (evs[i].type === 'hit') { hits++; if (evs[i].speed > top) top = evs[i].speed; }
+    }
+    const slam = hits >= SLAM_HITS;
+    if (slam) AU.sfx('break', Math.min(1, top / 5000));
+    let played = 0, cush = 0;
+    for (let i = start; i < evs.length; i++) {
       const e = evs[i];
-      if (e.type === 'hit') AU.sfx('ball', Math.min(1, e.speed / 4000));
-      else if (e.type === 'cushion') AU.sfx('cushion', Math.min(1, e.speed / 4000));
-      else if (e.type === 'pocket') AU.sfx('pocket');
+      if (e.type === 'hit') {
+        if (!slam && played++ < MAX_PER_FRAME) AU.sfx('ball', Math.min(1, e.speed / 4000));
+      } else if (e.type === 'cushion') {
+        if (cush++ < MAX_PER_FRAME) AU.sfx('cushion', Math.min(1, e.speed / 4000));
+      } else if (e.type === 'pocket') AU.sfx('pocket');
       else if (e.type === 'land') AU.sfx('jump');
     }
     S.evCursor = evs.length;
@@ -1616,6 +1714,8 @@
     flashTimer = setTimeout(() => { el.className = ''; flashTimer = null; }, 1000);
   }
 
+  function teamMark(tm) { return t('coop.team', { t: 'ABCD'[tm] || String(tm + 1) }); }
+
   function renderHUD() {
     const g = S.game; if (!g) return;
     $('v-turn').textContent = g.players[g.turn] ? g.players[g.turn].name : '–';
@@ -1625,9 +1725,11 @@
       d.className = 'pl-row' + (i === g.turn ? ' turn' : '');
       // 点数を持たないルールでは点を出さない（ずっと 0 点に見えて壊れて見える）
       let right = RU.HAS_SCORE[g.rule] ? String(p.score) : '';
+      if (g.coop && RU.HAS_SCORE[g.rule]) right = p.score + '（' + RU.teamScore(g, p.team) + '）';
       if (g.rule === 'G-04') right = p.score + '/' + p.target;
       if (g.rule === 'G-02') right = p.group ? t('group.' + p.group).split('（')[0] : t('hud.open');
-      d.innerHTML = '<span>' + escapeHtml(p.name) + '</span><span>' + escapeHtml(right) + '</span>';
+      const who = (g.coop ? teamMark(p.team) + ' ' : '') + p.name;
+      d.innerHTML = '<span>' + escapeHtml(who) + '</span><span>' + escapeHtml(right) + '</span>';
       box.appendChild(d);
     });
     const tg = RU.legalTargets(g, g.turn);
@@ -1688,18 +1790,25 @@
 
   function renderResult() {
     const g = S.game;
-    renderWinArt(S.won, g.winner < 0);
+    renderWinArt(S.won, g.winTeam < 0 && !g.failed);
     const body = $('res-body'); body.innerHTML = '';
+    // 並べるのはチーム。協力プレイでなければ1人＝1チームなので今までと同じ見え方になる
     const kind = RU.WIN_KIND[g.rule];
-    let rows;
-    if (kind === 'points') rows = g.ranking.map((idx, i) => ({ p: g.players[idx], label: (i + 1) + ' ' + t('res.rank') }));
-    else rows = g.players.map(p => ({ p, label: p.idx === g.winner ? t('res.win') : t('res.lose') }));
+    const order = (kind === 'points' && g.teamRanking) ? g.teamRanking : RU.teamList(g);
     const withPts = RU.HAS_SCORE[g.rule];
-    rows.forEach(r => {
+    order.forEach((tm, i) => {
+      const members = RU.teamMembers(g, tm);
+      // 規定打数を使い切って終わった局は、順位ではなく「負け」を出す。
+      // 1チームしかいないので順位を出すと1位に見えてしまう
+      const label = g.failed ? t('res.lose')
+        : (kind === 'points') ? (i + 1) + ' ' + t('res.rank')
+        : (tm === g.winTeam ? t('res.win') : g.winTeam < 0 ? t('res.draw') : t('res.lose'));
+      const score = withPts ? RU.teamScore(g, tm) : null;
       const d = document.createElement('div');
-      d.className = 'pl-row' + (r.p.idx === g.winner ? ' turn' : '');
-      const right = withPts ? r.label + '　' + r.p.score + t('res.pts') : r.label;
-      d.innerHTML = '<span>' + escapeHtml(r.p.name) + '</span><span>' + escapeHtml(right) + '</span>';
+      d.className = 'pl-row' + (tm === g.winTeam ? ' turn' : '');
+      const who = (g.coop ? teamMark(tm) + '　' : '') + members.map(p => p.name).join(' ・ ');
+      const right = score != null ? label + '　' + score + t('res.pts') : label;
+      d.innerHTML = '<span>' + escapeHtml(who) + '</span><span>' + escapeHtml(right) + '</span>';
       body.appendChild(d);
     });
     if (g.lastMessageKey) {
@@ -2037,6 +2146,8 @@
   $('in-target').onchange = e => { S.cfg.target = Math.max(1, +e.target.value || 10); };
   $('in-tbase').onchange = e => { S.cfg.tbase = Math.max(0, +e.target.value || 0); };
   $('in-tbank').onchange = e => { S.cfg.tbank = Math.max(0, +e.target.value || 0); };
+  $('sw-coop').onchange = e => { S.cfg.coop = e.target.checked; buildSetup(); };
+  $('in-limit').onchange = e => { S.cfg.shotLimit = Math.max(4, +e.target.value || 30); };
 
   $('btn-start').onclick = () => {
     AU.sfx('button');

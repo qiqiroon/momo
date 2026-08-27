@@ -72,12 +72,21 @@ const BilliardsRules = (() => {
       rng: makeRng(cfg.seed),
       difficulty: cfg.difficulty || 'easy',
       tuning: cfg.tuning,
+      /*
+       * 協力プレイ（9.7節）は「勝ち負けを見る相手を、個人からチームへ差し替える」だけの仕組み。
+       * そこで、協力プレイでないときは「1人＝1チーム」として同じ道を通す。
+       * こうしないと、ルールごとに個人用とチーム用の2本の判定が並ぶことになる。
+       */
+      coop: !!cfg.coop,
+      shotLimit: cfg.shotLimit || 0,    // 相手チームがいないときの規定打数（9.7.3節）
       players: cfg.players.map((p, i) => ({
         idx: i, name: p.name, type: p.type,
+        team: (cfg.coop && cfg.teams && cfg.teams[i] != null) ? cfg.teams[i] : i,
         score: 0, group: null, fouls: 0,
         target: (cfg.targets && cfg.targets[i] != null) ? cfg.targets[i] : defaultTarget(cfg.rule),
         baseLeft: 0, bankLeft: 0,
       })),
+      winTeam: -1,
       turn: 0,
       shotNo: 0,
       inningNo: 0,
@@ -85,7 +94,7 @@ const BilliardsRules = (() => {
       open: cfg.rule === 'G-02',       // エイトボールのオープン状態
       ballInHand: true,                // 開始時は手玉を置く（ブレイク位置）
       ballInHandFull: false,           // フリーボール（台全体）か、ブレイク配置か
-      over: false, winner: -1, ranking: [],
+      over: false, winner: -1, ranking: [], failed: false,
       lastFouls: [], lastPocketed: [], lastMessageKey: null,
       deadlockCount: 0, redoCount: 0,
       history: [],                      // 入力列（リプレイ・通信同期の正体）
@@ -178,6 +187,38 @@ const BilliardsRules = (() => {
   function groupOf(num) {
     if (num === 8) return null;
     return num <= 7 ? 'solid' : 'stripe';
+  }
+
+  // ───────── チーム（9.7節） ─────────
+  /** そのプレイヤーが属するチーム。協力プレイでなければ本人が1チーム */
+  function teamOf(game, idx) {
+    const p = game.players[idx];
+    return p ? p.team : idx;
+  }
+  function teamMembers(game, team) { return game.players.filter(p => p.team === team); }
+  function teamList(game) {
+    const seen = [];
+    game.players.forEach(p => { if (seen.indexOf(p.team) < 0) seen.push(p.team); });
+    return seen;
+  }
+  /** 同じチームの成果は合算する（9.7.2節） */
+  function teamScore(game, team) {
+    return game.players.reduce((s, p) => s + (p.team === team ? p.score : 0), 0);
+  }
+  /** 相手チームのうち手近な1つ。1チームしかいなければ -1 */
+  function otherTeam(game, team) {
+    const l = teamList(game).filter(x => x !== team);
+    return l.length ? l[0] : -1;
+  }
+  /** 勝者を記録する。誰が決めたか（winner）とどのチームが勝ったか（winTeam）は別物 */
+  function setWinner(game, playerIdx) {
+    game.winner = playerIdx;
+    game.winTeam = playerIdx >= 0 ? teamOf(game, playerIdx) : -1;
+  }
+  function setWinnerTeam(game, team) {
+    game.winTeam = team;
+    const m = team >= 0 ? teamMembers(game, team) : [];
+    game.winner = m.length ? m[0].idx : -1;
   }
 
   // ───────── スポットへ戻す（10.2節・10.3.4節） ─────────
@@ -301,6 +342,25 @@ const BilliardsRules = (() => {
     else if (rule === 'G-03') resolveRotation(game, result, pre);
     else if (rule === 'G-04') resolveCarom(game, result, pre);
 
+    /*
+     * 相手チームがいないとき（協力プレイで全員が同じチーム）は、
+     * 競う相手がいないので放っておくと決着がつかない。
+     * 規定打数を超えたら未達成＝敗北とする（9.7.3節）。
+     */
+    if (!game.over && game.shotLimit > 0 && teamList(game).length === 1
+        && game.shotNo + 1 >= game.shotLimit) {
+      result.gameOver = true; game.over = true;
+      /*
+       * 未達成の印を立ててから勝者を消す。
+       * 順位付け（finishRanking）は終局のたびに呼ばれ、
+       * 1チームしかいなければ「そのチームが1位＝勝ち」と書き直してしまう。
+       * 打ち切りで終わったことは、順位付けの側にも分かる形で残す必要がある。
+       */
+      game.failed = true;
+      setWinnerTeam(game, -1);
+      result.message = 'lose.shotLimit';
+    }
+
     // ── デッドロックの計数（10.8.2節）
     const progressed = result.pocketed.length > 0 || result.gained > 0 || result.offtable.length > 0;
     game.deadlockCount = progressed ? 0 : game.deadlockCount + 1;
@@ -345,7 +405,7 @@ const BilliardsRules = (() => {
     const dropped = r.pocketed.map(id => byId[id]).filter(b => b && b.kind === 'object');
     const nine = dropped.find(b => b.num === 9);
     if (nine) {
-      if (!r.foul) { r.gameOver = true; game.over = true; game.winner = game.turn; r.message = 'win.nine'; return; }
+      if (!r.foul) { r.gameOver = true; game.over = true; setWinner(game, game.turn); r.message = 'win.nine'; return; }
       // ファウルを伴う9番投入 → スポットへ戻して相手のフリーボール
       nine.state = 'live'; nine.onTable = true;
       spotBall(game, nine);
@@ -363,7 +423,9 @@ const BilliardsRules = (() => {
     const dropped = r.pocketed.map(id => byId[id]).filter(b => b && b.kind === 'object');
     const eight = dropped.find(b => b.num === 8);
     const p = game.players[game.turn];
-    const opp = game.players[(game.turn + 1) % game.players.length];
+    // 担当グループも勝ち負けもチーム単位。協力プレイでなければ 1人＝1チーム
+    const myTeam = teamOf(game, game.turn);
+    const foeTeam = otherTeam(game, myTeam);
 
     // ブレイクで8番が落ちた → スポットへ戻して続行（7.4.2節）
     if (!game.broken && eight) {
@@ -372,24 +434,24 @@ const BilliardsRules = (() => {
     }
     // 8番の場外は反則負け（7.4.3節）
     const eightOff = r.offtable.map(id => byId[id]).some(b => b && b.num === 8);
-    if (eightOff) { r.gameOver = true; game.over = true; game.winner = opp.idx; r.message = 'lose.eightOff'; return; }
+    if (eightOff) { r.gameOver = true; game.over = true; setWinnerTeam(game, foeTeam); r.message = 'lose.eightOff'; return; }
 
     if (eight && game.broken) {
       const mine = liveObjects(game).filter(b => p.group && groupOf(b.num) === p.group);
       const cleared = p.group != null && mine.length === 0;
-      if (cleared && !r.foul) { r.gameOver = true; game.over = true; game.winner = p.idx; r.message = 'win.eight'; return; }
-      r.gameOver = true; game.over = true; game.winner = opp.idx; r.message = 'lose.eightEarly'; return;
+      if (cleared && !r.foul) { r.gameOver = true; game.over = true; setWinnerTeam(game, myTeam); r.message = 'win.eight'; return; }
+      r.gameOver = true; game.over = true; setWinnerTeam(game, foeTeam); r.message = 'lose.eightEarly'; return;
     }
 
     if (r.foul) { game.ballInHand = true; game.ballInHandFull = true; return; }
 
-    // グループの確定（7.4.2節）
+    // グループの確定（7.4.2節）。チームの全員に同じ担当が付く
     if (game.open && game.broken) {
       const first = dropped.find(b => b.num !== 8);
       if (first) {
-        const g = groupOf(first.num);
-        p.group = g;
-        opp.group = (g === 'solid') ? 'stripe' : 'solid';
+        const gr = groupOf(first.num);
+        const other = (gr === 'solid') ? 'stripe' : 'solid';
+        game.players.forEach(q => { q.group = (q.team === myTeam) ? gr : other; });
         game.open = false;
         r.message = 'msg.groupSet';
       }
@@ -429,17 +491,28 @@ const BilliardsRules = (() => {
       game.players[game.turn].score += 1;
       r.gained = 1;
       r.continueTurn = true;
-      if (game.players[game.turn].score >= game.players[game.turn].target) {
-        r.gameOver = true; game.over = true; game.winner = game.turn; r.message = 'win.carom';
+      // 目標点はチームの合計で見る（協力プレイでなければ本人の得点と同じ）
+      if (teamScore(game, teamOf(game, game.turn)) >= game.players[game.turn].target) {
+        r.gameOver = true; game.over = true; setWinner(game, game.turn); r.message = 'win.carom';
       }
     }
   }
 
+  /**
+   * 点数で決めるルールの順位付け。並べるのはチーム。
+   * 協力プレイでなければ 1人＝1チームなので、見た目は今までと同じ順位表になる。
+   */
   function finishRanking(game) {
+    const teams = teamList(game).map(tm => ({ team: tm, score: teamScore(game, tm) }));
+    teams.sort((a, b) => b.score - a.score);
+    game.teamRanking = teams.map(x => x.team);
+    // 個人の並びも残す（表示はチームごとにまとめて出す）
     const arr = game.players.map(p => ({ idx: p.idx, score: p.score }));
     arr.sort((a, b) => b.score - a.score);
     game.ranking = arr.map(a => a.idx);
-    game.winner = arr.length && (arr.length === 1 || arr[0].score > arr[1].score) ? arr[0].idx : -1;
+    // 規定打数を使い切って終わった局は、順位をつけ直しても勝ちにはならない
+    const decided = !game.failed && teams.length && (teams.length === 1 || teams[0].score > teams[1].score);
+    setWinnerTeam(game, decided ? teams[0].team : -1);
   }
 
   /** 手番を進める（7.2.2節。参加順の循環。ファウルで順序は変わらない） */
@@ -482,6 +555,7 @@ const BilliardsRules = (() => {
   return {
     RULE_IDS, FOUL_TABLE, PENALTY, WIN_KIND, HAS_RACK, NEEDS_POCKETS, HAS_SCORE,
     BALL_COLORS, CAROM_COLORS,
+    teamOf, teamMembers, teamList, teamScore, otherTeam,
     makeRng, createGame, setupBalls, cueBallOf, liveObjects, legalTargets, groupOf,
     spotBall, homeBall, place, resolveShot, nextTurn, breakValid, detectDoubleHit,
     finishRanking, normAngle,

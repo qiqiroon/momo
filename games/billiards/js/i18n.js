@@ -159,6 +159,7 @@ const BilliardsI18N = (() => {
       'lobby.left': '相手が退出しました', 'lobby.disconnected': '接続が切れました',
       'lobby.startGame': '対局を開始', 'lobby.needPw': 'あいことばが必要です',
       'lobby.watching': '観戦中', 'lobby.syncing': '進行に追いついています…',
+      'lobby.waitScreen': '他の人の画面が追いつくのを待っています…',
       'lobby.noSeat': 'この対局でのあなたの席が分かりません。いったん部屋を出て、入り直してください',
 
       'audio.title': '音を鳴らしますか？', 'audio.desc': 'BGMと効果音を再生します。あとから設定で変えられます。',
@@ -335,6 +336,7 @@ const BilliardsI18N = (() => {
       'lobby.left': 'The other player left.', 'lobby.disconnected': 'Disconnected.',
       'lobby.startGame': 'Start the game', 'lobby.needPw': 'A password is required.',
       'lobby.watching': 'Watching', 'lobby.syncing': 'Catching up…',
+      'lobby.waitScreen': 'Waiting for the other players to catch up…',
       'lobby.noSeat': 'Your seat in this game could not be identified. Please leave the room and join again',
 
       'audio.title': 'Play sound?', 'audio.desc': 'Music and effects. You can change this later in settings.',
@@ -511,6 +513,7 @@ const BilliardsI18N = (() => {
       'lobby.left': '对手已离开。', 'lobby.disconnected': '连接已断开。',
       'lobby.startGame': '开始对局', 'lobby.needPw': '需要口令。',
       'lobby.watching': '观战中', 'lobby.syncing': '正在追上进度…',
+      'lobby.waitScreen': '正在等待其他人的画面跟上…',
       'lobby.noSeat': '无法确认你在本局中的座位。请退出房间后重新加入',
 
       'audio.title': '要播放声音吗？', 'audio.desc': '播放背景音乐与音效，之后可在设置中更改。',

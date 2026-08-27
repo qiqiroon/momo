@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.09';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.10';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -66,7 +66,7 @@
    * 飛んでいる時間は実測 0.4〜1.2 秒しかなく、等速だと一瞬で終わって
    * 跳ねたことも着地の音も分からないため。
    */
-  const JUMP_SPEED = 0.05;
+  const JUMP_SPEED = 0.2;
   const JUMP_Z = 6;                       // これより高ければ「飛んでいる」とみなす
 
   const SNAP = 4;                         // この幅ぶん真ん中に近ければ等速に合わせる
@@ -116,6 +116,7 @@
     aiCancel: null, confirmCb: null, dlVotes: {},
     chk: {},               // 受け取った盤面照合（ショット番号 → 指紋）。追いついてから比べる
     pendingShots: {},      // 先に届いた相手の手。こちらがその番号へ達したら指す
+    waitDone: null, waitTimer: null,
     airZ: {},
     won: false,
     wakeLock: null,
@@ -539,6 +540,8 @@
     S.game = g;
     S.chk = {};                             // 前の局の照合は持ち越さない
     S.dropped = null; S.bursts = []; S.airZ = {}; S.pendingShots = {};
+    S.net.done = {}; S.waitDone = null;
+    if (S.waitTimer) { clearTimeout(S.waitTimer); S.waitTimer = null; }
     S.replay = null; S.replayRun = null;
     S.clock.banks = g.players.map(() => cfg.tbank * 60);
     S.aim = { dir: 0, tipX: 0, tipY: 0, elev: 0, power: 0 };
@@ -556,9 +559,49 @@
     return g.players[g.turn].type === 'human';
   }
 
+  /*
+   * 玉を見ている速さは人によって違う（設定＋ジャンプ中の減速）。
+   * 誰かがまだ玉の転がりを見ている最中に次の手が始まると、
+   * その人だけ「見ていない手」が進んでしまう。
+   * そこで、次の手は**対局者全員がその手を見終わってから**始める。
+   * 観戦者は待たせない（人数も増減するし、遅れても対局に関わらないため）。
+   */
+  const DONE_WAIT_MS = 12000;               // これ以上待っても来なければ先へ進む
+  function markDone(pid, n) {
+    if (!pid) return;
+    const d = S.net.done || (S.net.done = {});
+    for (const k of Object.keys(d)) if (+k < n) delete d[k];   // 古い手の記録は捨てる
+    (d[n] || (d[n] = {}))[pid] = 1;
+  }
+  function allDone(n) {
+    const d = (S.net.done || {})[n] || {};
+    const seats = seatList();
+    if (!seats.length) return true;
+    return seats.every(s => !s.pid || d[s.pid]);
+  }
+
   function beginTurn() {
     const g = S.game;
     if (!g || g.over) return;
+
+    // 全員が同じ手まで見終わるのを待つ
+    if (S.net.on && S.net.role !== 'spectator' && !allDone(g.shotNo)) {
+      if (S.waitDone !== g.shotNo) {
+        S.waitDone = g.shotNo;
+        S.phase = 'wait';
+        setMsg(t('lobby.waitScreen'));
+        renderHUD();
+        if (S.waitTimer) clearTimeout(S.waitTimer);
+        // 返事が来ないまま止まり続けるほうが困る。待つのは打ち切る
+        S.waitTimer = setTimeout(() => {
+          S.waitTimer = null;
+          if (S.waitDone === g.shotNo && S.game === g) { S.waitDone = null; beginTurn(); }
+        }, DONE_WAIT_MS);
+      }
+      return;
+    }
+    if (S.waitTimer) { clearTimeout(S.waitTimer); S.waitTimer = null; }
+    S.waitDone = null;
     S.aim.power = 0; S.aim.tipX = 0; S.aim.tipY = 0; S.aim.elev = 0;
     S.aimDirty = true; S.pendingPlace = null; S.drag = null;
     $('elev').value = 0;
@@ -756,6 +799,12 @@
     // 端末どうしで盤面が食い違っていないかを毎ショット確かめる（9.5.5節）
     if (S.net.on && S.net.isHost) NET.send({ k: 'chk', n: g.shotNo, h: boardHash() });
     else if (S.net.on) compareBoardCheck();   // 先に届いていた照合と、いま比べる
+
+    // この手を見終わったことを知らせる。次の手は全員が見終わってから始める
+    if (S.net.on && S.net.role !== 'spectator') {
+      markDone(myPid(), g.shotNo);
+      NET.send({ k: 'done', n: g.shotNo, pid: myPid() });
+    }
 
     if (res.gameOver || g.over) { endGame(); return; }
     if (g.deadlockCount >= 12) { g.deadlockCount = 0; askDeadlock(true); return; }
@@ -1307,12 +1356,31 @@
     const air = S.airZ || (S.airZ = {});
     for (const b of g.world.balls) {
       if (b.state !== 'live') { delete air[b.id]; continue; }
-      if (b.z > JUMP_Z) { air[b.id] = Math.max(air[b.id] || 0, b.z); continue; }
-      const peak = air[b.id];
-      if (peak != null && b.z <= 0.01) {
+      const rec = air[b.id];
+      if (b.z > JUMP_Z) {
+        if (!rec) {
+          /*
+           * 飛び立った瞬間。ここで「ぴょーん」を鳴らす（飛んでいる間の音）。
+           * どれだけ飛ぶかは、いまの高さと上向きの速さから出せる。
+           * 画面ではジャンプ中だけ遅くしているので、その分だけ音も引き伸ばす。
+           */
+          const vz = Math.max(0, b.vz);
+          const top = b.z + vz * vz / (2 * E.G);
+          const secs = (vz / E.G + Math.sqrt(2 * top / E.G)) / JUMP_SPEED;
+          AU.sfx('fly', Math.min(1, top / 320), secs);
+          air[b.id] = { peak: b.z };
+        } else if (b.z > rec.peak) rec.peak = b.z;
+        continue;
+      }
+      /*
+       * 台に落ちた。着地はクッションと同じ「ドン」。
+       * 落ちる途中で玉に当たった場合は、そこで跳ね返るのでここへは来ない
+       * （衝突判定は高さも見ているため）。その場合は玉どうしの衝突音が鳴る。
+       */
+      if (rec && b.z <= 0.01) {
         delete air[b.id];
-        const p = Math.min(1, peak / 320);
-        AU.sfx('jump', 0.3 + 0.7 * p);
+        const p = Math.min(1, rec.peak / 320);
+        AU.sfx('cushion', 0.35 + 0.6 * p);
         addBurst(b.x, b.y, p);
       }
     }
@@ -2411,6 +2479,12 @@
     if (p.k === 'cfg') { Object.assign(S.cfg, p.config); showRoom(); buildSetup(); return; }
     if (p.k === 'ready') { setReady(p.pid || from, !!p.ok); return; }
     if (p.k === 'rmap') { S.net.ready = p.map || {}; showRoom(); return; }
+    if (p.k === 'done') {
+      markDone(p.pid || from, p.n);
+      // 待っていた手がそろったら、そこから始める
+      if (S.game && S.waitDone === S.game.shotNo && allDone(S.game.shotNo)) beginTurn();
+      return;
+    }
     if (p.k === 'need') {
       if (!S.net.isHost || !S.game) return;
       NET.send({

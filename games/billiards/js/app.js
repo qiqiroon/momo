@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.03';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.04';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -66,6 +66,8 @@
     clock: { baseLeft: 0, banks: [], running: false },
     net: { on: false, role: 'none', isHost: false, myPid: null, myIdx: -1, roster: [], lastRooms: [], wsOpen: false, wasClosed: false, ready: {}, sentCfg: null },
     aiCancel: null, confirmCb: null, dlVotes: {},
+    chk: {},               // 受け取った盤面照合（ショット番号 → 指紋）。追いついてから比べる
+    won: false,
     wakeLock: null,
   };
 
@@ -467,6 +469,7 @@
     });
     g.players.forEach(p => { if (cfg.rule === 'G-04') p.target = cfg.target; });
     S.game = g;
+    S.chk = {};                             // 前の局の照合は持ち越さない
     S.replay = null; S.replayRun = null;
     S.clock.banks = g.players.map(() => cfg.tbank * 60);
     S.aim = { dir: 0, tipX: 0, tipY: 0, elev: 0, power: 0 };
@@ -660,6 +663,7 @@
     }
     // 端末どうしで盤面が食い違っていないかを毎ショット確かめる（9.5.5節）
     if (S.net.on && S.net.isHost) NET.send({ k: 'chk', n: g.shotNo, h: boardHash() });
+    else if (S.net.on) compareBoardCheck();   // 先に届いていた照合と、いま比べる
 
     if (res.gameOver || g.over) { endGame(); return; }
     if (g.deadlockCount >= 12) { g.deadlockCount = 0; askDeadlock(true); return; }
@@ -1898,11 +1902,19 @@
     if (!out.length) out.push({ name: 'Host', type: 'human', pid: st && st.pid });
     return out;
   }
+  /**
+   * 配られた席順の中から自分を探す。
+   * 見つからないまま黙って待たせると、全員が「相手の番です」のまま止まる。
+   * 前に分かっていた席があるならそれを使い、それも無ければ画面に出す。
+   */
   function seatIndexOfMe(names) {
     const st = NET.state();
     const myPid = (st && st.pid) || S.net.myPid;
     for (let i = 0; i < names.length; i++) if (names[i].pid && names[i].pid === myPid) return i;
-    return S.net.isHost ? 0 : -1;
+    if (S.net.isHost) return 0;
+    if (S.net.myIdx >= 0 && S.net.myIdx < names.length) return S.net.myIdx;
+    alertNote(t('lobby.title'), t('lobby.noSeat'));
+    return -1;
   }
 
   function onNetMsg(p, from) {
@@ -1949,8 +1961,14 @@
     if (p.k === 'dl-redo') { $('modal-dl').classList.remove('on'); redoRack(); return; }
     if (p.k === 'chk') {
       if (S.net.isHost || !S.game) return;
-      if (S.game.shotNo !== p.n) { requestResync(); return; }
-      if (boardHash() !== p.h) NET.send({ k: 'reboard' }, 'host');
+      /*
+       * 盤面の照合は「同じショットまで進んでから」比べる。
+       * ホストは撞き終わった瞬間に送ってくるが、こちらは同じ玉をまだ転がしている。
+       * まだ追いついていないだけの状態を食い違いと読むと、
+       * 毎ショット組み直しになり、そのたびに席の割り当てまでやり直しになる。
+       */
+      S.chk[p.n] = p.h;
+      compareBoardCheck();
       return;
     }
     if (p.k === 'reboard') {
@@ -1996,6 +2014,19 @@
     applyShot(rec.shot, rec.place, false);
   }
   function requestResync() { if (!S.net.isHost) NET.send({ k: 'need' }, 'host'); }
+
+  /**
+   * 受け取ってある照合のうち、いま自分が到達したショットのものだけを比べる。
+   * 追い越された古い照合は捨てる（比べる相手の盤面はもう無い）。
+   */
+  function compareBoardCheck() {
+    const g = S.game; if (!g || S.net.isHost) return;
+    for (const k of Object.keys(S.chk)) if (+k < g.shotNo) delete S.chk[k];
+    const h = S.chk[g.shotNo];
+    if (h == null) return;
+    delete S.chk[g.shotNo];
+    if (boardHash() !== h) NET.send({ k: 'reboard' }, 'host');
+  }
 
   /** 部屋の一覧。何を遊ぶ部屋なのかが分からないと入りようがないので、モードまで出す */
   function renderRooms(rooms) {

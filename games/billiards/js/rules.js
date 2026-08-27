@@ -81,6 +81,9 @@ const BilliardsRules = (() => {
       shotLimit: cfg.shotLimit || 0,    // 相手チームがいないときの規定打数（9.7.3節）
       players: cfg.players.map((p, i) => ({
         idx: i, name: p.name, type: p.type,
+        // 参加者IDは席の正体。局を組み直すときに配り直すので、対局にも持たせておく。
+        // ここで落とすと、組み直した瞬間に全員が自分の席を見失う
+        pid: p.pid || null,
         team: (cfg.coop && cfg.teams && cfg.teams[i] != null) ? cfg.teams[i] : i,
         score: 0, group: null, fouls: 0,
         target: (cfg.targets && cfg.targets[i] != null) ? cfg.targets[i] : defaultTarget(cfg.rule),

@@ -188,7 +188,34 @@ const BilliardsAudio = (() => {
       .catch(() => null).finally(() => sfxLoading.delete(name));
     sfxLoading.set(name, p); return p;
   }
-  function preloadSfx() { Object.keys(SFX_URLS).forEach(loadSfx); }
+  function preloadSfx() { Object.keys(SFX_URLS).forEach(loadSfx); warmup(); }
+
+  /**
+   * 合成音の道を一度だけ空回しして温めておく。
+   * ブレイクは玉の音を20個ほど同時に組み立てるが、その1回目だけ 26ms かかり
+   * （実測）、よりによってブレイクの瞬間に画面が引っかかる。
+   * 出口をどこにも繋がない入れ物にするので、音は出ない。
+   */
+  let warmed = false;
+  function warmup() {
+    if (warmed || !ctx) return;
+    warmed = true;
+    const dead = ctx.createGain(); dead.gain.value = 0;   // destination へ繋がない＝無音
+    const t = ctx.currentTime;
+    // 実際に使う長さの雑音を先に作っておく（撞球・玉・クッション・ブレイク）
+    [0.02, 0.045, 0.05, 0.06, 0.075, 0.09, 0.35].forEach(noiseBuf);
+    for (let i = 0; i < 24; i++) {
+      let out = dead;
+      if (ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.connect(dead); out = p; }
+      const src = ctx.createBufferSource(); src.buffer = noiseBuf(0.045);
+      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 3;
+      const g = ctx.createGain(); env(g, t, 0.001, 0.0002, 0.02);
+      src.connect(bp).connect(g).connect(out); src.start(t); src.stop(t + 0.03);
+      const o = ctx.createOscillator(); o.type = 'triangle';
+      const g2 = ctx.createGain(); g2.gain.value = 0;
+      o.connect(g2).connect(out); o.start(t); o.stop(t + 0.03);
+    }
+  }
   function playBuf(name, opts) {
     if (!audioOn || !ctx || !sfxGain) return; opts = opts || {};
     const doPlay = buf => {
@@ -204,9 +231,35 @@ const BilliardsAudio = (() => {
   }
 
   // ───────── 効果音：合成（打球・衝突・クッション・落球） ─────────
+  /*
+   * 雑音の素は長さごとに1本だけ作って使い回す。
+   * 毎回作り直すと、鳴らすたびに数千個の乱数を書き込むことになり、
+   * 20個を同時に組み立てるブレイクで、その1回目に画面が引っかかる。
+   * 中身が同じでも、通す帯域・音量・長さ・左右が違うので聞き分けはつかない。
+   */
+  /*
+   * 左右へ寄せる装置は5か所ぶんだけ作って使い回す。
+   * 音1つごとに作ると、ブレイクの一瞬で百個以上の部品を組むことになる。
+   */
+  const panners = new Map();
+  function panNode(pan) {
+    if (!ctx.createStereoPanner) return sfxGain;
+    const k = Math.max(-2, Math.min(2, Math.round(pan * 2.5)));
+    let n = panners.get(k);
+    if (!n) { n = ctx.createStereoPanner(); n.pan.value = k / 2.5; n.connect(sfxGain); panners.set(k, n); }
+    return n;
+  }
+
+  const noiseCache = new Map();
   function noiseBuf(dur) {
-    const n = (ctx.sampleRate * dur) | 0, b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0);
-    for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+    const n = Math.max(1, (ctx.sampleRate * dur) | 0);
+    const key = n >> 6;                      // 近い長さは同じものを使う
+    const hit = noiseCache.get(key);
+    if (hit && hit.length >= n) return hit;
+    const len = Math.max(n, (key + 1) << 6);
+    const b = ctx.createBuffer(1, len, ctx.sampleRate), d = b.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    noiseCache.set(key, b);
     return b;
   }
   function env(g, t0, a, peak, dur) {
@@ -215,10 +268,16 @@ const BilliardsAudio = (() => {
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
   }
   // strength: 0〜1。撞いた強さ・当たった速さをそのまま音へ返す
-  function clack(strength, baseFreq, dur, tone) {
+  /**
+   * 玉どうしがぶつかる音。撞球音・クッション音もこれの味付け違い。
+   * @param {number} [at] 鳴らす時刻（省略時は今すぐ）。ブレイクで粒をばらまくのに使う
+   * @param {number} [pan] 左右の寄せ -1〜1
+   */
+  function clack(strength, baseFreq, dur, tone, at, pan) {
     if (!audioOn || !ctx || !sfxGain) return;
     const s = Math.max(0.04, Math.min(1, strength));
-    const t = ctx.currentTime + 0.005;
+    const t = at != null ? at : ctx.currentTime + 0.005;
+    const out = (pan != null) ? panNode(pan) : sfxGain;
     const f = baseFreq * (0.82 + 0.45 * s);
     // 打点（短いノイズ）
     const src = ctx.createBufferSource(); src.buffer = noiseBuf(dur);
@@ -226,13 +285,13 @@ const BilliardsAudio = (() => {
     bp.frequency.setValueAtTime(f * 1.6, t);
     bp.frequency.exponentialRampToValueAtTime(f * 0.7, t + dur);
     const g = ctx.createGain(); env(g, t, 0.0015, 0.55 * s + 0.06, dur);
-    src.connect(bp).connect(g).connect(sfxGain); src.start(t); src.stop(t + dur + 0.02);
+    src.connect(bp).connect(g).connect(out); src.start(t); src.stop(t + dur + 0.02);
     // 芯（正弦）
     const o = ctx.createOscillator(); o.type = 'triangle';
     o.frequency.setValueAtTime(f, t);
     o.frequency.exponentialRampToValueAtTime(f * 0.55, t + dur * 0.9);
     const g2 = ctx.createGain(); env(g2, t, 0.001, 0.30 * s + 0.03, dur * 0.9);
-    o.connect(g2).connect(sfxGain); o.start(t); o.stop(t + dur + 0.02);
+    o.connect(g2).connect(out); o.start(t); o.stop(t + dur + 0.02);
   }
   /**
    * ブレイクの音。
@@ -246,51 +305,34 @@ const BilliardsAudio = (() => {
     if (!audioOn || !ctx || !sfxGain) return;
     const s = Math.max(0.3, Math.min(1, strength == null ? 0.8 : strength));
     const t = ctx.currentTime + 0.005;
+    const BALL_F = 1500, BALL_D = 0.045, BALL_Q = 3.0;   // 玉どうしの音の味付け（'ball' と同じ）
 
-    // ① 芯：低いほうへ落ちる衝撃。手応えはここで決まる
-    const o = ctx.createOscillator(); o.type = 'sine';
-    o.frequency.setValueAtTime(190 * (0.75 + 0.5 * s), t);
-    o.frequency.exponentialRampToValueAtTime(52, t + 0.24);
-    const g1 = ctx.createGain(); env(g1, t, 0.002, 0.42 * s + 0.10, 0.28);
-    o.connect(g1).connect(sfxGain); o.start(t); o.stop(t + 0.32);
+    /*
+     * ブレイクは「玉どうしの衝突がたくさん、ほぼ同時に起きる」出来事なので、
+     * 材料は玉の音そのものにする。低い唸りやノイズの掃引を足すと、
+     * ビリヤードではなく破裂音になる（一度そうして作り直した）。
+     */
+    // ① 手玉が先頭の玉を叩く最初の一撃。いちばん強く、わずかに長い
+    clack(1.0, BALL_F, 0.06, BALL_Q, t, 0);
+    // ② その直後、先頭の玉が後ろの玉へ押し込む厚み。音の高さだけ下げて重さを出す
+    clack(0.85 * s + 0.15, BALL_F * 0.62, 0.075, 2.2, t + 0.006, 0);
 
-    // ② 割れ：帯域を上から下へ滑らせたノイズ＝硬い物が一斉にほどける音
-    const nz = ctx.createBufferSource(); nz.buffer = noiseBuf(0.55);
-    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.0;
-    bp.frequency.setValueAtTime(2800, t);
-    bp.frequency.exponentialRampToValueAtTime(430, t + 0.42);
-    const g2 = ctx.createGain(); env(g2, t, 0.003, 0.30 * s + 0.06, 0.44);
-    nz.connect(bp).connect(g2).connect(sfxGain); nz.start(t); nz.stop(t + 0.60);
-
-    // ③ 唸り：台に伝わる低い響き。1テンポ遅れて出す
-    const lo = ctx.createBufferSource(); lo.buffer = noiseBuf(0.7);
-    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 260;
-    const g3 = ctx.createGain(); env(g3, t + 0.03, 0.02, 0.20 * s + 0.04, 0.62);
-    lo.connect(lp).connect(g3).connect(sfxGain); lo.start(t + 0.03); lo.stop(t + 0.75);
-
-    // ④ 散らばり：小さな衝突を左右へばらまく。玉が広がっていく気配
-    const n = 12 + Math.round(8 * s);
-    for (let i = 0; i < n; i++) {
-      const at = 0.03 + Math.pow(i / n, 0.75) * 0.48 + Math.random() * 0.05;
-      const lvl = (1 - i / n) * 0.55 + 0.10;
-      grain(t + at, s * lvl, 900 + Math.random() * 1800, (Math.random() * 2 - 1) * 0.85);
-    }
-  }
-  /** 散らばりの粒。短い帯域ノイズを左右どちらかへ寄せて鳴らす */
-  function grain(at, level, freq, pan) {
-    const dur = 0.028 + Math.random() * 0.02;
-    const src = ctx.createBufferSource(); src.buffer = noiseBuf(dur);
-    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 3.0;
-    bp.frequency.setValueAtTime(freq, at);
-    bp.frequency.exponentialRampToValueAtTime(freq * 0.6, at + dur);
-    const g = ctx.createGain(); env(g, at, 0.001, 0.26 * level, dur);
-    let tail = g;
-    if (ctx.createStereoPanner) {
-      const p = ctx.createStereoPanner(); p.pan.value = pan;
-      g.connect(p); tail = p;
-    }
-    src.connect(bp).connect(g); tail.connect(sfxGain);
-    src.start(at); src.stop(at + dur + 0.02);
+    /*
+     * ③ 広がっていく玉どうしの衝突。だんだん間延びし、弱くなり、左右へ散る。
+     * 20個ぶんを一度に組み立てると1コマ（16.7ms）に収まらないので、
+     * 3回に分けて組む。鳴らす時刻は先に決めてあるので、音のほうはずれない。
+     */
+    const n = 10 + Math.round(9 * s);
+    const one = i => {
+      const at = t + 0.03 + Math.pow(i / n, 0.8) * 0.55 + Math.random() * 0.045;
+      const lvl = (1 - i / n) * 0.62 + 0.10;
+      const freq = BALL_F * (0.75 + Math.random() * 0.75);
+      clack(s * lvl, freq, BALL_D, BALL_Q, at, (Math.random() * 2 - 1) * 0.8);
+    };
+    const chunk = Math.ceil(n / 3);
+    for (let i = 0; i < chunk; i++) one(i);
+    setTimeout(() => { for (let i = chunk; i < chunk * 2 && i < n; i++) one(i); }, 0);
+    setTimeout(() => { for (let i = chunk * 2; i < n; i++) one(i); }, 16);
   }
 
   function pocketDrop() {

@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.17';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.18';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -629,7 +629,7 @@
       if (S.readyShot !== g.shotNo) {
         S.readyShot = g.shotNo;
         markDone(myPid(), g.shotNo);
-        NET.send({ k: 'done', n: g.shotNo, pid: myPid() });
+        sendPlayers({ k: 'done', n: g.shotNo, pid: myPid() });
       }
       if (!allDone(g.shotNo)) {
         if (S.waitDone !== g.shotNo) {
@@ -904,6 +904,7 @@
       return;
     }
     // 端末どうしで盤面が食い違っていないかを毎ショット確かめる（9.5.5節）
+    // 照合は観戦者にも渡す。渡さないと、観戦者は自分がずれたことに気づけない
     if (S.net.on && S.net.isHost) NET.send({ k: 'chk', n: g.shotNo, h: boardHash() });
     else if (S.net.on) compareBoardCheck();   // 先に届いていた照合と、いま比べる
 
@@ -2885,6 +2886,23 @@
 
   function netConfig() { return JSON.parse(JSON.stringify(S.cfg)); }
 
+  /**
+   * 対局者だけへ送る。
+   * 待ち合わせの合図と盤面の照合は**対局者どうしの取り決め**であって、
+   * 観戦者には用が無い（仕様9.5.8節＝観戦は対局の進行に影響しない）。
+   * 全員へ配ると、観戦者が対局者の帳簿を持つことになり、
+   * そこから対局へ口を出す経路（盤面のやり直し要求）ができてしまう。
+   */
+  function sendPlayers(payload) {
+    const me = myPid();
+    const seats = S.game ? S.game.players : seatList();
+    const others = seats.filter(pl => pl.pid !== me);
+    if (!others.length) return;                                   // 相手がいない
+    // 名札の無い席が混じっているときは全員へ。取りこぼして黙るほうが危ない
+    if (others.some(pl => !pl.pid)) { NET.send(payload); return; }
+    others.forEach(pl => NET.send(payload, pl.pid));
+  }
+
   /** 盤の前にいるかどうか。対局中に待合室の画面を出してはいけない場面の判定に使う */
   function inGame() { return !!S.game && S.screen === 'play'; }
 
@@ -2954,8 +2972,10 @@
     }
     if (p.k === 'need') {
       if (!S.net.isHost || !S.game) return;
+      // 追いつき直しも**頼んだ人への返事**。局まるごとを組み直す重い処理なので、
+      // 関係のない人に届いて走らせてしまうと、進行中の手を取り上げることになる
       NET.send({
-        k: 'sync', seed: S.game.seed, config: netConfig(),
+        k: 'sync', for: from || null, seed: S.game.seed, config: netConfig(),
         names: S.game.players.map(x => ({ name: x.name, type: x.type, pid: x.pid || null })),
         log: S.game.history,
       }, from || 'all');
@@ -2968,6 +2988,7 @@
       return;
     }
     if (p.k === 'sync') {
+      if (p.for && p.for !== myPid()) return;   // 自分が頼んだ追いつき直しでなければ触らない
       setMsg(t('lobby.syncing'));
       S.net.myIdx = seatIndexOfMe(p.names);
       startGame(p.seed, p.names, p.config);
@@ -3014,10 +3035,28 @@
     }
     if (p.k === 'reboard') {
       if (!S.net.isHost || !S.game) return;
-      NET.send({ k: 'board', board: boardSnapshot(), turn: S.game.turn, n: S.game.shotNo, scores: S.game.players.map(x => x.score), bih: S.game.ballInHand });
+      /*
+       * 盤面の作り直しは**頼んだ人ひとりへの返事**である。
+       * 全員へ配ると、ずれていない対局者の盤面まで書き換わる。
+       * とくに玉が転がっている最中の人に届くと、配られた盤面で手番が進んだ上に
+       * その人自身の後始末がもう一段重なり、手番と手数が二重に進んで
+       * 双方が「相手の手番です」のまま止まる。
+       * 宛先の名札を荷物にも書いておき、受け取る側でも自分宛かを見る。
+       */
+      NET.send({
+        k: 'board', for: from || null,
+        board: boardSnapshot(), turn: S.game.turn, n: S.game.shotNo,
+        scores: S.game.players.map(x => x.score), bih: S.game.ballInHand,
+      }, from || 'all');
       return;
     }
-    if (p.k === 'board') { if (S.game) { applyBoard(p); setMsg(t('lobby.syncing')); } return; }
+    if (p.k === 'board') {
+      if (!S.game) return;
+      if (p.for && p.for !== myPid()) return;   // 自分が頼んだ作り直しでなければ触らない
+      applyBoard(p);
+      setMsg(t('lobby.syncing'));
+      return;
+    }
   }
 
   function boardSnapshot() {
@@ -3031,6 +3070,15 @@
     }
     return h;
   }
+  /**
+   * 配られた盤面で自分の盤面を入れ替える。
+   *
+   * **入れ替えたら、いま進めていた手はもう無かったことにする。**
+   * 玉が転がっている最中に入れ替えると、玉は止まった状態になる。
+   * そのまま放っておくと主ループが「止まった＝撞き終わった」と読んで後始末を走らせ、
+   * 配られた盤面ですでに進んでいる手番の上に、もう一段手番と手数を進めてしまう。
+   * 実測ではこれで主催者6手目・相手7手目にずれ、双方が相手を待って止まった。
+   */
   function applyBoard(p) {
     const g = S.game;
     const byId = {}; g.world.balls.forEach(b => byId[b.id] = b);
@@ -3044,7 +3092,19 @@
     if (p.turn != null) g.turn = p.turn;
     if (p.n != null) g.shotNo = p.n;
     if (p.bih != null) g.ballInHand = !!p.bih;
+
+    // 進めていた手を捨てる。後始末（finishShot）を走らせないために転がりを終わらせる
+    S.phase = 'idle';
+    S.dropped = null; S.bursts = []; S.airZ = {}; S.stepAcc = 0;
+    S.replayRun = null; S.pendingPlace = null; S.drag = null;
+    // 預かってある先の手と照合は、**捨てるのは古いぶんだけ**。
+    // 丸ごと捨てると、まだ来ていない先の手を待ち続けることになる
+    for (const k of Object.keys(S.pendingShots)) if (+k < g.shotNo) delete S.pendingShots[k];
+    for (const k of Object.keys(S.chk)) if (+k < g.shotNo) delete S.chk[k];
+    if (S.waitTimer) { clearTimeout(S.waitTimer); S.waitTimer = null; }
+    S.waitDone = null; S.readyShot = null; S.forceShot = null;
     renderHUD();
+    if (!g.over) setTimeout(beginTurn, 60); // 配られた盤面から、あらためて手番を始める
   }
   function replayRecord(rec) {
     if (rec.timeout) {
@@ -3066,7 +3126,16 @@
     const h = S.chk[g.shotNo];
     if (h == null) return;
     delete S.chk[g.shotNo];
-    if (boardHash() !== h) NET.send({ k: 'reboard' }, 'host');
+    if (boardHash() === h) return;
+    /*
+     * ずれていたときの直し方は、立場で分かれる。
+     * **観戦者は対局の盤面に手を出さない**（9.5.8節＝観戦は対局の進行に影響しない）。
+     * 自分の側で最初から引き直す。頼まれた側は履歴をその人ひとりへ返すだけなので、
+     * 対局者の盤面には触れない。
+     * 対局者だけが「盤面を作り直して」と頼める。
+     */
+    if (S.net.role === 'spectator') { requestResync(); return; }
+    NET.send({ k: 'reboard' }, 'host');
   }
 
   /** 部屋の一覧。何を遊ぶ部屋なのかが分からないと入りようがないので、モードまで出す */

@@ -101,7 +101,7 @@ const BilliardsI18N = (() => {
       'group.solid': 'ソリッド（1〜7）', 'group.stripe': 'ストライプ（9〜15）',
 
       'btn.aim': '構える', 'btn.back2d': '2Dへ戻る', 'btn.shoot': '撞く',
-      'btn.demo': '9番デモ', 'ph.demo': 'デモ：9番を一発で落とす筋を探しています',
+      'btn.demo': '9番デモ', 'ph.demoFail': 'デモ：9番が一発で落ちる撞き方が見つかりませんでした',
       'btn.deadlock': 'デッドロック申告', 'btn.rules': 'ルール確認',
       'btn.replay': 'リプレイ', 'btn.settings': '設定', 'btn.quit': '対局をやめる',
       'btn.yes': 'はい', 'btn.no': 'いいえ',
@@ -286,7 +286,7 @@ const BilliardsI18N = (() => {
       'group.solid': 'Solids (1-7)', 'group.stripe': 'Stripes (9-15)',
 
       'btn.aim': 'Take stance', 'btn.back2d': 'Back to 2D', 'btn.shoot': 'Shoot',
-      'btn.demo': '9-ball demo', 'ph.demo': 'Demo: looking for a break that pots the 9',
+      'btn.demo': '9-ball demo', 'ph.demoFail': 'Demo: no break that pots the 9 was found',
       'btn.deadlock': 'Declare deadlock', 'btn.rules': 'Rules',
       'btn.replay': 'Replay', 'btn.settings': 'Settings', 'btn.quit': 'Leave game',
       'btn.yes': 'Yes', 'btn.no': 'No',
@@ -471,7 +471,7 @@ const BilliardsI18N = (() => {
       'group.solid': '全色（1〜7）', 'group.stripe': '花色（9〜15）',
 
       'btn.aim': '架杆', 'btn.back2d': '回到俯视', 'btn.shoot': '击球',
-      'btn.demo': '9号球演示', 'ph.demo': '演示：正在寻找一杆打进9号球的开球',
+      'btn.demo': '9号球演示', 'ph.demoFail': '演示：没有找到一杆打进9号球的开球',
       'btn.deadlock': '申报僵局', 'btn.rules': '规则',
       'btn.replay': '回放', 'btn.settings': '设置', 'btn.quit': '退出对局',
       'btn.yes': '是', 'btn.no': '否',

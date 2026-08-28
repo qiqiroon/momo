@@ -250,7 +250,7 @@ input[type=range]{accent-color:var(--orange-mid);}
   padding:2px 6px;border-radius:5px;pointer-events:none;display:none;}
 body.debug #dbg{display:block;}
 /* デモは ?debug=1 のときだけ出す道具。ふだんは見えてはいけない */
-#btn-demo{display:none;} body.debug #btn-demo{display:block;}
+#demo-row{display:none;} body.debug #demo-row{display:block;}
 #elev-row{display:flex;align-items:center;gap:8px;}
 #elev{writing-mode:vertical-lr;direction:rtl;height:110px;}
 #elev-pic{width:112px;height:120px;flex:0 0 auto;}
@@ -595,7 +595,6 @@ body.debug #dbg{display:block;}
            数字とバーが離れていると、どちらが何を指しているのか結びつかない -->
       <button class="btn small" id="btn-aim"></button>
       <button class="btn small" id="btn-replay"></button>
-      <button class="btn small" id="btn-demo"></button>
       <button class="btn small" id="btn-deadlock"></button>
       <button class="btn small" id="btn-quit"></button>
     </div>
@@ -636,6 +635,9 @@ body.debug #dbg{display:block;}
     </div>
     <div class="hint" id="speed-note" style="margin-top:5px"></div>
   </div>
+  <!-- デモは ?debug=1 のときだけ。盤の脇に出すとデモの絵の中に写り込むので、
+       設定の中に隠しておく（押した時点でこの窓は閉じる） -->
+  <div id="demo-row" style="margin:12px 0 0"><button class="btn small" id="btn-demo"></button></div>
   <div class="row" style="justify-content:flex-end"><button class="btn" id="btn-set-close"></button></div>
 </div></div>
 

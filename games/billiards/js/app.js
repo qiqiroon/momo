@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.13';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.14';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -1032,38 +1032,24 @@
    * 見つけた1本は、人が撞くときとまったく同じ手順で撞かせる。
    */
   const DEMO_BACK = 40;                     // ヘッドストリングからどれだけ手前へ置くか
+  const DEMO_MOVE = 800, DEMO_STANCE = 1500, DEMO_PULL = 750;   // 各段にかける時間（ミリ秒）
+  /**
+   * デモを仕込む。**この時点ではまだ何も動かさない。**
+   * 撞き方が決まる前に手玉を動かし始めると、探しているあいだ画面が止まって見え、
+   * 途中経過を出せば「デモ」ではなく「計算の実況」になる。
+   */
   function startDemo() {
     if (S.demo) return;
     S.cfg.rule = 'G-01'; S.cfg.format = 'local'; S.cfg.players = 2; S.cfg.coop = false;
     startGame(newSeed(), null, null);
     const g = S.game;
     const cue = RU.cueBallOf(g, 0); if (!cue) return;
-    S.demo = { on: true };
     const px = g.table.headSpot.x - DEMO_BACK, py = 0;
-    const from = { x: S.placePos.x, y: S.placePos.y };
-    const t0 = performance.now(), MOVE = 800;
-    // ① 手玉を置く（人がドラッグして置くのと同じ見え方）
-    function movePhase() {
-      if (!S.demo) return;
-      const k = Math.min(1, (performance.now() - t0) / MOVE);
-      const e = k * k * (3 - 2 * k);        // 動き出しと止まりを滑らかに
-      S.placePos = { x: from.x + (px - from.x) * e, y: from.y + (py - from.y) * e };
-      S.aimDirty = true;
-      if (k < 1) { requestAnimationFrame(movePhase); return; }
-      // ②「ここに置く」を押したのと同じ処理
-      RU.place(cue, px, py);
-      g.ballInHand = false;
-      S.pendingPlace = { x: px, y: py };
-      computeElevFan(cue); autoElev();
-      S.phase = 'aim';
-      demoSearch(cue);
-    }
-    movePhase();
-  }
-
-  /** その場の設定で「9番が落ちて手玉は落ちない」ブレイクを探す */
-  function demoSearch(cue) {
-    const g = S.game;
+    // 撞く場所での角度を先に出す。**盤の玉は動かさない**（1コマも見せずに戻す）
+    const ox = cue.x, oy = cue.y;
+    cue.x = px; cue.y = py;
+    computeElevFan(cue);
+    cue.x = ox; cue.y = oy;
     const cands = [];
     const powers = [0.90, 1.00, 1.10, 0.80];
     for (let k = 0; k <= 80; k++) {
@@ -1071,22 +1057,79 @@
         for (const pw of powers) cands.push({ dir: sg * k * 0.0015, power: pw });
       }
     }
-    let i = 0;
-    function chunk() {
-      if (!S.demo || !S.game || S.game !== g) return;
-      // 1回の試し撞きが1フレームぶんより重いので、1フレームに1回だけ進める
-      const c = cands[i++];
-      const shot = { dir: c.dir, power: c.power, tipX: 0, tipY: 0, elev: minElevFor(c.dir) };
-      if (demoTry(g, cue, shot)) { demoStance(shot); return; }
-      setMsg(t('ph.demo') + '  ' + i + ' / ' + cands.length);
-      if (i < cands.length) requestAnimationFrame(chunk);
-      else { S.demo = null; setMsg(t('ph.aim')); }   // 見つからなければ黙って普通の局に戻す
-    }
-    chunk();
+    S.demo = {
+      stage: 'search', i: 0, cands, px, py, t0: 0, shot: null,
+      from: { x: S.placePos.x, y: S.placePos.y },
+    };
   }
-  function demoTry(g, cue, shot) {
+
+  /**
+   * デモを1コマ進める。**主ループから呼ぶ**。
+   * 段ごとに別々の待ち行列を作ると、どこか1つが途切れたときに
+   * 「途中で終わったのに誰も気づかない」ことになる。進める場所を1つにする。
+   */
+  function stepDemo(now) {
+    const d = S.demo, g = S.game;
+    if (!g || g.over) { S.demo = null; return; }
+    const cue = RU.cueBallOf(g, 0);
+    if (!cue) { S.demo = null; return; }
+
+    if (d.stage === 'search') {
+      // 1回の試し撞きが1コマぶんより重いので、1コマに1回だけ進める。
+      // 見つかるまでは画面に何も出さない＝デモはまだ始まっていない
+      const c = d.cands[d.i++];
+      const shot = { dir: c.dir, power: c.power, tipX: 0, tipY: 0, elev: minElevFor(c.dir) };
+      if (demoTry(g, cue, shot, d.px, d.py)) { d.shot = shot; d.stage = 'place'; d.t0 = now; }
+      else if (d.i >= d.cands.length) { S.demo = null; setMsg(t('ph.demoFail')); }
+      return;
+    }
+
+    if (d.stage === 'place') {              // ① 手玉を置く
+      const k = Math.min(1, (now - d.t0) / DEMO_MOVE);
+      const e = k * k * (3 - 2 * k);        // 動き出しと止まりを滑らかに
+      S.placePos = { x: d.from.x + (d.px - d.from.x) * e, y: d.from.y + (d.py - d.from.y) * e };
+      S.aimDirty = true;
+      if (k >= 1) {                         // ②「ここに置く」を押したのと同じ処理
+        RU.place(cue, d.px, d.py);
+        g.ballInHand = false;
+        S.pendingPlace = { x: d.px, y: d.py };
+        computeElevFan(cue); autoElev();
+        S.aim.dir = d.shot.dir;
+        S.phase = 'stance'; setMsg(t('ph.cue'));
+        d.stage = 'stance'; d.t0 = now;
+      }
+      return;
+    }
+
+    if (d.stage === 'stance') {             // ③ 構えながら向きを少し左右に直す
+      const el = now - d.t0;
+      const k = 1 - Math.min(1, el / DEMO_STANCE);
+      S.aim.dir = d.shot.dir + Math.sin(el / 140) * 0.024 * k;
+      S.aimDirty = true;
+      if (el >= DEMO_STANCE) { S.aim.dir = d.shot.dir; d.stage = 'pull'; d.t0 = now; }
+      return;
+    }
+
+    if (d.stage === 'pull') {               // ④ キューを引いて撞く
+      const k = Math.min(1, (now - d.t0) / DEMO_PULL);
+      S.aim.power = d.shot.power * k;
+      if (k >= 1) {
+        S.aim.power = 0;
+        S.demo = null;
+        const place = S.pendingPlace; S.pendingPlace = null;
+        fireShot(d.shot, place, true);
+      }
+      return;
+    }
+    S.demo = null;
+  }
+
+  /** その撞き方で「9番が落ちて手玉は落ちない」か。盤には触らず、写しの上で試す */
+  function demoTry(g, cue, shot, px, py) {
     const w = E.cloneWorld(g.world);
     const c = w.balls.find(b => b.id === cue.id); if (!c) return false;
+    c.x = px; c.y = py; c.z = 0;
+    c.vx = c.vy = c.vz = c.wx = c.wy = c.wz = 0;
     E.applyCue(c, shot);
     E.runShot(w, 14);
     const byId = {}; w.balls.forEach(b => byId[b.id] = b);
@@ -1099,39 +1142,6 @@
       } else if (ev.type === 'offtable') bad = true;
     }
     return nine && !bad;
-  }
-  /** ③ 3Dで構える。構えながら向きを少し左右に直す（人がやっていること） */
-  function demoStance(shot) {
-    S.phase = 'stance'; setMsg(t('ph.cue'));
-    const t0 = performance.now(), DUR = 1500;
-    function step() {
-      if (!S.demo) return;
-      const el = performance.now() - t0;
-      if (el < DUR) {
-        const k = 1 - el / DUR;             // だんだん揺れが小さくなって定まる
-        S.aim.dir = shot.dir + Math.sin(el / 140) * 0.024 * k;
-        S.aimDirty = true;
-        requestAnimationFrame(step); return;
-      }
-      S.aim.dir = shot.dir; S.aimDirty = true;
-      demoPull(shot);
-    }
-    step();
-  }
-  /** ④ キューを引いて撞く */
-  function demoPull(shot) {
-    const t0 = performance.now(), DUR = 750;
-    function step() {
-      if (!S.demo) return;
-      const k = Math.min(1, (performance.now() - t0) / DUR);
-      S.aim.power = shot.power * k;
-      if (k < 1) { requestAnimationFrame(step); return; }
-      S.aim.power = 0;
-      S.demo = null;
-      const place = S.pendingPlace; S.pendingPlace = null;
-      fireShot(shot, place, true);
-    }
-    step();
   }
 
   // ══════════════════════════════════════════════
@@ -2408,6 +2418,7 @@
   const dbg = { phys: 0, draw: 0, gap: 0, at: 0 };
   function loop(now) {
     const dt = Math.min(100, now - lastT); lastT = now;
+    if (S.demo && S.screen === 'play') stepDemo(now);
     if (S.screen === 'play' && S.game) {
       const t0 = DEBUG ? performance.now() : 0;
       // 1コマで進める刻みの数。等速なら8刻み＝1/60秒ぶん。端数は次のコマへ持ち越す
@@ -3125,7 +3136,8 @@
     show('home');
   };
   $('btn-deadlock').onclick = () => { if (isMyTurn()) askDeadlock(); };
-  $('btn-demo').onclick = () => { AU.sfx('button'); startDemo(); };
+  // デモは設定の中に置いてある。押したら設定の窓を閉じてから始める（窓が写り込むため）
+  $('btn-demo').onclick = () => { AU.sfx('button'); $('modal-settings').classList.remove('on'); startDemo(); };
   $('btn-replay').onclick = () => {
     if (!S.replay) return;
     const w = E.createWorld(S.game.table, S.replay.balls.map(b => Object.assign({}, b)), S.game.tuning);
@@ -3182,6 +3194,6 @@
 
   if (DEBUG) {
     document.body.classList.add('debug');
-    window.BL = { S, E, RU, T, I, fire: fireShot, shootNow, beginTurn, startGame, finishShot, applyShot, draw2D, draw3D, drawElevPic, minElevFor, computeElevFan, placeOk, resizeBoard, show, showRoom, watchJumps, highestBall, buildSetup, mountSetup, onNetMsg, seatList, seatIndexOfMe };
+    window.BL = { S, E, RU, T, I, fire: fireShot, shootNow, beginTurn, startGame, finishShot, applyShot, draw2D, draw3D, drawElevPic, minElevFor, computeElevFan, placeOk, resizeBoard, show, showRoom, watchJumps, highestBall, startDemo, stepDemo, buildSetup, mountSetup, onNetMsg, seatList, seatIndexOfMe };
   }
 })();

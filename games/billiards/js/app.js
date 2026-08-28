@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.18';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.19';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -122,6 +122,8 @@
     chk: {},               // 受け取った盤面照合（ショット番号 → 指紋）。追いついてから比べる
     pendingShots: {},      // 先に届いた相手の手。こちらがその番号へ達したら指す
     waitDone: null, waitTimer: null, readyShot: null, forceShot: null,
+    catchUp: false,        // 追いつき直しの最中。過去の手を黙って並べ直すあいだ立てる
+    lastNeed: null,        // 追いつき直しを頼んだ手の番号。同じ手で何度も頼まない
     airZ: {},
     won: false,
     wakeLock: null,
@@ -566,6 +568,7 @@
     S.chk = {};                             // 前の局の照合は持ち越さない
     S.dropped = null; S.bursts = []; S.airZ = {}; S.pendingShots = {};
     S.net.done = {}; S.net.gone = {}; S.waitDone = null; S.readyShot = null; S.forceShot = null;
+    S.catchUp = false; S.lastNeed = null;
     if (S.waitTimer) { clearTimeout(S.waitTimer); S.waitTimer = null; }
     S.replay = null; S.replayRun = null; S.demo = null; S.endWait = 0;
     S.clock.banks = g.players.map(() => cfg.tbank * 60);
@@ -843,22 +846,21 @@
     S.clock.running = false;
 
     if (pre.miscue) {
-      setMsg(t('ev.miscue'));                 // ミスキューはファウルではない（5.9.2節）
-      AU.sfx('cue', 0.1);
+      if (!S.catchUp) { setMsg(t('ev.miscue')); AU.sfx('cue', 0.1); }  // ファウルではない（5.9.2節）
       g.shotNo++;
       RU.nextTurn(g, { continueTurn: false });
-      setTimeout(beginTurn, 900);
+      if (!S.catchUp) setTimeout(beginTurn, 900);
       return;
     }
 
     g.world.events = [];
     E.applyCue(cue, shot);
-    AU.sfx('cue', Math.min(1, shot.power));
+    if (!S.catchUp) { AU.sfx('cue', Math.min(1, shot.power)); setMsg(t('ph.rolling')); }
     S.pre = pre;
     S.phase = 'rolling';
     S.evCursor = 0;
-    setMsg(t('ph.rolling'));
-    if (!animate) { E.runShot(g.world, 20); finishShot(); }
+    // 転がりを最後まで走らせてから後始末する。転がりを終える印は主ループと同じ形にする
+    if (!animate) { E.runShot(g.world, 20); S.phase = 'idle'; finishShot(); }
   }
 
   function finishShot() {
@@ -866,53 +868,67 @@
     const res = RU.resolveShot(g, S.pre, g.world.events);
 
     /*
+     * **追いつき直しの最中は、過去の手を黙って並べ直すだけにする。**
+     * ここを普段どおり通すと、過去の反則を「いま起きたこと」として
+     * 音と盤の中央の大きな表示で出し直す（観戦者がずっと反則を申告してくる状態）。
+     * それだけでなく、盤面の照合・やり直しの申告・練習の組み直しまで外へ出てしまい、
+     * さらに途中で打ち切る経路（勝敗・デッドロック）が手番を進め損ねて、
+     * 並べ直したはずの局面が本物とずれる。
+     */
+    const quiet = !!S.catchUp;
+
+    /*
      * いま落ちた玉を控えておく（盤の真ん中に絵で出す）。手玉が落ちた場合も入れる。
      * 「いま落ちた」の判定は玉の状態ではなく、このショットの結果から引く。
      * 9番のように、落ちてもすぐ盤へ戻される玉があるため。
      */
-    const nowIds = {};
-    res.pocketed.forEach(id => { nowIds[id] = 1; });
-    const justNow = g.world.balls.filter(b => nowIds[b.id]);
-    if (justNow.length) {
-      S.dropped = {
-        balls: justNow,
-        prev: pocketedBalls(g).filter(b => b.kind !== 'cue' && !nowIds[b.id]),
-        at: performance.now(),
-      };
+    if (!quiet) {
+      const nowIds = {};
+      res.pocketed.forEach(id => { nowIds[id] = 1; });
+      const justNow = g.world.balls.filter(b => nowIds[b.id]);
+      if (justNow.length) {
+        S.dropped = {
+          balls: justNow,
+          prev: pocketedBalls(g).filter(b => b.kind !== 'cue' && !nowIds[b.id]),
+          at: performance.now(),
+        };
+      }
     }
 
     if (!g.broken && RU.HAS_RACK[g.rule]) {
       const ok = RU.breakValid(g.world.events, res.pocketed.length);
       g.broken = true;
-      if (!ok) { setMsg(t('ev.breakFail')); res.continueTurn = false; }
+      if (!ok) { if (!quiet) setMsg(t('ev.breakFail')); res.continueTurn = false; }
     }
 
-    let msg = '';
-    if (res.fouls.length) msg = res.fouls.map(f => t('foul.' + f)).join(' / ');
-    if (res.message) { msg = (msg ? msg + ' — ' : '') + t(res.message); g.lastMessageKey = res.message; }
-    if (res.gained) msg = (msg ? msg + ' — ' : '') + '+' + res.gained;
-    setMsg(msg);
-    if (res.fouls.length) {
-      AU.sfx('foul');
-      // ファウルは盤の真ん中に大きく出す。これが見えないと
-      // 「玉が落ちたのに手番が移った」理由が分からない
-      flash(t('hud.foul') + '　' + res.fouls.map(f => t('foul.' + f)).join(' / '), 'foul', foulWhy(res));
+    if (res.message) g.lastMessageKey = res.message;   // 記録は黙っていても残す
+    if (!quiet) {
+      let msg = '';
+      if (res.fouls.length) msg = res.fouls.map(f => t('foul.' + f)).join(' / ');
+      if (res.message) msg = (msg ? msg + ' — ' : '') + t(res.message);
+      if (res.gained) msg = (msg ? msg + ' — ' : '') + '+' + res.gained;
+      setMsg(msg);
+      if (res.fouls.length) {
+        AU.sfx('foul');
+        // ファウルは盤の真ん中に大きく出す。これが見えないと
+        // 「玉が落ちたのに手番が移った」理由が分からない
+        flash(t('hud.foul') + '　' + res.fouls.map(f => t('foul.' + f)).join(' / '), 'foul', foulWhy(res));
+      }
+      if (S.cfg.format === 'practice' && (res.gameOver || g.over)) {
+        setTimeout(() => startGame(newSeed(), null, null), 900); // 練習は勝敗を持たない（9.6.1節）
+        return;
+      }
+      // 端末どうしで盤面が食い違っていないかを毎ショット確かめる（9.5.5節）
+      // 照合は観戦者にも渡す。渡さないと、観戦者は自分がずれたことに気づけない
+      if (S.net.on && S.net.isHost) NET.send({ k: 'chk', n: g.shotNo, h: boardHash() });
+      else if (S.net.on) compareBoardCheck();   // 先に届いていた照合と、いま比べる
     }
 
-    if (S.cfg.format === 'practice' && (res.gameOver || g.over)) {
-      setTimeout(() => startGame(newSeed(), null, null), 900);   // 練習は勝敗を持たない（9.6.1節）
-      return;
-    }
-    // 端末どうしで盤面が食い違っていないかを毎ショット確かめる（9.5.5節）
-    // 照合は観戦者にも渡す。渡さないと、観戦者は自分がずれたことに気づけない
-    if (S.net.on && S.net.isHost) NET.send({ k: 'chk', n: g.shotNo, h: boardHash() });
-    else if (S.net.on) compareBoardCheck();   // 先に届いていた照合と、いま比べる
-
-
-    if (res.gameOver || g.over) { endGameSoon(); return; }
-    if (g.deadlockCount >= 12) { g.deadlockCount = 0; askDeadlock(true); return; }
+    if (res.gameOver || g.over) { if (!quiet) endGameSoon(); return; }
+    if (!quiet && g.deadlockCount >= 12) { g.deadlockCount = 0; askDeadlock(true); return; }
 
     RU.nextTurn(g, res);
+    if (quiet) return;                        // 並べ直しの途中では画面も待ち行列も動かさない
     renderHUD();
     setTimeout(beginTurn, 800);
   }
@@ -2992,8 +3008,12 @@
       setMsg(t('lobby.syncing'));
       S.net.myIdx = seatIndexOfMe(p.names);
       startGame(p.seed, p.names, p.config);
-      for (const rec of (p.log || [])) replayRecord(rec);
+      // 並べ直しのあいだは黙らせる。途中で例外が出ても必ず元へ戻す
+      S.catchUp = true;
+      try { for (const rec of (p.log || [])) replayRecord(rec); }
+      finally { S.catchUp = false; }
       renderHUD();
+      if (S.game.over) { endGame(); return; }   // 終わった局に追いついたときは結果を出す
       beginTurn();
       return;
     }
@@ -3114,7 +3134,19 @@
     }
     applyShot(rec.shot, rec.place, false);
   }
-  function requestResync() { if (!S.net.isHost) NET.send({ k: 'need' }, 'host'); }
+  /**
+   * 追いつき直しを頼む。
+   * **同じ手で何度も頼まない。** 局まるごとを並べ直す重い処理なので、
+   * 頼むたびに走らせると、直っていないあいだじゅう並べ直し続けることになる。
+   * 手が1つ進めば、あらためて頼める。
+   */
+  function requestResync() {
+    if (S.net.isHost) return;
+    const n = S.game ? S.game.shotNo : -1;
+    if (S.lastNeed === n) return;
+    S.lastNeed = n;
+    NET.send({ k: 'need' }, 'host');
+  }
 
   /**
    * 受け取ってある照合のうち、いま自分が到達したショットのものだけを比べる。

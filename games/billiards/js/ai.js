@@ -16,13 +16,30 @@ const BilliardsAI = (() => {
 
   const E = BilliardsEngine, RU = BilliardsRules;
 
-  // aimNoise は「狙いのぶれ」（ラジアン）。0.0045 rad ≒ 0.26 度。
-  // これが的球1個ぶんの幅を外す角度にどれだけ近いかで、入る／外れるが分かれる。
+  /*
+   * aimNoise は「狙いのぶれ」（ラジアン）。これは**簡単な配置のときの**ぶれで、
+   * 実際のぶれは配置の難しさ（切る角度と距離）に応じて大きくなる（hardnessOf）。
+   * 一定のぶれを配置によらず加えると、難しい配置では当たり前に外れるのに、
+   * 目の前の1個を落とすだけの場面でも同じだけ外して、わざとらしく見える。
+   *
+   * scratchBlind は「手玉が落ちる危険を軽く見て撞いてしまう」割合。
+   * 手玉を落とす失敗は狙いが逸れる失敗より自然に見えるが、毎回だと目立つので混ぜる程度にする。
+   */
   const PROFILE = {
-    easy: { cands: 8, aimNoise: 0.020, powNoise: 0.18, simSec: 6, avoidScratch: 0.4 },
-    hard: { cands: 14, aimNoise: 0.0045, powNoise: 0.06, simSec: 6, avoidScratch: 1.0 },
-    apocalypse: { cands: 20, aimNoise: 0.0012, powNoise: 0.03, simSec: 7, avoidScratch: 1.4 },
+    easy: { cands: 8, aimNoise: 0.0110, powNoise: 0.14, simSec: 6, avoidScratch: 0.4, scratchBlind: 0.16 },
+    hard: { cands: 14, aimNoise: 0.0060, powNoise: 0.06, simSec: 6, avoidScratch: 1.0, scratchBlind: 0.06 },
+    apocalypse: { cands: 20, aimNoise: 0.0022, powNoise: 0.03, simSec: 7, avoidScratch: 1.4, scratchBlind: 0.015 },
   };
+
+  /**
+   * その一撞きの難しさ。1.0＝目の前を真っすぐ、大きいほど難しい。
+   * 薄く切るほど狙いを見立てにくく、遠いほど誤差が効く。
+   */
+  function hardnessOf(shot) {
+    if (shot._cut == null) return 1.6;                 // 幾何の分からない撞き方（キャロム・逃げ）
+    const cut = Math.min(1.35, Math.max(0, shot._cut));
+    return Math.min(4, (1 / Math.cos(cut)) * (1 + (shot._dist || 600) / 2200));
+  }
 
   function prof(d) { return PROFILE[d] || PROFILE.hard; }
 
@@ -108,7 +125,10 @@ const BilliardsAI = (() => {
     for (const s of take) {
       for (const pw of powers) {
         for (const tp of tips) {
-          out.push({ dir: s.g.dir, power: pw, tipX: tp.x, tipY: tp.y, elev: 0, _target: s.tb.id });
+          out.push({
+            dir: s.g.dir, power: pw, tipX: tp.x, tipY: tp.y, elev: 0,
+            _target: s.tb.id, _cut: s.g.cut, _dist: s.g.dist,
+          });
         }
       }
     }
@@ -250,7 +270,15 @@ const BilliardsAI = (() => {
    * @returns {function} 中断用の関数
    */
   function think(game, playerIdx, done) {
-    const p = prof(game.difficulty);
+    const base = prof(game.difficulty);
+    /*
+     * たまに「手玉の落ちる危険を軽く見る」一撞きを混ぜる。
+     * 手玉が落ちる失敗は、狙いが逸れる失敗より人がやる失敗らしく見えるが、
+     * 続くと目立つので、難易度ごとに決めた割合でだけ起こす。
+     * わざと落としに行くのではなく、危険の勘定を軽くするだけ＝読み違えとして落ちる。
+     */
+    const careless = game.rng() < (base.scratchBlind || 0);
+    const p = careless ? Object.assign({}, base, { avoidScratch: 0.15 }) : base;
     const cands = buildCandidates(game, playerIdx, p);
     let i = 0, cancelled = false;
     const scored = [];
@@ -268,30 +296,57 @@ const BilliardsAI = (() => {
       finish();
     }
 
-    /**
-     * 仕上げ。狙いは、腕のぶれ（難易度ぶんのばらつき）を織り込んで選ぶ。
-     * いちばん高い点の狙いをそのまま撞くと、ぶれた瞬間に何にも当たらない
-     * 「紙一重の筋」ばかり選ぶことになる。ぶらしても崩れない狙いを採る。
+    /*
+     * 狙いの微調整。
+     * ゴーストボールの幾何が出す狙いは、**入る範囲の真ん中ではなく端に寄っている**
+     * （実測：まっすぐ手前の1個でも 0.010 ラジアンぶん外側にずれていた）。
+     * 当たったあと的球がどちらへ向かうかは撞球の癖（スロー効果）で変わるからで、
+     * 幾何だけでは織り込めない。そこで狙いを少しずつ振って試し撞きし、
+     * **いちばん確実に入る狙い**を探す。隣も見て平らなところを選ぶので、
+     * 紙一重の1点（腕がぶれた瞬間に崩れる筋）は選ばれない。
      */
+    const OFFS = [-0.028, -0.021, -0.014, -0.007, 0, 0.007, 0.014, 0.021, 0.028];
+    function tune(cand, pp) {
+      const sc = OFFS.map(o => evaluate(game, playerIdx, Object.assign({}, cand, { dir: cand.dir + o }), pp));
+      const top = Math.max.apply(null, sc);
+      /*
+       * 同じだけ良い狙いが並んだら、**その並びの真ん中**を採る。
+       * いちばん良い点を先に見つけた順で採ると、試した幅の端が選ばれて、
+       * 腕がぶれた瞬間に外れる側へ寄る。入る範囲は飛び飛びに見えることがある
+       * （ポケットの口で弾かれる角度が混じる）ので、連続している並びだけを数える。
+       */
+      let bi = 0, bLen = -1, k = 0;
+      while (k < OFFS.length) {
+        if (sc[k] < top - 1) { k++; continue; }
+        let j = k;
+        while (j + 1 < OFFS.length && sc[j + 1] >= top - 1) j++;
+        if (j - k > bLen) { bLen = j - k; bi = Math.round((k + j) / 2); }
+        k = j + 1;
+      }
+      return { shot: Object.assign({}, cand, { dir: cand.dir + OFFS[bi] }), score: top };
+    }
+
+    /** 仕上げ。狙いを決めてから、最後に腕のぶれを乗せる */
     function finish() {
       scored.sort((a, b) => b.sc - a.sc);
       const top = scored.slice(0, 3);
-      let best = top.length ? top[0].s : { dir: 0, power: 0.3, tipX: 0, tipY: 0, elev: 0 };
-      let bestMean = -Infinity;
+      let best = null;
       for (const c of top) {
-        let sum = 0, n = 0;
-        for (const k of [-1.2, -0.6, 0, 0.6, 1.2]) {
-          const v = Object.assign({}, c.s, { dir: c.s.dir + k * p.aimNoise });
-          sum += evaluate(game, playerIdx, v, p); n++;
-        }
-        const mean = sum / n;
-        if (mean > bestMean) { bestMean = mean; best = c.s; }
+        const r = tune(c.s, p);
+        if (!best || r.score > best.score) best = r;
       }
-      const shot = Object.assign({}, best);
-      // 実際のぶれは共有PRNGから取る（＝AIの手も決定論の対象。9.4.3節）
-      shot.dir += (game.rng() - 0.5) * 2 * p.aimNoise;
+      const shot = Object.assign({}, best ? best.shot : { dir: 0, power: 0.3, tipX: 0, tipY: 0, elev: 0 });
+      /*
+       * 腕のぶれ。**配置の難しさに比例させる**ので、
+       * 目の前の1個を落とすだけの場面ではほとんど外さず、
+       * 薄い・遠い配置ではそれなりに外す。
+       * 乱数は共有PRNGから取る（＝AIの手も決定論の対象。9.4.3節）。
+       * 一様乱数を3つ足すと山なりのばらつきになり、大外しは滅多に起きない。
+       */
+      const sd = p.aimNoise * hardnessOf(shot);
+      shot.dir += sd * (game.rng() + game.rng() + game.rng() - 1.5) * 2;
       shot.power = Math.max(0.08, Math.min(1, shot.power * (1 + (game.rng() - 0.5) * 2 * p.powNoise)));
-      delete shot._target;
+      delete shot._target; delete shot._cut; delete shot._dist;
       done(shot);
     }
 

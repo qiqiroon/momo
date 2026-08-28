@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.12';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.13';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -148,6 +148,7 @@
     set('k-turn', 'hud.turn'); set('k-next', 'hud.next'); set('k-foul', 'hud.foul');
     set('k-base', 'hud.base'); set('k-bank', 'hud.time'); set('k-elevlabel', 'hint.elev');
     set('btn-replay', 'btn.replay'); set('btn-deadlock', 'btn.deadlock'); set('btn-quit', 'btn.quit');
+    set('btn-demo', 'btn.demo');
     set('btn-again', 'res.again'); set('btn-to-setup-t', 'res.toMenu'); set('res-title', 'res.title');
     set('audio-title', 'audio.title'); set('audio-desc', 'audio.desc');
     set('btn-audio-yes', 'audio.yes'); set('btn-audio-no', 'audio.no');
@@ -399,7 +400,7 @@
     if (S.screen === 'room' && S.net.on) return seatList().map(s => s.name);
     if (S.cfg.format === 'ai') {
       const out = [t('seat.you')];
-      for (let i = 0; i < S.cfg.aiCount; i++) out.push('AI' + (i + 1));
+      for (let i = 0; i < S.cfg.aiCount; i++) out.push('AI-' + (i + 1));
       return out;
     }
     const out = [];
@@ -516,7 +517,7 @@
     if (S.cfg.format === 'practice') { list.push({ name: 'You', type: 'human' }); return list; }
     if (S.cfg.format === 'ai') {
       list.push({ name: 'You', type: 'human' });
-      for (let i = 0; i < S.cfg.aiCount; i++) list.push({ name: 'AI' + (i + 1), type: 'ai' });
+      for (let i = 0; i < S.cfg.aiCount; i++) list.push({ name: 'AI-' + (i + 1), type: 'ai' });
       return list;
     }
     for (let i = 0; i < S.cfg.players; i++) list.push({ name: 'P' + (i + 1), type: 'human' });
@@ -542,7 +543,7 @@
     S.dropped = null; S.bursts = []; S.airZ = {}; S.pendingShots = {};
     S.net.done = {}; S.waitDone = null; S.readyShot = null; S.forceShot = null;
     if (S.waitTimer) { clearTimeout(S.waitTimer); S.waitTimer = null; }
-    S.replay = null; S.replayRun = null;
+    S.replay = null; S.replayRun = null; S.demo = null;
     S.clock.banks = g.players.map(() => cfg.tbank * 60);
     S.aim = { dir: 0, tipX: 0, tipY: 0, elev: 0, power: 0 };
     S.msg = '';
@@ -622,9 +623,10 @@
     S.waitDone = null;
     S.aim.power = 0; S.aim.tipX = 0; S.aim.tipY = 0; S.aim.elev = 0;
     S.aimDirty = true; S.pendingPlace = null; S.drag = null;
+    S.elevTouched = false;                  // 角度は自分で動かすまで自動で合わせる
     $('elev').value = 0;
     const cue = RU.cueBallOf(g, g.turn);
-    if (cue) { S.aim.dir = 0; computeElevFan(cue); }
+    if (cue) { S.aim.dir = 0; computeElevFan(cue); autoElev(); }
 
     if (g.ballInHand && cue) {
       S.phase = 'place';
@@ -682,17 +684,34 @@
   //  キュー構え可否（4.7節）
   // ══════════════════════════════════════════════
   const CUE_LEN = 1400;
+  const SHAFT_R = 7;            // キューの太さの半分（これだけ横に掠っても当たる）
+  /**
+   * その向きで撞くには、キューをどれだけ持ち上げないといけないか。
+   * 邪魔をするのは**壁（クッション）だけではなく、手前にある玉**もである。
+   * 玉を数えていなかったので、玉が邪魔な場面では角度が上がらず、
+   * なぜ撞けないのかも絵に出せなかった。
+   *
+   * 玉の越え方は「玉の中心の真上で、玉の高さを越える」で見る。
+   * 手前の縁で厳密に見ると角度がわずかに変わるだけで、
+   * 「越えられる／越えられない」の答えは変わらない。
+   */
   function computeElevFan(cue) {
     const fan = new Float32Array(360);
-    // 壁までの距離も一緒に覚える。角度の絵に「何に当たっているのか」を描くため
+    // 何がどこで邪魔しているのかも一緒に覚える。角度の絵に描くため
     const dist = new Float32Array(360).fill(Infinity);
-    S.elevDist = dist;
+    const what = new Array(360).fill(null);        // 'wall' | 'ball'
+    S.elevDist = dist; S.elevWhat = what;
+    S.elevTipY = S.aim.tipY;
     if (!S.cfg.cue[6]) { S.elevFan = fan; return; }
     const table = S.game.table;
-    const hNeed = table.cushionTop - cue.r;
+    // キューの先が当たる高さ。上を撞けばそのぶん高くなり、必要な角度は下がる
+    const hTip = cue.r + S.aim.tipY * cue.r * 0.5;
+    const balls = S.game.world.balls;
     for (let d = 0; d < 360; d++) {
       const a = d * Math.PI / 180 + Math.PI;      // キューは撞く向きの反対側へ伸びる
       const dx = Math.cos(a), dy = Math.sin(a);
+      let need = 0, at = Infinity, kind = null;
+      // ── 壁
       let L = Infinity;
       for (const s of table.rails) {
         const ex = s.x2 - s.x1, ey = s.y2 - s.y1;
@@ -702,12 +721,50 @@
         const uu = ((s.x1 - cue.x) * dy - (s.y1 - cue.y) * dx) / den;
         if (tt > 0 && uu >= 0 && uu <= 1 && tt < L) L = tt;
       }
-      if (!isFinite(L) || L > CUE_LEN) { fan[d] = 0; continue; }
-      dist[d] = L;
-      if (L <= 1) { fan[d] = Math.PI / 2; continue; }
-      fan[d] = Math.min(Math.PI / 2, Math.atan2(Math.max(0, hNeed), L));
+      if (isFinite(L) && L <= CUE_LEN) {
+        const n = (L <= 1) ? Math.PI / 2
+          : Math.min(Math.PI / 2, Math.atan2(Math.max(0, table.cushionTop - hTip), L));
+        if (n > need) { need = n; at = L; kind = 'wall'; }
+      }
+      // ── 手前の玉
+      for (const b of balls) {
+        if (b === cue || b.state !== 'live') continue;
+        const ex = b.x - cue.x, ey = b.y - cue.y;
+        const proj = ex * dx + ey * dy;
+        if (proj <= 0 || proj > CUE_LEN) continue;
+        if (Math.abs(ex * dy - ey * dx) > b.r + SHAFT_R) continue;
+        const n = (proj <= 1) ? Math.PI / 2
+          : Math.min(Math.PI / 2, Math.atan2(Math.max(0, b.r * 2 + 2 - hTip), proj));
+        if (n > need) { need = n; at = proj; kind = 'ball'; }
+      }
+      fan[d] = need;
+      dist[d] = at;
+      what[d] = kind;
     }
     S.elevFan = fan;
+  }
+  /** 撞点を上下させると必要な角度が変わる。変えたときだけ引き直す */
+  function refreshElevFan() {
+    const g = S.game; if (!g) return;
+    if (S.elevTipY === S.aim.tipY) return;
+    const cue = RU.cueBallOf(g, g.turn);
+    if (cue) { computeElevFan(cue); autoElev(); }
+  }
+  /**
+   * 自分でつまみを動かしていない間は、当たらずに済む最小の角度に合わせておく。
+   * いつも水平から始まると、壁や玉が邪魔な場面で「撞けません」とだけ言われる。
+   */
+  function autoElev() {
+    if (S.elevTouched) {
+      const need = minElevFor(S.aim.dir);
+      if (S.aim.elev < need) { S.aim.elev = Math.min(need, Math.PI / 2); syncElevSlider(); S.aimDirty = true; }
+      return;
+    }
+    const v = Math.min(minElevFor(S.aim.dir), Math.PI / 2);
+    if (Math.abs(v - S.aim.elev) > 1e-4) { S.aim.elev = v; syncElevSlider(); S.aimDirty = true; }
+  }
+  function syncElevSlider() {
+    const el = $('elev'); if (el) el.value = Math.round(S.aim.elev * 180 / Math.PI);
   }
   function dirIndex(dir) {
     let d = Math.round(dir * 180 / Math.PI) % 360; if (d < 0) d += 360;
@@ -717,7 +774,7 @@
     if (!S.elevFan) return 0;
     return S.elevFan[dirIndex(dir)];
   }
-  /** いま向いている方向で、キューの尻がぶつかる壁までの距離。無ければ Infinity */
+  /** いま向いている方向で、キューの尻がぶつかる邪魔物（壁または玉）までの距離。無ければ Infinity */
   function wallDistFor(dir) {
     if (!S.elevDist) return Infinity;
     return S.elevDist[dirIndex(dir)];
@@ -962,6 +1019,119 @@
     g.redoCount++;
     const players = g.players.map(p => ({ name: p.name, type: p.type }));
     startGame(g.seed, players, null);       // シードは引き継ぐ（10.8.6節）
+  }
+
+  // ══════════════════════════════════════════════
+  //  デモ（?debug=1 のときだけ出る）
+  // ══════════════════════════════════════════════
+  /*
+   * ナインボールのブレイクで9番を一発で落として見せる。
+   * **決め打ちの5値は置かない。** 物理の係数や撞球の癖の設定が変われば
+   * 同じ撞き方でも落ちる玉が変わるので、その場の設定で試し撞きして探す。
+   * 探し方は「真っすぐ」から左右へ広げる順（実測でだいたい 6〜45 回で見つかる）。
+   * 見つけた1本は、人が撞くときとまったく同じ手順で撞かせる。
+   */
+  const DEMO_BACK = 40;                     // ヘッドストリングからどれだけ手前へ置くか
+  function startDemo() {
+    if (S.demo) return;
+    S.cfg.rule = 'G-01'; S.cfg.format = 'local'; S.cfg.players = 2; S.cfg.coop = false;
+    startGame(newSeed(), null, null);
+    const g = S.game;
+    const cue = RU.cueBallOf(g, 0); if (!cue) return;
+    S.demo = { on: true };
+    const px = g.table.headSpot.x - DEMO_BACK, py = 0;
+    const from = { x: S.placePos.x, y: S.placePos.y };
+    const t0 = performance.now(), MOVE = 800;
+    // ① 手玉を置く（人がドラッグして置くのと同じ見え方）
+    function movePhase() {
+      if (!S.demo) return;
+      const k = Math.min(1, (performance.now() - t0) / MOVE);
+      const e = k * k * (3 - 2 * k);        // 動き出しと止まりを滑らかに
+      S.placePos = { x: from.x + (px - from.x) * e, y: from.y + (py - from.y) * e };
+      S.aimDirty = true;
+      if (k < 1) { requestAnimationFrame(movePhase); return; }
+      // ②「ここに置く」を押したのと同じ処理
+      RU.place(cue, px, py);
+      g.ballInHand = false;
+      S.pendingPlace = { x: px, y: py };
+      computeElevFan(cue); autoElev();
+      S.phase = 'aim';
+      demoSearch(cue);
+    }
+    movePhase();
+  }
+
+  /** その場の設定で「9番が落ちて手玉は落ちない」ブレイクを探す */
+  function demoSearch(cue) {
+    const g = S.game;
+    const cands = [];
+    const powers = [0.90, 1.00, 1.10, 0.80];
+    for (let k = 0; k <= 80; k++) {
+      for (const sg of (k === 0 ? [1] : [-1, 1])) {
+        for (const pw of powers) cands.push({ dir: sg * k * 0.0015, power: pw });
+      }
+    }
+    let i = 0;
+    function chunk() {
+      if (!S.demo || !S.game || S.game !== g) return;
+      // 1回の試し撞きが1フレームぶんより重いので、1フレームに1回だけ進める
+      const c = cands[i++];
+      const shot = { dir: c.dir, power: c.power, tipX: 0, tipY: 0, elev: minElevFor(c.dir) };
+      if (demoTry(g, cue, shot)) { demoStance(shot); return; }
+      setMsg(t('ph.demo') + '  ' + i + ' / ' + cands.length);
+      if (i < cands.length) requestAnimationFrame(chunk);
+      else { S.demo = null; setMsg(t('ph.aim')); }   // 見つからなければ黙って普通の局に戻す
+    }
+    chunk();
+  }
+  function demoTry(g, cue, shot) {
+    const w = E.cloneWorld(g.world);
+    const c = w.balls.find(b => b.id === cue.id); if (!c) return false;
+    E.applyCue(c, shot);
+    E.runShot(w, 14);
+    const byId = {}; w.balls.forEach(b => byId[b.id] = b);
+    let nine = false, bad = false;
+    for (const ev of w.events) {
+      if (ev.type === 'pocket') {
+        const b = byId[ev.ball];
+        if (b && b.kind === 'cue') bad = true;
+        if (b && b.num === 9) nine = true;
+      } else if (ev.type === 'offtable') bad = true;
+    }
+    return nine && !bad;
+  }
+  /** ③ 3Dで構える。構えながら向きを少し左右に直す（人がやっていること） */
+  function demoStance(shot) {
+    S.phase = 'stance'; setMsg(t('ph.cue'));
+    const t0 = performance.now(), DUR = 1500;
+    function step() {
+      if (!S.demo) return;
+      const el = performance.now() - t0;
+      if (el < DUR) {
+        const k = 1 - el / DUR;             // だんだん揺れが小さくなって定まる
+        S.aim.dir = shot.dir + Math.sin(el / 140) * 0.024 * k;
+        S.aimDirty = true;
+        requestAnimationFrame(step); return;
+      }
+      S.aim.dir = shot.dir; S.aimDirty = true;
+      demoPull(shot);
+    }
+    step();
+  }
+  /** ④ キューを引いて撞く */
+  function demoPull(shot) {
+    const t0 = performance.now(), DUR = 750;
+    function step() {
+      if (!S.demo) return;
+      const k = Math.min(1, (performance.now() - t0) / DUR);
+      S.aim.power = shot.power * k;
+      if (k < 1) { requestAnimationFrame(step); return; }
+      S.aim.power = 0;
+      S.demo = null;
+      const place = S.pendingPlace; S.pendingPlace = null;
+      fireShot(shot, place, true);
+    }
+    step();
   }
 
   // ══════════════════════════════════════════════
@@ -1588,7 +1758,7 @@
     return view.topInset;
   }
   function dirStripTop() { return topInset(); }
-  function cueStripW() { return Math.max(58, Math.min(88, view.w * 0.16)); }
+  function cueStripW() { return Math.max(72, Math.min(96, view.w * 0.17)); }
   function tipPadRect() {
     const R = Math.min(80, Math.max(46, view.w * 0.14));
     return { cx: R + 16, cy: view.h - R - 16, r: R };
@@ -1688,8 +1858,16 @@
     // （切らないと投影できず、キューが1本も見えない）
     const el = S.aim.elev;
     const back = 90 + pull * 340;
-    const p1 = { x: cue.x - fx * back * Math.cos(el), y: cue.y - fy * back * Math.cos(el), z: cue.r + back * Math.sin(el) };
-    const p2 = { x: cue.x - fx * (back + 1300) * Math.cos(el), y: cue.y - fy * (back + 1300) * Math.cos(el), z: cue.r + (back + 1300) * Math.sin(el) };
+    /*
+     * キューの先が当たる場所は玉の中心ではない。撞点をずらしていれば、
+     * 左右にも上下にもそのぶん動く（物理側の可動域＝半径の 50%）。
+     * 絵がいつも中心を指していると、撞点を変えたことが見た目に出ない。
+     */
+    const sx = cue.x - fy * S.aim.tipX * cue.r * 0.5;
+    const sy = cue.y + fx * S.aim.tipX * cue.r * 0.5;
+    const sz = cue.r + S.aim.tipY * cue.r * 0.5;
+    const p1 = { x: sx - fx * back * Math.cos(el), y: sy - fy * back * Math.cos(el), z: sz + back * Math.sin(el) };
+    const p2 = { x: sx - fx * (back + 1300) * Math.cos(el), y: sy - fy * (back + 1300) * Math.cos(el), z: sz + (back + 1300) * Math.sin(el) };
     const zOf = v => (v.x - cam.x) * f.x + (v.y - cam.y) * f.y + (v.z - cam.z) * f.z;
     const NEAR = 60;
     let a1 = p1, a2 = p2;
@@ -1753,66 +1931,105 @@
     ctx.restore();
   }
 
-  /** 上部：ここを左右にドラッグすると向きが変わる、と分かる帯 */
+  /**
+   * 上部：ここを左右にドラッグすると向きが変わる、と分かる帯。
+   * 矢印は絵として左右の端に置き、文言には矢印の記号を入れない。
+   * 両方あると同じことを2つ言っていることになり、しかも重なって読めなかった。
+   */
   function drawDirStrip() {
     const h = dirStripH();
     const y0 = dirStripTop();                 // タイトルの下から始める
+    // 右上には言語と設定が常に居るので、そのぶんを空けて箱を終える
+    const RESERVE = 104;
+    const W = Math.max(120, view.w - RESERVE);
     ctx.save();
     ctx.translate(0, y0);
     const g = ctx.createLinearGradient(0, 0, 0, h);
     g.addColorStop(0, 'rgba(20,20,20,.82)'); g.addColorStop(1, 'rgba(20,20,20,.34)');
-    ctx.fillStyle = g; ctx.fillRect(0, 0, view.w, h);
-    ctx.strokeStyle = (S.drag && S.drag.kind === 'fine') ? 'rgba(251,146,60,.9)' : 'rgba(255,255,255,.18)';
-    ctx.lineWidth = 1.4; ctx.strokeRect(.7, .7, view.w - 1.4, h - 1.4);
-    // 左右の矢印。右上には言語と設定が常に居るので、そのぶんを空けて描く
-    const RESERVE = 104;
-    const usable = Math.max(120, view.w - RESERVE);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, h);
+    const hot = (S.drag && S.drag.kind === 'fine');
+    ctx.strokeStyle = hot ? 'rgba(251,146,60,.9)' : 'rgba(255,255,255,.18)';
+    ctx.lineWidth = 1.4; ctx.strokeRect(.7, .7, W - 1.4, h - 1.4);
+    // 箱の両端の矢印。sg は矢印が指す向き。底辺を反対側に置いて、指す先を尖らせる
     const cyy = h / 2;
-    ctx.fillStyle = (S.drag && S.drag.kind === 'fine') ? '#fb923c' : 'rgba(255,255,255,.72)';
-    // sg は矢印が指す向き。底辺を反対側に置いて、指す先を尖らせる
-    [[18, -1], [usable - 18, 1]].forEach(([x, sg]) => {
+    const AW = 9, PAD = 7;                    // 矢印の半幅と、箱の縁からの余白
+    ctx.fillStyle = hot ? '#fb923c' : 'rgba(255,255,255,.72)';
+    [[PAD + AW, -1], [W - PAD - AW, 1]].forEach(([x, sg]) => {
       ctx.beginPath();
-      ctx.moveTo(x - sg * 9, cyy - 10); ctx.lineTo(x - sg * 9, cyy + 10); ctx.lineTo(x + sg * 8, cyy);
+      ctx.moveTo(x - sg * AW, cyy - 10); ctx.lineTo(x - sg * AW, cyy + 10); ctx.lineTo(x + sg * AW, cyy);
       ctx.closePath(); ctx.fill();
     });
-    ctx.font = '12px "Noto Sans JP",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    // 文字は矢印の内側だけを使う。狭ければ字を小さくして、矢印に掛からないようにする
+    const inner = W - (PAD + AW * 2) * 2 - 12;
+    const label = t('hint.dir');
+    let size = 12;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (; size > 8; size--) {
+      ctx.font = size + 'px "Noto Sans JP",sans-serif';
+      if (ctx.measureText(label).width <= inner) break;
+    }
     ctx.fillStyle = 'rgba(255,255,255,.8)';
-    ctx.fillText(t('hint.dir'), usable / 2, cyy - 7);
+    ctx.fillText(label, W / 2, cyy - 7, inner);
     ctx.font = '11px "Noto Sans JP",sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,.5)';
-    ctx.fillText(((S.aim.dir * 180 / Math.PI) % 360).toFixed(1) + '°', usable / 2, cyy + 11);
+    ctx.fillText(((S.aim.dir * 180 / Math.PI) % 360).toFixed(1) + '°', W / 2, cyy + 11);
     ctx.restore();
   }
 
-  /** 右端：キューの絵。ここを引くと力が溜まり、離すと撞く */
+  /**
+   * 右端：キューの絵。ここを引くと力が溜まり、離すと撞く。
+   * 強さの目盛りも同じ箱の中へ、キューと並べて縦に置く。
+   * 数字が箱の中・目盛りが画面の下という置き方だと、
+   * どちらが何を指しているのかが結びつかなかった。
+   */
   function drawCueStrip() {
     const w = cueStripW();
     const x0 = view.w - w;
     const top = dirStripTop() + dirStripH() + 10, bot = view.h - 14;
     const H = bot - top;
+    const pw = Math.min(1, S.aim.power);
     ctx.save();
     ctx.fillStyle = 'rgba(20,20,20,.55)';
     ctx.fillRect(x0, top - 6, w, H + 12);
     ctx.strokeStyle = (S.drag && S.drag.kind === 'pull') ? 'rgba(251,146,60,.9)' : 'rgba(255,255,255,.18)';
     ctx.lineWidth = 1.4; ctx.strokeRect(x0 + .7, top - 5.3, w - 1.4, H + 10.6);
 
-    // キューは上（先端）から下（尻）へ。引き代ぶん下へずらす
-    const cx = x0 + w / 2;
+    // ── 強さの目盛り（縦）。左の端から順に「目盛り・数字・キュー」と並べる
+    const GW = 9, GX = x0 + 7;
+    roundRect(GX, top, GW, H, 4);
+    ctx.fillStyle = 'rgba(255,255,255,.10)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.22)'; ctx.lineWidth = 1; ctx.stroke();
+    const fh = H * pw;
+    if (fh > 1) {
+      roundRect(GX, top + H - fh, GW, fh, 4);
+      ctx.fillStyle = S.aim.power > 1 ? '#dc2626' : '#ea580c'; ctx.fill();
+    }
+    // 100% の線。ここを超えると撞きすぎ（4.4.4節）
+    ctx.beginPath(); ctx.moveTo(GX - 2, top + .5); ctx.lineTo(GX + GW + 2, top + .5);
+    ctx.strokeStyle = 'rgba(255,255,255,.45)'; ctx.lineWidth = 1; ctx.stroke();
+
+    // ── キューは上（先端）から下（尻）へ。引き代ぶん下へずらす
+    const bx = x0 + 30 + (w - 30) / 2;             // 目盛りと数字のぶんを空けた中央
+    const ballR = 10;
+    const cx = bx + S.aim.tipX * ballR * 0.5;      // 撞点の左右のずれ＝キューの位置がずれる
     const travel = H * 0.34;
     const off = S.aim.power * travel;
     const tipY = top + 18 + off, buttY = bot - 6 + off;
     // 先が細く尻が太い実物の形。真っ直ぐな棒だと向きが読めない
     taperedCue(ctx, cx, tipY, cx, Math.min(buttY, bot + travel), 5.5, 13);
     // 手玉（先端の先に置いて、引く向きが分かるようにする）
-    ctx.beginPath(); ctx.arc(cx, top + 6, 9, 0, 7);
-    const bg2 = ctx.createRadialGradient(cx - 3, top + 3, 1, cx, top + 6, 9);
+    ctx.beginPath(); ctx.arc(bx, top + 6, ballR, 0, 7);
+    const bg2 = ctx.createRadialGradient(bx - 3, top + 3, 1, bx, top + 6, ballR);
     bg2.addColorStop(0, '#fff'); bg2.addColorStop(1, '#b9b9b9');
     ctx.fillStyle = bg2; ctx.fill();
-    // 文言
+    // 撞点の印。玉のどこを撞くのかを、この絵の上でも見せる
+    ctx.beginPath(); ctx.arc(cx, top + 6 - S.aim.tipY * ballR * 0.5, ballR * .22, 0, 7);
+    ctx.fillStyle = '#c2410c'; ctx.fill();
+    // 文言と数字
     ctx.save();
-    ctx.translate(x0 + 12, bot - 4); ctx.rotate(-Math.PI / 2);
+    ctx.translate(x0 + 26, bot - 4); ctx.rotate(-Math.PI / 2);
     ctx.font = '11px "Noto Sans JP",sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = 'rgba(255,255,255,.62)';
+    ctx.fillStyle = S.aim.power > 1 ? '#fca5a5' : 'rgba(255,255,255,.62)';
     ctx.fillText(t('hint.power') + '  ' + Math.round(S.aim.power * 100) + '%', 0, 0);
     ctx.restore();
     ctx.restore();
@@ -1904,9 +2121,12 @@
     const bg = c.createRadialGradient(bx - br * .35, bedY - br * 1.3, br * .1, bx, bedY - br, br);
     bg.addColorStop(0, '#fff'); bg.addColorStop(1, '#b5b5b5');
     c.beginPath(); c.arc(bx, bedY - br, br, 0, 7); c.fillStyle = bg; c.fill();
-    // キュー（尻を持ち上げる）。先が細く、尻が太い実物の形に寄せる
+    // キュー（尻を持ち上げる）。先が細く、尻が太い実物の形に寄せる。
+    // 撞点を上下させると、先が当たる高さもそのぶん動く（可動域は半径の 50%）
+    const ty = clamp(S.aim.tipY || 0, -1, 1) * 0.5;
     const L = w * 0.86;
-    const tipX = bx - br * 0.9, tipY = bedY - br;
+    const tipX = bx - br * 0.9 * Math.sqrt(Math.max(0.04, 1 - ty * ty));
+    const tipY = bedY - br - br * ty;
     const ex = tipX - Math.cos(elev) * L, ey = tipY - Math.sin(elev) * L;
     taperedCue(c, tipX, tipY, ex, ey, Math.max(2.6, h * 0.030), Math.max(5, h * 0.062));
     c.lineCap = 'butt';
@@ -1919,17 +2139,22 @@
   }
 
   /**
-   * 角度の絵に、キューの尻がぶつかる壁（クッション）を描く。
-   * 角度を下げられない理由は「後ろに壁がある」ことなので、
-   * 壁そのものを見せないと、なぜ下げられないのかが分からない。
+   * 角度の絵に、キューの尻がぶつかる邪魔物を描く。
+   * 角度を下げられない理由は「後ろに何かある」ことなので、
+   * それそのものを見せないと、なぜ下げられないのかが分からない。
+   * **壁のときは壁、玉のときは玉**を描く。壁の絵しか無いと、
+   * 玉が邪魔をしている場面で嘘の説明になる。
    */
   function drawSideWall(c, x, bedY, w, h, bx, br, elev) {
     const g = S.game; if (!g) return;
     const L = w * 0.70;                       // 絵の中のキューの長さ＝CUE_LEN に相当
     const dist = wallDistFor(S.aim.dir);
     const need = minElevFor(S.aim.dir);
+    const kind = (S.elevWhat && S.elevWhat[dirIndex(S.aim.dir)]) || 'wall';
     if (!isFinite(dist) || dist > CUE_LEN || need <= 0.001) return;
-    const tipX = bx - br * 0.9, tipY = bedY - br;
+    const ty = clamp(S.aim.tipY || 0, -1, 1) * 0.5;
+    const tipX = bx - br * 0.9 * Math.sqrt(Math.max(0.04, 1 - ty * ty));
+    const tipY = bedY - br - br * ty;
     // 実距離のままだと、壁際のときに壁が手玉に重なって1画素になる。
     // 近すぎる場合は手前に引き寄せて描く（距離ではなく「当たっていること」を見せる絵）
     const dxp = clamp(dist * (L / CUE_LEN), L * 0.30, L * 0.85);
@@ -1943,13 +2168,24 @@
      */
     const wallTopY = tipY - dxp * Math.tan(Math.min(need, 1.4));
     const wallH = Math.max(3, bedY - wallTopY);
-    const wallW = Math.max(3, w * 0.07);
     const touching = elev <= need + 0.02;
     c.save();
-    c.fillStyle = touching ? '#a3431a' : '#6b4423';
-    c.fillRect(wallX - wallW / 2, bedY - wallH, wallW, wallH);
-    c.fillStyle = touching ? 'rgba(251,146,60,.9)' : 'rgba(255,255,255,.3)';
-    c.fillRect(wallX - wallW / 2, bedY - wallH, wallW, Math.max(1.4, wallH * 0.16));
+    if (kind === 'ball') {
+      // 玉。てっぺんをキューが掠める高さに合わせる＝越えられるかどうかが絵で分かる
+      const r2 = Math.max(3, wallH / 2);
+      const bg = c.createRadialGradient(wallX - r2 * .35, bedY - r2 * 1.3, r2 * .1, wallX, bedY - r2, r2);
+      bg.addColorStop(0, touching ? '#ffd9c2' : '#fff');
+      bg.addColorStop(1, touching ? '#c2410c' : '#9aa0a6');
+      c.beginPath(); c.arc(wallX, bedY - r2, r2, 0, 7); c.fillStyle = bg; c.fill();
+      c.strokeStyle = touching ? 'rgba(251,146,60,.95)' : 'rgba(255,255,255,.35)';
+      c.lineWidth = 1.2; c.stroke();
+    } else {
+      const wallW = Math.max(3, w * 0.07);
+      c.fillStyle = touching ? '#a3431a' : '#6b4423';
+      c.fillRect(wallX - wallW / 2, bedY - wallH, wallW, wallH);
+      c.fillStyle = touching ? 'rgba(251,146,60,.9)' : 'rgba(255,255,255,.3)';
+      c.fillRect(wallX - wallW / 2, bedY - wallH, wallW, Math.max(1.4, wallH * 0.16));
+    }
     c.restore();
   }
 
@@ -2045,7 +2281,7 @@
 
   cv.addEventListener('pointerdown', e => {
     S.dropped = null;                    // 触ったら中央の知らせは畳む
-    if (!S.game || !isMyTurn()) return;
+    if (!S.game || !isMyTurn() || S.demo) return;
     try { cv.setPointerCapture(e.pointerId); } catch (err) {}
     const p = evPos(e);
     if (S.phase === 'place') { S.drag = { kind: 'place' }; movePlace(p); }
@@ -2072,9 +2308,11 @@
       S.aim.tipX = clamp(S.drag.t0.x + (p.x - S.drag.x) / (pad.r * .5), -1, 1);
       S.aim.tipY = clamp(S.drag.t0.y - (p.y - S.drag.y) / (pad.r * .5), -1, 1);
       S.aimDirty = true;
+      refreshElevFan();                 // 上を撞けば、越えるのに要る角度は下がる
     } else if (S.drag.kind === 'fine') {
       S.aim.dir = S.drag.d0 + (p.x - S.drag.x) * 0.0016;
       S.aimDirty = true;
+      autoElev();
     } else if (S.drag.kind === 'pull') {
       S.aim.power = clamp((p.y - S.drag.y) / (view.h * 0.30), 0, 1.15);
     }
@@ -2110,7 +2348,7 @@
     const g = S.game, cue = RU.cueBallOf(g, g.turn);
     const tp = toTable(p.x, p.y);
     const d = Math.atan2(tp.y - cue.y, tp.x - cue.x);
-    if (isFinite(d)) { S.aim.dir = d; S.aimDirty = true; }
+    if (isFinite(d)) { S.aim.dir = d; S.aimDirty = true; autoElev(); }
   }
 
   function shootNow() {
@@ -2127,6 +2365,7 @@
 
   const elevEl = $('elev');
   elevEl.addEventListener('input', () => {
+    S.elevTouched = true;              // 自分で決めた値は、以後こちらで動かさない
     const need = minElevFor(S.aim.dir) * 180 / Math.PI;
     let v = +elevEl.value;
     if (v < need) { v = Math.ceil(need); elevEl.value = v; }
@@ -2152,7 +2391,7 @@
       S.game.ballInHand = false;
       // 置いた位置はショットの入力の一部。通信対戦では5値と一緒に送る
       S.pendingPlace = { x: S.placePos.x, y: S.placePos.y };
-      computeElevFan(cue);
+      computeElevFan(cue); autoElev();
       S.phase = 'aim'; setMsg(t('ph.aim'));
     } else if (S.phase === 'aim') {
       S.phase = 'stance'; setMsg(t('ph.cue'));
@@ -2216,14 +2455,15 @@
       renderClock();
       drawElevPic();
       $('k-elev').textContent = Math.round(S.aim.elev * 180 / Math.PI) + '°';
-      $('k-power').textContent = Math.round(S.aim.power * 100) + '%';
-      const gg = $('power-gauge');
-      gg.classList.toggle('over', S.aim.power > 1);   // オーバーパワー警告（4.4.4節）
-      gg.firstElementChild.style.width = Math.min(100, S.aim.power * 100) + '%';
       const key = mainButtonKey();
       const btn = $('btn-aim');
       if (btn.dataset.k !== key) { btn.dataset.k = key; btn.textContent = t(key); }
-      btn.disabled = !isMyTurn() || S.phase === 'rolling' || S.phase === 'wait';
+      btn.disabled = !isMyTurn() || S.phase === 'rolling' || S.phase === 'wait' || !!S.demo;
+      /*
+       * 手玉を置く場面では、置ける位置にあることが分かるようにボタンを目立たせる。
+       * 押して構えへ進めば見出しが変わるので、色も自然に元へ戻る。
+       */
+      btn.classList.toggle('primary', S.phase === 'place' && !btn.disabled && placeOk(S.placePos));
     }
     requestAnimationFrame(loop);
   }
@@ -2293,10 +2533,67 @@
    * とくに撞球の癖を入れていると、狙った通りに手玉が進まないことがあるので、
    * その可能性まで添える。
    */
+  /** 玉の呼び名。番号を持たない玉（キャロムの的球）は番号で呼べない */
+  function ballName(b) {
+    return b.num ? t('miss.numbered', { n: b.num }) : t('miss.object');
+  }
+  /**
+   * 空振りの理由。
+   * 「どの玉にも当たりませんでした」だけでは、なぜ当たらなかったのかが分からない。
+   * 撞く直前の盤面（リプレイ用に控えてあるもの）をもう一度だけ走らせて、
+   * **実際に何が起きたか**を測ってから言う。もっともらしい理由を並べない。
+   */
+  function missWhy() {
+    const g = S.game;
+    if (!g || !S.replay || !S.pre || !S.replay.shot) return '';
+    const balls = S.replay.balls.map(b => Object.assign({}, b));
+    const w = E.createWorld(g.table, balls, g.tuning);
+    const cue = w.balls.find(b => b.id === S.pre.cueId);
+    if (!cue) return '';
+    const objs = w.balls.filter(b => b !== cue && b.state === 'live');
+    if (!objs.length) return t('miss.none');
+    const shot = S.replay.shot;
+    const x0 = cue.x, y0 = cue.y;
+    // 狙った向きの先に玉があったか（当たるはずだった相手と、そこまでの距離）
+    const fc = E.firstContact(w, cue, shot.dir, 6000);
+    const dx = Math.cos(shot.dir), dy = Math.sin(shot.dir);
+
+    let near = null;              // いちばん近づいた相手 { b, gap, air, railBefore }
+    let railSeen = false, evAt = 0;
+    E.applyCue(cue, shot);
+    E.runShot(w, 12, ww => {
+      for (; evAt < ww.events.length; evAt++) {
+        const ev = ww.events[evAt];
+        if (ev.type === 'cushion' && ev.ball === cue.id) railSeen = true;
+      }
+      if (cue.state !== 'live') return;
+      for (const b of objs) {
+        if (b.state !== 'live') continue;
+        const gap = Math.hypot(b.x - cue.x, b.y - cue.y) - (cue.r + b.r);
+        if (!near || gap < near.gap) near = { b, gap, air: cue.z > cue.r * 0.5, railBefore: railSeen };
+      }
+    });
+    if (!near) return '';
+    const cm = v => (Math.max(0, v) / 10).toFixed(1);
+    // 進めた距離。狙った玉まで届かずに止まったのなら、それがいちばんの理由
+    const went = (cue.x - x0) * dx + (cue.y - y0) * dy;
+    if (fc.type === 'ball' && fc.ball && went < fc.dist - 1 && near.gap > 0) {
+      return t('miss.short', { n: ballName(fc.ball), d: cm(fc.dist - went) });
+    }
+    if (near.gap <= 0 && near.air) return t('miss.air', { n: ballName(near.b) });
+    if (near.gap <= near.b.r * 2) return t('miss.near', { n: ballName(near.b), d: cm(near.gap) });
+    if (near.railBefore) return t('miss.rail', { n: ballName(near.b) });
+    return t('miss.wide', { n: ballName(near.b), d: cm(near.gap) });
+  }
+
   function foulWhy(res) {
     const g = S.game;
     const lines = [];
     for (const f of res.fouls) lines.push(t('foul.why.' + f));
+    if (res.fouls.indexOf('V-01') >= 0) {
+      const why = missWhy();
+      if (why) lines.push(why);
+    }
 
     /*
      * 「当たりそうだったのに外れた」の一言。
@@ -2828,6 +3125,7 @@
     show('home');
   };
   $('btn-deadlock').onclick = () => { if (isMyTurn()) askDeadlock(); };
+  $('btn-demo').onclick = () => { AU.sfx('button'); startDemo(); };
   $('btn-replay').onclick = () => {
     if (!S.replay) return;
     const w = E.createWorld(S.game.table, S.replay.balls.map(b => Object.assign({}, b)), S.game.tuning);

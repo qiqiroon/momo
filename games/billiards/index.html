@@ -249,6 +249,8 @@ input[type=range]{accent-color:var(--orange-mid);}
 #dbg{position:absolute;left:6px;bottom:6px;font-size:10px;color:#9ca3af;background:rgba(10,10,10,.7);
   padding:2px 6px;border-radius:5px;pointer-events:none;display:none;}
 body.debug #dbg{display:block;}
+/* デモは ?debug=1 のときだけ出す道具。ふだんは見えてはいけない */
+#btn-demo{display:none;} body.debug #btn-demo{display:block;}
 #elev-row{display:flex;align-items:center;gap:8px;}
 #elev{writing-mode:vertical-lr;direction:rtl;height:110px;}
 #elev-pic{width:112px;height:120px;flex:0 0 auto;}
@@ -589,12 +591,11 @@ body.debug #dbg{display:block;}
         <input type="range" id="elev" min="0" max="90" value="0" step="1">
         <canvas id="elev-pic" width="224" height="240"></canvas>
       </div>
-      <div>
-        <div class="mini" id="k-power">0%</div>
-        <div class="gauge" id="power-gauge"><i></i></div>
-      </div>
+      <!-- 強さの表示はキューの箱の中（盤面に描く）へ移した。
+           数字とバーが離れていると、どちらが何を指しているのか結びつかない -->
       <button class="btn small" id="btn-aim"></button>
       <button class="btn small" id="btn-replay"></button>
+      <button class="btn small" id="btn-demo"></button>
       <button class="btn small" id="btn-deadlock"></button>
       <button class="btn small" id="btn-quit"></button>
     </div>

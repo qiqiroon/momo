@@ -443,6 +443,8 @@ body.debug #dbg{display:block;}
         <label class="row" style="gap:6px" id="wrap-target"><span class="mini" id="lbl-target"></span>
           <input type="number" id="in-target" min="1" max="200" value="10" style="width:74px"></label>
       </div>
+      <!-- 通信対戦では人数は設定ではなく事実（いま集まっている対局者の数） -->
+      <div class="hint" id="players-note" style="margin-top:6px;display:none"></div>
       <!-- 協力プレイ＝勝ち負けを見る相手を個人からチームへ差し替えるスイッチ（9.7節） -->
       <div id="coop-block" style="margin-top:12px">
         <label class="sw"><input type="checkbox" id="sw-coop"><i></i><span id="lbl-coop"></span></label>
@@ -487,9 +489,14 @@ body.debug #dbg{display:block;}
         <label class="row" style="gap:6px"><span class="mini" id="lbl-pw"></span>
           <input type="password" id="in-pw" maxlength="16" style="width:110px"
                  autocomplete="new-password" name="bl-secret" data-lpignore="true" data-1p-ignore></label>
+        <!-- 定員は部屋を開いた時点で決まる（仕様2.6節）。中に入ってからでは変えられないので、
+             作る前に決められる場所へ置く -->
+        <label class="row" style="gap:6px"><span class="mini" id="lbl-maxp"></span>
+          <select id="in-maxp"></select></label>
         <label class="chk"><input type="checkbox" id="in-private"><span id="lbl-private"></span></label>
         <button class="btn primary small" id="btn-create"></button>
       </div>
+      <div class="hint" id="maxp-note" style="margin-top:8px"></div>
     </div>
     <div class="card">
       <div class="row" style="justify-content:space-between">

@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.15';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.16';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -112,7 +112,12 @@
     msg: '',
     replay: null, replayRun: null,
     clock: { baseLeft: 0, banks: [], running: false },
-    net: { on: false, role: 'none', isHost: false, myPid: null, myIdx: -1, roster: [], lastRooms: [], wsOpen: false, wasClosed: false, ready: {}, sentCfg: null },
+    net: {
+      on: false, role: 'none', isHost: false, myPid: null, myIdx: -1, roster: [], lastRooms: [],
+      wsOpen: false, wasClosed: false, ready: {}, sentCfg: null,
+      maxPlayers: 2,       // 部屋の定員。開いた時点で決まり、あとから変えられない（仕様2.6節）
+      gone: {},            // 対局の途中で抜けた人。待ち合わせで待ち続けないための控え
+    },
     aiCancel: null, confirmCb: null, dlVotes: {},
     chk: {},               // 受け取った盤面照合（ショット番号 → 指紋）。追いついてから比べる
     pendingShots: {},      // 先に届いた相手の手。こちらがその番号へ達したら指す
@@ -159,6 +164,8 @@
     set('btn-dl-yes', 'btn.yes'); set('btn-dl-no', 'btn.no'); set('btn-note-close', 'nav.close');
     set('lbl-myname', 'lobby.name'); set('lbl-roomname', 'lobby.room'); set('lbl-pw', 'lobby.pw2');
     set('lbl-private', 'lobby.private'); set('btn-create', 'lobby.create'); set('lbl-create', 'lobby.create');
+    set('lbl-maxp', 'lobby.maxPlayers'); set('maxp-note', 'lobby.maxNote');
+    buildMaxPlayers();
     set('lbl-rooms', 'lobby.rooms'); set('btn-refresh', 'lobby.refresh');
     set('btn-lobby-back', 'nav.back'); set('btn-room-leave', 'nav.back');
     set('btn-setup-back', 'nav.back'); set('setup-title', 'setup.title');
@@ -339,15 +346,32 @@
     }
 
     const selP = $('sel-players');
-    const minP = (S.cfg.format === 'practice') ? 1 : (S.cfg.format === 'ai' ? 1 : 2);
+    const note = $('players-note');
     const maxP = (S.cfg.rule === 'G-02') ? 2 : 4;
-    selP.innerHTML = '';
-    for (let n = minP; n <= maxP; n++) {
-      const o = document.createElement('option'); o.value = n; o.textContent = n; selP.appendChild(o);
+    if (S.net.on) {
+      /*
+       * 通信対戦では、人数は選ぶものではなく**いま集まっている対局者の数**である。
+       * 部屋の定員は開いた時点で決まっていて、あとから変えられない（仕様2.6節）。
+       * ここで選ばせると「選べるのに何も起きない」欄になり、
+       * 3人にしたつもりで部屋を作った人が、3人目を入れられないまま待つことになる。
+       */
+      S.cfg.players = Math.max(1, playersInRoom().length);
+      selP.innerHTML = '<option>' + S.cfg.players + '</option>';
+      selP.value = String(S.cfg.players);
+      selP.disabled = true;
+      if (note) { note.textContent = t('lobby.hereNow'); note.style.display = ''; }
+    } else {
+      const minP = (S.cfg.format === 'practice') ? 1 : (S.cfg.format === 'ai' ? 1 : 2);
+      selP.disabled = false;
+      selP.innerHTML = '';
+      for (let n = minP; n <= maxP; n++) {
+        const o = document.createElement('option'); o.value = n; o.textContent = n; selP.appendChild(o);
+      }
+      if (S.cfg.players < minP) S.cfg.players = minP;
+      if (S.cfg.players > maxP) S.cfg.players = maxP;
+      selP.value = S.cfg.players;
+      if (note) note.style.display = 'none';
     }
-    if (S.cfg.players < minP) S.cfg.players = minP;
-    if (S.cfg.players > maxP) S.cfg.players = maxP;
-    selP.value = S.cfg.players;
 
     $('wrap-ai').style.display = (S.cfg.format === 'ai') ? '' : 'none';
     $('sel-players').parentNode.style.display = (S.cfg.format === 'ai') ? 'none' : '';
@@ -541,7 +565,7 @@
     S.game = g;
     S.chk = {};                             // 前の局の照合は持ち越さない
     S.dropped = null; S.bursts = []; S.airZ = {}; S.pendingShots = {};
-    S.net.done = {}; S.waitDone = null; S.readyShot = null; S.forceShot = null;
+    S.net.done = {}; S.net.gone = {}; S.waitDone = null; S.readyShot = null; S.forceShot = null;
     if (S.waitTimer) { clearTimeout(S.waitTimer); S.waitTimer = null; }
     S.replay = null; S.replayRun = null; S.demo = null; S.endWait = 0;
     S.clock.banks = g.players.map(() => cfg.tbank * 60);
@@ -565,7 +589,14 @@
    * 誰かがまだ玉の転がりを見ている最中に次の手が始まると、
    * その人だけ「見ていない手」が進んでしまう。
    * そこで、次の手は**対局者全員がその手を見終わってから**始める。
-   * 観戦者は待たせない（人数も増減するし、遅れても対局に関わらないため）。
+   *
+   * **待つのは対局者どうしの遅れだけ。観戦者の画面は待たない**（仕様9.5.8節
+   * 「対局者より表示が遅れることを許容する。観戦は対局の進行に影響しない」）。
+   * 間に合わなかった観戦者は、玉を見終わってから次の手を受け取る（先に届いた手は預かってある）。
+   *
+   * 数える相手は**この対局の席**であって、いま部屋にいる人ではない。
+   * 在室者から数えると、定員に空きのある部屋へ遅れて来た人まで待つ相手に入り、
+   * その人は対局を持っていないので永久に返事が来ない。
    */
   const DONE_WAIT_MS = 12000;               // これ以上待っても来なければ先へ進む
   function markDone(pid, n) {
@@ -576,10 +607,11 @@
   }
   function allDone(n) {
     if (S.forceShot === n) return true;      // 待ちを打ち切った手は、そろった扱いにする
+    const g = S.game; if (!g) return true;
     const d = (S.net.done || {})[n] || {};
-    const seats = seatList();
-    if (!seats.length) return true;
-    return seats.every(s => !s.pid || d[s.pid]);
+    const gone = S.net.gone || {};
+    // 抜けた人は待たない。待ち続けると誰も進めなくなる
+    return g.players.every(p => !p.pid || d[p.pid] || gone[p.pid]);
   }
 
   function beginTurn() {
@@ -901,12 +933,14 @@
     S.phase = 'over'; S.clock.running = false;
     if (RU.WIN_KIND[g.rule] === 'points') RU.finishRanking(g);
     // 勝ったかどうかはチームで見る。協力プレイでなければ 1人＝1チームなので同じ答えになる
+    const watching = S.net.on && S.net.role === 'spectator';
     const meIdx = S.net.on ? S.net.myIdx : 0;
     const myTeam = (meIdx >= 0 && g.players[meIdx]) ? RU.teamOf(g, meIdx) : -1;
     const won = (g.winTeam >= 0) && (S.net.on ? g.winTeam === myTeam
       : RU.teamMembers(g, g.winTeam).some(p => p.type === 'human'));
-    S.won = won;
-    AU.sfx(won ? 'win' : 'lose');
+    S.won = won && !watching;
+    // 観戦者はどちらの側でもないので、勝ちの音も負けの音も鳴らさない
+    if (!watching) AU.sfx(won ? 'win' : 'lose');
     renderResult();
     openResult();                           // 盤面は消さない。上に重ねて出す
   }
@@ -1012,12 +1046,17 @@
       () => { if (!S.net.on) { setMsg(t('dl.refused')); return; } castVote(false); });
   }
   function castVote(ok) {
+    if (S.net.on && S.net.myIdx < 0) return;   // 席を持たない者は投票しない
     setMsg(ok ? t('dl.wait') : t('dl.refused'));
     if (S.net.isHost) tallyVote(S.net.myIdx, ok);
     else NET.send({ k: 'dl-vote', ok, idx: S.net.myIdx }, 'host');
   }
   function tallyVote(idx, ok) {
     if (!S.net.isHost || !S.game) return;
+    // 数えるのは対局者の票だけ。席の外から届いた票は捨てる。
+    // 断りの票は1枚で全員のやり直しを取り消せるので、ここを開けておくと
+    // 観戦者が対局に口を出せてしまう
+    if (!(idx >= 0 && idx < S.game.players.length)) return;
     S.dlVotes = S.dlVotes || {};
     S.dlVotes[idx] = ok;
     if (!ok) { NET.send({ k: 'dl-cancel' }); setMsg(t('dl.refused')); S.dlVotes = {}; return; }
@@ -1029,7 +1068,9 @@
   function redoRack() {
     const g = S.game;
     g.redoCount++;
-    const players = g.players.map(p => ({ name: p.name, type: p.type }));
+    // 席の正体（参加者ID）も一緒に配り直す。ここで落とすと、組み直したあとに
+    // 追いつき直そうとした人が自分の席を見失う
+    const players = g.players.map(p => ({ name: p.name, type: p.type, pid: p.pid || null }));
     startGame(g.seed, players, null);       // シードは引き継ぐ（10.8.6節）
   }
 
@@ -2686,12 +2727,18 @@
 
   /** 勝ったときだけ、くす玉と紙吹雪を出す（MOMO Hanafuda と同じ見せ方） */
   let confettiTimer = null;
-  function renderWinArt(won, draw) {
+  /**
+   * 大きく出す見出し。**勝ち・負けは「自分がどちらの側か」の話**なので、
+   * どちらの側でもない観戦者には出さない（観戦者に「負け」と出していた）。
+   */
+  function renderWinArt(won, draw, watching) {
     const panel = $('res-panel'), conf = $('confetti'), head = $('res-headline');
     if (!panel) return;
     panel.classList.toggle('win', !!won);
-    head.textContent = won ? t('res.win') : draw ? t('res.draw') : t('res.lose');
-    head.className = 'ge-title ' + (won ? 'win' : draw ? 'draw' : 'lose');
+    const kind = watching ? 'draw' : won ? 'win' : draw ? 'draw' : 'lose';
+    head.textContent = watching ? t('res.finished')
+      : won ? t('res.win') : draw ? t('res.draw') : t('res.lose');
+    head.className = 'ge-title ' + kind;
     if (conf) conf.innerHTML = '';
     if (confettiTimer) { clearTimeout(confettiTimer); confettiTimer = null; }
     if (!won || !conf) return;
@@ -2715,7 +2762,7 @@
 
   function renderResult() {
     const g = S.game;
-    renderWinArt(S.won, g.winTeam < 0 && !g.failed);
+    renderWinArt(S.won, g.winTeam < 0 && !g.failed, S.net.on && S.net.role === 'spectator');
     const body = $('res-body'); body.innerHTML = '';
     // 並べるのはチーム。協力プレイでなければ1人＝1チームなので今までと同じ見え方になる
     const kind = RU.WIN_KIND[g.rule];
@@ -2757,6 +2804,24 @@
     });
   }
 
+  /**
+   * 部屋の定員を選ぶ欄。
+   * 定員は部屋を開いた瞬間に決まり、あとから変えられない（仕様2.6節）。
+   * だから**作る前に**決められる場所へ置く。
+   * 部屋の中にしか無かったころは、既定の2人のまま部屋が開き、
+   * 3人目がいつまでも入れなかった。
+   */
+  function buildMaxPlayers() {
+    const sel = $('in-maxp'); if (!sel) return;
+    if (!sel.options.length) {
+      for (let n = 2; n <= 4; n++) {
+        const o = document.createElement('option'); o.value = n; o.textContent = n; sel.appendChild(o);
+      }
+      sel.onchange = e => { S.net.maxPlayers = +e.target.value; };
+    }
+    sel.value = String(S.net.maxPlayers);
+  }
+
   function openLobby() {
     show('lobby');
     NET.init({ version: APP_VER, onEvent: onNet });
@@ -2786,13 +2851,24 @@
       if (S.net.role === 'spectator') NET.send({ k: 'need' }, 'host');
     } else if (kind === 'participant') {
       if (d.roster) S.net.roster = d.roster;
+      /*
+       * 対局が始まっていたら、誰が来ても対局側は何も変えない。
+       * 設定を配り直すと、同じ入力から違う盤面が出る（9.5.3節）。
+       * 追いつきたい人は自分から「見せてほしい」と言ってくるので、こちらから押し付けない。
+       */
+      if (inGame()) return;
       AU.sfx('join');
       showRoom();
       // 人が増えたら合意はやり直し。入ってきた人はまだ何も見ていない
       if (S.net.isHost) { NET.send({ k: 'cfg', config: netConfig() }); clearReady(); }
     } else if (kind === 'participant-left') {
+      // 抜けたのが対局者か観戦者かで知らせ方が変わる。名簿を書き換える前に見る
+      const gonePid = d.pid || null;
+      const wasPlayer = !gonePid ||
+        (S.net.roster || []).some(r => r.pid === gonePid && r.role !== 'spectator');
+      if (gonePid) markGone(gonePid);
       if (d.roster) S.net.roster = d.roster;
-      setMsg(t('lobby.left'));
+      if (wasPlayer) setMsg(t('lobby.left'));   // 観戦者の出入りは対局者に知らせない
       showRoom();
     } else if (kind === 'disconnected' || kind === 'kicked') {
       setMsg(t('lobby.disconnected'));
@@ -2806,6 +2882,22 @@
   }
 
   function netConfig() { return JSON.parse(JSON.stringify(S.cfg)); }
+
+  /** 盤の前にいるかどうか。対局中に待合室の画面を出してはいけない場面の判定に使う */
+  function inGame() { return !!S.game && S.screen === 'play'; }
+
+  /**
+   * 対局の途中で抜けた人を、待ち合わせの相手から外す。
+   * 抜けたことを知らせずに黙っていると、残った人は返事の来ない相手を永久に待つ。
+   * 待っている最中に抜けられた場合は、その場で待ちを解く。
+   */
+  function markGone(pid) {
+    if (!pid) return;
+    S.net.gone = S.net.gone || {};
+    S.net.gone[pid] = 1;
+    const g = S.game;
+    if (g && !g.over && S.waitDone === g.shotNo && allDone(g.shotNo)) beginTurn();
+  }
 
   /**
    * 参加者の並びはホストが決めて配る。
@@ -2827,8 +2919,13 @@
    * 配られた席順の中から自分を探す。
    * 見つからないまま黙って待たせると、全員が「相手の番です」のまま止まる。
    * 前に分かっていた席があるならそれを使い、それも無ければ画面に出す。
+   *
+   * **観戦者にはそもそも席が無い**（仕様9.5.8節）。この決めごとはここ1か所に置く。
+   * 呼び出す側それぞれに書くと、あとから増えた経路が書き忘れられ、
+   * 観戦者に「席が分かりません」と誤って出る。
    */
   function seatIndexOfMe(names) {
+    if (S.net.role === 'spectator') return -1;
     const st = NET.state();
     const myPid = (st && st.pid) || S.net.myPid;
     for (let i = 0; i < names.length; i++) if (names[i].pid && names[i].pid === myPid) return i;
@@ -2840,7 +2937,11 @@
 
   function onNetMsg(p, from) {
     if (!p || !p.k) return;
-    if (p.k === 'cfg') { Object.assign(S.cfg, p.config); showRoom(); buildSetup(); return; }
+    if (p.k === 'cfg') {
+      // 対局が始まってから設定を入れ替えると、同じ入力から違う盤面が出る（9.5.3節）
+      if (inGame()) return;
+      Object.assign(S.cfg, p.config); showRoom(); buildSetup(); return;
+    }
     if (p.k === 'ready') { setReady(p.pid || from, !!p.ok); return; }
     if (p.k === 'rmap') { S.net.ready = p.map || {}; showRoom(); return; }
     if (p.k === 'done') {
@@ -2865,7 +2966,7 @@
     }
     if (p.k === 'sync') {
       setMsg(t('lobby.syncing'));
-      S.net.myIdx = S.net.role === 'spectator' ? -1 : seatIndexOfMe(p.names);
+      S.net.myIdx = seatIndexOfMe(p.names);
       startGame(p.seed, p.names, p.config);
       for (const rec of (p.log || [])) replayRecord(rec);
       renderHUD();
@@ -2891,7 +2992,8 @@
       onTimeout(false);
       return;
     }
-    if (p.k === 'dl-open') { openDeadlockVote(); return; }
+    // 観戦者は手番を持たない＝やり直しの当事者ではない（9.5.8節）。確認そのものを出さない
+    if (p.k === 'dl-open') { if (S.net.role !== 'spectator') openDeadlockVote(); return; }
     if (p.k === 'dl-vote') { tallyVote(p.idx, !!p.ok); return; }
     if (p.k === 'dl-cancel') { $('modal-dl').classList.remove('on'); setMsg(t('dl.refused')); return; }
     if (p.k === 'dl-redo') { $('modal-dl').classList.remove('on'); redoRack(); return; }
@@ -2978,7 +3080,9 @@
       const info = document.createElement('div');
       info.innerHTML = '<div class="nm">' + escapeHtml(r.name || '') + (r.hasPassword ? ' 🔒' : '') + '</div>' +
         (mode ? '<div class="mode">' + escapeHtml(mode) + '</div>' : '') +
-        '<div class="meta">' + escapeHtml((r.hostName || '') + ' / v' + ver) + '</div>';
+        // 定員は入る前に分かる必要がある。満員の部屋へ「参加」を押しても弾かれるだけ
+        '<div class="meta">' + escapeHtml((r.hostName || '') + ' / v' + ver +
+          (r.maxPlayers ? ' / ' + t('lobby.maxPlayers') + ' ' + r.maxPlayers : '')) + '</div>';
       const btns = document.createElement('div'); btns.className = 'row';
       const bj = document.createElement('button'); bj.className = 'btn small primary'; bj.textContent = t('lobby.join');
       bj.onclick = () => joinAs(r, 'player');
@@ -3036,6 +3140,14 @@
   }
 
   function showRoom() {
+    /*
+     * **対局中は盤から離れない。**
+     * 待合室の画面を出す用事（人の出入り・設定の配布・準備の取り消し）は
+     * いくつもの経路から来る。呼ぶ側それぞれで「いま対局中か」を見る作りにすると、
+     * あとから増えた経路が必ず書き漏れる。ここ1か所で囲う。
+     * 観戦者が1人出入りしただけで対局者全員が盤を取り上げられていたのがこれ。
+     */
+    if (inGame()) return;
     if (S.screen !== 'room') show('room');
     else mountSetup('setup-host-room', !S.net.isHost);
     const spec = S.net.role === 'spectator';
@@ -3139,7 +3251,7 @@
       roomName: room || (myName() + ' の部屋'),
       password: $('in-pw').value || '',
       isPublic: !$('in-private').checked,
-      maxPlayers: S.cfg.players,
+      maxPlayers: S.net.maxPlayers,      // 定員はここで決まる。あとから変えられない
       config: netConfig(),
     });
   };

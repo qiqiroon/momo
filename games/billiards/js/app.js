@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.16';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.17';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -2763,6 +2763,8 @@
   function renderResult() {
     const g = S.game;
     renderWinArt(S.won, g.winTeam < 0 && !g.failed, S.net.on && S.net.role === 'spectator');
+    // 通信対戦のボタンは「部屋へ戻る」。押すと何が起きるかを名前どおりにする
+    $('btn-again').textContent = t(S.net.on ? 'res.backRoom' : 'res.again');
     const body = $('res-body'); body.innerHTML = '';
     // 並べるのはチーム。協力プレイでなければ1人＝1チームなので今までと同じ見え方になる
     const kind = RU.WIN_KIND[g.rule];
@@ -2960,6 +2962,7 @@
       return;
     }
     if (p.k === 'start') {
+      S.net.ready = {};                     // 局が始まったら準備完了の印は下ろす
       S.net.myIdx = seatIndexOfMe(p.names);
       startGame(p.seed, p.names, p.config);
       return;
@@ -3135,8 +3138,29 @@
     const names = seatList();
     const seed = newSeed();
     NET.send({ k: 'start', seed, config: netConfig(), names });
+    /*
+     * 準備完了の印は、局が始まった時点で全員ぶん下ろす。
+     * 押したままにしておくと、局が終わって誰かが部屋へ戻って押し直した瞬間に
+     * 「全員そろった」と見えて、まだ結果を見ている人を置いて次の局が始まる。
+     */
+    S.net.ready = {};
+    NET.send({ k: 'rmap', map: {} });
     S.net.myIdx = seatIndexOfMe(names);
     startGame(seed, names, null);
+  }
+
+  /**
+   * 対局が終わったあと、次の局のために部屋へ戻る。
+   * 通信対戦では「もう一度」を自分の端末だけで始めるわけにいかない
+   * （他の端末は付いてこられず、別々の盤を見ることになる）。
+   * 全員が部屋へ戻り、あらためて準備完了を押したところから始める。
+   */
+  function backToRoom() {
+    S.game = null;                          // これを残すと「対局中は盤から離れない」に阻まれる
+    S.phase = 'idle';
+    S.replay = null; S.replayRun = null; S.demo = null; S.endWait = 0;
+    S.msg = '';
+    showRoom();
   }
 
   function showRoom() {
@@ -3272,7 +3296,12 @@
     E.applyCue(cue, S.replay.shot);
     S.replayRun = w;
   };
-  $('btn-again').onclick = () => { AU.sfx('button'); closeResult(); startGame(newSeed(), null, null); };
+  $('btn-again').onclick = () => {
+    AU.sfx('button');
+    closeResult();
+    if (S.net.on) { backToRoom(); return; }   // 通信対戦は自分だけでは始められない
+    startGame(newSeed(), null, null);
+  };
   $('btn-to-setup').onclick = () => { AU.sfx('button'); closeResult(); show('home'); };
   $('lang-select').onchange = e => { I.setMode(e.target.value); applyLang(); };
 

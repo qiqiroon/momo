@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.14';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.15';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -543,7 +543,7 @@
     S.dropped = null; S.bursts = []; S.airZ = {}; S.pendingShots = {};
     S.net.done = {}; S.waitDone = null; S.readyShot = null; S.forceShot = null;
     if (S.waitTimer) { clearTimeout(S.waitTimer); S.waitTimer = null; }
-    S.replay = null; S.replayRun = null; S.demo = null;
+    S.replay = null; S.replayRun = null; S.demo = null; S.endWait = 0;
     S.clock.banks = g.players.map(() => cfg.tbank * 60);
     S.aim = { dir: 0, tipX: 0, tipY: 0, elev: 0, power: 0 };
     S.msg = '';
@@ -876,12 +876,24 @@
     else if (S.net.on) compareBoardCheck();   // 先に届いていた照合と、いま比べる
 
 
-    if (res.gameOver || g.over) { endGame(); return; }
+    if (res.gameOver || g.over) { endGameSoon(); return; }
     if (g.deadlockCount >= 12) { g.deadlockCount = 0; askDeadlock(true); return; }
 
     RU.nextTurn(g, res);
     renderHUD();
     setTimeout(beginTurn, 800);
+  }
+
+  /**
+   * 勝ち負けの表示は、**落ちた玉を見せ終わってから**出す。
+   * 先に出すと、最後に落ちた玉が何だったのかを見ないまま結果に隠れてしまう。
+   * 待つ長さは他の場面と同じ（DROP_SHOW_MS）。
+   * 盤を触れば落ちた玉の表示は畳まれるので、そのときはすぐ結果へ進む。
+   * 進める判断は主ループの1か所で行う（別の待ち行列を作ると途中で途切れても気づけない）。
+   */
+  function endGameSoon() {
+    if (!S.dropped || !S.dropped.balls.length) { endGame(); return; }
+    S.endWait = performance.now() + DROP_SHOW_MS + 300;    // 念のための打ち切り
   }
 
   function endGame() {
@@ -2463,6 +2475,8 @@
           dbg.phys = dbg.draw = dbg.gap = 0;
         }
       }
+      // 落ちた玉を見せ終わったら（または盤を触って畳んだら）結果へ進む
+      if (S.endWait && (!S.dropped || now > S.endWait)) { S.endWait = 0; endGame(); }
       renderClock();
       drawElevPic();
       $('k-elev').textContent = Math.round(S.aim.elev * 180 / Math.PI) + '°';
@@ -3194,6 +3208,6 @@
 
   if (DEBUG) {
     document.body.classList.add('debug');
-    window.BL = { S, E, RU, T, I, fire: fireShot, shootNow, beginTurn, startGame, finishShot, applyShot, draw2D, draw3D, drawElevPic, minElevFor, computeElevFan, placeOk, resizeBoard, show, showRoom, watchJumps, highestBall, startDemo, stepDemo, buildSetup, mountSetup, onNetMsg, seatList, seatIndexOfMe };
+    window.BL = { S, E, RU, T, I, fire: fireShot, shootNow, beginTurn, startGame, finishShot, applyShot, draw2D, draw3D, drawElevPic, minElevFor, computeElevFan, placeOk, resizeBoard, show, showRoom, watchJumps, highestBall, startDemo, stepDemo, endGame, endGameSoon, buildSetup, mountSetup, onNetMsg, seatList, seatIndexOfMe };
   }
 })();

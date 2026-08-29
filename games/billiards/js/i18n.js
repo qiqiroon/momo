@@ -157,6 +157,13 @@ const BilliardsI18N = (() => {
       'ev.retiredDl': '{name} がやり直しに同意しなかったため離脱しました',
       'ev.retiredShort': '{name} 離脱',
 
+      'brk.title': '続けてもう1局やるときのブレイク権',
+      'brk.rotation': 'ローテーション', 'brk.winner': '勝者ブレイク', 'brk.loser': '敗者ブレイク',
+      'brk.note.rotation': '前の局でブレイクした人の次の人が撞きます。順に回ります',
+      'brk.note.winner': '勝った人が続けてブレイクします。以降は前の局と同じ巡りです',
+      'brk.note.loser': '負けた人がブレイクします。順位が1位しか決まらないルールでは、勝った人の次の人が撞きます',
+      'res.contGame': '続けてもう1戦',
+
       'bank.how': '先手を決めます。向こうの壁に当てて戻し、手前の壁に近く止めた人が先手です',
       'bank.turn': 'バンキング — 次の人が撞きます',
       'bank.decided': '{name} の先手です',
@@ -357,6 +364,13 @@ const BilliardsI18N = (() => {
       'ev.retiredDl': '{name} withdrew after declining the restart.',
       'ev.retiredShort': '{name} withdrew',
 
+      'brk.title': 'Who breaks in the next game',
+      'brk.rotation': 'Rotation', 'brk.winner': 'Winner breaks', 'brk.loser': 'Loser breaks',
+      'brk.note.rotation': 'The player after the last breaker takes the next break, in turn.',
+      'brk.note.winner': 'The winner breaks again. The playing order stays as it was.',
+      'brk.note.loser': 'The loser breaks. In rules that decide only first place, the player after the winner breaks.',
+      'res.contGame': 'Play another',
+
       'bank.how': 'Lagging for the break. Hit the far rail and come back — closest to the near rail breaks.',
       'bank.turn': 'Lag — next player shoots',
       'bank.decided': '{name} breaks',
@@ -556,6 +570,13 @@ const BilliardsI18N = (() => {
       'ev.retired': '{name} 已退出对局。',
       'ev.retiredDl': '{name} 不同意重来，已退出对局。',
       'ev.retiredShort': '{name} 退出',
+
+      'brk.title': '继续下一局时由谁开球',
+      'brk.rotation': '轮流', 'brk.winner': '胜者开球', 'brk.loser': '负者开球',
+      'brk.note.rotation': '由上一局开球者的下一位开球，依次轮流。',
+      'brk.note.winner': '获胜者继续开球。出杆顺序与上一局相同。',
+      'brk.note.loser': '由落败者开球。在只决出第一名的规则中，由获胜者的下一位开球。',
+      'res.contGame': '再来一局',
 
       'bank.how': '决定谁先开球。撞到对面库边后回来，停得离近侧库边最近的人先开球。',
       'bank.turn': '争开球权 — 下一位击球',

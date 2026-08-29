@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.25';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.26';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -101,6 +101,8 @@
       players: 2, aiCount: 1, format: 'local',
       target: 10, tbase: 30, tbank: 5,
       coop: false, teams: [], shotLimit: 30,
+      // 続けてもう1局やるときのブレイク権。既定は交代制（仕様書 D242 の既定）
+      breakRule: 'rotation',
     },
     game: null,
     phase: 'idle',         // idle|place|aim|stance|rolling|wait|over
@@ -153,6 +155,8 @@
     set('lbl-tbase', 'opt.time.base'); set('lbl-tbank', 'opt.time.bank');
     set('u-sec', 'opt.sec'); set('u-min', 'opt.min');
     set('lbl-coop', 'coop.title'); set('lbl-limit', 'coop.limit'); set('u-shots', 'coop.shots');
+    set('lbl-break', 'brk.title');
+    [].forEach.call($('seg-break').children, b => { b.textContent = t('brk.' + b.dataset.v); });
     set('btn-start', 'btn.start');
     set('k-turn', 'hud.turn'); set('k-next', 'hud.next'); set('k-foul', 'hud.foul');
     set('k-base', 'hud.base'); set('k-bank', 'hud.time'); set('k-elevlabel', 'hint.elev');
@@ -393,6 +397,18 @@
     $('wrap-target').style.display = (S.cfg.rule === 'G-04') ? '' : 'none';
     $('in-target').value = S.cfg.target;
 
+    /*
+     * 続けてもう1局やるときのブレイク権。1人では次の局も自分なので出さない。
+     * 練習モードは勝敗を持たないので出さない（9.6.1節）
+     */
+    const seatsN = seatNames().length;
+    const showBreak = seatsN >= 2 && S.cfg.format !== 'practice';
+    $('brk-block').style.display = showBreak ? '' : 'none';
+    [].forEach.call($('seg-break').children, b => {
+      b.classList.toggle('sel', S.cfg.breakRule === b.dataset.v);
+    });
+    $('break-note').textContent = t('brk.note.' + (S.cfg.breakRule || 'rotation'));
+
     // 協力プレイ。2人以上いないとチームの意味がない（9.2.3節）
     const seats = seatNames().length;
     if (seats < 2 && S.cfg.coop) S.cfg.coop = false;
@@ -578,10 +594,21 @@
    * 利用者の指示により、通信対戦とAI対戦ではバンキングで決める。
    */
   function bankingHere(cfg) { return cfg.format === 'online' || cfg.format === 'ai'; }
+  /**
+   * 続けてもう1局やるときの席順。前回の巡りを保ったまま、ブレイクする人を先頭へ回す。
+   * バンキングは**シリーズの最初の1局だけ**。続きの局はここで決めた順で始める。
+   */
+  function contOrder() {
+    return S.game ? RU.nextOrder(S.game, S.cfg.breakRule || 'rotation') : null;
+  }
   /** いまバンキングの最中か */
   function inBanking() { return !!(S.game && S.game.bank && S.game.bank.on); }
 
-  function startGame(seed, players, remoteCfg) {
+  /**
+   * @param {boolean} cont 続きの局か。続きはバンキングをしない
+   *   （先手は前回の結果とブレイク権の決め方で既に決まっており、席順として配られている）
+   */
+  function startGame(seed, players, remoteCfg, cont) {
     if (remoteCfg) Object.assign(S.cfg, remoteCfg);   // 通信対戦はホストの設定を強制適用（9.5.3節）
     const cfg = S.cfg;
     // 台の姿はルールから引く。画面を作り直したときだけ決まる形にすると、
@@ -600,7 +627,8 @@
      * ローカル対戦は同じ人が全員ぶんを操作するので、誰が先でも有利不利にならない。
      * 練習モードは1人なので相手がいない。
      */
-    if (bankingHere(cfg) && g.players.length >= 2) RU.startBanking(g);
+    g.cont = !!cont;                        // 追いつき直しのときに同じ形で作り直すため覚えておく
+    if (!cont && bankingHere(cfg) && g.players.length >= 2) RU.startBanking(g);
     S.game = g;
     S.chk = {}; S.results = {};             // 前の局の照合・結果は持ち越さない
     S.dropped = null; S.bursts = []; S.airZ = {}; S.pendingShots = {};
@@ -3032,6 +3060,14 @@
     renderWinArt(S.won, g.winTeam < 0 && !g.failed, S.net.on && S.net.role === 'spectator');
     // 通信対戦のボタンは「部屋へ戻る」。押すと何が起きるかを名前どおりにする
     $('btn-again').textContent = t(S.net.on ? 'res.backRoom' : 'res.again');
+    /*
+     * 通信対戦では、部屋へ戻らずそのまま次の局へ進める道も出す。
+     * **出すのは主催者だけ。**各端末が勝手に始めると別々の盤を見ることになるので、
+     * 押せない人にボタンを見せない（灰色にすると「押せる場面なのに押せない」に見える）。
+     */
+    const canCont = S.net.on && S.net.isHost && S.net.role !== 'spectator';
+    $('btn-cont').style.display = canCont ? '' : 'none';
+    if (canCont) $('btn-cont').textContent = t('res.contGame');
     const body = $('res-body'); body.innerHTML = '';
     // 並べるのはチーム。協力プレイでなければ1人＝1チームなので今までと同じ見え方になる
     const kind = RU.WIN_KIND[g.rule];
@@ -3312,8 +3348,12 @@
        */
       NET.send({
         k: 'sync', for: from || null, seed: S.game.seed, config: netConfig(),
+        // この局がバンキングから始まったのかどうかも渡す。
+        // これが無いと、追いつき直した端末だけがバンキングの盤（人数ぶんの手玉）を作り、
+        // 配られた盤面と玉の顔ぶれが合わなくなる
+        cont: !!S.game.cont,
         names: S.game.players.map(x => ({
-          name: x.name, type: x.type, pid: x.pid || null, retired: !!x.retired,
+          name: x.name, type: x.type, pid: x.pid || null, retired: !!x.retired, team: x.team,
         })),
         log: S.game.history,
         resN: S.game.shotNo, result: resultSnapshot(S.game),
@@ -3323,7 +3363,7 @@
     if (p.k === 'start') {
       S.net.ready = {};                     // 局が始まったら準備完了の印は下ろす
       S.net.myIdx = seatIndexOfMe(p.names);
-      startGame(p.seed, p.names, p.config);
+      startGame(p.seed, p.names, p.config, !!p.cont);
       return;
     }
     if (p.k === 'sync') {
@@ -3339,7 +3379,7 @@
        * 反則が出続ける（実機で観戦者に起きていた形）。
        */
       const heldShots = S.pendingShots || {};
-      startGame(p.seed, p.names, p.config);
+      startGame(p.seed, p.names, p.config, !!p.cont);
       // 並べ直しのあいだは黙らせる。途中で例外が出ても必ず元へ戻す
       S.catchUp = true;
       try { for (const rec of (p.log || [])) replayRecord(rec); }
@@ -3657,10 +3697,26 @@
     NET.send({ k: 'ready', ok: on, pid }, 'host');
     showRoom();
   }
-  function startNetGame() {
-    const names = seatList();
+  /**
+   * @param {Array}   order 席順を指定して始める（続きの局）。省略すると名簿から作る
+   * @param {boolean} cont  続きの局か（バンキングをしない）
+   */
+  function startNetGame(order, cont) {
+    /*
+     * 続きの局では前回の席順を回したものを使う。ただし**いま部屋にいる人だけ**にする。
+     * 抜けた人を席に残すと、その人の番を全員が待ち続けることになる。
+     * 逆に、前回いなかった人が入っていれば末尾へ足す。
+     */
+    let names = seatList();
+    if (order && order.length) {
+      const here = {}; names.forEach(x => { if (x.pid) here[x.pid] = x; });
+      const kept = order.filter(x => x.pid && here[x.pid]);
+      const added = names.filter(x => !order.some(o => o.pid === x.pid));
+      const merged = kept.concat(added);
+      if (merged.length) names = merged;
+    }
     const seed = newSeed();
-    NET.send({ k: 'start', seed, config: netConfig(), names });
+    NET.send({ k: 'start', seed, config: netConfig(), names, cont: !!cont });
     /*
      * 準備完了の印は、局が始まった時点で全員ぶん下ろす。
      * 押したままにしておくと、局が終わって誰かが部屋へ戻って押し直した瞬間に
@@ -3669,7 +3725,7 @@
     S.net.ready = {};
     NET.send({ k: 'rmap', map: {} });
     S.net.myIdx = seatIndexOfMe(names);
-    startGame(seed, names, null);
+    startGame(seed, names, null, !!cont);
   }
 
   /**
@@ -3781,6 +3837,9 @@
   $('in-tbase').onchange = e => { S.cfg.tbase = Math.max(0, +e.target.value || 0); };
   $('in-tbank').onchange = e => { S.cfg.tbank = Math.max(0, +e.target.value || 0); };
   $('sw-coop').onchange = e => { S.cfg.coop = e.target.checked; buildSetup(); };
+  [].forEach.call($('seg-break').children, b => {
+    b.onclick = () => { AU.sfx('select'); S.cfg.breakRule = b.dataset.v; buildSetup(); };
+  });
   $('in-limit').onchange = e => { S.cfg.shotLimit = Math.max(4, +e.target.value || 30); };
 
   $('btn-start').onclick = () => {
@@ -3823,7 +3882,20 @@
     AU.sfx('button');
     closeResult();
     if (S.net.on) { backToRoom(); return; }   // 通信対戦は自分だけでは始められない
-    startGame(newSeed(), null, null);
+    // 続きの局。バンキングはやり直さず、ブレイク権の決め方で席順を回す
+    startGame(newSeed(), contOrder(), null, true);
+  };
+  /**
+   * 通信対戦で、部屋へ戻らずそのまま次の局を始める。
+   * **始められるのは主催者だけ。**各端末が勝手に始めると別々の盤を見ることになる。
+   * 席順（＝誰がブレイクするか）も主催者が決めて配る。
+   * 各端末で数えると、名簿の並びが1つずれた瞬間に別の人が先手になる。
+   */
+  $('btn-cont').onclick = () => {
+    if (!S.net.on || !S.net.isHost || !S.game) return;
+    AU.sfx('button');
+    closeResult();
+    startNetGame(contOrder(), true);
   };
   $('btn-to-setup').onclick = () => { AU.sfx('button'); closeResult(); show('home'); };
   $('lang-select').onchange = e => { I.setMode(e.target.value); applyLang(); };

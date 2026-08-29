@@ -100,7 +100,13 @@ const BilliardsRules = (() => {
         // 参加者IDは席の正体。局を組み直すときに配り直すので、対局にも持たせておく。
         // ここで落とすと、組み直した瞬間に全員が自分の席を見失う
         pid: p.pid || null,
-        team: (cfg.coop && cfg.teams && cfg.teams[i] != null) ? cfg.teams[i] : i,
+        /*
+         * チームは席ではなく人に付く。席順を回して次の局を始める形にしたので、
+         * 席番号で引く表（cfg.teams）だけに頼ると、回した瞬間に組が入れ替わる。
+         * 参加者そのものが組を持っていればそれを優先する
+         */
+        team: (p.team != null) ? p.team
+          : (cfg.coop && cfg.teams && cfg.teams[i] != null) ? cfg.teams[i] : i,
         score: 0, group: null, fouls: 0,
         // 途中離脱（9.8.3節）。やり直しても抜けた人は戻らないので、組み直しでも引き継ぐ
         retired: !!p.retired,
@@ -711,6 +717,76 @@ const BilliardsRules = (() => {
     setWinnerTeam(game, decided ? teams[0].team : -1);
   }
 
+  // ───────── 続けてもう1局やるときのブレイク権 ─────────
+  /*
+   * 仕様書 7.2.7節・D242 は「2ゲーム目以降のブレイク権は交代制。ウィナーブレイクは採らない」
+   * としているが、利用者の指示により**ローテーション／勝者ブレイク／敗者ブレイクから選べる**ようにした。
+   * 仕様書の改訂が要る（実装記録 7.7節）。
+   *
+   * **決めるのは「誰がブレイクするか」だけ。**手番の巡りは前回のまま保ち、
+   * その人が先頭に来るように回す。回す先を新しい席順として配る。
+   * 例：前回 A→B→C→D で C がブレイクするなら C→D→A→B。
+   * 席順そのものを配り直すので、手番の巡り方（nextTurn）には手を入れない。
+   */
+
+  /** チームの中で先に座っている（生きている）人の席 */
+  function seatOfTeam(game, team) {
+    const m = game.players.filter(p => p.team === team && isActive(p));
+    if (m.length) return m[0].idx;
+    const any = game.players.filter(p => p.team === team);
+    return any.length ? any[0].idx : 0;
+  }
+
+  /** 次の局でブレイクする席を決める */
+  function breakSeat(game, mode) {
+    const n = game.players.length;
+    const nextOf = i => {
+      for (let k = 1; k <= n; k++) {
+        const j = (i + k) % n;
+        if (isActive(game.players[j])) return j;
+      }
+      return i;
+    };
+    const rotation = () => nextOf(0);       // 前回の先頭の次（＝仕様書の交代制）
+    if (mode !== 'winner' && mode !== 'loser') return rotation();
+
+    // 1位。勝ちが決まらなかった局（引き分け・規定打数切れ）はローテーションへ落とす
+    if (game.winTeam < 0) return rotation();
+    const winSeat = seatOfTeam(game, game.winTeam);
+    if (mode === 'winner') return winSeat;
+
+    /*
+     * 敗者ブレイク。
+     * **全順位が決まるゲーム**（得点制）は最下位がブレイクする。
+     * **1位しか決まらないゲーム**（到達制＝ナインボール・エイトボール・キャロム。7.2.8節）は
+     * 敗者を特定できないので、**前回の巡りで1位の次の人**がブレイクする。
+     * 2人なら相手＝敗者になり、3人以上でも勝者が最後に撞く並びになる。
+     */
+    if (WIN_KIND[game.rule] === 'points' && game.teamRanking && game.teamRanking.length) {
+      for (let i = game.teamRanking.length - 1; i >= 0; i--) {
+        const s = seatOfTeam(game, game.teamRanking[i]);
+        if (isActive(game.players[s])) return s;
+      }
+    }
+    return nextOf(winSeat);
+  }
+
+  /**
+   * 次の局の席順。前回の巡りを保ったまま、ブレイクする人を先頭へ回す。
+   * @returns {Array} createGame へ渡せる参加者の並び
+   */
+  function nextOrder(game, mode) {
+    const n = game.players.length;
+    const head = breakSeat(game, mode);
+    const out = [];
+    for (let k = 0; k < n; k++) {
+      const p = game.players[(head + k) % n];
+      // 抜けた人は次の局へ持ち越さない（局をまたぐので、やり直しとは扱いが違う）
+      out.push({ name: p.name, type: p.type, pid: p.pid || null, team: p.team, retired: false });
+    }
+    return out;
+  }
+
   /** 手番を進める（7.2.2節。参加順の循環。ファウルで順序は変わらない） */
   function nextTurn(game, result) {
     if (game.over) return;
@@ -763,6 +839,7 @@ const BilliardsRules = (() => {
     spotBall, homeBall, place, resolveShot, nextTurn, breakValid, detectDoubleHit,
     finishRanking, normAngle,
     startBanking, bankResolve, endBanking, longPos, footReach,
+    breakSeat, nextOrder,
     retirePlayer, activeCount, activeTeams, isActive,
   };
 })();

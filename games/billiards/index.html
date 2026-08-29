@@ -445,6 +445,16 @@ body.debug #dbg{display:block;}
       </div>
       <!-- 通信対戦では人数は設定ではなく事実（いま集まっている対局者の数） -->
       <div class="hint" id="players-note" style="margin-top:6px;display:none"></div>
+      <!-- 続けてもう1局やるときのブレイク権。最初の1局はバンキング（通信・AI）または参加順の先頭 -->
+      <div id="brk-block" style="margin-top:12px">
+        <div class="mini" id="lbl-break"></div>
+        <div class="seg" id="seg-break" style="margin-top:6px">
+          <button data-v="rotation"></button>
+          <button data-v="winner"></button>
+          <button data-v="loser"></button>
+        </div>
+        <div class="hint" id="break-note" style="margin-top:6px"></div>
+      </div>
       <!-- 協力プレイ＝勝ち負けを見る相手を個人からチームへ差し替えるスイッチ（9.7節） -->
       <div id="coop-block" style="margin-top:12px">
         <label class="sw"><input type="checkbox" id="sw-coop"><i></i><span id="lbl-coop"></span></label>
@@ -579,6 +589,8 @@ body.debug #dbg{display:block;}
           <div class="ge-title" id="res-headline"></div>
           <div id="res-body"></div>
           <div class="row" style="margin-top:12px">
+            <!-- 通信対戦の主催者のときだけ出す。既定は非表示（出す判断は renderResult 1か所） -->
+            <button class="btn primary small" id="btn-cont" style="display:none"></button>
             <button class="btn primary small" id="btn-again"></button>
             <button class="btn small" id="btn-to-setup"><span class="ico">🏠</span><span id="btn-to-setup-t"></span></button>
           </div>

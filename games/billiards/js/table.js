@@ -105,6 +105,35 @@ const BilliardsTable = (() => {
     return best;
   }
 
+  /**
+   * レール上のダイヤ（目印）の位置。外周の各辺を等分した点と、その辺の外向きを返す。
+   *
+   * **等分数は辺の長さから決める。** 標準長方形は 2540÷8 も 1270÷4 も 317.5 mm で、
+   * 現実の9フィート台のダイヤはこの間隔で並んでいる。そこで
+   * 「辺の長さ ÷ 317.5 にいちばん近い整数で等分する」を全形状の共通規則とした。
+   * 長方形では長辺8等分・短辺4等分となり、第1段階の位置とそのまま一致する。
+   * 正六角形は一辺 1114.3 mm なので 3.51 → 4等分（1辺あたり3個・全18個）。
+   *
+   * 形状ごとに個数を並べる形にすると、台を足したときに書き忘れる。
+   */
+  const DIAMOND_PITCH = 317.5;     // 現実の9フィート台のダイヤ間隔 mm
+
+  function diamonds(table) {
+    const o = table.outline, out = [];
+    for (let i = 0; i < o.length; i++) {
+      const a = o[i], b = o[(i + 1) % o.length];
+      const ex = b.x - a.x, ey = b.y - a.y;
+      const len = Math.hypot(ex, ey);
+      const div = Math.max(2, Math.round(len / DIAMOND_PITCH));
+      // 外周は反時計回りに持っているので、外向きは (ey, -ex)
+      const nx = ey / len, ny = -ex / len;
+      for (let k = 1; k < div; k++) {
+        out.push({ x: a.x + ex * k / div, y: a.y + ey * k / div, nx, ny });
+      }
+    }
+    return out;
+  }
+
   /** 境界上の点から見た内向き。真上に乗ってしまって向きが決まらないときの逃げ道 */
   function inwardAt(table, p) {
     const l = p.len < 1e-9 ? 1 : p.len;
@@ -212,7 +241,6 @@ const BilliardsTable = (() => {
       longAxis: 'x', footDirection: +1,
       spot: pt(PLAY_W / 4, 0),
       headSpot: pt(-PLAY_W / 4, 0),
-      diamonds: true,          // レール上の目印。現実の台にある意匠なので長方形だけに置く
       frameStyle: 'rect',      // 外枠の描き方。第1段階からの見た目をそのまま保つ
     };
   }
@@ -243,7 +271,6 @@ const BilliardsTable = (() => {
       longAxis: 'x', footDirection: +1,
       spot: pt(L / 4, 0),
       headSpot: pt(-L / 4, 0),
-      diamonds: false,
       frameStyle: 'outline',   // 外枠は外周をなぞる
     };
   }
@@ -272,7 +299,6 @@ const BilliardsTable = (() => {
       pockets: hasPockets ? buildPockets(s.outline, s.pocketSpec) : [],
       cushionTop: CUSHION_TOP,
       cushionWidth: CUSHION_W,
-      diamonds: !!s.diamonds,
       frameStyle: s.frameStyle,
       // 10.2.2節：長軸・フット側・基準スポット
       longAxis: s.longAxis,
@@ -352,7 +378,7 @@ const BilliardsTable = (() => {
   return {
     R, D, MOUTH, PLAY_W, PLAY_H, HX, HY, CUSHION_TOP, SHAPE_IDS,
     make, rackDiamond, rackTriangle, caromPositions,
-    clearance, inside, clampInside, nearestBoundary,
+    clearance, inside, clampInside, nearestBoundary, diamonds,
   };
 })();
 

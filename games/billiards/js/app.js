@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.24';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.25';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -571,6 +571,16 @@
     return list;
   }
 
+  /**
+   * バンキング（先手決め）を行う対戦形式か。
+   * 仕様書 7.2.7節は「最初のブレイク権は参加順の先頭」としているが、
+   * それだといつも同じ席（通信対戦では主催者）が先手になる。
+   * 利用者の指示により、通信対戦とAI対戦ではバンキングで決める。
+   */
+  function bankingHere(cfg) { return cfg.format === 'online' || cfg.format === 'ai'; }
+  /** いまバンキングの最中か */
+  function inBanking() { return !!(S.game && S.game.bank && S.game.bank.on); }
+
   function startGame(seed, players, remoteCfg) {
     if (remoteCfg) Object.assign(S.cfg, remoteCfg);   // 通信対戦はホストの設定を強制適用（9.5.3節）
     const cfg = S.cfg;
@@ -585,6 +595,12 @@
       coop: !!cfg.coop, teams: (cfg.teams || []).slice(), shotLimit: cfg.shotLimit,
     });
     g.players.forEach(p => { if (cfg.rule === 'G-04') p.target = cfg.target; });
+    /*
+     * 先手はバンキングで決める（通信対戦・AI対戦のみ）。
+     * ローカル対戦は同じ人が全員ぶんを操作するので、誰が先でも有利不利にならない。
+     * 練習モードは1人なので相手がいない。
+     */
+    if (bankingHere(cfg) && g.players.length >= 2) RU.startBanking(g);
     S.game = g;
     S.chk = {}; S.results = {};             // 前の局の照合・結果は持ち越さない
     S.dropped = null; S.bursts = []; S.airZ = {}; S.pendingShots = {};
@@ -699,23 +715,32 @@
     }
     S.clock.baseLeft = S.cfg.mods['G-14'] ? S.cfg.tbase : 0;
     S.clock.lastBeep = 0;
-    S.clock.running = S.cfg.mods['G-14'] && isMyTurn() && g.players[g.turn].type === 'human';
+    // バンキングは対局の前の手続きなので、持ち時間を減らさない
+    S.clock.running = !inBanking() && S.cfg.mods['G-14'] && isMyTurn() && g.players[g.turn].type === 'human';
 
     if (g.players[g.turn].type === 'ai') {
       S.phase = 'wait';
       setMsg(t('ph.thinking'));
       let aiPlace = null;
-      if (g.ballInHand) {
-        aiPlace = BilliardsAI.pickBallInHand(g, g.turn);
-        if (!g.ballInHandFull) aiPlace = clampToKitchen(aiPlace);
-        RU.place(cue, aiPlace.x, aiPlace.y);
+      if (inBanking()) {
+        // バンキングは置いた場所のまま撞く。置き直しても得にならないので選ばせない
         g.ballInHand = false;
+        if (S.aiCancel) { S.aiCancel(); S.aiCancel = null; }
+        const shot = BilliardsAI.bankShot(g, g.turn);
+        setTimeout(() => { if (S.game === g && !g.over) fireShot(shot, null, true); }, 420);
+      } else {
+        if (g.ballInHand) {
+          aiPlace = BilliardsAI.pickBallInHand(g, g.turn);
+          if (!g.ballInHandFull) aiPlace = clampToKitchen(aiPlace);
+          RU.place(cue, aiPlace.x, aiPlace.y);
+          g.ballInHand = false;
+        }
+        if (S.aiCancel) S.aiCancel();
+        S.aiCancel = BilliardsAI.think(g, g.turn, shot => {
+          S.aiCancel = null;
+          setTimeout(() => { if (S.game === g && !g.over) fireShot(shot, aiPlace, true); }, 420);
+        });
       }
-      if (S.aiCancel) S.aiCancel();
-      S.aiCancel = BilliardsAI.think(g, g.turn, shot => {
-        S.aiCancel = null;
-        setTimeout(() => { if (S.game === g && !g.over) fireShot(shot, aiPlace, true); }, 420);
-      });
     } else if (!isMyTurn()) {
       S.phase = 'wait';
       setMsg(S.net.role === 'spectator' ? t('lobby.watching') : t('ph.wait'));
@@ -729,6 +754,9 @@
           applyShot(held.shot, held.place, true);
         }, 60);
       }
+    } else if (inBanking()) {
+      setMsg(t('bank.how'));
+      AU.sfx('turn');
     } else {
       setMsg(S.phase === 'place' ? (g.ballInHandFull ? t('ph.freeArea') : t('ph.placeArea')) : t('ph.aim'));
       AU.sfx('turn');
@@ -880,6 +908,9 @@
 
     if (pre.miscue) {
       if (!S.catchUp) { setMsg(t('ev.miscue')); AU.sfx('cue', 0.1); }  // ファウルではない（5.9.2節）
+      // バンキング中は「撞いたが成立しなかった1球」として数える。
+      // ここで普通の手番送りへ流すと、その人のバンキングが記録されないまま順が回る
+      if (g.bank && g.bank.on) { bankStep([]); return; }
       g.shotNo++;
       RU.nextTurn(g, { continueTurn: false });
       if (!S.catchUp) setTimeout(beginTurn, 900);
@@ -896,8 +927,41 @@
     if (!animate) { E.runShot(g.world, 20); S.phase = 'idle'; finishShot(); }
   }
 
+  /**
+   * バンキングの1球ぶんを片付けて次へ進める。
+   * 撞き終わりとミスキューの両方からここへ来る（入り口を2つ、出口を1つにする）。
+   */
+  function bankStep(events) {
+    const g = S.game;
+    const r = RU.bankResolve(g, events || []);
+    if (r.done) RU.endBanking(g, r.winner);
+    if (S.catchUp) return;                  // 並べ直しの途中では画面も通信も動かさない
+
+    if (r.done) {
+      const name = g.players[r.winner] ? g.players[r.winner].name : '';
+      setMsg(t('bank.decided', { name }));
+      flash(t('bank.decided', { name }));
+    } else {
+      setMsg(t('bank.turn'));
+    }
+    if (S.net.on) {
+      let synced;
+      if (S.shotMine && S.net.role !== 'spectator') { sendResult(g); synced = true; }
+      else synced = adoptResult(g.shotNo);
+      // 盤の突き合わせは、玉の顔ぶれが変わらない間だけ。
+      // バンキングを終えた手では盤を組み直しているので、突き合わせても意味がない
+      if (!synced && !r.done) {
+        if (S.net.isHost) NET.send({ k: 'chk', n: g.shotNo, h: boardHash() });
+        else compareBoardCheck();
+      }
+    }
+    renderHUD();
+    setTimeout(beginTurn, r.done ? 1500 : 800);
+  }
+
   function finishShot() {
     const g = S.game;
+    if (g.bank && g.bank.on) { bankStep(g.world.events); return; }
     const res = RU.resolveShot(g, S.pre, g.world.events);
 
     /*
@@ -1004,6 +1068,13 @@
       // 誰が抜けたかも盤面の一部。載せておかないと、追いつき直した人や
       // 途中から見に来た人が、いない相手の手番を待つことになる
       ret: g.players.map(x => !!x.retired),
+      // バンキングの進み具合も盤面の一部。載せないと、途中から見に来た人や
+      // 追いつき直した人が「まだ先手決めの最中か」を知る手立てを持たない
+      bank: g.bank ? {
+        on: !!g.bank.on, marks: g.bank.marks.slice(),
+        shotBy: Object.assign({}, g.bank.shotBy),
+        winner: g.bank.winner == null ? -1 : g.bank.winner,
+      } : null,
     };
   }
   function sendResult(g) {
@@ -1534,23 +1605,12 @@
     tablePath(table);
     ctx.fillStyle = cg; ctx.fill();
     ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 1.5; ctx.stroke();
-    // ダイヤ（レール上の目印）。現実の台にある意匠なので、対応する現実を持つ長方形だけに置く
-    if (table.diamonds) {
-      ctx.fillStyle = 'rgba(255,240,215,.55)';
-      for (let i = 1; i <= 7; i++) {
-        const tx = -table.halfW + (table.halfW * 2) * i / 8;
-        [-1, 1].forEach(sg => {
-          const q = toScreen(tx, sg * (table.halfH + thick / s * .5));
-          ctx.beginPath(); ctx.moveTo(q.x, q.y - 3.4); ctx.lineTo(q.x + 2.6, q.y); ctx.lineTo(q.x, q.y + 3.4); ctx.lineTo(q.x - 2.6, q.y); ctx.fill();
-        });
-      }
-      for (let i = 1; i <= 3; i++) {
-        const ty = -table.halfH + (table.halfH * 2) * i / 4;
-        [-1, 1].forEach(sg => {
-          const q = toScreen(sg * (table.halfW + thick / s * .5), ty);
-          ctx.beginPath(); ctx.moveTo(q.x, q.y - 3.4); ctx.lineTo(q.x + 2.6, q.y); ctx.lineTo(q.x, q.y + 3.4); ctx.lineTo(q.x - 2.6, q.y); ctx.fill();
-        });
-      }
+    // ダイヤ（レール上の目印）。位置は外周の辺から決まる（形ごとの並べ書きはしない）
+    ctx.fillStyle = 'rgba(255,240,215,.55)';
+    const off = thick / s * .5;                 // 枠の帯の真ん中まで外へ出す
+    for (const d of T.diamonds(table)) {
+      const q = toScreen(d.x + d.nx * off, d.y + d.ny * off);
+      ctx.beginPath(); ctx.moveTo(q.x, q.y - 3.4); ctx.lineTo(q.x + 2.6, q.y); ctx.lineTo(q.x, q.y + 3.4); ctx.lineTo(q.x - 2.6, q.y); ctx.fill();
     }
 
     for (const p of table.pockets) drawPocket(p, s);
@@ -2053,7 +2113,7 @@
     /*
      * レール上のダイヤ（目印）。2Dには出ていて3Dに無いと、
      * 3Dで狙いを合わせるときに位置の手がかりが消えてしまう。
-     * 長辺は8等分の7点、短辺は4等分の3点＝現実の台と同じ数。
+     * 位置は2Dと同じものを台定義データから引く。
      */
     ctx.fillStyle = 'rgba(255,240,215,.72)';
     const diamond = (tx, ty) => {
@@ -2064,16 +2124,7 @@
       ctx.lineTo(q.x, q.y + rr); ctx.lineTo(q.x - rr * .72, q.y);
       ctx.closePath(); ctx.fill();
     };
-    if (table.diamonds) {
-      for (let i = 1; i <= 7; i++) {
-        const tx = -table.halfW + table.halfW * 2 * i / 8;
-        diamond(tx, -table.halfH); diamond(tx, table.halfH);
-      }
-      for (let i = 1; i <= 3; i++) {
-        const ty = -table.halfH + table.halfH * 2 * i / 4;
-        diamond(-table.halfW, ty); diamond(table.halfW, ty);
-      }
-    }
+    for (const d of T.diamonds(table)) diamond(d.x, d.y);
     for (const pk of table.pockets) {
       const q = proj(pk.x, pk.y, 0); if (!q) continue;
       const rr = scale * pk.r / q.z;
@@ -2908,8 +2959,14 @@
       d.innerHTML = '<span>' + escapeHtml(who) + '</span><span>' + escapeHtml(right) + '</span>';
       box.appendChild(d);
     });
-    const tg = RU.legalTargets(g, g.turn);
-    $('v-next').textContent = tg == null ? '–' : (tg.length ? tg.map(b => b.num || '●').join(' / ') : '–');
+    // バンキング中は「次に当てる玉」が無い。空欄にすると何をしている場面か分からないので、
+    // その場で何が行われているかを出す
+    if (g.bank && g.bank.on) {
+      $('v-next').textContent = t('bank.label');
+    } else {
+      const tg = RU.legalTargets(g, g.turn);
+      $('v-next').textContent = tg == null ? '–' : (tg.length ? tg.map(b => b.num || '●').join(' / ') : '–');
+    }
     $('v-foul').textContent = g.lastFouls && g.lastFouls.length ? g.lastFouls.map(f => t('foul.' + f)).join(', ') : t('hud.none');
     $('time-box').style.display = S.cfg.mods['G-14'] ? '' : 'none';
     $('v-config').textContent = configLabel();
@@ -3410,6 +3467,20 @@
    */
   function applyBoard(p, settled) {
     const g = S.game;
+    /*
+     * **玉の顔ぶれを先に合わせる。**
+     * バンキングが終わると盤を組み直すので、玉の顔ぶれ自体が入れ替わる。
+     * 配られた側が終えていてこちらがまだなら、同じ手順で組み直してから位置を当てる。
+     * 位置は玉の番号で当てるので、顔ぶれが違うまま当てると当たらず、
+     * 「配られたのに盤が古いまま」になる。
+     */
+    if (p.bank && g.bank) {
+      if (g.bank.on && !p.bank.on) RU.endBanking(g, p.bank.winner);
+      g.bank.on = !!p.bank.on;
+      g.bank.marks = p.bank.marks || g.bank.marks;
+      g.bank.shotBy = p.bank.shotBy || {};
+      g.bank.winner = p.bank.winner;
+    }
     const byId = {}; g.world.balls.forEach(b => byId[b.id] = b);
     (p.board || []).forEach(o => {
       const b = byId[o.i]; if (!b) return;

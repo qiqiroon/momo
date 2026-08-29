@@ -157,6 +157,11 @@ const BilliardsI18N = (() => {
       'ev.retiredDl': '{name} がやり直しに同意しなかったため離脱しました',
       'ev.retiredShort': '{name} 離脱',
 
+      'bank.how': '先手を決めます。向こうの壁に当てて戻し、手前の壁に近く止めた人が先手です',
+      'bank.turn': 'バンキング — 次の人が撞きます',
+      'bank.decided': '{name} の先手です',
+      'bank.label': 'バンキング',
+
       'dl.title': 'デッドロック', 'dl.ask': '対局が進まなくなっています。最初からやり直しますか？',
       'dl.wait': '相手の返事を待っています',
       'dl.refused': 'やり直しに同意しなかった参加者がいます',
@@ -352,6 +357,11 @@ const BilliardsI18N = (() => {
       'ev.retiredDl': '{name} withdrew after declining the restart.',
       'ev.retiredShort': '{name} withdrew',
 
+      'bank.how': 'Lagging for the break. Hit the far rail and come back — closest to the near rail breaks.',
+      'bank.turn': 'Lag — next player shoots',
+      'bank.decided': '{name} breaks',
+      'bank.label': 'Lag',
+
       'dl.title': 'Deadlock', 'dl.ask': 'The game is not progressing. Restart from the break?',
       'dl.wait': 'Waiting for the others to answer',
       'dl.refused': 'Someone did not agree to restart.',
@@ -546,6 +556,11 @@ const BilliardsI18N = (() => {
       'ev.retired': '{name} 已退出对局。',
       'ev.retiredDl': '{name} 不同意重来，已退出对局。',
       'ev.retiredShort': '{name} 退出',
+
+      'bank.how': '决定谁先开球。撞到对面库边后回来，停得离近侧库边最近的人先开球。',
+      'bank.turn': '争开球权 — 下一位击球',
+      'bank.decided': '{name} 先开球',
+      'bank.label': '争开球权',
 
       'dl.title': '僵局', 'dl.ask': '对局无法推进。要从开球重来吗？',
       'dl.wait': '等待其他人的回答',

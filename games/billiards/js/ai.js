@@ -224,6 +224,72 @@ const BilliardsAI = (() => {
     return score;
   }
 
+  // ───────── バンキング（先手決め）の一撞き ─────────
+  /**
+   * フット側の壁へ当てて戻し、ヘッド側にいちばん近く止めるのが良い撞き方。
+   * どのくらいの強さでそうなるかは台の形と物性で変わるので、**数値で決め打ちせず試し撞きで探す。**
+   * 台を1つ足すたびに強さの表を書き足す形にすると、足したときに必ず書き忘れる。
+   *
+   * 向きも少し振る。台によっては長軸の真っすぐ先がポケットで、
+   * 真っすぐ撞くと落ちてしまう（正六角形のフット頂点がそれ）。
+   */
+  function bankShot(game, playerIdx) {
+    const p = prof(game.difficulty);
+    const table = game.table;
+    const cue = RU.cueBallOf(game, playerIdx);
+    if (!cue) return { dir: 0, tipX: 0, tipY: 0, elev: 0, power: 0.35 };
+    const foot = table.footDirection || 1;
+    const baseDir = (table.longAxis === 'y')
+      ? (foot > 0 ? Math.PI / 2 : -Math.PI / 2)
+      : (foot > 0 ? 0 : Math.PI);
+    const line = Math.abs(RU.longPos(table, table.spot.x, table.spot.y));
+
+    /** 試し撞き。成立したかと、止まった位置（ヘッドに近いほど小さい）を返す */
+    function tryLag(shot) {
+      const w = E.cloneWorld(game.world);
+      const b = w.balls.find(x => x.id === cue.id);
+      if (!b) return { ok: false };
+      E.applyCue(b, shot);
+      E.runShot(w, 12);
+      let reached = false;
+      for (const ev of w.events) {
+        if (ev.type === 'cushion' && ev.ball === b.id && ev.x != null
+          && RU.longPos(table, ev.x, ev.y) >= line) { reached = true; break; }
+      }
+      if (!reached || b.state !== 'live') return { ok: false };
+      return { ok: true, pos: RU.longPos(table, b.x, b.y) };
+    }
+
+    const cands = [];
+    for (const dOff of [0, -0.06, 0.06, -0.13, 0.13]) {
+      for (let k = 0; k <= 8; k++) {
+        const shot = { dir: baseDir + dOff, tipX: 0, tipY: 0, elev: 0, power: 0.18 + k * 0.045 };
+        const r = tryLag(shot);
+        if (r.ok) cands.push({ shot, pos: r.pos });
+      }
+    }
+    // どの試し撞きも成立しなかった台では、とりあえず中くらいの強さで真っすぐ
+    if (!cands.length) return { dir: baseDir, tipX: 0, tipY: 0, elev: 0, power: 0.42 };
+
+    /*
+     * **腕前は「良い撞き方に狙いを重ねてからぶれを乗せる」形では表せない。**
+     * 往復のバンキングは、わずかな強さの違いが止まる場所を数百 mm 動かす。
+     * 良い一撞きにぶれを乗せると、
+     *   ・ぶれた結果が不成立（玉が落ちる・戻らない）になることがある
+     *   ・不成立を避けて撞き直させると、ぶれの大きい設定ほど「ぶれ無し」に戻る回数が増え、
+     *     **難しい設定より簡単な設定のほうが上手にバンキングする**
+     * 実測でそうなった（Easy 平均 221mm ／ Hard 平均 611mm ／ Apocalypse 平均 91mm）。
+     *
+     * そこで、**成立する撞き方を並べて、腕前に応じた上位から1つ選ぶ**形にした。
+     * 選ぶ範囲が狭いほど上手。どれを選んでも成立するので、不成立で先手を丸ごと譲ることもない。
+     */
+    cands.sort((a, b) => a.pos - b.pos);              // ヘッドに近い順
+    const TOP = { easy: 0.55, hard: 0.28, apocalypse: 0.08 };
+    const frac = TOP[game.difficulty] != null ? TOP[game.difficulty] : TOP.hard;
+    const room = Math.max(1, Math.round(cands.length * frac));
+    return cands[Math.min(cands.length - 1, Math.floor(game.rng() * room))].shot;
+  }
+
   // ───────── フリーボールの置き場所 ─────────
   function pickBallInHand(game, playerIdx) {
     const table = game.table;
@@ -357,7 +423,7 @@ const BilliardsAI = (() => {
     return function cancel() { cancelled = true; };
   }
 
-  return { think, pickBallInHand, PROFILE };
+  return { think, pickBallInHand, bankShot, PROFILE };
 })();
 
 if (typeof window !== 'undefined') window.BilliardsAI = BilliardsAI;

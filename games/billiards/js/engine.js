@@ -446,7 +446,9 @@ const BilliardsEngine = (() => {
           if (r) w.events.push({ type: 'hit', a: hit.a.id, b: hit.b.id, speed: r.speed, tick: w.tick });
         } else {
           r = resolveBallRail(w, hit.a, hit.s);
-          if (r) w.events.push({ type: 'cushion', ball: hit.a.id, speed: r.speed, slide: !!r.slide, tick: w.tick });
+          // 当たった場所も載せる。「台のどのあたりの壁に当たったか」を
+          // 見たい側（バンキングの成立判定）が、あとから知る手立てを持たないため
+          if (r) w.events.push({ type: 'cushion', ball: hit.a.id, x: hit.a.x, y: hit.a.y, speed: r.speed, slide: !!r.slide, tick: w.tick });
         }
         if (!r && key) declined.add(key);
       }

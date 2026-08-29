@@ -48,14 +48,30 @@ const BilliardsRules = (() => {
   const NEEDS_POCKETS = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': false };
 
   // ───────── 決定論的な擬似乱数（5.2.4節。1ゲーム1シード） ─────────
+  /*
+   * ★**種をそのまま使うと、最初の1個が種によらずほぼ同じ値になる。**
+   * 実測：種 200／201／202／210／220 のいずれでも最初の値は 0.0126 前後だった。
+   * xorshift は小さい種から始めるとビットが十分に混ざらないためで、
+   * 2個目からは正常にばらける。
+   *
+   * 「最初の1個」で何かを決めている側は、どの局でも同じ答えを出すことになる。
+   * 実際に効いていた：AIの手加減の抽選（think の careless）は局の最初の1個を引くので、
+   * 0.0126 < 割合 となる難易度では**毎局かならず手加減が入っていた**（Easy 0.16／Hard 0.06／Apocalypse 0.015）。
+   * バンキングの選択も同じ引き方をするので同じ影響を受ける。
+   *
+   * 種を混ぜてから空回しして直す。**乱数の並びが変わるので、AIの指し手も変わる。**
+   */
   function makeRng(seed) {
     let s = (seed >>> 0) || 1;
-    return function () {
+    s = (s ^ 0x9e3779b9) >>> 0;              // 種の偏りをほぐす
+    const step = function () {
       s ^= s << 13; s >>>= 0;
       s ^= s >> 17;
       s ^= s << 5; s >>>= 0;
       return s / 4294967296;
     };
+    for (let i = 0; i < 12; i++) step();     // 空回し
+    return step;
   }
 
   // ───────── ゲームの生成 ─────────
@@ -206,11 +222,137 @@ const BilliardsRules = (() => {
     game.world = E.createWorld(table, balls, game.tuning);
   }
 
+  /**
+   * その人が撞く玉。
+   * 「ルールがキャロムかどうか」ではなく「手玉が人数ぶんあるかどうか」で決める。
+   * ルール名で見分けると、手玉を人数ぶん置く別の場面（バンキング）が同じ扱いから漏れる。
+   */
   function cueBallOf(game, playerIdx) {
-    if (game.rule === 'G-04') {
-      return game.world.balls.find(b => b.kind === 'cue' && b.owner === playerIdx) || null;
+    const cues = game.world.balls.filter(b => b.kind === 'cue');
+    if (cues.length <= 1) return cues[0] || null;
+    return cues.find(b => b.owner === playerIdx) || null;
+  }
+
+  // ───────── バンキング（先手決め） ─────────
+  /*
+   * 仕様書に規定は無い（7.2.7節は「最初のブレイク権は参加順の先頭」）。
+   * 通信対戦とAI対戦で、いつも同じ席が先手になるのを避けるために置いた手順。
+   *
+   * 参加者が順に1球ずつ撞き、**ヘッド側にいちばん近く止まった人が先手**。
+   * 撞かなければ手玉はヘッド側に置いたままでいちばん近くなってしまうので、
+   * **フット側の壁に当てて戻すこと**を成立条件にする。
+   * 当てなかった玉・落ちた玉・場外の玉は最下位に置く。
+   */
+
+  /** 長軸に沿った位置。フット側を正とする（ヘッドに近いほど小さい） */
+  function longPos(table, x, y) {
+    const v = (table.longAxis === 'y') ? y : x;
+    return v * (table.footDirection || 1);
+  }
+
+  /** フット側の壁までの距離（長軸）。バンキングの成立線に使う */
+  function footReach(table) {
+    let max = -Infinity;
+    for (const p of table.outline) max = Math.max(max, longPos(table, p.x, p.y));
+    return max;
+  }
+
+  /**
+   * バンキング中は**いま撞く人の玉だけを盤に出す。**
+   *
+   * 現実のバンキングは全員が同時に撞くが、端末をまたいで同時には撞けないので順に撞く。
+   * そのまま全員の玉を盤に並べると、順の遅い人が先に撞いた人の玉に当てて
+   * 動かせてしまう（近づけることも遠ざけることもできる）。
+   * 先に撞いた人の結果が見えること自体も、後の人だけが得る手がかりになる。
+   * どちらも「同時に撞く」という前提が崩れたことから出てくるので、
+   * **他の人の玉を盤から外しておく**ことで両方まとめて防ぐ。止まった位置は記録済み。
+   */
+  function bankFocus(game) {
+    for (const b of game.world.balls) {
+      if (b.kind !== 'cue') continue;
+      const mine = (b.owner === game.turn);
+      b.state = mine ? 'live' : 'gone';
+      b.onTable = mine;
     }
-    return game.world.balls.find(b => b.kind === 'cue') || null;
+  }
+
+  function startBanking(game) {
+    const table = game.table;
+    const n = game.players.length;
+    const balls = [];
+    const span = 212;                       // 手玉どうしの間隔（キャロムと同じ）
+    for (let i = 0; i < n; i++) {
+      const y = (i - (n - 1) / 2) * span;
+      balls.push(E.makeBall({
+        id: i, num: 0, kind: 'cue', owner: i, r: T.R,
+        x: table.headSpot.x, y,
+        color: CAROM_COLORS[i % CAROM_COLORS.length],
+      }));
+    }
+    game.world = E.createWorld(table, balls, game.tuning);
+    game.bank = { on: true, marks: game.players.map(() => null), shotBy: {} };
+    game.turn = firstActive(game);          // 抜けている席から始めない
+    game.ballInHand = true;                 // ヘッドストリングより手前に置いてから撞く
+    game.ballInHandFull = false;
+    game.broken = false;
+    bankFocus(game);
+  }
+
+  /**
+   * バンキングの1球ぶんを記録して次の人へ進める。
+   * @returns {object} { done, winner } done=true なら全員撞き終わった
+   */
+  function bankResolve(game, events) {
+    const table = game.table;
+    const idx = game.turn;
+    const ball = cueBallOf(game, idx);
+    const line = Math.abs(longPos(table, table.spot.x, table.spot.y));   // フットスポットの線
+    let reached = false;
+    for (const ev of events) {
+      if (ev.type !== 'cushion' || ev.ball !== (ball && ball.id)) continue;
+      if (ev.x == null) continue;
+      if (longPos(table, ev.x, ev.y) >= line) { reached = true; break; }
+    }
+    const ok = !!ball && ball.state === 'live' && reached;
+    // marks は「撞いた結果」。不成立は null なので、撞いたかどうかは別に数える
+    game.bank.marks[idx] = ok ? longPos(table, ball.x, ball.y) : null;
+    game.bank.shotBy[idx] = 1;
+    game.shotNo++;
+
+    // 次に撞く人（まだ撞いていない席）
+    let next = -1;
+    for (let k = 1; k <= game.players.length; k++) {
+      const i = (idx + k) % game.players.length;
+      if (isActive(game.players[i]) && !game.bank.shotBy[i]) { next = i; break; }
+    }
+    if (next >= 0) {
+      game.turn = next;
+      game.ballInHand = true; game.ballInHandFull = false;   // 次の人も置いてから撞く
+      bankFocus(game);
+      return { done: false, winner: -1 };
+    }
+
+    // 全員ぶんそろった。ヘッドにいちばん近い（値が小さい）人が先手。
+    // 成立しなかった人は最下位。誰も成立しなければ参加順の先頭（従来どおり）
+    let winner = -1, best = Infinity;
+    for (let i = 0; i < game.players.length; i++) {
+      const m = game.bank.marks[i];
+      if (m == null || !isActive(game.players[i])) continue;
+      if (m < best) { best = m; winner = i; }
+    }
+    if (winner < 0) {
+      for (let i = 0; i < game.players.length; i++) if (isActive(game.players[i])) { winner = i; break; }
+    }
+    return { done: true, winner };
+  }
+
+  /** バンキングを終えて本番の盤を組む */
+  function endBanking(game, winner) {
+    game.bank.on = false;
+    game.bank.winner = winner;
+    setupBalls(game);
+    game.turn = winner;
+    game.inningNo = 0;
   }
 
   function liveObjects(game) {
@@ -620,6 +762,7 @@ const BilliardsRules = (() => {
     makeRng, createGame, setupBalls, cueBallOf, liveObjects, legalTargets, groupOf,
     spotBall, homeBall, place, resolveShot, nextTurn, breakValid, detectDoubleHit,
     finishRanking, normAngle,
+    startBanking, bankResolve, endBanking, longPos, footReach,
     retirePlayer, activeCount, activeTeams, isActive,
   };
 })();

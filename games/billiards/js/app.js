@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.21';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.22';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -941,10 +941,6 @@
         setTimeout(() => startGame(newSeed(), null, null), 900); // 練習は勝敗を持たない（9.6.1節）
         return;
       }
-      // 端末どうしで盤面が食い違っていないかを毎ショット確かめる（9.5.5節）
-      // 照合は観戦者にも渡す。渡さないと、観戦者は自分がずれたことに気づけない
-      if (S.net.on && S.net.isHost) NET.send({ k: 'chk', n: g.shotNo, h: boardHash() });
-      else if (S.net.on) compareBoardCheck();   // 先に届いていた照合と、いま比べる
     }
 
     if (res.gameOver || g.over) { if (!quiet) endGameSoon(); return; }
@@ -962,8 +958,20 @@
      * そのあと自分の後始末が重なって手番が二重に進むため。
      */
     if (S.net.on) {
-      if (S.shotMine && S.net.role !== 'spectator') sendResult(g);
-      else adoptResult(g.shotNo);
+      let synced;
+      if (S.shotMine && S.net.role !== 'spectator') { sendResult(g); synced = true; }
+      else synced = adoptResult(g.shotNo);
+      /*
+       * **照合するのは、正解に合わせられなかったときだけ。**
+       * 合わせる前に照合すると、自分の狂った盤面で突き合わせることになり、
+       * 必ず食い違って「引き直させて」と頼んでしまう。
+       * その直後に正解へ合って一瞬そろい、あとから届いた履歴を入力から
+       * 計算し直して同じずれが戻る——という堂々巡りになっていた。
+       */
+      if (!synced) {
+        if (S.net.isHost) NET.send({ k: 'chk', n: g.shotNo, h: boardHash() });
+        else compareBoardCheck();
+      }
       // 合わせた結果が「決着」だったら、自分の計算で気づいていなくても終わりにする
       if (g.over) { endGameSoon(); return; }
     }
@@ -988,14 +996,18 @@
   function sendResult(g) {
     NET.send(Object.assign({ k: 'res', n: g.shotNo }, resultSnapshot(g)));
   }
-  /** 届いている「正解」に合わせる。無ければ何もしない（自分の計算のまま進む） */
+  /**
+   * 届いている「正解」に合わせる。無ければ何もしない（自分の計算のまま進む）。
+   * @returns {boolean} 合わせられたか
+   */
   function adoptResult(n) {
-    const g = S.game; if (!g) return;
+    const g = S.game; if (!g) return false;
     for (const k of Object.keys(S.results)) if (+k < n) delete S.results[k];
     const r = S.results[n];
-    if (!r) return;
+    if (!r) return false;
     delete S.results[n];
     applyBoard(Object.assign({}, r, { n }), true);
+    return true;
   }
 
   /**
@@ -3092,12 +3104,20 @@
     }
     if (p.k === 'need') {
       if (!S.net.isHost || !S.game) return;
-      // 追いつき直しも**頼んだ人への返事**。局まるごとを組み直す重い処理なので、
-      // 関係のない人に届いて走らせてしまうと、進行中の手を取り上げることになる
+      /*
+       * 追いつき直しも**頼んだ人への返事**。局まるごとを組み直す重い処理なので、
+       * 関係のない人に届いて走らせてしまうと、進行中の手を取り上げることになる。
+       *
+       * **いまの盤面そのものを一緒に送る。**
+       * 履歴（入力の並び）だけを送ると、受け取った側は入力から計算し直すので、
+       * その端末にずれの原因があると**同じずれを何度でも作り直してしまう**。
+       * 最後に本物の盤面を被せることで、追いつき直しは必ず正しい形で終わる。
+       */
       NET.send({
         k: 'sync', for: from || null, seed: S.game.seed, config: netConfig(),
         names: S.game.players.map(x => ({ name: x.name, type: x.type, pid: x.pid || null })),
         log: S.game.history,
+        resN: S.game.shotNo, result: resultSnapshot(S.game),
       }, from || 'all');
       return;
     }
@@ -3125,6 +3145,14 @@
       S.catchUp = true;
       try { for (const rec of (p.log || [])) replayRecord(rec); }
       finally { S.catchUp = false; }
+      /*
+       * 並べ直しの最後に、**送られてきた本物の盤面を被せる**。
+       * 入力から計算し直した結果ではなく、これを正解として先へ進む。
+       */
+      if (p.result && p.resN != null) {
+        applyBoard(Object.assign({}, p.result, { n: p.resN }), true);
+      }
+      S.chk = {}; S.results = {};              // 古い照合・結果は捨てる
       // 並べ直したところより先の手だけを預かりへ戻す（済んだ手は捨てる）
       for (const k in heldShots) {
         if (+k >= S.game.shotNo) S.pendingShots[k] = heldShots[k];
@@ -3179,7 +3207,11 @@
        */
       if (!S.game || p.n == null) return;
       S.results[p.n] = p;
-      if (S.phase !== 'rolling' && S.game.shotNo === p.n) adoptResult(p.n);
+      if (S.phase !== 'rolling' && S.game.shotNo === p.n && adoptResult(p.n)) {
+        // 自分の後始末より遅れて届いた場合。手番を始め直して、正しい盤面から構える
+        if (S.game.over) endGameSoon();
+        else setTimeout(beginTurn, 30);
+      }
       return;
     }
     if (p.k === 'reboard') {

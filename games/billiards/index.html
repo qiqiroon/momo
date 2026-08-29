@@ -220,6 +220,8 @@ input[type=range]{accent-color:var(--orange-mid);}
   color:var(--text-muted);white-space:pre-line;}
 #flash-w:empty{display:none;}
 #flash.on{opacity:1;transform:translate(-50%,-50%) scale(1);}
+/* 用が済んだ知らせは存在しない。透明にするだけだと盤の真ん中に箱が居座る */
+#flash.gone{display:none;}
 #flash.foul{border-color:#dc2626;color:#fca5a5;}
 #flash.warn{border-color:var(--orange);color:var(--orange-light);}
 /* 残り5秒。数字だけだと気づけないので色でも出す */
@@ -599,7 +601,7 @@ body.debug #dbg{display:block;}
       </div>
       <div id="msg-bar"></div>
       <!-- 盤に重ねて出す大きな知らせ（ファウル・時間切れ）。理由の一言を添えられる -->
-      <div id="flash"><span id="flash-t"></span><span id="flash-w"></span></div>
+      <div id="flash" class="gone"><span id="flash-t"></span><span id="flash-w"></span></div>
       <!-- ?debug=1 のときだけ出す1フレームの内訳 -->
       <div id="dbg"></div>
     </div>

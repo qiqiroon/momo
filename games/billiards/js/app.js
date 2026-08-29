@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.28';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.29';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -2897,19 +2897,36 @@
   /**
    * 盤の真ん中に大きく1秒だけ出す。
    * 端の細い帯に出すだけでは、盤を見ている人の目に入らない。
+   *
+   * **出し終わったら、文字ごと消して場所も空ける。**
+   * 透明にするだけだと、用が済んだ知らせが文字を持ったまま盤の真ん中に居座り続ける。
+   * 居座っているものは「出ている」と見なされるので、
+   * 狙いの線がそこを横切ったときに薄くする印が付き、**関係のない場面で前のファウルが薄く現れる**。
+   * 透明度の付け方の問題ではなく、要らなくなった知らせが在り続けることが原因。
    */
-  let flashTimer = null;
+  let flashTimer = null, flashGone = null;
   function flash(text, kind, why) {
     const el = $('flash'); if (!el || !text) return;
+    if (flashTimer) { clearTimeout(flashTimer); flashTimer = null; }
+    if (flashGone) { clearTimeout(flashGone); flashGone = null; }
+    el.classList.remove('gone');
     $('flash-t').textContent = text;
     $('flash-w').textContent = why || '';
     // faded（狙いを避けて薄くする印）を消さないよう、必要な組だけ触る
     el.classList.remove('foul', 'warn');
     if (kind) el.classList.add(kind);
     el.classList.add('on');
-    if (flashTimer) clearTimeout(flashTimer);
     // 理由まで読ませるときは長めに出す
-    flashTimer = setTimeout(() => { el.classList.remove('on'); flashTimer = null; }, why ? 2600 : 1000);
+    flashTimer = setTimeout(() => {
+      el.classList.remove('on'); flashTimer = null;
+      // 薄れ終わってから畳む。消え方（0.12秒）はそのまま残す
+      flashGone = setTimeout(() => {
+        $('flash-t').textContent = ''; $('flash-w').textContent = '';
+        el.classList.remove('foul', 'warn', 'faded');
+        el.classList.add('gone');
+        flashGone = null;
+      }, 220);
+    }, why ? 2600 : 1000);
   }
 
   /**

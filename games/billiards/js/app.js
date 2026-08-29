@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.19';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.20';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -830,7 +830,9 @@
   function applyShot(shot, place, animate) {
     const g = S.game;
     const cue = RU.cueBallOf(g, g.turn);
-    if (!cue) return;
+    // 撞く玉が見つからないまま黙って戻ると、その1手が抜けたまま盤が残る。
+    // 抜けたことを言わずに済ませないで、あらためて追いつき直しを頼む
+    if (!cue) { requestResync(); return; }
     if (place) { RU.place(cue, place.x, place.y); g.ballInHand = false; g.ballInHandFull = false; }
 
     g.history.push({ n: g.shotNo, shot: Object.assign({}, shot), place: place || null });
@@ -930,7 +932,8 @@
     RU.nextTurn(g, res);
     if (quiet) return;                        // 並べ直しの途中では画面も待ち行列も動かさない
     renderHUD();
-    setTimeout(beginTurn, 800);
+    // 次の手がもう届いているなら、見せる間合いを詰めて追いつく
+    setTimeout(beginTurn, hasWaitingShot() ? 120 : 800);
   }
 
   /**
@@ -2487,20 +2490,41 @@
   let lastT = performance.now();
   const dbg = { phys: 0, draw: 0, gap: 0, at: 0 };
   function loop(now) {
-    const dt = Math.min(100, now - lastT); lastT = now;
+    // 1コマぶんの経過時間。長すぎる間隔は抑える（裏に回っていた直後の飛びを防ぐ）。
+    // 上限を 250ms にしてあるので、1秒に4コマしか描けない端末でも玉は実時間どおりに進む
+    const dt = Math.min(250, now - lastT); lastT = now;
     if (S.demo && S.screen === 'play') stepDemo(now);
     if (S.screen === 'play' && S.game) {
       const t0 = DEBUG ? performance.now() : 0;
-      // 1コマで進める刻みの数。等速なら8刻み＝1/60秒ぶん。端数は次のコマへ持ち越す
+      /*
+       * 1コマで進める刻みの数は、**経過した時間から決める**。
+       * コマ数で決めていたころは、画面の更新が遅い端末ほど玉がゆっくり転がり、
+       * 対局者との差がどんどん開いた（携帯の観戦者が置いていかれる）。
+       * 物理の刻みは 1/480 秒で変わらないので、1コマにまとめて進めても
+       * 衝突を飛び越すことはない。カクカクに見えるだけで、当たり外れは変わらない。
+       * 上限は念のための重し（dt は上で 250ms に抑えてある）。
+       */
       let steps = 0;
       const world = S.phase === 'rolling' ? S.game.world : S.replayRun;
       if (world) {
         const flying = highestBall(world) > JUMP_Z;
-        S.stepAcc = (S.stepAcc || 0) + 8 * (flying ? JUMP_SPEED : animSpeed());
-        steps = Math.min(32, Math.floor(S.stepAcc));
+        const rate = flying ? JUMP_SPEED : animSpeed();
+        S.stepAcc = (S.stepAcc || 0) + (dt / 1000) / E.DT * rate;
+        steps = Math.min(240, Math.floor(S.stepAcc));
         S.stepAcc -= steps;
       } else S.stepAcc = 0;
       if (S.phase === 'rolling') {
+        /*
+         * 観戦者は**最新の盤面を優先する**（9.5.8節）。
+         * 次の手がもう届いているのに、いまの手をゆっくり見せ続けると、
+         * 遅い端末では差が開く一方で二度と追いつけない。
+         * 待っている手があるあいだは、いまの手を最後まで一気に走らせる。
+         */
+        if (S.net.on && S.net.role === 'spectator' && hasWaitingShot()) {
+          E.runShot(S.game.world, 20);
+          S.evCursor = S.game.world.events.length;   // 飛ばした分の音は鳴らさない
+          S.stepAcc = 0;
+        }
         for (let i = 0; i < steps; i++) {
           if (E.allStopped(S.game.world)) break;
           E.step(S.game.world);
@@ -3007,11 +3031,24 @@
       if (p.for && p.for !== myPid()) return;   // 自分が頼んだ追いつき直しでなければ触らない
       setMsg(t('lobby.syncing'));
       S.net.myIdx = seatIndexOfMe(p.names);
+      /*
+       * **届いて待っている手は、並べ直しをまたいで持ち越す。**
+       * 頼んでから履歴が届くまでのあいだに撞かれた手は、
+       * 履歴にはまだ載っておらず、手元の預かりにだけある。
+       * ここで捨てると、その1手だけ永久に抜け落ちる。
+       * 抜けた玉は盤に残り続け、以後の手はすべて違う盤面で判定されて
+       * 反則が出続ける（実機で観戦者に起きていた形）。
+       */
+      const heldShots = S.pendingShots || {};
       startGame(p.seed, p.names, p.config);
       // 並べ直しのあいだは黙らせる。途中で例外が出ても必ず元へ戻す
       S.catchUp = true;
       try { for (const rec of (p.log || [])) replayRecord(rec); }
       finally { S.catchUp = false; }
+      // 並べ直したところより先の手だけを預かりへ戻す（済んだ手は捨てる）
+      for (const k in heldShots) {
+        if (+k >= S.game.shotNo) S.pendingShots[k] = heldShots[k];
+      }
       renderHUD();
       if (S.game.over) { endGame(); return; }   // 終わった局に追いついたときは結果を出す
       beginTurn();
@@ -3140,6 +3177,12 @@
    * 頼むたびに走らせると、直っていないあいだじゅう並べ直し続けることになる。
    * 手が1つ進めば、あらためて頼める。
    */
+  /** 次の手がもう届いて待っているか。観戦者が追いつく判断に使う */
+  function hasWaitingShot() {
+    for (const k in S.pendingShots) if (S.pendingShots[k]) return true;
+    return false;
+  }
+
   function requestResync() {
     if (S.net.isHost) return;
     const n = S.game ? S.game.shotNo : -1;

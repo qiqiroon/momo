@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.20';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.21';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -120,6 +120,8 @@
     },
     aiCancel: null, confirmCb: null, dlVotes: {},
     chk: {},               // 受け取った盤面照合（ショット番号 → 指紋）。追いついてから比べる
+    results: {},           // 撞いた人が配った「その手の結果」（ショット番号 → 盤面）
+    shotMine: false,       // いま処理している手を撞いたのは自分か
     pendingShots: {},      // 先に届いた相手の手。こちらがその番号へ達したら指す
     waitDone: null, waitTimer: null, readyShot: null, forceShot: null,
     catchUp: false,        // 追いつき直しの最中。過去の手を黙って並べ直すあいだ立てる
@@ -515,14 +517,26 @@
     if (name === 'setup') mountSetup('setup-host', false);
     else if (name === 'room') mountSetup('setup-host-room', !S.net.isHost);
     AU.setBgm(name === 'play' ? 'game' : 'lobby');
-    if (name === 'play') { requestWakeLock(); resizeBoard(); }
-    else releaseWakeLock();
+    if (name === 'play') resizeBoard();
+    // 待合室でも画面を消させない（観戦者は始まるまで何もしない）
+    if (keepAwakeHere()) requestWakeLock(); else releaseWakeLock();
     window.scrollTo(0, 0);
   }
 
-  // 対戦中は画面を消させない（携帯で撞いている途中に暗転しないように）
+  /*
+   * 対戦中は画面を消させない（携帯で撞いている途中に暗転しないように）。
+   *
+   * **観戦者は画面に触らない。** 触らないと、端末によっては画面を消さない約束を
+   * 取り直せないことがあるので、次の3つで取り直しを試みる：
+   *   ・画面が戻ってきたとき（消えると約束は解かれる）
+   *   ・画面に触れたとき
+   *   ・一定時間ごとの見直し（触らない観戦者のための命綱）
+   * 待合室でも取る。観戦者は対局が始まるまで何もしないので、そこでも消えては困る。
+   */
+  function keepAwakeHere() { return S.screen === 'play' || S.screen === 'room'; }
   function requestWakeLock() {
     if (!('wakeLock' in navigator) || S.wakeLock) return;
+    if (document.visibilityState !== 'visible') return;   // 見えていないと必ず失敗する
     navigator.wakeLock.request('screen').then(l => {
       S.wakeLock = l;
       l.addEventListener('release', () => { S.wakeLock = null; });
@@ -532,8 +546,10 @@
     if (S.wakeLock) { try { S.wakeLock.release(); } catch (e) {} S.wakeLock = null; }
   }
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && S.screen === 'play') requestWakeLock();
+    if (document.visibilityState === 'visible' && keepAwakeHere()) requestWakeLock();
   });
+  document.addEventListener('pointerdown', () => { if (keepAwakeHere()) requestWakeLock(); }, true);
+  setInterval(() => { if (keepAwakeHere()) requestWakeLock(); }, 20000);
 
   // ══════════════════════════════════════════════
   //  ゲームの開始
@@ -565,7 +581,7 @@
     });
     g.players.forEach(p => { if (cfg.rule === 'G-04') p.target = cfg.target; });
     S.game = g;
-    S.chk = {};                             // 前の局の照合は持ち越さない
+    S.chk = {}; S.results = {};             // 前の局の照合・結果は持ち越さない
     S.dropped = null; S.bursts = []; S.airZ = {}; S.pendingShots = {};
     S.net.done = {}; S.net.gone = {}; S.waitDone = null; S.readyShot = null; S.forceShot = null;
     S.catchUp = false; S.lastNeed = null;
@@ -697,7 +713,11 @@
       const held = S.pendingShots && S.pendingShots[g.shotNo];
       if (held) {
         delete S.pendingShots[g.shotNo];
-        setTimeout(() => { if (S.game === g && !g.over) applyShot(held.shot, held.place, true); }, 60);
+        setTimeout(() => {
+          if (S.game !== g || g.over) return;
+          S.shotMine = false;              // 預かっていた相手の手。結果は撞いた人が配る
+          applyShot(held.shot, held.place, true);
+        }, 60);
       }
     } else {
       setMsg(S.phase === 'place' ? (g.ballInHandFull ? t('ph.freeArea') : t('ph.placeArea')) : t('ph.aim'));
@@ -824,6 +844,7 @@
     if (S.net.on && local && S.net.role !== 'spectator') {
       NET.send({ k: 'shot', n: g.shotNo, shot, place: place || null });
     }
+    S.shotMine = !!local;                   // 撞いた本人だけが、この手の結果を配る
     applyShot(shot, place, true);
   }
 
@@ -931,9 +952,50 @@
 
     RU.nextTurn(g, res);
     if (quiet) return;                        // 並べ直しの途中では画面も待ち行列も動かさない
+
+    /*
+     * **1手ごとに、撞いた人の結果へ全員を合わせる。**
+     * 玉の見え方（アニメ）は端末ごとに違ってよいが、撞き終わった時点の
+     * 盤面・手番・得点は必ず同じでなければならない。
+     * 撞いた本人が正解を配り、受け取った側は**自分の玉が止まってから**それに合わせる。
+     * 転がっている最中に入れ替えないのは、途中で入れ替えると
+     * そのあと自分の後始末が重なって手番が二重に進むため。
+     */
+    if (S.net.on) {
+      if (S.shotMine && S.net.role !== 'spectator') sendResult(g);
+      else adoptResult(g.shotNo);
+      // 合わせた結果が「決着」だったら、自分の計算で気づいていなくても終わりにする
+      if (g.over) { endGameSoon(); return; }
+    }
+
     renderHUD();
     // 次の手がもう届いているなら、見せる間合いを詰めて追いつく
     setTimeout(beginTurn, hasWaitingShot() ? 120 : 800);
+  }
+
+  /** 撞き終わった時点の「正解」。玉の位置と、勝敗まで含めて配る */
+  function resultSnapshot(g) {
+    return {
+      board: boardSnapshot(),
+      turn: g.turn, scores: g.players.map(x => x.score),
+      groups: g.players.map(x => x.group == null ? null : x.group),
+      fouls: g.players.map(x => x.fouls || 0),
+      bih: !!g.ballInHand, bihFull: !!g.ballInHandFull,
+      broken: !!g.broken, over: !!g.over, winTeam: g.winTeam,
+      dl: g.deadlockCount || 0,
+    };
+  }
+  function sendResult(g) {
+    NET.send(Object.assign({ k: 'res', n: g.shotNo }, resultSnapshot(g)));
+  }
+  /** 届いている「正解」に合わせる。無ければ何もしない（自分の計算のまま進む） */
+  function adoptResult(n) {
+    const g = S.game; if (!g) return;
+    for (const k of Object.keys(S.results)) if (+k < n) delete S.results[k];
+    const r = S.results[n];
+    if (!r) return;
+    delete S.results[n];
+    applyBoard(Object.assign({}, r, { n }), true);
   }
 
   /**
@@ -2873,7 +2935,10 @@
   }
 
   function onNet(kind, d) {
-    if (kind === 'ws-open') { S.net.wsOpen = true; S.net.wasClosed = false; refreshServerStatus(); NET.refresh(); }
+    if (kind === 'ws-open') {
+      S.net.wsOpen = true; S.net.wasClosed = false; refreshServerStatus(); NET.refresh();
+      if (S.net.wantRejoin) tryRejoin();
+    }
     else if (kind === 'ws-close') { S.net.wsOpen = false; S.net.wasClosed = true; refreshServerStatus(); }
     else if (kind === 'rooms') { S.net.lastRooms = d.rooms; renderRooms(d.rooms); }
     else if (kind === 'ver-mismatch') { alertNote(t('lobby.title'), t('lobby.verMismatch', { a: d.theirs, b: d.mine })); }
@@ -2884,6 +2949,7 @@
       S.net.roster = (d.multi && d.multi.roster) || [];
       showRoom();
     } else if (kind === 'joined') {
+      if (S.net.wantRejoin) { S.net.wantRejoin = false; setMsg(t('lobby.rejoined')); }
       S.net.on = true; S.net.isHost = false;
       S.net.ready = {}; S.net.sentCfg = null;
       S.net.role = (d.multi && d.multi.role) || 'player';
@@ -2914,10 +2980,24 @@
       if (wasPlayer) setMsg(t('lobby.left'));   // 観戦者の出入りは対局者に知らせない
       showRoom();
     } else if (kind === 'disconnected' || kind === 'kicked') {
-      setMsg(t('lobby.disconnected'));
+      /*
+       * **切れたときは、必ず「部屋を出た」と土台へ伝える。**
+       * 伝えないと、土台は部屋に入ったままのつもりで通信を閉じたまま固まり、
+       * アプリを起動し直すまでどの部屋にも入れなくなる
+       * （携帯の画面が消えて戻ったときに起きていた）。
+       */
+      NET.leave();
       S.net.on = false;
+      // 追い出された（kicked）ときは戻らない。通信が切れただけなら入り直す
+      const canRejoin = kind === 'disconnected' && !S.net.isHost && S.net.last;
+      S.net.wantRejoin = canRejoin;
+      S.net.rejoinTries = 0;
+      setMsg(t(canRejoin ? 'lobby.rejoining' : 'lobby.disconnected'));
       show('lobby');
+      if (canRejoin) alertNote(t('lobby.title'), t('lobby.rejoining'));
     } else if (kind === 'error') {
+      // 入り直しの最中の失敗は、そのつど窓を出さずに何度か試す
+      if (S.net.wantRejoin) { setTimeout(tryRejoin, 2000); return; }
       alertNote(t('lobby.title'), d.msg || '');
     } else if (kind === 'msg') {
       onNetMsg(d.payload, d.from);
@@ -3065,6 +3145,7 @@
        */
       if (p.n > S.game.shotNo) { S.pendingShots[p.n] = p; return; }
       if (p.n < S.game.shotNo) { requestResync(); return; }
+      S.shotMine = false;                 // 相手の手。結果は撞いた人が配る
       applyShot(p.shot, p.place, true);
       return;
     }
@@ -3088,6 +3169,17 @@
        */
       S.chk[p.n] = p.h;
       compareBoardCheck();
+      return;
+    }
+    if (p.k === 'res') {
+      /*
+       * 撞いた人が配った「その手の結果」。
+       * **自分がその手を見終わってから**合わせる。転がっている最中に入れ替えると、
+       * そのあと自分の後始末が重なって手番が二重に進む。
+       */
+      if (!S.game || p.n == null) return;
+      S.results[p.n] = p;
+      if (S.phase !== 'rolling' && S.game.shotNo === p.n) adoptResult(p.n);
       return;
     }
     if (p.k === 'reboard') {
@@ -3136,7 +3228,11 @@
    * 配られた盤面ですでに進んでいる手番の上に、もう一段手番と手数を進めてしまう。
    * 実測ではこれで主催者6手目・相手7手目にずれ、双方が相手を待って止まった。
    */
-  function applyBoard(p) {
+  /**
+   * @param {boolean} settled 撞き終わった直後に「正解へ合わせる」ために呼ばれたか。
+   *   その場合は進めていた手はもう片付いているので、捨てる処理も手番の始め直しもしない。
+   */
+  function applyBoard(p, settled) {
     const g = S.game;
     const byId = {}; g.world.balls.forEach(b => byId[b.id] = b);
     (p.board || []).forEach(o => {
@@ -3146,9 +3242,17 @@
       b.onTable = (o.s === 'live');
     });
     if (p.scores) p.scores.forEach((s, i) => { if (g.players[i]) g.players[i].score = s; });
+    if (p.groups) p.groups.forEach((v, i) => { if (g.players[i]) g.players[i].group = v; });
+    if (p.fouls) p.fouls.forEach((v, i) => { if (g.players[i]) g.players[i].fouls = v; });
     if (p.turn != null) g.turn = p.turn;
     if (p.n != null) g.shotNo = p.n;
     if (p.bih != null) g.ballInHand = !!p.bih;
+    if (p.bihFull != null) g.ballInHandFull = !!p.bihFull;
+    if (p.broken != null) g.broken = !!p.broken;
+    if (p.winTeam != null) g.winTeam = p.winTeam;
+    if (p.over != null) g.over = !!p.over;
+    if (p.dl != null) g.deadlockCount = p.dl;
+    if (settled) { renderHUD(); return; }
 
     // 進めていた手を捨てる。後始末（finishShot）を走らせないために転がりを終わらせる
     S.phase = 'idle';
@@ -3169,6 +3273,7 @@
       RU.nextTurn(S.game, { continueTurn: false });
       return;
     }
+    S.shotMine = false;                   // 並べ直しの手。結果は配らない
     applyShot(rec.shot, rec.place, false);
   }
   /**
@@ -3242,7 +3347,33 @@
   }
   function joinAs(room, role) {
     const pw = room.hasPassword ? (prompt(t('lobby.pw2')) || '') : ($('in-pw').value || '');
+    // 入った部屋を憶えておく。通信が切れたときに、ここへ入り直す
+    S.net.last = { roomId: room.id, password: pw, role, name: myName() };
     NET.joinRoom(room.id, pw, myName(), role);
+  }
+
+  /**
+   * 通信が切れたあと、元いた部屋へ入り直す。
+   * 携帯は画面が消えると通信も切れる。戻ってくるたびに手で入り直すのは現実的でない。
+   * 何度か試して駄目なら、黙って諦めずに画面へ出す。
+   */
+  const REJOIN_TRIES = 5;
+  function tryRejoin() {
+    const last = S.net.last;
+    if (!S.net.wantRejoin || !last || !S.net.wsOpen) return;
+    if ((S.net.rejoinTries || 0) >= REJOIN_TRIES) {
+      S.net.wantRejoin = false;
+      alertNote(t('lobby.title'), t('lobby.rejoinFail'));
+      return;
+    }
+    S.net.rejoinTries = (S.net.rejoinTries || 0) + 1;
+    NET.refresh();                       // 版番号の照合に一覧が要るので、先に取り直す
+    setTimeout(() => {
+      if (!S.net.wantRejoin) return;
+      const ok = NET.joinRoom(last.roomId, last.password, last.name, last.role);
+      if (!ok) setTimeout(tryRejoin, 2000);
+      else setTimeout(() => { if (S.net.wantRejoin) tryRejoin(); }, 4000);  // 返事が無ければもう一度
+    }, 800);
   }
   function myName() {
     const v = ($('in-name').value || '').trim() || DEFAULT_NAME;

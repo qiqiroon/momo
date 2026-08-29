@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.23';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.24';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -219,8 +219,13 @@
    */
   function caromForRule(rule) { return RU.NEEDS_POCKETS[rule] === false; }
 
+  /**
+   * 台形状のグレー。STAGE は仕様書 11.2.3節の「段階の割り当て」であって
+   * 実装が済んだかどうかではない。実際に選べるかは台定義データが持っている形だけで決める。
+   * ここで形状名を並べると、台を足したときに解禁を書き忘れる（逆も同じ）。
+   */
   function shapeBlock(shape) {
-    if (STAGE.shape[shape] >= 3) return t('why.stage3');
+    if (T.SHAPE_IDS.indexOf(shape) < 0) return t('why.stage3');
     return null;
   }
   function modeBlock(m) {
@@ -573,7 +578,7 @@
     // 設定画面を通らずに始まった局（もう一度・通信）で食い違う
     cfg.carom = caromForRule(cfg.rule);
     const g = RU.createGame({
-      rule: cfg.rule, hasPockets: !cfg.carom,
+      rule: cfg.rule, shape: cfg.shape, hasPockets: !cfg.carom,
       players: players || playerList(),
       seed: seed >>> 0, difficulty: cfg.diff,
       tuning: tuningFromCfg(), targets: null,
@@ -682,8 +687,13 @@
     if (g.ballInHand && cue) {
       S.phase = 'place';
       // ブレイクの初期位置はヘッドストリングの少し手前。そこから自由に動かせる
-      S.placePos = g.ballInHandFull ? { x: cue.x, y: cue.y } : { x: g.table.headSpot.x - 160, y: 0 };
-      if (!placeOk(S.placePos)) S.placePos = { x: g.table.headSpot.x - 160, y: 0 };
+      const head = { x: g.table.headSpot.x - 160, y: 0 };
+      S.placePos = g.ballInHandFull ? { x: cue.x, y: cue.y } : head;
+      // そこが置けない場所なら、台の内側へ引き戻したうえでヘッド側へ寄せる。
+      // 台の形が変わると、決め打ちの座標が壁の外や玉の上に来ることがある
+      if (!placeOk(S.placePos)) {
+        S.placePos = T.clampInside(g.table, head.x, head.y, cue.r);
+      }
     } else {
       S.phase = 'aim';
     }
@@ -1336,9 +1346,13 @@
     view.w = w; view.h = h;
     view.mobile = window.innerWidth <= 860;
     view.topInset = null;                    // タイトルの高さは測り直す
-    // 長軸を画面の縦方向へ（4.10.1節）。枠（クッションの厚み）まで含めて収める
+    // 長軸を画面の縦方向へ（4.10.1節）。枠（クッションの厚み）まで含めて収める。
+    // 拡大率は外接矩形から決める（3.2.4節）。面積は揃っていても外接矩形は形ごとに違うので、
+    // 台の寸法を決め打ちにすると六角形以降で画面から溢れる
     const frame = 95;                        // クッションと外枠のぶん（mm 換算の余裕）
-    const outerW = T.PLAY_H + frame * 2, outerH = T.PLAY_W + frame * 2;
+    const tb = S.game ? S.game.table : null;
+    const bw = (tb ? tb.halfW : T.HX) * 2, bh = (tb ? tb.halfH : T.HY) * 2;
+    const outerW = bh + frame * 2, outerH = bw + frame * 2;
     view.s = Math.min(w / outerW, h / outerH);
     view.cx = w / 2; view.cy = h / 2;
   }
@@ -1363,6 +1377,38 @@
     ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
     ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r);
     ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.closePath();
+  }
+
+  /**
+   * 台の外周（プレイ面）を画面上の輪郭としてなぞる。
+   * クロスも枠も置ける範囲も、この1本の輪郭から作る。
+   */
+  function tablePath(table) {
+    const o = table.outline;
+    ctx.beginPath();
+    const p0 = toScreen(o[0].x, o[0].y);
+    ctx.moveTo(p0.x, p0.y);
+    for (let i = 1; i < o.length; i++) { const p = toScreen(o[i].x, o[i].y); ctx.lineTo(p.x, p.y); }
+    ctx.closePath();
+  }
+
+  /**
+   * 外周をなぞる木の枠（長方形以外の台）。
+   * 太い線で輪郭をなぞると、外側へ半分はみ出したぶんが枠の帯になる。
+   */
+  function drawFramePoly(table, thick) {
+    ctx.save();
+    const g = ctx.createLinearGradient(0, 0, view.w, view.h);
+    g.addColorStop(0, '#4a2a15'); g.addColorStop(.28, '#6b3d1f');
+    g.addColorStop(.52, '#8a5228'); g.addColorStop(.76, '#5e3319'); g.addColorStop(1, '#3d2211');
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    tablePath(table); ctx.strokeStyle = g; ctx.lineWidth = thick * 2; ctx.stroke();
+    // 上面の光。帯の真ん中より少し外を細く走らせる
+    ctx.globalAlpha = .45;
+    tablePath(table); ctx.strokeStyle = 'rgba(255,220,180,.35)';
+    ctx.lineWidth = 1.6; ctx.setLineDash([]); ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.restore();
   }
 
   /** 木目の枠。単色だと板に見えないので、縞と面取りの光を重ねる */
@@ -1477,38 +1523,46 @@
 
     const a = toScreen(table.halfW, -table.halfH), b = toScreen(-table.halfW, table.halfH);
     const thick = 34 * s + 10;
-    drawFrame(a.x - thick, a.y - thick, (b.x - a.x) + thick * 2, (b.y - a.y) + thick * 2, thick);
-    // クロス
+    if (table.frameStyle === 'rect') {
+      drawFrame(a.x - thick, a.y - thick, (b.x - a.x) + thick * 2, (b.y - a.y) + thick * 2, thick);
+    } else {
+      drawFramePoly(table, thick);
+    }
+    // クロス。長方形では外周の4頂点＝外接矩形なので、第1段階と同じ塗りになる
     const cg = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
     cg.addColorStop(0, '#17573f'); cg.addColorStop(.45, '#0f3d2e'); cg.addColorStop(1, '#0b2e22');
-    ctx.fillStyle = cg;
-    ctx.fillRect(a.x, a.y, b.x - a.x, b.y - a.y);
-    ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 1.5;
-    ctx.strokeRect(a.x, a.y, b.x - a.x, b.y - a.y);
-    // ダイヤ（レール上の目印）
-    ctx.fillStyle = 'rgba(255,240,215,.55)';
-    for (let i = 1; i <= 7; i++) {
-      const tx = -table.halfW + (table.halfW * 2) * i / 8;
-      [-1, 1].forEach(sg => {
-        const q = toScreen(tx, sg * (table.halfH + thick / s * .5));
-        ctx.beginPath(); ctx.moveTo(q.x, q.y - 3.4); ctx.lineTo(q.x + 2.6, q.y); ctx.lineTo(q.x, q.y + 3.4); ctx.lineTo(q.x - 2.6, q.y); ctx.fill();
-      });
-    }
-    for (let i = 1; i <= 3; i++) {
-      const ty = -table.halfH + (table.halfH * 2) * i / 4;
-      [-1, 1].forEach(sg => {
-        const q = toScreen(sg * (table.halfW + thick / s * .5), ty);
-        ctx.beginPath(); ctx.moveTo(q.x, q.y - 3.4); ctx.lineTo(q.x + 2.6, q.y); ctx.lineTo(q.x, q.y + 3.4); ctx.lineTo(q.x - 2.6, q.y); ctx.fill();
-      });
+    tablePath(table);
+    ctx.fillStyle = cg; ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 1.5; ctx.stroke();
+    // ダイヤ（レール上の目印）。現実の台にある意匠なので、対応する現実を持つ長方形だけに置く
+    if (table.diamonds) {
+      ctx.fillStyle = 'rgba(255,240,215,.55)';
+      for (let i = 1; i <= 7; i++) {
+        const tx = -table.halfW + (table.halfW * 2) * i / 8;
+        [-1, 1].forEach(sg => {
+          const q = toScreen(tx, sg * (table.halfH + thick / s * .5));
+          ctx.beginPath(); ctx.moveTo(q.x, q.y - 3.4); ctx.lineTo(q.x + 2.6, q.y); ctx.lineTo(q.x, q.y + 3.4); ctx.lineTo(q.x - 2.6, q.y); ctx.fill();
+        });
+      }
+      for (let i = 1; i <= 3; i++) {
+        const ty = -table.halfH + (table.halfH * 2) * i / 4;
+        [-1, 1].forEach(sg => {
+          const q = toScreen(sg * (table.halfW + thick / s * .5), ty);
+          ctx.beginPath(); ctx.moveTo(q.x, q.y - 3.4); ctx.lineTo(q.x + 2.6, q.y); ctx.lineTo(q.x, q.y + 3.4); ctx.lineTo(q.x - 2.6, q.y); ctx.fill();
+        });
+      }
     }
 
     for (const p of table.pockets) drawPocket(p, s);
 
-    // ヘッドストリングとフットスポット
+    // ヘッドストリングとフットスポット。線は外周の中だけに出す
     if (table.hasPockets) {
+      ctx.save();
+      tablePath(table); ctx.clip();
       const h1 = toScreen(table.headSpot.x, -table.halfH), h2 = toScreen(table.headSpot.x, table.halfH);
       ctx.beginPath(); ctx.moveTo(h1.x, h1.y); ctx.lineTo(h2.x, h2.y);
       ctx.strokeStyle = 'rgba(255,255,255,.13)'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.restore();
     }
     const sp = toScreen(table.spot.x, table.spot.y);
     ctx.beginPath(); ctx.arc(sp.x, sp.y, Math.max(1.6, 6 * s), 0, 7);
@@ -1822,12 +1876,17 @@
     ctx.restore();
   }
 
+  /**
+   * 手玉を置ける範囲（4.5節）。
+   * 長軸で切った帯を、台の外周で切り抜いて出す。帯だけを出すと台の外まで塗ってしまう
+   */
   function drawPlaceArea() {
     const g = S.game, table = g.table;
     const full = g.ballInHandFull;
     const x1 = -table.halfW, x2 = full ? table.halfW : kitchenLimit();
     const p1 = toScreen(x2, -table.halfH), p2 = toScreen(x1, table.halfH);
     ctx.save();
+    tablePath(table); ctx.clip();
     ctx.fillStyle = 'rgba(251,146,60,.10)';
     ctx.fillRect(p1.x, p1.y, p2.x - p1.x, p2.y - p1.y);
     ctx.strokeStyle = 'rgba(251,146,60,.5)'; ctx.setLineDash([6, 5]); ctx.lineWidth = 1.4;
@@ -1977,10 +2036,8 @@
     ctx.fillStyle = bg; ctx.fillRect(0, 0, view.w, view.h);
 
     const table = g.table;
-    const corners = [
-      [table.halfW, -table.halfH], [table.halfW, table.halfH],
-      [-table.halfW, table.halfH], [-table.halfW, -table.halfH],
-    ].map(c => ({ x: c[0], y: c[1], z: 0 }));
+    // 台面は外周そのもの。四隅で描くと、六角形以降で無い床が見える
+    const corners = table.outline.map(p => ({ x: p.x, y: p.y, z: 0 }));
     const poly = clipNear(corners, cam, f, 45).map(v => proj(v.x, v.y, v.z)).filter(Boolean);
     if (poly.length > 2) {
       ctx.beginPath(); ctx.moveTo(poly[0].x, poly[0].y);
@@ -2007,13 +2064,15 @@
       ctx.lineTo(q.x, q.y + rr); ctx.lineTo(q.x - rr * .72, q.y);
       ctx.closePath(); ctx.fill();
     };
-    for (let i = 1; i <= 7; i++) {
-      const tx = -table.halfW + table.halfW * 2 * i / 8;
-      diamond(tx, -table.halfH); diamond(tx, table.halfH);
-    }
-    for (let i = 1; i <= 3; i++) {
-      const ty = -table.halfH + table.halfH * 2 * i / 4;
-      diamond(-table.halfW, ty); diamond(table.halfW, ty);
+    if (table.diamonds) {
+      for (let i = 1; i <= 7; i++) {
+        const tx = -table.halfW + table.halfW * 2 * i / 8;
+        diamond(tx, -table.halfH); diamond(tx, table.halfH);
+      }
+      for (let i = 1; i <= 3; i++) {
+        const ty = -table.halfH + table.halfH * 2 * i / 4;
+        diamond(-table.halfW, ty); diamond(table.halfW, ty);
+      }
     }
     for (const pk of table.pockets) {
       const q = proj(pk.x, pk.y, 0); if (!q) continue;
@@ -2452,7 +2511,7 @@
     const g = S.game; if (!g) return false;
     const cue = RU.cueBallOf(g, g.turn); if (!cue) return false;
     const table = g.table;
-    if (Math.abs(pt.x) > table.halfW - cue.r || Math.abs(pt.y) > table.halfH - cue.r) return false;
+    if (!T.inside(table, pt.x, pt.y, cue.r)) return false;
     if (g.ballInHand && !g.ballInHandFull && pt.x > kitchenLimit()) return false;
     for (const p of table.pockets) if (Math.hypot(pt.x - p.x, pt.y - p.y) < p.r + cue.r * .3) return false;
     for (const b of g.world.balls) {
@@ -2522,9 +2581,18 @@
     const tp = toTable(p.x, p.y - 26);   // 指が手玉を隠さないようずらす（4.11.2節）
     const g = S.game, table = g.table;
     const cue = RU.cueBallOf(g, g.turn);
-    tp.x = clamp(tp.x, -table.halfW + cue.r, table.halfW - cue.r);
-    tp.y = clamp(tp.y, -table.halfH + cue.r, table.halfH - cue.r);
-    if (g.ballInHand && !g.ballInHandFull) tp.x = Math.min(tp.x, kitchenLimit());
+    /*
+     * 置ける場所は「台の内側」と「ヘッド側の区画（キッチン）」の重なり。
+     * 片方ずつ直すと、直した拍子にもう片方から出ることがあるので交互に数回かける。
+     * 台の形が細くなる場所ほど1回では収まらない
+     */
+    const kitchen = g.ballInHand && !g.ballInHandFull;
+    for (let i = 0; i < 4; i++) {
+      if (kitchen) tp.x = Math.min(tp.x, kitchenLimit());
+      const q = T.clampInside(table, tp.x, tp.y, cue.r);
+      tp.x = q.x; tp.y = q.y;
+    }
+    if (kitchen) tp.x = Math.min(tp.x, kitchenLimit());
     S.placePos = tp;
     S.aimDirty = true;
   }

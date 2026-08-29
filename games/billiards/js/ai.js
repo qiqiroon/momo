@@ -233,8 +233,11 @@ const BilliardsAI = (() => {
     const cands = [];
     const nx = 7, ny = 5;
     for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) {
+      // 候補点は外接矩形に格子を切ってから、台の外に落ちたものを捨てる。
+      // 矩形のまま使うと、六角形では角の外へ手玉を置こうとする
       const x = -table.halfW + (table.halfW * 2) * (i + 0.5) / nx;
       const y = -table.halfH + (table.halfH * 2) * (j + 0.5) / ny;
+      if (!BilliardsTable.inside(table, x, y, cue.r)) continue;
       let ok = true;
       for (const b of game.world.balls) {
         if (b === cue || b.state !== 'live') continue;

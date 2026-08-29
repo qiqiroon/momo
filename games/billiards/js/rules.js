@@ -60,11 +60,11 @@ const BilliardsRules = (() => {
 
   // ───────── ゲームの生成 ─────────
   /**
-   * @param {object} cfg { rule, hasPockets, players:[{name,type}], seed, tuning, difficulty,
+   * @param {object} cfg { rule, shape, hasPockets, players:[{name,type}], seed, tuning, difficulty,
    *                       target(点数目標), handicaps }
    */
   function createGame(cfg) {
-    const table = T.make(cfg.hasPockets);
+    const table = T.make(cfg.shape, cfg.hasPockets);
     const game = {
       rule: cfg.rule,
       table,
@@ -283,7 +283,8 @@ const BilliardsRules = (() => {
     const others = game.world.balls.filter(b => b !== ball && b.state === 'live');
 
     function free(x, y) {
-      if (Math.abs(x) > table.halfW - ball.r || Math.abs(y) > table.halfH - ball.r) return false;
+      // 台の内側かどうかは外周から見る。矩形で見ると六角形以降で盤の外に置ける
+      if (!T.inside(table, x, y, ball.r)) return false;
       for (const p of table.pockets) if (Math.hypot(x - p.x, y - p.y) < p.r + ball.r * 0.2) return false;
       for (const o of others) {
         const need = ball.r + o.r + (o.kind === 'cue' ? 1.0 : 0.0);  // 手玉には 1.0 mm の間隔

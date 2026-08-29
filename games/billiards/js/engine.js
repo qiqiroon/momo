@@ -9,6 +9,10 @@
  *   ・同一の初期盤面＋同一の5値入力からは、何度走らせても同一の結果になる
  *
  * 層構造（5.3節）は「値が変わるだけ」で表す。エンジンに変則モード用の分岐は無い。
+ *
+ * 台の形は知らない。壁は台定義データがくれる線分の並びとして扱い、
+ * 「台の内側かどうか」も台定義データ側の判定（BilliardsTable.clearance）へ預ける。
+ * ここに形状名の分岐を書き始めたら設計が壊れかけている合図。
  */
 const BilliardsEngine = (() => {
   'use strict';
@@ -484,14 +488,15 @@ const BilliardsEngine = (() => {
         }
         if (dropped) continue;
       }
-      const outX = Math.abs(b.x) > table.halfW + b.r * 0.2;
-      const outY = Math.abs(b.y) > table.halfH + b.r * 0.2;
-      if ((outX || outY) && b.z <= 0.01) {
+      // 台の内外は外周（台定義データ）から見る。外接矩形で見ると六角形以降で
+      // 「壁は六角形なのに場外は長方形で数える」ことになり、角の外に玉が残る。
+      const clear = BilliardsTable.clearance(table, b.x, b.y);   // 内側が正・外側が負
+      if (clear < -b.r * 0.2 && b.z <= 0.01) {
         // 台面の外へ着地した＝場外（5.8.5節・5.8.7節）
         b.state = 'off'; b.onTable = false;
         b.vx = b.vy = b.vz = b.wx = b.wy = b.wz = 0;
         w.events.push({ type: 'offtable', ball: b.id, tick: w.tick });
-      } else if (Math.abs(b.x) > table.halfW + 900 || Math.abs(b.y) > table.halfH + 900) {
+      } else if (clear < -900) {
         b.state = 'off'; b.onTable = false;
         b.vx = b.vy = b.vz = b.wx = b.wy = b.wz = 0;
         w.events.push({ type: 'offtable', ball: b.id, tick: w.tick });

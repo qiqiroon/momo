@@ -264,6 +264,52 @@ const BilliardsEngine = (() => {
     return best;
   }
 
+  function norm2pi(a) { const x = a % (2 * Math.PI); return x < 0 ? x + 2 * Math.PI : x; }
+
+  /**
+   * 円弧のクッションに当たるまでの時間（3.7節）。
+   *
+   * 台の内側が円の外側にある壁（凹頂点の丸め・ドーナツの中の島）は side='out' で、
+   * 玉の中心が中心から r + 玉半径 の距離に来たときに接する。
+   * 台の内側が円の中にある壁（スタジアムの端・ドーナツの外周）は side='in' で、
+   * r − 玉半径 の距離に来たときに接する。
+   *
+   * **円弧を多角形で近似しない**（3.7節）。近似すると法線に誤差が乗り、
+   * 通信対戦の双方で盤面が食い違う。
+   */
+  function timeBallArc(b, a, tmax) {
+    const reff = a.side === 'in' ? a.r - b.r : a.r + b.r;
+    if (reff <= EPS) return Infinity;
+    const A = b.vx * b.vx + b.vy * b.vy;
+    if (A < EPS) return Infinity;
+    const dx = b.x - a.cx, dy = b.y - a.cy;
+    const B = 2 * (dx * b.vx + dy * b.vy);
+    const C = dx * dx + dy * dy - reff * reff;
+    const disc = B * B - 4 * A * C;
+    if (disc < 0) return Infinity;
+    const sq = Math.sqrt(disc);
+    const roots = [(-B - sq) / (2 * A), (-B + sq) / (2 * A)];
+    for (let i = 0; i < 2; i++) {
+      const raw = roots[i];
+      if (raw < -1e-7 || raw > tmax) continue;
+      const t = raw < 0 ? 0 : raw;
+      const px = b.x + b.vx * t, py = b.y + b.vy * t;
+      let nx = px - a.cx, ny = py - a.cy;
+      const nl = Math.hypot(nx, ny);
+      if (nl < EPS) continue;
+      nx /= nl; ny /= nl;
+      if (norm2pi(Math.atan2(ny, nx) - a.a0) > a.sweep) continue;   // 円弧の範囲の外
+      if (a.side === 'in') { nx = -nx; ny = -ny; }                  // 壁から台の内側を向く向き
+      if (b.vx * nx + b.vy * ny >= 0) continue;                     // 離れていく向き
+      return t;
+    }
+    return Infinity;
+  }
+
+  function timeBallRail(b, s, tmax) {
+    return s.kind === 'arc' ? timeBallArc(b, s, tmax) : timeBallSeg(b, s, tmax);
+  }
+
   // ───────── 衝突の解決 ─────────
   function resolveBallBall(w, a, b) {
     const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
@@ -327,8 +373,31 @@ const BilliardsEngine = (() => {
     return { x: s.x1 + ex * t, y: s.y1 + ey * t };
   }
 
+  /** 円弧の上で、その点にいちばん近い場所。範囲の外なら近いほうの端へ寄せる */
+  function nearestOnArc(a, px, py) {
+    let dx = px - a.cx, dy = py - a.cy;
+    const d = Math.hypot(dx, dy);
+    if (d < EPS) { dx = 1; dy = 0; } else { dx /= d; dy /= d; }
+    let ang = Math.atan2(dy, dx);
+    const off = norm2pi(ang - a.a0);
+    if (off > a.sweep) {
+      // 端からの隔たりが小さいほうへ。円弧の外側は 2π − sweep ぶんある
+      ang = (off - a.sweep) * 2 < (2 * Math.PI - a.sweep) ? a.a0 + a.sweep : a.a0;
+    }
+    return { x: a.cx + Math.cos(ang) * a.r, y: a.cy + Math.sin(ang) * a.r };
+  }
+
+  /**
+   * クッションの上で、その点にいちばん近い場所。
+   * 跳ね返りの向きは「玉の中心から見て、そこがどちら側か」で決まるので、
+   * 直線でも円弧でも、この1点さえ出れば反射の計算は同じもので済む。
+   */
+  function nearestOnRail(s, px, py) {
+    return s.kind === 'arc' ? nearestOnArc(s, px, py) : nearestOnSeg(s, px, py);
+  }
+
   function resolveBallRail(w, b, s) {
-    const p = nearestOnSeg(s, b.x, b.y);
+    const p = nearestOnRail(s, b.x, b.y);
     let nx = b.x - p.x, ny = b.y - p.y;
     let d = Math.hypot(nx, ny);
     if (d < EPS) { nx = 1; ny = 0; d = 1; }
@@ -427,7 +496,7 @@ const BilliardsEngine = (() => {
         for (let si = 0; si < table.rails.length; si++) {
           const k = 'r' + b.id + '_' + si;
           if (declined.has(k)) continue;
-          const t = timeBallSeg(b, table.rails[si], tMin);
+          const t = timeBallRail(b, table.rails[si], tMin);
           if (t < tMin - 1e-12) { tMin = t; hit = { kind: 'rail', a: b, s: table.rails[si] }; key = k; }
         }
       }
@@ -549,6 +618,30 @@ const BilliardsEngine = (() => {
       }
     }
     for (const s of w.table.rails) {
+      if (s.kind === 'arc') {
+        // 円弧の壁。中心からの距離が reff になる点が接触点（速さ1で進むので時間＝距離）
+        const reff = s.side === 'in' ? s.r - cue.r : s.r + cue.r;
+        if (reff <= EPS) continue;
+        const qx = cue.x - s.cx, qy = cue.y - s.cy;
+        const B = 2 * (qx * dx + qy * dy);
+        const disc = B * B - 4 * (qx * qx + qy * qy - reff * reff);
+        if (disc < 0) continue;
+        const sq = Math.sqrt(disc);
+        const roots = [(-B - sq) / 2, (-B + sq) / 2];
+        for (let ri = 0; ri < 2; ri++) {
+          const t = roots[ri];
+          if (t <= 0 || t >= best.dist) continue;
+          let nx = cue.x + dx * t - s.cx, ny = cue.y + dy * t - s.cy;
+          const nl = Math.hypot(nx, ny); if (nl < EPS) continue;
+          nx /= nl; ny /= nl;
+          if (norm2pi(Math.atan2(ny, nx) - s.a0) > s.sweep) continue;
+          if (s.side === 'in') { nx = -nx; ny = -ny; }
+          if (dx * nx + dy * ny >= 0) continue;
+          best = { dist: t, type: 'rail', ball: null, point: { x: cue.x + dx * t, y: cue.y + dy * t }, normal: { x: nx, y: ny } };
+          break;
+        }
+        continue;
+      }
       const ex = s.x2 - s.x1, ey = s.y2 - s.y1;
       const el = Math.hypot(ex, ey); if (el < EPS) continue;
       const ux = ex / el, uy = ey / el, nx = -uy, ny = ux;
@@ -580,7 +673,7 @@ const BilliardsEngine = (() => {
     DT, G, V_MAX, BALL_M, BALL_E,
     makeBall, createWorld, cloneWorld,
     applyCue, isMiscue, step, runShot, allStopped, firstContact,
-    contactSlip, nearestOnSeg,
+    contactSlip, nearestOnSeg, nearestOnRail, timeBallRail,
   };
 })();
 

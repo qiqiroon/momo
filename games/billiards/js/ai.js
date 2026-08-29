@@ -312,7 +312,7 @@ const BilliardsAI = (() => {
       for (const p of pockets) if (Math.hypot(p.x - x, p.y - y) < p.r + cue.r) ok = false;
       if (ok) cands.push({ x, y });
     }
-    if (!cands.length) return { x: table.headSpot.x, y: 0 };
+    if (!cands.length) return { x: table.headSpot.x, y: table.headSpot.y };
     let best = cands[0], bestQ = -Infinity;
     for (const c of cands) {
       let q = 0;

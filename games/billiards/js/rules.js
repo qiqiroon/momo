@@ -208,7 +208,7 @@ const BilliardsRules = (() => {
       game.ballInHand = false;
     } else {
       // 手玉
-      const cue = E.makeBall({ id: id++, num: 0, kind: 'cue', r: R, x: table.headSpot.x, y: 0, color: '#f4f4f4' });
+      const cue = E.makeBall({ id: id++, num: 0, kind: 'cue', r: R, x: table.headSpot.x, y: table.headSpot.y, color: '#f4f4f4' });
       balls.push(cue);
       let rack;
       if (game.rule === 'G-01') {
@@ -290,7 +290,7 @@ const BilliardsRules = (() => {
     const balls = [];
     const span = 212;                       // 手玉どうしの間隔（キャロムと同じ）
     for (let i = 0; i < n; i++) {
-      const y = (i - (n - 1) / 2) * span;
+      const y = table.headSpot.y + (i - (n - 1) / 2) * span;
       balls.push(E.makeBall({
         id: i, num: 0, kind: 'cue', owner: i, r: T.R,
         x: table.headSpot.x, y,
@@ -597,7 +597,7 @@ const BilliardsRules = (() => {
       else {
         // 次のプレイヤーが台全体へ置く（10.4.3節）
         cue.state = 'live'; cue.onTable = true;
-        cue.x = game.table.headSpot.x; cue.y = 0; cue.z = 0;
+        cue.x = game.table.headSpot.x; cue.y = game.table.headSpot.y; cue.z = 0;
         cue.vx = cue.vy = cue.vz = cue.wx = cue.wy = cue.wz = 0;
         game.ballInHand = true; game.ballInHandFull = true;
       }

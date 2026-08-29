@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.27';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.28';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -731,7 +731,7 @@
     if (g.ballInHand && cue) {
       S.phase = 'place';
       // ブレイクの初期位置はヘッドストリングの少し手前。そこから自由に動かせる
-      const head = { x: g.table.headSpot.x - 160, y: 0 };
+      const head = { x: g.table.headSpot.x - 160, y: g.table.headSpot.y };
       S.placePos = g.ballInHandFull ? { x: cue.x, y: cue.y } : head;
       // そこが置けない場所なら、台の内側へ引き戻したうえでヘッド側へ寄せる。
       // 台の形が変わると、決め打ちの座標が壁の外や玉の上に来ることがある
@@ -799,6 +799,8 @@
    * 「置けないのに理由が分からない」状態になる。
    */
   function kitchenLimit() { return S.game.table.headSpot.x; }
+  /** 円弧の起点からの回り込み量（0〜2π）。範囲に入っているかを見るのに使う */
+  function arcOffset(a) { const x = a % (2 * Math.PI); return x < 0 ? x + 2 * Math.PI : x; }
   function clampToKitchen(p) { return { x: Math.min(p.x, kitchenLimit()), y: p.y }; }
 
   // ══════════════════════════════════════════════
@@ -835,6 +837,22 @@
       // ── 壁
       let L = Infinity;
       for (const s of table.rails) {
+        if (s.kind === 'arc') {
+          const qx = cue.x - s.cx, qy = cue.y - s.cy;
+          const B = 2 * (qx * dx + qy * dy);
+          const disc = B * B - 4 * (qx * qx + qy * qy - s.r * s.r);
+          if (disc < 0) continue;
+          const sq = Math.sqrt(disc);
+          const roots = [(-B - sq) / 2, (-B + sq) / 2];
+          for (let ri = 0; ri < 2; ri++) {
+            const tt = roots[ri];
+            if (tt <= 0 || tt >= L) continue;
+            const ang = Math.atan2(cue.y + dy * tt - s.cy, cue.x + dx * tt - s.cx);
+            if (arcOffset(ang - s.a0) > s.sweep) continue;
+            L = tt; break;
+          }
+          continue;
+        }
         const ex = s.x2 - s.x1, ey = s.y2 - s.y1;
         const den = dx * ey - dy * ex;
         if (Math.abs(den) < 1e-9) continue;
@@ -1327,7 +1345,7 @@
     startGame(newSeed(), null, null);
     const g = S.game;
     const cue = RU.cueBallOf(g, 0); if (!cue) return;
-    const px = g.table.headSpot.x - DEMO_BACK, py = 0;
+    const px = g.table.headSpot.x - DEMO_BACK, py = g.table.headSpot.y;
     // 撞く場所での角度を先に出す。**盤の玉は動かさない**（1コマも見せずに戻す）
     const ox = cue.x, oy = cue.y;
     cue.x = px; cue.y = py;
@@ -2134,6 +2152,18 @@
     }
     ctx.strokeStyle = '#8a5228'; ctx.lineWidth = 6; ctx.lineCap = 'round';
     for (const sgm of table.rails) {
+      if (sgm.kind === 'arc') {
+        // 見た目だけは折れ線でよい（多角形近似の禁止は物理の法線に対する決まり）
+        const steps = Math.max(2, Math.ceil(sgm.sweep / 0.35));
+        let prev = null;
+        for (let i = 0; i <= steps; i++) {
+          const ang = sgm.a0 + sgm.sweep * i / steps;
+          const q = proj(sgm.cx + Math.cos(ang) * sgm.r, sgm.cy + Math.sin(ang) * sgm.r, table.cushionTop);
+          if (prev && q) { ctx.beginPath(); ctx.moveTo(prev.x, prev.y); ctx.lineTo(q.x, q.y); ctx.stroke(); }
+          prev = q;
+        }
+        continue;
+      }
       const a = proj(sgm.x1, sgm.y1, table.cushionTop), b2 = proj(sgm.x2, sgm.y2, table.cushionTop);
       if (a && b2) { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b2.x, b2.y); ctx.stroke(); }
     }

@@ -152,6 +152,10 @@ const BilliardsI18N = (() => {
       'res.title': '結果', 'res.win': '勝ち', 'res.lose': '負け', 'res.rank': '順位',
       'res.pts': '点', 'res.again': 'もう一度', 'res.toSetup': '設定へ戻る', 'res.toMenu': 'メニューに戻る',
       'res.draw': '同点', 'res.finished': '対局終了', 'res.backRoom': '部屋へ戻る',
+      'res.retired': '離脱', 'res.byRetire': '他の参加者が離脱したため対局が終わりました',
+      'ev.retired': '{name} が離脱しました',
+      'ev.retiredDl': '{name} がやり直しに同意しなかったため離脱しました',
+      'ev.retiredShort': '{name} 離脱',
 
       'dl.title': 'デッドロック', 'dl.ask': '対局が進まなくなっています。最初からやり直しますか？',
       'dl.wait': '相手の返事を待っています',
@@ -343,6 +347,10 @@ const BilliardsI18N = (() => {
       'res.title': 'Result', 'res.win': 'Win', 'res.lose': 'Lose', 'res.rank': 'Place',
       'res.pts': 'pts', 'res.again': 'Play again', 'res.toSetup': 'Back to setup', 'res.toMenu': 'Back to menu',
       'res.draw': 'Draw', 'res.finished': 'Game over', 'res.backRoom': 'Back to room',
+      'res.retired': 'withdrew', 'res.byRetire': 'The game ended because the other players withdrew.',
+      'ev.retired': '{name} withdrew from the game.',
+      'ev.retiredDl': '{name} withdrew after declining the restart.',
+      'ev.retiredShort': '{name} withdrew',
 
       'dl.title': 'Deadlock', 'dl.ask': 'The game is not progressing. Restart from the break?',
       'dl.wait': 'Waiting for the others to answer',
@@ -534,6 +542,10 @@ const BilliardsI18N = (() => {
       'res.title': '结果', 'res.win': '胜', 'res.lose': '负', 'res.rank': '名次',
       'res.pts': '分', 'res.again': '再来一局', 'res.toSetup': '返回设置', 'res.toMenu': '返回菜单',
       'res.draw': '平局', 'res.finished': '对局结束', 'res.backRoom': '返回房间',
+      'res.retired': '退出', 'res.byRetire': '其他参加者退出，对局结束。',
+      'ev.retired': '{name} 已退出对局。',
+      'ev.retiredDl': '{name} 不同意重来，已退出对局。',
+      'ev.retiredShort': '{name} 退出',
 
       'dl.title': '僵局', 'dl.ask': '对局无法推进。要从开球重来吗？',
       'dl.wait': '等待其他人的回答',

@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.22';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.23';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -630,7 +630,7 @@
     const d = (S.net.done || {})[n] || {};
     const gone = S.net.gone || {};
     // 抜けた人は待たない。待ち続けると誰も進めなくなる
-    return g.players.every(p => !p.pid || d[p.pid] || gone[p.pid]);
+    return g.players.every(p => !p.pid || p.retired || d[p.pid] || gone[p.pid]);
   }
 
   function beginTurn() {
@@ -991,6 +991,9 @@
       bih: !!g.ballInHand, bihFull: !!g.ballInHandFull,
       broken: !!g.broken, over: !!g.over, winTeam: g.winTeam,
       dl: g.deadlockCount || 0,
+      // 誰が抜けたかも盤面の一部。載せておかないと、追いつき直した人や
+      // 途中から見に来た人が、いない相手の手番を待つことになる
+      ret: g.players.map(x => !!x.retired),
     };
   }
   function sendResult(g) {
@@ -1129,11 +1132,16 @@
   // ══════════════════════════════════════════════
   function askDeadlock() {
     const g = S.game;
-    if (g.players.length === 1) { redoRack(); return; }   // 1人なら確認せず即やり直す（10.8.5節）
+    // 残っているのが自分だけなら確認せず即やり直す（10.8.5節）。抜けた人には訊きようがない
+    if (RU.activeCount(g) <= 1) { redoRack(); return; }
     if (S.net.on) NET.send({ k: 'dl-open' });
     openDeadlockVote();
   }
   function openDeadlockVote() {
+    // 抜けた席には訊かない。当事者ではないので票も持たない
+    const g = S.game;
+    if (S.net.on && g && S.net.myIdx >= 0 && g.players[S.net.myIdx]
+      && g.players[S.net.myIdx].retired) return;
     S.dlVotes = {};
     openConfirm(t('dl.title'), t('dl.ask'),
       () => { if (!S.net.on) { redoRack(); return; } castVote(true); },
@@ -1153,8 +1161,24 @@
     if (!(idx >= 0 && idx < S.game.players.length)) return;
     S.dlVotes = S.dlVotes || {};
     S.dlVotes[idx] = ok;
-    if (!ok) { NET.send({ k: 'dl-cancel' }); setMsg(t('dl.refused')); S.dlVotes = {}; return; }
-    for (let i = 0; i < S.game.players.length; i++) if (!S.dlVotes[i]) return;
+    if (!ok) {
+      /*
+       * **やり直しに賛成しなかった者は離脱として扱う**（10.8.4節 手順3）。
+       * 拒みつつ進行もしない選択を認めると、対局が永久に終わらなくなる。
+       * 膠着を解く手段は必ず残しておく必要がある、というのが規定の趣旨である。
+       * 残ったのが1チームだけになれば、その勝ちで終局する（同 手順4）。
+       */
+      NET.send({ k: 'dl-cancel' });
+      setMsg(t('dl.refused'));
+      S.dlVotes = {};
+      retireSeat(idx, 'dl');
+      return;
+    }
+    // 抜けた席の返事は永久に来ない。数えるのは残っている席だけ
+    for (let i = 0; i < S.game.players.length; i++) {
+      if (S.game.players[i].retired) continue;
+      if (!S.dlVotes[i]) return;
+    }
     NET.send({ k: 'dl-redo' });
     S.dlVotes = {};
     redoRack();
@@ -1164,7 +1188,10 @@
     g.redoCount++;
     // 席の正体（参加者ID）も一緒に配り直す。ここで落とすと、組み直したあとに
     // 追いつき直そうとした人が自分の席を見失う
-    const players = g.players.map(p => ({ name: p.name, type: p.type, pid: p.pid || null }));
+    // 抜けた人はやり直しても戻らない。離脱の印も一緒に配り直す（9.8.3節）
+    const players = g.players.map(p => ({
+      name: p.name, type: p.type, pid: p.pid || null, retired: !!p.retired,
+    }));
     startGame(g.seed, players, null);       // シードは引き継ぐ（10.8.6節）
   }
 
@@ -2895,7 +2922,9 @@
       const score = withPts ? RU.teamScore(g, tm) : null;
       const d = document.createElement('div');
       d.className = 'pl-row' + (tm === g.winTeam ? ' turn' : '');
-      const who = (g.coop ? teamMark(tm) + '　' : '') + members.map(p => p.name).join(' ・ ');
+      // 抜けた人は名前に印を付ける。負けとだけ出すと、撞き負けたのか抜けたのか分からない
+      const who = (g.coop ? teamMark(tm) + '　' : '')
+        + members.map(p => p.name + (p.retired ? '（' + t('res.retired') + '）' : '')).join(' ・ ');
       const right = score != null ? label + '　' + score + t('res.pts') : label;
       d.innerHTML = '<span>' + escapeHtml(who) + '</span><span>' + escapeHtml(right) + '</span>';
       body.appendChild(d);
@@ -2990,6 +3019,15 @@
       if (gonePid) markGone(gonePid);
       if (d.roster) S.net.roster = d.roster;
       if (wasPlayer) setMsg(t('lobby.left'));   // 観戦者の出入りは対局者に知らせない
+      /*
+       * **対局中に対局者が抜けたら、離脱として扱う**（9.8.3節）。
+       * 待ち合わせから外すだけでは、抜けた人の手番が回ってきて誰も撞けなくなる。
+       * 席を決めるのは主催者なので、判断もここ1か所に置く。
+       */
+      if (wasPlayer && gonePid && S.net.isHost && S.game && !S.game.over) {
+        const seat = S.game.players.findIndex(pl => pl.pid === gonePid);
+        if (seat >= 0) retireSeat(seat, 'left');
+      }
       showRoom();
     } else if (kind === 'disconnected' || kind === 'kicked') {
       /*
@@ -3049,6 +3087,40 @@
     S.net.gone[pid] = 1;
     const g = S.game;
     if (g && !g.over && S.waitDone === g.shotNo && allDone(g.shotNo)) beginTurn();
+  }
+
+  /**
+   * 席を対局から外すことを決める（9.8.3節・10.8.4節）。
+   *
+   * **誰が抜けたかは主催者が決めて配る。**
+   * 各端末が自分で名簿を見て数えると、名簿の並びが1つずれた瞬間に
+   * 別の席を抜いてしまい、以後すべての端末で手番が食い違う。
+   * 席順を配るのと同じ理由で、ここも決めるのは1か所だけにする。
+   */
+  function retireSeat(idx, reason) {
+    if (!S.net.isHost) return;
+    const g = S.game; if (!g || g.over) return;
+    if (!(idx >= 0 && idx < g.players.length) || g.players[idx].retired) return;
+    NET.send({ k: 'retire', idx, reason: reason || '' });
+    applyRetire(idx, reason);
+  }
+
+  /** 配られた離脱を自分の対局へ反映する。主催者も自分でこれを通る */
+  function applyRetire(idx, reason) {
+    const g = S.game; if (!g || g.over) return;
+    const p = g.players[idx]; if (!p || p.retired) return;
+    const name = p.name;
+    const wasTurn = g.turn;
+    const ended = RU.retirePlayer(g, idx);
+    // 抜けた人の返事はもう来ない。待ち合わせの相手からも外す
+    if (p.pid) markGone(p.pid);
+    setMsg(t(reason === 'dl' ? 'ev.retiredDl' : 'ev.retired', { name }));
+    flash(t('ev.retiredShort', { name }), 'warn');
+    renderHUD();
+    if (ended) { endGameSoon(); return; }
+    // 手番が動いたときだけ構え直す。動いていない人まで始め直すと、
+    // 同じ手をもう一度知らせることになる
+    if (g.turn !== wasTurn) setTimeout(beginTurn, 400);
   }
 
   /**
@@ -3115,7 +3187,9 @@
        */
       NET.send({
         k: 'sync', for: from || null, seed: S.game.seed, config: netConfig(),
-        names: S.game.players.map(x => ({ name: x.name, type: x.type, pid: x.pid || null })),
+        names: S.game.players.map(x => ({
+          name: x.name, type: x.type, pid: x.pid || null, retired: !!x.retired,
+        })),
         log: S.game.history,
         resN: S.game.shotNo, result: resultSnapshot(S.game),
       }, from || 'all');
@@ -3187,6 +3261,8 @@
     if (p.k === 'dl-vote') { tallyVote(p.idx, !!p.ok); return; }
     if (p.k === 'dl-cancel') { $('modal-dl').classList.remove('on'); setMsg(t('dl.refused')); return; }
     if (p.k === 'dl-redo') { $('modal-dl').classList.remove('on'); redoRack(); return; }
+    // 誰が抜けたかは主催者が決めて配る（9.8.3節）。受け取った側は数え直さない
+    if (p.k === 'retire') { $('modal-dl').classList.remove('on'); applyRetire(p.idx, p.reason); return; }
     if (p.k === 'chk') {
       if (S.net.isHost || !S.game) return;
       /*
@@ -3276,6 +3352,7 @@
     if (p.scores) p.scores.forEach((s, i) => { if (g.players[i]) g.players[i].score = s; });
     if (p.groups) p.groups.forEach((v, i) => { if (g.players[i]) g.players[i].group = v; });
     if (p.fouls) p.fouls.forEach((v, i) => { if (g.players[i]) g.players[i].fouls = v; });
+    if (p.ret) p.ret.forEach((v, i) => { if (g.players[i]) g.players[i].retired = !!v; });
     if (p.turn != null) g.turn = p.turn;
     if (p.n != null) g.shotNo = p.n;
     if (p.bih != null) g.ballInHand = !!p.bih;

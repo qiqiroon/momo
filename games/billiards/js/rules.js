@@ -86,6 +86,8 @@ const BilliardsRules = (() => {
         pid: p.pid || null,
         team: (cfg.coop && cfg.teams && cfg.teams[i] != null) ? cfg.teams[i] : i,
         score: 0, group: null, fouls: 0,
+        // 途中離脱（9.8.3節）。やり直しても抜けた人は戻らないので、組み直しでも引き継ぐ
+        retired: !!p.retired,
         target: (cfg.targets && cfg.targets[i] != null) ? cfg.targets[i] : defaultTarget(cfg.rule),
         baseLeft: 0, bankLeft: 0,
       })),
@@ -103,8 +105,56 @@ const BilliardsRules = (() => {
       history: [],                      // 入力列（リプレイ・通信同期の正体）
       world: null,
     };
+    // 抜けている席から始めない。組み直しで離脱者を引き継いだときに起きる
+    game.turn = firstActive(game);
     setupBalls(game);
     return game;
+  }
+
+  // ───────── 途中離脱（9.8.3節・9.8.4節・10.8.4節） ─────────
+
+  /** 対局に残っている席か */
+  function isActive(p) { return !!p && !p.retired; }
+  /** 残っている席の数。1人になったら勝ちが決まる（10.8.4節 手順4） */
+  function activeCount(game) { return game.players.filter(isActive).length; }
+  /** 残っているチーム。協力プレイでは同じチームに1人でも残っていればチームは存続する */
+  function activeTeams(game) {
+    return teamList(game).filter(tm => teamMembers(game, tm).some(isActive));
+  }
+  function firstActive(game) {
+    const i = game.players.findIndex(isActive);
+    return i < 0 ? 0 : i;
+  }
+
+  /**
+   * 席を1つ、対局から外す（9.8.3節）。
+   * 切断・明示の退出・やり直しへの不同意（10.8.4節）のいずれも同じ扱いになる。
+   *
+   * **残ったチームが1つになったらその勝ちで終局する。**
+   * 2人対戦で相手が抜けた場合も、この数え方で「残った側の勝ち」になる。
+   * 人数で場合分けせず、残っているチームを数えるだけにしておくと、
+   * 2人・3人以上・協力プレイのどれでも同じ1本の規定で済む。
+   *
+   * @returns {boolean} この離脱で対局が終わったか
+   */
+  function retirePlayer(game, idx) {
+    const p = game.players[idx];
+    if (!p || p.retired || game.over) return false;
+    p.retired = true;
+    const alive = activeTeams(game);
+    if (alive.length <= 1) {
+      game.over = true;
+      game.lastMessageKey = 'res.byRetire';
+      setWinnerTeam(game, alive.length === 1 ? alive[0] : -1);
+      return true;
+    }
+    /*
+     * **抜けた人の番が回ってきたままにしない。**
+     * 手番中の人が抜けたら、そのターンは撞かれなかったものとして次へ移す（9.8.4節）。
+     * 打ちかけの入力は確定していないので盤面に反映しない。
+     */
+    if (game.players[game.turn].retired) nextTurn(game, null);
+    return false;
   }
 
   function defaultTarget(rule) {
@@ -522,7 +572,14 @@ const BilliardsRules = (() => {
   function nextTurn(game, result) {
     if (game.over) return;
     if (result && result.continueTurn) return;
-    game.turn = (game.turn + 1) % game.players.length;
+    // 抜けた席は飛ばす（9.8.3節）。一周して戻ったときは、そのまま止める
+    const n = game.players.length;
+    let i = game.turn;
+    for (let k = 0; k < n; k++) {
+      i = (i + 1) % n;
+      if (isActive(game.players[i])) break;
+    }
+    game.turn = i;
     game.inningNo++;
   }
 
@@ -562,6 +619,7 @@ const BilliardsRules = (() => {
     makeRng, createGame, setupBalls, cueBallOf, liveObjects, legalTargets, groupOf,
     spotBall, homeBall, place, resolveShot, nextTurn, breakValid, detectDoubleHit,
     finishRanking, normAngle,
+    retirePlayer, activeCount, activeTeams, isActive,
   };
 })();
 

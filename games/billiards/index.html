@@ -396,6 +396,40 @@ body.debug #dbg{display:block;}
       <div class="hint" id="scope-desc" style="margin-top:8px"></div>
     </div>
 
+    <!-- 参加人数・AIの数・目標点・ブレイク権・協力プレイ。標準／特殊のすぐ下に置く -->
+    <div class="card">
+      <div class="row" style="gap:16px">
+        <label class="row" style="gap:6px"><span class="mini" id="lbl-players"></span>
+          <select id="sel-players"></select></label>
+        <label class="row" style="gap:6px" id="wrap-ai"><span class="mini" id="lbl-aicount"></span>
+          <select id="sel-aicount"></select></label>
+        <label class="row" style="gap:6px" id="wrap-target"><span class="mini" id="lbl-target"></span>
+          <input type="number" id="in-target" min="1" max="200" value="10" style="width:74px"></label>
+      </div>
+      <!-- 通信対戦では人数は設定ではなく事実（いま集まっている対局者の数） -->
+      <div class="hint" id="players-note" style="margin-top:6px;display:none"></div>
+      <!-- 続けてもう1局やるときのブレイク権。最初の1局はバンキング（通信・AI）または参加順の先頭 -->
+      <div id="brk-block" style="margin-top:12px">
+        <div class="mini" id="lbl-break"></div>
+        <div class="seg" id="seg-break" style="margin-top:6px">
+          <button data-v="rotation"></button>
+          <button data-v="winner"></button>
+          <button data-v="loser"></button>
+        </div>
+        <div class="hint" id="break-note" style="margin-top:6px"></div>
+      </div>
+      <!-- 協力プレイ＝勝ち負けを見る相手を個人からチームへ差し替えるスイッチ（9.7節） -->
+      <div id="coop-block" style="margin-top:12px">
+        <label class="sw"><input type="checkbox" id="sw-coop"><i></i><span id="lbl-coop"></span></label>
+        <div class="hint" id="coop-note" style="margin-top:6px"></div>
+        <div id="team-rows" style="margin-top:10px"></div>
+        <label class="row" style="gap:6px;margin-top:10px" id="wrap-limit">
+          <span class="mini" id="lbl-limit"></span>
+          <input type="number" id="in-limit" min="4" max="200" value="30" style="width:74px">
+          <span class="mini" id="u-shots"></span></label>
+      </div>
+    </div>
+
     <!-- 5つの選択 -->
     <div class="card"><span class="lbl" id="lbl-rule"></span><div class="opts" id="opts-rule"></div>
       <!-- 遊び方は「いま選んでいるルール」のぶんだけ、この1か所に出す -->
@@ -433,39 +467,6 @@ body.debug #dbg{display:block;}
       <div class="hint" id="cue-note" style="margin-top:8px"></div>
     </div>
 
-    <!-- 最下段：参加人数・目標点・協力プレイ -->
-    <div class="card">
-      <div class="row" style="gap:16px">
-        <label class="row" style="gap:6px"><span class="mini" id="lbl-players"></span>
-          <select id="sel-players"></select></label>
-        <label class="row" style="gap:6px" id="wrap-ai"><span class="mini" id="lbl-aicount"></span>
-          <select id="sel-aicount"></select></label>
-        <label class="row" style="gap:6px" id="wrap-target"><span class="mini" id="lbl-target"></span>
-          <input type="number" id="in-target" min="1" max="200" value="10" style="width:74px"></label>
-      </div>
-      <!-- 通信対戦では人数は設定ではなく事実（いま集まっている対局者の数） -->
-      <div class="hint" id="players-note" style="margin-top:6px;display:none"></div>
-      <!-- 続けてもう1局やるときのブレイク権。最初の1局はバンキング（通信・AI）または参加順の先頭 -->
-      <div id="brk-block" style="margin-top:12px">
-        <div class="mini" id="lbl-break"></div>
-        <div class="seg" id="seg-break" style="margin-top:6px">
-          <button data-v="rotation"></button>
-          <button data-v="winner"></button>
-          <button data-v="loser"></button>
-        </div>
-        <div class="hint" id="break-note" style="margin-top:6px"></div>
-      </div>
-      <!-- 協力プレイ＝勝ち負けを見る相手を個人からチームへ差し替えるスイッチ（9.7節） -->
-      <div id="coop-block" style="margin-top:12px">
-        <label class="sw"><input type="checkbox" id="sw-coop"><i></i><span id="lbl-coop"></span></label>
-        <div class="hint" id="coop-note" style="margin-top:6px"></div>
-        <div id="team-rows" style="margin-top:10px"></div>
-        <label class="row" style="gap:6px;margin-top:10px" id="wrap-limit">
-          <span class="mini" id="lbl-limit"></span>
-          <input type="number" id="in-limit" min="4" max="200" value="30" style="width:74px">
-          <span class="mini" id="u-shots"></span></label>
-      </div>
-    </div>
 </div>
 
 <!-- ══════════ ロビー（通信対戦） ══════════ -->

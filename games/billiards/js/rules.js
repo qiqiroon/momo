@@ -129,6 +129,8 @@ const BilliardsRules = (() => {
     };
     // 抜けている席から始めない。組み直しで離脱者を引き継いだときに起きる
     game.turn = firstActive(game);
+    // この局で実際にブレイクする席。次の局のローテーションはここから数える
+    game.breaker = game.turn;
     setupBalls(game);
     return game;
   }
@@ -358,6 +360,7 @@ const BilliardsRules = (() => {
     game.bank.winner = winner;
     setupBalls(game);
     game.turn = winner;
+    game.breaker = winner;                  // バンキングで決まった人がこの局のブレイク
     game.inningNo = 0;
   }
 
@@ -747,7 +750,15 @@ const BilliardsRules = (() => {
       }
       return i;
     };
-    const rotation = () => nextOf(0);       // 前回の先頭の次（＝仕様書の交代制）
+    /*
+     * ローテーション＝**この局で実際にブレイクした人の次**（＝仕様書の交代制）。
+     *
+     * ★席の並びの先頭で数えてはいけない。続きの局は並びを回して始めるので
+     * 「先頭＝ブレイクした人」だが、**バンキングで始まった局は席順を変えず手番だけが勝者へ移る**。
+     * 先頭で数えると、バンキングに勝った人が次の局も続けてブレイクする
+     * （実測：AI対戦でAIがバンキングに勝つと、ローテーションでもAIが2局続けてブレイクした）。
+     */
+    const rotation = () => nextOf(game.breaker == null ? 0 : game.breaker);
     if (mode !== 'winner' && mode !== 'loser') return rotation();
 
     // 1位。勝ちが決まらなかった局（引き分け・規定打数切れ）はローテーションへ落とす

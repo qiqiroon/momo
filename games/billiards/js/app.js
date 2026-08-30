@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.32';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.33';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -1577,6 +1577,25 @@
     ctx.restore();
   }
 
+  /*
+   * 番号の下地の白い丸の半径。
+   *
+   * 白い丸には「最低 5px」という下限がある（4.2.4節の視認性の措置）。玉が小さい台では
+   * この下限が縮まないので、丸が玉をほとんど覆ってしまい、玉の色が見えなくなる。
+   * 玉の絵は中心から外へ向かうグラデーションで、本来の色が出るのは半径の 0.72 倍あたりなので、
+   * 丸がそこを超えると、残るのは縁の暗く落とした部分だけになる。
+   *
+   * 下限は残したまま、丸を玉の 0.60 倍で頭打ちにして、色の帯を必ず残す。
+   * 字も丸の直径を超えないところまで一緒に小さくする（呼ぶ側で掛ける）。
+   *
+   * ★盤の上の玉と、脇に並べる玉の2か所で同じ決まりを使うので、ここ1か所に置く。
+   *   片方だけ直すと、もう片方で同じ症状が残る。
+   */
+  const NUM_DISC_MAX = 0.60;
+  function numberDisc(r, ratio) {
+    return Math.min(Math.max(5, r * ratio), r * NUM_DISC_MAX);
+  }
+
   function drawBall2D(b, s, alpha) {
     const p = toScreen(b.x, b.y);
     const r0 = b.r * s;
@@ -1611,8 +1630,9 @@
       ctx.fillStyle = 'rgba(0,0,0,.38)'; ctx.fill();
     }
     if (b.num) {
-      const fs = Math.max(8, Math.min(r * 1.0, 13));
-      ctx.beginPath(); ctx.arc(bx, by, Math.max(5, r * .5), 0, 7);
+      const disc = numberDisc(r, .5);
+      const fs = Math.min(Math.max(8, Math.min(r * 1.0, 13)), disc * 2);
+      ctx.beginPath(); ctx.arc(bx, by, disc, 0, 7);
       ctx.fillStyle = '#ffffff'; ctx.fill();
       ctx.fillStyle = '#111'; ctx.font = '700 ' + fs + 'px "Noto Sans JP",sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -1734,10 +1754,11 @@
     ctx.lineWidth = Math.max(1, r * .07); ctx.strokeStyle = 'rgba(0,0,0,.55)';
     ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.stroke();
     if (num) {
-      ctx.beginPath(); ctx.arc(x, y, Math.max(5, r * .52), 0, 7);
+      const disc = numberDisc(r, .52);
+      ctx.beginPath(); ctx.arc(x, y, disc, 0, 7);
       ctx.fillStyle = '#ffffff'; ctx.fill();
       ctx.fillStyle = '#111';
-      ctx.font = '700 ' + Math.max(8, r * .78) + 'px "Noto Sans JP",sans-serif';
+      ctx.font = '700 ' + Math.min(Math.max(8, r * .78), disc * 2) + 'px "Noto Sans JP",sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(String(num), x, y + r * .04);
     }

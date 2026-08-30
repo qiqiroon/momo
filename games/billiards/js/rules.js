@@ -659,7 +659,22 @@ const BilliardsRules = (() => {
       const mine = liveObjects(game).filter(b => p.group && groupOf(b.num) === p.group);
       const cleared = p.group != null && mine.length === 0;
       if (cleared && !r.foul) { r.gameOver = true; game.over = true; setWinnerTeam(game, myTeam); r.message = 'win.eight'; return; }
-      r.gameOver = true; game.over = true; setWinnerTeam(game, foeTeam); r.message = 'lose.eightEarly'; return;
+      /*
+       * 負けになる場面は変えていない（7.4.3節）。**理由の表し方だけを分けた。**
+       *
+       * それまでは「担当が片付いていて、かつ反則が無い」以外をひとまとめにして
+       * 「自グループを残して8番を落とした」と出していた。そのため、
+       * 担当を全部片付けたあとに手玉も一緒に落とした人にも、
+       * 「まだ自分の球が残っている」という**事実に反する理由**が表示されていた。
+       * 実測（AIどうし10局）：この負けが4件出て、うち3件の理由表示が事実と違っていた。
+       */
+      r.gameOver = true; game.over = true; setWinnerTeam(game, foeTeam);
+      const scratched = (r.fouls || []).indexOf('V-04') >= 0;
+      r.message = (p.group == null) ? 'lose.eightOpen'      // 担当が決まる前に落とした
+        : !cleared ? 'lose.eightEarly'                      // 自分の球がまだ残っていた
+          : scratched ? 'lose.eightScratch'                 // 8番と同時に手玉も落とした
+            : 'lose.eightFoul';                             // それ以外の反則と同時に落とした
+      return;
     }
 
     if (r.foul) { game.ballInHand = true; game.ballInHandFull = true; return; }

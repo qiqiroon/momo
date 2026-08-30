@@ -148,6 +148,9 @@ const BilliardsI18N = (() => {
       'win.carom': '目標点数に到達',
       'lose.eightOff': '8番が場外へ出たため反則負け',
       'lose.eightEarly': '自グループを残して8番を落としたため反則負け',
+      'lose.eightScratch': '8番と同時に手玉も落としたため反則負け',
+      'lose.eightOpen': '担当が決まる前に8番を落としたため反則負け',
+      'lose.eightFoul': '反則と同時に8番を落としたため反則負け',
 
       'res.title': '結果', 'res.win': '勝ち', 'res.lose': '負け', 'res.rank': '順位',
       'res.pts': '点', 'res.again': 'もう一度', 'res.toSetup': '設定へ戻る', 'res.toMenu': 'メニューに戻る',
@@ -355,6 +358,9 @@ const BilliardsI18N = (() => {
       'win.carom': 'Reached the target score',
       'lose.eightOff': 'Loss: the 8 left the table',
       'lose.eightEarly': 'Loss: the 8 was pocketed too early',
+      'lose.eightScratch': 'Loss: the cue ball was pocketed with the 8',
+      'lose.eightOpen': 'Loss: the 8 was pocketed while the table was open',
+      'lose.eightFoul': 'Loss: the 8 was pocketed on a foul',
 
       'res.title': 'Result', 'res.win': 'Win', 'res.lose': 'Lose', 'res.rank': 'Place',
       'res.pts': 'pts', 'res.again': 'Play again', 'res.toSetup': 'Back to setup', 'res.toMenu': 'Back to menu',
@@ -562,6 +568,9 @@ const BilliardsI18N = (() => {
       'win.carom': '达到目标分',
       'lose.eightOff': '8 号球离台，犯规判负',
       'lose.eightEarly': '本组未清即打进 8 号球，犯规判负',
+      'lose.eightScratch': '打进 8 号球时母球同时落袋，犯规判负',
+      'lose.eightOpen': '分组未定即打进 8 号球，犯规判负',
+      'lose.eightFoul': '犯规的同时打进 8 号球，犯规判负',
 
       'res.title': '结果', 'res.win': '胜', 'res.lose': '负', 'res.rank': '名次',
       'res.pts': '分', 'res.again': '再来一局', 'res.toSetup': '返回设置', 'res.toMenu': '返回菜单',

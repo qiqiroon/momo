@@ -157,7 +157,15 @@ const BilliardsAI = (() => {
     // 入る／入らないを決めるのはほとんど狙いの角度で、撞点と強さの差は二の次。
     // 組合せを増やすと読みが重くなるだけなので、ここは絞る。
     const powers = [0.30, 0.48];
-    const tips = [{ x: 0, y: 0 }, { x: 0, y: 0.35 }];
+    /*
+     * 撞点。中心・押し・**引き**の3つ。
+     *
+     * ★引き（tipY を負に取る）が無かった。そのため真っすぐの一撞きでは
+     *   手玉を止めるか前へ送るかしかできず、**的球のあとを追ってポケットへ落ちていた**
+     *   （実測：自由に置いて8番を狙う場面で、外した4件のうち2件がこれ）。
+     *   引きは、真っすぐ入れたあとに手玉を残すための基本の道具である。
+     */
+    const tips = [{ x: 0, y: 0 }, { x: 0, y: 0.35 }, { x: 0, y: -0.35 }];
     const shots = [];
     for (const tb of targets) {
       for (const pk of pockets) {
@@ -361,25 +369,54 @@ const BilliardsAI = (() => {
     const targets = RU.legalTargets(game, playerIdx) || [];
     const pockets = table.pockets;
     const cands = [];
-    const nx = 7, ny = 5;
-    for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) {
-      // 候補点は外接矩形に格子を切ってから、台の外に落ちたものを捨てる。
-      // 矩形のまま使うと、六角形では角の外へ手玉を置こうとする
-      const x = -table.halfW + (table.halfW * 2) * (i + 0.5) / nx;
-      const y = -table.halfH + (table.halfH * 2) * (j + 0.5) / ny;
-      if (!BilliardsTable.inside(table, x, y, cue.r)) continue;
-      let ok = true;
+
+    /** そこへ手玉を置けるか（台の内側・他の球と重ならない・ポケットの口でない） */
+    function freeAt(x, y) {
+      if (!T.inside(table, x, y, cue.r)) return false;
       for (const b of game.world.balls) {
         if (b === cue || b.state !== 'live') continue;
-        if (Math.hypot(b.x - x, b.y - y) < b.r + cue.r + 6) { ok = false; break; }
+        if (Math.hypot(b.x - x, b.y - y) < b.r + cue.r + 6) return false;
       }
-      for (const p of pockets) if (Math.hypot(p.x - x, p.y - y) < p.r + cue.r) ok = false;
-      if (ok) cands.push({ x, y });
+      for (const p of pockets) if (Math.hypot(p.x - x, p.y - y) < p.r + cue.r) return false;
+      return true;
+    }
+
+    /*
+     * ★まず「真っすぐ入る位置」を候補に入れる。
+     *
+     * 的球とポケットを結ぶ線の延長上へ手玉を置けば、切る角度が 0 になり、
+     * その一撞きはいちばんやさしい形になる。自由に置けるのだから、そうしない理由が無い。
+     *
+     * 以前は下の格子だけで選んでいた。台ぜんたいで 7×5 の 35 点しか見ないので、
+     * **やさしい形を作れず、自由に置けるのに 3 回に 1 回ほど外していた**（実測 58〜67%）。
+     * 格子の目より、狙いのやさしさのほうが結果に効く。
+     */
+    for (const tb of targets) {
+      for (const pk of pockets) {
+        const dx = tb.x - pk.x, dy = tb.y - pk.y, l = Math.hypot(dx, dy);
+        if (l < 1e-6) continue;
+        const ux = dx / l, uy = dy / l;                 // ポケット → 的球 の向き
+        for (const d of [170, 240, 340, 470, 640, 850]) {
+          const x = tb.x + ux * d, y = tb.y + uy * d;   // その先へ手玉を置く＝真っすぐ
+          if (freeAt(x, y)) cands.push({ x, y });
+        }
+      }
+    }
+
+    // 格子も残す（真っすぐ置ける場所が1つも取れないときのため）。
+    // 候補点は外接矩形に格子を切ってから、台の外に落ちたものを捨てる。
+    // 矩形のまま使うと、六角形では角の外へ手玉を置こうとする
+    const nx = 7, ny = 5;
+    for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) {
+      const x = -table.halfW + (table.halfW * 2) * (i + 0.5) / nx;
+      const y = -table.halfH + (table.halfH * 2) * (j + 0.5) / ny;
+      if (freeAt(x, y)) cands.push({ x, y });
     }
     if (!cands.length) return { x: table.headSpot.x, y: table.headSpot.y };
+
     let best = cands[0], bestQ = -Infinity;
     for (const c of cands) {
-      let q = 0;
+      let q = -1;
       for (const tb of targets) {
         for (const pk of pockets) {
           const fake = { x: c.x, y: c.y, r: cue.r };
@@ -387,7 +424,19 @@ const BilliardsAI = (() => {
           if (!g) continue;
           if (pathBlocked(game, c.x, c.y, tb.x, tb.y, [cue, tb], cue.r * 0.9)) continue;
           if (pathBlocked(game, tb.x, tb.y, pk.x, pk.y, [tb, cue], tb.r * 0.85)) continue;
-          q = Math.max(q, Math.cos(g.cut) * 100 - g.dist / 60);
+          // 壁を越える筋は置き場所を選ぶときにも数えない（凹んだ形の台で効く）
+          if (pathCrossesWall(table, c.x, c.y, tb.x, tb.y)) continue;
+          if (pathCrossesWall(table, tb.x, tb.y, pk.x, pk.y)) continue;
+          /*
+           * ★的球からポケットまでの距離も数える。
+           *
+           * 狙いのわずかなぶれは、的球が転がる距離のぶんだけ広がる。
+           * 手玉からの距離だけで選んでいたときは、真っすぐで手玉に近い置き場所を選びながら、
+           * **2 m 先のポケットを狙って外していた**（実測：切る角度 0.0度・手玉まで 113mm でも、
+           * 的球からポケットまで 2130mm あると入らない）。
+           * 近いポケットを選ぶほうが、置き場所の良さより効く。
+           */
+          q = Math.max(q, Math.cos(g.cut) * 100 - g.dist / 60 - g.objDist / 40);
         }
       }
       if (q > bestQ) { bestQ = q; best = c; }

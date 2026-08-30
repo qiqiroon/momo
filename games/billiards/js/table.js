@@ -7,7 +7,12 @@
  *
  * 座標系（10.2.2節）
  *   外接矩形の長辺方向を長軸とし、外接矩形の中心を原点・長軸をX軸・フット側を +X とする。
- *   単位は mm。基準スポットは (L/4, 0)（L＝長軸方向の外接矩形の長さ）。
+ *   単位は mm。
+ *
+ * ★どの台も外接矩形を 2540 × 1270（標準長方形と同じ）に揃える（3.2.2節）。
+ *   形ごとの寸法は「形の比」だけを持ち、実寸は fitToBox() が決める。
+ *   面積は形ごとに変わる（標準長方形 100%／正六角形とL字 75%／十字 56%／星型 43%）。
+ *   基準スポットは「台の中心と、長軸の線が壁に達する点との中点」＝footSpotX()。
  *
  * ★「台の内側かどうか」は必ず outline（外周の頂点列）から決める。
  *   halfW / halfH は外接矩形であって台の形ではない。長方形では両者が一致するため
@@ -26,6 +31,22 @@ const BilliardsTable = (() => {
   const MOUTH = 114.30;             // ポケット口径（3.4.1節）
   const PLAY_W = 2540.0;            // A-01 の長軸方向のプレイ面
   const PLAY_H = 1270.0;            // A-01 の短軸方向のプレイ面
+
+  /*
+   * ★どの台も外接矩形をこの大きさに揃える（3.2.2節）。
+   *
+   * 台は表示エリアいっぱいに拡大して描かれるので（3.2.4節）、外接矩形が大きい形ほど
+   * 画面上の玉が小さくなる。とくに携帯は左右が狭く、そちらで頭打ちになる。
+   * 外接矩形を標準長方形と同じ 2540 × 1270 に収めておけば、
+   * **表示エリアの形が何であれ、玉が標準長方形より小さくなることはない**
+   * （拡大率は縦横それぞれの余裕の小さいほうで決まるので、両方が標準以下なら必ず標準以上になる）。
+   * これより緩いとどこかの画面の形で下回り、これより厳しくすると無駄に面積を削る。
+   *
+   * その代わり、面積は形ごとに変わる（＝面積を揃えるのをやめた）。
+   * 面積は「その形が外接矩形をどれだけ埋めるか」だけで決まり、潰し方では変えられない。
+   */
+  const BOX_W = PLAY_W;
+  const BOX_H = PLAY_H;
   const HX = PLAY_W / 2, HY = PLAY_H / 2;
   const CUSHION_TOP = 63.5;         // クッション上端の高さ（5.3.4節）。玉の直径 57.15 より高い
   const CUSHION_W = 45;             // クッション上面の幅（描画と着地判定に使う）
@@ -47,10 +68,9 @@ const BilliardsTable = (() => {
   // A-11 星型（3.5.8節）。正五芒星の外形。先端は 3.3.2節に従って切り落とす。
   const STAR_ROUT = 1708.3;                      // 外接円半径（切り落とし前の先端まで）mm
   const STAR_RIN = 652.5;                        // 凹頂点（谷）までの半径 mm
-  const STAR_CUT = MOUTH / (2 * Math.tan(Math.PI / 10));   // 175.89 ＝先端の切り落とし深さ（3.3.2節）
-  // 仕様書 3.5.8節の項目表は外接矩形を 3249.4 × 3090.4 と書くが、これは
-  // 切り落とし**前**の星の外接矩形である。切り落としたあとのプレイ面は 2950.1 × 2805.7 で、
-  // 10.2.2節が「プレイ面の外接矩形」と定めているので、実際の形から出る後者を正とする。
+  // 3.5.8節の項目表が書く外接矩形 3249.4 × 3090.4 は切り落とし**前**の値だが、
+  // どの台も外接矩形を 2540 × 1270 に揃えるので（3.2.2節）、ここでは使わない。
+  // 使うのは形の比（外接円半径と谷の半径の比）だけである。
 
   // A-02 正六角形（3.5.2節）。一辺＝外接円半径。
   const HEX_A = 1114.3;                          // 一辺 mm
@@ -71,6 +91,73 @@ const BilliardsTable = (() => {
     let t = l2 < 1e-12 ? 0 : ((px - x1) * ex + (py - y1) * ey) / l2;
     t = t < 0 ? 0 : t > 1 ? 1 : t;
     return Math.hypot(px - (x1 + ex * t), py - (y1 + ey * t));
+  }
+
+  /** 外周を囲う四角。幅・高さと中心 */
+  function boxOf(o) {
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const p of o) {
+      if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x;
+      if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y;
+    }
+    return { w: x1 - x0, h: y1 - y0, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2 };
+  }
+
+  /**
+   * 外周を、外接矩形が 2540 × 1270 になるように縦横それぞれ伸縮し、
+   * 外接矩形の中心を原点へ置く（3.2.2節・10.2.2節）。
+   *
+   * **縦と横で別々の倍率を掛ける。** 一様に縮めると面積が大きく落ちるためで、
+   * たとえば十字は一様なら 28%、縦横別なら 56% が残る。
+   * そのぶん形は歪む（正六角形は平たく、L字と十字は細長くなる）が、
+   * 面積は「外接矩形をどれだけ埋めるか」で決まるので、これが取れる最大である。
+   *
+   * ポケットの口径と凹頂点の丸めは玉の大きさから決まる固定値なので（3.2.3節）、
+   * ここでは伸縮しない。伸縮するのは外周だけで、口も丸めもあとから当てる。
+   */
+  function fitToBox(o) {
+    const b = boxOf(o);
+    const sx = BOX_W / b.w, sy = BOX_H / b.h;
+    return { outline: o.map(p => pt((p.x - b.cx) * sx, (p.y - b.cy) * sy)), sx, sy };
+  }
+
+  /** 頂点 i の内角（ラジアン）。0〜π で返すので、凹頂点では裏側の角になる */
+  function interiorAngle(o, i) {
+    const n = o.length, p = o[(i - 1 + n) % n], v = o[i], q = o[(i + 1) % n];
+    const ux = p.x - v.x, uy = p.y - v.y, wx = q.x - v.x, wy = q.y - v.y;
+    const c = (ux * wx + uy * wy) / (Math.hypot(ux, uy) * Math.hypot(wx, wy));
+    return Math.acos(c < -1 ? -1 : c > 1 ? 1 : c);
+  }
+
+  /** 頂点 i が凹（台の内側へ突き出ている）か。外周は反時計回りなので右へ曲がれば凹 */
+  function isConcave(o, i) {
+    const n = o.length, p = o[(i - 1 + n) % n], v = o[i], q = o[(i + 1) % n];
+    return (v.x - p.x) * (q.y - v.y) - (v.y - p.y) * (q.x - v.x) < 0;
+  }
+
+  /**
+   * 内角が 90 度に満たない鋭い頂点を、幅がちょうど mouth になるように切り落とす（3.3.2節）。
+   *
+   * 2本の辺に沿って同じ長さだけ戻ると、切り口は先端の軸（二等分線）に垂直になり、
+   * その長さは 2·d·sin(内角/2) になる。だから d ＝ mouth ÷ (2·sin(内角/2))。
+   * 切ってできる2つの角は「90度 ＋ 内角の半分」なので、**切る深さに関わらず必ず 90 度以上**
+   * になり、玉が挟まる角は残らない（3.3.1節）。
+   *
+   * 内角90度以上の頂点と凹頂点には手を触れない。したがって長方形・正六角形・L字・十字は
+   * この関数を通しても1点も変わらない。実際に切られるのは星型の先端だけである。
+   */
+  function truncateSharp(o, mouth) {
+    const n = o.length, out = [];
+    for (let i = 0; i < n; i++) {
+      const v = o[i], a = interiorAngle(o, i);
+      if (isConcave(o, i) || a >= Math.PI / 2) { out.push(pt(v.x, v.y)); continue; }
+      const p = o[(i - 1 + n) % n], q = o[(i + 1) % n];
+      const ul = Math.hypot(p.x - v.x, p.y - v.y), wl = Math.hypot(q.x - v.x, q.y - v.y);
+      const d = mouth / (2 * Math.sin(a / 2));
+      out.push(pt(v.x + (p.x - v.x) / ul * d, v.y + (p.y - v.y) / ul * d));
+      out.push(pt(v.x + (q.x - v.x) / wl * d, v.y + (q.y - v.y) / wl * d));
+    }
+    return out;
   }
 
   /** 点が外周の内側にあるか（射線交差法）。境界そのものの扱いは clearance() 側で決める */
@@ -261,9 +348,19 @@ const BilliardsTable = (() => {
       cuts[vi].push([0, d]);                      // 頂点から出ていく辺
     };
     // ポケットの口は「ポケットあり版」だけ。丸めは物理を成り立たせるためなので常に入れる
+    /*
+     * 頂点のポケットの切り込みは、辺に沿って何ミリ戻るかで指定する。
+     * `cut` を直に持たせるのは、口の開きを第1段階の実測値のまま引き継ぐ形（内角90度の角）。
+     * `mouth` を持たせた場合は、**その頂点の実際の内角から**切り込みを出す。
+     * 外接矩形を揃えるために外周を潰すと内角が変わるので、
+     * 切り込みの長さを決め打ちにすると口の広さが形ごとにずれてしまう。
+     */
+    const vertexCut = pk => (pk.cut != null)
+      ? pk.cut
+      : pk.mouth / (2 * Math.sin(interiorAngle(outline, pk.i) / 2));
     if (hasPockets) {
       for (const pk of spec) {
-        if (pk.at === 'vertex') cutAtVertex(pk.i, pk.cut);
+        if (pk.at === 'vertex') cutAtVertex(pk.i, vertexCut(pk));
         else { const c = len(pk.i) * pk.t; cuts[pk.i].push([c - pk.half, c + pk.half]); }
       }
     }
@@ -315,11 +412,8 @@ const BilliardsTable = (() => {
         { id: 'SL', at: 'edge', i: 0, t: 0.5, half: GAP_SIDE, r: 58 },
         { id: 'SR', at: 'edge', i: 2, t: 0.5, half: GAP_SIDE, r: 58 },
       ],
-      halfW: HX, halfH: HY,
       longAxis: 'x', footDirection: +1,
       axisY: 0,
-      spot: pt(PLAY_W / 4, 0),
-      headSpot: pt(-PLAY_W / 4, 0),
       frameStyle: 'rect',      // 外枠の描き方。第1段階からの見た目をそのまま保つ
     };
   }
@@ -327,11 +421,12 @@ const BilliardsTable = (() => {
   /**
    * A-02 正六角形（3.5.2節）。頂点を長軸（±X）に置く向き。
    * ポケットは全6頂点（3.4.2節。長辺の中央は置かない＝準拠すべき現実の台が無いため）。
-   * 内角120度なので、口径 114.30 mm を得る切り込みは 114.30 ÷ (2·sin60°) ＝ 65.99 mm。
+   *
+   * 外接矩形を揃えるために潰すと内角が 120 度から 90／135 度に変わるので、
+   * 切り込みは長さを決め打ちにせず、口径 114.30 mm から**そのときの内角で**出す。
+   * 潰したあとの最小内角はちょうど 90 度で、玉が挟まらない下限に乗る（3.3.1節）。
    */
   function shapeA02() {
-    const cut = MOUTH / (2 * Math.sin(Math.PI / 3));
-    const L = HEX_A * 2;                     // 外接矩形の長辺 2228.6 mm
     return {
       shape: 'A-02',
       outline: [
@@ -339,18 +434,15 @@ const BilliardsTable = (() => {
         pt(-HEX_A, 0), pt(-HEX_A / 2, -HEX_H), pt(HEX_A / 2, -HEX_H),
       ],
       pocketSpec: [
-        { id: 'FT', at: 'vertex', i: 0, cut, r: 63 },
-        { id: 'FR', at: 'vertex', i: 1, cut, r: 63 },
-        { id: 'HR', at: 'vertex', i: 2, cut, r: 63 },
-        { id: 'HT', at: 'vertex', i: 3, cut, r: 63 },
-        { id: 'HL', at: 'vertex', i: 4, cut, r: 63 },
-        { id: 'FL', at: 'vertex', i: 5, cut, r: 63 },
+        { id: 'FT', at: 'vertex', i: 0, mouth: MOUTH, r: 63 },
+        { id: 'FR', at: 'vertex', i: 1, mouth: MOUTH, r: 63 },
+        { id: 'HR', at: 'vertex', i: 2, mouth: MOUTH, r: 63 },
+        { id: 'HT', at: 'vertex', i: 3, mouth: MOUTH, r: 63 },
+        { id: 'HL', at: 'vertex', i: 4, mouth: MOUTH, r: 63 },
+        { id: 'FL', at: 'vertex', i: 5, mouth: MOUTH, r: 63 },
       ],
-      halfW: HEX_A, halfH: HEX_H,
       longAxis: 'x', footDirection: +1,
       axisY: 0,
-      spot: pt(L / 4, 0),
-      headSpot: pt(-L / 4, 0),
       frameStyle: 'outline',   // 外枠は外周をなぞる
     };
   }
@@ -384,11 +476,8 @@ const BilliardsTable = (() => {
         { id: 'SB', at: 'edge', i: 0, t: 0.5, half: GAP_SIDE, r: 58 },
         { id: 'SL', at: 'edge', i: 5, t: 0.5, half: GAP_SIDE, r: 58 },
       ],
-      halfW: h, halfH: h,
       longAxis: 'x', footDirection: +1,
       axisY,
-      spot: pt(L_SIDE / 4, axisY),
-      headSpot: pt(-L_SIDE / 4, axisY),
       frameStyle: 'outline',
     };
   }
@@ -409,7 +498,6 @@ const BilliardsTable = (() => {
   function shapeA09() {
     const a = CROSS_A / 2;           //  401.6 ＝腕の幅の半分
     const b = CROSS_A * 1.5;         // 1204.8 ＝腕の先までの距離
-    const L = b * 2;                 // 2409.6 ＝外接矩形の一辺
     return {
       shape: 'A-09',
       // 反時計回り。下の腕の左先端から始めて、右回りに4本の腕をたどる
@@ -433,11 +521,8 @@ const BilliardsTable = (() => {
         { id: 'HT', at: 'vertex', i: 9, cut: GAP_CORNER, r: 63 },
         { id: 'HB', at: 'vertex', i: 10, cut: GAP_CORNER, r: 63 },
       ],
-      halfW: b, halfH: b,
       longAxis: 'x', footDirection: +1,
       axisY: 0,
-      spot: pt(L / 4, 0),
-      headSpot: pt(-L / 4, 0),
       frameStyle: 'outline',
     };
   }
@@ -445,66 +530,49 @@ const BilliardsTable = (() => {
   /**
    * A-11 星型（3.5.8節）。正五芒星の外形の先端5本を、3.3.2節に従って
    * 先端の軸に垂直な直線でポケット口径と同じ幅（114.30 mm）に切り落とした形。
-   * 面積は 3,225,669 mm² で、3.2.2節の 3,225,800 mm² との差は 0.004%。
    *
-   * **先端の1本が +Y を向く向きに置く。** そうすると外接矩形の長辺が X に来る（10.2.2節）。
-   * 先端を ±X 向きに置くと長辺が Y に来て、長軸をXとする座標系へ回し戻すと同じ向きになる。
-   * 残る自由度（先端が上か下か）は鏡に映した関係で、形は変わらない。
+   * **先端の1本を +X＝フット側へ向ける。** 長軸は画面の縦に置かれるので（4.10.1節）、
+   * 画面では ★ の字と同じく先端が上を向く。ラックはその先端の中に置かれる。
    *
-   * **星の中心と外接矩形の中心は一致しない。** 上向きの先端だけ相手がいないため、
-   * 星の中心を原点に置くと外接矩形の中心が 129.5 mm ずれる。
-   * 10.2.2節は外接矩形の中心を原点と定めているので、そちらへ揃えて置く。
-   * その結果、長軸の線は星の中心を通らないが、星の中心を通る線より台を広く横切る
-   * （壁に達するのが 898.1 に対して 1076.4）。L字と違って腕の中心線の上書きは要らない。
+   * **★この形だけは、切り落としを「潰したあと」にやり直す。**
+   * 外接矩形を 2540 × 1270 に揃えるために縦横で違う倍率を掛けると、
+   * 5本の先端の内角が 36 度から 14.8／21.4／61.2 度へ**ばらばらに変わる**。
+   * 先に切ってから潰すと、切断面の幅が 114.30 からずれて、口の広さが先端ごとに違ってしまう。
+   * 切り落とすと外接矩形が縮むので、「潰す → 切る → 測る」を繰り返して 2540 × 1270 へ寄せる。
+   * 切ったあとの角は必ず 90 度以上になる（実測で最小 97.5 度）ので、玉が挟まる角は残らない。
+   *
+   * 5本の先端が別々の形になるのと引き換えに、**長軸まわりの左右対称は保たれる**。
+   * ヘッド側とフット側は対称でなくなる（フット側が1本の先端、ヘッド側が2本）。
    *
    * ポケットは5個（3.4.2節）＝5つの切断面。凸頂点は切り落としで10個になるが、
-   * ポケットを置くのは切断面だけで、切断面の両端（108度）はポケットの口の角になる。
+   * ポケットを置くのは切断面だけで、切断面の両端はポケットの口の角になる。
    * 凹頂点5つには置かず、そこには 3.3.3節の丸めが自動で入る。
    * キャロム版では切断面がそのままクッションになる（3.6.1節）。
    */
   function shapeA11() {
-    const rc = STAR_ROUT - STAR_CUT;   // 1532.41 ＝切断面の中心までの距離
-    const hw = MOUTH / 2;              //   57.15 ＝切断面の半幅
-    const tipAng = [18, 90, 162, 234, 306];        // 先端の向き（度）。1本が +Y＝90度
-    const pocketId = ['FT', 'TC', 'HT', 'HB', 'FB'];
+    const tipAng = [0, 72, 144, 216, 288];   // 先端の向き（度）。1本が +X＝フット側
+    const pocketId = ['FT', 'FR', 'HR', 'HL', 'FL'];
 
-    // 反時計回りに「切断面の2点 → 次の谷」を5回繰り返す＝頂点15個
-    const raw = [];
-    for (const t of tipAng) {
-      const a = t * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
-      raw.push(pt(rc * c + hw * s, rc * s - hw * c));   // 切断面の時計側の端
-      raw.push(pt(rc * c - hw * s, rc * s + hw * c));   // 切断面の反時計側の端
-      const b = (t + 36) * Math.PI / 180;
-      raw.push(pt(STAR_RIN * Math.cos(b), STAR_RIN * Math.sin(b)));   // 次の先端との間の谷
-    }
-
-    // 外接矩形の中心を原点へ移す（10.2.2節）
-    let xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity;
-    for (const p of raw) {
-      if (p.x < xMin) xMin = p.x; if (p.x > xMax) xMax = p.x;
-      if (p.y < yMin) yMin = p.y; if (p.y > yMax) yMax = p.y;
-    }
-    const dy = (yMin + yMax) / 2;      // 129.54 ＝星の中心と外接矩形の中心のずれ
-    const outline = raw.map(p => pt(p.x, p.y - dy));
-
-    /*
-     * 基準スポットは上書きする（10.2.3節・10.2.4節が星型を「上書きで確定させる」としている）。
-     * 共通規則の (L/4, 0) ＝ (737.5, 0) は先端の袋のかなり奥で、
-     * そこへ三角ラック15個を置くと外側の玉が壁へ 10 mm 食い込む。
-     *
-     * 標準長方形の (L/4, 0) は「台の中心と、長軸の線が壁に達する点との中点」でもある。
-     * 正六角形・十字も、L字で上書きした値も、この読み方でそのまま一致する。
-     * 星型ではこちらの読み方を採る（長軸が壁に達するのが 1076.4 なので 538.2）。
-     */
-    let footEdge = 0;
-    for (let i = 0; i < outline.length; i++) {
-      const p = outline[i], q = outline[(i + 1) % outline.length];
-      if ((p.y > 0) !== (q.y > 0)) {
-        const x = p.x + (0 - p.y) * (q.x - p.x) / (q.y - p.y);
-        if (x > footEdge) footEdge = x;
+    // 切り落とす前の正五芒星。反時計回りに「先端 → 次の谷」を5回
+    const star = (sx, sy) => {
+      const o = [];
+      for (const t of tipAng) {
+        const a = t * Math.PI / 180, b = (t + 36) * Math.PI / 180;
+        o.push(pt(STAR_ROUT * Math.cos(a) * sx, STAR_ROUT * Math.sin(a) * sy));
+        o.push(pt(STAR_RIN * Math.cos(b) * sx, STAR_RIN * Math.sin(b) * sy));
       }
+      return o;
+    };
+
+    // 潰す → 切る → 外接矩形を測る、を繰り返して 2540 × 1270 に合わせる
+    let sx = 1, sy = 1, cut = null;
+    for (let it = 0; it < 60; it++) {
+      cut = truncateSharp(star(sx, sy), MOUTH);
+      const b = boxOf(cut);
+      sx *= BOX_W / b.w; sy *= BOX_H / b.h;
     }
-    const spotX = footEdge / 2;        // 538.2
+    const b = boxOf(cut);
+    const outline = cut.map(p => pt(p.x - b.cx, p.y - b.cy));
 
     return {
       shape: 'A-11',
@@ -515,11 +583,8 @@ const BilliardsTable = (() => {
       pocketSpec: tipAng.map((_, k) => (
         { id: pocketId[k], at: 'edge', i: k * 3, t: 0.5, half: MOUTH / 2 + 0.5, r: 58 }
       )),
-      halfW: (xMax - xMin) / 2, halfH: (yMax - yMin) / 2,
       longAxis: 'x', footDirection: +1,
       axisY: 0,
-      spot: pt(spotX, 0),
-      headSpot: pt(-spotX, 0),
       frameStyle: 'outline',
     };
   }
@@ -539,16 +604,22 @@ const BilliardsTable = (() => {
   function make(shape, hasPockets) {
     const build = SHAPES[shape] || SHAPES['A-01'];
     const s = build();
-    const fillets = buildFillets(s.outline, FILLET_R);
+    // どの台も外接矩形を 2540 × 1270 に揃える（3.2.2節）。
+    // 星型は自分で合わせてから返してくるので、ここを通しても何も変わらない。
+    const fit = fitToBox(s.outline);
+    const outline = fit.outline;
+    const axisY = (s.axisY || 0) * fit.sy;     // 玉を並べる線も一緒に潰す
+    const spotX = footSpotX(outline, axisY);
+    const fillets = buildFillets(outline, FILLET_R);
     return {
       shape: s.shape,
       name: s.shape,
       hasPockets: !!hasPockets,
-      outline: s.outline,
-      halfW: s.halfW, halfH: s.halfH,
+      outline,
+      halfW: BOX_W / 2, halfH: BOX_H / 2,
       ballR: R,
-      rails: buildRails(s.outline, s.pocketSpec, !!hasPockets, fillets),
-      pockets: hasPockets ? buildPockets(s.outline, s.pocketSpec) : [],
+      rails: buildRails(outline, s.pocketSpec, !!hasPockets, fillets),
+      pockets: hasPockets ? buildPockets(outline, s.pocketSpec) : [],
       cushionTop: CUSHION_TOP,
       cushionWidth: CUSHION_W,
       frameStyle: s.frameStyle,
@@ -557,10 +628,10 @@ const BilliardsTable = (() => {
       footDirection: s.footDirection,
       // 長軸の線が短軸方向のどこを通るか。玉を並べる側は必ずこれを中心に置く。
       // 「台の中心線は y=0」は標準長方形と正六角形でしか成り立たない（L字では腕の中心）
-      axisY: s.axisY || 0,
-      spot: s.spot,
-      headSpot: s.headSpot,
-      center: pt(0, s.axisY || 0),
+      axisY,
+      spot: pt(spotX, axisY),
+      headSpot: pt(-spotX, axisY),
+      center: pt(0, axisY),
       // 物性値（3.7節・5.3.4節）。通常モードでの台ごとの差は微差に留める
       cushionRestitution: 0.86,
       clothSlide: 0.20,     // 滑り摩擦係数
@@ -570,11 +641,50 @@ const BilliardsTable = (() => {
     };
   }
 
+  const RACK_GAP = D + 0.15;        // 玉どうしをわずかに離して初期めり込みを防ぐ
+  const RACK_DX = RACK_GAP * Math.sqrt(3) / 2;
+
+  /** 三角ラック15個の置き場所。先頭を (sx, sy) に置いてフット側（+X）へ広げる */
+  function triangleCells(sx, sy) {
+    const cells = [];
+    for (let r = 0; r < 5; r++) for (let i = 0; i <= r; i++) {
+      cells.push({ x: sx + RACK_DX * r, y: sy + (i - r / 2) * RACK_GAP, row: r, idx: i });
+    }
+    return cells;
+  }
+
+  /**
+   * フットスポットの長軸方向の位置（10.2.2節・10.2.3節）。
+   *
+   * 標準長方形の (L/4, 0) は、言い換えると
+   * **「台の中心と、長軸の線が壁に達する点との中点」**である。
+   * 外接矩形を 2540 × 1270 に揃えたあとは、標準長方形・正六角形・L字・十字の4つとも
+   * この読み方でぴったり 635 になる（どれも長軸の線が外接矩形の端まで届くため）。
+   *
+   * 星型だけは、その位置が細い先端の奥に当たり、三角ラック15個を置くと
+   * 外側の玉が壁へ食い込む。そこで**「中点」と「ラックが収まるいちばん奥」の小さいほう**を採る。
+   * 形ごとに値を並べない ── 並べると台を足したときに書き忘れる（ダイヤ・丸めと同じ理由）。
+   */
+  function footSpotX(outline, axisY) {
+    const tb = { outline };
+    let reach = 0;
+    for (let i = 0; i < outline.length; i++) {
+      const p = outline[i], q = outline[(i + 1) % outline.length];
+      if ((p.y > axisY) !== (q.y > axisY)) {
+        const x = p.x + (axisY - p.y) * (q.x - p.x) / (q.y - p.y);
+        if (x > reach) reach = x;
+      }
+    }
+    const fits = sx => triangleCells(sx, axisY).every(c => clearance(tb, c.x, c.y) >= R);
+    let x = reach / 2;
+    while (x > 0 && !fits(x)) x -= 1;    // 1 mm ずつ手前へ。どの端末でも同じ値になる
+    return x;
+  }
+
   /** ダイヤ形ラック（G-01 ナインボール）。1番を先頭・9番を中央（7.3.1節）。 */
   function rackDiamond(table, nums) {
     // 行構成 1-2-3-2-1。先頭をフットスポットに置き、フット側（+X）へ広げる。
-    const gap = D + 0.15;                 // 玉どうしをわずかに離して初期めり込みを防ぐ
-    const dx = gap * Math.sqrt(3) / 2;
+    const gap = RACK_GAP, dx = RACK_DX;
     const rows = [1, 2, 3, 2, 1];
     const order = [nums[0], nums[1], nums[2], nums[3], nums[8], nums[4], nums[5], nums[6], nums[7]];
     // order: 先頭=1番、中央（3行目の真ん中）=9番。残りは番号順に詰める。
@@ -594,12 +704,7 @@ const BilliardsTable = (() => {
 
   /** 三角ラック（G-02 エイトボール／G-03 ポケット・ローテーション）。 */
   function rackTriangle(table, nums, centerNum) {
-    const gap = D + 0.15;
-    const dx = gap * Math.sqrt(3) / 2;
-    const cells = [];
-    for (let r = 0; r < 5; r++) for (let i = 0; i <= r; i++) {
-      cells.push({ x: table.spot.x + dx * r, y: table.spot.y + (i - r / 2) * gap, row: r, idx: i });
-    }
+    const cells = triangleCells(table.spot.x, table.spot.y);
     // 中央（3行目の真ん中＝index 4）に centerNum を置く。それ以外は番号順。
     const centerCell = 4;
     const rest = nums.filter(n => n !== centerNum);
@@ -635,6 +740,11 @@ const BilliardsTable = (() => {
     R, D, MOUTH, PLAY_W, PLAY_H, HX, HY, CUSHION_TOP, SHAPE_IDS, FILLET_R,
     make, rackDiamond, rackTriangle, caromPositions,
     clearance, inside, clampInside, nearestBoundary, diamonds, buildFillets,
+    // 検査から直に確かめるために出している。
+    // 「内角90度以上には手を触れない」という条件は、いまのどの台でも働かない
+    // （切り落としを掛ける相手が星型の先端5本だけで、どれも90度未満のため）。
+    // 台の中では確かめようがないので、台とは別に作った多角形で直接確かめる。
+    truncateSharp, fitToBox, interiorAngle,
   };
 })();
 

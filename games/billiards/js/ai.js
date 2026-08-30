@@ -14,7 +14,7 @@
 const BilliardsAI = (() => {
   'use strict';
 
-  const E = BilliardsEngine, RU = BilliardsRules;
+  const E = BilliardsEngine, RU = BilliardsRules, T = BilliardsTable;
 
   /*
    * aimNoise は「狙いのぶれ」（ラジアン）。これは**簡単な配置のときの**ぶれで、
@@ -74,6 +74,29 @@ const BilliardsAI = (() => {
     return false;
   }
 
+  /**
+   * 玉の通り道が台の外へ出るか（＝壁を越えるか）。
+   *
+   * ★凹んだ形の台（L字・十字・星型）では、狙う球との間に壁が立っていることがある。
+   *   玉どうしの当たりだけを見ていると、**壁の向こうの球へ真っすぐ狙う筋**を
+   *   有望な候補として並べてしまい、限られた候補の枠をそこで使い切る。
+   *   実測：十字で候補の 25%・L字で 14% がこれだった（長方形と六角形は 0%）。
+   *   **凸の台では起きないので、そちらだけ見ていると気づけない。**
+   *
+   * ポケットの口は外周の線の上にあるので、口へ向かう筋は終点で外周に触れる。
+   * 「外周から 1mm 以上はみ出したか」で見て、口に触れるだけの筋は落とさない。
+   */
+  function pathCrossesWall(table, x1, y1, x2, y2) {
+    const dx = x2 - x1, dy = y2 - y1;
+    const len = Math.hypot(dx, dy);
+    const steps = Math.max(2, Math.ceil(len / 20));   // 20mm 刻み
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      if (T.clearance(table, x1 + dx * t, y1 + dy * t) < -1) return true;
+    }
+    return false;
+  }
+
   function buildCandidates(game, playerIdx, p) {
     const cue = RU.cueBallOf(game, playerIdx);
     const out = [];
@@ -104,6 +127,33 @@ const BilliardsAI = (() => {
 
     const targets = RU.legalTargets(game, playerIdx) || [];
     const pockets = game.table.pockets;
+
+    /*
+     * ★ブレイクは別扱いにする。
+     *
+     * ふだんの候補は「的球をポケットへ送る筋」から作るが、ブレイクではラックが固まっていて
+     * どの球からポケットへの筋も他の球で塞がっている。そのため候補が1本も立たず、
+     * 下の逃げ道（最小番号へ真っすぐ・強さ 0.28／0.45）へ落ちていた。
+     * **実測：どの台でも強さが 0.5 を超えず、標準長方形では8局とも1個も落ちなかった。**
+     *
+     * ブレイクは「ラックの先頭へ強く当てて散らす」一手なので、
+     * 先頭の球へ向かう方向を軸に、強い力で少しずつ振った候補を並べる。
+     * どれを選ぶかは、いつもどおり実際に撞いてみた結果で決める。
+     */
+    if (!game.broken && targets.length) {
+      const head = targets.reduce((a, b) =>
+        Math.hypot(a.x - cue.x, a.y - cue.y) <= Math.hypot(b.x - cue.x, b.y - cue.y) ? a : b);
+      const base = Math.atan2(head.y - cue.y, head.x - cue.x);
+      for (const off of [-0.030, -0.015, 0, 0.015, 0.030]) {
+        for (const pw of [1.00, 0.85]) {
+          out.push({
+            dir: base + off, power: pw, tipX: 0, tipY: 0, elev: 0,
+            _cut: Math.abs(off), _dist: Math.hypot(head.x - cue.x, head.y - cue.y),
+          });
+        }
+      }
+      return out;
+    }
     // 入る／入らないを決めるのはほとんど狙いの角度で、撞点と強さの差は二の次。
     // 組合せを増やすと読みが重くなるだけなので、ここは絞る。
     const powers = [0.30, 0.48];
@@ -113,9 +163,12 @@ const BilliardsAI = (() => {
       for (const pk of pockets) {
         const g = ghostAim(cue, tb, pk);
         if (!g) continue;
-        // 手玉→ゴースト、的球→ポケットの経路が塞がっていないか
+        // 手玉→ゴースト、的球→ポケットの経路が塞がっていないか（他の球）
         if (pathBlocked(game, cue.x, cue.y, tb.x, tb.y, [cue, tb], cue.r * 0.9)) continue;
         if (pathBlocked(game, tb.x, tb.y, pk.x, pk.y, [tb, cue], tb.r * 0.85)) continue;
+        // 同じ経路が壁を越えていないか（凹んだ形の台でだけ起きる）
+        if (pathCrossesWall(game.table, cue.x, cue.y, tb.x, tb.y)) continue;
+        if (pathCrossesWall(game.table, tb.x, tb.y, pk.x, pk.y)) continue;
         const quality = Math.cos(g.cut) / (1 + g.dist / 2500 + g.objDist / 2500);
         shots.push({ g, tb, pk, quality });
       }
@@ -133,14 +186,25 @@ const BilliardsAI = (() => {
       }
     }
     if (!out.length) {
-      // 狙える球が無い＝安全に「とりあえず最小番号へ当てる」
-      const tb = targets[0];
-      if (tb) {
+      /*
+       * 落とせる筋が1本も無い＝的球が他の球の陰か、壁の向こうにある。
+       *
+       * ★ここで「とりあえず最小番号へ真っすぐ」に落としてはいけない。
+       *   凹んだ形の台では、その真っすぐが壁を向いていることがあり、
+       *   当てられずに反則になる（実測：この逃げ道のせいで、壁の判定を足した直後に
+       *   L字と十字の当て損ないが 0〜4% から 13〜14% へ増えた）。
+       *
+       * 壁を越えない向きに的球があればそちらへ当てにいき、
+       * あわせて**全周を刻んだ候補**も並べる。壁や球を回り込む筋は幾何では読めず、
+       * 実際に撞いてみて初めて見つかるためである（キャロムの候補と同じ考え方）。
+       */
+      const reachable = targets.filter(tb => !pathCrossesWall(game.table, cue.x, cue.y, tb.x, tb.y));
+      for (const tb of reachable.slice(0, 2)) {
         const dir = Math.atan2(tb.y - cue.y, tb.x - cue.x);
-        out.push({ dir, power: 0.28, tipX: 0, tipY: 0, elev: 0 });
-        out.push({ dir, power: 0.45, tipX: 0, tipY: 0, elev: 0 });
-      } else {
-        out.push({ dir: game.rng() * Math.PI * 2, power: 0.3, tipX: 0, tipY: 0, elev: 0 });
+        for (const pw of [0.28, 0.45]) out.push({ dir, power: pw, tipX: 0, tipY: 0, elev: 0 });
+      }
+      for (let d = 0; d < 360; d += 6) {
+        out.push({ dir: d * Math.PI / 180, power: 0.55, tipX: 0, tipY: 0, elev: 0 });
       }
     }
     return out;
@@ -231,7 +295,7 @@ const BilliardsAI = (() => {
    * 台を1つ足すたびに強さの表を書き足す形にすると、足したときに必ず書き忘れる。
    *
    * 向きも少し振る。台によっては長軸の真っすぐ先がポケットで、
-   * 真っすぐ撞くと落ちてしまう（正六角形のフット頂点がそれ）。
+   * 真っすぐ撞くと落ちてしまう（六角形のフット頂点がそれ）。
    */
   function bankShot(game, playerIdx) {
     const p = prof(game.difficulty);

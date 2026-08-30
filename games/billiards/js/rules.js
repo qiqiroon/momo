@@ -228,6 +228,8 @@ const BilliardsRules = (() => {
       game.ballInHandFull = false;
     }
     game.world = E.createWorld(table, balls, game.tuning);
+    // 玉を並べ直した＝まだ誰もブレイクしていない
+    game.broken = false;
   }
 
   /**
@@ -573,6 +575,18 @@ const BilliardsRules = (() => {
     game.lastFouls = fouls;
     game.lastPocketed = result.pocketed;
     game.shotNo++;
+    /*
+     * ★この一撞きでブレイクが済んだ。
+     *
+     * この印は宣言も読み出しもされていたが、**どこでも立てていなかった**。
+     * そのためエイトボールでは
+     *   ・8番が落ちるたび「ブレイクで落ちた」と見なして戻し続ける
+     *   ・担当（ソリッド／ストライプ）が永久に決まらない
+     *   ・8番で勝ちも負けも起きない＝局が終わらない
+     * という状態だった（実測：120手打っても8番だけが残り、終局しない）。
+     * AIがブレイクを見分けるのにもこの印を使う。
+     */
+    game.broken = true;
     return result;
   }
 

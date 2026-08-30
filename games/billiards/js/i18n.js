@@ -42,7 +42,7 @@ const BilliardsI18N = (() => {
       'rule.how.G-11': '決められた回数の中で落とした数を競います。',
 
       'tbl.pocket': 'ポケットあり', 'tbl.carom': 'キャロム版',
-      'shape.A-01': '標準長方形', 'shape.A-02': '正六角形', 'shape.A-04': '楕円',
+      'shape.A-01': '標準長方形', 'shape.A-02': '六角形', 'shape.A-04': '楕円',
       'shape.A-06': 'スタジアム型', 'shape.A-07': 'ドーナツ型', 'shape.A-08': 'L字',
       'shape.A-09': '十字', 'shape.A-11': '星型',
 
@@ -250,7 +250,7 @@ const BilliardsI18N = (() => {
       'rule.how.G-11': 'Pocket as many balls as you can within a fixed number of turns.',
 
       'tbl.pocket': 'with pockets', 'tbl.carom': 'carom (no pockets)',
-      'shape.A-01': 'Standard rectangle', 'shape.A-02': 'Regular hexagon', 'shape.A-04': 'Ellipse',
+      'shape.A-01': 'Standard rectangle', 'shape.A-02': 'Hexagon', 'shape.A-04': 'Ellipse',
       'shape.A-06': 'Stadium', 'shape.A-07': 'Donut', 'shape.A-08': 'L-shape',
       'shape.A-09': 'Cross', 'shape.A-11': 'Star',
 
@@ -457,7 +457,7 @@ const BilliardsI18N = (() => {
       'rule.how.G-11': '在规定的轮数内比拼进球数。',
 
       'tbl.pocket': '有袋', 'tbl.carom': '开伦（无袋）',
-      'shape.A-01': '标准长方形', 'shape.A-02': '正六边形', 'shape.A-04': '椭圆',
+      'shape.A-01': '标准长方形', 'shape.A-02': '六边形', 'shape.A-04': '椭圆',
       'shape.A-06': '体育场型', 'shape.A-07': '甜甜圈型', 'shape.A-08': 'L 形',
       'shape.A-09': '十字形', 'shape.A-11': '星形',
 

@@ -38,6 +38,12 @@ const BilliardsTable = (() => {
   const L_SIDE = 2073.9;                         // 外形の一辺 mm
   const L_ARM = 1037.0;                          // 腕の幅 mm
 
+  // A-09 十字（3.5.7節）。一辺 803.2 mm の正方形5個を十字に並べた形。
+  const CROSS_A = 803.2;                         // 構成正方形の一辺＝腕の幅 mm
+  // 全幅は 3a ＝ 2409.6 mm。仕様書の項目表は 2409.7 mm と書くが、これは
+  // 面積 3,225,800 mm² から出た a＝803.2189 を、腕の幅と全幅で別々に丸めた差である。
+  // 3.5.7節が頂点座標そのもの（±401.6／±1204.8）を与えているので、そちらを正とする。
+
   // A-02 正六角形（3.5.2節）。一辺＝外接円半径。
   const HEX_A = 1114.3;                          // 一辺 mm
   const HEX_H = HEX_A * Math.sqrt(3) / 2;        // 対辺距離の半分 ＝ 965.01 mm
@@ -379,7 +385,56 @@ const BilliardsTable = (() => {
     };
   }
 
-  const SHAPES = { 'A-01': shapeA01, 'A-02': shapeA02, 'A-08': shapeA08 };
+  /**
+   * A-09 十字（3.5.7節）。一辺 803.2 mm の正方形5個を十字に並べた形。
+   * 面積は 5a² ＝ 3,225,651 mm² で、3.2.2節の 3,225,800 mm² との差は 0.005%。
+   *
+   * **外接矩形が正方形なので長軸が一意に定まらない**（10.2.2節）。長軸をXと明示する。
+   * **基準スポットの上書きは要らない。** 共通規則の (L/4, 0) ＝ (602.4, 0) は
+   * 横の腕の内部に落ちる（10.2.4節が「成立」と判定している）。
+   * 横の腕の中心線は y=0 なので、標準長方形・正六角形と同じく axisY は 0。
+   *
+   * ポケットは8個（3.4.2節・D363で変更なし）＝凸頂点8つのみ。
+   * 長辺の中央には置かない（現実に対応する台が無いため）。
+   * 凹頂点（腕の付け根）4つには置かず、そこには 3.3.3節の丸めが自動で入る。
+   */
+  function shapeA09() {
+    const a = CROSS_A / 2;           //  401.6 ＝腕の幅の半分
+    const b = CROSS_A * 1.5;         // 1204.8 ＝腕の先までの距離
+    const L = b * 2;                 // 2409.6 ＝外接矩形の一辺
+    return {
+      shape: 'A-09',
+      // 反時計回り。下の腕の左先端から始めて、右回りに4本の腕をたどる
+      outline: [
+        pt(-a, -b), pt(a, -b),       // 0,1  下の腕の先端
+        pt(a, -a),                   // 2    凹（腕の付け根）
+        pt(b, -a), pt(b, a),         // 3,4  右（フット側）の腕の先端
+        pt(a, a),                    // 5    凹
+        pt(a, b), pt(-a, b),         // 6,7  上の腕の先端
+        pt(-a, a),                   // 8    凹
+        pt(-b, a), pt(-b, -a),       // 9,10 左（ヘッド側）の腕の先端
+        pt(-a, -a),                  // 11   凹
+      ],
+      pocketSpec: [
+        { id: 'BL', at: 'vertex', i: 0, cut: GAP_CORNER, r: 63 },
+        { id: 'BR', at: 'vertex', i: 1, cut: GAP_CORNER, r: 63 },
+        { id: 'FB', at: 'vertex', i: 3, cut: GAP_CORNER, r: 63 },
+        { id: 'FT', at: 'vertex', i: 4, cut: GAP_CORNER, r: 63 },
+        { id: 'TR', at: 'vertex', i: 6, cut: GAP_CORNER, r: 63 },
+        { id: 'TL', at: 'vertex', i: 7, cut: GAP_CORNER, r: 63 },
+        { id: 'HT', at: 'vertex', i: 9, cut: GAP_CORNER, r: 63 },
+        { id: 'HB', at: 'vertex', i: 10, cut: GAP_CORNER, r: 63 },
+      ],
+      halfW: b, halfH: b,
+      longAxis: 'x', footDirection: +1,
+      axisY: 0,
+      spot: pt(L / 4, 0),
+      headSpot: pt(-L / 4, 0),
+      frameStyle: 'outline',
+    };
+  }
+
+  const SHAPES = { 'A-01': shapeA01, 'A-02': shapeA02, 'A-08': shapeA08, 'A-09': shapeA09 };
 
   /** 選べる外形の一覧（実装済みのものだけ） */
   const SHAPE_IDS = Object.keys(SHAPES);

@@ -44,6 +44,14 @@ const BilliardsTable = (() => {
   // 面積 3,225,800 mm² から出た a＝803.2189 を、腕の幅と全幅で別々に丸めた差である。
   // 3.5.7節が頂点座標そのもの（±401.6／±1204.8）を与えているので、そちらを正とする。
 
+  // A-11 星型（3.5.8節）。正五芒星の外形。先端は 3.3.2節に従って切り落とす。
+  const STAR_ROUT = 1708.3;                      // 外接円半径（切り落とし前の先端まで）mm
+  const STAR_RIN = 652.5;                        // 凹頂点（谷）までの半径 mm
+  const STAR_CUT = MOUTH / (2 * Math.tan(Math.PI / 10));   // 175.89 ＝先端の切り落とし深さ（3.3.2節）
+  // 仕様書 3.5.8節の項目表は外接矩形を 3249.4 × 3090.4 と書くが、これは
+  // 切り落とし**前**の星の外接矩形である。切り落としたあとのプレイ面は 2950.1 × 2805.7 で、
+  // 10.2.2節が「プレイ面の外接矩形」と定めているので、実際の形から出る後者を正とする。
+
   // A-02 正六角形（3.5.2節）。一辺＝外接円半径。
   const HEX_A = 1114.3;                          // 一辺 mm
   const HEX_H = HEX_A * Math.sqrt(3) / 2;        // 対辺距離の半分 ＝ 965.01 mm
@@ -434,7 +442,91 @@ const BilliardsTable = (() => {
     };
   }
 
-  const SHAPES = { 'A-01': shapeA01, 'A-02': shapeA02, 'A-08': shapeA08, 'A-09': shapeA09 };
+  /**
+   * A-11 星型（3.5.8節）。正五芒星の外形の先端5本を、3.3.2節に従って
+   * 先端の軸に垂直な直線でポケット口径と同じ幅（114.30 mm）に切り落とした形。
+   * 面積は 3,225,669 mm² で、3.2.2節の 3,225,800 mm² との差は 0.004%。
+   *
+   * **先端の1本が +Y を向く向きに置く。** そうすると外接矩形の長辺が X に来る（10.2.2節）。
+   * 先端を ±X 向きに置くと長辺が Y に来て、長軸をXとする座標系へ回し戻すと同じ向きになる。
+   * 残る自由度（先端が上か下か）は鏡に映した関係で、形は変わらない。
+   *
+   * **星の中心と外接矩形の中心は一致しない。** 上向きの先端だけ相手がいないため、
+   * 星の中心を原点に置くと外接矩形の中心が 129.5 mm ずれる。
+   * 10.2.2節は外接矩形の中心を原点と定めているので、そちらへ揃えて置く。
+   * その結果、長軸の線は星の中心を通らないが、星の中心を通る線より台を広く横切る
+   * （壁に達するのが 898.1 に対して 1076.4）。L字と違って腕の中心線の上書きは要らない。
+   *
+   * ポケットは5個（3.4.2節）＝5つの切断面。凸頂点は切り落としで10個になるが、
+   * ポケットを置くのは切断面だけで、切断面の両端（108度）はポケットの口の角になる。
+   * 凹頂点5つには置かず、そこには 3.3.3節の丸めが自動で入る。
+   * キャロム版では切断面がそのままクッションになる（3.6.1節）。
+   */
+  function shapeA11() {
+    const rc = STAR_ROUT - STAR_CUT;   // 1532.41 ＝切断面の中心までの距離
+    const hw = MOUTH / 2;              //   57.15 ＝切断面の半幅
+    const tipAng = [18, 90, 162, 234, 306];        // 先端の向き（度）。1本が +Y＝90度
+    const pocketId = ['FT', 'TC', 'HT', 'HB', 'FB'];
+
+    // 反時計回りに「切断面の2点 → 次の谷」を5回繰り返す＝頂点15個
+    const raw = [];
+    for (const t of tipAng) {
+      const a = t * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+      raw.push(pt(rc * c + hw * s, rc * s - hw * c));   // 切断面の時計側の端
+      raw.push(pt(rc * c - hw * s, rc * s + hw * c));   // 切断面の反時計側の端
+      const b = (t + 36) * Math.PI / 180;
+      raw.push(pt(STAR_RIN * Math.cos(b), STAR_RIN * Math.sin(b)));   // 次の先端との間の谷
+    }
+
+    // 外接矩形の中心を原点へ移す（10.2.2節）
+    let xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity;
+    for (const p of raw) {
+      if (p.x < xMin) xMin = p.x; if (p.x > xMax) xMax = p.x;
+      if (p.y < yMin) yMin = p.y; if (p.y > yMax) yMax = p.y;
+    }
+    const dy = (yMin + yMax) / 2;      // 129.54 ＝星の中心と外接矩形の中心のずれ
+    const outline = raw.map(p => pt(p.x, p.y - dy));
+
+    /*
+     * 基準スポットは上書きする（10.2.3節・10.2.4節が星型を「上書きで確定させる」としている）。
+     * 共通規則の (L/4, 0) ＝ (737.5, 0) は先端の袋のかなり奥で、
+     * そこへ三角ラック15個を置くと外側の玉が壁へ 10 mm 食い込む。
+     *
+     * 標準長方形の (L/4, 0) は「台の中心と、長軸の線が壁に達する点との中点」でもある。
+     * 正六角形・十字も、L字で上書きした値も、この読み方でそのまま一致する。
+     * 星型ではこちらの読み方を採る（長軸が壁に達するのが 1076.4 なので 538.2）。
+     */
+    let footEdge = 0;
+    for (let i = 0; i < outline.length; i++) {
+      const p = outline[i], q = outline[(i + 1) % outline.length];
+      if ((p.y > 0) !== (q.y > 0)) {
+        const x = p.x + (0 - p.y) * (q.x - p.x) / (q.y - p.y);
+        if (x > footEdge) footEdge = x;
+      }
+    }
+    const spotX = footEdge / 2;        // 538.2
+
+    return {
+      shape: 'A-11',
+      outline,
+      // 切断面はまるごとポケットの口。辺の長さと切る幅がちょうど同じなので、
+      // 丸め誤差でクッションの切れ端（長さ 0 の壁）が残らないよう気持ち広く指定する。
+      // 切り取りは辺の中で頭打ちになるので、隣の辺へはみ出すことはない。
+      pocketSpec: tipAng.map((_, k) => (
+        { id: pocketId[k], at: 'edge', i: k * 3, t: 0.5, half: MOUTH / 2 + 0.5, r: 58 }
+      )),
+      halfW: (xMax - xMin) / 2, halfH: (yMax - yMin) / 2,
+      longAxis: 'x', footDirection: +1,
+      axisY: 0,
+      spot: pt(spotX, 0),
+      headSpot: pt(-spotX, 0),
+      frameStyle: 'outline',
+    };
+  }
+
+  const SHAPES = {
+    'A-01': shapeA01, 'A-02': shapeA02, 'A-08': shapeA08, 'A-09': shapeA09, 'A-11': shapeA11,
+  };
 
   /** 選べる外形の一覧（実装済みのものだけ） */
   const SHAPE_IDS = Object.keys(SHAPES);

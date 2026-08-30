@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.30';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.31';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -639,6 +639,7 @@
     S.clock.banks = g.players.map(() => cfg.tbank * 60);
     S.aim = { dir: 0, tipX: 0, tipY: 0, elev: 0, power: 0 };
     S.msg = '';
+    clearFlash();                           // 前の局のファウルを次の局へ持ち越さない
     show('play');
     beginTurn();
   }
@@ -2927,6 +2928,25 @@
         flashGone = null;
       }, 220);
     }, why ? 2600 : 1000);
+  }
+
+  /**
+   * 出ている知らせを、消えるのを待たずにその場で畳む。
+   *
+   * **前の局の知らせは、次の局の出来事ではない。**
+   * 知らせは 2.6 秒で自分から消えるので、局を始めるときに何もしなくても
+   * たいていは間に合っていた。しかし続けてもう1局をすぐ始めると、
+   * **手玉を置く前に、前の局のファウルが盤の真ん中に出たままになる**
+   * （練習モードは 0.9 秒後に自動で次を始めるので必ずそうなる）。
+   * 消えるまでの時間に寄りかからず、局の入り口で必ず畳む。
+   */
+  function clearFlash() {
+    if (flashTimer) { clearTimeout(flashTimer); flashTimer = null; }
+    if (flashGone) { clearTimeout(flashGone); flashGone = null; }
+    const el = $('flash'); if (!el) return;
+    el.classList.remove('on', 'foul', 'warn', 'faded');
+    el.classList.add('gone');
+    $('flash-t').textContent = ''; $('flash-w').textContent = '';
   }
 
   /**

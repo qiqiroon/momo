@@ -93,6 +93,155 @@ const BilliardsTable = (() => {
     return Math.hypot(px - (x1 + ex * t), py - (y1 + ey * t));
   }
 
+  // ── 境界要素（3.7節）──
+  /*
+   * ★台の境界は「直線分と円弧の並び」で持ち、判定はすべてここから引く。
+   *
+   * 多角形の台では、この並びは外周の辺そのものである（boundsFromOutline）。
+   * だから六角形・L字・十字・星型の値は1つも変わらない。
+   *
+   * 曲面の台（スタジアム・楕円・ドーナツ）は頂点を1つも持たないので、
+   * 頂点の並びだけでは表せない。細かい折れ線で代用すると2つが同時に壊れる。
+   *   ・ダイヤは「辺の長さ ÷ 317.5」で決めるので、細片の数だけダイヤが並ぶ
+   *   ・内側かどうかの判定が、折れ線が内側へ落ち込むぶんだけ内へ寄る
+   *     （クッションに寄り添った玉が「はみ出している」と読まれる）
+   * 折れ線は**描画のためだけ**に持つ。3.7節が禁じているのは物理の接点と法線の近似である。
+   *
+   * 並びは反時計回り。円弧は a0 から a0+sweep へ、角度が増える向きに進む。
+   * arc() と norm2pi() はこの下で定義しているが、関数宣言なので先に使ってよい。
+   */
+
+  /** 境界要素が円弧か（直線分は kind を持たない＝エンジンと同じ見分け方） */
+  function isArc(e) { return e.kind === 'arc'; }
+
+  /** 境界要素の長さ。円弧は弧長 */
+  function elemLen(e) { return isArc(e) ? e.r * e.sweep : Math.hypot(e.x2 - e.x1, e.y2 - e.y1); }
+
+  /** 境界要素を 0〜1 で辿った点。円弧では弧長に比例＝角度に比例する */
+  function elemPointT(e, t) {
+    if (isArc(e)) {
+      const a = e.a0 + e.sweep * t;
+      return pt(e.cx + e.r * Math.cos(a), e.cy + e.r * Math.sin(a));
+    }
+    return pt(e.x1 + (e.x2 - e.x1) * t, e.y1 + (e.y2 - e.y1) * t);
+  }
+
+  /**
+   * 境界要素を k/div だけ辿った点。**割る前に掛ける。**
+   * 先に k/div を出して掛けると、最後の桁が「掛けてから割る」とわずかに食い違う。
+   * 等分点（ダイヤ）は分子と分母のまま渡してここで割る。
+   */
+  function elemPointFrac(e, k, div) {
+    if (isArc(e)) {
+      const a = e.a0 + e.sweep * k / div;
+      return pt(e.cx + e.r * Math.cos(a), e.cy + e.r * Math.sin(a));
+    }
+    return pt(e.x1 + (e.x2 - e.x1) * k / div, e.y1 + (e.y2 - e.y1) * k / div);
+  }
+
+  /**
+   * 境界要素の一部を切り出す（始点から弧長 s0 まで進んだ所から s1 まで）。
+   * toEnd を立てると終わりは要素の終点そのものを使う。
+   * 終点を「長さから計算し直す」と丸め誤差で元の点とわずかにずれるので、
+   * 最後の一片だけは端の値をそのまま渡す（多角形での値を変えないため）。
+   */
+  function subElem(e, s0, s1, toEnd) {
+    if (isArc(e)) {
+      const a0 = e.a0 + s0 / e.r;
+      return arc(e.cx, e.cy, e.r, a0, toEnd ? (e.a0 + e.sweep - a0) : (s1 - s0) / e.r, e.side);
+    }
+    const L = elemLen(e), ux = (e.x2 - e.x1) / L, uy = (e.y2 - e.y1) / L;
+    return toEnd
+      ? seg(e.x1 + ux * s0, e.y1 + uy * s0, e.x2, e.y2)
+      : seg(e.x1 + ux * s0, e.y1 + uy * s0, e.x1 + ux * s1, e.y1 + uy * s1);
+  }
+
+  /** 点から境界要素までの距離。円弧の範囲の外なら近いほうの端までの距離 */
+  function elemDist(e, px, py) {
+    if (!isArc(e)) return distToSeg(px, py, e.x1, e.y1, e.x2, e.y2);
+    const dx = px - e.cx, dy = py - e.cy, d = Math.hypot(dx, dy);
+    if (d > 1e-12 && norm2pi(Math.atan2(dy, dx) - e.a0) <= e.sweep) return Math.abs(d - e.r);
+    const a = elemPointT(e, 0), b = elemPointT(e, 1);
+    return Math.min(Math.hypot(px - a.x, py - a.y), Math.hypot(px - b.x, py - b.y));
+  }
+
+  /**
+   * 点にいちばん近い、境界要素の上の点。
+   * ex, ey は**進む向きの単位接線**、len は 1（受け取る側が len で割っても割らなくても同じ）。
+   * 直線分の長さは elemLen と同じ Math.hypot で出す。
+   * 長さの求め方を場所ごとに変えると、外向きの向きが最後の桁で食い違う。
+   */
+  function elemNearest(e, px, py) {
+    if (!isArc(e)) {
+      const ex = e.x2 - e.x1, ey = e.y2 - e.y1, l2 = ex * ex + ey * ey;
+      let t = l2 < 1e-12 ? 0 : ((px - e.x1) * ex + (py - e.y1) * ey) / l2;
+      t = t < 0 ? 0 : t > 1 ? 1 : t;
+      const L = elemLen(e) || 1;
+      return { x: e.x1 + ex * t, y: e.y1 + ey * t, ex: ex / L, ey: ey / L, len: 1 };
+    }
+    const off = norm2pi(Math.atan2(py - e.cy, px - e.cx) - e.a0);
+    // 範囲の外は近いほうの端へ寄せる。円弧の外側は 2π − sweep ぶんある
+    const a = (off <= e.sweep) ? e.a0 + off
+      : (off - e.sweep < 2 * Math.PI - off) ? e.a0 + e.sweep : e.a0;
+    return {
+      x: e.cx + e.r * Math.cos(a), y: e.cy + e.r * Math.sin(a),
+      ex: -Math.sin(a), ey: Math.cos(a), len: 1,
+    };
+  }
+
+  /** 多角形の外周を境界要素の並びに直す。辺そのものなので値は変わらない */
+  function boundsFromOutline(o) {
+    const n = o.length, out = [];
+    for (let i = 0; i < n; i++) out.push(seg(o[i].x, o[i].y, o[(i + 1) % n].x, o[(i + 1) % n].y));
+    return out;
+  }
+
+  /** 境界の全長（外周長）。壁ズリの走行距離の上限に使う（5.7.3節） */
+  function perimeterOf(bounds) { let s = 0; for (const e of bounds) s += elemLen(e); return s; }
+
+  /**
+   * 境界を折れ線に写す。**描画と、内側かどうかの向きの判定にだけ使う。**
+   * 円弧は step ラジアンごとに刻む。各要素の始点は必ず入れるので、
+   * 直線分だけの台では元の頂点列がそのまま返る。
+   */
+  const SAMPLE_STEP = Math.PI / 90;      // 2度。半径 635 mm で外へのふくらみ 0.10 mm
+
+  function sampleBounds(bounds) {
+    const o = [];
+    for (const e of bounds) {
+      if (!isArc(e)) { o.push(pt(e.x1, e.y1)); continue; }
+      const k = Math.max(2, Math.ceil(e.sweep / SAMPLE_STEP));
+      for (let j = 0; j < k; j++) o.push(elemPointT(e, j / k));
+    }
+    return o;
+  }
+
+  /**
+   * 長軸の線（y = axisY）が届く、いちばんフット側の壁の位置。
+   * 基準スポットとバンキングの成立線に使う（10.2.2節）。
+   */
+  function boundaryReach(bounds, axisY) {
+    let reach = 0;
+    for (const e of bounds) {
+      if (!isArc(e)) {
+        if ((e.y1 > axisY) !== (e.y2 > axisY)) {
+          const x = e.x1 + (axisY - e.y1) * (e.x2 - e.x1) / (e.y2 - e.y1);
+          if (x > reach) reach = x;
+        }
+        continue;
+      }
+      const u = (axisY - e.cy) / e.r;
+      if (u < -1 || u > 1) continue;
+      const b = Math.asin(u);
+      for (const ang of [b, Math.PI - b]) {
+        if (norm2pi(ang - e.a0) > e.sweep) continue;
+        const x = e.cx + e.r * Math.cos(ang);
+        if (x > reach) reach = x;
+      }
+    }
+    return reach;
+  }
+
   /** 外周を囲う四角。幅・高さと中心 */
   function boxOf(o) {
     let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
@@ -178,14 +327,13 @@ const BilliardsTable = (() => {
    * 「玉が丸ごと内側に収まるか」は clearance >= 玉半径 で表せる。
    */
   function clearance(table, x, y) {
-    const o = table.outline;
+    // 距離は境界要素から解析的に出す（円弧は円弧のまま測る）。
+    // 内か外かの向きだけは折れ線で数える。折れ線は円弧より内へ 0.10 mm ほど落ちるので、
+    // 向きが入れ替わりうるのは境界から 0.10 mm 以内＝距離がほぼ 0 の帯だけで、
+    // 「玉が丸ごと収まるか」（28.575 mm）の答えは動かない。
     let best = Infinity;
-    for (let i = 0; i < o.length; i++) {
-      const a = o[i], b = o[(i + 1) % o.length];
-      const d = distToSeg(x, y, a.x, a.y, b.x, b.y);
-      if (d < best) best = d;
-    }
-    return inPolygon(o, x, y) ? best : -best;
+    for (const e of table.bounds) { const d = elemDist(e, x, y); if (d < best) best = d; }
+    return inPolygon(table.outline, x, y) ? best : -best;
   }
 
   /** 外周から margin 以上内側にあるか。margin に負の値を渡せば「外側への許容」になる */
@@ -195,17 +343,11 @@ const BilliardsTable = (() => {
 
   /** 外周のうち点にいちばん近い場所 */
   function nearestBoundary(table, x, y) {
-    const o = table.outline;
     let best = null, bestD = Infinity;
-    for (let i = 0; i < o.length; i++) {
-      const a = o[i], b = o[(i + 1) % o.length];
-      const ex = b.x - a.x, ey = b.y - a.y;
-      const l2 = ex * ex + ey * ey;
-      let t = l2 < 1e-12 ? 0 : ((x - a.x) * ex + (y - a.y) * ey) / l2;
-      t = t < 0 ? 0 : t > 1 ? 1 : t;
-      const qx = a.x + ex * t, qy = a.y + ey * t;
-      const d = Math.hypot(x - qx, y - qy);
-      if (d < bestD) { bestD = d; best = { x: qx, y: qy, ex, ey, len: Math.sqrt(l2) }; }
+    for (const e of table.bounds) {
+      const p = elemNearest(e, x, y);
+      const d = Math.hypot(x - p.x, y - p.y);
+      if (d < bestD) { bestD = d; best = p; }
     }
     return best;
   }
@@ -224,16 +366,14 @@ const BilliardsTable = (() => {
   const DIAMOND_PITCH = 317.5;     // 現実の9フィート台のダイヤ間隔 mm
 
   function diamonds(table) {
-    const o = table.outline, out = [];
-    for (let i = 0; i < o.length; i++) {
-      const a = o[i], b = o[(i + 1) % o.length];
-      const ex = b.x - a.x, ey = b.y - a.y;
-      const len = Math.hypot(ex, ey);
+    const out = [];
+    for (const e of table.bounds) {
+      const len = elemLen(e);
       const div = Math.max(2, Math.round(len / DIAMOND_PITCH));
-      // 外周は反時計回りに持っているので、外向きは (ey, -ex)
-      const nx = ey / len, ny = -ex / len;
+      // 境界は反時計回りに持っているので、進む向き (ex, ey) に対して外向きは (ey, -ex)
       for (let k = 1; k < div; k++) {
-        out.push({ x: a.x + ex * k / div, y: a.y + ey * k / div, nx, ny });
+        const p = elemPointFrac(e, k, div), g = elemNearest(e, p.x, p.y);
+        out.push({ x: p.x, y: p.y, nx: g.ey / g.len, ny: -g.ex / g.len });
       }
     }
     return out;
@@ -337,10 +477,9 @@ const BilliardsTable = (() => {
    * 丸めもポケットと同じ「頂点から辺に沿って切る」で表せるので、切り取りは1本の仕組みで済む。
    * 切り取ったあとに円弧を足すところだけが違う。
    */
-  function buildRails(outline, spec, hasPockets, fillets) {
-    const n = outline.length;
-    const edge = i => ({ a: outline[i], b: outline[(i + 1) % n] });
-    const len = i => { const e = edge(i); return Math.hypot(e.b.x - e.a.x, e.b.y - e.a.y); };
+  function buildRails(bounds, outline, spec, hasPockets, fillets) {
+    const n = bounds.length;
+    const len = i => elemLen(bounds[i]);
     const cuts = []; for (let i = 0; i < n; i++) cuts.push([]);
     const cutAtVertex = (vi, d) => {
       const prev = (vi - 1 + n) % n;              // 頂点へ入ってくる辺
@@ -358,40 +497,46 @@ const BilliardsTable = (() => {
     const vertexCut = pk => (pk.cut != null)
       ? pk.cut
       : pk.mouth / (2 * Math.sin(interiorAngle(outline, pk.i) / 2));
+    /*
+     * 境界の途中に開ける口の、半分の長さ（境界に沿って測る）。
+     * **曲面台では口径を弧長ではなく弦で測る**（3.4.1節）。
+     * 半径 r の円弧で弦 mouth を張る半角は asin(mouth / 2r) なので、
+     * 沿って測った長さは r·asin(mouth / 2r) になる。直線ではそのまま半分。
+     */
+    const edgeHalf = (pk, e) => (pk.half != null) ? pk.half
+      : isArc(e) ? e.r * Math.asin(Math.min(1, pk.mouth / (2 * e.r)))
+        : pk.mouth / 2;
     if (hasPockets) {
       for (const pk of spec) {
         if (pk.at === 'vertex') cutAtVertex(pk.i, vertexCut(pk));
-        else { const c = len(pk.i) * pk.t; cuts[pk.i].push([c - pk.half, c + pk.half]); }
+        else {
+          const c = len(pk.i) * pk.t, h = edgeHalf(pk, bounds[pk.i]);
+          cuts[pk.i].push([c - h, c + h]);
+        }
       }
     }
     for (const f of (fillets || [])) cutAtVertex(f.i, f.d);
     const out = [];
     for (let i = 0; i < n; i++) {
-      const e = edge(i), L = len(i);
-      const ux = (e.b.x - e.a.x) / L, uy = (e.b.y - e.a.y) / L;
+      const e = bounds[i], L = len(i);
       const gaps = cuts[i].slice().sort((p, q) => p[0] - q[0]);
       let at = 0;
       for (const g of gaps) {
         const a = Math.max(0, g[0]), b = Math.min(L, g[1]);
-        if (a > at) out.push(seg(e.a.x + ux * at, e.a.y + uy * at, e.a.x + ux * a, e.a.y + uy * a));
+        if (a > at) out.push(subElem(e, at, a, false));
         if (b > at) at = b;
       }
-      if (at < L) out.push(seg(e.a.x + ux * at, e.a.y + uy * at, e.b.x, e.b.y));
+      if (at < L) out.push(subElem(e, at, 0, true));
     }
     for (const f of (fillets || [])) out.push(f.arc);
     return out;
   }
 
-  /** ポケットの中心座標を外周から求める */
-  function buildPockets(outline, spec) {
-    const n = outline.length;
+  /** ポケットの中心座標を境界から求める。頂点はその境界要素の始点にあたる */
+  function buildPockets(bounds, spec) {
     return spec.map(pk => {
-      if (pk.at === 'vertex') {
-        const v = outline[pk.i];
-        return { id: pk.id, x: v.x, y: v.y, r: pk.r };
-      }
-      const a = outline[pk.i], b = outline[(pk.i + 1) % n];
-      return { id: pk.id, x: a.x + (b.x - a.x) * pk.t, y: a.y + (b.y - a.y) * pk.t, r: pk.r };
+      const p = elemPointT(bounds[pk.i], pk.at === 'vertex' ? 0 : pk.t);
+      return { id: pk.id, x: p.x, y: p.y, r: pk.r };
     });
   }
 
@@ -589,8 +734,63 @@ const BilliardsTable = (() => {
     };
   }
 
+  /**
+   * A-06 スタジアム型（3.5.4節）。長方形の両端に半円を付けた形。
+   *
+   * **この台は頂点を1つも持たない。**外周は「半円・直線・半円・直線」の4要素で表す。
+   *
+   * 3.5.4節の寸法（半円半径 672.1／直線部 1344.2）は**形の比**であって、
+   * その比は既に 2:1 ＝ 2540 × 1270 と同じである。だから外接矩形を揃えても
+   * 縦横が同じ倍率になり、**半円は半円のまま歪まない**。
+   * そこで最初から揃った寸法で組む（星型と同じやり方）。半円半径は短辺の半分＝635.0、
+   * 直線部は 2540 − 635×2 ＝ 1270.0 になる。面積は 2,879,669 mm²（標準長方形の 89%）で、
+   * 3.2.2節の表の「約 2,879,000 mm²・89%」と一致する。
+   *
+   * **ポケットは6個**（3.4.3節）。両端の最遠点に2個を置き、そこから弧長等間隔に並べる。
+   * 結果として直線部へ片側2個ずつ入る。**個数の割り振りを形ごとに書かない**
+   * ── 弧長を6等分した結果がそう並ぶだけである。
+   * 3.4.3節は「弧長は解析的に閉じた形で求まらないので事前計算値を持て」と定めるが、
+   * それは楕円とドーナツの話で、**この台は円と直線なので弧長が式で解ける**。
+   *
+   * 口の広さは 3.4.1節に従い、**弧長ではなく弦**で 114.30 mm にする。
+   * 捕球半径は 58（星型の切断面や標準長方形のサイドと同じ「角ではない口」の値）。
+   */
+  const STAD_R = HY;                        // 半円半径 635.0 ＝ 短辺の半分
+  const STAD_STRAIGHT = PLAY_W - 2 * STAD_R; // 直線部 1270.0
+
+  function shapeA06() {
+    const P = 2 * STAD_STRAIGHT + 2 * Math.PI * STAD_R;   // 外周長 6529.8 mm
+    const step = P / 6;                                    // ポケットの弧長間隔 1088.3 mm
+    const quarter = Math.PI * STAD_R / 2;                  // 最遠点から接点まで 997.5 mm
+    const off = step - quarter;                            // 接点から直線部へ入る距離 90.8 mm
+    const t1 = off / STAD_STRAIGHT, t2 = 1 - t1;
+    const cx = STAD_STRAIGHT / 2;                          // 半円の中心 ±635.0
+    return {
+      shape: 'A-06',
+      // 反時計回り。フット側（+X）の半円の下端から始める
+      bounds: [
+        arc(cx, 0, STAD_R, -Math.PI / 2, Math.PI, 'in'),        // 0 フット側の半円
+        seg(cx, STAD_R, -cx, STAD_R),                           // 1 上（+Y）の直線
+        arc(-cx, 0, STAD_R, Math.PI / 2, Math.PI, 'in'),        // 2 ヘッド側の半円
+        seg(-cx, -STAD_R, cx, -STAD_R),                         // 3 下（−Y）の直線
+      ],
+      pocketSpec: [
+        { id: 'FT', at: 'edge', i: 0, t: 0.5, mouth: MOUTH, r: 58 },   // 最遠点（フット側）
+        { id: 'FR', at: 'edge', i: 1, t: t1, mouth: MOUTH, r: 58 },
+        { id: 'HR', at: 'edge', i: 1, t: t2, mouth: MOUTH, r: 58 },
+        { id: 'HT', at: 'edge', i: 2, t: 0.5, mouth: MOUTH, r: 58 },   // 最遠点（ヘッド側）
+        { id: 'HL', at: 'edge', i: 3, t: t1, mouth: MOUTH, r: 58 },
+        { id: 'FL', at: 'edge', i: 3, t: t2, mouth: MOUTH, r: 58 },
+      ],
+      longAxis: 'x', footDirection: +1,
+      axisY: 0,
+      frameStyle: 'outline',
+    };
+  }
+
   const SHAPES = {
-    'A-01': shapeA01, 'A-02': shapeA02, 'A-08': shapeA08, 'A-09': shapeA09, 'A-11': shapeA11,
+    'A-01': shapeA01, 'A-02': shapeA02, 'A-06': shapeA06,
+    'A-08': shapeA08, 'A-09': shapeA09, 'A-11': shapeA11,
   };
 
   /** 選べる外形の一覧（実装済みのものだけ） */
@@ -604,22 +804,41 @@ const BilliardsTable = (() => {
   function make(shape, hasPockets) {
     const build = SHAPES[shape] || SHAPES['A-01'];
     const s = build();
-    // どの台も外接矩形を 2540 × 1270 に揃える（3.2.2節）。
-    // 星型は自分で合わせてから返してくるので、ここを通しても何も変わらない。
-    const fit = fitToBox(s.outline);
-    const outline = fit.outline;
-    const axisY = (s.axisY || 0) * fit.sy;     // 玉を並べる線も一緒に潰す
-    const spotX = footSpotX(outline, axisY);
+    /*
+     * 形は「頂点の並び」か「境界要素の並び」のどちらかで返ってくる。
+     * 多角形は頂点で返し、ここで辺へ直す（値は変わらない）。
+     * 曲面の台は頂点を持てないので境界要素で返し、折れ線はそこから写して作る。
+     * どちらの道でも、この先は bounds（判定・壁・ポケット）と
+     * outline（描画と内外の向き）の2つが必ず揃う。
+     */
+    let bounds, outline, sy;
+    if (s.bounds) {
+      // 曲面の台は既に 2540 × 1270 に揃った寸法で返ってくる（半円が歪まないため）
+      bounds = s.bounds;
+      outline = sampleBounds(bounds);
+      sy = 1;
+    } else {
+      // どの台も外接矩形を 2540 × 1270 に揃える（3.2.2節）。
+      // 星型は自分で合わせてから返してくるので、ここを通しても何も変わらない。
+      const fit = fitToBox(s.outline);
+      outline = fit.outline;
+      bounds = boundsFromOutline(outline);
+      sy = fit.sy;
+    }
+    const axisY = (s.axisY || 0) * sy;         // 玉を並べる線も一緒に潰す
+    const spotX = footSpotX(bounds, outline, axisY);
     const fillets = buildFillets(outline, FILLET_R);
     return {
       shape: s.shape,
       name: s.shape,
       hasPockets: !!hasPockets,
       outline,
+      bounds,
+      perimeter: perimeterOf(bounds),
       halfW: BOX_W / 2, halfH: BOX_H / 2,
       ballR: R,
-      rails: buildRails(outline, s.pocketSpec, !!hasPockets, fillets),
-      pockets: hasPockets ? buildPockets(outline, s.pocketSpec) : [],
+      rails: buildRails(bounds, outline, s.pocketSpec, !!hasPockets, fillets),
+      pockets: hasPockets ? buildPockets(bounds, s.pocketSpec) : [],
       cushionTop: CUSHION_TOP,
       cushionWidth: CUSHION_W,
       frameStyle: s.frameStyle,
@@ -665,16 +884,9 @@ const BilliardsTable = (() => {
    * 外側の玉が壁へ食い込む。そこで**「中点」と「ラックが収まるいちばん奥」の小さいほう**を採る。
    * 形ごとに値を並べない ── 並べると台を足したときに書き忘れる（ダイヤ・丸めと同じ理由）。
    */
-  function footSpotX(outline, axisY) {
-    const tb = { outline };
-    let reach = 0;
-    for (let i = 0; i < outline.length; i++) {
-      const p = outline[i], q = outline[(i + 1) % outline.length];
-      if ((p.y > axisY) !== (q.y > axisY)) {
-        const x = p.x + (axisY - p.y) * (q.x - p.x) / (q.y - p.y);
-        if (x > reach) reach = x;
-      }
-    }
+  function footSpotX(bounds, outline, axisY) {
+    const tb = { bounds, outline };
+    const reach = boundaryReach(bounds, axisY);
     const fits = sx => triangleCells(sx, axisY).every(c => clearance(tb, c.x, c.y) >= R);
     let x = reach / 2;
     while (x > 0 && !fits(x)) x -= 1;    // 1 mm ずつ手前へ。どの端末でも同じ値になる
@@ -745,6 +957,9 @@ const BilliardsTable = (() => {
     // （切り落としを掛ける相手が星型の先端5本だけで、どれも90度未満のため）。
     // 台の中では確かめようがないので、台とは別に作った多角形で直接確かめる。
     truncateSharp, fitToBox, interiorAngle,
+    // 境界要素（3.7節）。曲面の台を直に測るために出している
+    isArc, elemLen, elemPointT, elemDist, elemNearest, subElem,
+    boundsFromOutline, sampleBounds, boundaryReach, perimeterOf,
   };
 })();
 

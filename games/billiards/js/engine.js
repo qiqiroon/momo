@@ -53,6 +53,8 @@ const BilliardsEngine = (() => {
       e: o.e != null ? o.e : BALL_E,
       onTable: true,            // 盤面に居るか（落球・場外で false）
       state: 'live',            // 'live' | 'pocketed' | 'off'
+      // 曲面クッションに沿って走った長さと、前に沿わせた場所（5.7.3節・D29）
+      slideRun: 0, slideX: null, slideY: null,
       // 回転の見た目（表面テクスチャの回転。4.2.2節）。単位クォータニオン
       qw: 1, qx: 0, qy: 0, qz: 0,
     };
@@ -283,6 +285,25 @@ const BilliardsEngine = (() => {
     const A = b.vx * b.vx + b.vy * b.vy;
     if (A < EPS) return Infinity;
     const dx = b.x - a.cx, dy = b.y - a.cy;
+
+    /*
+     * ★すでに壁へ食い込んでいるときは、その場（0秒後）を接触として返す。
+     *
+     * 円弧に沿って走る玉は接線方向へ進むだけで外へ膨らむので、
+     * 1ステップのあいだにわずかに壁の外側へ出ることがある。
+     * いったん外へ出ると、そこから外向きに進む玉には
+     * 「近づいてくる解」が存在しなくなり、**二度と捕まえられない**。
+     * 直線の壁では壁と平行に走っても外へ膨らまないので、この形は起きない。
+     */
+    const d0 = Math.hypot(dx, dy);
+    if (d0 > EPS && (a.side === 'in' ? d0 > reff : d0 < reff)) {
+      let ix = dx / d0, iy = dy / d0;
+      if (norm2pi(Math.atan2(iy, ix) - a.a0) <= a.sweep) {
+        if (a.side === 'in') { ix = -ix; iy = -iy; }          // 台の内側を向く向き
+        if (b.vx * ix + b.vy * iy < 0) return 0;              // なお外へ向かっている
+      }
+    }
+
     const B = 2 * (dx * b.vx + dy * b.vy);
     const C = dx * dx + dy * dy - reff * reff;
     const disc = B * B - 4 * A * C;
@@ -402,6 +423,26 @@ const BilliardsEngine = (() => {
     let d = Math.hypot(nx, ny);
     if (d < EPS) { nx = 1; ny = 0; d = 1; }
     nx /= d; ny /= d;
+
+    /*
+     * ★円弧の壁では、台の内側がどちらかを**玉の居場所から決めてはいけない。**
+     *
+     * 円弧に沿って走る玉は接線方向へ進むだけで外へ膨らむので、
+     * わずかに壁の外側へ出た状態でここへ来ることがある。
+     * そのとき玉の居場所から向きを取ると「外向きこそ台の内側」と読んでしまい、
+     * 押し戻す代わりに玉を台の外へ送り出す。
+     * 円弧は中心と side を持っているので、**内側を向く向きは形から決まる。**
+     * 玉が円弧の範囲の外にいるとき（端が最寄り＝角に当たる形）だけは、
+     * 中心から見た向きが接触の向きと一致しないので、従来どおり玉の側から決める。
+     */
+    if (s.kind === 'arc') {
+      const rx = p.x - s.cx, ry = p.y - s.cy, rl = Math.hypot(rx, ry);
+      if (rl > EPS && norm2pi(Math.atan2(b.y - s.cy, b.x - s.cx) - s.a0) <= s.sweep) {
+        const sgn = s.side === 'in' ? -1 : 1;
+        nx = sgn * rx / rl; ny = sgn * ry / rl;
+      }
+    }
+
     const vn = b.vx * nx + b.vy * ny;
     if (vn >= 0) return null;
 
@@ -420,13 +461,43 @@ const BilliardsEngine = (() => {
     const tx = -ny, ty = nx;                 // 接線
     let vt = b.vx * tx + b.vy * ty;
 
-    // 壁ズリ（5.7.3節）：浅い角度で強く入った玉は跳ね返らずに沿って走る
+    /*
+     * 壁ズリ（5.7.3節）：浅い角度で強く入った玉は跳ね返らずに沿って走る。
+     *
+     * **曲面のクッションでは走行距離に上限を設ける（D29）。**
+     * 直線の壁なら、沿って走る玉は壁が終われば自然に離れる。
+     * ところが曲面では、沿わせた玉が接線方向へ進むとすぐまた壁へ食い込むので、
+     * 離れる契機を自分では持たない。上限が無ければ玉は台の縁を回り続ける。
+     *
+     * 上限は**外周の 1/4**とする（スタジアムで約 1632 mm）。台の大きさに合わせて
+     * 動くように外周から出す ── 形ごとに数値を並べると台を足したときに書き忘れる。
+     * **この値は仕様書に無い**（5.7.3節は「上限を設ける」とだけ定める）。
+     *
+     * 走った長さは、前に沿わせた場所からの距離を足していく。
+     * 玉の直径2つぶんより遠くから来たときは、いったん離れて戻ってきたのだから
+     * 別の走りとして数え直す。
+     */
     const incidence = Math.abs(Math.atan2(vn, Math.abs(vt)));   // 0 に近いほど浅い
     if (w.tuning.wallSlide && speed > 1400 && incidence < 0.21) {
-      b.vx = tx * vt; b.vy = ty * vt;        // 法線成分を殺して沿わせる
-      b.x = p.x + nx * (b.r + 1e-3);
-      b.y = p.y + ny * (b.r + 1e-3);
-      return { speed: Math.abs(vn), slide: true };
+      let run = 0;
+      if (s.kind === 'arc') {
+        const gap = (b.slideX == null) ? Infinity : Math.hypot(b.x - b.slideX, b.y - b.slideY);
+        run = (gap > 4 * b.r) ? 0 : b.slideRun + gap;
+        b.slideRun = run; b.slideX = b.x; b.slideY = b.y;
+      }
+      const cap = w.table.perimeter ? w.table.perimeter / 4 : Infinity;
+      if (s.kind !== 'arc' || run < cap) {
+        b.vx = tx * vt; b.vy = ty * vt;      // 法線成分を殺して沿わせる
+        b.x = p.x + nx * (b.r + 1e-3);
+        b.y = p.y + ny * (b.r + 1e-3);
+        return { speed: Math.abs(vn), slide: true };
+      }
+      /*
+       * 上限に達した。沿わせるのをやめ、下の反射へ落とす（＝接線方向へ離脱する）。
+       * **走った長さはここで 0 に戻さない。**戻すと次の接触でまた沿い始めてしまい、
+       * ひと突きぶんの周回はまったく短くならない。
+       * 数え直すのは、玉が壁から離れたと分かったとき（上の gap の判定）だけにする。
+       */
     }
 
     if (!w.tuning.cushionSpin) {

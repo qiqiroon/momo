@@ -232,11 +232,20 @@ const BilliardsTable = (() => {
     return quad(th);
   }
 
+  /**
+   * θ がこの楕円弧の範囲に入っているか。
+   * **sweep が負なら逆回り**（ドーナツの中央の島は外周と逆向きの輪＝3.7節）。
+   * 進んだぶんは、正なら θ−t0、負なら t0−θ で測る。
+   */
+  function ellInRange(e, th) {
+    const off = e.sweep < 0 ? norm2pi(e.t0 - th) : norm2pi(th - e.t0);
+    return off <= Math.abs(e.sweep);
+  }
+
   /** 点にいちばん近い、この楕円弧の上の θ。範囲の外なら近いほうの端へ寄せる */
   function ellNearestClamped(e, px, py) {
     const th = ellNearestParam(e, px, py);
-    const off = norm2pi(th - e.t0);
-    if (off <= Math.abs(e.sweep)) return e.t0 + (e.sweep < 0 ? -off : off);
+    if (ellInRange(e, th)) return th;
     const a = ellPoint(e, e.t0), b = ellPoint(e, e.t0 + e.sweep);
     return (Math.hypot(px - a.x, py - a.y) <= Math.hypot(px - b.x, py - b.y))
       ? e.t0 : e.t0 + e.sweep;
@@ -395,7 +404,9 @@ const BilliardsTable = (() => {
         if (u < -1 || u > 1) continue;
         const b = Math.asin(u);
         for (const ang of [b, Math.PI - b]) {
-          if (norm2pi(ang - t0) > Math.abs(e.sweep)) continue;
+          // 逆回りの輪もあるので、進んだぶんは向きを見て測る
+          const off = e.sweep < 0 ? norm2pi(t0 - ang) : norm2pi(ang - t0);
+          if (off > Math.abs(e.sweep)) continue;
           seen(e.cx + ax * Math.cos(ang));
         }
       } else if ((e.y1 > axisY) !== (e.y2 > axisY)) {
@@ -494,9 +505,14 @@ const BilliardsTable = (() => {
     // 内か外かの向きだけは折れ線で数える。折れ線は円弧より内へ 0.10 mm ほど落ちるので、
     // 向きが入れ替わりうるのは境界から 0.10 mm 以内＝距離がほぼ 0 の帯だけで、
     // 「玉が丸ごと収まるか」（28.575 mm）の答えは動かない。
+    //
+    // ドーナツ型は中央に島を持つ（3.7節「内側境界要素列」）。
+    // **島の中は台の外**なので、外周の中にあっても島の中なら外と数える。
     let best = Infinity;
     for (const e of table.bounds) { const d = elemDist(e, x, y); if (d < best) best = d; }
-    return inPolygon(table.outline, x, y) ? best : -best;
+    const inside = inPolygon(table.outline, x, y)
+      && !(table.innerOutline && inPolygon(table.innerOutline, x, y));
+    return inside ? best : -best;
   }
 
   /** 外周から margin 以上内側にあるか。margin に負の値を渡せば「外側への許容」になる */
@@ -530,7 +546,9 @@ const BilliardsTable = (() => {
 
   function diamonds(table) {
     const out = [];
-    for (const e of table.bounds) {
+    // ダイヤは**外周のレールだけ**に置く。ドーナツの中央の島は壁ではあるが
+    // 手前から狙いを合わせる目印にはならないため（3.5.5節は島を台形状の一部と定める）
+    for (const e of table.outerBounds) {
       const len = elemLen(e);
       const div = Math.max(2, Math.round(len / DIAMOND_PITCH));
       // 境界は反時計回りに持っているので、進む向き (ex, ey) に対して外向きは (ey, -ex)
@@ -1004,9 +1022,51 @@ const BilliardsTable = (() => {
     };
   }
 
+  /**
+   * A-07 ドーナツ型（3.5.5節）。外周の中に、もうひとつ閉じた輪（中央の島）を持つ。
+   *
+   * **元の形は真円だが、外接矩形を 2540 × 1270 に揃えると横1.18倍・縦0.59倍に潰れ、
+   * 外周も島も楕円になる。**これは 3.2.2節の面積表（70%）がその値と一致することからも
+   * 規定の側で織り込み済みである（π·1270·635 − π·423.4·211.7 ＝ 2,251,981 mm²）。
+   * 島の大きさは 3.5.5節の「内半径 ÷ 外半径」＝ 358.3 / 1074.8 をそのまま掛ける。
+   *
+   * **中央の島は障害物ではなく台形状の一部**（5.7.5節・D17／D51）。外周と同じ物性・
+   * 同じ高さの内側の壁として扱い、通常モードでも存在する。ポケットは置かない（3.4.3節）。
+   *
+   * **ポケット6個は弧長を6等分した位置**（3.4.3節）。3.5.5節は「外周上に60度間隔」と書くが、
+   * それは**真円だった頃に、たまたま弧長等間隔と同じ答えになっていた言い方**である。
+   * 横長に潰したあとの「60度」は画面上のどの角度とも一致せず、
+   * 置くと間隔が 895／895／1285 mm と不揃いになる。弧長等間隔を採る。
+   *
+   * ★**玉を並べる線を長軸から外す**（axisY）。長軸の上に並べると、
+   * 手玉とラックのあいだに島が座り、**先頭球へまっすぐ当てられる置き場所が1つも無くなる**
+   * （0.5 mm 刻みで全域を探して 0 点）。ナインボールとローテーションは先頭の1番へ
+   * 最初に当てる必要があるため、9割以上のブレイクが反則になる。
+   * 線は**中央の島と外周の、短軸で測った中間**に通す。一文で言える規則であり、
+   * ブレイクの筋が島からいちばん離れる（153 mm）。L字が腕の中心線で同じことをしている。
+   */
+  const DONUT_K = 358.3 / 1074.8;      // 3.5.5節の 内半径 ÷ 外半径 ＝ 0.33336
+
+  function shapeA07() {
+    const iax = HX * DONUT_K, iby = HY * DONUT_K;   // 島の半径 423.37 × 211.69
+    const id = ['HR', 'HT', 'HL', 'FL', 'FT', 'FR'];   // 真上から反時計回り
+    return {
+      shape: 'A-07',
+      bounds: [ell(0, 0, HX, HY, Math.PI / 2, 2 * Math.PI, 'in')],
+      // 外周とは逆向きの閉じた輪（3.7節）。台の内側は島の外にあるので side は 'out'
+      inner: [ell(0, 0, iax, iby, Math.PI / 2, -2 * Math.PI, 'out')],
+      pocketSpec: id.map((v, k) => (
+        { id: v, at: 'edge', i: 0, t: (2 * k + 1) / 12, mouth: MOUTH, r: 58 }
+      )),
+      longAxis: 'x', footDirection: +1,
+      axisY: -(iby + HY) / 2,            // −423.34
+      frameStyle: 'outline',
+    };
+  }
+
   const SHAPES = {
     'A-01': shapeA01, 'A-02': shapeA02, 'A-04': shapeA04, 'A-06': shapeA06,
-    'A-08': shapeA08, 'A-09': shapeA09, 'A-11': shapeA11,
+    'A-07': shapeA07, 'A-08': shapeA08, 'A-09': shapeA09, 'A-11': shapeA11,
   };
 
   /** 選べる外形の一覧（実装済みのものだけ） */
@@ -1027,30 +1087,40 @@ const BilliardsTable = (() => {
      * どちらの道でも、この先は bounds（判定・壁・ポケット）と
      * outline（描画と内外の向き）の2つが必ず揃う。
      */
-    let bounds, outline, sy;
+    let outerBounds, outline, sy;
     if (s.bounds) {
       // 曲面の台は既に 2540 × 1270 に揃った寸法で返ってくる（半円が歪まないため）
-      bounds = s.bounds;
-      outline = sampleBounds(bounds);
+      outerBounds = s.bounds;
+      outline = sampleBounds(outerBounds);
       sy = 1;
     } else {
       // どの台も外接矩形を 2540 × 1270 に揃える（3.2.2節）。
       // 星型は自分で合わせてから返してくるので、ここを通しても何も変わらない。
       const fit = fitToBox(s.outline);
       outline = fit.outline;
-      bounds = boundsFromOutline(outline);
+      outerBounds = boundsFromOutline(outline);
       sy = fit.sy;
     }
+    /*
+     * 内側境界要素列（3.7節）。ドーナツ型の中央の島だけが持つ、外周とは逆向きの閉じた輪。
+     * 判定・壁は外周と一緒に扱い、ダイヤと外周長は外周だけを見る。
+     */
+    const innerBounds = s.inner || null;
+    const innerOutline = innerBounds ? sampleBounds(innerBounds) : null;
+    const bounds = innerBounds ? outerBounds.concat(innerBounds) : outerBounds;
     const axisY = (s.axisY || 0) * sy;         // 玉を並べる線も一緒に潰す
-    const spotX = footSpotX(bounds, outline, axisY);
+    const spotX = footSpotX(bounds, outline, innerOutline, outerBounds, axisY);
     const fillets = buildFillets(outline, FILLET_R);
     return {
       shape: s.shape,
       name: s.shape,
       hasPockets: !!hasPockets,
       outline,
+      innerOutline,
       bounds,
-      perimeter: perimeterOf(bounds),
+      outerBounds,
+      // 壁ズリの上限に使う外周長は**外周だけ**（5.7.3節）
+      perimeter: perimeterOf(outerBounds),
       halfW: BOX_W / 2, halfH: BOX_H / 2,
       ballR: R,
       rails: buildRails(bounds, outline, s.pocketSpec, !!hasPockets, fillets),
@@ -1100,9 +1170,10 @@ const BilliardsTable = (() => {
    * 外側の玉が壁へ食い込む。そこで**「中点」と「ラックが収まるいちばん奥」の小さいほう**を採る。
    * 形ごとに値を並べない ── 並べると台を足したときに書き忘れる（ダイヤ・丸めと同じ理由）。
    */
-  function footSpotX(bounds, outline, axisY) {
-    const tb = { bounds, outline };
-    const reach = boundaryReach(bounds, axisY);
+  function footSpotX(bounds, outline, innerOutline, outerBounds, axisY) {
+    const tb = { bounds, outline, innerOutline };
+    // 壁に達する位置は**外周だけ**で測る（中央の島は「達した」とは言えない）
+    const reach = boundaryReach(outerBounds, axisY);
     const fits = sx => triangleCells(sx, axisY).every(c => clearance(tb, c.x, c.y) >= R);
     let x = reach / 2;
     while (x > 0 && !fits(x)) x -= 1;    // 1 mm ずつ手前へ。どの端末でも同じ値になる
@@ -1177,7 +1248,7 @@ const BilliardsTable = (() => {
     isArc, isEll, elemLen, elemPointT, elemPointFrac, elemDist, elemNearest, subElem,
     boundsFromOutline, sampleBounds, boundaryReach, perimeterOf,
     // 楕円弧の幾何。エンジン側の当たり判定もここを通す（依存の向きは engine → table）
-    ell, ellPoint, ellNormal, ellParam, ellNearestParam, ellNearestClamped,
+    ell, ellPoint, ellNormal, ellParam, ellNearestParam, ellNearestClamped, ellInRange,
   };
 })();
 

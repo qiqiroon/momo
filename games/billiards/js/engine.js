@@ -365,10 +365,26 @@ const BilliardsEngine = (() => {
     const gy = Math.max(0, e.y0 - b.y, b.y - e.y1);
     if (gx > reach || gy > reach || Math.hypot(gx, gy) > reach) return Infinity;
 
-    // すでに壁へ食い込んでいるなら、その場を接触として返す（円弧と同じ理由）
-    const thN = BilliardsTable.ellNearestClamped(e, b.x, b.y);
+    /*
+     * すでに壁へ食い込んでいるなら、その場を接触として返す（円弧と同じ理由）。
+     *
+     * ★楕円では「玉の中心が壁からどれだけ離れているか」だけでは足りない。
+     * 円弧なら実効半径ひとつの大小比較が浅い食い込みも深い食い込みも同時に表すが、
+     * 楕円では距離しか持たないので、**壁の向こうへ丸ごと入り込むと
+     * 距離が玉半径より大きくなり「触れていない」と読めてしまう**
+     * （ドーナツの中央の島に玉が入り込んだまま出てこなくなる）。
+     * そこで先に「どちら側に居るか」を見る。縦横を 1 に縮めれば内外は半径ひとつで分かる。
+     *
+     * ただしこれは**その玉に正対している一片**にだけ当てる。円弧を切った一片では、
+     * 遠くの玉まで「向こう側に居る」と数えてしまい、ポケットへ落ちる玉を押し戻す。
+     */
+    const thRaw = BilliardsTable.ellNearestParam(e, b.x, b.y);
+    const inRange = BilliardsTable.ellInRange(e, thRaw);
+    const thN = inRange ? thRaw : BilliardsTable.ellNearestClamped(e, b.x, b.y);
     const qN = BilliardsTable.ellPoint(e, thN);
-    if (Math.hypot(b.x - qN.x, b.y - qN.y) < b.r) {
+    const sc = Math.hypot((b.x - e.cx) / e.ax, (b.y - e.cy) / e.by);
+    const wrongSide = inRange && ((e.side === 'in') ? (sc > 1) : (sc < 1));
+    if (wrongSide || Math.hypot(b.x - qN.x, b.y - qN.y) < b.r) {
       const i = ellInward(e, thN);
       if (b.vx * i.x + b.vy * i.y < 0) return 0;
     }
@@ -523,7 +539,7 @@ const BilliardsEngine = (() => {
       }
     } else if (s.kind === 'ell') {
       const raw = BilliardsTable.ellNearestParam(s, b.x, b.y);
-      if (norm2pi(raw - s.t0) <= Math.abs(s.sweep)) {     // 端が最寄り（角）でなければ形から決める
+      if (BilliardsTable.ellInRange(s, raw)) {            // 端が最寄り（角）でなければ形から決める
         const n = ellInward(s, raw);
         nx = n.x; ny = n.y;
       }

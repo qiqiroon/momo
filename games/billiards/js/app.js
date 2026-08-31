@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.40';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.41';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -1521,12 +1521,20 @@
    * クロスも枠も置ける範囲も、この1本の輪郭から作る。
    */
   function tablePath(table) {
-    const o = table.outline;
+    const trace = o => {
+      const p0 = toScreen(o[0].x, o[0].y);
+      ctx.moveTo(p0.x, p0.y);
+      for (let i = 1; i < o.length; i++) { const p = toScreen(o[i].x, o[i].y); ctx.lineTo(p.x, p.y); }
+      ctx.closePath();
+    };
     ctx.beginPath();
-    const p0 = toScreen(o[0].x, o[0].y);
-    ctx.moveTo(p0.x, p0.y);
-    for (let i = 1; i < o.length; i++) { const p = toScreen(o[i].x, o[i].y); ctx.lineTo(p.x, p.y); }
-    ctx.closePath();
+    trace(table.outline);
+    /*
+     * ドーナツ型の中央の島は、この輪郭の「穴」である（3.7節の内側境界要素列）。
+     * 同じ道すじに輪をもう1つ足し、塗りと切り抜きは 'evenodd' で数える。
+     * 輪が1つの台では 'evenodd' でも結果は変わらない。
+     */
+    if (table.innerOutline) trace(table.innerOutline);
   }
 
   /**
@@ -1689,7 +1697,7 @@
     const cg = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
     cg.addColorStop(0, '#17573f'); cg.addColorStop(.45, '#0f3d2e'); cg.addColorStop(1, '#0b2e22');
     tablePath(table);
-    ctx.fillStyle = cg; ctx.fill();
+    ctx.fillStyle = cg; ctx.fill('evenodd');
     ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 1.5; ctx.stroke();
     // ダイヤ（レール上の目印）。位置は外周の辺から決まる（形ごとの並べ書きはしない）
     ctx.fillStyle = 'rgba(255,240,215,.55)';
@@ -1704,7 +1712,7 @@
     // ヘッドストリングとフットスポット。線は外周の中だけに出す
     if (table.hasPockets) {
       ctx.save();
-      tablePath(table); ctx.clip();
+      tablePath(table); ctx.clip('evenodd');
       const h1 = toScreen(table.headSpot.x, -table.halfH), h2 = toScreen(table.headSpot.x, table.halfH);
       ctx.beginPath(); ctx.moveTo(h1.x, h1.y); ctx.lineTo(h2.x, h2.y);
       ctx.strokeStyle = 'rgba(255,255,255,.13)'; ctx.lineWidth = 1; ctx.stroke();
@@ -2033,7 +2041,7 @@
     const x1 = -table.halfW, x2 = full ? table.halfW : kitchenLimit();
     const p1 = toScreen(x2, -table.halfH), p2 = toScreen(x1, table.halfH);
     ctx.save();
-    tablePath(table); ctx.clip();
+    tablePath(table); ctx.clip('evenodd');
     ctx.fillStyle = 'rgba(251,146,60,.10)';
     ctx.fillRect(p1.x, p1.y, p2.x - p1.x, p2.y - p1.y);
     ctx.strokeStyle = 'rgba(251,146,60,.5)'; ctx.setLineDash([6, 5]); ctx.lineWidth = 1.4;
@@ -2184,13 +2192,17 @@
 
     const table = g.table;
     // 台面は外周そのもの。四隅で描くと、六角形以降で無い床が見える
-    const corners = table.outline.map(p => ({ x: p.x, y: p.y, z: 0 }));
-    const poly = clipNear(corners, cam, f, 45).map(v => proj(v.x, v.y, v.z)).filter(Boolean);
-    if (poly.length > 2) {
-      ctx.beginPath(); ctx.moveTo(poly[0].x, poly[0].y);
-      for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i].x, poly[i].y);
-      ctx.closePath(); ctx.fillStyle = '#12482f'; ctx.fill();
-    }
+    const floor = (o, col, top) => {
+      const pts = clipNear(o.map(p => ({ x: p.x, y: p.y, z: top || 0 })), cam, f, 45)
+        .map(v => proj(v.x, v.y, v.z)).filter(Boolean);
+      if (pts.length <= 2) return;
+      ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+      ctx.closePath(); ctx.fillStyle = col; ctx.fill();
+    };
+    floor(table.outline, '#12482f');
+    // ドーナツ型の中央の島。台面より高い蓋として、クッションの上端の高さで塗る
+    if (table.innerOutline) floor(table.innerOutline, '#6b3d1f', table.cushionTop);
     ctx.strokeStyle = '#8a5228'; ctx.lineWidth = 6; ctx.lineCap = 'round';
     for (const sgm of table.rails) {
       if (sgm.kind === 'arc') {

@@ -613,18 +613,38 @@ const BilliardsTable = (() => {
     // 区切りの位置。ポケットがあればその中心、無ければ境界要素の切れ目
     let marks;
     if (table.pockets && table.pockets.length) {
-      marks = table.pockets.map(p => p.s).filter(s => s != null).sort((a, b) => a - b);
+      marks = table.pockets.map(p => p.s).filter(s => s != null);
+      /*
+       * ★台が求めれば、**凹んだ角も区切りに加える**（星型・十字）。
+       * 凹んだ角をまたいで等分すると、角の上に目印が乗ることがあり（星型の谷）、
+       * また角の手前と向こうで間隔の意味が変わってしまう。
+       * 角を区切りにすれば、目印は角の両側に分かれて並ぶ。
+       */
+      if (table.splitAtConcave) {
+        let acc = 0;
+        for (let i = 0; i < B.length; i++) {
+          const prev = B[(i - 1 + B.length) % B.length];
+          const pe = elemPointT(prev, 1), ps = elemPointT(B[i], 0);
+          const u = elemNearest(prev, pe.x, pe.y), w = elemNearest(B[i], ps.x, ps.y);
+          // 反時計回りに持っているので、右へ曲がっていれば凹んだ角
+          if ((u.ex * w.ey - u.ey * w.ex) / (u.len * w.len) < -1e-9) marks.push(acc);
+          acc += elemLen(B[i]);
+        }
+      }
+      marks.sort((a, b) => a - b);
     } else {
       marks = []; let acc = 0;
       for (const e of B) { marks.push(acc); acc += elemLen(e); }
     }
     if (!marks.length) return out;
+    // 狙いの間隔。台が別に持っていればそれを使う（十字は短い辺の半分）
+    const pitch = table.diamondPitch || DIAMOND_PITCH;
     for (let k = 0; k < marks.length; k++) {
       const a = marks[k];
       const b = (k + 1 < marks.length) ? marks[k + 1] : marks[0] + total;
       const span = b - a;
-      let div = Math.max(2, Math.round(span / DIAMOND_PITCH));
-      if (span / div < DIAMOND_PITCH / 2) div = 1;      // 詰まりすぎるなら置かない
+      let div = Math.max(2, Math.round(span / pitch));
+      if (span / div < pitch / 2) div = 1;              // 詰まりすぎるなら置かない
       for (let j = 1; j < div; j++) {
         let s = a + span * j / div;
         if (s >= total) s -= total;
@@ -947,6 +967,17 @@ const BilliardsTable = (() => {
         { id: 'HT', at: 'vertex', i: 9, cut: GAP_CORNER, r: 63 },
         { id: 'HB', at: 'vertex', i: 10, cut: GAP_CORNER, r: 63 },
       ],
+      /*
+       * ★ダイヤは凹んだ角も区切りにして、その間を等分する。
+       * こうすると区切りの間は「長い辺 846.7 mm」と「短い辺 423.3 mm」の2種類だけになる。
+       * 外接矩形が 2:1 なので、長い辺は外接矩形の長辺の 1/3、短い辺は短辺の 1/3 で、
+       * **短い辺はちょうど長い辺の半分**である。
+       * 狙いの間隔を「短い辺の半分」＝ 1270 ÷ 6 ＝ 211.67 mm に取ると、
+       * 長い辺は4等分・短い辺は2等分となり、**台じゅうで間隔がぴたりと揃う**。
+       * 共通の 317.5 mm のままだと 3等分と2等分になり、282 mm と 212 mm が混じる。
+       */
+      splitAtConcave: true,
+      diamondPitch: BOX_H / 6,
       longAxis: 'x', footDirection: +1,
       axisY: 0,
       frameStyle: 'outline',
@@ -1009,6 +1040,13 @@ const BilliardsTable = (() => {
       pocketSpec: tipAng.map((_, k) => (
         { id: pocketId[k], at: 'edge', i: k * 3, t: 0.5, half: MOUTH / 2 + 0.5, r: 58 }
       )),
+      /*
+       * ★ダイヤは凹んだ角（谷）も区切りにして、その間を等分する。
+       * 谷をまたいで等分していたときは、**谷のちょうど上に目印が1つ乗っていた**。
+       * 谷を区切りにすれば目印は谷の両側に分かれ、間の長さに応じて2〜3等分になる。
+       * 星型は間の長さが 471〜1001 mm とばらばらなので、狙いの間隔は共通の 317.5 mm のまま。
+       */
+      splitAtConcave: true,
       longAxis: 'x', footDirection: +1,
       axisY: 0,
       frameStyle: 'outline',
@@ -1252,6 +1290,9 @@ const BilliardsTable = (() => {
       // 手玉を置ける線と、ブレイクの既定の置き場所（持たない台は null＝従来どおり）
       kitchenX,
       breakSpot,
+      // ダイヤの区切りに凹んだ角も加えるか／狙いの間隔（持たない台は従来どおり）
+      splitAtConcave: !!s.splitAtConcave,
+      diamondPitch: s.diamondPitch || null,
       center: pt(0, axisY),
       // 物性値（3.7節・5.3.4節）。通常モードでの台ごとの差は微差に留める
       cushionRestitution: 0.86,

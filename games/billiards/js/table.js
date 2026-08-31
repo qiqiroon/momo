@@ -922,6 +922,13 @@ const BilliardsTable = (() => {
         { id: 'SB', at: 'edge', i: 0, t: 0.5, half: GAP_SIDE, r: 58 },
         { id: 'SL', at: 'edge', i: 5, t: 0.5, half: GAP_SIDE, r: 58 },
       ],
+      /*
+       * ★ダイヤは凹んだ角も区切りにして、その間を等分する。
+       * 加えないと、1904.9 mm の間を6等分した3つ目が**凹んだ角の 0.1 mm 手前**に来る。
+       * 角を区切りにするとその間は 1270.0 と 635.0 に分かれ、どちらも 317.5 の倍数なので
+       * **間隔は 317.5 mm のまま変わらず**、角に寄り添っていた1つだけが消える（17個→16個）。
+       */
+      splitAtConcave: true,
       longAxis: 'x', footDirection: +1,
       axisY,
       frameStyle: 'outline',

@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.38';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.39';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -850,6 +850,25 @@
             if (tt <= 0 || tt >= L) continue;
             const ang = Math.atan2(cue.y + dy * tt - s.cy, cue.x + dx * tt - s.cx);
             if (arcOffset(ang - s.a0) > s.sweep) continue;
+            L = tt; break;
+          }
+          continue;
+        }
+        if (s.kind === 'ell') {
+          // 縦横を 1 に縮めた座標で見れば円と同じ2次式になる（楕円弧＝A-04）
+          const qx = (cue.x - s.cx) / s.ax, qy = (cue.y - s.cy) / s.by;
+          const ux = dx / s.ax, uy = dy / s.by;
+          const A2 = ux * ux + uy * uy;
+          const B2 = 2 * (qx * ux + qy * uy);
+          const disc = B2 * B2 - 4 * A2 * (qx * qx + qy * qy - 1);
+          if (disc < 0) continue;
+          const sq = Math.sqrt(disc);
+          const roots = [(-B2 - sq) / (2 * A2), (-B2 + sq) / (2 * A2)];
+          for (let ri = 0; ri < 2; ri++) {
+            const tt = roots[ri];
+            if (tt <= 0 || tt >= L) continue;
+            const ang = Math.atan2((cue.y + dy * tt - s.cy) / s.by, (cue.x + dx * tt - s.cx) / s.ax);
+            if (arcOffset(ang - s.t0) > Math.abs(s.sweep)) continue;
             L = tt; break;
           }
           continue;
@@ -2181,6 +2200,18 @@
         for (let i = 0; i <= steps; i++) {
           const ang = sgm.a0 + sgm.sweep * i / steps;
           const q = proj(sgm.cx + Math.cos(ang) * sgm.r, sgm.cy + Math.sin(ang) * sgm.r, table.cushionTop);
+          if (prev && q) { ctx.beginPath(); ctx.moveTo(prev.x, prev.y); ctx.lineTo(q.x, q.y); ctx.stroke(); }
+          prev = q;
+        }
+        continue;
+      }
+      if (sgm.kind === 'ell') {
+        // 楕円弧も見た目は折れ線でよい（同上）
+        const steps = Math.max(2, Math.ceil(Math.abs(sgm.sweep) / 0.12));
+        let prev = null;
+        for (let i = 0; i <= steps; i++) {
+          const ang = sgm.t0 + sgm.sweep * i / steps;
+          const q = proj(sgm.cx + Math.cos(ang) * sgm.ax, sgm.cy + Math.sin(ang) * sgm.by, table.cushionTop);
           if (prev && q) { ctx.beginPath(); ctx.moveTo(prev.x, prev.y); ctx.lineTo(q.x, q.y); ctx.stroke(); }
           prev = q;
         }

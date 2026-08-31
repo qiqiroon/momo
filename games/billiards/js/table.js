@@ -113,16 +113,152 @@ const BilliardsTable = (() => {
 
   /** 境界要素が円弧か（直線分は kind を持たない＝エンジンと同じ見分け方） */
   function isArc(e) { return e.kind === 'arc'; }
+  /** 境界要素が楕円弧か */
+  function isEll(e) { return e.kind === 'ell'; }
 
-  /** 境界要素の長さ。円弧は弧長 */
-  function elemLen(e) { return isArc(e) ? e.r * e.sweep : Math.hypot(e.x2 - e.x1, e.y2 - e.y1); }
+  // ── 楕円弧（3.7節）──
+  /*
+   * ★楕円は円ではないので、円弧の道具では表せない。
+   *
+   * 円弧なら「玉の中心が通る線」は半径を玉半径ぶん増減した**円**になるので、
+   * 実効半径ひとつで解ける。楕円ではその線が楕円にならないため、この手は使えない。
+   * そこで媒介変数 θ で持つ ── 楕円の上の点は (cx + ax·cosθ, cy + by·sinθ)。
+   * **θ が決まれば接点も法線も式のまま出る**ので、折れ線で近似することにはならない。
+   *
+   * 弧長は θ の式では閉じた形に書けない（3.4.3節）。そこで**要素を作るときに
+   * 一度だけ刻んで積み上げた表を持たせる**。以後の弧長⇔θ の行き来はこの表を引くだけで、
+   * 対局中に積分をやり直すことはない（3.4.3節「実行時に弧長積分を行ってはならない」）。
+   */
+  const ELL_STEPS = 2048;            // 一周ぶんの刻み数。半周なら 1024 になる
 
-  /** 境界要素を 0〜1 で辿った点。円弧では弧長に比例＝角度に比例する */
+  function ell(cx, cy, ax, by, t0, sweep, side) {
+    const n = Math.max(16, Math.round(ELL_STEPS * Math.abs(sweep) / (2 * Math.PI)));
+    const cum = new Array(n + 1);
+    cum[0] = 0;
+    let px = cx + ax * Math.cos(t0), py = cy + by * Math.sin(t0);
+    // 外接矩形も一緒に取る。当たり判定の「まだ遠い」を安く見切るのに使う
+    let x0 = px, x1 = px, y0 = py, y1 = py;
+    for (let i = 1; i <= n; i++) {
+      const th = t0 + sweep * i / n;
+      const qx = cx + ax * Math.cos(th), qy = cy + by * Math.sin(th);
+      cum[i] = cum[i - 1] + Math.hypot(qx - px, qy - py);
+      if (qx < x0) x0 = qx; if (qx > x1) x1 = qx;
+      if (qy < y0) y0 = qy; if (qy > y1) y1 = qy;
+      px = qx; py = qy;
+    }
+    return { kind: 'ell', cx, cy, ax, by, t0, sweep, side: side || 'in', n, cum, x0, x1, y0, y1 };
+  }
+
+  /** 楕円弧の θ における点 */
+  function ellPoint(e, th) {
+    return pt(e.cx + e.ax * Math.cos(th), e.cy + e.by * Math.sin(th));
+  }
+
+  /** 楕円弧の θ における外向き単位法線（楕円の外を向く） */
+  function ellNormal(e, th) {
+    const nx = e.by * Math.cos(th), ny = e.ax * Math.sin(th);
+    const l = Math.hypot(nx, ny) || 1;
+    return pt(nx / l, ny / l);
+  }
+
+  /** 弧長 s（始点から）に対応する θ。事前計算した表を引くだけ */
+  function ellParam(e, s) {
+    const cum = e.cum, n = e.n, total = cum[n];
+    if (s <= 0) return e.t0;
+    if (s >= total) return e.t0 + e.sweep;
+    let lo = 0, hi = n;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (cum[m] <= s) lo = m; else hi = m; }
+    const d = cum[hi] - cum[lo];
+    const f = d < 1e-12 ? 0 : (s - cum[lo]) / d;
+    return e.t0 + e.sweep * (lo + f) / n;
+  }
+
+  /**
+   * 点にいちばん近い楕円の上の θ。
+   *
+   * ★**楕円では、1つの点から法線が4本立つことがある。**中心の近くがそれで、
+   * 距離が極小になる向きと極大になる向きが混じっている。だから
+   * 「距離を微分した式の零点をニュートン法で追う」だけでは、
+   * 出発点しだいで**いちばん遠い点**に落ち着いてしまう（原点で 1270 と出た）。
+   *
+   * そこで**必ず正しい側に入る解き方**にする。
+   * 点を第1象限へ折り返すと、いちばん近い点も必ず第1象限に来る。
+   * その範囲では F(0) ≦ 0・F(π/2) ≧ 0 と符号が決まっているので、
+   * 挟み込み（二分法）で確実に根を捕まえられる。捕まえてからニュートンで詰め、
+   * 行き過ぎたら挟み込みへ戻す。**回数を決め打ちにする**のでどの端末でも同じ答えになる。
+   *
+   * 軸の上にいる点は挟み込みの端が 0 になって符号で決められないので、式のまま解く。
+   */
+  function ellNearestParam(e, px, py) {
+    const a = e.ax, b = e.by;
+    const u = px - e.cx, v = py - e.cy;
+    const U = Math.abs(u), V = Math.abs(v);
+    const quad = th => (u >= 0)
+      ? (v >= 0 ? th : -th)
+      : (v >= 0 ? Math.PI - th : Math.PI + th);
+
+    // 短径の線の上（U＝0）。いちばん近いのは短径の端
+    if (U < 1e-12) return quad(Math.PI / 2);
+    // 長径の線の上（V＝0）。縮閉線の内側にいるかどうかで、端か脇かが分かれる
+    if (V < 1e-12) {
+      const k = (a * a - b * b) / a;
+      if (U >= k) return quad(0);
+      return quad(Math.acos(a * U / (a * a - b * b)));
+    }
+
+    const F = th => (b * b - a * a) * Math.sin(th) * Math.cos(th)
+      + a * U * Math.sin(th) - b * V * Math.cos(th);
+    let lo = 0, hi = Math.PI / 2;                 // F(lo) < 0 < F(hi) が保証されている
+    for (let k = 0; k < 12; k++) {
+      const m = (lo + hi) / 2;
+      if (F(m) < 0) lo = m; else hi = m;
+    }
+    let th = (lo + hi) / 2;
+    for (let k = 0; k < 8; k++) {
+      const s = Math.sin(th), c = Math.cos(th);
+      const f = (b * b - a * a) * s * c + a * U * s - b * V * c;
+      if (f === 0) break;                                     // ちょうど根に乗った
+      const df = (b * b - a * a) * (c * c - s * s) + a * U * c + b * V * s;
+      if (f < 0) lo = th; else hi = th;
+      const next = (Math.abs(df) < 1e-12) ? (lo + hi) / 2 : th - f / df;
+      /*
+       * 挟みの外へ出たら二分法へ戻す。**端と等しいときは受け入れる。**
+       * 根に着いたときの次の一歩は直前の値そのものになり、その値は
+       * 直前に挟みの端へ入れたばかりなので、端を外すと
+       * **せっかく詰めた答えを捨てて中点へ戻ってしまう**（角度で 6×10⁻⁶ ずれた）。
+       */
+      th = (next >= lo && next <= hi) ? next : (lo + hi) / 2;
+    }
+    return quad(th);
+  }
+
+  /** 点にいちばん近い、この楕円弧の上の θ。範囲の外なら近いほうの端へ寄せる */
+  function ellNearestClamped(e, px, py) {
+    const th = ellNearestParam(e, px, py);
+    const off = norm2pi(th - e.t0);
+    if (off <= Math.abs(e.sweep)) return e.t0 + (e.sweep < 0 ? -off : off);
+    const a = ellPoint(e, e.t0), b = ellPoint(e, e.t0 + e.sweep);
+    return (Math.hypot(px - a.x, py - a.y) <= Math.hypot(px - b.x, py - b.y))
+      ? e.t0 : e.t0 + e.sweep;
+  }
+
+  /** 境界要素の長さ。円弧は弧長、楕円弧は事前計算した表の終わり */
+  function elemLen(e) {
+    if (isArc(e)) return e.r * e.sweep;
+    if (isEll(e)) return e.cum[e.n];
+    return Math.hypot(e.x2 - e.x1, e.y2 - e.y1);
+  }
+
+  /**
+   * 境界要素を 0〜1 で辿った点。**t はどの種類でも「長さの割合」で読む。**
+   * 円弧では角度に比例するが、楕円弧では比例しないので事前計算した表を引く。
+   */
   function elemPointT(e, t) {
     if (isArc(e)) {
       const a = e.a0 + e.sweep * t;
       return pt(e.cx + e.r * Math.cos(a), e.cy + e.r * Math.sin(a));
     }
+    if (isEll(e)) return ellPoint(e, ellParam(e, elemLen(e) * t));
     return pt(e.x1 + (e.x2 - e.x1) * t, e.y1 + (e.y2 - e.y1) * t);
   }
 
@@ -136,6 +272,7 @@ const BilliardsTable = (() => {
       const a = e.a0 + e.sweep * k / div;
       return pt(e.cx + e.r * Math.cos(a), e.cy + e.r * Math.sin(a));
     }
+    if (isEll(e)) return ellPoint(e, ellParam(e, elemLen(e) * k / div));
     return pt(e.x1 + (e.x2 - e.x1) * k / div, e.y1 + (e.y2 - e.y1) * k / div);
   }
 
@@ -150,14 +287,23 @@ const BilliardsTable = (() => {
       const a0 = e.a0 + s0 / e.r;
       return arc(e.cx, e.cy, e.r, a0, toEnd ? (e.a0 + e.sweep - a0) : (s1 - s0) / e.r, e.side);
     }
+    if (isEll(e)) {
+      const t0 = ellParam(e, s0);
+      const t1 = toEnd ? e.t0 + e.sweep : ellParam(e, s1);
+      return ell(e.cx, e.cy, e.ax, e.by, t0, t1 - t0, e.side);
+    }
     const L = elemLen(e), ux = (e.x2 - e.x1) / L, uy = (e.y2 - e.y1) / L;
     return toEnd
       ? seg(e.x1 + ux * s0, e.y1 + uy * s0, e.x2, e.y2)
       : seg(e.x1 + ux * s0, e.y1 + uy * s0, e.x1 + ux * s1, e.y1 + uy * s1);
   }
 
-  /** 点から境界要素までの距離。円弧の範囲の外なら近いほうの端までの距離 */
+  /** 点から境界要素までの距離。曲線の範囲の外なら近いほうの端までの距離 */
   function elemDist(e, px, py) {
+    if (isEll(e)) {
+      const q = ellPoint(e, ellNearestClamped(e, px, py));
+      return Math.hypot(px - q.x, py - q.y);
+    }
     if (!isArc(e)) return distToSeg(px, py, e.x1, e.y1, e.x2, e.y2);
     const dx = px - e.cx, dy = py - e.cy, d = Math.hypot(dx, dy);
     if (d > 1e-12 && norm2pi(Math.atan2(dy, dx) - e.a0) <= e.sweep) return Math.abs(d - e.r);
@@ -172,6 +318,15 @@ const BilliardsTable = (() => {
    * 長さの求め方を場所ごとに変えると、外向きの向きが最後の桁で食い違う。
    */
   function elemNearest(e, px, py) {
+    if (isEll(e)) {
+      const th = ellNearestClamped(e, px, py);
+      const q = ellPoint(e, th);
+      // 進む向きの接線。dQ/dθ ＝ (−ax·sinθ, by·cosθ)。sweep が負なら向きも逆
+      let tx = -e.ax * Math.sin(th), ty = e.by * Math.cos(th);
+      const l = Math.hypot(tx, ty) || 1;
+      const sg = e.sweep < 0 ? -1 : 1;
+      return { x: q.x, y: q.y, ex: sg * tx / l, ey: sg * ty / l, len: 1 };
+    }
     if (!isArc(e)) {
       const ex = e.x2 - e.x1, ey = e.y2 - e.y1, l2 = ex * ex + ey * ey;
       let t = l2 < 1e-12 ? 0 : ((px - e.x1) * ex + (py - e.y1) * ey) / l2;
@@ -206,12 +361,20 @@ const BilliardsTable = (() => {
    */
   const SAMPLE_STEP = Math.PI / 90;      // 2度。半径 635 mm で外へのふくらみ 0.10 mm
 
+  const SAMPLE_CHORD = 20;               // 楕円弧はこの長さごとに刻む（mm）
+
   function sampleBounds(bounds) {
     const o = [];
     for (const e of bounds) {
-      if (!isArc(e)) { o.push(pt(e.x1, e.y1)); continue; }
-      const k = Math.max(2, Math.ceil(e.sweep / SAMPLE_STEP));
-      for (let j = 0; j < k; j++) o.push(elemPointT(e, j / k));
+      if (isArc(e)) {
+        const k = Math.max(2, Math.ceil(e.sweep / SAMPLE_STEP));
+        for (let j = 0; j < k; j++) o.push(elemPointT(e, j / k));
+      } else if (isEll(e)) {
+        const k = Math.max(8, Math.ceil(elemLen(e) / SAMPLE_CHORD));
+        for (let j = 0; j < k; j++) o.push(elemPointFrac(e, j, k));
+      } else {
+        o.push(pt(e.x1, e.y1));
+      }
     }
     return o;
   }
@@ -222,21 +385,21 @@ const BilliardsTable = (() => {
    */
   function boundaryReach(bounds, axisY) {
     let reach = 0;
+    const seen = x => { if (x > reach) reach = x; };
     for (const e of bounds) {
-      if (!isArc(e)) {
-        if ((e.y1 > axisY) !== (e.y2 > axisY)) {
-          const x = e.x1 + (axisY - e.y1) * (e.x2 - e.x1) / (e.y2 - e.y1);
-          if (x > reach) reach = x;
+      if (isArc(e) || isEll(e)) {
+        // 円弧は ax＝by＝r の楕円弧と同じ式で解ける
+        const ax = isEll(e) ? e.ax : e.r, by = isEll(e) ? e.by : e.r;
+        const t0 = isEll(e) ? e.t0 : e.a0;
+        const u = (axisY - e.cy) / by;
+        if (u < -1 || u > 1) continue;
+        const b = Math.asin(u);
+        for (const ang of [b, Math.PI - b]) {
+          if (norm2pi(ang - t0) > Math.abs(e.sweep)) continue;
+          seen(e.cx + ax * Math.cos(ang));
         }
-        continue;
-      }
-      const u = (axisY - e.cy) / e.r;
-      if (u < -1 || u > 1) continue;
-      const b = Math.asin(u);
-      for (const ang of [b, Math.PI - b]) {
-        if (norm2pi(ang - e.a0) > e.sweep) continue;
-        const x = e.cx + e.r * Math.cos(ang);
-        if (x > reach) reach = x;
+      } else if ((e.y1 > axisY) !== (e.y2 > axisY)) {
+        seen(e.x1 + (axisY - e.y1) * (e.x2 - e.x1) / (e.y2 - e.y1));
       }
     }
     return reach;
@@ -503,14 +666,32 @@ const BilliardsTable = (() => {
      * 半径 r の円弧で弦 mouth を張る半角は asin(mouth / 2r) なので、
      * 沿って測った長さは r·asin(mouth / 2r) になる。直線ではそのまま半分。
      */
-    const edgeHalf = (pk, e) => (pk.half != null) ? pk.half
-      : isArc(e) ? e.r * Math.asin(Math.min(1, pk.mouth / (2 * e.r)))
-        : pk.mouth / 2;
+    const edgeHalf = (pk, e, c) => {
+      if (pk.half != null) return pk.half;
+      if (isArc(e)) return e.r * Math.asin(Math.min(1, pk.mouth / (2 * e.r)));
+      if (!isEll(e)) return pk.mouth / 2;
+      /*
+       * 楕円は場所によって曲がり方が違うので、弦から沿った長さを式で出せない。
+       * 「両端を結ぶ弦がちょうど口径になる半分の長さ」を、その場で挟み込んで出す。
+       * **台を組むときの一度だけ**なので、対局中に解き直すことはない。
+       */
+      const L = elemLen(e);
+      const chord = h => {
+        const p = elemPointT(e, (c - h) / L), q = elemPointT(e, (c + h) / L);
+        return Math.hypot(q.x - p.x, q.y - p.y);
+      };
+      let lo = pk.mouth / 2, hi = pk.mouth;          // 沿った長さは弦より長く、2倍まではいかない
+      for (let k = 0; k < 60; k++) {
+        const m = (lo + hi) / 2;
+        if (chord(m) < pk.mouth) lo = m; else hi = m;
+      }
+      return (lo + hi) / 2;
+    };
     if (hasPockets) {
       for (const pk of spec) {
         if (pk.at === 'vertex') cutAtVertex(pk.i, vertexCut(pk));
         else {
-          const c = len(pk.i) * pk.t, h = edgeHalf(pk, bounds[pk.i]);
+          const c = len(pk.i) * pk.t, h = edgeHalf(pk, bounds[pk.i], c);
           cuts[pk.i].push([c - h, c + h]);
         }
       }
@@ -788,8 +969,43 @@ const BilliardsTable = (() => {
     };
   }
 
+  /**
+   * A-04 楕円（3.5.3節）。
+   *
+   * **この台の境界は楕円弧ただ1本の閉じた輪**である。頂点も直線もない。
+   * 3.5.3節の寸法（長径 2866.1／短径 1433.0）は形の比で、比は既に 2:1 ＝ 2540 × 1270 と同じ。
+   * だから外接矩形を揃えても縦横同じ倍率になり、**長半径 1270・短半径 635** に落ち着く。
+   * 面積 π·1270·635 ＝ 2,533,540 mm²（標準長方形の 79%）で 3.2.2節の表と一致する。
+   *
+   * **ポケット6個は弧長を6等分した位置**（3.4.3節）。長径の両端に2個が乗り、
+   * 残り4個がその間に入る。**始まりを短径の端（真上）に置く**のは、
+   * 輪を切り開く継ぎ目にポケットが重ならないようにするため。
+   * こうすると6個はちょうど 1/12・3/12・…・11/12 の位置に来て、
+   * 長軸にも短軸にも線対称になる（3.4.3節が求める形）。
+   *
+   * 口の広さは 3.4.1節に従い**弦**で 114.30 mm。楕円は場所によって曲がり方が違うので、
+   * 沿った長さは 6 か所それぞれで別の値になる。
+   */
+  const ELLIP_A = HX;      // 長半径 1270.0
+  const ELLIP_B = HY;      // 短半径 635.0
+
+  function shapeA04() {
+    const id = ['HR', 'HT', 'HL', 'FL', 'FT', 'FR'];   // 真上から反時計回り
+    return {
+      shape: 'A-04',
+      // 反時計回り。真上（短径の端）から一周する
+      bounds: [ell(0, 0, ELLIP_A, ELLIP_B, Math.PI / 2, 2 * Math.PI, 'in')],
+      pocketSpec: id.map((v, k) => (
+        { id: v, at: 'edge', i: 0, t: (2 * k + 1) / 12, mouth: MOUTH, r: 58 }
+      )),
+      longAxis: 'x', footDirection: +1,
+      axisY: 0,
+      frameStyle: 'outline',
+    };
+  }
+
   const SHAPES = {
-    'A-01': shapeA01, 'A-02': shapeA02, 'A-06': shapeA06,
+    'A-01': shapeA01, 'A-02': shapeA02, 'A-04': shapeA04, 'A-06': shapeA06,
     'A-08': shapeA08, 'A-09': shapeA09, 'A-11': shapeA11,
   };
 
@@ -958,8 +1174,10 @@ const BilliardsTable = (() => {
     // 台の中では確かめようがないので、台とは別に作った多角形で直接確かめる。
     truncateSharp, fitToBox, interiorAngle,
     // 境界要素（3.7節）。曲面の台を直に測るために出している
-    isArc, elemLen, elemPointT, elemDist, elemNearest, subElem,
+    isArc, isEll, elemLen, elemPointT, elemPointFrac, elemDist, elemNearest, subElem,
     boundsFromOutline, sampleBounds, boundaryReach, perimeterOf,
+    // 楕円弧の幾何。エンジン側の当たり判定もここを通す（依存の向きは engine → table）
+    ell, ellPoint, ellNormal, ellParam, ellNearestParam, ellNearestClamped,
   };
 })();
 

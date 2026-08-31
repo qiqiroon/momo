@@ -327,8 +327,86 @@ const BilliardsEngine = (() => {
     return Infinity;
   }
 
+  /**
+   * 楕円弧のクッションに当たるまでの時間（3.7節）。
+   *
+   * ★円弧と違い、**玉の中心が通る線が楕円にならない**（円なら半径を玉半径ぶん
+   * 増減した円のままなので、実効半径ひとつで解けた）。だからこの手は使えない。
+   *
+   * そこで媒介変数で解く。楕円の上の点 Q(θ) から台の内側へ玉半径ぶん寄せた点を C(θ) とし、
+   *   「C(θ) が玉の進む直線の上に乗る」
+   * という 1 本の式の零点を探す。**θ が決まれば接点も法線も式のまま出る**ので、
+   * 折れ線で近似することにはならない（3.7節）。
+   * 根の在りかは θ を刻んで符号の変わり目で挟み、あとは挟み込みで詰めるだけである。
+   *
+   * 玉半径（28.575）は楕円のいちばんきつい曲がりの半径（635²/1270 ＝ 317.5）より
+   * ずっと小さいので、C(θ) は自分と交わらない。巨大玉でここを超えると前提が崩れる。
+   */
+  function ellOffsetPoint(e, th, r) {
+    const q = BilliardsTable.ellPoint(e, th);
+    const n = BilliardsTable.ellNormal(e, th);
+    const s = e.side === 'in' ? -r : r;
+    return { x: q.x + n.x * s, y: q.y + n.y * s };
+  }
+
+  /** 台の内側を向く単位法線（θ の場所で） */
+  function ellInward(e, th) {
+    const n = BilliardsTable.ellNormal(e, th);
+    return e.side === 'in' ? { x: -n.x, y: -n.y } : n;
+  }
+
+  function timeBallEll(b, e, tmax) {
+    const A = b.vx * b.vx + b.vy * b.vy;
+    if (A < EPS) return Infinity;
+    const reach = Math.sqrt(A) * tmax + b.r;
+
+    // 安い足切り。要素の外接矩形までの距離より遠くへは、このステップで届かない
+    const gx = Math.max(0, e.x0 - b.x, b.x - e.x1);
+    const gy = Math.max(0, e.y0 - b.y, b.y - e.y1);
+    if (gx > reach || gy > reach || Math.hypot(gx, gy) > reach) return Infinity;
+
+    // すでに壁へ食い込んでいるなら、その場を接触として返す（円弧と同じ理由）
+    const thN = BilliardsTable.ellNearestClamped(e, b.x, b.y);
+    const qN = BilliardsTable.ellPoint(e, thN);
+    if (Math.hypot(b.x - qN.x, b.y - qN.y) < b.r) {
+      const i = ellInward(e, thN);
+      if (b.vx * i.x + b.vy * i.y < 0) return 0;
+    }
+
+    const G = th => {
+      const c = ellOffsetPoint(e, th, b.r);
+      return (c.x - b.x) * b.vy - (c.y - b.y) * b.vx;
+    };
+    // 凸な曲線に直線を当てるので、交わるのは多くて2か所。刻みは粗くてよい
+    const M = Math.max(12, Math.ceil(Math.abs(e.sweep) / (2 * Math.PI) * 64));
+    let best = Infinity;
+    let thA = e.t0, gA = G(thA);
+    for (let i = 1; i <= M; i++) {
+      const thB = e.t0 + e.sweep * i / M, gB = G(thB);
+      if ((gA < 0) !== (gB < 0)) {
+        let lo = thA, hi = thB, gl = gA;
+        for (let k = 0; k < 40; k++) {
+          const m = (lo + hi) / 2, gm = G(m);
+          if ((gl < 0) !== (gm < 0)) hi = m; else { lo = m; gl = gm; }
+        }
+        const th = (lo + hi) / 2;
+        const c = ellOffsetPoint(e, th, b.r);
+        const t = ((c.x - b.x) * b.vx + (c.y - b.y) * b.vy) / A;
+        if (t >= -1e-7 && t <= tmax) {
+          const tt = t < 0 ? 0 : t;
+          const iw = ellInward(e, th);
+          if (tt < best && b.vx * iw.x + b.vy * iw.y < 0) best = tt;
+        }
+      }
+      thA = thB; gA = gB;
+    }
+    return best;
+  }
+
   function timeBallRail(b, s, tmax) {
-    return s.kind === 'arc' ? timeBallArc(b, s, tmax) : timeBallSeg(b, s, tmax);
+    if (s.kind === 'arc') return timeBallArc(b, s, tmax);
+    if (s.kind === 'ell') return timeBallEll(b, s, tmax);
+    return timeBallSeg(b, s, tmax);
   }
 
   // ───────── 衝突の解決 ─────────
@@ -414,7 +492,9 @@ const BilliardsEngine = (() => {
    * 直線でも円弧でも、この1点さえ出れば反射の計算は同じもので済む。
    */
   function nearestOnRail(s, px, py) {
-    return s.kind === 'arc' ? nearestOnArc(s, px, py) : nearestOnSeg(s, px, py);
+    if (s.kind === 'arc') return nearestOnArc(s, px, py);
+    if (s.kind === 'ell') return BilliardsTable.ellPoint(s, BilliardsTable.ellNearestClamped(s, px, py));
+    return nearestOnSeg(s, px, py);
   }
 
   function resolveBallRail(w, b, s) {
@@ -440,6 +520,12 @@ const BilliardsEngine = (() => {
       if (rl > EPS && norm2pi(Math.atan2(b.y - s.cy, b.x - s.cx) - s.a0) <= s.sweep) {
         const sgn = s.side === 'in' ? -1 : 1;
         nx = sgn * rx / rl; ny = sgn * ry / rl;
+      }
+    } else if (s.kind === 'ell') {
+      const raw = BilliardsTable.ellNearestParam(s, b.x, b.y);
+      if (norm2pi(raw - s.t0) <= Math.abs(s.sweep)) {     // 端が最寄り（角）でなければ形から決める
+        const n = ellInward(s, raw);
+        nx = n.x; ny = n.y;
       }
     }
 
@@ -479,14 +565,15 @@ const BilliardsEngine = (() => {
      */
     const incidence = Math.abs(Math.atan2(vn, Math.abs(vt)));   // 0 に近いほど浅い
     if (w.tuning.wallSlide && speed > 1400 && incidence < 0.21) {
+      const curved = (s.kind === 'arc' || s.kind === 'ell');
       let run = 0;
-      if (s.kind === 'arc') {
+      if (curved) {
         const gap = (b.slideX == null) ? Infinity : Math.hypot(b.x - b.slideX, b.y - b.slideY);
         run = (gap > 4 * b.r) ? 0 : b.slideRun + gap;
         b.slideRun = run; b.slideX = b.x; b.slideY = b.y;
       }
       const cap = w.table.perimeter ? w.table.perimeter / 4 : Infinity;
-      if (s.kind !== 'arc' || run < cap) {
+      if (!curved || run < cap) {
         b.vx = tx * vt; b.vy = ty * vt;      // 法線成分を殺して沿わせる
         b.x = p.x + nx * (b.r + 1e-3);
         b.y = p.y + ny * (b.r + 1e-3);

@@ -544,17 +544,92 @@ const BilliardsTable = (() => {
    */
   const DIAMOND_PITCH = 317.5;     // 現実の9フィート台のダイヤ間隔 mm
 
+  /**
+   * 境界に沿った位置 s（0〜外周長）から、その点と外向きを出す。
+   * 境界は反時計回りに持っているので、進む向き (ex, ey) に対して外向きは (ey, −ex)。
+   */
+  function boundaryRaw(bounds, s, total) {
+    let rest = ((s % total) + total) % total;
+    for (let i = 0; i < bounds.length; i++) {
+      const e = bounds[i], L = elemLen(e);
+      if (rest <= L || i === bounds.length - 1) {
+        const u = L < 1e-12 ? 0 : Math.min(1, Math.max(0, rest / L));
+        const p = elemPointT(e, u), g = elemNearest(e, p.x, p.y);
+        return { x: p.x, y: p.y, nx: g.ey / g.len, ny: -g.ex / g.len };
+      }
+      rest -= L;
+    }
+    return null;
+  }
+
+  function boundaryAt(bounds, s) {
+    const total = perimeterOf(bounds);
+    const p = boundaryRaw(bounds, s, total);
+    if (!p) return null;
+    /*
+     * ★継ぎ目のちょうど上では外向きが一意に決まらない。
+     * 星型の谷（凹頂点）にダイヤが乗ったとき、片側の辺の法線をそのまま使うと
+     * **台の内側を向く**（実測：1 mm 出した点が台の中に入っていた）。
+     * 前後をわずかに取って平均する＝二等分線を使えば、凸でも凹でも外側の楔を向く。
+     */
+    const a = boundaryRaw(bounds, s - 1e-3, total);
+    const b = boundaryRaw(bounds, s + 1e-3, total);
+    if (a && b) {
+      const nx = a.nx + b.nx, ny = a.ny + b.ny, l = Math.hypot(nx, ny);
+      if (l > 1e-9) { p.nx = nx / l; p.ny = ny / l; }
+    }
+    return p;
+  }
+
+  /**
+   * レール上のダイヤ（目印）。
+   *
+   * ★**隣り合うポケットとポケットの間を等分して置く。**
+   * 現実の9フィート台がそうで、ポケット間の 1270 mm に3つ（＝4等分）並ぶ。
+   * 等分数は「その間の長さ ÷ 317.5 にいちばん近い整数」で決めるので、
+   * 短い間は2つ、長い間は3つ4つと自然に増える。**形状ごとに個数を並べない。**
+   * これで**間隔はどの形でもほぼ 317.5 mm に揃う**（L字は 317〜318 mm）。
+   *
+   * **どの間にも最低1つは置く。**十字の腕の端は潰したあと 423 mm しかなく、
+   * 「いちばん近い整数」では1等分＝0個になって、そこだけ目印が消える。
+   * ただし**間隔が 317.5 の半分を下回るほど詰まるなら置かない**
+   * （将来もっと短い間を持つ形が出たときに、ポケットのすぐ脇へ置かないため）。
+   *
+   * **境界要素（辺）ごとに等分してはいけない。**長方形の長辺は 2540 mm の1本の辺で、
+   * 8等分するとその4つ目がサイドポケットにちょうど重なる。実測すると
+   * 長方形で2個・星型で5個のダイヤがポケットの上に乗っていた。
+   * ポケットの間を数える形にすると、ポケットに重なるダイヤは原理的に出ない。
+   *
+   * **ポケットの無いキャロム版は、境界要素の切れ目（レールの継ぎ目）で区切る。**
+   * 現実のキャロム台も、長辺を8等分・短辺を4等分してダイヤを並べている。
+   *
+   * ダイヤは**外周のレールだけ**に置く。ドーナツの中央の島は壁ではあるが
+   * 手前から狙いを合わせる目印にはならないため（3.5.5節は島を台形状の一部と定める）。
+   */
   function diamonds(table) {
-    const out = [];
-    // ダイヤは**外周のレールだけ**に置く。ドーナツの中央の島は壁ではあるが
-    // 手前から狙いを合わせる目印にはならないため（3.5.5節は島を台形状の一部と定める）
-    for (const e of table.outerBounds) {
-      const len = elemLen(e);
-      const div = Math.max(2, Math.round(len / DIAMOND_PITCH));
-      // 境界は反時計回りに持っているので、進む向き (ex, ey) に対して外向きは (ey, -ex)
-      for (let k = 1; k < div; k++) {
-        const p = elemPointFrac(e, k, div), g = elemNearest(e, p.x, p.y);
-        out.push({ x: p.x, y: p.y, nx: g.ey / g.len, ny: -g.ex / g.len });
+    const B = table.outerBounds, out = [];
+    const total = perimeterOf(B);
+    if (total < 1e-9) return out;
+    // 区切りの位置。ポケットがあればその中心、無ければ境界要素の切れ目
+    let marks;
+    if (table.pockets && table.pockets.length) {
+      marks = table.pockets.map(p => p.s).filter(s => s != null).sort((a, b) => a - b);
+    } else {
+      marks = []; let acc = 0;
+      for (const e of B) { marks.push(acc); acc += elemLen(e); }
+    }
+    if (!marks.length) return out;
+    for (let k = 0; k < marks.length; k++) {
+      const a = marks[k];
+      const b = (k + 1 < marks.length) ? marks[k + 1] : marks[0] + total;
+      const span = b - a;
+      let div = Math.max(2, Math.round(span / DIAMOND_PITCH));
+      if (span / div < DIAMOND_PITCH / 2) div = 1;      // 詰まりすぎるなら置かない
+      for (let j = 1; j < div; j++) {
+        let s = a + span * j / div;
+        if (s >= total) s -= total;
+        const p = boundaryAt(B, s);
+        if (p) out.push(p);
       }
     }
     return out;
@@ -731,11 +806,18 @@ const BilliardsTable = (() => {
     return out;
   }
 
-  /** ポケットの中心座標を境界から求める。頂点はその境界要素の始点にあたる */
+  /**
+   * ポケットの中心座標を境界から求める。頂点はその境界要素の始点にあたる。
+   * **境界に沿った位置（s）も一緒に持たせる。**ダイヤを「隣り合うポケットの間」に
+   * 等間隔で置くのに要る（diamonds）。あとから座標で探し直すと精度が落ちる。
+   */
   function buildPockets(bounds, spec) {
+    const head = [0];
+    for (let i = 0; i < bounds.length; i++) head.push(head[i] + elemLen(bounds[i]));
     return spec.map(pk => {
-      const p = elemPointT(bounds[pk.i], pk.at === 'vertex' ? 0 : pk.t);
-      return { id: pk.id, x: p.x, y: p.y, r: pk.r };
+      const t = pk.at === 'vertex' ? 0 : pk.t;
+      const p = elemPointT(bounds[pk.i], t);
+      return { id: pk.id, x: p.x, y: p.y, r: pk.r, s: head[pk.i] + elemLen(bounds[pk.i]) * t };
     });
   }
 

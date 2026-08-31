@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.41';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.42';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -732,12 +732,23 @@
     if (g.ballInHand && cue) {
       S.phase = 'place';
       // ブレイクの初期位置はヘッドストリングの少し手前。そこから自由に動かせる
-      const head = { x: g.table.headSpot.x - 160, y: g.table.headSpot.y };
+      // 台が既定の置き場所を持っていればそれを使う（ドーナツ型は長軸の上に線が出ない）
+      const head = g.table.breakSpot
+        ? { x: g.table.breakSpot.x, y: g.table.breakSpot.y }
+        : { x: g.table.headSpot.x - 160, y: g.table.headSpot.y };
       S.placePos = g.ballInHandFull ? { x: cue.x, y: cue.y } : head;
       // そこが置けない場所なら、台の内側へ引き戻したうえでヘッド側へ寄せる。
       // 台の形が変わると、決め打ちの座標が壁の外や玉の上に来ることがある
       if (!placeOk(S.placePos)) {
         S.placePos = T.clampInside(g.table, head.x, head.y, cue.r);
+      }
+      /*
+       * ブレイクの既定の狙いはラックの方向。
+       * 手玉とラックが長軸の上に一直線に並ぶ台では、これは従来どおり 0 になる。
+       * ドーナツ型は手玉を脇へ寄せるので、0 のままだと壁を向いてしまう。
+       */
+      if (!g.ballInHandFull) {
+        S.aim.dir = Math.atan2(g.table.spot.y - S.placePos.y, g.table.spot.x - S.placePos.x);
       }
     } else {
       S.phase = 'aim';
@@ -799,7 +810,11 @@
    * 半径ぶん内側へ狭めると、既定の置き場所（ヘッドスポット）自体が違反になって
    * 「置けないのに理由が分からない」状態になる。
    */
-  function kitchenLimit() { return S.game.table.headSpot.x; }
+  function kitchenLimit() {
+    // 手玉を置ける線。台が別に持っていればそれを使う（ドーナツ型・3.5.5節）
+    const t = S.game.table;
+    return (t.kitchenX != null) ? t.kitchenX : t.headSpot.x;
+  }
   /** 円弧の起点からの回り込み量（0〜2π）。範囲に入っているかを見るのに使う */
   function arcOffset(a) { const x = a % (2 * Math.PI); return x < 0 ? x + 2 * Math.PI : x; }
   function clampToKitchen(p) { return { x: Math.min(p.x, kitchenLimit()), y: p.y }; }
@@ -1713,7 +1728,8 @@
     if (table.hasPockets) {
       ctx.save();
       tablePath(table); ctx.clip('evenodd');
-      const h1 = toScreen(table.headSpot.x, -table.halfH), h2 = toScreen(table.headSpot.x, table.halfH);
+      const kx = (table.kitchenX != null) ? table.kitchenX : table.headSpot.x;
+      const h1 = toScreen(kx, -table.halfH), h2 = toScreen(kx, table.halfH);
       ctx.beginPath(); ctx.moveTo(h1.x, h1.y); ctx.lineTo(h2.x, h2.y);
       ctx.strokeStyle = 'rgba(255,255,255,.13)'; ctx.lineWidth = 1; ctx.stroke();
       ctx.restore();

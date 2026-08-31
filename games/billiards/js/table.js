@@ -1038,12 +1038,18 @@ const BilliardsTable = (() => {
    * 横長に潰したあとの「60度」は画面上のどの角度とも一致せず、
    * 置くと間隔が 895／895／1285 mm と不揃いになる。弧長等間隔を採る。
    *
-   * ★**玉を並べる線を長軸から外す**（axisY）。長軸の上に並べると、
-   * 手玉とラックのあいだに島が座り、**先頭球へまっすぐ当てられる置き場所が1つも無くなる**
-   * （0.5 mm 刻みで全域を探して 0 点）。ナインボールとローテーションは先頭の1番へ
-   * 最初に当てる必要があるため、9割以上のブレイクが反則になる。
-   * 線は**中央の島と外周の、短軸で測った中間**に通す。一文で言える規則であり、
-   * ブレイクの筋が島からいちばん離れる（153 mm）。L字が腕の中心線で同じことをしている。
+   * ★**ラックは長軸の中心に置く**（共通規則そのまま。スポットは 635）。
+   * ただし中央の島が長軸の筋を塞ぐので、**そこへまっすぐ狙うには手玉を脇へ寄せる**必要がある。
+   * 手玉を置ける線（ヘッドストリング）が「スポットと対称の位置」＝−635 のままだと、
+   * **1番へまっすぐ当てられる置き場所が1つも無い**（0.5 mm 刻みで全域を探して 0 点）。
+   * そこでこの台だけ、**ヘッドストリングを「中央の島の手前の縁から玉の直径ぶん奥」**に置く。
+   * 「島の脇を玉が1つ通れるところまで手玉を進められる」という意味で、
+   * 数値を並べずに一文で言える。実測で 1 番へ真っすぐ狙える置き場所が 1,614 点生まれ、
+   * いちばん広い狙いの窓は 3.4 度になる（標準長方形の普通のブレイクは 5.2 度）。
+   * 島の脇を通す一撞きが、この台の持ち味になる。
+   *
+   * 既定の手玉の置き場所は**ヘッドストリングの上の、玉が収まるいちばん端**へ寄せる。
+   * 長軸の上に置くと線が1本も出ず、遊ぶ人が「どこにも狙えない」状態から始まるため。
    */
   const DONUT_K = 358.3 / 1074.8;      // 3.5.5節の 内半径 ÷ 外半径 ＝ 0.33336
 
@@ -1059,7 +1065,11 @@ const BilliardsTable = (() => {
         { id: v, at: 'edge', i: 0, t: (2 * k + 1) / 12, mouth: MOUTH, r: 58 }
       )),
       longAxis: 'x', footDirection: +1,
-      axisY: -(iby + HY) / 2,            // −423.34
+      axisY: 0,
+      // 手玉を置ける線＝島の手前の縁から玉の直径ぶん奥（−366.22）
+      kitchenX: -iax + D,
+      // 既定の置き場所はその線の端。−Y 側に寄せる（どちらでも同じなので片側に決める）
+      breakSide: -1,
       frameStyle: 'outline',
     };
   }
@@ -1110,6 +1120,26 @@ const BilliardsTable = (() => {
     const bounds = innerBounds ? outerBounds.concat(innerBounds) : outerBounds;
     const axisY = (s.axisY || 0) * sy;         // 玉を並べる線も一緒に潰す
     const spotX = footSpotX(bounds, outline, innerOutline, outerBounds, axisY);
+    /*
+     * ブレイクで手玉を置ける線（ヘッドストリング）。**既定はスポットと対称の位置**で、
+     * 標準長方形の 1/4 の線と一致する。ドーナツ型だけは中央の島が長軸の筋を塞ぐため、
+     * 台の側から別に指定する（3.5.5節）。
+     */
+    const kitchenX = (s.kitchenX != null) ? s.kitchenX : -spotX;
+    /*
+     * ブレイクの既定の置き場所。**既定はヘッドスポットそのもの**。
+     * breakSide を持つ台は、その線の上の「玉が収まるいちばん端」へ寄せる。
+     * 位置を数値で書かず、そのときの外周から測って決める。
+     */
+    let breakSpot = null;
+    if (s.breakSide) {
+      const probe = { bounds, outline, innerOutline };
+      let y = 0;
+      for (let t = 0; t <= 700; t += 1) {
+        if (clearance(probe, kitchenX, s.breakSide * t) >= R) y = s.breakSide * t;
+      }
+      breakSpot = pt(kitchenX, y);
+    }
     const fillets = buildFillets(outline, FILLET_R);
     return {
       shape: s.shape,
@@ -1136,6 +1166,9 @@ const BilliardsTable = (() => {
       axisY,
       spot: pt(spotX, axisY),
       headSpot: pt(-spotX, axisY),
+      // 手玉を置ける線と、ブレイクの既定の置き場所（持たない台は null＝従来どおり）
+      kitchenX,
+      breakSpot,
       center: pt(0, axisY),
       // 物性値（3.7節・5.3.4節）。通常モードでの台ごとの差は微差に留める
       cushionRestitution: 0.86,
@@ -1221,9 +1254,18 @@ const BilliardsTable = (() => {
    */
   function caromPositions(table, players) {
     const mid = table.axisY;
+    /*
+     * 赤玉のもう1つは台の中心に置く。
+     * **中心に置けない台では、壁との間に玉1つぶんの隙間ができる所までヘッド側へ下がる。**
+     * ドーナツ型は中央が島なので中心に玉を置けない（3.5.5節）。壁に触れた位置に置くと
+     * 開始早々そこへ当てるしかなくなるので、隙間を1つぶん取る。
+     * 形ごとに座標を並べず、そのときの台から測って決める（スポットの決め方と同じ）。
+     */
+    let rx = 0;
+    while (rx > table.headSpot.x && clearance(table, rx, mid) < 2 * table.ballR) rx -= 1;
     const reds = [
       { key: 'red1', x: table.spot.x, y: mid },
-      { key: 'red2', x: 0, y: mid },
+      { key: 'red2', x: rx, y: mid },
     ];
     const cues = [];
     const span = 212;   // 手玉どうしの間隔

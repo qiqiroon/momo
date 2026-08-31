@@ -800,6 +800,22 @@ const BilliardsEngine = (() => {
         }
         continue;
       }
+      if (s.kind === 'ell') {
+        /*
+         * 楕円弧は当たり判定とまったく同じ解き方を使う。
+         * 速さ1で進ませれば「当たるまでの時間」がそのまま距離になる。
+         * ★ここを直線として読むと、存在しない端の座標を見て NaN になり、
+         *   **先に見つけた玉の当たりまで NaN で上書きされて**エイムラインが消える。
+         */
+        const probe = { x: cue.x, y: cue.y, r: cue.r, vx: dx, vy: dy };
+        const t = timeBallEll(probe, s, best.dist);
+        if (t > 0 && t < best.dist) {
+          const px = cue.x + dx * t, py = cue.y + dy * t;
+          const iw = ellInward(s, BilliardsTable.ellNearestClamped(s, px, py));
+          best = { dist: t, type: 'rail', ball: null, point: { x: px, y: py }, normal: { x: iw.x, y: iw.y } };
+        }
+        continue;
+      }
       const ex = s.x2 - s.x1, ey = s.y2 - s.y1;
       const el = Math.hypot(ex, ey); if (el < EPS) continue;
       const ux = ex / el, uy = ey / el, nx = -uy, ny = ux;

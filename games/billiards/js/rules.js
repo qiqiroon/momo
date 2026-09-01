@@ -21,7 +21,7 @@ const BilliardsRules = (() => {
   };
   const CAROM_COLORS = ['#f4f4f4', '#f2c00e', '#8fd14f', '#60a5fa', '#c084fc', '#f472b6'];
 
-  const RULE_IDS = ['G-01', 'G-02', 'G-03', 'G-04'];
+  const RULE_IDS = ['G-01', 'G-02', 'G-03', 'G-04', 'G-08'];
 
   // 適用するファウル（7.2.4節）。第1段階の4ルールぶんだけを持つ。
   const FOUL_TABLE = {
@@ -29,23 +29,67 @@ const BilliardsRules = (() => {
     'G-02': { 'V-01': 1, 'V-02': 1, 'V-03': 1, 'V-04': 1, 'V-05': 1, 'V-06': 1, 'V-07': 1, 'V-08': 1, 'V-09': 1 },
     'G-03': { 'V-01': 1, 'V-02': 1, 'V-03': 1, 'V-04': 1, 'V-05': 1, 'V-06': 1, 'V-07': 1, 'V-08': 1, 'V-09': 1 },
     'G-04': { 'V-01': 1, 'V-02': 0, 'V-03': 0, 'V-04': 0, 'V-05': 1, 'V-06': 1, 'V-07': 1, 'V-08': 1, 'V-09': 1 },
+    // サバイバルは「最初に当てるべき玉」を持たないので V-02・V-03 は適用しない（7.2.4節）
+    'G-08': { 'V-01': 1, 'V-02': 0, 'V-03': 0, 'V-04': 1, 'V-05': 1, 'V-06': 1, 'V-07': 1, 'V-08': 1, 'V-09': 1 },
   };
 
   // 罰則の分類（7.2.5節）
-  const PENALTY = { 'G-01': 'freeball', 'G-02': 'freeball', 'G-03': 'freeball', 'G-04': 'score' };
+  const PENALTY = { 'G-01': 'freeball', 'G-02': 'freeball', 'G-03': 'freeball', 'G-04': 'score', 'G-08': 'loss' };
   // 勝敗の決まり方（7.2.8節）
-  const WIN_KIND = { 'G-01': 'reach', 'G-02': 'reach', 'G-03': 'points', 'G-04': 'reach' };
+  const WIN_KIND = { 'G-01': 'reach', 'G-02': 'reach', 'G-03': 'points', 'G-04': 'reach', 'G-08': 'survival' };
 
   /**
    * 点数を数えるルールかどうか。
    * ナインボール・エイトボールは「どの玉を落としたか」で決まり点数を持たない。
    * 持たないルールで 0 点と出し続けると、壊れているように見える。
    */
-  const HAS_SCORE = { 'G-01': false, 'G-02': false, 'G-03': true, 'G-04': true };
+  const HAS_SCORE = { 'G-01': false, 'G-02': false, 'G-03': true, 'G-04': true, 'G-08': false };
   // ラックを持つか（7.2.7節）
-  const HAS_RACK = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': false };
+  const HAS_RACK = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': false, 'G-08': true };
   // ポケットあり台が要るか
-  const NEEDS_POCKETS = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': false };
+  const NEEDS_POCKETS = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': false, 'G-08': true };
+  /*
+   * ブレイクの成立条件（1球以上落ちるか4球以上がクッションに触れる）を見るか。
+   * **サバイバルだけは見ない。**このルールのブレイクは「グループの球が1つでも落ちたか」
+   * だけで組み立てられていて、落ちなければそのまま次の人が撞く。
+   * クッション数の条件を重ねると、同じ一撞きに二重の判定が掛かる。
+   */
+  const BREAK_VALID = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': false, 'G-08': false };
+
+  /*
+   * サバイバルの所有者を表す色（7.8.2節「色で区別する」）。
+   * **玉そのものの色ではなく、玉のまわりに掛ける輪の色である。**
+   * 3人以上では自分の玉が番号でしか分かれず、盤を見ても残りが読めないため。
+   * 玉の地色（黄・青・赤・紫・橙・緑・臙脂・黒）と重なっても読めるよう、
+   * 輪は玉の外側＝ラシャの上に描く。だから選ぶのはラシャの緑と喧嘩しない色になる。
+   */
+  const SURVIVAL_COLORS = ['#ffffff', '#00e5ff', '#ff2d95', '#ffd400', '#8cff5a', '#ff7a1a'];
+
+  /**
+   * サバイバルのグループ分け（7.8.2節）。
+   *
+   * **15球を上から順に連続で区切って人数ぶんに分け、配り切れなかった末尾は無所属。**
+   *   3人 → 1〜5／6〜10／11〜15（無所属なし）
+   *   4人 → 1〜3／4〜6／7〜9／10〜12（13・14・15が無所属）
+   *
+   * **2人だけは 1〜7 と 9〜15 で、8番が無所属。**連続区切りであることは同じで、
+   * 真ん中の8番を抜くだけである。こうするとソリッドとストライプに一致し、
+   * **盤を見ただけでどちらが自分か分かる**。2人にだけ見て分かる分け方が存在するための差であって、
+   * 人数で規則を分けているのではない。
+   */
+  function survivalGroups(n) {
+    if (n === 2) return { groups: [[1, 2, 3, 4, 5, 6, 7], [9, 10, 11, 12, 13, 14, 15]], free: [8] };
+    const k = Math.floor(15 / n);
+    const groups = [];
+    for (let i = 0; i < n; i++) {
+      const g = [];
+      for (let j = 0; j < k; j++) g.push(i * k + j + 1);
+      groups.push(g);
+    }
+    const free = [];
+    for (let num = n * k + 1; num <= 15; num++) free.push(num);
+    return { groups, free };
+  }
 
   // ───────── 決定論的な擬似乱数（5.2.4節。1ゲーム1シード） ─────────
   /*
@@ -108,12 +152,25 @@ const BilliardsRules = (() => {
         team: (p.team != null) ? p.team
           : (cfg.coop && cfg.teams && cfg.teams[i] != null) ? cfg.teams[i] : i,
         score: 0, group: null, fouls: 0,
+        // 脱落（G-08 サバイバル。所有玉を失い切った）。離脱とは別物なので印も別に持つ
+        out: false,
         // 途中離脱（9.8.3節）。やり直しても抜けた人は戻らないので、組み直しでも引き継ぐ
         retired: !!p.retired,
         target: (cfg.targets && cfg.targets[i] != null) ? cfg.targets[i] : defaultTarget(cfg.rule),
         baseLeft: 0, bankLeft: 0,
       })),
       winTeam: -1,
+      /*
+       * **撞く順番。**席の番号順とは限らない。
+       *
+       * サバイバルはバンキングで全員の打順を決め、さらに最初にグループの球を落とした人を
+       * 先頭へ回す（7.8節）。席の番号を並べ替えてしまうと、席に紐づく持ち時間や
+       * 通信の相手番号まで一緒にずれる。**並べ替えるのは「回る順」だけにして、席の番号は動かさない。**
+       * 既定は席の番号順なので、他の4ルールの巡り方は1手も変わらない。
+       */
+      seatOrder: cfg.players.map((p, i) => i),
+      // サバイバルのグループと所有者（割り当ては開始後に決まる）
+      survival: null,
       turn: 0,
       shotNo: 0,
       inningNo: 0,
@@ -137,8 +194,40 @@ const BilliardsRules = (() => {
 
   // ───────── 途中離脱（9.8.3節・9.8.4節・10.8.4節） ─────────
 
-  /** 対局に残っている席か */
-  function isActive(p) { return !!p && !p.retired; }
+  /**
+   * 対局に残っている席か。
+   * **離脱（人が抜けた）と脱落（玉を失い切った）は理由が別だが、
+   * 「もう撞かない席」という点では同じ**なので、ここで1つにまとめる。
+   * こうしておくと、手番を回す側・数える側に脱落のための条件を書き足さずに済む。
+   */
+  function isActive(p) { return !!p && !p.retired && !p.out; }
+
+  // ───────── 席の巡り（seatOrder） ─────────
+  /** 撞く順に並べた席の一覧。壊れていたら席の番号順に戻す */
+  function seatCycle(game) {
+    const n = game.players.length;
+    const o = game.seatOrder;
+    if (!o || o.length !== n) return game.players.map((p, i) => i);
+    return o;
+  }
+  /** その席の次に撞く席（脱落・離脱は飛ばす）。誰も居なければ元の席 */
+  function nextSeat(game, idx) {
+    const cyc = seatCycle(game);
+    const at = cyc.indexOf(idx);
+    const n = cyc.length;
+    for (let k = 1; k <= n; k++) {
+      const j = cyc[(at + k + n) % n];
+      if (isActive(game.players[j])) return j;
+    }
+    return idx;
+  }
+  /** 撞く順の先頭を head へ回す。巡りそのものは保つ */
+  function rotateSeats(game, head) {
+    const cyc = seatCycle(game).slice();
+    const at = cyc.indexOf(head);
+    if (at < 0) return;
+    game.seatOrder = cyc.slice(at).concat(cyc.slice(0, at));
+  }
   /** 残っている席の数。1人になったら勝ちが決まる（10.8.4節 手順4） */
   function activeCount(game) { return game.players.filter(isActive).length; }
   /** 残っているチーム。協力プレイでは同じチームに1人でも残っていればチームは存続する */
@@ -146,8 +235,8 @@ const BilliardsRules = (() => {
     return teamList(game).filter(tm => teamMembers(game, tm).some(isActive));
   }
   function firstActive(game) {
-    const i = game.players.findIndex(isActive);
-    return i < 0 ? 0 : i;
+    for (const i of seatCycle(game)) if (isActive(game.players[i])) return i;
+    return seatCycle(game)[0];
   }
 
   /**
@@ -210,8 +299,26 @@ const BilliardsRules = (() => {
       // 手玉
       const cue = E.makeBall({ id: id++, num: 0, kind: 'cue', r: R, x: table.headSpot.x, y: table.headSpot.y, color: '#f4f4f4' });
       balls.push(cue);
-      let rack;
-      if (game.rule === 'G-01') {
+      let rack, grpOf = null;
+      if (game.rule === 'G-08') {
+        /*
+         * サバイバル（7.8節）。15球を人数ぶんのグループに分け、**位置だけを順ぐりに配る**。
+         * 番号を連続で区切るので、そのまま番号順に置くと若いグループが手前へかたまる。
+         */
+        const sv = survivalGroups(game.players.length);
+        game.survival = {
+          groups: sv.groups, free: sv.free,
+          owner: sv.groups.map(() => -1),   // まだ誰のものでもない
+          assigned: false,
+          outOrder: [],                     // 脱落した席の順（順位は この逆）
+        };
+        game.players.forEach(p => { p.group = null; p.out = false; });
+        rack = T.rackByGroups(table, sv.groups, sv.free);
+        grpOf = num => {
+          for (let g = 0; g < sv.groups.length; g++) if (sv.groups[g].indexOf(num) >= 0) return g;
+          return -1;                        // 無所属（落としても罰も利益も無い）
+        };
+      } else if (game.rule === 'G-01') {
         rack = T.rackDiamond(table, [1, 2, 3, 4, 5, 6, 7, 8, 9]);
       } else if (game.rule === 'G-02') {
         rack = T.rackTriangle(table, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], 8);
@@ -219,10 +326,13 @@ const BilliardsRules = (() => {
         rack = T.rackTriangle(table, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], 15);
       }
       rack.forEach(r => {
-        balls.push(E.makeBall({
+        const b = E.makeBall({
           id: id++, num: r.num, kind: 'object', r: R, x: r.x, y: r.y,
           color: BALL_COLORS[r.num] || '#cccccc', stripe: r.num >= 9,
-        }));
+        });
+        // どのグループの球か。玉自身に持たせておくと、あとで数え方を作り直さずに済む
+        if (grpOf) b.grp = grpOf(r.num);
+        balls.push(b);
       });
       game.ballInHand = true;
       game.ballInHandFull = false;
@@ -331,8 +441,9 @@ const BilliardsRules = (() => {
 
     // 次に撞く人（まだ撞いていない席）
     let next = -1;
-    for (let k = 1; k <= game.players.length; k++) {
-      const i = (idx + k) % game.players.length;
+    const cyc = seatCycle(game), at = cyc.indexOf(idx);
+    for (let k = 1; k <= cyc.length; k++) {
+      const i = cyc[(at + k) % cyc.length];
       if (isActive(game.players[i]) && !game.bank.shotBy[i]) { next = i; break; }
     }
     if (next >= 0) {
@@ -356,10 +467,30 @@ const BilliardsRules = (() => {
     return { done: true, winner };
   }
 
-  /** バンキングを終えて本番の盤を組む */
+  /**
+   * バンキングを終えて本番の盤を組む。
+   *
+   * **サバイバルだけは、勝った人だけでなく全員の打順をここで決める**（7.8節）。
+   * 止まった位置がヘッド側に近い順。**成立しなかった人は末尾**へ回し、
+   * その中では元の席順を保つ（marks が null なので大小では並べられないため）。
+   */
   function endBanking(game, winner) {
     game.bank.on = false;
     game.bank.winner = winner;
+    if (game.rule === 'G-08') {
+      const marks = game.bank.marks || [];
+      const cyc = seatCycle(game).slice();
+      const rank = cyc.map((seat, at) => ({ seat, at, m: marks[seat] }));
+      rank.sort((a, b) => {
+        const an = (a.m == null), bn = (b.m == null);
+        if (an !== bn) return an ? 1 : -1;          // 不成立は末尾
+        if (an) return a.at - b.at;                 // 不成立どうしは元の順
+        return (a.m - b.m) || (a.at - b.at);        // ヘッド側に近い順
+      });
+      game.seatOrder = rank.map(x => x.seat);
+      winner = game.seatOrder[0];
+      game.bank.winner = winner;
+    }
     setupBalls(game);
     game.turn = winner;
     game.breaker = winner;                  // バンキングで決まった人がこの局のブレイク
@@ -548,6 +679,7 @@ const BilliardsRules = (() => {
     else if (rule === 'G-02') resolveEight(game, result, pre);
     else if (rule === 'G-03') resolveRotation(game, result, pre);
     else if (rule === 'G-04') resolveCarom(game, result, pre);
+    else if (rule === 'G-08') resolveSurvival(game, result, pre);
 
     /*
      * 相手チームがいないとき（協力プレイで全員が同じチーム）は、
@@ -603,6 +735,8 @@ const BilliardsRules = (() => {
       else if (rule === 'G-02') { b.state = 'gone'; }
       else if (rule === 'G-03') { spotBall(game, b); }
       else if (rule === 'G-04') { homeBall(game, b); }
+      // サバイバルは場外もポケットと同じく喪失（7.8.4節・10.3.3節）。戻さない
+      else if (rule === 'G-08') { b.state = 'gone'; b.onTable = false; }
     }
     // 手玉
     const cue = byId[pre.cueId];
@@ -732,6 +866,129 @@ const BilliardsRules = (() => {
     }
   }
 
+  // ───────── G-08 サバイバル（7.8節） ─────────
+
+  /** そのグループの、まだ盤に残っている球の数 */
+  function liveInGroup(game, g) {
+    return game.world.balls.filter(b => b.kind === 'object' && b.state === 'live' && b.grp === g).length;
+  }
+  /** その席の残り球数。割り当て前は 0 ではなく null（「まだ無い」と「もう無い」は別） */
+  function survivalLeft(game, seat) {
+    const p = game.players[seat];
+    if (!p || p.group == null) return null;
+    return liveInGroup(game, p.group);
+  }
+
+  /**
+   * グループの割り当て（7.8節・利用者指示）。
+   *
+   * バンキングで決めた打順で撞いていき、**グループの球が1つでも落ちた一撞き**で確定する。
+   *   ・撞いた人が**先頭の席**になる。巡りは保ったまま、その人を先頭へ回す
+   *   ・先頭から順に、**盤に残っている球が多いグループ**を取る。**同数なら数字の若いグループ**
+   *
+   * ★**無所属の球だけが落ちても確定しない**（利用者指示）。罰も利益も無い球なので、
+   *   席順にも影響させない。
+   * ★**ファウルを伴う一撞きでは確定しない。**先頭を取ることはこの一撞きから得る利益であり、
+   *   7.2.6節の「ファウル時の利益無効」は全9ルールに働き、個別のルールで上書きできない。
+   */
+  function assignGroups(game, shooter) {
+    const sv = game.survival;
+    rotateSeats(game, shooter);
+    const taken = {};
+    for (const seat of seatCycle(game)) {
+      let best = -1, bestN = -1;
+      for (let g = 0; g < sv.groups.length; g++) {
+        if (taken[g]) continue;
+        const n = liveInGroup(game, g);
+        if (n > bestN) { bestN = n; best = g; }   // 先に見たほう＝数字の若いほうが勝つ
+      }
+      if (best < 0) break;
+      taken[best] = 1;
+      sv.owner[best] = seat;
+      game.players[seat].group = best;
+    }
+    sv.assigned = true;
+  }
+
+  /**
+   * 手玉を落としたときに失う1個（7.8.5節・10.4.4節）。
+   * **盤に残っている自分の球のうち、スポットから最も遠いもの。**
+   * 同じ距離なら番号の若いほう。並べ替えて先頭を採るので、比べる順に結果が左右されない。
+   */
+  function loseOne(game, seat, r) {
+    const p = game.players[seat];
+    if (!p || p.group == null) return;
+    const sp = game.table.spot;
+    const mine = game.world.balls.filter(b => b.kind === 'object' && b.state === 'live' && b.grp === p.group);
+    if (!mine.length) return;
+    const d = b => Math.round(Math.hypot(b.x - sp.x, b.y - sp.y) * 1000);
+    mine.sort((a, b) => (d(b) - d(a)) || (a.num - b.num));
+    const lost = mine[0];
+    lost.state = 'gone'; lost.onTable = false;
+    r.lostBall = lost.num;
+  }
+
+  /** 脱落と決着（7.8.6節）。残数0で脱落、残り1組で終局 */
+  function checkOut(game, r) {
+    const sv = game.survival;
+    if (!sv || !sv.assigned) return;
+    for (const p of game.players) {
+      if (p.out || p.retired || p.group == null) continue;
+      if (liveInGroup(game, p.group) === 0) {
+        p.out = true;
+        sv.outOrder.push(p.idx);
+        // この一撞きで脱落した席。**知らせないと、手番が飛んだ理由が分からない**
+        (r.outNow || (r.outNow = [])).push(p.idx);
+      }
+    }
+    const alive = activeTeams(game);
+    if (alive.length <= 1) {
+      game.over = true; r.gameOver = true;
+      survivalRanking(game);
+      r.message = (alive.length === 1) ? 'win.survival' : 'msg.allOut';
+    }
+  }
+
+  /** 順位は脱落順の逆（7.8.6節）。生き残った人が1位 */
+  function survivalRanking(game) {
+    const sv = game.survival;
+    const alive = game.players.filter(isActive).map(p => p.idx);
+    game.ranking = alive.concat(sv.outOrder.slice().reverse());
+    game.teamRanking = [];
+    game.ranking.forEach(i => {
+      const tm = teamOf(game, i);
+      if (game.teamRanking.indexOf(tm) < 0) game.teamRanking.push(tm);
+    });
+    const aliveTeams = activeTeams(game);
+    setWinnerTeam(game, aliveTeams.length === 1 ? aliveTeams[0] : -1);
+  }
+
+  function resolveSurvival(game, r, pre) {
+    const sv = game.survival;
+    if (!sv) return;
+    const byId = {}; game.world.balls.forEach(b => byId[b.id] = b);
+
+    if (!sv.assigned) {
+      const dropped = r.pocketed.map(id => byId[id])
+        .filter(b => b && b.kind === 'object' && b.grp >= 0);
+      if (dropped.length && !r.foul) {
+        assignGroups(game, game.turn);
+        r.message = 'msg.svGroups';
+      }
+    }
+
+    /*
+     * 手玉を落としたら自分の球が1つ減る（7.8.5節）。
+     * **割り当てが済むまでは減らせない。**まだ自分の球が無いためで、
+     * 手番が移るだけになる。場外もスクラッチと同じ扱い（10.4.2節）。
+     */
+    if (sv.assigned && r.cuePocketed) loseOne(game, game.turn, r);
+
+    checkOut(game, r);
+    // 1ショットごとに交代（7.2.2節）。連続して撞くことはない
+    r.continueTurn = false;
+  }
+
   /**
    * 点数で決めるルールの順位付け。並べるのはチーム。
    * 協力プレイでなければ 1人＝1チームなので、見た目は今までと同じ順位表になる。
@@ -771,14 +1028,7 @@ const BilliardsRules = (() => {
 
   /** 次の局でブレイクする席を決める */
   function breakSeat(game, mode) {
-    const n = game.players.length;
-    const nextOf = i => {
-      for (let k = 1; k <= n; k++) {
-        const j = (i + k) % n;
-        if (isActive(game.players[j])) return j;
-      }
-      return i;
-    };
+    const nextOf = i => nextSeat(game, i);
     /*
      * ローテーション＝**この局で実際にブレイクした人の次**（＝仕様書の交代制）。
      *
@@ -797,12 +1047,17 @@ const BilliardsRules = (() => {
 
     /*
      * 敗者ブレイク。
-     * **全順位が決まるゲーム**（得点制）は最下位がブレイクする。
+     * **全順位が決まるゲーム**（得点制・生存制）は最下位がブレイクする。
      * **1位しか決まらないゲーム**（到達制＝ナインボール・エイトボール・キャロム。7.2.8節）は
      * 敗者を特定できないので、**前回の巡りで1位の次の人**がブレイクする。
      * 2人なら相手＝敗者になり、3人以上でも勝者が最後に撞く並びになる。
      */
-    if (WIN_KIND[game.rule] === 'points' && game.teamRanking && game.teamRanking.length) {
+    /*
+     * ★「得点制なら」と名指しで書くと、あとから足したルールがすり抜ける。
+     *   実際に生存制（サバイバル）を足したときにここへ来た。見ているのは名前ではなく
+     *   **全順位が決まるかどうか**なので、決まらないもの（到達制）を除く形で書く。
+     */
+    if (WIN_KIND[game.rule] !== 'reach' && game.teamRanking && game.teamRanking.length) {
       for (let i = game.teamRanking.length - 1; i >= 0; i--) {
         const s = seatOfTeam(game, game.teamRanking[i]);
         if (isActive(game.players[s])) return s;
@@ -816,11 +1071,13 @@ const BilliardsRules = (() => {
    * @returns {Array} createGame へ渡せる参加者の並び
    */
   function nextOrder(game, mode) {
-    const n = game.players.length;
+    const cyc = seatCycle(game);
+    const n = cyc.length;
     const head = breakSeat(game, mode);
+    const at = Math.max(0, cyc.indexOf(head));
     const out = [];
     for (let k = 0; k < n; k++) {
-      const p = game.players[(head + k) % n];
+      const p = game.players[cyc[(at + k) % n]];
       // 抜けた人は次の局へ持ち越さない（局をまたぐので、やり直しとは扱いが違う）
       out.push({ name: p.name, type: p.type, pid: p.pid || null, team: p.team, retired: false });
     }
@@ -831,14 +1088,8 @@ const BilliardsRules = (() => {
   function nextTurn(game, result) {
     if (game.over) return;
     if (result && result.continueTurn) return;
-    // 抜けた席は飛ばす（9.8.3節）。一周して戻ったときは、そのまま止める
-    const n = game.players.length;
-    let i = game.turn;
-    for (let k = 0; k < n; k++) {
-      i = (i + 1) % n;
-      if (isActive(game.players[i])) break;
-    }
-    game.turn = i;
+    // 抜けた席・脱落した席は飛ばす（9.8.3節・7.8.6節）。巡りは seatOrder が持つ
+    game.turn = nextSeat(game, game.turn);
     game.inningNo++;
   }
 
@@ -878,6 +1129,8 @@ const BilliardsRules = (() => {
     makeRng, createGame, setupBalls, cueBallOf, liveObjects, legalTargets, groupOf,
     spotBall, homeBall, place, resolveShot, nextTurn, breakValid, detectDoubleHit,
     finishRanking, normAngle,
+    survivalGroups, survivalLeft, liveInGroup, SURVIVAL_COLORS, BREAK_VALID,
+    seatCycle, nextSeat, rotateSeats,
     startBanking, bankResolve, endBanking, longPos, footReach,
     breakSeat, nextOrder,
     retirePlayer, activeCount, activeTeams, isActive,

@@ -276,6 +276,7 @@ const BilliardsAI = (() => {
       if (b.kind === 'cue') { score -= 260 * p.avoidScratch; continue; }
       if (game.rule === 'G-01') score += (b.num === 9) ? 600 : 140;
       else if (game.rule === 'G-03') score += 60 + b.num * 12;
+      else if (game.rule === 'G-08') score += survivalGain(game, playerIdx, b);
       else if (game.rule === 'G-02') {
         const pl = game.players[playerIdx];
         if (b.num === 8) score += (pl.group && RU.liveObjects(game).filter(o => RU.groupOf(o.num) === pl.group).length === 0) ? 600 : -500;
@@ -283,6 +284,28 @@ const BilliardsAI = (() => {
         else score -= 90;
       }
     }
+    /*
+     * サバイバル（7.8節）。**自分の球は体力なので、落とすと損をする。**
+     *   ・割り当てが済んでいれば、他人の球は得・自分の球は損・無所属は損得なし
+     *   ・割り当てが済む前は、**いま最も少ないグループをさらに削る**のが得。
+     *     自分がもらうのは「最も多く残っているグループ」なので、
+     *     一方だけを削るほど、無傷のグループを満杯で受け取れる。
+     */
+    function survivalGain(game, playerIdx, b) {
+      const sv = game.survival;
+      if (!sv || !(b.grp >= 0)) return 0;              // 無所属は罰も利益も無い
+      if (sv.assigned) {
+        const mine = game.players[playerIdx].group;
+        return (b.grp === mine) ? -260 : 150;
+      }
+      let thin = -1, thinN = Infinity;
+      for (let g = 0; g < sv.groups.length; g++) {
+        const n = RU.liveInGroup(game, g);
+        if (n < thinN) { thinN = n; thin = g; }
+      }
+      return (b.grp === thin) ? 150 : 70;
+    }
+
     // 次の球が撞きやすい位置に残ったか（軽い位置取りの評価）
     const cueAfter = byId[cue.id];
     if (cueAfter && cueAfter.state === 'live') {

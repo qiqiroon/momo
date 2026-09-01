@@ -1380,6 +1380,57 @@ const BilliardsTable = (() => {
   }
 
   /**
+   * グループごとに交互に並べる三角ラック（G-08 サバイバル。7.8.2節）。
+   *
+   * 番号は連続で区切る（1〜5／6〜10／11〜15 のように）が、**そのまま番号順に置くと
+   * 若いグループが三角形の手前へ、大きいグループが奥へかたまる**。
+   * ラックは先頭のマスから番号順に埋める作りなので、区切りがそのまま位置の偏りになる。
+   * ブレイクの当たり方がグループごとにまるで違ってしまうため、**置く場所だけを順ぐりに配る**。
+   *
+   *   ① 無所属の球を、三角形の中心にいちばん近いマスから順に置く（番号の若い順）
+   *   ② 残ったマスを手前から順に見て、グループを順ぐりに配る
+   *   ③ 同じグループの中では、番号の若い球が手前へ
+   *
+   * 2人（1〜7／9〜15・8番が無所属）でこれをやると、8番が中央に来て
+   * ソリッドとストライプが交互に並ぶ＝現実のエイトボールとほぼ同じラックになる。
+   *
+   * ★中心までの距離は**量子化してから**比べる。中央のマスと4行目の内側2マスは
+   *   数学的にはぴったり同距離で、浮動小数点の最後のけたで順序が入れ替わりうる。
+   *   入れ替わると 8番が中央から外れる。決定論のため 0.001 mm² 単位に丸めてから比べ、
+   *   同じならマスの番号（手前が先）で決める。
+   *
+   * @param {Array<Array<number>>} groups 人数ぶんのグループ。各グループは番号の若い順
+   * @param {Array<number>} free 無所属の球（番号の若い順）
+   */
+  function rackByGroups(table, groups, free) {
+    const cells = triangleCells(table.spot.x, table.spot.y);
+    const cx = cells.reduce((s, c) => s + c.x, 0) / cells.length;
+    const cy = cells.reduce((s, c) => s + c.y, 0) / cells.length;
+    const order = cells.map((c, i) => i).sort((a, b) => {
+      const da = Math.round(((cells[a].x - cx) ** 2 + (cells[a].y - cy) ** 2) * 1000);
+      const db = Math.round(((cells[b].x - cx) ** 2 + (cells[b].y - cy) ** 2) * 1000);
+      return (da - db) || (a - b);
+    });
+    const fixed = {};
+    (free || []).forEach((num, k) => { if (k < order.length) fixed[order[k]] = num; });
+
+    const queue = groups.map(g => g.slice());
+    let gi = 0;
+    const out = [];
+    for (let c = 0; c < cells.length; c++) {
+      let num = fixed[c];
+      if (num == null) {
+        for (let k = 0; k < queue.length; k++) {
+          const j = (gi + k) % queue.length;
+          if (queue[j].length) { gi = (j + 1) % queue.length; num = queue[j].shift(); break; }
+        }
+      }
+      out.push({ num, x: cells[c].x, y: cells[c].y });
+    }
+    return out;
+  }
+
+  /**
    * キャロム版の定位置（10.2.5節）。赤2個は共通の的球、手玉は人数分の色。
    * @param {number} players 参加人数（手玉の数）
    */
@@ -1410,7 +1461,7 @@ const BilliardsTable = (() => {
 
   return {
     R, D, MOUTH, PLAY_W, PLAY_H, HX, HY, CUSHION_TOP, SHAPE_IDS, FILLET_R,
-    make, rackDiamond, rackTriangle, caromPositions,
+    make, rackDiamond, rackTriangle, rackByGroups, caromPositions,
     clearance, inside, clampInside, nearestBoundary, diamonds, buildFillets,
     // 検査から直に確かめるために出している。
     // 「内角90度以上には手を触れない」という条件は、いまのどの台でも働かない

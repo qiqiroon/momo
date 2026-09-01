@@ -97,6 +97,7 @@ const BilliardsI18N = (() => {
       'hud.turn': '手番', 'hud.score': '得点', 'hud.next': '次に当てる玉',
       'hud.foul': 'ファウル', 'hud.none': 'なし', 'hud.time': '持ち時間',
       'hud.base': '基本', 'hud.group': '担当', 'hud.open': '未定',
+      'hud.svLeft': '残り{n}', 'hud.svOut': '脱落',
       'drop.title': '落ちた玉', 'drop.already': 'これまでに落ちた玉',
       'group.solid': 'ソリッド（1〜7）', 'group.stripe': 'ストライプ（9〜15）',
 
@@ -151,6 +152,11 @@ const BilliardsI18N = (() => {
       'lose.eightScratch': '8番と同時に手玉も落としたため反則負け',
       'lose.eightOpen': '担当が決まる前に8番を落としたため反則負け',
       'lose.eightFoul': '反則と同時に8番を落としたため反則負け',
+      'msg.svGroups': '受け持ちのグループが決まりました',
+      'win.survival': '最後まで残って勝利',
+      'msg.allOut': '全員が同時に脱落しました',
+      'ev.svLost': '手玉を落としたため {n} 番を失いました',
+      'ev.svOut': '{name} 脱落',
 
       'res.title': '結果', 'res.win': '勝ち', 'res.lose': '負け', 'res.rank': '順位',
       'res.pts': '点', 'res.again': 'もう一度', 'res.toSetup': '設定へ戻る', 'res.toMenu': 'メニューに戻る',
@@ -307,6 +313,7 @@ const BilliardsI18N = (() => {
       'hud.turn': 'Turn', 'hud.score': 'Score', 'hud.next': 'Hit first',
       'hud.foul': 'Foul', 'hud.none': 'none', 'hud.time': 'Time bank',
       'hud.base': 'Base', 'hud.group': 'Group', 'hud.open': 'open',
+      'hud.svLeft': '{n} left', 'hud.svOut': 'out',
       'drop.title': 'Pocketed', 'drop.already': 'Already pocketed',
       'group.solid': 'Solids (1-7)', 'group.stripe': 'Stripes (9-15)',
 
@@ -361,6 +368,11 @@ const BilliardsI18N = (() => {
       'lose.eightScratch': 'Loss: the cue ball was pocketed with the 8',
       'lose.eightOpen': 'Loss: the 8 was pocketed while the table was open',
       'lose.eightFoul': 'Loss: the 8 was pocketed on a foul',
+      'msg.svGroups': 'Groups have been assigned.',
+      'win.survival': 'Won as the last one standing',
+      'msg.allOut': 'Everyone was knocked out at once.',
+      'ev.svLost': 'Scratch: lost the {n} ball',
+      'ev.svOut': '{name} knocked out',
 
       'res.title': 'Result', 'res.win': 'Win', 'res.lose': 'Lose', 'res.rank': 'Place',
       'res.pts': 'pts', 'res.again': 'Play again', 'res.toSetup': 'Back to setup', 'res.toMenu': 'Back to menu',
@@ -517,6 +529,7 @@ const BilliardsI18N = (() => {
       'hud.turn': '轮到', 'hud.score': '得分', 'hud.next': '先击打',
       'hud.foul': '犯规', 'hud.none': '无', 'hud.time': '保留时间',
       'hud.base': '基本', 'hud.group': '组别', 'hud.open': '未定',
+      'hud.svLeft': '剩{n}', 'hud.svOut': '淘汰',
       'drop.title': '已进袋', 'drop.already': '此前进袋的球',
       'group.solid': '全色（1〜7）', 'group.stripe': '花色（9〜15）',
 
@@ -571,6 +584,11 @@ const BilliardsI18N = (() => {
       'lose.eightScratch': '打进 8 号球时母球同时落袋，犯规判负',
       'lose.eightOpen': '分组未定即打进 8 号球，犯规判负',
       'lose.eightFoul': '犯规的同时打进 8 号球，犯规判负',
+      'msg.svGroups': '各自的球组已确定。',
+      'win.survival': '坚持到最后获胜',
+      'msg.allOut': '所有人同时被淘汰。',
+      'ev.svLost': '母球落袋，失去 {n} 号球',
+      'ev.svOut': '{name} 被淘汰',
 
       'res.title': '结果', 'res.win': '胜', 'res.lose': '负', 'res.rank': '名次',
       'res.pts': '分', 'res.again': '再来一局', 'res.toSetup': '返回设置', 'res.toMenu': '返回菜单',

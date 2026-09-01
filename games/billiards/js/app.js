@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.45';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.46';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -211,8 +211,14 @@
    * グレーは台形状の側にだけ掛け、ルールを選び直して台が成立しなくなったときは
    * 台の選択を解除して選び直しを求める（2.5.3節）。両方向へ掛けると行き止まりができる。
    */
+  /*
+   * ★ルールのグレーも、台形状と同じく**実際に入っているルールの一覧**から決める。
+   *   STAGE は仕様書 11.2.3節の「段階の割り当て」であって、実装が済んだかどうかではない。
+   *   ここで段階の数を見ていると、ルールを1本足すたびに2か所を直すことになり、
+   *   片方を書き忘れると「入っているのに選べない」または「無いのに選べる」になる。
+   */
   function ruleBlock(id) {
-    if (STAGE.rule[id] >= 3) return t('why.stage3');
+    if (RU.RULE_IDS.indexOf(id) < 0) return t('why.stage3');
     if (id === 'G-02' && S.cfg.players > 2) return t('why.twoOnly');
     return null;
   }
@@ -593,7 +599,14 @@
    * それだといつも同じ席（通信対戦では主催者）が先手になる。
    * 利用者の指示により、通信対戦とAI対戦ではバンキングで決める。
    */
-  function bankingHere(cfg) { return cfg.format === 'online' || cfg.format === 'ai'; }
+  /*
+   * バンキングを行う場面。通信対戦とAI対戦は「席で先手が決まらないように」（7.2.7節）。
+   * **サバイバルは対戦形式によらず必ず行う。**このルールはバンキングが
+   * 先手だけでなく**全員の打順そのもの**を決める仕組みの一部だからである（7.8節）。
+   */
+  function bankingHere(cfg) {
+    return cfg.format === 'online' || cfg.format === 'ai' || cfg.rule === 'G-08';
+  }
   /**
    * 続けてもう1局やるときの席順。前回の巡りを保ったまま、ブレイクする人を先頭へ回す。
    * バンキングは**シリーズの最初の1局だけ**。続きの局はここで決めた順で始める。
@@ -1073,7 +1086,7 @@
       }
     }
 
-    if (!g.broken && RU.HAS_RACK[g.rule]) {
+    if (!g.broken && RU.HAS_RACK[g.rule] && RU.BREAK_VALID[g.rule]) {
       const ok = RU.breakValid(g.world.events, res.pocketed.length);
       g.broken = true;
       if (!ok) { if (!quiet) setMsg(t('ev.breakFail')); res.continueTurn = false; }
@@ -1085,7 +1098,14 @@
       if (res.fouls.length) msg = res.fouls.map(f => t('foul.' + f)).join(' / ');
       if (res.message) msg = (msg ? msg + ' — ' : '') + t(res.message);
       if (res.gained) msg = (msg ? msg + ' — ' : '') + '+' + res.gained;
+      // サバイバルで球が1つ減ったとき（手玉を落とした罰。7.8.5節）
+      if (res.lostBall) msg = (msg ? msg + ' — ' : '') + t('ev.svLost', { n: res.lostBall });
       setMsg(msg);
+      // 脱落は盤の真ん中に出す。出さないと、次から手番が飛ぶ理由が分からない
+      if (res.outNow && res.outNow.length) {
+        const names = res.outNow.map(i => g.players[i] ? g.players[i].name : '?').join(' / ');
+        flash(t('ev.svOut', { name: names }), 'foul');
+      }
       if (res.fouls.length) {
         AU.sfx('foul');
         // ファウルは盤の真ん中に大きく出す。これが見えないと
@@ -1658,6 +1678,7 @@
     g.addColorStop(.72, b.color); g.addColorStop(1, shade(b.color, .42));
     ctx.beginPath(); ctx.arc(bx, by, r, 0, 7); ctx.fillStyle = g; ctx.fill();
     ctx.lineWidth = Math.max(1, r * .06); ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.stroke();
+    strokeOwnerRing(b, bx, by, r);
     if (b.stripe) {
       ctx.save(); ctx.beginPath(); ctx.arc(bx, by, r, 0, 7); ctx.clip();
       ctx.fillStyle = 'rgba(255,255,255,.92)';
@@ -1680,6 +1701,52 @@
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(String(b.num), bx, by + .5);
     }
+    ctx.restore();
+  }
+
+  /**
+   * サバイバルの右側の表示（7.8.2節「残数の表示は常時」）。
+   * 割り当て前は「まだ決まっていない」、脱落したら「脱落」、それ以外は
+   * **受け持ちの番号と残り個数**を出す。番号を出すのは、3人以上では
+   * 自分の玉が番号でしか分かれないためである。
+   */
+  function survivalHudText(g, p) {
+    if (p.out) return t('hud.svOut');
+    const left = RU.survivalLeft(g, p.idx);
+    if (left == null) return t('hud.open');
+    const sv = g.survival;
+    const nums = (sv && sv.groups[p.group]) || [];
+    const range = nums.length ? nums[0] + '–' + nums[nums.length - 1] : '';
+    return range + '  ' + t('hud.svLeft', { n: left });
+  }
+
+  /**
+   * サバイバルで、その玉の持ち主の色（7.8.2節「色で区別する」）。
+   * 無所属・持ち主が決まる前・別のルールでは null。
+   */
+  function ownerColor(b) {
+    const g = S.game;
+    if (!g || g.rule !== 'G-08' || !g.survival || !g.survival.assigned) return null;
+    if (b.kind !== 'object' || !(b.grp >= 0)) return null;
+    const seat = g.survival.owner[b.grp];
+    if (!(seat >= 0)) return null;
+    return RU.SURVIVAL_COLORS[seat % RU.SURVIVAL_COLORS.length];
+  }
+  /**
+   * 持ち主の輪。**玉の外側＝ラシャの上に描く。**
+   * 玉の地色（黄・青・赤・紫・橙・緑・臙脂・黒）の上に描くと、同じ色どうしで消える。
+   * 内側に黒を1本敷いて、明るいラシャでも縁が立つようにする。
+   */
+  function strokeOwnerRing(b, x, y, r) {
+    const col = ownerColor(b);
+    if (!col) return;
+    ctx.save();
+    ctx.lineWidth = Math.max(1.2, r * .16);
+    ctx.strokeStyle = 'rgba(0,0,0,.55)';
+    ctx.beginPath(); ctx.arc(x, y, r * 1.16, 0, 7); ctx.stroke();
+    ctx.lineWidth = Math.max(1, r * .13);
+    ctx.strokeStyle = col;
+    ctx.beginPath(); ctx.arc(x, y, r * 1.16, 0, 7); ctx.stroke();
     ctx.restore();
   }
 
@@ -2356,6 +2423,7 @@
     g.addColorStop(0, '#fff'); g.addColorStop(.2, shade(b.color, 1.28));
     g.addColorStop(.72, b.color); g.addColorStop(1, shade(b.color, .42));
     ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = g; ctx.fill();
+    strokeOwnerRing(b, x, y, r);
     if (b.num && r > 6) {
       ctx.beginPath(); ctx.arc(x, y, r * .48, 0, 7); ctx.fillStyle = '#fff'; ctx.fill();
       ctx.fillStyle = '#111'; ctx.font = '700 ' + Math.max(7, r * .62) + 'px "Noto Sans JP",sans-serif';
@@ -3130,6 +3198,7 @@
       if (g.coop && RU.HAS_SCORE[g.rule]) right = p.score + '（' + RU.teamScore(g, p.team) + '）';
       if (g.rule === 'G-04') right = p.score + '/' + p.target;
       if (g.rule === 'G-02') right = p.group ? t('group.' + p.group).split('（')[0] : t('hud.open');
+      if (g.rule === 'G-08') right = survivalHudText(g, p);
       const who = (g.coop ? teamMark(p.team) + ' ' : '') + p.name;
       d.innerHTML = '<span>' + escapeHtml(who) + '</span><span>' + escapeHtml(right) + '</span>';
       box.appendChild(d);

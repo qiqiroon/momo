@@ -1678,7 +1678,6 @@
     g.addColorStop(.72, b.color); g.addColorStop(1, shade(b.color, .42));
     ctx.beginPath(); ctx.arc(bx, by, r, 0, 7); ctx.fillStyle = g; ctx.fill();
     ctx.lineWidth = Math.max(1, r * .06); ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.stroke();
-    strokeOwnerRing(b, bx, by, r);
     if (b.stripe) {
       ctx.save(); ctx.beginPath(); ctx.arc(bx, by, r, 0, 7); ctx.clip();
       ctx.fillStyle = 'rgba(255,255,255,.92)';
@@ -1686,6 +1685,8 @@
       ctx.fillRect(bx - r, by + r * .58, r * 2, r * .42);
       ctx.restore();
     }
+    // 縞を塗ったあとに描く。先に描くと、ストライプの玉では輪が塗りつぶされる
+    strokeOwnerRing(b, bx, by, r);
     const pole = rotV(b, 0, 0, 1);
     if (pole.z > -0.2) {
       ctx.beginPath();
@@ -1733,20 +1734,26 @@
     return RU.SURVIVAL_COLORS[seat % RU.SURVIVAL_COLORS.length];
   }
   /**
-   * 持ち主の輪。**玉の外側＝ラシャの上に描く。**
-   * 玉の地色（黄・青・赤・紫・橙・緑・臙脂・黒）の上に描くと、同じ色どうしで消える。
-   * 内側に黒を1本敷いて、明るいラシャでも縁が立つようにする。
+   * 持ち主の輪。**玉の縁のすぐ内側に描く。**
+   *
+   * ★最初は玉の外側（ラシャの上）に描いた。玉の地色と喧嘩しない利点はあるが、
+   *   **15球をラックに組むと隣の玉と重なり、しかも細すぎて見えなかった**
+   *   （実測：玉1個あたり11ピクセル）。玉は15個も並ぶと1個が小さく、
+   *   外側に足す余白そのものが無い。内側なら重ならず、太さも玉の大きさに比例して取れる。
+   *
+   * 地色と同じ色になる組合せ（黄の玉に黄の輪など）があるので、
+   * **色の帯の内側に暗い線を1本敷いて**、どの地色でも帯の境目が立つようにする。
    */
   function strokeOwnerRing(b, x, y, r) {
     const col = ownerColor(b);
     if (!col) return;
     ctx.save();
-    ctx.lineWidth = Math.max(1.2, r * .16);
-    ctx.strokeStyle = 'rgba(0,0,0,.55)';
-    ctx.beginPath(); ctx.arc(x, y, r * 1.16, 0, 7); ctx.stroke();
-    ctx.lineWidth = Math.max(1, r * .13);
+    ctx.lineWidth = Math.max(1, r * .34);
+    ctx.strokeStyle = 'rgba(0,0,0,.5)';
+    ctx.beginPath(); ctx.arc(x, y, r * .80, 0, 7); ctx.stroke();
+    ctx.lineWidth = Math.max(1.2, r * .26);
     ctx.strokeStyle = col;
-    ctx.beginPath(); ctx.arc(x, y, r * 1.16, 0, 7); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, y, r * .83, 0, 7); ctx.stroke();
     ctx.restore();
   }
 

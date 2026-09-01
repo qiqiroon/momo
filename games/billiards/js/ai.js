@@ -125,7 +125,18 @@ const BilliardsAI = (() => {
       return out;
     }
 
-    const targets = RU.legalTargets(game, playerIdx) || [];
+    /*
+     * 狙う球の一覧。
+     *
+     * ★**「制約なし」を「狙える球なし」と読んではいけない。**
+     *   legalTargets が返すのは「最初に当てなければならない球」であって、
+     *   その決まりを持たないルール（サバイバル）では null を返す。
+     *   そのまま空の一覧にすると、**ポケットへ送る筋の候補が1本も立たず**、
+     *   当てずっぽうの逃げ道だけで撞くことになる。
+     *   実測：サバイバルで AI は4局中3局、自分の球へ当てにいっていた。
+     *   制約が無いということは、**盤に残っている的球すべてが狙える**ということである。
+     */
+    const targets = RU.legalTargets(game, playerIdx) || RU.liveObjects(game);
     const pockets = game.table.pockets;
 
     /*
@@ -267,13 +278,26 @@ const BilliardsAI = (() => {
 
     if (firstHit == null) score -= 300;
     else if (legalIds && legalIds.indexOf(firstHit) < 0) score -= 260;
+    /*
+     * ★サバイバルでは、**落ちなくても「誰の球を突き飛ばしたか」で損得が出る。**
+     *   自分の球を走らせれば、その先で落ちる危険を自分で作ることになる。
+     *   落ちた球だけを見ていると、どちらへ当てても点が同じになり、
+     *   **候補の並び順で決まってしまう**（実測：自分の球へ当てにいく一撞きばかりを選んでいた）。
+     */
+    if (game.rule === 'G-08' && firstHit != null && game.survival && game.survival.assigned) {
+      const hit = byId[firstHit];
+      const mineGrp = game.players[playerIdx].group;
+      if (hit && hit.grp >= 0) score += (hit.grp === mineGrp) ? -70 : 45;
+    }
     if (contact && !cushionAfter && pocketed.length === 0) score -= 200;
     if (off.length) score -= 180 * p.avoidScratch;
 
     for (const id of pocketed) {
       const b = byId[id];
       if (!b) continue;
-      if (b.kind === 'cue') { score -= 260 * p.avoidScratch; continue; }
+      // サバイバルのスクラッチは手番を失うだけでなく**自分の球が1つ減る**（7.8.5節）。
+      // 他のルールより重い罰なので、避ける重みもそのぶん増やす
+      if (b.kind === 'cue') { score -= (game.rule === 'G-08' ? 420 : 260) * p.avoidScratch; continue; }
       if (game.rule === 'G-01') score += (b.num === 9) ? 600 : 140;
       else if (game.rule === 'G-03') score += 60 + b.num * 12;
       else if (game.rule === 'G-08') score += survivalGain(game, playerIdx, b);

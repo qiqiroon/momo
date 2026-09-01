@@ -140,6 +140,29 @@ const BilliardsAI = (() => {
     const pockets = game.table.pockets;
 
     /*
+     * ポケットへ送る筋を作る相手。
+     *
+     * ★**サバイバルでは、自分の球と無所属の球を外す。**
+     *   自分の球を落とせば自分の体力が減り、無所属の球は落としても何も起きない。
+     *   **どちらも「撞いてはいけない／撞いても意味がない」筋である。**
+     *
+     *   ここで外さないと、下の絞り込みが効かない。筋は「入りやすさ」だけで並べ替えて
+     *   上位だけを読むが、その並べ替えは**誰の球かを見ていない**。
+     *   実測（2人・4手進めた局面）：ポケットへ送れる筋は 34本（自分14／他人16／無所属4）
+     *   あったのに、実際に読む上位7本の内訳は**自分4／他人3／無所属0**だった。
+     *   **読みの 57% を、必ず捨てることになる筋に使っていた。**
+     *
+     *   他人の球へ送る筋が1本も無いときは元の一覧に戻す。空にすると、
+     *   下の「筋が1本も無いとき」の逃げ道が自分の球へ当てにいく形になるためである。
+     */
+    let potTargets = targets;
+    if (game.rule === 'G-08' && game.survival && game.survival.assigned) {
+      const mine = game.players[playerIdx].group;
+      const foes = targets.filter(b => b.grp >= 0 && b.grp !== mine);
+      if (foes.length) potTargets = foes;
+    }
+
+    /*
      * ★ブレイクは別扱いにする。
      *
      * ふだんの候補は「的球をポケットへ送る筋」から作るが、ブレイクではラックが固まっていて
@@ -178,7 +201,7 @@ const BilliardsAI = (() => {
      */
     const tips = [{ x: 0, y: 0 }, { x: 0, y: 0.35 }, { x: 0, y: -0.35 }];
     const shots = [];
-    for (const tb of targets) {
+    for (const tb of potTargets) {
       for (const pk of pockets) {
         const g = ghostAim(cue, tb, pk);
         if (!g) continue;
@@ -217,7 +240,7 @@ const BilliardsAI = (() => {
        * あわせて**全周を刻んだ候補**も並べる。壁や球を回り込む筋は幾何では読めず、
        * 実際に撞いてみて初めて見つかるためである（キャロムの候補と同じ考え方）。
        */
-      const reachable = targets.filter(tb => !pathCrossesWall(game.table, cue.x, cue.y, tb.x, tb.y));
+      const reachable = potTargets.filter(tb => !pathCrossesWall(game.table, cue.x, cue.y, tb.x, tb.y));
       for (const tb of reachable.slice(0, 2)) {
         const dir = Math.atan2(tb.y - cue.y, tb.x - cue.x);
         for (const pw of [0.28, 0.45]) out.push({ dir, power: pw, tipX: 0, tipY: 0, elev: 0 });

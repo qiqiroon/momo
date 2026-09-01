@@ -112,6 +112,40 @@ const BilliardsAI = (() => {
     return false;
   }
 
+  /**
+   * **ポケットへ送る筋を作る相手。**
+   *
+   * ★**「最初に当てるべき玉」が返ってこないことを「狙える球が無い」と読んではいけない。**
+   *   legalTargets が返すのは順番の決まりであって、その決まりを持たないルール
+   *   （サバイバル）では null を返す。空の一覧として扱うと、
+   *   **ポケットへ送る筋が1本も作られない。**
+   *
+   * ★**サバイバルでは、さらに自分の球と無所属の球を外す。**
+   *   自分の球を落とせば自分の体力が減り、無所属の球は落としても何も起きない。
+   *   どちらも「撞いてはいけない／撞いても意味がない」筋である。
+   *   外さないと絞り込みが効かない：筋は「入りやすさ」だけで並べ替えて上位だけを読むが、
+   *   その並べ替えは誰の球かを見ていない。実測（2人・4手進めた局面）＝送れる筋 34本
+   *   （自分14／他人16／無所属4）に対し、読む上位7本は自分4／他人3／無所属0だった。
+   *
+   * ★★**この判断は2か所で要る（筋を作るとき・手玉を置く場所を選ぶとき）。**
+   *   最初は筋を作る側だけを直し、置く場所を選ぶ側に同じ誤りが残っていた。
+   *   そのためサバイバルでは**「真っすぐ入る位置」の候補が1つも作られず**、
+   *   自由に置けるのに格子から実質でたらめに選んでいた（実測：12場面で成功 42%）。
+   *   **同じ決めごとを2か所に書かない**ため、ここに1本だけ置いて両方から呼ぶ。
+   *
+   * 他人の球へ送る筋が1本も無いときは元の一覧に戻す。空にすると、
+   * 「筋が1本も無いとき」の逃げ道が自分の球へ当てにいく形になるためである。
+   */
+  function potTargetsFor(game, playerIdx) {
+    const targets = RU.legalTargets(game, playerIdx) || RU.liveObjects(game);
+    if (game.rule === 'G-08' && game.survival && game.survival.assigned) {
+      const mine = game.players[playerIdx].group;
+      const foes = targets.filter(b => b.grp >= 0 && b.grp !== mine);
+      if (foes.length) return foes;
+    }
+    return targets;
+  }
+
   function buildCandidates(game, playerIdx, p) {
     const cue = RU.cueBallOf(game, playerIdx);
     const out = [];
@@ -140,42 +174,11 @@ const BilliardsAI = (() => {
       return out;
     }
 
-    /*
-     * 狙う球の一覧。
-     *
-     * ★**「制約なし」を「狙える球なし」と読んではいけない。**
-     *   legalTargets が返すのは「最初に当てなければならない球」であって、
-     *   その決まりを持たないルール（サバイバル）では null を返す。
-     *   そのまま空の一覧にすると、**ポケットへ送る筋の候補が1本も立たず**、
-     *   当てずっぽうの逃げ道だけで撞くことになる。
-     *   実測：サバイバルで AI は4局中3局、自分の球へ当てにいっていた。
-     *   制約が無いということは、**盤に残っている的球すべてが狙える**ということである。
-     */
+    // ブレイクでラックの先頭を探すのに使う。撞く相手を絞る前の一覧
     const targets = RU.legalTargets(game, playerIdx) || RU.liveObjects(game);
     const pockets = game.table.pockets;
 
-    /*
-     * ポケットへ送る筋を作る相手。
-     *
-     * ★**サバイバルでは、自分の球と無所属の球を外す。**
-     *   自分の球を落とせば自分の体力が減り、無所属の球は落としても何も起きない。
-     *   **どちらも「撞いてはいけない／撞いても意味がない」筋である。**
-     *
-     *   ここで外さないと、下の絞り込みが効かない。筋は「入りやすさ」だけで並べ替えて
-     *   上位だけを読むが、その並べ替えは**誰の球かを見ていない**。
-     *   実測（2人・4手進めた局面）：ポケットへ送れる筋は 34本（自分14／他人16／無所属4）
-     *   あったのに、実際に読む上位7本の内訳は**自分4／他人3／無所属0**だった。
-     *   **読みの 57% を、必ず捨てることになる筋に使っていた。**
-     *
-     *   他人の球へ送る筋が1本も無いときは元の一覧に戻す。空にすると、
-     *   下の「筋が1本も無いとき」の逃げ道が自分の球へ当てにいく形になるためである。
-     */
-    let potTargets = targets;
-    if (game.rule === 'G-08' && game.survival && game.survival.assigned) {
-      const mine = game.players[playerIdx].group;
-      const foes = targets.filter(b => b.grp >= 0 && b.grp !== mine);
-      if (foes.length) potTargets = foes;
-    }
+    const potTargets = potTargetsFor(game, playerIdx);
 
     /*
      * ★ブレイクは別扱いにする。
@@ -451,7 +454,8 @@ const BilliardsAI = (() => {
   function pickBallInHand(game, playerIdx) {
     const table = game.table;
     const cue = RU.cueBallOf(game, playerIdx);
-    const targets = RU.legalTargets(game, playerIdx) || [];
+    // ★筋を作る側と同じ判断を使う。ここに別の書き方を置くと、片方だけがはぐれる
+    const targets = potTargetsFor(game, playerIdx);
     const pockets = table.pockets;
     const cands = [];
 

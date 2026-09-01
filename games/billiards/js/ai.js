@@ -24,11 +24,26 @@ const BilliardsAI = (() => {
    *
    * scratchBlind は「手玉が落ちる危険を軽く見て撞いてしまう」割合。
    * 手玉を落とす失敗は狙いが逸れる失敗より自然に見えるが、毎回だと目立つので混ぜる程度にする。
+   *
+   * ★**ぶれの値は 2026-09-01 に3段階まとめて下げた。**
+   *   実機から「AIが下手すぎる／相手の球を落とそうとしているように見えない」と指摘され、
+   *   内訳を測って分かったことは**狙いは合っているということ**だった。
+   *   「狙いを定めた一撞きが、その球を落とせた割合」を測ると：
+   *
+   *     ぶれ無し 82〜90%／0.0020 で 66%／0.0035 で 51%／0.0055 で 38%／
+   *     0.0080 で 33%／**0.0110（当時の easy）で 28%**
+   *
+   *   ＝**狙って撞いた球の7割を、仕組みが意図的に外させていた。**
+   *   逃げ道（当てずっぽう）に落ちていたのではない（実測：サバイバルで 0〜8%）。
+   *   狙いも筋の選び方も正しく、最後に乗せるぶれだけが大きすぎた。
+   *
+   * ★**下げるときは3段階まとめて動かす。**easy だけ下げると hard より上手くなり、
+   *   難易度が逆転する。順序（easy ＞ hard ＞ apocalypse）は値そのものが担っている。
    */
   const PROFILE = {
-    easy: { cands: 8, aimNoise: 0.0110, powNoise: 0.14, simSec: 6, avoidScratch: 0.4, scratchBlind: 0.16 },
-    hard: { cands: 14, aimNoise: 0.0060, powNoise: 0.06, simSec: 6, avoidScratch: 1.0, scratchBlind: 0.06 },
-    apocalypse: { cands: 20, aimNoise: 0.0022, powNoise: 0.03, simSec: 7, avoidScratch: 1.4, scratchBlind: 0.015 },
+    easy: { cands: 8, aimNoise: 0.0035, powNoise: 0.07, simSec: 6, avoidScratch: 0.4, scratchBlind: 0.16 },
+    hard: { cands: 14, aimNoise: 0.0020, powNoise: 0.04, simSec: 6, avoidScratch: 1.0, scratchBlind: 0.06 },
+    apocalypse: { cands: 20, aimNoise: 0.0008, powNoise: 0.02, simSec: 7, avoidScratch: 1.4, scratchBlind: 0.015 },
   };
 
   /**

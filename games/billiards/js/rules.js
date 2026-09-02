@@ -21,7 +21,7 @@ const BilliardsRules = (() => {
   };
   const CAROM_COLORS = ['#f4f4f4', '#f2c00e', '#8fd14f', '#60a5fa', '#c084fc', '#f472b6'];
 
-  const RULE_IDS = ['G-01', 'G-02', 'G-03', 'G-04', 'G-08'];
+  const RULE_IDS = ['G-01', 'G-02', 'G-03', 'G-04', 'G-06', 'G-08'];
 
   // 適用するファウル（7.2.4節）。第1段階の4ルールぶんだけを持つ。
   const FOUL_TABLE = {
@@ -29,32 +29,47 @@ const BilliardsRules = (() => {
     'G-02': { 'V-01': 1, 'V-02': 1, 'V-03': 1, 'V-04': 1, 'V-05': 1, 'V-06': 1, 'V-07': 1, 'V-08': 1, 'V-09': 1 },
     'G-03': { 'V-01': 1, 'V-02': 1, 'V-03': 1, 'V-04': 1, 'V-05': 1, 'V-06': 1, 'V-07': 1, 'V-08': 1, 'V-09': 1 },
     'G-04': { 'V-01': 1, 'V-02': 0, 'V-03': 0, 'V-04': 0, 'V-05': 1, 'V-06': 1, 'V-07': 1, 'V-08': 1, 'V-09': 1 },
+    /*
+     * 陣取りも「最初に当てるべき玉」を持たない（7.2.4節）。どの玉に当てても結果は盤面に出る。
+     * **V-04 も適用しない。**キャロム版台専用なので（D395）ポケットが存在しない。
+     * 手玉の場外は V-05 で受ける（D396）。
+     */
+    'G-06': { 'V-01': 1, 'V-02': 0, 'V-03': 0, 'V-04': 0, 'V-05': 1, 'V-06': 1, 'V-07': 1, 'V-08': 1, 'V-09': 1 },
     // サバイバルは「最初に当てるべき玉」を持たないので V-02・V-03 は適用しない（7.2.4節）
     'G-08': { 'V-01': 1, 'V-02': 0, 'V-03': 0, 'V-04': 1, 'V-05': 1, 'V-06': 1, 'V-07': 1, 'V-08': 1, 'V-09': 1 },
   };
 
   // 罰則の分類（7.2.5節）
-  const PENALTY = { 'G-01': 'freeball', 'G-02': 'freeball', 'G-03': 'freeball', 'G-04': 'score', 'G-08': 'loss' };
+  const PENALTY = { 'G-01': 'freeball', 'G-02': 'freeball', 'G-03': 'freeball', 'G-04': 'score', 'G-06': 'freeball', 'G-08': 'loss' };
   // 勝敗の決まり方（7.2.8節）
-  const WIN_KIND = { 'G-01': 'reach', 'G-02': 'reach', 'G-03': 'points', 'G-04': 'reach', 'G-08': 'survival' };
+  const WIN_KIND = { 'G-01': 'reach', 'G-02': 'reach', 'G-03': 'points', 'G-04': 'reach', 'G-06': 'points', 'G-08': 'survival' };
 
   /**
    * 点数を数えるルールかどうか。
    * ナインボール・エイトボールは「どの玉を落としたか」で決まり点数を持たない。
    * 持たないルールで 0 点と出し続けると、壊れているように見える。
    */
-  const HAS_SCORE = { 'G-01': false, 'G-02': false, 'G-03': true, 'G-04': true, 'G-08': false };
+  const HAS_SCORE = { 'G-01': false, 'G-02': false, 'G-03': true, 'G-04': true, 'G-06': true, 'G-08': false };
   // ラックを持つか（7.2.7節）
-  const HAS_RACK = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': false, 'G-08': true };
+  const HAS_RACK = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': false, 'G-06': false, 'G-08': true };
   // ポケットあり台が要るか
-  const NEEDS_POCKETS = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': false, 'G-08': true };
+  const NEEDS_POCKETS = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': false, 'G-06': false, 'G-08': true };
   /*
    * ブレイクの成立条件（1球以上落ちるか4球以上がクッションに触れる）を見るか。
    * **サバイバルだけは見ない。**このルールのブレイクは「グループの球が1つでも落ちたか」
    * だけで組み立てられていて、落ちなければそのまま次の人が撞く。
    * クッション数の条件を重ねると、同じ一撞きに二重の判定が掛かる。
    */
-  const BREAK_VALID = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': false, 'G-08': false };
+  const BREAK_VALID = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': false, 'G-06': false, 'G-08': false };
+
+  /*
+   * 陣取り（7.7節）のプレイヤーの色。**玉そのものの色であり、塗ったマスもこの色になる。**
+   * ラシャの緑の上でも読めるよう、サバイバルの輪と同じ組から選ぶ。
+   * **白は使わない。**手玉が白なので、白い的球があると撞く玉を見失う。
+   */
+  const TERRITORY_COLORS = ['#00e5ff', '#ff2d95', '#ffd400', '#b06cff'];
+  const TERRITORY_BALLS = 4;    // 色ごとの玉数（D390）
+  const TERRITORY_SHOTS = 4;    // 規定打数（D393）。玉の数と一致させている
 
   /*
    * サバイバルの所有者を表す色（7.8.2節「色で区別する」）。
@@ -281,7 +296,35 @@ const BilliardsRules = (() => {
     let id = 0;
     const R = T.R;
 
-    if (game.rule === 'G-04') {
+    if (game.rule === 'G-06') {
+      /*
+       * 陣取り（7.7.8節）。的球は台の重心を中心とした円周上に等間隔、**色は順ぐりに配る**。
+       * 手玉は円の中心（ドーナツ型だけは島を挟んだ反対側）。
+       */
+      const n = game.players.length;
+      const total = n * TERRITORY_BALLS;
+      const lay = T.territoryLayout(table, total);
+      balls.push(E.makeBall({
+        id: id++, num: 0, kind: 'cue', r: R, x: lay.cue.x, y: lay.cue.y, color: '#f4f4f4',
+      }));
+      lay.spots.forEach((s, i) => {
+        const owner = i % n;    // 色は順ぐり。色ごとにまとめると方角と壁までの距離が偏る
+        balls.push(E.makeBall({
+          id: id++, num: i + 1, kind: 'object', owner, r: R,
+          x: s.x, y: s.y, color: TERRITORY_COLORS[owner % TERRITORY_COLORS.length],
+        }));
+      });
+      game.territory = {
+        grid: T.territoryGrid(table),
+        layout: { center: lay.center, radius: lay.radius },
+        paint: new Map(),      // マスの番号 → 塗った人の席
+        last: new Map(),       // 玉ごとに最後に見たマス。変わったときだけ塗る
+        shotLog: [],           // この一撞きで塗り替えたマスと、その前の色
+      };
+      game.players.forEach(p => { p.score = 0; p.shots = 0; });
+      game.ballInHand = false;
+      game.ballInHandFull = false;
+    } else if (game.rule === 'G-04') {
       const pos = T.caromPositions(table, game.players.length);
       pos.cues.forEach((c, i) => {
         balls.push(E.makeBall({
@@ -337,9 +380,97 @@ const BilliardsRules = (() => {
       game.ballInHand = true;
       game.ballInHandFull = false;
     }
-    game.world = E.createWorld(table, balls, game.tuning);
+    /*
+     * 刻みごとの通知はここで1回だけ結ぶ。**盤面を進める道は5本あるので、
+     * 呼ぶ側に書き足していくと必ずどれかが抜ける**（主ループ・演出無しの一気走らせ・
+     * 観戦者の追いつき・リプレイ・AIの読み）。エンジンの step が必ず通る場所に置く。
+     */
+    game.world = E.createWorld(table, balls, game.tuning,
+      game.rule === 'G-06' ? { onAdvance: () => territoryTrack(game) } : null);
     // 玉を並べ直した＝まだ誰もブレイクしていない
     game.broken = false;
+    if (game.rule === 'G-06') territoryTrack(game);   // 出発のマスを控える（塗りはしない）
+  }
+
+  // ───────── 陣取り（7.7節） ─────────
+
+  /**
+   * 玉が通ったマスを塗る（7.7.2節）。エンジンの刻みごとに呼ばれる。
+   *
+   * **塗るのは「マスが変わったとき」だけである。**止まっている玉のマスを毎回塗ると、
+   * 玉を置いたままにするだけでその下のマスを守れてしまい、上書きが起きなくなる。
+   * 仕様の「玉の中心が進入した時点で塗られる」に合わせて、入った瞬間だけ数える。
+   *
+   * **控えはショットをまたいで持ち続ける。**止まっている間はマスが変わらないので塗られず、
+   * 次に動いたときだけ差分が出る。ショットの切れ目で消す必要がないので、
+   * 消し忘れ・消しすぎのどちらも起こらない。
+   */
+  function paintAdvance(table, grid, paint, last, balls, log) {
+    for (const b of balls) {
+      if (b.kind !== 'object' || b.state !== 'live') continue;
+      const c = T.gridCellAt(table, b.x, b.y);
+      if (last.get(b.id) === c) continue;
+      const first = !last.has(b.id);
+      last.set(b.id, c);
+      if (first) continue;                       // 初めて見た玉は控えるだけ。出発のマスは塗らない
+      if (c < 0 || !grid.valid.has(c)) continue;
+      const before = paint.has(c) ? paint.get(c) : -1;
+      if (before === b.owner) continue;
+      if (log) log.push({ cell: c, prev: before });
+      paint.set(c, b.owner);
+    }
+  }
+
+  function territoryTrack(game) {
+    const tt = game.territory;
+    if (!tt) return;
+    /*
+     * ★**「この一撞きで塗ったぶん」の区切りは、玉が動き出した瞬間に置く。**
+     *
+     * ファウルなら塗りを元へ戻すので（7.2.6節）、控えが一撞きぶんで区切られていないと
+     * **それ以前の塗りまで巻き戻す**。撞き終わりに消す形にしていたが、
+     * 玉が動くのに撞き終わりを通らない道があると、そこで溜まったぶんが
+     * 次のファウルでまとめて消える（検査で 128 マスが 0 になった）。
+     *
+     * 消す合図（撞き終わり）に寄りかからず、**立てる側と同じ場所＝盤面が動く所**で区切る。
+     */
+    const moving = !E.allStopped(game.world);
+    if (moving && !tt.moving) tt.shotLog.length = 0;
+    tt.moving = moving;
+    paintAdvance(game.table, tt.grid, tt.paint, tt.last, game.world.balls, tt.shotLog);
+  }
+
+  /**
+   * 試し撞き用の塗り（AIの読み）。**本物の塗りには触れない。**
+   *
+   * ★塗りの決めごとは paintAdvance ただ1つで、本番も読みも同じ関数を通る。
+   * 読み側に写しを書くと、片方だけ直したときに
+   * 「AIが見ている盤面」と「実際に塗られる盤面」が食い違う。
+   */
+  function makeTerritoryProbe(game) {
+    const tt = game.territory;
+    const paint = new Map(tt.paint), last = new Map(tt.last);
+    return {
+      step(w) { paintAdvance(game.table, tt.grid, paint, last, w.balls, null); },
+      counts() {
+        const out = game.players.map(() => 0);
+        paint.forEach(owner => { if (out[owner] != null) out[owner]++; });
+        return out;
+      },
+    };
+  }
+
+  /** 塗られたマスを席ごとに数える（7.7.4節） */
+  function territoryCount(game) {
+    const out = game.players.map(() => 0);
+    if (!game.territory) return out;
+    game.territory.paint.forEach(owner => { if (out[owner] != null) out[owner]++; });
+    return out;
+  }
+
+  /** その席の色の、まだ盤に残っている玉 */
+  function territoryBallsOf(game, seat) {
+    return game.world.balls.filter(b => b.kind === 'object' && b.state === 'live' && b.owner === seat);
   }
 
   /**
@@ -656,11 +787,22 @@ const BilliardsRules = (() => {
     if (applies['V-03'] && firstHit != null && !cushionAfterContact && pocketed.length === 0) {
       fouls.push('V-03');
     }
-    // ── V-04 スクラッチ（手玉の場外もここで受ける。10.4.2節）
-    if (applies['V-04'] && (cuePocketed || cueOff)) fouls.push('V-04');
+    /*
+     * ★**手玉の場外をどちらのファウルで受けるかは、台にポケットがあるかで決める**
+     *   （7.2.3節・D396）。ポケットのある台では V-04 が受け（10.4.2節）、
+     *   ポケットの無い台では V-04 自体が成立しないので V-05 が受ける。
+     *
+     *   もとは「G-04 キャロムのみ V-05」とルールの名前で書いていた。
+     *   キャロムが唯一のポケット無し専用ルールだった頃の書き方で、
+     *   **陣取りが2つ目になった時点で古くなる**。名前を並べる形のままだと、
+     *   足し忘れたルールでは**手玉が台の外へ飛んでも何のファウルにもならない**。
+     */
+    const noPockets = game.table.pockets.length === 0;
+    // ── V-04 スクラッチ（ポケットのある台では手玉の場外もここで受ける。10.4.2節）
+    if (applies['V-04'] && (cuePocketed || (!noPockets && cueOff))) fouls.push('V-04');
     // ── V-05 場外
     const objOff = offtable.filter(id => id !== pre.cueId);
-    if (applies['V-05'] && (objOff.length > 0 || (rule === 'G-04' && cueOff))) fouls.push('V-05');
+    if (applies['V-05'] && (objOff.length > 0 || (noPockets && cueOff))) fouls.push('V-05');
     // ── V-06 ダブルヒット／プッシュショット
     if (applies['V-06'] && pre.doubleHit) fouls.push('V-06');
 
@@ -679,6 +821,7 @@ const BilliardsRules = (() => {
     else if (rule === 'G-02') resolveEight(game, result, pre);
     else if (rule === 'G-03') resolveRotation(game, result, pre);
     else if (rule === 'G-04') resolveCarom(game, result, pre);
+    else if (rule === 'G-06') resolveTerritory(game, result, pre);
     else if (rule === 'G-08') resolveSurvival(game, result, pre);
 
     /*
@@ -735,6 +878,8 @@ const BilliardsRules = (() => {
       else if (rule === 'G-02') { b.state = 'gone'; }
       else if (rule === 'G-03') { spotBall(game, b); }
       else if (rule === 'G-04') { homeBall(game, b); }
+      // 陣取りは落ちた的球を戻さない（7.7.5節）。その色の玉が1つ減る
+      else if (rule === 'G-06') { b.state = 'gone'; b.onTable = false; }
       // サバイバルは場外もポケットと同じく喪失（7.8.4節・10.3.3節）。戻さない
       else if (rule === 'G-08') { b.state = 'gone'; b.onTable = false; }
     }
@@ -863,6 +1008,50 @@ const BilliardsRules = (() => {
       if (teamScore(game, teamOf(game, game.turn)) >= game.players[game.turn].target) {
         r.gameOver = true; game.over = true; setWinner(game, game.turn); r.message = 'win.carom';
       }
+    }
+  }
+
+  // ───────── G-06 陣取り（7.7節） ─────────
+  function resolveTerritory(game, r, pre) {
+    const tt = game.territory;
+    const before = game.players[game.turn].score;
+    if (r.foul) {
+      /*
+       * ファウル時の利益無効（7.2.6節）。**この一撞きで塗ったマスを、塗る前の色へ戻す。**
+       * 陣取りで一撞きから得る利益は塗りだけなので、これを残すと
+       * 「ファウルを厭わずに強く撞いて塗り広げる」が最適解になる。
+       * 7.2.6節は全9ルールに働き、個別のルールで上書きできない。
+       *
+       * **玉の位置は戻さない。**盤面の出来事は通常どおり起き、
+       * そこから利益を得られないだけである（7.2.6節「物理挙動は制限しない」）。
+       */
+      for (let i = tt.shotLog.length - 1; i >= 0; i--) {
+        const e = tt.shotLog[i];
+        if (e.prev < 0) tt.paint.delete(e.cell); else tt.paint.set(e.cell, e.prev);
+      }
+      tt.shotLog.length = 0;    // 使ったら消す（同じぶんを二度戻さない）
+      // フリーボール型（7.2.5節）。手玉が落ちていなくても次の人が台全体へ置ける
+      game.ballInHand = true; game.ballInHandFull = true;
+    }
+    /*
+     * 得点は「いま塗られているマス」を数え直して出す。差分を足し込む形にすると、
+     * 上書きで減った側を引き忘れたときに合計が合わなくなる。
+     */
+    const counts = territoryCount(game);
+    game.players.forEach((p, i) => { p.score = counts[i]; });
+    r.gained = game.players[game.turn].score - before;
+
+    // 1ショットごとに交代する（7.7.4節）。落としても続けて撞けない
+    r.continueTurn = false;
+    const me = game.players[game.turn];
+    me.shots = (me.shots || 0) + 1;
+
+    // 全員が規定打数を消化したら終了（7.7.4節）
+    const done = game.players.every(p => p.retired || (p.shots || 0) >= TERRITORY_SHOTS);
+    if (done) {
+      r.gameOver = true; game.over = true;
+      finishRanking(game);
+      r.message = 'msg.territoryEnd';
     }
   }
 
@@ -1130,6 +1319,9 @@ const BilliardsRules = (() => {
     spotBall, homeBall, place, resolveShot, nextTurn, breakValid, detectDoubleHit,
     finishRanking, normAngle,
     survivalGroups, survivalLeft, liveInGroup, SURVIVAL_COLORS, BREAK_VALID,
+    // 陣取り（7.7節）
+    TERRITORY_COLORS, TERRITORY_BALLS, TERRITORY_SHOTS,
+    territoryCount, territoryBallsOf, makeTerritoryProbe, territoryTrack,
     seatCycle, nextSeat, rotateSeats,
     startBanking, bankResolve, endBanking, longPos, footReach,
     breakSeat, nextOrder,

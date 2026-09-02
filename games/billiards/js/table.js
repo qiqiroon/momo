@@ -1459,9 +1459,159 @@ const BilliardsTable = (() => {
     return { reds, cues };
   }
 
+  // ───────── 陣取り（G-06）の格子と初期配置。仕様書 7.7.2節・7.7.3節・7.7.8節 ─────────
+
+  /** 多角形の面積つき重心。符号つき面積で返すので、島は外周から引ける */
+  function polyCentroid(poly) {
+    let a2 = 0, cx = 0, cy = 0;
+    for (let i = 0; i < poly.length; i++) {
+      const p = poly[i], q = poly[(i + 1) % poly.length];
+      const cr = p.x * q.y - q.x * p.y;
+      a2 += cr; cx += (p.x + q.x) * cr; cy += (p.y + q.y) * cr;
+    }
+    if (Math.abs(a2) < 1e-9) return { area: 0, x: 0, y: 0 };
+    return { area: a2 / 2, x: cx / (3 * a2), y: cy / (3 * a2) };
+  }
+
+  /**
+   * 台の重心（7.7.8節）。**ドーナツ型は中央の島を引く。**
+   * 島を引かないと重心は外接矩形の中心に出るが、そこは台の外である。
+   */
+  function centroidOf(table) {
+    const o = polyCentroid(table.outline);
+    if (!table.innerOutline) return { x: o.x, y: o.y };
+    const i = polyCentroid(table.innerOutline);
+    const ao = Math.abs(o.area), ai = Math.abs(i.area);
+    const a = ao - ai;
+    if (a <= 0) return { x: o.x, y: o.y };
+    return { x: (o.x * ao - i.x * ai) / a, y: (o.y * ao - i.y * ai) / a };
+  }
+
+  /** 中心 (cx,cy) のまわりに n 個を等間隔で置ける最大半径。玉が丸ごと内側に入ること */
+  function maxRingRadius(table, cx, cy, n) {
+    let lo = 0, hi = Math.max(table.halfW, table.halfH) * 2;
+    for (let it = 0; it < 40; it++) {
+      const r = (lo + hi) / 2;
+      let all = true;
+      for (let i = 0; i < n && all; i++) {
+        const a = 2 * Math.PI * i / n;
+        if (clearance(table, cx + r * Math.cos(a), cy + r * Math.sin(a)) < R) all = false;
+      }
+      if (all) lo = r; else hi = r;
+    }
+    return lo;
+  }
+
+  // 円の半径は「置ける最大」のこの割合とする（暫定値。7.13節）
+  const TERRITORY_FILL = 0.85;
+
+  /**
+   * 陣取りの初期配置（7.7.8節）。
+   *
+   * 的球は台の重心を中心とした円周上へ等間隔に置き、手玉は円の中心に置く。
+   * **ドーナツ型だけは重心が中央の島の中にあり、そこに何も置けない。**
+   * 島の外側で円をいちばん大きく取れる点を中心とし、島を挟んだ反対側へ手玉を置く。
+   *
+   * 中心も半径も台定義データに座標を並べず、**そのときの台から測って決める**
+   * （キャロムの赤玉と同じ考え方。7.6.1節）。台の形を足したときに手作業が要らない。
+   *
+   * @param {number} n 的球の総数
+   */
+  function territoryLayout(table, n) {
+    const g = centroidOf(table);
+    let cx = g.x, cy = g.y, cue = null;
+    if (clearance(table, cx, cy) < R) {
+      /*
+       * 重心が台の外＝中央に島がある。島を挟んで向かい合う2点を選ぶ。
+       * 重心から外へ向かう向きを1本選び、その線上で円がいちばん大きく取れる点を中心にする。
+       * 反対側の同じ距離が手玉の場所になる。
+       */
+      let best = -1, bd = 0;
+      const span = Math.max(table.halfW, table.halfH);
+      for (let d = 20; d <= span; d += 10) {
+        const r = maxRingRadius(table, g.x + d, g.y, n);
+        if (r > best) { best = r; bd = d; }
+      }
+      cx = g.x + bd; cy = g.y;
+      cue = { x: g.x - bd, y: g.y };
+    }
+    const rMax = maxRingRadius(table, cx, cy, n);
+    const radius = rMax * TERRITORY_FILL;
+    const spots = [];
+    for (let i = 0; i < n; i++) {
+      const a = 2 * Math.PI * i / n;
+      spots.push({ x: cx + radius * Math.cos(a), y: cy + radius * Math.sin(a) });
+    }
+    return { center: { x: cx, y: cy }, radius, spots, cue: cue || { x: cx, y: cy } };
+  }
+
+  // 格子の分割（7.7.2節）。外接矩形は8形状すべてで同じなので、台ごとの値を持たない
+  const GRID_NX = 40, GRID_NY = 20;
+
+  /**
+   * 陣取りの格子（7.7.3節）。**マス全体が外周から玉の半径ぶん以上内側**なら有効。
+   *
+   * この条件は、盤面の内外を分けるだけでなく**外周に沿って走った玉が塗れないようにする**。
+   * 壁に接して走る玉の中心は外周から玉の半径ぶんの位置にあり、そこを含むマスは必ず外れる。
+   *
+   * ★全マスを細かく調べると遅い。距離は 1-Lipschitz なので、
+   * **マスの中心1点だけで大半は決着する**（中心の距離からマスの外接円半径を引いた値が
+   * 玉の半径以上なら確実に有効、中心が玉の半径未満なら確実に無効）。
+   * 決まらないのは境界ぎわの1〜2列だけで、そこだけ細かく見る。
+   */
+  function territoryGrid(table) {
+    if (table._grid) return table._grid;
+    /*
+     * ★格子は**外接矩形**に敷く。table.center は「軸の中心」であって外接矩形の中心ではない。
+     * L字だけ axisY が -317.5 で、center を外接矩形の中心として使うと格子が丸ごと下へずれる
+     * （有効マスが 484 → 412 に減っていた）。外周から測り直す。
+     */
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const p of table.outline) {
+      if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+      if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+    }
+    const cw = (maxX - minX) / GRID_NX, ch = (maxY - minY) / GRID_NY;
+    const x0 = minX, y0 = minY;
+    const diag = Math.hypot(cw, ch) / 2;      // マスの外接円半径
+    const valid = new Set();
+    for (let iy = 0; iy < GRID_NY; iy++) {
+      for (let ix = 0; ix < GRID_NX; ix++) {
+        const mx = x0 + (ix + 0.5) * cw, my = y0 + (iy + 0.5) * ch;
+        const c = clearance(table, mx, my);
+        if (c - diag >= R) { valid.add(iy * GRID_NX + ix); continue; }   // 確実に有効
+        if (c < R) continue;                                            // 確実に無効
+        // 決まらないマスだけ細かく見る
+        let all = true;
+        const M = 7;
+        for (let p = 0; p < M && all; p++) {
+          for (let q = 0; q < M && all; q++) {
+            const x = x0 + ix * cw + cw * (p + 0.5) / M;
+            const y = y0 + iy * ch + ch * (q + 0.5) / M;
+            if (clearance(table, x, y) < R) all = false;
+          }
+        }
+        if (all) valid.add(iy * GRID_NX + ix);
+      }
+    }
+    table._grid = { nx: GRID_NX, ny: GRID_NY, cw, ch, x0, y0, valid };
+    return table._grid;
+  }
+
+  /** 座標が入るマスの番号。格子の外なら -1 */
+  function gridCellAt(table, x, y) {
+    const g = territoryGrid(table);
+    const ix = Math.floor((x - g.x0) / g.cw), iy = Math.floor((y - g.y0) / g.ch);
+    if (ix < 0 || iy < 0 || ix >= g.nx || iy >= g.ny) return -1;
+    return iy * g.nx + ix;
+  }
+
   return {
     R, D, MOUTH, PLAY_W, PLAY_H, HX, HY, CUSHION_TOP, SHAPE_IDS, FILLET_R,
     make, rackDiamond, rackTriangle, rackByGroups, caromPositions,
+    // 陣取り（7.7節）
+    polyCentroid, centroidOf, maxRingRadius, territoryLayout, territoryGrid, gridCellAt,
+    GRID_NX, GRID_NY, TERRITORY_FILL,
     clearance, inside, clampInside, nearestBoundary, diamonds, buildFillets,
     // 検査から直に確かめるために出している。
     // 「内角90度以上には手を触れない」という条件は、いまのどの台でも働かない

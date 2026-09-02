@@ -174,6 +174,36 @@ const BilliardsAI = (() => {
       return out;
     }
 
+    if (game.rule === 'G-06') {
+      /*
+       * 陣取り（7.7節）。**ポケットへ送るのが目的ではない。**
+       * 塗るのは動いた玉の色なので、狙うのは「自分の色の玉を長く走らせる」一撞きである。
+       * 落とすのはむしろ損で、自分の玉が減れば以後の塗り手段を失う。
+       *
+       * そこで候補は**自分の色の玉へ向かう筋**から作る。強さは大きめに振る
+       * （走行距離がそのまま塗る量になるため）。
+       * 自分の玉が1つも残っていない席は、他人の玉を動かすしかないので全部を相手にする。
+       */
+      const mine = RU.territoryBallsOf(game, playerIdx);
+      const pool = mine.length ? mine : RU.liveObjects(game);
+      for (const o of pool) {
+        const base = Math.atan2(o.y - cue.y, o.x - cue.x);
+        for (const off of [-0.06, -0.03, 0, 0.03, 0.06]) {
+          for (const pw of [0.55, 0.78, 1.00]) {
+            out.push({ dir: base + off, power: pw, tipX: 0, tipY: 0, elev: 0, _target: o.id });
+          }
+        }
+      }
+      /*
+       * 全周も粗く混ぜる。自分の玉が他の玉の陰にあるとき、
+       * クッションを回って当てる筋は幾何では読めない（キャロムと同じ理由）。
+       */
+      for (let d = 0; d < 360; d += 12) {
+        out.push({ dir: d * Math.PI / 180, power: 0.85, tipX: 0, tipY: 0, elev: 0 });
+      }
+      return out;
+    }
+
     // ブレイクでラックの先頭を探すのに使う。撞く相手を絞る前の一覧
     const targets = RU.legalTargets(game, playerIdx) || RU.liveObjects(game);
     const pockets = game.table.pockets;
@@ -276,6 +306,7 @@ const BilliardsAI = (() => {
     const cueSrc = RU.cueBallOf(game, playerIdx);
     const cue = w.balls.find(b => b.id === cueSrc.id);
     if (!cue) return -Infinity;
+    let probe = null;
     E.applyCue(cue, shot);
     if (game.rule === 'G-04') {
       // 2球に当たった時点で成立が決まる。そこで打ち切れば読みが何倍も速くなる。
@@ -287,6 +318,14 @@ const BilliardsAI = (() => {
         }
         return seen.size < 2;
       });
+    } else if (game.rule === 'G-06') {
+      /*
+       * 陣取りは「どのマスが塗られたか」で良し悪しが決まるので、走らせながら数える。
+       * ★塗りの決めごとは rules 側の1本の関数にあり、読みもそこを通る。
+       *   ここに写しを書くと、AIが見ている盤面と実際に塗られる盤面が食い違う。
+       */
+      probe = RU.makeTerritoryProbe(game);
+      E.runShot(w, p.simSec, ww => { probe.step(ww); });
     } else {
       E.runShot(w, p.simSec);
     }
@@ -314,6 +353,35 @@ const BilliardsAI = (() => {
       }
       score += distinct.size >= 2 ? 300 : distinct.size * 30;
       if (off.length) score -= 200 * p.avoidScratch;
+      return score;
+    }
+
+    if (game.rule === 'G-06') {
+      /*
+       * 陣取り（7.7節）。**得られるのは塗ったマスの増減だけ**である。
+       * 自分の増えたぶんを足し、他人の増えたぶんを引く
+       * （自分の玉で他人の玉を突き飛ばすと、その玉は他人の色で塗る）。
+       */
+      const before = RU.territoryCount(game), after = probe.counts();
+      for (let i = 0; i < after.length; i++) {
+        const d = after[i] - before[i];
+        score += (i === playerIdx) ? d * 10 : -d * 6;
+      }
+      /*
+       * ★**ファウルはこの一撞きの塗りを丸ごと無効にする**（7.2.6節）。
+       *   塗った量がどれだけ多くても、ファウルなら得るものはゼロで、
+       *   おまけに次の人へ台全体の自由配置を渡す。塗りの点より重く見る。
+       */
+      const cueGone = pocketed.indexOf(cue.id) >= 0 || off.indexOf(cue.id) >= 0;
+      if (firstHit == null) score -= 2000;                     // V-01 空振り
+      if (cueGone) score -= 2000;                              // V-04 スクラッチ
+      if (off.some(id => id !== cue.id)) score -= 2000;        // V-05 場外
+      // 落ちた的球は戻らない（7.7.5節）。自分の玉が減れば以後の塗り手段を失う
+      for (const id of pocketed) {
+        const b = byId[id];
+        if (!b || b.kind !== 'object') continue;
+        score += (b.owner === playerIdx) ? -260 : 90;
+      }
       return score;
     }
 
@@ -451,7 +519,83 @@ const BilliardsAI = (() => {
   }
 
   // ───────── フリーボールの置き場所 ─────────
+
+  /** そこへ手玉を置けるか（台の内側・他の球と重ならない・ポケットの口でない） */
+  function freeSpotAt(game, cue, x, y) {
+    const table = game.table;
+    if (!T.inside(table, x, y, cue.r)) return false;
+    for (const b of game.world.balls) {
+      if (b === cue || b.state !== 'live') continue;
+      if (Math.hypot(b.x - x, b.y - y) < b.r + cue.r + 6) return false;
+    }
+    for (const p of table.pockets) if (Math.hypot(p.x - x, p.y - y) < p.r + cue.r) return false;
+    return true;
+  }
+
+  /** 外接矩形に切った格子。どのルールでも「置ける場所が1つも取れない」ときの受け皿 */
+  function gridSpots(game, cue) {
+    const table = game.table, out = [];
+    const nx = 7, ny = 5;
+    for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) {
+      const x = -table.halfW + (table.halfW * 2) * (i + 0.5) / nx;
+      const y = -table.halfH + (table.halfH * 2) * (j + 0.5) / ny;
+      if (freeSpotAt(game, cue, x, y)) out.push({ x, y });
+    }
+    return out;
+  }
+
+  /**
+   * 陣取りのフリーボール（7.7節）。
+   *
+   * ★**ポケットへ入れるのが目的ではないので、「真っすぐ入る位置」は要らない。**
+   *   欲しいのは「自分の色の玉を長く走らせられる位置」＝
+   *   手玉・自分の玉・台の広いほう が一直線に並ぶ場所である。
+   *   ポケット狙いの置き場所をそのまま使うと、**落として自分の玉を減らす**位置を選ぶ。
+   */
+  function pickBallInHandTerritory(game, playerIdx) {
+    const table = game.table;
+    const cue = RU.cueBallOf(game, playerIdx);
+    const mine = RU.territoryBallsOf(game, playerIdx);
+    const pool = mine.length ? mine : RU.liveObjects(game);
+    const c = (game.territory && game.territory.layout.center) || { x: 0, y: 0 };
+    const cands = [];
+    for (const tb of pool) {
+      let ux = tb.x - c.x, uy = tb.y - c.y;
+      const l = Math.hypot(ux, uy);
+      if (l < 1) { ux = 1; uy = 0; } else { ux /= l; uy /= l; }
+      // 玉の外側へ置く＝玉は台の真ん中を突っ切って走る＝いちばん長い距離を稼げる
+      for (const d of [170, 260, 380, 520]) {
+        const x = tb.x + ux * d, y = tb.y + uy * d;
+        if (freeSpotAt(game, cue, x, y)) cands.push({ x, y, tb });
+      }
+    }
+    for (const s of gridSpots(game, cue)) cands.push({ x: s.x, y: s.y, tb: null });
+    if (!cands.length) return { x: table.headSpot.x, y: table.headSpot.y };
+
+    let best = cands[0], bestQ = -Infinity;
+    for (const s of cands) {
+      let q = -Infinity;
+      for (const tb of pool) {
+        if (pathBlocked(game, s.x, s.y, tb.x, tb.y, [cue, tb], cue.r * 0.9)) continue;
+        if (pathCrossesWall(table, s.x, s.y, tb.x, tb.y)) continue;
+        const dx = tb.x - s.x, dy = tb.y - s.y, d = Math.hypot(dx, dy);
+        if (d < 1) continue;
+        // その向きへ玉を押したとき、壁に当たるまでに走れる距離。塗る量はここで決まる
+        let far = 0;
+        for (let k = 60; k <= 3000; k += 60) {
+          const px = tb.x + dx / d * k, py = tb.y + dy / d * k;
+          if (T.clearance(table, px, py) < tb.r) break;
+          far = k;
+        }
+        q = Math.max(q, far / 12 - d / 60);
+      }
+      if (q > bestQ) { bestQ = q; best = s; }
+    }
+    return { x: best.x, y: best.y };
+  }
+
   function pickBallInHand(game, playerIdx) {
+    if (game.rule === 'G-06') return pickBallInHandTerritory(game, playerIdx);
     const table = game.table;
     const cue = RU.cueBallOf(game, playerIdx);
     // ★筋を作る側と同じ判断を使う。ここに別の書き方を置くと、片方だけがはぐれる
@@ -459,16 +603,7 @@ const BilliardsAI = (() => {
     const pockets = table.pockets;
     const cands = [];
 
-    /** そこへ手玉を置けるか（台の内側・他の球と重ならない・ポケットの口でない） */
-    function freeAt(x, y) {
-      if (!T.inside(table, x, y, cue.r)) return false;
-      for (const b of game.world.balls) {
-        if (b === cue || b.state !== 'live') continue;
-        if (Math.hypot(b.x - x, b.y - y) < b.r + cue.r + 6) return false;
-      }
-      for (const p of pockets) if (Math.hypot(p.x - x, p.y - y) < p.r + cue.r) return false;
-      return true;
-    }
+    const freeAt = (x, y) => freeSpotAt(game, cue, x, y);
 
     /*
      * ★まず「真っすぐ入る位置」を候補に入れる。
@@ -495,12 +630,7 @@ const BilliardsAI = (() => {
     // 格子も残す（真っすぐ置ける場所が1つも取れないときのため）。
     // 候補点は外接矩形に格子を切ってから、台の外に落ちたものを捨てる。
     // 矩形のまま使うと、六角形では角の外へ手玉を置こうとする
-    const nx = 7, ny = 5;
-    for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) {
-      const x = -table.halfW + (table.halfW * 2) * (i + 0.5) / nx;
-      const y = -table.halfH + (table.halfH * 2) * (j + 0.5) / ny;
-      if (freeAt(x, y)) cands.push({ x, y });
-    }
+    for (const s of gridSpots(game, cue)) cands.push(s);
     if (!cands.length) return { x: table.headSpot.x, y: table.headSpot.y };
 
     let best = cands[0], bestQ = -Infinity;

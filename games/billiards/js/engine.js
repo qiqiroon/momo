@@ -68,7 +68,7 @@ const BilliardsEngine = (() => {
    * @param {Array}  balls  makeBall() で作った玉の配列
    * @param {object} tuning 撞球の癖6項目など（5.10節）
    */
-  function createWorld(table, balls, tuning) {
+  function createWorld(table, balls, tuning, opts) {
     return {
       table,
       balls,
@@ -82,6 +82,8 @@ const BilliardsEngine = (() => {
       }, tuning || {}),
       tick: 0,                  // ゲーム内時間＝ステップ数（5.2.3節）
       events: [],
+      // 刻みごとの通知（step の末尾で呼ぶ）。使い道はエンジンの外が決める
+      onAdvance: (opts && opts.onAdvance) || null,
     };
   }
 
@@ -749,6 +751,20 @@ const BilliardsEngine = (() => {
     }
 
     w.tick++;
+
+    /*
+     * 刻みごとの通知。**エンジンはこれが何に使われるかを知らない。**
+     * 陣取り（G-06）は玉が通ったマスを塗るので、玉の位置を刻みごとに見る必要がある。
+     *
+     * ★呼び出す側で数え上げると必ず漏れる。**盤面を進める道は5本ある**
+     *   （主ループ・演出無しの一気走らせ・観戦者の追いつき・リプレイ・AIの読み）。
+     * どれか1本に書き忘れれば、その道を通ったぶんだけ塗りが消える。
+     * ここに置けば、盤面が1刻み進むところは必ずこの1行を通る。
+     *
+     * **cloneWorld はこの通知を引き継がない。**AIの読みは複製の上で走るので、
+     * 引き継ぐと読むたびに本物の塗りが増える。
+     */
+    if (w.onAdvance) w.onAdvance(w);
   }
 
   function allStopped(w) {

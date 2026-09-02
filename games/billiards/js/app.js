@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.48';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.49';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -220,6 +220,14 @@
   function ruleBlock(id) {
     if (RU.RULE_IDS.indexOf(id) < 0) return t('why.stage3');
     if (id === 'G-02' && S.cfg.players > 2) return t('why.twoOnly');
+    /*
+     * 陣取りは人数ぶんの色を要る（2.4.3節）。**上限は色の数から引く。**
+     * 数字を書き込むと、色を増やしたときと人数の上限を上げたときの2か所を直すことになり、
+     * 片方を忘れると**静かに2人が同じ色になる**（色の一覧を余りで回すため）。
+     */
+    if (id === 'G-06' && S.cfg.players > RU.TERRITORY_COLORS.length) {
+      return t('why.maxPlayers', { n: RU.TERRITORY_COLORS.length });
+    }
     return null;
   }
   /**
@@ -509,6 +517,9 @@
     S.cfg.carom = caromForRule(S.cfg.rule);
     if (S.cfg.tableChosen && shapeBlock(S.cfg.shape)) S.cfg.tableChosen = false;
     if (S.cfg.rule === 'G-02' && S.cfg.players > 2) S.cfg.players = 2;
+    if (S.cfg.rule === 'G-06' && S.cfg.players > RU.TERRITORY_COLORS.length) {
+      S.cfg.players = RU.TERRITORY_COLORS.length;
+    }
     if (S.cfg.mods['G-13'] && modBlock('G-13')) S.cfg.mods['G-13'] = false;
     buildSetup();
   }
@@ -1788,6 +1799,8 @@
     tablePath(table);
     ctx.fillStyle = cg; ctx.fill('evenodd');
     ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 1.5; ctx.stroke();
+    // 陣取りの塗り（7.7.2節）。クロスの上・玉の下に敷く
+    if (g.rule === 'G-06' && g.territory) drawTerritory();
     // ダイヤ（レール上の目印）。位置は外周の辺から決まる（形ごとの並べ書きはしない）
     ctx.fillStyle = 'rgba(255,240,215,.55)';
     const off = thick / s * .5;                 // 枠の帯の真ん中まで外へ出す
@@ -1846,6 +1859,34 @@
     drawDroppedFlash();
     fadeBoardOverlays(view.mobile);   // 盤面に重ねた表示を、狙いにかぶるぶんだけ薄くする
     if (S.elevAdjusting) drawElevOverlay();
+  }
+
+  /**
+   * 陣取りの塗り（7.7.2節・7.7.3節）。
+   *
+   * **塗られていない有効マスも、ごく薄く明るくする。**塗れる場所と塗れない場所の
+   * 境目が見えないと、外周ぎわで走らせても点にならない理由が分からない（7.7.3節）。
+   */
+  function drawTerritory() {
+    const g = S.game, tt = g.territory, gr = tt.grid;
+    ctx.save();
+    tablePath(g.table); ctx.clip('evenodd');
+    const cell = (ix, iy) => {
+      const p0 = toScreen(gr.x0 + ix * gr.cw, gr.y0 + iy * gr.ch);
+      const p1 = toScreen(gr.x0 + (ix + 1) * gr.cw, gr.y0 + (iy + 1) * gr.ch);
+      // 1px ぶん重ねる。ぴったりに切ると継ぎ目に地の色の線が残る
+      ctx.fillRect(Math.min(p0.x, p1.x), Math.min(p0.y, p1.y),
+        Math.abs(p1.x - p0.x) + 1, Math.abs(p1.y - p0.y) + 1);
+    };
+    ctx.fillStyle = 'rgba(255,255,255,.05)';
+    gr.valid.forEach(c => { if (!tt.paint.has(c)) cell(c % gr.nx, Math.floor(c / gr.nx)); });
+    // 塗りは薄く敷く。濃くすると同じ色の玉が塗りに埋もれて、盤面が読めなくなる
+    ctx.globalAlpha = 0.30;
+    tt.paint.forEach((owner, c) => {
+      ctx.fillStyle = RU.TERRITORY_COLORS[owner % RU.TERRITORY_COLORS.length];
+      cell(c % gr.nx, Math.floor(c / gr.nx));
+    });
+    ctx.restore();
   }
 
   /**
@@ -3206,6 +3247,10 @@
       if (g.rule === 'G-04') right = p.score + '/' + p.target;
       if (g.rule === 'G-02') right = p.group ? t('group.' + p.group).split('（')[0] : t('hud.open');
       if (g.rule === 'G-08') right = survivalHudText(g, p);
+      // 陣取りは「塗ったマス数」と「残りの打数」を並べる（7.7.4節）
+      if (g.rule === 'G-06') {
+        right = p.score + '  ' + t('hud.trShots', { n: Math.max(0, RU.TERRITORY_SHOTS - (p.shots || 0)) });
+      }
       const who = (g.coop ? teamMark(p.team) + ' ' : '') + p.name;
       d.innerHTML = '<span>' + escapeHtml(who) + '</span><span>' + escapeHtml(right) + '</span>';
       box.appendChild(d);
@@ -4042,7 +4087,8 @@
       if (S.cfg.scope === 'standard') {
         // 特殊にのみ属する選択肢が選ばれている軸をデフォルトへ戻す（2.2.2節）
         if (SPECIAL.rule[S.cfg.rule]) S.cfg.rule = 'G-01';
-        if (SPECIAL.shape[S.cfg.shape]) { S.cfg.shape = 'A-01'; S.cfg.carom = (S.cfg.rule === 'G-04'); S.cfg.tableChosen = true; }
+        // 台の姿はルール名を書かずに引く。キャロム版で遊ぶルールは1つとは限らない
+        if (SPECIAL.shape[S.cfg.shape]) { S.cfg.shape = 'A-01'; S.cfg.carom = caromForRule(S.cfg.rule); S.cfg.tableChosen = true; }
         if (SPECIAL.mode[S.cfg.mode]) S.cfg.mode = 'normal';
         S.cfg.mods['G-13'] = false; S.cfg.mods['G-15'] = false;
         if (SPECIAL.diff[S.cfg.diff]) S.cfg.diff = 'easy';

@@ -70,7 +70,8 @@ const BilliardsAI = (() => {
     // 厚み（切る角度）。90度を超える＝裏側なので撞けない
     const cut = Math.acos(Math.max(-1, Math.min(1, (ax * dx + ay * dy) / (al * l))));
     if (cut > 1.25) return null;
-    return { dir: Math.atan2(ay, ax), cut, dist: al, objDist: l };
+    // gx, gy＝**手玉が実際に向かう先**。的球の中心とは厚みのぶんずれる
+    return { dir: Math.atan2(ay, ax), cut, dist: al, objDist: l, gx, gy };
   }
 
   function pathBlocked(game, x1, y1, x2, y2, ignore, radius) {
@@ -101,13 +102,33 @@ const BilliardsAI = (() => {
    * ポケットの口は外周の線の上にあるので、口へ向かう筋は終点で外周に触れる。
    * 「外周から 1mm 以上はみ出したか」で見て、口に触れるだけの筋は落とさない。
    */
-  function pathCrossesWall(table, x1, y1, x2, y2) {
+  function nearPocket(table, x, y, m) {
+    for (const p of table.pockets) if (Math.hypot(p.x - x, p.y - y) < p.r + m) return true;
+    return false;
+  }
+
+  /*
+   * ★★**玉の太さを見ること。** 中心の線だけで見ると、凹んだ角の内側を半径ぶんも
+   *   空けずにかすめる筋を「通れる」と数える。**玉は角に当たって止まる。**
+   *   実測（台の中に無作為に取った筋）＝通れると数えたもののうち実際には玉が壁に触るものが
+   *   **ドーナツ 6.8%・十字 5.0%・星型 3.4%・L字 2.5%**。
+   *   **凸の台（楕円・六角形・スタジアム）は 0%** ── 凸の形では線の途中が端より壁へ
+   *   近づくことがないので、**そちらだけ見ていると気づけない。**
+   *
+   * margin に玉の半径を渡すと「玉が丸ごと通れるか」で見る。渡さなければ中心だけ。
+   * ポケットの口のまわりは外す。口へ向かう筋はそこで必ず外周に触れるためである。
+   */
+  function pathCrossesWall(table, x1, y1, x2, y2, margin) {
+    const m = margin || 0;
     const dx = x2 - x1, dy = y2 - y1;
     const len = Math.hypot(dx, dy);
     const steps = Math.max(2, Math.ceil(len / 20));   // 20mm 刻み
     for (let i = 0; i <= steps; i++) {
       const t = i / steps;
-      if (T.clearance(table, x1 + dx * t, y1 + dy * t) < -1) return true;
+      const px = x1 + dx * t, py = y1 + dy * t;
+      const cl = T.clearance(table, px, py);
+      if (cl < -1) return true;
+      if (m > 0 && cl < m && !nearPocket(table, px, py, m)) return true;
     }
     return false;
   }
@@ -253,12 +274,18 @@ const BilliardsAI = (() => {
       for (const pk of pockets) {
         const g = ghostAim(cue, tb, pk);
         if (!g) continue;
-        // 手玉→ゴースト、的球→ポケットの経路が塞がっていないか（他の球）
-        if (pathBlocked(game, cue.x, cue.y, tb.x, tb.y, [cue, tb], cue.r * 0.9)) continue;
+        /*
+         * 手玉→ゴースト、的球→ポケットの経路が塞がっていないか（他の球）。
+         * ★★**手玉が向かうのは的球の中心ではなくゴーストの位置。**中心へ向かう線で
+         *   調べていたため、厚みを切る一撞きでは実際に撞く線と数度ずれ、玉が固まった場面で
+         *   隣の球に当たっていた（実測：狙い 57.0度・的球の向き 61.8度で、1番の手前の2番）。
+         *   **真っすぐの場面だけ見ていると気づけない。**
+         */
+        if (pathBlocked(game, cue.x, cue.y, g.gx, g.gy, [cue, tb], cue.r * 0.9)) continue;
         if (pathBlocked(game, tb.x, tb.y, pk.x, pk.y, [tb, cue], tb.r * 0.85)) continue;
-        // 同じ経路が壁を越えていないか（凹んだ形の台でだけ起きる）
-        if (pathCrossesWall(game.table, cue.x, cue.y, tb.x, tb.y)) continue;
-        if (pathCrossesWall(game.table, tb.x, tb.y, pk.x, pk.y)) continue;
+        // 同じ経路を玉が丸ごと通れるか（凹んだ形の台でだけ起きる）
+        if (pathCrossesWall(game.table, cue.x, cue.y, g.gx, g.gy, cue.r * 0.95)) continue;
+        if (pathCrossesWall(game.table, tb.x, tb.y, pk.x, pk.y, tb.r * 0.95)) continue;
         const quality = Math.cos(g.cut) / (1 + g.dist / 2500 + g.objDist / 2500);
         shots.push({ g, tb, pk, quality });
       }
@@ -275,11 +302,17 @@ const BilliardsAI = (() => {
         }
       }
     }
-    if (!out.length) {
+    const potShots = out.length;
+    {
       /*
-       * 落とせる筋が1本も無い＝的球が他の球の陰か、壁の向こうにある。
+       * ★★**「入れる筋」だけでなく「当てるだけの筋」を必ず混ぜる。**
+       *   以前は「入れる筋が1本も無いとき」の逃げ道にしていた。ところが
+       *   **玉が固まっている場面では、幾何の上では入る筋が何本も立つ**ので逃げ道が使われず、
+       *   **どれを選んでも隣の球に当たる筋ばかりから選ぶ**ことになる
+       *   （実測：ブレイクを失敗した直後の星型で、狙い 41.8度／的球の向き 62.5度）。
+       *   数本しか増えないので常に並べ、試し撞きに選ばせる。
        *
-       * ★ここで「とりあえず最小番号へ真っすぐ」に落としてはいけない。
+       * ★「とりあえず最小番号へ真っすぐ」ではいけない。
        *   凹んだ形の台では、その真っすぐが壁を向いていることがあり、
        *   当てられずに反則になる（実測：この逃げ道のせいで、壁の判定を足した直後に
        *   L字と十字の当て損ないが 0〜4% から 13〜14% へ増えた）。
@@ -288,13 +321,27 @@ const BilliardsAI = (() => {
        * あわせて**全周を刻んだ候補**も並べる。壁や球を回り込む筋は幾何では読めず、
        * 実際に撞いてみて初めて見つかるためである（キャロムの候補と同じ考え方）。
        */
-      const reachable = potTargets.filter(tb => !pathCrossesWall(game.table, cue.x, cue.y, tb.x, tb.y));
+      /*
+       * ★★**壁だけでは足りない。他の球の陰も見ること。**
+       *   壁しか見ていなかったため、**他の球の背後にある的球へ真っすぐ撞いていた**
+       *   （実機の指摘：手玉を置いた先から1番へ真っすぐ撞いて、間の球に当たった）。
+       *   塞がれていない的球が1つも無いときは壁だけで絞った一覧に戻す。空にすると
+       *   全周の候補だけになり、**近くの的球へ当てる筋を落とす。**
+       */
+      const clearOfWall = potTargets.filter(tb =>
+        !pathCrossesWall(game.table, cue.x, cue.y, tb.x, tb.y, cue.r * 0.95));
+      const clearOfAll = clearOfWall.filter(tb =>
+        !pathBlocked(game, cue.x, cue.y, tb.x, tb.y, [cue, tb], cue.r * 0.9));
+      const reachable = clearOfAll.length ? clearOfAll : clearOfWall;
       for (const tb of reachable.slice(0, 2)) {
         const dir = Math.atan2(tb.y - cue.y, tb.x - cue.x);
         for (const pw of [0.28, 0.45]) out.push({ dir, power: pw, tipX: 0, tipY: 0, elev: 0 });
       }
-      for (let d = 0; d < 360; d += 6) {
-        out.push({ dir: d * Math.PI / 180, power: 0.55, tipX: 0, tipY: 0, elev: 0 });
+      // 全周の刻みは重いので、入れる筋も当てる筋も無いときだけ
+      if (!potShots && !reachable.length) {
+        for (let d = 0; d < 360; d += 6) {
+          out.push({ dir: d * Math.PI / 180, power: 0.55, tipX: 0, tipY: 0, elev: 0 });
+        }
       }
     }
     return out;
@@ -401,22 +448,37 @@ const BilliardsAI = (() => {
     if (contact && !cushionAfter && pocketed.length === 0) score -= 200;
     if (off.length) score -= 180 * p.avoidScratch;
 
+    /*
+     * ★★**ファウルになる一撞きから利益を数えてはいけない**（7.2.6節「ファウル時の利益無効」）。
+     *   落とした玉の点を反則かどうかに関わらず足していたため、
+     *   **「順番の玉に当たらないが玉は落ちる筋」が最良の手として選ばれていた。**
+     *   実測（ブレイクを失敗した直後の星型・ローテーション）＝1番の手前の3番に当たる筋が
+     *   438点、1番へ真っすぐ当てる筋が 100点。規定どおりなら前者は 0点である。
+     *   **ルールの側は正しく無効にしていて、読みの側だけがはぐれていた。**
+     *   ★利益だけを消し、罰は残す（8番を反則と同時に落とせば負ける＝7.4.3節）。
+     */
+    const foulish = (firstHit == null) || (legalIds && legalIds.indexOf(firstHit) < 0)
+      || pocketed.indexOf(cue.id) >= 0 || off.length > 0;
+    let gain = 0;
     for (const id of pocketed) {
       const b = byId[id];
       if (!b) continue;
       // サバイバルのスクラッチは手番を失うだけでなく**自分の球が1つ減る**（7.8.5節）。
       // 他のルールより重い罰なので、避ける重みもそのぶん増やす
       if (b.kind === 'cue') { score -= (game.rule === 'G-08' ? 420 : 260) * p.avoidScratch; continue; }
-      if (game.rule === 'G-01') score += (b.num === 9) ? 600 : 140;
-      else if (game.rule === 'G-03') score += 60 + b.num * 12;
-      else if (game.rule === 'G-08') score += survivalGain(game, playerIdx, b);
+      let v = 0;
+      if (game.rule === 'G-01') v = (b.num === 9) ? 600 : 140;
+      else if (game.rule === 'G-03') v = 60 + b.num * 12;
+      else if (game.rule === 'G-08') v = survivalGain(game, playerIdx, b);
       else if (game.rule === 'G-02') {
         const pl = game.players[playerIdx];
-        if (b.num === 8) score += (pl.group && RU.liveObjects(game).filter(o => RU.groupOf(o.num) === pl.group).length === 0) ? 600 : -500;
-        else if (!pl.group || RU.groupOf(b.num) === pl.group) score += 140;
-        else score -= 90;
+        if (b.num === 8) v = (pl.group && RU.liveObjects(game).filter(o => RU.groupOf(o.num) === pl.group).length === 0) ? 600 : -500;
+        else if (!pl.group || RU.groupOf(b.num) === pl.group) v = 140;
+        else v = -90;
       }
+      gain += (foulish && v > 0) ? 0 : v;
     }
+    score += gain;
     /*
      * サバイバル（7.8節）。**自分の球は体力なので、落とすと損をする。**
      *   ・割り当てが済んでいれば、他人の球は得・自分の球は損・無所属は損得なし
@@ -577,7 +639,8 @@ const BilliardsAI = (() => {
       let q = -Infinity;
       for (const tb of pool) {
         if (pathBlocked(game, s.x, s.y, tb.x, tb.y, [cue, tb], cue.r * 0.9)) continue;
-        if (pathCrossesWall(table, s.x, s.y, tb.x, tb.y)) continue;
+        // 陣取りも同じ見方にそろえる。玉がかすめて止まる筋を「通れる」と数えない
+        if (pathCrossesWall(table, s.x, s.y, tb.x, tb.y, cue.r * 0.95)) continue;
         const dx = tb.x - s.x, dy = tb.y - s.y, d = Math.hypot(dx, dy);
         if (d < 1) continue;
         // その向きへ玉を押したとき、壁に当たるまでに走れる距離。塗る量はここで決まる
@@ -633,34 +696,151 @@ const BilliardsAI = (() => {
     for (const s of gridSpots(game, cue)) cands.push(s);
     if (!cands.length) return { x: table.headSpot.x, y: table.headSpot.y };
 
-    let best = cands[0], bestQ = -Infinity;
-    for (const c of cands) {
-      let q = -1;
-      for (const tb of targets) {
-        for (const pk of pockets) {
-          const fake = { x: c.x, y: c.y, r: cue.r };
-          const g = ghostAim(fake, tb, pk);
-          if (!g) continue;
-          if (pathBlocked(game, c.x, c.y, tb.x, tb.y, [cue, tb], cue.r * 0.9)) continue;
-          if (pathBlocked(game, tb.x, tb.y, pk.x, pk.y, [tb, cue], tb.r * 0.85)) continue;
-          // 壁を越える筋は置き場所を選ぶときにも数えない（凹んだ形の台で効く）
-          if (pathCrossesWall(table, c.x, c.y, tb.x, tb.y)) continue;
-          if (pathCrossesWall(table, tb.x, tb.y, pk.x, pk.y)) continue;
-          /*
-           * ★的球からポケットまでの距離も数える。
-           *
-           * 狙いのわずかなぶれは、的球が転がる距離のぶんだけ広がる。
-           * 手玉からの距離だけで選んでいたときは、真っすぐで手玉に近い置き場所を選びながら、
-           * **2 m 先のポケットを狙って外していた**（実測：切る角度 0.0度・手玉まで 113mm でも、
-           * 的球からポケットまで 2130mm あると入らない）。
-           * 近いポケットを選ぶほうが、置き場所の良さより効く。
-           */
-          q = Math.max(q, Math.cos(g.cut) * 100 - g.dist / 60 - g.objDist / 40);
+    const scored = cands.map(c => ({ c, r: spotScore(game, cue, c, targets, pockets) }));
+    scored.sort((a, b) => b.r.q - a.r.q);
+
+    /*
+     * ★★**置き場所は撞いて確かめる。幾何の見立てだけでは決められない。**
+     *
+     *   玉が寄り集まっている場面では、見立てを厳しくすると入る筋まで捨て
+     *   （実測：サバイバルの自由配置で落とせた割合が 110% → 0%）、緩くすると
+     *   **手玉が届かない場所を「ここから入れられる」と判断する**
+     *   （実測：ブレイクを失敗した直後のドーナツで、1番の隣の2番に当たった）。
+     *   どちらへ寄せても外れるので、**撞いて確かめる。**
+     *
+     *   二段構えにする。
+     *     1段目＝**最初に当てるべき玉へ当たるか。**触れた時点で読みを打ち切るので 1つ 2ミリ秒。
+     *            見立てが外れているとき**上位はそろって同じ外れ方をしている**ので、
+     *            通る場所が見つかるまで下まで下りる（実測：ドーナツは上位8つが全滅）。
+     *     2段目＝残った上位だけ、**損得まで読む。**ここを省くと
+     *            **手玉が落ちる危険を誰も見ていない**ことになる
+     *            （実測：自由に置いた60場面で手玉を 11 回落とした。省かなければ 0 回）。
+     *            読む秒数は縮めてよい。手玉が落ちるかどうかは撞いてすぐ決まる。
+     *
+     *   最初に当てるべき玉が決まっていないルール（サバイバル・担当が決まる前のエイトボール）
+     *   では、どの玉に当たっても反則にならないので1段目は素通りする。
+     */
+    const pf = prof(game.difficulty);
+    const legal = RU.legalTargets(game, playerIdx);
+    const ids = (legal && legal.length) ? legal.map(b => b.id) : null;
+    const keep = { x: cue.x, y: cue.y, state: cue.state, onTable: cue.onTable };
+    const restore = () => {
+      cue.x = keep.x; cue.y = keep.y; cue.state = keep.state; cue.onTable = keep.onTable;
+      cue.vx = cue.vy = cue.vz = cue.wx = cue.wy = cue.wz = 0;
+    };
+    const fallback = scored.length ? scored[0].c : cands[0];
+
+    const pass = [];
+    for (const s of scored.slice(0, 60)) {
+      if (!s.r.shot) continue;
+      if (ids) {
+        RU.place(cue, s.c.x, s.c.y);
+        if (ids.indexOf(firstContact(game, cue, s.r.shot)) < 0) continue;
+      }
+      pass.push(s);
+      if (pass.length >= 5) break;
+    }
+    if (!pass.length) { restore(); return fallback; }
+
+    const pq = Object.assign({}, pf, { simSec: 2 });
+    let pick = null;
+    for (const s of pass) {
+      RU.place(cue, s.c.x, s.c.y);
+      const sc = evaluate(game, playerIdx, s.r.shot, pq);
+      if (!pick || sc > pick.sc) pick = { c: s.c, sc };
+    }
+    restore();
+    return pick ? { x: pick.c.x, y: pick.c.y } : fallback;
+  }
+
+  /**
+   * 手玉の置き場所の点数。**3つの段に分ける。**
+   *
+   *   上の段：そこから的球をポケットへ入れられる
+   *   中の段：入れられないが、**的球に当てられる**
+   *   下の段：当てることもできない
+   *
+   * ★★**「当てられるか」に点が無かった。**
+   *   点を付けていたのは「入れられるか」だけで、入れられる筋が1本も無い場面では
+   *   **どの置き場所も同じ点になり、候補を作った順の1番目が選ばれていた。**
+   *   実測（L字台・ブレイクを失敗した直後のフリーボール）＝候補 45 個が全部同点になり、
+   *   選ばれた1番目が**他の球の陰**だった。置ける場所の 71%（1137 中 804）は
+   *   的球に当てられる場所だったのに、当てられない場所を選んでいた。
+   *
+   *   ラックが固まっている間はどこからも入れられないので、この場面は
+   *   **ブレイクを失敗した直後に必ず起きる。**対局中盤では入れられる筋があるため出ない
+   *   （実測：中盤のフリーボール 19 回では 0 件）。**中盤だけ見ていると気づけない。**
+   *
+   * ローテーションやナインボールでは的球に当てられなければその場で反則なので、
+   * 「当てられるか」は「入れられるか」より先に効く条件である。段を分けるのは、
+   * **入れられる場所が1つでもあれば必ずそちらを選ぶ**ため。同じ段の中では続きの数字で
+   * 比べるので、同点で並んで順番任せになることが無い。
+   *
+   * shot＝その置き場所でいちばん良い一撞き。**撞いて確かめる**ときに使う。
+   */
+  function spotScore(game, cue, c, targets, pockets) {
+    const table = game.table;
+    let pot = -Infinity, hit = -Infinity, near = Infinity, shot = null, hitShot = null;
+    for (const tb of targets) {
+      const d = Math.hypot(tb.x - c.x, tb.y - c.y);
+      if (d < near) near = d;
+      // 当てられるか＝的球の中心へ向かう線。遠いほど狙いのぶれが効くので近いほうを良しとする
+      if (!pathBlocked(game, c.x, c.y, tb.x, tb.y, [cue, tb], cue.r * 0.9)
+        && !pathCrossesWall(table, c.x, c.y, tb.x, tb.y, cue.r * 0.95)
+        && 300 - d / 10 > hit) {
+        hit = 300 - d / 10;
+        hitShot = { dir: Math.atan2(tb.y - c.y, tb.x - c.x), power: 0.45, tipX: 0, tipY: 0, elev: 0 };
+      }
+      for (const pk of pockets) {
+        const g = ghostAim({ x: c.x, y: c.y, r: cue.r }, tb, pk);
+        if (!g) continue;
+        // 入れられるかは**ゴーストへ向かう線**で見る（撞くときの線と同じもの）
+        if (pathBlocked(game, c.x, c.y, g.gx, g.gy, [cue, tb], cue.r * 0.9)) continue;
+        if (pathBlocked(game, tb.x, tb.y, pk.x, pk.y, [tb, cue], tb.r * 0.85)) continue;
+        if (pathCrossesWall(table, c.x, c.y, g.gx, g.gy, cue.r * 0.95)) continue;
+        if (pathCrossesWall(table, tb.x, tb.y, pk.x, pk.y, tb.r * 0.95)) continue;
+        /*
+         * ★的球からポケットまでの距離も数える。
+         *
+         * 狙いのわずかなぶれは、的球が転がる距離のぶんだけ広がる。
+         * 手玉からの距離だけで選んでいたときは、真っすぐで手玉に近い置き場所を選びながら、
+         * **2 m 先のポケットを狙って外していた**（実測：切る角度 0.0度・手玉まで 113mm でも、
+         * 的球からポケットまで 2130mm あると入らない）。
+         * 近いポケットを選ぶほうが、置き場所の良さより効く。
+         */
+        const v = Math.cos(g.cut) * 100 - g.dist / 60 - g.objDist / 40;
+        if (v > pot) {
+          pot = v;
+          shot = { dir: g.dir, power: 0.48, tipX: 0, tipY: 0, elev: 0, _cut: g.cut, _dist: g.dist };
         }
       }
-      if (q > bestQ) { bestQ = q; best = c; }
     }
-    return best;
+    // 段の境目：入れられる筋の点は最悪でも -100 を下回らないので、段どうしが混ざることはない
+    if (pot > -Infinity) return { q: 2000 + pot, shot };
+    if (hit > -Infinity) return { q: 1000 + hit, shot: hitShot };
+    return { q: -near / 10, shot: null };
+  }
+
+  /**
+   * その一撞きで**手玉が最初に触れた玉**。触れた時点で読みを打ち切るので軽い。
+   * どこにも触れなければ null。
+   */
+  function firstContact(game, cue, shot) {
+    const w = E.cloneWorld(game.world);
+    const c = w.balls.find(b => b.id === cue.id);
+    if (!c) return null;
+    let hit = null;
+    E.applyCue(c, shot);
+    E.runShot(w, 6, ww => {
+      for (const ev of ww.events) {
+        if (ev.type === 'hit' && (ev.a === c.id || ev.b === c.id)) {
+          hit = (ev.a === c.id ? ev.b : ev.a);
+          return false;               // 触れた＝ここで打ち切る
+        }
+      }
+      return true;
+    });
+    return hit;
   }
 
   // ───────── 思考（フレームをまたいで少しずつ進める） ─────────

@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.50';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.51';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -107,6 +107,8 @@
     game: null,
     phase: 'idle',         // idle|place|aim|stance|rolling|wait|over
     aim: { dir: 0, tipX: 0, tipY: 0, elev: 0, power: 0 },
+    // 陣取りで手番の頭に自分の色の玉を光らせる（表示だけ。決定論の外）
+    flash: null,
     elevFan: null, elevAdjusting: false,
     aimPreview: null, aimDirty: true,
     drag: null,
@@ -777,6 +779,16 @@
     } else {
       S.phase = 'aim';
     }
+    /*
+     * 陣取り：手番が変わったら、これから撞く人の色の玉を数回光らせる（実機での指摘）。
+     * 手番表示に色の印を置いても、**盤のどの玉が自分のものかは目で探すことになる**。
+     *
+     * ★**入るたびに始まりの時刻を置き直す。**残っていると、次の手番が早く始まったときに
+     *   前の知らせが出たままになる。「そのうち消えるから片付けなくてよい」は通らない。
+     * ★演出なので実時間で進める（決定論の外。物理の刻みには触れない）。
+     */
+    S.flash = (g.rule === 'G-06') ? { seat: g.turn, t0: performance.now() } : null;
+
     S.clock.baseLeft = S.cfg.mods['G-14'] ? S.cfg.tbase : 0;
     S.clock.lastBeep = 0;
     // バンキングは対局の前の手続きなので、持ち時間を減らさない
@@ -1221,6 +1233,7 @@
   function endGame() {
     const g = S.game;
     S.phase = 'over'; S.clock.running = false;
+    S.flash = null;                      // 手番の知らせは局と一緒に終わる
     if (RU.WIN_KIND[g.rule] === 'points') RU.finishRanking(g);
     // 勝ったかどうかはチームで見る。協力プレイでなければ 1人＝1チームなので同じ答えになる
     const watching = S.net.on && S.net.role === 'spectator';
@@ -1837,6 +1850,7 @@
     const live = g.world.balls.filter(bb => bb.state === 'live' && bb !== cueNow);
     live.sort((x, y) => x.z - y.z);
     for (const bb of live) drawBall2D(bb, s);
+    drawTurnFlash();
 
     if (placing && S.placePos && cueNow) {
       const q = toScreen(S.placePos.x, S.placePos.y);
@@ -1886,6 +1900,37 @@
       ctx.fillStyle = RU.TERRITORY_COLORS[owner % RU.TERRITORY_COLORS.length];
       cell(c % gr.nx, Math.floor(c / gr.nx));
     });
+    ctx.restore();
+  }
+
+  /**
+   * 陣取り：手番が変わった直後に、これから撞く人の色の玉を数回光らせる。
+   *
+   * **白い輪を明滅させる。**玉そのものを明滅させると、同じ色の塗りの上では
+   * 消えた瞬間に見失う。輪なら塗りの色と喧嘩しない。
+   *
+   * **時間で進める**（コマ数ではない）。遅い端末でだけ長く光ることがないようにする。
+   * 用が済んだら控えごと消す。残しておくと、次の手番が早く始まったときに
+   * 前の知らせが出たままになる。
+   */
+  const FLASH_SEC = 1.35, FLASH_TIMES = 3;
+  function drawTurnFlash() {
+    const g = S.game, f = S.flash;
+    if (!f || !g || g.rule !== 'G-06') return;
+    const el = (performance.now() - f.t0) / 1000;
+    if (el > FLASH_SEC) { S.flash = null; return; }
+    const a = Math.sin(el / FLASH_SEC * Math.PI * FLASH_TIMES);
+    if (a <= 0.02) return;
+    const s = view.s;
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = Math.max(1.6, 3.2 * s);
+    for (const b of g.world.balls) {
+      if (b.kind !== 'object' || b.state !== 'live' || b.owner !== f.seat) continue;
+      const p = toScreen(b.x, b.y);
+      ctx.beginPath(); ctx.arc(p.x, p.y, b.r * s + Math.max(2, 5 * s), 0, 7); ctx.stroke();
+    }
     ctx.restore();
   }
 
@@ -3252,6 +3297,24 @@
         right = p.score + '  ' + t('hud.trShots', { n: Math.max(0, RU.TERRITORY_SHOTS - (p.shots || 0)) });
       }
       const who = (g.coop ? teamMark(p.team) + ' ' : '') + p.name;
+      /*
+       * 陣取りは**持ち色と玉の番号を名前の隣に置く**。
+       * 盤の玉はその人の色そのもので描かれるが、**どの色が自分なのかは
+       * どこにも書いていなかった**（実機での指摘）。色は順ぐりに配るので
+       * 番号は飛び飛びになり（2人なら 1・3・5・7）、番号だけでも探せる。
+       */
+      let head = '';
+      if (g.rule === 'G-06') {
+        const col = RU.TERRITORY_COLORS[i % RU.TERRITORY_COLORS.length];
+        const nums = RU.territoryBallsOf(g, i).map(b => b.num).sort((a, b) => a - b).join(' ');
+        head = '<span class="pl-dot" style="background:' + col + '"></span>';
+        // 色の印は名前と同じ枠に入れる。別の枠にすると両端へ引き離される（flex の並べ方）
+        d.innerHTML = '<span>' + head + escapeHtml(who) +
+          '<span class="pl-nums">' + escapeHtml(nums) + '</span></span>' +
+          '<span>' + escapeHtml(right) + '</span>';
+        box.appendChild(d);
+        return;
+      }
       d.innerHTML = '<span>' + escapeHtml(who) + '</span><span>' + escapeHtml(right) + '</span>';
       box.appendChild(d);
     });

@@ -209,6 +209,10 @@ input[type=range]{accent-color:var(--orange-mid);}
 .info-k{color:var(--text-muted);}
 .pl-row{display:flex;justify-content:space-between;font-size:12px;padding:3px 5px;border-radius:5px;}
 .pl-row.turn{background:var(--bg-selected);color:var(--orange-light);font-weight:700;}
+/* 陣取りの持ち色。盤上の玉と同じ色を名前の頭に置く（7.7節） */
+.pl-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;
+  border:1px solid rgba(0,0,0,.55);vertical-align:middle;flex:none;}
+.pl-nums{font-size:10px;color:var(--text-muted);margin-left:6px;letter-spacing:.02em;}
 #msg-bar{position:absolute;left:50%;transform:translateX(-50%);bottom:8px;background:rgba(10,10,10,.86);border:1px solid var(--border-strong);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--text);max-width:92%;text-align:center;pointer-events:none;}
 /* 盤の真ん中に1秒だけ出す知らせ。端の帯だけでは盤を見ている目に入らない */
 #flash{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.86);

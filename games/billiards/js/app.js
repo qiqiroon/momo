@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.58';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.59';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -646,6 +646,7 @@
    *   （先手は前回の結果とブレイク権の決め方で既に決まっており、席順として配られている）
    */
   function startGame(seed, players, remoteCfg, cont) {
+    closeResult();                          // 前の局の結果画面を畳む（ゲストが start を受けたときに残っていた）
     if (remoteCfg) Object.assign(S.cfg, remoteCfg);   // 通信対戦はホストの設定を強制適用（9.5.3節）
     const cfg = S.cfg;
     // 台の姿はルールから引く。画面を作り直したときだけ決まる形にすると、

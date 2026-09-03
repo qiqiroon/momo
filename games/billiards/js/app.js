@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.54';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.55';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -38,6 +38,8 @@
   const DEBUG = location.search.indexOf('debug=1') >= 0;
 
   const KEY_NAME = 'billiards_name', KEY_ROOM = 'billiards_room';
+  // 盤に重ねる知らせを動かした場所（利用者指示）。窓の大きさが変わっても効くよう割合で持つ
+  const MSG_KEY = 'billiards_msgpos';
   const KEY_SPEED = 'billiards_anim_speed';
 
   /*
@@ -1326,6 +1328,78 @@
     const end = e => { d = null; if (e) e.stopPropagation(); };
     bar.addEventListener('pointerup', end);
     bar.addEventListener('pointercancel', end);
+  })();
+
+  // ══════════════════════════════════════════════
+  //  盤に重ねる知らせ：つまんで動かす／近づいたら逃げる（利用者指示）
+  // ══════════════════════════════════════════════
+  (function initMsgBar() {
+    const bar = $('msg-bar'), grip = $('msg-grip'), pane = $('board-pane');
+    if (!bar || !grip || !pane) return;
+    // 前に動かした場所を覚えている。窓の大きさが変わっても効くよう、割合で持つ
+    try {
+      const raw = localStorage.getItem(MSG_KEY);
+      if (raw) { const p = JSON.parse(raw); if (p && isFinite(p.x) && isFinite(p.y)) S.msgPos = p; }
+    } catch (e) {}
+
+    let d = null;
+    /** 盤の枠から見た、いまの左上の位置 */
+    const barPos = () => {
+      const r = bar.getBoundingClientRect(), c = pane.getBoundingClientRect();
+      return { l: r.left - c.left, t: r.top - c.top };
+    };
+    grip.addEventListener('pointerdown', e => {
+      const at = barPos();
+      d = { x: e.clientX, y: e.clientY, l: at.l, t: at.t, moved: false };
+      bar.classList.add('dragging');
+      try { grip.setPointerCapture(e.pointerId); } catch (err) {}
+      e.preventDefault(); e.stopPropagation();
+    });
+    grip.addEventListener('pointermove', e => {
+      if (!d) return;
+      const dx = e.clientX - d.x, dy = e.clientY - d.y;
+      if (Math.abs(dx) + Math.abs(dy) > 3) d.moved = true;
+      const w = bar.offsetWidth, h = bar.offsetHeight;
+      const l = clamp(d.l + dx, 4, Math.max(4, pane.clientWidth - w - 4));
+      const t = clamp(d.t + dy, 4, Math.max(4, pane.clientHeight - h - 4));
+      // 覚えるのは「割合」。中央そろえの分（幅の半分）を足して中心の位置にする
+      S.msgPos = { x: (l + w / 2) / Math.max(1, pane.clientWidth), y: t / Math.max(1, pane.clientHeight) };
+      S.msgDodge = false;                   // つまんでいる間は逃げない
+      layoutMsgBar();
+      e.preventDefault(); e.stopPropagation();
+    });
+    const done = e => {
+      if (!d) return;
+      /*
+       * ★**動かさずに離したら、元の位置へ戻す。**
+       * つまみを押しただけで戻るので、「2回押す」を覚えなくてよい。
+       * 動かした場合だけ、その場所を覚える。
+       */
+      if (!d.moved) S.msgPos = null;
+      d = null;
+      bar.classList.remove('dragging');
+      try { localStorage.setItem(MSG_KEY, S.msgPos ? JSON.stringify(S.msgPos) : ''); } catch (err) {}
+      layoutMsgBar();
+      if (e) e.stopPropagation();
+    };
+    grip.addEventListener('pointerup', done);
+    grip.addEventListener('pointercancel', done);
+
+    /*
+     * ★**近づいたら反対側へ逃げる。**
+     * 知らせ本体は指も矢印も素通りする（pointer-events:none）ので、
+     * 重なりは**盤の上の座標で自分で測る**。こうすると、逃げる仕掛けを足しても
+     * 盤をなぞる操作は1つも変わらない。
+     */
+    pane.addEventListener('pointermove', e => {
+      if (d) return;
+      const c0 = cv.getBoundingClientRect();
+      const hit = msgHovered(e.clientX - c0.left, e.clientY - c0.top);
+      if (hit !== !!S.msgDodge) { S.msgDodge = hit; layoutMsgBar(); }
+    });
+    pane.addEventListener('pointerleave', () => {
+      if (S.msgDodge) { S.msgDodge = false; layoutMsgBar(); }
+    });
   })();
 
   // ══════════════════════════════════════════════
@@ -2924,6 +2998,7 @@
     fadeIfAimCovers($('msg-bar'), false);
     fadeIfAimCovers($('flash'), false);
     fadeIfAimCovers($('board-title'), mobileTitle);
+    layoutMsgBar();      // 3D と2Dで置き場所が違うので、毎コマ合わせ直す
   }
   function segRect(p, q, x, y, w, h) {
     const minX = Math.min(p.x, q.x), maxX = Math.max(p.x, q.x);
@@ -3237,7 +3312,75 @@
   // ══════════════════════════════════════════════
   //  情報表示（4.9節）
   // ══════════════════════════════════════════════
-  function setMsg(m) { S.msg = m || ''; $('msg-bar').textContent = S.msg; $('msg-bar').style.display = S.msg ? '' : 'none'; }
+  function setMsg(m) {
+    S.msg = m || '';
+    $('msg-text').textContent = S.msg;
+    $('msg-bar').classList.toggle('on', !!S.msg);
+    if (S.msg) layoutMsgBar();
+  }
+
+  // ══════════════════════════════════════════════
+  //  盤に重ねる知らせの置き場所（利用者指示）
+  // ══════════════════════════════════════════════
+  /*
+   * ★**既定は上。**下は撞くときに手と目が行く場所で、いちばん邪魔になる。
+   *
+   * ★**3D の構えでは、向きの帯のすぐ下へ下ろす。**3D は上半分が空（台の向こう）なので
+   *   そこが空いているが、いちばん上には向きを合わせる帯が出ているため、真上だと重なる。
+   *
+   * ★**近づいたら反対側へ逃げる。**指や矢印が知らせの上に来たら、上下を入れ替える。
+   *   つまみ以外は素通りするので、盤をなぞる操作そのものは邪魔しない。
+   *
+   * ★**つまんで動かせる。**動かした場所は覚えて、次の対局でも同じ所に出す。
+   *   つまみを2回押すと元の位置へ戻る。
+   */
+  function msgHome() {
+    // 3D の構えは向きの帯を避ける。2D は上端から少しだけ下げる
+    const top = (S.phase === 'stance')
+      ? dirStripTop() + dirStripH() + 12
+      : topInset() + 8;
+    return { x: 0.5, y: top / Math.max(1, view.h) };
+  }
+  /** いま出すべき置き場所（割合）。動かしてあればそれ、無ければ既定 */
+  function msgSpot() {
+    const home = msgHome();
+    const p = S.msgPos ? { x: S.msgPos.x, y: S.msgPos.y } : home;
+    if (S.msgDodge) {
+      /*
+       * 逃がす先は「反対の端」。上にあれば下へ、下にあれば上へ。
+       * 少しだけずらす形にすると、逃げた先でまた指に当たって行ったり来たりする。
+       */
+      p.y = (p.y < 0.5) ? Math.max(0, 1 - (home.y + 0.02)) : home.y;
+    }
+    return p;
+  }
+  /*
+   * ★毎コマ呼ばれるので、**同じ場所なら何もしない**。
+   * 大きさを測る（offsetWidth）のは配置し直しを起こすので、
+   * 毎コマ測ると1コマの予算を食う。文字と窓が変わったときだけ測り直す。
+   */
+  let msgLast = '';
+  function layoutMsgBar() {
+    const el = $('msg-bar');
+    if (!el || !S.msg || !view.h) return;
+    const p = msgSpot();
+    const key = S.msg + '|' + view.w + 'x' + view.h + '|' + S.phase;
+    if (key !== msgLast) { msgLast = key; el.style.width = ''; }
+    const w = el.offsetWidth || 200, h = el.offsetHeight || 26;
+    // 端からはみ出さないように収める（動かした場所を覚えているので、窓を変えると外れうる）
+    const x = Math.min(Math.max(p.x * view.w, w / 2 + 4), Math.max(w / 2 + 4, view.w - w / 2 - 4));
+    const y = Math.min(Math.max(p.y * view.h, 4), Math.max(4, view.h - h - 4));
+    // 左上を起点に transform でずらす（left で置くと右端で箱が潰れる）
+    const tr = 'translate(' + Math.round(x - w / 2) + 'px,' + Math.round(y) + 'px)';
+    if (el.style.transform !== tr) el.style.transform = tr;
+  }
+  /** 指や矢印が知らせに重なっているか（少し広めに見る） */
+  function msgHovered(px, py) {
+    const el = $('msg-bar');
+    if (!el || !S.msg || !el.classList.contains('on')) return false;
+    const q = rectOnBoard(el), m = 16;
+    return px > q.x - m && px < q.x + q.w + m && py > q.y - m && py < q.y + q.h + m;
+  }
 
   /**
    * 盤の真ん中に大きく1秒だけ出す。

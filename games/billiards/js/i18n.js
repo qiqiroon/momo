@@ -37,7 +37,7 @@ const BilliardsI18N = (() => {
       'rule.how.G-04': 'ポケットのない台で、自分の手玉を他の2つの玉に続けて当てると1点。当たったら続けて撞けます。先に目標点に届いた人の勝ちです。',
       'rule.how.G-06': '玉が通ったマスが、その玉の色に塗られます。手玉は塗りません。外周ぎわは塗れません。1人4打ずつ撞き、塗ったマスの多い人が勝ちです。',
       'rule.how.G-08': '脱落せずに最後まで残ることを目指します。',
-      'rule.how.G-09': '手玉はありません。自分の色の持ち球を1個ずつ交代で投げ、ハウス（中心の円）の内側で、中心にいちばん近い玉を持つ1人だけが得点します。点数は相手の最内より内側にある自分の玉の数です。ホグ円（点線）の外で止まった玉は取り除かれます。持ち球を投げ切ったらエンドの終わり、盤を空にして次のエンドへ移り、先攻を1人ずつ送ります。',
+      'rule.how.G-09': '手玉はありません。自分の色の持ち球を1個ずつ交代で投げ、ハウス（中心の円）の内側で、中心にいちばん近い玉を持つ1人だけが得点します。点数は相手の最内より内側にある自分の玉の数です。ホグ円（点線）の外で止まった玉は取り除かれます。持ち球を投げ切ったらエンドの終わり、盤を空にして次のエンドへ移り、先攻を1人ずつ送ります。最後の1投は有利なので、先手を決めるバンキングで勝った人が最後に撞きます。',
       'rule.how.G-10': '決められた順に玉を落とし、少ない打数を競います。',
       'rule.how.G-11': '決められた回数の中で落とした数を競います。',
 
@@ -262,7 +262,7 @@ const BilliardsI18N = (() => {
       'rule.how.G-04': 'On a table with no pockets, score a point by making your cue ball touch two other balls in one shot. Score and you keep shooting. First to the target score wins.',
       'rule.how.G-06': 'Every square a ball rolls over is painted in that ball’s colour. The cue ball paints nothing, and the outer ring cannot be painted. Four shots each; most squares wins.',
       'rule.how.G-08': 'Stay in the game while the others are knocked out.',
-      'rule.how.G-09': 'There is no cue ball. Take turns delivering one stone of your own colour at a time. Only the player whose stone lies closest to the centre of the house scores, and they score one point for each of their stones lying closer than every opponent’s nearest stone. A stone that comes to rest outside the dashed hog circle is removed. When everyone has delivered all their stones the end is over: the table is cleared, the next end begins, and the lead passes to the next player.',
+      'rule.how.G-09': 'There is no cue ball. Take turns delivering one stone of your own colour at a time. Only the player whose stone lies closest to the centre of the house scores, and they score one point for each of their stones lying closer than every opponent’s nearest stone. A stone that comes to rest outside the dashed hog circle is removed. When everyone has delivered all their stones the end is over: the table is cleared, the next end begins, and the lead passes to the next player. The last stone of an end is an advantage, so whoever wins the lag delivers last.',
       'rule.how.G-10': 'Pocket the balls in a set order using as few shots as possible.',
       'rule.how.G-11': 'Pocket as many balls as you can within a fixed number of turns.',
 
@@ -486,7 +486,7 @@ const BilliardsI18N = (() => {
       'rule.how.G-04': '在没有球袋的球台上，让自己的主球连续碰到另外两颗球即得1分。得分可继续击球，先达到目标分者获胜。',
       'rule.how.G-06': '球滚过的格子会被涂上该球的颜色。母球不涂色，最外圈也无法涂色。每人各打四杆，涂得最多的人获胜。',
       'rule.how.G-08': '目标是坚持到最后不被淘汰。',
-      'rule.how.G-09': '没有母球。轮流每次投出一颗自己颜色的球。只有最靠近圆心的球的主人得分，得分等于比对手最内侧球更靠近圆心的己方球数。停在虚线（Hog 圈）之外的球会被移走。所有人投完手中的球即为一局结束，清空台面进入下一局，先手依次轮换。',
+      'rule.how.G-09': '没有母球。轮流每次投出一颗自己颜色的球。只有最靠近圆心的球的主人得分，得分等于比对手最内侧球更靠近圆心的己方球数。停在虚线（Hog 圈）之外的球会被移走。所有人投完手中的球即为一局结束，清空台面进入下一局，先手依次轮换。最后一投有利，因此争先手获胜的人最后投球。',
       'rule.how.G-10': '按指定顺序进球，比拼杆数少。',
       'rule.how.G-11': '在规定的轮数内比拼进球数。',
 

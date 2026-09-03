@@ -213,11 +213,43 @@ input[type=range]{accent-color:var(--orange-mid);}
 .pl-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;
   border:1px solid rgba(0,0,0,.55);vertical-align:middle;flex:none;}
 .pl-nums{font-size:10px;color:var(--text-muted);margin-left:6px;letter-spacing:.02em;}
-#msg-bar{position:absolute;left:50%;transform:translateX(-50%);bottom:8px;background:rgba(10,10,10,.86);border:1px solid var(--border-strong);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--text);max-width:92%;text-align:center;pointer-events:none;}
+/*
+ * 盤に重ねる知らせ（利用者指示で作り直した）。
+ * ・**下ではなく上**に出す。下は撞くときに手と目が行く場所で、いちばん邪魔になる
+ * ・**半透明**にして下の玉を透かす。文字は縁取りで読めるようにする
+ * ・**つまみ（⣿）で好きな場所へ動かせる。**つまみ以外は指も矢印も素通りするので、
+ *   盤をなぞる操作を邪魔しない
+ * ・**近づくと反対側へ逃げる**（下に置いていれば上へ、上なら下へ）
+ */
+/*
+ * ★置き場所は left/top ではなく **transform でずらす**。
+ *   left で右端へ寄せると、右端までの残り幅で折り返して**箱が細く潰れる**
+ *   （絶対配置の幅は「left から右端まで」で決まるため）。
+ *   左上に置いたまま transform でずらせば、幅はいつも中身なりに決まる。
+ */
+#msg-bar{position:absolute;left:0;top:0;z-index:4;
+  display:none;align-items:center;gap:7px;
+  background:rgba(8,10,9,.34);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
+  border:1px solid rgba(255,255,255,.20);border-radius:8px;
+  padding:5px 11px 5px 5px;font-size:12px;color:#fff;max-width:92%;text-align:center;
+  pointer-events:none;
+  /* 半透明の上でも読めるように、暗い縁を回す */
+  text-shadow:0 1px 2px rgba(0,0,0,.95),0 0 5px rgba(0,0,0,.9),0 0 10px rgba(0,0,0,.7);
+  transition:opacity .16s ease,transform .2s ease;}
+#msg-bar.on{display:flex;}
+#msg-bar .mb-grip{pointer-events:auto;cursor:grab;touch-action:none;user-select:none;flex:none;
+  color:rgba(255,255,255,.6);font-size:12px;line-height:1;padding:3px 4px;border-radius:5px;
+  text-shadow:none;background:rgba(255,255,255,.10);}
+#msg-bar .mb-grip:hover{background:rgba(255,255,255,.22);color:#fff;}
+#msg-bar .mb-grip:active{cursor:grabbing;}
+#msg-bar.dragging{transition:opacity .16s ease;}
 /* 盤の真ん中に1秒だけ出す知らせ。端の帯だけでは盤を見ている目に入らない */
 #flash{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.86);
   padding:12px 22px;border-radius:12px;text-align:center;max-width:min(400px,92%);
-  background:rgba(10,10,10,.86);border:2px solid var(--border-strong);color:var(--text);
+  /* 知らせは一瞬だけ大きく出るもの。下の盤が透けるところまで薄くし、文字は縁取りで残す */
+  background:rgba(8,10,9,.55);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);
+  border:2px solid var(--border-strong);color:var(--text);
+  text-shadow:0 1px 2px rgba(0,0,0,.95),0 0 6px rgba(0,0,0,.85);
   opacity:0;pointer-events:none;transition:opacity .12s ease,transform .12s ease;}
 #flash-t{display:block;font-weight:700;font-size:clamp(17px,4.4vw,28px);line-height:1.2;}
 #flash-w{display:block;font-size:12px;font-weight:400;line-height:1.6;margin-top:7px;
@@ -251,6 +283,13 @@ input[type=range]{accent-color:var(--orange-mid);}
 /* 盤面に重ねる表示は、狙いにかぶったら薄くして台を見せる（消さずにうっすら残す） */
 #msg-bar,#flash,#board-title{transition:opacity .16s ease;}
 #msg-bar.faded,#flash.faded,#board-title.faded{opacity:.10;}
+/*
+ * 知らせ本体はもともと半透明で、近づけば逃げるようになった（利用者指示）。
+ * 狙いに重なったときの薄め方は、**読める濃さに留める**
+ * ── ここを他と同じ 0.10 にすると、狙う先がハウス側にある形（カーリング型）では
+ * ほとんどの時間で文字が消えてしまう。
+ */
+#msg-bar.faded{opacity:.5;}
 #flash.faded.on{opacity:.10;}
 #dbg{position:absolute;left:6px;bottom:6px;font-size:10px;color:#9ca3af;background:rgba(10,10,10,.7);
   padding:2px 6px;border-radius:5px;pointer-events:none;display:none;}
@@ -603,7 +642,7 @@ body.debug #dbg{display:block;}
           </div>
         </div>
       </div>
-      <div id="msg-bar"></div>
+      <div id="msg-bar"><span class="mb-grip" id="msg-grip" title="つまんで動かす（2回押しで元の位置）">⠿</span><span id="msg-text"></span></div>
       <!-- 盤に重ねて出す大きな知らせ（ファウル・時間切れ）。理由の一言を添えられる -->
       <div id="flash" class="gone"><span id="flash-t"></span><span id="flash-w"></span></div>
       <!-- ?debug=1 のときだけ出す1フレームの内訳 -->

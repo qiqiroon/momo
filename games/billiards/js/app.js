@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.55';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.56';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -1072,8 +1072,13 @@
 
     if (r.done) {
       const name = g.players[r.winner] ? g.players[r.winner].name : '';
-      setMsg(t('bank.decided', { name }));
-      flash(t('bank.decided', { name }));
+      /*
+       * ★カーリング型は**バンキングの勝者が後手**（最後に撞くのが有利）。
+       * ふつうの「先手です」を出すと、直後の動き（勝者が最後に撞く）と食い違う（実機で出た不具合）。
+       */
+      const key = (g.rule === 'G-09') ? 'bank.decidedLast' : 'bank.decided';
+      setMsg(t(key, { name }));
+      flash(t(key, { name }));
     } else {
       setMsg(t('bank.turn'));
     }
@@ -1282,8 +1287,13 @@
     const won = (g.winTeam >= 0) && (S.net.on ? g.winTeam === myTeam
       : RU.teamMembers(g, g.winTeam).some(p => p.type === 'human'));
     S.won = won && !watching;
-    // 観戦者はどちらの側でもないので、勝ちの音も負けの音も鳴らさない
-    if (!watching) AU.sfx(won ? 'win' : 'lose');
+    /*
+     * ★**引き分けは音を鳴らさない**（利用者指示）。勝ちでも負けでもないため。
+     * 引き分けの見分け方は結果表示（renderResult）と同じ＝勝ちチームが無く、打ち切り負けでもない。
+     * 観戦者はどちらの側でもないので、勝ちの音も負けの音も鳴らさない。
+     */
+    const draw = g.winTeam < 0 && !g.failed;
+    if (!watching) { if (won) AU.sfx('win'); else if (!draw) AU.sfx('lose'); }
     renderResult();
     openResult();                           // 盤面は消さない。上に重ねて出す
   }
@@ -3363,22 +3373,32 @@
   function layoutMsgBar() {
     const el = $('msg-bar');
     if (!el || !S.msg || !view.h) return;
-    const p = msgSpot();
     const key = S.msg + '|' + view.w + 'x' + view.h + '|' + S.phase;
     if (key !== msgLast) { msgLast = key; el.style.width = ''; }
-    const w = el.offsetWidth || 200, h = el.offsetHeight || 26;
-    // 端からはみ出さないように収める（動かした場所を覚えているので、窓を変えると外れうる）
-    const x = Math.min(Math.max(p.x * view.w, w / 2 + 4), Math.max(w / 2 + 4, view.w - w / 2 - 4));
-    const y = Math.min(Math.max(p.y * view.h, 4), Math.max(4, view.h - h - 4));
     // 左上を起点に transform でずらす（left で置くと右端で箱が潰れる）
-    const tr = 'translate(' + Math.round(x - w / 2) + 'px,' + Math.round(y) + 'px)';
+    const q = msgRect(msgSpot());
+    const tr = 'translate(' + q.x + 'px,' + q.y + 'px)';
     if (el.style.transform !== tr) el.style.transform = tr;
   }
-  /** 指や矢印が知らせに重なっているか（少し広めに見る） */
+  /** 割合位置 p を画面上の矩形（左上と大きさ）へ直す。配置と当たり判定で同じ計算を使う */
+  function msgRect(p) {
+    const el = $('msg-bar');
+    const w = el.offsetWidth || 200, h = el.offsetHeight || 26;
+    const x = Math.min(Math.max(p.x * view.w, w / 2 + 4), Math.max(w / 2 + 4, view.w - w / 2 - 4));
+    const y = Math.min(Math.max(p.y * view.h, 4), Math.max(4, view.h - h - 4));
+    return { x: Math.round(x - w / 2), y: Math.round(y), w, h };
+  }
+  /**
+   * 指や矢印が知らせに重なっているか（少し広めに見る）。
+   * ★**見るのは「逃げていない本来の位置」。**逃げた後の実際の位置で見ると、
+   *   逃げた先にマウスが居ないぶん重なりが外れて元へ戻り、
+   *   マウスを動かすたびに 逃げる→戻る を繰り返して点滅する（実機で出た不具合）。
+   *   本来位置で見れば、その一帯にマウスが居る間は逃げたまま留まる。
+   */
   function msgHovered(px, py) {
     const el = $('msg-bar');
     if (!el || !S.msg || !el.classList.contains('on')) return false;
-    const q = rectOnBoard(el), m = 16;
+    const q = msgRect(S.msgPos ? S.msgPos : msgHome()), m = 16;
     return px > q.x - m && px < q.x + q.w + m && py > q.y - m && py < q.y + q.h + m;
   }
 

@@ -184,6 +184,7 @@ const BilliardsI18N = (() => {
       'bank.how': '先手を決めます。向こうの壁に当てて戻し、手前の壁に近く止めた人が先手です。強さは表示されず、毎回わずかにずれます',
       'bank.turn': 'バンキング — 次の人が撞きます',
       'bank.decided': '{name} の先手です',
+      'bank.decidedLast': '{name} が後手（最後に撞きます）',
       'bank.label': 'バンキング',
 
       'dl.title': 'デッドロック', 'dl.ask': '対局が進まなくなっています。最初からやり直しますか？',
@@ -408,6 +409,7 @@ const BilliardsI18N = (() => {
       'bank.how': 'Lagging for the break. Hit the far rail and come back — closest to the near rail breaks. The power reading is hidden and wobbles slightly on every lag.',
       'bank.turn': 'Lag — next player shoots',
       'bank.decided': '{name} breaks',
+      'bank.decidedLast': '{name} throws last (has the hammer)',
       'bank.label': 'Lag',
 
       'dl.title': 'Deadlock', 'dl.ask': 'The game is not progressing. Restart from the break?',
@@ -632,6 +634,7 @@ const BilliardsI18N = (() => {
       'bank.how': '决定谁先开球。撞到对面库边后回来，停得离近侧库边最近的人先开球。力度不显示，且每次都会略有偏差。',
       'bank.turn': '争开球权 — 下一位击球',
       'bank.decided': '{name} 先开球',
+      'bank.decidedLast': '{name} 后手（最后投球）',
       'bank.label': '争开球权',
 
       'dl.title': '僵局', 'dl.ask': '对局无法推进。要从开球重来吗？',

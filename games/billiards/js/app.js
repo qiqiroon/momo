@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.56';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.57';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -2600,6 +2600,33 @@
       const hg = ctx.createRadialGradient(q.x, q.y, rr * .15, q.x, q.y, rr);
       hg.addColorStop(0, '#151515'); hg.addColorStop(1, '#000');
       ctx.beginPath(); ctx.ellipse(q.x, q.y, rr, rr * 0.45, 0, 0, 7); ctx.fillStyle = hg; ctx.fill();
+    }
+
+    /*
+     * ★カーリング型の的（ハウス）を台面に描く（利用者指示）。
+     * **玉より先に描くので玉の下に敷かれる。**円周を透視投影で折れ線に落とす。
+     * 台面すれすれ（z=0.5）に置き、2Dの drawHouse と同じ同心円4本＋ホグ円にする。
+     */
+    if (g.rule === 'G-09' && g.curling) {
+      const L = g.curling.layout;
+      const ring = radius => {
+        const pts = [];
+        for (let i = 0; i < 48; i++) {
+          const a = 2 * Math.PI * i / 48;
+          const q = proj(L.center.x + Math.cos(a) * radius, L.center.y + Math.sin(a) * radius, 0.5);
+          if (q) pts.push(q);
+        }
+        return pts;
+      };
+      const path = pts => { ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y); ctx.closePath(); };
+      // ホグ円（点線）。得点には関わらないが、外で止まると玉が消えるので見せる
+      const hp = ring(L.hog);
+      if (hp.length >= 3) { ctx.setLineDash([7, 6]); path(hp); ctx.strokeStyle = 'rgba(255,255,255,.22)'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]); }
+      // ハウスは外から順に塗り重ねる
+      const RING = ['rgba(80,150,255,.30)', 'rgba(245,245,245,.26)', 'rgba(225,60,60,.34)', 'rgba(245,245,245,.40)'];
+      L.rings.forEach((k, i) => { const pts = ring(L.radius * k); if (pts.length >= 3) { path(pts); ctx.fillStyle = RING[i]; ctx.fill(); } });
+      const op = ring(L.radius);
+      if (op.length >= 3) { path(op); ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 1.8; ctx.stroke(); }
     }
 
     const prev = getAimPreview();

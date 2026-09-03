@@ -21,7 +21,7 @@ const BilliardsRules = (() => {
   };
   const CAROM_COLORS = ['#f4f4f4', '#f2c00e', '#8fd14f', '#60a5fa', '#c084fc', '#f472b6'];
 
-  const RULE_IDS = ['G-01', 'G-02', 'G-03', 'G-04', 'G-06', 'G-08'];
+  const RULE_IDS = ['G-01', 'G-02', 'G-03', 'G-04', 'G-06', 'G-08', 'G-09'];
 
   // 適用するファウル（7.2.4節）。第1段階の4ルールぶんだけを持つ。
   const FOUL_TABLE = {
@@ -37,36 +37,85 @@ const BilliardsRules = (() => {
     'G-06': { 'V-01': 1, 'V-02': 0, 'V-03': 0, 'V-04': 0, 'V-05': 1, 'V-06': 1, 'V-07': 1, 'V-08': 1, 'V-09': 1 },
     // サバイバルは「最初に当てるべき玉」を持たないので V-02・V-03 は適用しない（7.2.4節）
     'G-08': { 'V-01': 1, 'V-02': 0, 'V-03': 0, 'V-04': 1, 'V-05': 1, 'V-06': 1, 'V-07': 1, 'V-08': 1, 'V-09': 1 },
+    /*
+     * カーリング型（7.9.1節・7.2.4節）。**手玉と的球の区別がない。**
+     * 撞いた玉そのものが得点を争う玉なので、
+     *   ・V-01 空振り … 何にも当てる必要がない。適用しない
+     *   ・V-02 対象違い／V-03 無クッション … 「最初に当てるべき玉」が無い。適用しない
+     * V-04 スクラッチは適用する（**ポケットあり台8種のみで遊ぶ**ので必ず口がある）。
+     */
+    'G-09': { 'V-01': 0, 'V-02': 0, 'V-03': 0, 'V-04': 1, 'V-05': 1, 'V-06': 1, 'V-07': 1, 'V-08': 1, 'V-09': 1 },
   };
 
   // 罰則の分類（7.2.5節）
-  const PENALTY = { 'G-01': 'freeball', 'G-02': 'freeball', 'G-03': 'freeball', 'G-04': 'score', 'G-06': 'freeball', 'G-08': 'loss' };
+  // カーリング型は得点型（7.2.5節）＝そのショットで投げた玉を、そのエンドの数えものから外す
+  const PENALTY = { 'G-01': 'freeball', 'G-02': 'freeball', 'G-03': 'freeball', 'G-04': 'score', 'G-06': 'freeball', 'G-08': 'loss', 'G-09': 'score' };
   // 勝敗の決まり方（7.2.8節）
-  const WIN_KIND = { 'G-01': 'reach', 'G-02': 'reach', 'G-03': 'points', 'G-04': 'reach', 'G-06': 'points', 'G-08': 'survival' };
+  const WIN_KIND = { 'G-01': 'reach', 'G-02': 'reach', 'G-03': 'points', 'G-04': 'reach', 'G-06': 'points', 'G-08': 'survival', 'G-09': 'points' };
 
   /**
    * 点数を数えるルールかどうか。
    * ナインボール・エイトボールは「どの玉を落としたか」で決まり点数を持たない。
    * 持たないルールで 0 点と出し続けると、壊れているように見える。
    */
-  const HAS_SCORE = { 'G-01': false, 'G-02': false, 'G-03': true, 'G-04': true, 'G-06': true, 'G-08': false };
+  const HAS_SCORE = { 'G-01': false, 'G-02': false, 'G-03': true, 'G-04': true, 'G-06': true, 'G-08': false, 'G-09': true };
   // ラックを持つか（7.2.7節）
-  const HAS_RACK = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': false, 'G-06': false, 'G-08': true };
+  const HAS_RACK = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': false, 'G-06': false, 'G-08': true, 'G-09': false };
   // ポケットあり台が要るか
-  const NEEDS_POCKETS = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': false, 'G-06': false, 'G-08': true };
+  /*
+   * ★**カーリング型はポケットあり台8種のみ**（利用者指示。仕様書 2.4.1節の改訂）。
+   * 仕様は 16種すべてで成立するとしていたが、現実のカーリングで「横のラインに触れた石は
+   * 取り除かれる」にあたる仕組みが、この台ではポケットしかない。キャロム版台には
+   * 玉が盤から失われる手立てが無く、投げた玉が溜まる一方になる。
+   */
+  const NEEDS_POCKETS = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': false, 'G-06': false, 'G-08': true, 'G-09': true };
   /*
    * ブレイクの成立条件（1球以上落ちるか4球以上がクッションに触れる）を見るか。
    * **サバイバルだけは見ない。**このルールのブレイクは「グループの球が1つでも落ちたか」
    * だけで組み立てられていて、落ちなければそのまま次の人が撞く。
    * クッション数の条件を重ねると、同じ一撞きに二重の判定が掛かる。
    */
-  const BREAK_VALID = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': false, 'G-06': false, 'G-08': false };
+  const BREAK_VALID = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': false, 'G-06': false, 'G-08': false, 'G-09': false };
 
   /*
    * 陣取り（7.7節）のプレイヤーの色。**玉そのものの色であり、塗ったマスもこの色になる。**
    * ラシャの緑の上でも読めるよう、サバイバルの輪と同じ組から選ぶ。
    * **白は使わない。**手玉が白なので、白い的球があると撞く玉を見失う。
    */
+  /*
+   * カーリング型（7.9節）。**持ち球はプレイヤーごとの色を持つ玉そのもの**で、
+   * 手玉と的球の区別がない。キャロムやバンキングと同じ「人ごとの色」を使い回す。
+   */
+  const CURLING_STONES = 4;      // 1人あたりの持ち球（付録B送りの暫定値。7.13節）
+
+  /*
+   * ★**カーリング型だけ、撞く強さの目盛りを取り直す。**
+   *
+   * このルールは「投げた玉をどこに止めるか」だけを競うので、使う強さの幅がとても狭い。
+   * **実測（8形状・投球位置から目標円の中心へ真っすぐ）：**
+   *   目標円の内側に止まる強さ … 0.045〜0.055（中心ぴったりは 0.045〜0.059）
+   *   ホグ円の内側に止まる強さ … 0.032〜0.062
+   * ふつうの目盛り（0〜1.15）のままだと、**目標円に入る幅がスライダーのおよそ1%**しかなく、
+   * 400px の引き代なら3ピクセル ── 指では出せない。
+   *
+   * そこで**利用者に見せる 0〜100% を、物理の 0.015〜0.085 に割り当て直す。**
+   * こうすると目標円へ入る強さが 44%〜57% あたりに来て、上限側は相手の玉を弾き出す
+   * 強さになる。**触るのは入力の割り当てだけで、物理には手を入れない**
+   * ── 台の摩擦をこのルールだけ変えると、engine が知らないはずのルールを知ることになり、
+   * 決定論・通信対戦・リプレイの土台（5.2節）にも影響する。
+   */
+  const CURLING_POWER = { min: 0.015, max: 0.085 };
+  /** 見えている強さ（0〜1.15）→ 物理の強さ */
+  function shotPower(rule, aim) {
+    if (rule !== 'G-09') return aim;
+    return CURLING_POWER.min + aim * (CURLING_POWER.max - CURLING_POWER.min);
+  }
+  /** 物理の強さ → 見えている強さ。音の大きさなど「撞いた手応え」を出す側が使う */
+  function aimPower(rule, phys) {
+    if (rule !== 'G-09') return phys;
+    return (phys - CURLING_POWER.min) / (CURLING_POWER.max - CURLING_POWER.min);
+  }
+
   const TERRITORY_COLORS = ['#00e5ff', '#ff2d95', '#ffd400', '#b06cff'];
   const TERRITORY_BALLS = 4;    // 色ごとの玉数（D390）
   const TERRITORY_SHOTS = 4;    // 規定打数（D393）。玉の数と一致させている
@@ -296,7 +345,46 @@ const BilliardsRules = (() => {
     let id = 0;
     const R = T.R;
 
-    if (game.rule === 'G-06') {
+    if (game.rule === 'G-09') {
+      /*
+       * カーリング型（7.9節）。**盤面は空から始まる。ラックは無い。**
+       *
+       * 持ち球は人数×CURLING_STONES 個を先に作っておき、**まだ投げていない玉は盤に出さない**
+       * （state='gone'）。投げる直前に投球位置へ置き、そのときだけ kind を 'cue' にする。
+       * こうすると cueBallOf（席ごとに手玉を引く）が、いま撞く1個をそのまま返す。
+       * 玉に「何番目の持ち球か」を持たせておくと、数え直しの要らない形で順が決まる。
+       */
+      const n = game.players.length;
+      for (let seat = 0; seat < n; seat++) {
+        for (let k = 0; k < CURLING_STONES; k++) {
+          const b = E.makeBall({
+            id: id++, num: 0, kind: 'object', owner: seat, r: R,
+            x: 0, y: 0, color: CAROM_COLORS[seat % CAROM_COLORS.length],
+          });
+          b.stone = k;                 // 何番目の持ち球か
+          b.state = 'gone'; b.onTable = false;
+          balls.push(b);
+        }
+      }
+      game.curling = {
+        layout: T.curlingLayout(table),
+        end: 0,                        // いま何エンド目（0起点）
+        /*
+         * ★**規定エンド数＝参加人数**（利用者指示）。
+         * 先攻をエンドごとに1つずつ送るので、人数と同じ数だけ回すと
+         * **全員がちょうど1回ずつ先攻を務め、1回ずつ最後の1投を持つ**。
+         * 人数と違う数にすると、最後の1投を2回持つ人が出る。
+         */
+        ends: Math.max(1, n),
+        thrown: game.players.map(() => 0),   // このエンドで投げた数
+        voided: {},                    // ファウルで数えものから外した玉のid
+        endScores: [],                 // エンドごとの [席ごとの点]
+        lastEnd: null,                 // 直前のエンドの点（画面へ出す）
+      };
+      game.players.forEach(p => { p.score = 0; });
+      game.ballInHand = false;
+      game.ballInHandFull = false;
+    } else if (game.rule === 'G-06') {
       /*
        * 陣取り（7.7.8節）。的球は台の重心を中心とした円周上に等間隔、**色は順ぐりに配る**。
        * 手玉は円の中心（ドーナツ型だけは島を挟んだ反対側）。
@@ -390,6 +478,7 @@ const BilliardsRules = (() => {
     // 玉を並べ直した＝まだ誰もブレイクしていない
     game.broken = false;
     if (game.rule === 'G-06') territoryTrack(game);   // 出発のマスを控える（塗りはしない）
+    if (game.rule === 'G-09') curlingArm(game);       // 先頭の人の1個目を投球位置へ置く
   }
 
   // ───────── 陣取り（7.7節） ─────────
@@ -494,6 +583,31 @@ const BilliardsRules = (() => {
    * **フット側の壁に当てて戻すこと**を成立条件にする。
    * 当てなかった玉・落ちた玉・場外の玉は最下位に置く。
    */
+
+  /*
+   * ★**バンキングの一撞きは、毎回わずかに強さがずれる**（全ルール共通）。
+   *
+   * 強さの目盛りと数字はバンキング中だけ伏せてある（app.js）が、それだけでは
+   * **キューを引く長さを体で覚えれば同じ強さを再現できてしまう。**ここでずらすことで、
+   * 人も AI も「この台はここ」と覚えた1点を撞き直せなくなる。
+   *
+   * **ずらすのは入力を作る側で1回だけ**（app.js の fireShot）。ずらしたあとの5値を
+   * 履歴にも通信にも流す。撞いたあと物理の中でずらすと、同じ5値から違う結果が出て
+   * 決定論が壊れる（5.2節）。**受け取る側と再生は引き直さない。**
+   *
+   * **乱数は共有シードの PRNG（game.rng）から引かない。**引いた端末だけが乱数の並びを
+   * 1つ進めるので、AI を持つ端末との間で以降の並びが食い違う。素の乱数でよい
+   * ── 結果そのものを相手へ送るため、相手が同じ値を引き直す必要がない。
+   *
+   * @param {object}   shot 5値
+   * @param {function} rnd  0〜1 を返す関数（検査から差し替えるためだけの引数）
+   */
+  const BANK_WOBBLE = 0.03;                 // ±3%（暫定値。実機で調整する）
+  function bankWobble(shot, rnd) {
+    const r = rnd || Math.random;
+    const d = (r() * 2 - 1) * BANK_WOBBLE;
+    return Object.assign({}, shot, { power: Math.max(0.05, Math.min(1.15, (shot.power || 0) + d)) });
+  }
 
   /** 長軸に沿った位置。フット側を正とする（ヘッドに近いほど小さい） */
   function longPos(table, x, y) {
@@ -622,8 +736,20 @@ const BilliardsRules = (() => {
       winner = game.seatOrder[0];
       game.bank.winner = winner;
     }
-    setupBalls(game);
+    /*
+     * ★カーリング型は**バンキングで決まった順を、そのまま席の巡りにする**（利用者指示）。
+     * エンドごとに先攻を1つ送る仕掛けが「巡りの先頭」を起点にしているので、
+     * 勝った人を先頭へ回しておかないと、**2エンド目の先攻が1エンド目と同じ人**になる。
+     */
+    if (game.rule === 'G-09') rotateSeats(game, winner);
+    /*
+     * ★**盤を組む前に手番を決める。**カーリング型は盤を組むときに
+     * 「いま撞く人の持ち球」を投球位置へ置く。あとから手番を変えると
+     * **別の人の玉が構えられたまま**になり、1投目だけ相手の色の玉を撞くことになる。
+     * 他の8ルールは盤を組むときに手番を見ないので、順を入れ替えても変わらない。
+     */
     game.turn = winner;
+    setupBalls(game);
     game.breaker = winner;                  // バンキングで決まった人がこの局のブレイク
     game.inningNo = 0;
   }
@@ -823,6 +949,7 @@ const BilliardsRules = (() => {
     else if (rule === 'G-04') resolveCarom(game, result, pre);
     else if (rule === 'G-06') resolveTerritory(game, result, pre);
     else if (rule === 'G-08') resolveSurvival(game, result, pre);
+    else if (rule === 'G-09') resolveCurling(game, result, pre);
 
     /*
      * 相手チームがいないとき（協力プレイで全員が同じチーム）は、
@@ -882,11 +1009,19 @@ const BilliardsRules = (() => {
       else if (rule === 'G-06') { b.state = 'gone'; b.onTable = false; }
       // サバイバルは場外もポケットと同じく喪失（7.8.4節・10.3.3節）。戻さない
       else if (rule === 'G-08') { b.state = 'gone'; b.onTable = false; }
+      // カーリング型は落ちた玉も場外の玉も戻さず、数えない（7.9.4節）
+      else if (rule === 'G-09') { b.state = 'gone'; b.onTable = false; }
     }
     // 手玉
     const cue = byId[pre.cueId];
     if (cue && (cue.state === 'off' || cue.state === 'pocketed')) {
-      if (rule === 'G-04') homeBall(game, cue);
+      /*
+       * ★カーリング型は**投げた玉も戻さない**（7.9.4節）。撞いた玉そのものが得点を争う玉で、
+       * 落ちれば1個失うだけである。ここを他ルールと同じ道へ流すと、
+       * 落ちた持ち球がヘッドスポットに湧いて、フリーボールまで付いてくる。
+       */
+      if (rule === 'G-09') { cue.state = 'gone'; cue.onTable = false; }
+      else if (rule === 'G-04') homeBall(game, cue);
       else {
         // 次のプレイヤーが台全体へ置く（10.4.3節）
         cue.state = 'live'; cue.onTable = true;
@@ -1053,6 +1188,221 @@ const BilliardsRules = (() => {
       finishRanking(game);
       r.message = 'msg.territoryEnd';
     }
+  }
+
+  // ───────── G-09 カーリング型（7.9節） ─────────
+
+  /**
+   * その席の持ち球のうち、**まだ一度も投げていないもの**（持ち球の番号順）。
+   *
+   * ★**「まだ投げていない」を玉の状態（盤に出ていない）で見てはいけない。**
+   *   投げた玉は、ホグ円の外で止まれば取り除かれ、ポケットへ落ちても盤から消える。
+   *   状態で見ると**それが「まだ投げていない玉」に戻り、次の人の持ち球として
+   *   投球位置へ置き直される**（実測：ホグ円の外の玉が、次の一撞きで投球位置へ湧いた）。
+   *   投げたかどうかは玉自身に印として持たせる。エンドの区切りで消す。
+   */
+  function curlingStock(game, seat) {
+    // 盤に出ている玉も外す。印を付け忘れても、**盤上の玉を投球位置へ引き戻すことだけは起きない**
+    return game.world.balls.filter(b => b.owner === seat && b.stone != null && !b.thrown && b.state !== 'live')
+      .sort((a, b) => a.stone - b.stone);
+  }
+
+  /**
+   * いま撞く人の持ち球を1個、投球位置へ置く（7.9.3節）。
+   *
+   * **投球位置は全員同じ1点。**前の玉がそこに居座っていることがあるので、
+   * 落ちた玉を戻すのと同じ「少しずつずらして空きを探す」やり方で受ける。
+   * **ずらす向きは目標円から遠ざかる側を先に見る** ── 近づく側へ寄せると、
+   * 投球位置を詰まらせた人が得をする。
+   *
+   * ★ホグ円（7.9.3節の追加規定）のおかげで、投球位置のまわりで止まった玉は
+   *   その一撞きの終わりに取り除かれる。**詰まりはほとんど起きない**が、
+   *   ずらす手順を持たないと、起きた1回で玉が重なったまま始まることになる。
+   */
+  function curlingArm(game) {
+    const cur = game.curling;
+    if (!cur || game.over) return null;
+    const seat = game.turn;
+    // すでに構えている玉があるなら何もしない（同じ手番で二度呼ばれても増えない）
+    const held = game.world.balls.find(b => b.kind === 'cue' && b.owner === seat);
+    if (held) return held;
+    const stock = curlingStock(game, seat);
+    if (!stock.length) return null;
+    const ball = stock[0];
+    const table = game.table, L = cur.layout;
+    const base = L.throwPos;
+    // 目標円から遠ざかる向き（投球位置から見て中心の反対側）
+    const ux = (base.x - L.center.x) / (L.dist || 1), uy = (base.y - L.center.y) / (L.dist || 1);
+    const others = game.world.balls.filter(b => b !== ball && b.state === 'live');
+    const free = (x, y) => {
+      if (!T.inside(table, x, y, ball.r)) return false;
+      for (const p of table.pockets) if (Math.hypot(x - p.x, y - p.y) < p.r + ball.r * 0.2) return false;
+      for (const o of others) if (Math.hypot(x - o.x, y - o.y) < ball.r + o.r + 1.0) return false;
+      return true;
+    };
+    let px = base.x, py = base.y;
+    if (!free(px, py)) {
+      let found = false;
+      for (let i = 1; i <= 4000 && !found; i++) {
+        for (const s of [+1, -1]) {                 // 遠ざかる側を先に見る
+          const x = base.x + ux * i * s * 0.5, y = base.y + uy * i * s * 0.5;
+          if (free(x, y)) { px = x; py = y; found = true; break; }
+        }
+      }
+    }
+    place(ball, px, py);
+    ball.kind = 'cue';
+    ball.thrown = true;                   // 構えた時点で「投げた玉」になる（湧き直さない）
+    game.ballInHand = false;
+    game.ballInHandFull = false;
+    return ball;
+  }
+
+  /** 目標円の中心からの距離 */
+  function curlingDist(game, b) {
+    const c = game.curling.layout.center;
+    return Math.hypot(b.x - c.x, b.y - c.y);
+  }
+
+  /**
+   * そのエンドの得点（7.9.4節）。現実のカーリングの数え方をそのまま使う。
+   *
+   * ・数えるのは**目標円の内側にある玉だけ**（玉の中心が円の内側。7.9.2節）
+   * ・**中心にいちばん近い玉を持つ1人だけが得点する**
+   * ・その点数は、**他のどの人の最内の玉よりも中心に近い、自分の玉の個数**
+   * ・全員が圏外ならブランクエンド（誰も得点しない）
+   * ・ポケットへ落ちた玉・場外へ出た玉は数えない（盤に残っていない）
+   * ・**ファウルを伴う一撞きで投げた玉も数えない**（7.2.6節の利益無効）
+   *
+   * 距離が同じ玉があると並べ順で答えが変わるので、**距離→席→id** の順で並べて決める。
+   */
+  function curlingEndScore(game) {
+    const cur = game.curling, L = cur.layout;
+    const pts = game.players.map(() => 0);
+    const inHouse = game.world.balls
+      .filter(b => b.stone != null && b.state === 'live' && !cur.voided[b.id])
+      .map(b => ({ seat: b.owner, d: curlingDist(game, b), id: b.id }))
+      .filter(s => s.d < L.radius);
+    if (!inHouse.length) return pts;                  // ブランクエンド
+    inHouse.sort((a, b) => (a.d - b.d) || (a.seat - b.seat) || (a.id - b.id));
+    const winner = inHouse[0].seat;
+    const foe = inHouse.find(s => s.seat !== winner);
+    const limit = foe ? foe.d : Infinity;
+    pts[winner] = inHouse.filter(s => s.seat === winner && s.d < limit).length;
+    return pts;
+  }
+
+  /** そのエンドを終えて盤を空にし、次のエンドを始める。返り値は終局したか */
+  function curlingCloseEnd(game) {
+    const cur = game.curling;
+    const pts = curlingEndScore(game);
+    cur.endScores.push(pts);
+    cur.lastEnd = pts;
+    game.players.forEach((p, i) => { p.score += pts[i]; });
+    // 画面へ出す知らせ。**得点者がいないエンド（ブランクエンド）も必ず伝える**
+    // ── 何も出ないと「数え忘れたのでは」と見える
+    let best = -1;
+    pts.forEach((v, i) => { if (v > 0 && (best < 0 || v > pts[best])) best = i; });
+    cur.msg = (best >= 0)
+      ? { key: 'msg.curlEnd', p: { n: cur.end + 1, name: game.players[best].name, p: pts[best] } }
+      : { key: 'msg.curlBlank', p: {} };
+    cur.end++;
+    if (cur.end >= cur.ends) {
+      game.over = true;
+      game.lastMessageKey = 'msg.curlOver';
+      finishRanking(game);
+      return true;
+    }
+    /*
+     * ★**先攻をエンドごとに1つ送る**（利用者指示）。
+     * 現実のカーリングは前エンドで得点しなかった側が次エンドの後攻（ハンマー）になるが、
+     * 得点で決めると**ブランクエンドが続いたときに順が動かない**。
+     * 参加順を1つずつ回すほうが、人数と同じエンド数で全員が1回ずつ先攻・1回ずつ
+     * 最後の1投を持つ形になり、有利不利が残らない。
+     */
+    rotateSeats(game, nextSeat(game, seatCycle(game)[0]));
+    // 盤を空にする（7.9.3節「各エンドの開始時に盤面を空にする」）。持ち球は配り直す
+    for (const b of game.world.balls) {
+      if (b.stone == null) continue;
+      b.kind = 'object'; b.state = 'gone'; b.onTable = false;
+      b.thrown = false;                   // エンドが変われば持ち球は配り直される（7.9.3節）
+      b.vx = b.vy = b.vz = b.wx = b.wy = b.wz = 0;
+    }
+    cur.thrown = game.players.map(() => 0);
+    cur.voided = {};
+    game.turn = seatCycle(game)[0];
+    if (!isActive(game.players[game.turn])) game.turn = firstActive(game);
+    curlingArm(game);
+    return false;
+  }
+
+  /**
+   * カーリング型の手番送り。**nextTurn から呼ばれ、普通の手番送りの代わりになる。**
+   *
+   * ここで「投げ終わった玉の後始末」までやるのは、**撞き終わりの道が2本ある**からである
+   * ── 普通に撞き終わった場合と、ミスキューで手番が終わる場合（app.js）。
+   * 後始末を resolveShot 側に置くと、ミスキューの道だけ玉が構えたまま残り、
+   * 次のエンドまで投げた数が合わなくなる。
+   */
+  function curlingAdvance(game) {
+    const cur = game.curling;
+    if (!cur) return;
+    const seat = game.turn;
+    const thrown = game.world.balls.find(b => b.kind === 'cue' && b.owner === seat);
+    if (thrown) {
+      thrown.kind = 'object';                 // 投げ終わった玉は、ただの盤上の玉になる
+      cur.thrown[seat] = (cur.thrown[seat] || 0) + 1;
+    }
+    /*
+     * ★**ホグ円の外で止まった玉は取り除く**（7.9.3節の追加規定・利用者指示）。
+     *
+     * 現実のカーリングは「ホグラインに届かない石」と「バックラインを越えた石」を
+     * 別々の線で見るが、台が8種あるので**目標円の中心からの遠さ1本**にまとめる。
+     * 円にすると、短すぎと行き過ぎの両方を同じ1本で受けられて、形が変わっても効く。
+     *
+     * **投げた玉だけでなく、盤にある玉すべてを見る。**弾かれて外へ出た玉も
+     * 現実のカーリングでは場外として取り除かれる。投げた玉だけを見ると、
+     * 「弱く撞いて手前に置いた玉を、あとから押し出しても残る」ことになる。
+     */
+    let hogged = 0;
+    for (const b of game.world.balls) {
+      if (b.stone == null || b.state !== 'live') continue;
+      if (curlingDist(game, b) > cur.layout.hog) { b.state = 'gone'; b.onTable = false; hogged++; }
+    }
+    cur.hogged = hogged;
+    game.inningNo++;
+    // 全員が持ち球を投げ切ったらエンドの終わり（7.9.3節）
+    const done = game.players.every((p, i) => !isActive(p) || cur.thrown[i] >= CURLING_STONES);
+    if (done) { curlingCloseEnd(game); return; }
+    game.turn = nextSeat(game, game.turn);
+    // 投げ切った人は飛ばす（1球ずつ交互。持ち球の数が人によって違うことは無いが、離脱で崩れる）
+    for (let k = 0; k < game.players.length && cur.thrown[game.turn] >= CURLING_STONES; k++) {
+      game.turn = nextSeat(game, game.turn);
+    }
+    curlingArm(game);
+  }
+
+  /**
+   * ショットの帰結（7.9節）。ここでやるのは**ファウルの後始末だけ**である。
+   * 投げた玉の片付けとホグ円と手番送りは curlingAdvance（nextTurn 側）が持つ。
+   */
+  function resolveCurling(game, r, pre) {
+    const cur = game.curling;
+    if (r.foul) {
+      /*
+       * ファウル時の罰則は得点型（7.2.5節）＝**そのショットの得点は無効**。
+       * カーリングの得点はエンドの終わりに数えるので、
+       * **その一撞きで投げた玉を、そのエンドの数えものから外す**形で受ける。
+       * ポケットへ落ちた玉を数えないのと同じ扱いになる。
+       *
+       * **玉は盤から取り除かない。**盤面の出来事は通常どおり起き、
+       * そこから利益を得られないだけである（7.2.6節「物理挙動は制限しない」）。
+       */
+      if (pre && pre.cueId != null) cur.voided[pre.cueId] = 1;
+    }
+    r.continueTurn = false;      // 1球ずつ交互。連続して撞くことはない（7.2.2節）
+    // 得点はエンドの終わりに確定する。途中の合計は前のエンドまでのぶん
+    r.gained = 0;
   }
 
   // ───────── G-08 サバイバル（7.8節） ─────────
@@ -1277,6 +1627,11 @@ const BilliardsRules = (() => {
   function nextTurn(game, result) {
     if (game.over) return;
     if (result && result.continueTurn) return;
+    /*
+     * ★カーリング型は手番送りが違う（7.9.3節）。投げた玉の後始末・ホグ円・
+     * エンドの区切りまで一緒に片づける必要があるので、丸ごと差し替える。
+     */
+    if (game.rule === 'G-09') { curlingAdvance(game); return; }
     // 抜けた席・脱落した席は飛ばす（9.8.3節・7.8.6節）。巡りは seatOrder が持つ
     game.turn = nextSeat(game, game.turn);
     game.inningNo++;
@@ -1319,11 +1674,14 @@ const BilliardsRules = (() => {
     spotBall, homeBall, place, resolveShot, nextTurn, breakValid, detectDoubleHit,
     finishRanking, normAngle,
     survivalGroups, survivalLeft, liveInGroup, SURVIVAL_COLORS, BREAK_VALID,
+    // カーリング型（7.9節）
+    CURLING_STONES, CURLING_POWER, shotPower, aimPower,
+    curlingArm, curlingStock, curlingDist, curlingEndScore, curlingAdvance,
     // 陣取り（7.7節）
     TERRITORY_COLORS, TERRITORY_BALLS, TERRITORY_SHOTS,
     territoryCount, territoryBallsOf, makeTerritoryProbe, territoryTrack,
     seatCycle, nextSeat, rotateSeats,
-    startBanking, bankResolve, endBanking, longPos, footReach,
+    startBanking, bankResolve, endBanking, longPos, footReach, bankWobble, BANK_WOBBLE,
     breakSeat, nextOrder,
     retirePlayer, activeCount, activeTeams, isActive,
   };

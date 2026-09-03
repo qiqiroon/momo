@@ -550,14 +550,33 @@ const BilliardsAI = (() => {
       return { ok: true, pos: RU.longPos(table, b.x, b.y) };
     }
 
-    const cands = [];
+    const STEP = 0.045;                 // 強さの刻み
+    const rows = [];
     for (const dOff of [0, -0.06, 0.06, -0.13, 0.13]) {
+      const row = [];
       for (let k = 0; k <= 8; k++) {
-        const shot = { dir: baseDir + dOff, tipX: 0, tipY: 0, elev: 0, power: 0.18 + k * 0.045 };
+        const shot = { dir: baseDir + dOff, tipX: 0, tipY: 0, elev: 0, power: 0.18 + k * STEP };
         const r = tryLag(shot);
-        if (r.ok) cands.push({ shot, pos: r.pos });
+        row.push(r.ok ? { shot, pos: r.pos } : null);
       }
+      rows.push(row);
     }
+    /*
+     * ★**撞いたあとに強さが ±3% ずらされる**（app.js の bankWobble）。
+     * AI はそのずれを知らないまま撞くので、**ぎりぎりで成立している撞き方を選ぶと、
+     * ずらされた側で不成立になり、先手を丸ごと落とす。**
+     *
+     * そこで**両隣の刻みでも成立しているものだけを候補にする**。
+     * 刻みは 0.045 で、ずれ幅 0.03 より広い。両隣が成立していれば、ずれた先も成立している。
+     * **試し撞きを増やさずに余裕を測れる**
+     * （ずれ幅の端を別に撞いて調べると、試し撞きが 45回から 135回に増える）。
+     */
+    let cands = [];
+    for (const row of rows) {
+      for (let k = 1; k <= 7; k++) if (row[k] && row[k - 1] && row[k + 1]) cands.push(row[k]);
+    }
+    // 余裕のあるものが1つも無い台では、成立しただけのものを拾う（先手を落とすよりまし）
+    if (!cands.length) for (const row of rows) for (const c of row) if (c) cands.push(c);
     // どの試し撞きも成立しなかった台では、とりあえず中くらいの強さで真っすぐ
     if (!cands.length) return { dir: baseDir, tipX: 0, tipY: 0, elev: 0, power: 0.42 };
 
@@ -577,7 +596,40 @@ const BilliardsAI = (() => {
     const TOP = { easy: 0.55, hard: 0.28, apocalypse: 0.08 };
     const frac = TOP[game.difficulty] != null ? TOP[game.difficulty] : TOP.hard;
     const room = Math.max(1, Math.round(cands.length * frac));
-    return cands[Math.min(cands.length - 1, Math.floor(game.rng() * room))].shot;
+    const pick = Math.min(cands.length - 1, Math.floor(game.rng() * room));
+
+    /*
+     * ★**選んだ一撞きだけ、ずれ幅の中を刻んで実際に撞いて確かめる。**
+     *
+     * 上の「両隣の刻みでも成立していること」は安い前さばきであって、真偽の判定ではない。
+     * **成立する強さは連続した帯ではない** ── 六角形はフット頂点がポケットなので、
+     * 途中の強さだけ玉が落ちる。
+     *
+     * **両端だけを撞いても足りない。**実測（六角形・強さ 0.225 を選んだ場面）では
+     * 成立する帯が `##.....########`（0.190〜0.195 と 0.225〜0.260 が成立、
+     * 間の 0.200〜0.220 が落ちる）で、**両端 0.195 と 0.255 はどちらも成立していた。**
+     * 選んだ 0.225 は上の帯の左端に載っていて、少しでも弱くずれると穴へ落ちる。
+     * 2点は区間の真偽を決められない（前さばきと判定は別物）。
+     *
+     * 撞くのは**選んだ1つだけ**なので、試し撞きは6回しか増えない。
+     * 候補を全部確かめると 45回が 300回を超える。
+     * 落ちたら次の候補へ送る。**順に下りるだけで、上位から選び直さない**
+     * ── 選び直すと、ぶれの大きい設定ほど良い撞き方へ戻る回数が増えて、
+     * 簡単な設定のほうが上手にバンキングすることになる（この節の冒頭の失敗）。
+     */
+    const EDGE = RU.BANK_WOBBLE, DIV = 3;      // ±EDGE を EDGE/3 刻みで見る＝中心を除いて6点
+    function safeAcrossWobble(c) {
+      for (let i = -DIV; i <= DIV; i++) {
+        if (i === 0) continue;                 // 中心は候補を作るときに撞いてある
+        if (!tryLag(Object.assign({}, c.shot, { power: c.shot.power + EDGE * i / DIV })).ok) return false;
+      }
+      return true;
+    }
+    for (let k = 0; k < cands.length; k++) {
+      const c = cands[(pick + k) % cands.length];
+      if (safeAcrossWobble(c)) return c.shot;
+    }
+    return cands[pick].shot;      // どこもずれに耐えない台では、選んだものをそのまま撞く
   }
 
   // ───────── フリーボールの置き場所 ─────────
@@ -850,7 +902,114 @@ const BilliardsAI = (() => {
    * @param {function} done  done(shot) で結果を返す
    * @returns {function} 中断用の関数
    */
+  // ───────── カーリング型（G-09）の一撞き。仕様書 7.9節 ─────────
+  /*
+   * ★ここは**「入れる」腕ではなく「止める」腕**である。
+   * 他の8ルールの読み（buildCandidates / evaluate）は「ポケットへ入るか」を数えるので、
+   * このルールには1つも当てはまらない。丸ごと別の読みを持つ。
+   *
+   * **狙いと強さから止まる場所を数式で出すことはできない**（クッションに当たる・
+   * 先に投げた玉に当たる）。そこで**試し撞きして、そのエンドが今終わったら
+   * 何点になるかで採点する**。採点にはルール側の数え方をそのまま使う考え方で、
+   * 自前の目安（中心に近いほど良い）だけで測ると
+   * **「相手より内側に1個」というこのルールの核心**から外れる
+   * ── 中心の近くに5個固めるより、相手の最内より内側に1個ある形のほうが点が入る。
+   */
+  const CURL_DIRS = [0, -0.03, 0.03, -0.07, 0.07];
+  const CURL_POWERS = [0.038, 0.044, 0.048, 0.052, 0.057, 0.065, 0.085];
+  const CURL_TOP = { easy: 0.55, hard: 0.28, apocalypse: 0.08 };
+
+  /** その盤面で、いまエンドが終わったとしたら何点か（ホグ円の外は取り除かれる前提） */
+  function curlValue(game, playerIdx, balls) {
+    const L = game.curling.layout, voided = game.curling.voided || {};
+    const live = balls.filter(b => b.stone != null && b.state === 'live')
+      .map(b => ({
+        seat: b.owner, id: b.id, mine: b.owner === playerIdx,
+        d: Math.hypot(b.x - L.center.x, b.y - L.center.y),
+        counted: !voided[b.id],
+      }))
+      .filter(s => s.d <= L.hog);          // ホグ円の外の玉は、この一撞きの終わりに消える
+    const inHouse = live.filter(s => s.counted && s.d < L.radius)
+      .sort((a, b) => (a.d - b.d) || (a.seat - b.seat) || (a.id - b.id));
+    let mine = 0, foe = 0;
+    if (inHouse.length) {
+      const w = inHouse[0].seat;
+      const other = inHouse.find(s => s.seat !== w);
+      const lim = other ? other.d : Infinity;
+      const pts = inHouse.filter(s => s.seat === w && s.d < lim).length;
+      if (w === playerIdx) mine = pts; else foe = pts;
+    }
+    const myD = live.filter(s => s.mine).map(s => s.d);
+    const foeD = live.filter(s => !s.mine).map(s => s.d);
+    const myBest = myD.length ? Math.min.apply(null, myD) : L.hog;
+    const foeBest = foeD.length ? Math.min.apply(null, foeD) : L.hog;
+    /*
+     * 点差がいちばん重い。**同じ点差の中では**
+     *   ・自分の最内が相手の最内より中心に近いほど良い（次の一撞きで点になる形）
+     *   ・盤に残っている自分の玉が多いほど良い（落とす・ホグ円の外へ出すのは損）
+     * の順に効かせる。玉の数を点差より重くすると、**投げずに置くだけが最善**になる。
+     */
+    return (mine - foe) * 1000
+      + (foeBest - myBest) * 2
+      + myD.length * 40 - foeD.length * 15;
+  }
+
+  function curlingThink(game, playerIdx, done) {
+    const cue = RU.cueBallOf(game, playerIdx);
+    if (!cue) { done({ dir: 0, tipX: 0, tipY: 0, elev: 0, power: 0.05 }); return function () {}; }
+    const L = game.curling.layout;
+    const toC = Math.atan2(L.center.y - cue.y, L.center.x - cue.x);
+
+    // 狙う向き＝目標円の中心まわりと、**盤にある玉それぞれ**（弾き出しと、その手前へ置く筋）
+    const dirs = CURL_DIRS.map(o => toC + o);
+    const stones = game.world.balls
+      .filter(b => b !== cue && b.state === 'live' && b.stone != null)
+      .map(b => ({ b, d: Math.hypot(b.x - cue.x, b.y - cue.y) }))
+      .sort((a, b) => a.d - b.d).slice(0, 4);
+    for (const s of stones) dirs.push(Math.atan2(s.b.y - cue.y, s.b.x - cue.x));
+
+    const cands = [];
+    for (const dir of dirs) for (const power of CURL_POWERS) {
+      cands.push({ dir, power, tipX: 0, tipY: 0, elev: 0 });
+    }
+
+    let i = 0, cancelled = false;
+    const scored = [];
+    function chunk() {
+      if (cancelled) return;
+      const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+      while (i < cands.length) {
+        const s = cands[i++];
+        const w = E.cloneWorld(game.world);
+        const c = w.balls.find(x => x.id === cue.id);
+        if (c) { E.applyCue(c, s); E.runShot(w, 20); scored.push({ s, sc: curlValue(game, playerIdx, w.balls) }); }
+        const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+        if (now - t0 > 22) break;             // 1フレームに詰め込みすぎない
+      }
+      if (i < cands.length) { requestAnimationFrame(chunk); return; }
+      finish();
+    }
+    /*
+     * ★**腕前は「良い一撞きにぶれを乗せる」形では表さない**（バンキングと同じ理由）。
+     * 止める競技はわずかな強さの違いが止まる場所を数百 mm 動かすので、
+     * ぶれを乗せると、ぶれた結果が「玉を失う」になることがあり、
+     * それを避けて撞き直させると簡単な設定のほうが上手になる。
+     * **成り立つ撞き方を並べて、腕前に応じた上位から1つ選ぶ。**
+     */
+    function finish() {
+      if (!scored.length) { done({ dir: toC, tipX: 0, tipY: 0, elev: 0, power: 0.05 }); return; }
+      scored.sort((a, b) => b.sc - a.sc);
+      const frac = CURL_TOP[game.difficulty] != null ? CURL_TOP[game.difficulty] : CURL_TOP.hard;
+      const room = Math.max(1, Math.round(scored.length * frac));
+      const pick = Math.min(scored.length - 1, Math.floor(game.rng() * room));
+      done(Object.assign({}, scored[pick].s));
+    }
+    requestAnimationFrame(chunk);
+    return function cancel() { cancelled = true; };
+  }
+
   function think(game, playerIdx, done) {
+    if (game.rule === 'G-09') return curlingThink(game, playerIdx, done);
     const base = prof(game.difficulty);
     /*
      * たまに「手玉の落ちる危険を軽く見る」一撞きを混ぜる。
@@ -935,7 +1094,7 @@ const BilliardsAI = (() => {
     return function cancel() { cancelled = true; };
   }
 
-  return { think, pickBallInHand, bankShot, PROFILE };
+  return { think, pickBallInHand, bankShot, curlingThink, curlValue, PROFILE };
 })();
 
 if (typeof window !== 'undefined') window.BilliardsAI = BilliardsAI;

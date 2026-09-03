@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.52';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.53';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -229,6 +229,10 @@
      */
     if (id === 'G-06' && S.cfg.players > RU.TERRITORY_COLORS.length) {
       return t('why.maxPlayers', { n: RU.TERRITORY_COLORS.length });
+    }
+    // カーリング型も人数ぶんの色が要る（持ち球がその人の色そのもの）。上限は色の数から引く
+    if (id === 'G-09' && S.cfg.players > RU.CAROM_COLORS.length) {
+      return t('why.maxPlayers', { n: RU.CAROM_COLORS.length });
     }
     return null;
   }
@@ -618,7 +622,12 @@
    * 先手だけでなく**全員の打順そのもの**を決める仕組みの一部だからである（7.8節）。
    */
   function bankingHere(cfg) {
-    return cfg.format === 'online' || cfg.format === 'ai' || cfg.rule === 'G-08';
+    /*
+     * ★カーリング型もバンキングをする（利用者指示）。**先攻を決めてからエンドごとに回す**ので、
+     * ローカル対戦でも最初の順を決めておく必要がある。サバイバルと同じ理由である。
+     */
+    return cfg.format === 'online' || cfg.format === 'ai'
+      || cfg.rule === 'G-08' || cfg.rule === 'G-09';
   }
   /**
    * 続けてもう1局やるときの席順。前回の巡りを保ったまま、ブレイクする人を先頭へ回す。
@@ -996,6 +1005,12 @@
   function fireShot(shot, place, local) {
     const g = S.game;
     if (!g || g.over) return;
+    /*
+     * ★**バンキングの一撞きは、毎回わずかに強さがずれる**（規定は rules.js の bankWobble）。
+     * **ずらすのは入力を作るここだけ。**ずらしたあとの5値を、この下で通信へも履歴へも流す。
+     * 受け取った側（local でない）と再生は、届いた5値をそのまま使うので引き直さない。
+     */
+    if (local && inBanking()) shot = RU.bankWobble(shot);
     if (S.net.on && local && S.net.role !== 'spectator') {
       NET.send({ k: 'shot', n: g.shotNo, shot, place: place || null });
     }
@@ -1036,7 +1051,8 @@
 
     g.world.events = [];
     E.applyCue(cue, shot);
-    if (!S.catchUp) { AU.sfx('cue', Math.min(1, shot.power)); setMsg(t('ph.rolling')); }
+    // 音は「撞いた手応え」なので、物理の値ではなく見えている目盛りに合わせる（カーリング型は幅が違う）
+    if (!S.catchUp) { AU.sfx('cue', Math.min(1, RU.aimPower(g.rule, shot.power))); setMsg(t('ph.rolling')); }
     S.pre = pre;
     S.phase = 'rolling';
     S.evCursor = 0;
@@ -1145,6 +1161,18 @@
     if (!quiet && g.deadlockCount >= 12) { g.deadlockCount = 0; askDeadlock(true); return; }
 
     RU.nextTurn(g, res);
+    /*
+     * ★カーリング型は**手番送りの中でエンドが切り替わり、そこで終局もする**（7.9.3節）。
+     * 上の終局の見張りは nextTurn の手前にあるので、ここでもう一度見ないと
+     * 全エンドを終えたのに次の手番が始まる。
+     */
+    if (!quiet && g.rule === 'G-09' && g.curling) {
+      const cur = g.curling;
+      if (cur.hogged) flash(t('msg.curlHogged', { n: cur.hogged }));
+      if (cur.msg) { flash(t(cur.msg.key, cur.msg.p)); cur.msg = null; }
+      cur.hogged = 0;
+    }
+    if (g.over) { if (!quiet) endGameSoon(); return; }
     if (quiet) return;                        // 並べ直しの途中では画面も待ち行列も動かさない
 
     /*
@@ -1814,6 +1842,8 @@
     ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 1.5; ctx.stroke();
     // 陣取りの塗り（7.7.2節）。クロスの上・玉の下に敷く
     if (g.rule === 'G-06' && g.territory) drawTerritory();
+    // カーリング型の目標円とホグ円（7.9.2節）。同じくクロスの上・玉の下
+    if (g.rule === 'G-09' && g.curling) drawHouse();
     // ダイヤ（レール上の目印）。位置は外周の辺から決まる（形ごとの並べ書きはしない）
     ctx.fillStyle = 'rgba(255,240,215,.55)';
     const off = thick / s * .5;                 // 枠の帯の真ん中まで外へ出す
@@ -1904,6 +1934,45 @@
   }
 
   /**
+   * カーリング型の盤面（7.9.2節・7.9.3節）。
+   *
+   * **同心円は現実のカーリングと同じ4本**（12/8/4フィートとボタン）にする。
+   * D357 が退けたのは「帯ごとに点数を変えること」であって、描くことではない。
+   * **現実でも帯で点数は変わらず、輪は距離を目で測るための目印**である。
+   * 得点が中心からの距離だけで決まる本ルールでは、輪があったほうが読みやすい。
+   *
+   * ホグ円は点線で薄く出す。**得点には関わらないが、外で止まると玉が消える**ので、
+   * 見えないと何が起きたのか分からない。
+   */
+  function drawHouse() {
+    const g = S.game, L = g.curling.layout, s = view.s;
+    const c = toScreen(L.center.x, L.center.y);
+    ctx.save();
+    tablePath(g.table); ctx.clip('evenodd');
+    // ── ホグ円。ここより外で止まった玉は取り除かれる
+    ctx.setLineDash([7, 6]);
+    ctx.strokeStyle = 'rgba(255,255,255,.22)';
+    ctx.lineWidth = Math.max(1, 1.6 * s);
+    ctx.beginPath(); ctx.arc(c.x, c.y, L.hog * s, 0, 7); ctx.stroke();
+    ctx.setLineDash([]);
+    // ── ハウス。外から順に塗り重ねる。ラシャの緑の上で読める濃さに留める
+    const RING = ['rgba(80,150,255,.30)', 'rgba(245,245,245,.26)', 'rgba(225,60,60,.34)', 'rgba(245,245,245,.40)'];
+    L.rings.forEach((k, i) => {
+      ctx.beginPath(); ctx.arc(c.x, c.y, L.radius * k * s, 0, 7);
+      ctx.fillStyle = RING[i]; ctx.fill();
+    });
+    ctx.beginPath(); ctx.arc(c.x, c.y, L.radius * s, 0, 7);
+    ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = Math.max(1, 1.8 * s); ctx.stroke();
+    // ── 投球位置。ここに次の玉が置かれる
+    const tp = toScreen(L.throwPos.x, L.throwPos.y);
+    ctx.strokeStyle = 'rgba(255,255,255,.35)';
+    ctx.lineWidth = Math.max(1, 1.4 * s);
+    const r = T.R * s;
+    ctx.beginPath(); ctx.arc(tp.x, tp.y, r * 1.5, 0, 7); ctx.stroke();
+    ctx.restore();
+  }
+
+  /**
    * 陣取り：手番が変わった直後に、これから撞く人の色の玉を数回光らせる。
    *
    * **白い輪を明滅させる。**玉そのものを明滅させると、同じ色の塗りの上では
@@ -1973,6 +2042,12 @@
   function pocketedBalls(g) {
     return g.world.balls
       .filter(b => b.state === 'pocketed' || b.state === 'gone')
+      /*
+       * ★カーリング型は**まだ投げていない持ち球も盤に出ていない**（state='gone'）。
+       * 状態だけで数えると、**始まった瞬間に持ち球が全部「落ちた玉」として台の脇に並ぶ**。
+       * 「盤にいない」と「失った」は別物なので、投げた印で分ける。
+       */
+      .filter(b => b.stone == null || b.thrown)
       .sort((a, b) => (a.kind === 'cue' ? -1 : 0) - (b.kind === 'cue' ? -1 : 0) || (a.num - b.num));
   }
 
@@ -2295,7 +2370,7 @@
         const w = E.cloneWorld(g.world);
         const c2 = w.balls.find(b => b.id === cue.id);
         const o2 = w.balls.find(b => b.id === fc.ball.id);
-        E.applyCue(c2, { dir, power: Math.max(0.28, S.aim.power || 0.4), tipX: S.aim.tipX, tipY: S.aim.tipY, elev: S.aim.elev });
+        E.applyCue(c2, { dir, power: RU.shotPower(g.rule, Math.max(0.28, S.aim.power || 0.4)), tipX: S.aim.tipX, tipY: S.aim.tipY, elev: S.aim.elev });
         const from = { x: o2.x, y: o2.y };
         const NEED = 40;
         E.runShot(w, 0.35, () => Math.hypot(o2.x - from.x, o2.y - from.y) < NEED);
@@ -2588,22 +2663,33 @@
     ctx.strokeStyle = (S.drag && S.drag.kind === 'pull') ? 'rgba(251,146,60,.9)' : 'rgba(255,255,255,.18)';
     ctx.lineWidth = 1.4; ctx.strokeRect(x0 + .7, top - 5.3, w - 1.4, H + 10.6);
 
-    // ── 強さの目盛り（縦）。左の端から順に「目盛り・数字・キュー」と並べる
-    const GW = 9, GX = x0 + 7;
-    roundRect(GX, top, GW, H, 4);
-    ctx.fillStyle = 'rgba(255,255,255,.10)'; ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,.22)'; ctx.lineWidth = 1; ctx.stroke();
-    const fh = H * pw;
-    if (fh > 1) {
-      roundRect(GX, top + H - fh, GW, fh, 4);
-      ctx.fillStyle = S.aim.power > 1 ? '#dc2626' : '#ea580c'; ctx.fill();
+    /*
+     * ★**バンキングの間だけ、強さの目盛りも数字も出さない。**
+     * 出したままだと「この台は62%」と覚えるだけで良い位置に止められてしまい、
+     * 先手決めが腕ではなく暗記になる。**全ルール共通**（バンキングをするのは
+     * 通信対戦・AI対戦・サバイバル・カーリング型）。
+     * 目盛りを消したぶんはキューを strip の中央へ寄せる（空白が残ると壊れて見える）。
+     */
+    const hideP = inBanking();
+    if (!hideP) {
+      // ── 強さの目盛り（縦）。左の端から順に「目盛り・数字・キュー」と並べる
+      const GW = 9, GX = x0 + 7;
+      roundRect(GX, top, GW, H, 4);
+      ctx.fillStyle = 'rgba(255,255,255,.10)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,.22)'; ctx.lineWidth = 1; ctx.stroke();
+      const fh = H * pw;
+      if (fh > 1) {
+        roundRect(GX, top + H - fh, GW, fh, 4);
+        ctx.fillStyle = S.aim.power > 1 ? '#dc2626' : '#ea580c'; ctx.fill();
+      }
+      // 100% の線。ここを超えると撞きすぎ（4.4.4節）
+      ctx.beginPath(); ctx.moveTo(GX - 2, top + .5); ctx.lineTo(GX + GW + 2, top + .5);
+      ctx.strokeStyle = 'rgba(255,255,255,.45)'; ctx.lineWidth = 1; ctx.stroke();
     }
-    // 100% の線。ここを超えると撞きすぎ（4.4.4節）
-    ctx.beginPath(); ctx.moveTo(GX - 2, top + .5); ctx.lineTo(GX + GW + 2, top + .5);
-    ctx.strokeStyle = 'rgba(255,255,255,.45)'; ctx.lineWidth = 1; ctx.stroke();
 
     // ── キューは上（先端）から下（尻）へ。引き代ぶん下へずらす
-    const bx = x0 + 30 + (w - 30) / 2;             // 目盛りと数字のぶんを空けた中央
+    const lead = hideP ? 16 : 30;                  // 目盛りと数字にあける幅
+    const bx = x0 + lead + (w - lead) / 2;         // 目盛りと数字のぶんを空けた中央
     const ballR = 10;
     const cx = bx + S.aim.tipX * ballR * 0.5;      // 撞点の左右のずれ＝キューの位置がずれる
     const travel = H * 0.34;
@@ -2621,10 +2707,11 @@
     ctx.fillStyle = '#c2410c'; ctx.fill();
     // 文言と数字
     ctx.save();
-    ctx.translate(x0 + 26, bot - 4); ctx.rotate(-Math.PI / 2);
+    ctx.translate(x0 + (hideP ? 13 : 26), bot - 4); ctx.rotate(-Math.PI / 2);
     ctx.font = '11px "Noto Sans JP",sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = S.aim.power > 1 ? '#fca5a5' : 'rgba(255,255,255,.62)';
-    ctx.fillText(t('hint.power') + '  ' + Math.round(S.aim.power * 100) + '%', 0, 0);
+    ctx.fillStyle = (!hideP && S.aim.power > 1) ? '#fca5a5' : 'rgba(255,255,255,.62)';
+    // バンキング中は数字を伏せる。「？？？」なら消し忘れではなく伏せていると伝わる
+    ctx.fillText(t('hint.power') + (hideP ? '  ???' : '  ' + Math.round(S.aim.power * 100) + '%'), 0, 0);
     ctx.restore();
     ctx.restore();
   }
@@ -2959,7 +3046,12 @@
     const need = minElevFor(S.aim.dir);
     if (need >= Math.PI / 2 - 0.01) { setMsg(t('foul.V-09')); S.aim.power = 0; return; }
     const elev = Math.max(S.aim.elev, need);
-    const shot = { dir: S.aim.dir, power: Math.min(1.15, S.aim.power), tipX: S.aim.tipX, tipY: S.aim.tipY, elev };
+    /*
+     * ★**強さは、見えている目盛りから物理の値へ割り当て直してから渡す**（rules.js の shotPower）。
+     * カーリング型だけ幅が違う。ここで直しておくと、履歴にも通信にも物理の値が流れるので、
+     * 受け取る側とリプレイは割り当てを知らなくてよい。
+     */
+    const shot = { dir: S.aim.dir, power: RU.shotPower(g.rule, Math.min(1.15, S.aim.power)), tipX: S.aim.tipX, tipY: S.aim.tipY, elev };
     const place = S.pendingPlace;
     S.pendingPlace = null;
     S.aim.power = 0;
@@ -3296,6 +3388,11 @@
       if (g.rule === 'G-06') {
         right = p.score + '  ' + t('hud.trShots', { n: Math.max(0, RU.TERRITORY_SHOTS - (p.shots || 0)) });
       }
+      // カーリング型は「合計点」と「このエンドの残りの持ち球」を並べる（7.9.3節）
+      if (g.rule === 'G-09' && g.curling) {
+        const left = Math.max(0, RU.CURLING_STONES - (g.curling.thrown[i] || 0));
+        right = p.score + '  ' + t('hud.curlStones', { n: left });
+      }
       const who = (g.coop ? teamMark(p.team) + ' ' : '') + p.name;
       /*
        * 陣取りは**持ち色と玉の番号を名前の隣に置く**。
@@ -3315,6 +3412,17 @@
         box.appendChild(d);
         return;
       }
+      /*
+       * カーリング型も**持ち色を名前の隣に置く**。持ち球はその人の色そのもので描かれ、
+       * どの色が自分なのかは他にどこにも出ていない（陣取りで実機から指摘された件と同じ）。
+       */
+      if (g.rule === 'G-09') {
+        const col = RU.CAROM_COLORS[i % RU.CAROM_COLORS.length];
+        d.innerHTML = '<span><span class="pl-dot" style="background:' + col + '"></span>' +
+          escapeHtml(who) + '</span><span>' + escapeHtml(right) + '</span>';
+        box.appendChild(d);
+        return;
+      }
       d.innerHTML = '<span>' + escapeHtml(who) + '</span><span>' + escapeHtml(right) + '</span>';
       box.appendChild(d);
     });
@@ -3322,6 +3430,11 @@
     // その場で何が行われているかを出す
     if (g.bank && g.bank.on) {
       $('v-next').textContent = t('bank.label');
+    } else if (g.rule === 'G-09' && g.curling) {
+      // 「次に当てる玉」が無いルールなので、代わりに何エンド目かを出す（7.9.3節）
+      $('v-next').textContent = t('hud.curlEnd', {
+        n: Math.min(g.curling.end + 1, g.curling.ends), all: g.curling.ends,
+      });
     } else {
       const tg = RU.legalTargets(g, g.turn);
       $('v-next').textContent = tg == null ? '–' : (tg.length ? tg.map(b => b.num || '●').join(' / ') : '–');

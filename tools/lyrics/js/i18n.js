@@ -51,9 +51,11 @@
             libPermDenied: "ライブラリへのアクセスが拒否されました。",
             chooseAudio: "音源ファイルを選択",
             historyEmpty: "ダウンロード済み歌詞はここに表示されます",
-            labelGlobalOffset: "全体オフセット(ms):",
             labelCurrentLine: "現在行:",
-            labelSaveAsOffsetTag: "offsetタグとして保存(互換性のあるプレイヤー用)",
+            labelApplyFollowing: "この行以後全部反映",
+            labelOneLinePlay: "1行づつ再生",
+            titleToggleHint: "1行目をタイトルにする(0秒固定)",
+            disableUnavailable: "この歌詞はファイルとして保存されていないため無効化できません",
             saveBtn2: "保存",
             saved: "保存しました",
             saveFailed: "保存失敗",
@@ -63,7 +65,6 @@
             undoTap: "Undo",
             tapProgress: "{cur} / {total} 行",
             diffTitle: "未保存の変更",
-            diffOffset: "全体オフセット: {v}ms",
             diffLines: "タイミング変更行: {n} 行",
             diffNone: "変更なし",
             infoTitlePh: "曲名",
@@ -118,9 +119,11 @@
             libPermDenied: "Access to the library was denied.",
             chooseAudio: "Choose audio file",
             historyEmpty: "Downloaded lyrics will appear here",
-            labelGlobalOffset: "Global offset (ms):",
             labelCurrentLine: "Current line:",
-            labelSaveAsOffsetTag: "Save as offset tag (for compatible players)",
+            labelApplyFollowing: "Apply to this line and all after",
+            labelOneLinePlay: "Play one line at a time",
+            titleToggleHint: "Use first line as title (fixed at 0s)",
+            disableUnavailable: "This lyric is not saved as a file, so it cannot be disabled",
             saveBtn2: "Save",
             saved: "Saved",
             saveFailed: "Save failed",
@@ -130,7 +133,6 @@
             undoTap: "Undo",
             tapProgress: "{cur} / {total} lines",
             diffTitle: "Unsaved changes",
-            diffOffset: "Global offset: {v}ms",
             diffLines: "Retimed lines: {n}",
             diffNone: "No changes",
             infoTitlePh: "Title",
@@ -185,9 +187,11 @@
             libPermDenied: "音乐库访问被拒绝。",
             chooseAudio: "选择音频文件",
             historyEmpty: "下载的歌词将显示在这里",
-            labelGlobalOffset: "全体偏移量(ms):",
             labelCurrentLine: "当前行:",
-            labelSaveAsOffsetTag: "保存为 offset 标签(用于兼容播放器)",
+            labelApplyFollowing: "应用到本行及之后所有行",
+            labelOneLinePlay: "逐行播放",
+            titleToggleHint: "将第一行作为标题(固定为0秒)",
+            disableUnavailable: "该歌词未保存为文件，无法停用",
             saveBtn2: "保存",
             saved: "已保存",
             saveFailed: "保存失败",
@@ -197,7 +201,6 @@
             undoTap: "撤销",
             tapProgress: "{cur} / {total} 行",
             diffTitle: "未保存的更改",
-            diffOffset: "全体偏移量: {v}ms",
             diffLines: "时间更改行: {n} 行",
             diffNone: "无更改",
             infoTitlePh: "歌名",
@@ -344,9 +347,10 @@
         setText('open-hint', d.openHint);
         setText('chooseAudioBtn', d.chooseAudio);
         setText('history-empty-msg', d.historyEmpty);
-        setText('label-global-offset', d.labelGlobalOffset);
         setText('label-current-line', d.labelCurrentLine);
-        setText('label-save-as-offset-tag', d.labelSaveAsOffsetTag);
+        // v2.02: 全体オフセット / offsetタグ保存 は廃止。代わりのチェックボックス2つ。
+        setText('label-apply-following', d.labelApplyFollowing);
+        setText('label-one-line-play', d.labelOneLinePlay);
         setText('saveLyricsBtn', d.saveBtn2);
         setText('tapBtn', d.tapBtn);
         setText('undoTapBtn', d.undoTap);
@@ -379,6 +383,13 @@
         }
         if (MOMO.play && typeof MOMO.play.updateDiffBanner === 'function') {
             MOMO.play.updateDiffBanner();
+        }
+        // v2.02: 歌詞行のタイトル印の説明文 と 無効化ボタンのラベルも言語に追従させる
+        if (MOMO.play && typeof MOMO.play.renderLyricsView === 'function') {
+            MOMO.play.renderLyricsView();
+        }
+        if (MOMO.play && typeof MOMO.play.updateDisableBtn === 'function') {
+            MOMO.play.updateDisableBtn();
         }
     }
 

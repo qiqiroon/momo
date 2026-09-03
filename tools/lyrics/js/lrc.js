@@ -1,12 +1,13 @@
 /* MOMO Lyrics — lrc.js
- * 責務: LRCパース/シリアライズ/現在行検出、0秒情報行の差し込み。
- * 対応要件: 要件2(0秒情報追加)/要件4(プレイモード基盤)/要件5(オフセット焼込保存)
- * v1.11:
- *   - オフセット符号反転: UIの globalOffsetMs は「正=遅延/負=先行」
- *     内部では effectiveTime = timeMs - globalOffsetMs として表示
- *     焼き込み保存時は timeMs から globalOffsetMs を減算
- *   - 0秒情報行(isInfoHeader)はオフセット対象外で0秒固定
- *   - 焼き込み結果が負値なら0に丸め
+ * 責務: LRCパース/シリアライズ/現在行検出、0秒情報行の差し込み、時間の表示整形。
+ * 対応要件: 要件2(0秒情報追加)/要件4(プレイモード基盤)
+ * v2.02:
+ *   - 「全体オフセット」という概念を廃止。
+ *     行の時刻(timeMs)がそのまま実際に鳴る時刻であり、画面表示・頭出し・保存の
+ *     すべてが同じ1つの値を見る（換算をしない）。
+ *     読み込んだ .lrc に offset タグがあっても無視して捨てる（保存時にも書かない）。
+ *     全体をずらしたいときは「現在行 ±」の「この行以後全部反映」で行う。
+ *   - formatTime(): 各行に常時表示する時間の整形 (mm:ss.xx)
  */
 
 (function () {
@@ -17,6 +18,7 @@
 
     /**
      * LRC文字列を LrcDocument にパース
+     * v2.02: offset タグは読み捨てる（このアプリは offset を扱わない）
      * @param {string} lrcText
      * @returns {{metadata:Object,lines:Array<{timeMs:number,text:string,assigned:boolean}>}}
      */
@@ -51,24 +53,23 @@
             }
         }
 
+        // v2.02: offset という概念を持たない。あっても捨てる。
+        delete doc.metadata.offset;
+
         doc.lines.sort((a, b) => a.timeMs - b.timeMs);
         return doc;
     };
 
     /**
      * LrcDocument を LRC文字列にシリアライズ
+     * v2.02: offset タグは書かない。行の時刻をそのまま書く。
      * @param {Object} doc
-     * @param {{bakeOffsetMs?: number}} [opts]
      */
-    MOMO.lrc.serialize = function (doc, opts) {
-        opts = opts || {};
+    MOMO.lrc.serialize = function (doc) {
         const out = [];
-        const metaKeys = ['ti', 'ar', 'al', 'by', 'offset', 're', 've', 'au', 'length'];
+        // v2.02: 'offset' を並びから除外（このアプリは offset を書き出さない）
+        const metaKeys = ['ti', 'ar', 'al', 'by', 're', 've', 'au', 'length'];
         const meta = Object.assign({}, doc.metadata);
-
-        if (typeof opts.bakeOffsetMs === 'number' && opts.bakeOffsetMs !== 0) {
-            delete meta.offset;
-        }
 
         for (const key of metaKeys) {
             if (meta[key] !== undefined) out.push('[' + key + ':' + meta[key] + ']');
@@ -78,33 +79,43 @@
         for (const line of lines) {
             if (!line.assigned) continue; // 未割当行はファイルに書かない
             let t = line.timeMs;
-            // v1.11: infoHeader(0秒の曲名行) は常に0秒保持
-            // その他は bakeOffsetMs を減算（符号反転）
-            if (!line.isInfoHeader && typeof opts.bakeOffsetMs === 'number') {
-                t -= opts.bakeOffsetMs;
-            }
             if (t < 0) t = 0; // 負値は0に丸め
-            const mm = Math.floor(t / 60000);
-            const ss = Math.floor((t % 60000) / 1000);
-            const cs = Math.floor((t % 1000) / 10);
-            const tag = '[' + String(mm).padStart(2, '0') + ':' + String(ss).padStart(2, '0') + '.' + String(cs).padStart(2, '0') + ']';
-            out.push(tag + line.text);
+            out.push(MOMO.lrc.formatTag(t) + line.text);
         }
 
         return out.join('\n');
     };
 
     /**
-     * 再生位置から現在行インデックスを検出（全体オフセット込み）
+     * ミリ秒 → LRC の時刻タグ [mm:ss.xx]
      */
-    MOMO.lrc.findCurrentLineIndex = function (lines, currentMs, globalOffsetMs) {
-        // v1.11: 符号反転 — UI上の globalOffsetMs が負値なら歌詞を遅らせる
-        // v1.12: 未割当行(unassigned)は対象外。並びは「assigned時刻昇順 → 未割当」の前提。
+    MOMO.lrc.formatTag = function (ms) {
+        return '[' + MOMO.lrc.formatTime(ms) + ']';
+    };
+
+    /**
+     * v2.02: ミリ秒 → 画面に常時表示する時間 mm:ss.xx
+     *   assigned でない行のために null/undefined も受ける（その場合は --:--.--）
+     */
+    MOMO.lrc.formatTime = function (ms) {
+        if (typeof ms !== 'number' || !isFinite(ms)) return '--:--.--';
+        let t = ms < 0 ? 0 : ms;
+        const mm = Math.floor(t / 60000);
+        const ss = Math.floor((t % 60000) / 1000);
+        const cs = Math.floor((t % 1000) / 10);
+        return String(mm).padStart(2, '0') + ':' + String(ss).padStart(2, '0') + '.' + String(cs).padStart(2, '0');
+    };
+
+    /**
+     * 再生位置から現在行インデックスを検出
+     * v2.02: オフセット換算をしない（行の時刻＝実際に鳴る時刻）
+     */
+    MOMO.lrc.findCurrentLineIndex = function (lines, currentMs) {
+        // 未割当行(unassigned)は対象外。並びは「assigned時刻昇順 → 未割当」の前提。
         let result = -1;
         for (let i = 0; i < lines.length; i++) {
             if (!lines[i].assigned) break; // 以降は全て未割当(ソート済み前提)
-            const effectiveTime = lines[i].timeMs - globalOffsetMs;
-            if (effectiveTime <= currentMs) result = i;
+            if (lines[i].timeMs <= currentMs) result = i;
             else break;
         }
         return result;
@@ -130,7 +141,7 @@
     };
 
     /**
-     * v1.11: LrcDocument の先頭に 0秒情報行(isInfoHeader=true, timeMs=0)を挿入する。
+     * LrcDocument の先頭に 0秒情報行(isInfoHeader=true, timeMs=0)を挿入する。
      * 既に先頭が同等の infoHeader なら何もしない。
      */
     MOMO.lrc.ensureInfoHeader = function (doc, title, artist) {
@@ -144,6 +155,21 @@
             return doc;
         }
         doc.lines.unshift({ timeMs: 0, text: text, assigned: true, isInfoHeader: true });
+        return doc;
+    };
+
+    /**
+     * v2.02: このアプリ自身が 0秒のタイトル行を足したことが「確実にわかる」ときだけ、
+     *        パース後の先頭行に isInfoHeader の印を付ける。
+     *        （ファイルから読んだだけの .lrc には付けない＝判断できないので OFF のまま）
+     * @param {Object} doc      parse() の結果
+     * @param {boolean} added   実際に prependInfo で足したか
+     */
+    MOMO.lrc.markAddedInfoHeader = function (doc, added) {
+        if (!added || !doc || !doc.lines || doc.lines.length === 0) return doc;
+        const head = doc.lines[0];
+        // 足した行は必ず 0秒。0秒でなければ別物なので印を付けない（確実な時だけ ON）
+        if (head.timeMs === 0) head.isInfoHeader = true;
         return doc;
     };
 })();

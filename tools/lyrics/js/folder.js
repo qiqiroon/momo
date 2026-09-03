@@ -165,8 +165,12 @@
                 const lyrics = await MOMO.api.fetchLyrics(t, a);
                 if (lyrics) {
                     let lyricsToWrite = lyrics;
+                    // v2.02: このアプリ自身が 0秒のタイトル行を足したかどうかを覚えておく。
+                    //        足した時だけプレイ画面のタイトル印を既定 ON にする（確実な時だけ）。
+                    let infoAdded = false;
                     if (MOMO.state.addInfoHeader) {
                         lyricsToWrite = MOMO.lrc.prependInfo(lyricsToWrite, t, a);
+                        infoAdded = true;
                     }
 
                     const lrcHandle = await dirHandle.getFileHandle(baseName + '.lrc', { create: true });
@@ -188,6 +192,7 @@
                     // 要件4: セッション履歴 (v1.14: 音源ファイルも紐付け)
                     try {
                         const doc = MOMO.lrc.parse(lyricsToWrite);
+                        MOMO.lrc.markAddedInfoHeader(doc, infoAdded);
                         if (MOMO.play && MOMO.play.addToHistory) {
                             MOMO.play.addToHistory({
                                 id: 'folder_' + Date.now() + '_' + i,

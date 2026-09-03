@@ -1,27 +1,29 @@
 /* MOMO Lyrics — play.js
- * 責務: プレイモード本体。履歴管理、LRCロード、音源同期再生、オフセット調整、保存、差分表示。
- * 対応要件: 要件4(プレイ)/要件5(オフセット調整と保存)/要件7(書き戻し)
- * v1.11:
- *   - 歌詞ウィンドウ内だけでスクロール（scrollIntoView禁止、overflow時のみ手動スクロール）
- *   - オフセット符号反転(lrc.js参照、seek計算もマイナス)
- *   - 差分バナー表示（現在編集中と originalDoc の差分）
- *   - saveLyrics: confirm削除 + requestPermission + 保存後 audio 0復帰 + 同フォルダ保存試行
- *   - ±0.1s 前後行クランプ
- *   - openLrcFile: multiple:true で同時選択された音源を自動ロード
- *   - TAPした行のcurrentハイライトはresetCurrentIdxで再評価させる
+ * 責務: プレイモード本体。履歴管理、LRCロード、音源同期再生、行タイミング調整、保存、差分表示。
+ * 対応要件: 要件4(プレイ)/要件5(タイミング調整と保存)/要件7(書き戻し)
+ * v2.02 (修正事項26090310):
+ *   - 履歴は「取り込んだ順」= 末尾に足す。上限を超えたら古いもの(先頭)から落とす。
+ *   - 「全体オフセット」の概念を全廃。行の時刻がそのまま実際に鳴る時刻。
+ *     全体をずらしたい時は「この行以後全部反映」を ON にして現在行 ± を押す。
+ *   - 各行に時間を常時表示（左:時間 / 中:タイトル印 / 右:歌詞。すべて左寄せ）。
+ *   - 1行目のタイトル印は「アプリが 0秒タイトル行を足したことが確実な時」だけ既定 ON。
+ *   - 「1行づつ再生」チェックで 1行再生 / 連続再生 を手動切替（± での自動切替は廃止）。
+ *   - 保存ボタン: 変更なし=白枠黒地 / 変更あり=オレンジ。
+ *   - プレイ画面にも「無効化」(空ファイルで上書き) を用意。
+ *   - 現在行の検出を timeupdate 任せから画面更新ごと(requestAnimationFrame)に変更。
+ *     実測: 検知の遅れ 平均135ms/最大282ms → 平均3.6ms/最大6.9ms
  */
 
 MOMO.play = (function () {
     'use strict';
 
+    const HISTORY_MAX = 50;
+
     let lastCurrentIdx = -1;
     /**
-     * v1.19: ユーザーが「選択している行」のインデックス (>=0 で有効)。
-     *   行クリック・±操作で更新される。
-     *   focusedIdx が有効な間は、findCurrentLineIndex の自動切替を抑制し、
-     *   highlight/scroll をこの行に固定する。
-     *   1行プレビュー終了でクリアされない（対象行のままユーザーの次の操作を待つ）。
-     *   通常再生に戻すには、ユーザーが再生ボタンを押す or 別の行をクリックする。
+     * ユーザーが「選択している行」のインデックス (>=0 で有効)。
+     * 「1行づつ再生」が ON の間だけ、この行に current を固定する。
+     * OFF(連続再生)のときは固定せず、再生位置に素直に追従させる。
      */
     let focusedIdx = -1;
 
@@ -36,6 +38,10 @@ MOMO.play = (function () {
             metadata: Object.assign({}, doc.metadata),
             lines: doc.lines.map(l => Object.assign({}, l))
         };
+    }
+
+    function isOneLinePlay() {
+        return !!MOMO.state.oneLinePlay;
     }
 
     function renderHistoryList() {
@@ -66,8 +72,6 @@ MOMO.play = (function () {
         if (!MOMO.state.currentEntry || !MOMO.state.editBuffer) return false;
         const orig = MOMO.state.currentEntry.doc;
         const buf = MOMO.state.editBuffer;
-        const origOffset = parseInt(orig.metadata.offset || '0', 10) || 0;
-        if (origOffset !== MOMO.state.globalOffsetMs) return true;
         if (orig.lines.length !== buf.lines.length) return true;
         for (let i = 0; i < orig.lines.length; i++) {
             if (orig.lines[i].timeMs !== buf.lines[i].timeMs) return true;
@@ -77,12 +81,17 @@ MOMO.play = (function () {
         return false;
     }
 
+    /**
+     * v2.02: 取り込んだ順に並べる = 末尾に足す。
+     *   上限を超えたときに落とすのは「一番古いもの」= 先頭。
+     *   (以前は先頭に差し込んで末尾を落としていたため、逆順で並んでいた)
+     */
     function addToHistory(entry) {
         if (!MOMO.state.history) MOMO.state.history = [];
         const idx = MOMO.state.history.findIndex(e => e.id === entry.id);
         if (idx >= 0) MOMO.state.history[idx] = entry;
-        else MOMO.state.history.unshift(entry);
-        if (MOMO.state.history.length > 50) MOMO.state.history.pop();
+        else MOMO.state.history.push(entry);
+        while (MOMO.state.history.length > HISTORY_MAX) MOMO.state.history.shift();
         renderHistoryList();
     }
 
@@ -94,11 +103,8 @@ MOMO.play = (function () {
         }
         MOMO.state.currentEntry = entry;
         MOMO.state.editBuffer = deepCopyDoc(entry.doc);
-        // v1.13: 各行の originalTimeMs を記録（以後の TAP/±で変わらない原本値）
+        // 各行の originalTimeMs を記録（以後の TAP/±で変わらない原本値）
         MOMO.state.editBuffer.lines.forEach(l => { l.originalTimeMs = l.timeMs; });
-        MOMO.state.globalOffsetMs = parseInt(entry.doc.metadata.offset || '0', 10) || 0;
-        const offsetInput = document.getElementById('globalOffsetInput');
-        if (offsetInput) offsetInput.value = MOMO.state.globalOffsetMs;
 
         document.getElementById('audio-controls').classList.remove('hidden');
         document.getElementById('lyrics-view').classList.remove('hidden');
@@ -109,7 +115,7 @@ MOMO.play = (function () {
         if (entry.source !== 'txt') {
             document.getElementById('tap-controls').classList.add('hidden');
         }
-        // v1.13: 曲名/アーティスト入力行は常に表示（ロードされているエントリがあるとき）
+        // 曲名/アーティスト入力行は常に表示（ロードされているエントリがあるとき）
         const infoRow = document.getElementById('info-add-row');
         if (infoRow) infoRow.classList.remove('hidden');
 
@@ -117,36 +123,36 @@ MOMO.play = (function () {
         const status = document.getElementById('save-status');
         if (status) status.textContent = '';
 
-        // v1.14: 履歴ごとに紐付けられた音源があれば自動ロード
+        // 履歴ごとに紐付けられた音源があれば自動ロード
         if (entry.audioFile) {
             loadAudioFile(entry.audioFile, entry.audioHandle || null);
         }
 
-        // v1.13: エントリ選択時も audio を 0 秒に戻す
+        // エントリ選択時は audio を 0 秒に戻す
         if (MOMO.state.audioEl) {
             try { MOMO.state.audioEl.currentTime = 0; } catch (e) {}
         }
-        // 1行プレビューモードのタイマー類をリセット
         clearOneLinePreview();
-        focusedIdx = -1; // v1.19: エントリ切替時はロック解除
+        focusedIdx = -1;
 
         renderLyricsView();
         renderHistoryList();
         updateDiffBanner();
+        updateDisableBtn();
     }
 
     /**
-     * v1.18: 各 lyrics-line に行ごとの差分・1行目はタイトル化チェックボックスを表示。
+     * v2.02: 1行 = [時間] [タイトル印] [歌詞] [差分] の横並び（すべて左寄せ）。
+     *   時間とタイトル印は幅を固定しているので、全行で歌詞の左端が揃う。
+     *   タイトル印の欄は 1行目以外でも場所だけ確保する（歌詞がずれないため）。
      */
     function renderLyricsView() {
         const view = document.getElementById('lyrics-view');
         if (!view) return;
         view.innerHTML = '';
         if (!MOMO.state.editBuffer) return;
-        const origOffset = MOMO.state.currentEntry
-            ? (parseInt(MOMO.state.currentEntry.doc.metadata.offset || '0', 10) || 0)
-            : 0;
-        const offsetDelta = MOMO.state.globalOffsetMs - origOffset;
+        const d = MOMO.i18n.get();
+
         MOMO.state.editBuffer.lines.forEach((line, idx) => {
             const div = document.createElement('div');
             div.className = 'lyrics-line' + (line.assigned ? '' : ' unassigned');
@@ -156,11 +162,19 @@ MOMO.play = (function () {
             }
             div.dataset.index = idx;
 
-            // v1.18: 1行目だけにタイトル化チェックボックスを表示
+            // 左: 時間（常時表示）。未割当行は --:--.--
+            const timeSpan = document.createElement('span');
+            timeSpan.className = 'lyrics-line-time';
+            timeSpan.textContent = line.assigned
+                ? MOMO.lrc.formatTime(line.timeMs)
+                : MOMO.lrc.formatTime(null);
+            div.appendChild(timeSpan);
+
+            // 中: タイトル化チェックボックス（1行目だけ中身を入れ、他行は場所だけ確保）
+            const toggle = document.createElement('label');
+            toggle.className = 'title-toggle';
             if (idx === 0) {
-                const toggle = document.createElement('label');
-                toggle.className = 'title-toggle';
-                toggle.title = 'タイトル(0秒固定)';
+                toggle.title = d.titleToggleHint || 'Title (fixed at 0s)';
                 const cb = document.createElement('input');
                 cb.type = 'checkbox';
                 cb.checked = !!line.isInfoHeader;
@@ -169,14 +183,13 @@ MOMO.play = (function () {
                     ev.stopPropagation();
                     onTitleToggleChanged(ev.target.checked);
                 });
-                const icon = document.createElement('span');
-                icon.className = 'title-icon';
-                icon.textContent = '★';
                 toggle.appendChild(cb);
-                toggle.appendChild(icon);
-                div.appendChild(toggle);
+            } else {
+                toggle.classList.add('placeholder');
             }
+            div.appendChild(toggle);
 
+            // 右: 歌詞
             const textSpan = document.createElement('span');
             textSpan.className = 'lyrics-line-text';
             textSpan.textContent = line.text || '♪';
@@ -184,7 +197,7 @@ MOMO.play = (function () {
 
             // 行ごとの差分(タイトル行は除外)
             if (line.assigned && !line.isInfoHeader && typeof line.originalTimeMs === 'number') {
-                const diff = (line.timeMs - line.originalTimeMs) + offsetDelta;
+                const diff = line.timeMs - line.originalTimeMs;
                 if (diff !== 0) {
                     const diffSpan = document.createElement('span');
                     diffSpan.className = 'line-diff';
@@ -196,14 +209,19 @@ MOMO.play = (function () {
             div.addEventListener('click', () => onLyricsLineClick(idx));
             view.appendChild(div);
         });
+
+        // 再描画で current クラスが消えるので、ハイライトを貼り直す
+        const keep = (isOneLinePlay() && focusedIdx >= 0) ? focusedIdx : lastCurrentIdx;
+        if (keep >= 0) {
+            const nodes = view.querySelectorAll('.lyrics-line');
+            if (nodes[keep]) nodes[keep].classList.add('current');
+        }
     }
 
     /**
-     * v1.18: タイトルチェックボックス変更ハンドラ。
+     * タイトルチェックボックス変更ハンドラ。
      *  ON  → 1行目を timeMs=0, isInfoHeader=true, assigned=true（タイトル固定）
-     *         元値が timeMs!==0 でも 0 に変更（仕様通り）
-     *  OFF → 1行目を isInfoHeader=false（通常行に戻す。timeMs は ON 時の0のまま、editBuffer内）
-     *         ユーザーは行クリック+TAP/±で再調整可能
+     *  OFF → 1行目を isInfoHeader=false（通常行に戻す）
      */
     function onTitleToggleChanged(checked) {
         if (!MOMO.state.editBuffer || MOMO.state.editBuffer.lines.length === 0) return;
@@ -212,11 +230,9 @@ MOMO.play = (function () {
             line.isInfoHeader = true;
             line.timeMs = 0;
             line.assigned = true;
-            // originalTimeMs を 0 に揃える(差分表示で「+0ms」を出さないため)
             line.originalTimeMs = 0;
         } else {
             line.isInfoHeader = false;
-            // timeMs/assigned はそのまま（ユーザーが必要なら ± で調整）
         }
         renderLyricsView();
         renderHistoryList();
@@ -228,28 +244,18 @@ MOMO.play = (function () {
         if (!audio) return;
         const line = MOMO.state.editBuffer && MOMO.state.editBuffer.lines[idx];
         if (!line || !line.assigned) return;
-        // v1.11: 符号反転
-        const target = (line.timeMs - MOMO.state.globalOffsetMs) / 1000;
-        audio.currentTime = Math.max(0, target);
+        audio.currentTime = Math.max(0, line.timeMs / 1000);
     }
 
-    /**
-     * v1.13/v1.18/v1.19: 1行プレビュー状態管理。
-     *   ポーズ中に行をクリックすると、その行先頭→次の assigned 行先頭 まで再生してポーズ。
-     *   終了時は「対象行の先頭」へ戻す（次行に進まない）。
-     *   v1.19: focusedIdx と連動してロック中はハイライトを固定。
-     */
-    let oneLineStopAt = -1;     // seconds (>=0 有効) — ここで pause する位置
-    let oneLineStartAt = -1;    // seconds (>=0 有効) — 完了時に戻す位置（対象行の先頭）
+    // 1行づつ再生の停止位置(秒)。>=0 で有効
+    let oneLineStopAt = -1;
+    let oneLineStartAt = -1;
 
     function clearOneLinePreview() {
         oneLineStopAt = -1;
         oneLineStartAt = -1;
     }
 
-    /**
-     * v1.19: 任意のインデックスの行を current ハイライトする。findCurrentLineIndex を経由しない。
-     */
     function highlightIndex(idx) {
         const nodes = document.querySelectorAll('.lyrics-line');
         nodes.forEach((el, i) => el.classList.toggle('current', i === idx));
@@ -258,9 +264,12 @@ MOMO.play = (function () {
     }
 
     /**
-     * v1.19: 指定行の 1行プレビューを開始(ポーズ中なら再生開始、再生中なら停止点だけ仕込む)。
+     * v2.02: 指定行の頭から再生する。
+     *   「1行づつ再生」ON  → 次の行の頭で止めて、その行の頭に戻す（行を固定）
+     *   「1行づつ再生」OFF → 頭出しして、そのまま連続再生（行の固定はしない）
+     *   ± を押したときの「その行の頭から鳴らす」は、どちらの場合も行う。
      */
-    function startOneLinePreview(idx) {
+    function playFromLine(idx) {
         const audio = MOMO.state.audioEl;
         if (!audio) return;
         const lines = MOMO.state.editBuffer && MOMO.state.editBuffer.lines;
@@ -268,25 +277,23 @@ MOMO.play = (function () {
         const line = lines[idx];
         if (!line || !line.assigned || line.isInfoHeader) return;
 
-        const startSec = Math.max(0, (line.timeMs - MOMO.state.globalOffsetMs) / 1000);
-        // 次の assigned (非infoHeader) 行
-        let nextMs = null;
-        for (let i = idx + 1; i < lines.length; i++) {
-            if (lines[i].assigned && !lines[i].isInfoHeader) {
-                nextMs = lines[i].timeMs;
-                break;
+        const startSec = Math.max(0, line.timeMs / 1000);
+
+        if (isOneLinePlay()) {
+            let nextMs = null;
+            for (let i = idx + 1; i < lines.length; i++) {
+                if (lines[i].assigned && !lines[i].isInfoHeader) { nextMs = lines[i].timeMs; break; }
             }
+            oneLineStartAt = startSec;
+            oneLineStopAt = nextMs !== null ? Math.max(0, nextMs / 1000) : -1;
+            focusedIdx = idx;
+        } else {
+            clearOneLinePreview();
+            focusedIdx = -1; // 連続再生では再生位置に素直に追従させる
         }
-        oneLineStartAt = startSec;
-        oneLineStopAt = nextMs !== null
-            ? Math.max(0, (nextMs - MOMO.state.globalOffsetMs) / 1000)
-            : -1; // 次行が無い場合はそのまま末尾まで再生
 
         audio.currentTime = startSec;
-        if (audio.paused) {
-            audio.play().catch(() => {});
-        }
-        focusedIdx = idx;
+        if (audio.paused) audio.play().catch(() => {});
         highlightIndex(idx);
     }
 
@@ -298,29 +305,13 @@ MOMO.play = (function () {
         const line = lines[idx];
         if (!line || !line.assigned) return;
         if (line.isInfoHeader) return; // タイトル行は対象外
-
-        // 行クリック時は必ず focus を更新
-        focusedIdx = idx;
-
-        // v1.20: 1行プレビュー中(oneLineStopAt>=0) または ポーズ中なら、
-        //         クリック行で 1行プレビューを再開する(連続再生にしない)。
-        //         ユーザーが明示的に再生ボタンを押した「通常再生」状態のときのみシークだけ行う。
-        const inPreview = oneLineStopAt >= 0;
-        if (audio.paused || inPreview) {
-            startOneLinePreview(idx);
-        } else {
-            // 通常再生中のクリックはシーク扱い。focusedIdx は通常追従に戻す。
-            const startSec = Math.max(0, (line.timeMs - MOMO.state.globalOffsetMs) / 1000);
-            audio.currentTime = startSec;
-            clearOneLinePreview();
-            focusedIdx = -1;
-        }
+        playFromLine(idx);
     }
 
     /**
-     * v1.13: 歌詞ウィンドウ内スクロール。
+     * 歌詞ウィンドウ内スクロール。
      *  - overflow なし: 何もしない
-     *  - current 行が既に完全に view 内にある: 何もしない(nearest)
+     *  - current 行が既に完全に view 内にある: 何もしない
      *  - 見えていない: 上から 1/3 位置に配置
      */
     function scrollCurrentLineIntoView() {
@@ -333,11 +324,9 @@ MOMO.play = (function () {
         const curRect = cur.getBoundingClientRect();
         const curTopInView = curRect.top - viewRect.top + view.scrollTop;
         const curBottomInView = curTopInView + curRect.height;
-        // すでに視界内なら据え置き
         if (curTopInView >= view.scrollTop && curBottomInView <= view.scrollTop + view.clientHeight) {
             return;
         }
-        // 上から 1/3 位置に配置
         const target = curTopInView - (view.clientHeight * 0.33) + (curRect.height / 2);
         const maxScroll = view.scrollHeight - view.clientHeight;
         const clamped = Math.max(0, Math.min(target, maxScroll));
@@ -348,30 +337,26 @@ MOMO.play = (function () {
         const audio = MOMO.state.audioEl;
         if (!audio || !MOMO.state.editBuffer) return;
 
-        // v1.18/v1.19: 1行プレビュー終了 → ポーズして対象行先頭へ戻す。focusedIdx は維持。
+        // 1行づつ再生の終了 → ポーズして対象行の先頭へ戻す
         if (oneLineStopAt >= 0 && audio.currentTime >= oneLineStopAt) {
             try { audio.pause(); } catch (e) {}
             if (oneLineStartAt >= 0) {
                 audio.currentTime = oneLineStartAt;
             }
             clearOneLinePreview();
-            // focusedIdx を保持(対象行のままユーザーの次操作を待つ)
             if (focusedIdx >= 0) highlightIndex(focusedIdx);
             return;
         }
 
-        // v1.19: focusedIdx がロック中なら自動切替を抑制
-        if (focusedIdx >= 0) {
+        // 1行づつ再生の間だけ、選択行に固定する
+        // （途中で連続再生に切り替えられたら、その場から再生位置に追従し直す）
+        if (focusedIdx >= 0 && isOneLinePlay()) {
             if (focusedIdx !== lastCurrentIdx) highlightIndex(focusedIdx);
             return;
         }
 
         const currentMs = audio.currentTime * 1000;
-        const idx = MOMO.lrc.findCurrentLineIndex(
-            MOMO.state.editBuffer.lines,
-            currentMs,
-            MOMO.state.globalOffsetMs
-        );
+        const idx = MOMO.lrc.findCurrentLineIndex(MOMO.state.editBuffer.lines, currentMs);
         if (idx === lastCurrentIdx) return;
         lastCurrentIdx = idx;
         const nodes = document.querySelectorAll('.lyrics-line');
@@ -380,39 +365,73 @@ MOMO.play = (function () {
     }
 
     /**
+     * v2.02: 画面の更新ごとに現在行を見に行く。
+     *   音源の timeupdate は 1秒に約4回(実測 約266ms間隔)しか来ないため、
+     *   それだけに頼ると歌詞の切り替わりが平均135ms・最大282ms 遅れる。
+     */
+    let rafId = 0;
+    function startTicker() {
+        if (rafId) return;
+        const tick = () => {
+            rafId = requestAnimationFrame(tick);
+            updateCurrentLine();
+        };
+        rafId = requestAnimationFrame(tick);
+    }
+    function stopTicker() {
+        if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
+    }
+
+    /**
      * 現在行 ±100ms の調整。
-     * v1.19:
-     *   - 対象は focusedIdx（ユーザーが選択している行）。未設定なら lastCurrentIdx。
-     *   - 前後 assigned 行の timeMs を越えないようにクランプ(infoHeader 除外)。
-     *   - 並び替え後の新しい index で focusedIdx を更新（行ロック維持）。
-     *   - 1行プレビュー再開: ポーズ中なら対象行先頭から次行先頭まで再生→対象行先頭で停止。
-     *     再生中ならシーク+停止点更新で同じ範囲を再生継続。
-     *   - ハイライト/スクロールは focusedIdx に固定。findCurrentLineIndex の自動切替は走らせない。
+     *   対象は「いま current になっている行」。
+     *   「この行以後全部反映」ON → その行から後ろの割当済み行すべてを同じ量だけ動かす。
+     *   ± のあとは、その行の先頭から鳴らす（1行づつ再生の ON/OFF に従う）。
      */
     function adjustCurrentLine(deltaMs) {
         if (!MOMO.state.editBuffer) return;
         const lines = MOMO.state.editBuffer.lines;
-        let idx = focusedIdx >= 0 ? focusedIdx : lastCurrentIdx;
+        // ± の対象は「いま current になっている行」。
+        // 1行づつ再生の間は選択行に固定されているので focusedIdx、それ以外は再生位置の行。
+        let idx = (isOneLinePlay() && focusedIdx >= 0) ? focusedIdx : lastCurrentIdx;
         if (idx < 0 || idx >= lines.length) return;
         const line = lines[idx];
         if (!line || !line.assigned || line.isInfoHeader) return;
 
-        // クランプ範囲 (assigned かつ infoHeader でない前後行)
+        const applyFollowing = !!MOMO.state.applyToFollowing;
+
+        // 直前の割当済み行(タイトル行を除く)は越えられない
         let prevBound = 0;
         for (let i = idx - 1; i >= 0; i--) {
             if (lines[i].assigned && !lines[i].isInfoHeader) { prevBound = lines[i].timeMs + 1; break; }
         }
-        let nextBound = Number.POSITIVE_INFINITY;
-        for (let i = idx + 1; i < lines.length; i++) {
-            if (lines[i].assigned && !lines[i].isInfoHeader) { nextBound = lines[i].timeMs - 1; break; }
-        }
 
         let candidate = line.timeMs + deltaMs;
-        candidate = Math.max(prevBound, Math.min(nextBound, candidate));
+        if (!applyFollowing) {
+            // 単独で動かすときだけ、直後の割当済み行も越えられない
+            let nextBound = Number.POSITIVE_INFINITY;
+            for (let i = idx + 1; i < lines.length; i++) {
+                if (lines[i].assigned && !lines[i].isInfoHeader) { nextBound = lines[i].timeMs - 1; break; }
+            }
+            candidate = Math.min(nextBound, candidate);
+        }
+        candidate = Math.max(prevBound, candidate);
         if (candidate < 0) candidate = 0;
         if (candidate === line.timeMs) return; // 境界で動けない
 
-        line.timeMs = candidate;
+        const effectiveDelta = candidate - line.timeMs;
+
+        if (applyFollowing) {
+            // この行と、これより後ろの割当済み行(タイトル行を除く)をまとめて動かす
+            for (let i = idx; i < lines.length; i++) {
+                const l = lines[i];
+                if (!l.assigned || l.isInfoHeader) continue;
+                l.timeMs = Math.max(0, l.timeMs + effectiveDelta);
+            }
+        } else {
+            line.timeMs = candidate;
+        }
+
         // ソート: infoHeader は先頭固定 / assigned は timeMs 昇順 / unassigned は末尾
         lines.sort((a, b) => {
             if (a.isInfoHeader && !b.isInfoHeader) return -1;
@@ -422,17 +441,14 @@ MOMO.play = (function () {
             return a.timeMs - b.timeMs;
         });
 
-        // ソート後の対象行 index
         const newIdx = lines.indexOf(line);
         focusedIdx = newIdx;
+        lastCurrentIdx = newIdx;
 
         renderLyricsView();
-        // 1行プレビュー再開（ポーズ中も再生中も同じ）
-        startOneLinePreview(newIdx);
+        playFromLine(newIdx);
         updateDiffBanner();
     }
-
-    // v1.14: pickLyricsAndAudio は不要になったため削除（フォルダ方式に変更）
 
     async function chooseAudioFile() {
         try {
@@ -457,9 +473,7 @@ MOMO.play = (function () {
     }
 
     /**
-     * v1.16: 選択ファイル群から .lrc/.txt と音源を分類し、baseName一致で音源を自動ペア。
-     * @param {FileSystemFileHandle[]} handles  ユーザーが選んだファイル
-     * @param {string[]} lyricsExt  ['.lrc'] または ['.txt']
+     * 選択ファイル群から .lrc/.txt と音源を分類し、baseName一致で音源を自動ペア。
      */
     function pickFromHandles(handles, lyricsExt) {
         const audioExts = ['.mp3', '.m4a', '.flac', '.wav', '.ogg'];
@@ -481,7 +495,6 @@ MOMO.play = (function () {
                 audioCandidates.push({ handle: h, base: stripExt(h.name, audioExts).toLowerCase() });
             }
         }
-        // baseName 一致を優先して採用
         let audioHandle = null;
         if (lyricsBase) {
             const exact = audioCandidates.find(a => a.base === lyricsBase);
@@ -493,10 +506,7 @@ MOMO.play = (function () {
     }
 
     /**
-     * v1.16: 「.lrcファイルを開く」フロー。
-     *  1. showOpenFilePicker(multiple:true) でファイル選択UIを表示
-     *  2. ユーザーは .lrc を選択。Ctrl+クリックで同フォルダの音源も追加選択可能
-     *  3. baseName 一致の音源を自動ペアリング
+     * 「.lrcファイルを開く」フロー。
      */
     async function openLrcFile() {
         if (!window.showOpenFilePicker) {
@@ -550,20 +560,15 @@ MOMO.play = (function () {
         }
     }
 
-    // 互換: 他モジュールから参照される可能性があるためエクスポート用
-    function _pickFromHandles() { return pickFromHandles.apply(null, arguments); }
-
     /**
-     * v1.14 互換用エクスポート(他モジュールから呼ばれる場合がある)
+     * 互換用エクスポート(他モジュールから呼ばれる場合がある)
      */
     async function promptAudioIfMissing() {
         return { audioFile: null, audioHandle: null };
     }
 
     /**
-     * v1.13: 曲名/アーティスト入力欄からの「追加」ボタン押下。
-     *   editBuffer の先頭に isInfoHeader 行を追加（なければ新規、あれば差し替え）。
-     *   currentEntry の title/artist もこの値に合わせて更新し、履歴表示にも反映。
+     * 曲名/アーティスト入力欄からの「追加」ボタン押下。
      */
     function onAddInfoHeader() {
         if (!MOMO.state.currentEntry || !MOMO.state.editBuffer) return;
@@ -574,7 +579,6 @@ MOMO.play = (function () {
         if (!title && !artist) return;
 
         MOMO.lrc.ensureInfoHeader(MOMO.state.editBuffer, title, artist);
-        // 新規 infoHeader 行に originalTimeMs も付与（差分表示の対象外にするためisInfoHeader判定で十分）
         const head = MOMO.state.editBuffer.lines[0];
         if (head && head.isInfoHeader && typeof head.originalTimeMs !== 'number') {
             head.originalTimeMs = head.timeMs;
@@ -587,20 +591,27 @@ MOMO.play = (function () {
     }
 
     /**
-     * v1.11: 差分バナー更新（currentEntry.doc vs editBuffer）
+     * v2.02: 未保存の変更の表示。
+     *   エントリが載っている間は「変更なし」も含めて常に出す（出たり消えたりで
+     *   下のボタンの位置がずれないようにするため）。
+     *   合わせて保存ボタンの色も切り替える（変更なし=白枠黒地 / 変更あり=オレンジ）。
      */
     function updateDiffBanner() {
         const banner = document.getElementById('diff-banner');
+        const saveBtn = document.getElementById('saveLyricsBtn');
         if (!banner) return;
         const d = MOMO.i18n.get();
+
         if (!MOMO.state.currentEntry || !MOMO.state.editBuffer) {
             banner.classList.add('hidden');
+            banner.textContent = '';
+            if (saveBtn) saveBtn.classList.remove('dirty');
             return;
         }
+        banner.classList.remove('hidden');
+
         const orig = MOMO.state.currentEntry.doc;
         const buf = MOMO.state.editBuffer;
-        const origOffset = parseInt(orig.metadata.offset || '0', 10) || 0;
-        const offsetDiff = MOMO.state.globalOffsetMs - origOffset;
 
         // 変更行数を数える（同インデックス同士で比較、長さ違いも差分扱い）
         let changedLines = 0;
@@ -612,41 +623,27 @@ MOMO.play = (function () {
             if (a.timeMs !== b.timeMs || a.text !== b.text || a.assigned !== b.assigned) changedLines++;
         }
 
-        if (offsetDiff === 0 && changedLines === 0) {
-            banner.classList.add('hidden');
-            banner.textContent = '';
+        if (changedLines === 0) {
+            banner.textContent = d.diffNone;
+            banner.classList.add('clean');
+            if (saveBtn) saveBtn.classList.remove('dirty');
             return;
         }
-        const parts = [d.diffTitle];
-        if (offsetDiff !== 0) {
-            parts.push(d.diffOffset.replace('{v}', (offsetDiff > 0 ? '+' : '') + offsetDiff));
-        }
-        if (changedLines > 0) {
-            parts.push(d.diffLines.replace('{n}', changedLines));
-        }
-        banner.textContent = parts.join(' / ');
-        banner.classList.remove('hidden');
+        banner.classList.remove('clean');
+        banner.textContent = d.diffTitle + ' / ' + d.diffLines.replace('{n}', changedLines);
+        if (saveBtn) saveBtn.classList.add('dirty');
     }
 
     /**
-     * v1.11: 保存処理。
-     * - confirm() を削除して User activation を維持する。
-     * - fileHandle がある場合は queryPermission→requestPermission→createWritable の順で権限確保。
-     * - fileHandle が null の場合は showSaveFilePicker で同フォルダ保存を試み、
-     *   失敗したら最後の手段としてダウンロードにフォールバック。
-     * - 保存後は audio.currentTime を 0 に戻し、差分バナーをクリア。
+     * 保存処理。
+     * - confirm() を使わず User activation を維持する。
+     * - fileHandle がある場合は queryPermission→requestPermission→createWritable の順。
+     * - fileHandle が null の場合は showSaveFilePicker、失敗したらダウンロード。
      */
     async function saveLyrics() {
         if (!MOMO.state.currentEntry || !MOMO.state.editBuffer) return;
-        const opts = {};
-        if (!MOMO.state.saveAsOffsetTag) {
-            opts.bakeOffsetMs = MOMO.state.globalOffsetMs;
-            // 焼き込み保存時は offsetタグを削除
-            delete MOMO.state.editBuffer.metadata.offset;
-        } else {
-            MOMO.state.editBuffer.metadata.offset = String(MOMO.state.globalOffsetMs);
-        }
-        const serialized = MOMO.lrc.serialize(MOMO.state.editBuffer, opts);
+        // v2.02: offset の焼き込みは無くなった（行の時刻がそのまま書かれる）
+        const serialized = MOMO.lrc.serialize(MOMO.state.editBuffer);
 
         const entry = MOMO.state.currentEntry;
         const d = MOMO.i18n.get();
@@ -669,7 +666,6 @@ MOMO.play = (function () {
         try {
             let handle = entry.fileHandle;
             if (handle) {
-                // 権限確認（User activationが必要なため、awaitの前に先行させる）
                 if (handle.queryPermission) {
                     let perm = await handle.queryPermission({ mode: 'readwrite' });
                     if (perm !== 'granted' && handle.requestPermission) {
@@ -682,7 +678,6 @@ MOMO.play = (function () {
                 await writable.close();
                 ok = true;
             } else if (window.showSaveFilePicker) {
-                // 同フォルダに保存誘導（startInに関連ハンドルを渡す）
                 const pickerOpts = {
                     suggestedName: ((entry.artist ? entry.artist + ' - ' : '') + entry.title + '.lrc').replace(/[\\/:*?"<>|]/g, '_'),
                     types: [{ description: 'LRC', accept: { 'text/plain': ['.lrc'] } }]
@@ -694,11 +689,10 @@ MOMO.play = (function () {
                     const writable = await newHandle.createWritable();
                     await writable.write(serialized);
                     await writable.close();
-                    entry.fileHandle = newHandle; // 以後は同一名上書き可能
+                    entry.fileHandle = newHandle;
                     ok = true;
                 } catch (e) {
                     if (e.name === 'AbortError') return; // キャンセル
-                    // showSaveFilePicker で失敗したらフォールバック
                     ok = fallbackDownload();
                 }
             } else {
@@ -712,20 +706,69 @@ MOMO.play = (function () {
         if (!ok) return;
         if (status) status.textContent = d.saved;
 
-        // 保存後: originalDoc 更新、バッファ再構築、シークバー0復帰、差分クリア
-        entry.doc = MOMO.lrc.parse(serialized);
+        // 保存後: 原本更新、バッファ再構築、シークバー0復帰、差分クリア
+        const savedDoc = MOMO.lrc.parse(serialized);
+        // タイトル行の印は保存で失われないよう引き継ぐ
+        if (MOMO.state.editBuffer.lines[0] && MOMO.state.editBuffer.lines[0].isInfoHeader
+            && savedDoc.lines[0] && savedDoc.lines[0].timeMs === 0) {
+            savedDoc.lines[0].isInfoHeader = true;
+        }
+        entry.doc = savedDoc;
         entry.rawLrc = serialized;
         MOMO.state.editBuffer = deepCopyDoc(entry.doc);
-        MOMO.state.globalOffsetMs = parseInt(entry.doc.metadata.offset || '0', 10) || 0;
-        const offsetInput = document.getElementById('globalOffsetInput');
-        if (offsetInput) offsetInput.value = MOMO.state.globalOffsetMs;
+        MOMO.state.editBuffer.lines.forEach(l => { l.originalTimeMs = l.timeMs; });
         if (MOMO.state.audioEl) {
             try { MOMO.state.audioEl.currentTime = 0; } catch (e) { /* noop */ }
         }
         lastCurrentIdx = -1;
+        focusedIdx = -1;
+        clearOneLinePreview();
         renderLyricsView();
         updateDiffBanner();
         updateCurrentLine();
+        updateDisableBtn();
+    }
+
+    /**
+     * v2.02: プレイ画面からの「無効化」。
+     *   フォルダ一括処理の無効化と同じ動作（歌詞ファイルを空で上書きする）。
+     *   実体のファイルが無いもの（個別検索の結果など）は押せない。
+     */
+    function updateDisableBtn() {
+        const btn = document.getElementById('disableLyricsBtn');
+        if (!btn) return;
+        const d = MOMO.i18n.get();
+        const entry = MOMO.state.currentEntry;
+        btn.textContent = d.disableBtn;
+        btn.disabled = !(entry && entry.fileHandle);
+        btn.title = btn.disabled ? (d.disableUnavailable || '') : '';
+    }
+
+    async function disableLyrics() {
+        const entry = MOMO.state.currentEntry;
+        if (!entry || !entry.fileHandle) return;
+        const d = MOMO.i18n.get();
+        const status = document.getElementById('save-status');
+        const name = (entry.fileHandle.name || (entry.title + '.lrc'));
+        if (!window.confirm(d.confirmDisable.replace('{name}', name))) return;
+        try {
+            const handle = entry.fileHandle;
+            if (handle.queryPermission) {
+                let perm = await handle.queryPermission({ mode: 'readwrite' });
+                if (perm !== 'granted' && handle.requestPermission) {
+                    perm = await handle.requestPermission({ mode: 'readwrite' });
+                }
+                if (perm !== 'granted') throw new Error('permission denied');
+            }
+            const writable = await handle.createWritable();
+            await writable.write('');
+            await writable.close();
+            const btn = document.getElementById('disableLyricsBtn');
+            if (btn) { btn.disabled = true; btn.textContent = d.disabled; }
+            if (status) status.textContent = d.disabled;
+        } catch (e) {
+            if (status) status.textContent = d.saveFailed + ': ' + e.message;
+        }
     }
 
     function resetCurrentIdx() {
@@ -733,10 +776,7 @@ MOMO.play = (function () {
     }
 
     /**
-     * v1.18: 歌詞ウィンドウのリサイズハンドル。
-     *  - resize: vertical が一部環境で効かない問題への対応
-     *  - ハンドルをドラッグして lyrics-view の高さを変更
-     *  - min 100px, max window 80%
+     * 歌詞ウィンドウのリサイズハンドル。
      */
     function initResizeHandle() {
         const handle = document.getElementById('lyrics-resize-handle');
@@ -772,44 +812,39 @@ MOMO.play = (function () {
     function init() {
         MOMO.state.audioEl = document.getElementById('audio-player');
         if (MOMO.state.audioEl) {
-            MOMO.state.audioEl.addEventListener('timeupdate', updateCurrentLine);
-            // v1.19: ユーザーが再生ボタン (audio標準UI) を押した時、1行プレビュー範囲外なら
-            //         自然な再生に戻すため focusedIdx を解除する。
-            //         ただし1行プレビュー進行中(oneLineStopAt>=0)はロック維持。
-            MOMO.state.audioEl.addEventListener('play', () => {
+            const audio = MOMO.state.audioEl;
+            // v2.02: 現在行の判定は画面更新ごと。timeupdate は「裏に回って画面更新が
+            //        止まったとき」の保険として残す（二重に呼んでも結果は同じ）。
+            audio.addEventListener('timeupdate', updateCurrentLine);
+            audio.addEventListener('seeked', updateCurrentLine);
+            audio.addEventListener('play', () => {
+                // 1行づつ再生の最中でなければ、行の固定を解除して再生位置に追従させる
                 if (oneLineStopAt < 0) focusedIdx = -1;
+                startTicker();
             });
+            audio.addEventListener('pause', () => {
+                stopTicker();
+                // ユーザー操作による手動 pause なら 1行づつ再生の停止点もクリア
+                if (oneLineStopAt >= 0 && audio.currentTime < oneLineStopAt - 0.05) {
+                    clearOneLinePreview();
+                }
+            });
+            audio.addEventListener('ended', stopTicker);
         }
         initResizeHandle();
         const bind = (id, ev, fn) => {
             const el = document.getElementById(id);
             if (el) el.addEventListener(ev, fn);
         };
-        // v1.17: ライブラリ方式に変更したため openLrcBtn/openTxtBtn は廃止
         bind('chooseAudioBtn', 'click', chooseAudioFile);
         bind('offsetMinusBtn', 'click', () => adjustCurrentLine(-100));
         bind('offsetPlusBtn', 'click', () => adjustCurrentLine(100));
-        bind('globalOffsetInput', 'input', (e) => {
-            MOMO.state.globalOffsetMs = parseInt(e.target.value, 10) || 0;
-            lastCurrentIdx = -1;
-            updateCurrentLine();
-            updateDiffBanner();
-        });
         bind('saveLyricsBtn', 'click', saveLyrics);
-        // v1.13: 曲名/アーティスト追加ボタン
+        bind('disableLyricsBtn', 'click', disableLyrics);
         bind('addInfoBtn', 'click', onAddInfoHeader);
-        // 再生中にユーザーが pause したら 1行プレビューを解除
-        if (MOMO.state.audioEl) {
-            MOMO.state.audioEl.addEventListener('pause', () => {
-                // ユーザー操作による手動 pause ならプレビュー停止点もクリア
-                // (1行プレビュー自身が pause() するケースは既に clearOneLinePreview 済み)
-                if (oneLineStopAt >= 0 && MOMO.state.audioEl.currentTime < oneLineStopAt - 0.05) {
-                    clearOneLinePreview();
-                }
-            });
-        }
 
         renderHistoryList();
+        updateDisableBtn();
     }
 
     return {
@@ -821,9 +856,12 @@ MOMO.play = (function () {
         adjustCurrentLine: adjustCurrentLine,
         resetCurrentIdx: resetCurrentIdx,
         updateDiffBanner: updateDiffBanner,
+        updateDisableBtn: updateDisableBtn,
         scrollCurrentLineIntoView: scrollCurrentLineIntoView,
         loadAudioFile: loadAudioFile,
         clearOneLinePreview: clearOneLinePreview,
+        openLrcFile: openLrcFile,
+        seekToLine: seekToLine,
         promptAudioIfMissing: promptAudioIfMissing,
         pickFromHandles: pickFromHandles
     };

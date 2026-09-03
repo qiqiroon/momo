@@ -344,17 +344,25 @@ input[type="text"] { flex-grow: 1; padding: 12px; background: var(--surface2); b
 }
 .audio-file-name { font-size: 12px; color: var(--text-muted); }
 
-/* 差分バナー(v1.11: 保存前LRCとの差分表示) */
+/* 未保存の変更の表示
+   v2.02: 歌詞の下・操作のすぐ上に置く。変更が有る/無いで高さが変わらないように、
+          「変更なし」のときも同じ箱を出す（下のボタンの位置がずれないため）。 */
 .diff-banner {
     background: var(--surface2);
     border: 1px solid var(--orange);
     border-radius: 6px;
     padding: 8px 12px;
-    margin-bottom: 8px;
+    margin-top: 8px;
     font-size: 12px;
+    line-height: 1.4;
+    min-height: 1.4em;
     color: var(--orange-light);
     text-align: left;
     white-space: pre-wrap;
+}
+.diff-banner.clean {
+    border-color: var(--border);
+    color: var(--text-muted);
 }
 
 .lyrics-view {
@@ -373,7 +381,8 @@ input[type="text"] { flex-grow: 1; padding: 12px; background: var(--surface2); b
     padding: 20px;
     font-size: 15px;
     line-height: 2.0;
-    text-align: center;
+    /* v2.02: 各行は「時間 / タイトル印 / 歌詞」の左寄せ3欄に変更 */
+    text-align: left;
     /* v1.18: 独自ハンドル方式に変更したため、CSS resize は無効化 */
     resize: none;
 }
@@ -421,33 +430,50 @@ input[type="text"] { flex-grow: 1; padding: 12px; background: var(--surface2); b
 .lyrics-line.unassigned { color: #555; font-style: italic; }
 .lyrics-line.info-header { color: var(--orange-mid); font-weight: 700; }
 
-/* v1.18: 1行目のタイトル化チェックボックス */
+/* v2.02: 1行 = [時間] [タイトル印] [歌詞] [差分] の左寄せ横並び。
+   時間とタイトル印は幅を固定しているので、全行で歌詞の左端が揃う。 */
 .lyrics-line {
     display: flex;
-    align-items: center;
-    justify-content: center;
+    align-items: baseline;
+    justify-content: flex-start;
     gap: 8px;
 }
+.lyrics-line-time {
+    flex: 0 0 auto;
+    width: 5.6em;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+    user-select: none;
+}
+.lyrics-line.current .lyrics-line-time { color: var(--orange-light); }
+.lyrics-line.unassigned .lyrics-line-time { color: #444; }
+.lyrics-line-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: left;
+}
+/* v1.18: 1行目のタイトル化チェックボックス（1行目以外は場所だけ確保） */
 .title-toggle {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 16px;
     font-size: 11px;
     color: var(--text-muted);
     cursor: pointer;
     user-select: none;
-    flex-shrink: 0;
 }
+.title-toggle.placeholder { cursor: default; }
 .title-toggle input[type="checkbox"] {
     width: 14px;
     height: 14px;
     accent-color: var(--orange);
     cursor: pointer;
     margin: 0;
-}
-.title-toggle .title-icon {
-    color: var(--orange-mid);
-    font-size: 12px;
 }
 .lyrics-line.title-fixed .lyrics-line-text {
     color: var(--orange-mid);
@@ -490,6 +516,38 @@ input[type="text"] { flex-grow: 1; padding: 12px; background: var(--surface2); b
     border-radius: 6px;
     color: var(--text);
 }
+
+/* v2.02: 操作の行の中に並べるチェックボックス（この行以後全部反映 / 1行づつ再生） */
+.toggle-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--text-muted);
+    cursor: pointer;
+    user-select: none;
+}
+.toggle-inline input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--orange);
+    cursor: pointer;
+    margin: 0;
+}
+
+/* v2.02: 保存ボタン 変更なし=白枠黒地 / 変更あり=オレンジ */
+.momo-btn.save-btn {
+    background: #000;
+    color: #fff;
+    border: 1px solid #fff;
+}
+.momo-btn.save-btn:hover:not(:disabled) { background: #1a1a1a; }
+.momo-btn.save-btn.dirty {
+    background: var(--orange);
+    color: #fff;
+    border-color: var(--orange);
+}
+.momo-btn.save-btn.dirty:hover:not(:disabled) { background: var(--orange-mid); }
 .momo-btn-small {
     background: var(--surface);
     color: var(--orange-light);
@@ -500,7 +558,12 @@ input[type="text"] { flex-grow: 1; padding: 12px; background: var(--surface2); b
     cursor: pointer;
     font-weight: 700;
 }
-.momo-btn-small:hover { background: var(--bg-selected); }
+.momo-btn-small:hover:not(:disabled) { background: var(--bg-selected); }
+.momo-btn-small:disabled {
+    color: var(--text-muted);
+    border-color: var(--border-strong);
+    cursor: not-allowed;
+}
 
 .tap-controls {
     display: flex;

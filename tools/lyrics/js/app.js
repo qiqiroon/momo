@@ -19,19 +19,22 @@ MOMO.app = (function () {
     function initState() {
         // state 初期値（i18n.js で curLang/catBase は初期化済み）
         MOMO.state.addInfoHeader = false;
-        MOMO.state.saveAsOffsetTag = false;
         MOMO.state.history = [];
         MOMO.state.currentEntry = null;
         MOMO.state.editBuffer = null;
-        MOMO.state.globalOffsetMs = 0;
         MOMO.state.audioEl = null;
         MOMO.state.audioFileName = null;
         MOMO.state.undoStack = [];
+        // v2.02: 1行づつ再生（既定 ON = 従来と同じ動き）。覚える。
+        MOMO.state.oneLinePlay = true;
+        // v2.02: この行以後全部反映（既定 OFF）。まとめて動かす操作なので覚えない。
+        MOMO.state.applyToFollowing = false;
 
         // トグルの永続化設定を復元
         try {
             MOMO.state.addInfoHeader = localStorage.getItem('momoAddInfoHeader') === 'true';
-            MOMO.state.saveAsOffsetTag = localStorage.getItem('momoSaveAsOffsetTag') === 'true';
+            const one = localStorage.getItem('momoOneLinePlay');
+            if (one !== null) MOMO.state.oneLinePlay = (one === 'true');
         } catch (e) { /* noop */ }
     }
 
@@ -39,11 +42,13 @@ MOMO.app = (function () {
         // v1.13: プレイ画面のトグルは廃止（入力欄+追加ボタンに置換）
         const cbFolder = document.getElementById('toggle-add-info-folder');
         const cbSearch = document.getElementById('toggle-add-info-search');
-        const cbOffsetTag = document.getElementById('toggle-save-as-offset-tag');
+        const cbOneLine = document.getElementById('toggle-one-line-play');
+        const cbFollowing = document.getElementById('toggle-apply-following');
 
         if (cbFolder) cbFolder.checked = MOMO.state.addInfoHeader;
         if (cbSearch) cbSearch.checked = MOMO.state.addInfoHeader;
-        if (cbOffsetTag) cbOffsetTag.checked = MOMO.state.saveAsOffsetTag;
+        if (cbOneLine) cbOneLine.checked = MOMO.state.oneLinePlay;
+        if (cbFollowing) cbFollowing.checked = MOMO.state.applyToFollowing;
 
         const syncAddInfo = (e) => {
             const v = !!e.target.checked;
@@ -55,10 +60,23 @@ MOMO.app = (function () {
         if (cbFolder) cbFolder.addEventListener('change', syncAddInfo);
         if (cbSearch) cbSearch.addEventListener('change', syncAddInfo);
 
-        if (cbOffsetTag) {
-            cbOffsetTag.addEventListener('change', (e) => {
-                MOMO.state.saveAsOffsetTag = !!e.target.checked;
-                try { localStorage.setItem('momoSaveAsOffsetTag', String(e.target.checked)); } catch (er) {}
+        // v2.02: 1行づつ再生 ON=1行ずつ / OFF=連続再生。次回も覚える。
+        if (cbOneLine) {
+            cbOneLine.addEventListener('change', (e) => {
+                MOMO.state.oneLinePlay = !!e.target.checked;
+                try { localStorage.setItem('momoOneLinePlay', String(e.target.checked)); } catch (er) {}
+                // 連続再生に切り替えたら、1行分の停止点をその場で外す
+                // （行の固定は play.js 側がこのチェック状態を見て判断する）
+                if (!MOMO.state.oneLinePlay && MOMO.play && MOMO.play.clearOneLinePreview) {
+                    MOMO.play.clearOneLinePreview();
+                }
+            });
+        }
+
+        // v2.02: この行以後全部反映。覚えない（開くたびに OFF）。
+        if (cbFollowing) {
+            cbFollowing.addEventListener('change', (e) => {
+                MOMO.state.applyToFollowing = !!e.target.checked;
             });
         }
     }

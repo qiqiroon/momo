@@ -1,7 +1,20 @@
 <!DOCTYPE html>
 <!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
-<!-- MOMO Lyrics 内部バージョン: v2.01
+<!-- MOMO Lyrics 内部バージョン: v2.02
      変更履歴:
+       v2.02 - 修正事項26090310 対応:
+               履歴(プレイ画面のリスト)を「取り込んだ順(先に取り込んだものが上)」に統一、
+               プレイ画面に無効化ボタン追加(実ファイルがある時のみ)、
+               未保存の変更表示を歌詞の下へ移動し常に同じ高さを占める形に(行送り防止)、
+               「全体オフセット」という概念を全廃(offsetタグは読み捨て・書き出さない。
+                 全体ずらしは「この行以後全部反映」で行う)、
+               各行に時間を常時表示(左:時間 / 中:タイトル印 / 右:歌詞・すべて左寄せ)、
+               1行目タイトルのチェックは「アプリが0秒タイトル行を足した時だけ」既定ON、
+               「この行以後全部反映」チェックボックス追加、
+               保存ボタンを 変更なし=白枠黒地 / 変更あり=オレンジ に、
+               「1行づつ再生」チェックボックス追加(±での自動切替を廃止)、
+               現在行の検出を音源イベント任せから画面更新ごとの確認に変更
+                 (実測: 遅れ 平均135ms/最大282ms → 平均3.6ms/最大6.9ms)
        v2.01 - 案件⑦: 言語選択を共通ライブラリ momo-lang に切替
                (auto/ja/en/zh/cat の auto を追加、appId=lyrics、langModeをローカル保存、
                 明示選択時のみ共有 momoLang に書き込み)
@@ -149,7 +162,7 @@
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="lyrics">Lyrics</span>
-                <span class="version-tag" id="version-tag">v2.01</span>
+                <span class="version-tag" id="version-tag">v2.02</span>
             </h1>
             <div class="subtitle" id="header-sub">Lyric Meta-Data Manager</div>
         </div>
@@ -222,28 +235,32 @@
             <button id="addInfoBtn" class="momo-btn">追加</button>
         </div>
 
-        <div id="diff-banner" class="diff-banner hidden"></div>
         <div id="lyrics-view" class="lyrics-view hidden"></div>
         <div id="lyrics-resize-handle" class="lyrics-resize-handle hidden" aria-label="resize"></div>
 
+        <!-- v2.02: 未保存の変更表示は歌詞の下・操作のすぐ上へ。
+             出ても消えても高さが変わらないので、下のボタンの位置がずれない。 -->
+        <div id="diff-banner" class="diff-banner hidden"></div>
+
         <div class="adjust-controls hidden" id="adjust-controls">
-            <div class="adjust-row">
-                <label id="label-global-offset">全体オフセット(ms):</label>
-                <input type="number" id="globalOffsetInput" step="100" value="0">
-            </div>
             <div class="adjust-row">
                 <label id="label-current-line">現在行:</label>
                 <button id="offsetMinusBtn" class="momo-btn-small">−0.1s</button>
                 <button id="offsetPlusBtn" class="momo-btn-small">+0.1s</button>
-            </div>
-            <div class="adjust-row">
-                <label class="toggle-row">
-                    <input type="checkbox" id="toggle-save-as-offset-tag">
-                    <span id="label-save-as-offset-tag">offsetタグとして保存(互換性のあるプレイヤー用)</span>
+                <label class="toggle-inline">
+                    <input type="checkbox" id="toggle-apply-following">
+                    <span id="label-apply-following">この行以後全部反映</span>
                 </label>
             </div>
             <div class="adjust-row">
-                <button id="saveLyricsBtn" class="momo-btn">保存</button>
+                <label class="toggle-inline">
+                    <input type="checkbox" id="toggle-one-line-play">
+                    <span id="label-one-line-play">1行づつ再生</span>
+                </label>
+            </div>
+            <div class="adjust-row">
+                <button id="saveLyricsBtn" class="momo-btn save-btn">保存</button>
+                <button id="disableLyricsBtn" class="momo-btn-small">無効化</button>
                 <span id="save-status" class="save-status"></span>
             </div>
         </div>

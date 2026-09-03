@@ -95,8 +95,11 @@
                     item.querySelector('.btn-save').addEventListener('click', () => {
                         // 要件2: 0秒情報追加
                         let lyricsToSave = song.syncedLyrics;
+                        // v2.02: 自分で 0秒タイトル行を足した時だけ、プレイ画面のタイトル印を既定 ON
+                        let infoAdded = false;
                         if (MOMO.state.addInfoHeader) {
                             lyricsToSave = MOMO.lrc.prependInfo(lyricsToSave, song.trackName, song.artistName);
+                            infoAdded = true;
                         }
                         const blob = new Blob([lyricsToSave], { type: 'text/plain' });
                         const a = document.createElement('a');
@@ -107,6 +110,7 @@
                         // 要件4: 履歴に追加
                         try {
                             const doc = MOMO.lrc.parse(lyricsToSave);
+                            MOMO.lrc.markAddedInfoHeader(doc, infoAdded);
                             if (MOMO.play && MOMO.play.addToHistory) {
                                 MOMO.play.addToHistory({
                                     id: 'search_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),

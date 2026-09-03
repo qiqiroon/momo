@@ -101,6 +101,7 @@ const BilliardsI18N = (() => {
       'hud.svLeft': '残り{n}', 'hud.svOut': '脱落',
       'hud.trShots': 'あと{n}打',
       'hud.curlStones': '残り{n}個', 'hud.curlEnd': '{n}/{all} エンド',
+      'curl.board': 'エンド得点', 'curl.nowCol': '今', 'curl.totCol': '計',
       'drop.title': '落ちた玉', 'drop.already': 'これまでに落ちた玉',
       'group.solid': 'ソリッド（1〜7）', 'group.stripe': 'ストライプ（9〜15）',
 
@@ -180,6 +181,7 @@ const BilliardsI18N = (() => {
       'brk.note.winner': '勝った人が続けてブレイクします。以降は前の局と同じ巡りです',
       'brk.note.loser': '負けた人がブレイクします。順位が1位しか決まらないルールでは、勝った人の次の人が撞きます',
       'res.contGame': '続けてもう1戦',
+      'res.rematchReq': '再戦を希望する', 'res.rematchWait': '主催者に再戦を伝えました。始まるのを待っています',
 
       'bank.how': '先手を決めます。向こうの壁に当てて戻し、手前の壁に近く止めた人が先手です。強さは表示されず、毎回わずかにずれます',
       'bank.turn': 'バンキング — 次の人が撞きます',
@@ -326,6 +328,7 @@ const BilliardsI18N = (() => {
       'hud.svLeft': '{n} left', 'hud.svOut': 'out',
       'hud.trShots': '{n} shots left',
       'hud.curlStones': '{n} left', 'hud.curlEnd': 'End {n}/{all}',
+      'curl.board': 'End scores', 'curl.nowCol': 'now', 'curl.totCol': 'tot',
       'drop.title': 'Pocketed', 'drop.already': 'Already pocketed',
       'group.solid': 'Solids (1-7)', 'group.stripe': 'Stripes (9-15)',
 
@@ -405,6 +408,7 @@ const BilliardsI18N = (() => {
       'brk.note.winner': 'The winner breaks again. The playing order stays as it was.',
       'brk.note.loser': 'The loser breaks. In rules that decide only first place, the player after the winner breaks.',
       'res.contGame': 'Play another',
+      'res.rematchReq': 'Ask for a rematch', 'res.rematchWait': 'Asked the host for a rematch — waiting for it to start.',
 
       'bank.how': 'Lagging for the break. Hit the far rail and come back — closest to the near rail breaks. The power reading is hidden and wobbles slightly on every lag.',
       'bank.turn': 'Lag — next player shoots',
@@ -551,6 +555,7 @@ const BilliardsI18N = (() => {
       'hud.svLeft': '剩{n}', 'hud.svOut': '淘汰',
       'hud.trShots': '剩{n}杆',
       'hud.curlStones': '剩{n}颗', 'hud.curlEnd': '第{n}/{all}局',
+      'curl.board': '每局得分', 'curl.nowCol': '现', 'curl.totCol': '总',
       'drop.title': '已进袋', 'drop.already': '此前进袋的球',
       'group.solid': '全色（1〜7）', 'group.stripe': '花色（9〜15）',
 
@@ -630,6 +635,7 @@ const BilliardsI18N = (() => {
       'brk.note.winner': '获胜者继续开球。出杆顺序与上一局相同。',
       'brk.note.loser': '由落败者开球。在只决出第一名的规则中，由获胜者的下一位开球。',
       'res.contGame': '再来一局',
+      'res.rematchReq': '请求再战', 'res.rematchWait': '已向房主请求再战，等待开始。',
 
       'bank.how': '决定谁先开球。撞到对面库边后回来，停得离近侧库边最近的人先开球。力度不显示，且每次都会略有偏差。',
       'bank.turn': '争开球权 — 下一位击球',

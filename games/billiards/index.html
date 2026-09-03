@@ -311,6 +311,15 @@ body.debug #dbg{display:block;}
   #info-pane .mini-title{display:none;}   /* タイトルは盤面の左上へ重ねて出す */
   #info-pane #v-config{display:none;}
   #info-pane #players-box{display:flex;gap:8px;flex-wrap:wrap;}
+  /* カーリング型のエンド得点表（利用者指示）。狭い画面でも読めるよう小さめ・横スクロール可 */
+  #curl-board{display:none;margin-top:8px;font-size:11px;overflow-x:auto;}
+  #curl-board table{border-collapse:collapse;width:100%;white-space:nowrap;}
+  #curl-board th,#curl-board td{padding:2px 6px;text-align:center;border-bottom:1px solid var(--border);}
+  #curl-board td.nm{text-align:left;}
+  #curl-board .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:middle;border:1px solid rgba(0,0,0,.5);}
+  #curl-board th.now,#curl-board td.now{color:var(--orange-light);}
+  #curl-board td.tot{font-weight:700;}
+  #curl-board .cap{color:var(--text-muted);font-size:10px;margin:0 0 3px;}
   #info-pane .pl-row{padding:2px 7px;gap:7px;border:1px solid var(--border);border-radius:5px;}
   #info-pane #time-box{display:flex;gap:12px;}
   #ctrl-pane{flex-direction:row;flex-wrap:wrap;align-items:center;padding:6px;gap:6px;max-height:26vh;order:2;}
@@ -605,6 +614,8 @@ body.debug #dbg{display:block;}
       </div>
       <div class="info-row"><span class="info-k" id="k-turn"></span><b id="v-turn">–</b></div>
       <div id="players-box"></div>
+      <!-- カーリング型のエンドごとの得点表（G-09。他ルールでは隠す） -->
+      <div id="curl-board"></div>
       <div class="info-row"><span class="info-k" id="k-next"></span><b id="v-next">–</b></div>
       <div class="info-row"><span class="info-k" id="k-foul"></span><b id="v-foul">–</b></div>
       <div id="time-box">

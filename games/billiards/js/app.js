@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.57';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.58';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -3643,6 +3643,42 @@
     $('v-foul').textContent = g.lastFouls && g.lastFouls.length ? g.lastFouls.map(f => t('foul.' + f)).join(', ') : t('hud.none');
     $('time-box').style.display = S.cfg.mods['G-14'] ? '' : 'none';
     $('v-config').textContent = configLabel();
+    // カーリング型はエンドごとの得点表を出す（利用者指示）。合計だけでは勝敗が読めない
+    const cb = $('curl-board');
+    if (cb) {
+      const on = g.rule === 'G-09' && g.curling;
+      cb.style.display = on ? '' : 'none';
+      if (on) cb.innerHTML = curlScoreHTML(g, true);
+    }
+  }
+
+  /*
+   * ★カーリング型のエンド得点表（利用者指示）。
+   * カーリングは**合計点**で勝敗が決まり、得点法も「相手の最内より内側の石の数」なので、
+   * 盤面だけ見ても「なぜその勝敗か」が読めない。エンドごとの得点と合計を並べて見せる。
+   *
+   * @param {boolean} live 対局中なら true。**進行中のエンドの暫定得点**（いま終わったら何点か）を
+   *                       「今」の列に出す。結果画面（false）では暫定は出さない。
+   */
+  function curlScoreHTML(g, live) {
+    const cur = g.curling;
+    const ends = cur.endScores;                 // 済んだエンドの [席ごとの点]
+    // 進行中のエンドの暫定得点（盤にある石で、いま数えたら何点か）
+    const prov = (live && !g.over && cur.thrown.some(v => v > 0)) ? RU.curlingEndScore(g) : null;
+    const seats = g.players.map((p, i) => i);
+    let h = '<div class="cap">' + t('curl.board') + '</div><table><tr><th></th>';
+    for (let e = 0; e < ends.length; e++) h += '<th>' + (e + 1) + '</th>';
+    if (prov) h += '<th class="now">' + t('curl.nowCol') + '</th>';
+    h += '<th class="tot">' + t('curl.totCol') + '</th></tr>';
+    seats.forEach(i => {
+      const col = RU.CAROM_COLORS[i % RU.CAROM_COLORS.length];
+      h += '<tr' + (i === g.turn && live ? ' class="cur"' : '') + '>';
+      h += '<td class="nm"><span class="dot" style="background:' + col + '"></span>' + escapeHtml(g.players[i].name) + '</td>';
+      ends.forEach(es => { h += '<td>' + (es[i] || 0) + '</td>'; });
+      if (prov) h += '<td class="now">' + (prov[i] ? '+' + prov[i] : '·') + '</td>';
+      h += '<td class="tot">' + g.players[i].score + '</td></tr>';
+    });
+    return h + '</table>';
   }
   function configLabel(cfg) {
     const c = cfg || S.cfg;
@@ -3706,13 +3742,15 @@
     // 通信対戦のボタンは「部屋へ戻る」。押すと何が起きるかを名前どおりにする
     $('btn-again').textContent = t(S.net.on ? 'res.backRoom' : 'res.again');
     /*
-     * 通信対戦では、部屋へ戻らずそのまま次の局へ進める道も出す。
-     * **出すのは主催者だけ。**各端末が勝手に始めると別々の盤を見ることになるので、
-     * 押せない人にボタンを見せない（灰色にすると「押せる場面なのに押せない」に見える）。
+     * 通信対戦では、部屋へ戻らずそのまま次の局へ進める道を出す。
+     * **実際に局を始めるのは主催者だけ**（各端末が勝手に始めると別々の盤になる）。
+     * ★ただし**ゲストにもボタンを出す**（実機指摘：敗者＝ゲストが再戦を言い出せなかった）。
+     *   ゲストが押すと主催者へ「再戦したい」と伝え、主催者の端末が全員ぶんを始める。
+     *   観戦者は当事者ではないので出さない。
      */
-    const canCont = S.net.on && S.net.isHost && S.net.role !== 'spectator';
-    $('btn-cont').style.display = canCont ? '' : 'none';
-    if (canCont) $('btn-cont').textContent = t('res.contGame');
+    const online = S.net.on && S.net.role !== 'spectator';
+    $('btn-cont').style.display = online ? '' : 'none';
+    if (online) $('btn-cont').textContent = t(S.net.isHost ? 'res.contGame' : 'res.rematchReq');
     const body = $('res-body'); body.innerHTML = '';
     // 並べるのはチーム。協力プレイでなければ1人＝1チームなので今までと同じ見え方になる
     const kind = RU.WIN_KIND[g.rule];
@@ -3735,6 +3773,12 @@
       d.innerHTML = '<span>' + escapeHtml(who) + '</span><span>' + escapeHtml(right) + '</span>';
       body.appendChild(d);
     });
+    // カーリング型は結果にもエンド得点表を出す（なぜその合計になったかを見せる）
+    if (g.rule === 'G-09' && g.curling) {
+      const sb = document.createElement('div'); sb.id = 'curl-board'; sb.style.display = 'block';
+      sb.style.marginTop = '10px'; sb.innerHTML = curlScoreHTML(g, false);
+      body.appendChild(sb);
+    }
     if (g.lastMessageKey) {
       const p = document.createElement('div'); p.className = 'hint'; p.style.marginTop = '10px';
       p.textContent = t(g.lastMessageKey); body.appendChild(p);
@@ -3973,6 +4017,19 @@
       Object.assign(S.cfg, p.config); showRoom(); buildSetup(); return;
     }
     if (p.k === 'ready') { setReady(p.pid || from, !!p.ok); return; }
+    /*
+     * ★ゲストからの再戦の希望（実機指摘：敗者が再戦を言い出せなかった）。
+     * **受けて始めるのは主催者だけ。**局が終わって結果を見ている間だけ受け付ける
+     * （対局中や、主催者がすでに部屋へ戻ったあとに始めてしまわない）。
+     * 主催者の「続けてもう1戦」を押したのと同じ道を通すので、全員が同じ盤に入る。
+     */
+    if (p.k === 'cont-req') {
+      if (S.net.isHost && S.game && S.game.over && resultOpen()) {
+        closeResult();
+        startNetGame(contOrder(), true);
+      }
+      return;
+    }
     if (p.k === 'rmap') { S.net.ready = p.map || {}; showRoom(); return; }
     if (p.k === 'done') {
       markDone(p.pid || from, p.n);
@@ -4538,10 +4595,20 @@
    * 各端末で数えると、名簿の並びが1つずれた瞬間に別の人が先手になる。
    */
   $('btn-cont').onclick = () => {
-    if (!S.net.on || !S.net.isHost || !S.game) return;
+    if (!S.net.on || !S.game) return;
     AU.sfx('button');
-    closeResult();
-    startNetGame(contOrder(), true);
+    if (S.net.isHost) {
+      closeResult();
+      startNetGame(contOrder(), true);
+      return;
+    }
+    /*
+     * ★ゲストは自分では始められない（別々の盤になる）。**主催者へ再戦を頼む。**
+     * 結果画面は開けたままにして「待っています」を出す。主催者が始めれば
+     * こちらの端末にも start が届いて、自動でその局に入る。
+     */
+    NET.send({ k: 'cont-req' }, 'host');
+    setMsg(t('res.rematchWait'));
   };
   $('btn-to-setup').onclick = () => { AU.sfx('button'); closeResult(); show('home'); };
   $('lang-select').onchange = e => { I.setMode(e.target.value); applyLang(); };

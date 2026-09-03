@@ -1598,14 +1598,34 @@ const BilliardsTable = (() => {
     return table._grid;
   }
 
+  /**
+   * ブレイクで手玉を置く既定の場所（10.2.6節）。
+   * ヘッドスポットよりわずかにヘッド側。台が上書きを持っていればそれを使う
+   * （ドーナツ型は長軸の上に置ける線が出ないので脇へ寄せてある）。
+   *
+   * ★**カーリング型の投球位置もここを使う**（利用者指示「スタートラインは通常の手玉を置く位置」）。
+   * 同じ決めごとを2か所に書くと、片方を直したときにもう片方がずれる。ここに1本だけ置く。
+   */
+  const BREAK_BACK = 160;      // ヘッドスポットからヘッド側へ寄せる量（実装値。10.2.6節）
+  function breakPlace(table) {
+    if (table.breakSpot) return { x: table.breakSpot.x, y: table.breakSpot.y };
+    const axis = table.footDirection || 1;
+    return { x: table.headSpot.x - axis * BREAK_BACK, y: table.headSpot.y };
+  }
+
   // ───────── カーリング型（G-09）の目標円・投球位置・ホグ円。仕様書 7.9.2節・7.9.3節 ─────────
 
   /*
    * ★**座標を台定義データに並べず、そのときの台から測って決める**
    *   （キャロムの赤玉・陣取りの円と同じ考え方）。台の形を足したときに手作業が要らない。
    */
-  const CURL_AREA = 0.05;      // 目標円の面積が盤面に占める割合（付録B送りの暫定値。7.13節）
-  const CURL_BACK = 4;         // 投球位置をクッションから玉いくつぶん離すか
+  /*
+   * 目標円の面積が盤面に占める割合（付録B送りの暫定値。7.13節）。
+   * **12% ＝ 標準長方形で直径が玉 12.3 個ぶん**で、現実のカーリング（石 12.6 個ぶん）とほぼ同じ。
+   * 小さくすると、寄せる強さの幅が指で出せる大きさに足りなくなる
+   * （実測：5% では目盛りの 7〜9 点しかない。12% で 11〜16 点）。
+   */
+  const CURL_AREA = 0.12;
   const CURL_RINGS = [1, 2 / 3, 1 / 3, 1 / 12];   // 同心円の半径の比（現実の 12/8/4フィートとボタン）
 
   /** 遊べる面積。**ドーナツ型は中央の島を引く**（島の中は台の外） */
@@ -1630,67 +1650,30 @@ const BilliardsTable = (() => {
    */
   function curlingLayout(table) {
     if (table._curl) return table._curl;
-    const radius = Math.sqrt(CURL_AREA * playArea(table) / Math.PI);
-
     /*
-     * ── 目標円の中心は台の重心（7.9.2節）。
-     * **ドーナツ型だけは重心が中央の島の中＝台の外にある**（実測：余裕 −212 mm）。
-     * 仕様は「島の外側の任意の一点を持つ」としているが、座標を並べずに済ませたいので、
-     * **長軸の上をフット側へ進んで、円がいちばん深く収まる点**を選ぶ（実測 x=+846）。
-     * フット側にするのは、投球位置がヘッド側だからである。
+     * ★**台からはみ出すときは、はみ出さない最大まで縮める。**
+     * 割合だけで決めると、スポットのまわりが狭い台（ドーナツ・十字・星型）で
+     * 円が壁の外へ出る。出ても得点の数え方は壊れないが、
+     * **台ごとにハウスの使える部分が違って見え、狙いどころが読めなくなる。**
      */
-    let center = centroidOf(table);
-    if (clearance(table, center.x, center.y) < radius) {
-      const axis = table.footDirection || 1;
-      const y = (table.axisY != null) ? table.axisY : center.y;
-      let best = center, bestC = -Infinity;
-      for (let i = 1; i <= 2600; i++) {
-        const x = center.x + axis * i;
-        const cl = clearance(table, x, y);
-        if (cl > bestC) { bestC = cl; best = { x, y }; }
-      }
-      center = best;
-    }
-
+    const center0 = { x: table.spot.x, y: table.spot.y };
+    const radius = Math.min(Math.sqrt(CURL_AREA * playArea(table) / Math.PI),
+      clearance(table, center0.x, center0.y));
     /*
-     * ── 投球位置は「目標円から最も遠い位置」（7.9.3節）。
-     * **まず長軸のヘッド側をあたる。**他のルールもヘッド側から始めるので、見た目が揃う。
-     * クッションまで行き切らず**玉4個ぶん手前で止める**のは、壁ぎわだとキューを
-     * 17度ほど立てることになり、毎回それを強いられるためである。
+     * ★**ハウスは「ふだんラックを組む位置」＝基準スポット**（利用者指示）。
+     * ★**投球位置は「ふだん手玉を置く位置」＝ブレイクの既定の置き場所**（同）。
      *
-     * **ヘッド側が短すぎる台だけ、ヘッド側の半分を見渡して遠い方角を選ぶ。**
-     * 星型がこれに当たる ── ヘッドの真後ろは切り欠きで 655 mm しか取れないが、
-     * 斜め 15度の**尖りの中**なら 1127 mm 取れる（実測）。
-     * 方角は 180度から外へ向かって順に見て、**同じ距離ならヘッドに近いほうを採る**
-     * （星型は 165度と 195度が同じ距離なので、決め方が無いと台の向きで揺れる）。
+     * 前は重心と「目標円から最も遠い点」を測って決めていたが、
+     * **どの台でも見慣れた2点になるほうが分かりやすい**というご判断。
+     * 座標を新しく持たずに済み、台を足したときの手作業も増えない
+     * （どちらも既存の台定義データが持っている）。
+     *
+     * **ドーナツ型は、この2点を直線で結ぶと中央の島がほぼ真上に来る。**
+     * 直接狙えないのは承知のうえで、そのままにする（利用者指示）。
+     * クッションで跳ね返して届く強さを用意することで成り立たせる。
      */
-    const keep = CURL_BACK * 2 * R;
-    const onPocket = (x, y) => table.pockets.some(p => Math.hypot(x - p.x, y - p.y) < p.r + R);
-    function spotAt(deg) {
-      const a = deg * Math.PI / 180, dx = Math.cos(a), dy = Math.sin(a);
-      let far = 0;
-      for (let d = 1; d <= 2600; d++) {
-        if (clearance(table, center.x + dx * d, center.y + dy * d) < R) break;
-        far = d;
-      }
-      for (let d = far - keep; d >= 1; d--) {
-        const x = center.x + dx * d, y = center.y + dy * d;
-        if (clearance(table, x, y) >= R && !onPocket(x, y)) return { x, y, dist: d };
-      }
-      return null;
-    }
-    const headDeg = ((table.footDirection || 1) > 0) ? 180 : 0;
-    // ガードを置く帯（目標円の縁からホグ円まで）に玉2個ぶんは要る
-    const need = 2 * (radius + 2 * 2 * R);
-    let pick = spotAt(headDeg);
-    if (!pick || pick.dist < need) {
-      for (let k = 1; k <= 90; k++) {
-        for (const s of [spotAt(headDeg - k), spotAt(headDeg + k)]) {
-          if (s && (!pick || s.dist > pick.dist)) pick = s;
-        }
-      }
-    }
-    const throwPos = pick ? { x: pick.x, y: pick.y } : { x: table.headSpot.x, y: table.headSpot.y };
+    const center = center0;
+    const throwPos = breakPlace(table);
     const dist = Math.hypot(throwPos.x - center.x, throwPos.y - center.y);
     table._curl = { center, radius, hog: dist / 2, throwPos, dist, rings: CURL_RINGS };
     return table._curl;
@@ -1711,7 +1694,7 @@ const BilliardsTable = (() => {
     polyCentroid, centroidOf, maxRingRadius, territoryLayout, territoryGrid, gridCellAt,
     GRID_NX, GRID_NY, TERRITORY_FILL,
     // カーリング型（7.9節）
-    playArea, curlingLayout, CURL_AREA, CURL_BACK, CURL_RINGS,
+    playArea, curlingLayout, CURL_AREA, CURL_RINGS, breakPlace, BREAK_BACK,
     clearance, inside, clampInside, nearestBoundary, diamonds, buildFillets,
     // 検査から直に確かめるために出している。
     // 「内角90度以上には手を触れない」という条件は、いまのどの台でも働かない

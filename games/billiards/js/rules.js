@@ -76,6 +76,11 @@ const BilliardsRules = (() => {
    * クッション数の条件を重ねると、同じ一撞きに二重の判定が掛かる。
    */
   const BREAK_VALID = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': false, 'G-06': false, 'G-08': false, 'G-09': false };
+  /*
+   * デッドロックの自動検出をするか（10.8節・利用者指示）。
+   * **false ＝ 撞ける回数が決まっていて、必ず終わるルール。**
+   */
+  const DEADLOCK_WATCH = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': true, 'G-06': false, 'G-08': true, 'G-09': false };
 
   /*
    * 陣取り（7.7節）のプレイヤーの色。**玉そのものの色であり、塗ったマスもこの色になる。**
@@ -104,16 +109,39 @@ const BilliardsRules = (() => {
    * ── 台の摩擦をこのルールだけ変えると、engine が知らないはずのルールを知ることになり、
    * 決定論・通信対戦・リプレイの土台（5.2節）にも影響する。
    */
-  const CURLING_POWER = { min: 0.015, max: 0.085 };
+  /*
+   * ★**目盛りは途中に折れ目を持たせる。**まっすぐ寄せる強さと、跳ね返して届かせる強さは
+   * 桁が違うので、一直線に割り当てるとどちらかが潰れる。実測（8形状）：
+   *
+   *   まっすぐ狙って目標円に入る … 物理の 0.048〜0.064
+   *   クッションで跳ね返して入る … 0.064 から
+   *   真後ろへ撞いて戻して入る   … 0.106〜0.356（台による）
+   *
+   * 全部を一直線に割り当てると、**まっすぐ寄せる幅が目盛りの 4%** まで潰れる。
+   * そこで**目盛りの手前 6 割を「寄せる」細かい側**、残り 4 割を「跳ね返す」粗い側に配る。
+   * こうすると寄せる幅が 17% ほど残り、真後ろの筋も上限の内側に収まる。
+   *
+   * 折れ目より下は 0.030〜0.068（寄せる）、上は 0.068〜0.40（跳ね返し・弾き出し）。
+   *
+   * ★**下限を 0.030 にしたのは、それ未満が「投げても必ず玉を失う」帯だから。**
+   * 実測＝ホグ円に届く最小の強さは 8形状で 0.036〜0.043。
+   * 使えない帯を目盛りから外したぶん、寄せる側の刻みが細かくなる（1.4倍）。
+   * **0 の側を少しだけ残してあるのは、弱すぎて玉を失う失敗も撞き手の選択のうちだから。**
+   */
+  const CURLING_POWER = { min: 0.030, knee: 0.068, max: 0.40, at: 0.60 };
   /** 見えている強さ（0〜1.15）→ 物理の強さ */
   function shotPower(rule, aim) {
     if (rule !== 'G-09') return aim;
-    return CURLING_POWER.min + aim * (CURLING_POWER.max - CURLING_POWER.min);
+    const P = CURLING_POWER;
+    if (aim <= P.at) return P.min + (aim / P.at) * (P.knee - P.min);
+    return P.knee + ((aim - P.at) / (1 - P.at)) * (P.max - P.knee);
   }
   /** 物理の強さ → 見えている強さ。音の大きさなど「撞いた手応え」を出す側が使う */
   function aimPower(rule, phys) {
     if (rule !== 'G-09') return phys;
-    return (phys - CURLING_POWER.min) / (CURLING_POWER.max - CURLING_POWER.min);
+    const P = CURLING_POWER;
+    if (phys <= P.knee) return (phys - P.min) / (P.knee - P.min) * P.at;
+    return P.at + (phys - P.knee) / (P.max - P.knee) * (1 - P.at);
   }
 
   const TERRITORY_COLORS = ['#00e5ff', '#ff2d95', '#ffd400', '#b06cff'];
@@ -970,9 +998,21 @@ const BilliardsRules = (() => {
       result.message = 'lose.shotLimit';
     }
 
-    // ── デッドロックの計数（10.8.2節）
+    /*
+     * ── デッドロックの計数（10.8.2節）
+     *
+     * ★**撞ける回数が決まっているルールは見張らない**（利用者指示）。
+     * 陣取り（1人4打）とカーリング型（エンド数×持ち球）は、撞くたびに残りが1つ減り、
+     * 規定の回数で必ず終わる。10.8.1節のいう「決着へ向かって進まない状態」が起こりえない。
+     *
+     * ★実機で出た不具合そのもの ── カーリング型は**得点をエンドの終わりにまとめて数える**ので、
+     * 1投ごとの「得点が増えた」が常に 0 になり、玉も落ちず場外にも出ないため、
+     * **数え上がりが一度も 0 に戻らなかった。**実測：3つの台すべてで 12投目に達し、
+     * 全16投の対局の途中で毎回かならず「やり直しますか」の窓が出ていた。
+     */
     const progressed = result.pocketed.length > 0 || result.gained > 0 || result.offtable.length > 0;
-    game.deadlockCount = progressed ? 0 : game.deadlockCount + 1;
+    if (DEADLOCK_WATCH[rule] === false) game.deadlockCount = 0;
+    else game.deadlockCount = progressed ? 0 : game.deadlockCount + 1;
 
     game.lastFouls = fouls;
     game.lastPocketed = result.pocketed;
@@ -1673,7 +1713,7 @@ const BilliardsRules = (() => {
     makeRng, createGame, setupBalls, cueBallOf, liveObjects, legalTargets, groupOf,
     spotBall, homeBall, place, resolveShot, nextTurn, breakValid, detectDoubleHit,
     finishRanking, normAngle,
-    survivalGroups, survivalLeft, liveInGroup, SURVIVAL_COLORS, BREAK_VALID,
+    survivalGroups, survivalLeft, liveInGroup, SURVIVAL_COLORS, BREAK_VALID, DEADLOCK_WATCH,
     // カーリング型（7.9節）
     CURLING_STONES, CURLING_POWER, shotPower, aimPower,
     curlingArm, curlingStock, curlingDist, curlingEndScore, curlingAdvance,

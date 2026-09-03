@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.53';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.54';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -768,9 +768,7 @@
       S.phase = 'place';
       // ブレイクの初期位置はヘッドストリングの少し手前。そこから自由に動かせる
       // 台が既定の置き場所を持っていればそれを使う（ドーナツ型は長軸の上に線が出ない）
-      const head = g.table.breakSpot
-        ? { x: g.table.breakSpot.x, y: g.table.breakSpot.y }
-        : { x: g.table.headSpot.x - 160, y: g.table.headSpot.y };
+      const head = T.breakPlace(g.table);
       S.placePos = g.ballInHandFull ? { x: cue.x, y: cue.y } : head;
       // そこが置けない場所なら、台の内側へ引き戻したうえでヘッド側へ寄せる。
       // 台の形が変わると、決め打ちの座標が壁の外や玉の上に来ることがある
@@ -1158,7 +1156,6 @@
     }
 
     if (res.gameOver || g.over) { if (!quiet) endGameSoon(); return; }
-    if (!quiet && g.deadlockCount >= 12) { g.deadlockCount = 0; askDeadlock(true); return; }
 
     RU.nextTurn(g, res);
     /*
@@ -1203,6 +1200,19 @@
     }
 
     renderHUD();
+    /*
+     * ★**デッドロックの自動検出は、手番を進め終えてから訊く**（実機で出た不具合）。
+     *
+     * 以前は手番を進める前に訊いて、その場で処理を打ち切っていた。そのため
+     * **断ると手番が進まないまま・次の手番も始まらないまま止まった。**
+     * これはカーリング型に限らず**どのルールでも起きる**形で、
+     * 他のルールでは12手も進まないことがめったに無いので表に出ていなかっただけである。
+     *
+     * ここまで来ていれば盤面は次の手番の姿になっているので、
+     * **断られたらそのまま続きを始めればよい**（やり直しに同意されたときは
+     * どのみち局を組み直すので、先に進めておいても差し支えない）。
+     */
+    if (!quiet && g.deadlockCount >= 12) { g.deadlockCount = 0; askDeadlock(true); return; }
     // 次の手がもう届いているなら、見せる間合いを詰めて追いつく
     setTimeout(beginTurn, hasWaitingShot() ? 120 : 800);
   }
@@ -1379,7 +1389,8 @@
     S.dlVotes = {};
     openConfirm(t('dl.title'), t('dl.ask'),
       () => { if (!S.net.on) { redoRack(); return; } castVote(true); },
-      () => { if (!S.net.on) { setMsg(t('dl.refused')); return; } castVote(false); });
+      // ★断られたら**続きを始める**。ここで何もしないと対局が固まる（実機で出た不具合）
+      () => { if (!S.net.on) { setMsg(t('dl.refused')); beginTurn(); return; } castVote(false); });
   }
   function castVote(ok) {
     if (S.net.on && S.net.myIdx < 0) return;   // 席を持たない者は投票しない

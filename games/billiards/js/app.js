@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.59';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.60';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -1295,6 +1295,7 @@
      */
     const draw = g.winTeam < 0 && !g.failed;
     if (!watching) { if (won) AU.sfx('win'); else if (!draw) AU.sfx('lose'); }
+    voteReset();                            // 前の局の選択を持ち越さない（持ち越すと勝手に始まる）
     renderResult();
     openResult();                           // 盤面は消さない。上に重ねて出す
   }
@@ -1318,25 +1319,39 @@
     pop.style.left = Math.max(4, (pw - pop.offsetWidth) / 2) + 'px';
     pop.style.top = Math.max(4, (ph - pop.offsetHeight) / 2) + 'px';
   }
-  /** つまんで動かす。盤面の外へ出してしまうと戻せなくなるので枠内に留める */
+  /**
+   * つまんで動かす。
+   *
+   * **枠の外へはみ出してよい**（利用者指示：枠内に収める作りでは動かせる幅が狭すぎて盤が見えない）。
+   * ただし**つまみの帯が掴めなくなる位置には置けない**。置けてしまうと二度と戻せない。
+   *   ・左右は、帯が RP_KEEP だけ残るところまで
+   *   ・上は枠の内側まで（帯が上に隠れると掴めない）
+   *   ・下は帯が枠に残るところまで（本文は全部はみ出してよい）
+   * 盤の枠は はみ出しを切り落とす作り（overflow:hidden）なので、外の欄には重ならない。
+   */
+  const RP_KEEP = 80;
   (function enableResultDrag() {
     const bar = $('rp-bar'), pop = $('result-pop'), pane = $('board-pane');
     if (!bar || !pop || !pane) return;
     let d = null;
     bar.addEventListener('pointerdown', e => {
       d = { x: e.clientX, y: e.clientY, l: pop.offsetLeft, t: pop.offsetTop };
+      // 動かしている間は下の盤をはっきり見せる（利用者指示）
+      pop.classList.add('clear');
       try { bar.setPointerCapture(e.pointerId); } catch (err) {}
       e.preventDefault(); e.stopPropagation();
     });
     bar.addEventListener('pointermove', e => {
       if (!d) return;
-      const maxL = Math.max(0, pane.clientWidth - pop.offsetWidth);
-      const maxT = Math.max(0, pane.clientHeight - pop.offsetHeight);
-      pop.style.left = clamp(d.l + (e.clientX - d.x), 0, maxL) + 'px';
+      const keep = Math.min(RP_KEEP, pop.offsetWidth);
+      const minL = -(pop.offsetWidth - keep);
+      const maxL = Math.max(minL, pane.clientWidth - keep);
+      const maxT = Math.max(0, pane.clientHeight - bar.offsetHeight);
+      pop.style.left = clamp(d.l + (e.clientX - d.x), minL, maxL) + 'px';
       pop.style.top = clamp(d.t + (e.clientY - d.y), 0, maxT) + 'px';
       e.preventDefault(); e.stopPropagation();
     });
-    const end = e => { d = null; if (e) e.stopPropagation(); };
+    const end = e => { d = null; pop.classList.remove('clear'); if (e) e.stopPropagation(); };
     bar.addEventListener('pointerup', end);
     bar.addEventListener('pointercancel', end);
   })();
@@ -3744,14 +3759,14 @@
     $('btn-again').textContent = t(S.net.on ? 'res.backRoom' : 'res.again');
     /*
      * 通信対戦では、部屋へ戻らずそのまま次の局へ進める道を出す。
-     * **実際に局を始めるのは主催者だけ**（各端末が勝手に始めると別々の盤になる）。
-     * ★ただし**ゲストにもボタンを出す**（実機指摘：敗者＝ゲストが再戦を言い出せなかった）。
-     *   ゲストが押すと主催者へ「再戦したい」と伝え、主催者の端末が全員ぶんを始める。
-     *   観戦者は当事者ではないので出さない。
+     * **再戦は同意で成立する**ので、このボタンは「そうしたい」と伝えるだけ（castVote）。
+     * 押した人の端末がその場で始めていたのを改めた（実機指摘）。
+     * 観戦者は当事者ではないので出さない。
      */
     const online = S.net.on && S.net.role !== 'spectator';
-    $('btn-cont').style.display = online ? '' : 'none';
-    if (online) $('btn-cont').textContent = t(S.net.isHost ? 'res.contGame' : 'res.rematchReq');
+    $('choice-cont').style.display = online ? '' : 'none';
+    if (online) $('btn-cont').textContent = t('res.rematch');
+    renderVotes();
     const body = $('res-body'); body.innerHTML = '';
     // 並べるのはチーム。協力プレイでなければ1人＝1チームなので今までと同じ見え方になる
     const kind = RU.WIN_KIND[g.rule];
@@ -3879,6 +3894,12 @@
         const seat = S.game.players.findIndex(pl => pl.pid === gonePid);
         if (seat >= 0) retireSeat(seat, 'left');
       }
+      /*
+       * **結果を見ている最中に抜けたら、「メニューへ戻る」を選んだのと同じ扱い。**
+       * 選択を待っている人が、来ない返事を待ち続けて結果画面から動けなくなる。
+       */
+      if (gonePid && S.net.isHost && S.game && S.game.over) applyVote(gonePid, VOTE_HOME);
+      if (resultOpen()) renderResult();
       showRoom();
     } else if (kind === 'disconnected' || kind === 'kicked') {
       /*
@@ -4009,6 +4030,19 @@
     alertNote(t('lobby.title'), t('lobby.noSeat'));
     return -1;
   }
+  /**
+   * 配られた席順に自分が入っているか。
+   * **再戦に同意しなかった人の端末は、その局に入ってはいけない。**
+   * 入ると席が無いまま盤を見せられ、誰の番でもない画面で止まる。
+   * 観戦者にはそもそも席が無い（全部の局を見る）ので、ここでは外さない。
+   */
+  function seatedInList(names) {
+    if (S.net.role === 'spectator') return true;
+    const list = names || [];
+    if (!list.some(x => x.pid)) return true;    // 席にIDが無い古い経路は素通し
+    const me = myPid();
+    return !me || list.some(x => x.pid === me);
+  }
 
   function onNetMsg(p, from) {
     if (!p || !p.k) return;
@@ -4019,16 +4053,25 @@
     }
     if (p.k === 'ready') { setReady(p.pid || from, !!p.ok); return; }
     /*
-     * ★ゲストからの再戦の希望（実機指摘：敗者が再戦を言い出せなかった）。
-     * **受けて始めるのは主催者だけ。**局が終わって結果を見ている間だけ受け付ける
-     * （対局中や、主催者がすでに部屋へ戻ったあとに始めてしまわない）。
-     * 主催者の「続けてもう1戦」を押したのと同じ道を通すので、全員が同じ盤に入る。
+     * ★結果画面の選択（再戦する／部屋へ戻る／メニューへ戻る）。
+     * **集めて配るのは主催者だけ**（ゲスト同士は直につながっているとは限らない）。
+     * 始めるかどうかの判断も主催者の中（applyVote → maybeStartRematch）で1回だけ行う。
      */
-    if (p.k === 'cont-req') {
-      if (S.net.isHost && S.game && S.game.over && resultOpen()) {
-        closeResult();
-        startNetGame(contOrder(), true);
+    if (p.k === 'vote') { applyVote(p.pid || from, p.v); return; }
+    if (p.k === 'vmap') {
+      /*
+       * **自分の選択が入っていない表が来たら、もう一度出す。**
+       * 局が終わる時刻は端末ごとに違う（玉が止まるまでの見え方が人ごとに違うため）。
+       * 先に終わった人の選択が、あとから終わった主催者の「まっさらにする」で消える。
+       * 黙って消えると、その人だけが永久に未選択のまま残る。
+       */
+      const me = myPid(), mine = me ? (S.net.vote || {})[me] : '';
+      S.net.vote = p.map || {};
+      if (mine && me && !S.net.vote[me]) {
+        S.net.vote[me] = mine;
+        if (!S.net.isHost) NET.send({ k: 'vote', v: mine, pid: me }, 'host');
       }
+      if (resultOpen()) renderResult();
       return;
     }
     if (p.k === 'rmap') { S.net.ready = p.map || {}; showRoom(); return; }
@@ -4065,6 +4108,8 @@
     }
     if (p.k === 'start') {
       S.net.ready = {};                     // 局が始まったら準備完了の印は下ろす
+      // 席に自分がいない局には入らない（再戦に同意せず部屋へ戻った人）
+      if (!seatedInList(p.names)) { closeResult(); backToRoom(); return; }
       S.net.myIdx = seatIndexOfMe(p.names);
       startGame(p.seed, p.names, p.config, !!p.cont);
       return;
@@ -4400,11 +4445,129 @@
     NET.send({ k: 'ready', ok: on, pid }, 'host');
     showRoom();
   }
+  // ══════════════════════════════════════════════
+  //  再戦の合意（結果画面の投票・利用者指示）
+  // ══════════════════════════════════════════════
+  /*
+   * **再戦は同意で成立する。**押した人の端末がその場で次の局を始める作りだったので、
+   * まだ結果を見ている人が盤を取り上げられていた（実機指摘）。
+   *
+   * 決め方は待合室の「準備完了」と同じ形にした。
+   *   ・対局者は 再戦する／部屋へ戻る／メニューへ戻る のどれかを選ぶ（＝投票）
+   *   ・投票は主催者へ送り、**主催者が集めた表を全員へ配る。**
+   *     ゲスト同士が直につながっているとは限らないので、各自が配ると届かない相手が出る
+   *   ・全員が選び終えた時点で、**「再戦する」を選んだ人だけ**で次の局を始める（利用者指示）
+   *   ・残る人が1人になったら対局が成り立たないので、そのときは押せなくする
+   *   ・**主催者が戻った場合も再戦はできない。**局を配れるのも、追いつき直しを
+   *     組み直せるのも主催者の端末だけで、主催者の居ない局は進められない
+   *   ・抜けた人・切れた人は「戻る」を選んだのと同じ扱い（返事を待ち続けない）
+   */
+  const VOTE_AGAIN = 'again', VOTE_ROOM = 'room', VOTE_HOME = 'home';
+
+  /** 主催者の参加者ID。名簿が空の経路では自分が主催者かどうかで代える */
+  function hostPid() {
+    const r = (S.net.roster || []).find(x => x.role === 'host');
+    return r ? r.pid : (S.net.isHost ? myPid() : null);
+  }
+  /** 投票する人＝いま終わった局の席に着いていた人。観戦者には席が無いので入らない */
+  function voteSeats() {
+    const g = S.game;
+    if (!g || !g.players) return [];
+    return g.players.filter(p => p.pid && p.type === 'human');
+  }
+  /**
+   * その人の選択。**抜けた人・名簿から消えた人は「メニューへ戻る」と同じ扱い。**
+   * 返事の来ない相手を待ち続けると、残った全員が結果画面から動けなくなる。
+   */
+  function voteOf(pid) {
+    if (!pid) return '';
+    if (S.net.gone && S.net.gone[pid]) return VOTE_HOME;
+    const roster = S.net.roster || [];
+    if (roster.length && !roster.some(r => r.pid === pid)) return VOTE_HOME;
+    return (S.net.vote || {})[pid] || '';
+  }
+  /** いまの投票の内訳と、再戦がまだ成り立つかどうか */
+  function rematchState() {
+    const seats = voteSeats(), hp = hostPid();
+    const again = [], undecided = [];
+    seats.forEach(p => {
+      const v = voteOf(p.pid);
+      if (v === VOTE_AGAIN) again.push(p);
+      else if (!v) undecided.push(p);
+    });
+    const hostSeated = !!hp && seats.some(p => p.pid === hp);
+    const hv = hp ? voteOf(hp) : VOTE_HOME;
+    const hostOk = hostSeated && (hv === VOTE_AGAIN || !hv);
+    return {
+      seats, again, undecided, hostSeated, hostOk,
+      possible: hostOk && (again.length + undecided.length) >= 2,
+    };
+  }
+  /** 局が終わるたびに投票をまっさらにする。前の局の選択が残ると勝手に始まる */
+  function voteReset() {
+    S.net.vote = {};
+    if (S.net.on && S.net.isHost) NET.send({ k: 'vmap', map: {} });
+  }
+  /** 主催者だけが表を書き換えて配る（席順を配るのと同じ理由：決めるのは1か所） */
+  function applyVote(pid, v) {
+    if (!S.net.isHost || !pid) return;
+    S.net.vote = S.net.vote || {};
+    if (v) S.net.vote[pid] = v; else delete S.net.vote[pid];
+    NET.send({ k: 'vmap', map: S.net.vote });
+    if (resultOpen()) renderResult();
+    maybeStartRematch();
+  }
+  /** 自分の選択を出す。手元にも先に映す（主催者の返事を待って固まらないように） */
+  function castVote(v) {
+    const me = myPid();
+    if (!S.net.on || !me) return;
+    if (S.net.isHost) { applyVote(me, v); return; }
+    S.net.vote = S.net.vote || {};
+    S.net.vote[me] = v;
+    NET.send({ k: 'vote', v, pid: me }, 'host');
+    if (resultOpen()) renderResult();
+  }
+  /** 全員が選び終えて、再戦する人が2人以上そろったら始める（主催者の端末だけ） */
+  function maybeStartRematch() {
+    if (!S.net.isHost || !S.game || !S.game.over || !resultOpen()) return;
+    const st = rematchState();
+    if (st.undecided.length || !st.possible || st.again.length < 2) return;
+    // 結果画面は startGame の側で必ず畳まれる。始まらなかったときは開けたまま残す
+    startNetGame(contOrder(), true, st.again.map(p => p.pid));
+  }
+  /**
+   * 誰が何を選んだかを、**その選択肢のボタンの真下に名前で出す**（利用者指示）。
+   * 別の場所に一覧を置くと、ボタンとの対応を目で結び直さないと読めない。
+   */
+  function renderVotes() {
+    const wa = $('who-again'), wr = $('who-room'), wh = $('who-home'), note = $('res-vote-note');
+    const btn = $('btn-cont');
+    if (!wa || !wr || !wh || !note) return;
+    if (!S.net.on || !S.game) {
+      wa.textContent = wr.textContent = wh.textContent = ''; note.textContent = '';
+      if (btn) btn.disabled = false;        // 前の通信対局の灰色を持ち越さない
+      return;
+    }
+    const me = myPid(), st = rematchState();
+    const nameOf = p => (p.pid === me ? t('res.voteYou') : p.name);
+    const pick = v => st.seats.filter(p => voteOf(p.pid) === v).map(nameOf).join('\n');
+    wa.textContent = pick(VOTE_AGAIN);
+    wr.textContent = pick(VOTE_ROOM);
+    wh.textContent = pick(VOTE_HOME);
+    const mine = voteOf(me);
+    if (btn) btn.disabled = !st.possible || mine === VOTE_AGAIN;
+    note.textContent =
+      !st.possible ? t(st.hostOk ? 'res.voteOffAlone' : 'res.voteOffHost')
+        : st.undecided.length ? t('res.voteNone', { names: st.undecided.map(nameOf).join('、') })
+          : mine === VOTE_AGAIN ? t('res.voteWait') : '';
+  }
+
   /**
    * @param {Array}   order 席順を指定して始める（続きの局）。省略すると名簿から作る
    * @param {boolean} cont  続きの局か（バンキングをしない）
+   * @param {Array}   only  参加する人の参加者IDだけに絞る（再戦に同意した人だけの局）
    */
-  function startNetGame(order, cont) {
+  function startNetGame(order, cont, only) {
     /*
      * 続きの局では前回の席順を回したものを使う。ただし**いま部屋にいる人だけ**にする。
      * 抜けた人を席に残すと、その人の番を全員が待ち続けることになる。
@@ -4418,6 +4581,18 @@
       const merged = kept.concat(added);
       if (merged.length) names = merged;
     }
+    /*
+     * 再戦に同意した人だけの局。**同意しなかった人を席に残さない。**
+     * 残すと、部屋へ戻った人の番が回ってきて誰も撞けなくなる。
+     * 席から外れた人は start を受け取っても入らない（seatedInList）。
+     *
+     * **絞った結果が2人に満たなければ、始めない**（同意した人が部屋から居なくなった場合）。
+     * ここで「絞る前の顔ぶれ」に戻す逃げ道を作ると、戻ると言った人を巻き込んで始めてしまう。
+     */
+    if (only && only.length) {
+      names = names.filter(x => x.pid && only.indexOf(x.pid) >= 0);
+      if (names.length < 2) return false;
+    }
     const seed = newSeed();
     NET.send({ k: 'start', seed, config: netConfig(), names, cont: !!cont });
     /*
@@ -4429,6 +4604,7 @@
     NET.send({ k: 'rmap', map: {} });
     S.net.myIdx = seatIndexOfMe(names);
     startGame(seed, names, null, !!cont);
+    return true;
   }
 
   /**
@@ -4584,34 +4760,32 @@
   };
   $('btn-again').onclick = () => {
     AU.sfx('button');
+    // 通信対戦では「部屋へ戻る」。**戻ることも選択の1つ**なので、出る前に必ず伝える
+    if (S.net.on) { castVote(VOTE_ROOM); closeResult(); backToRoom(); return; }
     closeResult();
-    if (S.net.on) { backToRoom(); return; }   // 通信対戦は自分だけでは始められない
     // 続きの局。バンキングはやり直さず、ブレイク権の決め方で席順を回す
     startGame(newSeed(), contOrder(), null, true);
   };
   /**
-   * 通信対戦で、部屋へ戻らずそのまま次の局を始める。
-   * **始められるのは主催者だけ。**各端末が勝手に始めると別々の盤を見ることになる。
-   * 席順（＝誰がブレイクするか）も主催者が決めて配る。
-   * 各端末で数えると、名簿の並びが1つずれた瞬間に別の人が先手になる。
+   * 通信対戦の「再戦する」。**押しても始まらない。**選択を出すだけ。
+   * 全員が選び終えて、再戦する人が2人以上そろったときに、主催者の端末が始めて配る
+   * （各端末が勝手に始めると別々の盤を見ることになる。席順を配るのも主催者だけ）。
    */
   $('btn-cont').onclick = () => {
     if (!S.net.on || !S.game) return;
     AU.sfx('button');
-    if (S.net.isHost) {
-      closeResult();
-      startNetGame(contOrder(), true);
-      return;
-    }
-    /*
-     * ★ゲストは自分では始められない（別々の盤になる）。**主催者へ再戦を頼む。**
-     * 結果画面は開けたままにして「待っています」を出す。主催者が始めれば
-     * こちらの端末にも start が届いて、自動でその局に入る。
-     */
-    NET.send({ k: 'cont-req' }, 'host');
-    setMsg(t('res.rematchWait'));
+    castVote(VOTE_AGAIN);
   };
-  $('btn-to-setup').onclick = () => { AU.sfx('button'); closeResult(); show('home'); };
+  $('btn-to-setup').onclick = () => {
+    AU.sfx('button');
+    /*
+     * メニューへ戻る＝この部屋から抜ける。
+     * **抜けることを土台へ伝えてから出る。**伝えずに画面だけ切り替えていたので、
+     * 残った人からは、その人がまだ部屋に居るように見え続けていた。
+     */
+    if (S.net.on) { castVote(VOTE_HOME); NET.leave(); S.net.on = false; }
+    closeResult(); show('home');
+  };
   $('lang-select').onchange = e => { I.setMode(e.target.value); applyLang(); };
 
   function newSeed() { return (Math.random() * 4294967296) >>> 0; }

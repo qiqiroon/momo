@@ -182,6 +182,12 @@ const BilliardsI18N = (() => {
       'brk.note.loser': '負けた人がブレイクします。順位が1位しか決まらないルールでは、勝った人の次の人が撞きます',
       'res.contGame': '続けてもう1戦',
       'res.rematchReq': '再戦を希望する', 'res.rematchWait': '主催者に再戦を伝えました。始まるのを待っています',
+      // 再戦は投票で決める（9.5.9節）。ボタンの真下に、それを選んだ人の名前を出す
+      'res.rematch': '再戦する',
+      'res.voteYou': 'あなた', 'res.voteNone': '未選択：{names}',
+      'res.voteWait': '他の参加者の選択を待っています',
+      'res.voteOffAlone': '他の参加者が戻ったため、再戦はできません',
+      'res.voteOffHost': '主催者が戻ったため、再戦はできません',
 
       'bank.how': '先手を決めます。向こうの壁に当てて戻し、手前の壁に近く止めた人が先手です。強さは表示されず、毎回わずかにずれます',
       'bank.turn': 'バンキング — 次の人が撞きます',
@@ -409,6 +415,11 @@ const BilliardsI18N = (() => {
       'brk.note.loser': 'The loser breaks. In rules that decide only first place, the player after the winner breaks.',
       'res.contGame': 'Play another',
       'res.rematchReq': 'Ask for a rematch', 'res.rematchWait': 'Asked the host for a rematch — waiting for it to start.',
+      'res.rematch': 'Rematch',
+      'res.voteYou': 'You', 'res.voteNone': 'Undecided: {names}',
+      'res.voteWait': 'Waiting for the other players to choose.',
+      'res.voteOffAlone': 'The other players have left, so a rematch is not possible.',
+      'res.voteOffHost': 'The host has left, so a rematch is not possible.',
 
       'bank.how': 'Lagging for the break. Hit the far rail and come back — closest to the near rail breaks. The power reading is hidden and wobbles slightly on every lag.',
       'bank.turn': 'Lag — next player shoots',
@@ -636,6 +647,11 @@ const BilliardsI18N = (() => {
       'brk.note.loser': '由落败者开球。在只决出第一名的规则中，由获胜者的下一位开球。',
       'res.contGame': '再来一局',
       'res.rematchReq': '请求再战', 'res.rematchWait': '已向房主请求再战，等待开始。',
+      'res.rematch': '再战',
+      'res.voteYou': '你', 'res.voteNone': '尚未选择：{names}',
+      'res.voteWait': '正在等待其他参加者选择。',
+      'res.voteOffAlone': '其他参加者已离开，无法再战。',
+      'res.voteOffHost': '房主已离开，无法再战。',
 
       'bank.how': '决定谁先开球。撞到对面库边后回来，停得离近侧库边最近的人先开球。力度不显示，且每次都会略有偏差。',
       'bank.turn': '争开球权 — 下一位击球',

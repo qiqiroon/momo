@@ -351,6 +351,9 @@ body.debug #dbg{display:block;}
 #bowl-board .cap{color:var(--text-muted);font-size:10px;margin:0 0 3px;}
 /* 1つの枠に「投の記号」と「確定した累計」を上下に積む（現実のスコアシートと同じ） */
 #bowl-board .bm{display:block;font-size:10px;color:var(--text-muted);min-height:12px;white-space:nowrap;}
+/* ストライク・スペアの印。文字ではなく図形で描く（書体で形が変わらないように） */
+#bowl-board .bmk{width:9px;height:9px;vertical-align:-1px;color:var(--orange-light);}
+#bowl-board .bmk + .bmk{margin-left:1px;}
 #bowl-board .bc{display:block;font-weight:700;min-height:13px;white-space:nowrap;}
 @media (max-width:860px){
   /* 盤面を上、周辺領域を下部へ圧縮して並べる（4.10.3節）。

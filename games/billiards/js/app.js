@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.63';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.64';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -1051,6 +1051,11 @@
     if (!cue) { requestResync(); return; }
     if (place) { RU.place(cue, place.x, place.y); g.ballInHand = false; g.ballInHandFull = false; }
 
+    /*
+     * ★ボウリング型の「動いた跡」は**前の一投のもの**なので、撞き始めたら消す。
+     * 残したまま投げると、転がっている玉に前回の線が重なって読めなくなる。
+     */
+    if (g.rule === 'G-11' && g.bowling) g.bowling.moves = null;
     g.history.push({ n: g.shotNo, shot: Object.assign({}, shot), place: place || null });
     S.replay = { balls: g.world.balls.map(b => Object.assign({}, b)), shot: Object.assign({}, shot), turn: g.turn };
 
@@ -1988,6 +1993,8 @@
     if (g.rule === 'G-06' && g.territory) drawTerritory();
     // カーリング型の目標円とホグ円（7.9.2節）。同じくクロスの上・玉の下
     if (g.rule === 'G-09' && g.curling) drawHouse();
+    // ボウリング型の「動いた跡」（利用者指示）。クロスの上・玉の下に敷く
+    if (g.rule === 'G-11' && g.bowling && g.bowling.moves) drawBowlMoves();
     // ダイヤ（レール上の目印）。位置は外周の辺から決まる（形ごとの並べ書きはしない）
     ctx.fillStyle = 'rgba(255,240,215,.55)';
     const off = thick / s * .5;                 // 枠の帯の真ん中まで外へ出す
@@ -2047,6 +2054,72 @@
     drawDroppedFlash();
     fadeBoardOverlays(view.mobile);   // 盤面に重ねた表示を、狙いにかぶるぶんだけ薄くする
     if (S.elevAdjusting) drawElevOverlay();
+  }
+
+  /**
+   * ★ボウリング型で、**ピンが一投でどこからどこへ動いたか**を盤に描く（利用者指示）。
+   *
+   * このルールの「倒れた」は**並べ直した位置からの移動距離**で決まる（7.11.3節）。
+   * 2Dの盤に転倒する絵が無いぶん、**その距離そのものを見せる**のが説明になる。
+   *
+   *   ・倒れた（数えた）… 橙の実線。終点に丸、始点に小さな輪
+   *   ・残った（数えない）… 灰色の破線
+   *   ・線の真ん中に移動量（mm）。**閾値の何倍か**が読めるよう、閾値も一度だけ添える
+   *
+   * ★**倒れた玉は盤から取り除かれている**ので、ここで描く終点は
+   *   ルール側が取り除く前に控えた値である（rules.js の bowling.moves）。
+   */
+  function drawBowlMoves() {
+    const g = S.game, mv = g.bowling.moves, s = view.s;
+    if (!mv || !mv.length) return;
+    const thr = RU.BOWL_DOWN;
+    ctx.save();
+    tablePath(g.table); ctx.clip('evenodd');
+    for (const m of mv) {
+      if (m.dist < 0.5) continue;                 // 動いていない玉に線は要らない
+      const p0 = toScreen(m.x0, m.y0), p1 = toScreen(m.x1, m.y1);
+      ctx.beginPath();
+      ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y);
+      ctx.lineWidth = m.down ? 2 : 1.4;
+      ctx.strokeStyle = m.down ? 'rgba(251,146,60,.95)' : 'rgba(148,163,184,.75)';
+      ctx.setLineDash(m.down ? [] : [4, 4]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // 始点＝並べたところ
+      ctx.beginPath(); ctx.arc(p0.x, p0.y, Math.max(2, 5 * s), 0, 7);
+      ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 1; ctx.stroke();
+      // 終点＝止まったところ（落ちた・場外へ出た玉は×で示す）
+      if (m.gone) {
+        const r = Math.max(3, 7 * s);
+        ctx.beginPath();
+        ctx.moveTo(p1.x - r, p1.y - r); ctx.lineTo(p1.x + r, p1.y + r);
+        ctx.moveTo(p1.x + r, p1.y - r); ctx.lineTo(p1.x - r, p1.y + r);
+        ctx.strokeStyle = 'rgba(251,146,60,.95)'; ctx.lineWidth = 2; ctx.stroke();
+      } else {
+        ctx.beginPath(); ctx.arc(p1.x, p1.y, Math.max(2.2, 6 * s), 0, 7);
+        ctx.fillStyle = m.down ? 'rgba(251,146,60,.95)' : 'rgba(148,163,184,.85)';
+        ctx.fill();
+      }
+      // 移動量。線の真ん中へ小さく
+      const mx = (p0.x + p1.x) / 2, my = (p0.y + p1.y) / 2;
+      ctx.font = '600 10px "Noto Sans JP",sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const label = Math.round(m.dist) + (m.gone ? '' : '');
+      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.75)';
+      ctx.strokeText(label, mx, my);
+      ctx.fillStyle = m.down ? '#fdba74' : '#cbd5e1';
+      ctx.fillText(label, mx, my);
+    }
+    // 「何mm 動いたら倒れた扱いか」を一度だけ添える。数字だけでは基準が分からない
+    const q = toScreen(g.table.headSpot.x, g.table.headSpot.y);
+    ctx.font = '600 10px "Noto Sans JP",sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const cap = t('bowl.moveCap', { n: thr });
+    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.75)';
+    ctx.strokeText(cap, q.x, q.y);
+    ctx.fillStyle = 'rgba(255,255,255,.7)';
+    ctx.fillText(cap, q.x, q.y);
+    ctx.restore();
   }
 
   /**
@@ -3766,9 +3839,9 @@
         h += '<td class="nm">' + escapeHtml(p.name) + '</td>';
         for (let f = from; f < to; f++) {
           const rolls = L.frames[f];
-          const marks = rolls ? bowlMarks(rolls) : '';
+          const marks = rolls ? bowlMarkHTML(rolls) : '';
           const cum = (L.cum[f] != null) ? L.cum[f] : '';
-          h += '<td><span class="bm">' + escapeHtml(marks) + '</span>'
+          h += '<td><span class="bm">' + marks + '</span>'
             + '<span class="bc">' + escapeHtml(String(cum)) + '</span></td>';
         }
         h += '<td class="tot">' + (isLastPart ? p.score : '') + '</td></tr>';
@@ -3778,12 +3851,33 @@
     return h;
   }
 
-  /**
-   * 1フレームぶんの投の記号。現実のスコアシートと同じ書き方にする。
-   *   X ＝ ストライク／ / ＝ スペア／ − ＝ 0本／ 数字 ＝ その本数
+  /*
+   * 1フレームぶんの投の印。**現実のスコアシートと同じ印を、文字ではなく図形で描く**（利用者指示）。
    *
-   * ★**「10フレーム目かどうか」は見ない。**見分けの material は
-   *   「その投の前にピンが並べ直されていたか」だけで足りる。
+   * ★**文字の「X」は使わない。**書体によって太さも傾きもそろわず、
+   *   スペアの「塗りつぶした三角」と並べたときに印に見えない。
+   *   線を2本引いた図形にすれば、大きさを変えても同じ形で出る。
+   *
+   *   ストライク … 枠いっぱいの ✕（線2本）
+   *   スペア     … 右下を塗りつぶした三角
+   *   0本        … −／それ以外 … その本数の数字
+   */
+  const BOWL_STRIKE_MARK = 'X';
+  const BOWL_SPARE_MARK = '/';
+  const BOWL_MARK_SVG = {
+    X: '<svg class="bmk" viewBox="0 0 10 10" aria-label="strike">'
+      + '<path d="M1.4 1.4L8.6 8.6M8.6 1.4L1.4 8.6" fill="none" stroke="currentColor"'
+      + ' stroke-width="1.7" stroke-linecap="round"/></svg>',
+    '/': '<svg class="bmk" viewBox="0 0 10 10" aria-label="spare">'
+      + '<path d="M9.2 0.8L9.2 9.2L0.8 9.2Z" fill="currentColor"/></svg>',
+  };
+  /** 印の並びを画面へ出す形にする。図形はそのまま、数字だけ escape する */
+  function bowlMarkHTML(rolls) {
+    return bowlMarks(rolls).map(m => BOWL_MARK_SVG[m] || escapeHtml(m)).join('');
+  }
+  /**
+   * ★**「10フレーム目かどうか」は見ない。**見分けに要るのは
+   *   「その投の前にピンが並べ直されていたか」だけである。
    *   ストライク・スペアの直後は必ず並べ直されるので、そこで前の投を忘れる。
    *   10フレーム目を別扱いにすると、0本→10本（＝スペア）をストライクと書いてしまう。
    */
@@ -3791,17 +3885,18 @@
     const P = RU.BOWL_PINS, out = [];
     let prev = null;
     rolls.forEach(v => {
-      if (v === P && prev == null) out.push('X');
-      else if (prev != null && prev + v === P) out.push('/');
+      if (v === P && prev == null) out.push(BOWL_STRIKE_MARK);
+      else if (prev != null && prev + v === P) out.push(BOWL_SPARE_MARK);
       else out.push(v === 0 ? '-' : String(v));
-      prev = (out[out.length - 1] === 'X' || out[out.length - 1] === '/') ? null : v;
+      const last = out[out.length - 1];
+      prev = (last === BOWL_STRIKE_MARK || last === BOWL_SPARE_MARK) ? null : v;
     });
     /*
-     * ★**記号のあいだに空きを入れない。**1文字＝1投で、10本は必ず X か / になるから
+     * ★**印のあいだに空きを入れない。**1つ＝1投で、10本は必ずストライクかスペアの印になるから
      *   2桁の数字は出てこず、詰めても読み違えない。
      *   空きを入れると 10フレーム目（最大3投）の欄が 212px の枠から溢れる（実測）。
      */
-    return out.join('');
+    return out;
   }
 
   /*

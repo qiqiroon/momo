@@ -53,10 +53,20 @@ const BilliardsRules = (() => {
      *   ・V-01 空振り … 適用しない（7.2.4節）。現実のガター（溝）にあたるもので、
      *     何にも当たらなければ 0 本というだけ。ファウルにはしない
      *   ・V-02 対象違い／V-03 無クッション … 「最初に当てるべき玉」が無い。適用しない
-     *   ・**V-04 スクラッチは適用する。**カーリング型と違い、手玉と的球（ピン）の区別がある。
-     *     キャロム版台ではポケットが無いので、そもそも成立しない（7.2.4節の但し書き）
+     *
+     * ★**V-04 スクラッチも適用しない**（利用者指示。仕様書 7.2.4節の改訂）。
+     *   現実のボウリングでは、投げた玉はピンを倒したあとピットへ落ちる ── それがふつうの姿で、
+     *   反則ではない。この台でポケットへ落ちるのは、その「ピットへ落ちる」に当たる。
+     *   **手玉は次の投の前に必ず投球位置へ戻る**ので、落ちても失うものが無い。
+     *   カーリング型で V-04 を外したのと同じ筋（D399）である。
+     *
+     *   ★V-05 場外も外す。ポケットあり台では手玉の場外を V-04 が受け（D396）、
+     *   ポケットの無い台では V-05 が受ける ── 片方だけ外すと、**キャロム版台でだけ
+     *   手玉の落下が反則になる**という、台の形で結果が変わる状態ができる。
+     *   ピンが場外へ出た場合も、7.11.3節が「倒れたものとみなす」と定めており、
+     *   ここで反則にするとその一投ぶんの得点が丸ごと消えて食い違う。
      */
-    'G-11': { 'V-01': 0, 'V-02': 0, 'V-03': 0, 'V-04': 1, 'V-05': 1, 'V-06': 1, 'V-07': 1, 'V-08': 1, 'V-09': 1 },
+    'G-11': { 'V-01': 0, 'V-02': 0, 'V-03': 0, 'V-04': 0, 'V-05': 0, 'V-06': 1, 'V-07': 1, 'V-08': 1, 'V-09': 1 },
   };
 
   // 罰則の分類（7.2.5節）
@@ -184,6 +194,11 @@ const BilliardsRules = (() => {
   const BOWL_FRAMES = 10;        // 1ゲームのフレーム数（7.11.4節。利用者の選択で10固定）
   const BOWL_PINS = 10;          // ピンの本数（7.11.2節）
   const BOWL_PIN_COLOR = '#dc2626';
+  /*
+   * ★**手玉は黒**（利用者指示）。現実のボウリングの球に合わせる。
+   * 白いままだと、白い胴のピン10本の中に紛れて、どれが自分の球か分からない。
+   */
+  const BOWL_BALL_COLOR = '#1c1c1c';
   /*
    * ★**「倒れた」とみなす移動距離**（付録B送りの具体値。7.11.3節・7.13節）。
    *
@@ -470,11 +485,18 @@ const BilliardsRules = (() => {
        */
       const L = T.bowlingLayout(table);
       balls.push(E.makeBall({
-        id: id++, num: 0, kind: 'cue', r: R, x: L.throwPos.x, y: L.throwPos.y, color: '#f4f4f4',
+        id: id++, num: 0, kind: 'cue', r: R, x: L.throwPos.x, y: L.throwPos.y,
+        color: BOWL_BALL_COLOR,
       }));
+      /*
+       * ★**番号は現実のボウリングと同じ振り方**（利用者指示）。
+       *   投げる人から見て手前が1番、そこから奥へ 2-3／4-5-6／7-8-9-10 と並ぶ。
+       *   ピンの置き場所（L.cells）が先頭の1本から奥へ並ぶ順で作られているので、
+       *   **並び順にそのまま 1 から振れば現実と同じ番号になる**。
+       */
       L.cells.forEach((c, i) => {
         const b = E.makeBall({
-          id: id++, num: 0, kind: 'object', r: R, x: c.x, y: c.y,
+          id: id++, num: i + 1, kind: 'object', r: R, x: c.x, y: c.y,
           color: BOWL_PIN_COLOR, stripe: true,
         });
         b.pin = i;                  // 何番目のピンか。並べ直すときの行き先になる
@@ -486,6 +508,13 @@ const BilliardsRules = (() => {
         frames: game.players.map(() => []),
         start: {},                  // 並べ直した時点の位置（倒れ判定の基準。7.11.3節）
         voidRoll: false,            // この一投はファウルで0本と数える（7.2.5節・得点型）
+        /*
+         * ★**一投ぶんの「どこからどこへ動いたか」**（利用者指示）。
+         *   倒れた・残ったの見分けは動いた距離で決まる（7.11.3節）ので、
+         *   その距離を盤に描いて見せる。倒れた玉は盤から取り除かれるため、
+         *   **取り除く前にここへ控えておかないと、あとから描きようがない。**
+         */
+        moves: null,
         msg: null,
       };
       game.players.forEach(p => { p.score = 0; });
@@ -1678,6 +1707,11 @@ const BilliardsRules = (() => {
     const before = bowlStanding(game);
     let n = 0;
 
+    /*
+     * ★**動いた跡を控える**（利用者指示。描くのは app.js）。
+     *   倒れた玉はこのあと盤から取り除くので、取り除く前に始点と終点を控える。
+     */
+    const moves = [];
     if (bw.voidRoll) {
       /*
        * ★**ファウルした投は 0 本と数え、倒れたピンを元へ戻す**（7.2.5節・得点型）。
@@ -1700,10 +1734,18 @@ const BilliardsRules = (() => {
       for (const b of game.world.balls) {
         if (b.pin == null || f.down[b.id]) continue;
         const st = bw.start[b.id];
-        const down = (b.state !== 'live') || Math.hypot(b.x - st.x, b.y - st.y) >= BOWL_DOWN;
+        const dist = Math.hypot(b.x - st.x, b.y - st.y);
+        // ポケットへ落ちた玉・場外へ出た玉は、動いた距離によらず倒れたものとみなす
+        const gone = (b.state !== 'live');
+        const down = gone || dist >= BOWL_DOWN;
+        moves.push({
+          num: b.num, x0: st.x, y0: st.y, x1: b.x, y1: b.y,
+          dist: dist, down: down, gone: gone,
+        });
         if (down) { f.down[b.id] = 1; n++; b.state = 'gone'; b.onTable = false; }
       }
     }
+    bw.moves = moves.length ? moves : null;
     bw.voidRoll = false;
     f.rolls.push(n);
     game.inningNo++;

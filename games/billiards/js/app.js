@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.64';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.65';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -2062,64 +2062,82 @@
    * このルールの「倒れた」は**並べ直した位置からの移動距離**で決まる（7.11.3節）。
    * 2Dの盤に転倒する絵が無いぶん、**その距離そのものを見せる**のが説明になる。
    *
-   *   ・倒れた（数えた）… 橙の実線。終点に丸、始点に小さな輪
-   *   ・残った（数えない）… 灰色の破線
-   *   ・線の真ん中に移動量（mm）。**閾値の何倍か**が読めるよう、閾値も一度だけ添える
+   *   ・**玉は元の位置に戻さず、止まった場所に置いたまま描く**（利用者指示）。
+   *     倒れた玉は盤から取り除かれているので、ここで薄い玉として置き直す。
+   *     残った玉は盤にそのままあるので、線だけを引く。
+   *   ・**倒れた＝灰色／残った＝橙**（利用者指示）
+   *   ・**移動量は行き先のそば**に出す。線の真ん中に出すと、10本ぶんの線が
+   *     狭い三角形から放射状に伸びるので**数字どうしが重なって読めない**（実機の指摘）。
    *
-   * ★**倒れた玉は盤から取り除かれている**ので、ここで描く終点は
-   *   ルール側が取り除く前に控えた値である（rules.js の bowling.moves）。
+   * ★**元の位置には何も置かない。**丸を描くと「玉が元の場所に戻った」ように見える。
    */
+  const BOWL_MOVE_MIN = 3;      // これ未満しか動いていない玉は、線も数字も出さない（mm）
   function drawBowlMoves() {
     const g = S.game, mv = g.bowling.moves, s = view.s;
     if (!mv || !mv.length) return;
-    const thr = RU.BOWL_DOWN;
+    const DOWN = 'rgba(148,163,184,';       // 倒れた＝灰色
+    const STAY = 'rgba(251,146,60,';        // 残った＝橙
     ctx.save();
     tablePath(g.table); ctx.clip('evenodd');
+    // ① 線を先に全部引く（玉より下に敷く）
     for (const m of mv) {
-      if (m.dist < 0.5) continue;                 // 動いていない玉に線は要らない
+      // ★ごく僅かな揺れ（数 mm）には線も数字も出さない。出すと狭い三角形のまわりに
+      //   読めない数字が並ぶだけになる（実機の指摘）
+      if (m.dist < BOWL_MOVE_MIN) continue;
       const p0 = toScreen(m.x0, m.y0), p1 = toScreen(m.x1, m.y1);
+      const col = m.down ? DOWN : STAY;
       ctx.beginPath();
       ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y);
-      ctx.lineWidth = m.down ? 2 : 1.4;
-      ctx.strokeStyle = m.down ? 'rgba(251,146,60,.95)' : 'rgba(148,163,184,.75)';
-      ctx.setLineDash(m.down ? [] : [4, 4]);
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = col + '.95)';
       ctx.stroke();
-      ctx.setLineDash([]);
-      // 始点＝並べたところ
-      ctx.beginPath(); ctx.arc(p0.x, p0.y, Math.max(2, 5 * s), 0, 7);
-      ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 1; ctx.stroke();
-      // 終点＝止まったところ（落ちた・場外へ出た玉は×で示す）
-      if (m.gone) {
-        const r = Math.max(3, 7 * s);
-        ctx.beginPath();
-        ctx.moveTo(p1.x - r, p1.y - r); ctx.lineTo(p1.x + r, p1.y + r);
-        ctx.moveTo(p1.x + r, p1.y - r); ctx.lineTo(p1.x - r, p1.y + r);
-        ctx.strokeStyle = 'rgba(251,146,60,.95)'; ctx.lineWidth = 2; ctx.stroke();
-      } else {
-        ctx.beginPath(); ctx.arc(p1.x, p1.y, Math.max(2.2, 6 * s), 0, 7);
-        ctx.fillStyle = m.down ? 'rgba(251,146,60,.95)' : 'rgba(148,163,184,.85)';
-        ctx.fill();
-      }
-      // 移動量。線の真ん中へ小さく
-      const mx = (p0.x + p1.x) / 2, my = (p0.y + p1.y) / 2;
-      ctx.font = '600 10px "Noto Sans JP",sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      const label = Math.round(m.dist) + (m.gone ? '' : '');
-      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.75)';
-      ctx.strokeText(label, mx, my);
-      ctx.fillStyle = m.down ? '#fdba74' : '#cbd5e1';
-      ctx.fillText(label, mx, my);
+      // 出発点は小さな点だけ。玉に見える大きさにしない
+      ctx.beginPath(); ctx.arc(p0.x, p0.y, Math.max(1.4, 2.4 * s), 0, 7);
+      ctx.fillStyle = col + '.9)'; ctx.fill();
     }
-    // 「何mm 動いたら倒れた扱いか」を一度だけ添える。数字だけでは基準が分からない
-    const q = toScreen(g.table.headSpot.x, g.table.headSpot.y);
-    ctx.font = '600 10px "Noto Sans JP",sans-serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const cap = t('bowl.moveCap', { n: thr });
-    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.75)';
-    ctx.strokeText(cap, q.x, q.y);
-    ctx.fillStyle = 'rgba(255,255,255,.7)';
-    ctx.fillText(cap, q.x, q.y);
+    // ② 倒れて盤から消えた玉を、止まった場所へ薄く置き直す
+    for (const m of mv) {
+      if (!m.down) continue;                      // 残った玉は盤に本物がある
+      const p1 = toScreen(m.x1, m.y1);
+      const r = T.R * s;
+      if (m.gone) {
+        // ポケットへ落ちた・場外へ出た玉は、玉ではなく × で示す
+        const k = Math.max(3, r * .8);
+        ctx.beginPath();
+        ctx.moveTo(p1.x - k, p1.y - k); ctx.lineTo(p1.x + k, p1.y + k);
+        ctx.moveTo(p1.x + k, p1.y - k); ctx.lineTo(p1.x - k, p1.y + k);
+        ctx.strokeStyle = DOWN + '.95)'; ctx.lineWidth = 2.4; ctx.stroke();
+      } else {
+        ctx.save();
+        ctx.globalAlpha = .42;
+        drawBallIcon(p1.x, p1.y, r, RU.BOWL_PIN_COLOR, true, m.num, false);
+        ctx.restore();
+        ctx.beginPath(); ctx.arc(p1.x, p1.y, r, 0, 7);
+        ctx.strokeStyle = DOWN + '.9)'; ctx.lineWidth = 2; ctx.stroke();
+      }
+    }
     ctx.restore();
+    /*
+     * ③ 移動量。行き先の少し先へ、線の向きに沿って置く。
+     *
+     * ★**台の内側だけに切り取る枠の外で描く。**枠の中で描くと、
+     *   壁ぎわで止まった玉の数字が台の外へはみ出して**切り取られ、消える**
+     *   （実測：いちばん奥まで飛んだ玉の 401mm が出ていなかった）。
+     */
+    ctx.font = '700 11px "Noto Sans JP",sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (const m of mv) {
+      if (m.dist < BOWL_MOVE_MIN) continue;
+      const p0 = toScreen(m.x0, m.y0), p1 = toScreen(m.x1, m.y1);
+      const dx = p1.x - p0.x, dy = p1.y - p0.y, len = Math.hypot(dx, dy) || 1;
+      const off = T.R * s + 11;
+      const lx = p1.x + dx / len * off, ly = p1.y + dy / len * off;
+      const label = Math.round(m.dist) + 'mm';
+      ctx.lineWidth = 3.5; ctx.strokeStyle = 'rgba(0,0,0,.8)';
+      ctx.strokeText(label, lx, ly);
+      ctx.fillStyle = m.down ? '#cbd5e1' : '#fdba74';
+      ctx.fillText(label, lx, ly);
+    }
   }
 
   /**

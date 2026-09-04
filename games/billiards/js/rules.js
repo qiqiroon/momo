@@ -21,7 +21,7 @@ const BilliardsRules = (() => {
   };
   const CAROM_COLORS = ['#f4f4f4', '#f2c00e', '#8fd14f', '#60a5fa', '#c084fc', '#f472b6'];
 
-  const RULE_IDS = ['G-01', 'G-02', 'G-03', 'G-04', 'G-06', 'G-08', 'G-09'];
+  const RULE_IDS = ['G-01', 'G-02', 'G-03', 'G-04', 'G-06', 'G-08', 'G-09', 'G-11'];
 
   // 適用するファウル（7.2.4節）。第1段階の4ルールぶんだけを持つ。
   const FOUL_TABLE = {
@@ -48,22 +48,35 @@ const BilliardsRules = (() => {
      *     ファウルの罰は科さない。落ちた玉は restoreBalls が gone にするので二重に数えることもない。
      */
     'G-09': { 'V-01': 0, 'V-02': 0, 'V-03': 0, 'V-04': 0, 'V-05': 1, 'V-06': 1, 'V-07': 1, 'V-08': 1, 'V-09': 1 },
+    /*
+     * ボウリング型（7.11.1節・7.2.4節）。**手玉でピンを狙うルール**である。
+     *   ・V-01 空振り … 適用しない（7.2.4節）。現実のガター（溝）にあたるもので、
+     *     何にも当たらなければ 0 本というだけ。ファウルにはしない
+     *   ・V-02 対象違い／V-03 無クッション … 「最初に当てるべき玉」が無い。適用しない
+     *   ・**V-04 スクラッチは適用する。**カーリング型と違い、手玉と的球（ピン）の区別がある。
+     *     キャロム版台ではポケットが無いので、そもそも成立しない（7.2.4節の但し書き）
+     */
+    'G-11': { 'V-01': 0, 'V-02': 0, 'V-03': 0, 'V-04': 1, 'V-05': 1, 'V-06': 1, 'V-07': 1, 'V-08': 1, 'V-09': 1 },
   };
 
   // 罰則の分類（7.2.5節）
   // カーリング型は得点型（7.2.5節）＝そのショットで投げた玉を、そのエンドの数えものから外す
-  const PENALTY = { 'G-01': 'freeball', 'G-02': 'freeball', 'G-03': 'freeball', 'G-04': 'score', 'G-06': 'freeball', 'G-08': 'loss', 'G-09': 'score' };
+  const PENALTY = { 'G-01': 'freeball', 'G-02': 'freeball', 'G-03': 'freeball', 'G-04': 'score', 'G-06': 'freeball', 'G-08': 'loss', 'G-09': 'score', 'G-11': 'score' };
   // 勝敗の決まり方（7.2.8節）
-  const WIN_KIND = { 'G-01': 'reach', 'G-02': 'reach', 'G-03': 'points', 'G-04': 'reach', 'G-06': 'points', 'G-08': 'survival', 'G-09': 'points' };
+  const WIN_KIND = { 'G-01': 'reach', 'G-02': 'reach', 'G-03': 'points', 'G-04': 'reach', 'G-06': 'points', 'G-08': 'survival', 'G-09': 'points', 'G-11': 'points' };
 
   /**
    * 点数を数えるルールかどうか。
    * ナインボール・エイトボールは「どの玉を落としたか」で決まり点数を持たない。
    * 持たないルールで 0 点と出し続けると、壊れているように見える。
    */
-  const HAS_SCORE = { 'G-01': false, 'G-02': false, 'G-03': true, 'G-04': true, 'G-06': true, 'G-08': false, 'G-09': true };
+  const HAS_SCORE = { 'G-01': false, 'G-02': false, 'G-03': true, 'G-04': true, 'G-06': true, 'G-08': false, 'G-09': true, 'G-11': true };
   // ラックを持つか（7.2.7節）
-  const HAS_RACK = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': false, 'G-06': false, 'G-08': true, 'G-09': false };
+  /*
+   * ★ボウリング型は**ピン配置というラックを持つが、崩すブレイクを持たない**（7.2.7節）。
+   * ここは「ブレイクの一撞きがあるか」を見る側（app.js のラック組み直しの問い）で使うので false。
+   */
+  const HAS_RACK = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': false, 'G-06': false, 'G-08': true, 'G-09': false, 'G-11': false };
   // ポケットあり台が要るか
   /*
    * ★**カーリング型はポケットあり台8種のみ**（利用者指示。仕様書 2.4.1節の改訂）。
@@ -71,19 +84,33 @@ const BilliardsRules = (() => {
    * 取り除かれる」にあたる仕組みが、この台ではポケットしかない。キャロム版台には
    * 玉が盤から失われる手立てが無く、投げた玉が溜まる一方になる。
    */
-  const NEEDS_POCKETS = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': false, 'G-06': false, 'G-08': true, 'G-09': true };
+  /*
+   * ★**ボウリング型だけは null ＝ どちらの台でも遊べる**（2.4.1節。9ルールで唯一）。
+   * ポケットあり台では、落ちたピンは倒れたものとして数え、手玉が落ちればスクラッチになる。
+   * true/false は「その台でしか遊べない」という意味なので、選ばせるルールは第3の値で表す。
+   */
+  const NEEDS_POCKETS = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': false, 'G-06': false, 'G-08': true, 'G-09': true, 'G-11': null };
   /*
    * ブレイクの成立条件（1球以上落ちるか4球以上がクッションに触れる）を見るか。
    * **サバイバルだけは見ない。**このルールのブレイクは「グループの球が1つでも落ちたか」
    * だけで組み立てられていて、落ちなければそのまま次の人が撞く。
    * クッション数の条件を重ねると、同じ一撞きに二重の判定が掛かる。
    */
-  const BREAK_VALID = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': false, 'G-06': false, 'G-08': false, 'G-09': false };
+  const BREAK_VALID = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': false, 'G-06': false, 'G-08': false, 'G-09': false, 'G-11': false };
   /*
    * デッドロックの自動検出をするか（10.8節・利用者指示）。
    * **false ＝ 撞ける回数が決まっていて、必ず終わるルール。**
    */
-  const DEADLOCK_WATCH = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': true, 'G-06': false, 'G-08': true, 'G-09': false };
+  const DEADLOCK_WATCH = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': true, 'G-06': false, 'G-08': true, 'G-09': false, 'G-11': false };
+  /*
+   * ★**1人だけでも成り立つルール**（7.11.1節・7.10.1節。7.14節の制約1）。
+   *
+   * 他の7ルールは相手がいて初めて意味を持つので、ローカル対戦では2人からになる。
+   * ゴルフ型（打数）とボウリング型（得点）は**自分の記録を作る遊び**なので、
+   * 1人でも局として成り立ち、決着もつく。
+   * **ルールの側に持たせる**のは、画面の側にルール名を並べると足し忘れるからである。
+   */
+  const SOLO_OK = { 'G-01': false, 'G-02': false, 'G-03': false, 'G-04': false, 'G-06': false, 'G-08': false, 'G-09': false, 'G-10': true, 'G-11': true };
 
   /*
    * 陣取り（7.7節）のプレイヤーの色。**玉そのものの色であり、塗ったマスもこの色になる。**
@@ -146,6 +173,26 @@ const BilliardsRules = (() => {
     if (phys <= P.knee) return (phys - P.min) / (P.knee - P.min) * P.at;
     return P.at + (phys - P.knee) / (P.max - P.knee) * (1 - P.at);
   }
+
+  /*
+   * ボウリング型（7.11節）。**手玉1個でピン10本を狙う。**
+   *
+   * ★ピンは**赤い玉に縞を掛けたもの**として描く。縞は上下を白く塗る作りなので、
+   *   見た目は「白い胴に赤い帯」＝現実のボウリングピンとほぼ同じになる。
+   *   手玉（真っ白）と並んでも取り違えない。
+   */
+  const BOWL_FRAMES = 10;        // 1ゲームのフレーム数（7.11.4節。利用者の選択で10固定）
+  const BOWL_PINS = 10;          // ピンの本数（7.11.2節）
+  const BOWL_PIN_COLOR = '#dc2626';
+  /*
+   * ★**「倒れた」とみなす移動距離**（付録B送りの具体値。7.11.3節・7.13節）。
+   *
+   * 2Dの盤面に玉が転倒する表現が無いので、動いた距離で代替する。
+   * **実測（同じ一投を、閾値だけ変えて数え直した）：1mm でも 80mm でも本数が変わらない。**
+   * ピンは「まったく動かない」か「数百mm 飛ぶ」かのどちらかで、中間がほとんど無い。
+   * したがってこの値は繊細ではない。玉の直径のおよそ1/3にあたる 20mm を置く。
+   */
+  const BOWL_DOWN = 20;
 
   const TERRITORY_COLORS = ['#00e5ff', '#ff2d95', '#ffd400', '#b06cff'];
   const TERRITORY_BALLS = 4;    // 色ごとの玉数（D390）
@@ -415,6 +462,35 @@ const BilliardsRules = (() => {
       game.players.forEach(p => { p.score = 0; });
       game.ballInHand = false;
       game.ballInHandFull = false;
+    } else if (game.rule === 'G-11') {
+      /*
+       * ボウリング型（7.11.2節）。**手玉1個 ＋ ピン10本。**
+       * 盤は全員で使い回し、**フレームの始めに10本すべて並べ直す**（7.11.4節）。
+       * 手玉は各投の前に投球位置へ戻す（bowlArm）ので、置き場所を人が選ぶことはない。
+       */
+      const L = T.bowlingLayout(table);
+      balls.push(E.makeBall({
+        id: id++, num: 0, kind: 'cue', r: R, x: L.throwPos.x, y: L.throwPos.y, color: '#f4f4f4',
+      }));
+      L.cells.forEach((c, i) => {
+        const b = E.makeBall({
+          id: id++, num: 0, kind: 'object', r: R, x: c.x, y: c.y,
+          color: BOWL_PIN_COLOR, stripe: true,
+        });
+        b.pin = i;                  // 何番目のピンか。並べ直すときの行き先になる
+        balls.push(b);
+      });
+      game.bowling = {
+        layout: L,
+        // 人ごとのフレーム。各フレームは { rolls: [倒した本数...], down: {玉id: 1} }
+        frames: game.players.map(() => []),
+        start: {},                  // 並べ直した時点の位置（倒れ判定の基準。7.11.3節）
+        voidRoll: false,            // この一投はファウルで0本と数える（7.2.5節・得点型）
+        msg: null,
+      };
+      game.players.forEach(p => { p.score = 0; });
+      game.ballInHand = false;
+      game.ballInHandFull = false;
     } else if (game.rule === 'G-06') {
       /*
        * 陣取り（7.7.8節）。的球は台の重心を中心とした円周上に等間隔、**色は順ぐりに配る**。
@@ -510,6 +586,7 @@ const BilliardsRules = (() => {
     game.broken = false;
     if (game.rule === 'G-06') territoryTrack(game);   // 出発のマスを控える（塗りはしない）
     if (game.rule === 'G-09') curlingArm(game);       // 先頭の人の1個目を投球位置へ置く
+    if (game.rule === 'G-11') { bowlRack(game); bowlArm(game); }   // ピン10本と手玉を構える
   }
 
   // ───────── 陣取り（7.7節） ─────────
@@ -994,6 +1071,7 @@ const BilliardsRules = (() => {
     else if (rule === 'G-06') resolveTerritory(game, result, pre);
     else if (rule === 'G-08') resolveSurvival(game, result, pre);
     else if (rule === 'G-09') resolveCurling(game, result, pre);
+    else if (rule === 'G-11') resolveBowling(game, result, pre);
 
     /*
      * 相手チームがいないとき（協力プレイで全員が同じチーム）は、
@@ -1067,6 +1145,8 @@ const BilliardsRules = (() => {
       else if (rule === 'G-08') { b.state = 'gone'; b.onTable = false; }
       // カーリング型は落ちた玉も場外の玉も戻さず、数えない（7.9.4節）
       else if (rule === 'G-09') { b.state = 'gone'; b.onTable = false; }
+      // ボウリング型は**場外へ出たピンも倒れたものとして数える**（7.11.3節）。戻さない
+      else if (rule === 'G-11') { b.state = 'gone'; b.onTable = false; }
     }
     // 手玉
     const cue = byId[pre.cueId];
@@ -1077,6 +1157,16 @@ const BilliardsRules = (() => {
        * 落ちた持ち球がヘッドスポットに湧いて、フリーボールまで付いてくる。
        */
       if (rule === 'G-09') { cue.state = 'gone'; cue.onTable = false; }
+      /*
+       * ★ボウリング型は**手玉を必ず投球位置へ戻す**（7.11.4節）。フリーボールは与えない。
+       * 置き場所が固定のルールなので、ここで ballInHand を立てると
+       * 「好きな所へ置ける」状態が紛れ込む。落ちた罰は V-04（そのショットの得点が無効）で受ける。
+       */
+      else if (rule === 'G-11') {
+        const L = game.bowling.layout;
+        cue.state = 'live'; cue.onTable = true;
+        place(cue, L.throwPos.x, L.throwPos.y);
+      }
       else if (rule === 'G-04') homeBall(game, cue);
       else {
         // 次のプレイヤーが台全体へ置く（10.4.3節）
@@ -1461,6 +1551,209 @@ const BilliardsRules = (() => {
     r.gained = 0;
   }
 
+  // ───────── G-11 ボウリング型（7.11節） ─────────
+
+  /** ピン10本を並べ直し、倒れ判定の基準になる位置を控える（7.11.4節） */
+  function bowlRack(game, frame) {
+    const bw = game.bowling, L = bw.layout;
+    const pins = game.world.balls.filter(b => b.pin != null).sort((a, b) => a.pin - b.pin);
+    bw.start = {};
+    pins.forEach((b, i) => {
+      const c = L.cells[i] || L.cells[L.cells.length - 1];
+      b.state = 'live'; b.onTable = true;
+      place(b, c.x, c.y);
+      bw.start[b.id] = { x: c.x, y: c.y };
+    });
+    /*
+     * ★**並べ直したら、そのフレームで「もう倒した」と控えた印も消す。**
+     * 消し忘れると、10フレーム目のボーナス投で並べ直した10本が
+     * 最初から倒れている扱いになり、1本も数えられなくなる。
+     */
+    if (frame) frame.down = {};
+  }
+
+  /** 手玉を投球位置へ戻す（7.11.4節「各投の前に投球位置へ戻す」） */
+  function bowlArm(game) {
+    const bw = game.bowling;
+    if (!bw || game.over) return null;
+    const cue = game.world.balls.find(b => b.kind === 'cue');
+    if (!cue) return null;
+    cue.state = 'live'; cue.onTable = true;
+    place(cue, bw.layout.throwPos.x, bw.layout.throwPos.y);
+    return cue;
+  }
+
+  /** 盤に立っているピンの数 */
+  function bowlStanding(game) {
+    return game.world.balls.filter(b => b.pin != null && b.state === 'live').length;
+  }
+
+  /** その席がいま投げているフレーム。まだ無ければ作る */
+  function bowlFrame(game, seat) {
+    const fr = game.bowling.frames[seat];
+    if (!fr.length || bowlFrameDone(fr[fr.length - 1], fr.length - 1 === BOWL_FRAMES - 1)) {
+      if (fr.length >= BOWL_FRAMES) return fr[fr.length - 1];
+      fr.push({ rolls: [], down: {} });
+    }
+    return fr[fr.length - 1];
+  }
+
+  /**
+   * そのフレームを投げ終えたか（7.11.4節）。
+   *
+   * **10フレーム目だけ最大3投**である（D365）。
+   *   1投目でストライク … 3投／2投でスペア … 3投／2投で10本に満たない … 2投で終わり
+   */
+  function bowlFrameDone(f, isLast) {
+    const r = f.rolls;
+    if (!isLast) return r[0] === BOWL_PINS || r.length >= 2;
+    if (r.length < 2) return false;
+    if (r.length >= 3) return true;
+    return r[0] !== BOWL_PINS && r[0] + r[1] < BOWL_PINS;
+  }
+
+  /** その席は10フレームすべて投げ終えたか */
+  function bowlSeatDone(game, seat) {
+    const fr = game.bowling.frames[seat];
+    return fr.length >= BOWL_FRAMES && bowlFrameDone(fr[BOWL_FRAMES - 1], true);
+  }
+
+  /**
+   * 得点（7.11.5節）。**現実のボウリングの加算方式に準拠する**（D365）。
+   *
+   *   オープンフレーム … 倒した本数
+   *   スペア           … 10 ＋ 次の1投
+   *   ストライク       … 10 ＋ 次の2投
+   *
+   * ★**得点は1フレーム遅れて確定する。**まだボーナスの投が済んでいないフレームは
+   *   確定していないので、そこで打ち切って返す（7.11.5節）。
+   *   確定した累計だけを総得点として示す。
+   *
+   * ★数え方は**投の並び1本**で組み立てる。フレームの箱を見ながら数えると、
+   *   10フレーム目（最大3投）の扱いだけ別の道になり、ボーナスの参照先がずれる。
+   */
+  function bowlLine(game, seat) {
+    const fr = (game.bowling && game.bowling.frames[seat]) || [];
+    const flat = [];
+    fr.forEach(f => f.rolls.forEach(v => flat.push(v)));
+    const cum = [];
+    let i = 0, total = 0;
+    for (let f = 0; f < BOWL_FRAMES; f++) {
+      if (flat[i] == null) break;
+      if (flat[i] === BOWL_PINS) {                                              // ストライク
+        if (flat[i + 1] == null || flat[i + 2] == null) break;
+        total += BOWL_PINS + flat[i + 1] + flat[i + 2]; i += 1;
+      } else if (flat[i + 1] != null && flat[i] + flat[i + 1] === BOWL_PINS) {  // スペア
+        if (flat[i + 2] == null) break;
+        total += BOWL_PINS + flat[i + 2]; i += 2;
+      } else {                                                                  // オープンフレーム
+        if (flat[i + 1] == null) break;
+        total += flat[i] + flat[i + 1]; i += 2;
+      }
+      cum.push(total);
+    }
+    return { frames: fr.map(f => f.rolls.slice()), cum, total };
+  }
+
+  /** 全員の確定済みの総得点を書き直す */
+  function bowlScoreAll(game) {
+    game.players.forEach((p, i) => {
+      const L = bowlLine(game, i);
+      p.score = L.cum.length ? L.cum[L.cum.length - 1] : 0;
+    });
+  }
+
+  /**
+   * ボウリング型の手番送り（7.11.4節）。**nextTurn から呼ばれ、普通の手番送りの代わりになる。**
+   *
+   * カーリング型と同じ理由でここに置く ── **撞き終わりの道が2本ある**（普通に撞き終わる／
+   * ミスキューで終わる）ので、倒れ判定を帰結の側に書くと片方の道で数え落とす。
+   */
+  function bowlAdvance(game) {
+    const bw = game.bowling;
+    if (!bw) return;
+    const seat = game.turn;
+    const f = bowlFrame(game, seat);
+    // ★**投げる前に立っていた本数**を控える。ストライクとスペアはこれと突き合わせて決まる
+    const before = bowlStanding(game);
+    let n = 0;
+
+    if (bw.voidRoll) {
+      /*
+       * ★**ファウルした投は 0 本と数え、倒れたピンを元へ戻す**（7.2.5節・得点型）。
+       * これは現実のボウリングの決まり（ファウルの投は0点、ピンは並べ直して次の投へ）と同じで、
+       * 7.2.6節の「利益を無効にする」にもそのまま合う。
+       * **物理の動きは止めていない** ── 倒れたことは起き、そこから得るものが無いだけである。
+       */
+      for (const b of game.world.balls) {
+        if (b.pin == null || f.down[b.id]) continue;
+        const st = bw.start[b.id];
+        b.state = 'live'; b.onTable = true;
+        place(b, st.x, st.y);
+      }
+    } else {
+      /*
+       * ★**倒れ判定は「並べ直した時点の位置からどれだけ動いたか」**（7.11.3節）。
+       * ポケットへ落ちた玉・場外へ出た玉も倒れたものとして数える。
+       * 倒れた玉は盤から取り除く ── 残すと次の投で再び動いて二重に数える。
+       */
+      for (const b of game.world.balls) {
+        if (b.pin == null || f.down[b.id]) continue;
+        const st = bw.start[b.id];
+        const down = (b.state !== 'live') || Math.hypot(b.x - st.x, b.y - st.y) >= BOWL_DOWN;
+        if (down) { f.down[b.id] = 1; n++; b.state = 'gone'; b.onTable = false; }
+      }
+    }
+    bw.voidRoll = false;
+    f.rolls.push(n);
+    game.inningNo++;
+
+    const idx = bw.frames[seat].length - 1;
+    const isLast = (idx === BOWL_FRAMES - 1);
+    /*
+     * ★**ストライクとスペアは「投げる前に立っていた本数を全部倒したか」で決まる。**
+     * 投の並びから読み取ろうとすると、10フレーム目（ボーナスのたびにピンを並べ直す）だけ
+     * 別の道になり、2投目のストライクをスペアと呼んでしまう。
+     */
+    bw.msg = (n > 0 && n === before)
+      ? { key: before === BOWL_PINS ? 'msg.bowlStrike' : 'msg.bowlSpare', p: {} }
+      : null;
+
+    if (!bowlFrameDone(f, isLast)) {
+      // 同じ人がもう1投。**立っているピンが無ければ並べ直す**（10フレーム目のボーナス投）
+      if (!bowlStanding(game)) bowlRack(game, f);
+      bowlArm(game);
+      bowlScoreAll(game);
+      return;
+    }
+
+    bowlScoreAll(game);
+    // 全員が10フレームを投げ終えたら決着（7.11.6節）
+    if (game.players.every((p, i) => !isActive(p) || bowlSeatDone(game, i))) {
+      game.over = true;
+      game.lastMessageKey = 'msg.bowlOver';
+      finishRanking(game);
+      return;
+    }
+    let t = nextSeat(game, seat);
+    for (let k = 0; k < game.players.length && bowlSeatDone(game, t); k++) t = nextSeat(game, t);
+    game.turn = t;
+    bowlRack(game);        // 次の人のフレーム＝10本を並べ直す（7.11.4節）
+    bowlArm(game);
+  }
+
+  /**
+   * ショットの帰結（7.11節）。ここでやるのは**ファウルの印を立てることだけ**である。
+   * 倒れ判定・ピンの取り除き・手番送りは bowlAdvance（nextTurn 側）が持つ。
+   */
+  function resolveBowling(game, r, pre) {
+    if (r.foul) game.bowling.voidRoll = true;
+    // 同じ人がもう1投するかどうかはフレームの残りで決まる。ここでは連続撞きを宣言しない
+    r.continueTurn = false;
+    // 得点はフレームが確定したときに数え直す（1フレーム遅れて確定する。7.11.5節）
+    r.gained = 0;
+  }
+
   // ───────── G-08 サバイバル（7.8節） ─────────
 
   /** そのグループの、まだ盤に残っている球の数 */
@@ -1688,6 +1981,8 @@ const BilliardsRules = (() => {
      * エンドの区切りまで一緒に片づける必要があるので、丸ごと差し替える。
      */
     if (game.rule === 'G-09') { curlingAdvance(game); return; }
+    // ★ボウリング型も手番送りが違う（同じ人がもう1投することがある）。7.11.4節
+    if (game.rule === 'G-11') { bowlAdvance(game); return; }
     // 抜けた席・脱落した席は飛ばす（9.8.3節・7.8.6節）。巡りは seatOrder が持つ
     game.turn = nextSeat(game, game.turn);
     game.inningNo++;
@@ -1729,10 +2024,13 @@ const BilliardsRules = (() => {
     makeRng, createGame, setupBalls, cueBallOf, liveObjects, legalTargets, groupOf,
     spotBall, homeBall, place, resolveShot, nextTurn, breakValid, detectDoubleHit,
     finishRanking, normAngle,
-    survivalGroups, survivalLeft, liveInGroup, SURVIVAL_COLORS, BREAK_VALID, DEADLOCK_WATCH,
+    survivalGroups, survivalLeft, liveInGroup, SURVIVAL_COLORS, BREAK_VALID, DEADLOCK_WATCH, SOLO_OK,
     // カーリング型（7.9節）
     CURLING_STONES, CURLING_POWER, shotPower, aimPower,
     curlingArm, curlingStock, curlingDist, curlingEndScore, curlingAdvance,
+    // ボウリング型（7.11節）
+    BOWL_FRAMES, BOWL_PINS, BOWL_DOWN, BOWL_PIN_COLOR,
+    bowlRack, bowlArm, bowlStanding, bowlFrame, bowlFrameDone, bowlSeatDone, bowlLine, bowlAdvance,
     // 陣取り（7.7節）
     TERRITORY_COLORS, TERRITORY_BALLS, TERRITORY_SHOTS,
     territoryCount, territoryBallsOf, makeTerritoryProbe, territoryTrack,

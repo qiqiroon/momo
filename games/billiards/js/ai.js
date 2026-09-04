@@ -1102,8 +1102,120 @@ const BilliardsAI = (() => {
     return function cancel() { cancelled = true; };
   }
 
+  // ───────── G-11 ボウリング型（7.11節）の AI ─────────
+
+  /*
+   * ★**ボウリング型の AI は「倒す腕」であって、他8ルールの読み（入るか）は1つも当てはまらない。**
+   * 落とすべきポケットが無く、狙う相手は10本のピンだけである。
+   *
+   * ★**カーリング型のような「覚えた跳ね返しの筋」は要らない。**
+   * 実測：**16バリエーションすべてで、投球位置からピン10本がまっすぐ見通せる**
+   * （壁までのすき間は、いちばん狭いドーナツ型でも玉の半径をわずかに上回る）。
+   * したがって真っすぐ狙う候補だけで足りる。
+   */
+  /*
+   * ★**強さは2段しか置かない。**実測（間隔1.50倍・まっすぐ狙う）では
+   *   力50%・70%・85%・100% のどれでも倒れるのは 10 本で、**強さは結果をほとんど変えない。**
+   *   このルールで結果を決めるのは向きである。候補を増やしても読む時間が延びるだけになる。
+   *
+   * ★**物理の走らせ方は縮めても同じ**（実測：上限を20秒から3秒に縮めても倒れる本数は不変。
+   *   玉はそれよりずっと早く止まる）。したがって速くする余地は候補の数にしかない。
+   */
+  const BOWL_POWERS = [0.60, 0.85];
+  // 先頭のピンのまわりを細かく振る（度）。実測でストライクは「ぴったり」の付近にしか出ない
+  const BOWL_FAN = [0, -0.5, 0.5, -1.5, 1.5];
+  const BOWL_OTHERS = 6;      // 先頭以外に狙うピンの数（近いほうから）
+  /*
+   * ★**腕前は「いちばん良い狙いに、腕前ぶんのぶれを乗せる」形で表す。**
+   *
+   * カーリング型は逆に「成り立つ撞き方の上位◯割から引く」形にした。あちらは**止める競技**で、
+   * わずかな強さの違いが止まる場所を数百 mm 動かし、ぶれた結果が「玉を失う」になりうる。
+   * ボウリング型は**倒す競技**で、狙いがずれても倒れる本数がなだらかに減るだけである
+   * （実測：ぴったり10本 → 0.5度ずれて8本 → 2〜5度ずれて6〜8本。玉を失う失敗にはならない）。
+   * したがって、現実のボウリングと同じく**狙いの精度がそのまま腕前**になる。
+   *
+   * ★**上位◯割から引く形はこのルールでは効かない。**投球位置もピンの並びもフレームごとに
+   *   同じなので、候補の上位はいつも「まっすぐ＝ストライク」で埋まる。実測でその形にしたところ、
+   *   ふつうの難易度でも 268〜300 点（＝ほぼ毎回パーフェクト）になった。
+   *
+   * 数字は狙いのぶれの幅（度）。両端が出にくいよう2回引いて足す（真ん中が出やすい）。
+   */
+  const BOWL_WOBBLE = { easy: 3.2, hard: 1.1, apocalypse: 0.0 };
+
+  /**
+   * その一撞きで**新たに倒れる本数**。倒れ判定はルール側と同じ（並べ直した位置から 20mm）。
+   * ★**手玉が落ちる・場外へ出る一撞きはファウル**で、倒した本数が 0 と数えられる（7.2.5節）。
+   *   0本と同じ値にすると「どうせ0本なら落としてもよい」になるので、0より下に置く。
+   */
+  function bowlValue(game, balls, standing) {
+    const bw = game.bowling;
+    const cue = balls.find(b => b.kind === 'cue');
+    if (!cue || cue.state !== 'live') return -1;
+    let n = 0;
+    for (const b of balls) {
+      if (b.pin == null || !standing[b.id]) continue;
+      const st = bw.start[b.id];
+      if (!st) continue;
+      if (b.state !== 'live' || Math.hypot(b.x - st.x, b.y - st.y) >= RU.BOWL_DOWN) n++;
+    }
+    return n;
+  }
+
+  function bowlThink(game, playerIdx, done) {
+    const cue = RU.cueBallOf(game, playerIdx);
+    const pins = game.world.balls.filter(b => b.pin != null && b.state === 'live');
+    if (!cue || !pins.length) { done({ dir: 0, tipX: 0, tipY: 0, elev: 0, power: 0.85 }); return function () {}; }
+    const standing = {};
+    pins.forEach(b => { standing[b.id] = 1; });
+
+    // いちばん手前のピン＝ふつうはここを狙う。そのまわりだけを細かく振る
+    let head = pins[0], best = Infinity;
+    for (const b of pins) { const d = Math.hypot(b.x - cue.x, b.y - cue.y); if (d < best) { best = d; head = b; } }
+    const toHead = Math.atan2(head.y - cue.y, head.x - cue.x);
+    const dirs = BOWL_FAN.map(o => toHead + o * Math.PI / 180);
+    // 残ったピンが散らばっている場面（スプリット）のために、1本ずつの向きも入れる
+    const others = pins.filter(b => b !== head)
+      .map(b => ({ b, d: Math.hypot(b.x - cue.x, b.y - cue.y) }))
+      .sort((a, c) => a.d - c.d).slice(0, BOWL_OTHERS);
+    for (const o of others) dirs.push(Math.atan2(o.b.y - cue.y, o.b.x - cue.x));
+
+    const cands = [];
+    for (const dir of dirs) for (const power of BOWL_POWERS) {
+      cands.push({ dir, power, tipX: 0, tipY: 0, elev: 0 });
+    }
+
+    let i = 0, cancelled = false;
+    const scored = [];
+    function chunk() {
+      if (cancelled) return;
+      const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+      while (i < cands.length) {
+        const s = cands[i++];
+        const w = E.cloneWorld(game.world);
+        const c = w.balls.find(x => x.id === cue.id);
+        if (c) { E.applyCue(c, s); E.runShot(w, 20); scored.push({ s, sc: bowlValue(game, w.balls, standing) }); }
+        const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+        if (now - t0 > 22) break;             // 1フレームに詰め込みすぎない
+      }
+      if (i < cands.length) { requestAnimationFrame(chunk); return; }
+      finish();
+    }
+    function finish() {
+      if (!scored.length) { done({ dir: toHead, tipX: 0, tipY: 0, elev: 0, power: 0.85 }); return; }
+      // いちばん多く倒せる狙い。同じ本数なら、先に見つけたほう（候補の並びは決定論）
+      scored.sort((a, b) => b.sc - a.sc);
+      const s = scored[0].s;
+      const w = BOWL_WOBBLE[game.difficulty] != null ? BOWL_WOBBLE[game.difficulty] : BOWL_WOBBLE.hard;
+      const off = (game.rng() + game.rng() - 1) * w * Math.PI / 180;
+      done(Object.assign({}, s, { dir: s.dir + off }));
+    }
+    requestAnimationFrame(chunk);
+    return function cancel() { cancelled = true; };
+  }
+
   function think(game, playerIdx, done) {
     if (game.rule === 'G-09') return curlingThink(game, playerIdx, done);
+    if (game.rule === 'G-11') return bowlThink(game, playerIdx, done);
     const base = prof(game.difficulty);
     /*
      * たまに「手玉の落ちる危険を軽く見る」一撞きを混ぜる。
@@ -1189,7 +1301,8 @@ const BilliardsAI = (() => {
   }
 
   // curlBankSeeds は検査から直に確かめるために出している（覚えた筋に当たりの幅があるか）
-  return { think, pickBallInHand, bankShot, curlingThink, curlValue, curlBankSeeds, PROFILE };
+  return { think, pickBallInHand, bankShot, curlingThink, curlValue, curlBankSeeds,
+    bowlThink, bowlValue, BOWL_POWERS, BOWL_WOBBLE, PROFILE };
 })();
 
 if (typeof window !== 'undefined') window.BilliardsAI = BilliardsAI;

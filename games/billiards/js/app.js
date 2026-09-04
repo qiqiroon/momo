@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.62';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.63';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -96,6 +96,8 @@
     cfg: {
       scope: 'standard',
       rule: 'G-01', shape: 'A-01', carom: false, tableChosen: true,
+      // ★どちらの台でも遊べるルール（ボウリング型）で選んだほう。他のルールでは使わない
+      caromPick: false,
       mode: 'normal',
       mods: { 'G-13': false, 'G-14': true, 'G-15': false },
       diff: 'easy',
@@ -243,7 +245,16 @@
    * ルールの側が「ポケットが要るか」を持っているので、そこから引く。
    * ルール名を並べて判定すると、ルールが増えたときに書き足し忘れる。
    */
-  function caromForRule(rule) { return RU.NEEDS_POCKETS[rule] === false; }
+  function caromForRule(rule) {
+    const need = RU.NEEDS_POCKETS[rule];
+    if (need === true) return false;      // ポケットあり台でしか成立しない
+    if (need === false) return true;      // キャロム版台でしか成立しない
+    /*
+     * ★**null ＝ どちらの台でも遊べるルール**（ボウリング型だけ。2.4.1節）。
+     * この場合だけ台の姿は利用者が選ぶので、ルールから決めてはいけない。
+     */
+    return !!S.cfg.caromPick;
+  }
 
   /**
    * 台形状のグレー。STAGE は仕様書 11.2.3節の「段階の割り当て」であって
@@ -323,18 +334,26 @@
     /*
      * 台は形を選ぶだけ。ポケットあり／キャロム版はルールが決めるので、
      * 同じ形を2つ並べない。ルールを変えると、いま選んでいる台の姿が変わる。
+     *
+     * ★**ただしボウリング型だけは「どちらの台でも遊べる」**（2.4.1節）。
+     *   このルールのときだけ、同じ形をポケットあり／キャロム版の2つ並べる
+     *   ＝仕様書 2.3.2節のいう「台形状16種」がそのまま現れる。
+     *   切り替えのつまみを別に置かないのは、**選ぶものが1つ（軸2）だから**である。
      */
+    const bothTables = RU.NEEDS_POCKETS[S.cfg.rule] == null;
     S.cfg.carom = caromForRule(S.cfg.rule);
-    const carom = S.cfg.carom;
     const ot = $('opts-table'); ot.innerHTML = '';
     SHAPES_ALL.forEach(sh => {
       if (!visible('shape', sh)) return;
       const why = shapeBlock(sh);
-      const label = t('shape.' + sh) + '（' + t(carom ? 'tbl.carom' : 'tbl.pocket') + '）';
-      const sel = S.cfg.tableChosen && S.cfg.shape === sh;
-      ot.appendChild(chip(label, sel, !!why, why, () => {
-        S.cfg.shape = sh; S.cfg.tableChosen = true; buildSetup();
-      }));
+      const kinds = bothTables ? [false, true] : [S.cfg.carom];
+      kinds.forEach(cm => {
+        const label = t('shape.' + sh) + '（' + t(cm ? 'tbl.carom' : 'tbl.pocket') + '）';
+        const sel = S.cfg.tableChosen && S.cfg.shape === sh && (!bothTables || S.cfg.caromPick === cm);
+        ot.appendChild(chip(label, sel, !!why, why, () => {
+          S.cfg.shape = sh; S.cfg.caromPick = cm; S.cfg.tableChosen = true; buildSetup();
+        }));
+      });
     });
     const om = $('opts-mode'); om.innerHTML = '';
     ['normal', 'disturb', 'abnormal'].forEach(m => {
@@ -396,7 +415,12 @@
       selP.disabled = true;
       if (note) { note.textContent = t('lobby.hereNow'); note.style.display = ''; }
     } else {
-      const minP = (S.cfg.format === 'practice') ? 1 : (S.cfg.format === 'ai' ? 1 : 2);
+      /*
+       * ★**下限はルールの側から引く。**ボウリング型とゴルフ型は1人でも成り立つ（7.14節）ので、
+       *   ローカル対戦でも1人を選べる。ここにルール名を並べると、増えたときに書き忘れる。
+       */
+      const soloRule = !!RU.SOLO_OK[S.cfg.rule];
+      const minP = (S.cfg.format === 'practice' || S.cfg.format === 'ai' || soloRule) ? 1 : 2;
       selP.disabled = false;
       selP.innerHTML = '';
       for (let n = minP; n <= maxP; n++) {
@@ -1171,6 +1195,15 @@
      * 上の終局の見張りは nextTurn の手前にあるので、ここでもう一度見ないと
      * 全エンドを終えたのに次の手番が始まる。
      */
+    /*
+     * ボウリング型は**ストライクとスペアだけ**を知らせる。
+     * 倒れた本数そのものは、ピンが盤から消えるのとスコアシートの両方に出ているので、
+     * 毎投そこへ字を重ねると読むものが増えるだけになる。
+     */
+    if (!quiet && g.rule === 'G-11' && g.bowling && g.bowling.msg) {
+      const m = g.bowling.msg; g.bowling.msg = null;
+      if (m.key) flash(t(m.key, m.p));
+    }
     if (!quiet && g.rule === 'G-09' && g.curling) {
       const cur = g.curling;
       if (cur.hogged) flash(t('msg.curlHogged', { n: cur.hogged }));
@@ -3605,6 +3638,16 @@
       if (g.rule === 'G-06') {
         right = p.score + '  ' + t('hud.trShots', { n: Math.max(0, RU.TERRITORY_SHOTS - (p.shots || 0)) });
       }
+      /*
+       * ボウリング型は「確定した総得点」と「いま何フレーム目か」を並べる（7.11.5節）。
+       * ★得点は**1フレーム遅れて確定する**ので、確定した累計だけを出す。
+       *   確定前のぶんを足して見せると、次の投で数字が下がったように見える。
+       */
+      if (g.rule === 'G-11' && g.bowling) {
+        const fr = g.bowling.frames[i] || [];
+        const n = Math.min(RU.BOWL_FRAMES, Math.max(1, fr.length));
+        right = p.score + '  ' + t('hud.bowlFrame', { n: n, all: RU.BOWL_FRAMES });
+      }
       // カーリング型は「合計点」と「このエンドの残りの持ち球」を並べる（7.9.3節）
       if (g.rule === 'G-09' && g.curling) {
         const left = Math.max(0, RU.CURLING_STONES - (g.curling.thrown[i] || 0));
@@ -3652,6 +3695,16 @@
       $('v-next').textContent = t('hud.curlEnd', {
         n: Math.min(g.curling.end + 1, g.curling.ends), all: g.curling.ends,
       });
+    } else if (g.rule === 'G-11' && g.bowling) {
+      /*
+       * ボウリング型も「次に当てる玉」が無い。代わりに**このフレームの何投目か**と
+       * **立っているピンの数**を出す。2投目に何本残っているかが、次の狙いを決める材料になる。
+       */
+      const fr = g.bowling.frames[g.turn] || [];
+      const cur = fr.length ? fr[fr.length - 1] : null;
+      const ball = (cur && !RU.bowlFrameDone(cur, fr.length - 1 === RU.BOWL_FRAMES - 1))
+        ? cur.rolls.length + 1 : 1;
+      $('v-next').textContent = t('hud.bowlBall', { n: ball, pins: RU.bowlStanding(g) });
     } else {
       const tg = RU.legalTargets(g, g.turn);
       $('v-next').textContent = tg == null ? '–' : (tg.length ? tg.map(b => b.num || '●').join(' / ') : '–');
@@ -3666,6 +3719,89 @@
       cb.style.display = on ? '' : 'none';
       if (on) cb.innerHTML = curlScoreHTML(g, true);
     }
+    /*
+     * ボウリング型のスコアシート（7.11.5節）。
+     * **得点が1フレーム遅れて確定する**ルールなので、表が無いと合計の増え方が読めない。
+     */
+    const bb = $('bowl-board');
+    if (bb) {
+      const on = g.rule === 'G-11' && g.bowling;
+      /*
+       * ★**空文字ではなく block と書く。**この枠は CSS の側で display:none にしてあるので、
+       *   空文字に戻すと「CSS のとおり＝隠す」になり、表が一度も出ない（実測でそうなった）。
+       */
+      bb.style.display = on ? 'block' : 'none';
+      if (on) bb.innerHTML = bowlScoreHTML(g, true);
+    }
+  }
+
+  /**
+   * ★ボウリング型のスコアシート（7.11.5節）。
+   *
+   * 各フレームに**投ごとの記号**（X＝ストライク／／＝スペア／−＝0本）と、
+   * その下に**確定した累計**を出す。
+   * **まだボーナスの投が済んでいないフレームは得点欄を空にする**（仕様の定めるとおり）。
+   * ここを暫定の数字で埋めると、次の投で数字が増えるのが「あとから足された」ように見え、
+   * 確定した値との区別がつかなくなる。
+   */
+  function bowlScoreHTML(g, live) {
+    /*
+     * ★**10フレームを横一列に並べない。**この欄は 212px しか幅が無く、
+     *   11列に割ると1マス 17px ＝ 2桁の累計が読めない（実測：横に溢れて隠れた）。
+     *   現実のスコアシートと同じく**前半5フレームと後半5フレームの2段**に分ける。
+     *   2つの表の列数はそろえる（前半の右端は空欄）。ずれると2段に見えなくなる。
+     */
+    const N = RU.BOWL_FRAMES, HALF = 5;
+    const lines = g.players.map((p, i) => RU.bowlLine(g, i));
+    let h = '<div class="cap">' + t('bowl.board') + '</div>';
+    for (let part = 0; part * HALF < N; part++) {
+      const from = part * HALF, to = Math.min(N, from + HALF);
+      const isLastPart = (to >= N);
+      h += '<table><tr><th></th>';
+      for (let f = from; f < to; f++) h += '<th>' + (f + 1) + '</th>';
+      h += '<th class="tot">' + (isLastPart ? t('curl.totCol') : '') + '</th></tr>';
+      g.players.forEach((p, i) => {
+        const L = lines[i];
+        h += '<tr' + (i === g.turn && live ? ' class="cur"' : '') + '>';
+        h += '<td class="nm">' + escapeHtml(p.name) + '</td>';
+        for (let f = from; f < to; f++) {
+          const rolls = L.frames[f];
+          const marks = rolls ? bowlMarks(rolls) : '';
+          const cum = (L.cum[f] != null) ? L.cum[f] : '';
+          h += '<td><span class="bm">' + escapeHtml(marks) + '</span>'
+            + '<span class="bc">' + escapeHtml(String(cum)) + '</span></td>';
+        }
+        h += '<td class="tot">' + (isLastPart ? p.score : '') + '</td></tr>';
+      });
+      h += '</table>';
+    }
+    return h;
+  }
+
+  /**
+   * 1フレームぶんの投の記号。現実のスコアシートと同じ書き方にする。
+   *   X ＝ ストライク／ / ＝ スペア／ − ＝ 0本／ 数字 ＝ その本数
+   *
+   * ★**「10フレーム目かどうか」は見ない。**見分けの material は
+   *   「その投の前にピンが並べ直されていたか」だけで足りる。
+   *   ストライク・スペアの直後は必ず並べ直されるので、そこで前の投を忘れる。
+   *   10フレーム目を別扱いにすると、0本→10本（＝スペア）をストライクと書いてしまう。
+   */
+  function bowlMarks(rolls) {
+    const P = RU.BOWL_PINS, out = [];
+    let prev = null;
+    rolls.forEach(v => {
+      if (v === P && prev == null) out.push('X');
+      else if (prev != null && prev + v === P) out.push('/');
+      else out.push(v === 0 ? '-' : String(v));
+      prev = (out[out.length - 1] === 'X' || out[out.length - 1] === '/') ? null : v;
+    });
+    /*
+     * ★**記号のあいだに空きを入れない。**1文字＝1投で、10本は必ず X か / になるから
+     *   2桁の数字は出てこず、詰めても読み違えない。
+     *   空きを入れると 10フレーム目（最大3投）の欄が 212px の枠から溢れる（実測）。
+     */
+    return out.join('');
   }
 
   /*
@@ -3793,6 +3929,12 @@
     if (g.rule === 'G-09' && g.curling) {
       const sb = document.createElement('div'); sb.id = 'curl-board'; sb.style.display = 'block';
       sb.style.marginTop = '10px'; sb.innerHTML = curlScoreHTML(g, false);
+      body.appendChild(sb);
+    }
+    // ボウリング型も結果にスコアシートを出す（合計だけでは中身が読めない）
+    if (g.rule === 'G-11' && g.bowling) {
+      const sb = document.createElement('div'); sb.id = 'bowl-board'; sb.style.display = 'block';
+      sb.style.marginTop = '10px'; sb.innerHTML = bowlScoreHTML(g, false);
       body.appendChild(sb);
     }
     if (g.lastMessageKey) {

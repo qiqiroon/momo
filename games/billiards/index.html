@@ -334,6 +334,24 @@ body.debug #dbg{display:block;}
 .gauge{height:8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;overflow:hidden;}
 .gauge>i{display:block;height:100%;background:var(--orange-mid);width:0;transition:width .05s linear;}
 .gauge.over>i{background:#dc2626;}
+/*
+ * ボウリング型のスコアシート（7.11.5節）。
+ *
+ * ★**狭い画面の枠（@media）の外に置く。**中に入れると、広い画面では何の見た目も付かず、
+ *   表がそのまま横へ伸びて 212px の欄から溢れる（実測：中身 245px／枠 190px）。
+ */
+#bowl-board{display:none;margin-top:8px;font-size:11px;}
+#bowl-board table{border-collapse:collapse;width:100%;table-layout:fixed;}
+#bowl-board table + table{margin-top:4px;}
+#bowl-board th,#bowl-board td{padding:1px 1px;text-align:center;border-bottom:1px solid var(--border);overflow:hidden;}
+/* 名前の欄だけ幅を決め打つ。決めないと2桁の列に押されて名前が折り返す */
+#bowl-board th:first-child,#bowl-board td.nm{width:20px;}
+#bowl-board td.nm{text-align:left;}
+#bowl-board td.tot{font-weight:700;}
+#bowl-board .cap{color:var(--text-muted);font-size:10px;margin:0 0 3px;}
+/* 1つの枠に「投の記号」と「確定した累計」を上下に積む（現実のスコアシートと同じ） */
+#bowl-board .bm{display:block;font-size:10px;color:var(--text-muted);min-height:12px;white-space:nowrap;}
+#bowl-board .bc{display:block;font-weight:700;min-height:13px;white-space:nowrap;}
 @media (max-width:860px){
   /* 盤面を上、周辺領域を下部へ圧縮して並べる（4.10.3節）。
      表示する項目はPCと同じで、並べ方と密度だけを変える */
@@ -647,6 +665,7 @@ body.debug #dbg{display:block;}
       <div id="players-box"></div>
       <!-- カーリング型のエンドごとの得点表（G-09。他ルールでは隠す） -->
       <div id="curl-board"></div>
+      <div id="bowl-board"></div>
       <div class="info-row"><span class="info-k" id="k-next"></span><b id="v-next">–</b></div>
       <div class="info-row"><span class="info-k" id="k-foul"></span><b id="v-foul">–</b></div>
       <div id="time-box">

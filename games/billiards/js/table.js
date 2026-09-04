@@ -1689,6 +1689,79 @@ const BilliardsTable = (() => {
     return table._curl;
   }
 
+  // ───── ボウリング型（G-11）の投球位置とピン配置。仕様書 7.11.2節 ─────
+
+  /*
+   * ★**座標を台定義データに並べず、そのときの台から測って決める**
+   *   （キャロムの赤玉・陣取りの円・カーリングのハウスと同じ考え方）。
+   *   台の形を足したときに手作業が要らない。
+   */
+
+  /*
+   * ピンの間隔（付録B送りの具体値。7.11.2節・7.13節）。**玉の直径の何倍か**で持つ。
+   *
+   * ★**この値がこのルールの難しさそのもの**である。実測（標準長方形・力85%・
+   * 先頭のピンへ真っすぐ）で、倒れる本数は次のとおりだった。
+   *
+   *   直径×1.20 … 7本（ぴったり狙ってもストライクが出ない）
+   *   直径×1.35 … 7本（同上）
+   *   **直径×1.50 … 10本（ストライク）。ひ0.5度ずれると 8本**
+   *   直径×1.80 … どう投げても 10本
+   *
+   * 狭いと**ぴったり狙ってもストライクが出ず**（玉が詰まって奇麗に拡がらない）、
+   * 広すぎると**雑に投げてもストライク**になる。利用者の選択で 1.50 倍とした。
+   */
+  const BOWL_GAP = 1.50;
+  const BOWL_ROWS = 4;              // 1-2-3-4 の三角形（10本）
+
+  /** ピンの置き場所。先頭（頂点）を (sx, sy) に置いてフット側（+X）へ広げる */
+  function bowlCells(sx, sy, gap) {
+    const dx = gap * Math.sqrt(3) / 2, out = [];
+    for (let r = 0; r < BOWL_ROWS; r++) for (let i = 0; i <= r; i++) {
+      out.push({ x: sx + dx * r, y: sy + (i - r / 2) * gap, row: r, idx: i });
+    }
+    return out;
+  }
+
+  /**
+   * ボウリング型の盤面（7.11.2節）。**投球位置とピン10本の座標**を返す。
+   *
+   * ★**投球位置は手玉の既定の置き場所（breakPlace）**とする。
+   *   カーリング型はここでドーナツ型の脇寄せを外したが、ボウリング型は**外さない**。
+   *   あの脇寄せは「ブレイクでラックへ真っすぐ通す筋を空ける」ためのもので、
+   *   ボウリング型はまさに**ラックを真っすぐ狙うルール**だからである。
+   *
+   *   実測：この点からなら**16バリエーションすべてでピン10本がまっすぐ見通せる**。
+   *   ヘッドスポット（脇寄せ無し）だとドーナツ型だけ島が線を完全に塗りつぶす。
+   *
+   * ★**仕様書 7.11.7節の「L字や十字では直線上に見通せない」は実測と食い違う。**
+   *   測ったすき間（先頭のピンまでの道の、壁までの最小距離）：
+   *   長方形 475mm／六角形 336／楼円 439／スタジアム 475／ドーナツ 29／
+   *   L字 318／十字 212／星型 174。玉の半径は 28.6mm なのでどれも通る。
+   *
+   * ★**ピンはラックを組む位置（フットスポット）から、収まるまで1mmずつ手前へ寄せる。**
+   *   footSpotX と同じやり方である。**形ごとに値を並べない** ── 並べると台を足したときに書き忘れる。
+   *   実測：間隔 1.50 倍では星型だけ 130mm 手前へ寄る（他の7形状はそのまま）。
+   *
+   * ★**ポケットの上には置かない**（7.11.2節）。置いた瞬間に落ちてしまう。
+   *   ポケットの中心から 口径の半径＋玉の半径の半分 だけ離す。
+   */
+  function bowlingLayout(table) {
+    const gap = D * BOWL_GAP;
+    const sy = table.spot.y;
+    const tb = table;
+    const okAt = sx => bowlCells(sx, sy, gap).every(c => {
+      if (clearance(tb, c.x, c.y) < R) return false;
+      for (const p of table.pockets) if (Math.hypot(c.x - p.x, c.y - p.y) < p.r + R * 0.5) return false;
+      return true;
+    });
+    // 台の長軸は形ごとに向きが違うので、フット側から中心へ向かって寄せる
+    let sx = table.spot.x;
+    const step = (table.footDirection || 1) >= 0 ? -1 : 1;
+    for (let k = 0; k < 3000 && !okAt(sx); k++) sx += step;
+    return { throwPos: breakPlace(table), cells: bowlCells(sx, sy, gap), gap, apex: bowlCells(sx, sy, gap)[0] };
+  }
+
   /** 座標が入るマスの番号。格子の外なら -1 */
   function gridCellAt(table, x, y) {
     const g = territoryGrid(table);
@@ -1705,6 +1778,8 @@ const BilliardsTable = (() => {
     GRID_NX, GRID_NY, TERRITORY_FILL,
     // カーリング型（7.9節）
     playArea, curlingLayout, CURL_AREA, CURL_RINGS, breakPlace, curlingThrowPlace, BREAK_BACK,
+    // ボウリング型（7.11節）
+    bowlingLayout, bowlCells, BOWL_GAP, BOWL_ROWS,
     clearance, inside, clampInside, nearestBoundary, diamonds, buildFillets,
     // 検査から直に確かめるために出している。
     // 「内角90度以上には手を触れない」という条件は、いまのどの台でも働かない

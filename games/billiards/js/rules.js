@@ -520,6 +520,13 @@ const BilliardsRules = (() => {
          *   初期配置の形のボックスで出す。倒れた＝灰色の丸、残った＝数字入りの玉。
          */
         pinState: null,
+        /*
+         * ★**投げ終わったあとの片付け（並べ直しと手玉の構え）を、あとに回すための控え**
+         *   （利用者指示の順序）。投げ終わり → 跡を出す → ピンの状態を出す →
+         *   両方消える → 並べ直す、の順にする。片付けをその場でやると、
+         *   **結果を見せる前に盤が次の姿になってしまう。**
+         */
+        pending: null,
         msg: null,
       };
       game.players.forEach(p => { p.score = 0; });
@@ -1789,8 +1796,7 @@ const BilliardsRules = (() => {
 
     if (!bowlFrameDone(f, isLast)) {
       // 同じ人がもう1投。**立っているピンが無ければ並べ直す**（10フレーム目のボーナス投）
-      if (!bowlStanding(game)) bowlRack(game, f);
-      bowlArm(game);
+      bw.pending = { rack: bowlStanding(game) ? null : 'frame', frame: f };
       bowlScoreAll(game);
       return;
     }
@@ -1806,8 +1812,32 @@ const BilliardsRules = (() => {
     let t = nextSeat(game, seat);
     for (let k = 0; k < game.players.length && bowlSeatDone(game, t); k++) t = nextSeat(game, t);
     game.turn = t;
-    bowlRack(game);        // 次の人のフレーム＝10本を並べ直す（7.11.4節）
+    // 次の人のフレーム＝10本を並べ直す（7.11.4節）。**結果を見せ終わってから行う**
+    bw.pending = { rack: 'full', frame: null };
+  }
+
+  /**
+   * ★**投げ終わったあとの片付けを実行する**（利用者指示の順序の最後）。
+   *
+   * 跡とピンの状態を消し、必要なら10本を並べ直し、手玉を投球位置へ構える。
+   * 画面の側が「見せ終わった」と判断したときに呼ぶ（app.js）。
+   *
+   * ★**画面が無い経路でも必ず通る**ようにしてある ── 次に撞く手前（applyShot）でも呼ぶので、
+   *   リプレイ・通信の追いつき・検査のように時間の流れが無い場面でも盤は正しい姿になる。
+   *
+   * @returns {boolean} 片付けを行ったか
+   */
+  function bowlFlushRack(game) {
+    const bw = game && game.bowling;
+    if (!bw || !bw.pending) return false;
+    const p = bw.pending;
+    bw.pending = null;
+    bw.moves = null;
+    bw.pinState = null;
+    if (p.rack === 'frame') bowlRack(game, p.frame);
+    else if (p.rack === 'full') bowlRack(game);
     bowlArm(game);
+    return true;
   }
 
   /**
@@ -2099,6 +2129,7 @@ const BilliardsRules = (() => {
     // ボウリング型（7.11節）
     BOWL_FRAMES, BOWL_PINS, BOWL_DOWN, BOWL_PIN_COLOR,
     bowlRack, bowlArm, bowlStanding, bowlFrame, bowlFrameDone, bowlSeatDone, bowlLine, bowlAdvance,
+    bowlFlushRack,
     // 陣取り（7.7節）
     TERRITORY_COLORS, TERRITORY_BALLS, TERRITORY_SHOTS,
     territoryCount, territoryBallsOf, makeTerritoryProbe, territoryTrack,

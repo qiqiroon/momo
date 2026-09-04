@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.66';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.67';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -697,6 +697,9 @@
     S.net.done = {}; S.net.gone = {}; S.waitDone = null; S.readyShot = null; S.forceShot = null;
     S.catchUp = false; S.lastNeed = null;
     if (S.waitTimer) { clearTimeout(S.waitTimer); S.waitTimer = null; }
+    // ボウリング型の「結果を見せる間」の時計。局をまたいで残すと、前の局の続きが動く
+    if (S.bowlTimer) { clearTimeout(S.bowlTimer); S.bowlTimer = null; }
+    S.bowlBox = false;
     S.replay = null; S.replayRun = null; S.demo = null; S.endWait = 0;
     S.clock.banks = g.players.map(() => cfg.tbank * 60);
     S.aim = { dir: 0, tipX: 0, tipY: 0, elev: 0, power: 0 };
@@ -745,9 +748,47 @@
     return g.players.every(p => !p.pid || p.retired || d[p.pid] || gone[p.pid]);
   }
 
+  /*
+   * ★ボウリング型で、投げ終わったあとに結果を見せる間（利用者指示の順序）。
+   *   投げ終わり → 跡（どこからどこへ動いたか）→ ピンの状態のボックス →
+   *   両方消える → 次の投擲のためにピンを並べ直す。
+   */
+  const BOWL_LINE_MS = 700;      // 跡を出してから、ピンの状態を出すまで
+  const BOWL_SHOW_MS = 2800;     // 投げ終わりから、消して並べ直すまで
+
   function beginTurn() {
     const g = S.game;
     if (!g || g.over) return;
+
+    /*
+     * ★**片付けが残っているうちは手番を始めない。**
+     *   ここで待たずに進むと、結果を見せる前に盤が次の姿（並べ直した10本）になる。
+     *   追いつき直しやリプレイのように時間の流れが無い場面では、待たずにその場で片付ける。
+     */
+    if (g.rule === 'G-11' && g.bowling && g.bowling.pending) {
+      if (S.catchUp || S.demo) { RU.bowlFlushRack(g); }
+      else if (!S.bowlTimer) {
+        S.phase = 'wait';
+        S.bowlBox = false;              // まずは跡だけ。ボックスは少し遅れて出す
+        renderHUD();
+        S.bowlTimer = setTimeout(() => {
+          if (S.game !== g || g.over) { S.bowlTimer = null; return; }
+          S.bowlBox = true;             // ピンの状態のボックスを出す
+          renderHUD();
+          S.bowlTimer = setTimeout(() => {
+            S.bowlTimer = null;
+            if (S.game !== g || g.over) return;
+            S.bowlBox = false;          // 跡もボックスも消して、並べ直す
+            RU.bowlFlushRack(g);
+            renderHUD();
+            beginTurn();
+          }, Math.max(0, BOWL_SHOW_MS - BOWL_LINE_MS));
+        }, BOWL_LINE_MS);
+        return;
+      } else {
+        return;                          // 見せている最中。時間が来たらここへ戻ってくる
+      }
+    }
 
     /*
      * 待ち合わせは「手の入り口」で行う。
@@ -1055,7 +1096,10 @@
      * ★ボウリング型の「動いた跡」は**前の一投のもの**なので、撞き始めたら消す。
      * 残したまま投げると、転がっている玉に前回の線が重なって読めなくなる。
      */
-    if (g.rule === 'G-11' && g.bowling) { g.bowling.moves = null; g.bowling.pinState = null; }
+    if (g.rule === 'G-11' && g.bowling) {
+      RU.bowlFlushRack(g);          // 見せ終わっていなくても、撞く前には必ず盤を整える
+      g.bowling.moves = null; g.bowling.pinState = null;
+    }
     g.history.push({ n: g.shotNo, shot: Object.assign({}, shot), place: place || null });
     S.replay = { balls: g.world.balls.map(b => Object.assign({}, b)), shot: Object.assign({}, shot), turn: g.turn };
 
@@ -3848,7 +3892,8 @@
     // ボウリング型のピンの状態（利用者指示）。盤の玉が散らばると何番が残ったか読めない
     const bp = $('bowl-pins');
     if (bp) {
-      const html = (g.rule === 'G-11' && g.bowling) ? bowlPinsHTML(g) : '';
+      // ★ボックスは**投げ終わって見せている間だけ**出す（利用者指示の順序）
+      const html = (g.rule === 'G-11' && g.bowling && S.bowlBox) ? bowlPinsHTML(g) : '';
       bp.style.display = html ? 'block' : 'none';
       if (html) bp.innerHTML = '<div class="cap">' + t('bowl.pins') + '</div>' + html;
     }
@@ -4597,6 +4642,8 @@
     for (const k of Object.keys(S.chk)) if (+k < g.shotNo) delete S.chk[k];
     if (S.waitTimer) { clearTimeout(S.waitTimer); S.waitTimer = null; }
     S.waitDone = null; S.readyShot = null; S.forceShot = null;
+    if (S.bowlTimer) { clearTimeout(S.bowlTimer); S.bowlTimer = null; }
+    S.bowlBox = false;
     renderHUD();
     if (!g.over) setTimeout(beginTurn, 60); // 配られた盤面から、あらためて手番を始める
   }

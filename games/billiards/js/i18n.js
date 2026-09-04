@@ -103,7 +103,7 @@ const BilliardsI18N = (() => {
       'hud.curlStones': '残り{n}個', 'hud.curlEnd': '{n}/{all} エンド',
       'curl.board': 'エンド得点', 'curl.nowCol': '今', 'curl.totCol': '計',
       'hud.bowlFrame': '{n}/{all}F', 'hud.bowlBall': '{n}投目・残り{pins}本',
-      'bowl.board': 'フレームごとの得点',
+      'bowl.board': 'フレームごとの得点', 'bowl.pins': 'ピンの状態',
       'drop.title': '落ちた玉', 'drop.already': 'これまでに落ちた玉',
       'group.solid': 'ソリッド（1〜7）', 'group.stripe': 'ストライプ（9〜15）',
 
@@ -340,7 +340,7 @@ const BilliardsI18N = (() => {
       'hud.curlStones': '{n} left', 'hud.curlEnd': 'End {n}/{all}',
       'curl.board': 'End scores', 'curl.nowCol': 'now', 'curl.totCol': 'tot',
       'hud.bowlFrame': 'Frame {n}/{all}', 'hud.bowlBall': 'Roll {n} — {pins} pins left',
-      'bowl.board': 'Frame scores',
+      'bowl.board': 'Frame scores', 'bowl.pins': 'Pins',
       'drop.title': 'Pocketed', 'drop.already': 'Already pocketed',
       'group.solid': 'Solids (1-7)', 'group.stripe': 'Stripes (9-15)',
 
@@ -576,7 +576,7 @@ const BilliardsI18N = (() => {
       'hud.curlStones': '剩{n}颗', 'hud.curlEnd': '第{n}/{all}局',
       'curl.board': '每局得分', 'curl.nowCol': '现', 'curl.totCol': '总',
       'hud.bowlFrame': '第{n}/{all}格', 'hud.bowlBall': '第{n}投・剩{pins}瓶',
-      'bowl.board': '每格得分',
+      'bowl.board': '每格得分', 'bowl.pins': '瓶的状态',
       'drop.title': '已进袋', 'drop.already': '此前进袋的球',
       'group.solid': '全色（1〜7）', 'group.stripe': '花色（9〜15）',
 

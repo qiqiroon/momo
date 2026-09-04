@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.65';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.66';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -1055,7 +1055,7 @@
      * ★ボウリング型の「動いた跡」は**前の一投のもの**なので、撞き始めたら消す。
      * 残したまま投げると、転がっている玉に前回の線が重なって読めなくなる。
      */
-    if (g.rule === 'G-11' && g.bowling) g.bowling.moves = null;
+    if (g.rule === 'G-11' && g.bowling) { g.bowling.moves = null; g.bowling.pinState = null; }
     g.history.push({ n: g.shotNo, shot: Object.assign({}, shot), place: place || null });
     S.replay = { balls: g.world.balls.map(b => Object.assign({}, b)), shot: Object.assign({}, shot), turn: g.turn };
 
@@ -2071,73 +2071,101 @@
    *
    * ★**元の位置には何も置かない。**丸を描くと「玉が元の場所に戻った」ように見える。
    */
-  const BOWL_MOVE_MIN = 3;      // これ未満しか動いていない玉は、線も数字も出さない（mm）
+  const BOWL_MOVE_MIN = 3;      // これ未満しか動いていない玉には線を引かない（mm）
+  const BOWL_DOWN_COLOR = 'rgba(148,163,184,';   // 倒れた＝灰色
+  const BOWL_STAY_COLOR = 'rgba(251,146,60,';    // 残った＝橙
   function drawBowlMoves() {
     const g = S.game, mv = g.bowling.moves, s = view.s;
     if (!mv || !mv.length) return;
-    const DOWN = 'rgba(148,163,184,';       // 倒れた＝灰色
-    const STAY = 'rgba(251,146,60,';        // 残った＝橙
     ctx.save();
     tablePath(g.table); ctx.clip('evenodd');
-    // ① 線を先に全部引く（玉より下に敷く）
-    for (const m of mv) {
-      // ★ごく僅かな揺れ（数 mm）には線も数字も出さない。出すと狭い三角形のまわりに
-      //   読めない数字が並ぶだけになる（実機の指摘）
-      if (m.dist < BOWL_MOVE_MIN) continue;
-      const p0 = toScreen(m.x0, m.y0), p1 = toScreen(m.x1, m.y1);
-      const col = m.down ? DOWN : STAY;
-      ctx.beginPath();
-      ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y);
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = col + '.95)';
-      ctx.stroke();
-      // 出発点は小さな点だけ。玉に見える大きさにしない
-      ctx.beginPath(); ctx.arc(p0.x, p0.y, Math.max(1.4, 2.4 * s), 0, 7);
-      ctx.fillStyle = col + '.9)'; ctx.fill();
+    /*
+     * ★**線だけを引く。数字は書かない**（利用者指示）。
+     *   10本ぶんの数字は狭い三角形のまわりで重なって読めない。
+     *   何本倒れたかは、そばのボックス（ピンの状態）とスコアシートが受け持つ。
+     *
+     * ★**灰色（倒れた）を先に、橙（残った）をあとに引く。**
+     *   残った玉の線は「まだそこにある玉」を指しているので、重なったときに
+     *   隠れてはいけない（利用者指示）。
+     */
+    for (const pass of [0, 1]) {
+      const wantDown = (pass === 0);
+      for (const m of mv) {
+        if (m.dist < BOWL_MOVE_MIN) continue;
+        if (m.down !== wantDown) continue;
+        const p0 = toScreen(m.x0, m.y0), p1 = toScreen(m.x1, m.y1);
+        const col = m.down ? BOWL_DOWN_COLOR : BOWL_STAY_COLOR;
+        ctx.beginPath();
+        ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = col + '.95)';
+        ctx.stroke();
+        // 出発点は小さな点だけ。玉に見える大きさにしない
+        ctx.beginPath(); ctx.arc(p0.x, p0.y, Math.max(1.4, 2.4 * s), 0, 7);
+        ctx.fillStyle = col + '.9)'; ctx.fill();
+      }
     }
-    // ② 倒れて盤から消えた玉を、止まった場所へ薄く置き直す
+    /*
+     * 倒れて盤から消えた玉を、止まった場所へ薄く置き直す（利用者指示）。
+     * ★**ポケットへ落ちた玉に別の印は付けない。**落ちること自体はボウリングと関係がなく、
+     *   「倒れた」の一種でしかない（利用者指示）。他と同じに薄い玉として置く。
+     */
     for (const m of mv) {
       if (!m.down) continue;                      // 残った玉は盤に本物がある
       const p1 = toScreen(m.x1, m.y1);
       const r = T.R * s;
-      if (m.gone) {
-        // ポケットへ落ちた・場外へ出た玉は、玉ではなく × で示す
-        const k = Math.max(3, r * .8);
-        ctx.beginPath();
-        ctx.moveTo(p1.x - k, p1.y - k); ctx.lineTo(p1.x + k, p1.y + k);
-        ctx.moveTo(p1.x + k, p1.y - k); ctx.lineTo(p1.x - k, p1.y + k);
-        ctx.strokeStyle = DOWN + '.95)'; ctx.lineWidth = 2.4; ctx.stroke();
-      } else {
-        ctx.save();
-        ctx.globalAlpha = .42;
-        drawBallIcon(p1.x, p1.y, r, RU.BOWL_PIN_COLOR, true, m.num, false);
-        ctx.restore();
-        ctx.beginPath(); ctx.arc(p1.x, p1.y, r, 0, 7);
-        ctx.strokeStyle = DOWN + '.9)'; ctx.lineWidth = 2; ctx.stroke();
-      }
+      ctx.save();
+      ctx.globalAlpha = .42;
+      drawBallIcon(p1.x, p1.y, r, RU.BOWL_PIN_COLOR, true, m.num, false);
+      ctx.restore();
+      ctx.beginPath(); ctx.arc(p1.x, p1.y, r, 0, 7);
+      ctx.strokeStyle = BOWL_DOWN_COLOR + '.9)'; ctx.lineWidth = 2; ctx.stroke();
     }
     ctx.restore();
-    /*
-     * ③ 移動量。行き先の少し先へ、線の向きに沿って置く。
-     *
-     * ★**台の内側だけに切り取る枠の外で描く。**枠の中で描くと、
-     *   壁ぎわで止まった玉の数字が台の外へはみ出して**切り取られ、消える**
-     *   （実測：いちばん奥まで飛んだ玉の 401mm が出ていなかった）。
-     */
-    ctx.font = '700 11px "Noto Sans JP",sans-serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    for (const m of mv) {
-      if (m.dist < BOWL_MOVE_MIN) continue;
-      const p0 = toScreen(m.x0, m.y0), p1 = toScreen(m.x1, m.y1);
-      const dx = p1.x - p0.x, dy = p1.y - p0.y, len = Math.hypot(dx, dy) || 1;
-      const off = T.R * s + 11;
-      const lx = p1.x + dx / len * off, ly = p1.y + dy / len * off;
-      const label = Math.round(m.dist) + 'mm';
-      ctx.lineWidth = 3.5; ctx.strokeStyle = 'rgba(0,0,0,.8)';
-      ctx.strokeText(label, lx, ly);
-      ctx.fillStyle = m.down ? '#cbd5e1' : '#fdba74';
-      ctx.fillText(label, lx, ly);
+  }
+
+  /**
+   * ★**ピンの状態を、初期配置の形のボックスで出す**（利用者指示）。
+   *
+   * 盤の上の玉は投げるたびに散らばるので、**何番が倒れて何番が残っているか**は
+   * 盤を見ても読み取れない。現実のボウリングの「ピンの絵」と同じものを別に置く。
+   *
+   *   倒れたピン … 灰色の丸（番号は出さない。もう狙う相手ではない）
+   *   残ったピン … 番号の入った玉
+   *
+   * ★**投げる人から見た並び**にする。手前（下）が1番、いちばん奥（上）が 7-8-9-10。
+   *   盤の向きと同じにしないと、左右の残り方を読み替えることになる。
+   */
+  function bowlPinsHTML(g) {
+    const st = g.bowling && g.bowling.pinState;
+    if (!st || !st.length) return '';
+    const R = 9, GX = 23, GY = 20, PAD = 3;
+    const W = GX * 4 + PAD * 2, H = GY * 3 + R * 2 + PAD * 2;
+    const byPin = {};
+    st.forEach(v => { byPin[v.pin] = v; });
+    let h = '<svg class="bpins" viewBox="0 0 ' + W + ' ' + H + '">';
+    let k = 0;
+    for (let row = 0; row < 4; row++) {
+      for (let i = 0; i <= row; i++) {
+        const v = byPin[k++]; if (!v) continue;
+        const cx = W / 2 + (i - row / 2) * GX;
+        const cy = PAD + R + (3 - row) * GY;      // 手前（1番）を下に置く
+        if (v.down) {
+          // 倒れたピンは**塗りつぶした灰色の丸**（利用者指示）。番号は出さない
+          h += '<circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="' + (R - 1)
+            + '" fill="#5b6675"/>';
+        } else {
+          h += '<circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="' + R
+            + '" fill="' + RU.BOWL_PIN_COLOR + '"/>'
+            + '<circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="' + (R * .62)
+            + '" fill="#ffffff"/>'
+            + '<text x="' + cx.toFixed(1) + '" y="' + (cy + 3.2).toFixed(1) + '"'
+            + ' text-anchor="middle" font-size="9" font-weight="700" fill="#111">'
+            + v.num + '</text>';
+        }
+      }
     }
+    return h + '</svg>';
   }
 
   /**
@@ -2283,6 +2311,13 @@
        * 「盤にいない」と「失った」は別物なので、投げた印で分ける。
        */
       .filter(b => b.stone == null || b.thrown)
+      /*
+       * ★**ボウリング型のピンは台の脇に並べない**（利用者指示）。
+       * 「落ちた玉を脇に並べる」のはビリヤードの見せ方であって、
+       * ボウリングでは玉がピットへ落ちること自体に意味が無い。倒れた本数と
+       * どの番号が残っているかは、そばの「ピンの状態」のボックスが受け持つ。
+       */
+      .filter(b => b.pin == null)
       .sort((a, b) => (a.kind === 'cue' ? -1 : 0) - (b.kind === 'cue' ? -1 : 0) || (a.num - b.num));
   }
 
@@ -3809,6 +3844,13 @@
       const on = g.rule === 'G-09' && g.curling;
       cb.style.display = on ? '' : 'none';
       if (on) cb.innerHTML = curlScoreHTML(g, true);
+    }
+    // ボウリング型のピンの状態（利用者指示）。盤の玉が散らばると何番が残ったか読めない
+    const bp = $('bowl-pins');
+    if (bp) {
+      const html = (g.rule === 'G-11' && g.bowling) ? bowlPinsHTML(g) : '';
+      bp.style.display = html ? 'block' : 'none';
+      if (html) bp.innerHTML = '<div class="cap">' + t('bowl.pins') + '</div>' + html;
     }
     /*
      * ボウリング型のスコアシート（7.11.5節）。

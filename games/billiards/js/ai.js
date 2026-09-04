@@ -925,6 +925,78 @@ const BilliardsAI = (() => {
   const CURL_DIRS = [0, -0.03, 0.03, -0.07, 0.07];
   const CURL_POWERS = [0.040, 0.044, 0.048, 0.052, 0.056, 0.060, 0.064, 0.070, 0.10, 0.16, 0.25, 0.38];
   const CURL_TOP = { easy: 0.55, hard: 0.28, apocalypse: 0.08 };
+  /*
+   * ★**投球位置からハウスへ真っすぐ通れない台では、跳ね返しの筋を探して撞く。**
+   * 上の CURL_DIRS は真っすぐから ±4 度しか振らない。ドーナツ型は投球位置とハウスの間を
+   * 中央の島が完全に塞ぐので、この範囲は全部島に当たる＝**AI が一度もハウスへ届かなくなる。**
+   * しかも塞がれた台では真っすぐの筋そのものが無駄で、島の手前で止まった玉は
+   * 中心から遠すぎてホグ円の外＝その場で取り除かれる。だから**足すのではなく入れ替える。**
+   *
+   * ★**鏡の理屈（入る角＝出る角）では当てられない。**実測すると、鏡で求めた 45 度は
+   * どの強さでもハウスに入らず、実際に入るのは 17〜19 度・55〜58 度・110〜118 度だった。
+   * クッションは反発 0.86 で、回転も乗るので鏡にならない。**探すには実際に撞いてみるしかない。**
+   *
+   * そこで**台の形ごとに一度だけ、空の盤で全方位を試し撞きして「届く筋」を覚える**。
+   * 投球位置は台ごとに1点で動かないので、覚えた筋はその台のあいだじゅう使える。
+   * 一撞きごとに全方位を撞き直すと、候補が 378 通りになって考える時間が5倍になった（実測）。
+   *
+   * ★**覚えた筋のまわりを振る数は「考える時間が長方形と同じくらいに収まる」大きさで決めた。**
+   * 4本 × 向き3 × 強さ3 ＝ 36 通りで、8投目の考える時間は長方形 5.9 秒に対し 6.3 秒。
+   * 5本 × 3 × 5 ＝ 75 通りにすると 10.8 秒（1.8倍）になり、ハウスに入る数は変わらなかった。
+   */
+  const CURL_SEED_STEP = 8;                                   // 筋を探す向きの刻み（度）
+  const CURL_SEED_POWERS = [0.14, 0.20, 0.26, 0.32, 0.38];    // 筋を探す強さ
+  const CURL_SEED_KEEP = 4;                                   // 覚える筋の数
+  const CURL_SEED_APART = 12;                                 // 覚える筋どうしを離す角度（度）
+  const CURL_SEED_DIRS = [-3, 0, 3];                          // 覚えた筋のまわりの振り（度）
+  const CURL_SEED_POWS = [-0.03, 0, 0.03];                    // 同じく強さの振り
+  const curlSeeds = {};      // 台の形ごとの「届く筋」。一度探したら覚えておく
+
+  /**
+   * 空の盤で全方位を試し撞きし、ハウスの中心へいちばん寄る筋を CURL_SEED_KEEP 本選ぶ。
+   * **向きが近いものは1本にまとめる**（同じ筋の隣どうしで埋まると、当たりが1つしか残らない）。
+   */
+  function curlBankSeeds(game, cue) {
+    /*
+     * ★**覚える鍵に物理の設定も入れる。**跳ね返りは壁ズリや回転の設定で変わるので、
+     * 台の形だけを鍵にすると、設定を変えたあとも古い筋を使い続ける（覚えた値が黙って古くなる）。
+     */
+    const tu = game.tuning || {};
+    const key = game.table.shape + (game.table.hasPockets ? 'P' : 'C') + '|'
+      + ['cushionSpin', 'spinTransfer', 'throwEffect', 'wallSlide']
+        .map(k => (tu[k] ? '1' : '0')).join('');
+    if (curlSeeds[key]) return curlSeeds[key];
+    const L = game.curling.layout;
+    const toC = Math.atan2(L.center.y - cue.y, L.center.x - cue.x);
+    // 先に投げた玉を外した盤で測る（その日の配置に引きずられた筋を覚えないため）
+    const empty = E.cloneWorld(game.world);
+    empty.balls.forEach(b => { if (b.id !== cue.id) { b.onTable = false; b.state = 'gone'; } });
+    const tried = [];
+    for (let deg = 0; deg < 360; deg += CURL_SEED_STEP) {
+      for (const power of CURL_SEED_POWERS) {
+        const w = E.cloneWorld(empty);
+        const c = w.balls.find(x => x.id === cue.id);
+        if (!c) continue;
+        E.applyCue(c, { dir: toC + deg * Math.PI / 180, tipX: 0, tipY: 0, elev: 0, power });
+        E.runShot(w, 20);
+        if (c.state !== 'live') continue;
+        tried.push({ deg, power, d: Math.hypot(c.x - L.center.x, c.y - L.center.y) });
+      }
+    }
+    tried.sort((a, b) => a.d - b.d);
+    const keep = [];
+    for (const t of tried) {
+      if (keep.length >= CURL_SEED_KEEP) break;
+      const apart = keep.every(k => {
+        let g = Math.abs(k.deg - t.deg) % 360;
+        if (g > 180) g = 360 - g;
+        return g >= CURL_SEED_APART;
+      });
+      if (apart) keep.push(t);
+    }
+    curlSeeds[key] = keep;
+    return keep;
+  }
 
   /** その盤面で、いまエンドが終わったとしたら何点か（ホグ円の外は取り除かれる前提） */
   function curlValue(game, playerIdx, balls) {
@@ -967,8 +1039,11 @@ const BilliardsAI = (() => {
     const L = game.curling.layout;
     const toC = Math.atan2(L.center.y - cue.y, L.center.x - cue.x);
 
+    // ハウスへ真っすぐ通れるか。塞がれている台（ドーナツ型）は狙いの作り方を変える
+    const blocked = pathCrossesWall(game.table, cue.x, cue.y, L.center.x, L.center.y, cue.r);
+
     // 狙う向き＝目標円の中心まわりと、**盤にある玉それぞれ**（弾き出しと、その手前へ置く筋）
-    const dirs = CURL_DIRS.map(o => toC + o);
+    const dirs = blocked ? [] : CURL_DIRS.map(o => toC + o);
     const stones = game.world.balls
       .filter(b => b !== cue && b.state === 'live' && b.stone != null)
       .map(b => ({ b, d: Math.hypot(b.x - cue.x, b.y - cue.y) }))
@@ -978,6 +1053,18 @@ const BilliardsAI = (() => {
     const cands = [];
     for (const dir of dirs) for (const power of CURL_POWERS) {
       cands.push({ dir, power, tipX: 0, tipY: 0, elev: 0 });
+    }
+    // 塞がれた台では、真っすぐの代わりに**覚えた跳ね返しの筋のまわり**を試す
+    if (blocked) {
+      for (const s of curlBankSeeds(game, cue)) {
+        for (const dd of CURL_SEED_DIRS) for (const dp of CURL_SEED_POWS) {
+          cands.push({
+            dir: toC + (s.deg + dd) * Math.PI / 180,
+            power: Math.max(0.03, Math.min(0.40, s.power + dp)),
+            tipX: 0, tipY: 0, elev: 0,
+          });
+        }
+      }
     }
 
     let i = 0, cancelled = false;
@@ -1101,7 +1188,8 @@ const BilliardsAI = (() => {
     return function cancel() { cancelled = true; };
   }
 
-  return { think, pickBallInHand, bankShot, curlingThink, curlValue, PROFILE };
+  // curlBankSeeds は検査から直に確かめるために出している（覚えた筋に当たりの幅があるか）
+  return { think, pickBallInHand, bankShot, curlingThink, curlValue, curlBankSeeds, PROFILE };
 })();
 
 if (typeof window !== 'undefined') window.BilliardsAI = BilliardsAI;

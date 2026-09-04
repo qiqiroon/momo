@@ -1603,12 +1603,28 @@ const BilliardsTable = (() => {
    * ヘッドスポットよりわずかにヘッド側。台が上書きを持っていればそれを使う
    * （ドーナツ型は長軸の上に置ける線が出ないので脇へ寄せてある）。
    *
-   * ★**カーリング型の投球位置もここを使う**（利用者指示「スタートラインは通常の手玉を置く位置」）。
-   * 同じ決めごとを2か所に書くと、片方を直したときにもう片方がずれる。ここに1本だけ置く。
    */
   const BREAK_BACK = 160;      // ヘッドスポットからヘッド側へ寄せる量（実装値。10.2.6節）
   function breakPlace(table) {
     if (table.breakSpot) return { x: table.breakSpot.x, y: table.breakSpot.y };
+    const axis = table.footDirection || 1;
+    return { x: table.headSpot.x - axis * BREAK_BACK, y: table.headSpot.y };
+  }
+
+  /**
+   * カーリング型（G-09）の投球位置。**ハウスの真反対＝長軸の上**（利用者指示）。
+   *
+   * ★**breakPlace() の上書き（ドーナツ型の脇寄せ）は使わない。**
+   * あの脇寄せは「ブレイクでラックへ真っすぐ通す筋を空ける」というブレイク専用の事情で入れた
+   * 例外であって、ラックを持たないカーリング型には当てはまらない。
+   * ここで例外を外すと、投球位置は8形状すべてが同じ式（ヘッドスポットの少しヘッド側）で決まる。
+   *
+   * ★**ドーナツ型は、この点とハウスを結ぶ線を中央の島が完全に塞ぐ**（実測＝島まで 0mm）。
+   * 直接狙えないのは承知のうえで、クッションで跳ね返して届かせる（利用者指示）。
+   * 実測：ハウスに入る向きは 64 通り、いちばん広い当たりの窓は目盛り 8 点（56度・89〜96）。
+   * **筋が塞がれる台では AI も跳ね返しの向きを試す**（ai.js の curlingThink を参照）。
+   */
+  function curlingThrowPlace(table) {
     const axis = table.footDirection || 1;
     return { x: table.headSpot.x - axis * BREAK_BACK, y: table.headSpot.y };
   }
@@ -1640,9 +1656,7 @@ const BilliardsTable = (() => {
    *
    * ・**目標円の中心は台の重心。**ドーナツ型は島を引いた重心になる（centroidOf が面倒を見る）
    * ・**半径は盤面の面積に対する割合**。形ごとに面積が違うので、狭い台では自動的に小さくなる
-   * ・**投球位置は長軸の上を、フットと反対（ヘッド）側へ進めるだけ進んだ点。**
-   *   仕様の「目標円から最も遠い位置」にあたる。**クッションから玉4個ぶん残す**のは、
-   *   毎回ここから撞くのにキューを立てすぎないため（壁ぎわだと 17度ほど立てることになる）
+   * ・**投球位置はハウスの真反対＝長軸の上**（curlingThrowPlace）。8形状すべて同じ式で決まる
    * ・**ホグ円は投球位置と中心の中間。**外で止まった玉は取り除く（7.9.3節の追加規定）。
    *   現実のカーリングは「ホグラインに届かない」と「バックラインを越える」を別々の線で見るが、
    *   台が8種あるので**中心からの遠さ1本**にまとめる。線ではなく円にすると、
@@ -1661,19 +1675,15 @@ const BilliardsTable = (() => {
       clearance(table, center0.x, center0.y));
     /*
      * ★**ハウスは「ふだんラックを組む位置」＝基準スポット**（利用者指示）。
-     * ★**投球位置は「ふだん手玉を置く位置」＝ブレイクの既定の置き場所**（同）。
+     * ★**投球位置はそのハウスの真反対**（利用者指示。curlingThrowPlace）。
      *
      * 前は重心と「目標円から最も遠い点」を測って決めていたが、
      * **どの台でも見慣れた2点になるほうが分かりやすい**というご判断。
      * 座標を新しく持たずに済み、台を足したときの手作業も増えない
      * （どちらも既存の台定義データが持っている）。
-     *
-     * **ドーナツ型は、この2点を直線で結ぶと中央の島がほぼ真上に来る。**
-     * 直接狙えないのは承知のうえで、そのままにする（利用者指示）。
-     * クッションで跳ね返して届く強さを用意することで成り立たせる。
      */
     const center = center0;
-    const throwPos = breakPlace(table);
+    const throwPos = curlingThrowPlace(table);
     const dist = Math.hypot(throwPos.x - center.x, throwPos.y - center.y);
     table._curl = { center, radius, hog: dist / 2, throwPos, dist, rings: CURL_RINGS };
     return table._curl;
@@ -1694,7 +1704,7 @@ const BilliardsTable = (() => {
     polyCentroid, centroidOf, maxRingRadius, territoryLayout, territoryGrid, gridCellAt,
     GRID_NX, GRID_NY, TERRITORY_FILL,
     // カーリング型（7.9節）
-    playArea, curlingLayout, CURL_AREA, CURL_RINGS, breakPlace, BREAK_BACK,
+    playArea, curlingLayout, CURL_AREA, CURL_RINGS, breakPlace, curlingThrowPlace, BREAK_BACK,
     clearance, inside, clampInside, nearestBoundary, diamonds, buildFillets,
     // 検査から直に確かめるために出している。
     // 「内角90度以上には手を触れない」という条件は、いまのどの台でも働かない

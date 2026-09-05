@@ -711,6 +711,14 @@ const BilliardsAI = (() => {
 
   function pickBallInHand(game, playerIdx) {
     if (game.rule === 'G-06') return pickBallInHandTerritory(game, playerIdx);
+    /*
+     * ★ボウリング型は**既定の投球位置から投げる**。
+     *   手前側のどこからでも投げてよいが、真っすぐ狙える点はそこ1つなので、
+     *   探し回っても得るものが無い（実測：16バリエーションすべてでそこから10本見通せる）。
+     */
+    if (game.rule === 'G-11' && game.bowling) {
+      return { x: game.bowling.layout.throwPos.x, y: game.bowling.layout.throwPos.y };
+    }
     const table = game.table;
     const cue = RU.cueBallOf(game, playerIdx);
     // ★筋を作る側と同じ判断を使う。ここに別の書き方を置くと、片方だけがはぐれる

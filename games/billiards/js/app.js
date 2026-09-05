@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.67';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.68';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -909,7 +909,13 @@
       setMsg(t('bank.how'));
       AU.sfx('turn');
     } else {
-      setMsg(S.phase === 'place' ? (g.ballInHandFull ? t('ph.freeArea') : t('ph.placeArea')) : t('ph.aim'));
+      /*
+       * ★ボウリング型はブレイクを持たないので、置く場面の言い方も変える。
+       *   同じ「手前側の区域」でも、あちらはラックを崩す一撞き、こちらは毎回の投球位置である。
+       */
+      const areaKey = g.ballInHandFull ? 'ph.freeArea'
+        : (g.rule === 'G-11' ? 'ph.bowlArea' : 'ph.placeArea');
+      setMsg(S.phase === 'place' ? t(areaKey) : t('ph.aim'));
       AU.sfx('turn');
     }
     renderHUD();
@@ -2150,21 +2156,11 @@
       }
     }
     /*
-     * 倒れて盤から消えた玉を、止まった場所へ薄く置き直す（利用者指示）。
-     * ★**ポケットへ落ちた玉に別の印は付けない。**落ちること自体はボウリングと関係がなく、
-     *   「倒れた」の一種でしかない（利用者指示）。他と同じに薄い玉として置く。
+     * ★**倒れた玉そのものは描かない**（利用者指示）。
+     *   盤から取り除かれた玉を置き直すと「まだそこにある」ように見える。
+     *   どこへ行ったかは線の先が示しており、何番が倒れたかは
+     *   そばの「ピンの状態」のボックスが受け持つ。
      */
-    for (const m of mv) {
-      if (!m.down) continue;                      // 残った玉は盤に本物がある
-      const p1 = toScreen(m.x1, m.y1);
-      const r = T.R * s;
-      ctx.save();
-      ctx.globalAlpha = .42;
-      drawBallIcon(p1.x, p1.y, r, RU.BOWL_PIN_COLOR, true, m.num, false);
-      ctx.restore();
-      ctx.beginPath(); ctx.arc(p1.x, p1.y, r, 0, 7);
-      ctx.strokeStyle = BOWL_DOWN_COLOR + '.9)'; ctx.lineWidth = 2; ctx.stroke();
-    }
     ctx.restore();
   }
 
@@ -3970,9 +3966,13 @@
   const BOWL_STRIKE_MARK = 'X';
   const BOWL_SPARE_MARK = '/';
   const BOWL_MARK_SVG = {
+    /*
+     * ★ストライクは**向かい合う2つの三角**（利用者指示）。現実のスコアシートの印である。
+     *   線を2本引いた「×」は文字の X と見分けがつかない。
+     */
     X: '<svg class="bmk" viewBox="0 0 10 10" aria-label="strike">'
-      + '<path d="M1.4 1.4L8.6 8.6M8.6 1.4L1.4 8.6" fill="none" stroke="currentColor"'
-      + ' stroke-width="1.7" stroke-linecap="round"/></svg>',
+      + '<path d="M0.8 0.8L5 5L0.8 9.2Z" fill="currentColor"/>'
+      + '<path d="M9.2 0.8L5 5L9.2 9.2Z" fill="currentColor"/></svg>',
     '/': '<svg class="bmk" viewBox="0 0 10 10" aria-label="spare">'
       + '<path d="M9.2 0.8L9.2 9.2L0.8 9.2Z" fill="currentColor"/></svg>',
   };

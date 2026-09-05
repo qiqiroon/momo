@@ -530,7 +530,8 @@ const BilliardsRules = (() => {
         msg: null,
       };
       game.players.forEach(p => { p.score = 0; });
-      game.ballInHand = false;
+      // ★手前側の好きな場所から投げられる（bowlArm と同じ理由・利用者指示）
+      game.ballInHand = true;
       game.ballInHandFull = false;
     } else if (game.rule === 'G-06') {
       /*
@@ -1621,7 +1622,14 @@ const BilliardsRules = (() => {
      */
   }
 
-  /** 手玉を投球位置へ戻す（7.11.4節「各投の前に投球位置へ戻す」） */
+  /**
+   * 手玉を投球位置へ戻す（7.11.4節「各投の前に投球位置へ戻す」）。
+   *
+   * ★**置き場所は既定であって、決まりではない**（利用者指示）。
+   *   現実のボウリングは助走路のどこに立ってもよいので、**手前側の好きな場所から投げられる**。
+   *   ここでは既定の位置に置いたうえで「置き直してよい」印を立てる。
+   *   置ける範囲（手前側）は画面の側が持っている ── ブレイクの配置と同じ区域である。
+   */
   function bowlArm(game) {
     const bw = game.bowling;
     if (!bw || game.over) return null;
@@ -1629,7 +1637,28 @@ const BilliardsRules = (() => {
     if (!cue) return null;
     cue.state = 'live'; cue.onTable = true;
     place(cue, bw.layout.throwPos.x, bw.layout.throwPos.y);
+    game.ballInHand = true;
+    game.ballInHandFull = false;      // 手前側だけ（台じゅうではない）
     return cue;
+  }
+
+  /**
+   * ★**倒れなかったピンを、並べたときの場所へ戻す**（利用者指示）。
+   *
+   * 閾値に届かない揺れ（数〜十数 mm）でも玉は少しずつずれていく。放っておくと
+   * **次の一投の「動いた距離」が、前の一投のずれから測られる**ことになり、
+   * 同じだけ動いても倒れたり倒れなかったりする。並べ直しと同じ場所へ戻し、
+   * **測る基準（bw.start）も取り直す。**
+   */
+  function bowlTidy(game) {
+    const bw = game.bowling, L = bw.layout;
+    for (const b of game.world.balls) {
+      if (b.pin == null || b.state !== 'live') continue;
+      const c = L.cells[b.pin];
+      if (!c) continue;
+      place(b, c.x, c.y);
+      bw.start[b.id] = { x: c.x, y: c.y };
+    }
   }
 
   /** 盤に立っているピンの数 */
@@ -1723,8 +1752,17 @@ const BilliardsRules = (() => {
     if (!bw) return;
     const seat = game.turn;
     const f = bowlFrame(game, seat);
-    // ★**投げる前に立っていた本数**を控える。ストライクとスペアはこれと突き合わせて決まる
-    const before = bowlStanding(game);
+    /*
+     * ★**投げる前に立っていた本数。**
+     *
+     * ★**盤に残っている玉の数で数えてはいけない。**この時点では、その一投で
+     *   ポケットへ落ちた玉・場外へ出た玉はもう 'live' ではないので、
+     *   **最初からいなかったこと**になる。実測でそのせいで
+     *   ・10本倒したのにストライクと出ない（1本が落ちて「9本中9本」に見えた）
+     *   ・1投目なのにスペアと出る（同上）
+     *   の両方が起きた。**「このフレームでまだ倒れたと数えていない玉」**で数える。
+     */
+    const before = game.world.balls.filter(b => b.pin != null && !f.down[b.id]).length;
     let n = 0;
 
     /*
@@ -1836,6 +1874,7 @@ const BilliardsRules = (() => {
     bw.pinState = null;
     if (p.rack === 'frame') bowlRack(game, p.frame);
     else if (p.rack === 'full') bowlRack(game);
+    else bowlTidy(game);        // 並べ直さないときも、残ったピンは元の場所へ戻す
     bowlArm(game);
     return true;
   }
@@ -2128,7 +2167,7 @@ const BilliardsRules = (() => {
     curlingArm, curlingStock, curlingDist, curlingEndScore, curlingAdvance,
     // ボウリング型（7.11節）
     BOWL_FRAMES, BOWL_PINS, BOWL_DOWN, BOWL_PIN_COLOR,
-    bowlRack, bowlArm, bowlStanding, bowlFrame, bowlFrameDone, bowlSeatDone, bowlLine, bowlAdvance,
+    bowlRack, bowlArm, bowlTidy, bowlStanding, bowlFrame, bowlFrameDone, bowlSeatDone, bowlLine, bowlAdvance,
     bowlFlushRack,
     // 陣取り（7.7節）
     TERRITORY_COLORS, TERRITORY_BALLS, TERRITORY_SHOTS,

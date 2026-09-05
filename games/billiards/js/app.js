@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.69';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.70';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -1384,6 +1384,19 @@
     const draw = g.winTeam < 0 && !g.failed;
     if (!watching) { if (won) AU.sfx('win'); else if (!draw) AU.sfx('lose'); }
     voteReset();                            // 前の局の選択を持ち越さない（持ち越すと勝手に始まる）
+    /*
+     * ★**左の欄も描き直す**（実機の指摘）。
+     *
+     * 左の欄は「手番が始まるとき」（beginTurn）に描き直している。ところが**局が終わると
+     * 手番は始まらない**ので、**最後の1投を投げる前の姿のまま止まる。**
+     * 実機では、勝利画面が AI-1 を 203 点と出しているのに、
+     * 左の欄は 184 点・10フレーム目「✕9」・「3投目・残り1本」のままだった
+     * ＝ 同じ画面に2つの違う状態が並んでいた。
+     *
+     * これはボウリング型に限った話ではない。**局の終わりに一度描き直す**ことで、
+     * どのルールでも最後の一撞きが左の欄へ反映される。
+     */
+    renderHUD();
     renderResult();
     openResult();                           // 盤面は消さない。上に重ねて出す
   }
@@ -3854,7 +3867,10 @@
     });
     // バンキング中は「次に当てる玉」が無い。空欄にすると何をしている場面か分からないので、
     // その場で何が行われているかを出す
-    if (g.bank && g.bank.on) {
+    if (g.over) {
+      // 局が終わったら「次に当てる玉」は無い。前の一手ぶんが残っていると、まだ続くように見える
+      $('v-next').textContent = '–';
+    } else if (g.bank && g.bank.on) {
       $('v-next').textContent = t('bank.label');
     } else if (g.rule === 'G-09' && g.curling) {
       // 「次に当てる玉」が無いルールなので、代わりに何エンド目かを出す（7.9.3節）

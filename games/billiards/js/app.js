@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.68';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.69';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -3992,7 +3992,12 @@
     rolls.forEach(v => {
       if (v === P && prev == null) out.push(BOWL_STRIKE_MARK);
       else if (prev != null && prev + v === P) out.push(BOWL_SPARE_MARK);
-      else out.push(v === 0 ? '-' : String(v));
+      /*
+       * ★0本は **− （マイナス記号）** で書く。ふつうのハイフンだと細くて短く、
+       *   隣の数字に埋もれて**その一投が無かったように見える**（実機の指摘。
+       *   10フレーム目の X9− が「X9」に見えていた）。
+       */
+      else out.push(v === 0 ? '−' : String(v));
       const last = out[out.length - 1];
       prev = (last === BOWL_STRIKE_MARK || last === BOWL_SPARE_MARK) ? null : v;
     });

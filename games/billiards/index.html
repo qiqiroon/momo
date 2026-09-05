@@ -354,7 +354,8 @@ body.debug #dbg{display:block;}
 #bowl-board td.tot{font-weight:700;}
 #bowl-board .cap{color:var(--text-muted);font-size:10px;margin:0 0 3px;}
 /* 1つの枠に「投の記号」と「確定した累計」を上下に積む（現実のスコアシートと同じ） */
-#bowl-board .bm{display:block;font-size:10px;color:var(--text-muted);min-height:12px;white-space:nowrap;}
+/* ★印の行は薄くしない。薄い10pxだと 0本の「−」が隣の数字に埋もれて見えなくなる（実機の指摘） */
+#bowl-board .bm{display:block;font-size:11px;font-weight:700;color:var(--text);min-height:13px;white-space:nowrap;letter-spacing:.5px;}
 /* ストライク・スペアの印。文字ではなく図形で描く（書体で形が変わらないように） */
 #bowl-board .bmk{width:9px;height:9px;vertical-align:-1px;color:var(--orange-light);}
 #bowl-board .bmk + .bmk{margin-left:1px;}

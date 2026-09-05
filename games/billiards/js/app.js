@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.70';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.71';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -4152,12 +4152,12 @@
       sb.style.marginTop = '10px'; sb.innerHTML = curlScoreHTML(g, false);
       body.appendChild(sb);
     }
-    // ボウリング型も結果にスコアシートを出す（合計だけでは中身が読めない）
-    if (g.rule === 'G-11' && g.bowling) {
-      const sb = document.createElement('div'); sb.id = 'bowl-board'; sb.style.display = 'block';
-      sb.style.marginTop = '10px'; sb.innerHTML = bowlScoreHTML(g, false);
-      body.appendChild(sb);
-    }
+    /*
+     * ★**ボウリング型は結果にスコアシートを出さない**（利用者指示）。
+     *   10フレームぶんの表を入れると窓が大きくなりすぎて収まらない。
+     *   勝敗に要るのは合計点だけで、それは上の順位の行にもう出ている。
+     *   フレームごとの中身は、対局中ずっと左の欄に出している。
+     */
     if (g.lastMessageKey) {
       const p = document.createElement('div'); p.className = 'hint'; p.style.marginTop = '10px';
       p.textContent = t(g.lastMessageKey); body.appendChild(p);

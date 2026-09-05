@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.71';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.72';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -261,8 +261,22 @@
    * 実装が済んだかどうかではない。実際に選べるかは台定義データが持っている形だけで決める。
    * ここで形状名を並べると、台を足したときに解禁を書き忘れる（逆も同じ）。
    */
+  /*
+   * ★**そのルールが台形状を自分で決めてしまうか。**
+   *   ゴルフ型はコースが8種の台を回るものとして決まっているので、選択画面の台は使わない。
+   *   ここを分けておかないと、**台を全部グレーにした瞬間に「台が選べない＝始められない」**になる
+   *   （実機で踏んだ。開始ボタンが灰色のまま押せなかった）。
+   */
+  function courseFixed(rule) { return rule === 'G-10'; }
+
   function shapeBlock(shape) {
     if (T.SHAPE_IDS.indexOf(shape) < 0) return t('why.stage3');
+    /*
+     * ★ゴルフ型は**コースが8種の台を回るものとして決まっている**ので、
+     * ここで1つ選んでも使われない（7.10.2節）。選べるように見せると、
+     * 選んだ台が出てこないという静かな食い違いになる。理由を添えて全部グレーにする。
+     */
+    if (S.cfg.rule === 'G-10') return t('why.golfCourse');
     return null;
   }
   function modeBlock(m) {
@@ -467,7 +481,9 @@
     $('coop-note').textContent = !S.cfg.coop ? t('coop.off')
       : solo ? t('coop.solo') : t('coop.on');
 
-    const bad = !S.cfg.tableChosen || !!ruleBlock(S.cfg.rule) || !!shapeBlock(S.cfg.shape);
+    // 台をルールが決めるときは、台の選択が済んでいるかを問わない（ゴルフ型）
+    const bad = !!ruleBlock(S.cfg.rule)
+      || (!courseFixed(S.cfg.rule) && (!S.cfg.tableChosen || !!shapeBlock(S.cfg.shape)));
     $('btn-start').disabled = bad;
     $('setup-format-note').textContent = t('setup.forFormat', { f: t('fmt.' + S.cfg.format) });
     if ($('btn-ready')) $('btn-ready').disabled = bad;
@@ -547,7 +563,7 @@
   function onRuleChanged() {
     // 台の姿はルールが決める。選んでいた形はそのまま残す
     S.cfg.carom = caromForRule(S.cfg.rule);
-    if (S.cfg.tableChosen && shapeBlock(S.cfg.shape)) S.cfg.tableChosen = false;
+    if (!courseFixed(S.cfg.rule) && S.cfg.tableChosen && shapeBlock(S.cfg.shape)) S.cfg.tableChosen = false;
     if (S.cfg.rule === 'G-02' && S.cfg.players > 2) S.cfg.players = 2;
     if (S.cfg.rule === 'G-06' && S.cfg.players > RU.TERRITORY_COLORS.length) {
       S.cfg.players = RU.TERRITORY_COLORS.length;
@@ -652,8 +668,13 @@
      * ★カーリング型もバンキングをする（利用者指示）。**先攻を決めてからエンドごとに回す**ので、
      * ローカル対戦でも最初の順を決めておく必要がある。サバイバルと同じ理由である。
      */
+    /*
+     * ★ゴルフ型もバンキングをする（第48セッションの利用者判断）。
+     * **1番ホールの1打目は全員が同じティーにいて距離が並ぶ**ので、
+     * 「遠い人が先」では順番が決まらない。現実のゴルフのオナーにあたる初回の順をここで配る。
+     */
     return cfg.format === 'online' || cfg.format === 'ai'
-      || cfg.rule === 'G-08' || cfg.rule === 'G-09';
+      || cfg.rule === 'G-08' || cfg.rule === 'G-09' || cfg.rule === 'G-10';
   }
   /**
    * 続けてもう1局やるときの席順。前回の巡りを保ったまま、ブレイクする人を先頭へ回す。
@@ -3827,6 +3848,14 @@
         const n = Math.min(RU.BOWL_FRAMES, Math.max(1, fr.length));
         right = p.score + '  ' + t('hud.bowlFrame', { n: n, all: RU.BOWL_FRAMES });
       }
+      /*
+       * ゴルフ型は「総打数」と「規定打数からの増減」を並べる（7.10.5節）。
+       * ★**打数だけでは上手いのかどうかが読めない。**現実のゴルフが常に
+       *   パーとの差で語られるのと同じで、増減が付いて初めて意味を持つ。
+       */
+      if (g.rule === 'G-10' && g.golf) {
+        right = p.score + '  ' + golfDiffText(g, i);
+      }
       // カーリング型は「合計点」と「このエンドの残りの持ち球」を並べる（7.9.3節）
       if (g.rule === 'G-09' && g.curling) {
         const left = Math.max(0, RU.CURLING_STONES - (g.curling.thrown[i] || 0));
@@ -3877,6 +3906,15 @@
       $('v-next').textContent = t('hud.curlEnd', {
         n: Math.min(g.curling.end + 1, g.curling.ends), all: g.curling.ends,
       });
+    } else if (g.rule === 'G-10' && g.golf) {
+      /*
+       * ゴルフ型は「次に当てる玉」が的球1つに決まっているので出す意味がない。
+       * 代わりに**何ホール目か・そのホールの規定打数・いま何打目か**を出す。
+       */
+      $('v-next').textContent = t('hud.golfHole', {
+        n: Math.min(g.golf.hole + 1, g.golf.course.length), all: g.golf.course.length,
+        par: g.golf.par, s: (g.golf.strokes[g.turn] || [])[g.golf.hole] || 0,
+      });
     } else if (g.rule === 'G-11' && g.bowling) {
       /*
        * ボウリング型も「次に当てる玉」が無い。代わりに**このフレームの何投目か**と
@@ -3901,6 +3939,14 @@
       cb.style.display = on ? '' : 'none';
       if (on) cb.innerHTML = curlScoreHTML(g, true);
     }
+    // ゴルフ型のスコアカード（7.10.5節）
+    const gb = $('golf-board');
+    if (gb) {
+      const on = g.rule === 'G-10' && g.golf;
+      // ★**空文字ではなく block と書く**（ボウリング型と同じ理由。CSS 側で none にしてある）
+      gb.style.display = on ? 'block' : 'none';
+      if (on) gb.innerHTML = golfScoreHTML(g);
+    }
     // ボウリング型のピンの状態（利用者指示）。盤の玉が散らばると何番が残ったか読めない
     const bp = $('bowl-pins');
     if (bp) {
@@ -3923,6 +3969,62 @@
       bb.style.display = on ? 'block' : 'none';
       if (on) bb.innerHTML = bowlScoreHTML(g, true);
     }
+  }
+
+  /** 増減の書き方（±0／−2／+3）。現実のスコアカードと同じ */
+  function golfDiff(n) { return n === 0 ? '±0' : (n > 0 ? '+' + n : '\u2212' + (-n)); }
+
+  /** 席ごとの「規定打数からの増減」。打ち終えたホールぶんだけを数える */
+  function golfDiffText(g, seat) {
+    const gf = g.golf;
+    let par = 0;
+    for (let h = 0; h < gf.course.length; h++) {
+      if ((gf.strokes[seat][h] || 0) > 0) par += RU.golfPar(gf.course[h]);
+    }
+    return golfDiff(RU.golfTotal(g, seat) - par);
+  }
+
+  /**
+   * ★ゴルフ型のスコアカード（7.10.5節）。
+   *
+   * 現実のスコアカードと同じ形にする＝**規定打数の行**を置き、その下に人ごとの打数を並べ、
+   * 右端に合計と増減を出す。**規定打数の行が無いと、打数だけ見ても上手いのか分からない。**
+   * まだ打っていないホールは空欄にする（0 と書くと「0打で入れた」に読める）。
+   */
+  function golfScoreHTML(g) {
+    const gf = g.golf, N = gf.course.length;
+    let h = '<div class="cap">' + t('golf.card') + '</div><table>';
+    // 見出し＝ホール番号
+    h += '<tr><th>' + t('golf.hole') + '</th>';
+    for (let i = 0; i < N; i++) h += '<th class="' + (i === gf.hole ? 'now' : '') + '">' + (i + 1) + '</th>';
+    h += '<th>' + t('golf.total') + '</th></tr>';
+    // 規定打数の行
+    h += '<tr class="par"><th>' + t('golf.par') + '</th>';
+    let parAll = 0;
+    for (let i = 0; i < N; i++) { const v = RU.golfPar(gf.course[i]); parAll += v; h += '<td>' + v + '</td>'; }
+    h += '<td class="tot">' + parAll + '</td></tr>';
+    // 人ごとの打数
+    g.players.forEach((p, s) => {
+      h += '<tr><td class="nm"><span class="dot" style="background:' + golfSeatColor(s) + '"></span></td>';
+      for (let i = 0; i < N; i++) {
+        const v = gf.strokes[s][i] || 0;
+        h += '<td class="' + (i === gf.hole ? 'now' : '') + '">' + (v ? v : '') + '</td>';
+      }
+      const d = RU.golfTotal(g, s) - (function () {
+        let a = 0;
+        for (let i = 0; i < N; i++) if ((gf.strokes[s][i] || 0) > 0) a += RU.golfPar(gf.course[i]);
+        return a;
+      })();
+      const cls = d > 0 ? 'over' : (d < 0 ? 'under' : '');
+      h += '<td class="tot">' + RU.golfTotal(g, s) + ' <span class="' + cls + '">' + golfDiff(d) + '</span></td></tr>';
+    });
+    return h + '</table>';
+  }
+
+  /** ゴルフ型で席ごとに配る色。的球の色と同じにする（盤の玉と表を見比べられるように） */
+  function golfSeatColor(seat) {
+    const c = RU.CAROM_COLORS;
+    return c[(seat + 1) % c.length];
   }
 
   /**
@@ -4142,7 +4244,12 @@
       // 抜けた人は名前に印を付ける。負けとだけ出すと、撞き負けたのか抜けたのか分からない
       const who = (g.coop ? teamMark(tm) + '　' : '')
         + members.map(p => p.name + (p.retired ? '（' + t('res.retired') + '）' : '')).join(' ・ ');
-      const right = score != null ? label + '　' + score + t('res.pts') : label;
+      /*
+       * ★**単位はルールが決める。**ゴルフ型は打数なので「点」ではない。
+       *   数の向きも逆（少ないほど上位）なので、「点」と出すと**多いほうが勝ったように読める。**
+       */
+      const unit = t(g.rule === 'G-10' ? 'res.strokes' : 'res.pts');
+      const right = score != null ? label + '　' + score + unit : label;
       d.innerHTML = '<span>' + escapeHtml(who) + '</span><span>' + escapeHtml(right) + '</span>';
       body.appendChild(d);
     });

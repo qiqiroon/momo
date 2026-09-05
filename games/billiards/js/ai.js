@@ -1221,8 +1221,137 @@ const BilliardsAI = (() => {
     return function cancel() { cancelled = true; };
   }
 
+  // ───────── G-10 ゴルフ型（7.10節） ─────────
+
+  /*
+   * ★**腕前は「いちばん良い狙いに、腕前ぶんのぶれを乗せる」形**（ボウリング型と同じ）。
+   *   ゴルフも**狙いの精度がそのまま腕前**の競技で、外しても「1打増える」だけ＝
+   *   玉を失う失敗にはならないので、この形で成り立つ。ぶれの幅もボウリング型と同じ値を使う。
+   */
+  const GOLF_WOBBLE = BOWL_WOBBLE;
+  /*
+   * ★**候補の数は 60 通りに収める。**このルールは盤に玉が4つ（手玉・的球・障害物2）あり、
+   *   しかも**弱く転がす撞き方が主役**なので、1通り試すのに実機で約 50ms かかる（実測）。
+   *   最初に書いた 365 通り（全周6度刻み×5段階）では**1手に45秒以上**かかって使い物にならなかった。
+   *   他のルールの AI は 8〜20 通りしか試していない。同じ桁に収める。
+   */
+  const GOLF_POWERS = [0.14, 0.30, 0.55];
+  const GOLF_FAN = [-4, -2.5, -1.5, -0.7, 0, 0.7, 1.5, 2.5, 4];   // ゴーストボールの周り（度）
+  const GOLF_SWEEP = 12;      // まっすぐ入らないときだけ、全周を粗く当たる（30度刻み）
+  const GOLF_SEC = 6;         // 1通りを走らせる秒数（他のルールの読みと同じ）
+
+  /**
+   * その一撞きの良さ。
+   *
+   * ★**指定ポケット以外へ落とすのは、入らないより悪い**（1打罰＋やり直しになる。7.10.3節）。
+   *   ここを 0 にすると「どうせ入らないなら、どこかへ落としても同じ」になる。
+   * ★入らなかった場合は**指定ポケットへ近づけたか**で測る。
+   *   近づけておけば次の一撞きが易しくなる＝現実のゴルフの寄せにあたる。
+   */
+  function golfValue(game, w, objId, cueId, pk) {
+    const obj = w.balls.find(b => b.id === objId);
+    const cue = w.balls.find(b => b.id === cueId);
+    if (!obj || !pk) return -9999;
+    const ev = (w.events || []).filter(e => e.type === 'pocket');
+    const oin = ev.find(e => e.ball === objId);
+    if (oin) return (oin.pocket === pk.id) ? 10000 : -3000;
+    if (obj.state !== 'live') return -3000;                      // 場外
+    let sc = 2000 - Math.hypot(obj.x - pk.x, obj.y - pk.y);
+    // 手玉を失うのも1打罰（7.2.5節）。入らないよりは軽いが、避けたい
+    if (!cue || cue.state !== 'live') sc -= 1200;
+    return sc;
+  }
+
+  function golfThink(game, playerIdx, done) {
+    const gf = game.golf;
+    const cue = RU.cueBallOf(game, playerIdx);
+    const obj = game.world.balls.find(b => b.kind === 'object' && b.owner === playerIdx && b.state === 'live');
+    const pk = gf && gf.layout ? gf.layout.pocket : null;
+    if (!cue || !obj || !pk) { done({ dir: 0, power: 0.3, tipX: 0, tipY: 0, elev: 0 }); return function () {}; }
+
+    /** 1通り試す */
+    function run(sh) {
+      const w = E.cloneWorld(game.world);
+      w.events = [];
+      const c = w.balls.find(x => x.id === cue.id);
+      if (!c) return -9999;
+      E.applyCue(c, sh);
+      E.runShot(w, GOLF_SEC);
+      return golfValue(game, w, obj.id, cue.id, pk);
+    }
+
+    /*
+     * ★狙いの土台は**ゴーストボール**＝的球をポケットへ向かって押し出す位置。
+     *   まずその周りだけを試し、**入る筋が見つからなかったときにだけ**全周を粗く当たって
+     *   クッション経由の筋を探す（第48セッションの実測では、真っすぐ通らないホールが3つある）。
+     *   いつも全周を当たると、真っすぐ入るホールでも時間を使い切ってしまう。
+     */
+    const toPk = Math.atan2(pk.y - obj.y, pk.x - obj.x);
+    const gx = obj.x - Math.cos(toPk) * cue.r * 2, gy = obj.y - Math.sin(toPk) * cue.r * 2;
+    const ghost = Math.atan2(gy - cue.y, gx - cue.x);
+
+    const stage1 = [];
+    for (const o of GOLF_FAN) for (const power of GOLF_POWERS) {
+      stage1.push({ dir: ghost + o * Math.PI / 180, power, tipX: 0, tipY: 0, elev: 0 });
+    }
+    let cands = stage1, i = 0, cancelled = false, swept = false;
+    const scored = [];
+
+    function chunk() {
+      if (cancelled) return;
+      const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+      while (i < cands.length) {
+        const sh = cands[i++];
+        scored.push({ s: sh, sc: run(sh) });
+        const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+        if (now - t0 > 22) break;             // 1フレームに詰め込みすぎない
+      }
+      if (i < cands.length) { requestAnimationFrame(chunk); return; }
+      // まっすぐでは入らなかった。クッション経由の筋を粗く探す（1回だけ）
+      const best = scored.reduce((a, b) => (b.sc > a.sc ? b : a), scored[0] || { sc: -9999 });
+      if (!swept && best.sc < 5000) {
+        swept = true;
+        const more = [];
+        for (let k = 0; k < GOLF_SWEEP; k++) {
+          const dir = k * 2 * Math.PI / GOLF_SWEEP;
+          for (const power of [GOLF_POWERS[1], GOLF_POWERS[2]]) more.push({ dir, power, tipX: 0, tipY: 0, elev: 0 });
+        }
+        cands = more; i = 0;
+        requestAnimationFrame(chunk);
+        return;
+      }
+      finish();
+    }
+
+    function finish() {
+      if (!scored.length) { done({ dir: ghost, power: 0.3, tipX: 0, tipY: 0, elev: 0 }); return; }
+      scored.sort((a, b) => b.sc - a.sc);
+      let best = scored[0].s;
+      /*
+       * ★入る筋が見つかったときは、**その筋の真ん中へ寄せてから**ぶれを乗せる。
+       *   見つけた1点をそのまま狙うと、それが窓の端だったときに腕のぶれでほぼ必ず外れる
+       *   （第48セッションの測定で私が踏んだ失敗そのもの）。
+       *   刻みは 0.4 度・片側6回まで＝最大12通りに抑える（1通り 50ms かかるため）。
+       */
+      if (scored[0].sc > 5000) {
+        const st = 0.4 * Math.PI / 180;
+        let lo = 0, hi = 0;
+        for (let k = 1; k <= 6; k++) { if (run(Object.assign({}, best, { dir: best.dir - k * st })) > 5000) lo = k; else break; }
+        for (let k = 1; k <= 6; k++) { if (run(Object.assign({}, best, { dir: best.dir + k * st })) > 5000) hi = k; else break; }
+        best = Object.assign({}, best, { dir: best.dir + (hi - lo) / 2 * st });
+      }
+      const wob = GOLF_WOBBLE[game.difficulty] != null ? GOLF_WOBBLE[game.difficulty] : GOLF_WOBBLE.hard;
+      const off = (game.rng() + game.rng() - 1) * wob * Math.PI / 180;
+      done(Object.assign({}, best, { dir: best.dir + off }));
+    }
+
+    requestAnimationFrame(chunk);
+    return function cancel() { cancelled = true; };
+  }
+
   function think(game, playerIdx, done) {
     if (game.rule === 'G-09') return curlingThink(game, playerIdx, done);
+    if (game.rule === 'G-10') return golfThink(game, playerIdx, done);
     if (game.rule === 'G-11') return bowlThink(game, playerIdx, done);
     const base = prof(game.difficulty);
     /*
@@ -1310,7 +1439,8 @@ const BilliardsAI = (() => {
 
   // curlBankSeeds は検査から直に確かめるために出している（覚えた筋に当たりの幅があるか）
   return { think, pickBallInHand, bankShot, curlingThink, curlValue, curlBankSeeds,
-    bowlThink, bowlValue, BOWL_POWERS, BOWL_WOBBLE, PROFILE };
+    bowlThink, bowlValue, BOWL_POWERS, BOWL_WOBBLE,
+    golfThink, golfValue, GOLF_POWERS, GOLF_WOBBLE, PROFILE };
 })();
 
 if (typeof window !== 'undefined') window.BilliardsAI = BilliardsAI;

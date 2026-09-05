@@ -369,6 +369,20 @@ body.debug #dbg{display:block;}
   #info-pane #v-config{display:none;}
   #info-pane #players-box{display:flex;gap:8px;flex-wrap:wrap;}
   /* カーリング型のエンド得点表（利用者指示）。狭い画面でも読めるよう小さめ・横スクロール可 */
+  /* ゴルフ型のスコアカード（7.10.5節）。現実のスコアカードと同じく規定打数と打数を並べる */
+  #golf-board{display:none;margin-top:8px;font-size:11px;}
+  #golf-board table{border-collapse:collapse;width:100%;table-layout:fixed;}
+  #golf-board th,#golf-board td{padding:1px 1px;text-align:center;border-bottom:1px solid var(--border);overflow:hidden;}
+  #golf-board th{color:var(--text-muted);font-weight:400;font-size:10px;}
+  #golf-board th:first-child,#golf-board td.nm{width:26px;text-align:left;}
+  #golf-board td.tot{font-weight:700;}
+  #golf-board th.now,#golf-board td.now{color:var(--orange-light);}
+  #golf-board tr.par td,#golf-board tr.par th{color:var(--text-muted);}
+  #golf-board .cap{color:var(--text-muted);font-size:10px;margin:0 0 3px;}
+  #golf-board .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:3px;vertical-align:middle;border:1px solid rgba(0,0,0,.5);}
+  /* 規定打数からの増減。現実のスコアカードと同じく、赤＝オーバー／青＝アンダー */
+  #golf-board .over{color:#ff8a7a;}
+  #golf-board .under{color:#7ec8ff;}
   #curl-board{display:none;margin-top:8px;font-size:11px;overflow-x:auto;}
   #curl-board table{border-collapse:collapse;width:100%;white-space:nowrap;}
   #curl-board th,#curl-board td{padding:2px 6px;text-align:center;border-bottom:1px solid var(--border);}
@@ -673,6 +687,7 @@ body.debug #dbg{display:block;}
       <div id="players-box"></div>
       <!-- カーリング型のエンドごとの得点表（G-09。他ルールでは隠す） -->
       <div id="curl-board"></div>
+      <div id="golf-board"></div>
       <div id="bowl-pins"></div>
       <div id="bowl-board"></div>
       <div class="info-row"><span class="info-k" id="k-next"></span><b id="v-next">–</b></div>

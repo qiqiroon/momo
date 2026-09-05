@@ -21,7 +21,7 @@ const BilliardsRules = (() => {
   };
   const CAROM_COLORS = ['#f4f4f4', '#f2c00e', '#8fd14f', '#60a5fa', '#c084fc', '#f472b6'];
 
-  const RULE_IDS = ['G-01', 'G-02', 'G-03', 'G-04', 'G-06', 'G-08', 'G-09', 'G-11'];
+  const RULE_IDS = ['G-01', 'G-02', 'G-03', 'G-04', 'G-06', 'G-08', 'G-09', 'G-10', 'G-11'];
 
   // 適用するファウル（7.2.4節）。第1段階の4ルールぶんだけを持つ。
   const FOUL_TABLE = {
@@ -66,27 +66,44 @@ const BilliardsRules = (() => {
      *   ピンが場外へ出た場合も、7.11.3節が「倒れたものとみなす」と定めており、
      *   ここで反則にするとその一投ぶんの得点が丸ごと消えて食い違う。
      */
+    /*
+     * ★ゴルフ型（7.10節）。**罰打型**＝ファウルは打数+1（D235）。
+     *
+     *   ・**V-01 空振りは取らない。**現実のゴルフでも空振りは1打に数えるだけで罰は付かない。
+     *     ここでは一撞きが必ず1打として数えられるので、罰まで足すと二重に取ることになる。
+     *   ・V-02 対象違いは成立しない（的球が1つしかない）。V-03 無クッションも課さない。
+     *   ・**V-04・V-05 は取る。**手玉が落ちても的球が場外へ出ても、
+     *     罰打1を足して**直前のショット開始位置へ戻す**（D302・D303＝ストロークアンドディスタンス）。
+     */
+    'G-10': { 'V-01': 0, 'V-02': 0, 'V-03': 0, 'V-04': 1, 'V-05': 1, 'V-06': 1, 'V-07': 1, 'V-08': 1, 'V-09': 1 },
     'G-11': { 'V-01': 0, 'V-02': 0, 'V-03': 0, 'V-04': 0, 'V-05': 0, 'V-06': 1, 'V-07': 1, 'V-08': 1, 'V-09': 1 },
   };
 
   // 罰則の分類（7.2.5節）
   // カーリング型は得点型（7.2.5節）＝そのショットで投げた玉を、そのエンドの数えものから外す
-  const PENALTY = { 'G-01': 'freeball', 'G-02': 'freeball', 'G-03': 'freeball', 'G-04': 'score', 'G-06': 'freeball', 'G-08': 'loss', 'G-09': 'score', 'G-11': 'score' };
+  const PENALTY = { 'G-01': 'freeball', 'G-02': 'freeball', 'G-03': 'freeball', 'G-04': 'score', 'G-06': 'freeball', 'G-08': 'loss', 'G-09': 'score', 'G-10': 'stroke', 'G-11': 'score' };
   // 勝敗の決まり方（7.2.8節）
-  const WIN_KIND = { 'G-01': 'reach', 'G-02': 'reach', 'G-03': 'points', 'G-04': 'reach', 'G-06': 'points', 'G-08': 'survival', 'G-09': 'points', 'G-11': 'points' };
+  const WIN_KIND = { 'G-01': 'reach', 'G-02': 'reach', 'G-03': 'points', 'G-04': 'reach', 'G-06': 'points', 'G-08': 'survival', 'G-09': 'points', 'G-10': 'points', 'G-11': 'points' };
+  /*
+   * ★**数が少ないほうが勝つルール**（ゴルフ型の打数）。
+   * 仕様書 7.10.1節は「到達制」に分類しているが、7.10.5節の決着は
+   * 「全員が全ホールを終えた時点で総打数の少ないほうが勝ち」＝**得点制と同じ数え方で向きだけ逆**である。
+   * 向きをここ1か所で持つと、順位付け（finishRanking）に「ゴルフのときは」という分岐を並べずに済む。
+   */
+  const LOW_WINS = { 'G-10': true };
 
   /**
    * 点数を数えるルールかどうか。
    * ナインボール・エイトボールは「どの玉を落としたか」で決まり点数を持たない。
    * 持たないルールで 0 点と出し続けると、壊れているように見える。
    */
-  const HAS_SCORE = { 'G-01': false, 'G-02': false, 'G-03': true, 'G-04': true, 'G-06': true, 'G-08': false, 'G-09': true, 'G-11': true };
+  const HAS_SCORE = { 'G-01': false, 'G-02': false, 'G-03': true, 'G-04': true, 'G-06': true, 'G-08': false, 'G-09': true, 'G-10': true, 'G-11': true };
   // ラックを持つか（7.2.7節）
   /*
    * ★ボウリング型は**ピン配置というラックを持つが、崩すブレイクを持たない**（7.2.7節）。
    * ここは「ブレイクの一撞きがあるか」を見る側（app.js のラック組み直しの問い）で使うので false。
    */
-  const HAS_RACK = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': false, 'G-06': false, 'G-08': true, 'G-09': false, 'G-11': false };
+  const HAS_RACK = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': false, 'G-06': false, 'G-08': true, 'G-09': false, 'G-10': false, 'G-11': false };
   // ポケットあり台が要るか
   /*
    * ★**カーリング型はポケットあり台8種のみ**（利用者指示。仕様書 2.4.1節の改訂）。
@@ -99,19 +116,19 @@ const BilliardsRules = (() => {
    * ポケットあり台では、落ちたピンは倒れたものとして数え、手玉が落ちればスクラッチになる。
    * true/false は「その台でしか遊べない」という意味なので、選ばせるルールは第3の値で表す。
    */
-  const NEEDS_POCKETS = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': false, 'G-06': false, 'G-08': true, 'G-09': true, 'G-11': null };
+  const NEEDS_POCKETS = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': false, 'G-06': false, 'G-08': true, 'G-09': true, 'G-10': true, 'G-11': null };
   /*
    * ブレイクの成立条件（1球以上落ちるか4球以上がクッションに触れる）を見るか。
    * **サバイバルだけは見ない。**このルールのブレイクは「グループの球が1つでも落ちたか」
    * だけで組み立てられていて、落ちなければそのまま次の人が撞く。
    * クッション数の条件を重ねると、同じ一撞きに二重の判定が掛かる。
    */
-  const BREAK_VALID = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': false, 'G-06': false, 'G-08': false, 'G-09': false, 'G-11': false };
+  const BREAK_VALID = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': false, 'G-06': false, 'G-08': false, 'G-09': false, 'G-10': false, 'G-11': false };
   /*
    * デッドロックの自動検出をするか（10.8節・利用者指示）。
    * **false ＝ 撞ける回数が決まっていて、必ず終わるルール。**
    */
-  const DEADLOCK_WATCH = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': true, 'G-06': false, 'G-08': true, 'G-09': false, 'G-11': false };
+  const DEADLOCK_WATCH = { 'G-01': true, 'G-02': true, 'G-03': true, 'G-04': true, 'G-06': false, 'G-08': true, 'G-09': false, 'G-10': false, 'G-11': false };
   /*
    * ★**1人だけでも成り立つルール**（7.11.1節・7.10.1節。7.14節の制約1）。
    *
@@ -296,6 +313,8 @@ const BilliardsRules = (() => {
        */
       coop: !!cfg.coop,
       shotLimit: cfg.shotLimit || 0,    // 相手チームがいないときの規定打数（9.7.3節）
+      // ゴルフ型のコースを抽選で回るか（7.10.2節。既定は固定順＝覚えて攻略する対象にするため）
+      golfRandom: !!cfg.golfRandom,
       players: cfg.players.map((p, i) => ({
         idx: i, name: p.name, type: p.type,
         // 参加者IDは席の正体。局を組み直すときに配り直すので、対局にも持たせておく。
@@ -433,6 +452,26 @@ const BilliardsRules = (() => {
   }
 
   function setupBalls(game) {
+    /*
+     * ★ゴルフ型だけは**台そのものを作り直す**（1台＝1ホール）。
+     * 選択画面で選んだ台は使わない ── コースは8種を回るものとして決まっているので、
+     * 台形状の選択はグレーにしてある（2.5.3節）。
+     */
+    if (game.rule === 'G-10') {
+      const n = game.players.length;
+      const course = golfCourse(game.rng, game.golfRandom);
+      game.golf = {
+        course,
+        hole: 0,
+        strokes: game.players.map(() => new Array(course.length).fill(0)),
+        // 1番ホールの打順はバンキングで決まる（endBanking が seatOrder を並べ替えたあとに読む）
+        honour: seatCycle(game).slice(),
+        holed: new Array(n).fill(false),
+        lie: [], layout: null, par: 0, cut: 0, start: null,
+      };
+      golfBuildHole(game);
+      return;
+    }
     const table = game.table;
     const balls = [];
     let id = 0;
@@ -872,7 +911,12 @@ const BilliardsRules = (() => {
   function endBanking(game, winner) {
     game.bank.on = false;
     game.bank.winner = winner;
-    if (game.rule === 'G-08') {
+    /*
+     * ★ゴルフ型もここで全員の打順を決める（7.10.3節）。
+     * 1番ホールの1打目は全員が同じティーにいて距離が並ぶので、順番が決まらない。
+     * 現実のゴルフでいうオナーを、初回だけバンキングで配る。
+     */
+    if (game.rule === 'G-08' || game.rule === 'G-10') {
       const marks = game.bank.marks || [];
       const cyc = seatCycle(game).slice();
       const rank = cyc.map((seat, at) => ({ seat, at, m: marks[seat] }));
@@ -925,6 +969,13 @@ const BilliardsRules = (() => {
   function legalTargets(game, playerIdx) {
     const objs = liveObjects(game);
     if (game.rule === 'G-04') return null;
+    /*
+     * ★ゴルフ型は**自分の的球だけ**（7.10.1節）。
+     * ここを null（制約なし）のままにすると、盤に出ている障害物まで
+     * 「当ててよい玉」として扱われ、AI が障害物を落としに行く。
+     * 反則には数えない（FOUL_TABLE の V-02 は 0）が、狙いの一覧はここが正本になる。
+     */
+    if (game.rule === 'G-10') return objs.filter(b => !b.hazard && b.owner === playerIdx);
     if (game.rule === 'G-01' || game.rule === 'G-03') {
       if (!objs.length) return [];
       let min = Infinity;
@@ -1041,7 +1092,7 @@ const BilliardsRules = (() => {
     // 出来事を並べ直す
     let firstHit = null;
     let cushionAfterContact = false;
-    const pocketed = [], offtable = [];
+    const pocketed = [], offtable = [], pocketWhere = {};
     let contactSeen = false;
     const hitBalls = [];
     for (const ev of events) {
@@ -1057,6 +1108,8 @@ const BilliardsRules = (() => {
         if (contactSeen) cushionAfterContact = true;
       } else if (ev.type === 'pocket') {
         pocketed.push(ev.ball);
+        // ★**どのポケットへ落ちたか**も控える。ゴルフ型は指定ポケット以外を認めない（7.10.3節）
+        pocketWhere[ev.ball] = ev.pocket;
       } else if (ev.type === 'offtable') {
         offtable.push(ev.ball);
       }
@@ -1099,6 +1152,7 @@ const BilliardsRules = (() => {
     const result = {
       fouls, pocketed: pocketed.slice(), offtable: offtable.slice(),
       firstHit, hitBalls, cuePocketed: cuePocketed || cueOff,
+      pocketWhere,
       foul, continueTurn: false, gained: 0, message: null, gameOver: false,
     };
 
@@ -1113,6 +1167,7 @@ const BilliardsRules = (() => {
     else if (rule === 'G-06') resolveTerritory(game, result, pre);
     else if (rule === 'G-08') resolveSurvival(game, result, pre);
     else if (rule === 'G-09') resolveCurling(game, result, pre);
+    else if (rule === 'G-10') resolveGolf(game, result, pre);
     else if (rule === 'G-11') resolveBowling(game, result, pre);
 
     /*
@@ -1891,6 +1946,295 @@ const BilliardsRules = (() => {
     r.gained = 0;
   }
 
+  // ───────── G-10 ゴルフ型（7.10節） ─────────
+
+  /*
+   * ★このルールだけ、**局の途中で台の形が変わる**（1台＝1ホール。D215）。
+   *   ホールが変わるたびに台定義データを作り直し、盤面を組み直す。
+   *   描画側は毎フレーム game.table を読み直すので、差し替えるだけで絵も付いてくる。
+   *
+   * ★**盤面は1面である。**仕様書 7.10.3節は「プレイヤーごとに独立した盤面」と書いているが、
+   *   第48セッションで「1打ごとに交代／全員そろって次のホールへ」と決めたため、
+   *   どの瞬間も全員が同じホールにいる。**同じ台の上に人数ぶんの玉があって互いに当たらない**、
+   *   という形まで縮む。当たらないようにするには、
+   *   **いま撞く人の手玉と的球だけを盤に出す**（他の人の玉は state='gone' にして控えを持つ）。
+   *   ボウリング型やカーリング型が「投げる番の玉だけを出す」のと同じ手である。
+   *
+   * ★**規定打数は暫定値である**（第48セッション）。
+   *   本来は「本番のAIが何打で回るか」で決める値だが、AIを書く前に測ると
+   *   測定用に書いた仮の探索係の強さを測ることになり、設定を変えるたび答えが動く。
+   *   **AIを入れてから測り直して確定する。**
+   *   いまの値は「ティーから1打で入る割合」（実測）に応じた割り当てで、現実のゴルフの
+   *   パーの付け方（ホールの難度に応じて割り当てる）に倣った。
+   */
+  const GOLF_PAR = {
+    'A-01': 3,    // 長方形（1打で入る割合 26%）
+    'A-02': 4,    // 六角形（2%）
+    'A-04': 2,    // 楕円（51%）★丸い奥の壁が球を集めるので、どう作っても易しい
+    'A-06': 3,    // スタジアム（9%）
+    'A-07': 4,    // ドーナツ（1%）
+    'A-08': 4,    // L字（1%）
+    'A-09': 4,    // 十字（2%）
+    'A-11': 3,    // 星型（6%）
+  };
+  const GOLF_PAR_DEFAULT = 3;   // 表に無い台（台を足したとき）の既定
+  const GOLF_CUT = 2;           // 打ち切り＝規定打数の何倍か（7.10.4節。暫定値）
+  const GOLF_OBSTACLE_COLOR = '#3f4a3a';   // 障害物（現実のハザードに相当）
+
+  /** そのホールの規定打数 */
+  function golfPar(shape) {
+    return GOLF_PAR[shape] != null ? GOLF_PAR[shape] : GOLF_PAR_DEFAULT;
+  }
+  /** そのホールの打ち切り打数 */
+  function golfCut(shape) { return golfPar(shape) * GOLF_CUT; }
+
+  /*
+   * ★ホールの呼び名（第48セッションの利用者判断＝現実のゴルフに合わせる）。
+   *   規定打数からの差で決まる。**1打で入れたときだけはホールインワンが優先**する
+   *   ── パー3のホールなら −2 でイーグルにもあたるが、現実では必ずホールインワンと呼ぶ。
+   *   **呼び名はルールの知識**なので、画面側ではなくここに置く（文言そのものは i18n）。
+   */
+  function golfTermKey(strokes, par) {
+    if (strokes === 1) return 'golf.ace';
+    const d = strokes - par;
+    if (d <= -3) return 'golf.albatross';
+    if (d === -2) return 'golf.eagle';
+    if (d === -1) return 'golf.birdie';
+    if (d === 0) return 'golf.par';
+    if (d === 1) return 'golf.bogey';
+    if (d === 2) return 'golf.bogey2';
+    if (d === 3) return 'golf.bogey3';
+    return 'golf.bogeyN';
+  }
+
+  /** コース＝ポケットあり台8種を台形状のID順に回る（7.10.2節・D240） */
+  function golfCourse(rng, random) {
+    const ids = T.SHAPE_IDS.slice();
+    if (!random) return ids;
+    // ランダムを選んだときだけ並べ替える。**共有シードの乱数を使う**ので全端末で同じ順になる
+    for (let i = ids.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      const t = ids[i]; ids[i] = ids[j]; ids[j] = t;
+    }
+    return ids;
+  }
+
+  /** いまのホールの台形状 */
+  function golfShape(game) {
+    const gf = game.golf;
+    return gf.course[Math.min(gf.hole, gf.course.length - 1)];
+  }
+
+  /**
+   * ホールを1つ組む。**台ごと作り直す。**
+   * 盤に出すのは「いま撞く人の手玉と的球」＋障害物だけ。
+   */
+  function golfBuildHole(game) {
+    const gf = game.golf;
+    game.table = T.make(golfShape(game), true);
+    const lay = T.golfLayout(game.table);
+    gf.layout = lay;
+    gf.par = golfPar(game.table.shape);
+    gf.cut = golfCut(game.table.shape);
+    const n = game.players.length;
+    gf.holed = new Array(n).fill(false);
+    gf.lie = [];
+    for (let s = 0; s < n; s++) {
+      gf.lie.push({ cue: { x: lay.cue.x, y: lay.cue.y }, obj: { x: lay.tee.x, y: lay.tee.y } });
+      if (gf.strokes[s][gf.hole] == null) gf.strokes[s][gf.hole] = 0;
+    }
+    const balls = [];
+    for (let s = 0; s < n; s++) {
+      balls.push(E.makeBall({
+        id: s * 2, num: 0, kind: 'cue', owner: s, r: T.R,
+        x: lay.cue.x, y: lay.cue.y, color: '#f4f4f4',
+      }));
+      balls.push(E.makeBall({
+        id: s * 2 + 1, num: 0, kind: 'object', owner: s, r: T.R,
+        x: lay.tee.x, y: lay.tee.y, color: CAROM_COLORS[(s + 1) % CAROM_COLORS.length],
+      }));
+    }
+    lay.obstacles.forEach((o, k) => {
+      const b = E.makeBall({
+        id: 100 + k, num: 0, kind: 'object', owner: -1, r: T.R,
+        x: o.x, y: o.y, color: GOLF_OBSTACLE_COLOR,
+      });
+      b.hazard = true;             // 障害物の印。誰のものでもなく、片付けもしない
+      balls.push(b);
+    });
+    game.world = E.createWorld(game.table, balls, game.tuning);
+    game.broken = false;
+    game.ballInHand = false;
+    game.ballInHandFull = false;
+    golfArm(game);
+  }
+
+  /** いま撞く人の玉だけを盤に出し、他の人の玉は控えへ引く（互いに当たらないように） */
+  function golfArm(game) {
+    const gf = game.golf, seat = game.turn;
+    for (const b of game.world.balls) {
+      if (b.hazard) continue;
+      const s = b.owner;
+      if (s < 0) continue;
+      const lie = gf.lie[s];
+      if (!lie) continue;
+      const pos = (b.kind === 'cue') ? lie.cue : lie.obj;
+      b.x = pos.x; b.y = pos.y; b.z = 0;
+      b.vx = b.vy = b.vz = 0; b.wx = b.wy = b.wz = 0;
+      const show = (s === seat) && !gf.holed[s];
+      b.state = show ? 'live' : 'gone';
+      b.onTable = show;
+    }
+    // ショットの開始位置を控える。ファウルのときここへ戻す（D302・D303）
+    gf.start = { cue: Object.assign({}, gf.lie[seat].cue), obj: Object.assign({}, gf.lie[seat].obj) };
+  }
+
+  /** 撞いたあとの位置を控えへ書き戻す */
+  function golfStore(game, seat) {
+    const gf = game.golf;
+    const cue = game.world.balls.find(b => b.kind === 'cue' && b.owner === seat);
+    const obj = game.world.balls.find(b => b.kind === 'object' && b.owner === seat);
+    if (cue) gf.lie[seat].cue = { x: cue.x, y: cue.y };
+    if (obj) gf.lie[seat].obj = { x: obj.x, y: obj.y };
+  }
+
+  /** その人の的球から指定ポケットまでの距離。遠い人が先に撞く（7.10.3節・現実のゴルフ） */
+  function golfDist(game, seat) {
+    const gf = game.golf, pk = gf.layout.pocket;
+    if (!pk) return 0;
+    const o = gf.lie[seat].obj;
+    return Math.hypot(o.x - pk.x, o.y - pk.y);
+  }
+
+  /** そのホールを打ち終えた席か（入れた／打ち切りに達した／抜けた） */
+  function golfSeatDone(game, seat) {
+    const gf = game.golf;
+    if (!isActive(game.players[seat])) return true;
+    if (gf.holed[seat]) return true;
+    return gf.strokes[seat][gf.hole] >= gf.cut;
+  }
+
+  /** その席の総打数（打ち終えたホールの合計） */
+  function golfTotal(game, seat) {
+    return game.golf.strokes[seat].reduce((a, v) => a + (v || 0), 0);
+  }
+
+  /** コース全体の規定打数の合計（1人プレイの達成判定に使う。7.10.5節） */
+  function golfParTotal(game) {
+    return game.golf.course.reduce((a, sh) => a + golfPar(sh), 0);
+  }
+
+  /**
+   * 一撞きの帰結（7.10.3節・7.10.4節）。
+   *
+   * **打数は撞いた回数そのもの。**ファウルはそこへ1を足す（罰打型。D235）。
+   */
+  function resolveGolf(game, r, pre) {
+    const gf = game.golf, seat = game.turn, pk = gf.layout.pocket;
+    gf.strokes[seat][gf.hole] += 1;
+    if (r.foul) gf.strokes[seat][gf.hole] += 1;
+
+    const objId = seat * 2 + 1;
+    const objIn = r.pocketed.indexOf(objId) >= 0;
+    const inTarget = !!pk && objIn && r.pocketWhere && r.pocketWhere[objId] === pk.id;
+
+    if (inTarget) {
+      gf.holed[seat] = true;
+      // 入れた瞬間は**呼び名で知らせる**（現実のゴルフと同じ。「入りました」では手応えが伝わらない）
+      r.message = golfTermKey(gf.strokes[seat][gf.hole], gf.par);
+    } else if (r.foul || objIn) {
+      /*
+       * ★**やり直しは必ず直前のショット開始位置へ戻す**（D302・D303＝ストロークアンドディスタンス）。
+       * 手玉が落ちたときも、的球が場外へ出たときも、指定でないポケットへ落ちたときも同じ扱いにする。
+       * 戻し方を場合ごとに変えると、**同じ「1打罰」なのに戻る場所が何通りもできて**、
+       * どれが起きたかを覚えていないと盤面が再現できなくなる。
+       */
+      if (objIn && !r.foul) {
+        // 指定でないポケットへ落ちた。V-04 は手玉、V-05 は場外しか見ていないのでここで受ける
+        gf.strokes[seat][gf.hole] += 1;
+        r.message = 'msg.golfWrongPocket';
+      }
+      gf.lie[seat] = { cue: Object.assign({}, gf.start.cue), obj: Object.assign({}, gf.start.obj) };
+    } else {
+      golfStore(game, seat);
+    }
+    // 打ち切り（7.10.4節）。規定打数の2倍に達したらそのホールは終わり
+    if (!gf.holed[seat] && gf.strokes[seat][gf.hole] >= gf.cut) {
+      gf.strokes[seat][gf.hole] = gf.cut;
+      r.message = 'msg.golfPickUp';
+    }
+    // 総打数を席の得点欄へ映す（少ないほうが勝ち＝LOW_WINS）
+    game.players[seat].score = golfTotal(game, seat);
+    r.continueTurn = false;
+    r.gained = 0;
+  }
+
+  /**
+   * 手番送り（7.10.3節）。
+   *
+   * ★**いつでも「指定ポケットからいちばん遠い人」が撞く**（現実のゴルフと同じ）。
+   *   ホールの1打目は全員が同じティーにいて距離が並ぶので、**オナー**（前のホールの打数が
+   *   少なかった人が先）で決める。1番ホールはバンキングで決めた順を使う。
+   *   距離だけで決めると1打目の順が定まらず、オナーだけで決めると2打目以降が現実と違う。
+   */
+  function golfAdvance(game) {
+    const gf = game.golf;
+    golfStore(game, game.turn);
+
+    const n = game.players.length;
+    const rest = [];
+    for (let s = 0; s < n; s++) if (!golfSeatDone(game, s)) rest.push(s);
+
+    if (!rest.length) {
+      // 全員がこのホールを終えた → 次のホールへ（全員そろって進む）
+      gf.honour = golfHonour(game);
+      gf.hole++;
+      if (gf.hole >= gf.course.length) { golfFinish(game); return; }
+      game.turn = gf.honour[0];
+      golfBuildHole(game);
+      game.inningNo++;
+      return;
+    }
+    // 遠い人が先。並んだらオナーの順（＝ホールの1打目はここで決まる）
+    const rank = s => gf.honour.indexOf(s);
+    rest.sort((a, b) => {
+      const d = golfDist(game, b) - golfDist(game, a);
+      if (Math.abs(d) > 1e-6) return d;
+      return rank(a) - rank(b);
+    });
+    game.turn = rest[0];
+    golfArm(game);
+    game.inningNo++;
+  }
+
+  /** 次のホールの打順（オナー）。前のホールの打数が少ない人が先。並んだら前の順を保つ */
+  function golfHonour(game) {
+    const gf = game.golf, prev = gf.hole;
+    const order = gf.honour.slice();
+    return order.slice().sort((a, b) => {
+      const d = (gf.strokes[a][prev] || 0) - (gf.strokes[b][prev] || 0);
+      if (d) return d;
+      return order.indexOf(a) - order.indexOf(b);
+    });
+  }
+
+  /** 全ホールを終えた（7.10.5節） */
+  function golfFinish(game) {
+    const gf = game.golf;
+    game.players.forEach(p => { p.score = golfTotal(game, p.idx); });
+    game.over = true;
+    /*
+     * 1人プレイは相手がいないので、**規定打数の合計と比べて達成・未達を決める**（7.10.5節）。
+     * 勝った相手がいないのに「1位＝勝ち」と出すと、上回っていても下回っていても同じ絵になる。
+     */
+    if (activeCount(game) === 1) {
+      const me = game.players.find(isActive);
+      const par = golfParTotal(game);
+      if (me && golfTotal(game, me.idx) > par) { game.failed = true; setWinnerTeam(game, -1); return; }
+    }
+    finishRanking(game);
+  }
+
   // ───────── G-08 サバイバル（7.8節） ─────────
 
   /** そのグループの、まだ盤に残っている球の数 */
@@ -2020,14 +2364,19 @@ const BilliardsRules = (() => {
    */
   function finishRanking(game) {
     const teams = teamList(game).map(tm => ({ team: tm, score: teamScore(game, tm) }));
-    teams.sort((a, b) => b.score - a.score);
+    /*
+     * ★**向きは1か所で持つ。**ゴルフ型は打数なので少ないほうが上位（LOW_WINS）。
+     * ここに「ゴルフのときは」を書かず符号だけで表すと、個人の並びも決着の判定も同じ向きで揃う。
+     */
+    const sgn = LOW_WINS[game.rule] ? -1 : 1;
+    teams.sort((a, b) => sgn * (b.score - a.score));
     game.teamRanking = teams.map(x => x.team);
     // 個人の並びも残す（表示はチームごとにまとめて出す）
     const arr = game.players.map(p => ({ idx: p.idx, score: p.score }));
-    arr.sort((a, b) => b.score - a.score);
+    arr.sort((a, b) => sgn * (b.score - a.score));
     game.ranking = arr.map(a => a.idx);
     // 規定打数を使い切って終わった局は、順位をつけ直しても勝ちにはならない
-    const decided = !game.failed && teams.length && (teams.length === 1 || teams[0].score > teams[1].score);
+    const decided = !game.failed && teams.length && (teams.length === 1 || sgn * (teams[0].score - teams[1].score) > 0);
     setWinnerTeam(game, decided ? teams[0].team : -1);
   }
 
@@ -2120,6 +2469,11 @@ const BilliardsRules = (() => {
     if (game.rule === 'G-09') { curlingAdvance(game); return; }
     // ★ボウリング型も手番送りが違う（同じ人がもう1投することがある）。7.11.4節
     if (game.rule === 'G-11') { bowlAdvance(game); return; }
+    /*
+     * ★ゴルフ型は「指定ポケットから遠い人が先」で、ホールの切り替わりでは台ごと組み直す（7.10.3節）。
+     * 席の巡りでは決まらないので丸ごと差し替える。
+     */
+    if (game.rule === 'G-10') { golfAdvance(game); return; }
     // 抜けた席・脱落した席は飛ばす（9.8.3節・7.8.6節）。巡りは seatOrder が持つ
     game.turn = nextSeat(game, game.turn);
     game.inningNo++;
@@ -2155,7 +2509,10 @@ const BilliardsRules = (() => {
   }
 
   return {
-    RULE_IDS, FOUL_TABLE, PENALTY, WIN_KIND, HAS_RACK, NEEDS_POCKETS, HAS_SCORE,
+    RULE_IDS, FOUL_TABLE, PENALTY, WIN_KIND, LOW_WINS, HAS_RACK, NEEDS_POCKETS, HAS_SCORE,
+    // ゴルフ型（7.10節）
+    golfPar, golfCut, golfTotal, golfParTotal, golfSeatDone, golfShape, golfTermKey,
+    GOLF_PAR, GOLF_CUT,
     BALL_COLORS, CAROM_COLORS,
     teamOf, teamMembers, teamList, teamScore, otherTeam,
     makeRng, createGame, setupBalls, cueBallOf, liveObjects, legalTargets, groupOf,

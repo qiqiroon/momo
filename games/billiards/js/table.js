@@ -1762,6 +1762,91 @@ const BilliardsTable = (() => {
     return { throwPos: breakPlace(table), cells: bowlCells(sx, sy, gap), gap, apex: bowlCells(sx, sy, gap)[0] };
   }
 
+  // ───────── ゴルフ型（G-10）の指定ポケット・ティー・障害物。仕様書 7.10.2節・7.10.3節 ─────────
+
+  /*
+   * ★**指定ポケットだけは台定義データに持つ**（第48セッションの利用者判断）。
+   *
+   * 他の座標（カーリングの目標円 D400・ボウリングの投球位置 D412）は台から導いており、
+   * 本来はそちらの原則に揃えたい。しかし**「難しいポケット」は幾何の規則では書けない**
+   * ── 実測すると、楕円ではいちばん近い HT が易しく、スタジアムでは同じ HT が難しい。
+   * 位置関係からは決まらず、撞いてみないと分からない。
+   *
+   * ★**書き忘れても壊れない形にしてある。**この表に無い台は
+   * 「投球位置からいちばん遠いポケット」を使う（golfPocket の既定）。
+   * 台を1つ足したときに書き足しを忘れても、**そのホールが易しくなるだけ**で、
+   * 位置が定まらない・落ちない、という壊れ方はしない。
+   *
+   * 値は第48セッションの実測（的球あり・障害物2個・hard の腕前で1打で入る割合）による。
+   * 長方形26% 六角形2% 楕円51% スタジアム9% ドーナツ1% L字1% 十字2% 星型6%。
+   */
+  const GOLF_PICK = {
+    'A-01': 'FR', 'A-02': 'HT', 'A-04': 'HR', 'A-06': 'HT',
+    'A-07': 'HT', 'A-08': 'CT', 'A-09': 'FB', 'A-11': 'HL',
+  };
+  const GOLF_OBSTACLES = 2;      // 1ホールあたりの障害物の数（第48セッションの利用者判断）
+
+  /** そのホールの指定ポケット。表に無ければ投球位置からいちばん遠いもの */
+  function golfPocket(table) {
+    if (!table.pockets.length) return null;
+    const want = GOLF_PICK[table.shape];
+    if (want) {
+      const hit = table.pockets.find(p => p.id === want);
+      if (hit) return hit;
+    }
+    const s = breakPlace(table);
+    let best = null, bd = -1;
+    for (const p of table.pockets) {
+      const d = Math.hypot(p.x - s.x, p.y - s.y);
+      if (d > bd + 1e-6) { bd = d; best = p; }
+    }
+    return best;
+  }
+
+  /** そこへ玉を置けるか（壁・ポケット・置いた玉と重ならないか） */
+  function golfFree(table, x, y, placed) {
+    if (clearance(table, x, y) < R * 1.2) return false;
+    for (const p of table.pockets) if (Math.hypot(x - p.x, y - p.y) < p.r + R) return false;
+    for (const o of placed) if (Math.hypot(x - o.x, y - o.y) < R * 2.4) return false;
+    return true;
+  }
+
+  /**
+   * ゴルフ型の1ホールぶんの配置。
+   *
+   * ★**座標は持たない。**ティー＝ヘッドスポット、手玉＝ブレイクの既定の置き場所、
+   * 障害物＝ティーと指定ポケットを結ぶ線の上に等間隔。指定ポケットだけが台定義データ側。
+   *
+   * ★**障害物は「線の上」に置く。**第48セッションの実測では、
+   * 楕円とスタジアムだけはここへ何個置いても難度が変わらない（奥の丸い壁が球を集める筋があり、
+   * 効いている筋が台の真ん中を通っていない）。**その2台は指定ポケットの側で難しくしてある。**
+   */
+  function golfLayout(table) {
+    const pk = golfPocket(table);
+    const tee = { x: table.headSpot.x, y: table.headSpot.y };
+    const cue = breakPlace(table);
+    const obs = [];
+    if (pk) {
+      const dx = pk.x - tee.x, dy = pk.y - tee.y;
+      for (let k = 1; k <= GOLF_OBSTACLES; k++) {
+        const f = k / (GOLF_OBSTACLES + 1);
+        // 置けない点は線に沿って前後へずらす。ずらしても置けなければその1個は諦める
+        // （個数を欠くだけで、ホールは成立する）
+        for (let d = 0; d <= 40; d++) {
+          let done = false;
+          for (const sg of [1, -1]) {
+            const ff = f + sg * d * 0.01;
+            if (ff <= 0.08 || ff >= 0.92) continue;
+            const x = tee.x + dx * ff, y = tee.y + dy * ff;
+            if (golfFree(table, x, y, obs)) { obs.push({ x, y }); done = true; break; }
+          }
+          if (done) break;
+        }
+      }
+    }
+    return { pocket: pk, tee, cue, obstacles: obs };
+  }
+
   /** 座標が入るマスの番号。格子の外なら -1 */
   function gridCellAt(table, x, y) {
     const g = territoryGrid(table);
@@ -1780,6 +1865,8 @@ const BilliardsTable = (() => {
     playArea, curlingLayout, CURL_AREA, CURL_RINGS, breakPlace, curlingThrowPlace, BREAK_BACK,
     // ボウリング型（7.11節）
     bowlingLayout, bowlCells, BOWL_GAP, BOWL_ROWS,
+    // ゴルフ型（7.10節）
+    golfLayout, golfPocket, GOLF_PICK, GOLF_OBSTACLES,
     clearance, inside, clampInside, nearestBoundary, diamonds, buildFillets,
     // 検査から直に確かめるために出している。
     // 「内角90度以上には手を触れない」という条件は、いまのどの台でも働かない

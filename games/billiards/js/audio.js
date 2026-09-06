@@ -296,14 +296,54 @@ const BilliardsAudio = (() => {
    *   （止める合図を別に用意すると、止め忘れて鳴りっぱなしになる事故が起きる）。
    * ★ここは表示側なので Math.random() を使ってよい（物理の決定論とは関わらない）。
    */
-  const WADE_GRAIN = [0.26, 0.40];   // 切り出す長さの幅（秒）
-  const WADE_OVERLAP = 0.12;         // 前の粒と重ねる長さ（秒）
-  const WADE_FADE = 0.07;            // 粒の出入りの角を取る長さ（秒）
-  const WADE_AHEAD = 0.45;           // 何秒先まで並べておくか
+  /*
+   * ★**玉が池を出たら、その場で音を切る**（第49セッションの実機指摘）。
+   *
+   *   はじめは 0.45 秒先まで粒を並べ、呼ばれなくなってから 0.30 秒は鳴らし続けていた。
+   *   粒の長さ（最大 0.40 秒）も足すと、**玉が池を出たあと最大 0.85 秒も鳴り続ける**。
+   *   利用者には「音が遅れて、池を出てから聞こえる」と感じられた。
+   *
+   *   直し方は2つ。
+   *     ① 先読みと鳴らし続ける長さを詰める（0.45→0.18／0.30→0.15）
+   *     ② ★**専用の出口（wadeBus）を1つ通し、止めるときはそこを絞って予約ごと捨てる。**
+   *        先読みは滑らかさのために残しつつ、**止まりは即時**にできる。
+   *        ①だけでは、詰めたぶん途切れやすくなるだけで尾は残る。
+   */
+  const WADE_GRAIN = [0.18, 0.28];   // 切り出す長さの幅（秒）
+  const WADE_OVERLAP = 0.09;         // 前の粒と重ねる長さ（秒）
+  const WADE_FADE = 0.05;            // 粒の出入りの角を取る長さ（秒）
+  const WADE_AHEAD = 0.18;           // 何秒先まで並べておくか
+  /*
+   * ★**普通は「池を出た」を画面側が直接知らせる**（sfx('wadeOff')）ので、
+   *   下の保険は使われない。呼び忘れ・撞き終わりで呼ばれなくなった場合だけ効く。
+   */
+  const WADE_KEEP = 0.15;            // 最後に呼ばれてから鳴らし続ける長さ（秒）
+  const WADE_CUT = 0.04;             // 止めるときに絞りきる長さ（秒）
   let wadeUntil = -1e9;              // ここまで鳴らし続ける（呼ばれるたび延びる）
   let wadeNext = 0;                  // 次の粒を始める時刻
   let wadeTimer = null;
   let wadeLevel = 0.5;
+  let wadeBus = null;                // 粒はすべてここを通す（止めるときに一括で絞る）
+  let wadeSrcs = [];                 // 予約してある粒。止めるときに捨てる
+
+  function wadeOpen() {
+    if (!wadeBus) { wadeBus = ctx.createGain(); wadeBus.connect(sfxGain); }
+    wadeBus.gain.cancelScheduledValues(ctx.currentTime);
+    wadeBus.gain.setValueAtTime(1, ctx.currentTime);
+    return wadeBus;
+  }
+  /** 池を出た。先に並べてある粒ごと切る */
+  function wadeCut() {
+    if (wadeTimer) { clearTimeout(wadeTimer); wadeTimer = null; }
+    const now = ctx ? ctx.currentTime : 0;
+    if (wadeBus) {
+      wadeBus.gain.cancelScheduledValues(now);
+      wadeBus.gain.setValueAtTime(wadeBus.gain.value, now);
+      wadeBus.gain.linearRampToValueAtTime(0.0001, now + WADE_CUT);
+    }
+    for (const src of wadeSrcs) { try { src.stop(now + WADE_CUT + 0.01); } catch (e) {} }
+    wadeSrcs = [];
+  }
 
   function wadeGrain(at) {
     const buf = sfxBufs.get('waterWade');
@@ -326,9 +366,11 @@ const BilliardsAudio = (() => {
     g.gain.linearRampToValueAtTime(lvl, at + fade);
     g.gain.setValueAtTime(lvl, at + dur - fade);
     g.gain.linearRampToValueAtTime(0.0001, at + dur);
-    src.connect(g).connect(sfxGain);
+    src.connect(g).connect(wadeOpen());
     src.start(at, from, take + 0.02);
     src.stop(at + dur + 0.02);
+    wadeSrcs.push(src);
+    src.onended = () => { const i = wadeSrcs.indexOf(src); if (i >= 0) wadeSrcs.splice(i, 1); };
     return dur;
   }
 
@@ -336,15 +378,15 @@ const BilliardsAudio = (() => {
     wadeTimer = null;
     if (!audioOn || !ctx || !sfxGain) return;
     const now = ctx.currentTime;
-    if (now > wadeUntil) return;                 // 呼ばれなくなった＝止まる
-    if (wadeNext < now) wadeNext = now + 0.02;   // 出遅れたぶんは詰めない（重なりすぎる）
+    if (now > wadeUntil) { wadeCut(); return; }   // 呼ばれなくなった＝その場で切る
+    if (wadeNext < now) wadeNext = now + 0.02;    // 出遅れたぶんは詰めない（重なりすぎる）
     let guard = 0;
     while (wadeNext < now + WADE_AHEAD && guard++ < 8) {
       const dur = wadeGrain(wadeNext);
-      if (!dur) break;                           // 素材がまだ読めていない
-      wadeNext += Math.max(0.08, dur - WADE_OVERLAP);
+      if (!dur) break;                            // 素材がまだ読めていない
+      wadeNext += Math.max(0.06, dur - WADE_OVERLAP);
     }
-    wadeTimer = setTimeout(wadeTick, 90);
+    wadeTimer = setTimeout(wadeTick, 45);
   }
 
   function water(kind, strength) {
@@ -352,9 +394,12 @@ const BilliardsAudio = (() => {
     const s = Math.max(0.15, Math.min(1, strength == null ? 0.6 : strength));
     if (kind === 'wade') {
       wadeLevel = s;
-      wadeUntil = ctx.currentTime + 0.30;        // 呼ばれ続けている間だけ延びる
+      wadeUntil = ctx.currentTime + WADE_KEEP;    // 呼ばれ続けている間だけ延びる
       if (!sfxBufs.get('waterWade')) { loadSfx('waterWade'); return; }
-      if (!wadeTimer) { wadeNext = ctx.currentTime + 0.02; wadeTick(); }
+      if (!wadeTimer) { wadeOpen(); wadeNext = ctx.currentTime + 0.02; wadeTick(); }
+    } else if (kind === 'wadeOff') {
+      // ★池を出た。**先に並べてある粒ごと、その場で切る**
+      if (wadeTimer || wadeSrcs.length) { wadeUntil = -1e9; wadeCut(); }
     } else {
       playBuf('waterSplash', { gain: 0.55 + 0.45 * s, rate: 0.96 + Math.random() * 0.08 });
     }
@@ -444,7 +489,8 @@ const BilliardsAudio = (() => {
       case 'pocket': playBuf('bilPocket', { gain: 0.95, rate: vary() }); break;        // 落球
       case 'fly': boing(s, seconds); break;                                           // 飛んでいる間のぴょーん
       case 'foul': tick2(330, 220); break;
-      case 'wade': water('wade', s); break;      // 池を進むじゃぶじゃぶ
+      case 'wade': water('wade', s); break;         // 池を進むじゃぶじゃぶ
+      case 'wadeOff': water('wadeOff'); break;      // 池を出た（その場で切る）
       case 'splash': water('splash', s); break;  // 池ポチャ
       case 'tick': beep(1046, 0.07, 0.22); break;        // 残り5秒からの秒読み
       case 'timeup': beep(392, 0.16, 0.30); beep(294, 0.30, 0.26, 0.14); break;

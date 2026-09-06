@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.80';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.81';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -4059,15 +4059,22 @@
      *   速い玉は水を切って進む＝音も出さない（物理と同じ見方をする）。
      */
     if (g.rule === 'G-10' && g.golf && g.golf.layout) {
+      let wading = 0;
       for (const b of g.world.balls) {
         if (b.state !== 'live' || b.hazard) continue;
         const sp = Math.hypot(b.vx, b.vy);
         if (sp < 40 || sp > RU.GOLF_WATER_PASS) continue;
         if (g.golf.layout.hazards.some(h => h.kind === 'water' && T.blobContains(h, b.x, b.y))) {
-          AU.sfx('wade', Math.min(1, sp / RU.GOLF_WATER_PASS));
-          break;
+          wading = sp; break;
         }
       }
+      /*
+       * ★**出た瞬間に切る。**鳴らす合図だけを送って「呼ばれなくなったら止まる」に任せると、
+       *   先に並べてある音が**池を出たあとに聞こえる**（実測 0.22 秒の尾）。
+       *   出たことも毎コマ知らせれば、次のコマ（16ms）で切れる。
+       */
+      if (wading) AU.sfx('wade', Math.min(1, wading / RU.GOLF_WATER_PASS));
+      else AU.sfx('wadeOff');
     }
   }
   function drawReplay() {

@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.77';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.78';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -936,8 +936,13 @@
        * ★ボウリング型はブレイクを持たないので、置く場面の言い方も変える。
        *   同じ「手前側の区域」でも、あちらはラックを崩す一撞き、こちらは毎回の投球位置である。
        */
+      /*
+       * ★ゴルフ型も言い方を変える。同じ「手前側の区域」でも、
+       *   あちらはラックを崩す一撞き、こちらは**ティーショットの置き場所**である。
+       */
       const areaKey = g.ballInHandFull ? 'ph.freeArea'
-        : (g.rule === 'G-11' ? 'ph.bowlArea' : 'ph.placeArea');
+        : (g.rule === 'G-11' ? 'ph.bowlArea'
+          : (g.rule === 'G-10' ? 'ph.golfArea' : 'ph.placeArea'));
       setMsg(S.phase === 'place' ? t(areaKey) : t('ph.aim'));
       AU.sfx('turn');
     }

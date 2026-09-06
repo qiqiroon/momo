@@ -2056,7 +2056,8 @@ const BilliardsRules = (() => {
     gf.cut = golfCut(game.table.shape);
     const n = game.players.length;
     gf.holed = new Array(n).fill(false);
-    gf.freeCue = new Array(n).fill(false);   // 手玉を落とした人の「次の一撞きは自由配置」
+    gf.freeCue = new Array(n).fill(false);    // 「次の一撞きは台じゅうへ自由配置」（落とされた側へ渡る権利）
+    gf.kitchenCue = new Array(n).fill(false); // 「次の一撞きは手前側（スタートエリア）から」
     gf.lie = [];
     for (let s = 0; s < n; s++) {
       gf.lie.push({ cue: { x: lay.cue.x, y: lay.cue.y }, obj: { x: lay.tee.x, y: lay.tee.y } });
@@ -2111,15 +2112,25 @@ const BilliardsRules = (() => {
       b.onTable = show;
     }
     /*
-     * ★**手玉を落とされた側**に、この一撞きだけ自由配置を渡す（第49セッションの利用者指示）。
-     *   落とした本人ではない。罰打は落とした人に付いていて、ここで渡すのは置き場所だけ。
+     * ★手玉の置き方は3通り（第49セッションの利用者指示）。
+     *
+     *   1. **台じゅうへ自由配置** … 手玉を落とされた側へ渡る権利（freeCue）
+     *   2. **手前側（スタートエリア）から** … ホールの1打目と、手玉を落とした本人（kitchenCue）
+     *   3. 置き直さない … それ以外
+     *
+     * ★**印の無い人には渡さない。**前の人のぶんが残っていると、無関係な人が自由に置ける。
      */
+    const firstOfHole = ((gf.strokes[seat] || [])[gf.hole] || 0) === 0;
     if (gf.freeCue && gf.freeCue[seat]) {
       gf.freeCue[seat] = false;
+      if (gf.kitchenCue) gf.kitchenCue[seat] = false;   // 台じゅうのほうが強い
       game.ballInHand = true;
       game.ballInHandFull = true;
+    } else if (firstOfHole || (gf.kitchenCue && gf.kitchenCue[seat])) {
+      if (gf.kitchenCue) gf.kitchenCue[seat] = false;
+      game.ballInHand = true;
+      game.ballInHandFull = false;                      // 手前側だけ
     } else {
-      // ★印の無い人には渡さない。前の人のぶんが残っていると、無関係な人が自由に置ける
       game.ballInHand = false;
       game.ballInHandFull = false;
     }
@@ -2324,7 +2335,16 @@ const BilliardsRules = (() => {
        *   ここで game.ballInHand を立てると「いま台に着いている人」のものになってしまう。
        */
       replay();
-      for (let s2 = 0; s2 < game.players.length; s2++) if (s2 !== seat) gf.freeCue[s2] = true;
+      /*
+       * ★落とした本人は**手玉をスタートエリア（手前側）から**撞き直す。
+       * ★自由配置を渡すのは**「次のプレイヤー」ひとり**（席の並びで次の人）。
+       *   ★**「次に撞く人」ではない**（利用者の言い直し）。ゴルフ型の手番は
+       *   「指定ポケットからいちばん遠い人」で決まるので、次に撞くのが落とした本人に
+       *   なることもある。それでは自分の失敗で自分が得をしてしまう。
+       */
+      gf.kitchenCue[seat] = true;
+      const nextSeat = (seat + 1) % game.players.length;
+      if (nextSeat !== seat) gf.freeCue[nextSeat] = true;
       game.ballInHand = false;
       game.ballInHandFull = false;
       r.message = 'msg.golfScratch';

@@ -181,6 +181,9 @@ const BilliardsAudio = (() => {
     bilBall: ASSETS + 'se/se-billiards-ball.mp3',
     bilBreak: ASSETS + 'se/se-billiards-break.mp3',
     bilPocket: ASSETS + 'se/se-billiards-pocket.mp3',
+    // 水の音（効果音ラボ／商用可・表示不要）。ゴルフ型の池で使う
+    waterWade: ASSETS + 'se/se-water-wade.mp3',
+    waterSplash: ASSETS + 'se/se-water-splash.mp3',
   };
   const sfxBufs = new Map(), sfxLoading = new Map();
   const sfxHead = new Map();     // 素材ごとの「頭の無音」の長さ（秒）
@@ -278,6 +281,85 @@ const BilliardsAudio = (() => {
    * 重なって騒がしくならないようにする。
    * @param {number} seconds 飛んでいる時間（画面での見え方の秒数）
    */
+  /*
+   * ───────── 水の音（ゴルフ型の池。第49セッション） ─────────
+   *
+   * ★はじめは合成で作ったが、利用者に**どちらも気に入らない**と言われて素材へ切り替えた
+   *   （効果音ラボ／商用可・表示不要。既存のビリヤードの音と同じ出どころ）。
+   *
+   * ★**じゃぶじゃぶの素材は 0.7 秒しかない。**そのまま繰り返すと、
+   *   継ぎ目で途切れるうえ、同じ形が並んで機械的に聞こえる。
+   *   そこで**素材の中から毎回ちがう場所を切り出し、少しずつ重ねながら並べる**。
+   *     ・切り出す長さ・場所・速さ・音量を毎回ふらす（同じ形が二度続かない）
+   *     ・前の粒が消えきる前に次を始める（重なりで継ぎ目が消える）
+   *   鳴らし続けたい間は sfx('wade') を呼び続ける。**呼ばれなくなれば自然に止まる**
+   *   （止める合図を別に用意すると、止め忘れて鳴りっぱなしになる事故が起きる）。
+   * ★ここは表示側なので Math.random() を使ってよい（物理の決定論とは関わらない）。
+   */
+  const WADE_GRAIN = [0.26, 0.40];   // 切り出す長さの幅（秒）
+  const WADE_OVERLAP = 0.12;         // 前の粒と重ねる長さ（秒）
+  const WADE_FADE = 0.07;            // 粒の出入りの角を取る長さ（秒）
+  const WADE_AHEAD = 0.45;           // 何秒先まで並べておくか
+  let wadeUntil = -1e9;              // ここまで鳴らし続ける（呼ばれるたび延びる）
+  let wadeNext = 0;                  // 次の粒を始める時刻
+  let wadeTimer = null;
+  let wadeLevel = 0.5;
+
+  function wadeGrain(at) {
+    const buf = sfxBufs.get('waterWade');
+    if (!buf) return;
+    const head = sfxHead.get('waterWade') || 0;
+    const usable = Math.max(0.05, buf.duration - head - 0.02);
+    const len = WADE_GRAIN[0] + Math.random() * (WADE_GRAIN[1] - WADE_GRAIN[0]);
+    const take = Math.min(len, usable);
+    const from = head + Math.random() * Math.max(0, usable - take);
+    const rate = 0.90 + Math.random() * 0.20;
+    const lvl = (0.34 + 0.40 * wadeLevel) * (0.8 + Math.random() * 0.4);
+
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value = rate;
+    const g = ctx.createGain();
+    const dur = take / rate;
+    const fade = Math.min(WADE_FADE, dur * 0.4);
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.linearRampToValueAtTime(lvl, at + fade);
+    g.gain.setValueAtTime(lvl, at + dur - fade);
+    g.gain.linearRampToValueAtTime(0.0001, at + dur);
+    src.connect(g).connect(sfxGain);
+    src.start(at, from, take + 0.02);
+    src.stop(at + dur + 0.02);
+    return dur;
+  }
+
+  function wadeTick() {
+    wadeTimer = null;
+    if (!audioOn || !ctx || !sfxGain) return;
+    const now = ctx.currentTime;
+    if (now > wadeUntil) return;                 // 呼ばれなくなった＝止まる
+    if (wadeNext < now) wadeNext = now + 0.02;   // 出遅れたぶんは詰めない（重なりすぎる）
+    let guard = 0;
+    while (wadeNext < now + WADE_AHEAD && guard++ < 8) {
+      const dur = wadeGrain(wadeNext);
+      if (!dur) break;                           // 素材がまだ読めていない
+      wadeNext += Math.max(0.08, dur - WADE_OVERLAP);
+    }
+    wadeTimer = setTimeout(wadeTick, 90);
+  }
+
+  function water(kind, strength) {
+    if (!audioOn || !ctx || !sfxGain) return;
+    const s = Math.max(0.15, Math.min(1, strength == null ? 0.6 : strength));
+    if (kind === 'wade') {
+      wadeLevel = s;
+      wadeUntil = ctx.currentTime + 0.30;        // 呼ばれ続けている間だけ延びる
+      if (!sfxBufs.get('waterWade')) { loadSfx('waterWade'); return; }
+      if (!wadeTimer) { wadeNext = ctx.currentTime + 0.02; wadeTick(); }
+    } else {
+      playBuf('waterSplash', { gain: 0.55 + 0.45 * s, rate: 0.96 + Math.random() * 0.08 });
+    }
+  }
+
   let boingUntil = -1e9;
   function boing(strength, seconds) {
     if (!audioOn || !ctx || !sfxGain) return;
@@ -362,6 +444,8 @@ const BilliardsAudio = (() => {
       case 'pocket': playBuf('bilPocket', { gain: 0.95, rate: vary() }); break;        // 落球
       case 'fly': boing(s, seconds); break;                                           // 飛んでいる間のぴょーん
       case 'foul': tick2(330, 220); break;
+      case 'wade': water('wade', s); break;      // 池を進むじゃぶじゃぶ
+      case 'splash': water('splash', s); break;  // 池ポチャ
       case 'tick': beep(1046, 0.07, 0.22); break;        // 残り5秒からの秒読み
       case 'timeup': beep(392, 0.16, 0.30); beep(294, 0.30, 0.26, 0.14); break;
       case 'turn': tick2(880, 1318); break;   // 自分の手番

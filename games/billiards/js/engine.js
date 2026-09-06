@@ -184,7 +184,15 @@ const BilliardsEngine = (() => {
     if (!ps || !ps.length) return null;
     for (let i = 0; i < ps.length; i++) {
       const p = ps[i];
-      if (p.slide == null && p.roll == null) continue;   // 見た目だけの区画（池）は摩擦を変えない
+      if (p.slide == null && p.roll == null) continue;   // 摩擦を変えない区画（見た目だけ）は飛ばす
+      /*
+       * ★**速い玉には効かない区画**（fastPass）。
+       *   ゴルフ型の池がこれ。勢いよく通り抜ける玉は水面を切って進み、
+       *   遅くなった玉だけが水に捕まって止まる（利用者の決めごと）。
+       *   速さの見方は「その区画に入った時点の速さ」ではなく**いまの速さ**にする。
+       *   入った時点で決めると、池の中で減速しても抜け続けてしまう。
+       */
+      if (p.fastPass != null && Math.hypot(b.vx, b.vy) > p.fastPass) continue;
       /*
        * ★輪郭は**画面が描くのと同じ関数**を通す（BilliardsTable.blobContains）。
        *   ここに丸の判定を書くと、見えている砂の縁と効いている縁がずれる。

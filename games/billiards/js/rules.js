@@ -1990,6 +1990,18 @@ const BilliardsRules = (() => {
   const GOLF_SAND_ROLL = 0.12;
   const GOLF_TREE_COLOR = '#4a7c3f';       // 木（葉の緑。幹は画面側で描く）
 
+  /*
+   * 池の値（第49セッションの利用者指示）。
+   *
+   * ★**速い玉は通り抜け、遅い玉は水に捕まって止まる。**
+   *   GOLF_WATER_PASS より速い玉には水がまったく効かない（水面を切って進む）。
+   *   それより遅くなると砂より重い抵抗が掛かり、じゃぶじゃぶと減速して止まる。
+   * ★**どちらも暫定値。**実機で「抜けすぎ／捕まりすぎ」と分かったらここだけ動かす。
+   */
+  const GOLF_WATER_PASS = 1100;      // これより速い玉には効かない（mm/秒）
+  const GOLF_WATER_SLIDE = 0.60;
+  const GOLF_WATER_ROLL = 0.22;      // 砂（0.12）より重い＝入ったら早々に止まる
+
   /** そのホールの規定打数 */
   function golfPar(shape) {
     return GOLF_PAR[shape] != null ? GOLF_PAR[shape] : GOLF_PAR_DEFAULT;
@@ -2050,8 +2062,11 @@ const BilliardsRules = (() => {
      *   木は据え付けの玉なので、区画ではなく玉として置く。
      */
     game.table.patches = lay.hazards
-      .filter(h => h.kind === 'bunker')
-      .map(h => ({ x: h.x, y: h.y, r: h.r, blob: true, slide: GOLF_SAND_SLIDE, roll: GOLF_SAND_ROLL }));
+      .filter(h => h.kind === 'bunker' || h.kind === 'water')
+      .map(h => (h.kind === 'bunker')
+        ? { x: h.x, y: h.y, r: h.r, blob: true, slide: GOLF_SAND_SLIDE, roll: GOLF_SAND_ROLL }
+        : { x: h.x, y: h.y, r: h.r, blob: true, slide: GOLF_WATER_SLIDE, roll: GOLF_WATER_ROLL,
+            fastPass: GOLF_WATER_PASS });
     gf.par = golfPar(game.table.shape);
     gf.cut = golfCut(game.table.shape);
     const n = game.players.length;
@@ -2235,6 +2250,45 @@ const BilliardsRules = (() => {
   }
 
   /**
+   * ★**池ポチャの戻し先**（第49セッションの利用者指示）。
+   *
+   *   「ボールが動いた線上の、池の手前、ボール一個空けた位置」。
+   *   打ち始めの位置から止まった場所へ引いた線を**後ろへたどり**、
+   *   池の縁から玉1個ぶん（玉の直径）離れた最初の点で止める。
+   *   現実のゴルフで、池に入った地点の後方へ下がって打ち直すのと同じ考え。
+   *
+   * ★線をたどっても出られないとき（打ち始めの位置そのものが池の中など）は、
+   *   打ち始めの位置へ戻す。**必ずどこかへ戻す**（戻せずに水の中へ置くことはしない）。
+   */
+  function golfWaterDrop(game, pond, from, stopped) {
+    const t = game.table;
+    const need = T.R * (1 + GOLF_POCKET_GAP);          // 池の縁から玉の中心まで
+    const outside = (x, y) => {
+      const dx = x - pond.x, dy = y - pond.y;
+      const d = Math.hypot(dx, dy);
+      return d - T.blobRadius(pond, Math.atan2(dy, dx)) >= need;
+    };
+    let ux = stopped.x - from.x, uy = stopped.y - from.y;
+    const len = Math.hypot(ux, uy);
+    if (len < 1) return { x: from.x, y: from.y };
+    ux /= len; uy /= len;
+    // 止まった場所から、来た道を後ろへたどる
+    for (let d = 0; d <= len + T.R * 12; d += 6) {
+      const x = stopped.x - ux * d, y = stopped.y - uy * d;
+      if (!outside(x, y)) continue;
+      if (T.clearance(t, x, y) < T.R * 1.05) continue;
+      // 穴のふちにも置かない（落ちた玉を戻すときと同じ決まり）
+      let nearPocket = false;
+      for (const p of t.pockets) {
+        if (Math.hypot(x - p.x, y - p.y) < p.r + T.R * (1 + GOLF_POCKET_GAP)) { nearPocket = true; break; }
+      }
+      if (nearPocket) continue;
+      return { x, y };
+    }
+    return { x: from.x, y: from.y };
+  }
+
+  /**
    * その人の的球が、いま池の中で止まっているか。
    * ★**池は摩擦を変えない区画**なので、物理は何も知らない。ここで場所を見るだけ。
    */
@@ -2350,14 +2404,19 @@ const BilliardsRules = (() => {
       r.message = 'msg.golfScratch';
     } else if (golfInWater(game, seat)) {
       /*
-       * ★池は**中で止まったときだけ**罰にする（第49セッションの利用者判断）。
+       * ★池ポチャ＝**中で止まったときだけ**1打罰（第49セッションの利用者判断）。
        *   通り抜けるだけなら助かる＝「越える」ショットが成立する。
        * ★見るのは**的球だけ。**手玉はビリヤードの道具であってゴルフの玉ではないので、
        *   水の中で止まっても罰にしない。
+       * ★戻し先は**打ち直し（撞く前の場所）ではなく、玉が動いた線上の池の手前**
+       *   （利用者指示。現実のゴルフで、入った地点の後方へ下がって打つのと同じ）。
        */
       gf.strokes[seat][gf.hole] += 1;
       r.message = 'msg.golfWater';
-      replay();
+      const pond = gf.layout.hazards.find(h => h.kind === 'water' && T.blobContains(h, obj.x, obj.y));
+      const drop = golfWaterDrop(game, pond, gf.start.obj, { x: obj.x, y: obj.y });
+      gf.lie[seat] = { cue: Object.assign({}, gf.start.cue), obj: drop };
+      r.waterAt = { x: obj.x, y: obj.y };        // 画面がしぶきを出す場所
     } else {
       golfStore(game, seat);
     }
@@ -2743,8 +2802,8 @@ const BilliardsRules = (() => {
     RULE_IDS, FOUL_TABLE, PENALTY, WIN_KIND, LOW_WINS, HAS_RACK, NEEDS_POCKETS, HAS_SCORE,
     // ゴルフ型（7.10節）
     golfPar, golfCut, golfTotal, golfParTotal, golfSeatDone, golfShape, golfTermKey, golfInWater,
-    golfAwayFromPockets, resolveGolf,   // 検査から帰結だけを確かめるために出している
-    GOLF_PAR, GOLF_CUT,
+    golfAwayFromPockets, golfWaterDrop, resolveGolf,   // 検査から帰結だけを確かめるために出している
+    GOLF_PAR, GOLF_CUT, GOLF_WATER_PASS,
     BALL_COLORS, CAROM_COLORS,
     teamOf, teamMembers, teamList, teamScore, otherTeam,
     makeRng, createGame, setupBalls, cueBallOf, liveObjects, legalTargets, groupOf,

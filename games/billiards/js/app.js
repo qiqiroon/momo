@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.78';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.79';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -716,7 +716,7 @@
     S.chk = {}; S.results = {};             // 前の局の照合・結果は持ち越さない
     S.dropped = null; S.bursts = []; S.airZ = {}; S.pendingShots = {};
     // ゴルフ型のホール成績のポップアップ。局をまたいで残すと前の局の成績が出る
-    S.golfCard = null; S.golfCardSeen = null;
+    S.golfCard = null; S.golfCardSeen = null; S.splash = null;
     S.net.done = {}; S.net.gone = {}; S.waitDone = null; S.readyShot = null; S.forceShot = null;
     S.catchUp = false; S.lastNeed = null;
     if (S.waitTimer) { clearTimeout(S.waitTimer); S.waitTimer = null; }
@@ -1259,6 +1259,16 @@
       // サバイバルで球が1つ減ったとき（手玉を落とした罰。7.8.5節）
       if (res.lostBall) msg = (msg ? msg + ' — ' : '') + t('ev.svLost', { n: res.lostBall });
       setMsg(msg);
+      /*
+       * ★池ポチャは**盤の真ん中に大きく出す**（第49セッションの利用者指示）。
+       *   上の帯の文字だけでは、玉が戻された理由が伝わらず「何も起きていない」と見える。
+       *   しぶきの絵と音も一緒に出す。
+       */
+      if (res.message === 'msg.golfWater') {
+        flash(t('ev.golfSplash'), 'foul', t('ev.golfSplashWhy'));
+        AU.sfx('splash', 0.9);
+        if (res.waterAt) S.splash = { x: res.waterAt.x, y: res.waterAt.y, at: performance.now() };
+      }
       // 脱落は盤の真ん中に出す。出さないと、次から手番が飛ぶ理由が分からない
       if (res.outNow && res.outNow.length) {
         const names = res.outNow.map(i => g.players[i] ? g.players[i].name : '?').join(' / ');
@@ -2201,6 +2211,7 @@
     drawBursts();
     drawPocketedRails();
     drawDroppedFlash();
+    drawGolfSplash();
     drawGolfCard();
     fadeBoardOverlays(view.mobile);   // 盤面に重ねた表示を、狙いにかぶるぶんだけ薄くする
     if (S.elevAdjusting) drawElevOverlay();
@@ -2755,6 +2766,40 @@
    *
    * ★出すかどうかは画面が決める。ルール側は終わったホールの控えを残すだけ。
    */
+  /**
+   * ★池ポチャのしぶき（第49セッションの利用者指示）。
+   * 沈んだ場所に輪が広がる。玉はもう戻されているので、**どこで沈んだか**をここで見せる。
+   */
+  const SPLASH_MS = 1100;
+  function drawGolfSplash() {
+    const g = S.game, sp = S.splash;
+    if (!sp || !g || g.rule !== 'G-10') return;
+    const age = performance.now() - sp.at;
+    if (age > SPLASH_MS) { S.splash = null; return; }
+    const k = age / SPLASH_MS;
+    const c = toScreen(sp.x, sp.y), s = view.s;
+    ctx.save();
+    ctx.globalAlpha = 1 - k;
+    ctx.strokeStyle = '#dff2ff';
+    for (let i = 0; i < 3; i++) {
+      const kk = Math.max(0, k - i * 0.16);
+      if (kk <= 0) continue;
+      ctx.lineWidth = Math.max(1, (2.6 - i * 0.6) * s);
+      ctx.beginPath(); ctx.arc(c.x, c.y, T.R * s * (1 + kk * 5.5), 0, 7); ctx.stroke();
+    }
+    // しぶきの粒。上へ飛んで落ちる
+    ctx.fillStyle = '#eaf6ff';
+    for (let i = 0; i < 8; i++) {
+      const a = i * Math.PI * 2 / 8 + sp.x * 0.01;
+      const d = T.R * s * (0.6 + k * 3.2);
+      const lift = Math.sin(Math.min(1, k * 1.6) * Math.PI) * T.R * s * 2.2;
+      ctx.beginPath();
+      ctx.arc(c.x + Math.cos(a) * d, c.y + Math.sin(a) * d - lift, Math.max(1, 2.2 * s), 0, 7);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
   const GOLF_CARD_MS = 3600;
   function drawGolfCard() {
     const g = S.game;
@@ -4007,6 +4052,22 @@
       // 着地は watchJumps が玉の高さから見ている（ふわりと落ちた場合も拾うため）
     }
     S.evCursor = evs.length;
+    /*
+     * ★池を進む「じゃぶじゃぶ」（第49セッションの利用者指示）。
+     *   出来事（events）には水の記録が無いので、**盤の玉の場所から見る。**
+     *   速い玉は水を切って進む＝音も出さない（物理と同じ見方をする）。
+     */
+    if (g.rule === 'G-10' && g.golf && g.golf.layout) {
+      for (const b of g.world.balls) {
+        if (b.state !== 'live' || b.hazard) continue;
+        const sp = Math.hypot(b.vx, b.vy);
+        if (sp < 40 || sp > RU.GOLF_WATER_PASS) continue;
+        if (g.golf.layout.hazards.some(h => h.kind === 'water' && T.blobContains(h, b.x, b.y))) {
+          AU.sfx('wade', Math.min(1, sp / RU.GOLF_WATER_PASS));
+          break;
+        }
+      }
+    }
   }
   function drawReplay() {
     const save = S.game.world;

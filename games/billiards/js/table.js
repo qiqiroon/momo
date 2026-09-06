@@ -1781,8 +1781,12 @@ const BilliardsTable = (() => {
    * 長方形26% 六角形2% 楕円51% スタジアム9% ドーナツ1% L字1% 十字2% 星型6%。
    */
   const GOLF_PICK = {
-    'A-01': 'FR', 'A-02': 'HT', 'A-04': 'HR', 'A-06': 'HT',
-    'A-07': 'HT', 'A-08': 'CT', 'A-09': 'FB', 'A-11': 'HL',
+    // ★★第49セッション：**すべて「向こう半分」の穴に付け替えた**（利用者指示）。
+    //   それまでは 6/8 が手前側（手玉を自由に置けるエリア側）の穴を指していて、
+    //   **ティーのすぐ後ろが目的地になっているホールがあった。**
+    //   第48に測った「1打で入る割合」はこの付け替えで無効になった（規定打数も暫定値に戻してある）。
+    'A-01': 'FR', 'A-02': 'FR', 'A-04': 'FR', 'A-06': 'FR',
+    'A-07': 'FR', 'A-08': 'FL', 'A-09': 'FB', 'A-11': 'FR',
   };
   /*
    * ★ゴルフ場に実際にある物だけを置く（第49セッションの利用者指示）。
@@ -1793,26 +1797,44 @@ const BilliardsTable = (() => {
    *   バンカー … 砂。区画の中は芝が重く、入った玉は急に減速して止まる
    *   池     … 水。**中で止まったときだけ1打罰**。勢いよく通り抜ければ助かる
    *
-   *   3つともティーと指定ポケットを結ぶ線の上に等間隔で置く＝**まっすぐ狙えない**。
-   *   **並び順はホールごとに変える**（下の GOLF_ORDERS）。同じ3つでも順が変われば手応えが変わる。
+   * ★**一直線に並べない**（第49セッションの利用者指示。第2版）。
+   *   3つを線の上に等間隔で置いたら「並びすぎ」だった。現実のコースはそう並んでいない。
+   *     木     … **これだけ線の上**。まっすぐ狙えないのは木が受け持つ
+   *     池     … **中間地点のまわり**に数個。線の左右へ振り分ける
+   *     バンカー … **指定ポケットの近く**に数個。グリーンを囲むように角度を散らす
+   *   ★**まっすぐ入る道は残す。**バンカーで穴を囲い切ると、砂で玉が止まって
+   *     どう撞いても入らないホールになる。ポケットへ向かう筋の正面は空けておく。
+   *   ★**乱数は使わない。**散らし方はホール番号から決める（同じ盤面が何度でも作れること＝5.2節）。
    */
-  const GOLF_HAZARDS = ['tree', 'bunker', 'water'];
-  // 大きさは玉の半径の何倍か。木は当たる物なので小さめ、区画は踏み込める広さを持たせる
-  const GOLF_HAZARD_R = { tree: 1.5, bunker: 3.0, water: 2.6 };
-  // 3つの並び順（6通り）。ホール番号で順ぐりに選ぶので、同じコースでも並びが8ホールぶん散る
-  const GOLF_ORDERS = [[0, 1, 2], [1, 2, 0], [2, 0, 1], [0, 2, 1], [1, 0, 2], [2, 1, 0]];
+  const GOLF_HAZARD_R = { tree: 1.5, bunker: 3.0, water: 2.6 };   // 玉の半径の何倍か
+  const GOLF_WATERS = 2;         // 池の数（中間地点のまわりに散らす）
+  const GOLF_BUNKERS = 3;        // バンカーの数（指定ポケットのまわりに散らす）
 
-  /** そのホールの指定ポケット。表に無ければ投球位置からいちばん遠いもの */
+  /**
+   * そのホールの指定ポケット。
+   *
+   * ★**手前半分（手玉を自由に置けるエリア側）の穴は選ばない**（第49セッションの利用者指示）。
+   *   ティーは台の手前寄りにあるので、手前側の穴を目的地にすると
+   *   **打つ前から目の前にゴールがある**ホールになってしまう。
+   *   「向こう半分」＝台の中央線より奥、と決める（真ん中ちょうどの穴も外す）。
+   *
+   * ★**表に書き忘れても壊れない。**向こう半分の穴が残っていればその中でいちばん遠いものを使い、
+   *   向こう半分に1つも無い台なら、やむを得ず全体からいちばん遠いものを使う。
+   */
   function golfPocket(table) {
     if (!table.pockets.length) return null;
+    // ティーのある側の反対＝「向こう」の向き
+    const dir = (table.headSpot.x <= 0) ? 1 : -1;
+    const far = table.pockets.filter(p => p.x * dir > 1e-6);
+    const pool = far.length ? far : table.pockets;
     const want = GOLF_PICK[table.shape];
     if (want) {
-      const hit = table.pockets.find(p => p.id === want);
+      const hit = pool.find(p => p.id === want);
       if (hit) return hit;
     }
     const s = breakPlace(table);
     let best = null, bd = -1;
-    for (const p of table.pockets) {
+    for (const p of pool) {
       const d = Math.hypot(p.x - s.x, p.y - s.y);
       if (d > bd + 1e-6) { bd = d; best = p; }
     }
@@ -1845,28 +1867,96 @@ const BilliardsTable = (() => {
     const tee = { x: table.headSpot.x, y: table.headSpot.y };
     const cue = breakPlace(table);
     const haz = [];
-    if (pk) {
-      const order = GOLF_ORDERS[((hole | 0) % GOLF_ORDERS.length + GOLF_ORDERS.length) % GOLF_ORDERS.length];
-      const dx = pk.x - tee.x, dy = pk.y - tee.y;
-      const n = GOLF_HAZARDS.length;
-      for (let k = 1; k <= n; k++) {
-        const kind = GOLF_HAZARDS[order[k - 1]];
-        const rr = R * GOLF_HAZARD_R[kind];
-        const f = k / (n + 1);
-        // 置けない点は線に沿って前後へずらす。ずらしても置けなければその1つは諦める
-        // （数を欠くだけで、ホールは成立する）
-        for (let d = 0; d <= 40; d++) {
-          let done = false;
-          for (const sg of [1, -1]) {
-            const ff = f + sg * d * 0.01;
-            if (ff <= 0.08 || ff >= 0.92) continue;
-            const x = tee.x + dx * ff, y = tee.y + dy * ff;
-            if (golfFree(table, x, y, rr, haz)) { haz.push({ kind, x, y, r: rr }); done = true; break; }
-          }
-          if (done) break;
+    if (!pk) return { pocket: pk, tee, cue, hazards: haz };
+
+    const h = ((hole | 0) % 8 + 8) % 8;          // 散らし方はホール番号から決める（乱数を使わない）
+    const dx = pk.x - tee.x, dy = pk.y - tee.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const ux = dx / len, uy = dy / len;          // ティー → ポケット
+    const px = -uy, py = ux;                     // その左右
+
+    // 玉を置く場所（ティー・手玉）とも重ならないようにする。塞ぐと1打目が撞けない
+    const keepOut = [{ x: tee.x, y: tee.y, r: R * 2.2 }, { x: cue.x, y: cue.y, r: R * 2.2 }];
+    const put = (kind, x, y) => {
+      const rr = R * GOLF_HAZARD_R[kind];
+      if (!golfFree(table, x, y, rr, haz.concat(keepOut))) return false;
+      haz.push({ kind, x, y, r: rr });
+      return true;
+    };
+    /** 狙った点に置けなければ、まわりを少しずつずらして探す（置けなければ諦める＝数が欠けるだけ） */
+    const putNear = (kind, x0, y0, spread) => {
+      if (put(kind, x0, y0)) return true;
+      for (let step = 1; step <= 6; step++) {
+        for (let a = 0; a < 6; a++) {
+          const th = (a / 6 + h / 8) * Math.PI * 2;
+          const d = spread * step / 6;
+          if (put(kind, x0 + Math.cos(th) * d, y0 + Math.sin(th) * d)) return true;
         }
       }
+      return false;
+    };
+
+    /*
+     * ① 木＝線の上。ティーからポケットまでの 45〜65% のあたりに1本。
+     *    **まっすぐ狙えないのは木が受け持つ**ので、ここだけは線から外さない。
+     */
+    const tf = 0.45 + (h % 3) * 0.10;
+    putNear('tree', tee.x + dx * tf, tee.y + dy * tf, R * 2.5);
+
+    /**
+     * ティー→ポケットの線から十分に離れているか。
+     * ★**まっすぐ入る道は空けておく**ための条件。線をふさぐ役は木だけが受け持つ。
+     */
+    const offLine = (x, y, rr) => {
+      const cr = (x - tee.x) * uy - (y - tee.y) * ux;       // 線までの符号つき距離
+      return Math.abs(cr) > rr + R * 1.2;
+    };
+    /** 候補を順に試して、置けたものを n 個ためる（台の形で置けない点が多いので数を多めに用意する） */
+    const fill = (kind, cands, want, skew) => {
+      let n = 0;
+      for (let i = 0; i < cands.length && n < want; i++) {
+        const c = cands[(i * skew + h * 2) % cands.length]; // 並べ方をホールごとにずらす
+        if (!offLine(c.x, c.y, R * GOLF_HAZARD_R[kind])) continue;
+        if (put(kind, c.x, c.y)) n++;
+      }
+      return n;
+    };
+
+    /*
+     * ② 池＝中間地点のまわりに数個。線の左右へ振り分ける。
+     */
+    {
+      const cands = [];
+      for (const along of [0.38, 0.47, 0.30, 0.56, 0.24, 0.62]) {
+        for (const offK of [0.16, 0.11, 0.22, 0.28]) {
+          for (const side of [1, -1]) {
+            cands.push({ x: tee.x + dx * along + px * len * offK * side,
+                         y: tee.y + dy * along + py * len * offK * side });
+          }
+        }
+      }
+      fill('water', cands, GOLF_WATERS, 5);
     }
+
+    /*
+     * ③ バンカー＝指定ポケットの近くに数個。グリーンを囲むように散らす。
+     *
+     * ★**角の穴では置ける向きが狭い。**穴を中心に決まった角度だけ試すと、
+     *   台の外へ出る候補ばかりになって数が足りなくなる（実測：3個中0〜1個しか置けなかった）。
+     *   **全周を細かく回り、置ける点を拾う。**線をふさがない条件は offLine が受け持つ。
+     */
+    {
+      const ring = pk.r + R * (GOLF_HAZARD_R.bunker + 2.0);
+      const cands = [];
+      for (const mul of [1.0, 1.3, 1.7, 2.1, 2.6]) {
+        for (let deg = 0; deg < 360; deg += 15) {
+          const a = deg * Math.PI / 180, d = ring * mul;
+          cands.push({ x: pk.x + Math.cos(a) * d, y: pk.y + Math.sin(a) * d });
+        }
+      }
+      fill('bunker', cands, GOLF_BUNKERS, 7);
+    }
+
     return { pocket: pk, tee, cue, hazards: haz };
   }
 
@@ -1889,7 +1979,7 @@ const BilliardsTable = (() => {
     // ボウリング型（7.11節）
     bowlingLayout, bowlCells, BOWL_GAP, BOWL_ROWS,
     // ゴルフ型（7.10節）
-    golfLayout, golfPocket, GOLF_PICK, GOLF_HAZARDS, GOLF_HAZARD_R, GOLF_ORDERS,
+    golfLayout, golfPocket, GOLF_PICK, GOLF_HAZARD_R, GOLF_WATERS, GOLF_BUNKERS,
     clearance, inside, clampInside, nearestBoundary, diamonds, buildFillets,
     // 検査から直に確かめるために出している。
     // 「内角90度以上には手を触れない」という条件は、いまのどの台でも働かない

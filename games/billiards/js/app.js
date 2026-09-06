@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.74';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.75';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -1220,7 +1220,13 @@
      * 「いま落ちた」の判定は玉の状態ではなく、このショットの結果から引く。
      * 9番のように、落ちてもすぐ盤へ戻される玉があるため。
      */
-    if (!quiet) {
+    /*
+     * ★ゴルフ型は**落ちた玉を出さない**（第49セッションの利用者指示）。
+     *   落ちた玉を見せるのはビリヤードの見せ方で、ゴルフでは
+     *   「玉が穴に入る＝そのホールが終わる」だけ。**知らせるのは打数だけでよい。**
+     *   おまけに「これまでに落ちた玉」には**盤から引いてある他の人の玉**まで混ざる。
+     */
+    if (!quiet && g.rule !== 'G-10') {
       const nowIds = {};
       res.pocketed.forEach(id => { nowIds[id] = 1; });
       const justNow = g.world.balls.filter(b => nowIds[b.id]);
@@ -2244,27 +2250,27 @@
     const g = S.game, s = view.s;
     const pk = g.golf.layout.pocket;
     if (!pk) return;
-    const c0 = toScreen(pk.x, pk.y);
-    const h = Math.max(26, pk.r * s * 2.6);       // 竿の高さ
-    const w = Math.max(14, h * 0.5);              // 旗の幅
     /*
-     * ★**穴の真上ではなく、台の内側へずらして立てる。**
-     *   指定ポケットは角にあることが多く、台は画面いっぱいに描かれるので、
-     *   穴の真上には竿を立てる高さが残っていない。真上に立てると竿がまるごと
-     *   画面の外へ出て**旗が1本も見えない**（第49セッションの実機で、
-     *   赤い画素が1つも無いことから気づいた。目で見ただけでは気づけなかった）。
-     *   台の中心へ向かって竿1本ぶんずらす＝「穴のすぐ内側に旗が立っている」絵になる。
-     *   それでもはみ出す端では、はみ出したぶんだけ押し戻す。
+     * ★**竿は穴の中央に立てる**（第49セッションの利用者指示）。
+     *   いったん「台の内側へずらす」ようにしたが、旗と穴がずれて見えるので戻した。
+     *
+     * ★**そのぶん、竿は画面に収まる高さまで縮める。**指定ポケットは角にあり、
+     *   台は画面いっぱいに描かれるので、望みの高さのまま立てると
+     *   **竿がまるごと画面の外へ出て旗が1本も見えない**
+     *   （赤い画素が1つも無いことから気づいた。目で見ただけでは気づけなかった）。
+     *   上に余地が無い穴では下向きに垂らす。旗の足はどちらでも穴の中央のまま。
      */
-    const dx = view.cx - c0.x, dy = view.cy - c0.y;
-    const len = Math.hypot(dx, dy) || 1;
-    let bx = c0.x + dx / len * h, by = c0.y + dy / len * h;
-    if (by - h < 4) by = 4 + h;
-    if (by > view.h - 4) by = view.h - 4;
-    if (bx + w > view.w - 4) bx = view.w - 4 - w;
-    if (bx < 4) bx = 4;
-    const c = { x: bx, y: by };
-    const top = c.y - h;
+    const c = toScreen(pk.x, pk.y);
+    const want = Math.max(26, pk.r * s * 2.6);
+    const room = c.y - 3;                         // 穴の上に残っている高さ
+    const down = room < 16;                       // 上に立てられないほど詰まっている
+    const h = down ? Math.max(16, Math.min(want, view.h - c.y - 3)) : Math.min(want, room);
+    /*
+     * ★竿を穴の中央に立てると、角の穴では高さが取れない（枠のぶんしか余地がない）。
+     *   そのぶん**旗を横に広く**して見つけやすくする。縦で稼げないぶんを横で稼ぐ。
+     */
+    const w = Math.max(16, h * 0.72);             // 旗の幅
+    const top = down ? c.y + h : c.y - h;         // 旗の付く側
     ctx.save();
     // 竿の影
     ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = Math.max(2.4, 3.4 * s);
@@ -2272,11 +2278,12 @@
     // 竿
     ctx.strokeStyle = '#f2f2f2'; ctx.lineWidth = Math.max(1.6, 2.2 * s);
     ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(c.x, top); ctx.stroke();
-    // 旗（三角。右へなびく）
+    // 旗（三角。右へなびく）。垂らしたときは付け根から上へ広げる
+    const sg = down ? -1 : 1;
     ctx.beginPath();
     ctx.moveTo(c.x, top);
-    ctx.lineTo(c.x + w, top + w * .38);
-    ctx.lineTo(c.x, top + w * .76);
+    ctx.lineTo(c.x + w, top + sg * w * .38);
+    ctx.lineTo(c.x, top + sg * w * .76);
     ctx.closePath();
     ctx.fillStyle = '#e5342b'; ctx.fill();
     ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.lineWidth = Math.max(1, 1.2 * s); ctx.stroke();
@@ -2606,10 +2613,18 @@
   function drawGolfFinished() {
     const g = S.game, gf = g.golf;
     if (!gf || !gf.holed) return;
+    /*
+     * ★見るのは**いま組んであるホール**の打数（第49セッションの実機指摘）。
+     *   最後のホールが終わると gf.hole はコースの外まで進むので、
+     *   そのまま引くと**打数が無い＝0打**と出ていた。
+     */
+    const hole = Math.min(gf.hole, gf.course.length - 1);
     const done = [];
     for (let i = 0; i < g.players.length; i++) {
       if (!gf.holed[i]) continue;
-      done.push({ i: i, n: (gf.strokes[i] || [])[gf.hole] || 0 });
+      const n = (gf.strokes[i] || [])[hole] || 0;
+      if (n <= 0) continue;                  // 数えていない席は出さない
+      done.push({ i: i, n: n });
     }
     if (!done.length) return;
     const thick = 34 * view.s + 10;

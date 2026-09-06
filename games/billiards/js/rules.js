@@ -2056,6 +2056,7 @@ const BilliardsRules = (() => {
     gf.cut = golfCut(game.table.shape);
     const n = game.players.length;
     gf.holed = new Array(n).fill(false);
+    gf.freeCue = new Array(n).fill(false);   // 手玉を落とした人の「次の一撞きは自由配置」
     gf.lie = [];
     for (let s = 0; s < n; s++) {
       gf.lie.push({ cue: { x: lay.cue.x, y: lay.cue.y }, obj: { x: lay.tee.x, y: lay.tee.y } });
@@ -2109,8 +2110,59 @@ const BilliardsRules = (() => {
       b.state = show ? 'live' : 'gone';
       b.onTable = show;
     }
+    /*
+     * ★手玉を落とした人には、**この一撞きだけ**自由配置を渡す（第49セッションの利用者指示）。
+     *   罰打はもう数えてある。ここで渡すのは置き場所だけ。
+     */
+    if (gf.freeCue && gf.freeCue[seat]) {
+      gf.freeCue[seat] = false;
+      game.ballInHand = true;
+      game.ballInHandFull = true;
+    }
     // ショットの開始位置を控える。ファウルのときここへ戻す（D302・D303）
     gf.start = { cue: Object.assign({}, gf.lie[seat].cue), obj: Object.assign({}, gf.lie[seat].obj) };
+  }
+
+  /**
+   * ★**穴のすぐ手前へ戻さない**（第49セッションの利用者指示）。
+   *
+   * 落ちた玉を打ち直しの位置へ戻すと、その位置が穴のふちだったときに
+   * **「もう一度その穴へ落ちる」以外の選択肢が無くなる。**
+   * どの穴からも**玉1個ぶんの隙間**が空くまで押し出してから置く。
+   *
+   * 押し出す向きは、まず穴から見て玉のある側。そこが台の外なら、
+   * 穴のまわりを回って**元の位置にいちばん近い、台の中の点**を選ぶ。
+   */
+  const GOLF_POCKET_GAP = 2;          // 穴のふちと玉のふちのあいだに空ける隙間（玉の直径ぶん）
+  function golfAwayFromPockets(game, pos) {
+    const t = game.table;
+    let p = { x: pos.x, y: pos.y };
+    for (let it = 0; it < 6; it++) {
+      let worst = null, worstNeed = 0;
+      for (const pk of t.pockets) {
+        const need = pk.r + T.R * (1 + GOLF_POCKET_GAP);
+        const d = Math.hypot(p.x - pk.x, p.y - pk.y);
+        if (d >= need - 1e-6) continue;
+        if (!worst || need - d > worstNeed) { worst = pk; worstNeed = need - d; }
+      }
+      if (!worst) break;
+      const need = worst.r + T.R * (1 + GOLF_POCKET_GAP);
+      const dx = p.x - worst.x, dy = p.y - worst.y, d = Math.hypot(dx, dy);
+      const a0 = (d > 1e-6) ? Math.atan2(dy, dx) : 0;
+      // 穴のまわりを回って、台の中で元の位置にいちばん近い点を選ぶ
+      let best = null, bestD = Infinity;
+      for (let k = 0; k < 24; k++) {
+        const a = a0 + (k % 2 ? 1 : -1) * Math.floor((k + 1) / 2) * (Math.PI * 2 / 24);
+        const x = worst.x + Math.cos(a) * need, y = worst.y + Math.sin(a) * need;
+        if (T.clearance(t, x, y) < T.R * 1.05) continue;
+        const dd = Math.hypot(x - pos.x, y - pos.y);
+        if (dd < bestD) { bestD = dd; best = { x, y }; }
+      }
+      if (!best) break;                 // どこにも置けない台なら、元のまま
+      p = best;
+    }
+    const c = T.clampInside(t, p.x, p.y, T.R * 1.05);
+    return { x: c.x, y: c.y };
   }
 
   /**
@@ -2175,34 +2227,58 @@ const BilliardsRules = (() => {
     const objIn = r.pocketed.indexOf(objId) >= 0;
     const inTarget = !!pk && objIn && r.pocketWhere && r.pocketWhere[objId] === pk.id;
 
+    const obj = game.world.balls.find(b => b.kind === 'object' && b.owner === seat);
+    const objOff = !objIn && (!obj || obj.state !== 'live');    // 的球が場外へ出た＝OB
+    const cueLost = !!r.cuePocketed;                            // 手玉が落ちた・場外へ出た
+
+    /** 打ち直し＝直前の打ち始めの位置へ戻す。ただし穴のふちには置かない */
+    const replay = () => {
+      const o = golfAwayFromPockets(game, gf.start.obj);
+      gf.lie[seat] = { cue: Object.assign({}, gf.start.cue), obj: o };
+    };
+
     if (inTarget) {
       gf.holed[seat] = true;
       // 入れた瞬間は**呼び名で知らせる**（現実のゴルフと同じ。「入りました」では手応えが伝わらない）
       r.message = golfTermKey(gf.strokes[seat][gf.hole], gf.par);
-    } else if (r.foul || objIn) {
+    } else if (objIn) {
       /*
-       * ★**やり直しは必ず直前のショット開始位置へ戻す**（D302・D303＝ストロークアンドディスタンス）。
-       * 手玉が落ちたときも、的球が場外へ出たときも、指定でないポケットへ落ちたときも同じ扱いにする。
-       * 戻し方を場合ごとに変えると、**同じ「1打罰」なのに戻る場所が何通りもできて**、
-       * どれが起きたかを覚えていないと盤面が再現できなくなる。
+       * 指定でないポケットへ落ちた（V-04 は手玉、V-05 は場外しか見ていないのでここで受ける）。
+       * ★戻す位置は**穴から玉1個ぶん離す。**穴のふちへ戻すと、
+       *   「もう一度その穴へ落ちる」以外の選択肢が無くなる（第49セッションの実機指摘）。
        */
-      if (objIn && !r.foul) {
-        // 指定でないポケットへ落ちた。V-04 は手玉、V-05 は場外しか見ていないのでここで受ける
-        gf.strokes[seat][gf.hole] += 1;
-        r.message = 'msg.golfWrongPocket';
-      }
-      gf.lie[seat] = { cue: Object.assign({}, gf.start.cue), obj: Object.assign({}, gf.start.obj) };
+      if (!r.foul) gf.strokes[seat][gf.hole] += 1;
+      r.message = 'msg.golfWrongPocket';
+      replay();
+    } else if (objOff) {
+      // 的球が台の外へ出た＝OB。**打ち直し**（ストロークアンドディスタンス）
+      replay();
+    } else if (cueLost) {
+      /*
+       * ★**手玉を落としただけなら、罰打1つと自由配置**（第49セッションの利用者指示）。
+       *   手玉はビリヤードの道具であってゴルフの玉ではないので、
+       *   **的球は止まった場所にそのまま残す。**打ち直しにはしない。
+       *
+       * ★自由配置は**この人の次の一撞き**に効かせる（golfArm で立てる）。
+       *   ここで game.ballInHand を立てたままにすると、**次に撞く別の人**が
+       *   自由配置をもらってしまう（この土台の ballInHand は「台に着いた人」のものだから）。
+       */
+      golfStore(game, seat);
+      gf.lie[seat].cue = Object.assign({}, gf.start.cue);
+      gf.freeCue[seat] = true;
+      game.ballInHand = false;
+      game.ballInHandFull = false;
+      r.message = 'msg.golfScratch';
     } else if (golfInWater(game, seat)) {
       /*
        * ★池は**中で止まったときだけ**罰にする（第49セッションの利用者判断）。
        *   通り抜けるだけなら助かる＝「越える」ショットが成立する。
-       *   戻し方は他の1打罰とまったく同じ（直前の打ち始めの位置）。場合ごとに変えない。
        * ★見るのは**的球だけ。**手玉はビリヤードの道具であってゴルフの玉ではないので、
        *   水の中で止まっても罰にしない。
        */
       gf.strokes[seat][gf.hole] += 1;
       r.message = 'msg.golfWater';
-      gf.lie[seat] = { cue: Object.assign({}, gf.start.cue), obj: Object.assign({}, gf.start.obj) };
+      replay();
     } else {
       golfStore(game, seat);
     }
@@ -2575,6 +2651,7 @@ const BilliardsRules = (() => {
     RULE_IDS, FOUL_TABLE, PENALTY, WIN_KIND, LOW_WINS, HAS_RACK, NEEDS_POCKETS, HAS_SCORE,
     // ゴルフ型（7.10節）
     golfPar, golfCut, golfTotal, golfParTotal, golfSeatDone, golfShape, golfTermKey, golfInWater,
+    golfAwayFromPockets,
     GOLF_PAR, GOLF_CUT,
     BALL_COLORS, CAROM_COLORS,
     teamOf, teamMembers, teamList, teamScore, otherTeam,

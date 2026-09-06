@@ -393,6 +393,17 @@ const BilliardsAI = (() => {
     const legal = RU.legalTargets(game, playerIdx);
     const legalIds = legal ? legal.map(b => b.id) : null;
 
+    /*
+     * ★★ゴルフ型は**この物差しで測る**（第49セッションの実機指摘）。
+     *   下の一般の物差しは「どの穴でも入れば良い」と数えるので、
+     *   **手玉の置き場所を選ぶ段だけが、指定でない穴へ落とすのを良い手だと見ていた。**
+     *   狙いを決める側（golfThink）と同じ golfValue を通す。
+     */
+    if (game.rule === 'G-10' && game.golf && game.golf.layout) {
+      const obj = game.world.balls.find(b => b.kind === 'object' && b.owner === playerIdx);
+      if (obj) return golfValue(game, w, obj.id, cue.id, game.golf.layout.pocket);
+    }
+
     if (game.rule === 'G-04') {
       const distinct = new Set();
       for (const ev of w.events) {
@@ -723,7 +734,15 @@ const BilliardsAI = (() => {
     const cue = RU.cueBallOf(game, playerIdx);
     // ★筋を作る側と同じ判断を使う。ここに別の書き方を置くと、片方だけがはぐれる
     const targets = potTargetsFor(game, playerIdx);
-    const pockets = table.pockets;
+    /*
+     * ★★ゴルフ型は**指定ポケットしか見ない**（第49セッションの実機指摘）。
+     *   ここは既定で「台のどの穴でもよい」ので、そのままだと
+     *   **AIは指定でない穴へ入れやすい場所へ手玉を置き、そこへ入れにいく。**
+     *   入れれば1打罰でやり直しなのに、置き場所を決める側がそれを知らなかった。
+     */
+    const pockets = (game.rule === 'G-10' && game.golf && game.golf.layout && game.golf.layout.pocket)
+      ? [game.golf.layout.pocket]
+      : table.pockets;
     const cands = [];
 
     const freeAt = (x, y) => freeSpotAt(game, cue, x, y);
@@ -1238,6 +1257,9 @@ const BilliardsAI = (() => {
   const GOLF_POWERS = [0.14, 0.30, 0.55];
   const GOLF_FAN = [-4, -2.5, -1.5, -0.7, 0, 0.7, 1.5, 2.5, 4];   // ゴーストボールの周り（度）
   const GOLF_SWEEP = 12;      // まっすぐ入らないときだけ、全周を粗く当たる（30度刻み）
+  // 良し悪しの両端。**この2つの外側へは何があっても出さない**（順序が入れ替わるのを防ぐ）
+  const GOLF_BEST = 10000;    // 指定ポケットへ入れた
+  const GOLF_WORST = -8000;   // 指定でない穴へ落とした／場外へ出した
   const GOLF_SEC = 6;         // 1通りを走らせる秒数（他のルールの読みと同じ）
 
   /**
@@ -1254,26 +1276,35 @@ const BilliardsAI = (() => {
     if (!obj || !pk) return -9999;
     const ev = (w.events || []).filter(e => e.type === 'pocket');
     const oin = ev.find(e => e.ball === objId);
-    if (oin) return (oin.pocket === pk.id) ? 10000 : -3000;
-    if (obj.state !== 'live') return -3000;                      // 場外
-    let sc = 2000 - Math.hypot(obj.x - pk.x, obj.y - pk.y);
     /*
-     * ★**ハザードを避けることを教える**（第49セッション）。
-     *   池で止まれば1打罰＋打ち直しなので、場外に近い重さで嫌う。
-     *   砂は罰にはならないが、次の一撞きが出しにくくなるぶんだけ軽く嫌う。
-     *   ここを書かないと、AIは池を「ただの通り道」として真っすぐ突っ切る。
+     * ★★**「指定でない穴へ落とす」がいちばん悪い、という順序を絶対に崩さない。**
+     *
+     *   第49セッションの実機で「AIが指定でない穴を狙って落とす」と指摘された。
+     *   原因は**私が足した池の減点（-2500）が、別の穴の減点（-3000）に届いてしまった**こと。
+     *   台が広いと「入らなかった」ぶんの点も -800 あたりまで下がるので、
+     *   **池で止まるより、どこかの穴へ落としたほうがまし**という並びになっていた。
+     *   減点を足すときは、必ず**いちばん悪い手より下へ行かない**ように押さえる。
+     */
+    if (oin) return (oin.pocket === pk.id) ? GOLF_BEST : GOLF_WORST;
+    if (obj.state !== 'live') return GOLF_WORST;                 // 場外も同じく最悪
+    // 入らなかったとき＝**指定ポケットへどれだけ近づけたか**。0 が上限（近いほど良い）
+    let sc = -Math.hypot(obj.x - pk.x, obj.y - pk.y);
+    /*
+     * ★**ハザードを避けることを教える。**書かないとAIは池を「ただの通り道」として突っ切る。
+     *   池＝1打罰＋打ち直し。砂＝罰は無いが次の一撞きが出しにくい。
      */
     const haz = (game.golf && game.golf.layout) ? game.golf.layout.hazards : null;
     if (haz) {
       for (const h of haz) {
         if (h.kind === 'tree') continue;                         // 当たり判定があるので読みに出る
         if (Math.hypot(obj.x - h.x, obj.y - h.y) > h.r) continue;
-        sc -= (h.kind === 'water') ? 2500 : 400;
+        sc -= (h.kind === 'water') ? 3000 : 500;
       }
     }
-    // 手玉を失うのも1打罰（7.2.5節）。入らないよりは軽いが、避けたい
+    // 手玉を失うのも1打罰。ただし置き場所は自由になるので、池ほど重くはない
     if (!cue || cue.state !== 'live') sc -= 1200;
-    return sc;
+    // ★どれだけ減点が重なっても、別の穴へ落とすより下へは行かせない
+    return Math.max(sc, GOLF_WORST + 1000);
   }
 
   function golfThink(game, playerIdx, done) {
@@ -1454,7 +1485,7 @@ const BilliardsAI = (() => {
   // curlBankSeeds は検査から直に確かめるために出している（覚えた筋に当たりの幅があるか）
   return { think, pickBallInHand, bankShot, curlingThink, curlValue, curlBankSeeds,
     bowlThink, bowlValue, BOWL_POWERS, BOWL_WOBBLE,
-    golfThink, golfValue, GOLF_POWERS, GOLF_WOBBLE, PROFILE };
+    golfThink, golfValue, GOLF_POWERS, GOLF_WOBBLE, GOLF_BEST, GOLF_WORST, PROFILE };
 })();
 
 if (typeof window !== 'undefined') window.BilliardsAI = BilliardsAI;

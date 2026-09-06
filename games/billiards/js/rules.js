@@ -1967,19 +1967,28 @@ const BilliardsRules = (() => {
    *   いまの値は「ティーから1打で入る割合」（実測）に応じた割り当てで、現実のゴルフの
    *   パーの付け方（ホールの難度に応じて割り当てる）に倣った。
    */
-  const GOLF_PAR = {
-    'A-01': 3,    // 長方形（1打で入る割合 26%）
-    'A-02': 4,    // 六角形（2%）
-    'A-04': 2,    // 楕円（51%）★丸い奥の壁が球を集めるので、どう作っても易しい
-    'A-06': 3,    // スタジアム（9%）
-    'A-07': 4,    // ドーナツ（1%）
-    'A-08': 5,    // L字（1%）★本番のAIで測り直し、hard でも中央値が打ち切りに達したので 4→5（打ち切り10）
-    'A-09': 5,    // 十字（2%）★同上。この2ホールは難しいホールとして残す（利用者判断）
-    'A-11': 3,    // 星型（6%）
-  };
-  const GOLF_PAR_DEFAULT = 3;   // 表に無い台（台を足したとき）の既定
+  /*
+   * ★★第49セッションで**全ホール3打の暫定値へ戻した**（利用者指示）。
+   *   ハザードを「木・バンカー・池」へ入れ替えてコースの中身が変わったので、
+   *   **第48で測った値（合計29）はもう当てはまらない**。まずゲームが成り立つかを見る段階なので、
+   *   測り直しは後回しにして、全ホール一律 3打（合計24・打ち切り6打）で回す。
+   *   [[reference_measuring_my_own_searcher]] の逆で、**測らないと決めた**のが今の状態。
+   */
+  const GOLF_PAR = {};          // 台ごとの割り当ては暫定的に空＝すべて既定値を使う
+  const GOLF_PAR_DEFAULT = 3;   // 表に無い台（＝いまは全部）の既定
   const GOLF_CUT = 2;           // 打ち切り＝規定打数の何倍か（7.10.4節。暫定値）
-  const GOLF_OBSTACLE_COLOR = '#3f4a3a';   // 障害物（現実のハザードに相当）
+
+  /*
+   * ハザードの値（第49セッション）。
+   *
+   * ★**砂は「転がり抵抗」を大きくして効かせる。**台ぜんたいの既定は 0.010 で、
+   *   これを 12 倍にすると、入った玉はおよそ 1/12 の距離で止まる＝砂に埋まった感じになる。
+   *   滑り摩擦も上げてあるが、こちらは撞いた直後の一瞬にしか効かないので影響は小さい。
+   * ★**どちらも暫定値。**実機で「重すぎる／軽すぎる」と分かったらここだけ動かす。
+   */
+  const GOLF_SAND_SLIDE = 0.45;
+  const GOLF_SAND_ROLL = 0.12;
+  const GOLF_TREE_COLOR = '#4a7c3f';       // 木（葉の緑。幹は画面側で描く）
 
   /** そのホールの規定打数 */
   function golfPar(shape) {
@@ -2032,8 +2041,17 @@ const BilliardsRules = (() => {
   function golfBuildHole(game) {
     const gf = game.golf;
     game.table = T.make(golfShape(game), true);
-    const lay = T.golfLayout(game.table);
+    const lay = T.golfLayout(game.table, gf.hole);
     gf.layout = lay;
+    /*
+     * ★バンカーは**台の「芝が違う場所」**として物理へ渡す（engine の区画）。
+     *   池は摩擦を変えない（勢いよく通り抜ければ助かる＝利用者判断）ので、
+     *   物理には渡さず、止まった場所をルール側で見るだけにする。
+     *   木は据え付けの玉なので、区画ではなく玉として置く。
+     */
+    game.table.patches = lay.hazards
+      .filter(h => h.kind === 'bunker')
+      .map(h => ({ x: h.x, y: h.y, r: h.r, slide: GOLF_SAND_SLIDE, roll: GOLF_SAND_ROLL }));
     gf.par = golfPar(game.table.shape);
     gf.cut = golfCut(game.table.shape);
     const n = game.players.length;
@@ -2054,12 +2072,18 @@ const BilliardsRules = (() => {
         x: lay.tee.x, y: lay.tee.y, color: CAROM_COLORS[(s + 1) % CAROM_COLORS.length],
       }));
     }
-    lay.obstacles.forEach((o, k) => {
+    /*
+     * 木だけを玉として盤に置く（据え付け＝当たれば跳ね返るが動かない）。
+     * バンカーと池は玉ではないので、ここには出さない。
+     */
+    lay.hazards.forEach((h, k) => {
+      if (h.kind !== 'tree') return;
       const b = E.makeBall({
-        id: 100 + k, num: 0, kind: 'object', owner: -1, r: T.R,
-        x: o.x, y: o.y, color: GOLF_OBSTACLE_COLOR,
+        id: 100 + k, num: 0, kind: 'object', owner: -1, r: h.r,
+        x: h.x, y: h.y, color: GOLF_TREE_COLOR, pinned: true,
       });
-      b.hazard = true;             // 障害物の印。誰のものでもなく、片付けもしない
+      b.hazard = true;             // ハザードの印。誰のものでもなく、片付けもしない
+      b.hazardKind = 'tree';
       balls.push(b);
     });
     game.world = E.createWorld(game.table, balls, game.tuning);
@@ -2087,6 +2111,19 @@ const BilliardsRules = (() => {
     }
     // ショットの開始位置を控える。ファウルのときここへ戻す（D302・D303）
     gf.start = { cue: Object.assign({}, gf.lie[seat].cue), obj: Object.assign({}, gf.lie[seat].obj) };
+  }
+
+  /**
+   * その人の的球が、いま池の中で止まっているか。
+   * ★**池は摩擦を変えない区画**なので、物理は何も知らない。ここで場所を見るだけ。
+   */
+  function golfInWater(game, seat) {
+    const gf = game.golf;
+    if (!gf || !gf.layout) return false;
+    const obj = game.world.balls.find(b => b.kind === 'object' && b.owner === seat);
+    if (!obj || obj.state !== 'live') return false;
+    return gf.layout.hazards.some(h =>
+      h.kind === 'water' && Math.hypot(obj.x - h.x, obj.y - h.y) <= h.r);
   }
 
   /** 撞いたあとの位置を控えへ書き戻す */
@@ -2155,6 +2192,17 @@ const BilliardsRules = (() => {
         r.message = 'msg.golfWrongPocket';
       }
       gf.lie[seat] = { cue: Object.assign({}, gf.start.cue), obj: Object.assign({}, gf.start.obj) };
+    } else if (golfInWater(game, seat)) {
+      /*
+       * ★池は**中で止まったときだけ**罰にする（第49セッションの利用者判断）。
+       *   通り抜けるだけなら助かる＝「越える」ショットが成立する。
+       *   戻し方は他の1打罰とまったく同じ（直前の打ち始めの位置）。場合ごとに変えない。
+       * ★見るのは**的球だけ。**手玉はビリヤードの道具であってゴルフの玉ではないので、
+       *   水の中で止まっても罰にしない。
+       */
+      gf.strokes[seat][gf.hole] += 1;
+      r.message = 'msg.golfWater';
+      gf.lie[seat] = { cue: Object.assign({}, gf.start.cue), obj: Object.assign({}, gf.start.obj) };
     } else {
       golfStore(game, seat);
     }
@@ -2186,7 +2234,22 @@ const BilliardsRules = (() => {
     for (let s = 0; s < n; s++) if (!golfSeatDone(game, s)) rest.push(s);
 
     if (!rest.length) {
-      // 全員がこのホールを終えた → 次のホールへ（全員そろって進む）
+      /*
+       * 全員がこのホールを終えた → 次のホールへ（全員そろって進む）。
+       * ★終わったホールの成績を**控えに残す**（画面のポップアップが読む。利用者指示）。
+       *   次のホールを組み立てると盤も打数も入れ替わるので、ここで取らないと出せない。
+       *   ルールは描画を知らないので、**残すだけで、出すかどうかは画面が決める。**
+       */
+      gf.lastCard = {
+        hole: gf.hole,
+        par: gf.par,
+        rows: game.players.map(p => ({
+          seat: p.idx,
+          strokes: gf.strokes[p.idx][gf.hole] || 0,
+          term: golfTermKey(gf.strokes[p.idx][gf.hole] || 0, gf.par),
+          total: golfTotal(game, p.idx),
+        })),
+      };
       gf.honour = golfHonour(game);
       gf.hole++;
       if (gf.hole >= gf.course.length) { golfFinish(game); return; }
@@ -2511,7 +2574,7 @@ const BilliardsRules = (() => {
   return {
     RULE_IDS, FOUL_TABLE, PENALTY, WIN_KIND, LOW_WINS, HAS_RACK, NEEDS_POCKETS, HAS_SCORE,
     // ゴルフ型（7.10節）
-    golfPar, golfCut, golfTotal, golfParTotal, golfSeatDone, golfShape, golfTermKey,
+    golfPar, golfCut, golfTotal, golfParTotal, golfSeatDone, golfShape, golfTermKey, golfInWater,
     GOLF_PAR, GOLF_CUT,
     BALL_COLORS, CAROM_COLORS,
     teamOf, teamMembers, teamList, teamScore, otherTeam,

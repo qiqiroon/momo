@@ -1257,6 +1257,20 @@ const BilliardsAI = (() => {
     if (oin) return (oin.pocket === pk.id) ? 10000 : -3000;
     if (obj.state !== 'live') return -3000;                      // 場外
     let sc = 2000 - Math.hypot(obj.x - pk.x, obj.y - pk.y);
+    /*
+     * ★**ハザードを避けることを教える**（第49セッション）。
+     *   池で止まれば1打罰＋打ち直しなので、場外に近い重さで嫌う。
+     *   砂は罰にはならないが、次の一撞きが出しにくくなるぶんだけ軽く嫌う。
+     *   ここを書かないと、AIは池を「ただの通り道」として真っすぐ突っ切る。
+     */
+    const haz = (game.golf && game.golf.layout) ? game.golf.layout.hazards : null;
+    if (haz) {
+      for (const h of haz) {
+        if (h.kind === 'tree') continue;                         // 当たり判定があるので読みに出る
+        if (Math.hypot(obj.x - h.x, obj.y - h.y) > h.r) continue;
+        sc -= (h.kind === 'water') ? 2500 : 400;
+      }
+    }
     // 手玉を失うのも1打罰（7.2.5節）。入らないよりは軽いが、避けたい
     if (!cue || cue.state !== 'live') sc -= 1200;
     return sc;

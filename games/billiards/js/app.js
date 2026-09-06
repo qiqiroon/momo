@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.73';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.74';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -715,6 +715,8 @@
     S.game = g;
     S.chk = {}; S.results = {};             // 前の局の照合・結果は持ち越さない
     S.dropped = null; S.bursts = []; S.airZ = {}; S.pendingShots = {};
+    // ゴルフ型のホール成績のポップアップ。局をまたいで残すと前の局の成績が出る
+    S.golfCard = null; S.golfCardSeen = null;
     S.net.done = {}; S.net.gone = {}; S.waitDone = null; S.readyShot = null; S.forceShot = null;
     S.catchUp = false; S.lastNeed = null;
     if (S.waitTimer) { clearTimeout(S.waitTimer); S.waitTimer = null; }
@@ -1943,7 +1945,37 @@
     return Math.min(Math.max(5, r * ratio), r * NUM_DISC_MAX);
   }
 
+  /**
+   * ゴルフ型の木。据え付けで動かない物なので、**玉には見えないように描く**
+   * （葉の茂み＋幹）。当たれば跳ね返るのは玉と同じ。
+   */
+  function drawGolfTree(b, s, alpha) {
+    const p = toScreen(b.x, b.y);
+    const r = b.r * s;
+    ctx.save();
+    if (alpha != null) ctx.globalAlpha = alpha;
+    // 影
+    ctx.beginPath(); ctx.ellipse(p.x + r * .2, p.y + r * .26, r * .95, r * .8, 0, 0, 7);
+    ctx.fillStyle = 'rgba(0,0,0,.42)'; ctx.fill();
+    // 幹（茂みの下から少しのぞく）
+    ctx.fillStyle = '#6b4a2a';
+    ctx.fillRect(p.x - r * .13, p.y + r * .2, r * .26, r * .62);
+    // 茂み＝3つの丸を重ねる。真円1つだと玉に見える
+    const lobes = [[0, -r * .18, r * .78], [-r * .5, r * .18, r * .58], [r * .5, r * .16, r * .56]];
+    for (const [dx, dy, rr] of lobes) {
+      const g2 = ctx.createRadialGradient(p.x + dx - rr * .3, p.y + dy - rr * .35, rr * .1, p.x + dx, p.y + dy, rr);
+      g2.addColorStop(0, shade(b.color, 1.35));
+      g2.addColorStop(.7, b.color);
+      g2.addColorStop(1, shade(b.color, .55));
+      ctx.beginPath(); ctx.arc(p.x + dx, p.y + dy, rr, 0, 7);
+      ctx.fillStyle = g2; ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,.42)'; ctx.lineWidth = Math.max(1, r * .05); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   function drawBall2D(b, s, alpha) {
+    if (b.hazardKind === 'tree') { drawGolfTree(b, s, alpha); return; }
     const p = toScreen(b.x, b.y);
     const r0 = b.r * s;
     /*
@@ -2079,6 +2111,8 @@
     if (g.rule === 'G-09' && g.curling) drawHouse();
     // ボウリング型の「動いた跡」（利用者指示）。クロスの上・玉の下に敷く
     if (g.rule === 'G-11' && g.bowling && g.bowling.moves) drawBowlMoves();
+    // ゴルフ型のコース＝バンカーと池。芝の一部なのでクロスの上・玉の下に敷く
+    if (g.rule === 'G-10' && g.golf && g.golf.layout) drawGolfGround();
     // ダイヤ（レール上の目印）。位置は外周の辺から決まる（形ごとの並べ書きはしない）
     ctx.fillStyle = 'rgba(255,240,215,.55)';
     const off = thick / s * .5;                 // 枠の帯の真ん中まで外へ出す
@@ -2116,6 +2150,8 @@
     live.sort((x, y) => x.z - y.z);
     for (const bb of live) drawBall2D(bb, s);
     drawTurnFlash();
+    // ゴルフ型：指定ポケットの旗と、他の人の玉のありか（旗は玉より上＝隠れない）
+    if (g.rule === 'G-10' && g.golf && g.golf.layout) { drawGolfRivals(); drawGolfFlag(); }
 
     if (placing && S.placePos && cueNow) {
       const q = toScreen(S.placePos.x, S.placePos.y);
@@ -2136,8 +2172,152 @@
     drawBursts();
     drawPocketedRails();
     drawDroppedFlash();
+    drawGolfCard();
     fadeBoardOverlays(view.mobile);   // 盤面に重ねた表示を、狙いにかぶるぶんだけ薄くする
     if (S.elevAdjusting) drawElevOverlay();
+  }
+
+  /*
+   * ───────── ゴルフ型のコース（第49セッション） ─────────
+   *
+   * ★**ゴルフ場に実際にある物だけを描く。**第48セッションは「まっすぐ入らないための詰め物」を
+   *   黒い玉2個で置いていたが、ゴルフ場に無い物なので作り直した（利用者指示）。
+   *   バンカー（砂）と池（水）は**芝の一部**なので、クロスの上・玉の下に敷く。
+   *   木だけは玉として盤に立っているので、玉を描くところで木の形に描き替える。
+   */
+  const GOLF_SAND_FILL = '#d9c489';
+  const GOLF_WATER_FILL = '#2f6fb0';
+
+  function drawGolfGround() {
+    const g = S.game, s = view.s;
+    const haz = g.golf.layout.hazards || [];
+    ctx.save();
+    tablePath(g.table); ctx.clip('evenodd');
+    for (const h of haz) {
+      if (h.kind === 'tree') continue;                 // 木は玉として描かれる
+      const c = toScreen(h.x, h.y), r = h.r * s;
+      if (h.kind === 'bunker') {
+        // 砂＝ざらついた縁の薄い黄。真円だと作り物に見えるので縁をわずかに揺らす
+        ctx.beginPath();
+        for (let k = 0; k <= 24; k++) {
+          const a = k / 24 * Math.PI * 2;
+          const rr = r * (1 + 0.06 * Math.sin(a * 3 + h.x) + 0.04 * Math.cos(a * 5 + h.y));
+          const x = c.x + Math.cos(a) * rr, y = c.y + Math.sin(a) * rr;
+          if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(217,196,137,.92)'; ctx.fill();
+        ctx.strokeStyle = 'rgba(120,100,60,.5)'; ctx.lineWidth = Math.max(1, 1.4 * s); ctx.stroke();
+        // 砂の粒。位置は座標から決めるので、描き直しても粒が踊らない
+        ctx.fillStyle = 'rgba(150,128,80,.45)';
+        for (let k = 0; k < 14; k++) {
+          const a = k * 2.39996, rr = r * Math.sqrt((k + 0.5) / 14) * 0.82;
+          ctx.beginPath();
+          ctx.arc(c.x + Math.cos(a + h.x) * rr, c.y + Math.sin(a + h.x) * rr, Math.max(0.8, 1.1 * s), 0, 7);
+          ctx.fill();
+        }
+      } else {
+        // 池＝濃い青の丸に、明るい縁の光。深さが出るように中心を暗くする
+        const gr = ctx.createRadialGradient(c.x, c.y, r * .1, c.x, c.y, r);
+        gr.addColorStop(0, 'rgba(20,60,110,.95)');
+        gr.addColorStop(.75, 'rgba(47,111,176,.92)');
+        gr.addColorStop(1, 'rgba(90,160,215,.92)');
+        ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, 7); ctx.fillStyle = gr; ctx.fill();
+        ctx.strokeStyle = 'rgba(200,235,255,.6)'; ctx.lineWidth = Math.max(1, 1.4 * s); ctx.stroke();
+        // 水面のさざ波（2本の弧）
+        ctx.strokeStyle = 'rgba(220,245,255,.45)'; ctx.lineWidth = Math.max(1, 1.1 * s);
+        ctx.beginPath(); ctx.arc(c.x, c.y - r * .25, r * .45, Math.PI * .15, Math.PI * .85); ctx.stroke();
+        ctx.beginPath(); ctx.arc(c.x, c.y + r * .1, r * .3, Math.PI * .15, Math.PI * .85); ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  /**
+   * ★指定ポケットに旗を立てる（利用者選択）。
+   *
+   * **どこがゴールかが画面に一切出ていなかった**（第49セッションの実機指摘）。
+   * 8つのポケットはどれも同じ黒い穴に描かれるので、旗が無いと目的地が分からない。
+   * 旗は**玉より上に描く**。芝に敷くと玉の下に隠れて、肝心なときに見えなくなる。
+   */
+  function drawGolfFlag() {
+    const g = S.game, s = view.s;
+    const pk = g.golf.layout.pocket;
+    if (!pk) return;
+    const c0 = toScreen(pk.x, pk.y);
+    const h = Math.max(26, pk.r * s * 2.6);       // 竿の高さ
+    const w = Math.max(14, h * 0.5);              // 旗の幅
+    /*
+     * ★**穴の真上ではなく、台の内側へずらして立てる。**
+     *   指定ポケットは角にあることが多く、台は画面いっぱいに描かれるので、
+     *   穴の真上には竿を立てる高さが残っていない。真上に立てると竿がまるごと
+     *   画面の外へ出て**旗が1本も見えない**（第49セッションの実機で、
+     *   赤い画素が1つも無いことから気づいた。目で見ただけでは気づけなかった）。
+     *   台の中心へ向かって竿1本ぶんずらす＝「穴のすぐ内側に旗が立っている」絵になる。
+     *   それでもはみ出す端では、はみ出したぶんだけ押し戻す。
+     */
+    const dx = view.cx - c0.x, dy = view.cy - c0.y;
+    const len = Math.hypot(dx, dy) || 1;
+    let bx = c0.x + dx / len * h, by = c0.y + dy / len * h;
+    if (by - h < 4) by = 4 + h;
+    if (by > view.h - 4) by = view.h - 4;
+    if (bx + w > view.w - 4) bx = view.w - 4 - w;
+    if (bx < 4) bx = 4;
+    const c = { x: bx, y: by };
+    const top = c.y - h;
+    ctx.save();
+    // 竿の影
+    ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = Math.max(2.4, 3.4 * s);
+    ctx.beginPath(); ctx.moveTo(c.x + 1.2, c.y + 1.2); ctx.lineTo(c.x + 1.2, top + 1.2); ctx.stroke();
+    // 竿
+    ctx.strokeStyle = '#f2f2f2'; ctx.lineWidth = Math.max(1.6, 2.2 * s);
+    ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(c.x, top); ctx.stroke();
+    // 旗（三角。右へなびく）
+    ctx.beginPath();
+    ctx.moveTo(c.x, top);
+    ctx.lineTo(c.x + w, top + w * .38);
+    ctx.lineTo(c.x, top + w * .76);
+    ctx.closePath();
+    ctx.fillStyle = '#e5342b'; ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.lineWidth = Math.max(1, 1.2 * s); ctx.stroke();
+    ctx.restore();
+  }
+
+  /**
+   * ★他の人の玉のありかを出す（利用者指示）。
+   *
+   * ゴルフ型は1つの盤を全員で使い回すので、**撞く人以外の玉は盤から引いてある**
+   * （互いにぶつからないようにするため）。そのぶん、他の人がどこにいるのかが
+   * まったく分からなかった。**当たり判定は付けない＝表示だけ**なので、
+   * ぶつからない約束はそのまま保たれる。
+   *
+   * 玉として描くと「盤にある玉」と見分けが付かないので、**小さな点＋名前**にする。
+   */
+  function drawGolfRivals() {
+    const g = S.game, gf = g.golf, s = view.s;
+    if (!gf.lie) return;
+    ctx.save();
+    ctx.font = '600 11px system-ui, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    for (let i = 0; i < g.players.length; i++) {
+      if (i === g.turn) continue;                       // いま撞く人の玉は盤に出ている
+      if (gf.holed[i]) continue;                        // 上がった人は盤にいない
+      const lie = gf.lie[i];
+      if (!lie) continue;
+      const c = toScreen(lie.obj.x, lie.obj.y);
+      const r = Math.max(3, T.R * s * 0.42);
+      const col = golfSeatColor(i);
+      ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, 7);
+      ctx.fillStyle = col; ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.lineWidth = 1.2; ctx.stroke();
+      const nm = g.players[i].name || '';
+      if (nm) {
+        ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.6)';
+        ctx.strokeText(nm, c.x, c.y - r - 2);
+        ctx.fillStyle = col; ctx.fillText(nm, c.x, c.y - r - 2);
+      }
+    }
+    ctx.restore();
   }
 
   /**
@@ -2411,8 +2591,57 @@
    * エイトボールは担当が分かれるので、相手のぶんを左・自分のぶんを右に置く。
    * それ以外のルールは担当が無いので右にまとめる。
    */
+  /**
+   * ★ゴルフ型は**落ちた玉を台の脇に並べない**（第49セッションの利用者指示）。
+   *
+   * 落ちた玉を並べるのはビリヤードの見せ方で、ゴルフには意味が無い
+   * （玉が穴に入る＝そのホールが終わる、というだけ）。
+   * ★おまけに、ゴルフ型は**撞く人以外の玉を「盤にいない」印で引っ込める**ので、
+   *   状態だけで数えると**相手の的球が「落ちた玉」として脇に並ぶ**。
+   *   カーリング型（まだ投げていない持ち球）・ボウリング型（ピン）と同じ穴で、
+   *   ゴルフ型だけ除外が抜けていた。
+   *
+   * 代わりに**「名前 ─ ○打」**を積む＝このホールを何打で上がったか。
+   */
+  function drawGolfFinished() {
+    const g = S.game, gf = g.golf;
+    if (!gf || !gf.holed) return;
+    const done = [];
+    for (let i = 0; i < g.players.length; i++) {
+      if (!gf.holed[i]) continue;
+      done.push({ i: i, n: (gf.strokes[i] || [])[gf.hole] || 0 });
+    }
+    if (!done.length) return;
+    const thick = 34 * view.s + 10;
+    const edge = g.table.halfH * view.s + thick;
+    const lh = 17, pad = 7;
+    const rows = done.map(d => (g.players[d.i].name || '') + ' ─ ' + t('golf.strokesN', { n: d.n }));
+    ctx.save();
+    ctx.font = '600 12px "Noto Sans JP",sans-serif';
+    ctx.textBaseline = 'middle';
+    let wMax = 0;
+    for (const r of rows) wMax = Math.max(wMax, ctx.measureText(r).width);
+    const bw = wMax + pad * 2 + 14;
+    const want = view.cx + edge + 10;
+    const x = clamp(want, 4, view.w - bw - 4);
+    let y = view.cy - (rows.length - 1) * lh / 2 - pad - lh / 2;
+    roundRect(x, y, bw, rows.length * lh + pad * 2, 8);
+    ctx.fillStyle = 'rgba(10,10,10,.62)'; ctx.fill();
+    y += pad + lh / 2;
+    ctx.textAlign = 'left';
+    done.forEach((d, k) => {
+      ctx.beginPath(); ctx.arc(x + pad + 4, y, 4, 0, 7);
+      ctx.fillStyle = golfSeatColor(d.i); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.92)';
+      ctx.fillText(rows[k], x + pad + 13, y);
+      y += lh;
+    });
+    ctx.restore();
+  }
+
   function drawPocketedRails() {
     const g = S.game, table = g.table;
+    if (g.rule === 'G-10') { drawGolfFinished(); return; }
     const dropped = pocketedBalls(g).filter(b => b.kind !== 'cue');
     if (!dropped.length) return;
     const thick = 34 * view.s + 10;
@@ -2457,6 +2686,78 @@
     column(right, 1);
   }
 
+  /**
+   * ★ホールが終わったときに、そのホールの成績をポップアップで出す（利用者指示）。
+   *
+   * スコアカードは常に出ているが、**数字が静かに増えるだけ**なので、
+   * 「いま何打で上がったのか」「相手とどちらが良かったのか」がその場では読み取れない。
+   * 現実のゴルフでグリーンを離れるときにスコアを言い合うのと同じ役目。
+   *
+   * ★出すかどうかは画面が決める。ルール側は終わったホールの控えを残すだけ。
+   */
+  const GOLF_CARD_MS = 3600;
+  function drawGolfCard() {
+    const g = S.game;
+    if (!g || g.rule !== 'G-10' || !g.golf) return;
+    const card = g.golf.lastCard;
+    // 新しいホールぶんが来ていたら出し始める。局が終わったときは結果画面に任せる
+    if (card && S.golfCardSeen !== card.hole) {
+      S.golfCardSeen = card.hole;
+      if (!g.over) S.golfCard = { card: card, at: performance.now() };
+    }
+    const cur = S.golfCard;
+    if (!cur) return;
+    const age = performance.now() - cur.at;
+    if (age > GOLF_CARD_MS) { S.golfCard = null; return; }
+    const fade = age > GOLF_CARD_MS - 450 ? (GOLF_CARD_MS - age) / 450 : 1;
+
+    const c = cur.card, rows = c.rows;
+    const lh = 22, padX = 16, padY = 12, headH = 40;
+    ctx.save();
+    ctx.globalAlpha = fade;
+    ctx.font = '600 13px "Noto Sans JP",sans-serif';
+    let wMax = 150;
+    const label = i => (g.players[rows[i].seat] ? g.players[rows[i].seat].name : '') || '';
+    for (let i = 0; i < rows.length; i++) {
+      wMax = Math.max(wMax, ctx.measureText(label(i)).width + 190);
+    }
+    const w = Math.min(view.w - 24, wMax + padX * 2);
+    const h = headH + rows.length * lh + padY * 2;
+    const x = view.cx - w / 2, y = view.cy - h / 2;
+    roundRect(x, y, w, h, 12);
+    ctx.fillStyle = 'rgba(10,10,10,.88)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(251,146,60,.75)'; ctx.lineWidth = 2; ctx.stroke();
+
+    // 見出し＝「3H 終了・パー3」
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.font = '700 15px "Noto Sans JP",sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,.95)';
+    ctx.fillText(t('golf.holeDone', { n: c.hole + 1, par: c.par }), view.cx, y + padY);
+
+    // 1行＝色の丸・名前・呼び名・そのホールの打数・累計
+    ctx.font = '600 13px "Noto Sans JP",sans-serif';
+    ctx.textBaseline = 'middle';
+    let ry = y + padY + headH - 6;
+    for (const r of rows) {
+      ctx.textAlign = 'left';
+      ctx.beginPath(); ctx.arc(x + padX + 5, ry, 5, 0, 7);
+      ctx.fillStyle = golfSeatColor(r.seat); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.92)';
+      ctx.fillText((g.players[r.seat] ? g.players[r.seat].name : '') || '', x + padX + 16, ry);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = 'rgba(255,255,255,.62)';
+      ctx.fillText(t(r.term), x + w - padX - 92, ry);
+      ctx.fillStyle = 'rgba(255,255,255,.95)';
+      ctx.fillText(t('golf.strokesN', { n: r.strokes }), x + w - padX - 44, ry);
+      ctx.fillStyle = 'rgba(255,255,255,.55)';
+      ctx.fillText(t('golf.totalN', { n: r.total }), x + w - padX, ry);
+      ry += lh;
+    }
+    ctx.restore();
+  }
+
+  /**
+   * 撞き終わって玉が止まったあと、いま落ちた玉を盤の真ん中に大きく出す。
   /**
    * 撞き終わって玉が止まったあと、いま落ちた玉を盤の真ん中に大きく出す。
    * 何が落ちたのかは、小さい玉が消えるのを目で追うだけでは分からない。
@@ -2852,6 +3153,31 @@
     }
 
     /*
+     * ★ゴルフ型のコース（バンカー・池）を台面に描く。2Dと同じ物が3Dにも要る
+     *   ── 3Dで狙うときに、避けるべき場所が見えないと狙いようがない。
+     *   カーリングのハウスと同じ手で、円周を透視投影の折れ線に落として玉より先に描く。
+     */
+    if (g.rule === 'G-10' && g.golf && g.golf.layout) {
+      for (const h of (g.golf.layout.hazards || [])) {
+        if (h.kind === 'tree') continue;                 // 木は玉として描かれる
+        const pts = [];
+        for (let i = 0; i < 40; i++) {
+          const a = 2 * Math.PI * i / 40;
+          const q = proj(h.x + Math.cos(a) * h.r, h.y + Math.sin(a) * h.r, 0.5);
+          if (q) pts.push(q);
+        }
+        if (pts.length < 3) continue;
+        ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+        ctx.closePath();
+        ctx.fillStyle = (h.kind === 'bunker') ? 'rgba(217,196,137,.92)' : 'rgba(47,111,176,.92)';
+        ctx.fill();
+        ctx.strokeStyle = (h.kind === 'bunker') ? 'rgba(120,100,60,.5)' : 'rgba(200,235,255,.6)';
+        ctx.lineWidth = 1.4; ctx.stroke();
+      }
+    }
+
+    /*
      * ★カーリング型の的（ハウス）を台面に描く（利用者指示）。
      * **玉より先に描くので玉の下に敷かれる。**円周を透視投影で折れ線に落とす。
      * 台面すれすれ（z=0.5）に置き、2Dの drawHouse と同じ同心円4本＋ホグ円にする。
@@ -2892,6 +3218,24 @@
       .map(b => ({ b, p: proj(b.x, b.y, b.z + b.r) })).filter(o => o.p)
       .sort((m, n) => n.p.z - m.p.z);
     for (const o of live) drawBall3D(o.b, o.p.x, o.p.y, scale * o.b.r / o.p.z);
+
+    // ゴルフ型：指定ポケットの旗。玉より後に描く＝手前の玉に隠れない
+    if (g.rule === 'G-10' && g.golf && g.golf.layout && g.golf.layout.pocket) {
+      const pk = g.golf.layout.pocket;
+      const foot = proj(pk.x, pk.y, 0), head = proj(pk.x, pk.y, 165);
+      if (foot && head) {
+        const w = Math.max(8, Math.abs(foot.y - head.y) * 0.4);
+        ctx.strokeStyle = '#f2f2f2'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(foot.x, foot.y); ctx.lineTo(head.x, head.y); ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(head.x, head.y);
+        ctx.lineTo(head.x + w, head.y + w * .38);
+        ctx.lineTo(head.x, head.y + w * .76);
+        ctx.closePath();
+        ctx.fillStyle = '#e5342b'; ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.lineWidth = 1; ctx.stroke();
+      }
+    }
 
     // 3D空間のキュー。尻はカメラより後ろへ抜けるので、手前で切ってから描く
     // （切らないと投影できず、キューが1本も見えない）
@@ -2955,6 +3299,21 @@
 
   function drawBall3D(b, x, y, r) {
     if (r < 0.4) return;
+    if (b.hazardKind === 'tree') {
+      // 3Dでも玉に見せない。幹を立てて茂みを3つ重ねる（2Dと同じ考え）
+      ctx.save();
+      ctx.beginPath(); ctx.ellipse(x, y + r * .55, r * .95, r * .3, 0, 0, 7);
+      ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.fill();
+      ctx.fillStyle = '#6b4a2a';
+      ctx.fillRect(x - r * .14, y - r * .1, r * .28, r * .7);
+      for (const [dx, dy, rr] of [[0, -r * .55, r * .72], [-r * .48, -r * .2, r * .52], [r * .48, -r * .22, r * .5]]) {
+        const g3 = ctx.createRadialGradient(x + dx - rr * .3, y + dy - rr * .35, rr * .1, x + dx, y + dy, rr);
+        g3.addColorStop(0, shade(b.color, 1.35)); g3.addColorStop(.7, b.color); g3.addColorStop(1, shade(b.color, .55));
+        ctx.beginPath(); ctx.arc(x + dx, y + dy, rr, 0, 7); ctx.fillStyle = g3; ctx.fill();
+      }
+      ctx.restore();
+      return;
+    }
     ctx.save();
     ctx.beginPath(); ctx.ellipse(x, y + r * .55, r * .95, r * .35, 0, 0, 7);
     ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.fill();
@@ -3334,6 +3693,7 @@
 
   cv.addEventListener('pointerdown', e => {
     S.dropped = null;                    // 触ったら中央の知らせは畳む
+    S.golfCard = null;                   // ホール成績のポップアップも同じ扱い
     if (!S.game || !isMyTurn() || S.demo) return;
     try { cv.setPointerCapture(e.pointerId); } catch (err) {}
     const p = evPos(e);
@@ -3891,6 +4251,17 @@
         box.appendChild(d);
         return;
       }
+      /*
+       * ★ゴルフ型も**持ち色を名前の隣に置く**（第49セッションの実機指摘）。
+       * 陣取り・カーリングで同じ指摘を受けて直してあったのに、ゴルフ型だけ抜けていた。
+       * 盤に出る的球はその人の色そのものなので、**どれが自分の玉か**がここでしか分からない。
+       */
+      if (g.rule === 'G-10') {
+        d.innerHTML = '<span><span class="pl-dot" style="background:' + golfSeatColor(i) + '"></span>' +
+          escapeHtml(who) + '</span><span>' + escapeHtml(right) + '</span>';
+        box.appendChild(d);
+        return;
+      }
       d.innerHTML = '<span>' + escapeHtml(who) + '</span><span>' + escapeHtml(right) + '</span>';
       box.appendChild(d);
     });
@@ -3946,6 +4317,17 @@
       // ★**空文字ではなく block と書く**（ボウリング型と同じ理由。CSS 側で none にしてある）
       gb.style.display = on ? 'block' : 'none';
       if (on) gb.innerHTML = golfScoreHTML(g);
+    }
+    /*
+     * ★ゴルフ型の凡例（第49セッションの実機指摘）。
+     * 「黒はなに、黄色は何、緑はなに」と分からないまま遊ぶことになっていた。
+     * 盤に出ている物は5種類しかないので、**そばに置きっぱなしにする**のがいちばん確実。
+     */
+    const gl = $('golf-legend');
+    if (gl) {
+      const on = g.rule === 'G-10' && g.golf;
+      gl.style.display = on ? 'block' : 'none';
+      if (on) gl.innerHTML = golfLegendHTML(g);
     }
     // ボウリング型のピンの状態（利用者指示）。盤の玉が散らばると何番が残ったか読めない
     const bp = $('bowl-pins');
@@ -4022,6 +4404,26 @@
   }
 
   /** ゴルフ型で席ごとに配る色。的球の色と同じにする（盤の玉と表を見比べられるように） */
+  /** ゴルフ型の凡例。盤に出ている5種類を、色の見本つきで並べる */
+  function golfLegendHTML(g) {
+    const me = viewerIdx();
+    const rows = [
+      ['#f4f4f4', t('golf.legCue')],
+      [golfSeatColor(me), t('golf.legObj')],
+      ['flag', t('golf.legFlag')],
+      ['#4a7c3f', t('golf.legTree')],
+      ['#d9c489', t('golf.legSand')],
+      ['#2f6fb0', t('golf.legWater')],
+    ];
+    let h = '<div class="cap">' + t('golf.legend') + '</div>';
+    for (const [c, label] of rows) {
+      h += (c === 'flag')
+        ? '<div class="row"><i class="flag"></i>' + escapeHtml(label) + '</div>'
+        : '<div class="row"><i style="background:' + c + '"></i>' + escapeHtml(label) + '</div>';
+    }
+    return h;
+  }
+
   function golfSeatColor(seat) {
     const c = RU.CAROM_COLORS;
     return c[(seat + 1) % c.length];
@@ -4763,6 +5165,7 @@
     // 進めていた手を捨てる。後始末（finishShot）を走らせないために転がりを終わらせる
     S.phase = 'idle';
     S.dropped = null; S.bursts = []; S.airZ = {}; S.stepAcc = 0;
+    S.golfCard = null;                   // 盤を配り直したら、出しかけの成績は畳む
     S.replayRun = null; S.pendingPlace = null; S.drag = null;
     // 預かってある先の手と照合は、**捨てるのは古いぶんだけ**。
     // 丸ごと捨てると、まだ来ていない先の手を待ち続けることになる

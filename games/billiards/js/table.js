@@ -1784,7 +1784,23 @@ const BilliardsTable = (() => {
     'A-01': 'FR', 'A-02': 'HT', 'A-04': 'HR', 'A-06': 'HT',
     'A-07': 'HT', 'A-08': 'CT', 'A-09': 'FB', 'A-11': 'HL',
   };
-  const GOLF_OBSTACLES = 2;      // 1ホールあたりの障害物の数（第48セッションの利用者判断）
+  /*
+   * ★ゴルフ場に実際にある物だけを置く（第49セッションの利用者指示）。
+   *   第48セッションでは「まっすぐ入らないようにするための詰め物」を玉2個で置いていたが、
+   *   **ゴルフの概念に無い物だった**ので作り直した。
+   *
+   *   木     … 動かない固定物。当たれば跳ね返る（現実の木と同じ）
+   *   バンカー … 砂。区画の中は芝が重く、入った玉は急に減速して止まる
+   *   池     … 水。**中で止まったときだけ1打罰**。勢いよく通り抜ければ助かる
+   *
+   *   3つともティーと指定ポケットを結ぶ線の上に等間隔で置く＝**まっすぐ狙えない**。
+   *   **並び順はホールごとに変える**（下の GOLF_ORDERS）。同じ3つでも順が変われば手応えが変わる。
+   */
+  const GOLF_HAZARDS = ['tree', 'bunker', 'water'];
+  // 大きさは玉の半径の何倍か。木は当たる物なので小さめ、区画は踏み込める広さを持たせる
+  const GOLF_HAZARD_R = { tree: 1.5, bunker: 3.0, water: 2.6 };
+  // 3つの並び順（6通り）。ホール番号で順ぐりに選ぶので、同じコースでも並びが8ホールぶん散る
+  const GOLF_ORDERS = [[0, 1, 2], [1, 2, 0], [2, 0, 1], [0, 2, 1], [1, 0, 2], [2, 1, 0]];
 
   /** そのホールの指定ポケット。表に無ければ投球位置からいちばん遠いもの */
   function golfPocket(table) {
@@ -1803,11 +1819,11 @@ const BilliardsTable = (() => {
     return best;
   }
 
-  /** そこへ玉を置けるか（壁・ポケット・置いた玉と重ならないか） */
-  function golfFree(table, x, y, placed) {
-    if (clearance(table, x, y) < R * 1.2) return false;
-    for (const p of table.pockets) if (Math.hypot(x - p.x, y - p.y) < p.r + R) return false;
-    for (const o of placed) if (Math.hypot(x - o.x, y - o.y) < R * 2.4) return false;
+  /** そこへ大きさ rr の物を置けるか（壁・ポケット・置いた物と重ならないか） */
+  function golfFree(table, x, y, rr, placed) {
+    if (clearance(table, x, y) < rr + R * 0.2) return false;
+    for (const p of table.pockets) if (Math.hypot(x - p.x, y - p.y) < p.r + rr) return false;
+    for (const o of placed) if (Math.hypot(x - o.x, y - o.y) < rr + o.r + R * 0.4) return false;
     return true;
   }
 
@@ -1815,36 +1831,43 @@ const BilliardsTable = (() => {
    * ゴルフ型の1ホールぶんの配置。
    *
    * ★**座標は持たない。**ティー＝ヘッドスポット、手玉＝ブレイクの既定の置き場所、
-   * 障害物＝ティーと指定ポケットを結ぶ線の上に等間隔。指定ポケットだけが台定義データ側。
+   * ハザード＝ティーと指定ポケットを結ぶ線の上に等間隔。指定ポケットだけが台定義データ側。
+   * 台の形を1つ足せば、そのホールの配置は書き足さなくても決まる。
    *
-   * ★**障害物は「線の上」に置く。**第48セッションの実測では、
+   * ★**ハザードは「線の上」に置く。**第48セッションの実測では、
    * 楕円とスタジアムだけはここへ何個置いても難度が変わらない（奥の丸い壁が球を集める筋があり、
    * 効いている筋が台の真ん中を通っていない）。**その2台は指定ポケットの側で難しくしてある。**
+   *
+   * @param hole 何ホール目か（0 起点）。3つの並び順を選ぶためだけに使う
    */
-  function golfLayout(table) {
+  function golfLayout(table, hole) {
     const pk = golfPocket(table);
     const tee = { x: table.headSpot.x, y: table.headSpot.y };
     const cue = breakPlace(table);
-    const obs = [];
+    const haz = [];
     if (pk) {
+      const order = GOLF_ORDERS[((hole | 0) % GOLF_ORDERS.length + GOLF_ORDERS.length) % GOLF_ORDERS.length];
       const dx = pk.x - tee.x, dy = pk.y - tee.y;
-      for (let k = 1; k <= GOLF_OBSTACLES; k++) {
-        const f = k / (GOLF_OBSTACLES + 1);
-        // 置けない点は線に沿って前後へずらす。ずらしても置けなければその1個は諦める
-        // （個数を欠くだけで、ホールは成立する）
+      const n = GOLF_HAZARDS.length;
+      for (let k = 1; k <= n; k++) {
+        const kind = GOLF_HAZARDS[order[k - 1]];
+        const rr = R * GOLF_HAZARD_R[kind];
+        const f = k / (n + 1);
+        // 置けない点は線に沿って前後へずらす。ずらしても置けなければその1つは諦める
+        // （数を欠くだけで、ホールは成立する）
         for (let d = 0; d <= 40; d++) {
           let done = false;
           for (const sg of [1, -1]) {
             const ff = f + sg * d * 0.01;
             if (ff <= 0.08 || ff >= 0.92) continue;
             const x = tee.x + dx * ff, y = tee.y + dy * ff;
-            if (golfFree(table, x, y, obs)) { obs.push({ x, y }); done = true; break; }
+            if (golfFree(table, x, y, rr, haz)) { haz.push({ kind, x, y, r: rr }); done = true; break; }
           }
           if (done) break;
         }
       }
     }
-    return { pocket: pk, tee, cue, obstacles: obs };
+    return { pocket: pk, tee, cue, hazards: haz };
   }
 
   /** 座標が入るマスの番号。格子の外なら -1 */
@@ -1866,7 +1889,7 @@ const BilliardsTable = (() => {
     // ボウリング型（7.11節）
     bowlingLayout, bowlCells, BOWL_GAP, BOWL_ROWS,
     // ゴルフ型（7.10節）
-    golfLayout, golfPocket, GOLF_PICK, GOLF_OBSTACLES,
+    golfLayout, golfPocket, GOLF_PICK, GOLF_HAZARDS, GOLF_HAZARD_R, GOLF_ORDERS,
     clearance, inside, clampInside, nearestBoundary, diamonds, buildFillets,
     // 検査から直に確かめるために出している。
     // 「内角90度以上には手を触れない」という条件は、いまのどの台でも働かない

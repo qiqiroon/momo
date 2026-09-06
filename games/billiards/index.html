@@ -166,7 +166,9 @@ input[type=range]{accent-color:var(--orange-mid);}
 .opt .why{display:block;font-size:10px;color:var(--text-muted);margin-top:3px;line-height:1.3;}
 /* 選んだルールの遊び方。名前の一覧の下に1つだけ出す */
 .rule-how{margin-top:10px;padding:10px 12px;border-left:3px solid var(--orange);
-  background:var(--surface2);border-radius:0 8px 8px 0;font-size:12px;line-height:1.65;color:var(--text);}
+  background:var(--surface2);border-radius:0 8px 8px 0;font-size:12px;line-height:1.65;color:var(--text);
+  /* 説明が数行にわたるルール（ゴルフ型）のために、改行をそのまま出す */
+  white-space:pre-line;}
 .seg{display:inline-flex;border:1px solid var(--border-strong);border-radius:8px;overflow:hidden;}
 .seg button{background:var(--surface2);border:0;color:var(--text-muted);font-family:inherit;font-size:13px;padding:7px 16px;cursor:pointer;}
 .seg button.sel{background:var(--orange);color:#fff;font-weight:700;}
@@ -360,6 +362,35 @@ body.debug #dbg{display:block;}
 #bowl-board .bmk{width:9px;height:9px;vertical-align:-1px;color:var(--orange-light);}
 #bowl-board .bmk + .bmk{margin-left:1px;}
 #bowl-board .bc{display:block;font-weight:700;min-height:13px;white-space:nowrap;}
+/*
+ * ゴルフ型のスコアカードと凡例（7.10.5節）。
+ *
+ * ★**狭い画面の枠（@media）の外に置く。**すぐ上のボウリング型と同じ注意。
+ *   中に入れると広い画面では何の見た目も付かない。**第49セッションまで気づかず、
+ *   実機で「スコアカードが読みにくい」と言われて初めて分かった。**
+ */
+/* ゴルフ型のスコアカード（7.10.5節）。現実のスコアカードと同じく規定打数と打数を並べる */
+#golf-board{display:none;margin-top:8px;font-size:11px;}
+#golf-board table{border-collapse:collapse;width:100%;table-layout:fixed;}
+#golf-board th,#golf-board td{padding:1px 1px;text-align:center;border-bottom:1px solid var(--border);overflow:hidden;}
+#golf-board th{color:var(--text-muted);font-weight:400;font-size:10px;}
+#golf-board th:first-child,#golf-board td.nm{width:26px;text-align:left;}
+#golf-board td.tot{font-weight:700;}
+#golf-board th.now,#golf-board td.now{color:var(--orange-light);}
+#golf-board tr.par td,#golf-board tr.par th{color:var(--text-muted);}
+#golf-board .cap{color:var(--text-muted);font-size:10px;margin:0 0 3px;}
+#golf-board .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:3px;vertical-align:middle;border:1px solid rgba(0,0,0,.5);}
+/* 規定打数からの増減。現実のスコアカードと同じく、赤＝オーバー／青＝アンダー */
+#golf-board .over{color:#ff8a7a;}
+/* ゴルフ型の凡例。盤に出ている物が何なのかを、常時そばに置く（第49セッションの実機指摘） */
+#golf-legend{display:none;margin-top:8px;font-size:10px;color:var(--text-muted);line-height:1.7;}
+#golf-legend .cap{font-size:10px;margin:0 0 3px;}
+#golf-legend .row{display:flex;align-items:center;gap:5px;white-space:nowrap;}
+#golf-legend i{display:inline-block;width:11px;height:11px;border-radius:50%;flex:0 0 auto;
+  border:1px solid rgba(0,0,0,.5);}
+#golf-legend i.flag{border-radius:2px;background:#e5342b;}
+#golf-board .under{color:#7ec8ff;}
+
 @media (max-width:860px){
   /* 盤面を上、周辺領域を下部へ圧縮して並べる（4.10.3節）。
      表示する項目はPCと同じで、並べ方と密度だけを変える */
@@ -369,20 +400,6 @@ body.debug #dbg{display:block;}
   #info-pane #v-config{display:none;}
   #info-pane #players-box{display:flex;gap:8px;flex-wrap:wrap;}
   /* カーリング型のエンド得点表（利用者指示）。狭い画面でも読めるよう小さめ・横スクロール可 */
-  /* ゴルフ型のスコアカード（7.10.5節）。現実のスコアカードと同じく規定打数と打数を並べる */
-  #golf-board{display:none;margin-top:8px;font-size:11px;}
-  #golf-board table{border-collapse:collapse;width:100%;table-layout:fixed;}
-  #golf-board th,#golf-board td{padding:1px 1px;text-align:center;border-bottom:1px solid var(--border);overflow:hidden;}
-  #golf-board th{color:var(--text-muted);font-weight:400;font-size:10px;}
-  #golf-board th:first-child,#golf-board td.nm{width:26px;text-align:left;}
-  #golf-board td.tot{font-weight:700;}
-  #golf-board th.now,#golf-board td.now{color:var(--orange-light);}
-  #golf-board tr.par td,#golf-board tr.par th{color:var(--text-muted);}
-  #golf-board .cap{color:var(--text-muted);font-size:10px;margin:0 0 3px;}
-  #golf-board .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:3px;vertical-align:middle;border:1px solid rgba(0,0,0,.5);}
-  /* 規定打数からの増減。現実のスコアカードと同じく、赤＝オーバー／青＝アンダー */
-  #golf-board .over{color:#ff8a7a;}
-  #golf-board .under{color:#7ec8ff;}
   #curl-board{display:none;margin-top:8px;font-size:11px;overflow-x:auto;}
   #curl-board table{border-collapse:collapse;width:100%;white-space:nowrap;}
   #curl-board th,#curl-board td{padding:2px 6px;text-align:center;border-bottom:1px solid var(--border);}
@@ -688,6 +705,7 @@ body.debug #dbg{display:block;}
       <!-- カーリング型のエンドごとの得点表（G-09。他ルールでは隠す） -->
       <div id="curl-board"></div>
       <div id="golf-board"></div>
+      <div id="golf-legend"></div>
       <div id="bowl-pins"></div>
       <div id="bowl-board"></div>
       <div class="info-row"><span class="info-k" id="k-next"></span><b id="v-next">–</b></div>

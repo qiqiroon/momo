@@ -51,6 +51,12 @@ const BilliardsEngine = (() => {
       wx: 0, wy: 0, wz: 0,
       r: o.r, m: o.m != null ? o.m : BALL_M,
       e: o.e != null ? o.e : BALL_E,
+      /*
+       * 台に据え付けられていて動かない物（ゴルフ型の木）。
+       * ★これは**台の上の物の性質**であって、ルールではない。当たれば跳ね返るが、
+       *   押されても動かない＝重さが無限大にあたる扱いをする。
+       */
+      pinned: !!o.pinned,
       onTable: true,            // 盤面に居るか（落球・場外で false）
       state: 'live',            // 'live' | 'pocketed' | 'off'
       // 曲面クッションに沿って走った長さと、前に沿わせた場所（5.7.3節・D29）
@@ -164,6 +170,27 @@ const BilliardsEngine = (() => {
     return { x: b.vx - b.wy * b.r, y: b.vy + b.wx * b.r };
   }
 
+  /*
+   * 台の上の「芝の違う場所」（区画）。
+   *
+   * ★これは**ルールではなく台の性質**として扱う。「ここは芝が重い」というだけの話で、
+   *   誰の玉か・何のルールかを engine は知らない（依存の向きを守るため）。
+   *   ゴルフ型のバンカーがこれを使う。区画の外は今までどおり台ぜんたいの係数。
+   *
+   * ★**並び順の先頭から探して最初に当たったものを使う**（重なっていても結果が揺れない）。
+   */
+  function patchAt(table, b) {
+    const ps = table.patches;
+    if (!ps || !ps.length) return null;
+    for (let i = 0; i < ps.length; i++) {
+      const p = ps[i];
+      if (p.slide == null && p.roll == null) continue;   // 見た目だけの区画（池）は摩擦を変えない
+      const dx = b.x - p.x, dy = b.y - p.y;
+      if (dx * dx + dy * dy <= p.r * p.r) return p;
+    }
+    return null;
+  }
+
   function applyFriction(b, table, dt) {
     if (b.z > 0.01) {           // 空中：重力のみ（5.8.1節。横方向の力は働かない）
       b.vz -= G * dt;
@@ -171,7 +198,8 @@ const BilliardsEngine = (() => {
     }
     const u = contactSlip(b);
     const us = Math.hypot(u.x, u.y);
-    const mu = table.clothSlide;
+    const patch = patchAt(table, b);
+    const mu = (patch && patch.slide != null) ? patch.slide : table.clothSlide;
     // 滑りは 3.5·μg の速さで消える（並進の減速 μg と、回転側の 2.5·μg の合計）。
     // これを1ステップ丸ごと当てると行き過ぎて滑りの向きが毎ステップ裏返り、
     // 摩擦が打ち消し合って玉が永久に止まらなくなる。
@@ -193,7 +221,7 @@ const BilliardsEngine = (() => {
       // 転がり：転がり抵抗のみ。角速度は転がり条件を保つ
       const sp = Math.hypot(b.vx, b.vy);
       if (sp > EPS) {
-        const dec = table.clothRoll * G * tRoll;
+        const dec = ((patch && patch.roll != null) ? patch.roll : table.clothRoll) * G * tRoll;
         const f = Math.max(0, (sp - dec) / sp);
         b.vx *= f; b.vy *= f;
       }
@@ -438,10 +466,13 @@ const BilliardsEngine = (() => {
     if (vn <= 0) return null;
 
     const e = Math.min(a.e, b.e);
-    const invM = 1 / a.m + 1 / b.m;
+    // 据え付けの物は「重さの逆数 0」＝いくら押しても動かない（無限大の重さと同じ）
+    const ima = a.pinned ? 0 : 1 / a.m, imb = b.pinned ? 0 : 1 / b.m;
+    const invM = ima + imb;
+    if (invM <= 0) return null;                  // 据え付けどうしはぶつからない
     const jn = (1 + e) * vn / invM;
-    a.vx -= jn * n.x / a.m; a.vy -= jn * n.y / a.m; a.vz -= jn * n.z / a.m;
-    b.vx += jn * n.x / b.m; b.vy += jn * n.y / b.m; b.vz += jn * n.z / b.m;
+    a.vx -= jn * n.x * ima; a.vy -= jn * n.y * ima; a.vz -= jn * n.z * ima;
+    b.vx += jn * n.x * imb; b.vy += jn * n.y * imb; b.vz += jn * n.z * imb;
 
     // 接触点の相対滑り → 摩擦力積。これがスロー効果とスピン転写の正体（5.6.3節）
     const ra = v3(n.x * a.r, n.y * a.r, n.z * a.r);
@@ -455,29 +486,35 @@ const BilliardsEngine = (() => {
     sx -= sn * n.x; sy -= sn * n.y; sz -= sn * n.z;
     const sl = Math.hypot(sx, sy, sz);
     if (sl > 1e-6) {
-      const Ia = inertia(a), Ib = inertia(b);
-      const kEff = invM + (a.r * a.r) / Ia + (b.r * b.r) / Ib;
+      const iIa = a.pinned ? 0 : 1 / inertia(a), iIb = b.pinned ? 0 : 1 / inertia(b);
+      const kEff = invM + (a.r * a.r) * iIa + (b.r * b.r) * iIb;
       const jtStop = sl / kEff;
       const jt = Math.min(BALL_MU * jn, jtStop);
       const tx = -sx / sl * jt, ty = -sy / sl * jt, tz = -sz / sl * jt;
       // 並進側＝スロー効果。回転側＝スピン転写。独立にON/OFFできる（5.10.3節）
       if (w.tuning.throwEffect) {
-        a.vx += tx / a.m; a.vy += ty / a.m; a.vz += tz / a.m;
-        b.vx -= tx / b.m; b.vy -= ty / b.m; b.vz -= tz / b.m;
+        a.vx += tx * ima; a.vy += ty * ima; a.vz += tz * ima;
+        b.vx -= tx * imb; b.vy -= ty * imb; b.vz -= tz * imb;
       }
       if (w.tuning.spinTransfer) {
         const ta = cross(ra, v3(tx, ty, tz));
         const tb = cross(v3(-rb.x, -rb.y, -rb.z), v3(tx, ty, tz));
-        a.wx += ta.x / Ia; a.wy += ta.y / Ia; a.wz += ta.z / Ia;
-        b.wx += tb.x / Ib; b.wy += tb.y / Ib; b.wz += tb.z / Ib;
+        a.wx += ta.x * iIa; a.wy += ta.y * iIa; a.wz += ta.z * iIa;
+        b.wx += tb.x * iIb; b.wy += tb.y * iIb; b.wz += tb.z * iIb;
       }
     }
     // わずかに離して二重解決を防ぐ
     const overlap = (a.r + b.r) - d;
     if (overlap > 0) {
-      const push = overlap / 2 + 1e-4;
-      a.x -= n.x * push; a.y -= n.y * push; a.z -= n.z * push;
-      b.x += n.x * push; b.y += n.y * push; b.z += n.z * push;
+      /*
+       * ★**据え付けの物は押し戻しでも動かしてはいけない。**
+       *   半分ずつ離すと、当てるたびに木が少しずつずれて動いていく
+       *   （速度は 0 のままなので、見た目には「勝手に動く木」になる）。
+       */
+      const push = overlap + 2e-4;
+      const sa = ima / invM, sb = imb / invM;
+      a.x -= n.x * push * sa; a.y -= n.y * push * sa; a.z -= n.z * push * sa;
+      b.x += n.x * push * sb; b.y += n.y * push * sb; b.z += n.z * push * sb;
     }
     return { speed: Math.abs(vn) };
   }

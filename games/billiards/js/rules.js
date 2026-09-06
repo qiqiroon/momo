@@ -2133,32 +2133,82 @@ const BilliardsRules = (() => {
    * 押し出す向きは、まず穴から見て玉のある側。そこが台の外なら、
    * 穴のまわりを回って**元の位置にいちばん近い、台の中の点**を選ぶ。
    */
-  const GOLF_POCKET_GAP = 2;          // 穴のふちと玉のふちのあいだに空ける隙間（玉の直径ぶん）
+  /*
+   * ★**戻す位置は、穴の縁から玉1個ぶん離す**（第49セッションの利用者指示）。
+   *
+   *   落ちた玉を打ち直しの位置へ戻すと、そこが穴のふちのときに
+   *   **「もう一度その穴へ落ちる」以外の道が無くなる。**
+   *   ★指示は**「穴の縁と玉の縁のあいだに、玉1個ぶんのすき間を空ける」**
+   *   ＝玉の直径ぶん（標準の玉で 57mm）。ここを勝手に広げないこと。
+   *
+   * ★**押し出す向きはティー側を優先する。**穴から見てティーのほうへ戻せば、
+   *   落ちた穴は玉の後ろになり、次の一撞きはその穴から離れる向きに撞ける。
+   *   真後ろへ戻せない台（角の穴など）は、その向きにいちばん近い置ける点を選ぶ。
+   *
+   * ★**ハザードの中へは戻さない。**罰で戻したのに池や砂の中に置いたら罰の重ね掛けになる。
+   */
+  // 穴の縁と玉の縁のあいだに空けるすき間＝玉の半径の何個ぶんか。2＝玉1個ぶん（直径）
+  const GOLF_POCKET_GAP = 2;
+
+  /** そこに玉を置くと、ハザード（池・砂・木）に掛かるか */
+  function golfHitsHazard(game, x, y) {
+    const gf = game.golf;
+    if (!gf || !gf.layout || !gf.layout.hazards) return false;
+    return gf.layout.hazards.some(h => Math.hypot(x - h.x, y - h.y) < h.r + T.R);
+  }
+
   function golfAwayFromPockets(game, pos) {
     const t = game.table;
+    const gf = game.golf;
+    const tee = (gf && gf.layout) ? gf.layout.tee : { x: t.headSpot.x, y: t.headSpot.y };
     let p = { x: pos.x, y: pos.y };
     for (let it = 0; it < 6; it++) {
-      let worst = null, worstNeed = 0;
+      let worst = null, worstShort = 0;
       for (const pk of t.pockets) {
         const need = pk.r + T.R * (1 + GOLF_POCKET_GAP);
         const d = Math.hypot(p.x - pk.x, p.y - pk.y);
         if (d >= need - 1e-6) continue;
-        if (!worst || need - d > worstNeed) { worst = pk; worstNeed = need - d; }
+        if (!worst || need - d > worstShort) { worst = pk; worstShort = need - d; }
       }
       if (!worst) break;
       const need = worst.r + T.R * (1 + GOLF_POCKET_GAP);
-      const dx = p.x - worst.x, dy = p.y - worst.y, d = Math.hypot(dx, dy);
-      const a0 = (d > 1e-6) ? Math.atan2(dy, dx) : 0;
-      // 穴のまわりを回って、台の中で元の位置にいちばん近い点を選ぶ
-      let best = null, bestD = Infinity;
-      for (let k = 0; k < 24; k++) {
-        const a = a0 + (k % 2 ? 1 : -1) * Math.floor((k + 1) / 2) * (Math.PI * 2 / 24);
+      // 望む向き＝穴から見てティーのほう。そこへ置けなければ、その向きに近い順で探す
+      const a0 = Math.atan2(tee.y - worst.y, tee.x - worst.x);
+      let best = null, bestTurn = Infinity;
+      for (let k = 0; k < 48; k++) {
+        const turn = (k % 2 ? 1 : -1) * Math.floor((k + 1) / 2) * (Math.PI * 2 / 48);
+        const a = a0 + turn;
         const x = worst.x + Math.cos(a) * need, y = worst.y + Math.sin(a) * need;
         if (T.clearance(t, x, y) < T.R * 1.05) continue;
-        const dd = Math.hypot(x - pos.x, y - pos.y);
-        if (dd < bestD) { bestD = dd; best = { x, y }; }
+        // 他の穴のそばへ移しても意味がないので、そこも避ける
+        let nearOther = false;
+        for (const q of t.pockets) {
+          if (q === worst) continue;
+          if (Math.hypot(x - q.x, y - q.y) < q.r + T.R * (1 + GOLF_POCKET_GAP)) { nearOther = true; break; }
+        }
+        if (nearOther) continue;
+        /*
+         * ★**ハザードの中へは戻さない。**罰で戻したのに池や砂の中に置いたら、
+         *   次の一撞きでもう1打罰、という重ね掛けになる。木は当たり判定があるので重ねない。
+         */
+        if (golfHitsHazard(game, x, y)) continue;
+        if (Math.abs(turn) < bestTurn) { bestTurn = Math.abs(turn); best = { x, y }; }
       }
-      if (!best) break;                 // どこにも置けない台なら、元のまま
+      if (!best) {
+        // どの向きにも取れない狭い台。すき間を詰めてでも、いちばん離れた点を選ぶ
+        let far = null, farD = -1;
+        for (let k = 0; k < 48; k++) {
+          const a = a0 + k * (Math.PI * 2 / 48);
+          for (const mul of [1, 0.8, 0.6, 0.45]) {
+            const x = worst.x + Math.cos(a) * need * mul, y = worst.y + Math.sin(a) * need * mul;
+            if (T.clearance(t, x, y) < T.R * 1.05) continue;
+            const d = Math.hypot(x - worst.x, y - worst.y);
+            if (d > farD) { farD = d; far = { x, y }; }
+          }
+        }
+        if (!far) break;
+        best = far;
+      }
       p = best;
     }
     const c = T.clampInside(t, p.x, p.y, T.R * 1.05);
@@ -2303,7 +2353,20 @@ const BilliardsRules = (() => {
    */
   function golfAdvance(game) {
     const gf = game.golf;
-    golfStore(game, game.turn);
+    /*
+     * ★★**ここで玉の位置を控えに書き戻してはいけない**（第49セッションの実機指摘で判明）。
+     *
+     *   もとは「撞き終わった玉の止まった場所を控える」つもりで golfStore を呼んでいた。
+     *   ところが**その仕事は resolveGolf が既に済ませている**（止まった場所を控えるか、
+     *   打ち直しの位置を入れるか、そこで決めている）。ここで呼び直すと、
+     *   **打ち直しで決めた戻り先を「玉のいまの位置」で上書きしてしまう。**
+     *
+     *   落ちた玉の「いまの位置」は穴そのものなので、
+     *   **玉の中心が穴の縁に乗ったまま戻り、撞けばまた落ちる**（利用者の指摘そのもの）。
+     *   池で止まった玉も水の中に置かれたままになり、**罰が永久に続く。**
+     *   ★指摘を受けて調べたとき、**手番送りの手前で控えを読んでいて「直っている」と誤認した。**
+     *   直したかどうかは、**手番が回ったあとの盤面**で測る。
+     */
 
     const n = game.players.length;
     const rest = [];
@@ -2651,7 +2714,7 @@ const BilliardsRules = (() => {
     RULE_IDS, FOUL_TABLE, PENALTY, WIN_KIND, LOW_WINS, HAS_RACK, NEEDS_POCKETS, HAS_SCORE,
     // ゴルフ型（7.10節）
     golfPar, golfCut, golfTotal, golfParTotal, golfSeatDone, golfShape, golfTermKey, golfInWater,
-    golfAwayFromPockets,
+    golfAwayFromPockets, resolveGolf,   // 検査から帰結だけを確かめるために出している
     GOLF_PAR, GOLF_CUT,
     BALL_COLORS, CAROM_COLORS,
     teamOf, teamMembers, teamList, teamScore, otherTeam,

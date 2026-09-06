@@ -185,6 +185,11 @@ const BilliardsEngine = (() => {
     for (let i = 0; i < ps.length; i++) {
       const p = ps[i];
       if (p.slide == null && p.roll == null) continue;   // 見た目だけの区画（池）は摩擦を変えない
+      /*
+       * ★輪郭は**画面が描くのと同じ関数**を通す（BilliardsTable.blobContains）。
+       *   ここに丸の判定を書くと、見えている砂の縁と効いている縁がずれる。
+       */
+      if (p.blob) { if (BilliardsTable.blobContains(p, b.x, b.y)) return p; continue; }
       const dx = b.x - p.x, dy = b.y - p.y;
       if (dx * dx + dy * dy <= p.r * p.r) return p;
     }

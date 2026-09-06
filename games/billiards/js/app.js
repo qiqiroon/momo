@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.76';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.77';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -1960,23 +1960,41 @@
     const r = b.r * s;
     ctx.save();
     if (alpha != null) ctx.globalAlpha = alpha;
-    // 影
-    ctx.beginPath(); ctx.ellipse(p.x + r * .2, p.y + r * .26, r * .95, r * .8, 0, 0, 7);
-    ctx.fillStyle = 'rgba(0,0,0,.42)'; ctx.fill();
-    // 幹（茂みの下から少しのぞく）
-    ctx.fillStyle = '#6b4a2a';
-    ctx.fillRect(p.x - r * .13, p.y + r * .2, r * .26, r * .62);
-    // 茂み＝3つの丸を重ねる。真円1つだと玉に見える
-    const lobes = [[0, -r * .18, r * .78], [-r * .5, r * .18, r * .58], [r * .5, r * .16, r * .56]];
+    // 地面に落ちる影
+    ctx.beginPath(); ctx.ellipse(p.x + r * .25, p.y + r * .5, r * 1.05, r * .5, 0, 0, 7);
+    ctx.fillStyle = 'rgba(0,0,0,.38)'; ctx.fill();
+    /*
+     * ★**玉に見えないように描く**（利用者指示）。真上から見た木として、
+     *   幹を中心に置き、太い枝を放して、そのうえに葉の塊を重ねる。
+     */
+    // 太い枝（幹から放射状に）
+    ctx.strokeStyle = '#5c3d22'; ctx.lineCap = 'round';
+    for (let k = 0; k < 5; k++) {
+      const a = k * Math.PI * 2 / 5 + b.x * 0.01;
+      ctx.lineWidth = Math.max(1.2, r * .16);
+      ctx.beginPath(); ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.x + Math.cos(a) * r * .78, p.y + Math.sin(a) * r * .78);
+      ctx.stroke();
+    }
+    // 葉の塊。大きさと位置を散らして、丸に見せない
+    const lobes = [
+      [0, -r * .40, r * .62], [-r * .58, -r * .10, r * .50], [r * .56, -r * .16, r * .46],
+      [-r * .34, r * .46, r * .42], [r * .40, r * .44, r * .38], [r * .04, r * .12, r * .52],
+    ];
     for (const [dx, dy, rr] of lobes) {
-      const g2 = ctx.createRadialGradient(p.x + dx - rr * .3, p.y + dy - rr * .35, rr * .1, p.x + dx, p.y + dy, rr);
-      g2.addColorStop(0, shade(b.color, 1.35));
-      g2.addColorStop(.7, b.color);
-      g2.addColorStop(1, shade(b.color, .55));
+      const g2 = ctx.createRadialGradient(p.x + dx - rr * .35, p.y + dy - rr * .4, rr * .1, p.x + dx, p.y + dy, rr);
+      g2.addColorStop(0, shade(b.color, 1.45));
+      g2.addColorStop(.55, b.color);
+      g2.addColorStop(1, shade(b.color, .5));
       ctx.beginPath(); ctx.arc(p.x + dx, p.y + dy, rr, 0, 7);
       ctx.fillStyle = g2; ctx.fill();
-      ctx.strokeStyle = 'rgba(0,0,0,.42)'; ctx.lineWidth = Math.max(1, r * .05); ctx.stroke();
     }
+    // 外周だけを一本の線で締める（塊ごとに線を引くと網目に見える）
+    ctx.beginPath(); ctx.arc(p.x, p.y, r * .98, 0, 7);
+    ctx.strokeStyle = 'rgba(20,45,15,.45)'; ctx.lineWidth = Math.max(1, r * .07); ctx.stroke();
+    // 幹の口（真上から見た切り株）
+    ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(1.5, r * .17), 0, 7);
+    ctx.fillStyle = '#6b4a2a'; ctx.fill();
     ctx.restore();
   }
 
@@ -2194,6 +2212,21 @@
   const GOLF_SAND_FILL = '#d9c489';
   const GOLF_WATER_FILL = '#2f6fb0';
 
+  /** ハザードの輪郭をなぞる（物理・ルールと同じ T.blobRadius を通す） */
+  function golfBlobPath(h, s) {
+    const c = toScreen(h.x, h.y);
+    ctx.beginPath();
+    const N = 44;
+    for (let k = 0; k <= N; k++) {
+      const a = k / N * Math.PI * 2;
+      const rr = T.blobRadius(h, a) * s;
+      const x = c.x + Math.cos(a) * rr, y = c.y + Math.sin(a) * rr;
+      if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    return c;
+  }
+
   function drawGolfGround() {
     const g = S.game, s = view.s;
     const haz = g.golf.layout.hazards || [];
@@ -2201,39 +2234,44 @@
     tablePath(g.table); ctx.clip('evenodd');
     for (const h of haz) {
       if (h.kind === 'tree') continue;                 // 木は玉として描かれる
-      const c = toScreen(h.x, h.y), r = h.r * s;
+      const r = h.r * s;
       if (h.kind === 'bunker') {
-        // 砂＝ざらついた縁の薄い黄。真円だと作り物に見えるので縁をわずかに揺らす
-        ctx.beginPath();
-        for (let k = 0; k <= 24; k++) {
-          const a = k / 24 * Math.PI * 2;
-          const rr = r * (1 + 0.06 * Math.sin(a * 3 + h.x) + 0.04 * Math.cos(a * 5 + h.y));
-          const x = c.x + Math.cos(a) * rr, y = c.y + Math.sin(a) * rr;
-          if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-        }
-        ctx.closePath();
-        ctx.fillStyle = 'rgba(217,196,137,.92)'; ctx.fill();
+        // 砂＝崩れた縁の薄い黄
+        const c = golfBlobPath(h, s);
+        ctx.fillStyle = 'rgba(217,196,137,.94)'; ctx.fill();
         ctx.strokeStyle = 'rgba(120,100,60,.5)'; ctx.lineWidth = Math.max(1, 1.4 * s); ctx.stroke();
         // 砂の粒。位置は座標から決めるので、描き直しても粒が踊らない
+        ctx.save(); ctx.clip();
         ctx.fillStyle = 'rgba(150,128,80,.45)';
-        for (let k = 0; k < 14; k++) {
-          const a = k * 2.39996, rr = r * Math.sqrt((k + 0.5) / 14) * 0.82;
+        for (let k = 0; k < 16; k++) {
+          const a = k * 2.39996, rr = r * Math.sqrt((k + 0.5) / 16) * 0.82;
           ctx.beginPath();
           ctx.arc(c.x + Math.cos(a + h.x) * rr, c.y + Math.sin(a + h.x) * rr, Math.max(0.8, 1.1 * s), 0, 7);
           ctx.fill();
         }
+        ctx.restore();
       } else {
-        // 池＝濃い青の丸に、明るい縁の光。深さが出るように中心を暗くする
-        const gr = ctx.createRadialGradient(c.x, c.y, r * .1, c.x, c.y, r);
-        gr.addColorStop(0, 'rgba(20,60,110,.95)');
-        gr.addColorStop(.75, 'rgba(47,111,176,.92)');
-        gr.addColorStop(1, 'rgba(90,160,215,.92)');
-        ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, 7); ctx.fillStyle = gr; ctx.fill();
-        ctx.strokeStyle = 'rgba(200,235,255,.6)'; ctx.lineWidth = Math.max(1, 1.4 * s); ctx.stroke();
-        // 水面のさざ波（2本の弧）
-        ctx.strokeStyle = 'rgba(220,245,255,.45)'; ctx.lineWidth = Math.max(1, 1.1 * s);
-        ctx.beginPath(); ctx.arc(c.x, c.y - r * .25, r * .45, Math.PI * .15, Math.PI * .85); ctx.stroke();
-        ctx.beginPath(); ctx.arc(c.x, c.y + r * .1, r * .3, Math.PI * .15, Math.PI * .85); ctx.stroke();
+        // 池＝崩れた輪郭の濃い青。深いほど暗くする
+        const c = golfBlobPath(h, s);
+        const gr = ctx.createRadialGradient(c.x, c.y, r * .1, c.x, c.y, r * 1.1);
+        gr.addColorStop(0, 'rgba(16,52,98,.96)');
+        gr.addColorStop(.7, 'rgba(40,102,166,.94)');
+        gr.addColorStop(1, 'rgba(96,166,218,.94)');
+        ctx.fillStyle = gr; ctx.fill();
+        ctx.strokeStyle = 'rgba(200,235,255,.6)'; ctx.lineWidth = Math.max(1, 1.6 * s); ctx.stroke();
+        // 水面のさざ波。輪郭の中だけに引く
+        ctx.save(); ctx.clip();
+        ctx.strokeStyle = 'rgba(220,245,255,.35)'; ctx.lineWidth = Math.max(1, 1.2 * s);
+        for (let k = -2; k <= 2; k++) {
+          const y = c.y + k * r * 0.32;
+          ctx.beginPath();
+          for (let t = -1; t <= 1.001; t += 0.1) {
+            const x = c.x + t * r, yy = y + Math.sin(t * 6 + k + h.x * 0.01) * r * 0.05;
+            if (t <= -1) ctx.moveTo(x, yy); else ctx.lineTo(x, yy);
+          }
+          ctx.stroke();
+        }
+        ctx.restore();
       }
     }
     ctx.restore();
@@ -2262,15 +2300,18 @@
      */
     const c = toScreen(pk.x, pk.y);
     const want = Math.max(26, pk.r * s * 2.6);
-    const room = c.y - 3;                         // 穴の上に残っている高さ
-    const down = room < 16;                       // 上に立てられないほど詰まっている
-    const h = down ? Math.max(16, Math.min(want, view.h - c.y - 3)) : Math.min(want, room);
+    /*
+     * ★**旗は必ず上向き**（第49セッションの利用者指示）。
+     *   上に余地が無い穴では下向きに垂らしていたが、**逆さの旗は見づらい**。
+     *   短くなってよいので上向きのまま、入る高さまで縮める。
+     */
+    const h = Math.max(10, Math.min(want, c.y - 2));
     /*
      * ★竿を穴の中央に立てると、角の穴では高さが取れない（枠のぶんしか余地がない）。
      *   そのぶん**旗を横に広く**して見つけやすくする。縦で稼げないぶんを横で稼ぐ。
      */
     const w = Math.max(16, h * 0.72);             // 旗の幅
-    const top = down ? c.y + h : c.y - h;         // 旗の付く側
+    const top = c.y - h;
     ctx.save();
     // 竿の影
     ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = Math.max(2.4, 3.4 * s);
@@ -2278,12 +2319,11 @@
     // 竿
     ctx.strokeStyle = '#f2f2f2'; ctx.lineWidth = Math.max(1.6, 2.2 * s);
     ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(c.x, top); ctx.stroke();
-    // 旗（三角。右へなびく）。垂らしたときは付け根から上へ広げる
-    const sg = down ? -1 : 1;
+    // 旗（三角。右へなびく）
     ctx.beginPath();
     ctx.moveTo(c.x, top);
-    ctx.lineTo(c.x + w, top + sg * w * .38);
-    ctx.lineTo(c.x, top + sg * w * .76);
+    ctx.lineTo(c.x + w, top + w * .38);
+    ctx.lineTo(c.x, top + w * .76);
     ctx.closePath();
     ctx.fillStyle = '#e5342b'; ctx.fill();
     ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.lineWidth = Math.max(1, 1.2 * s); ctx.stroke();

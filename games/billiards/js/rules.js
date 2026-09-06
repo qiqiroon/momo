@@ -2051,7 +2051,7 @@ const BilliardsRules = (() => {
      */
     game.table.patches = lay.hazards
       .filter(h => h.kind === 'bunker')
-      .map(h => ({ x: h.x, y: h.y, r: h.r, slide: GOLF_SAND_SLIDE, roll: GOLF_SAND_ROLL }));
+      .map(h => ({ x: h.x, y: h.y, r: h.r, blob: true, slide: GOLF_SAND_SLIDE, roll: GOLF_SAND_ROLL }));
     gf.par = golfPar(game.table.shape);
     gf.cut = golfCut(game.table.shape);
     const n = game.players.length;
@@ -2111,13 +2111,17 @@ const BilliardsRules = (() => {
       b.onTable = show;
     }
     /*
-     * ★手玉を落とした人には、**この一撞きだけ**自由配置を渡す（第49セッションの利用者指示）。
-     *   罰打はもう数えてある。ここで渡すのは置き場所だけ。
+     * ★**手玉を落とされた側**に、この一撞きだけ自由配置を渡す（第49セッションの利用者指示）。
+     *   落とした本人ではない。罰打は落とした人に付いていて、ここで渡すのは置き場所だけ。
      */
     if (gf.freeCue && gf.freeCue[seat]) {
       gf.freeCue[seat] = false;
       game.ballInHand = true;
       game.ballInHandFull = true;
+    } else {
+      // ★印の無い人には渡さない。前の人のぶんが残っていると、無関係な人が自由に置ける
+      game.ballInHand = false;
+      game.ballInHandFull = false;
     }
     // ショットの開始位置を控える。ファウルのときここへ戻す（D302・D303）
     gf.start = { cue: Object.assign({}, gf.lie[seat].cue), obj: Object.assign({}, gf.lie[seat].obj) };
@@ -2154,7 +2158,11 @@ const BilliardsRules = (() => {
   function golfHitsHazard(game, x, y) {
     const gf = game.golf;
     if (!gf || !gf.layout || !gf.layout.hazards) return false;
-    return gf.layout.hazards.some(h => Math.hypot(x - h.x, y - h.y) < h.r + T.R);
+    // 玉には大きさがあるので、輪郭から玉の半径ぶん外側までを「掛かる」とみなす
+    return gf.layout.hazards.some(h =>
+      (h.kind === 'tree')
+        ? Math.hypot(x - h.x, y - h.y) < h.r + T.R
+        : T.blobContains({ x: h.x, y: h.y, r: h.r + T.R }, x, y));
   }
 
   function golfAwayFromPockets(game, pos) {
@@ -2224,8 +2232,8 @@ const BilliardsRules = (() => {
     if (!gf || !gf.layout) return false;
     const obj = game.world.balls.find(b => b.kind === 'object' && b.owner === seat);
     if (!obj || obj.state !== 'live') return false;
-    return gf.layout.hazards.some(h =>
-      h.kind === 'water' && Math.hypot(obj.x - h.x, obj.y - h.y) <= h.r);
+    // 輪郭は画面・物理と同じもの（T.blobContains）。まん丸ではない
+    return gf.layout.hazards.some(h => h.kind === 'water' && T.blobContains(h, obj.x, obj.y));
   }
 
   /** 撞いたあとの位置を控えへ書き戻す */
@@ -2305,17 +2313,18 @@ const BilliardsRules = (() => {
       replay();
     } else if (cueLost) {
       /*
-       * ★**手玉を落としただけなら、罰打1つと自由配置**（第49セッションの利用者指示）。
-       *   手玉はビリヤードの道具であってゴルフの玉ではないので、
-       *   **的球は止まった場所にそのまま残す。**打ち直しにはしない。
+       * ★**手玉を落とした罰は「相手の自由配置」**（第49セッションの利用者指示・第2版）。
        *
-       * ★自由配置は**この人の次の一撞き**に効かせる（golfArm で立てる）。
-       *   ここで game.ballInHand を立てたままにすると、**次に撞く別の人**が
-       *   自由配置をもらってしまう（この土台の ballInHand は「台に着いた人」のものだから）。
+       *   はじめは落とした本人に自由配置を渡していたが、
+       *   **自分の失敗で自分が得をするのはおかしい。**
+       *     ・落とした人 … 罰打1つ。玉は**撞く前の場所へ戻す**（自分の手玉も的球も）
+       *     ・ほかの人 … 次の自分の一撞きで**手玉を好きな場所へ置ける**
+       *
+       * ★自由配置は**その人の番になったときに立てる**（golfArm）。
+       *   ここで game.ballInHand を立てると「いま台に着いている人」のものになってしまう。
        */
-      golfStore(game, seat);
-      gf.lie[seat].cue = Object.assign({}, gf.start.cue);
-      gf.freeCue[seat] = true;
+      replay();
+      for (let s2 = 0; s2 < game.players.length; s2++) if (s2 !== seat) gf.freeCue[s2] = true;
       game.ballInHand = false;
       game.ballInHandFull = false;
       r.message = 'msg.golfScratch';

@@ -1806,8 +1806,39 @@ const BilliardsTable = (() => {
    *     どう撞いても入らないホールになる。ポケットへ向かう筋の正面は空けておく。
    *   ★**乱数は使わない。**散らし方はホール番号から決める（同じ盤面が何度でも作れること＝5.2節）。
    */
-  const GOLF_HAZARD_R = { tree: 1.5, bunker: 3.0, water: 2.6 };   // 玉の半径の何倍か
-  const GOLF_WATERS = 2;         // 池の数（中間地点のまわりに散らす）
+  /*
+   * 大きさは玉の半径の何倍か。
+   * ★木は 1.5 → 2.5 に大きくした（第49セッション）。**画面上で 22px しかなく、
+   *   どう描いても木に見えなかった**ため。当たりの大きさも一緒に変わる。
+   * ★池は 2.6 → 7.8（利用者指示で3倍）。
+   */
+  const GOLF_HAZARD_R = { tree: 2.5, bunker: 3.0, water: 7.8 };
+  const GOLF_BLOB_MAX = 1.35;    // いびつな輪郭がふくらむ最大の割合（置き場所の判定に使う）
+
+  /**
+   * ハザードの輪郭。**まん丸にしない**（第49セッションの利用者指示）。
+   * 角度ごとに半径を揺らして、池や砂らしい崩れた形にする。
+   *
+   * ★**物理（砂の重い芝）・ルール（池の判定）・画面（塗り）が、そろってこの関数を通る。**
+   *   別々に書くと「見えている縁」と「効いている縁」がずれて、
+   *   池の外に見えるのに罰が付く、といった読めない挙動になる。
+   * ★揺らし方はハザードの位置から決まる＝同じホールなら何度でも同じ形（決定論）。
+   */
+  function blobRadius(h, ang) {
+    const p1 = h.x * 0.017 + h.y * 0.011;
+    const p2 = h.x * 0.007 - h.y * 0.019;
+    return h.r * (1 + 0.22 * Math.sin(ang * 3 + p1) + 0.13 * Math.cos(ang * 5 + p2));
+  }
+  /** その点がハザードの中か（輪郭は blobRadius と同じもの） */
+  function blobContains(h, x, y) {
+    const dx = x - h.x, dy = y - h.y;
+    const d = Math.hypot(dx, dy);
+    if (d > h.r * GOLF_BLOB_MAX) return false;
+    if (d <= h.r * (1 - 0.35)) return true;
+    return d <= blobRadius(h, Math.atan2(dy, dx));
+  }
+
+  const GOLF_WATERS = 1;         // 池の数。第49で3倍の大きさにしたので1つ（2つは入らない台がある）
   const GOLF_BUNKERS = 3;        // バンカーの数（指定ポケットのまわりに散らす）
 
   /**
@@ -1841,10 +1872,19 @@ const BilliardsTable = (() => {
     return best;
   }
 
-  /** そこへ大きさ rr の物を置けるか（壁・ポケット・置いた物と重ならないか） */
-  function golfFree(table, x, y, rr, placed) {
-    if (clearance(table, x, y) < rr + R * 0.2) return false;
-    for (const p of table.pockets) if (Math.hypot(x - p.x, y - p.y) < p.r + rr) return false;
+  /**
+   * そこへ大きさ rr の物を置けるか（壁・ポケット・置いた物と重ならないか）。
+   *
+   * ★**区画（池・バンカー）は壁から離さなくてよい**（第49セッション）。
+   *   区画は芝の塗り分けであって物ではないので、クッションに接していてかまわない
+   *   （はみ出したぶんは台の形で切って描く）。**中心が台の中にあれば足りる。**
+   *   物（木）は玉と同じ物なので、これまでどおり壁からまるごと離す。
+   *   ★区画にも壁の余白を求めていたら、**3倍にした池が8ホール中3ホールで置けなかった。**
+   */
+  function golfFree(table, x, y, rr, placed, patch) {
+    const need = patch ? R : rr + R * 0.2;
+    if (clearance(table, x, y) < need) return false;
+    for (const p of table.pockets) if (Math.hypot(x - p.x, y - p.y) < p.r + rr * (patch ? 0.55 : 1)) return false;
     for (const o of placed) if (Math.hypot(x - o.x, y - o.y) < rr + o.r + R * 0.4) return false;
     return true;
   }
@@ -1879,7 +1919,11 @@ const BilliardsTable = (() => {
     const keepOut = [{ x: tee.x, y: tee.y, r: R * 2.2 }, { x: cue.x, y: cue.y, r: R * 2.2 }];
     const put = (kind, x, y) => {
       const rr = R * GOLF_HAZARD_R[kind];
-      if (!golfFree(table, x, y, rr, haz.concat(keepOut))) return false;
+      // ★いびつな輪郭はふくらむので、**いちばん大きいところ**で置けるかを見る。
+      //   半径そのままで見ると、ふくらんだ側が壁や穴へはみ出す
+      const patch = (kind !== 'tree');                 // 池とバンカーは区画（塗り分け）
+      const out = patch ? rr * GOLF_BLOB_MAX : rr;
+      if (!golfFree(table, x, y, out, haz.concat(keepOut), patch)) return false;
       haz.push({ kind, x, y, r: rr });
       return true;
     };
@@ -1911,12 +1955,20 @@ const BilliardsTable = (() => {
       const cr = (x - tee.x) * uy - (y - tee.y) * ux;       // 線までの符号つき距離
       return Math.abs(cr) > rr + R * 1.2;
     };
-    /** 候補を順に試して、置けたものを n 個ためる（台の形で置けない点が多いので数を多めに用意する） */
+    /**
+     * 候補を順に試して、置けたものを n 個ためる（台の形で置けない点が多いので数を多めに用意する）。
+     *
+     * ★**池だけは線の上に乗ってよい**（第49セッション。3倍の大きさにしたため）。
+     *   池は**通り抜けられるハザード**で、中で止まったときだけ罰になる。
+     *   線をふさぐわけではないので、まっすぐ狙う道は残る。
+     *   逆に線から外す条件を掛けると、**大きい池はどの台にも置けなくなる**（実測：8ホール中4ホールで0個）。
+     *   線をふさぐ役（木）と、止まると困る役（砂）は、これまでどおり線から外す。
+     */
     const fill = (kind, cands, want, skew) => {
       let n = 0;
       for (let i = 0; i < cands.length && n < want; i++) {
         const c = cands[(i * skew + h * 2) % cands.length]; // 並べ方をホールごとにずらす
-        if (!offLine(c.x, c.y, R * GOLF_HAZARD_R[kind])) continue;
+        if (kind !== 'water' && !offLine(c.x, c.y, R * GOLF_HAZARD_R[kind])) continue;
         if (put(kind, c.x, c.y)) n++;
       }
       return n;
@@ -1926,16 +1978,41 @@ const BilliardsTable = (() => {
      * ② 池＝中間地点のまわりに数個。線の左右へ振り分ける。
      */
     {
+      /*
+       * ★池は大きいので、置ける点が少ない。**候補を広く取る**
+       *   （狭いままだと、入らない台では池が1つも置けなかった）。
+       */
       const cands = [];
-      for (const along of [0.38, 0.47, 0.30, 0.56, 0.24, 0.62]) {
-        for (const offK of [0.16, 0.11, 0.22, 0.28]) {
+      for (const along of [0.42, 0.34, 0.50, 0.26, 0.58, 0.20, 0.66]) {
+        for (const offK of [0.14, 0.20, 0.09, 0.26, 0.32]) {
           for (const side of [1, -1]) {
             cands.push({ x: tee.x + dx * along + px * len * offK * side,
                          y: tee.y + dy * along + py * len * offK * side });
           }
         }
       }
-      fill('water', cands, GOLF_WATERS, 5);
+      let n = fill('water', cands, GOLF_WATERS, 5);
+      /*
+       * ★**線に沿った候補だけでは置けない台がある**（ドーナツ型は真ん中が抜けている、
+       *   スタジアム型は幅が足りない）。置けなければ台じゅうを格子で当たる。
+       *   置き場所より「1つは必ずある」ことを優先する。
+       */
+      if (n < GOLF_WATERS) {
+        const grid = [];
+        for (let gy = -0.8; gy <= 0.81; gy += 0.2) {
+          for (let gx = -0.7; gx <= 0.71; gx += 0.15) {
+            const x = table.halfW * gx, y = table.halfH * gy;
+            // ティーとポケットの間あたりを先に試す（順番はホールごとにずらす）
+            const f = ((x - tee.x) * ux + (y - tee.y) * uy) / len;
+            grid.push({ x, y, key: Math.abs(f - 0.45) });
+          }
+        }
+        grid.sort((a, b) => a.key - b.key);
+        for (let i = 0; i < grid.length && n < GOLF_WATERS; i++) {
+          const c = grid[(i + h) % grid.length];
+          if (put('water', c.x, c.y)) n++;
+        }
+      }
     }
 
     /*
@@ -1980,6 +2057,7 @@ const BilliardsTable = (() => {
     bowlingLayout, bowlCells, BOWL_GAP, BOWL_ROWS,
     // ゴルフ型（7.10節）
     golfLayout, golfPocket, GOLF_PICK, GOLF_HAZARD_R, GOLF_WATERS, GOLF_BUNKERS,
+    blobRadius, blobContains, GOLF_BLOB_MAX,
     clearance, inside, clampInside, nearestBoundary, diamonds, buildFillets,
     // 検査から直に確かめるために出している。
     // 「内角90度以上には手を触れない」という条件は、いまのどの台でも働かない

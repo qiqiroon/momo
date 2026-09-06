@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.79';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.80';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -4033,7 +4033,8 @@
   const SLAM_HITS = 4;      // これ以上が同じコマに来たら「割れた」とみなす
   const MAX_PER_FRAME = 3;  // 1コマに鳴らす衝突音の上限
   function drainEvents() {
-    const evs = S.game.world.events;
+    const g = S.game;                 // ★池のじゃぶじゃぶで使う。無いと一撞きごとに例外で主ループが止まる
+    const evs = g.world.events;
     const start = S.evCursor || 0;
     let hits = 0, top = 0;
     for (let i = start; i < evs.length; i++) {

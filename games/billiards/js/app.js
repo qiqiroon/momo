@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.81';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.83';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -906,6 +906,8 @@
         if (g.ballInHand) {
           aiPlace = BilliardsAI.pickBallInHand(g, g.turn);
           if (!g.ballInHandFull) aiPlace = clampToKitchen(aiPlace);
+          // ★人と同じ確認を通す（placeOk は g.ballInHand を見るので、下ろす前に呼ぶ）
+          aiPlace = nearestPlaceable(aiPlace);
           RU.place(cue, aiPlace.x, aiPlace.y);
           g.ballInHand = false;
         }
@@ -963,6 +965,17 @@
   /** 円弧の起点からの回り込み量（0〜2π）。範囲に入っているかを見るのに使う */
   function arcOffset(a) { const x = a % (2 * Math.PI); return x < 0 ? x + 2 * Math.PI : x; }
   function clampToKitchen(p) { return { x: Math.min(p.x, kitchenLimit()), y: p.y }; }
+
+  /**
+   * ★AIが手玉を置く場所を、**人が置くときと同じ確認**（RU.placeOk）に通してから返す。
+   *   置けない点は、そこからいちばん近い置ける点へ寄せる。
+   *
+   * ★これが無かったころは、**AI の置き場所だけが確認を素通りして**盤へ置かれていた。
+   *   十字ではスタートエリアの線に台が無い区間があるので、AI が下の腕を望むと台の外へ置かれ、
+   *   何にも当たらない → ファウル → また自由配置、の**無限ループ**になっていた（第52セッション）。
+   *   決まりの本体は rules.js にある＝**検査から見える場所**に置いてある。
+   */
+  function nearestPlaceable(p) { return RU.nearestPlace(S.game, p); }
 
   // ══════════════════════════════════════════════
   //  キュー構え可否（4.7節）
@@ -3781,19 +3794,11 @@
     const p = (e.touches && e.touches[0]) ? e.touches[0] : e;
     return { x: p.clientX - r.left, y: p.clientY - r.top };
   }
-  function placeOk(pt) {
-    const g = S.game; if (!g) return false;
-    const cue = RU.cueBallOf(g, g.turn); if (!cue) return false;
-    const table = g.table;
-    if (!T.inside(table, pt.x, pt.y, cue.r)) return false;
-    if (g.ballInHand && !g.ballInHandFull && pt.x > kitchenLimit()) return false;
-    for (const p of table.pockets) if (Math.hypot(pt.x - p.x, pt.y - p.y) < p.r + cue.r * .3) return false;
-    for (const b of g.world.balls) {
-      if (b === cue || b.state !== 'live') continue;
-      if (Math.hypot(b.x - pt.x, b.y - pt.y) < b.r + cue.r + 0.5) return false;
-    }
-    return true;
-  }
+  /**
+   * 手玉をそこへ置いてよいか。**決まりの本体は rules.js（7.x節）にある。**
+   * 人が指で置くときも、AI が置くときも、同じ1か所を通す。
+   */
+  function placeOk(pt) { return RU.placeOk(S.game, pt); }
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
 
   cv.addEventListener('pointerdown', e => {

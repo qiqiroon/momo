@@ -1074,6 +1074,66 @@ const BilliardsRules = (() => {
     return spotBall(game, ball);
   }
 
+  /** 手玉を置ける手前の線（スタートエリアの境）。台が別に持っていればそれを使う（3.5.5節・ドーナツ型） */
+  function kitchenLimit(table) {
+    return (table.kitchenX != null) ? table.kitchenX : table.headSpot.x;
+  }
+
+  /**
+   * ★手玉をそこへ置いてよいか。**人が置くときも AI が置くときも必ずここを通す。**
+   *
+   *   見るのは4つ ── 台の中か／手前側（スタートエリア）か／穴の上でないか／他の玉と重ならないか。
+   *   手前側の縛りは「自由配置が手前側限定のとき（ballInHand かつ ballInHandFull でない）」だけ効く。
+   *
+   * ★**ここが画面側（app.js）にしか無かったため、AI の置き場所だけが素通りしていた。**
+   *   十字ではスタートエリアの線（x = -635）の上に台があるのは y = ±182 の帯だけなのに、
+   *   AI 側は「x を手前線まで詰める」だけで y をそのまま残していたので、
+   *   AI が下の腕（0, -254）を望むと (-635, -254) ＝**台の外**へ置かれていた。
+   *   台の外の手玉は何にも当たらない → ファウル → また自由配置 → AI は同じ場所を望む、の
+   *   **無限ループ**になり、打ち切りに当たるまで的球が1mmも動かなかった
+   *   （第52セッション・中級者・十字の7番ホールで、全97打のうち68%が「的球0mm」）。
+   *
+   * ★スタートエリアの線に台が無い区間があるのは**8台中5台**
+   *   （十字 848mm・星型 700mm・ドーナツ 344mm・楕円 172mm・六角形 24mm）。
+   *   ゴルフ型は毎ホール手前側から置くので断然出やすいが、**この判定はルールを問わず共通**である。
+   *
+   * ★**置き場所の決まりはルールの知識**なので、画面側ではなくここに置く（呼び名 golfTermKey と同じ考え）。
+   *   画面側にあると検査から見えず、消えても緑のままになる [[reference_guard_where_forgetting_is_cheap]]。
+   */
+  function placeOk(game, pt) {
+    if (!game || !pt) return false;
+    const cue = cueBallOf(game, game.turn);
+    if (!cue) return false;
+    const table = game.table;
+    if (!T.inside(table, pt.x, pt.y, cue.r)) return false;
+    if (game.ballInHand && !game.ballInHandFull && pt.x > kitchenLimit(table)) return false;
+    for (const p of table.pockets) if (Math.hypot(pt.x - p.x, pt.y - p.y) < p.r + cue.r * 0.3) return false;
+    for (const b of game.world.balls) {
+      if (b === cue || b.state !== 'live') continue;
+      if (Math.hypot(b.x - pt.x, b.y - pt.y) < b.r + cue.r + 0.5) return false;
+    }
+    return true;
+  }
+
+  /**
+   * 望んだ点が置けないときに、**そこからいちばん近い置ける点**を返す。
+   * どこにも置けなければ望んだ点をそのまま返す（それ以上悪くしない）。
+   */
+  function nearestPlace(game, pt) {
+    if (!pt) return pt;
+    if (placeOk(game, pt)) return pt;
+    const STEP = 20, MAX = 2800;
+    for (let r = STEP; r <= MAX; r += STEP) {
+      const n = Math.max(8, Math.round(2 * Math.PI * r / STEP));
+      for (let i = 0; i < n; i++) {
+        const a = i * 2 * Math.PI / n;
+        const q = { x: pt.x + Math.cos(a) * r, y: pt.y + Math.sin(a) * r };
+        if (placeOk(game, q)) return q;
+      }
+    }
+    return pt;
+  }
+
   // ───────── ショットの結果を判定する ─────────
   /**
    * @param {object} game
@@ -1968,15 +2028,47 @@ const BilliardsRules = (() => {
    *   パーの付け方（ホールの難度に応じて割り当てる）に倣った。
    */
   /*
-   * ★★第49セッションで**全ホール3打の暫定値へ戻した**（利用者指示）。
-   *   ハザードを「木・バンカー・池」へ入れ替えてコースの中身が変わったので、
-   *   **第48で測った値（合計29）はもう当てはまらない**。まずゲームが成り立つかを見る段階なので、
-   *   測り直しは後回しにして、全ホール一律 3打（合計24・打ち切り6打）で回す。
-   *   [[reference_measuring_my_own_searcher]] の逆で、**測らないと決めた**のが今の状態。
+   * ★★規定打数（第51セッション・2026-09-07に本番のAIで測り直した）。
+   *
+   *   **パーは「上級者が上がる打数」**という現実のゴルフの定義そのままで置いている。
+   *   ここでの上級者は apocalypse。8ホール×20周を、打ち切りを外して測った中央値が下の「実測」。
+   *   ただし**現実のゴルフのパーは3・4・5しかない**ので、その範囲へ丸めた（利用者判断＝A案）。
+   *
+   *   | ホール | 台 | 実測 | パー |
+   *   |---|---|---|---|
+   *   | 1 | A-01 標準長方形 | 3 | 3 |
+   *   | 2 | A-02 六角形     | 1 | 3 ← 下限3へ切り上げ |
+   *   | 3 | A-04 楕円       | 3 | 3 |
+   *   | 4 | A-06 スタジアム | 2 | 3 ← 下限3へ切り上げ |
+   *   | 5 | A-07 ドーナツ   | 4 | 4 |
+   *   | 6 | A-08 L字        | 3 | 3 |
+   *   | 7 | A-09 十字       | 2 | 3 ← 下限3へ切り上げ |
+   *   | 8 | A-11 星型       | 6 | 5 ← 上限5へ切り下げ |
+   *   | 合計 |             | 24 | 27 |
+   *
+   * ★**apocalypse はこのパーに対して3アンダーになる**（切り上げた3ホールぶん）。
+   *   「超上級者は超人的に見えてよい」という判断で、実測どおりのパー1・パー2は採らなかった。
+   *
+   * ★**パーの値は「打ち切りで終わる割合」をほとんど動かさない。**
+   *   全ホール3打だったときと比べて hard は 51%→54%、easy は 29%→32% にしかならない。
+   *   その割合を動かすのは下の GOLF_CUT のほうである（3倍にすると hard 71%／easy 46%）。
+   *   **パー（成績の物差し）と打ち切り（何打まで粘れるか）は別のつまみ**で、
+   *   いま「打ち切り＝パー×2」と縛ってあるせいで一緒に見えるだけ。ここを混同しないこと。
+   *
+   * ★**測っても直らないものが2つ残っている**（パーの問題ではない）。
+   *   ・十字（A-09）は hard でも5回に1回、60打かけても上がれない＝コース配置かAIの問題
+   *   ・星型（A-11）は hard の中央値 5.5 が apocalypse の 6.0 より良い＝順位の逆転。
+   *     apocalypse は狙いにぶれを入れないので毎回きっかり6打で固定される
+   *     [[reference_skill_by_noise_inverts]]
+   *
+   *   測定の生データと読み取り＝`L:/momo/claude/billiards-checks/par_result_20260907.md`
    */
-  const GOLF_PAR = {};          // 台ごとの割り当ては暫定的に空＝すべて既定値を使う
-  const GOLF_PAR_DEFAULT = 3;   // 表に無い台（＝いまは全部）の既定
-  const GOLF_CUT = 2;           // 打ち切り＝規定打数の何倍か（7.10.4節。暫定値）
+  const GOLF_PAR = {
+    'A-01': 3, 'A-02': 3, 'A-04': 3, 'A-06': 3,
+    'A-07': 4, 'A-08': 3, 'A-09': 3, 'A-11': 5,
+  };
+  const GOLF_PAR_DEFAULT = 3;   // 表に無い台（＝コースに台を足したとき）の既定
+  const GOLF_CUT = 2;           // 打ち切り＝規定打数の何倍か（7.10.4節。付録B送りのまま）
 
   /*
    * ハザードの値（第49セッション）。
@@ -2807,7 +2899,7 @@ const BilliardsRules = (() => {
     BALL_COLORS, CAROM_COLORS,
     teamOf, teamMembers, teamList, teamScore, otherTeam,
     makeRng, createGame, setupBalls, cueBallOf, liveObjects, legalTargets, groupOf,
-    spotBall, homeBall, place, resolveShot, nextTurn, breakValid, detectDoubleHit,
+    spotBall, homeBall, place, placeOk, nearestPlace, kitchenLimit, resolveShot, nextTurn, breakValid, detectDoubleHit,
     finishRanking, normAngle,
     survivalGroups, survivalLeft, liveInGroup, SURVIVAL_COLORS, BREAK_VALID, DEADLOCK_WATCH, SOLO_OK,
     // カーリング型（7.9節）

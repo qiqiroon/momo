@@ -1917,14 +1917,25 @@ const BilliardsTable = (() => {
 
     // 玉を置く場所（ティー・手玉）とも重ならないようにする。塞ぐと1打目が撞けない
     const keepOut = [{ x: tee.x, y: tee.y, r: R * 2.2 }, { x: cue.x, y: cue.y, r: R * 2.2 }];
-    const put = (kind, x, y) => {
+    /*
+     * ★**その種類のハザードが実際に占める大きさ**（＝いびつな輪郭がいちばんふくらんだところ）。
+     *   池とバンカーは区画なので輪郭が最大 GOLF_BLOB_MAX 倍までふくらむ。木は玉なのでふくらまない。
+     *
+     * ★**置き場所を見るところは、どこもこの1つを通す。**
+     *   壁・穴との重なりは「ふくらんだあと」で見ているのに、
+     *   線から外す判定（offLine）だけ「ふくらむ前」で見ていた＝**同じ物を判定ごとに違う大きさで見ていた。**
+     *   そのため砂が線へ最大で 0.35 × 半径ぶん張り出し、**まっすぐ狙う道が規定より狭くなっていた**
+     *   （実測：砂 181 個のうち 4 個が、線から玉の半径ぶんも空いていなかった。いちばん狭くて 21mm）
+     *   [[reference_two_paths_one_guard]]。
+     */
+    const outR = kind => {
       const rr = R * GOLF_HAZARD_R[kind];
-      // ★いびつな輪郭はふくらむので、**いちばん大きいところ**で置けるかを見る。
-      //   半径そのままで見ると、ふくらんだ側が壁や穴へはみ出す
+      return (kind !== 'tree') ? rr * GOLF_BLOB_MAX : rr;
+    };
+    const put = (kind, x, y) => {
       const patch = (kind !== 'tree');                 // 池とバンカーは区画（塗り分け）
-      const out = patch ? rr * GOLF_BLOB_MAX : rr;
-      if (!golfFree(table, x, y, out, haz.concat(keepOut), patch)) return false;
-      haz.push({ kind, x, y, r: rr });
+      if (!golfFree(table, x, y, outR(kind), haz.concat(keepOut), patch)) return false;
+      haz.push({ kind, x, y, r: R * GOLF_HAZARD_R[kind] });
       return true;
     };
     /** 狙った点に置けなければ、まわりを少しずつずらして探す（置けなければ諦める＝数が欠けるだけ） */
@@ -1968,7 +1979,7 @@ const BilliardsTable = (() => {
       let n = 0;
       for (let i = 0; i < cands.length && n < want; i++) {
         const c = cands[(i * skew + h * 2) % cands.length]; // 並べ方をホールごとにずらす
-        if (kind !== 'water' && !offLine(c.x, c.y, R * GOLF_HAZARD_R[kind])) continue;
+        if (kind !== 'water' && !offLine(c.x, c.y, outR(kind))) continue;
         if (put(kind, c.x, c.y)) n++;
       }
       return n;

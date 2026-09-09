@@ -9,8 +9,8 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.84';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
-  const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules;
+  const APP_VER = '1.86';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules, F = BilliardsField;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
   const $ = id => document.getElementById(id);
@@ -99,6 +99,8 @@
       // ★どちらの台でも遊べるルール（ボウリング型）で選んだほう。他のルールでは使わない
       caromPick: false,
       mode: 'normal',
+      // 異常モードで効かせるギミック（6.5.1節）。ランダムを選ぶと中身は使わずゲーム開始時に抽選する
+      gimmicks: [], gimRandom: false,
       mods: { 'G-13': false, 'G-14': true, 'G-15': false },
       diff: 'easy',
       cue: [false, false, false, false, false, false, false],   // 撞球の癖7項目（既定=簡単）
@@ -153,7 +155,7 @@
 
     const set = (id, k) => { const e = $(id); if (e) e.textContent = t(k); };
     set('lbl-rule', 'axis.rule'); set('lbl-table', 'axis.table'); set('lbl-mode', 'axis.mode');
-    set('lbl-diff', 'axis.diff'); set('lbl-cue', 'cue.title'); set('cue-note', 'cue.note');
+    set('lbl-diff', 'axis.diff'); set('lbl-gim', 'gim.title'); set('lbl-cue', 'cue.title'); set('cue-note', 'cue.note');
     set('lbl-format', 'opt.format'); set('lbl-players', 'opt.players');
     set('lbl-aicount', 'opt.aiCount'); set('lbl-target', 'opt.target');
     set('lbl-time', 'time.title'); set('lbl-time-en', 'time.enable');
@@ -279,8 +281,21 @@
     if (S.cfg.rule === 'G-10') return t('why.golfCourse');
     return null;
   }
+  /** いま選んでいるルールと台で、ギミックが働けるかを見るための材料（6.5.5節） */
+  function gimCtx() { return { rule: S.cfg.rule, hasPockets: !caromForRule(S.cfg.rule) }; }
+  /** いま実際に選べるギミック。異常モードが選べるかどうかもここから決まる */
+  function gimPool() { return F.available(gimCtx()); }
+
+  /*
+   * ★モードのグレーも、ルール・台形状と同じく**実際に入っているものの一覧**から決める。
+   *   STAGE は仕様書 11.2.3節の「段階の割り当て」＝いつやる予定かの表であって、
+   *   実装が済んだかどうかではない。段階の表でグレーを決めると、
+   *   ギミックを1つ足すたびに2か所を直すことになり、片方を忘れれば
+   *   「入っているのに選べない」か「無いのに選べる」になる。
+   */
   function modeBlock(m) {
-    if (STAGE.mode[m] >= 3) return t('why.stage3');
+    if (m === 'disturb') return t('why.stage3');                      // 妨害モードは未実装
+    if (m === 'abnormal' && !gimPool().length) return t('why.stage3');
     if (m === 'normal' && S.cfg.diff === 'apocalypse') return t('why.needGimmick');
     return null;
   }
@@ -290,6 +305,54 @@
     return null;
   }
   function diffBlock(d) { return (d === 'apocalypse' && S.cfg.mode === 'normal') ? t('why.noGimmick') : null; }
+
+  /**
+   * ルールや台を選び直したことで働けなくなったギミックを、選んだ一覧から落とす（6.5.5節）。
+   * 落とさずに残すと、灰色になっているのに選ばれたままの札ができ、
+   * そのまま始めると「画面では無効なのに効いている」ことになる。
+   */
+  function pruneGimmicks() {
+    const ctx = gimCtx(), max = F.pickMax(S.cfg.diff);
+    S.cfg.gimmicks = (S.cfg.gimmicks || []).filter(id => !F.blockOf(id, ctx)).slice(0, max);
+  }
+
+  /**
+   * 異常モードの詳細パネル（6.5.1節）。**異常モードを選んだときだけ出す。**
+   * 8種すべてを並べ、選べないものは理由を添えて灰色にする
+   * （まだ実装していない／このルール・台では働かない／同時に選べる数に達した）。
+   */
+  function buildGimmicks() {
+    const box = $('gim-block');
+    if (!box) return;
+    const on = S.cfg.mode === 'abnormal';
+    box.style.display = on ? '' : 'none';
+    if (!on) return;
+    const ctx = gimCtx(), max = F.pickMax(S.cfg.diff);
+    const chosen = S.cfg.gimmicks;
+    const od = $('opts-gim'); od.innerHTML = '';
+    // ランダム（6.5.4節）。選ぶと個別の指定は使わず、ゲーム開始時に共有シードで抽選する
+    od.appendChild(chip(t('gim.random'), !!S.cfg.gimRandom, false, '', () => {
+      S.cfg.gimRandom = !S.cfg.gimRandom; buildSetup();
+    }));
+    F.ALL_IDS.forEach(id => {
+      const key = F.blockOf(id, ctx);
+      const sel = !S.cfg.gimRandom && chosen.indexOf(id) >= 0;
+      let why = key ? t(key) : null;
+      if (!why && S.cfg.gimRandom) why = t('why.gimRandom');
+      if (!why && !sel && chosen.length >= max) why = t('why.gimMax', { n: max });
+      od.appendChild(chip(t('gim.' + id), sel, !!why, why, () => {
+        const i = chosen.indexOf(id);
+        if (i >= 0) chosen.splice(i, 1); else chosen.push(id);
+        buildSetup();
+      }));
+    });
+    $('gim-note').textContent = S.cfg.gimRandom ? t('gim.noteRandom')
+      : chosen.length ? t('gim.notePicked', { n: chosen.length, max })
+      : t('gim.noteEmpty');
+  }
+
+  /** 異常モードなのにギミックが1つも決まっていない＝下限1種（6.5.1節）を満たしていない */
+  function gimUnset() { return S.cfg.mode === 'abnormal' && !S.cfg.gimRandom && !S.cfg.gimmicks.length; }
   function formatBlock(f) { return (STAGE.format[f] >= 9) ? t('why.stage2') : null; }
   function visible(kind, id) {
     if (S.cfg.scope === 'special') return true;
@@ -375,6 +438,8 @@
       const why = modeBlock(m);
       om.appendChild(chip(t('mode.' + m), S.cfg.mode === m, !!why, why, () => { S.cfg.mode = m; buildSetup(); }));
     });
+    pruneGimmicks();
+    buildGimmicks();
     const of = $('opts-diff'); of.innerHTML = '';
     ['easy', 'hard', 'apocalypse'].forEach(d => {
       if (!visible('diff', d)) return;
@@ -483,7 +548,8 @@
 
     // 台をルールが決めるときは、台の選択が済んでいるかを問わない（ゴルフ型）
     const bad = !!ruleBlock(S.cfg.rule)
-      || (!courseFixed(S.cfg.rule) && (!S.cfg.tableChosen || !!shapeBlock(S.cfg.shape)));
+      || (!courseFixed(S.cfg.rule) && (!S.cfg.tableChosen || !!shapeBlock(S.cfg.shape)))
+      || gimUnset();
     $('btn-start').disabled = bad;
     $('setup-format-note').textContent = t('setup.forFormat', { f: t('fmt.' + S.cfg.format) });
     if ($('btn-ready')) $('btn-ready').disabled = bad;
@@ -703,6 +769,8 @@
       seed: seed >>> 0, difficulty: cfg.diff,
       tuning: tuningFromCfg(), targets: null,
       coop: !!cfg.coop, teams: (cfg.teams || []).slice(), shotLimit: cfg.shotLimit,
+      // ゲームモードとギミック（第6章）。通信対戦はホストの設定がそのまま来る
+      mode: cfg.mode, gimmicks: (cfg.gimmicks || []).slice(), gimRandom: !!cfg.gimRandom,
     });
     g.players.forEach(p => { if (cfg.rule === 'G-04') p.target = cfg.target; });
     /*
@@ -714,7 +782,7 @@
     if (!cont && bankingHere(cfg) && g.players.length >= 2) RU.startBanking(g);
     S.game = g;
     S.chk = {}; S.results = {};             // 前の局の照合・結果は持ち越さない
-    S.dropped = null; S.bursts = []; S.airZ = {}; S.pendingShots = {};
+    S.dropped = null; S.bursts = []; S.trail = []; S.airZ = {}; S.pendingShots = {};
     // ゴルフ型のホール成績のポップアップ。局をまたいで残すと前の局の成績が出る
     S.golfCard = null; S.golfCardSeen = null; S.splash = null;
     S.net.done = {}; S.net.gone = {}; S.waitDone = null; S.readyShot = null; S.forceShot = null;
@@ -1171,6 +1239,11 @@
     }
 
     g.world.events = [];
+    /*
+     * ショット開始時の抽選（地震の位相・突風の向きと遅れ）。**撞く道はこの1か所しかない。**
+     * 追いつき直しもリプレイもここを通るので、盤面イベント層の入口はここに置く。
+     */
+    F.beginShot(g.field, g.rng, { shotNo: g.shotNo, game: g });
     E.applyCue(cue, shot);
     // 音は「撞いた手応え」なので、物理の値ではなく見えている目盛りに合わせる（カーリング型は幅が違う）
     if (!S.catchUp) { AU.sfx('cue', Math.min(1, RU.aimPower(g.rule, shot.power))); setMsg(t('ph.rolling')); }
@@ -2164,7 +2237,9 @@
     // ボウリング型の「動いた跡」（利用者指示）。クロスの上・玉の下に敷く
     if (g.rule === 'G-11' && g.bowling && g.bowling.moves) drawBowlMoves();
     // ゴルフ型のコース＝バンカーと池。芝の一部なのでクロスの上・玉の下に敷く
-    if (g.rule === 'G-10' && g.golf && g.golf.layout) drawGolfGround();
+    if (g.rule === 'G-10' && g.golf && g.golf.layout) drawGroundBlobs(g.golf.layout.hazards || []);
+    // 異常モードの可変地形＝水たまりと氷の領域（6.7.3節）。同じく芝の一部として敷く
+    if (g.field) drawGroundBlobs(F.terrain(g.field));
     // ダイヤ（レール上の目印）。位置は外周の辺から決まる（形ごとの並べ書きはしない）
     ctx.fillStyle = 'rgba(255,240,215,.55)';
     const off = thick / s * .5;                 // 枠の帯の真ん中まで外へ出す
@@ -2222,6 +2297,7 @@
 
     if ((S.phase === 'aim' || S.phase === 'stance') && isMyTurn()) drawAimTargetMark();
     drawBursts();
+    drawGroundTrail();
     drawPocketedRails();
     drawDroppedFlash();
     drawGolfSplash();
@@ -2256,15 +2332,47 @@
     return c;
   }
 
-  function drawGolfGround() {
+  /**
+   * 台面に敷く地形を描く。ゴルフ型のコース（砂・池）と
+   * 異常モードの可変地形（水たまり・氷の領域）は**同じ関数を通す。**
+   *
+   * ★別々に書くと、片方だけ縁の描き方が変わって「見えている縁」と
+   *   「効いている縁」がずれる。輪郭はどれも T.blobRadius を通す。
+   */
+  function drawGroundBlobs(list) {
+    if (!list || !list.length) return;
     const g = S.game, s = view.s;
-    const haz = g.golf.layout.hazards || [];
     ctx.save();
     tablePath(g.table); ctx.clip('evenodd');
-    for (const h of haz) {
+    for (const h of list) {
       if (h.kind === 'tree') continue;                 // 木は玉として描かれる
       const r = h.r * s;
-      if (h.kind === 'bunker') {
+      if (h.kind === 'ice') {
+        /*
+         * 氷＝白く光る面。**水と見分けが付くこと**が第一なので、
+         * 青ではなく白に寄せ、割れ目の線を走らせる。
+         * 線の向きは座標から決めるので、描き直しても線が踊らない。
+         */
+        const c = golfBlobPath(h, s);
+        const gr = ctx.createRadialGradient(c.x - r * .3, c.y - r * .3, r * .1, c.x, c.y, r * 1.1);
+        gr.addColorStop(0, 'rgba(244,252,255,.92)');
+        gr.addColorStop(.6, 'rgba(206,236,246,.88)');
+        gr.addColorStop(1, 'rgba(168,212,232,.88)');
+        ctx.fillStyle = gr; ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = Math.max(1, 1.6 * s); ctx.stroke();
+        ctx.save(); ctx.clip();
+        ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineCap = 'round';
+        ctx.lineWidth = Math.max(1, 1.1 * s);
+        for (let k = 0; k < 5; k++) {
+          const a = (k * 1.7 + h.x * 0.004 + h.y * 0.003);
+          const d0 = r * (0.15 + 0.16 * k), d1 = r * (0.95 - 0.05 * k);
+          ctx.beginPath();
+          ctx.moveTo(c.x + Math.cos(a) * d0, c.y + Math.sin(a) * d0);
+          ctx.lineTo(c.x + Math.cos(a + 0.22) * d1, c.y + Math.sin(a + 0.22) * d1);
+          ctx.stroke();
+        }
+        ctx.restore();
+      } else if (h.kind === 'bunker') {
         // 砂＝崩れた縁の薄い黄
         const c = golfBlobPath(h, s);
         ctx.fillStyle = 'rgba(217,196,137,.94)'; ctx.fill();
@@ -2976,6 +3084,120 @@
     }
   }
 
+  /*
+   * ───────── 可変地形を通ったときの演出（6.7.3節）─────────
+   *
+   * 水たまり＝**波紋**／氷の領域＝**氷上に走る線**。
+   * 地形そのものは常に描いてあり、玉が入ると反応が返る、という形にする。
+   *
+   * ★ここで使う乱数は**共有シードとは別**（6.7.3節）。というより、この演出は
+   *   位置と時刻から決めていて乱数を使わない。物理の乱数列に指1本触れないための決まり。
+   * ★演出は表示層なので、決定論（5.2節）の対象外。
+   */
+  const TRAIL_MS = 560;
+  const TRAIL_GAP = 55;            // 同じ玉の跡をこの間隔（mm）より細かくは置かない
+  function addTrail(kind, x, y, p, dir) {
+    const list = (S.trail = S.trail || []);
+    const last = list.length ? list[list.length - 1] : null;
+    if (last && last.kind === kind && Math.hypot(last.x - x, last.y - y) < TRAIL_GAP) return;
+    list.push({ kind, x, y, p: Math.min(1, p), dir: dir || 0, at: performance.now() });
+    if (list.length > 24) list.shift();
+  }
+  function drawGroundTrail() {
+    const list = S.trail; if (!list || !list.length) return;
+    const now = performance.now(), s = view.s;
+    /*
+     * ★演出は**地形の輪郭の中だけ**に描く（利用者指示）。
+     *   波紋は広がるので、そのまま描くと縁を越えて緑のクロスの上にも輪が出る。
+     *   水面の波紋としては自然だが、「その地形で起きていること」が
+     *   地形の外へはみ出して見えるのは読みにくい。
+     *   輪郭は物理・ルール・地形の絵とまったく同じ T.blobRadius を通す。
+     */
+    const g = S.game;
+    const ground = []
+      .concat((g.rule === 'G-10' && g.golf && g.golf.layout) ? (g.golf.layout.hazards || []) : [])
+      .concat(g.field ? F.terrain(g.field) : []);
+    ctx.save();
+    ctx.beginPath();
+    let clipped = 0;
+    for (const h of ground) {
+      if (h.kind === 'tree') continue;
+      const c = toScreen(h.x, h.y);
+      const N = 44;
+      for (let n = 0; n <= N; n++) {
+        const a = n / N * Math.PI * 2;
+        const rr = T.blobRadius(h, a) * s;
+        const x = c.x + Math.cos(a) * rr, y = c.y + Math.sin(a) * rr;
+        if (n === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      clipped++;
+    }
+    if (clipped) ctx.clip();
+    for (let i = list.length - 1; i >= 0; i--) {
+      const t = list[i];
+      const age = now - t.at;
+      if (age > TRAIL_MS) { list.splice(i, 1); continue; }
+      const k = age / TRAIL_MS;
+      const q = toScreen(t.x, t.y);
+      ctx.save();
+      if (t.kind === 'water') {
+        // 波紋＝広がって薄くなる輪。2本ずらして水面らしくする
+        ctx.globalAlpha = (1 - k) * 0.75;
+        ctx.strokeStyle = 'rgba(226,246,255,.95)';
+        for (let n = 0; n < 2; n++) {
+          const rr = T.R * s * (0.7 + k * (2.1 + 0.9 * t.p) + n * 0.45);
+          ctx.lineWidth = Math.max(1, (1.6 - n * 0.5) * s * (1 - k));
+          ctx.beginPath(); ctx.arc(q.x, q.y, rr, 0, 7); ctx.stroke();
+        }
+      } else {
+        /*
+         * 氷＝進んだ向きへ走る線。滑った跡として後ろへ伸ばす。
+         *
+         * ★**氷そのものの割れ目の線と見分けられること**が要る（利用者指摘）。
+         *   どちらも細い白い線だと、拡大しないと区別が付かなかった。
+         *   ・色を**濃い青**にする（下地の白い氷から浮く）
+         *   ・**太く**する（割れ目は細い線のまま）
+         *   ・エッジの外側に薄い白を重ねて、削れた氷の粉を思わせる
+         */
+        /*
+         * ★**台の座標の角度を、そのまま画面の角度に使わない。**
+         *   盤面は長軸を画面の縦に置いて描いている（4.10節）ので、
+         *   toScreen は台の (x,y) を画面の (y, -x) へ回している。
+         *   角度をそのまま使うと線が90度ずれ、進んだ向きではなく
+         *   **横棒が梯子のように並ぶ**（実機で気づいた）。
+         */
+        const sa = scrAngle(t.dir);       // 台の角度 → 画面の角度（既にある共通の変換）
+        const ux = Math.cos(sa), uy = Math.sin(sa);   // 進む向き（画面）
+        const nx = -uy, ny = ux;                      // それに直角（画面）
+        /*
+         * ★太さは**画面に映った玉の大きさ**を基準にする。
+         *   view.s は mm を画素に直す縮尺（0.2 前後）なので、`2.8 * s` のように書くと
+         *   1画素未満に丸められ、**氷そのものの割れ目とまったく同じ 1px の線**になる。
+         *   実際それで「割れ目と見分けが付かない」状態になっていた。
+         */
+        const px = T.R * s;                       // 玉の半径（画素）
+        const len = px * (1.3 + 1.8 * t.p);
+        ctx.lineCap = 'round';
+        for (let pass = 0; pass < 2; pass++) {
+          // 1回目＝外側の白いふち／2回目＝中の濃い青
+          ctx.globalAlpha = (1 - k) * (pass === 0 ? 0.55 : 0.95);
+          ctx.strokeStyle = pass === 0 ? 'rgba(255,255,255,.95)' : 'rgba(58,120,168,.95)';
+          ctx.lineWidth = Math.max(1.5, px * (pass === 0 ? 0.95 : 0.5) * (1 - k * 0.5));
+          for (let n = -1; n <= 1; n += 2) {
+            const off = n * px * 0.40;
+            ctx.beginPath();
+            ctx.moveTo(q.x + nx * off, q.y + ny * off);
+            ctx.lineTo(q.x - ux * len + nx * off, q.y - uy * len + ny * off);
+            ctx.stroke();
+          }
+        }
+      }
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
   const BURST_MS = 420;
   function addBurst(x, y, power) {
     (S.bursts = S.bursts || []).push({ x, y, at: performance.now(), p: Math.min(1, power) });
@@ -3275,24 +3497,36 @@
      *   ── 3Dで狙うときに、避けるべき場所が見えないと狙いようがない。
      *   カーリングのハウスと同じ手で、円周を透視投影の折れ線に落として玉より先に描く。
      */
-    if (g.rule === 'G-10' && g.golf && g.golf.layout) {
-      for (const h of (g.golf.layout.hazards || [])) {
-        if (h.kind === 'tree') continue;                 // 木は玉として描かれる
-        const pts = [];
-        for (let i = 0; i < 40; i++) {
-          const a = 2 * Math.PI * i / 40;
-          const q = proj(h.x + Math.cos(a) * h.r, h.y + Math.sin(a) * h.r, 0.5);
-          if (q) pts.push(q);
-        }
-        if (pts.length < 3) continue;
-        ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
-        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
-        ctx.closePath();
-        ctx.fillStyle = (h.kind === 'bunker') ? 'rgba(217,196,137,.92)' : 'rgba(47,111,176,.92)';
-        ctx.fill();
-        ctx.strokeStyle = (h.kind === 'bunker') ? 'rgba(120,100,60,.5)' : 'rgba(200,235,255,.6)';
-        ctx.lineWidth = 1.4; ctx.stroke();
+    /*
+     * ★輪郭は 2D・物理・ルールと同じ T.blobRadius を通す。
+     *   ここだけ真円で描いていたので、3Dでは見えている縁と効いている縁がずれていた。
+     *   ゴルフ型のコースも、異常モードの可変地形も、同じこの1か所で描く。
+     */
+    const GROUND_FILL = {
+      bunker: ['rgba(217,196,137,.92)', 'rgba(120,100,60,.5)'],
+      water: ['rgba(47,111,176,.92)', 'rgba(200,235,255,.6)'],
+      ice: ['rgba(214,240,250,.92)', 'rgba(255,255,255,.8)'],
+    };
+    const ground = []
+      .concat((g.rule === 'G-10' && g.golf && g.golf.layout) ? (g.golf.layout.hazards || []) : [])
+      .concat(g.field ? F.terrain(g.field) : []);
+    for (const h of ground) {
+      if (h.kind === 'tree') continue;                 // 木は玉として描かれる
+      const col = GROUND_FILL[h.kind]; if (!col) continue;
+      const pts = [];
+      for (let i = 0; i < 40; i++) {
+        const a = 2 * Math.PI * i / 40;
+        const rr = T.blobRadius(h, a);
+        const q = proj(h.x + Math.cos(a) * rr, h.y + Math.sin(a) * rr, 0.5);
+        if (q) pts.push(q);
       }
+      if (pts.length < 3) continue;
+      ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+      ctx.closePath();
+      ctx.fillStyle = col[0]; ctx.fill();
+      ctx.strokeStyle = col[1];
+      ctx.lineWidth = 1.4; ctx.stroke();
     }
 
     /*
@@ -4054,7 +4288,15 @@
         if (!slam && played++ < MAX_PER_FRAME) AU.sfx('ball', Math.min(1, e.speed / 4000));
       } else if (e.type === 'cushion') {
         if (cush++ < MAX_PER_FRAME) AU.sfx('cushion', Math.min(1, e.speed / 4000));
-      } else if (e.type === 'pocket') AU.sfx('pocket');
+      } else if (e.type === 'pocket') {
+        /*
+         * ★水で満たされたポケットは**音だけ**水音になる（6.7.2節）。
+         *   落球の挙動は変えない。部分的に水没した中途半端な状態も作らない
+         *   ＝口径の一部でも重なっていれば、そのポケットは丸ごと水である。
+         */
+        const flooded = g.field && g.field.game.flooded && g.field.game.flooded[e.pocket];
+        AU.sfx(flooded ? 'splash' : 'pocket');
+      }
       // 着地は watchJumps が玉の高さから見ている（ふわりと落ちた場合も拾うため）
     }
     S.evCursor = evs.length;
@@ -4063,14 +4305,32 @@
      *   出来事（events）には水の記録が無いので、**盤の玉の場所から見る。**
      *   速い玉は水を切って進む＝音も出さない（物理と同じ見方をする）。
      */
-    if (g.rule === 'G-10' && g.golf && g.golf.layout) {
-      let wading = 0;
+    const golfPond = (g.rule === 'G-10' && g.golf && g.golf.layout);
+    if (golfPond || g.field) {
+      let wading = 0, sliding = 0;
       for (const b of g.world.balls) {
         if (b.state !== 'live' || b.hazard) continue;
+        if (b.z > 0.01) continue;                     // 空中の玉には地形が作用しない（6.2.4節）
         const sp = Math.hypot(b.vx, b.vy);
-        if (sp < 40 || sp > RU.GOLF_WATER_PASS) continue;
-        if (g.golf.layout.hazards.some(h => h.kind === 'water' && T.blobContains(h, b.x, b.y))) {
-          wading = sp; break;
+        if (sp < 40) continue;
+        // ゴルフ型の池。速い玉は水を切って進む＝音も出さない（物理と同じ見方をする）
+        if (golfPond && sp <= RU.GOLF_WATER_PASS
+          && g.golf.layout.hazards.some(h => h.kind === 'water' && T.blobContains(h, b.x, b.y))) {
+          wading = Math.max(wading, sp * (WADE_REF / RU.GOLF_WATER_PASS));
+        }
+        /*
+         * 異常モードの可変地形（6.7.3節）。**地形の一覧は物理と同じものを見る。**
+         * 水は波紋と水音、氷は走る線と氷の音（砕きながら滑る音）。
+         */
+        if (g.field) {
+          const h = F.terrainAt(g.field, b.x, b.y);
+          if (h && h.kind === 'water') {
+            wading = Math.max(wading, sp);
+            addTrail('water', b.x, b.y, sp / WADE_REF);
+          } else if (h && h.kind === 'ice') {
+            sliding = Math.max(sliding, sp);
+            addTrail('ice', b.x, b.y, Math.min(1, sp / WADE_REF), Math.atan2(b.vy, b.vx));
+          }
         }
       }
       /*
@@ -4078,10 +4338,18 @@
        *   先に並べてある音が**池を出たあとに聞こえる**（実測 0.22 秒の尾）。
        *   出たことも毎コマ知らせれば、次のコマ（16ms）で切れる。
        */
-      if (wading) AU.sfx('wade', Math.min(1, wading / RU.GOLF_WATER_PASS));
+      if (wading) AU.sfx('wade', Math.min(1, wading / WADE_REF));
       else AU.sfx('wadeOff');
+      /*
+       * ★氷も水と同じ扱い。**出た瞬間に切る**合図を毎コマ送る。
+       *   「呼ばれなくなったら止まる」に任せると、氷を出たあとに尾が残って聞こえる
+       *   （水で実測 0.22 秒。第49セッションの実機指摘と同じ話）。
+       */
+      if (sliding) AU.sfx('iceRub', Math.min(1, sliding / WADE_REF));
+      else AU.sfx('iceOff');
     }
   }
+  const WADE_REF = 1400;          // 水音の大きさを決める目安の速さ（mm/秒）
   function drawReplay() {
     const save = S.game.world;
     S.game.world = S.replayRun;
@@ -5298,7 +5566,7 @@
 
     // 進めていた手を捨てる。後始末（finishShot）を走らせないために転がりを終わらせる
     S.phase = 'idle';
-    S.dropped = null; S.bursts = []; S.airZ = {}; S.stepAcc = 0;
+    S.dropped = null; S.bursts = []; S.trail = []; S.airZ = {}; S.stepAcc = 0;
     S.golfCard = null;                   // 盤を配り直したら、出しかけの成績は畳む
     S.replayRun = null; S.pendingPlace = null; S.drag = null;
     // 預かってある先の手と照合は、**捨てるのは古いぶんだけ**。

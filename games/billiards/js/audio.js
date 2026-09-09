@@ -184,6 +184,12 @@ const BilliardsAudio = (() => {
     // 水の音（効果音ラボ／商用可・表示不要）。ゴルフ型の池で使う
     waterWade: ASSETS + 'se/se-water-wade.mp3',
     waterSplash: ASSETS + 'se/se-water-splash.mp3',
+    /*
+     * 氷の上を滑る音（異常モードの氷の領域）。効果音ラボの2つを混ぜて作った
+     * （「ツルっとすべる」＋「氷魔法で凍結」。編集は規約で認められている）。
+     * 凍る質感の持続部に、ゆっくりにした滑りを重ねてある＝砕きながら擦れていく音。
+     */
+    iceSlide: ASSETS + 'se/se-ice-slide.mp3',
   };
   const sfxBufs = new Map(), sfxLoading = new Map();
   const sfxHead = new Map();     // 素材ごとの「頭の無音」の長さ（秒）
@@ -305,104 +311,119 @@ const BilliardsAudio = (() => {
    *
    *   直し方は2つ。
    *     ① 先読みと鳴らし続ける長さを詰める（0.45→0.18／0.30→0.15）
-   *     ② ★**専用の出口（wadeBus）を1つ通し、止めるときはそこを絞って予約ごと捨てる。**
+   *     ② ★**素材ごとに専用の出口を1つ通し、止めるときはそこを絞って予約ごと捨てる。**
    *        先読みは滑らかさのために残しつつ、**止まりは即時**にできる。
    *        ①だけでは、詰めたぶん途切れやすくなるだけで尾は残る。
    */
-  const WADE_GRAIN = [0.18, 0.28];   // 切り出す長さの幅（秒）
-  const WADE_OVERLAP = 0.09;         // 前の粒と重ねる長さ（秒）
-  const WADE_FADE = 0.05;            // 粒の出入りの角を取る長さ（秒）
-  const WADE_AHEAD = 0.18;           // 何秒先まで並べておくか
+  const RUB_GRAIN = [0.18, 0.28];   // 切り出す長さの幅（秒）
+  const RUB_OVERLAP = 0.09;         // 前の粒と重ねる長さ（秒）
+  const RUB_FADE = 0.05;            // 粒の出入りの角を取る長さ（秒）
+  const RUB_AHEAD = 0.18;           // 何秒先まで並べておくか
   /*
-   * ★**普通は「池を出た」を画面側が直接知らせる**（sfx('wadeOff')）ので、
+   * ★**普通は「出た」を画面側が直接知らせる**（sfx('wadeOff') / sfx('iceOff')）ので、
    *   下の保険は使われない。呼び忘れ・撞き終わりで呼ばれなくなった場合だけ効く。
    */
-  const WADE_KEEP = 0.15;            // 最後に呼ばれてから鳴らし続ける長さ（秒）
-  const WADE_CUT = 0.04;             // 止めるときに絞りきる長さ（秒）
-  let wadeUntil = -1e9;              // ここまで鳴らし続ける（呼ばれるたび延びる）
-  let wadeNext = 0;                  // 次の粒を始める時刻
-  let wadeTimer = null;
-  let wadeLevel = 0.5;
-  let wadeBus = null;                // 粒はすべてここを通す（止めるときに一括で絞る）
-  let wadeSrcs = [];                 // 予約してある粒。止めるときに捨てる
+  const RUB_KEEP = 0.15;            // 最後に呼ばれてから鳴らし続ける長さ（秒）
+  const RUB_CUT = 0.04;             // 止めるときに絞りきる長さ（秒）
 
-  function wadeOpen() {
-    if (!wadeBus) { wadeBus = ctx.createGain(); wadeBus.connect(sfxGain); }
-    wadeBus.gain.cancelScheduledValues(ctx.currentTime);
-    wadeBus.gain.setValueAtTime(1, ctx.currentTime);
-    return wadeBus;
+  /*
+   * ★**素材ごとに1本ずつ持つ。**水と氷は同時に鳴りうる
+   *   （ある玉は池の中、別の玉は氷の上）。1本を使い回すと、
+   *   あとから来たほうが前のを消してしまい、片方が鳴らなくなる。
+   *   仕掛けそのものは同じなので、**中身は1つだけ書いて素材の名前で分ける。**
+   *   2つに書き分けると、片方だけ直して片方が古いまま残る。
+   */
+  const RUB_SRC = { water: 'waterWade', ice: 'iceSlide' };
+  const rubs = {};
+  function rubState(name) {
+    if (!rubs[name]) rubs[name] = { name, until: -1e9, next: 0, timer: null, level: 0.5, bus: null, srcs: [] };
+    return rubs[name];
   }
-  /** 池を出た。先に並べてある粒ごと切る */
-  function wadeCut() {
-    if (wadeTimer) { clearTimeout(wadeTimer); wadeTimer = null; }
+
+  function rubOpen(st) {
+    if (!st.bus) { st.bus = ctx.createGain(); st.bus.connect(sfxGain); }
+    st.bus.gain.cancelScheduledValues(ctx.currentTime);
+    st.bus.gain.setValueAtTime(1, ctx.currentTime);
+    return st.bus;
+  }
+  /** そこを出た。先に並べてある粒ごと切る */
+  function rubCut(st) {
+    if (st.timer) { clearTimeout(st.timer); st.timer = null; }
     const now = ctx ? ctx.currentTime : 0;
-    if (wadeBus) {
-      wadeBus.gain.cancelScheduledValues(now);
-      wadeBus.gain.setValueAtTime(wadeBus.gain.value, now);
-      wadeBus.gain.linearRampToValueAtTime(0.0001, now + WADE_CUT);
+    if (st.bus) {
+      st.bus.gain.cancelScheduledValues(now);
+      st.bus.gain.setValueAtTime(st.bus.gain.value, now);
+      st.bus.gain.linearRampToValueAtTime(0.0001, now + RUB_CUT);
     }
-    for (const src of wadeSrcs) { try { src.stop(now + WADE_CUT + 0.01); } catch (e) {} }
-    wadeSrcs = [];
+    for (const src of st.srcs) { try { src.stop(now + RUB_CUT + 0.01); } catch (e) {} }
+    st.srcs = [];
   }
 
-  function wadeGrain(at) {
-    const buf = sfxBufs.get('waterWade');
+  function rubGrain(st, at) {
+    const key = RUB_SRC[st.name];
+    const buf = sfxBufs.get(key);
     if (!buf) return;
-    const head = sfxHead.get('waterWade') || 0;
+    const head = sfxHead.get(key) || 0;
     const usable = Math.max(0.05, buf.duration - head - 0.02);
-    const len = WADE_GRAIN[0] + Math.random() * (WADE_GRAIN[1] - WADE_GRAIN[0]);
+    const len = RUB_GRAIN[0] + Math.random() * (RUB_GRAIN[1] - RUB_GRAIN[0]);
     const take = Math.min(len, usable);
     const from = head + Math.random() * Math.max(0, usable - take);
     const rate = 0.90 + Math.random() * 0.20;
-    const lvl = (0.34 + 0.40 * wadeLevel) * (0.8 + Math.random() * 0.4);
+    const lvl = (0.34 + 0.40 * st.level) * (0.8 + Math.random() * 0.4);
 
     const src = ctx.createBufferSource();
     src.buffer = buf;
     src.playbackRate.value = rate;
     const g = ctx.createGain();
     const dur = take / rate;
-    const fade = Math.min(WADE_FADE, dur * 0.4);
+    const fade = Math.min(RUB_FADE, dur * 0.4);
     g.gain.setValueAtTime(0.0001, at);
     g.gain.linearRampToValueAtTime(lvl, at + fade);
     g.gain.setValueAtTime(lvl, at + dur - fade);
     g.gain.linearRampToValueAtTime(0.0001, at + dur);
-    src.connect(g).connect(wadeOpen());
+    src.connect(g).connect(rubOpen(st));
     src.start(at, from, take + 0.02);
     src.stop(at + dur + 0.02);
-    wadeSrcs.push(src);
-    src.onended = () => { const i = wadeSrcs.indexOf(src); if (i >= 0) wadeSrcs.splice(i, 1); };
+    st.srcs.push(src);
+    src.onended = () => { const i = st.srcs.indexOf(src); if (i >= 0) st.srcs.splice(i, 1); };
     return dur;
   }
 
-  function wadeTick() {
-    wadeTimer = null;
+  function rubTick(st) {
+    st.timer = null;
     if (!audioOn || !ctx || !sfxGain) return;
     const now = ctx.currentTime;
-    if (now > wadeUntil) { wadeCut(); return; }   // 呼ばれなくなった＝その場で切る
-    if (wadeNext < now) wadeNext = now + 0.02;    // 出遅れたぶんは詰めない（重なりすぎる）
+    if (now > st.until) { rubCut(st); return; }   // 呼ばれなくなった＝その場で切る
+    if (st.next < now) st.next = now + 0.02;      // 出遅れたぶんは詰めない（重なりすぎる）
     let guard = 0;
-    while (wadeNext < now + WADE_AHEAD && guard++ < 8) {
-      const dur = wadeGrain(wadeNext);
+    while (st.next < now + RUB_AHEAD && guard++ < 8) {
+      const dur = rubGrain(st, st.next);
       if (!dur) break;                            // 素材がまだ読めていない
-      wadeNext += Math.max(0.06, dur - WADE_OVERLAP);
+      st.next += Math.max(0.06, dur - RUB_OVERLAP);
     }
-    wadeTimer = setTimeout(wadeTick, 45);
+    st.timer = setTimeout(() => rubTick(st), 45);
+  }
+
+  /** 地面をこすりながら進む音（水＝じゃぶじゃぶ／氷＝砕きながら滑る）を鳴らし続ける */
+  function rubOn(name, strength) {
+    if (!audioOn || !ctx || !sfxGain) return;
+    const st = rubState(name);
+    st.level = Math.max(0.15, Math.min(1, strength == null ? 0.6 : strength));
+    st.until = ctx.currentTime + RUB_KEEP;        // 呼ばれ続けている間だけ延びる
+    if (!sfxBufs.get(RUB_SRC[name])) { loadSfx(RUB_SRC[name]); return; }
+    if (!st.timer) { rubOpen(st); st.next = ctx.currentTime + 0.02; rubTick(st); }
+  }
+  /** そこを出た。**先に並べてある粒ごと、その場で切る** */
+  function rubOff(name) {
+    if (!ctx) return;
+    const st = rubs[name];
+    if (st && (st.timer || st.srcs.length)) { st.until = -1e9; rubCut(st); }
   }
 
   function water(kind, strength) {
     if (!audioOn || !ctx || !sfxGain) return;
     const s = Math.max(0.15, Math.min(1, strength == null ? 0.6 : strength));
-    if (kind === 'wade') {
-      wadeLevel = s;
-      wadeUntil = ctx.currentTime + WADE_KEEP;    // 呼ばれ続けている間だけ延びる
-      if (!sfxBufs.get('waterWade')) { loadSfx('waterWade'); return; }
-      if (!wadeTimer) { wadeOpen(); wadeNext = ctx.currentTime + 0.02; wadeTick(); }
-    } else if (kind === 'wadeOff') {
-      // ★池を出た。**先に並べてある粒ごと、その場で切る**
-      if (wadeTimer || wadeSrcs.length) { wadeUntil = -1e9; wadeCut(); }
-    } else {
-      playBuf('waterSplash', { gain: 0.55 + 0.45 * s, rate: 0.96 + Math.random() * 0.08 });
-    }
+    playBuf('waterSplash', { gain: 0.55 + 0.45 * s, rate: 0.96 + Math.random() * 0.08 });
   }
 
   let boingUntil = -1e9;
@@ -489,9 +510,11 @@ const BilliardsAudio = (() => {
       case 'pocket': playBuf('bilPocket', { gain: 0.95, rate: vary() }); break;        // 落球
       case 'fly': boing(s, seconds); break;                                           // 飛んでいる間のぴょーん
       case 'foul': tick2(330, 220); break;
-      case 'wade': water('wade', s); break;         // 池を進むじゃぶじゃぶ
-      case 'wadeOff': water('wadeOff'); break;      // 池を出た（その場で切る）
-      case 'splash': water('splash', s); break;  // 池ポチャ
+      case 'wade': rubOn('water', s); break;         // 池・水たまりを進むじゃぶじゃぶ
+      case 'wadeOff': rubOff('water'); break;       // 水から出た（その場で切る）
+      case 'iceRub': rubOn('ice', s); break;        // 氷の上を砕きながら滑る
+      case 'iceOff': rubOff('ice'); break;          // 氷から出た（その場で切る）
+      case 'splash': water('splash', s); break;     // 池ポチャ・水の入ったポケットへ落ちた
       case 'tick': beep(1046, 0.07, 0.22); break;        // 残り5秒からの秒読み
       case 'timeup': beep(392, 0.16, 0.30); beep(294, 0.30, 0.26, 0.14); break;
       case 'turn': tick2(880, 1318); break;   // 自分の手番

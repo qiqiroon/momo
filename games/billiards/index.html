@@ -578,6 +578,12 @@ body.debug #dbg{display:block;}
       <div class="rule-how" id="rule-how"></div></div>
     <div class="card"><span class="lbl" id="lbl-table"></span><div class="opts" id="opts-table"></div></div>
     <div class="card"><span class="lbl" id="lbl-mode"></span><div class="opts" id="opts-mode"></div></div>
+    <!-- 異常モードの詳細パネル（仕様書 6.5.1節）。異常モードを選んだときだけ出る -->
+    <div class="card" id="gim-block" style="display:none">
+      <span class="lbl" id="lbl-gim"></span>
+      <div class="opts" id="opts-gim"></div>
+      <div class="hint" id="gim-note" style="margin-top:8px"></div>
+    </div>
     <div class="card"><span class="lbl" id="lbl-diff"></span><div class="opts" id="opts-diff"></div></div>
 
     <!-- 持ち時間設定 -->
@@ -872,6 +878,8 @@ body.debug #dbg{display:block;}
 <script src="../matchmaking/momo-matchmaking.js"></script>
 <script src="js/i18n.js"></script>
 <script src="js/table.js"></script>
+<!-- 盤面イベント層。engine より先に読む（engine が1刻みごとに呼ぶ） -->
+<script src="js/field.js"></script>
 <script src="js/engine.js"></script>
 <script src="js/rules.js"></script>
 <script src="js/ai.js"></script>

@@ -11,7 +11,7 @@
 const BilliardsRules = (() => {
   'use strict';
 
-  const T = BilliardsTable, E = BilliardsEngine;
+  const T = BilliardsTable, E = BilliardsEngine, F = BilliardsField;
 
   // 玉の配色。現実のビリヤード球に合わせる（アイコンと同じ考え方＝識別性を優先）
   const BALL_COLORS = {
@@ -297,6 +297,27 @@ const BilliardsRules = (() => {
    * @param {object} cfg { rule, shape, hasPockets, players:[{name,type}], seed, tuning, difficulty,
    *                       target(点数目標), handicaps }
    */
+  /**
+   * 世界（物理の盤面）を作る。**createWorld を直に呼ぶのはここだけ。**
+   *
+   * ★盤面を組み直す場所は3つある（玉並べ・バンキング・ゴルフのホール切り替え）。
+   *   それぞれで createWorld を書くと、盤面イベント層を渡し忘れた世界が1つできて、
+   *   「その盤面でだけギミックが効かない」という静かな食い違いになる。
+   *   同じ表を2か所に持たない、と同じ話。
+   */
+  function makeWorld(game, table, balls, opts) {
+    /*
+     * 台面の区画（摩擦の違う場所）は**2つの出どころがある**
+     *   ・ルールが置くもの（ゴルフ型の砂と池）… table.basePatches
+     *   ・盤面イベント層が置くもの（水たまり・氷の領域）… field
+     * ここで足し合わせる。片方が他方を上書きすると、
+     * 「ゴルフ型で異常モードを選ぶと氷が消える」といった食い違いになる。
+     */
+    table.patches = (table.basePatches || []).concat(F.patches(game.field));
+    const o = Object.assign({}, opts || {}, { field: game.field || null });
+    return E.createWorld(table, balls, game.tuning, o);
+  }
+
   function createGame(cfg) {
     const table = T.make(cfg.shape, cfg.hasPockets);
     const game = {
@@ -313,6 +334,13 @@ const BilliardsRules = (() => {
        */
       coop: !!cfg.coop,
       shotLimit: cfg.shotLimit || 0,    // 相手チームがいないときの規定打数（9.7.3節）
+      /*
+       * ゲームモード（第6章）。ルールとモードは別々の層に閉じていて互いに干渉しない（5.3.3節）。
+       * ここが持つのは「どのモードか」だけで、ギミックの中身は盤面イベント層（field.js）が持つ。
+       */
+      mode: cfg.mode || 'normal',
+      // 撞く番が何度移ったか。ギミックの抽選を1ターンに1回へ抑えるための鍵に使う
+      turnNo: 0,
       // ゴルフ型のコースを抽選で回るか（7.10.2節。既定は固定順＝覚えて攻略する対象にするため）
       golfRandom: !!cfg.golfRandom,
       players: cfg.players.map((p, i) => ({
@@ -360,6 +388,17 @@ const BilliardsRules = (() => {
       history: [],                      // 入力列（リプレイ・通信同期の正体）
       world: null,
     };
+    /*
+     * 盤面イベント層（5.3.1節・第6章）。通常モードでは null＝この層は何もしない。
+     * ★**玉を並べる前に作る。**世界（world）を作るときに渡すものなので、
+     *   あとから足すと「盤面イベント層を知らない世界」が1つできる。
+     */
+    game.field = F.create({
+      mode: game.mode, gimmicks: cfg.gimmicks, random: !!cfg.gimRandom,
+      difficulty: game.difficulty, rule: cfg.rule, hasPockets: !!cfg.hasPockets,
+      rng: game.rng,
+    });
+    F.beginGame(game.field, game.rng, { table, rule: cfg.rule });
     // 抜けている席から始めない。組み直しで離脱者を引き継いだときに起きる
     game.turn = firstActive(game);
     // この局で実際にブレイクする席。次の局のローテーションはここから数える
@@ -661,7 +700,7 @@ const BilliardsRules = (() => {
      * 呼ぶ側に書き足していくと必ずどれかが抜ける**（主ループ・演出無しの一気走らせ・
      * 観戦者の追いつき・リプレイ・AIの読み）。エンジンの step が必ず通る場所に置く。
      */
-    game.world = E.createWorld(table, balls, game.tuning,
+    game.world = makeWorld(game, table, balls,
       game.rule === 'G-06' ? { onAdvance: () => territoryTrack(game) } : null);
     // 玉を並べ直した＝まだ誰もブレイクしていない
     game.broken = false;
@@ -843,7 +882,7 @@ const BilliardsRules = (() => {
         color: CAROM_COLORS[i % CAROM_COLORS.length],
       }));
     }
-    game.world = E.createWorld(table, balls, game.tuning);
+    game.world = makeWorld(game, table, balls);
     game.bank = { on: true, marks: game.players.map(() => null), shotBy: {} };
     game.turn = firstActive(game);          // 抜けている席から始めない
     game.ballInHand = true;                 // ヘッドストリングより手前に置いてから撞く
@@ -2160,12 +2199,19 @@ const BilliardsRules = (() => {
      *   物理には渡さず、止まった場所をルール側で見るだけにする。
      *   木は据え付けの玉なので、区画ではなく玉として置く。
      */
-    game.table.patches = lay.hazards
+    game.table.basePatches = lay.hazards
       .filter(h => h.kind === 'bunker' || h.kind === 'water')
       .map(h => (h.kind === 'bunker')
         ? { x: h.x, y: h.y, r: h.r, blob: true, slide: GOLF_SAND_SLIDE, roll: GOLF_SAND_ROLL }
         : { x: h.x, y: h.y, r: h.r, blob: true, slide: GOLF_WATER_SLIDE, roll: GOLF_WATER_ROLL,
             fastPass: GOLF_WATER_PASS });
+    /*
+     * ★ホールごとに台を作り直すので、**盤面イベント層の地形もそのつど置き直す。**
+     *   置き直さないと、前のホールの台に置いた地形が新しい台の外へ出たまま残る。
+     *   仕様書 6.7.1節は「ゲーム開始時に1回」と書いているが、
+     *   ゴルフ型は8つの台を回るので「その台に入るとき」がゲーム開始にあたる。
+     */
+    F.beginGame(game.field, game.rng, { table: game.table, rule: game.rule });
     gf.par = golfPar(game.table.shape);
     gf.cut = golfCut(game.table.shape);
     const n = game.players.length;
@@ -2202,7 +2248,7 @@ const BilliardsRules = (() => {
       b.hazardKind = 'tree';
       balls.push(b);
     });
-    game.world = E.createWorld(game.table, balls, game.tuning);
+    game.world = makeWorld(game, game.table, balls);
     game.broken = false;
     game.ballInHand = false;
     game.ballInHandFull = false;
@@ -2848,8 +2894,28 @@ const BilliardsRules = (() => {
   }
 
   /** 手番を進める（7.2.2節。参加順の循環。ファウルで順序は変わらない） */
+  /**
+   * 撞く番を送る。
+   *
+   * ★中身（nextTurnCore）はルールごとに4つへ分かれて途中で返るので、
+   *   ギミックの抽選を中身の末尾に書くと、カーリング・ボウリング・ゴルフの3ルールで抜ける。
+   *   **包んだ外側に1か所だけ置く。**
+   *   追いつき直し（観戦・再接続）もこの道を通るので、ここに置けば全部の道が通る。
+   */
   function nextTurn(game, result) {
     if (game.over) return;
+    nextTurnCore(game, result);
+    game.turnNo = (game.turnNo || 0) + 1;
+    /*
+     * ターン開始時の抽選（ブラックホールの位置・テレポートポケットの対・番号シャッフル）。
+     * 鍵（turnNo）を渡して、同じ番で二度引かないようにするのは field 側の仕事。
+     * ここが二度呼ばれても盤面が変わらないようにしておかないと、
+     * 手番を始め直す道（デッドロックの否決など）で乱数列がずれる。
+     */
+    F.beginTurn(game.field, game.rng, { key: game.turnNo, table: game.table, game });
+  }
+
+  function nextTurnCore(game, result) {
     if (result && result.continueTurn) return;
     /*
      * ★カーリング型は手番送りが違う（7.9.3節）。投げた玉の後始末・ホグ円・

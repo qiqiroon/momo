@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.86';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.87';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules, F = BilliardsField;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -2318,9 +2318,9 @@
   const GOLF_WATER_FILL = '#2f6fb0';
 
   /** ハザードの輪郭をなぞる（物理・ルールと同じ T.blobRadius を通す） */
-  function golfBlobPath(h, s) {
+  function golfBlobPath(h, s, join) {
     const c = toScreen(h.x, h.y);
-    ctx.beginPath();
+    if (!join) ctx.beginPath();       // join＝前のパスに継ぎ足す（塊としてまとめて塗る・切り抜くため）
     const N = 44;
     for (let k = 0; k <= N; k++) {
       const a = k / N * Math.PI * 2;
@@ -2330,6 +2330,53 @@
     }
     ctx.closePath();
     return c;
+  }
+
+  /**
+   * ★**重なった氷を1つの塊として描く**（第55セッションの利用者指示）。
+   *
+   *   1枚ずつ「面を塗って→縁を描く」を繰り返すと、**あとの枚の縁が前の枚の面の上に乗り、
+   *   塊の内側に線が走る。**半透明なので**重なった所だけ濃く**もなる。
+   *
+   *   直し方＝**先に全部の縁を描き、そのあとに全部の面を塗る。**
+   *   内側の縁は面に隠れ、**外周だけが残って1つの塊**になる。
+   *   ★このため**塗りは不透明にする。**半透明のままだと、重なった所が濃く残って
+   *   結局つなぎ目が見えてしまう（元は 0.88〜0.92 なので見た目の差はごくわずか）。
+   *   割れ目の線も1枚ごとではなく、**塊の内側**にだけ引く。
+   */
+  function drawIceMass(list, s) {
+    // ① 縁を全部（このあと塗る面に隠れるので、内側の線は残らない）
+    ctx.strokeStyle = 'rgb(232,249,255)';
+    ctx.lineWidth = Math.max(1, 1.6 * s);
+    for (const h of list) { golfBlobPath(h, s); ctx.stroke(); }
+    // ② 面を全部（不透明。重ねても濃くならない）
+    for (const h of list) {
+      const c = golfBlobPath(h, s), r = h.r * s;
+      const gr = ctx.createRadialGradient(c.x - r * .3, c.y - r * .3, r * .1, c.x, c.y, r * 1.1);
+      gr.addColorStop(0, 'rgb(244,252,255)');
+      gr.addColorStop(.6, 'rgb(206,236,246)');
+      gr.addColorStop(1, 'rgb(176,217,236)');
+      ctx.fillStyle = gr; ctx.fill();
+    }
+    // ③ 割れ目は塊の内側だけに。線の向きは座標から決めるので、描き直しても踊らない
+    ctx.save();
+    ctx.beginPath();
+    for (const h of list) golfBlobPath(h, s, true);
+    ctx.clip();
+    ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineCap = 'round';
+    for (const h of list) {
+      const c = toScreen(h.x, h.y), r = h.r * s;
+      ctx.lineWidth = Math.max(1, 1.1 * s);
+      for (let k = 0; k < 5; k++) {
+        const a = (k * 1.7 + h.x * 0.004 + h.y * 0.003);
+        const d0 = r * (0.15 + 0.16 * k), d1 = r * (0.95 - 0.05 * k);
+        ctx.beginPath();
+        ctx.moveTo(c.x + Math.cos(a) * d0, c.y + Math.sin(a) * d0);
+        ctx.lineTo(c.x + Math.cos(a + 0.22) * d1, c.y + Math.sin(a + 0.22) * d1);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
   }
 
   /**
@@ -2344,35 +2391,16 @@
     const g = S.game, s = view.s;
     ctx.save();
     tablePath(g.table); ctx.clip('evenodd');
+    /*
+     * 氷＝白く光る面。**水と見分けが付くこと**が第一なので、青ではなく白に寄せ、
+     * 割れ目の線を走らせる。**重なったぶんはまとめて1つの塊**として描く（drawIceMass）。
+     */
+    const ice = list.filter(h => h.kind === 'ice');
+    if (ice.length) drawIceMass(ice, s);
     for (const h of list) {
-      if (h.kind === 'tree') continue;                 // 木は玉として描かれる
+      if (h.kind === 'tree' || h.kind === 'ice') continue;   // 木は玉として／氷は上でまとめて描いた
       const r = h.r * s;
-      if (h.kind === 'ice') {
-        /*
-         * 氷＝白く光る面。**水と見分けが付くこと**が第一なので、
-         * 青ではなく白に寄せ、割れ目の線を走らせる。
-         * 線の向きは座標から決めるので、描き直しても線が踊らない。
-         */
-        const c = golfBlobPath(h, s);
-        const gr = ctx.createRadialGradient(c.x - r * .3, c.y - r * .3, r * .1, c.x, c.y, r * 1.1);
-        gr.addColorStop(0, 'rgba(244,252,255,.92)');
-        gr.addColorStop(.6, 'rgba(206,236,246,.88)');
-        gr.addColorStop(1, 'rgba(168,212,232,.88)');
-        ctx.fillStyle = gr; ctx.fill();
-        ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = Math.max(1, 1.6 * s); ctx.stroke();
-        ctx.save(); ctx.clip();
-        ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineCap = 'round';
-        ctx.lineWidth = Math.max(1, 1.1 * s);
-        for (let k = 0; k < 5; k++) {
-          const a = (k * 1.7 + h.x * 0.004 + h.y * 0.003);
-          const d0 = r * (0.15 + 0.16 * k), d1 = r * (0.95 - 0.05 * k);
-          ctx.beginPath();
-          ctx.moveTo(c.x + Math.cos(a) * d0, c.y + Math.sin(a) * d0);
-          ctx.lineTo(c.x + Math.cos(a + 0.22) * d1, c.y + Math.sin(a + 0.22) * d1);
-          ctx.stroke();
-        }
-        ctx.restore();
-      } else if (h.kind === 'bunker') {
+      if (h.kind === 'bunker') {
         // 砂＝崩れた縁の薄い黄
         const c = golfBlobPath(h, s);
         ctx.fillStyle = 'rgba(217,196,137,.94)'; ctx.fill();
@@ -3510,9 +3538,8 @@
     const ground = []
       .concat((g.rule === 'G-10' && g.golf && g.golf.layout) ? (g.golf.layout.hazards || []) : [])
       .concat(g.field ? F.terrain(g.field) : []);
-    for (const h of ground) {
-      if (h.kind === 'tree') continue;                 // 木は玉として描かれる
-      const col = GROUND_FILL[h.kind]; if (!col) continue;
+    /** その地形の輪郭を、いまのパスへ継ぎ足す。点が足りなければ何もしない */
+    const groundPath = h => {
       const pts = [];
       for (let i = 0; i < 40; i++) {
         const a = 2 * Math.PI * i / 40;
@@ -3520,10 +3547,29 @@
         const q = proj(h.x + Math.cos(a) * rr, h.y + Math.sin(a) * rr, 0.5);
         if (q) pts.push(q);
       }
-      if (pts.length < 3) continue;
-      ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+      if (pts.length < 3) return false;
+      ctx.moveTo(pts[0].x, pts[0].y);
       for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
       ctx.closePath();
+      return true;
+    };
+    /*
+     * ★氷は**重なっても1つの塊**に見せる（2Dの drawIceMass と同じ手）。
+     *   **先に縁を全部描き、そのあとに面を全部塗る**と、内側の縁は面に隠れる。
+     *   塗りは不透明にする（半透明だと重なった所だけ濃く残る）。
+     */
+    const ice3 = ground.filter(h => h.kind === 'ice');
+    if (ice3.length) {
+      ctx.strokeStyle = 'rgb(255,255,255)'; ctx.lineWidth = 1.4;
+      for (const h of ice3) { ctx.beginPath(); if (groundPath(h)) ctx.stroke(); }
+      ctx.fillStyle = 'rgb(214,240,250)';
+      for (const h of ice3) { ctx.beginPath(); if (groundPath(h)) ctx.fill(); }
+    }
+    for (const h of ground) {
+      if (h.kind === 'tree' || h.kind === 'ice') continue;   // 木は玉として／氷は上でまとめて描いた
+      const col = GROUND_FILL[h.kind]; if (!col) continue;
+      ctx.beginPath();
+      if (!groundPath(h)) continue;
       ctx.fillStyle = col[0]; ctx.fill();
       ctx.strokeStyle = col[1];
       ctx.lineWidth = 1.4; ctx.stroke();

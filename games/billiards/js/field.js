@@ -72,18 +72,34 @@ const BilliardsField = (() => {
      * 氷＝摩擦の大幅な低下。**ゼロにはしない**（6.6.7節）。
      *
      * ★**利用者の指示で、台に占める割合を 30〜40%、摩擦を出せるかぎり低くした**（第55セッション）。
-     *   ・広さ … 大きさは変えず**個数を 2 → 20**（同じ種類どうしが重なってよくなったため入る＝D448）。
-     *     実測 31.5〜39.4%（8形状すべて）。**効き目のほとんどは、摩擦ではなく広さから来る**
+     *   ・広さ … **効き目のほとんどは、摩擦ではなく広さから来る**
      *     （5% で 92mm → 35% で 561mm。そこから摩擦を最小まで下げて 656mm）。
+     *   ・★**同じ大きさをたくさんではなく、大きさのちがうものを数個**（第55セッションの利用者指示）。
+     *     **大きさを毎回ばらばらに引くと、局ごとの割合が 24〜49% まで散る**（大きいものばかり引く局が出る）。
+     *     そこで**配る面積（share）を先に決め、それを count 個へランダムな比で分ける**。
+     *     こうすると**大きさは1:2ほどばらつくのに、割合は 29〜42% に収まる**（実測）。
      *   ・摩擦 … **apocalypse でちょうど下限に届く値**を通常の値とした。
      *     apocalypse は強度だけを引き上げる決まり（6.2.5節）なので、通常の値を下限に置くと
      *     **apocalypse で下げる余地が無くなり、難易度の差が消える。**
      *     そこで下限 × 1.8 を通常とし、apocalypse で下限ちょうどになるようにしてある。
      */
-    ice: { count: 20, size: 5.0, slide: 0.009, roll: 0.00072, apo: 1 / 1.8 },
+    ice: { count: 6, share: 0.38, spread: 8, slide: 0.009, roll: 0.00072, apo: 1 / 1.8 },
   };
   const TERRAIN_GAP = 40;        // **種類が違う**地形のあいだに空ける最小の隙間（mm）。付録B送り
-  const PLACE_TRIES = 400;       // 置き場所を1つ探すのに試す回数
+  /*
+   * ★同じ種類どうしは**縁は重なってよいが、芯は重ねない**（第55セッション）。
+   *   ただ「重なってよい」だけにすると**同じ場所に何枚も積み重なって面積が無駄になる**。
+   *   中心どうしを半径の合計の この割合 だけ離すと、6個でも 30〜40% に届く
+   *   （離さないと20個必要だった）。付録B送り。
+   */
+  const SAME_NEAR = 0.7;
+  /*
+   * 置き場所を1つ探すのに試す回数。
+   * ★400では**星型で6個目が見つからない局が160局に1つ**出た（腕が細く、
+   *   水と先に置いた氷を避けると残りが狭い）。**探しに行く回数を増やすだけで解ける。**
+   *   ここで縮める段を増やすと、**玉より小さい氷**ができてしまう。
+   */
+  const PLACE_TRIES = 1500;
   /*
    * ★入らないときは、**その1個だけを縮めて**入れる（利用者判断・第54セッション）。
    *
@@ -124,13 +140,79 @@ const BilliardsField = (() => {
       if (T.clearance(table, x, y) < grown) continue;          // 輪郭ごと盤面の内側に収める
       let clash = false;
       for (const o of placed) {
-        if (o.kind === kind) continue;                          // 同じ種類どうしは重なってよい（D448）
-        const need = grown + o.r * T.GOLF_BLOB_MAX + TERRAIN_GAP;
+        // 同じ種類＝縁は重なってよいが芯は重ねない／種類が違う＝輪郭ごと離す（D448）
+        const need = (o.kind === kind)
+          ? (r + o.r) * SAME_NEAR
+          : grown + o.r * T.GOLF_BLOB_MAX + TERRAIN_GAP;
         if (Math.hypot(x - o.x, y - o.y) < need) { clash = true; break; }
       }
       if (!clash) return { x, y };
     }
     return null;
+  }
+
+  /**
+   * 盤面のうち、実際に玉が転がれる広さ（外接矩形ではない）と、
+   * **いちばん余裕のある場所の余白**。刻んで数えるので決定論。
+   *
+   * ★余白のほうも一緒に返すのは、**その台に入りきらない大きさを配らない**ため。
+   *   細い台（星型の腕・十字）では、大きく配ってしまうと縮めても入らず、
+   *   その1個が**丸ごと捨てられて個数が足りなくなる**（実測で160局に1局）。
+   */
+  function playArea(table) {
+    const T = BilliardsTable;
+    const NX = 120, NY = 60;
+    let inside = 0, best = 0;
+    for (let i = 0; i < NX; i++) for (let j = 0; j < NY; j++) {
+      const x = (i + 0.5) / NX * 2 * table.halfW - table.halfW;
+      const y = (j + 0.5) / NY * 2 * table.halfH - table.halfH;
+      const c = T.clearance(table, x, y);
+      if (c > 0) inside++;
+      if (c > best) best = c;
+    }
+    return {
+      area: inside / (NX * NY) * (2 * table.halfW) * (2 * table.halfH),
+      room: best,
+    };
+  }
+
+  /**
+   * その種類の地形の半径を決める（大きい順）。
+   *
+   * ・**大きさが決まっているもの**（水たまり）… size をそのまま使う。全部同じ大きさ
+   * ・**面積を配るもの**（氷）… 盤面の share だけの面積を count 個へランダムな比で分ける。
+   *   ★**大きさを毎回ばらばらに引くのではない。**それだと局ごとの割合が散る（24〜49%）。
+   *   合計を決めて配れば、**大きさはばらつくのに割合は収まる**（29〜42%）。
+   */
+  function radiiFor(spec, rng, table) {
+    const T = BilliardsTable;
+    if (spec.size != null) {
+      const out = [];
+      for (let i = 0; i < spec.count; i++) out.push(T.R * spec.size);
+      return out;
+    }
+    const pa = playArea(table);
+    const area = pa.area * spec.share;
+    // ★その台に入りきる大きさで頭打ちにする（輪郭ごと入ること）
+    const cap = pa.room / T.GOLF_BLOB_MAX;
+    const w = []; let sum = 0;
+    for (let i = 0; i < spec.count; i++) { const v = 1 + rng() * spec.spread; w.push(v); sum += v; }
+    // 大きいものから置く。小さいものを先に置くと、大きいものの居場所が無くなる
+    return w.map(v => Math.min(cap, Math.sqrt(area * (v / sum) / Math.PI))).sort((a, b) => b - a);
+  }
+
+  /**
+   * 輪郭の形（出っぱりの数と振り分け）。
+   * ★**ふくらみの合計（T.BLOB_WOBBLE）は変えない。**合計は置き場所の判定の前提なので、
+   *   変えると台からのはみ出しの見方まで狂う。**振り分けと数だけを変える。**
+   * ★形を持たせるのは**面積を配る種類だけ**。水たまりとゴルフの砂・池は従来どおりの形のまま。
+   */
+  function shapeOf(rng) {
+    return {
+      k1: 2 + Math.floor(rng() * 4),          // 大きな出っぱりの数 2〜5
+      k2: 4 + Math.floor(rng() * 5),          // 小さな波の数 4〜8
+      a1: 0.12 + rng() * 0.16,                // 振り分け（残りは自動で小さな波へ）
+    };
   }
 
   /** ゲーム開始時に地形を配置する（6.7.1節）。異常モードは1ゲーム中これが変わらない */
@@ -140,16 +222,21 @@ const BilliardsField = (() => {
       if (!field.has(id)) return;
       const kind = TERRAIN_OF[id];
       const spec = TERRAIN[kind];
-      const r0 = BilliardsTable.R * spec.size;
-      for (let k = 0; k < spec.count; k++) {
+      const varied = spec.size == null;               // 面積を配る種類だけ、形もばらばらにする
+      radiiFor(spec, rng, table).forEach(r0 => {
         // まずそのままの大きさで探し、入らなければ順に縮めて入れる
         for (const f of PLACE_SHRINK) {
           const r = r0 * f;
           const spot = findSpot(rng, table, r, out, kind);
-          if (spot) { out.push({ kind, x: spot.x, y: spot.y, r, blob: true }); break; }
+          if (spot) {
+            const h = { kind, x: spot.x, y: spot.y, r, blob: true };
+            if (varied) Object.assign(h, shapeOf(rng));
+            out.push(h);
+            break;
+          }
         }
         // いちばん小さくしても入らなければ、その1個は諦める
-      }
+      });
     });
     return out;
   }
@@ -164,8 +251,13 @@ const BilliardsField = (() => {
       const spec = TERRAIN[h.kind];
       const k = field.apocalypse ? spec.apo : 1;
       // 摩擦は0にできない（5.11.2節）。下限を置いて必ず正にする
+      /*
+       * ★**輪郭の形（k1・k2・a1）も一緒に渡す。**落とすと物理だけが昔の形で判定し、
+       *   **見えている縁と効いている縁がずれる**（第53でゴルフの砂について直したのと同じ話）。
+       */
       return {
         x: h.x, y: h.y, r: h.r, blob: true,
+        k1: h.k1, k2: h.k2, a1: h.a1,
         slide: Math.max(0.005, spec.slide * k),
         roll: Math.max(0.0004, spec.roll * k),
       };

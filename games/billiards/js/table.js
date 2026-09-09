@@ -1824,10 +1824,25 @@ const BilliardsTable = (() => {
    *   池の外に見えるのに罰が付く、といった読めない挙動になる。
    * ★揺らし方はハザードの位置から決まる＝同じホールなら何度でも同じ形（決定論）。
    */
+  /*
+   * ★**ふくらみの合計は 0.35 で固定する**（第55セッション）。
+   *   GOLF_BLOB_MAX（1.35）も blobContains の内側の近道（1 - 0.35）も、この値を前提に組んである。
+   *   合計を変えると、置き場所の判定もゴルフ型の砂の位置も一緒に狂う。
+   *   **形を変えたいときは、合計はそのままに「振り分け」と「出っぱりの数」を変える。**
+   */
+  const BLOB_WOBBLE = 0.35;
+
   function blobRadius(h, ang) {
     const p1 = h.x * 0.017 + h.y * 0.011;
     const p2 = h.x * 0.007 - h.y * 0.019;
-    return h.r * (1 + 0.22 * Math.sin(ang * 3 + p1) + 0.13 * Math.cos(ang * 5 + p2));
+    /*
+     * ★形を指定されていない地形は**従来どおりの形のまま**（k1=3・k2=5・a1=0.22）。
+     *   ゴルフ型の砂・池は指定を持たないので1ミリも動かない。
+     *   動かすと砂の位置が変わり、規定打数まで変わる（D443）。
+     */
+    const k1 = h.k1 || 3, k2 = h.k2 || 5;
+    const a1 = (h.a1 != null) ? h.a1 : 0.22, a2 = BLOB_WOBBLE - a1;
+    return h.r * (1 + a1 * Math.sin(ang * k1 + p1) + a2 * Math.cos(ang * k2 + p2));
   }
   /** その点がハザードの中か（輪郭は blobRadius と同じもの） */
   function blobContains(h, x, y) {
@@ -2068,7 +2083,7 @@ const BilliardsTable = (() => {
     bowlingLayout, bowlCells, BOWL_GAP, BOWL_ROWS,
     // ゴルフ型（7.10節）
     golfLayout, golfPocket, GOLF_PICK, GOLF_HAZARD_R, GOLF_WATERS, GOLF_BUNKERS,
-    blobRadius, blobContains, GOLF_BLOB_MAX,
+    blobRadius, blobContains, GOLF_BLOB_MAX, BLOB_WOBBLE,
     clearance, inside, clampInside, nearestBoundary, diamonds, buildFillets,
     // 検査から直に確かめるために出している。
     // 「内角90度以上には手を触れない」という条件は、いまのどの台でも働かない

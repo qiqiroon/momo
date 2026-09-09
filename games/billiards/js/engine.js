@@ -31,6 +31,23 @@ const BilliardsEngine = (() => {
   const STOP_V = 8.0;                 // 停止判定（速度 mm/s）
   const STOP_W = 0.6;                 // 停止判定（角速度 rad/s）
 
+  /*
+   * 玉が静止しないときの安全弁（10.9.5節）。**規定時間を超えたら全球の速度を0にする。**
+   * その盤面に対しては通常どおり判定するので、ショットは中断せず普通に終わる。
+   *
+   * ★これが要るのは、**台の傾き（F-03）と氷（F-08）を一緒に選んだとき**である。
+   *   氷の上の減速は 7.1 mm/s^2 しかなく、傾きの 50 mm/s^2 がそれを上回るため、
+   *   氷の上を下る玉は加速し続ける。実測で120局に1つ、40秒でも止まらない玉が出た。
+   *   仕様書 10.9.5節はこの組合せを名指しで挙げている。
+   *
+   * ★**20秒はAIの読みの打ち切り（runShot の既定）と同じ値にしてある。**
+   *   ずらすと、AIだけが「まだ転がっている盤面」を読み、本物は止まった盤面で判定する、
+   *   という食い違いになる。片方を動かすときはもう片方も動かすこと。付録B送り。
+   * ★実時間ではなく刻み数で数える（5.2節の決定論）。
+   */
+  const STALL_SEC = 20;
+  const STALL_LIMIT = Math.round(STALL_SEC / DT);
+
   // ───────── ベクトル小道具（3次元） ─────────
   function v3(x, y, z) { return { x, y, z }; }
   function cross(a, b) {
@@ -87,6 +104,7 @@ const BilliardsEngine = (() => {
         doubleHit: true, miscue: true,
       }, tuning || {}),
       tick: 0,                  // ゲーム内時間＝ステップ数（5.2.3節）
+      stall: 0,                 // 全球停止に至らないまま進んだ刻み数（10.9.5節）
       events: [],
       // 刻みごとの通知（step の末尾で呼ぶ）。使い道はエンジンの外が決める
       onAdvance: (opts && opts.onAdvance) || null,
@@ -105,6 +123,7 @@ const BilliardsEngine = (() => {
       balls: w.balls.map(b => Object.assign({}, b)),
       tuning: w.tuning,
       tick: w.tick,
+      stall: w.stall || 0,      // 安全弁の数え（10.9.5節）も引き継ぐ。落とすとAIの読みだけ打ち切りが遅れる
       events: [],
       /*
        * ★盤面イベント層は**引き継ぐ**。onAdvance（下の step の末尾を見よ）とは扱いが逆である。
@@ -825,6 +844,28 @@ const BilliardsEngine = (() => {
     }
 
     w.tick++;
+
+    /*
+     * 玉が静止しないときの安全弁（10.9.5節）。
+     * ★数え直すのは**この末尾**でなければならない。先頭で「全部止まっているか」を見て
+     *   0に戻すと、次のショットの1刻み目には手玉がもう動いているので**一度も0に戻らず**、
+     *   数えが前のショットから積み上がる。ショットの最後の1刻みは必ずここを通る。
+     */
+    if (allStopped(w)) w.stall = 0;
+    else if (++w.stall > STALL_LIMIT) {
+      for (const b of w.balls) {
+        if (b.state !== 'live') continue;
+        b.vx = b.vy = b.vz = 0; b.wx = b.wy = b.wz = 0;
+        /*
+         * ★台へ下ろすところまでやる。速度を0にするだけだと、
+         *   空中の玉が**宙に浮いたまま止まる**。全球停止は「盤面に降りて動かない」ことなので、
+         *   浮いたままでは allStopped が永久に成立せず、20秒ごとに同じ処理を繰り返す。
+         */
+        b.z = 0;
+      }
+      w.stall = 0;
+      w.events.push({ type: 'stall', tick: w.tick });
+    }
 
     /*
      * 刻みごとの通知。**エンジンはこれが何に使われるかを知らない。**

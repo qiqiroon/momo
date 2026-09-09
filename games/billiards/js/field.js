@@ -45,11 +45,47 @@ const BilliardsField = (() => {
    *   片方を書き忘れれば「入っているのに選べない」か「無いのに選べる」になる。
    *   ルール（RULE_IDS）・台形状（SHAPE_IDS）と同じ形にしてある。
    */
-  const IDS = ['F-07', 'F-08'];
+  const IDS = ['F-03', 'F-07', 'F-08'];
 
   /** 同時に選べる数の上限（6.5.1節）。既定は3種で確定値。apocalypse だけ引き上げる（付録B.2節送り） */
   const PICK_MAX = 3;
   const PICK_MAX_APOCALYPSE = 5;        // 暫定。付録B.2節で詰める
+
+  /*
+   * ───────── 台の傾き（F-03）─────────
+   *
+   * やることは1つだけ＝**転がっている玉へ、傾き方向の一定の加速度を足す**（6.6.3節）。
+   *
+   * ★**静止球には足さない。**これがこのギミックの要である（6.2.3節）。
+   *   傾きは1ゲーム中ずっと残るので、静止球にも足すと玉が永久に転がり続け、
+   *   **全球停止が原理的に成立しなくなる**＝ターンが終わらない。
+   *   「傾いた台の上で玉が止まっている」のは非現実だが、
+   *   これはプレイヤーが自分で選んだ乖離として許容されている（D362）。
+   * ★空中の玉にも足さない（D192）。傾きは台を介して伝わる力なので、浮いた玉には届かない。
+   *
+   * ★**強さは、氷の上の減速（7.1 mm/s^2）より大きい。**
+   *   つまり氷と一緒に選ぶと、氷の上では下り方向へ加速し続ける玉が出る。
+   *   実測では120局に1つ、40秒たっても止まらない玉が出た。
+   *   **これを避けられる強さ（5未満）では、ずれが玉0.5個ぶんで傾きが分からない。**
+   *   そこで強さは効くほうを取り、止まらない玉は engine 側の安全弁（10.9.5節）で受ける。
+   *   仕様書も傾きと氷の組合せを名指しでその節に挙げている。
+   */
+  const TILT = {
+    /*
+     * 傾きの加速度 mm/s^2（付録B送り）。★角度ではなく加速度で持つ。
+     * 効くのは重力の斜面成分 g·sinθ だけなので、角度を持つと使うたびに換算が要る。
+     * 50 は 0.29°に当たる。実測＝止まる場所が 198mm（玉3.5個ぶん）動く。利用者判断（第56セッション）。
+     */
+    accel: 50,
+    /*
+     * 方向の抽選範囲（付録B送り）＝**8方位**。全方位から連続で引かない。
+     * 傾きは1ゲーム中維持され、プレイヤーが「この台は右下へ転がりやすい」と
+     * 覚えて使う対象である（6.6.3節）。8方位なら矢印と言葉で言い切れる。
+     */
+    dirs: 8,
+    /** apocalypse は強度だけを引き上げる（6.2.5節）。上限は無いので素直に倍率 */
+    apo: 1.8,
+  };
 
   /*
    * ───────── 可変地形（F-07 水たまり／F-08 氷の領域）─────────
@@ -363,6 +399,14 @@ const BilliardsField = (() => {
   function beginGame(field, rng, ctx) {
     if (!field) return;
     field.game = {};
+    /*
+     * 台の傾き（6.6.3節）。異常モードでは**ゲーム開始時に1回だけ**引き、1ゲーム中維持される。
+     * ★ここで引くのは向きだけ。強さは定数なので抽選しない（引くと乱数列が伸びるだけで何も増えない）。
+     */
+    if (field.has('F-03')) {
+      const k = Math.floor(rng() * TILT.dirs) % TILT.dirs;
+      field.game.tilt = { k, dir: k * Math.PI * 2 / TILT.dirs, dirs: TILT.dirs };
+    }
     const table = ctx && ctx.table;
     if (!table) return;
     field.game.terrain = placeTerrain(field, rng, table);
@@ -402,8 +446,25 @@ const BilliardsField = (() => {
    */
   function apply(field, b, tick, dt, table) {
     if (!field) return false;
-    return false;      // 第1段＝まだ何も注入しない
+    let done = false;
+    /*
+     * F-03 台の傾き（6.6.3節）。転がっている玉だけに、傾き方向の一定の加速度。
+     * ★条件の2つはどちらも外せない。
+     *   b.z <= 0.01 … 空中の玉には効かない（D192）
+     *   速度が0でない … 静止球は動き出さない＝全球停止が成立する（6.2.3節）
+     */
+    const tl = field.game.tilt;
+    if (tl && b.z <= 0.01 && (b.vx !== 0 || b.vy !== 0)) {
+      const a = TILT.accel * (field.apocalypse ? TILT.apo : 1);
+      b.vx += Math.cos(tl.dir) * a * dt;
+      b.vy += Math.sin(tl.dir) * a * dt;
+      done = true;
+    }
+    return done;
   }
+
+  /** いま効いている傾き（画面が矢印を出すために見る）。無ければ null */
+  function tilt(field) { return (field && field.game && field.game.tilt) || null; }
 
   /** 画面が描くための地形の一覧（物理・ルールと同じものを見る） */
   function terrain(field) { return (field && field.game.terrain) || []; }
@@ -415,10 +476,10 @@ const BilliardsField = (() => {
   }
 
   return {
-    ALL_IDS, DOOR, IDS, PICK_MAX, TERRAIN, CLOTH_SLIDE, CLOTH_ROLL,
+    ALL_IDS, DOOR, IDS, PICK_MAX, TERRAIN, TILT, CLOTH_SLIDE, CLOTH_ROLL,
     blockOf, available, pickMax, create,
     beginGame, beginTurn, beginShot, apply,
-    patches, terrain, terrainAt, floodedPockets,
+    patches, terrain, terrainAt, floodedPockets, tilt,
   };
 })();
 

@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.87';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.88';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules, F = BilliardsField;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -2303,6 +2303,7 @@
     drawGolfSplash();
     drawGolfCard();
     fadeBoardOverlays(view.mobile);   // 盤面に重ねた表示を、狙いにかぶるぶんだけ薄くする
+    drawTiltMark(false);              // 傾きの矢印は端の常設なので、薄くしたあとに描く
     if (S.elevAdjusting) drawElevOverlay();
   }
 
@@ -3421,6 +3422,77 @@
   }
   function dirStripTop() { return topInset(); }
   function cueStripW() { return Math.max(72, Math.min(96, view.w * 0.17)); }
+  /*
+   * ───────── 台の傾き（F-03）の表示 ─────────
+   *
+   * ★**盤面ではなく画面の端に、ずっと出す**（D132）。傾きは1ゲーム中ずっと残るので、
+   *   撞くたびに「どちらへ転がりやすい台か」を見て組み立てられないと、ギミックが読めない。
+   * ★ゲーム開始の1回だけ、**ルーレットが回って向きに落ち着く**（6.6.3節の抽選の演出）。
+   *   向きは field 側でもう引いてある。ここでやるのは**引いた結果の見せ方だけ**で、
+   *   演出のために乱数を引き直したりはしない（引くと通信対戦の相手と別の向きになる）。
+   *   演出は表示層なので実時間（performance.now）を見てよい＝決定論の外。
+   * ★**3Dはカメラが狙いの向きへ回る**ので、盤の向きをそのまま画面の向きにはできない。
+   *   狙いの向きを引き算して「画面の上＝いま狙っている方向」に直してから描く。
+   */
+  const TILT_SPIN_MS = 1500;              // ルーレットが回っている時間
+
+  function tiltMarkRect(is3D) {
+    const R = view.mobile ? 21 : 26;
+    if (is3D) {
+      const p = tipPadRect();             // 3Dの左下は撞点パッドが居るので、その上へ置く
+      return { cx: R + 18, cy: Math.max(R + 70, p.cy - p.r - R - 20), r: R };
+    }
+    return { cx: R + 16, cy: view.h - R - 28, r: R };
+  }
+
+  function drawTiltMark(is3D) {
+    const g = S.game; if (!g || !g.field) return;
+    const tl = F.tilt(g.field); if (!tl) return;
+    // 局が替わったら回し直す。局の見分けは盤面イベント層そのもの（局ごとに作り直される）
+    if (S.tiltSeen !== g.field) { S.tiltSeen = g.field; S.tiltSpunAt = performance.now(); }
+    const age = performance.now() - (S.tiltSpunAt || 0);
+    const spinning = age < TILT_SPIN_MS;
+    /*
+     * 回っている間の見かけの向き。★終わりに向かってゆっくりになり、
+     * **最後は必ず引いた向きに一致する**（k=1 で余りが0になる形にしてある）。
+     * 止まったあとに角度が飛ぶと、見ていた人は別の向きに変わったと受け取る。
+     */
+    let dir = tl.dir;
+    if (spinning) {
+      const k = age / TILT_SPIN_MS;
+      dir = tl.dir + (1 - k) * (1 - k) * Math.PI * 2 * 4;
+    }
+    const rel = dir - (is3D ? S.aim.dir : 0);
+    const ux = Math.sin(rel), uy = -Math.cos(rel);      // 盤の向き → 画面の向き（toScreen と同じ約束）
+    const p = tiltMarkRect(is3D);
+
+    ctx.save();
+    ctx.beginPath(); ctx.arc(p.cx, p.cy, p.r, 0, 7);
+    ctx.fillStyle = 'rgba(20,20,20,.62)'; ctx.fill();
+    ctx.strokeStyle = spinning ? 'rgba(251,146,60,.95)' : 'rgba(255,255,255,.28)';
+    ctx.lineWidth = 1.6; ctx.stroke();
+    // 下り方向を指す矢印。矢じりを外側に置いて「こちらへ転がる」と読ませる
+    const L = p.r * .74;
+    ctx.strokeStyle = spinning ? '#fb923c' : 'rgba(255,255,255,.9)';
+    ctx.lineWidth = Math.max(2, p.r * .12); ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(p.cx - ux * L * .8, p.cy - uy * L * .8);
+    ctx.lineTo(p.cx + ux * L * .35, p.cy + uy * L * .35);
+    ctx.stroke();
+    ctx.fillStyle = spinning ? '#fb923c' : 'rgba(255,255,255,.9)';
+    ctx.beginPath();
+    ctx.moveTo(p.cx + ux * L, p.cy + uy * L);
+    ctx.lineTo(p.cx - uy * L * .38 + ux * L * .34, p.cy + ux * L * .38 + uy * L * .34);
+    ctx.lineTo(p.cx + uy * L * .38 + ux * L * .34, p.cy - ux * L * .38 + uy * L * .34);
+    ctx.closePath(); ctx.fill();
+    // 名前は辞書から。ここに文字列を書かない
+    ctx.font = (view.mobile ? '9px' : '10px') + ' "Noto Sans JP",sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillStyle = 'rgba(255,255,255,.72)';
+    ctx.fillText(t('gim.F-03'), p.cx, p.cy + p.r + 3);
+    ctx.restore();
+  }
+
   function tipPadRect() {
     const R = Math.min(80, Math.max(46, view.w * 0.14));
     return { cx: R + 16, cy: view.h - R - 16, r: R };
@@ -3677,6 +3749,7 @@
     drawCueStrip();
     drawTipPad();
     fadeBoardOverlays(false);         // 3Dのタイトルは帯の上なので玉では薄くしない
+    drawTiltMark(true);
     if (S.elevAdjusting) drawElevOverlay();
   }
 

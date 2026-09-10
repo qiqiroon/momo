@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.93';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.94';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules, F = BilliardsField;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -2292,6 +2292,11 @@
     if (g.rule === 'G-10' && g.golf && g.golf.layout) drawGroundBlobs(g.golf.layout.hazards || []);
     // 異常モードの可変地形＝水たまりと氷の領域（6.7.3節）。同じく芝の一部として敷く
     if (g.field) drawGroundBlobs(F.terrain(g.field));
+    /*
+     * 異常モードのブラックホール（6.6.4節）。**ポケットより先に描く**＝
+     * 重なったときにポケットの口が穴の上に見える（口が見えていることが置き場所の条件・6.8.3節）。
+     */
+    if (g.field) drawBlackHole(F.hole(g.field));
     // ダイヤ（レール上の目印）。位置は外周の辺から決まる（形ごとの並べ書きはしない）
     ctx.fillStyle = 'rgba(255,240,215,.55)';
     const off = thick / s * .5;                 // 枠の帯の真ん中まで外へ出す
@@ -2488,6 +2493,102 @@
    * ★別々に書くと、片方だけ縁の描き方が変わって「見えている縁」と
    *   「効いている縁」がずれる。輪郭はどれも T.blobRadius を通す。
    */
+  /**
+   * ブラックホール（6.6.4節）を2Dで描く。
+   *
+   * 見せるものは2つ ── **どこまで引かれるか（作用圏）** と **どこへ入ったら落ちるか（事象の地平線）**。
+   * ★**大きさも濃さも、field の1か所からもらう**（F.HOLE・F.holeAccel）。
+   *   画面側に別の式を書くと、引力を直した日に**見えている圏と効いている圏がずれる。**
+   * ★**渦の位相だけは実時間で回す。**盤面の時計は撞いていない間止まるので、
+   *   それで描くと狙っている最中に渦が凍りつく（地震の画面揺れと同じ理由）。
+   */
+  function drawBlackHole(h) {
+    if (!h) return;
+    const g = S.game, s = view.s, H = F.HOLE;
+    const c = toScreen(h.x, h.y);
+    const R = H.radius * s, rh = H.horizon * s;
+    ctx.save();
+    tablePath(g.table); ctx.clip('evenodd');     // 圏は台の外へはみ出してよいが、絵は台の中だけ（6.8.4節）
+    /*
+     * ★**穴と霧は1枚のぼかしで描く**（利用者指示・第59セッション）。
+     *   もとは「真っ黒な円を描いて、その縁に線を引き、外側に別の霧を敷く」形にしていたが、
+     *   **輪郭の線があると「黒い円板が置いてある」ように見え、穴に見えない。**
+     *   線を1本も引かず、**中心の真っ黒から外へ向かって濃さが落ちるひと続き**にする。
+     *
+     * ★**濃さは引力の強さそのものから作る**（画面側に別の式を書かない）。
+     *   地平線の中は真っ黒（＝ここへ入ったら落ちる）で、そこから外は
+     *   **引力の強さに比例して薄くなる**。地平線のところで濃さがちょうど1になるよう
+     *   そろえてあるので、**黒と霧の境目に段差が出ない。**
+     */
+    const top = F.holeAccel(g.field, 0) || 1;
+    const uh = H.horizon / H.radius;                        // 地平線の位置（作用半径に対する割合）
+    const edge = F.holeAccel(g.field, H.horizon) / top || 1; // 地平線での強さ（ここを1にそろえる）
+    const gr = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, R);
+    gr.addColorStop(0, 'rgba(0,0,0,1)');
+    gr.addColorStop(uh, 'rgba(0,0,0,1)');
+    for (let i = 1; i <= 7; i++) {
+      const u = uh + (1 - uh) * (i / 7);
+      const a = Math.pow(Math.max(0, F.holeAccel(g.field, u * H.radius) / top / edge), HOLE_FOG_POW);
+      gr.addColorStop(Math.min(1, u), 'rgba(2,0,8,' + a.toFixed(3) + ')');
+    }
+    ctx.fillStyle = gr;
+    ctx.beginPath(); ctx.arc(c.x, c.y, R, 0, 7); ctx.fill();
+    /*
+     * 渦＝吸い込まれていく向きを見せる。**乱数を引かない**（腕の番号から作る）。
+     * 毎コマ引くと渦が毎コマ別物になり、回っているように見えない。
+     *
+     * ★**回す向きは、腕のねじれと逆にする**（利用者指示）。
+     *   腕は内側ほど遅れてねじれているので、**ねじれの向きへ回すと外へ吐き出すように見え、
+     *   逆へ回すと内へ巻き込むように見える。**同じ絵でも、回す向きだけで吸い込みが逆になる。
+     */
+    const now = performance.now() / 1000;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let k = 0; k < 5; k++) {
+      const ph = -now * 0.9 + k * (Math.PI * 2 / 5);
+      ctx.beginPath();
+      for (let i = 0; i <= 28; i++) {
+        const u = i / 28;                                  // 0＝地平線ぎわ、1＝外縁
+        const rr = rh + (R - rh) * u;
+        const a = ph + (1 - u) * 3.4;                      // 内側ほどねじれる
+        const x = c.x + Math.cos(a) * rr, y = c.y + Math.sin(a) * rr;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = 'rgba(150,120,220,.10)';
+      ctx.lineWidth = Math.max(1, 2.2 * s);
+      ctx.stroke();
+    }
+    ctx.restore();
+    /*
+     * 吸い込まれた瞬間の演出（玉が消えた理由が見えるように）。
+     * ★**玉は丸いまま、縮みながら中心へ吸い込まれる。**
+     *   いちど「中心へ向かって細長く伸びる」形にしたが、**不自然だと言われて取りやめた**
+     *   （利用者指示・第59セッション）。玉の形は変えない。
+     *   輪を出すと「落ちた」ではなく「弾けた」に見えるので、輪も描かない。
+     */
+    const fx = S.holeFx;
+    if (fx && fx.length) {
+      const nw = performance.now();
+      for (let i = fx.length - 1; i >= 0; i--) {
+        const k = (nw - fx[i].at) / HOLE_FX_MS;
+        if (k >= 1) { fx.splice(i, 1); continue; }
+        const q = toScreen(fx[i].x + (h.x - fx[i].x) * k, fx[i].y + (h.y - fx[i].y) * k);
+        const rr = (fx[i].r || T.R) * s * (1 - k) * (1 - k);
+        ctx.save();
+        ctx.globalAlpha = (1 - k) * 0.9;
+        ctx.beginPath(); ctx.arc(q.x, q.y, Math.max(0.5, rr), 0, 7);
+        ctx.fillStyle = fx[i].color || '#f4f4f4'; ctx.fill();
+        ctx.restore();
+      }
+    }
+    ctx.restore();
+  }
+  const HOLE_FX_MS = 460;
+  /*
+   * 霧の薄れ方（見せ方だけの値）。1 なら引力そのままの落ち方で、
+   * 大きいほど中心の近くへ黒が寄る。**物理には触らない。**
+   */
+  const HOLE_FOG_POW = 1.6;
   function drawGroundBlobs(list) {
     if (!list || !list.length) return;
     const g = S.game, s = view.s;
@@ -3777,6 +3878,54 @@
     }
 
     /*
+     * ★ブラックホール（6.6.4節）も台面に描く。**3Dが出るのは「構える」段だけ**なので、
+     *   ここに出ていないと**穴の位置を確かめてから狙う**（6.8.6節）ができない。
+     *   大きさは field の1か所からもらう。輪は透視投影で折れ線に落とす（ハウスと同じ手）。
+     */
+    const hl3 = g.field ? F.hole(g.field) : null;
+    if (hl3) {
+      const ring3 = radius => {
+        const pts = [];
+        for (let i = 0; i < 48; i++) {
+          const a = 2 * Math.PI * i / 48;
+          const q = proj(hl3.x + Math.cos(a) * radius, hl3.y + Math.sin(a) * radius, 0.5);
+          if (q) pts.push(q);
+        }
+        if (pts.length < 3) return false;
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+        ctx.closePath();
+        return true;
+      };
+      /*
+       * 作用圏＝薄い影を外から内へ重ね、中心へ向かって濃くする。
+       * ★**濃さは引力の強さに比例させる**（2Dと同じ考え）。
+       *   ここを別の式で書いたら、外側の輪ほど濃くなって**真っ黒な楕円**になった
+       *   ＝2Dは薄いのに3Dだけ真っ黒、という食い違いが出た。
+       */
+      const top3 = F.holeAccel(g.field, 0) || 1;
+      for (let i = 10; i >= 1; i--) {
+        const u = i / 10;
+        const a = F.holeAccel(g.field, u * F.HOLE.radius) / top3;
+        if (a <= 0.001) continue;
+        if (!ring3(F.HOLE.radius * u)) continue;
+        ctx.fillStyle = 'rgba(2,0,8,' + (0.16 * a).toFixed(3) + ')';
+        ctx.fill();
+      }
+      /*
+       * ★**線は1本も引かない**（利用者指示・第59セッション。2Dと同じ）。
+       *   輪郭の線があると「黒い円板が置いてある」ように見えて、穴に見えない。
+       *   地平線は**輪を何枚か重ねて黒を濃くする**ことで、霧から段差なくつながる。
+       */
+      for (let i = 4; i >= 1; i--) {
+        if (!ring3(F.HOLE.horizon * (1 + i * 0.55))) continue;
+        ctx.fillStyle = 'rgba(0,0,0,.42)'; ctx.fill();
+      }
+      if (ring3(F.HOLE.horizon)) { ctx.fillStyle = '#000'; ctx.fill(); }
+    }
+
+    /*
      * ★カーリング型の的（ハウス）を台面に描く（利用者指示）。
      * **玉より先に描くので玉の下に敷かれる。**円周を透視投影で折れ線に落とす。
      * 台面すれすれ（z=0.5）に置き、2Dの drawHouse と同じ同心円4本＋ホグ円にする。
@@ -4548,6 +4697,18 @@
          */
         const flooded = g.field && g.field.game.flooded && g.field.game.flooded[e.pocket];
         AU.sfx(flooded ? 'splash' : 'pocket');
+      } else if (e.type === 'offtable' && e.cause === 'hole') {
+        /*
+         * ブラックホールへ落ちた（6.8.5節）。**扱いは場外**だが、
+         * 見た目と音が無いと玉が消えた理由が分からないので、ここだけ演出を足す。
+         * ★鳴らすのは**出来事を受け取ったこの場**である。実時間で予約すると、
+         *   画面が等速で進まない場面（空中の玉・観戦の追いつき）で音だけ別の時刻に鳴る。
+         */
+        AU.sfx('swallow');
+        // 伸びていく残像を出すので、玉の色と大きさも控える
+        const gone = g.world.balls.find(b => b.id === e.ball);
+        (S.holeFx = S.holeFx || []).push({ x: e.x, y: e.y, at: performance.now(),
+          color: gone ? gone.color : '#f4f4f4', r: gone ? gone.r : T.R });
       }
       // 着地は watchJumps が玉の高さから見ている（ふわりと落ちた場合も拾うため）
     }

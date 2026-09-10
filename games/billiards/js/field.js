@@ -45,7 +45,7 @@ const BilliardsField = (() => {
    *   片方を書き忘れれば「入っているのに選べない」か「無いのに選べる」になる。
    *   ルール（RULE_IDS）・台形状（SHAPE_IDS）と同じ形にしてある。
    */
-  const IDS = ['F-01', 'F-03', 'F-06', 'F-07', 'F-08'];
+  const IDS = ['F-01', 'F-03', 'F-05', 'F-06', 'F-07', 'F-08'];
 
   /** 同時に選べる数の上限（6.5.1節）。既定は3種で確定値。apocalypse だけ引き上げる（付録B.2節送り） */
   const PICK_MAX = 3;
@@ -468,6 +468,204 @@ const BilliardsField = (() => {
   }
 
   /*
+   * ───────── ブラックホール（F-05）─────────
+   *
+   * やることは3つ ── **中心へ引く／事象の地平線へ入った玉を落とす／ターン開始時に位置を1つ決める**
+   * （6.6.4節・6.8節）。
+   *
+   * ★**効く相手が地震・傾きと違う。静止球にも効く**（6.2.3節の例外）。
+   *   穴はターンが終われば消えるので、静止球が動き出してもターンは終わる。
+   * ★**空中の玉には効かない**（D192）。帰結として**ジャンプショットは穴を跳び越える回避手段**になる。
+   * ★**引力は壁を透過するが、落下は遮られる**（6.8.4節）。ドーナツ型の島の向こうにある玉は
+   *   引かれて壁へ押し付けられるだけで、消えることはない。
+   *   「壁の向こうから玉が消える」ほうが盤面として理解しがたい、という判断である。
+   */
+  const HOLE = {
+    /*
+     * 作用半径。**A-01 標準長方形の短辺の 1/3**（6.6.4節・本文で確定＝付録B送りではない）。
+     * ★**全16形状で同じ絶対値**を使う。形ごとに最小幅から出すと、
+     *   L字や星型の細い腕で極端に小さくなり、ギミックとして働かなくなる。
+     */
+    radius: BilliardsTable.PLAY_H / 3,
+    /** 事象の地平線の半径 mm（付録B送り）。ここへ入った玉は速度によらず落ちる（6.8.5節） */
+    horizon: 60,
+    /** 中心での引力 mm/s^2（付録B送り）。外縁へ向かって下の形で 0 まで落ちる */
+    accel: 20000,
+    /*
+     * 距離依存の形（付録B送り）。a(d) = accel · (1 - d/R)^falloff
+     * ★**外縁でちょうど0になる形でなければならない**（6.6.4節「境界の内外で不連続に切り替わらない」）。
+     *   万有引力の 1/d^2 は外縁で0にならないので使えない。
+     * ★**この形は「強さ」より効く。**^2 は力のほとんどを中心のすぐ近くに集めてしまうので、
+     *   圏の縁を通る玉はほとんど曲がらない（実測：縁寄りを 1.6m/s で通して 3°）。
+     *   利用者の指摘「作用エリアに入ったら軌道が曲がってほしい」に効くのはこちらである
+     *   （^1 にすると同じ通り道で 47°）。**中心の強さを上げるだけでは縁は変わらない。**
+     */
+    falloff: 1,
+    /** apocalypse は強度だけを引き上げる（6.2.5節）。地震・傾き・突風と同じ倍率 */
+    apo: 1.8,
+    /** 位置を引く試行回数。足りなければ下の格子探索へ落ちる（6.8.3節の手順2） */
+    tries: 800,
+    /** 手順2の格子の細かさ */
+    grid: [72, 36],
+  };
+
+  /**
+   * 中心から d mm の地点の引力（mm/s^2）。作用圏の外は 0。
+   *
+   * ★**物理も画面もこの1つの式から出す。**画面側に別の式を書くと、
+   *   強さを直した日に**見えている圏と効いている圏がずれる**（地震のときと同じ話）。
+   */
+  function holeAccel(field, d) {
+    const R = HOLE.radius;
+    if (!(d < R)) return 0;
+    const k = (field && field.apocalypse) ? HOLE.apo : 1;
+    return HOLE.accel * k * Math.pow(1 - d / R, HOLE.falloff);
+  }
+
+  /**
+   * 静止した玉が動き出さない距離 mm（6.8.2節）。
+   *
+   * ★**独立した設定値として持たない。**「引力が静止摩擦を上回らない距離」を、
+   *   上の引力の式と**エンジンの停止判定**から導く。
+   * ★このゲームに静止摩擦係数そのものは無い（5.5.1節は摩擦を滑りと転がりの2つでしか定めていない）。
+   *   静止摩擦の役をしているのは**停止判定**である ── 1刻みで足される速さが STOP_V に届かなければ、
+   *   その刻みの末尾で0へ戻されるので、玉は何刻み待っても動き出さない。
+   *   （台の傾きのときに「静止球は動き出さない」の検査が空振りした、あの仕掛けがここでは土台になる）
+   * ★摩擦は無視してよい。摩擦は**さらに減らす向き**にしか働かないので、この距離は安全側に出る。
+   */
+  function holeKeepAway(field) {
+    const E = BilliardsEngine;
+    const stopA = E.STOP_V / E.DT;                 // これ以上の加速度でなければ静止球は動き出さない
+    const k = (field && field.apocalypse) ? HOLE.apo : 1;
+    /*
+     * ★**どんなに引力が弱くても、玉の上には開けない。**
+     *   導き出される距離は引力を下げるほど短くなり、引力 4000 では 9mm まで縮む。
+     *   9mm では**穴が玉に重なる＝ターン開始と同時にその玉が地平線の内側に居る**ことになり、
+     *   撞く前に消える。6.8.2節が言う「動き出さない距離」は動き出す側の下限であって、
+     *   **落ちない側の下限は別にある。**地平線＋玉半径をそこに置く。
+     */
+    const floor = HOLE.horizon + BilliardsTable.R;
+    const ratio = stopA / (HOLE.accel * k);
+    if (!(ratio < 1)) return floor;                // 中心でも静止摩擦に届かない＝どこへ置いても動かない
+    return Math.max(floor, HOLE.radius * (1 - Math.pow(ratio, 1 / HOLE.falloff)));
+  }
+
+  /** 玉と穴の中心のあいだに壁があるか（6.8.4節）。引力は透過するが**落下だけ**を遮る */
+  function holeBlocked(table, x, y, h) {
+    const T = BilliardsTable;
+    const N = 12;
+    for (let i = 1; i < N; i++) {
+      const t = i / N;
+      if (T.clearance(table, x + (h.x - x) * t, y + (h.y - y) * t) < 0) return true;
+    }
+    return false;
+  }
+
+  /**
+   * ブラックホールの位置を1つ決める（6.8.1節・6.8.3節）。**共有シードから引く。**
+   *
+   * 制約には優先順位があり、満たせなければ**下位から順に緩める。**
+   *   1. 玉との距離（緩めない。満たす位置が無ければ手順2で**代替する**）
+   *   2. 中心は盤面の内側（緩めない）
+   *   3. ポケットを完全に覆わない（緩めない）
+   *   4. 固定障害物・バンパーと重ならない（緩める。★第3段階＝いまは台に存在しない）
+   *   5. 可変地形と重ならない（緩める）
+   *
+   * ★**第1順位が絶対なのは、生成した瞬間に玉が動き出す事態を避けるため**である。
+   *   静止球にも引力が働くので、玉のすぐ横に穴が開けば撞く前に盤面が勝手に変わる。
+   */
+  function drawHole(field, rng, table, balls) {
+    const T = BilliardsTable;
+    const keep = holeKeepAway(field);
+    const live = (balls || []).filter(b => b && b.state === 'live');
+    const terr = (field && field.game && field.game.terrain) || [];
+    const cx = (table.center && table.center.x) || 0;
+    const cy = (table.center && table.center.y) || 0;
+    // 第2・第3順位。どちらも緩めない
+    const hard = (x, y) => {
+      if (T.clearance(table, x, y) <= 0) return false;
+      for (const p of (table.pockets || [])) {
+        /*
+         * ★**部分的な重なりは許す**（6.8.3節）。ポケットの口の中心が地平線の外にあれば、
+         *   口は見えているし投入も成立する。完全に覆うとポケットが盤面から消えたように見える。
+         */
+        if (Math.hypot(x - p.x, y - p.y) <= HOLE.horizon) return false;
+      }
+      return true;
+    };
+    const farFromBalls = (x, y) => {
+      for (const b of live) if (Math.hypot(x - b.x, y - b.y) < keep) return false;
+      return true;
+    };
+    const offTerrain = (x, y) => {
+      for (const h of terr) {
+        if (Math.hypot(x - h.x, y - h.y) < h.r * T.GOLF_BLOB_MAX + HOLE.horizon) return false;
+      }
+      return true;
+    };
+    /*
+     * pass 0 … 第5順位まで全部満たす位置を探す
+     * pass 1 … 第4・第5順位を緩める（重なりを許す。地形の物性はそのまま働く）
+     * ★**引く回数は盤面によらず同じにしてある**（見つかったら抜けるので実際の消費は変わるが、
+     *   どの道（本物・AIの読み・リプレイ・観戦）も同じ盤面から同じ順に引くので食い違わない）。
+     */
+    for (let pass = 0; pass < 2; pass++) {
+      for (let i = 0; i < HOLE.tries; i++) {
+        const x = cx + (rng() * 2 - 1) * table.halfW;
+        const y = cy + (rng() * 2 - 1) * table.halfH;
+        if (!hard(x, y)) continue;
+        if (!farFromBalls(x, y)) continue;
+        if (pass === 0 && !offTerrain(x, y)) continue;
+        return { x, y, relaxed: pass > 0 };
+      }
+    }
+    /*
+     * 手順2（6.8.3節）＝**第1順位を緩めるのではなく、代替する。**
+     * 盤面全体を候補として「最も近い玉との距離が最大になる位置」を選ぶ。
+     * ★乱数を引かない＝並べる順が決まっているので、どの道でも同じ位置になる。
+     * ★ここまで来るのは、玉が多く残り、かつ台が狭い場合に限られる。
+     *   それでも引力が静止摩擦を上回る玉が出たら、その玉はターン開始時から動き出す（D352）。
+     *   吸われるか圏内で止まるかに落ち着くので、全球停止は成立する。
+     */
+    const [NX, NY] = HOLE.grid;
+    let best = null, bestD = -1;
+    for (let i = 0; i < NX; i++) {
+      for (let j = 0; j < NY; j++) {
+        const x = cx + ((i + 0.5) / NX * 2 - 1) * table.halfW;
+        const y = cy + ((j + 0.5) / NY * 2 - 1) * table.halfH;
+        if (!hard(x, y)) continue;
+        let d = Infinity;
+        for (const b of live) d = Math.min(d, Math.hypot(x - b.x, y - b.y));
+        if (d > bestD) { bestD = d; best = { x, y, relaxed: true, fallback: true }; }
+      }
+    }
+    /*
+     * ★**「そのターンは発生させない」という扱いは採らない**（6.8.3節）。
+     *   格子のどこも盤面の内側でない台は無いので、ここで null が返ることは無いはずだが、
+     *   万一そうなったら中心へ寄せて置く。
+     */
+    if (best) return best;
+    const c = T.clampInside ? T.clampInside(table, cx, cy, 0) : { x: cx, y: cy };
+    return { x: c.x, y: c.y, relaxed: true, fallback: true };
+  }
+
+  /** いま台に開いている穴（画面と検査が見る）。無ければ null */
+  function hole(field) { return (field && field.turn && field.turn.hole) || null; }
+
+  /**
+   * この玉は穴へ落ちたか（6.8.5節）。engine の落球判定から呼ぶ。
+   *
+   * ★**速度の大小は問わない。**地平線の外にとどまる限り、どれだけ強く引かれていても落ちない。
+   * ★**空中の玉は落ちない**（引力も受けていない）。
+   */
+  function swallow(field, b, table) {
+    const h = hole(field);
+    if (!h || !b || b.z > 0.01) return false;
+    if (Math.hypot(b.x - h.x, b.y - h.y) >= HOLE.horizon) return false;
+    return !holeBlocked(table, b.x, b.y, h);
+  }
+
+  /*
    * ───────── 可変地形（F-07 水たまり／F-08 氷の領域）─────────
    *
    * 物理は**専用の処理を持たない**（5.11.1節）。「氷の上では摩擦が低い」とは、
@@ -805,10 +1003,30 @@ const BilliardsField = (() => {
     field.game.flooded = floodedPockets(field, table);
   }
 
-  /** ターン開始時（そのターンだけのもの＝ブラックホール・テレポの対・番号シャッフル） */
+  /**
+   * ターン開始時（そのターンだけのもの＝ブラックホール・テレポの対・番号シャッフル）。
+   *
+   * ★**同じ番で二度引かない。**手番を始め直す道（デッドロックの否決など）でここが二度呼ばれても、
+   *   盤面が変わらないようにしておかないと乱数列が食い違う。鍵（key）は手番の番号。
+   * ★**盤面を組み直したときだけは引き直す**（force）。盤が変われば玉の位置が変わるので、
+   *   前の盤に合わせて置いた穴は玉の上に乗る＝ターン開始時から玉が吸われ始める。
+   */
   function beginTurn(field, rng, ctx) {
     if (!field) return;
-    field.turn = {};
+    const key = ctx && ctx.key;
+    const force = !!(ctx && ctx.force);
+    if (!force && key != null && field.turn && field.turn.key === key) return;
+    field.turn = { key };
+    const table = ctx && ctx.table;
+    if (!table) return;
+    /*
+     * 玉は2つの出どころから来る ── 盤面を組んだ直後は組み上がった玉の配列、
+     * 手番送りのときは今の盤面。**どちらも「玉が止まっている時点」である。**
+     */
+    const balls = (ctx && ctx.balls)
+      || (ctx && ctx.game && ctx.game.world && ctx.game.world.balls)
+      || [];
+    if (field.has('F-05')) field.turn.hole = drawHole(field, rng, table, balls);
   }
 
   /**
@@ -969,6 +1187,32 @@ const BilliardsField = (() => {
       done = true;
     }
     /*
+     * F-05 ブラックホール（6.6.4節）。**盤面に接している玉を、中心へ向かって引く。**
+     *
+     * ★条件は**静止球を外さない**（6.2.3節の例外。穴はターンが終われば消える）。
+     *   ここで速度を見て外すと、「穴の近くにある玉は、触れたら吸われる」という盤面が
+     *   「撞いた玉しか吸われない」に変わり、ギミックが別物になる。
+     * ★**空中の玉は外す**（D192）。ジャンプショットが回避手段になるのはこの1行の帰結である。
+     * ★**加速度である**（突風とは違って dt を掛ける）。一瞬の出来事ではなく、
+     *   ターンのあいだ鳴り続けている引力なので、時間ぶんだけ効く。
+     * ★静止している玉が動き出すかどうかは、ここでは判定しない。
+     *   停止判定（engine の STOP_V）が静止摩擦の役をしていて、
+     *   引力が弱ければ足した速度はその刻みの末尾で0へ戻される（holeKeepAway の注記）。
+     */
+    const hl = hole(field);
+    if (hl && b.z <= 0.01) {
+      const dx = hl.x - b.x, dy = hl.y - b.y;
+      const d = Math.hypot(dx, dy);
+      if (d > 1e-6) {
+        const a = holeAccel(field, d);
+        if (a > 0) {
+          b.vx += dx / d * a * dt;
+          b.vy += dy / d * a * dt;
+          done = true;
+        }
+      }
+    }
+    /*
      * F-06 突風（6.6.5節）。**その1刻みだけ、全球へ同じ向きの速度を足す。**
      *
      * ★**条件を書かない**のがこのギミックの中身である。
@@ -1104,10 +1348,11 @@ const BilliardsField = (() => {
   }
 
   return {
-    ALL_IDS, DOOR, IDS, PICK_MAX, TERRAIN, TILT, QUAKE, GUST, CLOTH_SLIDE, CLOTH_ROLL,
+    ALL_IDS, DOOR, IDS, PICK_MAX, TERRAIN, TILT, QUAKE, GUST, HOLE, CLOTH_SLIDE, CLOTH_ROLL,
     blockOf, available, pickMax, create,
     beginGame, beginTurn, beginShot, apply,
     patches, terrain, terrainAt, floodedPockets, tilt,
+    hole, holeAccel, holeKeepAway, holeBlocked, swallow,
     quakeLevel, quakeWander, quakeAccel, quakeShift, quakeJitter,
     gustTick, gustAxis, gustStart, gustFront, gustVary, gustStreaks,
   };

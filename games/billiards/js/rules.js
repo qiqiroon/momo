@@ -315,7 +315,18 @@ const BilliardsRules = (() => {
      */
     table.patches = (table.basePatches || []).concat(F.patches(game.field));
     const o = Object.assign({}, opts || {}, { field: game.field || null });
-    return E.createWorld(table, balls, game.tuning, o);
+    const w = E.createWorld(table, balls, game.tuning, o);
+    /*
+     * ★**ターン開始時のギミック（ブラックホールの位置）は、盤面を組んだ直後にも引き直す。**
+     *   引くには玉の位置が要る（玉のすぐ横に穴を開けない＝6.8.1節の第1順位）ので、
+     *   玉の並ぶ前に呼ばれる beginGame では引けない。
+     *   ★ここは**盤面を組み直す3か所（玉並べ・バンキング・ゴルフのホール切り替え）が
+     *   必ず通る1か所**である。呼ぶ場所を3つに分けると、どれか1つで書き忘れて
+     *   「その盤面でだけ穴が前の盤の位置に開く」という食い違いになる。
+     */
+    F.beginTurn(game.field, game.rng,
+      { key: game.turnNo || 0, table, balls: w.balls, force: true });
+    return w;
   }
 
   function createGame(cfg) {

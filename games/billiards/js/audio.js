@@ -509,6 +509,45 @@ const BilliardsAudio = (() => {
     src.start(t); src.stop(t + dur + 0.02);
   }
 
+  /**
+   * ブラックホールへ吸い込まれた音（6.8.5節）。**その場で作る＝素材を増やさない。**
+   *
+   * ★**音程を滑らせる発振器は使わない。**滑らかに下がる「ピュー」は電子音に聞こえる
+   *   （記憶側の教訓）。雑音を共鳴させ、**共鳴する高さのほうを落とす**と、
+   *   同じ「下がっていく」でも吸い込まれる息づかいに聞こえる（地鳴りと同じ作り）。
+   * ★**長さは吸われ方で変えない。**落ちるのは一瞬の出来事なので、長く鳴らすと
+   *   「吸い続けている」音になる。
+   */
+  function suck(strength) {
+    if (!audioOn || !ctx || !sfxGain) return;
+    const s = Math.max(0.15, Math.min(1, strength == null ? 0.8 : strength));
+    const dur = 0.62;
+    const t = ctx.currentTime + 0.005;
+    const n = Math.ceil(ctx.sampleRate * dur);
+    const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < n; i++) {
+      last = last * 0.86 + (Math.random() * 2 - 1) * 0.14;
+      d[i] = Math.max(-1, Math.min(1, last * 3.2));
+    }
+    const src = ctx.createBufferSource(); src.buffer = buf;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 5.5;
+    bp.frequency.setValueAtTime(1150, t);
+    bp.frequency.exponentialRampToValueAtTime(95, t + dur);      // 落ちていく＝遠ざかる
+    const g = ctx.createGain();
+    /*
+     * ★消え際は**後ろ4割で落とす**（突風の絵と音でそろえたのと同じ形）。
+     *   最初からじわじわ薄くすると、後半がほとんど聞こえない。
+     */
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.85 * s, t + 0.05);
+    g.gain.setValueAtTime(0.85 * s, t + dur * 0.6);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(bp).connect(g).connect(sfxGain);
+    src.start(t); src.stop(t + dur + 0.02);
+  }
+
   function beep(freq, dur, peak, delay) {
     if (!audioOn || !ctx || !sfxGain) return;
     const t = ctx.currentTime + 0.005 + (delay || 0);
@@ -576,6 +615,7 @@ const BilliardsAudio = (() => {
       case 'iceRub': rubOn('ice', s); break;        // 氷の上を砕きながら滑る
       case 'iceOff': rubOff('ice'); break;          // 氷から出た（その場で切る）
       case 'splash': water('splash', s); break;     // 池ポチャ・水の入ったポケットへ落ちた
+      case 'swallow': suck(s); break;               // ブラックホールへ吸い込まれた（6.8.5節）
       case 'tick': beep(1046, 0.07, 0.22); break;        // 残り5秒からの秒読み
       case 'timeup': beep(392, 0.16, 0.30); beep(294, 0.30, 0.26, 0.14); break;
       case 'turn': tick2(880, 1318); break;   // 自分の手番

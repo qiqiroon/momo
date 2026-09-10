@@ -852,6 +852,21 @@ const BilliardsEngine = (() => {
         }
         if (dropped) continue;
       }
+      /*
+       * ブラックホールの事象の地平線（6.8.5節）。**落ちたら場外扱いで、ポケットインとはみなさない。**
+       * ★ポケットとの前後関係に優先順位は設けない＝**先に到達したほうが成立する**（6.8.5節）。
+       *   同じ刻みで両方に届いた時だけポケットが先になるが、それは物理の帰結の丸めであって
+       *   規則が決めていることではない。
+       * ★穴が開いているかどうかを知っているのは盤面イベント層だけである。
+       *   ここで穴の位置や引力の式を持たない（持つと、強さを直した日に片方だけ古くなる）。
+       */
+      if (w.field && BilliardsField.swallow(w.field, b, table)) {
+        b.state = 'off'; b.onTable = false;
+        b.vx = b.vy = b.vz = b.wx = b.wy = b.wz = 0;
+        // 落ちた場所も添える（画面がそこへ吸い込まれる絵を出すため）。cause で場外と区別する
+        w.events.push({ type: 'offtable', cause: 'hole', ball: b.id, x: b.x, y: b.y, tick: w.tick });
+        continue;
+      }
       // 台の内外は外周（台定義データ）から見る。外接矩形で見ると六角形以降で
       // 「壁は六角形なのに場外は長方形で数える」ことになり、角の外に玉が残る。
       const clear = BilliardsTable.clearance(table, b.x, b.y);   // 内側が正・外側が負
@@ -1021,7 +1036,13 @@ const BilliardsEngine = (() => {
   }
 
   return {
-    DT, G, V_MAX, BALL_M, BALL_E,
+    /*
+     * ★STOP_V を外へ出しているのは、**これが静止摩擦の役をしている**からである（6.8.2節）。
+     *   ブラックホールが玉と空ける距離は「引力が静止摩擦を上回らない距離」として導く決まりだが、
+     *   このゲームには静止摩擦係数が無く、静止球が動き出すかどうかを実際に決めているのは
+     *   この停止判定である。**同じ数を field 側に書き写さない**（片方だけ古くなる）。
+     */
+    DT, G, V_MAX, BALL_M, BALL_E, STOP_V,
     makeBall, createWorld, cloneWorld,
     applyCue, isMiscue, step, runShot, allStopped, firstContact,
     contactSlip, nearestOnSeg, nearestOnRail, timeBallRail,

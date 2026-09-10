@@ -190,6 +190,14 @@ const BilliardsAudio = (() => {
      * 凍る質感の持続部に、ゆっくりにした滑りを重ねてある＝砕きながら擦れていく音。
      */
     iceSlide: ASSETS + 'se/se-ice-slide.mp3',
+    /*
+     * 突風（異常モードの F-06）。効果音ラボ「寒いギャグで突風が吹く」を
+     * 切り詰めてモノラル64kbpsへ落としたもの（97.3KB → 11.2KB）。
+     * ★**最初は合成音で作ったが、利用者から「ただのノイズに聞こえる」と指摘を受けた。**
+     *   帯を動かすだけでは「さー」が明るくなるだけで、風と分かる「高さ」にならない。
+     *   共鳴させた雑音を重ねる手まで試したが、利用者判断で素材へ切り替えた。
+     */
+    windGust: ASSETS + 'se/se-wind-gust.mp3',
   };
   const sfxBufs = new Map(), sfxLoading = new Map();
   const sfxHead = new Map();     // 素材ごとの「頭の無音」の長さ（秒）
@@ -553,6 +561,16 @@ const BilliardsAudio = (() => {
       case 'fly': boing(s, seconds); break;                                           // 飛んでいる間のぴょーん
       case 'foul': tick2(330, 220); break;
       case 'quake': rumble(s, seconds); break;                                      // 地震の地鳴り
+      /*
+       * 突風のひゅう（6.6.5節）。★**長さは風の強さで変えない**
+       *   （一瞬・一回限りだから。長く鳴らすと「吹き続けている」音になる）。
+       *   強さは音量と高さ（再生の速さ）で出す。
+       */
+      /*
+       * ★音量は**地鳴りと同じ大きさにそろえてある**（実測：素材そのままだと平均 0.054 で
+       *   地鳴り 0.105 の半分。1.8倍でほぼ並ぶ。山は 0.63 で頭打ちしない）。
+       */
+      case 'gust': playBuf('windGust', { gain: 1.3 + 0.6 * s, rate: 0.96 + 0.10 * s }); break;
       case 'wade': rubOn('water', s); break;         // 池・水たまりを進むじゃぶじゃぶ
       case 'wadeOff': rubOff('water'); break;       // 水から出た（その場で切る）
       case 'iceRub': rubOn('ice', s); break;        // 氷の上を砕きながら滑る

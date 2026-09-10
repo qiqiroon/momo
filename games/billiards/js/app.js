@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.92';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.93';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules, F = BilliardsField;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -1255,6 +1255,12 @@
     if (!S.catchUp && g.field && g.field.shot.quake) {
       AU.sfx('quake', g.field.apocalypse ? 1 : 0.9, F.QUAKE.decay * 2);
     }
+    /*
+     * 突風の風音（6.6.5節の演出）は**ここでは鳴らさない。**
+     * 吹くのは撞いた瞬間ではなく 0.3 秒あとなので、下の watchGust が
+     * **盤面の時計が吹く刻みを跨いだところ**で鳴らす。ここでは目印を戻すだけ。
+     */
+    S.gustSeen = 0;
     S.pre = pre;
     S.phase = 'rolling';
     S.evCursor = 0;
@@ -2348,6 +2354,8 @@
     drawDroppedFlash();
     drawGolfSplash();
     drawGolfCard();
+    // 突風の風の縞（6.6.5節）。**空を通るものなので玉の上**に描く
+    drawGustStreaks();
     // ★ここから先は画面に固定の表示なので、台のずれを戻してから描く
     if (quake) { view.cx -= quake.y * s; view.cy += quake.x * s; }
     fadeBoardOverlays(view.mobile);   // 盤面に重ねた表示を、狙いにかぶるぶんだけ薄くする
@@ -2363,6 +2371,51 @@
    *   バンカー（砂）と池（水）は**芝の一部**なので、クロスの上・玉の下に敷く。
    *   木だけは玉として盤に立っているので、玉を描くところで木の形に描き替える。
    */
+  /*
+   * ───────── 突風の風の縞（6.6.5節の演出・利用者指示・第58セッション） ─────────
+   *
+   * 白い帯を風の向きへ伸ばし、まとめて風下へ流す。
+   *
+   * ★**先頭の先端が、そのまま物理の前線である。**
+   *   位置は field の1つの式（gustStreaks）からもらう。画面側に別の式を書くと、
+   *   **「縞が通り過ぎたのに動かない玉」が出る**（地震のときと同じ話）。
+   *   玉は先端が自分の場所へ届いた瞬間に動き出すので、**風上の玉から順に**動き始める。
+   *
+   * ★**乱数を引かない。**縞の幅・長さ・濃さは本数から作る。
+   *   毎コマ引くと縞がちらついて、風でなく雑音に見える。
+   */
+  function drawGustStreaks() {
+    const g = S.game;
+    if (!g || !g.field) return;
+    const st = F.gustStreaks(g.field, g.world.shotTick, g.table);
+    if (!st) return;
+    ctx.save();
+    tablePath(g.table);               // 台の内側だけに描く（枠へはみ出さない）
+    ctx.clip('evenodd');
+    for (let i = 0; i < st.back.length; i++) {
+      /*
+       * ★**帯は進む向きと直交している。**前縁が風下側、後縁が風上側。
+       *   i=0 の帯の前縁だけは、そのまま物理の前線である（field 側で back[0]=0 にしてある）。
+       */
+      const front = st.head - st.back[i];        // この帯の前縁（風軸の座標）
+      const rear = front - st.thick[i];          // 後縁
+      const m = st.mid[i], h = st.half[i];
+      const at = (a, k) => toScreen(st.dx * a + st.px * (m + k), st.dy * a + st.py * (m + k));
+      const f0 = at(front, 0), r0 = at(rear, 0);
+      // 後縁へ向かって薄れる＝押し寄せてくる面に見える
+      const grad = ctx.createLinearGradient(r0.x, r0.y, f0.x, f0.y);
+      grad.addColorStop(0, 'rgba(255,255,255,0)');
+      grad.addColorStop(0.6, 'rgba(255,255,255,' + (st.alpha[i] * 0.6).toFixed(4) + ')');
+      grad.addColorStop(1, 'rgba(255,255,255,' + st.alpha[i].toFixed(4) + ')');
+      const a1 = at(front, -h), a2 = at(front, h), a3 = at(rear, h), a4 = at(rear, -h);
+      ctx.beginPath();
+      ctx.moveTo(a1.x, a1.y); ctx.lineTo(a2.x, a2.y); ctx.lineTo(a3.x, a3.y); ctx.lineTo(a4.x, a4.y);
+      ctx.closePath();
+      ctx.fillStyle = grad; ctx.fill();
+    }
+    ctx.restore();
+  }
+
   const GOLF_SAND_FILL = '#d9c489';
   const GOLF_WATER_FILL = '#2f6fb0';
 
@@ -3126,6 +3179,25 @@
    * ふわりと落ちた場合も拾えるよう、玉の高さの移り変わりから自分で見る。
    * 跳ねた高さを覚えておき、それを音と絵の大きさにする。
    */
+  /**
+   * 突風が吹いた瞬間に風音を鳴らす（6.6.5節の演出）。
+   *
+   * ★**「撞いてから0.3秒後」と秒で予約してはいけない。**画面は等速で進まない
+   *   （空中の玉が居る間は5分の1の速さ・利用者が動きの速さを変えられる・
+   *   観戦の追いつきでは一気に走らせる）ので、予約すると**音だけ別の時刻に鳴る。**
+   *   **盤面の時計が吹く刻みを跨いだところ**で鳴らす＝効き目と同じ1か所から取る。
+   * ★ショットの時計は全球停止で0に戻るので、前より小さくなった＝次のショット。
+   *   跨いだかどうかで見ているので、そのときは鳴らない。
+   */
+  function watchGust() {
+    const g = S.game;
+    if (!g || !g.field || !g.field.shot.gust) return;
+    const k = F.gustTick();
+    const was = S.gustSeen || 0, now = g.world.shotTick;
+    S.gustSeen = now;
+    if (was < k && now >= k) AU.sfx('gust', g.field.apocalypse ? 1 : 0.85);
+  }
+
   function watchJumps() {
     const g = S.game; if (!g) return;
     const air = S.airZ || (S.airZ = {});
@@ -4397,6 +4469,8 @@
           watchJumps();                     // 刻みごとに見る。着地を跨いで見落とさないため
         }
         drainEvents();
+        // 刻みごとでなく1コマに1回でよい。跨いだかどうかで見るので、飛ばした刻みも拾える
+        if (!S.catchUp) watchGust();
         if (E.allStopped(S.game.world)) { S.phase = 'idle'; finishShot(); }
       } else if (S.replayRun) {
         for (let i = 0; i < steps; i++) {

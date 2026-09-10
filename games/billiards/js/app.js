@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.88';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.89';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules, F = BilliardsField;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -1247,6 +1247,14 @@
     E.applyCue(cue, shot);
     // 音は「撞いた手応え」なので、物理の値ではなく見えている目盛りに合わせる（カーリング型は幅が違う）
     if (!S.catchUp) { AU.sfx('cue', Math.min(1, RU.aimPower(g.rule, shot.power))); setMsg(t('ph.rolling')); }
+    /*
+     * 地震の地鳴り（6.6.2節の演出）。★**揺れが弱まりきるまでの長さで鳴らす。**
+     *   音だけ先に消えると「揺れているのに静か」になり、音だけ残るとその逆になる。
+     * ★追いつき直しの最中は鳴らさない（過去の手を黙って並べ直しているため）。
+     */
+    if (!S.catchUp && g.field && g.field.shot.quake) {
+      AU.sfx('quake', g.field.apocalypse ? 1 : 0.9, F.QUAKE.decay * 2);
+    }
     S.pre = pre;
     S.phase = 'rolling';
     S.evCursor = 0;
@@ -1927,6 +1935,31 @@
   // 確定した時点で必ず取り直す（携帯で台が上下に欠けるのはこれを取りこぼしたとき）
   if (window.ResizeObserver) new ResizeObserver(resizeBoard).observe($('board-pane'));
 
+  /*
+   * ───────── 地震の揺れ（6.6.2節の演出）─────────
+   *
+   * ★**毎コマの先頭で1回だけ作り、2Dも3Dもここから取る。**
+   *   描くところそれぞれで計算すると、台と玉が別々の瞬間の揺れで描かれてずれる。
+   * ★**玉のぶれは描くときだけ足す。**玉の座標そのものは1ミリも動かさないので、
+   *   何コマ描いても累積しない（累積させると静止球が流れて全球停止が壊れる）。
+   * ★時計は実時間。**ショットとショットのあいだは盤面が進まない**ので、
+   *   盤面の時計で描くと狙っている最中に画面が凍りつく。
+   *   演出は結果に影響しないので実時間でよい（5.2.4節）。
+   */
+  let quakeFrame = null;
+  function beginQuakeFrame(g) {
+    quakeFrame = null;
+    if (!g || !g.field || !g.field.shot.quake) return null;
+    const rolling = g.world.shotTick > 0;
+    quakeFrame = { field: g.field, tick: g.world.shotTick, now: performance.now() / 1000, rolling };
+    return F.quakeShift(quakeFrame.field, quakeFrame.tick, quakeFrame.now, rolling);
+  }
+  /** その玉のぶれ（台の座標・mm）。揺れていなければ null */
+  function quakeOf(b) {
+    if (!quakeFrame) return null;
+    return F.quakeJitter(quakeFrame.field, quakeFrame.tick, quakeFrame.now, quakeFrame.rolling, b);
+  }
+
   function toScreen(tx, ty) { return { x: view.cx + ty * view.s, y: view.cy - tx * view.s }; }
   function toTable(sx, sy) { return { x: (view.cy - sy) / view.s, y: (sx - view.cx) / view.s }; }
 
@@ -2101,7 +2134,9 @@
 
   function drawBall2D(b, s, alpha) {
     if (b.hazardKind === 'tree') { drawGolfTree(b, s, alpha); return; }
-    const p = toScreen(b.x, b.y);
+    // 地震のぶれ。★描く位置にだけ足す（b.x・b.y は触らない）
+    const jt = quakeOf(b);
+    const p = jt ? toScreen(b.x + jt.x, b.y + jt.y) : toScreen(b.x, b.y);
     const r0 = b.r * s;
     /*
      * 真上から見た絵では、高さは影との離れ具合でしか分からない。
@@ -2217,6 +2252,17 @@
     const table = g.table, s = view.s;
     ctx.clearRect(0, 0, view.w, view.h);
 
+    /*
+     * 地震で台が揺れる（6.6.2節）。★**台の座標で描くものだけがずれる。**
+     *   toScreen の原点をずらすので、台・玉・地形はまとめて動き、
+     *   画面に固定の表示（傾きの矢印・仰角の目盛りなど）は動かない。
+     *   **玉は台の上では動いていない**＝静止球は台と一緒に画面上を動くだけである。
+     * ★盤面が止まっている間はずれが0になる（揺れの時計が0へ戻るため）。
+     *   狙っている最中に画面が動くことはない。
+     */
+    const quake = beginQuakeFrame(g);
+    if (quake) { view.cx += quake.y * s; view.cy -= quake.x * s; }
+
     const a = toScreen(table.halfW, -table.halfH), b = toScreen(-table.halfW, table.halfH);
     const thick = 34 * s + 10;
     if (table.frameStyle === 'rect') {
@@ -2302,6 +2348,8 @@
     drawDroppedFlash();
     drawGolfSplash();
     drawGolfCard();
+    // ★ここから先は画面に固定の表示なので、台のずれを戻してから描く
+    if (quake) { view.cx -= quake.y * s; view.cy += quake.x * s; }
     fadeBoardOverlays(view.mobile);   // 盤面に重ねた表示を、狙いにかぶるぶんだけ薄くする
     drawTiltMark(false);              // 傾きの矢印は端の常設なので、薄くしたあとに描く
     if (S.elevAdjusting) drawElevOverlay();
@@ -3506,6 +3554,15 @@
     const fx = Math.cos(dir), fy = Math.sin(dir);
     const pull = S.aim.power;
     const cam = { x: cue.x - fx * CAM.back, y: cue.y - fy * CAM.back, z: CAM.height };
+    /*
+     * 地震（6.6.2節）。カメラは部屋に固定で、動くのは台のほうである。
+     * ★台の座標で見ると、カメラが**逆向きに**動いたことになる。
+     *   こうすると台・玉・地形がまとめて揺れ、画面に固定の表示は揺れない。
+     * ★3Dが描かれるのは「構える」段だけなので、ここで効くのは**常時の揺れ**である
+     *   （撞いた瞬間の強い揺れは2Dで見ることになる）。
+     */
+    const quake = beginQuakeFrame(g);
+    if (quake) { cam.x -= quake.x; cam.y -= quake.y; }
     const p = CAM.pitch;
     const f = { x: fx * Math.cos(p), y: fy * Math.cos(p), z: -Math.sin(p) };
     const r = { x: -f.y, y: f.x, z: 0 };
@@ -3685,7 +3742,9 @@
     }
 
     const live = g.world.balls.filter(b => b.state === 'live')
-      .map(b => ({ b, p: proj(b.x, b.y, b.z + b.r) })).filter(o => o.p)
+      // 地震のぶれ。★描く位置にだけ足す（2Dと同じ）
+      .map(b => { const j = quakeOf(b); return { b, p: proj(b.x + (j ? j.x : 0), b.y + (j ? j.y : 0), b.z + b.r) }; })
+      .filter(o => o.p)
       .sort((m, n) => n.p.z - m.p.z);
     for (const o of live) drawBall3D(o.b, o.p.x, o.p.y, scale * o.b.r / o.p.z);
 

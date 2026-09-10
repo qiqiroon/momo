@@ -45,11 +45,82 @@ const BilliardsField = (() => {
    *   片方を書き忘れれば「入っているのに選べない」か「無いのに選べる」になる。
    *   ルール（RULE_IDS）・台形状（SHAPE_IDS）と同じ形にしてある。
    */
-  const IDS = ['F-03', 'F-07', 'F-08'];
+  const IDS = ['F-01', 'F-03', 'F-07', 'F-08'];
 
   /** 同時に選べる数の上限（6.5.1節）。既定は3種で確定値。apocalypse だけ引き上げる（付録B.2節送り） */
   const PICK_MAX = 3;
   const PICK_MAX_APOCALYPSE = 5;        // 暫定。付録B.2節で詰める
+
+  /*
+   * ───────── 地震（F-01）─────────
+   *
+   * やることは1つだけ＝**転がっている玉へ、揺れの向きの行ったり来たりする加速度を足す**（6.6.2節）。
+   * 向きも位相も**全球で共通**なので、盤面全体が同じ瞬間に同じ側へ押される。
+   *
+   * ★**静止球には足さない／空中の玉にも足さない。**傾きとまったく同じ条件である（6.2.3節・D192）。
+   *   「揺れているのに止まっている玉がある」のは非現実だが、ターンが終わることのほうを取る。
+   *
+   * ★**傾きのときの心配（強くすると玉が止まらない）は、地震には当てはまらない。**
+   *   傾きは向きが一定なので氷の上で加速し続けたが、**地震は半周期ごとに押し返す。**
+   *   実測（第57セッション・氷が台の3分の1）でも、安全弁が働いた割合は地震なしと変わらなかった
+   *   （氷だけ 2/116 ⇔ 氷＋地震 0/95）。**だから強さは効き目だけで決めてよい。**
+   */
+  const QUAKE = {
+    /*
+     * 揺れの加速度の山 mm/s^2（付録B送り）。1500 は実測＝止まる場所が 208mm（玉3.6個ぶん）動く。
+     * 利用者判断（第57セッション）＝「傾きと同じくらい」。
+     *
+     * ★**効き目を決めるのは 振幅 ÷ 振動数 だけ**である（実測：振幅800の1Hz＝268mm と
+     *   振幅1600の2Hz＝284mm がほぼ同じ）。**振動数を動かすときは振幅も一緒に動かす。**
+     */
+    amp: 1500,
+    /*
+     * 振動数 Hz（付録B送り）。★物理には効かない（上を見よ）ので、**見た目で決めた値**。
+     * 1Hz は「1回押された」に見え、4Hz は細かすぎて震えに見える。2Hz が「ゆすられている」に見える。
+     */
+    freq: 2,
+    /*
+     * 揺れの弱まり方（付録B送り）＝この秒数で e分の1になる。利用者判断＝「2秒ほどで収まる」。
+     * ★弱めない（ずっと同じ強さで揺れる）と、**画面が7〜10秒揺れ続ける**ことになる。
+     *   氷と重ねたときも、弱めないほうだけ安全弁が働く局が増えた（5/86 ⇔ 弱めれば 0/95）。
+     */
+    decay: 2,
+    /*
+     * ★**常時の揺れの強さ**（撞いた瞬間に対する割合）。利用者判断・第57セッション。
+     *
+     *   地震は**撞いた瞬間だけの出来事ではなく、鳴り続けている状況**である。
+     *   ゼロまで弱まらず、この割合で揺れ続ける。撞くと山まで跳ね上がり、
+     *   decay 秒かけてここへ戻る。
+     * ★**狙っている最中も揺れる**のはこの値があるからで、
+     *   3Dの構え画面が揺れるのも同じ理由（3Dは構える段でしか描かれない）。
+     * ★**この揺れは玉にも効く。**見えているのに効かない揺れを作らない。
+     *   そのぶん止まる場所が動くので、振幅はこの値を入れたうえで測り直してある。
+     */
+    ambient: 0.25,
+    /** apocalypse は強度だけを引き上げる（6.2.5節）。傾きと同じ倍率にそろえてある */
+    apo: 1.8,
+    /*
+     * ★**画面の揺れだけを大きく見せる倍率**（利用者判断・第57セッション）。
+     *
+     *   物理どおりに描くと、台は**±9.5mm しか動かない**（画面で2px）。
+     *   玉が玉3.5個ぶんもずれるのは、この小さな揺れが数秒ぶん積み重なるからで、
+     *   **一瞬の見た目が小さいのは正しい。**正しいが、地震だと分からない。
+     *   そこで**見せるほうだけ大きくする**＝「台の揺れ」ではなく
+     *   「揺すられている自分から見た揺れ」を描く、という見立てである。
+     * ★倍率は**画面上で何画素動くか**から決めた（利用者判断）。
+     *   標準長方形では 1270mm が 306px＝0.24 px/mm なので、
+     *   6倍で**常時が 7px・撞いた瞬間が 27px**（端から端）になる。
+     *   **玉の動きはこの値に一切影響されない。**
+     * ★**倍率はここ1つだけ。**画面側に別の式を書かない（見えている揺れと
+     *   効いている揺れが、直しても片方だけ古くなる）。
+     */
+    view: 6,
+    /*
+     * ★**玉ひとつひとつのぶれ**（台の揺れ幅に対する割合。利用者指示・第57セッション）。
+     *   これも**描くときだけ**のもので、本当の位置は動かさない（累積しない）。
+     */
+    jitter: 0.35,
+  };
 
   /*
    * ───────── 台の傾き（F-03）─────────
@@ -407,6 +478,16 @@ const BilliardsField = (() => {
       const k = Math.floor(rng() * TILT.dirs) % TILT.dirs;
       field.game.tilt = { k, dir: k * Math.PI * 2 / TILT.dirs, dirs: TILT.dirs };
     }
+    /*
+     * ★**地震の向きを、ここでも1つ引いておく。**
+     *   地震はショット開始時に引き直すもの（下の beginShot）だが、
+     *   **AIは撞く前に読む**ので、読みの時点では「1つ前のショットの向き」しか無い。
+     *   1手目だけはそれも無く、**AIだけが地震の無い盤面を読む**ことになる（6.10.1節が名指しで戒める形）。
+     *   ここで1つ用意しておけば、どの手でもAIは「地震のある盤面」を読む。
+     * ★向きが本物と違うのは承知のうえである。**AIが本物の向きを先に知ると、
+     *   人には出せない補正ができてしまう。**向きは毎回一様に引くので、有利にも不利にもならない。
+     */
+    if (field.has('F-01')) field.shot.quake = drawQuake(rng);
     const table = ctx && ctx.table;
     if (!table) return;
     field.game.terrain = placeTerrain(field, rng, table);
@@ -419,10 +500,66 @@ const BilliardsField = (() => {
     field.turn = {};
   }
 
-  /** ショット開始時（そのショットだけのもの＝地震の位相・突風の向きと遅れ） */
+  /**
+   * 揺れの向きを1つ引く（6.6.2節）。
+   * ★**全方位から連続で引く。**傾きのように8方位へ丸めない（付録B送り・第57セッション）。
+   *   丸める理由は傾きのほう＝「この台は右下へ転がりやすい」と覚えて使う対象だから、矢印と言葉で
+   *   言い切れる形にする、というものだった。**地震は毎ショットの事故で、覚える対象ではない。**
+   */
+  function drawQuake(rng) {
+    const dir = rng() * Math.PI * 2;
+    return { dir, dx: Math.cos(dir), dy: Math.sin(dir) };
+  }
+
+  /** ショット開始時（そのショットだけのもの＝地震の向き・突風の向きと遅れ） */
   function beginShot(field, rng, ctx) {
     if (!field) return;
     field.shot = {};
+    if (field.has('F-01')) field.shot.quake = drawQuake(rng);
+  }
+
+  /**
+   * いまの揺れの強さ（加速度 mm/s^2）。**符号つき**で、正が揺れの向き。
+   * 物理も画面もこの1つの式から出す。★2つ持つと、**見えている揺れと効いている揺れがずれる。**
+   *
+   * ★位相は shotTick から作る＝**ショットが始まった瞬間が押し始め**。
+   *   毎ショット位相を引き直すと、最初の半周期の押しと次の半周期の押し返しが打ち消し合って、
+   *   **止まる場所が揺れの向きへまったく偏らなくなる**（実測：向きへ 0mm ⇔ 位相をそろえれば 30〜50mm）。
+   *   6.6.2節は「盤面全体が同じ向きに押される現象として読める」ことを求めているので、そろえる。
+   */
+  /**
+   * いまの揺れの強さ（加速度の山 mm/s^2）。**符号を持たない大きさだけ。**
+   *
+   * @param {boolean} rolling 玉が転がっているか。false は「盤面が止まっている間の常時の揺れ」
+   *
+   * ★**物理も画面もここ1つから強さをもらう。**別々に持つと、
+   *   強さを変えた日に片方だけ古くなる（見えている揺れと効いている揺れがずれる）。
+   */
+  function quakeLevel(field, shotTick, rolling) {
+    const q = field && field.shot && field.shot.quake;
+    if (!q) return 0;
+    const amp = QUAKE.amp * (field.apocalypse ? QUAKE.apo : 1);
+    if (!rolling) return amp * QUAKE.ambient;
+    // ★刻みの長さは engine の値をそのまま借りる。ここに 1/480 を書き写すと、
+    //   刻みを変えた日に**片方だけ古くなる**（同じ表を2か所に持たない）
+    const t = (shotTick || 0) * BilliardsEngine.DT;  // ショットが始まってからの秒数
+    return amp * (QUAKE.ambient + (1 - QUAKE.ambient) * Math.exp(-t / QUAKE.decay));
+  }
+
+  /**
+   * その刻みで玉へ足す加速度（符号つき）。正が揺れの向き。
+   *
+   * ★位相は shotTick から作る＝**ショットが始まった瞬間が押し始め**。
+   *   毎ショット位相を引き直すと、最初の半周期の押しと次の半周期の押し返しが打ち消し合って、
+   *   **止まる場所が揺れの向きへまったく偏らなくなる**（実測：向きへ 0mm ⇔ そろえれば 30〜50mm）。
+   *   6.6.2節は「盤面全体が同じ向きに押される現象として読める」ことを求めているので、そろえる。
+   * ★**転がっている玉にしか呼ばれない**ので、強さは常に rolling 側で取る。
+   */
+  function quakeAccel(field, shotTick) {
+    const q = field && field.shot && field.shot.quake;
+    if (!q) return 0;
+    const t = (shotTick || 0) * BilliardsEngine.DT;
+    return quakeLevel(field, shotTick, true) * Math.sin(2 * Math.PI * QUAKE.freq * t);
   }
 
   /**
@@ -439,14 +576,26 @@ const BilliardsField = (() => {
    * ギミックごとに違うので、判断はこの中で行う。engine には持ち込まない。
    *
    * @param {object} field
-   * @param {object} b     玉
-   * @param {number} tick  ゲーム内時間（刻み数）
-   * @param {number} dt    1刻みの秒数
-   * @param {object} table 台
+   * @param {object} b        玉
+   * @param {number} tick     ゲーム内時間（刻み数。ゲーム開始から増え続ける）
+   * @param {number} dt       1刻みの秒数
+   * @param {object} table    台
+   * @param {number} shotTick そのショットが始まってからの刻み数（全球停止で0に戻る）
    */
-  function apply(field, b, tick, dt, table) {
+  function apply(field, b, tick, dt, table, shotTick) {
     if (!field) return false;
     let done = false;
+    /*
+     * F-01 地震（6.6.2節）。転がっている玉だけに、揺れの向きの行ったり来たりする加速度。
+     * ★条件の2つは傾きと同じで、どちらも外せない（空中の玉＝D192／静止球＝6.2.3節）。
+     * ★向きも位相も全球で共通なので、ここで玉ごとに何かを引いてはいけない。
+     */
+    if (field.shot.quake && b.z <= 0.01 && (b.vx !== 0 || b.vy !== 0)) {
+      const a = quakeAccel(field, shotTick);
+      b.vx += field.shot.quake.dx * a * dt;
+      b.vy += field.shot.quake.dy * a * dt;
+      done = true;
+    }
     /*
      * F-03 台の傾き（6.6.3節）。転がっている玉だけに、傾き方向の一定の加速度。
      * ★条件の2つはどちらも外せない。
@@ -466,6 +615,57 @@ const BilliardsField = (() => {
   /** いま効いている傾き（画面が矢印を出すために見る）。無ければ null */
   function tilt(field) { return (field && field.game && field.game.tilt) || null; }
 
+  /**
+   * いま台がどれだけ横へずれているか（mm）。画面を揺らすために見る。
+   * 揺れていなければ null。
+   *
+   * ★**揺れ幅は目分量で決めない。**加速度が a·sin(ωt) なら、台の位置は -a/ω^2·sin(ωt) である。
+   *   強さは物理と同じ quakeLevel からもらい、**見せるための倍率（QUAKE.view）だけを最後に掛ける。**
+   *   こうすると、強さを変えたときに画面の揺れも必ず一緒に動く。
+   *   （振幅1500・2Hz なら台は山で 9.5mm。画面はその3倍。常時はその4分の1）
+   * ★静止球も台と一緒に画面上を動く。**台の上では動いていない**（6.6.2節「演出のみ」）。
+   *
+   * ★**位相だけは実時間の通し時計で回す**（now）。物理の位相はショットの時計から作るが、
+   *   ショットとショットのあいだは**盤面が進まないのでその時計は止まる。**
+   *   常時の揺れをそれで描くと、狙っている最中に画面が凍りつく。
+   *   演出の時計は結果に影響しないので実時間でよい（5.2.4節が演出を決定論の外に置いている）。
+   *
+   * @param {number} shotTick そのショットが始まってからの刻み数
+   * @param {number} now      実時間の通し時計（秒）
+   * @param {boolean} rolling 玉が転がっているか
+   */
+  function quakeShift(field, shotTick, now, rolling) {
+    const q = field && field.shot && field.shot.quake;
+    if (!q) return null;
+    const w = 2 * Math.PI * QUAKE.freq;
+    const d = -quakeLevel(field, shotTick, rolling) / (w * w) * QUAKE.view
+      * Math.sin(w * (now || 0));
+    return { x: q.dx * d, y: q.dy * d, dir: q.dir, amount: d };
+  }
+
+  /**
+   * その玉を**描くときだけ**足すぶれ（演出。利用者指示・第57セッション）。
+   * 揺れていなければ null。
+   *
+   * ★**本当の位置は1ミリも動かさない。**だから、ぶれは何回描いても累積しない。
+   *   玉の座標へ足し込むと、静止球が少しずつ流れていって全球停止が壊れる。
+   * ★**乱数を引かない。**玉の番号から向きを作る。
+   *   仕様書 5.2.4節は「演出用の乱数を共有シードのPRNGから取ってはならない」と定めており、
+   *   かといって Math.random を毎コマ引くと**玉が痙攣して見える**（コマごとに向きが飛ぶ）。
+   *   番号から作れば、玉ごとに違う向きで、なめらかに震える。
+   * ★台の揺れより**速く・小さく**震わせる。同じ速さだと台と一緒に動いて見えず、
+   *   同じ大きさだと玉が台から浮いて見える。
+   */
+  function quakeJitter(field, shotTick, now, rolling, ball) {
+    const q = field && field.shot && field.shot.quake;
+    if (!q) return null;
+    const w = 2 * Math.PI * QUAKE.freq;
+    const amt = quakeLevel(field, shotTick, rolling) / (w * w) * QUAKE.view * QUAKE.jitter;
+    const k = (ball && ball.id != null ? ball.id : 0) * 2.39996;   // 黄金角。玉ごとに向きをばらす
+    const t = (now || 0) * w;
+    return { x: Math.sin(t * 1.7 + k) * amt, y: Math.sin(t * 2.3 + k * 1.7 + 1.1) * amt };
+  }
+
   /** 画面が描くための地形の一覧（物理・ルールと同じものを見る） */
   function terrain(field) { return (field && field.game.terrain) || []; }
   /** その点がいずれかの地形の中か。中なら地形を返す（音と演出が使う） */
@@ -476,10 +676,11 @@ const BilliardsField = (() => {
   }
 
   return {
-    ALL_IDS, DOOR, IDS, PICK_MAX, TERRAIN, TILT, CLOTH_SLIDE, CLOTH_ROLL,
+    ALL_IDS, DOOR, IDS, PICK_MAX, TERRAIN, TILT, QUAKE, CLOTH_SLIDE, CLOTH_ROLL,
     blockOf, available, pickMax, create,
     beginGame, beginTurn, beginShot, apply,
     patches, terrain, terrainAt, floodedPockets, tilt,
+    quakeLevel, quakeAccel, quakeShift, quakeJitter,
   };
 })();
 

@@ -105,6 +105,18 @@ const BilliardsEngine = (() => {
       }, tuning || {}),
       tick: 0,                  // ゲーム内時間＝ステップ数（5.2.3節）
       stall: 0,                 // 全球停止に至らないまま進んだ刻み数（10.9.5節）
+      /*
+       * **そのショットが始まってからの刻み数。**盤面が止まっている間は0で、
+       * 玉が動いている間だけ増える（下の step の末尾を見よ）。
+       *
+       * ★これは tick とは別物である。tick はゲームが始まってからずっと増え続けるので、
+       *   「このショットが始まって何秒たったか」を出すには引く相手が要る。
+       * ★**呼ぶ側に「ショットが始まった」と教えてもらわない。**盤面を進める道は5本あり
+       *   （主ループ・演出無しの一気走らせ・観戦者の追いつき・リプレイ・AIの読み）、
+       *   どれか1本に書き忘れれば、その道だけ時計がずれる。
+       *   **全球停止で0に戻す**と決めておけば、どの道でも同じ時計になる。
+       */
+      shotTick: 0,
       events: [],
       // 刻みごとの通知（step の末尾で呼ぶ）。使い道はエンジンの外が決める
       onAdvance: (opts && opts.onAdvance) || null,
@@ -124,6 +136,13 @@ const BilliardsEngine = (() => {
       tuning: w.tuning,
       tick: w.tick,
       stall: w.stall || 0,      // 安全弁の数え（10.9.5節）も引き継ぐ。落とすとAIの読みだけ打ち切りが遅れる
+      /*
+       * ショットの時計も引き継ぐ。複製は必ず**止まっている盤面**から作られる
+       * （AIは玉が転がっている最中には読まない）ので、ここは 0 のまま渡り、
+       * 複製の側でも1刻み目から数え直しになる。落とすと同じ値だが、
+       * 「引き継ぐもの」の一覧から漏れると、あとで意味が変わったときに気づけない。
+       */
+      shotTick: w.shotTick || 0,
       events: [],
       /*
        * ★盤面イベント層は**引き継ぐ**。onAdvance（下の step の末尾を見よ）とは扱いが逆である。
@@ -793,7 +812,12 @@ const BilliardsEngine = (() => {
        *
        * 摩擦より先に当てる。外力で速度を変えてから、その速度に対して摩擦を効かせる。
        */
-      if (w.field) BilliardsField.apply(w.field, b, w.tick, DT, table);
+      /*
+       * ★渡す時計は2つ。**tick はゲーム開始から／shotTick はショット開始から。**
+       *   揺れの位相のように「このショットが始まって何秒か」で決まるものは
+       *   tick から作れない（ゲームの何手目かで位相が変わってしまう）。
+       */
+      if (w.field) BilliardsField.apply(w.field, b, w.tick, DT, table, w.shotTick);
       applyFriction(b, table, DT);
       // 着地（5.8.3節）
       if (b.z < 0) {
@@ -851,20 +875,26 @@ const BilliardsEngine = (() => {
      *   0に戻すと、次のショットの1刻み目には手玉がもう動いているので**一度も0に戻らず**、
      *   数えが前のショットから積み上がる。ショットの最後の1刻みは必ずここを通る。
      */
-    if (allStopped(w)) w.stall = 0;
-    else if (++w.stall > STALL_LIMIT) {
-      for (const b of w.balls) {
-        if (b.state !== 'live') continue;
-        b.vx = b.vy = b.vz = 0; b.wx = b.wy = b.wz = 0;
-        /*
-         * ★台へ下ろすところまでやる。速度を0にするだけだと、
-         *   空中の玉が**宙に浮いたまま止まる**。全球停止は「盤面に降りて動かない」ことなので、
-         *   浮いたままでは allStopped が永久に成立せず、20秒ごとに同じ処理を繰り返す。
-         */
-        b.z = 0;
+    if (allStopped(w)) {
+      // 盤面が止まっている＝ショットとショットのあいだ。2つの数えをどちらも0へ戻す
+      w.stall = 0; w.shotTick = 0;
+    } else {
+      // 玉が動いている＝ショットの最中。2つの数えを同じ末尾で1つずつ進める
+      w.shotTick++;
+      if (++w.stall > STALL_LIMIT) {
+        for (const b of w.balls) {
+          if (b.state !== 'live') continue;
+          b.vx = b.vy = b.vz = 0; b.wx = b.wy = b.wz = 0;
+          /*
+           * ★台へ下ろすところまでやる。速度を0にするだけだと、
+           *   空中の玉が**宙に浮いたまま止まる**。全球停止は「盤面に降りて動かない」ことなので、
+           *   浮いたままでは allStopped が永久に成立せず、20秒ごとに同じ処理を繰り返す。
+           */
+          b.z = 0;
+        }
+        w.stall = 0;
+        w.events.push({ type: 'stall', tick: w.tick });
       }
-      w.stall = 0;
-      w.events.push({ type: 'stall', tick: w.tick });
     }
 
     /*

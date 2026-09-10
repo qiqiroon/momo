@@ -459,6 +459,48 @@ const BilliardsAudio = (() => {
   }
 
   /** 単音。秒読みと時間切れに使う */
+  /**
+   * 地震のごろごろ（6.6.2節の演出）。
+   *
+   * ★**素材ファイルは増やさない。**低いところへ寄せた雑音をその場で作って鳴らす。
+   *   公開リポジトリに置く音は入れる前に必ず軽くする決まりなので、
+   *   1回きりの地鳴りのために数百KBを永久に抱えない。
+   * ★**長さと弱まり方は、玉を動かしている揺れに合わせる**（呼ぶ側が秒数を渡す）。
+   *   音だけ先に消えると「揺れているのに静か」になり、音だけ残ると逆になる。
+   */
+  function rumble(strength, seconds) {
+    if (!audioOn || !ctx || !sfxGain) return;
+    const s = Math.max(0.15, Math.min(1, strength == null ? 0.7 : strength));
+    const dur = Math.max(0.6, Math.min(8, seconds || 3.5));
+    const t = ctx.currentTime + 0.005;
+
+    // 雑音を作る。前の値を引きずらせると低いほうへ寄る（そのままの雑音は「サー」になる）
+    const n = Math.ceil(ctx.sampleRate * dur);
+    const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < n; i++) {
+      last = last * 0.97 + (Math.random() * 2 - 1) * 0.03;
+      d[i] = Math.max(-1, Math.min(1, last * 8));
+    }
+    const src = ctx.createBufferSource(); src.buffer = buf;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass';
+    /*
+     * ★出だしの通す幅を広めに取る（利用者指示・第57セッション「効果音も大きく」）。
+     *   低く絞りすぎると**音量を上げても「大きくなった」と聞こえない**（耳は低い音に鈍い）。
+     *   大きさは音量と幅の両方で作る。
+     */
+    lp.frequency.setValueAtTime(420, t);
+    lp.frequency.exponentialRampToValueAtTime(80, t + dur);   // 遠のくにつれ低くこもる
+    const g = ctx.createGain();
+    // どんと来て、あとは弱まる。玉へ効いている揺れと同じ形
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.9 * s, t + 0.10);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(lp).connect(g).connect(sfxGain);
+    src.start(t); src.stop(t + dur + 0.02);
+  }
+
   function beep(freq, dur, peak, delay) {
     if (!audioOn || !ctx || !sfxGain) return;
     const t = ctx.currentTime + 0.005 + (delay || 0);
@@ -510,6 +552,7 @@ const BilliardsAudio = (() => {
       case 'pocket': playBuf('bilPocket', { gain: 0.95, rate: vary() }); break;        // 落球
       case 'fly': boing(s, seconds); break;                                           // 飛んでいる間のぴょーん
       case 'foul': tick2(330, 220); break;
+      case 'quake': rumble(s, seconds); break;                                      // 地震の地鳴り
       case 'wade': rubOn('water', s); break;         // 池・水たまりを進むじゃぶじゃぶ
       case 'wadeOff': rubOff('water'); break;       // 水から出た（その場で切る）
       case 'iceRub': rubOn('ice', s); break;        // 氷の上を砕きながら滑る

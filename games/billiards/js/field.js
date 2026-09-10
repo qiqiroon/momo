@@ -94,9 +94,23 @@ const BilliardsField = (() => {
      * ★**狙っている最中も揺れる**のはこの値があるからで、
      *   3Dの構え画面が揺れるのも同じ理由（3Dは構える段でしか描かれない）。
      * ★**この揺れは玉にも効く。**見えているのに効かない揺れを作らない。
-     *   そのぶん止まる場所が動くので、振幅はこの値を入れたうえで測り直してある。
+     * ★**0.25 では「普段の揺れが不自然」だった**（利用者指摘）。ずっと同じ強さで
+     *   きっちり揺れ続けるので、地震というより機械の振動に見える。**5分の1にした上で、
+     *   下の wander でゆっくり増減させる。**
      */
-    ambient: 0.25,
+    ambient: 0.05,
+    /*
+     * ★**常時の揺れは一定にしない**（利用者指示・第57セッション）。
+     *   ambient を中心に**この割合だけ上下へ、ゆっくり**行き来する（0.5＝±50%）。
+     * ★**0 にはしない。**「静止はせず」が指示なので、下限は ambient の半分で止まる。
+     */
+    wander: 0.5,
+    /*
+     * 揺らぎの遅さ（秒）。★**互いに割り切れない2つの周期を重ねる。**
+     *   1つだと同じ波がくり返して機械的に見え、
+     *   毎コマ乱数を引くとがたつく（5.2.4節が演出用の乱数をPRNGから取ることを禁じてもいる）。
+     */
+    wanderSec: [7.3, 3.1],
     /** apocalypse は強度だけを引き上げる（6.2.5節）。傾きと同じ倍率にそろえてある */
     apo: 1.8,
     /*
@@ -116,10 +130,48 @@ const BilliardsField = (() => {
      */
     view: 6,
     /*
-     * ★**玉ひとつひとつのぶれ**（台の揺れ幅に対する割合。利用者指示・第57セッション）。
-     *   これも**描くときだけ**のもので、本当の位置は動かさない（累積しない）。
+     * ★**玉ひとつひとつのぶれ**（利用者指示・第57セッション）。
+     *   **描くときだけ**のもので、本当の位置は動かさない（累積しない）。
+     *   中身は下の jitterLag（すべり）と jitterDrift（位置がずれる）の2つ。
      */
-    jitter: 0.35,
+    /*
+     * ★**ぶれの中身を2つに分ける**（利用者指摘・第57セッション）。
+     *
+     *   最初は「その場で震える」＋「だんだん位置が変わる」で作ったが、
+     *   **「玉が台の揺れにぴったり付いて動いていて、地震の影響を受けて見えない」**
+     *   という指摘を受けた。**そのとおりだった。**
+     *   その場の震えは台の揺れと無関係な向き・速さなので、
+     *   **「台についていっていない」という見え方にはならない。**
+     *
+     *   本物は逆である。**激しく揺れる台の上で玉はすべり、台ほど動かない。**
+     *   だから、**台の揺れそのものを打ち消す向きへ**ずらす。
+     *
+     *   ・**すべり** … 台の揺れに対してついていかない割合。**台と同じ速さ・同じ向きの軸**で効く
+     *   ・**位置がずれる** … すべった結果、玉が少しずつ別の場所へ移っていく
+     */
+    /*
+     * 台の揺れのうち、玉がついていかない割合（0.6＝台の4割しか動かない）。
+     * ★**ここが小さいと「台に貼り付いて動いている」ようにしか見えない**（利用者指摘）。
+     *   台のずれ（山で 57mm）に対して 0.6 なので、玉は台に対して 34mm ほど逆へずれる。
+     */
+    jitterLag: 0.6,
+    /** だんだん位置が変わるぶん（台の揺れ幅に対する割合） */
+    jitterDrift: 0.55,
+    /*
+     * ★**位置がずれるぶんは、大半を「全球そろって」にする。**
+     *   玉ごとにばらばらへ大きく動かすと、**隣どうしが重なって見える**
+     *   （ラックは玉の直径ぴったりで並んでいる）。そろって動けば大きくずらしても重ならず、
+     *   **「盤面全体が同じ向きへ押される」（D54）とも合う。**
+     */
+    driftCommon: 0.75,     // 全球そろって動く重み
+    driftPer: 0.25,        // 玉ごとにばらつく重み
+    /** 位置がずれる速さ（揺れの振動数に対する倍率）。2Hzで周期1.5秒ほど */
+    driftRate: [0.33, 0.43],
+    /*
+     * ★**すべり方は玉ごとに少し変える**（この割合だけ上下する）。
+     *   全球まったく同じにすると、**台の揺れが小さくなっただけ**に見えてしまう。
+     */
+    lagSpread: 0.35,
   };
 
   /*
@@ -535,15 +587,41 @@ const BilliardsField = (() => {
    * ★**物理も画面もここ1つから強さをもらう。**別々に持つと、
    *   強さを変えた日に片方だけ古くなる（見えている揺れと効いている揺れがずれる）。
    */
-  function quakeLevel(field, shotTick, rolling) {
+  /**
+   * 常時の揺れの「ゆっくりした増減」（1を中心に 1±wander の間を行き来する）。
+   *
+   * ★**乱数を引かない。**割り切れない2つの周期を重ねると、くり返しに聞こえない
+   *   ゆらぎになる。重みの合計を1にしてあるので、**必ず 1±wander の中に収まる**
+   *   ＝下限は 1-wander で、**0 にはならない**（利用者指示「静止はせず」）。
+   */
+  function quakeWander(sec) {
+    const [a, b] = QUAKE.wanderSec;
+    const v = 0.6 * Math.sin(2 * Math.PI * (sec || 0) / a)
+      + 0.4 * Math.sin(2 * Math.PI * (sec || 0) / b + 1.7);
+    return 1 + QUAKE.wander * v;
+  }
+
+  /**
+   * いまの揺れの強さ（加速度の山 mm/s^2）。**符号を持たない大きさだけ。**
+   *
+   * @param {boolean} rolling 玉が転がっているか。false は「盤面が止まっている間の常時の揺れ」
+   * @param {number}  sec     ゆらぎ用の時計（秒）。物理はショットの時計から、画面は実時間から渡す
+   *
+   * ★**物理も画面もここ1つから強さをもらう。**別々に持つと、
+   *   強さを変えた日に片方だけ古くなる（見えている揺れと効いている揺れがずれる）。
+   * ★**ゆっくりした増減がかかるのは常時のぶんだけ。**撞いた瞬間の山まで揺らすと、
+   *   同じ撞き方でも本震の強さが毎回変わってしまう。
+   */
+  function quakeLevel(field, shotTick, rolling, sec) {
     const q = field && field.shot && field.shot.quake;
     if (!q) return 0;
     const amp = QUAKE.amp * (field.apocalypse ? QUAKE.apo : 1);
-    if (!rolling) return amp * QUAKE.ambient;
+    const base = QUAKE.ambient * quakeWander(sec);
+    if (!rolling) return amp * base;
     // ★刻みの長さは engine の値をそのまま借りる。ここに 1/480 を書き写すと、
     //   刻みを変えた日に**片方だけ古くなる**（同じ表を2か所に持たない）
     const t = (shotTick || 0) * BilliardsEngine.DT;  // ショットが始まってからの秒数
-    return amp * (QUAKE.ambient + (1 - QUAKE.ambient) * Math.exp(-t / QUAKE.decay));
+    return amp * (base + (1 - QUAKE.ambient) * Math.exp(-t / QUAKE.decay));
   }
 
   /**
@@ -559,7 +637,8 @@ const BilliardsField = (() => {
     const q = field && field.shot && field.shot.quake;
     if (!q) return 0;
     const t = (shotTick || 0) * BilliardsEngine.DT;
-    return quakeLevel(field, shotTick, true) * Math.sin(2 * Math.PI * QUAKE.freq * t);
+    // ★ゆらぎの時計も**ショットの時計から**渡す。実時間を渡すと物理が決定論でなくなる
+    return quakeLevel(field, shotTick, true, t) * Math.sin(2 * Math.PI * QUAKE.freq * t);
   }
 
   /**
@@ -638,7 +717,7 @@ const BilliardsField = (() => {
     const q = field && field.shot && field.shot.quake;
     if (!q) return null;
     const w = 2 * Math.PI * QUAKE.freq;
-    const d = -quakeLevel(field, shotTick, rolling) / (w * w) * QUAKE.view
+    const d = -quakeLevel(field, shotTick, rolling, now) / (w * w) * QUAKE.view
       * Math.sin(w * (now || 0));
     return { x: q.dx * d, y: q.dy * d, dir: q.dir, amount: d };
   }
@@ -653,17 +732,41 @@ const BilliardsField = (() => {
    *   仕様書 5.2.4節は「演出用の乱数を共有シードのPRNGから取ってはならない」と定めており、
    *   かといって Math.random を毎コマ引くと**玉が痙攣して見える**（コマごとに向きが飛ぶ）。
    *   番号から作れば、玉ごとに違う向きで、なめらかに震える。
-   * ★台の揺れより**速く・小さく**震わせる。同じ速さだと台と一緒に動いて見えず、
-   *   同じ大きさだと玉が台から浮いて見える。
+   * ★**「その場で震える」と「だんだん位置が変わる」を重ねる**（利用者指示「本物に寄せて」）。
+   *   速い震えだけだと機械の振動に見える。**遅くて大きいほうを主にする。**
+   * ★遅いほうも行って戻る波なので、**どれだけ長く揺れても玉が流れていくことはない。**
    */
   function quakeJitter(field, shotTick, now, rolling, ball) {
     const q = field && field.shot && field.shot.quake;
     if (!q) return null;
     const w = 2 * Math.PI * QUAKE.freq;
-    const amt = quakeLevel(field, shotTick, rolling) / (w * w) * QUAKE.view * QUAKE.jitter;
-    const k = (ball && ball.id != null ? ball.id : 0) * 2.39996;   // 黄金角。玉ごとに向きをばらす
+    const base = quakeLevel(field, shotTick, rolling, now) / (w * w) * QUAKE.view;
+    const k = (ball && ball.id != null ? ball.id : 0) * 2.39996;   // 黄金角。玉ごとに変える
     const t = (now || 0) * w;
-    return { x: Math.sin(t * 1.7 + k) * amt, y: Math.sin(t * 2.3 + k * 1.7 + 1.1) * amt };
+
+    /*
+     * ①**すべり** ── 台の揺れを打ち消す向きへ、その割合だけ戻す。
+     *   台がこちらへ動いた瞬間、玉は**そこまで付いていかない**。
+     *   ★**台の揺れと同じ式・同じ向き・同じ位相**から作るのが要点である。
+     *     別の向きや速さで震わせると、「台についていっていない」という見え方にはならない
+     *     （最初にそれで作って、利用者から「地震の影響を受けて見えない」と指摘された）。
+     * ★すべり方は玉ごとに少し変える。全球同じだと**台の揺れが小さくなっただけ**に見える。
+     */
+    const shift = -base * Math.sin(t);                       // = 台のずれ（quakeShift と同じ式）
+    const lag = -shift * QUAKE.jitterLag * (1 + QUAKE.lagSpread * Math.sin(k * 1.7));
+
+    /*
+     * ②**だんだん位置が変わる** ── すべった結果、玉が少しずつ別の場所へ移る。
+     *   ★行って戻る波なので、**どれだけ長く揺れても玉が流れていくことはない**（累積しない）。
+     */
+    const [d1, d2] = QUAKE.driftRate;
+    const amt = base * QUAKE.jitterDrift;
+    const dx = (Math.sin(t * d1) * QUAKE.driftCommon
+      + Math.sin(t * d1 * 1.27 + k) * QUAKE.driftPer) * amt;
+    const dy = (Math.sin(t * d2 + 1.1) * QUAKE.driftCommon
+      + Math.sin(t * d2 * 1.19 + k * 1.3) * QUAKE.driftPer) * amt;
+
+    return { x: q.dx * lag + dx, y: q.dy * lag + dy };
   }
 
   /** 画面が描くための地形の一覧（物理・ルールと同じものを見る） */
@@ -680,7 +783,7 @@ const BilliardsField = (() => {
     blockOf, available, pickMax, create,
     beginGame, beginTurn, beginShot, apply,
     patches, terrain, terrainAt, floodedPockets, tilt,
-    quakeLevel, quakeAccel, quakeShift, quakeJitter,
+    quakeLevel, quakeWander, quakeAccel, quakeShift, quakeJitter,
   };
 })();
 

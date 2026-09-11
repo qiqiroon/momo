@@ -324,9 +324,25 @@ const BilliardsRules = (() => {
      *   必ず通る1か所**である。呼ぶ場所を3つに分けると、どれか1つで書き忘れて
      *   「その盤面でだけ穴が前の盤の位置に開く」という食い違いになる。
      */
-    F.beginTurn(game.field, game.rng,
-      { key: game.turnNo || 0, table, balls: w.balls, force: true });
+    F.beginTurn(game.field, game.rng, {
+      key: game.turnNo || 0, table, balls: w.balls, force: true,
+      reserved: reservedPockets(game), seat: game.turn, seats: activeCount(game),
+    });
     return w;
+  }
+
+  /**
+   * **ルールが意味を与えているポケット**（テレポートポケットの対から外す。6.6.9節・付録B）。
+   *
+   * いまのところゴルフ型の指定ポケット（そのホールで沈める穴）だけである。
+   * ★ここを外さないと、そのターンは**カップが塞がって沈めようがなくなり**、
+   *   打ち切りの倍率と重なって運だけで大叩きになる（利用者判断・第60セッション）。
+   * ★**この判断は rules 側にしか書けない。**「どのポケットに意味があるか」を知っているのは
+   *   ルールだけで、盤面イベント層はポケットを位置と口径としてしか見ていない。
+   */
+  function reservedPockets(game) {
+    const pk = game && game.golf && game.golf.layout && game.golf.layout.pocket;
+    return (pk && pk.id != null) ? [pk.id] : [];
   }
 
   function createGame(cfg) {
@@ -2923,7 +2939,15 @@ const BilliardsRules = (() => {
      * ここが二度呼ばれても盤面が変わらないようにしておかないと、
      * 手番を始め直す道（デッドロックの否決など）で乱数列がずれる。
      */
-    F.beginTurn(game.field, game.rng, { key: game.turnNo, table: game.table, game });
+    /*
+     * ★**誰の手番かと、何人居るかも渡す。**番号シャッフルは
+     *   「全員が1度ずつ撞き終わるまで入れ替えない」ので、席を数える必要がある
+     *   （ブレイクで最小番号へ当てる決まりが、入れ替えると成り立たなくなるため）。
+     */
+    F.beginTurn(game.field, game.rng, {
+      key: game.turnNo, table: game.table, game,
+      reserved: reservedPockets(game), seat: game.turn, seats: activeCount(game),
+    });
   }
 
   function nextTurnCore(game, result) {

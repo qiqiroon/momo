@@ -548,6 +548,74 @@ const BilliardsAudio = (() => {
     src.start(t); src.stop(t + dur + 0.02);
   }
 
+  /**
+   * テレポートポケットを通り抜けた音（6.6.9節）。
+   *
+   * ★**発振器の音程を滑らせない。**滑らせると電子音になる（第57セッションの地鳴りと同じ話）。
+   *   雑音を通す帯のほうを動かして「口へ吸い込まれ、向こう側で開ける」を作る。
+   *   前半は帯を下げ（こもって遠ざかる）、後半は一気に上げる（出てきて開ける）。
+   */
+  function warpSfx(strength) {
+    if (!audioOn || !ctx || !sfxGain) return;
+    const s = Math.max(0.2, Math.min(1, strength == null ? 0.7 : strength));
+    const dur = 0.44;
+    const t = ctx.currentTime + 0.005;
+    const n = Math.ceil(ctx.sampleRate * dur);
+    const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < n; i++) {
+      last = last * 0.82 + (Math.random() * 2 - 1) * 0.18;
+      d[i] = Math.max(-1, Math.min(1, last * 3.0));
+    }
+    const src = ctx.createBufferSource(); src.buffer = buf;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 4.2;
+    bp.frequency.setValueAtTime(1250, t);
+    bp.frequency.exponentialRampToValueAtTime(240, t + dur * 0.42);   // 口へ入って遠ざかる
+    bp.frequency.exponentialRampToValueAtTime(2300, t + dur);         // 向こう側で開ける
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.75 * s, t + 0.03);
+    g.gain.linearRampToValueAtTime(0.30 * s, t + dur * 0.45);
+    g.gain.linearRampToValueAtTime(0.80 * s, t + dur * 0.62);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(bp).connect(g).connect(sfxGain);
+    src.start(t); src.stop(t + dur + 0.02);
+  }
+
+  /**
+   * 番号が入れ替わる音（6.6.8節）＝札を繰る音。
+   *
+   * ★**短い雑音の粒を並べて作る。**音程のある音を並べると旋律に聞こえてしまう。
+   * ★**粒の間隔をだんだん広げる**＝繰る手が止まっていく。等間隔だと機械の音になる。
+   * ★長さは呼ぶ側（演出の長さ）からもらう。ここで別に持つと、
+   *   演出の長さを変えた日に**音だけが古くなる**（突風の絵と音でそろえたのと同じ話）。
+   */
+  function riffle(seconds) {
+    if (!audioOn || !ctx || !sfxGain) return;
+    const dur = Math.max(0.25, Math.min(2.5, seconds == null ? 1.1 : seconds));
+    const t = ctx.currentTime + 0.005;
+    const n = Math.ceil(ctx.sampleRate * dur);
+    const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    const grain = Math.floor(ctx.sampleRate * 0.013);
+    let pos = 0;
+    while (pos < n) {
+      const u = pos / n;
+      for (let i = 0; i < grain && pos + i < n; i++) {
+        const e = 1 - i / grain;
+        d[pos + i] += (Math.random() * 2 - 1) * e * e * (0.95 - 0.55 * u);
+      }
+      pos += Math.max(1, Math.floor(ctx.sampleRate * (0.026 + 0.20 * u * u)));
+    }
+    const src = ctx.createBufferSource(); src.buffer = buf;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.1;
+    bp.frequency.value = 2500;
+    const g = ctx.createGain(); g.gain.value = 0.45;
+    src.connect(bp).connect(g).connect(sfxGain);
+    src.start(t); src.stop(t + dur + 0.02);
+  }
+
   function beep(freq, dur, peak, delay) {
     if (!audioOn || !ctx || !sfxGain) return;
     const t = ctx.currentTime + 0.005 + (delay || 0);
@@ -616,6 +684,8 @@ const BilliardsAudio = (() => {
       case 'iceOff': rubOff('ice'); break;          // 氷から出た（その場で切る）
       case 'splash': water('splash', s); break;     // 池ポチャ・水の入ったポケットへ落ちた
       case 'swallow': suck(s); break;               // ブラックホールへ吸い込まれた（6.8.5節）
+      case 'warp': warpSfx(s); break;               // テレポートポケットを通り抜けた（6.6.9節）
+      case 'shuffle': riffle(seconds); break;       // 番号が入れ替わった（6.6.8節。長さは呼ぶ側から）
       case 'tick': beep(1046, 0.07, 0.22); break;        // 残り5秒からの秒読み
       case 'timeup': beep(392, 0.16, 0.30); beep(294, 0.30, 0.26, 0.14); break;
       case 'turn': tick2(880, 1318); break;   // 自分の手番

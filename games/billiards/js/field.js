@@ -45,7 +45,7 @@ const BilliardsField = (() => {
    *   片方を書き忘れれば「入っているのに選べない」か「無いのに選べる」になる。
    *   ルール（RULE_IDS）・台形状（SHAPE_IDS）と同じ形にしてある。
    */
-  const IDS = ['F-01', 'F-03', 'F-05', 'F-06', 'F-07', 'F-08'];
+  const IDS = ['F-01', 'F-03', 'F-05', 'F-06', 'F-07', 'F-08', 'F-11', 'B-08'];
 
   /** 同時に選べる数の上限（6.5.1節）。既定は3種で確定値。apocalypse だけ引き上げる（付録B.2節送り） */
   const PICK_MAX = 3;
@@ -903,6 +903,213 @@ const BilliardsField = (() => {
     return out;
   }
 
+  /*
+   * ───────── 番号シャッフル（F-11）─────────
+   *
+   * やることは1つだけ＝**盤面に残っている的球の番号を入れ替える**（6.6.8節）。
+   * ★**位置と速度は1ミリも触らない。**玉そのものが飛ぶわけではないので盤面の配置は保たれ、
+   *   「さっきまで3番だった場所に9番がある」という混乱だけが残る。
+   *
+   * ★**入れ替わるのは番号だけではない。**このアプリでは**色も縞もグループも番号から決めている**
+   *   （rules.js の玉を並べる処理）。番号だけを付け替えると、
+   *   **見た目は3番のまま9番として数えられる玉**ができる＝画面と判定が食い違う。
+   *   入れ替えるのは「番号から決まるものひとそろい」＝その玉の身分まるごとである。
+   *   ★**id は入れ替えない。**id は同時衝突の解を決めるための物理側の背番号であって（5.6.5節）、
+   *   遊ぶ側に見えている番号ではない。入れ替えると物理の答えが変わる。
+   *
+   * ★**ターン開始時にしか実行しない**（6.6.8節）。転がっている最中に番号が変われば、
+   *   どの玉を落としたのかという判定そのものが不安定になる。
+   */
+  const SHUFFLE = {
+    /**
+     * 演出の長さ（秒。付録B送り）。玉は動かないので、これは見せるためだけの値。
+     * ★**番号が玉から玉へ飛ぶところを見せる**ので、回るだけだった頃より長く取ってある
+     * （利用者指示・第60セッション「派手な演出でシャッフルしていることを目立たせたい」）。
+     */
+    showSec: 1.6,
+    /*
+     * ★**引く回数を玉の数で変えない。**盤面に残っている数だけ引くと、
+     *   玉が落ちて数が減った局面で**乱数列の進み方が変わり**、
+     *   AIの読み・リプレイ・観戦の追いつきと食い違う（突風のばらつきと同じ話）。
+     *   ラックは最大15球なので、いつも15個引いて先頭から使う。
+     */
+    draws: 15,
+  };
+
+  /**
+   * 番号から決まるものひとそろい。**これを丸ごと入れ替える。**
+   * ここへ足し忘れたものがあると、その項目だけ前の玉のまま取り残される。
+   */
+  const NUM_KEYS = ['num', 'color', 'stripe', 'grp'];
+
+  /** シャッフルの対象になる玉（6.6.8節）。手玉・番号の無い玉・据え付けの物は入らない */
+  function shuffleTargets(balls) {
+    return (balls || []).filter(b => b && b.kind === 'object' && b.state === 'live'
+      && !b.pinned && !b.hazard && b.num > 0);
+  }
+
+  /**
+   * 番号を入れ替える（6.6.8節）。**範囲は全球**（利用者判断・付録B）。
+   *
+   * 入れ替えた中身は field.turn.shuffle へ控える（画面の演出と検査が見る）。
+   * ★**先に必ず draws 個を引いてから**、対象が足りるかを見る。
+   *   「対象が2球未満なら引かずに帰る」と書くと、**残り球数で乱数列の進み方が変わる。**
+   * ★hold（最初の1巡が済んでいない）ときも**引いてから帰る。**同じ理由である。
+   */
+  function drawShuffle(field, rng, balls, hold) {
+    const r = [];
+    for (let i = 0; i < SHUFFLE.draws; i++) r.push(rng());
+    if (hold) return null;
+    const list = shuffleTargets(balls);
+    if (list.length < 2) return null;
+    const idx = list.map((b, i) => i);
+    // Fisher–Yates。引いておいた値を先頭から使う（引く回数は上で固定してある）
+    for (let i = idx.length - 1, k = 0; i > 0; i--, k++) {
+      const j = Math.floor(r[k % r.length] * (i + 1));
+      const t = idx[i]; idx[i] = idx[j]; idx[j] = t;
+    }
+    const before = list.map(b => {
+      const o = {}; NUM_KEYS.forEach(key => { o[key] = b[key]; }); return o;
+    });
+    /*
+     * ★**番号が「どこから来たか」も控える。**画面は番号が玉から玉へ飛ぶところを見せるので、
+     *   行き先（その玉の場所）だけでなく**出どころの玉の場所**が要る。
+     * ★**入れ替わる前の身分も控える。**飛んでくる番号が着くまでのあいだ、
+     *   その玉は**前の姿のまま**でいなければならない（着く前に新しい番号が出ていると、
+     *   飛んでいる番号と盤の番号が二重に見える）。
+     */
+    const moves = [];
+    list.forEach((b, i) => {
+      const src = before[idx[i]];      // この玉が受け取る身分
+      const from = list[idx[i]];       // その身分がもと居た玉
+      moves.push({
+        id: b.id, x: b.x, y: b.y,
+        srcId: from.id, srcX: from.x, srcY: from.y,
+        from: before[i].num, to: src.num,
+        was: { num: before[i].num, color: before[i].color, stripe: before[i].stripe },
+      });
+      NUM_KEYS.forEach(key => { b[key] = src[key]; });
+    });
+    return { moves, changed: moves.some(m => m.from !== m.to) };
+  }
+
+  /** いま見せるべき入れ替え（画面の演出と検査が見る）。無ければ null */
+  function shuffle(field) { return (field && field.turn && field.turn.shuffle) || null; }
+
+  /*
+   * ───────── テレポートポケット（B-08）─────────
+   *
+   * 一方のポケットへ入った玉を、対になったもう一方から**盤面へ射出する**（6.6.9節）。
+   *
+   * ★**ポケットインとみなさない。手玉が入ってもファウルにならない。**
+   *   落球の出来事（pocket）を作らなければ、ルール側は何も知らないまま通り過ぎる
+   *   ＝rules.js に「テレポなら〜」という分岐を1つも書かずに済む。
+   *   ブラックホールが**既にある場外の処理をそのまま通した**のと同じ形である。
+   * ★**射出の向きは出口が盤面へ開いている向き。入射の向きは反映しない**（6.6.9節）。
+   *   鏡のように返すと、壁の内部へ向かう射出が生まれる。
+   * ★**速さはそのまま。**減らせば「一度落ちた」ことになり、増やせば
+   *   テレポを狙うだけで球速が稼げてしまう。
+   */
+  const WARP = {
+    /** 出口の玉を置く距離＝ポケットの口の半径 ＋ 玉の半径の何倍か（付録B送り） */
+    gap: 1.3,
+    /** 出口の向きを探す刻み数。台の形だけから決まるので乱数は引かない */
+    dirs: 72,
+  };
+
+  /**
+   * そのポケットが盤面へ開いている向きと、玉を出す場所（6.6.9節）。
+   *
+   * ★**台定義データはポケットの向きを持っていない**（位置と口径だけ）。
+   *   長方形なら「台の中心のほう」で足りるが、**ドーナツ型は中心が壁の中**にあり、
+   *   L字型では角のポケットの中心方向が壁を向く。
+   *   そこで**外周からの余裕（clearance）がいちばん大きくなる向き**を探す
+   *   ＝どの形でも「盤面が開いているほう」を指す。
+   * ★**隣のポケットの口には出さない**（角どうしが近い台では、出た瞬間にそちらへ落ちる）。
+   * ★乱数を引かない。台の形だけから決まるので、どの道でも必ず同じ向きになる。
+   */
+  function pocketMouth(table, p) {
+    const T = BilliardsTable, R = T.R;
+    const other = (table.pockets || []).filter(q => q !== p && q.id !== p.id);
+    let best = null;
+    for (let s = 0; s < 5; s++) {
+      const L = p.r + R * (WARP.gap + s * 0.8);
+      let round = null;
+      for (let i = 0; i < WARP.dirs; i++) {
+        const th = i / WARP.dirs * Math.PI * 2;
+        const dx = Math.cos(th), dy = Math.sin(th);
+        const x = p.x + dx * L, y = p.y + dy * L;
+        let near = false;
+        for (const q of other) if (Math.hypot(x - q.x, y - q.y) < q.r + R * 0.5) { near = true; break; }
+        if (near) continue;
+        const c = T.clearance(table, x, y);
+        if (!round || c > round.c) round = { c, x, y, dx, dy, dist: L };
+      }
+      if (round && (!best || round.c > best.c)) best = round;
+      if (best && best.c >= R * 1.05) break;      // 玉が収まる場所が見つかった
+    }
+    if (best) return best;
+    /*
+     * ここへ来るのは、ポケットの周りが**どの向きも壁**という台だけである（いまは無い）。
+     * それでも null を返さない ── 返すと**そのポケットだけ静かにふつうの落球に戻り**、
+     * 「入ったのに出てこない」という食い違いになる。台の中心へ向けて出す。
+     */
+    const cx = (table.center && table.center.x) || 0;
+    const cy = (table.center && table.center.y) || 0;
+    const a = Math.atan2(cy - p.y, cx - p.x);
+    const L = p.r + R * WARP.gap;
+    return { c: 0, x: p.x + Math.cos(a) * L, y: p.y + Math.sin(a) * L,
+      dx: Math.cos(a), dy: Math.sin(a), dist: L, fallback: true };
+  }
+
+  /**
+   * テレポートポケットの対を1組引く（6.6.9節）。**ターン開始ごとに引き直す。**
+   *
+   * ★**ルールが意味を与えているポケットは対から外す**（利用者判断・付録B「対の抽選範囲」）。
+   *   ゴルフ型の指定ポケットを対に入れると、**そのターンはカップが塞がって沈めようがなくなり**、
+   *   打ち切りの倍率と重なって運だけで大叩きになる。
+   * ★**引く回数は盤面によらず必ず2つ。**外したあとの個数で引く回数を変えない。
+   */
+  function drawWarp(field, rng, table, reserved) {
+    const u = rng(), v = rng();
+    const skip = reserved || [];
+    const pool = (table.pockets || []).filter(p => skip.indexOf(p.id) < 0);
+    if (pool.length < 2) return null;
+    const i = Math.min(pool.length - 1, Math.floor(u * pool.length));
+    let j = Math.min(pool.length - 2, Math.floor(v * (pool.length - 1)));
+    if (j >= i) j++;
+    return { a: pool[i].id, b: pool[j].id };
+  }
+
+  /** いま繋がっているポケットの対（画面と検査が見る）。無ければ null */
+  function warpPair(field) { return (field && field.turn && field.turn.warp) || null; }
+
+  /** そのポケットの相方。テレポの口でなければ null */
+  function warpPartner(field, id) {
+    const w = warpPair(field);
+    if (!w || id == null) return null;
+    if (w.a === id) return w.b;
+    if (w.b === id) return w.a;
+    return null;
+  }
+
+  /**
+   * その玉はテレポートポケットを通り抜けたか（6.6.9節）。engine の落球判定から呼ぶ。
+   *
+   * 通り抜けるなら**出口での位置と速度**を返し、そうでなければ null（＝ふつうに落ちる）。
+   * ★engine 側にポケットの対も出口の向きも持たせない。持たせると、
+   *   抽選のしかたを変えた日に**片方だけ古くなる**（穴の引力を1か所から出したのと同じ話）。
+   */
+  function warp(field, b, table, pocket) {
+    const to = warpPartner(field, pocket && pocket.id);
+    if (to == null || !b) return null;
+    const exit = (table.pockets || []).filter(p => p.id === to)[0];
+    if (!exit) return null;
+    const m = pocketMouth(table, exit);
+    const sp = Math.hypot(b.vx, b.vy);      // ★速さはそのまま。向きだけ出口のものへ変える
+    return { from: pocket.id, to, x: m.x, y: m.y, vx: m.dx * sp, vy: m.dy * sp, dx: m.dx, dy: m.dy };
+  }
+
   /** 番号を使わないルール（6.5.5節）。番号シャッフルはここでは働かない */
   const NO_NUMBER_RULES = ['G-04', 'G-06', 'G-09', 'G-11'];
 
@@ -1027,6 +1234,43 @@ const BilliardsField = (() => {
       || (ctx && ctx.game && ctx.game.world && ctx.game.world.balls)
       || [];
     if (field.has('F-05')) field.turn.hole = drawHole(field, rng, table, balls);
+    if (field.has('B-08')) field.turn.warp = drawWarp(field, rng, table, ctx && ctx.reserved);
+    /*
+     * ★**番号シャッフルは最後に置く。**ここだけが玉そのものを書き換えるので、
+     *   前の2つ（穴の位置・テレポの対）が「入れ替わる前の番号」を見て決めることは無い。
+     * ★入れ替えの回数を数えて控える。画面は**この番号が変わった時だけ**演出を出す
+     *   （盤面を組み直す道ではターンの鍵が同じまま二度通るので、鍵では見分けられない）。
+     */
+    /*
+     * ★**全員が1度ずつ撞き終わるまでは入れ替えない**（利用者指示・第60セッション）。
+     *
+     *   ナインボールやローテーションのブレイクは「いちばん小さい番号へ最初に当てる」決まりなので、
+     *   ラックの番号が入れ替わると**1番がラックの中に埋まり、当てようがなくなる。**
+     *   ★**「1手目だけ」では足りない。**先攻がブレイクを終えても、後攻がまだ一度も撞いていない。
+     *   そこで**撞いた席を数え、全員がそろってから**入れ替え始める。
+     *
+     * ★**数えるのは「この手番が始まる前まで」**である。いま始まる席を先に数えてしまうと、
+     *   最後の1人の**最初の手番で**もう入れ替わってしまう。
+     * ★**入れ替えない回でも乱数は引く**（下の drawShuffle は必ず通す）。
+     *   引かずに帰ると、そこから先の乱数列の進み方が変わる。
+     */
+    if (field.has('F-11')) {
+      field.seatsSeen = field.seatsSeen || {};
+      /*
+       * ★**人数が渡らなかったときは「巡り終わった」側に倒す**（[[見張りは忘れたとき軽いほうへ]]）。
+       *   倒す向きを逆にすると、渡し忘れた道では**ギミックが黙って何もしなくなる。**
+       *   渡し忘れそのものは検査で見張ってある（rules の呼び出し2か所）。
+       */
+      const seats = (ctx && ctx.seats) || 0;
+      const lapDone = !seats || Object.keys(field.seatsSeen).length >= seats;
+      if (ctx && ctx.seat != null) field.seatsSeen[ctx.seat] = 1;
+      const s = drawShuffle(field, rng, balls, !lapDone);
+      if (s) {
+        field.shuffleSeq = (field.shuffleSeq || 0) + 1;
+        s.seq = field.shuffleSeq;
+        field.turn.shuffle = s;
+      }
+    }
   }
 
   /**
@@ -1348,11 +1592,14 @@ const BilliardsField = (() => {
   }
 
   return {
-    ALL_IDS, DOOR, IDS, PICK_MAX, TERRAIN, TILT, QUAKE, GUST, HOLE, CLOTH_SLIDE, CLOTH_ROLL,
+    ALL_IDS, DOOR, IDS, PICK_MAX, TERRAIN, TILT, QUAKE, GUST, HOLE, SHUFFLE, WARP,
+    CLOTH_SLIDE, CLOTH_ROLL,
     blockOf, available, pickMax, create,
     beginGame, beginTurn, beginShot, apply,
     patches, terrain, terrainAt, floodedPockets, tilt,
     hole, holeAccel, holeKeepAway, holeBlocked, swallow,
+    shuffle, shuffleTargets, NUM_KEYS,
+    warpPair, warpPartner, warp, pocketMouth,
     quakeLevel, quakeWander, quakeAccel, quakeShift, quakeJitter,
     gustTick, gustAxis, gustStart, gustFront, gustVary, gustStreaks,
   };

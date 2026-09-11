@@ -844,6 +844,25 @@ const BilliardsEngine = (() => {
         let dropped = false;
         for (const p of table.pockets) {
           if (Math.hypot(b.x - p.x, b.y - p.y) < p.r) {
+            /*
+             * テレポートポケット（6.6.9節）。**繋がっている口なら落ちず、相方から出てくる。**
+             * ★**落球の出来事（pocket）を作らない**のが要点である。作らなければ
+             *   ルール側は何も知らないまま通り過ぎるので、「ポケットインとみなさない」
+             *   「手玉が入ってもファウルにならない」が、rules.js に1行も書かずに成り立つ。
+             * ★どのポケットが繋がっているか・出口がどちらを向いているかは
+             *   **盤面イベント層だけが知っている。**ここに持つと、
+             *   抽選のしかたを変えた日にこちらだけが古くなる。
+             */
+            const wp = w.field && BilliardsField.warp(w.field, b, table, p);
+            if (wp) {
+              b.x = wp.x; b.y = wp.y; b.z = 0;
+              b.vx = wp.vx; b.vy = wp.vy; b.vz = 0;
+              b.wx = b.wy = b.wz = 0;       // 回転は持ち越さない（口をくぐった玉である）
+              b.slideRun = 0; b.slideX = b.slideY = null;
+              w.events.push({ type: 'warp', ball: b.id, from: wp.from, to: wp.to,
+                x: wp.x, y: wp.y, tick: w.tick });
+              dropped = true; break;        // この刻みは以後の判定に掛けない（出口はもう盤面の中）
+            }
             b.state = 'pocketed'; b.onTable = false;
             b.vx = b.vy = b.vz = b.wx = b.wy = b.wz = 0;
             w.events.push({ type: 'pocket', ball: b.id, pocket: p.id, tick: w.tick });

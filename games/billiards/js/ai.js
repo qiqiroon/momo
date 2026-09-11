@@ -14,7 +14,27 @@
 const BilliardsAI = (() => {
   'use strict';
 
-  const E = BilliardsEngine, RU = BilliardsRules, T = BilliardsTable;
+  const E = BilliardsEngine, RU = BilliardsRules, T = BilliardsTable, F = BilliardsField;
+
+  /**
+   * ★**狙う相手になるポケット。**
+   *
+   * ・**ゴルフ型は指定ポケットしか見ない**（第49セッションの実機指摘。詳細は pickBallInHand の注記）
+   * ・★**テレポートポケットの対は外す**（6.6.9節）。そこへ入っても落球にはならず、
+   *   相方の口から出てくるだけである。外さないと、**AIだけが「入るつもりの筋」を撞き続ける。**
+   *   遊ぶ側には口に印が出ているので、**外さなければAIだけが知らないことになる。**
+   *   （試し撞きの評価では落ちないと分かるので勝負にはならないが、候補が無駄に潰れる）
+   */
+  function aimPockets(game) {
+    const base = (game.rule === 'G-10' && game.golf && game.golf.layout && game.golf.layout.pocket)
+      ? [game.golf.layout.pocket]
+      : (game.table.pockets || []);
+    const w = game.field ? F.warpPair(game.field) : null;
+    if (!w) return base;
+    const left = base.filter(p => p.id !== w.a && p.id !== w.b);
+    // 狙える口が1つも残らないなら、そのまま返す（何も狙えなくするよりよい）
+    return left.length ? left : base;
+  }
 
   /*
    * aimNoise は「狙いのぶれ」（ラジアン）。これは**簡単な配置のときの**ぶれで、
@@ -227,7 +247,7 @@ const BilliardsAI = (() => {
 
     // ブレイクでラックの先頭を探すのに使う。撞く相手を絞る前の一覧
     const targets = RU.legalTargets(game, playerIdx) || RU.liveObjects(game);
-    const pockets = game.table.pockets;
+    const pockets = aimPockets(game);
 
     const potTargets = potTargetsFor(game, playerIdx);
 
@@ -740,9 +760,7 @@ const BilliardsAI = (() => {
      *   **AIは指定でない穴へ入れやすい場所へ手玉を置き、そこへ入れにいく。**
      *   入れれば1打罰でやり直しなのに、置き場所を決める側がそれを知らなかった。
      */
-    const pockets = (game.rule === 'G-10' && game.golf && game.golf.layout && game.golf.layout.pocket)
-      ? [game.golf.layout.pocket]
-      : table.pockets;
+    const pockets = aimPockets(game);
     const cands = [];
 
     const freeAt = (x, y) => freeSpotAt(game, cue, x, y);

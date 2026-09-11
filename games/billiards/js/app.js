@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.94';                 // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.95';               // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules, F = BilliardsField;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -792,6 +792,12 @@
     if (S.bowlTimer) { clearTimeout(S.bowlTimer); S.bowlTimer = null; }
     S.bowlBox = false;
     S.replay = null; S.replayRun = null; S.demo = null; S.endWait = 0;
+    /*
+     * ★**局をまたいで演出の控えを持ち越さない。**番号シャッフルの回数（seq）は
+     *   局ごとに1から数え直すので、前の局の数が残っていると
+     *   **新しい局の最初のシャッフルだけ演出が出ない。**
+     */
+    S.shuffleSeen = null; S.shuffleFx = null; S.warpFx = null; S.holeFx = null;
     S.clock.banks = g.players.map(() => cfg.tbank * 60);
     S.aim = { dir: 0, tipX: 0, tipY: 0, elev: 0, power: 0 };
     S.msg = '';
@@ -954,6 +960,9 @@
      * ★演出なので実時間で進める（決定論の外。物理の刻みには触れない）。
      */
     S.flash = (g.rule === 'G-06') ? { seat: g.turn, t0: performance.now() } : null;
+
+    // 番号シャッフル（6.6.8節）。入れ替わっていれば、回って止まる演出を出す
+    noteShuffle();
 
     S.clock.baseLeft = S.cfg.mods['G-14'] ? S.cfg.tbase : 0;
     S.clock.lastBeep = 0;
@@ -2138,8 +2147,139 @@
     ctx.restore();
   }
 
+  /**
+   * 番号が入れ替わったら、回って止まる演出を始める（6.6.8節）。
+   *
+   * ★**玉は1ミリも動かさない。**入れ替わったのは番号だけで、盤面の配置はそのままである。
+   * ★**演出は実時間で進める。**玉が動かない以上、盤面の時計は止まったままなので、
+   *   それで進めると画面が凍りつく（地震の画面の揺れと同じ話）。
+   * ★**出す合図は field が数えている回数で見る。**ターンの鍵では見分けられない
+   *   ── 盤面を組み直す道では、同じ鍵のまま二度引き直されるからである。
+   * ★観戦の追いつき中は出さない（一気に走らせる場面で毎ターン止まって見える）。
+   */
+  function noteShuffle() {
+    const g = S.game;
+    const sh = (g && g.field) ? F.shuffle(g.field) : null;
+    if (!sh || sh.seq === S.shuffleSeen) return;
+    S.shuffleSeen = sh.seq;
+    if (S.catchUp || !sh.changed) return;
+    /*
+     * ★**番号が玉から玉へ飛ぶところを見せる**（利用者指示・第60セッション）。
+     *   もとは「その場で番号が回って止まる」だけだったが、**入れ替わったことが目立たない。**
+     *   どこの番号がどこへ行ったかを目で追える形にする。
+     * ★**出発を玉ごとにずらす。**全部が同時に飛ぶと、ただの散らかりに見える。
+     */
+    const moves = sh.moves.map((m, i) => Object.assign({}, m, {
+      t0: 0.06 + 0.26 * (i / Math.max(1, sh.moves.length - 1)),
+      span: 0.46,
+      side: (i % 2) ? 1 : -1,          // 弧のふくらむ向き。交互にして重ならないようにする
+    }));
+    const byId = {};
+    moves.forEach(m => { byId[m.id] = m; });
+    S.shuffleFx = { at: performance.now(), dur: F.SHUFFLE.showSec * 1000, moves, byId };
+    /*
+     * ★**音の長さは演出の長さからもらう**（audio.js に別の長さを持たせない）。
+     *   持たせると、演出の長さを変えた日に音だけが古くなる（突風で直したのと同じ話）。
+     */
+    AU.sfx('shuffle', 1, F.SHUFFLE.showSec);
+    // ★盤の真ん中に大きく出す（池ポチャと同じ作り）。端の細い帯だけでは目に入らない
+    flash(t('ev.shuffle'), 'warn');
+  }
+
+  /** その番号が飛んでいる途中の進み具合（0〜1）。まだ飛び立っていなければ 0、着いていれば 1 */
+  function shuffleAt(fx, m, now) {
+    const u = ((now == null ? performance.now() : now) - fx.at) / fx.dur;
+    return Math.max(0, Math.min(1, (u - m.t0) / m.span));
+  }
+
+  /**
+   * その玉を**いま見せる身分**（番号・色・縞）。番号が飛んでいる最中だけ、本物と違うものを返す。
+   * 飛び終わっていれば null＝本物（新しい番号）をそのまま描く。
+   *
+   * ★**着くまでは前の姿のまま。**先に新しい番号を出すと、
+   *   飛んでいる番号と盤の上の番号が**二重に見える。**
+   */
+  function shuffleFace(b) {
+    const fx = S.shuffleFx;
+    if (!fx || !b) return null;
+    const m = fx.byId[b.id];
+    if (!m) return null;
+    if ((performance.now() - fx.at) / fx.dur >= 1) { S.shuffleFx = null; return null; }
+    return shuffleAt(fx, m) >= 1 ? null : m.was;
+  }
+
+  /**
+   * 番号が玉から玉へ飛ぶ演出（6.6.8節・利用者指示）。
+   *
+   * ★**玉は1ミリも動かない。**動くのは番号だけである。
+   * ★**実時間で進める。**玉が動かない以上、盤面の時計は止まったままなので、
+   *   それで進めると画面が凍りつく（地震の画面の揺れと同じ話）。
+   */
+  function drawShuffleFx() {
+    const fx = S.shuffleFx;
+    if (!fx) return;
+    const now = performance.now();
+    const u = (now - fx.at) / fx.dur;
+    if (u >= 1) { S.shuffleFx = null; return; }
+    const g = S.game, s = view.s;
+    ctx.save();
+    // ① 台を一度だけ走る波紋（何かが起きたことを盤全体で知らせる）
+    if (u < 0.55) {
+      const v = u / 0.55;
+      const c = toScreen((g.table.center && g.table.center.x) || 0, (g.table.center && g.table.center.y) || 0);
+      const rr = Math.hypot(g.table.halfW, g.table.halfH) * s * v;
+      ctx.beginPath(); ctx.arc(c.x, c.y, rr, 0, 7);
+      ctx.strokeStyle = 'rgba(255,225,150,' + (0.30 * (1 - v)).toFixed(3) + ')';
+      ctx.lineWidth = Math.max(2, 14 * s * (1 - v * 0.6));
+      ctx.stroke();
+    }
+    // ② 番号そのものが、もと居た玉から行き先の玉へ弧を描いて飛ぶ
+    for (const m of fx.moves) {
+      const v = shuffleAt(fx, m, now);
+      if (v <= 0) continue;
+      const r = BilliardsTable.R * s;
+      if (v >= 1) {
+        // 着いた直後の光（0.18 のあいだだけ）
+        const w = Math.min(1, (u - (m.t0 + m.span)) / 0.18);
+        if (w < 1) {
+          const q = toScreen(m.x, m.y);
+          ctx.beginPath(); ctx.arc(q.x, q.y, r * (1 + 1.3 * w), 0, 7);
+          ctx.strokeStyle = 'rgba(255,240,190,' + (0.75 * (1 - w)).toFixed(3) + ')';
+          ctx.lineWidth = Math.max(1, r * 0.3 * (1 - w));
+          ctx.stroke();
+        }
+        continue;
+      }
+      // 行きも帰りもなめらかに（ease-in-out）
+      const e = v < 0.5 ? 2 * v * v : 1 - Math.pow(-2 * v + 2, 2) / 2;
+      const dx = m.x - m.srcX, dy = m.y - m.srcY;
+      const len = Math.hypot(dx, dy);
+      const ax = m.srcX + dx * e, ay = m.srcY + dy * e;
+      // ★**直角方向へふくらませる。**まっすぐ結ぶと、近い玉どうしの入れ替えが見えない
+      const bulge = Math.sin(Math.PI * e) * (len > 1 ? Math.min(300, len * 0.32) : 160);
+      const nx = len > 1 ? -dy / len : 0, ny = len > 1 ? dx / len : -1;
+      const p = toScreen(ax + nx * bulge * m.side, ay + ny * bulge * m.side);
+      // 飛んでいる番号は、飛び立ちで大きくなり、着地で戻る
+      const lift = 1 + 0.85 * Math.sin(Math.PI * e);
+      const rr = Math.max(5, r * 0.62 * lift);
+      ctx.beginPath(); ctx.arc(p.x, p.y, rr * 1.35, 0, 7);
+      ctx.fillStyle = 'rgba(255,235,170,0.22)'; ctx.fill();
+      ctx.beginPath(); ctx.arc(p.x, p.y, rr, 0, 7);
+      ctx.fillStyle = '#ffffff'; ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = Math.max(1, rr * 0.12); ctx.stroke();
+      ctx.fillStyle = '#111';
+      ctx.font = '700 ' + Math.max(8, rr * 1.25) + 'px "Noto Sans JP",sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(String(m.to), p.x, p.y + .5);
+    }
+    ctx.restore();
+  }
+
   function drawBall2D(b, s, alpha) {
     if (b.hazardKind === 'tree') { drawGolfTree(b, s, alpha); return; }
+    // 番号シャッフルの演出（6.6.8節）。回っている間は**見せる身分だけ**を差し替える
+    const face = shuffleFace(b);
+    if (face) b = Object.assign({}, b, face);
     // 地震のぶれ。★描く位置にだけ足す（b.x・b.y は触らない）
     const jt = quakeOf(b);
     const p = jt ? toScreen(b.x + jt.x, b.y + jt.y) : toScreen(b.x, b.y);
@@ -2306,6 +2446,11 @@
     }
 
     for (const p of table.pockets) drawPocket(p, s);
+    /*
+     * 異常モードのテレポートポケット（6.6.9節）。**ポケットの口の上に印を重ねる**
+     * ＝どの口が繋がっているかは、口そのものを見て分かる必要がある。
+     */
+    if (g.field) drawWarpPair();
 
     // ヘッドストリングとフットスポット。線は外周の中だけに出す
     if (table.hasPockets) {
@@ -2333,6 +2478,10 @@
     const live = g.world.balls.filter(bb => bb.state === 'live' && bb !== cueNow);
     live.sort((x, y) => x.z - y.z);
     for (const bb of live) drawBall2D(bb, s);
+    // テレポートポケットを通り抜けた残像。玉より上に出す（口の中は玉に隠れるため）
+    drawWarpFx();
+    // 番号シャッフル＝番号が玉から玉へ飛ぶ。玉より上に出す（下だと玉に隠れる）
+    drawShuffleFx();
     drawTurnFlash();
     // ゴルフ型：指定ポケットの旗と、他の人の玉のありか（旗は玉より上＝隠れない）
     if (g.rule === 'G-10' && g.golf && g.golf.layout) { drawGolfRivals(); drawGolfFlag(); }
@@ -2502,6 +2651,109 @@
    * ★**渦の位相だけは実時間で回す。**盤面の時計は撞いていない間止まるので、
    *   それで描くと狙っている最中に渦が凍りつく（地震の画面揺れと同じ理由）。
    */
+  /** テレポートポケットの印の色（6.6.9節）。★入口と出口は**同じ色**＝繋がりを色で示す */
+  const WARP_RGB = '103,232,249';
+  /** 通り抜けの残像の長さ（ms）。演出だけの値 */
+  const WARP_FX_MS = 620;
+
+  /**
+   * テレポートポケットの対（6.6.9節）。**ターン開始時に可視化し、そのターン中は出し続ける。**
+   *
+   * ★**どの2つが繋がっているかが一目で分かること**が要件である（6.6.9節「ターン開始時に可視化」）。
+   *   対は1組しかないので、口の周りの輪だけでも見分けはつくが、
+   *   **離れた2つを結ぶ線**が無いと「どちらへ出るのか」が分からない。
+   * ★**輪は実時間で脈打たせる。**盤面の時計は撞いていない間は止まるので、
+   *   それで動かすと狙っている最中に印が凍りつく（地震の画面の揺れと同じ話）。
+   */
+  function drawWarpPair() {
+    const g = S.game, s = view.s;
+    const w = F.warpPair(g.field);
+    if (!w) return;
+    const pk = (g.table.pockets || []).filter(p => p.id === w.a || p.id === w.b);
+    if (pk.length < 2) return;
+    const now = performance.now() / 1000;
+    const pulse = 0.5 + 0.5 * Math.sin(now * 2.3);
+    ctx.save();
+    const q0 = toScreen(pk[0].x, pk[0].y), q1 = toScreen(pk[1].x, pk[1].y);
+    ctx.beginPath(); ctx.moveTo(q0.x, q0.y); ctx.lineTo(q1.x, q1.y);
+    ctx.strokeStyle = 'rgba(' + WARP_RGB + ',' + (0.22 + 0.10 * pulse).toFixed(3) + ')';
+    ctx.setLineDash([7, 9]); ctx.lineDashOffset = -now * 34;
+    ctx.lineWidth = 2.4;
+    ctx.stroke(); ctx.setLineDash([]);
+    for (const p of pk) {
+      const q = toScreen(p.x, p.y);
+      const r = p.r * s;
+      /*
+       * ★**口そのものの見た目を変える**（利用者指示・第60セッション）。
+       *   外側に輪を描くだけでは「ふつうの穴に印が付いている」にしか見えず、
+       *   **どの口が繋がっているのかが分かりにくい。**
+       *   口の中を光らせて渦を回すと、**そこが「向こうへ通じている口」に見える。**
+       * ★穴の黒は残す（真っ白に塗ると、口ではなく板が置いてあるように見える。
+       *   ブラックホールで輪郭の線をやめたのと同じ話）。
+       */
+      const gl = ctx.createRadialGradient(q.x, q.y, r * 0.1, q.x, q.y, r);
+      gl.addColorStop(0, 'rgba(' + WARP_RGB + ',' + (0.18 + 0.10 * pulse).toFixed(3) + ')');
+      gl.addColorStop(0.62, 'rgba(' + WARP_RGB + ',' + (0.42 + 0.16 * pulse).toFixed(3) + ')');
+      gl.addColorStop(1, 'rgba(' + WARP_RGB + ',' + (0.80 + 0.20 * pulse).toFixed(3) + ')');
+      ctx.beginPath(); ctx.arc(q.x, q.y, r, 0, 7); ctx.fillStyle = gl; ctx.fill();
+      // 渦（口の中でゆっくり回る）。★回す向きは「吸い込まれる」側＝ねじれと逆向き
+      ctx.strokeStyle = 'rgba(255,255,255,' + (0.30 + 0.18 * pulse).toFixed(3) + ')';
+      ctx.lineWidth = Math.max(1, r * 0.10);
+      for (let a = 0; a < 3; a++) {
+        ctx.beginPath();
+        for (let i = 0; i <= 14; i++) {
+          const t2 = i / 14;
+          const rad = r * (0.18 + 0.74 * t2);
+          const th = a * Math.PI * 2 / 3 - now * 1.5 + t2 * 2.0;
+          const x = q.x + Math.cos(th) * rad, y = q.y + Math.sin(th) * rad;
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+      // 口のふちの輪（脈打つ）。外側の1本は薄く広げて、遠目にも見つかるようにする
+      for (let i = 0; i < 2; i++) {
+        ctx.beginPath(); ctx.arc(q.x, q.y, r * (1.06 + i * 0.34 + 0.07 * pulse), 0, 7);
+        ctx.strokeStyle = 'rgba(' + WARP_RGB + ',' + (0.85 - i * 0.55 + 0.15 * pulse).toFixed(3) + ')';
+        ctx.lineWidth = Math.max(1, r * (0.20 - i * 0.11));
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  /**
+   * 玉が通り抜けたときの残像（6.6.9節）。入口ではすぼまり、出口では広がる。
+   * ★**出来事（warp）を受け取った場で積む。**実時間で予約すると、
+   *   画面が等速で進まない場面（空中の玉・観戦の追いつき）で絵だけ別の時刻に出る。
+   */
+  function drawWarpFx() {
+    const list = S.warpFx;
+    if (!list || !list.length) return;
+    const g = S.game, s = view.s, now = performance.now();
+    const byId = id => (g.table.pockets || []).filter(p => p.id === id)[0];
+    ctx.save();
+    for (let i = list.length - 1; i >= 0; i--) {
+      const f = list[i];
+      const u = (now - f.at) / WARP_FX_MS;
+      if (u >= 1) { list.splice(i, 1); continue; }
+      const a = byId(f.from), b = byId(f.to);
+      // 入口＝前半にすぼまる／出口＝後半に広がる
+      if (a && u < 0.6) {
+        const v = u / 0.6, q = toScreen(a.x, a.y), r = a.r * s;
+        ctx.beginPath(); ctx.arc(q.x, q.y, r * (1.9 - 1.5 * v), 0, 7);
+        ctx.strokeStyle = 'rgba(' + WARP_RGB + ',' + (0.75 * (1 - v)).toFixed(3) + ')';
+        ctx.lineWidth = Math.max(1, r * 0.22 * (1 - v * 0.5)); ctx.stroke();
+      }
+      if (b && u > 0.3) {
+        const v = (u - 0.3) / 0.7, q = toScreen(b.x, b.y), r = b.r * s;
+        ctx.beginPath(); ctx.arc(q.x, q.y, r * (0.6 + 1.6 * v), 0, 7);
+        ctx.strokeStyle = 'rgba(' + WARP_RGB + ',' + (0.8 * (1 - v)).toFixed(3) + ')';
+        ctx.lineWidth = Math.max(1, r * 0.24 * (1 - v * 0.6)); ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
   function drawBlackHole(h) {
     if (!h) return;
     const g = S.game, s = view.s, H = F.HOLE;
@@ -3821,6 +4073,36 @@
       hg.addColorStop(0, '#151515'); hg.addColorStop(1, '#000');
       ctx.beginPath(); ctx.ellipse(q.x, q.y, rr, rr * 0.45, 0, 0, 7); ctx.fillStyle = hg; ctx.fill();
     }
+    /*
+     * テレポートポケットの対（6.6.9節）。★**3Dにも出す。**
+     *   3Dが出るのは構える段だけなので、ここに無いと
+     *   「どの口が繋がっているかを確かめてから狙う」が成り立たない
+     *   （ブラックホールの絵を3Dにも出したのと同じ理由）。
+     */
+    const wp = g.field ? F.warpPair(g.field) : null;
+    if (wp) {
+      const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 1000 * 2.3);
+      for (const pk of table.pockets) {
+        if (pk.id !== wp.a && pk.id !== wp.b) continue;
+        const q = proj(pk.x, pk.y, 0); if (!q) continue;
+        const rr = scale * pk.r / q.z;
+        // ★2Dと同じ考えで**口の中を光らせる**（外側の輪だけでは繋がりが読み取れない）
+        const gl3 = ctx.createRadialGradient(q.x, q.y, rr * 0.1, q.x, q.y, rr);
+        gl3.addColorStop(0, 'rgba(' + WARP_RGB + ',' + (0.18 + 0.10 * pulse).toFixed(3) + ')');
+        gl3.addColorStop(0.62, 'rgba(' + WARP_RGB + ',' + (0.42 + 0.16 * pulse).toFixed(3) + ')');
+        gl3.addColorStop(1, 'rgba(' + WARP_RGB + ',' + (0.80 + 0.20 * pulse).toFixed(3) + ')');
+        ctx.beginPath(); ctx.ellipse(q.x, q.y, rr, rr * 0.45, 0, 0, 7);
+        ctx.fillStyle = gl3; ctx.fill();
+        for (let i = 0; i < 2; i++) {
+          ctx.beginPath();
+          ctx.ellipse(q.x, q.y, rr * (1.06 + i * 0.34 + 0.07 * pulse),
+            rr * 0.45 * (1.06 + i * 0.34 + 0.07 * pulse), 0, 0, 7);
+          ctx.strokeStyle = 'rgba(' + WARP_RGB + ',' + (0.85 - i * 0.55 + 0.15 * pulse).toFixed(3) + ')';
+          ctx.lineWidth = Math.max(1, rr * (0.20 - i * 0.11));
+          ctx.stroke();
+        }
+      }
+    }
 
     /*
      * ★ゴルフ型のコース（バンカー・池）を台面に描く。2Dと同じ物が3Dにも要る
@@ -4050,6 +4332,9 @@
 
   function drawBall3D(b, x, y, r) {
     if (r < 0.4) return;
+    // 番号シャッフルの演出（6.6.8節）。★3Dは構える段＝**まさに入れ替わりを見る場面**である
+    const face = shuffleFace(b);
+    if (face) b = Object.assign({}, b, face);
     if (b.hazardKind === 'tree') {
       // 3Dでも玉に見せない。幹を立てて茂みを3つ重ねる（2Dと同じ考え）
       ctx.save();
@@ -4709,6 +4994,14 @@
         const gone = g.world.balls.find(b => b.id === e.ball);
         (S.holeFx = S.holeFx || []).push({ x: e.x, y: e.y, at: performance.now(),
           color: gone ? gone.color : '#f4f4f4', r: gone ? gone.r : T.R });
+      } else if (e.type === 'warp') {
+        /*
+         * テレポートポケットを通り抜けた（6.6.9節）。
+         * ★**落球ではない**ので、落ちた音を鳴らさない。鳴らすと
+         *   「入ったのに数えられていない」という食い違いに聞こえる。
+         */
+        AU.sfx('warp', 0.8);
+        (S.warpFx = S.warpFx || []).push({ from: e.from, to: e.to, at: performance.now() });
       }
       // 着地は watchJumps が玉の高さから見ている（ふわりと落ちた場合も拾うため）
     }

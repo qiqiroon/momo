@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.95';               // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.96';               // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules, F = BilliardsField;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -1225,7 +1225,13 @@
       g.bowling.moves = null; g.bowling.pinState = null;
     }
     g.history.push({ n: g.shotNo, shot: Object.assign({}, shot), place: place || null });
-    S.replay = { balls: g.world.balls.map(b => Object.assign({}, b)), shot: Object.assign({}, shot), turn: g.turn };
+    /*
+     * ★**撞き直し（リプレイ・空振りの理由）のための控え**（4.8節）。
+     *   盤面イベント層の抽選結果は**ここでは入れない。**このショットぶんを引くのは
+     *   下の F.beginShot であって、いま field が持っているのは**1つ前のショットの向き**だからである。
+     *   （撞かずに終わるミスキューの道はここで帰る。そのときは層なしのままでよい＝一度も転がらない）
+     */
+    S.replay = { balls: g.world.balls.map(b => Object.assign({}, b)), shot: Object.assign({}, shot), turn: g.turn, field: null };
 
     const pre = {
       cueId: cue.id,
@@ -1253,6 +1259,15 @@
      * 追いつき直しもリプレイもここを通るので、盤面イベント層の入口はここに置く。
      */
     F.beginShot(g.field, g.rng, { shotNo: g.shotNo, game: g });
+    /*
+     * ★**撞き直しは「撞いたこの瞬間の抽選結果」で走らせる**（4.8節・F.snapshot の注記）。
+     *   リプレイを押すころにはターンが先へ進んでいて、**穴もテレポの対も地震の向きも
+     *   引き直されている。**ここで控えておかないと、
+     *   **穴は新しい場所に描かれているのに玉は古い場所へ吸われる**という食い違いになる。
+     *   実測＝控えを渡さないと突風で玉10.2個ぶん、ブラックホールでは撞いた回の半分近くで
+     *   落ちる玉の顔ぶれそのものが変わる。
+     */
+    S.replay.field = F.snapshot(g.field);
     E.applyCue(cue, shot);
     // 音は「撞いた手応え」なので、物理の値ではなく見えている目盛りに合わせる（カーリング型は幅が違う）
     if (!S.catchUp) { AU.sfx('cue', Math.min(1, RU.aimPower(g.rule, shot.power))); setMsg(t('ph.rolling')); }
@@ -5056,11 +5071,32 @@
     }
   }
   const WADE_REF = 1400;          // 水音の大きさを決める目安の速さ（mm/秒）
+  /*
+   * ★**盤面イベント層も一緒に差し替える。**世界だけ差し替えると、
+   *   **玉は控えた穴の位置へ吸い込まれるのに、絵は新しい穴を描く**ことになる
+   *   （穴もテレポの対も、ターンが始まるたびに引き直されている）。
+   *   地形・傾き・突風の筋・地震の揺れも、すべてここから field を見ている。
+   */
   function drawReplay() {
-    const save = S.game.world;
+    const save = S.game.world, saveField = S.game.field;
     S.game.world = S.replayRun;
+    if (S.replay && S.replay.field) S.game.field = S.replay.field;
     draw2D();
-    S.game.world = save;
+    S.game.world = save; S.game.field = saveField;
+  }
+
+  /**
+   * ★**撞き直しの盤面を作る、ただ1つの場所**（リプレイと空振りの理由。4.8節）。
+   *
+   * ★**createWorld をそれぞれの場所で呼ばない。**2つに分かれていたころは、
+   *   **どちらも第4引数（盤面イベント層）を渡し忘れていて**、
+   *   異常モードの撞き直しが本番とまるきり別の軌道になっていた。
+   *   ルール側も同じ形にしてある（rules.js の makeWorld ＝「createWorld を直に呼ぶのはここだけ」）。
+   * ★渡すのは**撞いた瞬間の控え**であって、生きている field ではない（F.snapshot の注記）。
+   */
+  function replayWorld(balls) {
+    const g = S.game;
+    return E.createWorld(g.table, balls, g.tuning, { field: (S.replay && S.replay.field) || null });
   }
 
   // ══════════════════════════════════════════════
@@ -5220,7 +5256,7 @@
     const g = S.game;
     if (!g || !S.replay || !S.pre || !S.replay.shot) return '';
     const balls = S.replay.balls.map(b => Object.assign({}, b));
-    const w = E.createWorld(g.table, balls, g.tuning);
+    const w = replayWorld(balls);
     const cue = w.balls.find(b => b.id === S.pre.cueId);
     if (!cue) return '';
     const objs = w.balls.filter(b => b !== cue && b.state === 'live');
@@ -6735,7 +6771,7 @@
   $('btn-demo').onclick = () => { AU.sfx('button'); $('modal-settings').classList.remove('on'); startDemo(); };
   $('btn-replay').onclick = () => {
     if (!S.replay) return;
-    const w = E.createWorld(S.game.table, S.replay.balls.map(b => Object.assign({}, b)), S.game.tuning);
+    const w = replayWorld(S.replay.balls.map(b => Object.assign({}, b)));
     const cue = w.balls.find(b => b.kind === 'cue' && (S.game.rule !== 'G-04' || b.owner === S.replay.turn));
     if (!cue) return;
     E.applyCue(cue, S.replay.shot);

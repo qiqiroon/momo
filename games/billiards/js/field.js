@@ -1313,6 +1313,27 @@ const BilliardsField = (() => {
   }
 
   /**
+   * ★**撞いた瞬間の抽選結果をそのまま控える**（4.8節のリプレイ・空振りの理由）。
+   *
+   * 撞き直しは「撞く直前の盤面をもう一度走らせる」ものだが、**走らせるころには
+   * ターンが先へ進んでいて、穴もテレポの対も地震の向きも引き直されている。**
+   * 生きている field を渡すと、**撞いたときとは違う盤面で撞き直す**ことになる
+   * （実測＝突風で玉10.2個ぶん・ブラックホールでは撞いた回の半分近くで落ちる玉の顔ぶれが変わる）。
+   *
+   * ★**渡さないのも、生きているものを渡すのも、どちらも間違いである。**
+   *   前者はギミックが丸ごと消えた盤面、後者は次のターンの盤面になる。
+   *
+   * ★**3層（game / turn / shot）は、引き直すたびに新しい入れ物へ差し替わる**
+   *   （上の beginGame・beginTurn・beginShot はどれも `= {}` から始めている）。
+   *   だから**いまの入れ物を指したまま持っておけば、あとから中身が書き換わることはない。**
+   *   ★逆に言えば、**どこかで中身をその場で書き換える形に変えたら、ここも一緒に直す。**
+   *   （検査で「控えを取ったあとに引き直しても控えが変わらないこと」を見ている）
+   */
+  function snapshot(field) {
+    return field ? Object.assign({}, field) : null;
+  }
+
+  /**
    * いまの揺れの強さ（加速度 mm/s^2）。**符号つき**で、正が揺れの向き。
    * 物理も画面もこの1つの式から出す。★2つ持つと、**見えている揺れと効いている揺れがずれる。**
    *
@@ -1595,7 +1616,7 @@ const BilliardsField = (() => {
     ALL_IDS, DOOR, IDS, PICK_MAX, TERRAIN, TILT, QUAKE, GUST, HOLE, SHUFFLE, WARP,
     CLOTH_SLIDE, CLOTH_ROLL,
     blockOf, available, pickMax, create,
-    beginGame, beginTurn, beginShot, apply,
+    beginGame, beginTurn, beginShot, snapshot, apply,
     patches, terrain, terrainAt, floodedPockets, tilt,
     hole, holeAccel, holeKeepAway, holeBlocked, swallow,
     shuffle, shuffleTargets, NUM_KEYS,

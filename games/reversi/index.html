@@ -117,6 +117,35 @@ body {
 .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
 .opt-btn.on { border-color: var(--orange); background: #1a0e04; color: var(--orange); }
 
+/* 一人用: 終局の結果を盤の上に重ねて出す（半透明・つまんで動かせる） */
+.solo-float {
+  position: fixed; z-index: 60; left: 0; top: 0;
+  width: min(78vw, 268px);
+  border: 1px solid var(--orange); border-radius: 12px;
+  background: rgba(16,16,16,0.72);
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+  overflow: hidden;
+}
+.solo-float-bar {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 8px; font-size: 11px;
+  color: var(--orange); background: rgba(232,100,10,0.16);
+  cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
+}
+.solo-float-bar:active { cursor: grabbing; }
+.solo-float-grip { letter-spacing: 2px; opacity: 0.8; }
+.solo-float-body {
+  padding: 8px; display: flex; flex-direction: column; gap: 8px;
+  max-height: 62vh; overflow-y: auto;
+}
+.solo-float .panel { background: transparent; border: none; padding: 0; }
+.solo-float .panel-title { font-size: 13px; margin-bottom: 4px; }
+.solo-float #end-result { font-size: 18px !important; }
+.solo-float .history-list { max-height: 72px; }
+.solo-float .history-row { font-size: 11px; padding: 3px 6px; }
+.solo-float .end-btn { background: rgba(42,42,42,0.72); padding: 8px 10px; font-size: 13px; }
+
 /* ===== INPUTS ===== */
 .input {
   background: var(--surface2);
@@ -510,7 +539,7 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
     </g>
   </svg>
   <div class="title-block">
-    <h1><span class="momo">MOMO</span><span class="reversi">Reversi</span><span class="version-tag" id="version-tag">v3.02</span></h1>
+    <h1><span class="momo">MOMO</span><span class="reversi">Reversi</span><span class="version-tag" id="version-tag">v3.03</span></h1>
     <div class="subtitle" id="subtitle">Flip the Board, Rewrite the Fate</div>
   </div>
 </header>
@@ -526,9 +555,9 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
       <div class="field">
         <label id="i18n-solo-strength">強さ</label>
         <div style="display:flex;gap:6px;">
-          <button class="btn btn-secondary opt-btn" style="flex:1;" id="solo-diff-easy" onclick="soloSetDiff('easy')">入門</button>
-          <button class="btn btn-secondary opt-btn" style="flex:1;" id="solo-diff-medium" onclick="soloSetDiff('medium')">中級</button>
-          <button class="btn btn-secondary opt-btn" style="flex:1;" id="solo-diff-hard" onclick="soloSetDiff('hard')">名人</button>
+          <button class="btn btn-secondary opt-btn" style="flex:1;" id="solo-diff-easy" onclick="soloSetDiff('easy')">EASY</button>
+          <button class="btn btn-secondary opt-btn" style="flex:1;" id="solo-diff-medium" onclick="soloSetDiff('medium')">HARD</button>
+          <button class="btn btn-secondary opt-btn" style="flex:1;" id="solo-diff-hard" onclick="soloSetDiff('hard')">APOCALYPSE</button>
         </div>
       </div>
       <div class="field">
@@ -573,9 +602,9 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
     <div style="display:flex;flex-direction:column;gap:8px;">
       <div style="font-size:12px;color:var(--gray);" id="i18n-cpu-desc">上の部屋名・パスワード・公開設定で部屋を作成し、入室してきた相手とコンピュータが対戦します。あなたは観戦するだけで、相手はコンピュータと対戦していると気付きません。</div>
       <div style="display:flex;gap:6px;">
-        <button class="btn btn-secondary" style="flex:1;" onclick="startCpuGame('easy')" id="i18n-cpu-easy">入門</button>
-        <button class="btn btn-secondary" style="flex:1;" onclick="startCpuGame('medium')" id="i18n-cpu-medium">中級</button>
-        <button class="btn btn-secondary" style="flex:1;" onclick="startCpuGame('hard')" id="i18n-cpu-hard">名人</button>
+        <button class="btn btn-secondary" style="flex:1;" onclick="startCpuGame('easy')" id="i18n-cpu-easy">EASY</button>
+        <button class="btn btn-secondary" style="flex:1;" onclick="startCpuGame('medium')" id="i18n-cpu-medium">HARD</button>
+        <button class="btn btn-secondary" style="flex:1;" onclick="startCpuGame('hard')" id="i18n-cpu-hard">APOCALYPSE</button>
       </div>
       <div id="cpu-error" style="font-size:12px;color:var(--danger);min-height:16px;text-align:center;"></div>
     </div>
@@ -692,7 +721,7 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
 
 <!-- ===== SCREEN: END ===== -->
 <div class="screen" id="screen-end">
-  <div class="panel">
+  <div class="panel" id="end-result-panel">
     <div class="panel-title" id="end-result" style="font-size:22px;text-align:center;"></div>
     <div style="font-size:14px;text-align:center;color:var(--gray);margin-top:4px;" id="end-score"></div>
   </div>
@@ -702,7 +731,7 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
     <div class="history-list" id="history-list"></div>
   </div>
 
-  <div class="panel">
+  <div class="panel" id="end-next-panel">
     <div class="panel-title" id="i18n-next-game">次の対局</div>
     <div class="end-choices">
       <button class="end-btn" id="end-swap" onclick="chooseEnd('swap')">
@@ -724,6 +753,15 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
       <button class="btn btn-secondary" onclick="sendChat('end')" id="i18n-btn-send-e">送信</button>
     </div>
   </div>
+</div>
+
+<!-- ===== 一人用: 盤に重ねる終局パネル ===== -->
+<div class="solo-float" id="solo-float" hidden>
+  <div class="solo-float-bar" id="solo-float-bar">
+    <span class="solo-float-grip" aria-hidden="true">⣿</span>
+    <span id="i18n-solo-drag">つまんで動かせます</span>
+  </div>
+  <div class="solo-float-body" id="solo-float-body"></div>
 </div>
 
 <!-- ===== PASSWORD MODAL ===== -->
@@ -1137,6 +1175,7 @@ function leaveRoom() {
 
 function resetToLobby() {
   MomoCPU.stop();
+  soloFloatHide();
   MomoSolo.stop();
   MomoMatchmaking.leaveRoom();
   myColor = null;
@@ -1227,6 +1266,7 @@ function beginGame(swapColors) {
     myColor = myChoice;
   }
 
+  soloFloatHide();
   gameReady = true;
   initBoard();
   turn = 'black';
@@ -1473,6 +1513,9 @@ function showEndScreen(result, showScore, black, white) {
   myEndChoice = null;
   oppEndChoice = null;
   updateEndUI();
+
+  // 一人用は盤を見せたまま、結果を盤の上に重ねて出す
+  if (MomoSolo.isActive()) { soloFloatShow(); return; }
 
   showScreen('end');
 }
@@ -1744,9 +1787,10 @@ const I18N = {
     soloBlack: '黒（先手）', soloWhite: '白（後手）', soloRandom: 'おまかせ',
     soloStart: '対局開始', soloCpuTurn: 'コンピュータが考えています...',
     soloEndQuit: '終了', soloConfirmQuit: '対局を終了しますか？',
+    soloDrag: 'つまんで動かせます',
     cpuTitle: '🎭 コンピュータに代打ちさせる',
     cpuDesc: '上の部屋名・パスワード・公開設定で部屋を作成し、入室してきた相手とコンピュータが対戦します。あなたは観戦するだけで、相手はコンピュータと対戦していると気付きません。',
-    cpuEasy: '入門', cpuMedium: '中級', cpuHard: '名人',
+    cpuEasy: 'EASY', cpuMedium: 'HARD', cpuHard: 'APOCALYPSE',
     cpuRoomName: 'CPU対戦', cpuPlayerName: 'CPU',
     cpuGreet: ['よろしくお願いします', 'よろしくお願いしますね', 'お手柔らかにお願いします'],
     cpuOppGood: ['うーん、あなた強いですね…', 'お見事です', 'なるほど、その手は気付きませんでした', 'やりますね…'],
@@ -1807,9 +1851,10 @@ const I18N = {
     soloBlack: 'Black (1st)', soloWhite: 'White (2nd)', soloRandom: 'Random',
     soloStart: 'Start Game', soloCpuTurn: 'Computer is thinking...',
     soloEndQuit: 'Finish', soloConfirmQuit: 'Finish this game?',
+    soloDrag: 'Drag to move',
     cpuTitle: '🎭 Let the Computer Play for You',
     cpuDesc: 'Creates a room with the name, password, and visibility above. The computer plays against whoever joins; you watch as a spectator and the opponent does not know they are playing the AI.',
-    cpuEasy: 'Beginner', cpuMedium: 'Strategist', cpuHard: 'Master',
+    cpuEasy: 'EASY', cpuMedium: 'HARD', cpuHard: 'APOCALYPSE',
     cpuRoomName: 'CPU Match', cpuPlayerName: 'CPU',
     cpuGreet: ['Good luck, have fun!', 'Nice to meet you. Good luck!', "Let's have a good game"],
     cpuOppGood: ["Hmm, you're strong…", 'Nice move!', "I didn't see that coming", 'Well played'],
@@ -1870,9 +1915,10 @@ const I18N = {
     soloBlack: '黑（先手）', soloWhite: '白（后手）', soloRandom: '随机',
     soloStart: '开始对局', soloCpuTurn: '电脑正在思考...',
     soloEndQuit: '结束', soloConfirmQuit: '要结束本局吗？',
+    soloDrag: '可拖动',
     cpuTitle: '🎭 让电脑代你对战',
     cpuDesc: '使用上方输入的房间名、密码、公开设置创建房间，由电脑与加入的对手对战。您只是观战，对方不会察觉对手是电脑。',
-    cpuEasy: '入门', cpuMedium: '中级', cpuHard: '高手',
+    cpuEasy: 'EASY', cpuMedium: 'HARD', cpuHard: 'APOCALYPSE',
     cpuRoomName: '电脑对战', cpuPlayerName: '电脑',
     cpuGreet: ['请多指教', '请多关照', '我们来一局好棋'],
     cpuOppGood: ['嗯，你很厉害啊…', '好棋！', '这步我没想到', '不错不错'],
@@ -1931,8 +1977,11 @@ function catSpeak(key) {
   return vocab[Math.floor(Math.random() * vocab.length)];
 }
 
+// 難易度の呼び名(EASY/HARD/APOCALYPSE)は MOMO 共通の固有名詞。訳さず猫語にもしない
+const NO_TRANSLATE_KEYS = ['cpuEasy','cpuMedium','cpuHard'];
+
 function t(key) {
-  if (currentLang === 'cat') return catSpeak(key);
+  if (currentLang === 'cat' && !NO_TRANSLATE_KEYS.includes(key)) return catSpeak(key);
   return (I18N[currentLang] || I18N.ja)[key] || (I18N.ja)[key] || key;
 }
 
@@ -2000,6 +2049,7 @@ function applyLang() {
   setText('solo-side-white', 'soloWhite');
   setText('solo-side-random', 'soloRandom');
   setText('i18n-solo-start', 'soloStart');
+  setText('i18n-solo-drag', 'soloDrag');
   setText('i18n-cpu-title', 'cpuTitle');
   setText('i18n-cpu-desc', 'cpuDesc');
   setText('i18n-cpu-easy', 'cpuEasy');
@@ -2782,6 +2832,100 @@ function startSoloGame() {
   const side = _soloSide === 'random' ? (Math.random() < 0.5 ? 'black' : 'white') : _soloSide;
   MomoSolo.start(_soloDiff, side);
 }
+
+// ===== 一人用: 盤に重ねる終局パネル =====
+// 中身は終局画面の3枚をそのまま動かして使う（同じ表を2か所に持たないため）
+const SOLO_FLOAT_PARTS = ['end-result-panel','history-panel','end-next-panel'];
+
+function soloFloatShow() {
+  const f = document.getElementById('solo-float');
+  const body = document.getElementById('solo-float-body');
+  if (!f || !body) return;
+  SOLO_FLOAT_PARTS.forEach(id => { const el = document.getElementById(id); if (el) body.appendChild(el); });
+  f.hidden = false;
+  soloFloatCenter();
+  const ba = document.querySelector('#screen-game .board-actions');
+  if (ba) ba.style.display = 'none';   // 終わった後にパス・降参は押せない
+  // 対局は終わっているので手番の表示は消す
+  const ind = document.getElementById('turn-indicator');
+  if (ind) { ind.textContent = ''; ind.className = 'turn-indicator'; }
+  const frame = document.getElementById('board-frame');
+  if (frame) frame.classList.remove('my-turn');
+}
+
+function soloFloatHide() {
+  const f = document.getElementById('solo-float');
+  if (!f || f.hidden) return;
+  const sc = document.getElementById('screen-end');
+  const chat = document.getElementById('chat-wrap-end');
+  SOLO_FLOAT_PARTS.forEach(id => { const el = document.getElementById(id); if (el && sc) sc.insertBefore(el, chat); });
+  f.hidden = true;
+  const ba = document.querySelector('#screen-game .board-actions');
+  if (ba) ba.style.display = '';
+}
+
+// 盤の真ん中に置く（はみ出しそうなら画面の中へ収める）
+function soloFloatCenter() {
+  const f = document.getElementById('solo-float');
+  const bf = document.getElementById('board-frame');
+  if (!f) return;
+  const r = f.getBoundingClientRect();
+  let x, y;
+  if (bf) {
+    const b = bf.getBoundingClientRect();
+    x = b.left + (b.width - r.width) / 2;
+    y = b.top + (b.height - r.height) / 2;
+  } else {
+    x = (window.innerWidth - r.width) / 2;
+    y = (window.innerHeight - r.height) / 2;
+  }
+  soloFloatMove(x, y);
+}
+
+// つまみ(帯)が必ず画面に残るように収める
+function soloFloatMove(x, y) {
+  const f = document.getElementById('solo-float');
+  if (!f) return;
+  const r = f.getBoundingClientRect();
+  const margin = 8, barH = 34;
+  const maxX = window.innerWidth - Math.min(r.width, window.innerWidth) - margin;
+  x = Math.max(margin, Math.min(x, Math.max(margin, maxX)));
+  y = Math.max(margin, Math.min(y, window.innerHeight - barH - margin));
+  f.style.left = Math.round(x) + 'px';
+  f.style.top  = Math.round(y) + 'px';
+}
+
+// つまんで動かす（マウスも指も同じ扱い）
+(function setupSoloFloatDrag() {
+  const bar = document.getElementById('solo-float-bar');
+  const f = document.getElementById('solo-float');
+  if (!bar || !f) return;
+  let dragging = false, gx = 0, gy = 0;
+  bar.addEventListener('pointerdown', e => {
+    dragging = true;
+    const r = f.getBoundingClientRect();
+    gx = e.clientX - r.left; gy = e.clientY - r.top;
+    try { bar.setPointerCapture(e.pointerId); } catch (err) {}
+    e.preventDefault();
+  });
+  bar.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    soloFloatMove(e.clientX - gx, e.clientY - gy);
+    e.preventDefault();
+  });
+  const end = e => {
+    if (!dragging) return;
+    dragging = false;
+    try { bar.releasePointerCapture(e.pointerId); } catch (err) {}
+  };
+  bar.addEventListener('pointerup', end);
+  bar.addEventListener('pointercancel', end);
+  window.addEventListener('resize', () => {
+    if (f.hidden) return;
+    const r = f.getBoundingClientRect();
+    soloFloatMove(r.left, r.top);
+  });
+})();
 
 // 一人用のときだけ画面から「相手とのやりとり」を消し、終局の文言を差し替える
 function applySoloChrome() {

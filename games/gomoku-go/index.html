@@ -989,7 +989,7 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
     </g>
   </svg>
   <div class="title-block">
-    <h1><span class="momo">MOMO</span><span class="go">Go</span><span class="version-tag" id="version-tag">v2.11</span></h1>
+    <h1><span class="momo">MOMO</span><span class="go">Go</span><span class="version-tag" id="version-tag">v2.12</span></h1>
     <div class="subtitle" id="subtitle">Master the Stones, Rule the Realm</div>
   </div>
 </header>
@@ -2852,7 +2852,7 @@ function exitScoringPhase() {
 }
 
 // 結果確定後（finalize 経由）の終局フェーズ。データ（deadStones / forcedTerritory /
-// scoringResult）は維持して地・スコアの表示を5秒間継続させる。インタラクション用
+// scoringResult）は維持して地・スコアの表示を OK を押すまで継続させる。インタラクション用
 // ボタンのみ非表示にする。完全クリアは beginGame / resetToLobby で行う。
 function softExitScoringPhase() {
   scoringPhase = 'finalized';
@@ -3759,7 +3759,7 @@ function endGame(winnerColor, reason) {
   renderTimeDisplays();
   // scoringPhase の扱い:
   //   'marking' = 死石マーク中に異常終局 (resign/timeout) → 完全 exit
-  //   'finalized' = finalizeScoring 経由 → データを保持（地・スコアを5秒間表示）
+  //   'finalized' = finalizeScoring 経由 → データを保持（地・スコアを OK まで表示）
   //   'idle' = 何もしない
   if (scoringPhase === 'marking') {
     exitScoringPhase();

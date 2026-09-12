@@ -671,6 +671,8 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
 
 .board-actions { display: flex; gap: 8px; }
 .board-actions .btn { flex: 1; font-size: 13px; padding: 8px; }
+/* 結果表示中の OK は1つだけで出る。flex:1 のままだと行が文字幅まで縮んで押しにくい */
+#btn-end-ok { flex: 0 0 auto; min-width: 140px; }
 
 /* ===== END PANEL ===== */
 .end-choices { display: flex; flex-direction: column; gap: 8px; }
@@ -987,7 +989,7 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
     </g>
   </svg>
   <div class="title-block">
-    <h1><span class="momo">MOMO</span><span class="go">Go</span><span class="version-tag" id="version-tag">v2.10</span></h1>
+    <h1><span class="momo">MOMO</span><span class="go">Go</span><span class="version-tag" id="version-tag">v2.11</span></h1>
     <div class="subtitle" id="subtitle">Master the Stones, Rule the Realm</div>
   </div>
 </header>
@@ -1208,6 +1210,7 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
       <button class="btn btn-secondary" id="btn-undo" onclick="requestUndoStep()" style="display:none;">待った</button>
       <button class="btn btn-primary" id="btn-scoring-agree" onclick="agreeScoring()" style="display:none;">合意する</button>
       <button class="btn btn-ghost" id="btn-scoring-cancel" onclick="cancelAgreeScoring()" style="display:none;">合意取消</button>
+      <button class="btn btn-primary" id="btn-end-ok" onclick="dismissResult()" style="display:none;">OK</button>
       <button class="btn btn-ghost" onclick="resign()" id="i18n-btn-resign">降参</button>
     </div>
 
@@ -1448,6 +1451,9 @@ const RULE_ROWS = [
 let lobbyStatusKey = 'connecting';   // 'connecting' | 'connected'
 let waitingStatusKey = 'waitingGuest'; // 'waitingGuest' | 'guestJoined'
 let waitingStatusName = '';            // guestJoined時のゲスト名
+// 結果表示中に抱えておく「このあと終局画面へ渡す内容」。
+// null でない間は「盤の下に勝敗を出して OK 待ち」の状態。
+let pendingEndScreen = null;
 let turnIndicatorKey = null;           // 'myTurn' | 'oppTurn' | 'winMsg' | 'loseMsg' | 'drawMsg' | 'forbiddenWin' | 'forbiddenLose' | 'phase_b1_me' | 'phase_b1_opp' | 'phase_w1_me' | 'phase_w1_opp' | 'phase_b2_me' | 'phase_b2_opp' | 'phase_swap_me' | 'phase_swap_opp' | 'phase_tengen_only'
 
 // ===== 囲碁 STATE =====
@@ -1993,6 +1999,8 @@ function resetToLobby() {
   myColor = null;
   initialMyColor = null;
   gameReady = false;
+  pendingEndScreen = null;
+  hideResultOkButton();
   gameActive = false;
   matchHistory = [];
   currentRules = null;
@@ -2153,6 +2161,8 @@ function beginGame(swapColors) {
   initialMyColor = myColor;
 
   gameReady = true;
+  pendingEndScreen = null;
+  hideResultOkButton();
   initBoard();
   turn = 'black';
   gameActive = true;
@@ -2361,6 +2371,8 @@ function renderBoard() {
 }
 
 function updateTurnUI() {
+  // 結果表示中（OK 待ち）は盤の下を触らない。勝敗の文字と OK をそのまま残す
+  if (pendingEndScreen) { showResultOkButton(); return; }
   const frame = document.getElementById('board-frame');
   const indicator = document.getElementById('turn-indicator');
   const confirmBtn = document.getElementById('btn-confirm');
@@ -2953,6 +2965,7 @@ function formatScoreLine(s, color) {
 
 // 終局フェーズの状態に応じて board-actions と turn-indicator を更新
 function updateScoringActions() {
+  if (pendingEndScreen) return;   // 結果表示中（OK 待ち）は触らない
   const confirmBtn = document.getElementById('btn-confirm');
   const passBtn = document.getElementById('btn-pass');
   const undoBtn = document.getElementById('btn-undo');
@@ -3805,15 +3818,48 @@ function endGame(winnerColor, reason) {
   const pb = document.getElementById('btn-pass');    if (pb) pb.disabled = true;
   const fr = document.getElementById('board-frame'); if (fr) fr.classList.remove('my-turn');
 
-  // 5秒後に終了画面へ自動遷移（5連ハイライト or 囲碁の地・スコアを見てもらうため）
-  // 囲碁の終局結果の場合、end画面に詳細結果文字列を引き継ぐ
-  const finalText = goFinalText || t(resultKey);
+  // 結果は自動で消さない。OK を押すまで盤と一緒に出しておく
+  //（以前は5秒で勝手に終局画面へ遷移していた。ユーザー指示 2026-09-12）
+  // 囲碁の終局結果の場合、終局画面に詳細結果文字列を引き継ぐ
   // matchHistory 用に囲碁の詳細スコアを captureしておく（scoringResult が後で消えるため）
-  const goScoreSnapshot = (reason === 'go-final' && scoringResult)
-    ? formatGoFinalResult(scoringResult, myColor) : null;
-  setTimeout(() => {
-    showEndScreen(finalText, outcome, goScoreSnapshot);
-  }, 5000);
+  pendingEndScreen = {
+    text: goFinalText || t(resultKey),
+    outcome: outcome,
+    goScoreText: (reason === 'go-final' && scoringResult)
+      ? formatGoFinalResult(scoringResult, myColor) : null
+  };
+  showResultOkButton();
+}
+
+// 結果表示中は盤の下のボタン列を OK だけにする
+const RESULT_HIDDEN_BTNS = ['btn-confirm', 'btn-pass', 'btn-undo', 'btn-scoring-agree', 'btn-scoring-cancel', 'i18n-btn-resign'];
+
+function showResultOkButton() {
+  RESULT_HIDDEN_BTNS.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  const ok = document.getElementById('btn-end-ok');
+  if (ok) { ok.style.display = ''; ok.textContent = t('btnOk'); }
+}
+
+function hideResultOkButton() {
+  const ok = document.getElementById('btn-end-ok');
+  if (ok) ok.style.display = 'none';
+  // 残りのボタンの出し分けは updateTurnUI / updateScoringActions が持っている
+  ['btn-confirm', 'btn-pass', 'i18n-btn-resign'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = '';
+  });
+}
+
+// OK を押したら終局画面（結果パネル）へ
+function dismissResult() {
+  if (!pendingEndScreen) return;
+  const p = pendingEndScreen;
+  pendingEndScreen = null;
+  hideResultOkButton();
+  showEndScreen(p.text, p.outcome, p.goScoreText);
 }
 
 function toggleNotation() {
@@ -4282,6 +4328,7 @@ const I18N = {
     soloBlack: '黒（先手）', soloWhite: '白（後手）', soloRandom: 'おまかせ',
     soloStart: '対局開始', soloCpuTurn: 'コンピュータが考えています...',
     soloEndQuit: '終了',
+    btnOk: 'OK',
     cpuEasy: 'EASY', cpuMedium: 'HARD', cpuHard: 'APOCALYPSE',
     ruleLabel_sansan: '三三禁', ruleLabel_sisi: '四四禁', ruleLabel_choren: '長連禁',
     ruleLabel_sixPlus: '6連以上', ruleLabel_firstmove: '初手位置', ruleLabel_swap: '三手交換', ruleLabel_undo: '待った',
@@ -4430,6 +4477,7 @@ const I18N = {
     soloBlack: 'Black (1st)', soloWhite: 'White (2nd)', soloRandom: 'Random',
     soloStart: 'Start Game', soloCpuTurn: 'Computer is thinking...',
     soloEndQuit: 'Finish',
+    btnOk: 'OK',
     cpuEasy: 'EASY', cpuMedium: 'HARD', cpuHard: 'APOCALYPSE',
     ruleLabel_sansan: 'Double-three', ruleLabel_sisi: 'Double-four', ruleLabel_choren: 'Overline',
     ruleLabel_sixPlus: 'Six+ in a row', ruleLabel_firstmove: 'First move', ruleLabel_swap: 'Three-move swap', ruleLabel_undo: 'Undo',
@@ -4578,6 +4626,7 @@ const I18N = {
     soloBlack: '黑（先手）', soloWhite: '白（后手）', soloRandom: '随机',
     soloStart: '开始对局', soloCpuTurn: '电脑正在思考...',
     soloEndQuit: '结束',
+    btnOk: 'OK',
     cpuEasy: 'EASY', cpuMedium: 'HARD', cpuHard: 'APOCALYPSE',
     ruleLabel_sansan: '双三禁手', ruleLabel_sisi: '双四禁手', ruleLabel_choren: '长连禁手',
     ruleLabel_sixPlus: '六连以上', ruleLabel_firstmove: '首手位置', ruleLabel_swap: '三手交换', ruleLabel_undo: '悔棋',
@@ -4944,6 +4993,8 @@ function applyLang() {
   if (typeof updateScoringActions === 'function') updateScoringActions();
   // 一人用の文言（終局の「終了」など）は applyLang の後に上書きする
   if (typeof applySoloChrome === 'function') applySoloChrome();
+  // 結果表示中（OK 待ち）なら OK の文言も当て直す
+  if (pendingEndScreen && typeof showResultOkButton === 'function') showResultOkButton();
 }
 
 function onLangChange(mode) {

@@ -29,6 +29,8 @@
 <script src="gomoku-rules.js"></script>
 <script src="go-rules.js"></script>
 <script src="go-scoring.js"></script>
+<script src="gomoku-ai.js"></script>
+<script src="go-ai.js"></script>
 <style>
 :root {
   /* DESIGN_SPEC v1.0 準拠 */
@@ -124,6 +126,8 @@ body {
 .btn-danger { background: var(--danger); color: #fff; }
 .btn-ghost { background: transparent; color: var(--gray); border: 1px solid var(--border); }
 .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+/* 一人用パネルの選択ボタン（強さ・自分の石）。選ばれている方をオレンジで示す */
+.opt-btn.on { border-color: var(--orange); background: #1a0e04; color: var(--orange); }
 
 /* ===== INPUTS ===== */
 .input {
@@ -983,7 +987,7 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
     </g>
   </svg>
   <div class="title-block">
-    <h1><span class="momo">MOMO</span><span class="go">Go</span><span class="version-tag" id="version-tag">v2.01</span></h1>
+    <h1><span class="momo">MOMO</span><span class="go">Go</span><span class="version-tag" id="version-tag">v2.10</span></h1>
     <div class="subtitle" id="subtitle">Master the Stones, Rule the Realm</div>
   </div>
 </header>
@@ -995,6 +999,39 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
     <button class="game-tab active" data-game="gomoku" onclick="selectGameType('gomoku')" id="i18n-tab-gomoku">五目並べ</button>
     <button class="game-tab" data-game="go" onclick="selectGameType('go')" id="i18n-tab-go">囲碁</button>
   </div>
+  <!-- ひとりで遊ぶ（コンピュータとの対局。通信は一切使わない） -->
+  <div class="panel">
+    <div class="panel-title" id="i18n-solo-title">🎮 ひとりで遊ぶ</div>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <div style="font-size:12px;color:var(--gray);" id="i18n-solo-desc">コンピュータと1対1で対局します。通信は使いません。</div>
+      <div class="field">
+        <label id="i18n-solo-strength">強さ</label>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-secondary opt-btn" style="flex:1;" id="solo-diff-easy" onclick="soloSetDiff('easy')">EASY</button>
+          <button class="btn btn-secondary opt-btn on" style="flex:1;" id="solo-diff-medium" onclick="soloSetDiff('medium')">HARD</button>
+          <button class="btn btn-secondary opt-btn" style="flex:1;" id="solo-diff-hard" onclick="soloSetDiff('hard')">APOCALYPSE</button>
+        </div>
+      </div>
+      <div class="field" id="solo-rule-field">
+        <label id="i18n-solo-rule">ルール</label>
+        <div class="rule-presets" id="solo-rule-presets">
+          <div class="rule-card" data-preset="normal" onclick="soloSetPreset('normal')" id="i18n-solo-preset-normal">正規（連珠）</div>
+          <div class="rule-card selected" data-preset="casual" onclick="soloSetPreset('casual')" id="i18n-solo-preset-casual">カジュアル</div>
+          <div class="rule-card" data-preset="free" onclick="soloSetPreset('free')" id="i18n-solo-preset-free">自由</div>
+        </div>
+      </div>
+      <div class="field">
+        <label id="i18n-solo-stone">あなたの石</label>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-secondary opt-btn on" style="flex:1;" id="solo-side-black" onclick="soloSetSide('black')">黒（先手）</button>
+          <button class="btn btn-secondary opt-btn" style="flex:1;" id="solo-side-white" onclick="soloSetSide('white')">白（後手）</button>
+          <button class="btn btn-secondary opt-btn" style="flex:1;" id="solo-side-random" onclick="soloSetSide('random')">おまかせ</button>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="startSoloGame()" id="i18n-solo-start">対局開始</button>
+    </div>
+  </div>
+
   <div class="panel">
     <div class="panel-title" id="i18n-create-title">部屋を作る</div>
     <div style="display:flex;flex-direction:column;gap:8px;">
@@ -1653,9 +1690,11 @@ function selectGameType(gt) {
   document.querySelectorAll('#game-tabs .game-tab').forEach(el => {
     el.classList.toggle('active', el.dataset.game === gt);
   });
-  // ルールプリセット欄: 五目並べのみ表示
+  // ルールプリセット欄: 五目並べのみ表示（部屋作成・一人用とも）
   const rf = document.getElementById('rule-preset-field');
   if (rf) rf.style.display = (gt === 'gomoku') ? '' : 'none';
+  const srf = document.getElementById('solo-rule-field');
+  if (srf) srf.style.display = (gt === 'gomoku') ? '' : 'none';
   // 秒読み欄: 囲碁のみ表示
   const bf = document.getElementById('room-byoyomi-field');
   if (bf) bf.style.display = (gt === 'go') ? '' : 'none';
@@ -1947,7 +1986,10 @@ function leaveRoom() {
 }
 
 function resetToLobby() {
-  MomoMatchmaking.leaveRoom();
+  // 一人用は部屋に入っていないので退出処理を呼ばない
+  const wasSolo = (typeof MomoSolo !== 'undefined') && MomoSolo.isActive();
+  if (typeof MomoSolo !== 'undefined') MomoSolo.stop();
+  if (!wasSolo) MomoMatchmaking.leaveRoom();
   myColor = null;
   initialMyColor = null;
   gameReady = false;
@@ -2026,11 +2068,13 @@ function resetToLobby() {
   const prl = document.getElementById('private-room-list');
   if (prl) { prl.style.display = 'none'; prl.innerHTML = ''; }
   resetColorSelect();
+  if (typeof applySoloChrome === 'function') applySoloChrome();
   showScreen('lobby');
   MomoMatchmaking.refreshRooms();
 }
 
 function showDisconnect(msg) {
+  if (typeof MomoSolo !== 'undefined' && MomoSolo.isActive()) return; // 一人用は通信と無関係
   gameActive = false;
   alert(msg || t('disconnected'));
   resetToLobby();
@@ -2038,6 +2082,8 @@ function showDisconnect(msg) {
 
 // ===== SEND =====
 function send(data) {
+  // 一人用の間は何も送らない。通信経路には一切触れないので、オンライン対戦は無回帰。
+  if (typeof MomoSolo !== 'undefined' && MomoSolo.isActive()) return;
   MomoMatchmaking.send(data);
 }
 
@@ -2184,6 +2230,7 @@ function beginGame(swapColors) {
   showScreen('game');
   renderBoard();
   updateTurnUI();
+  soloTick();
 }
 
 // ===== GAME =====
@@ -2365,8 +2412,9 @@ function updateTurnUI() {
   } else {
     frame.classList.remove('my-turn');
     indicator.className = 'turn-indicator';
-    indicator.textContent = t('oppTurn');
-    turnIndicatorKey = 'oppTurn';
+    const waitKey = (typeof MomoSolo !== 'undefined' && MomoSolo.isActive()) ? 'soloCpuTurn' : 'oppTurn';
+    indicator.textContent = t(waitKey);
+    turnIndicatorKey = waitKey;
   }
 
   // 確定ボタン: 自分手番＋仮置き有り＋対局中のみ
@@ -2840,7 +2888,10 @@ function agreeScoring() {
   updateScoringActions();
   if (myScoringAgreed && oppScoringAgreed) {
     finalizeScoring();
+    return;
   }
+  // 一人用は死石の判断をあなたに任せ、コンピュータはそれに同意する
+  if (typeof MomoSolo !== 'undefined' && MomoSolo.isActive()) MomoSolo.agreeScoring();
 }
 
 function cancelAgreeScoring() {
@@ -3292,6 +3343,8 @@ function submitUndoRequest() {
   undoStatusKey = null;
   updateUndoUI();
   updateTurnUI();
+  // 一人用ではコンピュータは待ったを断らない
+  if (typeof MomoSolo !== 'undefined' && MomoSolo.isActive()) MomoSolo.acceptUndo();
 }
 
 // 自分が同意（受信側）
@@ -3617,6 +3670,7 @@ function swapPanelOk() {
   mySwapDecided = false;
   closeSwapPanel();
   updateTurnUI();
+  soloTick();
 }
 
 function nextTurn() {
@@ -3626,6 +3680,7 @@ function nextTurn() {
   // 持ち時間: 手番交代でタイマーの計測対象が切り替わる（lastTickAt をリセット）
   lastTickAt = (typeof performance !== 'undefined' ? performance.now() : Date.now());
   renderTimeDisplays();
+  soloTick();
 }
 
 function pass() {
@@ -3887,6 +3942,8 @@ function chooseEnd(choice) {
 
   myEndChoice = choice;
   send({ type: 'end_choice', choice });
+  // 一人用は相手の同意待ちが無いので、押した瞬間に次の対局が始まる
+  if (typeof MomoSolo !== 'undefined' && MomoSolo.isActive()) oppEndChoice = choice;
   updateEndUI();
   checkEndMatch();
 }
@@ -4015,6 +4072,7 @@ function handleMsg(m) {
     renderBoard();
     updateUndoUI();
     updateTurnUI();
+    soloTick();
     return;
   }
 
@@ -4218,6 +4276,13 @@ const I18N = {
     gomokuTitle: '五目並べ', goTitle: '囲碁',
     labelRule: 'ルール', ruleTitle: 'ルール', ruleListLabel: 'ルール: ',
     presetNormal: '正規（連珠）', presetCasual: 'カジュアル', presetFree: '自由',
+    soloTitle: '🎮 ひとりで遊ぶ',
+    soloDesc: 'コンピュータと1对1で対局します。通信は使いません。',
+    soloStrength: '強さ', soloRule: 'ルール', soloStone: 'あなたの石',
+    soloBlack: '黒（先手）', soloWhite: '白（後手）', soloRandom: 'おまかせ',
+    soloStart: '対局開始', soloCpuTurn: 'コンピュータが考えています...',
+    soloEndQuit: '終了',
+    cpuEasy: 'EASY', cpuMedium: 'HARD', cpuHard: 'APOCALYPSE',
     ruleLabel_sansan: '三三禁', ruleLabel_sisi: '四四禁', ruleLabel_choren: '長連禁',
     ruleLabel_sixPlus: '6連以上', ruleLabel_firstmove: '初手位置', ruleLabel_swap: '三手交換', ruleLabel_undo: '待った',
     ruleVal_blackOnly: '黒のみ', ruleVal_both: '両者', ruleVal_none: 'なし',
@@ -4359,6 +4424,13 @@ const I18N = {
     gomokuTitle: 'Gomoku', goTitle: 'Go',
     labelRule: 'Rule', ruleTitle: 'Rule', ruleListLabel: 'Rule: ',
     presetNormal: 'Standard (Renju)', presetCasual: 'Casual', presetFree: 'Free',
+    soloTitle: '🎮 Play Solo',
+    soloDesc: 'Play one-on-one against the computer. No connection is used.',
+    soloStrength: 'Strength', soloRule: 'Rules', soloStone: 'Your stone',
+    soloBlack: 'Black (1st)', soloWhite: 'White (2nd)', soloRandom: 'Random',
+    soloStart: 'Start Game', soloCpuTurn: 'Computer is thinking...',
+    soloEndQuit: 'Finish',
+    cpuEasy: 'EASY', cpuMedium: 'HARD', cpuHard: 'APOCALYPSE',
     ruleLabel_sansan: 'Double-three', ruleLabel_sisi: 'Double-four', ruleLabel_choren: 'Overline',
     ruleLabel_sixPlus: 'Six+ in a row', ruleLabel_firstmove: 'First move', ruleLabel_swap: 'Three-move swap', ruleLabel_undo: 'Undo',
     ruleVal_blackOnly: 'Black only', ruleVal_both: 'Both players', ruleVal_none: 'None',
@@ -4500,6 +4572,13 @@ const I18N = {
     gomokuTitle: '五子棋', goTitle: '围棋',
     labelRule: '规则', ruleTitle: '规则', ruleListLabel: '规则：',
     presetNormal: '正规（连珠）', presetCasual: '休闲', presetFree: '自由',
+    soloTitle: '🎮 单人对局',
+    soloDesc: '与电脑一对一对局。不使用联网。',
+    soloStrength: '难度', soloRule: '规则', soloStone: '你的棋子',
+    soloBlack: '黑（先手）', soloWhite: '白（后手）', soloRandom: '随机',
+    soloStart: '开始对局', soloCpuTurn: '电脑正在思考...',
+    soloEndQuit: '结束',
+    cpuEasy: 'EASY', cpuMedium: 'HARD', cpuHard: 'APOCALYPSE',
     ruleLabel_sansan: '双三禁手', ruleLabel_sisi: '双四禁手', ruleLabel_choren: '长连禁手',
     ruleLabel_sixPlus: '六连以上', ruleLabel_firstmove: '首手位置', ruleLabel_swap: '三手交换', ruleLabel_undo: '悔棋',
     ruleVal_blackOnly: '仅黑方', ruleVal_both: '双方', ruleVal_none: '无',
@@ -4640,8 +4719,11 @@ function catSpeak(key) {
   return vocab[Math.floor(Math.random() * vocab.length)];
 }
 
+// 難易度の呼び名(EASY/HARD/APOCALYPSE)は MOMO 共通の固有名詞。訳さず猫語にもしない
+const NO_TRANSLATE_KEYS = ['cpuEasy', 'cpuMedium', 'cpuHard'];
+
 function t(key) {
-  if (currentLang === 'cat') return catSpeak(key);
+  if (currentLang === 'cat' && !NO_TRANSLATE_KEYS.includes(key)) return catSpeak(key);
   return (I18N[currentLang] || I18N.ja)[key] || (I18N.ja)[key] || key;
 }
 
@@ -4688,6 +4770,21 @@ function applyLang() {
   if (tInput) tInput.placeholder = t('timeLimitPlaceholder');
   // 残時間表示・相手バッジを再描画（CATモードや言語切替時にラベル更新）
   if (typeof renderTimeDisplays === 'function') renderTimeDisplays();
+  setText('i18n-solo-title', 'soloTitle');
+  setText('i18n-solo-desc', 'soloDesc');
+  setText('i18n-solo-strength', 'soloStrength');
+  setText('i18n-solo-rule', 'soloRule');
+  setText('i18n-solo-stone', 'soloStone');
+  setText('i18n-solo-preset-normal', 'presetNormal');
+  setText('i18n-solo-preset-casual', 'presetCasual');
+  setText('i18n-solo-preset-free', 'presetFree');
+  setText('solo-side-black', 'soloBlack');
+  setText('solo-side-white', 'soloWhite');
+  setText('solo-side-random', 'soloRandom');
+  setText('solo-diff-easy', 'cpuEasy');
+  setText('solo-diff-medium', 'cpuMedium');
+  setText('solo-diff-hard', 'cpuHard');
+  setText('i18n-solo-start', 'soloStart');
   setText('i18n-preset-normal', 'presetNormal');
   setText('i18n-preset-casual', 'presetCasual');
   setText('i18n-preset-free', 'presetFree');
@@ -4845,6 +4942,8 @@ function applyLang() {
   // 囲碁終局フェーズのスコア表示・ボタン状態も再描画
   if (typeof renderScoreDisplay === 'function') renderScoreDisplay();
   if (typeof updateScoringActions === 'function') updateScoringActions();
+  // 一人用の文言（終局の「終了」など）は applyLang の後に上書きする
+  if (typeof applySoloChrome === 'function') applySoloChrome();
 }
 
 function onLangChange(mode) {
@@ -4859,9 +4958,161 @@ function onLangChange(mode) {
   applyLang();
 }
 
+// ===== 一人用（コンピュータとの対局） =====
+// 通信は一切使わない。コンピュータの着手・パス・三手交換の選択・待ったの返事は、
+// すべて「相手から届いたことにして」handleMsg に渡す。オンライン対戦とまったく同じ道を
+// 通るので、同じ処理を2か所に持たずに済む（対戦側は無回帰）。
+const MomoSolo = (() => {
+  let active = false;
+  let difficulty = 'medium';
+  let timer = null;
+
+  function isActive() { return active; }
+  // 相手の色は常に自分の色の裏返し。三手交換や先後入替で myColor が変わっても自動で追従する
+  function cpuColor() { return myColor === 'black' ? 'white' : 'black'; }
+
+  function cancel() { if (timer) { clearTimeout(timer); timer = null; } }
+
+  // 考えているように少し待ってから動かす（思考自体は数ミリ秒で終わる）
+  function schedule(fn) {
+    cancel();
+    const wait = 450 + Math.random() * 700;
+    timer = setTimeout(() => { timer = null; if (active) fn(); }, wait);
+  }
+
+  function start(diff, myStone, gameType, preset) {
+    cancel();
+    difficulty = diff;
+    active = true;
+    myChoice = myStone;
+    myColor = myStone;
+    matchHistory = [];
+    gameActive = false;
+    currentRoomName = '';
+    // 部屋を作らずに対局条件を自分で決める。一人用は時間無制限（持ち時間・秒読みなし）
+    currentRules = (gameType === 'go')
+      ? { timeLimitMin: 0, byoyomiSec: 0, byoyomiCount: 0 }
+      : { preset: preset, timeLimitMin: 0 };
+    applySoloChrome();
+    beginGame();
+  }
+
+  function stop() { active = false; cancel(); }
+
+  // 手番が変わるたびに呼ばれる。コンピュータの番なら考えて打つ。
+  function onTurnChanged() {
+    if (!active) return;
+    cancel();
+    if (!gameActive) return;
+    // 三手交換: 白側がコンピュータのとき、あなたはその選択を待っている
+    if (gamePhase === 'swap_wait' && oppSwapChoice === 'pending') {
+      schedule(() => {
+        const swap = (typeof MomoGomokuAI !== 'undefined')
+          ? MomoGomokuAI.chooseSwap(board, { size: BOARD_SIZE, preset: getCurrentPreset() })
+          : false;
+        handleMsg({ type: 'swap_choice', swap: swap });
+      });
+      return;
+    }
+    if (gamePhase === 'swap_select') return;   // あなたが選ぶ番
+    if (undoPhase !== 'idle') return;
+    if (scoringPhase !== 'idle') return;       // 終局フェーズは別扱い
+    if (turn !== cpuColor()) return;
+    schedule(playMove);
+  }
+
+  function playMove() {
+    if (!active || !gameActive) return;
+    const c = cpuColor();
+    if (turn !== c) return;
+
+    if (isGoRoom()) {
+      const m = (typeof MomoGoAI !== 'undefined') ? MomoGoAI.chooseMove(board, c, difficulty, {
+        size: BOARD_SIZE,
+        prevOwnBoard: goPrevBoardByColor[c],
+        captures: captureCount,
+        komi: (typeof GoScoring !== 'undefined') ? GoScoring.DEFAULT_KOMI : 6.5,
+        moveNumber: moveCount,
+        oppPassed: consecutivePasses > 0,
+        lastMove: lastMove
+      }) : 'pass';
+      if (!m || m === 'pass') { handleMsg({ type: 'pass' }); return; }
+      handleMsg({ type: 'move', x: m.x, y: m.y });
+      return;
+    }
+
+    const m = (typeof MomoGomokuAI !== 'undefined') ? MomoGomokuAI.chooseMove(board, c, difficulty, {
+      size: BOARD_SIZE,
+      preset: getCurrentPreset(),
+      phase: gamePhase
+    }) : null;
+    if (!m) { handleMsg({ type: 'pass' }); return; }
+    handleMsg({ type: 'move', x: m.x, y: m.y });
+  }
+
+  // 待った: コンピュータは断らない
+  function acceptUndo() {
+    if (!active) return;
+    schedule(() => handleMsg({ type: 'undo_accept' }));
+  }
+
+  // 終局の死石はあなたが決め、コンピュータはそれに同意する
+  function agreeScoring() {
+    if (!active) return;
+    schedule(() => handleMsg({ type: 'scoring_agree' }));
+  }
+
+  return { start, stop, isActive, onTurnChanged, acceptUndo, agreeScoring };
+})();
+
+// 手番が動いたことを一人用に知らせる共通の呼び口
+function soloTick() {
+  if (typeof MomoSolo !== 'undefined' && MomoSolo.isActive()) MomoSolo.onTurnChanged();
+}
+
+// ===== 一人用: ロビーでの選択状態 =====
+let _soloDiff = 'medium';
+let _soloSide = 'black';
+let _soloPreset = 'casual';
+
+function soloSetDiff(d) { _soloDiff = d; updateSoloOptUI(); }
+function soloSetSide(sd) { _soloSide = sd; updateSoloOptUI(); }
+function soloSetPreset(pr) { if (RULE_TABLE[pr]) { _soloPreset = pr; updateSoloOptUI(); } }
+
+function updateSoloOptUI() {
+  ['easy', 'medium', 'hard'].forEach(d => {
+    const el = document.getElementById('solo-diff-' + d);
+    if (el) el.classList.toggle('on', d === _soloDiff);
+  });
+  ['black', 'white', 'random'].forEach(sd => {
+    const el = document.getElementById('solo-side-' + sd);
+    if (el) el.classList.toggle('on', sd === _soloSide);
+  });
+  document.querySelectorAll('#solo-rule-presets .rule-card').forEach(el => {
+    el.classList.toggle('selected', el.dataset.preset === _soloPreset);
+  });
+}
+
+function startSoloGame() {
+  const side = _soloSide === 'random' ? (Math.random() < 0.5 ? 'black' : 'white') : _soloSide;
+  MomoSolo.start(_soloDiff, side, currentGameType, _soloPreset);
+}
+
+// 一人用のときだけ、画面から「相手とのやりとり」を消して終局の文言を差し替える
+function applySoloChrome() {
+  const solo = (typeof MomoSolo !== 'undefined') && MomoSolo.isActive();
+  ['game', 'end'].forEach(sc => {
+    const w = document.querySelector('#screen-' + sc + ' .chat-wrap');
+    if (w) w.style.display = solo ? 'none' : '';
+  });
+  const q = document.getElementById('i18n-end-quit');
+  if (q) q.textContent = solo ? t('soloEndQuit') : t('endQuit');
+}
+
 // ===== BOOT =====
 connectWS();
 applyLang();
+updateSoloOptUI();
 restoreInputs();
 </script>
 </body>

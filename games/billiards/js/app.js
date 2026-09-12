@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.96';               // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.97';               // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules, F = BilliardsField;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);

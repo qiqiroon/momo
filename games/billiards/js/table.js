@@ -1816,6 +1816,34 @@ const BilliardsTable = (() => {
   const GOLF_BLOB_MAX = 1.35;    // いびつな輪郭がふくらむ最大の割合（置き場所の判定に使う）
 
   /**
+   * ★★**台の形ごとに池の大きさを変える倍率**（第62セッション・2026-09-12・利用者判断）。
+   *   表に無い形は 1.0＝そのまま。**いまのところ星型だけの例外である。**
+   *
+   * ★**なぜ星型だけ半分にしたか。**星型の8番ホールは、上級者(apocalypse)が 6打、
+   *   中級者(hard)が 2打という**順位の逆転**が出ていた（8ホール中ここだけ）。
+   *   中身は「上級者が下手」ではなく、**上級者の6打のうち2打が罰打**で、
+   *   その1つが**毎回まったく同じ池ポチャ**だった（ぶれが 0.0 度なので毎回同じ撞き方になる）。
+   *
+   * ★**池を動かす案は成り立たなかった。**星型は使える面積が外接矩形の 9.1% しかなく、
+   *   半径 223mm（いびつな縁は最大 301mm）の池が収まる場所が、いまの1点以外に無い
+   *   ── 線の反対側へ折り返すと (-326,472)、線に沿って 250mm ずらすと (264,87)／(-140,-207)、
+   *   いずれも台に収まらない（実測）。だから**大きさを変えるか、無くすか**の2通りしかない。
+   *
+   * ★実測（同じ種3周・打ち切りなし。上級者 → 中級者）＝
+   *   そのまま 6 → 2（逆転）／0.85倍 4 → 5（順序は直るが**上級者は毎回池に落ちたまま**）／
+   *   0.7倍 4 → 12 ／**0.5倍 2 → 5（採用）**／取り除く 2 → 2（同点になってしまう）。
+   *   生データ＝`L:/momo/claude/billiards-checks/star_result_20260912.md`
+   *
+   * ★**これは症状のほうの手当てである。**大もとは AI の採点（ai.js の golfValue）が
+   *   池を**まん丸**として見ていること ── 物理・ルールの池判定・画面の塗りは
+   *   すべて blobContains を通るのに、**AI だけが「中心からの距離 > r なら安全」と読む。**
+   *   実測では的球が中心から 257mm（r=223・その向きの本当の縁は 262mm）で止まっており、
+   *   **AI は水の中を「乾いている」と読んでいた。**池を小さくすると、
+   *   上級者が狙う一点がその帯から外れるので症状は消えるが、読み違いそのものは残っている。
+   */
+  const GOLF_WATER_SCALE = { 'A-11': 0.5 };
+
+  /**
    * ハザードの輪郭。**まん丸にしない**（第49セッションの利用者指示）。
    * 角度ごとに半径を揺らして、池や砂らしい崩れた形にする。
    *
@@ -1943,14 +1971,21 @@ const BilliardsTable = (() => {
      *   （実測：砂 181 個のうち 4 個が、線から玉の半径ぶんも空いていなかった。いちばん狭くて 21mm）
      *   [[reference_two_paths_one_guard]]。
      */
+    /*
+     * ★**その種類の半径は、この1か所から出す。**形ごとの倍率（GOLF_WATER_SCALE）も
+     *   ここで掛ける。置き場所を見る側（outR）と実際に置く側（put）で別々に計算すると、
+     *   **同じ池を違う大きさで見る**ことになる。
+     */
+    const hazR = kind => R * GOLF_HAZARD_R[kind]
+      * ((kind === 'water' && GOLF_WATER_SCALE[table.shape] != null) ? GOLF_WATER_SCALE[table.shape] : 1);
     const outR = kind => {
-      const rr = R * GOLF_HAZARD_R[kind];
+      const rr = hazR(kind);
       return (kind !== 'tree') ? rr * GOLF_BLOB_MAX : rr;
     };
     const put = (kind, x, y) => {
       const patch = (kind !== 'tree');                 // 池とバンカーは区画（塗り分け）
       if (!golfFree(table, x, y, outR(kind), haz.concat(keepOut), patch)) return false;
-      haz.push({ kind, x, y, r: R * GOLF_HAZARD_R[kind] });
+      haz.push({ kind, x, y, r: hazR(kind) });
       return true;
     };
     /** 狙った点に置けなければ、まわりを少しずつずらして探す（置けなければ諦める＝数が欠けるだけ） */
@@ -2083,7 +2118,7 @@ const BilliardsTable = (() => {
     bowlingLayout, bowlCells, BOWL_GAP, BOWL_ROWS,
     // ゴルフ型（7.10節）
     golfLayout, golfPocket, GOLF_PICK, GOLF_HAZARD_R, GOLF_WATERS, GOLF_BUNKERS,
-    blobRadius, blobContains, GOLF_BLOB_MAX, BLOB_WOBBLE,
+    blobRadius, blobContains, GOLF_BLOB_MAX, BLOB_WOBBLE, GOLF_WATER_SCALE,
     clearance, inside, clampInside, nearestBoundary, diamonds, buildFillets,
     // 検査から直に確かめるために出している。
     // 「内角90度以上には手を触れない」という条件は、いまのどの台でも働かない

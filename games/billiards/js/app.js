@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '2.00';               // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '2.01';               // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules, F = BilliardsField;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -1513,7 +1513,17 @@
        *   万一かち合っても反則のほうが残る。
        */
       if (res.mult >= 2) {
-        flash(t('ev.combo', { n: res.mult }), 'combo', '', COMBO_MS);
+        /*
+         * ★**倍率と、その一撞きで入った点を同時に出す**（利用者指示）。
+         *   倍率だけでは「で、何点入ったのか」が分からない ── 帯の '+9' は
+         *   **画面の別の場所**にあるので、盤の中央を見ている目には入らない。
+         * ★**出すのは倍率を掛けたあとの点**（実際にスコアへ足された数）。
+         *   素点を出すと、スコアの増え方と数が合わない。
+         * ★**内訳（素点×倍率）は添える。**8.3.4節が禁じているのは**常時表示**であって、
+         *   一瞬の演出でこれを見せることは妨げていない。
+         */
+        flash(t('ev.combo', { n: res.mult, p: res.gained }), 'combo',
+          t('ev.comboCalc', { raw: res.raw, n: res.mult, p: res.gained }), COMBO_MS);
         AU.sfx('combo', res.mult);
       }
       let msg = '';

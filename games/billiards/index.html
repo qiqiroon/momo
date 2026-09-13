@@ -273,6 +273,8 @@ input[type=range]{accent-color:var(--orange-mid);}
 /* 連鎖ボーナス（8.3.7節）。反則とは決して同時に出ない（反則が出れば連鎖は途切れる）ので場所を取り合わない */
 #flash.combo{border-color:#f7c948;color:#ffe28a;}
 #flash.combo #flash-t{font-size:clamp(21px,5.6vw,36px);letter-spacing:.04em;}
+/* 内訳（素点×倍率）は小さく添える。常時表示ではないので 8.3.4節に触れない */
+#flash.combo #flash-w{color:#f0d089;font-size:13px;margin-top:4px;}
 /* 残り5秒。数字だけだと気づけないので色でも出す */
 #time-box b.hot{color:var(--orange);}
 /*

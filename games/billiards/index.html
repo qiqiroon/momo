@@ -214,21 +214,26 @@ input[type=range]{accent-color:var(--orange-mid);}
 .mini-title .mt-t .momo{color:var(--text);} .mini-title .mt-t .billiards{color:var(--orange-mid);}
 .mini-title .mt-v{font-size:9px;color:var(--text-muted);}
 .mini-title .mt-s{font-family:'Fredoka One',cursive;font-size:9px;color:#888;line-height:1.1;}
-/* ミッション制の課題（8.5.11節）。★達成したら**この欄をその場で光らせる**（利用者選択）。
-   盤の中央は COMBO が使うので、場所を取り合わない ── 連鎖と達成は同じ一撞きで同時に起こる */
+/* ミッション制の課題（8.5.11節）。★達成したら**この欄ごと知らせに差し替える**（利用者指示）。
+   盤の中央は COMBO が使うので、場所を取り合わない ── 連鎖と達成は同じ一撞きで同時に起こる。
+   ★達成のあいだは「達成したこと」と「得た点」を大きく出す（課題の文はその下に小さく残す）。 */
 #mission-box{display:none;border:1px solid var(--border);border-radius:6px;padding:5px 7px;margin-top:4px;}
 #mission-box .mis-k{color:var(--text-muted);font-size:11px;}
 #mission-box .mis-t{font-size:12px;line-height:1.35;color:var(--text);}
 #mission-box .mis-b{font-size:11px;margin-top:2px;color:#34d399;display:none;}
-#mission-box.done{border-color:#34d399;animation:misGlow 1.4s ease-out 1;}
-#mission-box.done .mis-t{color:#8ef0c6;}
-#mission-box.done .mis-b{display:block;}
-#mission-box.void{border-color:var(--orange-light);}
+#mission-box.done{border-color:#34d399;border-width:2px;padding:4px 6px;
+  background:rgba(52,211,153,.10);animation:misGlow 2.6s ease-out 1;}
+#mission-box.done .mis-k{color:#6ee7b7;font-size:16px;font-weight:800;letter-spacing:.04em;}
+#mission-box.done .mis-t{color:#cdeee0;font-size:11px;}
+#mission-box.done .mis-b{display:block;color:#8ef0c6;font-size:19px;font-weight:800;margin-top:1px;}
+#mission-box.void{border-color:var(--orange-light);border-width:2px;padding:4px 6px;}
+#mission-box.void .mis-k{color:var(--orange-light);font-size:13px;font-weight:700;}
+#mission-box.void .mis-t{font-size:11px;}
 #mission-box.void .mis-b{display:block;color:var(--orange-light);}
 @keyframes misGlow{
-  0%{box-shadow:0 0 0 0 rgba(52,211,153,.85);background:rgba(52,211,153,.22);}
-  60%{box-shadow:0 0 12px 3px rgba(52,211,153,.35);background:rgba(52,211,153,.10);}
-  100%{box-shadow:0 0 0 0 rgba(52,211,153,0);background:transparent;}
+  0%{box-shadow:0 0 0 0 rgba(52,211,153,.85);background:rgba(52,211,153,.30);}
+  25%{box-shadow:0 0 14px 4px rgba(52,211,153,.40);background:rgba(52,211,153,.18);}
+  100%{box-shadow:0 0 0 0 rgba(52,211,153,0);background:rgba(52,211,153,.10);}
 }
 /* 修飾子の1行説明（利用者指示）。名前だけでは何が起きるのか画面から分からない */
 .mod-note{color:var(--text-muted);font-size:11px;line-height:1.35;margin:2px 0 6px;}

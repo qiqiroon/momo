@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '2.03';               // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '2.05';               // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules, F = BilliardsField;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -1563,7 +1563,15 @@
         AU.sfx('combo', res.mult);
       }
       // G-15 課題の達成・未達成（8.5.11節）。COMBO とは場所を分けてあるので、同時に出てよい
-      if (res.mission) missionFlash(res.mission);
+      /*
+       * ★**「達成した／条件は満たした」ときだけ知らせを出す**（8.5.11節。ふつうの未達成は静かに次へ）。
+       *   ★ここを `if (res.mission)` と書くと、**課題が出ている限り毎回この道へ入って**
+       *   下の「権利で撞ける」の知らせに一度も届かない（判定の結果は達成でなくても残るため）。
+       */
+      const mi = res.mission;
+      if (mi && (mi.done || mi.voided)) missionFlash(mi, res);
+      // 達成はしていないが、前に得た権利でもう1ショット撞けるとき（D469）
+      else if (res.againUsed) missionAgainFlash();
       let msg = '';
       if (res.fouls.length) msg = res.fouls.map(f => t('foul.' + f)).join(' / ');
       if (res.message) msg = (msg ? msg + ' — ' : '') + t(res.message);
@@ -2602,7 +2610,7 @@
   // 連鎖ボーナスの演出（8.3.7節。長さは付録B送りの値＝ここで決めた）
   const COMBO_MS = 1100;
   // 課題の欄が光っている長さ（8.5.11節の演出・付録B）。COMBO とそろえてある
-  const MISSION_MS = 1400;
+  const MISSION_MS = 2600;          // 利用者指示で 1.4 → 2.6 秒（3行を読みきれる長さ）
   const ITEM_WARN_MS = 3000;          // 予告は少し長く出す（何が起きるか読む時間が要る）
   function drawItemGot() { drawItemNote(S.itemGot, 'ev.itemGot', '#ffc46e', ITEM_GOT_MS, 'itemGot'); }
   /*
@@ -3344,14 +3352,42 @@
      */
     box.style.display = on ? 'block' : 'none';
     if (!on || !g) return;
+    /*
+     * ★★**達成の知らせは「課題の文」と混ぜない**（利用者指示＝「達成したことと得たポイントを
+     *   わかりやすく」）。知らせを出している間は、**欄ごと知らせに差し替える。**
+     *   ★混ぜられない理由がある ── **次の課題は 0.8 秒後の手番開始で出てしまう**ので、
+     *   同じ欄に並べると**「新しい課題」と「前の課題の達成」が同時に見えて読み違える。**
+     * ★**書き込む場所はこの1か所だけ。**知らせ側と課題側で別々に書くと、
+     *   片方が消し忘れたときに**達成したまま固まった欄**ができる。
+     */
+    const show = S.misShow;
+    box.classList.toggle('done', !!(show && show.ok));
+    box.classList.toggle('void', !!(show && !show.ok));
+    if (show) {
+      $('k-mission').textContent = show.title;
+      $('v-mission').textContent = show.text;
+      $('v-mission-b').textContent = show.note;
+      return;
+    }
+    $('k-mission').textContent = t('hud.mission');
+    $('v-mission-b').textContent = '';
     $('v-mission').textContent = (g.mission && I.has('mis.' + g.mission.id))
       ? t('mis.' + g.mission.id) : t('mis.none');
   }
 
-  /** 達成ボーナスの中身を一言で（8.5.7節の4分類＋効果が出なかったとき） */
-  function missionBonusText(mi) {
+  /**
+   * 達成ボーナスの中身を一言で（8.5.7節の4分類＋効果が出なかったとき）。
+   * @param {object} res そのショットの結果。**権利をその場で使えたかはここで決まる**（D469）
+   */
+  function missionBonusText(mi, res) {
     if (mi.bonus === 'score') return t('mis.b.score', { p: mi.pts });
-    if (mi.bonus === 'again') return t('mis.b.again');
+    /*
+     * ★**「もう1ショット」は、得た権利をその場で使えたかで言い方を変える。**
+     *   落として続けて撞ける一撞きでは**使う場面が来ていないだけ**で、権利は持ったままになる
+     *   （落とせなくなった一撞きで使う）。ここで「効果なし」と出すと、
+     *   **貯まっていることが画面のどこにも出ない。**
+     */
+    if (mi.bonus === 'again') return (res && res.againUsed) ? t('mis.b.again') : t('mis.b.keep');
     if (mi.bonus === 'stroke') return t('mis.b.stroke');
     if (mi.bonus === 'revive') return t('mis.b.revive');
     return t('mis.b.none');
@@ -3369,34 +3405,51 @@
    * ★**消す判断は1か所**（次の手番の始まりと、光っている時間の終わり）。
    */
   function clearMissionGlow() {
-    const box = $('mission-box');
-    if (!box) return;
-    box.classList.remove('done', 'void');
-    const b = $('v-mission-b');
-    if (b) b.textContent = '';
+    S.misShow = null;
+    renderMission();
   }
 
-  function missionFlash(mi) {
-    const box = $('mission-box'), b = $('v-mission-b');
+  /**
+   * 「課題で得た権利で、もう1ショット撞ける」の知らせ（D469）。
+   * ★**達成していない一撞きでも手番が続く**ので、**理由を出さないと何が起きたのか分からない。**
+   */
+  function missionAgainFlash() {
+    const box = $('mission-box');
+    if (!box) return;
+    if (S.misTimer) clearTimeout(S.misTimer);
+    S.misTimer = setTimeout(() => { S.misTimer = null; clearMissionGlow(); }, MISSION_MS);
+    S.misShow = { ok: true, title: t('mis.b.again'), text: '', note: t('mis.againWhy') };
+    box.classList.remove('done', 'void');
+    void box.offsetWidth;
+    renderMission();
+    AU.sfx('mission');
+  }
+
+  function missionFlash(mi, res) {
+    const box = $('mission-box');
     if (!box || !mi) return;
+    if (!mi.done && !mi.voided) return;      // ふつうの未達成は静かに次へ（8.5.11節）
     /*
-     * ★**光っている時間は自前の時計で持つ**（COMBO と同じ考え）。
+     * ★**出している時間は自前の時計で持つ**（COMBO と同じ考え）。
      *   次の手番は 0.8 秒後に始まり、**相手の手がもう届いていれば 0.12 秒後**に始まる。
      *   手番の始まりに合わせて消すと、**通信対戦では一瞬で消えて読めない。**
      */
     if (S.misTimer) clearTimeout(S.misTimer);
     S.misTimer = setTimeout(() => { S.misTimer = null; clearMissionGlow(); }, MISSION_MS);
+    /*
+     * ★**達成した課題の文を、ここで控える。**次の課題は手番の始まりで引き直されるので、
+     *   あとから番号で引き直すと**新しい課題の文が出る。**
+     */
+    S.misShow = {
+      ok: !!mi.done,
+      title: mi.done ? t('mis.done') : t('mis.voidTitle'),
+      text: I.has('mis.' + mi.id) ? t('mis.' + mi.id) : '',
+      note: mi.done ? missionBonusText(mi, res) : t('mis.void'),
+    };
     box.classList.remove('done', 'void');
     void box.offsetWidth;                    // 同じ課題が続けて達成されても、光り直させる
-    if (mi.done) {
-      box.classList.add('done');
-      if (b) b.textContent = t('mis.done') + '　' + missionBonusText(mi);
-      AU.sfx('mission');
-    } else if (mi.voided) {
-      // 条件は満たしたが反則で未達成（8.5.8節）。**達成の演出は出さない**
-      box.classList.add('void');
-      if (b) b.textContent = t('mis.void');
-    }
+    renderMission();
+    if (mi.done) AU.sfx('mission');
   }
 
   const MISSION_RGB = '52,211,153';        // 課題の印（テレポの水色・旗の赤とぶつからない緑）

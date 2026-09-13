@@ -416,7 +416,7 @@ const BilliardsRules = (() => {
       missionOn: !!cfg.mission,
       mission: null,                    // いま出ている課題（8.7.2節 current_mission）
       missionPrev: null,                // 直前に出した課題（同 previous_mission。抽選の除外に使う）
-      missionAgain: false,              // フリーボール型のボーナスをこのターンに使ったか（8.5.7節）
+      missionAgain: 0,                  // 持っている「もう1ショット」の権利の数（8.5.7節。上限1）
       revive: null,                     // 復活させる玉と、置く人（10.6節）
       // 撞く番が何度移ったか。ギミックの抽選を1ターンに1回へ抑えるための鍵に使う
       turnNo: 0,
@@ -1423,6 +1423,11 @@ const BilliardsRules = (() => {
      *   先に数え終えておく。ここより前に置くと、加点だけがあった一撞きで連鎖が続いてしまう。
      */
     missionJudge(game, result, mfacts);
+    /*
+     * ★**権利を使うのは判定のあと。**同じ一撞きで得た権利もその場で使える
+     *   （「落とせなかったが課題は達成した」一撞き＝得てすぐ使う）。
+     */
+    missionAgainSpend(game, result);
 
     /*
      * 相手チームがいないとき（協力プレイで全員が同じチーム）は、
@@ -1752,6 +1757,12 @@ const BilliardsRules = (() => {
   const MISSION_GIM_W = 6;
   /** 「サイドスピンをかけた」とみなす撞点Xの大きさ（M-14。付録B） */
   const MISSION_SIDE = 0.30;
+  /**
+   * 「もう1ショット撞ける権利」を同時に持てる数（D469。8.5.7節）。
+   * ★**貯め込めないようにする**ための上限である。連続して達成したぶんが積み上がると、
+   *   1回の手番が終わらなくなる。
+   */
+  const MISSION_AGAIN_MAX = 1;
   /** 「上（下）を撞いた」とみなす撞点Yの大きさ（M-12／M-13。付録B） */
   const MISSION_TIP = 0.20;
   /** M-17「どのクッションからも玉2個分以上」の2個分＝直径2つぶん（8.5.3節） */
@@ -2130,12 +2141,17 @@ const BilliardsRules = (() => {
       else r.mission.bonus = 'none';
     } else if (kind === 'again') {
       /*
-       * ★**そのターンに1回だけ効き、次のターンへ持ち越さない**（8.5.7節）。
-       *   もともと続けて撞ける一撞きでは権利の出番がない＝重ねない。
+       * ★**達成したら「もう1ショット撞ける権利」を1つ得る**（D469。8.5.7節）。
+       *   ★★**権利は同時に1つまでしか持てない**（重ならない）。
+       *   ★★**使うのはここではない。**ターンが終わる一撞きのときに1つ使う（missionAgainSpend）。
+       *
+       *   ★**その場で使う形にしていたときは、決して効かない課題が3件に1件あった** ──
+       *   **落球が条件の課題**（M-03／M-06〜M-11）は、達成した時点でかならず
+       *   **続けて撞ける状態**になっているので、権利の出番が永久に来なかった
+       *   （実測＝ナインボールの候補22件のうち7件）。
        */
-      if (!r.continueTurn && !game.missionAgain) {
-        game.missionAgain = true; r.continueTurn = true; r.mission.again = true;
-      } else r.mission.bonus = 'none';
+      game.missionAgain = Math.min(MISSION_AGAIN_MAX, (game.missionAgain || 0) + 1);
+      r.mission.kept = true;               // 使えたかどうかは、このあとの手番の判断で決まる
     } else if (kind === 'stroke') {
       // 打数を1減らす。下限は0（8.5.7節）
       const gf = game.golf;
@@ -2149,6 +2165,23 @@ const BilliardsRules = (() => {
     } else if (kind === 'revive') {
       if (!missionRevive(game, r)) r.mission.bonus = 'none';
     }
+  }
+
+  /**
+   * 「もう1ショット撞ける権利」を使う（D469。8.5.7節）。
+   *
+   * ★**使うのは、そのままでは手番が終わる一撞きのときだけ。**
+   *   落として続けて撞ける一撞きでは出番が無いので、権利は持ったままになる。
+   * ★**達成の判定より後に置く。**同じ一撞きで得た権利をその場で使えるようにするためで、
+   *   「落とせなかったが課題は達成した」一撞きは、**得て・すぐ使う**形になる（従来と同じ見え方）。
+   * ★**次のターンへは持ち越さない**（手番が移ったところで印を下ろす＝nextTurn）。
+   */
+  function missionAgainSpend(game, r) {
+    if (!game.missionOn || MISSION_BONUS[game.rule] !== 'again') return;
+    if (r.continueTurn || r.foul || !(game.missionAgain > 0)) return;
+    game.missionAgain--;
+    r.continueTurn = true;
+    r.againUsed = true;                    // 画面はこれを見て「権利で撞ける」と知らせる
   }
 
   /**
@@ -3658,7 +3691,7 @@ const BilliardsRules = (() => {
      *   ★**連鎖数は手番の側ではなく対局が1つだけ持つ**（8.3.6節。各人が持っても
      *   手番の移動で必ず消えるので、現在の手番の1つと同じことになる）。
      */
-    if (!(result && result.continueTurn)) { game.chain = 0; game.missionAgain = false; }
+    if (!(result && result.continueTurn)) { game.chain = 0; game.missionAgain = 0; }
     /*
      * ★**復活させる玉を置き忘れたまま先へ進ませない**（10.6.3節）。
      *   置くのは画面側（本人がドラッグする）だが、**手番を送る道は5本ある**ので、
@@ -3744,7 +3777,7 @@ const BilliardsRules = (() => {
     CHAIN_WHY, chainRule, chainMult,
     // G-15 ミッション制（8.5節）。**画面側はこの表から引く**（同じ表を2か所に持たない）
     MISSIONS, MISSION_BY_ID, MISSION_BONUS, MISSION_PTS, MISSION_RANGE,
-    missionDraw, missionFacts, missionJudge, reviveApply, reviveOk, nearestRevive,
+    missionDraw, missionFacts, missionJudge, missionAgainSpend, reviveApply, reviveOk, nearestRevive,
     // ゴルフ型（7.10節）
     golfPar, golfCut, golfTotal, golfParTotal, golfSeatDone, golfShape, golfTermKey, golfInWater,
     golfAwayFromPockets, golfWaterDrop, resolveGolf,   // 検査から帰結だけを確かめるために出している

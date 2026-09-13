@@ -1937,6 +1937,37 @@ const BilliardsField = (() => {
     if (!field) return [];
     return (field.turn && field.turn.terrain) || field.game.terrain || [];
   }
+  /**
+   * その点がどのギミックの効き目の中に居るか（ミッション M-23／M-24 の判定材料）。
+   *   'water' / 'ice' … 可変地形の中
+   *   'hole'          … ブラックホールの作用圏の中（引力が0でない範囲＝6.6.4節）
+   *   null            … どれでもない
+   *
+   * ★**名前を返すのはこちら側の仕事である。**engine はギミックの名前を1つも知らないまま
+   *   「いま何の中に居るか」を出来事へ積める（engine に地形やブラックホールの分岐を書かない）。
+   * ★**圏の大きさは引力の式から引く。**別の半径をここへ書くと、
+   *   強さや形を直した日に**効いている圏と数えている圏がずれる。**
+   */
+  /**
+   * その盤面に「効き目の中か」を測る対象があるか（可変地形かブラックホール）。
+   * ★**刻みごとに1回だけ見て、無ければ玉を1つも調べない。**
+   *   玉ごとに調べると、地形も穴も無い盤面でも費用を払うことになる。
+   */
+  function hasZones(field) {
+    if (!field) return false;
+    return terrain(field).length > 0 || holes(field).length > 0;
+  }
+
+  function zoneOf(field, x, y) {
+    if (!field) return null;
+    const t = terrainAt(field, x, y);
+    if (t) return t.kind;
+    for (const h of holes(field)) {
+      if (holeAccel(field, Math.hypot(x - h.x, y - h.y)) > 0) return 'hole';
+    }
+    return null;
+  }
+
   /** その点がいずれかの地形の中か。中なら地形を返す（音と演出が使う） */
   function terrainAt(field, x, y) {
     const list = terrain(field);
@@ -1950,7 +1981,7 @@ const BilliardsField = (() => {
     blockOf, available, pickMax, create, syncPatches,
     DISTURB_OK, disturbPool, itemAt, takeItem, heldOf,
     beginGame, beginTurn, beginShot, snapshot, apply,
-    patches, terrain, terrainAt, floodedPockets, tilt,
+    patches, terrain, terrainAt, zoneOf, hasZones, floodedPockets, tilt,
     hole, holes, holeAccel, holeKeepAway, holeBlocked, swallow, stack,
     shuffle, shuffleTargets, NUM_KEYS,
     warpPair, warpPartner, warp, pocketMouth,

@@ -1548,6 +1548,101 @@ const BilliardsTable = (() => {
   // 格子の分割（7.7.2節）。外接矩形は8形状すべてで同じなので、台ごとの値を持たない
   const GRID_NX = 40, GRID_NY = 20;
 
+  /*
+   * ═══ ミッション制が使う台定義データ（仕様書 8.7.1節） ═══
+   */
+
+  /**
+   * 「台の中央付近」が盤面に占める割合（M-16。付録B）。
+   *
+   * ★**16形状ぶんの寸法を手で並べない。**形ごとに書き並べると、
+   *   台の寸法を直した日に**そこだけ古くなる**（同じ表を2か所に持つのと同じ話）。
+   *   **占める割合を1つ決めて、寸法はそこから導く。**
+   * ★**ドーナツ型は中央に障害物がある**ので、半径で切ると中身が空になる。
+   *   「中央から近い順に、遊べる場所だけを数えて1割ぶん」と決めれば、
+   *   ドーナツ型では自然に**障害物を囲む輪**になる（8.7.1節が求めている形）。
+   */
+  const MISSION_CENTER_SHARE = 0.10;
+
+  /**
+   * 中央付近とみなす半径（mm）。台ごとに1度だけ測って覚える。
+   * ★**外接矩形の中心ではなく、遊べる場所の重心**から測る
+   *   （L字と星型は外接矩形の中心が台の中心とずれる）。
+   */
+  function missionCenter(table) {
+    if (table._misCenter) return table._misCenter;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const p of table.outline) {
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.y > maxY) maxY = p.y;
+    }
+    const NX = 80, NY = 40;
+    const ds = [];
+    let cx = 0, cy = 0, n = 0;
+    for (let i = 0; i < NX; i++) {
+      for (let j = 0; j < NY; j++) {
+        const x = minX + (maxX - minX) * (i + 0.5) / NX;
+        const y = minY + (maxY - minY) * (j + 0.5) / NY;
+        if (clearance(table, x, y) < R) continue;     // 玉を置けない場所は数えない
+        cx += x; cy += y; n++;
+      }
+    }
+    if (!n) { table._misCenter = { x: 0, y: 0, r: 0 }; return table._misCenter; }
+    cx /= n; cy /= n;
+    for (let i = 0; i < NX; i++) {
+      for (let j = 0; j < NY; j++) {
+        const x = minX + (maxX - minX) * (i + 0.5) / NX;
+        const y = minY + (maxY - minY) * (j + 0.5) / NY;
+        if (clearance(table, x, y) < R) continue;
+        ds.push(Math.hypot(x - cx, y - cy));
+      }
+    }
+    ds.sort((a, b) => a - b);
+    const k = Math.max(0, Math.min(ds.length - 1, Math.round(ds.length * MISSION_CENTER_SHARE) - 1));
+    table._misCenter = { x: cx, y: cy, r: ds[k] };
+    return table._misCenter;
+  }
+
+  /** その点が「台の中央付近」か（M-16の判定。8.7.1節 mission_center_area） */
+  function missionCenterOk(table, x, y) {
+    const c = missionCenter(table);
+    if (!(c.r > 0)) return false;
+    if (clearance(table, x, y) < R) return false;     // ドーナツ型の穴の中は「中央付近」ではない
+    return Math.hypot(x - c.x, y - c.y) <= c.r;
+  }
+
+  /**
+   * 長辺側とみなすポケット（M-09。8.7.1節 mission_long_side_pockets）。
+   *
+   * ★**長辺と短辺の区別がある台にだけ定義する。**六角形・楕円・星型のように
+   *   区別のない台では空にし、M-09 は成立条件を満たさない（8.7.1節）。
+   * ★角のポケットは長辺と短辺の**両方**に面しているので入れない。
+   *   入れるとほぼ全部の穴が当てはまり、課題として意味が残らない。
+   */
+  const MISSION_LONG_POCKETS = {
+    'A-01': ['SL', 'SR'],     // 標準長方形：長辺の中央にある2つ
+    'A-08': ['SB'],           // L字：下の長辺の中央にある1つ
+  };
+  function missionLongPockets(table) { return MISSION_LONG_POCKETS[table.shape] || []; }
+
+  /**
+   * そのポケットが面しているクッション（M-11「同じ側のポケット」の判定）。
+   *
+   * ★**台定義データに書き足さない。**外周は形ごとに作られているので、
+   *   穴の口に接しているクッションは**その場で測れば出る**（実測：全8形状で必ず2〜3本）。
+   *   書き並べると、台の形を足した日にそこだけ抜ける。
+   */
+  function missionPocketRails(table, pocket) {
+    const out = [];
+    if (!pocket) return out;
+    for (let i = 0; i < table.rails.length; i++) {
+      if (elemDist(table.rails[i], pocket.x, pocket.y) < pocket.r * 1.6) out.push(i);
+    }
+    return out;
+  }
+
   /**
    * 陣取りの格子（7.7.3節）。**マス全体が外周から玉の半径ぶん以上内側**なら有効。
    *
@@ -2112,6 +2207,8 @@ const BilliardsTable = (() => {
     // 陣取り（7.7節）
     polyCentroid, centroidOf, maxRingRadius, territoryLayout, territoryGrid, gridCellAt,
     GRID_NX, GRID_NY, TERRITORY_FILL,
+    // ミッション制が使う台定義データ（8.7.1節）
+    missionCenter, missionCenterOk, missionLongPockets, missionPocketRails, MISSION_CENTER_SHARE,
     // カーリング型（7.9節）
     playArea, curlingLayout, CURL_AREA, CURL_RINGS, breakPlace, curlingThrowPlace, BREAK_BACK,
     // ボウリング型（7.11節）

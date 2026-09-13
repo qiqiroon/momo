@@ -50,6 +50,50 @@ const BilliardsI18N = (() => {
 
       'mode.normal': '通常モード', 'mode.disturb': '妨害モード', 'mode.abnormal': '異常モード',
       'mod.G-13': '連鎖ボーナス', 'mod.G-14': '持ち時間制', 'mod.G-15': 'ミッション制',
+      'mod.desc.G-13': '続けて得点するほど倍率が上がります（連鎖数＋1倍）。無得点・反則・手番の移動で1倍に戻ります。',
+      'mod.desc.G-15': '毎ターン課題が1つ出ます。達成するとボーナス（得点・もう1ショット・打数−1・玉の復活）が付きます。',
+
+      /*
+       * G-15 の課題28件（8.5.3節）。★**番号は裁定側の表と同じ。**
+       *   ここに無い番号は画面へ出ない（I.has で見ている）ので、
+       *   課題を1件足したら**この3言語ぶんを同時に足す。**
+       */
+      'mis.none': '今回は課題なし',
+      'mis.done': '課題達成！',
+      'mis.void': '条件は満たしましたが、反則のため未達成です',
+      'mis.b.score': '得点 +{p}',
+      'mis.b.again': 'もう1ショット撞けます',
+      'mis.b.stroke': '打数を1つ減らしました',
+      'mis.b.revive': '玉が1つ戻ります',
+      'mis.b.none': 'このターンでは効果がありません',
+      'mis.M-01': 'クッションに2回以上当ててから的球に当てる',
+      'mis.M-02': 'クッションに3回以上当ててから的球に当てる',
+      'mis.M-03': '的球をクッションに当ててからポケットへ入れる',
+      'mis.M-04': '手玉をクッションに一度も当てずにターンを終える',
+      'mis.M-05': '手玉をクッションに4回以上当てる（的球への当否は問わない）',
+      'mis.M-06': '1ショットで2球以上落とす',
+      'mis.M-07': '1ショットで3球以上落とす',
+      'mis.M-08': '光っているポケットへ落とす',
+      'mis.M-09': '台の長辺側のポケットへ落とす',
+      'mis.M-10': '手玉が止まる前に的球をポケットへ入れる',
+      'mis.M-11': '的球が最初に当たったクッションと同じ側のポケットへ入れる',
+      'mis.M-12': '上を撞いて、当てたあと手玉を前へ進ませる（フォロー）',
+      'mis.M-13': '下を撞いて、当てたあと手玉を後ろへ戻す（ドロー）',
+      'mis.M-14': 'サイドスピンをかけて撞く',
+      'mis.M-15': 'キューを45度以上立てて的球に当てる',
+      'mis.M-16': '手玉を台の中央付近に止める',
+      'mis.M-17': '手玉をどのクッションからも玉2個分以上離して止める',
+      'mis.M-18': '手玉を次に狙う玉から玉5個分以内に止める',
+      'mis.M-19': '手玉を台の反対側の半分へ動かす',
+      'mis.M-20': '手玉を跳ねさせ、他の玉を飛び越えてから的球に当てる',
+      'mis.M-21': '玉が空中にあるあいだに他の玉へ当てる',
+      'mis.M-22': '跳ねた手玉を台の中へ着地させる',
+      'mis.M-23': '水たまりか氷の上を玉に通らせる',
+      'mis.M-24': 'ブラックホールのそばを玉に通らせる',
+      'mis.M-25': 'テレポートポケットを玉に通らせる',
+      'mis.M-26': 'いちばん大きい番号の玉を落とす',
+      'mis.M-27': '一度に2マス以上塗る',
+      'mis.M-28': '目標円の中心から玉1個分以内に止める',
 
       'cue.title': '撞球の癖', 'cue.simple': '簡単', 'cue.real': '本格', 'cue.custom': 'カスタム',
       'cue.note': '遊ぶゲームの中身は変わりません。変わるのは撞き味だけです。',
@@ -114,6 +158,7 @@ const BilliardsI18N = (() => {
 
       'hud.turn': '手番', 'hud.score': '得点', 'hud.next': '次に当てる玉',
       'hud.foul': 'ファウル', 'hud.none': 'なし', 'hud.time': '持ち時間',
+      'hud.mission': '課題',
       'hud.base': '基本', 'hud.group': '担当', 'hud.open': '未定',
       'hud.svLeft': '残り{n}', 'hud.svOut': '脱落',
       'hud.trShots': 'あと{n}打',
@@ -274,6 +319,8 @@ const BilliardsI18N = (() => {
       'time.off': '時間制限なしで遊びます',
       'time.other': 'そのほかの追加ルール',
       'btn.place': 'ここに置く',
+      'btn.revive': 'この場所へ戻す',
+      'ph.revive': '課題の達成で玉が1つ戻ります。台のどこでも置けます',
       'ph.placeArea': 'ブレイクはこの範囲（ヘッドストリングより手前）に置きます',
       'ph.bowlArea': '投げる位置をこの範囲（手前側）から選べます',
       'ph.freeArea': '台のどこにでも置けます',
@@ -328,6 +375,45 @@ const BilliardsI18N = (() => {
 
       'mode.normal': 'Normal', 'mode.disturb': 'Interference', 'mode.abnormal': 'Anomaly',
       'mod.G-13': 'Combo bonus', 'mod.G-14': 'Shot clock', 'mod.G-15': 'Missions',
+      'mod.desc.G-13': 'Keep scoring and the multiplier climbs (chain + 1). It resets on a miss, a foul, or when the turn passes.',
+      'mod.desc.G-15': 'One task is set each turn. Complete it for a bonus (points, an extra shot, one stroke off, or a ball back).',
+
+      'mis.none': 'No mission this turn',
+      'mis.done': 'Mission complete!',
+      'mis.void': 'Conditions met, but the foul voids it',
+      'mis.b.score': '+{p} points',
+      'mis.b.again': 'You get one more shot',
+      'mis.b.stroke': 'One stroke taken off',
+      'mis.b.revive': 'One ball comes back',
+      'mis.b.none': 'No effect this turn',
+      'mis.M-01': 'Hit the object ball after 2 or more rails',
+      'mis.M-02': 'Hit the object ball after 3 or more rails',
+      'mis.M-03': 'Pot an object ball after it has hit a rail',
+      'mis.M-04': 'End the turn without the cue ball touching a rail',
+      'mis.M-05': 'Send the cue ball into 4 or more rails (contact not required)',
+      'mis.M-06': 'Pot 2 or more balls in one shot',
+      'mis.M-07': 'Pot 3 or more balls in one shot',
+      'mis.M-08': 'Pot into the highlighted pocket',
+      'mis.M-09': 'Pot into a pocket on the long side',
+      'mis.M-10': 'Pot an object ball before the cue ball stops',
+      'mis.M-11': 'Pot the ball into a pocket on the same side as the rail it hit first',
+      'mis.M-12': 'Hit high and send the cue ball forward after contact (follow)',
+      'mis.M-13': 'Hit low and draw the cue ball back after contact',
+      'mis.M-14': 'Play a shot with side spin',
+      'mis.M-15': 'Hit the object ball with the cue raised 45° or more',
+      'mis.M-16': 'Stop the cue ball near the centre of the table',
+      'mis.M-17': 'Stop the cue ball 2 ball widths or more from every rail',
+      'mis.M-18': 'Stop the cue ball within 5 ball widths of your next target',
+      'mis.M-19': 'Move the cue ball into the other half of the table',
+      'mis.M-20': 'Jump the cue ball over another ball, then hit the object ball',
+      'mis.M-21': 'Make contact while a ball is in the air',
+      'mis.M-22': 'Jump the cue ball and land it back on the table',
+      'mis.M-23': 'Send a ball across water or ice',
+      'mis.M-24': 'Send a ball through the black hole field',
+      'mis.M-25': 'Send a ball through a teleport pocket',
+      'mis.M-26': 'Pot the highest-numbered ball',
+      'mis.M-27': 'Paint 2 or more cells in one shot',
+      'mis.M-28': 'Stop within one ball of the centre of the target circle',
 
       'cue.title': 'Cue behaviour', 'cue.simple': 'Simple', 'cue.real': 'Realistic', 'cue.custom': 'Custom',
       'cue.note': 'This changes how the balls feel, not what you play.',
@@ -391,6 +477,7 @@ const BilliardsI18N = (() => {
 
       'hud.turn': 'Turn', 'hud.score': 'Score', 'hud.next': 'Hit first',
       'hud.foul': 'Foul', 'hud.none': 'none', 'hud.time': 'Time bank',
+      'hud.mission': 'Mission',
       'hud.base': 'Base', 'hud.group': 'Group', 'hud.open': 'open',
       'hud.svLeft': '{n} left', 'hud.svOut': 'out',
       'hud.trShots': '{n} shots left',
@@ -550,6 +637,8 @@ const BilliardsI18N = (() => {
       'time.off': 'No time limit.',
       'time.other': 'Other extras',
       'btn.place': 'Place it here',
+      'btn.revive': 'Bring it back here',
+      'ph.revive': 'Your mission brings one ball back. Place it anywhere on the table.',
       'ph.placeArea': 'Break from behind the head string (shaded area).',
       'ph.bowlArea': 'Choose where to throw from within the shaded area.',
       'ph.freeArea': 'You may place it anywhere on the table.',
@@ -604,6 +693,45 @@ const BilliardsI18N = (() => {
 
       'mode.normal': '普通模式', 'mode.disturb': '干扰模式', 'mode.abnormal': '异常模式',
       'mod.G-13': '连击奖励', 'mod.G-14': '计时制', 'mod.G-15': '任务制',
+      'mod.desc.G-13': '连续得分时倍率会提高（连击数＋1倍）。未得分、犯规或换人时恢复为1倍。',
+      'mod.desc.G-15': '每回合出现一个任务。完成后可获得奖励（得分、再击一杆、少算一杆或复活一球）。',
+
+      'mis.none': '本回合没有任务',
+      'mis.done': '任务完成！',
+      'mis.void': '条件已满足，但因犯规不予计入',
+      'mis.b.score': '得分 +{p}',
+      'mis.b.again': '可以再击一杆',
+      'mis.b.stroke': '杆数减少了1杆',
+      'mis.b.revive': '复活一个球',
+      'mis.b.none': '本回合没有效果',
+      'mis.M-01': '先碰库2次以上，再击中目标球',
+      'mis.M-02': '先碰库3次以上，再击中目标球',
+      'mis.M-03': '让目标球碰库后再进袋',
+      'mis.M-04': '整回合母球一次也不碰库',
+      'mis.M-05': '让母球碰库4次以上（是否击中目标球不限）',
+      'mis.M-06': '一杆打进2球以上',
+      'mis.M-07': '一杆打进3球以上',
+      'mis.M-08': '打进发光的那个袋口',
+      'mis.M-09': '打进长边一侧的袋口',
+      'mis.M-10': '在母球停下之前让目标球进袋',
+      'mis.M-11': '把球打进与它最先碰到的库同一侧的袋口',
+      'mis.M-12': '打高杆，击中后让母球继续前进（跟进）',
+      'mis.M-13': '打低杆，击中后让母球退回（缩杆）',
+      'mis.M-14': '用侧旋击球',
+      'mis.M-15': '球杆抬起45度以上击中目标球',
+      'mis.M-16': '让母球停在台面中央附近',
+      'mis.M-17': '让母球停在离各库都有2个球以上的位置',
+      'mis.M-18': '让母球停在距离下一个目标球5个球以内',
+      'mis.M-19': '把母球移到台面的另一半',
+      'mis.M-20': '让母球跳起越过其他球后击中目标球',
+      'mis.M-21': '在球处于空中时碰到其他球',
+      'mis.M-22': '让跳起的母球落回台面',
+      'mis.M-23': '让球经过水洼或冰面',
+      'mis.M-24': '让球经过黑洞作用范围',
+      'mis.M-25': '让球经过传送袋口',
+      'mis.M-26': '打进号码最大的球',
+      'mis.M-27': '一次涂满2格以上',
+      'mis.M-28': '停在距离目标圆中心1个球以内',
 
       'cue.title': '击球手感', 'cue.simple': '简单', 'cue.real': '正统', 'cue.custom': '自定义',
       'cue.note': '只改变手感，不改变对局内容。',
@@ -667,6 +795,7 @@ const BilliardsI18N = (() => {
 
       'hud.turn': '轮到', 'hud.score': '得分', 'hud.next': '先击打',
       'hud.foul': '犯规', 'hud.none': '无', 'hud.time': '保留时间',
+      'hud.mission': '任务',
       'hud.base': '基本', 'hud.group': '组别', 'hud.open': '未定',
       'hud.svLeft': '剩{n}', 'hud.svOut': '淘汰',
       'hud.trShots': '剩{n}杆',
@@ -826,6 +955,8 @@ const BilliardsI18N = (() => {
       'time.off': '不设时间限制。',
       'time.other': '其他附加规则',
       'btn.place': '放在这里',
+      'btn.revive': '放回这里',
+      'ph.revive': '完成任务复活一个球。台面任意位置都可以放置。',
       'ph.placeArea': '开球需放在开球线之后（阴影范围内）。',
       'ph.bowlArea': '可在阴影范围内（近侧）选择投球位置。',
       'ph.freeArea': '可以放在台面的任意位置。',
@@ -911,6 +1042,13 @@ const BilliardsI18N = (() => {
     return s;
   }
 
+  /**
+   * その言葉を辞書が持っているか。
+   * ★**ja の辞書で見る。**CAT は辞書を持たず鳴き声を組み立てるので、
+   *   CAT のときに「持っていない」と答えると、猫語のあいだだけ説明文が消える。
+   */
+  function has(key) { return DICT.ja[key] != null; }
+
   /** 字幕・ブランド表記は CAT でも本来のテキストを出す（他アプリと同じ扱い） */
   function brandLang() { return currentLang === 'cat' ? catBase() : currentLang; }
 
@@ -922,7 +1060,7 @@ const BilliardsI18N = (() => {
   }
 
   return {
-    init, t, setMode, DIFF_LABEL, SUPPORTED, LANG_APP_ID,
+    init, t, has, setMode, DIFF_LABEL, SUPPORTED, LANG_APP_ID,
     get lang() { return currentLang; },
     get mode() { return langMode; },
     brandLang, catBase,

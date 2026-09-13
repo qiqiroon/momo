@@ -126,6 +126,25 @@ const BilliardsEngine = (() => {
        * どのギミックがどう効くかはあちらが決める。
        */
       field: (opts && opts.field) || null,
+      /*
+       * ★**細かい記録を積むか**（ミッション制＝8.5.10節が見る材料）。
+       *   玉ごとの停止時刻・飛び越え・効き目の中を通ったこと の3つは
+       *   **課題の判定にしか使われない**ので、選んでいないゲームでは積まない。
+       * ★**積むこと自体の費用は小さい**（実測＝120撞きで 151ms ⇔ 153ms＝測り直しの幅の内）。
+       *   それでも分けてあるのは、**使わない記録を全員に持たせない**ためである。
+       * ★積むかどうかで**物理は1ミリも変わらない**（記録するだけで、玉に触れない）ので、
+       *   決定論にも再現にも影響しない。
+       */
+      rec: !!(opts && opts.rec),
+      /*
+       * ★**一撞きのあいだだけ持つ控えも、ここで作っておく**（中身は空でよい）。
+       *   ★★**あとから足すと、その瞬間に世界の形が変わって物理が遅くなる。**
+       *   実測＝撞き終わりで w.over / w.zone を足していたときは 120撞き 149ms → 167ms（＋12%）。
+       *   **走らせていない記録の処理が原因ではなく、形が変わったこと自体が原因だった**
+       *   （記録を積まない設定でも同じだけ遅くなった）。
+       */
+      over: null,
+      zone: null,
     };
   }
 
@@ -152,6 +171,9 @@ const BilliardsEngine = (() => {
        *   中身は読むだけで書き換えないので、共有したままでよい。
        */
       field: w.field,
+      rec: !!w.rec,          // 記録を積むかも引き継ぐ（AIの読みも同じ盤面でなければならない）
+      over: null,            // ★複製の側も形をそろえる（足りないと複製だけが遅くなる）
+      zone: null,
     };
   }
 
@@ -748,6 +770,8 @@ const BilliardsEngine = (() => {
   }
 
   // ───────── 1ステップ進める ─────────
+  const EMPTY = [];        // 空中の玉が居ないときに回す空の輪（下の飛び越えの見張り）
+
   function step(w) {
     const table = w.table;
     const live = w.balls.filter(b => b.state === 'live');
@@ -775,7 +799,9 @@ const BilliardsEngine = (() => {
           const k = 'r' + b.id + '_' + si;
           if (declined.has(k)) continue;
           const t = timeBallRail(b, table.rails[si], tMin);
-          if (t < tMin - 1e-12) { tMin = t; hit = { kind: 'rail', a: b, s: table.rails[si] }; key = k; }
+          // ★**どの面に当たったか（si）も控える。**「最初に触れたクッションと同じ側の
+          //   ポケットへ入れる」（ミッション M-11）は、当たった場所の座標だけでは決められない
+          if (t < tMin - 1e-12) { tMin = t; hit = { kind: 'rail', a: b, s: table.rails[si], si: si }; key = k; }
         }
       }
 
@@ -790,19 +816,35 @@ const BilliardsEngine = (() => {
         let r;
         if (hit.kind === 'bb') {
           r = resolveBallBall(w, hit.a, hit.b);
-          if (r) w.events.push({ type: 'hit', a: hit.a.id, b: hit.b.id, speed: r.speed, tick: w.tick });
+          /*
+           * ★**当たった場所と、空中だったかも載せる**（ミッション M-12／M-13／M-21）。
+           *   当てたあと手玉が前へ出たか後ろへ戻ったかは、**当たった地点**と
+           *   止まった地点を結ばないと出せない。撞いた向きだけでは分からない。
+           */
+          if (r) {
+            w.events.push({ type: 'hit', a: hit.a.id, b: hit.b.id, speed: r.speed, tick: w.tick,
+              ax: hit.a.x, ay: hit.a.y, bx: hit.b.x, by: hit.b.y,
+              air: (hit.a.z > 0.01 || hit.b.z > 0.01) });
+          }
         } else {
           r = resolveBallRail(w, hit.a, hit.s);
           // 当たった場所も載せる。「台のどのあたりの壁に当たったか」を
           // 見たい側（バンキングの成立判定）が、あとから知る手立てを持たないため
-          if (r) w.events.push({ type: 'cushion', ball: hit.a.id, x: hit.a.x, y: hit.a.y, speed: r.speed, slide: !!r.slide, tick: w.tick });
+          if (r) w.events.push({ type: 'cushion', ball: hit.a.id, x: hit.a.x, y: hit.a.y, rail: hit.si, speed: r.speed, slide: !!r.slide, tick: w.tick });
         }
         if (!r && key) declined.add(key);
       }
     }
 
     // 摩擦・重力（ステップ全体ぶんをまとめて反映）
+    /*
+     * ★**空中の玉が居るかを、この輪のついでに数える。**
+     *   飛び越えの見張り（下）のためだけに全球をもう一度なめると、
+     *   **空中の玉が1つも無いふだんの一撞きでも費用を払う**ことになる（実測で1割強）。
+     */
+    let anyAir = false;
     for (const b of live) {
+      if (w.rec && b.z > b.r * 0.5) anyAir = true;
       /*
        * 盤面イベント層からの外力（第6章）。**呼ぶのはここ1か所だけ。**
        * 盤面を進める道は5本ある（主ループ・演出無しの一気走らせ・観戦者の追いつき・
@@ -833,7 +875,49 @@ const BilliardsEngine = (() => {
       if (b.z <= 0.01) {
         const sp = Math.hypot(b.vx, b.vy);
         const wl = Math.hypot(b.wx, b.wy, b.wz);
-        if (sp < STOP_V && wl < STOP_W) { b.vx = b.vy = b.vz = 0; b.wx = b.wy = b.wz = 0; }
+        if (sp < STOP_V && wl < STOP_W) {
+          /*
+           * ★**止まった瞬間を1回だけ出来事にする**（ミッション M-10「手玉が止まる前に
+           *   的球が落ちる」）。全球停止では遅すぎる ── 知りたいのは玉ごとの止まった時刻である。
+           * ★動いていた玉が止まった刻みだけ積む。止まったままの玉は毎刻み素通りする。
+           */
+          if (w.rec && (sp > 0 || wl > 0 || b.vz !== 0)) w.events.push({ type: 'stop', ball: b.id, tick: w.tick });
+          b.vx = b.vy = b.vz = 0; b.wx = b.wy = b.wz = 0;
+        }
+      }
+    }
+
+    /*
+     * ★**空中の玉が他の玉の上を通り過ぎたこと**（ミッション M-20）。
+     *   ぶつかっていないので衝突の出来事は立たない。**その刻みに真上へ重なっていたか**でしか
+     *   「飛び越えた」を知る手立てが無い。
+     * ★十分に浮いている玉が1つも無ければ、内側の輪はいちども回らない（ふだんは素通り）。
+     * ★同じ組を二度積まない。刻みごとに積むと、1回の飛び越えが何十件にもなる。
+     */
+    for (const b of ((w.rec && anyAir) ? live : EMPTY)) {
+      if (b.state !== 'live' || b.z <= b.r * 0.5) continue;
+      for (const o of live) {
+        if (o === b || o.state !== 'live' || o.z > 0.01) continue;
+        if (Math.hypot(b.x - o.x, b.y - o.y) >= b.r + o.r) continue;
+        const k = b.id + '>' + o.id;
+        if (!w.over) w.over = {};
+        if (w.over[k]) continue;
+        w.over[k] = 1;
+        w.events.push({ type: 'over', ball: b.id, other: o.id, tick: w.tick });
+      }
+    }
+    /*
+     * ★**いま何の効き目の中に居るか**（ミッション M-23 水・氷／M-24 ブラックホールの作用圏）。
+     * ★**名前を決めるのは盤面イベント層である**（engine はギミックの名前を1つも知らない）。
+     * ★**入った刻みだけ積む。**毎刻み積むと1秒で480件たまる。
+     */
+    if (w.rec && w.field && BilliardsField.hasZones(w.field)) {
+      if (!w.zone) w.zone = {};
+      for (const b of live) {
+        if (b.state !== 'live') continue;
+        const z = BilliardsField.zoneOf(w.field, b.x, b.y);
+        if (z && w.zone[b.id] !== z) w.events.push({ type: 'zone', ball: b.id, zone: z, tick: w.tick });
+        w.zone[b.id] = z || null;
       }
     }
 
@@ -910,8 +994,14 @@ const BilliardsEngine = (() => {
      *   数えが前のショットから積み上がる。ショットの最後の1刻みは必ずここを通る。
      */
     if (allStopped(w)) {
-      // 盤面が止まっている＝ショットとショットのあいだ。2つの数えをどちらも0へ戻す
+      // 盤面が止まっている＝ショットとショットのあいだ。数えをどれも0へ戻す
       w.stall = 0; w.shotTick = 0;
+      /*
+       * ★**一撞きのあいだだけ持つ控えも、ここで捨てる**（飛び越えた組・いま居る効き目）。
+       *   立てる側と下ろす側を同じ場所にしておく。撞き終わりの道は5本あるので、
+       *   呼ぶ側で消す形にすると、どれか1本で消し忘れて前の一撞きぶんが残る。
+       */
+      w.over = null; w.zone = null;
     } else {
       // 玉が動いている＝ショットの最中。2つの数えを同じ末尾で1つずつ進める
       w.shotTick++;

@@ -343,7 +343,13 @@ const BilliardsRules = (() => {
      */
     // ★足し合わせ方は field 側の1か所（syncPatches）に置いてある。ここで組み直さない
     F.syncPatches(game.field, table);
-    const o = Object.assign({}, opts || {}, { field: game.field || null });
+    /*
+     * ★**細かい記録を積むのは、ミッション制を選んでいるときだけ**（8.5.10節の材料）。
+     *   判定に使うのは課題だけなので、選んでいないゲームでは積まない
+     *   （実測では積んでも 120撞きで 151ms ⇔ 153ms ＝ 測り直しの幅の内だが、
+     *   AIの読みは1手につき何百撞きも走らせるので、使わないものは持たせない）。
+     */
+    const o = Object.assign({}, opts || {}, { field: game.field || null, rec: !!game.missionOn });
     const w = E.createWorld(table, balls, game.tuning, o);
     /*
      * ★**ターン開始時のギミック（ブラックホールの位置）は、盤面を組んだ直後にも引き直す。**
@@ -402,6 +408,16 @@ const BilliardsRules = (() => {
        */
       chainOn: !!cfg.chain && chainRule(cfg.rule),
       chain: 0,                         // 現在の連鎖数（8.7.2節 chain_count）。手番の移動でリセット
+      /*
+       * G-15 ミッション制（第8章8.5節）。**働くかどうかをここで一度だけ決める。**
+       * ★連鎖ボーナスと違い、**9ルールすべてで有効**（8.4節の表）なのでルールの突き合わせは要らない。
+       * 練習モードで外すのは画面側（修飾子3種とも適用しない。9.6.3節）。
+       */
+      missionOn: !!cfg.mission,
+      mission: null,                    // いま出ている課題（8.7.2節 current_mission）
+      missionPrev: null,                // 直前に出した課題（同 previous_mission。抽選の除外に使う）
+      missionAgain: false,              // フリーボール型のボーナスをこのターンに使ったか（8.5.7節）
+      revive: null,                     // 復活させる玉と、置く人（10.6節）
       // 撞く番が何度移ったか。ギミックの抽選を1ターンに1回へ抑えるための鍵に使う
       turnNo: 0,
       // ゴルフ型のコースを抽選で回るか（7.10.2節。既定は固定順＝覚えて攻略する対象にするため）
@@ -698,6 +714,8 @@ const BilliardsRules = (() => {
         paint: new Map(),      // マスの番号 → 塗った人の席
         last: new Map(),       // 玉ごとに最後に見たマス。変わったときだけ塗る
         shotLog: [],           // この一撞きで塗り替えたマスと、その前の色
+        // ミッション達成の加点（8.5.7節）。塗りの数え直しに混ぜる＝territoryCount
+        bonus: game.players.map(() => 0),
       };
       game.players.forEach(p => { p.score = 0; p.shots = 0; });
       game.ballInHand = false;
@@ -770,6 +788,12 @@ const BilliardsRules = (() => {
     if (game.rule === 'G-06') territoryTrack(game);   // 出発のマスを控える（塗りはしない）
     if (game.rule === 'G-09') curlingArm(game);       // 先頭の人の1個目を投球位置へ置く
     if (game.rule === 'G-11') { bowlRack(game); bowlArm(game); }   // ピン10本と手玉を構える
+    /*
+     * 最初のターンの課題（8.5.2節）。**玉を並べ終えてから引く。**
+     * 成立条件は盤面を見て決まる（盤に2球あるか・ポケットがあるか）ので、
+     * 並べる前に引くと、盤に無いものを前提にした課題が出る。
+     */
+    missionDraw(game);
   }
 
   // ───────── 陣取り（7.7節） ─────────
@@ -845,6 +869,13 @@ const BilliardsRules = (() => {
     const out = game.players.map(() => 0);
     if (!game.territory) return out;
     game.territory.paint.forEach(owner => { if (out[owner] != null) out[owner]++; });
+    /*
+     * ★ミッション達成の加点（8.5.7節）は**ここで混ぜる。**
+     *   陣取りの持ち点は「いま塗られているマス」を数え直して出すので、
+     *   持ち点へ直に足しても**次の一撞きで上書きされて消える。**
+     */
+    const bn = game.territory.bonus;
+    if (bn) out.forEach((v, i) => { out[i] = v + (bn[i] || 0); });
     return out;
   }
 
@@ -1202,39 +1233,65 @@ const BilliardsRules = (() => {
    * ★**置き場所の決まりはルールの知識**なので、画面側ではなくここに置く（呼び名 golfTermKey と同じ考え）。
    *   画面側にあると検査から見えず、消えても緑のままになる [[reference_guard_where_forgetting_is_cheap]]。
    */
-  function placeOk(game, pt) {
+  /**
+   * @param {object} opt 置く玉が手玉でないとき（10.6節の復活した玉）に渡す。
+   *   { ball: 置く玉, anywhere: true＝ヘッド側の縛りを掛けない }
+   *   ★**同じ判定を2つ書かない。**置ける場所の決まり（台の内側・ポケットの上・玉の重なり）は
+   *     手玉でも復活した玉でも同じなので、違うところだけを引数で受ける。
+   */
+  function placeOk(game, pt, opt) {
     if (!game || !pt) return false;
-    const cue = cueBallOf(game, game.turn);
-    if (!cue) return false;
+    const self = (opt && opt.ball) || cueBallOf(game, game.turn);
+    if (!self) return false;
     const table = game.table;
-    if (!T.inside(table, pt.x, pt.y, cue.r)) return false;
-    if (game.ballInHand && !game.ballInHandFull && pt.x > kitchenLimit(table)) return false;
-    for (const p of table.pockets) if (Math.hypot(pt.x - p.x, pt.y - p.y) < p.r + cue.r * 0.3) return false;
+    if (!T.inside(table, pt.x, pt.y, self.r)) return false;
+    const kitchen = !(opt && opt.anywhere) && game.ballInHand && !game.ballInHandFull;
+    if (kitchen && pt.x > kitchenLimit(table)) return false;
+    for (const p of table.pockets) if (Math.hypot(pt.x - p.x, pt.y - p.y) < p.r + self.r * 0.3) return false;
     for (const b of game.world.balls) {
-      if (b === cue || b.state !== 'live') continue;
-      if (Math.hypot(b.x - pt.x, b.y - pt.y) < b.r + cue.r + 0.5) return false;
+      if (b === self || b.state !== 'live') continue;
+      if (Math.hypot(b.x - pt.x, b.y - pt.y) < b.r + self.r + 0.5) return false;
     }
     return true;
+  }
+
+  /**
+   * 復活した玉を置けるか（10.6.1節）。**置ける範囲は台全体**で、ヘッド側の縛りは掛からない。
+   * ★手玉を置くのと同じ判定を通す（違うのは「どの玉か」と「範囲」の2つだけ）。
+   */
+  function reviveOk(game, pt) {
+    const rv = game && game.revive;
+    if (!rv) return false;
+    const b = game.world.balls.find(bb => bb.id === rv.id);
+    return placeOk(game, pt, { ball: b, anywhere: true });
   }
 
   /**
    * 望んだ点が置けないときに、**そこからいちばん近い置ける点**を返す。
    * どこにも置けなければ望んだ点をそのまま返す（それ以上悪くしない）。
    */
-  function nearestPlace(game, pt) {
+  /**
+   * @param {function} ok 置けるかの判定。既定は手玉の決まり（placeOk）。
+   *   復活した玉（10.6節）は範囲も相手も違うので reviveOk を渡す。
+   */
+  function nearestPlace(game, pt, ok) {
     if (!pt) return pt;
-    if (placeOk(game, pt)) return pt;
+    const test = ok || placeOk;
+    if (test(game, pt)) return pt;
     const STEP = 20, MAX = 2800;
     for (let r = STEP; r <= MAX; r += STEP) {
       const n = Math.max(8, Math.round(2 * Math.PI * r / STEP));
       for (let i = 0; i < n; i++) {
         const a = i * 2 * Math.PI / n;
         const q = { x: pt.x + Math.cos(a) * r, y: pt.y + Math.sin(a) * r };
-        if (placeOk(game, q)) return q;
+        if (test(game, q)) return q;
       }
     }
     return pt;
   }
+
+  /** 復活した玉の既定の置き場所（10.6節）。AI・観戦・追いつき直しはここへ落ちる */
+  function nearestRevive(game, pt) { return nearestPlace(game, pt, reviveOk); }
 
   // ───────── ショットの結果を判定する ─────────
   /**
@@ -1333,6 +1390,13 @@ const BilliardsRules = (() => {
       foul, continueTurn: false, gained: 0, message: null, gameOver: false,
     };
 
+    /*
+     * ★**ミッションの材料は、盤面を復旧する前に凍らせる**（8.5.10節の手順2）。
+     *   復旧は玉を元の位置へ戻すので、**止まった場所を見る課題はここを過ぎると測れない。**
+     *   判定そのものは帰結のあと（得点が決まってから）に行う。
+     */
+    const mfacts = game.missionOn ? missionFacts(game, pre, events) : null;
+
     // ── 盤面の復旧（第10章）
     restoreBalls(game, result, pre);
 
@@ -1352,6 +1416,13 @@ const BilliardsRules = (() => {
      * 反則かどうかも、いくつ得点したかも、ルールごとの帰結を通ったあとでないと決まらない。
      */
     chainStep(game, result);
+
+    /*
+     * G-15 ミッションの判定とボーナス（8.5.10節）。**連鎖を数えたあとに置く。**
+     * ★順番には意味がある ── ミッションの加点は**連鎖数の増減に影響しない**（8.6.2節）ので、
+     *   先に数え終えておく。ここより前に置くと、加点だけがあった一撞きで連鎖が続いてしまう。
+     */
+    missionJudge(game, result, mfacts);
 
     /*
      * 相手チームがいないとき（協力プレイで全員が同じチーム）は、
@@ -1546,8 +1617,12 @@ const BilliardsRules = (() => {
    *   掛け算の答えだけを返すと「何倍だったか」を画面側で数え直すことになる。
    *
    * @param {number} raw 倍率を掛ける前の素点（8.3.4節でいう素点）
+   * @param {object} opt { mission:true }＝ミッション達成の加点（8.5.7節）。
+   *   ★**連鎖の倍率を掛けない**（8.6.2節）。課題の達成はショットの結果ではないので、
+   *     連続得点という連鎖の定義になじまない。倍率に上限が無いことも理由になっている。
+   *   ★**連鎖数にも影響しない。**数えるのは chainStep ただ1か所で、こちらは通らない。
    */
-  function award(game, r, raw) {
+  function award(game, r, raw, opt) {
     /*
      * ★**0点の一撞きでは、倍率も立てない。**
      *
@@ -1561,11 +1636,39 @@ const BilliardsRules = (() => {
      *   画面の側で「0点なら出さない」と直すと、**次に得点を使う場所ができたときに同じ判断が要る。**
      */
     if (!raw) return;
-    const mult = chainMult(game);
-    r.raw = raw;
-    r.mult = mult;
-    r.gained = raw * mult;              // 素点も倍率も整数なので端数は出ない（8.3.4節）
-    game.players[game.turn].score += r.gained;
+    const mission = !!(opt && opt.mission);
+    const mult = mission ? 1 : chainMult(game);
+    const pts = raw * mult;             // 素点も倍率も整数なので端数は出ない（8.3.4節）
+    if (!mission) { r.raw = raw; r.mult = mult; r.gained = pts; }
+    addScore(game, game.turn, pts);
+  }
+
+  /**
+   * 得点を持ち点へ足す。**足す先の形はルールで違う。**
+   *
+   * ★★**陣取りとボウリング型は、持ち点を毎回「数え直して」いる。**
+   *   陣取りは塗られたマスを数え直し（territoryCount）、ボウリング型は投の並びから
+   *   積み上げ直す（bowlLine）。**そこへ直に足しても、次の一撞きで上書きされて消える。**
+   *   この2つだけは**数え直しの材料のほうへ足す**。
+   */
+  function addScore(game, seat, pts) {
+    if (!pts) return;
+    if (game.rule === 'G-06' && game.territory) {
+      game.territory.bonus[seat] = (game.territory.bonus[seat] || 0) + pts;
+      const counts = territoryCount(game);
+      game.players.forEach((p, i) => { p.score = counts[i]; });
+      return;
+    }
+    if (game.rule === 'G-11' && game.bowling) {
+      /*
+       * ★**倒したピン数には足さない**（D367・8.5.7節）。ピン数へ足すと
+       *   スペア・ストライクの成立判定そのものが変わり、以後のフレームの繰り越しにも波及する。
+       *   足すのは**そのフレームの得点**なので、フレームの箱に別枠で持つ。
+       */
+      const f = bowlFrame(game, seat);
+      if (f) { f.mbonus = (f.mbonus || 0) + pts; bowlScoreAll(game); return; }
+    }
+    game.players[seat].score += pts;
   }
 
   /**
@@ -1585,6 +1688,497 @@ const BilliardsRules = (() => {
      */
     if (r.foul || !r.gained) game.chain = 0;
     else game.chain++;
+  }
+
+  /*
+   * ═══ G-15 ミッション制（第8章8.5節） ═══
+   *
+   * ★**28件を1つの表に並べる**（8.5.3節）。成立条件・難度・判定を1件につき1行で持つ。
+   *   「出せる課題」と「出せない課題」を別の表に分けない ── 連鎖ボーナスの表と同じ理由で、
+   *   課題を1件足すたびに2か所を直すことになり、片方を忘れると
+   *   **出るのに何も起きない課題**か**出られない課題**ができる。
+   *   ★検査（check_mission.js）で**28件そろっているか・難度の内訳が 7／13／8 か**を数えている。
+   *
+   * ★**判定の材料は、盤面を復旧する前に凍らせる**（missionFacts）。
+   *   反則の復旧（restoreBalls）は玉を元の位置へ戻すので、
+   *   **止まった場所を見る課題（カテゴリ4）は復旧のあとでは測れない。**
+   *   いっぽう「得点したか」はルールごとの帰結を通らないと決まらないので、
+   *   **判定そのものは帰結のあと**に行う。＝材料を採る場所と判定する場所は別である。
+   *
+   * ★**抽選は手番の切り替えの1か所だけ**（missionDraw）。玉が転がっている最中には引かない。
+   *   引く場所を増やすと、AIの読み・リプレイ・観戦の追いつきが同じ乱数列を消費できず、
+   *   決定論（5.2節）が壊れる。
+   */
+
+  /**
+   * 達成ボーナスの分類（8.5.7節）。**9ルールすべてをこの1つの表に並べる。**
+   *   'score'  … 得点を加算する（G-03／G-04／G-06／G-09／G-11）
+   *   'again'  … もう1ショット撞ける権利（G-01／G-02）
+   *   'stroke' … 打数を1減らす（G-10）
+   *   'revive' … 失った所有玉を1つ復活させる（G-08）
+   *
+   * ★**第7章7.2.5節のファウル罰則にも同じ名前の4分類があるが、中身は違う**（D359）。
+   *   あちらはスクラッチの罰の形で分けるので G-03 はフリーボール型・G-06 は玉喪失型だが、
+   *   こちらは**勝敗が得点で決まるか**で分けるので、どちらも得点型になる。
+   *   名前が同じなので、片方の表をもう片方に流用しない。
+   */
+  const MISSION_BONUS = {
+    'G-03': 'score', 'G-04': 'score', 'G-06': 'score', 'G-09': 'score', 'G-11': 'score',
+    'G-01': 'again', 'G-02': 'again',
+    'G-10': 'stroke',
+    'G-08': 'revive',
+  };
+
+  /**
+   * 得点型の加点量（8.5.7節・付録B。利用者の選択＝「標準」）。
+   *
+   * ★**ルールごとに「1回の得点機会の平均のおよそ半分」にそろえてある**（実測値から決めた）。
+   *   ローテーション＝落とした玉の番号（1〜15の平均8点・1ラック120点）／
+   *   キャロム＝1回1点（目標10点）／陣取り＝1打あたり平均63マス（標準長方形の総数684）／
+   *   カーリング型＝1エンド1〜4点／ボウリング型＝満点300。
+   * ★**キャロムとカーリング型は刻みが1点しかない**ので、半分にはできず +1 が下限になる。
+   * ★**材料（得点の大きさ）を触ったら測り直す。**玉数・目標点・マスの大きさを変えると、
+   *   ここの数字は黙って古くなる。
+   */
+  const MISSION_PTS = { 'G-03': 4, 'G-04': 1, 'G-06': 30, 'G-09': 1, 'G-11': 4 };
+
+  /** 難易度ごとの抽選対象（8.5.5節）。e＝易／m＝中／h＝難 */
+  const MISSION_RANGE = { easy: ['e'], hard: ['e', 'm'], apocalypse: ['e', 'm', 'h'] };
+
+  /**
+   * ギミック連動系（M-23／M-24／M-25）の抽選の重み（8.5.6節・付録B）。
+   * 該当ギミックが出ているターンにだけ候補へ入るので、機会が限られる＝そのぶん厚くする。
+   */
+  const MISSION_GIM_W = 6;
+  /** 「サイドスピンをかけた」とみなす撞点Xの大きさ（M-14。付録B） */
+  const MISSION_SIDE = 0.30;
+  /** 「上（下）を撞いた」とみなす撞点Yの大きさ（M-12／M-13。付録B） */
+  const MISSION_TIP = 0.20;
+  /** M-17「どのクッションからも玉2個分以上」の2個分＝直径2つぶん（8.5.3節） */
+  const MISSION_FAR = 2;
+  /** M-18「次に狙うべき玉から玉5個分以内」の5個分（8.5.3節） */
+  const MISSION_NEAR = 5;
+
+  function missionPockets(game) { return (game.table && game.table.pockets) || []; }
+  function missionHasPockets(game) { return missionPockets(game).length > 0; }
+  /** 撞球の癖が「簡単」でない＝回転が盤面へ及ぶ設定が1つでも入っている（8.5.5節・D369） */
+  function missionSpinAlive(game) {
+    const tu = game.tuning || {};
+    return !!(tu.throwEffect || tu.spinTransfer || tu.cushionSpin);
+  }
+
+  /**
+   * 判定の材料を凍らせる（8.5.10節の手順2）。**盤面を復旧する前に呼ぶ。**
+   *
+   * ★出来事（events）を1度だけなめて、必要なものを全部ここで採る。
+   *   課題ごとに events を数え直すと、同じ数え方が28通りに散らばる。
+   */
+  function missionFacts(game, pre, events) {
+    const f = {
+      cueId: pre.cueId,
+      shot: pre.shot || null,          // 撞点・キュー仰角（撞いた入力そのもの）
+      from: pre.cueAt || null,         // 撞く前の手玉の位置
+      cueCushion: 0,                   // 手玉がこの一撞きで触れたクッションの数
+      cueCushionBeforeHit: 0,          // 最初に的球へ当たるまでに触れた数
+      firstHit: null,
+      pocketed: [],                    // [{ id, pocket }]
+      cushionCount: {},                // 玉ごとのクッション接触の数
+      cushionBeforePocket: {},         // その玉が落ちるまでに触れた数
+      warped: {},                      // テレポートポケットを経由した玉
+      landed: {},                      // 飛んだあと台へ着地した玉
+      moved: {},                       // この一撞きで動いた玉（出来事に出てきた玉）
+      stop: {},                        // 玉ごとの停止位置（復旧の前）
+      stopTick: {},                    // 玉ごとの止まった時刻（M-10）
+      pocketTick: {},                  // 玉ごとの落ちた時刻（M-10）
+      firstRail: {},                   // 玉ごとの、最初に当たったクッションの面（M-11）
+      hitAt: null,                     // 手玉が最初に的球へ当たった地点（M-12／M-13）
+      airHit: false,                   // 空中の玉が関わった接触があったか（M-21）
+      overBeforeHit: false,            // 当てる前に手玉が他の玉を飛び越えたか（M-20）
+      zones: {},                       // 玉ごとに通った効き目（M-23／M-24）
+    };
+    let hitSeen = false;
+    for (const ev of events) {
+      if (ev.ball != null) f.moved[ev.ball] = true;
+      if (ev.a != null) f.moved[ev.a] = true;
+      if (ev.b != null) f.moved[ev.b] = true;
+      if (ev.type === 'cushion') {
+        f.cushionCount[ev.ball] = (f.cushionCount[ev.ball] || 0) + 1;
+        if (f.firstRail[ev.ball] == null && ev.rail != null) f.firstRail[ev.ball] = ev.rail;
+        if (ev.ball === pre.cueId) {
+          f.cueCushion++;
+          if (!hitSeen) f.cueCushionBeforeHit++;
+        }
+      } else if (ev.type === 'hit') {
+        if (ev.air) f.airHit = true;
+        if (!hitSeen && (ev.a === pre.cueId || ev.b === pre.cueId)) {
+          hitSeen = true;
+          f.firstHit = (ev.a === pre.cueId) ? ev.b : ev.a;
+          // 手玉が当てた地点。**当てたあと前へ出たか後ろへ戻ったか**はここを起点に測る
+          if (ev.ax != null) f.hitAt = (ev.a === pre.cueId) ? { x: ev.ax, y: ev.ay } : { x: ev.bx, y: ev.by };
+        }
+      } else if (ev.type === 'pocket') {
+        f.pocketed.push({ id: ev.ball, pocket: ev.pocket });
+        f.cushionBeforePocket[ev.ball] = f.cushionCount[ev.ball] || 0;
+        f.pocketTick[ev.ball] = ev.tick;
+      } else if (ev.type === 'stop') {
+        f.stopTick[ev.ball] = ev.tick;
+      } else if (ev.type === 'over') {
+        // ★**当てる前に飛び越えたことだけを数える**（M-20）。当てたあとに跳ねて
+        //   別の玉を越えても「飛び越えてから当てる」にはならない
+        if (ev.ball === pre.cueId && !hitSeen) f.overBeforeHit = true;
+      } else if (ev.type === 'zone') {
+        (f.zones[ev.ball] || (f.zones[ev.ball] = {}))[ev.zone] = true;
+      } else if (ev.type === 'warp') {
+        f.warped[ev.ball] = true;
+      } else if (ev.type === 'land') {
+        f.landed[ev.ball] = true;
+      }
+    }
+    game.world.balls.forEach(b => { f.stop[b.id] = { x: b.x, y: b.y }; });
+    return f;
+  }
+
+  /** 手玉以外で落ちた玉の数 */
+  function missionPotted(f) { return f.pocketed.filter(p => p.id !== f.cueId).length; }
+
+  /**
+   * その効き目を通った玉があるか（M-23／M-24／M-25 の共通の形）。
+   *
+   * ★★**「得点する」は条件から外してある**（利用者判断・D467）。
+   *   仕様書8.5.3節は5つの課題（M-14／M-22／M-23〜M-25）に「得点する」と書いているが、
+   *   **得点を持たないルールが4つある**（G-01／G-02／G-08／G-10＝連鎖ボーナスが
+   *   働かない顔ぶれと同じ）。そのまま読むと、この5件はその4ルールで
+   *   **一度も達成できない課題**になる。
+   * ★**外しても「何でも達成」にはならない。**反則のあった一撞きは未達成に確定する（8.5.8節）ので、
+   *   **反則にならない撞き方をすること**が下限として残る。
+   *
+   * @param {function} has その玉が通ったかを答える
+   */
+  function missionVia(game, r, f, has) {
+    return game.world.balls.some(b => has(b.id));
+  }
+
+  /** 手玉が的球へ当たったあと、当てた地点から見てどれだけ前へ進んだか（M-12／M-13） */
+  function missionAdvance(f) {
+    const from = f.from, at = f.hitAt, stop = f.stop[f.cueId];
+    if (!from || !at || !stop) return null;
+    const dx = at.x - from.x, dy = at.y - from.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 1) return null;                       // 出発点と当てた地点が同じ＝向きが出せない
+    return ((stop.x - at.x) * dx + (stop.y - at.y) * dy) / len;
+  }
+
+  /** 台を長いほうの軸で二等分し、どちら側かを返す（M-19） */
+  function missionHalf(game, p) {
+    const tb = game.table;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const q of tb.outline) {
+      if (q.x < minX) minX = q.x;
+      if (q.x > maxX) maxX = q.x;
+      if (q.y < minY) minY = q.y;
+      if (q.y > maxY) maxY = q.y;
+    }
+    const w = maxX - minX, h = maxY - minY;
+    return (w >= h) ? Math.sign(p.x - (minX + maxX) / 2) : Math.sign(p.y - (minY + maxY) / 2);
+  }
+
+  /**
+   * 課題の一覧（8.5.3節）。全28件。
+   *   id  … 課題番号（訳の見出しにもそのまま使う）
+   *   cat … カテゴリ（1〜7）
+   *   d   … 難度（e＝易／m＝中／h＝難）
+   *   ok  … 成立条件。その盤面で判定できるか（8.5.4節の手順1）
+   *   judge … 達成したか。**材料（f）と帰結（r）だけを見る**
+   *   draw  … 抽選のときに一緒に決めるもの（M-08 の指定ポケット）
+   *   w     … 抽選の重み（既定は1。ギミック連動系だけ引き上げる）
+   *   todo  … **まだ判定を作っていない課題**。抽選から外す。
+   *           ★成立条件（ok）に混ぜない。混ぜると、作り終えた日に
+   *             「実装の都合」と「仕様の条件」が見分けられなくなる。
+   */
+  const MISSIONS = [
+    // ── カテゴリ1：クッション経由系
+    { id: 'M-01', cat: 1, d: 'e', ok: () => true,
+      judge: (g, r, f) => f.firstHit != null && f.cueCushionBeforeHit >= 2 },
+    { id: 'M-02', cat: 1, d: 'm', ok: () => true,
+      judge: (g, r, f) => f.firstHit != null && f.cueCushionBeforeHit >= 3 },
+    { id: 'M-03', cat: 1, d: 'm', ok: g => missionHasPockets(g),
+      judge: (g, r, f) => f.pocketed.some(p => p.id !== f.cueId && (f.cushionBeforePocket[p.id] || 0) >= 1) },
+    // ★手玉が一度もクッションに触れずに終える。当てたかどうかは問わない
+    { id: 'M-04', cat: 1, d: 'e', ok: () => true,
+      judge: (g, r, f) => f.cueCushion === 0 },
+    // ★「的球への当否は問わない」ので、数えるのは手玉のクッションだけ
+    { id: 'M-05', cat: 1, d: 'h', ok: () => true,
+      judge: (g, r, f) => f.cueCushion >= 4 },
+
+    // ── カテゴリ2：ポケット系
+    { id: 'M-06', cat: 2, d: 'm', ok: g => missionHasPockets(g) && liveObjects(g).length >= 2,
+      judge: (g, r, f) => missionPotted(f) >= 2 },
+    { id: 'M-07', cat: 2, d: 'h', ok: g => missionHasPockets(g) && liveObjects(g).length >= 3,
+      judge: (g, r, f) => missionPotted(f) >= 3 },
+    /*
+     * ★指定する穴は**盤面のポケットから等確率で1つ**（利用者の選択）。
+     *   抽選はターンの切り替えで1回だけ引く（玉が転がっている最中には引かない）。
+     */
+    { id: 'M-08', cat: 2, d: 'm', ok: g => missionHasPockets(g),
+      draw: (g, m) => {
+        const pk = missionPockets(g);
+        m.pocket = pk[Math.min(pk.length - 1, Math.floor(g.rng() * pk.length))].id;
+      },
+      judge: (g, r, f, m) => f.pocketed.some(p => p.id !== f.cueId && p.pocket === m.pocket) },
+    /*
+     * ★長辺側の穴は**台定義データが持つ**（8.7.1節）。長辺と短辺の区別が無い台（六角形・
+     *   楕円・星型など）では空なので、成立条件をそのまま満たさなくなる。
+     */
+    { id: 'M-09', cat: 2, d: 'e',
+      ok: g => missionHasPockets(g) && T.missionLongPockets(g.table).length > 0,
+      judge: (g, r, f) => {
+        const ids = T.missionLongPockets(g.table);
+        return f.pocketed.some(p => p.id !== f.cueId && ids.indexOf(p.pocket) >= 0);
+      } },
+    /*
+     * ★見るのは**手玉が止まった時刻**であって、全球停止ではない。
+     *   全球停止で見ると、的球が先に落ちたかどうかは必ず「はい」になる。
+     */
+    { id: 'M-10', cat: 2, d: 'e', ok: g => missionHasPockets(g),
+      judge: (g, r, f) => {
+        const end = (f.stopTick[f.cueId] != null) ? f.stopTick[f.cueId]
+          : (f.pocketTick[f.cueId] != null ? f.pocketTick[f.cueId] : Infinity);
+        return f.pocketed.some(p => p.id !== f.cueId && f.pocketTick[p.id] < end);
+      } },
+    /*
+     * ★「同じ側」は**穴の口に接しているクッション**で決める（台定義データから測る）。
+     *   角の穴は2本のクッションに接しているので、そのどちらでも「同じ側」になる。
+     */
+    { id: 'M-11', cat: 2, d: 'h', ok: g => missionHasPockets(g),
+      judge: (g, r, f) => f.pocketed.some(p => {
+        if (p.id === f.cueId) return false;
+        const rail = f.firstRail[p.id];
+        if (rail == null) return false;                 // クッションに触れずに落ちた
+        const pk = (g.table.pockets || []).filter(q => q.id === p.pocket)[0];
+        return T.missionPocketRails(g.table, pk).indexOf(rail) >= 0;
+      }) },
+
+    // ── カテゴリ3：撞点・スピン系
+    /*
+     * ★フォローとドローは**撞点だけでは決まらない。**上を撞いても厚く当てれば止まる。
+     *   「当てた地点から、撞いた向きへ玉1個分より先まで進んだ（戻った）」ことまで見る。
+     * ★撞球の癖が「簡単」でも成立する（8.5.5節）。切れているのは回転が**相手へ及ぼす**効果で、
+     *   手玉自身の転がりは滑りから転がりへの遷移そのものだからである。
+     */
+    { id: 'M-12', cat: 3, d: 'm', ok: () => true,
+      judge: (g, r, f) => {
+        if (f.firstHit == null || !f.shot || (f.shot.tipY || 0) < MISSION_TIP) return false;
+        const adv = missionAdvance(f);
+        return adv != null && adv >= 2 * T.R;
+      } },
+    { id: 'M-13', cat: 3, d: 'm', ok: () => true,
+      judge: (g, r, f) => {
+        if (f.firstHit == null || !f.shot || (f.shot.tipY || 0) > -MISSION_TIP) return false;
+        const adv = missionAdvance(f);
+        return adv != null && adv <= -2 * T.R;
+      } },
+    /*
+     * ★撞球の癖が「簡単」のときは成立しない（8.5.5節・D369）。
+     *   横回転はかけられるが、効果（スロー・転写・クッションの回転）が全部切れているので
+     *   **盤面に何の変化も生じない**＝難度「難」に値する中身が残らない。
+     */
+    { id: 'M-14', cat: 3, d: 'h', ok: g => missionSpinAlive(g),
+      judge: (g, r, f) => !!f.shot && Math.abs(f.shot.tipX || 0) >= MISSION_SIDE },
+    { id: 'M-15', cat: 3, d: 'm', ok: () => true,
+      judge: (g, r, f) => f.firstHit != null && !!f.shot && (f.shot.elev || 0) >= Math.PI / 4 },
+
+    // ── カテゴリ4：位置取り系
+    /*
+     * ★「中央付近」の広さは**台定義データが測って持つ**（8.7.1節）。
+     *   ドーナツ型は中央に障害物があるので、同じ決め方で自然に**輪**になる。
+     */
+    { id: 'M-16', cat: 4, d: 'e', ok: () => true,
+      judge: (g, r, f) => {
+        const p = f.stop[f.cueId];
+        return !!p && T.missionCenterOk(g.table, p.x, p.y);
+      } },
+    { id: 'M-17', cat: 4, d: 'e', ok: () => true,
+      judge: (g, r, f) => {
+        const p = f.stop[f.cueId];
+        if (!p) return false;
+        // 玉の**表面**から壁まで玉2個分（＝直径2つぶん）。clearance は中心から壁までの距離
+        return T.clearance(g.table, p.x, p.y) - T.R >= MISSION_FAR * 2 * T.R;
+      } },
+    { id: 'M-18', cat: 4, d: 'm',
+      ok: g => { const tg = legalTargets(g, g.turn); return !!(tg && tg.length); },
+      judge: (g, r, f) => {
+        const p = f.stop[f.cueId];
+        if (!p) return false;
+        const tg = legalTargets(g, g.turn) || [];
+        // 表面どうしの隙間で測る（中心間の距離から玉2個ぶんを引いたもの）
+        return tg.some(b => Math.hypot(b.x - p.x, b.y - p.y) - 2 * T.R <= MISSION_NEAR * 2 * T.R);
+      } },
+    { id: 'M-19', cat: 4, d: 'e', ok: () => true,
+      judge: (g, r, f) => {
+        const p = f.stop[f.cueId], q = f.from;
+        if (!p || !q) return false;
+        const a = missionHalf(g, q), b = missionHalf(g, p);
+        return a !== 0 && b !== 0 && a !== b;
+      } },
+
+    // ── カテゴリ5：飛球系
+    // ★飛び越えるには「越される玉」と「当てる的球」の2つが要る（盤面に3球以上＝8.5.3節）
+    { id: 'M-20', cat: 5, d: 'h', ok: g => liveObjects(g).length >= 2,
+      judge: (g, r, f) => f.overBeforeHit && f.firstHit != null },
+    { id: 'M-21', cat: 5, d: 'h', ok: g => liveObjects(g).length >= 1,
+      judge: (g, r, f) => f.airHit },
+    { id: 'M-22', cat: 5, d: 'h', ok: () => true,
+      judge: (g, r, f) => !!f.landed[f.cueId] },
+
+    // ── カテゴリ6：ギミック連動系
+    { id: 'M-23', cat: 6, d: 'm', ok: g => F.terrain(g.field).length > 0,
+      judge: (g, r, f) => missionVia(g, r, f, id => !!(f.zones[id] && (f.zones[id].water || f.zones[id].ice))),
+      w: () => MISSION_GIM_W },
+    { id: 'M-24', cat: 6, d: 'm', ok: g => F.holes(g.field).length > 0,
+      judge: (g, r, f) => missionVia(g, r, f, id => !!(f.zones[id] && f.zones[id].hole)),
+      w: () => MISSION_GIM_W },
+    { id: 'M-25', cat: 6, d: 'm', ok: g => !!F.warpPair(g.field),
+      judge: (g, r, f) => missionVia(g, r, f, id => !!f.warped[id]), w: () => MISSION_GIM_W },
+
+    // ── カテゴリ7：ルール固有系
+    /*
+     * ★「番号が最も大きい玉」は**撞く前の盤面**で決まる。落とせばその玉は盤から消えるので、
+     *   いま残っている玉だけを見ると、落とした本人がいつも外れる。
+     *   この一撞きで落ちた玉も数に入れて最大を取り直す。
+     */
+    { id: 'M-26', cat: 7, d: 'm', ok: g => g.rule === 'G-03',
+      judge: (g, r, f) => {
+        const fell = {};
+        f.pocketed.forEach(p => { fell[p.id] = true; });
+        const pool = g.world.balls.filter(b => b.kind === 'object' && (b.state === 'live' || fell[b.id]));
+        if (!pool.length) return false;
+        let max = -1;
+        pool.forEach(b => { if (b.num > max) max = b.num; });
+        return pool.some(b => fell[b.id] && b.num === max);
+      } },
+    { id: 'M-27', cat: 7, d: 'm', ok: g => g.rule === 'G-06',
+      judge: (g, r) => (r.gained || 0) >= 2 },
+    { id: 'M-28', cat: 7, d: 'h', ok: g => g.rule === 'G-09' && !!g.curling,
+      judge: (g, r, f) => {
+        const p = f.stop[f.cueId], c = g.curling.layout.center;
+        if (!p || !c) return false;
+        return Math.hypot(p.x - c.x, p.y - c.y) <= 2 * T.R;    // 玉1個分＝直径
+      } },
+  ];
+  const MISSION_BY_ID = {};
+  MISSIONS.forEach(m => { MISSION_BY_ID[m.id] = m; });
+
+  /**
+   * ターンの課題を1件抽選する（8.5.4節）。**手番の切り替えとゲームの開始でだけ呼ぶ。**
+   *
+   * 手順1 成立条件を満たさない課題を除く → 手順2 難易度の難度範囲の外を除く
+   *   → 手順3 直前と同じものを除く（0件になるなら適用しない）→ 手順4 重みつきで1件
+   *
+   * ★**手順1・2で0件になったときだけ「課題なし」**（8.5.4節）。
+   *   手順3が理由で課題なしになることはない ── 同じ課題が2ターン続くほうを許す。
+   */
+  function missionDraw(game) {
+    if (!game.missionOn) { game.mission = null; return; }
+    const range = MISSION_RANGE[game.difficulty] || MISSION_RANGE.easy;
+    let pool = MISSIONS.filter(m => !m.todo && range.indexOf(m.d) >= 0 && m.ok(game));
+    if (!pool.length) { game.mission = null; return; }
+    const cut = pool.filter(m => m.id !== game.missionPrev);
+    if (cut.length) pool = cut;
+    let total = 0;
+    const ws = pool.map(m => { const w = m.w ? m.w(game) : 1; total += w; return w; });
+    let x = game.rng() * total, pick = pool[pool.length - 1];
+    for (let i = 0; i < pool.length; i++) {
+      x -= ws[i];
+      if (x < 0) { pick = pool[i]; break; }
+    }
+    game.mission = { id: pick.id };
+    if (pick.draw) pick.draw(game, game.mission);
+    game.missionPrev = pick.id;
+  }
+
+  /**
+   * 課題の判定とボーナス（8.5.10節の手順2・4・5）。**ルールごとの帰結のあとに呼ぶ。**
+   *
+   * ★**条件を満たしたことと、達成として認めることは別の判断である。**
+   *   反則のあった一撞きは、条件を満たしていても未達成に確定する（7.2.6節・8.5.8節）。
+   *   満たしていたことは画面へ伝える（「条件は満たしたが未達成」の1行。8.5.11節）ので、
+   *   結果には両方を残す。
+   */
+  function missionJudge(game, r, f) {
+    if (!game.missionOn || !game.mission || !f) return;
+    const m = MISSION_BY_ID[game.mission.id];
+    if (!m || !m.judge) return;
+    const met = !!m.judge(game, r, f, game.mission);
+    r.mission = { id: m.id, met, done: false, voided: false };
+    if (r.foul) { r.mission.voided = met; return; }
+    if (!met) return;
+    r.mission.done = true;
+    missionAward(game, r);
+  }
+
+  /** 達成ボーナス（8.5.7節）。4分類のどれになるかはルールで決まる */
+  function missionAward(game, r) {
+    const kind = MISSION_BONUS[game.rule];
+    r.mission.bonus = kind;
+    if (kind === 'score') {
+      /*
+       * ★**得点を足す口は award ただ1つ**（8.3.4節と同じ理由）。
+       *   ミッションの加点には連鎖の倍率を掛けない（8.6.2節）ので、印を立てて渡す。
+       */
+      const pts = MISSION_PTS[game.rule] || 0;
+      if (pts > 0) { award(game, r, pts, { mission: true }); r.mission.pts = pts; }
+      else r.mission.bonus = 'none';
+    } else if (kind === 'again') {
+      /*
+       * ★**そのターンに1回だけ効き、次のターンへ持ち越さない**（8.5.7節）。
+       *   もともと続けて撞ける一撞きでは権利の出番がない＝重ねない。
+       */
+      if (!r.continueTurn && !game.missionAgain) {
+        game.missionAgain = true; r.continueTurn = true; r.mission.again = true;
+      } else r.mission.bonus = 'none';
+    } else if (kind === 'stroke') {
+      // 打数を1減らす。下限は0（8.5.7節）
+      const gf = game.golf;
+      if (gf && gf.strokes[game.turn]) {
+        const cur = gf.strokes[game.turn][gf.hole] || 0;
+        gf.strokes[game.turn][gf.hole] = Math.max(0, cur - 1);
+        game.players[game.turn].score = golfTotal(game, game.turn);
+        r.mission.stroke = true;
+        if (cur === 0) r.mission.bonus = 'none';        // 減らす打数が無い
+      } else r.mission.bonus = 'none';
+    } else if (kind === 'revive') {
+      if (!missionRevive(game, r)) r.mission.bonus = 'none';
+    }
+  }
+
+  /**
+   * 玉喪失型のボーナス（8.5.7節）＝失った所有玉を1つ復活させる。
+   *
+   * ★**ここでは「誰がどの玉を戻すか」を決めるだけで、盤には置かない。**
+   *   置く場所は本人が台全体から選ぶ（10.6.1節）ので、
+   *   **置き終わるまで手番は移らない**（10.6.2節）。省略もできない（10.6.3節）。
+   * ★まだ1つも失っていなければ効果を持たない（8.5.7節）。
+   */
+  function missionRevive(game, r) {
+    const p = game.players[game.turn];
+    if (!game.survival || !game.survival.assigned || !p || p.group == null) return false;
+    const gone = game.world.balls.find(b => b.kind === 'object' && b.state === 'gone' && b.grp === p.group);
+    if (!gone) return false;
+    game.revive = { seat: game.turn, id: gone.id };
+    r.mission.revive = gone.num;
+    return true;
+  }
+
+  /** 復活した玉を置く（10.6節）。置けたら true */
+  function reviveApply(game, x, y) {
+    const rv = game.revive;
+    if (!rv) return false;
+    const b = game.world.balls.find(bb => bb.id === rv.id);
+    game.revive = null;
+    if (!b) return false;
+    b.state = 'live'; b.onTable = true;
+    place(b, x, y);
+    return true;
   }
 
   // ───────── G-03 ポケット・ローテーション（7.5節） ─────────
@@ -2018,6 +2612,12 @@ const BilliardsRules = (() => {
         if (flat[i + 1] == null) break;
         total += flat[i] + flat[i + 1]; i += 2;
       }
+      /*
+       * ★ミッション達成の加点（8.5.7節・D367）。**フレームの得点へ直接足す。**
+       *   倒したピン数（rolls）には入れていないので、スペア・ストライクの成立判定と
+       *   繰り越しの加算は撞いた結果だけで決まる。
+       */
+      total += (fr[f] && fr[f].mbonus) || 0;
       cum.push(total);
     }
     return { frames: fr.map(f => f.rolls.slice()), cum, total };
@@ -3058,9 +3658,21 @@ const BilliardsRules = (() => {
      *   ★**連鎖数は手番の側ではなく対局が1つだけ持つ**（8.3.6節。各人が持っても
      *   手番の移動で必ず消えるので、現在の手番の1つと同じことになる）。
      */
-    if (!(result && result.continueTurn)) game.chain = 0;
+    if (!(result && result.continueTurn)) { game.chain = 0; game.missionAgain = false; }
+    /*
+     * ★**復活させる玉を置き忘れたまま先へ進ませない**（10.6.3節）。
+     *   置くのは画面側（本人がドラッグする）だが、**手番を送る道は5本ある**ので、
+     *   どこかが置かずにここへ来ると**玉が盤から消えたままになる。**
+     *   ここで拾って定位置へ戻す＝忘れたときに軽いほうへ倒す。
+     */
+    if (game.revive) {
+      const sp = nearestRevive(game, { x: game.table.spot.x, y: game.table.spot.y });
+      if (sp) reviveApply(game, sp.x, sp.y); else game.revive = null;
+    }
     nextTurnCore(game, result);
     game.turnNo = (game.turnNo || 0) + 1;
+    // ターンの課題を引き直す（8.5.2節・8.5.4節）。続けて撞くときも1ショットごとに更新する
+    missionDraw(game);
     /*
      * ターン開始時の抽選（ブラックホールの位置・テレポートポケットの対・番号シャッフル）。
      * 鍵（turnNo）を渡して、同じ番で二度引かないようにするのは field 側の仕事。
@@ -3130,6 +3742,9 @@ const BilliardsRules = (() => {
     RULE_IDS, FOUL_TABLE, PENALTY, WIN_KIND, LOW_WINS, HAS_RACK, NEEDS_POCKETS, HAS_SCORE,
     // G-13 連鎖ボーナス（8.3節）
     CHAIN_WHY, chainRule, chainMult,
+    // G-15 ミッション制（8.5節）。**画面側はこの表から引く**（同じ表を2か所に持たない）
+    MISSIONS, MISSION_BY_ID, MISSION_BONUS, MISSION_PTS, MISSION_RANGE,
+    missionDraw, missionFacts, missionJudge, reviveApply, reviveOk, nearestRevive,
     // ゴルフ型（7.10節）
     golfPar, golfCut, golfTotal, golfParTotal, golfSeatDone, golfShape, golfTermKey, golfInWater,
     golfAwayFromPockets, golfWaterDrop, resolveGolf,   // 検査から帰結だけを確かめるために出している

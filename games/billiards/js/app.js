@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '2.02';               // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '2.03';               // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules, F = BilliardsField;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -20,7 +20,10 @@
     rule: { 'G-01': 1, 'G-02': 1, 'G-03': 1, 'G-04': 1, 'G-06': 3, 'G-08': 3, 'G-09': 3, 'G-10': 3, 'G-11': 3 },
     shape: { 'A-01': 1, 'A-02': 3, 'A-04': 3, 'A-06': 3, 'A-07': 3, 'A-08': 3, 'A-09': 3, 'A-11': 3 },
     mode: { normal: 1, disturb: 3, abnormal: 3 },
-    // ★G-13 は入ったので、選べるかどうかは裁定側の表（RU.CHAIN_WHY）から引く。ここは段階の記録
+    /*
+     * ★G-13・G-15 は入ったので、選べるかどうかは裁定側（RU.CHAIN_WHY／RU.MISSIONS）から引く。
+     *   ここは**仕様書 11.2.3節の「段階の割り当て」の記録**であって、実装が済んだかどうかではない。
+     */
     mod: { 'G-13': 3, 'G-14': 1, 'G-15': 3 },
     /*
      * ★協力プレイは 11.2.3節でも第2段階の対戦形式として数えられているので、ここにも残す。
@@ -177,6 +180,7 @@
     set('btn-start', 'btn.start');
     set('k-turn', 'hud.turn'); set('k-next', 'hud.next'); set('k-foul', 'hud.foul');
     set('k-base', 'hud.base'); set('k-bank', 'hud.time'); set('k-elevlabel', 'hint.elev');
+    set('k-mission', 'hud.mission');
     set('btn-replay', 'btn.replay'); set('btn-deadlock', 'btn.deadlock'); set('btn-quit', 'btn.quit');
     set('btn-demo', 'btn.demo');
     set('btn-again', 'res.again'); set('btn-to-setup-t', 'res.toMenu'); set('res-title', 'res.title');
@@ -262,6 +266,17 @@
       });
       row.appendChild(name); row.appendChild(seg);
       box.appendChild(row);
+      /*
+       * ★**何が起きるのかを1行そえる**（利用者指示）。札の名前だけでは、
+       *   選んだときに何が始まるのかが画面から分からない。
+       *   ★訳の表に言葉がある修飾子にだけ出す＝**足すのは辞書に1行で済む。**
+       */
+      const note = I.has && I.has('mod.desc.' + m) ? t('mod.desc.' + m) : '';
+      if (note) {
+        const nd = document.createElement('div');
+        nd.className = 'mod-note'; nd.textContent = note;
+        box.appendChild(nd);
+      }
       if (why) {
         const w = document.createElement('div');
         w.className = 'mod-why'; w.textContent = why;
@@ -393,6 +408,11 @@
       const why = RU.CHAIN_WHY[S.cfg.rule];
       return (why === null) ? null : t(CHAIN_WHY_KEY[why] || 'why.noScore');
     }
+    /*
+     * ★ミッション制も**裁定側に課題の表があること自体が「入っている」証拠**になる。
+     *   連鎖ボーナスと違い、**9ルールすべてで有効**（8.4節）なのでルールごとの理由は無い。
+     */
+    if (m === 'G-15') return RU.MISSIONS ? null : t('why.stage3');
     if (STAGE.mod[m] >= 3) return t('why.stage3');
     return null;
   }
@@ -871,6 +891,8 @@
       mode: cfg.mode, gimmicks: (cfg.gimmicks || []).slice(), gimRandom: !!cfg.gimRandom,
       // G-13 連鎖ボーナス（8.3節）。練習モードでは働かない（9.6.3節）ので、ここで落とす
       chain: !!cfg.mods['G-13'] && cfg.format !== 'practice',
+      // G-15 ミッション制（8.5節）。こちらも練習モードでは働かない（9.6.3節）
+      mission: !!cfg.mods['G-15'] && cfg.format !== 'practice',
     });
     g.players.forEach(p => { if (cfg.rule === 'G-04') p.target = cfg.target; });
     /*
@@ -1043,6 +1065,11 @@
         };
       }
     }
+    /*
+     * ★前の一撞きの「達成」の光を消してから次の課題を出す。
+     *   残したままだと、**新しい課題が出た瞬間から達成済みに見える。**
+     */
+    if (!S.misTimer) clearMissionGlow();
     S.aim.power = 0; S.aim.tipX = 0; S.aim.tipY = 0; S.aim.elev = 0;
     S.aimDirty = true; S.pendingPlace = null; S.drag = null;
     S.elevTouched = false;                  // 角度は自分で動かすまで自動で合わせる
@@ -1359,6 +1386,15 @@
       targetIds: (RU.legalTargets(g, g.turn) || []).map(b => b.id),
       doubleHit: RU.detectDoubleHit(g, cue, shot),
       miscue: S.cfg.cue[1] && E.isMiscue(shot),
+      /*
+       * ★ミッション制（8.5.10節）が見る材料を2つ添える。
+       *   **撞いた入力そのもの**（撞点・キュー仰角＝カテゴリ3の課題）と、
+       *   **撞く前の手玉の位置**（M-19「台の反対側の半分へ移動したか」）。
+       *   どちらも撞いたあとでは取り直せない ── 入力は玉の動きに溶けてしまい、
+       *   撞く前の位置は玉が動いた時点で失われる。
+       */
+      shot: { tipX: shot.tipX || 0, tipY: shot.tipY || 0, elev: shot.elev || 0, power: shot.power || 0 },
+      cueAt: { x: cue.x, y: cue.y },
     };
     S.lastShotTip = Math.hypot(shot.tipX || 0, shot.tipY || 0);   // 捻りの強さ（説明に使う）
     S.clock.running = false;
@@ -1526,6 +1562,8 @@
           t('ev.comboCalc', { raw: res.raw, n: res.mult, p: res.gained }), COMBO_MS);
         AU.sfx('combo', res.mult);
       }
+      // G-15 課題の達成・未達成（8.5.11節）。COMBO とは場所を分けてあるので、同時に出てよい
+      if (res.mission) missionFlash(res.mission);
       let msg = '';
       if (res.fouls.length) msg = res.fouls.map(f => t('foul.' + f)).join(' / ');
       if (res.message) msg = (msg ? msg + ' — ' : '') + t(res.message);
@@ -1562,6 +1600,22 @@
 
     if (res.gameOver || g.over) { if (!quiet) endGameSoon(); return; }
 
+    /*
+     * ★玉喪失型のボーナス（8.5.7節）の配置（10.6節）。
+     *   **置き終わるまで手番を送らない**（10.6.2節）ので、後始末の続きをここで一度止める。
+     *   置くのは達成した本人。AI・観戦・追いつき直しは裁定側の既定の置き場所へ落ちる。
+     */
+    if (g.revive) { beginRevive(g, res, quiet); return; }
+    finishTurn(g, res, quiet);
+  }
+
+  /**
+   * 一撞きの後始末の続き（手番送りから次の手番の始まりまで）。
+   * ★**復活した玉を置き終わってから戻ってくる先**でもあるので、1つの関数にまとめてある。
+   *   置く道と置かない道で続きを2本書くと、片方にだけ書き足した日に
+   *   「サバイバルのときだけ次の手番が始まらない」といった形で表に出る。
+   */
+  function finishTurn(g, res, quiet) {
     RU.nextTurn(g, res);
     /*
      * ★カーリング型は**手番送りの中でエンドが切り替わり、そこで終局もする**（7.9.3節）。
@@ -2547,6 +2601,8 @@
   const ITEM_GOT_MS = 2400;
   // 連鎖ボーナスの演出（8.3.7節。長さは付録B送りの値＝ここで決めた）
   const COMBO_MS = 1100;
+  // 課題の欄が光っている長さ（8.5.11節の演出・付録B）。COMBO とそろえてある
+  const MISSION_MS = 1400;
   const ITEM_WARN_MS = 3000;          // 予告は少し長く出す（何が起きるか読む時間が要る）
   function drawItemGot() { drawItemNote(S.itemGot, 'ev.itemGot', '#ffc46e', ITEM_GOT_MS, 'itemGot'); }
   /*
@@ -3034,6 +3090,8 @@
      * ＝どの口が繋がっているかは、口そのものを見て分かる必要がある。
      */
     if (g.field) drawWarpPair();
+    // ミッション M-08 の指定ポケット（8.5.3節）。どの穴かは言葉ではなく盤で示す
+    drawMissionPocket();
 
     // ヘッドストリングとフットスポット。線は外周の中だけに出す
     if (table.hasPockets) {
@@ -3079,6 +3137,23 @@
       ctx.restore();
       ctx.beginPath(); ctx.arc(q.x, q.y, cueNow.r * s, 0, 7);
       ctx.strokeStyle = ok ? 'rgba(251,146,60,.95)' : 'rgba(220,38,38,.95)';
+      ctx.lineWidth = 2; ctx.setLineDash([5, 4]); ctx.stroke(); ctx.setLineDash([]);
+    }
+    /*
+     * 復活した玉を置く場所（10.6節）。手玉を置くときと**同じ見せ方**にそろえる
+     * ── どちらも「まだ置いていない玉」なので、別の描き方にすると意味が増えるだけになる。
+     * ★色は自分の色ではなく緑（課題の印と同じ）。何の報酬で戻ってきた玉かが分かる。
+     */
+    if (S.phase === 'revive' && S.revivePos) {
+      const q = toScreen(S.revivePos.x, S.revivePos.y);
+      const ok = RU.reviveOk(g, S.revivePos);
+      ctx.save();
+      ctx.globalAlpha = 0.45;
+      ctx.beginPath(); ctx.arc(q.x, q.y, T.R * s, 0, 7);
+      ctx.fillStyle = '#f4f4f4'; ctx.fill();
+      ctx.restore();
+      ctx.beginPath(); ctx.arc(q.x, q.y, T.R * s, 0, 7);
+      ctx.strokeStyle = ok ? 'rgba(' + MISSION_RGB + ',.95)' : 'rgba(220,38,38,.95)';
       ctx.lineWidth = 2; ctx.setLineDash([5, 4]); ctx.stroke(); ctx.setLineDash([]);
     }
 
@@ -3251,6 +3326,109 @@
    * ★**輪は実時間で脈打たせる。**盤面の時計は撞いていない間は止まるので、
    *   それで動かすと狙っている最中に印が凍りつく（地震の画面の揺れと同じ話）。
    */
+  /**
+   * いま出ている課題を画面端に残す（8.5.11節）。
+   * ★**課題は対戦相手にも見える**（8.5.2節）ので、自分の手番かどうかで出し分けない。
+   * ★文言は裁定側の課題番号から引く＝**同じ表を2か所に持たない。**
+   */
+  function renderMission() {
+    const box = $('mission-box');
+    if (!box) return;
+    const g = S.game, on = modOn('G-15');
+    /*
+     * ★**空文字ではなく block と書く**（カーリング・ゴルフ・ボウリングの得点表と同じ理由）。
+     *   CSS 側で `display:none` を既定にしてあるので、空文字を入れると
+     *   **インラインの指定が消えて CSS の none が効き、いつまでも出てこない。**
+     *   ★実機で確かめて分かった ── `style.display` を読むと空文字が入っていて
+     *   「出している」ように見えるが、**実際に効いている値（computed）は none だった。**
+     */
+    box.style.display = on ? 'block' : 'none';
+    if (!on || !g) return;
+    $('v-mission').textContent = (g.mission && I.has('mis.' + g.mission.id))
+      ? t('mis.' + g.mission.id) : t('mis.none');
+  }
+
+  /** 達成ボーナスの中身を一言で（8.5.7節の4分類＋効果が出なかったとき） */
+  function missionBonusText(mi) {
+    if (mi.bonus === 'score') return t('mis.b.score', { p: mi.pts });
+    if (mi.bonus === 'again') return t('mis.b.again');
+    if (mi.bonus === 'stroke') return t('mis.b.stroke');
+    if (mi.bonus === 'revive') return t('mis.b.revive');
+    return t('mis.b.none');
+  }
+
+  /**
+   * 達成・未達成の知らせ（8.5.11節）。**課題の欄をその場で光らせる**（利用者選択）。
+   *
+   * ★**盤の中央は使わない。**連鎖の COMBO と場所を取り合うためで、
+   *   反則の知らせと違い、**連鎖と課題の達成は同じ一撞きで同時に起こりうる**
+   *   （反則が出れば連鎖は途切れるので、あの2つは決して重ならない）。
+   */
+  /**
+   * 課題の欄の光を消す。
+   * ★**消す判断は1か所**（次の手番の始まりと、光っている時間の終わり）。
+   */
+  function clearMissionGlow() {
+    const box = $('mission-box');
+    if (!box) return;
+    box.classList.remove('done', 'void');
+    const b = $('v-mission-b');
+    if (b) b.textContent = '';
+  }
+
+  function missionFlash(mi) {
+    const box = $('mission-box'), b = $('v-mission-b');
+    if (!box || !mi) return;
+    /*
+     * ★**光っている時間は自前の時計で持つ**（COMBO と同じ考え）。
+     *   次の手番は 0.8 秒後に始まり、**相手の手がもう届いていれば 0.12 秒後**に始まる。
+     *   手番の始まりに合わせて消すと、**通信対戦では一瞬で消えて読めない。**
+     */
+    if (S.misTimer) clearTimeout(S.misTimer);
+    S.misTimer = setTimeout(() => { S.misTimer = null; clearMissionGlow(); }, MISSION_MS);
+    box.classList.remove('done', 'void');
+    void box.offsetWidth;                    // 同じ課題が続けて達成されても、光り直させる
+    if (mi.done) {
+      box.classList.add('done');
+      if (b) b.textContent = t('mis.done') + '　' + missionBonusText(mi);
+      AU.sfx('mission');
+    } else if (mi.voided) {
+      // 条件は満たしたが反則で未達成（8.5.8節）。**達成の演出は出さない**
+      box.classList.add('void');
+      if (b) b.textContent = t('mis.void');
+    }
+  }
+
+  const MISSION_RGB = '52,211,153';        // 課題の印（テレポの水色・旗の赤とぶつからない緑）
+
+  /**
+   * いま指定されている課題のポケット（M-08）。無ければ null。
+   *
+   * ★**どの穴かは言葉で言わない。**穴の名前（CL／SR…）は内部の記号で、
+   *   プレイヤーには意味が無い。**盤で光らせるほうが、どの言語でも伝わる。**
+   * ★**画面の向きはプレイヤーごとに変わる**（向きを合わせる帯がある）ので、
+   *   「左の手前」のような言い方は、見る人によって嘘になる。
+   */
+  function missionPocketOf(g) {
+    const m = g && g.mission;
+    if (!m || m.id !== 'M-08' || m.pocket == null) return null;
+    return (g.table.pockets || []).filter(p => p.id === m.pocket)[0] || null;
+  }
+
+  /** 指定ポケットの輪（2D）。★口の中は塗らない＝テレポートの口と見分けが付く */
+  function drawMissionPocket() {
+    const g = S.game;
+    const p = missionPocketOf(g);
+    if (!p) return;
+    const s = view.s, q = toScreen(p.x, p.y), r = p.r * s;
+    const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 1000 * 2.6);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(' + MISSION_RGB + ',' + (0.55 + 0.35 * pulse).toFixed(3) + ')';
+    ctx.lineWidth = Math.max(2, r * 0.22);
+    ctx.beginPath(); ctx.arc(q.x, q.y, r * (1.18 + 0.10 * pulse), 0, 7); ctx.stroke();
+    ctx.restore();
+  }
+
   function drawWarpPair() {
     const g = S.game, s = view.s;
     const w = F.warpPair(g.field);
@@ -4715,6 +4893,24 @@
         }
       }
     }
+    /*
+     * ミッション M-08 の指定ポケット。★**3Dにも出す**（テレポの対と同じ理由）。
+     *   狙う前に見える必要があるのに、3Dで構えている間だけ消えると狙いようがない。
+     *   ★どの穴を指すかは裁定側の1か所（missionPocketOf）から引く＝2Dと同じ穴になる。
+     */
+    const mpk = missionPocketOf(g);
+    if (mpk) {
+      const q = proj(mpk.x, mpk.y, 0);
+      if (q) {
+        const rr = scale * mpk.r / q.z;
+        const pl = 0.5 + 0.5 * Math.sin(performance.now() / 1000 * 2.6);
+        ctx.beginPath();
+        ctx.ellipse(q.x, q.y, rr * (1.18 + 0.10 * pl), rr * 0.45 * (1.18 + 0.10 * pl), 0, 0, 7);
+        ctx.strokeStyle = 'rgba(' + MISSION_RGB + ',' + (0.55 + 0.35 * pl).toFixed(3) + ')';
+        ctx.lineWidth = Math.max(1.4, rr * 0.20);
+        ctx.stroke();
+      }
+    }
 
     /*
      * ★ゴルフ型のコース（バンカー・池）を台面に描く。2Dと同じ物が3Dにも要る
@@ -5362,6 +5558,7 @@
     try { cv.setPointerCapture(e.pointerId); } catch (err) {}
     const p = evPos(e);
     if (S.phase === 'place') { S.drag = { kind: 'place' }; movePlace(p); }
+    else if (S.phase === 'revive') { S.drag = { kind: 'revive' }; moveRevive(p); }
     else if (S.phase === 'aim') { S.drag = { kind: 'aim' }; moveAim(p); }
     else if (S.phase === 'stance') {
       const pad = tipPadRect();
@@ -5390,6 +5587,7 @@
     }
     const p = evPos(e);
     if (S.drag.kind === 'place') movePlace(p);
+    else if (S.drag.kind === 'revive') moveRevive(p);
     else if (S.drag.kind === 'aim') moveAim(p);
     else if (S.drag.kind === 'tip') {
       const pad = tipPadRect();
@@ -5443,6 +5641,40 @@
     S.placePos = tp;
     S.aimDirty = true;
   }
+  /**
+   * 復活した玉を置く場所を動かす（10.6節）。★**置ける範囲は台全体**（キッチンの縛りは無い）。
+   * 手玉を置くのと違い、これは報酬なので、有利な場所を選べることまで含めて報酬である。
+   */
+  function moveRevive(p) {
+    const tp = toTable(p.x, p.y - 26);   // 指が玉を隠さないようずらす（手玉を置くときと同じ）
+    const g = S.game;
+    for (let i = 0; i < 4; i++) {
+      const q = T.clampInside(g.table, tp.x, tp.y, T.R);
+      tp.x = q.x; tp.y = q.y;
+    }
+    S.revivePos = tp;
+    S.aimDirty = true;
+  }
+
+  /**
+   * 玉喪失型ボーナスの配置（10.6節）を始める。
+   *
+   * ★**置くのは達成した本人だけ。**AI・観戦・追いつき直し・相手の端末は
+   *   裁定側の既定の置き場所（nextTurn の中）へ落ちる。**置いた場所は撞いた人が配る正解**
+   *   （resultSnapshot に盤面がまるごと載っている）で全員そろうので、
+   *   ここで置き場所を通信に流す必要はない。
+   */
+  function beginRevive(g, res, quiet) {
+    const mine = !quiet && isMyTurn() && !S.demo
+      && S.net.role !== 'spectator' && g.players[g.turn].type !== 'ai';
+    if (!mine) { finishTurn(g, res, quiet); return; }     // 既定の置き場所へ（nextTurn が置く）
+    S.phase = 'revive';
+    S.revivePos = RU.nearestRevive(g, { x: g.table.spot.x, y: g.table.spot.y });
+    S.reviveGo = () => finishTurn(g, res, quiet);
+    setMsg(t('ph.revive'));
+    renderHUD();
+  }
+
   function moveAim(p) {
     const g = S.game, cue = RU.cueBallOf(g, g.turn);
     const tp = toTable(p.x, p.y);
@@ -5482,12 +5714,26 @@
   window.addEventListener('pointerup', () => { S.elevAdjusting = false; });
 
   function mainButtonKey() {
+    if (S.phase === 'revive') return 'btn.revive';
     if (S.phase === 'place') return 'btn.place';
     if (S.phase === 'stance') return 'btn.back2d';
     return 'btn.aim';
   }
   $('btn-aim').addEventListener('click', () => {
     if (!isMyTurn()) return;
+    /*
+     * ★復活した玉を置く（10.6節）。**省略できない**ので、置き終わるまでここを通る。
+     *   置けない場所（他の玉・障害物・ポケットの上）では進ませない＝理由をその場に出す。
+     */
+    if (S.phase === 'revive') {
+      if (!RU.reviveOk(S.game, S.revivePos)) { setMsg(t('foul.V-09')); return; }
+      RU.reviveApply(S.game, S.revivePos.x, S.revivePos.y);
+      AU.sfx('button');
+      const go = S.reviveGo; S.reviveGo = null; S.revivePos = null;
+      S.phase = 'wait';
+      if (go) go();
+      return;
+    }
     if (S.phase === 'place') {
       if (!placeOk(S.placePos)) { setMsg(t('foul.V-09')); return; }
       const cue = RU.cueBallOf(S.game, S.game.turn);
@@ -5593,7 +5839,9 @@
        * 手玉を置く場面では、置ける位置にあることが分かるようにボタンを目立たせる。
        * 押して構えへ進めば見出しが変わるので、色も自然に元へ戻る。
        */
-      btn.classList.toggle('primary', S.phase === 'place' && !btn.disabled && placeOk(S.placePos));
+      btn.classList.toggle('primary',
+        (S.phase === 'place' && !btn.disabled && placeOk(S.placePos))
+        || (S.phase === 'revive' && !btn.disabled && RU.reviveOk(S.game, S.revivePos)));
     }
     requestAnimationFrame(loop);
   }
@@ -6083,6 +6331,7 @@
     }
     $('v-foul').textContent = g.lastFouls && g.lastFouls.length ? g.lastFouls.map(f => t('foul.' + f)).join(', ') : t('hud.none');
     $('time-box').style.display = modOn('G-14') ? '' : 'none';
+    renderMission();
     $('v-config').textContent = configLabel();
     // カーリング型はエンドごとの得点表を出す（利用者指示）。合計だけでは勝敗が読めない
     const cb = $('curl-board');

@@ -645,6 +645,27 @@ const BilliardsAudio = (() => {
       o.connect(g).connect(sfxGain); o.start(t + a[1]); o.stop(t + a[1] + 0.18);
     });
   }
+  /**
+   * ミッション達成の音（8.5.11節の演出・利用者選択）。
+   *
+   * ★**COMBO と同じ一撞きで同時に鳴りうる**（反則の音と違い、連鎖と課題は打ち消し合わない）。
+   *   そこで**音の形そのものを変えてある** ── COMBO は3音の和音を同時に積むが、
+   *   こちらは2音を順に跳ね上げる。重なっても「2つ鳴った」と分かる。
+   * ★**音程は滑らせない。**滑らせると合成音が電子音に聞こえる。
+   * ★連鎖と違って**高さは変えない。**達成は1回ごとに完結していて、積み上がる数が無い。
+   */
+  function missionSfx() {
+    if (!audioOn || !ctx || !sfxGain) return;
+    const t = ctx.currentTime + 0.005;
+    // G5 → C6（完全4度の跳ね上げ）。上に薄く1オクターブ重ねて鈴の色を出す
+    [[783.99, 0, 0.16], [1046.50, 0.10, 0.30]].forEach(a => {
+      [[1, 0.26], [2, 0.09]].forEach(h => {
+        const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = a[0] * h[0];
+        const g = ctx.createGain(); env(g, t + a[1], 0.004, h[1], a[2]);
+        o.connect(g).connect(sfxGain); o.start(t + a[1]); o.stop(t + a[1] + a[2] + 0.02);
+      });
+    });
+  }
   function tick2(f1, f2) {
     if (!audioOn || !ctx || !sfxGain) return;
     const t = ctx.currentTime + 0.005;
@@ -711,6 +732,7 @@ const BilliardsAudio = (() => {
       case 'tick': beep(1046, 0.07, 0.22); break;        // 残り5秒からの秒読み
       case 'timeup': beep(392, 0.16, 0.30); beep(294, 0.30, 0.26, 0.14); break;
       case 'combo': comboSfx(s); break;       // 連鎖ボーナス（8.3.7節）。s は倍率そのもの
+      case 'mission': missionSfx(); break;    // ミッション達成（8.5.11節）
       case 'turn': tick2(880, 1318); break;   // 自分の手番
       case 'join': tick2(988, 659); break;
       case 'button': playBuf('button', { gain: 0.85 }); break;

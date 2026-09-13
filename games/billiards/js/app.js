@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.98';               // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.99';               // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules, F = BilliardsField;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -20,6 +20,7 @@
     rule: { 'G-01': 1, 'G-02': 1, 'G-03': 1, 'G-04': 1, 'G-06': 3, 'G-08': 3, 'G-09': 3, 'G-10': 3, 'G-11': 3 },
     shape: { 'A-01': 1, 'A-02': 3, 'A-04': 3, 'A-06': 3, 'A-07': 3, 'A-08': 3, 'A-09': 3, 'A-11': 3 },
     mode: { normal: 1, disturb: 3, abnormal: 3 },
+    // ★G-13 は入ったので、選べるかどうかは裁定側の表（RU.CHAIN_WHY）から引く。ここは段階の記録
     mod: { 'G-13': 3, 'G-14': 1, 'G-15': 3 },
     /*
      * ★協力プレイは 11.2.3節でも第2段階の対戦形式として数えられているので、ここにも残す。
@@ -317,9 +318,35 @@
     if (m === 'normal' && S.cfg.diff === 'apocalypse') return t('why.needGimmick');
     return null;
   }
+  /**
+   * 修飾子のグレー（2.4.4節・9.6.3節）。
+   *
+   * ★**練習モードでは3種とも働かない**（9.6.3節。D366／D292）。勝ち負けを争う文脈が無いので、
+   *   倍率を掛ける対象も、相手を待たせない時計も、達成しても何も得られない課題も意味を持たない。
+   * ★**連鎖ボーナスが働くルールかどうかは裁定側の表から引く**（RU.CHAIN_WHY）。
+   *   ここにルール名を並べると、裁定と画面の2か所に同じ表を持つことになり、片方だけ古くなる。
+   * ★**理由は3通りを使い分ける**（2.4.4節）。1つにまとめると、
+   *   ボウリング型に「得点で勝敗が決まりません」という誤った説明が出る。
+   */
+  const CHAIN_WHY_KEY = { score: 'why.noScore', turn: 'why.chainTurn', bonus: 'why.chainBonus' };
+  /**
+   * その修飾子が**いま実際に働くか**（9.6.3節）。
+   * ★**選ばれているかどうかと、働くかどうかは別。**練習モードは3種とも働かない。
+   *   ここを1か所にまとめておかないと、時計・画面・裁定のどれか1つが練習でも動き続ける。
+   */
+  function modOn(m) { return !!S.cfg.mods[m] && S.cfg.format !== 'practice'; }
   function modBlock(m) {
+    if (S.cfg.format === 'practice') return t('why.practiceMod');
+    /*
+     * ★連鎖ボーナスは**裁定側に表があること自体が「入っている」証拠**になる。
+     *   段階の表（STAGE）で見ると、実装した日に2か所を直すことになる。
+     */
+    if (m === 'G-13') {
+      if (!RU.CHAIN_WHY) return t('why.stage3');
+      const why = RU.CHAIN_WHY[S.cfg.rule];
+      return (why === null) ? null : t(CHAIN_WHY_KEY[why] || 'why.noScore');
+    }
     if (STAGE.mod[m] >= 3) return t('why.stage3');
-    if (m === 'G-13' && S.cfg.rule !== 'G-03' && S.cfg.rule !== 'G-04') return t('why.noScore');
     return null;
   }
   function diffBlock(d) { return (d === 'apocalypse' && S.cfg.mode === 'normal') ? t('why.noGimmick') : null; }
@@ -468,10 +495,18 @@
         buildSetup();
       }));
     });
-    // 持ち時間設定。ON のときだけ2つの値を出す
-    $('sw-time').checked = !!S.cfg.mods['G-14'];
-    $('time-fields').style.display = S.cfg.mods['G-14'] ? '' : 'none';
-    $('time-off-note').style.display = S.cfg.mods['G-14'] ? 'none' : '';
+    /*
+     * 持ち時間設定。ON のときだけ2つの値を出す。
+     * ★**練習モードでは修飾子3種とも灰色にする**（9.6.3節）。時計も動かさない。
+     */
+    const modOff = S.cfg.format === 'practice';
+    const timeOn = modOn('G-14');
+    $('sw-time').checked = timeOn;
+    $('sw-time').disabled = modOff;
+    $('sw-time').parentElement.classList.toggle('dis', modOff);
+    $('time-fields').style.display = timeOn ? '' : 'none';
+    $('time-off-note').style.display = timeOn ? 'none' : '';
+    $('time-off-note').textContent = modOff ? t('why.practiceMod') : t('time.off');
     $('in-tbase').value = S.cfg.tbase; $('in-tbank').value = S.cfg.tbank;
     // 「そのほかの追加ルール」は特殊のときだけ現れる（標準では上位スイッチが隠す）
     const extras = ['G-13', 'G-15'].filter(m => visible('mod', m));
@@ -652,7 +687,12 @@
     if (S.cfg.rule === 'G-06' && S.cfg.players > RU.TERRITORY_COLORS.length) {
       S.cfg.players = RU.TERRITORY_COLORS.length;
     }
-    if (S.cfg.mods['G-13'] && modBlock('G-13')) S.cfg.mods['G-13'] = false;
+    /*
+     * ★**ルールのせいで働かなくなった連鎖ボーナスだけを落とす**（8.3.5節）。
+     *   modBlock で見ると練習モードの灰色まで拾ってしまい、
+     *   練習モードでルールを選び直しただけで選択が消える（戻しても戻らない）。
+     */
+    if (S.cfg.mods['G-13'] && RU.CHAIN_WHY[S.cfg.rule] !== null) S.cfg.mods['G-13'] = false;
     buildSetup();
   }
   function syncPlayers() {
@@ -789,6 +829,8 @@
       coop: !!cfg.coop, teams: (cfg.teams || []).slice(), shotLimit: cfg.shotLimit,
       // ゲームモードとギミック（第6章）。通信対戦はホストの設定がそのまま来る
       mode: cfg.mode, gimmicks: (cfg.gimmicks || []).slice(), gimRandom: !!cfg.gimRandom,
+      // G-13 連鎖ボーナス（8.3節）。練習モードでは働かない（9.6.3節）ので、ここで落とす
+      chain: !!cfg.mods['G-13'] && cfg.format !== 'practice',
     });
     g.players.forEach(p => { if (cfg.rule === 'G-04') p.target = cfg.target; });
     /*
@@ -1003,10 +1045,10 @@
     // 番号シャッフル（6.6.8節）。入れ替わっていれば、回って止まる演出を出す
     noteShuffle();
 
-    S.clock.baseLeft = S.cfg.mods['G-14'] ? S.cfg.tbase : 0;
+    S.clock.baseLeft = modOn('G-14') ? S.cfg.tbase : 0;
     S.clock.lastBeep = 0;
     // バンキングは対局の前の手続きなので、持ち時間を減らさない
-    S.clock.running = !inBanking() && S.cfg.mods['G-14'] && isMyTurn() && g.players[g.turn].type === 'human';
+    S.clock.running = !inBanking() && modOn('G-14') && isMyTurn() && g.players[g.turn].type === 'human';
 
     if (g.players[g.turn].type === 'ai') {
       S.phase = 'wait';
@@ -1423,6 +1465,17 @@
       if (res.gotItems && res.gotItems.length) {
         S.itemGot = { gims: res.gotItems.slice(), at: performance.now() };
       }
+      /*
+       * ★連鎖ボーナス（8.3.7節）。**常設の表示欄は設けず、×2 以降だけ盤の中央に出す。**
+       *   ×1 でも出すと、1つ落とすたびに毎回ポップアップが出て意味をなさない。
+       * ★**反則の知らせと場所を取り合わない。**反則が出れば連鎖はその場で途切れる（8.3.3節）ので、
+       *   この2つは決して同時に出ない。下の反則の知らせより先に出しておけば、
+       *   万一かち合っても反則のほうが残る。
+       */
+      if (res.mult >= 2) {
+        flash(t('ev.combo', { n: res.mult }), 'combo', '', COMBO_MS);
+        AU.sfx('combo', res.mult);
+      }
       let msg = '';
       if (res.fouls.length) msg = res.fouls.map(f => t('foul.' + f)).join(' / ');
       if (res.message) msg = (msg ? msg + ' — ' : '') + t(res.message);
@@ -1748,7 +1801,7 @@
   //  持ち時間制（8.4節）
   // ══════════════════════════════════════════════
   function tickClock(dtMs) {
-    if (!S.clock.running || !S.cfg.mods['G-14']) return;
+    if (!S.clock.running || !modOn('G-14')) return;
     const g = S.game; if (!g || g.over) return;
     const dt = dtMs / 1000;
     if (S.clock.baseLeft > 0) {
@@ -2442,6 +2495,8 @@
    * ★**記号と名前を並べて出す。**これが「どの記号が何か」を覚える場にもなる。
    */
   const ITEM_GOT_MS = 2400;
+  // 連鎖ボーナスの演出（8.3.7節。長さは付録B送りの値＝ここで決めた）
+  const COMBO_MS = 1100;
   const ITEM_WARN_MS = 3000;          // 予告は少し長く出す（何が起きるか読む時間が要る）
   function drawItemGot() { drawItemNote(S.itemGot, 'ev.itemGot', '#ffc46e', ITEM_GOT_MS, 'itemGot'); }
   /*
@@ -5722,7 +5777,10 @@
    * 透明度の付け方の問題ではなく、要らなくなった知らせが在り続けることが原因。
    */
   let flashTimer = null, flashGone = null;
-  function flash(text, kind, why) {
+  /**
+   * @param {number} [ms] 出しておく長さ。省くと従来どおり（理由つき 2.6 秒／理由なし 1 秒）
+   */
+  function flash(text, kind, why, ms) {
     const el = $('flash'); if (!el || !text) return;
     if (flashTimer) { clearTimeout(flashTimer); flashTimer = null; }
     if (flashGone) { clearTimeout(flashGone); flashGone = null; }
@@ -5730,7 +5788,7 @@
     $('flash-t').textContent = text;
     $('flash-w').textContent = why || '';
     // faded（狙いを避けて薄くする印）を消さないよう、必要な組だけ触る
-    el.classList.remove('foul', 'warn');
+    el.classList.remove('foul', 'warn', 'combo');
     if (kind) el.classList.add(kind);
     el.classList.add('on');
     // 理由まで読ませるときは長めに出す
@@ -5739,11 +5797,11 @@
       // 薄れ終わってから畳む。消え方（0.12秒）はそのまま残す
       flashGone = setTimeout(() => {
         $('flash-t').textContent = ''; $('flash-w').textContent = '';
-        el.classList.remove('foul', 'warn', 'faded');
+        el.classList.remove('foul', 'warn', 'combo', 'faded');
         el.classList.add('gone');
         flashGone = null;
       }, 220);
-    }, why ? 2600 : 1000);
+    }, ms || (why ? 2600 : 1000));
   }
 
   /**
@@ -5974,7 +6032,7 @@
       $('v-next').textContent = tg == null ? '–' : (tg.length ? tg.map(b => b.num || '●').join(' / ') : '–');
     }
     $('v-foul').textContent = g.lastFouls && g.lastFouls.length ? g.lastFouls.map(f => t('foul.' + f)).join(', ') : t('hud.none');
-    $('time-box').style.display = S.cfg.mods['G-14'] ? '' : 'none';
+    $('time-box').style.display = modOn('G-14') ? '' : 'none';
     $('v-config').textContent = configLabel();
     // カーリング型はエンドごとの得点表を出す（利用者指示）。合計だけでは勝敗が読めない
     const cb = $('curl-board');
@@ -6239,7 +6297,7 @@
     ].join(' / ');
   }
   function renderClock() {
-    if (!S.cfg.mods['G-14'] || !S.game) return;
+    if (!modOn('G-14') || !S.game) return;
     const base = $('v-base'), bank = $('v-bank');
     base.textContent = Math.ceil(S.clock.baseLeft) + 's';
     const b = S.clock.banks[S.game.turn] || 0;

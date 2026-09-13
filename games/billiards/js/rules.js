@@ -98,6 +98,34 @@ const BilliardsRules = (() => {
    * 持たないルールで 0 点と出し続けると、壊れているように見える。
    */
   const HAS_SCORE = { 'G-01': false, 'G-02': false, 'G-03': true, 'G-04': true, 'G-06': true, 'G-08': false, 'G-09': true, 'G-10': true, 'G-11': true };
+
+  /*
+   * ═══ G-13 連鎖ボーナス（第8章8.3節・第2章2.4.4節） ═══
+   *
+   * ★**9ルールすべてをこの1つの表に並べる。**null＝連鎖が働く。文字列＝働かない理由。
+   *   仕様が定める理由は3通りで、選択画面の灰色にそのまま添える（2.4.4節）。
+   *     'score' … このルールでは得点で勝敗が決まらない（G-01／G-02／G-08／G-10）
+   *     'turn'  … 1ショットごとに交代するので連鎖が成立しない（G-06／G-09）
+   *     'bonus' … 独自の加重ボーナスを持つ（G-11。7.11.5節と役割が重なる）
+   *
+   * ★**「働くほう」と「働かないほう」を別々の表にしない。**2つに分けると、
+   *   ルールを1本足したときに片方だけ書き足して**「選べるのに何も起きない」**か
+   *   **「理由が出ないまま灰色」**になる。1つの表にして、
+   *   **9ルールを漏れなく載せているかを検査で数える**（check_chain.js）。
+   */
+  const CHAIN_WHY = {
+    'G-01': 'score', 'G-02': 'score', 'G-08': 'score', 'G-10': 'score',
+    'G-06': 'turn', 'G-09': 'turn',
+    'G-11': 'bonus',
+    'G-03': null, 'G-04': null,
+  };
+  /** そのルールで連鎖ボーナスが働くか（8.3.5節）。表に無いルールは働かない側に倒す */
+  function chainRule(rule) { return CHAIN_WHY[rule] === null; }
+  /**
+   * いまの倍率（8.3.2節）＝**連鎖数＋1**。上限は設けない。
+   * 連鎖ボーナスを選んでいないとき・働かないルールのときは常に 1 になる。
+   */
+  function chainMult(game) { return game.chainOn ? (game.chain || 0) + 1 : 1; }
   // ラックを持つか（7.2.7節）
   /*
    * ★ボウリング型は**ピン配置というラックを持つが、崩すブレイクを持たない**（7.2.7節）。
@@ -367,6 +395,13 @@ const BilliardsRules = (() => {
        * ここが持つのは「どのモードか」だけで、ギミックの中身は盤面イベント層（field.js）が持つ。
        */
       mode: cfg.mode || 'normal',
+      /*
+       * G-13 連鎖ボーナス（第8章8.3節）。**働くかどうかをここで一度だけ決める。**
+       * 選んでいても2ルール以外では働かない（8.3.5節）ので、その突き合わせも1か所で済ませる。
+       * 練習モードで外すのは画面側（修飾子3種とも適用しない。9.6.3節）。
+       */
+      chainOn: !!cfg.chain && chainRule(cfg.rule),
+      chain: 0,                         // 現在の連鎖数（8.7.2節 chain_count）。手番の移動でリセット
       // 撞く番が何度移ったか。ギミックの抽選を1ターンに1回へ抑えるための鍵に使う
       turnNo: 0,
       // ゴルフ型のコースを抽選で回るか（7.10.2節。既定は固定順＝覚えて攻略する対象にするため）
@@ -1313,6 +1348,12 @@ const BilliardsRules = (() => {
     else if (rule === 'G-11') resolveBowling(game, result, pre);
 
     /*
+     * G-13 連鎖ボーナスの数え上げ（8.3.3節）。**帰結が出そろってから数える。**
+     * 反則かどうかも、いくつ得点したかも、ルールごとの帰結を通ったあとでないと決まらない。
+     */
+    chainStep(game, result);
+
+    /*
      * 相手チームがいないとき（協力プレイで全員が同じチーム）は、
      * 競う相手がいないので放っておくと決着がつかない。
      * 規定打数を超えたら未達成＝敗北とする（9.7.3節）。
@@ -1495,6 +1536,44 @@ const BilliardsRules = (() => {
     r.continueTurn = mineDropped.length > 0;
   }
 
+  /**
+   * **得点を足す口。連鎖ボーナスの倍率はここでしか掛けない**（8.3.4節）。
+   *
+   * ★ローテーションとキャロムは得点の数え方が違うが、**足す口は1つにまとめてある。**
+   *   倍率をそれぞれの帰結へ書き足すと同じ仕事の道が2本になり、
+   *   片方を直し忘れた日に**そのルールでだけ倍率が乗らない**。
+   * ★**素点と倍率も結果に残す。**画面は倍率（r.mult）を見て COMBO を出すので、
+   *   掛け算の答えだけを返すと「何倍だったか」を画面側で数え直すことになる。
+   *
+   * @param {number} raw 倍率を掛ける前の素点（8.3.4節でいう素点）
+   */
+  function award(game, r, raw) {
+    const mult = chainMult(game);
+    r.raw = raw;
+    r.mult = mult;
+    r.gained = raw * mult;              // 素点も倍率も整数なので端数は出ない（8.3.4節）
+    game.players[game.turn].score += r.gained;
+  }
+
+  /**
+   * 一撞きのあとの連鎖の増減（8.3.3節）。**数えるのはこの1か所だけ。**
+   * 得点が出れば1つ進み、無得点か反則なら 0 へ戻る。
+   * ★手番が移ったときのリセットは nextTurn 側が持つ（ミスキューと時間切れは
+   *   裁定（resolveShot）を通らずに手番が移るため、ここだけでは届かない）。
+   */
+  function chainStep(game, r) {
+    if (!game.chainOn) return;
+    /*
+     * ★**反則の条件は、いまは一度も単独では働かない。**
+     *   反則のあった一撃きは利益無効（7.2.6節）で必ず得点 0 になるので、
+     *   **「無得点なら切る」のㄱうが先に効く**（壊し確かめで確かめた）。
+     *   それでも残してあるのは、8.3.3節が反則を独立した条件として挙げており、
+     *   **利益無効のㄑうが崩れた日に連鎖だけが生き残るのを防ぐためである。
+     */
+    if (r.foul || !r.gained) game.chain = 0;
+    else game.chain++;
+  }
+
   // ───────── G-03 ポケット・ローテーション（7.5節） ─────────
   function resolveRotation(game, r, pre) {
     const byId = {}; game.world.balls.forEach(b => byId[b.id] = b);
@@ -1502,8 +1581,8 @@ const BilliardsRules = (() => {
     if (!r.foul) {
       let gain = 0;
       for (const b of dropped) gain += b.num;     // 落とした玉の番号がそのまま得点
-      game.players[game.turn].score += gain;
-      r.gained = gain;
+      // ★**複数球を同時に落としても倍率は1回分**（8.3.4節）。合計してから1度だけ掛ける
+      award(game, r, gain);
       r.continueTurn = dropped.length > 0;
     } else {
       // ファウル時の利益無効（7.2.6節）。落ちた玉は戻さない（現実のローテーションに倣う）
@@ -1523,8 +1602,7 @@ const BilliardsRules = (() => {
     const distinct = r.hitBalls.filter(id => byId[id] && byId[id].id !== pre.cueId);
     const made = distinct.length >= 2;
     if (made && !r.foul) {
-      game.players[game.turn].score += 1;
-      r.gained = 1;
+      award(game, r, 1);
       r.continueTurn = true;
       // 目標点はチームの合計で見る（協力プレイでなければ本人の得点と同じ）
       if (teamScore(game, teamOf(game, game.turn)) >= game.players[game.turn].target) {
@@ -2959,6 +3037,15 @@ const BilliardsRules = (() => {
    */
   function nextTurn(game, result) {
     if (game.over) return;
+    /*
+     * ★**手番が移ったら連鎖は無条件に×1へ戻る**（8.3.3節・8.3.2節）。
+     *   裁定（chainStep）だけでは届かない道が2本ある ──
+     *   **ミスキュー**（撞かずに終わる。5.9.2節）と**時間切れ**（8.4.4節）は
+     *   resolveShot を通らずにここへ来る。どちらも「得点なしでターンが終わる」ので連鎖は途切れる。
+     *   ★**連鎖数は手番の側ではなく対局が1つだけ持つ**（8.3.6節。各人が持っても
+     *   手番の移動で必ず消えるので、現在の手番の1つと同じことになる）。
+     */
+    if (!(result && result.continueTurn)) game.chain = 0;
     nextTurnCore(game, result);
     game.turnNo = (game.turnNo || 0) + 1;
     /*
@@ -3028,6 +3115,8 @@ const BilliardsRules = (() => {
 
   return {
     RULE_IDS, FOUL_TABLE, PENALTY, WIN_KIND, LOW_WINS, HAS_RACK, NEEDS_POCKETS, HAS_SCORE,
+    // G-13 連鎖ボーナス（8.3節）
+    CHAIN_WHY, chainRule, chainMult,
     // ゴルフ型（7.10節）
     golfPar, golfCut, golfTotal, golfParTotal, golfSeatDone, golfShape, golfTermKey, golfInWater,
     golfAwayFromPockets, golfWaterDrop, resolveGolf,   // 検査から帰結だけを確かめるために出している

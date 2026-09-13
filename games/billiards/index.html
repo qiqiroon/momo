@@ -176,6 +176,7 @@ input[type=range]{accent-color:var(--orange-mid);}
 .chk input{accent-color:var(--orange-mid);}
 /* ON/OFF スイッチ */
 .sw{position:relative;display:inline-flex;align-items:center;gap:9px;cursor:pointer;font-size:13px;}
+.sw.dis{opacity:.42;cursor:not-allowed;color:var(--text-muted);}
 .sw input{position:absolute;opacity:0;width:0;height:0;}
 .sw i{width:40px;height:22px;border-radius:11px;background:var(--surface2);border:1px solid var(--border-strong);position:relative;transition:.15s;flex:0 0 auto;}
 .sw i::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--text-muted);transition:.15s;}
@@ -262,6 +263,9 @@ input[type=range]{accent-color:var(--orange-mid);}
 #flash.gone{display:none;}
 #flash.foul{border-color:#dc2626;color:#fca5a5;}
 #flash.warn{border-color:var(--orange);color:var(--orange-light);}
+/* 連鎖ボーナス（8.3.7節）。反則とは決して同時に出ない（反則が出れば連鎖は途切れる）ので場所を取り合わない */
+#flash.combo{border-color:#f7c948;color:#ffe28a;}
+#flash.combo #flash-t{font-size:clamp(21px,5.6vw,36px);letter-spacing:.04em;}
 /* 残り5秒。数字だけだと気づけないので色でも出す */
 #time-box b.hot{color:var(--orange);}
 /*

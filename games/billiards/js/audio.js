@@ -623,6 +623,28 @@ const BilliardsAudio = (() => {
     const g = ctx.createGain(); env(g, t, 0.004, peak, dur);
     o.connect(g).connect(sfxGain); o.start(t); o.stop(t + dur + 0.02);
   }
+  /**
+   * 連鎖ボーナス（8.3.7節）。**上りの3音**を鳴らし、連鎖が進むほど全体を高くする。
+   *
+   * ★**音程は滑らせない。**滑らせると合成音が電子音に聞こえる（カラオケで踏んだ教訓）。
+   *   半音単位の階段で上げ、和音の形（根音・長三度・五度）はどの連鎖でも同じにする。
+   * ★**上がり続けない。**倍率に上限が無い（8.3.2節）ので、素直に比例させると
+   *   長い連鎖で人の耳に痛い高さへ行く。**1オクターブ上がったところで頭打ちにする。**
+   *
+   * @param {number} mult 倍率（×2以上でしか鳴らさない）
+   */
+  function comboSfx(mult) {
+    if (!audioOn || !ctx || !sfxGain) return;
+    const step = Math.max(0, Math.min(12, Math.round(mult) - 2));   // 半音いくつ上げるか
+    const root = 523.25 * Math.pow(2, step / 12);                   // C5 から
+    const t = ctx.currentTime + 0.005;
+    [[0, 0], [4, 0.055], [7, 0.110]].forEach(a => {
+      const f = root * Math.pow(2, a[0] / 12);
+      const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = f;
+      const g = ctx.createGain(); env(g, t + a[1], 0.004, 0.24, 0.16);
+      o.connect(g).connect(sfxGain); o.start(t + a[1]); o.stop(t + a[1] + 0.18);
+    });
+  }
   function tick2(f1, f2) {
     if (!audioOn || !ctx || !sfxGain) return;
     const t = ctx.currentTime + 0.005;
@@ -688,6 +710,7 @@ const BilliardsAudio = (() => {
       case 'shuffle': riffle(seconds); break;       // 番号が入れ替わった（6.6.8節。長さは呼ぶ側から）
       case 'tick': beep(1046, 0.07, 0.22); break;        // 残り5秒からの秒読み
       case 'timeup': beep(392, 0.16, 0.30); beep(294, 0.30, 0.26, 0.14); break;
+      case 'combo': comboSfx(s); break;       // 連鎖ボーナス（8.3.7節）。s は倍率そのもの
       case 'turn': tick2(880, 1318); break;   // 自分の手番
       case 'join': tick2(988, 659); break;
       case 'button': playBuf('button', { gain: 0.85 }); break;

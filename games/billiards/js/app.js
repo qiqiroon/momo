@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.97';               // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '1.98';               // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules, F = BilliardsField;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -21,7 +21,15 @@
     shape: { 'A-01': 1, 'A-02': 3, 'A-04': 3, 'A-06': 3, 'A-07': 3, 'A-08': 3, 'A-09': 3, 'A-11': 3 },
     mode: { normal: 1, disturb: 3, abnormal: 3 },
     mod: { 'G-13': 3, 'G-14': 1, 'G-15': 3 },
-    format: { local: 1, ai: 1, practice: 1, online: 2, coop: 9 },
+    /*
+     * ★協力プレイは 11.2.3節でも第2段階の対戦形式として数えられているので、ここにも残す。
+     *   ただし**遊び方の一覧（buildHome）には並べない**。9.7節が定めるのは
+     *   「勝ち負けを見る相手を個人からチームへ差し替える」ことであって、
+     *   ローカル・通信・AIのどの土台の上でも成立する＝**形式ではなくスイッチ**だからである
+     *   （実物は人数のところの sw-coop）。
+     *   ★ここに 9（＝未実装の目印）を置いたままにしない。実装は済んでいる。
+     */
+    format: { local: 1, ai: 1, practice: 1, online: 2, coop: 2 },
   };
   const SPECIAL = {
     rule: { 'G-06': 1, 'G-08': 1, 'G-09': 1, 'G-10': 1, 'G-11': 1 },
@@ -294,7 +302,17 @@
    *   「入っているのに選べない」か「無いのに選べる」になる。
    */
   function modeBlock(m) {
-    if (m === 'disturb') return t('why.stage3');                      // 妨害モードは未実装
+    /*
+     * ★**妨害モードはポケットの無い台では成立しない**（6.4.8節）。
+     *   アイテムはポケットに置かれるものなので、ポケットが無いと妨害権が一度も発生しない。
+     *   **代わりの獲得手段は設けない**と仕様が定めているので、ここで理由を添えて閉じる。
+     * ★選べるかどうかは**実際に配れるアイテムがあるか**から決める（F.disturbPool）。
+     *   段階の表（STAGE）で決めると、ギミックを足すたびに2か所を直すことになる。
+     */
+    if (m === 'disturb') {
+      if (caromForRule(S.cfg.rule)) return t('why.gimNoPocket');
+      if (!F.disturbPool(gimCtx()).length) return t('why.stage3');
+    }
     if (m === 'abnormal' && !gimPool().length) return t('why.stage3');
     if (m === 'normal' && S.cfg.diff === 'apocalypse') return t('why.needGimmick');
     return null;
@@ -783,6 +801,9 @@
     S.game = g;
     S.chk = {}; S.results = {};             // 前の局の照合・結果は持ち越さない
     S.dropped = null; S.bursts = []; S.trail = []; S.airZ = {}; S.pendingShots = {};
+    // 妨害モードの知らせ（局をまたいで前の局のものが残らないように）
+    S.itemGot = null; S.itemTip = null; S.itemSpots = [];
+    S.itemWarn = null; S.itemWarnKey = null;
     // ゴルフ型のホール成績のポップアップ。局をまたいで残すと前の局の成績が出る
     S.golfCard = null; S.golfCardSeen = null; S.splash = null;
     S.net.done = {}; S.net.gone = {}; S.waitDone = null; S.readyShot = null; S.forceShot = null;
@@ -922,6 +943,24 @@
     }
     if (S.waitTimer) { clearTimeout(S.waitTimer); S.waitTimer = null; }
     S.waitDone = null;
+    /*
+     * 妨害モードの予告（6.4.7節）。**このターンに何が起きるか**を、受ける側へ知らせる。
+     * ★**手番の入り口はここ1か所**なので、対局開始・ミスキュー・時間切れ・組み直しの
+     *   どの道から来ても必ず出る。撞き終わりの側に書くと、道を数え落とす。
+     * ★**追いつき直し（観戦・再接続）では出さない。**過去の手を黙って並べ直しているだけで、
+     *   いま起きることではない。
+     * ★**同じターンで二度出さない**（鍵＝手番の番号で見張る）。
+     */
+    if (!S.catchUp && g.field && g.field.mode === 'disturb' && g.field.ids && g.field.ids.length) {
+      const key = 'w' + (g.turnNo || 0);
+      if (S.itemWarnKey !== key) {
+        S.itemWarnKey = key;
+        S.itemWarn = {
+          gims: g.field.ids.map(id => ({ id: id, n: F.stack(g.field, id) })),
+          at: performance.now(),
+        };
+      }
+    }
     S.aim.power = 0; S.aim.tipX = 0; S.aim.tipY = 0; S.aim.elev = 0;
     S.aimDirty = true; S.pendingPlace = null; S.drag = null;
     S.elevTouched = false;                  // 角度は自分で動かすまで自動で合わせる
@@ -1376,6 +1415,14 @@
 
     if (res.message) g.lastMessageKey = res.message;   // 記録は黙っていても残す
     if (!quiet) {
+      /*
+       * ★**アイテムを取ったら、記号と名前を盤の上に出す**（利用者指示・6.4.2節）。
+       *   反則の知らせ（flash）とは**場所を分けてある** ── 妨害モードでいちばん多いのは
+       *   「ファウルしてでも取りにいく」場面で、同じ場所だと片方しか見えない。
+       */
+      if (res.gotItems && res.gotItems.length) {
+        S.itemGot = { gims: res.gotItems.slice(), at: performance.now() };
+      }
       let msg = '';
       if (res.fouls.length) msg = res.fouls.map(f => t('foul.' + f)).join(' / ');
       if (res.message) msg = (msg ? msg + ' — ' : '') + t(res.message);
@@ -2097,6 +2144,400 @@
   }
 
   /*
+   * ───────── 妨害モードのアイテム（6.4.1節）─────────
+   *
+   * ★**何が載っているかは常に全員に見える。**これが妨害モードの中核で、
+   *   見えるからこそ「得点になる口を狙うか、アイテムの載った口を狙うか」を選べる。
+   * ★**口そのものは塗りつぶさない。**口の絵を変えるとテレポートポケットの印（6.6.9節）と
+   *   見分けがつかなくなるので、**口の脇に印を置く**形にしてある。
+   * ★出す向きは盤面イベント層が持っている（`pocketMouth` から導いた dx,dy）。
+   *   ここで「台の中心へ」と決め直さないこと。ドーナツ型は中心が壁の中にある。
+   *
+   * ★★**丸い札の中に小さな絵を描く形はやめた**（利用者指示）。
+   *   下地の丸と中の絵で二重になり、**肝心の絵が小さくなって意味が読み取れなかった。**
+   *   いまは**そのものを表す記号を、下地なしで大きく**描く ──
+   *   地震＝ナマズ／傾き＝上辺が傾いた四角／ブラックホール＝黒い丸／
+   *   突風＝横棒と巻いた線／水たまり＝**水たまりと同じ絵の丸**／氷＝**氷と同じ絵の丸**。
+   * ★**水と氷は、盤に出る本物とまったく同じ色から描く**（下の WATER_FACE / ICE_FACE）。
+   *   ここで色を書き写すと、地形の見た目を直した日に**印だけが古くなる。**
+   */
+  // 水たまりの面の色（盤の地形と印で共用。★1か所から出す）
+  const WATER_FACE = ['rgba(16,52,98,.96)', 'rgba(40,102,166,.94)', 'rgba(96,166,218,.94)'];
+  const WATER_EDGE = 'rgba(200,235,255,.6)';
+  const WATER_RIPPLE = 'rgba(220,245,255,.35)';
+  // 氷の面の色（同上）
+  const ICE_FACE = ['rgb(244,252,255)', 'rgb(206,236,246)', 'rgb(176,217,236)'];
+  const ICE_EDGE = 'rgb(232,249,255)';
+  const ICE_CRACK = 'rgba(255,255,255,.75)';
+
+  /** 水たまりの丸。盤の地形と同じ色・同じさざ波で塗る */
+  function waterFace(cx, cy, r, k) {
+    const gr = ctx.createRadialGradient(cx, cy, r * .1, cx, cy, r * 1.1);
+    gr.addColorStop(0, WATER_FACE[0]); gr.addColorStop(.7, WATER_FACE[1]); gr.addColorStop(1, WATER_FACE[2]);
+    ctx.beginPath(); ctx.ellipse(cx, cy, r, r * k, 0, 0, 7);
+    ctx.fillStyle = gr; ctx.fill();
+    ctx.strokeStyle = WATER_EDGE; ctx.lineWidth = Math.max(1, r * .10); ctx.stroke();
+    ctx.save(); ctx.clip();
+    ctx.strokeStyle = WATER_RIPPLE; ctx.lineWidth = Math.max(1, r * .09);
+    for (let i = -1; i <= 1; i++) {
+      const y = cy + i * r * .42 * k;
+      ctx.beginPath();
+      for (let tt = -1; tt <= 1.001; tt += 0.12) {
+        const x = cx + tt * r, yy = y + Math.sin(tt * 6 + i) * r * .10 * k;
+        if (tt <= -1) ctx.moveTo(x, yy); else ctx.lineTo(x, yy);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  /** 氷の丸。盤の地形と同じ色・同じ割れ目で塗る */
+  function iceFace(cx, cy, r, k) {
+    const gr = ctx.createRadialGradient(cx - r * .3, cy - r * .3 * k, r * .1, cx, cy, r * 1.1);
+    gr.addColorStop(0, ICE_FACE[0]); gr.addColorStop(.6, ICE_FACE[1]); gr.addColorStop(1, ICE_FACE[2]);
+    ctx.beginPath(); ctx.ellipse(cx, cy, r, r * k, 0, 0, 7);
+    ctx.fillStyle = gr; ctx.fill();
+    ctx.strokeStyle = ICE_EDGE; ctx.lineWidth = Math.max(1, r * .10); ctx.stroke();
+    ctx.save(); ctx.clip();
+    ctx.strokeStyle = ICE_CRACK; ctx.lineCap = 'round'; ctx.lineWidth = Math.max(1, r * .11);
+    for (let i = 0; i < 4; i++) {
+      const a = i * 1.7 + .6;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a) * r * .18, cy + Math.sin(a) * r * .18 * k);
+      ctx.lineTo(cx + Math.cos(a + .25) * r * .95, cy + Math.sin(a + .25) * r * .95 * k);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /*
+   * ───────── 地震の印＝ナマズの絵 ─────────
+   *
+   * 出どころ … Openclipart #278008「Catfish」。**CC0（パブリックドメイン）**であり、
+   * クレジット表示の義務は無い（それでも出どころはここに残す）。
+   * ★**画像ファイルは公開リポジトリに置かない。**輪郭データだけを持てば
+   *   増えるのはコードの数KBだけで済み、**どの大きさでも輪郭がぼやけない**
+   *   （案内書 §6 の容量方針。元の SVG は 26,732 バイト、ここに入るのは約 7.7KB）。
+   * ★元は入れ子のグループに変換行列が掛かっていたので、**path ごとに1枚へ畳んである**
+   *   （a,b,c,d,e,f）。**座標そのものは1つも書き換えていない**＝形は元のまま。
+   * ★並び順は重なりの順。**入れ替えないこと**（目や口が胴の下に潜る）。
+   */
+  const CATFISH_BOX = { x: -12.94, y: 108.97, w: 573.31, h: 481.97 };
+  const CATFISH = [
+    ['m -275.61031,589.65708 c -0.1316,-5.10104 -0.12179,-10.65797 0.0217,-12.34867 0.1436,-1.69076 0.37091,-4.54084 0.5051,-6.33349 0.46489,-6.21012 11.6073,-44.77658 9.18863,-35.98522 -5.25815,19.11229 -40.69629,22.59081 -55.74867,15.39711 -63.10303,-30.15763 -25.63293,-103.3411 62.66376,-64.85918 5.69165,-6.83781 2.25204,-38.87021 -4.13704,-53.57686 -2.87113,-6.60889 -20.18566,-43.21234 -33.50294,-30.65775 -66.17873,40.26025 -81.40746,-18.30102 -55.31865,-53.30272 7.28784,-17.61414 52.21725,-1.97333 67.43448,20.59532 43.76254,-23.01916 87.22352,36.98153 105.5557,64.23901 12.33443,18.33964 39.22951,37.87559 36.87259,23.5349 -10.44603,-63.55885 96.024184,-49.17693 93.658339,4.94347 -2.423634,55.44235 -62.982449,32.88091 -67.555889,29.68992 5.77972,6.15582 18.221997,11.51591 22.961467,17.48895 134.800347,169.88528 -146.951947,263.08305 -182.598577,81.17521 z',[0.88192,0.39567,-0.42944,0.81257,641.02666,-23.61298],'#191919'],
+    ['m -175.18301,455.47105 a 21.538097,20.102224 0 0 1 -22.04834,19.60222 21.538097,20.102224 0 0 1 -21.01545,-20.56683 21.538097,20.102224 0 0 1 22.02344,-19.6266 21.538097,20.102224 0 0 1 21.04154,20.54358 l -21.53278,-0.44658 z',[0.88192,0.39567,-0.42944,0.81257,557.00142,104.25473],'#ffffff'],
+    ['m -191.79845,448.04884 a 5.7012901,6.4614625 0 0 1 -5.83635,6.30075 5.7012901,6.4614625 0 0 1 -5.56295,-6.61081 5.7012901,6.4614625 0 0 1 5.82977,-6.30858 5.7012901,6.4614625 0 0 1 5.56985,6.60333 l -5.69989,-0.14355 z',[0.88192,0.39567,-0.42944,0.81257,557.00142,104.25473],'#000000'],
+    ['m -3.7822223,-118.10964 c -0.0563,0.95789 0.48499,1.84257 1.36655,2.23349 22.5358293,9.95982 37.7896793,21.640817 47.7130593,39.396607 9.92337,17.75579 14.53459,41.83046 14.99215,76.57273962 0.0318,2.34460998 3.15516,3.13928998 4.40497,1.12074998 4.03009,-6.52126 6.19984,-16.7901296 6.40797,-28.8462796 0.20814,-12.05616 -1.64784,-25.86213 -6.23511,-39.13378 -9.17458,-26.54326 -29.66222,-51.106237 -66.0696593,-53.588747 -1.33582,-0.0902 -2.50291,0.92584 -2.57993,2.24522 z m 17.8158993,5.20029 c 24.49066,6.95447 34.97953,19.505727 46.32612,47.724047 5.01418,12.46997 6.18392,26.03781 5.98507,37.55658 -0.0968,5.60973 -0.70498,10.77223 -1.65927,15.21937 -1.31804,-28.70936 -5.25781,-48.29653 -14.4663,-64.77319 -8.13746,-14.56027 -20.58839,-26.883947 -36.18562,-35.726807 z',[-0.41049,0.82084,-0.8909,-0.37821,214.2092,399.22714],'#ffffff'],
+    ['m 361.97105,864.7667 a 2.3101618,1.9801387 0 0 1 -2.36489,1.93089 2.3101618,1.9801387 0 0 1 -2.2541,-2.02591 2.3101618,1.9801387 0 0 1 2.36222,-1.93329 2.3101618,1.9801387 0 0 1 2.2569,2.02362 l -2.30959,-0.044 z',[0.88192,0.39567,-0.42944,0.81257,306.84556,-402.58515],'#fffdfd'],
+    ['m -200.39092,461.2573 c -2.73163,-10.75625 -0.59855,-16.70888 5.48765,-20.43704 10.13879,-6.21064 27.2461,3.5084 26.98195,14.60316 1.41817,17.40625 -25.24014,21.2868 -32.4696,5.83388 z',[-0.9089,-0.45608,-0.44257,0.93664,353.41606,-118.90327],'#ffffff'],
+    ['m -191.19643,453.90913 a 4.1426253,4.4904246 0 0 1 -4.24076,4.37874 4.1426253,4.4904246 0 0 1 -4.0421,-4.59421 4.1426253,4.4904246 0 0 1 4.23598,-4.38418 4.1426253,4.4904246 0 0 1 4.04711,4.58901 l -4.1416,-0.0997 z',[-0.92086,-0.42985,-0.46882,0.92297,353.41606,-118.90327],'#000000'],
+    ['m 32.107546,-66.43738 a 2.3101618,1.9801387 0 0 1 -2.36489,1.930888 2.3101618,1.9801387 0 0 1 -2.254103,-2.025905 2.3101618,1.9801387 0 0 1 2.36222,-1.933288 2.3101618,1.9801387 0 0 1 2.256901,2.023614 l -2.309592,-0.04399 z',[0.88192,-0.39567,-0.42944,-0.81257,214.2092,399.22714],'#fffdfd'],
+    ['m 32.532565,126.70609 c -2.89e-4,-3.24344 3.451675,-5.0241 6.543486,-4.83374 -5.132126,1.33769 -4.859172,2.8193 -6.543486,4.83374 z',[-4.22375,7.79407,-9.16691,-3.5912,1541.64236,388.75874],'#ffffff'],
+    ['m 68.272207,126.42616 c 0.4185,1.45586 0.257804,2.64411 -0.475197,3.51383 -0.258467,0.30668 -0.339828,0.37038 -0.614301,0.48096 -0.422499,0.17022 -0.45722,0.0762 -0.128266,-0.34722 0.511936,-0.65896 0.755451,-1.57054 0.624705,-2.33852 -0.118197,-0.69419 -0.428272,-1.53839 -0.775759,-2.11197 -0.778024,-1.28426 -1.748483,-2.03555 -4.228813,-3.27382 -1.867235,-0.93218 -2.682777,-1.4612 -3.368905,-2.18533 -0.263808,-0.27841 -0.402088,-0.48281 -0.644676,-0.95291 -0.356315,-0.69049 -0.487602,-1.14017 -0.533932,-1.82875 -0.04306,-0.64015 0.04111,-1.01823 0.346604,-1.55688 0.350436,-0.61788 1.172561,-1.6252 1.293218,-1.58452 0.134429,0.0453 0.05615,0.30488 -0.371058,1.23062 -0.206909,0.44834 -0.405466,0.94868 -0.441239,1.11185 -0.08987,0.40993 0.05427,1.22522 0.317689,1.79693 0.491397,1.06649 1.278555,1.66275 3.812487,2.88788 2.207524,1.06732 3.391079,1.9466 4.236375,3.14728 0.298385,0.42383 0.799413,1.48301 0.951065,2.01057 z',[-4.22375,7.79407,-9.16691,-3.5912,1524.3635,394.51836],'#000000'],
+    ['m 53.428802,96.670889 c 0.179957,0.950236 0.06506,1.74534 -0.589093,4.076461 -0.41127,1.46559 -0.519152,1.99472 -0.568554,2.78857 -0.0773,1.2421 0.327294,2.46508 1.144928,3.46082 0.451189,0.54947 1.285548,0.92811 2.076599,0.94239 0.496396,0.009 0.541252,0.0856 0.164221,0.28064 -0.631669,0.32673 -1.69415,0.15629 -2.474444,-0.39696 -0.122681,-0.087 -0.392715,-0.35302 -0.60009,-0.59123 -0.314949,-0.36176 -0.433909,-0.54539 -0.72232,-1.11491 -0.404608,-0.79898 -0.540878,-1.27943 -0.597757,-2.10752 -0.07073,-1.02964 0.08346,-1.94192 0.65708,-3.88789 0.442336,-1.500612 0.555276,-1.997137 0.590049,-2.594062 0.04191,-0.719461 -0.0352,-1.105452 -0.331996,-1.661951 -0.289125,-0.542106 -0.624601,-0.9057 -1.001959,-1.085938 -0.145345,-0.06942 -0.592552,-0.202041 -0.993796,-0.294727 -0.754553,-0.1743 -1.017686,-0.270928 -1.074742,-0.394756 -0.0451,-0.09789 0.07353,-0.11469 0.840623,-0.119031 1.457003,-0.0082 2.08685,0.264967 2.829897,1.227545 0.213289,0.276306 0.583171,1.112509 0.651357,1.472541 z',[-4.22375,7.79407,-9.16691,-3.5912,1524.3635,394.51836],'#000000'],
+    ['m 41.052536,110.83586 c -0.72102,0.21263 -4.105461,0.1346 -4.125889,-1.00877 0.155368,-1.16168 3.870547,0.0237 4.125889,1.00877 z',[-4.22375,7.79407,-9.16691,-3.5912,1524.3635,394.51836],'#ffffff'],
+    ['m 41.465378,110.37994 c -0.607567,-0.49452 -3.232404,-1.10902 -3.31348,-2.37154 0.586302,-1.19915 2.969597,1.27815 3.31348,2.37154 z',[-4.22375,7.79407,-9.16691,-3.5912,1524.3635,394.51836],'#ffffff'],
+    ['m 41.836211,109.78505 c -0.839263,-0.65665 -2.485471,-2.04134 -1.881108,-3.04925 1.091161,-1.17953 1.838898,1.82818 1.881108,3.04925 z',[-4.22375,7.79407,-9.16691,-3.5912,1524.3635,394.51836],'#ffffff'],
+    ['m 41.052536,110.83586 c -0.72102,0.21263 -4.105461,0.1346 -4.125889,-1.00877 0.155368,-1.16168 3.870547,0.0237 4.125889,1.00877 z',[4.22375,7.79407,9.16691,-3.5912,-1012.95665,355.87018],'#ffffff'],
+    ['m 41.465378,110.37994 c -0.607567,-0.49452 -3.232404,-1.10902 -3.31348,-2.37154 0.586302,-1.19915 2.969597,1.27815 3.31348,2.37154 z',[4.22375,7.79407,9.16691,-3.5912,-1012.95665,355.87018],'#ffffff'],
+    ['m 41.836211,109.78505 c -0.839263,-0.65665 -2.485471,-2.04134 -1.881108,-3.04925 1.091161,-1.17953 1.838898,1.82818 1.881108,3.04925 z',[4.22375,7.79407,9.16691,-3.5912,-1012.95665,355.87018],'#ffffff'],
+    ['m 41.052536,110.83586 c -0.72102,0.21263 -4.105461,0.1346 -4.125889,-1.00877 0.155368,-1.16168 3.870547,0.0237 4.125889,1.00877 z',[2.64583,7.23903,8.18171,-1.94629,-807.23425,77.99212],'#ffffff'],
+    ['m 41.465378,110.37994 c -0.607567,-0.49452 -3.232404,-1.10902 -3.31348,-2.37154 0.586302,-1.19915 2.969597,1.27815 3.31348,2.37154 z',[2.64583,7.23903,8.18171,-1.94629,-807.23425,77.99212],'#ffffff'],
+    ['m 41.836211,109.78505 c -0.839263,-0.65665 -2.485471,-2.04134 -1.881108,-3.04925 1.091161,-1.17953 1.838898,1.82818 1.881108,3.04925 z',[2.64583,7.23903,8.18171,-1.94629,-807.23425,77.99212],'#ffffff']
+  ];
+  /** Path2D は作るのに手間がかかるので、初めて描くときに1度だけ作って使い回す */
+  let catfishCache = null;
+  function catfishPaths() {
+    if (!catfishCache) {
+      catfishCache = CATFISH.map(p => ({ p: new Path2D(p[0]), m: p[1], f: p[2], ev: !!p[3] }));
+    }
+    return catfishCache;
+  }
+  /*
+   * ★**色は元の絵のまま（黒いナマズ）**＝利用者の選択。
+   *   いったん「芝に沈む」と見て生成りへ置き換えたが、**利用者は黒を選んだ**ので戻した。
+   *   置き換える仕組みは残してあるので、色を変えたくなったらここに1行足せばよい
+   *   （データそのものは元のままなので、いつでも戻せる）。
+   * ★黒いぶん暗い芝の上では目立たない。**その代わりに、下へ敷く影をやめて、
+   *   うっすら明るい下地を1枚置いてある**（drawItemMark 側）。輪郭の線は引かない
+   *   ── 線を足すと「黒い板に縁取り」に見えて、絵の柄がつぶれる。
+   */
+  const CATFISH_TINT = {};
+  /** ナマズを (cx,cy) に、差し渡し 2r で描く。ky は 3D の縦つぶし */
+  function drawCatfish(cx, cy, r, ky) {
+    const k = ky == null ? 1 : ky;
+    const sc = (r * 2) / Math.max(CATFISH_BOX.w, CATFISH_BOX.h);
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(sc, sc * k);
+    ctx.translate(-(CATFISH_BOX.x + CATFISH_BOX.w / 2), -(CATFISH_BOX.y + CATFISH_BOX.h / 2));
+    for (const it of catfishPaths()) {
+      ctx.save();
+      ctx.transform(it.m[0], it.m[1], it.m[2], it.m[3], it.m[4], it.m[5]);
+      ctx.fillStyle = CATFISH_TINT[it.f.toLowerCase()] || it.f;
+      ctx.fill(it.p, it.ev ? 'evenodd' : 'nonzero');
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  /**
+   * アイテムの記号そのもの（下地の丸は描かない）。
+   * @param ky 縦のつぶし。2Dは1、3D（台を寝かせて見る）は 0.45
+   */
+  function drawItemMark(cx, cy, r, gim, ky) {
+    const k = ky == null ? 1 : ky;
+    ctx.save();
+    /*
+     * 芝の上で浮いて見えるよう、下に1枚敷く。**記号そのものには輪郭を足さない。**
+     * ★**黒い記号（ナマズ・ブラックホール）の下だけは、影ではなく明るい下地**にする。
+     *   暗い影を敷くと黒が黒に重なって、暗い芝の上では塊にしか見えない（実機で確認）。
+     */
+    const darkMark = (gim === 'F-01' || gim === 'F-05');
+    ctx.beginPath();
+    ctx.ellipse(cx + (darkMark ? 0 : r * .10), cy + (darkMark ? 0 : r * .16 * k),
+      r * (darkMark ? 1.06 : .98), r * (darkMark ? 1.06 : .98) * k, 0, 0, 7);
+    if (darkMark) {
+      const halo = ctx.createRadialGradient(cx, cy, r * .2, cx, cy, r * 1.06);
+      halo.addColorStop(0, 'rgba(236,244,230,.80)');
+      halo.addColorStop(.72, 'rgba(226,238,220,.62)');
+      halo.addColorStop(1, 'rgba(226,238,220,0)');
+      ctx.fillStyle = halo;
+    } else {
+      ctx.fillStyle = 'rgba(0,0,0,.32)';
+    }
+    ctx.fill();
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+
+    if (gim === 'F-01') {
+      /*
+       * 地震＝**ナマズ**（利用者指示）。地面を揺らすのはナマズ、という見立て。
+       * ★手描きの魚から **Openclipart #278008（CC0）のイラスト**へ差し替えた（利用者選択）。
+       *   手描きは小さくすると何の絵か読み取れなかった。
+       */
+      drawCatfish(cx, cy, r, k);
+
+    } else if (gim === 'F-03') {
+      /*
+       * 台の傾き＝**上辺が傾いた四角**（利用者指示）。
+       * 下辺は水平のままにして、**上辺だけが傾いている**ことを見せる。
+       */
+      ctx.beginPath();
+      ctx.moveTo(cx - r * .82, cy + r * .52 * k);
+      ctx.lineTo(cx + r * .82, cy + r * .52 * k);
+      ctx.lineTo(cx + r * .82, cy - r * .16 * k);
+      ctx.lineTo(cx - r * .82, cy - r * .66 * k);
+      ctx.closePath();
+      const gq = ctx.createLinearGradient(cx - r, cy - r * k, cx + r, cy + r * k);
+      gq.addColorStop(0, '#8fe0d7'); gq.addColorStop(1, '#2c8079');
+      ctx.fillStyle = gq; ctx.fill();
+      ctx.strokeStyle = '#0e2b28'; ctx.lineWidth = Math.max(1, r * .11); ctx.stroke();
+
+    } else if (gim === 'F-05') {
+      /*
+       * ブラックホール＝**黒い丸に渦巻きの線**（利用者指示）。
+       * ★輪郭の線は引かない。線があると「黒い円板が置いてある」ように見える（6.6.4節と同じ話）。
+       *   外へ向かってすっと薄れる形にして、盤の穴とも見分けが付くようにする。
+       * ★渦は**中心から外へ**向かって太く・明るくする。真っ黒の上に一様な線を引くと、
+       *   中心のいちばん濃いところで線だけが浮いて「黒い丸に落書き」に見える。
+       */
+      const gh = ctx.createRadialGradient(cx, cy, r * .12, cx, cy, r * .95);
+      gh.addColorStop(0, 'rgba(0,0,0,1)');
+      gh.addColorStop(.62, 'rgba(0,0,0,.96)');
+      gh.addColorStop(1, 'rgba(12,6,24,0)');
+      ctx.beginPath(); ctx.ellipse(cx, cy, r * .95, r * .95 * k, 0, 0, 7);
+      ctx.fillStyle = gh; ctx.fill();
+      // 渦巻き（2周ぶん）。外へ行くほど明るく太く
+      const TURNS = 2.15, STEP = 64;
+      for (let i = 0; i < STEP; i++) {
+        const u0 = i / STEP, u1 = (i + 1) / STEP;
+        const a0 = u0 * Math.PI * 2 * TURNS, a1 = u1 * Math.PI * 2 * TURNS;
+        const d0 = r * (.10 + .78 * u0), d1 = r * (.10 + .78 * u1);
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(a0) * d0, cy + Math.sin(a0) * d0 * k);
+        ctx.lineTo(cx + Math.cos(a1) * d1, cy + Math.sin(a1) * d1 * k);
+        ctx.strokeStyle = 'rgba(198,180,255,' + (0.18 + 0.62 * u0).toFixed(3) + ')';
+        ctx.lineWidth = Math.max(0.8, r * (.05 + .11 * u0));
+        ctx.stroke();
+      }
+
+    } else if (gim === 'F-06') {
+      /*
+       * 突風＝**横線3本＋先端に小さい渦**（利用者指示）。天気図の風の記号に近い形。
+       * ★**長さを少しずつ変える。**3本そろえると、よくある「メニュー」の印に見える。
+       * ★**渦は真ん中の線の続き**として一筆で描き、**小さく**する。
+       *   大きく巻くと、この大きさでは線と渦がくっついて団子になる。
+       */
+      ctx.strokeStyle = 'rgba(255,255,255,.95)';
+      ctx.lineWidth = Math.max(1.2, r * .16);
+      const WIND = [[-0.98, 0.45], [-0.98, 0.55], [-0.98, 0.35]];
+      for (let i = 0; i < 3; i++) {
+        const y = cy + (i - 1) * r * .50 * k;
+        ctx.beginPath();
+        ctx.moveTo(cx + r * WIND[i][0], y);
+        ctx.lineTo(cx + r * WIND[i][1], y);
+        /*
+         * ★**3本とも先端を小さく巻き、巻きは線の「上」へ回す**（利用者指示）。
+         *   下へ回すと、すぐ下の線とぶつかって団子になる。
+         * ★巻きは**線の続き**として一筆で描く（離すと別の記号に見える）。
+         */
+        const ex = cx + r * WIND[i][1], r0 = r * .16;
+        for (let j = 1; j <= 16; j++) {
+          const a = -Math.PI / 2 + j / 16 * Math.PI * 1.5;
+          const rr = r0 * (1 - j / 16 * .30);
+          ctx.lineTo(ex + Math.cos(a) * rr, y - (1 + Math.sin(a)) * rr * k);
+        }
+        ctx.stroke();
+      }
+
+    } else if (gim === 'F-07') {
+      waterFace(cx, cy, r * .92, k);          // 水たまりと同じ絵の丸（利用者指示）
+    } else if (gim === 'F-08') {
+      iceFace(cx, cy, r * .92, k);            // 氷と同じ絵の丸（利用者指示）
+    }
+    ctx.restore();
+  }
+
+  /*
+   * ★**印に触れると名前を出す**（利用者指示）。記号だけでは何のことか読み取れないため。
+   *   マウスは載せるだけ、指は触れたところで出す。**盤の上に描く**ので、
+   *   2Dでも3D（構える段）でも同じ1か所で済む。
+   * ★**文言は i18n から取る**（`gim.F-01` など。4言語ぶんそろっている）。
+   */
+  function drawItemTip() {
+    const tip = S.itemTip;
+    if (!tip) return;
+    const name = t('gim.' + tip.gim);
+    if (!name) return;
+    ctx.save();
+    const fs = Math.max(12, Math.min(18, tip.r * 0.9));
+    ctx.font = '700 ' + fs.toFixed(0) + 'px system-ui, sans-serif';
+    const w = ctx.measureText(name).width + fs * 1.1;
+    const h = fs * 1.75;
+    // 印の上に出す。上に余地が無ければ下へ回す（端の口でも隠れない）
+    let bx = tip.x - w / 2;
+    let by = tip.y - tip.r * tip.ky - h - fs * 0.45;
+    if (by < 2) by = tip.y + tip.r * tip.ky + fs * 0.45;
+    bx = Math.max(2, Math.min(view.w - w - 2, bx));
+    const rr = h * 0.32;
+    ctx.beginPath();
+    ctx.moveTo(bx + rr, by);
+    ctx.arcTo(bx + w, by, bx + w, by + h, rr);
+    ctx.arcTo(bx + w, by + h, bx, by + h, rr);
+    ctx.arcTo(bx, by + h, bx, by, rr);
+    ctx.arcTo(bx, by, bx + w, by, rr);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(14,14,16,.88)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.fillStyle = '#f4f1ea'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(name, bx + w / 2, by + h / 2 + 1);
+    ctx.restore();
+  }
+
+  /*
+   * ★**アイテムを取ったら、名前を文字でポップ表示する**（利用者指示）。
+   *
+   * ★**盤の真ん中の知らせ（flash）とは別の場所に出す。**妨害モードでいちばん多いのは
+   *   **「ファウルしてでもアイテムを取りにいく」**場面（6.4.2節が意図している選び方）で、
+   *   そのときは反則の知らせと同時に出る。同じ場所を取り合うと、**どちらか一方しか見えない。**
+   * ★**記号と名前を並べて出す。**これが「どの記号が何か」を覚える場にもなる。
+   */
+  const ITEM_GOT_MS = 2400;
+  const ITEM_WARN_MS = 3000;          // 予告は少し長く出す（何が起きるか読む時間が要る）
+  function drawItemGot() { drawItemNote(S.itemGot, 'ev.itemGot', '#ffc46e', ITEM_GOT_MS, 'itemGot'); }
+  /*
+   * ★**予告は「受ける側」に出す**（6.4.7節）。
+   *   台の傾きのようにターン開始時に確定して維持されるものは、
+   *   知らされなければ「なぜ玉が思った方向へ転がらないのか」が分からない。
+   *   **何が起きているか分からないまま不利になるのは理不尽であって面白さではない。**
+   * ★★**取得した人が誰かは出さない**（6.4.7節）。妨害はアイテムの載った口を狙った
+   *   結果として自動的に発動するもので、**「誰を狙って撃つか」という意思を含まない。**
+   *   取得者を示すと、意思のない行為に報復の相手を与えることになる。
+   * ★**同じ種類が重なっていれば数を添える**（6.4.7節）。
+   */
+  function drawItemWarn() { drawItemNote(S.itemWarn, 'ev.itemWarn', '#ff9d7a', ITEM_WARN_MS, 'itemWarn'); }
+
+  function drawItemNote(got, headKey, tone, showMs, slot) {
+    if (!got) return;
+    const age = performance.now() - got.at;
+    if (age > showMs) { S[slot] = null; return; }
+    /*
+     * 出るときは素早く、消えるときはゆっくり。
+     * ★**必ず 0〜1 に収める。**外れた値を globalAlpha に入れても**代入が黙って無視され**、
+     *   直前の描画が残した薄さのまま描かれる（＝知らせが半透明で沈む）。
+     */
+    const a = Math.max(0, Math.min(1,
+      Math.min(1, age / 140) * Math.min(1, (showMs - age) / 420)));
+    const n = got.gims.length;
+    const fs = Math.max(13, Math.min(19, view.w * 0.030));
+    const mr = fs * 0.85;                       // 記号の大きさ
+    ctx.save();
+    ctx.font = '700 ' + fs.toFixed(0) + 'px system-ui, sans-serif';
+    ctx.textBaseline = 'middle';
+    /*
+     * ★**同じ種類が重なっていれば「×2」を添える**（6.4.7節）。
+     *   数が出ないと、揺れが2倍になっているのに理由が分からない。
+     */
+    const rows = got.gims.map(g0 => {
+      const id = (typeof g0 === 'string') ? g0 : g0.id;
+      const n = (typeof g0 === 'string') ? 1 : (g0.n || 1);
+      return { id: id, name: t('gim.' + id) + (n > 1 ? '  ×' + n : '') };
+    });
+    let wMax = 0;
+    for (const r0 of rows) wMax = Math.max(wMax, ctx.measureText(r0.name).width);
+    const head = t(headKey);
+    ctx.font = '600 ' + (fs * 0.82).toFixed(0) + 'px system-ui, sans-serif';
+    wMax = Math.max(wMax, ctx.measureText(head).width - mr * 2.6);
+    const w = wMax + mr * 2.6 + fs * 1.4;
+    const rowH = mr * 2.1;
+    const h = fs * 1.5 + rowH * n + fs * 0.7;
+    const bx = (view.w - w) / 2;
+    /*
+     * ★**盤の上の方に出すが、いちばん上ではない。**いちばん上には
+     *   「台のどこにでも置けます」などの案内が重なっていて、知らせの頭が隠れる（実機で確認）。
+     *   真ん中は反則の知らせ（flash）が使うので、その手前で止める。
+     */
+    const by = Math.max(6, view.h * 0.165);
+    ctx.globalAlpha = a;
+    const rr = fs * 0.7;
+    ctx.beginPath();
+    ctx.moveTo(bx + rr, by);
+    ctx.arcTo(bx + w, by, bx + w, by + h, rr);
+    ctx.arcTo(bx + w, by + h, bx, by + h, rr);
+    ctx.arcTo(bx, by + h, bx, by, rr);
+    ctx.arcTo(bx, by, bx + w, by, rr);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(16,16,18,.90)'; ctx.fill();
+    ctx.strokeStyle = tone; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = tone; ctx.textAlign = 'center';
+    ctx.fillText(head, bx + w / 2, by + fs * 0.85);
+    // 記号＋名前を1行ずつ
+    ctx.font = '700 ' + fs.toFixed(0) + 'px system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    for (let i = 0; i < n; i++) {
+      const cy = by + fs * 1.5 + rowH * i + rowH / 2;
+      drawItemMark(bx + fs * 0.7 + mr, cy, mr, rows[i].id);
+      ctx.fillStyle = '#f4f1ea';
+      ctx.fillText(rows[i].name, bx + fs * 0.7 + mr * 2.4, cy + 1);
+    }
+    ctx.restore();
+  }
+
+  /**
+   * その画面の位置にアイテムの印があるか。**描いたときに控えた場所だけを見る。**
+   * 判定の式をここで作り直すと、印の置き方を直した日に見た目と触れる場所がずれる。
+   */
+  function itemSpotAt(px, py) {
+    const list = S.itemSpots;
+    if (!list || !list.length) return null;
+    for (const sp of list) {
+      const dx = (px - sp.x) / (sp.r * 1.25);
+      const dy = (py - sp.y) / (sp.r * sp.ky * 1.25 + 6);   // 3Dはつぶれるので触りしろを足す
+      if (dx * dx + dy * dy <= 1) return sp;
+    }
+    return null;
+  }
+
+  /*
    * 番号の下地の白い丸の半径。
    *
    * 白い丸には「最低 5px」という下限がある（4.2.4節の視認性の措置）。玉が小さい台では
@@ -2451,7 +2892,8 @@
      * 異常モードのブラックホール（6.6.4節）。**ポケットより先に描く**＝
      * 重なったときにポケットの口が穴の上に見える（口が見えていることが置き場所の条件・6.8.3節）。
      */
-    if (g.field) drawBlackHole(F.hole(g.field));
+    // ★**穴は1つとは限らない**（妨害で重ねて持つと増える。6.4.5節）。全部描く
+    if (g.field) for (const h of F.holes(g.field)) drawBlackHole(h);
     // ダイヤ（レール上の目印）。位置は外周の辺から決まる（形ごとの並べ書きはしない）
     ctx.fillStyle = 'rgba(255,240,215,.55)';
     const off = thick / s * .5;                 // 枠の帯の真ん中まで外へ出す
@@ -2461,6 +2903,27 @@
     }
 
     for (const p of table.pockets) drawPocket(p, s);
+    /*
+     * 妨害モードのアイテム（6.4.1節）。**取られた口には出さない**（6.4.2節）。
+     * 口を描いたあとに置く＝札が口に隠れない。
+     */
+    S.itemSpots = [];
+    if (g.field && g.field.mode === 'disturb') {
+      for (const p of table.pockets) {
+        const it = F.itemAt(g.field, p.id);
+        if (!it) continue;
+        // ★口に重ならない距離まで離し、記号は**大きめ**に（利用者指示。小さいと何の絵か読めない）
+        const q = toScreen(p.x + it.dx * p.r * 2.05, p.y + it.dy * p.r * 2.05);
+        const rr = Math.max(11, p.r * s * 1.18);
+        drawItemMark(q.x, q.y, rr, it.gim);
+        /*
+         * ★**触ったか判る場所は、描いた場所そのものを控える**（6.4.1節の印）。
+         *   当たり判定を別の式で作り直すと、印の置き方を直した日に
+         *   **見えている場所と触れる場所がずれる**（同じ表を2か所に持つのと同じ話）。
+         */
+        S.itemSpots.push({ gim: it.gim, x: q.x, y: q.y, r: rr, ky: 1 });
+      }
+    }
     /*
      * 異常モードのテレポートポケット（6.6.9節）。**ポケットの口の上に印を重ねる**
      * ＝どの口が繋がっているかは、口そのものを見て分かる必要がある。
@@ -2529,6 +2992,9 @@
     if (quake) { view.cx -= quake.y * s; view.cy += quake.x * s; }
     fadeBoardOverlays(view.mobile);   // 盤面に重ねた表示を、狙いにかぶるぶんだけ薄くする
     drawTiltMark(false);              // 傾きの矢印は端の常設なので、薄くしたあとに描く
+    drawItemGot();                    // アイテムを取った知らせ（盤の上の方。flash とは場所を分ける）
+    drawItemWarn();                   // これから何が起きるかの予告（6.4.7節）
+    drawItemTip();                    // アイテムの名前は最前面（触れている間だけ）
     if (S.elevAdjusting) drawElevOverlay();
   }
 
@@ -2617,16 +3083,16 @@
    */
   function drawIceMass(list, s) {
     // ① 縁を全部（このあと塗る面に隠れるので、内側の線は残らない）
-    ctx.strokeStyle = 'rgb(232,249,255)';
+    ctx.strokeStyle = ICE_EDGE;          // ★色は ICE_EDGE から。印と同じ1か所
     ctx.lineWidth = Math.max(1, 1.6 * s);
     for (const h of list) { golfBlobPath(h, s); ctx.stroke(); }
     // ② 面を全部（不透明。重ねても濃くならない）
     for (const h of list) {
       const c = golfBlobPath(h, s), r = h.r * s;
       const gr = ctx.createRadialGradient(c.x - r * .3, c.y - r * .3, r * .1, c.x, c.y, r * 1.1);
-      gr.addColorStop(0, 'rgb(244,252,255)');
-      gr.addColorStop(.6, 'rgb(206,236,246)');
-      gr.addColorStop(1, 'rgb(176,217,236)');
+      gr.addColorStop(0, ICE_FACE[0]);
+      gr.addColorStop(.6, ICE_FACE[1]);
+      gr.addColorStop(1, ICE_FACE[2]);
       ctx.fillStyle = gr; ctx.fill();
     }
     // ③ 割れ目は塊の内側だけに。線の向きは座標から決めるので、描き直しても踊らない
@@ -2634,7 +3100,7 @@
     ctx.beginPath();
     for (const h of list) golfBlobPath(h, s, true);
     ctx.clip();
-    ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineCap = 'round';
+    ctx.strokeStyle = ICE_CRACK; ctx.lineCap = 'round';
     for (const h of list) {
       const c = toScreen(h.x, h.y), r = h.r * s;
       ctx.lineWidth = Math.max(1, 1.1 * s);
@@ -2889,14 +3355,15 @@
         // 池＝崩れた輪郭の濃い青。深いほど暗くする
         const c = golfBlobPath(h, s);
         const gr = ctx.createRadialGradient(c.x, c.y, r * .1, c.x, c.y, r * 1.1);
-        gr.addColorStop(0, 'rgba(16,52,98,.96)');
-        gr.addColorStop(.7, 'rgba(40,102,166,.94)');
-        gr.addColorStop(1, 'rgba(96,166,218,.94)');
+        // ★色は WATER_FACE から取る。書き写すと、アイテムの印だけが古くなる
+        gr.addColorStop(0, WATER_FACE[0]);
+        gr.addColorStop(.7, WATER_FACE[1]);
+        gr.addColorStop(1, WATER_FACE[2]);
         ctx.fillStyle = gr; ctx.fill();
-        ctx.strokeStyle = 'rgba(200,235,255,.6)'; ctx.lineWidth = Math.max(1, 1.6 * s); ctx.stroke();
+        ctx.strokeStyle = WATER_EDGE; ctx.lineWidth = Math.max(1, 1.6 * s); ctx.stroke();
         // 水面のさざ波。輪郭の中だけに引く
         ctx.save(); ctx.clip();
-        ctx.strokeStyle = 'rgba(220,245,255,.35)'; ctx.lineWidth = Math.max(1, 1.2 * s);
+        ctx.strokeStyle = WATER_RIPPLE; ctx.lineWidth = Math.max(1, 1.2 * s);
         for (let k = -2; k <= 2; k++) {
           const y = c.y + k * r * 0.32;
           ctx.beginPath();
@@ -4089,6 +4556,31 @@
       ctx.beginPath(); ctx.ellipse(q.x, q.y, rr, rr * 0.45, 0, 0, 7); ctx.fillStyle = hg; ctx.fill();
     }
     /*
+     * 妨害モードのアイテム（6.4.1節）。★**3Dにも出す。**
+     *   3Dが出るのは構える段だけなので、ここに無いと
+     *   **「どの口にアイテムが載っているかを確かめてから狙う」ができない**
+     *   ＝妨害モードの判断そのものが成り立たない
+     *   （ブラックホールとテレポートを3Dにも出したのと同じ理由）。
+     */
+    S.itemSpots = [];
+    if (g.field && g.field.mode === 'disturb') {
+      for (const pk of table.pockets) {
+        const it = F.itemAt(g.field, pk.id);
+        if (!it) continue;
+        /*
+         * ★**3Dでは口から離す距離を2Dより大きく取る。**
+         *   3Dは台を寝かせて見るので縦が 0.45 倍につぶれ、**2Dと同じ 1.30 倍では
+         *   札が口の黒に重なって穴が見えなくなる**（実機で確認した）。
+         *   穴の黒を隠さないことは、ブラックホールとテレポートの印でも守っている決まりである。
+         */
+        const q = proj(pk.x + it.dx * pk.r * 3.60, pk.y + it.dy * pk.r * 3.60, 0);
+        if (!q) continue;
+        const rr = Math.max(9, scale * pk.r * 1.05 / q.z);
+        drawItemMark(q.x, q.y, rr, it.gim, 0.45);
+        S.itemSpots.push({ gim: it.gim, x: q.x, y: q.y, r: rr, ky: 0.45 });
+      }
+    }
+    /*
      * テレポートポケットの対（6.6.9節）。★**3Dにも出す。**
      *   3Dが出るのは構える段だけなので、ここに無いと
      *   「どの口が繋がっているかを確かめてから狙う」が成り立たない
@@ -4179,8 +4671,8 @@
      *   ここに出ていないと**穴の位置を確かめてから狙う**（6.8.6節）ができない。
      *   大きさは field の1か所からもらう。輪は透視投影で折れ線に落とす（ハウスと同じ手）。
      */
-    const hl3 = g.field ? F.hole(g.field) : null;
-    if (hl3) {
+    // ★**穴は1つとは限らない**（6.4.5節）。3Dでも全部出す
+    for (const hl3 of (g.field ? F.holes(g.field) : [])) {
       const ring3 = radius => {
         const pts = [];
         for (let i = 0; i < 48; i++) {
@@ -4327,6 +4819,7 @@
     drawTipPad();
     fadeBoardOverlays(false);         // 3Dのタイトルは帯の上なので玉では薄くしない
     drawTiltMark(true);
+    drawItemTip();                    // アイテムの名前は最前面（触れている間だけ）
     if (S.elevAdjusting) drawElevOverlay();
   }
 
@@ -4734,9 +5227,32 @@
   function placeOk(pt) { return RU.placeOk(S.game, pt); }
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
 
+  /*
+   * ★**アイテムの印に触れたら名前を出す**（利用者指示）。
+   *   マウスは載せるだけ、指は触れたところで出して少しのあいだ残す。
+   */
+  let itemTipTimer = null;
+  function showItemTip(sp, hold) {
+    S.itemTip = sp;
+    if (itemTipTimer) { clearTimeout(itemTipTimer); itemTipTimer = null; }
+    if (sp && hold) {
+      itemTipTimer = setTimeout(() => { S.itemTip = null; itemTipTimer = null; }, 1800);
+    }
+  }
+
   cv.addEventListener('pointerdown', e => {
     S.dropped = null;                    // 触ったら中央の知らせは畳む
     S.golfCard = null;                   // ホール成績のポップアップも同じ扱い
+    /*
+     * ★アイテムの印は**狙い・手玉置きより先に見て、当たったらそこで止める。**
+     *   印は口のすぐ脇にあるので、後ろに置くと「名前を見ようとして狙いが変わる」。
+     * ★**自分の手番でなくても出す。**どの口に何が載っているかは常に全員に見える（6.4.1節）。
+     */
+    if (S.game) {
+      const q0 = evPos(e);
+      const sp = itemSpotAt(q0.x, q0.y);
+      if (sp) { showItemTip(sp, true); e.preventDefault(); return; }
+    }
     if (!S.game || !isMyTurn() || S.demo) return;
     try { cv.setPointerCapture(e.pointerId); } catch (err) {}
     const p = evPos(e);
@@ -4755,7 +5271,18 @@
     e.preventDefault();
   });
   cv.addEventListener('pointermove', e => {
-    if (!S.drag) return;
+    if (!S.drag) {
+      /*
+       * 載せているだけのとき＝印の名前を出す／外れたら消す。
+       * ★指で触って出した名前は、ここで消さない（時間で消える）。
+       *   消すと、触った指がわずかに動いただけで名前が飛ぶ。
+       */
+      if (e.pointerType !== 'touch' && !itemTipTimer && S.game) {
+        const q = evPos(e);
+        S.itemTip = itemSpotAt(q.x, q.y);
+      }
+      return;
+    }
     const p = evPos(e);
     if (S.drag.kind === 'place') movePlace(p);
     else if (S.drag.kind === 'aim') moveAim(p);
@@ -4788,6 +5315,8 @@
   }
   cv.addEventListener('pointerup', endDrag);
   cv.addEventListener('pointercancel', endDrag);
+  // 盤から出たら名前は畳む（指で出したものは時間に任せる）
+  cv.addEventListener('pointerleave', () => { if (!itemTipTimer) S.itemTip = null; });
   cv.addEventListener('contextmenu', e => e.preventDefault());
 
   function movePlace(p) {
@@ -6851,6 +7380,6 @@
 
   if (DEBUG) {
     document.body.classList.add('debug');
-    window.BL = { S, E, RU, T, I, fire: fireShot, shootNow, beginTurn, startGame, finishShot, applyShot, draw2D, draw3D, drawElevPic, minElevFor, computeElevFan, placeOk, resizeBoard, show, showRoom, watchJumps, highestBall, startDemo, stepDemo, endGame, endGameSoon, buildSetup, mountSetup, onNetMsg, seatList, seatIndexOfMe };
+    window.BL = { S, E, RU, T, I, ctx, drawItemMark, fire: fireShot, shootNow, beginTurn, startGame, finishShot, applyShot, draw2D, draw3D, drawElevPic, minElevFor, computeElevFan, placeOk, resizeBoard, show, showRoom, watchJumps, highestBall, startDemo, stepDemo, endGame, endGameSoon, buildSetup, mountSetup, onNetMsg, seatList, seatIndexOfMe };
   }
 })();

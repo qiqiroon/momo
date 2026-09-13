@@ -16,6 +16,20 @@ const BilliardsAI = (() => {
 
   const E = BilliardsEngine, RU = BilliardsRules, T = BilliardsTable, F = BilliardsField;
 
+  /*
+   * ★**アイテムの載った口を狙う値打ち**（6.4節）。
+   *
+   *   妨害モードの判断は「得点になる口を狙うか、アイテムの載った口を狙うか」の二択で、
+   *   **どちらも取れる筋があるならそれがいちばん良い**という関係にある。
+   * ★**的球1個ぶん（140点）より少し軽くしてある。**同じくらいにすると、
+   *   9番を落として勝てる筋よりアイテムを選ぶことが起きる。
+   * ★**スクラッチ（-2000）は超えない。**仕様（6.4.2節）は
+   *   「スクラッチしてでも取りにいく」選び方を**人に残している**のであって、
+   *   AIに自分から反則を選ばせる決まりではない。
+   * ★付録B送りの値＝実際に遊ばせて詰めるもの。
+   */
+  const ITEM_VALUE = 110;
+
   /**
    * ★**狙う相手になるポケット。**
    *
@@ -400,13 +414,40 @@ const BilliardsAI = (() => {
     const byId = {}; w.balls.forEach(b => byId[b.id] = b);
     let firstHit = null, contact = false, cushionAfter = false;
     const pocketed = [], off = [];
+    // ★**どの口へ落ちたか**も控える。妨害モードでは「どの口か」が損得を変える（6.4.2節）
+    const pocketWhere = {};
+    let itemGain = 0;
     for (const ev of w.events) {
       if (ev.type === 'hit' && (ev.a === cue.id || ev.b === cue.id)) {
         if (!firstHit) firstHit = (ev.a === cue.id ? ev.b : ev.a);
         contact = true;
       } else if (ev.type === 'cushion' && contact) cushionAfter = true;
-      else if (ev.type === 'pocket') pocketed.push(ev.ball);
+      else if (ev.type === 'pocket') { pocketed.push(ev.ball); pocketWhere[ev.ball] = ev.pocket; }
       else if (ev.type === 'offtable') off.push(ev.ball);
+    }
+    /*
+     * ───────── 妨害モードのアイテム（6.4節）─────────
+     *
+     * ★**これが妨害モードの判断そのものである** ──
+     *   「得点になる口を狙うか、アイテムの載った口を狙うか」。
+     *   ここを数えないと、AIだけが**盤に見えているアイテムを一度も狙わない。**
+     * ★★**ファウルでも取れる**（6.4.2節）ので、**利益無効（foulish）の外**に置く。
+     *   無効になるのは「ルール上の得点」であって、アイテムは
+     *   **「玉の種類を問わず、ファウルを伴う投入でも取れる」**と定められている。
+     *   ここで消すと、仕様が意図した選び方（罰を承知で取りに行く）をAIだけが採れない。
+     * ★**同じ口に2球落ちても1つ**（先着1回。6.4.2節）。口ごとに1回だけ数える。
+     * ★**取れるのは、いま載っていて、まだ取られていない口だけ。**
+     *   盤面イベント層に聞く（itemAt）＝**画面と同じ1か所**を通す。
+     *   ここで「全部の口に載っている」と思い込むと、**取り終わった口を狙い続ける。**
+     */
+    if (game.field && game.field.mode === 'disturb') {
+      const seen = {};
+      for (const id of pocketed) {
+        const pid = pocketWhere[id];
+        if (pid == null || seen[pid]) continue;
+        seen[pid] = 1;
+        if (F.itemAt(game.field, pid)) itemGain += ITEM_VALUE;
+      }
     }
 
     let score = 0;
@@ -490,6 +531,8 @@ const BilliardsAI = (() => {
      */
     const foulish = (firstHit == null) || (legalIds && legalIds.indexOf(firstHit) < 0)
       || pocketed.indexOf(cue.id) >= 0 || off.length > 0;
+    // ★アイテムは**ファウルでも取れる**ので、利益無効を通さずそのまま足す（6.4.2節）
+    score += itemGain;
     let gain = 0;
     for (const id of pocketed) {
       const b = byId[id];

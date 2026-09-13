@@ -52,6 +52,21 @@ const BilliardsField = (() => {
   const PICK_MAX_APOCALYPSE = 5;        // 暫定。付録B.2節で詰める
 
   /*
+   * ───────── 妨害モードで使えるギミック（6.4.6節）─────────
+   *
+   * 8種のうち**6種だけ**が妨害の道具になる。番号シャッフル（F-11）と
+   * テレポートポケット（B-08）は、**書き換えた結果がその後の全員に残る**ので
+   * 「特定の1人に対して発動する」という妨害の定義を満たせない。
+   *
+   * ★**ここは仕様が決めた顔ぶれであって、実装が済んだかどうかではない。**
+   *   実際に選べるのは、これと `IDS`（実装済みの一覧）の重なりである（disturbPool）。
+   */
+  const DISTURB_OK = { 'F-01': 1, 'F-03': 1, 'F-05': 1, 'F-06': 1, 'F-07': 1, 'F-08': 1 };
+
+  /** 台の傾き。妨害では1ゲームに1つしか配らない（6.4.1節） */
+  const TILT_ID = 'F-03';
+
+  /*
    * ───────── 地震（F-01）─────────
    *
    * やることは1つだけ＝**転がっている玉へ、揺れの向きの行ったり来たりする加速度を足す**（6.6.2節）。
@@ -578,7 +593,7 @@ const BilliardsField = (() => {
     const T = BilliardsTable;
     const keep = holeKeepAway(field);
     const live = (balls || []).filter(b => b && b.state === 'live');
-    const terr = (field && field.game && field.game.terrain) || [];
+    const terr = terrain(field);
     const cx = (table.center && table.center.x) || 0;
     const cy = (table.center && table.center.y) || 0;
     // 第2・第3順位。どちらも緩めない
@@ -650,7 +665,30 @@ const BilliardsField = (() => {
   }
 
   /** いま台に開いている穴（画面と検査が見る）。無ければ null */
-  function hole(field) { return (field && field.turn && field.turn.hole) || null; }
+  /**
+   * 穴を n 個置く（6.4.5節。妨害で同じアイテムを重ねて持つと個数が増える）。
+   * ★**2つ目以降は、すでに置いた穴を「玉と同じように」避ける。**
+   *   重ねて置くと地平線が2重になり、どちらに吸われたのか分からない盤面になる。
+   */
+  function drawHoles(field, rng, table, balls, n) {
+    const out = [];
+    const cnt = Math.max(1, n | 0);
+    for (let i = 0; i < cnt; i++) {
+      // すでに置いた穴を、避けるべき玉として渡す（同じ判定を2つ書かない）
+      const avoid = (balls || []).concat(out.map(h => ({ x: h.x, y: h.y, state: 'live' })));
+      out.push(drawHole(field, rng, table, avoid));
+    }
+    return out;
+  }
+
+  function holes(field) { return (field && field.turn && field.turn.holes) || []; }
+  /*
+   * ★**穴は1つとは限らない。**妨害モード（6.4.5節）は、同じアイテムを2つ持っていれば
+   *   **穴が2つできる**と定めている。異常モードはいまのところ常に1つ。
+   *   画面・物理・検査の**すべてが holes() を通る**こと。
+   *   「1つ目だけ」を見る道が1本でも残ると、**その道でだけ2つ目の穴が働かない**。
+   */
+  function hole(field) { const h = holes(field); return h.length ? h[0] : null; }
 
   /**
    * この玉は穴へ落ちたか（6.8.5節）。engine の落球判定から呼ぶ。
@@ -659,10 +697,12 @@ const BilliardsField = (() => {
    * ★**空中の玉は落ちない**（引力も受けていない）。
    */
   function swallow(field, b, table) {
-    const h = hole(field);
-    if (!h || !b || b.z > 0.01) return false;
-    if (Math.hypot(b.x - h.x, b.y - h.y) >= HOLE.horizon) return false;
-    return !holeBlocked(table, b.x, b.y, h);
+    if (!b || b.z > 0.01) return false;
+    for (const h of holes(field)) {
+      if (Math.hypot(b.x - h.x, b.y - h.y) >= HOLE.horizon) continue;
+      if (!holeBlocked(table, b.x, b.y, h)) return true;
+    }
+    return false;
   }
 
   /*
@@ -829,6 +869,45 @@ const BilliardsField = (() => {
     };
   }
 
+  /**
+   * 妨害で出す地形（6.7.4節）。異常モードとは配置の条件が違う。
+   *
+   * | | 異常モード | 妨害モード |
+   * |---|---|---|
+   * | 出る時点 | ゲーム開始時 | **妨害を受けるターンの開始時** |
+   * | 消える | しない | **全球停止と同時** |
+   * | 個数 | 付録Bの値 | **アイテム1つにつき1箇所** |
+   * | 大きさ | 付録Bの値 | **盤面のおよそ1/3の面積** |
+   *
+   * ★**1/3 という大きさには理由がある。**妨害は1ターンで消えるので、
+   *   盤面の隅をかすめる程度では**避けて撞くだけで無効になる。**
+   *   1/3 あれば「踏むか、大きく迂回して不利な配置を選ぶか」の二択になる。
+   * ★**異種は重ならない**（6.7.1節の制約は妨害でも維持する）。
+   *   置き場所の判定は findSpot に任せる＝**異常モードと同じ1か所**を通す。
+   */
+  const DISTURB_SHARE = 1 / 3;          // 盤面に占める割合（6.7.4節）
+  function placeTerrainDisturb(field, rng, table) {
+    const T = BilliardsTable;
+    const pa = playArea(table);
+    const out = [];
+    ['F-07', 'F-08'].forEach(id => {
+      if (!field.has(id)) return;
+      const kind = TERRAIN_OF[id];
+      const n = stack(field, id);
+      // 1個あたりの半径。★台に入りきる大きさで頭打ちにする（輪郭ごと入ること）
+      const cap = pa.room / T.GOLF_BLOB_MAX;
+      const r0 = Math.min(cap, Math.sqrt(pa.area * DISTURB_SHARE / Math.PI));
+      for (let i = 0; i < n; i++) {
+        for (const f of PLACE_SHRINK) {
+          const r = r0 * f;
+          const spot = findSpot(rng, table, r, out, kind);
+          if (spot) { out.push({ kind, x: spot.x, y: spot.y, r, blob: true }); break; }
+        }
+      }
+    });
+    return out;
+  }
+
   /** ゲーム開始時に地形を配置する（6.7.1節）。異常モードは1ゲーム中これが変わらない */
   function placeTerrain(field, rng, table) {
     const out = [];
@@ -856,12 +935,32 @@ const BilliardsField = (() => {
   }
 
   /**
+   * ★**台の区画を作り直す。**
+   *
+   *   区画には2つの出どころがある ── ルールが置くもの（ゴルフの砂と池＝basePatches）と、
+   *   この層が置くもの（水たまり・氷）。**足し合わせるのはここ1か所だけ。**
+   *
+   * ★★**妨害モードの地形は「ターン開始」で生まれ、「全球停止」で消える。**
+   *   盤面を組んだときに1回作るだけでは、**画面には出るのに物理へ1ミリも届かない**
+   *   （実測で踏んだ。地形は1箇所置かれているのに区画は0個だった）。
+   *   だから**地形が変わりうる場所すべてでここを通す**
+   *   ＝盤面を組むとき（rules の makeWorld）・ターン開始・ショット開始（消える側）。
+   */
+  function syncPatches(field, table) {
+    if (!table) return;
+    table.patches = (table.basePatches || []).concat(patches(field));
+  }
+
+  /**
    * 台へ渡す区画（摩擦の違う場所）。engine はこれを見るだけで、地形の名前は知らない。
    * 難易度 apocalypse は**強度だけ**を引き上げる（6.2.5節）。
    */
   function patches(field) {
-    if (!field || !field.game.terrain) return [];
-    return field.game.terrain.map(h => {
+    // ★**terrain() を通す。**妨害モードの地形はターン側に居るので、
+    //   field.game.terrain を直に見ると**物理にだけ届かない**（見えるのに効かない）。
+    const list = terrain(field);
+    if (!list.length) return [];
+    return list.map(h => {
       const spec = TERRAIN[h.kind];
       const k = field.apocalypse ? spec.apo : 1;
       // 摩擦は0にできない（5.11.2節）。下限を置いて必ず正にする
@@ -886,9 +985,11 @@ const BilliardsField = (() => {
    */
   function floodedPockets(field, table) {
     const out = {};
-    if (!field || !field.game.terrain || !table.pockets) return out;
+    // ★terrain() を通す（妨害モードの地形はターン側に居る）
+    const list = field ? terrain(field) : [];
+    if (!list.length || !table.pockets) return out;
     const T = BilliardsTable;
-    field.game.terrain.forEach(h => {
+    list.forEach(h => {
       if (h.kind !== 'water') return;
       table.pockets.forEach(pk => {
         if (out[pk.id]) return;
@@ -1134,14 +1235,115 @@ const BilliardsField = (() => {
   function pickMax(difficulty) { return difficulty === 'apocalypse' ? PICK_MAX_APOCALYPSE : PICK_MAX; }
 
   /**
+   * そのギミックが**何個ぶん重なっているか**（6.4.5節）。
+   *
+   * 妨害モードで同じアイテムを2つ持っていれば、その数だけ効果が重なる。
+   * ★**重なり方はギミックによって違う。**
+   *   ・盤面に置かれるもの（ブラックホール・水たまり・氷）＝**個数**が増える
+   *   ・盤面全体へ一様に働くもの（地震・突風）＝**強度**が増す。回数は1回のまま
+   *   ・台の傾き＝**重ならない**（2つ目を配らないので、ここは常に1）
+   * ★異常モードは重なりを持たないので常に 1。
+   */
+  function stack(field, id) {
+    if (!field || !field.count) return 1;
+    return Math.max(1, field.count[id] || 1);
+  }
+
+  /**
+   * 妨害モードでアイテムになりうるギミック（6.4.6節）。
+   * **実装済みの一覧（available）と、妨害で使える6種の重なり**である。
+   * 片方だけを見ると「入っていないものが配られる」か「入っているのに配られない」になる。
+   */
+  function disturbPool(ctx) { return available(ctx).filter(id => DISTURB_OK[id]); }
+
+  /**
+   * ゲーム開始時に、各ポケットへアイテムを1つずつ配る（6.4.1節）。
+   *
+   * ★**全種類を一巡してから重複を許す。**ポケットは最大8個あるのに種類は6種しかないので、
+   *   重複そのものは避けられない。袋が空になったら詰め直す形にしてあるので、
+   *   偏らずに一巡ぶんが先に出る。
+   * ★**台の傾きだけは1ゲームに1つ。**2つ受けると2方向の傾きが合成されて
+   *   転がる向きが読めなくなる。**効果を丸めるのではなく、配る段階で2つ目を出さない。**
+   *   一巡の途中でまた選ばれたら、**他の5種のうち配置数の少ないもの**へ置き換える。
+   * ★**引く乱数の個数はポケットの数ぶんで固定**（ポケットは1ゲーム中変わらない）。
+   *   盤面の状態で個数が変わると、AIの読み・リプレイ・観戦で乱数列の進み方が食い違う。
+   */
+  function placeItems(rng, table, pool) {
+    const pockets = (table && table.pockets) || [];
+    if (!pockets.length || !pool.length) return [];
+    const items = [];
+    const count = {}; pool.forEach(id => { count[id] = 0; });
+    let bag = [];
+    let tilted = false;
+    for (const pk of pockets) {
+      if (!bag.length) bag = pool.slice();             // 一巡ぶんを詰め直す
+      let id = bag.splice(Math.floor(rng() * bag.length), 1)[0];
+      if (id === TILT_ID && tilted) {
+        // 配置数の少ないものへ。同数なら並び順で決める（乱数を足さない＝列を伸ばさない）
+        const alt = pool.filter(x => x !== TILT_ID)
+          .sort((a, b) => (count[a] - count[b]) || (pool.indexOf(a) - pool.indexOf(b)))[0];
+        if (alt) id = alt;
+      }
+      if (id === TILT_ID) tilted = true;
+      count[id]++;
+      /*
+       * ★**印を出す向きは `pocketMouth` からもらう**＝口のまわりで盤面が開いているほう。
+       *   「台の中心へ」で決めると、**ドーナツ型は中心が壁の中**にあり、
+       *   L字型では角の口の中心方向が壁を向くので、印が台の外や壁の中に出る。
+       *   向きは台の形だけから決まる（乱数を引かない）ので、どの道でも同じ場所に出る。
+       */
+      const m = pocketMouth(table, pk);
+      items.push({ pocket: pk.id, gim: id, by: null, dx: m ? m.dx : 0, dy: m ? m.dy : 0 });
+    }
+    return items;
+  }
+
+  /** そのポケットに載っているアイテム。取られた後は null（6.4.2節＝表示が消える） */
+  function itemAt(field, pocketId) {
+    if (!field || !field.items) return null;
+    for (const it of field.items) if (it.pocket === pocketId && it.by == null) return it;
+    return null;
+  }
+
+  /**
+   * そのポケットへ最初に落とした人がアイテムを得る（6.4.2節）。
+   * **先着1回だけ。**玉の種類は問わず、ファウルを伴っても手玉でも取れる。
+   * @returns {string|null} 取れたギミックID。取れなければ null
+   */
+  function takeItem(field, pocketId, seat) {
+    const it = itemAt(field, pocketId);
+    if (!it || seat == null) return null;
+    it.by = seat;
+    if (!field.held[seat]) field.held[seat] = [];
+    field.held[seat].push(it.gim);        // 所持数に上限は無い（6.4.4節）
+    return it.gim;
+  }
+
+  /** その席がいま持っているアイテム（6.4.4節）。手番が移った時点で全部発動する＝③で使う */
+  function heldOf(field, seat) {
+    return (field && field.held && field.held[seat]) ? field.held[seat].slice() : [];
+  }
+
+  /*
+   * ★**`has` は自分の `ids` を見る（閉じ込めた変数ではなく）。**
+   *   控え（snapshot）は Object.assign の浅い写しなので、閉じ込めた変数を見ていると
+   *   **控えのはずが「いまの顔ぶれ」を答える。**異常モードは顔ぶれが1ゲーム変わらないので
+   *   どちらでも同じだが、**妨害モードはターンごとに入れ替わる**ため、
+   *   ここを間違えると撞き直しが本番と一致しなくなる（D462 と同じ落とし穴）。
+   */
+  function hasOwnId(id) { return this.ids.indexOf(id) >= 0; }
+
+  /**
    * そのゲームで効くギミックを決める（6.5.3節・6.5.4節）。
-   * 異常モード以外は null を返す＝**この層は何もしない**＝通常モードの定義（5.3.2節）。
+   * 通常モードでは null を返す＝**この層は何もしない**＝通常モードの定義（5.3.2節）。
    *
    * @param {object} spec {mode, gimmicks[], random, difficulty, rule, hasPockets, rng}
    * @returns {object|null} 盤面イベント層の状態
    */
   function create(spec) {
-    if (!spec || spec.mode !== 'abnormal') return null;
+    if (!spec) return null;
+    if (spec.mode === 'disturb') return createDisturb(spec);
+    if (spec.mode !== 'abnormal') return null;
     const ctx = { rule: spec.rule, hasPockets: spec.hasPockets };
     const pool = available(ctx);
     if (!pool.length) return null;
@@ -1167,10 +1369,36 @@ const BilliardsField = (() => {
       mode: 'abnormal',
       ids,
       apocalypse: spec.difficulty === 'apocalypse',
-      has: id => ids.indexOf(id) >= 0,
+      has: hasOwnId,
       game: {},        // ゲーム開始時に決めたもの（地形・傾き）
       turn: {},        // ターン開始時に決めたもの（ブラックホール・テレポの対・シャッフル）
       shot: {},        // ショット開始時に決めたもの（地震の位相・突風）
+    };
+  }
+
+  /**
+   * 妨害モードの状態（6.4節）。
+   *
+   * ★**異常モードと決定的に違うのは「顔ぶれが最初に決まらない」こと。**
+   *   異常モードはゲーム開始時に選んだ数種が1ゲーム効き続けるが、
+   *   妨害は**アイテムを取った人の次の相手のターンにだけ**効く。
+   *   したがって `ids`（いま効いているもの）は**ターンごとに空から作り直す。**
+   *   いまは常に空＝**盤には出るが、まだ効かない**（発動は次の段でここへ入れる）。
+   * ★**ポケットが無い台では成立しない**（6.4.8節）。アイテムの置き場所が無い。
+   */
+  function createDisturb(spec) {
+    if (spec.hasPockets === false) return null;
+    const pool = disturbPool({ rule: spec.rule, hasPockets: spec.hasPockets });
+    if (!pool.length) return null;
+    return {
+      mode: 'disturb',
+      pool,            // このゲームでアイテムになりうる6種（6.4.6節）
+      ids: [],         // いま効いているもの。ターンごとに入れ替わる
+      items: [],       // ポケットに載っているアイテム（beginGame で配る）
+      held: {},        // 席ごとの持ち物（6.4.4節）。上限は無い
+      apocalypse: spec.difficulty === 'apocalypse',
+      has: hasOwnId,
+      game: {}, turn: {}, shot: {},
     };
   }
 
@@ -1179,6 +1407,42 @@ const BilliardsField = (() => {
    * どれも「盤面が止まっている時点」で呼ぶ。転がっている最中には呼ばない。
    * 第1段では中身が無い（口だけ通してある）。ギミックを足すたびにここへ書く。
    */
+
+  /**
+   * 妨害モード＝**このターンに何が効くか**を決める（6.4.3節・6.4.4節）。
+   *
+   * ★**効くのは「直前に撞いていた人が持っていたアイテム」で、相手は次に撞く1人だけ。**
+   *   取った時点では何も起きない。手番が移った瞬間に、持ち物が**全部まとめて**発動する。
+   *   使うタイミングは選べない（6.4.4節）＝妨害モードは
+   *   「読み合い」ではなく「どの口を狙うか」を選ぶゲームである。
+   * ★**連続得点中は発動しない。**同じ人が撞き続けている間は手番が移っていないので、
+   *   持ち物はそのまま貯まる。
+   * ★**同じターンで二度発動しない。**盤面を組み直す道（force）ではここが二度通るので、
+   *   発動した鍵を控えて見張る。二度通すと、1回ぶんのアイテムで2倍の効果が出る。
+   * ★3人以上でも**次に撞く1人だけ**が受ける（自分以外の全員には掛からない）。
+   */
+  function fireDisturb(field, ctx, key) {
+    const seat = (ctx && ctx.seat != null) ? ctx.seat : null;
+    if (field.firedKey === key) {
+      // すでにこの番で決めてある。顔ぶれを作り直さない（force の二度通り）
+      return;
+    }
+    field.firedKey = key;
+    const prev = (field.seat == null) ? null : field.seat;
+    field.ids = [];
+    field.count = {};
+    if (prev != null && seat != null && prev !== seat) {
+      const bag = field.held[prev] || [];
+      for (const id of bag) {
+        if (!field.count[id]) { field.ids.push(id); field.count[id] = 0; }
+        field.count[id]++;
+      }
+      field.held[prev] = [];
+    }
+    // 顔ぶれは並び順をそろえておく（予告表示と検査が読みやすい）
+    field.ids.sort((a, b) => ALL_IDS.indexOf(a) - ALL_IDS.indexOf(b));
+    if (seat != null) field.seat = seat;
+  }
 
   /** ゲーム開始時（1ゲーム中不変のもの＝水たまり・氷・台の傾き） */
   function beginGame(field, rng, ctx) {
@@ -1206,6 +1470,11 @@ const BilliardsField = (() => {
     if (field.has('F-06')) field.shot.gust = drawGust(rng);
     const table = ctx && ctx.table;
     if (!table) return;
+    /*
+     * 妨害モードのアイテムは**ゲーム開始時に各ポケットへ1つずつ**（6.4.1節）。
+     * ★ここでしか配らない。ターン開始時に配り直すと、取られた印が消えて先着1回が壊れる。
+     */
+    if (field.mode === 'disturb') field.items = placeItems(rng, table, field.pool);
     field.game.terrain = placeTerrain(field, rng, table);
     field.game.flooded = floodedPockets(field, table);
   }
@@ -1226,6 +1495,8 @@ const BilliardsField = (() => {
     field.turn = { key };
     const table = ctx && ctx.table;
     if (!table) return;
+    // ★妨害モードは、ここで**このターンに効くもの**を決める（6.4.3節）
+    if (field.mode === 'disturb') fireDisturb(field, ctx, key);
     /*
      * 玉は2つの出どころから来る ── 盤面を組んだ直後は組み上がった玉の配列、
      * 手番送りのときは今の盤面。**どちらも「玉が止まっている時点」である。**
@@ -1233,7 +1504,30 @@ const BilliardsField = (() => {
     const balls = (ctx && ctx.balls)
       || (ctx && ctx.game && ctx.game.world && ctx.game.world.balls)
       || [];
-    if (field.has('F-05')) field.turn.hole = drawHole(field, rng, table, balls);
+    /*
+     * ★**穴は個数ぶん置く**（6.4.5節）。異常モードは常に1つ、妨害は持っていた数だけ。
+     */
+    if (field.has('F-05')) {
+      field.turn.holes = drawHoles(field, rng, table, balls, stack(field, 'F-05'));
+    }
+    /*
+     * ★**妨害モードの傾きと地形は「そのターンだけ」**（6.4.6節・6.7.4節）。
+     *   異常モードはゲーム開始時に1回引いて1ゲーム維持するので、ここでは引かない。
+     * ★**地形を先に置いてから穴を置く**のではなく、穴のあとに置く ──
+     *   穴の置き場所は地形を避けるが、**その逆は求められていない**（6.8.3節は
+     *   穴の側だけに順位を定めている）。順を変えると、避ける向きが逆になる。
+     */
+    if (field.mode === 'disturb') {
+      if (field.has('F-03')) {
+        const kk = Math.floor(rng() * TILT.dirs) % TILT.dirs;
+        field.turn.tilt = { k: kk, dir: kk * Math.PI * 2 / TILT.dirs, dirs: TILT.dirs };
+      }
+      field.turn.terrain = placeTerrainDisturb(field, rng, table);
+      field.turn.flooded = floodedPockets(field, table);
+      // ★このターンで**最初のショット**が終わるまでが、地形と穴の寿命（6.4.6節）
+      field.turn.liveShot = null;
+      syncPatches(field, table);       // ★物理へ届かせる（見えているだけにしない）
+    }
     if (field.has('B-08')) field.turn.warp = drawWarp(field, rng, table, ctx && ctx.reserved);
     /*
      * ★**番号シャッフルは最後に置く。**ここだけが玉そのものを書き換えるので、
@@ -1307,6 +1601,26 @@ const BilliardsField = (() => {
   /** ショット開始時（そのショットだけのもの＝地震の向き・突風の向きと遅れ） */
   function beginShot(field, rng, ctx) {
     if (!field) return;
+    /*
+     * ★**妨害で出した地形と穴は、全球停止と同時に消える**（6.4.6節・6.7.4節）。
+     *   「全球停止」を知らせてもらう形にはしない ── 盤面を進める道は5本あるので、
+     *   どれか1本で知らせ忘れれば、その道だけ地形が残る。
+     *   代わりに**ここ（ショット開始は1か所しかない）で「2撞き目に入った」ことを見る。**
+     *   ターン開始の1撞きが終わって次を撞くなら、前の撞きはもう止まっている。
+     * ★地震と突風は**そのターンの毎ショット**なので消さない（6.4.6節の表）。
+     * ★傾きは**ターン中維持**なので消さない。
+     */
+    if (field.mode === 'disturb' && field.turn) {
+      const sn = (ctx && ctx.shotNo != null) ? ctx.shotNo : null;
+      if (field.turn.liveShot == null) field.turn.liveShot = sn;
+      else if (sn !== field.turn.liveShot) {
+        field.turn.terrain = [];
+        field.turn.flooded = [];
+        field.turn.holes = [];
+        // ★消えたことも物理へ届かせる。ここを忘れると**絵は消えたのに滑り続ける**
+        syncPatches(field, (ctx && ctx.game && ctx.game.table) || (ctx && ctx.table));
+      }
+    }
     field.shot = {};
     if (field.has('F-01')) field.shot.quake = drawQuake(rng);
     if (field.has('F-06')) field.shot.gust = drawGust(rng);
@@ -1378,7 +1692,8 @@ const BilliardsField = (() => {
   function quakeLevel(field, shotTick, rolling, sec) {
     const q = field && field.shot && field.shot.quake;
     if (!q) return 0;
-    const amp = QUAKE.amp * (field.apocalypse ? QUAKE.apo : 1);
+    // ★重なったぶんだけ振幅が増す（6.4.5節）。**揺れる回数は1回のまま**
+    const amp = QUAKE.amp * (field.apocalypse ? QUAKE.apo : 1) * stack(field, 'F-01');
     const base = QUAKE.ambient * quakeWander(sec);
     if (!rolling) return amp * base;
     // ★刻みの長さは engine の値をそのまま借りる。ここに 1/480 を書き写すと、
@@ -1464,11 +1779,15 @@ const BilliardsField = (() => {
      *   停止判定（engine の STOP_V）が静止摩擦の役をしていて、
      *   引力が弱ければ足した速度はその刻みの末尾で0へ戻される（holeKeepAway の注記）。
      */
-    const hl = hole(field);
-    if (hl && b.z <= 0.01) {
-      const dx = hl.x - b.x, dy = hl.y - b.y;
-      const d = Math.hypot(dx, dy);
-      if (d > 1e-6) {
+    /*
+     * ★**穴が2つ以上あるときは、両方から引かれる**（6.4.5節）。
+     *   近いほうだけを見ると、2つの真ん中に居る玉がどちらへも動かない。
+     */
+    if (b.z <= 0.01) {
+      for (const hl of holes(field)) {
+        const dx = hl.x - b.x, dy = hl.y - b.y;
+        const d = Math.hypot(dx, dy);
+        if (d <= 1e-6) continue;
         const a = holeAccel(field, d);
         if (a > 0) {
           b.vx += dx / d * a * dt;
@@ -1515,7 +1834,9 @@ const BilliardsField = (() => {
         const s = gustAxis(gu, b.x, b.y);
         const vs = gustAxis(gu, b.vx, b.vy);          // 玉の、風の向きの速さ
         if (now >= s && now - GUST.front * dt < s - vs * dt) {
-          const v = GUST.speed * (field.apocalypse ? GUST.apo : 1) * gustVary(gu, b);
+          // ★重なったぶんだけ風速が増す（6.4.5節）。**吹く回数は1回のまま**
+          const v = GUST.speed * (field.apocalypse ? GUST.apo : 1) * stack(field, 'F-06')
+            * gustVary(gu, b);
           b.vx += gu.dx * v;
           b.vy += gu.dy * v;
           done = true;
@@ -1526,7 +1847,15 @@ const BilliardsField = (() => {
   }
 
   /** いま効いている傾き（画面が矢印を出すために見る）。無ければ null */
-  function tilt(field) { return (field && field.game && field.game.tilt) || null; }
+  /*
+   * ★**傾きと地形は、異常モードでは1ゲーム・妨害モードではそのターンだけ**（6.4.6節）。
+   *   置き場所を2つ（game と turn）に分け、**読むのはこの1か所**にする。
+   *   読む側を2通りに分けると、妨害で出した地形が画面に出ない道ができる。
+   */
+  function tilt(field) {
+    if (!field) return null;
+    return (field.turn && field.turn.tilt) || (field.game && field.game.tilt) || null;
+  }
 
   /**
    * いま台がどれだけ横へずれているか（mm）。画面を揺らすために見る。
@@ -1604,7 +1933,10 @@ const BilliardsField = (() => {
   }
 
   /** 画面が描くための地形の一覧（物理・ルールと同じものを見る） */
-  function terrain(field) { return (field && field.game.terrain) || []; }
+  function terrain(field) {
+    if (!field) return [];
+    return (field.turn && field.turn.terrain) || field.game.terrain || [];
+  }
   /** その点がいずれかの地形の中か。中なら地形を返す（音と演出が使う） */
   function terrainAt(field, x, y) {
     const list = terrain(field);
@@ -1615,10 +1947,11 @@ const BilliardsField = (() => {
   return {
     ALL_IDS, DOOR, IDS, PICK_MAX, TERRAIN, TILT, QUAKE, GUST, HOLE, SHUFFLE, WARP,
     CLOTH_SLIDE, CLOTH_ROLL,
-    blockOf, available, pickMax, create,
+    blockOf, available, pickMax, create, syncPatches,
+    DISTURB_OK, disturbPool, itemAt, takeItem, heldOf,
     beginGame, beginTurn, beginShot, snapshot, apply,
     patches, terrain, terrainAt, floodedPockets, tilt,
-    hole, holeAccel, holeKeepAway, holeBlocked, swallow,
+    hole, holes, holeAccel, holeKeepAway, holeBlocked, swallow, stack,
     shuffle, shuffleTargets, NUM_KEYS,
     warpPair, warpPartner, warp, pocketMouth,
     quakeLevel, quakeWander, quakeAccel, quakeShift, quakeJitter,

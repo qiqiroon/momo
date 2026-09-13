@@ -313,7 +313,8 @@ const BilliardsRules = (() => {
      * ここで足し合わせる。片方が他方を上書きすると、
      * 「ゴルフ型で異常モードを選ぶと氷が消える」といった食い違いになる。
      */
-    table.patches = (table.basePatches || []).concat(F.patches(game.field));
+    // ★足し合わせ方は field 側の1か所（syncPatches）に置いてある。ここで組み直さない
+    F.syncPatches(game.field, table);
     const o = Object.assign({}, opts || {}, { field: game.field || null });
     const w = E.createWorld(table, balls, game.tuning, o);
     /*
@@ -1219,6 +1220,7 @@ const BilliardsRules = (() => {
     let firstHit = null;
     let cushionAfterContact = false;
     const pocketed = [], offtable = [], pocketWhere = {};
+    const gotItems = [];        // 妨害モードでこのショットに取れたアイテム（6.4.2節）
     let contactSeen = false;
     const hitBalls = [];
     for (const ev of events) {
@@ -1236,6 +1238,20 @@ const BilliardsRules = (() => {
         pocketed.push(ev.ball);
         // ★**どのポケットへ落ちたか**も控える。ゴルフ型は指定ポケット以外を認めない（7.10.3節）
         pocketWhere[ev.ball] = ev.pocket;
+        /*
+         * 妨害モードのアイテム取得（6.4.2節）。**そのポケットへ最初に落とした人が取る。**
+         * ★**玉の種類は問わない。**手玉でも取れるし、**ファウルを伴う投入でも取れる**
+         *   ── これは意図された規定で、「スクラッチしてでもアイテムを取りにいく」という
+         *   選び方を残すためである。ここでファウルの有無を見てはいけない。
+         * ★**出来事の並び順のまま取る。**同じポケットへ2球落ちても先の1球だけが取り、
+         *   2球目は空振りになる（先着1回）。
+         * ★**取るのはここ1か所だけ。**AIの読み（ai.js）はこの裁定を通らないので、
+         *   読んだだけでアイテムが消えることはない。
+         */
+        if (game.field && game.field.mode === 'disturb') {
+          const got = F.takeItem(game.field, ev.pocket, game.turn);
+          if (got) gotItems.push(got);
+        }
       } else if (ev.type === 'offtable') {
         offtable.push(ev.ball);
       }
@@ -1333,6 +1349,8 @@ const BilliardsRules = (() => {
 
     game.lastFouls = fouls;
     game.lastPocketed = result.pocketed;
+    // 妨害モードでこの一撞きに取れたアイテム（6.4.2節）。画面が知らせに使う
+    result.gotItems = gotItems;
     game.shotNo++;
     /*
      * ★この一撞きでブレイクが済んだ。

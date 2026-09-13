@@ -198,6 +198,8 @@ const BilliardsI18N = (() => {
       'win.survival': '最後まで残って勝利',
       'msg.allOut': '全員が同時に脱落しました',
       'ev.svLost': '手玉を落としたため {n} 番を失いました',
+      'ev.itemGot': 'アイテムを取りました',
+      'ev.itemWarn': 'このターンに起きること',
       'ev.svOut': '{name} 脱落',
 
       'res.title': '結果', 'res.win': '勝ち', 'res.lose': '負け', 'res.rank': '順位',
@@ -466,6 +468,8 @@ const BilliardsI18N = (() => {
       'win.survival': 'Won as the last one standing',
       'msg.allOut': 'Everyone was knocked out at once.',
       'ev.svLost': 'Scratch: lost the {n} ball',
+      'ev.itemGot': 'Item taken',
+      'ev.itemWarn': 'What happens this turn',
       'ev.svOut': '{name} knocked out',
 
       'res.title': 'Result', 'res.win': 'Win', 'res.lose': 'Lose', 'res.rank': 'Place',
@@ -733,6 +737,8 @@ const BilliardsI18N = (() => {
       'win.survival': '坚持到最后获胜',
       'msg.allOut': '所有人同时被淘汰。',
       'ev.svLost': '母球落袋，失去 {n} 号球',
+      'ev.itemGot': '获得道具',
+      'ev.itemWarn': '本回合将发生',
       'ev.svOut': '{name} 被淘汰',
 
       'res.title': '结果', 'res.win': '胜', 'res.lose': '负', 'res.rank': '名次',

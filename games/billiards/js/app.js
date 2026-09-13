@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '1.99';               // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '2.00';               // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules, F = BilliardsField;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -168,7 +168,7 @@
     set('lbl-format', 'opt.format'); set('lbl-players', 'opt.players');
     set('lbl-aicount', 'opt.aiCount'); set('lbl-target', 'opt.target');
     set('lbl-time', 'time.title'); set('lbl-time-en', 'time.enable');
-    set('time-off-note', 'time.off'); set('lbl-mod-extra', 'time.other');
+    set('time-off-note', 'time.off'); set('lbl-mod-extra', 'axis.mod');
     set('lbl-tbase', 'opt.time.base'); set('lbl-tbank', 'opt.time.bank');
     set('u-sec', 'opt.sec'); set('u-min', 'opt.min');
     set('lbl-coop', 'coop.title'); set('lbl-limit', 'coop.limit'); set('u-shots', 'coop.shots');
@@ -221,6 +221,53 @@
     if (why) { const s = document.createElement('span'); s.className = 'why'; s.textContent = why; d.appendChild(s); }
     if (!dis) d.onclick = () => { AU.sfx('select'); onClick(); };
     return d;
+  }
+
+  /**
+   * 追加ルール（修飾子のうち、有る／無いだけで決まる2つ）を描く。D465・D466。
+   *
+   * ★**「押すと点く札」をやめて「有り／なし」の2択にした**（利用者指摘）。
+   *   札は**点いていない状態と選べない状態が見分けにくい** ── どちらも灰色に見える。
+   *   2択なら「なし側が選ばれている」と「そもそも押せない」が別々に見える。
+   * ★**標準のときも見出しごと出す**（D466。2.4.4節・8.2.1節）。
+   *   隠してしまうと、**特殊にすれば増えることが標準のままでは分からない。**
+   *   なし側を選んだ形で灰色にし、「特殊にすると選べます」と添える。
+   */
+  const MOD_ROWS = ['G-13', 'G-15'];
+  function buildModRows() {
+    const box = $('mod-rows'); if (!box) return;
+    box.innerHTML = '';
+    /*
+     * ★**灰色にする理由は1つに絞って添える。順番を間違えると嘘になる。**
+     *   「特殊にすると選べます」を先に出すと、**練習モードや、そもそも連鎖が働かない
+     *   ルールでも「特殊にすれば使える」と読めてしまう**（どちらも特殊にしても使えない）。
+     *   ★**先に modBlock を見る**＝練習モード・未実装・ルールによる無効が当てはまるなら
+     *   そちらを出し、**どれも当てはまらないときだけ**上位スイッチのせいにする。
+     */
+    MOD_ROWS.forEach(m => {
+      const why = modBlock(m) || (!visible('mod', m) ? t('why.specialOnly') : null);
+      const on = !!S.cfg.mods[m] && !why;
+      const row = document.createElement('div');
+      row.className = 'mod-row' + (why ? ' dis' : '');
+      const name = document.createElement('span');
+      name.className = 'mod-name'; name.textContent = t('mod.' + m);
+      const seg = document.createElement('div'); seg.className = 'seg';
+      [[true, 'sw.on'], [false, 'sw.off']].forEach(v => {
+        const b = document.createElement('button');
+        b.textContent = t(v[1]);
+        if (on === v[0]) b.classList.add('sel');
+        if (why) b.disabled = true;
+        else b.onclick = () => { AU.sfx('select'); S.cfg.mods[m] = v[0]; buildSetup(); };
+        seg.appendChild(b);
+      });
+      row.appendChild(name); row.appendChild(seg);
+      box.appendChild(row);
+      if (why) {
+        const w = document.createElement('div');
+        w.className = 'mod-why'; w.textContent = why;
+        box.appendChild(w);
+      }
+    });
   }
 
   /**
@@ -508,14 +555,7 @@
     $('time-off-note').style.display = timeOn ? 'none' : '';
     $('time-off-note').textContent = modOff ? t('why.practiceMod') : t('time.off');
     $('in-tbase').value = S.cfg.tbase; $('in-tbank').value = S.cfg.tbank;
-    // 「そのほかの追加ルール」は特殊のときだけ現れる（標準では上位スイッチが隠す）
-    const extras = ['G-13', 'G-15'].filter(m => visible('mod', m));
-    $('mod-extra').style.display = extras.length ? '' : 'none';
-    const od = $('opts-mod'); od.innerHTML = '';
-    extras.forEach(m => {
-      const why = modBlock(m);
-      od.appendChild(chip(t('mod.' + m), !!S.cfg.mods[m] && !why, !!why, why, () => { S.cfg.mods[m] = !S.cfg.mods[m]; buildSetup(); }));
-    });
+    buildModRows();
 
     [].forEach.call($('seg-scope').children, b => b.classList.toggle('sel', b.dataset.v === S.cfg.scope));
     $('scope-desc').textContent = t(S.cfg.scope === 'standard' ? 'sw.desc.standard' : 'sw.desc.special');

@@ -25,7 +25,9 @@ const BilliardsI18N = (() => {
       'sw.desc.special': '特殊：変わった台形状・特別ルール・妨害要素が選べるようになります',
 
       'axis.rule': 'ルール', 'axis.table': '台形状', 'axis.mode': 'モード',
-      'axis.mod': '修飾子', 'axis.diff': '難易度',
+      'axis.mod': '追加ルール', 'axis.diff': '難易度',
+      'sw.on': '有り', 'sw.off': 'なし',
+      'why.specialOnly': '「特殊」にすると選べます',
 
       'rule.G-01': 'ナインボール', 'rule.G-02': 'エイトボール',
       'rule.G-03': 'ポケット・ローテーション', 'rule.G-04': 'キャロム（四球）',
@@ -300,7 +302,9 @@ const BilliardsI18N = (() => {
       'sw.desc.special': 'Special: unusual table shapes, special rules and interference become selectable.',
 
       'axis.rule': 'Rule', 'axis.table': 'Table', 'axis.mode': 'Mode',
-      'axis.mod': 'Modifier', 'axis.diff': 'Difficulty',
+      'axis.mod': 'Extra rules', 'axis.diff': 'Difficulty',
+      'sw.on': 'On', 'sw.off': 'Off',
+      'why.specialOnly': 'Switch to Special to use this.',
 
       'rule.G-01': 'Nine-ball', 'rule.G-02': 'Eight-ball',
       'rule.G-03': 'Pocket Rotation', 'rule.G-04': 'Carom (four-ball)',
@@ -573,7 +577,9 @@ const BilliardsI18N = (() => {
       'sw.desc.special': '特殊：可选择异形球台、特别规则与干扰要素。',
 
       'axis.rule': '规则', 'axis.table': '球台', 'axis.mode': '模式',
-      'axis.mod': '修饰', 'axis.diff': '难度',
+      'axis.mod': '附加规则', 'axis.diff': '难度',
+      'sw.on': '有', 'sw.off': '无',
+      'why.specialOnly': '切换到「特殊」即可选择。',
 
       'rule.G-01': '九球', 'rule.G-02': '八球',
       'rule.G-03': '落袋轮转', 'rule.G-04': '开伦（四球）',

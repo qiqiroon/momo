@@ -2178,10 +2178,25 @@ const BilliardsRules = (() => {
    */
   function missionAgainSpend(game, r) {
     if (!game.missionOn || MISSION_BONUS[game.rule] !== 'again') return;
-    if (r.continueTurn || r.foul || !(game.missionAgain > 0)) return;
+    if (r.continueTurn || !(game.missionAgain > 0)) return;
     game.missionAgain--;
     r.continueTurn = true;
     r.againUsed = true;                    // 画面はこれを見て「権利で撞ける」と知らせる
+    if (!r.foul) return;
+    /*
+     * ★★**反則の一撞きでも、前に得ていた権利は使える**（D470・利用者指示）。
+     *   ★**その一撞きの課題は未達成のまま**（7.2.6節・8.5.8節）＝**権利は増えない。**
+     *     使えるのは**前に得ていたぶん**だけである。
+     *   ★実測＝手番が終わる一撞きの**3〜4割は反則**なので、反則を除くと
+     *     「失敗したのに使えない」場面がそれだけ生まれていた。
+     *
+     * ★**反則の罰（相手のフリーボール）は起きない**が、**自分も自由配置を得ない。**
+     *   罰をそのまま自分への利益に変えると、**反則そのものが得になる**（7.2.6節の趣旨に反する）。
+     *   スクラッチのときは手玉が復旧でヘッドスポットへ戻っているので、そこから撞く。
+     */
+    r.againFoul = true;
+    game.ballInHand = false;
+    game.ballInHandFull = false;
   }
 
   /**

@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '2.05';               // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '2.06';               // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules, F = BilliardsField;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -1569,9 +1569,15 @@
        *   下の「権利で撞ける」の知らせに一度も届かない（判定の結果は達成でなくても残るため）。
        */
       const mi = res.mission;
-      if (mi && (mi.done || mi.voided)) missionFlash(mi, res);
-      // 達成はしていないが、前に得た権利でもう1ショット撞けるとき（D469）
-      else if (res.againUsed) missionAgainFlash();
+      /*
+       * ★**順番に意味がある。**達成したときは達成の知らせ（ボーナス欄が「もう1ショット！」になる）。
+       *   達成していないのに手番が続くのは**前に得た権利を使ったとき**なので、
+       *   そのときは**権利の知らせを優先する**（反則で未達成だった場合も、
+       *   「なぜ手番が続くのか」のほうが先に要る。反則そのものは盤の中央に大きく出ている）。
+       */
+      if (mi && mi.done) missionFlash(mi, res);
+      else if (res.againUsed) missionAgainFlash(res);
+      else if (mi && mi.voided) missionFlash(mi, res);
       let msg = '';
       if (res.fouls.length) msg = res.fouls.map(f => t('foul.' + f)).join(' / ');
       if (res.message) msg = (msg ? msg + ' — ' : '') + t(res.message);
@@ -3413,12 +3419,17 @@
    * 「課題で得た権利で、もう1ショット撞ける」の知らせ（D469）。
    * ★**達成していない一撞きでも手番が続く**ので、**理由を出さないと何が起きたのか分からない。**
    */
-  function missionAgainFlash() {
+  function missionAgainFlash(res) {
     const box = $('mission-box');
     if (!box) return;
     if (S.misTimer) clearTimeout(S.misTimer);
     S.misTimer = setTimeout(() => { S.misTimer = null; clearMissionGlow(); }, MISSION_MS);
-    S.misShow = { ok: true, title: t('mis.b.again'), text: '', note: t('mis.againWhy') };
+    /*
+     * ★**反則の一撞きで使ったときは、そのことも1行に入れる**（D470）。
+     *   「反則したのに手番が続く」は、理由が出ていないと壊れて見える。
+     */
+    S.misShow = { ok: true, title: t('mis.b.again'), text: '',
+      note: (res && res.againFoul) ? t('mis.againFoul') : t('mis.againWhy') };
     box.classList.remove('done', 'void');
     void box.offsetWidth;
     renderMission();

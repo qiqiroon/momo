@@ -56,9 +56,6 @@ const BilliardsAI = (() => {
    * 一定のぶれを配置によらず加えると、難しい配置では当たり前に外れるのに、
    * 目の前の1個を落とすだけの場面でも同じだけ外して、わざとらしく見える。
    *
-   * scratchBlind は「手玉が落ちる危険を軽く見て撞いてしまう」割合。
-   * 手玉を落とす失敗は狙いが逸れる失敗より自然に見えるが、毎回だと目立つので混ぜる程度にする。
-   *
    * ★**ぶれの値は 2026-09-01 に3段階まとめて下げた。**
    *   実機から「AIが下手すぎる／相手の球を落とそうとしているように見えない」と指摘され、
    *   内訳を測って分かったことは**狙いは合っているということ**だった。
@@ -92,11 +89,11 @@ const BilliardsAI = (() => {
      *   ★**4分の1まで下げると easy と hard の区別が消える**（56%）。
      *     easy の弱さはぶれしか持っていないため。ここが下限である。
      */
-    easy: { cands: 8, aimNoise: 0.00175, powNoise: 0.035, simSec: 6, avoidScratch: 0.4, scratchBlind: 0.16,
+    easy: { cands: 8, aimNoise: 0.00175, powNoise: 0.035, simSec: 6, avoidScratch: 0.4,
             position: 0, powers: null },
-    hard: { cands: 14, aimNoise: 0.0010, powNoise: 0.02, simSec: 6, avoidScratch: 1.0, scratchBlind: 0.06,
+    hard: { cands: 14, aimNoise: 0.0010, powNoise: 0.02, simSec: 6, avoidScratch: 1.0,
             position: 0.6, powers: [0.24, 0.32, 0.42, 0.55] },
-    apocalypse: { cands: 20, aimNoise: 0.0004, powNoise: 0.01, simSec: 7, avoidScratch: 1.4, scratchBlind: 0.015,
+    apocalypse: { cands: 20, aimNoise: 0.0004, powNoise: 0.01, simSec: 7, avoidScratch: 1.4,
             position: 1.0, powers: [0.20, 0.26, 0.32, 0.40, 0.50, 0.62] },
   };
 
@@ -1577,13 +1574,26 @@ const BilliardsAI = (() => {
     if (game.rule === 'G-11') return bowlThink(game, playerIdx, done);
     const base = prof(game.difficulty);
     /*
-     * たまに「手玉の落ちる危険を軽く見る」一撞きを混ぜる。
-     * 手玉が落ちる失敗は、狙いが逸れる失敗より人がやる失敗らしく見えるが、
-     * 続くと目立つので、難易度ごとに決めた割合でだけ起こす。
-     * わざと落としに行くのではなく、危険の勘定を軽くするだけ＝読み違えとして落ちる。
+     * ★**ここで乱数を1つ引く。仕掛けはもう無いが、引くことだけ残してある。**
+     *
+     *   かつては「手玉の落ちる危険を軽く見る」一撞きを難易度ごとの割合で混ぜていた
+     *   （easy 16%／hard 6%／apocalypse 1.5%）。人がやる失敗らしさを出す狙いだったが、
+     *   **実測で一度も効いていなかった**ので外した（第67セッション・2026-09-19）。
+     *
+     *   ★効かない理由＝**手抜きの作り方が「減点の重みを下げる」だったこと。**
+     *   手玉が落ちる筋は、反則の筋なので**落球の得点を数えない**。つまり得点0に減点だけが付く。
+     *   落ちない筋は0点以上なので、**減点をどれだけ軽くしてもマイナスはマイナス**で順位が動かない。
+     *   重みを 0.4 → 0.15 にしても 0.01 にしても、落ちない筋が1つでもあればそちらが選ばれる。
+     *   ＝**「危ない手にも見返りがある」という前提が、別の決まりと食い違っていた。**
+     *   効かせるなら「減点を軽くする」ではなく「**落ちないつもりで読む**（その筋でも落球を数える）」
+     *   という別の作りが要る。ただしそれは手玉をわざと落としやすくする方向であり、
+     *   **「手玉が落ちるのは手抜きに見える」という利用者方針とは逆を向く。**
+     *
+     *   ★**引くのをやめてはいけない。**やめると**そこから先の乱数列の進み方が変わり**、
+     *   同じ種から違う対局になる（見送る回でも引く、という盤面側の決まりと同じ理由）。
      */
-    const careless = game.rng() < (base.scratchBlind || 0);
-    const p = careless ? Object.assign({}, base, { avoidScratch: 0.15 }) : base;
+    game.rng();
+    const p = base;
     const cands = buildCandidates(game, playerIdx, p);
     /*
      * ★**最初のふるい分けでは位置取りを見ない。**ここで落ちるのは「入りもしない筋」なので、

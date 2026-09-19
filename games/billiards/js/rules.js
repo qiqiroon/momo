@@ -476,6 +476,8 @@ const BilliardsRules = (() => {
       mode: game.mode, gimmicks: cfg.gimmicks, random: !!cfg.gimRandom,
       difficulty: game.difficulty, rule: cfg.rule, hasPockets: !!cfg.hasPockets,
       rng: game.rng,
+      // ★練習モードは通常モードでも器を作る（6.11節の手動発動の置き場。中身は空）
+      manual: !!cfg.manual,
     });
     F.beginGame(game.field, game.rng, { table, rule: cfg.rule });
     // 抜けている席から始めない。組み直しで離脱者を引き継いだときに起きる
@@ -3801,6 +3803,9 @@ const BilliardsRules = (() => {
     teamOf, teamMembers, teamList, teamScore, otherTeam,
     makeRng, createGame, setupBalls, cueBallOf, liveObjects, legalTargets, groupOf,
     spotBall, homeBall, place, placeOk, nearestPlace, kitchenLimit, resolveShot, nextTurn, breakValid, detectDoubleHit,
+    // ★練習モードの手動発動（6.11節）でテレポの対を選ぶときに要る。
+    //   **どのポケットに意味があるかを知っているのはルールだけ**なので、画面側では数えない
+    reservedPockets,
     finishRanking, normAngle,
     survivalGroups, survivalLeft, liveInGroup, SURVIVAL_COLORS, BREAK_VALID, DEADLOCK_WATCH, SOLO_OK,
     // カーリング型（7.9節）

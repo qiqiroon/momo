@@ -301,6 +301,41 @@ input[type=range]{accent-color:var(--orange-mid);}
 /* 残り5秒。数字だけだと気づけないので色でも出す */
 #time-box b.hot{color:var(--orange);}
 /*
+ * 練習モードの手動発動パネル（6.11節）。盤面の左下に重ねる。
+ * **盤を隠さないことを優先する** ── 半透明にし、見出しを押せば畳める。
+ * 畳んだ状態でも見出しは残す（どこにあるか分からなくなると開けない）。
+ */
+#prac-pop{display:none;position:absolute;left:10px;bottom:10px;z-index:5;width:min(300px,62%);
+  background:rgba(17,17,17,.62);border:1px solid var(--border-strong);border-radius:11px;
+  box-shadow:0 10px 28px rgba(0,0,0,.55);overflow:hidden;
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  text-shadow:0 1px 3px rgba(0,0,0,.9);transition:background .14s ease;}
+#prac-pop.on{display:block;}
+/* 指や矢印が乗っている間は下の盤をはっきり見せる（結果の窓と同じ考え方） */
+@media (hover:hover){
+  #prac-pop:hover{background:rgba(17,17,17,.14);backdrop-filter:none;-webkit-backdrop-filter:none;}
+}
+.pp-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:6px 11px;background:rgba(26,26,26,.5);border-bottom:1px solid var(--border);
+  font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--orange);
+  cursor:pointer;user-select:none;}
+.pp-fold{font-size:13px;transition:transform .15s ease;}
+#prac-pop.fold .pp-body{display:none;}
+#prac-pop.fold .pp-bar{border-bottom:none;}
+#prac-pop.fold .pp-fold{transform:rotate(-90deg);}
+.pp-body{padding:9px 10px 10px;}
+.pp-gims{display:grid;grid-template-columns:1fr 1fr;gap:5px;}
+.pp-g{font-size:11px;padding:6px 4px;line-height:1.25;}
+/* いま置き場所を待っているものは、押されたままに見せる */
+.pp-g.sel{border-color:var(--orange);color:var(--orange-light);background:rgba(251,146,60,.16);}
+.pp-g:disabled{opacity:.42;}
+.pp-move{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;cursor:pointer;}
+.pp-hint{margin-top:6px;font-size:11px;line-height:1.5;color:var(--text-muted);min-height:1.5em;}
+@media (max-width:760px){
+  #prac-pop{width:min(260px,74%);left:8px;bottom:8px;}
+  .pp-g{font-size:10px;}
+}
+/*
  * 結果のポップアップ。盤面の上に浮かせ、つまんで動かせる。
  * **背景は半透明**（利用者指示）。不透明だと、どういう終わり方をしたのかを
  * 確かめようにも盤が隠れてしまう。文字は影を付けて読める濃さを保つ。
@@ -837,6 +872,15 @@ body.debug #dbg{display:block;}
       <div id="flash" class="gone"><span id="flash-t"></span><span id="flash-w"></span></div>
       <!-- ?debug=1 のときだけ出す1フレームの内訳 -->
       <div id="dbg"></div>
+      <!-- 練習モードの手動発動（6.11節）。練習モード以外では出さない。見出しを押すと畳める -->
+      <div id="prac-pop">
+        <div class="pp-bar" id="pp-bar"><span id="pp-title"></span><span class="pp-fold">▾</span></div>
+        <div class="pp-body">
+          <div class="pp-gims" id="pp-gims"></div>
+          <label class="pp-move"><input type="checkbox" id="pp-move"><span id="pp-move-t"></span></label>
+          <div class="pp-hint" id="pp-hint"></div>
+        </div>
+      </div>
     </div>
 
     <div class="pane" id="ctrl-pane">

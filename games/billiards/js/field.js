@@ -1343,7 +1343,19 @@ const BilliardsField = (() => {
   function create(spec) {
     if (!spec) return null;
     if (spec.mode === 'disturb') return createDisturb(spec);
-    if (spec.mode !== 'abnormal') return null;
+    /*
+     * ★**練習モードは、通常モードでも器だけ作る**（6.11節の手動発動を受けるため）。
+     *   通常モードでは本来この層は null＝何もしないが、null のままだと
+     *   **手で起こしたものの置き場が無い。**
+     * ★**中身（ids）は空にしておく。**空なら自動では何も起きないので、
+     *   「通常モードでは何も起きない」という意味はそのまま保たれる。
+     * ★**器は玉を並べる前に作らなければならない。**あとから足すと
+     *   「盤面イベント層を知らない世界」が1つできる（rules の createGame の注記）。
+     */
+    if (spec.mode !== 'abnormal') {
+      if (!spec.manual) return null;
+      return { mode: 'practice', ids: [], apocalypse: false, has: hasOwnId, game: {}, turn: {}, shot: {} };
+    }
     const ctx = { rule: spec.rule, hasPockets: spec.hasPockets };
     const pool = available(ctx);
     if (!pool.length) return null;
@@ -1621,9 +1633,123 @@ const BilliardsField = (() => {
         syncPatches(field, (ctx && ctx.game && ctx.game.table) || (ctx && ctx.table));
       }
     }
+    /*
+     * ★**手で起こした地震・突風（6.11節）は、これから撞く1回のために置かれている。**
+     *   ここで入れ物を作り直すだけだと、**押した直後の一撞きで消えてしまう**
+     *   （押しても何も起きない＝手動発動が丸ごと死ぬ。実機で踏んだ）。
+     * ★**持ち越すのは1回だけ。**印（manual）は持ち越さないので、
+     *   次のショットではふつうに作り直される＝ショット限りという寿命は変わらない。
+     */
+    const carry = (field.shot && field.shot.manual) ? field.shot : null;
     field.shot = {};
+    if (carry) {
+      if (carry.quake) field.shot.quake = carry.quake;
+      if (carry.gust) field.shot.gust = carry.gust;
+    }
     if (field.has('F-01')) field.shot.quake = drawQuake(rng);
     if (field.has('F-06')) field.shot.gust = drawGust(rng);
+  }
+
+  /**
+   * ★**練習モードの手動発動（6.11節）。押された1種を、その場で盤面へ差し込む。**
+   *
+   * ★**`has()` を通さない。**効き目を出しているのは「選んだかどうか」ではなく
+   *   **盤面にその状態が入っているか**なので、状態を置けばそれだけで働く。
+   *   だから**選択画面で選んでいなくても、通常モードで遊んでいても**8種すべて起こせる
+   *   （6.11節「対象＝8種すべて」）。
+   *
+   * ★**差し込む層は、そのギミック本来の寿命に合わせる。**
+   *   ショット（地震・突風）／ターン（穴・テレポ・シャッフル）／ゲーム（傾き・地形）。
+   *   別の層へ置くと、**手で起こしたものだけ寿命が違う**ことになり、
+   *   「起こして確かめる」という練習モードの用を成さない。
+   *
+   * ★**呼ぶのは玉が止まっているときだけ**（乱数を引くため。案内書の決まり）。
+   *   止まっていないときに呼ぶかどうかは、呼ぶ側（画面）が見張る。
+   *
+   * @param {object}   field
+   * @param {function} rng   共有シードの乱数
+   * @param {object}   ctx   { table, balls, reserved }
+   * @param {string}   id    ギミックID
+   * @param {object}   at    置き場所。{x,y}＝穴・水たまり・氷／{a,b}＝ポケットの対（B-08）。
+   *                         無ければふだんどおり抽選する
+   * @return {boolean} 起こせたか
+   */
+  function fireManual(field, rng, ctx, id, at) {
+    if (!field) return false;
+    const table = (ctx && ctx.table) || null;
+    const balls = (ctx && ctx.balls) || [];
+    field.game = field.game || {};
+    field.turn = field.turn || {};
+    field.shot = field.shot || {};
+
+    // ★印を立てる。ショットの層は撞くたびに作り直されるので、印が無いと押した一撞きで消える
+    if (id === 'F-01') { field.shot.quake = drawQuake(rng); field.shot.manual = true; return true; }
+    if (id === 'F-06') { field.shot.gust = drawGust(rng); field.shot.manual = true; return true; }
+    if (id === 'F-03') {
+      const k = Math.floor(rng() * TILT.dirs) % TILT.dirs;
+      field.game.tilt = { k, dir: k * Math.PI * 2 / TILT.dirs, dirs: TILT.dirs };
+      return true;
+    }
+    if (id === 'F-05') {
+      if (!table) return false;
+      const list = (field.turn.holes || []).slice();
+      /*
+       * ★**指された場所には、玉と空ける距離を掛けない**（6.8.2節の下限は、
+       *   **抽選で置いたものが撞く前に玉を飲み込まない**ための決まりである）。
+       *   練習では「玉のすぐ隣に置いて吸われ方を見る」ことこそが用なので、
+       *   指された場所はそのまま使う。抽選で置くときは従来どおり避ける。
+       */
+      if (at && at.x != null) list.push({ x: at.x, y: at.y, manual: true });
+      else {
+        const avoid = balls.concat(list.map(h => ({ x: h.x, y: h.y, state: 'live' })));
+        list.push(drawHole(field, rng, table, avoid));
+      }
+      field.turn.holes = list;
+      return true;
+    }
+    if (id === 'F-07' || id === 'F-08') {
+      if (!table) return false;
+      const kind = TERRAIN_OF[id];
+      const pa = playArea(table);
+      // 大きさは妨害モードと同じ「盤面のおよそ1/3」（6.7.4節）。手で起こすのは1個ずつ
+      const cap = pa.room / BilliardsTable.GOLF_BLOB_MAX;
+      const r = Math.min(cap, Math.sqrt(pa.area * DISTURB_SHARE / Math.PI));
+      const out = (field.game.terrain || []).slice();
+      if (at && at.x != null) out.push({ kind, x: at.x, y: at.y, r, blob: true });
+      else {
+        let put = null;
+        for (const f of PLACE_SHRINK) {
+          const spot = findSpot(rng, table, r * f, out, kind);
+          if (spot) { put = { kind, x: spot.x, y: spot.y, r: r * f, blob: true }; break; }
+        }
+        if (!put) return false;
+        out.push(put);
+      }
+      field.game.terrain = out;
+      // ★**物理へ届かせる。**忘れると絵だけ出て摩擦が変わらない（見えるのに効かない）
+      syncPatches(field, table);
+      return true;
+    }
+    if (id === 'B-08') {
+      if (!table) return false;
+      if (at && at.a != null && at.b != null && at.a !== at.b) field.turn.warp = { a: at.a, b: at.b };
+      else {
+        const w = drawWarp(field, rng, table, ctx && ctx.reserved);
+        if (!w) return false;
+        field.turn.warp = w;
+      }
+      return true;
+    }
+    if (id === 'F-11') {
+      // ★**hold は渡さない**（「全員1巡してから」は対戦のための決まりで、手で起こす回には関わらない）
+      const s = drawShuffle(field, rng, balls, false);
+      if (!s) return false;
+      field.shuffleSeq = (field.shuffleSeq || 0) + 1;
+      s.seq = field.shuffleSeq;
+      field.turn.shuffle = s;
+      return true;
+    }
+    return false;
   }
 
   /**
@@ -1980,7 +2106,7 @@ const BilliardsField = (() => {
     CLOTH_SLIDE, CLOTH_ROLL,
     blockOf, available, pickMax, create, syncPatches,
     DISTURB_OK, disturbPool, itemAt, takeItem, heldOf,
-    beginGame, beginTurn, beginShot, snapshot, apply,
+    beginGame, beginTurn, beginShot, fireManual, snapshot, apply,
     patches, terrain, terrainAt, zoneOf, hasZones, floodedPockets, tilt,
     hole, holes, holeAccel, holeKeepAway, holeBlocked, swallow, stack,
     shuffle, shuffleTargets, NUM_KEYS,

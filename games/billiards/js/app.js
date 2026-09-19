@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '2.08';               // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '2.09';               // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules, F = BilliardsField;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -128,6 +128,8 @@
     // 陣取りで手番の頭に自分の色の玉を光らせる（表示だけ。決定論の外）
     flash: null,
     elevFan: null, elevAdjusting: false,
+    // 練習モードのパネル（6.11節）。pick＝いま置き場所を待っているギミック
+    prac: { pick: null, pockets: [], move: false, sig: '' },
     aimPreview: null, aimDirty: true,
     drag: null,
     placePos: null, pendingPlace: null,
@@ -212,6 +214,7 @@
     refreshServerStatus();
     buildHome();
     buildSetup();
+    buildPrac();                        // 練習モードのパネルも言葉を持つので一緒に作り直す
     if (S.screen === 'room') showRoom();
     renderHUD();
     renderRooms(S.net.lastRooms);
@@ -895,8 +898,11 @@
       chain: !!cfg.mods['G-13'] && cfg.format !== 'practice',
       // G-15 ミッション制（8.5節）。こちらも練習モードでは働かない（9.6.3節）
       mission: !!cfg.mods['G-15'] && cfg.format !== 'practice',
+      // ★練習モードは手動発動（6.11節）を受けるので、通常モードでも盤面イベント層の器が要る
+      manual: cfg.format === 'practice',
     });
     g.players.forEach(p => { if (cfg.rule === 'G-04') p.target = cfg.target; });
+    pracCancel();                        // 局をまたいで「置き場所を待っている」状態を持ち越さない
     /*
      * 先手はバンキングで決める（通信対戦・AI対戦のみ）。
      * ローカル対戦は同じ人が全員ぶんを操作するので、誰が先でも有利不利にならない。
@@ -5607,6 +5613,182 @@
     }
   }
 
+  // ══════════════════════════════════════════════
+  //  練習モードのパネル（6.11節・9.6.2節）
+  // ══════════════════════════════════════════════
+  /*
+   * ★**練習モードでだけ出す。**勝敗を争う場に出すと盤面を好きに変えられる。
+   * ★**玉が止まっているときだけ効く。**ギミックの抽選は共有シードから引くので、
+   *   転がっている最中に引くと決定論が壊れる（案内書の決まり）。
+   * ★**起こせるのは8種すべて。**選択画面で選んでいなくても、通常モードで遊んでいても出せる
+   *   （6.11節）。効き目は「選んだか」ではなく「盤面に状態が入っているか」で決まるため、
+   *   field 側へ差し込むだけで働く。
+   */
+  const PRAC_SPOT = { 'F-05': 1, 'F-07': 1, 'F-08': 1 };   // 置き場所を指してから起こすもの
+
+  function pracOn() { return S.cfg.format === 'practice'; }
+  /*
+   * ★**構える段（3D）は外す。**盤を上から見ていないので、タップした場所が台のどこかに結びつかない。
+   * ★**手玉を置く段（place）は入れる。**玉は止まっており、6.11節は「任意のタイミング」と定めている。
+   *   置き場所を待っていないあいだは盤のタップを横取りしないので、手玉の配置と喧嘩しない。
+   */
+  function pracReady() {
+    return !!S.game && (S.phase === 'aim' || S.phase === 'place') && E.allStopped(S.game.world);
+  }
+  function pracCancel() { S.prac.pick = null; S.prac.pockets = []; }
+
+  function buildPrac() {
+    const box = $('pp-gims');
+    if (!box) return;
+    box.innerHTML = '';
+    // ★並び順は field が持つ実装済みの一覧から取る。ここに手で並べ直さない
+    F.IDS.forEach(id => {
+      const b = document.createElement('button');
+      b.className = 'btn small pp-g';
+      b.dataset.gid = id;
+      b.textContent = t('gim.' + id);
+      b.onclick = () => pracPress(id);
+      box.appendChild(b);
+    });
+    $('pp-title').textContent = t('prac.title');
+    $('pp-move-t').textContent = t('prac.move');
+    S.prac.sig = '';
+    syncPrac();
+  }
+
+  function pracHintText(ready) {
+    if (!ready) return t('prac.wait');
+    if (S.prac.pick === 'B-08') return t('prac.pickPockets', { n: 2 - S.prac.pockets.length });
+    if (S.prac.pick) return t('prac.pickSpot', { name: t('gim.' + S.prac.pick) });
+    if (S.prac.move) return t('prac.moveHint');
+    return t('prac.hint');
+  }
+
+  function syncPrac() {
+    const pop = $('prac-pop');
+    if (!pop) return;
+    const on = pracOn() && S.screen === 'play' && !!S.game;
+    pop.classList.toggle('on', on);
+    if (!on) { pracCancel(); return; }
+    const ready = pracReady();
+    [].forEach.call($('pp-gims').children, b => {
+      b.disabled = !ready;
+      b.classList.toggle('sel', S.prac.pick === b.dataset.gid);
+    });
+    const mv = $('pp-move');
+    mv.disabled = !ready;
+    mv.checked = !!S.prac.move;
+    $('pp-hint').textContent = pracHintText(ready);
+  }
+
+  /*
+   * ★**毎コマ見て、変わったときだけ書き換える。**
+   *   「ここで畳む・ここで開く」を手で数え上げると、盤面が変わる道のどれか1本で
+   *   書き忘れて、その道だけ古い表示が残る（[[見張りは忘れたとき軽いほうへ]]）。
+   */
+  function pracTick() {
+    if (!pracOn() && !$('prac-pop').classList.contains('on')) return;
+    const sig = [S.screen, S.phase, !!S.game && E.allStopped(S.game.world),
+      S.prac.pick, S.prac.pockets.length, S.prac.move].join('|');
+    if (sig === S.prac.sig) return;
+    S.prac.sig = sig;
+    syncPrac();
+  }
+
+  function pracPress(id) {
+    if (!pracReady()) { syncPrac(); return; }
+    AU.sfx('button');
+    if (S.prac.pick === id) { pracCancel(); syncPrac(); return; }   // もう一度押したら取り消し
+    if (PRAC_SPOT[id] || id === 'B-08') { S.prac.pick = id; S.prac.pockets = []; }
+    else { pracCancel(); pracFire(id, null); }
+    syncPrac();
+  }
+
+  function pracFire(id, at) {
+    const g = S.game;
+    const ok = F.fireManual(g.field, g.rng, {
+      table: g.table, balls: g.world.balls, reserved: RU.reservedPockets(g),
+    }, id, at);
+    if (!ok) { flash(t('prac.failed'), 'warn'); return; }
+    S.aimDirty = true;
+    AU.sfx('select');
+    flash(t('prac.fired', { name: t('gim.' + id) }));
+  }
+
+  /** 触った先に居る玉（練習モードで玉をつまむ） */
+  function pracBallAt(p) {
+    const tp = toTable(p.x, p.y);
+    let best = null, bd = Infinity;
+    for (const b of S.game.world.balls) {
+      if (b.state !== 'live') continue;
+      const d = Math.hypot(b.x - tp.x, b.y - tp.y);
+      // 指は玉より太いので、画面上で 26px ぶんまでは掴めることにする
+      if (d < bd && d <= Math.max(b.r * 1.6, 26 / view.s)) { bd = d; best = b; }
+    }
+    return best;
+  }
+
+  /**
+   * つまんだ玉を動かす（9.6.2節「任意の位置へ自由に置ける」）。
+   * ★**玉どうしは重ねない。**重ねたまま撞くと、めり込みを解くために玉が弾け飛ぶ。
+   */
+  function pracMoveBall(b, p) {
+    const g = S.game;
+    const tp = toTable(p.x, p.y - 26);          // 指が玉を隠さないようずらす（4.11.2節）
+    let c = T.clampInside(g.table, tp.x, tp.y, b.r);
+    for (let k = 0; k < 6; k++) {
+      let moved = false;
+      for (const o of g.world.balls) {
+        if (o === b || o.state !== 'live') continue;
+        const dx = c.x - o.x, dy = c.y - o.y;
+        const d = Math.hypot(dx, dy), need = b.r + o.r;
+        if (d < need) {
+          const nx = d > 1e-6 ? dx / d : 1, ny = d > 1e-6 ? dy / d : 0;
+          c = { x: o.x + nx * need, y: o.y + ny * need };
+          moved = true;
+        }
+      }
+      c = T.clampInside(g.table, c.x, c.y, b.r);
+      if (!moved) break;
+    }
+    b.x = c.x; b.y = c.y;
+    b.vx = 0; b.vy = 0; b.vz = 0; b.z = 0;
+    S.aimDirty = true;
+  }
+
+  /** 盤を触ったときに練習モードが先に受け取るか。受け取ったら true */
+  function pracPointerDown(p) {
+    if (!pracOn() || !S.game || !pracReady()) return false;
+    if (S.prac.pick === 'B-08') {
+      const tp = toTable(p.x, p.y);
+      let best = null, bd = Infinity;
+      for (const pk of (S.game.table.pockets || [])) {
+        const d = Math.hypot(pk.x - tp.x, pk.y - tp.y);
+        if (d < bd && d <= pk.r * 2.4) { bd = d; best = pk; }
+      }
+      if (!best) return true;                      // 口を外した＝何もしない（取り消しにはしない）
+      if (S.prac.pockets.indexOf(best.id) < 0) S.prac.pockets.push(best.id);
+      if (S.prac.pockets.length >= 2) {
+        pracFire('B-08', { a: S.prac.pockets[0], b: S.prac.pockets[1] });
+        pracCancel();
+      }
+      syncPrac();
+      return true;
+    }
+    if (S.prac.pick) {
+      const tp = toTable(p.x, p.y);
+      pracFire(S.prac.pick, { x: tp.x, y: tp.y });
+      pracCancel();
+      syncPrac();
+      return true;
+    }
+    if (S.prac.move) {
+      const b = pracBallAt(p);
+      if (b) { S.drag = { kind: 'ball', ball: b }; pracMoveBall(b, p); return true; }
+    }
+    return false;
+  }
+
   cv.addEventListener('pointerdown', e => {
     S.dropped = null;                    // 触ったら中央の知らせは畳む
     S.golfCard = null;                   // ホール成績のポップアップも同じ扱い
@@ -5623,6 +5805,8 @@
     if (!S.game || !isMyTurn() || S.demo) return;
     try { cv.setPointerCapture(e.pointerId); } catch (err) {}
     const p = evPos(e);
+    // ★練習モードの手動発動・玉の移動は狙いより先に見る（後ろに置くと狙いが変わってしまう）
+    if (pracPointerDown(p)) { e.preventDefault(); return; }
     if (S.phase === 'place') { S.drag = { kind: 'place' }; movePlace(p); }
     else if (S.phase === 'revive') { S.drag = { kind: 'revive' }; moveRevive(p); }
     else if (S.phase === 'aim') { S.drag = { kind: 'aim' }; moveAim(p); }
@@ -5652,7 +5836,8 @@
       return;
     }
     const p = evPos(e);
-    if (S.drag.kind === 'place') movePlace(p);
+    if (S.drag.kind === 'ball') pracMoveBall(S.drag.ball, p);
+    else if (S.drag.kind === 'place') movePlace(p);
     else if (S.drag.kind === 'revive') moveRevive(p);
     else if (S.drag.kind === 'aim') moveAim(p);
     else if (S.drag.kind === 'tip') {
@@ -5875,6 +6060,7 @@
         if (E.allStopped(S.replayRun)) S.replayRun = null;
       }
       tickClock(dt);
+      pracTick();
       const t1 = DEBUG ? performance.now() : 0;
       if (S.replayRun) drawReplay();
       else if (S.phase === 'stance') draw3D();
@@ -7753,6 +7939,13 @@
     show('home');
   };
   $('btn-deadlock').onclick = () => { if (isMyTurn()) askDeadlock(); };
+  // 練習モードのパネル（6.11節）。畳むつまみと「玉を動かす」の入り切り
+  $('pp-bar').onclick = () => { AU.sfx('button'); $('prac-pop').classList.toggle('fold'); };
+  $('pp-move').onchange = e => {
+    S.prac.move = e.target.checked;
+    if (S.prac.move) pracCancel();      // 置き場所を待っている途中なら取り消す（両立しない）
+    syncPrac();
+  };
   // デモは設定の中に置いてある。押したら設定の窓を閉じてから始める（窓が写り込むため）
   $('btn-demo').onclick = () => { AU.sfx('button'); $('modal-settings').classList.remove('on'); startDemo(); };
   $('btn-replay').onclick = () => {

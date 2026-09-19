@@ -75,9 +75,29 @@ const BilliardsAI = (() => {
    *   難易度が逆転する。順序（easy ＞ hard ＞ apocalypse）は値そのものが担っている。
    */
   const PROFILE = {
-    easy: { cands: 8, aimNoise: 0.0035, powNoise: 0.07, simSec: 6, avoidScratch: 0.4, scratchBlind: 0.16 },
-    hard: { cands: 14, aimNoise: 0.0020, powNoise: 0.04, simSec: 6, avoidScratch: 1.0, scratchBlind: 0.06 },
-    apocalypse: { cands: 20, aimNoise: 0.0008, powNoise: 0.02, simSec: 7, avoidScratch: 1.4, scratchBlind: 0.015 },
+    /*
+     * ★★**強さの差は「判断」で作る。狙いのぶれでは作らない**（第66セッション・利用者方針）。
+     *   ★機械は正確に狙えるはずだと思われているので、**ぶれで弱さを作ると手抜きに見える。**
+     *
+     *   position … **次の一撞きの易しさ**（位置取り）をどれだけ重く見るか。上位ほど先を考える。
+     *   powers   … **手玉をどこへ運ぶかを選び直すときの強さの刻み。**
+     *              ★位置取りを評価に入れても、**手玉を運ぶ手段が無ければ効かない。**
+     *              もとは強さ2通り×撞点3通りしか無く、良い形が残るかはほぼ運だった。
+     *              **下位には持たせない**＝上手い側にできることを足す作り方にしてある。
+     *
+     *   ★**ぶれは前の半分にした。**判断で強弱がつくようになったので下げられた。
+     *     実測（AI対AI・各12局×3ルール）＝下げても上位の勝率は
+     *     easy対hard 80%／hard対apocalypse 67%／easy対apocalypse 83% と保たれ、
+     *     **手玉の落下は 5〜7% から 2〜3% へ半減**した。
+     *   ★**4分の1まで下げると easy と hard の区別が消える**（56%）。
+     *     easy の弱さはぶれしか持っていないため。ここが下限である。
+     */
+    easy: { cands: 8, aimNoise: 0.00175, powNoise: 0.035, simSec: 6, avoidScratch: 0.4, scratchBlind: 0.16,
+            position: 0, powers: null },
+    hard: { cands: 14, aimNoise: 0.0010, powNoise: 0.02, simSec: 6, avoidScratch: 1.0, scratchBlind: 0.06,
+            position: 0.6, powers: [0.24, 0.32, 0.42, 0.55] },
+    apocalypse: { cands: 20, aimNoise: 0.0004, powNoise: 0.01, simSec: 7, avoidScratch: 1.4, scratchBlind: 0.015,
+            position: 1.0, powers: [0.20, 0.26, 0.32, 0.40, 0.50, 0.62] },
   };
 
   /**
@@ -109,10 +129,17 @@ const BilliardsAI = (() => {
   }
 
   function pathBlocked(game, x1, y1, x2, y2, ignore, radius) {
+    return pathBlockedIn(game.world.balls, x1, y1, x2, y2, ignore, radius);
+  }
+  /*
+   * ★同じ判定を**撞いたあとの世界**でも使う（次の一撞きの易しさを見るため）。
+   *   写しを書かず1か所を通す。別々に書くと、読みの中でだけ別の基準になる。
+   */
+  function pathBlockedIn(balls, x1, y1, x2, y2, ignore, radius) {
     const dx = x2 - x1, dy = y2 - y1;
     const len = Math.hypot(dx, dy); if (len < 1e-6) return false;
     const ux = dx / len, uy = dy / len;
-    for (const b of game.world.balls) {
+    for (const b of balls) {
       if (b.state !== 'live') continue;
       if (ignore.indexOf(b) >= 0) continue;
       const ex = b.x - x1, ey = b.y - y1;
@@ -382,6 +409,82 @@ const BilliardsAI = (() => {
   }
 
   // ───────── 候補の評価（実際に撞いてみる） ─────────
+  /*
+   * ★★**次の一撞きがどれだけ易しく残るか**（位置取り。第66セッション）。0〜1 を返す。
+   *   撞いたあとの配置で、**次に狙える入れ筋のうちいちばん易しいもの**の質を測る。
+   *   ★**物理は回さない**（幾何だけ）。一手先を本当に撞かせると候補の数だけ二乗に効いて
+   *   実用にならない（1手の思考が何十秒にもなる）。
+   */
+  /*
+   * ★狙いを ±d だけ振って撞いてみて、**どちらかで手玉が落ちるか**を返す。
+   *   「ぶれても落ちにくい撞き方」を選ぶための物差し（第66セッション）。
+   */
+  function scratchesUnder(game, playerIdx, shot, d) {
+    const src = RU.cueBallOf(game, playerIdx);
+    if (!src) return false;
+    for (const off of [-d, d]) {
+      const w = E.cloneWorld(game.world);
+      const cue = w.balls.find(b => b.id === src.id);
+      if (!cue) continue;
+      w.events = [];
+      E.applyCue(cue, Object.assign({}, shot, { dir: shot.dir + off }));
+      E.runShot(w, 20);
+      for (const ev of w.events) {
+        if ((ev.type === 'pocket' || ev.type === 'offtable') && ev.ball === cue.id) return true;
+      }
+    }
+    return false;
+  }
+
+  function nextEase(game, playerIdx, w, cueId) {
+    const cue = w.balls.find(b => b.id === cueId);
+    if (!cue || cue.state !== 'live') return 0;
+    const rest = w.balls.filter(b => b.kind === 'object' && b.state === 'live');
+    if (!rest.length) return 0;
+    /*
+     * 次に狙える球。**撞いたあとの世界には裁定が通っていない**ので、ここは見当で絞る
+     * （番号順＝最小番号、エイトボール＝自分の組）。
+     * ★見当が外れても**評価が少しぼやけるだけ**で、反則にはつながらない。
+     */
+    let pool = rest;
+    if (game.rule === 'G-01' || game.rule === 'G-03') {
+      let min = Infinity;
+      for (const b of rest) if (b.num < min) min = b.num;
+      pool = rest.filter(b => b.num === min);
+    } else if (game.rule === 'G-02') {
+      const grp = game.players[playerIdx] ? game.players[playerIdx].group : null;
+      if (grp) {
+        const mine = rest.filter(b => RU.groupOf(b.num) === grp);
+        pool = mine.length ? mine : rest.filter(b => b.num === 8);
+      }
+    }
+    if (!pool.length) return 0;
+    const pockets = aimPockets(game);
+    let best = 0;
+    for (const tb of pool) {
+      for (const pk of pockets) {
+        const gg = ghostAim(cue, tb, pk);
+        if (!gg) continue;
+        if (pathBlockedIn(w.balls, cue.x, cue.y, gg.gx, gg.gy, [cue, tb], cue.r * 0.9)) continue;
+        if (pathBlockedIn(w.balls, tb.x, tb.y, pk.x, pk.y, [tb, cue], tb.r * 0.85)) continue;
+        if (pathCrossesWall(game.table, cue.x, cue.y, gg.gx, gg.gy, cue.r * 0.95)) continue;
+        if (pathCrossesWall(game.table, tb.x, tb.y, pk.x, pk.y, tb.r * 0.95)) continue;
+        const q = Math.cos(gg.cut) / (1 + gg.dist / 2500 + gg.objDist / 2500);
+        if (q > best) best = q;
+      }
+    }
+    return best;
+  }
+
+  /*
+   * 位置取りの重み。★**落球（140点）を覆さない大きさにする。**
+   *   覆すと「入る球を見送って形だけ整える」という、遊ぶ人に意味の分からない手を選ぶ。
+   *   位置取りが変えるのは**どの筋を選ぶか**であって、入れるかどうかではない。
+   */
+  const POS_W = 80;
+  // 手玉の運び先を選び直すときの撞点（候補づくりと同じ3つ）
+  const REFINE_TIPS = [{ x: 0, y: 0 }, { x: 0, y: 0.35 }, { x: 0, y: -0.35 }];
+
   function evaluate(game, playerIdx, shot, p) {
     const w = E.cloneWorld(game.world);
     const cueSrc = RU.cueBallOf(game, playerIdx);
@@ -585,6 +688,12 @@ const BilliardsAI = (() => {
         score += Math.max(0, 30 - near / 60);
       }
     }
+    /*
+     * ★★**次の一撞きの易しさ**（第66セッション）。上位の難易度にだけ効かせる（p.position）。
+     *   ★**ファウルになる筋には足さない。**手番が相手へ渡るので、
+     *     そこで残る「良い形」は自分のものにならない（7.2.6節の利益無効と同じ考え）。
+     */
+    if (p.position && !foulish) score += POS_W * p.position * nextEase(game, playerIdx, w, cue.id);
     return score;
   }
 
@@ -882,7 +991,14 @@ const BilliardsAI = (() => {
     }
     if (!pass.length) { restore(); return fallback; }
 
-    const pq = Object.assign({}, pf, { simSec: 2 });
+    /*
+     * ★★**置き場所を選ぶときは位置取りを見ない**（第66セッション）。
+     *   ここは**読む秒数を 2 秒に縮めてある** ── 手玉が落ちるかどうかは撞いてすぐ決まるからで、
+     *   **その時点では玉がまだ転がっている。**止まっていない盤面で「次の一撞きの易しさ」を
+     *   測っても意味を持たない（実測：星型の置き場所の検査が2本落ちた）。
+     *   ★**打ち切りを縮めた読みと、止まった形を見る評価は、同じ場所で使えない。**
+     */
+    const pq = Object.assign({}, pf, { simSec: 2, position: 0 });
     let pick = null;
     for (const s of pass) {
       RU.place(cue, s.c.x, s.c.y);
@@ -1469,6 +1585,11 @@ const BilliardsAI = (() => {
     const careless = game.rng() < (base.scratchBlind || 0);
     const p = careless ? Object.assign({}, base, { avoidScratch: 0.15 }) : base;
     const cands = buildCandidates(game, playerIdx, p);
+    /*
+     * ★**最初のふるい分けでは位置取りを見ない。**ここで落ちるのは「入りもしない筋」なので、
+     *   位置取りを見ても順位は変わらない。見るのは残った数本と、手玉の運び先を選ぶときだけ。
+     */
+    const pScan = p.position ? Object.assign({}, p, { position: 0 }) : p;
     let i = 0, cancelled = false;
     const scored = [];
 
@@ -1477,7 +1598,7 @@ const BilliardsAI = (() => {
       const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
       while (i < cands.length) {
         const s = cands[i++];
-        scored.push({ s, sc: evaluate(game, playerIdx, s, p) });
+        scored.push({ s, sc: evaluate(game, playerIdx, s, pScan) });
         const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
         if (now - t0 > 22) break;   // 1フレームに詰め込みすぎない
       }
@@ -1496,7 +1617,16 @@ const BilliardsAI = (() => {
      */
     const OFFS = [-0.028, -0.021, -0.014, -0.007, 0, 0.007, 0.014, 0.021, 0.028];
     function tune(cand, pp) {
-      const sc = OFFS.map(o => evaluate(game, playerIdx, Object.assign({}, cand, { dir: cand.dir + o }), pp));
+      /*
+       * ★★**狙いの微調整では位置取りを見ない**（第66セッション）。
+       *   ここが探しているのは「入る狙いが連続して並んでいる幅」である。
+       *   位置取りの点は狙いを少し振るだけで滑らかに変わるので、混ぜると
+       *   **入る幅が平らに見えなくなり、幅が潰れて紙一重の1点が選ばれる**
+       *   ＝腕がぶれた瞬間に外れる側へ寄る（実測：幅0の割合が 50%→74% へ増えた）。
+       *   ★**位置取りが決めるのは「どの筋か」であって「その筋のどこを狙うか」ではない。**
+       */
+      const pAim = pp.position ? Object.assign({}, pp, { position: 0 }) : pp;
+      const sc = OFFS.map(o => evaluate(game, playerIdx, Object.assign({}, cand, { dir: cand.dir + o }), pAim));
       const top = Math.max.apply(null, sc);
       /*
        * 同じだけ良い狙いが並んだら、**その並びの真ん中**を採る。
@@ -1512,7 +1642,9 @@ const BilliardsAI = (() => {
         if (j - k > bLen) { bLen = j - k; bi = Math.round((k + j) / 2); }
         k = j + 1;
       }
-      return { shot: Object.assign({}, cand, { dir: cand.dir + OFFS[bi] }), score: top };
+      const tuned = Object.assign({}, cand, { dir: cand.dir + OFFS[bi] });
+      // ★候補どうしを比べるときは位置取り込みの点で。下位（position 0）は今までと同じ値になる
+      return { shot: tuned, score: pp.position ? evaluate(game, playerIdx, tuned, pp) : top };
     }
 
     /** 仕上げ。狙いを決めてから、最後に腕のぶれを乗せる */
@@ -1524,7 +1656,57 @@ const BilliardsAI = (() => {
         const r = tune(c.s, p);
         if (!best || r.score > best.score) best = r;
       }
-      const shot = Object.assign({}, best ? best.shot : { dir: 0, power: 0.3, tipX: 0, tipY: 0, elev: 0 });
+      let shot = Object.assign({}, best ? best.shot : { dir: 0, power: 0.3, tipX: 0, tipY: 0, elev: 0 });
+      /*
+       * ★★**入る筋を決めたあと、手玉をどこへ運ぶかを選び直す**（上位のみ。第66セッション）。
+       *   ★**狙い（dir）は動かさない** ── 動かすと、入る幅の真ん中を選び直したことが無駄になる。
+       *   変えるのは**強さと撞点だけ**＝入る確からしさを保ったまま手玉の止まる場所を選ぶ。
+       *   ★**最後の1本にだけ行う。**候補すべてに掛けると読みが何倍にもなる。
+       *   ★これが**思考時間の主な増えぶん**でもある（実測：apocalypse のエイトボールで
+       *     3.9秒 → 6.5秒）。強さと待ち時間の交換になっている。
+       */
+      /*
+       * ★**ブレイクには掛けない**（第66セッション・検査が捕まえた）。
+       *   ブレイクはラックを散らす一手で、**強く撞くことそのものが目的**である。
+       *   運び先を選び直す口は**強さを 0.62 までの刻みから選ぶ**ので、通すと
+       *   **ブレイクの強さが 1.00 から 0.56 まで落ちた。**
+       *   そもそもブレイクの後に「次の一撞きの易しさ」を測る意味も薄い（盤が散る）。
+       */
+      if (p.position && p.powers && game.broken) {
+        /*
+         * ★★**ここだけは最後まで転がしてから見る**（simSec を伸ばす）。
+         *   ふだんの読みは 6〜7 秒で打ち切ってよい ── その範囲で決着がつく撞き方しか
+         *   候補に無かったからである。**ところがここでは強い撞き方（最大 0.62）を試す。**
+         *   強く撞くと玉は長く転がるので、**打ち切りの外で手玉が落ちるのが見えなくなる**
+         *   （実測：サバイバルの自由配置で手玉を落とす場面が1つ出た）。
+         *   ★**新しく決めた値が、別の決まりの前提を追い越した**形である。
+         *   玉が止まれば途中で切り上がるので、伸ばしても費用はほとんど増えない。
+         */
+        const pLong = Object.assign({}, p, { simSec: 20 });
+        const list = [{ s: shot, sc: evaluate(game, playerIdx, shot, pLong) }];
+        for (const pw of p.powers) {
+          for (const tp of REFINE_TIPS) {
+            const cand2 = Object.assign({}, shot, { power: pw, tipX: tp.x, tipY: tp.y });
+            list.push({ s: cand2, sc: evaluate(game, playerIdx, cand2, pLong) });
+          }
+        }
+        list.sort((a, b) => b.sc - a.sc);
+        /*
+         * ★★**腕のぶれに耐える撞き方を選ぶ**（第66セッション）。
+         *   手玉を運ぶために強く撞くほど、**同じ狙いでもぶれた瞬間に手玉が落ちやすくなる。**
+         *   点がいちばん高い一本をそのまま採ると、**紙一重で成り立っている撞き方**を選ぶ。
+         *   そこで上位3本だけ、**これから乗せるぶれと同じだけ狙いを左右へ振って試し撞き**し、
+         *   **どちらかで手玉が落ちる一本は見送る。**
+         *   ★見送る先が無ければ、いちばん点の高い一本に戻る（撞かないという選択は無い）。
+         *   費用は最大6回ぶんで、もとの読み（90〜120回）に対しては小さい。
+         */
+        const jig = p.aimNoise * hardnessOf(shot) * 2;
+        let chosen = null;
+        for (const c of list.slice(0, 3)) {
+          if (!scratchesUnder(game, playerIdx, c.s, jig)) { chosen = c.s; break; }
+        }
+        shot = chosen || list[0].s;
+      }
       /*
        * 腕のぶれ。**配置の難しさに比例させる**ので、
        * 目の前の1個を落とすだけの場面ではほとんど外さず、

@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '2.07';               // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '2.08';               // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules, F = BilliardsField;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -137,6 +137,8 @@
     net: {
       on: false, role: 'none', isHost: false, myPid: null, myIdx: -1, roster: [], lastRooms: [],
       wsOpen: false, wasClosed: false, ready: {}, sentCfg: null,
+      // 通信対戦へ入る前の自分の設定（9.5.3節の上書きから戻すための控え）。openLobby で取り直す
+      myCfg: null,
       maxPlayers: 2,       // 部屋の定員。開いた時点で決まり、あとから変えられない（仕様2.6節）
       gone: {},            // 対局の途中で抜けた人。待ち合わせで待ち続けないための控え
     },
@@ -502,7 +504,7 @@
         S.cfg.format = f;
         syncPlayers();
         if (f === 'online') { openLobby(); return; }
-        S.net.on = false;
+        leaveNet();
         show('setup');
       };
       box.appendChild(b);
@@ -6800,11 +6802,37 @@
     sel.value = String(S.net.maxPlayers);
   }
 
+  /**
+   * 通信対戦へ入る唯一の入口。
+   * ★ここで**自分の設定を控える。**部屋では主催者の設定が上書きするため（9.5.3節）、
+   *   控えておかないと、部屋を出たあともホストの設定のまま遊ぶことになる。
+   * ★**入るたびに取り直す**（「まだ控えが無ければ取る」形にすると、
+   *   2回目から古い値で戻すことになる）。
+   */
   function openLobby() {
+    S.net.myCfg = JSON.parse(JSON.stringify(S.cfg));
     show('lobby');
     NET.init({ version: APP_VER, onEvent: onNet });
     NET.refresh();
     refreshServerStatus();
+  }
+
+  /**
+   * 通信対戦から出る。**出る道は7本あるので、必ずここを通す。**
+   * 上書きされるのは**ゲストだけ**なので、戻すのもゲストのときだけ。
+   * 主催者が部屋の中で変えた設定は**その人自身の選択**なので、戻してはいけない。
+   * ★控えを取るのは openLobby（入口）、戻すのはここ（出口）＝**取る場所と消す場所を分ける。**
+   * ★控えは消さない。部屋を出入りするたびに戻せる必要があり、
+   *   入り直すたびに openLobby が取り直すので古くならない。
+   */
+  function leaveNet() {
+    S.net.on = false;
+    if (!S.net.myCfg || S.net.isHost) return;
+    // 遊び方（ひとりで／みんなで）は**いま選んでいるもの**が正しい。控えの側で上書きしない
+    const keep = S.cfg.format;
+    Object.assign(S.cfg, JSON.parse(JSON.stringify(S.net.myCfg)));
+    S.cfg.format = keep;
+    buildSetup();
   }
 
   function onNet(kind, d) {
@@ -6875,7 +6903,7 @@
        * （携帯の画面が消えて戻ったときに起きていた）。
        */
       NET.leave();
-      S.net.on = false;
+      leaveNet();
       // 追い出された（kicked）ときは戻らない。通信が切れただけなら入り直す
       const canRejoin = kind === 'disconnected' && !S.net.isHost && S.net.last;
       S.net.wantRejoin = canRejoin;
@@ -7658,8 +7686,8 @@
   // ══════════════════════════════════════════════
   //  ボタン結線
   // ══════════════════════════════════════════════
-  $('btn-lobby-back').onclick = () => { NET.leave(); S.net.on = false; show('home'); };
-  $('btn-room-leave').onclick = () => { NET.leave(); S.net.on = false; show('lobby'); };
+  $('btn-lobby-back').onclick = () => { NET.leave(); leaveNet(); show('home'); };
+  $('btn-room-leave').onclick = () => { NET.leave(); leaveNet(); show('lobby'); };
 
   [].forEach.call($('seg-scope').children, b => {
     b.onclick = () => {
@@ -7671,6 +7699,14 @@
         if (SPECIAL.shape[S.cfg.shape]) { S.cfg.shape = 'A-01'; S.cfg.carom = caromForRule(S.cfg.rule); S.cfg.tableChosen = true; }
         if (SPECIAL.mode[S.cfg.mode]) S.cfg.mode = 'normal';
         S.cfg.mods['G-13'] = false; S.cfg.mods['G-15'] = false;
+        /*
+         * ★ここで**撞球の癖を戻してはいけない**（2.2.2節）。
+         *   撞球の癖は5軸のいずれにも属さない独立した項目で、このスイッチの対象外である。
+         *   「標準へ戻す操作でも変更されない」と明記されているので、
+         *   難易度が easy へ戻っても癖は本格のまま残るのが正しい。
+         *   そのため **easy ＋ 本格** は起こりうる正当な組み合わせであり、
+         *   エイムラインはその組み合わせでも成り立たなければならない（4.6.3節）。
+         */
         if (SPECIAL.diff[S.cfg.diff]) S.cfg.diff = 'easy';
       }
       buildSetup();
@@ -7693,7 +7729,7 @@
 
   $('btn-start').onclick = () => {
     AU.sfx('button');
-    S.net.on = false;
+    leaveNet();
     startGame(newSeed(), null, null);
   };
   $('btn-setup-back').onclick = () => { AU.sfx('button'); show('home'); };
@@ -7713,7 +7749,7 @@
   $('btn-refresh').onclick = () => NET.refresh();
 
   $('btn-quit').onclick = () => {
-    if (S.net.on) { NET.leave(); S.net.on = false; }
+    if (S.net.on) { NET.leave(); leaveNet(); }
     show('home');
   };
   $('btn-deadlock').onclick = () => { if (isMyTurn()) askDeadlock(); };
@@ -7752,7 +7788,7 @@
      * **抜けることを土台へ伝えてから出る。**伝えずに画面だけ切り替えていたので、
      * 残った人からは、その人がまだ部屋に居るように見え続けていた。
      */
-    if (S.net.on) { castVote(VOTE_HOME); NET.leave(); S.net.on = false; }
+    if (S.net.on) { castVote(VOTE_HOME); NET.leave(); leaveNet(); }
     closeResult(); show('home');
   };
   $('lang-select').onchange = e => { I.setMode(e.target.value); applyLang(); };

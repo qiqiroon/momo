@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
-<!-- MOMO Fireworks v0.53 -->
+<!-- MOMO Fireworks v0.55 -->
 <html lang="ja">
 <head>
 <meta charset="utf-8">
@@ -113,6 +113,15 @@
     #barBody{gap:8px 10px;padding:8px 10px calc(8px + env(safe-area-inset-bottom))}
     select{min-width:92px;font-size:12px;padding:6px 8px}
     input[type=range]{width:74px}
+    #hint{display:none}
+  }
+  /* v0.55：携帯の横画面（Q123＝B）。帯は下に開くまま、項目を詰めて高さを半分ほどに抑える */
+  @media (orientation:landscape) and (max-height:500px){
+    #barBody{gap:4px 12px;padding:4px max(12px,env(safe-area-inset-right)) calc(4px + env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));align-items:center}
+    #barBody .fld{gap:1px}
+    #barBody .fld > label{font-size:10px;letter-spacing:.08em}
+    #barBody button,#barBody select{font-size:12px;padding:4px 8px}
+    #barBody input[type=range]{width:88px;height:16px;margin:0}
     #hint{display:none}
   }
 
@@ -335,7 +344,7 @@
       <circle cx="26" cy="21" r="2.6" fill="#fff7d6" stroke="#000" stroke-width="0.6"/>
     </g>
   </svg>
-  <div class="mh"><span class="mh-t">MOMO <b>Fireworks</b></span><span class="mh-s"><span id="mhSub">Night Blooms, Golden Fade</span><span class="mh-v" id="mhVer">v0.53</span></span></div>
+  <div class="mh"><span class="mh-t">MOMO <b>Fireworks</b></span><span class="mh-s"><span id="mhSub">Night Blooms, Golden Fade</span><span class="mh-v" id="mhVer">v0.55</span></span></div>
 </div>
 
 <div id="fps"><div id="fpsA"></div><div id="fpsB"></div></div>
@@ -349,7 +358,7 @@
 
 <!-- 2画面目：眺めながら触るもの（下に畳んだ帯） -->
 <div id="bar">
-  <div id="barBtns"><button id="barTog">操作 ▲</button><button id="back" data-i18n="back">設定に戻る</button></div>
+  <div id="barBtns"><button id="recenter" data-i18n="recenter">正面に戻す</button><button id="barTog">操作 ▲</button><button id="back" data-i18n="back">設定に戻る</button></div>
   <div id="barBody">
     <div class="fld">
       <label data-i18n="lbPlay">打ち上げ・自動</label>
@@ -441,6 +450,9 @@
     <div class="srow">
       <label class="mute" style="font-size:13px;color:var(--text)"><input type="checkbox" id="woChk" checked><span data-i18n="setWo">白飛び（カメラで撮ったような光のあふれ）</span></label>
     </div>
+    <div class="srow" id="gyroRow">
+      <label class="mute" style="font-size:13px;color:var(--text)"><input type="checkbox" id="gyroChk" checked><span data-i18n="setGyro">携帯の傾きで視線を動かす（花火を見るときに始める）</span></label>
+    </div>
     <div class="srow">
       <div class="srow-head"><span data-i18n="setRender">描き方</span></div>
       <select id="renderSel"><option value="gl">WebGL</option><option value="2d">2D</option></select>
@@ -520,7 +532,7 @@
         </g>
       </svg>
       <div class="title-block">
-        <h1><span class="momo">MOMO</span><span class="fireworks">Fireworks</span><span class="version-tag" id="version-tag">v0.53</span></h1>
+        <h1><span class="momo">MOMO</span><span class="fireworks">Fireworks</span><span class="version-tag" id="version-tag">v0.55</span></h1>
         <div class="subtitle" id="subtitle">Night Blooms, Golden Fade</div>
       </div>
     </header>
@@ -704,6 +716,8 @@
             設定に戻ったら空の花火と予約済みの音を消す。会場の響きを大げさに（繰り返すエコー・高音をさらに絞る・揺らぎを大きく））
    （v0.52：繰り返すエコーを半分に。操作の帯・歯車の設定が開いている間は左上の題字を透けなくする）
    （v0.53：1画面目の下の説明に音楽の花火を加える）
+   （v0.54：携帯の傾きで視線（Darts と同じ計算＋横画面の補正）、見ている間は画面を消さない、「正面に戻す」ボタン、尾の縞をなくす（つなぎ目を重ねず濃さをなめらかに））
+   （v0.55：携帯の横画面では操作の帯を詰めて高さを約半分に（Q123＝B））
    仕様書 hanabi_sim_spec_v2.00.md §3 に対応する実装。
 
    v0.01 からの主要変更（§3.8 参照）
@@ -803,7 +817,7 @@ const I18N = {
     setSe:'効果音',
     setBgm:'BGM',
     setMute:'ミュート',
-    setStat:'画面上の状態表示（fps など）', setWo:'白飛び（カメラで撮ったような光のあふれ）',
+    setStat:'画面上の状態表示（fps など）', setWo:'白飛び（カメラで撮ったような光のあふれ）', setGyro:'携帯の傾きで視線を動かす（花火を見るときに始める）',
     setRender:'描き方',
     setClose:'閉じる',
     musicTitle:'音楽を再生しますか？',
@@ -812,7 +826,7 @@ const I18N = {
     musicYes:'再生する',
     barOpen:'操作 ▲', barClose:'操作 ▼',
     lbPlay:'打ち上げ・自動', fire:'打上', quick:'即開花', autoStart:'自動を開始', autoStop:'自動を止める',
-    sndOn:'音を出す', sndOff:'音を止める', sndTog:'音の調整', back:'設定に戻る',
+    sndOn:'音を出す', sndOff:'音を止める', sndTog:'音の調整', back:'設定に戻る', recenter:'正面に戻す',
     lbDist:'観覧距離', lbPitch:'見上げ角', lbEye:'視点高さ', lbExpo:'光量', lbShk:'揺れ',
     lbMs:'計測', msBtn:'計測（M）', msStop:'計測を中止', msTitle:'計測結果', msCopy:'コピー', msClose:'閉じる',
     msCopied:'コピーしました', msCopyError:'文字を選択してコピーしてください',
@@ -881,7 +895,7 @@ const I18N = {
     setSe:'Sound effects',
     setBgm:'BGM',
     setMute:'Mute',
-    setStat:'On-screen status (fps etc.)', setWo:'Blown highlights (camera-like glow)',
+    setStat:'On-screen status (fps etc.)', setWo:'Blown highlights (camera-like glow)', setGyro:'Look around by tilting your phone (starts when the show opens)',
     setRender:'Renderer',
     setClose:'Close',
     musicTitle:'Play sound?',
@@ -890,7 +904,7 @@ const I18N = {
     musicYes:'Play',
     barOpen:'Controls ▲', barClose:'Controls ▼',
     lbPlay:'Launch, auto', fire:'Launch', quick:'Burst now', autoStart:'Start auto', autoStop:'Stop auto',
-    sndOn:'Sound on', sndOff:'Sound off', sndTog:'Sound tuning', back:'Back to settings',
+    sndOn:'Sound on', sndOff:'Sound off', sndTog:'Sound tuning', back:'Back to settings', recenter:'Face front',
     lbDist:'Viewing distance', lbPitch:'Look-up angle', lbEye:'Eye height', lbExpo:'Brightness', lbShk:'Camera shake',
     lbMs:'Measure', msBtn:'Measure (M)', msStop:'Stop measuring', msTitle:'Measurement results', msCopy:'Copy', msClose:'Close',
     msCopied:'Copied', msCopyError:'Please select the text and copy it',
@@ -959,7 +973,7 @@ const I18N = {
     setSe:'音效',
     setBgm:'BGM',
     setMute:'静音',
-    setStat:'画面状态显示（fps 等）', setWo:'过曝光晕（像相机拍摄的光溢出）',
+    setStat:'画面状态显示（fps 等）', setWo:'过曝光晕（像相机拍摄的光溢出）', setGyro:'倾斜手机来移动视线（观看烟花时开始）',
     setRender:'绘制方式',
     setClose:'关闭',
     musicTitle:'要播放声音吗？',
@@ -968,7 +982,7 @@ const I18N = {
     musicYes:'播放',
     barOpen:'操作 ▲', barClose:'操作 ▼',
     lbPlay:'发射·自动', fire:'发射', quick:'立即绽放', autoStart:'开始自动', autoStop:'停止自动',
-    sndOn:'开启声音', sndOff:'关闭声音', sndTog:'声音调节', back:'返回设置',
+    sndOn:'开启声音', sndOff:'关闭声音', sndTog:'声音调节', back:'返回设置', recenter:'回到正面',
     lbDist:'观赏距离', lbPitch:'仰角', lbEye:'视点高度', lbExpo:'亮度', lbShk:'晃动',
     lbMs:'测量', msBtn:'测量（M）', msStop:'停止测量', msTitle:'测量结果', msCopy:'复制', msClose:'关闭',
     msCopied:'已复制', msCopyError:'请选中文字后复制',
@@ -2913,6 +2927,7 @@ function update(dt){
 const glc = document.createElement('canvas');
 let gl=null, glOK=false, glWant=true, GLON=false, glNote='', gpuName='不明';
 let glKf=1, glClearNext=true, glBW=1, glBH=1;
+let P_TAIL=null, vaoTail=null, bufTail=null;   // v0.54：尾専用
 let P_LINE=null, P_SPR=null, P_FADE=null, P_SUB=null, P_COMP=null, P_BLOOM=null;
 let vaoLine=null, vaoSpr=null, vaoQuad=null, bufLine=null, bufSpr=null;
 let texT=null, texC=null, fbT=null, fbC=null;
@@ -2921,7 +2936,8 @@ const U={};                                   // uniform の位置
 /* 1フレームぶんの描画内容。LT/ST は残像バッファ T、LC/SC は発光点バッファ C へ */
 const LN_F=9, SP_F=8;                         // 線：x0,y0,x1,y1,幅,r,g,b,a ／ 点：x,y,半径,r,g,b,a,種類
 function GBuf(f){ return {f, a:new Float32Array(f*4096), n:0}; }
-const LT=GBuf(LN_F), LC=GBuf(LN_F), ST=GBuf(SP_F), SC=GBuf(SP_F);
+const LC_F=10;                                // v0.54：尾：x0,y0,x1,y1,幅,r,g,b,始点の濃さ,終点の濃さ
+const LT=GBuf(LN_F), LC=GBuf(LC_F), ST=GBuf(SP_F), SC=GBuf(SP_F);
 function gbufSlot(B){
   const o=B.n*B.f;
   if(o+B.f>B.a.length){ const na=new Float32Array(B.a.length*2); na.set(B.a); B.a=na; }
@@ -2987,6 +3003,36 @@ void main(){
   float x=clamp(lp.x,0.0,hl); float d=length(vec2(lp.x-x,lp.y));
   float cv=clamp(hw+0.5-d,0.0,1.0)*vc.a;
   o=vec4(vc.rgb*cv, cv);
+}`,['res']);
+
+  /* v0.54：尾。短い線をつないだ折れ線として描く。
+     v0.53 までは尾も上の線（両端が丸い）で描いていたため、つなぎ目で前後の丸い端が重なって明るい粒になり、
+     濃さも短い線ごとに一定で段になっていた（縞に見える）。
+     ここでは端を丸めず（つなぎ目では半画素ずつの傾斜が足して 1 になる）、濃さを始点→終点へなめらかに変える */
+  P_TAIL=glProg(`#version 300 es
+layout(location=0) in vec2 q;
+layout(location=1) in vec4 sg;
+layout(location=2) in float wd;
+layout(location=3) in vec4 col;
+layout(location=4) in float a1;
+uniform vec2 res;
+out vec2 lp; out float hl; out float hw; out vec3 vc; out vec2 va;
+void main(){
+  vec2 a=sg.xy, b=sg.zw, d=b-a; float L=length(d);
+  vec2 t=L>1e-4? d/L : vec2(1.0,0.0); vec2 n=vec2(-t.y,t.x);
+  float r=wd*0.5+1.0; float al=mix(-1.0, L+1.0, q.x);
+  vec2 p=a+t*al+n*(q.y*r);
+  lp=vec2(al,q.y*r); hl=L; hw=wd*0.5; vc=col.rgb/255.0; va=vec2(col.a,a1);
+  vec2 c=p/res*2.0-1.0; gl_Position=vec4(c.x,-c.y,0.0,1.0);
+}`,`#version 300 es
+precision highp float;
+in vec2 lp; in float hl; in float hw; in vec3 vc; in vec2 va; out vec4 o;
+void main(){
+  float cw=clamp(hw+0.5-abs(lp.y),0.0,1.0);
+  float cl=clamp(lp.x+0.5,0.0,1.0)*clamp(hl-lp.x+0.5,0.0,1.0);
+  float a=mix(va.x,va.y,clamp(lp.x/max(hl,1e-4),0.0,1.0));
+  float cv=cw*cl*a;
+  o=vec4(vc*cv, cv);
 }`,['res']);
 
   /* 点：v0.21 のスプライトのグラデーションを、同じ区切りの折れ線としてその場で計算する */
@@ -3083,6 +3129,8 @@ void main(){
   }
   bufLine=gl.createBuffer(); bufSpr=gl.createBuffer();
   vaoLine=vao([0,-1, 1,-1, 0,1, 1,1], bufLine, [4,1,4], LN_F);
+  bufTail=gl.createBuffer();
+  vaoTail=vao([0,-1, 1,-1, 0,1, 1,1], bufTail, [4,1,4,1], LC_F);   // v0.54：尾
   vaoSpr =vao([-1,-1, 1,-1, -1,1, 1,1], bufSpr, [3,4,1], SP_F);
   vaoQuad=vao([-1,-1, 1,-1, -1,1, 1,1], null);
 
@@ -3177,7 +3225,7 @@ function glDraw(add){
   Q.useProgram(P_SPR);  Q.uniform2f(P_SPR.u.res,W,H);  drawBatch(P_SPR,vaoSpr,bufSpr,ST);
   // 発光点バッファ C：毎フレーム消去 → 尾・Core＋Halo・白熱部を加算
   Q.bindFramebuffer(Q.FRAMEBUFFER,fbC); Q.clearColor(0,0,0,0); Q.clear(Q.COLOR_BUFFER_BIT);
-  Q.useProgram(P_LINE); drawBatch(P_LINE,vaoLine,bufLine,LC);
+  Q.useProgram(P_TAIL); Q.uniform2f(P_TAIL.u.res,W,H); drawBatch(P_TAIL,vaoTail,bufTail,LC);   // v0.54：尾は専用の描き方
   Q.useProgram(P_SPR);  drawBatch(P_SPR,vaoSpr,bufSpr,SC);
   Q.disable(Q.BLEND);
   // 画面用の1枚とブルーム用の成分
@@ -3348,6 +3396,11 @@ function render(dt){
           const HB=HIST, hb=p.hs*HIST_S, hh=p.hh, hn=p.hn, o0=hb+hh*4, px0=p.x, py0=p.y, pz0=pz;
           const h0a=HB[o0+3];
           let qx=Px, qy=Py, m=0;
+          /* v0.54：濃さは点ごとに求め、区間は両端の濃さのあいだをなめらかに変える（つなぎ目で段にならない）。
+             点 k の濃さは v0.53 の区間 k の濃さ（FW[k]）、星の位置（k=0）は 1 */
+          let qat=0, qal=0;
+          { const rb0=pa/d08; const ramp0=rb0>=1 ? 1 : pw1(PT16,rb0,1.6);
+            qat=bt*ramp0*(wl ? wlB(pa/p.life) : 1); qal=Math.min(1,qat/(1+qat*0.6)); }
           let wx=px0, wy=py0, wz=pz0;                       // v0.34：1つ前の点の位置（地面で切るため）
           for(let k=1;k<=NS;k++){
             const sAge=TT*k/NS, tAge=pa-sAge;
@@ -3364,30 +3417,30 @@ function render(dt){
               } else { const ol=hb+((hh+hn-1)&15)*4; x=HB[ol]; y=HB[ol+1]; z=HB[ol+2]; }
             }
             y -= wl ? Math.min(g035*sAge*sAge, WL_SAG*sAge) : g035*sAge*sAge;   // v0.34：柳の火花はほとんど垂れない
+            const rb=Math.max(0,tAge)/d08;
+            const ramp=rb>=1 ? 1 : pw1(PT16,rb,1.6);
+            const at2=bt*FW[k]*ramp*(wl ? wlB(Math.max(0,tAge)/p.life) : 1);
+            const al=Math.min(1,at2/(1+at2*0.6));
             const yy=y-pjE, zr=z*pjC-yy*pjS, yr=z*pjS+yy*pjC, dd=-zr;
             if(dd<6) break;
             const ss=pjF/dd; let px=pjW2+x*ss, py=pjH2-yr*ss;
             /* v0.34：地面（y=0）より下の部分は描かない。地面をまたぐ区間は交わる点で切る */
             if(y<0 || wy<0){
-              if(y<0 && wy<0){ wx=x; wy=y; wz=z; qx=px; qy=py; continue; }
+              if(y<0 && wy<0){ wx=x; wy=y; wz=z; qx=px; qy=py; qat=at2; qal=al; continue; }
               const f=wy/(wy-y), cx=wx+(x-wx)*f, cz=wz+(z-wz)*f;
               const cyy=-pjE, czr=cz*pjC-cyy*pjS, cyr=cz*pjS+cyy*pjC, cdd=-czr;
-              if(cdd<6){ wx=x; wy=y; wz=z; qx=px; qy=py; continue; }
+              if(cdd<6){ wx=x; wy=y; wz=z; qx=px; qy=py; qat=at2; qal=al; continue; }
               const cs=pjF/cdd, cpx=pjW2+cx*cs, cpy=pjH2-cyr*cs;
               if(wy<0){ qx=cpx; qy=cpy; } else { px=cpx; py=cpy; }
             }
             wx=x; wy=y; wz=z;
-            const rb=Math.max(0,tAge)/d08;
-            const ramp=rb>=1 ? 1 : pw1(PT16,rb,1.6);
-            const at2=bt*FW[k]*ramp*(wl ? wlB(Math.max(0,tAge)/p.life) : 1);
-            if(Ly) Ly.cv += Math.min(1,at2)*tw*hyp2(px-qx,py-qy)*0.5;
-            // pushLine(LC, …) と同じ
-            const al=Math.min(1,at2/(1+at2*0.6));
-            if(al>0 && !((qx<-mT&&px<-mT)||(qx>WmT&&px>WmT)||(qy<-mT&&py<-mT)||(qy>HmT&&py>HmT))){
-              const o=nLC*9; nLC++;
+            if(Ly) Ly.cv += Math.min(1,(qat+at2)*0.5)*tw*hyp2(px-qx,py-qy)*0.5;
+            if((qal>0 || al>0) && !((qx<-mT&&px<-mT)||(qx>WmT&&px>WmT)||(qy<-mT&&py<-mT)||(qy>HmT&&py>HmT))){
+              const o=nLC*10; nLC++;
               LCA[o]=qx; LCA[o+1]=qy; LCA[o+2]=px; LCA[o+3]=py; LCA[o+4]=tw;
-              LCA[o+5]=tri; LCA[o+6]=tgi; LCA[o+7]=tbi; LCA[o+8]=al;
+              LCA[o+5]=tri; LCA[o+6]=tgi; LCA[o+7]=tbi; LCA[o+8]=qal; LCA[o+9]=al;
             }
+            qat=at2; qal=al;
             qx=px; qy=py;
           }
         }
@@ -3488,13 +3541,13 @@ function render(dt){
         const tr=R+(TAIL_GOLD_C[0]-R)*TAIL_GOLD, tg=Gc+(TAIL_GOLD_C[1]-Gc)*TAIL_GOLD, tb=B+(TAIL_GOLD_C[2]-B)*TAIL_GOLD;
         const tcs=GLON?'':`${tr|0},${tg|0},${tb|0}`;
         const tw=Math.max(0.6*DPR, lw*TAIL_WIDTH*sI);
-        if(!GLON){ cctx.lineCap='round'; cctx.lineWidth=tw; }
+        if(!GLON){ cctx.lineCap='butt'; cctx.lineWidth=tw; }   // v0.54：丸い端はつなぎ目で重なって粒になる
         const NS=bee?14:(wl?16:TAIL_NS);
         let qx=P.x, qy=P.y;
         const tri=tr|0, tgi=tg|0, tbi=tb|0, d08=0.08*p.life;
         // v0.26：尾の記録は HIST の区画から読む（m＝新しい順の番号。v0.25 の j＝4m）
         const HB=HIST, hb=p.hs*HIST_S, hh=p.hh, hn=p.hn, o0=hb+hh*4, px0=p.x, py0=p.y, pz0=p.z, pa=p.age;
-        let m=0;
+        let m=0, tq=0;                                      // v0.54：tq＝1つ前の区間の終わりの濃さ（2D）
         let wx=px0, wy=py0, wz=pz0;                         // v0.34：1つ前の点の位置（地面で切るため）
         for(let k=1;k<=NS;k++){
           const sAge=TT*k/NS, tAge=pa-sAge;
@@ -3533,9 +3586,9 @@ function render(dt){
           const ramp=rb>=1 ? 1 : pw1(PT16,rb,1.6);
           const at=bt*FW[k]*ramp*(wl ? wlB(Math.max(0,tAge)/p.life) : 1);
           if(Ly) Ly.cv += Math.min(1,at)*tw*hyp2(px-qx,py-qy)*0.5;
-          if(GLON) pushLine(LC, qx,qy,px,py, tw, tri,tgi,tbi, Math.min(1,at/(1+at*0.6)));
-          else {
-          cctx.globalAlpha=Math.min(1,at/(1+at*0.6));
+          /* v0.54：この道は 2D のときだけ通る（WebGL は上の速い道）。濃さは区間の両端の平均で段を小さくする */
+          { const al2=Math.min(1,at/(1+at*0.6));
+          cctx.globalAlpha=(k===1 ? al2 : (tq+al2)*0.5); tq=al2;
           cctx.strokeStyle=`rgb(${tcs})`;
           cctx.beginPath(); cctx.moveTo(qx,qy); cctx.lineTo(px,py); cctx.stroke();
           }
@@ -4075,6 +4128,7 @@ function frame(now){
   if(MS.on) msBegin(now);       // v0.27：自動計測（前のコマの長さを記録し、予定の玉を打ち上げる）
   let dt=(now-last)/1000; last=now;
   if(dt>1/25) dt = MUSIC ? Math.min(dt,1/12) : 1/25;   // シミュレーションの時間刻みだけを打ち切る（fps の計算には使わない）。v0.46：音楽の間は曲に遅れないよう 1/12 秒まで
+  if(GY.on) gyTick();           // v0.54：携帯の傾きで視線
   tmMark=performance.now();
   update(dt);
   tmLap('upd');
@@ -4777,7 +4831,7 @@ addEventListener('keydown', e=>{
    ・設定は端末に保存する（読めない環境では既定値で動く）
    ============================================================ */
 const SET_KEY='momo_fireworks_settings';
-const SET={se:100, bgm:40, seMute:false, bgmMute:false, stat:false, gl:true, wo:true, venue:true};   // v0.50：venue＝会場の響き（既定は入）   // v0.44：wo＝白飛び（既定は入）
+const SET={se:100, bgm:40, seMute:false, bgmMute:false, stat:false, gl:true, wo:true, venue:true, gyro:true};   // v0.54：gyro＝携帯の傾きで視線（既定は入）   // v0.50：venue＝会場の響き（既定は入）   // v0.44：wo＝白飛び（既定は入）
 try{ const o=JSON.parse(localStorage.getItem(SET_KEY)||'null'); if(o) for(const k in SET) if(k in o) SET[k]=o[k]; }catch(e){}
 function saveSet(){ try{ localStorage.setItem(SET_KEY, JSON.stringify(SET)); }catch(e){} }
 const $=id=>document.getElementById(id);
@@ -4786,7 +4840,7 @@ function syncSetUI(){
   $('bgmVol').value=SET.bgm; $('bgmV').textContent=SET.bgm+'%'; $('bgmMute').checked=SET.bgmMute;
   $('mSeVol').value=SET.se; $('mSeV').textContent=SET.se+'%'; $('mSeMute').checked=SET.seMute;
   $('mBgmVol').value=SET.bgm; $('mBgmV').textContent=SET.bgm+'%'; $('mBgmMute').checked=SET.bgmMute;
-  $('statChk').checked=SET.stat; $('renderSel').value=SET.gl ? 'gl' : '2d'; $('woChk').checked=SET.wo; $('venueChk').checked=SET.venue;
+  $('statChk').checked=SET.stat; $('renderSel').value=SET.gl ? 'gl' : '2d'; $('woChk').checked=SET.wo; $('venueChk').checked=SET.venue; $('gyroChk').checked=SET.gyro;
   if(WHITEOUT!==SET.wo){ WHITEOUT=SET.wo; applyExpo(); }
   document.body.classList.toggle('show-stat', SET.stat);
 }
@@ -4806,6 +4860,115 @@ $('setPanel').addEventListener('pointerdown', e=>{ if(e.target===$('setPanel')){
 $('musicModal').addEventListener('pointerdown', e=>e.stopPropagation());
 $('setPanel').addEventListener('pointerdown', e=>e.stopPropagation());
 glWant=SET.gl; syncSetUI(); WHITEOUT=SET.wo; applyExpo();   // v0.44：起動時にも白飛びの光量を当てる
+
+/* ============================================================
+   v0.54：携帯の傾きで視線を動かす・画面を消さない・正面に戻す（Q121＝A）
+   ・傾きの計算は MOMO Darts（darts-sensor.js v1.11・darts-render.js）と同じ：
+     許可をもらい、見始めた向きを正面にして、そこからの回転を回転行列で求める（オイラー角の軸の混ざりを避ける）。
+     揺れは Darts と同じ低域フィルタ（0.4）でならす。左右＝見回し、上下＝見上げ角（花火に傾きの回転は無いので使わない）
+   ・Darts は縦持ち専用。花火は横画面でも使うので、画面の向き（screen.orientation.angle）の分だけ端末の座標を回して補正する。
+     見ている途中で向きが変わったら、そのときの見え方のまま正面を取り直す
+   ・指のドラッグ・見上げ角のスライダ・ホイールも使える。これらで動いた分は「正面」の基準をずらす（gyTick の1か所で拾う）
+   ・画面を消さない仕組み（Wake Lock）は Darts と同じ。花火を見ている間だけ効かせ、別のアプリから戻ったら掛け直す
+   ・「正面に戻す」は PC でも使える（見回しを 0、見上げ角を見始めたときの角度へ）
+   ============================================================ */
+const GY_D2R=Math.PI/180, GY_R2D=180/Math.PI, GY_SMOOTH=0.4;
+const GY_AVAIL = typeof window.DeviceOrientationEvent!=='undefined' && !!(window.matchMedia && matchMedia('(pointer:coarse)').matches);
+const GY={on:false, listening:false, cur:null, calInv:null, sy:0, sp:0, panB:0, pitB:25, pitch0:25, lastPan:null, lastPit:null};
+if(!GY_AVAIL){ const r=$('gyroRow'); if(r) r.style.display='none'; }
+/* Darts と同じ：(α,β,γ) → 回転行列 R = Rz(α)·Rx(β)·Ry(γ) */
+function gyE2M(aD,bD,gD){
+  const a=aD*GY_D2R, b=bD*GY_D2R, g=gD*GY_D2R;
+  const ca=Math.cos(a), sa=Math.sin(a), cb=Math.cos(b), sb=Math.sin(b), cg=Math.cos(g), sg=Math.sin(g);
+  return [[ca*cg-sa*sb*sg, -sa*cb, ca*sg+sa*sb*cg],
+          [sa*cg+ca*sb*sg,  ca*cb, sa*sg-ca*sb*cg],
+          [-cb*sg,          sb,    cb*cg]];
+}
+function gyT(M){ return [[M[0][0],M[1][0],M[2][0]],[M[0][1],M[1][1],M[2][1]],[M[0][2],M[1][2],M[2][2]]]; }
+function gyMul(A,B){ const R=[[0,0,0],[0,0,0],[0,0,0]]; for(let i=0;i<3;i++) for(let j=0;j<3;j++) R[i][j]=A[i][0]*B[0][j]+A[i][1]*B[1][j]+A[i][2]*B[2][j]; return R; }
+function gyRz(deg){ const r=deg*GY_D2R, c=Math.cos(r), s=Math.sin(r); return [[c,-s,0],[s,c,0],[0,0,1]]; }
+function gyAngle(){ try{ if(screen.orientation && typeof screen.orientation.angle==='number') return screen.orientation.angle; }catch(_){} return +(window.orientation||0); }
+/* 端末の姿勢を「画面の向き」の座標に直す（横画面の補正。Darts には無い） */
+function gyScreenM(o){ return gyMul(gyE2M(o.alpha||0, o.beta||0, o.gamma||0), gyRz(-gyAngle())); }
+/* いまの向きを正面にする。見え方は変えない（基準をいまの見回し・見上げ角に置く） */
+function gyCal(){
+  if(!GY.cur) return false;
+  GY.calInv=gyT(gyScreenM(GY.cur)); GY.sy=0; GY.sp=0;
+  GY.panB=PANX; GY.pitB=PITCH*GY_R2D; GY.lastPan=PANX; GY.lastPit=PITCH*GY_R2D;
+  return true;
+}
+function gyOnOri(e){
+  if(e.alpha===null && e.beta===null && e.gamma===null) return;
+  GY.cur={alpha:e.alpha, beta:e.beta, gamma:e.gamma};
+  if(!GY.calInv && inShow() && SET.gyro && gyCal()) GY.on=true;
+}
+function gyListen(){ if(!GY.listening){ addEventListener('deviceorientation', gyOnOri); GY.listening=true; } }
+function gyUnlisten(){ if(GY.listening){ removeEventListener('deviceorientation', gyOnOri); GY.listening=false; } GY.on=false; GY.calInv=null; GY.cur=null; }
+/* 許可の要求は押した操作の中で呼ぶ（iOS の Safari は毎回ここから。Darts と同じ） */
+async function gyRequest(){
+  if(!GY_AVAIL || !SET.gyro) return;
+  if(typeof DeviceOrientationEvent.requestPermission==='function'){
+    try{ if(await DeviceOrientationEvent.requestPermission()!=='granted') return; }catch(_){ return; }
+  }
+  gyListen();
+}
+/* 見上げ角を細かい角度のまま当てる（スライダは整数なので表示だけ丸める） */
+function gySetPitch(deg){
+  deg=Math.max(+pitchEl.min, Math.min(+pitchEl.max, deg));
+  PITCH=deg*GY_D2R;
+  const r=Math.round(deg); if(+pitchEl.value!==r){ pitchEl.value=r; pitchV.textContent=r+'°'; }
+  aimAlt = EYE + dist*Math.tan(PITCH);
+  recomputeCam(); drawBackdropSoon();
+}
+function gyTick(){
+  if(!GY.cur || !GY.calInv || !inShow()) return;
+  /* ドラッグ・スライダ・ホイールで動いた分は基準へ（前のコマで当てた値と違えば、ほかの操作が動かした） */
+  if(GY.lastPan!==null && PANX!==GY.lastPan) GY.panB+=PANX-GY.lastPan;
+  const pd0=PITCH*GY_R2D; if(GY.lastPit!==null && Math.abs(pd0-GY.lastPit)>1e-6) GY.pitB+=pd0-GY.lastPit;
+  const M=gyMul(GY.calInv, gyScreenM(GY.cur));
+  const sb=Math.max(-1, Math.min(1, M[2][1])), pit=Math.asin(sb);
+  const yaw=Math.abs(Math.cos(pit))>1e-4 ? Math.atan2(-M[2][0], M[2][2]) : 0;
+  GY.sy += (-yaw*GY_R2D - GY.sy)*GY_SMOOTH;             // 右へ向く＝正（Darts の SIGN_YAW＝-1）
+  GY.sp += ( pit*GY_R2D - GY.sp)*GY_SMOOTH;             // 上を向く＝正（Darts の SIGN_PITCH＝+1）
+  const px=GY.panB + focal*Math.tan(Math.max(-80, Math.min(80, GY.sy))*GY_D2R);
+  if(Math.abs(px-PANX)>=0.5) setPan(px);
+  const pd=GY.pitB + GY.sp;
+  if(Math.abs(pd-PITCH*GY_R2D)>=0.2) gySetPitch(pd);
+  GY.lastPan=PANX; GY.lastPit=PITCH*GY_R2D;
+}
+function gyRecenter(){
+  if(GY.on && gyCal()){ GY.panB=0; GY.pitB=GY.pitch0; GY.lastPan=null; GY.lastPit=null; return; }
+  setPan(0); gySetPitch(GY.pitch0);
+}
+$('recenter').addEventListener('click', ()=>{ $('recenter').blur(); gyRecenter(); });
+$('gyroChk').addEventListener('change', e=>{
+  SET.gyro=e.target.checked; saveSet(); syncSetUI();
+  if(SET.gyro){ if(inShow()) gyRequest(); } else gyUnlisten();
+});
+/* 見るボタン（単発・プログラム・音楽）を押した操作の中で許可を求める。音の確認パネルが出たときは、閉じたあとの押し直しで来る */
+document.addEventListener('click', e=>{
+  const b=e.target.closest && e.target.closest('#startSingle,#startProg,#startMusic');
+  if(b) gyRequest();
+}, true);
+/* 画面を消さない（Darts v1.32 と同じ） */
+let fwWake=null;
+async function fwWakeOn(){
+  if(fwWake || !('wakeLock' in navigator)) return;
+  try{ fwWake=await navigator.wakeLock.request('screen'); fwWake.addEventListener('release', ()=>{ fwWake=null; }); }catch(_){}
+}
+function fwWakeOff(){ if(fwWake){ fwWake.release().catch(()=>{}); fwWake=null; } }
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible' && inShow()) fwWakeOn(); });
+/* 見る画面に入った・出たを1か所で拾う（入り口は単発・プログラム・音楽の3つある） */
+let gyWasShow=false;
+new MutationObserver(()=>{
+  const s=inShow(); if(s===gyWasShow) return; gyWasShow=s;
+  if(s){ GY.pitch0=PITCH*GY_R2D; fwWakeOn(); if(GY.cur && SET.gyro && gyCal()) GY.on=true; }
+  else{ fwWakeOff(); GY.on=false; GY.calInv=null; }
+}).observe(document.body, {attributes:true, attributeFilter:['class']});
+/* 画面の向きが変わったら、そのときの見え方のまま正面を取り直す */
+function gyReorient(){ if(GY.on) gyCal(); }
+try{ if(screen.orientation) screen.orientation.addEventListener('change', gyReorient); }catch(_){}
+addEventListener('orientationchange', gyReorient);
 
 /* ---- 音の再生確認（花札・ダーツと同じ）。初めての操作と、1時間以上離れて戻ったあとの最初の操作で出す。
    パネルを出すために止めた操作は、パネルを閉じたあとに実行する ---- */

@@ -17,6 +17,7 @@
 | `game-japanese/` | 対局中・和風 |
 | `game-western/` | 対局中・洋風。Billiards と Darts が使う |
 | `game-koikoi/` | 花札こいこい専用 |
+| `fireworks/` | MOMO Fireworks の「音楽の花火」専用（曲に合わせて花火を上げる）。作者本人が Mureka・SUNO で作った曲 |
 
 ### 曲を増やすとき
 

@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
-<!-- MOMO Fireworks v0.43 -->
+<!-- MOMO Fireworks v0.53 -->
 <html lang="ja">
 <head>
 <meta charset="utf-8">
@@ -192,22 +192,27 @@
   /* ── 2画面目：花火の表示 ── */
   body:not(.in-show) #bar, body:not(.in-show) #miniHead, body:not(.in-show) #fps,
   body:not(.in-show) #msStat{display:none !important}
-  /* 左上の小さな題字（ごく小さく・半透明） */
+  /* 左上の題字。v0.50：1画面目の見出しと同じ並び（アイコン左・題名右・その下にサブタイトルと版）を小さく */
   #miniHead{
     position:fixed;left:10px;top:calc(env(safe-area-inset-top,0px) + 8px);z-index:15;
-    display:flex;align-items:center;gap:5px;opacity:.28;pointer-events:none;user-select:none;
+    display:flex;align-items:flex-start;gap:6px;opacity:.55;pointer-events:none;user-select:none;
   }
-  #miniHead svg{width:17px;height:19px}
-  #miniHead span{font-family:'Fredoka One',cursive;font-size:12px;letter-spacing:.02em;color:#fff}
-  #miniHead span b{font-weight:400;color:var(--orange-mid)}
+  #miniHead svg{width:26px;height:28px;flex-shrink:0}
+  #miniHead .mh{display:flex;flex-direction:column;line-height:1.05}
+  #miniHead .mh-t{font-family:'Fredoka One',cursive;font-size:14px;letter-spacing:.02em;color:#fff}
+  #miniHead .mh-t b{font-weight:400;color:var(--orange-mid)}
+  #miniHead .mh-s{font-family:'Fredoka One','Noto Sans SC','Noto Sans JP',sans-serif;font-size:9.5px;color:#aaa;margin-top:2px}
+  #miniHead .mh-v{color:#888;margin-left:4px}
+  #miniHead{transition:opacity .25s}
+  body.panel-open #miniHead{opacity:1}   /* v0.52：操作の帯か歯車の設定が開いている間は透けない */
   /* 下の帯（ふだんは畳んでおく） */
   #bar{position:fixed;left:0;right:0;bottom:0;z-index:25;pointer-events:none}
-  #barTog{
-    pointer-events:auto;position:absolute;right:12px;bottom:calc(10px + env(safe-area-inset-bottom));
-    font-size:12px;padding:5px 12px;opacity:.5;
-  }
-  #bar.open #barTog{bottom:calc(100% + 6px);opacity:.9}
-  #barTog:hover{opacity:1}
+  /* v0.50：「設定に戻る」は帯の外、「操作」ボタンの左に常に置く */
+  #barBtns{pointer-events:auto;position:absolute;right:12px;bottom:calc(10px + env(safe-area-inset-bottom));display:flex;gap:6px}
+  #barBtns button{font-size:12px;padding:5px 12px;opacity:.5}
+  #bar.open #barBtns{bottom:calc(100% + 6px)}
+  #bar.open #barBtns button{opacity:.9}
+  #barBtns button:hover{opacity:1}
   #bar:not(.open) #barBody{display:none}
   #barBody{pointer-events:auto}
   #back{border-color:rgba(234,88,12,.55)}
@@ -253,7 +258,8 @@
 
   /* ── v0.38：1画面目の設定を「単発」「プログラム」「共通」に分ける ── */
   #setup .sec{display:flex;flex-direction:column;gap:14px}
-  #setup .sec + .sec{border-top:1px solid var(--border);padding-top:16px}
+  #setup{background:none !important;border:none !important;padding:0 !important;gap:16px !important}   /* v0.49：単発・プログラム・音楽をそれぞれの枠に */
+  #setup .sec{background:rgba(17,17,17,.92);border:1px solid var(--border);border-radius:10px;padding:16px}
   #setup .sec h3{margin:0;font-family:'Fredoka One','Noto Sans JP','Noto Sans SC',sans-serif;font-weight:400;font-size:16px;color:var(--orange-light);letter-spacing:.02em}
   #setup .btn-start{margin-top:2px}
 
@@ -329,7 +335,7 @@
       <circle cx="26" cy="21" r="2.6" fill="#fff7d6" stroke="#000" stroke-width="0.6"/>
     </g>
   </svg>
-  <span>MOMO <b>Fireworks</b></span>
+  <div class="mh"><span class="mh-t">MOMO <b>Fireworks</b></span><span class="mh-s"><span id="mhSub">Night Blooms, Golden Fade</span><span class="mh-v" id="mhVer">v0.53</span></span></div>
 </div>
 
 <div id="fps"><div id="fpsA"></div><div id="fpsB"></div></div>
@@ -343,7 +349,7 @@
 
 <!-- 2画面目：眺めながら触るもの（下に畳んだ帯） -->
 <div id="bar">
-  <button id="barTog">操作 ▲</button>
+  <div id="barBtns"><button id="barTog">操作 ▲</button><button id="back" data-i18n="back">設定に戻る</button></div>
   <div id="barBody">
     <div class="fld">
       <label data-i18n="lbPlay">打ち上げ・自動</label>
@@ -351,7 +357,6 @@
         <button id="fire" data-i18n="fire">打上</button><button id="quick" data-i18n="quick">即開花</button>
         <button id="auto">自動を開始</button>
         <button id="sndTog">音の調整 ▼</button>
-        <button id="back" data-i18n="back">設定に戻る</button>
       </div>
     </div>
     <div class="fld">
@@ -429,6 +434,12 @@
     </div>
     <div class="srow">
       <label class="mute" style="font-size:13px;color:var(--text)"><input type="checkbox" id="statChk"><span data-i18n="setStat">画面上の状態表示（fps など）</span></label>
+    </div>
+    <div class="srow">
+      <label class="mute" style="font-size:13px;color:var(--text)"><input type="checkbox" id="venueChk" checked><span data-i18n="setVenue">会場の響き（音楽の花火：エコーと風で揺れる鳴り方）</span></label>
+    </div>
+    <div class="srow">
+      <label class="mute" style="font-size:13px;color:var(--text)"><input type="checkbox" id="woChk" checked><span data-i18n="setWo">白飛び（カメラで撮ったような光のあふれ）</span></label>
     </div>
     <div class="srow">
       <div class="srow-head"><span data-i18n="setRender">描き方</span></div>
@@ -509,7 +520,7 @@
         </g>
       </svg>
       <div class="title-block">
-        <h1><span class="momo">MOMO</span><span class="fireworks">Fireworks</span><span class="version-tag" id="version-tag">v0.43</span></h1>
+        <h1><span class="momo">MOMO</span><span class="fireworks">Fireworks</span><span class="version-tag" id="version-tag">v0.53</span></h1>
         <div class="subtitle" id="subtitle">Night Blooms, Golden Fade</div>
       </div>
     </header>
@@ -555,9 +566,9 @@
         </select>
       </div>
       <div class="fld">
-        <label data-i18n="lbWhere">打ち上げる場所と数（画面タップ・打上ボタン）</label>
+        <label data-i18n="lbShots">打ち上げる数（中央の筒1本から続けて。画面タップ・打上ボタン）</label>
         <div class="row">
-          <select id="tbWhere" data-i18n-title="tbWhereT" title="打ち上げる場所"></select>
+          <select id="tbWhere" style="display:none"></select>
           <select id="nShot" data-i18n-title="nShotT" title="一度に打ち上げる数"><option value="1" selected data-i18n="n1">1発</option><option value="2" data-i18n="n2">2発</option><option value="3" data-i18n="n3">3発</option><option value="5" data-i18n="n5">5発</option><option value="10" data-i18n="n10">10発</option></select>
         </div>
       </div>
@@ -583,10 +594,6 @@
           <option value="40" data-i18n="sz40">四十号・正四尺（約400m）</option>
         </select>
       </div>
-      <button id="startProg" class="btn-start" data-i18n="startProg">プログラムの花火を見る</button>
-      </section>
-      <section class="sec">
-      <h3 data-i18n="secCommon">共通の設定</h3>
       <div class="fld">
         <label data-i18n="lbTubes">筒の配置（大型用・小型用の種類・組数）</label>
         <div class="row">
@@ -596,6 +603,19 @@
           <button id="tbAuto" data-i18n="tbAuto" data-i18n-title="tbAutoT" title="おまかせ：番組が一巡するたびに筒の配置を変える">おまかせ</button>
         </div>
       </div>
+      <button id="startProg" class="btn-start" data-i18n="startProg">プログラムの花火を見る</button>
+      </section>
+      <section class="sec">
+      <h3 data-i18n="secMusic">音楽の花火</h3>
+      <div class="fld">
+        <label data-i18n="lbMusic">曲（リズムに大型・メロディーに小型が開き、長調・短調で色が変わる）</label>
+        <select id="musicSel"></select>
+        <input type="file" id="musicFile" accept="audio/*,.mp3" style="display:none">
+        <div class="val" data-i18n="musicAuto" style="margin-top:4px">筒の配置と玉の大きさは、曲に合わせて自動で決まります（10号・20号を中心に、ときどき40号）</div>
+        <div class="val" id="musicMsg" style="margin-top:4px"></div>
+      </div>
+      <button id="startMusic" class="btn-start" data-i18n="startMusic">音楽の花火を見る</button>
+      <div class="val" data-i18n="musicPc" style="text-align:center;margin-top:-6px">ゲーミングPC推奨（描画が重いため）</div>
       </section>
     </div>
 
@@ -606,7 +626,7 @@
   <footer class="site-footer">
     <div class="site-footer-inner">
       <h2 id="footAbout">MOMO Fireworks について</h2>
-      <p id="footDesc">MOMO Fireworks は、ブラウザで動く打ち上げ花火シミュレータです。菊・牡丹・柳・錦冠・型物など18種類の玉を、配色や効果、玉の大きさ、筒の配置、連発の番組を選んで打ち上げ、夜空に開く様子を眺めて楽しめます。音は観覧距離に応じて遅れて届きます。アカウント登録もインストールも不要で、ブラウザだけですぐに楽しめます。</p>
+      <p id="footDesc">MOMO Fireworks は、ブラウザで動く打ち上げ花火シミュレータです。菊・牡丹・柳・錦冠・型物など18種類の玉を、配色や効果、玉の大きさを選んで1発ずつ上げる「単発の花火」、筒の配置と連発の番組を選んで花火大会のように上げる「プログラムの花火」、そして曲を先に解析し、リズムやメロディーに合わせて花火が開く「音楽の花火」の3つの楽しみ方があります。音楽の花火では、用意された花火用の曲のほか、お手元の mp3 も使えます（曲はどこにも送られません）。音は観覧距離に応じて遅れて届きます。アカウント登録もインストールも不要で、ブラウザだけですぐに楽しめます。</p>
       <div class="foot-links">
         <a href="../../" id="footTop">MOMO Works トップ</a>
         <a href="../../games/" id="footGames">ゲーム一覧</a>
@@ -668,6 +688,22 @@
    （v0.42：実写5本との比較①。菊の仲間の広がり方・燃える時間（約4.3秒）、錦冠（約10秒・時間とともに止まる）、牡丹の消え方、
             尾を長く太く明るく（1.8秒・10区間））
    （v0.43：実写5本との比較②。光のにじみ約3割増、空と煙が花火の色に染まる、錦冠の色温度を上げる、牡丹の星 72→130）
+   （v0.44：白飛び（歯車で入／切・既定は入）、スターマインの発数を小型の筒の本数の倍数に）
+   （v0.45：横に展開する小型の一続き（早打ち・フィナーレも）は筒の本数の倍数。早打ちの1本打ちは真上向きの筒から）
+   （v0.46：音楽の花火。曲を先に解析し、強い拍に大型・メロディーの出だしに小型が開くよう打ち上げる。長調・短調で色、音の大きさで密度。
+            曲はシステムの曲（assets/bgm）か端末の mp3。音楽の間の効果音は 2 割）
+   （v0.47：効果音の音量の口を1つに（録音素材の音が音量・ミュートを通っていなかった不具合）。音楽の花火を作り直し：
+            拍で小型を刻み、4小節ごとに盛り上がり（4段階）で打ち方を切り替える、決め・連続スターマイン・大玉連打・一斉・フィナーレ、
+            メロディーは飾り。開いて見える瞬間を拍に合わせる。システムの曲は花火 1〜3 だけ）
+   （v0.48：拍に合わせる瞬間を「明るさが最大・形ができた瞬間」に。曲の最初の音に決め、最後の音より後は打たない。揺れは効果音の音量に比例）
+   （v0.49：単発は中央の筒1本、筒の配置はプログラム専用、共通の枠をなくして単発・プログラム・音楽をそれぞれの枠に。
+            音楽は決まった筒（小型15本＋大型2本）と大きさ（20号・10号中心、ときどき40号、最後は40号か錦冠））
+   （v0.50：会場の響き（エコー・風で揺れる鳴り方、歯車で入／切）、帯は10秒で自動で閉じる、「設定に戻る」を帯の外へ、
+            ホイールはポインタの下を中心に距離を変える、左上の題字を見出しと同じ並びに、音楽の花火にゲーミングPC推奨）
+   （v0.51：距離を変えたら空のものも一緒に前後へ動き、対岸の大きさも変わる。操作と設定に戻るの位置を入れ替え、
+            設定に戻ったら空の花火と予約済みの音を消す。会場の響きを大げさに（繰り返すエコー・高音をさらに絞る・揺らぎを大きく））
+   （v0.52：繰り返すエコーを半分に。操作の帯・歯車の設定が開いている間は左上の題字を透けなくする）
+   （v0.53：1画面目の下の説明に音楽の花火を加える）
    仕様書 hanabi_sim_spec_v2.00.md §3 に対応する実装。
 
    v0.01 からの主要変更（§3.8 参照）
@@ -734,8 +770,26 @@ const I18N = {
     grpWari:'割物', grpKoka:'効果物', grpKata:'型物',
     start:'花火を見る',
     footAbout:'MOMO Fireworks について',
-    footDesc:'MOMO Fireworks は、ブラウザで動く打ち上げ花火シミュレータです。菊・牡丹・柳・錦冠・型物など18種類の玉を、配色や効果、玉の大きさ、筒の配置、連発の番組を選んで打ち上げ、夜空に開く様子を眺めて楽しめます。音は観覧距離に応じて遅れて届きます。アカウント登録もインストールも不要で、ブラウザだけですぐに楽しめます。',
+    footDesc:'MOMO Fireworks は、ブラウザで動く打ち上げ花火シミュレータです。菊・牡丹・柳・錦冠・型物など18種類の玉を、配色や効果、玉の大きさを選んで1発ずつ上げる「単発の花火」、筒の配置と連発の番組を選んで花火大会のように上げる「プログラムの花火」、そして曲を先に解析し、リズムやメロディーに合わせて花火が開く「音楽の花火」の3つの楽しみ方があります。音楽の花火では、用意された花火用の曲のほか、お手元の mp3 も使えます（曲はどこにも送られません）。音は観覧距離に応じて遅れて届きます。アカウント登録もインストールも不要で、ブラウザだけですぐに楽しめます。',
     footTop:'MOMO Works トップ', footGames:'ゲーム一覧', footTools:'ツール一覧',
+    musicPc:'ゲーミングPC推奨（描画が重いため）',
+    setVenue:'会場の響き（音楽の花火：エコーと風で揺れる鳴り方）',
+    lbShots:'打ち上げる数（中央の筒1本から続けて。画面タップ・打上ボタン）',
+    musicAuto:'筒の配置と玉の大きさは、曲に合わせて自動で決まります（10号・20号を中心に、ときどき40号）',
+    secMusic:'音楽の花火',
+    lbMusic:'曲（リズムに大型・メロディーに小型が開き、長調・短調で色が変わる）',
+    startMusic:'音楽の花火を見る',
+    musicFile:'📁 端末の mp3 を選ぶ…',
+    musicAnalyzing:'曲を解析しています… %d%',
+    musicReady:'解析しました（テンポ 約%d・%s）',
+    musicMaj:'長調が多い',
+    musicMin:'短調が多い',
+    musicLoadError:'曲を読み込めませんでした（%s）',
+    bgmFireworks:'花火',
+    bgmLobby:'ロビー',
+    bgmJapanese:'和風',
+    bgmWestern:'洋風',
+    bgmKoikoi:'こいこい',
     titleDesc:'眺めて楽しむ打ち上げ花火シミュレータです。',
     kbdHint:'見ている間は、画面をタップすると単発の設定で打ち上がります。ドラッグで視線を動かし、ホイールで距離を変えられます。右下の「操作」で打ち上げ・自動・見え方を、右上の歯車で音と表示を変えられます。',
     hintShow:'画面タップ＝打上　ドラッグ＝視線　ホイール＝距離　Q＝即開花　H＝操作の帯　S＝音の調整　M＝計測',
@@ -749,7 +803,7 @@ const I18N = {
     setSe:'効果音',
     setBgm:'BGM',
     setMute:'ミュート',
-    setStat:'画面上の状態表示（fps など）',
+    setStat:'画面上の状態表示（fps など）', setWo:'白飛び（カメラで撮ったような光のあふれ）',
     setRender:'描き方',
     setClose:'閉じる',
     musicTitle:'音楽を再生しますか？',
@@ -794,8 +848,26 @@ const I18N = {
     grpWari:'Round shells', grpKoka:'Effect shells', grpKata:'Pattern shells',
     start:'Watch the Fireworks',
     footAbout:'About MOMO Fireworks',
-    footDesc:'MOMO Fireworks is a fireworks simulator that runs in your browser. Choose from 18 kinds of shells — chrysanthemum, peony, willow, kamuro, pattern shells and more — pick colors, effects, shell size, mortar layout and a show program, then watch them bloom in the night sky. Sound arrives late, just as it would at your viewing distance. No account or installation required — it runs instantly in your browser.',
+    footDesc:'MOMO Fireworks is a fireworks simulator that runs in your browser. Choose from 18 kinds of shells — chrysanthemum, peony, willow, kamuro, pattern shells and more — and enjoy them three ways: “Single shots”, launching one at a time with your choice of colors, effects and size; “Program”, a festival-style show with your choice of mortar layout and program; and “Fireworks to Music”, where the song is analyzed first and the fireworks bloom on its rhythm and melody. Fireworks to Music comes with songs made for it, and you can also use an mp3 of your own (it is never uploaded anywhere). Sound arrives late, just as it would at your viewing distance. No account or installation required — it runs instantly in your browser.',
     footTop:'MOMO Works Top', footGames:'Games', footTools:'Tools',
+    musicPc:'Gaming PC recommended (heavy rendering)',
+    setVenue:'Venue sound (music show: echoes and wind-blown wavering)',
+    lbShots:'Number of shells (in a row from one center mortar; screen tap / Launch button)',
+    musicAuto:'Mortar layout and shell sizes are chosen automatically to fit the song (mostly No. 10 and 20, with an occasional No. 40)',
+    secMusic:'Fireworks to Music',
+    lbMusic:'Song (large shells bloom on the rhythm, small ones on the melody; colors follow major/minor)',
+    startMusic:'Watch Fireworks to Music',
+    musicFile:'📁 Choose an mp3 on this device…',
+    musicAnalyzing:'Analyzing the song… %d%',
+    musicReady:'Analyzed (tempo about %d, %s)',
+    musicMaj:'mostly major',
+    musicMin:'mostly minor',
+    musicLoadError:'Could not load the song (%s)',
+    bgmFireworks:'Fireworks',
+    bgmLobby:'Lobby',
+    bgmJapanese:'Japanese',
+    bgmWestern:'Western',
+    bgmKoikoi:'Koi-Koi',
     titleDesc:'A fireworks simulator to sit back and watch.',
     kbdHint:'While watching, tap the screen to launch with the single-shot settings. Drag to look around and use the wheel to change distance. Use “Controls” at the bottom right for launching, the auto show and the view, and the gear at the top right for sound and display.',
     hintShow:'Tap = launch   Drag = look around   Wheel = distance   Q = burst now   H = controls   S = sound tuning   M = measure',
@@ -809,7 +881,7 @@ const I18N = {
     setSe:'Sound effects',
     setBgm:'BGM',
     setMute:'Mute',
-    setStat:'On-screen status (fps etc.)',
+    setStat:'On-screen status (fps etc.)', setWo:'Blown highlights (camera-like glow)',
     setRender:'Renderer',
     setClose:'Close',
     musicTitle:'Play sound?',
@@ -854,8 +926,26 @@ const I18N = {
     grpWari:'圆形烟花', grpKoka:'效果烟花', grpKata:'造型烟花',
     start:'观赏烟花',
     footAbout:'关于 MOMO Fireworks',
-    footDesc:'MOMO Fireworks 是一款在浏览器中运行的烟花模拟器。可以从菊、牡丹、柳、锦冠、造型烟花等18种烟花弹中选择，设定配色、效果、大小、发射筒布置和连发节目，观赏它们在夜空中绽放。声音会按照观赏距离延迟传来。无需注册账号或安装，打开浏览器即可观赏。',
+    footDesc:'MOMO Fireworks 是一款在浏览器中运行的烟花模拟器。可以从菊、牡丹、柳、锦冠、造型烟花等18种烟花弹中选择，有三种玩法：选择配色、效果和大小逐发燃放的“单发烟花”，选择发射筒布置和连发节目、像烟花大会一样燃放的“节目烟花”，以及先分析曲目、让烟花随节奏和旋律绽放的“音乐烟花”。音乐烟花除了准备好的专用曲目，也可以使用你自己的 mp3（曲目不会被上传）。声音会按照观赏距离延迟传来。无需注册账号或安装，打开浏览器即可观赏。',
     footTop:'MOMO Works 首页', footGames:'游戏列表', footTools:'工具列表',
+    musicPc:'推荐使用游戏电脑（绘制负担较重）',
+    setVenue:'会场音效（音乐烟花：回声与随风摇曳的声音）',
+    lbShots:'发射数量（从中央一支发射筒连续发射。点击画面・发射按钮）',
+    musicAuto:'发射筒布置和烟花弹大小会按曲目自动决定（以10号・20号为主，偶尔40号）',
+    secMusic:'音乐烟花',
+    lbMusic:'曲目（节奏时大型烟花、旋律时小型烟花绽放，大调・小调改变颜色）',
+    startMusic:'观赏音乐烟花',
+    musicFile:'📁 选择本机的 mp3…',
+    musicAnalyzing:'正在分析曲目… %d%',
+    musicReady:'分析完成（速度约 %d・%s）',
+    musicMaj:'大调为主',
+    musicMin:'小调为主',
+    musicLoadError:'无法读取曲目（%s）',
+    bgmFireworks:'烟花',
+    bgmLobby:'大厅',
+    bgmJapanese:'日式',
+    bgmWestern:'西式',
+    bgmKoikoi:'花札',
     titleDesc:'可以静静观赏的烟花模拟器。',
     kbdHint:'观赏时点击画面，会按单发设置发射。拖动可移动视线，滚轮可改变距离。右下角的“操作”可以发射、自动燃放、调整视角；右上角的齿轮可以设置声音和显示。',
     hintShow:'点击画面＝发射　拖动＝视线　滚轮＝距离　Q＝立即绽放　H＝操作栏　S＝声音调节　M＝测量',
@@ -869,7 +959,7 @@ const I18N = {
     setSe:'音效',
     setBgm:'BGM',
     setMute:'静音',
-    setStat:'画面状态显示（fps 等）',
+    setStat:'画面状态显示（fps 等）', setWo:'过曝光晕（像相机拍摄的光溢出）',
     setRender:'绘制方式',
     setClose:'关闭',
     musicTitle:'要播放声音吗？',
@@ -991,6 +1081,11 @@ let EYE = 2.0;          // 視点（目線）の高さ[m]。操作盤で変更�
 const ZW = 15;          // 水際までの距離[m]。観客はこの手前の岸に立つ
 
 let EXPO = 1.0;                        // 光量（操作盤）
+/* v0.44：白飛び（カメラで撮ったような光のあふれ）。歯車の設定で入／切、既定は入。
+   入のときは光量を 1.45 倍、光のにじみを 1.6 倍にし、明るいところに色を抜いた光を重ねて芯を白く飛ばす */
+let WHITEOUT = true;
+const WO_EXPO=1.45, WO_BLOOM=1.6, WO_WHITE=0.75;   // WO_WHITE：明るいところに重ねる白い光（芯を白く飛ばす）
+function applyExpo(){ const e=document.getElementById('expo'); EXPO=(e ? +e.value/100 : 1)*(WHITEOUT?WO_EXPO:1); }
 /* 注視している高さ[m]（v0.15）。
    v0.12 までは「開花点に対する見込み角のずれ」を pitchBias で保持し、
    開花点の高さ＝号数から見上げ角を決めていた。そのため
@@ -1162,32 +1257,37 @@ let waterBottomY=0;
 function ground(c){
   c.fillRect(-4, waterBottomY, W+8, H-waterBottomY+4);
 }
+/* v0.51：対岸（稜線・家並み・窓）の大きさを観覧距離に合わせる（690m を 1 とする。観客は手前なので変えない） */
+function farK(){ return Math.max(0.5, Math.min(3, 690/Math.max(200,dist))); }
 function ridge(c){
+  const k=farK();
   c.beginPath(); c.moveTo(0,horizonY+4*DPR);
   for(let x=0;x<=W;x+=W/64){
-    const n = Math.sin(x*0.0021)+0.55*Math.sin(x*0.0061+1.7)+0.3*Math.sin(x*0.016+4.1);
-    c.lineTo(x, horizonY - (11+n*15)*DPR);
+    const n = Math.sin(x*0.0021/k)+0.55*Math.sin(x*0.0061/k+1.7)+0.3*Math.sin(x*0.016/k+4.1);
+    c.lineTo(x, horizonY - (11+n*15)*DPR*k);
   }
   c.lineTo(W,horizonY+4*DPR); c.closePath(); c.fill();
 }
 function houses(c){
+  const k=farK();
   let x=0;
   while(x<W){
-    const w=(9+rr()*26)*DPR, h=(6+rr()*22)*DPR;
+    const w=(9+rr()*26)*DPR*k, h=(6+rr()*22)*DPR*k;
     c.fillRect(x, horizonY-h, w, h+3*DPR);
-    x += w + rr()*26*DPR;
+    x += w + rr()*26*DPR*k;
   }
 }
 function windows(c){                       // 窓明かり。暗版のみ。点光源はスケール感に効く
+  const k=farK();
   const keep=c.fillStyle; c.fillStyle='rgba(255,206,132,0.42)';
   let x=0;
   while(x<W){
-    const w=(9+rr()*26)*DPR, h=(6+rr()*22)*DPR;
+    const w=(9+rr()*26)*DPR*k, h=(6+rr()*22)*DPR*k;
     if(h>9*DPR && rr()>0.45){
       const n=1+((rr()*3)|0);
       for(let k=0;k<n;k++) c.fillRect(x+(2+rr()*(w-5)), horizonY-h+(2+rr()*(h-5)), 1.3*DPR, 1.3*DPR);
     }
-    x += w + rr()*26*DPR;
+    x += w + rr()*26*DPR*k;
   }
   c.fillStyle=keep;
 }
@@ -1236,6 +1336,20 @@ function drawClouds(c){
 }
 
 let bdPending=0;
+/* v0.51：観覧距離を変えたら「見る人が前後に動く」。空にあるもの（玉・星・火の粉・煙・尾の軌跡・照明・閃光）を同じだけ奥・手前へずらす。
+   以前は距離が新しい花火の打ち上げ場所だけを決めていて、開いている花火はもとの場所に残っていた */
+function shiftWorld(dz){
+  if(!dz) return;
+  try{
+    for(const q of stars){ q.z+=dz; q.px=null; }
+    for(const q of shells){ q.z+=dz; q.px=null; }
+    for(const q of smokes) q.z+=dz;
+    for(const q of flashes) q.z+=dz;
+    for(const q of bursts){ q.z+=dz; q.D=Math.hypot(q.x,q.z); }
+    const F=EM.f; for(let i=0;i<EM.n;i++) F[i*EMS+EZ_]+=dz;
+    for(let i=2;i<HIST.length;i+=4) HIST[i]+=dz;
+  }catch(_){}
+}
 function drawBackdropSoon(){
   // 背景の作り直しは重い（全画面のバッファを6枚描き直す）。
   // スライダを動かしている間は最大 12 フレームに1回へ間引く。
@@ -2258,15 +2372,21 @@ function sndMsg(s){ const e=document.getElementById('sndMsg'); if(e) e.textConte
    耳障りに割れる。緩いコンプレッサを1段だけ通して頭を丸める。 */
 let MASTER=null, MASTER_G=null;
 /* v0.38：効果音の音量とミュート（歯車の設定）。出口の手前の1段で掛ける */
-function seGain(){ return SET.seMute ? 0 : SET.se/100; }
-function applySeGain(){ if(MASTER_G && AC) MASTER_G.gain.setTargetAtTime(0.9*seGain(), AC.currentTime, 0.02); }
+let MUSIC=null;                                          // v0.46：音楽の花火の再生中（{buf, src, t0, ev, i, name, dur, pre}）
+const MU_SE=0.2;                                         // v0.46：音楽の間の効果音の倍率（Q112：一律に大きく下げる）
+function seGain(){ return (SET.seMute ? 0 : SET.se/100)*(MUSIC ? MU_SE : 1); }
+/* v0.47：効果音の出口を1つにまとめる（SE_G）。v0.38〜v0.46 は録音素材の音（ボン・ドン・パチパチ）が音量の口を通らず
+   直接スピーカーへつながっていて、歯車の効果音の音量・ミュートと音楽モードの 2 割が合成の重低音にしか効いていなかった */
+let SE_G=null;
+function seOut(){ if(!SE_G && AC){ SE_G=AC.createGain(); SE_G.gain.value=seGain(); SE_G.connect(AC.destination); } return SE_G || AC.destination; }
+function applySeGain(){ if(SE_G && AC) SE_G.gain.setTargetAtTime(seGain(), AC.currentTime, 0.02); }
 function master(){
   if(!MASTER && AC){
     const c=AC.createDynamicsCompressor();
     c.threshold.value=-8; c.knee.value=12; c.ratio.value=4;
     c.attack.value=0.003; c.release.value=0.25;
-    const g=AC.createGain(); g.gain.value=0.9*seGain();
-    c.connect(g).connect(AC.destination);
+    const g=AC.createGain(); g.gain.value=0.9;
+    c.connect(g).connect(seOut());
     MASTER=c; MASTER_G=g;
   }
   return MASTER || AC.destination;
@@ -2326,8 +2446,8 @@ function playBuf(key, t, gain, rate, d, pan, hpf, fcE){
   const lp=AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=airFc(d,fcE); lp.Q.value=0.7;
   const g=AC.createGain(); g.gain.value=gain;
   const p=AC.createStereoPanner ? AC.createStereoPanner() : null;
-  if(p){ p.pan.value=pan; node.connect(lp).connect(g).connect(p).connect(AC.destination); }
-  else  { node.connect(lp).connect(g).connect(AC.destination); }
+  if(p){ p.pan.value=pan; node.connect(lp).connect(g).connect(p).connect(seOut()); }   // v0.47：音量の口を通す
+  else  { node.connect(lp).connect(g).connect(seOut()); }
   src.start(t);
 }
 
@@ -2772,6 +2892,7 @@ function update(dt){
   if(!autoOn && SCH.some(e=>e.prog)){ for(let i=SCH.length-1;i>=0;i--) if(SCH[i].prog) SCH.splice(i,1); }
   if(autoOn && T>=nextAuto) nextAuto = progStep(T);
   while(SCH.length && SCH[0].t<=T){ const e=SCH.shift(); e.f(); }
+  if(MUSIC) musicTick();                                // v0.46：音楽の花火（曲の時計で打ち上げる）
 }
 
 /* ===== v0.22：星まわりの WebGL 描画（検討書 v4.01 §2.1・§3.1） =====
@@ -3606,7 +3727,7 @@ function render(dt){
   let sx=0, sy=0;
   for(const s of shakes){
     if(s.t<0) continue;
-    const e=Math.exp(-s.t/0.09)*Math.sin(s.t*6.283185307*11)*s.amp*SHAKE;
+    const e=Math.exp(-s.t/0.09)*Math.sin(s.t*6.283185307*11)*s.amp*SHAKE*seGain();   // v0.48：揺れは効果音の音量に比例（音楽の間の 2 割・ミュートでは揺れない）
     sx+=Math.cos(s.dir)*e; sy+=Math.sin(s.dir)*e;
   }
   sx=Math.max(-6*DPR,Math.min(6*DPR,sx)); sy=Math.max(-6*DPR,Math.min(6*DPR,sy));
@@ -3796,9 +3917,13 @@ function render(dt){
     b3.drawImage(bl3,0,0); b3.filter='none';
     const bg2=Math.min(1,EXPO*BLOOM*adaptGain*1.55);
     /* v0.43：実写との比較③。玉のまわりのにじみを約3割強く（広いにじみほど強く）。スマホ動画の白飛びほどにはしない */
-    ctx.globalAlpha=0.40*bg2; ctx.drawImage(bl1,0,0,W,H);
-    ctx.globalAlpha=0.58*bg2; ctx.drawImage(bl2,0,0,W,H);
-    ctx.globalAlpha=0.42*bg2; ctx.drawImage(bl3,0,0,W,H);
+    const wb=WHITEOUT?WO_BLOOM:1;                         // v0.44：白飛び
+    ctx.globalAlpha=Math.min(1,0.40*bg2*wb); ctx.drawImage(bl1,0,0,W,H);
+    ctx.globalAlpha=Math.min(1,0.58*bg2*wb); ctx.drawImage(bl2,0,0,W,H);
+    ctx.globalAlpha=Math.min(1,0.42*bg2*wb); ctx.drawImage(bl3,0,0,W,H);
+    if(WHITEOUT){                                          // 白飛び：色を抜いたにじみを重ねて芯を白く、にじみをもう一度重ねて光をあふれさせる
+      ctx.filter='grayscale(1)'; ctx.globalAlpha=Math.min(1,WO_WHITE*bg2); ctx.drawImage(bl1,0,0,W,H); ctx.filter='none';
+      ctx.globalAlpha=Math.min(1,0.30*bg2); ctx.drawImage(bl2,0,0,W,H); ctx.drawImage(bl3,0,0,W,H); }
     ctx.globalAlpha=1;
   }
   tmLap('bloom');
@@ -3949,7 +4074,7 @@ function fpsText(){
 function frame(now){
   if(MS.on) msBegin(now);       // v0.27：自動計測（前のコマの長さを記録し、予定の玉を打ち上げる）
   let dt=(now-last)/1000; last=now;
-  if(dt>1/25) dt=1/25;          // シミュレーションの時間刻みだけを打ち切る（fps の計算には使わない）
+  if(dt>1/25) dt = MUSIC ? Math.min(dt,1/12) : 1/25;   // シミュレーションの時間刻みだけを打ち切る（fps の計算には使わない）。v0.46：音楽の間は曲に遅れないよう 1/12 秒まで
   tmMark=performance.now();
   update(dt);
   tmLap('upd');
@@ -4011,7 +4136,7 @@ function autoPitch(){
 }
 distEl.addEventListener('input',()=>{
   // 観覧距離を変えたときだけ見上げ角が追従する。見ている高さは変えない
-  dist=+distEl.value; distV.textContent=dist+'m'; autoPitch(); setPM();   // v0.39：見回しの広さも距離で変わる
+  const d0=dist; dist=+distEl.value; distV.textContent=dist+'m'; shiftWorld(d0-dist); autoPitch(); setPM(); drawBackdropSoon();   // v0.39：見回しの広さも距離で変わる。v0.51：空のものも一緒に動く・対岸の大きさ
 });
 
 /* v0.28：配色（仕様書 v3.00 §2.2・§2.8）。玉まかせ＝レシピの色。錦冠・柳・椰子の金色（黒体放射）は変えない */
@@ -4045,7 +4170,7 @@ eyeEl.addEventListener('input',()=>{
 });
 
 const expoEl=document.getElementById('expo'), expoV=document.getElementById('expoV');
-expoEl.addEventListener('input',()=>{ EXPO=(+expoEl.value)/100; expoV.textContent=EXPO.toFixed(2); });
+expoEl.addEventListener('input',()=>{ applyExpo(); expoV.textContent=((+expoEl.value)/100).toFixed(2); });   // v0.44：白飛びの倍率を掛ける
 
 const shkEl=document.getElementById('shk'), shkV=document.getElementById('shkV');
 shkEl.addEventListener('input',()=>{ SHAKE=(+shkEl.value)/100; shkV.textContent=shkEl.value+'%'; });
@@ -4060,9 +4185,11 @@ function nextTubes(go, where, n){
   for(let i=0;i<n;i++) r.push(srt[(big ? curBig++ : curSmall++) % srt.length]);
   return r;
 }
+/* v0.49：単発は大きさに関係なく中央の筒1本から（筒の配置はプログラム専用、Q117） */
+const SINGLE_TUBE={x:0, back:0, tilt:0, big:0, g:0};
 function fireOne(){
-  const n=+nShotEl.value, list=nextTubes(sizeGo, tbWhereEl.value, n), type=typeSel.value, fx=curFx();
-  for(let i=0;i<n;i++){ const tb=list[i]; schedAt(T+i*SHOT_GAP, ()=>launch(type, sizeGo, dist, fx, tb)); }
+  const n=+nShotEl.value, list=Array(n).fill(SINGLE_TUBE), type=typeSel.value, fx=curFx();
+  for(let i=0;i<n;i++){ const tb=list[i]; schedAt(T+i*0.9, ()=>launch(type, sizeGo, dist, fx, tb)); }
 }
 document.getElementById('fire').addEventListener('click', fireOne);
 
@@ -4071,10 +4198,10 @@ document.getElementById('fire').addEventListener('click', fireOne);
    これは物理的に短縮できない）。距離や玉の設定を変えて見比べるとき、
    毎回7秒待つと変更と結果が結びつかないため、確認用の経路を設ける。 */
 document.getElementById('quick').addEventListener('click',()=>{
-  const S=spec(sizeGo), n=+nShotEl.value, list=nextTubes(sizeGo, tbWhereEl.value, n), type=typeSel.value, fx=curFx();
+  const S=spec(sizeGo), n=+nShotEl.value, list=Array(n).fill(SINGLE_TUBE), type=typeSel.value, fx=curFx();
   for(let i=0;i<n;i++){
     const tb=list[i];
-    schedAt(T+i*SHOT_GAP, ()=>burst(type, sizeGo, {
+    schedAt(T+i*0.9, ()=>burst(type, sizeGo, {
       x:tb.x+S.alt*Math.tan(tb.tilt)*0.8, y:S.alt*(0.97+Math.random()*0.06)*Math.cos(tb.tilt), z:-(dist+tb.back),
       vx:0, vy:1.5, vz:0, fx
     }));
@@ -4198,7 +4325,7 @@ function shot(t, type, go, tube, col, fx){
 /* 小型の一続き（そろえた1回）。筒を左から順に使い、色は並べ方に従う */
 function salvo(t, n, go, gapA, gapB){
   const small=smallList(), N=small.length||1, type=rndType(), fx=autoFx(type), cp=colorPlan();
-  n=Math.max(n, N);                                   // v0.39：なるべく全部の筒を使う（左端から右端まで少なくとも一巡）
+  n=N*Math.max(1, Math.round(n/N));                   // v0.45：横に展開するときは筒の本数の倍数（10本なら10・20…。途中で終わらない）
   for(let i=0;i<n;i++){ const k=i%N; shot(t, type, go, small[k], cp(k,N), fx); t+=rr_(gapA,gapB); }
   return t;
 }
@@ -4217,8 +4344,15 @@ function progSeg(kind, t0){
   }
   if(kind==='hayauchi'){
     const go=Math.min(base,10), n=ri_(5,8);
+    /* v0.45：早打ちは2通り。1本の筒から続けて打つときは真上向きの筒（10号は大型用、7号以下は小型の中の傾き 0 の筒）。
+       横に展開するときは小型の筒を全部、左から順に（発数は筒の本数の倍数）。小型はどちらかを半々で選ぶ */
     if(go>=10){ for(let i=0;i<n;i++){ shot(t, null, go); t+=rr_(0.5,0.9); } }
-    else t=salvo(t, n, go, 0.5, 0.9);
+    else if(Math.random()<0.5) t=salvo(t, n, go, 0.5, 0.9);
+    else{
+      const vt=smallList().filter(q=>q.tilt===0), tb=vt.length ? vt[(Math.random()*vt.length)|0] : undefined;
+      const type=rndType(), fx=autoFx(type), cp=colorPlan();
+      for(let i=0;i<n;i++){ shot(t, type, go, tb, cp(i,n), fx); t+=rr_(0.5,0.9); }
+    }
     return t+4;
   }
   if(kind==='danuchi'){
@@ -4230,7 +4364,8 @@ function progSeg(kind, t0){
   }
   if(kind==='starmine'){
     const gos=upTo(Math.min(base,7)), go=gos[(Math.random()*gos.length)|0];
-    t=salvo(t, ri_(12,20), go, 0.25, 0.6);
+    const N=smallList().length||1;                     // v0.44：発数は小型の筒の本数の倍数（10本なら10発か20発。20本以上は1巡）
+    t=salvo(t, N*(N<20 && Math.random()<0.5 ? 2 : 1), go, 0.25, 0.6);
     return t+4;
   }
   if(kind==='finale'){
@@ -4563,8 +4698,19 @@ cv.addEventListener('pointercancel', ()=>{ drag=null; });
 cv.addEventListener('wheel', e=>{
   if(!inShow()) return;
   e.preventDefault();
-  const v=Math.max(+distEl.min, Math.min(+distEl.max, +distEl.value + Math.sign(e.deltaY)*20));
-  if(v!==+distEl.value){ distEl.value=v; distEl.dispatchEvent(new Event('input')); }
+  /* v0.50：マウスポインタの下にある一点を同じ位置に留めたまま観覧距離を変える（地図の拡大縮小と同じ）。
+     以前は距離の変化に見上げ角が追従して上下に動き、距離の端では見回しの範囲の変化で左右に動いていた */
+  const d0=dist, d1=Math.max(+distEl.min, Math.min(+distEl.max, d0 + Math.sign(e.deltaY)*20));
+  if(d1===d0) return;
+  const rc=cv.getBoundingClientRect(), px=(e.clientX-rc.left)*DPR, py=(e.clientY-rc.top)*DPR;
+  const th=Math.atan((H/2-py)/focal), h=EYE + d0*Math.tan(PITCH+th);   // ポインタの下の高さ（花火の距離で）
+  const q0={}; proj(0,h,-d0,q0); const X=(px - W/2 + PANX)/q0.s;       // ポインタの下の横の位置（投影の計算そのもので逆算）
+  dist=d1; distEl.value=d1; distV.textContent=d1+'m'; shiftWorld(d0-d1);   // v0.51：空のものも一緒に動く
+  let pp=Math.atan((h-EYE)/Math.max(60,d1))-th; pp=Math.max(4*Math.PI/180, Math.min(80*Math.PI/180, pp));
+  PITCH=pp; const deg=Math.round(pp*180/Math.PI); pitchEl.value=deg; pitchV.textContent=deg+'°';
+  aimAlt = EYE + dist*Math.tan(PITCH);
+  recomputeCam(); drawBackdropSoon(); setPM();
+  const q1={}; if(proj(X,h,-d1,q1)) setPan(PANX + (q1.x - px));        // 横はずれた分だけ見回しを戻す
 }, {passive:false});
 
 /* ============================================================
@@ -4574,19 +4720,27 @@ cv.addEventListener('wheel', e=>{
    ============================================================ */
 const barEl=document.getElementById('bar'), barTogBtn=document.getElementById('barTog');
 function inShow(){ return document.body.classList.contains('in-show'); }
+/* v0.50：帯は開いてから 10 秒どこも触らなければ閉じる（触るたびに数え直す） */
+let barTimer=0;
+function panelOpenSync(){ document.body.classList.toggle('panel-open', barEl.classList.contains('open') || document.getElementById('setPanel').classList.contains('show')); }
+function barArm(){ clearTimeout(barTimer); if(barEl.classList.contains('open')) barTimer=setTimeout(()=>{ if(barEl.classList.contains('open')) togglePanel(); }, 10000); }
+['pointerdown','input','change','wheel'].forEach(ev=>barEl.addEventListener(ev, barArm, {passive:true}));
 function togglePanel(){
   barEl.classList.toggle('open');
+  barArm(); panelOpenSync();
   barTogBtn.textContent = tr(barEl.classList.contains('open') ? 'barClose' : 'barOpen');
 }
 barTogBtn.addEventListener('click', ()=>{ barTogBtn.blur(); togglePanel(); });
 document.getElementById('sndTog').addEventListener('click', toggleSndPanel);
 /* v0.38：見るボタンは2つ（Q95〜）。単発＝その設定の花火を1回上げ、あとは画面タップ。プログラム＝選んだ番組で自動 */
 document.getElementById('startSingle').addEventListener('click', ()=>{
+  stopMusic();
   document.body.classList.add('in-show');
   if(autoOn) autoBtn.click();                        // 番組は止める（予約済みの番組の玉も update() で消える）
   fireOne();
 });
 document.getElementById('startProg').addEventListener('click', ()=>{
+  stopMusic();
   document.body.classList.add('in-show');
   if(MS.on) return;
   if(autoOn){ for(let i=SCH.length-1;i>=0;i--) if(SCH[i].prog) SCH.splice(i,1); nextAuto=0; progI=0; }   // 選び直した番組で最初から
@@ -4595,7 +4749,12 @@ document.getElementById('startProg').addEventListener('click', ()=>{
 document.getElementById('back').addEventListener('click', ()=>{
   if(MS.on) msStop(true);
   if(autoOn) autoBtn.click();                         // v0.39：裏で打ち上げない（自動を止め、予約も取り消す）
+  stopMusic();                                        // v0.46：曲も止める
   SCH.length=0;
+  /* v0.51：空の花火を消し、予約済みの音（破裂音は距離のぶん遅れて鳴るよう予約してある）も全部止める。
+     効果音の出口を切り離すと、そこへ予約された音はまとめて消える（次に鳴らすとき出口を作り直す） */
+  stars.length=0; shells.length=0; flashes.length=0; EM.n=0; starGone=0;
+  if(SE_G){ try{ SE_G.disconnect(); }catch(_){} SE_G=null; MASTER=null; MASTER_G=null; }
   document.body.classList.remove('in-show');
   document.getElementById('home').scrollTop=0;
 });
@@ -4618,7 +4777,7 @@ addEventListener('keydown', e=>{
    ・設定は端末に保存する（読めない環境では既定値で動く）
    ============================================================ */
 const SET_KEY='momo_fireworks_settings';
-const SET={se:100, bgm:40, seMute:false, bgmMute:false, stat:false, gl:true};
+const SET={se:100, bgm:40, seMute:false, bgmMute:false, stat:false, gl:true, wo:true, venue:true};   // v0.50：venue＝会場の響き（既定は入）   // v0.44：wo＝白飛び（既定は入）
 try{ const o=JSON.parse(localStorage.getItem(SET_KEY)||'null'); if(o) for(const k in SET) if(k in o) SET[k]=o[k]; }catch(e){}
 function saveSet(){ try{ localStorage.setItem(SET_KEY, JSON.stringify(SET)); }catch(e){} }
 const $=id=>document.getElementById(id);
@@ -4627,23 +4786,26 @@ function syncSetUI(){
   $('bgmVol').value=SET.bgm; $('bgmV').textContent=SET.bgm+'%'; $('bgmMute').checked=SET.bgmMute;
   $('mSeVol').value=SET.se; $('mSeV').textContent=SET.se+'%'; $('mSeMute').checked=SET.seMute;
   $('mBgmVol').value=SET.bgm; $('mBgmV').textContent=SET.bgm+'%'; $('mBgmMute').checked=SET.bgmMute;
-  $('statChk').checked=SET.stat; $('renderSel').value=SET.gl ? 'gl' : '2d';
+  $('statChk').checked=SET.stat; $('renderSel').value=SET.gl ? 'gl' : '2d'; $('woChk').checked=SET.wo; $('venueChk').checked=SET.venue;
+  if(WHITEOUT!==SET.wo){ WHITEOUT=SET.wo; applyExpo(); }
   document.body.classList.toggle('show-stat', SET.stat);
 }
 function bindVol(vol, mute, key, mkey){
-  $(vol).addEventListener('input', e=>{ SET[key]=+e.target.value; if(SET[key]>0) SET[mkey]=false; applySeGain(); saveSet(); syncSetUI(); });
-  $(mute).addEventListener('change', e=>{ SET[mkey]=e.target.checked; applySeGain(); saveSet(); syncSetUI(); });
+  $(vol).addEventListener('input', e=>{ SET[key]=+e.target.value; if(SET[key]>0) SET[mkey]=false; applySeGain(); applyBgmGain(); saveSet(); syncSetUI(); });
+  $(mute).addEventListener('change', e=>{ SET[mkey]=e.target.checked; applySeGain(); applyBgmGain(); saveSet(); syncSetUI(); });
 }
 bindVol('seVol','seMute','se','seMute'); bindVol('bgmVol','bgmMute','bgm','bgmMute');
 bindVol('mSeVol','mSeMute','se','seMute'); bindVol('mBgmVol','mBgmMute','bgm','bgmMute');
 $('statChk').addEventListener('change', e=>{ SET.stat=e.target.checked; saveSet(); syncSetUI(); if(SET.stat) fpsText(); });
+$('woChk').addEventListener('change', e=>{ SET.wo=e.target.checked; saveSet(); syncSetUI(); });
+$('venueChk').addEventListener('change', e=>{ SET.venue=e.target.checked; saveSet(); syncSetUI(); venueApply(); });   // v0.50   // v0.44：白飛び
 $('renderSel').addEventListener('change', e=>{ SET.gl=e.target.value==='gl'; glWant=SET.gl; applyDrawMode(); fpsText(); saveSet(); });
-$('gearBtn').addEventListener('click', ()=>{ syncSetUI(); $('setPanel').classList.add('show'); });
-$('setClose').addEventListener('click', ()=>{ $('setPanel').classList.remove('show'); });
-$('setPanel').addEventListener('pointerdown', e=>{ if(e.target===$('setPanel')) $('setPanel').classList.remove('show'); });
+$('gearBtn').addEventListener('click', ()=>{ syncSetUI(); $('setPanel').classList.add('show'); panelOpenSync(); });
+$('setClose').addEventListener('click', ()=>{ $('setPanel').classList.remove('show'); panelOpenSync(); });
+$('setPanel').addEventListener('pointerdown', e=>{ if(e.target===$('setPanel')){ $('setPanel').classList.remove('show'); panelOpenSync(); } });
 $('musicModal').addEventListener('pointerdown', e=>e.stopPropagation());
 $('setPanel').addEventListener('pointerdown', e=>e.stopPropagation());
-glWant=SET.gl; syncSetUI();
+glWant=SET.gl; syncSetUI(); WHITEOUT=SET.wo; applyExpo();   // v0.44：起動時にも白飛びの光量を当てる
 
 /* ---- 音の再生確認（花札・ダーツと同じ）。初めての操作と、1時間以上離れて戻ったあとの最初の操作で出す。
    パネルを出すために止めた操作は、パネルを閉じたあとに実行する ---- */
@@ -4660,7 +4822,7 @@ function closeMusic(play){
   saveSet(); syncSetUI();
   if(!AC){ try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
   if(AC && AC.state==='suspended') AC.resume();
-  audioAsked=true; sndOn=true; applySeGain();
+  audioAsked=true; sndOn=true; applySeGain(); applyBgmGain();
   if(AC) loadSounds();
   $('musicModal').classList.remove('show');
   const a=pendingAct; pendingAct=null; if(a) a();
@@ -4670,7 +4832,7 @@ $('musicNo').addEventListener('click', ()=>closeMusic(false));
 /* 音を出す操作（見るボタン・打上・即開花・自動）の最初のクリックを止めて確認パネルを出す */
 document.addEventListener('click', e=>{
   if(audioAsked) return;
-  const b=e.target.closest && e.target.closest('#startSingle,#startProg,#fire,#quick,#auto');
+  const b=e.target.closest && e.target.closest('#startSingle,#startProg,#startMusic,#fire,#quick,#auto');
   if(!b) return;
   e.preventDefault(); e.stopImmediatePropagation();
   askAudio(()=>b.click());
@@ -4682,6 +4844,348 @@ document.addEventListener('visibilitychange', ()=>{
     else if(AC && AC.state==='suspended' && audioAsked) AC.resume();
   }
 });
+
+/* ============================================================
+   v0.46：音楽の花火（Q110〜Q113）
+   ・曲は2種類：システムの曲（共通素材 assets/bgm。花火用は assets/bgm/fireworks/）と、端末の mp3
+   ・先に曲を解析し、花火が「開く瞬間」を音に合わせる（上がる時間だけ前に打ち上げる）
+       リズム（強い拍）→ 大型　／　メロディーの音の出だし → 小型（左の筒から順に）
+       長調・短調 → 色（長調＝金・赤・桃・白・橙、短調＝青・紫・水色・緑）　／　音の大きさ → 密度
+   ・曲は歯車の BGM の音量で鳴らす。音楽の間、効果音はふだんの 2 割（Q112）
+   ・曲はどこにも送らない（ブラウザの中で解析して鳴らす）
+   ============================================================ */
+const MU_BGM_DIR='../../assets/bgm/';
+const MU_FOLDER_KEY={fireworks:'bgmFireworks', lobby:'bgmLobby', 'game-japanese':'bgmJapanese', 'game-western':'bgmWestern', 'game-koikoi':'bgmKoikoi'};
+const MU_ORDER=['fireworks'];                           // v0.47：システムの曲は花火用（花火 1〜3）だけ
+const musicSel=document.getElementById('musicSel'), musicFile=document.getElementById('musicFile'), musicMsg=document.getElementById('musicMsg');
+let MU_LIST=[], muFileObj=null, BGM_G=null;
+/* 曲の一覧（目録が読めなければ端末の mp3 だけ） */
+async function muLoadList(){
+  try{
+    const r=await fetch(MU_BGM_DIR+'manifest.json', {cache:'no-cache'}); const m=await r.json();
+    MU_LIST=[]; for(const f of MU_ORDER) for(const n of (m[f]||[])) MU_LIST.push({folder:f, file:n});
+  }catch(e){ MU_LIST=[]; }
+  muBuildSel();
+}
+function muBuildSel(){
+  const keep=musicSel.value; musicSel.innerHTML='';
+  const cnt={};
+  for(let i=0;i<MU_LIST.length;i++){
+    const q=MU_LIST[i]; cnt[q.folder]=(cnt[q.folder]||0)+1;
+    const o=document.createElement('option'); o.value='s'+i;
+    o.textContent=(MU_FOLDER_KEY[q.folder] ? tr(MU_FOLDER_KEY[q.folder]) : q.folder)+' '+cnt[q.folder];
+    musicSel.appendChild(o);
+  }
+  const of=document.createElement('option'); of.value='file';
+  of.textContent = muFileObj ? '📁 '+muFileObj.name : tr('musicFile'); musicSel.appendChild(of);
+  if([...musicSel.options].some(o=>o.value===keep)) musicSel.value=keep;
+  if(musicSel.value==='file' && !muFileObj && MU_LIST.length) musicSel.value='s0';   // v0.49：一覧が届く前の選択（端末の mp3）が残らないように
+}
+musicSel.addEventListener('change', ()=>{ if(musicSel.value==='file' && !muFileObj) musicFile.click(); });
+musicFile.addEventListener('change', ()=>{ const f=musicFile.files && musicFile.files[0]; if(f){ muFileObj=f; muBuildSel(); musicSel.value='file'; } });
+/* v0.50：会場の響き（歯車で入／切・既定は入）。曲 → 低音と高音を少し落とす → そのまま（dry）＋残響（wet） → 風の揺れ → BGM の音量。
+   残響は広い空間の余韻（約 0.55 秒で減る）に、建物からの跳ね返り（0.19・0.41・0.73 秒）を重ねたもの。
+   「不安定な鳴り方」は、音量・左右・こもり具合をゆっくり揺らして出す。音の高さと速さは揺らさない（花火とずれない） */
+let VEN=null;
+function venueIR(){
+  const sr=AC.sampleRate, len=Math.round(sr*2.6), b=AC.createBuffer(2,len,sr);
+  for(let c=0;c<2;c++){ const d=b.getChannelData(c);
+    for(let i=0;i<len;i++){ const t=i/sr; d[i]=(Math.random()*2-1)*Math.exp(-t/0.55)*0.35*(t>0.02?1:t/0.02); }
+    for(const [dt,a] of [[0.19+c*0.013,0.45],[0.41+c*0.02,0.28],[0.73+c*0.03,0.15]]){ const i0=Math.round(dt*sr), m=Math.round(sr*0.03); for(let k=0;k<m && i0+k<len;k++) d[i0+k]+=(Math.random()*2-1)*a*Math.exp(-k/(sr*0.008)); } }
+  return b;
+}
+function venueBuild(){
+  if(VEN || !AC || !BGM_G) return VEN;
+  const inp=AC.createGain(), dry=AC.createGain(), wet=AC.createGain(), hp=AC.createBiquadFilter(), lp=AC.createBiquadFilter(), conv=AC.createConvolver(), wob=AC.createGain();
+  /* v0.51：繰り返すエコー（0.34 秒おき、4 割ずつ残る。回るたびに高音が減る） */
+  const ed=AC.createDelay(2), efb=AC.createGain(), elp=AC.createBiquadFilter(), eg=AC.createGain();
+  ed.delayTime.value=0.34; efb.gain.value=0.42; elp.type='lowpass'; elp.frequency.value=2600;
+  const pan=AC.createStereoPanner ? AC.createStereoPanner() : null;
+  hp.type='highpass'; lp.type='lowpass'; conv.buffer=venueIR();
+  inp.connect(hp).connect(lp); lp.connect(dry); lp.connect(conv).connect(wet); dry.connect(wob); wet.connect(wob);
+  lp.connect(ed); ed.connect(elp).connect(efb).connect(ed); elp.connect(eg).connect(wob);
+  if(pan) wob.connect(pan).connect(BGM_G); else wob.connect(BGM_G);
+  VEN={inp, dry, wet, hp, lp, wob, pan, eg}; venueApply(true); return VEN;
+}
+function venueApply(now){
+  if(!VEN || !AC) return; const on=SET.venue, t=AC.currentTime, k=now?0.001:0.08;
+  VEN.dry.gain.setTargetAtTime(on?0.75:1, t, k); VEN.wet.gain.setTargetAtTime(on?0.75:0, t, k); VEN.eg.gain.setTargetAtTime(on?0.28:0, t, k);   // v0.51：残響 0.45→0.75。v0.52：繰り返すエコー 0.55→0.28（半分）
+  VEN.hp.frequency.setTargetAtTime(on?90:10, t, k); VEN.lp.frequency.setTargetAtTime(on?4200:20000, t, k);   // v0.51：高音を 7000→4200Hz まで絞る（低音はそのまま）
+  if(!on){ VEN.wob.gain.setTargetAtTime(1, t, k); if(VEN.pan) VEN.pan.pan.setTargetAtTime(0, t, k); }
+}
+function venueWobble(){                                   // 風で揺れる（0.35 秒ごとに行き先を変え、ゆっくり追う）
+  if(!VEN || !SET.venue || !AC) return; const t=AC.currentTime;
+  VEN.wob.gain.setTargetAtTime(0.62+Math.random()*0.50, t, 0.45);           // v0.51：揺らぎを大きく（0.82〜1.12 → 0.62〜1.12）
+  if(VEN.pan) VEN.pan.pan.setTargetAtTime((Math.random()-0.5)*0.9, t, 0.6);   // 左右 ±0.18 → ±0.45
+  VEN.lp.frequency.setTargetAtTime(2200+Math.random()*3800, t, 0.5);        // こもり 4.2〜8.7k → 2.2〜6.0kHz
+}
+function applyBgmGain(){ if(BGM_G && AC) BGM_G.gain.setTargetAtTime((SET.bgmMute?0:SET.bgm/100)*0.9, AC.currentTime, 0.02); }
+
+/* ---------- 解析 ---------- */
+function fftMag(re, im){                                  // 基数2の FFT（その場で）
+  const n=re.length;
+  for(let i=1,j=0;i<n;i++){ let b=n>>1; for(;j&b;b>>=1) j^=b; j^=b; if(i<j){ let t=re[i]; re[i]=re[j]; re[j]=t; t=im[i]; im[i]=im[j]; im[j]=t; } }
+  for(let len=2;len<=n;len<<=1){
+    const a=-2*Math.PI/len, wr=Math.cos(a), wi=Math.sin(a);
+    for(let i=0;i<n;i+=len){ let cr=1, ci=0;
+      for(let k=0;k<len/2;k++){ const ur=re[i+k], ui=im[i+k], xr=re[i+k+len/2], xi=im[i+k+len/2];
+        const vr=xr*cr-xi*ci, vi=xr*ci+xi*cr; re[i+k]=ur+vr; im[i+k]=ui+vi; re[i+k+len/2]=ur-vr; im[i+k+len/2]=ui-vi;
+        const nr=cr*wr-ci*wi; ci=cr*wi+ci*wr; cr=nr; } } }
+}
+/* 長調・短調の目安（Krumhansl の調性プロファイル） */
+const KP_MAJ=[6.35,2.23,3.48,2.33,4.38,4.09,2.52,5.19,2.39,3.66,2.29,2.88], KP_MIN=[6.33,2.68,3.52,5.38,2.60,3.53,2.54,4.75,3.98,2.69,3.34,3.17];
+function corr(a,b){ const n=a.length; let ma=0,mb=0; for(let i=0;i<n;i++){ma+=a[i]; mb+=b[i];} ma/=n; mb/=n; let s=0,sa=0,sb=0; for(let i=0;i<n;i++){const x=a[i]-ma,y=b[i]-mb; s+=x*y; sa+=x*x; sb+=y*y;} return s/Math.sqrt(sa*sb||1); }
+async function muAnalyze(buf, prog){
+  const sr0=buf.sampleRate, ds=Math.max(1,Math.round(sr0/11025)), sr=sr0/ds;
+  const L=Math.floor(buf.length/ds), x=new Float32Array(L), nc=buf.numberOfChannels;
+  for(let c=0;c<nc;c++){ const d=buf.getChannelData(c); for(let i=0;i<L;i++){ let s=0; for(let k=0;k<ds;k++) s+=d[i*ds+k]||0; x[i]+=s/(ds*nc); } }
+  const N=1024, HOP=256, nF=Math.max(1,Math.floor((L-N)/HOP)), fps=sr/HOP;
+  const win=new Float32Array(N); for(let i=0;i<N;i++) win[i]=0.5-0.5*Math.cos(2*Math.PI*i/(N-1));
+  const re=new Float32Array(N), im=new Float32Array(N), prev=new Float32Array(N/2), cur=new Float32Array(N/2);
+  const fLow=new Float32Array(nF), fMid=new Float32Array(nF), rms=new Float32Array(nF), chroma=new Float32Array(nF*12);
+  const bHz=sr/N, bLo0=Math.max(1,Math.round(30/bHz)), bLo1=Math.round(200/bHz), bMi1=Math.round(3000/bHz);
+  const NC=4096, bHzC=sr/NC, bC0=Math.round(130/bHzC), bC1=Math.round(2000/bHzC);
+  const reC=new Float32Array(NC), imC=new Float32Array(NC), winC=new Float32Array(NC); for(let i=0;i<NC;i++) winC[i]=0.5-0.5*Math.cos(2*Math.PI*i/(NC-1));
+  const pcOf2=new Int8Array(NC/2); for(let b=0;b<NC/2;b++){ const f=b*bHzC; pcOf2[b]= f>0 ? ((Math.round(12*Math.log2(f/440))+69)%12+12)%12 : 0; }
+  for(let f=0;f<nF;f++){
+    const o=f*HOP; let e=0;
+    for(let i=0;i<N;i++){ const v=x[o+i]; re[i]=v*win[i]; im[i]=0; e+=v*v; }
+    rms[f]=Math.sqrt(e/N);
+    fftMag(re,im);
+    let lo=0, mi=0;
+    for(let b=1;b<N/2;b++){ const m=Math.log1p(100*Math.hypot(re[b],im[b])); cur[b]=m; const d=m-prev[b];
+      if(d>0){ if(b>=bLo0 && b<bLo1) lo+=d; else if(b>=bLo1 && b<bMi1) mi+=d; }
+    }
+    fLow[f]=lo; fMid[f]=mi; prev.set(cur);
+    /* 調を見る音の高さは細かい分析（4096 点・約 2.7Hz）で、8 コマに 1 回。強さは対数でなくそのまま（対数だとどの音も同じくらいに見える） */
+    if(f%8===0 && o+NC<=L){
+      for(let i=0;i<NC;i++){ reC[i]=x[o+i]*winC[i]; imC[i]=0; }
+      fftMag(reC,imC);
+      for(let b=bC0;b<bC1;b++){ const m=Math.hypot(reC[b],imC[b]); for(let k=f;k<Math.min(nF,f+8);k++) chroma[k*12+pcOf2[b]]+=m; }
+    }
+    if(f%400===0){ prog(f/nF*0.8); await new Promise(z=>setTimeout(z,0)); }
+  }
+  // 包絡線を 1 秒の移動平均からの上ずれにする
+  const hp=(a)=>{ const w=Math.round(fps), o=new Float32Array(a.length); let s=0; const q=[];
+    for(let i=0;i<a.length;i++){ q.push(a[i]); s+=a[i]; if(q.length>w) s-=q.shift(); o[i]=Math.max(0,a[i]-s/q.length); } return o; };
+  const oL=hp(fLow), oM=hp(fMid), oA=new Float32Array(nF); for(let i=0;i<nF;i++) oA[i]=oL[i]+0.5*oM[i];
+  // テンポ（自己相関。120BPM 付近を少し優先）
+  let bestLag=Math.round(fps*0.5), bestV=-1;
+  for(let lag=Math.round(fps*60/180); lag<=Math.round(fps*60/60); lag++){
+    let s=0; for(let i=lag;i<nF;i++) s+=oA[i]*oA[i-lag];
+    const bpm=60*fps/lag, w=Math.exp(-0.5*Math.pow(Math.log2(bpm/120)/0.9,2));
+    if(s*w>bestV){ bestV=s*w; bestLag=lag; } }
+  prog(0.85); await new Promise(z=>setTimeout(z,0));
+  // 拍の追跡（動的計画法：拍どうしの間隔がテンポから外れるほど減点）
+  let mA=0, sA=0; for(let i=0;i<nF;i++){ mA+=oA[i]; } mA/=nF; for(let i=0;i<nF;i++) sA+=(oA[i]-mA)*(oA[i]-mA); sA=Math.sqrt(sA/nF)||1;
+  const on=new Float32Array(nF); for(let i=0;i<nF;i++) on[i]=oA[i]/sA;          // 標準偏差 1 にそろえる
+  const sc=new Float32Array(nF), bp=new Int32Array(nF).fill(-1), P=bestLag, TIGHT=100;
+  for(let t=0;t<nF;t++){ let best=-1e9, arg=-1;
+    for(let p=t-2*P; p<=t-Math.round(P/2); p++){ if(p<0) continue; const v=sc[p]-TIGHT*Math.pow(Math.log((t-p)/P),2); if(v>best){ best=v; arg=p; } }
+    sc[t]=on[t]+(arg>=0 ? Math.max(0,best) : 0); bp[t]=(arg>=0 && best>0) ? arg : -1; }
+  let t=0; for(let i=Math.max(0,nF-P);i<nF;i++) if(sc[i]>sc[t]) t=i;
+  const beats=[]; while(t>=0){ beats.push(t); t=bp[t]; } beats.reverse();
+  // 小節の頭（4拍ごと）：低音の出だしがいちばん強くそろう位相
+  let ph=0, phV=-1; for(let p=0;p<4;p++){ let s=0; for(let i=p;i<beats.length;i+=4) s+=oL[beats[i]]; if(s>phV){ phV=s; ph=p; } }
+  const lowS=beats.map(b=>oL[b]).sort((a,b)=>a-b), acc=lowS[Math.floor(lowS.length*0.8)]||0;
+  // 音の大きさ（2 秒ならし・10〜90% で 0〜1 に）
+  const w2=Math.round(fps*2), loud=new Float32Array(nF); { let s=0; const q=[]; for(let i=0;i<nF;i++){ q.push(rms[i]); s+=rms[i]; if(q.length>w2) s-=q.shift(); loud[i]=s/q.length; } }
+  const ls=Array.from(loud).sort((a,b)=>a-b), l10=ls[Math.floor(nF*0.1)]||0, l90=ls[Math.floor(nF*0.9)]||1;
+  const lv=f=>Math.max(0,Math.min(1,(loud[Math.min(nF-1,Math.max(0,f))]-l10)/Math.max(1e-6,l90-l10)));
+  // 大型の候補：小節の頭と強い拍
+  const big=[]; for(let i=0;i<beats.length;i++){ const b=beats[i]; if((i-ph)%4===0 || oL[b]>=acc) big.push({t:b/fps, s:oL[b]+((i-ph)%4===0?acc:0), lv:lv(b)}); }
+  // メロディーの出だし：中高域の山（前後 3 コマで最大・2 秒の平均＋標準偏差を超える）
+  const mel=[]; { const w=Math.round(fps*2);
+    for(let i=3;i<nF-3;i++){ const v=oM[i]; let isMax=true; for(let k=-3;k<=3;k++) if(k && oM[i+k]>v){ isMax=false; break; } if(!isMax) continue;
+      let s=0,s2=0,c=0; for(let k=Math.max(0,i-w);k<Math.min(nF,i+w);k++){ s+=oM[k]; s2+=oM[k]*oM[k]; c++; }
+      const m=s/c, sd=Math.sqrt(Math.max(0,s2/c-m*m)); if(v>m+sd*1.0) mel.push({t:i/fps, s:v, lv:lv(i)}); } }
+  // 長調・短調（8 秒ごと、前後となじませる）
+  const segF=Math.round(fps*8), nS=Math.ceil(nF/segF), modeRaw=[];
+  for(let s=0;s<nS;s++){ const c=new Float32Array(12); for(let f=s*segF; f<Math.min(nF,(s+1)*segF); f++) for(let k=0;k<12;k++) c[k]+=chroma[f*12+k];
+    let bM=-9, bm=-9; for(let r=0;r<12;r++){ const pM=[],pm=[]; for(let k=0;k<12;k++){ pM.push(KP_MAJ[(k-r+12)%12]); pm.push(KP_MIN[(k-r+12)%12]); } bM=Math.max(bM,corr(c,pM)); bm=Math.max(bm,corr(c,pm)); }
+    modeRaw.push(bM>=bm ? 1 : -1); }
+  const mode=modeRaw.map((v,i)=>{ const a=(modeRaw[i-1]||0)+v+(modeRaw[i+1]||0); return a>=0 ? 'maj' : 'min'; });
+  prog(1);
+  /* v0.48：曲で最初に音が出た瞬間と、最後に音が鳴った瞬間（音の大きさが曲の 95% 点の 8% を超えるコマ） */
+  const rs=Array.from(rms).sort((a,b)=>a-b), thr=0.08*(rs[Math.floor(nF*0.95)]||0);
+  let fF=0; while(fF<nF-1 && rms[fF]<=thr) fF++; let fL=nF-1; while(fL>0 && rms[fL]<=thr) fL--;
+  return {bpm:60*fps/P, beats:beats.length, big, mel, mode, segSec:8, dur:buf.duration, firstT:(fF+N/HOP/2)/fps, lastT:(fL+N/HOP/2)/fps,
+          beatT:beats.map(b=>b/fps), beatLv:beats.map(b=>lv(b)), ph};   // v0.47：拍ごとの時刻と盛り上がり、小節の頭の位置
+}
+
+/* ---------- 打ち上げの予定を作る ---------- */
+const RISE={};
+function riseTime(go){                                     // 開くまでの時間（launch() と同じ式で数値的に）
+  if(RISE[go]) return RISE[go];
+  const S=spec(go), cD=0.0016, v0=Math.sqrt((G/cD)*(Math.exp(2*cD*S.alt)-1)); let vy=v0, t=0; const dt=1/240;
+  while(vy>1.5){ vy-=(G+cD*vy*vy)*dt; t+=dt; }
+  return RISE[go]=t;
+}
+const MU_PAL={maj:['yellow','red','pink','white','orange'], min:['blue','purple','aqua','green']};
+function muColorPlan(md){
+  const p=MU_PAL[md]||MU_PAL.maj, a=HUE[p[(Math.random()*p.length)|0]]; let b=HUE[p[(Math.random()*p.length)|0]]; for(let k=0;k<6 && b===a;k++) b=HUE[p[(Math.random()*p.length)|0]];
+  const m=(Math.random()*4)|0;
+  if(m===0) return ()=>a;
+  if(m===1) return k=>(k%2?b:a);
+  if(m===2) return (k,N)=>{ const u=N>1?k/(N-1):0; return [a[0]+(b[0]-a[0])*u, a[1]+(b[1]-a[1])*u, a[2]+(b[2]-a[2])*u]; };
+  return (k,N)=>{ const d=N>1?Math.abs(k-(N-1)/2)/((N-1)/2):0; return d<0.5?a:b; };
+}
+/* 画面で花が開いて見えるまでの時間（Q：開く「見え方」に合わせる）。
+   星は破裂のあと点火し（平均 約0.04秒）、寿命の 8% で明るさが立ち上がる（半分の明るさまで 寿命×0.052）。
+   玉の種類と号数ごとに、代表の寿命から求める */
+const VISLAG={};
+function visLag(type, go){
+  const key=type+'_'+go; if(VISLAG[key]) return VISLAG[key];
+  const R=RECIPES[type], S=spec(go); let life=2.4;
+  if(R && R.layers && R.layers.length){ const l=R.layers[0]; life = (typeof l.life==='number' ? l.life : 2.0)*S.lifeK*(l.bb?1:LIFE_SCALE)*(R.kg?KG_LIFE:1);
+    if(l.wl || l.kk2){ const sL=Math.sqrt(S.R/148), hr=Math.min(1,(S.alt/S.R)/(330/148)); life=l.life*sL*hr*hr; } }
+  return VISLAG[key]=0.04+0.08*life;                    // v0.48：半分の明るさ（寿命×0.052）→ 明るさが最大になり形ができる瞬間（寿命×0.08）。半分では遅れて見えた
+}
+/* ---------- 打ち上げの予定（v0.47 作り直し：拍で小型を刻み、4小節ごとに盛り上がりで打ち方を切り替える） ---------- */
+const MU_PAT={
+  0:['alt','center','slowSweep'],                        // 静か
+  1:['sweep','converge','ends'],                         // ふつう
+  2:['eighth','fan','starmine'],                         // 盛り上がり
+  3:['bigBarrage','starmineFull','wall']                 // 最高潮
+};
+function muPlan(A){
+  /* v0.49：音楽の筒と大きさは決まった設定（Q117・Q118）。小型は垂直に15本（70m おき）、大型用は2本。
+     大型は 静か・ふつう＝20号、密な区間＝10号、ときどき（約45秒に1回）と最高潮の決め＝40号。小型は7号（密な区間は5号） */
+  const ev=[], bigGo=20, smallGo0=7;
+  const sm=[], bl=[{x:-40, back:TB_BACK, tilt:0, big:1, g:-1},{x:40, back:TB_BACK, tilt:0, big:1, g:-1}];
+  for(let k=0;k<15;k++) sm.push({x:(k-7)*TB_V_GAP, back:0, tilt:0, big:0, g:(k/5)|0});
+  const N=sm.length, NB=bl.length;
+  let last40=-99;
+  /* 曲の終わり（最後に音が鳴るまでの最後の8拍）が静かか。静かなら最後をフィナーレにせず、最後の1発も錦冠で柔らかく */
+  let quietEnd=false; { let e=A.beatT.length; while(e>1 && A.beatT[e-1]>A.lastT+0.05) e--; let s=0,c=0; for(let i=Math.max(0,e-8);i<e;i++){ s+=A.beatLv[i]; c++; } quietEnd = c>0 && s/c<0.3; }
+  const B=A.beatT, nb=B.length; if(nb<8) return ev;
+  const beatDur=i=> i+1<nb ? B[i+1]-B[i] : (B[i]-B[i-1]);
+  /* 1拍を何個に割るか。刻みは 0.17 秒より細かくしない（速い曲で 4 つに割ると 0.09 秒おきになり、星の上限に当たる） */
+  const subs=(d,mx)=>{ const n=Math.max(1,Math.min(mx,Math.floor(d/0.17))); const a=[]; for(let k=0;k<n;k++) a.push(k/n); return a; };
+  const segOf=t=>Math.max(0,Math.min(A.mode.length-1, Math.floor(t/A.segSec)));
+  // 小節（4拍）と 4小節のまとまり
+  const bars=[]; for(let i=A.ph;i<nb;i+=4) bars.push(i);
+  const barLv=bars.map(b=>{ let s=0,c=0; for(let k=b;k<Math.min(nb,b+4);k++){ s+=A.beatLv[k]; c++; } return c ? s/c : 0; });
+  const cls=v=> v<0.28 ? 0 : v<0.55 ? 1 : v<0.8 ? 2 : 3;
+  let kB=0;                                              // 大型の通し番号（近い仲間を交互、筒も交互）
+  const small=(t,go,k,type,col,fx)=>ev.push({bt:t, go, type, fx, col, tube:sm[((k%N)+N)%N]});
+  const big=(t,type,fx,col,j,go)=>{ ev.push({bt:t, go:go||curBigGo, type, fx, col, big:1, tube:NB ? bl[((j===undefined?kB:j)%NB+NB)%NB] : undefined}); kB++; };
+  let curBigGo=bigGo;
+  let prevCls=-1, prevPat='', cursor=0; const pats=[];   // pats：4小節ごとの段階と打ち方（確認用）
+  const lastBar = bars.length-1;
+  for(let p=0;p<bars.length;p+=4){
+    const pb=bars.slice(p,p+4), lvs=barLv.slice(p,p+4), lvAvg=lvs.reduce((a,b)=>a+b,0)/lvs.length;
+    let c=cls(lvAvg);
+    const finale = !quietEnd && p+4>lastBar-1;           // 最後のまとまり＝フィナーレ（静かに終わる曲は除く）
+    if(finale) c=3;
+    const md=A.mode[segOf(B[pb[0]])], pal=MU_PAL[md]||MU_PAL.maj;
+    newBigPair();
+    /* 密な区間（盛り上がり・最高潮）は軽い玉（短く燃える）を 5号で。長く燃える柳・錦冠などは静かな区間だけ */
+    const LIGHT=['kiku','yae','hanwari','henka','dan'];   // 牡丹は星が多い（5号で約230）ので外す
+    const bGo = c>=2 ? 10 : 20;                            // 密な区間の大型は 10号（20号は1発で星が約1100〜1400あり、重なると上限に当たる）
+    const type= c>=2 ? LIGHT[(Math.random()*LIGHT.length)|0] : rndType(), fx=autoFx(type), bType=bigPair[0], bType2=bigPair[1];
+    const smallGo = c>=2 ? 5 : smallGo0; curBigGo=bGo;
+    const cands=MU_PAT[c].filter(q=>q!==prevPat); const pat=finale ? 'starmineFull' : cands[(Math.random()*cands.length)|0];
+    // 区間が盛り上がる方へ変わった頭に「決め」（大型を全部＋小型の一斉）
+    /* ときどき 40号で引き締める：約45秒ぶりの、ふつう以上の区間の頭（最高潮へ入る決めは下で 40号） */
+    if(!(c===3 && c>prevCls) && c>=1 && B[pb[0]]-last40>=45 && p>0){ big(B[pb[0]],bType,bigFx[0],HUE[pal[0]],0,40); last40=B[pb[0]]; }
+    if(c>prevCls && prevCls>=0 && c>=2){ const t=B[pb[0]]; if(c===3 && t-last40>=20){ big(t,bType,bigFx[0],HUE[pal[0]],0,40); last40=t; } else for(let j=0;j<Math.max(1,NB);j++) big(t,bType,bigFx[0],HUE[pal[0]],j,bigGo); const col=HUE[pal[1%pal.length]]; for(let k=0;k<N;k+=2) small(t,smallGo,k,type,col,fx); }
+    for(let bi=0;bi<pb.length;bi++){
+      const b0=pb[bi], cp=muColorPlan(md);
+      for(let q=0;q<4 && b0+q<nb;q++){
+        const i=b0+q, t=B[i], d=beatDur(i), down=(q===0);
+        switch(pat){
+          case 'alt': if(q%2===0){ const m=(cursor++)%Math.max(1,Math.ceil(N/2)); small(t,smallGo, cursor%2 ? N-1-m : m, type, cp(q,4), fx); } break;
+          case 'center': if(q%2===0) small(t,smallGo,(N-1)>>1, down?'kamuro':type, cp(q,4), down?null:fx); if(down && bi===0 && NB) big(t,'yanagi',null,null); break;
+          case 'slowSweep': small(t,smallGo,cursor++,type,cp(cursor%N,N),fx); break;
+          case 'sweep': small(t,smallGo,cursor++,type,cp(cursor%N,N),fx); if(down && bi%2===0 && NB) big(t,bType,bigFx[0],HUE[pal[0]]); break;
+          case 'converge': { const m=cursor++%Math.ceil(N/2); small(t,smallGo,m,type,cp(m,N),fx); small(t,smallGo,N-1-m,type,cp(N-1-m,N),fx); if(down && NB) big(t,kB%2?bType2:bType,bigFx[kB%2],null); break; }
+          case 'ends': if(down){ small(t,smallGo,0,type,cp(0,N),fx); small(t,smallGo,N-1,type,cp(N-1,N),fx); } else small(t,smallGo,(N-1)>>1,type,cp(q,4),fx); if(down && bi%2===1 && NB) big(t,bType,bigFx[0],null); break;
+          case 'eighth': for(const h of subs(d,2)){ small(t+h*d,smallGo,cursor++,type,cp(cursor%N,N),fx); } if(down && NB) big(t,kB%2?bType2:bType,bigFx[kB%2],null); break;
+          case 'fan': if(down){ const w=Math.min(N,5), c0=(N-w)>>1; for(let k=0;k<w;k++) small(t,smallGo,c0+k,type,cp(k,w),fx); if(NB) big(t,bType,bigFx[0],null); } else { small(t,smallGo,cursor++,type,cp(cursor%N,N),fx); small(t+0.5*d,smallGo,cursor++,type,cp(cursor%N,N),fx); } break;
+          case 'starmine': for(const h of subs(d,4)) small(t+h*d,smallGo,cursor++,type,cp(cursor%N,N),fx); if(down && bi%2===0 && NB) big(t,bType,bigFx[0],null); break;
+          case 'bigBarrage': if(NB && q%2===0) big(t,kB%2?bType2:bType,bigFx[kB%2],HUE[pal[kB%pal.length]]); if(down){ for(let k=0;k<N;k+=2) small(t,smallGo,k,type,cp(k,N),fx); } else small(t+0.5*d,smallGo,cursor++,type,cp(cursor%N,N),fx); break;
+          case 'starmineFull': for(const h of subs(d,4)){ const k=cursor++; small(t+h*d,smallGo,(bi%2 ? N-1-k : k),type,cp((((bi%2?N-1-k:k)%N)+N)%N,N),fx); } if(down && NB){ for(let j=0;j<NB;j++) big(t,bType,bigFx[0],HUE[pal[0]],j); } break;
+          case 'wall': if(q%2===0){ for(let k=(q>>1)%2;k<N;k+=2) small(t,smallGo,k,type,cp(k,N),fx); } else small(t,smallGo,(N-1)>>1,type,cp(q,4),fx); if(down && NB) big(t,bType,bigFx[0],HUE[pal[0]]); break;
+        }
+      }
+    }
+    prevCls=c; prevPat=pat; pats.push([+B[pb[0]].toFixed(1), c, pat, +lvAvg.toFixed(2)]);
+  }
+  // v0.48：曲で最初に音が出た瞬間に「決め」
+  { const t=A.firstT, pal=MU_PAL[A.mode[0]]||MU_PAL.maj; newBigPair(); for(let j=0;j<Math.max(1,NB);j++) big(t,bigPair[0],bigFx[0],HUE[pal[0]],j,bigGo); for(let k=0;k<N;k+=2) small(t,smallGo0,k,'kiku',HUE[pal[1%pal.length]],null); }
+  // v0.48：最後に音が鳴った瞬間より後の予定は捨てる（拍の追跡が曲の後ろの無音まで拍を伸ばすことがある）
+  for(let i=ev.length-1;i>=0;i--) if(ev[i].bt>A.lastT+0.05) ev.splice(i,1);
+  let nbE=nb; while(nbE>1 && B[nbE-1]>A.lastT+0.05) nbE--;
+  // 曲の最後の拍：大型全部と小型の一斉
+  /* 最後の1発：曲の終わり（最後の8拍）が静かでなければ 40号、静かなら錦冠で柔らかく終える */
+  { const t=B[nbE-1];
+    if(quietEnd){ for(let k=0;k<N;k+=2) small(t,smallGo0,k,'kamuro',null,null); }
+    else{ for(let i=ev.length-1;i>=0;i--) if(ev[i].big && ev[i].go===40 && ev[i].bt>t-20) ev.splice(i,1);   // 直前の 40号とは重ねない
+          big(t,'kamuro',null,HUE.white,0,40); for(let k=0;k<N;k+=2) small(t,smallGo0,k,'kiku',HUE.white,null); } }
+  // メロディーの飾り：拍の打ち上げから 0.12 秒以上離れた出だしに、中央の筒から小さく明るい玉
+  const taken=ev.map(e=>e.bt).sort((a,b)=>a-b); let last=-9, j=0;
+  for(const m of A.mel){ if(m.lv<0.25 || m.t-last<0.3 || m.t>A.lastT) continue;
+    while(j<taken.length && taken[j]<m.t-0.12) j++;
+    if(j<taken.length && Math.abs(taken[j]-m.t)<0.12) continue;
+    last=m.t; ev.push({bt:m.t, go:5, type:'botan', fx:null, col:HUE[Math.random()<0.5?'white':'yellow'], tube:sm[(N-1)>>1]}); }
+  for(const e of ev) e.lt=e.bt-riseTime(e.go)-visLag(e.type,e.go);
+  ev.sort((a,b)=>a.lt-b.lt);
+  ev.pats=pats;
+  return ev;
+}
+
+/* ---------- 再生 ---------- */
+function muNow(){ return MUSIC && AC ? AC.currentTime-MUSIC.t0 : 0; }
+function musicTick(){
+  if(!MUSIC) return;
+  const now=muNow(), sm=smallList(), N=sm.length||1;
+  while(MUSIC.i<MUSIC.ev.length && MUSIC.ev[MUSIC.i].lt<=now){
+    const e=MUSIC.ev[MUSIC.i++];
+    launch(e.type, e.go, dist*(0.97+Math.random()*0.06), e.fx, e.tube, e.col);   // v0.47：筒と色は予定を作るときに決める
+  }
+  if(!MUSIC.wbT || performance.now()-MUSIC.wbT>350){ MUSIC.wbT=performance.now(); venueWobble(); }   // v0.50：会場の響きの揺れ
+  if(!MUSIC.stT || performance.now()-MUSIC.stT>400){ MUSIC.stT=performance.now();
+    const f=s=>{ s=Math.max(0,s|0); return (s/60|0)+':'+String(s%60).padStart(2,'0'); };
+    const st=document.getElementById('progStat'); if(st) st.textContent='♪ '+MUSIC.name+'  '+f(now)+' / '+f(MUSIC.dur); }
+  if(now>MUSIC.dur+10) stopMusic();
+}
+function stopMusic(){
+  if(!MUSIC) return;
+  try{ MUSIC.src.stop(); }catch(e){}
+  MUSIC=null; SCH.length=0; applySeGain();
+  const st=document.getElementById('progStat'); if(st) st.textContent='';
+}
+async function startMusic(){
+  stopMusic();
+  if(autoOn) autoBtn.click();
+  if(!AC){ try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+  if(!AC){ musicMsg.textContent=tr('musicLoadError', 'AudioContext'); return; }
+  if(AC.state==='suspended') AC.resume();
+  const btn=document.getElementById('startMusic'); btn.disabled=true;
+  try{
+    let ab, name;
+    const v=musicSel.value;
+    if(v==='file'){ if(!muFileObj){ musicFile.click(); btn.disabled=false; return; } ab=await muFileObj.arrayBuffer(); name=muFileObj.name.replace(/\.[^.]+$/,''); }
+    else{ const q=MU_LIST[+v.slice(1)]; const r=await fetch(MU_BGM_DIR+q.folder+'/'+q.file); if(!r.ok) throw new Error(r.status); ab=await r.arrayBuffer(); name=musicSel.options[musicSel.selectedIndex].textContent; }
+    musicMsg.textContent=tr('musicAnalyzing', 0);
+    const buf=await AC.decodeAudioData(ab);
+    const A=await muAnalyze(buf, p=>{ musicMsg.textContent=tr('musicAnalyzing', Math.round(p*100)); });
+    const ev=muPlan(A);
+    const pre=Math.max(0.5, -(ev.length ? ev[0].lt : 0)+0.3);     // 最初の打ち上げに間に合うよう、曲の頭を遅らせる
+    if(!BGM_G){ BGM_G=AC.createGain(); BGM_G.connect(AC.destination); }
+    const src=AC.createBufferSource(); src.buffer=buf; src.connect(venueBuild() ? VEN.inp : BGM_G);   // v0.50：会場の響きを通す
+    const t0=AC.currentTime+pre; src.start(t0);
+    MUSIC={buf, src, t0, ev, i:0, name, dur:buf.duration, pre};
+    applySeGain(); applyBgmGain();
+    musicMsg.textContent=tr('musicReady', Math.round(A.bpm), A.mode.filter(m=>m==='maj').length>=A.mode.length/2 ? tr('musicMaj') : tr('musicMin'));
+    document.body.classList.add('in-show');
+    window.__muLast=A;                                     // 検証用（解析の結果）
+  }catch(e){ musicMsg.textContent=tr('musicLoadError', e.message||e); console.warn('[music]', e); }
+  btn.disabled=false;
+}
+document.getElementById('startMusic').addEventListener('click', startMusic);
+muLoadList();
 
 /* ---------- v0.37：言語の切り替えと画面の文言 ---------- */
 function buildTypeOptions(){
@@ -4709,6 +5213,7 @@ function applyLang(){
   const subEl=document.getElementById('subtitle');
   const effLang=currentLang==='cat' ? _catBase() : currentLang;
   subEl.textContent=tBase('headerSub'); subEl.classList.toggle('zh', effLang==='zh');
+  document.getElementById('mhSub').textContent=tBase('headerSub');   // v0.50：左上の題字のサブタイトル
   for(const k of ['footAbout','footDesc','footTop','footGames','footTools']) document.getElementById(k).textContent=tBase(k);
   buildTypeOptions();
   tbBuild();
@@ -4716,7 +5221,8 @@ function applyLang(){
   nearBtn.textContent=tr(sndNear ? 'nearOff' : 'nearOn');
   msBtn.textContent=tr(MS.on ? 'msStop' : 'msBtn');
   barTogBtn.textContent=tr(barEl.classList.contains('open') ? 'barClose' : 'barOpen');
-  sndTogLabel(); progStatShow();
+  sndTogLabel(); if(!MUSIC) progStatShow();
+  muBuildSel();                                        // v0.46：曲の一覧の名前
   document.querySelectorAll('.lang-select').forEach(s=>{ s.value=langMode; });
 }
 function onLangChange(mode){

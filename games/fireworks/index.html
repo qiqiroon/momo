@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
-<!-- MOMO Fireworks v0.55 -->
+<!-- MOMO Fireworks v0.56 -->
 <html lang="ja">
 <head>
 <meta charset="utf-8">
@@ -230,6 +230,13 @@
   #progStat{position:fixed;left:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:20;pointer-events:none;
     font-family:'Noto Sans JP','Noto Sans SC',sans-serif;font-size:12px;letter-spacing:.08em;color:rgba(255,255,255,.34)}
   body:not(.in-show) #progStat{display:none}
+  /* v0.56：自動回転がオフのときの案内（横に倒しているのに縦のまま） */
+  #rotHint{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:45;width:min(320px,84vw);box-sizing:border-box;
+    padding:14px 18px;border-radius:8px;background:rgba(10,10,10,.78);border:1px solid rgba(234,88,12,.5);
+    font-family:'Noto Sans JP','Noto Sans SC',sans-serif;font-size:14px;line-height:1.7;color:#ede7da;text-align:center;
+    opacity:0;pointer-events:none;transition:opacity .4s}
+  #rotHint.show{opacity:1;pointer-events:auto}
+  body:not(.in-show) #rotHint{display:none}
 
   /* ── v0.38：右上の歯車と言語（2画面共通） ── */
   #topCtl{position:fixed;top:8px;right:28px;z-index:60;display:flex;gap:6px;align-items:center}
@@ -344,11 +351,12 @@
       <circle cx="26" cy="21" r="2.6" fill="#fff7d6" stroke="#000" stroke-width="0.6"/>
     </g>
   </svg>
-  <div class="mh"><span class="mh-t">MOMO <b>Fireworks</b></span><span class="mh-s"><span id="mhSub">Night Blooms, Golden Fade</span><span class="mh-v" id="mhVer">v0.55</span></span></div>
+  <div class="mh"><span class="mh-t">MOMO <b>Fireworks</b></span><span class="mh-s"><span id="mhSub">Night Blooms, Golden Fade</span><span class="mh-v" id="mhVer">v0.56</span></span></div>
 </div>
 
 <div id="fps"><div id="fpsA"></div><div id="fpsB"></div></div>
 <div id="progStat"></div>
+<div id="rotHint" role="status"></div>
 <div id="msStat"></div>
 <div id="msBox" role="dialog" aria-label="計測結果">
   <h2 data-i18n="msTitle">計測結果</h2>
@@ -532,7 +540,7 @@
         </g>
       </svg>
       <div class="title-block">
-        <h1><span class="momo">MOMO</span><span class="fireworks">Fireworks</span><span class="version-tag" id="version-tag">v0.55</span></h1>
+        <h1><span class="momo">MOMO</span><span class="fireworks">Fireworks</span><span class="version-tag" id="version-tag">v0.56</span></h1>
         <div class="subtitle" id="subtitle">Night Blooms, Golden Fade</div>
       </div>
     </header>
@@ -718,6 +726,7 @@
    （v0.53：1画面目の下の説明に音楽の花火を加える）
    （v0.54：携帯の傾きで視線（Darts と同じ計算＋横画面の補正）、見ている間は画面を消さない、「正面に戻す」ボタン、尾の縞をなくす（つなぎ目を重ねず濃さをなめらかに））
    （v0.55：携帯の横画面では操作の帯を詰めて高さを約半分に（Q123＝B））
+   （v0.56：画面を消さない頼みを見るボタンを押したその場で出す（Darts と同じ）。横に倒しているのに縦のままなら自動回転の案内を出す（Q132＝A））
    仕様書 hanabi_sim_spec_v2.00.md §3 に対応する実装。
 
    v0.01 からの主要変更（§3.8 参照）
@@ -827,6 +836,8 @@ const I18N = {
     barOpen:'操作 ▲', barClose:'操作 ▼',
     lbPlay:'打ち上げ・自動', fire:'打上', quick:'即開花', autoStart:'自動を開始', autoStop:'自動を止める',
     sndOn:'音を出す', sndOff:'音を止める', sndTog:'音の調整', back:'設定に戻る', recenter:'正面に戻す',
+    rotHintA:'横向きで見るには自動回転をオンにしてください。<br>画面の上から下へ引き下ろし、「自動回転」を押します。',
+    rotHintI:'横向きで見るには画面の向きのロックをオフにしてください。<br>右上から下へ引き下ろし、鍵のマークを押します。',
     lbDist:'観覧距離', lbPitch:'見上げ角', lbEye:'視点高さ', lbExpo:'光量', lbShk:'揺れ',
     lbMs:'計測', msBtn:'計測（M）', msStop:'計測を中止', msTitle:'計測結果', msCopy:'コピー', msClose:'閉じる',
     msCopied:'コピーしました', msCopyError:'文字を選択してコピーしてください',
@@ -905,6 +916,8 @@ const I18N = {
     barOpen:'Controls ▲', barClose:'Controls ▼',
     lbPlay:'Launch, auto', fire:'Launch', quick:'Burst now', autoStart:'Start auto', autoStop:'Stop auto',
     sndOn:'Sound on', sndOff:'Sound off', sndTog:'Sound tuning', back:'Back to settings', recenter:'Face front',
+    rotHintA:'To watch in landscape, turn on Auto-rotate.<br>Swipe down from the top of the screen and tap “Auto-rotate”.',
+    rotHintI:'To watch in landscape, turn off Portrait Orientation Lock.<br>Swipe down from the top-right corner and tap the lock icon.',
     lbDist:'Viewing distance', lbPitch:'Look-up angle', lbEye:'Eye height', lbExpo:'Brightness', lbShk:'Camera shake',
     lbMs:'Measure', msBtn:'Measure (M)', msStop:'Stop measuring', msTitle:'Measurement results', msCopy:'Copy', msClose:'Close',
     msCopied:'Copied', msCopyError:'Please select the text and copy it',
@@ -983,6 +996,8 @@ const I18N = {
     barOpen:'操作 ▲', barClose:'操作 ▼',
     lbPlay:'发射·自动', fire:'发射', quick:'立即绽放', autoStart:'开始自动', autoStop:'停止自动',
     sndOn:'开启声音', sndOff:'关闭声音', sndTog:'声音调节', back:'返回设置', recenter:'回到正面',
+    rotHintA:'如需横屏观看，请开启“自动旋转”。<br>从屏幕顶部向下滑动，点按“自动旋转”。',
+    rotHintI:'如需横屏观看，请关闭“竖排方向锁定”。<br>从右上角向下滑动，点按锁形图标。',
     lbDist:'观赏距离', lbPitch:'仰角', lbEye:'视点高度', lbExpo:'亮度', lbShk:'晃动',
     lbMs:'测量', msBtn:'测量（M）', msStop:'停止测量', msTitle:'测量结果', msCopy:'复制', msClose:'关闭',
     msCopied:'已复制', msCopyError:'请选中文字后复制',
@@ -4901,13 +4916,15 @@ function gyOnOri(e){
   if(e.alpha===null && e.beta===null && e.gamma===null) return;
   GY.cur={alpha:e.alpha, beta:e.beta, gamma:e.gamma};
   if(!GY.calInv && inShow() && SET.gyro && gyCal()) GY.on=true;
+  rotHintCheck();
 }
 function gyListen(){ if(!GY.listening){ addEventListener('deviceorientation', gyOnOri); GY.listening=true; } }
 function gyUnlisten(){ if(GY.listening){ removeEventListener('deviceorientation', gyOnOri); GY.listening=false; } GY.on=false; GY.calInv=null; GY.cur=null; }
 /* 許可の要求は押した操作の中で呼ぶ（iOS の Safari は毎回ここから。Darts と同じ） */
 async function gyRequest(){
-  if(!GY_AVAIL || !SET.gyro) return;
+  if(!GY_AVAIL) return;
   if(typeof DeviceOrientationEvent.requestPermission==='function'){
+    if(!SET.gyro) return;                                // v0.56：iPhone で許可を求めるのは視線を動かすときだけ（自動回転の案内もそのときだけ働く）
     try{ if(await DeviceOrientationEvent.requestPermission()!=='granted') return; }catch(_){ return; }
   }
   gyListen();
@@ -4943,18 +4960,27 @@ function gyRecenter(){
 $('recenter').addEventListener('click', ()=>{ $('recenter').blur(); gyRecenter(); });
 $('gyroChk').addEventListener('change', e=>{
   SET.gyro=e.target.checked; saveSet(); syncSetUI();
-  if(SET.gyro){ if(inShow()) gyRequest(); } else gyUnlisten();
+  if(SET.gyro){ if(inShow()) gyRequest(); } else { GY.on=false; GY.calInv=null; }   // v0.56：受け取りは続ける（自動回転の案内に使う）
 });
 /* 見るボタン（単発・プログラム・音楽）を押した操作の中で許可を求める。音の確認パネルが出たときは、閉じたあとの押し直しで来る */
 document.addEventListener('click', e=>{
   const b=e.target.closest && e.target.closest('#startSingle,#startProg,#startMusic');
-  if(b) gyRequest();
+  if(!b) return;
+  gyRequest();
+  /* v0.56：画面を消さない頼みも押したその場で出す（Darts と同じ。iPhone は押した直後でないと断ることがある）。
+     音の確認パネルに止められて見る画面へ入らなかったときは外す（閉じたあとの押し直しでまた来る） */
+  fwWakeOn().then(()=>{ setTimeout(()=>{ if(!inShow()) fwWakeOff(); }, 1500); });
 }, true);
 /* 画面を消さない（Darts v1.32 と同じ） */
-let fwWake=null;
-async function fwWakeOn(){
-  if(fwWake || !('wakeLock' in navigator)) return;
-  try{ fwWake=await navigator.wakeLock.request('screen'); fwWake.addEventListener('release', ()=>{ fwWake=null; }); }catch(_){}
+let fwWake=null, fwWakeBusy=null;
+function fwWakeOn(){
+  if(fwWake || !('wakeLock' in navigator)) return Promise.resolve();
+  if(fwWakeBusy) return fwWakeBusy;                    // 頼んでいる途中なら同じ返事を待つ（二重に頼まない）
+  fwWakeBusy=(async()=>{
+    try{ const l=await navigator.wakeLock.request('screen'); fwWake=l; l.addEventListener('release', ()=>{ if(fwWake===l) fwWake=null; }); }catch(_){}
+    fwWakeBusy=null;
+  })();
+  return fwWakeBusy;
 }
 function fwWakeOff(){ if(fwWake){ fwWake.release().catch(()=>{}); fwWake=null; } }
 document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible' && inShow()) fwWakeOn(); });
@@ -4962,13 +4988,43 @@ document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState=
 let gyWasShow=false;
 new MutationObserver(()=>{
   const s=inShow(); if(s===gyWasShow) return; gyWasShow=s;
-  if(s){ GY.pitch0=PITCH*GY_R2D; fwWakeOn(); if(GY.cur && SET.gyro && gyCal()) GY.on=true; }
-  else{ fwWakeOff(); GY.on=false; GY.calInv=null; }
+  if(s){ GY.pitch0=PITCH*GY_R2D; fwWakeOn(); if(GY.cur && SET.gyro && gyCal()) GY.on=true; RH.shown=false; RH.since=0; }
+  else{ fwWakeOff(); GY.on=false; GY.calInv=null; rotHintHide(); }
 }).observe(document.body, {attributes:true, attributeFilter:['class']});
 /* 画面の向きが変わったら、そのときの見え方のまま正面を取り直す */
 function gyReorient(){ if(GY.on) gyCal(); }
 try{ if(screen.orientation) screen.orientation.addEventListener('change', gyReorient); }catch(_){}
 addEventListener('orientationchange', gyReorient);
+
+/* ---- v0.56：自動回転の案内（Q132＝A）。
+   携帯を横に倒している（重力が画面の左右の向き）のに、画面が縦のまま 1.5 秒続いたら、自動回転がオフと見なして案内を出す。
+   平らに置いた・見上げたなど、横に倒したと言えない持ち方では出さない。1回の鑑賞で1回だけ、約6秒か触ると消える。画面が横になったらすぐ消す ---- */
+const RH_OS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints>1) ? 'i'
+            : /Android/.test(navigator.userAgent) ? 'a' : '';
+const RH={since:0, shown:false, timer:0};
+function rhPortrait(){ return innerHeight>innerWidth; }
+/* 端末の座標で見た「上」の向き（R=Rz(α)Rx(β)Ry(γ) の3行目）。x＝画面の右、y＝画面の上、z＝画面の手前 */
+function rhSideways(o){
+  const b=(o.beta||0)*GY_D2R, g=(o.gamma||0)*GY_D2R;
+  const ux=-Math.cos(b)*Math.sin(g), uy=Math.sin(b);
+  const pl=Math.hypot(ux,uy);                           // 画面の面に沿った重力の強さ（平らに置くと 0 に近い）
+  return pl>0.6 && Math.abs(ux)>0.9*pl;                // 立てていて、左右どちらかへ 25° 以内まで倒している
+}
+function rotHintCheck(){
+  if(!RH_OS || RH.shown || !inShow() || !GY.cur) return;
+  if(!rhPortrait() || !rhSideways(GY.cur)){ RH.since=0; return; }
+  const now=performance.now();
+  if(!RH.since){ RH.since=now; return; }
+  if(now-RH.since>=1500) rotHintShow();
+}
+function rotHintShow(){
+  RH.shown=true;
+  const el=$('rotHint'); el.innerHTML=tr(RH_OS==='i' ? 'rotHintI' : 'rotHintA'); el.classList.add('show');
+  clearTimeout(RH.timer); RH.timer=setTimeout(rotHintHide, 6000);
+}
+function rotHintHide(){ clearTimeout(RH.timer); $('rotHint').classList.remove('show'); }
+$('rotHint').addEventListener('pointerdown', e=>{ e.stopPropagation(); rotHintHide(); });
+addEventListener('resize', ()=>{ if(!rhPortrait()) rotHintHide(); });
 
 /* ---- 音の再生確認（花札・ダーツと同じ）。初めての操作と、1時間以上離れて戻ったあとの最初の操作で出す。
    パネルを出すために止めた操作は、パネルを閉じたあとに実行する ---- */

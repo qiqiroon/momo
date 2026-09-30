@@ -14,6 +14,7 @@ import { registerEngine } from '../../core/ai/engine-registry';
 import type { EngineAdapter, ThinkLimits, ThinkProgress } from '../../core/ai/types';
 import type { Mgf } from '../../core/engine/mgf/types';
 import type { Move, Position } from '../../core/engine/position/types';
+import { PLAIN_RULES, type AdvanceRules } from '../../core/engine/position/advance';
 import { searchBestMoveMcts } from './mcts';
 import { resolveMctsLevel } from './levels';
 
@@ -23,10 +24,12 @@ class MctsAdapter implements EngineAdapter {
   readonly id = MCTS_ENGINE_ID;
   private mgf: Mgf | null = null;
   private position: Position | null = null;
+  private rules: AdvanceRules = PLAIN_RULES;
   private stopped = false;
 
-  init(mgf: Mgf): void {
+  init(mgf: Mgf, rules: AdvanceRules = PLAIN_RULES): void {
     this.mgf = mgf;
+    this.rules = rules;
   }
 
   setPosition(position: Position): void {
@@ -48,6 +51,7 @@ class MctsAdapter implements EngineAdapter {
     const result = searchBestMoveMcts(mgf, position, {
       playouts,
       movetimeMs,
+      rules: this.rules,
       shouldStop: () => this.stopped,
       onProgress: (p) => onProgress?.(p),
     });

@@ -15,7 +15,7 @@
 import type { Mgf } from '../../core/engine/mgf/types';
 import type { Move, Position } from '../../core/engine/position/types';
 import { generateLegalMoves } from '../../core/engine/moves/legal';
-import { applyMove } from '../../core/engine/position/apply';
+import { PLAIN_RULES, advancePosition, type AdvanceRules } from '../../core/engine/position/advance';
 import { MATE_VALUE, buildValueBook, evaluate, pieceValue } from './evaluate';
 import type { ValueBook } from './evaluate';
 
@@ -34,6 +34,11 @@ export interface SearchOptions {
    * 候補にするので、幅は文字どおり「保証された損の上限」を意味する。
    */
   jitter?: number;
+  /**
+   * ★v1.93: 1 手進めたあとの後処理の決まり (量子・盤の端のつなぎ方・反復上限)。
+   * 読みの中で盤を進めるたびに対局画面と同じ後処理を通す。省略時は後処理なし。
+   */
+  rules?: AdvanceRules;
   /** 深さを 1 つ読み切るたびに呼ばれる。長考中に「動いている」ことを出すため。 */
   onProgress?: (p: { depth: number; nodes: number; elapsedMs: number; score: number }) => void;
   /** 外から打ち切る (画面を離れた・投了した等)。 */
@@ -61,6 +66,8 @@ const QUIESCENCE_DEPTH = 3;
 
 interface Ctx {
   mgf: Mgf;
+  /** 1 手進めたあとの後処理の決まり (★v1.93)。 */
+  rules: AdvanceRules;
   /**
    * 候補 1 個ぶんの値打ちの早見表 (v1.49)。量子モードの値打ちは候補から引くので要る。
    * **局面によらない**ので探索の入口で 1 度だけ作って読みの間じゅう使い回す。
@@ -107,18 +114,53 @@ function safeLegalMoves(mgf: Mgf, position: Position): Move[] {
   }
 }
 
-function safeApply(mgf: Mgf, position: Position, move: Move): Position | null {
+interface Advanced {
+  position: Position;
+  /** 王と確定した駒を取った＝指した側の勝ち (§Q8.5 C-202)。 */
+  royalCaptured: boolean;
+}
+
+/**
+ * 1 手進める。**★v1.93: 対局画面と同じ後処理まで通す** (core/engine/position/advance.ts)。
+ * v1.92 までは駒を動かすだけだったので、量子では候補が絞れないまま読み進め、
+ * 王と確定した駒を取っても勝ちにならない別のゲームを読んでいた。
+ *
+ * 進められない手と、**候補更新が異常を出す手**は「読めなかった枝」として捨てる。
+ * 異常が出ると対局は投票で止まり、その先がどうなるかは読みでは決められないため。
+ */
+function safeApply(ctx: Ctx, position: Position, move: Move): Advanced | null {
   try {
-    return applyMove(mgf, position, move);
+    const r = advancePosition(ctx.mgf, position, move, ctx.rules);
+    if (r.anomaly) return null;
+    return { position: r.position, royalCaptured: r.royalCaptured };
   } catch {
     return null;
   }
 }
 
+/** 王と確定した駒を取る手の並べ替え用の見込み (どの駒を取るより先に見る)。 */
+const ROYAL_ORDER_VALUE = 20000;
+
 function capturedValue(ctx: Ctx, position: Position, move: Move): number {
   if (move.type !== 'move') return 0;
   const target = position.board[move.to.row][move.to.col];
-  return target ? pieceValue(target, ctx.book) : 0;
+  if (!target) return 0;
+  const v = pieceValue(target, ctx.book);
+  // 量子で値打ち 0＝候補が王だけ＝王と確定した駒。材料には数えない (evaluate.ts) が、
+  // 取れば勝ちなので並べ替えではいちばん先に見る。本当に勝ちかどうかは進めた結果
+  // (royalCaptured) が決める＝ここは見る順番の見込みにすぎない。
+  if (v === 0 && target.candidates !== undefined) return ROYAL_ORDER_VALUE;
+  return v;
+}
+
+/** 駒を取る手か。静かになるまで読む部分が、取る手だけを追うのに使う。 */
+function isCapture(position: Position, move: Move): boolean {
+  return move.type === 'move' && position.board[move.to.row][move.to.col] != null;
+}
+
+/** 指した側から見た「王を取って勝った」点数。浅いほど良い (詰みと同じ付け方)。 */
+function royalWinScore(plyAfterMove: number): number {
+  return MATE_VALUE - plyAfterMove;
 }
 
 /**
@@ -159,7 +201,7 @@ function orderByScoreWithTieShuffle<T>(
 }
 
 /** 駒の取り合いだけを読み進めて、取り返しの途中で評価を打ち切らないようにする。 */
-function quiescence(ctx: Ctx, position: Position, alpha: number, beta: number, depth: number): number {
+function quiescence(ctx: Ctx, position: Position, alpha: number, beta: number, depth: number, ply: number): number {
   ctx.nodes++;
   const stand = evaluate(ctx.mgf, position, ctx.book);
   if (depth <= 0) return stand;
@@ -167,13 +209,17 @@ function quiescence(ctx: Ctx, position: Position, alpha: number, beta: number, d
   if (stand > alpha) alpha = stand;
   if (timeUp(ctx)) return stand;
 
-  const captures = safeLegalMoves(ctx.mgf, position).filter((m) => capturedValue(ctx, position, m) > 0);
+  // ★v1.93: 「値打ちが 0 より大きい駒を取る手」ではなく「取る手」を全部追う。
+  // 王と確定した駒は材料として 0 点なので、前の書き方では取れば勝ちの手を落としていた。
+  const captures = safeLegalMoves(ctx.mgf, position).filter((m) => isCapture(position, m));
   if (captures.length === 0) return alpha;
 
   for (const m of orderMoves(ctx, position, captures)) {
-    const next = safeApply(ctx.mgf, position, m);
+    const next = safeApply(ctx, position, m);
     if (!next) continue;
-    const score = -quiescence(ctx, next, -beta, -alpha, depth - 1);
+    const score = next.royalCaptured
+      ? royalWinScore(ply + 1)
+      : -quiescence(ctx, next.position, -beta, -alpha, depth - 1, ply + 1);
     if (ctx.aborted) return alpha;
     if (score >= beta) return score;
     if (score > alpha) alpha = score;
@@ -182,7 +228,7 @@ function quiescence(ctx: Ctx, position: Position, alpha: number, beta: number, d
 }
 
 function negamax(ctx: Ctx, position: Position, depth: number, alpha: number, beta: number, ply: number): number {
-  if (depth <= 0) return quiescence(ctx, position, alpha, beta, QUIESCENCE_DEPTH);
+  if (depth <= 0) return quiescence(ctx, position, alpha, beta, QUIESCENCE_DEPTH, ply);
   ctx.nodes++;
   if (timeUp(ctx)) return evaluate(ctx.mgf, position, ctx.book);
 
@@ -193,9 +239,11 @@ function negamax(ctx: Ctx, position: Position, depth: number, alpha: number, bet
 
   let best = -Infinity;
   for (const m of orderMoves(ctx, position, moves)) {
-    const next = safeApply(ctx.mgf, position, m);
+    const next = safeApply(ctx, position, m);
     if (!next) continue;
-    const score = -negamax(ctx, next, depth - 1, -beta, -alpha, ply + 1);
+    const score = next.royalCaptured
+      ? royalWinScore(ply + 1)
+      : -negamax(ctx, next.position, depth - 1, -beta, -alpha, ply + 1);
     if (ctx.aborted) return best === -Infinity ? evaluate(ctx.mgf, position, ctx.book) : best;
     if (score > best) best = score;
     if (best > alpha) alpha = best;
@@ -213,6 +261,7 @@ export function searchBestMove(mgf: Mgf, position: Position, options: SearchOpti
 
   const ctx: Ctx = {
     mgf,
+    rules: options.rules ?? PLAIN_RULES,
     book: buildValueBook(mgf, position),
     nodes: 0,
     deadline: start + Math.max(1, options.movetimeMs),
@@ -260,10 +309,12 @@ export function searchBestMove(mgf: Mgf, position: Position, options: SearchOpti
         aborted = true;
         break;
       }
-      const next = safeApply(mgf, position, m);
+      const next = safeApply(ctx, position, m);
       if (!next) continue;
       const prevAlpha = alpha;
-      const score = -negamax(ctx, next, depth - 1, -Infinity, -alpha, 1);
+      const score = next.royalCaptured
+        ? royalWinScore(1)
+        : -negamax(ctx, next.position, depth - 1, -Infinity, -alpha, 1);
       if (ctx.aborted) {
         // 深さ 1 だけは読み切る (1 手も評価しないまま返さないため)。
         // 最初の 1 手は窓が (−∞, +∞) なので確定値。

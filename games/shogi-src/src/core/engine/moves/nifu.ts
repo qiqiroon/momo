@@ -42,7 +42,7 @@ export function fileHasCertainPawn(
   owner: Player,
   self?: PieceInstance,
 ): boolean {
-  const kindMap = buildInitialKindMap(pos);
+  const { kindMap, carriers } = pawnTallyOf(pos);
 
   // (1) その筋に「歩と言い切れる駒」が居るか。
   for (let row = 0; row < pos.height; row++) {
@@ -53,7 +53,6 @@ export function fileHasCertainPawn(
   }
 
   // (2) 「その筋にしか居られない歩の身元」があるか (量子モードのみ意味を持つ)。
-  const carriers = collectPawnIdentityCarriers(pos, kindMap);
   for (const [identity, holders] of carriers) {
     if (holders.length === 0) continue;
     if (self && couldBe(self, identity)) continue; // 自分かもしれない身元は根拠にならない
@@ -62,6 +61,25 @@ export function fileHasCertainPawn(
     }
   }
   return false;
+}
+
+/**
+ * ★v1.93: 盤 1 面ぶんの数え上げの使い回し。
+ *
+ * 身元→駒種の表と、歩の身元ごとの担い手は**盤だけで決まる**のに、量子の絞り込み (C-103) は
+ * 盤上の駒 1 枚ごとにここを呼ぶので、同じ盤を駒の数だけ数え直していた。盤ごとに 1 度だけ
+ * 数えて使い回す (答えは変わらない)。盤は手を指すたびに作り直されるので WeakMap で自然に捨てられる。
+ */
+const pawnTallyCache = new WeakMap<Position, { kindMap: Map<PieceId, string>; carriers: Map<PieceId, PawnCarrier[]> }>();
+
+function pawnTallyOf(pos: Position): { kindMap: Map<PieceId, string>; carriers: Map<PieceId, PawnCarrier[]> } {
+  let t = pawnTallyCache.get(pos);
+  if (!t) {
+    const kindMap = buildInitialKindMap(pos);
+    t = { kindMap, carriers: collectPawnIdentityCarriers(pos, kindMap) };
+    pawnTallyCache.set(pos, t);
+  }
+  return t;
 }
 
 /** その駒がその身元でありうるか。本将棋モードは pieceId そのものが身元。 */

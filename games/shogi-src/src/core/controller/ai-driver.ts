@@ -10,7 +10,7 @@
  */
 
 import { useEffect, useRef } from 'react';
-import { useGameStore } from '../store/game-store';
+import { advanceRulesOf, useGameStore } from '../store/game-store';
 import { wireMoveOf } from '../protocol/wire-move';
 import { useAiStore, isSmallScreen, THINK_BUDGET_CAP_MS } from '../store/ai-store';
 import { canDeclareNyugyoku } from '../engine';
@@ -155,7 +155,8 @@ export function useAiOpponent(isOnline: boolean): void {
     // (親 §7.5.3)。core は段の名前を渡すだけで、具体値には触らない。
     const budget = thinkBudgetMs(timeControl, clocks[aiSide], THINK_BUDGET_CAP_MS);
 
-    engine.init(mgf);
+    // ★v1.93: 読みの中でも対局と同じ後処理を通すため、この対局の決まりを渡す。
+    engine.init(mgf, advanceRulesOf(useGameStore.getState()));
     engine.setPosition(position);
     ai.setThinking(true);
 

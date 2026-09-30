@@ -134,3 +134,49 @@ describe('対 AI の手番（待ったで戻したとき）', () => {
     unmount();
   });
 });
+
+/**
+ * ★v1.93: 思考ルーチンへ「1 手進めたあとの後処理の決まり」を渡す。
+ *
+ * 渡し忘れると、思考ルーチンは量子でも後処理なしで読む＝**v1.92 までと同じく、
+ * 王と確定した駒を取っても勝ちにならない別のゲーム**を読む。画面からは見えない。
+ */
+describe('対 AI の手番（後処理の決まりを渡す）', () => {
+  let seenRules: unknown = null;
+  registerEngine({
+    id: 'test-fake-rules',
+    labelKey: 'ai.fake',
+    descKey: 'ai.fake.desc',
+    weights: { shogi: 1, variant: 1, torus: 1, quantum: 1 },
+    create(): EngineAdapter {
+      let seen: Position | null = null;
+      return {
+        id: 'test-fake-rules',
+        init(_mgf, rules) {
+          seenRules = rules;
+        },
+        setPosition(p) {
+          seen = p;
+        },
+        async go() {
+          return seen ? firstLegalMove(seen) : null;
+        },
+        stop() {},
+        quit() {},
+      };
+    },
+  });
+
+  it('量子・盤の端のつなぎ方・反復上限を、対局の設定のまま渡す', async () => {
+    seenRules = null;
+    useGameStore.getState().reset({ gameType: 'shogi', quantum: true, torusMode: 'full', handicap: null });
+    useGameStore.getState().setQuantumParams({ maxIterations: 7 });
+    useAiStore.setState({ enabled: true, aiSide: 'player2', engineId: 'test-fake-rules' });
+    const { unmount } = renderHook(() => useAiOpponent(false));
+    await act(async () => {
+      humanMoves();
+    });
+    expect(seenRules).toEqual({ quantum: true, torusMode: 'full', maxIterations: 7 });
+    unmount();
+  });
+});

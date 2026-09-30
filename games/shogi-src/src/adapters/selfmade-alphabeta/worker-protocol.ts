@@ -7,6 +7,7 @@
 
 import type { Mgf } from '../../core/engine/mgf/types';
 import type { Move, Position } from '../../core/engine/position/types';
+import type { AdvanceRules } from '../../core/engine/position/advance';
 
 export interface WorkerGoRequest {
   type: 'go';
@@ -14,6 +15,8 @@ export interface WorkerGoRequest {
   id: number;
   mgf: Mgf;
   position: Position;
+  /** ★v1.93: 1 手進めたあとの後処理の決まり (読みの中でも対局と同じ後処理を通す)。 */
+  rules: AdvanceRules;
   movetimeMs: number;
   maxDepth: number;
   /** 同点崩しの幅 (段から決まる=levels.ts)。省略時は search 側の既定。 */

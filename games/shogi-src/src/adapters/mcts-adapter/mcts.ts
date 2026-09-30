@@ -17,7 +17,7 @@
 import type { Mgf } from '../../core/engine/mgf/types';
 import type { Move, Position } from '../../core/engine/position/types';
 import { generateLegalMoves } from '../../core/engine/moves/legal';
-import { applyMove } from '../../core/engine/position/apply';
+import { PLAIN_RULES, advancePosition, type AdvanceRules } from '../../core/engine/position/advance';
 import { buildValueBook, evaluate } from '../selfmade-alphabeta/evaluate';
 import type { ValueBook } from '../selfmade-alphabeta/evaluate';
 
@@ -30,6 +30,11 @@ export interface MctsOptions {
   playoutDepth?: number;
   /** 引き分けとみなす駒得の差 (点・歩 1 枚 = 100)。 */
   drawMargin?: number;
+  /**
+   * ★v1.93: 1 手進めたあとの後処理の決まり (量子・盤の端のつなぎ方・反復上限)。
+   * 試し打ちの中でも対局画面と同じ後処理を通す。省略時は後処理なし。
+   */
+  rules?: AdvanceRules;
   onProgress?: (p: { depth: number; nodes: number; elapsedMs: number }) => void;
   shouldStop?: () => boolean;
   now?: () => number;
@@ -56,6 +61,8 @@ const EXPLORATION = 1.4;
 interface Child {
   move: Move;
   position: Position;
+  /** この手で王と確定した駒を取った＝根の手番の勝ちが決まっている (§Q8.5 C-202)。 */
+  royalCaptured: boolean;
   visits: number;
   /** 根の手番から見た勝ち点の合計 (勝ち 1・引き分け 0.5・負け 0)。 */
   wins: number;
@@ -70,9 +77,20 @@ function legalMoves(mgf: Mgf, position: Position): Move[] {
   }
 }
 
-function apply(mgf: Mgf, position: Position, move: Move): Position | null {
+interface Advanced {
+  position: Position;
+  royalCaptured: boolean;
+}
+
+/**
+ * 1 手進める。**★v1.93: 対局画面と同じ後処理まで通す** (core/engine/position/advance.ts)。
+ * 進められない手と、候補更新が異常を出す手は捨てる (自作探索と同じ扱い)。
+ */
+function apply(mgf: Mgf, position: Position, move: Move, rules: AdvanceRules): Advanced | null {
   try {
-    return applyMove(mgf, position, move);
+    const r = advancePosition(mgf, position, move, rules);
+    if (r.anomaly) return null;
+    return { position: r.position, royalCaptured: r.royalCaptured };
   } catch {
     return null;
   }
@@ -91,6 +109,7 @@ function playout(
   depth: number,
   drawMargin: number,
   book: ValueBook,
+  rules: AdvanceRules,
   random: () => number,
   outOfTime: () => boolean,
 ): number {
@@ -106,9 +125,12 @@ function playout(
       // 手が無い側の負け。その側が根の手番なら 0、相手なら 1。
       return position.sideToMove === rootSide ? 0 : 1;
     }
-    const next = apply(mgf, position, moves[Math.floor(random() * moves.length)]);
+    const mover = position.sideToMove;
+    const next = apply(mgf, position, moves[Math.floor(random() * moves.length)], rules);
     if (!next) return 0.5; // 進められない枝は引き分け扱いにして捨てる
-    position = next;
+    // 王と確定した駒を取った＝指した側の勝ち (打ち切りより優先)。
+    if (next.royalCaptured) return mover === rootSide ? 1 : 0;
+    position = next.position;
   }
 
   // 打ち切り。evaluate は「その局面の手番側から見た点」なので、根の手番の側へ揃える。
@@ -137,6 +159,7 @@ export function searchBestMoveMcts(mgf: Mgf, position: Position, options: MctsOp
   // 値打ちの早見表は局面によらないので入口で 1 度だけ作る (v1.49)。
   // 試し打ちのたびに作ると、量子では盤 1 面ぶんの走査がその回数だけ余分に走る。
   const book = buildValueBook(mgf, position);
+  const rules = options.rules ?? PLAIN_RULES;
 
   const rootSide = position.sideToMove;
   const rootMoves = legalMoves(mgf, position);
@@ -146,11 +169,18 @@ export function searchBestMoveMcts(mgf: Mgf, position: Position, options: MctsOp
 
   const children: Child[] = [];
   for (const move of rootMoves) {
-    const next = apply(mgf, position, move);
-    if (next) children.push({ move, position: next, visits: 0, wins: 0 });
+    const next = apply(mgf, position, move, rules);
+    if (next) children.push({ move, position: next.position, royalCaptured: next.royalCaptured, visits: 0, wins: 0 });
   }
   if (children.length === 0) {
     return { move: rootMoves[0], winRate: 0, playouts: 0, elapsedMs: now() - start };
+  }
+  // ★v1.93: その場で勝てる手 (王と確定した駒を取る) があれば試すまでもなく指す。
+  // 「いちばん多く試した手」で選ぶ決まりのままだと、優勢でほかの手も勝ちに見える局面では
+  // 回数が散って、勝ちが決まっている手が選ばれないことがある (2026-09-30 実測)。
+  const winning = children.find((c) => c.royalCaptured);
+  if (winning) {
+    return { move: winning.move, winRate: 1, playouts: 0, elapsedMs: now() - start };
   }
 
   const outOfTime = () => now() >= deadline || options.shouldStop?.() === true;
@@ -170,7 +200,9 @@ export function searchBestMoveMcts(mgf: Mgf, position: Position, options: MctsOp
       if (ucb > bestUcb) { bestUcb = ucb; picked = child; }
     }
 
-    picked.wins += playout(mgf, picked.position, rootSide, depth, drawMargin, book, random, outOfTime);
+    picked.wins += picked.royalCaptured
+      ? 1
+      : playout(mgf, picked.position, rootSide, depth, drawMargin, book, rules, random, outOfTime);
     picked.visits++;
     total++;
 

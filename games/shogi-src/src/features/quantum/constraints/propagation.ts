@@ -55,10 +55,123 @@ import { c303AssignmentConsistency } from './assignment';
  * ＝あちらは担い手の居ない身元を空きとして正しく扱う。
  */
 function identitiesAllBorne(pos: Position, side: Player): boolean {
-  const pieces = collectAllQuantumPieces(pos).filter((p) => p.candidates && p.initialOwner === side);
+  const tally = tallyOf(pos);
+  const cached = tally.allBorne.get(side);
+  if (cached !== undefined) return cached;
+  const pieces = tally.pieces.filter((p) => p.initialOwner === side);
   const identities = new Set<PieceId>();
   for (const p of pieces) for (const pid of p.candidates!) identities.add(pid);
-  return identities.size === pieces.length;
+  const borne = identities.size === pieces.length;
+  tally.allBorne.set(side, borne);
+  return borne;
+}
+
+/**
+ * ★v1.93: **盤 1 面ぶんの集計の使い回し**（C-303 の割り当て表と同じ形）。
+ *
+ * ここの制約は駒 1 枚ずつ呼ばれるが、中で見ているのは**盤全体の数え上げ**
+ * （身元ごとの担い手・確定した身元・グループごとの担い手の数）で、
+ * **1 回の絞り込みの間はどの駒も同じ盤を見ている**（candidate-update.ts の
+ * applyConstraintsOnce は、狭めた結果を次の盤にまとめて書き出す）。
+ * それを駒ごとに数え直していたので、**40 枚 × 盤全体**の手間になっていた
+ * (2026-09-30 実測＝1 手の後処理 約 4ms のうち C-302 だけで 5 割・C-106 が 2 割)。
+ *
+ * 盤ごとに 1 度だけ数えて使い回す。**答えは変わらない**（同じ盤から同じものを数えるだけ）。
+ * 反復ごとに盤は作り直されるので、WeakMap で自然に捨てられる。
+ */
+interface BoardTally {
+  /** 候補を持つ駒すべて（盤上＋両者の持ち駒）。 */
+  pieces: PieceInstance[];
+  /** 陣営ごとの「身元がぜんぶ担われている」か（必要になった側だけ数える）。 */
+  allBorne: Map<Player, boolean>;
+  /** 身元 X → X を候補に持つ駒（C-106）。 */
+  carriers?: Map<PieceId, PieceInstance[]>;
+  /** 身元 X → X に確定している駒の pieceId（C-107）。 */
+  confirmers?: Map<PieceId, PieceId[]>;
+  /** グループ → 担い手の数（C-302）。グループ分けは infoMap で決まるので infoMap ごとに持つ。 */
+  holders?: WeakMap<object, Map<string, number>>;
+}
+
+const tallyCache = new WeakMap<Position, BoardTally>();
+
+function tallyOf(pos: Position): BoardTally {
+  let t = tallyCache.get(pos);
+  if (!t) {
+    t = { pieces: collectAllQuantumPieces(pos), allBorne: new Map() };
+    tallyCache.set(pos, t);
+  }
+  return t;
+}
+
+function carriersOf(pos: Position): Map<PieceId, PieceInstance[]> {
+  const tally = tallyOf(pos);
+  if (tally.carriers) return tally.carriers;
+  const carriers = new Map<PieceId, PieceInstance[]>();
+  for (const p of tally.pieces) {
+    for (const pid of p.candidates!) {
+      const list = carriers.get(pid);
+      if (list) list.push(p);
+      else carriers.set(pid, [p]);
+    }
+  }
+  tally.carriers = carriers;
+  return carriers;
+}
+
+function confirmersOf(pos: Position): Map<PieceId, PieceId[]> {
+  const tally = tallyOf(pos);
+  if (tally.confirmers) return tally.confirmers;
+  const confirmers = new Map<PieceId, PieceId[]>();
+  for (const p of tally.pieces) {
+    if (p.candidates!.size !== 1) continue;
+    const only = p.candidates!.values().next().value as PieceId;
+    const list = confirmers.get(only);
+    if (list) list.push(p.pieceId);
+    else confirmers.set(only, [p.pieceId]);
+  }
+  tally.confirmers = confirmers;
+  return confirmers;
+}
+
+/** グループ鍵 → そのグループの PieceID 全体。infoMap は対局中変わらないので infoMap ごとに 1 度。 */
+const groupIdsCache = new WeakMap<object, Map<string, Set<PieceId>>>();
+
+function groupIdsOf(infoMap: ReadonlyMap<PieceId, { pieceId: PieceId; initialOwner: Player; initialKind: string }>): Map<string, Set<PieceId>> {
+  const cached = groupIdsCache.get(infoMap);
+  if (cached) return cached;
+  const groups = new Map<string, Set<PieceId>>();
+  for (const info of infoMap.values()) {
+    const key = groupKeyOf(info.initialOwner, info.initialKind);
+    const ids = groups.get(key);
+    if (ids) ids.add(info.pieceId);
+    else groups.set(key, new Set([info.pieceId]));
+  }
+  groupIdsCache.set(infoMap, groups);
+  return groups;
+}
+
+function holderCountOf(
+  pos: Position,
+  infoMap: ReadonlyMap<PieceId, { pieceId: PieceId; initialOwner: Player; initialKind: string }>,
+): Map<string, number> {
+  const tally = tallyOf(pos);
+  tally.holders ??= new WeakMap();
+  const cached = tally.holders.get(infoMap);
+  if (cached) return cached;
+  const groups = groupIdsOf(infoMap);
+  const count = new Map<string, number>();
+  for (const p of tally.pieces) {
+    for (const [key, ids] of groups) {
+      for (const pid of p.candidates!) {
+        if (ids.has(pid)) {
+          count.set(key, (count.get(key) ?? 0) + 1);
+          break;
+        }
+      }
+    }
+  }
+  tally.holders.set(infoMap, count);
+  return count;
 }
 
 /**
@@ -80,16 +193,8 @@ export const c106UniqueAssignment: QuantumConstraint = (piece, _location, pos, _
   if (piece.candidates === undefined) return new Set();
   // 全駒を集めて「各 PieceID X を candidates に含む駒」を数える。
   // 注意: piece.candidates に X があれば piece 自身は carriers[X] に必ず含まれる。
-  const allPieces = collectAllQuantumPieces(pos);
-  const carriers = new Map<PieceId, PieceInstance[]>();
-  for (const p of allPieces) {
-    if (!p.candidates) continue;
-    for (const pid of p.candidates) {
-      const list = carriers.get(pid);
-      if (list) list.push(p);
-      else carriers.set(pid, [p]);
-    }
-  }
+  // ★v1.93: 数え上げは盤ごとに 1 度 (carriersOf)。
+  const carriers = carriersOf(pos);
 
   // ★**駒が盤外へ消えるルールでは「他に居場所が無い」が言えない**（量子分冊 §Q23.5）。
   //
@@ -134,13 +239,10 @@ export const c107ConfirmedExclusion: QuantumConstraint = (piece, _location, pos,
   if (piece.candidates === undefined) return new Set();
   // 他の駒 (piece.pieceId 以外) で candidates.size==1 (確定) のものを集めて、
   // その確定 pid を集約。自分自身の確定 pid は除外セットに入れない。
+  // ★v1.93: 確定している駒の数え上げは盤ごとに 1 度 (confirmersOf)。
   const confirmedByOthers = new Set<PieceId>();
-  const allPieces = collectAllQuantumPieces(pos);
-  for (const p of allPieces) {
-    if (!p.candidates || p.pieceId === piece.pieceId) continue;
-    if (p.candidates.size !== 1) continue;
-    const only = Array.from(p.candidates)[0];
-    confirmedByOthers.add(only);
+  for (const [pid, by] of confirmersOf(pos)) {
+    if (by.some((id) => id !== piece.pieceId)) confirmedByOthers.add(pid);
   }
   if (confirmedByOthers.size === 0) return new Set(piece.candidates);
 
@@ -239,31 +341,15 @@ export const c302CountConfirmation: QuantumConstraint = (piece, _location, pos, 
   }
   if (myGroups.size <= 1) return new Set(piece.candidates);
 
-  // 自分に関係するグループについてだけ「そのグループの PieceID 全体」を集める。
-  const groupIds = new Map<string, Set<PieceId>>();
-  for (const info of context.infoMap.values()) {
-    const key = groupKeyOf(info.initialOwner, info.initialKind);
-    if (!myGroups.has(key)) continue;
-    const ids = groupIds.get(key);
-    if (ids) ids.add(info.pieceId);
-    else groupIds.set(key, new Set([info.pieceId]));
-  }
-
-  // グループごとの holder (そのグループの PieceID を 1 つ以上候補に持つ駒) を数える。
-  const holderCount = new Map<string, number>();
-  for (const p of collectAllQuantumPieces(pos)) {
-    for (const [key, ids] of groupIds) {
-      let holds = false;
-      for (const pid of p.candidates!) {
-        if (ids.has(pid)) { holds = true; break; }
-      }
-      if (holds) holderCount.set(key, (holderCount.get(key) ?? 0) + 1);
-    }
-  }
+  // グループごとの PieceID 全体と holder (そのグループの PieceID を 1 つ以上候補に持つ駒) の数。
+  // ★v1.93: どちらも盤 (と infoMap) ごとに 1 度だけ数える。自分に関係するグループだけを見る。
+  const allGroups = groupIdsOf(context.infoMap);
+  const holderCount = holderCountOf(pos, context.infoMap);
 
   // holder 数 == 初期枚数 のグループについて、自分の候補をそのグループ内に狭める。
   let narrowed: Set<PieceId> = new Set(piece.candidates);
-  for (const [key, ids] of groupIds) {
+  for (const [key, ids] of allGroups) {
+    if (!myGroups.has(key)) continue;
     if ((holderCount.get(key) ?? 0) !== ids.size) continue;
     const next = new Set<PieceId>();
     for (const pid of narrowed) if (ids.has(pid)) next.add(pid);

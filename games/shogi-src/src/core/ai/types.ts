@@ -15,6 +15,7 @@
 
 import type { Mgf } from '../engine/mgf/types';
 import type { Move, Position } from '../engine/position/types';
+import type { AdvanceRules } from '../engine/position/advance';
 
 /**
  * 強さの段 (親 §7.5・MOMO Works 共通の呼び名)。
@@ -63,8 +64,14 @@ export interface ThinkProgress {
 
 export interface EngineAdapter {
   readonly id: string;
-  /** ルール定義を渡す。対局開始時に 1 回。 */
-  init(mgf: Mgf): void;
+  /**
+   * ルール定義を渡す。対局開始時に 1 回。
+   *
+   * ★v1.93: `rules` は**1 手進めたあとの後処理の決まり** (量子・盤の端のつなぎ方・反復上限)。
+   * 思考ルーチンは読みの中で盤を進めるたびに、対局画面と同じ後処理を通す
+   * (core/engine/position/advance.ts)。省略すると後処理なし＝量子でない対局と同じ。
+   */
+  init(mgf: Mgf, rules?: AdvanceRules): void;
   /** 考えさせたい局面を渡す。 */
   setPosition(position: Position): void;
   /**

@@ -26,6 +26,12 @@ import type {
 import { formatMove, pieceNameJa, squareNameJa } from '../engine/kifu/format';
 import { NO_LIMIT_TIME_CONTROL, initClockState, type ClockState, type TimeControl } from '../engine/time-control';
 import { get as pluginGet } from '../plugin/registry';
+import {
+  advancePosition,
+  asQuantumAnomaly,
+  type AdvanceAnomalyCause,
+  type AdvanceRules,
+} from '../engine/position/advance';
 import type { OnlineGameConnector } from '../plugin/gameConnector';
 import { isSameWireMove, wireMoveOf, type WireMove } from '../protocol/wire-move';
 import { useDebugStore, type DebugCandidateChangeEntry } from './debug-store';
@@ -92,35 +98,10 @@ type QuantumCandidateUpdateFn = (
   context?: { torusMode?: 'none' | 'cylinder' | 'full'; maxIterations?: number },
 ) => Position;
 /**
- * v1.09 (Phase 5-11 追補): 打つ手の直後に呼ぶ絞り込みフック。
- * features/quantum が register する (core → features の型依存を作らないローカル型)。
- */
-type QuantumOnDropFn = (
-  pos: Position,
-  mgf: Mgf,
-  droppedPieceId: string,
-  to: Square,
-) => Position;
-/**
- * Phase 5-7 (§Q8.5): 捕獲制約フック。features/quantum が register する。
- * infoMap は buildInitialInfoMap の結果で、game-store は中身に触らず isConfirmedKing に
- * 渡すだけの opaque な値として扱う (core/ → features/ 型依存を切るためのローカル型)。
- */
-type QuantumOnCaptureHook = {
-  applyC201: (pos: Position, capturedPieceId: string, mgf: Mgf) => Position;
-  isConfirmedKing: (
-    piece: import('../engine/position/types').PieceInstance,
-    infoMap: ReadonlyMap<string, unknown>,
-    mgf: Mgf,
-  ) => boolean;
-  buildInitialInfoMap: (pos: Position) => ReadonlyMap<string, unknown>;
-};
-
-/**
  * Phase 5-13 (§Q8.8 C-901 / §Q7.9.1): 異常状態の原因種別。
  * 画面はこれで原因行の文言を切り替える。音は原因で変えない (音響 §2.7.2)。
  */
-export type AnomalyCause = 'empty_candidates' | 'iteration_limit';
+export type AnomalyCause = AdvanceAnomalyCause;
 export type AnomalyChoice = 'continue' | 'nogame';
 
 /**
@@ -146,22 +127,19 @@ export interface AnomalyState {
 }
 
 /**
- * Phase 5-13: features/quantum が投げる異常状態の例外を core 側で見分けるための形。
- * core/ は features/ を import できない (モジュール境界) ので、目印フィールドで判定する。
+ * ★v1.93: この対局の「1 手進めたあとの後処理」の決まり。**盤を進める者は全員これを通す**
+ * (対局画面・成る/成らずの選択肢・思考ルーチン)。対局設定から写す場所をここ 1 か所に
+ * しておけば、トーラスや反復上限の渡し忘れがどこか 1 つだけに残ることが無い
+ * (v1.92 までは選択肢の先取りだけが盤の端のつなぎ方と反復上限を渡していなかった)。
  */
-interface QuantumAnomalyLike {
-  quantumAnomaly: true;
-  anomalyCause: AnomalyCause;
-  position: Position;
-}
-
-function asQuantumAnomaly(e: unknown): QuantumAnomalyLike | null {
-  if (!e || typeof e !== 'object') return null;
-  const a = e as Partial<QuantumAnomalyLike>;
-  if (a.quantumAnomaly !== true) return null;
-  if (a.anomalyCause !== 'empty_candidates' && a.anomalyCause !== 'iteration_limit') return null;
-  if (!a.position) return null;
-  return a as QuantumAnomalyLike;
+export function advanceRulesOf(
+  state: Pick<GameState, 'currentQuantum' | 'currentTorusMode' | 'quantumParams'>,
+): AdvanceRules {
+  return {
+    quantum: state.currentQuantum,
+    torusMode: state.currentTorusMode,
+    maxIterations: state.quantumParams.maxIterations,
+  };
 }
 
 export interface PendingPromotion {
@@ -716,28 +694,19 @@ function allPiecesWithSquare(pos: Position): { piece: PieceInstance; square: Squ
  * どちらも実際に着手した盤面を作って候補更新まで回し、動いた駒の候補を読み取ることで、
  * 本番の絞り込みと同じ結果を先取りする (絞り込みの規則をここで作り直さない)。
  *
- * 候補更新は矛盾局面で例外を投げ得るので、投げたら動く前の候補に落とす。
+ * 候補更新が矛盾局面で異常を出したら、動く前の候補に落とす。
  * 選択肢が出せないより、広めでも出せたほうが操作が止まらない。
+ *
+ * ★v1.93: 手順は本番と同じ advancePosition を通す。v1.92 までは本番の手順をここに
+ * 書き写していたため、**盤の端のつなぎ方と反復上限だけが渡っていなかった**
+ * (トーラス×量子では、選択肢の先取りだけが平面の盤として絞り込んでいた)。
  */
 function previewKindsAfterMove(state: GameState, move: BoardMove): string[] {
-  const { mgf, position, currentQuantum } = state;
+  const { mgf, position } = state;
   try {
-    let next = applyMove(mgf, position, move);
-    if (currentQuantum) {
-      // 捕獲を伴うなら C-201 (取られた駒は王ではない) まで本番と同じ手順を踏む
-      const captured = position.board[move.to.row][move.to.col];
-      if (captured) {
-        const capHook = pluginGet<QuantumOnCaptureHook>('quantum:onCapture');
-        if (capHook) {
-          const infoMap = capHook.buildInitialInfoMap(position);
-          if (!capHook.isConfirmedKing(captured, infoMap, mgf)) {
-            next = capHook.applyC201(next, captured.pieceId, mgf);
-          }
-        }
-      }
-      const updateFn = pluginGet<QuantumCandidateUpdateFn>('quantum:candidateUpdate');
-      if (updateFn) next = updateFn(next, mgf);
-    }
+    const advanced = advancePosition(mgf, position, move, advanceRulesOf(state));
+    if (advanced.anomaly) throw new Error(advanced.anomaly);
+    const next = advanced.position;
     const moved = next.board[move.to.row][move.to.col];
     if (!moved) return [];
     return displayKindsFor(mgf, moved, buildInitialKindMap(next));
@@ -845,67 +814,23 @@ function applyAndCommit(
   source: MoveSource = 'local',
 ): void {
   const state = get();
-  const { position, mgf, moveHistory, positionCounts, lastAppliedMove, positionHistory, positionCountsHistory, clockHistory, timeControl, clocks, activeClockSide, currentQuantum, currentTorusMode } = state;
+  const { position, mgf, moveHistory, positionCounts, lastAppliedMove, positionHistory, positionCountsHistory, clockHistory, timeControl, clocks, activeClockSide, currentQuantum } = state;
   const formatted = formatMove(mgf, position, move);
   /** 指した側（`position` は着手前なので、その手番が指した側）。 */
   const mover = position.sideToMove;
-  let nextPos = applyMove(mgf, position, move);
-  // v1.04 (Phase 5-7 §Q8.5): 捕獲制約 C-201/C-202/C-203。捕獲を検知して:
-  //   - 捕獲された駒が「王として確定」なら C-202 で即終局 (checkmate 相当)、候補更新は
-  //     スキップ (§Q8.5 C-202 の但し書き・親§4.4 の「王として確定した駒の合法捕獲」)。
-  //   - 未確定王候補持ちなら C-201 で王 (royal) 系候補を除外してから候補更新へ。
-  //   - C-203 (「捕獲を理由に候補を変えるのは C-201 だけ」) は apply.ts の継承がそのまま
-  //     守っているので追加処理不要。
-  let statusOverride: GameStatus | null = null;
-  if (currentQuantum && move.type === 'move') {
-    const capturedBefore = position.board[move.to.row][move.to.col];
-    if (capturedBefore) {
-      const capHook = pluginGet<QuantumOnCaptureHook>('quantum:onCapture');
-      if (capHook) {
-        const infoMapBefore = capHook.buildInitialInfoMap(position);
-        if (capHook.isConfirmedKing(capturedBefore, infoMapBefore, mgf)) {
-          statusOverride = 'checkmate';
-        } else {
-          nextPos = capHook.applyC201(nextPos, capturedBefore.pieceId, mgf);
-        }
-      }
-    }
-  }
-  // v1.09 (Phase 5-11 追補): 打つ手から得られる絞り込み。
-  // 「詰みになる手が打てた = 打ち歩詰めではない = その駒は歩ではない」を反映する。
-  // 詰み判定が要るので候補更新の反復ループには入れず、捕獲時の C-201 と同じく
-  // イベント側でこの位置に 1 回だけ挟む。二歩・行き所のない駒による絞り込みは
-  // 打った駒が盤上の駒になった時点で C-103 / C-104 が拾うのでここでは扱わない。
-  // Phase 5-13: 候補更新が異常 (候補が空 / 反復上限) を投げたら、打ち切り時点の盤面を
+  // ★v1.93: 1 手進めて後処理まで済ませるのは advancePosition の仕事 (思考ルーチンも同じ道を
+  // 通る)。中身は v1.92 までここに書いていた手順そのまま:
+  //   - C-201/C-202/C-203 (v1.04・§Q8.5)＝王と確定した駒を取ったら即終局 (checkmate 相当)・
+  //     候補更新はしない。そうでなければ取られた駒から王の候補を外す
+  //   - 打つ手から分かる絞り込み (v1.09・Phase 5-11 追補)
+  //   - 候補更新 (v0.96)。盤の端のつなぎ方 (v1.25) と反復上限 (v1.15・§Q17.8) を渡す
+  // Phase 5-13: 候補更新が異常 (候補が空 / 反復上限) を出したら、打ち切り時点の盤面を
   // そのまま採用して、着手をコミットしたあとに投票 UI を出す。盤を「停止時点のまま」
   // 見せる決まり (付録D-1 §5.7.3.3) なので、着手をなかったことにはしない。
-  let anomalyCause: AnomalyCause | null = null;
-  if (currentQuantum && move.type === 'drop') {
-    const dropHook = pluginGet<QuantumOnDropFn>('quantum:onDrop');
-    if (dropHook) nextPos = dropHook(nextPos, mgf, move.pieceId, move.to);
-  }
-  // v0.96 (Phase 5-4): 量子モードなら着手直後に候補集合を再評価する。
-  // v1.25 (Phase 4): 盤の端のつなぎ方を渡す。ここは Phase 4 まで 'none' 固定だったので、
-  // トーラスを選んでも盤端に依存する絞り込み (行き所のない駒・強制成り) が外れなかった。
-  // v1.04 (Phase 5-7): C-202 発動時は候補更新をスキップ (§Q8.5)。
-  if (currentQuantum && !statusOverride) {
-    const candidateUpdateFn = pluginGet<QuantumCandidateUpdateFn>('quantum:candidateUpdate');
-    // Phase 5-6.5 移行後: context (infoMap 含む) は candidateUpdate 側で pos から自動生成。
-    if (candidateUpdateFn) {
-      try {
-        // Phase 5-15: 反復上限は対局設定 (§Q17.8 `max_iterations`) から。
-        nextPos = candidateUpdateFn(nextPos, mgf, {
-          torusMode: currentTorusMode,
-          maxIterations: state.quantumParams.maxIterations,
-        });
-      } catch (e) {
-        const anomaly = asQuantumAnomaly(e);
-        if (!anomaly) throw e;
-        nextPos = anomaly.position;
-        anomalyCause = anomaly.anomalyCause;
-      }
-    }
-  }
+  const advanced = advancePosition(mgf, position, move, advanceRulesOf(state));
+  const nextPos = advanced.position;
+  const statusOverride: GameStatus | null = advanced.royalCaptured ? 'checkmate' : null;
+  const anomalyCause: AnomalyCause | null = advanced.anomaly;
   // v0.99 (Phase 5-6 拡張): 動いた駒以外で candidates が変化した駒を「量子もつれ」として
   // 記録する。UI ハイライトと debug の候補変更履歴表示で使う。動いた駒 (move.pieceId) は
   // 除外し、その他で before/after の candidates が異なる駒のみ集める。

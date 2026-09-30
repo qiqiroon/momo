@@ -16,6 +16,7 @@ import type { EngineAdapter, ThinkLimits, ThinkProgress } from '../../core/ai/ty
 import { get as pluginGet } from '../../core/plugin/registry';
 import type { Mgf } from '../../core/engine/mgf/types';
 import type { Move, Position } from '../../core/engine/position/types';
+import { PLAIN_RULES, type AdvanceRules } from '../../core/engine/position/advance';
 import { searchBestMove } from './search';
 import { resolveLevel } from './levels';
 import type { WorkerRequest, WorkerResponse } from './worker-protocol';
@@ -29,12 +30,14 @@ class SelfmadeAdapter implements EngineAdapter {
   readonly id = SELFMADE_ENGINE_ID;
   private mgf: Mgf | null = null;
   private position: Position | null = null;
+  private rules: AdvanceRules = PLAIN_RULES;
   private worker: Worker | null = null;
   private seq = 0;
   private stopped = false;
 
-  init(mgf: Mgf): void {
+  init(mgf: Mgf, rules: AdvanceRules = PLAIN_RULES): void {
     this.mgf = mgf;
+    this.rules = rules;
   }
 
   setPosition(position: Position): void {
@@ -44,6 +47,7 @@ class SelfmadeAdapter implements EngineAdapter {
   async go(limits: ThinkLimits, onProgress?: (p: ThinkProgress) => void): Promise<Move | null> {
     const mgf = this.mgf;
     const position = this.position;
+    const rules = this.rules;
     if (!mgf || !position) return null;
     this.stopped = false;
 
@@ -52,7 +56,7 @@ class SelfmadeAdapter implements EngineAdapter {
 
     const worker = this.ensureWorker();
     if (worker) {
-      return this.goInWorker(worker, mgf, position, movetimeMs, maxDepth, jitter, onProgress);
+      return this.goInWorker(worker, mgf, position, rules, movetimeMs, maxDepth, jitter, onProgress);
     }
 
     // 同じスレッドで考える。開始を 1 度画面に返してから走らせ、「考え中」の表示が
@@ -62,6 +66,7 @@ class SelfmadeAdapter implements EngineAdapter {
       movetimeMs,
       maxDepth,
       jitter,
+      rules,
       shouldStop: () => this.stopped,
       onProgress: (p) => onProgress?.({ depth: p.depth, nodes: p.nodes, elapsedMs: p.elapsedMs }),
     });
@@ -99,6 +104,7 @@ class SelfmadeAdapter implements EngineAdapter {
     worker: Worker,
     mgf: Mgf,
     position: Position,
+    rules: AdvanceRules,
     movetimeMs: number,
     maxDepth: number,
     jitter: number,
@@ -125,11 +131,11 @@ class SelfmadeAdapter implements EngineAdapter {
         // 別スレッドが落ちたら捨てて、次回は同じスレッドで考え直す
         this.worker = null;
         worker.terminate();
-        resolve(searchBestMove(mgf, position, { movetimeMs, maxDepth, jitter }).move);
+        resolve(searchBestMove(mgf, position, { movetimeMs, maxDepth, jitter, rules }).move);
       };
       worker.addEventListener('message', onMessage);
       worker.addEventListener('error', onError);
-      const req: WorkerRequest = { type: 'go', id, mgf, position, movetimeMs, maxDepth, jitter };
+      const req: WorkerRequest = { type: 'go', id, mgf, position, rules, movetimeMs, maxDepth, jitter };
       worker.postMessage(req);
     });
   }

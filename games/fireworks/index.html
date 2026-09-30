@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
-<!-- MOMO Fireworks v0.56 -->
+<!-- MOMO Fireworks v0.57 -->
 <html lang="ja">
 <head>
 <meta charset="utf-8">
@@ -351,7 +351,7 @@
       <circle cx="26" cy="21" r="2.6" fill="#fff7d6" stroke="#000" stroke-width="0.6"/>
     </g>
   </svg>
-  <div class="mh"><span class="mh-t">MOMO <b>Fireworks</b></span><span class="mh-s"><span id="mhSub">Night Blooms, Golden Fade</span><span class="mh-v" id="mhVer">v0.56</span></span></div>
+  <div class="mh"><span class="mh-t">MOMO <b>Fireworks</b></span><span class="mh-s"><span id="mhSub">Night Blooms, Golden Fade</span><span class="mh-v" id="mhVer">v0.57</span></span></div>
 </div>
 
 <div id="fps"><div id="fpsA"></div><div id="fpsB"></div></div>
@@ -540,7 +540,7 @@
         </g>
       </svg>
       <div class="title-block">
-        <h1><span class="momo">MOMO</span><span class="fireworks">Fireworks</span><span class="version-tag" id="version-tag">v0.56</span></h1>
+        <h1><span class="momo">MOMO</span><span class="fireworks">Fireworks</span><span class="version-tag" id="version-tag">v0.57</span></h1>
         <div class="subtitle" id="subtitle">Night Blooms, Golden Fade</div>
       </div>
     </header>
@@ -727,6 +727,8 @@
    （v0.54：携帯の傾きで視線（Darts と同じ計算＋横画面の補正）、見ている間は画面を消さない、「正面に戻す」ボタン、尾の縞をなくす（つなぎ目を重ねず濃さをなめらかに））
    （v0.55：携帯の横画面では操作の帯を詰めて高さを約半分に（Q123＝B））
    （v0.56：画面を消さない頼みを見るボタンを押したその場で出す（Darts と同じ）。横に倒しているのに縦のままなら自動回転の案内を出す（Q132＝A））
+   （v0.57：画面の大きさが変わったあと少し間を置いて読み直す（iPhone で縦に戻すと回転途中の幅で決まり、右が黒く残った）。絵は常に画面いっぱいに広げる（Q135＝A）。
+            パチパチ（小破裂）が詰まったら後ろへずらさず鳴らさない（行列が最大 7.7 秒先まで溜まり、遅い機械で音楽が途切れていた）。音の出し方を途切れにくさ優先に（Q137＝A））
    仕様書 hanabi_sim_spec_v2.00.md §3 に対応する実装。
 
    v0.01 からの主要変更（§3.8 参照）
@@ -1156,13 +1158,14 @@ function randFrame(){
 /* ---------- 画面サイズ ---------- */
 function resize(){
   const w = innerWidth, h = innerHeight;
+  rsW=w; rsH=h;                                         // v0.57：決めたときの大きさ（あとで読み直して比べる）
   DPR = Math.min(devicePixelRatio||1, DPRcap);
   const px = w*h*DPR*DPR;
   if(px > 4.0e6) DPR *= Math.sqrt(4.0e6/px);          // v0.01: 240万 → 400万
   W = Math.round(w*DPR); H = Math.round(h*DPR);
   for(const c of [cv,spark,flash,coreC,smk]){ c.width=W; c.height=H; }
   PM=-1;                                                // 景色の控えは setPM() で広さを決める
-  cv.style.width=w+'px'; cv.style.height=h+'px';
+  cv.style.width='100%'; cv.style.height='100%';        // v0.57：大きさを決め直すのが遅れても黒い部分を出さない（一瞬引き伸ばされるだけ）
   litBuf.width=Math.max(1,W>>1); litBuf.height=Math.max(1,H>>1);
   bl1.width=Math.max(1,W>>2);  bl1.height=Math.max(1,H>>2);
   bl2.width=Math.max(1,W>>4);  bl2.height=Math.max(1,H>>4);
@@ -1211,7 +1214,16 @@ function recomputeCam(){
   if(typeof shells!=='undefined'){ for(const s of shells) s.px=null; }
   setPM();                                              // v0.39
 }
-addEventListener('resize', resize);
+/* v0.57（Q135＝A）：iPhone は回転の途中のまだ落ち着かない大きさを知らせてくることがあり、そのあと知らせが来ないことがある。
+   知らせのあと 0.1・0.3・0.7・1.5 秒に読み直し、決めたときと違えば決め直す */
+let rsW=0, rsH=0, rsTimers=[];
+function resizeSettle(){
+  for(const id of rsTimers) clearTimeout(id);
+  rsTimers=[100,300,700,1500].map(ms=>setTimeout(()=>{ if(innerWidth!==rsW || innerHeight!==rsH) resize(); }, ms));
+}
+addEventListener('resize', ()=>{ resize(); resizeSettle(); });
+addEventListener('orientationchange', resizeSettle);
+if(window.visualViewport) visualViewport.addEventListener('resize', resizeSettle);
 
 /* ---------- 背景 ----------
    bg    : 夜空・恒星・暗い地上シルエット（静止）
@@ -2359,6 +2371,12 @@ const SOUND_FILES = {
 };
 
 let AC=null, BUF={}, sndReady=false, sndLoading=false;
+/* v0.57（Q137＝A）：音の出し方は途切れにくさ優先（'playback'）。計算が一瞬間に合わなくても途切れないよう、先に多めに作っておく。
+   遅れは数十ミリ秒。音楽の花火は曲の再生時刻から予定を組むので、曲と花火はずれない */
+function newAC(){
+  const C=window.AudioContext||window.webkitAudioContext; if(!C) return null;
+  try{ return new C({latencyHint:'playback'}); }catch(_){ try{ return new C(); }catch(e){ return null; } }
+}
 let sndNear=false;        // 「音を至近で」モード（下の soundNear 参照）
 let popProb=1;            // 小破裂の発音を間引く割合。玉ごとに決まる
 const SND = {             // 操作盤のスライダから書き換わる（v0.15 の確定値）
@@ -2538,15 +2556,13 @@ function soundBurst(cx, cy, cz, go){
 }
 
 /* 小破裂（小割）。絵の上で星が弾けた瞬間に呼ばれるので、音と絵が必ず一致する */
-let popLastT = 0;
+const POP_SLOT = new Set();                        // v0.57：予約済みのパチパチの時刻の枠（0.018 秒ごと）
 function soundPop(x, y, z, go, pp, crk){
   if(!AC || !sndOn || !sndReady || SND.gPop<=0.001) return;
   if(Math.random() > (pp===undefined ? popProb : pp)) return;   // 発音数の間引き（v0.30：玉ごとの割合）
   const d0 = Math.hypot(x, y-EYE, z);
   const d  = sDist(d0);
-  let t = sTime(d0);
-  if(t - popLastT < 0.018) t = popLastT + 0.018;   // 粒が重なりすぎるのを防ぐ
-  popLastT = t;
+  const t = sTime(d0);
   const k = 'pop'+(1+((Math.random()*4)|0));
   const rate = 0.82 + Math.random()*0.60;
   /* 小破裂は高域が主成分なので、距離による減衰（ATT.pop）も空気吸収（FCE.pop）も
@@ -2554,6 +2570,14 @@ function soundPop(x, y, z, go, pp, crk){
      玉の大きさによる音量差は破裂本体の3割だけ効かせる。          */
   const g = SND.gPop*distGain(d, ATT.pop)*popSizeGain(go||10)*(crk ? Math.pow((go||10)/10, 0.35) : 1)   // v0.30：クラッカーは号数で音量も上げる
           * (0.20 + Math.pow(Math.random(),1.7)*0.80);
+  /* 粒が重なりすぎるのを防ぐ。v0.57：詰まったら鳴らさない（v0.56 までは後ろへずらしていたため、最高潮では予約の行列が
+     最大 7.7 秒先まで伸び、待っている音の計算で遅い機械の音楽が途切れていた。ずれた音は絵とも合っていなかった）。
+     距離で到達の遅れが違い、予約の時刻は前後するので、直前の1個でなく 0.018 秒の枠ごとに1個までにする（POP_SLOT）。
+     乱数の列は変えない（鳴らさないときも playBuf の音量の揺れの1個ぶんを引く） */
+  const slot = Math.round(t/0.018);
+  if(POP_SLOT.has(slot)){ Math.random(); return; }
+  POP_SLOT.add(slot);
+  if(POP_SLOT.size > 600){ const old=Math.round(AC.currentTime/0.018); for(const q of POP_SLOT) if(q < old) POP_SLOT.delete(q); }   // 過ぎた枠を片づける
   playBuf(k, t, g, rate, d, sndNear?0:panOf(x,d0), 380, FCE.pop);
 }
 
@@ -5039,7 +5063,7 @@ function closeMusic(play){
   if(!play){ SET.seMute=true; SET.bgmMute=true; }
   else{ SET.seMute=false; SET.bgmMute=false; }
   saveSet(); syncSetUI();
-  if(!AC){ try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+  if(!AC) AC=newAC();
   if(AC && AC.state==='suspended') AC.resume();
   audioAsked=true; sndOn=true; applySeGain(); applyBgmGain();
   if(AC) loadSounds();
@@ -5378,7 +5402,7 @@ function stopMusic(){
 async function startMusic(){
   stopMusic();
   if(autoOn) autoBtn.click();
-  if(!AC){ try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+  if(!AC) AC=newAC();
   if(!AC){ musicMsg.textContent=tr('musicLoadError', 'AudioContext'); return; }
   if(AC.state==='suspended') AC.resume();
   const btn=document.getElementById('startMusic'); btn.disabled=true;

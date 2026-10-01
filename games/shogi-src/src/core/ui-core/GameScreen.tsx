@@ -30,6 +30,7 @@ import {
   seAnomalyNogame,
   seButton,
   seNotify,
+  seTaunt,
 } from '../audio/se-synth';
 import { t as _t } from '../i18n';
 import type { LocaleCode } from '../i18n/types';
@@ -258,7 +259,13 @@ export function GameScreen({ variant }: GameScreenProps) {
     const hashPayload = positionHash(useGameStore.getState().position);
     if (move.type === 'move' || move.type === 'drop') {
       // ★「どの手か」を決める項目は 1 か所で作る (§3.7.1 の並びを含む)。
-      c.sendMove({ ...wireMoveOf(move), time: timePayload, hash: hashPayload });
+      c.sendMove({
+        ...wireMoveOf(move),
+        time: timePayload,
+        hash: hashPayload,
+        // ★v1.95 (音響 §2.5): 威嚇つきの手は相手にも知らせる (相手の画面でも威嚇音が鳴る)。
+        ...(lastAppliedMove.taunt ? { taunt: true } : {}),
+      });
     }
     // ★v1.55: `free`（感想戦の自由な手）はここへ来ない＝**対局画面では生まれない**。
     // 感想戦の共有は別の伝言（親 §6.3.6 の `review_move`）が受け持つ。
@@ -396,6 +403,8 @@ export function GameScreen({ variant }: GameScreenProps) {
     prevHandsRef.current = { p1: curP1, p2: curP2 };
     if (wasCapture) seCapture();
     else seMove();
+    // ★v1.95 (音響 §2.5): 威嚇つきの手は、駒を打つ音に威嚇音を重ねる。
+    if (lastAppliedMove.taunt) seTaunt();
     // 着手後、手番が回ってきた側 (position.sideToMove) が王手されているか判定
     const inCheck = position.sideToMove === 'player1' ? senteInCheck : goteInCheck;
     if (inCheck) setTimeout(seCheck, 90);
@@ -1061,9 +1070,7 @@ export function GameScreen({ variant }: GameScreenProps) {
               </button>
             ) : (
               <>
-                <button type="button" className="act taunt">
-                  {t('cmd.taunt')} <span className="cnt">3</span>
-                </button>
+                <TauntButton t={t} online={online} status={status} sideToMove={position.sideToMove} />
                 <UndoButton t={t} online={online} status={status} sideToMove={position.sideToMove} />
                 <DrawButton t={t} online={online} status={status} sideToMove={position.sideToMove} />
                 <PauseButton t={t} online={online} status={status} />
@@ -1505,6 +1512,56 @@ function useAnyOfferPending(): boolean {
  * 残っている限りどこまでも戻せる**（残りが 1 手ならその 1 手だけ戻る）。
  * 人どうしのオフライン対局は**どちらも人**なので今までどおり 1 手。
  */
+/**
+ * ★v1.95 威嚇ボタン (音響 §2.5・画面機能 S06・付録 D-1 §7)。
+ *
+ * 押してから指すと、その手で威嚇音が鳴る。**次の 1 手だけ**に効き、指せば解ける。
+ * **もう一度押せば取り消し** (回数は減らない)。**1 局に 3 回まで**で、残りを 3→2→1→0 と出し、
+ * 0 になったら押せない。押せるのは**自分の手番のときだけ**＝一人で両方を指すときは、
+ * いま手番の側の回数を出す (AI 相手なら人の側、ネット対戦なら自分の側)。
+ */
+function TauntButton({
+  t,
+  online,
+  status,
+  sideToMove,
+}: {
+  t: (key: string) => string;
+  online: { isOnline: boolean; mySide: 'player1' | 'player2' | null };
+  status: string;
+  sideToMove: 'player1' | 'player2';
+}) {
+  const armed = useGameStore((s) => s.tauntArmed);
+  const tauntsLeft = useGameStore((s) => s.tauntsLeft);
+  const setTauntArmed = useGameStore((s) => s.setTauntArmed);
+  const paused = useGameStore((s) => s.paused);
+  const vsAi = useAiStore((s) => s.enabled);
+  const aiSide = useAiStore((s) => s.aiSide);
+  const mine: 'player1' | 'player2' =
+    online.isOnline && online.mySide
+      ? online.mySide
+      : vsAi
+        ? aiSide === 'player1' ? 'player2' : 'player1'
+        : sideToMove;
+  const left = tauntsLeft[mine];
+  // 予約中はいつでも取り消せる。予約するのは対局中・自分の手番・回数が残っているときだけ。
+  const disabled = !armed && (status !== 'playing' || paused || sideToMove !== mine || left <= 0);
+  return (
+    <button
+      type="button"
+      className={`act taunt${armed ? ' armed' : ''}`}
+      aria-pressed={armed}
+      disabled={disabled}
+      onClick={() => {
+        seButton();
+        setTauntArmed(!armed);
+      }}
+    >
+      {t('cmd.taunt')} <span className="cnt">{left}</span>
+    </button>
+  );
+}
+
 function UndoButton({
   t,
   online,

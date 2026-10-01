@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { hondou } from '../../core/engine/mgf/loader';
 import { initPosition } from '../../core/engine/position/init';
 import { quantumInit } from '../../features/quantum/init';
-import { evaluate, buildValueBook, pieceValue, PIECE_VALUE } from './evaluate';
+import { evaluate, buildValueBook, pieceValue, PIECE_VALUE, KING_CANDIDATE_PENALTY } from './evaluate';
 import type { PieceId, Position } from '../../core/engine/position/types';
 
 function pidOfKind(pos: Position, kind: string, owner: 'player1' | 'player2'): PieceId {
@@ -86,5 +86,51 @@ describe('量子モードの駒の値打ち (v1.49)', () => {
     const after = evaluate(hondou, narrowed);
     expect(after).toBeLessThan(before);
     expect(before - after).toBe(PIECE_VALUE.hi - PIECE_VALUE.kaku);
+  });
+});
+
+/**
+ * ★v1.95 量子の案 B: まだ王でありうる自分の駒が少ないほど減点する (量子 80 局で 65.6%)。
+ */
+describe('量子モードの王の候補の数 (v1.95)', () => {
+  /** 先手の駒のうち、王の身元を候補に持つ駒を `keep` 枚だけ残す (残りからは王を外す)。 */
+  function keepKingCandidates(pos: Position, keep: number): Position {
+    const royal = pidOfKind(pos, 'ou', 'player1');
+    let kept = 0;
+    return {
+      ...pos,
+      board: pos.board.map((r) =>
+        r.map((c) => {
+          if (!c || c.owner !== 'player1' || !c.candidates?.has(royal)) return c;
+          if (kept < keep) {
+            kept++;
+            return c;
+          }
+          const next = new Set(c.candidates);
+          next.delete(royal);
+          return { ...c, candidates: next };
+        }),
+      ),
+    };
+  }
+
+  it('王の候補が 1 枚に減った側は、その分だけ減点される (2 枚・3 枚…と軽くなる)', () => {
+    const base = quantumInit(initPosition(hondou));
+    const on = (pos: Position) => evaluate(hondou, pos, buildValueBook(hondou, pos, { kingSafety: true }));
+    for (const n of [1, 2, 3, 4]) {
+      const pos = keepKingCandidates(base, n);
+      expect(on(base) - on(pos)).toBe(KING_CANDIDATE_PENALTY[n]);
+    }
+    expect(on(keepKingCandidates(base, 5))).toBe(on(base));
+  });
+
+  it('切り替えを入れなければ数えない (王を外しても材料の値は変わらない＝飛のまま)', () => {
+    const base = quantumInit(initPosition(hondou));
+    expect(evaluate(hondou, keepKingCandidates(base, 1))).toBe(evaluate(hondou, base));
+  });
+
+  it('量子でない対局には効かない', () => {
+    const pos = initPosition(hondou);
+    expect(evaluate(hondou, pos, buildValueBook(hondou, pos, { kingSafety: true }))).toBe(evaluate(hondou, pos));
   });
 });

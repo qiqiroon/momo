@@ -10,6 +10,14 @@ export function seMove(): void {
   playSample('move');
 }
 
+/**
+ * SE-taunt: 威嚇音 (音響 §2.5)。威嚇つきで指した手が盤に載った瞬間に、駒を打つ音に重ねて鳴らす。
+ * ★v1.95: MOMO Fireworks の大玉の破裂音 (`se-fireworks-burst-a.mp3`) を使い回す (ユーザー指定)。
+ */
+export function seTaunt(): void {
+  playSample('taunt');
+}
+
 /** SE-capture: 駒を取る。v0.75 で Taira Komori shogi3.mp3 に置換 (CC-BY 4.0)。 */
 export function seCapture(): void {
   playSample('capture');

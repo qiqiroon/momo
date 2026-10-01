@@ -204,7 +204,8 @@ export function handleShogiMessage(data: unknown, from?: string): void {
       return;
     }
     case 'move': {
-      const applied = useGameStore.getState().applyRemoteMove(wireFieldsOf(msg));
+      // ★v1.95: 威嚇つきの手なら、こちらでも威嚇音を鳴らす (音響 §2.5)。
+      const applied = useGameStore.getState().applyRemoteMove(wireFieldsOf(msg), { taunt: msg.taunt === true });
       if (applied && msg.time) {
         const nextSide = useGameStore.getState().position.sideToMove;
         const moverSide: 'player1' | 'player2' = nextSide === 'player1' ? 'player2' : 'player1';

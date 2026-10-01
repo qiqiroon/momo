@@ -89,6 +89,11 @@ export interface SearchFeatures {
    * 省略＝今までどおり「いちばん強い候補」。
    */
   quantumMeanValue?: boolean;
+  /**
+   * ★v1.94 案 B (強さ比べ中): 量子で、まだ王でありうる自分の駒が少ないほど減点する
+   * (evaluate.ts KING_CANDIDATE_PENALTY)。省略＝今までどおり数えない。
+   */
+  quantumKingSafety?: boolean;
 }
 
 const NO_FEATURES: SearchFeatures = { tt: false, killers: false, checkExtension: false, mateSearch: false };
@@ -501,7 +506,10 @@ export function searchBestMove(mgf: Mgf, position: Position, options: SearchOpti
   const ctx: Ctx = {
     mgf,
     rules: options.rules ?? PLAIN_RULES,
-    book: buildValueBook(mgf, position, { mean: options.features?.quantumMeanValue === true }),
+    book: buildValueBook(mgf, position, {
+      mean: options.features?.quantumMeanValue === true,
+      kingSafety: options.features?.quantumKingSafety === true,
+    }),
     nodes: 0,
     maxNodes: options.maxNodes ?? Infinity,
     deadline: start + Math.max(1, options.movetimeMs),

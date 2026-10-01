@@ -161,6 +161,7 @@ const connector: OnlineGameConnector = {
       ...wireFieldsOf(payload),
       time: payload.time,
       hash: payload.hash,
+      ...(payload.taunt ? { taunt: true } : {}),
     });
   },
 

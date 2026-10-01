@@ -53,6 +53,8 @@ export interface RemoteMovePayload extends WireMove {
   };
   /** v0.52 (段階 2-6): 送信直後の自分の局面ハッシュ。受信側の照合用 */
   hash?: string;
+  /** ★v1.95 (音響 §2.5): 威嚇つきの手。受け取った側でも威嚇音を鳴らす。 */
+  taunt?: boolean;
 }
 
 export interface OnlineGameConnector {

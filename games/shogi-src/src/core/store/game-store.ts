@@ -310,7 +310,15 @@ export interface LastAppliedMove {
   source: MoveSource;
   /** 単調増加する連番。同じ move 値でも参照を変えて subscribe 側に通知するため */
   seq: number;
+  /**
+   * ★v1.95 (音響 §2.5): **威嚇つきで指された手**か。対局画面はこれを見て威嚇音を鳴らし、
+   * 自分の手なら相手へも知らせる。
+   */
+  taunt?: boolean;
 }
+
+/** ★v1.95 (音響 §2.5): 威嚇は 1 局に 3 回まで。 */
+export const TAUNTS_PER_GAME = 3;
 
 interface GameState {
   mgf: Mgf;
@@ -544,6 +552,14 @@ interface GameState {
    * 既定値のままなら従来と同じ挙動になる。いまはデバッグパネルからのみ変更できる。
    */
   quantumParams: QuantumParams;
+  /**
+   * ★v1.95 (音響 §2.5・画面機能 S06): **威嚇の予約**。押してから指すと、その手で威嚇音が鳴る。
+   * **次の 1 手だけ**に効き、指せば解ける (指す前に押し直せば取り消し＝回数は減らない)。
+   */
+  tauntArmed: boolean;
+  /** ★v1.95: 威嚇の残り回数 (陣営ごと・対局開始時に 3)。減るのは威嚇つきで実際に指したときだけ。 */
+  tauntsLeft: Record<Player, number>;
+  setTauntArmed: (armed: boolean) => void;
   /** 実行時パラメータを部分更新する。 */
   setQuantumParams: (patch: Partial<QuantumParams>) => void;
   /**
@@ -572,7 +588,8 @@ interface GameState {
    * pieceId / from / to / promote に完全一致する合法手を探して適用。
    * 対応する合法手が見つからなければ false を返す（同期ずれ）。
    */
-  applyRemoteMove: (msg: WireMove) => boolean;
+  /** `opts.taunt`＝相手が威嚇つきで指した手 (★v1.95・音を相手にも届ける)。 */
+  applyRemoteMove: (msg: WireMove, opts?: { taunt?: boolean }) => boolean;
   /**
    * ★v1.55: 感想戦で盤を自由に組み替える 1 手を適用する（親 v1.49 §9.4.2.1）。
    *
@@ -812,12 +829,20 @@ function applyAndCommit(
   get: () => GameState,
   move: Move,
   source: MoveSource = 'local',
+  opts: { taunt?: boolean } = {},
 ): void {
   const state = get();
   const { position, mgf, moveHistory, positionCounts, lastAppliedMove, positionHistory, positionCountsHistory, clockHistory, timeControl, clocks, activeClockSide, currentQuantum } = state;
   const formatted = formatMove(mgf, position, move);
   /** 指した側（`position` は着手前なので、その手番が指した側）。 */
   const mover = position.sideToMove;
+  /**
+   * ★v1.95 (音響 §2.5): この手が威嚇つきか。**自分で指した手は予約を見る**、
+   * **届いた手は送り主の申告を見る**。どちらも残り回数が無ければ威嚇にならない。
+   * AI の手・棋譜の並べ直しは届いた手として来るが申告を持たないので、威嚇にならない。
+   */
+  const taunted =
+    (source === 'local' ? state.tauntArmed : opts.taunt === true) && state.tauntsLeft[mover] > 0;
   // ★v1.93: 1 手進めて後処理まで済ませるのは advancePosition の仕事 (思考ルーチンも同じ道を
   // 通る)。中身は v1.92 までここに書いていた手順そのまま:
   //   - C-201/C-202/C-203 (v1.04・§Q8.5)＝王と確定した駒を取ったら即終局 (checkmate 相当)・
@@ -891,7 +916,10 @@ function applyAndCommit(
     // （着手・待った・巻き戻し）。待った・巻き戻しでは `NO_VICTORY_FLAGS` が
     // 消す側を受け持つので、**立てる側と消す側の両方が数え上げにならない**。
     nyugyokuPromptSide: nyugyokuPromptFor(mover, state, mgf, nextPos, finalStatus, source),
-    lastAppliedMove: { move, source, seq: nextSeq },
+    lastAppliedMove: { move, source, seq: nextSeq, ...(taunted ? { taunt: true } : {}) },
+    // ★v1.95 (音響 §2.5): 威嚇は 1 手限り＝自分が指せば予約は解ける。回数は威嚇つきで指したときだけ減る。
+    ...(source === 'local' ? { tauntArmed: false } : {}),
+    ...(taunted ? { tauntsLeft: { ...state.tauntsLeft, [mover]: state.tauntsLeft[mover] - 1 } } : {}),
     // v0.33: 待ったの巻き戻し用に、着手前の局面と positionCounts を履歴に積む
     positionHistory: [...positionHistory, position],
     positionCountsHistory: [...positionCountsHistory, positionCounts],
@@ -1079,6 +1107,14 @@ export const useGameStore = create<GameState>((set, get) => ({
   myQuantumDisplay: loadMyQuantumDisplay(),
   hintAlwaysOn: loadHintAlwaysOn(),
   quantumParams: DEFAULT_QUANTUM_PARAMS,
+  tauntArmed: false,
+  tauntsLeft: { player1: TAUNTS_PER_GAME, player2: TAUNTS_PER_GAME },
+  setTauntArmed: (armed) => {
+    const { status, tauntsLeft, position } = get();
+    // 予約できるのは対局中・まだ回数が残っているときだけ (取り消しはいつでも)。
+    if (armed && (status !== 'playing' || tauntsLeft[position.sideToMove] <= 0)) return;
+    set({ tauntArmed: armed });
+  },
   entangledPieceIds: [],
   anomaly: null,
 
@@ -1747,6 +1783,9 @@ export const useGameStore = create<GameState>((set, get) => ({
       positionCounts: { [positionHash(pos)]: 1 },
       ...NO_VICTORY_FLAGS,
       lastAppliedMove: null,
+      // ★v1.95: 威嚇の回数は対局開始時に 3 へ戻す (音響 §2.5)。
+      tauntArmed: false,
+      tauntsLeft: { player1: TAUNTS_PER_GAME, player2: TAUNTS_PER_GAME },
       positionHistory: [],
       positionCountsHistory: [],
       clockHistory: [],
@@ -1813,7 +1852,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     return true;
   },
 
-  applyRemoteMove: (msg) => {
+  applyRemoteMove: (msg, opts) => {
     const { position, mgf, status } = get();
     if (status !== 'playing') return false;
     const legal = generateLegalMoves(mgf, position);
@@ -1824,7 +1863,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     const found = legal.find((m) => isSameWireMove(m, msg));
     if (found) target = found;
     if (!target) return false;
-    applyAndCommit(set, get, target, 'remote');
+    applyAndCommit(set, get, target, 'remote', { taunt: opts?.taunt });
     return true;
   },
 

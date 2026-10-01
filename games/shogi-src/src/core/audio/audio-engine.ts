@@ -136,6 +136,9 @@ export const SAMPLE_URLS: Record<string, string> = {
   fanfareWin: `${ASSETS}se/se-fanfare-win.mp3`,
   fanfareWin2: `${ASSETS}se/se-fanfare-win-2.mp3`,
   gameLose: `${ASSETS}se/se-game-lose.mp3`,
+  // ★v1.95 (音響 §2.5 SE-taunt): 威嚇音は MOMO Fireworks の大玉の破裂音を使い回す
+  // (ユーザー指定 2026-10-01・共通素材なので公開リポのファイルは増えない)。
+  taunt: `${ASSETS}se/se-fireworks-burst-a.mp3`,
 };
 
 /**

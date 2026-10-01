@@ -96,9 +96,24 @@ export interface ValueBook {
    * **候補の平均 (期待値)** で数える。王は今までどおり数えない。量子でない対局には効かない。
    */
   mean: boolean;
+  /**
+   * ★v1.94 案 B (強さ比べ中): 量子で、**まだ王でありうる自分の駒の数**を点数に入れる。
+   * 王の身元 (陣営ごとに 1 つ)。null なら数えない (量子でない・切り替えが切り)。
+   */
+  royalIds: Record<Player, PieceId> | null;
 }
 
-export function buildValueBook(mgf: Mgf, position: Position, opts: { mean?: boolean } = {}): ValueBook {
+/**
+ * ★v1.94 案 B: 王でありうる駒が少ないほど危ない、の減点 (歩 1 枚 = 100)。
+ * 1 枚＝王が確定して王手・詰みの的になる。5 枚以上は 0。
+ */
+export const KING_CANDIDATE_PENALTY = [0, 400, 200, 100, 50];
+
+export function buildValueBook(
+  mgf: Mgf,
+  position: Position,
+  opts: { mean?: boolean; kingSafety?: boolean } = {},
+): ValueBook {
   const plain = new Map<PieceId, number>();
   const promoted = new Map<PieceId, number>();
   for (const [pieceId, kind] of buildInitialKindMap(position)) {
@@ -106,7 +121,37 @@ export function buildValueBook(mgf: Mgf, position: Position, opts: { mean?: bool
     const def = mgf.pieces.find((p) => p.id === kind);
     promoted.set(pieceId, def?.promoted_id ? valueOf(def.promoted_id) : NOT_COUNTED);
   }
-  return { plain, promoted, mean: opts.mean === true };
+  return { plain, promoted, mean: opts.mean === true, royalIds: opts.kingSafety ? royalIdsOf(position) : null };
+}
+
+/** 陣営ごとの王の身元。量子でない局面・王が見つからないルールでは null。 */
+function royalIdsOf(position: Position): Record<Player, PieceId> | null {
+  const found: Partial<Record<Player, PieceId>> = {};
+  let quantum = false;
+  const visit = (p: PieceInstance) => {
+    if (p.candidates !== undefined) quantum = true;
+    if (isKing(p.initialKind)) found[p.initialOwner] = p.pieceId;
+  };
+  for (const row of position.board) for (const cell of row) if (cell) visit(cell);
+  for (const p of position.hands.player1) visit(p);
+  for (const p of position.hands.player2) visit(p);
+  if (!quantum || !found.player1 || !found.player2) return null;
+  return { player1: found.player1, player2: found.player2 };
+}
+
+/** その陣営の盤上で、まだ王の身元を候補に持つ駒の数。 */
+function kingCandidateCount(position: Position, side: Player, royal: PieceId): number {
+  let n = 0;
+  for (const row of position.board) {
+    for (const cell of row) {
+      if (cell && cell.owner === side && cell.candidates?.has(royal)) n++;
+    }
+  }
+  return n;
+}
+
+function kingCandidatePenalty(n: number): number {
+  return n < KING_CANDIDATE_PENALTY.length ? KING_CANDIDATE_PENALTY[n] : 0;
 }
 
 /**
@@ -190,6 +235,11 @@ export function evaluate(
   }
   for (const piece of position.hands.player2) {
     p2 += pieceValue(piece, book) * HAND_BONUS;
+  }
+
+  if (book.royalIds) {
+    p1 -= kingCandidatePenalty(kingCandidateCount(position, 'player1', book.royalIds.player1));
+    p2 -= kingCandidatePenalty(kingCandidateCount(position, 'player2', book.royalIds.player2));
   }
 
   const diff = p1 - p2;

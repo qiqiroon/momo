@@ -1162,6 +1162,18 @@ body::before {
   text-align: center;
 }
 
+/* ★v1.95 威嚇の予約中・押せないとき (S06 モック v7 の値をそのまま) */
+.act.taunt.armed {
+  background: var(--bg-selected);
+  box-shadow: 0 0 0 2px var(--orange) inset;
+}
+
+.act.taunt:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-color: var(--border);
+}
+
 /* ===== チャット (MS-DOS 風) ===== */
 .chat-col {
   align-self: start;

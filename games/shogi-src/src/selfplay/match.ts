@@ -40,6 +40,8 @@ const VARIANTS: Record<string, Partial<SearchOptions>> = {
   all: { features: { tt: true, killers: true, checkExtension: true, mateSearch: true } },
   /** 量子の案 A＝駒の値打ちを候補の平均 (期待値) で数える (＋全部入り)。 */
   mean: { features: { tt: true, killers: true, checkExtension: true, mateSearch: true, quantumMeanValue: true } },
+  /** 量子の案 B＝まだ王でありうる自分の駒が少ないほど減点する (＋全部入り)。 */
+  kingsafe: { features: { tt: true, killers: true, checkExtension: true, mateSearch: true, quantumKingSafety: true } },
 };
 
 const env = process.env;

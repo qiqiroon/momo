@@ -34,8 +34,18 @@ interface LevelRow {
  *
  * **Easy にも入れる**＝Easy の弱さは「読む深さの上限 2」で作っており (わざとのぶれではない)、
  * そこは変えない。詰み探索が入るので、Easy でも王手だけで詰む短い詰みは見つけるようになる。
+ *
+ * ★v1.95 (2026-10-01): **量子の案 B＝まだ王でありうる自分の駒が少ないほど減点する**を足した
+ * (量子・1 手 1,500 局面・80 局で全部入りに 65.6% (±9.8))。量子でない対局には効かない
+ * (王の候補を持つ駒が無いので数えない)。案 A (候補の平均) は 50.0% (±10.2) で採らない。
  */
-const ALL_FEATURES: SearchFeatures = { tt: true, killers: true, checkExtension: true, mateSearch: true };
+const ALL_FEATURES: SearchFeatures = {
+  tt: true,
+  killers: true,
+  checkExtension: true,
+  mateSearch: true,
+  quantumKingSafety: true,
+};
 
 export const LEVEL_TABLE: Record<AiLevel, LevelRow> = {
   Easy: { movetimeMs: 300, mobileMovetimeMs: 300, maxDepth: 2, jitter: 100, features: ALL_FEATURES },

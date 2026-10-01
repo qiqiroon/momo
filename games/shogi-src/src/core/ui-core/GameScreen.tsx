@@ -32,6 +32,8 @@ import {
   seNotify,
   seTaunt,
 } from '../audio/se-synth';
+import { runTauntFx } from './taunt-fx';
+import { useFxStore } from '../store/fx-store';
 import { t as _t } from '../i18n';
 import type { LocaleCode } from '../i18n/types';
 import type { Mgf, PieceId, PieceInstance, Position, Square } from '../engine';
@@ -394,20 +396,65 @@ export function GameScreen({ variant }: GameScreenProps) {
 
   // v0.73 音響: 駒取り検出用に前回の持ち駒数を保持
   const prevHandsRef = useRef({ p1: position.hands.player1.length, p2: position.hands.player2.length });
+  // ★v1.96 威嚇の動き (taunt-fx.ts)。盤を探すための参照と、途中で打ち切る口。
+  const boardRef = useRef<HTMLDivElement | null>(null);
+  const boardOuterRef = useRef<HTMLDivElement | null>(null);
+  const cancelTauntFxRef = useRef<(() => void) | null>(null);
   // v0.72/v0.73 音響: 着手音 (取ったなら capture、それ以外は move) と、王手音
+  // ★v1.96: 画面を離れたら、見せている途中の威嚇の動きも打ち切る (写しを捨てて本物を見せる)。
+  useEffect(
+    () => () => {
+      cancelTauntFxRef.current?.();
+      cancelTauntFxRef.current = null;
+      useFxStore.getState().setTauntPlaying(false);
+    },
+    [],
+  );
   useEffect(() => {
-    if (!lastAppliedMove) return;
+    if (!lastAppliedMove) {
+      // 対局をやり直した・待ったで戻した＝威嚇の動きの途中なら打ち切る。
+      cancelTauntFxRef.current?.();
+      cancelTauntFxRef.current = null;
+      useFxStore.getState().setTauntPlaying(false);
+      return;
+    }
     const curP1 = position.hands.player1.length;
     const curP2 = position.hands.player2.length;
     const wasCapture = curP1 > prevHandsRef.current.p1 || curP2 > prevHandsRef.current.p2;
     prevHandsRef.current = { p1: curP1, p2: curP2 };
-    if (wasCapture) seCapture();
-    else seMove();
-    // ★v1.95 (音響 §2.5): 威嚇つきの手は、駒を打つ音に威嚇音を重ねる。
-    if (lastAppliedMove.taunt) seTaunt();
     // 着手後、手番が回ってきた側 (position.sideToMove) が王手されているか判定
     const inCheck = position.sideToMove === 'player1' ? senteInCheck : goteInCheck;
-    if (inCheck) setTimeout(seCheck, 90);
+    const moveSounds = () => {
+      if (wasCapture) seCapture();
+      else seMove();
+      if (inCheck) setTimeout(seCheck, 90);
+    };
+    // 次の手が来たら、前の威嚇の動きは打ち切って本当の盤を見せる。
+    cancelTauntFxRef.current?.();
+    cancelTauntFxRef.current = null;
+    const move = lastAppliedMove.move;
+    if (!lastAppliedMove.taunt || (move.type !== 'move' && move.type !== 'drop') || !boardRef.current) {
+      moveSounds();
+      useFxStore.getState().setTauntPlaying(false);
+      return;
+    }
+    // ★v1.96 威嚇の動き＝持ち上げて叩きつけ、周りの駒を吹き飛ばす。駒を打つ音と威嚇音 (音響 §2.5) は
+    // **叩きつけた瞬間**に鳴らす。動いている間は AI に考え始めさせない (fx-store)。
+    useFxStore.getState().setTauntPlaying(true);
+    cancelTauntFxRef.current = runTauntFx({
+      board: boardRef.current,
+      boardOuter: boardOuterRef.current,
+      from: move.type === 'move' ? move.from : null,
+      to: move.to,
+      onImpact: () => {
+        moveSounds();
+        seTaunt();
+      },
+      onDone: () => {
+        cancelTauntFxRef.current = null;
+        useFxStore.getState().setTauntPlaying(false);
+      },
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastAppliedMove]);
 
@@ -894,7 +941,7 @@ export function GameScreen({ variant }: GameScreenProps) {
               collapsingIds={collapsingIds}
             />
             <div className={`board-with-coords${flipped ? ' flipped' : ''}`}>
-              <div className={`board-outer${isMyTurn ? ' myturn' : ''}`}>
+              <div className={`board-outer${isMyTurn ? ' myturn' : ''}`} ref={boardOuterRef}>
                 {/* v0.34: 座標は viewer 基準。先手=上/右、後手=下/左。
                     §5.5.6: チェスは筋 a〜h・段 1〜8 (先手から見て左下が a1)。将棋は従来どおり。 */}
                 <div className="col-coords">
@@ -924,7 +971,7 @@ export function GameScreen({ variant }: GameScreenProps) {
                     <span key={i}>{s}</span>
                   ))}
                 </div>
-                <div className="board" aria-label={t('s07.boardAria')}>
+                <div className="board" aria-label={t('s07.boardAria')} ref={boardRef}>
                   {/* 星は将棋の 9×9 盤の目印。チェスには無い (§5.5.6)。 */}
                   {mgf.board.coordinate !== 'chess' && (
                     <div className="stars">
@@ -971,6 +1018,8 @@ export function GameScreen({ variant }: GameScreenProps) {
                       <div
                         key={i}
                         className={cls}
+                        // ★v1.96: 威嚇の動き (taunt-fx.ts) がマスを探す印。
+                        data-sq={`${row},${col}`}
                         onClick={() => {
                           // タッチ端末にはマウスオーバーが無いので、触れた駒の候補は
                           // クリック (タップ) でも出す。自分の駒は選択でも出るので二重にならない。

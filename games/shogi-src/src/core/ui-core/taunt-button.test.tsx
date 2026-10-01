@@ -19,12 +19,15 @@ import { register } from '../plugin/registry';
 import { generateLegalMoves } from '../engine';
 import type { BoardMove } from '../engine/position/types';
 import type { RemoteMovePayload } from '../plugin/gameConnector';
-import { seTaunt } from '../audio/se-synth';
+import { seTaunt, seMove } from '../audio/se-synth';
+import { useFxStore } from '../store/fx-store';
+import { TAUNT_IMPACT_MS, TAUNT_TOTAL_MS } from './taunt-fx';
 
 // 威嚇音が鳴ったかだけを見たいので、威嚇音の口だけを数える形に差し替える (他の音はそのまま)。
 vi.mock('../audio/se-synth', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../audio/se-synth')>()),
   seTaunt: vi.fn(),
+  seMove: vi.fn(),
 }));
 
 function tauntButton(): HTMLButtonElement {
@@ -74,6 +77,8 @@ function registerOnline(mySide: 'player1' | 'player2'): RemoteMovePayload[] {
 
 beforeEach(() => {
   vi.mocked(seTaunt).mockClear();
+  vi.mocked(seMove).mockClear();
+  useFxStore.setState({ tauntPlaying: false });
   useI18nStore.setState({ locale: 'ja' });
   useRouteStore.setState({ screen: 'game' });
   useAiStore.setState({ enabled: false, aiSide: 'player2', thinking: false });
@@ -146,5 +151,66 @@ describe('威嚇ボタン (★v1.95)', () => {
     fireEvent.click(tauntButton());
     humanMove();
     expect(vi.mocked(seTaunt)).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * ★v1.96 威嚇の動きと対局画面のつなぎ。動き (Element.animate) がある環境を作って確かめる。
+ */
+describe('威嚇の動き (★v1.96)', () => {
+  const original = Element.prototype.animate;
+  beforeEach(() => {
+    vi.useFakeTimers();
+    Element.prototype.animate = vi.fn(() => ({ cancel() {}, finish() {} })) as unknown as typeof Element.prototype.animate;
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    Element.prototype.animate = original;
+  });
+
+  it('駒を打つ音と威嚇音は、叩きつけた瞬間に鳴る (指した直後には鳴らない)', () => {
+    render(<App variant="b" />);
+    fireEvent.click(tauntButton());
+    humanMove();
+    expect(vi.mocked(seTaunt)).not.toHaveBeenCalled();
+    expect(vi.mocked(seMove)).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersByTime(TAUNT_IMPACT_MS);
+    });
+    expect(vi.mocked(seTaunt)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(seMove)).toHaveBeenCalledTimes(1);
+  });
+
+  it('動いている間は「見せている最中」の印が立ち、終われば下りる', () => {
+    render(<App variant="b" />);
+    fireEvent.click(tauntButton());
+    humanMove();
+    expect(useFxStore.getState().tauntPlaying).toBe(true);
+    act(() => {
+      vi.advanceTimersByTime(TAUNT_TOTAL_MS + 100);
+    });
+    expect(useFxStore.getState().tauntPlaying).toBe(false);
+  });
+
+  it('動いている途中で次の手が来たら打ち切り、本当の盤を見せる (印も下りる)', () => {
+    render(<App variant="b" />);
+    fireEvent.click(tauntButton());
+    humanMove();
+    act(() => {
+      vi.advanceTimersByTime(TAUNT_IMPACT_MS + 200);
+    });
+    expect(document.querySelectorAll('[data-taunt-hidden]').length).toBeGreaterThan(0);
+    humanMove(); // 後手がすぐ指した
+    expect(document.querySelectorAll('[data-taunt-hidden]')).toHaveLength(0);
+    expect(document.querySelector('.taunt-fx-layer')).toBeNull();
+    expect(useFxStore.getState().tauntPlaying).toBe(false);
+  });
+
+  it('威嚇しなかった手では動かず、駒を打つ音はすぐ鳴る', () => {
+    render(<App variant="b" />);
+    humanMove();
+    expect(vi.mocked(seMove)).toHaveBeenCalledTimes(1);
+    expect(useFxStore.getState().tauntPlaying).toBe(false);
+    expect(document.querySelector('.taunt-fx-layer')).toBeNull();
   });
 });

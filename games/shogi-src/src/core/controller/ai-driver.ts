@@ -13,6 +13,7 @@ import { useEffect, useRef } from 'react';
 import { advanceRulesOf, useGameStore } from '../store/game-store';
 import { wireMoveOf } from '../protocol/wire-move';
 import { useAiStore, isSmallScreen, isTouchDevice, effectiveLevel, THINK_BUDGET_CAP_MS } from '../store/ai-store';
+import { useFxStore } from '../store/fx-store';
 import { isInCheck } from '../engine/moves/check';
 import { canDeclareNyugyoku } from '../engine';
 import { findEngine, defaultEngine, supports } from '../ai/engine-registry';
@@ -75,6 +76,8 @@ export function useAiOpponent(isOnline: boolean): void {
   const position = useGameStore((s) => s.position);
   const anomaly = useGameStore((s) => s.anomaly);
   const nyugyokuPrompt = useGameStore((s) => s.nyugyokuPromptSide);
+  // ★v1.96: 威嚇の動きを見せている間は考え始めない (すぐ指し返すと演出が途中で打ち切られる)。
+  const tauntPlaying = useFxStore((s) => s.tauntPlaying);
 
   const engineRef = useRef<EngineAdapter | null>(null);
   const startedKeyRef = useRef<string | null>(null);
@@ -126,6 +129,7 @@ export function useAiOpponent(isOnline: boolean): void {
   useEffect(() => {
     if (!aiMayMove({ enabled, isOnline, status, paused, anomaly: !!anomaly, nyugyokuPrompt })) return;
     if (position.sideToMove !== aiSide) return;
+    if (tauntPlaying) return;
 
     const key = turnKey(rewindsRef.current, position.moveNumber, position.sideToMove);
     if (startedKeyRef.current === key) return; // 同じ手番で二重に頼まない
@@ -189,5 +193,5 @@ export function useAiOpponent(isOnline: boolean): void {
       .catch(() => {
         useAiStore.getState().setThinking(false);
       });
-  }, [enabled, isOnline, aiSide, engineId, status, paused, position, anomaly, nyugyokuPrompt]);
+  }, [enabled, isOnline, aiSide, engineId, status, paused, position, anomaly, nyugyokuPrompt, tauntPlaying]);
 }

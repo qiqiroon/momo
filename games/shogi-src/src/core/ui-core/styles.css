@@ -1162,6 +1162,52 @@ body::before {
   text-align: center;
 }
 
+/* ★v1.96 威嚇の動き (見本 momo_shogi_taunt_anim_mock_v1 の値をそのまま・taunt-fx.ts) */
+.taunt-fx-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 900;
+}
+.taunt-fx-piece {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  will-change: transform, opacity;
+}
+.taunt-fx-piece .pc {
+  width: 100%;
+  height: 100%;
+}
+.taunt-fx-shadow {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  filter: blur(4px);
+  will-change: transform, opacity;
+}
+.taunt-fx-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 4px solid rgba(255, 240, 210, 0.9);
+  box-shadow: 0 0 18px rgba(251, 146, 60, 0.8);
+}
+.taunt-fx-dust {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(214, 186, 140, 0.85);
+}
+.taunt-fx-flash {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 250, 230, 0.95), rgba(251, 146, 60, 0.5) 40%, transparent 70%);
+}
+/* 演出のあいだ、本物の駒を隠す (写しが演出の層で動く) */
+.sq[data-taunt-hidden] > * {
+  visibility: hidden;
+}
+
 /* ★v1.95 威嚇の予約中・押せないとき (S06 モック v7 の値をそのまま) */
 .act.taunt.armed {
   background: var(--bg-selected);

@@ -40,7 +40,10 @@ const ALL_FEATURES: SearchFeatures = { tt: true, killers: true, checkExtension: 
 export const LEVEL_TABLE: Record<AiLevel, LevelRow> = {
   Easy: { movetimeMs: 300, mobileMovetimeMs: 300, maxDepth: 2, jitter: 100, features: ALL_FEATURES },
   Hard: { movetimeMs: 2000, mobileMovetimeMs: 1200, maxDepth: 6, jitter: 20, features: ALL_FEATURES },
-  Apocalypse: { movetimeMs: 5000, mobileMovetimeMs: 2500, maxDepth: 12, jitter: 0, features: ALL_FEATURES },
+  // ★v1.94 (ユーザー判断 2026-10-01): Apocalypse は持ち時間の許すかぎり最大 29 秒考える
+  // (実際の時間は持ち時間から割り出した上限との小さい方＝think-budget.ts)。指で触る端末では
+  // 選べない (ai-store.ts levelAllowed) ので、携帯の値は使われない (念のため残す)。
+  Apocalypse: { movetimeMs: 29_000, mobileMovetimeMs: 2500, maxDepth: 12, jitter: 0, features: ALL_FEATURES },
 };
 
 export interface ResolvedLevel {

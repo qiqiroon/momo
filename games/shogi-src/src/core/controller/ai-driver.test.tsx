@@ -4,7 +4,7 @@ import { useGameStore } from '../store/game-store';
 import { useAiStore } from '../store/ai-store';
 import { registerEngine } from '../ai/engine-registry';
 import { generateLegalMoves } from '../engine';
-import type { EngineAdapter, EngineDescriptor } from '../ai/types';
+import type { EngineAdapter, EngineDescriptor, ThinkLimits } from '../ai/types';
 import type { Move, Position } from '../engine/position/types';
 import { useAiOpponent } from './ai-driver';
 
@@ -177,6 +177,86 @@ describe('対 AI の手番（後処理の決まりを渡す）', () => {
       humanMoves();
     });
     expect(seenRules).toEqual({ quantum: true, torusMode: 'full', maxIterations: 7 });
+    unmount();
+  });
+});
+
+/**
+ * ★v1.94 (ユーザー判断 2026-10-01・親 §7.4.1): 持ち時間から割り出した時間と、
+ * 指で触る端末での段の読み替えが、思考ルーチンまで届く。
+ */
+describe('対 AI の手番（考える時間と段）', () => {
+  let seenLimits: ThinkLimits | null = null;
+  registerEngine({
+    id: 'test-fake-limits',
+    labelKey: 'ai.fake',
+    descKey: 'ai.fake.desc',
+    weights: { shogi: 1 },
+    create(): EngineAdapter {
+      let seen: Position | null = null;
+      return {
+        id: 'test-fake-limits',
+        init() {},
+        setPosition(p) {
+          seen = p;
+        },
+        async go(limits) {
+          seenLimits = limits;
+          return seen ? firstLegalMove(seen) : null;
+        },
+        stop() {},
+        quit() {},
+      };
+    },
+  });
+  const original = window.matchMedia;
+  afterEach(() => {
+    window.matchMedia = original;
+  });
+
+  it('切れ負け 600 秒の AI の 1 手目は 600 ÷ 40 ＝ 15 秒', async () => {
+    seenLimits = null;
+    useGameStore.getState().setTimeControl({ mode: 'sudden_death', mainSeconds: 600 });
+    useGameStore.getState().reset({ gameType: 'shogi', quantum: false, torusMode: 'none', handicap: null });
+    useAiStore.setState({ enabled: true, aiSide: 'player2', engineId: 'test-fake-limits', level: 'Apocalypse' });
+    const { unmount } = renderHook(() => useAiOpponent(false));
+    await act(async () => {
+      humanMoves();
+    });
+    expect(seenLimits!.movetimeMs).toBeLessThanOrEqual(15_000);
+    expect(seenLimits!.movetimeMs).toBeGreaterThan(14_000); // 人が指した分だけ時計が減っていない限りほぼ 15 秒
+    expect(seenLimits!.level).toBe('Apocalypse');
+    unmount();
+    useGameStore.getState().setTimeControl({ mode: 'no_limit', mainSeconds: 0 });
+  });
+
+  it('AI が指した手の数で残り手数の見込みが減る (20 手指した後は 600 ÷ 30 ＝ 20 秒)', async () => {
+    seenLimits = null;
+    useGameStore.getState().setTimeControl({ mode: 'sudden_death', mainSeconds: 600 });
+    useGameStore.getState().reset({ gameType: 'shogi', quantum: false, torusMode: 'none', handicap: null });
+    // AI を止めたまま 40 手 (双方 20 手ずつ) 進め、41 手目を人が指してから AI に渡す。
+    useAiStore.setState({ enabled: false });
+    for (let i = 0; i < 41; i++) humanMoves();
+    expect(useGameStore.getState().position.sideToMove).toBe('player2');
+    useGameStore.setState({ clocks: { player1: { mainMs: 600_000, byoyomiMs: 0, inByoyomi: false }, player2: { mainMs: 600_000, byoyomiMs: 0, inByoyomi: false } } });
+    useAiStore.setState({ enabled: true, aiSide: 'player2', engineId: 'test-fake-limits', level: 'Apocalypse' });
+    const { unmount } = renderHook(() => useAiOpponent(false));
+    await act(async () => {});
+    expect(seenLimits!.movetimeMs).toBe(20_000);
+    unmount();
+    useGameStore.getState().setTimeControl({ mode: 'no_limit', mainSeconds: 0 });
+  });
+
+  it('指で触る端末では、Apocalypse を選んでいても Hard として考えさせる', async () => {
+    seenLimits = null;
+    window.matchMedia = ((q: string) => ({ matches: q === '(pointer: coarse)', media: q })) as unknown as typeof window.matchMedia;
+    useGameStore.getState().reset({ gameType: 'shogi', quantum: false, torusMode: 'none', handicap: null });
+    useAiStore.setState({ enabled: true, aiSide: 'player2', engineId: 'test-fake-limits', level: 'Apocalypse' });
+    const { unmount } = renderHook(() => useAiOpponent(false));
+    await act(async () => {
+      humanMoves();
+    });
+    expect(seenLimits!.level).toBe('Hard');
     unmount();
   });
 });

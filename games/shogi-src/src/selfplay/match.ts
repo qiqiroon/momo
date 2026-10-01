@@ -10,6 +10,7 @@
  *   SP_A / SP_B  比べる 2 つの設定の名前    (既定 base / base＝同じもの同士＝物差しの確かめ)
  *   SP_OPENINGS  出だしの数 (×2 局)         (既定 20)
  *   SP_NODES     1 手に読む局面の数          (既定 本将棋 5000 / 量子 1500)
+ *   SP_NODES_A / SP_NODES_B  片方だけ読む量を変える (読む量の差が強さにどれだけ効くかを測る)
  *   SP_PLIES     手数の上限                  (既定 300)
  *   SP_SEED      出だしの種の始まり          (既定 1)
  *   SP_JOBS      並べて走らせる数            (既定 8)
@@ -37,12 +38,16 @@ const VARIANTS: Record<string, Partial<SearchOptions>> = {
   check: { features: { checkExtension: true } },
   mate: { features: { mateSearch: true } },
   all: { features: { tt: true, killers: true, checkExtension: true, mateSearch: true } },
+  /** 量子の案 A＝駒の値打ちを候補の平均 (期待値) で数える (＋全部入り)。 */
+  mean: { features: { tt: true, killers: true, checkExtension: true, mateSearch: true, quantumMeanValue: true } },
 };
 
 const env = process.env;
 const mode = env.SP_MODE ?? 'shogi';
 const quantum = mode === 'quantum';
 const nodes = Number(env.SP_NODES ?? (quantum ? 1500 : 5000));
+const nodesA = Number(env.SP_NODES_A ?? nodes);
+const nodesB = Number(env.SP_NODES_B ?? nodes);
 const aName = env.SP_A ?? 'base';
 const bName = env.SP_B ?? 'base';
 const openings = Number(env.SP_OPENINGS ?? 20);
@@ -58,8 +63,8 @@ for (const name of [aName, bName]) {
 function runShard(shard: number, shards: number): void {
   const rules: AdvanceRules = { quantum };
   const initial = quantum ? quantumInit(initPosition(hondou)) : initPosition(hondou);
-  const a = alphaBetaPlayer(hondou, rules, nodes, VARIANTS[aName]);
-  const b = alphaBetaPlayer(hondou, rules, nodes, VARIANTS[bName]);
+  const a = alphaBetaPlayer(hondou, rules, nodesA, VARIANTS[aName]);
+  const b = alphaBetaPlayer(hondou, rules, nodesB, VARIANTS[bName]);
   for (let o = shard; o < openings; o += shards) {
     for (const rec of playPair({ mgf: hondou, rules, initial, a, b, opening: seedBase + o, openingPlies: 4, maxPlies })) {
       process.stdout.write(`SPJSON ${JSON.stringify(rec)}\n`);
@@ -76,7 +81,7 @@ async function runParent(): Promise<void> {
   const records: GameRecord[] = [];
   const total = openings * 2;
   const t0 = Date.now();
-  console.log(`==== ${mode}  A=${aName}  B=${bName}  局面数/手=${nodes}  ${total}局  ${jobs}並列`);
+  console.log(`==== ${mode}  A=${aName}  B=${bName}  局面数/手=${nodesA === nodesB ? nodes : `A${nodesA}・B${nodesB}`}  ${total}局  ${jobs}並列`);
 
   await Promise.all(
     Array.from({ length: jobs }, (_, shard) =>
@@ -111,7 +116,7 @@ async function runParent(): Promise<void> {
   const pct = (x: number) => (x * 100).toFixed(1);
   console.log(
     [
-      `==== 結果 ${mode}  A=${aName}  B=${bName}  局面数/手=${nodes}  ${r.games}局  ${((Date.now() - t0) / 1000).toFixed(0)}秒`,
+      `==== 結果 ${mode}  A=${aName}  B=${bName}  局面数/手=${nodesA === nodesB ? nodes : `A${nodesA}・B${nodesB}`}  ${r.games}局  ${((Date.now() - t0) / 1000).toFixed(0)}秒`,
       `A の成績 ${r.wins}勝 ${r.draws}分 ${r.losses}敗  得点率 ${pct(r.score)}% (±${pct(r.margin)})`,
       `終わり方 ${Object.entries(r.ends).map(([k, v]) => `${k}=${v}`).join(' ')}  平均 ${r.avgPlies.toFixed(0)}手`,
       `A 深さ${r.a.depth.toFixed(2)} 局面${r.a.nodes.toFixed(0)} ${r.a.ms.toFixed(0)}ms/手   B 深さ${r.b.depth.toFixed(2)} 局面${r.b.nodes.toFixed(0)} ${r.b.ms.toFixed(0)}ms/手`,

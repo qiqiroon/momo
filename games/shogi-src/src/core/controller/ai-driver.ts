@@ -12,7 +12,8 @@
 import { useEffect, useRef } from 'react';
 import { advanceRulesOf, useGameStore } from '../store/game-store';
 import { wireMoveOf } from '../protocol/wire-move';
-import { useAiStore, isSmallScreen, THINK_BUDGET_CAP_MS } from '../store/ai-store';
+import { useAiStore, isSmallScreen, isTouchDevice, effectiveLevel, THINK_BUDGET_CAP_MS } from '../store/ai-store';
+import { isInCheck } from '../engine/moves/check';
 import { canDeclareNyugyoku } from '../engine';
 import { findEngine, defaultEngine, supports } from '../ai/engine-registry';
 import { aiModeFrom } from '../ai/mode';
@@ -153,7 +154,12 @@ export function useAiOpponent(isOnline: boolean): void {
     const ai = useAiStore.getState();
     // 持ち時間から割り出した上限。**段が求める時間との小さい方**を思考ルーチンが採る
     // (親 §7.5.3)。core は段の名前を渡すだけで、具体値には触らない。
-    const budget = thinkBudgetMs(timeControl, clocks[aiSide], THINK_BUDGET_CAP_MS);
+    // ★v1.94 (親 §7.4.1): 残り手数の見込みは AI が指した手の数から、王手をかけられて
+    // いればその手に倍の時間を使う。
+    const budget = thinkBudgetMs(timeControl, clocks[aiSide], THINK_BUDGET_CAP_MS, {
+      ownMovesPlayed: Math.floor(position.history.length / 2),
+      inCheck: isInCheck(mgf, position, aiSide),
+    });
 
     // ★v1.93: 読みの中でも対局と同じ後処理を通すため、この対局の決まりを渡す。
     engine.init(mgf, advanceRulesOf(useGameStore.getState()));
@@ -161,7 +167,7 @@ export function useAiOpponent(isOnline: boolean): void {
     ai.setThinking(true);
 
     void engine
-      .go({ movetimeMs: budget, level: ai.level, mobile: isSmallScreen() }, (p) => {
+      .go({ movetimeMs: budget, level: effectiveLevel(ai.level, isTouchDevice()), mobile: isSmallScreen() }, (p) => {
         useAiStore.getState().setLastThink({ depth: p.depth, nodes: p.nodes, elapsedMs: p.elapsedMs });
       })
       .then((move) => {

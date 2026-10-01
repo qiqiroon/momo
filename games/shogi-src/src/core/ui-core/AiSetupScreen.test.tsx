@@ -211,4 +211,36 @@ describe('S03 強さ (Easy / Hard / Apocalypse)', () => {
     useAiStore.getState().setEngineId('test-engine');
     expect(useAiStore.getState().level).toBe('Apocalypse');
   });
+
+  describe('★v1.94 指で触る端末では Apocalypse を選べない (ユーザー判断 2026-10-01)', () => {
+    const original = window.matchMedia;
+    const touchScreen = (coarse: boolean) => {
+      window.matchMedia = ((q: string) => ({ matches: coarse && q === '(pointer: coarse)', media: q })) as unknown as typeof window.matchMedia;
+    };
+    afterEach(() => {
+      window.matchMedia = original;
+    });
+
+    it('指で触る端末では Apocalypse の札が出ない (Easy と Hard は出る)', () => {
+      touchScreen(true);
+      render(<AiSetupScreen />);
+      expect(screen.getByText(LABEL.Easy)).toBeTruthy();
+      expect(screen.getByText(LABEL.Hard)).toBeTruthy();
+      expect(screen.queryByText(LABEL.Apocalypse)).toBeNull();
+    });
+
+    it('前に Apocalypse を選んでいても、指で触る端末では Hard に直る', () => {
+      touchScreen(true);
+      useAiStore.setState({ level: 'Apocalypse' });
+      render(<AiSetupScreen />);
+      expect(useAiStore.getState().level).toBe('Hard');
+      expect((screen.getByText(LABEL.Hard).closest('button') as HTMLButtonElement).className).toContain('on');
+    });
+
+    it('マウスの端末 (PC) では 3 つとも出る＝画面の幅では決めない', () => {
+      touchScreen(false);
+      render(<AiSetupScreen />);
+      expect(screen.getByText(LABEL.Apocalypse)).toBeTruthy();
+    });
+  });
 });

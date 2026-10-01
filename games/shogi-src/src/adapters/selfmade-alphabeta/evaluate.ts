@@ -91,9 +91,14 @@ export interface ValueBook {
   plain: Map<PieceId, number>;
   /** 成っているときの値打ち。成った姿を持たない駒種 (金・王) は NOT_COUNTED。 */
   promoted: Map<PieceId, number>;
+  /**
+   * ★v1.94 案 (強さ比べ中): 量子の駒の値打ちを、候補の**いちばん強いもの**ではなく
+   * **候補の平均 (期待値)** で数える。王は今までどおり数えない。量子でない対局には効かない。
+   */
+  mean: boolean;
 }
 
-export function buildValueBook(mgf: Mgf, position: Position): ValueBook {
+export function buildValueBook(mgf: Mgf, position: Position, opts: { mean?: boolean } = {}): ValueBook {
   const plain = new Map<PieceId, number>();
   const promoted = new Map<PieceId, number>();
   for (const [pieceId, kind] of buildInitialKindMap(position)) {
@@ -101,7 +106,7 @@ export function buildValueBook(mgf: Mgf, position: Position): ValueBook {
     const def = mgf.pieces.find((p) => p.id === kind);
     promoted.set(pieceId, def?.promoted_id ? valueOf(def.promoted_id) : NOT_COUNTED);
   }
-  return { plain, promoted };
+  return { plain, promoted, mean: opts.mean === true };
 }
 
 /**
@@ -117,6 +122,18 @@ export function buildValueBook(mgf: Mgf, position: Position): ValueBook {
 export function pieceValue(piece: PieceInstance, book: ValueBook): number {
   if (piece.candidates === undefined) return valueOf(piece.kind);
   const table = piece.promoted ? book.promoted : book.plain;
+  if (book.mean) {
+    // 王 (NOT_COUNTED) を除いた候補の平均。王だけが候補なら 0 点 (いちばん強いもの と同じ扱い)。
+    let sum = 0;
+    let n = 0;
+    for (const pieceId of piece.candidates) {
+      const v = table.get(pieceId);
+      if (v === undefined || v < 0) continue;
+      sum += v;
+      n++;
+    }
+    return n > 0 ? sum / n : 0;
+  }
   let best = 0;
   for (const pieceId of piece.candidates) {
     const v = table.get(pieceId);

@@ -20,7 +20,7 @@ import { useEffect, useState } from 'react';
 import { useI18nStore } from '../store/i18n-store';
 import { useRouteStore } from '../store/route-store';
 import { useGameStore } from '../store/game-store';
-import { useAiStore } from '../store/ai-store';
+import { useAiStore, isTouchDevice, levelAllowed, effectiveLevel } from '../store/ai-store';
 import { t as _t } from '../i18n';
 import type { LocaleCode } from '../i18n/types';
 import { CatIcon } from './CatIcon';
@@ -54,8 +54,14 @@ export function AiSetupScreen() {
   const engineId = useAiStore((s) => s.engineId);
   const setEngineId = useAiStore((s) => s.setEngineId);
   // 強さ (親 §7.5)。AI 選択とは直交する別の軸なので、モードが変わっても選び直さない。
-  const level = useAiStore((s) => s.level);
+  const storedLevel = useAiStore((s) => s.level);
   const setLevel = useAiStore((s) => s.setLevel);
+  // ★v1.94: 指で触る端末では Apocalypse を選べない。前に選んだ段が残っていたら Hard に直す。
+  const touch = isTouchDevice();
+  const level = effectiveLevel(storedLevel, touch);
+  useEffect(() => {
+    if (level !== storedLevel) setLevel(level);
+  }, [level, storedLevel, setLevel]);
 
   // モードが変わったら選び直す。いま選んでいるものが新しいモードにも対応していれば
   // その選択を尊重して残す (親 §7.1.1)。
@@ -226,11 +232,11 @@ export function AiSetupScreen() {
 
         {/* 強さ (付録 D-5 v1.5 §6.7)。**AI 選択とは別の軸**で、どの AI にも同じ 3 段階が効く。
             段の名前は MOMO Works 共通の呼び名なので 3 言語とも英語表記のまま (訳さない)。
-            対応・非対応の分岐は無い＝常に 3 つとも選べる。 */}
+            ★v1.94: 指で触る端末では Apocalypse を出さない (ai-store.ts levelAllowed)。 */}
         <div className="s03-ai-block">
           <div className="s03-ai-label">{t('s03.lblLevel')}</div>
           <div className="seg">
-            {AI_LEVELS.map((lv) => (
+            {AI_LEVELS.filter((lv) => levelAllowed(lv, touch)).map((lv) => (
               <button
                 key={lv}
                 type="button"

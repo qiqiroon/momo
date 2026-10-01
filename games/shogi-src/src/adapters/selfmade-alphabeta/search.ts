@@ -84,6 +84,11 @@ export interface SearchFeatures {
    * 見つかればその手を指す。持ち時間・局面数の一部 (MATE_SHARE) だけを使う。
    */
   mateSearch: boolean;
+  /**
+   * ★v1.94 案 (強さ比べ中): 量子の駒の値打ちを候補の平均 (期待値) で数える (evaluate.ts)。
+   * 省略＝今までどおり「いちばん強い候補」。
+   */
+  quantumMeanValue?: boolean;
 }
 
 const NO_FEATURES: SearchFeatures = { tt: false, killers: false, checkExtension: false, mateSearch: false };
@@ -496,7 +501,7 @@ export function searchBestMove(mgf: Mgf, position: Position, options: SearchOpti
   const ctx: Ctx = {
     mgf,
     rules: options.rules ?? PLAIN_RULES,
-    book: buildValueBook(mgf, position),
+    book: buildValueBook(mgf, position, { mean: options.features?.quantumMeanValue === true }),
     nodes: 0,
     maxNodes: options.maxNodes ?? Infinity,
     deadline: start + Math.max(1, options.movetimeMs),

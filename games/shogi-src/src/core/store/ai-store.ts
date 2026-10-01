@@ -18,8 +18,9 @@ import { DEFAULT_AI_LEVEL, type AiLevel, type AiMode } from '../ai/types';
  *
  * **段ごとの考慮時間ではない** (それは各思考ルーチンが持つ=親 §7.5.3)。ここは
  * 「時間制限なしの対局でも、これ以上は待たせない」という頭打ちにだけ使う。
+ * ★v1.94: 8 秒 → **29 秒**（ユーザー判断 2026-10-01＝Apocalypse の上限）。
  */
-export const THINK_BUDGET_CAP_MS = 8000;
+export const THINK_BUDGET_CAP_MS = 29_000;
 
 export interface AiThinkInfo {
   depth: number;
@@ -52,6 +53,28 @@ interface AiState {
   stopVsAi: () => void;
   setThinking: (thinking: boolean) => void;
   setLastThink: (info: AiThinkInfo | null) => void;
+}
+
+/**
+ * ★v1.94: 指で触る端末か (携帯・タブレット)。**画面の幅は見ない**＝PC でウィンドウを
+ * 細くしただけで選べる段が変わるのは不自然なため (isSmallScreen とは別にしてある)。
+ */
+export function isTouchDevice(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia?.('(pointer: coarse)').matches === true;
+}
+
+/**
+ * ★v1.94 (ユーザー判断 2026-10-01): **指で触る端末では Apocalypse を選べない**。
+ * 1 手に最大 29 秒考えるので、電池と発熱に配慮する。前に PC で選んだ段が残っていても、
+ * 指で触る端末では Hard として扱う＝画面と思考の両方がここを通る。
+ */
+export function levelAllowed(level: AiLevel, touch: boolean): boolean {
+  return !(touch && level === 'Apocalypse');
+}
+
+export function effectiveLevel(level: AiLevel, touch: boolean): AiLevel {
+  return levelAllowed(level, touch) ? level : 'Hard';
 }
 
 /** スマホかどうかの当たり (指で触る画面幅)。 */

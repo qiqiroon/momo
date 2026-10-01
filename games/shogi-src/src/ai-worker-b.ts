@@ -25,6 +25,7 @@ self.addEventListener('message', (ev: MessageEvent<WorkerRequest>) => {
     maxDepth: req.maxDepth,
     jitter: req.jitter,
     rules: req.rules,
+    features: req.features,
     onProgress: (p) => {
       post({ type: 'progress', id: req.id, depth: p.depth, nodes: p.nodes, elapsedMs: p.elapsedMs });
     },

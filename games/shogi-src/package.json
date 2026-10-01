@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "selfplay": "vite-node src/selfplay/match.ts",
     "typecheck": "tsc --noEmit",
     "check:licenses": "license-checker --failOn 'GPL-2.0;GPL-2.0-only;GPL-2.0-or-later;GPL-3.0;GPL-3.0-only;GPL-3.0-or-later;AGPL-1.0;AGPL-1.0-or-later;AGPL-3.0;AGPL-3.0-only;AGPL-3.0-or-later;LGPL-2.0;LGPL-2.1;LGPL-3.0'",
     "check:a-forbidden": "node scripts/check-a-forbidden.mjs",

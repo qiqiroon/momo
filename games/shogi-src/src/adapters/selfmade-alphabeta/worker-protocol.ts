@@ -8,6 +8,7 @@
 import type { Mgf } from '../../core/engine/mgf/types';
 import type { Move, Position } from '../../core/engine/position/types';
 import type { AdvanceRules } from '../../core/engine/position/advance';
+import type { SearchFeatures } from './search';
 
 export interface WorkerGoRequest {
   type: 'go';
@@ -21,6 +22,8 @@ export interface WorkerGoRequest {
   maxDepth: number;
   /** 同点崩しの幅 (段から決まる=levels.ts)。省略時は search 側の既定。 */
   jitter?: number;
+  /** ★v1.93: 読み方の改良 (段から決まる=levels.ts)。省略時はすべて切り。 */
+  features?: SearchFeatures;
 }
 
 export type WorkerRequest = WorkerGoRequest;

@@ -49,6 +49,12 @@ describe('強さの段 (自作探索)', () => {
     expect(resolveLevel({ level: 'Hard' }).movetimeMs).toBe(LEVEL_TABLE.Hard.movetimeMs);
   });
 
+  it('★v1.93: 読み方の改良は全段に入る (ユーザー判断 2026-10-01)', () => {
+    for (const level of ['Easy', 'Hard', 'Apocalypse'] as const) {
+      expect(resolveLevel({ level }).features).toEqual({ tt: true, killers: true, checkExtension: true, mateSearch: true });
+    }
+  });
+
   it('深さの指定があれば厳しい側に倒す', () => {
     expect(resolveLevel({ level: 'Apocalypse', depth: 3 }).maxDepth).toBe(3);
   });

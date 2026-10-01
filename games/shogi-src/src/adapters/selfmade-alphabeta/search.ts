@@ -15,6 +15,9 @@
 import type { Mgf } from '../../core/engine/mgf/types';
 import type { Move, Position } from '../../core/engine/position/types';
 import { generateLegalMoves } from '../../core/engine/moves/legal';
+import { isInCheck } from '../../core/engine/moves/check';
+import { positionHash } from '../../core/engine/position/hash';
+import { hiddenRightsFingerprint } from '../../core/engine/victory/repetition';
 import { PLAIN_RULES, advancePosition, type AdvanceRules } from '../../core/engine/position/advance';
 import { MATE_VALUE, buildValueBook, evaluate, pieceValue } from './evaluate';
 import type { ValueBook } from './evaluate';
@@ -24,6 +27,12 @@ export interface SearchOptions {
   movetimeMs: number;
   /** 読む深さの上限 (手数)。 */
   maxDepth: number;
+  /**
+   * 読む局面の数の上限 (★v1.93・強さ比べ用)。**時間と違って機械の混み具合で変わらない**ので、
+   * 同じ条件で何度走らせても同じ手を指す＝改良の前後を公平に比べられる。
+   * 対局では使わない (省略＝上限なし・時間だけで打ち切る)。
+   */
+  maxNodes?: number;
   /**
    * 同点崩しの幅 (点・歩 1 枚 = 100)。**最善からこの幅までしか損しないことを保証した上で**
    * 候補から 1 つ選ぶ。0 なら常に最善を指す。**対局では強さの段から決まる** (levels.ts)。
@@ -39,6 +48,11 @@ export interface SearchOptions {
    * 読みの中で盤を進めるたびに対局画面と同じ後処理を通す。省略時は後処理なし。
    */
   rules?: AdvanceRules;
+  /**
+   * ★v1.93: 読み方の改良の入り・切り。**省略した項目は切り**＝v1.92 までと同じ読み方。
+   * 強さ比べ (src/selfplay) で 1 つずつ入れて効き目を測り、効いたものだけを対局で入れる。
+   */
+  features?: Partial<SearchFeatures>;
   /** 深さを 1 つ読み切るたびに呼ばれる。長考中に「動いている」ことを出すため。 */
   onProgress?: (p: { depth: number; nodes: number; elapsedMs: number; score: number }) => void;
   /** 外から打ち切る (画面を離れた・投了した等)。 */
@@ -47,6 +61,39 @@ export interface SearchOptions {
   now?: () => number;
   random?: () => number;
 }
+
+/**
+ * ★v1.93: 読み方の改良。どれも点数の付け方 (evaluate.ts) は変えない＝効くのは
+ * 「同じ量で、どれだけ深く・取りこぼし無く読めるか」。
+ */
+export interface SearchFeatures {
+  /**
+   * 同じ局面を覚えておく表 (置換表)。手順が違っても同じ局面に行き着くことは多いので、
+   * 前に読んだ結果を使い回す。前の深さで一番良かった手を先に試すのにも使う。
+   */
+  tt: boolean;
+  /**
+   * 手を読む順番の工夫。駒を取らない手のうち、**別の枝で相手を黙らせた手** (キラー手) と、
+   * **これまでよく相手を黙らせてきた手** (履歴) を先に試す。
+   */
+  killers: boolean;
+  /** 王手をかけられている局面は 1 手深く読む (そこで打ち切ると判断を誤りやすいため)。 */
+  checkExtension: boolean;
+  /**
+   * 読み始める前に、**王手だけで詰ませられるか**を短く調べる (詰みを専門に読む部分)。
+   * 見つかればその手を指す。持ち時間・局面数の一部 (MATE_SHARE) だけを使う。
+   */
+  mateSearch: boolean;
+}
+
+const NO_FEATURES: SearchFeatures = { tt: false, killers: false, checkExtension: false, mateSearch: false };
+
+/** 詰み探索に回す持ち時間・局面数の割合。 */
+const MATE_SHARE = 0.2;
+/** 詰み探索で調べる手数 (攻め方の手と受け方の手を合わせた数・奇数)。 */
+const MATE_PLIES = [1, 3, 5];
+/** 置換表に入れる局面数の上限。超えたら捨てて作り直す (読みの間に膨らみすぎないため)。 */
+const TT_LIMIT = 200_000;
 
 export interface SearchResult {
   /** 指す手。1 手も無ければ null (詰み・手詰まり)。 */
@@ -74,6 +121,8 @@ interface Ctx {
    */
   book: ValueBook;
   nodes: number;
+  /** 読む局面の数の上限。無ければ Infinity。 */
+  maxNodes: number;
   deadline: number;
   now: () => number;
   shouldStop?: () => boolean;
@@ -86,10 +135,75 @@ interface Ctx {
    * 節目を細かくして、超過を抑える。
    */
   checkMask: number;
+  /** ★v1.93: 読み方の改良の入り・切り。 */
+  f: SearchFeatures;
+  /** 置換表 (f.tt のときだけ)。 */
+  tt: Map<string, TtEntry> | null;
+  /** 手数ごとのキラー手 2 つ (f.killers のときだけ)。 */
+  killers: Array<[string | null, string | null]>;
+  /** 手ごとの履歴の点 (f.killers のときだけ)。 */
+  history: Map<string, number> | null;
+  /** 王手の延長をしてよい手数の上限 (延長が続いて止まらなくならないため)。 */
+  maxPly: number;
+}
+
+/** 置換表の 1 件。点数は**その局面から見た**詰みまでの手数に直して入れる (toTt)。 */
+interface TtEntry {
+  depth: number;
+  score: number;
+  /** 0 = 正確・1 = これ以上 (下限)・2 = これ以下 (上限)。 */
+  flag: 0 | 1 | 2;
+  move: string | null;
+}
+
+const TT_EXACT = 0;
+const TT_LOWER = 1;
+const TT_UPPER = 2;
+/** これより大きい点は詰み (または王取り) を意味する。 */
+const MATE_BOUND = MATE_VALUE - 1000;
+
+/**
+ * 詰みの点は「根から何手目で詰むか」で付いている (浅いほど大きい)。置換表は別の手数から
+ * 同じ局面に来たときにも使うので、**その局面から何手で詰むか**に直して入れ、取り出すときに
+ * 戻す。直さないと、遠い詰みを近い詰みと取り違える。検査から確かめるので export する。
+ */
+export function toTt(score: number, ply: number): number {
+  if (score > MATE_BOUND) return score + ply;
+  if (score < -MATE_BOUND) return score - ply;
+  return score;
+}
+
+export function fromTt(score: number, ply: number): number {
+  if (score > MATE_BOUND) return score - ply;
+  if (score < -MATE_BOUND) return score + ply;
+  return score;
+}
+
+/** 局面の鍵。盤に現れない権利 (キャスリング等) も含める＝将棋では空。 */
+function ttKey(ctx: Ctx, position: Position): string {
+  const hidden = hiddenRightsFingerprint(ctx.mgf, position);
+  return hidden ? `${positionHash(position)}#${hidden}` : positionHash(position);
+}
+
+/** 手の鍵 (キラー手・履歴・置換表の手)。打つ手は駒の身元ではなく駒種で見る (別の枝でも同じ手として拾う)。 */
+function moveKey(position: Position, m: Move): string {
+  if (m.type === 'move') {
+    return `m${m.from.row},${m.from.col}-${m.to.row},${m.to.col}${m.promote ? '+' : ''}${m.promoteTo ?? ''}`;
+  }
+  if (m.type === 'drop') {
+    const piece = position.hands[position.sideToMove].find((p) => p.pieceId === m.pieceId);
+    return `d${piece?.kind ?? m.pieceId}@${m.to.row},${m.to.col}`;
+  }
+  return `f${m.pieceId}`;
 }
 
 function timeUp(ctx: Ctx): boolean {
   if (ctx.aborted) return true;
+  // 局面数の上限は毎回見る (安い比較なので間引かない＝打ち切る位置が毎回同じになる)。
+  if (ctx.nodes >= ctx.maxNodes) {
+    ctx.aborted = true;
+    return true;
+  }
   if ((ctx.nodes & ctx.checkMask) !== 0) return false;
   if (ctx.shouldStop?.()) {
     ctx.aborted = true;
@@ -173,10 +287,49 @@ function orderKey(ctx: Ctx, position: Position, m: Move): number {
   return s;
 }
 
-function orderMoves(ctx: Ctx, position: Position, moves: Move[]): Move[] {
-  const scored = moves.map((m) => ({ m, s: orderKey(ctx, position, m) }));
+/** 置換表の手は何より先に見る。 */
+const TT_MOVE_ORDER = 1e9;
+/** キラー手は駒を取る手 (歩を取って 1000) のすぐ後ろ。 */
+const KILLER1_ORDER = 900;
+const KILLER2_ORDER = 800;
+/** 履歴の点はキラー手より下に収める。 */
+const HISTORY_ORDER_CAP = 700;
+
+/**
+ * 読む順番。`ply` と `ttMove` は改良 (★v1.93) のときだけ効く＝切っているときは
+ * v1.92 までの並べ方 (取る駒の大きさ・成り) とまったく同じ。
+ */
+function orderMoves(ctx: Ctx, position: Position, moves: Move[], ply = 0, ttMove: string | null = null): Move[] {
+  const useKeys = ttMove !== null || ctx.f.killers;
+  const killers = ctx.f.killers ? ctx.killers[ply] : undefined;
+  const scored = moves.map((m) => {
+    let s = orderKey(ctx, position, m);
+    if (useKeys) {
+      const k = moveKey(position, m);
+      if (k === ttMove) s += TT_MOVE_ORDER;
+      else if (ctx.f.killers && !isCapture(position, m)) {
+        // 駒を取らない手だけ (取る手は取る駒の大きさで十分に前へ来る)。
+        if (killers && k === killers[0]) s += KILLER1_ORDER;
+        else if (killers && k === killers[1]) s += KILLER2_ORDER;
+        else s += Math.min(HISTORY_ORDER_CAP, ctx.history?.get(k) ?? 0);
+      }
+    }
+    return { m, s };
+  });
   scored.sort((a, b) => b.s - a.s);
   return scored.map((x) => x.m);
+}
+
+/** 相手を黙らせた (枝が刈れた) 駒を取らない手を覚える。 */
+function rememberCutoff(ctx: Ctx, position: Position, m: Move, ply: number, depth: number): void {
+  if (!ctx.f.killers || isCapture(position, m)) return;
+  const k = moveKey(position, m);
+  const slot = (ctx.killers[ply] ??= [null, null]);
+  if (slot[0] !== k) {
+    slot[1] = slot[0];
+    slot[0] = k;
+  }
+  ctx.history!.set(k, (ctx.history!.get(k) ?? 0) + depth * depth);
 }
 
 /**
@@ -228,9 +381,31 @@ function quiescence(ctx: Ctx, position: Position, alpha: number, beta: number, d
 }
 
 function negamax(ctx: Ctx, position: Position, depth: number, alpha: number, beta: number, ply: number): number {
+  // ★v1.93 王手の延長: 王手をかけられている局面で読みを打ち切らない。
+  if (ctx.f.checkExtension && ply < ctx.maxPly && isInCheck(ctx.mgf, position, position.sideToMove)) depth += 1;
   if (depth <= 0) return quiescence(ctx, position, alpha, beta, QUIESCENCE_DEPTH, ply);
   ctx.nodes++;
   if (timeUp(ctx)) return evaluate(ctx.mgf, position, ctx.book);
+
+  // ★v1.93 置換表: 同じ局面を同じ深さ以上で読んだことがあれば、その結論を使う。
+  // **窓を狭めることには使わない** (結論が窓の外だと分かったときだけ返す)。根は
+  // 「窓の中に収まった点だけが正確」という前提で同点崩しの候補を選ぶため (親 §7.3.3)。
+  let key: string | null = null;
+  let ttMove: string | null = null;
+  if (ctx.tt) {
+    key = ttKey(ctx, position);
+    const e = ctx.tt.get(key);
+    if (e) {
+      ttMove = e.move;
+      if (e.depth >= depth) {
+        const s = fromTt(e.score, ply);
+        if (e.flag === TT_EXACT) return s;
+        if (e.flag === TT_LOWER && s >= beta) return s;
+        if (e.flag === TT_UPPER && s <= alpha) return s;
+      }
+    }
+  }
+  const alphaOrig = alpha;
 
   const moves = safeLegalMoves(ctx.mgf, position);
   // 指す手が無い = 負け。浅いところで詰まされるほど悪いので ply を足して差を付ける
@@ -238,19 +413,78 @@ function negamax(ctx: Ctx, position: Position, depth: number, alpha: number, bet
   if (moves.length === 0) return -MATE_VALUE + ply;
 
   let best = -Infinity;
-  for (const m of orderMoves(ctx, position, moves)) {
+  let bestMove: Move | null = null;
+  for (const m of orderMoves(ctx, position, moves, ply, ttMove)) {
     const next = safeApply(ctx, position, m);
     if (!next) continue;
     const score = next.royalCaptured
       ? royalWinScore(ply + 1)
       : -negamax(ctx, next.position, depth - 1, -beta, -alpha, ply + 1);
     if (ctx.aborted) return best === -Infinity ? evaluate(ctx.mgf, position, ctx.book) : best;
-    if (score > best) best = score;
+    if (score > best) {
+      best = score;
+      bestMove = m;
+    }
     if (best > alpha) alpha = best;
-    if (alpha >= beta) break;
+    if (alpha >= beta) {
+      rememberCutoff(ctx, position, m, ply, depth);
+      break;
+    }
   }
   if (best === -Infinity) return -MATE_VALUE + ply;
+  if (ctx.tt && key !== null) {
+    if (ctx.tt.size >= TT_LIMIT) ctx.tt.clear();
+    ctx.tt.set(key, {
+      depth,
+      score: toTt(best, ply),
+      flag: best <= alphaOrig ? TT_UPPER : best >= beta ? TT_LOWER : TT_EXACT,
+      move: bestMove ? moveKey(position, bestMove) : null,
+    });
+  }
   return best;
+}
+
+/**
+ * ★v1.93 詰み探索: 手番の側が、**王手 (または王取り) だけを続けて** `plies` 手以内に
+ * 詰ませられるか。詰ませる初手を返す (無ければ null)。
+ *
+ * 攻め方は王手になる手だけ、受け方はすべての手を調べる。受け方に指す手が無くなれば詰み。
+ * 量子では王が確定するまで王手が成立しない (§Q13.1) ので、確定した王を取る手も攻めに数える。
+ * 局面数・時間の上限に達したら「分からない」で打ち切る (詰みが無いとは言わない)。
+ */
+function findMate(ctx: Ctx, position: Position, plies: number, limit: { nodes: number; deadline: number }): Move | null {
+  const over = () => ctx.nodes >= limit.nodes || ctx.now() >= limit.deadline || !!ctx.shouldStop?.();
+
+  /** 攻め方の手番。詰ませる初手を返す。 */
+  const attack = (pos: Position, left: number): Move | null => {
+    const defender = pos.sideToMove === 'player1' ? 'player2' : 'player1';
+    for (const m of orderMoves(ctx, pos, safeLegalMoves(ctx.mgf, pos))) {
+      if (over()) return null;
+      ctx.nodes++;
+      const next = safeApply(ctx, pos, m);
+      if (!next) continue;
+      if (next.royalCaptured) return m;
+      if (!isInCheck(ctx.mgf, next.position, defender)) continue;
+      if (defend(next.position, left - 1)) return m;
+    }
+    return null;
+  };
+  /** 受け方の手番。どう受けても詰むなら true。 */
+  const defend = (pos: Position, left: number): boolean => {
+    const moves = safeLegalMoves(ctx.mgf, pos);
+    if (moves.length === 0) return true;
+    if (left <= 0) return false;
+    for (const m of moves) {
+      if (over()) return false;
+      ctx.nodes++;
+      const next = safeApply(ctx, pos, m);
+      if (!next) return false; // 読めない受けがある＝詰むとは言い切れない
+      if (next.royalCaptured) return false;
+      if (!attack(next.position, left - 1)) return false;
+    }
+    return true;
+  };
+  return attack(position, plies);
 }
 
 export function searchBestMove(mgf: Mgf, position: Position, options: SearchOptions): SearchResult {
@@ -264,11 +498,17 @@ export function searchBestMove(mgf: Mgf, position: Position, options: SearchOpti
     rules: options.rules ?? PLAIN_RULES,
     book: buildValueBook(mgf, position),
     nodes: 0,
+    maxNodes: options.maxNodes ?? Infinity,
     deadline: start + Math.max(1, options.movetimeMs),
     now,
     shouldStop: options.shouldStop,
     aborted: false,
     checkMask: 15,
+    f: { ...NO_FEATURES, ...options.features },
+    tt: options.features?.tt ? new Map() : null,
+    killers: [],
+    history: options.features?.killers ? new Map() : null,
+    maxPly: 2 * Math.max(1, options.maxDepth) + 4,
   };
 
   const rootMoves = safeLegalMoves(mgf, position);
@@ -284,6 +524,28 @@ export function searchBestMove(mgf: Mgf, position: Position, options: SearchOpti
   let bestMove: Move = ordered[0];
   let bestScore = 0;
   let reachedDepth = 0;
+
+  // ★v1.93 詰み探索: 王手だけで詰ませられるなら、普通の読みをするまでもなく指す。
+  if (ctx.f.mateSearch) {
+    const limit = {
+      nodes: ctx.maxNodes === Infinity ? Infinity : ctx.maxNodes * MATE_SHARE,
+      deadline: start + options.movetimeMs * MATE_SHARE,
+    };
+    for (const plies of MATE_PLIES) {
+      const mate = findMate(ctx, position, plies, limit);
+      if (mate) {
+        return {
+          move: mate,
+          score: MATE_VALUE - plies,
+          depth: plies,
+          nodes: ctx.nodes,
+          elapsedMs: now() - start,
+          completed: true,
+        };
+      }
+      if (ctx.nodes >= limit.nodes || now() >= limit.deadline) break;
+    }
+  }
 
   const maxDepth = Math.max(1, options.maxDepth);
   for (let depth = 1; depth <= maxDepth; depth++) {
@@ -304,7 +566,7 @@ export function searchBestMove(mgf: Mgf, position: Position, options: SearchOpti
     for (const m of ordered) {
       // 1 手も評価しないうちは打ち切らない (指す手が決まらなくなるため)。
       // 2 手目からは、根の手と手の間でも時間を見る (量子のように 1 手が重い場面で効く)。
-      if (all.length > 0 && now() >= ctx.deadline) {
+      if (all.length > 0 && (now() >= ctx.deadline || ctx.nodes >= ctx.maxNodes)) {
         ctx.aborted = true;
         aborted = true;
         break;
@@ -346,6 +608,7 @@ export function searchBestMove(mgf: Mgf, position: Position, options: SearchOpti
     // 次の深さは今回より確実に重いので、残り時間が今回ぶんに満たなければ切り上げる
     const elapsed = now() - start;
     if (elapsed * 2 > options.movetimeMs) break;
+    if (ctx.nodes * 2 > ctx.maxNodes) break; // 局面数の上限でも同じ見切り方をする
     if (Math.abs(bestScore) > MATE_VALUE - 1000) break; // 詰みが見えたらそれ以上読まない
 
     // 次の深さは今回の良かった順に見る (枝がよく刈れる)。

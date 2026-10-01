@@ -17,7 +17,7 @@ import { get as pluginGet } from '../../core/plugin/registry';
 import type { Mgf } from '../../core/engine/mgf/types';
 import type { Move, Position } from '../../core/engine/position/types';
 import { PLAIN_RULES, type AdvanceRules } from '../../core/engine/position/advance';
-import { searchBestMove } from './search';
+import { searchBestMove, type SearchFeatures } from './search';
 import { resolveLevel } from './levels';
 import type { WorkerRequest, WorkerResponse } from './worker-protocol';
 
@@ -52,11 +52,11 @@ class SelfmadeAdapter implements EngineAdapter {
     this.stopped = false;
 
     // 段 (Easy / Hard / Apocalypse) の解釈はこの思考ルーチンの仕事 (親 §7.5.3)。
-    const { movetimeMs, maxDepth, jitter } = resolveLevel(limits);
+    const { movetimeMs, maxDepth, jitter, features } = resolveLevel(limits);
 
     const worker = this.ensureWorker();
     if (worker) {
-      return this.goInWorker(worker, mgf, position, rules, movetimeMs, maxDepth, jitter, onProgress);
+      return this.goInWorker(worker, mgf, position, rules, movetimeMs, maxDepth, jitter, features, onProgress);
     }
 
     // 同じスレッドで考える。開始を 1 度画面に返してから走らせ、「考え中」の表示が
@@ -67,6 +67,7 @@ class SelfmadeAdapter implements EngineAdapter {
       maxDepth,
       jitter,
       rules,
+      features,
       shouldStop: () => this.stopped,
       onProgress: (p) => onProgress?.({ depth: p.depth, nodes: p.nodes, elapsedMs: p.elapsedMs }),
     });
@@ -108,6 +109,7 @@ class SelfmadeAdapter implements EngineAdapter {
     movetimeMs: number,
     maxDepth: number,
     jitter: number,
+    features: SearchFeatures,
     onProgress?: (p: ThinkProgress) => void,
   ): Promise<Move | null> {
     const id = ++this.seq;
@@ -131,11 +133,11 @@ class SelfmadeAdapter implements EngineAdapter {
         // 別スレッドが落ちたら捨てて、次回は同じスレッドで考え直す
         this.worker = null;
         worker.terminate();
-        resolve(searchBestMove(mgf, position, { movetimeMs, maxDepth, jitter, rules }).move);
+        resolve(searchBestMove(mgf, position, { movetimeMs, maxDepth, jitter, rules, features }).move);
       };
       worker.addEventListener('message', onMessage);
       worker.addEventListener('error', onError);
-      const req: WorkerRequest = { type: 'go', id, mgf, position, rules, movetimeMs, maxDepth, jitter };
+      const req: WorkerRequest = { type: 'go', id, mgf, position, rules, movetimeMs, maxDepth, jitter, features };
       worker.postMessage(req);
     });
   }

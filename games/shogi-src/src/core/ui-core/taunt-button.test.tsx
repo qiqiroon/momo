@@ -17,9 +17,9 @@ import { useI18nStore } from '../store/i18n-store';
 import { useAiStore } from '../store/ai-store';
 import { register } from '../plugin/registry';
 import { generateLegalMoves } from '../engine';
-import type { BoardMove } from '../engine/position/types';
+import type { BoardMove, PieceInstance, Position } from '../engine/position/types';
 import type { RemoteMovePayload } from '../plugin/gameConnector';
-import { seTaunt, seMove } from '../audio/se-synth';
+import { seTaunt, seMove, seGameLose } from '../audio/se-synth';
 import { useFxStore } from '../store/fx-store';
 import { TAUNT_IMPACT_MS, TAUNT_TOTAL_MS } from './taunt-fx';
 
@@ -28,6 +28,7 @@ vi.mock('../audio/se-synth', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../audio/se-synth')>()),
   seTaunt: vi.fn(),
   seMove: vi.fn(),
+  seGameLose: vi.fn(),
 }));
 
 function tauntButton(): HTMLButtonElement {
@@ -78,7 +79,8 @@ function registerOnline(mySide: 'player1' | 'player2'): RemoteMovePayload[] {
 beforeEach(() => {
   vi.mocked(seTaunt).mockClear();
   vi.mocked(seMove).mockClear();
-  useFxStore.setState({ tauntPlaying: false });
+  vi.mocked(seGameLose).mockClear();
+  useFxStore.setState({ tauntPlaying: false, tauntDoneSeq: null });
   useI18nStore.setState({ locale: 'ja' });
   useRouteStore.setState({ screen: 'game' });
   useAiStore.setState({ enabled: false, aiSide: 'player2', thinking: false });
@@ -212,5 +214,60 @@ describe('威嚇の動き (★v1.96)', () => {
     expect(vi.mocked(seMove)).toHaveBeenCalledTimes(1);
     expect(useFxStore.getState().tauntPlaying).toBe(false);
     expect(document.querySelector('.taunt-fx-layer')).toBeNull();
+  });
+
+  it('★威嚇つきの手で終局したら、威嚇の動きを見せ終えてから勝敗の窓と勝敗の音を出す (ユーザー指摘)', () => {
+    // 1 手詰め＝後手玉 1 一・先手の歩 1 三・先手の持ち駒に金。金を 1 二に打てば詰み。
+    const pc = (id: string, kind: string, owner: 'player1' | 'player2'): PieceInstance => ({
+      pieceId: id, kind, owner, initialOwner: owner, initialKind: kind, initialSquare: { row: -1, col: -1 }, promoted: false,
+    });
+    const board: (PieceInstance | null)[][] = Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => null));
+    board[0][8] = pc('k', 'ou', 'player2');
+    board[8][0] = pc('K', 'ou', 'player1');
+    board[2][8] = pc('F', 'fu', 'player1');
+    const pos: Position = {
+      width: 9, height: 9, board, hands: { player1: [pc('G', 'kin', 'player1')], player2: [] },
+      sideToMove: 'player1', moveNumber: 1, history: [],
+    };
+    useGameStore.setState({ position: pos });
+    render(<App variant="b" />);
+    fireEvent.click(tauntButton());
+    act(() => {
+      useGameStore.getState().selectHandPiece('G');
+      useGameStore.getState().tryMove({ row: 1, col: 8 });
+    });
+    expect(useGameStore.getState().status).toBe('checkmate');
+    // 動いている間は勝敗の窓も勝敗の音も出ない
+    expect(screen.queryByText('対局終了')).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(TAUNT_IMPACT_MS + 500);
+    });
+    expect(screen.queryByText('対局終了')).toBeNull();
+    expect(vi.mocked(seGameLose)).not.toHaveBeenCalled();
+    // 見せ終えたら出る
+    act(() => {
+      vi.advanceTimersByTime(TAUNT_TOTAL_MS);
+    });
+    expect(screen.queryByText('対局終了')).not.toBeNull();
+    expect(vi.mocked(seGameLose)).toHaveBeenCalledTimes(1);
+  });
+
+  it('威嚇しなかった手で終局したら、勝敗の窓はすぐ出る (今までどおり)', () => {
+    const pc = (id: string, kind: string, owner: 'player1' | 'player2'): PieceInstance => ({
+      pieceId: id, kind, owner, initialOwner: owner, initialKind: kind, initialSquare: { row: -1, col: -1 }, promoted: false,
+    });
+    const board: (PieceInstance | null)[][] = Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => null));
+    board[0][8] = pc('k', 'ou', 'player2');
+    board[8][0] = pc('K', 'ou', 'player1');
+    board[2][8] = pc('F', 'fu', 'player1');
+    useGameStore.setState({
+      position: { width: 9, height: 9, board, hands: { player1: [pc('G', 'kin', 'player1')], player2: [] }, sideToMove: 'player1', moveNumber: 1, history: [] },
+    });
+    render(<App variant="b" />);
+    act(() => {
+      useGameStore.getState().selectHandPiece('G');
+      useGameStore.getState().tryMove({ row: 1, col: 8 });
+    });
+    expect(screen.queryByText('対局終了')).not.toBeNull();
   });
 });

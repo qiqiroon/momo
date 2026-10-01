@@ -33,7 +33,7 @@ import {
   seTaunt,
 } from '../audio/se-synth';
 import { runTauntFx } from './taunt-fx';
-import { useFxStore } from '../store/fx-store';
+import { useFxStore, useTauntHolding } from '../store/fx-store';
 import { t as _t } from '../i18n';
 import type { LocaleCode } from '../i18n/types';
 import type { Mgf, PieceId, PieceInstance, Position, Square } from '../engine';
@@ -433,9 +433,12 @@ export function GameScreen({ variant }: GameScreenProps) {
     cancelTauntFxRef.current?.();
     cancelTauntFxRef.current = null;
     const move = lastAppliedMove.move;
+    const seq = lastAppliedMove.seq;
     if (!lastAppliedMove.taunt || (move.type !== 'move' && move.type !== 'drop') || !boardRef.current) {
       moveSounds();
       useFxStore.getState().setTauntPlaying(false);
+      // 動きを見せられない威嚇の手も「見せ終えた」扱いにする (勝敗の窓を待たせ続けない)。
+      if (lastAppliedMove.taunt) useFxStore.getState().setTauntDoneSeq(seq);
       return;
     }
     // ★v1.96 威嚇の動き＝持ち上げて叩きつけ、周りの駒を吹き飛ばす。駒を打つ音と威嚇音 (音響 §2.5) は
@@ -453,13 +456,18 @@ export function GameScreen({ variant }: GameScreenProps) {
       onDone: () => {
         cancelTauntFxRef.current = null;
         useFxStore.getState().setTauntPlaying(false);
+        // ★v1.97: 見せ終えた＝待っていた勝敗の窓と勝敗の音を出してよい。
+        useFxStore.getState().setTauntDoneSeq(seq);
       },
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastAppliedMove]);
 
+  // ★v1.97: 最後の手が威嚇つきなら、動きを見せ終えるまで勝敗の音も鳴らさない (窓と同じ)。
+  const tauntHolding = useTauntHolding();
   // v0.72 音響: 勝敗の効果音 (自分視点)
   useEffect(() => {
+    if (tauntHolding) return;
     // ★v1.84: 持将棋も勝った側が居ないので、勝敗の音は鳴らさない。
     if (
       status === 'playing' ||
@@ -484,7 +492,7 @@ export function GameScreen({ variant }: GameScreenProps) {
       seGameLose();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
+  }, [status, tauntHolding]);
 
   // v0.72 音響: 一時停止 / 再開音
   const prevPausedRef = useRef(paused);
@@ -2228,9 +2236,13 @@ function GameEndModal({
   useEffect(() => {
     setDismissed('');
   }, [status]);
+  // ★v1.97 (ユーザー指摘 2026-10-01): 最後の手が威嚇つきなら、**威嚇の動きを見せ終えてから**
+  // 勝敗を出す (先に出すと、勝敗の窓の裏で威嚇の動きをすることになる)。
+  const tauntHolding = useTauntHolding();
 
   if (status === 'playing') return null;
   if (dismissed === status) return null;
+  if (tauntHolding) return null;
 
   // 誰が勝ちで誰が負けか（絶対 side ベース）。読み替えは game-store の 1 か所に集約。
   const winnerSide = winnerOf(status, position.sideToMove);

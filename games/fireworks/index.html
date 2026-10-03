@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
-<!-- MOMO Fireworks v0.57 -->
+<!-- MOMO Fireworks v0.58 -->
 <html lang="ja">
 <head>
 <meta charset="utf-8">
@@ -351,7 +351,7 @@
       <circle cx="26" cy="21" r="2.6" fill="#fff7d6" stroke="#000" stroke-width="0.6"/>
     </g>
   </svg>
-  <div class="mh"><span class="mh-t">MOMO <b>Fireworks</b></span><span class="mh-s"><span id="mhSub">Night Blooms, Golden Fade</span><span class="mh-v" id="mhVer">v0.57</span></span></div>
+  <div class="mh"><span class="mh-t">MOMO <b>Fireworks</b></span><span class="mh-s"><span id="mhSub">Night Blooms, Golden Fade</span><span class="mh-v" id="mhVer">v0.58</span></span></div>
 </div>
 
 <div id="fps"><div id="fpsA"></div><div id="fpsB"></div></div>
@@ -540,7 +540,7 @@
         </g>
       </svg>
       <div class="title-block">
-        <h1><span class="momo">MOMO</span><span class="fireworks">Fireworks</span><span class="version-tag" id="version-tag">v0.57</span></h1>
+        <h1><span class="momo">MOMO</span><span class="fireworks">Fireworks</span><span class="version-tag" id="version-tag">v0.58</span></h1>
         <div class="subtitle" id="subtitle">Night Blooms, Golden Fade</div>
       </div>
     </header>
@@ -729,6 +729,9 @@
    （v0.56：画面を消さない頼みを見るボタンを押したその場で出す（Darts と同じ）。横に倒しているのに縦のままなら自動回転の案内を出す（Q132＝A））
    （v0.57：画面の大きさが変わったあと少し間を置いて読み直す（iPhone で縦に戻すと回転途中の幅で決まり、右が黒く残った）。絵は常に画面いっぱいに広げる（Q135＝A）。
             パチパチ（小破裂）が詰まったら後ろへずらさず鳴らさない（行列が最大 7.7 秒先まで溜まり、遅い機械で音楽が途切れていた）。音の出し方を途切れにくさ優先に（Q137＝A））
+   （v0.58：牡丹の星を 1.7 倍（10 号で約 650→約 1100）。実写（変化牡丹 尺玉）と同じ大きさにそろえて数えると、星の数が実写の約 6 割だった。
+            1 粒の強さは 1/1.7 にして、火薬の総量＝地上を照らす光は変えない（Q150＝A・Q152＝A。改善計画 v1.09 §3.0.5〜3.0.7）。
+            大玉は増やし方を控える（20 号 0.75 倍・40 号 0.5 倍。40 号 1 発で星の上限 9000 にほぼ届いたため。Q153＝B））
    仕様書 hanabi_sim_spec_v2.00.md §3 に対応する実装。
 
    v0.01 からの主要変更（§3.8 参照）
@@ -1926,7 +1929,7 @@ function shellLayer(cx,cy,cz, inh, n, speed, opt, C, cr){
 const KG_SP=0.595, KG_KK=0.87, KG_LIFE=1.55;
 const RECIPES = {
   botan:  {color:{mode:'solid'}, layers:[
-            {nk:130, sp:1,   life:2.2, lsig:0.15, kk:1,    tail:0,   flick:.35}]},   // v0.42：実写の牡丹は約2.8秒で球の形のまま一斉に消える
+            {nk:221, ik:0.588, sp:1,   life:2.2, lsig:0.15, kk:1,    tail:0,   flick:.35}]},   // v0.58：実写（変化牡丹 尺玉）の密度に合わせて星を 1.7 倍（130→221）、1 粒の強さ ik は 1/1.7（火薬の総量＝地上を照らす光は変えない）。v0.42：実写の牡丹は約2.8秒で球の形のまま一斉に消える
   kiku:   {color:{mode:'solid'}, kg:1, layers:[
             {nk:76, sp:1,    life:2.3, kk:1,    tail:.55, flick:.3}]},
   yae:    {color:{mode:'perLayer'}, kg:1, layers:[
@@ -2091,6 +2094,11 @@ function runRecipe(R, S, gE, go, cx, cy, cz, inh, C, fx, fcol){
     const o = {life:life*S.lifeK*(l.bb?1:LIFE_SCALE)*(R.kg?KG_LIFE:1), k:S.k*l.kk*(R.kg?KG_KK:1), tail:l.tail, col, flick:l.flick};
     if(l.bb){ o.bb=1; o.T0=l.T0; }
     if(l.ds) o.ds=DS[l.ds];
+    /* v0.58：星を増やした段（ik あり）は 1 粒を弱く・細くする（総量を保つ）。
+       ただし大玉は増やし方を控える（Q153＝B）：10 号以下は nk のまま、20 号で 0.75 倍、40 号で 0.5 倍（星の上限 9000 の半分ほど）。
+       控えたぶん 1 粒を強くして、総量は変えない */
+    const bigK = l.ik ? Math.max(0.5, 1-0.25*Math.log2(Math.max(1,go/10))) : 1;
+    if(l.ik && curBurst) o.I=curBurst.I*l.ik/bigK;
     if(l.wl){ o.wl=1;                                    // v0.31：柳
       /* v0.34：柳の大きさと時間はフルード相似（長さ∝開花半径 R、時間と速さ∝√R）。10号を基準に決めた値を号数に合わせる。
          抗力は開花直後の kk から kk2 へ時定数 kt で増える：すぐ球の形で止まり、そこから全部の星がゆっくり落ちる */
@@ -2123,7 +2131,7 @@ function runRecipe(R, S, gE, go, cx, cy, cz, inh, C, fx, fcol){
       if(X.sakikurenai) o.sk=1;
       if(X.bunki) o.bk=1;
     }
-    let n=Math.round(l.nk*gE); if(l.nmin) n=Math.max(l.nmin,n);
+    let n=Math.round(l.nk*gE*bigK); if(l.nmin) n=Math.max(l.nmin,n);
     if(o.crk) crkN+=n;
     shellLayer(cx,cy,cz, inh, n, S.v0*l.sp*(R.kg?KG_SP:1), o, C, (cr && !l.bb) ? cr : null);
   }

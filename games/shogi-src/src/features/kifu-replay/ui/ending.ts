@@ -31,6 +31,9 @@ function reasonKeyOf(status: GameStatus): string | null {
     case 'stalemate_loss_p1':
     case 'stalemate_loss_p2':
       return 'result.reason.stalemate_loss';
+    case 'perpetual_check_loss_p1':
+    case 'perpetual_check_loss_p2':
+      return 'result.reason.perpetual_check';
     case 'insufficient_material':
       return 'result.reason.insufficient_material';
     case 'move_limit':

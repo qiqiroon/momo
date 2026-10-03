@@ -99,3 +99,40 @@ export function countSamePositions(mgf: Mgf, past: Position[], current: Position
   }
   return n;
 }
+
+/**
+ * ★v2.02 連続王手の千日手 (親 §4.4・ルール定義 `repetition.on_check_repetition: 'loss'`)。
+ *
+ * 千日手が成立した瞬間に呼ぶ。**その局面が最初に現れてから今までの手**を遡り、
+ * **一方の手がすべて王手だった**なら、その側 (王手をかけ続けた側) を返す。無ければ null。
+ * 2026-10-03 まではルール定義に `loss` と書いてあるのに実装が読んでおらず、引き分けにしていた。
+ *
+ * 「王手だったか」は**指した直後の局面で、手番の側 (指されたほう) が王手を受けているか**で見る。
+ * 量子では王手は確定した王にだけかかる (isInCheck がそう数える) ので、その意味で数える。
+ *
+ * `past` は各手を指す前の局面 (いまの 1 つ前まで)、`current` はいまの局面。
+ */
+export function perpetualChecker(
+  mgf: Mgf,
+  past: Position[],
+  current: Position,
+  inCheck: (mgf: Mgf, position: Position, player: Position['sideToMove']) => boolean,
+): Position['sideToMove'] | null {
+  const hash = positionHash(current);
+  const rights = hiddenRightsFingerprint(mgf, current);
+  const first = past.findIndex((p) => positionHash(p) === hash && hiddenRightsFingerprint(mgf, p) === rights);
+  if (first < 0) return null;
+  // first 番目の局面のあとに指された手それぞれの、指した直後の局面
+  const after = [...past.slice(first + 1), current];
+  const allChecks = { player1: true, player2: true };
+  const moved = { player1: false, player2: false };
+  for (const pos of after) {
+    const mover = pos.sideToMove === 'player1' ? 'player2' : 'player1';
+    moved[mover] = true;
+    if (!inCheck(mgf, pos, pos.sideToMove)) allChecks[mover] = false;
+  }
+  const p1 = moved.player1 && allChecks.player1;
+  const p2 = moved.player2 && allChecks.player2;
+  if (p1 === p2) return null; // どちらも (ありえない) か、どちらでもない
+  return p1 ? 'player1' : 'player2';
+}

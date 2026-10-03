@@ -548,6 +548,8 @@ export function GameScreen({ variant }: GameScreenProps) {
       : status === 'stalemate' ||
           status === 'stalemate_loss_p1' ||
           status === 'stalemate_loss_p2' ||
+          status === 'perpetual_check_loss_p1' ||
+          status === 'perpetual_check_loss_p2' ||
           status === 'insufficient_material' ||
           status === 'move_limit'
         ? // ★v1.90: ステイルメイト。状態の名前がそのまま翻訳キーになる。
@@ -1266,6 +1268,7 @@ export function GameScreen({ variant }: GameScreenProps) {
       <ReviewOfferSentPanel t={t} />
       <PauseCenterPanel t={t} />
       <OfferResponseToast t={t} />
+      <RejectToast t={t} />
       <ConnectionUncertainBanner t={t} />
       <AnomalyNotice t={t} />
     </div>
@@ -2060,6 +2063,41 @@ function PauseCenterPanel({ t }: { t: (key: string) => string }) {
  * v0.42: 拒否・撤回・中断通知を短時間トースト表示。
  * 直前 4 秒以内の通知のみ表示、自動で消える。
  */
+/**
+ * ★v2.02 安全策 (決定記録 7・画面機能 S06・見本 momo_shogi_reject_reason_mock_v1):
+ * **受け付けなかった自分の手**の理由。画面の下の真ん中・オレンジの枠・**4 秒**で消える
+ * (棋譜再生・感想戦の知らせと同じ形。理由の文が長めなので 2.2 秒より長い)。
+ * 候補ごとに理由が分かるときは「歩なら二歩・桂なら行き所のない駒」、分からないときは一般的な言い方。
+ */
+function RejectToast({ t }: { t: (key: string) => string }) {
+  const notice = useGameStore((s) => s.rejectNotice);
+  const mgf = useGameStore((s) => s.mgf);
+  const locale = useI18nStore((s) => s.locale);
+  const [shownSeq, setShownSeq] = useState<number | null>(null);
+  useEffect(() => {
+    if (!notice) return;
+    setShownSeq(notice.seq);
+    const id = setTimeout(() => setShownSeq((cur) => (cur === notice.seq ? null : cur)), 4000);
+    return () => clearTimeout(id);
+  }, [notice]);
+  if (!notice || shownSeq !== notice.seq) return null;
+  // 猫語のときの駒名は日本語を借りる (盤の駒・終局の内訳と同じ扱い)。
+  const nameLocale = locale === 'cat' ? 'ja' : locale;
+  const body = notice.reasons
+    ? t('reject.specific').replace(
+        '{parts}',
+        notice.reasons
+          .map((r) => t('reject.part').replace('{piece}', pieceNameFor(mgf, r.kind, nameLocale)).replace('{reason}', t(`reject.reason.${r.reason}`)))
+          .join(t('reject.joiner')),
+      )
+    : t('reject.general');
+  return (
+    <div className="s08-toast reject-toast" role="status">
+      {body}
+    </div>
+  );
+}
+
 function OfferResponseToast({ t }: { t: (key: string) => string }) {
   const kind = useOffersStore((s) => s.lastNoticeKind);
   const type = useOffersStore((s) => s.lastNoticeType);
@@ -2286,6 +2324,11 @@ function GameEndModal({
     case 'stalemate_loss_p1':
     case 'stalemate_loss_p2':
       reasonKey = 'result.reason.stalemate_loss';
+      break;
+    case 'perpetual_check_loss_p1':
+    case 'perpetual_check_loss_p2':
+      // ★v2.02 連続王手の千日手 (親 §4.4)。
+      reasonKey = 'result.reason.perpetual_check';
       break;
     case 'insufficient_material':
       // ★v1.90: 駒不足 (親 §3.10・チェス §5.5.5)。

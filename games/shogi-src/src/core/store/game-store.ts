@@ -13,6 +13,8 @@ import {
   isInCheck,
   countNoProgressPlies,
   countSamePositions,
+  perpetualChecker,
+  dropRejectReasons,
   drawClaimAvailable,
   isInsufficientMaterial,
   isStalemate,
@@ -21,7 +23,7 @@ import {
   positionHash,
 } from '../engine';
 import type {
-  BoardMove, BoardTopology, DrawClaimReason, HandicapSetting, Mgf, Move, MoveDest, PieceInstance, Player, Position, Square,
+  BoardMove, BoardTopology, DrawClaimReason, DropRejectReason, HandicapSetting, Mgf, Move, MoveDest, PieceInstance, Player, Position, Square,
 } from '../engine';
 import { formatMove, pieceNameJa, squareNameJa } from '../engine/kifu/format';
 import { NO_LIMIT_TIME_CONTROL, initClockState, type ClockState, type TimeControl } from '../engine/time-control';
@@ -186,6 +188,12 @@ export type GameStatus =
    */
   | 'move_limit'
   | 'sennichite'
+  /**
+   * ★v2.02 連続王手の千日手 (親 §4.4)。**負けた側**を書く＝王手をかけ続けた側
+   * (perpetual_check_loss_p1 ＝先手が王手をかけ続けて負け)。
+   */
+  | 'perpetual_check_loss_p1'
+  | 'perpetual_check_loss_p2'
   | 'nyugyoku_win_p1'
   | 'nyugyoku_win_p2'
   | 'resigned_p1'
@@ -267,6 +275,12 @@ export const NO_VICTORY_FLAGS = {
  * `annihilation_win_p1` は「先手の勝ち」) ので、読み替えは必ずここ 1 か所で行う。
  * 詰みだけは状態名から決まらず、**手番が回ってきた側の負け**なので局面が要る。
  */
+/** ★v2.02 受け付けなかった自分の手の知らせ (rejectNotice)。reasons が null なら理由は一般的な言い方。 */
+export interface RejectNotice {
+  seq: number;
+  reasons: { kind: string; reason: DropRejectReason }[] | null;
+}
+
 export function winnerOf(
   status: GameStatus,
   sideToMove: Player,
@@ -279,12 +293,14 @@ export function winnerOf(
     case 'resigned_p2':
     case 'timeout_p2':
     case 'stalemate_loss_p2':
+    case 'perpetual_check_loss_p2':
       return 'player1';
     case 'nyugyoku_win_p2':
     case 'annihilation_win_p2':
     case 'resigned_p1':
     case 'timeout_p1':
     case 'stalemate_loss_p1':
+    case 'perpetual_check_loss_p1':
       return 'player2';
     default:
       // playing / stalemate / insufficient_material / move_limit / sennichite /
@@ -400,6 +416,12 @@ interface GameState {
    * これが立っている間は時計が止まり、駒の選択・着手を受け付けない。
    */
   anomaly: AnomalyState | null;
+  /**
+   * ★v2.02 安全策 (決定記録 7・画面機能 S06): **受け付けなかった自分の手**の知らせ。
+   * 光っている (指せると判定された) マスに指したのに、指した結果どの正体でもつじつまが
+   * 合わなくなった手は盤に載せず、ここに理由を置く (画面の下に 4 秒)。`seq` は出すたびに増える。
+   */
+  rejectNotice: RejectNotice | null;
 
   selectSquare: (sq: Square) => void;
   selectHandPiece: (pieceId: string) => void;
@@ -779,6 +801,16 @@ function computeStatusAfterMove(
   // 届いていないうちは本当の繰り返しも届いていない。**将棋には盤に現れない権利が無いので、
   // 確かめても答えは変わらない**（遡りもしない）。
   if (count >= threshold && countSamePositions(mgf, past, position) >= threshold) {
+    // ★v2.02 (親 §4.4): 連続王手の千日手は王手をかけ続けた側の負け (ルール定義が `loss` のとき)。
+    if (mgf.repetition?.on_check_repetition === 'loss') {
+      const checker = perpetualChecker(mgf, past, position, isInCheck);
+      if (checker) {
+        return {
+          status: checker === 'player1' ? 'perpetual_check_loss_p1' : 'perpetual_check_loss_p2',
+          positionCounts: nextCounts,
+        };
+      }
+    }
     return { status: 'sennichite', positionCounts: nextCounts };
   }
   // ★v1.90 (親 §3.10 `move_limit`): 無進展手数の上限。**主張されないまま上限に達したら
@@ -853,6 +885,24 @@ function applyAndCommit(
   // そのまま採用して、着手をコミットしたあとに投票 UI を出す。盤を「停止時点のまま」
   // 見せる決まり (付録D-1 §5.7.3.3) なので、着手をなかったことにはしない。
   const advanced = advancePosition(mgf, position, move, advanceRulesOf(state));
+  // ★v2.02 安全策 (決定記録 7): **自分で指した手**が量子異常 (どの正体でもつじつまが合わない) に
+  // なるなら受け付けない＝盤は指す前のまま・駒は選んだまま・理由を知らせる。指せる手の判定が
+  // 見抜けなかった手を、対局を止める投票 (ノーゲーム) へ進ませないため。
+  // **届いた手 (相手・AI) はここを通さない**＝相手の端末が同じ判定で受け付けている／AI の読みは
+  // 量子異常になる手を捨てる。
+  if (source === 'local' && advanced.anomaly) {
+    const reasons =
+      move.type === 'drop' ? dropRejectReasons(mgf, position, move.to, move.pieceId) : [];
+    const specific = reasons.length > 0 && reasons.every((r) => r.reason !== null);
+    set({
+      pendingPromotion: null,
+      rejectNotice: {
+        seq: (state.rejectNotice?.seq ?? 0) + 1,
+        reasons: specific ? (reasons as { kind: string; reason: DropRejectReason }[]) : null,
+      },
+    });
+    return;
+  }
   const nextPos = advanced.position;
   const statusOverride: GameStatus | null = advanced.royalCaptured ? 'checkmate' : null;
   const anomalyCause: AnomalyCause | null = advanced.anomaly;
@@ -1108,6 +1158,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   hintAlwaysOn: loadHintAlwaysOn(),
   quantumParams: DEFAULT_QUANTUM_PARAMS,
   tauntArmed: false,
+  rejectNotice: null,
   tauntsLeft: { player1: TAUNTS_PER_GAME, player2: TAUNTS_PER_GAME },
   setTauntArmed: (armed) => {
     const { status, tauntsLeft, position } = get();
@@ -1785,6 +1836,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       lastAppliedMove: null,
       // ★v1.95: 威嚇の回数は対局開始時に 3 へ戻す (音響 §2.5)。
       tauntArmed: false,
+  rejectNotice: null,
       tauntsLeft: { player1: TAUNTS_PER_GAME, player2: TAUNTS_PER_GAME },
       positionHistory: [],
       positionCountsHistory: [],

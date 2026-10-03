@@ -43,7 +43,8 @@ export {
   reachedMoveLimitAuto,
   isProgressMove,
 } from './victory/no-progress';
-export { countSamePositions, hiddenRightsFingerprint } from './victory/repetition';
+export { countSamePositions, hiddenRightsFingerprint, perpetualChecker } from './victory/repetition';
+export { dropRejectReasons, type DropRejectReason } from './moves/legal';
 export { drawClaimAvailable, type DrawClaimReason } from './victory/draw-claim';
 export { directionOffsets } from './moves/directions';
 export {

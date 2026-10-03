@@ -178,10 +178,40 @@ export function isMoveLegal(mgf: Mgf, position: Position, move: Move, opts: Lega
   if (move.type === 'drop' && !opts.skipUchifuTsume && mgf.constraints?.uchifu_tsume) {
     const player = position.sideToMove;
     const piece = position.hands[player].find((p) => p.pieceId === move.pieceId);
-    if (piece && confirmedKindOf(mgf, piece, buildInitialKindMap(position)) === 'fu') {
+    const kindMap = piece ? buildInitialKindMap(position) : null;
+    if (piece && kindMap && confirmedKindOf(mgf, piece, kindMap) === 'fu') {
       after ??= applyMove(mgf, position, move);
       const settled = settleForJudgement(mgf, after);
       if (settled && isCheckmate(mgf, settled)) return false;
+    } else if (piece && kindMap && piece.candidates && [...piece.candidates].some((id) => kindMap.get(id) === 'fu')) {
+      // ★v2.02 (ルールブック 7・2026-10-03 利用者判断): **打った結果、歩と確定する駒**を打って
+      // 詰ませる手も打ち歩詰め。例＝「歩・桂」の駒を奥から 2 段目に打つ (桂はそこに置けない
+      // ので打った瞬間に歩に決まる)。v2.01 までは打つ前の候補しか見ず、この手が打てて
+      // **打った直後に候補が空 (量子異常)** になっていた (歩なら打ち歩詰め・桂なら置けない)。
+      //
+      // **調べるのは「相手の確定した王のすぐ前」への打ちだけ**＝打った駒が歩だけに決まって
+      // 王手になるなら、王手は歩の利きなので打った場所はそこしかない (打つ手は他の駒の
+      // 利きを開けないので、ほかの王手は起きない)。王が確定していなければ王手も無い。
+      // 王手になる打ちすべてを候補の連鎖まで調べた形では、量子の読みが約 17% 遅くなった
+      // (2026-10-03 実測)。答えは同じで、調べる手が 1 マスぶんに減る。
+      const opponent: Player = player === 'player1' ? 'player2' : 'player1';
+      const front = pawnCheckSquare(mgf, position, opponent, player);
+      if (front && front.row === move.to.row && front.col === move.to.col) {
+        after ??= applyMove(mgf, position, move);
+      }
+      if (front && front.row === move.to.row && front.col === move.to.col && after && isInCheck(mgf, after, opponent)) {
+        const settled = settleForJudgement(mgf, after);
+        const dropped = settled?.board[move.to.row][move.to.col];
+        if (
+          settled &&
+          dropped &&
+          dropped.pieceId === move.pieceId &&
+          confirmedKindOf(mgf, dropped, buildInitialKindMap(settled)) === 'fu' &&
+          isCheckmate(mgf, settled)
+        ) {
+          return false;
+        }
+      }
     }
   }
 
@@ -196,6 +226,29 @@ export function isMoveLegal(mgf: Mgf, position: Position, move: Move, opts: Lega
 type TopologyMoveFilter = (mgf: Mgf, position: Position, move: Move) => boolean;
 
 type CandidateUpdateFn = (position: Position, mgf: Mgf) => Position;
+
+/** 局面ごとに 1 度だけ求める「歩で王手できるマス」(同じ局面の手を何十通りも調べるため)。 */
+const pawnCheckCache = new WeakMap<Position, Map<Player, Square | null>>();
+
+/**
+ * ★v2.02 `attacker` の歩が `defender` の確定した王に王手をかけられるマス＝王のすぐ前
+ * (攻める側から見て)。王が確定していなければ null。盤の端がつながる盤では回り込む。
+ */
+function pawnCheckSquare(mgf: Mgf, position: Position, defender: Player, attacker: Player): Square | null {
+  let byDef = pawnCheckCache.get(position);
+  if (!byDef) {
+    byDef = new Map();
+    pawnCheckCache.set(position, byDef);
+  }
+  if (byDef.has(defender)) return byDef.get(defender)!;
+  const king = findKing(mgf, position, defender);
+  // 先手 (player1) の歩は上 (row が小さい側) へ進むので、王の 1 つ下のマスから王手をかける。
+  const sq = king
+    ? wrapSquare({ row: king.row + (attacker === 'player1' ? 1 : -1), col: king.col }, position.width, position.height, topologyOf(position))
+    : null;
+  byDef.set(defender, sq);
+  return sq;
+}
 
 /**
  * 判定用に「候補更新を通した安定状態」(§Q7.9) を作る。
@@ -293,6 +346,44 @@ function isDropAllowed(
   const kindMap = buildInitialKindMap(position);
   const kinds = displayKindsFor(mgf, piece, kindMap);
   return kinds.some((kind) => isDropAllowedAsKind(mgf, position, to, piece, kind));
+}
+
+/** 打てない理由 (駒種ごと)。 */
+export type DropRejectReason = 'nifu' | 'dead_zone' | 'not_hand_piece';
+
+/**
+ * ★v2.02 (安全策・決定記録 7): **打った結果つじつまが合わなくなって受け付けなかった打ち**の理由を、
+ * 候補の駒種ごとに求める (画面の知らせに使う)。判定は打てるかの判定 (isDropAllowedAsKind) と
+ * **同じ数え方**で、駒種ごとに「どれに当たったか」だけを返す。理由が無い駒種は null。
+ */
+export function dropRejectReasons(
+  mgf: Mgf,
+  position: Position,
+  to: Square,
+  pieceId: string,
+): { kind: string; reason: DropRejectReason | null }[] {
+  const piece = position.hands[position.sideToMove].find((p) => p.pieceId === pieceId);
+  if (!piece) return [];
+  return displayKindsFor(mgf, piece, buildInitialKindMap(position)).map((kind) => ({
+    kind,
+    reason: dropRejectReasonAsKind(mgf, position, to, piece, kind),
+  }));
+}
+
+function dropRejectReasonAsKind(
+  mgf: Mgf,
+  position: Position,
+  to: Square,
+  piece: PieceInstance,
+  kind: string,
+): DropRejectReason | null {
+  const def = mgf.pieces.find((p) => p.id === kind);
+  if (!def || !def.is_hand_piece) return 'not_hand_piece';
+  if (kind === 'fu' && mgf.constraints?.nifu && fileHasCertainPawn(position, to.col, position.sideToMove, piece)) return 'nifu';
+  if ((mgf.constraints?.dead_zone === true || mgf.constraints?.dead_zone === 'auto') && !hasAnyMoveFromDrop(def, piece, to, position)) {
+    return 'dead_zone';
+  }
+  return null;
 }
 
 /** 「この駒が駒種 K だったとして」打てるか。 */

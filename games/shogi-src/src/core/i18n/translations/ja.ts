@@ -5,7 +5,7 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v2.01',
+    'app.ver': 'v2.02',
     // v0.72 音楽再生確認モーダル (Darts と同じ思想)
     'sound.promptTitle': 'BGM と効果音を再生してもよろしいですか？',
     'sound.bgmLabel': 'BGM 音量',
@@ -213,6 +213,8 @@ export const ja: LocaleData = {
     'status.move_limit': '無進展（引分）',
     'status.stalemate_loss_p1': '先手手詰まり',
     'status.stalemate_loss_p2': '後手手詰まり',
+    'status.perpetual_check_loss_p1': '先手の連続王手の千日手',
+    'status.perpetual_check_loss_p2': '後手の連続王手の千日手',
     'status.nyugyoku_win_p1': '先手入玉勝ち',
     'status.nyugyoku_win_p2': '後手入玉勝ち',
     'status.checkmate_p1': '先手詰み',
@@ -244,6 +246,15 @@ export const ja: LocaleData = {
     'result.reason.insufficient_material': '駒不足',
     'result.reason.move_limit': '無進展手数',
     'result.reason.stalemate_loss': '手詰まり',
+    'result.reason.perpetual_check': '連続王手の千日手',
+    // ★v2.02 受け付けなかった自分の手の知らせ (安全策・画面機能 S06)
+    'reject.specific': 'この手は指せません：{parts}になります',
+    'reject.part': '{piece}なら{reason}',
+    'reject.joiner': '・',
+    'reject.reason.nifu': '二歩',
+    'reject.reason.dead_zone': '行き所のない駒',
+    'reject.reason.not_hand_piece': '打てない駒',
+    'reject.general': 'この手は指せません：駒の正体のつじつまが合わなくなります',
     'result.reason.nyugyoku': '入玉宣言',
     'result.reason.resign': '投了',
     'result.reason.resign.mine': '投了しました',

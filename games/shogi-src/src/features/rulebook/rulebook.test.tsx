@@ -148,6 +148,23 @@ describe('ルールブックの窓', () => {
     expect(document.querySelector('.rb-toc')).toBeNull();
   });
 
+  it('★v2.00: 節へ飛んだあと (本文を送った状態) でも、目次を押せば本文の先頭に目次が出る＝何度でも', async () => {
+    mockFetch();
+    render(<RulebookWindow />);
+    act(() => useRulebookStore.getState().openDoc());
+    await screen.findByText('Quantum Shogiとは');
+    const body = document.querySelector('.rb-body') as HTMLDivElement;
+    for (let round = 0; round < 3; round++) {
+      body.scrollTop = 800; // 節へ飛んで本文を送った状態
+      fireEvent.click(screen.getByText('目次'));
+      expect(document.querySelector('.rb-toc')).toBeTruthy();
+      expect(body.scrollTop).toBe(0);
+      const entry = Array.from(document.querySelectorAll('.rb-toc button')).find((b) => b.textContent === '千日手')!;
+      fireEvent.click(entry);
+      expect(document.querySelector('.rb-toc')).toBeNull();
+    }
+  });
+
   it('閉じ方 3 つ：✕・窓の外・Esc', async () => {
     mockFetch();
     render(<RulebookWindow />);

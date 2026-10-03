@@ -59,6 +59,13 @@ function RulebookPanel() {
     };
   }, [open.view, docLang]);
 
+  // ★v2.00 (2026-10-03 利用者の指摘): 目次は本文のいちばん上に開く。節へ飛んだあと
+  // (本文を下まで送った状態) で目次を押しても、**本文の上へ戻さないと目次が見えない**
+  // ＝押しても何も起きないように見えていた。開くたびに本文を先頭へ戻す＝何度でも目次を出せる。
+  useEffect(() => {
+    if (tocOpen && bodyRef.current) bodyRef.current.scrollTop = 0;
+  }, [tocOpen]);
+
   const parsed = useMemo(() => (load.status === 'ready' ? parseMarkdown(load.text) : null), [load]);
 
   const jump = (id: string) => {

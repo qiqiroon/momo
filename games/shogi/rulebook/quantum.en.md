@@ -120,15 +120,15 @@ Pawn / Silver / Gold
 
 ↓
 
-Cannot be Silver
-
-↓
-
-Pawn / Gold
-
-↓
-
 Cannot be Pawn
+
+↓
+
+Silver / Gold
+
+↓
+
+Cannot be Silver
 
 ↓
 

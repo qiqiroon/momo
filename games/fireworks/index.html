@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
-<!-- MOMO Fireworks v0.63 -->
+<!-- MOMO Fireworks v0.64 -->
 <html lang="ja">
 <head>
 <meta charset="utf-8">
@@ -351,7 +351,7 @@
       <circle cx="26" cy="21" r="2.6" fill="#fff7d6" stroke="#000" stroke-width="0.6"/>
     </g>
   </svg>
-  <div class="mh"><span class="mh-t">MOMO <b>Fireworks</b></span><span class="mh-s"><span id="mhSub">Night Blooms, Golden Fade</span><span class="mh-v" id="mhVer">v0.63</span></span></div>
+  <div class="mh"><span class="mh-t">MOMO <b>Fireworks</b></span><span class="mh-s"><span id="mhSub">Night Blooms, Golden Fade</span><span class="mh-v" id="mhVer">v0.64</span></span></div>
 </div>
 
 <div id="fps"><div id="fpsA"></div><div id="fpsB"></div></div>
@@ -540,7 +540,7 @@
         </g>
       </svg>
       <div class="title-block">
-        <h1><span class="momo">MOMO</span><span class="fireworks">Fireworks</span><span class="version-tag" id="version-tag">v0.63</span></h1>
+        <h1><span class="momo">MOMO</span><span class="fireworks">Fireworks</span><span class="version-tag" id="version-tag">v0.64</span></h1>
         <div class="subtitle" id="subtitle">Night Blooms, Golden Fade</div>
       </div>
     </header>
@@ -742,6 +742,9 @@
             実写の尾は 1 本ずつ別々に曲がる。周期 0.8〜3 秒の揺れを 2 つずつ（x・z）、強さ 7m/s²。玉の大きさは変わらない。菊・錦冠には掛けない）
    （v0.63：v0.62 の揺れは尾がくねくねと蛇のようで不自然（利用者の指摘）。揺れをやめ、柳の星は落ちる道筋で 1〜2 回だけ曲がり、
             曲がったらその向きのまま落ち続ける（元に戻らない。利用者の指摘）。曲がる時刻から横向きの力を掛け続ける）
+   （v0.64：尾の質感（R9）。実写の尾は細かい火花の粒の集まりで、途切れ、太さ・明るさにむらがある。尾を描くとき、
+            火花が出た時刻ごとに粒を作り（粒は尾の上を滑らない）、粒ごとの明るさ・太さを変え、ちらつかせる。
+            先端はすき間なくつながり、先端から遠いほど燃え尽きた粒が増えてすき間が大きくなり、だんだん消える（利用者の指摘））
    仕様書 hanabi_sim_spec_v2.00.md §3 に対応する実装。
 
    v0.01 からの主要変更（§3.8 参照）
@@ -1145,6 +1148,7 @@ let SHAKE = 0.6;                       // カメラ揺れの強度（操作盤�
 /* ---------- 乱数ユーティリティ ---------- */
 /* v0.60：星ごとの明るさのばらつき（R5）。BV_SIG＝対数正規の広がり、BV_HI_P の割合の星を BV_HI 倍に。let は調整のため */
 let BV_SIG=0.12, BV_HI_P=0.30, BV_HI=2.2;   // 牡丹 10 号を実写と同じ手順で測って決めた（種 2 つで 10%÷50%＝0.67〜0.69、25%÷50%＝0.76〜0.81、75%÷50%＝1.79〜1.81。実写は 0.66〜0.73・0.76〜0.82・1.46 以上）
+let GR_RATE=14, GR_BASE=0.35, GR_ON=0.55;   // Q171＝B（遠くのすき間 0.35）。   // v0.64：尾の粒（R9）。火花が出た時刻 1 秒あたりの粒の数、すき間の明るさ（粒を 1）、粒になる割合。let は調整のため
 let KICK_TAN=0.08, KICK_T=1.0, KICK_P2=0.6;   // v0.63：柳の星が曲がる（傾き 0.25 は実写よりばらつきすぎ＝利用者の指摘、3 案から 0.08 を選んだ Q167＝B）。斜めに落ちる角度の tan の目安（星ごとに 0.3〜1.3 倍）、曲がりはじめの時間 [秒]、2 回目に曲がる星の割合。let は調整のため
 function bvNorm(){ return 1/(Math.exp(BV_SIG*BV_SIG/2)*(1-BV_HI_P+BV_HI_P*BV_HI)); }
 function gauss(){                      // Box–Muller
@@ -3046,7 +3050,7 @@ const U={};                                   // uniform の位置
 /* 1フレームぶんの描画内容。LT/ST は残像バッファ T、LC/SC は発光点バッファ C へ */
 const LN_F=9, SP_F=8;                         // 線：x0,y0,x1,y1,幅,r,g,b,a ／ 点：x,y,半径,r,g,b,a,種類
 function GBuf(f){ return {f, a:new Float32Array(f*4096), n:0}; }
-const LC_F=10;                                // v0.54：尾：x0,y0,x1,y1,幅,r,g,b,始点の濃さ,終点の濃さ
+const LC_F=14;                                // v0.54：尾：x0,y0,x1,y1,幅,r,g,b,始点の濃さ,終点の濃さ。v0.64：＋始点・終点の「火花が出た時刻」（粒の模様の位置）＋始点・終点の「先端からの時間の割合」（0＝先端、1＝尾の終わり）
 const LT=GBuf(LN_F), LC=GBuf(LC_F), ST=GBuf(SP_F), SC=GBuf(SP_F);
 function gbufSlot(B){
   const o=B.n*B.f;
@@ -3125,25 +3129,43 @@ layout(location=1) in vec4 sg;
 layout(location=2) in float wd;
 layout(location=3) in vec4 col;
 layout(location=4) in float a1;
+layout(location=5) in vec2 em;
+layout(location=6) in vec2 sa;
 uniform vec2 res;
-out vec2 lp; out float hl; out float hw; out vec3 vc; out vec2 va;
+out vec2 lp; out float hl; out float hw; out vec3 vc; out vec2 va; out vec2 ve; out vec2 vs;
 void main(){
   vec2 a=sg.xy, b=sg.zw, d=b-a; float L=length(d);
   vec2 t=L>1e-4? d/L : vec2(1.0,0.0); vec2 n=vec2(-t.y,t.x);
   float r=wd*0.5+1.0; float al=mix(-1.0, L+1.0, q.x);
   vec2 p=a+t*al+n*(q.y*r);
-  lp=vec2(al,q.y*r); hl=L; hw=wd*0.5; vc=col.rgb/255.0; va=vec2(col.a,a1);
+  lp=vec2(al,q.y*r); hl=L; hw=wd*0.5; vc=col.rgb/255.0; va=vec2(col.a,a1); ve=em; vs=sa;
   vec2 c=p/res*2.0-1.0; gl_Position=vec4(c.x,-c.y,0.0,1.0);
 }`,`#version 300 es
 precision highp float;
-in vec2 lp; in float hl; in float hw; in vec3 vc; in vec2 va; out vec4 o;
+in vec2 lp; in float hl; in float hw; in vec3 vc; in vec2 va; in vec2 ve; in vec2 vs; out vec4 o;
+uniform float tm; uniform float gR; uniform float gB; uniform float gK;
+float h1(float n){ return fract(sin(n*12.9898)*43758.5453); }
 void main(){
-  float cw=clamp(hw+0.5-abs(lp.y),0.0,1.0);
+  float u=clamp(lp.x/max(hl,1e-4),0.0,1.0);
+  /* v0.64：尾の質感（R9）。火花が出た時刻 e ごとに粒を作る（星が動いても粒は尾の上を滑らない）。
+     粒ごとに明るさ・太さが違い、ちらつく。粒のすき間は gB（地の明るさ）まで暗くなる */
+  /* v0.64：先端（火花が出たばかり）はすき間なくつながり、先端から遠いほど燃え尽きた粒が増えてすき間が大きくなる（利用者の指摘）。
+     k＝先端からの時間の割合（0〜1）。粒ごとに燃え尽きる時間 pow(hs2,0.6) が違う。すき間の明るさも先端の 1 から gB へ下がる */
+  float k=mix(vs.x,vs.y,u);
+  float e=mix(ve.x,ve.y,u)*gR, id=floor(e), fr=fract(e);
+  float hs=h1(id), hs2=h1(id*2.71+3.1), fl=h1(id*1.37+floor(tm*14.0)*7.13);
+  float alive=step(k, pow(hs2,0.6));
+  float grain=step(1.0-gK, hs)*smoothstep(0.0,0.25,fr)*smoothstep(1.0,0.75,fr);
+  float base=mix(1.0, gB, smoothstep(0.05,0.5,k));
+  float on=alive*mix(1.0, grain, smoothstep(0.0,0.35,k));
+  float sp=mix(base*mix(1.0,0.35,smoothstep(0.3,1.0,k)), 1.0+0.8*fl*k, on);
+  float ww=hw*mix(0.75,1.25,hs);
+  float cw=clamp(ww+0.5-abs(lp.y),0.0,1.0);
   float cl=clamp(lp.x+0.5,0.0,1.0)*clamp(hl-lp.x+0.5,0.0,1.0);
-  float a=mix(va.x,va.y,clamp(lp.x/max(hl,1e-4),0.0,1.0));
-  float cv=cw*cl*a;
+  float a=mix(va.x,va.y,u);
+  float cv=min(1.0, cw*cl*a*sp);
   o=vec4(vc*cv, cv);
-}`,['res']);
+}`,['res','tm','gR','gB','gK']);
 
   /* 点：v0.21 のスプライトのグラデーションを、同じ区切りの折れ線としてその場で計算する */
   P_SPR=glProg(`#version 300 es
@@ -3240,7 +3262,7 @@ void main(){
   bufLine=gl.createBuffer(); bufSpr=gl.createBuffer();
   vaoLine=vao([0,-1, 1,-1, 0,1, 1,1], bufLine, [4,1,4], LN_F);
   bufTail=gl.createBuffer();
-  vaoTail=vao([0,-1, 1,-1, 0,1, 1,1], bufTail, [4,1,4,1], LC_F);   // v0.54：尾
+  vaoTail=vao([0,-1, 1,-1, 0,1, 1,1], bufTail, [4,1,4,1,2,2], LC_F);   // v0.54：尾。v0.64：＋火花が出た時刻 2 つ＋先端からの時間の割合 2 つ
   vaoSpr =vao([-1,-1, 1,-1, -1,1, 1,1], bufSpr, [3,4,1], SP_F);
   vaoQuad=vao([-1,-1, 1,-1, -1,1, 1,1], null);
 
@@ -3335,7 +3357,8 @@ function glDraw(add){
   Q.useProgram(P_SPR);  Q.uniform2f(P_SPR.u.res,W,H);  drawBatch(P_SPR,vaoSpr,bufSpr,ST);
   // 発光点バッファ C：毎フレーム消去 → 尾・Core＋Halo・白熱部を加算
   Q.bindFramebuffer(Q.FRAMEBUFFER,fbC); Q.clearColor(0,0,0,0); Q.clear(Q.COLOR_BUFFER_BIT);
-  Q.useProgram(P_TAIL); Q.uniform2f(P_TAIL.u.res,W,H); drawBatch(P_TAIL,vaoTail,bufTail,LC);   // v0.54：尾は専用の描き方
+  Q.useProgram(P_TAIL); Q.uniform2f(P_TAIL.u.res,W,H); Q.uniform1f(P_TAIL.u.tm,T); Q.uniform1f(P_TAIL.u.gR,GR_RATE); Q.uniform1f(P_TAIL.u.gB,GR_BASE); Q.uniform1f(P_TAIL.u.gK,GR_ON);
+  drawBatch(P_TAIL,vaoTail,bufTail,LC);   // v0.54：尾は専用の描き方。v0.64：粒の模様（GR_*）
   Q.useProgram(P_SPR);  drawBatch(P_SPR,vaoSpr,bufSpr,SC);
   Q.disable(Q.BLEND);
   // 画面用の1枚とブルーム用の成分
@@ -3508,12 +3531,12 @@ function render(dt){
           let qx=Px, qy=Py, m=0;
           /* v0.54：濃さは点ごとに求め、区間は両端の濃さのあいだをなめらかに変える（つなぎ目で段にならない）。
              点 k の濃さは v0.53 の区間 k の濃さ（FW[k]）、星の位置（k=0）は 1 */
-          let qat=0, qal=0;
+          let qat=0, qal=0, qe=pa+p.tk*997, qs=0;           // v0.64：qe＝1つ前の点の「火花が出た時刻」（星ごとにずらす）、qs＝1つ前の点の先端からの時間の割合
           { const rb0=pa/d08; const ramp0=rb0>=1 ? 1 : pw1(PT16,rb0,1.6);
             qat=bt*ramp0*(wl ? wlB(pa/p.life) : 1); qal=Math.min(1,qat/(1+qat*0.6)); }
           let wx=px0, wy=py0, wz=pz0;                       // v0.34：1つ前の点の位置（地面で切るため）
           for(let k=1;k<=NS;k++){
-            const sAge=TT*k/NS, tAge=pa-sAge;
+            const sAge=TT*k/NS, tAge=pa-sAge, te=tAge+p.tk*997, ts=k/NS;
             let x,y,z;
             if(h0a<=tAge){
               const w=(pa-tAge)/Math.max(1e-6,pa-h0a);
@@ -3536,21 +3559,21 @@ function render(dt){
             const ss=pjF/dd; let px=pjW2+x*ss, py=pjH2-yr*ss;
             /* v0.34：地面（y=0）より下の部分は描かない。地面をまたぐ区間は交わる点で切る */
             if(y<0 || wy<0){
-              if(y<0 && wy<0){ wx=x; wy=y; wz=z; qx=px; qy=py; qat=at2; qal=al; continue; }
+              if(y<0 && wy<0){ wx=x; wy=y; wz=z; qx=px; qy=py; qat=at2; qal=al; qe=te; qs=ts; continue; }
               const f=wy/(wy-y), cx=wx+(x-wx)*f, cz=wz+(z-wz)*f;
               const cyy=-pjE, czr=cz*pjC-cyy*pjS, cyr=cz*pjS+cyy*pjC, cdd=-czr;
-              if(cdd<6){ wx=x; wy=y; wz=z; qx=px; qy=py; qat=at2; qal=al; continue; }
+              if(cdd<6){ wx=x; wy=y; wz=z; qx=px; qy=py; qat=at2; qal=al; qe=te; qs=ts; continue; }
               const cs=pjF/cdd, cpx=pjW2+cx*cs, cpy=pjH2-cyr*cs;
               if(wy<0){ qx=cpx; qy=cpy; } else { px=cpx; py=cpy; }
             }
             wx=x; wy=y; wz=z;
             if(Ly) Ly.cv += Math.min(1,(qat+at2)*0.5)*tw*hyp2(px-qx,py-qy)*0.5;
             if((qal>0 || al>0) && !((qx<-mT&&px<-mT)||(qx>WmT&&px>WmT)||(qy<-mT&&py<-mT)||(qy>HmT&&py>HmT))){
-              const o=nLC*10; nLC++;
+              const o=nLC*LC_F; nLC++;                      // v0.64：1 区間の数値の数は LC_F（10→12。以前は 10 と直に書いていた）
               LCA[o]=qx; LCA[o+1]=qy; LCA[o+2]=px; LCA[o+3]=py; LCA[o+4]=tw;
-              LCA[o+5]=tri; LCA[o+6]=tgi; LCA[o+7]=tbi; LCA[o+8]=qal; LCA[o+9]=al;
+              LCA[o+5]=tri; LCA[o+6]=tgi; LCA[o+7]=tbi; LCA[o+8]=qal; LCA[o+9]=al; LCA[o+10]=qe; LCA[o+11]=te; LCA[o+12]=qs; LCA[o+13]=ts;
             }
-            qat=at2; qal=al;
+            qat=at2; qal=al; qe=te; qs=ts;
             qx=px; qy=py;
           }
         }
@@ -3697,7 +3720,13 @@ function render(dt){
           const at=bt*FW[k]*ramp*(wl ? wlB(Math.max(0,tAge)/p.life) : 1);
           if(Ly) Ly.cv += Math.min(1,at)*tw*hyp2(px-qx,py-qy)*0.5;
           /* v0.54：この道は 2D のときだけ通る（WebGL は上の速い道）。濃さは区間の両端の平均で段を小さくする */
-          { const al2=Math.min(1,at/(1+at*0.6));
+          { let al2=Math.min(1,at/(1+at*0.6));
+          /* v0.64：尾の粒（R9）の 2D 版。区間ごとに、火花が出た時刻から粒になるかを決めて明るさを変える（WebGL ほど細かくはない） */
+          { const gid=Math.floor((tAge+p.tk*997)*GR_RATE), gh=Math.abs(Math.sin(gid*12.9898)*43758.5453)%1, gf=Math.abs(Math.sin((gid*1.37+Math.floor(T*14)*7.13)*12.9898)*43758.5453)%1;
+            const g2=Math.abs(Math.sin((gid*2.71+3.1)*12.9898)*43758.5453)%1, kk=k/NS;   // 先端（kk≒0）はつながり、遠いほど燃え尽きる（WebGL と同じ考え）
+            const base=(kk<0.05?1:kk>0.5?GR_BASE:1+(GR_BASE-1)*(kk-0.05)/0.45)*(kk<0.3?1:0.35+0.65*(1-(kk-0.3)/0.7));
+            const alive=kk<=Math.pow(g2,0.6), grain=kk<0.35 || gh>=1-GR_ON;
+            al2=Math.min(1, al2*(alive&&grain ? 1+0.8*gf*kk : base)); }
           cctx.globalAlpha=(k===1 ? al2 : (tq+al2)*0.5); tq=al2;
           cctx.strokeStyle=`rgb(${tcs})`;
           cctx.beginPath(); cctx.moveTo(qx,qy); cctx.lineTo(px,py); cctx.stroke();
